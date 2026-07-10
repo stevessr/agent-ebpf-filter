@@ -12,7 +12,7 @@
 
 ---
 
-## 13 个）
+## 一、核心设计模式（13 个）
 
 ### 1. **两阶段特权隔离模式（Privileged Bootstrap Pattern）**
 ```go
@@ -258,7 +258,7 @@ class AgentTracker:
 
 ---
 
-## 10 个）
+## 二、性能优化技巧（10 个）
 
 ### 1. **Per-CPU 无锁统计**
 ```c
@@ -341,7 +341,7 @@ bpf_ringbuf_submit(e, BPF_RB_NO_WAKEUP);  // 延迟唤醒用户态
 
 ---
 
-## 9 个）
+## 三、安全最佳实践（9 个）
 
 ### 1. **恒定时间令牌比较**
 ```go
@@ -424,7 +424,7 @@ accessToken := base64.URLEncoding.EncodeToString(token)
 
 ---
 
-## 7 个）
+## 四、代码组织原则（7 个）
 
 ### 1. **按功能域分包**
 ```mermaid
@@ -527,7 +527,7 @@ flowchart TD
 
 ---
 
-## 6 个）
+## 五、可复用代码片段（6 个）
 
 ### 1. **eBPF Map 热重载框架**
 ```go
@@ -680,7 +680,9 @@ func ensureBackendPrivileges() (bool, error) {
 
 ---
 
-## ### Backend 核心
+## 六、关键文件清单
+
+### Backend 核心
 - `/backend/app/main.go` - 启动流程
 - `/backend/app/routes.go` - 路由注册
 - `/backend/app/runtime_ebpf.go` - eBPF 生命周期
@@ -692,11 +694,13 @@ func ensureBackendPrivileges() (bool, error) {
 - `/frontend/src/composables/dashboard/useDashboardStream.ts` - 流管理
 - `/frontend/src/views/dashboard/Dashboard.vue` - 主视图
 
-### - `/backend/ebpf/lsm_enforcer.c` - LSM hook
+### 安全实施
+- `/backend/ebpf/lsm_enforcer.c` - LSM hook
 - `/backend/ebpf/cgroup_sandbox.c` - 网络沙箱
 - `/backend/lsm/enforcer/control.go` - 策略 API
 
-### - `/wrapper/main.go` - UDS 客户端
+### 集成层
+- `/wrapper/main.go` - UDS 客户端
 - `/adapters/python/agent_tracker.py` - Python 适配器
 - `/adapters/js/agentTracker.js` - Node.js 适配器
 
@@ -706,7 +710,9 @@ func ensureBackendPrivileges() (bool, error) {
 
 ---
 
-## - [技术深度参考](/reference/technical-depth) - 技术细节索引
+## 相关文档
+
+- [技术深度参考](/reference/technical-depth) - 技术细节索引
 - [代码入口索引](/reference/code-entrypoints) - 源码导航
 - [性能分析与数学模型](/reference/performance-models) - 性能数据
 - [技术对比与差异化](/reference/technical-comparison) - 设计决策对比

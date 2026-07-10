@@ -2,7 +2,9 @@
 
 本页解释 build feature、runtime gate 和 auth 的关系。
 
-## ```mermaid
+## 三层模型
+
+```mermaid
 flowchart TD
     Build{"Build feature compiled in?"} --> Runtime{"Runtime setting enabled?"}
     Runtime --> Auth{"Release mode auth passed?"}

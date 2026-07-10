@@ -5,7 +5,7 @@
 
 由于 Agent eBPF Filter 跨越了 Linux 内核态（eBPF/LSM）、用户态后端（Go）以及前端工作台（Vue 3），全站内容较为庞大。**不同角色在不同阶段的关注点完全不同**，建议根据以下量身定制的路线图进行探索。
 
-## 路线图总览
+## 🎯 路线图总览
 
 ```mermaid
 flowchart TD
@@ -22,9 +22,9 @@ flowchart TD
 
 ```
 
-## 1. 面向角色的渐进式路线
+## 🚀 1. 面向角色的渐进式路线
 
-### 新开发者路线：从零熟悉项目
+### 👶 新开发者路线：从零熟悉项目
 
 > 适合刚加入项目、需要建立宏观认知并成功运行全栈系统的同学。
 
@@ -37,7 +37,7 @@ flowchart TD
 7. 🖥️ [前端工作台](/frontend/workbench) —— 熟悉 UI 视窗的构成
 8. 📂 [代码入口索引](/reference/code-entrypoints) —— 拿着地图直接对照源码阅读
 
-### 后端 / eBPF 开发路线：深挖底控与管线
+### 🦀 后端 / eBPF 开发路线：深挖底控与管线
 
 > 适合关注内核 Tracepoint、eBPF Maps 性能优化、异步零拷贝解码及 Go 策略引擎的同学。
 
@@ -48,7 +48,7 @@ flowchart TD
 5. 🎛️ [Runtime Settings 与 Feature Manifest](/backend/runtime-settings-features) —— 掌握动态控制门控的内存锁机制
 6. 📑 [生成文件边界](/reference/generated-files) —— 理清编译期自动生成的桩代码与手写代码的物理边界
 
-### 前端开发路线：高频视窗渲染与状态
+### 🎨 前端开发路线：高频视窗渲染与状态
 
 > 适合关注大并发 WebSocket 实时事件流、数据图表平滑渲染、页面模块化扩展的同学。
 
@@ -58,7 +58,7 @@ flowchart TD
 4. 🛠️ [构建与 Feature Flags](/frontend/build-feature-flags) —— 学习如何通过编译期标记裁切非必要模块
 5. 📋 [维护检查清单](/reference/maintenance-checklists) —— 确保日常 UI 改动不破坏整体规范
 
-### 安全审查路线：纵深防御与合规红线
+### 🛡️ 安全审查路线：纵深防御与合规红线
 
 > 适合负责红蓝对抗、内核漏洞防御、敏感凭据脱敏以及 AI 智能体指令安全审计的专家。
 
@@ -70,7 +70,7 @@ flowchart TD
 6. 🪝 [Native Hooks](/integrations/native-hooks) —— 审查应用层语义主动上报的守卫机制
 7. 🛠️ [eBPF 与 OS Enforcement](/backend/ebpf-os-enforcement) —— 从内核视角断定安全策略的强制执行度
 
-### 比赛答辩路线：冲击奖项的最短路径
+### 🏆 比赛答辩路线：冲击奖项的最短路径
 
 > 专为参加“全国计算机系统能力挑战赛（操作系统设计赛）”等学术/技术工程答辩打造。
 
@@ -82,7 +82,7 @@ flowchart TD
 6. 📝 [第三方与 AI 使用披露](/delivery/compliance) —— 完善开源告示与合规披露，确保评审无硬伤
 
 
-## 2. 任务型阅读路线 (直奔主题的影响链)
+## ⚡ 2. 任务型阅读路线 (直奔主题的影响链)
 
 如果你不是从头通读文档，而是正在**迭代或修复某个具体功能**，请依照下表推荐的**上下游影响链**进行跨章节跳转：
 
@@ -97,7 +97,7 @@ flowchart TD
 | **仅对纯文档进行修订** | [文档地图](/reference/documentation-map) <br> ⬇️ <br> [文档关系审计](/reference/documentation-audit) <br> ⬇️ <br> [维护检查清单](/reference/maintenance-checklists) <br> ⬇️ <br> [验证页](/operations/verification-benchmark) | • 新页面是否正确配置进 Sidebar 目录？<br> • 相对链接是否打破？<br> • 是否有对应的 Mermaid 架构同步更新？ |
 
 
-## 3. 跨页校验与良好开发习惯
+## 🔍 3. 跨页校验与良好开发习惯
 
 为了保证文档与代码库的强一致性，全团队请务必养成以下“顺手校验”的习惯：
 

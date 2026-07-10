@@ -2,7 +2,9 @@
 
 前端 build 会受 `AGENT_FRONTEND_BUILD_FEATURES` 影响，用于裁剪或隐藏某些功能页面。
 
-## ```bash
+## 构建命令
+
+```bash
 cd frontend && bun run build
 ```
 
@@ -42,7 +44,7 @@ meta: featureMeta('tls_capture')
 
 如果 feature 未包含在当前 build 中，router guard 会跳转到 FeatureUnavailable 页面。
 
-## feature 的关系
+## 与后端 feature 的关系
 
 前端 feature flags 控制 UI 可见性；后端 build tags 和 runtime gates 控制 API 与能力可用性。
 
@@ -52,13 +54,17 @@ meta: featureMeta('tls_capture')
 - 后端 compiled in = runtime gate 已开启；
 - runtime gate 开启 = release mode 不需要 auth。
 
-## - 修改 Vue / TS：`cd frontend && bun run build`；
+## 验证
+
+- 修改 Vue / TS：`cd frontend && bun run build`；
 - 修改 route / feature flags：测试 feature-unavailable 跳转；
 - 修改 API schema：同步 types / composables / backend docs。
 
 ---
 
-## - [前端工作台](workbench.md)
+## 相关导航
+
+- [前端工作台](workbench.md)
 - [路由与功能页](routes-and-pages.md)
 - [Runtime Settings 与 Feature Manifest](../backend/runtime-settings-features.md)
 - [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)

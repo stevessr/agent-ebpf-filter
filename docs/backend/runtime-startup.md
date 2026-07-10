@@ -197,7 +197,9 @@ cgroup 与 LSM 有各自子目录：
 /sys/fs/bpf/agent-ebpf/lsm_enforcer/links
 ```
 
-## `startRuntimeBackgroundJobs(features)` 启动：
+## 后台任务
+
+`startRuntimeBackgroundJobs(features)` 启动：
 
 ```go
 // 伪代码示例
@@ -247,7 +249,9 @@ func startRuntimeBackgroundJobs(features FeatureRegistry) {
 - optional cgroup sandbox loader.
 - optional LSM enforcer loader.
 
-## 后端会在 `8080..8089` 选择可用端口，随后写入运行时端口 handoff 文件。前端 Vite dev proxy、adapters 和 hook endpoint 推导会依赖该端口。
+## 端口选择
+
+后端会在 `8080..8089` 选择可用端口，随后写入运行时端口 handoff 文件。前端 Vite dev proxy、adapters 和 hook endpoint 推导会依赖该端口。
 
 ```go
 // 伪代码
@@ -268,7 +272,9 @@ func configureRuntimePort(port int) {
 
 ---
 
-## - [构建与运行](../operations/build-and-run.md)
+## 相关导航
+
+- [构建与运行](../operations/build-and-run.md)
 - [运行时边界](../architecture/runtime-boundaries.md)
 - [Runtime Settings 与 Feature Manifest](runtime-settings-features.md)
 - [路由与 API](routes-api.md)

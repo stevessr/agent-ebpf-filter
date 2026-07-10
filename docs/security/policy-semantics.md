@@ -126,7 +126,7 @@ For compliance and auditing verification:
 
 ---
 
-## 相关导航
+## 🔗 相关导航
 
 - [🛡️ 安全模型](model.md) —— 五层纵深防御体系设计
 - [🔑 Runtime Gates 与认证机制](runtime-gates-auth.md) —— 高风险特性开关与 API 认证

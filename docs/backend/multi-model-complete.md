@@ -1,6 +1,10 @@
 # 内核态 ML 多模型实现
 
-## ### 从单一 Random Forest 扩展到 **4 种主流 ML 模型**：
+## 模型支持概览
+
+### 支持范围
+
+从单一 Random Forest 扩展到 **4 种主流 ML 模型**：
 
 | # | 模型 | 实现 | 延迟 | 大小 | 准确率 |
 |---|------|------|------|------|--------|
@@ -11,13 +15,17 @@
 
 ---
 
-## ### | 指标 | 值 |
+## 代码统计
+
+### 总览
+| 指标 | 值 |
 | --- | --- |
 | 内核模块代码 | 917 行（原 800 + 新增 117） |
 | 新增文件 | 4 个 |
 | 模块大小 | 297 KB → 339 KB（+14%） |
 
-### ```
+### 新增文件
+```
 ml_models.h                (150 行) - 模型接口定义
 ml_models.c                (334 行) - SVM/LR/NN 实现
 multi_model_exporter.py     (82 行) - 多模型导出工具
@@ -27,7 +35,9 @@ docs/multi-model-support.md (250 行) - 使用文档
 
 ---
 
-## ### 1. **SVM (支持向量机)**
+## 核心技术实现
+
+### 1. **SVM (支持向量机)**
 ```c
 /* Linear SVM: decision = w·x + b */
 s64 decision = bias;
@@ -95,20 +105,25 @@ return argmax(output);  // 0=ALLOW, 1=BLOCK, 2=ALERT
 
 ---
 
-## ### ```
+## 性能对比
+
+### 推理延迟
+```
 Logistic Regression:  ▌ ~1 μs  (最快)
 SVM:                  ▌▌ ~2 μs
 Neural Network:       ▌▌▌▌▌ ~5 μs
 Random Forest:        ▌▌▌▌▌▌▌▌▌▌ ~10 μs
 ```
 
-### ```
+### 内存占用
+```
 SVM / LR:          ▌ ~1 KB   (最小)
 Neural Network:    ▌▌▌▌▌▌▌▌ ~16 KB
 Random Forest:     ▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌▌ ~50 KB
 ```
 
-### ```
+### 准确率潜力
+```
 LR:               ★★☆☆☆ (线性，简单)
 SVM:              ★★★☆☆ (线性，边界清晰)
 Random Forest:    ★★★★☆ (非线性，集成)
@@ -117,30 +132,30 @@ Neural Network:   ★★★★★ (深度非线性) (最高)
 
 ---
 
-## 使用场景
+## 💡 使用场景
 
-### 1: 超低延迟防御 (< 2 μs)
+### 场景 1: 超低延迟防御 (< 2 μs)
 ```bash
 cat model_lr.bin > /proc/ml_load
 ```
 **推荐**: Logistic Regression  
 **原因**: 1 μs 推理，实时响应
 
-### 2: 内存受限环境 (< 5 KB)
+### 场景 2: 内存受限环境 (< 5 KB)
 ```bash
 cat model_svm.bin > /proc/ml_load
 ```
 **推荐**: SVM  
 **原因**: 仅 1 KB，高效边界
 
-### 3: 高准确率要求
+### 场景 3: 高准确率要求
 ```bash
 cat model_nn.bin > /proc/ml_load
 ```
 **推荐**: Neural Network  
 **原因**: 非线性，表达力强
 
-### 4: 可解释性需求
+### 场景 4: 可解释性需求
 ```bash
 cat model_rf.bin > /proc/ml_load
 ```
@@ -149,7 +164,7 @@ cat model_rf.bin > /proc/ml_load
 
 ---
 
-## 激活函数库
+## 🎓 激活函数库
 
 ### ReLU (Rectified Linear Unit)
 ```c
@@ -186,7 +201,7 @@ static inline int argmax(const s64 *values, int n) {
 
 ---
 
-## 统一模型接口
+## 📦 统一模型接口
 
 ```c
 struct unified_model {
@@ -213,9 +228,10 @@ enum ml_action unified_inference(
 
 ---
 
-## 测试与验证
+## 🧪 测试与验证
 
-### ```bash
+### 自动化训练
+```bash
 python3 test_multi_models.py
 
 # 输出:
@@ -231,7 +247,8 @@ Exported LR: 128 features -> model_lr.bin (1.2 KB)
 Exported NN: 128 -> 32 -> 3 -> model_nn.bin (16.8 KB)
 ```
 
-### ```bash
+### 加载到内核
+```bash
 # 动态切换模型
 for model in model_{rf,svm,lr,nn}.bin; do
     echo "Loading $model..."
@@ -243,7 +260,7 @@ done
 
 ---
 
-## 热切换演示
+## 🔄 热切换演示
 
 ```bash
 # 时间戳 0: 加载 SVM (快速启动)
@@ -261,7 +278,9 @@ cat model_lr.bin > /proc/ml_load
 
 ---
 
-## ```
+## 提交历史
+
+```
 27d5775 feat: Add multi-model support to kernel ML module
 cf1cf18 docs: Add kernel ML module implementation summary
 6c603e3 feat: Add kernel-space ML inference module (DKMS)
@@ -274,7 +293,9 @@ aea85a7 refactor: Optimize eBPF code for efficiency (-85%)
 
 ---
 
-## 1. **定点数优先**: 无浮点，内核安全
+## 设计原则
+
+1. **定点数优先**: 无浮点，内核安全
 2. **近似激活**: 精度换速度（<5% 误差）
 3. **统一接口**: 模型透明，易于切换
 4. **零拷贝**: 直接从用户空间 copy_from_user
@@ -282,31 +303,38 @@ aea85a7 refactor: Optimize eBPF code for efficiency (-85%)
 
 ---
 
-## 未来扩展方向
+## 🔮 未来扩展方向
 
-### - [ ] **Ensemble**: 多模型投票（RF+SVM+NN）
+### 高优先级
+- [ ] **Ensemble**: 多模型投票（RF+SVM+NN）
 - [ ] **模型压缩**: INT8 量化（减半内存）
 - [ ] **性能基准**: perf + flamegraph
 
-### - [ ] **卷积神经网络**: 用于序列/时间序列
+### 中优先级
+- [ ] **卷积神经网络**: 用于序列/时间序列
 - [ ] **XGBoost**: 梯度提升树
 - [ ] **在线学习**: 增量更新权重
 
-### - [x] **GPU 加速**: DKMS 模块新增 CUDA userspace offload 后端（RandomForest）
+### 低优先级
+- [x] **GPU 加速**: DKMS 模块新增 CUDA userspace offload 后端（RandomForest）
 - [ ] **GPU 扩展**: 为 SVM/LR/NN 增加批量 CUDA kernel
 - [ ] **AutoML**: 自动模型选择
 - [ ] **联邦学习**: 分布式训练
 
 ---
 
-## - `README.md` - 基础使用
+## 相关文档
+
+- `README.md` - 基础使用
 - `docs/backend/kernel-ml-implementation.md` - 架构详解
 - `docs/_archive/multi-model-support.md` - 归档文档
 - `docs/_archive/ebpf-optimization-summary.md` - eBPF 优化
 
 ---
 
-## 当前实现包含：
+## 实现范围
+
+当前实现包含：
 
 1. ✅ **Random Forest** - 决策树集成（原有）
 2. ✅ **SVM** - 线性分类器（新增）
@@ -325,7 +353,9 @@ aea85a7 refactor: Optimize eBPF code for efficiency (-85%)
 
 ---
 
-## - [多模型支持设计](../_archive/multi-model-support.md)
+## 相关导航
+
+- [多模型支持设计](../_archive/multi-model-support.md)
 - [全模型实现概览](../_archive/all-models-complete.md)
 - [内核 ML 实现](/backend/kernel-ml-implementation)
 - [ML、Plugins 与扩展能力](/backend/ml-plugins)

@@ -523,7 +523,9 @@ TLS 明文捕获是高风险诊断能力，不是默认安全基线：
 
 ---
 
-## - [代码实现地图](codebase-implementation-map.md)
+## 相关导航
+
+- [代码实现地图](codebase-implementation-map.md)
 - [代码入口索引](code-entrypoints.md)
 - [文档地图](documentation-map.md)
 - [维护检查清单](maintenance-checklists.md)

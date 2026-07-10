@@ -2,7 +2,9 @@
 
 快速查找 agent-ebpf-filter 中所有可用的机器学习模型。
 
-## | 需求 | 推荐模型 | 链接 |
+## 快速选择
+
+| 需求 | 推荐模型 | 链接 |
 |------|---------|------|
 | **生产环境默认** | `random_forest` / `random_forest_stable` | [详情](#random-forest-系列) |
 | **极速响应 (<2μs)** | `logistic` / `svm` | [详情](#内核态模型概览) |
@@ -14,7 +16,9 @@
 
 ---
 
-## 在 `kernel-ml/` 中实现，DKMS 内核模块，微秒级推理。
+## 内核态模型概览
+
+在 `kernel-ml/` 中实现，DKMS 内核模块，微秒级推理。
 
 | 模型 | 延迟 | 内存 | 准确率 | 复杂度 | 用途 |
 |------|------|------|--------|--------|------|
@@ -31,7 +35,7 @@
 
 ---
 
-## (47 种)
+## 用户态模型全目录 (47 种)
 
 基于 scikit-learn，用于训练和评估。
 
@@ -148,7 +152,9 @@
 
 ---
 
-## ### 1: 生产环境部署
+## 使用场景
+
+### 场景 1: 生产环境部署
 
 ```bash
 # 训练
@@ -159,7 +165,7 @@ sudo cat model.bin > /proc/ml_load
 cat /proc/ml_stats
 ```
 
-### 2: 低延迟实时防御
+### 场景 2: 低延迟实时防御
 
 ```bash
 # 推理 < 2 μs
@@ -167,7 +173,7 @@ python3 train_model.py --model logistic_l1 --output lr.bin
 sudo cat lr.bin > /proc/ml_load
 ```
 
-### 3: 最高准确率
+### 场景 3: 最高准确率
 
 ```bash
 # 训练集成模型
@@ -175,7 +181,7 @@ python3 train_ensemble.py --output ensemble.bin
 sudo cat ensemble.bin > /proc/ml_load
 ```
 
-### 4: 数据不平衡
+### 场景 4: 数据不平衡
 
 ```bash
 # 类别加权
@@ -184,24 +190,34 @@ python3 train_model.py --model logistic_balanced --output model.bin
 
 ---
 
-## ### ```
+## 性能对比
+
+### 推理速度
+
+```
 LR  ▌ 1 μs
 SVM ▌▌ 2 μs
 NN  ▌▌▌▌▌ 5 μs
 RF  ▌▌▌▌▌▌▌▌▌▌ 10 μs
 ```
 
-### vs 速度
+### 准确率 vs 速度
 
 ![准确率 vs 速度权衡](./ml-accuracy-vs-speed.svg)
 
-### ![推理延迟对比](./ml-latency-comparison.svg)
+### 推理延迟对比
 
-### ![内存占用对比](./ml-memory-comparison.svg)
+![推理延迟对比](./ml-latency-comparison.svg)
+
+### 内存占用对比
+
+![内存占用对比](./ml-memory-comparison.svg)
 
 ---
 
-## ```bash
+## 常用命令
+
+```bash
 # 查看模型状态
 cat /proc/ml_stats
 cat /sys/kernel/kernel_ml/model_info
@@ -222,7 +238,9 @@ sudo cat model_new.bin > /proc/ml_load
 
 ---
 
-## - **[ML 模型完整指南](./ml-models-complete-guide.md)** - 详细结构、示例、API
+## 相关文档
+
+- **[ML 模型完整指南](./ml-models-complete-guide.md)** - 详细结构、示例、API
 - **[内核态多模型实现](/backend/multi-model-complete)** - 实现细节
 - **[实验框架使用](/backend/ml-experiments)** - 批量评估
 - **[内核 ML 实现](/backend/kernel-ml-implementation)** - 内核模块架构

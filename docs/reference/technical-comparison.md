@@ -2,7 +2,9 @@
 
 本页面对比 Agent eBPF Filter 与同类项目的技术选型、架构设计和功能定位，帮助理解项目的差异化价值。
 
-## ```mermaid
+## 项目定位对比
+
+```mermaid
 graph TB
     subgraph "应用级观测"
         LangSmith["LangSmith<br/>SDK集成<br/>应用内部traces"]
@@ -27,7 +29,9 @@ graph TB
     style AgentEBPF fill:#bfb,stroke:#333,stroke-width:3px
 ```
 
-## ### vs. 应用级观测工具
+## 核心技术对比
+
+### vs. 应用级观测工具
 
 | 维度 | LangSmith / Langfuse | Agent eBPF Filter |
 | --- | --- | --- |
@@ -92,7 +96,11 @@ graph TB
 - 我们理解 Agent 工作流（tool call → syscall → file/network）
 - 我们提供 Agent 特化的控制（wrapper 命令策略）
 
-## ### **Rust vs Go**:
+## 技术选型对比
+
+### 语言栈选择
+
+**Rust vs Go**:
 
 | 维度 | Rust (AgentSight) | Go (Agent eBPF Filter) |
 | --- | --- | --- |
@@ -111,7 +119,9 @@ graph TB
 - 更低的学习门槛（课程答辩场景）
 - Gin、Protobuf、OTLP 生态成熟
 
-### **React/Next.js vs Vue 3**:
+### 前端框架选择
+
+**React/Next.js vs Vue 3**:
 
 | 维度 | React/Next.js (AgentSight) | Vue 3 (Agent eBPF Filter) |
 | --- | --- | --- |
@@ -129,7 +139,9 @@ graph TB
 - SFC 单文件组件易维护
 - 团队熟悉度
 
-### **SQLite vs Protobuf + In-Memory**:
+### 存储与协议选择
+
+**SQLite vs Protobuf + In-Memory**:
 
 | 维度 | SQLite (AgentSight) | Protobuf (Agent eBPF Filter) |
 | --- | --- | --- |
@@ -147,7 +159,11 @@ graph TB
 - EventEnvelope `oneof` 多态清晰
 - 可选 JSONL 持久化（不强制）
 
-## ### **AgentSight**:
+## 架构设计对比
+
+### 事件管线
+
+**AgentSight**:
 ```mermaid
 flowchart LR
     EBPF["eBPF"] --> JSON["JSON stdout"] --> Runners["Rust runners"] --> Analyzers["analyzers"] --> SQLite["SQLite"] --> API["HTTP API"] --> Frontend["Frontend"]
@@ -168,7 +184,9 @@ flowchart LR
 - 多目标并行（Dashboard + OTLP + archive 同时）
 - EventEnvelope 统一封装
 
-### **AgentSight**:
+### 安全模型
+
+**AgentSight**:
 ```mermaid
 flowchart LR
     Observe["观测"] --> Record["记录"] --> Query["查询"]
@@ -188,7 +206,11 @@ flowchart LR
 4. 策略层（wrapper + cgroup + LSM）
 5. 数据保护层（脱敏分级）
 
-## ### | 系统 | Ringbuf 吞吐 | WebSocket 延迟 |
+## 性能对比
+
+### 吞吐量
+
+| 系统 | Ringbuf 吞吐 | WebSocket 延迟 |
 | --- | --- | --- |
 | AgentSight | ~20K events/s | N/A（HTTP pull） |
 | Agent eBPF Filter | 25-30K events/s | ~510μs (10 clients) |
@@ -198,14 +220,18 @@ flowchart LR
 - Protobuf 二进制
 - Goroutine 并发
 
-### | 系统 | 内存 |
+### 内存占用
+
+| 系统 | 内存 |
 | --- | --- |
 | AgentSight | SQLite + Rust runtime |
 | Agent eBPF Filter | ~6MB (10K event ring) + Go runtime |
 
 **bounded ring buffer** 避免无限增长。
 
-## ### AgentSight 适合
+## 适用场景对比
+
+### AgentSight 适合
 
 - ✅ Rust 技术栈团队
 - ✅ 需要完整历史查询（SQLite）
@@ -234,7 +260,9 @@ flowchart LR
 - ✅ Prompt engineering
 - ✅ 跨网络边界（云端）
 
-## ### AgentSight 可能方向
+## 未来演进方向
+
+### AgentSight 可能方向
 
 - Kubernetes 集成
 - 多机分布式
@@ -250,7 +278,9 @@ flowchart LR
 - Plugin 生态扩展
 - Kubernetes operator
 
-## **Agent eBPF Filter 的差异化价值**:
+## 总结
+
+**Agent eBPF Filter 的差异化价值**:
 
 1. **观测 + 控制**: 不只是看，还能阻断和改写
 2. **Agent 语义**: 理解 tool call / trace / run 上下文

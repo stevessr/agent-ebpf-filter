@@ -1,8 +1,10 @@
 # 内核态 ML 推理模块实现
 
-## DKMS 高效推理模型
+## 功能目标：可动态加载进内核的 DKMS 高效推理模型
 
-### **核心功能**:
+### 功能概览
+
+**核心功能**:
 - ✅ **DKMS 内核模块**: `kernel_ml.ko`
 - ✅ **定点数推理引擎**: 无浮点运算，纯整数
 - ✅ **Random Forest**: v1/v2 模型格式，最多 64 棵树，128 特征维度
@@ -14,7 +16,7 @@
 
 ---
 
-### 技术架构
+### 📊 技术架构
 
 ```mermaid
 flowchart TD
@@ -25,7 +27,7 @@ flowchart TD
 
 ---
 
-### 关键设计决策
+### 🔧 关键设计决策
 
 #### 1. **定点数运算**
 ```c
@@ -62,7 +64,7 @@ v2 header 为 `[version, num_trees, feature_dim, total_nodes, num_classes, max_d
 
 ---
 
-### 文件结构
+### 📁 文件结构
 
 ```mermaid
 flowchart TD
@@ -86,7 +88,7 @@ flowchart TD
 
 ---
 
-### 性能指标
+### 🚀 性能指标
 
 | 指标 | 值 |
 |------|-----|
@@ -99,7 +101,7 @@ flowchart TD
 
 ---
 
-### 与其他方案对比
+### 🎓 与其他方案对比
 
 | 方案 | 延迟 | 复杂度限制 | 安全性 | 动态加载 |
 |------|------|-----------|--------|---------|
@@ -114,7 +116,7 @@ flowchart TD
 
 ---
 
-### 技术亮点
+### 🔍 技术亮点
 
 #### 1. **纯整数决策树遍历**
 ```c
@@ -154,7 +156,7 @@ copy_from_user(model->trees[i], user_data + offset, tree_size);
 
 ---
 
-### 使用场景
+### 📈 使用场景
 
 #### ✅ 适合
 - **高吞吐**: >10k syscall/秒需要实时分类
@@ -169,7 +171,7 @@ copy_from_user(model->trees[i], user_data + offset, tree_size);
 
 ---
 
-### 构建与部署
+### 🛠️ 构建与部署
 
 #### 编译
 ```bash
@@ -224,7 +226,7 @@ cat /sys/kernel/kernel_ml/model_info
 
 ---
 
-### 安全考虑
+### ⚠️ 安全考虑
 
 1. **输入验证**: ✅ 模型大小限制 10 MB
 2. **边界检查**: ✅ 特征维度、树深度验证
@@ -239,7 +241,7 @@ cat /sys/kernel/kernel_ml/model_info
 
 ---
 
-### 后续改进
+### 📝 后续改进
 
 #### 高优先级
 - [x] 添加 LRU 缓存（避免重复推理）
@@ -258,7 +260,9 @@ cat /sys/kernel/kernel_ml/model_info
 
 ---
 
-### 从零开始，在一个会话中实现了：
+### 实现范围
+
+从零开始，在一个会话中实现了：
 
 1. ✅ 内核态 ML 推理引擎（定点数，Random Forest）
 2. ✅ DKMS 模块框架（自动构建）
@@ -274,7 +278,7 @@ cat /sys/kernel/kernel_ml/model_info
 
 ---
 
-### 集成到 Agent eBPF Filter
+### 🔗 集成到 Agent eBPF Filter
 
 **后续集成方向**:
 1. 从 eBPF 调用内核模块推理 API
@@ -292,7 +296,9 @@ flowchart TD
 
 ---
 
-## - [kernel-ml README](../../kernel-ml/README.md)
+## 相关导航
+
+- [kernel-ml README](../../kernel-ml/README.md)
 - [ML、Plugins 与扩展能力](/backend/ml-plugins)
 - [内核态多模型实现](/backend/multi-model-complete)
 - [eBPF 与 OS Enforcement](/backend/ebpf-os-enforcement)

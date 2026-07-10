@@ -4,7 +4,9 @@
 
 ---
 
-## | 命令 | 作用 |
+## 常用命令
+
+| 命令 | 作用 |
 | --- | --- |
 | `make predev` | 并行安装开发依赖 |
 | `make dev` | 后端 + 前端开发会话（Zellij） |
@@ -22,7 +24,11 @@
 
 ---
 
-## ### ```bash
+## 开发环境设置
+
+### 首次设置
+
+```bash
 # 1. 可选：交互式环境配置向导
 make dev-env          # Go TUI，写入 .env.dev 和 .env.dev.mk
 
@@ -33,7 +39,9 @@ make predev           # 并行安装 Go/Python/Frontend/TUI 依赖
 make dev              # Zellij 会话：后端 + 前端分离 pane
 ```
 
-### `make dev-env` 启动 `tools/dev-env-tui` 中的 Go TUI 程序，交互式配置：
+### 环境配置详情
+
+`make dev-env` 启动 `tools/dev-env-tui` 中的 Go TUI 程序，交互式配置：
 
 - 核心开发设置
 - ML/LLM 行为（`AGENT_LLM_*` 和 OpenAI 兼容设置）
@@ -55,7 +63,9 @@ set -a; . ./.env.dev; set +a
 
 ---
 
-## 后端监听 `8080..8089` 中第一个可用端口，并写入 `backend/.port`。
+## 端口模型
+
+后端监听 `8080..8089` 中第一个可用端口，并写入 `backend/.port`。
 
 以下组件自动读取该端口：
 - Vite dev proxy（`frontend/vite.config.ts`）
@@ -65,7 +75,9 @@ set -a; . ./.env.dev; set +a
 
 ---
 
-## 通过 `AGENT_BUILD_FEATURES` 控制后端功能模块：
+## 编译期功能选择
+
+通过 `AGENT_BUILD_FEATURES` 控制后端功能模块：
 
 | 值 | 说明 |
 | --- | --- |
@@ -107,7 +119,9 @@ cd .. && go build ./...
 
 ---
 
-## ```bash
+## 文档站
+
+```bash
 bun install            # 安装文档站依赖（根目录 package.json）
 bun run docs:dev       # 本地实时预览
 bun run docs:build     # 生产构建
@@ -120,7 +134,9 @@ bun run docs:preview   # 预览构建产物
 
 ---
 
-## | 问题 | 解决方案 |
+## 常见构建问题排查
+
+| 问题 | 解决方案 |
 | --- | --- |
 | `GOPATH=/go` 不可写 | `make predev` 自动 fallback 到 `$HOME/go` |
 | `protobufjs-cli` 报错 | 必须通过 Node.js 运行 `pbjs`/`pbts`，不能用 `bunx` |
@@ -130,7 +146,9 @@ bun run docs:preview   # 预览构建产物
 
 ---
 
-## - [开发容器](devcontainer.md)
+## 相关导航
+
+- [开发容器](devcontainer.md)
 - [部署与安装](deployment.md)
 - [验证、测试与 Benchmark](verification-benchmark.md)
 - [后端启动链路](../backend/runtime-startup.md)

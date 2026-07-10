@@ -586,7 +586,9 @@ cgroup / LSM 同步阻断是确定性 map lookup。ML / LLM 可以用于风险�
 
 ---
 
-## - [演示脚本](demo-script.md)
+## 相关导航
+
+- [演示脚本](demo-script.md)
 - [比赛答辩主线](competition-defense.md)
 - [评测报告](evaluation.md)
 - [验证、测试与 Benchmark](../operations/verification-benchmark.md)

@@ -538,7 +538,9 @@ cd kernel-ml && make cuda-helper-self-test CUDA_HOME=/opt/cuda
 
 ---
 
-## - [评测报告](evaluation.md)
+## 相关导航
+
+- [评测报告](evaluation.md)
 - [验证、测试与 Benchmark](../operations/verification-benchmark.md)
 - [Benchmark](../operations/runtime-replay-benchmark.md)
 - [Demo script 草案](demo-script.md)

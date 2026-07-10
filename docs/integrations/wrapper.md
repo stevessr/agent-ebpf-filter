@@ -2,12 +2,16 @@
 
 `agent-wrapper` 是命令 shim / policy layer，用于在命令执行前询问后端策略。
 
-## - `wrapper/main.go`
+## 源码
+
+- `wrapper/main.go`
 - `backend/app/*uds*`
 - `backend/app/*behavior*`
 - `backend/app/*path_policy*`
 
-## ```mermaid
+## 执行流程
+
+```mermaid
 sequenceDiagram
     participant User as User/Agent
     participant Wrapper as agent-wrapper
@@ -51,7 +55,9 @@ sequenceDiagram
     end
 ```
 
-## ```mermaid
+## 决策类型
+
+```mermaid
 graph TB
     Request[WrapperRequest] --> Engine[Policy Engine]
     Engine --> Eval{evaluate rules}
@@ -118,7 +124,9 @@ func computeArgvDigest(args []string) string {
 }
 ```
 
-## 典型 wrapper rule 配置：
+## 配置示例
+
+典型 wrapper rule 配置：
 
 ```json
 {
@@ -149,7 +157,9 @@ func computeArgvDigest(args []string) string {
 }
 ```
 
-## ```mermaid
+## 安全边界
+
+```mermaid
 graph TB
     Wrapper[agent-wrapper] -->|restrictive| UDS[Unix Socket<br/>/tmp/agent-ebpf.sock]
     UDS -->|peer cred check| Backend[Backend]
@@ -175,7 +185,9 @@ graph TB
 
 ---
 
-## - [Agents、Adapters 与 PID 注册](agents.md)
+## 相关导航
+
+- [Agents、Adapters 与 PID 注册](agents.md)
 - [Native Hooks](native-hooks.md)
 - [事件管线](../backend/event-pipeline.md)
 - [策略语义](../security/policy-semantics.md)

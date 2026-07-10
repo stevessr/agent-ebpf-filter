@@ -337,7 +337,9 @@ This is the current deployment recommendation until a larger repeat-count run su
 
 ---
 
-## - [验证、测试与 Benchmark](../operations/verification-benchmark.md)
+## 相关导航
+
+- [验证、测试与 Benchmark](../operations/verification-benchmark.md)
 - [ML 模型完整指南](ml-models-complete-guide.md)
 - [ML 实验框架](ml-experiments.md)
 - [评测报告](../delivery/evaluation.md)

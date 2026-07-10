@@ -34,7 +34,9 @@ features:
     details: 本站按指南、架构、后端、前端、安全、集成、运维、答辩和参考组织，可直接作为项目网站。
 ---
 
-## Agent eBPF Filter 是面向 Linux 本地工作站、实验节点和开发环境的 **AI Agent 行为观测与安全控制系统**。它并不只是一组 syscall 日志，也不是单一的命令拦截器，而是把内核态事实、用户态语义、Web 控制面和可选内核阻断组合成一条完整证据链。
+## 项目定位
+
+Agent eBPF Filter 是面向 Linux 本地工作站、实验节点和开发环境的 **AI Agent 行为观测与安全控制系统**。它并不只是一组 syscall 日志，也不是单一的命令拦截器，而是把内核态事实、用户态语义、Web 控制面和可选内核阻断组合成一条完整证据链。
 
 核心问题是：当 AI Agent 或开发者 CLI 在本机执行任务时，系统如何回答以下问题？
 
@@ -48,7 +50,9 @@ features:
 
 本站文档按“能直接用于项目网站”的粒度组织，既服务新开发者，也服务比赛答辩、安全审查和后续维护。
 
-## ::: tip 新开发者
+## 推荐阅读
+
+::: tip 新开发者
 从 [项目是什么](/guide/what-is-agent-ebpf-filter) 和 [快速开始](/guide/quick-start) 开始，再进入 [总体架构](/architecture/overview) 与 [代码入口索引](/reference/code-entrypoints)。
 :::
 
@@ -60,7 +64,9 @@ features:
 优先阅读 [比赛答辩主线](/delivery/competition-defense)、[演示脚本](/delivery/demo-script)、[评测报告](/delivery/evaluation)。
 :::
 
-## 本项目在架构设计和技术选型上受到 [AgentSight](https://github.com/eunomia-bpf/agentsight) 项目的启发。AgentSight 是由 eunomia-bpf 团队开发的开源 AI Agent 系统级追踪工具，验证了 eBPF + TLS capture 对 Agent 观测的可行性。
+## 致谢
+
+本项目在架构设计和技术选型上受到 [AgentSight](https://github.com/eunomia-bpf/agentsight) 项目的启发。AgentSight 是由 eunomia-bpf 团队开发的开源 AI Agent 系统级追踪工具，验证了 eBPF + TLS capture 对 Agent 观测的可行性。
 
 Agent eBPF Filter 在以下方面进行了扩展和差异化：
 - **技术栈**: Go + Vue 3（vs Rust + Next.js）

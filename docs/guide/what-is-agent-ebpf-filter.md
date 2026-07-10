@@ -2,9 +2,13 @@
 
 Agent eBPF Filter 是一个 Linux-first 的 AI Agent 观测与控制平面。它把 eBPF、Go、Vue、CLI wrapper、native hooks、Python / Node adapters、MCP / OTLP / Prometheus 接口和可选的 ML / plugin 能力整合在一起，用于观察、关联、分析和约束本地 Agent 与开发者 CLI 的行为。
 
-## > 用内核事实看见 Agent 行为，用用户态语义解释行为，用可视化工作台呈现证据，用 wrapper / cgroup / BPF LSM 实施控制。
+## 一句话解释
 
-## AI Agent 或自动化 CLI 往往会产生大量系统行为：执行 shell、读取配置、调用网络、生成文件、安装依赖、修改仓库。仅看 prompt 或终端输出无法确认真实 OS 行为；仅看 syscall 又缺少 Agent 语义。Agent eBPF Filter 把两者合并。
+> 用内核事实看见 Agent 行为，用用户态语义解释行为，用可视化工作台呈现证据，用 wrapper / cgroup / BPF LSM 实施控制。
+
+## 它解决的问题
+
+AI Agent 或自动化 CLI 往往会产生大量系统行为：执行 shell、读取配置、调用网络、生成文件、安装依赖、修改仓库。仅看 prompt 或终端输出无法确认真实 OS 行为；仅看 syscall 又缺少 Agent 语义。Agent eBPF Filter 把两者合并。
 
 | 问题 | 本项目的回答 |
 | --- | --- |
@@ -15,7 +19,9 @@ Agent eBPF Filter 是一个 Linux-first 的 AI Agent 观测与控制平面。它
 | 如何保护敏感信息？ | redaction level、digest、sanitized_fields、TLS capture 默认关闭。 |
 | 如何对外集成？ | MCP、External API、OTLP、Prometheus、Kubernetes manifests。 |
 
-## 本项目适合：
+## 项目边界
+
+本项目适合：
 
 - 本地开发工作站的 Agent 行为审计；
 - 实验节点上的 eBPF / OS enforcement 演示；
@@ -31,7 +37,9 @@ Agent eBPF Filter 是一个 Linux-first 的 AI Agent 观测与控制平面。它
 - CIDR/range 级网络策略引擎；
 - 替代 Kubernetes / SELinux / AppArmor 的生产级强制访问控制系统。
 
-## ```mermaid
+## 当前实现主线
+
+```mermaid
 flowchart LR
     %% 样式定制
     classDef agentCls fill:#e1f5fe,stroke:#03a9f4,stroke-width:1px;
@@ -137,7 +145,9 @@ flowchart LR
     GW_MCP <-->|JSON-RPC over SSE| AI_Agent
 ```
 
-## - 后端启动：`backend/app/main.go`
+## 代码入口
+
+- 后端启动：`backend/app/main.go`
 - 路由注册：`backend/app/routes.go`
 - runtime settings：`backend/core/state_types.go`
 - feature manifest：`backend/app/feature_manifest.go`
@@ -151,7 +161,9 @@ flowchart LR
 
 ---
 
-## - [快速开始](quick-start.md)
+## 相关导航
+
+- [快速开始](quick-start.md)
 - [功能总览](capabilities.md)
 - [总体架构](../architecture/overview.md)
 - [安全模型](../security/model.md)

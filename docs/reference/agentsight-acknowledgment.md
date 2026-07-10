@@ -19,7 +19,9 @@ AgentSight 提出了"系统级 AI Agent 可观测性"的理念：
 
 这一理念直接影响了 Agent eBPF Filter 的产品定位。
 
-## ### 1. 架构设计借鉴
+## 对本项目的影响
+
+### 1. 架构设计借鉴
 
 Agent eBPF Filter 借鉴了 AgentSight 的分层架构：
 
@@ -65,7 +67,7 @@ Agent eBPF Filter 在以下方面进行了扩展和差异化：
 | **目标场景** | 本地开发工作站 | 本地工作站 + 实验节点 + 操作系统课程答辩 |
 | **安全边界** | TLS capture 作为核心能力 | TLS capture 默认关闭，作为高风险诊断能力 |
 
-## Go 文件
+## 移植与改写的 Go 文件
 
 以下 Go 文件的设计思路、数据结构或算法受到 AgentSight Rust 代码的启发，但实现语言、框架和细节均为本项目重新编写：
 
@@ -97,7 +99,9 @@ Agent eBPF Filter 在以下方面进行了扩展和差异化：
 
 受 AgentSight `collector/src/framework/runners/system_runner.rs` 启发，但针对 Go 生态重新实现。
 
-## 我们感谢 AgentSight 项目及其贡献者：
+## 致谢
+
+我们感谢 AgentSight 项目及其贡献者：
 
 - 验证了 eBPF + TLS capture 对 AI Agent 观测的可行性
 - 提供了系统级 Agent 可观测性的参考架构
@@ -109,7 +113,9 @@ Agent eBPF Filter 在以下方面进行了扩展和差异化：
 - ACM DOI: https://dl.acm.org/doi/10.1145/3766882.3767169
 - License: MIT
 
-## Agent eBPF Filter 是一个 **独立项目**，具有以下重要差异：
+## 差异声明
+
+Agent eBPF Filter 是一个 **独立项目**，具有以下重要差异：
 
 1. **不同的技术栈**: Go (后端) + Vue 3 (前端) vs Rust + Next.js
 2. **不同的产品定位**: 观测 + 控制 vs 纯观测
@@ -119,7 +125,9 @@ Agent eBPF Filter 在以下方面进行了扩展和差异化：
 6. **不同的事件模型**: protobuf EventEnvelope vs JSON events
 7. **不同的目标场景**: 包含操作系统课程答辩交付
 
-## Agent eBPF Filter 使用 **GPL-3.0** 许可证，与 AgentSight 的 MIT 许可证不同。
+## 许可证
+
+Agent eBPF Filter 使用 **GPL-3.0** 许可证，与 AgentSight 的 MIT 许可证不同。
 
 移植与改写的代码遵循以下原则：
 - 受启发的设计思路和算法属于技术领域的公共知识
@@ -127,7 +135,9 @@ Agent eBPF Filter 在以下方面进行了扩展和差异化：
 - 数据结构和接口根据本项目需求重新设计
 - 不包含 AgentSight 的源码复制
 
-## - AgentSight 项目文档位于：`docs/ref/agentsight/`
+## 参考文档
+
+- AgentSight 项目文档位于：`docs/ref/agentsight/`
 - 本项目 AgentSight 兼容层文档：[MCP、External API 与 OTLP](/integrations/mcp-external-otlp)
 - TLS capture 安全边界：[脱敏与隐私](/security/redaction-privacy)
 

@@ -4,12 +4,16 @@
 
 ## eBPF 内核编程
 
-### - **eBPF 程序类型**: tracepoint, cgroup/connect, cgroup/sendmsg, LSM hooks
+### 核心概念
+
+- **eBPF 程序类型**: tracepoint, cgroup/connect, cgroup/sendmsg, LSM hooks
 - **Map 类型**: hash map (agent_pids, tracked_comms, tracked_paths), ringbuf (events), array (counters)
 - **Pinning 机制**: `/sys/fs/bpf/agent-ebpf/` 持久化 maps 和 links
 - **零拷贝优化**: mmap-backed ringbuf 直接读取，避免 `binary.Read` 拷贝
 
-### **Ringbuf 解码**:
+### 关键实现
+
+**Ringbuf 解码**:
 ```go
 // backend/app/jobs_background.go (伪代码)
 func decodeBPFEventRecord(sample []byte) (*bpfEvent, error) {
@@ -30,7 +34,9 @@ func decodeBPFEventRecord(sample []byte) (*bpfEvent, error) {
 - [后端启动链路](/backend/runtime-startup)
 - `docs/ebpf-optimization-summary.md`
 
-### - Ringbuf 吞吐量：25,000-30,000 events/s
+### 性能指标
+
+- Ringbuf 吞吐量：25,000-30,000 events/s
 - P99 延迟：~150 μs
 - 零拷贝提升：35-65×
 
@@ -74,7 +80,9 @@ for (addr = text_start; addr < text_end; addr++) {
 
 ## Wrapper 策略引擎
 
-### ```mermaid
+### 决策模型
+
+```mermaid
 graph TB
     Request[WrapperRequest] --> Risk[ML Risk Scorer]
     Risk --> Rules[Rule Matcher]
@@ -128,7 +136,9 @@ message EventEnvelope {
 - [协议与事件模型](/architecture/protocol-events)
 - `proto/tracker_events.proto`
 
-## ### TCP 状态追踪
+## 网络流聚合
+
+### TCP 状态追踪
 
 **状态转移矩阵**:
 
@@ -156,14 +166,20 @@ $$
 
 ## ML 风险评分
 
-### | 因子 | 权重 | 计算方式 |
+### 多因子模型
+
+| 因子 | 权重 | 计算方式 |
 | --- | --- | --- |
 | 命令危险度 | 0.4 | 静态规则 |
 | 参数模式 | 0.3 | ML classifier |
 | Agent 历史 | 0.2 | Bayesian update |
 | 上下文异常 | 0.1 | Isolation Forest |
 
-### $$
+### 贝叶斯信誉更新
+
+
+
+$$
 P_n(trustworthy) = \frac{\alpha + n_{safe}}{\alpha + \beta + n}
 $$
 
@@ -178,14 +194,20 @@ $$
 - [ML、Plugins 与扩展能力](/backend/ml-plugins)
 - [性能分析与数学模型](/reference/performance-models)
 
-## ### | 级别 | 覆盖范围 |
+## 安全脱敏
+
+### 脱敏级别
+
+| 级别 | 覆盖范围 |
 | --- | --- |
 | None | 无脱敏 |
 | Basic | 明显 secrets (API keys, tokens) |
 | Standard | + headers, query params |
 | Strict | + PII, paths, network addresses |
 
-### **Entropy-based detection**:
+### 检测算法
+
+**Entropy-based detection**:
 ```go
 func isHighEntropy(s string) bool {
     entropy := calculateShannonEntropy(s)
@@ -205,7 +227,9 @@ func isHighEntropy(s string) bool {
 
 ## Execution Graph
 
-### **节点类型**:
+### 图构建算法
+
+**节点类型**:
 - Process (PID, comm, argv)
 - File (path, operation)
 - Network (destination, port, protocol)
@@ -237,7 +261,9 @@ func isHighEntropy(s string) bool {
 - `path_unlink` - 文件删除拦截
 - `path_mkdir` - 目录创建拦截
 
-### **精确匹配**:
+### 策略语义
+
+**精确匹配**:
 - exec path: 完整路径或 basename
 - file basename: 文件名（不含路径）
 
@@ -255,7 +281,9 @@ LSM 文件策略基于 basename，不是目录树递归。
 - `cgroup/connect4`, `cgroup/connect6`
 - `cgroup/sendmsg4`, `cgroup/sendmsg6`
 
-### **精确 IP + port**:
+### 阻断语义
+
+**精确 IP + port**:
 ```c
 struct blocked_dest_key {
     __u32 ip;      // IPv4 或 IPv6 的前 32 位
@@ -300,7 +328,9 @@ export function useEventStream() {
 - [前端工作台总览](/frontend/workbench)
 - [组件与 Composables](/frontend/components-composables)
 
-## 详细的实现记录和历史决策见：
+## 开发记录索引
+
+详细的实现记录和历史决策见：
 - [开发文档索引](DEV_DOCS_INDEX.md)
 
 ---

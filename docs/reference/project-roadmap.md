@@ -108,7 +108,7 @@ Agent eBPF Filter 的长期目标是成为一个 **面向 AI Agent 运行时的 
 
 ## 5. 阶段路线图
 
-### 0：合规与基线确认
+### 阶段 0：合规与基线确认
 
 目标：确保项目符合比赛提交和开源合规要求。
 
@@ -129,7 +129,7 @@ Agent eBPF Filter 的长期目标是成为一个 **面向 AI Agent 运行时的 
 - `docs/third-party-notices.md`（建议新增）；
 - `docs/development-timeline.md`（建议新增）。
 
-### 1：项目结构与架构定稿
+### 阶段 1：项目结构与架构定稿
 
 目标：把仓库结构、模块边界、构建入口、运行链路讲清楚。
 
@@ -146,7 +146,7 @@ Agent eBPF Filter 的长期目标是成为一个 **面向 AI Agent 运行时的 
 - 架构图草案；
 - PPT 架构章节。
 
-### 2：演示路径固化
+### 阶段 2：演示路径固化
 
 目标：将答辩演示从“临时操作”变成可重复脚本。
 
@@ -178,7 +178,7 @@ Agent eBPF Filter 的长期目标是成为一个 **面向 AI Agent 运行时的 
 - 备用 JSONL replay 数据；
 - 演示风险提示。
 
-### 3：测试与评测固化
+### 阶段 3：测试与评测固化
 
 目标：建立能支撑答辩的量化指标。
 
@@ -212,7 +212,7 @@ Agent eBPF Filter 的长期目标是成为一个 **面向 AI Agent 运行时的 
 - 测试环境说明；
 - 性能表格和图表。
 
-### 4：安全模型与风险说明定稿
+### 阶段 4：安全模型与风险说明定稿
 
 目标：让评委看到项目对安全边界有清醒认识。
 
@@ -230,7 +230,7 @@ Agent eBPF Filter 的长期目标是成为一个 **面向 AI Agent 运行时的 
 - 威胁模型最终版；
 - 答辩 Q&A。
 
-### 5：PPT 与最终提交
+### 阶段 5：PPT 与最终提交
 
 目标：形成完整答辩材料和比赛提交包。
 
@@ -451,7 +451,9 @@ flowchart TD
 
 ---
 
-## - [项目文档索引](../_archive/project-docs-index.md)
+## 相关导航
+
+- [项目文档索引](../_archive/project-docs-index.md)
 - [比赛答辩主线](../delivery/competition-defense.md)
 - [验证、测试与 Benchmark](../operations/verification-benchmark.md)
 - [评测报告](../delivery/evaluation.md)

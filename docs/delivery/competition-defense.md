@@ -585,7 +585,9 @@ Agent eBPF Filter 将 eBPF 观测、cgroup/LSM 内核阻断、AI CLI hook、命�
 
 ---
 
-## - [比赛答辩主线](competition-defense.md)
+## 相关导航
+
+- [比赛答辩主线](competition-defense.md)
 - [演示脚本](demo-script.md)
 - [评测报告](evaluation.md)
 - [第三方与 AI 使用披露](compliance.md)

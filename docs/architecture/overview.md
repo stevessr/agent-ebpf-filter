@@ -39,7 +39,9 @@ AI Agent / CLI  -->  捕获 OS 行为事实  -->  深度因果关联  -->  运�
 - `tracker_shell.proto`: PTY 交互式 Shell 会话流式通信
 - `tracker_system.proto`: 宿主机 CPU、内存、GPU 遥测指标
 
-### - Go Backend: `backend/pb/*.pb.go`
+### 多语言自动生成
+
+- Go Backend: `backend/pb/*.pb.go`
 - Vue Frontend: `frontend/src/pb/*`
 - Python Adapter: `adapters/python/`
 - Node.js Adapter: `adapters/js/`
@@ -48,7 +50,7 @@ AI Agent / CLI  -->  捕获 OS 行为事实  -->  深度因果关联  -->  运�
 
 后端采用领域驱动设计（DDD），核心引擎收敛于 `backend/app/` 及 `backend/` 下级子包。重构后的目录结构如下：
 
-### (`backend/app/`)
+### 应用入口与组装层 (`backend/app/`)
 
 | 模块 | 路径 | 职责 |
 |------|------|------|
@@ -59,7 +61,9 @@ AI Agent / CLI  -->  捕获 OS 行为事实  -->  深度因果关联  -->  运�
 | 后台任务 | `jobs_background.go` | Ringbuf Reader 与后台审计消费协程 |
 | 类型桥接 | `typebridge.go` | 跨包类型别名（app/tls, app/network, app/runtime） |
 
-### | 子包 | 路径 | 核心职责 |
+### 子包分层结构
+
+| 子包 | 路径 | 核心职责 |
 |------|------|---------|
 | `handlers/` | `backend/app/handlers/` (24 文件) | HTTP 路由 handler，按功能模块拆分 |
 | `events/` | `backend/app/events/` | 事件归一化、语义告警、上下文组装、Kernel Risk |
@@ -103,7 +107,9 @@ backend/app/handlers/
   system.go            系统操作
 ```
 
-### 子包通过 **桥接文件** 与 app 层解耦：
+### 桥接模式
+
+子包通过 **桥接文件** 与 app 层解耦：
 
 | 桥接文件 | 桥接目标 | 模式 |
 |---------|---------|------|
@@ -115,7 +121,9 @@ backend/app/handlers/
 | `collectormetricsbridge.go` | metrics 采集 | 桥接适配 |
 | `contextbridge.go` | 进程上下文 | 函数桥接 |
 
-### | 包 | 路径 | 职责 |
+### 内部基础设施
+
+| 包 | 路径 | 职责 |
 |---|------|------|
 | `ebpf/` | `backend/ebpf/` | eBPF C 源码与 bpf2go 生成的 Go 绑定 |
 | `pb/` | `backend/pb/` | 自动生成的 Protobuf Go 桩代码 |
@@ -126,7 +134,9 @@ backend/app/handlers/
 | `redaction/` | `backend/redaction/` | 数据脱敏引擎 |
 | `probe/manager/` | `backend/probe/manager/` | TLS 探针管理器 |
 
-### | 服务 | 路径 | 职责 |
+### 专用后端服务
+
+| 服务 | 路径 | 职责 |
 |------|------|------|
 | agent-wrapper | `wrapper/main.go` | CLI 命令拦截与策略执行 |
 | SSL 节点测试 | `backend/cmd/test_node_ssl_attach/` | SSL/TLS 库探测 |
@@ -160,7 +170,9 @@ frontend/src/
 | 云原生 | `deploy/kubernetes/` | 特权 DaemonSet 集群监控 |
 | 文档体系 | `docs/` (VitePress) | 技术文档站 |
 
-## ```
+## 分层依赖视图
+
+```
 L0: 产品目标层 (可观测/可关联/可约束/可导出)
     |
 L1: 运行时边界层 (内核控制/后端控制/命令策略/Agent 语义/UI)
@@ -174,7 +186,9 @@ L4: 前端领域层 (视图容器/原子组件/组合式状态机)
 L5: 工程交付层 (Makefile/K8s/Systemd/VitePress)
 ```
 
-## - [数据流](data-flow.md) -- 内核 Ringbuf 解码至前端渲染时序
+## 相关导航
+
+- [数据流](data-flow.md) -- 内核 Ringbuf 解码至前端渲染时序
 - [运行时边界](runtime-boundaries.md) -- 各组件安全防护隔离
 - [协议与事件模型](protocol-events.md) -- Protobuf 序列化与事件封包
 - [后端 API 路由参考](../backend/routes-api.md) -- 完整 HTTP/WS API 索引

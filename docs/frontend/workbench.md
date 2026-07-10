@@ -2,7 +2,9 @@
 
 前端是 Vue 3 + Vite + TypeScript 工作台，位于 `frontend/src/`。
 
-## ```mermaid
+## 技术栈
+
+```mermaid
 graph TB
     subgraph "Core"
         Vue["Vue 3.5.32<br/>Composition API + script setup"]
@@ -53,7 +55,9 @@ graph TB
 - markdown-it / Shiki
 - protobufjs
 
-## ```mermaid
+## 目录分层
+
+```mermaid
 graph TB
     subgraph "frontend/src/"
         Main["main.ts<br/>app bootstrap"]
@@ -103,7 +107,9 @@ frontend/src/
   pb/          # generated，不手改
 ```
 
-## ```mermaid
+## 工作台页面
+
+```mermaid
 graph LR
     subgraph "观测"
         Dashboard["Dashboard<br/>事件流"]
@@ -157,7 +163,9 @@ graph LR
 | Plugins | plugin registry、visual builder、pseudocode builder |
 | Config | runtime、security、registry、cluster、docs、system health |
 
-## ```mermaid
+## 设计原则
+
+```mermaid
 graph TB
     User[User Action] --> View[View<br/>页面容器]
     View --> Composable[Composable<br/>API/WS/状态]
@@ -191,7 +199,9 @@ graph TB
 - utils 放通用工具；
 - 不在单个 `.vue` 文件堆过多业务逻辑。
 
-## ```mermaid
+## 典型数据流
+
+```mermaid
 sequenceDiagram
     participant User as User
     participant View as Dashboard.vue
@@ -224,7 +234,9 @@ sequenceDiagram
 
 ---
 
-## - [路由与功能页](routes-and-pages.md)
+## 相关导航
+
+- [路由与功能页](routes-and-pages.md)
 - [组件与 Composables](components-composables.md)
 - [构建与 Feature Flags](build-feature-flags.md)
 - [事件管线](../backend/event-pipeline.md)

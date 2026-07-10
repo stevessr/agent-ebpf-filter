@@ -48,7 +48,9 @@ Envelope 语义上包含：
 - typed payload oneof.
 - process / tool / trace context.
 
-## 新增事件字段时必须同步：
+## 字段同步链
+
+新增事件字段时必须同步：
 
 ```mermaid
 flowchart TD
@@ -62,14 +64,18 @@ flowchart TD
     Frontend --> DocsTests["docs / tests"]
 ```
 
-## - 不复用已发布字段号；
+## 兼容原则
+
+- 不复用已发布字段号；
 - 新字段尽量 optional / additive；
 - JSONL persistence 应兼容旧数据；
 - generated files 不手改；
 - `tracker.proto` 保持聚合入口，不承载领域细节。
 
 
-## - [数据流](data-flow.md)
+## 相关导航
+
+- [数据流](data-flow.md)
 - [事件管线](../backend/event-pipeline.md)
 - [生成文件边界](../reference/generated-files.md)
 - [前端组件与 Composables](../frontend/components-composables.md)
@@ -79,7 +85,7 @@ flowchart TD
 协议层作为全站的**一致性源头**（Single Source of Truth），横跨 Go 后端、Vue 前端、语言适配器（Adapters）以及外部生态集成。通过强类型的契约 Schema，项目从根本上保证了高频内核事件在跨语言、跨架构传输中的结构确定性与解析高效性。
 
 
-## 1. Proto 文件分工与职责
+## 🗂️ 1. Proto 文件分工与职责
 
 所有传输层协议的基石都收敛于 `proto/` 目录中，各组件分工明确，形成了松耦合的 Schema 矩阵：
 
@@ -94,7 +100,7 @@ flowchart TD
 | **`proto/tracker_system.proto`** | **常规指标拓扑**。统筹宿主机 CPU、内存、GPU、磁盘 IO 等传统可观测性时序遥测指标。 |
 
 
-## 2. Event 统一事实记录字段
+## 📊 2. Event 统一事实记录字段
 
 `proto/tracker_events.proto` 中定义的 `Event` 结构体是过滤器捕获的**系统唯一客观事实记录**。为了在全景复盘时消除信息孤岛，单个事件包多维交织了以下八类属性：
 
@@ -108,11 +114,11 @@ flowchart TD
 * **📈 网络流异步度量（Flow Metrics）**：长周期流统计，包含累计传输字节数、报文包总数、流首见/末见微秒级时钟（`first_seen`/`last_seen`）、GeoIP 地理空间归属地以及网络作用域边界 `scope`。
 
 
-## 3. 统一包装器模型：EventEnvelope
+## ✉️ 3. 统一包装器模型：EventEnvelope
 
 为了向异构的消费端提供标准一致的流化分发接口，所有离散的业务事件在向外分流前，必须经过多态包装器 `EventEnvelope` 的二次规整封装。
 
-### 典型消费与转换路径
+### 📡 典型消费与转换路径
 
 `EventEnvelope` 是系统在数据中枢向外辐射的唯一标准化交付物，深度应用于：
 
@@ -122,7 +128,7 @@ flowchart TD
 * **生态泛化演进**：派生生成符合 OpenTelemetry 规范的分布式 Trace/Span 树状链路。
 * **取证重现**：为系统录制（Recording）与离线仿真回放（Replay）提供帧级别的时序资产。
 
-### Envelope 核心 Schema 语义内涵
+### 🧬 Envelope 核心 Schema 语义内涵
 
 每一个标准的包装袋中都具备高度内聚的自解释结构：
 
@@ -133,7 +139,7 @@ flowchart TD
 5. **Context Block**：统一挂载全局富化后的完整进程拓扑上下文、AI 工具元数据链和大模型 Trace 跟踪上下文。
 
 
-## 4. 字段变更原子同步链
+## 🔄 4. 字段变更原子同步链
 
 由于项目跨语言、跨空间部署，任何协议字段的添加、修改或删除，**必须**严格遵循以下全自动化构建与交叉同步流水线，严禁在下游任何环节进行手动逻辑打补丁：
 
@@ -172,7 +178,7 @@ flowchart TD
 ```
 
 
-## 5. 生产级向后兼容原则
+## 🛡️ 5. 生产级向后兼容原则
 
 为了确保在分布式集群灰度升级期间，新老系统混布时网络流与落盘数据不发生雪崩解体，协议演进必须死守以下**安全红线**：
 
@@ -183,7 +189,9 @@ flowchart TD
 * **🧱 坚守网关职责纯洁性**：顶层的 `tracker.proto` 仅作为全工程的统一编译聚合入口，**禁止**在其中塞入任何具体的业务领域属性或字段定义。
 
 
-## * [数据流](data-flow.md) —— 深入了解事件在各层协议桩之间的流动时序
+## 相关导航
+
+* [数据流](data-flow.md) —— 深入了解事件在各层协议桩之间的流动时序
 * [事件管线](../backend/event-pipeline.md) —— 研读后端如何通过协议进行数据的清洗与因果富化
 * [生成文件边界](../reference/generated-files.md) —— 明确自动生成代码与手动代码的物理防线
 * [前端组件与 Composables](../frontend/components-composables.md) —— 掌握 UI 层如何优雅解耦和消费 Protobuf TS 对象

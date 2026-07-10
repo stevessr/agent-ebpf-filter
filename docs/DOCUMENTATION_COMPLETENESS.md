@@ -204,18 +204,18 @@ These documents exist in `docs/*.md` but should be moved to appropriate sections
 
 ## Quality Assessment
 
-### Excellent
+### ✅ Excellent
 - **Structure:** Clear thematic organization
 - **Navigation:** Complete VitePress config with Chinese UI
 - **Entry points:** Multiple entry paths for different user roles
 - **Coverage:** All major features documented
 
-### Good (Minor improvements needed)
+### ⚠️ Good (Minor improvements needed)
 - **Cross-references:** Some links may need updating after consolidation
 - **Consistency:** A few duplicate documents exist in root
 - **Examples:** Could add more practical examples
 
-### Needs Work
+### 📝 Needs Work
 - **Root consolidation:** Move scattered `docs/*.md` to proper sections
 - **Missing pages:** Create referenced but missing documents
 - **Translations:** More Chinese translations would be valuable

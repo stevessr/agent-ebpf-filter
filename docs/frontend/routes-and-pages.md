@@ -2,7 +2,9 @@
 
 前端路由定义在 `frontend/src/router/index.ts`。
 
-## | Route | Name | Component | Feature meta |
+## 路由表
+
+| Route | Name | Component | Feature meta |
 | --- | --- | --- | --- |
 | `/` | redirect | `/dashboard` | - |
 | `/dashboard/:tab?` | Dashboard | `views/dashboard/Dashboard.vue` | - |
@@ -29,7 +31,9 @@
 /feature-unavailable?feature=<id>&from=<originalPath>
 ```
 
-## 1. 在 `views/<domain>/` 创建页面容器；
+## 新页面流程
+
+1. 在 `views/<domain>/` 创建页面容器；
 2. 在 `router/index.ts` 增加 lazy route；
 3. 需要时在 `App.vue` / navigation 中添加入口；
 4. API / WS 状态放 composable；
@@ -39,7 +43,9 @@
 
 ---
 
-## - [前端工作台](workbench.md)
+## 相关导航
+
+- [前端工作台](workbench.md)
 - [组件与 Composables](components-composables.md)
 - [构建与 Feature Flags](build-feature-flags.md)
 - [路由与 API](../backend/routes-api.md)

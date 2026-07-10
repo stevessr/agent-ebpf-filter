@@ -4,7 +4,9 @@ Agents 通过 adapters 或直接 API 调用注册当前进程 PID，使后续内
 
 ---
 
-## ```mermaid
+## 注册流程
+
+```mermaid
 flowchart TD
     Agent["Agent process"] --> Adapter["adapter register()"]
     Adapter --> Register["POST /register"]
@@ -17,7 +19,7 @@ flowchart TD
 
 ---
 
-## Adapters
+## 支持的 Adapters
 
 ### Python Adapter
 
@@ -73,11 +75,13 @@ fs.writeFileSync('/tmp/agent-demo-js.txt', 'hello');
 
 ---
 
-## API
+## 直接调用 API
 
 不使用 adapter 时，可直接调用注册 API：
 
-### ```bash
+### 注册
+
+```bash
 curl -X POST -H "Content-Type: application/json" \
   -H "X-API-KEY: <token>" \
   http://127.0.0.1:8080/register \
@@ -92,14 +96,18 @@ curl -X POST -H "Content-Type: application/json" \
   }'
 ```
 
-### ```bash
+### 注销
+
+```bash
 curl -X POST -H "Content-Type: application/json" \
   -H "X-API-KEY: <token>" \
   http://127.0.0.1:8080/unregister \
   -d '{"pid": 12345}'
 ```
 
-### 注册 payload 可携带以下可选字段：
+### 上下文字段
+
+注册 payload 可携带以下可选字段：
 
 | 字段 | 说明 |
 | --- | --- |
@@ -122,7 +130,9 @@ curl -X POST -H "Content-Type: application/json" \
 
 ---
 
-## - PID registration 是 **per-process** 的
+## 子进程继承追踪
+
+- PID registration 是 **per-process** 的
 - 子进程通过 `sched_process_fork` / `clone` lineage 和 userspace parent-PID fallback 自动继承追踪
 - 后代进程可携带 `root_agent_pid`、`agent_run_id`、`tool_call_id`、`trace_id` 等上下文
 - Adapter **不是**自动递归注册所有后代的 daemon
@@ -142,25 +152,29 @@ export AGENT_API_KEY="$(jq -r .accessToken ~/.config/agent-ebpf-filter/runtime.j
 
 ---
 
-## ### Adapter
+## 最佳实践
+
+### 何时使用 Adapter
 
 - **长时间运行的 Agent 进程**：使用 adapter 注册主进程
 - **Python / Node.js Agent**：直接使用对应 adapter
 - **需要 run_id / trace_id 关联**：adapter 注册时传入上下文
 
-### Tracked Commands
+### 何时使用 Tracked Commands
 
 - **子进程是常见 CLI**：如 `git`、`node`、`python`、`npm`、`cargo`
 - **不想修改 Agent 代码**：通过 Configuration 页面添加命令名称
 - **Shell 密集型工作流**：命令名称匹配是低开销的 exact match
 
-### Native Hooks
+### 何时使用 Native Hooks
 
 - **监控 AI CLI 行为**：Claude Code、Gemini CLI、Codex 等
 - **需要工具调用语义**：hook 提供 tool_name、target_path 等 Agent 层信息
 - **与内核事件互补**：hook 事件 + eBPF 事件构成完整证据链
 
-### ```mermaid
+### 推荐组合
+
+```mermaid
 flowchart LR
     Main["主 Agent 进程<br/>adapter 注册"] --> Sub["子进程<br/>tracked_comms"]
     Main --> Hook["AI CLI<br/>native hooks"]
@@ -169,7 +183,9 @@ flowchart LR
 
 ---
 
-## - [Wrapper 命令策略](wrapper.md)
+## 相关导航
+
+- [Wrapper 命令策略](wrapper.md)
 - [Native Hooks](native-hooks.md)
 - [事件管线](../backend/event-pipeline.md)
 - [协议与事件模型](../architecture/protocol-events.md)

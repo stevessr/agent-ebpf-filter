@@ -2,7 +2,7 @@
 
 本项目的内核能力分为三类：主 syscall tracker、cgroup 网络阻断、BPF LSM 文件/执行阻断。TLS uprobe capture 是可选高风险诊断能力。
 
-## tracker
+## 主 tracker
 
 源码：
 
@@ -115,7 +115,7 @@
 - 需要 redaction；
 - 普通事件只携带 metadata / digest。
 
-## eBPF 的验证
+## 修改 eBPF 的验证
 
 ```bash
 cd backend/ebpf && go generate
@@ -129,7 +129,9 @@ make ebpf-cgroup
 make ebpf-lsm
 ```
 
-## | 主题 | 应同步文档 |
+## 相关文档与同步点
+
+| 主题 | 应同步文档 |
 | --- | --- |
 | syscall 覆盖、ringbuf payload、生成绑定 | [协议与事件模型](/architecture/protocol-events)、[事件管线](/backend/event-pipeline)、[生成文件边界](/reference/generated-files) |
 | cgroup / LSM 策略语义 | [策略语义](/security/policy-semantics)、[安全模型](/security/model)、[Runtime Gates 与 Auth](/security/runtime-gates-auth) |

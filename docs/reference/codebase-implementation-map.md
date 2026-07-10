@@ -450,7 +450,9 @@ Python / JS adapters 的职责是注册当前进程 PID。文档中要准确说�
 
 ---
 
-## - [代码入口索引](code-entrypoints.md)
+## 相关导航
+
+- [代码入口索引](code-entrypoints.md)
 - [文档地图](documentation-map.md)
 - [项目结构深挖](project-structure-deep-dive.md)
 - [维护检查清单](maintenance-checklists.md)

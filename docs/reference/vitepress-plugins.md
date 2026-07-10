@@ -2,7 +2,9 @@
 
 本文档站已配置以下插件，支持 Mermaid 图表和 LaTeX 数学公式渲染。
 
-## ### 1. vitepress-mermaid-renderer
+## 已安装插件
+
+### 1. vitepress-mermaid-renderer
 
 **版本**: `^1.1.27`
 
@@ -91,7 +93,9 @@ $$
 $$
 ```
 
-## ### Mermaid 图表示例
+## 示例页面
+
+### Mermaid 图表示例
 
 本站多个页面使用了 Mermaid 图表：
 
@@ -117,23 +121,33 @@ $$
 - 缓存命中率公式
 - 内存占用估算
 
-## ### ```bash
+## 构建与开发
+
+### 开发模式
+
+```bash
 bun run docs:dev
 ```
 
 访问 `http://localhost:5173`，支持热重载。
 
-### ```bash
+### 生产构建
+
+```bash
 bun run docs:build
 ```
 
 输出目录：`docs/.vitepress/dist/`
 
-### ```bash
+### 预览生产构建
+
+```bash
 bun run docs:preview
 ```
 
-## ### Mermaid 支持的图表类型
+## 插件特性
+
+### Mermaid 支持的图表类型
 
 本站使用的类型：
 - `graph TB/LR` - 有向图（架构图、依赖图）
@@ -185,7 +199,9 @@ a &= b + c \\
 $$
 ```
 
-## ### Mermaid 图表不渲染
+## 故障排查
+
+### Mermaid 图表不渲染
 
 1. 检查 `docs/.vitepress/theme/index.ts` 中是否正确配置了 `createMermaidRenderer`
 2. 确认主题是否正确扩展 `DefaultTheme`
@@ -198,19 +214,29 @@ $$
 2. 检查公式语法（使用 `$...$` 或 `$$...$$`）
 3. 避免在公式中使用未转义的特殊字符
 
-### 1. 清理缓存：`rm -rf docs/.vitepress/.temp docs/.vitepress/cache`
+### 构建失败
+
+1. 清理缓存：`rm -rf docs/.vitepress/.temp docs/.vitepress/cache`
 2. 重新安装依赖：`rm -rf node_modules bun.lock && bun install`
 3. 检查 TypeScript 类型错误
 
-## ### ```bash
+## 维护
+
+### 更新插件
+
+```bash
 bun update vitepress-mermaid-renderer markdown-it-mathjax3
 ```
 
-### ```bash
+### 检查依赖版本
+
+```bash
 bun pm ls | grep -E "vitepress|mermaid|mathjax"
 ```
 
-## ### 2026-06-19: vitepress-plugin-mermaid → vitepress-mermaid-renderer
+## 迁移历史
+
+### 2026-06-19: vitepress-plugin-mermaid → vitepress-mermaid-renderer
 
 **迁移原因**: 
 - 新插件提供更好的交互式功能（缩放、平移、全屏）
@@ -225,7 +251,9 @@ bun pm ls | grep -E "vitepress|mermaid|mathjax"
 
 **兼容性**: 所有现有的 Mermaid 代码块无需修改，语法完全兼容。
 
-## - [VitePress 官方文档](https://vitepress.dev/)
+## 参考
+
+- [VitePress 官方文档](https://vitepress.dev/)
 - [vitepress-mermaid-renderer](https://github.com/sametcn99/vitepress-mermaid-renderer)
 - [markdown-it-mathjax3](https://github.com/tani/markdown-it-mathjax3)
 - [Mermaid 文档](https://mermaid.js.org/)

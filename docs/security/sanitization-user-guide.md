@@ -1,6 +1,8 @@
 # 数据脱敏机制使用指南
 
-## ### 1. 选择脱敏级别
+## 快速开始
+
+### 1. 选择脱敏级别
 
 访问前端 **Config → Redaction** 页面，选择：
 
@@ -25,7 +27,9 @@
 - 敏感字段自动显示脱敏后的值
 - 鼠标悬停查看脱敏提示
 
-## ### Standard 级别（默认）
+## 脱敏内容对照表
+
+### Standard 级别（默认）
 
 | 类别 | 原始数据 | 脱敏后 |
 |------|---------|--------|
@@ -45,7 +49,9 @@
 | **所有 IP** | `8.8.8.8` | `<IP>` |
 | **所有域名** | `api.example.com` | `<DOMAIN>` |
 
-## ### 1：保护凭证信息
+## 常见场景
+
+### 场景 1：保护凭证信息
 
 **需求**：防止密码、token 泄漏到日志
 
@@ -63,7 +69,7 @@ tail ~/.config/agent-ebpf-filter/events.jsonl
 # 应该看到 -p [REDACTED]
 ```
 
-### 2：保护内网拓扑
+### 场景 2：保护内网拓扑
 
 **需求**：日志导出时不暴露内网 IP 和域名
 
@@ -74,7 +80,7 @@ tail ~/.config/agent-ebpf-filter/events.jsonl
 **验证**：
 在 Network 页面查看连接，内网地址应显示为 `<PRIVATE_IP>` 或 `<INTERNAL_DOMAIN>`
 
-### 3：合规审计
+### 场景 3：合规审计
 
 **需求**：最大化保护用户隐私，符合数据保护法规
 
@@ -86,7 +92,9 @@ tail ~/.config/agent-ebpf-filter/events.jsonl
 **验证**：
 导出配置和日志，人工审查确认无敏感信息泄漏
 
-## ### API 密钥格式
+## 自定义规则示例
+
+### 匹配自定义 API 密钥格式
 
 ```json
 {
@@ -98,7 +106,9 @@ tail ~/.config/agent-ebpf-filter/events.jsonl
 }
 ```
 
-### ```json
+### 匹配企业邮箱
+
+```json
 {
   "category": "custom_regex",
   "pattern": "[a-zA-Z0-9._%+-]+@mycompany\\.com",
@@ -108,7 +118,9 @@ tail ~/.config/agent-ebpf-filter/events.jsonl
 }
 ```
 
-### ```json
+### 匹配项目路径
+
+```json
 {
   "category": "paths",
   "pattern": "/opt/company/secrets/.*",
@@ -118,7 +130,9 @@ tail ~/.config/agent-ebpf-filter/events.jsonl
 }
 ```
 
-## ### runtime.json 配置
+## 配置文件
+
+### runtime.json 配置
 
 编辑 `~/.config/agent-ebpf-filter/runtime.json`：
 
@@ -139,7 +153,9 @@ tail ~/.config/agent-ebpf-filter/events.jsonl
 }
 ```
 
-### ```bash
+### 环境变量
+
+```bash
 # 设置脱敏级别
 export AGENT_REDACTION_LEVEL=strict
 
@@ -147,14 +163,16 @@ export AGENT_REDACTION_LEVEL=strict
 export AGENT_REDACTION_ENABLED=true
 ```
 
-## ### 1：修改配置不生效
+## 故障排查
+
+### 问题 1：修改配置不生效
 
 **解决**：
 1. 刷新前端页面
 2. 断开并重新连接 WebSocket
 3. 重启后端服务：`systemctl restart agent-ebpf-filter`
 
-### 2：自定义规则不匹配
+### 问题 2：自定义规则不匹配
 
 **解决**：
 1. 在 [regex101.com](https://regex101.com) 测试正则表达式
@@ -162,14 +180,16 @@ export AGENT_REDACTION_ENABLED=true
 3. 确认规则已启用（`"enabled": true`）
 4. 查看后端日志：`journalctl -u agent-ebpf-filter -f`
 
-### 3：过度脱敏影响调试
+### 问题 3：过度脱敏影响调试
 
 **解决**：
 1. 临时切换到 Basic 级别
 2. 或针对特定出口禁用脱敏（如仅禁用 UI 显示）
 3. 添加白名单规则排除特定字段
 
-## | 级别 | CPU 开销 | 延迟增加 | 吞吐影响 |
+## 性能影响
+
+| 级别 | CPU 开销 | 延迟增加 | 吞吐影响 |
 |------|---------|---------|---------|
 | None | 0% | 0ms | 无 |
 | Basic | < 2% | < 0.5ms | < 5% |
@@ -181,7 +201,9 @@ export AGENT_REDACTION_ENABLED=true
 - 避免过多复杂的自定义正则规则
 - 缓存会显著提升重复事件的处理速度
 
-## ### 推荐做法
+## 安全建议
+
+### ✅ 推荐做法
 
 1. **默认启用**：生产环境使用 Standard 或 Strict
 2. **定期审查**：每月检查脱敏规则和统计
@@ -189,7 +211,7 @@ export AGENT_REDACTION_ENABLED=true
 4. **限制访问**：限制对 None 级别的访问权限
 5. **审计日志**：启用脱敏配置变更的审计日志
 
-### 避免做法
+### ❌ 避免做法
 
 1. **生产用 None**：除非完全信任环境，否则不要禁用脱敏
 2. **降级为 Basic**：Standard 是推荐的最低安全级别
@@ -197,7 +219,9 @@ export AGENT_REDACTION_ENABLED=true
 4. **过度自定义**：过多规则会影响性能和可维护性
 5. **忽略更新**：随着威胁变化，定期更新脱敏规则
 
-## - 完整文档：[数据脱敏机制](sanitization.md)
+## 更多信息
+
+- 完整文档：[数据脱敏机制](sanitization.md)
 - 架构设计：[总体架构](../architecture/overview.md)
 - API 参考：[路由与 API](../backend/routes-api.md)
 - 开发维护指南：[维护检查清单](../reference/maintenance-checklists.md)

@@ -4,7 +4,9 @@
 
 ---
 
-## - [模型架构概览](#模型架构概览)
+## 目录
+
+- [模型架构概览](#模型架构概览)
 - [内核态模型](#内核态模型)
 - [用户态模型](#用户态模型)
 - [模型结构示例](#模型结构示例)
@@ -14,7 +16,9 @@
 
 ---
 
-## Agent eBPF Filter 采用**双层 ML 架构**：
+## 模型架构概览
+
+Agent eBPF Filter 采用**双层 ML 架构**：
 
 ```mermaid
 flowchart TD
@@ -26,7 +30,9 @@ flowchart TD
     Kernel --> Result["ALLOW / BLOCK / ALERT"]
 ```
 
-### - **定点数运算**: 所有模型使用 1000x 精度整数运算（无浮点）
+### 核心特性
+
+- **定点数运算**: 所有模型使用 1000x 精度整数运算（无浮点）
 - **热切换**: 支持运行时动态加载不同模型
 - **统一接口**: `unified_model` API 实现模型透明切换
 - **CUDA 后端**: 可选 GPU 加速（通过 userspace helper）
@@ -34,7 +40,9 @@ flowchart TD
 
 ---
 
-## 内核态模型位于 `kernel-ml/` 目录，作为 DKMS 内核模块加载，提供微秒级实时推理。
+## 内核态模型
+
+内核态模型位于 `kernel-ml/` 目录，作为 DKMS 内核模块加载，提供微秒级实时推理。
 
 ### 1. Random Forest (随机森林)
 
@@ -263,11 +271,11 @@ static inline int argmax(const s64 *values, int n) {
 
 ---
 
-## (47 种变体)
+## 用户态模型 (47 种变体)
 
 用户态模型基于 scikit-learn，用于训练和评估。所有模型都可以导出为内核态二进制格式。
 
-### (18 种)
+### 树模型家族 (18 种)
 
 #### Random Forest 系列 (6 种)
 
@@ -299,7 +307,7 @@ static inline int argmax(const s64 *values, int n) {
 - 训练更快，泛化能力略强
 - 适合高维稀疏特征
 
-### (12 种)
+### 线性模型家族 (12 种)
 
 #### Logistic Regression 系列 (6 种)
 
@@ -333,7 +341,7 @@ static inline int argmax(const s64 *values, int n) {
 | `ridge_light` | 弱正则 | alpha=0.1 | `linear`, `light` |
 | `ridge_strong` | 强正则 | alpha=10.0 | `linear`, `regularized` |
 
-### (6 种)
+### 在线学习模型 (6 种)
 
 #### Perceptron 系列 (3 种)
 
@@ -356,7 +364,7 @@ static inline int argmax(const s64 *values, int n) {
 - 内存占用小
 - 适合流式数据
 
-### /原型模型 (8 种)
+### 近邻/原型模型 (8 种)
 
 #### KNN 系列 (4 种)
 
@@ -380,7 +388,7 @@ static inline int argmax(const s64 *values, int n) {
 - Nearest Centroid: 训练/推理都极快
 - KNN: 训练快但推理慢 (O(N×D))
 
-### (3 种)
+### 其他模型 (3 种)
 
 #### Naive Bayes 系列 (2 种)
 
@@ -415,9 +423,9 @@ static inline int argmax(const s64 *values, int n) {
 
 ---
 
-## 模型结构示例
+## 📐 模型结构示例
 
-### 1: Random Forest 模型导出格式
+### 示例 1: Random Forest 模型导出格式
 
 ```python
 # 训练 Random Forest
@@ -460,7 +468,7 @@ for i, tree in enumerate(rf.estimators_):
 总大小: 24 + 15×平均节点数×32 ≈ 50 KB
 ```
 
-### 2: SVM 线性模型
+### 示例 2: SVM 线性模型
 
 ```python
 from sklearn.svm import LinearSVC
@@ -492,7 +500,7 @@ print(f"前 5 个权重：{svm.coef_[:5]}")
 总大小: 8 + 1,024 + 8 = 1,040 bytes ≈ 1 KB
 ```
 
-### 3: Neural Network 架构
+### 示例 3: Neural Network 架构
 
 ```python
 from sklearn.neural_network import MLPClassifier
@@ -530,7 +538,7 @@ flowchart TD
 | bias_output | 3×8 = 24 bytes |
 | **总计** | **33,832 bytes ≈ 33 KB** |
 
-### 4: Feature Vector 结构
+### 示例 4: Feature Vector 结构
 
 ```c
 struct feature_vector {
@@ -573,20 +581,24 @@ void extract_features(struct feature_vector *fv,
 
 ---
 
-## 性能对比矩阵
+## ⚡ 性能对比矩阵
 
-### | 模型 | 推理延迟 | 内存占用 | 准确率 | 吞吐量 | 适用场景 |
+### 内核态模型性能对比
+
+| 模型 | 推理延迟 | 内存占用 | 准确率 | 吞吐量 | 适用场景 |
 |------|---------|---------|--------|--------|---------|
 | **Logistic Regression** | ~1 μs | ~1 KB | ★★☆☆☆ | ~1M/s | 极速响应 |
 | **SVM** | ~2 μs | ~1 KB | ★★★☆☆ | ~500k/s | 低延迟 |
 | **Neural Network** | ~5 μs | ~16 KB | ★★★★★ | ~200k/s | 高准确率 |
 | **Random Forest** | ~10 μs | ~50 KB | ★★★★☆ | ~100k/s | 通用稳健 |
 
-### ![推理延迟对比](./ml-latency-comparison.svg)
+### 速度对比图
+
+![推理延迟对比](./ml-latency-comparison.svg)
 
 ![内存占用对比](./ml-memory-comparison.svg)
 
-### (1000 样本)
+### 用户态模型训练时间对比 (1000 样本)
 
 | 模型类型 | 平均训练时间 | 内存占用 | 并行化 |
 |---------|------------|---------|--------|
@@ -602,13 +614,15 @@ void extract_features(struct feature_vector *fv,
 | **Neural Network** | 5-30s | 高 | 是 |
 | **Ensemble** | 10-60s | 极高 | 是 |
 
-### vs 速度权衡
+### 准确率 vs 速度权衡
 
 ![准确率 vs 速度权衡](./ml-accuracy-vs-speed.svg)
 
 ---
 
-## ### 1: 生产环境部署
+## 使用指南
+
+### 场景 1: 生产环境部署
 
 **需求**: 高准确率、稳定、可解释
 
@@ -630,7 +644,7 @@ void extract_features(struct feature_vector *fv,
    sudo cat ensemble.bin > /proc/ml_load
    ```
 
-### 2: 低延迟实时防御
+### 场景 2: 低延迟实时防御
 
 **需求**: 推理时间 < 2 μs
 
@@ -653,7 +667,7 @@ cat /proc/ml_stats
 # Cache hit rate: 45%
 ```
 
-### 3: 内存受限环境
+### 场景 3: 内存受限环境
 
 **需求**: 模型大小 < 5 KB
 
@@ -663,7 +677,7 @@ cat /proc/ml_stats
 - `ridge` (1 KB)
 - `nearest_centroid` (3 KB)
 
-### 4: 数据不平衡
+### 场景 4: 数据不平衡
 
 **需求**: 少数类（BLOCK/ALERT）召回率高
 
@@ -687,7 +701,7 @@ lr.fit(X_train, y_train)
 print(lr.class_weight_)  # {0: 1.0, 1: 3.5, 2: 2.8}
 ```
 
-### 5: 可解释性需求
+### 场景 5: 可解释性需求
 
 **需求**: 审计友好、决策可追溯
 
@@ -709,9 +723,11 @@ print(lr.class_weight_)  # {0: 1.0, 1: 3.5, 2: 2.8}
 
 ---
 
-## 模型导出与加载
+## 🔄 模型导出与加载
 
-### #### 1. 单模型导出 (`model_loader.py`)
+### 训练与导出工具
+
+#### 1. 单模型导出 (`model_loader.py`)
 
 ```bash
 # 训练并导出 Random Forest
@@ -807,7 +823,9 @@ for model_type in ['random_forest', 'svm', 'logistic', 'neural_network']:
     subprocess.run(cmd)
 ```
 
-### #### 1. 加载模块
+### 加载到内核模块
+
+#### 1. 加载模块
 
 ```bash
 # 方式 1: 直接加载
@@ -885,7 +903,9 @@ cat /sys/kernel/kernel_ml/cache_stats
 # hits=1234 misses=567 size=64/64
 ```
 
-### #### C 代码调用示例
+### 推理接口
+
+#### C 代码调用示例
 
 ```c
 #include <fcntl.h>
@@ -959,7 +979,9 @@ int BPF_PROG(check_exec, struct linux_binprm *bprm, int ret) {
 
 ---
 
-## ```mermaid
+## 模型选择决策树
+
+```mermaid
 flowchart TD
     Start(["开始"]) --> Latency{"需要微秒级延迟?"}
     Latency -->|"是"| UltraLow{"延迟 &lt; 2μs?"}
@@ -976,7 +998,7 @@ flowchart TD
 
 ---
 
-## 高级特性
+## 🔬 高级特性
 
 ### 1. 模型版本控制
 
@@ -1097,7 +1119,9 @@ cat reports/ml-sweep-*/best.json
 
 ---
 
-## - `kernel-ml/README.md` - 内核模块详细文档
+## 参考文档
+
+- `kernel-ml/README.md` - 内核模块详细文档
 - [docs/backend/multi-model-complete.md](/backend/multi-model-complete) - 内核态多模型实现
 - [docs/backend/ml-experiments.md](/backend/ml-experiments) - 实验框架使用指南
 - [docs/backend/kernel-ml-implementation.md](/backend/kernel-ml-implementation) - 内核 ML 架构
@@ -1105,14 +1129,18 @@ cat reports/ml-sweep-*/best.json
 
 ---
 
-## ### | 模型 | 命令 | 延迟 | 内存 |
+## 快速参考卡
+
+### 内核态模型速查
+
+| 模型 | 命令 | 延迟 | 内存 |
 |------|------|------|------|
 | RF | `cat model_rf.bin > /proc/ml_load` | 10 μs | 50 KB |
 | SVM | `cat model_svm.bin > /proc/ml_load` | 2 μs | 1 KB |
 | LR | `cat model_lr.bin > /proc/ml_load` | 1 μs | 1 KB |
 | NN | `cat model_nn.bin > /proc/ml_load` | 5 μs | 16 KB |
 
-### (推荐配置)
+### 用户态模型速查 (推荐配置)
 
 | 场景 | 推荐模型 | 理由 |
 |------|---------|------|
@@ -1124,7 +1152,9 @@ cat reports/ml-sweep-*/best.json
 | 内存受限 | `ridge` / `svm` | 1 KB |
 | 在线学习 | `perceptron` | 增量更新 |
 
-### ```bash
+### 常用命令
+
+```bash
 # 查看模型状态
 cat /proc/ml_stats
 cat /sys/kernel/kernel_ml/model_info
