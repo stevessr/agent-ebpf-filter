@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -171,16 +172,15 @@ func parseJSONDatasetRecordsWithLimits(raw []byte, source string, limits remoteD
 		return remoteDatasetParseResult{}, err
 	}
 
-	items := flattenDatasetJSON(decoded)
-	for i, item := range items {
-		record, ok := remoteDatasetRecordFromAny(item, i+1, source)
+	rowIndex := 0
+	visitDatasetJSONCandidates(decoded, func(item any) bool {
+		rowIndex++
+		record, ok := remoteDatasetRecordFromAny(item, rowIndex, source)
 		if !ok {
-			continue
+			return true
 		}
-		if !appendLimitedRemoteDatasetRecord(&result, record, limits) {
-			break
-		}
-	}
+		return appendLimitedRemoteDatasetRecord(&result, record, limits)
+	})
 	return result, nil
 }
 
@@ -404,127 +404,163 @@ func shouldSkipTextDatasetLine(line string) bool {
 }
 
 func flattenDatasetJSON(decoded any) []any {
-	var items []any
-	switch value := decoded.(type) {
-	case []any:
-		items = value
-	case map[string]any:
-		found := false
-	outer:
-		for _, key := range []string{"rows", "records", "items", "samples", "data", "commands", "rules", "executables"} {
-			if nested, ok := value[key]; ok {
-				switch nestedValue := nested.(type) {
-				case []any:
-					items = nestedValue
-					found = true
-					break outer
-				case map[string]any:
-					if expanded := expandDatasetObjectMap(nestedValue); len(expanded) > 0 {
-						items = expanded
-					} else {
-						items = []any{nestedValue}
-					}
-					found = true
-					break outer
-				}
-			}
-		}
-		if !found {
-			// Check if it's a map of objects (GTFOBins style)
-			allObjects := true
-			for _, v := range value {
-				if _, ok := v.(map[string]any); !ok {
-					allObjects = false
-					break
-				}
-			}
-			if allObjects && len(value) > 0 {
-				for k, v := range value {
-					// Skip known metadata keys at the top level
-					if k == "functions" || k == "metadata" || k == "categories" || k == "contexts" {
-						continue
-					}
-					m := v.(map[string]any)
-					m["_injected_name"] = k
-					items = append(items, m)
-				}
-			} else {
-				items = []any{value}
-			}
-		}
-	default:
-		return []any{decoded}
-	}
-
-	// Second pass: expand nested commands (GTFOBins 'functions' or LOLBAS 'Commands')
-	var expanded []any
-	for _, item := range items {
-		m, ok := item.(map[string]any)
-		if !ok {
-			expanded = append(expanded, item)
-			continue
-		}
-
-		// GTFOBins expansion
-		if funcs, ok := m["functions"].(map[string]any); ok {
-			for fName, fList := range funcs {
-				if fl, ok := fList.([]any); ok {
-					for _, fi := range fl {
-						if fim, ok := fi.(map[string]any); ok {
-							newM := make(map[string]any)
-							for k, v := range m { // copy original
-								if k != "functions" {
-									newM[k] = v
-								}
-							}
-							for k, v := range fim { // merge function entry
-								newM[k] = v
-							}
-							newM["_injected_category"] = fName
-							expanded = append(expanded, newM)
-						}
-					}
-				}
-			}
-			continue
-		}
-
-		// LOLBAS expansion
-		if cmds, ok := m["Commands"].([]any); ok {
-			for _, ci := range cmds {
-				if cim, ok := ci.(map[string]any); ok {
-					newM := make(map[string]any)
-					for k, v := range m { // copy original
-						if k != "Commands" {
-							newM[k] = v
-						}
-					}
-					for k, v := range cim { // merge command entry
-						newM[k] = v
-					}
-					expanded = append(expanded, newM)
-				}
-			}
-			continue
-		}
-
-		expanded = append(expanded, m)
-	}
-
-	return expanded
+	items, _ := flattenDatasetJSONWithLimit(decoded, remoteDatasetAbsoluteRecordLimit+1)
+	return items
 }
 
-func expandDatasetObjectMap(value map[string]any) []any {
-	items := make([]any, 0, len(value))
-	for k, v := range value {
-		m, ok := v.(map[string]any)
-		if !ok {
-			continue
-		}
-		m["_injected_name"] = k
-		items = append(items, m)
+func flattenDatasetJSONWithLimit(decoded any, maxItems int) ([]any, bool) {
+	if maxItems <= 0 {
+		maxItems = 1
 	}
-	return items
+	items := make([]any, 0, min(maxItems, 256))
+	truncated := visitDatasetJSONCandidates(decoded, func(item any) bool {
+		if len(items) >= maxItems {
+			return false
+		}
+		items = append(items, item)
+		return true
+	})
+	return items, truncated
+}
+
+// visitDatasetJSONCandidates walks supported dataset shapes without building a
+// second expanded copy of the entire decoded JSON document. It returns true
+// when the visitor stops traversal early.
+func visitDatasetJSONCandidates(decoded any, visit func(any) bool) bool {
+	visitItems := func(items []any) bool {
+		for _, item := range items {
+			if visitExpandedDatasetJSONItem(item, visit) {
+				return true
+			}
+		}
+		return false
+	}
+
+	switch value := decoded.(type) {
+	case []any:
+		return visitItems(value)
+	case map[string]any:
+		for _, key := range []string{"rows", "records", "items", "samples", "data", "commands", "rules", "executables"} {
+			nested, ok := value[key]
+			if !ok {
+				continue
+			}
+			switch nestedValue := nested.(type) {
+			case []any:
+				return visitItems(nestedValue)
+			case map[string]any:
+				visitedObject := false
+				for _, nestedKey := range sortedDatasetMapKeys(nestedValue) {
+					nestedObject, ok := nestedValue[nestedKey].(map[string]any)
+					if !ok {
+						continue
+					}
+					visitedObject = true
+					candidate := cloneDatasetMap(nestedObject, "")
+					candidate["_injected_name"] = nestedKey
+					if visitExpandedDatasetJSONItem(candidate, visit) {
+						return true
+					}
+				}
+				if !visitedObject {
+					return visitExpandedDatasetJSONItem(nestedValue, visit)
+				}
+				return false
+			}
+		}
+
+		allObjects := len(value) > 0
+		for _, nested := range value {
+			if _, ok := nested.(map[string]any); !ok {
+				allObjects = false
+				break
+			}
+		}
+		if !allObjects {
+			return visitExpandedDatasetJSONItem(value, visit)
+		}
+		for _, key := range sortedDatasetMapKeys(value) {
+			if key == "functions" || key == "metadata" || key == "categories" || key == "contexts" {
+				continue
+			}
+			candidate := cloneDatasetMap(value[key].(map[string]any), "")
+			candidate["_injected_name"] = key
+			if visitExpandedDatasetJSONItem(candidate, visit) {
+				return true
+			}
+		}
+		return false
+	default:
+		return !visit(decoded)
+	}
+}
+
+func visitExpandedDatasetJSONItem(item any, visit func(any) bool) bool {
+	object, ok := item.(map[string]any)
+	if !ok {
+		return !visit(item)
+	}
+	if functions, ok := object["functions"].(map[string]any); ok {
+		for _, functionName := range sortedDatasetMapKeys(functions) {
+			entries, ok := functions[functionName].([]any)
+			if !ok {
+				continue
+			}
+			for _, entry := range entries {
+				entryObject, ok := entry.(map[string]any)
+				if !ok {
+					continue
+				}
+				candidate := cloneDatasetMap(object, "functions")
+				mergeDatasetMap(candidate, entryObject)
+				candidate["_injected_category"] = functionName
+				if !visit(candidate) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	if commands, ok := object["Commands"].([]any); ok {
+		for _, command := range commands {
+			commandObject, ok := command.(map[string]any)
+			if !ok {
+				continue
+			}
+			candidate := cloneDatasetMap(object, "Commands")
+			mergeDatasetMap(candidate, commandObject)
+			if !visit(candidate) {
+				return true
+			}
+		}
+		return false
+	}
+	return !visit(object)
+}
+
+func cloneDatasetMap(value map[string]any, skipKey string) map[string]any {
+	clone := make(map[string]any, len(value))
+	for key, item := range value {
+		if key != skipKey {
+			clone[key] = item
+		}
+	}
+	return clone
+}
+
+func mergeDatasetMap(dst, src map[string]any) {
+	for key, item := range src {
+		dst[key] = item
+	}
+}
+
+func sortedDatasetMapKeys(value map[string]any) []string {
+	keys := make([]string, 0, len(value))
+	for key := range value {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func remoteDatasetRecordFromAny(decoded any, rowIndex int, source string) (remoteDatasetRecord, bool) {
@@ -555,7 +591,7 @@ func remoteDatasetRecordFromAny(decoded any, rowIndex int, source string) (remot
 func remoteDatasetRecordFromMap(row map[string]any, rowIndex int, source string) (remoteDatasetRecord, bool) {
 	record := remoteDatasetRecord{Row: rowIndex, Source: source, UserLabel: "remote-import"}
 
-	commandLine := firstStringValue(row, "commandLine", "cmdline", "full_command", "command", "shell", "payload", "text", "value", "Command", "code", "rule", "policy", "selinuxRule", "selinux_rule")
+	commandLine := firstStringValue(row, "commandLine", "commandline", "cmdline", "full_command", "command", "shell", "payload", "text", "value", "Command", "code", "rule", "policy", "selinuxRule", "selinuxrule", "selinux_rule")
 	if selinuxRecord, ok := selinuxPolicyRuleRecordFromLine(commandLine, rowIndex, source); ok {
 		label := normalizeDatasetLabelValue(row["label"])
 		if label == "" {
@@ -583,7 +619,7 @@ func remoteDatasetRecordFromMap(row map[string]any, rowIndex int, source string)
 		}
 		return selinuxRecord, true
 	}
-	comm := firstStringValue(row, "comm", "commandName", "name", "executable", "Name", "_injected_name")
+	comm := firstStringValue(row, "comm", "commandName", "commandname", "name", "executable", "Name", "_injected_name")
 	args := extractDatasetArgs(row, commandLine)
 	if commandLine == "" && comm != "" {
 		commandLine = joinCommandLine(comm, args)
@@ -617,7 +653,7 @@ func remoteDatasetRecordFromMap(row map[string]any, rowIndex int, source string)
 	if ts, ok := extractDatasetTimestamp(row); ok {
 		record.Timestamp = ts
 	}
-	if userLabel := firstStringValue(row, "userLabel", "user_label"); userLabel != "" {
+	if userLabel := firstStringValue(row, "userLabel", "userlabel", "user_label"); userLabel != "" {
 		record.UserLabel = userLabel
 	}
 

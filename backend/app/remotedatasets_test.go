@@ -83,6 +83,118 @@ func TestParseRemoteDatasetRecordsJSONL(t *testing.T) {
 	}
 }
 
+func TestParseRemoteDatasetRecordsWithLimitsAcrossFormats(t *testing.T) {
+	tests := []struct {
+		name   string
+		format string
+		raw    string
+	}{
+		{
+			name:   "json",
+			format: "json",
+			raw:    `[{"commandLine":"echo 1"},{"commandLine":"echo 2"},{"commandLine":"echo 3"},{"commandLine":"echo 4"}]`,
+		},
+		{
+			name:   "jsonl",
+			format: "jsonl",
+			raw:    "{\"commandLine\":\"echo 1\"}\n{\"commandLine\":\"echo 2\"}\n{\"commandLine\":\"echo 3\"}\n{\"commandLine\":\"echo 4\"}\n",
+		},
+		{
+			name:   "csv",
+			format: "csv",
+			raw:    "commandLine\necho 1\necho 2\necho 3\necho 4\n",
+		},
+		{
+			name:   "tsv",
+			format: "tsv",
+			raw:    "commandLine\tlabel\necho 1\tALLOW\necho 2\tALLOW\necho 3\tALLOW\necho 4\tALLOW\n",
+		},
+		{
+			name:   "text",
+			format: "text",
+			raw:    "echo 1\necho 2\necho 3\necho 4\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := parseRemoteDatasetRecordsWithLimits([]byte(tt.raw), tt.format, tt.name, remoteDatasetParseLimits{MaxRecords: 3, StoreRecords: 2})
+			if err != nil {
+				t.Fatalf("parse error: %v", err)
+			}
+			if result.Total != 3 || len(result.Records) != 2 || !result.Truncated {
+				t.Fatalf("result total/stored/truncated = %d/%d/%t, want 3/2/true", result.Total, len(result.Records), result.Truncated)
+			}
+			if result.Records[0].CommandLine != "echo 1" || result.Records[1].CommandLine != "echo 2" {
+				t.Fatalf("stored records = %#v", result.Records)
+			}
+		})
+	}
+}
+
+func TestParseRemoteDatasetLimitedJSONIsDeterministic(t *testing.T) {
+	raw := []byte(`{
+		"executables": {
+			"zeta": {"functions":{"shell":[{"code":"zeta --shell"}]}},
+			"alpha": {"functions":{"shell":[{"code":"alpha --shell"}]}},
+			"middle": {"functions":{"shell":[{"code":"middle --shell"}]}}
+		}
+	}`)
+
+	for i := 0; i < 10; i++ {
+		result, err := parseRemoteDatasetRecordsWithLimits(raw, "json", "gtfobins", remoteDatasetParseLimits{MaxRecords: 2, StoreRecords: 2})
+		if err != nil {
+			t.Fatalf("parse error: %v", err)
+		}
+		if result.Total != 2 || len(result.Records) != 2 || !result.Truncated {
+			t.Fatalf("result total/stored/truncated = %d/%d/%t", result.Total, len(result.Records), result.Truncated)
+		}
+		if result.Records[0].Comm != "alpha" || result.Records[1].Comm != "middle" {
+			t.Fatalf("record order = %q, %q", result.Records[0].Comm, result.Records[1].Comm)
+		}
+	}
+}
+
+func TestPullRemoteDatasetReportsPreviewAndSafetyTruncation(t *testing.T) {
+	raw := "{\"commandLine\":\"echo 1\"}\n{\"commandLine\":\"echo 2\"}\n{\"commandLine\":\"echo 3\"}\n{\"commandLine\":\"echo 4\"}\n{\"commandLine\":\"echo 5\"}\n"
+
+	preview, err := pullRemoteDatasetWithRecordLimit(remoteDatasetRequest{
+		Content:    raw,
+		SourceName: "preview.jsonl",
+		Format:     "jsonl",
+		Limit:      2,
+	}, nil, 10)
+	if err != nil {
+		t.Fatalf("preview error: %v", err)
+	}
+	if preview.Total != 5 || len(preview.Rows) != 2 || !preview.Truncated || preview.TotalIsLowerBound {
+		t.Fatalf("preview total/rows/truncated/lower = %d/%d/%t/%t", preview.Total, len(preview.Rows), preview.Truncated, preview.TotalIsLowerBound)
+	}
+
+	imported, err := pullRemoteDatasetWithRecordLimit(remoteDatasetRequest{
+		Content:    raw,
+		SourceName: "import.jsonl",
+		Format:     "jsonl",
+		Limit:      2,
+		ImportAll:  true,
+	}, nil, 3)
+	if err != nil {
+		t.Fatalf("importAll error: %v", err)
+	}
+	if imported.Total != 3 || len(imported.Rows) != 3 || !imported.Truncated || !imported.TotalIsLowerBound || imported.RecordLimit != 3 {
+		t.Fatalf("import total/rows/truncated/lower/limit = %d/%d/%t/%t/%d", imported.Total, len(imported.Rows), imported.Truncated, imported.TotalIsLowerBound, imported.RecordLimit)
+	}
+	foundRecordWarning := false
+	for _, warning := range imported.ParseWarnings {
+		if warning.Reason == "record_limit_truncated" {
+			foundRecordWarning = true
+		}
+	}
+	if !foundRecordWarning {
+		t.Fatalf("parse warnings = %#v, want record_limit_truncated", imported.ParseWarnings)
+	}
+}
+
 func TestParseRemoteDatasetRecordsWithLimitsCountsWithoutRetainingAll(t *testing.T) {
 	result, err := parseRemoteDatasetRecordsWithLimits(
 		[]byte("echo one\necho two\necho three\necho four\n"),
@@ -98,6 +210,56 @@ func TestParseRemoteDatasetRecordsWithLimitsCountsWithoutRetainingAll(t *testing
 	}
 	if result.Records[0].Comm != "echo" || strings.Join(result.Records[1].Args, " ") != "two" {
 		t.Fatalf("retained records = %#v", result.Records)
+	}
+}
+
+func TestParseJSONDatasetLimitCountsValidRecordsAfterInvalidCandidates(t *testing.T) {
+	raw := []byte(`{
+		"rows": [
+			{"metadata":"skip-1"},
+			{"metadata":"skip-2"},
+			{"metadata":"skip-3"},
+			{"metadata":"skip-4"},
+			{"commandLine":"echo one"},
+			{"commandLine":"echo two"},
+			{"commandLine":"echo three"}
+		]
+	}`)
+	result, err := parseRemoteDatasetRecordsWithLimits(raw, "json", "inline.json", remoteDatasetParseLimits{
+		MaxRecords:   2,
+		StoreRecords: 2,
+	})
+	if err != nil {
+		t.Fatalf("parseRemoteDatasetRecordsWithLimits() error = %v", err)
+	}
+	if result.Total != 2 || len(result.Records) != 2 || !result.Truncated {
+		t.Fatalf("parse result = %#v, want two valid retained records and truncation", result)
+	}
+	if result.Records[0].CommandLine != "echo one" || result.Records[1].CommandLine != "echo two" {
+		t.Fatalf("valid records after skipped candidates = %#v", result.Records)
+	}
+}
+
+func TestFlattenDatasetJSONIsDeterministicBoundedAndNonMutating(t *testing.T) {
+	decoded := map[string]any{
+		"executables": map[string]any{
+			"z-tool": map[string]any{"command": "z-tool run"},
+			"a-tool": map[string]any{"command": "a-tool run"},
+		},
+	}
+	executables := decoded["executables"].(map[string]any)
+	items, truncated := flattenDatasetJSONWithLimit(decoded, 1)
+	if !truncated || len(items) != 1 {
+		t.Fatalf("flatten result = %#v truncated=%t, want one bounded candidate", items, truncated)
+	}
+	first, ok := items[0].(map[string]any)
+	if !ok || first["_injected_name"] != "a-tool" {
+		t.Fatalf("first deterministic item = %#v, want a-tool", items[0])
+	}
+	for name, value := range executables {
+		if _, mutated := value.(map[string]any)["_injected_name"]; mutated {
+			t.Fatalf("source object %q was mutated during flattening", name)
+		}
 	}
 }
 
