@@ -112,7 +112,7 @@ func startKernelEventReader(rd *ringbuf.Reader) {
 
 func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) {
 	initRedactionEngine()
-	startEventBroadcaster()
+	startEventBroadcaster(ctx)
 	startKernelRiskFeedbackWorker()
 	startLoopDetectionWorker()
 	startResearchProcessingWorker()

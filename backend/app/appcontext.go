@@ -24,10 +24,8 @@ type AppContext struct {
 
 	// ── Event system ────────────────────────────────────────────────
 	Broadcast         chan *pb.Event
-	Clients           map[*websocket.Conn]bool
-	ClientsMu         sync.Mutex
-	EnvelopeClients   map[*websocket.Conn]bool
-	EnvelopeClientsMu sync.Mutex
+	EventClientHub    *protoClientHub
+	EnvelopeClientHub *protoClientHub
 	Upgrader          websocket.Upgrader
 
 	// ── Runtime config ──────────────────────────────────────────────
@@ -143,7 +141,9 @@ func ContextMiddleware(ac *AppContext) gin.HandlerFunc {
 // Callers must set RuntimeSettings, CapturedEventArchive, TrackerMaps after creation.
 func newAppContext() *AppContext {
 	return &AppContext{
-		Network: network.NewManager(),
+		Network:           network.NewManager(),
+		EventClientHub:    newProtoClientHub(),
+		EnvelopeClientHub: newProtoClientHub(),
 		TagMap: map[uint32]string{
 			0: "Unknown", 1: "AI Agent", 2: "Git", 3: "Build Tool",
 			4: "System Pkg", 5: "Runtime", 6: "System Tool",

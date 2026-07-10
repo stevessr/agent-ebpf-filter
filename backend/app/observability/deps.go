@@ -7,7 +7,6 @@ import (
 	"agent-ebpf-filter/core"
 	"agent-ebpf-filter/pb"
 	"github.com/cilium/ebpf"
-	"github.com/gorilla/websocket"
 )
 
 // ── Re-export core types ─────────────────────────────────────────────────
@@ -30,11 +29,9 @@ type Deps struct {
 	FdinfoHistoryMu *sync.RWMutex
 	FdinfoTime      *time.Time
 
-	Clients           map[*websocket.Conn]bool
-	ClientsMu         *sync.Mutex
-	EnvelopeClients   map[*websocket.Conn]bool
-	EnvelopeClientsMu *sync.Mutex
-	Broadcast         chan<- *pb.Event
+	LegacyWSClientCount   func() int
+	EnvelopeWSClientCount func() int
+	Broadcast             chan<- *pb.Event
 }
 
 var deps Deps

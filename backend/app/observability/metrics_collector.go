@@ -430,20 +430,12 @@ func (s *collectorMetricsState) snapshot() CollectorHealthResponse {
 	}
 
 	legacyWSClients := 0
-	if deps.ClientsMu != nil {
-		deps.ClientsMu.Lock()
-		legacyWSClients = len(deps.Clients)
-		deps.ClientsMu.Unlock()
-	} else if deps.Clients != nil {
-		legacyWSClients = len(deps.Clients)
+	if deps.LegacyWSClientCount != nil {
+		legacyWSClients = deps.LegacyWSClientCount()
 	}
 	envelopeWSClients := 0
-	if deps.EnvelopeClientsMu != nil {
-		deps.EnvelopeClientsMu.Lock()
-		envelopeWSClients = len(deps.EnvelopeClients)
-		deps.EnvelopeClientsMu.Unlock()
-	} else if deps.EnvelopeClients != nil {
-		envelopeWSClients = len(deps.EnvelopeClients)
+	if deps.EnvelopeWSClientCount != nil {
+		envelopeWSClients = deps.EnvelopeWSClientCount()
 	}
 
 	agentSightCounters := make(map[string]uint64, len(raw.AgentSightCountersTotal))

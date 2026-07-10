@@ -13,7 +13,11 @@ func TestCollectorPipelineMetricsSnapshot(t *testing.T) {
 	oldDeps := deps
 	broadcast := make(chan *pb.Event, 4)
 	collectorMetricsStore = newCollectorMetricsState()
-	deps = Deps{Broadcast: broadcast}
+	deps = Deps{
+		Broadcast:             broadcast,
+		LegacyWSClientCount:   func() int { return 2 },
+		EnvelopeWSClientCount: func() int { return 3 },
+	}
 	t.Cleanup(func() {
 		collectorMetricsStore = oldStore
 		deps = oldDeps
@@ -42,5 +46,8 @@ func TestCollectorPipelineMetricsSnapshot(t *testing.T) {
 	}
 	if health.PersistAppendLatencyNs != uint64((3 * time.Millisecond).Nanoseconds()) {
 		t.Fatalf("persist latency mismatch: %+v", health)
+	}
+	if health.WsClients != 5 {
+		t.Fatalf("websocket client count = %d, want 5", health.WsClients)
 	}
 }

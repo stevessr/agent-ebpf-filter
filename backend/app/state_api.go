@@ -3,7 +3,6 @@ package app
 import (
 	"agent-ebpf-filter/pb"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -11,14 +10,9 @@ import (
 
 // ---- moved from backend/zz_merged_backend.go section state_api.go ----
 
-// Package-level globals kept for backward compatibility.
-// New code should use AppCtx.Broadcast, AppCtx.Clients, etc.
+// Package-level event runtime initialized once and bound into AppContext.
 var (
-	clients           = make(map[*websocket.Conn]bool)
-	clientsMu         sync.Mutex
-	envelopeClients   = make(map[*websocket.Conn]bool)
-	envelopeClientsMu sync.Mutex
-	broadcast         = make(chan *pb.Event, 1000)
+	broadcast = make(chan *pb.Event, 1000)
 
 	upgrader = websocket.Upgrader{
 		CheckOrigin:      func(r *http.Request) bool { return true },

@@ -36,8 +36,6 @@ func Main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	AppCtx.Broadcast = broadcast
-	AppCtx.Clients = clients
-	AppCtx.EnvelopeClients = envelopeClients
 	AppCtx.Upgrader = upgrader
 	AppCtx.RuntimeSettings = runtimeSettingsStore
 	AppCtx.CapturedEventArchive = capturedEventArchive

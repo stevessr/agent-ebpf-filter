@@ -21,14 +21,22 @@ func initObservability() {
 	observability.Init(observability.Deps{
 		TrackerMaps: observabilityTrackerMapSet{},
 
-		NvmlInitialized:     nvmlInitialized,
-		FdinfoHistory:       fdinfoHistory,
-		FdinfoHistoryMu:     &fdinfoHistoryMu,
-		FdinfoTime:          &fdinfoTime,
-		Clients:             clients,
-		ClientsMu:           &clientsMu,
-		EnvelopeClients:     envelopeClients,
-		EnvelopeClientsMu:   &envelopeClientsMu,
-		Broadcast:           broadcast,
+		NvmlInitialized: nvmlInitialized,
+		FdinfoHistory:   fdinfoHistory,
+		FdinfoHistoryMu: &fdinfoHistoryMu,
+		FdinfoTime:      &fdinfoTime,
+		LegacyWSClientCount: func() int {
+			if AppCtx == nil {
+				return 0
+			}
+			return AppCtx.EventClientHub.ClientCount()
+		},
+		EnvelopeWSClientCount: func() int {
+			if AppCtx == nil {
+				return 0
+			}
+			return AppCtx.EnvelopeClientHub.ClientCount()
+		},
+		Broadcast: broadcast,
 	})
 }

@@ -3,15 +3,14 @@ package app
 import (
 	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
+	"context"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -19,60 +18,47 @@ import (
 
 func serveEventsWS(c *gin.Context) {
 	ac := Ctx(c)
-	servePassiveProtoWS(c, ac.Clients, &ac.ClientsMu)
+	servePassiveProtoWS(c, ac.EventClientHub)
 }
 
 func serveEventEnvelopesWS(c *gin.Context) {
 	ac := Ctx(c)
-	servePassiveProtoWS(c, ac.EnvelopeClients, &ac.EnvelopeClientsMu)
+	servePassiveProtoWS(c, ac.EnvelopeClientHub)
 }
 
-func servePassiveProtoWS(c *gin.Context, target map[*websocket.Conn]bool, mu *sync.Mutex) {
+func servePassiveProtoWS(c *gin.Context, hub *protoClientHub) {
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		c.Status(http.StatusBadRequest)
 		return
 	}
-	mu.Lock()
-	target[conn] = true
-	mu.Unlock()
+	clientID, clientState := hub.addClient(conn)
 
-	go func(conn *websocket.Conn) {
-		defer func() {
-			mu.Lock()
-			delete(target, conn)
-			mu.Unlock()
-			_ = conn.Close()
-		}()
-
-		for {
-			if _, _, err := conn.ReadMessage(); err != nil {
-				return
-			}
-		}
-	}(conn)
-}
-
-func broadcastProtoMessage(target map[*websocket.Conn]bool, mu *sync.Mutex, data []byte) int {
-	writeErrors := 0
-	mu.Lock()
-	for conn := range target {
-		if conn == nil {
-			delete(target, conn)
-			continue
-		}
-		if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
-			writeErrors++
-			conn.Close()
-			delete(target, conn)
+	defer func() {
+		hub.removeClient(clientID, clientState)
+	}()
+	for {
+		if _, _, err := conn.ReadMessage(); err != nil {
+			return
 		}
 	}
-	mu.Unlock()
-	return writeErrors
 }
 
-func startEventBroadcaster() {
+func broadcastProtoMessage(hub *protoClientHub, data []byte) int {
+	return hub.Broadcast(data)
+}
+
+func startEventBroadcaster(ctx context.Context) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	appContext := AppCtx
+	if appContext == nil {
+		return
+	}
 	go func() {
+		defer appContext.EventClientHub.Close()
+		defer appContext.EnvelopeClientHub.Close()
 		eventBatch := make([]*pb.Event, 0, 50)
 		envelopeBatch := make([]*pb.EventEnvelope, 0, 50)
 		batchTicker := time.NewTicker(50 * time.Millisecond)
@@ -97,7 +83,7 @@ func startEventBroadcaster() {
 					marshalErrors++
 					log.Printf("[ERROR] failed to marshal EventBatch: %v", err)
 				} else {
-					writeErrors += broadcastProtoMessage(AppCtx.Clients, &AppCtx.ClientsMu, data)
+					writeErrors += broadcastProtoMessage(appContext.EventClientHub, data)
 				}
 			}
 			if envelopeCount > 0 {
@@ -110,7 +96,7 @@ func startEventBroadcaster() {
 					marshalErrors++
 					log.Printf("[ERROR] failed to marshal EventEnvelopeBatch: %v", err)
 				} else {
-					writeErrors += broadcastProtoMessage(AppCtx.EnvelopeClients, &AppCtx.EnvelopeClientsMu, data)
+					writeErrors += broadcastProtoMessage(appContext.EnvelopeClientHub, data)
 				}
 			}
 			collectorMetricsStore.RecordBroadcastFlush(eventCount, envelopeCount, marshalErrors, writeErrors, time.Since(started))
@@ -130,7 +116,14 @@ func startEventBroadcaster() {
 
 		for {
 			select {
-			case event := <-AppCtx.Broadcast:
+			case <-ctx.Done():
+				flushBatch()
+				return
+			case event, ok := <-appContext.Broadcast:
+				if !ok {
+					flushBatch()
+					return
+				}
 				collectorMetricsStore.RecordBroadcastReceived()
 				event = enrichEventContext(event)
 				appendRecord(recordCapturedEvent(event))
