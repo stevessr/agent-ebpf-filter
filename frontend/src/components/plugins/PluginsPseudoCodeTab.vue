@@ -17,12 +17,14 @@ import {
   ThunderboltOutlined,
 } from "@ant-design/icons-vue";
 import { message } from "ant-design-vue";
-import * as monaco from "monaco-editor";
-import "monaco-editor/esm/vs/language/typescript/monaco.contribution";
-import "monaco-editor/esm/vs/editor/editor.all.js";
+import type * as Monaco from "monaco-editor";
 
 import { usePlugins } from "../../composables/plugins/usePlugins";
-import { configureMonacoTypesAndCompletion } from "./monaco-config";
+import {
+  configureMonacoTypesAndCompletion,
+  type MonacoApi,
+  type MonacoTypeScriptApi,
+} from "./monaco-config";
 import {
   createPseudoSeedSnapshot,
   pseudoCodeToBpfSnapshot,
@@ -43,7 +45,34 @@ const compiled = ref(false);
 const loadingAction = ref(false);
 const compileLogLocal = ref("");
 const editorContainer = ref<HTMLElement | null>(null);
-let editor: monaco.editor.IStandaloneCodeEditor | null = null;
+const editorLoading = ref(false);
+const editorError = ref("");
+let editor: Monaco.editor.IStandaloneCodeEditor | null = null;
+interface MonacoRuntime {
+  api: MonacoApi;
+  typescript: MonacoTypeScriptApi;
+}
+
+let monacoPromise: Promise<MonacoRuntime> | null = null;
+let componentMounted = false;
+
+const loadMonaco = () => {
+  if (!monacoPromise) {
+    monacoPromise = Promise.all([
+      import("monaco-editor/esm/vs/editor/editor.api.js"),
+      import("monaco-editor/esm/vs/language/typescript/monaco.contribution.js"),
+    ])
+      .then(([api, typescript]) => ({
+        api: api as unknown as MonacoApi,
+        typescript: typescript as unknown as MonacoTypeScriptApi,
+      }))
+      .catch((error) => {
+        monacoPromise = null;
+        throw error;
+      });
+  }
+  return monacoPromise;
+};
 
 // Draft persistence
 const {
@@ -103,24 +132,38 @@ const resetDraft = () => {
   void nextTick(() => editor?.layout());
 };
 
-const initMonaco = () => {
+const initMonaco = async () => {
   if (!editorContainer.value || editor) return;
-  configureMonacoTypesAndCompletion();
-  editor = monaco.editor.create(editorContainer.value, {
-    value: pseudoCode.value,
-    language: "typescript",
-    theme: "vs-dark",
-    automaticLayout: true,
-    minimap: { enabled: false },
-    fontSize: 12,
-    lineNumbers: "on",
-    roundedSelection: true,
-    scrollBeyondLastLine: false,
-  });
-  editor.onDidChangeModelContent(() => {
-    const nextCode = editor?.getValue() || "";
-    if (nextCode !== pseudoCode.value) pseudoCode.value = nextCode;
-  });
+  editorLoading.value = true;
+  editorError.value = "";
+  try {
+    const { api: monaco, typescript } = await loadMonaco();
+    if (!componentMounted || !editorContainer.value || editor) return;
+
+    configureMonacoTypesAndCompletion(monaco, typescript);
+    editor = monaco.editor.create(editorContainer.value, {
+      value: pseudoCode.value,
+      language: "typescript",
+      theme: "vs-dark",
+      automaticLayout: true,
+      minimap: { enabled: false },
+      fontSize: 12,
+      lineNumbers: "on",
+      roundedSelection: true,
+      scrollBeyondLastLine: false,
+    });
+    editor.onDidChangeModelContent(() => {
+      const nextCode = editor?.getValue() || "";
+      if (nextCode !== pseudoCode.value) pseudoCode.value = nextCode;
+    });
+  } catch (error) {
+    if (componentMounted) {
+      editorError.value =
+        error instanceof Error ? error.message : "Monaco 编辑器加载失败";
+    }
+  } finally {
+    if (componentMounted) editorLoading.value = false;
+  }
 };
 
 watch(pseudoCode, (nextCode) => {
@@ -139,11 +182,13 @@ watch(
 );
 
 onMounted(() => {
+  componentMounted = true;
   restoreDraft();
-  void nextTick(initMonaco);
+  void nextTick(() => initMonaco());
 });
 
 onBeforeUnmount(() => {
+  componentMounted = false;
   editor?.dispose();
   editor = null;
 });
@@ -345,7 +390,16 @@ const copyGeneratedSource = async () => {
             </a-space>
           </template>
 
-          <div ref="editorContainer" class="monaco-container"></div>
+          <div class="monaco-shell">
+            <div ref="editorContainer" class="monaco-container"></div>
+            <div v-if="editorLoading" class="monaco-status">
+              <a-spin tip="正在按需加载 TypeScript 编辑器…" />
+            </div>
+            <div v-else-if="editorError" class="monaco-status monaco-error">
+              <span>{{ editorError }}</span>
+              <a-button size="small" @click="initMonaco">重试</a-button>
+            </div>
+          </div>
 
           <a-card
             title="由 TS 伪代码生成的 eBPF C 预览"
@@ -407,12 +461,37 @@ const copyGeneratedSource = async () => {
   min-height: 680px;
 }
 
-.monaco-container {
+.monaco-shell {
+  position: relative;
   width: 100%;
   height: 360px;
+}
+
+.monaco-container {
+  width: 100%;
+  height: 100%;
   border: 1px solid #1f2937;
   border-radius: 8px;
   overflow: hidden;
+}
+
+.monaco-status {
+  position: absolute;
+  inset: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #cbd5e1;
+}
+
+.monaco-error {
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  color: #fca5a5;
+  text-align: center;
 }
 
 .generated-preview-card,

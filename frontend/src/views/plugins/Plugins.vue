@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from "vue";
+import { defineAsyncComponent, onMounted, ref, watch } from "vue";
 import {
   AppstoreOutlined,
   CodeOutlined,
@@ -13,10 +13,15 @@ import {
 import { message } from "ant-design-vue";
 import { useRoute, useRouter } from "vue-router";
 import { usePlugins } from "../../composables/plugins/usePlugins";
-import PluginsPseudoCodeTab from "../../components/plugins/PluginsPseudoCodeTab.vue";
-import PluginsVisualTab from "../../components/plugins/PluginsVisualTab.vue";
 import { usePluginBuilder } from "./usePluginBuilder";
 import { usePluginList } from "./usePluginList";
+
+const PluginsPseudoCodeTab = defineAsyncComponent(
+  () => import("../../components/plugins/PluginsPseudoCodeTab.vue"),
+);
+const PluginsVisualTab = defineAsyncComponent(
+  () => import("../../components/plugins/PluginsVisualTab.vue"),
+);
 
 const {
   plugins,
