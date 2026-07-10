@@ -17,43 +17,132 @@ import (
 
 // ---- moved from backend/zz_merged_backend.go section remotedatasetsarchive.go ----
 
+const (
+	remoteDatasetArchiveExpandedLimitBytes int64 = 64 << 20
+	remoteDatasetArchiveMemberLimit              = 4096
+	remoteDatasetArchiveDepthLimit               = 4
+)
+
+var errRemoteDatasetArchiveBudgetExceeded = errors.New("remote dataset archive budget exceeded")
+
+type remoteDatasetArchiveBudget struct {
+	maxBytes    int64
+	usedBytes   int64
+	maxMembers  int
+	usedMembers int
+	maxDepth    int
+}
+
+func newRemoteDatasetArchiveBudget(maxBytes int64, maxMembers, maxDepth int) *remoteDatasetArchiveBudget {
+	return &remoteDatasetArchiveBudget{
+		maxBytes:   maxBytes,
+		maxMembers: maxMembers,
+		maxDepth:   maxDepth,
+	}
+}
+
+func newDefaultRemoteDatasetArchiveBudget() *remoteDatasetArchiveBudget {
+	return newRemoteDatasetArchiveBudget(
+		remoteDatasetArchiveExpandedLimitBytes,
+		remoteDatasetArchiveMemberLimit,
+		remoteDatasetArchiveDepthLimit,
+	)
+}
+
+func (budget *remoteDatasetArchiveBudget) remainingBytes() int64 {
+	if budget == nil || budget.maxBytes <= budget.usedBytes {
+		return 0
+	}
+	return budget.maxBytes - budget.usedBytes
+}
+
+func (budget *remoteDatasetArchiveBudget) ensureBytes(size int64, description string) error {
+	if budget == nil {
+		return nil
+	}
+	if size < 0 || size > budget.remainingBytes() {
+		return fmt.Errorf("%w: %s would exceed the %d byte expanded-data limit", errRemoteDatasetArchiveBudgetExceeded, description, budget.maxBytes)
+	}
+	return nil
+}
+
+func (budget *remoteDatasetArchiveBudget) consumeBytes(size int64, description string) error {
+	if err := budget.ensureBytes(size, description); err != nil {
+		return err
+	}
+	if budget != nil {
+		budget.usedBytes += size
+	}
+	return nil
+}
+
+func (budget *remoteDatasetArchiveBudget) consumeMembers(count int, description string) error {
+	if budget == nil {
+		return nil
+	}
+	if count < 0 || count > budget.maxMembers-budget.usedMembers {
+		return fmt.Errorf("%w: %s would exceed the %d member limit", errRemoteDatasetArchiveBudgetExceeded, description, budget.maxMembers)
+	}
+	budget.usedMembers += count
+	return nil
+}
+
 func expandRemoteDatasetPayloads(data []byte, contentType, source string, depth int) ([]remoteDatasetPayload, error) {
-	if depth > 4 {
-		return []remoteDatasetPayload{{Source: source, ContentType: contentType, Data: data}}, nil
+	return expandRemoteDatasetPayloadsWithBudget(data, contentType, source, depth, newDefaultRemoteDatasetArchiveBudget())
+}
+
+func expandRemoteDatasetPayloadsWithBudget(data []byte, contentType, source string, depth int, budget *remoteDatasetArchiveBudget) ([]remoteDatasetPayload, error) {
+	if budget == nil {
+		budget = newDefaultRemoteDatasetArchiveBudget()
 	}
-	if isZipPayload(data, contentType, source) {
-		return expandZipRemoteDatasetPayload(data, source, depth)
+	isZip := isZipPayload(data, contentType, source)
+	isTar := isTarPayload(data, contentType, source)
+	isGzip := isGzipPayload(data, contentType, source)
+	isBzip2 := isBzip2Payload(data, contentType, source)
+	isXz := isXzPayload(data, contentType, source)
+	if (isZip || isTar || isGzip || isBzip2 || isXz) && budget != nil && depth >= budget.maxDepth {
+		return nil, fmt.Errorf("%w: archive nesting exceeds %d layers at %q", errRemoteDatasetArchiveBudgetExceeded, budget.maxDepth, source)
 	}
-	if isTarPayload(data, contentType, source) {
-		return expandTarRemoteDatasetPayload(data, source, depth)
+	if isZip {
+		return expandZipRemoteDatasetPayloadWithBudget(data, source, depth, budget)
 	}
-	if isGzipPayload(data, contentType, source) {
-		decompressed, err := gunzipRemoteDatasetPayload(data)
+	if isTar {
+		return expandTarRemoteDatasetPayloadWithBudget(data, source, depth, budget)
+	}
+	if isGzip {
+		decompressed, err := gunzipRemoteDatasetPayloadWithBudget(data, budget)
 		if err != nil {
 			return nil, err
 		}
-		return expandRemoteDatasetPayloads(decompressed, "", stripCompressionSuffix(source), depth+1)
+		return expandRemoteDatasetPayloadsWithBudget(decompressed, "", stripCompressionSuffix(source), depth+1, budget)
 	}
-	if isBzip2Payload(data, contentType, source) {
-		decompressed, err := bunzip2RemoteDatasetPayload(data)
+	if isBzip2 {
+		decompressed, err := bunzip2RemoteDatasetPayloadWithBudget(data, budget)
 		if err != nil {
 			return nil, err
 		}
-		return expandRemoteDatasetPayloads(decompressed, "", stripCompressionSuffix(source), depth+1)
+		return expandRemoteDatasetPayloadsWithBudget(decompressed, "", stripCompressionSuffix(source), depth+1, budget)
 	}
-	if isXzPayload(data, contentType, source) {
-		decompressed, err := unxzRemoteDatasetPayload(data)
+	if isXz {
+		decompressed, err := unxzRemoteDatasetPayloadWithBudget(data, budget)
 		if err != nil {
 			return nil, err
 		}
-		return expandRemoteDatasetPayloads(decompressed, "", stripCompressionSuffix(source), depth+1)
+		return expandRemoteDatasetPayloadsWithBudget(decompressed, "", stripCompressionSuffix(source), depth+1, budget)
 	}
 	return []remoteDatasetPayload{{Source: source, ContentType: contentType, Data: data}}, nil
 }
 
 func expandZipRemoteDatasetPayload(data []byte, source string, depth int) ([]remoteDatasetPayload, error) {
+	return expandZipRemoteDatasetPayloadWithBudget(data, source, depth, newDefaultRemoteDatasetArchiveBudget())
+}
+
+func expandZipRemoteDatasetPayloadWithBudget(data []byte, source string, depth int, budget *remoteDatasetArchiveBudget) ([]remoteDatasetPayload, error) {
 	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
+		return nil, err
+	}
+	if err := budget.consumeMembers(len(reader.File), fmt.Sprintf("zip archive %q", source)); err != nil {
 		return nil, err
 	}
 
@@ -65,21 +154,30 @@ func expandZipRemoteDatasetPayload(data []byte, source string, depth int) ([]rem
 		if shouldSkipArchiveMember(file.Name) {
 			continue
 		}
+		if file.UncompressedSize64 > uint64(remoteDatasetFetchLimitBytes) {
+			return nil, fmt.Errorf("extracted file %q is larger than %d bytes", file.Name, remoteDatasetFetchLimitBytes)
+		}
+		if err := budget.ensureBytes(int64(file.UncompressedSize64), fmt.Sprintf("zip member %q", file.Name)); err != nil {
+			return nil, err
+		}
 		rc, err := file.Open()
 		if err != nil {
 			continue
 		}
-		fileData, readErr := io.ReadAll(io.LimitReader(rc, remoteDatasetFetchLimitBytes+1))
+		fileData, readErr := readLimitedRemoteDatasetPayloadWithBudget(rc, fmt.Sprintf("extracted file %q", file.Name), budget)
 		_ = rc.Close()
 		if readErr != nil {
+			if errors.Is(readErr, errRemoteDatasetArchiveBudgetExceeded) {
+				return nil, readErr
+			}
 			continue
 		}
-		if len(fileData) > remoteDatasetFetchLimitBytes {
-			return nil, fmt.Errorf("extracted file %q is larger than %d bytes", file.Name, remoteDatasetFetchLimitBytes)
-		}
 		nextSource := joinDatasetSource(source, file.Name)
-		nested, err := expandRemoteDatasetPayloads(fileData, "", nextSource, depth+1)
+		nested, err := expandRemoteDatasetPayloadsWithBudget(fileData, "", nextSource, depth+1, budget)
 		if err != nil {
+			if errors.Is(err, errRemoteDatasetArchiveBudgetExceeded) {
+				return nil, err
+			}
 			continue
 		}
 		payloads = append(payloads, nested...)
@@ -91,6 +189,10 @@ func expandZipRemoteDatasetPayload(data []byte, source string, depth int) ([]rem
 }
 
 func expandTarRemoteDatasetPayload(data []byte, source string, depth int) ([]remoteDatasetPayload, error) {
+	return expandTarRemoteDatasetPayloadWithBudget(data, source, depth, newDefaultRemoteDatasetArchiveBudget())
+}
+
+func expandTarRemoteDatasetPayloadWithBudget(data []byte, source string, depth int, budget *remoteDatasetArchiveBudget) ([]remoteDatasetPayload, error) {
 	reader := tar.NewReader(bytes.NewReader(data))
 	payloads := make([]remoteDatasetPayload, 0)
 	for {
@@ -99,7 +201,10 @@ func expandTarRemoteDatasetPayload(data []byte, source string, depth int) ([]rem
 			break
 		}
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("read tar archive %q: %w", source, err)
+		}
+		if err := budget.consumeMembers(1, fmt.Sprintf("tar archive %q", source)); err != nil {
+			return nil, err
 		}
 		if hdr == nil || hdr.FileInfo().IsDir() {
 			continue
@@ -110,13 +215,22 @@ func expandTarRemoteDatasetPayload(data []byte, source string, depth int) ([]rem
 		if hdr.Size > remoteDatasetFetchLimitBytes {
 			return nil, fmt.Errorf("extracted file %q is larger than %d bytes", hdr.Name, remoteDatasetFetchLimitBytes)
 		}
-		fileData, err := io.ReadAll(io.LimitReader(reader, remoteDatasetFetchLimitBytes+1))
+		if err := budget.ensureBytes(hdr.Size, fmt.Sprintf("tar member %q", hdr.Name)); err != nil {
+			return nil, err
+		}
+		fileData, err := readLimitedRemoteDatasetPayloadWithBudget(reader, fmt.Sprintf("extracted file %q", hdr.Name), budget)
 		if err != nil {
+			if errors.Is(err, errRemoteDatasetArchiveBudgetExceeded) {
+				return nil, err
+			}
 			continue
 		}
 		nextSource := joinDatasetSource(source, hdr.Name)
-		nested, err := expandRemoteDatasetPayloads(fileData, "", nextSource, depth+1)
+		nested, err := expandRemoteDatasetPayloadsWithBudget(fileData, "", nextSource, depth+1, budget)
 		if err != nil {
+			if errors.Is(err, errRemoteDatasetArchiveBudgetExceeded) {
+				return nil, err
+			}
 			continue
 		}
 		payloads = append(payloads, nested...)
@@ -128,32 +242,69 @@ func expandTarRemoteDatasetPayload(data []byte, source string, depth int) ([]rem
 }
 
 func gunzipRemoteDatasetPayload(data []byte) ([]byte, error) {
+	return gunzipRemoteDatasetPayloadWithBudget(data, nil)
+}
+
+func gunzipRemoteDatasetPayloadWithBudget(data []byte, budget *remoteDatasetArchiveBudget) ([]byte, error) {
 	reader, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
 	defer reader.Close()
-	return io.ReadAll(io.LimitReader(reader, remoteDatasetFetchLimitBytes+1))
+	return readLimitedRemoteDatasetPayloadWithBudget(reader, "gzip payload", budget)
 }
 
 func bunzip2RemoteDatasetPayload(data []byte) ([]byte, error) {
-	return io.ReadAll(io.LimitReader(bzip2.NewReader(bytes.NewReader(data)), remoteDatasetFetchLimitBytes+1))
+	return bunzip2RemoteDatasetPayloadWithBudget(data, nil)
+}
+
+func bunzip2RemoteDatasetPayloadWithBudget(data []byte, budget *remoteDatasetArchiveBudget) ([]byte, error) {
+	return readLimitedRemoteDatasetPayloadWithBudget(bzip2.NewReader(bytes.NewReader(data)), "bzip2 payload", budget)
 }
 
 func unxzRemoteDatasetPayload(data []byte) ([]byte, error) {
+	return unxzRemoteDatasetPayloadWithBudget(data, nil)
+}
+
+func unxzRemoteDatasetPayloadWithBudget(data []byte, budget *remoteDatasetArchiveBudget) ([]byte, error) {
 	reader, err := xz.NewReader(bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
-	return io.ReadAll(io.LimitReader(reader, remoteDatasetFetchLimitBytes+1))
+	return readLimitedRemoteDatasetPayloadWithBudget(reader, "xz payload", budget)
+}
+
+func readLimitedRemoteDatasetPayload(reader io.Reader, description string) ([]byte, error) {
+	return readLimitedRemoteDatasetPayloadWithBudget(reader, description, nil)
+}
+
+func readLimitedRemoteDatasetPayloadWithBudget(reader io.Reader, description string, budget *remoteDatasetArchiveBudget) ([]byte, error) {
+	limit := int64(remoteDatasetFetchLimitBytes)
+	if budget != nil && budget.remainingBytes() < limit {
+		limit = budget.remainingBytes()
+	}
+	data, err := io.ReadAll(io.LimitReader(reader, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > limit {
+		if limit < remoteDatasetFetchLimitBytes {
+			return nil, fmt.Errorf("%w: %s would exceed the %d byte expanded-data limit", errRemoteDatasetArchiveBudgetExceeded, description, budget.maxBytes)
+		}
+		return nil, fmt.Errorf("%s is larger than %d bytes", description, remoteDatasetFetchLimitBytes)
+	}
+	if err := budget.consumeBytes(int64(len(data)), description); err != nil {
+		return nil, err
+	}
+	return data, nil
 }
 
 func isZipPayload(data []byte, contentType, source string) bool {
 	if len(data) >= 4 && bytes.Equal(data[:4], []byte("PK\x03\x04")) {
 		return true
 	}
-	ct := strings.ToLower(strings.TrimSpace(contentType))
-	if strings.Contains(ct, "zip") {
+	ct := normalizedArchiveContentType(contentType)
+	if ct == "application/zip" || ct == "application/x-zip" || ct == "application/x-zip-compressed" || strings.HasSuffix(ct, "+zip") {
 		return true
 	}
 	lower := strings.ToLower(source)
@@ -164,8 +315,8 @@ func isTarPayload(data []byte, contentType, source string) bool {
 	if len(data) >= 262 && bytes.Equal(data[257:262], []byte("ustar")) {
 		return true
 	}
-	ct := strings.ToLower(strings.TrimSpace(contentType))
-	if strings.Contains(ct, "tar") {
+	ct := normalizedArchiveContentType(contentType)
+	if ct == "application/tar" || ct == "application/x-tar" {
 		return true
 	}
 	lower := strings.ToLower(source)
@@ -176,8 +327,8 @@ func isGzipPayload(data []byte, contentType, source string) bool {
 	if len(data) >= 2 && data[0] == 0x1f && data[1] == 0x8b {
 		return true
 	}
-	ct := strings.ToLower(strings.TrimSpace(contentType))
-	if strings.Contains(ct, "gzip") || strings.Contains(ct, "x-gzip") {
+	ct := normalizedArchiveContentType(contentType)
+	if ct == "application/gzip" || ct == "application/x-gzip" {
 		return true
 	}
 	lower := strings.ToLower(source)
@@ -188,8 +339,8 @@ func isBzip2Payload(data []byte, contentType, source string) bool {
 	if len(data) >= 3 && bytes.Equal(data[:3], []byte("BZh")) {
 		return true
 	}
-	ct := strings.ToLower(strings.TrimSpace(contentType))
-	if strings.Contains(ct, "bzip2") || strings.Contains(ct, "x-bzip2") {
+	ct := normalizedArchiveContentType(contentType)
+	if ct == "application/bzip2" || ct == "application/x-bzip2" {
 		return true
 	}
 	lower := strings.ToLower(source)
@@ -200,12 +351,20 @@ func isXzPayload(data []byte, contentType, source string) bool {
 	if len(data) >= 6 && bytes.Equal(data[:6], []byte{0xfd, '7', 'z', 'X', 'Z', 0x00}) {
 		return true
 	}
-	ct := strings.ToLower(strings.TrimSpace(contentType))
-	if strings.Contains(ct, "x-xz") || strings.Contains(ct, "xz") {
+	ct := normalizedArchiveContentType(contentType)
+	if ct == "application/x-xz" || ct == "application/xz" {
 		return true
 	}
 	lower := strings.ToLower(source)
 	return strings.HasSuffix(lower, ".xz") || strings.HasSuffix(lower, ".txz")
+}
+
+func normalizedArchiveContentType(contentType string) string {
+	contentType = strings.ToLower(strings.TrimSpace(contentType))
+	if semicolon := strings.IndexByte(contentType, ';'); semicolon >= 0 {
+		contentType = strings.TrimSpace(contentType[:semicolon])
+	}
+	return contentType
 }
 
 func stripCompressionSuffix(source string) string {
@@ -270,12 +429,7 @@ func shouldSkipArchiveMember(name string) bool {
 		strings.HasSuffix(base, ".o"),
 		strings.HasSuffix(base, ".a"),
 		strings.HasSuffix(base, ".pyc"),
-		strings.HasSuffix(base, ".class"),
-		strings.HasSuffix(base, ".zip"),
-		strings.HasSuffix(base, ".gz"),
-		strings.HasSuffix(base, ".tar"),
-		strings.HasSuffix(base, ".bz2"),
-		strings.HasSuffix(base, ".xz"):
+		strings.HasSuffix(base, ".class"):
 		return true
 	}
 	return false

@@ -16,6 +16,7 @@ import (
 
 const remoteDatasetFetchLimitBytes = 20 << 20
 const remoteDatasetUploadLimitBytes = 100 << 20
+const remoteDatasetRequestBodyLimitBytes = 160 << 20
 
 type remoteDatasetRequest struct {
 	URL            string `json:"url"`
@@ -46,24 +47,26 @@ type remoteDatasetRow struct {
 }
 
 type remoteDatasetResponse struct {
-	Source         string                      `json:"source"`
-	Format         string                      `json:"format"`
-	ContentType    string                      `json:"contentType"`
-	Total          int                         `json:"total"`
-	Limit          int                         `json:"limit"`
-	Truncated      bool                        `json:"truncated"`
-	Imported       int                         `json:"imported,omitempty"`
-	Skipped        int                         `json:"skipped,omitempty"`
-	TotalSamples   int                         `json:"totalSamples,omitempty"`
-	LabeledSamples int                         `json:"labeledSamples,omitempty"`
-	ByLabel        []researchCount             `json:"byLabel,omitempty"`
-	ByCategory     []researchCount             `json:"byCategory,omitempty"`
-	BySource       []researchCount             `json:"bySource,omitempty"`
-	SkipReasons    []researchCount             `json:"skipReasons,omitempty"`
-	ParseWarnings  []remoteDatasetParseWarning `json:"parseWarnings,omitempty"`
-	Normalization  FeatureNormalizationReport  `json:"normalization,omitempty"`
-	Quality        DatasetQualitySummary       `json:"quality,omitempty"`
-	Rows           []remoteDatasetRow          `json:"rows,omitempty"`
+	Source            string                      `json:"source"`
+	Format            string                      `json:"format"`
+	ContentType       string                      `json:"contentType"`
+	Total             int                         `json:"total"`
+	TotalIsLowerBound bool                        `json:"totalIsLowerBound,omitempty"`
+	Limit             int                         `json:"limit"`
+	RecordLimit       int                         `json:"recordLimit,omitempty"`
+	Truncated         bool                        `json:"truncated"`
+	Imported          int                         `json:"imported,omitempty"`
+	Skipped           int                         `json:"skipped,omitempty"`
+	TotalSamples      int                         `json:"totalSamples,omitempty"`
+	LabeledSamples    int                         `json:"labeledSamples,omitempty"`
+	ByLabel           []researchCount             `json:"byLabel,omitempty"`
+	ByCategory        []researchCount             `json:"byCategory,omitempty"`
+	BySource          []researchCount             `json:"bySource,omitempty"`
+	SkipReasons       []researchCount             `json:"skipReasons,omitempty"`
+	ParseWarnings     []remoteDatasetParseWarning `json:"parseWarnings,omitempty"`
+	Normalization     FeatureNormalizationReport  `json:"normalization,omitempty"`
+	Quality           DatasetQualitySummary       `json:"quality,omitempty"`
+	Rows              []remoteDatasetRow          `json:"rows,omitempty"`
 }
 
 type remoteDatasetRecord struct {
@@ -211,7 +214,14 @@ func handleMLDatasetClearDelete(c *gin.Context) {
 }
 
 func bindRemoteDatasetRequest(c *gin.Context) (remoteDatasetRequest, bool) {
+	return bindRemoteDatasetRequestWithLimit(c, remoteDatasetRequestBodyLimitBytes)
+}
+
+func bindRemoteDatasetRequestWithLimit(c *gin.Context, requestBodyLimit int64) (remoteDatasetRequest, bool) {
 	var req remoteDatasetRequest
+	if c.Request != nil && c.Request.Body != nil && requestBodyLimit > 0 {
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, requestBodyLimit)
+	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return req, false
@@ -252,7 +262,18 @@ func bindRemoteDatasetRequest(c *gin.Context) (remoteDatasetRequest, bool) {
 }
 
 func pullRemoteDataset(req remoteDatasetRequest) (*remoteDatasetResponse, error) {
-	downloaded, contentType, source, err := loadRemoteDatasetPayload(req)
+	return pullRemoteDatasetWithClient(req, nil)
+}
+
+func pullRemoteDatasetWithClient(req remoteDatasetRequest, client *http.Client) (*remoteDatasetResponse, error) {
+	return pullRemoteDatasetWithRecordLimit(req, client, remoteDatasetAbsoluteRecordLimit)
+}
+
+func pullRemoteDatasetWithRecordLimit(req remoteDatasetRequest, client *http.Client, recordLimit int) (*remoteDatasetResponse, error) {
+	if recordLimit <= 0 || recordLimit > remoteDatasetAbsoluteRecordLimit {
+		recordLimit = remoteDatasetAbsoluteRecordLimit
+	}
+	downloaded, contentType, source, err := loadRemoteDatasetPayload(req, client)
 	if err != nil {
 		return nil, err
 	}
@@ -268,11 +289,30 @@ func pullRemoteDataset(req remoteDatasetRequest) (*remoteDatasetResponse, error)
 		return nil, err
 	}
 
-	records := make([]remoteDatasetRecord, 0)
+	storeLimit := req.Limit
+	if req.ImportAll {
+		storeLimit = recordLimit
+	}
+	records := make([]remoteDatasetRecord, 0, min(storeLimit, recordLimit))
+	totalRecords := 0
+	recordLimitTruncated := false
 	format := ""
 	parseWarnings := make([]remoteDatasetParseWarning, 0)
 	for _, payload := range payloads {
-		payloadRecords, payloadFormat, parseErr := parseRemoteDatasetRecords(payload.Data, req.Format, payload.Source)
+		remainingRecords := recordLimit - totalRecords
+		if remainingRecords <= 0 {
+			recordLimitTruncated = true
+			parseWarnings = append(parseWarnings, remoteDatasetParseWarning{Source: payload.Source, Reason: "record_limit_truncated"})
+			break
+		}
+		remainingStored := storeLimit - len(records)
+		if remainingStored < 0 {
+			remainingStored = 0
+		}
+		parseResult, parseErr := parseRemoteDatasetRecordsWithLimits(payload.Data, req.Format, payload.Source, remoteDatasetParseLimits{
+			MaxRecords:   remainingRecords,
+			StoreRecords: remainingStored,
+		})
 		if parseErr != nil {
 			if len(payloads) == 1 {
 				return nil, parseErr
@@ -280,14 +320,20 @@ func pullRemoteDataset(req remoteDatasetRequest) (*remoteDatasetResponse, error)
 			parseWarnings = append(parseWarnings, remoteDatasetParseWarning{Source: payload.Source, Reason: parseErr.Error(), Count: 1})
 			continue
 		}
-		if len(payloadRecords) == 0 {
+		if parseResult.Total == 0 {
 			parseWarnings = append(parseWarnings, remoteDatasetParseWarning{Source: payload.Source, Reason: "no_records", Count: 1})
 			continue
 		}
-		records = append(records, payloadRecords...)
-		format = mergeDatasetFormat(format, payloadFormat)
+		totalRecords += parseResult.Total
+		records = append(records, parseResult.Records...)
+		format = mergeDatasetFormat(format, parseResult.Format)
+		if parseResult.Truncated {
+			recordLimitTruncated = true
+			parseWarnings = append(parseWarnings, remoteDatasetParseWarning{Source: payload.Source, Reason: "record_limit_truncated"})
+			break
+		}
 	}
-	if len(records) == 0 {
+	if totalRecords == 0 {
 		return nil, errors.New("no dataset records found in payload")
 	}
 	if format == "" {
@@ -303,11 +349,9 @@ func pullRemoteDataset(req remoteDatasetRequest) (*remoteDatasetResponse, error)
 		rows = append(rows, row)
 	}
 
-	truncated := false
-	if !req.ImportAll && req.Limit > 0 && len(rows) > req.Limit {
-		rows = rows[:req.Limit]
-		truncated = true
-		parseWarnings = append(parseWarnings, remoteDatasetParseWarning{Source: source, Reason: "limit_truncated", Count: len(records) - len(rows)})
+	truncated := recordLimitTruncated || len(rows) < totalRecords
+	if !req.ImportAll && len(rows) < totalRecords {
+		parseWarnings = append(parseWarnings, remoteDatasetParseWarning{Source: source, Reason: "limit_truncated", Count: totalRecords - len(rows)})
 	}
 	limit := req.Limit
 	if req.ImportAll {
@@ -321,20 +365,22 @@ func pullRemoteDataset(req remoteDatasetRequest) (*remoteDatasetResponse, error)
 	}
 
 	resp := &remoteDatasetResponse{
-		Source:        source,
-		Format:        format,
-		ContentType:   contentType,
-		Total:         len(records),
-		Limit:         limit,
-		Truncated:     truncated,
-		ParseWarnings: parseWarnings,
-		Rows:          rows,
+		Source:            source,
+		Format:            format,
+		ContentType:       contentType,
+		Total:             totalRecords,
+		TotalIsLowerBound: recordLimitTruncated,
+		Limit:             limit,
+		RecordLimit:       recordLimit,
+		Truncated:         truncated,
+		ParseWarnings:     parseWarnings,
+		Rows:              rows,
 	}
 	applyRemoteDatasetResponseStats(resp, req.LabelMode, req.CleanSensitive)
 	return resp, nil
 }
 
-func loadRemoteDatasetPayload(req remoteDatasetRequest) ([]byte, string, string, error) {
+func loadRemoteDatasetPayload(req remoteDatasetRequest, client *http.Client) ([]byte, string, string, error) {
 	if strings.TrimSpace(req.ContentBase64) != "" {
 		raw, err := base64.StdEncoding.DecodeString(req.ContentBase64)
 		if err != nil {
@@ -360,7 +406,7 @@ func loadRemoteDatasetPayload(req remoteDatasetRequest) ([]byte, string, string,
 		}
 		return raw, "", source, nil
 	}
-	downloaded, contentType, err := downloadRemoteDataset(req.URL)
+	downloaded, contentType, err := downloadRemoteDatasetWithClient(req.URL, client)
 	if err != nil {
 		return nil, "", "", err
 	}

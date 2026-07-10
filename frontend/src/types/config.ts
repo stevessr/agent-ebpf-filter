@@ -1061,7 +1061,9 @@ export interface RemoteDatasetResponse {
   format: string;
   contentType: string;
   total: number;
+  totalIsLowerBound?: boolean;
   limit: number;
+  recordLimit?: number;
   truncated: boolean;
   imported?: number;
   skipped?: number;

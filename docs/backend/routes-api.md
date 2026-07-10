@@ -196,6 +196,8 @@ registerRoutes()
 
 `/config/ml/datasets/pull` 与 `/config/ml/datasets/import` 支持 `json`、`jsonl`、`csv`、`tsv`、纯文本与常见压缩包；纯文本 `.te`/SELinux policy 规则以及 JSON `rules[].rule` / `rules[].selinuxRule` 字段会自动识别为 `selinux-rule ...` 训练样本，并按 `allow/type_transition=ALLOW`、`neverallow=BLOCK`、`dontaudit/auditallow/permissive=ALERT` 保留来源标签。响应会附带 `byLabel`、`byCategory`、`bySource`、`normalization`、`quality`，导入响应还会附带 `skipReasons`；压缩包中被跳过的条目或 limit 截断会出现在 `parseWarnings`。
 
+远程 URL 下载采用 fail-closed 网络策略：仅允许解析结果全部为公网地址的 `http`/`https` URL，禁止 URL credentials、loopback、RFC1918/ULA、link-local、云 metadata 与其他 special-use 地址，且每次连接和每个重定向都会重新验证；下载不会使用进程环境代理，也禁止 HTTPS 重定向降级到 HTTP。内网或本机数据集应通过 `content` / `contentBase64` 上传。单个下载或归档成员上限为 20 MiB；归档累计展开上限为 64 MiB、4096 个成员和 4 层嵌套。所有 payload 共享 100,000 条记录的解析硬上限，即使 `importAll=true` 也不会绕过；达到硬上限时响应返回 `truncated=true`、`totalIsLowerBound=true` 和 `record_limit_truncated` warning。
+
 Research training API：`GET /research/sessions/:id/training` 和 `POST /research/sessions/:id/training/import` 会返回 `byLabel/byCategory/bySource`、`normalization` 与 `quality`，导入响应额外返回 `skippedByReason`。Research bundle 中的 `training-manifest.json` 会记录 feature space/version、redaction level 分布和训练可用性摘要。
 
 ### Hook 配置路由 (`/config/hooks`)

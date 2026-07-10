@@ -802,7 +802,10 @@ const formatReadinessToken = (value: string) =>
                 >type: {{ remoteDatasetMeta.contentType || "unknown" }}</a-tag
               >
               <a-tag v-if="remoteDatasetMeta" color="purple"
-                >total: {{ remoteDatasetMeta.total }}</a-tag
+                >total:
+                {{ remoteDatasetMeta.totalIsLowerBound ? "≥" : "" }}{{
+                  remoteDatasetMeta.total
+                }}</a-tag
               >
               <a-tag v-if="remoteDatasetMeta?.truncated" color="orange"
                 >truncated</a-tag
@@ -864,8 +867,10 @@ const formatReadinessToken = (value: string) =>
               show-icon
               :message="`已拉取 ${remoteDatasetMeta.total} 条，当前预览显示 ${remoteDatasetPreview.length} 条`"
               :description="
-                remoteDatasetMeta.truncated
-                  ? '列表已按 Limit 截断，导入时也会使用同样的条数上限。'
+                remoteDatasetMeta.totalIsLowerBound
+                  ? `数据集已达到 ${remoteDatasetMeta.recordLimit || remoteDatasetMeta.total} 条安全记录上限，实际总数可能更高。`
+                  : remoteDatasetMeta.truncated
+                    ? '列表已按 Limit 截断；importAll 仍受后端安全记录上限约束。'
                   : '列表展示的是当前请求返回的全部可见数据。'
               "
             />

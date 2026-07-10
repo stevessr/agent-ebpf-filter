@@ -1,18 +1,61 @@
 package app
 
 import (
-	"agent-ebpf-filter/internal/behavior"
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 	"time"
+
+	"agent-ebpf-filter/internal/behavior"
 )
 
 // ---- moved from backend/zz_merged_backend.go section dataset_parsers.go ----
+
+const (
+	remoteDatasetAbsoluteRecordLimit = 100_000
+	remoteDatasetMaxRecordBytes      = 4 << 20
+)
+
+type remoteDatasetParseLimits struct {
+	MaxRecords   int
+	StoreRecords int
+}
+
+type remoteDatasetParseResult struct {
+	Records   []remoteDatasetRecord
+	Format    string
+	Total     int
+	Truncated bool
+}
+
+func normalizeRemoteDatasetParseLimits(limits remoteDatasetParseLimits) remoteDatasetParseLimits {
+	if limits.MaxRecords <= 0 || limits.MaxRecords > remoteDatasetAbsoluteRecordLimit {
+		limits.MaxRecords = remoteDatasetAbsoluteRecordLimit
+	}
+	if limits.StoreRecords < 0 || limits.StoreRecords > limits.MaxRecords {
+		limits.StoreRecords = limits.MaxRecords
+	}
+	return limits
+}
+
+func appendLimitedRemoteDatasetRecord(result *remoteDatasetParseResult, record remoteDatasetRecord, limits remoteDatasetParseLimits) bool {
+	if result.Total >= limits.MaxRecords {
+		result.Truncated = true
+		return false
+	}
+	result.Total++
+	if len(result.Records) < limits.StoreRecords {
+		result.Records = append(result.Records, record)
+	}
+	return true
+}
 
 func isBinary(data []byte) bool {
 	if len(data) == 0 {
@@ -39,6 +82,15 @@ func isBinary(data []byte) bool {
 }
 
 func parseRemoteDatasetRecords(raw []byte, format string, source string) ([]remoteDatasetRecord, string, error) {
+	result, err := parseRemoteDatasetRecordsWithLimits(raw, format, source, remoteDatasetParseLimits{
+		MaxRecords:   remoteDatasetAbsoluteRecordLimit,
+		StoreRecords: remoteDatasetAbsoluteRecordLimit,
+	})
+	return result.Records, result.Format, err
+}
+
+func parseRemoteDatasetRecordsWithLimits(raw []byte, format string, source string, limits remoteDatasetParseLimits) (remoteDatasetParseResult, error) {
+	limits = normalizeRemoteDatasetParseLimits(limits)
 	format = strings.ToLower(strings.TrimSpace(format))
 	if format == "" {
 		format = "auto"
@@ -48,91 +100,103 @@ func parseRemoteDatasetRecords(raw []byte, format string, source string) ([]remo
 	if (format == "auto" || format == "text" || format == "txt") && isBinary(raw) {
 		// If it's binary but we're here, it means it wasn't recognized as an archive
 		// or it's a corrupted archive. We should NOT treat it as text.
-		return nil, "", errors.New("unsupported binary data format; expected JSON, CSV, TSV or plain text")
+		return remoteDatasetParseResult{}, errors.New("unsupported binary data format; expected JSON, CSV, TSV or plain text")
 	}
 
 	switch format {
 	case "json":
-		return parseJSONDatasetRecords(raw, source)
+		return parseJSONDatasetRecordsWithLimits(raw, source, limits)
 	case "jsonl", "ndjson":
-		return parseJSONLinesDatasetRecords(raw, source)
+		return parseJSONLinesDatasetRecordsWithLimits(raw, source, limits)
 	case "csv":
-		return parseDelimitedDatasetRecords(raw, ',', source)
+		return parseDelimitedDatasetRecordsWithLimits(raw, ',', source, limits)
 	case "tsv":
-		return parseDelimitedDatasetRecords(raw, '\t', source)
+		return parseDelimitedDatasetRecordsWithLimits(raw, '\t', source, limits)
 	case "text", "txt":
-		return parseTextDatasetRecords(raw, source), "text", nil
+		return parseTextDatasetRecordsWithLimits(raw, source, limits)
 	case "auto":
 		if looksLikeJSON(raw) {
-			if records, detected, err := parseJSONDatasetRecords(raw, source); err == nil {
-				return records, detected, nil
+			if result, err := parseJSONDatasetRecordsWithLimits(raw, source, limits); err == nil {
+				return result, nil
 			}
-			if records, detected, err := parseJSONLinesDatasetRecords(raw, source); err == nil && len(records) > 0 {
-				return records, detected, nil
+			if result, err := parseJSONLinesDatasetRecordsWithLimits(raw, source, limits); err == nil && result.Total > 0 {
+				return result, nil
 			}
 		}
 		if looksLikeDelimited(raw) {
-			if records, detected, err := parseDelimitedDatasetRecords(raw, ',', source); err == nil && len(records) > 0 {
-				return records, detected, nil
+			if result, err := parseDelimitedDatasetRecordsWithLimits(raw, ',', source, limits); err == nil && result.Total > 0 {
+				return result, nil
 			}
-			if records, detected, err := parseDelimitedDatasetRecords(raw, '\t', source); err == nil && len(records) > 0 {
-				return records, detected, nil
+			if result, err := parseDelimitedDatasetRecordsWithLimits(raw, '\t', source, limits); err == nil && result.Total > 0 {
+				return result, nil
 			}
 		}
-		return parseTextDatasetRecords(raw, source), "text", nil
+		return parseTextDatasetRecordsWithLimits(raw, source, limits)
 	default:
-		return nil, "", fmt.Errorf("unsupported dataset format %q", format)
+		return remoteDatasetParseResult{}, fmt.Errorf("unsupported dataset format %q", format)
 	}
 }
 
 func looksLikeJSON(raw []byte) bool {
-	trimmed := strings.TrimSpace(string(raw))
-	return strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[")
+	trimmed := bytes.TrimSpace(raw)
+	return bytes.HasPrefix(trimmed, []byte("{")) || bytes.HasPrefix(trimmed, []byte("["))
 }
 
 func looksLikeDelimited(raw []byte) bool {
-	trimmed := strings.TrimSpace(string(raw))
-	if trimmed == "" {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 {
 		return false
 	}
 	firstLine := trimmed
-	if idx := strings.IndexByte(trimmed, '\n'); idx >= 0 {
+	if idx := bytes.IndexByte(trimmed, '\n'); idx >= 0 {
 		firstLine = trimmed[:idx]
 	}
-	return strings.Contains(firstLine, ",") || strings.Contains(firstLine, "\t")
+	return bytes.Contains(firstLine, []byte(",")) || bytes.Contains(firstLine, []byte("\t"))
 }
 
 func parseJSONDatasetRecords(raw []byte, source string) ([]remoteDatasetRecord, string, error) {
-	trimmed := strings.TrimSpace(string(raw))
-	if trimmed == "" {
-		return nil, "json", nil
+	result, err := parseJSONDatasetRecordsWithLimits(raw, source, remoteDatasetParseLimits{MaxRecords: remoteDatasetAbsoluteRecordLimit, StoreRecords: remoteDatasetAbsoluteRecordLimit})
+	return result.Records, result.Format, err
+}
+
+func parseJSONDatasetRecordsWithLimits(raw []byte, source string, limits remoteDatasetParseLimits) (remoteDatasetParseResult, error) {
+	result := remoteDatasetParseResult{Format: "json"}
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 {
+		return result, nil
 	}
 
 	var decoded any
-	if err := json.Unmarshal([]byte(trimmed), &decoded); err != nil {
-		return nil, "", err
+	if err := json.Unmarshal(trimmed, &decoded); err != nil {
+		return remoteDatasetParseResult{}, err
 	}
 
 	items := flattenDatasetJSON(decoded)
-	if len(items) == 0 {
-		return nil, "json", nil
-	}
-	records := make([]remoteDatasetRecord, 0, len(items))
 	for i, item := range items {
 		record, ok := remoteDatasetRecordFromAny(item, i+1, source)
 		if !ok {
 			continue
 		}
-		records = append(records, record)
+		if !appendLimitedRemoteDatasetRecord(&result, record, limits) {
+			break
+		}
 	}
-	return records, "json", nil
+	return result, nil
 }
 
 func parseJSONLinesDatasetRecords(raw []byte, source string) ([]remoteDatasetRecord, string, error) {
-	lines := strings.Split(strings.ReplaceAll(string(raw), "\r\n", "\n"), "\n")
-	records := make([]remoteDatasetRecord, 0, len(lines))
-	for i, line := range lines {
-		line = strings.TrimSpace(line)
+	result, err := parseJSONLinesDatasetRecordsWithLimits(raw, source, remoteDatasetParseLimits{MaxRecords: remoteDatasetAbsoluteRecordLimit, StoreRecords: remoteDatasetAbsoluteRecordLimit})
+	return result.Records, result.Format, err
+}
+
+func parseJSONLinesDatasetRecordsWithLimits(raw []byte, source string, limits remoteDatasetParseLimits) (remoteDatasetParseResult, error) {
+	result := remoteDatasetParseResult{Format: "jsonl"}
+	scanner := bufio.NewScanner(bytes.NewReader(raw))
+	scanner.Buffer(make([]byte, 64<<10), remoteDatasetMaxRecordBytes)
+	rowIndex := 0
+	for scanner.Scan() {
+		rowIndex++
+		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
 			continue
 		}
@@ -142,64 +206,94 @@ func parseJSONLinesDatasetRecords(raw []byte, source string) ([]remoteDatasetRec
 		if err := dec.Decode(&decoded); err != nil {
 			continue
 		}
-		record, ok := remoteDatasetRecordFromAny(decoded, i+1, source)
+		record, ok := remoteDatasetRecordFromAny(decoded, rowIndex, source)
 		if !ok {
 			continue
 		}
-		records = append(records, record)
+		if !appendLimitedRemoteDatasetRecord(&result, record, limits) {
+			break
+		}
 	}
-	return records, "jsonl", nil
+	if err := scanner.Err(); err != nil {
+		return remoteDatasetParseResult{}, fmt.Errorf("scan JSONL dataset: %w", err)
+	}
+	return result, nil
 }
 
 func parseDelimitedDatasetRecords(raw []byte, comma rune, source string) ([]remoteDatasetRecord, string, error) {
-	reader := csv.NewReader(strings.NewReader(string(raw)))
+	result, err := parseDelimitedDatasetRecordsWithLimits(raw, comma, source, remoteDatasetParseLimits{MaxRecords: remoteDatasetAbsoluteRecordLimit, StoreRecords: remoteDatasetAbsoluteRecordLimit})
+	return result.Records, result.Format, err
+}
+
+func parseDelimitedDatasetRecordsWithLimits(raw []byte, comma rune, source string, limits remoteDatasetParseLimits) (remoteDatasetParseResult, error) {
+	format := "csv"
+	if comma == '\t' {
+		format = "tsv"
+	}
+	result := remoteDatasetParseResult{Format: format}
+	reader := csv.NewReader(bytes.NewReader(raw))
 	reader.Comma = comma
 	reader.FieldsPerRecord = -1
-	rows, err := reader.ReadAll()
-	if err != nil {
-		return nil, "", err
+	reader.ReuseRecord = true
+	headerRow, err := reader.Read()
+	if errors.Is(err, io.EOF) {
+		result.Format = ""
+		return result, nil
 	}
-	if len(rows) == 0 {
-		return nil, "", nil
+	if err != nil {
+		return remoteDatasetParseResult{}, err
 	}
 
-	header := normalizeHeaderRow(rows[0])
+	header := normalizeHeaderRow(headerRow)
 	if len(header) == 0 {
-		header = make([]string, len(rows[0]))
+		header = make([]string, len(headerRow))
 		for i := range header {
 			header[i] = fmt.Sprintf("column_%d", i)
 		}
 	}
 
-	records := make([]remoteDatasetRecord, 0, len(rows)-1)
-	for i := 1; i < len(rows); i++ {
+	rowIndex := 1
+	for {
+		row, readErr := reader.Read()
+		if errors.Is(readErr, io.EOF) {
+			break
+		}
+		if readErr != nil {
+			return remoteDatasetParseResult{}, readErr
+		}
+		rowIndex++
 		rowMap := make(map[string]any, len(header))
-		for j, cell := range rows[i] {
+		for j, cell := range row {
 			if j < len(header) {
 				rowMap[header[j]] = strings.TrimSpace(cell)
 			}
 		}
-		record, ok := remoteDatasetRecordFromMap(rowMap, i+1, source)
+		record, ok := remoteDatasetRecordFromMap(rowMap, rowIndex, source)
 		if !ok {
 			continue
 		}
-		records = append(records, record)
+		if !appendLimitedRemoteDatasetRecord(&result, record, limits) {
+			break
+		}
 	}
-
-	format := "csv"
-	if comma == '\t' {
-		format = "tsv"
-	}
-	return records, format, nil
+	return result, nil
 }
 
 func parseTextDatasetRecords(raw []byte, source string) []remoteDatasetRecord {
-	lines := strings.Split(strings.ReplaceAll(string(raw), "\r\n", "\n"), "\n")
-	records := make([]remoteDatasetRecord, 0, len(lines))
+	result, _ := parseTextDatasetRecordsWithLimits(raw, source, remoteDatasetParseLimits{MaxRecords: remoteDatasetAbsoluteRecordLimit, StoreRecords: remoteDatasetAbsoluteRecordLimit})
+	return result.Records
+}
+
+func parseTextDatasetRecordsWithLimits(raw []byte, source string, limits remoteDatasetParseLimits) (remoteDatasetParseResult, error) {
+	result := remoteDatasetParseResult{Format: "text"}
+	scanner := bufio.NewScanner(bytes.NewReader(raw))
+	scanner.Buffer(make([]byte, 64<<10), remoteDatasetMaxRecordBytes)
 	pendingSELinuxRule := ""
 	pendingSELinuxRow := 0
-	for i, line := range lines {
-		line = strings.TrimSpace(line)
+	rowIndex := 0
+	for scanner.Scan() {
+		rowIndex++
+		line := strings.TrimSpace(scanner.Text())
 		if shouldSkipTextDatasetLine(line) {
 			continue
 		}
@@ -207,10 +301,15 @@ func parseTextDatasetRecords(raw []byte, source string) []remoteDatasetRecord {
 		if pendingSELinuxRule != "" {
 			if fragment := normalizeSELinuxPolicyRuleLine(line); fragment != "" {
 				pendingSELinuxRule = strings.TrimSpace(pendingSELinuxRule + " " + fragment)
+				if len(pendingSELinuxRule) > remoteDatasetMaxRecordBytes {
+					return remoteDatasetParseResult{}, fmt.Errorf("SELinux dataset record exceeds %d bytes", remoteDatasetMaxRecordBytes)
+				}
 			}
 			if selinuxPolicyStatementComplete(line) {
 				if record, ok := selinuxPolicyRuleRecordFromLine(pendingSELinuxRule, pendingSELinuxRow, source); ok {
-					records = append(records, record)
+					if !appendLimitedRemoteDatasetRecord(&result, record, limits) {
+						break
+					}
 				}
 				pendingSELinuxRule = ""
 				pendingSELinuxRow = 0
@@ -222,11 +321,13 @@ func parseTextDatasetRecords(raw []byte, source string) []remoteDatasetRecord {
 			if _, ok := selinuxPolicyRuleLabel(cleanedRule); ok {
 				if !selinuxPolicyStatementComplete(line) && strings.Contains(cleanedRule, "{") {
 					pendingSELinuxRule = cleanedRule
-					pendingSELinuxRow = i + 1
+					pendingSELinuxRow = rowIndex
 					continue
 				}
-				if record, ok := selinuxPolicyRuleRecordFromLine(cleanedRule, i+1, source); ok {
-					records = append(records, record)
+				if record, ok := selinuxPolicyRuleRecordFromLine(cleanedRule, rowIndex, source); ok {
+					if !appendLimitedRemoteDatasetRecord(&result, record, limits) {
+						break
+					}
 					continue
 				}
 			}
@@ -243,7 +344,7 @@ func parseTextDatasetRecords(raw []byte, source string) []remoteDatasetRecord {
 				break
 			}
 		}
-		record := remoteDatasetRecord{Row: i + 1, Source: source}
+		record := remoteDatasetRecord{Row: rowIndex, Source: source}
 		record.CommandLine = line
 		if allNumeric {
 			if len(parts) == 1 {
@@ -258,14 +359,19 @@ func parseTextDatasetRecords(raw []byte, source string) []remoteDatasetRecord {
 			continue
 		}
 		record.UserLabel = "remote-import"
-		records = append(records, record)
-	}
-	if pendingSELinuxRule != "" {
-		if record, ok := selinuxPolicyRuleRecordFromLine(pendingSELinuxRule, pendingSELinuxRow, source); ok {
-			records = append(records, record)
+		if !appendLimitedRemoteDatasetRecord(&result, record, limits) {
+			break
 		}
 	}
-	return records
+	if err := scanner.Err(); err != nil {
+		return remoteDatasetParseResult{}, fmt.Errorf("scan text dataset: %w", err)
+	}
+	if pendingSELinuxRule != "" && !result.Truncated {
+		if record, ok := selinuxPolicyRuleRecordFromLine(pendingSELinuxRule, pendingSELinuxRow, source); ok {
+			appendLimitedRemoteDatasetRecord(&result, record, limits)
+		}
+	}
+	return result, nil
 }
 
 func shouldSkipTextDatasetLine(line string) bool {
