@@ -77,18 +77,18 @@ func registerNetworkRoutes(r gin.IRouter, ac *AppContext, features *FeatureRegis
 	r.GET("/network/geoip", authMiddleware(), handleGeoIPLookup)
 }
 
-func registerSandboxRoutes(r gin.IRouter, ac *AppContext, features *FeatureRegistry) {
+func registerSandboxRoutes(r gin.IRouter, _ *AppContext, features *FeatureRegistry) {
 	if features.CompiledIn(FeatureSandboxCgroup) {
-		r.GET("/sandbox/cgroup/status", authMiddleware(), ac.Sandbox.HandleCgroupSandboxStatus)
+		r.GET("/sandbox/cgroup/status", authMiddleware(), handleCgroupSandboxStatus)
 		if features.CompiledIn(FeaturePolicyManagement) {
-			r.POST("/sandbox/cgroup/block-cgroup", authMiddleware(), policyManagementEnabledMiddleware(), ac.Sandbox.HandleCgroupSandboxBlockCgroup)
-			r.POST("/sandbox/cgroup/unblock-cgroup", authMiddleware(), policyManagementEnabledMiddleware(), ac.Sandbox.HandleCgroupSandboxUnblockCgroup)
-			r.POST("/sandbox/cgroup/block-pid", authMiddleware(), policyManagementEnabledMiddleware(), ac.Sandbox.HandleCgroupSandboxBlockPID)
-			r.POST("/sandbox/cgroup/unblock-pid", authMiddleware(), policyManagementEnabledMiddleware(), ac.Sandbox.HandleCgroupSandboxUnblockPID)
-			r.POST("/sandbox/cgroup/block-ip", authMiddleware(), policyManagementEnabledMiddleware(), ac.Sandbox.HandleCgroupSandboxBlockIP)
-			r.POST("/sandbox/cgroup/unblock-ip", authMiddleware(), policyManagementEnabledMiddleware(), ac.Sandbox.HandleCgroupSandboxUnblockIP)
-			r.POST("/sandbox/cgroup/block-port", authMiddleware(), policyManagementEnabledMiddleware(), ac.Sandbox.HandleCgroupSandboxBlockPort)
-			r.POST("/sandbox/cgroup/unblock-port", authMiddleware(), policyManagementEnabledMiddleware(), ac.Sandbox.HandleCgroupSandboxUnblockPort)
+			r.POST("/sandbox/cgroup/block-cgroup", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxBlockCgroup)
+			r.POST("/sandbox/cgroup/unblock-cgroup", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxUnblockCgroup)
+			r.POST("/sandbox/cgroup/block-pid", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxBlockPID)
+			r.POST("/sandbox/cgroup/unblock-pid", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxUnblockPID)
+			r.POST("/sandbox/cgroup/block-ip", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxBlockIP)
+			r.POST("/sandbox/cgroup/unblock-ip", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxUnblockIP)
+			r.POST("/sandbox/cgroup/block-port", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxBlockPort)
+			r.POST("/sandbox/cgroup/unblock-port", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxUnblockPort)
 		} else {
 			r.POST("/sandbox/cgroup/block-cgroup", authMiddleware(), compiledOutFeatureMiddleware(FeaturePolicyManagement))
 			r.POST("/sandbox/cgroup/unblock-cgroup", authMiddleware(), compiledOutFeatureMiddleware(FeaturePolicyManagement))
@@ -101,14 +101,14 @@ func registerSandboxRoutes(r gin.IRouter, ac *AppContext, features *FeatureRegis
 		}
 	}
 	if features.CompiledIn(FeatureSandboxLSM) {
-		r.GET("/sandbox/lsm/status", authMiddleware(), ac.Sandbox.HandleLsmEnforcerStatus)
+		r.GET("/sandbox/lsm/status", authMiddleware(), handleLsmEnforcerStatus)
 		if features.CompiledIn(FeaturePolicyManagement) {
-			r.POST("/sandbox/lsm/block-exec-path", authMiddleware(), policyManagementEnabledMiddleware(), ac.Sandbox.HandleLsmBlockExecPath)
-			r.POST("/sandbox/lsm/unblock-exec-path", authMiddleware(), policyManagementEnabledMiddleware(), ac.Sandbox.HandleLsmUnblockExecPath)
-			r.POST("/sandbox/lsm/block-exec-name", authMiddleware(), policyManagementEnabledMiddleware(), ac.Sandbox.HandleLsmBlockExecName)
-			r.POST("/sandbox/lsm/unblock-exec-name", authMiddleware(), policyManagementEnabledMiddleware(), ac.Sandbox.HandleLsmUnblockExecName)
-			r.POST("/sandbox/lsm/block-file-name", authMiddleware(), policyManagementEnabledMiddleware(), ac.Sandbox.HandleLsmBlockFileName)
-			r.POST("/sandbox/lsm/unblock-file-name", authMiddleware(), policyManagementEnabledMiddleware(), ac.Sandbox.HandleLsmUnblockFileName)
+			r.POST("/sandbox/lsm/block-exec-path", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmBlockExecPath)
+			r.POST("/sandbox/lsm/unblock-exec-path", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmUnblockExecPath)
+			r.POST("/sandbox/lsm/block-exec-name", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmBlockExecName)
+			r.POST("/sandbox/lsm/unblock-exec-name", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmUnblockExecName)
+			r.POST("/sandbox/lsm/block-file-name", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmBlockFileName)
+			r.POST("/sandbox/lsm/unblock-file-name", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmUnblockFileName)
 		} else {
 			r.POST("/sandbox/lsm/block-exec-path", authMiddleware(), compiledOutFeatureMiddleware(FeaturePolicyManagement))
 			r.POST("/sandbox/lsm/unblock-exec-path", authMiddleware(), compiledOutFeatureMiddleware(FeaturePolicyManagement))

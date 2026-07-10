@@ -439,13 +439,13 @@ func TestCgroupSandboxPortValidation(t *testing.T) {
 		t.Fatal("port 0 should be rejected")
 	}
 
-	data, err := os.ReadFile("cgroupsandboxhandlers.go")
+	data, err := os.ReadFile("handlers/cgroup_sandbox.go")
 	if err != nil {
-		t.Fatalf("read cgroupsandboxhandlers.go: %v", err)
+		t.Fatalf("read handlers/cgroup_sandbox.go: %v", err)
 	}
 	source := string(data)
 	for _, want := range []string{
-		"validateCgroupSandboxPort(req.Port)",
+		"Deps.CgroupSandbox.ValidatePort(req.Port)",
 		"c.JSON(http.StatusBadRequest",
 	} {
 		if !strings.Contains(source, want) {
@@ -918,14 +918,16 @@ func TestOSEnforcementStatusUsesRuntimeSnapshots(t *testing.T) {
 		{
 			paths: []string{
 				"cgroupsandboxcontrol.go",
-				"cgroupsandboxhandlers.go",
 				"cgroupsandboxops.go",
+				"handlers/cgroup_sandbox.go",
+				"handlersbridge.go",
 			},
 			required: []string{
 				"sync.RWMutex",
 				"currentCgroupSandboxSnapshot",
-				"listBlockedCgroups(snap.CgroupBlocklist)",
-				"getCgroupSandboxStats(snap.SandboxStats)",
+				"Deps.CgroupSandbox.Snapshot()",
+				"Deps.CgroupSandbox.ListBlockedCgroups",
+				"Deps.CgroupSandbox.GetStats",
 				"`json:\"checked\"`",
 				"total.Checked = total.ConnectChecked",
 				"len(cgroupSandbox.Links) >= 4",
@@ -935,12 +937,15 @@ func TestOSEnforcementStatusUsesRuntimeSnapshots(t *testing.T) {
 			paths: []string{
 				"lsmenforcertypes.go",
 				"lsmenforcercontrol.go",
+				"handlers/lsm_enforcer.go",
+				"handlersbridge.go",
 			},
 			required: []string{
 				"sync.RWMutex",
 				"currentLsmEnforcerSnapshot",
-				"listLsmExecPaths(snap.ExecPathBlocklist)",
-				"getLsmEnforcerStats(snap.Stats)",
+				"Deps.LsmEnforcer.Snapshot()",
+				"Deps.LsmEnforcer.ListExecPaths",
+				"Deps.LsmEnforcer.GetStats",
 				"len(lsmEnforcer.Links) >= expectedLsmEnforcerLinks",
 			},
 		},
@@ -954,6 +959,24 @@ func TestOSEnforcementStatusUsesRuntimeSnapshots(t *testing.T) {
 		}
 	}
 }
+
+func TestSandboxRoutesUseSharedAppRuntimeState(t *testing.T) {
+	source := readSourceFiles(t, "routes.go")
+	if strings.Contains(source, "ac.Sandbox.Handle") {
+		t.Fatal("sandbox routes must not use the independent app/sandbox state")
+	}
+	for _, handler := range []string{
+		"handleCgroupSandboxStatus",
+		"handleCgroupSandboxBlockPort",
+		"handleLsmEnforcerStatus",
+		"handleLsmBlockExecPath",
+	} {
+		if !strings.Contains(source, handler) {
+			t.Fatalf("sandbox routes missing shared handler %q", handler)
+		}
+	}
+}
+
 func readSourceFiles(t *testing.T, paths ...string) string {
 	t.Helper()
 	var builder strings.Builder

@@ -4,7 +4,6 @@ import (
 	"sync"
 
 	"agent-ebpf-filter/app/network"
-	"agent-ebpf-filter/app/sandbox"
 	"agent-ebpf-filter/app/shell"
 	"agent-ebpf-filter/core"
 	"agent-ebpf-filter/pb"
@@ -22,15 +21,14 @@ import (
 type AppContext struct {
 	// ── Subpackage managers ──────────────────────────────────────────
 	Network *network.Manager
-	Sandbox *sandbox.Manager
 
 	// ── Event system ────────────────────────────────────────────────
-	Broadcast        chan *pb.Event
-	Clients          map[*websocket.Conn]bool
-	ClientsMu        sync.Mutex
-	EnvelopeClients  map[*websocket.Conn]bool
+	Broadcast         chan *pb.Event
+	Clients           map[*websocket.Conn]bool
+	ClientsMu         sync.Mutex
+	EnvelopeClients   map[*websocket.Conn]bool
 	EnvelopeClientsMu sync.Mutex
-	Upgrader         websocket.Upgrader
+	Upgrader          websocket.Upgrader
 
 	// ── Runtime config ──────────────────────────────────────────────
 	RuntimeSettings      *runtimeState
@@ -87,9 +85,9 @@ type AppContext struct {
 	SemanticAlertsState *events.SemanticAlertState
 
 	// ── ML training / prediction (stub interface) ────────────────────
-	GlobalTrainingStore interface{}
-	GlobalTrainer       interface{}
-	GlobalAutoTuneState interface{}
+	GlobalTrainingStore   interface{}
+	GlobalTrainer         interface{}
+	GlobalAutoTuneState   interface{}
 	GlobalPredictionCache interface{}
 
 	// ── Protocol detection ───────────────────────────────────────────
@@ -129,8 +127,7 @@ func ContextMiddleware(ac *AppContext) gin.HandlerFunc {
 // Callers must set RuntimeSettings, CapturedEventArchive, TrackerMaps after creation.
 func newAppContext() *AppContext {
 	return &AppContext{
-		Network:  network.NewManager(),
-		Sandbox:  sandbox.NewManager(),
+		Network: network.NewManager(),
 		TagMap: map[uint32]string{
 			0: "Unknown", 1: "AI Agent", 2: "Git", 3: "Build Tool",
 			4: "System Pkg", 5: "Runtime", 6: "System Tool",
@@ -143,9 +140,9 @@ func newAppContext() *AppContext {
 			"Security": 8, "Shell": 9, "Language Pkg": 10,
 			"Container CLI": 11, "Agent CLI": 12,
 		},
-		NextTagID:         13,
-		WrapperRules:      make(map[string]core.WrapperRule),
-		DisabledComms:     make(map[string]struct{}),
+		NextTagID:          13,
+		WrapperRules:       make(map[string]core.WrapperRule),
+		DisabledComms:      make(map[string]struct{}),
 		DisabledEventTypes: make(map[uint32]struct{}),
 	}
 }

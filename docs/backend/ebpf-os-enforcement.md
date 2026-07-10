@@ -46,7 +46,8 @@
 
 - `backend/ebpf/cgroup_sandbox.c`
 - `backend/ebpf/gen_cgroup.go`
-- `backend/app/*cgroup*`
+- `backend/app/cgroupsandboxcontrol.go` / `cgroupsandboxops.go`
+- `backend/app/handlers/cgroup_sandbox.go`
 
 语义：
 
@@ -56,6 +57,8 @@
 - cgroup blocklist 使用 cgroup v2 inode id；
 - destination blocking 使用 exact IPv4 / IPv6 / TCP/UDP port maps；
 - IPv4-mapped IPv6 会归一化到 IPv4 key。
+
+`/sandbox/cgroup/**`、External API、MCP 和启动时 loader 共享同一个 app 级 runtime snapshot，避免两套 map/link 状态各自加载后产生“状态可见但策略未生效”的分裂。
 
 ::: warning 不要误写
 不要把 cgroup destination blocking 描述成 CIDR / range / 防火墙规则树。它是 exact key map。
@@ -67,7 +70,8 @@
 
 - `backend/ebpf/lsm_enforcer.c`
 - `backend/ebpf/gen_lsm.go`
-- `backend/app/*lsm*`
+- `backend/app/lsmenforcertypes.go` / `lsmenforcercontrol.go`
+- `backend/app/handlers/lsm_enforcer.go`
 
 覆盖：
 
