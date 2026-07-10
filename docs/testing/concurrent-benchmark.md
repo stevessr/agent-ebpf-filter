@@ -1,8 +1,12 @@
 # 并发性能测试
 
-## 并发性能测试用于模拟真实场景下多个线程/进程同时执行系统调用的情况，评估 eBPF 钩子在高并发环境下的开销。
+## 概述
 
-## ### 1. 启动后端
+并发性能测试用于模拟真实场景下多个线程/进程同时执行系统调用的情况，评估 eBPF 钩子在高并发环境下的开销。
+
+## 快速开始
+
+### 1. 启动后端
 
 ```bash
 cd backend
@@ -26,14 +30,20 @@ BENCH_CONCURRENCY="1 8 32 64" BENCH_CYCLES=20 ./scripts/benchmark-concurrent.sh
 cat reports/ebpf-concurrent-*/concurrent_report.txt
 ```
 
-## ### | 变量 | 默认值 | 说明 |
+## 测试参数
+
+### 环境变量
+
+| 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `BENCH_CONCURRENCY` | `1 4 8 16 32` | 要测试的并发级别列表 |
 | `BENCH_CYCLES` | `10` | 每个并发级别的测试周期数 |
 | `BENCH_STAMP` | 当前时间戳 | 报告目录时间戳 |
 | `EBPF_BENCH_OUTDIR` | `reports/ebpf-concurrent-*` | 输出目录 |
 
-### 每个测试运行使用以下参数：
+### 内部参数
+
+每个测试运行使用以下参数：
 - **Runs**: 3（每个操作重复 3 次）
 - **Warmup**: 1（预热 1 次）
 - **Iterations**: 5000（每次运行 5000 次迭代）
@@ -42,14 +52,20 @@ cat reports/ebpf-concurrent-*/concurrent_report.txt
 
 示例：`10 × 5 × 18 × 3 × 5000 = 13,500,000` 次测量
 
-## - **C=1**: 单线程（基准）
+## 并发级别说明
+
+- **C=1**: 单线程（基准）
 - **C=4**: 轻度并发（典型桌面应用）
 - **C=8**: 中度并发（多核服务器）
 - **C=16**: 高并发（繁忙服务器）
 - **C=32**: 极高并发（高吞吐量服务）
 - **C=64**: 压力测试（极端场景）
 
-## ### ```
+## 输出格式
+
+### 目录结构
+
+```
 reports/ebpf-concurrent-<timestamp>/
 ├── raw_baseline_c1.jsonl    # 并发=1 的 baseline 原始数据，每个 cycle 一行
 ├── raw_ebpf_c1.jsonl        # 并发=1 的 eBPF 原始数据，每个 cycle 一行
@@ -64,7 +80,9 @@ reports/ebpf-concurrent-<timestamp>/
 └── concurrent_report.txt    # 综合对比报告
 ```
 
-### 1. **Overall Average Overhead by Concurrency**
+### 报告内容
+
+1. **Overall Average Overhead by Concurrency**
    - 每个并发级别的总体平均开销
    - 最小/最大开销
    - 操作数量
@@ -82,7 +100,11 @@ reports/ebpf-concurrent-<timestamp>/
    - 最佳/最差并发级别
    - 生产环境使用建议
 
-## ### ```
+## 解读结果
+
+### 理想情况
+
+```
 Concurrency     Avg Overhead    Min        Max        Operations
 ---------------------------------------------------------------
 1               ✨ -0.15%      -2.40%    +0.26%     18
@@ -98,7 +120,9 @@ Scalability: ✅ Excellent - Nearly constant overhead regardless of concurrency
 - 开销范围 < 1.5% → 可扩展性优秀
 - 即使在 C=32 时开销也 < 2% → 适合高并发场景
 
-### ```
+### 需要关注的情况
+
+```
 Concurrency     Avg Overhead    Min        Max        Operations
 ---------------------------------------------------------------
 1               ✨ -0.15%      -2.40%    +0.26%     18
@@ -118,19 +142,25 @@ Scalability: ❌ Poor - Significant overhead growth with concurrency
   - 缓存失效
 - 建议：检查 eBPF 程序中的锁竞争和 map 访问模式
 
-## ### Web 服务器
+## 真实场景模拟
+
+### Web 服务器
 
 ```bash
 # 模拟 Nginx/Apache (通常 8-32 worker 进程)
 BENCH_CONCURRENCY="8 16 32" BENCH_CYCLES=50 ./scripts/benchmark-concurrent.sh
 ```
 
-### ```bash
+### 数据库
+
+```bash
 # 模拟 PostgreSQL/MySQL (通常 16-128 并发连接)
 BENCH_CONCURRENCY="16 32 64 128" BENCH_CYCLES=30 ./scripts/benchmark-concurrent.sh
 ```
 
-### ```bash
+### 容器编排
+
+```bash
 # 模拟 Kubernetes 节点 (大量并发 Pod)
 BENCH_CONCURRENCY="32 64 128 256" BENCH_CYCLES=20 ./scripts/benchmark-concurrent.sh
 ```
@@ -142,7 +172,9 @@ BENCH_CONCURRENCY="32 64 128 256" BENCH_CYCLES=20 ./scripts/benchmark-concurrent
 BENCH_CONCURRENCY="4 8 16" BENCH_CYCLES=100 ./scripts/benchmark-concurrent.sh
 ```
 
-## ### Q: 为什么并发越高，开销反而降低？
+## 常见问题
+
+### Q: 为什么并发越高，开销反而降低？
 
 A: 这是测量噪声和缓存效应。真实开销应该：
 - 保持相对稳定（理想情况）
@@ -169,7 +201,7 @@ A: 检查：
 2. eBPF 程序是否对该调用做了复杂处理？
 3. 是否可以通过 tail call 或其他优化减少开销？
 
-## CI/CD 集成
+## 与 CI/CD 集成
 
 `.github/workflows/benchmark.yml` 已支持手动触发并发测试：
 
@@ -194,6 +226,8 @@ matrix 模式下，每个 job 只测试一个 concurrency level，并在同一 j
     python3 scripts/check-regression.py "$LATEST/concurrent_report.txt"
 ```
 
-## - 单线程测试：`./scripts/benchmark-extended-full.sh`
+## 参考
+
+- 单线程测试：`./scripts/benchmark-extended-full.sh`
 - 基准测试工具：`./scripts/benchmark-syscalls-extended`
 - 可视化工具：`./scripts/visualize-concurrent.py`

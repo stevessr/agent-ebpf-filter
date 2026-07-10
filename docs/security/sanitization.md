@@ -1,8 +1,14 @@
 # 数据脱敏机制
 
-## agent-ebpf-filter 实现了完整的数据脱敏机制，保护系统采集和传输过程中的敏感信息。脱敏机制覆盖从 eBPF 内核采集到前端展示的整个数据流，确保用户隐私和安全。
+## 概述
 
-## ### ```mermaid
+agent-ebpf-filter 实现了完整的数据脱敏机制，保护系统采集和传输过程中的敏感信息。脱敏机制覆盖从 eBPF 内核采集到前端展示的整个数据流，确保用户隐私和安全。
+
+## 架构设计
+
+### 四层架构
+
+```mermaid
 flowchart LR
     Collect["采集层<br/>eBPF"] --> Process["处理层<br/>归一化"]
     Process --> Redact["脱敏层<br/>脱敏引擎"]
@@ -31,7 +37,9 @@ flowchart LR
 - 支持 WebSocket、JSONL、MCP、OTLP、前端视图
 - 禁止绕过脱敏层直接访问原始数据
 
-## ### None - 无脱敏
+## 脱敏级别
+
+### None - 无脱敏
 **适用场景**：完全信任的开发/调试环境
 
 - 保留所有原始数据
@@ -85,7 +93,9 @@ flowchart LR
 - **最小化信息保留**：
   - 仅保留事件类型、时间、进程类别、状态码
 
-## ### 1. 路径字段
+## 敏感字段分类
+
+### 1. 路径字段
 - `path`, `cwd`, `extra_path`, `related_path`
 - 文件系统路径可能暴露用户目录结构和配置
 
@@ -105,7 +115,9 @@ flowchart LR
 - `access_token`, `agent_run_id`, `conversation_id`, `tool_call_id`
 - 会话和追踪标识符可能用于关联用户行为
 
-## ### 1. 通过前端 UI 配置
+## 配置方式
+
+### 1. 通过前端 UI 配置
 
 访问 **Config → Redaction** 标签页：
 
@@ -157,7 +169,11 @@ export AGENT_REDACTION_LEVEL=strict
 export AGENT_REDACTION_ENABLED=true
 ```
 
-## ### #### Standard 级别示例
+## 脱敏规则详解
+
+### 路径脱敏规则
+
+#### Standard 级别示例
 ```
 原始：/home/steve/.ssh/id_rsa
 脱敏：~/.ssh/id_rsa
@@ -178,7 +194,9 @@ export AGENT_REDACTION_ENABLED=true
 脱敏：/etc/<PATH>/myservice.service
 ```
 
-### #### Basic 级别示例
+### 命令行脱敏规则
+
+#### Basic 级别示例
 ```
 原始：curl -H "Authorization: Bearer sk-abc123"
 脱敏：curl -H "Authorization: Bearer [REDACTED]"
@@ -205,7 +223,9 @@ export AGENT_REDACTION_ENABLED=true
 脱敏：python train.py --data <ARG> --epochs <ARG> --lr <ARG>
 ```
 
-### #### Standard 级别示例
+### 网络脱敏规则
+
+#### Standard 级别示例
 | 原始值 | 脱敏后 |
 | --- | --- |
 | `192.168.1.100:8080` | `<PRIVATE_IP>:8080` |
@@ -221,7 +241,9 @@ export AGENT_REDACTION_ENABLED=true
 脱敏：https://<DOMAIN>/v1/users
 ```
 
-### 所有级别（Basic+）都会脱敏以下内容：
+### 凭证脱敏规则
+
+所有级别（Basic+）都会脱敏以下内容：
 
 | 类别 | 原始值 | 脱敏后 |
 | --- | --- | --- |
@@ -234,7 +256,11 @@ export AGENT_REDACTION_ENABLED=true
 | JSON Body | `{"api_key": "xxx"}` | `{"api_key": "[REDACTED]"}` |
 | Form Data | `password=xxx&token=yyy` | `password=[REDACTED]&token=[REDACTED]` |
 
-## ### ```json
+## 自定义规则
+
+### 规则结构
+
+```json
 {
   "category": "custom_regex",
   "pattern": "<正则表达式>",
@@ -245,7 +271,9 @@ export AGENT_REDACTION_ENABLED=true
 }
 ```
 
-### #### 匹配自定义 API 密钥格式
+### 规则示例
+
+#### 匹配自定义 API 密钥格式
 ```json
 {
   "category": "custom_regex",
@@ -278,7 +306,9 @@ export AGENT_REDACTION_ENABLED=true
 }
 ```
 
-### 规则按以下顺序应用：
+### 规则优先级
+
+规则按以下顺序应用：
 1. **自定义规则**（按 priority 从高到低）
 2. **凭证规则**（最高优先级的内置规则）
 3. **路径规则**
@@ -287,14 +317,20 @@ export AGENT_REDACTION_ENABLED=true
 
 同一分类内，高 priority 值的规则先执行。
 
-## ### 在 Dashboard、Network、TLSCapture 等页面顶部显示当前脱敏级别：
+## 前端展示
+
+### 脱敏状态徽章
+
+在 Dashboard、Network、TLSCapture 等页面顶部显示当前脱敏级别：
 
 - **None**: 灰色徽章 🔓
 - **Basic**: 蓝色徽章 🔵
 - **Standard**: 绿色徽章 ✅（默认）
 - **Strict**: 红色徽章 🔒
 
-### 使用 `<SanitizedFieldViewer>` 组件显示敏感字段：
+### 脱敏字段显示
+
+使用 `<SanitizedFieldViewer>` 组件显示敏感字段：
 
 ```vue
 <SanitizedFieldViewer
@@ -310,7 +346,11 @@ export AGENT_REDACTION_ENABLED=true
 - 提供复制脱敏后值的按钮
 - 不显示原始值（安全优先）
 
-## ### #### 目录结构
+## 技术实现
+
+### 后端实现
+
+#### 目录结构
 ```mermaid
 flowchart TD
     Root["backend/redaction/"]
@@ -367,7 +407,9 @@ masked := engine.ApplyRules(value, redaction.FieldCategoryPath)
    broadcast(sanitizedRecord)
    ```
 
-### #### 目录结构
+### 前端实现
+
+#### 目录结构
 ```mermaid
 flowchart TD
     Root["frontend/src/"]
@@ -394,35 +436,51 @@ await setLevel('strict')
 await updateRules([...rules.value, newRule])
 ```
 
-## ### 1. **规则缓存**：编译后的正则表达式缓存，避免重复编译
+## 性能考虑
+
+### 缓存策略
+
+1. **规则缓存**：编译后的正则表达式缓存，避免重复编译
 2. **结果缓存**：相同输入的脱敏结果缓存（LRU）
 3. **批量处理**：支持批量脱敏，减少函数调用开销
 
-### 在标准硬件上的性能指标：
+### 性能数据
+
+在标准硬件上的性能指标：
 
 - **单事件脱敏延迟**：< 1ms（缓存命中）
 - **批量脱敏吞吐**：> 10,000 事件/秒
 - **内存占用**：~10MB（引擎 + 缓存）
 - **CPU 开销**：< 5%（正常负载下）
 
-### 1. **选择合适的级别**：Standard 是性能和安全的平衡点
+### 优化建议
+
+1. **选择合适的级别**：Standard 是性能和安全的平衡点
 2. **限制自定义规则**：过多复杂正则会影响性能
 3. **使用缓存**：相似事件会命中缓存，大幅提升性能
 4. **按需脱敏**：仅对必要的出口启用脱敏
 
-## ### 重要提醒
+## 安全注意事项
+
+### ⚠️ 重要提醒
 
 1. **脱敏不可逆**：脱敏后的数据无法还原，确保不影响业务需求
 2. **默认安全**：系统默认 Standard 级别，除非明确需要否则不要降级
 3. **日志审计**：脱敏配置变更会记录到审计日志
 4. **Out-of-band 数据**：脱敏仅处理系统采集的数据，不影响原始系统行为
 
-### 1. **二进制数据**：当前不处理二进制协议（除 TLS/HTTP）
+### 已知限制
+
+1. **二进制数据**：当前不处理二进制协议（除 TLS/HTTP）
 2. **编码变体**：Base64/URL 编码的敏感数据可能绕过检测
 3. **语义理解**：无法理解业务语义（如订单号、用户 ID）
 4. **历史数据**：仅影响新采集数据，历史 JSONL 不会追溯脱敏
 
-## ### **症状**：修改配置后，前端仍显示旧的脱敏级别
+## 故障排查
+
+### 问题：脱敏级别切换不生效
+
+**症状**：修改配置后，前端仍显示旧的脱敏级别
 
 **解决**：
 1. 检查后端日志确认配置已加载
@@ -430,7 +488,9 @@ await updateRules([...rules.value, newRule])
 3. 清除浏览器缓存
 4. 重启后端服务
 
-### **症状**：添加的正则表达式规则没有生效
+### 问题：自定义规则不匹配
+
+**症状**：添加的正则表达式规则没有生效
 
 **解决**：
 1. 验证正则表达式语法（使用 [regex101.com](https://regex101.com)）
@@ -438,7 +498,9 @@ await updateRules([...rules.value, newRule])
 3. 确认规则 `enabled: true`
 4. 查看后端日志中的规则应用统计
 
-### **症状**：启用脱敏后事件处理变慢
+### 问题：性能下降
+
+**症状**：启用脱敏后事件处理变慢
 
 **解决**：
 1. 降低脱敏级别（Strict → Standard → Basic）
@@ -447,7 +509,9 @@ await updateRules([...rules.value, newRule])
 4. 检查缓存命中率（后端指标）
 5. 考虑只对必要的出口启用脱敏
 
-## ### 1. 选择合适的级别
+## 最佳实践
+
+### 1. 选择合适的级别
 
 - **开发环境**：None（便于调试）
 - **测试环境**：Basic（保护明显敏感信息）
@@ -479,7 +543,7 @@ await updateRules([...rules.value, newRule])
 
 ## API 参考
 
-### API
+### 后端 API
 
 #### GET /config/redaction-policy
 获取当前脱敏策略
@@ -543,12 +607,16 @@ message Event {
 }
 ```
 
-## - [架构文档](../architecture/overview.md) - 系统整体架构
+## 相关文档
+
+- [架构文档](../architecture/overview.md) - 系统整体架构
 - [Runtime Gates 与 Auth](runtime-gates-auth.md) - 配置、环境变量与认证边界
 - [构建与运行](../operations/build-and-run.md) - 开发者运行入口
 - [安全模型](model.md) - 安全最佳实践与边界
 
-## ### v1.0.0 (2026-06-08)
+## 更新日志
+
+### v1.0.0 (2026-06-08)
 - 初始版本
 - 实现四层脱敏架构
 - 支持 4 个脱敏级别
