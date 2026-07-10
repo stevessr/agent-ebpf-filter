@@ -3,6 +3,7 @@ package tls
 import (
 	"agent-ebpf-filter/internal/binaryresolver"
 	"bytes"
+	"context"
 	"debug/elf"
 	"encoding/binary"
 	"errors"
@@ -96,8 +97,11 @@ type TLSProbeManager struct {
 	// ReadLoop diagnostics (updated atomically)
 	readLoopStats ReadLoopStats
 
-	mu     sync.Mutex
-	closed bool
+	mu               sync.Mutex
+	closed           bool
+	discoveryStarted bool
+	discoveryCancel  context.CancelFunc
+	discoveryWG      sync.WaitGroup
 }
 
 type ReadLoopStats struct {
@@ -1343,6 +1347,16 @@ func (m *TLSProbeManager) Close() error {
 		return nil
 	}
 	m.closed = true
+	discoveryCancel := m.discoveryCancel
+	m.discoveryCancel = nil
+	m.mu.Unlock()
+
+	if discoveryCancel != nil {
+		discoveryCancel()
+	}
+	m.discoveryWG.Wait()
+
+	m.mu.Lock()
 	links := m.links
 	m.links = nil
 	objs := m.objs
@@ -1371,26 +1385,26 @@ func programByName(programs *bpf.AgentTlsCapturePrograms, name string) (*ebpf.Pr
 		return nil, false
 	}
 	programsByName := map[string]*ebpf.Program{
-		"uprobe_crypto_tls_conn_read":    programs.UprobeCryptoTlsConnRead,
-		"uprobe_crypto_tls_conn_write":   programs.UprobeCryptoTlsConnWrite,
-		"uprobe_gnutls_record_recv":      programs.UprobeGnutlsRecordRecv,
-		"uprobe_gnutls_record_send":      programs.UprobeGnutlsRecordSend,
-		"uprobe_pr_read":                 programs.UprobePrRead,
-		"uprobe_pr_write":                programs.UprobePrWrite,
-		"uprobe_ssl_read":                programs.UprobeSslRead,
-		"uprobe_ssl_read_ex":             programs.UprobeSslReadEx,
-		"uprobe_ssl_write":               programs.UprobeSslWrite,
-		"uprobe_ssl_write_ex":            programs.UprobeSslWriteEx,
-		"uprobe_ssl_write_ex2":           programs.UprobeSslWriteEx2,
-		"uprobe_rustls_encrypt_outgoing":     programs.UprobeRustlsEncryptOutgoing,
-		"uprobe_rustls_consume_first_chunk":  programs.UprobeRustlsConsumeFirstChunk,
-		"uretprobe_ssl_write_ex2":        programs.UretprobeSslWriteEx2,
-		"uretprobe_crypto_tls_conn_read": programs.UretprobeCryptoTlsConnRead,
-		"uretprobe_gnutls_record_recv":   programs.UretprobeGnutlsRecordRecv,
-		"uretprobe_pr_read":              programs.UretprobePrRead,
-		"uretprobe_ssl_read":             programs.UretprobeSslRead,
-		"uretprobe_ssl_read_ex":          programs.UretprobeSslReadEx,
-		"uretprobe_ssl_write_ex":         programs.UretprobeSslWriteEx,
+		"uprobe_crypto_tls_conn_read":       programs.UprobeCryptoTlsConnRead,
+		"uprobe_crypto_tls_conn_write":      programs.UprobeCryptoTlsConnWrite,
+		"uprobe_gnutls_record_recv":         programs.UprobeGnutlsRecordRecv,
+		"uprobe_gnutls_record_send":         programs.UprobeGnutlsRecordSend,
+		"uprobe_pr_read":                    programs.UprobePrRead,
+		"uprobe_pr_write":                   programs.UprobePrWrite,
+		"uprobe_ssl_read":                   programs.UprobeSslRead,
+		"uprobe_ssl_read_ex":                programs.UprobeSslReadEx,
+		"uprobe_ssl_write":                  programs.UprobeSslWrite,
+		"uprobe_ssl_write_ex":               programs.UprobeSslWriteEx,
+		"uprobe_ssl_write_ex2":              programs.UprobeSslWriteEx2,
+		"uprobe_rustls_encrypt_outgoing":    programs.UprobeRustlsEncryptOutgoing,
+		"uprobe_rustls_consume_first_chunk": programs.UprobeRustlsConsumeFirstChunk,
+		"uretprobe_ssl_write_ex2":           programs.UretprobeSslWriteEx2,
+		"uretprobe_crypto_tls_conn_read":    programs.UretprobeCryptoTlsConnRead,
+		"uretprobe_gnutls_record_recv":      programs.UretprobeGnutlsRecordRecv,
+		"uretprobe_pr_read":                 programs.UretprobePrRead,
+		"uretprobe_ssl_read":                programs.UretprobeSslRead,
+		"uretprobe_ssl_read_ex":             programs.UretprobeSslReadEx,
+		"uretprobe_ssl_write_ex":            programs.UretprobeSslWriteEx,
 	}
 	prog, ok := programsByName[name]
 	return prog, ok

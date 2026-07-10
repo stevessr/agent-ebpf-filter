@@ -10,9 +10,9 @@ import (
 
 // TLSBuiltinExecutableAttachStatus reports the result of attaching to a builtin TLS executable.
 type TLSBuiltinExecutableAttachStatus struct {
-		Name     string `json:"name"`
-		Attached bool   `json:"attached"`
-		Error    string `json:"error,omitempty"`
+	Name     string `json:"name"`
+	Attached bool   `json:"attached"`
+	Error    string `json:"error,omitempty"`
 }
 
 // ---- moved from backend/zz_merged_backend.go section capturecontrollertls.go ----
@@ -124,23 +124,26 @@ func (c *TLSCaptureController) Status() map[string]any {
 }
 
 func (c *TLSCaptureController) AttachedPIDs() []AttachedPIDInfo {
-	if c == nil || c.manager == nil {
+	manager := c.Manager()
+	if manager == nil {
 		return nil
 	}
-	return c.manager.AttachedPIDs()
+	return manager.AttachedPIDs()
 }
 func (c *TLSCaptureController) ProbeHitCounters() map[string]uint64 {
-	if c == nil || c.manager == nil {
+	manager := c.Manager()
+	if manager == nil {
 		return nil
 	}
-	return c.manager.ProbeHitCounters()
+	return manager.ProbeHitCounters()
 }
 
 func (c *TLSCaptureController) ReadLoopStatsSnapshot() ReadLoopStats {
-	if c == nil || c.manager == nil {
+	manager := c.Manager()
+	if manager == nil {
 		return ReadLoopStats{}
 	}
-	return c.manager.ReadLoopStatsSnapshot()
+	return manager.ReadLoopStatsSnapshot()
 }
 
 func (c *TLSCaptureController) Close() error {
@@ -151,6 +154,7 @@ func (c *TLSCaptureController) Close() error {
 	manager := c.manager
 	c.manager = nil
 	c.readStarted = false
+	c.goDiscoveryStarted = false
 	c.mu.Unlock()
 	if manager != nil {
 		return manager.Close()

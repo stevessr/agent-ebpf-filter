@@ -1,6 +1,7 @@
 package tls
 
 import (
+	"context"
 	"debug/elf"
 	"fmt"
 	"os"
@@ -195,26 +196,47 @@ func hasSSLSymbols(binPath string) bool {
 }
 
 func (m *TLSProbeManager) StartGoDiscoveryLoop(interval time.Duration) {
+	m.startGoDiscoveryLoop(interval, func() {
+		m.DiscoverGoProcesses()
+		m.DiscoverNodeProcesses()
+	})
+}
+
+func (m *TLSProbeManager) startGoDiscoveryLoop(interval time.Duration, discover func()) {
 	if m == nil {
 		return
 	}
 	if interval <= 0 {
 		interval = time.Minute
 	}
+	if discover == nil {
+		return
+	}
+	m.mu.Lock()
+	if m.closed || m.discoveryStarted {
+		m.mu.Unlock()
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	m.discoveryStarted = true
+	m.discoveryCancel = cancel
+	m.discoveryWG.Add(1)
+	m.mu.Unlock()
 	go func() {
-		m.DiscoverGoProcesses()
-		m.DiscoverNodeProcesses()
+		defer m.discoveryWG.Done()
+		if ctx.Err() != nil {
+			return
+		}
+		discover()
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
-		for range ticker.C {
-			m.mu.Lock()
-			closed := m.closed
-			m.mu.Unlock()
-			if closed {
+		for {
+			select {
+			case <-ctx.Done():
 				return
+			case <-ticker.C:
+				discover()
 			}
-			m.DiscoverGoProcesses()
-			m.DiscoverNodeProcesses()
 		}
 	}()
 }

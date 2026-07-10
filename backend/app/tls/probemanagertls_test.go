@@ -3,7 +3,9 @@ package tls
 import (
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // ---- moved from backend/zz_merged_backend_test.go section probemanagertls_test.go ----
@@ -123,6 +125,57 @@ func TestForgetGoBinaryAttachAllowsRetryAfterFailure(t *testing.T) {
 	manager.forgetGoBinaryAttach("/tmp/app", 42)
 	if !manager.shouldAttachGoBinary("/tmp/app", 42) {
 		t.Fatalf("attach should be retried after failure cleanup")
+	}
+}
+
+func TestTLSProbeManagerDiscoveryLoopIsIdempotentAndStopsOnClose(t *testing.T) {
+	manager := &TLSProbeManager{}
+	var discoveryCalls atomic.Int32
+	var duplicateCalls atomic.Int32
+	manager.startGoDiscoveryLoop(2*time.Millisecond, func() {
+		discoveryCalls.Add(1)
+	})
+	manager.startGoDiscoveryLoop(time.Millisecond, func() {
+		duplicateCalls.Add(1)
+	})
+
+	deadline := time.Now().Add(time.Second)
+	for discoveryCalls.Load() < 2 {
+		if time.Now().After(deadline) {
+			t.Fatalf("discovery calls = %d, want at least 2", discoveryCalls.Load())
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if err := manager.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	stoppedAt := discoveryCalls.Load()
+	time.Sleep(10 * time.Millisecond)
+	if discoveryCalls.Load() != stoppedAt {
+		t.Fatalf("discovery continued after Close: %d -> %d", stoppedAt, discoveryCalls.Load())
+	}
+	if duplicateCalls.Load() != 0 {
+		t.Fatalf("duplicate discovery loop ran %d times", duplicateCalls.Load())
+	}
+	manager.startGoDiscoveryLoop(time.Millisecond, func() { duplicateCalls.Add(1) })
+	time.Sleep(5 * time.Millisecond)
+	if duplicateCalls.Load() != 0 {
+		t.Fatalf("closed manager restarted discovery %d times", duplicateCalls.Load())
+	}
+}
+
+func TestTLSCaptureControllerCloseResetsDiscoveryLifecycle(t *testing.T) {
+	controller := &TLSCaptureController{
+		manager:            &TLSProbeManager{},
+		readStarted:        true,
+		goDiscoveryStarted: true,
+	}
+	if err := controller.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	status := controller.Status()
+	if status["enabled"] != false || status["readStarted"] != false || status["goDiscoveryStarted"] != false {
+		t.Fatalf("controller status after Close = %#v", status)
 	}
 }
 
