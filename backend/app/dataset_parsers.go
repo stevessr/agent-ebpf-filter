@@ -614,7 +614,7 @@ func remoteDatasetRecordFromMap(row map[string]any, rowIndex int, source string)
 		if ts, ok := extractDatasetTimestamp(row); ok {
 			selinuxRecord.Timestamp = ts
 		}
-		if userLabel := firstStringValue(row, "userLabel", "user_label"); userLabel != "" {
+		if userLabel := firstStringValue(row, "userLabel", "userlabel", "user_label"); userLabel != "" {
 			selinuxRecord.UserLabel = userLabel
 		}
 		return selinuxRecord, true

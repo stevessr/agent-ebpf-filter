@@ -124,6 +124,40 @@ export function useConfigMLDataset(deps: {
     return trimmed;
   };
 
+  const loadBundledDatasetContent = async (
+    asset: NonNullable<ClassicSecurityDatasetPreset["bundledAsset"]>,
+  ) => {
+    switch (asset) {
+      case "safety-net":
+        return (
+          await import("../../assets/datasets/safety-net-rules.json?raw")
+        ).default;
+      case "balanced-training":
+        return (
+          await import(
+            "../../assets/datasets/builtin-training-dataset.json?raw"
+          )
+        ).default;
+      default:
+        throw new Error(`unsupported bundled dataset asset: ${asset}`);
+    }
+  };
+
+  const classicDatasetImportSource = async (
+    preset: ClassicSecurityDatasetPreset,
+  ) => {
+    if (preset.bundledAsset) {
+      return {
+        content: await loadBundledDatasetContent(preset.bundledAsset),
+        sourceName: preset.name,
+      };
+    }
+    if (preset.downloadUrl) {
+      return { url: preset.downloadUrl, sourceName: preset.name };
+    }
+    throw new Error(`preset ${preset.name} does not provide an import source`);
+  };
+
   const selectDefaultResearchSession = (sessions: ResearchSession[]) => {
     if (
       selectedResearchSessionId.value &&
@@ -291,15 +325,15 @@ export function useConfigMLDataset(deps: {
   };
 
   const importClassicDataset = async (preset: ClassicSecurityDatasetPreset) => {
-    if (!preset.downloadUrl) {
+    if (!preset.downloadUrl && !preset.bundledAsset) {
       window.open(preset.pageUrl, "_blank");
       return;
     }
     importingClassicDataset.value = true;
     try {
+      const source = await classicDatasetImportSource(preset);
       const res = await importRemoteDatasetPayload({
-        url: preset.downloadUrl,
-        sourceName: preset.name,
+        ...source,
         importAll: true,
         format: preset.format ?? "auto",
         labelMode: preset.labelMode ?? remoteDatasetLabelMode.value,
@@ -337,13 +371,10 @@ export function useConfigMLDataset(deps: {
   const importClassicDatasetPayload = async (
     preset: ClassicSecurityDatasetPreset,
   ) => {
-    if (!preset.downloadUrl) {
-      throw new Error(`preset ${preset.name} does not provide a downloadUrl`);
-    }
+    const source = await classicDatasetImportSource(preset);
     return importRemoteDatasetPayload(
       {
-        url: preset.downloadUrl,
-        sourceName: preset.name,
+        ...source,
         importAll: true,
         format: preset.format ?? "auto",
         labelMode: preset.labelMode ?? remoteDatasetLabelMode.value,
@@ -355,12 +386,13 @@ export function useConfigMLDataset(deps: {
 
   const importAllInternetDatasets = async () => {
     const downloadable = classicSecurityDatasetPresets.filter((preset) =>
-      Boolean(preset.downloadUrl),
+      Boolean(preset.downloadUrl || preset.bundledAsset),
     );
     let importedRows = 0;
     let importedSets = 0;
     let skippedSets =
       classicSecurityDatasetPresets.length - downloadable.length;
+    const failedSets: string[] = [];
     importingClassicDataset.value = true;
     try {
       for (const preset of downloadable) {
@@ -370,12 +402,16 @@ export function useConfigMLDataset(deps: {
           importedSets += 1;
         } catch (_) {
           skippedSets += 1;
+          failedSets.push(preset.name);
         }
       }
       await refreshTrainingDatasetViews();
-      message.success(
-        `互联网数据批量导入完成：${importedRows} 条，${importedSets} 个数据集，跳过 ${skippedSets} 个条目`,
-      );
+      const summary = `经典数据集批量导入完成：${importedRows} 条，${importedSets} 个数据集，跳过 ${skippedSets} 个条目`;
+      if (failedSets.length > 0) {
+        message.warning(`${summary}；失败：${failedSets.join("、")}`);
+      } else {
+        message.success(summary);
+      }
     } catch (e: any) {
       message.error(
         e.response?.data?.error || e.message || "批量导入互联网数据失败",

@@ -112,7 +112,7 @@ const trainingSampleRowKey = (record: any) =>
   `${record.commandLine || [record.comm, ...(record.args || [])].filter(Boolean).join(" ")}:${record.label || ""}:${record.userLabel || ""}:${record.index ?? ""}`;
 
 const downloadableInternetDatasetCount = classicSecurityDatasetPresets.filter(
-  (preset) => Boolean(preset.downloadUrl),
+  (preset) => Boolean(preset.downloadUrl || preset.bundledAsset),
 ).length;
 const syntheticExpansionPresetCount = syntheticExpansionPresets.length;
 const remoteDatasetQualityWarnings = computed(
@@ -277,7 +277,7 @@ const formatReadinessToken = (value: string) =>
         type="info"
         show-icon
         style="margin-bottom: 12px"
-        message="有下载链接的数据集可一键导入；无下载链接的会跳转官方页面，下载后用“导入本地文件”上传。导入器支持 zip, gz, tar, tgz, bz2 等归档及 JSON, JSONL, CSV, TSV, 纯文本。"
+        message="内置或有下载链接的数据集可一键导入；其他数据集会跳转官方页面，下载后用“导入本地文件”上传。导入器支持 zip, gz, tar, tgz, bz2 等归档及 JSON, JSONL, CSV, TSV, 纯文本。"
       />
       <a-list
         :data-source="classicSecurityDatasetPresets"
@@ -315,14 +315,20 @@ const formatReadinessToken = (value: string) =>
                     :loading="importingClassicDataset"
                     @click="importClassicDataset(item)"
                     ><ImportOutlined />
-                    {{ item.downloadUrl ? "一键导入" : "前往下载" }}</a-button
+                    {{
+                      item.downloadUrl || item.bundledAsset
+                        ? "一键导入"
+                        : "前往下载"
+                    }}</a-button
                   >
                   <a-button
+                    v-if="item.pageUrl"
                     size="small"
                     @click="openClassicSecurityDatasetPage(item)"
                     ><GlobalOutlined /> 打开官网</a-button
                   >
                   <a-button
+                    v-if="item.pageUrl"
                     size="small"
                     @click="copyClassicSecurityDatasetPage(item)"
                     ><CopyOutlined /> 复制链接</a-button
@@ -379,7 +385,7 @@ const formatReadinessToken = (value: string) =>
             ><BookOutlined /> 导入 SELinux 规则</a-button
           >
           <a-tag color="blue"
-            >downloadable internet:
+            >一键导入数据集:
             {{ downloadableInternetDatasetCount }}</a-tag
           >
           <a-button

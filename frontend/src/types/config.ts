@@ -1193,6 +1193,7 @@ export interface ClassicSecurityDatasetPreset {
   platform: string;
   pageUrl: string;
   downloadUrl?: string;
+  bundledAsset?: "safety-net" | "balanced-training";
   format?: "auto" | "json" | "jsonl" | "csv" | "tsv" | "text";
   labelMode?: "preserve" | "unlabeled" | "heuristic" | "block";
   note: string;

@@ -1067,6 +1067,20 @@ func TestPullRemoteDatasetSELinuxJSONRulesPreservesLabels(t *testing.T) {
 	}
 }
 
+func TestParseRemoteDatasetSELinuxRulePreservesNormalizedUserLabelKey(t *testing.T) {
+	records, _, err := parseRemoteDatasetRecords(
+		[]byte(`{"rule":"allow httpd_t http_port_t:tcp_socket name_connect;","userlabel":"curated-policy"}`),
+		"json",
+		"policy.json",
+	)
+	if err != nil {
+		t.Fatalf("parseRemoteDatasetRecords() error = %v", err)
+	}
+	if len(records) != 1 || records[0].UserLabel != "curated-policy" {
+		t.Fatalf("SELinux user label records = %#v", records)
+	}
+}
+
 func TestPullRemoteDatasetStatsAndWarnings(t *testing.T) {
 	archiveBytes := buildZipArchive(t, map[string]string{
 		"README.md": "# no records here\n",
