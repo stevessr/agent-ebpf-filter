@@ -13,18 +13,25 @@ import (
 // ---- moved from backend/zz_merged_backend_test.go section forwardproxydomain_test.go ----
 
 func TestDomainForwardProxyRoutesByHost(t *testing.T) {
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "host=%s path=%s query=%s forwarded=%s route=%s", r.Host, r.URL.Path, r.URL.RawQuery, r.Header.Get("X-Forwarded-Host"), r.Header.Get("X-Agent-Forward-Route"))
-	}))
-	defer upstream.Close()
-
-	handler := newDomainForwardProxyHandler(DomainForwardProxySettings{
+	callCount := 0
+	transport := testRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		callCount++
+		if got, want := req.URL.Scheme, "http"; got != want {
+			t.Fatalf("scheme = %q, want %q", got, want)
+		}
+		if got, want := req.URL.Host, "upstream.test"; got != want {
+			t.Fatalf("URL host = %q, want %q", got, want)
+		}
+		body := fmt.Sprintf("host=%s path=%s query=%s forwarded=%s route=%s", req.Host, req.URL.Path, req.URL.RawQuery, req.Header.Get("X-Forwarded-Host"), req.Header.Get("X-Agent-Forward-Route"))
+		return newTestHTTPResponse(req, http.StatusOK, "text/plain", body), nil
+	})
+	handler := newDomainForwardProxyHandlerWithTransport(DomainForwardProxySettings{
 		DefaultScheme: "http",
 		Routes: []DomainForwardRoute{{
 			Host:     "Example.TEST",
-			Upstream: upstream.URL + "/base",
+			Upstream: "http://upstream.test/base",
 		}},
-	})
+	}, transport)
 
 	req := httptest.NewRequest(http.MethodGet, "http://example.test/hello?x=1", nil)
 	req.Host = "example.test"
@@ -33,6 +40,9 @@ func TestDomainForwardProxyRoutesByHost(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if callCount != 1 {
+		t.Fatalf("transport calls = %d, want 1", callCount)
 	}
 	body := rec.Body.String()
 	for _, want := range []string{

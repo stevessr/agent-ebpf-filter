@@ -18,7 +18,17 @@ type Handler struct {
 	wildcards []DomainForwardRoute
 }
 
+var errNoForwardingRoute = errors.New("no forwarding route")
+
 func NewHandler(settings DomainForwardProxySettings) *Handler {
+	return NewHandlerWithTransport(settings, nil)
+}
+
+// NewHandlerWithTransport creates a proxy handler with an optional custom
+// transport. A nil transport keeps the production DNS, proxy, and timeout
+// behavior; a non-nil transport replaces those policies and is intended for
+// controlled embedding and tests.
+func NewHandlerWithTransport(settings DomainForwardProxySettings, transport http.RoundTripper) *Handler {
 	NormalizeSettings(&settings)
 	exact := make(map[string]DomainForwardRoute, len(settings.Routes))
 	wildcards := make([]DomainForwardRoute, 0)
@@ -37,9 +47,12 @@ func NewHandler(settings DomainForwardProxySettings) *Handler {
 	sort.SliceStable(wildcards, func(i, j int) bool {
 		return len(wildcards[i].Host) > len(wildcards[j].Host)
 	})
+	if transport == nil {
+		transport = NewTransport(settings)
+	}
 	return &Handler{
 		settings:  settings,
-		transport: NewTransport(settings),
+		transport: transport,
 		exact:     exact,
 		wildcards: wildcards,
 	}
@@ -56,7 +69,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	target, route, err := h.TargetForHost(host)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		if errors.Is(err, errNoForwardingRoute) {
+			http.Error(w, "no forwarding route for requested host", http.StatusBadGateway)
+			return
+		}
+		log.Printf("[DOMAIN-FORWARD] route resolution for host %s failed: %v", host, err)
+		http.Error(w, "forwarding route is invalid", http.StatusBadGateway)
 		return
 	}
 
@@ -78,7 +96,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Transport: h.transport,
 		ErrorHandler: func(w http.ResponseWriter, req *http.Request, err error) {
 			log.Printf("[DOMAIN-FORWARD] upstream %s for host %s failed: %v", target.String(), host, err)
-			http.Error(w, fmt.Sprintf("upstream %s failed: %v", target.Host, err), http.StatusBadGateway)
+			http.Error(w, "upstream request failed", http.StatusBadGateway)
 		},
 	}
 	proxy.ServeHTTP(w, r)
@@ -98,7 +116,7 @@ func (h *Handler) TargetForHost(host string) (*url.URL, DomainForwardRoute, erro
 		target, err := ParseUpstream("", h.settings.DefaultScheme, host)
 		return target, route, err
 	}
-	return nil, DomainForwardRoute{}, fmt.Errorf("no forwarding route for host %q", host)
+	return nil, DomainForwardRoute{}, fmt.Errorf("%w for host %q", errNoForwardingRoute, host)
 }
 
 func (h *Handler) lookupRoute(host string) (DomainForwardRoute, bool) {

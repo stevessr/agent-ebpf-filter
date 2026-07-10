@@ -145,7 +145,11 @@ type domainForwardProxyHandler struct {
 }
 
 func newDomainForwardProxyHandler(settings DomainForwardProxySettings) *domainForwardProxyHandler {
-	return &domainForwardProxyHandler{inner: domainforwardproxy.NewHandler(toInternalDomainForwardProxySettings(settings))}
+	return newDomainForwardProxyHandlerWithTransport(settings, nil)
+}
+
+func newDomainForwardProxyHandlerWithTransport(settings DomainForwardProxySettings, transport http.RoundTripper) *domainForwardProxyHandler {
+	return &domainForwardProxyHandler{inner: domainforwardproxy.NewHandlerWithTransport(toInternalDomainForwardProxySettings(settings), transport)}
 }
 
 func (h *domainForwardProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

@@ -1,34 +1,65 @@
 package domainforwardproxy
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 )
 
-func TestRoutesByHost(t *testing.T) {
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "host=%s path=%s query=%s forwarded=%s route=%s", r.Host, r.URL.Path, r.URL.RawQuery, r.Header.Get("X-Forwarded-Host"), r.Header.Get("X-Agent-Forward-Route"))
-	}))
-	defer upstream.Close()
+type testRoundTripFunc func(*http.Request) (*http.Response, error)
 
-	handler := NewHandler(DomainForwardProxySettings{
+func (fn testRoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return fn(req)
+}
+
+func TestRoutesByHost(t *testing.T) {
+	callCount := 0
+	transport := testRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		callCount++
+		if req.Method != http.MethodGet {
+			t.Fatalf("method = %q, want GET", req.Method)
+		}
+		if got, want := req.URL.Scheme, "http"; got != want {
+			t.Fatalf("scheme = %q, want %q", got, want)
+		}
+		if got, want := req.URL.Host, "upstream.test"; got != want {
+			t.Fatalf("URL host = %q, want %q", got, want)
+		}
+		body := fmt.Sprintf("host=%s path=%s query=%s forwarded=%s proto=%s route=%s", req.Host, req.URL.Path, req.URL.RawQuery, req.Header.Get("X-Forwarded-Host"), req.Header.Get("X-Forwarded-Proto"), req.Header.Get("X-Agent-Forward-Route"))
+		return &http.Response{
+			StatusCode:    http.StatusOK,
+			Status:        "200 OK",
+			Header:        make(http.Header),
+			Body:          io.NopCloser(strings.NewReader(body)),
+			ContentLength: int64(len(body)),
+			Request:       req,
+		}, nil
+	})
+	handler := NewHandlerWithTransport(DomainForwardProxySettings{
 		DefaultScheme: "http",
 		Routes: []DomainForwardRoute{{
 			Host:     "Example.TEST",
-			Upstream: upstream.URL + "/base",
+			Upstream: "http://upstream.test/base",
 		}},
-	})
+	}, transport)
 
 	req := httptest.NewRequest(http.MethodGet, "http://example.test/hello?x=1", nil)
 	req.Host = "example.test"
+	req.Header.Set("X-Forwarded-Host", "forged.test")
+	req.Header.Set("X-Forwarded-Proto", "https")
+	req.Header.Set("X-Agent-Forward-Route", "forged-route")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if callCount != 1 {
+		t.Fatalf("transport calls = %d, want 1", callCount)
 	}
 	body := rec.Body.String()
 	for _, want := range []string{
@@ -36,11 +67,65 @@ func TestRoutesByHost(t *testing.T) {
 		"path=/base/hello",
 		"query=x=1",
 		"forwarded=example.test",
+		"proto=http",
 		"route=example.test",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("response %q does not contain %q", body, want)
 		}
+	}
+}
+
+func TestTransportErrorReturnsGenericBadGateway(t *testing.T) {
+	const internalError = "dial tcp 10.0.0.8:8443: connection refused"
+	handler := NewHandlerWithTransport(DomainForwardProxySettings{
+		DefaultScheme: "https",
+		Routes: []DomainForwardRoute{{
+			Host:     "example.test",
+			Upstream: "https://internal.service:8443",
+		}},
+	}, testRoundTripFunc(func(*http.Request) (*http.Response, error) {
+		return nil, errors.New(internalError)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	req.Host = "example.test"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadGateway)
+	}
+	if body := rec.Body.String(); body != "upstream request failed\n" {
+		t.Fatalf("body = %q, want generic upstream error", body)
+	}
+	if strings.Contains(rec.Body.String(), internalError) || strings.Contains(rec.Body.String(), "internal.service") {
+		t.Fatalf("response leaked upstream details: %q", rec.Body.String())
+	}
+}
+
+func TestInvalidUpstreamReturnsGenericBadGateway(t *testing.T) {
+	handler := NewHandler(DomainForwardProxySettings{
+		DefaultScheme: "https",
+		Routes: []DomainForwardRoute{{
+			Host:     "example.test",
+			Upstream: "https://secret.internal/%zz",
+		}},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	req.Host = "example.test"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadGateway)
+	}
+	if body := rec.Body.String(); body != "forwarding route is invalid\n" {
+		t.Fatalf("body = %q, want generic route error", body)
+	}
+	if strings.Contains(rec.Body.String(), "secret.internal") || strings.Contains(rec.Body.String(), "%zz") {
+		t.Fatalf("response leaked invalid upstream details: %q", rec.Body.String())
 	}
 }
 
