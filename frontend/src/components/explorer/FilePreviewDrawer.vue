@@ -8,33 +8,22 @@ import {
   triggerRef,
   watch,
 } from "vue";
-import { createHighlighter, type Highlighter } from "shiki";
 import type { FilePreviewResponse } from "../../types/filePreview";
 import { buildRequestHeaders } from "../../utils/requestContext";
 
-let highlighterInstance: Highlighter | null = null;
-const getHighlighter = async () => {
-  if (!highlighterInstance) {
-    highlighterInstance = await createHighlighter({
-      themes: ["github-dark"],
-      langs: [
-        "cpp",
-        "python",
-        "javascript",
-        "typescript",
-        "go",
-        "rust",
-        "bash",
-        "json",
-        "yaml",
-        "sql",
-        "html",
-        "css",
-        "text",
-      ],
-    });
+type CodeHighlightingModule = typeof import("../../utils/codeHighlighting");
+
+let codeHighlightingModulePromise: Promise<CodeHighlightingModule> | null = null;
+const loadCodeHighlightingModule = () => {
+  if (!codeHighlightingModulePromise) {
+    codeHighlightingModulePromise = import("../../utils/codeHighlighting").catch(
+      (error) => {
+        codeHighlightingModulePromise = null;
+        throw error;
+      },
+    );
   }
-  return highlighterInstance;
+  return codeHighlightingModulePromise;
 };
 
 const props = withDefaults(
@@ -428,33 +417,23 @@ watch(
 watch(
   () =>
     [
+      props.open,
       props.preview?.path,
       props.preview?.previewType,
       props.preview?.language,
       props.preview?.content,
       props.preview?.streamable,
     ] as const,
-  async ([, previewType, language, content, streamable]) => {
+  async ([isOpen, , previewType, language, content, streamable]) => {
     const runId = ++highlightRunId;
-    if (previewType === "text" && content && !streamable) {
+    if (isOpen && previewType === "text" && content && !streamable) {
       highlightLoading.value = true;
+      highlightedHtml.value = "";
       try {
-        const lang = language || "text";
-        const hl = await getHighlighter();
-
-        if (!hl.getLoadedLanguages().includes(lang)) {
-          try {
-            await hl.loadLanguage(lang as any);
-          } catch (e) {
-            console.warn(`Language ${lang} not supported by shiki`);
-          }
-        }
-
+        const { highlightPreviewCode } = await loadCodeHighlightingModule();
+        const html = await highlightPreviewCode(content, language);
         if (runId !== highlightRunId) return;
-        highlightedHtml.value = hl.codeToHtml(content, {
-          lang: hl.getLoadedLanguages().includes(lang) ? lang : "text",
-          theme: "github-dark",
-        });
+        highlightedHtml.value = html;
       } catch (err) {
         console.error("Failed to highlight code", err);
         if (runId === highlightRunId) highlightedHtml.value = "";
