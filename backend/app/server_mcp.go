@@ -67,11 +67,11 @@ type MCPNetworkFlowsOutput struct {
 }
 
 type MCPSystemHealthOutput struct {
-	CollectorHealth         CollectorHealthResponse `json:"collectorHealth"`
-	TracepointBootstrap     TracepointBootstrapStatus `json:"tracepointBootstrap"`
-	OTelExporter            OTelHealthResponse `json:"otelExporter"`
-	CgroupSandboxAttached   bool `json:"cgroupSandboxAttached"`
-	LSMEnforcerAttached     bool `json:"lsmEnforcerAttached"`
+	CollectorHealth       CollectorHealthResponse   `json:"collectorHealth"`
+	TracepointBootstrap   TracepointBootstrapStatus `json:"tracepointBootstrap"`
+	OTelExporter          OTelHealthResponse        `json:"otelExporter"`
+	CgroupSandboxAttached bool                      `json:"cgroupSandboxAttached"`
+	LSMEnforcerAttached   bool                      `json:"lsmEnforcerAttached"`
 }
 
 type MCPBlockDestinationInput struct {
@@ -302,7 +302,7 @@ func buildMCPServer() *mcp.Server {
 			Title:       "Get Network Flows",
 			Description: "Return current network flow summaries with TCP/UDP connection states.",
 		}, func(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, MCPNetworkFlowsOutput, error) {
-			flows := networkFlowAggregator.Snapshot()
+			flows := currentNetworkFlowAggregator().Snapshot()
 			return nil, MCPNetworkFlowsOutput{Flows: flows}, nil
 		})
 

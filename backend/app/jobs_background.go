@@ -110,7 +110,7 @@ func startKernelEventReader(rd *ringbuf.Reader) {
 	}()
 }
 
-func startRuntimeBackgroundJobs(features *FeatureRegistry) {
+func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) {
 	initRedactionEngine()
 	startEventBroadcaster()
 	startKernelRiskFeedbackWorker()
@@ -120,18 +120,16 @@ func startRuntimeBackgroundJobs(features *FeatureRegistry) {
 	startResearchTaskWorker()
 	go startUDSServer(broadcast)
 	startCgroupAttributionGC()
-	startDNSCacheGC()
-	startTCPStateTrackerGC()
-	startFlowAggregatorGC()
-	startExfilDetectionLoop()
+	AppCtx.Network.StartGC()
+	startFlowAggregatorGC(ctx)
 	go func() {
-		time.Sleep(100 * time.Millisecond)
-		AppCtx.Network.InitGeoIPDatabase()
-	}()
-	go func() {
-		ticker := time.NewTicker(3 * time.Minute)
-		for range ticker.C {
-			globalBandwidthTracker.EvictOlderThan(15 * time.Minute)
+		timer := time.NewTimer(100 * time.Millisecond)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+			AppCtx.Network.InitGeoIPDatabase()
 		}
 	}()
 	if features.CompiledIn(FeatureSandboxCgroup) {

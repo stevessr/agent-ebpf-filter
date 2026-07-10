@@ -16,8 +16,8 @@ import (
 // The PCAP format writing primitives live in the export subpackage.
 
 func handlePCAPExport(c *gin.Context) {
-	flows := networkFlowAggregator.Snapshot()
-	tcpConns := tcpTracker.Snapshot()
+	flows := currentNetworkFlowAggregator().Snapshot()
+	tcpConns := currentTCPConnections()
 
 	exportDir := platform.RuntimeSettingsDir()
 	exportPath := filepath.Join(exportDir, fmt.Sprintf("network-export-%s.pcap", time.Now().UTC().Format("20060102-150405")))

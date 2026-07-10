@@ -18,17 +18,19 @@ func newDNSCache() *dnsCache {
 
 var dnsCorrelation = newDNSCache()
 
-func startDNSCacheGC() {
-	AppCtx.Network.StartDNSCacheGC()
-}
-
 // Process a detected DNS query and record the domain
 func recordDNSQueryFromEvent(domain string) {
-	AppCtx.Network.RecordDNSQueryFromEvent(domain)
+	if manager := currentNetworkManager(); manager != nil {
+		manager.RecordDNSQueryFromEvent(domain)
+	}
 }
 
 // Correlate a DNS response with the query
 func correlateDNSResponse(srcIP string, rawData []byte) {
+	if manager := currentNetworkManager(); manager != nil {
+		manager.CorrelateDNSResponse(srcIP, rawData)
+		return
+	}
 	netcore.CorrelateDNSResponse(dnsCorrelation, rawData)
 }
 

@@ -9,11 +9,14 @@ package app
 import (
 	"net"
 
+	appnetwork "agent-ebpf-filter/app/network"
 	"agent-ebpf-filter/pb"
 
 	"agent-ebpf-filter/app/events"
 	netcore "agent-ebpf-filter/internal/network"
 )
+
+var fallbackNetworkMetrics = appnetwork.NewManager()
 
 // ── Bridge functions (called by remaining app-package code) ─────────────
 
@@ -73,25 +76,42 @@ func init() {
 
 	// Global-object method wrappers
 	events.Deps.BandwidthTrackerRecordBytes = func(srcIP, dstIP string, dstPort uint32, protocol, direction string, byteCount uint64, comm string, pid uint32) {
-		globalBandwidthTracker.RecordBytes(srcIP, dstIP, dstPort, protocol, direction, byteCount, comm, pid)
+		if manager := currentNetworkManager(); manager != nil {
+			manager.RecordBandwidthBytes(srcIP, dstIP, dstPort, protocol, direction, byteCount, comm, pid)
+			return
+		}
+		fallbackNetworkMetrics.RecordBandwidthBytes(srcIP, dstIP, dstPort, protocol, direction, byteCount, comm, pid)
 	}
 	events.Deps.TCPTrackerRecordConnect = func(srcIP, dstIP string, srcPort, dstPort uint32, pid uint32, comm string) {
+		if manager := currentNetworkManager(); manager != nil {
+			manager.RecordTCPConnect(srcIP, dstIP, srcPort, dstPort, pid, comm)
+			return
+		}
 		tcpTracker.RecordConnect(srcIP, dstIP, srcPort, dstPort, pid, comm)
 	}
 	events.Deps.TCPTrackerRecordClose = func(srcIP, dstIP string, srcPort, dstPort uint32) {
+		if manager := currentNetworkManager(); manager != nil {
+			manager.RecordTCPClose(srcIP, dstIP, srcPort, dstPort)
+			return
+		}
 		tcpTracker.RecordClose(srcIP, dstIP, srcPort, dstPort)
 	}
 	events.Deps.TCPTrackerRecordStateChange = func(srcIP, dstIP string, srcPort, dstPort uint32, oldState, newState uint8, pid uint32, comm string) {
+		if manager := currentNetworkManager(); manager != nil {
+			manager.RecordTCPStateChange(srcIP, dstIP, srcPort, dstPort, oldState, newState, pid, comm)
+			return
+		}
 		tcpTracker.RecordStateChange(srcIP, dstIP, srcPort, dstPort, oldState, newState, pid, comm)
 	}
 
 	// ApplyProtocolMetadata takes app's *protoDetectionEntry, not *events.ProtoDetectionEntry.
 	events.Deps.FlowAggregatorApplyProtocolMetadata = func(srcIP, dstIP string, srcPort, dstPort uint32, protocol string, entry *events.ProtoDetectionEntry) {
+		aggregator := currentNetworkFlowAggregator()
 		if entry == nil {
-			networkFlowAggregator.ApplyProtocolMetadata(srcIP, dstIP, srcPort, dstPort, protocol, nil)
+			aggregator.ApplyProtocolMetadata(srcIP, dstIP, srcPort, dstPort, protocol, nil)
 			return
 		}
-		networkFlowAggregator.ApplyProtocolMetadata(srcIP, dstIP, srcPort, dstPort, protocol, &protoDetectionEntry{
+		aggregator.ApplyProtocolMetadata(srcIP, dstIP, srcPort, dstPort, protocol, &protoDetectionEntry{
 			AppProtocol: AppProtocol(entry.AppProtocol),
 			SNI:         entry.SNI,
 			ALPN:        entry.ALPN,
@@ -100,7 +120,7 @@ func init() {
 		})
 	}
 	events.Deps.DNSCorrelationLookupIP = func(ip string) (string, bool) {
-		return dnsCorrelation.LookupIP(ip)
+		return currentDNSCorrelation().LookupIP(ip)
 	}
 
 	// Graph execution / envelope event dependencies

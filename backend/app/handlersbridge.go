@@ -8,6 +8,7 @@ import (
 	"agent-ebpf-filter/core"
 	"agent-ebpf-filter/internal/behavior"
 	"agent-ebpf-filter/internal/geoip"
+	netcore "agent-ebpf-filter/internal/network"
 	"agent-ebpf-filter/pb"
 	"encoding/json"
 	"fmt"
@@ -250,6 +251,47 @@ func (a *agentSightStoreAdapter) Add(events ...any) {
 // shellManagerAdapter wraps *shell.Manager to implement the handlers.Deps.ShellSessions interface.
 type shellManagerAdapter struct {
 	mgr *shell.Manager
+}
+
+type handlerNetworkFlowView struct{}
+
+func (handlerNetworkFlowView) Query(query netcore.FlowQuery) netcore.FlowQueryResult {
+	return currentNetworkFlowAggregator().Query(query)
+}
+
+func (handlerNetworkFlowView) Get(flowID string) (netcore.NetworkFlowSummary, bool) {
+	return currentNetworkFlowAggregator().Get(flowID)
+}
+
+type handlerTCPTrackerView struct{}
+
+func (handlerTCPTrackerView) Snapshot() []netcore.TCPConnectionState {
+	return currentTCPConnections()
+}
+
+type handlerDNSCorrelationView struct{}
+
+func (handlerDNSCorrelationView) LookupIP(ip string) (string, bool) {
+	return currentDNSCorrelation().LookupIP(ip)
+}
+
+func (handlerDNSCorrelationView) LookupDomain(domain string) (string, bool) {
+	return currentDNSCorrelation().LookupDomain(domain)
+}
+
+func (handlerDNSCorrelationView) Snapshot() []netcore.DNSCacheSnapshotEntry {
+	return currentDNSCorrelation().Snapshot()
+}
+
+type handlerGeoIPView struct {
+	fallback *geoip.Resolver
+}
+
+func (view handlerGeoIPView) Lookup(ip string) (geoip.Record, bool) {
+	if manager := currentNetworkManager(); manager != nil {
+		return manager.GeoIPLookup(ip)
+	}
+	return view.fallback.Lookup(ip)
 }
 
 func (a *shellManagerAdapter) Subscribe() chan struct{}     { return a.mgr.Subscribe() }
@@ -580,10 +622,10 @@ func init() {
 	}
 
 	// Network enrichment handlers
-	handlers.Deps.NetworkFlowAggregator = networkFlowAggregator
-	handlers.Deps.TCPTracker = tcpTracker
-	handlers.Deps.DNSCorrelation = dnsCorrelation
-	handlers.Deps.GeoIPDB = geoip.NewResolver()
+	handlers.Deps.NetworkFlowAggregator = handlerNetworkFlowView{}
+	handlers.Deps.TCPTracker = handlerTCPTrackerView{}
+	handlers.Deps.DNSCorrelation = handlerDNSCorrelationView{}
+	handlers.Deps.GeoIPDB = handlerGeoIPView{fallback: geoip.NewResolver()}
 	handlers.Deps.AnalyzeEndpoint = analyzeEndpoint
 
 	// External API
@@ -806,6 +848,7 @@ func handleConfigImportPost(c *gin.Context)      { handlers.HandleConfigImportPo
 func handleConfigRuntimeGet(c *gin.Context)      { handlers.HandleConfigRuntimeGet(c) }
 func handleConfigRuntimePut(c *gin.Context)      { handlers.HandleConfigRuntimePut(c) }
 func handleConfigAccessTokenPost(c *gin.Context) { handlers.HandleConfigAccessTokenPost(c) }
+
 // handleConfigRedactionPolicyGet/Put are defined in handlersredaction.go (app package)
 
 func registerSystemRoutes(rg *gin.RouterGroup, _ ...*FeatureRegistry) {
@@ -851,33 +894,25 @@ func syncHandlerDeps() {
 	handlers.Deps.EventArchiveClear = capturedEventArchive.Clear
 	handlers.Deps.AgentSightEventsClear = agentSightUploadedEvents.Clear
 	handlers.Deps.AgentSightUploadedEvents = &agentSightStoreAdapter{store: agentSightUploadedEvents}
-	handlers.Deps.NetworkFlowAggregator = networkFlowAggregator
-	handlers.Deps.TCPTracker = tcpTracker
-	handlers.Deps.DNSCorrelation = dnsCorrelation
 }
 
 func handleNetworkFlows(c *gin.Context) {
-	syncHandlerDeps()
 	handlers.HandleNetworkFlows(c)
 }
 func handleNetworkFlowByID(c *gin.Context) {
-	syncHandlerDeps()
 	handlers.HandleNetworkFlowByID(c)
 }
 func handleTCPState(c *gin.Context)       { handlers.HandleTCPState(c) }
 func handleNetworkAnalyze(c *gin.Context) { handlers.HandleNetworkAnalyze(c) }
 func handleGeoIPLookup(c *gin.Context)    { handlers.HandleGeoIPLookup(c) }
 func handleDNSLookup(c *gin.Context) {
-	syncHandlerDeps()
 	handlers.HandleDNSLookup(c)
 }
 func handleDNSCache(c *gin.Context) {
-	syncHandlerDeps()
 	handlers.HandleDNSCache(c)
 }
 func handleNetworkInterfaces(c *gin.Context) { handlers.HandleNetworkInterfaces(c) }
 func handleNetworkFlowJSONLExport(c *gin.Context) {
-	syncHandlerDeps()
 	handlers.HandleNetworkFlowJSONLExport(c)
 }
 

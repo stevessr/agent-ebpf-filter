@@ -66,13 +66,11 @@ func (t *tcpStateTracker) EvictTerminalOlderThan(maxAge time.Duration) {
 // new code should use AppCtx.Network.
 var tcpTracker = newTCPStateTracker()
 
-func startTCPStateTrackerGC() {
-	ticker := time.NewTicker(30 * time.Second)
-	go func() {
-		for range ticker.C {
-			tcpTracker.EvictTerminalOlderThan(1 * time.Minute)
-		}
-	}()
+func currentTCPConnections() []tcpConnectionState {
+	if manager := currentNetworkManager(); manager != nil {
+		return manager.TCPSnapshot()
+	}
+	return tcpTracker.Snapshot()
 }
 
 func detectAppProtocol(port uint32, domain string) string {

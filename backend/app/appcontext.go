@@ -104,6 +104,22 @@ type AppContext struct {
 // Deprecated: use ctx.From(c) in handlers instead.
 var AppCtx *AppContext
 
+func currentNetworkManager() *network.Manager {
+	if AppCtx == nil {
+		return nil
+	}
+	return AppCtx.Network
+}
+
+func bindAppNetworkState(appContext *AppContext) {
+	if appContext == nil || appContext.Network == nil {
+		return
+	}
+	dnsCorrelation = appContext.Network.DNSCache()
+	networkFlowAggregator = newFlowAggregator()
+	appContext.NetworkFlowAggregator = networkFlowAggregator
+}
+
 // Ctx extracts the AppContext from a gin request context.
 // Deprecated: this is a thin wrapper for backward compat.
 // New code should import "agent-ebpf-filter/app/ctx" and use ctx.From(c).

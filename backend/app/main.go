@@ -31,6 +31,10 @@ func Main() {
 	}
 
 	AppCtx = newAppContext()
+	bindAppNetworkState(AppCtx)
+	defer AppCtx.Network.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	AppCtx.Broadcast = broadcast
 	AppCtx.Clients = clients
 	AppCtx.EnvelopeClients = envelopeClients
@@ -39,7 +43,6 @@ func Main() {
 	AppCtx.CapturedEventArchive = capturedEventArchive
 	AppCtx.ShellSessions = shellSessions
 	AppCtx.PluginRegistry = pluginRegistry
-	AppCtx.NetworkFlowAggregator = networkFlowAggregator
 	AppCtx.EventRecordingStore = eventRecordingStore
 	AppCtx.CollectorMetricsStore = &collectorMetricsStore
 	AppCtx.OTelExporterStore = otelExporterStore
@@ -88,7 +91,7 @@ func Main() {
 	defer rd.Close()
 
 	startKernelEventReader(rd)
-	startRuntimeBackgroundJobs(features)
+	startRuntimeBackgroundJobs(ctx, features)
 
 	internal_sandbox.Apply()
 
@@ -96,8 +99,6 @@ func Main() {
 	r.Use(clusterGatewayMiddleware())
 	r.Use(ContextMiddleware(AppCtx))
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	startArchiveEvictionLoop(ctx)
 
 	registerRoutes(r, AppCtx, features, tlsRuntime.Broadcaster, tlsRuntime.Controller, tlsRuntime.Store, tlsRuntime.Rules)

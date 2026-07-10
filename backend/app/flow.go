@@ -1,13 +1,15 @@
 package app
 
 import (
-	netcore "agent-ebpf-filter/internal/network"
-	"agent-ebpf-filter/internal/geoip"
-	"agent-ebpf-filter/app/platform"
-	"agent-ebpf-filter/pb"
+	"context"
 	"net"
 	"strconv"
 	"time"
+
+	"agent-ebpf-filter/app/platform"
+	"agent-ebpf-filter/internal/geoip"
+	netcore "agent-ebpf-filter/internal/network"
+	"agent-ebpf-filter/pb"
 )
 
 // ---- moved from backend/zz_merged_backend.go section flow.go ----
@@ -25,10 +27,14 @@ type flowAggregator struct {
 }
 
 func newFlowAggregator() *flowAggregator {
-	// dnsCorrelation is the package-level backward-compat global.
-	// Once AppCtx is fully wired at init, this delegates to:
-	//   AppCtx.Network.DNSCache()
-	return &flowAggregator{inner: netcore.NewFlowAggregator(dnsCorrelation)}
+	return &flowAggregator{inner: netcore.NewFlowAggregator(currentDNSCorrelation())}
+}
+
+func currentDNSCorrelation() *dnsCache {
+	if manager := currentNetworkManager(); manager != nil {
+		return manager.DNSCache()
+	}
+	return dnsCorrelation
 }
 
 func (f *flowAggregator) RecordConnection(srcIP, dstIP string, srcPort, dstPort uint32, protocol, comm string, pid uint32, direction string, state string) {
@@ -86,20 +92,39 @@ func (f *flowAggregator) Query(q networkFlowQuery) networkFlowQueryResult {
 
 var networkFlowAggregator = newFlowAggregator()
 
-func startFlowAggregatorGC() {
-	ticker := time.NewTicker(2 * time.Minute)
-	go func() {
-		for range ticker.C {
-			networkFlowAggregator.EvictOlderThan(10 * time.Minute)
+func currentNetworkFlowAggregator() *flowAggregator {
+	if AppCtx != nil && AppCtx.NetworkFlowAggregator != nil {
+		return AppCtx.NetworkFlowAggregator
+	}
+	return networkFlowAggregator
+}
+
+func startFlowAggregatorGC(ctx context.Context) {
+	aggregator := currentNetworkFlowAggregator()
+	go runFlowAggregatorGC(ctx, aggregator, 2*time.Minute, 10*time.Minute)
+}
+
+func runFlowAggregatorGC(ctx context.Context, aggregator *flowAggregator, interval, maxAge time.Duration) {
+	if ctx == nil || aggregator == nil || interval <= 0 {
+		return
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			aggregator.EvictOlderThan(maxAge)
 		}
-	}()
+	}
 }
 
 // Collectors integration
 
 func recordNetworkFlowFromEvent(srcIP, dstIP string, srcPort, dstPort uint32, comm string, pid uint32, direction, state string) {
 	protocol := "TCP"
-	networkFlowAggregator.RecordConnection(srcIP, dstIP, srcPort, dstPort, protocol, comm, pid, direction, state)
+	currentNetworkFlowAggregator().RecordConnection(srcIP, dstIP, srcPort, dstPort, protocol, comm, pid, direction, state)
 }
 
 func recordNetworkFlowContextFromEvent(srcIP, dstIP string, srcPort, dstPort uint32, event *pb.Event, state string) {
@@ -110,7 +135,7 @@ func recordNetworkFlowContextFromEvent(srcIP, dstIP string, srcPort, dstPort uin
 	if event.GetType() == "network_sendto" || event.GetType() == "network_recvfrom" {
 		protocol = "UDP"
 	}
-	networkFlowAggregator.RecordConnectionContext(srcIP, dstIP, srcPort, dstPort, protocol, event.GetComm(), event.GetPid(), event.GetNetDirection(), state, event)
+	currentNetworkFlowAggregator().RecordConnectionContext(srcIP, dstIP, srcPort, dstPort, protocol, event.GetComm(), event.GetPid(), event.GetNetDirection(), state, event)
 }
 
 func enrichEndpointWithContext(endpoint string) string {
@@ -120,7 +145,7 @@ func enrichEndpointWithContext(endpoint string) string {
 	}
 
 	// DNS enrichment
-	if domain, ok := dnsCorrelation.LookupIP(host); ok {
+	if domain, ok := currentDNSCorrelation().LookupIP(host); ok {
 		if portStr != "" {
 			return net.JoinHostPort(domain, portStr)
 		}
@@ -158,7 +183,7 @@ func analyzeEndpoint(endpoint string) (scope netcore.IPScope, service string, do
 		}
 	} else {
 		// fallback to package-level global (backward compat during init)
-		if d, ok := dnsCorrelation.LookupIP(host); ok {
+		if d, ok := currentDNSCorrelation().LookupIP(host); ok {
 			domain = d
 		}
 	}
@@ -170,7 +195,8 @@ func analyzeEndpoint(endpoint string) (scope netcore.IPScope, service string, do
 		if AppCtx != nil && AppCtx.Network != nil {
 			rec, ok = AppCtx.Network.GeoIPLookup(host)
 		} else {
-			resolver := geoip.NewResolver(); rec, ok = resolver.Lookup(host)
+			resolver := geoip.NewResolver()
+			rec, ok = resolver.Lookup(host)
 		}
 		if ok && rec.CountryCode != "XX" {
 			if geoip.IsHighRiskCountry(rec.CountryCode) {
