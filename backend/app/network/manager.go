@@ -1,6 +1,8 @@
 package network
 
 import (
+	"context"
+	"sync"
 	"time"
 
 	"agent-ebpf-filter/internal/geoip"
@@ -16,6 +18,30 @@ type Manager struct {
 	exfilDetectorInst *exfilDetector
 	connectionHistory *connectionArchive
 	geoipDB           *geoip.Resolver
+
+	lifecycleMu sync.Mutex
+	gcCancel    context.CancelFunc
+	gcWG        sync.WaitGroup
+	gcStarted   bool
+	closed      bool
+}
+
+type networkGCIntervals struct {
+	dnsSweep          time.Duration
+	tcpSweep          time.Duration
+	tcpTerminalMaxAge time.Duration
+	exfilSweep        time.Duration
+	bandwidthSweep    time.Duration
+	bandwidthMaxAge   time.Duration
+}
+
+var defaultNetworkGCIntervals = networkGCIntervals{
+	dnsSweep:          time.Minute,
+	tcpSweep:          30 * time.Second,
+	tcpTerminalMaxAge: time.Minute,
+	exfilSweep:        30 * time.Second,
+	bandwidthSweep:    3 * time.Minute,
+	bandwidthMaxAge:   15 * time.Minute,
 }
 
 // NewManager creates a Manager with all internal state initialized.
@@ -34,7 +60,7 @@ func NewManager() *Manager {
 
 // StartDNSCacheGC launches a background goroutine that evicts expired DNS cache entries.
 func (m *Manager) StartDNSCacheGC() {
-	startDNSCacheGC(m.dnsCorrelation)
+	m.StartGC()
 }
 
 // RecordDNSQueryFromEvent records a DNS query domain for later correlation.
@@ -81,7 +107,7 @@ func (m *Manager) TCPConnKey(srcIP, dstIP string, srcPort, dstPort uint32) strin
 
 // StartTCPStateTrackerGC launches a background goroutine that evicts terminal TCP states.
 func (m *Manager) StartTCPStateTrackerGC() {
-	startTCPStateTrackerGC(m.tcpTracker)
+	m.StartGC()
 }
 
 func (m *Manager) RecordTCPStateChange(srcIP, dstIP string, srcPort, dstPort uint32, oldState, newState uint8, pid uint32, comm string) {
@@ -122,7 +148,14 @@ func (m *Manager) EvictBandwidthOlderThan(maxAge time.Duration) {
 
 // StartExfilDetectionLoop launches a background goroutine that periodically checks for exfiltration.
 func (m *Manager) StartExfilDetectionLoop() {
-	startExfilDetectionLoop(m.bandwidthTracker, m.dnsCorrelation, m.exfilDetectorInst)
+	m.StartGC()
+}
+
+func (m *Manager) RunExfilDetection() []ExfilAlert {
+	if m == nil {
+		return nil
+	}
+	return m.exfilDetectorInst.RunCheck(m.bandwidthTracker, m.dnsCorrelation)
 }
 
 // ── Connection history methods ─────────────────────────────────────────────
@@ -165,9 +198,59 @@ func IsSuspiciousPortService(serviceName string) bool {
 
 // StartGC launches all background GC goroutines for network tracking state.
 func (m *Manager) StartGC() {
-	m.StartDNSCacheGC()
-	m.StartTCPStateTrackerGC()
-	m.StartExfilDetectionLoop()
+	m.startGCWithIntervals(defaultNetworkGCIntervals)
+}
+
+func (m *Manager) startGCWithIntervals(intervals networkGCIntervals) {
+	if m == nil {
+		return
+	}
+	m.lifecycleMu.Lock()
+	if m.gcStarted || m.closed {
+		m.lifecycleMu.Unlock()
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	m.gcCancel = cancel
+	m.gcStarted = true
+	m.gcWG.Add(4)
+	go func() {
+		defer m.gcWG.Done()
+		runDNSCacheGC(ctx, m.dnsCorrelation, intervals.dnsSweep)
+	}()
+	go func() {
+		defer m.gcWG.Done()
+		runTCPStateTrackerGC(ctx, m.tcpTracker, intervals.tcpSweep, intervals.tcpTerminalMaxAge)
+	}()
+	go func() {
+		defer m.gcWG.Done()
+		runExfilDetectionLoop(ctx, m.bandwidthTracker, m.dnsCorrelation, m.exfilDetectorInst, intervals.exfilSweep)
+	}()
+	go func() {
+		defer m.gcWG.Done()
+		runBandwidthTrackerGC(ctx, m.bandwidthTracker, intervals.bandwidthSweep, intervals.bandwidthMaxAge)
+	}()
+	m.lifecycleMu.Unlock()
+}
+
+// Close stops every background worker owned by the manager and waits for it to
+// exit. It is safe to call more than once.
+func (m *Manager) Close() {
+	if m == nil {
+		return
+	}
+	m.lifecycleMu.Lock()
+	if m.closed {
+		m.lifecycleMu.Unlock()
+		return
+	}
+	m.closed = true
+	cancel := m.gcCancel
+	m.lifecycleMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	m.gcWG.Wait()
 }
 
 // ── Helpers (stateless) ────────────────────────────────────────────────────

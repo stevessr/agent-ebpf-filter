@@ -2,6 +2,7 @@ package network
 
 import (
 	netcore "agent-ebpf-filter/internal/network"
+	"context"
 	"time"
 )
 
@@ -62,15 +63,20 @@ func (t *tcpStateTracker) EvictTerminalOlderThan(maxAge time.Duration) {
 	t.inner.EvictTerminalOlderThan(maxAge)
 }
 
-var tcpTracker = newTCPStateTracker() // kept for backward compat; used by Manager.NewManager
-
-func startTCPStateTrackerGC(tracker *tcpStateTracker) {
-	ticker := time.NewTicker(30 * time.Second)
-	go func() {
-		for range ticker.C {
-			tracker.EvictTerminalOlderThan(1 * time.Minute)
+func runTCPStateTrackerGC(ctx context.Context, tracker *tcpStateTracker, interval, maxAge time.Duration) {
+	if ctx == nil || tracker == nil || interval <= 0 {
+		return
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			tracker.EvictTerminalOlderThan(maxAge)
 		}
-	}()
+	}
 }
 
 func detectAppProtocol(port uint32, domain string) string {

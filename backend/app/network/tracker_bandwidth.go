@@ -1,6 +1,7 @@
 package network
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"math"
@@ -13,6 +14,11 @@ import (
 // ── Connection bandwidth tracking (per-flow byte/packet accounting) ──
 
 type flowBytes struct {
+	FlowKey    string
+	SrcIP      string
+	DstIP      string
+	DstPort    uint32
+	Protocol   string
 	BytesIn    uint64
 	BytesOut   uint64
 	PacketsIn  uint64
@@ -41,7 +47,7 @@ func (b *bandwidthTracker) flowKey(srcIP, dstIP string, dstPort uint32, protocol
 }
 
 func (b *bandwidthTracker) RecordBytes(srcIP, dstIP string, dstPort uint32, protocol string, direction string, bytes uint64, comm string, pid uint32) {
-	if b == nil || bytes == 0 {
+	if b == nil || bytes == 0 || (direction != "incoming" && direction != "outgoing") {
 		return
 	}
 	key := b.flowKey(srcIP, dstIP, dstPort, protocol)
@@ -53,11 +59,23 @@ func (b *bandwidthTracker) RecordBytes(srcIP, dstIP string, dstPort uint32, prot
 	flow, ok := b.flows[key]
 	if !ok {
 		flow = &flowBytes{
+			FlowKey:   key,
+			SrcIP:     srcIP,
+			DstIP:     dstIP,
+			DstPort:   dstPort,
+			Protocol:  protocol,
 			FirstSeen: now,
 			Comm:      comm,
 			PID:       pid,
 		}
 		b.flows[key] = flow
+	} else {
+		if flow.Comm == "" && comm != "" {
+			flow.Comm = comm
+		}
+		if flow.PID == 0 && pid != 0 {
+			flow.PID = pid
+		}
 	}
 
 	switch direction {
@@ -106,8 +124,6 @@ func (b *bandwidthTracker) EvictOlderThan(maxAge time.Duration) {
 		}
 	}
 }
-
-var globalBandwidthTracker = newBandwidthTracker() // used by Manager.NewManager
 
 // ── Data exfiltration detection ───────────────────────────────────────
 
@@ -199,6 +215,10 @@ func (d *exfilDetector) CheckFlow(flow flowBytes, key, dstIP, dstDomain string, 
 
 	// Record alert
 	d.mu.Lock()
+	if last, ok := d.lastAlertByKey[key]; ok && now.Sub(last) < d.cooldown {
+		d.mu.Unlock()
+		return nil
+	}
 	d.lastAlertByKey[key] = now
 	d.mu.Unlock()
 
@@ -218,28 +238,19 @@ func (d *exfilDetector) CheckFlow(flow flowBytes, key, dstIP, dstDomain string, 
 }
 
 func (d *exfilDetector) RunCheck(bw *bandwidthTracker, dns *dnsCache) []ExfilAlert {
-	if d == nil {
+	if d == nil || bw == nil {
 		return nil
 	}
 	flows := bw.Snapshot()
 	alerts := make([]ExfilAlert, 0)
 
 	for _, flow := range flows {
-		dstIP := ""
-		dstPort := uint32(0)
-		// Parse flow key: "srcIP:dstIP:dstPort:protocol"
-		keyParts := splitFlowKey(flow)
-		if len(keyParts) >= 3 {
-			dstIP = keyParts[1]
-			if p, err := parseUint32Str(keyParts[2]); err == nil {
-				dstPort = p
-			}
+		dstDomain := ""
+		if dns != nil {
+			dstDomain, _ = dns.LookupIP(flow.DstIP)
 		}
 
-		// Enrich with DNS
-		dstDomain, _ := dns.LookupIP(dstIP)
-
-		alert := d.CheckFlow(flow, keyJoin(flow), dstIP, dstDomain, dstPort)
+		alert := d.CheckFlow(flow, flow.FlowKey, flow.DstIP, dstDomain, flow.DstPort)
 		if alert != nil {
 			alerts = append(alerts, *alert)
 		}
@@ -248,41 +259,38 @@ func (d *exfilDetector) RunCheck(bw *bandwidthTracker, dns *dnsCache) []ExfilAle
 	return alerts
 }
 
-func splitFlowKey(flow flowBytes) []string {
-	// The flowKey function above uses ":" as separator
-	// We need to reconstruct from the flow data
-	return nil
-}
-
-func keyJoin(flow flowBytes) string {
-	return fmt.Sprintf("%s::%d:tcp", flow.Comm, flow.PID)
-}
-
-func parseUint32Str(s string) (uint32, error) {
-	var result uint32
-	for _, c := range s {
-		if c >= '0' && c <= '9' {
-			result = result*10 + uint32(c-'0')
-		} else {
-			return 0, fmt.Errorf("not a number")
-		}
+func runExfilDetectionLoop(ctx context.Context, bw *bandwidthTracker, dns *dnsCache, detector *exfilDetector, interval time.Duration) {
+	if ctx == nil || bw == nil || detector == nil || interval <= 0 {
+		return
 	}
-	return result, nil
-}
-
-var exfilDetectorInst = newExfilDetector() // used by Manager.NewManager
-
-// Start periodic exfiltration checks
-func startExfilDetectionLoop(bw *bandwidthTracker, dns *dnsCache, detector *exfilDetector) {
-	ticker := time.NewTicker(30 * time.Second)
-	go func() {
-		for range ticker.C {
-			alerts := detector.RunCheck(bw, dns)
-			if len(alerts) > 0 {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if alerts := detector.RunCheck(bw, dns); len(alerts) > 0 {
 				logExfilAlerts(alerts)
 			}
 		}
-	}()
+	}
+}
+
+func runBandwidthTrackerGC(ctx context.Context, tracker *bandwidthTracker, interval, maxAge time.Duration) {
+	if ctx == nil || tracker == nil || interval <= 0 {
+		return
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			tracker.EvictOlderThan(maxAge)
+		}
+	}
 }
 
 func logExfilAlerts(alerts []ExfilAlert) {

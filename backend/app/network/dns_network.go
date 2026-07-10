@@ -2,6 +2,7 @@ package network
 
 import (
 	netcore "agent-ebpf-filter/internal/network"
+	"context"
 	"strings"
 	"time"
 )
@@ -16,14 +17,20 @@ func newDNSCache() *dnsCache {
 	return netcore.NewDNSCache()
 }
 
-// startDNSCacheGC launches a background goroutine that evicts expired entries.
-func startDNSCacheGC(cache *dnsCache) {
-	ticker := time.NewTicker(1 * time.Minute)
-	go func() {
-		for range ticker.C {
+func runDNSCacheGC(ctx context.Context, cache *dnsCache, interval time.Duration) {
+	if ctx == nil || cache == nil || interval <= 0 {
+		return
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
 			cache.EvictExpired()
 		}
-	}()
+	}
 }
 
 // recordDNSQueryFromEvent records a detected DNS query domain for later correlation.
