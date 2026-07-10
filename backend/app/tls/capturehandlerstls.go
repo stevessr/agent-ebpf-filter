@@ -1,41 +1,154 @@
 package tls
 
 import (
-	"agent-ebpf-filter/internal/binaryresolver"
+	"errors"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
+
+	"agent-ebpf-filter/internal/binaryresolver"
 )
 
 // ---- moved from backend/zz_merged_backend.go section capturehandlerstls.go ----
 
 type TLSBroadcaster struct {
-	mu      sync.Mutex
-	clients map[*websocket.Conn]*sync.Mutex
+	mu           sync.Mutex
+	nextClientID uint64
+	clients      map[uint64]*tlsBroadcastClientState
+	upgrade      tlsBroadcastUpgradeFunc
+}
+
+type tlsBroadcastClient interface {
+	WriteJSON(v any) error
+	Close() error
+}
+
+type tlsBroadcastDeadlineClient interface {
+	SetWriteDeadline(deadline time.Time) error
+}
+
+type tlsBroadcastConnection interface {
+	tlsBroadcastClient
+	ReadMessage() (messageType int, payload []byte, err error)
+}
+
+type tlsBroadcastUpgradeFunc func(http.ResponseWriter, *http.Request, http.Header) (tlsBroadcastConnection, error)
+
+const (
+	tlsBroadcastQueueSize    = 64
+	tlsBroadcastWriteTimeout = 2 * time.Second
+)
+
+type tlsBroadcastClientState struct {
+	conn      tlsBroadcastClient
+	mu        sync.Mutex
+	queue     chan TLSPlaintextEvent
+	done      chan struct{}
+	closeOnce sync.Once
+	dead      bool
+}
+
+func newTLSBroadcastClientState(conn tlsBroadcastClient) *tlsBroadcastClientState {
+	return &tlsBroadcastClientState{
+		conn:  conn,
+		queue: make(chan TLSPlaintextEvent, tlsBroadcastQueueSize),
+		done:  make(chan struct{}),
+	}
+}
+
+func (state *tlsBroadcastClientState) enqueue(event TLSPlaintextEvent) bool {
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	if state.dead {
+		return false
+	}
+	select {
+	case state.queue <- event:
+		return true
+	default:
+		return false
+	}
+}
+
+func (state *tlsBroadcastClientState) isDead() bool {
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	return state.dead
+}
+
+func (state *tlsBroadcastClientState) close() {
+	state.closeOnce.Do(func() {
+		state.mu.Lock()
+		state.dead = true
+		close(state.done)
+		state.mu.Unlock()
+		_ = state.conn.Close()
+	})
+}
+
+func (b *TLSBroadcaster) addClient(conn tlsBroadcastClient) (uint64, *tlsBroadcastClientState) {
+	state := newTLSBroadcastClientState(conn)
+	b.mu.Lock()
+	if b.clients == nil {
+		b.clients = make(map[uint64]*tlsBroadcastClientState)
+	}
+	b.nextClientID++
+	id := b.nextClientID
+	b.clients[id] = state
+	b.mu.Unlock()
+	go b.runClient(id, state)
+	return id, state
+}
+
+func (b *TLSBroadcaster) runClient(id uint64, state *tlsBroadcastClientState) {
+	for {
+		select {
+		case <-state.done:
+			return
+		case event := <-state.queue:
+			if state.isDead() {
+				return
+			}
+			if deadlineClient, ok := state.conn.(tlsBroadcastDeadlineClient); ok {
+				if err := deadlineClient.SetWriteDeadline(time.Now().Add(tlsBroadcastWriteTimeout)); err != nil {
+					b.removeClient(id, state)
+					return
+				}
+			}
+			if err := state.conn.WriteJSON(event); err != nil {
+				b.removeClient(id, state)
+				return
+			}
+		}
+	}
+}
+
+func (b *TLSBroadcaster) removeClient(id uint64, state *tlsBroadcastClientState) {
+	b.mu.Lock()
+	if current, ok := b.clients[id]; ok && current == state {
+		delete(b.clients, id)
+	}
+	b.mu.Unlock()
+	state.close()
 }
 
 func (b *TLSBroadcaster) Serve(c *gin.Context) {
-	conn, err := deps.Upgrader.Upgrade(c.Writer, c.Request, nil)
+	upgrade := b.upgrade
+	if upgrade == nil {
+		upgrade = defaultTLSBroadcastUpgrade
+	}
+	conn, err := upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		return
 	}
 
-	writeMu := &sync.Mutex{}
-	b.mu.Lock()
-	b.clients[conn] = writeMu
-	b.mu.Unlock()
-
-	defer func() {
-		b.mu.Lock()
-		delete(b.clients, conn)
-		b.mu.Unlock()
-		_ = conn.Close()
-	}()
+	id, state := b.addClient(conn)
+	defer b.removeClient(id, state)
 
 	for {
 		if _, _, err := conn.ReadMessage(); err != nil {
@@ -46,26 +159,20 @@ func (b *TLSBroadcaster) Serve(c *gin.Context) {
 
 func (b *TLSBroadcaster) Broadcast(event TLSPlaintextEvent) {
 	type client struct {
-		conn    *websocket.Conn
-		writeMu *sync.Mutex
+		id    uint64
+		state *tlsBroadcastClientState
 	}
 
 	b.mu.Lock()
 	clients := make([]client, 0, len(b.clients))
-	for conn, writeMu := range b.clients {
-		clients = append(clients, client{conn: conn, writeMu: writeMu})
+	for id, state := range b.clients {
+		clients = append(clients, client{id: id, state: state})
 	}
 	b.mu.Unlock()
 
 	for _, client := range clients {
-		client.writeMu.Lock()
-		err := client.conn.WriteJSON(event)
-		client.writeMu.Unlock()
-		if err != nil {
-			_ = client.conn.Close()
-			b.mu.Lock()
-			delete(b.clients, client.conn)
-			b.mu.Unlock()
+		if !client.state.enqueue(event) {
+			b.removeClient(client.id, client.state)
 		}
 	}
 }
@@ -82,7 +189,21 @@ type tlsCaptureRuntime interface {
 }
 
 func NewTLSCaptureBroadcaster() *TLSBroadcaster {
-	return &TLSBroadcaster{clients: make(map[*websocket.Conn]*sync.Mutex)}
+	return newTLSCaptureBroadcasterWithUpgrader(defaultTLSBroadcastUpgrade)
+}
+
+func newTLSCaptureBroadcasterWithUpgrader(upgrade tlsBroadcastUpgradeFunc) *TLSBroadcaster {
+	return &TLSBroadcaster{
+		clients: make(map[uint64]*tlsBroadcastClientState),
+		upgrade: upgrade,
+	}
+}
+
+func defaultTLSBroadcastUpgrade(w http.ResponseWriter, r *http.Request, responseHeader http.Header) (tlsBroadcastConnection, error) {
+	if deps.Upgrader == nil {
+		return nil, errors.New("TLS capture websocket upgrader is not initialized")
+	}
+	return deps.Upgrader.Upgrade(w, r, responseHeader)
 }
 
 func RegisterTLSCaptureRoutes(router gin.IRouter, runtime tlsCaptureRuntime, store *TLSCaptureStore, rules *TLSCaptureRuleStore) {
