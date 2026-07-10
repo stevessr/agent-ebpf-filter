@@ -104,7 +104,7 @@ func Main() {
 	seedDefaultTrackedCommands()
 
 	actualPort := chooseBackendPort()
-	configureRuntimePort(actualPort)
+	configureRuntimePort(ctx, actualPort)
 
 	if features.CompiledIn(FeatureML) {
 		go func() {

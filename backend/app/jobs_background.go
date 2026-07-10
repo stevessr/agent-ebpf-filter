@@ -119,7 +119,7 @@ func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) 
 	startSignalProcessingWorker()
 	startResearchTaskWorker()
 	go startUDSServer(broadcast)
-	startCgroupAttributionGC()
+	startCgroupAttributionGC(ctx)
 	AppCtx.Network.StartGC()
 	startFlowAggregatorGC(ctx)
 	go func() {

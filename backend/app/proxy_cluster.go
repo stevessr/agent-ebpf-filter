@@ -1,9 +1,12 @@
 package app
 
 import (
+	"bytes"
+	"context"
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -244,55 +247,70 @@ func clusterHeartbeatHandler(c *gin.Context) {
 	})
 }
 
-func startClusterHeartbeatLoop() {
+func startClusterHeartbeatLoop(ctx context.Context) {
 	cfg := clusterManagerStore.ConfigSnapshot()
-	if cfg.Role != ClusterRoleSlave || strings.TrimSpace(cfg.MasterURL) == "" {
+	if ctx == nil || cfg.Role != ClusterRoleSlave || strings.TrimSpace(cfg.MasterURL) == "" {
 		return
 	}
+	client := &http.Client{Timeout: 5 * time.Second}
+	go runClusterHeartbeatLoop(ctx, clusterManagerStore, cfg, client, clusterHeartbeatEvery)
+}
 
-	go func() {
-		client := &http.Client{Timeout: 5 * time.Second}
-		ticker := time.NewTicker(clusterHeartbeatEvery)
-		defer ticker.Stop()
-
-		send := func() {
-			state := clusterManagerStore.StateSnapshot()
-			body := ClusterHeartbeatRequest{
-				NodeID:   state.NodeID,
-				NodeName: state.NodeName,
-				NodeURL:  state.NodeURL,
-				Role:     state.Role,
-				Version:  clusterVersion,
-			}
-			payload, err := json.Marshal(body)
-			if err != nil {
-				log.Printf("[WARN] failed to marshal cluster heartbeat: %v", err)
-				return
-			}
-
-			req, err := http.NewRequest(http.MethodPost, cfg.MasterURL+"/cluster/heartbeat", strings.NewReader(string(payload)))
-			if err != nil {
-				log.Printf("[WARN] failed to build cluster heartbeat request: %v", err)
-				return
-			}
-			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set(clusterAccountHeader, cfg.Account)
-			req.Header.Set(clusterPasswordHeader, cfg.Password)
-
-			resp, err := client.Do(req)
-			if err != nil {
-				log.Printf("[WARN] cluster heartbeat failed: %v", err)
-				return
-			}
-			_ = resp.Body.Close()
-			if resp.StatusCode >= 300 {
-				log.Printf("[WARN] cluster heartbeat returned %s", resp.Status)
-			}
+func runClusterHeartbeatLoop(ctx context.Context, manager *clusterManager, cfg ClusterConfig, client *http.Client, interval time.Duration) {
+	if ctx == nil || manager == nil || client == nil || interval <= 0 {
+		return
+	}
+	send := func() {
+		if err := sendClusterHeartbeat(ctx, manager, cfg, client); err != nil && ctx.Err() == nil {
+			log.Printf("[WARN] cluster heartbeat failed: %v", err)
 		}
-
-		send()
-		for range ticker.C {
+	}
+	if ctx.Err() != nil {
+		return
+	}
+	send()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
 			send()
 		}
-	}()
+	}
+}
+
+func sendClusterHeartbeat(ctx context.Context, manager *clusterManager, cfg ClusterConfig, client *http.Client) error {
+	state := manager.StateSnapshot()
+	body := ClusterHeartbeatRequest{
+		NodeID:   state.NodeID,
+		NodeName: state.NodeName,
+		NodeURL:  state.NodeURL,
+		Role:     state.Role,
+		Version:  clusterVersion,
+	}
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("marshal cluster heartbeat: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.MasterURL+"/cluster/heartbeat", bytes.NewReader(payload))
+	if err != nil {
+		return fmt.Errorf("build cluster heartbeat request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(clusterAccountHeader, cfg.Account)
+	req.Header.Set(clusterPasswordHeader, cfg.Password)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10))
+	_ = resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("master returned %s", resp.Status)
+	}
+	return nil
 }

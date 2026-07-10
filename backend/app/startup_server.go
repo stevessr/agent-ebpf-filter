@@ -2,6 +2,7 @@ package app
 
 import (
 	"agent-ebpf-filter/app/platform"
+	"context"
 	"fmt"
 	"log"
 	"net"
@@ -34,8 +35,8 @@ func chooseBackendPort() int {
 	return actualPort
 }
 
-func configureRuntimePort(port int) {
+func configureRuntimePort(ctx context.Context, port int) {
 	clusterManagerStore.ConfigurePort(port)
 	platform.WritePortFile(port)
-	startClusterHeartbeatLoop()
+	startClusterHeartbeatLoop(ctx)
 }

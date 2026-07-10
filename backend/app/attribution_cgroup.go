@@ -2,6 +2,7 @@ package app
 
 import (
 	"agent-ebpf-filter/app/events"
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -232,12 +233,22 @@ func (s *collectorRateLimitState) computeHints(metrics collectorMetricsSnapshot)
 	return hints
 }
 
-// cleanupCgroupAttribution periodically evicts old cgroup entries
-func startCgroupAttributionGC() {
-	ticker := time.NewTicker(5 * time.Minute)
-	go func() {
-		for range ticker.C {
-			cgroupAttribution.EvictOlderThan(30 * time.Minute)
+func startCgroupAttributionGC(ctx context.Context) {
+	go runCgroupAttributionGC(ctx, cgroupAttribution, 5*time.Minute, 30*time.Minute)
+}
+
+func runCgroupAttributionGC(ctx context.Context, store *cgroupAttributionStore, interval, maxAge time.Duration) {
+	if ctx == nil || store == nil || interval <= 0 {
+		return
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			store.EvictOlderThan(maxAge)
 		}
-	}()
+	}
 }
