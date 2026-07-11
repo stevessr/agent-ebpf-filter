@@ -114,3 +114,50 @@ func TestBuildOTLPHTTPOptionsSupportsExplicitPath(t *testing.T) {
 		t.Fatal("expected options to be returned")
 	}
 }
+
+func TestOTelExporterCloseIsConcurrentAndRejectsLateWork(t *testing.T) {
+	state := newOTelExporterState()
+
+	const closers = 16
+	var wg sync.WaitGroup
+	wg.Add(closers)
+	for range closers {
+		go func() {
+			defer wg.Done()
+			state.Close()
+		}()
+	}
+	wg.Wait()
+
+	if !state.closed.Load() {
+		t.Fatal("exporter was not marked closed")
+	}
+	select {
+	case <-state.stopCh:
+	default:
+		t.Fatal("exporter stop channel is still open")
+	}
+	workersDone := make(chan struct{})
+	go func() {
+		state.workers.Wait()
+		close(workersDone)
+	}()
+	select {
+	case <-workersDone:
+	case <-time.After(time.Second):
+		t.Fatal("exporter workers did not stop before Close returned")
+	}
+
+	state.Record(CapturedEventRecord{Event: &pb.Event{Type: "execve"}})
+	if queued := len(state.queue); queued != 0 {
+		t.Fatalf("post-close queue length = %d, want 0", queued)
+	}
+	state.ApplySettings(RuntimeSettings{
+		OtlpEnabled:     true,
+		OtlpEndpoint:    "http://collector:4318",
+		OtlpServiceName: "late-config",
+	})
+	if snapshot := state.Snapshot(); snapshot.Enabled || snapshot.Ready {
+		t.Fatalf("closed exporter accepted settings: %#v", snapshot)
+	}
+}

@@ -68,9 +68,13 @@ func (m *monitoringSpanExporter) Shutdown(ctx context.Context) error {
 }
 
 type otelExporterState struct {
+	lifecycleMu sync.Mutex
 	mu          sync.RWMutex
 	queue       chan CapturedEventRecord
 	stopCh      chan struct{}
+	closeOnce   sync.Once
+	workers     sync.WaitGroup
+	closed      atomic.Bool
 	enabled     bool
 	ready       bool
 	endpoint    string
@@ -99,8 +103,15 @@ func newOTelExporterState() *otelExporterState {
 		taskSpans: make(map[string]*activeOTelSpan),
 		toolSpans: make(map[string]*activeOTelSpan),
 	}
-	go state.run()
-	go state.sweepLoop()
+	state.workers.Add(2)
+	go func() {
+		defer state.workers.Done()
+		state.run()
+	}()
+	go func() {
+		defer state.workers.Done()
+		state.sweepLoop()
+	}()
 	return state
 }
 
@@ -110,20 +121,28 @@ func (s *otelExporterState) Close() {
 	if s == nil {
 		return
 	}
-	select {
-	case <-s.stopCh:
-		return
-	default:
+	s.closeOnce.Do(func() {
+		s.closed.Store(true)
+		s.lifecycleMu.Lock()
+		defer s.lifecycleMu.Unlock()
 		close(s.stopCh)
-	}
-	s.disable()
+		s.workers.Wait()
+		s.disable()
+	})
 }
 
 func (s *otelExporterState) run() {
 	for {
 		select {
 		case <-s.stopCh:
-			return
+			for {
+				select {
+				case record := <-s.queue:
+					s.handleRecord(record)
+				default:
+					return
+				}
+			}
 		case record := <-s.queue:
 			s.handleRecord(record)
 		}
@@ -187,6 +206,11 @@ func (s *otelExporterState) Snapshot() OTelHealthResponse {
 
 func (s *otelExporterState) ApplySettings(settings RuntimeSettings) {
 	if s == nil {
+		return
+	}
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	if s.closed.Load() {
 		return
 	}
 	endpoint := strings.TrimSpace(settings.OtlpEndpoint)
@@ -315,7 +339,7 @@ func (s *otelExporterState) disableProviderOnly() {
 }
 
 func (s *otelExporterState) Record(record CapturedEventRecord) {
-	if s == nil || record.Event == nil {
+	if s == nil || record.Event == nil || s.closed.Load() {
 		return
 	}
 	record = normalizeCapturedEventRecord(record)
