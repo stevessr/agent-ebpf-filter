@@ -247,13 +247,13 @@ func clusterHeartbeatHandler(c *gin.Context) {
 	})
 }
 
-func startClusterHeartbeatLoop(ctx context.Context) {
+func runConfiguredClusterHeartbeatLoop(ctx context.Context) {
 	cfg := clusterManagerStore.ConfigSnapshot()
 	if ctx == nil || cfg.Role != ClusterRoleSlave || strings.TrimSpace(cfg.MasterURL) == "" {
 		return
 	}
 	client := &http.Client{Timeout: 5 * time.Second}
-	go runClusterHeartbeatLoop(ctx, clusterManagerStore, cfg, client, clusterHeartbeatEvery)
+	runClusterHeartbeatLoop(ctx, clusterManagerStore, cfg, client, clusterHeartbeatEvery)
 }
 
 func runClusterHeartbeatLoop(ctx context.Context, manager *clusterManager, cfg ClusterConfig, client *http.Client, interval time.Duration) {

@@ -72,8 +72,10 @@ func serveHTTPServer(
 	}
 }
 
-func configureRuntimePort(ctx context.Context, port int) {
+func configureRuntimePort(ctx context.Context, jobs *runtimeBackgroundJobs, port int) {
 	clusterManagerStore.ConfigurePort(port)
 	platform.WritePortFile(port)
-	startClusterHeartbeatLoop(ctx)
+	if jobs != nil {
+		jobs.Go(func() { runConfiguredClusterHeartbeatLoop(ctx) })
+	}
 }
