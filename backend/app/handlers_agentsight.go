@@ -16,7 +16,7 @@ type agentSightExportEvent = handlers.AgentSightExportEvent
 type agentSightRunnerStatus = handlers.AgentSightRunnerStatus
 type agentSightEventsStats = handlers.AgentSightEventsStats
 
-var agentSightUploadedEvents = newAgentSightEventStore(2000)
+var agentSightUploadedEvents = newAgentSightEventStore(handlers.AgentSightUploadMaxEvents)
 
 // ── Event store ──────────────────────────────────────────────────────
 
@@ -39,11 +39,22 @@ func (s *agentSightEventStore) Add(events ...agentSightExportEvent) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.events = append(s.events, events...)
-	if len(s.events) > s.max {
-		copy(s.events, s.events[len(s.events)-s.max:])
-		s.events = s.events[:s.max]
+	if len(events) >= s.max {
+		// Replace the backing array instead of appending a large batch and then
+		// slicing it down. That keeps the retained heap proportional to max and
+		// releases references to all discarded event payloads immediately.
+		s.events = append(make([]agentSightExportEvent, 0, s.max), events[len(events)-s.max:]...)
+		return
 	}
+
+	keepExisting := s.max - len(events)
+	if len(s.events) > keepExisting {
+		drop := len(s.events) - keepExisting
+		copy(s.events, s.events[drop:])
+		clear(s.events[keepExisting:])
+		s.events = s.events[:keepExisting]
+	}
+	s.events = append(s.events, events...)
 }
 
 func (s *agentSightEventStore) Recent(limit int) []agentSightExportEvent {

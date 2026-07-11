@@ -1,8 +1,10 @@
 package app
 
 import (
+	agenthandlers "agent-ebpf-filter/app/handlers"
 	"agent-ebpf-filter/pb"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -79,6 +81,108 @@ func TestAgentSightEventsExportReferenceJSONL(t *testing.T) {
 	}
 	if events[1].Data["event_type"] != "HTTP_MESSAGE" {
 		t.Fatalf("http event_type = %#v, want HTTP_MESSAGE", events[1].Data["event_type"])
+	}
+}
+
+func TestAgentSightUploadCapacityAndAtomicLimitRejection(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	previousUploaded := agentSightUploadedEvents
+	agentSightUploadedEvents = newAgentSightEventStore(agenthandlers.AgentSightUploadMaxEvents)
+	t.Cleanup(func() {
+		agentSightUploadedEvents = previousUploaded
+		syncHandlerDeps()
+	})
+
+	router := gin.New()
+	registerAgentSightRoutes(router.Group(""), nil)
+	acceptedCount := 2501
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/agentsight/events",
+		strings.NewReader(agentSightTestUploadJSONArray(acceptedCount)),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("accepted upload status = %d; body=%s", rec.Code, rec.Body.String())
+	}
+	var accepted struct {
+		Imported int `json:"imported"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &accepted); err != nil {
+		t.Fatalf("decode accepted response: %v", err)
+	}
+	if accepted.Imported != acceptedCount || len(agentSightUploadedEvents.Recent(acceptedCount+1)) != acceptedCount {
+		t.Fatalf("accepted upload = imported:%d retained:%d, want %d", accepted.Imported, len(agentSightUploadedEvents.Recent(acceptedCount+1)), acceptedCount)
+	}
+
+	req = httptest.NewRequest(
+		http.MethodPost,
+		"/agentsight/events",
+		strings.NewReader(agentSightTestUploadJSONArray(agenthandlers.AgentSightUploadMaxEvents+1)),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("oversize upload status = %d, want %d; body=%s", rec.Code, http.StatusRequestEntityTooLarge, rec.Body.String())
+	}
+	if retained := len(agentSightUploadedEvents.Recent(agenthandlers.AgentSightUploadMaxEvents)); retained != acceptedCount {
+		t.Fatalf("retained events changed after rejected upload: %d -> %d", acceptedCount, retained)
+	}
+}
+
+func agentSightTestUploadJSONArray(count int) string {
+	var body strings.Builder
+	body.Grow(count * 16)
+	body.WriteByte('[')
+	for i := 0; i < count; i++ {
+		if i > 0 {
+			body.WriteByte(',')
+		}
+		body.WriteString(`{"timestamp":1}`)
+	}
+	body.WriteByte(']')
+	return body.String()
+}
+
+func TestAgentSightEventStoreReplacesFullCapacityInOneBatch(t *testing.T) {
+	store := newAgentSightEventStore(3)
+	store.Add(
+		agentSightExportEvent{ID: "old-1"},
+		agentSightExportEvent{ID: "old-2"},
+		agentSightExportEvent{ID: "old-3"},
+	)
+	store.Add(
+		agentSightExportEvent{ID: "new-1"},
+		agentSightExportEvent{ID: "new-2"},
+		agentSightExportEvent{ID: "new-3"},
+	)
+
+	recent := store.Recent(3)
+	if len(recent) != 3 || recent[0].ID != "new-1" || recent[1].ID != "new-2" || recent[2].ID != "new-3" {
+		t.Fatalf("recent batch = %#v", recent)
+	}
+	if capacity := cap(store.events); capacity != store.max {
+		t.Fatalf("event store backing capacity = %d, want %d", capacity, store.max)
+	}
+}
+
+func TestAgentSightEventStoreLargeBatchDoesNotRetainOversizeBackingArray(t *testing.T) {
+	store := newAgentSightEventStore(3)
+	batch := make([]agentSightExportEvent, 10)
+	for index := range batch {
+		batch[index].ID = fmt.Sprintf("event-%d", index)
+	}
+	store.Add(batch...)
+
+	recent := store.Recent(3)
+	if len(recent) != 3 || recent[0].ID != "event-7" || recent[2].ID != "event-9" {
+		t.Fatalf("recent events = %#v", recent)
+	}
+	if capacity := cap(store.events); capacity != store.max {
+		t.Fatalf("event store backing capacity = %d, want %d", capacity, store.max)
 	}
 }
 

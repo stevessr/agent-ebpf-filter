@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -77,6 +78,65 @@ type AgentSightEventsStats struct {
 	GeneratedTime      string         `json:"generated_time"`
 }
 
+var errAgentSightUploadEventLimit = errors.New("AgentSight upload event limit exceeded")
+
+type boundedAgentSightIDSet struct {
+	capacity int
+	entries  map[string]struct{}
+	order    []string
+	next     int
+}
+
+func newBoundedAgentSightIDSet(capacity int) *boundedAgentSightIDSet {
+	if capacity < 1 {
+		capacity = 1
+	}
+	return &boundedAgentSightIDSet{
+		capacity: capacity,
+		entries:  make(map[string]struct{}, capacity),
+		order:    make([]string, 0, capacity),
+	}
+}
+
+func (set *boundedAgentSightIDSet) Add(id string) bool {
+	if _, exists := set.entries[id]; exists {
+		return false
+	}
+	if len(set.order) < set.capacity {
+		set.order = append(set.order, id)
+		set.entries[id] = struct{}{}
+		return true
+	}
+
+	evicted := set.order[set.next]
+	delete(set.entries, evicted)
+	set.order[set.next] = id
+	set.entries[id] = struct{}{}
+	set.next = (set.next + 1) % set.capacity
+	return true
+}
+
+func (set *boundedAgentSightIDSet) Len() int {
+	return len(set.entries)
+}
+
+func (set *boundedAgentSightIDSet) Contains(id string) bool {
+	_, ok := set.entries[id]
+	return ok
+}
+
+func agentSightStreamDedupeCapacity(limit int) int {
+	if limit <= 0 {
+		limit = agentSightDefaultLimit
+	}
+	capacity := limit * 2
+	maxCapacity := agentSightMaxLimit * 2
+	if capacity > maxCapacity {
+		return maxCapacity
+	}
+	return capacity
+}
+
 // ── Handler functions ───────────────────────────────────────────────
 
 func HandleAgentSightEvents(tlsStore *tls.TLSCaptureStore, forceJSONL bool) gin.HandlerFunc {
@@ -117,12 +177,13 @@ func HandleAgentSightEventsStream(tlsStore *tls.TLSCaptureStore) gin.HandlerFunc
 		c.Header("Connection", "keep-alive")
 		c.Header("X-Accel-Buffering", "no")
 
-		seen := make(map[string]struct{})
+		query := agentSightQueryFromRequest(c)
+		seen := newBoundedAgentSightIDSet(agentSightStreamDedupeCapacity(query.Limit))
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
 
 		emitSnapshot := func() {
-			events, _, err := collectAgentSightEvents(c, tlsStore)
+			events, _, err := collectAgentSightEventsForQuery(query, tlsStore)
 			if err != nil {
 				c.SSEvent("error", gin.H{"error": err.Error()})
 				return
@@ -132,10 +193,9 @@ func HandleAgentSightEventsStream(tlsStore *tls.TLSCaptureStore) gin.HandlerFunc
 				if key == "" {
 					key = agentSightStableID("event", event.Timestamp, event.Source, event.PID, event.Comm, event.Data)
 				}
-				if _, ok := seen[key]; ok {
+				if !seen.Add(key) {
 					continue
 				}
-				seen[key] = struct{}{}
 				c.SSEvent("event", event)
 			}
 		}
@@ -160,19 +220,36 @@ func HandleAgentSightRunnerStream(tlsStore *tls.TLSCaptureStore) gin.HandlerFunc
 }
 
 func HandleAgentSightEventsUpload(c *gin.Context) {
-	body, err := io.ReadAll(c.Request.Body)
+	body, err := io.ReadAll(http.MaxBytesReader(c.Writer, c.Request.Body, AgentSightUploadMaxBytes))
 	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{
+				"error":     "AgentSight upload is too large",
+				"byteLimit": AgentSightUploadMaxBytes,
+			})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	events, err := parseAgentSightUploadPayload(body)
 	if err != nil {
+		if errors.Is(err, errAgentSightUploadEventLimit) {
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{
+				"error":       errAgentSightUploadEventLimit.Error(),
+				"recordLimit": AgentSightUploadMaxEvents,
+			})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	for _, e := range events {
-		Deps.AgentSightUploadedEvents.Add(e)
+	batch := make([]any, len(events))
+	for index := range events {
+		batch[index] = events[index]
 	}
+	Deps.AgentSightUploadedEvents.Add(batch...)
 	c.JSON(http.StatusOK, gin.H{"imported": len(events)})
 }
 
@@ -588,7 +665,7 @@ func parseAgentSightUploadPayload(body []byte) ([]AgentSightExportEvent, error) 
 	}
 	var decoded any
 	if err := json.Unmarshal([]byte(raw), &decoded); err == nil {
-		return agentSightEventsFromDecodedPayload(decoded)
+		return agentSightEventsFromDecodedPayload(decoded, AgentSightUploadMaxEvents)
 	}
 	events := make([]AgentSightExportEvent, 0)
 	for index, line := range strings.Split(raw, "\n") {
@@ -604,6 +681,9 @@ func parseAgentSightUploadPayload(body []byte) ([]AgentSightExportEvent, error) 
 		if err != nil {
 			return nil, fmt.Errorf("line %d: %w", index+1, err)
 		}
+		if len(events) >= AgentSightUploadMaxEvents {
+			return nil, fmt.Errorf("%w: maximum %d events", errAgentSightUploadEventLimit, AgentSightUploadMaxEvents)
+		}
 		events = append(events, event)
 	}
 	if len(events) == 0 {
@@ -612,9 +692,12 @@ func parseAgentSightUploadPayload(body []byte) ([]AgentSightExportEvent, error) 
 	return events, nil
 }
 
-func agentSightEventsFromDecodedPayload(decoded any) ([]AgentSightExportEvent, error) {
+func agentSightEventsFromDecodedPayload(decoded any, maxEvents int) ([]AgentSightExportEvent, error) {
 	switch typed := decoded.(type) {
 	case []any:
+		if len(typed) > maxEvents {
+			return nil, fmt.Errorf("%w: maximum %d events", errAgentSightUploadEventLimit, maxEvents)
+		}
 		events := make([]AgentSightExportEvent, 0, len(typed))
 		for index, item := range typed {
 			event, err := agentSightEventFromDecodedPayload(item, index)
@@ -626,10 +709,10 @@ func agentSightEventsFromDecodedPayload(decoded any) ([]AgentSightExportEvent, e
 		return events, nil
 	case map[string]any:
 		if nested, ok := typed["events"]; ok {
-			return agentSightEventsFromDecodedPayload(nested)
+			return agentSightEventsFromDecodedPayload(nested, maxEvents)
 		}
 		if nested, ok := typed["records"]; ok {
-			return agentSightEventsFromDecodedPayload(nested)
+			return agentSightEventsFromDecodedPayload(nested, maxEvents)
 		}
 		event, err := agentSightEventFromDecodedPayload(typed, 0)
 		if err != nil {
