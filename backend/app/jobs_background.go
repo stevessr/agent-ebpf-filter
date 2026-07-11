@@ -101,7 +101,15 @@ func decodeBPFEventRecord(raw []byte) (*bpfEvent, bool, error) {
 	return event, false, nil
 }
 
-func startKernelEventReader(rd *ringbuf.Reader) {
+type kernelEventReader interface {
+	Read() (ringbuf.Record, error)
+	Close() error
+}
+
+func startKernelEventReader(ctx context.Context, rd kernelEventReader, jobs *runtimeBackgroundJobs) {
+	if ctx == nil || rd == nil || jobs == nil {
+		return
+	}
 	// Wire config filter functions from the app-level globals.
 	isCommDisabledFunc = func(comm string) bool {
 		disabledCommsMu.RLock()
@@ -115,7 +123,7 @@ func startKernelEventReader(rd *ringbuf.Reader) {
 		_, ok := disabledEventTypes[et]
 		return ok
 	}
-	go func() {
+	jobs.Go(func() {
 		selfPid := uint32(os.Getpid())
 		for {
 			record, err := rd.Read()
@@ -140,7 +148,11 @@ func startKernelEventReader(rd *ringbuf.Reader) {
 			}
 			enqueueBroadcastEvent(broadcast, buildKernelEventFromRaw(event), "kernel_event_reader")
 		}
-	}()
+	})
+	jobs.Go(func() {
+		<-ctx.Done()
+		_ = rd.Close()
+	})
 }
 
 func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) *runtimeBackgroundJobs {

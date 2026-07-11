@@ -123,8 +123,8 @@ func Main() error {
 	defer rd.Close()
 	ctx, cancelRuntime := context.WithCancel(signalCtx)
 
-	startKernelEventReader(rd)
 	runtimeJobs := startRuntimeBackgroundJobs(ctx, features)
+	startKernelEventReader(ctx, rd, runtimeJobs)
 	defer func() {
 		cancelRuntime()
 		waitCtx, waitCancel := context.WithTimeout(context.Background(), 5*time.Second)

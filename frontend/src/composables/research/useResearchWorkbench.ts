@@ -139,6 +139,19 @@ export function useResearchWorkbench() {
   });
 
   let taskPollTimer: number | null = null;
+  let taskPollGeneration = 0;
+  let taskRequestController: AbortController | null = null;
+  let taskSubmitGeneration = 0;
+  let taskSubmitController: AbortController | null = null;
+  let taskCancelGeneration = 0;
+  let taskCancelController: AbortController | null = null;
+  let sessionsRequestGeneration = 0;
+  let sessionsRequestController: AbortController | null = null;
+  let eventsRequestGeneration = 0;
+  let eventsRequestController: AbortController | null = null;
+  let resultsRequestGeneration = 0;
+  let resultsRequestController: AbortController | null = null;
+  let taskPollingDisposed = false;
 
   const selectedSession = computed(
     () =>
@@ -185,12 +198,18 @@ export function useResearchWorkbench() {
     return { since };
   };
 
-  const refreshSessions = async (silent = false) => {
+  const refreshSessions = async (silent = false, guard = () => true) => {
+    sessionsRequestController?.abort();
+    const controller = new AbortController();
+    sessionsRequestController = controller;
+    const generation = ++sessionsRequestGeneration;
     loadingSessions.value = true;
     try {
       const res = await axios.get<ResearchSessionListResponse>(
         "/research/sessions",
+        { signal: controller.signal },
       );
+      if (generation !== sessionsRequestGeneration || !guard()) return;
       sessions.value = res.data.sessions || [];
       if (
         selectedSessionId.value &&
@@ -203,9 +222,13 @@ export function useResearchWorkbench() {
       }
       if (!silent) message.success(`已刷新 ${sessions.value.length} 个研究会话`);
     } catch (e: any) {
+      if (controller.signal.aborted || generation !== sessionsRequestGeneration || !guard()) return;
       if (!silent) message.error(e.response?.data?.error || "刷新研究会话失败");
     } finally {
-      loadingSessions.value = false;
+      if (generation === sessionsRequestGeneration) {
+        loadingSessions.value = false;
+        sessionsRequestController = null;
+      }
     }
   };
 
@@ -221,8 +244,18 @@ export function useResearchWorkbench() {
         timeRange: buildTimeRangeFromForm(),
       };
       const res = await axios.post<ResearchSession>("/research/sessions", payload);
+      stopTaskPolling();
+      stopTaskSubmission();
+      stopTaskCancellation();
       sessions.value = [res.data, ...sessions.value.filter((s) => s.id !== res.data.id)];
       selectedSessionId.value = res.data.id;
+      activeTask.value = null;
+      eventOffset.value = 0;
+      eventsTotal.value = 0;
+      events.value = [];
+      results.value = null;
+      researchTrainingDataset.value = null;
+      researchTrainingImportResult.value = null;
       createForm.value.name = makeDefaultSessionName();
       message.success(`已创建研究会话：${res.data.name}`);
     } catch (e: any) {
@@ -239,6 +272,10 @@ export function useResearchWorkbench() {
   };
 
   const selectSession = async (id: string) => {
+    stopTaskPolling();
+    stopTaskSubmission();
+    stopTaskCancellation();
+    activeTask.value = null;
     selectedSessionId.value = id;
     eventOffset.value = 0;
     events.value = [];
@@ -253,10 +290,14 @@ export function useResearchWorkbench() {
     deletingSession.value = true;
     try {
       await axios.delete(`/research/sessions/${encodeURIComponent(selectedSessionId.value)}`);
+      stopTaskPolling();
+      stopTaskSubmission();
+      stopTaskCancellation();
       message.success("研究会话已删除");
       const removed = selectedSessionId.value;
       sessions.value = sessions.value.filter((session) => session.id !== removed);
       selectedSessionId.value = sessions.value[0]?.id || "";
+      activeTask.value = null;
       events.value = [];
       results.value = null;
       researchTrainingDataset.value = null;
@@ -270,37 +311,74 @@ export function useResearchWorkbench() {
   };
 
   const stopTaskPolling = () => {
+    taskPollGeneration++;
+    taskRequestController?.abort();
+    taskRequestController = null;
     if (taskPollTimer !== null) {
       window.clearTimeout(taskPollTimer);
       taskPollTimer = null;
     }
   };
 
-  const refreshTask = async (taskId: string) => {
+  const stopTaskSubmission = () => {
+    taskSubmitGeneration++;
+    taskSubmitController?.abort();
+    taskSubmitController = null;
+    submittingTask.value = false;
+  };
+
+  const stopTaskCancellation = () => {
+    taskCancelGeneration++;
+    taskCancelController?.abort();
+    taskCancelController = null;
+  };
+
+  const taskPollIsCurrent = (generation: number) =>
+    !taskPollingDisposed && generation === taskPollGeneration;
+
+  const refreshTask = async (taskId: string, generation: number) => {
+    if (!taskPollIsCurrent(generation)) return;
+    const controller = new AbortController();
+    taskRequestController?.abort();
+    taskRequestController = controller;
     try {
       const res = await axios.get<ResearchTask>(
         `/research/tasks/${encodeURIComponent(taskId)}`,
+        { signal: controller.signal },
       );
+      if (!taskPollIsCurrent(generation)) return;
       activeTask.value = res.data;
       if (terminalTaskStatuses.has(res.data.status)) {
-        stopTaskPolling();
-        await refreshSessions(true);
+        taskPollTimer = null;
+        await refreshSessions(true, () => taskPollIsCurrent(generation));
+        if (!taskPollIsCurrent(generation)) return;
         if (selectedSessionId.value) {
-          await Promise.all([fetchEvents(true), fetchResults(true)]);
+          await Promise.all([
+            fetchEvents(true, () => taskPollIsCurrent(generation)),
+            fetchResults(true, () => taskPollIsCurrent(generation)),
+          ]);
+          if (!taskPollIsCurrent(generation)) return;
         }
         if (res.data.status === "succeeded") {
           message.success(`任务完成：${res.data.action}`);
         } else if (res.data.status === "failed") {
           message.error(res.data.error || `任务失败：${res.data.action}`);
         }
+        if (taskPollIsCurrent(generation)) taskPollGeneration++;
         return;
       }
       taskPollTimer = window.setTimeout(() => {
-        void refreshTask(taskId);
+        void refreshTask(taskId, generation);
       }, 1200);
     } catch (e: any) {
-      stopTaskPolling();
+      if (controller.signal.aborted || !taskPollIsCurrent(generation)) return;
+      taskPollGeneration++;
+      taskPollTimer = null;
       message.error(e.response?.data?.error || "刷新研究任务失败");
+    } finally {
+      if (taskRequestController === controller) {
+        taskRequestController = null;
+      }
     }
   };
 
@@ -309,8 +387,14 @@ export function useResearchWorkbench() {
     overrides: Partial<ResearchTaskRequest> = {},
   ) => {
     if (!ensureSelectedSession()) return;
-    submittingTask.value = true;
     stopTaskPolling();
+    stopTaskSubmission();
+    stopTaskCancellation();
+    submittingTask.value = true;
+    const pollGeneration = taskPollGeneration;
+    const submitGeneration = taskSubmitGeneration;
+    const controller = new AbortController();
+    taskSubmitController = controller;
     try {
       const payload: ResearchTaskRequest = {
         action,
@@ -320,14 +404,27 @@ export function useResearchWorkbench() {
       const res = await axios.post<ResearchTask>(
         `/research/sessions/${encodeURIComponent(selectedSessionId.value)}/tasks`,
         payload,
+        { signal: controller.signal },
       );
+      if (
+        submitGeneration !== taskSubmitGeneration ||
+        !taskPollIsCurrent(pollGeneration)
+      ) return;
       activeTask.value = res.data;
       message.success(`已提交研究任务：${action}`);
-      void refreshTask(res.data.taskId);
+      void refreshTask(res.data.taskId, pollGeneration);
     } catch (e: any) {
+      if (
+        controller.signal.aborted ||
+        submitGeneration !== taskSubmitGeneration ||
+        !taskPollIsCurrent(pollGeneration)
+      ) return;
       message.error(e.response?.data?.error || "提交研究任务失败");
     } finally {
-      submittingTask.value = false;
+      if (taskSubmitController === controller) taskSubmitController = null;
+      if (submitGeneration === taskSubmitGeneration) {
+        submittingTask.value = false;
+      }
     }
   };
 
@@ -379,25 +476,52 @@ export function useResearchWorkbench() {
   const cancelActiveTask = async () => {
     const taskId = activeTask.value?.taskId;
     if (!taskId) return;
+    stopTaskCancellation();
+    const generation = taskCancelGeneration;
+    const pollGeneration = taskPollGeneration;
+    const sessionId = selectedSessionId.value;
+    const controller = new AbortController();
+    taskCancelController = controller;
     try {
       const res = await axios.post<ResearchTask>(
         `/research/tasks/${encodeURIComponent(taskId)}/cancel`,
+        undefined,
+        { signal: controller.signal },
       );
+      if (
+        generation !== taskCancelGeneration ||
+        !taskPollIsCurrent(pollGeneration) ||
+        selectedSessionId.value !== sessionId ||
+        activeTask.value?.taskId !== taskId
+      ) return;
       activeTask.value = res.data;
       stopTaskPolling();
       message.success("已请求取消研究任务");
     } catch (e: any) {
+      if (
+        controller.signal.aborted ||
+        generation !== taskCancelGeneration ||
+        !taskPollIsCurrent(pollGeneration)
+      ) return;
       message.error(e.response?.data?.error || "取消研究任务失败");
+    } finally {
+      if (taskCancelController === controller) taskCancelController = null;
     }
   };
 
-  const fetchEvents = async (silent = false) => {
-    if (!selectedSessionId.value) return;
+  const fetchEvents = async (silent = false, guard = () => true) => {
+    const sessionId = selectedSessionId.value;
+    if (!sessionId) return;
+    eventsRequestController?.abort();
+    const controller = new AbortController();
+    eventsRequestController = controller;
+    const generation = ++eventsRequestGeneration;
     loadingEvents.value = true;
     try {
       const res = await axios.get<ResearchEventsResponse>(
-        `/research/sessions/${encodeURIComponent(selectedSessionId.value)}/events`,
+        `/research/sessions/${encodeURIComponent(sessionId)}/events`,
         {
+          signal: controller.signal,
           params: {
             limit: eventLimit.value,
             offset: eventOffset.value,
@@ -405,30 +529,64 @@ export function useResearchWorkbench() {
           },
         },
       );
+      if (
+        generation !== eventsRequestGeneration ||
+        selectedSessionId.value !== sessionId ||
+        !guard()
+      ) return;
       events.value = res.data.events || [];
       eventsTotal.value = res.data.total || 0;
       if (!silent) message.success(`已加载 ${events.value.length} 条事件`);
     } catch (e: any) {
+      if (
+        controller.signal.aborted ||
+        generation !== eventsRequestGeneration ||
+        selectedSessionId.value !== sessionId ||
+        !guard()
+      ) return;
       if (!silent) message.error(e.response?.data?.error || "加载研究事件失败");
     } finally {
-      loadingEvents.value = false;
+      if (generation === eventsRequestGeneration) {
+        loadingEvents.value = false;
+        eventsRequestController = null;
+      }
     }
   };
 
-  const fetchResults = async (silent = false) => {
-    if (!selectedSessionId.value) return;
+  const fetchResults = async (silent = false, guard = () => true) => {
+    const sessionId = selectedSessionId.value;
+    if (!sessionId) return;
+    resultsRequestController?.abort();
+    const controller = new AbortController();
+    resultsRequestController = controller;
+    const generation = ++resultsRequestGeneration;
     loadingResults.value = true;
     try {
       const res = await axios.get<ResearchResults>(
-        `/research/sessions/${encodeURIComponent(selectedSessionId.value)}/results`,
+        `/research/sessions/${encodeURIComponent(sessionId)}/results`,
+        { signal: controller.signal },
       );
+      if (
+        generation !== resultsRequestGeneration ||
+        selectedSessionId.value !== sessionId ||
+        !guard()
+      ) return;
       results.value = res.data;
       if (!silent) message.success("已刷新研究聚合结果");
     } catch (e: any) {
+      if (
+        controller.signal.aborted ||
+        generation !== resultsRequestGeneration ||
+        selectedSessionId.value !== sessionId ||
+        !guard()
+      ) return;
       results.value = null;
       if (!silent) message.error(e.response?.data?.error || "加载研究结果失败");
     } finally {
-      loadingResults.value = false;
+      if (generation === resultsRequestGeneration) {
+        loadingResults.value = false;
+        resultsRequestController = null;
+      }
     }
   };
 
@@ -622,7 +780,18 @@ export function useResearchWorkbench() {
     return date.toLocaleString();
   };
 
-  onUnmounted(stopTaskPolling);
+  onUnmounted(() => {
+    taskPollingDisposed = true;
+    stopTaskPolling();
+    stopTaskSubmission();
+    stopTaskCancellation();
+    sessionsRequestGeneration++;
+    sessionsRequestController?.abort();
+    eventsRequestGeneration++;
+    eventsRequestController?.abort();
+    resultsRequestGeneration++;
+    resultsRequestController?.abort();
+  });
 
   return {
     sessions,

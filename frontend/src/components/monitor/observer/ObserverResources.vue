@@ -53,34 +53,75 @@ onUnmounted(() => { if (sampleTimer) clearInterval(sampleTimer); });
 const ioStats = ref<Record<number, Record<string, string>>>({});
 const ioLoading = ref(false);
 let ioAutoFetchTimer: ReturnType<typeof setTimeout> | null = null;
+let ioRequestController: AbortController | null = null;
+let ioRequestGeneration = 0;
+let ioUnmounted = false;
+
+const currentIOPidKey = () => [...props.treePids].sort((a, b) => a - b).join(",");
 
 const fetchIO = async () => {
-  if (ioLoading.value) return; // prevent concurrent fetches
+  const pidKey = currentIOPidKey();
+  const pids = pidKey ? pidKey.split(",").map(Number) : [];
+  const generation = ++ioRequestGeneration;
+
+  ioRequestController?.abort();
+  const controller = new AbortController();
+  ioRequestController = controller;
+
+  if (pids.length === 0) {
+    ioStats.value = {};
+    ioLoading.value = false;
+    if (generation === ioRequestGeneration) ioRequestController = null;
+    return;
+  }
+
   ioLoading.value = true;
   const stats: Record<number, Record<string, string>> = {};
-  const pids = [...props.treePids];
   // Fetch in parallel with Promise.all, not sequentially
   await Promise.all(pids.map(async (pid) => {
     try {
-      const res = await axios.get(`/system/process/io`, { params: { pid } });
+      const res = await axios.get(`/system/process/io`, {
+        params: { pid },
+        signal: controller.signal,
+      });
       stats[pid] = res.data;
     } catch {}
   }));
-  ioStats.value = stats;
-  ioLoading.value = false;
+
+  if (
+    !ioUnmounted
+    && generation === ioRequestGeneration
+    && !controller.signal.aborted
+    && pidKey === currentIOPidKey()
+  ) {
+    ioStats.value = stats;
+  }
+  if (generation === ioRequestGeneration) {
+    ioRequestController = null;
+    ioLoading.value = false;
+  }
 };
 
 // Auto-fetch I/O when treePids changes (debounced to avoid thundering herd)
-watch(() => props.treePids, (pids) => {
+watch(currentIOPidKey, (pidKey) => {
   if (ioAutoFetchTimer) clearTimeout(ioAutoFetchTimer);
-  if (pids.size > 0) {
+  ioRequestController?.abort();
+  ioRequestController = null;
+  ioRequestGeneration++;
+  ioLoading.value = false;
+  if (pidKey) {
     ioAutoFetchTimer = setTimeout(() => { fetchIO(); }, 500);
   } else {
     ioStats.value = {};
   }
 }, { immediate: true });
 
-onUnmounted(() => { if (ioAutoFetchTimer) clearTimeout(ioAutoFetchTimer); });
+onUnmounted(() => {
+  ioUnmounted = true;
+  ioRequestGeneration++;
+  ioRequestController?.abort();
+  if (ioAutoFetchTimer) clearTimeout(ioAutoFetchTimer);
+});
 
 // ── Chart options ────────────────────────────────────────────────────────
 const cpuChartOptions = computed(() => makeLineOpts("CPU %"));
