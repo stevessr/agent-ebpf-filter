@@ -369,6 +369,18 @@ func init() {
 	handlers.Deps.AgentSightUploadedEvents = &agentSightStoreAdapter{store: agentSightUploadedEvents}
 	handlers.Deps.RuntimeSettings = runtimeSettingsStore
 	handlers.Deps.RuntimeSettingsTruncateLog = runtimeSettingsStore.TruncateEventLog
+	handlers.Deps.RunBenchmark = func() (run any, stats any) {
+		result := benchmarkEngineStore.runAll()
+		runs := benchmarkEngineStore.runsSnapshot()
+		return result, computeBenchmarkStats(runs)
+	}
+	handlers.Deps.GetBenchmarkResults = func() any {
+		runs := benchmarkEngineStore.runsSnapshot()
+		return map[string]any{
+			"runs":  runs,
+			"stats": computeBenchmarkStats(runs),
+		}
+	}
 
 	handlers.Deps.PluginValidateID = validatePluginID
 	handlers.Deps.PluginSource = func(id string) (string, bool) { s, err := PluginSource(id); return s, err == nil }

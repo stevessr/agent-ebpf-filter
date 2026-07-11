@@ -4,6 +4,7 @@ import (
 	"agent-ebpf-filter/internal/behavior"
 	"agent-ebpf-filter/pb"
 	"fmt"
+	"runtime"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -221,16 +222,23 @@ var benchmarkCases = []benchmarkCase{
 // ── Benchmark engine ──────────────────────────────────────────────────
 
 type benchmarkEngine struct {
-	runs   []benchmarkRun
+	runMu  sync.Mutex
 	mu     sync.Mutex
 	runner atomic.Int32
+	runs   []benchmarkRun
 }
+
+const benchmarkRunHistoryLimit = 100
+
+var benchmarkEngineStore = newBenchmarkEngine()
 
 func newBenchmarkEngine() *benchmarkEngine {
 	return &benchmarkEngine{}
 }
 
 func (e *benchmarkEngine) runAll() benchmarkRun {
+	e.runMu.Lock()
+	defer e.runMu.Unlock()
 	e.runner.Add(1)
 	run := benchmarkRun{
 		Name:       fmt.Sprintf("benchmark-%d", e.runner.Load()),
@@ -239,21 +247,26 @@ func (e *benchmarkEngine) runAll() benchmarkRun {
 		Results:    make([]benchmarkResult, 0, len(benchmarkCases)),
 	}
 
+	results := make([]benchmarkResult, len(benchmarkCases))
+	workers := benchmarkWorkerCount(len(benchmarkCases), runtime.GOMAXPROCS(0))
+	jobs := make(chan int, workers)
 	var wg sync.WaitGroup
-	results := make(chan benchmarkResult, len(benchmarkCases))
-
-	for _, bc := range benchmarkCases {
+	for i := 0; i < workers; i++ {
 		wg.Add(1)
-		go func(bc benchmarkCase) {
+		go func() {
 			defer wg.Done()
-			results <- e.evaluateCase(bc)
-		}(bc)
+			for index := range jobs {
+				results[index] = e.evaluateCase(benchmarkCases[index])
+			}
+		}()
 	}
-
+	for index := range benchmarkCases {
+		jobs <- index
+	}
+	close(jobs)
 	wg.Wait()
-	close(results)
 
-	for r := range results {
+	for _, r := range results {
 		run.Results = append(run.Results, r)
 		if r.Passed {
 			run.Passed++
@@ -273,11 +286,41 @@ func (e *benchmarkEngine) runAll() benchmarkRun {
 		return run.Results[i].Case.Category < run.Results[j].Case.Category
 	})
 
-	e.mu.Lock()
-	e.runs = append(e.runs, run)
-	e.mu.Unlock()
+	e.storeRun(run)
 
 	return run
+}
+
+func benchmarkWorkerCount(caseCount, cpuCount int) int {
+	if caseCount <= 0 {
+		return 0
+	}
+	if cpuCount < 1 {
+		cpuCount = 1
+	}
+	if cpuCount > caseCount {
+		cpuCount = caseCount
+	}
+	return cpuCount
+}
+
+func (e *benchmarkEngine) storeRun(run benchmarkRun) {
+	e.mu.Lock()
+	e.runs = append(e.runs, run)
+	if overflow := len(e.runs) - benchmarkRunHistoryLimit; overflow > 0 {
+		copy(e.runs, e.runs[overflow:])
+		e.runs = e.runs[:benchmarkRunHistoryLimit]
+	}
+	e.mu.Unlock()
+}
+
+func (e *benchmarkEngine) runsSnapshot() []benchmarkRun {
+	if e == nil {
+		return nil
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]benchmarkRun(nil), e.runs...)
 }
 
 func (e *benchmarkEngine) evaluateCase(bc benchmarkCase) benchmarkResult {

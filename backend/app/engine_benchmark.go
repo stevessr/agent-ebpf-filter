@@ -92,7 +92,7 @@ func runBenchmarkSuite() error {
 		run.FalsePos, run.FalseNeg)
 
 	fmt.Println("\nBy category:")
-	stats := computeBenchmarkStats(engine.runs)
+	stats := computeBenchmarkStats(engine.runsSnapshot())
 	for cat, cs := range stats.CategoryStats {
 		fmt.Printf("  %s: %d/%d (%.1f%%)\n", cat, cs.Passed, cs.Total, cs.PassRate)
 	}
