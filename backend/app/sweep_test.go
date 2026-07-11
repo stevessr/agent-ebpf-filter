@@ -83,6 +83,28 @@ func sweepTestSample(label int32, userLabel string) TrainingSample {
 	}
 }
 
+func TestStabilityWorkerCountBoundsIdleWorkers(t *testing.T) {
+	tests := []struct {
+		name                string
+		tasks, repeats, cpu int
+		want                int
+	}{
+		{name: "no tasks", tasks: 0, repeats: 3, cpu: 8, want: 0},
+		{name: "single job", tasks: 1, repeats: 1, cpu: 128, want: 1},
+		{name: "bounded by jobs", tasks: 2, repeats: 2, cpu: 128, want: 4},
+		{name: "bounded by cpu", tasks: 10, repeats: 3, cpu: 8, want: 8},
+		{name: "minimum parallelism", tasks: 10, repeats: 3, cpu: 0, want: 2},
+		{name: "normalize repeats", tasks: 1, repeats: 0, cpu: 0, want: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := stabilityWorkerCount(tt.tasks, tt.repeats, tt.cpu); got != tt.want {
+				t.Fatalf("stabilityWorkerCount(%d, %d, %d) = %d, want %d", tt.tasks, tt.repeats, tt.cpu, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestMLSweep(t *testing.T) {
 	if os.Getenv("ML_SWEEP") != "1" {
 		t.Skip("set ML_SWEEP=1 to run the offline ML sweep report generator")

@@ -60,18 +60,15 @@ func runStabilityPhase(tasks []stabilityTask, repeats int) ([]repeatRunResult, [
 		return nil, nil, fmt.Errorf("no stability tasks selected")
 	}
 
-	workers := runtime.NumCPU()
-	if workers < 2 {
-		workers = 2
-	}
+	workers := stabilityWorkerCount(len(tasks), repeats, runtime.NumCPU())
 
 	type job struct {
 		Task  stabilityTask
 		Index int
 	}
 
-	jobs := make(chan job)
-	resultsCh := make(chan repeatRunResult)
+	jobs := make(chan job, workers)
+	resultsCh := make(chan repeatRunResult, workers)
 	var wg sync.WaitGroup
 
 	for i := 0; i < workers; i++ {
@@ -146,6 +143,24 @@ func runStabilityPhase(tasks []stabilityTask, repeats int) ([]repeatRunResult, [
 	})
 
 	return rawRuns, summaries, nil
+}
+
+func stabilityWorkerCount(taskCount, repeats, cpuCount int) int {
+	if taskCount <= 0 {
+		return 0
+	}
+	if repeats < 1 {
+		repeats = 1
+	}
+	totalJobs := taskCount * repeats
+	workers := cpuCount
+	if workers < 2 {
+		workers = 2
+	}
+	if workers > totalJobs {
+		workers = totalJobs
+	}
+	return workers
 }
 
 func runSingleRepeat(task stabilityTask, repeatIndex int) repeatRunResult {
