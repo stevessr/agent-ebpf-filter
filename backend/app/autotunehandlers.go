@@ -2,7 +2,6 @@ package app
 
 import (
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -42,28 +41,12 @@ func autotuneTunePost(c *gin.Context) {
 		return
 	}
 
-	go func(jobID string, req MLAutoTuneRequest) {
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("[ML] Auto-tune panic: %v", r)
-				globalAutoTuneState.setError(jobID, fmt.Sprintf("panic: %v", r))
-			}
-		}()
-		log.Printf("[ML] Auto-tune started: jobID=%s, model=%s, grid=%dx%d, x=%s, y=%s",
-			jobID, mlConfig.ModelType, req.GridSize, req.GridSize, req.XAxis, req.YAxis)
-		resp, err := globalTrainer.AutoTune(globalTrainingStore, req, func(completed, total int, message string) {
-			if completed%5 == 0 || completed == total {
-				log.Printf("[ML] Auto-tune progress: %d/%d — %s", completed, total, message)
-			}
-			globalAutoTuneState.update(jobID, completed, total, message)
-		})
-		if err != nil {
-			log.Printf("[ML] Auto-tune error: %v", err)
-		} else {
-			log.Printf("[ML] Auto-tune done: %d cells, best score=%.4f", len(resp.Cells), autoTuneBestScore(resp))
-		}
-		globalAutoTuneState.finish(jobID, resp, err)
-	}(jobID, req)
+	entry := newBackendTaskRuntimeEntry(jobID, "ml_auto_tune_params", mlAutoTuneParamsTask{Request: req})
+	if err := mlAutoTuneTasks.Submit(entry); err != nil {
+		globalAutoTuneState.setError(jobID, err.Error())
+		c.JSON(503, gin.H{"error": err.Error()})
+		return
+	}
 
 	c.JSON(202, gin.H{
 		"jobId":   jobID,
@@ -109,27 +92,15 @@ func autotuneTuneModelsPost(c *gin.Context) {
 		return
 	}
 
-	go func(jobID string, req MLModelTuneRequest, modelTypes []ModelType) {
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("[ML] Model auto-tune panic: %v", r)
-				globalAutoTuneState.setError(jobID, fmt.Sprintf("panic: %v", r))
-			}
-		}()
-		resp, err := runModelAutoTune(globalTrainingStore, req, modelTypes, func(completed, total int, message string) {
-			globalAutoTuneState.update(jobID, completed, total, message)
-		})
-		if err != nil {
-			log.Printf("[ML] Model auto-tune error: %v", err)
-		} else {
-			best := ""
-			if resp.Best != nil {
-				best = resp.Best.ModelType
-			}
-			log.Printf("[ML] Model auto-tune done: %d candidates, best=%s", len(resp.Candidates), best)
-		}
-		globalAutoTuneState.finishModelTune(jobID, resp, err)
-	}(jobID, req, modelTypes)
+	entry := newBackendTaskRuntimeEntry(jobID, "ml_auto_tune_models", mlAutoTuneModelsTask{
+		Request:    req,
+		ModelTypes: append([]ModelType(nil), modelTypes...),
+	})
+	if err := mlAutoTuneTasks.Submit(entry); err != nil {
+		globalAutoTuneState.setError(jobID, err.Error())
+		c.JSON(503, gin.H{"error": err.Error()})
+		return
+	}
 
 	c.JSON(202, gin.H{
 		"jobId":   jobID,

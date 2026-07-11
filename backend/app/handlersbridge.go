@@ -698,7 +698,7 @@ func initMLHandlersDeps() {
 	handlers.Deps.MLIsRunning = globalTrainer.IsRunning
 	handlers.Deps.MLLogTotal = globalTrainer.LogTotal
 	handlers.Deps.MLGetLogsResponse = mlGetLogsResponse
-	handlers.Deps.MLCancelTraining = globalTrainer.CancelTraining
+	handlers.Deps.MLCancelTraining = cancelMLAutoTuneTasks
 	handlers.Deps.MLGetHistoryResponse = mlGetHistoryResponse
 	handlers.Deps.MLTrain = mlTrain
 	handlers.Deps.MLFeedbackResult = mlFeedbackResult

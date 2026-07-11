@@ -10,6 +10,10 @@ import (
 // ---- moved from backend/zz_merged_backend.go section autotunemodel.go ----
 
 func runModelAutoTune(store *TrainingDataStore, req MLModelTuneRequest, modelTypes []ModelType, progressCb func(completed, total int, message string)) (*MLModelTuneResponse, error) {
+	return runModelAutoTuneWithCancel(store, req, modelTypes, progressCb, nil)
+}
+
+func runModelAutoTuneWithCancel(store *TrainingDataStore, req MLModelTuneRequest, modelTypes []ModelType, progressCb func(completed, total int, message string), isCanceled func() bool) (*MLModelTuneResponse, error) {
 	labeled := store.LabeledSamples()
 	if len(labeled) < 2 {
 		return nil, errors.New("need at least 2 labeled samples for model tuning")
@@ -39,7 +43,7 @@ func runModelAutoTune(store *TrainingDataStore, req MLModelTuneRequest, modelTyp
 	}
 
 	for i, modelType := range modelTypes {
-		if globalTrainer.IsCancelled() {
+		if (isCanceled != nil && isCanceled()) || globalTrainer.IsCancelled() {
 			return nil, errors.New("cancelled")
 		}
 		label, base, recommended := modelTuneCatalogInfo(modelType)
@@ -148,6 +152,9 @@ func runModelAutoTune(store *TrainingDataStore, req MLModelTuneRequest, modelTyp
 		}
 	}
 
+	if isCanceled != nil && isCanceled() {
+		return nil, errors.New("cancelled")
+	}
 	if best == nil {
 		return &MLModelTuneResponse{Metric: metric, SampleCount: len(labeled), TotalDuration: time.Since(start).Seconds(), Candidates: candidates}, errors.New("no model candidate trained successfully")
 	}

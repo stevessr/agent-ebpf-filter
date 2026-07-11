@@ -113,19 +113,25 @@ func (t *ModelTrainer) CancelTraining() {
 	if !t.IsRunning() {
 		return
 	}
+	if !t.requestCancel() {
+		return
+	}
+	t.logf("训练中止请求已接收")
+}
+
+func (t *ModelTrainer) requestCancel() bool {
 	t.cancelMu.Lock()
+	defer t.cancelMu.Unlock()
 	if t.cancelCh == nil {
 		t.cancelCh = make(chan struct{})
 	}
 	select {
 	case <-t.cancelCh:
-		t.cancelMu.Unlock()
-		return
+		return false
 	default:
 		close(t.cancelCh)
+		return true
 	}
-	t.cancelMu.Unlock()
-	t.logf("训练中止请求已接收")
 }
 
 // IsCancelled returns true if cancellation has been requested.

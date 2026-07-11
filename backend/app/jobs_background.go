@@ -193,6 +193,15 @@ func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) 
 			log.Printf("[WARN] shell sessions did not stop cleanly: %v", err)
 		}
 	})
+	jobs.Go(func() {
+		<-ctx.Done()
+		cancelMLAutoTuneTasks()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+		defer cancel()
+		if err := mlAutoTuneTasks.Shutdown(shutdownCtx); err != nil {
+			log.Printf("[WARN] ML auto-tune tasks did not stop cleanly: %v", err)
+		}
+	})
 	startResearchTaskWorker()
 	jobs.Go(func() { startUDSServer(ctx, broadcast) })
 	jobs.Go(func() {
