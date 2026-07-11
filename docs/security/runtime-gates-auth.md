@@ -62,6 +62,8 @@ AGENT_BUILD_FEATURES=tls_capture,ml make backend
 Kernel risk feedback 写内核策略时需要 `PolicyManagementEnabled=true` 且 `KernelRiskFeedback.Enabled=true`。只打开 ML 或只打开 policy management 都不应被描述为“自动写入内核阻断规则”。
 :::
 
+`TlsCaptureEnabled=false` 时，`/tls-capture/**`、`/codex/capture` 和 `/ws/tls-capture` 均返回 `403`，wrapper UDS 不会触发自动 TLS attach；从运行时配置将它切换为 `false` 还会关闭已启动的 probe manager。重新开启 gate 后，需通过 TLS Capture 页面或 `/tls-capture/start` / attach 端点重新启动捕获。
+
 ## Auth
 
 release mode 使用 runtime access token。token 存储：

@@ -124,6 +124,30 @@ ws.onmessage = (event) => {
 };
 ```
 
+### 观察 WebSocket 广播健康度
+
+`/tls-capture/status` 中的 `broadcast` 对象反映实时消费者、待写队列和累计写入故障：
+
+```bash
+curl -s http://localhost:8080/tls-capture/status | jq .broadcast
+```
+
+```json
+{
+  "activeClients": 1,
+  "queuedEvents": 0,
+  "queueCapacity": 64,
+  "queueFullDropsTotal": 0,
+  "writeFailuresTotal": 0,
+  "writeDeadlineFailuresTotal": 0
+}
+```
+
+- `queueCapacity` 是每个 WebSocket 客户端的容量，`queuedEvents` 是所有活跃客户端的队列总和。
+- `queueFullDropsTotal` 持续增长通常表示某个消费者过慢或停滞；后端会断开队列已满的客户端，避免阻塞其他消费者。
+- `writeFailuresTotal` 或 `writeDeadlineFailuresTotal` 持续增长时，检查浏览器、反向代理或网络是否频繁断开连接。
+- 三个 `*Total` 计数器从当前后端进程启动后累加；重启后重置。
+
 ### 手动附加 Go 程序
 
 ```bash
@@ -202,6 +226,7 @@ curl -X POST http://localhost:8080/tls-capture/library \
 - UID/TID 进程归属展示
 - 查看完整 HTTP 请求/响应明文
 - 库状态监控
+- WebSocket 广播客户端、队列与失败计数监控
 - 启动/停止捕获控制
 
 ---

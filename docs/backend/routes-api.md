@@ -194,7 +194,7 @@ registerRoutes()
 | `POST` | `/config/ml/health/run` | 运行健康检查 |
 | `POST` | `/config/ml/backtest` | 回测 (同 assess) |
 
-`/config/ml/datasets/pull` 与 `/config/ml/datasets/import` 支持 `json`、`jsonl`、`csv`、`tsv`、纯文本与常见压缩包；纯文本 `.te`/SELinux policy 规则以及 JSON `rules[].rule` / `rules[].selinuxRule` 字段会自动识别为 `selinux-rule ...` 训练样本，并按 `allow/type_transition=ALLOW`、`neverallow=BLOCK`、`dontaudit/auditallow/permissive=ALERT` 保留来源标签。响应会附带 `byLabel`、`byCategory`、`bySource`、`normalization`、`quality`，导入响应还会附带 `skipReasons`；压缩包中被跳过的条目或 limit 截断会出现在 `parseWarnings`。
+`/config/ml/datasets/pull` 与 `/config/ml/datasets/import` 支持 `json`、`jsonl`、`csv`、`tsv`、纯文本与常见压缩包；纯文本 `.te`/SELinux policy 规则以及 JSON `rules[].rule` / `rules[].selinuxRule` 字段会自动识别为 `selinux-rule ...` 训练样本，并按 `allow/type_transition=ALLOW`、`neverallow=BLOCK`、`dontaudit/auditallow/permissive=ALERT` 保留来源标签。响应会附带 `byLabel`、`byCategory`、`bySource`、`normalization`、`quality`，导入响应还会附带 `skipReasons`；压缩包成员打开/读取失败、归档流后续读取失败、嵌套压缩流解码失败、条目解析失败或 limit 截断会连同成员或归档来源出现在 `parseWarnings`。
 
 远程 URL 下载采用 fail-closed 网络策略：仅允许解析结果全部为公网地址的 `http`/`https` URL，禁止 URL credentials、loopback、RFC1918/ULA、link-local、云 metadata 与其他 special-use 地址，且每次连接和每个重定向都会重新验证；下载不会使用进程环境代理，也禁止 HTTPS 重定向降级到 HTTP。内网或本机数据集应通过 `content` / `contentBase64` 上传。单个下载或归档成员上限为 20 MiB；归档累计展开上限为 64 MiB、4096 个成员和 4 层嵌套。所有 payload 共享 100,000 条记录的解析硬上限，即使 `importAll=true` 也不会绕过；达到硬上限时响应返回 `truncated=true`、`totalIsLowerBound=true` 和 `record_limit_truncated` warning。
 
@@ -234,6 +234,7 @@ Research training API：`GET /research/sessions/:id/training` 和 `POST /researc
 | `GET` | `/system/cameras` | 摄像头列表 |
 | `GET` | `/system/camera/snapshot` | 摄像头快照 |
 | `GET` | `/system/microphones` | 麦克风列表 |
+| `POST` | `/system/run` | 执行命令；需要 `FeatureSystemRun` 编译特性且 `SystemRunEnabled=true` |
 | `GET` | `/system/signals/status` | 信号处理运行态：队列、TTL 状态、最近信号、可用 signal kinds |
 | `POST` | `/system/signals/task` | 信号处理后台任务：`scan_recent`/`expire`/`reset` |
 | `POST` | `/system/signals/rules/test` | 用最近事件 dry-run 单条 signal rule，返回匹配样本 |
@@ -242,9 +243,11 @@ Research training API：`GET /research/sessions/:id/training` 和 `POST /researc
 
 `/system/signals/status` 对应 `RuntimeSettings.signalProcessing`。信号规则支持 `path_access`、`child_process`、`repeated_read` 与 `custom` kind，规则内条件按 AND 组合；选中的程序会由后端写入本地 length-framed gzip protobuf (`ProgramSignalLogRecord`) 二进制日志。
 
+`/system/run` 在 app 路由层单独注册，编译时未包含 `FeatureSystemRun` 返回 `501`，运行时 gate 关闭返回 `403`；它不会随其他普通 system 路由无条件暴露。
+
 ### TLS 捕获路由 (`/tls-capture`)
 
-需要 `FeatureTLSCapture` 编译特性:
+需要 `FeatureTLSCapture` 编译特性，并受 `TlsCaptureEnabled` 运行时 gate 保护；gate 关闭时 `/tls-capture/**`、`/codex/capture` 与 `/ws/tls-capture` 返回 `403`。
 
 | 方法 | 路径 | 用途 |
 |------|------|------|
@@ -260,9 +263,48 @@ Research training API：`GET /research/sessions/:id/training` 和 `POST /researc
 | `POST` | `/tls-capture/go-binary` | 手动附加 Go 编译的二进制文件 |
 | `POST` | `/tls-capture/executable` | 附加指定路径的可执行文件 |
 
+#### `GET /tls-capture/status` 广播状态
+
+`GET /tls-capture/status` 响应中的 `broadcast` 对象用于观测 `/ws/tls-capture` 客户端的有界异步队列和写入故障。可以只投影运行态与广播字段：
+
+```bash
+curl -s http://localhost:8080/tls-capture/status | \
+  jq '{enabled, available, readStarted, goDiscoveryStarted, broadcast}'
+```
+
+```json
+{
+  "enabled": true,
+  "available": true,
+  "readStarted": true,
+  "goDiscoveryStarted": true,
+  "broadcast": {
+    "activeClients": 1,
+    "queuedEvents": 0,
+    "queueCapacity": 64,
+    "queueFullDropsTotal": 0,
+    "writeFailuresTotal": 0,
+    "writeDeadlineFailuresTotal": 0
+  }
+}
+```
+
+| `broadcast` 字段 | 语义 |
+|--------------------|------|
+| `activeClients` | 当前连接到 `/ws/tls-capture` 的客户端数 |
+| `queuedEvents` | 快照时所有活跃客户端队列中待写事件的总数 |
+| `queueCapacity` | **每个客户端**的有界队列容量；判断总使用率时上限为 `activeClients * queueCapacity` |
+| `queueFullDropsTotal` | 因某个客户端队列已满而未入队的累计投递数；后端会关闭该过载连接 |
+| `writeFailuresTotal` | WebSocket JSON 写入失败的累计次数 |
+| `writeDeadlineFailuresTotal` | 设置 WebSocket 单次写入截止时间失败的累计次数 |
+
+三个 `*Total` 计数器在当前后端进程内单调累加，重启后重置。`activeClients` 为 `0` 在没有打开 TLS Capture 页面或其他 WebSocket 消费者时是正常现象。
+
 ### AgentSight 路由 (`/agentsight`)
 
 需要 `FeatureAgentSight` 编译特性:
+
+AgentSight 事件上传端点（`POST /agentsight/events`及兼容路由）单次最多接收 16 MiB 或 10,000 条事件；超限返回 `413` 且不导入部分数据，已接受的 10,000 条事件均可保留在上传事件环形库中。前端本地文件/粘贴导入使用相同的 16 MiB 和 10,000 条限制，并始终将导入缓存、WebSocket 事件和系统采样缓冲区保持在 10,000 条以内。SSE 流每个连接的事件 ID 去重状态限制为请求 `limit` 的两倍（最多 10,000 个 ID），长时间连接不会无界积累历史 ID。
 
 | 方法 | 路径 | 用途 |
 |------|------|------|

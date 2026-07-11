@@ -36,7 +36,7 @@ flowchart TD
     
     Eviction --> Routes[registerRoutes]
     Routes --> Seed[seedDefaultTrackedCommands]
-    Seed --> Port[chooseBackendPort]
+    Seed --> Port[listenBackend]
     Port --> WritePort[configureRuntimePort]
     
     WritePort --> ML{ML feature?}
@@ -45,8 +45,11 @@ flowchart TD
     StartML --> Plugins{plugins feature?}
     Plugins -->|Yes| StartPlugins[startDeferredPluginRuntime]
     Plugins -->|No| Run
-    StartPlugins --> Run[r.Run :port]
+    StartPlugins --> Run[http.Server.Serve listener]
     Run --> Serve([HTTP Server Running])
+    Signal[SIGINT / SIGTERM] --> Shutdown[http.Server.Shutdown]
+    Shutdown --> Cleanup[Cancel workers and close runtime resources]
+    Serve --> Signal
     
     style Start fill:#bfb
     style Serve fill:#bfb
@@ -199,11 +202,11 @@ cgroup 与 LSM 有各自子目录：
 
 ## 后台任务
 
-`startRuntimeBackgroundJobs(features)` 启动：
+`startRuntimeBackgroundJobs(ctx, features)` 启动：
 
 ```go
 // 伪代码示例
-func startRuntimeBackgroundJobs(features FeatureRegistry) {
+func startRuntimeBackgroundJobs(ctx context.Context, features FeatureRegistry) {
     // 核心事件广播
     go startEventBroadcaster(ctx, broadcastChan)
     
@@ -251,17 +254,20 @@ func startRuntimeBackgroundJobs(features FeatureRegistry) {
 
 ## 端口选择
 
-后端会在 `8080..8089` 选择可用端口，随后写入运行时端口 handoff 文件。前端 Vite dev proxy、adapters 和 hook endpoint 推导会依赖该端口。
+后端会在 `8080..8089` 选择并**直接保留**一个可用 listener，随后写入运行时端口 handoff 文件。前端 Vite dev proxy、adapters 和 hook endpoint 推导会依赖该端口。选择与实际 `Serve` 共用同一个 listener，避免“探测后释放、启动前被其他进程抢占”的 TOCTOU 竞态。
+
+设置 `AGENT_BACKEND_PORT` 后只尝试该端口；绑定失败会作为启动错误返回，不会继续运行并发布一个实际未监听的端口。
 
 ```go
 // 伪代码
-func chooseBackendPort() int {
+func listenBackend() (net.Listener, int, error) {
     for port := 8080; port <= 8089; port++ {
-        if isPortAvailable(port) {
-            return port
+        listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+        if err == nil {
+            return listener, port, nil
         }
     }
-    panic("no available port in 8080-8089")
+    return nil, 0, errors.New("no available backend port")
 }
 
 func configureRuntimePort(port int) {
@@ -269,6 +275,20 @@ func configureRuntimePort(port int) {
     os.WriteFile("backend/.port", []byte(strconv.Itoa(port)), 0644)
 }
 ```
+
+## 优雅关闭
+
+主进程通过 `signal.NotifyContext` 处理 `SIGINT` 和 `SIGTERM`：
+
+1. 停止接收新的 HTTP 连接，并给活动请求最多 5 秒完成；
+2. 取消 runtime context，停止轮询、归档清理和其他 context-aware workers；
+3. 关闭 Wrapper UDS listener 与已连接客户端，socket 路径为 `/tmp/agent-ebpf.sock`；
+4. 关闭 ring buffer、TLS controller、OTel exporter、network state，并等待 research task runtime 收尾；
+5. 如果优雅关闭期间再次收到终止信号，恢复操作系统默认处理，允许强制退出。
+
+延迟启动的 ML 与插件任务也监听 runtime context，因此快速停止时不会在 shutdown 已开始后才启动。
+
+Wrapper UDS 启动会拒绝覆盖普通文件、符号链接或仍可连接的活跃 socket；只在确认 inode 未变化后删除失效 socket。关闭时同样按 inode 校验后清理，避免误删并发创建的替代路径。listener、连接处理器和延迟 TLS attach 都纳入 runtime background job 的关闭等待边界。
 
 ---
 
