@@ -18,7 +18,12 @@ import AgentSightMetricsView from "./AgentSightMetricsView.vue";
 import AgentSightProcessTreeView from "./AgentSightProcessTreeView.vue";
 import AgentSightTimelineView from "./AgentSightTimelineView.vue";
 import { useAgentSightI18n } from "../../composables/agentsight/useAgentSightI18n";
-import { useAgentSightEvents } from "../../composables/agentsight/useAgentSightEvents";
+import {
+  AGENTSIGHT_IMPORT_MAX_BYTES,
+  AGENTSIGHT_IMPORT_MAX_RECORDS,
+  useAgentSightEvents,
+  type AgentSightImportResult,
+} from "../../composables/agentsight/useAgentSightEvents";
 
 const props = withDefaults(
   defineProps<{
@@ -69,23 +74,47 @@ const limitOptions = [
   { label: "500", value: 500 },
   { label: "2,000", value: 2000 },
   { label: "10,000", value: 10000 },
-  { label: "全部", value: 0 },
+  { label: `全部（最多 ${AGENTSIGHT_IMPORT_MAX_RECORDS.toLocaleString()}）`, value: 0 },
 ];
 
 const changeLocale = (value: string | number) => {
   setLocale(value === "zh" ? "zh" : "en");
 };
 
+const showImportResult = (result: AgentSightImportResult, source = "") => {
+  const suffix = source ? ` from ${source}` : "";
+  if (result.truncated) {
+    message.warning(
+      `Imported ${result.imported} records${suffix}; input or cached history was truncated to ${result.retained} retained records (limit ${AGENTSIGHT_IMPORT_MAX_RECORDS.toLocaleString()})`,
+    );
+    return;
+  }
+  message.success(`Imported ${result.imported} records${suffix}`);
+};
+
 const importPastedRecords = () => {
-  const count = state.importRecordsText(pasteText.value);
-  pasteText.value = "";
-  message.success(`Imported ${count} records`);
+  try {
+    const result = state.importRecordsText(pasteText.value);
+    pasteText.value = "";
+    showImportResult(result);
+  } catch (error: any) {
+    message.error(error?.message || "AgentSight import failed");
+  }
 };
 
 const beforeUploadTrace = async (file: File) => {
-  const text = await file.text();
-  const count = state.importRecordsText(text);
-  message.success(`Imported ${count} records from ${file.name}`);
+  if (file.size > AGENTSIGHT_IMPORT_MAX_BYTES) {
+    message.error(
+      `${file.name} exceeds the ${Math.floor(AGENTSIGHT_IMPORT_MAX_BYTES / (1024 * 1024))} MiB AgentSight import limit`,
+    );
+    return false;
+  }
+  try {
+    const text = await file.text();
+    showImportResult(state.importRecordsText(text), file.name);
+  } catch (error: any) {
+    message.error(error?.message || `Failed to import ${file.name}`);
+  }
   return false;
 };
 

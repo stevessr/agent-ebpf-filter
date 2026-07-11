@@ -26,6 +26,14 @@ const AGENTSIGHT_SAMPLE_TRACE_URL = "/agentsight-sample-trace.jsonl";
 const AGENTSIGHT_SYSTEM_TOP_PROCESSES = 40;
 const AGENTSIGHT_DEFAULT_LIMIT = 500;
 const AGENTSIGHT_UNLIMITED_LIMIT = 0;
+export const AGENTSIGHT_IMPORT_MAX_BYTES = 16 * 1024 * 1024;
+export const AGENTSIGHT_IMPORT_MAX_RECORDS = 10000;
+
+export interface AgentSightImportResult {
+  imported: number;
+  retained: number;
+  truncated: boolean;
+}
 
 const defaultFilters = (): AgentSightFilters => ({
   source: "",
@@ -47,7 +55,15 @@ function loadCachedAgentSightRecords(): AgentSightEventRecord[] {
   try {
     const raw = window.localStorage.getItem(AGENTSIGHT_CACHE_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    const retained = retainAgentSightRecords(parsed);
+    if (retained.length !== parsed.length) {
+      window.localStorage.setItem(
+        AGENTSIGHT_CACHE_KEY,
+        JSON.stringify(retained),
+      );
+    }
+    return retained;
   } catch {
     return [];
   }
@@ -56,10 +72,22 @@ function loadCachedAgentSightRecords(): AgentSightEventRecord[] {
 function cacheAgentSightRecords(records: AgentSightEventRecord[]) {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(AGENTSIGHT_CACHE_KEY, JSON.stringify(records));
+    window.localStorage.setItem(
+      AGENTSIGHT_CACHE_KEY,
+      JSON.stringify(retainAgentSightRecords(records)),
+    );
   } catch {
     window.localStorage.removeItem(AGENTSIGHT_CACHE_KEY);
   }
+}
+
+function retainAgentSightRecords<T>(records: T[]): T[] {
+  return records.slice(0, AGENTSIGHT_IMPORT_MAX_RECORDS);
+}
+
+function agentSightTextByteLength(text: string): number {
+  if (typeof Blob !== "undefined") return new Blob([text]).size;
+  return new TextEncoder().encode(text).byteLength;
 }
 
 function normalizeImportedAgentSightRecord(
@@ -83,29 +111,47 @@ function normalizeImportedAgentSightRecord(
 export function parseAgentSightRecordsText(
   text: string,
 ): AgentSightEventRecord[] {
+  return parseAgentSightRecordsTextWithLimit(text).records;
+}
+
+export function parseAgentSightRecordsTextWithLimit(
+  text: string,
+  maxRecords = AGENTSIGHT_IMPORT_MAX_RECORDS,
+): { records: AgentSightEventRecord[]; truncated: boolean } {
   const trimmed = text.trim();
-  if (!trimmed) return [];
+  if (!trimmed) return { records: [], truncated: false };
   try {
     const parsed = JSON.parse(trimmed);
     const items = Array.isArray(parsed)
       ? parsed
       : parsed.events || parsed.records || [parsed];
-    return items
+    const truncated = items.length > maxRecords;
+    const records = items
+      .slice(0, maxRecords)
       .map(normalizeImportedAgentSightRecord)
       .filter(Boolean) as AgentSightEventRecord[];
+    return { records, truncated };
   } catch {
-    return trimmed
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line, index) => {
-        try {
-          return normalizeImportedAgentSightRecord(JSON.parse(line), index);
-        } catch {
-          return null;
-        }
-      })
-      .filter(Boolean) as AgentSightEventRecord[];
+    const records: AgentSightEventRecord[] = [];
+    let truncated = false;
+    for (const line of trimmed.split("\n")) {
+      const normalizedLine = line.trim();
+      if (!normalizedLine) continue;
+      if (records.length >= maxRecords) {
+        truncated = true;
+        break;
+      }
+      try {
+        const record = normalizeImportedAgentSightRecord(
+          JSON.parse(normalizedLine),
+          records.length,
+        );
+        if (record) records.push(record);
+      } catch {
+        // Preserve the existing tolerant JSONL import behavior.
+      }
+    }
+    return { records, truncated };
   }
 }
 
@@ -289,7 +335,7 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
   // works as an explicit override.
   const paused = shallowRef(false);
 
-  let refreshTimer: ReturnType<typeof setInterval> | null = null;
+  let refreshTimer: ReturnType<typeof setTimeout> | null = null;
   let envelopeWS: WebSocket | null = null;
   let tlsWS: WebSocket | null = null;
   let systemWS: WebSocket | null = null;
@@ -297,6 +343,12 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
   let tlsReconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let systemReconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let shouldReconnect = true;
+  let componentMounted = false;
+  let tlsCaptureAvailable = true;
+  let envelopeFetchController: AbortController | null = null;
+  let tlsFetchController: AbortController | null = null;
+  let envelopeFetchGeneration = 0;
+  let tlsFetchGeneration = 0;
 
   const realRecords = computed(() => [
     ...importedRecords.value,
@@ -307,11 +359,14 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
   const rawRecords = computed(() =>
     realRecords.value.length > 0 ? realRecords.value : sampleRecords.value,
   );
-  const events = computed<AgentSightEvent[]>(() =>
-    applyAgentSightLimit(
-      normalizeAgentSightEvents(rawRecords.value),
-      limit.value,
+  const retainedEvents = computed<AgentSightEvent[]>(() =>
+    normalizeAgentSightEvents(rawRecords.value).slice(
+      0,
+      AGENTSIGHT_IMPORT_MAX_RECORDS,
     ),
+  );
+  const events = computed<AgentSightEvent[]>(() =>
+    applyAgentSightLimit(retainedEvents.value, limit.value),
   );
   const processedEvents = computed(() => processAgentSightEvents(events.value));
 
@@ -330,35 +385,59 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
   });
 
   const fetchEnvelopeEvents = async () => {
+    envelopeFetchController?.abort();
+    const controller = new AbortController();
+    envelopeFetchController = controller;
+    const generation = ++envelopeFetchGeneration;
     loading.value = true;
     try {
-      const response = await axios.get(`/events/recent?${queryString.value}`);
+      const response = await axios.get(`/events/recent?${queryString.value}`, {
+        signal: controller.signal,
+      });
+      if (!componentMounted || generation !== envelopeFetchGeneration) return;
       const live = Array.isArray(response.data?.events)
         ? response.data.events.slice().reverse()
         : [];
-      liveRecords.value = live;
+      liveRecords.value = retainAgentSightRecords(live);
     } catch (error: any) {
+      if (controller.signal.aborted || generation !== envelopeFetchGeneration)
+        return;
       message.error(
         error?.response?.data?.error ||
           "Failed to load AgentSight event envelopes",
       );
     } finally {
-      loading.value = false;
+      if (generation === envelopeFetchGeneration) {
+        loading.value = false;
+        envelopeFetchController = null;
+      }
     }
   };
 
   const fetchTLSEvents = async () => {
+    tlsFetchController?.abort();
+    const controller = new AbortController();
+    tlsFetchController = controller;
+    const generation = ++tlsFetchGeneration;
     tlsLoading.value = true;
     try {
       const response = await axios.get(
         `/tls-capture/recent?limit=${agentSightLimitQuery(limit.value)}`,
+        { signal: controller.signal },
       );
+      if (!componentMounted || generation !== tlsFetchGeneration) return;
+      tlsCaptureAvailable = true;
       const tls = Array.isArray(response.data?.events)
         ? response.data.events.map(tlsCaptureEventToRecord)
         : [];
-      tlsRecords.value = tls;
+      tlsRecords.value = retainAgentSightRecords(tls);
+      if (!tlsWS && shouldReconnect) connectTLSWebSocket();
     } catch (error: any) {
-      if (error?.response?.status && error.response.status !== 404) {
+      if (controller.signal.aborted || generation !== tlsFetchGeneration) return;
+      const status = error?.response?.status;
+      if (status === 403 || status === 404) {
+        tlsCaptureAvailable = false;
+      } else if (status) {
         message.warning(
           error?.response?.data?.error ||
             "TLS capture history is not available",
@@ -366,13 +445,16 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
       }
       tlsRecords.value = [];
     } finally {
-      tlsLoading.value = false;
+      if (generation === tlsFetchGeneration) {
+        tlsLoading.value = false;
+        tlsFetchController = null;
+      }
     }
   };
 
   const fetchEvents = async () => {
     await Promise.all([fetchEnvelopeEvents(), fetchTLSEvents()]);
-    await autoLoadSampleIfEmpty();
+    if (componentMounted) await autoLoadSampleIfEmpty();
   };
 
   const mergeEnvelopeRecords = (incoming: Record<string, any>[]) => {
@@ -387,22 +469,47 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
             )
           : Date.now(),
     }));
-    liveRecords.value = applyAgentSightLimit(
-      [...records.reverse(), ...liveRecords.value],
-      limit.value,
-    );
+    liveRecords.value = retainAgentSightRecords([
+      ...records.reverse(),
+      ...liveRecords.value,
+    ]);
+  };
+
+  const disposeWebSocket = (socket: WebSocket | null) => {
+    if (!socket) return;
+    socket.onopen = null;
+    socket.onmessage = null;
+    socket.onclose = null;
+    socket.onerror = null;
+    if (
+      socket.readyState === WebSocket.CONNECTING ||
+      socket.readyState === WebSocket.OPEN
+    ) {
+      socket.close();
+    }
   };
 
   const connectEnvelopeWebSocket = () => {
     if (!shouldReconnect) return;
-    if (envelopeWS) envelopeWS.close();
+    if (
+      envelopeWS?.readyState === WebSocket.CONNECTING ||
+      envelopeWS?.readyState === WebSocket.OPEN
+    )
+      return;
+    disposeWebSocket(envelopeWS);
+    if (envelopeReconnectTimer) {
+      clearTimeout(envelopeReconnectTimer);
+      envelopeReconnectTimer = null;
+    }
     const socket = new WebSocket(buildWebSocketUrl("/ws/envelopes"));
     envelopeWS = socket;
     socket.binaryType = "arraybuffer";
     socket.onopen = () => {
+      if (envelopeWS !== socket) return;
       isEnvelopeConnected.value = true;
     };
     socket.onmessage = (event) => {
+      if (envelopeWS !== socket) return;
       try {
         const batch = pb.EventEnvelopeBatch.decode(new Uint8Array(event.data));
         const envelopes = JSON.parse(JSON.stringify(batch.envelopes || []));
@@ -412,85 +519,134 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
       }
     };
     socket.onclose = () => {
+      if (envelopeWS !== socket) return;
+      envelopeWS = null;
       isEnvelopeConnected.value = false;
-      if (shouldReconnect)
+      if (shouldReconnect) {
+        if (envelopeReconnectTimer) clearTimeout(envelopeReconnectTimer);
         envelopeReconnectTimer = setTimeout(connectEnvelopeWebSocket, 3000);
+      }
     };
     socket.onerror = () => {
+      if (envelopeWS !== socket) return;
       isEnvelopeConnected.value = false;
     };
   };
 
   const connectTLSWebSocket = () => {
-    if (!shouldReconnect) return;
-    if (tlsWS) tlsWS.close();
+    if (!shouldReconnect || !tlsCaptureAvailable) return;
+    if (
+      tlsWS?.readyState === WebSocket.CONNECTING ||
+      tlsWS?.readyState === WebSocket.OPEN
+    )
+      return;
+    disposeWebSocket(tlsWS);
+    if (tlsReconnectTimer) {
+      clearTimeout(tlsReconnectTimer);
+      tlsReconnectTimer = null;
+    }
     const socket = new WebSocket(buildWebSocketUrl("/ws/tls-capture"));
     tlsWS = socket;
     socket.onopen = () => {
+      if (tlsWS !== socket) return;
       isTLSConnected.value = true;
     };
     socket.onmessage = (event) => {
+      if (tlsWS !== socket) return;
       if (paused.value) return;
       try {
         const payload = JSON.parse(String(event.data));
-        tlsRecords.value = applyAgentSightLimit(
-          [tlsCaptureEventToRecord(payload), ...tlsRecords.value],
-          limit.value,
-        );
+        tlsRecords.value = retainAgentSightRecords([
+          tlsCaptureEventToRecord(payload),
+          ...tlsRecords.value,
+        ]);
       } catch (error) {
         console.error("AgentSight TLS websocket parse error", error);
       }
     };
     socket.onclose = () => {
+      if (tlsWS !== socket) return;
+      tlsWS = null;
       isTLSConnected.value = false;
-      if (shouldReconnect)
+      if (shouldReconnect && tlsCaptureAvailable) {
+        if (tlsReconnectTimer) clearTimeout(tlsReconnectTimer);
         tlsReconnectTimer = setTimeout(connectTLSWebSocket, 3000);
+      }
     };
     socket.onerror = () => {
+      if (tlsWS !== socket) return;
       isTLSConnected.value = false;
     };
   };
 
   const connectSystemWebSocket = () => {
     if (!shouldReconnect) return;
-    if (systemWS) systemWS.close();
+    if (
+      systemWS?.readyState === WebSocket.CONNECTING ||
+      systemWS?.readyState === WebSocket.OPEN
+    )
+      return;
+    disposeWebSocket(systemWS);
+    if (systemReconnectTimer) {
+      clearTimeout(systemReconnectTimer);
+      systemReconnectTimer = null;
+    }
     const socket = new WebSocket(
       buildWebSocketUrl("/ws/system", { interval: "2000" }),
     );
     systemWS = socket;
     socket.binaryType = "arraybuffer";
     socket.onopen = () => {
+      if (systemWS !== socket) return;
       isSystemConnected.value = true;
     };
     socket.onmessage = (event) => {
+      if (systemWS !== socket) return;
       if (paused.value) return;
       try {
         const stats = pb.SystemStats.decode(new Uint8Array(event.data));
         const plain = JSON.parse(JSON.stringify(stats));
         const timestamp = Date.now();
-        systemRecords.value = applyAgentSightLimit(
-          [...systemStatsToRecords(plain, timestamp), ...systemRecords.value],
-          limit.value,
-        );
+        systemRecords.value = retainAgentSightRecords([
+          ...systemStatsToRecords(plain, timestamp),
+          ...systemRecords.value,
+        ]);
       } catch (error) {
         console.error("AgentSight system websocket parse error", error);
       }
     };
     socket.onclose = () => {
+      if (systemWS !== socket) return;
+      systemWS = null;
       isSystemConnected.value = false;
-      if (shouldReconnect)
+      if (shouldReconnect) {
+        if (systemReconnectTimer) clearTimeout(systemReconnectTimer);
         systemReconnectTimer = setTimeout(connectSystemWebSocket, 3000);
+      }
     };
     socket.onerror = () => {
+      if (systemWS !== socket) return;
       isSystemConnected.value = false;
     };
   };
 
-  const importRecordsText = (text: string) => {
-    const parsed = parseAgentSightRecordsText(text);
-    importedRecords.value = [...parsed, ...importedRecords.value];
+  const importRecordsText = (text: string): AgentSightImportResult => {
+    const byteLength = agentSightTextByteLength(text);
+    if (byteLength > AGENTSIGHT_IMPORT_MAX_BYTES) {
+      throw new RangeError(
+        `AgentSight import exceeds ${AGENTSIGHT_IMPORT_MAX_BYTES} bytes`,
+      );
+    }
+    const parsed = parseAgentSightRecordsTextWithLimit(text);
+    const merged = [...parsed.records, ...importedRecords.value];
+    importedRecords.value = retainAgentSightRecords(merged);
     cacheAgentSightRecords(importedRecords.value);
-    return parsed.length;
+    return {
+      imported: parsed.records.length,
+      retained: importedRecords.value.length,
+      truncated:
+        parsed.truncated || merged.length > AGENTSIGHT_IMPORT_MAX_RECORDS,
+    };
   };
 
   const loadSampleTrace = async () => {
@@ -500,9 +656,11 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
       const response = await axios.get(AGENTSIGHT_SAMPLE_TRACE_URL, {
         responseType: "text",
       });
-      const parsed = parseAgentSightRecordsText(String(response.data || ""));
-      sampleRecords.value = parsed;
-      return parsed.length;
+      const parsed = parseAgentSightRecordsTextWithLimit(
+        String(response.data || ""),
+      );
+      sampleRecords.value = parsed.records;
+      return parsed.records.length;
     } catch {
       sampleRecords.value = [];
       return 0;
@@ -680,30 +838,51 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
   };
 
   watch(queryString, () => {
-    if (paused.value) return;
+    if (!componentMounted || paused.value) return;
     void fetchEnvelopeEvents();
   });
 
+  const runRefreshLoop = async () => {
+    if (!componentMounted) return;
+    if (!paused.value) await fetchEvents();
+    if (componentMounted) {
+      refreshTimer = setTimeout(() => void runRefreshLoop(), 10000);
+    }
+  };
+
   onMounted(() => {
-    void fetchEvents();
+    componentMounted = true;
+    shouldReconnect = true;
     connectEnvelopeWebSocket();
-    connectTLSWebSocket();
     connectSystemWebSocket();
-    refreshTimer = setInterval(() => {
-      if (paused.value) return;
-      void fetchEvents();
-    }, 10000);
+    void runRefreshLoop();
   });
 
   onUnmounted(() => {
+    componentMounted = false;
     shouldReconnect = false;
-    if (refreshTimer) clearInterval(refreshTimer);
+    if (refreshTimer) clearTimeout(refreshTimer);
     if (envelopeReconnectTimer) clearTimeout(envelopeReconnectTimer);
     if (tlsReconnectTimer) clearTimeout(tlsReconnectTimer);
     if (systemReconnectTimer) clearTimeout(systemReconnectTimer);
-    if (envelopeWS) envelopeWS.close();
-    if (tlsWS) tlsWS.close();
-    if (systemWS) systemWS.close();
+    refreshTimer = null;
+    envelopeReconnectTimer = null;
+    tlsReconnectTimer = null;
+    systemReconnectTimer = null;
+    envelopeFetchGeneration++;
+    tlsFetchGeneration++;
+    envelopeFetchController?.abort();
+    tlsFetchController?.abort();
+    envelopeFetchController = null;
+    tlsFetchController = null;
+    loading.value = false;
+    tlsLoading.value = false;
+    disposeWebSocket(envelopeWS);
+    disposeWebSocket(tlsWS);
+    disposeWebSocket(systemWS);
+    envelopeWS = null;
+    tlsWS = null;
+    systemWS = null;
   });
 
   return {
