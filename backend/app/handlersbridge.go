@@ -695,8 +695,8 @@ func initMLHandlersDeps() {
 	handlers.Deps.MLEnabled = func() bool { return mlEnabled }
 	handlers.Deps.MLConfig = func() core.MLConfig { return mlConfig }
 	handlers.Deps.CurrentMLConfig = currentMLConfig
-	handlers.Deps.MLIsRunning = func() bool { return globalTrainer.isRunning }
-	handlers.Deps.MLLogTotal = func() int { return globalTrainer.logTotal }
+	handlers.Deps.MLIsRunning = globalTrainer.IsRunning
+	handlers.Deps.MLLogTotal = globalTrainer.LogTotal
 	handlers.Deps.MLGetLogsResponse = mlGetLogsResponse
 	handlers.Deps.MLCancelTraining = globalTrainer.CancelTraining
 	handlers.Deps.MLGetHistoryResponse = mlGetHistoryResponse

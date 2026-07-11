@@ -344,10 +344,11 @@ func defaultMLModelPath() string {
 // mlStatus builds the ML status protobuf for the API
 func mlStatus() *pb.MLStatus {
 	cfg := currentMLConfig()
+	trainerState := globalTrainer.stateSnapshot()
 	status := &pb.MLStatus{
 		ModelLoaded:        mlModelLoaded,
-		TrainingInProgress: globalTrainer.isRunning,
-		TrainingProgress:   globalTrainer.progress,
+		TrainingInProgress: trainerState.IsRunning,
+		TrainingProgress:   trainerState.Progress,
 	}
 
 	if mlEngine != nil {
@@ -377,9 +378,9 @@ func mlStatus() *pb.MLStatus {
 		status.NumLabeledSamples = int32(labeled)
 	}
 
-	if !globalTrainer.lastTrain.IsZero() {
-		status.LastTrained = globalTrainer.lastTrain.Format(time.RFC3339)
-		status.TestAccuracy = globalTrainer.accuracy
+	if !trainerState.LastTrain.IsZero() {
+		status.LastTrained = trainerState.LastTrain.Format(time.RFC3339)
+		status.TestAccuracy = trainerState.Accuracy
 	}
 
 	if cfg.ModelPath != "" {

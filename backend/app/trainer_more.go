@@ -13,10 +13,8 @@ import (
 func (t *ModelTrainer) trainNaiveBayes(store *TrainingDataStore, cfg MLConfig) (Model, TrainResult) {
 	t.acquire()
 	defer t.release()
-	t.ResetCancel()
-	t.isRunning = true
-	t.progress = 0
-	defer func() { t.isRunning = false; t.progress = 1.0 }()
+	t.beginTraining()
+	defer t.finishTraining()
 
 	labeled := store.LabeledSamples()
 	if len(labeled) < 10 {
@@ -89,10 +87,8 @@ func (t *ModelTrainer) trainNaiveBayes(store *TrainingDataStore, cfg MLConfig) (
 func (t *ModelTrainer) trainNearestCentroid(store *TrainingDataStore, cfg MLConfig) (Model, TrainResult) {
 	t.acquire()
 	defer t.release()
-	t.ResetCancel()
-	t.isRunning = true
-	t.progress = 0
-	defer func() { t.isRunning = false; t.progress = 1.0 }()
+	t.beginTraining()
+	defer t.finishTraining()
 
 	labeled := store.LabeledSamples()
 	if len(labeled) < 10 {
@@ -161,10 +157,8 @@ func (t *ModelTrainer) trainNearestCentroid(store *TrainingDataStore, cfg MLConf
 func (t *ModelTrainer) trainExtraTrees(store *TrainingDataStore, cfg MLConfig) (Model, TrainResult) {
 	t.acquire()
 	defer t.release()
-	t.ResetCancel()
-	t.isRunning = true
-	t.progress = 0
-	defer func() { t.isRunning = false; t.progress = 1.0 }()
+	t.beginTraining()
+	defer t.finishTraining()
 
 	labeled := store.LabeledSamples()
 	if len(labeled) < cfg.MinSamplesLeaf*10 {
@@ -206,10 +200,8 @@ func (t *ModelTrainer) trainExtraTrees(store *TrainingDataStore, cfg MLConfig) (
 func (t *ModelTrainer) trainAdaBoost(store *TrainingDataStore, cfg MLConfig) (Model, TrainResult) {
 	t.acquire()
 	defer t.release()
-	t.ResetCancel()
-	t.isRunning = true
-	t.progress = 0
-	defer func() { t.isRunning = false; t.progress = 1.0 }()
+	t.beginTraining()
+	defer t.finishTraining()
 
 	labeled := store.LabeledSamples()
 	if len(labeled) < 10 {
@@ -235,7 +227,7 @@ func (t *ModelTrainer) trainAdaBoost(store *TrainingDataStore, cfg MLConfig) (Mo
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	for e := 0; e < nEst; e++ {
-		t.progress = float64(e) / float64(nEst)
+		t.setTrainingProgress(float64(e) / float64(nEst))
 		if t.IsCancelled() {
 			return nil, TrainResult{Error: "cancelled"}
 		}
@@ -323,10 +315,8 @@ func (t *ModelTrainer) trainAdaBoost(store *TrainingDataStore, cfg MLConfig) (Mo
 func (t *ModelTrainer) trainEnsemble(store *TrainingDataStore, cfg MLConfig) (Model, TrainResult) {
 	t.acquire()
 	defer t.release()
-	t.ResetCancel()
-	t.isRunning = true
-	t.progress = 0
-	defer func() { t.isRunning = false; t.progress = 1.0 }()
+	t.beginTraining()
+	defer t.finishTraining()
 
 	labeled := store.LabeledSamples()
 	if len(labeled) < 10 {

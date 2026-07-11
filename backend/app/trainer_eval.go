@@ -11,11 +11,9 @@ func (t *ModelTrainer) acquire() { t.mu <- struct{}{} }
 func (t *ModelTrainer) release() { <-t.mu }
 
 func (t *ModelTrainer) finishMetrics(acc, trainAcc, valAcc float64, total, trainN, valN int) {
-	t.lastTrain = time.Now()
-	t.accuracy = acc
-	t.trainAccuracy = trainAcc
-	t.validationAccuracy = valAcc
-	t.addHistory(TrainingHistoryEntry{Timestamp: t.lastTrain, Accuracy: acc, NumSamples: total})
+	trainedAt := time.Now()
+	t.setTrainingResult(trainedAt, acc, trainAcc, valAcc)
+	t.addHistory(TrainingHistoryEntry{Timestamp: trainedAt, Accuracy: acc, NumSamples: total})
 }
 
 func evalModelLabeled(model Model, labeled []TrainingSample) float64 {

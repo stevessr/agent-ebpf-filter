@@ -20,6 +20,8 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 	default:
 		return nil, errors.New("training already in progress")
 	}
+	t.beginTraining()
+	defer t.finishTraining()
 
 	xAxis := normalizeAutoTuneAxis(req.XAxis)
 	yAxis := normalizeAutoTuneAxis(req.YAxis)
@@ -93,12 +95,12 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 	if mt == "" {
 		mt = ModelRandomForest
 	}
-	globalTrainer.logf("══════ 自动调参开始 ══════")
-	globalTrainer.logf("模型类型: %s, 方阵: %dx%d, 轴: %s×%s", modelName(requestedModelType), gridSize, gridSize, xAxis, yAxis)
+	t.logf("══════ 自动调参开始 ══════")
+	t.logf("模型类型: %s, 方阵: %dx%d, 轴: %s×%s", modelName(requestedModelType), gridSize, gridSize, xAxis, yAxis)
 	if cuda.IsAvailable() {
-		globalTrainer.logf("CUDA 加速已启用: %s", cuda.DeviceInfo())
+		t.logf("CUDA 加速已启用: %s", cuda.DeviceInfo())
 	} else {
-		globalTrainer.logf("CPU 模式（无 CUDA 设备）")
+		t.logf("CPU 模式（无 CUDA 设备）")
 	}
 
 	if progressCb != nil {
@@ -122,8 +124,8 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 	done := 0
 	for yi, yValue := range yValues {
 		for xi, xValue := range xValues {
-			if globalTrainer.IsCancelled() {
-				globalTrainer.logf("自动调参已中止：%d/%d 格完成", done, totalCombos)
+			if t.IsCancelled() {
+				t.logf("自动调参已中止：%d/%d 格完成", done, totalCombos)
 				return nil, errors.New("cancelled")
 			}
 			numTrees, maxDepth, minLeaf := baseNumTrees, baseMaxDepth, baseMinSamplesLeaf
@@ -140,6 +142,7 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 			case ModelRandomForest:
 				if len(labeled) < minLeaf*10 {
 					done++
+					t.setTrainingProgress(float64(done) / float64(totalCombos))
 					if progressCb != nil {
 						progressCb(done, totalCombos, fmt.Sprintf("跳过 %d/%d (RF 样本不足)", done, totalCombos))
 					}
@@ -286,6 +289,7 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 				ens := buildEnsembleFromStore(tmpStore)
 				if ens == nil {
 					done++
+					t.setTrainingProgress(float64(done) / float64(totalCombos))
 					if progressCb != nil {
 						progressCb(done, totalCombos, fmt.Sprintf("跳过 %d/%d (ensemble 样本不足)", done, totalCombos))
 					}
@@ -399,7 +403,7 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 					for i, s := range trainSet {
 						labeledSubset[i] = TrainingSample{Features: s.features, Label: s.label}
 					}
-					trainSGD(W, 4, labeledSubset, lr, maxIter, C, loss, nil, globalTrainer)
+					trainSGD(W, 4, labeledSubset, lr, maxIter, C, loss, nil, t)
 				}
 				trainAccuracy = evalLinearModel(W, 4, trainSet)
 				evalStart = time.Now()
@@ -459,8 +463,9 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 			}
 
 			done++
+			t.setTrainingProgress(float64(done) / float64(totalCombos))
 			if done%3 == 0 || done == totalCombos {
-				globalTrainer.logf("%s 调优: %d/%d 格 (准确率 %.1f%%)", modelName(requestedModelType), done, totalCombos, validationAccuracy*100)
+				t.logf("%s 调优: %d/%d 格 (准确率 %.1f%%)", modelName(requestedModelType), done, totalCombos, validationAccuracy*100)
 			}
 			if progressCb != nil {
 				progressCb(done, totalCombos, fmt.Sprintf("%s 评估 %d/%d%s", modelName(requestedModelType), done, totalCombos, cudaLog))

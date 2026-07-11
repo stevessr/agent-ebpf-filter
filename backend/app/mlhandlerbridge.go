@@ -15,7 +15,7 @@ func mlGetLogsResponse() gin.H {
 	for i, entry := range logs {
 		items[i] = gin.H{"time": entry.Timestamp.Format("15:04:05"), "message": entry.Message}
 	}
-	return gin.H{"logs": items, "total": globalTrainer.logTotal}
+	return gin.H{"logs": items, "total": globalTrainer.LogTotal()}
 }
 
 func mlGetHistoryResponse() gin.H {

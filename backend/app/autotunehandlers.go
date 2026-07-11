@@ -31,7 +31,7 @@ func autotuneTunePost(c *gin.Context) {
 		c.JSON(409, gin.H{"error": "auto tuning already in progress"})
 		return
 	}
-	if globalTrainer.isRunning {
+	if globalTrainer.IsRunning() {
 		c.JSON(409, gin.H{"error": "training already in progress"})
 		return
 	}
@@ -92,7 +92,7 @@ func autotuneTuneModelsPost(c *gin.Context) {
 		c.JSON(409, gin.H{"error": "auto tuning already in progress"})
 		return
 	}
-	if globalTrainer.isRunning {
+	if globalTrainer.IsRunning() {
 		c.JSON(409, gin.H{"error": "training already in progress"})
 		return
 	}

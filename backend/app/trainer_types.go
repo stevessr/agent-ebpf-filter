@@ -37,6 +37,8 @@ type TrainingHistoryEntry struct {
 // ModelTrainer builds and evaluates random forest models
 type ModelTrainer struct {
 	mu                 chan struct{} // single-training mutex via channel
+	stateMu            sync.RWMutex
+	cancelMu           sync.Mutex
 	cancelCh           chan struct{} // closed to request cancellation
 	isRunning          bool
 	progress           float64
@@ -59,6 +61,17 @@ type ModelTrainer struct {
 	lastTrainSamples      []TrainingSample
 	lastValidationSamples []TrainingSample
 	lastLLMReview         *LLMReviewSummary
+}
+
+type modelTrainerStateSnapshot struct {
+	IsRunning          bool
+	Progress           float64
+	LastError          string
+	LastTrain          time.Time
+	Accuracy           float64
+	TrainAccuracy      float64
+	ValidationAccuracy float64
+	ValidationRatio    float64
 }
 
 // TrainResult holds the outcome of a training run
@@ -97,16 +110,31 @@ var globalTrainer = &ModelTrainer{
 
 // CancelTraining signals any running training to stop.
 func (t *ModelTrainer) CancelTraining() {
-	if t.isRunning {
-		t.logf("训练中止请求已接收")
+	if !t.IsRunning() {
+		return
+	}
+	t.cancelMu.Lock()
+	if t.cancelCh == nil {
+		t.cancelCh = make(chan struct{})
+	}
+	select {
+	case <-t.cancelCh:
+		t.cancelMu.Unlock()
+		return
+	default:
 		close(t.cancelCh)
 	}
+	t.cancelMu.Unlock()
+	t.logf("训练中止请求已接收")
 }
 
 // IsCancelled returns true if cancellation has been requested.
 func (t *ModelTrainer) IsCancelled() bool {
+	t.cancelMu.Lock()
+	cancelCh := t.cancelCh
+	t.cancelMu.Unlock()
 	select {
-	case <-t.cancelCh:
+	case <-cancelCh:
 		return true
 	default:
 		return false
@@ -115,7 +143,71 @@ func (t *ModelTrainer) IsCancelled() bool {
 
 // ResetCancel prepares a new cancel channel for the next training run.
 func (t *ModelTrainer) ResetCancel() {
+	t.cancelMu.Lock()
 	t.cancelCh = make(chan struct{})
+	t.cancelMu.Unlock()
+}
+
+func (t *ModelTrainer) beginTraining() {
+	t.ResetCancel()
+	t.stateMu.Lock()
+	t.isRunning = true
+	t.progress = 0
+	t.lastError = ""
+	t.stateMu.Unlock()
+}
+
+func (t *ModelTrainer) finishTraining() {
+	t.stateMu.Lock()
+	t.isRunning = false
+	t.progress = 1
+	t.stateMu.Unlock()
+}
+
+func (t *ModelTrainer) setTrainingProgress(progress float64) {
+	t.stateMu.Lock()
+	t.progress = progress
+	t.stateMu.Unlock()
+}
+
+func (t *ModelTrainer) setTrainingResult(at time.Time, accuracy, trainAccuracy, validationAccuracy float64) {
+	t.stateMu.Lock()
+	t.lastTrain = at
+	t.accuracy = accuracy
+	t.trainAccuracy = trainAccuracy
+	t.validationAccuracy = validationAccuracy
+	t.stateMu.Unlock()
+}
+
+func (t *ModelTrainer) setValidationRatio(ratio float64) {
+	t.stateMu.Lock()
+	t.validationRatio = ratio
+	t.stateMu.Unlock()
+}
+
+func (t *ModelTrainer) stateSnapshot() modelTrainerStateSnapshot {
+	t.stateMu.RLock()
+	defer t.stateMu.RUnlock()
+	return modelTrainerStateSnapshot{
+		IsRunning:          t.isRunning,
+		Progress:           t.progress,
+		LastError:          t.lastError,
+		LastTrain:          t.lastTrain,
+		Accuracy:           t.accuracy,
+		TrainAccuracy:      t.trainAccuracy,
+		ValidationAccuracy: t.validationAccuracy,
+		ValidationRatio:    t.validationRatio,
+	}
+}
+
+func (t *ModelTrainer) IsRunning() bool {
+	return t.stateSnapshot().IsRunning
+}
+
+func (t *ModelTrainer) LogTotal() int {
+	t.logMu.RLock()
+	defer t.logMu.RUnlock()
+	return t.logTotal
 }
 
 func (t *ModelTrainer) logf(format string, args ...interface{}) {
@@ -123,6 +215,9 @@ func (t *ModelTrainer) logf(format string, args ...interface{}) {
 	log.Printf("[ML-Train] %s", msg)
 
 	t.logMu.Lock()
+	if t.logMaxSize <= 0 {
+		t.logMaxSize = 200
+	}
 	entry := TrainingLogEntry{Timestamp: time.Now(), Message: msg}
 	if len(t.logs) < t.logMaxSize {
 		t.logs = append(t.logs, entry)
@@ -147,7 +242,14 @@ func (t *ModelTrainer) GetLogs(limit int) []TrainingLogEntry {
 		return nil
 	}
 	out := make([]TrainingLogEntry, limit)
-	copy(out, t.logs[max(0, n-limit):])
+	logicalStart := n - limit
+	for i := 0; i < limit; i++ {
+		index := logicalStart + i
+		if t.logTotal > n {
+			index = (t.logNext + index) % n
+		}
+		out[i] = t.logs[index]
+	}
 	return out
 }
 
@@ -220,20 +322,22 @@ func (t *ModelTrainer) LastLLMReview() *LLMReviewSummary {
 }
 
 func (t *ModelTrainer) SplitMetrics() (trainAccuracy, validationAccuracy, validationRatio float64, trainSamples, validationSamples int) {
+	state := t.stateSnapshot()
 	t.splitMu.RLock()
 	defer t.splitMu.RUnlock()
 
-	return t.trainAccuracy, t.validationAccuracy, t.validationRatio, len(t.lastTrainSamples), len(t.lastValidationSamples)
+	return state.TrainAccuracy, state.ValidationAccuracy, state.ValidationRatio, len(t.lastTrainSamples), len(t.lastValidationSamples)
 }
 
 // GetStatus returns training status for the API
 func (t *ModelTrainer) GetStatus() map[string]interface{} {
+	state := t.stateSnapshot()
 	return map[string]interface{}{
-		"isRunning": t.isRunning,
-		"progress":  t.progress,
-		"lastError": t.lastError,
-		"lastTrain": t.lastTrain.Format(time.RFC3339),
-		"accuracy":  t.accuracy,
+		"isRunning": state.IsRunning,
+		"progress":  state.Progress,
+		"lastError": state.LastError,
+		"lastTrain": state.LastTrain.Format(time.RFC3339),
+		"accuracy":  state.Accuracy,
 	}
 }
 

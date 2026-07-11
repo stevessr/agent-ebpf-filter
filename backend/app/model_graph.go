@@ -54,10 +54,8 @@ func DeserializeGraphLearning(path string) (*GraphLearningModel, error) {
 func (t *ModelTrainer) trainGraph(store *TrainingDataStore, cfg MLConfig) (Model, TrainResult) {
 	t.acquire()
 	defer t.release()
-	t.ResetCancel()
-	t.isRunning = true
-	t.progress = 0
-	defer func() { t.isRunning = false; t.progress = 1.0 }()
+	t.beginTraining()
+	defer t.finishTraining()
 
 	labeled := store.LabeledSamples()
 	if len(labeled) < 10 {
@@ -113,7 +111,7 @@ func (t *ModelTrainer) trainGraph(store *TrainingDataStore, cfg MLConfig) (Model
 
 	// Train GNN
 	finalLoss := clf.Train(trainFeats, trainLabels, gnnCfg.Epochs, gnnCfg.BatchSize, func(p float64) {
-		t.progress = p
+		t.setTrainingProgress(p)
 		// Log every 10%
 		percent := int(p * 100)
 		if percent%10 == 0 && percent > 0 {

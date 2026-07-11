@@ -20,16 +20,11 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 		return nil, TrainResult{Error: "training already in progress"}
 	}
 
-	t.ResetCancel()
-	t.isRunning = true
-	t.progress = 0
+	t.beginTraining()
 	trainStart := time.Now()
 	t.logf("══════ Training started ══════")
 	t.logf("Config: trees=%d, maxDepth=%d, minSamplesLeaf=%d", numTrees, maxDepth, minSamplesLeaf)
-	defer func() {
-		t.isRunning = false
-		t.progress = 1.0
-	}()
+	defer t.finishTraining()
 
 	labeled := store.LabeledSamples()
 	if len(labeled) < minSamplesLeaf*10 {
@@ -84,7 +79,8 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 			t.logf("训练已中止")
 			return nil, TrainResult{Error: "cancelled"}
 		}
-		t.progress = float64(ti) / float64(numTrees)
+		progress := float64(ti) / float64(numTrees)
+		t.setTrainingProgress(progress)
 		tStart := time.Now()
 
 		bootstrap := make([]trainSample, len(trainSet))
@@ -97,7 +93,7 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 		elapsed := time.Since(tStart)
 		if ti%10 == 0 || ti == numTrees-1 {
 			t.logf("Tree %d/%d built: %d nodes, %s (%.0f%%)",
-				ti+1, numTrees, len(nodes), elapsed.Round(time.Microsecond), t.progress*100)
+				ti+1, numTrees, len(nodes), elapsed.Round(time.Microsecond), progress*100)
 		}
 	}
 	treeElapsed := time.Since(treeStart)
@@ -151,11 +147,8 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 		}
 	}
 
-	t.accuracy = validationAccuracy
-	t.trainAccuracy = trainAccuracy
-	t.validationAccuracy = validationAccuracy
-	t.validationRatio = validationRatio
-	t.lastTrain = time.Now()
+	t.setTrainingResult(time.Now(), validationAccuracy, trainAccuracy, validationAccuracy)
+	t.setValidationRatio(validationRatio)
 	t.logf("══════ Training complete in %s ══════", treeElapsed.Round(time.Millisecond))
 	t.setLastSplit(trainRaw, validationRaw)
 
@@ -242,10 +235,8 @@ func (t *ModelTrainer) trainKNN(store *TrainingDataStore, cfg MLConfig) (Model, 
 	t.mu <- struct{}{}
 	defer func() { <-t.mu }()
 
-	t.ResetCancel()
-	t.isRunning = true
-	t.progress = 0
-	defer func() { t.isRunning = false; t.progress = 1.0 }()
+	t.beginTraining()
+	defer t.finishTraining()
 
 	labeled := store.LabeledSamples()
 	if len(labeled) == 0 {
@@ -291,13 +282,11 @@ func (t *ModelTrainer) trainKNN(store *TrainingDataStore, cfg MLConfig) (Model, 
 	}
 	accuracy := float64(correct) / float64(len(labeled))
 
-	t.lastTrain = time.Now()
-	t.accuracy = accuracy
-	t.trainAccuracy = accuracy
-	t.validationAccuracy = accuracy
+	trainedAt := time.Now()
+	t.setTrainingResult(trainedAt, accuracy, accuracy, accuracy)
 
 	t.addHistory(TrainingHistoryEntry{
-		Timestamp:  t.lastTrain,
+		Timestamp:  trainedAt,
 		Accuracy:   accuracy,
 		NumSamples: len(labeled),
 	})
@@ -316,10 +305,8 @@ func (t *ModelTrainer) trainLogistic(store *TrainingDataStore, cfg MLConfig) (Mo
 	t.mu <- struct{}{}
 	defer func() { <-t.mu }()
 
-	t.ResetCancel()
-	t.isRunning = true
-	t.progress = 0
-	defer func() { t.isRunning = false; t.progress = 1.0 }()
+	t.beginTraining()
+	defer t.finishTraining()
 
 	labeled := store.LabeledSamples()
 	if len(labeled) < 10 {
@@ -391,13 +378,11 @@ func (t *ModelTrainer) trainLogistic(store *TrainingDataStore, cfg MLConfig) (Mo
 		valAcc = float64(valCorrect) / float64(valSamples)
 	}
 
-	t.lastTrain = time.Now()
-	t.accuracy = valAcc
-	t.trainAccuracy = trainAcc
-	t.validationAccuracy = valAcc
+	trainedAt := time.Now()
+	t.setTrainingResult(trainedAt, valAcc, trainAcc, valAcc)
 
 	t.addHistory(TrainingHistoryEntry{
-		Timestamp:  t.lastTrain,
+		Timestamp:  trainedAt,
 		Accuracy:   valAcc,
 		NumSamples: len(labeled),
 	})

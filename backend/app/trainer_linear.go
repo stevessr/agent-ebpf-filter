@@ -13,10 +13,8 @@ import (
 func (t *ModelTrainer) trainSVM(store *TrainingDataStore, cfg MLConfig) (Model, TrainResult) {
 	t.acquire()
 	defer t.release()
-	t.ResetCancel()
-	t.isRunning = true
-	t.progress = 0
-	defer func() { t.isRunning = false; t.progress = 1.0 }()
+	t.beginTraining()
+	defer t.finishTraining()
 
 	labeled := store.LabeledSamples()
 	if len(labeled) < 10 {
@@ -61,10 +59,8 @@ func (t *ModelTrainer) trainSVM(store *TrainingDataStore, cfg MLConfig) (Model, 
 func (t *ModelTrainer) trainRidge(store *TrainingDataStore, cfg MLConfig) (Model, TrainResult) {
 	t.acquire()
 	defer t.release()
-	t.ResetCancel()
-	t.isRunning = true
-	t.progress = 0
-	defer func() { t.isRunning = false; t.progress = 1.0 }()
+	t.beginTraining()
+	defer t.finishTraining()
 
 	labeled := store.LabeledSamples()
 	if len(labeled) < 10 {
@@ -94,10 +90,8 @@ func (t *ModelTrainer) trainRidge(store *TrainingDataStore, cfg MLConfig) (Model
 func (t *ModelTrainer) trainPerceptron(store *TrainingDataStore, cfg MLConfig) (Model, TrainResult) {
 	t.acquire()
 	defer t.release()
-	t.ResetCancel()
-	t.isRunning = true
-	t.progress = 0
-	defer func() { t.isRunning = false; t.progress = 1.0 }()
+	t.beginTraining()
+	defer t.finishTraining()
 
 	labeled := store.LabeledSamples()
 	if len(labeled) < 10 {
@@ -142,10 +136,8 @@ func (t *ModelTrainer) trainPerceptron(store *TrainingDataStore, cfg MLConfig) (
 func (t *ModelTrainer) trainPA(store *TrainingDataStore, cfg MLConfig) (Model, TrainResult) {
 	t.acquire()
 	defer t.release()
-	t.ResetCancel()
-	t.isRunning = true
-	t.progress = 0
-	defer func() { t.isRunning = false; t.progress = 1.0 }()
+	t.beginTraining()
+	defer t.finishTraining()
 
 	labeled := store.LabeledSamples()
 	if len(labeled) < 10 {
