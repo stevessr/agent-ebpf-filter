@@ -285,28 +285,23 @@ func (r *backendTaskRuntime) run(queue <-chan *backendTaskRuntimeEntry, done cha
 			continue
 		}
 		if !entry.markRunning() {
-			entry.finish(backendTaskStatusCanceled, 1, "")
-			r.noteFinished(entry, backendTaskStatusCanceled, "", false)
+			r.completeEntry(entry, backendTaskStatusCanceled, 1, "", false)
 			continue
 		}
 		err := r.execute(entry)
 		if err != nil {
 			if errors.Is(err, errBackendTaskCanceled) || entry.IsCanceled() {
-				entry.finish(backendTaskStatusCanceled, 1, "")
-				r.noteFinished(entry, backendTaskStatusCanceled, "", false)
+				r.completeEntry(entry, backendTaskStatusCanceled, 1, "", false)
 				continue
 			}
-			entry.finish(backendTaskStatusFailed, entry.Progress(), err.Error())
-			r.noteFinished(entry, backendTaskStatusFailed, err.Error(), errors.Is(err, errBackendTaskHandlerPanic))
+			r.completeEntry(entry, backendTaskStatusFailed, entry.Progress(), err.Error(), errors.Is(err, errBackendTaskHandlerPanic))
 			continue
 		}
 		if entry.IsCanceled() {
-			entry.finish(backendTaskStatusCanceled, 1, "")
-			r.noteFinished(entry, backendTaskStatusCanceled, "", false)
+			r.completeEntry(entry, backendTaskStatusCanceled, 1, "", false)
 			continue
 		}
-		entry.finish(backendTaskStatusSucceeded, 1, "")
-		r.noteFinished(entry, backendTaskStatusSucceeded, "", false)
+		r.completeEntry(entry, backendTaskStatusSucceeded, 1, "", false)
 	}
 }
 
@@ -360,11 +355,29 @@ func newBackendTaskPanicError(recovered any) error {
 	return fmt.Errorf("%w: %v", errBackendTaskHandlerPanic, recovered)
 }
 
-func (r *backendTaskRuntime) noteFinished(entry *backendTaskRuntimeEntry, status, message string, panicked bool) {
-	if r == nil {
+func (r *backendTaskRuntime) completeEntry(entry *backendTaskRuntimeEntry, status string, progress float64, message string, panicked bool) {
+	if r == nil || entry == nil {
 		return
 	}
 	snapshot := entry.Snapshot()
+	if snapshot.FinishedAt == nil {
+		finishedAt := time.Now().UTC()
+		snapshot.FinishedAt = &finishedAt
+	}
+	snapshot.Status = status
+	snapshot.Progress = progress
+	snapshot.Error = message
+	r.noteFinished(snapshot, status, message, panicked)
+	entry.finishAt(status, progress, message, *snapshot.FinishedAt)
+	r.mu.Lock()
+	r.pruneLocked()
+	r.mu.Unlock()
+}
+
+func (r *backendTaskRuntime) noteFinished(snapshot backendTaskRuntimeSnapshot, status, message string, panicked bool) {
+	if r == nil {
+		return
+	}
 	queueLatency, runDuration, totalDuration := backendTaskSnapshotDurations(snapshot)
 	r.mu.Lock()
 	r.completedTotal++
@@ -392,7 +405,6 @@ func (r *backendTaskRuntime) noteFinished(entry *backendTaskRuntimeEntry, status
 	}
 	r.lastError = message
 	r.updatedAt = time.Now().UTC()
-	r.pruneLocked()
 	r.mu.Unlock()
 }
 
@@ -550,6 +562,10 @@ func (entry *backendTaskRuntimeEntry) Progress() float64 {
 }
 
 func (entry *backendTaskRuntimeEntry) finish(status string, progress float64, message string) {
+	entry.finishAt(status, progress, message, time.Now().UTC())
+}
+
+func (entry *backendTaskRuntimeEntry) finishAt(status string, progress float64, message string, finishedAt time.Time) {
 	if entry == nil {
 		return
 	}
@@ -559,7 +575,6 @@ func (entry *backendTaskRuntimeEntry) finish(status string, progress float64, me
 	if progress > 1 {
 		progress = 1
 	}
-	now := time.Now().UTC()
 	entry.mu.Lock()
 	if backendTaskStatusTerminal(entry.status) && entry.finishedAt != nil {
 		entry.mu.Unlock()
@@ -567,7 +582,7 @@ func (entry *backendTaskRuntimeEntry) finish(status string, progress float64, me
 	}
 	entry.status = status
 	entry.progress = progress
-	entry.finishedAt = &now
+	entry.finishedAt = &finishedAt
 	entry.err = message
 	entry.mu.Unlock()
 }
