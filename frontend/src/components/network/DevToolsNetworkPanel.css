@@ -317,6 +317,16 @@
 .nw-row:hover {
   background: #f5f5f5;
 }
+.nw-icon-btn:focus-visible,
+.nw-filter-clear:focus-visible,
+.nw-chip:focus-visible,
+.nw-row:focus-visible,
+.nw-dtab:focus-visible,
+.nw-copy-btn:focus-visible,
+.nw-close-btn:focus-visible {
+  outline: 2px solid #1a73e8;
+  outline-offset: -2px;
+}
 .nw-row.nw-selected {
   background: #e8f0fe;
 }

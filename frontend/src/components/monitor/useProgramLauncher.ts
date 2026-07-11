@@ -1,4 +1,4 @@
-import { ref, type Ref } from "vue";
+import { ref, watch, type Ref } from "vue";
 import axios from "axios";
 
 export function useProgramLauncher(options: {
@@ -76,11 +76,12 @@ export function useProgramLauncher(options: {
   const fetchUserInfo = async () => {
     try {
       const res = await axios.get("/system/user-info");
-      launchCwd.value = res.data.home || "/tmp";
-      launchUser.value = res.data.username || "";
+      if (!launchCwd.value.trim()) launchCwd.value = res.data.home || "/tmp";
+      if (!launchUser.value.trim()) launchUser.value = res.data.username || "";
+      return true;
     } catch {
-      launchCwd.value = "/tmp";
-      launchUser.value = "";
+      if (!launchCwd.value.trim()) launchCwd.value = "/tmp";
+      return false;
     }
   };
 
@@ -89,15 +90,32 @@ export function useProgramLauncher(options: {
     try {
       const res = await axios.get("/system/users");
       sysUsers.value = Array.isArray(res.data) ? res.data : [];
+      return true;
     } catch {
       sysUsers.value = [];
+      return false;
     } finally {
       usersLoading.value = false;
     }
   };
 
-  fetchUserInfo();
-  fetchUsers();
+  let launcherContextPromise: Promise<void> | null = null;
+  let launcherContextLoaded = false;
+  const loadLauncherContext = () => {
+    if (launcherContextLoaded) return Promise.resolve();
+    launcherContextPromise ??= Promise.all([fetchUserInfo(), fetchUsers()])
+      .then((results) => {
+        launcherContextLoaded = results.every(Boolean);
+      })
+      .finally(() => {
+        launcherContextPromise = null;
+      });
+    return launcherContextPromise;
+  };
+
+  watch(launchModalOpen, (open) => {
+    if (open) void loadLauncherContext();
+  });
 
   const openBrowser = (target: BrowseTarget) => {
     browserTarget.value = target;

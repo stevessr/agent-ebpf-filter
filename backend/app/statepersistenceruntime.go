@@ -396,6 +396,7 @@ func recordCapturedEvent(event *pb.Event) CapturedEventRecord {
 		ReceivedAt: time.Now().UTC(),
 		Event:      eventCopy,
 	})
+	record = redactCapturedEventRecord(record, globalRedactionEngine)
 	capturedEventArchive.Add(record)
 	collectorMetricsStore.RecordCapturedArchive()
 	appendStart := time.Now()

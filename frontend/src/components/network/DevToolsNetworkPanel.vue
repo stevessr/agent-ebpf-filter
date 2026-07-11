@@ -6,11 +6,13 @@
  * in a split-panel layout with a Chrome-like request list on the left and a detail
  * panel with Headers / Payload / Response / Timing tabs on the right.
  */
-import { computed, reactive, ref, watch, nextTick } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import { CopyOutlined } from "@ant-design/icons-vue";
 import { message } from "ant-design-vue";
 import {
+  activateOnKeyboard,
   buildFullUrl,
+  createTransactionSearchIndex,
   extractPathname,
   formatBody,
   formatBytes,
@@ -47,7 +49,6 @@ const activeDetailTab = ref<"headers" | "payload" | "response" | "timing">(
 );
 const filterText = ref("");
 const activeTypeFilter = ref("all");
-const preserveLog = ref(false);
 
 const openSections = reactive<Record<string, boolean>>({
   general: true,
@@ -178,6 +179,10 @@ const mergedTransactions = computed<MergedTransaction[]>(() => {
 });
 
 /* ──── Filtering ──── */
+const transactionSearchText = computed(() =>
+  createTransactionSearchIndex(mergedTransactions.value),
+);
+
 const displayTransactions = computed(() => {
   let list = mergedTransactions.value;
 
@@ -202,22 +207,8 @@ const displayTransactions = computed(() => {
   // Text filter
   if (filterText.value.trim()) {
     const q = filterText.value.trim().toLowerCase();
-    list = list.filter(
-      (tx) =>
-        tx.name.toLowerCase().includes(q) ||
-        tx.fullUrl.toLowerCase().includes(q) ||
-        tx.host.toLowerCase().includes(q) ||
-        tx.method.toLowerCase().includes(q) ||
-        (tx.comm || "").toLowerCase().includes(q) ||
-        String(tx.status || "").includes(q) ||
-        (tx.request?.body || "").toLowerCase().includes(q) ||
-        (tx.response?.body || "").toLowerCase().includes(q) ||
-        JSON.stringify(tx.request?.headers || {})
-          .toLowerCase()
-          .includes(q) ||
-        JSON.stringify(tx.response?.headers || {})
-          .toLowerCase()
-          .includes(q),
+    list = list.filter((tx) =>
+      transactionSearchText.value.get(tx)?.includes(q),
     );
   }
 
@@ -372,12 +363,14 @@ watch(
           <input
             v-model="filterText"
             class="nw-filter-input"
+            aria-label="Filter network requests"
             placeholder="Filter"
             spellcheck="false"
           />
           <button
             v-if="filterText"
             class="nw-filter-clear"
+            aria-label="Clear network request filter"
             @click="filterText = ''"
           >
             ✕
@@ -411,6 +404,7 @@ watch(
           v-for="f in typeFilters"
           :key="f.value"
           :class="['nw-chip', { active: activeTypeFilter === f.value }]"
+          :aria-pressed="activeTypeFilter === f.value"
           @click="activeTypeFilter = f.value"
         >
           {{ f.label }}
@@ -446,7 +440,9 @@ watch(
                 'nw-error': tx.status && tx.status >= 400,
               },
             ]"
+            role="button" tabindex="0" :aria-pressed="selected?.id === tx.id"
             @click="selectTx(tx)"
+            @keydown="activateOnKeyboard($event, () => selectTx(tx))"
           >
             <div class="nw-col nw-col-name" :title="tx.fullUrl">
               <span class="nw-name-text">{{ tx.name || "/" }}</span>

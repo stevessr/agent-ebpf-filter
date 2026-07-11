@@ -289,6 +289,7 @@ graph TB
 - TLS / Codex body 截断；
 - sanitized_fields；
 - secrets / tokens / headers / query / JSON body redaction。
+- 归档、JSONL 持久化、事件录制、OTel 导出、后台处理队列与 WebSocket 广播共用已脱敏的规范事件，避免原始敏感字段先于脱敏落盘或外发。
 
 ## 高风险能力清单
 

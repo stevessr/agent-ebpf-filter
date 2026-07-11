@@ -49,7 +49,7 @@ whether recent feedback actions were applied, dropped, or failed.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/api/v1/events/recent?limit=100&type=execve` | Recent captured records with normalized envelopes. Supports `type`, `event_type`, `source`, `pid`, `comm`, `trace_id`, `span_id`, `since`, `until`, and `redaction_state`. |
+| `GET` | `/api/v1/events/recent?limit=100&type=execve` | Recent captured records with normalized envelopes. Supports `type`, `event_type`, `source`, `pid`, `comm`, `trace_id`, `span_id`, `since`, `until`, and `redaction_state`; `limit` is capped at 1000. |
 | `GET` | `/api/v1/events/graph?...` | Execution graph nodes and edges for retained events. |
 | `GET` | `/api/v1/agentsight/events?format=json\|array\|jsonl` | AgentSight-compatible merged export of retained EventEnvelope records, uploaded AgentSight traces, and TLS capture history. Supports `limit`, `include_tls`, `type`, `event_type`, semantic `source` (`file`, `process`, `http_parser`, `ssl`, `stdio`, `system`, `policy`), `pid`, `comm`, `trace_id`, `span_id`, `since`, `until`, `redaction_state`, and `filter`. |
 | `POST` | `/api/v1/agentsight/events` | Import AgentSight JSON, JSON arrays, `{ "events": [...] }`, or JSONL text into the in-memory AgentSight compatibility store. |
@@ -162,4 +162,3 @@ agent.
 - [Kubernetes](../operations/kubernetes.md)
 - [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)
 - [部署与安装](../operations/deployment.md)
-

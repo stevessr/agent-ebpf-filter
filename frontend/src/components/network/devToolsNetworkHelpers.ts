@@ -1,4 +1,4 @@
-import type { TLSPlaintextEvent } from "../../types/tls";
+import type { MergedTransaction, TLSPlaintextEvent } from "../../types/tls";
 
 /* ──── Type filter chips ──── */
 export const typeFilters = [
@@ -38,6 +38,38 @@ export const buildFullUrl = (event: TLSPlaintextEvent): string => {
     return event.url;
   if (event.host) return `https://${event.host}${event.url}`;
   return event.url;
+};
+
+/** Build once per transaction update instead of normalizing large bodies per keystroke. */
+export const buildTransactionSearchText = (tx: MergedTransaction): string =>
+  [
+    tx.name,
+    tx.fullUrl,
+    tx.host,
+    tx.method,
+    tx.comm,
+    tx.status,
+    tx.request?.body,
+    tx.response?.body,
+    JSON.stringify(tx.request?.headers || {}),
+    JSON.stringify(tx.response?.headers || {}),
+  ]
+    .filter((value) => value !== undefined && value !== null)
+    .join("\n")
+    .toLowerCase();
+
+export const createTransactionSearchIndex = (
+  transactions: readonly MergedTransaction[],
+): WeakMap<MergedTransaction, string> => {
+  const index = new WeakMap<MergedTransaction, string>();
+  for (const tx of transactions) index.set(tx, buildTransactionSearchText(tx));
+  return index;
+};
+
+export const activateOnKeyboard = (event: KeyboardEvent, action: () => void) => {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  event.preventDefault();
+  action();
 };
 
 export const formatBytes = (bytes?: number): string => {

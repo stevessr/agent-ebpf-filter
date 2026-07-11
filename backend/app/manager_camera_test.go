@@ -109,6 +109,35 @@ func TestShutdownCameraStreamsCancelsAndJoinsProducer(t *testing.T) {
 	if running {
 		t.Fatal("camera producer remained running after shutdown")
 	}
+	streamsMu.Lock()
+	_, registered := activeStreams[stream.devName]
+	streamsMu.Unlock()
+	if registered {
+		t.Fatal("stopped camera stream remained registered")
+	}
+}
+
+func TestRemoveCameraStreamRegistrationPreservesReplacement(t *testing.T) {
+	oldStream := &CameraStream{devName: "/dev/video42"}
+	replacement := &CameraStream{devName: oldStream.devName}
+
+	streamsMu.Lock()
+	oldStreams := activeStreams
+	activeStreams = map[string]*CameraStream{oldStream.devName: replacement}
+	streamsMu.Unlock()
+	t.Cleanup(func() {
+		streamsMu.Lock()
+		activeStreams = oldStreams
+		streamsMu.Unlock()
+	})
+
+	removeCameraStreamRegistration(oldStream)
+	streamsMu.Lock()
+	got := activeStreams[oldStream.devName]
+	streamsMu.Unlock()
+	if got != replacement {
+		t.Fatal("stale camera cleanup removed the replacement stream")
+	}
 }
 
 func newTestCameraSubscriber() (*CameraStream, *CameraSubscriber) {

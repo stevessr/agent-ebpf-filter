@@ -48,10 +48,25 @@ func HandleCameras(c *gin.Context) {
 	c.JSON(200, captureDevices)
 }
 
+var cameraDevicePattern = regexp.MustCompile(`^/dev/video[0-9]+$`)
+
+func normalizeCameraDeviceName(raw string) (string, error) {
+	deviceName := strings.TrimSpace(raw)
+	if deviceName == "" {
+		deviceName = "/dev/video0"
+	}
+	deviceName = filepath.Clean(deviceName)
+	if !cameraDevicePattern.MatchString(deviceName) {
+		return "", fmt.Errorf("invalid camera device %q", raw)
+	}
+	return deviceName, nil
+}
+
 func HandleCameraSnapshot(c *gin.Context) {
-	devName := c.Query("device")
-	if devName == "" {
-		devName = "/dev/video0"
+	devName, err := normalizeCameraDeviceName(c.Query("device"))
+	if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
 	}
 
 	stream := Deps.GetCameraStream(devName)
@@ -208,9 +223,10 @@ func ServeMicrophoneWS(c *gin.Context) {
 }
 
 func ServeCameraWS(c *gin.Context) {
-	devName := c.Query("device")
-	if devName == "" {
-		devName = "/dev/video0"
+	devName, err := normalizeCameraDeviceName(c.Query("device"))
+	if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
 	}
 	conn, err := Deps.Upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {

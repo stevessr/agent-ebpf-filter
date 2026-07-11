@@ -52,7 +52,7 @@ registerRoutes()
 
 | 方法 | 路径 | 用途 |
 |------|------|------|
-| `GET` | `/events/recent` | 近期捕获事件 (支持 limit/type/pid/comm 查询参数) |
+| `GET` | `/events/recent` | 近期捕获事件 (支持 limit/type/pid/comm 查询参数，`limit` 最大 1000) |
 | `GET` | `/events/graph` | 聚合执行图谱 (支持 agent_run_id/trace_id/since/until) |
 | `GET` | `/events/recording` | 录制状态 |
 | `POST` | `/events/recording/start` | 启动事件录制 |

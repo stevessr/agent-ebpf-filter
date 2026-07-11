@@ -175,6 +175,7 @@ func (s *CameraStream) Subscribe() *CameraSubscriber {
 			stream.running = false
 			stream.stopping = false
 			stream.streamMu.Unlock()
+			removeCameraStreamRegistration(stream)
 			stream.notifyFrameWaiters()
 		}(s, cam, s.producerDone)
 	}
@@ -294,6 +295,17 @@ func (s *CameraStream) isRunning() bool {
 	return s.running
 }
 
+func removeCameraStreamRegistration(stream *CameraStream) {
+	if stream == nil {
+		return
+	}
+	streamsMu.Lock()
+	if activeStreams[stream.devName] == stream {
+		delete(activeStreams, stream.devName)
+	}
+	streamsMu.Unlock()
+}
+
 func shutdownCameraStreams(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -331,6 +343,9 @@ func shutdownCameraStreams(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		}
+	}
+	for _, stream := range streams {
+		removeCameraStreamRegistration(stream)
 	}
 	return nil
 }

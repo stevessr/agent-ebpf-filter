@@ -16,6 +16,11 @@ import (
 
 // ---- moved from backend/zz_merged_backend.go section ws_api.go ----
 
+const (
+	passiveProtoWSReadLimit = 1024
+	passiveProtoWSPongWait  = 75 * time.Second
+)
+
 func serveEventsWS(c *gin.Context) {
 	ac := Ctx(c)
 	servePassiveProtoWS(c, ac.EventClientHub)
@@ -32,6 +37,11 @@ func servePassiveProtoWS(c *gin.Context, hub *protoClientHub) {
 		c.Status(http.StatusBadRequest)
 		return
 	}
+	conn.SetReadLimit(passiveProtoWSReadLimit)
+	_ = conn.SetReadDeadline(time.Now().Add(passiveProtoWSPongWait))
+	conn.SetPongHandler(func(string) error {
+		return conn.SetReadDeadline(time.Now().Add(passiveProtoWSPongWait))
+	})
 	clientID, clientState := hub.addClient(conn)
 
 	defer func() {
@@ -102,9 +112,6 @@ func runEventBroadcaster(ctx context.Context) {
 	}
 
 	appendRecord := func(record CapturedEventRecord) {
-		// Apply redaction before broadcast
-		redactEvent(record.Event, globalRedactionEngine)
-		redactEnvelopeEvent(record.Envelope, globalRedactionEngine)
 		if record.Event != nil {
 			eventBatch = append(eventBatch, record.Event)
 		}
@@ -296,21 +303,26 @@ func envelopeRedactionState(envelope *pb.EventEnvelope) string {
 	return ""
 }
 
+const maxRecentEventLimit = 1000
+
 func parseEventLimitQuery(raw string, defaultLimit int) int {
+	if defaultLimit <= 0 || defaultLimit > maxRecentEventLimit {
+		defaultLimit = 50
+	}
 	value := strings.ToLower(strings.TrimSpace(raw))
 	if value == "" {
 		return defaultLimit
 	}
 	switch value {
 	case "0", "all", "unlimited", "none":
-		return -1
+		return maxRecentEventLimit
 	}
 	parsed, err := strconv.Atoi(value)
 	if err != nil || parsed < 0 {
 		return defaultLimit
 	}
-	if parsed == 0 {
-		return -1
+	if parsed == 0 || parsed > maxRecentEventLimit {
+		return maxRecentEventLimit
 	}
 	return parsed
 }

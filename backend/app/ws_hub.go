@@ -11,6 +11,7 @@ import (
 const (
 	protoClientQueueSize    = 16
 	protoClientWriteTimeout = 2 * time.Second
+	protoClientPingPeriod   = 30 * time.Second
 )
 
 type protoBroadcastClient interface {
@@ -102,22 +103,36 @@ func (hub *protoClientHub) addClient(conn protoBroadcastClient) (uint64, *protoC
 }
 
 func (hub *protoClientHub) runClient(id uint64, state *protoClientState) {
+	pingTicker := time.NewTicker(protoClientPingPeriod)
+	defer pingTicker.Stop()
+
+	writeMessage := func(messageType int, data []byte) bool {
+		if err := state.conn.SetWriteDeadline(time.Now().Add(protoClientWriteTimeout)); err != nil {
+			hub.writeErrors.Add(1)
+			hub.removeClient(id, state)
+			return false
+		}
+		if err := state.conn.WriteMessage(messageType, data); err != nil {
+			hub.writeErrors.Add(1)
+			hub.removeClient(id, state)
+			return false
+		}
+		return true
+	}
+
 	for {
 		select {
 		case <-state.done:
 			return
+		case <-pingTicker.C:
+			if !writeMessage(websocket.PingMessage, nil) {
+				return
+			}
 		case data := <-state.queue:
 			if state.isDead() {
 				return
 			}
-			if err := state.conn.SetWriteDeadline(time.Now().Add(protoClientWriteTimeout)); err != nil {
-				hub.writeErrors.Add(1)
-				hub.removeClient(id, state)
-				return
-			}
-			if err := state.conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
-				hub.writeErrors.Add(1)
-				hub.removeClient(id, state)
+			if !writeMessage(websocket.BinaryMessage, data) {
 				return
 			}
 		}
