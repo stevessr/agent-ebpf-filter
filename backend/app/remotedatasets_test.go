@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -597,6 +598,37 @@ func TestExpandRemoteDatasetPayloadsEnforcesCumulativeArchiveBudget(t *testing.T
 	}
 }
 
+func TestExpandRemoteDatasetPayloadsChargesCorruptMembersAgainstBudget(t *testing.T) {
+	contents := []string{"corrupt-first-member", "corrupt-second-member"}
+	archive := buildZipArchiveEntries(t, []zipTestEntry{
+		{Name: "first.txt", Content: contents[0], Method: zip.Store},
+		{Name: "second.txt", Content: contents[1], Method: zip.Store},
+	})
+	for _, content := range contents {
+		index := bytes.Index(archive, []byte(content))
+		if index < 0 {
+			t.Fatalf("stored zip member %q was not found", content)
+		}
+		archive[index] ^= 0xff
+	}
+
+	maxBytes := int64(len(contents[0]) + len(contents[1]) - 1)
+	_, warnings, err := expandRemoteDatasetPayloadsWithBudgetAndWarnings(
+		archive,
+		"application/zip",
+		"corrupt.zip",
+		0,
+		newRemoteDatasetArchiveBudget(maxBytes, 10, 4),
+	)
+	if !errors.Is(err, errRemoteDatasetArchiveBudgetExceeded) {
+		t.Fatalf("error = %v, want corrupt members to consume the cumulative archive budget", err)
+	}
+	if len(warnings) != 1 || warnings[0].Source != "corrupt.zip!first.txt" ||
+		!strings.HasPrefix(warnings[0].Reason, "archive_member_read_failed:") {
+		t.Fatalf("warnings = %#v, want first corrupt member warning before budget rejection", warnings)
+	}
+}
+
 func TestExpandRemoteDatasetPayloadsCountsSkippedArchiveMembers(t *testing.T) {
 	archive := buildZipArchive(t, map[string]string{
 		"README.md": "documentation",
@@ -647,6 +679,36 @@ func TestExpandRemoteDatasetPayloadsPropagatesNestedBudgetErrors(t *testing.T) {
 	_, err := expandRemoteDatasetPayloadsWithBudget(archive, "application/zip", "nested.zip", 0, newRemoteDatasetArchiveBudget(maxBytes, 10, 4))
 	if !errors.Is(err, errRemoteDatasetArchiveBudgetExceeded) {
 		t.Fatalf("error = %v, want nested archive budget rejection", err)
+	}
+}
+
+func TestExpandRemoteDatasetPayloadsChargesOversizeNestedArchivesAgainstBudget(t *testing.T) {
+	var compressed bytes.Buffer
+	writer := gzip.NewWriter(&compressed)
+	if _, err := io.CopyN(writer, zeroReader{}, int64(remoteDatasetFetchLimitBytes+1)); err != nil {
+		t.Fatalf("gzip write oversized payload: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("gzip close oversized payload: %v", err)
+	}
+	archive := buildZipArchive(t, map[string]string{
+		"first.gz":  compressed.String(),
+		"second.gz": compressed.String(),
+	})
+	maxBytes := int64(remoteDatasetFetchLimitBytes+1) + 2*int64(compressed.Len())
+
+	_, warnings, err := expandRemoteDatasetPayloadsWithBudgetAndWarnings(
+		archive,
+		"application/zip",
+		"nested.zip",
+		0,
+		newRemoteDatasetArchiveBudget(maxBytes, 10, 4),
+	)
+	if !errors.Is(err, errRemoteDatasetArchiveBudgetExceeded) {
+		t.Fatalf("error = %v, want repeated oversized nested archive budget rejection", err)
+	}
+	if len(warnings) != 1 || !strings.HasPrefix(warnings[0].Reason, "nested_archive_decode_failed:") {
+		t.Fatalf("warnings = %#v, want one nested oversize warning before budget rejection", warnings)
 	}
 }
 
@@ -760,6 +822,125 @@ func TestPullRemoteDatasetFromBase64ZipArchive(t *testing.T) {
 	}
 	if resp.Rows[0].Comm != "rm" || resp.Rows[1].Comm != "echo" {
 		t.Fatalf("rows = %#v %#v", resp.Rows[0], resp.Rows[1])
+	}
+}
+
+func TestPullRemoteDatasetReportsArchiveMemberFailures(t *testing.T) {
+	const corruptContent = "corrupt-member-payload"
+
+	tests := []struct {
+		name          string
+		buildArchive  func(*testing.T) []byte
+		warningSource string
+		warningReason string
+	}{
+		{
+			name: "open",
+			buildArchive: func(t *testing.T) []byte {
+				return buildZipArchiveEntries(t, []zipTestEntry{
+					{Name: "good.txt", Content: "echo ok\n", Method: zip.Store},
+					{Name: "unsupported.txt", Content: "ignored", Method: 99},
+				})
+			},
+			warningSource: "mixed.zip!unsupported.txt",
+			warningReason: "archive_member_open_failed:",
+		},
+		{
+			name: "read",
+			buildArchive: func(t *testing.T) []byte {
+				archive := buildZipArchiveEntries(t, []zipTestEntry{
+					{Name: "good.txt", Content: "echo ok\n", Method: zip.Store},
+					{Name: "corrupt.txt", Content: corruptContent, Method: zip.Store},
+				})
+				index := bytes.Index(archive, []byte(corruptContent))
+				if index < 0 {
+					t.Fatal("stored zip member content was not found")
+				}
+				archive[index] ^= 0xff
+				return archive
+			},
+			warningSource: "mixed.zip!corrupt.txt",
+			warningReason: "archive_member_read_failed:",
+		},
+		{
+			name: "nested_decode",
+			buildArchive: func(t *testing.T) []byte {
+				return buildZipArchiveEntries(t, []zipTestEntry{
+					{Name: "good.txt", Content: "echo ok\n", Method: zip.Store},
+					{Name: "broken.gz", Content: "not a gzip stream", Method: zip.Store},
+				})
+			},
+			warningSource: "mixed.zip!broken.gz",
+			warningReason: "nested_archive_decode_failed:",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, err := pullRemoteDataset(remoteDatasetRequest{
+				ContentBase64: base64.StdEncoding.EncodeToString(tt.buildArchive(t)),
+				SourceName:    "mixed.zip",
+				Format:        "auto",
+				Limit:         10,
+			})
+			if err != nil {
+				t.Fatalf("pullRemoteDataset() error = %v", err)
+			}
+			if resp.Total != 1 || len(resp.Rows) != 1 || resp.Rows[0].Comm != "echo" {
+				t.Fatalf("response rows = total:%d rows:%#v, want one good record", resp.Total, resp.Rows)
+			}
+			if len(resp.ParseWarnings) != 1 {
+				t.Fatalf("parse warnings = %#v, want one archive warning", resp.ParseWarnings)
+			}
+			warning := resp.ParseWarnings[0]
+			if warning.Source != tt.warningSource || warning.Count != 1 || !strings.HasPrefix(warning.Reason, tt.warningReason) {
+				t.Fatalf("parse warning = %#v, want source %q and reason prefix %q", warning, tt.warningSource, tt.warningReason)
+			}
+		})
+	}
+}
+
+func TestPullRemoteDatasetReportsTarMemberReadFailure(t *testing.T) {
+	resp, err := pullRemoteDataset(remoteDatasetRequest{
+		ContentBase64: base64.StdEncoding.EncodeToString(buildTruncatedTarArchive(t)),
+		SourceName:    "mixed.tar",
+		Format:        "auto",
+		Limit:         10,
+	})
+	if err != nil {
+		t.Fatalf("pullRemoteDataset() error = %v", err)
+	}
+	if resp.Total != 1 || len(resp.Rows) != 1 || resp.Rows[0].Comm != "echo" {
+		t.Fatalf("response rows = total:%d rows:%#v, want one good record", resp.Total, resp.Rows)
+	}
+	if len(resp.ParseWarnings) != 1 {
+		t.Fatalf("parse warnings = %#v, want one archive warning", resp.ParseWarnings)
+	}
+	warning := resp.ParseWarnings[0]
+	if warning.Source != "mixed.tar!corrupt.txt" || warning.Count != 1 || !strings.HasPrefix(warning.Reason, "archive_member_read_failed:") {
+		t.Fatalf("parse warning = %#v, want tar member read warning", warning)
+	}
+}
+
+func TestPullRemoteDatasetReportsTarStreamReadFailureAfterValidMember(t *testing.T) {
+	resp, err := pullRemoteDataset(remoteDatasetRequest{
+		ContentBase64: base64.StdEncoding.EncodeToString(buildTarArchiveWithTruncatedNextHeader(t)),
+		SourceName:    "mixed.tar",
+		Format:        "auto",
+		Limit:         10,
+	})
+	if err != nil {
+		t.Fatalf("pullRemoteDataset() error = %v", err)
+	}
+	if resp.Total != 1 || len(resp.Rows) != 1 || resp.Rows[0].Comm != "echo" {
+		t.Fatalf("response rows = total:%d rows:%#v, want one good record", resp.Total, resp.Rows)
+	}
+	if len(resp.ParseWarnings) != 1 {
+		t.Fatalf("parse warnings = %#v, want one archive stream warning", resp.ParseWarnings)
+	}
+	warning := resp.ParseWarnings[0]
+	if warning.Source != "mixed.tar" || warning.Count != 1 || !strings.HasPrefix(warning.Reason, "archive_stream_read_failed:") {
+		t.Fatalf("parse warning = %#v, want tar stream read warning", warning)
 	}
 }
 
@@ -1219,6 +1400,49 @@ func buildZipArchive(t *testing.T, files map[string]string) []byte {
 	return buf.Bytes()
 }
 
+type zipTestEntry struct {
+	Name    string
+	Content string
+	Method  uint16
+}
+
+type nopWriteCloser struct {
+	io.Writer
+}
+
+func (nopWriteCloser) Close() error { return nil }
+
+type zeroReader struct{}
+
+func (zeroReader) Read(p []byte) (int, error) {
+	clear(p)
+	return len(p), nil
+}
+
+func buildZipArchiveEntries(t *testing.T, entries []zipTestEntry) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+	w := zip.NewWriter(&buf)
+	w.RegisterCompressor(99, func(writer io.Writer) (io.WriteCloser, error) {
+		return nopWriteCloser{Writer: writer}, nil
+	})
+	for _, entry := range entries {
+		header := &zip.FileHeader{Name: entry.Name, Method: entry.Method}
+		fw, err := w.CreateHeader(header)
+		if err != nil {
+			t.Fatalf("zip create %q error = %v", entry.Name, err)
+		}
+		if _, err := fw.Write([]byte(entry.Content)); err != nil {
+			t.Fatalf("zip write %q error = %v", entry.Name, err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("zip close error = %v", err)
+	}
+	return buf.Bytes()
+}
+
 func buildTarArchive(t *testing.T, files map[string]string) []byte {
 	t.Helper()
 
@@ -1240,5 +1464,42 @@ func buildTarArchive(t *testing.T, files map[string]string) []byte {
 	if err := tw.Close(); err != nil {
 		t.Fatalf("tar close error = %v", err)
 	}
+	return buf.Bytes()
+}
+
+func buildTruncatedTarArchive(t *testing.T) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	good := []byte("echo ok\n")
+	if err := tw.WriteHeader(&tar.Header{Name: "good.txt", Mode: 0o600, Size: int64(len(good))}); err != nil {
+		t.Fatalf("tar write good header error = %v", err)
+	}
+	if _, err := tw.Write(good); err != nil {
+		t.Fatalf("tar write good payload error = %v", err)
+	}
+	if err := tw.WriteHeader(&tar.Header{Name: "corrupt.txt", Mode: 0o600, Size: 64}); err != nil {
+		t.Fatalf("tar write corrupt header error = %v", err)
+	}
+	if _, err := tw.Write([]byte("truncated")); err != nil {
+		t.Fatalf("tar write corrupt payload error = %v", err)
+	}
+	return buf.Bytes()
+}
+
+func buildTarArchiveWithTruncatedNextHeader(t *testing.T) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	good := []byte("echo ok\n")
+	if err := tw.WriteHeader(&tar.Header{Name: "good.txt", Mode: 0o600, Size: int64(len(good))}); err != nil {
+		t.Fatalf("tar write good header error = %v", err)
+	}
+	if _, err := tw.Write(good); err != nil {
+		t.Fatalf("tar write good payload error = %v", err)
+	}
+	buf.Write(bytes.Repeat([]byte{'x'}, 512))
 	return buf.Bytes()
 }

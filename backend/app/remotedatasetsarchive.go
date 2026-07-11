@@ -88,10 +88,26 @@ func (budget *remoteDatasetArchiveBudget) consumeMembers(count int, description 
 }
 
 func expandRemoteDatasetPayloads(data []byte, contentType, source string, depth int) ([]remoteDatasetPayload, error) {
-	return expandRemoteDatasetPayloadsWithBudget(data, contentType, source, depth, newDefaultRemoteDatasetArchiveBudget())
+	payloads, _, err := expandRemoteDatasetPayloadsWithWarnings(data, contentType, source, depth)
+	return payloads, err
 }
 
 func expandRemoteDatasetPayloadsWithBudget(data []byte, contentType, source string, depth int, budget *remoteDatasetArchiveBudget) ([]remoteDatasetPayload, error) {
+	payloads, _, err := expandRemoteDatasetPayloadsWithBudgetAndWarnings(data, contentType, source, depth, budget)
+	return payloads, err
+}
+
+func expandRemoteDatasetPayloadsWithWarnings(data []byte, contentType, source string, depth int) ([]remoteDatasetPayload, []remoteDatasetParseWarning, error) {
+	return expandRemoteDatasetPayloadsWithBudgetAndWarnings(data, contentType, source, depth, newDefaultRemoteDatasetArchiveBudget())
+}
+
+func expandRemoteDatasetPayloadsWithBudgetAndWarnings(data []byte, contentType, source string, depth int, budget *remoteDatasetArchiveBudget) ([]remoteDatasetPayload, []remoteDatasetParseWarning, error) {
+	warnings := make([]remoteDatasetParseWarning, 0)
+	payloads, err := expandRemoteDatasetPayloadsWithBudgetWarningSink(data, contentType, source, depth, budget, &warnings)
+	return payloads, warnings, err
+}
+
+func expandRemoteDatasetPayloadsWithBudgetWarningSink(data []byte, contentType, source string, depth int, budget *remoteDatasetArchiveBudget, warnings *[]remoteDatasetParseWarning) ([]remoteDatasetPayload, error) {
 	if budget == nil {
 		budget = newDefaultRemoteDatasetArchiveBudget()
 	}
@@ -104,31 +120,31 @@ func expandRemoteDatasetPayloadsWithBudget(data []byte, contentType, source stri
 		return nil, fmt.Errorf("%w: archive nesting exceeds %d layers at %q", errRemoteDatasetArchiveBudgetExceeded, budget.maxDepth, source)
 	}
 	if isZip {
-		return expandZipRemoteDatasetPayloadWithBudget(data, source, depth, budget)
+		return expandZipRemoteDatasetPayloadWithBudgetWarningSink(data, source, depth, budget, warnings)
 	}
 	if isTar {
-		return expandTarRemoteDatasetPayloadWithBudget(data, source, depth, budget)
+		return expandTarRemoteDatasetPayloadWithBudgetWarningSink(data, source, depth, budget, warnings)
 	}
 	if isGzip {
 		decompressed, err := gunzipRemoteDatasetPayloadWithBudget(data, budget)
 		if err != nil {
 			return nil, err
 		}
-		return expandRemoteDatasetPayloadsWithBudget(decompressed, "", stripCompressionSuffix(source), depth+1, budget)
+		return expandRemoteDatasetPayloadsWithBudgetWarningSink(decompressed, "", stripCompressionSuffix(source), depth+1, budget, warnings)
 	}
 	if isBzip2 {
 		decompressed, err := bunzip2RemoteDatasetPayloadWithBudget(data, budget)
 		if err != nil {
 			return nil, err
 		}
-		return expandRemoteDatasetPayloadsWithBudget(decompressed, "", stripCompressionSuffix(source), depth+1, budget)
+		return expandRemoteDatasetPayloadsWithBudgetWarningSink(decompressed, "", stripCompressionSuffix(source), depth+1, budget, warnings)
 	}
 	if isXz {
 		decompressed, err := unxzRemoteDatasetPayloadWithBudget(data, budget)
 		if err != nil {
 			return nil, err
 		}
-		return expandRemoteDatasetPayloadsWithBudget(decompressed, "", stripCompressionSuffix(source), depth+1, budget)
+		return expandRemoteDatasetPayloadsWithBudgetWarningSink(decompressed, "", stripCompressionSuffix(source), depth+1, budget, warnings)
 	}
 	return []remoteDatasetPayload{{Source: source, ContentType: contentType, Data: data}}, nil
 }
@@ -138,6 +154,10 @@ func expandZipRemoteDatasetPayload(data []byte, source string, depth int) ([]rem
 }
 
 func expandZipRemoteDatasetPayloadWithBudget(data []byte, source string, depth int, budget *remoteDatasetArchiveBudget) ([]remoteDatasetPayload, error) {
+	return expandZipRemoteDatasetPayloadWithBudgetWarningSink(data, source, depth, budget, nil)
+}
+
+func expandZipRemoteDatasetPayloadWithBudgetWarningSink(data []byte, source string, depth int, budget *remoteDatasetArchiveBudget, warnings *[]remoteDatasetParseWarning) ([]remoteDatasetPayload, error) {
 	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		return nil, err
@@ -160,8 +180,10 @@ func expandZipRemoteDatasetPayloadWithBudget(data []byte, source string, depth i
 		if err := budget.ensureBytes(int64(file.UncompressedSize64), fmt.Sprintf("zip member %q", file.Name)); err != nil {
 			return nil, err
 		}
+		nextSource := joinDatasetSource(source, file.Name)
 		rc, err := file.Open()
 		if err != nil {
+			appendRemoteDatasetArchiveWarning(warnings, nextSource, "archive_member_open_failed", err)
 			continue
 		}
 		fileData, readErr := readLimitedRemoteDatasetPayloadWithBudget(rc, fmt.Sprintf("extracted file %q", file.Name), budget)
@@ -170,14 +192,15 @@ func expandZipRemoteDatasetPayloadWithBudget(data []byte, source string, depth i
 			if errors.Is(readErr, errRemoteDatasetArchiveBudgetExceeded) {
 				return nil, readErr
 			}
+			appendRemoteDatasetArchiveWarning(warnings, nextSource, "archive_member_read_failed", readErr)
 			continue
 		}
-		nextSource := joinDatasetSource(source, file.Name)
-		nested, err := expandRemoteDatasetPayloadsWithBudget(fileData, "", nextSource, depth+1, budget)
+		nested, err := expandRemoteDatasetPayloadsWithBudgetWarningSink(fileData, "", nextSource, depth+1, budget, warnings)
 		if err != nil {
 			if errors.Is(err, errRemoteDatasetArchiveBudgetExceeded) {
 				return nil, err
 			}
+			appendRemoteDatasetArchiveWarning(warnings, nextSource, "nested_archive_decode_failed", err)
 			continue
 		}
 		payloads = append(payloads, nested...)
@@ -193,6 +216,10 @@ func expandTarRemoteDatasetPayload(data []byte, source string, depth int) ([]rem
 }
 
 func expandTarRemoteDatasetPayloadWithBudget(data []byte, source string, depth int, budget *remoteDatasetArchiveBudget) ([]remoteDatasetPayload, error) {
+	return expandTarRemoteDatasetPayloadWithBudgetWarningSink(data, source, depth, budget, nil)
+}
+
+func expandTarRemoteDatasetPayloadWithBudgetWarningSink(data []byte, source string, depth int, budget *remoteDatasetArchiveBudget, warnings *[]remoteDatasetParseWarning) ([]remoteDatasetPayload, error) {
 	reader := tar.NewReader(bytes.NewReader(data))
 	payloads := make([]remoteDatasetPayload, 0)
 	for {
@@ -201,6 +228,10 @@ func expandTarRemoteDatasetPayloadWithBudget(data []byte, source string, depth i
 			break
 		}
 		if err != nil {
+			if len(payloads) > 0 && warnings != nil {
+				appendRemoteDatasetArchiveWarning(warnings, source, "archive_stream_read_failed", err)
+				break
+			}
 			return nil, fmt.Errorf("read tar archive %q: %w", source, err)
 		}
 		if err := budget.consumeMembers(1, fmt.Sprintf("tar archive %q", source)); err != nil {
@@ -218,19 +249,21 @@ func expandTarRemoteDatasetPayloadWithBudget(data []byte, source string, depth i
 		if err := budget.ensureBytes(hdr.Size, fmt.Sprintf("tar member %q", hdr.Name)); err != nil {
 			return nil, err
 		}
+		nextSource := joinDatasetSource(source, hdr.Name)
 		fileData, err := readLimitedRemoteDatasetPayloadWithBudget(reader, fmt.Sprintf("extracted file %q", hdr.Name), budget)
 		if err != nil {
 			if errors.Is(err, errRemoteDatasetArchiveBudgetExceeded) {
 				return nil, err
 			}
-			continue
+			appendRemoteDatasetArchiveWarning(warnings, nextSource, "archive_member_read_failed", err)
+			break
 		}
-		nextSource := joinDatasetSource(source, hdr.Name)
-		nested, err := expandRemoteDatasetPayloadsWithBudget(fileData, "", nextSource, depth+1, budget)
+		nested, err := expandRemoteDatasetPayloadsWithBudgetWarningSink(fileData, "", nextSource, depth+1, budget, warnings)
 		if err != nil {
 			if errors.Is(err, errRemoteDatasetArchiveBudgetExceeded) {
 				return nil, err
 			}
+			appendRemoteDatasetArchiveWarning(warnings, nextSource, "nested_archive_decode_failed", err)
 			continue
 		}
 		payloads = append(payloads, nested...)
@@ -239,6 +272,17 @@ func expandTarRemoteDatasetPayloadWithBudget(data []byte, source string, depth i
 		return nil, fmt.Errorf("tar archive %q did not contain any extractable dataset files", source)
 	}
 	return payloads, nil
+}
+
+func appendRemoteDatasetArchiveWarning(warnings *[]remoteDatasetParseWarning, source, reason string, err error) {
+	if warnings == nil || err == nil {
+		return
+	}
+	*warnings = append(*warnings, remoteDatasetParseWarning{
+		Source: source,
+		Reason: reason + ": " + err.Error(),
+		Count:  1,
+	})
 }
 
 func gunzipRemoteDatasetPayload(data []byte) ([]byte, error) {
@@ -284,8 +328,8 @@ func readLimitedRemoteDatasetPayloadWithBudget(reader io.Reader, description str
 		limit = budget.remainingBytes()
 	}
 	data, err := io.ReadAll(io.LimitReader(reader, limit+1))
-	if err != nil {
-		return nil, err
+	if consumeErr := budget.consumeBytes(int64(len(data)), description); consumeErr != nil {
+		return nil, consumeErr
 	}
 	if int64(len(data)) > limit {
 		if limit < remoteDatasetFetchLimitBytes {
@@ -293,7 +337,7 @@ func readLimitedRemoteDatasetPayloadWithBudget(reader io.Reader, description str
 		}
 		return nil, fmt.Errorf("%s is larger than %d bytes", description, remoteDatasetFetchLimitBytes)
 	}
-	if err := budget.consumeBytes(int64(len(data)), description); err != nil {
+	if err != nil {
 		return nil, err
 	}
 	return data, nil

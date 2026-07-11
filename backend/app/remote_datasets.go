@@ -284,7 +284,7 @@ func pullRemoteDatasetWithRecordLimit(req remoteDatasetRequest, client *http.Cli
 		return nil, fmt.Errorf("dataset source %q looks like an HTML landing page; please use a raw file URL or import a local file instead", source)
 	}
 
-	payloads, err := expandRemoteDatasetPayloads(downloaded, contentType, source, 0)
+	payloads, parseWarnings, err := expandRemoteDatasetPayloadsWithWarnings(downloaded, contentType, source, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -297,7 +297,6 @@ func pullRemoteDatasetWithRecordLimit(req remoteDatasetRequest, client *http.Cli
 	totalRecords := 0
 	recordLimitTruncated := false
 	format := ""
-	parseWarnings := make([]remoteDatasetParseWarning, 0)
 	for _, payload := range payloads {
 		remainingRecords := recordLimit - totalRecords
 		if remainingRecords <= 0 {
