@@ -33,6 +33,15 @@ func ServeSystemStatsWS(c *gin.Context) {
 	}
 	ticker := time.NewTicker(iv)
 	defer ticker.Stop()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}()
 
 	coreTypes := Deps.GetCoreTypes()
 	lastFaults, err := Deps.ReadVMFaultCounters()
@@ -53,8 +62,15 @@ func ServeSystemStatsWS(c *gin.Context) {
 	if cpuScale <= 0 {
 		cpuScale = 1
 	}
-	for range ticker.C {
-		now := time.Now()
+	for {
+		var now time.Time
+		select {
+		case <-done:
+			return
+		case <-c.Request.Context().Done():
+			return
+		case now = <-ticker.C:
+		}
 		gm, gs := Deps.GetGPUMetrics()
 		vm, _ := mem.VirtualMemory()
 		sm, _ := mem.SwapMemory()

@@ -32,18 +32,21 @@ func ServeShellSessionsWS(c *gin.Context) {
 		}
 	}()
 
-	sendList := func() {
+	sendList := func() bool {
 		list := Deps.ShellSessions.List()
 		data, err := json.Marshal(list)
 		if err != nil {
-			return
+			return false
 		}
 		if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
-			return
+			return false
 		}
+		return true
 	}
 
-	sendList()
+	if !sendList() {
+		return
+	}
 
 	for {
 		select {
@@ -51,7 +54,9 @@ func ServeShellSessionsWS(c *gin.Context) {
 			if !ok {
 				return
 			}
-			sendList()
+			if !sendList() {
+				return
+			}
 		case <-done:
 			return
 		}
