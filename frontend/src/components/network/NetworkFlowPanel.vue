@@ -3,14 +3,22 @@ import { onMounted, onUnmounted, computed, ref } from "vue";
 import { useNetworkEnrichment } from "../../composables/network/useNetworkEnrichment";
 import type { TCPConnection } from "../../composables/network/useNetworkEnrichment";
 
-const { flows, tcpConns, loading, error, fetchFlows, fetchTCPState } =
-  useNetworkEnrichment(5000);
+const {
+  flows,
+  tcpConns,
+  loading,
+  error,
+  fetchFlows,
+  fetchTCPState,
+  cancelPendingRequests,
+} = useNetworkEnrichment(5000);
 
 const filterQuery = ref("");
 const showHistoric = ref(false);
 const sortKey = ref("lastSeen");
 const filterError = ref("");
 let refreshTimer: number | null = null;
+let pollingActive = false;
 
 const filterExamples = [
   "process:curl",
@@ -87,15 +95,24 @@ const applyFilterExample = (example: string) => {
   void refreshNetworkState();
 };
 
+const runPoll = async () => {
+  await refreshNetworkState();
+  if (pollingActive) {
+    refreshTimer = window.setTimeout(() => void runPoll(), 5000);
+  }
+};
+
 onMounted(() => {
-  void refreshNetworkState();
-  refreshTimer = window.setInterval(refreshNetworkState, 5000);
+  pollingActive = true;
+  void runPoll();
 });
 onUnmounted(() => {
+  pollingActive = false;
   if (refreshTimer !== null) {
-    clearInterval(refreshTimer);
+    clearTimeout(refreshTimer);
     refreshTimer = null;
   }
+  cancelPendingRequests();
 });
 
 const columns = [

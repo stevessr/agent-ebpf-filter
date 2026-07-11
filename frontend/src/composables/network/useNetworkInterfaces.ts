@@ -37,12 +37,27 @@ export function useNetworkInterfaces(refreshMs = 5000) {
   const loading = ref(false);
   const error = ref("");
   let timer: ReturnType<typeof setInterval> | null = null;
+  let autoRefreshActive = false;
+  let autoRefreshGeneration = 0;
+  let requestGeneration = 0;
+  let requestController: AbortController | null = null;
   let previousInterfaces = new Map<string, InterfaceStats>();
 
-  async function fetchInterfaces() {
+  async function fetchInterfaces(signal?: AbortSignal) {
+    requestController?.abort();
+    const controller = new AbortController();
+    requestController = controller;
+    const generation = ++requestGeneration;
+    const abort = () => controller.abort();
+    if (signal?.aborted) abort();
+    else signal?.addEventListener("abort", abort, { once: true });
+
     try {
       loading.value = true;
-      const res = await axios.get("/network/interfaces");
+      const res = await axios.get("/network/interfaces", {
+        signal: controller.signal,
+      });
+      if (generation !== requestGeneration) return;
       const nextInterfaces: InterfaceStats[] = res.data.interfaces || [];
       interfaceRates.value = nextInterfaces.map((iface) => {
         const prev = previousInterfaces.get(iface.name);
@@ -63,9 +78,16 @@ export function useNetworkInterfaces(refreshMs = 5000) {
       interfaces.value = nextInterfaces;
       error.value = "";
     } catch (e: any) {
+      if (controller.signal.aborted || generation !== requestGeneration) {
+        return;
+      }
       error.value = e.message || "Failed to fetch interfaces";
     } finally {
-      loading.value = false;
+      signal?.removeEventListener("abort", abort);
+      if (generation === requestGeneration) {
+        loading.value = false;
+        requestController = null;
+      }
     }
   }
 
@@ -78,16 +100,35 @@ export function useNetworkInterfaces(refreshMs = 5000) {
     }
   }
 
+  async function runAutoRefresh(generation: number) {
+    await fetchInterfaces();
+    if (autoRefreshActive && generation === autoRefreshGeneration) {
+      timer = setTimeout(() => void runAutoRefresh(generation), refreshMs);
+    }
+  }
+
   function startAutoRefresh() {
-    fetchInterfaces();
-    timer = setInterval(fetchInterfaces, refreshMs);
+    if (autoRefreshActive) return;
+    autoRefreshActive = true;
+    const generation = ++autoRefreshGeneration;
+    void runAutoRefresh(generation);
   }
 
   function stopAutoRefresh() {
+    autoRefreshActive = false;
+    autoRefreshGeneration++;
     if (timer !== null) {
-      clearInterval(timer);
+      clearTimeout(timer);
       timer = null;
     }
+    cancelPendingRequests();
+  }
+
+  function cancelPendingRequests() {
+    requestGeneration++;
+    requestController?.abort();
+    requestController = null;
+    loading.value = false;
   }
 
   const totalRecvRate = () => {
@@ -136,6 +177,7 @@ export function useNetworkInterfaces(refreshMs = 5000) {
     fetchDNSCache,
     startAutoRefresh,
     stopAutoRefresh,
+    cancelPendingRequests,
     totalRecvRate,
     totalSentRate,
     totalErrors,

@@ -86,27 +86,72 @@ export function useNetworkEnrichment(refreshMs = 5000) {
   const loading = ref(false);
   const error = ref("");
   let timer: number | null = null;
+  let autoRefreshActive = false;
+  let autoRefreshGeneration = 0;
+  let flowRequestGeneration = 0;
+  let tcpRequestGeneration = 0;
+  let flowController: AbortController | null = null;
+  let tcpController: AbortController | null = null;
 
-  async function fetchFlows(params?: Record<string, string>) {
+  async function fetchFlows(
+    params?: Record<string, string>,
+    signal?: AbortSignal,
+  ) {
+    flowController?.abort();
+    const controller = new AbortController();
+    flowController = controller;
+    const generation = ++flowRequestGeneration;
+    const abort = () => controller.abort();
+    if (signal?.aborted) abort();
+    else signal?.addEventListener("abort", abort, { once: true });
+
     try {
       loading.value = true;
-      const res = await axios.get("/network/flows", { params });
+      const res = await axios.get("/network/flows", {
+        params,
+        signal: controller.signal,
+      });
+      if (generation !== flowRequestGeneration) return;
       flows.value = res.data.flows || [];
       error.value = "";
     } catch (e: any) {
+      if (controller.signal.aborted || generation !== flowRequestGeneration) {
+        return;
+      }
       error.value = e.message || "Failed to fetch flows";
     } finally {
-      loading.value = false;
+      signal?.removeEventListener("abort", abort);
+      if (generation === flowRequestGeneration) {
+        loading.value = false;
+        flowController = null;
+      }
     }
   }
 
-  async function fetchTCPState() {
+  async function fetchTCPState(signal?: AbortSignal) {
+    tcpController?.abort();
+    const controller = new AbortController();
+    tcpController = controller;
+    const generation = ++tcpRequestGeneration;
+    const abort = () => controller.abort();
+    if (signal?.aborted) abort();
+    else signal?.addEventListener("abort", abort, { once: true });
+
     try {
-      const res = await axios.get("/network/tcp-state");
+      const res = await axios.get("/network/tcp-state", {
+        signal: controller.signal,
+      });
+      if (generation !== tcpRequestGeneration) return;
       tcpConns.value = res.data.connections || [];
       error.value = "";
     } catch (e: any) {
+      if (controller.signal.aborted || generation !== tcpRequestGeneration) {
+        return;
+      }
       error.value = e.message || "Failed to fetch TCP state";
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      if (generation === tcpRequestGeneration) tcpController = null;
     }
   }
 
@@ -130,20 +175,41 @@ export function useNetworkEnrichment(refreshMs = 5000) {
     }
   }
 
+  async function runAutoRefresh(generation: number) {
+    await Promise.all([fetchFlows(), fetchTCPState()]);
+    if (autoRefreshActive && generation === autoRefreshGeneration) {
+      timer = window.setTimeout(
+        () => void runAutoRefresh(generation),
+        refreshMs,
+      );
+    }
+  }
+
   function startAutoRefresh() {
-    fetchFlows();
-    fetchTCPState();
-    timer = window.setInterval(() => {
-      fetchFlows();
-      fetchTCPState();
-    }, refreshMs);
+    if (autoRefreshActive) return;
+    autoRefreshActive = true;
+    const generation = ++autoRefreshGeneration;
+    void runAutoRefresh(generation);
   }
 
   function stopAutoRefresh() {
+    autoRefreshActive = false;
+    autoRefreshGeneration++;
     if (timer !== null) {
-      clearInterval(timer);
+      clearTimeout(timer);
       timer = null;
     }
+    cancelPendingRequests();
+  }
+
+  function cancelPendingRequests() {
+    flowRequestGeneration++;
+    tcpRequestGeneration++;
+    flowController?.abort();
+    tcpController?.abort();
+    flowController = null;
+    tcpController = null;
+    loading.value = false;
   }
 
   const totalBytesOut = () => flows.value.reduce((s, f) => s + f.bytesOut, 0);
@@ -164,6 +230,7 @@ export function useNetworkEnrichment(refreshMs = 5000) {
     lookupGeoIP,
     startAutoRefresh,
     stopAutoRefresh,
+    cancelPendingRequests,
     totalBytesOut,
     totalBytesIn,
     suspiciousFlows,

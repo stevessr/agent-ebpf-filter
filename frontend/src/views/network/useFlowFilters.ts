@@ -14,6 +14,7 @@ export function useFlowFilters() {
     error: flowsError,
     fetchFlows,
     fetchTCPState,
+    cancelPendingRequests: cancelNetworkRequests,
     totalBytesOut,
     totalBytesIn,
     suspiciousFlows,
@@ -28,6 +29,7 @@ export function useFlowFilters() {
     dnsMap,
     fetchInterfaces,
     fetchDNSCache,
+    cancelPendingRequests: cancelInterfaceRequests,
     totalErrors,
     totalDrops,
   } = useNetworkInterfaces(5000);
@@ -259,23 +261,30 @@ export function useFlowFilters() {
   ];
 
   // ── Lifecycle ──────────────────────────────────────────────────────
-  let flowTimer: ReturnType<typeof setInterval> | null = null;
+  let flowTimer: ReturnType<typeof setTimeout> | null = null;
+  let pollingActive = false;
+
+  const runPoll = async () => {
+    await Promise.all([refreshFlows(), fetchInterfaces()]);
+    if (pollingActive) {
+      flowTimer = setTimeout(() => void runPoll(), 5000);
+    }
+  };
 
   onMounted(() => {
-    void refreshFlows();
-    void fetchInterfaces();
+    pollingActive = true;
+    void runPoll();
     fetchDNSCache();
-    flowTimer = setInterval(() => {
-      void refreshFlows();
-      void fetchInterfaces();
-    }, 5000);
   });
 
   onUnmounted(() => {
+    pollingActive = false;
     if (flowTimer !== null) {
-      clearInterval(flowTimer);
+      clearTimeout(flowTimer);
       flowTimer = null;
     }
+    cancelNetworkRequests();
+    cancelInterfaceRequests();
   });
 
   return {
