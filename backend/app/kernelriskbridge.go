@@ -1,11 +1,13 @@
 package app
 
 import (
+	"context"
+	"sync"
+	"time"
+
 	"agent-ebpf-filter/app/events"
 	"agent-ebpf-filter/core"
 	"agent-ebpf-filter/pb"
-	"sync"
-	"time"
 )
 
 // ── Kernel risk wrappers (migrated to app/events/) ─────────────────────────
@@ -54,8 +56,12 @@ func applyKernelRiskDecision(raw *core.BpfEvent, event *pb.Event) {
 	events.ApplyKernelRiskDecision(raw, event)
 }
 
-func startKernelRiskFeedbackWorker() {
-	events.StartKernelRiskFeedbackWorker()
+func startKernelRiskFeedbackWorker(ctx context.Context) {
+	events.StartKernelRiskFeedbackWorker(ctx)
+}
+
+func shutdownKernelRiskFeedbackWorker(ctx context.Context) error {
+	return events.ShutdownKernelRiskFeedbackWorker(ctx)
 }
 
 func kernelRiskFeedbackActions(settings RuntimeSettings, event *pb.Event, decision kernelRiskDecision) []kernelRiskFeedbackAction {

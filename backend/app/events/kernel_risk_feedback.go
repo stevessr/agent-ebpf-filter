@@ -1,7 +1,7 @@
 package events
 
 import (
-	"agent-ebpf-filter/app/platform"
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -11,10 +11,9 @@ import (
 	"sync"
 	"time"
 
+	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
 )
-
-
 
 type kernelRiskFeedbackAction struct {
 	Kind     string
@@ -27,9 +26,15 @@ type kernelRiskFeedbackAction struct {
 type KernelRiskFeedbackAction = kernelRiskFeedbackAction
 
 var (
-	kernelRiskFeedbackQueue      = make(chan kernelRiskFeedbackAction, 256)
-	kernelRiskFeedbackWorkerOnce sync.Once
-	kernelRiskFeedbackDedup      = &kernelRiskFeedbackState{
+	kernelRiskFeedbackQueue  = make(chan kernelRiskFeedbackAction, 256)
+	kernelRiskFeedbackWorker = struct {
+		lifecycleMu sync.Mutex
+		mu          sync.Mutex
+		cancel      context.CancelFunc
+		done        chan struct{}
+		started     bool
+	}{}
+	kernelRiskFeedbackDedup = &kernelRiskFeedbackState{
 		seen: make(map[string]time.Time),
 	}
 )
@@ -41,27 +46,112 @@ type kernelRiskFeedbackState struct {
 	windowCount int
 }
 
-func StartKernelRiskFeedbackWorker() {
-	kernelRiskFeedbackWorkerOnce.Do(func() {
-		go func() {
-			for action := range kernelRiskFeedbackQueue {
-				settings := Deps.RuntimeSettingsSnapshot()
-				if !settings.PolicyManagementEnabled || !settings.KernelRiskFeedback.Enabled {
-					Deps.CollectorMetrics.RecordKernelRiskFeedback(false, errors.New("kernel risk feedback disabled or policy management gate closed"))
-					continue
-				}
-				if !kernelRiskFeedbackDedup.Allow(action, settings.KernelRiskFeedback, time.Now()) {
-					Deps.CollectorMetrics.RecordKernelRiskFeedback(false, nil)
-					continue
-				}
-				if err := applyKernelRiskFeedbackAction(action); err != nil {
-					Deps.CollectorMetrics.RecordKernelRiskFeedback(false, err)
-					continue
-				}
-				Deps.CollectorMetrics.RecordKernelRiskFeedback(true, nil)
+func StartKernelRiskFeedbackWorker(ctx context.Context) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	kernelRiskFeedbackWorker.lifecycleMu.Lock()
+	defer kernelRiskFeedbackWorker.lifecycleMu.Unlock()
+	kernelRiskFeedbackWorker.mu.Lock()
+	if kernelRiskFeedbackWorker.started || kernelRiskFeedbackWorker.done != nil {
+		kernelRiskFeedbackWorker.mu.Unlock()
+		return
+	}
+	drainKernelRiskFeedbackQueue()
+	workerCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	kernelRiskFeedbackWorker.cancel = cancel
+	kernelRiskFeedbackWorker.done = done
+	kernelRiskFeedbackWorker.started = true
+	kernelRiskFeedbackWorker.mu.Unlock()
+
+	go runKernelRiskFeedbackWorker(workerCtx, done)
+}
+
+func runKernelRiskFeedbackWorker(ctx context.Context, done chan struct{}) {
+	defer func() {
+		close(done)
+		kernelRiskFeedbackWorker.mu.Lock()
+		if kernelRiskFeedbackWorker.done == done {
+			kernelRiskFeedbackWorker.cancel = nil
+			kernelRiskFeedbackWorker.done = nil
+			kernelRiskFeedbackWorker.started = false
+		}
+		kernelRiskFeedbackWorker.mu.Unlock()
+	}()
+	for {
+		select {
+		case <-ctx.Done():
+			drainKernelRiskFeedbackQueue()
+			return
+		case action := <-kernelRiskFeedbackQueue:
+			settings := Deps.RuntimeSettingsSnapshot()
+			if !settings.PolicyManagementEnabled || !settings.KernelRiskFeedback.Enabled {
+				Deps.CollectorMetrics.RecordKernelRiskFeedback(false, errors.New("kernel risk feedback disabled or policy management gate closed"))
+				continue
 			}
-		}()
-	})
+			if !kernelRiskFeedbackDedup.Allow(action, settings.KernelRiskFeedback, time.Now()) {
+				Deps.CollectorMetrics.RecordKernelRiskFeedback(false, nil)
+				continue
+			}
+			if err := applyKernelRiskFeedbackAction(action); err != nil {
+				Deps.CollectorMetrics.RecordKernelRiskFeedback(false, err)
+				continue
+			}
+			Deps.CollectorMetrics.RecordKernelRiskFeedback(true, nil)
+		}
+	}
+}
+
+func ShutdownKernelRiskFeedbackWorker(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	kernelRiskFeedbackWorker.lifecycleMu.Lock()
+	defer kernelRiskFeedbackWorker.lifecycleMu.Unlock()
+	kernelRiskFeedbackWorker.mu.Lock()
+	if kernelRiskFeedbackWorker.done == nil {
+		kernelRiskFeedbackWorker.mu.Unlock()
+		return nil
+	}
+	cancel := kernelRiskFeedbackWorker.cancel
+	done := kernelRiskFeedbackWorker.done
+	kernelRiskFeedbackWorker.started = false
+	kernelRiskFeedbackWorker.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	if done == nil {
+		return nil
+	}
+	select {
+	case <-done:
+		kernelRiskFeedbackWorker.mu.Lock()
+		if kernelRiskFeedbackWorker.done == done {
+			kernelRiskFeedbackWorker.cancel = nil
+			kernelRiskFeedbackWorker.done = nil
+		}
+		kernelRiskFeedbackWorker.mu.Unlock()
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func kernelRiskFeedbackWorkerStarted() bool {
+	kernelRiskFeedbackWorker.mu.Lock()
+	defer kernelRiskFeedbackWorker.mu.Unlock()
+	return kernelRiskFeedbackWorker.started
+}
+
+func drainKernelRiskFeedbackQueue() {
+	for {
+		select {
+		case <-kernelRiskFeedbackQueue:
+		default:
+			return
+		}
+	}
 }
 
 func (s *kernelRiskFeedbackState) Allow(action kernelRiskFeedbackAction, settings KernelRiskFeedbackSettings, now time.Time) bool {
@@ -95,6 +185,9 @@ func (s *kernelRiskFeedbackState) Allow(action kernelRiskFeedbackAction, setting
 }
 
 func queueKernelRiskFeedback(event *pb.Event, decision kernelRiskDecision) {
+	if !kernelRiskFeedbackWorkerStarted() {
+		return
+	}
 	settings := Deps.RuntimeSettingsSnapshot()
 	actions := kernelRiskFeedbackActions(settings, event, decision)
 	for _, action := range actions {
