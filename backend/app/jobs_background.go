@@ -179,6 +179,14 @@ func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) 
 		<-ctx.Done()
 		_ = signalProcessingWorkerStore.Shutdown(context.Background())
 	})
+	jobs.Go(func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+		defer cancel()
+		if err := shutdownCameraStreams(shutdownCtx); err != nil {
+			log.Printf("[WARN] camera streams did not stop cleanly: %v", err)
+		}
+	})
 	startResearchTaskWorker()
 	jobs.Go(func() { startUDSServer(ctx, broadcast) })
 	startCgroupAttributionGC(ctx)

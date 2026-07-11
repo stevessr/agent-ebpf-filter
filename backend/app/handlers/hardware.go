@@ -62,7 +62,7 @@ func HandleCameraSnapshot(c *gin.Context) {
 	}
 	defer sub.Unsubscribe()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 3*time.Second)
 	defer cancel()
 
 	frame, err := sub.NextFrame(ctx)
@@ -226,21 +226,15 @@ func ServeCameraWS(c *gin.Context) {
 	}
 	defer sub.Unsubscribe()
 
-	done := make(chan struct{})
+	ctx, cancel := context.WithCancel(c.Request.Context())
+	defer cancel()
 	go func() {
-		defer close(done)
+		defer cancel()
 		for {
 			if _, _, err := conn.ReadMessage(); err != nil {
 				return
 			}
 		}
-	}()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go func() {
-		<-done
-		cancel()
 	}()
 
 	for {
