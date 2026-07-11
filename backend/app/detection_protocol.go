@@ -81,6 +81,11 @@ type protoDetectionCache struct {
 	entries map[string]*protoDetectionEntry // key: "dstIP:dstPort"
 }
 
+const (
+	protoDetectionTTL        = 30 * time.Minute
+	protoDetectionMaxEntries = 4096
+)
+
 func newProtoDetectionCache() *protoDetectionCache {
 	return &protoDetectionCache{
 		entries: make(map[string]*protoDetectionEntry),
@@ -93,6 +98,10 @@ func (c *protoDetectionCache) Record(key string, protocol AppProtocol, sni, alpn
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	now := time.Now().UTC()
+	if _, exists := c.entries[key]; !exists && len(c.entries) >= protoDetectionMaxEntries {
+		c.evictLocked(now)
+	}
 
 	c.entries[key] = &protoDetectionEntry{
 		AppProtocol: protocol,
@@ -100,7 +109,7 @@ func (c *protoDetectionCache) Record(key string, protocol AppProtocol, sni, alpn
 		ALPN:        alpn,
 		HTTPHost:    httpHost,
 		HTTPMethod:  httpMethod,
-		DetectedAt:  time.Now().UTC(),
+		DetectedAt:  now,
 	}
 }
 
@@ -108,17 +117,43 @@ func (c *protoDetectionCache) Lookup(key string) (*protoDetectionEntry, bool) {
 	if c == nil {
 		return nil, false
 	}
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	entry, ok := c.entries[key]
 	if !ok {
 		return nil, false
 	}
-	if time.Since(entry.DetectedAt) > 30*time.Minute {
+	if time.Since(entry.DetectedAt) > protoDetectionTTL {
+		delete(c.entries, key)
 		return nil, false
 	}
 	return entry, true
+}
+
+func (c *protoDetectionCache) evictLocked(now time.Time) {
+	cutoff := now.Add(-protoDetectionTTL)
+	for key, entry := range c.entries {
+		if entry == nil || entry.DetectedAt.Before(cutoff) {
+			delete(c.entries, key)
+		}
+	}
+	for len(c.entries) >= protoDetectionMaxEntries {
+		var oldestKey string
+		var oldest time.Time
+		for key, entry := range c.entries {
+			if entry == nil || oldestKey == "" || entry.DetectedAt.Before(oldest) {
+				oldestKey = key
+				if entry != nil {
+					oldest = entry.DetectedAt
+				}
+			}
+		}
+		if oldestKey == "" {
+			break
+		}
+		delete(c.entries, oldestKey)
+	}
 }
 
 var protoCache = newProtoDetectionCache()

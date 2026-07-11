@@ -131,6 +131,10 @@ let streamAbortController: AbortController | null = null;
 let streamLineCarry = "";
 let pendingStreamLineCount = 0;
 let highlightRunId = 0;
+let hexLoadGeneration = 0;
+let elfLoadGeneration = 0;
+let hexAbortController: AbortController | null = null;
+let elfAbortController: AbortController | null = null;
 
 const isStreamingText = computed(
   () =>
@@ -215,6 +219,9 @@ const resetStreamState = () => {
 };
 
 const resetHexState = () => {
+  hexLoadGeneration++;
+  hexAbortController?.abort();
+  hexAbortController = null;
   hexLoading.value = false;
   hexError.value = "";
   hexData.value = null;
@@ -222,6 +229,9 @@ const resetHexState = () => {
 };
 
 const resetElfState = () => {
+  elfLoadGeneration++;
+  elfAbortController?.abort();
+  elfAbortController = null;
   elfLoading.value = false;
   elfError.value = "";
   elfData.value = null;
@@ -323,45 +333,87 @@ const streamTextPreview = async (path: string) => {
 };
 
 const loadHexPage = async (offset = 0) => {
-  if (!props.preview?.path) return;
+  const path = props.preview?.path;
+  if (!path) return;
+  hexAbortController?.abort();
+  const controller = new AbortController();
+  hexAbortController = controller;
+  const generation = ++hexLoadGeneration;
   hexLoading.value = true;
   hexError.value = "";
   try {
     const response = await fetch(
-      `/system/file-hex?path=${encodeURIComponent(props.preview.path)}&offset=${Math.max(0, offset)}&limit=${HEX_PAGE_SIZE}`,
+      `/system/file-hex?path=${encodeURIComponent(path)}&offset=${Math.max(0, offset)}&limit=${HEX_PAGE_SIZE}`,
       {
         headers: buildRequestHeaders(),
+        signal: controller.signal,
       },
     );
     if (!response.ok) throw new Error(`Hex load failed: ${response.status}`);
     const payload = (await response.json()) as HexResponse;
+    if (
+      controller.signal.aborted ||
+      generation !== hexLoadGeneration ||
+      props.preview?.path !== path
+    )
+      return;
     hexData.value = payload;
     hexOffsetInput.value = payload.offset;
   } catch (err) {
-    hexError.value = (err as Error).message || "Failed to load hex view";
+    if (
+      (err as Error).name !== "AbortError" &&
+      generation === hexLoadGeneration
+    ) {
+      hexError.value = (err as Error).message || "Failed to load hex view";
+    }
   } finally {
-    hexLoading.value = false;
+    if (generation === hexLoadGeneration) {
+      hexAbortController = null;
+      hexLoading.value = false;
+    }
   }
 };
 
 const loadELFAnalysis = async () => {
-  if (!props.preview?.path || props.preview.previewType !== "elf") return;
+  const path = props.preview?.path;
+  if (!path || props.preview?.previewType !== "elf") return;
+  elfAbortController?.abort();
+  const controller = new AbortController();
+  elfAbortController = controller;
+  const generation = ++elfLoadGeneration;
   elfLoading.value = true;
   elfError.value = "";
   try {
     const response = await fetch(
-      `/system/file-elf?path=${encodeURIComponent(props.preview.path)}`,
+      `/system/file-elf?path=${encodeURIComponent(path)}`,
       {
         headers: buildRequestHeaders(),
+        signal: controller.signal,
       },
     );
     if (!response.ok)
       throw new Error(`ELF analysis failed: ${response.status}`);
-    elfData.value = (await response.json()) as ELFAnalysis;
+    const payload = (await response.json()) as ELFAnalysis;
+    if (
+      controller.signal.aborted ||
+      generation !== elfLoadGeneration ||
+      props.preview?.path !== path
+    )
+      return;
+    elfData.value = payload;
   } catch (err) {
-    elfError.value = (err as Error).message || "Failed to analyze ELF file";
+    if (
+      (err as Error).name !== "AbortError" &&
+      generation === elfLoadGeneration
+    ) {
+      elfError.value =
+        (err as Error).message || "Failed to analyze ELF file";
+    }
   } finally {
-    elfLoading.value = false;
+    if (generation === elfLoadGeneration) {
+      elfAbortController = null;
+      elfLoading.value = false;
+    }
   }
 };
 
@@ -449,7 +501,10 @@ watch(
 );
 
 onBeforeUnmount(() => {
+  highlightRunId++;
   resetStreamState();
+  resetHexState();
+  resetElfState();
 });
 </script>
 

@@ -1,8 +1,8 @@
 import {
   computed,
   defineAsyncComponent,
-  onBeforeUnmount,
   onMounted,
+  onUnmounted,
   ref,
 } from "vue";
 import { pb } from "../../pb/tracker_pb.js";
@@ -26,7 +26,6 @@ export interface RateScale {
   precision: number;
 }
 
-const MAX_HISTORY_SECONDS = 300;
 const MEGABYTE = 1024 * 1024;
 
 export const VueApexCharts = defineAsyncComponent(
@@ -49,11 +48,15 @@ export const formatRate = (bytesPerSecond: number) =>
   `${formatBytes(bytesPerSecond)}/s`;
 
 export const resolveRateScale = (maxBytesPerSecond: number): RateScale => {
-  const v = Math.max(0, maxBytesPerSecond);
-  if (v >= 1024 ** 4) return { divisor: 1024 ** 4, unit: "TB/s", precision: 1 };
-  if (v >= 1024 ** 3) return { divisor: 1024 ** 3, unit: "GB/s", precision: 1 };
-  if (v >= 1024 ** 2) return { divisor: 1024 ** 2, unit: "MB/s", precision: 1 };
-  if (v >= 1024) return { divisor: 1024, unit: "KB/s", precision: 1 };
+  const value = Math.max(0, maxBytesPerSecond);
+  if (value >= 1024 ** 4)
+    return { divisor: 1024 ** 4, unit: "TB/s", precision: 1 };
+  if (value >= 1024 ** 3)
+    return { divisor: 1024 ** 3, unit: "GB/s", precision: 1 };
+  if (value >= 1024 ** 2)
+    return { divisor: 1024 ** 2, unit: "MB/s", precision: 1 };
+  if (value >= 1024)
+    return { divisor: 1024, unit: "KB/s", precision: 1 };
   return { divisor: 1, unit: "B/s", precision: 0 };
 };
 
@@ -69,70 +72,37 @@ export const getTrafficLevelLabel = (bps: number) => {
   return "steady";
 };
 
-export const protocolColor = (p?: string) => {
-  switch ((p || "").toUpperCase()) {
-    case "HTTP":
-      return "blue";
-    case "TLS":
-    case "HTTPS/TLS":
-      return "geekblue";
-    case "DNS":
-    case "MDNS":
-    case "LLMNR":
-      return "purple";
-    case "SSH":
-      return "volcano";
-    case "QUIC":
-      return "cyan";
-    case "SSDP":
-      return "orange";
-    case "NTP":
-      return "gold";
-    case "SNMP":
-      return "green";
-    case "NETBIOS":
-      return "red";
-    case "DHCP":
-      return "lime";
-    default:
-      return "default";
-  }
+export const protocolColor = (protocol?: string) => {
+  const colors: Record<string, string> = {
+    HTTP: "blue",
+    TLS: "geekblue",
+    "HTTPS/TLS": "geekblue",
+    DNS: "purple",
+    MDNS: "purple",
+    LLMNR: "purple",
+    SSH: "volcano",
+    QUIC: "cyan",
+    SSDP: "orange",
+    NTP: "gold",
+    SNMP: "green",
+    NETBIOS: "red",
+    DHCP: "lime",
+  };
+  return colors[(protocol || "").toUpperCase()] || "default";
 };
 
-export const stateColor = (s: string) => {
-  switch (s) {
-    case "ESTABLISHED":
-      return "green";
-    case "SYN_SENT":
-    case "SYN_RECV":
-      return "orange";
-    case "FIN_WAIT1":
-    case "FIN_WAIT2":
-    case "CLOSING":
-      return "gold";
-    case "TIME_WAIT":
-    case "CLOSE_WAIT":
-    case "LAST_ACK":
-      return "volcano";
-    default:
-      return "default";
-  }
+export const stateColor = (state: string) => {
+  if (state === "ESTABLISHED") return "green";
+  if (["SYN_SENT", "SYN_RECV"].includes(state)) return "orange";
+  if (["FIN_WAIT1", "FIN_WAIT2", "CLOSING"].includes(state)) return "gold";
+  if (["TIME_WAIT", "CLOSE_WAIT", "LAST_ACK"].includes(state))
+    return "volcano";
+  return "default";
 };
 
-export const staleColor = (level?: string) => {
-  switch (level) {
-    case "active":
-      return "green";
-    case "warning":
-      return "gold";
-    case "critical":
-      return "red";
-    case "historic":
-      return "default";
-    default:
-      return "default";
-  }
-};
+export const staleColor = (level?: string) =>
+  ({ active: "green", warning: "gold", critical: "red" })[level || ""] ||
+  "default";
 
 export const riskColor = (score: number) => {
   if (score >= 0.8) return "red";
@@ -141,10 +111,16 @@ export const riskColor = (score: number) => {
   return "green";
 };
 
-export function useInterfaceMonitor() {
+export interface UseInterfaceMonitorOptions {
+  refreshInterval?: number;
+}
+
+export function useInterfaceMonitor(opts: UseInterfaceMonitorOptions = {}) {
+  const refreshInterval = opts.refreshInterval ?? 2000;
+  const maxHistorySeconds = 300;
+
   const isConnected = ref(false);
   const wsTimeRange = ref(60);
-  const refreshInterval = ref(2000);
   const interfaceHistory = ref<Record<string, InterfaceSample[]>>({});
   const interfaceNames = ref<string[]>([]);
   const cumRecv = ref(0);
@@ -152,12 +128,14 @@ export function useInterfaceMonitor() {
   const showInterfaceChartModal = ref(false);
   const selectedInterfaceName = ref("");
   const interfaceChartTimeRange = ref(60);
+
   let lastIO: { networks: NetworkSnapshot; time: number } | null = null;
   let ws: WebSocket | null = null;
   let reconnectTimer: number | null = null;
   let shouldReconnect = true;
 
   const pad2 = (v: number) => String(Math.floor(Math.abs(v))).padStart(2, "0");
+
   const formatChartTime = (ts: number, rangeS: number) => {
     const d = new Date(ts);
     const hh = pad2(d.getHours()),
@@ -169,7 +147,7 @@ export function useInterfaceMonitor() {
   };
 
   const pruneSamples = (samples: InterfaceSample[]) => {
-    const minTime = Date.now() - MAX_HISTORY_SECONDS * 1000;
+    const minTime = Date.now() - maxHistorySeconds * 1000;
     return samples.filter((s) => s.time >= minTime);
   };
 
@@ -320,7 +298,7 @@ export function useInterfaceMonitor() {
     interfaceHistory.value = {};
     interfaceNames.value = [];
     const socket = new WebSocket(
-      buildWebSocketUrl("/ws/system", { interval: refreshInterval.value }),
+      buildWebSocketUrl("/ws/system", { interval: refreshInterval }),
     );
     ws = socket;
     socket.binaryType = "arraybuffer";
@@ -388,10 +366,18 @@ export function useInterfaceMonitor() {
     ws = null;
   };
 
+  onMounted(() => {
+    shouldReconnect = true;
+    connectWebSocket();
+  });
+
+  onUnmounted(() => {
+    disconnectWebSocket();
+  });
+
   return {
     isConnected,
     wsTimeRange,
-    refreshInterval,
     interfaceHistory,
     interfaceNames,
     cumRecv,
@@ -402,14 +388,16 @@ export function useInterfaceMonitor() {
     netInterfaces,
     totalNetRecv,
     totalNetSent,
+    openInterfaceChart,
     selectedInterfaceHistory,
     interfaceChartWindow,
     interfaceChartSamples,
     interfaceChartRateScale,
     interfaceChartOptions,
     interfaceChartSeries,
-    openInterfaceChart,
-    connectWebSocket,
-    disconnectWebSocket,
+    formatBytes,
+    formatRate,
+    resolveRateScale,
+    VueApexCharts,
   };
 }

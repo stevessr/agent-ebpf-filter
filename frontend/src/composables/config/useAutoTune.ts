@@ -87,8 +87,9 @@ export function useAutoTune(deps: AutoTuneDeps) {
   const autoTuneJobId = ref("");
   const autoTuneResponse = ref<MLAutoTuneResponse | null>(null);
   const autoTuneSelectedCell = ref<MLAutoTuneCell | null>(null);
-  const autoTunePollTimer = ref<ReturnType<typeof setInterval> | null>(null);
+  const autoTunePollTimer = ref<ReturnType<typeof setTimeout> | null>(null);
   const autoTunePollInFlight = ref(false);
+  let autoTunePollGeneration = 0;
 
   function applyAutoTuneStatus(data: any) {
     autoTuneJobId.value =
@@ -429,22 +430,63 @@ export function useAutoTune(deps: AutoTuneDeps) {
   const autoTuneBestCell = computed(() => autoTuneResponse.value?.best || null);
 
   const stopAutoTunePolling = () => {
+    autoTunePollGeneration++;
     if (autoTunePollTimer.value) {
-      clearInterval(autoTunePollTimer.value);
+      clearTimeout(autoTunePollTimer.value);
       autoTunePollTimer.value = null;
     }
     autoTunePollInFlight.value = false;
   };
 
   const startAutoTunePolling = (jobId: string) => {
-    if (wsActive.value) return;
+    if (wsActive.value) {
+      stopAutoTunePolling();
+      return;
+    }
     stopAutoTunePolling();
-    autoTunePollTimer.value = setInterval(async () => {
-      if (autoTunePollInFlight.value) return;
+    const generation = autoTunePollGeneration;
+    const baseDelay = 900;
+    const maxDelay = 10_000;
+    const maxConsecutiveFailures = 8;
+    let consecutiveFailures = 0;
+
+    const schedule = (delay: number) => {
+      if (
+        generation !== autoTunePollGeneration ||
+        wsActive.value ||
+        !autoTuneLoading.value
+      )
+        return;
+      autoTunePollTimer.value = setTimeout(runPoll, delay);
+    };
+
+    const runPoll = async () => {
+      autoTunePollTimer.value = null;
+      if (generation !== autoTunePollGeneration) return;
+      if (wsActive.value) {
+        stopAutoTunePolling();
+        return;
+      }
       autoTunePollInFlight.value = true;
+      let nextDelay = baseDelay;
       try {
         const data = await fetchMLStatusData();
-        if (!data) return;
+        if (!data) {
+          consecutiveFailures++;
+          if (consecutiveFailures >= maxConsecutiveFailures) {
+            autoTuneLoading.value = false;
+            autoTuneError.value = "自动调参状态连续拉取失败，请检查后端连接";
+            stopAutoTunePolling();
+            message.error(autoTuneError.value);
+            return;
+          }
+          nextDelay = Math.min(
+            baseDelay * 2 ** consecutiveFailures,
+            maxDelay,
+          );
+          return;
+        }
+        consecutiveFailures = 0;
         const statusJobId = data.autoTuneJobId ?? data.auto_tune_job_id;
         if (statusJobId && statusJobId !== jobId) {
           return;
@@ -498,9 +540,16 @@ export function useAutoTune(deps: AutoTuneDeps) {
         stopAutoTunePolling();
       } finally {
         autoTunePollInFlight.value = false;
+        schedule(nextDelay);
       }
-    }, 900);
+    };
+
+    schedule(baseDelay);
   };
+
+  watch(wsActive, (active) => {
+    if (active) stopAutoTunePolling();
+  });
 
   const runModelTune = async () => {
     const selected =

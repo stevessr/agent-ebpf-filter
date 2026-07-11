@@ -3,6 +3,7 @@ package app
 import (
 	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
+	"agent-ebpf-filter/udsframe"
 	"context"
 	"errors"
 	"fmt"
@@ -25,6 +26,8 @@ type udsConnectionSet struct {
 	closed bool
 	conns  map[net.Conn]struct{}
 }
+
+const udsPeerIOTimeout = 5 * time.Second
 
 func newUDSConnectionSet() *udsConnectionSet {
 	return &udsConnectionSet{conns: make(map[net.Conn]struct{})}
@@ -179,14 +182,16 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 			if err := verifyPeer(c); err != nil {
 				return
 			}
-			buf := make([]byte, 4096)
 			for {
-				n, err := c.Read(buf)
+				if err := c.SetReadDeadline(time.Now().Add(udsPeerIOTimeout)); err != nil {
+					return
+				}
+				payload, err := udsframe.Read(c)
 				if err != nil {
 					return
 				}
 				req := &pb.WrapperRequest{}
-				if err := proto.Unmarshal(buf[:n], req); err != nil {
+				if err := proto.Unmarshal(payload, req); err != nil {
 					continue
 				}
 
@@ -421,8 +426,16 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 					}, "uds_observe_navigate")
 				}
 
-				out, _ := proto.Marshal(resp)
-				_, _ = c.Write(out)
+				out, err := proto.Marshal(resp)
+				if err != nil {
+					return
+				}
+				if err := c.SetWriteDeadline(time.Now().Add(udsPeerIOTimeout)); err != nil {
+					return
+				}
+				if err := udsframe.Write(c, out); err != nil {
+					return
+				}
 			}
 		}(conn)
 	}

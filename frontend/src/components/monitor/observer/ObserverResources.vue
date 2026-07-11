@@ -2,6 +2,7 @@
 import { computed, defineAsyncComponent, ref, onUnmounted, watch } from "vue";
 import axios from "axios";
 import type { ProcessInfo } from "../../../composables/monitor/useProcessObserver";
+import { useProcessResourceHistory } from "./useProcessResourceHistory";
 
 const VueApexCharts = defineAsyncComponent(
   async () => (await import("vue3-apexcharts")).default as any,
@@ -16,38 +17,10 @@ const props = withDefaults(defineProps<{
   memTotal: 0,
 });
 
-// ── History for time-series ──────────────────────────────────────────────
-const MAX_HISTORY = 60;
-const cpuHistory = ref<{ time: number; series: { name: string; data: [number, number][] }[] }>({ time: 0, series: [] });
-const memHistory = ref<{ time: number; series: { name: string; data: [number, number][] }[] }>({ time: 0, series: [] });
-
-// Sample CPU/Mem every 3 seconds (avoid excessive reactivity churn)
-let sampleTimer: ReturnType<typeof setInterval> | null = null;
-const doSample = () => {
-  const now = Date.now();
-  const procs = props.processes.filter((p) => props.treePids.has(p.pid));
-  const update = (history: typeof cpuHistory.value, field: "cpu" | "mem") => {
-    const series = [...history.series];
-    for (const p of procs) {
-      const name = `[${p.pid}] ${p.name}`;
-      let s = series.find((x) => x.name === name);
-      if (!s) { s = { name, data: [] }; series.push(s); }
-      s.data.push([now, p[field] ?? 0]);
-      if (s.data.length > MAX_HISTORY) s.data.shift();
-    }
-    history.series = series;
-    history.time = now;
-  };
-  update(cpuHistory.value, "cpu");
-  update(memHistory.value, "mem");
-};
-
-watch(() => props.treePids, (pids) => {
-  if (sampleTimer) clearInterval(sampleTimer);
-  if (pids.size > 0) { doSample(); sampleTimer = setInterval(doSample, 3000); }
-}, { immediate: true });
-
-onUnmounted(() => { if (sampleTimer) clearInterval(sampleTimer); });
+const { cpuHistory, memHistory } = useProcessResourceHistory({
+  processes: () => props.processes,
+  treePids: () => props.treePids,
+});
 
 // ── I/O stats (auto-fetch on treePids change, with debounce) ───────────────
 const ioStats = ref<Record<number, Record<string, string>>>({});

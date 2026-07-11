@@ -47,6 +47,7 @@ import {
   type SubTabKey,
 } from "./processObserverViewHelpers";
 import { useObserverTLSPreferences } from "./useObserverTLSPreferences";
+import { useProcessAutoAttach } from "./useProcessAutoAttach";
 import { useProgramLauncher } from "./useProgramLauncher";
 import { useRoute, useRouter } from "vue-router";
 
@@ -134,6 +135,8 @@ watch(
   () => props.processes,
   (p) => setProcesses(p),
 );
+const processByPid = computed(() => new Map(props.processes.map((p) => [p.pid, p])));
+const treeProcessByPid = computed(() => new Map(treeProcessList.value.map((p) => [p.pid, p])));
 
 // ── PID input ────────────────────────────────────────────────────────────
 const pidInput = ref("");
@@ -200,7 +203,7 @@ const onClearSelection = () => {
 const selectedLabels = computed(() => {
   const labels: string[] = [];
   for (const pid of selectedPids.value) {
-    const p = props.processes.find((x) => x.pid === pid);
+    const p = processByPid.value.get(pid);
     labels.push(p ? `[${p.pid}] ${p.name}` : `PID ${pid}`);
   }
   return labels;
@@ -237,9 +240,6 @@ const visibleTLSEvents = computed(() =>
   skipSSL.value ? [] : treeTLSEvents.value
 );
 
-// Auto-attach tracked PIDs that were already attempted (avoid infinite retry)
-const autoAttachSeen = new Set<number>();
-
 // ── Manual SSL attach ────────────────────────────────────────────────────
 
 const attachingPids = reactive(new Set<number>());
@@ -252,7 +252,7 @@ const getBinaryPath = async (pid: number): Promise<string> => {
     return res.data.path || "";
   } catch {
     // Fallback: try cmdline
-    const p = treeProcessList.value.find((x) => x.pid === pid);
+    const p = treeProcessByPid.value.get(pid);
     if (p?.cmdline) {
       const parts = p.cmdline.split(/\s+/);
       if (parts[0]) return parts[0];
@@ -337,8 +337,8 @@ const detailModalProcess = ref<ProcessInfo | null>(null);
 
 const openProcessDetail = (node: ProcessTreeNode) => {
   // Look up full ProcessInfo from the processes list
-  const info = props.processes.find((p) => p.pid === node.pid)
-    || treeProcessList.value.find((p) => p.pid === node.pid)
+  const info = processByPid.value.get(node.pid)
+    || treeProcessByPid.value.get(node.pid)
     || null;
   detailModalProcess.value = info;
   detailModalOpen.value = true;
@@ -374,11 +374,14 @@ watch(selectedPids, (pids) => {
 }, { deep: true });
 
 // SSL attachment status per PID
+const attachedPIDByPid = computed(
+  () => new Map(attachedPIDs.value.map((attachment) => [attachment.pid, attachment])),
+);
 const sslAttachedSet = computed<Set<number>>(
-  () => new Set(attachedPIDs.value.map((a: any) => a.pid)),
+  () => new Set(attachedPIDByPid.value.keys()),
 );
 const sslLibForPid = (pid: number): string => {
-  const a = attachedPIDs.value.find((x: any) => x.pid === pid);
+  const a = attachedPIDByPid.value.get(pid);
   return a ? a.library_name || "attached" : "";
 };
 
@@ -386,10 +389,10 @@ const sslLibForPid = (pid: number): string => {
 // SSL attachments filtered to current tree, enriched with process name
 const treeSSLAttachments = computed(() =>
   attachedPIDs.value
-    .filter((a: any) => treePids.value.has(a.pid))
-    .map((a: any) => ({
+    .filter((a) => treePids.value.has(a.pid))
+    .map((a) => ({
       ...a,
-      comm: treeProcessList.value.find((p) => p.pid === a.pid)?.name || "",
+      comm: treeProcessByPid.value.get(a.pid)?.name || "",
     })),
 );
 
@@ -400,16 +403,12 @@ const treeSSLPending = computed(() =>
   ),
 );
 
-// Auto-attach tracked PIDs that are pending SSL
-watch(treeSSLPending, (pending) => {
-  if (!autoAttach.value) return;
-  for (const p of pending) {
-    if (autoAttachSeen.has(p.pid)) continue;
-    autoAttachSeen.add(p.pid);
-    // Small stagger delay so we don't flood the backend
-    setTimeout(() => doAttachBuiltins(p.pid), 100 * autoAttachSeen.size);
-  }
-}, { deep: false });
+useProcessAutoAttach({
+  pendingProcesses: treeSSLPending,
+  enabled: autoAttach,
+  isActive: () => props.isActive,
+  attach: doAttachBuiltins,
+});
 
 // ── Lifecycle ────────────────────────────────────────────────────────────
 

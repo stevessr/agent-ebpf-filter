@@ -30,7 +30,7 @@ sequenceDiagram
     
     Wrapper->>UDS: dial Unix socket (500ms timeout)
     UDS-->>Wrapper: connected
-    Wrapper->>Backend: WrapperRequest{<br/>  pid: getpid()<br/>  comm: "git"<br/>  args: ["push","origin","main"]<br/>  metadata: {...}<br/>  argv_digest: "abc123..."<br/>}
+    Wrapper->>Backend: length-prefix + WrapperRequest{<br/>  pid: getpid()<br/>  comm: "git"<br/>  args: ["push","origin","main"]<br/>  metadata: {...}<br/>  argv_digest: "abc123..."<br/>}
     
     Backend->>Rules: lookup wrapper rules
     Rules-->>Backend: matching rules
@@ -180,6 +180,7 @@ graph TB
 
 - UDS socket 应 restrictive；
 - backend 应验证 peer credentials；
+- protobuf 消息使用 4 字节大端长度前缀，单帧最大 4 MiB，并使用完整读写与 I/O 超时；
 - policy mutation 需要 runtime gate；
 - wrapper 只覆盖经它启动的命令。
 

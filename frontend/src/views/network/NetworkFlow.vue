@@ -12,7 +12,7 @@ import {
 } from "@ant-design/icons-vue";
 import type { NetworkFlow } from "../../composables/network/useNetworkEnrichment";
 import TrafficGraph from "../../components/network/TrafficGraph.vue";
-import { useInterfaceMonitor } from "./useInterfaceMonitor";
+import { useInterfaceMonitor } from "../../composables/monitor/useInterfaceMonitor";
 import { useFlowFilters } from "./useFlowFilters";
 
 // ── Composables ──────────────────────────────────────────────────────

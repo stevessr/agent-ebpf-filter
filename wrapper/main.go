@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -16,11 +17,34 @@ import (
 	"time"
 
 	"agent-ebpf-filter/pb"
+	"agent-ebpf-filter/udsframe"
 
 	"google.golang.org/protobuf/proto"
 )
 
 const udsPath = "/tmp/agent-ebpf.sock"
+
+func exchangeWrapperDecision(conn io.ReadWriter, req *pb.WrapperRequest) (*pb.WrapperResponse, error) {
+	if conn == nil || req == nil {
+		return nil, fmt.Errorf("wrapper decision exchange is unavailable")
+	}
+	payload, err := proto.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("marshal wrapper request: %w", err)
+	}
+	if err := udsframe.Write(conn, payload); err != nil {
+		return nil, fmt.Errorf("write wrapper request: %w", err)
+	}
+	payload, err = udsframe.Read(conn)
+	if err != nil {
+		return nil, fmt.Errorf("read wrapper response: %w", err)
+	}
+	resp := &pb.WrapperResponse{}
+	if err := proto.Unmarshal(payload, resp); err != nil {
+		return nil, fmt.Errorf("unmarshal wrapper response: %w", err)
+	}
+	return resp, nil
+}
 
 // isCodexSH 快速检查二进制是否为 codex sh 包装脚本
 func isCodexSH(cmdName, binPath string) bool {
@@ -105,17 +129,9 @@ func main() {
 		}
 		req.ArgvDigest = buildArgvDigest(req.Comm, req.Args)
 
-		data, _ := proto.Marshal(req)
-		_, err = conn.Write(data)
-		if err == nil {
-			buf := make([]byte, 4096)
-			n, err := conn.Read(buf)
-			if err == nil {
-				resp := &pb.WrapperResponse{}
-				if err := proto.Unmarshal(buf[:n], resp); err == nil {
-					handleDecision(resp, &cmdName, &cmdArgs)
-				}
-			}
+		resp, exchangeErr := exchangeWrapperDecision(conn, req)
+		if exchangeErr == nil {
+			handleDecision(resp, &cmdName, &cmdArgs)
 		}
 	}
 

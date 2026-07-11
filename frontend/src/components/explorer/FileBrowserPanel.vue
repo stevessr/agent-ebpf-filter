@@ -485,7 +485,10 @@ onMounted(async () => {
                 class="file-browser-folder-icon"
               />
               <div v-else-if="isImage(record)" class="file-browser-list-image">
-                <img :src="getImageUrl(record.path)" />
+                <img
+                  :src="getImageUrl(record.path)"
+                  :alt="`Preview of ${record.name}`"
+                />
               </div>
               <FileOutlined v-else />
               <span
@@ -575,7 +578,10 @@ onMounted(async () => {
                 }"
                 class="file-browser-grid-image"
               >
-                <img :src="getImageUrl(item.path)" />
+                <img
+                  :src="getImageUrl(item.path)"
+                  :alt="`Preview of ${item.name}`"
+                />
               </div>
               <FileOutlined
                 v-else

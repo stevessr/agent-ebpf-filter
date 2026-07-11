@@ -49,9 +49,13 @@ export function useGraphWebSocket(opts: UseGraphWebSocketOptions) {
       graphReconnectTimer = null;
     }
     if (graphWs) {
-      graphWs.onclose = null;
-      graphWs.close();
+      const previousSocket = graphWs;
       graphWs = null;
+      previousSocket.onopen = null;
+      previousSocket.onmessage = null;
+      previousSocket.onerror = null;
+      previousSocket.onclose = null;
+      previousSocket.close();
     }
     loading.value = true;
     graphSocketStatus.value = "connecting";
@@ -63,9 +67,11 @@ export function useGraphWebSocket(opts: UseGraphWebSocketOptions) {
     );
     graphWs = socket;
     socket.onopen = () => {
+      if (graphWs !== socket) return;
       graphSocketStatus.value = "connected";
     };
     socket.onmessage = (event) => {
+      if (graphWs !== socket) return;
       try {
         const payload = JSON.parse(String(event.data));
         if (payload?.error) {
@@ -83,6 +89,7 @@ export function useGraphWebSocket(opts: UseGraphWebSocketOptions) {
       }
     };
     socket.onerror = () => {
+      if (graphWs !== socket) return;
       graphSocketStatus.value = "error";
       loading.value = false;
     };

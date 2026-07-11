@@ -152,6 +152,8 @@ type exfilDetector struct {
 	cooldown       time.Duration
 }
 
+const exfilAlertCacheMaxEntries = 4096
+
 func newExfilDetector() *exfilDetector {
 	return &exfilDetector{
 		volumeThresholdBytes: 10 * 1024 * 1024, // 10 MB
@@ -170,9 +172,12 @@ func (d *exfilDetector) CheckFlow(flow flowBytes, key, dstIP, dstDomain string, 
 
 	// Cooldown check
 	d.mu.Lock()
-	if last, ok := d.lastAlertByKey[key]; ok && now.Sub(last) < d.cooldown {
-		d.mu.Unlock()
-		return nil
+	if last, ok := d.lastAlertByKey[key]; ok {
+		if now.Sub(last) < d.cooldown {
+			d.mu.Unlock()
+			return nil
+		}
+		delete(d.lastAlertByKey, key)
 	}
 	d.mu.Unlock()
 
@@ -219,6 +224,9 @@ func (d *exfilDetector) CheckFlow(flow flowBytes, key, dstIP, dstDomain string, 
 		d.mu.Unlock()
 		return nil
 	}
+	if len(d.lastAlertByKey) >= exfilAlertCacheMaxEntries {
+		d.evictAlertCacheLocked(now)
+	}
 	d.lastAlertByKey[key] = now
 	d.mu.Unlock()
 
@@ -234,6 +242,29 @@ func (d *exfilDetector) CheckFlow(flow flowBytes, key, dstIP, dstDomain string, 
 		Comm:       flow.Comm,
 		PID:        flow.PID,
 		DetectedAt: now.Format(time.RFC3339Nano),
+	}
+}
+
+func (d *exfilDetector) evictAlertCacheLocked(now time.Time) {
+	cutoff := now.Add(-d.cooldown)
+	for key, alertedAt := range d.lastAlertByKey {
+		if alertedAt.Before(cutoff) {
+			delete(d.lastAlertByKey, key)
+		}
+	}
+	for len(d.lastAlertByKey) >= exfilAlertCacheMaxEntries {
+		var oldestKey string
+		var oldest time.Time
+		for key, alertedAt := range d.lastAlertByKey {
+			if oldestKey == "" || alertedAt.Before(oldest) {
+				oldestKey = key
+				oldest = alertedAt
+			}
+		}
+		if oldestKey == "" {
+			break
+		}
+		delete(d.lastAlertByKey, oldestKey)
 	}
 }
 

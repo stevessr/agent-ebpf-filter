@@ -2,11 +2,8 @@ package app
 
 import (
 	"encoding/binary"
-	"fmt"
 	"math"
 	"math/rand"
-	"os"
-	"path/filepath"
 )
 
 // ---- moved from backend/zz_merged_backend.go section model_more.go ----
@@ -79,32 +76,33 @@ func (m *NaiveBayesModel) Serialize(path string) error {
 			putF64(m.Vars[c][d])
 		}
 	}
-	dir := filepath.Dir(path)
-	os.MkdirAll(dir, 0755)
-	os.WriteFile(path+".tmp", data, 0644)
-	return os.Rename(path+".tmp", path)
+	return writeModelFileAtomic(path, data, 0o644)
 }
 
 func DeserializeNaiveBayes(path string) (*NaiveBayesModel, error) {
-	raw, err := os.ReadFile(path)
-	if err != nil || len(raw) < 8 || string(raw[0:4]) != "NBAY" {
-		return nil, fmt.Errorf("invalid NB model")
+	r, err := newMLBinaryModelReader(path, "NBAY")
+	if err != nil {
+		return nil, err
 	}
-	pos := 4
-	readU32 := func() uint32 { v := binary.LittleEndian.Uint32(raw[pos:]); pos += 4; return v }
-	readF64 := func() float64 { v := math.Float64frombits(binary.LittleEndian.Uint64(raw[pos:])); pos += 8; return v }
-	_ = readU32() // version
-	nc := int(readU32())
+	r.readVersion()
+	nc := r.readBoundedCount("Naive Bayes class count", 1, mlBinaryMaxClasses)
+	r.requireItems("Naive Bayes", nc, mlBinaryNaiveBayesRowBytes, 0)
+	if err := r.doneIfInvalid(); err != nil {
+		return nil, err
+	}
 	m := &NaiveBayesModel{Classes: nc}
 	m.Means = make([][FeatureDim]float64, nc)
 	m.Vars = make([][FeatureDim]float64, nc)
 	m.Priors = make([]float64, nc)
 	for c := 0; c < nc; c++ {
-		m.Priors[c] = readF64()
+		m.Priors[c] = r.readF64()
 		for d := 0; d < FeatureDim; d++ {
-			m.Means[c][d] = readF64()
-			m.Vars[c][d] = readF64()
+			m.Means[c][d] = r.readF64()
+			m.Vars[c][d] = r.readF64()
 		}
+	}
+	if err := r.done(); err != nil {
+		return nil, err
 	}
 	return m, nil
 }
@@ -296,10 +294,7 @@ func (m *AdaBoostModel) Serialize(path string) error {
 	for _, a := range m.Alphas {
 		putF64(a)
 	}
-	dir := filepath.Dir(path)
-	os.MkdirAll(dir, 0755)
-	os.WriteFile(path+".tmp", data, 0644)
-	return os.Rename(path+".tmp", path)
+	return writeModelFileAtomic(path, data, 0o644)
 }
 
 // ── 7. Linear SVM (SGD with hinge loss) ────────────────────────────
@@ -359,10 +354,7 @@ func (m *SVMModel) Serialize(path string) error {
 			putF64(m.Weights[c][d])
 		}
 	}
-	dir := filepath.Dir(path)
-	os.MkdirAll(dir, 0755)
-	os.WriteFile(path+".tmp", data, 0644)
-	return os.Rename(path+".tmp", path)
+	return writeModelFileAtomic(path, data, 0o644)
 }
 
 // ── 8. Ridge Classifier ────────────────────────────────────────────
@@ -416,10 +408,7 @@ func (m *RidgeModel) Serialize(path string) error {
 			putF64(m.Weights[c][d])
 		}
 	}
-	dir := filepath.Dir(path)
-	os.MkdirAll(dir, 0755)
-	os.WriteFile(path+".tmp", data, 0644)
-	return os.Rename(path+".tmp", path)
+	return writeModelFileAtomic(path, data, 0o644)
 }
 
 // ── 9. Perceptron ──────────────────────────────────────────────────
@@ -476,10 +465,7 @@ func (m *PerceptronModel) Serialize(path string) error {
 			putF64(m.Weights[c][d])
 		}
 	}
-	dir := filepath.Dir(path)
-	os.MkdirAll(dir, 0755)
-	os.WriteFile(path+".tmp", data, 0644)
-	return os.Rename(path+".tmp", path)
+	return writeModelFileAtomic(path, data, 0o644)
 }
 
 // ── 10. Passive Aggressive Classifier ──────────────────────────────
@@ -536,8 +522,5 @@ func (m *PAModel) Serialize(path string) error {
 			putF64(m.Weights[c][d])
 		}
 	}
-	dir := filepath.Dir(path)
-	os.MkdirAll(dir, 0755)
-	os.WriteFile(path+".tmp", data, 0644)
-	return os.Rename(path+".tmp", path)
+	return writeModelFileAtomic(path, data, 0o644)
 }

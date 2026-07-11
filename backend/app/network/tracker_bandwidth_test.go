@@ -1,9 +1,11 @@
 package network
 
 import (
+	"fmt"
 	"math"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestManagerRunExfilDetectionPreservesFlowDestination(t *testing.T) {
@@ -46,6 +48,33 @@ func TestManagerRunExfilDetectionPreservesFlowDestination(t *testing.T) {
 	}
 	if repeated := manager.RunExfilDetection(); len(repeated) != 0 {
 		t.Fatalf("cooldown emitted duplicate alerts: %#v", repeated)
+	}
+}
+
+func TestExfilDetectorBoundsAlertCooldownCache(t *testing.T) {
+	detector := newExfilDetector()
+	detector.volumeThresholdBytes = 1
+	detector.rateThresholdBps = math.MaxFloat64
+	detector.durationThresholdSec = math.MaxFloat64
+	old := time.Now().UTC().Add(-detector.cooldown - time.Second)
+	for i := 0; i < exfilAlertCacheMaxEntries; i++ {
+		detector.lastAlertByKey[fmt.Sprintf("old-%d", i)] = old
+	}
+
+	now := time.Now().UTC()
+	alert := detector.CheckFlow(flowBytes{
+		BytesOut:  2,
+		FirstSeen: now.Add(-time.Second),
+		LastSeen:  now,
+	}, "new-flow", "203.0.113.1", "", 443)
+	if alert == nil {
+		t.Fatal("expected exfiltration alert")
+	}
+	if got := len(detector.lastAlertByKey); got > exfilAlertCacheMaxEntries {
+		t.Fatalf("alert cooldown entries = %d, max = %d", got, exfilAlertCacheMaxEntries)
+	}
+	if _, ok := detector.lastAlertByKey["new-flow"]; !ok {
+		t.Fatal("new alert cooldown entry was not recorded")
 	}
 }
 

@@ -57,7 +57,12 @@ export function useProgramLauncher(options: {
     );
     existing.unshift(rl);
     if (existing.length > MAX_RECENT) existing.length = MAX_RECENT;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
+    } catch {
+      // Launch success must not be reported as a failure when storage is
+      // unavailable (private mode, quota, or browser policy).
+    }
     recentLaunches.value = existing;
   };
 

@@ -45,6 +45,8 @@ export function useExecutionGraphRecording(deps: ExecutionGraphRecordingDeps) {
   const recordingBusy = ref(false);
   const replayBusy = ref(false);
   let recordingStatusTimer: ReturnType<typeof setInterval> | null = null;
+  let recordingStatusGeneration = 0;
+  let disposed = false;
 
   // ── Browser recording state ──
   const browserReplayIndex = ref(0);
@@ -55,8 +57,11 @@ export function useExecutionGraphRecording(deps: ExecutionGraphRecordingDeps) {
   // ── File recording functions ──
 
   const loadRecordingStatus = async () => {
+    if (disposed || recordingBusy.value) return;
+    const generation = ++recordingStatusGeneration;
     try {
       const { data } = await axios.get("/events/recording");
+      if (disposed || generation !== recordingStatusGeneration) return;
       recordingActive.value = Boolean(data?.active);
       recordingCount.value = Number(data?.count ?? 0);
       recordingStartedAt.value = String(data?.startedAt ?? "");
@@ -69,6 +74,7 @@ export function useExecutionGraphRecording(deps: ExecutionGraphRecordingDeps) {
   };
 
   const startRecording = async () => {
+    recordingStatusGeneration++;
     recordingBusy.value = true;
     try {
       const { data } = await axios.post("/events/recording/start", {
@@ -89,6 +95,7 @@ export function useExecutionGraphRecording(deps: ExecutionGraphRecordingDeps) {
   };
 
   const stopRecording = async () => {
+    recordingStatusGeneration++;
     recordingBusy.value = true;
     try {
       const { data } = await axios.post("/events/recording/stop");
@@ -187,7 +194,9 @@ export function useExecutionGraphRecording(deps: ExecutionGraphRecordingDeps) {
       }
     };
     playNext();
-    browserReplayTimer = setInterval(playNext, 900);
+    if (deps.browserReplayActive.value) {
+      browserReplayTimer = setInterval(playNext, 900);
+    }
   };
 
   const clearBrowserRecording = () => {
@@ -264,6 +273,7 @@ export function useExecutionGraphRecording(deps: ExecutionGraphRecordingDeps) {
   // ── Lifecycle ──
 
   const startRecordingStatusPolling = () => {
+    disposed = false;
     void loadRecordingStatus();
     recordingStatusTimer = setInterval(() => {
       void loadRecordingStatus();
@@ -278,6 +288,8 @@ export function useExecutionGraphRecording(deps: ExecutionGraphRecordingDeps) {
   };
 
   const cleanup = () => {
+    disposed = true;
+    recordingStatusGeneration++;
     stopRecordingStatusPolling();
     stopBrowserReplay();
   };

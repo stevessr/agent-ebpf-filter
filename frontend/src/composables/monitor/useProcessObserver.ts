@@ -338,12 +338,15 @@ export function useProcessObserver() {
 
   /** Retain snapshots of all PIDs ever seen so dead processes stay in the tree (grayed out). */
   const staleProcessMap = new Map<number, ProcessInfo>();
+  const liveProcessByPid = computed(
+    () => new Map(processes.value.map((process) => [process.pid, process])),
+  );
 
   /** Maps ppid → children, built from live + stale process data */
-  const processTree = computed<ProcessTreeNode[]>(() => {
+  const processTreeState = computed(() => {
     const map = new Map<number, ProcessTreeNode>();
     const roots: ProcessTreeNode[] = [];
-    const livePids = new Set(processes.value.map((p) => p.pid));
+    const livePids = new Set(liveProcessByPid.value.keys());
 
     // Seed from stale map (includes live processes, which get overwritten below)
     for (const p of staleProcessMap.values()) {
@@ -385,26 +388,18 @@ export function useProcessObserver() {
         roots.push(node);
       }
     }
-    return roots;
+    return { roots, nodeByPid: map };
   });
+  const processTree = computed<ProcessTreeNode[]>(
+    () => processTreeState.value.roots,
+  );
 
   /** Find the subtrees rooted at each selected PID */
   const selectedProcessTree = computed<ProcessTreeNode[]>(() => {
     if (selectedPids.value.size === 0) return [];
-    const findSubtree = (
-      nodes: ProcessTreeNode[],
-      targetPid: number,
-    ): ProcessTreeNode | null => {
-      for (const node of nodes) {
-        if (node.pid === targetPid) return node;
-        const found = findSubtree(node.children, targetPid);
-        if (found) return found;
-      }
-      return null;
-    };
     const result: ProcessTreeNode[] = [];
     for (const pid of selectedPids.value) {
-      const subtree = findSubtree(processTree.value, pid);
+      const subtree = processTreeState.value.nodeByPid.get(pid);
       if (subtree) result.push(subtree);
     }
     return result;
@@ -422,9 +417,8 @@ export function useProcessObserver() {
   /** Flat list of all processes in the selected tree (live + dead) */
   const treeProcessList = computed<ProcessInfo[]>(() => {
     const result: ProcessInfo[] = [];
-    const livePids = new Set(processes.value.map((p) => p.pid));
     for (const pid of treePids.value) {
-      const live = processes.value.find((p) => p.pid === pid);
+      const live = liveProcessByPid.value.get(pid);
       if (live) {
         result.push(live);
       } else {

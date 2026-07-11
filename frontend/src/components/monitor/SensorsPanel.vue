@@ -342,6 +342,7 @@ onUnmounted(() => {
                 <img
                   v-if="cameraStreamUrl"
                   :src="cameraStreamUrl"
+                  :alt="selectedCamera ? `Live camera stream from ${selectedCamera}` : 'Live camera stream'"
                   style="width: 100%; height: 100%; object-fit: contain"
                 />
                 <a-empty v-else description="No stream" />
