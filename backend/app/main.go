@@ -140,8 +140,6 @@ func Main() error {
 	r.Use(clusterGatewayMiddleware())
 	r.Use(ContextMiddleware(AppCtx))
 
-	startArchiveEvictionLoop(ctx)
-
 	registerRoutes(r, AppCtx, features, tlsRuntime.Broadcaster, tlsRuntime.Controller, tlsRuntime.Store, tlsRuntime.Rules)
 
 	seedDefaultTrackedCommands()

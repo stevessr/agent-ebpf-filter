@@ -43,6 +43,21 @@ func TestRunCgroupAttributionGCStopsWithContext(t *testing.T) {
 	}
 }
 
+func TestRunArchiveEvictionLoopStopsWithContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		runArchiveEvictionLoop(ctx, newEventArchive(8), time.Hour)
+		close(done)
+	}()
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("archive eviction loop did not stop after cancellation")
+	}
+}
+
 func TestRunClusterHeartbeatLoopStopsWithContext(t *testing.T) {
 	cfg := ClusterConfig{
 		Role:      ClusterRoleSlave,

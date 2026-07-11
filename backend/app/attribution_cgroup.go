@@ -233,10 +233,6 @@ func (s *collectorRateLimitState) computeHints(metrics collectorMetricsSnapshot)
 	return hints
 }
 
-func startCgroupAttributionGC(ctx context.Context) {
-	go runCgroupAttributionGC(ctx, cgroupAttribution, 5*time.Minute, 30*time.Minute)
-}
-
 func runCgroupAttributionGC(ctx context.Context, store *cgroupAttributionStore, interval, maxAge time.Duration) {
 	if ctx == nil || store == nil || interval <= 0 {
 		return

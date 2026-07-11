@@ -99,11 +99,6 @@ func currentNetworkFlowAggregator() *flowAggregator {
 	return networkFlowAggregator
 }
 
-func startFlowAggregatorGC(ctx context.Context) {
-	aggregator := currentNetworkFlowAggregator()
-	go runFlowAggregatorGC(ctx, aggregator, 2*time.Minute, 10*time.Minute)
-}
-
 func runFlowAggregatorGC(ctx context.Context, aggregator *flowAggregator, interval, maxAge time.Duration) {
 	if ctx == nil || aggregator == nil || interval <= 0 {
 		return

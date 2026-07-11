@@ -189,9 +189,20 @@ func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) 
 	})
 	startResearchTaskWorker()
 	jobs.Go(func() { startUDSServer(ctx, broadcast) })
-	startCgroupAttributionGC(ctx)
+	jobs.Go(func() {
+		runCgroupAttributionGC(ctx, cgroupAttribution, 5*time.Minute, 30*time.Minute)
+	})
 	AppCtx.Network.StartGC()
-	startFlowAggregatorGC(ctx)
+	jobs.Go(func() {
+		<-ctx.Done()
+		AppCtx.Network.Close()
+	})
+	jobs.Go(func() {
+		runFlowAggregatorGC(ctx, currentNetworkFlowAggregator(), 2*time.Minute, 10*time.Minute)
+	})
+	jobs.Go(func() {
+		runArchiveEvictionLoop(ctx, capturedEventArchive, 5*time.Minute)
+	})
 	jobs.Go(func() {
 		timer := time.NewTimer(100 * time.Millisecond)
 		defer timer.Stop()
@@ -219,20 +230,21 @@ func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) 
 	return jobs
 }
 
-func startArchiveEvictionLoop(ctx context.Context) {
-	go func() {
-		ticker := time.NewTicker(5 * time.Minute)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				settings := runtimeSettingsStore.Snapshot()
-				if d, err := time.ParseDuration(settings.MaxEventAge); err == nil && d > 0 {
-					capturedEventArchive.EvictOlderThan(time.Now().UTC().Add(-d))
-				}
+func runArchiveEvictionLoop(ctx context.Context, archive *eventArchive, interval time.Duration) {
+	if ctx == nil || archive == nil || interval <= 0 {
+		return
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			settings := runtimeSettingsStore.Snapshot()
+			if d, err := time.ParseDuration(settings.MaxEventAge); err == nil && d > 0 {
+				archive.EvictOlderThan(time.Now().UTC().Add(-d))
 			}
 		}
-	}()
+	}
 }
