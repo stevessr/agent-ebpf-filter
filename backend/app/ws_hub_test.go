@@ -206,23 +206,24 @@ func TestEventBroadcasterStopsClientHubsWithContext(t *testing.T) {
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
-	startEventBroadcaster(ctx)
+	done := make(chan struct{})
+	go func() {
+		runEventBroadcaster(ctx)
+		close(done)
+	}()
 	cancel()
-
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		appContext.EventClientHub.mu.Lock()
-		eventsClosed := appContext.EventClientHub.closed
-		appContext.EventClientHub.mu.Unlock()
-		appContext.EnvelopeClientHub.mu.Lock()
-		envelopesClosed := appContext.EnvelopeClientHub.closed
-		appContext.EnvelopeClientHub.mu.Unlock()
-		if eventsClosed && envelopesClosed {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("event broadcaster did not close client hubs after cancellation")
-		}
-		time.Sleep(time.Millisecond)
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("event broadcaster did not stop after cancellation")
+	}
+	appContext.EventClientHub.mu.Lock()
+	eventsClosed := appContext.EventClientHub.closed
+	appContext.EventClientHub.mu.Unlock()
+	appContext.EnvelopeClientHub.mu.Lock()
+	envelopesClosed := appContext.EnvelopeClientHub.closed
+	appContext.EnvelopeClientHub.mu.Unlock()
+	if !eventsClosed || !envelopesClosed {
+		t.Fatalf("client hubs closed = events:%v envelopes:%v", eventsClosed, envelopesClosed)
 	}
 }

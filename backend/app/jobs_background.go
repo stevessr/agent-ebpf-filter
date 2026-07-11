@@ -158,7 +158,7 @@ func startKernelEventReader(ctx context.Context, rd kernelEventReader, jobs *run
 func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) *runtimeBackgroundJobs {
 	jobs := &runtimeBackgroundJobs{}
 	initRedactionEngine()
-	startEventBroadcaster(ctx)
+	jobs.Go(func() { runEventBroadcaster(ctx) })
 	startKernelRiskFeedbackWorker(ctx)
 	startLoopDetectionWorker(ctx)
 	startResearchProcessingWorker(ctx)

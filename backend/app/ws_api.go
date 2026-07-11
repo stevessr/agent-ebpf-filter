@@ -48,7 +48,7 @@ func broadcastProtoMessage(hub *protoClientHub, data []byte) int {
 	return hub.Broadcast(data)
 }
 
-func startEventBroadcaster(ctx context.Context) {
+func runEventBroadcaster(ctx context.Context) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -56,89 +56,87 @@ func startEventBroadcaster(ctx context.Context) {
 	if appContext == nil {
 		return
 	}
-	go func() {
-		defer appContext.EventClientHub.Close()
-		defer appContext.EnvelopeClientHub.Close()
-		eventBatch := make([]*pb.Event, 0, 50)
-		envelopeBatch := make([]*pb.EventEnvelope, 0, 50)
-		batchTicker := time.NewTicker(50 * time.Millisecond)
-		defer batchTicker.Stop()
+	defer appContext.EventClientHub.Close()
+	defer appContext.EnvelopeClientHub.Close()
+	eventBatch := make([]*pb.Event, 0, 50)
+	envelopeBatch := make([]*pb.EventEnvelope, 0, 50)
+	batchTicker := time.NewTicker(50 * time.Millisecond)
+	defer batchTicker.Stop()
 
-		flushBatch := func() {
-			eventCount := len(eventBatch)
-			envelopeCount := len(envelopeBatch)
-			if eventCount == 0 && envelopeCount == 0 {
-				return
-			}
-			started := time.Now()
-			marshalErrors := 0
-			writeErrors := 0
-			if eventCount > 0 {
-				events := make([]*pb.Event, len(eventBatch))
-				copy(events, eventBatch)
-				eventBatch = eventBatch[:0]
-				msg := &pb.EventBatch{Events: events}
-				data, err := proto.Marshal(msg)
-				if err != nil {
-					marshalErrors++
-					log.Printf("[ERROR] failed to marshal EventBatch: %v", err)
-				} else {
-					writeErrors += broadcastProtoMessage(appContext.EventClientHub, data)
-				}
-			}
-			if envelopeCount > 0 {
-				envelopes := make([]*pb.EventEnvelope, len(envelopeBatch))
-				copy(envelopes, envelopeBatch)
-				envelopeBatch = envelopeBatch[:0]
-				msg := &pb.EventEnvelopeBatch{Envelopes: envelopes}
-				data, err := proto.Marshal(msg)
-				if err != nil {
-					marshalErrors++
-					log.Printf("[ERROR] failed to marshal EventEnvelopeBatch: %v", err)
-				} else {
-					writeErrors += broadcastProtoMessage(appContext.EnvelopeClientHub, data)
-				}
-			}
-			collectorMetricsStore.RecordBroadcastFlush(eventCount, envelopeCount, marshalErrors, writeErrors, time.Since(started))
+	flushBatch := func() {
+		eventCount := len(eventBatch)
+		envelopeCount := len(envelopeBatch)
+		if eventCount == 0 && envelopeCount == 0 {
+			return
 		}
-
-		appendRecord := func(record CapturedEventRecord) {
-			// Apply redaction before broadcast
-			redactEvent(record.Event, globalRedactionEngine)
-			redactEnvelopeEvent(record.Envelope, globalRedactionEngine)
-			if record.Event != nil {
-				eventBatch = append(eventBatch, record.Event)
-			}
-			if record.Envelope != nil {
-				envelopeBatch = append(envelopeBatch, record.Envelope)
+		started := time.Now()
+		marshalErrors := 0
+		writeErrors := 0
+		if eventCount > 0 {
+			events := make([]*pb.Event, len(eventBatch))
+			copy(events, eventBatch)
+			eventBatch = eventBatch[:0]
+			msg := &pb.EventBatch{Events: events}
+			data, err := proto.Marshal(msg)
+			if err != nil {
+				marshalErrors++
+				log.Printf("[ERROR] failed to marshal EventBatch: %v", err)
+			} else {
+				writeErrors += broadcastProtoMessage(appContext.EventClientHub, data)
 			}
 		}
+		if envelopeCount > 0 {
+			envelopes := make([]*pb.EventEnvelope, len(envelopeBatch))
+			copy(envelopes, envelopeBatch)
+			envelopeBatch = envelopeBatch[:0]
+			msg := &pb.EventEnvelopeBatch{Envelopes: envelopes}
+			data, err := proto.Marshal(msg)
+			if err != nil {
+				marshalErrors++
+				log.Printf("[ERROR] failed to marshal EventEnvelopeBatch: %v", err)
+			} else {
+				writeErrors += broadcastProtoMessage(appContext.EnvelopeClientHub, data)
+			}
+		}
+		collectorMetricsStore.RecordBroadcastFlush(eventCount, envelopeCount, marshalErrors, writeErrors, time.Since(started))
+	}
 
-		for {
-			select {
-			case <-ctx.Done():
+	appendRecord := func(record CapturedEventRecord) {
+		// Apply redaction before broadcast
+		redactEvent(record.Event, globalRedactionEngine)
+		redactEnvelopeEvent(record.Envelope, globalRedactionEngine)
+		if record.Event != nil {
+			eventBatch = append(eventBatch, record.Event)
+		}
+		if record.Envelope != nil {
+			envelopeBatch = append(envelopeBatch, record.Envelope)
+		}
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			flushBatch()
+			return
+		case event, ok := <-appContext.Broadcast:
+			if !ok {
 				flushBatch()
 				return
-			case event, ok := <-appContext.Broadcast:
-				if !ok {
-					flushBatch()
-					return
-				}
-				collectorMetricsStore.RecordBroadcastReceived()
-				event = enrichEventContext(event)
-				appendRecord(recordCapturedEvent(event))
-				for _, alert := range buildSemanticAlerts(event) {
-					alert = enrichEventContext(alert)
-					appendRecord(recordCapturedEvent(alert))
-				}
-				if len(eventBatch) >= 50 || len(envelopeBatch) >= 50 {
-					flushBatch()
-				}
-			case <-batchTicker.C:
+			}
+			collectorMetricsStore.RecordBroadcastReceived()
+			event = enrichEventContext(event)
+			appendRecord(recordCapturedEvent(event))
+			for _, alert := range buildSemanticAlerts(event) {
+				alert = enrichEventContext(alert)
+				appendRecord(recordCapturedEvent(alert))
+			}
+			if len(eventBatch) >= 50 || len(envelopeBatch) >= 50 {
 				flushBatch()
 			}
+		case <-batchTicker.C:
+			flushBatch()
 		}
-	}()
+	}
 }
 
 type recentEventFilters struct {
