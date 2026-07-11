@@ -26,7 +26,7 @@ export interface AutoTuneDeps {
   }>;
   wsActive: Ref<boolean>;
   fetchMLStatus: () => Promise<void>;
-  applyMLStatusResponse: (data: any) => void;
+  fetchMLStatusData: () => Promise<any | null>;
 }
 
 export function useAutoTune(deps: AutoTuneDeps) {
@@ -38,7 +38,7 @@ export function useAutoTune(deps: AutoTuneDeps) {
     hyperParams,
     wsActive,
     fetchMLStatus,
-    applyMLStatusResponse,
+    fetchMLStatusData,
   } = deps;
   const activeModelType = computed(
     () => modelBaseType?.value || modelType.value,
@@ -443,20 +443,20 @@ export function useAutoTune(deps: AutoTuneDeps) {
       if (autoTunePollInFlight.value) return;
       autoTunePollInFlight.value = true;
       try {
-        const res = await axios.get("/config/ml/status");
-        applyMLStatusResponse(res.data);
-        const statusJobId = res.data.autoTuneJobId ?? res.data.auto_tune_job_id;
+        const data = await fetchMLStatusData();
+        if (!data) return;
+        const statusJobId = data.autoTuneJobId ?? data.auto_tune_job_id;
         if (statusJobId && statusJobId !== jobId) {
           return;
         }
         const result =
-          res.data.autoTuneResult ?? res.data.auto_tune_result ?? null;
+          data.autoTuneResult ?? data.auto_tune_result ?? null;
         const modelResult =
-          res.data.modelTuneResult ?? res.data.model_tune_result ?? null;
-        const error = res.data.autoTuneError ?? res.data.auto_tune_error ?? "";
+          data.modelTuneResult ?? data.model_tune_result ?? null;
+        const error = data.autoTuneError ?? data.auto_tune_error ?? "";
         const inProgress =
-          res.data.autoTuneInProgress ??
-          res.data.auto_tune_in_progress ??
+          data.autoTuneInProgress ??
+          data.auto_tune_in_progress ??
           false;
         if (modelResult) {
           modelTuneResponse.value = modelResult;
@@ -479,7 +479,7 @@ export function useAutoTune(deps: AutoTuneDeps) {
           autoTuneLoading.value = false;
           stopAutoTunePolling();
           message.success(
-            `自动调参完成：${res.data.autoTuneCompleted ?? result.cells.length ?? 0}/${res.data.autoTuneTotal ?? result.cells.length ?? 0}`,
+            `自动调参完成：${data.autoTuneCompleted ?? result.cells.length ?? 0}/${data.autoTuneTotal ?? result.cells.length ?? 0}`,
           );
           return;
         }

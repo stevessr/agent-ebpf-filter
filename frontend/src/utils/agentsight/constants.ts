@@ -1,0 +1,131 @@
+export const SOURCE_COLORS = [
+  "#3b82f6",
+  "#10b981",
+  "#f59e0b",
+  "#8b5cf6",
+  "#ef4444",
+  "#6366f1",
+  "#ec4899",
+  "#6b7280",
+];
+export const SOURCE_COLOR_CLASSES = [
+  "blue",
+  "green",
+  "gold",
+  "purple",
+  "red",
+  "geekblue",
+  "magenta",
+  "default",
+];
+
+export const EVENT_TYPE_NAMES: Record<number, string> = {
+  0: "EXECVE",
+  1: "OPENAT",
+  2: "NETWORK_CONNECT",
+  3: "MKDIR",
+  4: "UNLINK",
+  5: "IOCTL",
+  6: "NETWORK_BIND",
+  7: "NETWORK_SENDTO",
+  8: "NETWORK_RECVFROM",
+  9: "READ",
+  10: "WRITE",
+  11: "OPEN",
+  12: "CHMOD",
+  13: "CHOWN",
+  14: "RENAME",
+  15: "LINK",
+  16: "SYMLINK",
+  17: "MKNOD",
+  18: "CLONE",
+  19: "EXIT",
+  20: "SOCKET",
+  21: "ACCEPT",
+  22: "ACCEPT4",
+  23: "WRAPPER_INTERCEPT",
+  24: "NATIVE_HOOK",
+  25: "GENERIC_SYSCALL",
+  26: "SCHED_PROCESS_FORK",
+  27: "SCHED_PROCESS_EXEC",
+  28: "SCHED_PROCESS_EXIT",
+  29: "WAIT4",
+  30: "SEMANTIC_ALERT",
+  31: "TCP_CONNECT",
+  32: "TCP_CLOSE",
+  33: "TCP_STATE_CHANGE",
+  34: "DNS_QUERY",
+  35: "TLS_PLAINTEXT",
+  36: "HTTP_MESSAGE",
+  37: "SSE_MESSAGE",
+  38: "STDIO",
+  39: "SYSTEM_METRIC",
+  40: "OTEL_SPAN",
+  41: "AGENTSIGHT_ALERT",
+};
+
+export const payloadSources: Array<{
+  keys: string[];
+  source: string;
+  eventType: string;
+}> = [
+  {
+    keys: ["tls_event", "tlsEvent"],
+    source: "ssl",
+    eventType: "TLS_PLAINTEXT",
+  },
+  {
+    keys: ["http_event", "httpEvent"],
+    source: "http_parser",
+    eventType: "HTTP_MESSAGE",
+  },
+  {
+    keys: ["sse_event", "sseEvent"],
+    source: "sse_processor",
+    eventType: "SSE_MESSAGE",
+  },
+  { keys: ["stdio_event", "stdioEvent"], source: "stdio", eventType: "STDIO" },
+  {
+    keys: ["system_metric_event", "systemMetricEvent"],
+    source: "system",
+    eventType: "SYSTEM_METRIC",
+  },
+  {
+    keys: ["otel_span_event", "otelSpanEvent"],
+    source: "otel",
+    eventType: "OTEL_SPAN",
+  },
+  {
+    keys: ["agentsight_alert_event", "agentsightAlertEvent"],
+    source: "policy",
+    eventType: "AGENTSIGHT_ALERT",
+  },
+  {
+    keys: ["network_event", "networkEvent"],
+    source: "network",
+    eventType: "NETWORK",
+  },
+  {
+    keys: ["process_event", "processEvent"],
+    source: "process",
+    eventType: "PROCESS",
+  },
+  { keys: ["file_event", "fileEvent"], source: "file", eventType: "FILE" },
+  {
+    keys: ["policy_event", "policyEvent"],
+    source: "policy",
+    eventType: "POLICY",
+  },
+  {
+    keys: ["wrapper_event", "wrapperEvent"],
+    source: "agent",
+    eventType: "WRAPPER_INTERCEPT",
+  },
+  {
+    keys: ["hook_event", "hookEvent"],
+    source: "agent",
+    eventType: "NATIVE_HOOK",
+  },
+  { keys: ["mcp_event", "mcpEvent"], source: "stdio", eventType: "MCP" },
+  { keys: ["exec_event", "execEvent"], source: "process", eventType: "EXECVE" },
+];

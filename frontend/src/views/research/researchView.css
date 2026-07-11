@@ -1,0 +1,134 @@
+.research-page {
+  min-height: 100%;
+}
+
+.research-page__header {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.research-page__title {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.research-page__description {
+  max-width: 920px;
+  margin-bottom: 0;
+  color: #475569;
+}
+
+.research-card {
+  margin-top: 12px;
+}
+
+.research-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.research-form__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+.research-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: #475569;
+  font-size: 12px;
+}
+
+.research-session-item {
+  padding: 10px !important;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: 8px;
+}
+
+.research-session-item:hover,
+.research-session-item--active {
+  background: #f5f8ff;
+  border-color: #91caff;
+}
+
+.research-session-item__title {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+}
+
+.research-session-item__meta {
+  margin-top: 4px;
+  color: #475569;
+  font-size: 12px;
+}
+
+.research-session-item__tags {
+  margin-top: 6px;
+}
+
+.research-stats {
+  margin-bottom: 12px;
+}
+
+.research-task {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.research-task__head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.research-task__error {
+  color: #cf1322;
+}
+
+.research-tabs {
+  margin-top: 4px;
+}
+
+.research-toolbar {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.research-muted {
+  color: #475569;
+  font-size: 12px;
+}
+
+.research-ellipsis {
+  display: inline-block;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.research-json {
+  max-height: 420px;
+  padding: 12px;
+  margin-top: 12px;
+  overflow: auto;
+  font-size: 12px;
+  background: #0f172a;
+  border-radius: 8px;
+  color: #e2e8f0;
+}

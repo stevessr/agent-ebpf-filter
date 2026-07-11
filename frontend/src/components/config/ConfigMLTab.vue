@@ -18,7 +18,19 @@ const router = useRouter();
 const { wsActive, applyMLStatusResponse } = props.ml;
 
 // WebSocket status stream
-const { connect: wsConnect } = useMLStatusStream(applyMLStatusResponse);
+const {
+  isConnected: wsConnected,
+  connect: wsConnect,
+  disconnect: wsDisconnect,
+} = useMLStatusStream(applyMLStatusResponse);
+
+watch(
+  wsConnected,
+  (connected) => {
+    wsActive.value = connected;
+  },
+  { immediate: true },
+);
 
 const validMLSubTabs = new Set([
   "status",
@@ -62,7 +74,6 @@ watch(mlSubTabKey, (val) => {
 });
 
 onMounted(() => {
-  wsActive.value = true;
   wsConnect();
   if (route.name === "ML" && route.params.subtab !== mlSubTabKey.value) {
     router.replace({ name: "ML", params: { subtab: mlSubTabKey.value } });
@@ -70,6 +81,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  wsDisconnect();
   wsActive.value = false;
 });
 </script>

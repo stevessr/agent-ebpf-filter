@@ -43,6 +43,8 @@ import {
 } from "./mlUtils";
 import { useAutoTune, type AutoTuneDeps } from "./useAutoTune";
 import { useConfigMLDataset } from "./useConfigMLDataset";
+import { useMLSampleActions } from "./useMLSampleActions";
+import { autoTunePublicApi, mlSampleActionsPublicApi } from "./mlPublicApi";
 
 export interface MLThresholds {
   blockConfidenceThreshold: number;
@@ -50,6 +52,11 @@ export interface MLThresholds {
   ruleOverridePriority: number;
   lowAnomalyThreshold: number;
   highAnomalyThreshold: number;
+}
+
+interface GuardedFetchOptions {
+  signal?: AbortSignal;
+  isCurrent?: () => boolean;
 }
 
 export function useConfigML() {
@@ -120,7 +127,13 @@ export function useConfigML() {
   );
   const trainingLogs = ref<{ time: string; message: string }[]>([]);
   const wsActive = ref(false);
-  const logPollTimer = ref<ReturnType<typeof setInterval> | null>(null);
+  const logPollTimer = ref<ReturnType<typeof setTimeout> | null>(null);
+  let logPollActive = false;
+  let logPollGeneration = 0;
+  let logPollController: AbortController | null = null;
+  let logCompletionController: AbortController | null = null;
+  let configMLDisposed = false;
+  let mlStatusEpoch = 0;
   const llmConfigReady = ref(false);
   const llmConfigApplyingRemote = ref(false);
   const llmConfigSyncTimer = ref<ReturnType<typeof setTimeout> | null>(null);
@@ -155,7 +168,7 @@ export function useConfigML() {
       await fetchMLStatus();
     },
     fetchAllSamples: async () => {
-      await fetchAllSamples();
+      await sampleActions.fetchAllSamples();
     },
     fetchExistingCommandData: async (silent?: boolean) => {
       await dataset.fetchExistingCommandData(silent);
@@ -163,7 +176,7 @@ export function useConfigML() {
   });
 
   // ── Helpers ──
-  const applyMLStatusResponse = (data: any) => {
+  const applyMLStatusData = (data: any) => {
     mlEnabled.value = data.mlEnabled ?? data.ml_enabled ?? false;
     modelType.value = data.modelType ?? data.model_type ?? modelType.value;
     cudaAvailable.value = data.cudaAvailable ?? data.cuda_available ?? false;
@@ -258,60 +271,171 @@ export function useConfigML() {
     }
   };
 
-  const startLogPolling = () => {
-    if (wsActive.value || logPollTimer.value) return;
-    logPollTimer.value = setInterval(async () => {
-      try {
-        const res = await axios.get("/config/ml/status");
-        const wasRunning = mlStatus.value.training_in_progress;
-        applyMLStatusResponse(res.data);
-        if (wasRunning && !mlStatus.value.training_in_progress) {
-          stopLogPolling();
-          await fetchMLStatus();
-          await fetchAllSamples();
-        }
-      } catch (_) {}
-    }, 1000);
+  const applyMLStatusResponse = (data: any) => {
+    if (configMLDisposed) return;
+    mlStatusEpoch++;
+    applyMLStatusData(data);
+  };
+
+  const fetchAndApplyMLStatus = async (
+    options: GuardedFetchOptions = {},
+  ): Promise<any | null> => {
+    const statusEpoch = ++mlStatusEpoch;
+    const isCurrent = () =>
+      !configMLDisposed &&
+      statusEpoch === mlStatusEpoch &&
+      !options.signal?.aborted &&
+      (options.isCurrent?.() ?? true);
+    try {
+      const res = await axios.get("/config/ml/status", {
+        signal: options.signal,
+      });
+      if (!isCurrent()) return null;
+      applyMLStatusData(res.data);
+      return res.data;
+    } catch (_) {
+      return null;
+    }
   };
 
   const stopLogPolling = () => {
-    if (logPollTimer.value) {
-      clearInterval(logPollTimer.value);
+    logPollActive = false;
+    logPollGeneration++;
+    logPollController?.abort();
+    logPollController = null;
+    logCompletionController?.abort();
+    logCompletionController = null;
+    if (logPollTimer.value !== null) {
+      clearTimeout(logPollTimer.value);
       logPollTimer.value = null;
     }
   };
 
-  const fetchMLStatus = async () => {
+  const runLogPoll = async (generation: number) => {
+    if (
+      !logPollActive ||
+      configMLDisposed ||
+      wsActive.value ||
+      generation !== logPollGeneration
+    ) return;
+    logPollTimer.value = null;
+    const controller = new AbortController();
+    logPollController?.abort();
+    logPollController = controller;
+    try {
+      const wasRunning = mlStatus.value.training_in_progress;
+      const data = await fetchAndApplyMLStatus({
+        signal: controller.signal,
+        isCurrent: () =>
+          logPollActive &&
+          !wsActive.value &&
+          generation === logPollGeneration,
+      });
+      if (data && wasRunning && !mlStatus.value.training_in_progress) {
+        stopLogPolling();
+        const completionGeneration = logPollGeneration;
+        if (configMLDisposed) return;
+        const completionController = new AbortController();
+        logCompletionController = completionController;
+        const completionIsCurrent = () =>
+          !configMLDisposed &&
+          completionGeneration === logPollGeneration;
+        try {
+          await fetchMLStatus({
+            signal: completionController.signal,
+            isCurrent: completionIsCurrent,
+          });
+          if (!completionIsCurrent()) return;
+          await sampleActions.fetchAllSamples({
+            signal: completionController.signal,
+            isCurrent: completionIsCurrent,
+          });
+        } finally {
+          if (logCompletionController === completionController) {
+            logCompletionController = null;
+          }
+        }
+        return;
+      }
+    } catch (_) {
+      if (controller.signal.aborted) return;
+    } finally {
+      if (logPollController === controller) logPollController = null;
+    }
+    if (
+      logPollActive &&
+      !configMLDisposed &&
+      !wsActive.value &&
+      generation === logPollGeneration
+    ) {
+      logPollTimer.value = setTimeout(
+        () => void runLogPoll(generation),
+        1000,
+      );
+    }
+  };
+
+  const startLogPolling = () => {
+    if (wsActive.value || logPollActive || configMLDisposed) return;
+    logCompletionController?.abort();
+    logCompletionController = null;
+    logPollActive = true;
+    const generation = ++logPollGeneration;
+    logPollTimer.value = setTimeout(
+      () => void runLogPoll(generation),
+      1000,
+    );
+  };
+
+  watch(wsActive, (active) => {
+    if (active) {
+      stopLogPolling();
+    } else if (
+      trainingModel.value ||
+      mlStatus.value.training_in_progress
+    ) {
+      startLogPolling();
+    }
+  });
+
+  const fetchMLStatus = async (options: GuardedFetchOptions = {}) => {
+    const isCurrent = () =>
+      !configMLDisposed &&
+      !options.signal?.aborted &&
+      (options.isCurrent?.() ?? true);
     let fetchedOk = false;
     try {
-      const res = await axios.get("/config/ml/status");
-      applyMLStatusResponse(res.data);
-      if (res.data.blockConfidenceThreshold !== undefined) {
+      const data = await fetchAndApplyMLStatus(options);
+      if (!data || !isCurrent()) return;
+      if (data.blockConfidenceThreshold !== undefined) {
         mlThresholds.value.blockConfidenceThreshold =
-          res.data.blockConfidenceThreshold ?? 0.85;
-        mlThresholds.value.mlMinConfidence = res.data.mlMinConfidence ?? 0.6;
+          data.blockConfidenceThreshold ?? 0.85;
+        mlThresholds.value.mlMinConfidence = data.mlMinConfidence ?? 0.6;
         mlThresholds.value.ruleOverridePriority =
-          res.data.ruleOverridePriority ?? 100;
+          data.ruleOverridePriority ?? 100;
         mlThresholds.value.lowAnomalyThreshold =
-          res.data.lowAnomalyThreshold ?? 0.3;
+          data.lowAnomalyThreshold ?? 0.3;
         mlThresholds.value.highAnomalyThreshold =
-          res.data.highAnomalyThreshold ?? 0.7;
+          data.highAnomalyThreshold ?? 0.7;
       }
-      if (res.data.hyperParams) {
-        hyperParams.value.numTrees = res.data.hyperParams.numTrees ?? 31;
-        hyperParams.value.maxDepth = res.data.hyperParams.maxDepth ?? 8;
+      if (data.hyperParams) {
+        hyperParams.value.numTrees = data.hyperParams.numTrees ?? 31;
+        hyperParams.value.maxDepth = data.hyperParams.maxDepth ?? 8;
         hyperParams.value.minSamplesLeaf =
-          res.data.hyperParams.minSamplesLeaf ?? 5;
+          data.hyperParams.minSamplesLeaf ?? 5;
       }
-      await fetchTrainingHistory();
+      await fetchTrainingHistory(options);
+      if (!isCurrent()) return;
       fetchedOk = true;
     } catch (_) {
     } finally {
-      if (!llmConfigReady.value) {
-        llmConfigReady.value = true;
-      }
-      if (fetchedOk) {
-        queueLLMScoringConfigAutosave();
+      if (isCurrent()) {
+        if (!llmConfigReady.value) {
+          llmConfigReady.value = true;
+        }
+        if (fetchedOk) {
+          queueLLMScoringConfigAutosave();
+        }
       }
     }
   };
@@ -325,8 +449,9 @@ export function useConfigML() {
     hyperParams,
     wsActive,
     fetchMLStatus,
-    applyMLStatusResponse,
+    fetchMLStatusData: fetchAndApplyMLStatus,
   };
+  const autoTune = useAutoTune(_atDeps);
   const {
     autoTuneMode,
     modelTuneSelectedTypes,
@@ -369,11 +494,18 @@ export function useConfigML() {
     applyAutoTuneCell,
     applyAutoTuneStatus,
     stopAutoTunePolling,
-  } = useAutoTune(_atDeps);
+  } = autoTune;
 
-  const fetchTrainingHistory = async () => {
+  const fetchTrainingHistory = async (options: GuardedFetchOptions = {}) => {
     try {
-      const res = await axios.get("/config/ml/history");
+      const res = await axios.get("/config/ml/history", {
+        signal: options.signal,
+      });
+      if (
+        configMLDisposed ||
+        options.signal?.aborted ||
+        !(options.isCurrent?.() ?? true)
+      ) return;
       trainingHistory.value = res.data.history || [];
     } catch (_) {}
   };
@@ -733,7 +865,7 @@ export function useConfigML() {
       if (res.data.review) mlStatus.value.llm_review = res.data.review;
       if (res.data.applied > 0) {
         await fetchMLStatus();
-        await fetchAllSamples();
+        await sampleActions.fetchAllSamples();
       }
       message.success(
         `LLM 打分完成：${res.data.scored}/${res.data.total}，平均风险 ${(res.data.averageRiskScore ?? 0).toFixed(1)}`,
@@ -751,242 +883,32 @@ export function useConfigML() {
       ? String(record.index)
       : `${record.commandLine}:${record.recommendedAction}:${record.riskScore}:${record.confidence}`;
 
-  // ── Sample CRUD ──
-  const filteredSamples = computed(() => {
-    if (!sampleSearchText.value.trim()) return allSamples.value;
-    const search = sampleSearchText.value.toLowerCase();
-    return allSamples.value.filter(
-      (s) =>
-        (s.commandLine || "").toLowerCase().includes(search) ||
-        s.comm.toLowerCase().includes(search) ||
-        (s.args || []).join(" ").toLowerCase().includes(search),
-    );
+  const sampleActions = useMLSampleActions({
+    allSamples,
+    loadingSamples,
+    sampleSearchText,
+    sampleCommandLine,
+    sampleLabel,
+    submittingSample,
+    backtestCommandLine,
+    backtesting,
+    backtestResult,
+    cancellingTraining,
+    trainingModel,
+    trainingLogs,
+    hyperParams,
+    llmScoringConfig,
+    dataset,
+    fetchMLStatus,
+    saveMLThresholds,
+    startLogPolling,
+    stopLogPolling,
+    splitCommandLine,
+    isDisposed: () => configMLDisposed,
   });
-
-  const existingDuplicateCount = computed(
-    () =>
-      dataset.existingCommandCandidates.value.filter(
-        (item: any) => item.duplicate,
-      ).length,
-  );
-  const importableExistingCount = computed(
-    () =>
-      dataset.existingCommandCandidates.value.length -
-      existingDuplicateCount.value,
-  );
-
-  const fetchAllSamples = async () => {
-    loadingSamples.value = true;
-    try {
-      const res = await axios.get("/config/ml/samples");
-      allSamples.value = res.data.samples || [];
-    } catch (_) {
-    } finally {
-      loadingSamples.value = false;
-    }
-  };
-
-  const labelSample = async (index: number, label: string) => {
-    try {
-      await axios.put("/config/ml/samples/label", { index, label });
-      const entry = allSamples.value.find((s) => s.index === index);
-      if (entry) {
-        entry.label = label;
-        entry.userLabel = "manual-index";
-      }
-      message.success(`Sample #${index} labeled as ${label}`);
-    } catch (_: any) {
-      message.error("Failed to label sample");
-    }
-  };
-
-  const deleteSample = async (index: number) => {
-    try {
-      await axios.delete(`/config/ml/samples/${index}`);
-      allSamples.value = allSamples.value.filter((s) => s.index !== index);
-      message.success(`Sample #${index} deleted`);
-      await fetchMLStatus();
-    } catch (_: any) {
-      message.error("Failed to delete sample");
-    }
-  };
-
-  const updateAnomaly = async (index: number, anomalyScore: number) => {
-    try {
-      await axios.put("/config/ml/samples/anomaly", { index, anomalyScore });
-    } catch (_: any) {
-      message.error("Failed to update anomaly score");
-    }
-  };
-
-  const cancelTraining = async () => {
-    cancellingTraining.value = true;
-    try {
-      await axios.post("/config/ml/train/cancel");
-      message.info("已发送中止请求");
-    } catch (e: any) {
-      message.error(e.response?.data?.error || "取消失败");
-    } finally {
-      cancellingTraining.value = false;
-    }
-  };
-
-  const trainWithParams = async () => {
-    trainingModel.value = true;
-    trainingLogs.value = [];
-    try {
-      await saveMLThresholds();
-      startLogPolling();
-      const res = await axios.post("/config/ml/train", {
-        numTrees: hyperParams.value.numTrees,
-        maxDepth: hyperParams.value.maxDepth,
-        minSamplesLeaf: hyperParams.value.minSamplesLeaf,
-      });
-      message.success(
-        `Model trained: accuracy=${(res.data.accuracy * 100).toFixed(1)}%, ${res.data.numTrees} trees`,
-      );
-      await fetchMLStatus();
-      await fetchAllSamples();
-    } catch (e: any) {
-      message.error(e.response?.data?.error || "Training failed");
-    } finally {
-      trainingModel.value = false;
-      stopLogPolling();
-    }
-  };
-
-  // ── Manual Sample Submission ──
-  const submitManualSample = async () => {
-    if (!sampleCommandLine.value.trim()) return;
-    const commands = sampleCommandLine.value
-      .trim()
-      .split("|")
-      .map((c) => c.trim())
-      .filter((c) => c);
-    if (commands.length === 0) return;
-    submittingSample.value = true;
-    let addedCount = 0;
-    try {
-      for (const cmdStr of commands) {
-        const parts = splitCommandLine(cmdStr);
-        if (parts.length === 0) continue;
-        const comm = parts[0],
-          args = parts.slice(1),
-          argsStr = args.join(" ");
-        const duplicate = allSamples.value.find(
-          (s) => s.comm === comm && (s.args || []).join(" ") === argsStr,
-        );
-        if (duplicate) {
-          message.warning(`样本已存在：${comm} (Index #${duplicate.index})`);
-          continue;
-        }
-        await axios.post("/config/ml/samples", {
-          commandLine: cmdStr,
-          comm,
-          args,
-          label: sampleLabel.value,
-        });
-        addedCount++;
-      }
-      if (addedCount > 0) {
-        message.success(`已添加 ${addedCount} 个样本 → ${sampleLabel.value}`);
-        sampleCommandLine.value = "";
-        await fetchMLStatus();
-        await fetchAllSamples();
-      }
-    } catch (e: any) {
-      message.error(e.response?.data?.error || "Failed to add sample");
-    } finally {
-      submittingSample.value = false;
-    }
-  };
-
-  const addPresetSample = async (preset: {
-    comm: string;
-    args: string;
-    label: string;
-  }) => {
-    const argsArray = preset.args ? splitCommandLine(preset.args) : [];
-    const argsStr = argsArray.join(" ");
-    const duplicate = allSamples.value.find(
-      (s) => s.comm === preset.comm && (s.args || []).join(" ") === argsStr,
-    );
-    if (duplicate) {
-      message.warning(`样本已存在：${preset.comm} (Index #${duplicate.index})`);
-      return;
-    }
-    try {
-      const commandLine = [preset.comm, preset.args]
-        .filter((part) => part && part.trim())
-        .join(" ");
-      await axios.post("/config/ml/samples", {
-        commandLine,
-        comm: preset.comm,
-        args: argsArray,
-        label: preset.label,
-      });
-      message.success(`Preset added: ${preset.comm} → ${preset.label}`);
-      await fetchMLStatus();
-      await fetchAllSamples();
-    } catch (_: any) {
-      message.error("Failed to add preset");
-    }
-  };
-
-  const importAllHighRiskPresets = async () => {
-    await dataset.importPresetBatch(highRiskPresets, "高危行为预设");
-  };
-
-  const importAllSyntheticPresets = async () => {
-    await dataset.importPresetBatch(syntheticExpansionPresets, "合成扩增样本");
-  };
-
-  const importExpandedTrainingCorpus = async () => {
-    await dataset.importPresetBatch(highRiskPresets, "高危行为预设");
-    await dataset.importPresetBatch(
-      safetyNetHighRiskPresets,
-      "Safety Net 预设",
-    );
-    await dataset.importPresetBatch(syntheticExpansionPresets, "合成扩增样本");
-    await dataset.importSELinuxPolicyDataset();
-    await dataset.importAllInternetDatasets();
-    await trainWithParams();
-  };
-
-  // ── Command Safety Assessment ──
-  const runBacktest = async () => {
-    if (!backtestCommandLine.value.trim()) return;
-    backtesting.value = true;
-    backtestResult.value = null;
-    try {
-      backtestResult.value = (
-        await axios.post("/config/ml/assess", {
-          commandLine: backtestCommandLine.value,
-        })
-      ).data;
-    } catch (e: any) {
-      message.error(e.response?.data?.error || "命令安全性判断失败");
-    } finally {
-      backtesting.value = false;
-    }
-  };
-
-  const runBacktestPreset = async (comm: string, argsStr: string) => {
-    backtestCommandLine.value = `${comm} ${argsStr || ""}`.trim();
-    await runBacktest();
-  };
-
-  const llmApiKeyStatus = computed(() => {
-    if (llmScoringConfig.value.apiKey.trim()) {
-      return { text: "Key 已自动保存", color: "green" };
-    }
-    if (llmScoringConfig.value.apiKeyConfigured) {
-      return { text: "Key 已配置", color: "green" };
-    }
-    return { text: "Key 未配置", color: "default" };
-  });
-
   onUnmounted(() => {
+    configMLDisposed = true;
+    sampleActions.dispose();
     stopLogPolling();
     stopAutoTunePolling();
     stopLLMBatchProgressTimer();
@@ -1024,54 +946,16 @@ export function useConfigML() {
     builtinModelCatalog,
     selectedBuiltinModel,
     modelBaseType,
+    ...autoTunePublicApi(autoTune),
     autoTuneAxisOptions,
     cudaAvailable,
     cudaInfo,
     cudaMemUsedMB,
     cudaMemTotalMB,
     mlCRuntime,
-    cancelTraining,
     cancellingTraining,
     trainingHistory,
     hyperParams,
-    autoTuneMode,
-    modelTuneSelectedTypes,
-    modelTuneParamSearch,
-    modelTuneApplyBest,
-    modelTuneResponse,
-    modelTuneBest,
-    modelTuneRecommendedTypes,
-    autoTuneXAxis,
-    autoTuneYAxis,
-    autoTuneGridSize,
-    autoTuneGranularity,
-    autoTuneMetric,
-    autoTuneMinX,
-    autoTuneMaxX,
-    autoTuneMinY,
-    autoTuneMaxY,
-    autoTuneLoading,
-    autoTuneInProgress,
-    autoTuneProgress,
-    autoTuneCompleted,
-    autoTuneTotal,
-    autoTuneMessage,
-    autoTuneError,
-    autoTuneJobId,
-    autoTuneResponse,
-    autoTuneSelectedCell,
-    autoTuneAxisLabel,
-    autoTuneMetricLabel,
-    autoTuneMetricFormat,
-    autoTuneGranularityLabel,
-    autoTuneScore,
-    autoTuneHeatmapOptions,
-    autoTuneHeatmapSeries,
-    autoTuneBestCell,
-    runAutoTune,
-    runModelTune,
-    applyModelTuneBest,
-    applyAutoTuneCell,
     allSamples,
     loadingSamples,
     sampleTablePageSize,
@@ -1096,33 +980,17 @@ export function useConfigML() {
     runLLMBatchScore,
     llmBatchRowKey,
     llmBatchCanApplyLabels,
-    filteredSamples,
-    existingDuplicateCount,
-    importableExistingCount,
-    fetchAllSamples,
-    labelSample,
-    deleteSample,
-    updateAnomaly,
     getLabelColor,
-    trainWithParams,
     splitCommandLine,
-    submitManualSample,
-    addPresetSample,
-    importAllHighRiskPresets,
     importAllSafetyNetPresets: async () => {
       await dataset.importPresetBatch(
         safetyNetHighRiskPresets,
         "Safety Net 预设",
       );
     },
-    importAllSyntheticPresets,
-    importExpandedTrainingCorpus,
-    runBacktest,
-    runBacktestPreset,
     riskLevelColor,
     riskMeterColor,
-    llmApiKeyStatus,
+    ...mlSampleActionsPublicApi(sampleActions),
     // Dataset management (from extracted composable)
-    ...dataset,
-  };
+    ...dataset,  };
 }
