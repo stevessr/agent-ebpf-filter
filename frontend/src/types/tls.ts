@@ -83,6 +83,16 @@ export interface TLSCaptureStatus {
   readStarted?: boolean;
   error?: string;
   libraries?: TLSLibraryStatus[];
+  broadcast?: TLSBroadcastStatus;
+}
+
+export interface TLSBroadcastStatus {
+  activeClients: number;
+  queuedEvents: number;
+  queueCapacity: number;
+  queueFullDropsTotal: number;
+  writeFailuresTotal: number;
+  writeDeadlineFailuresTotal: number;
 }
 
 export interface TLSBuiltinExecutableTarget {

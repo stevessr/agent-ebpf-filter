@@ -100,8 +100,22 @@ const executableLibraryOptions = [
 
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let statusRefreshTimer: ReturnType<typeof setInterval> | null = null;
+let statusFetchInFlight = false;
+let componentMounted = false;
+let runtimeGateDisabled = false;
 let shouldReconnect = true;
 let eventKeySequence = 0;
+
+const markRuntimeGateDisabled = () => {
+  runtimeGateDisabled = true;
+  isConnected.value = false;
+  captureStatus.value = {
+    enabled: false,
+    available: false,
+    error: "TLS capture is disabled by runtime settings",
+  };
+};
 
 const formatBytes = (bytes?: number) => {
   const value = Number(bytes || 0);
@@ -269,6 +283,11 @@ const fetchRecentEvents = async () => {
       : [];
     events.value = recentEvents.filter(isDisplayEvent).map(withEventKey);
   } catch (error: any) {
+    if (error?.response?.status === 403) {
+      markRuntimeGateDisabled();
+      events.value = [];
+      return;
+    }
     message.error(
       error?.response?.data?.error || "Failed to load TLS capture events",
     );
@@ -282,22 +301,41 @@ const fetchLibraries = async () => {
       ? response.data.libraries
       : [];
   } catch (error: any) {
+    if (error?.response?.status === 403) {
+      markRuntimeGateDisabled();
+      libraries.value = [];
+      return;
+    }
     message.error(
       error?.response?.data?.error || "Failed to load TLS capture libraries",
     );
   }
 };
 
-const fetchStatus = async () => {
+const fetchStatus = async (silent = false) => {
+  if (statusFetchInFlight) return;
+  statusFetchInFlight = true;
   try {
-    const response = await axios.get("/tls-capture/status");
+    const response = await axios.get("/tls-capture/status", { timeout: 10000 });
+    if (!componentMounted) return;
+    const wasDisabled = runtimeGateDisabled;
+    runtimeGateDisabled = false;
     captureStatus.value = response.data || {};
     if (Array.isArray(response.data?.libraries))
       libraries.value = response.data.libraries;
+    if (wasDisabled && !ws) connectWebSocket();
   } catch (error: any) {
-    message.error(
-      error?.response?.data?.error || "Failed to load Hook SSL status",
-    );
+    if (error?.response?.status === 403 && componentMounted) {
+      markRuntimeGateDisabled();
+      return;
+    }
+    if (!silent && componentMounted) {
+      message.error(
+        error?.response?.data?.error || "Failed to load Hook SSL status",
+      );
+    }
+  } finally {
+    statusFetchInFlight = false;
   }
 };
 
@@ -312,6 +350,11 @@ const attachDefaultLibraries = async (silent = false) => {
     }
     await Promise.all([fetchLibraries(), fetchRecentEvents()]);
   } catch (error: any) {
+    if (error?.response?.status === 403) {
+      markRuntimeGateDisabled();
+      if (!silent) message.warning("TLS capture is disabled in runtime settings");
+      return;
+    }
     const status = error?.response?.data?.status;
     if (status) captureStatus.value = status;
     if (!silent)
@@ -421,6 +464,11 @@ const fetchRules = async () => {
       ? response.data.rules
       : [];
   } catch (error: any) {
+    if (error?.response?.status === 403) {
+      markRuntimeGateDisabled();
+      rules.value = [];
+      return;
+    }
     message.error(
       error?.response?.data?.error || "Failed to load Hook SSL rules",
     );
@@ -586,17 +634,36 @@ const onRuleValuesChange = (
 };
 
 const connectWebSocket = () => {
-  if (!shouldReconnect) return;
-  if (ws) ws.close();
+  if (!shouldReconnect || runtimeGateDisabled) return;
+  if (
+    ws?.readyState === WebSocket.CONNECTING ||
+    ws?.readyState === WebSocket.OPEN
+  )
+    return;
+  if (ws) {
+    ws.onopen = null;
+    ws.onmessage = null;
+    ws.onclose = null;
+    ws.onerror = null;
+    ws.close();
+    ws = null;
+  }
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
 
   const socket = new WebSocket(buildWebSocketUrl("/ws/tls-capture"));
   ws = socket;
 
   socket.onopen = () => {
+    if (ws !== socket) return;
     isConnected.value = true;
+    void fetchStatus(true);
   };
 
   socket.onmessage = (event) => {
+    if (ws !== socket) return;
     if (isPaused.value) return;
     try {
       const payload = JSON.parse(String(event.data)) as TLSPlaintextEvent;
@@ -609,13 +676,18 @@ const connectWebSocket = () => {
   };
 
   socket.onclose = () => {
+    if (ws !== socket) return;
+    ws = null;
     isConnected.value = false;
-    if (shouldReconnect) {
+    if (shouldReconnect && !runtimeGateDisabled) {
+      void fetchStatus(true);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
       reconnectTimer = setTimeout(connectWebSocket, 3000);
     }
   };
 
   socket.onerror = () => {
+    if (ws !== socket) return;
     isConnected.value = false;
   };
 };
@@ -749,22 +821,41 @@ const buildCurl = (event: TLSPlaintextEvent): string => {
 };
 
 onMounted(async () => {
+  componentMounted = true;
   await refreshData();
-  if (!captureStatus.value.enabled || summaryStats.value.attachedLibs === 0) {
+  if (!componentMounted) return;
+  if (
+    !runtimeGateDisabled &&
+    (!captureStatus.value.enabled || summaryStats.value.attachedLibs === 0)
+  ) {
     await attachDefaultLibraries(true);
+    if (!componentMounted) return;
   }
-  connectWebSocket();
+  if (!runtimeGateDisabled) connectWebSocket();
+  statusRefreshTimer = setInterval(() => {
+    void fetchStatus(true);
+  }, 5000);
 });
 
 onUnmounted(() => {
+  componentMounted = false;
   shouldReconnect = false;
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
   }
+  if (statusRefreshTimer) {
+    clearInterval(statusRefreshTimer);
+    statusRefreshTimer = null;
+  }
   if (ws) {
-    ws.close();
+    const socket = ws;
     ws = null;
+    socket.onopen = null;
+    socket.onmessage = null;
+    socket.onclose = null;
+    socket.onerror = null;
+    socket.close();
   }
 });
 </script>
@@ -808,6 +899,35 @@ onUnmounted(() => {
           >
           <a-tag color="blue"
             >{{ summaryStats.attachedLibs }} attached libraries</a-tag
+          >
+          <a-tag color="cyan"
+            >{{ captureStatus.broadcast?.activeClients ?? 0 }} broadcast
+            clients</a-tag
+          >
+          <a-tag color="geekblue"
+            >queue {{ captureStatus.broadcast?.queuedEvents ?? 0 }}/{{
+              (captureStatus.broadcast?.queueCapacity ?? 64) *
+              (captureStatus.broadcast?.activeClients ?? 0)
+            }}</a-tag
+          >
+          <a-tag
+            v-if="(captureStatus.broadcast?.queueFullDropsTotal ?? 0) > 0"
+            color="orange"
+            >queue drops
+            {{ captureStatus.broadcast?.queueFullDropsTotal }}</a-tag
+          >
+          <a-tag
+            v-if="
+              (captureStatus.broadcast?.writeFailuresTotal ?? 0) +
+                (captureStatus.broadcast?.writeDeadlineFailuresTotal ?? 0) >
+              0
+            "
+            color="red"
+            >write failures
+            {{
+              (captureStatus.broadcast?.writeFailuresTotal ?? 0) +
+              (captureStatus.broadcast?.writeDeadlineFailuresTotal ?? 0)
+            }}</a-tag
           >
           <a-button
             type="primary"
