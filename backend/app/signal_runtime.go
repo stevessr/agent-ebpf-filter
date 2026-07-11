@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/sha1"
 	"encoding/binary"
 	"encoding/hex"
@@ -157,8 +158,11 @@ type signalProcessingWorkItem struct {
 }
 
 type signalProcessingWorker struct {
+	lifecycleMu   sync.Mutex
 	mu            sync.RWMutex
 	queue         chan signalProcessingWorkItem
+	cancel        context.CancelFunc
+	done          chan struct{}
 	started       bool
 	states        map[string]*signalState
 	consumedTotal uint64
@@ -422,36 +426,72 @@ func newSignalProcessingWorker() *signalProcessingWorker {
 	}
 }
 
-func startSignalProcessingWorker() {
+func startSignalProcessingWorker(ctx context.Context) {
 	settings := runtimeSettingsStore.Snapshot().SignalProcessing
 	normalizeSignalProcessingSettings(&settings)
-	signalProcessingWorkerStore.Start(settings.QueueSize)
+	signalProcessingWorkerStore.Start(ctx, settings.QueueSize)
 }
 
-func (w *signalProcessingWorker) Start(queueSize int) {
+func (w *signalProcessingWorker) Start(ctx context.Context, queueSize int) {
 	if w == nil {
 		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	if queueSize <= 0 {
 		queueSize = signalDefaultQueueSize
 	}
+	w.lifecycleMu.Lock()
+	defer w.lifecycleMu.Unlock()
 	w.mu.Lock()
 	if w.started {
 		w.mu.Unlock()
 		return
 	}
+	workerCtx, cancel := context.WithCancel(ctx)
 	w.queue = make(chan signalProcessingWorkItem, queueSize)
+	w.cancel = cancel
+	w.done = make(chan struct{})
 	w.started = true
 	w.updatedAt = time.Now().UTC()
 	queue := w.queue
+	done := w.done
 	w.mu.Unlock()
 
-	go w.run(queue)
-	go w.runCron()
+	go func() {
+		var workers sync.WaitGroup
+		workers.Add(2)
+		go func() {
+			defer workers.Done()
+			w.run(workerCtx, queue)
+		}()
+		go func() {
+			defer workers.Done()
+			w.runCron(workerCtx)
+		}()
+		workers.Wait()
+		w.mu.Lock()
+		if w.done == done {
+			w.queue = nil
+			w.cancel = nil
+			w.done = nil
+			w.started = false
+			w.updatedAt = time.Now().UTC()
+		}
+		w.mu.Unlock()
+		close(done)
+	}()
 }
 
-func (w *signalProcessingWorker) run(queue <-chan signalProcessingWorkItem) {
-	for item := range queue {
+func (w *signalProcessingWorker) run(ctx context.Context, queue <-chan signalProcessingWorkItem) {
+	for {
+		var item signalProcessingWorkItem
+		select {
+		case <-ctx.Done():
+			return
+		case item = <-queue:
+		}
 		switch item.kind {
 		case signalProcessingWorkReset:
 			w.resetNow()
@@ -467,7 +507,7 @@ func (w *signalProcessingWorker) run(queue <-chan signalProcessingWorkItem) {
 	}
 }
 
-func (w *signalProcessingWorker) runCron() {
+func (w *signalProcessingWorker) runCron(ctx context.Context) {
 	for {
 		settings := runtimeSettingsStore.Snapshot().SignalProcessing
 		normalizeSignalProcessingSettings(&settings)
@@ -476,10 +516,51 @@ func (w *signalProcessingWorker) runCron() {
 			interval = signalDefaultCronIntervalSeconds * time.Second
 		}
 		timer := time.NewTimer(interval)
-		<-timer.C
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
 		if !w.EnqueueExpire() {
 			w.expireNow(time.Now().UTC())
 		}
+	}
+}
+
+func (w *signalProcessingWorker) Shutdown(ctx context.Context) error {
+	if w == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	w.lifecycleMu.Lock()
+	defer w.lifecycleMu.Unlock()
+	w.mu.Lock()
+	if !w.started {
+		w.mu.Unlock()
+		return nil
+	}
+	cancel := w.cancel
+	done := w.done
+	w.queue = nil
+	w.cancel = nil
+	w.done = nil
+	w.started = false
+	w.updatedAt = time.Now().UTC()
+	w.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	if done == nil {
+		return nil
+	}
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 

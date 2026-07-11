@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,42 @@ import (
 	"github.com/gin-gonic/gin"
 	"google.golang.org/protobuf/proto"
 )
+
+func TestSignalProcessingWorkerShutdownAndRestart(t *testing.T) {
+	oldStore := runtimeSettingsStore
+	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{SignalProcessing: SignalProcessingSettings{
+		Enabled:             true,
+		QueueSize:           8,
+		CronIntervalSeconds: 60,
+	}}}
+	t.Cleanup(func() { runtimeSettingsStore = oldStore })
+
+	worker := newSignalProcessingWorker()
+	ctx, cancel := context.WithCancel(context.Background())
+	worker.Start(ctx, 8)
+	cancel()
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), time.Second)
+	defer waitCancel()
+	if err := worker.Shutdown(waitCtx); err != nil {
+		t.Fatalf("Shutdown() error = %v", err)
+	}
+	worker.mu.RLock()
+	started, queue := worker.started, worker.queue
+	worker.mu.RUnlock()
+	if started || queue != nil {
+		t.Fatalf("worker after shutdown = started:%v queue:%v", started, queue)
+	}
+	if worker.EnqueueExpire() {
+		t.Fatal("stopped worker accepted new work")
+	}
+
+	restartCtx, restartCancel := context.WithCancel(context.Background())
+	worker.Start(restartCtx, 4)
+	restartCancel()
+	if err := worker.Shutdown(waitCtx); err != nil {
+		t.Fatalf("shutdown after restart error = %v", err)
+	}
+}
 
 func TestSignalProcessingWorkerUpdatesOnlyMatchingSignalsWithTTLDecay(t *testing.T) {
 	oldStore := runtimeSettingsStore
