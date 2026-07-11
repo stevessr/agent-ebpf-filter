@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onUnmounted, shallowRef, ref } from "vue";
+import { computed, onUnmounted, shallowRef } from "vue";
 import {
   DeleteOutlined,
   DownloadOutlined,
@@ -153,24 +153,42 @@ const refreshSignals = async () => {
 };
 
 // ── Auto-refresh ──────────────────────────────────────────────────────────
-const autoRefresh = ref(false);
+const autoRefresh = shallowRef(false);
 const autoRefreshInterval = 5000; // 5 seconds
-let autoRefreshTimer: ReturnType<typeof setInterval> | null = null;
+let autoRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+let autoRefreshGeneration = 0;
 
-const toggleAutoRefresh = () => {
-  autoRefresh.value = !autoRefresh.value;
-  if (autoRefresh.value) {
-    void refreshSignals();
-    autoRefreshTimer = setInterval(refreshSignals, autoRefreshInterval);
-  } else if (autoRefreshTimer !== null) {
-    clearInterval(autoRefreshTimer);
+const runAutoRefresh = async (generation: number) => {
+  await refreshSignals();
+  if (autoRefresh.value && generation === autoRefreshGeneration) {
+    autoRefreshTimer = setTimeout(
+      () => void runAutoRefresh(generation),
+      autoRefreshInterval,
+    );
+  }
+};
+
+const stopAutoRefresh = () => {
+  autoRefresh.value = false;
+  autoRefreshGeneration++;
+  if (autoRefreshTimer !== null) {
+    clearTimeout(autoRefreshTimer);
     autoRefreshTimer = null;
   }
 };
 
-onUnmounted(() => {
-  if (autoRefreshTimer !== null) clearInterval(autoRefreshTimer);
-});
+const toggleAutoRefresh = () => {
+  if (autoRefresh.value) {
+    stopAutoRefresh();
+    return;
+  }
+
+  autoRefresh.value = true;
+  const generation = ++autoRefreshGeneration;
+  void runAutoRefresh(generation);
+};
+
+onUnmounted(stopAutoRefresh);
 </script>
 
 <template>
