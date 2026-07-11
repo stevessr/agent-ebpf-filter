@@ -179,6 +179,30 @@ func TestTLSCaptureControllerCloseResetsDiscoveryLifecycle(t *testing.T) {
 	}
 }
 
+func TestTLSCaptureControllerCloseWaitsForReadLoop(t *testing.T) {
+	done := make(chan struct{})
+	controller := &TLSCaptureController{
+		manager:     &TLSProbeManager{},
+		readStarted: true,
+		readDone:    done,
+	}
+	released := make(chan struct{})
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		close(done)
+		close(released)
+	}()
+
+	if err := controller.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	select {
+	case <-released:
+	default:
+		t.Fatal("Close() returned before the read loop exited")
+	}
+}
+
 func TestTLSProbeManagerReadLoopStatsSnapshotIsAtomic(t *testing.T) {
 	manager := &TLSProbeManager{}
 	manager.readLoopStats.totalFrags.Add(3)

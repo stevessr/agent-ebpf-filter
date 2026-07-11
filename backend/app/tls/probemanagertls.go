@@ -102,6 +102,7 @@ type TLSProbeManager struct {
 	discoveryStarted bool
 	discoveryCancel  context.CancelFunc
 	discoveryWG      sync.WaitGroup
+	reader           *perf.Reader
 }
 
 type ReadLoopStats struct {
@@ -680,7 +681,22 @@ func (m *TLSProbeManager) ReadLoop() error {
 		log.Printf("[tls] ReadLoop: perf.NewReader failed: %v", err)
 		return err
 	}
-	defer reader.Close()
+	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		_ = reader.Close()
+		return nil
+	}
+	m.reader = reader
+	m.mu.Unlock()
+	defer func() {
+		_ = reader.Close()
+		m.mu.Lock()
+		if m.reader == reader {
+			m.reader = nil
+		}
+		m.mu.Unlock()
+	}()
 
 	for {
 		rec, err := reader.Read()
@@ -1375,10 +1391,15 @@ func (m *TLSProbeManager) Close() error {
 	m.closed = true
 	discoveryCancel := m.discoveryCancel
 	m.discoveryCancel = nil
+	reader := m.reader
+	m.reader = nil
 	m.mu.Unlock()
 
 	if discoveryCancel != nil {
 		discoveryCancel()
+	}
+	if reader != nil {
+		_ = reader.Close()
 	}
 	m.discoveryWG.Wait()
 

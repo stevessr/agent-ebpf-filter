@@ -29,6 +29,7 @@ type TLSCaptureController struct {
 	enabledCheck       func() bool
 	accepting          bool
 	readStarted        bool
+	readDone           chan struct{}
 	goDiscoveryStarted bool
 	lastError          string
 }
@@ -103,6 +104,9 @@ func (c *TLSCaptureController) EnsureStarted() (*TLSProbeManager, error) {
 		return nil, ErrTLSCaptureDisabled
 	}
 	if c.manager != nil {
+		if !c.readStarted {
+			c.startReadLoopLocked(c.manager)
+		}
 		return c.manager, nil
 	}
 	manager, err := NewTLSProbeManager(c.store, c.broadcaster, c.rules)
@@ -244,14 +248,19 @@ func (c *TLSCaptureController) Close() error {
 	c.mu.Lock()
 	manager := c.manager
 	broadcaster := c.broadcaster
+	readDone := c.readDone
 	c.accepting = false
 	c.manager = nil
 	c.readStarted = false
+	c.readDone = nil
 	c.goDiscoveryStarted = false
 	c.mu.Unlock()
 	var err error
 	if manager != nil {
 		err = manager.Close()
+	}
+	if readDone != nil {
+		<-readDone
 	}
 	broadcaster.Close()
 	return err
@@ -262,7 +271,18 @@ func (c *TLSCaptureController) startReadLoopLocked(manager *TLSProbeManager) {
 		return
 	}
 	c.readStarted = true
+	done := make(chan struct{})
+	c.readDone = done
 	go func() {
+		defer func() {
+			c.mu.Lock()
+			if c.readDone == done {
+				c.readStarted = false
+				c.readDone = nil
+			}
+			c.mu.Unlock()
+			close(done)
+		}()
 		if err := manager.ReadLoop(); err != nil {
 			c.setLastError(err)
 		}
