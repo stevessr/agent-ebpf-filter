@@ -7,7 +7,6 @@ import (
 	"os"
 	"sort"
 	"strings"
-	"time"
 )
 
 // ---- moved from backend/zz_merged_backend.go section engine_benchmark.go ----
@@ -118,35 +117,4 @@ func runBenchmarkSuite() error {
 func defaultExportPath() string {
 	path := platform.RuntimeSettingsDir()
 	return path + "/benchmark-results.json"
-}
-
-// ── Continuous benchmark runner ───────────────────────────────────────
-
-func startContinuousBenchmark(interval time.Duration) chan benchmarkStats {
-	statsChan := make(chan benchmarkStats, 16)
-	engine := newBenchmarkEngine()
-
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-
-		// Run initial benchmark
-		engine.runAll()
-		stats := computeBenchmarkStats(engine.runs)
-		select {
-		case statsChan <- stats:
-		default:
-		}
-
-		for range ticker.C {
-			engine.runAll()
-			stats := computeBenchmarkStats(engine.runs)
-			select {
-			case statsChan <- stats:
-			default:
-			}
-		}
-	}()
-
-	return statsChan
 }

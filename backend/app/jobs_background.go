@@ -200,19 +200,3 @@ func startArchiveEvictionLoop(ctx context.Context) {
 		}
 	}()
 }
-
-func startDeferredMLRuntime() {
-	go func() {
-		time.Sleep(1 * time.Second)
-		settings := runtimeSettingsStore.Snapshot()
-		InitMLEngine(settings.MLConfig)
-		StartMLEngine()
-	}()
-}
-
-func startDeferredPluginRuntime() {
-	go func() {
-		time.Sleep(2 * time.Second)
-		ReapplyEBPFPluginsOnBoot()
-	}()
-}

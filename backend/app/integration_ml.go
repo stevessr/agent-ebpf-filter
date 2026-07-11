@@ -4,8 +4,10 @@ import (
 	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/core"
 	"agent-ebpf-filter/pb"
+	"context"
 	"log"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -137,19 +139,36 @@ func tryLoadModel(path string, t ModelType) Model {
 	return wrapModelType(loaded, requested)
 }
 
-// StartMLEngine starts background tasks for the ML engine
-func StartMLEngine() {
-	if !mlEnabled {
+// StartMLEngine runs the ML background tasks until ctx is cancelled. The call
+// intentionally blocks so the owning runtime task can join both loops during
+// graceful shutdown.
+func StartMLEngine(ctx context.Context) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	cfg := currentMLConfig()
+	if !cfg.Enabled || !clusterManagerStore.IsMaster() {
 		return
 	}
 
+	var workers sync.WaitGroup
+
 	// Auto-training scheduler
-	if mlConfig.AutoTrain {
-		go mlAutoTrainLoop()
+	if cfg.AutoTrain {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			mlAutoTrainLoop(ctx)
+		}()
 	}
 
 	// Periodic data flush
-	go mlFlushLoop()
+	workers.Add(1)
+	go func() {
+		defer workers.Done()
+		mlFlushLoop(ctx)
+	}()
+	workers.Wait()
 }
 
 // resolveAction fuses rule-based classification, anomaly scoring, and ML prediction
@@ -246,23 +265,29 @@ func resolveAction(
 }
 
 // mlAutoTrainLoop periodically checks if enough labeled data exists and triggers training
-func mlAutoTrainLoop() {
+func mlAutoTrainLoop(ctx context.Context) {
 	interval := 1 * time.Hour
-	if d, err := time.ParseDuration(mlConfig.TrainInterval); err == nil && d > 0 {
+	if d, err := time.ParseDuration(currentMLConfig().TrainInterval); err == nil && d > 0 {
 		interval = d
 	}
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		if !mlEnabled {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+		cfg := currentMLConfig()
+		if !cfg.Enabled || !cfg.AutoTrain || !clusterManagerStore.IsMaster() || globalTrainingStore == nil {
 			return
 		}
 		_, labeled := globalTrainingStore.Status()
-		if labeled >= mlConfig.MinSamplesForTraining {
+		if labeled >= cfg.MinSamplesForTraining {
 			log.Printf("[ML] Auto-training triggered: %d labeled samples available", labeled)
-			model, result := globalTrainer.TrainWithConfig(globalTrainingStore, mlConfig)
+			model, result := globalTrainer.TrainWithConfig(globalTrainingStore, cfg)
 			if result.Error != "" {
 				log.Printf("[ML] Auto-training failed: %s", result.Error)
 				continue
@@ -272,7 +297,7 @@ func mlAutoTrainLoop() {
 			log.Printf("[ML] Auto-training complete: accuracy=%.2f%%, type=%s", result.Accuracy*100, model.Type())
 
 			// Persist model
-			modelPath := mlConfig.ModelPath
+			modelPath := cfg.ModelPath
 			if modelPath == "" {
 				modelPath = defaultMLModelPath()
 			}
@@ -284,19 +309,31 @@ func mlAutoTrainLoop() {
 }
 
 // mlFlushLoop periodically flushes training data to disk
-func mlFlushLoop() {
+func mlFlushLoop(ctx context.Context) {
 	ticker := time.NewTicker(60 * time.Second)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		if !mlEnabled {
+	for {
+		select {
+		case <-ctx.Done():
+			flushMLTrainingStore()
+			return
+		case <-ticker.C:
+		}
+		if !currentMLConfig().Enabled {
+			flushMLTrainingStore()
 			return
 		}
-		if globalTrainingStore != nil {
-			if err := globalTrainingStore.Flush(); err != nil {
-				log.Printf("[ML] Failed to flush training data: %v", err)
-			}
-		}
+		flushMLTrainingStore()
+	}
+}
+
+func flushMLTrainingStore() {
+	if globalTrainingStore == nil {
+		return
+	}
+	if err := globalTrainingStore.Flush(); err != nil {
+		log.Printf("[ML] Failed to flush training data: %v", err)
 	}
 }
 

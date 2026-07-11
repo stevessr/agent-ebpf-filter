@@ -167,7 +167,7 @@ func Main() error {
 			AppCtx.MLEnabled = mlEnabled
 			AppCtx.MLModelLoaded = mlModelLoaded
 			AppCtx.CurrentModelType = currentModelType
-			StartMLEngine()
+			StartMLEngine(ctx)
 		})
 	}
 	if features.CompiledIn(FeaturePlugins) {
