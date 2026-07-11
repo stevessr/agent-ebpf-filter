@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -28,7 +29,13 @@ func TestResearchProcessingTaskAndStatusHandlers(t *testing.T) {
 	}}}
 	capturedEventArchive = newEventArchive(10)
 	researchProcessingWorkerStore = newResearchProcessingWorker()
-	researchProcessingWorkerStore.Start(16)
+	worker := researchProcessingWorkerStore
+	worker.Start(context.Background(), 16)
+	t.Cleanup(func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = worker.Shutdown(shutdownCtx)
+	})
 	t.Cleanup(func() {
 		runtimeSettingsStore = oldStore
 		capturedEventArchive = oldArchive

@@ -148,8 +148,16 @@ func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) 
 	initRedactionEngine()
 	startEventBroadcaster(ctx)
 	startKernelRiskFeedbackWorker()
-	startLoopDetectionWorker()
-	startResearchProcessingWorker()
+	startLoopDetectionWorker(ctx)
+	startResearchProcessingWorker(ctx)
+	jobs.Go(func() {
+		<-ctx.Done()
+		_ = loopDetectionWorkerStore.Shutdown(context.Background())
+	})
+	jobs.Go(func() {
+		<-ctx.Done()
+		_ = researchProcessingWorkerStore.Shutdown(context.Background())
+	})
 	startSignalProcessingWorker(ctx)
 	jobs.Go(func() {
 		<-ctx.Done()

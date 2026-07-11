@@ -1,12 +1,41 @@
 package app
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
 
 	"agent-ebpf-filter/pb"
 )
+
+func TestLoopDetectionWorkerShutdownAndRestart(t *testing.T) {
+	worker := newLoopDetectionWorker()
+	ctx, cancel := context.WithCancel(context.Background())
+	worker.Start(ctx, 8)
+	cancel()
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), time.Second)
+	defer waitCancel()
+	if err := worker.Shutdown(waitCtx); err != nil {
+		t.Fatalf("Shutdown() error = %v", err)
+	}
+	worker.mu.RLock()
+	started, queue := worker.started, worker.queue
+	worker.mu.RUnlock()
+	if started || queue != nil {
+		t.Fatalf("worker after shutdown = started:%v queue:%v", started, queue)
+	}
+	if worker.EnqueueReset() {
+		t.Fatal("stopped worker accepted new work")
+	}
+
+	restartCtx, restartCancel := context.WithCancel(context.Background())
+	worker.Start(restartCtx, 4)
+	restartCancel()
+	if err := worker.Shutdown(waitCtx); err != nil {
+		t.Fatalf("shutdown after restart error = %v", err)
+	}
+}
 
 func TestLoopDetectionWorkerFindsRepeatedToolContext(t *testing.T) {
 	oldStore := runtimeSettingsStore

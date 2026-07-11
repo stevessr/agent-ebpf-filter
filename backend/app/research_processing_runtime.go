@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strconv"
@@ -146,8 +147,11 @@ type researchProcessingTaskResponse struct {
 }
 
 type researchProcessingWorker struct {
+	lifecycleMu         sync.Mutex
 	mu                  sync.RWMutex
 	queue               chan researchProcessingWorkItem
+	cancel              context.CancelFunc
+	done                chan struct{}
 	started             bool
 	startedAt           time.Time
 	events              []researchEventSample
@@ -188,25 +192,33 @@ func newResearchProcessingWorker() *researchProcessingWorker {
 	}
 }
 
-func startResearchProcessingWorker() {
+func startResearchProcessingWorker(ctx context.Context) {
 	settings := runtimeSettingsStore.Snapshot().ResearchProcessing
 	normalizeResearchProcessingSettings(&settings)
-	researchProcessingWorkerStore.Start(settings.QueueSize)
+	researchProcessingWorkerStore.Start(ctx, settings.QueueSize)
 }
 
-func (w *researchProcessingWorker) Start(queueSize int) {
+func (w *researchProcessingWorker) Start(ctx context.Context, queueSize int) {
 	if w == nil {
 		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	if queueSize <= 0 {
 		queueSize = researchProcessingDefaultQueueSize
 	}
+	w.lifecycleMu.Lock()
+	defer w.lifecycleMu.Unlock()
 	w.mu.Lock()
 	if w.started {
 		w.mu.Unlock()
 		return
 	}
+	workerCtx, cancel := context.WithCancel(ctx)
 	w.queue = make(chan researchProcessingWorkItem, queueSize)
+	w.cancel = cancel
+	w.done = make(chan struct{})
 	w.started = true
 	now := time.Now().UTC()
 	if w.startedAt.IsZero() {
@@ -214,12 +226,31 @@ func (w *researchProcessingWorker) Start(queueSize int) {
 	}
 	w.updatedAt = now
 	queue := w.queue
+	done := w.done
 	w.mu.Unlock()
-	go w.run(queue)
+	go func() {
+		w.run(workerCtx, queue)
+		w.mu.Lock()
+		if w.done == done {
+			w.queue = nil
+			w.cancel = nil
+			w.done = nil
+			w.started = false
+			w.updatedAt = time.Now().UTC()
+		}
+		w.mu.Unlock()
+		close(done)
+	}()
 }
 
-func (w *researchProcessingWorker) run(queue <-chan researchProcessingWorkItem) {
-	for item := range queue {
+func (w *researchProcessingWorker) run(ctx context.Context, queue <-chan researchProcessingWorkItem) {
+	for {
+		var item researchProcessingWorkItem
+		select {
+		case <-ctx.Done():
+			return
+		case item = <-queue:
+		}
 		switch item.kind {
 		case researchProcessingWorkReset:
 			w.resetNow()
@@ -229,6 +260,42 @@ func (w *researchProcessingWorker) run(queue <-chan researchProcessingWorkItem) 
 		case researchProcessingWorkEvent:
 			w.processRecords([]CapturedEventRecord{item.record}, item.force, item.queuedAt)
 		}
+	}
+}
+
+func (w *researchProcessingWorker) Shutdown(ctx context.Context) error {
+	if w == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	w.lifecycleMu.Lock()
+	defer w.lifecycleMu.Unlock()
+	w.mu.Lock()
+	if !w.started {
+		w.mu.Unlock()
+		return nil
+	}
+	cancel := w.cancel
+	done := w.done
+	w.queue = nil
+	w.cancel = nil
+	w.done = nil
+	w.started = false
+	w.updatedAt = time.Now().UTC()
+	w.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	if done == nil {
+		return nil
+	}
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 

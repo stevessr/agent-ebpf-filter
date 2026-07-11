@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
@@ -119,8 +120,11 @@ type loopDetectionWindow struct {
 }
 
 type loopDetectionWorker struct {
+	lifecycleMu   sync.Mutex
 	mu            sync.RWMutex
 	queue         chan loopDetectionWorkItem
+	cancel        context.CancelFunc
+	done          chan struct{}
 	started       bool
 	windows       map[string]*loopDetectionWindow
 	findings      []loopDetectionFinding
@@ -141,35 +145,62 @@ func newLoopDetectionWorker() *loopDetectionWorker {
 	}
 }
 
-func startLoopDetectionWorker() {
+func startLoopDetectionWorker(ctx context.Context) {
 	settings := runtimeSettingsStore.Snapshot().LoopDetection
 	normalizeLoopDetectionSettings(&settings)
-	loopDetectionWorkerStore.Start(settings.QueueSize)
+	loopDetectionWorkerStore.Start(ctx, settings.QueueSize)
 }
 
-func (w *loopDetectionWorker) Start(queueSize int) {
+func (w *loopDetectionWorker) Start(ctx context.Context, queueSize int) {
 	if w == nil {
 		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	if queueSize <= 0 {
 		queueSize = loopDetectionDefaultQueueSize
 	}
+	w.lifecycleMu.Lock()
+	defer w.lifecycleMu.Unlock()
 	w.mu.Lock()
 	if w.started {
 		w.mu.Unlock()
 		return
 	}
+	workerCtx, cancel := context.WithCancel(ctx)
 	w.queue = make(chan loopDetectionWorkItem, queueSize)
+	w.cancel = cancel
+	w.done = make(chan struct{})
 	w.started = true
 	w.updatedAt = time.Now().UTC()
 	queue := w.queue
+	done := w.done
 	w.mu.Unlock()
 
-	go w.run(queue)
+	go func() {
+		w.run(workerCtx, queue)
+		w.mu.Lock()
+		if w.done == done {
+			w.queue = nil
+			w.cancel = nil
+			w.done = nil
+			w.started = false
+			w.updatedAt = time.Now().UTC()
+		}
+		w.mu.Unlock()
+		close(done)
+	}()
 }
 
-func (w *loopDetectionWorker) run(queue <-chan loopDetectionWorkItem) {
-	for item := range queue {
+func (w *loopDetectionWorker) run(ctx context.Context, queue <-chan loopDetectionWorkItem) {
+	for {
+		var item loopDetectionWorkItem
+		select {
+		case <-ctx.Done():
+			return
+		case item = <-queue:
+		}
 		switch item.kind {
 		case loopDetectionWorkReset:
 			w.resetNow()
@@ -180,6 +211,42 @@ func (w *loopDetectionWorker) run(queue <-chan loopDetectionWorkItem) {
 		case loopDetectionWorkEvent:
 			w.processRecord(item.record, item.force)
 		}
+	}
+}
+
+func (w *loopDetectionWorker) Shutdown(ctx context.Context) error {
+	if w == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	w.lifecycleMu.Lock()
+	defer w.lifecycleMu.Unlock()
+	w.mu.Lock()
+	if !w.started {
+		w.mu.Unlock()
+		return nil
+	}
+	cancel := w.cancel
+	done := w.done
+	w.queue = nil
+	w.cancel = nil
+	w.done = nil
+	w.started = false
+	w.updatedAt = time.Now().UTC()
+	w.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	if done == nil {
+		return nil
+	}
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 
