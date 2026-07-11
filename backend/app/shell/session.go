@@ -53,6 +53,9 @@ type Session struct {
 	backlog      []byte
 	backlogLimit int
 	writeMu      sync.Mutex
+	readDone     chan struct{}
+	waitOnce     sync.Once
+	waitErr      error
 
 	onChange func()
 	deps     Deps
@@ -61,6 +64,12 @@ type Session struct {
 // NewSession creates a shell session, starts the PTY, and begins the read loop.
 // It appends the session to the manager's internal map and notifies subscribers.
 func (m *Manager) NewSession(req CreateRequest, deps Deps) (*SessionInfo, error) {
+	m.lifecycleMu.Lock()
+	defer m.lifecycleMu.Unlock()
+	if m.closed {
+		return nil, fmt.Errorf("shell session manager is closed")
+	}
+
 	shellReq := stringsTrimToDefault(req.Shell, "auto")
 	label := strings.TrimSpace(req.Label)
 	commandReq := strings.TrimSpace(req.Command)
@@ -162,6 +171,7 @@ func (m *Manager) NewSession(req CreateRequest, deps Deps) (*SessionInfo, error)
 		pid:          cmd.Process.Pid,
 		cmd:          cmd,
 		ptmx:         ptmx,
+		readDone:     make(chan struct{}),
 		backlogLimit: BacklogLimit,
 		onChange:     func() { m.Notify() },
 		deps:         deps,
@@ -173,16 +183,17 @@ func (m *Manager) NewSession(req CreateRequest, deps Deps) (*SessionInfo, error)
 
 	m.Notify()
 
-	go session.readLoop()
+	go session.readLoop(ptmx)
 
 	info := session.Snapshot()
 	return &info, nil
 }
 
-func (s *Session) readLoop() {
+func (s *Session) readLoop(ptmx *os.File) {
+	defer close(s.readDone)
 	buf := make([]byte, 4096)
 	for {
-		n, err := s.ptmx.Read(buf)
+		n, err := ptmx.Read(buf)
 		if n > 0 {
 			s.forwardOutput(bytes.Clone(buf[:n]))
 		}
@@ -261,11 +272,17 @@ func (s *Session) finishRead(readErr error) {
 	conn := s.conn
 	s.conn = nil
 	s.attached = false
+	ptmx := s.ptmx
+	s.ptmx = nil
 	s.mu.Unlock()
 
 	if conn != nil {
 		_ = conn.Close()
 	}
+	if ptmx != nil {
+		_ = ptmx.Close()
+	}
+	_ = s.waitProcess()
 	if s.onChange != nil {
 		s.onChange()
 	}
@@ -372,10 +389,23 @@ func (s *Session) Close() error {
 	if cmd != nil && cmd.Process != nil {
 		_ = cmd.Process.Kill()
 	}
-	if cmd != nil {
-		_ = cmd.Wait()
+	_ = s.waitProcess()
+	if s.readDone != nil {
+		<-s.readDone
 	}
 	return nil
+}
+
+func (s *Session) waitProcess() error {
+	if s == nil {
+		return nil
+	}
+	s.waitOnce.Do(func() {
+		if s.cmd != nil {
+			s.waitErr = s.cmd.Wait()
+		}
+	})
+	return s.waitErr
 }
 
 // Snapshot returns the public info for this session.

@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -54,11 +55,14 @@ type ControlMessage struct {
 
 // Manager manages shell sessions.
 type Manager struct {
+	lifecycleMu   sync.Mutex
+	closed        bool
 	mu            sync.RWMutex
 	nextID        atomic.Uint64
 	sessions      map[string]*Session
 	subscribers   map[chan struct{}]struct{}
 	subscribersMu sync.Mutex
+	notifyClosed  bool
 }
 
 // NewManager creates a new shell session manager.
@@ -72,6 +76,11 @@ func NewManager() *Manager {
 func (m *Manager) Subscribe() chan struct{} {
 	ch := make(chan struct{}, 1)
 	m.subscribersMu.Lock()
+	if m.notifyClosed {
+		close(ch)
+		m.subscribersMu.Unlock()
+		return ch
+	}
 	m.subscribers[ch] = struct{}{}
 	m.subscribersMu.Unlock()
 	return ch
@@ -86,6 +95,10 @@ func (m *Manager) Unsubscribe(ch chan struct{}) {
 // Notify wakes all subscribers.
 func (m *Manager) Notify() {
 	m.subscribersMu.Lock()
+	if m.notifyClosed {
+		m.subscribersMu.Unlock()
+		return
+	}
 	for ch := range m.subscribers {
 		select {
 		case ch <- struct{}{}:
@@ -167,4 +180,44 @@ func (m *Manager) ClearClosed() {
 			delete(m.sessions, id)
 		}
 	}
+}
+
+// Close rejects new sessions, terminates every active process, and wakes
+// subscribers. It is safe to call more than once.
+func (m *Manager) Close() error {
+	if m == nil {
+		return nil
+	}
+	m.lifecycleMu.Lock()
+	if m.closed {
+		m.lifecycleMu.Unlock()
+		return nil
+	}
+	m.closed = true
+	m.mu.Lock()
+	sessions := make([]*Session, 0, len(m.sessions))
+	for _, session := range m.sessions {
+		sessions = append(sessions, session)
+	}
+	m.sessions = make(map[string]*Session)
+	m.mu.Unlock()
+	m.lifecycleMu.Unlock()
+
+	m.subscribersMu.Lock()
+	if !m.notifyClosed {
+		m.notifyClosed = true
+		for ch := range m.subscribers {
+			close(ch)
+			delete(m.subscribers, ch)
+		}
+	}
+	m.subscribersMu.Unlock()
+
+	errs := make([]error, 0, len(sessions))
+	for _, session := range sessions {
+		if err := session.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
 }

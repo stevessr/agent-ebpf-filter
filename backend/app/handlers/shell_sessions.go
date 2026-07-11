@@ -47,7 +47,10 @@ func ServeShellSessionsWS(c *gin.Context) {
 
 	for {
 		select {
-		case <-notifyCh:
+		case _, ok := <-notifyCh:
+			if !ok {
+				return
+			}
 			sendList()
 		case <-done:
 			return

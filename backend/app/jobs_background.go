@@ -187,6 +187,12 @@ func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) 
 			log.Printf("[WARN] camera streams did not stop cleanly: %v", err)
 		}
 	})
+	jobs.Go(func() {
+		<-ctx.Done()
+		if err := shellSessions.Close(); err != nil {
+			log.Printf("[WARN] shell sessions did not stop cleanly: %v", err)
+		}
+	})
 	startResearchTaskWorker()
 	jobs.Go(func() { startUDSServer(ctx, broadcast) })
 	jobs.Go(func() {

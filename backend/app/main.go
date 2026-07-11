@@ -52,10 +52,6 @@ func Main() error {
 	defer AppCtx.Network.Close()
 	signalCtx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()
-	go func() {
-		<-signalCtx.Done()
-		stopSignals()
-	}()
 	defer func() {
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer shutdownCancel()
