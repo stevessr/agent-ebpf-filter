@@ -3,6 +3,7 @@ package app
 import (
 	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -18,25 +20,163 @@ import (
 
 // ---- moved from backend/zz_merged_backend.go section server_uds.go ----
 
-func startUDSServer(broadcast chan *pb.Event) {
-	_ = os.Remove(udsPath)
-	l, err := net.Listen("unix", udsPath)
-	if err != nil {
+type udsConnectionSet struct {
+	mu     sync.Mutex
+	closed bool
+	conns  map[net.Conn]struct{}
+}
+
+func newUDSConnectionSet() *udsConnectionSet {
+	return &udsConnectionSet{conns: make(map[net.Conn]struct{})}
+}
+
+func (s *udsConnectionSet) Add(conn net.Conn) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return false
+	}
+	s.conns[conn] = struct{}{}
+	return true
+}
+
+func (s *udsConnectionSet) Remove(conn net.Conn) {
+	s.mu.Lock()
+	delete(s.conns, conn)
+	s.mu.Unlock()
+}
+
+func (s *udsConnectionSet) CloseAll() {
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
 		return
 	}
-	_ = os.Chmod(udsPath, 0600)
-	if uid, gid, ok := platform.OriginalInvokerIDs(); ok {
-		_ = os.Chown(udsPath, int(uid), int(gid))
+	s.closed = true
+	connections := make([]net.Conn, 0, len(s.conns))
+	for conn := range s.conns {
+		connections = append(connections, conn)
 	}
-	defer l.Close()
+	s.mu.Unlock()
+	for _, conn := range connections {
+		_ = conn.Close()
+	}
+}
+
+func removeUDSSocketIfSame(path string, expected os.FileInfo) error {
+	if expected == nil {
+		return nil
+	}
+	current, err := os.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !os.SameFile(expected, current) {
+		return nil
+	}
+	return os.Remove(path)
+}
+
+func startUDSServer(ctx context.Context, broadcast chan *pb.Event) {
+	if info, err := os.Lstat(udsPath); err == nil {
+		if info.Mode()&os.ModeSocket == 0 {
+			log.Printf("[ERROR] refusing to replace non-socket UDS path %s", udsPath)
+			return
+		}
+		if conn, dialErr := net.DialTimeout("unix", udsPath, 100*time.Millisecond); dialErr == nil {
+			_ = conn.Close()
+			log.Printf("[ERROR] refusing to replace live UDS socket %s", udsPath)
+			return
+		}
+		current, statErr := os.Lstat(udsPath)
+		if statErr != nil || !os.SameFile(info, current) {
+			log.Printf("[ERROR] UDS path %s changed while checking for a stale socket", udsPath)
+			return
+		}
+		if err := os.Remove(udsPath); err != nil {
+			log.Printf("[ERROR] failed to remove stale UDS socket %s: %v", udsPath, err)
+			return
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		log.Printf("[ERROR] failed to inspect UDS path %s: %v", udsPath, err)
+		return
+	}
+	l, err := net.Listen("unix", udsPath)
+	if err != nil {
+		log.Printf("[ERROR] failed to listen on UDS %s: %v", udsPath, err)
+		return
+	}
+	if unixListener, ok := l.(*net.UnixListener); ok {
+		unixListener.SetUnlinkOnClose(false)
+	}
+	createdInfo, err := os.Lstat(udsPath)
+	if err != nil {
+		_ = l.Close()
+		log.Printf("[ERROR] failed to inspect created UDS %s: %v", udsPath, err)
+		return
+	}
+	defer func() {
+		_ = l.Close()
+		if err := removeUDSSocketIfSame(udsPath, createdInfo); err != nil {
+			log.Printf("[WARN] failed to clean up UDS %s: %v", udsPath, err)
+		}
+	}()
+	if err := os.Chmod(udsPath, 0600); err != nil {
+		log.Printf("[ERROR] failed to secure UDS %s: %v", udsPath, err)
+		return
+	}
+	if uid, gid, ok := platform.OriginalInvokerIDs(); ok {
+		if err := os.Chown(udsPath, int(uid), int(gid)); err != nil {
+			log.Printf("[ERROR] failed to assign UDS %s to original invoker: %v", udsPath, err)
+			return
+		}
+	}
+	serveUDSListener(ctx, l, broadcast, verifyUDSPeerCredentials)
+}
+
+func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Event, verifyPeer func(net.Conn) error) {
+	if ctx == nil || l == nil {
+		return
+	}
+	if verifyPeer == nil {
+		verifyPeer = verifyUDSPeerCredentials
+	}
+	connections := newUDSConnectionSet()
+	var handlers sync.WaitGroup
+	defer handlers.Wait()
+	defer connections.CloseAll()
+	serverDone := make(chan struct{})
+	defer close(serverDone)
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = l.Close()
+			connections.CloseAll()
+		case <-serverDone:
+		}
+	}()
 	for {
 		conn, err := l.Accept()
 		if err != nil {
-			continue
+			if ctx.Err() != nil || errors.Is(err, net.ErrClosed) {
+				return
+			}
+			log.Printf("[ERROR] UDS accept failed: %v", err)
+			return
 		}
+		if !connections.Add(conn) {
+			_ = conn.Close()
+			return
+		}
+		handlers.Add(1)
 		go func(c net.Conn) {
+			defer handlers.Done()
+			defer connections.Remove(c)
 			defer c.Close()
-			if err := verifyUDSPeerCredentials(c); err != nil {
+			if err := verifyPeer(c); err != nil {
 				return
 			}
 			buf := make([]byte, 4096)
@@ -169,8 +309,8 @@ func startUDSServer(broadcast chan *pb.Event) {
 
 				decision := actionLabel[int32(resolvedAction)]
 				riskScore := platform.MaxFloat64(anomalyScore, mlPrediction.Confidence)
-				ctx := buildProcessContextFromWrapperRequest(req, decision, riskScore)
-				trackedProcessContexts.Set(req.Pid, ctx)
+				processCtx := buildProcessContextFromWrapperRequest(req, decision, riskScore)
+				trackedProcessContexts.Set(req.Pid, processCtx)
 
 				// Register wrapper PID in eBPF agent_pids
 				if trackerMaps.AgentPids != nil {
@@ -192,28 +332,38 @@ func startUDSServer(broadcast chan *pb.Event) {
 					Behavior:       classification,
 					ExtraInfo:      fmt.Sprintf("net_audit:%s risk:%.0f", netAudit.RiskLevel, netAudit.RiskScore),
 					SchemaVersion:  eventSchemaVersion,
-					RootAgentPid:   ctx.RootAgentPid,
-					AgentRunId:     ctx.AgentRunID,
-					TaskId:         ctx.TaskID,
-					ConversationId: ctx.ConversationID,
-					TurnId:         ctx.TurnID,
-					ToolCallId:     ctx.ToolCallID,
-					ToolName:       ctx.ToolName,
-					TraceId:        ctx.TraceID,
-					SpanId:         ctx.SpanID,
-					Decision:       ctx.Decision,
-					RiskScore:      ctx.RiskScore,
-					ContainerId:    ctx.ContainerID,
-					ArgvDigest:     ctx.ArgvDigest,
-					Cwd:            ctx.Cwd,
+					RootAgentPid:   processCtx.RootAgentPid,
+					AgentRunId:     processCtx.AgentRunID,
+					TaskId:         processCtx.TaskID,
+					ConversationId: processCtx.ConversationID,
+					TurnId:         processCtx.TurnID,
+					ToolCallId:     processCtx.ToolCallID,
+					ToolName:       processCtx.ToolName,
+					TraceId:        processCtx.TraceID,
+					SpanId:         processCtx.SpanID,
+					Decision:       processCtx.Decision,
+					RiskScore:      processCtx.RiskScore,
+					ContainerId:    processCtx.ContainerID,
+					ArgvDigest:     processCtx.ArgvDigest,
+					Cwd:            processCtx.Cwd,
 				}, "uds_wrapper_intercept")
 
 				// ── Async TLS attach for wrapper-registered PIDs ──
-				if tlsCaptureController != nil && req.Pid > 0 && resolvedAction != pb.WrapperResponse_BLOCK {
+				if tlsCaptureController != nil && runtimeSettingsStore.Snapshot().TlsCaptureEnabled && req.Pid > 0 && resolvedAction != pb.WrapperResponse_BLOCK {
 					pid := req.Pid
 					comm := req.Comm
 					reqBinPath := req.BinaryPath // wrapper may know the path before exec
+					handlers.Add(1)
 					go func() {
+						defer handlers.Done()
+						select {
+						case <-ctx.Done():
+							return
+						default:
+						}
+						if !runtimeSettingsStore.Snapshot().TlsCaptureEnabled {
+							return
+						}
 						// Use the binary path supplied by the wrapper (if available)
 						// so we can start attach immediately without waiting for exec.
 						binPath := strings.TrimSpace(reqBinPath)
@@ -221,7 +371,13 @@ func startUDSServer(broadcast chan *pb.Event) {
 							// Fall back: give the target process time to exec
 							// (syscall.Exec replaces the wrapper binary
 							// with the actual command).
-							time.Sleep(500 * time.Millisecond)
+							timer := time.NewTimer(500 * time.Millisecond)
+							select {
+							case <-ctx.Done():
+								timer.Stop()
+								return
+							case <-timer.C:
+							}
 
 							var err error
 							binPath, err = os.Readlink(fmt.Sprintf("/proc/%d/exe", pid))
@@ -230,14 +386,16 @@ func startUDSServer(broadcast chan *pb.Event) {
 								return
 							}
 						}
-
-						manager, err := tlsCaptureController.EnsureStarted()
-						if err != nil {
-							log.Printf("[tls] wrapper-attach: PID %d (%s): EnsureStarted failed: %v", pid, comm, err)
+						if !runtimeSettingsStore.Snapshot().TlsCaptureEnabled {
 							return
 						}
+						select {
+						case <-ctx.Done():
+							return
+						default:
+						}
 
-						result := manager.AttachExecutable(binPath, int(pid), "")
+						result := tlsCaptureController.AttachExecutable(binPath, int(pid), "")
 						if result.Error != "" {
 							log.Printf("[tls] wrapper-attach: PID %d (%s, %s): %s", pid, comm, binPath, result.Error)
 						} else {
@@ -257,9 +415,9 @@ func startUDSServer(broadcast chan *pb.Event) {
 						Path:          req.Comm,
 						ExtraInfo:     fmt.Sprintf("auto-observe pid=%d", req.Pid),
 						SchemaVersion: eventSchemaVersion,
-						RootAgentPid:  ctx.RootAgentPid,
-						AgentRunId:    ctx.AgentRunID,
-						TaskId:        ctx.TaskID,
+						RootAgentPid:  processCtx.RootAgentPid,
+						AgentRunId:    processCtx.AgentRunID,
+						TaskId:        processCtx.TaskID,
 					}, "uds_observe_navigate")
 				}
 

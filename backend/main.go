@@ -1,7 +1,13 @@
 package main
 
-import "agent-ebpf-filter/app"
+import (
+	"log"
+
+	"agent-ebpf-filter/app"
+)
 
 func main() {
-	app.Main()
+	if err := app.Main(); err != nil {
+		log.Fatal(err)
+	}
 }

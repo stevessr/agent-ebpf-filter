@@ -223,6 +223,7 @@ var Deps struct {
 	// Export config post-processing (wired from app-level)
 	ApplyRetentionConfig           func(settings RuntimeSettings)
 	ApplyRuntimeDomainForwardProxy func(settings RuntimeSettings)
+	ApplyRuntimeTLSCapture         func(settings RuntimeSettings)
 	BuildRuntimeConfigResponse         func() core.RuntimeConfigResponse
 	BuildRuntimeConfigResponseFromSettings func(s RuntimeSettings) core.RuntimeConfigResponse
 	RotateAccessToken              func(settings RuntimeSettings) RuntimeSettings

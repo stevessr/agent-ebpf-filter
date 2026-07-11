@@ -5,9 +5,15 @@ import (
 	"agent-ebpf-filter/pb"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 )
+
+// Runtime settings updates are PATCH-style read/modify/write operations. Keep
+// the persistence step and all runtime side effects in one critical section so
+// concurrent requests cannot apply stale feature-gate state out of order.
+var runtimeSettingsMutationMu sync.Mutex
 
 // ---- moved from app/handlersruntimeconfig.go ----
 
@@ -100,6 +106,9 @@ func HandleConfigRuntimePut(c *gin.Context) {
 		return
 	}
 
+	runtimeSettingsMutationMu.Lock()
+	defer runtimeSettingsMutationMu.Unlock()
+
 	settings := Deps.RuntimeSettings.Snapshot()
 	if req.LogPersistenceEnabled != nil {
 		settings.LogPersistenceEnabled = *req.LogPersistenceEnabled
@@ -173,11 +182,15 @@ func HandleConfigRuntimePut(c *gin.Context) {
 	}
 	Deps.ApplyRetentionConfig(settings)
 	Deps.ApplyRuntimeDomainForwardProxy(settings)
+	Deps.ApplyRuntimeTLSCapture(settings)
 	c.JSON(http.StatusOK, Deps.BuildRuntimeConfigResponseFromSettings(settings))
 }
 
 // HandleConfigAccessTokenPost rotates the access token.
 func HandleConfigAccessTokenPost(c *gin.Context) {
+	runtimeSettingsMutationMu.Lock()
+	defer runtimeSettingsMutationMu.Unlock()
+
 	settings, err := Deps.RuntimeSettingsReplace(Deps.RuntimeSettings.Snapshot())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

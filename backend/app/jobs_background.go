@@ -7,11 +7,44 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync"
 	"time"
 	"unsafe"
 
 	"github.com/cilium/ebpf/ringbuf"
 )
+
+type runtimeBackgroundJobs struct {
+	wg sync.WaitGroup
+}
+
+func (jobs *runtimeBackgroundJobs) Go(run func()) {
+	if jobs == nil || run == nil {
+		return
+	}
+	jobs.wg.Add(1)
+	go func() {
+		defer jobs.wg.Done()
+		run()
+	}()
+}
+
+func (jobs *runtimeBackgroundJobs) Wait(ctx context.Context) error {
+	if jobs == nil {
+		return nil
+	}
+	done := make(chan struct{})
+	go func() {
+		jobs.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
 
 // ---- moved from backend/zz_merged_backend.go section jobs_background.go ----
 
@@ -110,7 +143,8 @@ func startKernelEventReader(rd *ringbuf.Reader) {
 	}()
 }
 
-func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) {
+func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) *runtimeBackgroundJobs {
+	jobs := &runtimeBackgroundJobs{}
 	initRedactionEngine()
 	startEventBroadcaster(ctx)
 	startKernelRiskFeedbackWorker()
@@ -118,11 +152,11 @@ func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) 
 	startResearchProcessingWorker()
 	startSignalProcessingWorker()
 	startResearchTaskWorker()
-	go startUDSServer(broadcast)
+	jobs.Go(func() { startUDSServer(ctx, broadcast) })
 	startCgroupAttributionGC(ctx)
 	AppCtx.Network.StartGC()
 	startFlowAggregatorGC(ctx)
-	go func() {
+	jobs.Go(func() {
 		timer := time.NewTimer(100 * time.Millisecond)
 		defer timer.Stop()
 		select {
@@ -131,21 +165,22 @@ func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) 
 		case <-timer.C:
 			AppCtx.Network.InitGeoIPDatabase()
 		}
-	}()
+	})
 	if features.CompiledIn(FeatureSandboxCgroup) {
-		go func() {
+		jobs.Go(func() {
 			if err := ensureCgroupSandboxLoaded(); err != nil {
 				log.Printf("[CGROUP-SANDBOX] not available: %v", err)
 			}
-		}()
+		})
 	}
 	if features.CompiledIn(FeatureSandboxLSM) {
-		go func() {
+		jobs.Go(func() {
 			if err := ensureLsmEnforcerLoaded(); err != nil {
 				log.Printf("[LSM-ENFORCER] not available: %v", err)
 			}
-		}()
+		})
 	}
+	return jobs
 }
 
 func startArchiveEvictionLoop(ctx context.Context) {

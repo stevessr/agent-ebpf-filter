@@ -97,7 +97,7 @@ const (
 const FeatureDim = 128
 
 // UDSPath is the UDS socket path for wrapper communication.
-const UDSPATH = "/tmp/agent-ebpf-wrapper.sock"
+const UDSPATH = "/tmp/agent-ebpf.sock"
 
 // EBPFPinRoot is the root path for eBPF pinned maps and programs.
 const (

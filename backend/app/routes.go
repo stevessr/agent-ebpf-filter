@@ -36,7 +36,7 @@ func registerWebSocketRoutes(r gin.IRouter, ac *AppContext, features *FeatureReg
 	r.GET("/ws/envelopes", authMiddleware(), serveEventEnvelopesWS)
 	r.GET("/ws/events/graph", authMiddleware(), serveExecutionGraphWS)
 	if features.CompiledIn(FeatureTLSCapture) {
-		r.GET("/ws/tls-capture", authMiddleware(), func(c *gin.Context) { tlsBroadcaster.Serve(c) })
+		r.GET("/ws/tls-capture", authMiddleware(), tlsCaptureEnabledMiddleware(), func(c *gin.Context) { tlsBroadcaster.Serve(c) })
 	}
 }
 
@@ -135,11 +135,8 @@ func registerAuthenticatedAPIRoutes(r *gin.Engine, ac *AppContext, features *Fea
 	api := r.Group("/", authMiddleware())
 	{
 		registerConfigRoutes(api.Group("/config"), features)
-		registerSystemRoutes(api.Group("/system"))
-		if features.CompiledIn(FeatureTLSCapture) {
-			tls.RegisterTLSCaptureRoutes(api, tlsController, tlsStore, tlsRules)
-			codexhandlers.RegisterRoutes(api, tls.NewCodexCaptureSink(tlsStore, tlsBroadcaster))
-		}
+		registerSystemRoutes(api.Group("/system"), features)
+		registerTLSCaptureFeatureRoutes(api, features, tlsController, tlsStore, tlsRules, tlsBroadcaster)
 		if features.CompiledIn(FeatureAgentSight) {
 			registerAgentSightRoutes(api, tlsStore)
 		}
@@ -164,6 +161,18 @@ func registerAuthenticatedAPIRoutes(r *gin.Engine, ac *AppContext, features *Fea
 			cluster.GET("/nodes", clusterNodesHandler)
 		}
 	}
+}
+
+func registerTLSCaptureFeatureRoutes(api gin.IRouter, features *FeatureRegistry, tlsController *TLSCaptureController, tlsStore *TLSCaptureStore, tlsRules *TLSCaptureRuleStore, tlsBroadcaster *tlsCaptureBroadcaster) {
+	if features == nil || !features.CompiledIn(FeatureTLSCapture) {
+		return
+	}
+	gated := api.Group("", tlsCaptureEnabledMiddleware())
+	tls.RegisterTLSCaptureRoutes(gated, tlsController, tlsStore, tlsRules)
+	codexSink := tls.NewCodexCaptureSink(tlsStore, tlsBroadcaster)
+	codexhandlers.RegisterRoutes(gated, codexhandlers.CaptureSinkFunc(func(event codexhandlers.Event) {
+		tlsController.RunIfEnabled(func() { codexSink.HandleCaptureEvent(event) })
+	}))
 }
 
 func registerCompatibilityRoutes(r *gin.Engine, ac *AppContext, features *FeatureRegistry, tlsStore *TLSCaptureStore) {

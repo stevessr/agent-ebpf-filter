@@ -7,6 +7,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/cilium/ebpf/ringbuf"
@@ -17,24 +21,41 @@ import (
 // on newly registered wrapper PIDs (see server_uds.go).
 var tlsCaptureController *tls.TLSCaptureController
 
-func Main() {
-	if isBootstrapMode() {
-		if err := bootstrapTrackerMaps(); err != nil {
-			log.Fatalf("failed to bootstrap eBPF components: %v", err)
-		}
+func applyRuntimeTLSCapture(settings RuntimeSettings) {
+	if tlsCaptureController == nil {
 		return
 	}
-	if relaunched, err := ensureBackendPrivileges(); err != nil {
-		log.Fatalf("failed to elevate backend privileges: %v", err)
-	} else if relaunched {
+	if settings.TlsCaptureEnabled {
+		tlsCaptureController.SetAccepting(true)
 		return
+	}
+	if err := tlsCaptureController.Close(); err != nil {
+		log.Printf("[WARN] failed to stop TLS capture after runtime disable: %v", err)
+	}
+}
+
+func Main() error {
+	if isBootstrapMode() {
+		if err := bootstrapTrackerMaps(); err != nil {
+			return fmt.Errorf("bootstrap eBPF components: %w", err)
+		}
+		return nil
+	}
+	if relaunched, err := ensureBackendPrivileges(); err != nil {
+		return fmt.Errorf("elevate backend privileges: %w", err)
+	} else if relaunched {
+		return nil
 	}
 
 	AppCtx = newAppContext()
 	bindAppNetworkState(AppCtx)
 	defer AppCtx.Network.Close()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	signalCtx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopSignals()
+	go func() {
+		<-signalCtx.Done()
+		stopSignals()
+	}()
 	defer func() {
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer shutdownCancel()
@@ -71,7 +92,7 @@ func Main() {
 	initRedactionEngine()
 
 	if err := ensureTrackerMapsLoaded(); err != nil {
-		log.Fatalf("failed to initialize eBPF components: %v", err)
+		return fmt.Errorf("initialize eBPF components: %w", err)
 	}
 	AppCtx.TrackerMaps = trackerMaps
 	initObservability()
@@ -89,14 +110,29 @@ func Main() {
 	}
 	initTLS()
 	tlsRuntime := tls.StartTLSCaptureRuntime(settings)
+	tlsRuntime.Controller.SetEnabledCheck(func() bool {
+		return runtimeSettingsStore.Snapshot().TlsCaptureEnabled
+	})
 	tlsCaptureController = tlsRuntime.Controller // expose for UDS wrapper-triggered TLS attach
 	defer tlsRuntime.Controller.Close()
 
-	rd, _ := ringbuf.NewReader(trackerMaps.Events)
+	rd, err := ringbuf.NewReader(trackerMaps.Events)
+	if err != nil {
+		return fmt.Errorf("open tracker event ring buffer: %w", err)
+	}
 	defer rd.Close()
+	ctx, cancelRuntime := context.WithCancel(signalCtx)
 
 	startKernelEventReader(rd)
-	startRuntimeBackgroundJobs(ctx, features)
+	runtimeJobs := startRuntimeBackgroundJobs(ctx, features)
+	defer func() {
+		cancelRuntime()
+		waitCtx, waitCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer waitCancel()
+		if err := runtimeJobs.Wait(waitCtx); err != nil {
+			log.Printf("[WARN] runtime background jobs did not stop cleanly: %v", err)
+		}
+	}()
 
 	internal_sandbox.Apply()
 
@@ -110,12 +146,21 @@ func Main() {
 
 	seedDefaultTrackedCommands()
 
-	actualPort := chooseBackendPort()
+	listener, actualPort, err := listenBackend()
+	if err != nil {
+		return err
+	}
 	configureRuntimePort(ctx, actualPort)
 
 	if features.CompiledIn(FeatureML) {
-		go func() {
-			time.Sleep(1 * time.Second)
+		runtimeJobs.Go(func() {
+			timer := time.NewTimer(1 * time.Second)
+			defer timer.Stop()
+			select {
+			case <-ctx.Done():
+				return
+			case <-timer.C:
+			}
 			settings := runtimeSettingsStore.Snapshot()
 			InitMLEngine(settings.MLConfig)
 			AppCtx.MLEngine = mlEngine
@@ -123,14 +168,27 @@ func Main() {
 			AppCtx.MLModelLoaded = mlModelLoaded
 			AppCtx.CurrentModelType = currentModelType
 			StartMLEngine()
-		}()
+		})
 	}
 	if features.CompiledIn(FeaturePlugins) {
-		go func() {
-			time.Sleep(2 * time.Second)
+		runtimeJobs.Go(func() {
+			timer := time.NewTimer(2 * time.Second)
+			defer timer.Stop()
+			select {
+			case <-ctx.Done():
+				return
+			case <-timer.C:
+			}
 			ReapplyEBPFPluginsOnBoot()
-		}()
+		})
 	}
 
-	_ = r.Run(fmt.Sprintf(":%d", actualPort))
+	server := &http.Server{
+		Handler:           r,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+	if err := serveHTTPServer(ctx, server, listener, 5*time.Second); err != nil {
+		return fmt.Errorf("serve backend HTTP API: %w", err)
+	}
+	return nil
 }

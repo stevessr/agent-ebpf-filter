@@ -663,9 +663,18 @@ func RegisterSystemRoutes(rg *gin.RouterGroup) {
 	rg.GET("/cameras", HandleCameras)
 	rg.GET("/camera/snapshot", HandleCameraSnapshot)
 	rg.GET("/microphones", HandleMicrophones)
-	rg.POST("/run", HandleRun)
 	rg.GET("/user-info", HandleUserInfo)
 	rg.GET("/users", HandleUsers)
 	rg.GET("/process/exe", HandleProcessExe)
 	rg.GET("/process/io", HandleProcessIO)
+}
+
+// RegisterSystemRunRoute keeps the critical command runner separate from the
+// general system routes so the app layer must explicitly attach its build and
+// runtime security gates when registering the endpoint.
+func RegisterSystemRunRoute(rg *gin.RouterGroup, middleware ...gin.HandlerFunc) {
+	handlers := make([]gin.HandlerFunc, 0, len(middleware)+1)
+	handlers = append(handlers, middleware...)
+	handlers = append(handlers, HandleRun)
+	rg.POST("/run", handlers...)
 }

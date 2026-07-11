@@ -239,11 +239,13 @@ func (a *agentSightStoreAdapter) Recent(limit int) []any {
 }
 
 func (a *agentSightStoreAdapter) Add(events ...any) {
+	batch := make([]agentSightExportEvent, 0, len(events))
 	for _, e := range events {
 		if ev, ok := e.(agentSightExportEvent); ok {
-			a.store.Add(ev)
+			batch = append(batch, ev)
 		}
 	}
+	a.store.Add(batch...)
 }
 
 // ── Shell session adapter ──────────────────────────────────────────
@@ -440,6 +442,7 @@ func init() {
 	handlers.Deps.RuntimeSettingsReplace = runtimeSettingsStore.Replace
 	handlers.Deps.ApplyRetentionConfig = applyRetentionConfig
 	handlers.Deps.ApplyRuntimeDomainForwardProxy = applyRuntimeDomainForwardProxy
+	handlers.Deps.ApplyRuntimeTLSCapture = applyRuntimeTLSCapture
 	handlers.Deps.BuildRuntimeConfigResponse = buildRuntimeConfigResponse
 	handlers.Deps.BuildRuntimeConfigResponseFromSettings = buildRuntimeConfigResponseFromSettings
 	handlers.Deps.RotateAccessToken = func(s RuntimeSettings) RuntimeSettings {
@@ -851,9 +854,18 @@ func handleConfigAccessTokenPost(c *gin.Context) { handlers.HandleConfigAccessTo
 
 // handleConfigRedactionPolicyGet/Put are defined in handlersredaction.go (app package)
 
-func registerSystemRoutes(rg *gin.RouterGroup, _ ...*FeatureRegistry) {
+func registerSystemRoutes(rg *gin.RouterGroup, registries ...*FeatureRegistry) {
 	syncHandlerDeps()
 	handlers.RegisterSystemRoutes(rg)
+	features := newFeatureRegistry()
+	if len(registries) > 0 && registries[0] != nil {
+		features = registries[0]
+	}
+	if features.CompiledIn(FeatureSystemRun) {
+		handlers.RegisterSystemRunRoute(rg, systemRunEnabledMiddleware())
+	} else {
+		handlers.RegisterSystemRunRoute(rg, compiledOutFeatureMiddleware(FeatureSystemRun))
+	}
 	rg.GET("/features", handleSystemFeatures)
 	rg.GET("/bootstrap-health", handleBootstrapHealth)
 	rg.GET("/collector-health", handleCollectorHealth)

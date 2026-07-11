@@ -17,10 +17,24 @@ import (
 // ---- moved from backend/zz_merged_backend.go section capturehandlerstls.go ----
 
 type TLSBroadcaster struct {
-	mu           sync.Mutex
-	nextClientID uint64
-	clients      map[uint64]*tlsBroadcastClientState
-	upgrade      tlsBroadcastUpgradeFunc
+	mu                         sync.Mutex
+	nextClientID               uint64
+	clients                    map[uint64]*tlsBroadcastClientState
+	upgrade                    tlsBroadcastUpgradeFunc
+	queueFullDropsTotal        uint64
+	writeFailuresTotal         uint64
+	writeDeadlineFailuresTotal uint64
+	accepting                  bool
+	enabledCheck               func() bool
+}
+
+type TLSBroadcastStatus struct {
+	ActiveClients              int    `json:"activeClients"`
+	QueuedEvents               int    `json:"queuedEvents"`
+	QueueCapacity              int    `json:"queueCapacity"`
+	QueueFullDropsTotal        uint64 `json:"queueFullDropsTotal"`
+	WriteFailuresTotal         uint64 `json:"writeFailuresTotal"`
+	WriteDeadlineFailuresTotal uint64 `json:"writeDeadlineFailuresTotal"`
 }
 
 type tlsBroadcastClient interface {
@@ -53,6 +67,14 @@ type tlsBroadcastClientState struct {
 	dead      bool
 }
 
+type tlsBroadcastEnqueueResult uint8
+
+const (
+	tlsBroadcastEnqueueAccepted tlsBroadcastEnqueueResult = iota
+	tlsBroadcastEnqueueDead
+	tlsBroadcastEnqueueFull
+)
+
 func newTLSBroadcastClientState(conn tlsBroadcastClient) *tlsBroadcastClientState {
 	return &tlsBroadcastClientState{
 		conn:  conn,
@@ -61,17 +83,17 @@ func newTLSBroadcastClientState(conn tlsBroadcastClient) *tlsBroadcastClientStat
 	}
 }
 
-func (state *tlsBroadcastClientState) enqueue(event TLSPlaintextEvent) bool {
+func (state *tlsBroadcastClientState) enqueue(event TLSPlaintextEvent) tlsBroadcastEnqueueResult {
 	state.mu.Lock()
 	defer state.mu.Unlock()
 	if state.dead {
-		return false
+		return tlsBroadcastEnqueueDead
 	}
 	select {
 	case state.queue <- event:
-		return true
+		return tlsBroadcastEnqueueAccepted
 	default:
-		return false
+		return tlsBroadcastEnqueueFull
 	}
 }
 
@@ -91,9 +113,32 @@ func (state *tlsBroadcastClientState) close() {
 	})
 }
 
-func (b *TLSBroadcaster) addClient(conn tlsBroadcastClient) (uint64, *tlsBroadcastClientState) {
+func (b *TLSBroadcaster) SetEnabledCheck(enabled func() bool) {
+	if b == nil {
+		return
+	}
+	b.mu.Lock()
+	b.enabledCheck = enabled
+	b.mu.Unlock()
+}
+
+func (b *TLSBroadcaster) SetAccepting(accepting bool) {
+	if b == nil {
+		return
+	}
+	b.mu.Lock()
+	b.accepting = accepting
+	b.mu.Unlock()
+}
+
+func (b *TLSBroadcaster) tryAddClient(conn tlsBroadcastClient) (uint64, *tlsBroadcastClientState, bool) {
 	state := newTLSBroadcastClientState(conn)
 	b.mu.Lock()
+	if !b.accepting || (b.enabledCheck != nil && !b.enabledCheck()) {
+		b.mu.Unlock()
+		state.close()
+		return 0, state, false
+	}
 	if b.clients == nil {
 		b.clients = make(map[uint64]*tlsBroadcastClientState)
 	}
@@ -102,6 +147,11 @@ func (b *TLSBroadcaster) addClient(conn tlsBroadcastClient) (uint64, *tlsBroadca
 	b.clients[id] = state
 	b.mu.Unlock()
 	go b.runClient(id, state)
+	return id, state, true
+}
+
+func (b *TLSBroadcaster) addClient(conn tlsBroadcastClient) (uint64, *tlsBroadcastClientState) {
+	id, state, _ := b.tryAddClient(conn)
 	return id, state
 }
 
@@ -116,15 +166,68 @@ func (b *TLSBroadcaster) runClient(id uint64, state *tlsBroadcastClientState) {
 			}
 			if deadlineClient, ok := state.conn.(tlsBroadcastDeadlineClient); ok {
 				if err := deadlineClient.SetWriteDeadline(time.Now().Add(tlsBroadcastWriteTimeout)); err != nil {
+					if !state.isDead() {
+						b.recordWriteDeadlineFailure()
+					}
 					b.removeClient(id, state)
 					return
 				}
 			}
 			if err := state.conn.WriteJSON(event); err != nil {
+				if !state.isDead() {
+					b.recordWriteFailure()
+				}
 				b.removeClient(id, state)
 				return
 			}
 		}
+	}
+}
+
+func (b *TLSBroadcaster) recordQueueFullDrop() {
+	b.mu.Lock()
+	b.queueFullDropsTotal++
+	b.mu.Unlock()
+	if metrics := deps.CollectorMetrics; metrics != nil {
+		metrics.RecordAgentSightCounter("tls.broadcast.queue_full")
+	}
+}
+
+func (b *TLSBroadcaster) recordWriteFailure() {
+	b.mu.Lock()
+	b.writeFailuresTotal++
+	b.mu.Unlock()
+	if metrics := deps.CollectorMetrics; metrics != nil {
+		metrics.RecordAgentSightCounter("tls.broadcast.write_failure")
+	}
+}
+
+func (b *TLSBroadcaster) recordWriteDeadlineFailure() {
+	b.mu.Lock()
+	b.writeDeadlineFailuresTotal++
+	b.mu.Unlock()
+	if metrics := deps.CollectorMetrics; metrics != nil {
+		metrics.RecordAgentSightCounter("tls.broadcast.write_deadline_failure")
+	}
+}
+
+func (b *TLSBroadcaster) Status() TLSBroadcastStatus {
+	if b == nil {
+		return TLSBroadcastStatus{QueueCapacity: tlsBroadcastQueueSize}
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	queuedEvents := 0
+	for _, state := range b.clients {
+		queuedEvents += len(state.queue)
+	}
+	return TLSBroadcastStatus{
+		ActiveClients:              len(b.clients),
+		QueuedEvents:               queuedEvents,
+		QueueCapacity:              tlsBroadcastQueueSize,
+		QueueFullDropsTotal:        b.queueFullDropsTotal,
+		WriteFailuresTotal:         b.writeFailuresTotal,
+		WriteDeadlineFailuresTotal: b.writeDeadlineFailuresTotal,
 	}
 }
 
@@ -137,6 +240,26 @@ func (b *TLSBroadcaster) removeClient(id uint64, state *tlsBroadcastClientState)
 	state.close()
 }
 
+func (b *TLSBroadcaster) Close() {
+	if b == nil {
+		return
+	}
+	type client struct {
+		id    uint64
+		state *tlsBroadcastClientState
+	}
+	b.mu.Lock()
+	b.accepting = false
+	clients := make([]client, 0, len(b.clients))
+	for id, state := range b.clients {
+		clients = append(clients, client{id: id, state: state})
+	}
+	b.mu.Unlock()
+	for _, client := range clients {
+		b.removeClient(client.id, client.state)
+	}
+}
+
 func (b *TLSBroadcaster) Serve(c *gin.Context) {
 	upgrade := b.upgrade
 	if upgrade == nil {
@@ -147,7 +270,10 @@ func (b *TLSBroadcaster) Serve(c *gin.Context) {
 		return
 	}
 
-	id, state := b.addClient(conn)
+	id, state, accepted := b.tryAddClient(conn)
+	if !accepted {
+		return
+	}
 	defer b.removeClient(id, state)
 
 	for {
@@ -171,9 +297,14 @@ func (b *TLSBroadcaster) Broadcast(event TLSPlaintextEvent) {
 	b.mu.Unlock()
 
 	for _, client := range clients {
-		if !client.state.enqueue(event) {
-			b.removeClient(client.id, client.state)
+		result := client.state.enqueue(event)
+		switch result {
+		case tlsBroadcastEnqueueAccepted:
+			continue
+		case tlsBroadcastEnqueueFull:
+			b.recordQueueFullDrop()
 		}
+		b.removeClient(client.id, client.state)
 	}
 }
 
@@ -181,6 +312,8 @@ type tlsCaptureRuntime interface {
 	AttachDefaults() error
 	AttachBuiltinExecutables(pid int) ([]TLSBuiltinExecutableAttachStatus, error)
 	AttachLibrary(path, library string) error
+	AttachExecutable(input string, pid int, libraryHint string) TLSExecutableAttachResult
+	AttachGoUprobes(path string, pid int) error
 	EnsureStarted() (*TLSProbeManager, error)
 	Status() map[string]any
 	AttachedPIDs() []AttachedPIDInfo
@@ -194,8 +327,9 @@ func NewTLSCaptureBroadcaster() *TLSBroadcaster {
 
 func newTLSCaptureBroadcasterWithUpgrader(upgrade tlsBroadcastUpgradeFunc) *TLSBroadcaster {
 	return &TLSBroadcaster{
-		clients: make(map[uint64]*tlsBroadcastClientState),
-		upgrade: upgrade,
+		clients:   make(map[uint64]*tlsBroadcastClientState),
+		upgrade:   upgrade,
+		accepting: true,
 	}
 }
 
@@ -426,17 +560,12 @@ func handleTLSCaptureGoBinary(runtime tlsCaptureRuntime) gin.HandlerFunc {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "TLS capture runtime is unavailable"})
 			return
 		}
-		manager, err := runtime.EnsureStarted()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "status": runtime.Status()})
-			return
-		}
 		resolved := binaryresolver.ResolveBinary(req.Path, "")
 		attachPath := req.Path
 		if resolved.Error == "" && resolved.RealPath != "" {
 			attachPath = resolved.RealPath
 		}
-		if err := manager.AttachGoUprobes(attachPath, req.PID); err != nil {
+		if err := runtime.AttachGoUprobes(attachPath, req.PID); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "resolved": resolved})
 			return
 		}
@@ -460,13 +589,7 @@ func handleTLSCaptureExecutable(runtime tlsCaptureRuntime) gin.HandlerFunc {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "TLS capture runtime is unavailable"})
 			return
 		}
-		manager, err := runtime.EnsureStarted()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "status": runtime.Status()})
-			return
-		}
-
-		result := manager.AttachExecutable(req.Path, req.PID, req.Library)
+		result := runtime.AttachExecutable(req.Path, req.PID, req.Library)
 		if result.Error != "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": result.Error, "result": result})
 			return

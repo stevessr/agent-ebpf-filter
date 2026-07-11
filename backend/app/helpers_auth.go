@@ -97,6 +97,12 @@ func systemRunEnabledMiddleware() gin.HandlerFunc {
 	})
 }
 
+func tlsCaptureEnabledMiddleware() gin.HandlerFunc {
+	return runtimeToggleMiddleware("tls_capture", func(settings core.RuntimeSettings) bool {
+		return settings.TlsCaptureEnabled
+	})
+}
+
 func hookManagementEnabledMiddleware() gin.HandlerFunc {
 	return runtimeToggleMiddleware("hook_management", func(settings core.RuntimeSettings) bool {
 		return settings.HookManagementEnabled
