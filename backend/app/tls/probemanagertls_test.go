@@ -179,6 +179,21 @@ func TestTLSCaptureControllerCloseResetsDiscoveryLifecycle(t *testing.T) {
 	}
 }
 
+func TestTLSProbeManagerReadLoopStatsSnapshotIsAtomic(t *testing.T) {
+	manager := &TLSProbeManager{}
+	manager.readLoopStats.totalFrags.Add(3)
+	manager.readLoopStats.droppedFrags.Add(1)
+	manager.readLoopStats.completedFrags.Add(2)
+	manager.readLoopStats.httpEvents.Add(1)
+	manager.readLoopStats.rawEvents.Add(1)
+	manager.readLoopStats.lastFragmentNS.Store(42)
+
+	stats := manager.ReadLoopStatsSnapshot()
+	if stats.TotalFrags != 3 || stats.DroppedFrags != 1 || stats.CompletedFrags != 2 || stats.HTTPEvents != 1 || stats.RawEvents != 1 || stats.LastFragmentNS != 42 {
+		t.Fatalf("unexpected read-loop stats: %+v", stats)
+	}
+}
+
 func TestResolveShebangInterpreterUsesEnvArgument(t *testing.T) {
 	interpreter := resolveShebangInterpreter("/usr/bin/env sh -c echo")
 	if base := filepath.Base(interpreter); base != "sh" && base != "bash" {
