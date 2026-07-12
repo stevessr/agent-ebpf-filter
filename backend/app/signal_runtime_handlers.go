@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"mime"
 	"os"
 	"path/filepath"
 	"strings"
@@ -133,12 +134,12 @@ func handleSignalProgramLogs(c *gin.Context) {
 func handleSignalProgramLogDownload(c *gin.Context) {
 	settings := runtimeSettingsStore.Snapshot().SignalProcessing
 	program := c.Query("program")
-	path, ok := resolveSelectedProgramLogPath(settings, program)
+	selected, ok := resolveSelectedProgramLog(settings, program)
 	if !ok {
 		c.JSON(404, gin.H{"error": "selected program log is not configured"})
 		return
 	}
-	info, err := os.Stat(path)
+	file, path, err := openSignalProgramLog(selected, os.O_RDONLY)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			c.JSON(404, gin.H{"error": "selected program log file does not exist"})
@@ -147,9 +148,18 @@ func handleSignalProgramLogDownload(c *gin.Context) {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
-	if info.IsDir() {
-		c.JSON(400, gin.H{"error": "selected program log path is a directory"})
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
-	c.FileAttachment(path, filepath.Base(path))
+	if info.Size() > signalProgramLogMaxBytes {
+		c.JSON(413, gin.H{"error": "selected program log exceeds the download size limit"})
+		return
+	}
+	c.DataFromReader(200, info.Size(), "application/octet-stream", file, map[string]string{
+		"Content-Disposition":    mime.FormatMediaType("attachment", map[string]string{"filename": filepath.Base(path)}),
+		"X-Content-Type-Options": "nosniff",
+	})
 }

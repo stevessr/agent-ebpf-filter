@@ -124,6 +124,8 @@ func TestSignalProcessingWorkerUpdatesOnlyMatchingSignalsWithTTLDecay(t *testing
 func TestSignalSelectedProgramPersistsCompressedProtoBinary(t *testing.T) {
 	tempDir := t.TempDir()
 	logPath := filepath.Join(tempDir, "codex.pb.gzlog")
+	oldRoot := signalProgramLogsRootPath
+	signalProgramLogsRootPath = func() string { return tempDir }
 	oldStore := runtimeSettingsStore
 	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{SignalProcessing: SignalProcessingSettings{
 		Enabled:             false,
@@ -135,10 +137,13 @@ func TestSignalSelectedProgramPersistsCompressedProtoBinary(t *testing.T) {
 		SelectedPrograms: []SelectedProgramSignalLog{{
 			Program: "codex",
 			Enabled: true,
-			Path:    logPath,
+			Path:    filepath.Base(logPath),
 		}},
 	}}}
-	t.Cleanup(func() { runtimeSettingsStore = oldStore })
+	t.Cleanup(func() {
+		runtimeSettingsStore = oldStore
+		signalProgramLogsRootPath = oldRoot
+	})
 
 	record := CapturedEventRecord{ReceivedAt: time.Now().UTC(), Event: &pb.Event{
 		Pid:       2026,
@@ -174,6 +179,8 @@ func TestSignalRuleTestAndProgramLogStatusHandlers(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	tempDir := t.TempDir()
 	logPath := filepath.Join(tempDir, "codex.pb.gzlog")
+	oldRoot := signalProgramLogsRootPath
+	signalProgramLogsRootPath = func() string { return tempDir }
 
 	oldStore := runtimeSettingsStore
 	oldArchive := capturedEventArchive
@@ -187,13 +194,14 @@ func TestSignalRuleTestAndProgramLogStatusHandlers(t *testing.T) {
 		SelectedPrograms: []SelectedProgramSignalLog{{
 			Program: "codex",
 			Enabled: true,
-			Path:    logPath,
+			Path:    filepath.Base(logPath),
 		}},
 	}}}
 	capturedEventArchive = newEventArchive(10)
 	t.Cleanup(func() {
 		runtimeSettingsStore = oldStore
 		capturedEventArchive = oldArchive
+		signalProgramLogsRootPath = oldRoot
 	})
 
 	record := normalizeCapturedEventRecord(CapturedEventRecord{ReceivedAt: time.Now().UTC(), Event: &pb.Event{

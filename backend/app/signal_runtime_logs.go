@@ -36,7 +36,13 @@ func persistSignalProgramLog(record CapturedEventRecord) {
 		if !matched {
 			continue
 		}
-		path := selectedProgramLogPath(selected)
+		path, err := resolveSignalProgramLogPath(selected)
+		if err != nil {
+			message := fmt.Sprintf("failed to resolve selected program signal log for %q: %v", selected.Program, err)
+			log.Printf("[WARN] %s", message)
+			signalProcessingWorkerStore.noteError(message)
+			continue
+		}
 		logRecord := &pb.ProgramSignalLogRecord{
 			SchemaVersion: eventSchemaVersion,
 			Program:       strings.TrimSpace(selected.Program),
@@ -45,7 +51,7 @@ func persistSignalProgramLog(record CapturedEventRecord) {
 			CapturedEvent: recordToProtoCapturedEvent(record),
 			SignalKind:    "selected_program",
 		}
-		if err := appendCompressedProtoRecord(path, logRecord); err != nil {
+		if err := appendCompressedProtoRecordForSelected(selected, logRecord); err != nil {
 			message := fmt.Sprintf("failed to persist selected program signal log %s: %v", path, err)
 			log.Printf("[WARN] %s", message)
 			signalProcessingWorkerStore.noteError(message)
@@ -110,18 +116,6 @@ func signalProgramPatternMatches(pattern, value string) bool {
 	return pattern == value || pattern == filepath.Base(value)
 }
 
-func defaultSignalProgramLogPath(program string) string {
-	return filepath.Join(platform.RuntimeSettingsDir(), "signals", "program-logs", sanitizeSignalFilename(program)+".pb.gzlog")
-}
-
-func selectedProgramLogPath(selected SelectedProgramSignalLog) string {
-	path := strings.TrimSpace(selected.Path)
-	if path == "" {
-		path = defaultSignalProgramLogPath(selected.Program)
-	}
-	return expandSignalPath(path)
-}
-
 func selectedProgramLogStatuses(settings SignalProcessingSettings) []signalProgramLogStatus {
 	normalizeSignalProcessingSettings(&settings)
 	statuses := make([]signalProgramLogStatus, 0, len(settings.SelectedPrograms))
@@ -130,13 +124,18 @@ func selectedProgramLogStatuses(settings SignalProcessingSettings) []signalProgr
 		if program == "" {
 			continue
 		}
-		path := selectedProgramLogPath(selected)
+		path, pathErr := resolveSignalProgramLogPath(selected)
 		status := signalProgramLogStatus{
 			Program: program,
 			Enabled: selected.Enabled,
 			Path:    path,
 		}
-		info, err := os.Stat(path)
+		if pathErr != nil {
+			status.Error = pathErr.Error()
+			statuses = append(statuses, status)
+			continue
+		}
+		file, _, err := openSignalProgramLog(selected, os.O_RDONLY)
 		if err != nil {
 			if !errors.Is(err, os.ErrNotExist) {
 				status.Error = err.Error()
@@ -144,31 +143,39 @@ func selectedProgramLogStatuses(settings SignalProcessingSettings) []signalProgr
 			statuses = append(statuses, status)
 			continue
 		}
+		info, err := file.Stat()
+		if err != nil {
+			_ = file.Close()
+			status.Error = err.Error()
+			statuses = append(statuses, status)
+			continue
+		}
 		status.Exists = true
 		status.SizeBytes = info.Size()
 		status.ModifiedAt = info.ModTime().UTC().Format(time.RFC3339Nano)
-		if frames, err := countCompressedProtoFrames(path); err == nil {
+		if frames, err := countCompressedProtoFramesReader(file, signalProgramLogMaxBytes); err == nil {
 			status.FrameCount = frames
 		} else {
 			status.Error = err.Error()
 		}
+		_ = file.Close()
 		statuses = append(statuses, status)
 	}
 	return statuses
 }
 
-func resolveSelectedProgramLogPath(settings SignalProcessingSettings, program string) (string, bool) {
+func resolveSelectedProgramLog(settings SignalProcessingSettings, program string) (SelectedProgramSignalLog, bool) {
 	normalizeSignalProcessingSettings(&settings)
 	program = strings.TrimSpace(program)
 	if program == "" {
-		return "", false
+		return SelectedProgramSignalLog{}, false
 	}
 	for _, selected := range settings.SelectedPrograms {
 		if strings.EqualFold(strings.TrimSpace(selected.Program), program) || strings.EqualFold(sanitizeSignalFilename(selected.Program), program) {
-			return selectedProgramLogPath(selected), true
+			return selected, true
 		}
 	}
-	return "", false
+	return SelectedProgramSignalLog{}, false
 }
 
 func sanitizeSignalFilename(value string) string {
@@ -211,49 +218,49 @@ func expandSignalPath(path string) string {
 	return path
 }
 
-func appendCompressedProtoRecord(path string, message proto.Message) error {
-	if strings.TrimSpace(path) == "" {
-		return errors.New("signal proto log path is empty")
-	}
-	payload, err := proto.Marshal(message)
+func appendCompressedProtoRecordForSelected(selected SelectedProgramSignalLog, message proto.Message) error {
+	payload, err := marshalCompressedProtoFrame(message)
 	if err != nil {
 		return err
+	}
+
+	signalProgramLogMu.Lock()
+	defer signalProgramLogMu.Unlock()
+
+	file, _, err := openSignalProgramLog(selected, os.O_CREATE|os.O_WRONLY|os.O_APPEND)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return err
+	}
+	if info.Size() > signalProgramLogMaxBytes-int64(len(payload)) {
+		return fmt.Errorf("signal program log exceeds %d bytes", signalProgramLogMaxBytes)
+	}
+	_, err = file.Write(payload)
+	return err
+}
+
+func marshalCompressedProtoFrame(message proto.Message) ([]byte, error) {
+	payload, err := proto.Marshal(message)
+	if err != nil {
+		return nil, err
 	}
 	var compressed bytes.Buffer
 	gz := gzip.NewWriter(&compressed)
 	if _, err := gz.Write(payload); err != nil {
 		_ = gz.Close()
-		return err
+		return nil, err
 	}
 	if err := gz.Close(); err != nil {
-		return err
+		return nil, err
 	}
-	frame := make([]byte, 4)
+	frame := make([]byte, 4+compressed.Len())
 	binary.BigEndian.PutUint32(frame, uint32(compressed.Len()))
-
-	signalProgramLogMu.Lock()
-	defer signalProgramLogMu.Unlock()
-
-	if err := platform.MkdirAllAsRealUser(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	if _, err := file.Write(frame); err != nil {
-		return err
-	}
-	if _, err := file.Write(compressed.Bytes()); err != nil {
-		return err
-	}
-	if os.Getuid() == 0 {
-		if uid, gid, ok := platform.OriginalInvokerIDs(); ok {
-			_ = os.Chown(path, int(uid), int(gid))
-		}
-	}
-	return nil
+	copy(frame[4:], compressed.Bytes())
+	return frame, nil
 }
 
 func readCompressedProtoFrames(path string, newMessage func() proto.Message) ([]proto.Message, error) {
@@ -299,17 +306,12 @@ func readCompressedProtoFrames(path string, newMessage func() proto.Message) ([]
 	}
 }
 
-func countCompressedProtoFrames(path string) (int, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return 0, err
-	}
-	defer file.Close()
-
+func countCompressedProtoFramesReader(file io.Reader, maxBytes int64) (int, error) {
+	limited := &io.LimitedReader{R: file, N: maxBytes + 1}
 	count := 0
 	for {
 		var frameLen uint32
-		if err := binary.Read(file, binary.BigEndian, &frameLen); err != nil {
+		if err := binary.Read(limited, binary.BigEndian, &frameLen); err != nil {
 			if errors.Is(err, io.EOF) {
 				return count, nil
 			}
@@ -318,9 +320,12 @@ func countCompressedProtoFrames(path string) (int, error) {
 		if frameLen == 0 || frameLen > 64*1024*1024 {
 			return count, fmt.Errorf("invalid compressed proto frame length %d", frameLen)
 		}
-		if _, err := io.CopyN(io.Discard, file, int64(frameLen)); err != nil {
+		if _, err := io.CopyN(io.Discard, limited, int64(frameLen)); err != nil {
 			return count, err
 		}
 		count++
+		if limited.N <= 0 {
+			return count, fmt.Errorf("signal program log exceeds %d bytes", maxBytes)
+		}
 	}
 }

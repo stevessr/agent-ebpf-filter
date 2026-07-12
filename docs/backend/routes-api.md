@@ -227,7 +227,7 @@ Research training API：`GET /research/sessions/:id/training` 和 `POST /researc
 | `GET` | `/system/file-preview` | 文件预览 |
 | `GET` | `/system/file-preview/stream` | 文件预览流式输出 |
 | `GET` | `/system/file-hex` | 文件十六进制查看 |
-| `GET` | `/system/file-elf` | ELF 文件分析 |
+| `GET` | `/system/file-elf` | ELF 文件分析（文件最大 256 MiB，符号元数据最大 8 MiB/65536 项，`objdump` 输出最大 2 MiB） |
 | `GET` | `/system/home` | 用户主目录 |
 | `GET` | `/system/download` | 文件下载 |
 | `POST` | `/system/upload` | 文件上传（需启用 `system_run` runtime gate；单文件最大 64 MiB；文件名会归一化；不覆盖已有目标） |
@@ -248,6 +248,8 @@ Research training API：`GET /research/sessions/:id/training` 和 `POST /researc
 | `GET` | `/system/signals/program-logs/download?program=...` | 下载某个已配置选中程序的 length-framed gzip protobuf 日志 |
 
 `/system/signals/status` 对应 `RuntimeSettings.signalProcessing`。信号规则支持 `path_access`、`child_process`、`repeated_read` 与 `custom` kind，规则内条件按 AND 组合；选中的程序会由后端写入本地 length-framed gzip protobuf (`ProgramSignalLogRecord`) 二进制日志。
+
+选中程序日志只允许位于 `~/.config/agent-ebpf-filter/signals/program-logs/` 目录的直接子文件；`path` 可留空使用按程序名生成的默认文件名，或填写该目录下的单一文件名。后端会拒绝越界/嵌套路径、symlink、多硬链接和 FIFO/设备等特殊文件，并将单个日志的追加与下载上限固定为 128 MiB。
 
 `/system/run` 在 app 路由层单独注册，编译时未包含 `FeatureSystemRun` 返回 `501`，运行时 gate 关闭返回 `403`；它不会随其他普通 system 路由无条件暴露。
 

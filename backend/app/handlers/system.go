@@ -26,9 +26,73 @@ import (
 // ---- moved from app/handlers_system.go ----
 
 const (
-	maxUploadedFileBytes  = int64(64 << 20)
-	maxUploadRequestBytes = maxUploadedFileBytes + (1 << 20)
+	maxUploadedFileBytes   = int64(64 << 20)
+	maxUploadRequestBytes  = maxUploadedFileBytes + (1 << 20)
+	maxELFPreviewFileBytes = int64(256 << 20)
+	maxELFMetadataBytes    = uint64(8 << 20)
+	maxELFSymbolEntries    = uint64(64 << 10)
+	maxELFCommandBytes     = 2 << 20
 )
+
+type cappedBuffer struct {
+	buf       bytes.Buffer
+	remaining int
+	truncated bool
+}
+
+func (w *cappedBuffer) Write(p []byte) (int, error) {
+	n := len(p)
+	if len(p) > w.remaining {
+		w.truncated = true
+	}
+	if w.remaining > 0 {
+		keep := len(p)
+		if keep > w.remaining {
+			keep = w.remaining
+		}
+		_, _ = w.buf.Write(p[:keep])
+		w.remaining -= keep
+	}
+	return n, nil
+}
+
+func elfMetadataWithinLimit(f *elf.File) bool {
+	var total uint64
+	var symbolEntries uint64
+	seen := make(map[int]struct{})
+	for i, section := range f.Sections {
+		if section.Type != elf.SHT_SYMTAB && section.Type != elf.SHT_DYNSYM && section.Type != elf.SHT_DYNAMIC {
+			continue
+		}
+		if section.Type == elf.SHT_SYMTAB || section.Type == elf.SHT_DYNSYM {
+			if section.Entsize == 0 && section.Size > 0 {
+				return false
+			}
+			if section.Entsize > 0 {
+				entries := section.Size / section.Entsize
+				if entries > maxELFSymbolEntries || symbolEntries > maxELFSymbolEntries-entries {
+					return false
+				}
+				symbolEntries += entries
+			}
+		}
+		for _, index := range []int{i, int(section.Link)} {
+			if index < 0 || index >= len(f.Sections) {
+				continue
+			}
+			if _, ok := seen[index]; ok {
+				continue
+			}
+			seen[index] = struct{}{}
+			size := f.Sections[index].Size
+			if size > maxELFMetadataBytes || total > maxELFMetadataBytes-size {
+				return false
+			}
+			total += size
+		}
+	}
+	return true
+}
 
 var (
 	errInvalidUploadFilename = errors.New("invalid upload filename")
@@ -258,12 +322,22 @@ func HandleFileELF(c *gin.Context) {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
-	info, err := os.Stat(absPath)
+	file, err := os.Open(absPath)
+	if err != nil {
+		c.JSON(404, gin.H{"error": "file not found"})
+		return
+	}
+	defer file.Close()
+	info, err := file.Stat()
 	if err != nil || !info.Mode().IsRegular() {
 		c.JSON(404, gin.H{"error": "file not found"})
 		return
 	}
-	f, err := elf.Open(absPath)
+	if info.Size() > maxELFPreviewFileBytes {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "ELF file exceeds preview size limit"})
+		return
+	}
+	f, err := elf.NewFile(file)
 	if err != nil {
 		c.JSON(415, gin.H{"error": "not an ELF file"})
 		return
@@ -284,9 +358,16 @@ func HandleFileELF(c *gin.Context) {
 		}
 		programs = append(programs, gin.H{"type": p.Type.String(), "flags": p.Flags.String(), "vaddr": p.Vaddr, "off": p.Off, "filesz": p.Filesz, "memsz": p.Memsz})
 	}
-	dynlibs, _ := f.DynString(elf.DT_NEEDED)
-	dynSyms, _ := f.DynamicSymbols()
-	staticSyms, _ := f.Symbols()
+	var dynlibs []string
+	var dynSyms, staticSyms []elf.Symbol
+	metadataError := ""
+	if elfMetadataWithinLimit(f) {
+		dynlibs, _ = f.DynString(elf.DT_NEEDED)
+		dynSyms, _ = f.DynamicSymbols()
+		staticSyms, _ = f.Symbols()
+	} else {
+		metadataError = "ELF symbol metadata exceeds preview size limit."
+	}
 	limitSymbols := func(in []elf.Symbol) []gin.H {
 		out := []gin.H{}
 		for i, s := range in {
@@ -302,16 +383,26 @@ func HandleFileELF(c *gin.Context) {
 	disassemblyError := ""
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "objdump", "-d", "--demangle", "--no-show-raw-insn", absPath)
-	if out, err := cmd.CombinedOutput(); err == nil {
-		lines := strings.Split(string(out), "\n")
+	cmd := exec.CommandContext(ctx, "objdump", "-d", "--demangle", "--no-show-raw-insn", "/proc/self/fd/3")
+	cmd.ExtraFiles = []*os.File{file}
+	stdout := &cappedBuffer{remaining: maxELFCommandBytes}
+	stderr := &cappedBuffer{remaining: maxELFCommandBytes}
+	cmd.Stdout, cmd.Stderr = stdout, stderr
+	if err := cmd.Run(); err == nil {
+		lines := strings.Split(stdout.buf.String(), "\n")
 		if len(lines) > 240 {
 			lines = lines[:240]
 			disassemblyError = "Disassembly preview truncated to first 240 lines."
 		}
+		if stdout.truncated {
+			disassemblyError = "Disassembly output exceeded size limit."
+		}
 		disassembly = strings.Join(lines, "\n")
 	} else {
-		disassemblyError = strings.TrimSpace(fmt.Sprintf("%v: %s", err, string(out)))
+		disassemblyError = strings.TrimSpace(fmt.Sprintf("%v: %s", err, stderr.buf.String()))
+		if stderr.truncated {
+			disassemblyError += " (error output truncated)"
+		}
 	}
 
 	c.JSON(200, gin.H{
@@ -326,6 +417,7 @@ func HandleFileELF(c *gin.Context) {
 		"dynamicLibraries":   dynlibs,
 		"dynamicSymbols":     limitSymbols(dynSyms),
 		"staticSymbols":      limitSymbols(staticSyms),
+		"metadataError":      metadataError,
 		"disassembly":        disassembly,
 		"disassemblyError":   disassemblyError,
 		"dynamicSymbolCount": len(dynSyms),
