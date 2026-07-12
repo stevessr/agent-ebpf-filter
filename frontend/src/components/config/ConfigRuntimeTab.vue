@@ -433,7 +433,7 @@ const schemeOptions = [
                   runtimeSettings.researchProcessing.maxSessionEvents
                 "
                 :min="100"
-                :max="1000000"
+                :max="100000"
                 :step="1000"
                 style="width: 180px"
               />

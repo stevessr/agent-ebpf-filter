@@ -286,8 +286,8 @@ func normalizeResearchProcessingSettings(settings *ResearchProcessingSettings) {
 	if settings.MaxSessionEvents < 100 {
 		settings.MaxSessionEvents = 100
 	}
-	if settings.MaxSessionEvents > 1000000 {
-		settings.MaxSessionEvents = 1000000
+	if settings.MaxSessionEvents > 100000 {
+		settings.MaxSessionEvents = 100000
 	}
 	settings.ExportFormats = normalizeResearchExportFormats(settings.ExportFormats)
 }

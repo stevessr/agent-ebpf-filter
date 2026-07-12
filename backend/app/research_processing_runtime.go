@@ -936,8 +936,8 @@ func handleResearchProcessingStatus(c *gin.Context) {
 
 func handleResearchProcessingTask(c *gin.Context) {
 	var req researchProcessingTaskRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": "invalid research processing task"})
+	if status, err := bindResearchJSON(c, &req); err != nil {
+		c.JSON(status, gin.H{"error": "invalid research processing task"})
 		return
 	}
 	action := strings.ToLower(strings.TrimSpace(req.Action))

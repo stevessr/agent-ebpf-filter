@@ -415,8 +415,8 @@ func handleResearchSessionTrainingImport(c *gin.Context) {
 		Preview     bool   `json:"preview"`
 	}
 	if c.Request.Body != nil && c.Request.ContentLength != 0 {
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid training import payload"})
+		if status, err := bindResearchJSON(c, &req); err != nil {
+			c.JSON(status, gin.H{"error": "invalid training import payload"})
 			return
 		}
 	}

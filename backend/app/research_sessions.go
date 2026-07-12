@@ -254,6 +254,7 @@ type researchTaskEntry struct {
 
 type researchSessionStore struct {
 	mu       sync.RWMutex
+	fsMu     sync.Mutex
 	baseDir  string
 	loaded   bool
 	sessions map[string]*ResearchSession

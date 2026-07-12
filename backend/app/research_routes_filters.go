@@ -15,6 +15,20 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const researchControlRequestMaxBytes int64 = 64 << 10
+
+func bindResearchJSON(c *gin.Context, target any) (int, error) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, researchControlRequestMaxBytes)
+	if err := c.ShouldBindJSON(target); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			return http.StatusRequestEntityTooLarge, err
+		}
+		return http.StatusBadRequest, err
+	}
+	return http.StatusOK, nil
+}
+
 func handleResearchSessionsList(c *gin.Context) {
 	sessions, err := researchSessionsStore.List()
 	if err != nil {
@@ -27,8 +41,8 @@ func handleResearchSessionsList(c *gin.Context) {
 func handleResearchSessionsCreate(c *gin.Context) {
 	var req researchCreateSessionRequest
 	if c.Request.Body != nil && c.Request.ContentLength != 0 {
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid research session payload"})
+		if status, err := bindResearchJSON(c, &req); err != nil {
+			c.JSON(status, gin.H{"error": "invalid research session payload"})
 			return
 		}
 	}
@@ -61,8 +75,8 @@ func handleResearchSessionTask(tlsStore *TLSCaptureStore) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req researchTaskRequest
 		if c.Request.Body != nil && c.Request.ContentLength != 0 {
-			if err := c.ShouldBindJSON(&req); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid research task payload"})
+			if status, err := bindResearchJSON(c, &req); err != nil {
+				c.JSON(status, gin.H{"error": "invalid research task payload"})
 				return
 			}
 		}

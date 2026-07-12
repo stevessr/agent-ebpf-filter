@@ -8,12 +8,56 @@ import (
 	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 )
+
+const (
+	researchExportPayloadMaxBytes   int64 = 64 << 20
+	researchBundleAggregateMaxBytes int64 = 256 << 20
+	researchBundleArchiveMaxBytes   int64 = 128 << 20
+)
+
+type researchExportLimits struct {
+	payloadBytes   int64
+	aggregateBytes int64
+	archiveBytes   int64
+}
+
+var defaultResearchExportLimits = researchExportLimits{
+	payloadBytes:   researchExportPayloadMaxBytes,
+	aggregateBytes: researchBundleAggregateMaxBytes,
+	archiveBytes:   researchBundleArchiveMaxBytes,
+}
+
+type researchLimitedBuffer struct {
+	buf   bytes.Buffer
+	limit int64
+}
+
+func (w *researchLimitedBuffer) Write(p []byte) (int, error) {
+	if w.limit < 0 || int64(len(p)) > w.limit-int64(w.buf.Len()) {
+		return 0, fmt.Errorf("research export exceeds %d bytes", w.limit)
+	}
+	return w.buf.Write(p)
+}
+
+func researchAddBundlePayload(payloads map[string][]byte, name string, payload []byte, limits researchExportLimits, aggregate *int64) error {
+	size := int64(len(payload))
+	if size > limits.payloadBytes {
+		return fmt.Errorf("research export %s exceeds %d bytes", name, limits.payloadBytes)
+	}
+	if *aggregate > limits.aggregateBytes-size {
+		return fmt.Errorf("research bundle payloads exceed %d bytes", limits.aggregateBytes)
+	}
+	*aggregate += size
+	payloads[name] = payload
+	return nil
+}
 
 func researchEventsJSONLBytes(events []ResearchEvent) []byte {
 	var buf bytes.Buffer
@@ -43,17 +87,39 @@ func researchEventsCSVBytes(events []ResearchEvent) ([]byte, error) {
 }
 
 func researchBundleZipBytes(session ResearchSession, events []ResearchEvent, results ResearchResults, settings ResearchProcessingSettings) ([]byte, error) {
-	var buf bytes.Buffer
-	zipw := zip.NewWriter(&buf)
+	return researchBundleZipBytesWithLimits(session, events, results, settings, defaultResearchExportLimits)
+}
+
+func researchBundleZipBytesWithLimits(session ResearchSession, events []ResearchEvent, results ResearchResults, settings ResearchProcessingSettings, limits researchExportLimits) ([]byte, error) {
+	if limits.payloadBytes <= 0 || limits.aggregateBytes <= 0 || limits.archiveBytes <= 0 {
+		return nil, errors.New("research export limits must be positive")
+	}
+	if settings.MaxSessionEvents > 0 && len(events) > settings.MaxSessionEvents {
+		return nil, fmt.Errorf("research bundle has %d events, limit is %d", len(events), settings.MaxSessionEvents)
+	}
 	jsonl := researchEventsJSONLBytes(events)
+	payloads := make(map[string][]byte, 11)
+	var aggregate int64
+	if err := researchAddBundlePayload(payloads, "events.jsonl", jsonl, limits, &aggregate); err != nil {
+		return nil, err
+	}
 	csvBytes, err := researchEventsCSVBytes(events)
 	if err != nil {
 		return nil, err
 	}
+	if err := researchAddBundlePayload(payloads, "events.csv", csvBytes, limits, &aggregate); err != nil {
+		return nil, err
+	}
 	training := buildResearchTrainingDataset(session.ID, events, researchTrainingPolicyHeuristic, true)
 	trainingJSONL := researchTrainingDatasetJSONLBytes(training)
+	if err := researchAddBundlePayload(payloads, "training.jsonl", trainingJSONL, limits, &aggregate); err != nil {
+		return nil, err
+	}
 	trainingCSV, err := researchTrainingDatasetCSVBytes(training)
 	if err != nil {
+		return nil, err
+	}
+	if err := researchAddBundlePayload(payloads, "training.csv", trainingCSV, limits, &aggregate); err != nil {
 		return nil, err
 	}
 	trainingManifestJSON, err := json.MarshalIndent(struct {
@@ -90,6 +156,9 @@ func researchBundleZipBytes(session ResearchSession, events []ResearchEvent, res
 	if err != nil {
 		return nil, err
 	}
+	if err := researchAddBundlePayload(payloads, "training-manifest.json", trainingManifestJSON, limits, &aggregate); err != nil {
+		return nil, err
+	}
 	resultsJSON, err := json.MarshalIndent(results, "", "  ")
 	if err != nil {
 		return nil, err
@@ -98,7 +167,12 @@ func researchBundleZipBytes(session ResearchSession, events []ResearchEvent, res
 	if err != nil {
 		return nil, err
 	}
-	payloads := map[string][]byte{"events.jsonl": jsonl, "events.csv": csvBytes, "training.jsonl": trainingJSONL, "training.csv": trainingCSV, "training-manifest.json": trainingManifestJSON, "results.json": resultsJSON, "session.json": sessionJSON}
+	if err := researchAddBundlePayload(payloads, "results.json", resultsJSON, limits, &aggregate); err != nil {
+		return nil, err
+	}
+	if err := researchAddBundlePayload(payloads, "session.json", sessionJSON, limits, &aggregate); err != nil {
+		return nil, err
+	}
 	if results.SecurityEvaluation != nil {
 		securityJSON, err := researchSecurityEvaluationJSONBytes(results.SecurityEvaluation)
 		if err != nil {
@@ -109,17 +183,27 @@ func researchBundleZipBytes(session ResearchSession, events []ResearchEvent, res
 		if err != nil {
 			return nil, err
 		}
-		payloads["security-evaluation.json"] = securityJSON
-		payloads["security-evaluation.jsonl"] = securityJSONL
-		payloads["security-evaluation.csv"] = securityCSV
+		for name, payload := range map[string][]byte{
+			"security-evaluation.json":  securityJSON,
+			"security-evaluation.jsonl": securityJSONL,
+			"security-evaluation.csv":   securityCSV,
+		} {
+			if err := researchAddBundlePayload(payloads, name, payload, limits, &aggregate); err != nil {
+				return nil, err
+			}
+		}
 	}
 	manifest := researchBuildManifest(session, events, settings, payloads, nil)
 	manifestJSON, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
 		return nil, err
 	}
+	if err := researchAddBundlePayload(payloads, "manifest.json", manifestJSON, limits, &aggregate); err != nil {
+		return nil, err
+	}
+	archive := &researchLimitedBuffer{limit: limits.archiveBytes}
+	zipw := zip.NewWriter(archive)
 	files := payloads
-	files["manifest.json"] = manifestJSON
 	names := make([]string, 0, len(files))
 	for name := range files {
 		names = append(names, name)
@@ -137,7 +221,7 @@ func researchBundleZipBytes(session ResearchSession, events []ResearchEvent, res
 	if err := zipw.Close(); err != nil {
 		return nil, err
 	}
-	return buf.Bytes(), nil
+	return archive.buf.Bytes(), nil
 }
 
 func researchBuildManifest(session ResearchSession, events []ResearchEvent, settings ResearchProcessingSettings, payloads map[string][]byte, artifacts map[string]ResearchArtifactRef) ResearchManifest {
