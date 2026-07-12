@@ -403,9 +403,37 @@ func init() {
 	}
 	handlers.Deps.PluginGet = func(id string) (any, bool) { return pluginRegistry.Get(id) }
 	handlers.Deps.PluginUpsert = func(manifest any) error {
-		m, ok := manifest.(*PluginManifest)
+		req, ok := manifest.(*handlers.PluginUpsertRequest)
 		if !ok {
-			return fmt.Errorf("expected *PluginManifest, got %T", manifest)
+			return fmt.Errorf("expected *handlers.PluginUpsertRequest, got %T", manifest)
+		}
+		kind := PluginKind(strings.TrimSpace(req.Kind))
+		if kind == "" {
+			kind = PluginKindEBPF
+		}
+		m := &PluginManifest{
+			ID:             strings.TrimSpace(req.ID),
+			Name:           sanitizePluginName(req.Name),
+			Description:    strings.TrimSpace(req.Description),
+			Author:         strings.TrimSpace(req.Author),
+			Version:        strings.TrimSpace(req.Version),
+			Kind:           kind,
+			Enabled:        req.Enabled,
+			AttachKind:     PluginAttachKind(strings.TrimSpace(req.AttachKind)),
+			AttachTarget:   strings.TrimSpace(req.AttachTarget),
+			ProgramName:    strings.TrimSpace(req.ProgramName),
+			WebhookURL:     strings.TrimSpace(req.WebhookURL),
+			WebhookEvents:  append([]string(nil), req.WebhookEvents...),
+			CommandComm:    strings.TrimSpace(req.CommandComm),
+			CommandArgs:    append([]string(nil), req.CommandArgs...),
+			CommandRule:    strings.TrimSpace(req.CommandRule),
+			CommandRewrite: append([]string(nil), req.CommandRewrite...),
+		}
+		if kind == PluginKindEBPF && strings.TrimSpace(req.Source) != "" {
+			m.SourceSHA256 = sha256Hex([]byte(req.Source))
+			if err := platform.WritePluginSource(m.ID, req.Source); err != nil {
+				return err
+			}
 		}
 		return pluginRegistry.Upsert(m)
 	}

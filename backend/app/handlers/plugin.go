@@ -1,32 +1,35 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
+const pluginUpsertMaxBodyBytes int64 = 320 << 10
+
 // ---- moved from app/handlers_plugin.go ----
 
 // pluginUpsertRequest mirrors the request body for plugin upsert operations.
-type pluginUpsertRequest struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Description  string `json:"description"`
-	Author       string `json:"author"`
-	Version      string `json:"version"`
-	Kind         string `json:"kind"`
-	Enabled      bool   `json:"enabled"`
-	Source       string `json:"source"`
-	AttachKind   string `json:"attachKind"`
-	AttachTarget string `json:"attachTarget"`
-	ProgramName  string `json:"programName"`
-	WebhookURL   string `json:"webhookUrl"`
-	WebhookEvents []string `json:"webhookEvents"`
-	CommandComm  string `json:"commandComm"`
-	CommandArgs  []string `json:"commandArgs"`
-	CommandRule  string `json:"commandRule"`
+type PluginUpsertRequest struct {
+	ID             string   `json:"id"`
+	Name           string   `json:"name"`
+	Description    string   `json:"description"`
+	Author         string   `json:"author"`
+	Version        string   `json:"version"`
+	Kind           string   `json:"kind"`
+	Enabled        bool     `json:"enabled"`
+	Source         string   `json:"source"`
+	AttachKind     string   `json:"attachKind"`
+	AttachTarget   string   `json:"attachTarget"`
+	ProgramName    string   `json:"programName"`
+	WebhookURL     string   `json:"webhookUrl"`
+	WebhookEvents  []string `json:"webhookEvents"`
+	CommandComm    string   `json:"commandComm"`
+	CommandArgs    []string `json:"commandArgs"`
+	CommandRule    string   `json:"commandRule"`
 	CommandRewrite []string `json:"commandRewrite"`
 }
 
@@ -36,9 +39,9 @@ type bpfCompileRequest struct {
 }
 
 type bpfLoadRequest struct {
-	ObjPath string `json:"objPath"`
-	Attach string `json:"attach"`
-	Target string `json:"target"`
+	ObjPath     string `json:"objPath"`
+	Attach      string `json:"attach"`
+	Target      string `json:"target"`
 	ProgramName string `json:"programName"`
 }
 
@@ -63,12 +66,35 @@ func HandlePluginGet(c *gin.Context) {
 }
 
 func HandlePluginUpsert(c *gin.Context) {
-	var req pluginUpsertRequest
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, pluginUpsertMaxBodyBytes)
+	var req PluginUpsertRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+		status := http.StatusBadRequest
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			status = http.StatusRequestEntityTooLarge
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
 		return
 	}
-	if err := Deps.PluginUpsert(req); err != nil {
+	pathID := strings.TrimSpace(c.Param("id"))
+	if pathID != "" {
+		if err := Deps.PluginValidateID(pathID); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if strings.TrimSpace(req.ID) == "" {
+			req.ID = pathID
+		} else if strings.TrimSpace(req.ID) != pathID {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "plugin id does not match request path"})
+			return
+		}
+	}
+	if err := Deps.PluginValidateID(strings.TrimSpace(req.ID)); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := Deps.PluginUpsert(&req); err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
 	}
@@ -81,6 +107,7 @@ func HandlePluginDelete(c *gin.Context) {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
+	Deps.PluginUnloadEBPF(id)
 	if err := Deps.PluginDelete(id); err != nil {
 		c.JSON(404, gin.H{"error": err.Error()})
 		return
