@@ -6,12 +6,24 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
 // ---- moved from backend/zz_merged_backend.go section llm_batch.go ----
+
+const (
+	defaultLLMBatchScoreLimit         = 20
+	maxLLMBatchScoreLimit             = 100
+	maxLLMBatchWorkers                = 4
+	maxConcurrentLLMBatches           = 2
+	maxLLMBatchRequestBodyBytes int64 = 16 << 10
+	maxLLMBatchDuration               = 10 * time.Minute
+)
+
+var llmBatchSlots = make(chan struct{}, maxConcurrentLLMBatches)
 
 type llmBatchScoreRequest struct {
 	Source        string `json:"source"`
@@ -53,6 +65,20 @@ type llmBatchScoreEntry struct {
 	Applied           bool     `json:"applied,omitempty"`
 }
 
+type llmBatchWorkItem struct {
+	position int
+	subject  llmScoreSubject
+	request  llmScoreRequest
+}
+
+type llmBatchWorkResult struct {
+	position   int
+	subject    llmScoreSubject
+	request    llmScoreRequest
+	assessment *llmScoringResult
+	err        error
+}
+
 func handleMLLLMBatchScorePost(c *gin.Context) {
 	req, ok := bindLLMBatchScoreRequest(c)
 	if !ok {
@@ -69,14 +95,15 @@ func handleMLLLMBatchScorePost(c *gin.Context) {
 
 func bindLLMBatchScoreRequest(c *gin.Context) (llmBatchScoreRequest, bool) {
 	var req llmBatchScoreRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+	if status, err := bindLLMJSON(c, &req, maxLLMBatchRequestBodyBytes); err != nil {
+		c.JSON(status, gin.H{"error": "invalid request"})
 		return req, false
 	}
 	req.Source = strings.ToLower(strings.TrimSpace(req.Source))
 	if req.Source == "" {
 		req.Source = "training"
 	}
+	req.Limit = normalizeLLMBatchLimit(req.Limit)
 	return req, true
 }
 
@@ -84,8 +111,15 @@ func scoreLLMBatch(ctx context.Context, req llmBatchScoreRequest) (*llmBatchScor
 	if !llmScoringConfigured() {
 		return nil, errors.New("LLM scoring is not configured")
 	}
+	select {
+	case llmBatchSlots <- struct{}{}:
+		defer func() { <-llmBatchSlots }()
+	default:
+		return nil, errors.New("LLM batch scoring concurrency limit reached")
+	}
 
-	subjects, validationRatio, err := llmBatchSubjects(req.Source, req.Limit)
+	req.Limit = normalizeLLMBatchLimit(req.Limit)
+	subjects, validationRatio, err := llmBatchSubjects(req.Source, req.Limit, req.OnlyUnlabeled)
 	if err != nil {
 		return nil, err
 	}
@@ -105,28 +139,27 @@ func scoreLLMSampleSubjects(ctx context.Context, source string, subjects []llmSc
 		return nil, errors.New("no samples available for LLM scoring")
 	}
 
-	if limit <= 0 || limit > len(subjects) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(ctx, maxLLMBatchDuration)
+	defer cancel()
+	limit = normalizeLLMBatchLimit(limit)
+	if limit > len(subjects) {
 		limit = len(subjects)
 	}
 
-	entries := make([]llmBatchScoreEntry, 0, limit)
-	scored := 0
 	skipped := 0
-	applied := 0
-	sumRisk := 0.0
-	agreed := 0
-	considered := 0
-
+	work := make([]llmBatchWorkItem, 0, limit)
 	for _, subject := range subjects {
-		if scored >= limit {
+		if len(work) >= limit {
 			break
 		}
 		if onlyUnlabeled && subject.Sample.IsLabeled() {
 			skipped++
 			continue
 		}
-
-		scoredReq := llmScoreRequest{
+		request := llmScoreRequest{
 			CommandLine:  trainingSampleCommandLine(subject.Sample),
 			Comm:         subject.Sample.Comm,
 			Args:         append([]string(nil), subject.Sample.Args...),
@@ -135,22 +168,38 @@ func scoreLLMSampleSubjects(ctx context.Context, source string, subjects []llmSc
 			CurrentLabel: sampleLabelName(subject.Sample.Label),
 			Source:       source,
 		}
+		work = append(work, llmBatchWorkItem{position: len(work), subject: subject, request: request})
+	}
+	if len(work) == 0 {
+		return nil, errors.New("no eligible samples available for LLM scoring")
+	}
+	results, err := runLLMBatchWorkers(ctx, work)
+	if err != nil {
+		return nil, err
+	}
 
-		subCtx, cancel := context.WithTimeout(ctx, time.Duration(maxInt(cfg.LlmTimeoutSeconds, 45))*time.Second)
-		assessment, err := scoreBehaviorWithLLM(subCtx, scoredReq)
-		cancel()
-		if err != nil {
+	entries := make([]llmBatchScoreEntry, 0, len(results))
+	scored := 0
+	applied := 0
+	sumRisk := 0.0
+	agreed := 0
+	considered := 0
+	for _, result := range results {
+		subject := result.subject
+		scoredReq := result.request
+		if result.err != nil {
 			entries = append(entries, llmBatchScoreEntry{
 				Index:        subject.Index,
 				CommandLine:  scoredReq.CommandLine,
 				Comm:         subject.Sample.Comm,
 				Args:         append([]string(nil), subject.Sample.Args...),
 				CurrentLabel: sampleLabelName(subject.Sample.Label),
-				Error:        err.Error(),
+				Error:        result.err.Error(),
 			})
 			skipped++
 			continue
 		}
+		assessment := result.assessment
 
 		entry := llmBatchScoreEntry{
 			Index:             subject.Index,
@@ -223,36 +272,118 @@ func scoreLLMSampleSubjects(ctx context.Context, source string, subjects []llmSc
 	return resp, nil
 }
 
-func llmBatchSubjects(source string, limit int) ([]llmScoreSubject, float64, error) {
+func normalizeLLMBatchLimit(limit int) int {
+	if limit <= 0 {
+		return defaultLLMBatchScoreLimit
+	}
+	if limit > maxLLMBatchScoreLimit {
+		return maxLLMBatchScoreLimit
+	}
+	return limit
+}
+
+func runLLMBatchWorkers(ctx context.Context, work []llmBatchWorkItem) ([]llmBatchWorkResult, error) {
+	if len(work) == 0 {
+		return nil, nil
+	}
+	workers := min(maxLLMBatchWorkers, len(work))
+	jobs := make(chan llmBatchWorkItem)
+	results := make(chan llmBatchWorkResult, workers)
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for item := range jobs {
+				result := scoreLLMBatchWorkItem(ctx, item)
+				select {
+				case results <- result:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+	}
+	go func() {
+		defer close(jobs)
+		for _, item := range work {
+			select {
+			case jobs <- item:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	ordered := make([]llmBatchWorkResult, len(work))
+	completed := 0
+	for result := range results {
+		ordered[result.position] = result
+		completed++
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("LLM batch scoring canceled: %w", err)
+	}
+	if completed != len(work) {
+		return nil, fmt.Errorf("LLM batch scoring completed %d of %d work items", completed, len(work))
+	}
+	return ordered, nil
+}
+
+func scoreLLMBatchWorkItem(ctx context.Context, item llmBatchWorkItem) (result llmBatchWorkResult) {
+	result = llmBatchWorkResult{position: item.position, subject: item.subject, request: item.request}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			result.assessment = nil
+			result.err = fmt.Errorf("LLM batch worker panic: %v", recovered)
+		}
+	}()
+	result.assessment, result.err = scoreBehaviorWithLLM(ctx, item.request)
+	if result.err == nil && result.assessment == nil {
+		result.err = errors.New("LLM scoring returned no assessment")
+	}
+	if result.assessment != nil {
+		result.assessment.RawContent = ""
+	}
+	return result
+}
+
+func llmBatchSubjects(source string, limit int, onlyUnlabeled bool) ([]llmScoreSubject, float64, error) {
 	cfg := currentMLConfig()
+	limit = normalizeLLMBatchLimit(limit)
 	switch source {
 	case "", "training":
 		if globalTrainingStore == nil {
 			return nil, 0, errors.New("ML training store not initialized")
 		}
-		items := globalTrainingStore.AllSamplesWithIndex()
+		items := globalTrainingStore.BoundedSamplesWithIndex(limit, onlyUnlabeled)
 		subjects := make([]llmScoreSubject, 0, len(items))
 		for _, item := range items {
 			subjects = append(subjects, llmScoreSubject{Index: item.Index, Sample: item.Sample})
 		}
-		return limitLLMSubjects(subjects, limit), cfg.ValidationSplitRatio, nil
+		return subjects, cfg.ValidationSplitRatio, nil
 	case "validation":
 		if globalTrainer == nil {
 			return nil, 0, errors.New("ML trainer not initialized")
 		}
-		items := globalTrainer.LastValidationSamples()
+		items := globalTrainer.BoundedValidationSamples(limit, onlyUnlabeled)
 		subjects := make([]llmScoreSubject, 0, len(items))
 		for _, sample := range items {
 			subjects = append(subjects, llmScoreSubject{Index: -1, Sample: sample})
 		}
-		return limitLLMSubjects(subjects, limit), cfg.ValidationSplitRatio, nil
+		return subjects, cfg.ValidationSplitRatio, nil
 	default:
 		return nil, 0, fmt.Errorf("unsupported llm score source %q", source)
 	}
 }
 
 func limitLLMSubjects(subjects []llmScoreSubject, limit int) []llmScoreSubject {
-	if limit <= 0 || limit > len(subjects) {
+	limit = normalizeLLMBatchLimit(limit)
+	if limit > len(subjects) {
 		return subjects
 	}
 	return subjects[:limit]
@@ -319,9 +450,37 @@ func (t *ModelTrainer) reviewValidationWithLLM(samples []TrainingSample) (*LLMRe
 	for i := 0; i < len(samples); i++ {
 		subjects = append(subjects, llmScoreSubject{Index: -1, Sample: samples[i]})
 	}
-	resp, err := scoreLLMSampleSubjects(context.Background(), "validation", subjects, limit, false, false, cfg.ValidationSplitRatio)
+	ctx, stop := trainerCancellationContext(t, context.Background())
+	defer stop()
+	resp, err := scoreLLMSampleSubjects(ctx, "validation", subjects, limit, false, false, cfg.ValidationSplitRatio)
 	if err != nil {
 		return nil, err
 	}
 	return resp.Review, nil
+}
+
+func trainerCancellationContext(trainer *ModelTrainer, parent context.Context) (context.Context, func()) {
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithCancel(parent)
+	if trainer == nil {
+		return ctx, cancel
+	}
+	stopWatch := make(chan struct{})
+	watchDone := make(chan struct{})
+	go func() {
+		defer close(watchDone)
+		select {
+		case <-trainer.cancellationSignal():
+			cancel()
+		case <-stopWatch:
+		}
+	}()
+	var stopOnce sync.Once
+	return ctx, func() {
+		stopOnce.Do(func() { close(stopWatch) })
+		cancel()
+		<-watchDone
+	}
 }

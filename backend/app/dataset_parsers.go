@@ -3,7 +3,6 @@ package app
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
@@ -764,7 +763,7 @@ func buildRemoteDatasetSample(row remoteDatasetRow, mode string, cleanSensitive 
 				userLabel = "remote-source-label"
 			}
 		} else if strings.EqualFold(strings.TrimSpace(mode), "heuristic") {
-			assessment := assessCommandSafety(context.Background(), comm, args, "", 0)
+			assessment := assessCommandSafetyWithOptions(nil, comm, args, "", 0, commandSafetyAssessmentOptions{IncludeLLM: false})
 			if action, ok := assessment["recommendedAction"].(string); ok {
 				label = actionFromLabel(action)
 				if userLabel == "remote-import" {

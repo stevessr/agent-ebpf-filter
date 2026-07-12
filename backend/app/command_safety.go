@@ -89,7 +89,10 @@ func cmdsafetyImportExistingPost(c *gin.Context) {
 		Limit     int    `json:"limit"`
 		LabelMode string `json:"labelMode"`
 	}
-	_ = c.ShouldBindJSON(&req)
+	if status, err := bindOptionalLLMJSON(c, &req, 16<<10); err != nil {
+		c.JSON(status, gin.H{"error": "invalid request"})
+		return
+	}
 
 	if globalTrainingStore == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ML training store not initialized"})
@@ -115,6 +118,9 @@ func cmdsafetyImportExistingPost(c *gin.Context) {
 	imported := 0
 	skipped := 0
 	for _, candidate := range candidates {
+		if c.Request.Context().Err() != nil {
+			return
+		}
 		if candidate.Comm == "" || globalTrainingStore.HasExactCommand(candidate.Comm, candidate.Args) {
 			skipped++
 			continue
@@ -123,7 +129,7 @@ func cmdsafetyImportExistingPost(c *gin.Context) {
 		label := int32(-1)
 		userLabel := ""
 		if labelMode == "heuristic" {
-			assessment := assessCommandSafety(context.Background(), candidate.Comm, candidate.Args, "", 0)
+			assessment := assessCommandSafetyWithOptions(c.Request.Context(), candidate.Comm, candidate.Args, "", 0, commandSafetyAssessmentOptions{IncludeLLM: false})
 			if action, ok := assessment["recommendedAction"].(string); ok {
 				label = actionFromLabel(action)
 				userLabel = "import-heuristic"
@@ -156,8 +162,8 @@ func cmdsafetyImportExistingPost(c *gin.Context) {
 
 func bindCommandSafetyRequest(c *gin.Context) (commandSafetyRequest, bool) {
 	var req commandSafetyRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+	if status, err := bindLLMJSON(c, &req, maxLLMRequestBodyBytes); err != nil {
+		c.JSON(status, gin.H{"error": "invalid request"})
 		return req, false
 	}
 
@@ -175,6 +181,10 @@ func bindCommandSafetyRequest(c *gin.Context) (commandSafetyRequest, bool) {
 	} else {
 		req.CommandLine = joinCommandLine(comm, args)
 	}
+	if err := validateLLMCommandInput(req.CommandLine, req.Comm, req.Args); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return req, false
+	}
 	return req, true
 }
 
@@ -187,6 +197,9 @@ func assessCommandSafety(ctx context.Context, comm string, args []string, user s
 }
 
 func assessCommandSafetyWithOptions(ctx context.Context, comm string, args []string, user string, pid uint32, opts commandSafetyAssessmentOptions) gin.H {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	commandLine := joinCommandLine(comm, args)
 
 	classification := behavior.ClassifyBehavior(comm, args)

@@ -259,6 +259,29 @@ func (s *TrainingDataStore) AllSamplesWithIndex() []IndexedTrainingSample {
 	return out
 }
 
+// BoundedSamplesWithIndex returns at most limit samples without first copying
+// the entire training ring. It is used by bounded API jobs such as LLM review.
+func (s *TrainingDataStore) BoundedSamplesWithIndex(limit int, onlyUnlabeled bool) []IndexedTrainingSample {
+	if s == nil || limit <= 0 {
+		return nil
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]IndexedTrainingSample, 0, min(limit, len(s.samples)))
+	for i := range s.samples {
+		sample := s.samples[i]
+		if sample.Timestamp.IsZero() || (onlyUnlabeled && sample.IsLabeled()) {
+			continue
+		}
+		sample.Args = append([]string(nil), sample.Args...)
+		out = append(out, IndexedTrainingSample{Index: i, Sample: sample})
+		if len(out) >= limit {
+			break
+		}
+	}
+	return out
+}
+
 // ExactMatches returns all samples whose command and arguments exactly match.
 func (s *TrainingDataStore) ExactMatches(comm string, args []string) []IndexedTrainingSample {
 	s.mu.RLock()

@@ -7,6 +7,10 @@ import {
   DownloadOutlined,
 } from "@ant-design/icons-vue";
 import type { useConfigML } from "../../../composables/config/useConfigML";
+import {
+  MAX_LLM_BATCH_SCORE_LIMIT,
+  MAX_LLM_TIMEOUT_SECONDS,
+} from "../../../composables/config/mlUtils";
 
 const props = defineProps<{ ml: ReturnType<typeof useConfigML> }>();
 
@@ -99,7 +103,7 @@ const productionPreviewRowKey = (record: any) =>
             <a-input-number
               v-model:value="llmScoringConfig.timeoutSeconds"
               :min="5"
-              :max="300"
+              :max="MAX_LLM_TIMEOUT_SECONDS"
               :step="5"
               style="width: 100%"
             />
@@ -178,7 +182,7 @@ const productionPreviewRowKey = (record: any) =>
             <a-input-number
               v-model:value="llmBatchConfig.limit"
               :min="1"
-              :max="5000"
+              :max="MAX_LLM_BATCH_SCORE_LIMIT"
               :step="1"
               style="width: 100%"
             />

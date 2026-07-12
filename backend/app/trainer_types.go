@@ -147,6 +147,16 @@ func (t *ModelTrainer) IsCancelled() bool {
 	}
 }
 
+func (t *ModelTrainer) cancellationSignal() <-chan struct{} {
+	t.cancelMu.Lock()
+	if t.cancelCh == nil {
+		t.cancelCh = make(chan struct{})
+	}
+	signal := t.cancelCh
+	t.cancelMu.Unlock()
+	return signal
+}
+
 // ResetCancel prepares a new cancel channel for the next training run.
 func (t *ModelTrainer) ResetCancel() {
 	t.cancelMu.Lock()
@@ -304,6 +314,27 @@ func (t *ModelTrainer) LastValidationSamples() []TrainingSample {
 
 	out := make([]TrainingSample, len(t.lastValidationSamples))
 	copy(out, t.lastValidationSamples)
+	return out
+}
+
+func (t *ModelTrainer) BoundedValidationSamples(limit int, onlyUnlabeled bool) []TrainingSample {
+	if t == nil || limit <= 0 {
+		return nil
+	}
+	t.splitMu.RLock()
+	defer t.splitMu.RUnlock()
+	out := make([]TrainingSample, 0, min(limit, len(t.lastValidationSamples)))
+	for _, stored := range t.lastValidationSamples {
+		sample := stored
+		if onlyUnlabeled && sample.IsLabeled() {
+			continue
+		}
+		sample.Args = append([]string(nil), sample.Args...)
+		out = append(out, sample)
+		if len(out) >= limit {
+			break
+		}
+	}
 	return out
 }
 

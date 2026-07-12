@@ -33,6 +33,8 @@ export {
 } from "./mlPresets";
 import {
   LLM_SCORING_STORAGE_KEY,
+  MAX_LLM_BATCH_SCORE_LIMIT,
+  MAX_LLM_TIMEOUT_SECONDS,
   defaultLLMScoringConfig,
   readStoredLLMScoringConfig,
   pickLLMScoringConfigForStorage,
@@ -317,7 +319,8 @@ export function useConfigML() {
       configMLDisposed ||
       wsActive.value ||
       generation !== logPollGeneration
-    ) return;
+    )
+      return;
     logPollTimer.value = null;
     const controller = new AbortController();
     logPollController?.abort();
@@ -327,9 +330,7 @@ export function useConfigML() {
       const data = await fetchAndApplyMLStatus({
         signal: controller.signal,
         isCurrent: () =>
-          logPollActive &&
-          !wsActive.value &&
-          generation === logPollGeneration,
+          logPollActive && !wsActive.value && generation === logPollGeneration,
       });
       if (data && wasRunning && !mlStatus.value.training_in_progress) {
         stopLogPolling();
@@ -338,8 +339,7 @@ export function useConfigML() {
         const completionController = new AbortController();
         logCompletionController = completionController;
         const completionIsCurrent = () =>
-          !configMLDisposed &&
-          completionGeneration === logPollGeneration;
+          !configMLDisposed && completionGeneration === logPollGeneration;
         try {
           await fetchMLStatus({
             signal: completionController.signal,
@@ -368,10 +368,7 @@ export function useConfigML() {
       !wsActive.value &&
       generation === logPollGeneration
     ) {
-      logPollTimer.value = setTimeout(
-        () => void runLogPoll(generation),
-        1000,
-      );
+      logPollTimer.value = setTimeout(() => void runLogPoll(generation), 1000);
     }
   };
 
@@ -381,19 +378,13 @@ export function useConfigML() {
     logCompletionController = null;
     logPollActive = true;
     const generation = ++logPollGeneration;
-    logPollTimer.value = setTimeout(
-      () => void runLogPoll(generation),
-      1000,
-    );
+    logPollTimer.value = setTimeout(() => void runLogPoll(generation), 1000);
   };
 
   watch(wsActive, (active) => {
     if (active) {
       stopLogPolling();
-    } else if (
-      trainingModel.value ||
-      mlStatus.value.training_in_progress
-    ) {
+    } else if (trainingModel.value || mlStatus.value.training_in_progress) {
       startLogPolling();
     }
   });
@@ -421,8 +412,7 @@ export function useConfigML() {
       if (data.hyperParams) {
         hyperParams.value.numTrees = data.hyperParams.numTrees ?? 31;
         hyperParams.value.maxDepth = data.hyperParams.maxDepth ?? 8;
-        hyperParams.value.minSamplesLeaf =
-          data.hyperParams.minSamplesLeaf ?? 5;
+        hyperParams.value.minSamplesLeaf = data.hyperParams.minSamplesLeaf ?? 5;
       }
       await fetchTrainingHistory(options);
       if (!isCurrent()) return;
@@ -505,7 +495,8 @@ export function useConfigML() {
         configMLDisposed ||
         options.signal?.aborted ||
         !(options.isCurrent?.() ?? true)
-      ) return;
+      )
+        return;
       trainingHistory.value = res.data.history || [];
     } catch (_) {}
   };
@@ -568,6 +559,12 @@ export function useConfigML() {
     ];
   });
 
+  const boundedLLMTimeoutSeconds = () =>
+    Math.min(
+      Math.max(llmScoringConfig.value.timeoutSeconds || 45, 5),
+      MAX_LLM_TIMEOUT_SECONDS,
+    );
+
   const buildThresholdRuntimePayload = () => {
     const payload: Record<string, any> = {
       enabled: true,
@@ -590,7 +587,7 @@ export function useConfigML() {
       llmEnabled: llmScoringConfig.value.enabled,
       llmBaseUrl: llmScoringConfig.value.baseUrl,
       llmModel: llmScoringConfig.value.model,
-      llmTimeoutSeconds: llmScoringConfig.value.timeoutSeconds,
+      llmTimeoutSeconds: boundedLLMTimeoutSeconds(),
       llmTemperature: llmScoringConfig.value.temperature,
       llmMaxTokens: llmScoringConfig.value.maxTokens,
       llmSystemPrompt: llmScoringConfig.value.systemPrompt,
@@ -607,7 +604,7 @@ export function useConfigML() {
       llmEnabled: llmScoringConfig.value.enabled,
       llmBaseUrl: llmScoringConfig.value.baseUrl,
       llmModel: llmScoringConfig.value.model,
-      llmTimeoutSeconds: llmScoringConfig.value.timeoutSeconds,
+      llmTimeoutSeconds: boundedLLMTimeoutSeconds(),
       llmTemperature: llmScoringConfig.value.temperature,
       llmMaxTokens: llmScoringConfig.value.maxTokens,
       llmSystemPrompt: llmScoringConfig.value.systemPrompt,
@@ -795,9 +792,14 @@ export function useConfigML() {
   const llmBatchCanApplyLabels = computed(
     () => llmBatchConfig.value.source === "training",
   );
+  const boundedLLMBatchLimit = () =>
+    Math.min(
+      Math.max(1, llmBatchConfig.value.limit || 20),
+      MAX_LLM_BATCH_SCORE_LIMIT,
+    );
 
   const llmBatchPreviewSubjects = computed(() => {
-    const limit = Math.max(1, llmBatchConfig.value.limit || 20);
+    const limit = boundedLLMBatchLimit();
     const candidates = allSamples.value.filter((sample) => {
       if (!llmBatchConfig.value.onlyUnlabeled) return true;
       return !sample.label || sample.label === "-";
@@ -855,7 +857,7 @@ export function useConfigML() {
         "/config/ml/llm/batch-score",
         {
           source: llmBatchConfig.value.source,
-          limit: llmBatchConfig.value.limit,
+          limit: boundedLLMBatchLimit(),
           onlyUnlabeled: llmBatchConfig.value.onlyUnlabeled,
           applyLabels:
             llmBatchConfig.value.applyLabels && llmBatchCanApplyLabels.value,
@@ -992,5 +994,6 @@ export function useConfigML() {
     riskMeterColor,
     ...mlSampleActionsPublicApi(sampleActions),
     // Dataset management (from extracted composable)
-    ...dataset,  };
+    ...dataset,
+  };
 }

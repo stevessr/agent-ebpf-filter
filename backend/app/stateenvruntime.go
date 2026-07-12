@@ -107,11 +107,20 @@ func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 	if settings.MLConfig.LlmTimeoutSeconds == 0 {
 		settings.MLConfig.LlmTimeoutSeconds = 45
 	}
+	settings.MLConfig.LlmTimeoutSeconds = clampInt(settings.MLConfig.LlmTimeoutSeconds, 5, maxLLMTimeoutSeconds)
 	if settings.MLConfig.LlmMaxTokens == 0 {
 		settings.MLConfig.LlmMaxTokens = 256
 	}
+	settings.MLConfig.LlmMaxTokens = clampInt(settings.MLConfig.LlmMaxTokens, 32, 4096)
+	settings.MLConfig.LlmTemperature = clampFloat64(settings.MLConfig.LlmTemperature, 0, 2)
 	if strings.TrimSpace(settings.MLConfig.LlmSystemPrompt) == "" {
 		settings.MLConfig.LlmSystemPrompt = defaultLLMScoringSystemPrompt
+	}
+	if len(settings.MLConfig.LlmSystemPrompt) > maxLLMSystemPromptBytes {
+		return errors.New("ML LLM system prompt exceeds size limit")
+	}
+	if err := validateLLMRuntimeConfig(settings.MLConfig); err != nil {
+		return err
 	}
 	if _, ok := platform.FirstEnv("AGENT_ML_ENABLED"); !ok {
 		settings.MLConfig.Enabled = true

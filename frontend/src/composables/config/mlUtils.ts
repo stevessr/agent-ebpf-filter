@@ -3,6 +3,9 @@ import type { MLLlmConfig, LLMProductionDatasetRow } from "../../types/config";
 export const LLM_SCORING_STORAGE_KEY =
   "agent-ebpf-filter.ml.llm-scoring-config";
 
+export const MAX_LLM_TIMEOUT_SECONDS = 120;
+export const MAX_LLM_BATCH_SCORE_LIMIT = 100;
+
 type StoredLLMScoringConfig = Pick<
   MLLlmConfig,
   | "enabled"
@@ -35,6 +38,12 @@ export const readStoredLLMScoringConfig =
       if (!raw) return null;
       const parsed = JSON.parse(raw) as Partial<StoredLLMScoringConfig>;
       if (!parsed || typeof parsed !== "object") return null;
+      if (Number.isFinite(parsed.timeoutSeconds)) {
+        parsed.timeoutSeconds = Math.min(
+          Math.max(parsed.timeoutSeconds as number, 5),
+          MAX_LLM_TIMEOUT_SECONDS,
+        );
+      }
       return parsed;
     } catch {
       return null;
@@ -49,7 +58,7 @@ export const pickLLMScoringConfigForStorage = (
   apiKey: config.apiKey || "",
   model: config.model || "",
   timeoutSeconds: Number.isFinite(config.timeoutSeconds)
-    ? config.timeoutSeconds
+    ? Math.min(Math.max(config.timeoutSeconds, 5), MAX_LLM_TIMEOUT_SECONDS)
     : 45,
   temperature: Number.isFinite(config.temperature) ? config.temperature : 0,
   maxTokens: Number.isFinite(config.maxTokens) ? config.maxTokens : 256,

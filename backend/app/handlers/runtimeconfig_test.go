@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"agent-ebpf-filter/core"
+	"bytes"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -160,5 +161,20 @@ func TestHandleConfigRuntimePutSerializesPersistenceAndSideEffects(t *testing.T)
 	}
 	if final := store.Snapshot(); !final.TlsCaptureEnabled {
 		t.Fatalf("final TLS setting = false, want the second update to win")
+	}
+}
+
+func TestHandleConfigRuntimePutRejectsOversizedBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.PUT("/config/runtime", HandleConfigRuntimePut)
+	body := append([]byte(`{"llmSystemPrompt":"`), bytes.Repeat([]byte("x"), int(runtimeSettingsMaxBodyBytes))...)
+	body = append(body, []byte(`"}`)...)
+	req := httptest.NewRequest(http.MethodPut, "/config/runtime", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+	if resp.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status=%d body=%s", resp.Code, resp.Body.String())
 	}
 }

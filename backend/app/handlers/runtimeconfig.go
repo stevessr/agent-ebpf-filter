@@ -3,6 +3,7 @@ package handlers
 import (
 	"agent-ebpf-filter/core"
 	"agent-ebpf-filter/pb"
+	"errors"
 	"net/http"
 	"strings"
 	"sync"
@@ -14,6 +15,8 @@ import (
 // the persistence step and all runtime side effects in one critical section so
 // concurrent requests cannot apply stale feature-gate state out of order.
 var runtimeSettingsMutationMu sync.Mutex
+
+const runtimeSettingsMaxBodyBytes int64 = 1 << 20
 
 // ---- moved from app/handlersruntimeconfig.go ----
 
@@ -100,9 +103,15 @@ func HandleConfigRuntimeGet(c *gin.Context) {
 }
 
 func HandleConfigRuntimePut(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, runtimeSettingsMaxBodyBytes)
 	var req RuntimeSettingsPatch
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid runtime settings"})
+		status := http.StatusBadRequest
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			status = http.StatusRequestEntityTooLarge
+		}
+		c.JSON(status, gin.H{"error": "invalid runtime settings"})
 		return
 	}
 
