@@ -19,13 +19,11 @@ import (
 
 // ---- moved from backend/zz_merged_backend.go section helpers_fs.go ----
 
-var (
-)
+var ()
 
 // writeFileAsRealUser writes a file with the real user's ownership instead of root
 
 // mkdirAllAsRealUser creates directories with the real user's ownership
-
 
 func getShellConfigPath() string {
 	home := platform.GetRealHomeDir()
@@ -182,6 +180,9 @@ func buildFilePreview(path string) (*FilePreviewResponse, error) {
 	if info.IsDir() {
 		res.PreviewType = "directory"
 		return res, nil
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("unsupported preview file type: %s", info.Mode())
 	}
 
 	file, err := os.Open(absPath)

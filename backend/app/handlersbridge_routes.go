@@ -99,14 +99,15 @@ func handleConfigAccessTokenPost(c *gin.Context) { handlers.HandleConfigAccessTo
 
 func registerSystemRoutes(rg *gin.RouterGroup, registries ...*FeatureRegistry) {
 	syncHandlerDeps()
-	handlers.RegisterSystemRoutes(rg)
 	features := newFeatureRegistry()
 	if len(registries) > 0 && registries[0] != nil {
 		features = registries[0]
 	}
 	if features.CompiledIn(FeatureSystemRun) {
+		handlers.RegisterSystemRoutes(rg, systemRunEnabledMiddleware())
 		handlers.RegisterSystemRunRoute(rg, systemRunEnabledMiddleware())
 	} else {
+		handlers.RegisterSystemRoutes(rg, compiledOutFeatureMiddleware(FeatureSystemRun))
 		handlers.RegisterSystemRunRoute(rg, compiledOutFeatureMiddleware(FeatureSystemRun))
 	}
 	rg.GET("/features", handleSystemFeatures)

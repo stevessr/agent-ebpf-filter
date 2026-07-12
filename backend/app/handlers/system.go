@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"debug/elf"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"os/exec"
@@ -22,6 +24,17 @@ import (
 )
 
 // ---- moved from app/handlers_system.go ----
+
+const (
+	maxUploadedFileBytes  = int64(64 << 20)
+	maxUploadRequestBytes = maxUploadedFileBytes + (1 << 20)
+)
+
+var (
+	errInvalidUploadFilename = errors.New("invalid upload filename")
+	errUploadedFileTooLarge  = errors.New("uploaded file exceeds size limit")
+	errUploadDestinationUsed = errors.New("upload destination already exists")
+)
 
 func HandleSystemLs(c *gin.Context) {
 	p := c.DefaultQuery("path", "/")
@@ -188,7 +201,7 @@ func HandleFileHex(c *gin.Context) {
 		return
 	}
 	info, err := os.Stat(absPath)
-	if err != nil || info.IsDir() {
+	if err != nil || !info.Mode().IsRegular() {
 		c.JSON(404, gin.H{"error": "file not found"})
 		return
 	}
@@ -246,7 +259,7 @@ func HandleFileELF(c *gin.Context) {
 		return
 	}
 	info, err := os.Stat(absPath)
-	if err != nil || info.IsDir() {
+	if err != nil || !info.Mode().IsRegular() {
 		c.JSON(404, gin.H{"error": "file not found"})
 		return
 	}
@@ -331,7 +344,7 @@ func HandleDownload(c *gin.Context) {
 		return
 	}
 	info, err := os.Stat(p)
-	if err != nil || info.IsDir() {
+	if err != nil || !info.Mode().IsRegular() {
 		c.JSON(404, gin.H{"error": "file not found"})
 		return
 	}
@@ -339,21 +352,113 @@ func HandleDownload(c *gin.Context) {
 }
 
 func HandleUpload(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxUploadRequestBytes)
 	dir := c.Query("path")
 	if dir == "" {
 		dir = Deps.GetRealHomeDir()
 	}
 	file, err := c.FormFile("file")
 	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "request body too large") {
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": errUploadedFileTooLarge.Error()})
+			return
+		}
 		c.JSON(400, gin.H{"error": "no file uploaded"})
 		return
 	}
-	dst := filepath.Join(dir, file.Filename)
-	if err := c.SaveUploadedFile(file, dst); err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+	dst, err := saveUploadedFileWithinRoot(dir, file)
+	if err != nil {
+		switch {
+		case errors.Is(err, errUploadedFileTooLarge):
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": err.Error()})
+		case errors.Is(err, errInvalidUploadFilename):
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		case errors.Is(err, errUploadDestinationUsed):
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		default:
+			c.JSON(500, gin.H{"error": err.Error()})
+		}
 		return
 	}
 	c.JSON(200, gin.H{"status": "ok", "path": dst})
+}
+
+func saveUploadedFileWithinRoot(dir string, header *multipart.FileHeader) (string, error) {
+	if header == nil {
+		return "", errInvalidUploadFilename
+	}
+	filename, err := sanitizeUploadedFilename(header.Filename)
+	if err != nil {
+		return "", err
+	}
+	if header.Size < 0 || header.Size > maxUploadedFileBytes {
+		return "", errUploadedFileTooLarge
+	}
+
+	absDir, err := filepath.Abs(filepath.Clean(strings.TrimSpace(dir)))
+	if err != nil {
+		return "", fmt.Errorf("resolve upload directory: %w", err)
+	}
+	info, err := os.Stat(absDir)
+	if err != nil {
+		return "", fmt.Errorf("inspect upload directory: %w", err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("upload path is not a directory")
+	}
+
+	root, err := os.OpenRoot(absDir)
+	if err != nil {
+		return "", fmt.Errorf("open upload directory: %w", err)
+	}
+	defer root.Close()
+	src, err := header.Open()
+	if err != nil {
+		return "", fmt.Errorf("open uploaded file: %w", err)
+	}
+	defer src.Close()
+	dst, err := root.OpenFile(filename, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return "", fmt.Errorf("%w: %s", errUploadDestinationUsed, filename)
+		}
+		return "", fmt.Errorf("create upload destination: %w", err)
+	}
+	removeDestination := true
+	defer func() {
+		_ = dst.Close()
+		if removeDestination {
+			_ = root.Remove(filename)
+		}
+	}()
+
+	written, err := io.Copy(dst, io.LimitReader(src, maxUploadedFileBytes+1))
+	if err != nil {
+		return "", fmt.Errorf("write uploaded file: %w", err)
+	}
+	if written > maxUploadedFileBytes {
+		return "", errUploadedFileTooLarge
+	}
+	if err := dst.Sync(); err != nil {
+		return "", fmt.Errorf("sync uploaded file: %w", err)
+	}
+	if err := dst.Close(); err != nil {
+		return "", fmt.Errorf("close uploaded file: %w", err)
+	}
+	removeDestination = false
+	return filepath.Join(absDir, filename), nil
+}
+
+func sanitizeUploadedFilename(raw string) (string, error) {
+	raw = strings.TrimSpace(strings.ReplaceAll(raw, "\\", "/"))
+	filename := filepath.Base(raw)
+	if filename == "" || filename == "." || filename == string(filepath.Separator) || strings.ContainsRune(filename, 0) {
+		return "", errInvalidUploadFilename
+	}
+	if len([]byte(filename)) > 255 {
+		return "", fmt.Errorf("%w: name is too long", errInvalidUploadFilename)
+	}
+	return filename, nil
 }
 
 func HandleRun(c *gin.Context) {
@@ -645,15 +750,20 @@ func HandleProcessMaps(c *gin.Context) {
 	c.JSON(200, gin.H{"maps": string(data)})
 }
 
-func RegisterSystemRoutes(rg *gin.RouterGroup) {
-	rg.GET("/ls", HandleSystemLs)
-	rg.GET("/file-preview", HandleFilePreview)
-	rg.GET("/file-preview/stream", HandleFilePreviewStream)
-	rg.GET("/file-hex", HandleFileHex)
-	rg.GET("/file-elf", HandleFileELF)
+func RegisterSystemRoutes(rg *gin.RouterGroup, fileAccessMiddleware ...gin.HandlerFunc) {
+	fileRoute := func(handler gin.HandlerFunc) []gin.HandlerFunc {
+		handlers := make([]gin.HandlerFunc, 0, len(fileAccessMiddleware)+1)
+		handlers = append(handlers, fileAccessMiddleware...)
+		return append(handlers, handler)
+	}
+	rg.GET("/ls", fileRoute(HandleSystemLs)...)
+	rg.GET("/file-preview", fileRoute(HandleFilePreview)...)
+	rg.GET("/file-preview/stream", fileRoute(HandleFilePreviewStream)...)
+	rg.GET("/file-hex", fileRoute(HandleFileHex)...)
+	rg.GET("/file-elf", fileRoute(HandleFileELF)...)
 	rg.GET("/home", HandleSystemHome)
-	rg.GET("/download", HandleDownload)
-	rg.POST("/upload", HandleUpload)
+	rg.GET("/download", fileRoute(HandleDownload)...)
+	rg.POST("/upload", fileRoute(HandleUpload)...)
 	rg.POST("/benchmark", HandleRunBenchmark)
 	rg.GET("/benchmark", HandleGetBenchmarkResults)
 	rg.GET("/tracked-comms", HandleTrackedComms)

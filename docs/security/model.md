@@ -296,7 +296,7 @@ graph TB
 | 能力 | 风险 | 防护 |
 | --- | --- | --- |
 | TLS capture | 明文敏感数据 | 默认关闭、auth、runtime gate、redaction |
-| system run | 任意命令执行 | critical feature、auth、runtime gate |
+| system run / file access | 任意命令执行与主机文件访问 | critical feature、auth、`system_run` runtime gate、上传大小与文件类型限制 |
 | shell sessions | 交互式 PTY | auth、runtime gate、privilege dropping |
 | hook install | 修改用户 CLI 配置 | auth、runtime gate、确认授权 |
 | policy mutation | 阻断网络/文件/执行 | auth、runtime gate、restrictive maps |

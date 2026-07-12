@@ -65,10 +65,10 @@ var featureDefinitions = []featureDefinition{
 	},
 	{
 		id:            FeatureSystemRun,
-		name:          "System command runner",
+		name:          "System command and file access",
 		runtimeGate:   "system_run",
 		authRequired:  true,
-		routePrefixes: []string{"/system/run"},
+		routePrefixes: []string{"/system/run", "/system/ls", "/system/file-preview", "/system/file-hex", "/system/file-elf", "/system/download", "/system/upload"},
 		dangerLevel:   FeatureDangerCritical,
 		runtimeEnabled: func(settings core.RuntimeSettings) bool {
 			return settings.SystemRunEnabled

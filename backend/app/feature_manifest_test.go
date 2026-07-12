@@ -102,6 +102,34 @@ func TestSystemRunRouteEnforcesRuntimeGate(t *testing.T) {
 	}
 }
 
+func TestSystemFileRoutesEnforceRuntimeGate(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	previousRuntime := runtimeSettingsStore
+	t.Cleanup(func() { runtimeSettingsStore = previousRuntime })
+	dir := t.TempDir()
+
+	for _, tt := range []struct {
+		name       string
+		enabled    bool
+		wantStatus int
+	}{
+		{name: "disabled", enabled: false, wantStatus: http.StatusForbidden},
+		{name: "enabled", enabled: true, wantStatus: http.StatusOK},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{SystemRunEnabled: tt.enabled}}
+			router := gin.New()
+			registerSystemRoutes(router.Group("/system"), newFeatureRegistry())
+			req := httptest.NewRequest(http.MethodGet, "/system/ls?path="+dir, nil)
+			resp := httptest.NewRecorder()
+			router.ServeHTTP(resp, req)
+			if resp.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d; body=%s", resp.Code, tt.wantStatus, resp.Body.String())
+			}
+		})
+	}
+}
+
 func TestSystemRunRouteRejectsCompiledOutFeature(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	wasCompiledIn := compiledFeatureIDs[FeatureSystemRun]

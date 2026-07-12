@@ -4,6 +4,7 @@ import (
 	"agent-ebpf-filter/app/events"
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -106,9 +107,20 @@ type toolBaselineSample struct {
 }
 
 type toolBaselineStore struct {
-	mu      sync.RWMutex
-	samples map[string]map[string]*toolBaselineSample // toolName -> (comm+eventType)
+	mu           sync.RWMutex
+	samples      map[string]map[string]*toolBaselineSample // toolName -> (comm+eventType)
+	lastEviction time.Time
 }
+
+const (
+	toolBaselineMaxTools          = 512
+	toolBaselineMaxSamplesPerTool = 128
+	toolBaselineTTL               = 24 * time.Hour
+	toolBaselineEvictionInterval  = time.Minute
+	toolBaselineMaxNameRunes      = 128
+	toolBaselineMaxEventRunes     = 64
+	toolBaselineMaxPathRunes      = 512
+)
 
 func newToolBaselineStore() *toolBaselineStore {
 	return &toolBaselineStore{
@@ -117,14 +129,29 @@ func newToolBaselineStore() *toolBaselineStore {
 }
 
 func (s *toolBaselineStore) Record(toolName, comm, eventType, path string) {
-	if s == nil || toolName == "" {
+	if s == nil {
 		return
 	}
+	toolName = truncateBaselineValue(toolName, toolBaselineMaxNameRunes)
+	comm = truncateBaselineValue(comm, toolBaselineMaxNameRunes)
+	eventType = truncateBaselineValue(eventType, toolBaselineMaxEventRunes)
+	path = truncateBaselineValue(path, toolBaselineMaxPathRunes)
+	if toolName == "" || comm == "" || eventType == "" {
+		return
+	}
+	now := time.Now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.lastEviction.IsZero() || now.Sub(s.lastEviction) >= toolBaselineEvictionInterval {
+		s.evictExpiredLocked(now)
+		s.lastEviction = now
+	}
 
 	toolSamples, ok := s.samples[toolName]
 	if !ok {
+		if len(s.samples) >= toolBaselineMaxTools {
+			s.evictOldestToolLocked()
+		}
 		toolSamples = make(map[string]*toolBaselineSample)
 		s.samples[toolName] = toolSamples
 	}
@@ -132,29 +159,109 @@ func (s *toolBaselineStore) Record(toolName, comm, eventType, path string) {
 	key := comm + ":" + eventType
 	sample, ok := toolSamples[key]
 	if !ok {
+		if len(toolSamples) >= toolBaselineMaxSamplesPerTool {
+			evictOldestToolSampleLocked(toolSamples)
+		}
 		sample = &toolBaselineSample{
 			ToolName:  toolName,
 			Comm:      comm,
 			EventType: eventType,
 			Path:      path,
 			Count:     1,
-			LastSeen:  time.Now().UTC(),
+			LastSeen:  now,
 		}
 		toolSamples[key] = sample
 	} else {
 		sample.Count++
-		sample.LastSeen = time.Now().UTC()
+		sample.LastSeen = now
+	}
+}
+
+func truncateBaselineValue(value string, maxRunes int) string {
+	value = strings.TrimSpace(value)
+	if value == "" || maxRunes <= 0 {
+		return ""
+	}
+	runes := []rune(value)
+	if len(runes) > maxRunes {
+		value = string(runes[:maxRunes])
+	}
+	return value
+}
+
+func (s *toolBaselineStore) evictExpiredLocked(now time.Time) {
+	for toolName := range s.samples {
+		s.evictExpiredToolLocked(toolName, now)
+	}
+}
+
+func (s *toolBaselineStore) evictExpiredToolLocked(toolName string, now time.Time) {
+	toolSamples, ok := s.samples[toolName]
+	if !ok {
+		return
+	}
+	cutoff := now.Add(-toolBaselineTTL)
+	for key, sample := range toolSamples {
+		if sample == nil || sample.LastSeen.Before(cutoff) {
+			delete(toolSamples, key)
+		}
+	}
+	if len(toolSamples) == 0 {
+		delete(s.samples, toolName)
+	}
+}
+
+func (s *toolBaselineStore) evictOldestToolLocked() {
+	var oldestTool string
+	var oldestSeen time.Time
+	for toolName, toolSamples := range s.samples {
+		latestSeen := time.Time{}
+		for _, sample := range toolSamples {
+			if sample != nil && sample.LastSeen.After(latestSeen) {
+				latestSeen = sample.LastSeen
+			}
+		}
+		if oldestTool == "" || latestSeen.Before(oldestSeen) {
+			oldestTool = toolName
+			oldestSeen = latestSeen
+		}
+	}
+	if oldestTool != "" {
+		delete(s.samples, oldestTool)
+	}
+}
+
+func evictOldestToolSampleLocked(samples map[string]*toolBaselineSample) {
+	var oldestKey string
+	var oldestSeen time.Time
+	for key, sample := range samples {
+		if sample == nil || oldestKey == "" || sample.LastSeen.Before(oldestSeen) {
+			oldestKey = key
+			if sample != nil {
+				oldestSeen = sample.LastSeen
+			}
+		}
+	}
+	if oldestKey != "" {
+		delete(samples, oldestKey)
 	}
 }
 
 // detectDrift checks if a current behavior deviates from the tool's baseline.
 // Returns a drift reason if the behavior is anomalous for this tool.
 func (s *toolBaselineStore) detectDrift(toolName, comm, eventType string) (string, bool) {
-	if s == nil || toolName == "" {
+	if s == nil {
 		return "", false
 	}
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	toolName = truncateBaselineValue(toolName, toolBaselineMaxNameRunes)
+	comm = truncateBaselineValue(comm, toolBaselineMaxNameRunes)
+	eventType = truncateBaselineValue(eventType, toolBaselineMaxEventRunes)
+	if toolName == "" || comm == "" || eventType == "" {
+		return "", false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.evictExpiredToolLocked(toolName, time.Now().UTC())
 
 	toolSamples, ok := s.samples[toolName]
 	if !ok {

@@ -215,6 +215,8 @@ Research training API：`GET /research/sessions/:id/training` 和 `POST /researc
 
 注册于 `handlers.RegisterSystemRoutes()`（位于 `backend/app/handlers/system.go`）：
 
+`/system/ls`、`/system/file-*`、`/system/download` 和 `/system/upload` 属于高风险主机文件能力，除认证外还需要 `system_run` 编译特性与 runtime gate。
+
 | 方法 | 路径 | 用途 |
 |------|------|------|
 | `GET` | `/system/ls` | 目录列表 |
@@ -224,7 +226,7 @@ Research training API：`GET /research/sessions/:id/training` 和 `POST /researc
 | `GET` | `/system/file-elf` | ELF 文件分析 |
 | `GET` | `/system/home` | 用户主目录 |
 | `GET` | `/system/download` | 文件下载 |
-| `POST` | `/system/upload` | 文件上传 |
+| `POST` | `/system/upload` | 文件上传（需启用 `system_run` runtime gate；单文件最大 64 MiB；文件名会归一化；不覆盖已有目标） |
 | `POST` | `/system/benchmark` | 运行基准测试 |
 | `GET` | `/system/benchmark` | 基准测试结果 |
 | `GET` | `/system/tracked-comms` | 已追踪命令列表 |
