@@ -10,7 +10,6 @@ import (
 	"errors"
 	"log"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -64,13 +63,11 @@ func (s *runtimeState) applyLoggingLocked() error {
 	if !s.settings.LogPersistenceEnabled {
 		return nil
 	}
-	if err := platform.MkdirAllAsRealUser(filepath.Dir(s.settings.LogFilePath), 0755); err != nil {
-		return err
-	}
-	file, err := os.OpenFile(s.settings.LogFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	file, resolvedPath, err := openRuntimeEventLogFile(s.settings.LogFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND)
 	if err != nil {
 		return err
 	}
+	s.settings.LogFilePath = resolvedPath
 	s.logFile = file
 	s.logWriter = bufio.NewWriter(file)
 	return nil
@@ -282,7 +279,11 @@ func (s *runtimeState) TruncateEventLog() error {
 	if path == "" {
 		return nil
 	}
-	if err := os.Truncate(path, 0); err != nil {
+	file, _, err := openRuntimeEventLogFile(path, os.O_WRONLY|os.O_TRUNC)
+	if err != nil {
+		return err
+	}
+	if err := file.Close(); err != nil {
 		return err
 	}
 	return s.applyLoggingLocked()
@@ -348,7 +349,7 @@ func tailCapturedEventsFile(path string, limit int) ([]CapturedEventRecord, erro
 		limit = 50
 	}
 
-	file, err := os.Open(path)
+	file, _, err := openRuntimeEventLogFile(path, os.O_RDONLY)
 	if err != nil {
 		return nil, err
 	}

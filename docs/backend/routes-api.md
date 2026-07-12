@@ -55,10 +55,14 @@ registerRoutes()
 | `GET` | `/events/recent` | 近期捕获事件 (支持 limit/type/pid/comm 查询参数，`limit` 最大 1000) |
 | `GET` | `/events/graph` | 聚合执行图谱 (支持 agent_run_id/trace_id/since/until) |
 | `GET` | `/events/recording` | 录制状态 |
-| `POST` | `/events/recording/start` | 启动事件录制 |
+| `POST` | `/events/recording/start` | 启动事件录制（仅允许运行时 `recordings/` 目录下的直接子文件，文件权限 `0600`） |
 | `POST` | `/events/recording/stop` | 停止事件录制 |
-| `POST` | `/events/recording/replay` | 回放录制 |
-| `POST` | `/events/recording/browser/save` | 保存浏览器录制 |
+| `POST` | `/events/recording/replay` | 回放录制（仅限安全录制目录内的普通单链接文件，最大 128 MiB） |
+| `POST` | `/events/recording/browser/save` | 原子保存浏览器录制（原始 export 最大 16 MiB，格式化输出最大 32 MiB） |
+
+> 录制文件路径可使用文件名，或使用位于
+> `~/.config/agent-ebpf-filter/recordings/` 下的绝对路径。父目录跳转、嵌套目录、
+> 符号链接、硬链接与 FIFO/设备等特殊文件会被拒绝。
 
 ## 网络路由 (`/network`)
 

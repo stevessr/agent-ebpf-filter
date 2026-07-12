@@ -16,14 +16,23 @@ import (
 // ---- moved from backend/zz_merged_backend.go section types_cluster.go ----
 
 const (
-	clusterTargetLocal    = "local"
-	clusterTargetHeader   = "X-Cluster-Target"
-	clusterProxyHeader    = "X-Cluster-Proxy"
-	clusterAccountHeader  = "X-Cluster-Account"
-	clusterPasswordHeader = "X-Cluster-Password"
-	clusterHeartbeatEvery = 5 * time.Second
-	clusterOfflineAfter   = 15 * time.Second
-	clusterVersion        = "1.0.0"
+	clusterTargetLocal                 = "local"
+	clusterTargetHeader                = "X-Cluster-Target"
+	clusterProxyHeader                 = "X-Cluster-Proxy"
+	clusterAccountHeader               = "X-Cluster-Account"
+	clusterPasswordHeader              = "X-Cluster-Password"
+	clusterHeartbeatEvery              = 5 * time.Second
+	clusterOfflineAfter                = 15 * time.Second
+	clusterNodeRetention               = 5 * time.Minute
+	clusterProxyRetention              = 10 * time.Minute
+	clusterMaxRemoteNodes              = 256
+	clusterMaxProxyCache               = 256
+	clusterHeartbeatMaxBodyBytes int64 = 64 << 10
+	clusterNodeIDMaxBytes              = 128
+	clusterNodeNameMaxBytes            = 256
+	clusterNodeURLMaxBytes             = 2048
+	clusterVersionMaxBytes             = 64
+	clusterVersion                     = "1.0.0"
 )
 
 type ClusterRole string
@@ -85,10 +94,20 @@ type ClusterHeartbeatResponse struct {
 }
 
 type clusterManager struct {
-	mu         sync.RWMutex
-	config     ClusterConfig
-	nodes      map[string]*ClusterNode
-	proxyCache map[string]*httputil.ReverseProxy
+	mu              sync.RWMutex
+	config          ClusterConfig
+	nodes           map[string]*ClusterNode
+	proxyCache      map[string]*clusterProxyCacheEntry
+	nodeRetention   time.Duration
+	proxyRetention  time.Duration
+	maxRemoteNodes  int
+	maxProxyEntries int
+}
+
+type clusterProxyCacheEntry struct {
+	url      string
+	proxy    *httputil.ReverseProxy
+	lastUsed time.Time
 }
 
 var clusterManagerStore = newClusterManager(loadClusterConfigFromEnv())
@@ -123,9 +142,13 @@ func normalizeClusterURL(raw string) string {
 
 func newClusterManager(config ClusterConfig) *clusterManager {
 	return &clusterManager{
-		config:     config,
-		nodes:      make(map[string]*ClusterNode),
-		proxyCache: make(map[string]*httputil.ReverseProxy),
+		config:          config,
+		nodes:           make(map[string]*ClusterNode),
+		proxyCache:      make(map[string]*clusterProxyCacheEntry),
+		nodeRetention:   clusterNodeRetention,
+		proxyRetention:  clusterProxyRetention,
+		maxRemoteNodes:  clusterMaxRemoteNodes,
+		maxProxyEntries: clusterMaxProxyCache,
 	}
 }
 
@@ -247,8 +270,9 @@ func (m *clusterManager) StateSnapshot() ClusterStateResponse {
 }
 
 func (m *clusterManager) SnapshotNodes() []ClusterNode {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.pruneClusterStateLocked(time.Now().UTC())
 
 	nodes := make([]ClusterNode, 0, len(m.nodes)+1)
 	nodes = append(nodes, m.localNodeLocked())
@@ -279,6 +303,8 @@ func (m *clusterManager) SnapshotNodes() []ClusterNode {
 func (m *clusterManager) upsertHeartbeat(req ClusterHeartbeatRequest) ClusterNode {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	now := time.Now().UTC()
+	m.pruneClusterStateLocked(now)
 
 	if req.NodeID == "" {
 		req.NodeID = m.config.NodeID
@@ -295,15 +321,106 @@ func (m *clusterManager) upsertHeartbeat(req ClusterHeartbeatRequest) ClusterNod
 		URL:      normalizeClusterURL(req.NodeURL),
 		Role:     req.Role,
 		Status:   "online",
-		LastSeen: time.Now().UTC(),
+		LastSeen: now,
 		IsLocal:  false,
 		Version:  req.Version,
 	}
 	if node.Version == "" {
 		node.Version = clusterVersion
 	}
+	if previous := m.nodes[node.ID]; previous != nil && previous.URL != node.URL {
+		delete(m.proxyCache, node.ID)
+	}
 	m.nodes[node.ID] = &node
+	m.enforceClusterNodeCapLocked()
 	return node
+}
+
+func (m *clusterManager) pruneClusterStateLocked(now time.Time) {
+	if m == nil {
+		return
+	}
+	if m.nodeRetention > 0 {
+		cutoff := now.Add(-m.nodeRetention)
+		for id, node := range m.nodes {
+			if id == m.config.NodeID || node == nil {
+				continue
+			}
+			if node.LastSeen.Before(cutoff) {
+				delete(m.nodes, id)
+				delete(m.proxyCache, id)
+			}
+		}
+	}
+	if m.proxyRetention > 0 {
+		cutoff := now.Add(-m.proxyRetention)
+		for id, entry := range m.proxyCache {
+			if entry == nil || entry.lastUsed.Before(cutoff) {
+				delete(m.proxyCache, id)
+			}
+		}
+	}
+	m.enforceClusterNodeCapLocked()
+	m.enforceClusterProxyCapLocked("")
+}
+
+func (m *clusterManager) enforceClusterNodeCapLocked() {
+	limit := m.maxRemoteNodes
+	if limit <= 0 {
+		limit = clusterMaxRemoteNodes
+	}
+	type candidate struct {
+		id       string
+		lastSeen time.Time
+	}
+	candidates := make([]candidate, 0, len(m.nodes))
+	for id, node := range m.nodes {
+		if id == m.config.NodeID || node == nil {
+			continue
+		}
+		candidates = append(candidates, candidate{id: id, lastSeen: node.LastSeen})
+	}
+	if len(candidates) <= limit {
+		return
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].lastSeen.Equal(candidates[j].lastSeen) {
+			return candidates[i].id < candidates[j].id
+		}
+		return candidates[i].lastSeen.Before(candidates[j].lastSeen)
+	})
+	for i := 0; i < len(candidates)-limit; i++ {
+		delete(m.nodes, candidates[i].id)
+		delete(m.proxyCache, candidates[i].id)
+	}
+}
+
+func (m *clusterManager) enforceClusterProxyCapLocked(keepID string) {
+	limit := m.maxProxyEntries
+	if limit <= 0 {
+		limit = clusterMaxProxyCache
+	}
+	for len(m.proxyCache) > limit {
+		oldestID := ""
+		var oldest time.Time
+		for id, entry := range m.proxyCache {
+			if id == keepID {
+				continue
+			}
+			lastUsed := time.Time{}
+			if entry != nil {
+				lastUsed = entry.lastUsed
+			}
+			if oldestID == "" || lastUsed.Before(oldest) || (lastUsed.Equal(oldest) && id < oldestID) {
+				oldestID = id
+				oldest = lastUsed
+			}
+		}
+		if oldestID == "" {
+			return
+		}
+		delete(m.proxyCache, oldestID)
+	}
 }
 
 func (m *clusterManager) authMatches(c *gin.Context, requireProxy bool) bool {

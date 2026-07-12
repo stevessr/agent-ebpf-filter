@@ -11,7 +11,7 @@
 | 字段 | 作用 |
 | --- | --- |
 | `LogPersistenceEnabled` | 是否写 JSONL |
-| `LogFilePath` | 持久化文件路径 |
+| `LogFilePath` | 持久化文件路径；必须是 `~/.config/agent-ebpf-filter/` 下的直接子文件，以 `0600` 安全打开 |
 | `AccessToken` | runtime access token |
 | `MaxEventCount` | archive 最大事件数 |
 | `MaxEventAge` | archive 最大保留时间 |

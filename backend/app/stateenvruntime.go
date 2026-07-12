@@ -16,6 +16,11 @@ func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 	if strings.TrimSpace(settings.LogFilePath) == "" {
 		settings.LogFilePath = platform.DefaultEventLogPath()
 	}
+	logPath, err := resolveRuntimeEventLogPath(settings.LogFilePath)
+	if err != nil {
+		return err
+	}
+	settings.LogFilePath = logPath
 	if strings.TrimSpace(settings.AccessToken) == "" {
 		token, err := generateAccessToken()
 		if err != nil {

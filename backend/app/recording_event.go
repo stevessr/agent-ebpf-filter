@@ -1,10 +1,12 @@
 package app
 
 import (
-	"agent-ebpf-filter/app/platform"
 	"bufio"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/sys/unix"
 )
 
 // ---- moved from backend/zz_merged_backend.go section recording_event.go ----
@@ -52,25 +55,19 @@ type eventRecordingState struct {
 var eventRecordingStore = &eventRecordingState{}
 
 func defaultEventRecordingPath() string {
-	return filepath.Join(platform.RuntimeSettingsDir(), "recordings", "events-"+time.Now().UTC().Format("20060102-150405")+".jsonl")
+	return defaultEventRecordingPathAtRoot(runtimeRecordingsRoot())
 }
 
 func defaultBrowserRecordingPath() string {
-	return filepath.Join(platform.RuntimeSettingsDir(), "recordings", "browser-memory-"+time.Now().UTC().Format("20060102-150405")+".json")
+	return defaultBrowserRecordingPathAtRoot(runtimeRecordingsRoot())
 }
 
-func expandEventRecordingPath(raw string) string {
-	path := strings.TrimSpace(raw)
-	if path == "" {
-		return defaultEventRecordingPath()
-	}
-	if path == "~" {
-		return platform.GetRealHomeDir()
-	}
-	if strings.HasPrefix(path, "~/") {
-		return filepath.Join(platform.GetRealHomeDir(), strings.TrimPrefix(path, "~/"))
-	}
-	return path
+func defaultEventRecordingPathAtRoot(root string) string {
+	return filepath.Join(root, "events-"+time.Now().UTC().Format("20060102-150405.000000000")+".jsonl")
+}
+
+func defaultBrowserRecordingPathAtRoot(root string) string {
+	return filepath.Join(root, "browser-memory-"+time.Now().UTC().Format("20060102-150405.000000000")+".json")
 }
 
 func (s *eventRecordingState) Status() eventRecordingStatus {
@@ -89,32 +86,35 @@ func (s *eventRecordingState) Status() eventRecordingStatus {
 }
 
 func (s *eventRecordingState) Start(path string, truncate bool) (eventRecordingStatus, error) {
-	path = expandEventRecordingPath(path)
-	if strings.TrimSpace(path) == "" {
-		return eventRecordingStatus{}, errors.New("recording path is empty")
-	}
-	if err := platform.MkdirAllAsRealUser(filepath.Dir(path), 0o755); err != nil {
-		return eventRecordingStatus{}, err
-	}
-	flags := os.O_CREATE | os.O_WRONLY | os.O_APPEND
-	if truncate {
-		flags = os.O_CREATE | os.O_WRONLY | os.O_TRUNC
-	}
-	file, err := os.OpenFile(path, flags, 0o600)
+	return s.startAtRoot(runtimeRecordingsRoot(), path, truncate)
+}
+
+func (s *eventRecordingState) startAtRoot(root, path string, truncate bool) (eventRecordingStatus, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	rootFile, absRoot, err := openRecordingsRoot(root)
 	if err != nil {
 		return eventRecordingStatus{}, err
 	}
-	// Fix ownership if running as root
-	if os.Getuid() == 0 {
-		if uid, gid, ok := platform.OriginalInvokerIDs(); ok {
-			_ = os.Chown(path, int(uid), int(gid))
-		}
+	defer rootFile.Close()
+	defaultName := filepath.Base(defaultEventRecordingPathAtRoot(absRoot))
+	name, absPath, err := resolveRecordingTarget(absRoot, path, defaultName)
+	if err != nil {
+		return eventRecordingStatus{}, err
+	}
+	var file *os.File
+	if truncate {
+		file, err = createTruncatedRecording(rootFile, name)
+	} else {
+		file, err = openRecordingForAppend(rootFile, name)
+	}
+	if err != nil {
+		return eventRecordingStatus{}, fmt.Errorf("open recording file: %w", err)
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.closeLocked()
-	s.path = path
+	s.path = absPath
 	s.file = file
 	s.writer = bufio.NewWriter(file)
 	s.startedAt = time.Now().UTC()
@@ -189,20 +189,38 @@ func (s *eventRecordingState) closeLocked() error {
 }
 
 func readCapturedEventsFile(path string, limit int) ([]CapturedEventRecord, error) {
-	path = expandEventRecordingPath(path)
-	if strings.TrimSpace(path) == "" {
-		return nil, errors.New("replay path is empty")
-	}
+	records, _, err := readCapturedEventsFileAtRoot(runtimeRecordingsRoot(), path, limit)
+	return records, err
+}
+
+func readCapturedEventsFileAtRoot(root, path string, limit int) ([]CapturedEventRecord, string, error) {
 	if limit <= 0 || limit > 10000 {
 		limit = 10000
 	}
-	file, err := os.Open(path)
+	rootFile, absRoot, err := openRecordingsRoot(root)
 	if err != nil {
-		return nil, err
+		return nil, "", err
+	}
+	defer rootFile.Close()
+	name, absPath, err := resolveRecordingTarget(absRoot, path, "")
+	if err != nil {
+		return nil, "", err
+	}
+	file, err := openRecordingChild(rootFile, name, unix.O_RDONLY, 0)
+	if err != nil {
+		return nil, "", err
 	}
 	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return nil, "", err
+	}
+	if info.Size() > eventReplayMaxFileBytes {
+		return nil, "", fmt.Errorf("%w: %d bytes (limit %d)", errRecordingFileTooLarge, info.Size(), eventReplayMaxFileBytes)
+	}
 
-	scanner := bufio.NewScanner(file)
+	limited := &io.LimitedReader{R: file, N: eventReplayMaxFileBytes + 1}
+	scanner := bufio.NewScanner(limited)
 	scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
 	records := make([]CapturedEventRecord, 0, min(limit, 1024))
 	for scanner.Scan() {
@@ -218,18 +236,24 @@ func readCapturedEventsFile(path string, limit int) ([]CapturedEventRecord, erro
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return records, nil
+	if limited.N <= 0 {
+		return nil, "", fmt.Errorf("%w: file grew beyond %d bytes during replay", errRecordingFileTooLarge, eventReplayMaxFileBytes)
+	}
+	return records, absPath, nil
 }
 
 func saveBrowserRecordingExport(path string, payload json.RawMessage) (string, int, error) {
-	path = expandEventRecordingPath(path)
-	if strings.TrimSpace(path) == "" {
-		path = defaultBrowserRecordingPath()
-	}
+	return saveBrowserRecordingExportAtRoot(runtimeRecordingsRoot(), path, payload)
+}
+
+func saveBrowserRecordingExportAtRoot(root, path string, payload json.RawMessage) (string, int, error) {
 	if len(payload) == 0 || string(payload) == "null" {
 		return "", 0, errors.New("browser recording export is empty")
+	}
+	if len(payload) > browserRecordingExportMaxBytes {
+		return "", 0, fmt.Errorf("%w: %d bytes (limit %d)", errBrowserRecordingTooLarge, len(payload), browserRecordingExportMaxBytes)
 	}
 	var normalized any
 	if err := json.Unmarshal(payload, &normalized); err != nil {
@@ -239,19 +263,50 @@ func saveBrowserRecordingExport(path string, payload json.RawMessage) (string, i
 	if err != nil {
 		return "", 0, err
 	}
-	if err := platform.MkdirAllAsRealUser(filepath.Dir(path), 0o755); err != nil {
+	if len(pretty)+1 > browserRecordingOutputMaxBytes {
+		return "", 0, fmt.Errorf("%w after formatting: %d bytes (limit %d)", errBrowserRecordingTooLarge, len(pretty)+1, browserRecordingOutputMaxBytes)
+	}
+	rootFile, absRoot, err := openRecordingsRoot(root)
+	if err != nil {
 		return "", 0, err
 	}
-	if err := platform.WriteFileAsRealUser(path, append(pretty, '\n'), 0o600); err != nil {
+	defer rootFile.Close()
+	defaultName := filepath.Base(defaultBrowserRecordingPathAtRoot(absRoot))
+	name, absPath, err := resolveRecordingTarget(absRoot, path, defaultName)
+	if err != nil {
 		return "", 0, err
 	}
+	tempFile, tempName, err := createRecordingTemp(rootFile, "browser")
+	if err != nil {
+		return "", 0, err
+	}
+	cleanup := true
+	defer func() {
+		if cleanup {
+			_ = tempFile.Close()
+			_ = unix.Unlinkat(int(rootFile.Fd()), tempName, 0)
+		}
+	}()
+	if _, err := tempFile.Write(append(pretty, '\n')); err != nil {
+		return "", 0, err
+	}
+	if err := tempFile.Sync(); err != nil {
+		return "", 0, err
+	}
+	if err := tempFile.Close(); err != nil {
+		return "", 0, err
+	}
+	if err := replaceRecordingDestination(rootFile, tempName, name); err != nil {
+		return "", 0, err
+	}
+	cleanup = false
 	count := 0
 	if object, ok := normalized.(map[string]any); ok {
 		if snapshots, ok := object["snapshots"].([]any); ok {
 			count = len(snapshots)
 		}
 	}
-	return path, count, nil
+	return absPath, count, nil
 }
 
 func handleEventRecordingStatus(c *gin.Context) {
@@ -260,7 +315,11 @@ func handleEventRecordingStatus(c *gin.Context) {
 
 func handleStartEventRecording(c *gin.Context) {
 	var req eventRecordingRequest
-	_ = c.ShouldBindJSON(&req)
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, recordingControlRequestMaxBytes)
+	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+		writeRecordingBindError(c, err)
+		return
+	}
 	status, err := eventRecordingStore.Start(req.Path, req.Truncate)
 	if err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
@@ -280,7 +339,11 @@ func handleStopEventRecording(c *gin.Context) {
 
 func handleReplayEventRecording(c *gin.Context) {
 	var req eventReplayRequest
-	_ = c.ShouldBindJSON(&req)
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, recordingControlRequestMaxBytes)
+	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+		writeRecordingBindError(c, err)
+		return
+	}
 	if req.Path == "" {
 		req.Path = c.Query("path")
 	}
@@ -289,28 +352,51 @@ func handleReplayEventRecording(c *gin.Context) {
 			req.Limit = parsed
 		}
 	}
-	records, err := readCapturedEventsFile(req.Path, req.Limit)
+	records, resolvedPath, err := readCapturedEventsFileAtRoot(runtimeRecordingsRoot(), req.Path, req.Limit)
 	if err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+		status := http.StatusBadRequest
+		if errors.Is(err, errRecordingFileTooLarge) {
+			status = http.StatusRequestEntityTooLarge
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
 		return
 	}
 	graph := buildExecutionGraph(records, executionGraphFiltersFromRequest(c))
 	graph.Source = "replay_file"
-	c.JSON(200, gin.H{"path": expandEventRecordingPath(req.Path), "events": len(records), "graph": graph})
+	c.JSON(200, gin.H{"path": resolvedPath, "events": len(records), "graph": graph})
 }
 
 func handleSaveBrowserRecording(c *gin.Context) {
 	var req browserRecordingSaveRequest
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, browserRecordingRequestMaxBytes)
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": "invalid request"})
+		status := http.StatusBadRequest
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			status = http.StatusRequestEntityTooLarge
+		}
+		c.JSON(status, gin.H{"error": "invalid request"})
 		return
 	}
 	path, snapshots, err := saveBrowserRecordingExport(req.Path, req.Export)
 	if err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+		status := http.StatusBadRequest
+		if errors.Is(err, errBrowserRecordingTooLarge) {
+			status = http.StatusRequestEntityTooLarge
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(200, gin.H{"path": path, "snapshots": snapshots})
+}
+
+func writeRecordingBindError(c *gin.Context, err error) {
+	status := http.StatusBadRequest
+	var maxBytesErr *http.MaxBytesError
+	if errors.As(err, &maxBytesErr) {
+		status = http.StatusRequestEntityTooLarge
+	}
+	c.JSON(status, gin.H{"error": "invalid request"})
 }
 
 func parsePositiveIntQuery(raw string, fallback int) (int, bool) {

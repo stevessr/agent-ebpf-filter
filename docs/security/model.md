@@ -290,6 +290,7 @@ graph TB
 - sanitized_fields；
 - secrets / tokens / headers / query / JSON body redaction。
 - 归档、JSONL 持久化、事件录制、OTel 导出、后台处理队列与 WebSocket 广播共用已脱敏的规范事件，避免原始敏感字段先于脱敏落盘或外发。
+- 持久事件日志和录制产物被限定在专用 runtime 目录，通过 dirfd/`openat2` 拒绝父目录跳转、符号链接、魔术链接、硬链接和特殊文件，并使用 `0600` 权限。
 
 ## 高风险能力清单
 

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -108,8 +109,9 @@ func (m *clusterManager) targetNode(target string) (ClusterNode, bool) {
 		return ClusterNode{}, false
 	}
 
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.pruneClusterStateLocked(time.Now().UTC())
 
 	if target == m.config.NodeID {
 		return ClusterNode{}, false
@@ -126,16 +128,21 @@ func (m *clusterManager) reverseProxyForNode(node ClusterNode) (*httputil.Revers
 		return nil, fmt.Errorf("cluster node %q has no URL", node.ID)
 	}
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if proxy, ok := m.proxyCache[baseURL]; ok {
-		return proxy, nil
-	}
-
-	targetURL, err := url.Parse(baseURL)
+	targetURL, err := parseClusterProxyTarget(node.ID, baseURL)
 	if err != nil {
 		return nil, err
+	}
+	cacheID := strings.TrimSpace(node.ID)
+	if cacheID == "" {
+		cacheID = baseURL
+	}
+	now := time.Now().UTC()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.pruneClusterStateLocked(now)
+	if entry := m.proxyCache[cacheID]; entry != nil && entry.proxy != nil && entry.url == baseURL {
+		entry.lastUsed = now
+		return entry.proxy, nil
 	}
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
 	originalDirector := proxy.Director
@@ -161,8 +168,65 @@ func (m *clusterManager) reverseProxyForNode(node ClusterNode) (*httputil.Revers
 		http.Error(w, fmt.Sprintf("cluster proxy to %s failed: %v", baseURL, err), http.StatusBadGateway)
 	}
 
-	m.proxyCache[baseURL] = proxy
+	m.proxyCache[cacheID] = &clusterProxyCacheEntry{url: baseURL, proxy: proxy, lastUsed: now}
+	m.enforceClusterProxyCapLocked(cacheID)
 	return proxy, nil
+}
+
+func parseClusterProxyTarget(nodeID, raw string) (*url.URL, error) {
+	targetURL, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return nil, fmt.Errorf("cluster node %q URL is invalid: %w", nodeID, err)
+	}
+	if !strings.EqualFold(targetURL.Scheme, "http") && !strings.EqualFold(targetURL.Scheme, "https") {
+		return nil, fmt.Errorf("cluster node %q URL must use http or https", nodeID)
+	}
+	if targetURL.Host == "" || strings.TrimSpace(targetURL.Hostname()) == "" {
+		return nil, fmt.Errorf("cluster node %q URL must include a host", nodeID)
+	}
+	if targetURL.User != nil {
+		return nil, fmt.Errorf("cluster node %q URL must not include credentials", nodeID)
+	}
+	return targetURL, nil
+}
+
+func validateClusterHeartbeatRequest(req *ClusterHeartbeatRequest) error {
+	if req == nil {
+		return fmt.Errorf("missing cluster heartbeat")
+	}
+	req.NodeID = strings.TrimSpace(req.NodeID)
+	req.NodeName = strings.TrimSpace(req.NodeName)
+	req.NodeURL = strings.TrimSpace(req.NodeURL)
+	req.Role = ClusterRole(strings.TrimSpace(string(req.Role)))
+	req.Version = strings.TrimSpace(req.Version)
+	if req.NodeID == "" {
+		return fmt.Errorf("missing nodeId")
+	}
+	for label, value := range map[string]string{
+		"nodeId": req.NodeID, "nodeName": req.NodeName, "nodeUrl": req.NodeURL, "version": req.Version,
+	} {
+		limit := clusterNodeNameMaxBytes
+		switch label {
+		case "nodeId":
+			limit = clusterNodeIDMaxBytes
+		case "nodeUrl":
+			limit = clusterNodeURLMaxBytes
+		case "version":
+			limit = clusterVersionMaxBytes
+		}
+		if len(value) > limit {
+			return fmt.Errorf("%s exceeds %d bytes", label, limit)
+		}
+	}
+	if req.Role != "" && req.Role != ClusterRoleMaster && req.Role != ClusterRoleSlave {
+		return fmt.Errorf("invalid cluster role %q", req.Role)
+	}
+	if strings.TrimSpace(req.NodeURL) != "" {
+		if _, err := parseClusterProxyTarget(req.NodeID, req.NodeURL); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (m *clusterManager) proxyRequest(c *gin.Context, target string) bool {
@@ -228,14 +292,20 @@ func clusterHeartbeatHandler(c *gin.Context) {
 		return
 	}
 
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, clusterHeartbeatMaxBodyBytes)
 	var req ClusterHeartbeatRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid cluster heartbeat payload"})
+		status := http.StatusBadRequest
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			status = http.StatusRequestEntityTooLarge
+		}
+		c.AbortWithStatusJSON(status, gin.H{"error": "invalid cluster heartbeat payload"})
 		return
 	}
 
-	if req.NodeID == "" {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "missing nodeId"})
+	if err := validateClusterHeartbeatRequest(&req); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
