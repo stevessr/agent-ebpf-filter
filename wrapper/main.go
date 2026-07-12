@@ -10,7 +10,6 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"os/user"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -135,52 +134,14 @@ func main() {
 		}
 	}
 
-	// Apply --cwd: change working directory before exec
-	if *launchCwd != "" {
-		if err := os.Chdir(*launchCwd); err != nil {
-			fmt.Printf("Warning: failed to chdir to %s: %v\n", *launchCwd, err)
-		}
+	if err := prepareAndExecute(
+		*launchCwd,
+		*launchUser,
+		defaultLaunchSecurityOps(),
+		func() { execute(cmdName, cmdArgs) },
+	); err != nil {
+		log.Fatalf("Launch preparation failed: %v", err)
 	}
-
-	// Apply --user: drop privileges to the specified user before exec
-	if *launchUser != "" {
-		if err := switchUser(*launchUser); err != nil {
-			fmt.Printf("Warning: %v\n", err)
-		}
-	}
-
-	execute(cmdName, cmdArgs)
-}
-
-// switchUser looks up a username and sets the process UID/GID accordingly.
-// Requires sufficient privileges (CAP_SETUID/CAP_SETGID or setuid root).
-func switchUser(username string) error {
-	u, err := user.Lookup(username)
-	if err != nil {
-		return fmt.Errorf("cannot resolve user %q: %w", username, err)
-	}
-
-	uid := atoi32(u.Uid)
-	gid := atoi32(u.Gid)
-
-	// Set GID then UID (order matters when dropping from root)
-	if gid > 0 {
-		if err := syscall.Setgid(gid); err != nil {
-			return fmt.Errorf("cannot setgid to %d: %w", gid, err)
-		}
-	}
-	if uid > 0 {
-		if err := syscall.Setuid(uid); err != nil {
-			return fmt.Errorf("cannot setuid to %d: %w", uid, err)
-		}
-	}
-	return nil
-}
-
-func atoi32(s string) int {
-	var n int
-	fmt.Sscanf(s, "%d", &n)
-	return n
 }
 
 func handleDecision(resp *pb.WrapperResponse, name *string, args *[]string) {

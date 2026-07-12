@@ -2,10 +2,13 @@ package network
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 )
+
+const defaultTCPStateTrackerMaxEntries = 65536
 
 // ── TCP State Machine (RFC 793, from rustnet) ────────────────────────
 
@@ -90,11 +93,13 @@ type TCPConnectionState struct {
 type TCPStateTracker struct {
 	mu          sync.RWMutex
 	connections map[string]*TCPConnectionState
+	maxEntries  int
 }
 
 func NewTCPStateTracker() *TCPStateTracker {
 	return &TCPStateTracker{
 		connections: make(map[string]*TCPConnectionState),
+		maxEntries:  defaultTCPStateTrackerMaxEntries,
 	}
 }
 
@@ -118,6 +123,7 @@ func (t *TCPStateTracker) RecordStateChange(srcIP, dstIP string, srcPort, dstPor
 
 	conn, ok := t.connections[key]
 	if !ok {
+		t.ensureCapacityLocked()
 		conn = &TCPConnectionState{
 			SrcIP:   srcIP,
 			DstIP:   dstIP,
@@ -145,6 +151,9 @@ func (t *TCPStateTracker) RecordConnect(srcIP, dstIP string, srcPort, dstPort ui
 	key := t.ConnKey(srcIP, dstIP, srcPort, dstPort)
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	if _, exists := t.connections[key]; !exists {
+		t.ensureCapacityLocked()
+	}
 	t.connections[key] = &TCPConnectionState{
 		SrcIP:      srcIP,
 		DstIP:      dstIP,
@@ -184,16 +193,70 @@ func (t *TCPStateTracker) Snapshot() []TCPConnectionState {
 }
 
 func (t *TCPStateTracker) EvictTerminalOlderThan(maxAge time.Duration) {
+	t.EvictStale(maxAge, 0)
+}
+
+// EvictStale removes terminal connections after terminalMaxAge and optionally
+// removes non-terminal connections after activeMaxAge. The latter bounds stale
+// state left behind when close/state-change events are missed.
+func (t *TCPStateTracker) EvictStale(terminalMaxAge, activeMaxAge time.Duration) {
 	if t == nil {
 		return
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	cutoff := time.Now().UTC().Add(-maxAge)
+	now := time.Now().UTC()
+	terminalCutoff := now.Add(-terminalMaxAge)
+	activeCutoff := now.Add(-activeMaxAge)
 	for key, conn := range t.connections {
-		if conn.State.IsTerminal() && conn.LastUpdate.Before(cutoff) {
+		if conn == nil {
+			delete(t.connections, key)
+			continue
+		}
+		if terminalMaxAge != 0 && conn.State.IsTerminal() && conn.LastUpdate.Before(terminalCutoff) {
+			delete(t.connections, key)
+			continue
+		}
+		if activeMaxAge > 0 && !conn.State.IsTerminal() && conn.LastUpdate.Before(activeCutoff) {
 			delete(t.connections, key)
 		}
+	}
+}
+
+func (t *TCPStateTracker) ensureCapacityLocked() {
+	limit := t.maxEntries
+	if limit <= 0 {
+		limit = defaultTCPStateTrackerMaxEntries
+	}
+	if len(t.connections) < limit {
+		return
+	}
+	type candidate struct {
+		key      string
+		lastSeen time.Time
+	}
+	candidates := make([]candidate, 0, len(t.connections))
+	for key, conn := range t.connections {
+		lastSeen := time.Time{}
+		if conn != nil {
+			lastSeen = conn.LastUpdate
+		}
+		candidates = append(candidates, candidate{key: key, lastSeen: lastSeen})
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].lastSeen.Equal(candidates[j].lastSeen) {
+			return candidates[i].key < candidates[j].key
+		}
+		return candidates[i].lastSeen.Before(candidates[j].lastSeen)
+	})
+	// Evict a small batch so sustained high-cardinality traffic does not require
+	// a full-map scan for every new tuple while still enforcing the hard cap.
+	removeCount := limit / 16
+	if removeCount < 1 {
+		removeCount = 1
+	}
+	for i := 0; i < removeCount && i < len(candidates); i++ {
+		delete(t.connections, candidates[i].key)
 	}
 }
 

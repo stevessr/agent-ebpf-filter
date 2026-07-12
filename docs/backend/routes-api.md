@@ -72,7 +72,7 @@ registerRoutes()
 | `GET` | `/network/dns-cache` | DNS 缓存全量快照 |
 | `GET` | `/network/interfaces` | 网卡 RX/TX 计数器 |
 | `GET` | `/network/export/jsonl` | 流快照 JSONL 导出 (FeatureNetworkExport) |
-| `POST` | `/network/export-pcap` | PCAP 导出 (FeatureNetworkExport) |
+| `POST` | `/network/export-pcap` | PCAP 导出 (FeatureNetworkExport；生成唯一的 `0600` PCAP 与 JSONL sidecar) |
 | `GET` | `/network/geoip` | GeoIP 查询 (IP -> 国家/ASN) |
 
 ## 沙箱路由 (`/sandbox`)

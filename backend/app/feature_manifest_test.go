@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -120,7 +121,7 @@ func TestSystemFileRoutesEnforceRuntimeGate(t *testing.T) {
 			runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{SystemRunEnabled: tt.enabled}}
 			router := gin.New()
 			registerSystemRoutes(router.Group("/system"), newFeatureRegistry())
-			req := httptest.NewRequest(http.MethodGet, "/system/ls?path="+dir, nil)
+			req := httptest.NewRequest(http.MethodGet, "/system/ls?path="+url.QueryEscape(dir), nil)
 			resp := httptest.NewRecorder()
 			router.ServeHTTP(resp, req)
 			if resp.Code != tt.wantStatus {

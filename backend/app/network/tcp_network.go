@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+const tcpNonTerminalMaxAge = 30 * time.Minute
+
 // ---- moved from backend/zz_merged_backend.go section tcp_network.go ----
 
 type TCPState = netcore.TCPState
@@ -63,6 +65,13 @@ func (t *tcpStateTracker) EvictTerminalOlderThan(maxAge time.Duration) {
 	t.inner.EvictTerminalOlderThan(maxAge)
 }
 
+func (t *tcpStateTracker) EvictStale(terminalMaxAge, activeMaxAge time.Duration) {
+	if t == nil || t.inner == nil {
+		return
+	}
+	t.inner.EvictStale(terminalMaxAge, activeMaxAge)
+}
+
 func runTCPStateTrackerGC(ctx context.Context, tracker *tcpStateTracker, interval, maxAge time.Duration) {
 	if ctx == nil || tracker == nil || interval <= 0 {
 		return
@@ -74,7 +83,7 @@ func runTCPStateTrackerGC(ctx context.Context, tracker *tcpStateTracker, interva
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			tracker.EvictTerminalOlderThan(maxAge)
+			tracker.EvictStale(maxAge, tcpNonTerminalMaxAge)
 		}
 	}
 }
