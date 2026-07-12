@@ -30,7 +30,9 @@ func handleRegister(c *gin.Context)   { handlers.HandleRegister(c) }
 func handleUnregister(c *gin.Context) { handlers.HandleUnregister(c) }
 
 func registerPluginRoutes(rg *gin.RouterGroup) {
-	handlers.RegisterPluginRoutes(rg)
+	policyMiddleware := policyManagementEnabledMiddleware()
+	handlers.RegisterPluginRoutes(rg, policyMiddleware)
+	rg.POST("/visual/llm-compile", policyMiddleware, handlePluginVisualLLMCompile)
 }
 
 // System handler bridges

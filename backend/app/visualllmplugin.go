@@ -20,6 +20,15 @@ import (
 
 const defaultVisualBlocksSystemPrompt = "You are an eBPF kernel-defense policy compiler. Convert natural language into a safe low-code block graph. Return strict JSON only."
 
+const (
+	maxVisualLLMRequestBytes   int64 = 128 << 10
+	maxVisualLLMPromptBytes          = 16 << 10
+	maxVisualLLMResponseBytes  int64 = 1 << 20
+	maxVisualLLMTimeoutSeconds       = 120
+)
+
+var visualLLMCompileSlots = make(chan struct{}, 4)
+
 type visualBlocksLLMCompileRequest struct {
 	Prompt  string         `json:"prompt"`
 	Current map[string]any `json:"current,omitempty"`
@@ -33,14 +42,24 @@ func parseVisualBlocksLLMContent(content string) (*visualBlocksLLMCompileRespons
 }
 
 func handlePluginVisualLLMCompile(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxVisualLLMRequestBytes)
 	var req visualBlocksLLMCompileRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		status := http.StatusBadRequest
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			status = http.StatusRequestEntityTooLarge
+		}
+		c.JSON(status, gin.H{"error": "invalid request"})
 		return
 	}
 	req.Prompt = strings.TrimSpace(req.Prompt)
 	if req.Prompt == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "prompt is required"})
+		return
+	}
+	if len(req.Prompt) > maxVisualLLMPromptBytes {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "prompt is too large"})
 		return
 	}
 
@@ -56,6 +75,15 @@ func compileVisualBlocksWithLLM(ctx context.Context, req visualBlocksLLMCompileR
 	cfg := currentMLConfig()
 	if !llmScoringConfigured() {
 		return nil, errors.New("LLM is not configured; enable ML LLM base URL and model in Runtime Config / ML")
+	}
+	timeout := time.Duration(clampInt(maxInt(cfg.LlmTimeoutSeconds, 45), 5, maxVisualLLMTimeoutSeconds)) * time.Second
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	select {
+	case visualLLMCompileSlots <- struct{}{}:
+		defer func() { <-visualLLMCompileSlots }()
+	case <-ctx.Done():
+		return nil, fmt.Errorf("wait for visual LLM task slot: %w", ctx.Err())
 	}
 
 	endpoint, err := normalizedLLMCompletionURL(cfg.LlmBaseURL)
@@ -88,7 +116,7 @@ func compileVisualBlocksWithLLM(ctx context.Context, req visualBlocksLLMCompileR
 		httpReq.Header.Set("Authorization", "Bearer "+key)
 	}
 
-	client := &http.Client{Timeout: time.Duration(maxInt(cfg.LlmTimeoutSeconds, 45)) * time.Second}
+	client := &http.Client{Timeout: timeout}
 	httpResp, err := client.Do(httpReq)
 	if err != nil {
 		return nil, err
@@ -104,8 +132,15 @@ func compileVisualBlocksWithLLM(ctx context.Context, req visualBlocksLLMCompileR
 		return nil, fmt.Errorf("LLM API request failed: %s: %s", httpResp.Status, msg)
 	}
 
+	payload, err := io.ReadAll(io.LimitReader(httpResp.Body, maxVisualLLMResponseBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(payload)) > maxVisualLLMResponseBytes {
+		return nil, errors.New("LLM API response exceeds size limit")
+	}
 	var openAIResp openAIChatResponse
-	if err := json.NewDecoder(httpResp.Body).Decode(&openAIResp); err != nil {
+	if err := json.Unmarshal(payload, &openAIResp); err != nil {
 		return nil, err
 	}
 	if openAIResp.Error != nil && strings.TrimSpace(openAIResp.Error.Message) != "" {

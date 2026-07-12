@@ -136,13 +136,14 @@ var Deps struct {
 	// Plugin handler closures
 	PluginList         func() []any
 	PluginGet          func(id string) (any, bool)
-	PluginUpsert       func(manifest any) error
+	PluginUpsert       func(manifest any) (any, error)
 	PluginDelete       func(id string) error
-	PluginSetEnabled   func(id string, enabled bool) (any, error)
+	PluginSetEnabled   func(ctx context.Context, id string, enabled bool) (any, error)
 	PluginValidateID   func(id string) error
 	PluginSource       func(id string) (string, bool)
+	PluginLoadEBPF     func(ctx context.Context, id string) (any, error)
 	PluginUnloadEBPF   func(id string)
-	CompileUserBPF     func(id, source string) (objPath string, log []byte, err error)
+	CompileUserBPF     func(ctx context.Context, id, source string) (objPath string, log []byte, err error)
 	BPFTemplates       func() []any
 
 	// Tags and rules (config handlers)

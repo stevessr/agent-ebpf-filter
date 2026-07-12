@@ -352,7 +352,8 @@ Research 控制请求最大 64 KiB；会话最多保留 1024 个，单会话事�
 
 ### 插件路由 (`/plugins`)
 
-需要 `FeaturePlugins` 编译特性:
+需要 `FeaturePlugins` 编译特性。所有写操作还需要通过
+`policyManagementEnabledMiddleware`；列表、详情和模板接口保持只读。
 
 | 方法 | 路径 | 用途 |
 |------|------|------|
@@ -363,6 +364,7 @@ Research 控制请求最大 64 KiB；会话最多保留 1024 个，单会话事�
 | `PUT` | `/plugins/:id` | 更新插件 |
 | `DELETE` | `/plugins/:id` | 删除插件 |
 | `POST` | `/plugins/:id/toggle` | 切换插件启用状态 |
+| `POST` | `/plugins/visual/llm-compile` | 将自然语言编译为有界的可视化规则图 |
 
 BPF 模板子路由 (`/plugins/bpf`):
 
@@ -372,6 +374,11 @@ BPF 模板子路由 (`/plugins/bpf`):
 | `POST` | `/plugins/bpf/compile` | 编译用户 BPF 代码 |
 | `POST` | `/plugins/bpf/load` | 加载 BPF 程序 |
 | `POST` | `/plugins/bpf/unload` | 卸载 BPF 程序 |
+
+在线编译会继承 HTTP 请求取消信号，并限制源码/诊断/对象大小、15 秒执行时间和
+全局并发槽位。产物使用 FD 相对路径原子发布；加载前会校验 SHA-256、程序类型、
+attach target、指令数、map 数量及估算内存，只实例化选定程序。Visual LLM 编译
+同样具备请求/响应大小、并发和最长 120 秒超时限制。
 
 ### 数据管理 (`/data`)
 

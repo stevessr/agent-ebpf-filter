@@ -111,15 +111,6 @@ func ParseFloatField(extraInfo, key string) float64 {
 }
 
 func PluginsRootDir() string { return filepath.Join(RuntimeSettingsDir(), "plugins") }
-func PluginDir(id string) string { return filepath.Join(PluginsRootDir(), id) }
-func PluginManifestPath(id string) string { return filepath.Join(PluginDir(id), "manifest.json") }
-func PluginSourcePath(id string) string { return filepath.Join(PluginDir(id), "source.c") }
-func PluginObjectPath(id string) string { return filepath.Join(PluginDir(id), "program.o") }
-func WritePluginSource(id, source string) error {
-	if err := MkdirAllAsRealUser(PluginDir(id), 0755); err != nil { return err }
-	return WriteFileAsRealUser(PluginSourcePath(id), []byte(source), 0644)
-}
-
 func ResolveBackendPort() int {
 	if raw := strings.TrimSpace(os.Getenv("AGENT_BACKEND_PORT")); raw != "" {
 		if port, err := strconv.Atoi(raw); err == nil && port > 0 { return port }

@@ -1,8 +1,13 @@
 package app
 
 import (
+	"bytes"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 )
 
 // ---- moved from backend/zz_merged_backend_test.go section visualllmplugin_test.go ----
@@ -49,5 +54,20 @@ func TestParseVisualBlocksLLMContentRejectsSocketFieldOnProcess(t *testing.T) {
 	_, err := parseVisualBlocksLLMContent(content)
 	if err == nil || !strings.Contains(err.Error(), "port/ipv4") {
 		t.Fatalf("parseVisualBlocksLLMContent() error = %v, want port/ipv4 validation error", err)
+	}
+}
+
+func TestHandlePluginVisualLLMCompileRejectsOversizedBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.POST("/plugins/visual/llm-compile", handlePluginVisualLLMCompile)
+	body := append([]byte(`{"prompt":"`), bytes.Repeat([]byte("x"), int(maxVisualLLMRequestBytes))...)
+	body = append(body, []byte(`"}`)...)
+	req := httptest.NewRequest(http.MethodPost, "/plugins/visual/llm-compile", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
 }

@@ -10,7 +10,9 @@ import (
 	"agent-ebpf-filter/internal/geoip"
 	netcore "agent-ebpf-filter/internal/network"
 	"agent-ebpf-filter/pb"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -383,8 +385,60 @@ func init() {
 
 	handlers.Deps.PluginValidateID = validatePluginID
 	handlers.Deps.PluginSource = func(id string) (string, bool) { s, err := PluginSource(id); return s, err == nil }
+	handlers.Deps.PluginLoadEBPF = func(ctx context.Context, id string) (any, error) {
+		manifest, ok := pluginRegistry.Get(id)
+		if !ok {
+			return nil, fmt.Errorf("plugin %q not found", id)
+		}
+		if manifest.Kind != PluginKindEBPF {
+			return nil, errors.New("not an eBPF plugin")
+		}
+		if err := LoadEBPFPluginContext(ctx, &manifest); err != nil {
+			return nil, err
+		}
+		updated, _ := pluginRegistry.Get(id)
+		return updated, nil
+	}
 	handlers.Deps.PluginUnloadEBPF = UnloadEBPFPlugin
-	handlers.Deps.CompileUserBPF = CompileUserBPF
+	handlers.Deps.CompileUserBPF = func(ctx context.Context, id, source string) (string, []byte, error) {
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		if err := ctx.Err(); err != nil {
+			return "", nil, err
+		}
+		if err := validateUserBPFSource(source); err != nil {
+			return "", nil, err
+		}
+		manifest, exists := pluginRegistry.Get(id)
+		if !exists {
+			manifest = PluginManifest{
+				ID:         id,
+				Name:       id,
+				Kind:       PluginKindEBPF,
+				AttachKind: PluginAttachNone,
+			}
+		} else if manifest.Kind != PluginKindEBPF {
+			return "", nil, errors.New("not an eBPF plugin")
+		} else if manifest.Enabled {
+			return "", nil, errors.New("disable the eBPF plugin before recompiling it")
+		}
+		if err := pluginRegistry.UpsertWithSourceContext(ctx, &manifest, source); err != nil {
+			return "", nil, fmt.Errorf("prepare plugin source: %w", err)
+		}
+		objectPath, diagnostics, err := CompileUserBPFContext(ctx, id, source)
+		if err != nil {
+			return objectPath, diagnostics, err
+		}
+		object, err := readPluginFile(id, "program.o", maxUserBPFObjectBytes)
+		if err != nil {
+			return objectPath, diagnostics, fmt.Errorf("read compiled plugin object: %w", err)
+		}
+		if err := pluginRegistry.RecordCompile(id, sha256Hex([]byte(source)), sha256Hex(object)); err != nil {
+			return objectPath, diagnostics, fmt.Errorf("record compiled plugin: %w", err)
+		}
+		return objectPath, diagnostics, nil
+	}
 	handlers.Deps.BPFTemplates = func() []any {
 		templates := bpfTemplates()
 		result := make([]any, len(templates))
@@ -402,10 +456,10 @@ func init() {
 		return result
 	}
 	handlers.Deps.PluginGet = func(id string) (any, bool) { return pluginRegistry.Get(id) }
-	handlers.Deps.PluginUpsert = func(manifest any) error {
+	handlers.Deps.PluginUpsert = func(manifest any) (any, error) {
 		req, ok := manifest.(*handlers.PluginUpsertRequest)
 		if !ok {
-			return fmt.Errorf("expected *handlers.PluginUpsertRequest, got %T", manifest)
+			return nil, fmt.Errorf("expected *handlers.PluginUpsertRequest, got %T", manifest)
 		}
 		kind := PluginKind(strings.TrimSpace(req.Kind))
 		if kind == "" {
@@ -429,16 +483,36 @@ func init() {
 			CommandRule:    strings.TrimSpace(req.CommandRule),
 			CommandRewrite: append([]string(nil), req.CommandRewrite...),
 		}
+		var err error
 		if kind == PluginKindEBPF && strings.TrimSpace(req.Source) != "" {
-			m.SourceSHA256 = sha256Hex([]byte(req.Source))
-			if err := platform.WritePluginSource(m.ID, req.Source); err != nil {
-				return err
-			}
+			err = pluginRegistry.UpsertWithSource(m, req.Source)
+		} else {
+			err = pluginRegistry.Upsert(m)
 		}
-		return pluginRegistry.Upsert(m)
+		if err != nil {
+			return nil, err
+		}
+		stored, _ := pluginRegistry.Get(m.ID)
+		return stored, nil
 	}
 	handlers.Deps.PluginDelete = func(id string) error { return pluginRegistry.Delete(id) }
-	handlers.Deps.PluginSetEnabled = func(id string, enabled bool) (any, error) { return pluginRegistry.SetEnabled(id, enabled) }
+	handlers.Deps.PluginSetEnabled = func(ctx context.Context, id string, enabled bool) (any, error) {
+		manifest, err := pluginRegistry.SetEnabled(id, enabled)
+		if err != nil {
+			return nil, err
+		}
+		if manifest.Kind == PluginKindEBPF {
+			if enabled {
+				if err := LoadEBPFPluginContext(ctx, &manifest); err != nil {
+					return manifest, err
+				}
+			} else {
+				UnloadEBPFPlugin(id)
+			}
+		}
+		stored, _ := pluginRegistry.Get(id)
+		return stored, nil
+	}
 
 	// System / platform handlers
 	handlers.Deps.GetRealHomeDir = platform.GetRealHomeDir
