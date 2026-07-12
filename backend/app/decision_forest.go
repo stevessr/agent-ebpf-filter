@@ -171,59 +171,72 @@ func (f *DecisionForest) Serialize(path string) error {
 
 // DeserializeForest reads a forest from a binary file
 func DeserializeForest(path string) (*DecisionForest, error) {
-	data, err := os.ReadFile(path)
+	r, err := newMLBinaryModelReader(path, "FORE")
 	if err != nil {
 		return nil, err
 	}
-	if len(data) < 17 {
-		return nil, fmt.Errorf("forest file too short")
+	r.readVersion()
+	numTrees := r.readBoundedCount("forest tree count", 0, mlBinaryMaxEstimators)
+	maxDepth := r.readBoundedCount("forest max depth", 0, 64)
+	numFeatures := int(r.readU8())
+	if numFeatures < 1 || numFeatures > FeatureDim {
+		return nil, fmt.Errorf("invalid forest feature count %d", numFeatures)
 	}
-
-	// Header
-	magic := string(data[0:4])
-	if magic != "FORE" {
-		return nil, fmt.Errorf("invalid magic: %s", magic)
+	if err := r.doneIfInvalid(); err != nil {
+		return nil, err
 	}
-	version := binary.LittleEndian.Uint32(data[4:8])
-	_ = version
-	numTrees := binary.LittleEndian.Uint32(data[8:12])
-	maxDepth := binary.LittleEndian.Uint32(data[12:16])
-	numFeatures := int(data[16])
 
 	forest := &DecisionForest{
 		Trees:       make([]DecisionTree, numTrees),
 		NumClasses:  4,
-		MaxDepth:    int(maxDepth),
+		MaxDepth:    maxDepth,
 		NumFeatures: numFeatures,
 		IsTrained:   true,
 	}
 
-	offset := 17
-	for ti := uint32(0); ti < numTrees; ti++ {
-		if offset+4 > len(data) {
-			return nil, fmt.Errorf("unexpected EOF at tree %d", ti)
+	for ti := 0; ti < numTrees; ti++ {
+		numNodes := r.readBoundedCount(fmt.Sprintf("forest tree %d node count", ti), 0, mlBinaryMaxTreeNodes)
+		r.requireItems(fmt.Sprintf("forest tree %d", ti), numNodes, 13, 0)
+		if err := r.doneIfInvalid(); err != nil {
+			return nil, err
 		}
-		numNodes := binary.LittleEndian.Uint32(data[offset : offset+4])
-		offset += 4
-
 		nodes := make([]DecisionNode, numNodes)
-		for ni := uint32(0); ni < numNodes; ni++ {
-			if offset+13 > len(data) {
-				return nil, fmt.Errorf("unexpected EOF at tree %d node %d", ti, ni)
-			}
+		for ni := 0; ni < numNodes; ni++ {
 			nodes[ni] = DecisionNode{
-				FeatureIndex: data[offset],
-				Threshold:    math.Float32frombits(binary.LittleEndian.Uint32(data[offset+1 : offset+5])),
-				LeftChild:    int16(binary.LittleEndian.Uint16(data[offset+5 : offset+7])),
-				RightChild:   int16(binary.LittleEndian.Uint16(data[offset+7 : offset+9])),
-				LeafValue:    math.Float32frombits(binary.LittleEndian.Uint32(data[offset+9 : offset+13])),
+				FeatureIndex: r.readU8(),
+				Threshold:    r.readF32(),
+				LeftChild:    int16(r.readU16()),
+				RightChild:   int16(r.readU16()),
+				LeafValue:    r.readF32(),
 			}
-			offset += 13
+		}
+		if err := validateDecisionTreeNodes(nodes, numFeatures); err != nil {
+			return nil, fmt.Errorf("invalid forest tree %d: %w", ti, err)
 		}
 		forest.Trees[ti] = DecisionTree{Nodes: nodes}
 	}
-
+	if err := r.done(); err != nil {
+		return nil, err
+	}
 	return forest, nil
+}
+
+func validateDecisionTreeNodes(nodes []DecisionNode, numFeatures int) error {
+	for index := range nodes {
+		node := nodes[index]
+		if node.IsLeaf() {
+			continue
+		}
+		if int(node.FeatureIndex) >= numFeatures {
+			return fmt.Errorf("node %d feature index %d exceeds %d", index, node.FeatureIndex, numFeatures)
+		}
+		left := int(node.LeftChild)
+		right := int(node.RightChild)
+		if left <= index || left >= len(nodes) || right <= index || right >= len(nodes) {
+			return fmt.Errorf("node %d has invalid children %d,%d", index, left, right)
+		}
+	}
+	return nil
 }
 
 // Prune removes underperforming trees from the forest.

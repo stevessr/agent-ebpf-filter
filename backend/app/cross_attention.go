@@ -2,7 +2,6 @@ package app
 
 import (
 	"encoding/binary"
-	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -188,34 +187,26 @@ func (m *CrossAttentionLayer) Serialize(path string) error {
 }
 
 func DeserializeCrossAttention(path string) (*CrossAttentionLayer, error) {
-	raw, err := os.ReadFile(path)
+	r, err := newMLBinaryModelReader(path, "CATN")
 	if err != nil {
 		return nil, err
 	}
-	need := 4 + 4 + 8 + 3*FeatureDim*FeatureDim*8
-	if len(raw) < need || string(raw[:4]) != "CATN" {
-		return nil, fmt.Errorf("invalid cross-attention model file")
+	r.readVersion()
+	r.requireItems("cross attention", 1+3*FeatureDim*FeatureDim, mlBinaryFloatBytes, 0)
+	if err := r.doneIfInvalid(); err != nil {
+		return nil, err
 	}
-	pos := 4
-	readU32 := func() uint32 {
-		v := binary.LittleEndian.Uint32(raw[pos:])
-		pos += 4
-		return v
-	}
-	readF64 := func() float64 {
-		v := math.Float64frombits(binary.LittleEndian.Uint64(raw[pos:]))
-		pos += 8
-		return v
-	}
-	_ = readU32()
 	m := NewCrossAttentionLayer()
-	m.LearningRate = readF64()
+	m.LearningRate = r.readF64()
 	for _, W := range []*[FeatureDim][FeatureDim]float64{&m.Wq, &m.Wk, &m.Wv} {
 		for i := 0; i < FeatureDim; i++ {
 			for j := 0; j < FeatureDim; j++ {
-				W[i][j] = readF64()
+				W[i][j] = r.readF64()
 			}
 		}
+	}
+	if err := r.done(); err != nil {
+		return nil, err
 	}
 	return m, nil
 }

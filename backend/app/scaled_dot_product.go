@@ -2,7 +2,6 @@ package app
 
 import (
 	"encoding/binary"
-	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -143,40 +142,39 @@ func (m *ScaledDotProductAttention) Serialize(path string) error {
 }
 
 func DeserializeScaledDotProductAttention(path string) (*ScaledDotProductAttention, error) {
-	raw, err := os.ReadFile(path)
+	r, err := newMLBinaryModelReader(path, "SDPA")
 	if err != nil {
 		return nil, err
 	}
-	if len(raw) < 8 || string(raw[:4]) != "SDPA" {
-		return nil, fmt.Errorf("invalid scaled dot-product attention model file")
+	r.readVersion()
+	r.requireItems("scaled dot-product attention", 4*FeatureDim*FeatureDim, mlBinaryFloatBytes, 0)
+	if err := r.doneIfInvalid(); err != nil {
+		return nil, err
 	}
-
-	pos := 4
-	readU32 := func() uint32 { v := binary.LittleEndian.Uint32(raw[pos:]); pos += 4; return v }
-	readF64 := func() float64 { v := math.Float64frombits(binary.LittleEndian.Uint64(raw[pos:])); pos += 8; return v }
-	_ = readU32() // version
 
 	m := NewScaledDotProductAttention()
 	for i := 0; i < FeatureDim; i++ {
 		for j := 0; j < FeatureDim; j++ {
-			m.Wq[i][j] = readF64()
+			m.Wq[i][j] = r.readF64()
 		}
 	}
 	for i := 0; i < FeatureDim; i++ {
 		for j := 0; j < FeatureDim; j++ {
-			m.Wk[i][j] = readF64()
+			m.Wk[i][j] = r.readF64()
 		}
 	}
 	for i := 0; i < FeatureDim; i++ {
 		for j := 0; j < FeatureDim; j++ {
-			m.Wv[i][j] = readF64()
+			m.Wv[i][j] = r.readF64()
 		}
 	}
 	for i := 0; i < FeatureDim; i++ {
 		for j := 0; j < FeatureDim; j++ {
-			m.Wo[i][j] = readF64()
+			m.Wo[i][j] = r.readF64()
 		}
 	}
-
+	if err := r.done(); err != nil {
+		return nil, err
+	}
 	return m, nil
 }

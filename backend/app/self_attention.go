@@ -2,7 +2,6 @@ package app
 
 import (
 	"encoding/binary"
-	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -13,9 +12,9 @@ import (
 // SelfAttention implements a single-head self-attention layer with shared
 // input/output dimensionality.
 type SelfAttention struct {
-	WQ         [FeatureDim][FeatureDim]float64
-	WK         [FeatureDim][FeatureDim]float64
-	WV         [FeatureDim][FeatureDim]float64
+	WQ            [FeatureDim][FeatureDim]float64
+	WK            [FeatureDim][FeatureDim]float64
+	WV            [FeatureDim][FeatureDim]float64
 	LastAttention [FeatureDim]float64
 }
 
@@ -97,30 +96,25 @@ func (a *SelfAttention) Serialize(path string) error {
 }
 
 func DeserializeSelfAttention(path string) (*SelfAttention, error) {
-	f, err := os.Open(path)
+	r, err := newMLBinaryModelReader(path, "SATT")
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
-	magic := make([]byte, 4)
-	if _, err := f.Read(magic); err != nil {
+	r.readVersion()
+	r.requireItems("self attention", 3*FeatureDim*FeatureDim, mlBinaryFloatBytes, 0)
+	if err := r.doneIfInvalid(); err != nil {
 		return nil, err
-	}
-	if string(magic) != "SATT" {
-		return nil, fmt.Errorf("invalid self-attention magic: %q", string(magic))
-	}
-	var version uint32
-	if err := binary.Read(f, binary.LittleEndian, &version); err != nil {
-		return nil, err
-	}
-	if version != 1 {
-		return nil, fmt.Errorf("unsupported self-attention version: %d", version)
 	}
 	a := &SelfAttention{}
 	for _, mat := range []*[FeatureDim][FeatureDim]float64{&a.WQ, &a.WK, &a.WV} {
-		if err := binary.Read(f, binary.LittleEndian, mat); err != nil {
-			return nil, err
+		for i := 0; i < FeatureDim; i++ {
+			for j := 0; j < FeatureDim; j++ {
+				mat[i][j] = r.readF64()
+			}
 		}
+	}
+	if err := r.done(); err != nil {
+		return nil, err
 	}
 	return a, nil
 }

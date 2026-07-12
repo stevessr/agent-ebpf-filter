@@ -2,7 +2,6 @@ package app
 
 import (
 	"encoding/binary"
-	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -109,28 +108,29 @@ func (m *AdditiveAttention) Serialize(path string) error {
 }
 
 func DeserializeAdditiveAttention(path string) (*AdditiveAttention, error) {
-	raw, err := os.ReadFile(path)
+	r, err := newMLBinaryModelReader(path, "ATAD")
 	if err != nil {
 		return nil, err
 	}
-	if len(raw) < 8 || string(raw[:4]) != "ATAD" {
-		return nil, fmt.Errorf("invalid additive attention model file")
+	r.readVersion()
+	r.requireItems("additive attention", FeatureDim*FeatureDim+2*FeatureDim, mlBinaryFloatBytes, 0)
+	if err := r.doneIfInvalid(); err != nil {
+		return nil, err
 	}
-	pos := 4
-	readU32 := func() uint32 { v := binary.LittleEndian.Uint32(raw[pos:]); pos += 4; return v }
-	readF64 := func() float64 { v := math.Float64frombits(binary.LittleEndian.Uint64(raw[pos:])); pos += 8; return v }
-	_ = readU32()
 	m := NewAdditiveAttention()
 	for i := 0; i < FeatureDim; i++ {
 		for j := 0; j < FeatureDim; j++ {
-			m.W[i][j] = readF64()
+			m.W[i][j] = r.readF64()
 		}
 	}
 	for i := 0; i < FeatureDim; i++ {
-		m.B[i] = readF64()
+		m.B[i] = r.readF64()
 	}
 	for i := 0; i < FeatureDim; i++ {
-		m.V[i] = readF64()
+		m.V[i] = r.readF64()
+	}
+	if err := r.done(); err != nil {
+		return nil, err
 	}
 	return m, nil
 }

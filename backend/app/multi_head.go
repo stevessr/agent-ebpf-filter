@@ -126,7 +126,7 @@ func (m *MultiHeadAttention) Serialize(path string) error {
 	}
 
 	data = append(data, []byte("MHAT")...)
-	putU32(1)               // version
+	putU32(1) // version
 	putU32(uint32(m.NumHeads))
 	putU32(uint32(m.HeadDim))
 
@@ -164,21 +164,20 @@ func (m *MultiHeadAttention) Serialize(path string) error {
 }
 
 func DeserializeMultiHeadAttention(path string) (*MultiHeadAttention, error) {
-	raw, err := os.ReadFile(path)
+	r, err := newMLBinaryModelReader(path, "MHAT")
 	if err != nil {
 		return nil, err
 	}
-	if len(raw) < 16 || string(raw[:4]) != "MHAT" {
-		return nil, fmt.Errorf("invalid multi-head attention model file")
+	r.readVersion()
+	numHeads := r.readBoundedCount("multi-head attention head count", 1, FeatureDim)
+	headDim := r.readBoundedCount("multi-head attention head dimension", 1, FeatureDim)
+	if numHeads*headDim != FeatureDim || FeatureDim%numHeads != 0 {
+		return nil, fmt.Errorf("invalid multi-head attention shape %dx%d", numHeads, headDim)
 	}
-
-	pos := 4
-	readU32 := func() uint32 { v := binary.LittleEndian.Uint32(raw[pos:]); pos += 4; return v }
-	readF64 := func() float64 { v := math.Float64frombits(binary.LittleEndian.Uint64(raw[pos:])); pos += 8; return v }
-
-	_ = readU32() // version
-	numHeads := int(readU32())
-	headDim := int(readU32())
+	r.requireItems("multi-head attention", 4*FeatureDim*FeatureDim, mlBinaryFloatBytes, 0)
+	if err := r.doneIfInvalid(); err != nil {
+		return nil, err
+	}
 
 	m := &MultiHeadAttention{
 		NumHeads:   numHeads,
@@ -189,24 +188,26 @@ func DeserializeMultiHeadAttention(path string) (*MultiHeadAttention, error) {
 
 	for i := 0; i < FeatureDim; i++ {
 		for j := 0; j < FeatureDim; j++ {
-			m.Wq[i][j] = readF64()
+			m.Wq[i][j] = r.readF64()
 		}
 	}
 	for i := 0; i < FeatureDim; i++ {
 		for j := 0; j < FeatureDim; j++ {
-			m.Wk[i][j] = readF64()
+			m.Wk[i][j] = r.readF64()
 		}
 	}
 	for i := 0; i < FeatureDim; i++ {
 		for j := 0; j < FeatureDim; j++ {
-			m.Wv[i][j] = readF64()
+			m.Wv[i][j] = r.readF64()
 		}
 	}
 	for i := 0; i < FeatureDim; i++ {
 		for j := 0; j < FeatureDim; j++ {
-			m.Wo[i][j] = readF64()
+			m.Wo[i][j] = r.readF64()
 		}
 	}
-
+	if err := r.done(); err != nil {
+		return nil, err
+	}
 	return m, nil
 }

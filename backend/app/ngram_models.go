@@ -195,40 +195,20 @@ func (m *NGramModel) Serialize(path string) error {
 }
 
 func DeserializeNGramModel(path string, classifier Model, modelType core.ModelType) (*NGramModel, error) {
-	f, err := os.Open(path)
+	r, err := newMLBinaryModelReader(path, "NGRM")
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
-
-	// 读取魔数
-	magic := make([]byte, 4)
-	if _, err := f.Read(magic); err != nil {
+	r.readVersion()
+	n := r.readBoundedCount("n-gram order", 1, 3)
+	binCount := r.readBoundedCount("n-gram bin count", 1, FeatureDim)
+	if err := r.done(); err != nil {
 		return nil, err
 	}
-	if string(magic) != "NGRM" {
-		return nil, fmt.Errorf("invalid n-gram model magic: %q", string(magic))
+	if classifier == nil {
+		return nil, fmt.Errorf("n-gram classifier is nil")
 	}
-
-	// 读取版本
-	var version uint32
-	if err := binary.Read(f, binary.LittleEndian, &version); err != nil {
-		return nil, err
-	}
-	if version != 1 {
-		return nil, fmt.Errorf("unsupported n-gram model version: %d", version)
-	}
-
-	// 读取配置
-	var n, binCount uint32
-	if err := binary.Read(f, binary.LittleEndian, &n); err != nil {
-		return nil, err
-	}
-	if err := binary.Read(f, binary.LittleEndian, &binCount); err != nil {
-		return nil, err
-	}
-
-	return NewNGramModel(int(n), int(binCount), classifier, modelType), nil
+	return NewNGramModel(n, binCount, classifier, modelType), nil
 }
 
 func min(a, b int) int {

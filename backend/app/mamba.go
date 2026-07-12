@@ -2,7 +2,6 @@ package app
 
 import (
 	"encoding/binary"
-	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -169,47 +168,46 @@ func (m *MambaAttention) Serialize(path string) error {
 }
 
 func DeserializeMambaAttention(path string) (*MambaAttention, error) {
-	raw, err := os.ReadFile(path)
+	r, err := newMLBinaryModelReader(path, "MABA")
 	if err != nil {
 		return nil, err
 	}
-	if len(raw) < 8 || string(raw[:4]) != "MABA" {
-		return nil, fmt.Errorf("invalid Mamba attention model file")
+	r.readVersion()
+	r.requireItems("Mamba attention", 4*FeatureDim*FeatureDim+2*FeatureDim, mlBinaryFloatBytes, 0)
+	if err := r.doneIfInvalid(); err != nil {
+		return nil, err
 	}
-
-	pos := 4
-	readU32 := func() uint32 { v := binary.LittleEndian.Uint32(raw[pos:]); pos += 4; return v }
-	readF64 := func() float64 { v := math.Float64frombits(binary.LittleEndian.Uint64(raw[pos:])); pos += 8; return v }
-	_ = readU32() // version
 
 	m := NewMambaAttention()
 	for i := 0; i < FeatureDim; i++ {
 		for j := 0; j < FeatureDim; j++ {
-			m.Wx[i][j] = readF64()
+			m.Wx[i][j] = r.readF64()
 		}
 	}
 	for i := 0; i < FeatureDim; i++ {
 		for j := 0; j < FeatureDim; j++ {
-			m.Wz[i][j] = readF64()
+			m.Wz[i][j] = r.readF64()
 		}
 	}
 	for i := 0; i < FeatureDim; i++ {
 		for j := 0; j < FeatureDim; j++ {
-			m.Wh[i][j] = readF64()
+			m.Wh[i][j] = r.readF64()
 		}
 	}
 	for i := 0; i < FeatureDim; i++ {
 		for j := 0; j < FeatureDim; j++ {
-			m.Wo[i][j] = readF64()
+			m.Wo[i][j] = r.readF64()
 		}
 	}
 
 	for i := 0; i < FeatureDim; i++ {
-		m.Bz[i] = readF64()
+		m.Bz[i] = r.readF64()
 	}
 	for i := 0; i < FeatureDim; i++ {
-		m.A[i] = readF64()
+		m.A[i] = r.readF64()
 	}
-
+	if err := r.done(); err != nil {
+		return nil, err
+	}
 	return m, nil
 }

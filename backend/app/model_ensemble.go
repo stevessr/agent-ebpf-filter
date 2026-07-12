@@ -200,19 +200,46 @@ func (m *EnsembleModel) Serialize(path string) error {
 }
 
 func DeserializeEnsemble(path string) (*EnsembleModel, error) {
-	raw, err := os.ReadFile(path)
+	raw, err := readBoundedMLModelFile(path, mlEnsembleManifestMaxBytes)
 	if err != nil {
 		return nil, err
 	}
 	var manifest ensembleManifest
 	if err := json.Unmarshal(raw, &manifest); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid ensemble manifest: %w", err)
+	}
+	if manifest.Version != mlBinaryModelVersion {
+		return nil, fmt.Errorf("unsupported ensemble version %d", manifest.Version)
+	}
+	memberCount := len(manifest.ModelFiles)
+	if memberCount > mlMaxEnsembleMembers {
+		return nil, fmt.Errorf("ensemble has %d members; maximum is %d", memberCount, mlMaxEnsembleMembers)
+	}
+	if len(manifest.ModelTypes) != memberCount || len(manifest.Weights) != memberCount {
+		return nil, fmt.Errorf("ensemble manifest member metadata length mismatch")
+	}
+	if voting := strings.ToLower(strings.TrimSpace(manifest.Voting)); voting != "soft" && voting != "hard" && voting != "stacked" {
+		return nil, fmt.Errorf("invalid ensemble voting mode %q", manifest.Voting)
+	}
+	totalWeight := 0.0
+	for index, weight := range manifest.Weights {
+		if math.IsNaN(weight) || math.IsInf(weight, 0) || weight < 0 {
+			return nil, fmt.Errorf("invalid ensemble weight %d", index)
+		}
+		totalWeight += weight
+	}
+	if memberCount > 0 && (totalWeight <= 0 || math.IsInf(totalWeight, 0)) {
+		return nil, fmt.Errorf("ensemble weights must have a positive sum")
 	}
 	baseDir := filepath.Dir(path)
-	models := make([]Model, 0, len(manifest.ModelFiles))
+	models := make([]Model, 0, memberCount)
 	for i, file := range manifest.ModelFiles {
-		if i >= len(manifest.ModelTypes) {
-			return nil, fmt.Errorf("ensemble manifest missing model type for %s", file)
+		file = strings.TrimSpace(file)
+		if file == "" || len(file) > 255 || filepath.IsAbs(file) || filepath.Base(file) != file || strings.ContainsAny(file, `/\\`) {
+			return nil, fmt.Errorf("invalid ensemble model file %q", file)
+		}
+		if len(manifest.ModelTypes[i]) > 128 {
+			return nil, fmt.Errorf("ensemble model type %d is too long", i)
 		}
 		mt := ModelType(manifest.ModelTypes[i])
 		subPath := filepath.Join(baseDir, file)

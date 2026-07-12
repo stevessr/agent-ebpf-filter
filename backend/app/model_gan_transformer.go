@@ -567,7 +567,7 @@ func (m *GANTransformerModel) Serialize(path string) error {
 }
 
 func DeserializeGANTransformer(path string) (*GANTransformerModel, error) {
-	raw, err := os.ReadFile(path)
+	raw, err := readBoundedMLModelFile(path, mlJSONMaxModelFileBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -575,8 +575,100 @@ func DeserializeGANTransformer(path string) (*GANTransformerModel, error) {
 	if err := json.Unmarshal(raw, &model); err != nil {
 		return nil, fmt.Errorf("invalid GAN Transformer model: %w", err)
 	}
+	if err := validateGANTransformerModel(&model); err != nil {
+		return nil, fmt.Errorf("invalid GAN Transformer model: %w", err)
+	}
 	model.ensure()
 	return &model, nil
+}
+
+func validateGANTransformerModel(model *GANTransformerModel) error {
+	if model.NumClasses != ganTransformerClasses {
+		return fmt.Errorf("class count %d", model.NumClasses)
+	}
+	if model.LatentDim < 8 || model.LatentDim > 64 {
+		return fmt.Errorf("latent dimension %d", model.LatentDim)
+	}
+	if model.Epochs < 4 || model.Epochs > 96 {
+		return fmt.Errorf("epoch count %d", model.Epochs)
+	}
+	if model.SyntheticPerClass < 2 || model.SyntheticPerClass > 64 {
+		return fmt.Errorf("synthetic sample count %d", model.SyntheticPerClass)
+	}
+	if !ganFinite(model.LearningRate) || model.LearningRate <= 0 || model.LearningRate > 1 {
+		return fmt.Errorf("learning rate %v", model.LearningRate)
+	}
+	if !ganFinite(model.GeneratorScale) || model.GeneratorScale <= 0 || model.GeneratorScale > 10 {
+		return fmt.Errorf("generator scale %v", model.GeneratorScale)
+	}
+	if model.Encoder == nil {
+		return fmt.Errorf("missing encoder")
+	}
+	encoder := model.Encoder
+	if encoder.TokenCount <= 0 || encoder.TokenCount > FeatureDim || encoder.TokenDim <= 0 || encoder.TokenDim > FeatureDim || encoder.TokenCount*encoder.TokenDim != FeatureDim {
+		return fmt.Errorf("encoder token shape %dx%d", encoder.TokenCount, encoder.TokenDim)
+	}
+	if encoder.NumHeads <= 0 || encoder.NumHeads > encoder.TokenDim || encoder.TokenDim%encoder.NumHeads != 0 {
+		return fmt.Errorf("encoder head count %d", encoder.NumHeads)
+	}
+	projectionSize := encoder.TokenDim * encoder.TokenDim
+	for name, values := range map[string][]float64{
+		"encoder wq": encoder.Wq,
+		"encoder wk": encoder.Wk,
+		"encoder wv": encoder.Wv,
+		"encoder wo": encoder.Wo,
+	} {
+		if len(values) != projectionSize || !ganFiniteSlice(values) {
+			return fmt.Errorf("%s shape or value", name)
+		}
+	}
+	if len(model.ClassCentroids) != model.NumClasses || len(model.ClassVars) != model.NumClasses ||
+		len(model.ClassCounts) != model.NumClasses || len(model.ClassPriors) != model.NumClasses || len(model.Weights) != model.NumClasses {
+		return fmt.Errorf("class parameter shape")
+	}
+	totalCount := 0
+	totalPrior := 0.0
+	for class := 0; class < model.NumClasses; class++ {
+		if model.ClassCounts[class] < 0 || model.ClassCounts[class] > mlMaxTrainingSamples {
+			return fmt.Errorf("class %d sample count %d", class, model.ClassCounts[class])
+		}
+		totalCount += model.ClassCounts[class]
+		prior := model.ClassPriors[class]
+		if !ganFinite(prior) || prior < 0 || prior > 1 {
+			return fmt.Errorf("class %d prior %v", class, prior)
+		}
+		totalPrior += prior
+		for feature := 0; feature < FeatureDim; feature++ {
+			if !ganFinite(model.ClassCentroids[class][feature]) || !ganFinite(model.ClassVars[class][feature]) || model.ClassVars[class][feature] < 0 {
+				return fmt.Errorf("class %d feature %d statistics", class, feature)
+			}
+		}
+		for feature := 0; feature <= FeatureDim; feature++ {
+			if !ganFinite(model.Weights[class][feature]) {
+				return fmt.Errorf("class %d weight %d", class, feature)
+			}
+		}
+	}
+	if totalCount > mlMaxTrainingSamples {
+		return fmt.Errorf("total sample count %d", totalCount)
+	}
+	if totalPrior <= 0 || math.Abs(totalPrior-1) > 1e-6 {
+		return fmt.Errorf("class prior sum %v", totalPrior)
+	}
+	return nil
+}
+
+func ganFinite(value float64) bool {
+	return !math.IsNaN(value) && !math.IsInf(value, 0)
+}
+
+func ganFiniteSlice(values []float64) bool {
+	for _, value := range values {
+		if !ganFinite(value) {
+			return false
+		}
+	}
+	return true
 }
 
 // trainGANTransformer trains the GAN + Transformer model on the stored dataset.

@@ -161,47 +161,51 @@ func (m *NearestCentroidModel) Serialize(path string) error {
 }
 
 func DeserializeNearestCentroid(path string) (*NearestCentroidModel, error) {
-	raw, err := os.ReadFile(path)
+	r, err := newMLBinaryModelReader(path, "NCEN")
 	if err != nil {
 		return nil, err
 	}
-	if len(raw) < 16 || string(raw[:4]) != "NCEN" {
-		return nil, fmt.Errorf("invalid nearest centroid model file")
+	r.readVersion()
+	classes := r.readBoundedCount("nearest centroid class count", 1, mlBinaryMaxClasses)
+	metric := strings.ToLower(r.readBoundedString("nearest centroid metric", 32))
+	if metric != "euclidean" && metric != "manhattan" && metric != "cosine" {
+		return nil, fmt.Errorf("invalid nearest centroid metric %q", metric)
 	}
-	pos := 4
-	readU32 := func() uint32 {
-		v := binary.LittleEndian.Uint32(raw[pos:])
-		pos += 4
-		return v
+	uniformPrior := r.readBoolU32("nearest centroid uniform prior")
+	priorsLen := r.readBoundedCount("nearest centroid prior count", 0, mlBinaryMaxClasses)
+	if priorsLen != 0 && priorsLen != classes {
+		return nil, fmt.Errorf("invalid nearest centroid prior count %d for %d classes", priorsLen, classes)
 	}
-	readF64 := func() float64 {
-		v := math.Float64frombits(binary.LittleEndian.Uint64(raw[pos:]))
-		pos += 8
-		return v
-	}
-	_ = readU32() // version
-	classes := int(readU32())
-	metricLen := int(readU32())
-	if pos+metricLen > len(raw) {
-		return nil, fmt.Errorf("invalid nearest centroid model file")
-	}
-	metric := strings.ToLower(string(raw[pos : pos+metricLen]))
-	pos += metricLen
-	uniformPrior := readU32() != 0
-	priorsLen := int(readU32())
-	if priorsLen < 0 || priorsLen > 256 {
-		return nil, fmt.Errorf("invalid nearest centroid model file")
+	r.requireItems("nearest centroid priors", priorsLen, mlBinaryFloatBytes, 4)
+	if err := r.doneIfInvalid(); err != nil {
+		return nil, err
 	}
 	priors := make([]float64, priorsLen)
 	for i := range priors {
-		priors[i] = readF64()
+		priors[i] = r.readF64()
+		if math.IsNaN(priors[i]) || math.IsInf(priors[i], 0) || priors[i] < 0 {
+			return nil, fmt.Errorf("invalid nearest centroid prior %d", i)
+		}
 	}
-	centroidCount := int(readU32())
+	centroidCount := r.readBoundedCount("nearest centroid count", 0, mlBinaryMaxClasses)
+	if centroidCount != 0 && centroidCount != classes {
+		return nil, fmt.Errorf("invalid nearest centroid count %d for %d classes", centroidCount, classes)
+	}
+	r.requireItems("nearest centroids", centroidCount, FeatureDim*mlBinaryFloatBytes, 0)
+	if err := r.doneIfInvalid(); err != nil {
+		return nil, err
+	}
 	centroids := make([][FeatureDim]float64, centroidCount)
 	for c := 0; c < centroidCount; c++ {
 		for d := 0; d < FeatureDim; d++ {
-			centroids[c][d] = readF64()
+			centroids[c][d] = r.readF64()
+			if math.IsNaN(centroids[c][d]) || math.IsInf(centroids[c][d], 0) {
+				return nil, fmt.Errorf("invalid nearest centroid value %d,%d", c, d)
+			}
 		}
+	}
+	if err := r.done(); err != nil {
+		return nil, err
 	}
 	return &NearestCentroidModel{
 		Centroids:    centroids,

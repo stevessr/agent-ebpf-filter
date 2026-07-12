@@ -2,7 +2,6 @@ package app
 
 import (
 	"encoding/binary"
-	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -177,45 +176,44 @@ func (m *RWKVAttention) Serialize(path string) error {
 }
 
 func DeserializeRWKVAttention(path string) (*RWKVAttention, error) {
-	raw, err := os.ReadFile(path)
+	r, err := newMLBinaryModelReader(path, "RWKV")
 	if err != nil {
 		return nil, err
 	}
-	if len(raw) < 8 || string(raw[:4]) != "RWKV" {
-		return nil, fmt.Errorf("invalid RWKV attention model file")
+	r.readVersion()
+	r.requireItems("RWKV attention", 4*FeatureDim*FeatureDim+FeatureDim, mlBinaryFloatBytes, 0)
+	if err := r.doneIfInvalid(); err != nil {
+		return nil, err
 	}
-
-	pos := 4
-	readU32 := func() uint32 { v := binary.LittleEndian.Uint32(raw[pos:]); pos += 4; return v }
-	readF64 := func() float64 { v := math.Float64frombits(binary.LittleEndian.Uint64(raw[pos:])); pos += 8; return v }
-	_ = readU32() // version
 
 	m := NewRWKVAttention()
 	for i := 0; i < FeatureDim; i++ {
 		for j := 0; j < FeatureDim; j++ {
-			m.Wr[i][j] = readF64()
+			m.Wr[i][j] = r.readF64()
 		}
 	}
 	for i := 0; i < FeatureDim; i++ {
 		for j := 0; j < FeatureDim; j++ {
-			m.Wk[i][j] = readF64()
+			m.Wk[i][j] = r.readF64()
 		}
 	}
 	for i := 0; i < FeatureDim; i++ {
 		for j := 0; j < FeatureDim; j++ {
-			m.Wv[i][j] = readF64()
+			m.Wv[i][j] = r.readF64()
 		}
 	}
 	for i := 0; i < FeatureDim; i++ {
 		for j := 0; j < FeatureDim; j++ {
-			m.Wo[i][j] = readF64()
+			m.Wo[i][j] = r.readF64()
 		}
 	}
 
 	// Deserialize time-mixing weights W
 	for i := 0; i < FeatureDim; i++ {
-		m.W[i] = readF64()
+		m.W[i] = r.readF64()
 	}
-
+	if err := r.done(); err != nil {
+		return nil, err
+	}
 	return m, nil
 }

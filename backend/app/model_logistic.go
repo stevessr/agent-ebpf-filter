@@ -272,32 +272,24 @@ func (m *LogisticModel) Serialize(path string) error {
 
 // DeserializeLogistic loads a logistic model from disk
 func DeserializeLogistic(path string) (*LogisticModel, error) {
-	raw, err := os.ReadFile(path)
+	r, err := newMLBinaryModelReader(path, "LOGR")
 	if err != nil {
 		return nil, err
 	}
-	if len(raw) < 16 || string(raw[0:4]) != "LOGR" {
-		return nil, fmt.Errorf("invalid logistic model file")
+	r.readVersion()
+	numClasses := r.readBoundedCount("logistic class count", 1, mlBinaryMaxClasses)
+	learningRate := r.readF64()
+	regularization := r.readBoundedString("logistic regularization", 16)
+	if math.IsNaN(learningRate) || math.IsInf(learningRate, 0) || learningRate <= 0 {
+		return nil, fmt.Errorf("invalid logistic learning rate %v", learningRate)
 	}
-	pos := 4
-
-	readU32 := func() uint32 {
-		v := binary.LittleEndian.Uint32(raw[pos:])
-		pos += 4
-		return v
+	if regularization != "l1" && regularization != "l2" && regularization != "none" {
+		return nil, fmt.Errorf("invalid logistic regularization %q", regularization)
 	}
-	readF64 := func() float64 {
-		v := math.Float64frombits(binary.LittleEndian.Uint64(raw[pos:]))
-		pos += 8
-		return v
+	r.requireItems("logistic weights", numClasses, mlBinaryLinearWeightsBytes, 0)
+	if err := r.doneIfInvalid(); err != nil {
+		return nil, err
 	}
-
-	_ = readU32() // version (readU32 advances pos by 4)
-	numClasses := int(readU32())
-	learningRate := readF64()
-	regLen := int(readU32())
-	regularization := string(raw[pos : pos+regLen])
-	pos += regLen
 
 	m := &LogisticModel{
 		NumClasses:     numClasses,
@@ -308,10 +300,16 @@ func DeserializeLogistic(path string) (*LogisticModel, error) {
 
 	for c := 0; c < numClasses; c++ {
 		for i := 0; i <= FeatureDim; i++ {
-			m.Weights[c][i] = readF64()
+			value := r.readF64()
+			if math.IsNaN(value) || math.IsInf(value, 0) {
+				return nil, fmt.Errorf("invalid logistic weight %d,%d", c, i)
+			}
+			m.Weights[c][i] = value
 		}
 	}
-
+	if err := r.done(); err != nil {
+		return nil, err
+	}
 	return m, nil
 }
 

@@ -20,25 +20,46 @@ const (
 	mlBinaryModelVersion       = 1
 	mlBinaryMaxClasses         = 4
 	mlBinaryMaxEstimators      = 4096
+	mlBinaryMaxTreeNodes       = 1<<15 - 1
 	mlBinaryMaxModelFileBytes  = 16 << 20
+	mlKNNMaxModelFileBytes     = 128 << 20
+	mlJSONMaxModelFileBytes    = 16 << 20
+	mlEnsembleManifestMaxBytes = 256 << 10
+	mlMaxEnsembleMembers       = 64
+	mlMaxTrainingSamples       = 100000
 	mlBinaryFloatBytes         = 8
 	mlBinaryAdaEstimatorBytes  = 4 + 4*mlBinaryFloatBytes
 	mlBinaryNaiveBayesRowBytes = mlBinaryFloatBytes + FeatureDim*2*mlBinaryFloatBytes
 	mlBinaryLinearWeightsBytes = (FeatureDim + 1) * mlBinaryFloatBytes
 )
 
-func newMLBinaryModelReader(path string, magic string) (*mlBinaryModelReader, error) {
+func readBoundedMLModelFile(path string, maxBytes int64) ([]byte, error) {
+	if maxBytes <= 0 {
+		return nil, fmt.Errorf("invalid model file limit %d", maxBytes)
+	}
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
-	raw, err := io.ReadAll(io.LimitReader(file, mlBinaryMaxModelFileBytes+1))
+	raw, err := io.ReadAll(io.LimitReader(file, maxBytes+1))
 	if err != nil {
 		return nil, err
 	}
-	if len(raw) > mlBinaryMaxModelFileBytes {
-		return nil, fmt.Errorf("model file exceeds %d bytes", mlBinaryMaxModelFileBytes)
+	if int64(len(raw)) > maxBytes {
+		return nil, fmt.Errorf("model file exceeds %d bytes", maxBytes)
+	}
+	return raw, nil
+}
+
+func newMLBinaryModelReader(path string, magic string) (*mlBinaryModelReader, error) {
+	return newMLBinaryModelReaderWithLimit(path, magic, mlBinaryMaxModelFileBytes)
+}
+
+func newMLBinaryModelReaderWithLimit(path string, magic string, maxBytes int64) (*mlBinaryModelReader, error) {
+	raw, err := readBoundedMLModelFile(path, maxBytes)
+	if err != nil {
+		return nil, err
 	}
 	if len(raw) < 8 || string(raw[:4]) != magic {
 		return nil, fmt.Errorf("invalid %s model", magic)
@@ -59,6 +80,41 @@ func (r *mlBinaryModelReader) readU32() uint32 {
 	return v
 }
 
+func (r *mlBinaryModelReader) readU8() uint8 {
+	if r.err != nil {
+		return 0
+	}
+	if r.pos+1 > len(r.raw) {
+		r.err = fmt.Errorf("unexpected EOF at byte %d", r.pos)
+		return 0
+	}
+	v := r.raw[r.pos]
+	r.pos++
+	return v
+}
+
+func (r *mlBinaryModelReader) readU16() uint16 {
+	if r.err != nil {
+		return 0
+	}
+	if r.pos+2 > len(r.raw) {
+		r.err = fmt.Errorf("unexpected EOF at byte %d", r.pos)
+		return 0
+	}
+	v := binary.LittleEndian.Uint16(r.raw[r.pos:])
+	r.pos += 2
+	return v
+}
+
+func (r *mlBinaryModelReader) readF32() float32 {
+	value := math.Float32frombits(r.readU32())
+	if r.err == nil && (math.IsNaN(float64(value)) || math.IsInf(float64(value), 0)) {
+		r.err = fmt.Errorf("invalid non-finite float at byte %d", r.pos-4)
+		return 0
+	}
+	return value
+}
+
 func (r *mlBinaryModelReader) readF64() float64 {
 	if r.err != nil {
 		return 0
@@ -69,6 +125,10 @@ func (r *mlBinaryModelReader) readF64() float64 {
 	}
 	v := math.Float64frombits(binary.LittleEndian.Uint64(r.raw[r.pos:]))
 	r.pos += 8
+	if math.IsNaN(v) || math.IsInf(v, 0) {
+		r.err = fmt.Errorf("invalid non-finite float at byte %d", r.pos-8)
+		return 0
+	}
 	return v
 }
 
@@ -77,6 +137,20 @@ func (r *mlBinaryModelReader) readVersion() {
 	if r.err == nil && version != mlBinaryModelVersion {
 		r.err = fmt.Errorf("unsupported model version %d", version)
 	}
+}
+
+func (r *mlBinaryModelReader) readSupportedVersion(name string, versions ...uint32) uint32 {
+	version := r.readU32()
+	if r.err != nil {
+		return 0
+	}
+	for _, supported := range versions {
+		if version == supported {
+			return version
+		}
+	}
+	r.err = fmt.Errorf("unsupported %s version %d", name, version)
+	return 0
 }
 
 func (r *mlBinaryModelReader) readBoundedCount(name string, minValue, maxValue int) int {
@@ -99,6 +173,36 @@ func (r *mlBinaryModelReader) requireItems(name string, count, bytesPerItem, ext
 	if count < 0 || bytesPerItem < 0 || extraBytes < 0 || extraBytes > remaining || (bytesPerItem > 0 && count > (remaining-extraBytes)/bytesPerItem) {
 		r.err = fmt.Errorf("invalid %s payload size at byte %d", name, r.pos)
 	}
+}
+
+func (r *mlBinaryModelReader) readBytes(name string, count int) []byte {
+	if r.err != nil {
+		return nil
+	}
+	if count < 0 || count > len(r.raw)-r.pos {
+		r.err = fmt.Errorf("invalid %s length %d at byte %d", name, count, r.pos)
+		return nil
+	}
+	value := r.raw[r.pos : r.pos+count]
+	r.pos += count
+	return value
+}
+
+func (r *mlBinaryModelReader) readBoundedString(name string, maxBytes int) string {
+	length := r.readBoundedCount(name+" length", 0, maxBytes)
+	return string(r.readBytes(name, length))
+}
+
+func (r *mlBinaryModelReader) readBoolU32(name string) bool {
+	value := r.readU32()
+	if r.err != nil {
+		return false
+	}
+	if value > 1 {
+		r.err = fmt.Errorf("invalid %s value %d", name, value)
+		return false
+	}
+	return value == 1
 }
 
 func (r *mlBinaryModelReader) doneIfInvalid() error { return r.err }

@@ -267,38 +267,35 @@ func (m *KNNModel) Serialize(path string) error {
 }
 
 func DeserializeKNN(path string) (*KNNModel, error) {
-	raw, err := os.ReadFile(path)
+	r, err := newMLBinaryModelReaderWithLimit(path, "KNNN", mlKNNMaxModelFileBytes)
 	if err != nil {
 		return nil, err
 	}
-	if len(raw) < 24 || string(raw[0:4]) != "KNNN" {
-		return nil, fmt.Errorf("invalid KNN model file")
+	version := r.readSupportedVersion("KNN", 1, 2)
+	k := r.readBoundedCount("KNN neighbor count", 1, mlMaxTrainingSamples)
+	distance := r.readBoundedString("KNN distance", 32)
+	weight := r.readBoundedString("KNN weight", 32)
+	numSamples := r.readBoundedCount("KNN sample count", 0, mlMaxTrainingSamples)
+	numClasses := r.readBoundedCount("KNN class count", 1, mlBinaryMaxClasses)
+	if distance != "euclidean" && distance != "manhattan" && distance != "cosine" {
+		return nil, fmt.Errorf("invalid KNN distance %q", distance)
 	}
-	pos := 4
-
-	readU32 := func() uint32 {
-		v := binary.LittleEndian.Uint32(raw[pos:])
-		pos += 4
-		return v
+	if weight != "uniform" && weight != "distance" {
+		return nil, fmt.Errorf("invalid KNN weight %q", weight)
 	}
-
-	ver := readU32()
-	k := int(readU32())
-	distLen := int(readU32())
-	distance := string(raw[pos : pos+distLen])
-	pos += distLen
-	weightLen := int(readU32())
-	weight := string(raw[pos : pos+weightLen])
-	pos += weightLen
-	numSamples := int(readU32())
-	numClasses := int(readU32())
 
 	m := &KNNModel{K: k, Distance: distance, Weight: weight, NumClasses: numClasses}
 
 	// Read MaxDistance if v2+
-	if ver >= 2 {
-		m.MaxDistance = math.Float64frombits(binary.LittleEndian.Uint64(raw[pos:]))
-		pos += 8
+	if version >= 2 {
+		m.MaxDistance = r.readF64()
+		if math.IsNaN(m.MaxDistance) || math.IsInf(m.MaxDistance, 0) || m.MaxDistance < 0 {
+			return nil, fmt.Errorf("invalid KNN max distance %v", m.MaxDistance)
+		}
+	}
+	r.requireItems("KNN samples", numSamples, FeatureDim*mlBinaryFloatBytes+4, 0)
+	if err := r.doneIfInvalid(); err != nil {
+		return nil, err
 	}
 
 	m.Samples = make([][FeatureDim]float64, numSamples)
@@ -306,12 +303,20 @@ func DeserializeKNN(path string) (*KNNModel, error) {
 
 	for i := 0; i < numSamples; i++ {
 		for j := 0; j < FeatureDim; j++ {
-			m.Samples[i][j] = math.Float64frombits(binary.LittleEndian.Uint64(raw[pos:]))
-			pos += 8
+			value := r.readF64()
+			if math.IsNaN(value) || math.IsInf(value, 0) {
+				return nil, fmt.Errorf("invalid KNN sample %d feature %d", i, j)
+			}
+			m.Samples[i][j] = value
 		}
-		m.Labels[i] = int32(binary.LittleEndian.Uint32(raw[pos:]))
-		pos += 4
+		label := r.readU32()
+		if label >= uint32(numClasses) {
+			return nil, fmt.Errorf("invalid KNN sample %d label %d", i, label)
+		}
+		m.Labels[i] = int32(label)
 	}
-
+	if err := r.done(); err != nil {
+		return nil, err
+	}
 	return m, nil
 }
