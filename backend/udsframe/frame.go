@@ -17,14 +17,23 @@ const (
 var ErrInvalidPayloadSize = errors.New("invalid UDS frame payload size")
 
 func Read(r io.Reader) ([]byte, error) {
+	return ReadLimit(r, MaxPayloadSize)
+}
+
+// ReadLimit reads one frame while enforcing a caller-specific payload limit.
+// The limit may narrow, but never expand, the protocol-wide maximum.
+func ReadLimit(r io.Reader, maxPayloadSize int) ([]byte, error) {
+	if maxPayloadSize <= 0 || maxPayloadSize > MaxPayloadSize {
+		return nil, fmt.Errorf("%w: invalid read limit %d (protocol max %d)", ErrInvalidPayloadSize, maxPayloadSize, MaxPayloadSize)
+	}
 	var header [HeaderSize]byte
 	if _, err := io.ReadFull(r, header[:]); err != nil {
 		return nil, err
 	}
 
 	size := binary.BigEndian.Uint32(header[:])
-	if size == 0 || size > MaxPayloadSize {
-		return nil, fmt.Errorf("%w: %d (max %d)", ErrInvalidPayloadSize, size, MaxPayloadSize)
+	if size == 0 || size > uint32(maxPayloadSize) {
+		return nil, fmt.Errorf("%w: %d (max %d)", ErrInvalidPayloadSize, size, maxPayloadSize)
 	}
 
 	payload := make([]byte, int(size))

@@ -96,3 +96,19 @@ func TestFrameRejectsInvalidPayloadSizes(t *testing.T) {
 		t.Fatalf("Read(oversized header) error = %v", err)
 	}
 }
+
+func TestReadLimitEnforcesCallerSpecificMaximum(t *testing.T) {
+	t.Parallel()
+
+	payload := bytes.Repeat([]byte{'x'}, 32)
+	var stream bytes.Buffer
+	if err := udsframe.Write(&stream, payload); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+	if _, err := udsframe.ReadLimit(&stream, 16); !errors.Is(err, udsframe.ErrInvalidPayloadSize) {
+		t.Fatalf("ReadLimit() error = %v", err)
+	}
+	if _, err := udsframe.ReadLimit(bytes.NewReader(nil), 0); !errors.Is(err, udsframe.ErrInvalidPayloadSize) {
+		t.Fatalf("ReadLimit(invalid limit) error = %v", err)
+	}
+}

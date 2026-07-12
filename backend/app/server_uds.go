@@ -24,23 +24,40 @@ import (
 type udsConnectionSet struct {
 	mu     sync.Mutex
 	closed bool
+	max    int
 	conns  map[net.Conn]struct{}
 }
 
-const udsPeerIOTimeout = 5 * time.Second
+const (
+	udsPeerIOTimeout            = 5 * time.Second
+	udsMaxConcurrentConnections = 128
+	udsMaxWrapperRequestBytes   = 1 << 20
+	udsTLSAttachQueueSize       = 32
+)
 
-func newUDSConnectionSet() *udsConnectionSet {
-	return &udsConnectionSet{conns: make(map[net.Conn]struct{})}
+var (
+	errUDSConnectionSetClosed = errors.New("UDS connection set is closed")
+	errUDSConnectionLimit     = errors.New("UDS connection limit reached")
+)
+
+func newUDSConnectionSet(maxConnections int) *udsConnectionSet {
+	if maxConnections <= 0 {
+		maxConnections = udsMaxConcurrentConnections
+	}
+	return &udsConnectionSet{max: maxConnections, conns: make(map[net.Conn]struct{})}
 }
 
-func (s *udsConnectionSet) Add(conn net.Conn) bool {
+func (s *udsConnectionSet) Add(conn net.Conn) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
-		return false
+		return errUDSConnectionSetClosed
+	}
+	if len(s.conns) >= s.max {
+		return errUDSConnectionLimit
 	}
 	s.conns[conn] = struct{}{}
-	return true
+	return nil
 }
 
 func (s *udsConnectionSet) Remove(conn net.Conn) {
@@ -147,8 +164,10 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 	if verifyPeer == nil {
 		verifyPeer = verifyUDSPeerCredentials
 	}
-	connections := newUDSConnectionSet()
+	connections := newUDSConnectionSet(udsMaxConcurrentConnections)
+	tlsAttachScheduler := newWrapperTLSAttachScheduler(ctx, udsTLSAttachQueueSize, runWrapperTLSAttach)
 	var handlers sync.WaitGroup
+	defer tlsAttachScheduler.Stop()
 	defer handlers.Wait()
 	defer connections.CloseAll()
 	serverDone := make(chan struct{})
@@ -170,9 +189,12 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 			log.Printf("[ERROR] UDS accept failed: %v", err)
 			return
 		}
-		if !connections.Add(conn) {
+		if err := connections.Add(conn); err != nil {
 			_ = conn.Close()
-			return
+			if errors.Is(err, errUDSConnectionSetClosed) {
+				return
+			}
+			continue
 		}
 		handlers.Add(1)
 		go func(c net.Conn) {
@@ -186,13 +208,16 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 				if err := c.SetReadDeadline(time.Now().Add(udsPeerIOTimeout)); err != nil {
 					return
 				}
-				payload, err := udsframe.Read(c)
+				payload, err := udsframe.ReadLimit(c, udsMaxWrapperRequestBytes)
 				if err != nil {
 					return
 				}
 				req := &pb.WrapperRequest{}
 				if err := proto.Unmarshal(payload, req); err != nil {
-					continue
+					return
+				}
+				if err := validateWrapperRequest(req); err != nil {
+					return
 				}
 
 				rulesMu.RLock()
@@ -205,19 +230,19 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 					ruleAction = rule.Action
 					rulePriority = rule.Priority
 				}
+				argsText := strings.Join(req.Args, " ")
 
 				// ── Layer 1: Rule-based classification + embedding + anomaly scoring ──
 				classification, embedding := globalEmbedder.ClassifyAndEmbed(req.Comm, req.Args)
 				globalEmbedder.RegisterVocab(fmt.Sprintf("process %s performed wrapper_intercept on %s %s tagged Wrapper",
-					req.Comm, req.Comm, strings.Join(req.Args, " ")))
+					req.Comm, req.Comm, argsText))
 
 				// Only cluster if we have enough history (avoid cold-start noise)
 				globalEmbedder.AddToCluster(embedding)
 				anomalyScore := globalEmbedder.ComputeAnomalyScore(embedding)
 
 				// ── Network audit ──
-				cmdline := strings.Join(req.Args, " ")
-				netAudit := AuditNetworkBehavior(req.Comm, cmdline)
+				netAudit := AuditNetworkBehavior(req.Comm, argsText)
 
 				// ── Layer 2: ML random forest prediction ──
 				features := globalFeatureExtractor.Extract(req.Comm, req.Args, req.User, req.Pid)
@@ -287,12 +312,13 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 						labelVal = 0 // ALLOW
 						userLabelVal = "health-generator"
 					}
+					trainingArgs := boundedWrapperTrainingArgs(req.Args)
 					sample := TrainingSample{
 						Features:     features,
 						Label:        labelVal,
-						CommandLine:  joinCommandLine(req.Comm, req.Args),
-						Comm:         req.Comm,
-						Args:         req.Args,
+						CommandLine:  boundedWrapperTrainingString(joinCommandLine(req.Comm, trainingArgs), udsMaxTrainingCommandBytes),
+						Comm:         boundedWrapperTrainingString(req.Comm, udsMaxTrainingCommBytes),
+						Args:         trainingArgs,
 						Category:     classification.PrimaryCategory,
 						AnomalyScore: anomalyScore,
 						Timestamp:    time.Now(),
@@ -308,7 +334,7 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 					anomalyScore,
 					req.Pid,
 					req.User,
-					len(strings.Join(req.Args, " ")),
+					len(argsText),
 					len(req.Args),
 				)
 
@@ -333,7 +359,7 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 					Type:           "wrapper_intercept",
 					EventType:      pb.EventType_WRAPPER_INTERCEPT,
 					Tag:            "Wrapper",
-					Path:           strings.Join(append([]string{req.Comm}, req.Args...), " "),
+					Path:           boundedWrapperTrainingString(strings.TrimSpace(req.Comm+" "+argsText), udsMaxTrainingCommandBytes),
 					Behavior:       classification,
 					ExtraInfo:      fmt.Sprintf("net_audit:%s risk:%.0f", netAudit.RiskLevel, netAudit.RiskScore),
 					SchemaVersion:  eventSchemaVersion,
@@ -355,58 +381,11 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 
 				// ── Async TLS attach for wrapper-registered PIDs ──
 				if tlsCaptureController != nil && runtimeSettingsStore.Snapshot().TlsCaptureEnabled && req.Pid > 0 && resolvedAction != pb.WrapperResponse_BLOCK {
-					pid := req.Pid
-					comm := req.Comm
-					reqBinPath := req.BinaryPath // wrapper may know the path before exec
-					handlers.Add(1)
-					go func() {
-						defer handlers.Done()
-						select {
-						case <-ctx.Done():
-							return
-						default:
-						}
-						if !runtimeSettingsStore.Snapshot().TlsCaptureEnabled {
-							return
-						}
-						// Use the binary path supplied by the wrapper (if available)
-						// so we can start attach immediately without waiting for exec.
-						binPath := strings.TrimSpace(reqBinPath)
-						if binPath == "" {
-							// Fall back: give the target process time to exec
-							// (syscall.Exec replaces the wrapper binary
-							// with the actual command).
-							timer := time.NewTimer(500 * time.Millisecond)
-							select {
-							case <-ctx.Done():
-								timer.Stop()
-								return
-							case <-timer.C:
-							}
-
-							var err error
-							binPath, err = os.Readlink(fmt.Sprintf("/proc/%d/exe", pid))
-							if err != nil || binPath == "" {
-								log.Printf("[tls] wrapper-attach: PID %d (%s): cannot read exe after exec: %v", pid, comm, err)
-								return
-							}
-						}
-						if !runtimeSettingsStore.Snapshot().TlsCaptureEnabled {
-							return
-						}
-						select {
-						case <-ctx.Done():
-							return
-						default:
-						}
-
-						result := tlsCaptureController.AttachExecutable(binPath, int(pid), "")
-						if result.Error != "" {
-							log.Printf("[tls] wrapper-attach: PID %d (%s, %s): %s", pid, comm, binPath, result.Error)
-						} else {
-							log.Printf("[tls] wrapper-attach: PID %d (%s) attached via %s/%s (library=%s)", pid, comm, result.TargetKind, result.Library, binPath)
-						}
-					}()
+					_ = tlsAttachScheduler.Submit(wrapperTLSAttachRequest{
+						PID:        req.Pid,
+						Comm:       req.Comm,
+						BinaryPath: req.BinaryPath,
+					})
 				}
 
 				// ── Observer mode: tell the frontend to navigate to the observe page ──
