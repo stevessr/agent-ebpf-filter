@@ -1,6 +1,7 @@
 package executiongraph
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strconv"
@@ -57,10 +58,21 @@ type graphRelation struct {
 }
 
 func Build(records []Record, filters Filters) Response {
+	graph, _ := BuildContext(context.Background(), records, filters)
+	return graph
+}
+
+func BuildContext(ctx context.Context, records []Record, filters Filters) (Response, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	nodes := make(map[string]Node)
 	edges := make(map[string]Edge)
 	matchedEvents := 0
-	pidTree := buildExecutionGraphPIDTree(records, filters)
+	pidTree, err := buildExecutionGraphPIDTreeContext(ctx, records, filters)
+	if err != nil {
+		return Response{}, err
+	}
 
 	addNode := func(node Node) {
 		if node.ID == "" {
@@ -105,6 +117,11 @@ func Build(records []Record, filters Filters) Response {
 	}
 
 	for index, record := range records {
+		if index%64 == 0 {
+			if err := ctx.Err(); err != nil {
+				return Response{}, err
+			}
+		}
 		event := record.Event
 		if !matchesExecutionGraphFilters(record, event, filters, pidTree) {
 			continue
@@ -280,12 +297,22 @@ func Build(records []Record, filters Filters) Response {
 			},
 		})
 	}
+	if err := ctx.Err(); err != nil {
+		return Response{}, err
+	}
 
 	nodeList := make([]Node, 0, len(nodes))
 	nodeCounts := make(map[string]int)
+	nodeIndex := 0
 	for _, node := range nodes {
+		if nodeIndex%256 == 0 {
+			if err := ctx.Err(); err != nil {
+				return Response{}, err
+			}
+		}
 		nodeList = append(nodeList, node)
 		nodeCounts[node.Kind]++
+		nodeIndex++
 	}
 	sort.Slice(nodeList, func(i, j int) bool {
 		if nodeList[i].Kind == nodeList[j].Kind {
@@ -296,11 +323,21 @@ func Build(records []Record, filters Filters) Response {
 
 	edgeList := make([]Edge, 0, len(edges))
 	edgeCounts := make(map[string]int)
+	edgeIndex := 0
 	for _, edge := range edges {
+		if edgeIndex%256 == 0 {
+			if err := ctx.Err(); err != nil {
+				return Response{}, err
+			}
+		}
 		edgeList = append(edgeList, edge)
 		edgeCounts[edge.Kind]++
+		edgeIndex++
 	}
 	sort.Slice(edgeList, func(i, j int) bool { return edgeList[i].ID < edgeList[j].ID })
+	if err := ctx.Err(); err != nil {
+		return Response{}, err
+	}
 
 	return Response{
 		EventCount: matchedEvents,
@@ -308,5 +345,5 @@ func Build(records []Record, filters Filters) Response {
 		EdgeCounts: edgeCounts,
 		Nodes:      nodeList,
 		Edges:      edgeList,
-	}
+	}, nil
 }

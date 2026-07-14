@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"agent-ebpf-filter/app/platform"
 	"golang.org/x/sys/unix"
@@ -15,6 +16,11 @@ import (
 
 const (
 	eventReplayMaxFileBytes         int64 = 128 * 1024 * 1024
+	eventReplayReadChunkBytes             = 256 * 1024
+	eventReplayMaxLineBytes               = 4 * 1024 * 1024
+	eventReplayMaxScannedLines            = 250000
+	eventReplayMaxRecords                 = 10000
+	eventReplayProcessingTimeout          = 15 * time.Second
 	browserRecordingExportMaxBytes        = 16 * 1024 * 1024
 	browserRecordingOutputMaxBytes        = 32 * 1024 * 1024
 	browserRecordingRequestMaxBytes int64 = 20 * 1024 * 1024
@@ -24,6 +30,8 @@ const (
 var (
 	errRecordingPathOutsideRoot = errors.New("recording path must be a file directly under the runtime recordings directory")
 	errRecordingFileTooLarge    = errors.New("recording file exceeds the replay size limit")
+	errRecordingLineTooLarge    = errors.New("recording line exceeds the replay line size limit")
+	errRecordingTooManyLines    = errors.New("recording replay scanned too many lines")
 	errBrowserRecordingTooLarge = errors.New("browser recording export exceeds the size limit")
 )
 

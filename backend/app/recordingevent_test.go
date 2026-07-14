@@ -1,8 +1,8 @@
 package app
 
 import (
-	"agent-ebpf-filter/pb"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"agent-ebpf-filter/pb"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/sys/unix"
@@ -205,6 +207,21 @@ func TestHandleSaveBrowserRecordingRejectsOversizedBody(t *testing.T) {
 	handleSaveBrowserRecording(ctx)
 	if rec.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleReplayEventRecordingStopsOnCanceledRequest(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	requestContext, cancel := context.WithCancel(context.Background())
+	cancel()
+	req := httptest.NewRequest(http.MethodPost, "/events/recording/replay", strings.NewReader(`{"path":"events.jsonl"}`)).WithContext(requestContext)
+	req.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	ginContext, _ := gin.CreateTestContext(recorder)
+	ginContext.Request = req
+	handleReplayEventRecording(ginContext)
+	if recorder.Body.Len() != 0 {
+		t.Fatalf("canceled replay wrote response body %q", recorder.Body.String())
 	}
 }
 

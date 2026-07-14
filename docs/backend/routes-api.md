@@ -57,7 +57,7 @@ registerRoutes()
 | `GET` | `/events/recording` | 录制状态 |
 | `POST` | `/events/recording/start` | 启动事件录制（仅允许运行时 `recordings/` 目录下的直接子文件，文件权限 `0600`） |
 | `POST` | `/events/recording/stop` | 停止事件录制 |
-| `POST` | `/events/recording/replay` | 回放录制（仅限安全录制目录内的普通单链接文件，最大 128 MiB） |
+| `POST` | `/events/recording/replay` | 回放录制（安全普通单链接文件；最大 128 MiB、单行 4 MiB、返回 10000 条） |
 | `POST` | `/events/recording/browser/save` | 原子保存浏览器录制（原始 export 最大 16 MiB，格式化输出最大 32 MiB） |
 
 > 录制文件路径可使用文件名，或使用位于
@@ -70,6 +70,11 @@ registerRoutes()
 > `pending`/`queueLen`/`queueCap`/`failedTotal`/`droppedTotal` 指标。单条 JSONL
 > 记录最大约 4 MiB；录制文件达到与回放一致的 128 MiB 上限后会停止该 writer，
 > 避免生成无法回放的文件。
+>
+> 回放从文件尾部按 256 KiB 块反向读取，只解析满足 `limit` 所需的最新有效 JSONL，
+> 再恢复时间顺序，避免为了 200 条尾部事件扫描完整 128 MiB 文件。一次请求最多检查
+> 250000 行，并受 15 秒处理期限和客户端取消信号约束；活动 writer 增长时使用请求开始
+> 时的文件大小快照。执行图的进程树使用邻接表 BFS，避免反序 PID 链触发重复全表扫描。
 
 ## 网络路由 (`/network`)
 

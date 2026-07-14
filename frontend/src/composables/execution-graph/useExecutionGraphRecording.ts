@@ -67,6 +67,7 @@ export function useExecutionGraphRecording(deps: ExecutionGraphRecordingDeps) {
   const recordingLastFlushedAt = shallowRef("");
   const recordingBusy = shallowRef(false);
   const replayBusy = shallowRef(false);
+  let replayAbortController: AbortController | null = null;
   let recordingStatusTimer: ReturnType<typeof setInterval> | null = null;
   let recordingStatusGeneration = 0;
   let disposed = false;
@@ -148,26 +149,42 @@ export function useExecutionGraphRecording(deps: ExecutionGraphRecordingDeps) {
       message.warning("请先填写录制文件路径");
       return;
     }
+    replayAbortController?.abort();
+    const controller = new AbortController();
+    replayAbortController = controller;
     replayBusy.value = true;
     try {
-      const { data } = await axios.post("/events/recording/replay", {
-        path,
-        limit: deps.filters.limit,
-      });
+      const { data } = await axios.post(
+        "/events/recording/replay",
+        {
+          path,
+          limit: deps.filters.limit,
+        },
+        { signal: controller.signal },
+      );
+      if (disposed || controller.signal.aborted) return;
       deps.replayPath.value = String(data?.path || path);
       deps.applyGraphPayload(data?.graph);
       await deps.syncRouteQuery();
+      if (disposed || controller.signal.aborted) return;
       deps.connectGraphSocket();
       message.success(`已回放 ${Number(data?.events ?? 0)} 条事件`);
     } catch (error) {
+      if (controller.signal.aborted || axios.isCancel(error)) return;
       console.error("Failed to replay event recording", error);
       message.error("回放录制文件失败");
     } finally {
-      replayBusy.value = false;
+      if (replayAbortController === controller) {
+        replayAbortController = null;
+        replayBusy.value = false;
+      }
     }
   };
 
   const stopReplay = async () => {
+    replayAbortController?.abort();
+    replayAbortController = null;
+    replayBusy.value = false;
     deps.replayPath.value = "";
     await deps.syncRouteQuery();
     deps.connectGraphSocket();
@@ -322,6 +339,9 @@ export function useExecutionGraphRecording(deps: ExecutionGraphRecordingDeps) {
   const cleanup = () => {
     disposed = true;
     recordingStatusGeneration++;
+    replayAbortController?.abort();
+    replayAbortController = null;
+    replayBusy.value = false;
     stopRecordingStatusPolling();
     stopBrowserReplay();
   };

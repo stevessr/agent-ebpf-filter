@@ -1,6 +1,8 @@
 package events
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -22,7 +24,14 @@ type executionGraphFilters = executiongraph.Filters
 func HandleExecutionGraph(c *gin.Context) {
 	graph, err := BuildExecutionGraphFromRequest(c)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		if c.Request.Context().Err() != nil || errors.Is(err, context.Canceled) {
+			return
+		}
+		status := http.StatusInternalServerError
+		if errors.Is(err, context.DeadlineExceeded) {
+			status = http.StatusServiceUnavailable
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, graph)
@@ -53,6 +62,9 @@ func ServeExecutionGraphWS(c *gin.Context) {
 	writeGraph := func() bool {
 		graph, err := BuildExecutionGraphFromRequest(c)
 		if err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return false
+			}
 			_ = wsstream.WriteJSON(conn, gin.H{"error": err.Error()})
 			return false
 		}
@@ -80,6 +92,7 @@ func ServeExecutionGraphWS(c *gin.Context) {
 }
 
 func BuildExecutionGraphFromRequest(c *gin.Context) (ExecutionGraphResponse, error) {
+	ctx := c.Request.Context()
 	limit := 200
 	if raw := strings.TrimSpace(c.Query("limit")); raw != "" {
 		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 && parsed <= 2000 {
@@ -91,7 +104,11 @@ func BuildExecutionGraphFromRequest(c *gin.Context) (ExecutionGraphResponse, err
 	var records []CapturedEventRecord
 	var err error
 	if replayPath := strings.TrimSpace(c.Query("replay_path")); replayPath != "" {
-		records, err = Deps.ReadCapturedEvents(replayPath, limit)
+		if Deps.ReadCapturedEventsContext != nil {
+			records, err = Deps.ReadCapturedEventsContext(ctx, replayPath, limit)
+		} else {
+			records, err = Deps.ReadCapturedEvents(replayPath, limit)
+		}
 		source = "replay_file"
 	} else {
 		records, source, err = Deps.RuntimeSettingsRecentEvents(limit)
@@ -99,22 +116,41 @@ func BuildExecutionGraphFromRequest(c *gin.Context) (ExecutionGraphResponse, err
 	if err != nil {
 		return ExecutionGraphResponse{}, err
 	}
+	if err := ctx.Err(); err != nil {
+		return ExecutionGraphResponse{}, err
+	}
 
 	filters := ExecutionGraphFiltersFromRequest(c)
-	graph := BuildExecutionGraph(records, filters)
+	graph, err := BuildExecutionGraphContext(ctx, records, filters)
+	if err != nil {
+		return ExecutionGraphResponse{}, err
+	}
 	graph.Source = source
 	return graph, nil
 }
 
 func BuildExecutionGraph(records []CapturedEventRecord, filters executionGraphFilters) ExecutionGraphResponse {
+	graph, _ := BuildExecutionGraphContext(context.Background(), records, filters)
+	return graph
+}
+
+func BuildExecutionGraphContext(ctx context.Context, records []CapturedEventRecord, filters executionGraphFilters) (ExecutionGraphResponse, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	internalRecords := make([]executiongraph.Record, 0, len(records))
-	for _, record := range records {
+	for index, record := range records {
+		if index%128 == 0 {
+			if err := ctx.Err(); err != nil {
+				return ExecutionGraphResponse{}, err
+			}
+		}
 		internalRecords = append(internalRecords, executiongraph.Record{
 			Event:      record.Event,
 			ReceivedAt: record.ReceivedAt,
 		})
 	}
-	return executiongraph.Build(internalRecords, filters)
+	return executiongraph.BuildContext(ctx, internalRecords, filters)
 }
 
 func ExecutionGraphFiltersFromRequest(c *gin.Context) executionGraphFilters {

@@ -1,12 +1,14 @@
 package events
 
 import (
+	"context"
+	"net"
+	"time"
+
 	"agent-ebpf-filter/core"
 	"agent-ebpf-filter/internal/network"
 	"agent-ebpf-filter/internal/protocoldetect"
 	"agent-ebpf-filter/pb"
-	"net"
-	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -65,16 +67,17 @@ var Deps struct {
 	DetectAppProtocol                    func(port uint32, domain string) string
 
 	// Global-object method closures (bandwidth, TCP tracker, flow aggregator, DNS)
-	BandwidthTrackerRecordBytes              func(srcIP, dstIP string, dstPort uint32, protocol, direction string, bytes uint64, comm string, pid uint32)
-	TCPTrackerRecordConnect                  func(srcIP, dstIP string, srcPort, dstPort uint32, pid uint32, comm string)
-	TCPTrackerRecordClose                    func(srcIP, dstIP string, srcPort, dstPort uint32)
-	TCPTrackerRecordStateChange              func(srcIP, dstIP string, srcPort, dstPort uint32, oldState, newState uint8, pid uint32, comm string)
-	FlowAggregatorApplyProtocolMetadata      func(srcIP, dstIP string, srcPort, dstPort uint32, protocol string, entry *ProtoDetectionEntry)
-	DNSCorrelationLookupIP                   func(ip string) (string, bool)
+	BandwidthTrackerRecordBytes         func(srcIP, dstIP string, dstPort uint32, protocol, direction string, bytes uint64, comm string, pid uint32)
+	TCPTrackerRecordConnect             func(srcIP, dstIP string, srcPort, dstPort uint32, pid uint32, comm string)
+	TCPTrackerRecordClose               func(srcIP, dstIP string, srcPort, dstPort uint32)
+	TCPTrackerRecordStateChange         func(srcIP, dstIP string, srcPort, dstPort uint32, oldState, newState uint8, pid uint32, comm string)
+	FlowAggregatorApplyProtocolMetadata func(srcIP, dstIP string, srcPort, dstPort uint32, protocol string, entry *ProtoDetectionEntry)
+	DNSCorrelationLookupIP              func(ip string) (string, bool)
 
 	// Graph execution / envelope event dependencies
 	Upgrader                    *websocket.Upgrader
 	ReadCapturedEvents          func(path string, limit int) ([]CapturedEventRecord, error)
+	ReadCapturedEventsContext   func(context.Context, string, int) ([]CapturedEventRecord, error)
 	RuntimeSettingsRecentEvents func(limit int) ([]CapturedEventRecord, string, error)
 	RuntimeSettingsSnapshot     func() RuntimeSettings
 	CollectorMetrics            CollectorMetricsStore
@@ -94,7 +97,7 @@ var Deps struct {
 	ToolBaselineRecord      func(toolName, comm, eventType, path string)
 
 	// Semantic alerts (used by alerts_semantic.go, alertsdetectsemantic.go)
-	SemanticAlertsState    *SemanticAlertState
+	SemanticAlertsState     *SemanticAlertState
 	ToolBaselineDetectDrift func(toolName, comm, eventType string) (string, bool)
 
 	// Event schema version (used by alerts_semantic.go)

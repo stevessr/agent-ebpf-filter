@@ -1,8 +1,12 @@
 package executiongraph
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
+
+	"agent-ebpf-filter/pb"
 )
 
 func TestParseIntervalBoundsNumericInputWithoutOverflow(t *testing.T) {
@@ -22,5 +26,32 @@ func TestParseIntervalBoundsNumericInputWithoutOverflow(t *testing.T) {
 		if got := ParseInterval(test.raw); got != test.want {
 			t.Errorf("ParseInterval(%q) = %s, want %s", test.raw, got, test.want)
 		}
+	}
+}
+
+func TestBuildExecutionGraphPIDTreeReverseChainIsLinearAndCancelable(t *testing.T) {
+	const processCount = 10000
+	records := make([]Record, 0, processCount-1)
+	for pid := processCount; pid >= 2; pid-- {
+		records = append(records, Record{Event: &pb.Event{Pid: uint32(pid), Ppid: uint32(pid - 1), Type: "read"}})
+	}
+	seed := uint32(1)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	tree, err := buildExecutionGraphPIDTreeContext(ctx, records, Filters{PID: &seed, ProcessTree: true})
+	if err != nil {
+		t.Fatalf("buildExecutionGraphPIDTreeContext() error = %v", err)
+	}
+	if len(tree) != processCount {
+		t.Fatalf("PID tree size = %d, want %d", len(tree), processCount)
+	}
+	if _, ok := tree[processCount]; !ok {
+		t.Fatalf("PID tree omitted deepest descendant %d", processCount)
+	}
+
+	canceled, cancelNow := context.WithCancel(context.Background())
+	cancelNow()
+	if _, err := buildExecutionGraphPIDTreeContext(canceled, records, Filters{PID: &seed, ProcessTree: true}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled PID tree error = %v, want context.Canceled", err)
 	}
 }

@@ -1,6 +1,7 @@
 package executiongraph
 
 import (
+	"context"
 	"strconv"
 	"strings"
 	"time"
@@ -64,39 +65,54 @@ func matchesExecutionGraphFilters(record Record, event *pb.Event, filters Filter
 }
 
 func buildExecutionGraphPIDTree(records []Record, filters Filters) map[uint32]struct{} {
+	tree, _ := buildExecutionGraphPIDTreeContext(context.Background(), records, filters)
+	return tree
+}
+
+func buildExecutionGraphPIDTreeContext(ctx context.Context, records []Record, filters Filters) (map[uint32]struct{}, error) {
 	if filters.PID == nil || !filters.ProcessTree {
-		return nil
+		return nil, nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	seed := *filters.PID
 	tree := map[uint32]struct{}{seed: {}}
-	changed := true
-	for changed {
-		changed = false
-		for _, record := range records {
-			event := record.Event
-			if event == nil || !matchesExecutionGraphNonPIDFilters(record, event, filters) {
-				continue
-			}
-			pid := event.GetPid()
-			ppid := event.GetPpid()
-			if _, ok := tree[ppid]; ok && pid != 0 {
-				if _, exists := tree[pid]; !exists {
-					tree[pid] = struct{}{}
-					changed = true
-				}
-			}
-			if childPID, ok := extractGraphInt(event.GetExtraInfo(), "child_pid"); ok && childPID > 0 {
-				if _, ok := tree[pid]; ok {
-					child := uint32(childPID)
-					if _, exists := tree[child]; !exists {
-						tree[child] = struct{}{}
-						changed = true
-					}
-				}
+	children := make(map[uint32][]uint32)
+	for index, record := range records {
+		if index%64 == 0 {
+			if err := ctx.Err(); err != nil {
+				return nil, err
 			}
 		}
+		event := record.Event
+		if event == nil || !matchesExecutionGraphNonPIDFilters(record, event, filters) {
+			continue
+		}
+		pid := event.GetPid()
+		if pid != 0 {
+			children[event.GetPpid()] = append(children[event.GetPpid()], pid)
+		}
+		if childPID, ok := extractGraphInt(event.GetExtraInfo(), "child_pid"); ok && childPID > 0 {
+			children[pid] = append(children[pid], uint32(childPID))
+		}
 	}
-	return tree
+	queue := []uint32{seed}
+	for index := 0; index < len(queue); index++ {
+		if index%64 == 0 {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+		}
+		for _, child := range children[queue[index]] {
+			if _, exists := tree[child]; exists {
+				continue
+			}
+			tree[child] = struct{}{}
+			queue = append(queue, child)
+		}
+	}
+	return tree, ctx.Err()
 }
 
 func matchesExecutionGraphNonPIDFilters(record Record, event *pb.Event, filters Filters) bool {

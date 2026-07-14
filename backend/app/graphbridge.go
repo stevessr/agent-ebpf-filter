@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"time"
 
 	"agent-ebpf-filter/app/events"
@@ -33,6 +34,10 @@ func executionGraphFiltersFromRequest(c *gin.Context) executiongraph.Filters {
 
 func buildExecutionGraph(records []events.CapturedEventRecord, filters executiongraph.Filters) executiongraph.Response {
 	return events.BuildExecutionGraph(records, filters)
+}
+
+func buildExecutionGraphContext(ctx context.Context, records []events.CapturedEventRecord, filters executiongraph.Filters) (executiongraph.Response, error) {
+	return events.BuildExecutionGraphContext(ctx, records, filters)
 }
 
 func parseExecutionGraphBool(raw string) bool {

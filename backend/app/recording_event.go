@@ -498,59 +498,16 @@ func (s *eventRecordingState) finishRecordingGeneration(done chan struct{}, term
 }
 
 func readCapturedEventsFile(path string, limit int) ([]CapturedEventRecord, error) {
-	records, _, err := readCapturedEventsFileAtRoot(runtimeRecordingsRoot(), path, limit)
+	return readCapturedEventsFileContext(context.Background(), path, limit)
+}
+
+func readCapturedEventsFileContext(ctx context.Context, path string, limit int) ([]CapturedEventRecord, error) {
+	records, _, err := readCapturedEventsFileAtRootContext(ctx, runtimeRecordingsRoot(), path, limit)
 	return records, err
 }
 
 func readCapturedEventsFileAtRoot(root, path string, limit int) ([]CapturedEventRecord, string, error) {
-	if limit <= 0 || limit > 10000 {
-		limit = 10000
-	}
-	rootFile, absRoot, err := openRecordingsRoot(root)
-	if err != nil {
-		return nil, "", err
-	}
-	defer rootFile.Close()
-	name, absPath, err := resolveRecordingTarget(absRoot, path, "")
-	if err != nil {
-		return nil, "", err
-	}
-	file, err := openRecordingChild(rootFile, name, unix.O_RDONLY, 0)
-	if err != nil {
-		return nil, "", err
-	}
-	defer file.Close()
-	info, err := file.Stat()
-	if err != nil {
-		return nil, "", err
-	}
-	if info.Size() > eventReplayMaxFileBytes {
-		return nil, "", fmt.Errorf("%w: %d bytes (limit %d)", errRecordingFileTooLarge, info.Size(), eventReplayMaxFileBytes)
-	}
-
-	limited := &io.LimitedReader{R: file, N: eventReplayMaxFileBytes + 1}
-	scanner := bufio.NewScanner(limited)
-	scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
-	records := make([]CapturedEventRecord, 0, min(limit, 1024))
-	for scanner.Scan() {
-		var record CapturedEventRecord
-		if err := json.Unmarshal(scanner.Bytes(), &record); err != nil || record.Event == nil {
-			continue
-		}
-		record = normalizeCapturedEventRecord(record)
-		records = append(records, record)
-		if len(records) > limit {
-			copy(records, records[len(records)-limit:])
-			records = records[:limit]
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, "", err
-	}
-	if limited.N <= 0 {
-		return nil, "", fmt.Errorf("%w: file grew beyond %d bytes during replay", errRecordingFileTooLarge, eventReplayMaxFileBytes)
-	}
-	return records, absPath, nil
+	return readCapturedEventsFileAtRootContext(context.Background(), root, path, limit)
 }
 
 func saveBrowserRecordingExport(path string, payload json.RawMessage) (string, int, error) {
@@ -675,16 +632,34 @@ func handleReplayEventRecording(c *gin.Context) {
 			req.Limit = parsed
 		}
 	}
-	records, resolvedPath, err := readCapturedEventsFileAtRoot(runtimeRecordingsRoot(), req.Path, req.Limit)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), eventReplayProcessingTimeout)
+	defer cancel()
+	records, resolvedPath, err := readCapturedEventsFileAtRootContext(ctx, runtimeRecordingsRoot(), req.Path, req.Limit)
 	if err != nil {
+		if c.Request.Context().Err() != nil {
+			return
+		}
 		status := http.StatusBadRequest
-		if errors.Is(err, errRecordingFileTooLarge) {
+		if errors.Is(err, errRecordingFileTooLarge) || errors.Is(err, errRecordingLineTooLarge) || errors.Is(err, errRecordingTooManyLines) {
 			status = http.StatusRequestEntityTooLarge
+		} else if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+			status = http.StatusServiceUnavailable
 		}
 		c.JSON(status, gin.H{"error": err.Error()})
 		return
 	}
-	graph := buildExecutionGraph(records, executionGraphFiltersFromRequest(c))
+	graph, err := buildExecutionGraphContext(ctx, records, executionGraphFiltersFromRequest(c))
+	if err != nil {
+		if c.Request.Context().Err() != nil {
+			return
+		}
+		status := http.StatusInternalServerError
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+			status = http.StatusServiceUnavailable
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
 	graph.Source = "replay_file"
 	c.JSON(200, gin.H{"path": resolvedPath, "events": len(records), "graph": graph})
 }

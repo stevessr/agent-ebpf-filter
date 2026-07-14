@@ -1,9 +1,12 @@
 package app
 
 import (
-	"agent-ebpf-filter/pb"
+	"context"
+	"errors"
 	"testing"
 	"time"
+
+	"agent-ebpf-filter/pb"
 )
 
 // ---- moved from backend/zz_merged_backend_test.go section graphexecution_test.go ----
@@ -190,6 +193,14 @@ func TestBuildExecutionGraphProcessTreeIncludesMonitoredProcessItself(t *testing
 		}
 	}
 	t.Fatalf("missing monitored process node")
+}
+
+func TestBuildExecutionGraphContextHonorsCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := buildExecutionGraphContext(ctx, []CapturedEventRecord{{Event: &pb.Event{Pid: 1}}}, executionGraphFilters{}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("buildExecutionGraphContext() error = %v, want context.Canceled", err)
+	}
 }
 
 func assertGraphNodeKind(t *testing.T, nodes []ExecutionGraphNode, kind string) {

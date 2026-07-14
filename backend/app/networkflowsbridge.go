@@ -126,6 +126,7 @@ func init() {
 	// Graph execution / envelope event dependencies
 	events.Deps.Upgrader = &upgrader
 	events.Deps.ReadCapturedEvents = readCapturedEventsFile
+	events.Deps.ReadCapturedEventsContext = readCapturedEventsFileContext
 	events.Deps.RuntimeSettingsRecentEvents = runtimeSettingsStore.RecentEvents
 	events.Deps.RuntimeSettingsSnapshot = func() events.RuntimeSettings {
 		return runtimeSettingsStore.Snapshot()
