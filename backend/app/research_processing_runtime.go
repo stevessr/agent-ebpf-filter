@@ -205,9 +205,7 @@ func (w *researchProcessingWorker) Start(ctx context.Context, queueSize int) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if queueSize <= 0 {
-		queueSize = researchProcessingDefaultQueueSize
-	}
+	queueSize = normalizeBackendWorkerQueueSize(queueSize, researchProcessingDefaultQueueSize)
 	w.lifecycleMu.Lock()
 	defer w.lifecycleMu.Unlock()
 	w.mu.Lock()
@@ -230,6 +228,7 @@ func (w *researchProcessingWorker) Start(ctx context.Context, queueSize int) {
 	w.mu.Unlock()
 	go func() {
 		w.run(workerCtx, queue)
+		w.lifecycleMu.Lock()
 		w.mu.Lock()
 		if w.done == done {
 			w.queue = nil
@@ -240,6 +239,7 @@ func (w *researchProcessingWorker) Start(ctx context.Context, queueSize int) {
 		}
 		w.mu.Unlock()
 		close(done)
+		w.lifecycleMu.Unlock()
 	}()
 }
 
@@ -251,14 +251,17 @@ func (w *researchProcessingWorker) run(ctx context.Context, queue <-chan researc
 			return
 		case item = <-queue:
 		}
+		if ctx.Err() != nil {
+			return
+		}
 		switch item.kind {
 		case researchProcessingWorkReset:
 			w.resetNow()
 		case researchProcessingWorkScan:
 			w.resetNow()
-			w.processRecords(item.records, item.force, item.queuedAt)
+			w.processRecordsContext(ctx, item.records, item.force, item.queuedAt)
 		case researchProcessingWorkEvent:
-			w.processRecords([]CapturedEventRecord{item.record}, item.force, item.queuedAt)
+			w.processRecordsContext(ctx, []CapturedEventRecord{item.record}, item.force, item.queuedAt)
 		}
 	}
 }
@@ -271,20 +274,18 @@ func (w *researchProcessingWorker) Shutdown(ctx context.Context) error {
 		ctx = context.Background()
 	}
 	w.lifecycleMu.Lock()
-	defer w.lifecycleMu.Unlock()
 	w.mu.Lock()
 	if !w.started {
 		w.mu.Unlock()
+		w.lifecycleMu.Unlock()
 		return nil
 	}
 	cancel := w.cancel
 	done := w.done
 	w.queue = nil
-	w.cancel = nil
-	w.done = nil
-	w.started = false
 	w.updatedAt = time.Now().UTC()
 	w.mu.Unlock()
+	w.lifecycleMu.Unlock()
 	if cancel != nil {
 		cancel()
 	}
@@ -330,22 +331,27 @@ func (w *researchProcessingWorker) enqueue(item researchProcessingWorkItem) bool
 	}
 	w.mu.RLock()
 	queue := w.queue
-	w.mu.RUnlock()
 	if queue == nil {
+		w.mu.RUnlock()
 		w.noteDrop("worker_not_started", "research processing worker is not started")
 		return false
 	}
 	if item.queuedAt.IsZero() {
 		item.queuedAt = time.Now().UTC()
 	}
+	accepted := false
 	select {
 	case queue <- item:
+		accepted = true
+	default:
+	}
+	w.mu.RUnlock()
+	if accepted {
 		w.noteEnqueued(item.queuedAt)
 		return true
-	default:
-		w.noteDrop("queue_full", "research processing queue is full")
-		return false
 	}
+	w.noteDrop("queue_full", "research processing queue is full")
+	return false
 }
 
 func (w *researchProcessingWorker) noteEnqueued(queuedAt time.Time) {
@@ -399,8 +405,15 @@ func (w *researchProcessingWorker) processRecord(record CapturedEventRecord, for
 }
 
 func (w *researchProcessingWorker) processRecords(records []CapturedEventRecord, force bool, queuedAt time.Time) {
+	w.processRecordsContext(context.Background(), records, force, queuedAt)
+}
+
+func (w *researchProcessingWorker) processRecordsContext(ctx context.Context, records []CapturedEventRecord, force bool, queuedAt time.Time) {
 	if w == nil || len(records) == 0 {
 		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	settings := runtimeSettingsStore.Snapshot().ResearchProcessing
 	normalizeResearchProcessingSettings(&settings)
@@ -408,41 +421,50 @@ func (w *researchProcessingWorker) processRecords(records []CapturedEventRecord,
 		w.noteDrop("disabled", "research processing is disabled")
 		return
 	}
-	samples := make([]researchEventSample, 0, len(records))
-	for _, record := range records {
-		if record.Event == nil {
-			continue
-		}
-		sample, ok := researchEventSampleFromRecord(record)
-		if ok {
-			samples = append(samples, sample)
-		}
-	}
-	if len(samples) == 0 {
-		return
-	}
-	now := time.Now().UTC()
-	w.mu.Lock()
-	w.consumedTotal += uint64(len(samples))
-	w.events = append(w.events, samples...)
 	maxEvents := settings.MaxEvents
 	if maxEvents <= 0 {
 		maxEvents = researchProcessingDefaultMaxEvents
 	}
-	if len(w.events) > maxEvents {
-		copy(w.events, w.events[len(w.events)-maxEvents:])
-		w.events = w.events[:maxEvents]
-	}
-	w.eventsVersion++
-	w.summaryDirty = true
-	w.lastProcessedAt = now
-	if !queuedAt.IsZero() {
-		if latency := now.Sub(queuedAt.UTC()); latency >= 0 {
-			w.lastWorkLatency = latency
+	for offset := 0; offset < len(records); offset += backendWorkerScanBatchSize {
+		if ctx.Err() != nil {
+			return
 		}
+		end := min(offset+backendWorkerScanBatchSize, len(records))
+		samples := make([]researchEventSample, 0, end-offset)
+		for _, record := range records[offset:end] {
+			if record.Event == nil {
+				continue
+			}
+			sample, ok := researchEventSampleFromRecord(record)
+			if ok {
+				samples = append(samples, sample)
+			}
+		}
+		if len(samples) == 0 {
+			continue
+		}
+		if ctx.Err() != nil {
+			return
+		}
+		now := time.Now().UTC()
+		w.mu.Lock()
+		w.consumedTotal += uint64(len(samples))
+		w.events = append(w.events, samples...)
+		if len(w.events) > maxEvents {
+			copy(w.events, w.events[len(w.events)-maxEvents:])
+			w.events = w.events[:maxEvents]
+		}
+		w.eventsVersion++
+		w.summaryDirty = true
+		w.lastProcessedAt = now
+		if !queuedAt.IsZero() {
+			if latency := now.Sub(queuedAt.UTC()); latency >= 0 {
+				w.lastWorkLatency = latency
+			}
+		}
+		w.updatedAt = now
+		w.mu.Unlock()
 	}
-	w.updatedAt = now
-	w.mu.Unlock()
 }
 
 func (w *researchProcessingWorker) Status() researchProcessingStatus {

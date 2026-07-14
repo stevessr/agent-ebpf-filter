@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -15,6 +16,85 @@ import (
 	"github.com/gin-gonic/gin"
 	"google.golang.org/protobuf/proto"
 )
+
+func TestSignalProcessingWorkerShutdownTimeoutKeepsGeneration(t *testing.T) {
+	worker := newSignalProcessingWorker()
+	oldDone := make(chan struct{})
+	worker.mu.Lock()
+	worker.started = true
+	worker.queue = make(chan signalProcessingWorkItem, 1)
+	worker.cancel = func() {}
+	worker.done = oldDone
+	worker.mu.Unlock()
+
+	shutdownCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := worker.Shutdown(shutdownCtx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Shutdown() error = %v, want context cancellation", err)
+	}
+	worker.mu.RLock()
+	started, queue, done := worker.started, worker.queue, worker.done
+	worker.mu.RUnlock()
+	if !started || queue != nil || done != oldDone {
+		t.Fatalf("timed-out shutdown state = started:%v queue:%v done:%p, want active generation with nil queue and done %p", started, queue, done, oldDone)
+	}
+	worker.Start(context.Background(), 4)
+	worker.mu.RLock()
+	started, queue, done = worker.started, worker.queue, worker.done
+	worker.mu.RUnlock()
+	if !started || queue != nil || done != oldDone {
+		t.Fatalf("Start() replaced a stopping generation: started:%v queue:%v done:%p", started, queue, done)
+	}
+}
+
+func TestSignalProcessingCanceledScanDoesNotMutateState(t *testing.T) {
+	oldStore := runtimeSettingsStore
+	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{SignalProcessing: SignalProcessingSettings{
+		Enabled:             true,
+		QueueSize:           128,
+		CronIntervalSeconds: 60,
+		DefaultTTLSeconds:   60,
+		MaxStates:           128,
+		Rules: []SignalRule{{
+			ID:         "reads",
+			Enabled:    true,
+			Kind:       signalKindRepeatedRead,
+			TTLSeconds: 60,
+			Weight:     1,
+			Conditions: []SignalCondition{{Field: "path", Operator: "prefix", Value: "/tmp/"}},
+		}},
+	}}}
+	t.Cleanup(func() { runtimeSettingsStore = oldStore })
+
+	worker := newSignalProcessingWorker()
+	records := []CapturedEventRecord{{
+		ReceivedAt: time.Now().UTC(),
+		Event:      &pb.Event{Pid: 1, Type: "read", Comm: "scan", Path: "/tmp/item"},
+	}}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	worker.processScan(ctx, records, true)
+	if status := worker.Status(); status.ConsumedTotal != 0 || status.ActiveStates != 0 {
+		t.Fatalf("canceled scan mutated state: %+v", status)
+	}
+}
+
+func TestSignalProcessingCapacityPressureReclaimsExpiredStatesFirst(t *testing.T) {
+	worker := newSignalProcessingWorker()
+	now := time.Now().UTC()
+	worker.states["expired"] = &signalState{Key: "expired", UpdatedAt: now.Add(-time.Minute), ExpiresAt: now.Add(-time.Second)}
+	worker.states["active"] = &signalState{Key: "active", UpdatedAt: now, ExpiresAt: now.Add(time.Minute)}
+
+	worker.mu.Lock()
+	worker.enforceMaxStatesLocked(1, now)
+	worker.mu.Unlock()
+	if len(worker.states) != 1 || worker.states["active"] == nil || worker.states["expired"] != nil {
+		t.Fatalf("capacity reclamation kept wrong states: %#v", worker.states)
+	}
+	if worker.expiredTotal != 1 {
+		t.Fatalf("expired total = %d, want 1", worker.expiredTotal)
+	}
+}
 
 func TestSignalProcessingWorkerShutdownAndRestart(t *testing.T) {
 	oldStore := runtimeSettingsStore

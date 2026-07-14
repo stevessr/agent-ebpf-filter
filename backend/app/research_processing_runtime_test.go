@@ -2,11 +2,73 @@ package app
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"agent-ebpf-filter/pb"
 )
+
+func TestResearchProcessingWorkerShutdownTimeoutKeepsGeneration(t *testing.T) {
+	worker := newResearchProcessingWorker()
+	oldDone := make(chan struct{})
+	worker.mu.Lock()
+	worker.started = true
+	worker.queue = make(chan researchProcessingWorkItem, 1)
+	worker.cancel = func() {}
+	worker.done = oldDone
+	worker.mu.Unlock()
+
+	shutdownCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := worker.Shutdown(shutdownCtx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Shutdown() error = %v, want context cancellation", err)
+	}
+	worker.mu.RLock()
+	started, queue, done := worker.started, worker.queue, worker.done
+	worker.mu.RUnlock()
+	if !started || queue != nil || done != oldDone {
+		t.Fatalf("timed-out shutdown state = started:%v queue:%v done:%p, want active generation with nil queue and done %p", started, queue, done, oldDone)
+	}
+
+	worker.Start(context.Background(), 4)
+	worker.mu.RLock()
+	started, queue, done = worker.started, worker.queue, worker.done
+	worker.mu.RUnlock()
+	if !started || queue != nil || done != oldDone {
+		t.Fatalf("Start() replaced a stopping generation: started:%v queue:%v done:%p", started, queue, done)
+	}
+}
+
+func TestResearchProcessingCanceledScanDoesNotMutateState(t *testing.T) {
+	oldStore := runtimeSettingsStore
+	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{ResearchProcessing: ResearchProcessingSettings{
+		Enabled:   true,
+		MaxEvents: 300,
+	}}}
+	t.Cleanup(func() { runtimeSettingsStore = oldStore })
+
+	worker := newResearchProcessingWorker()
+	records := make([]CapturedEventRecord, backendWorkerScanBatchSize*2+1)
+	for index := range records {
+		records[index] = CapturedEventRecord{
+			ReceivedAt: time.Unix(1700000000+int64(index), 0),
+			Event:      &pb.Event{Pid: uint32(index + 1), Type: "openat", Comm: "scan", Path: "/tmp/item"},
+		}
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	worker.processRecordsContext(ctx, records, true, time.Now().UTC())
+	if status := worker.Status(); status.ConsumedTotal != 0 || status.BufferedTotal != 0 {
+		t.Fatalf("canceled scan mutated state: %+v", status)
+	}
+
+	worker.processRecords(records, true, time.Time{})
+	status := worker.Status()
+	if status.ConsumedTotal != uint64(len(records)) || status.BufferedTotal != 300 {
+		t.Fatalf("batched scan totals = consumed:%d buffered:%d, want %d/300", status.ConsumedTotal, status.BufferedTotal, len(records))
+	}
+}
 
 func TestResearchProcessingWorkerShutdownAndRestart(t *testing.T) {
 	worker := newResearchProcessingWorker()

@@ -421,9 +421,7 @@ func (w *signalProcessingWorker) Start(ctx context.Context, queueSize int) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if queueSize <= 0 {
-		queueSize = signalDefaultQueueSize
-	}
+	queueSize = normalizeBackendWorkerQueueSize(queueSize, signalDefaultQueueSize)
 	w.lifecycleMu.Lock()
 	defer w.lifecycleMu.Unlock()
 	w.mu.Lock()
@@ -453,6 +451,7 @@ func (w *signalProcessingWorker) Start(ctx context.Context, queueSize int) {
 			w.runCron(workerCtx)
 		}()
 		workers.Wait()
+		w.lifecycleMu.Lock()
 		w.mu.Lock()
 		if w.done == done {
 			w.queue = nil
@@ -463,6 +462,7 @@ func (w *signalProcessingWorker) Start(ctx context.Context, queueSize int) {
 		}
 		w.mu.Unlock()
 		close(done)
+		w.lifecycleMu.Unlock()
 	}()
 }
 
@@ -474,13 +474,14 @@ func (w *signalProcessingWorker) run(ctx context.Context, queue <-chan signalPro
 			return
 		case item = <-queue:
 		}
+		if ctx.Err() != nil {
+			return
+		}
 		switch item.kind {
 		case signalProcessingWorkReset:
 			w.resetNow()
 		case signalProcessingWorkScan:
-			for _, record := range item.records {
-				w.processRecord(record, item.force)
-			}
+			w.processScan(ctx, item.records, item.force)
 		case signalProcessingWorkExpire:
 			w.expireNow(time.Now().UTC())
 		case signalProcessingWorkEvent:
@@ -504,6 +505,9 @@ func (w *signalProcessingWorker) runCron(ctx context.Context) {
 			return
 		case <-timer.C:
 		}
+		if ctx.Err() != nil {
+			return
+		}
 		if !w.EnqueueExpire() {
 			w.expireNow(time.Now().UTC())
 		}
@@ -518,20 +522,18 @@ func (w *signalProcessingWorker) Shutdown(ctx context.Context) error {
 		ctx = context.Background()
 	}
 	w.lifecycleMu.Lock()
-	defer w.lifecycleMu.Unlock()
 	w.mu.Lock()
 	if !w.started {
 		w.mu.Unlock()
+		w.lifecycleMu.Unlock()
 		return nil
 	}
 	cancel := w.cancel
 	done := w.done
 	w.queue = nil
-	w.cancel = nil
-	w.done = nil
-	w.started = false
 	w.updatedAt = time.Now().UTC()
 	w.mu.Unlock()
+	w.lifecycleMu.Unlock()
 	if cancel != nil {
 		cancel()
 	}
@@ -580,18 +582,23 @@ func (w *signalProcessingWorker) enqueue(item signalProcessingWorkItem) bool {
 	}
 	w.mu.RLock()
 	queue := w.queue
-	w.mu.RUnlock()
 	if queue == nil {
+		w.mu.RUnlock()
 		w.noteDrop("signal processing worker is not started")
 		return false
 	}
+	accepted := false
 	select {
 	case queue <- item:
-		return true
+		accepted = true
 	default:
-		w.noteDrop("signal processing queue is full")
-		return false
 	}
+	w.mu.RUnlock()
+	if accepted {
+		return true
+	}
+	w.noteDrop("signal processing queue is full")
+	return false
 }
 
 func (w *signalProcessingWorker) resetNow() {
@@ -640,11 +647,38 @@ func (w *signalProcessingWorker) expireNow(now time.Time) {
 }
 
 func (w *signalProcessingWorker) processRecord(record CapturedEventRecord, force bool) {
-	if w == nil || record.Event == nil || shouldIgnoreSignalProcessingEvent(record.Event) {
+	if w == nil {
 		return
 	}
 	settings := runtimeSettingsStore.Snapshot().SignalProcessing
 	normalizeSignalProcessingSettings(&settings)
+	w.processRecordWithSettings(record, force, settings)
+}
+
+func (w *signalProcessingWorker) processScan(ctx context.Context, records []CapturedEventRecord, force bool) {
+	if w == nil || len(records) == 0 {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	settings := runtimeSettingsStore.Snapshot().SignalProcessing
+	normalizeSignalProcessingSettings(&settings)
+	if !force && !settings.Enabled {
+		return
+	}
+	for _, record := range records {
+		if ctx.Err() != nil {
+			return
+		}
+		w.processRecordWithSettings(record, force, settings)
+	}
+}
+
+func (w *signalProcessingWorker) processRecordWithSettings(record CapturedEventRecord, force bool, settings SignalProcessingSettings) {
+	if w == nil || record.Event == nil || shouldIgnoreSignalProcessingEvent(record.Event) {
+		return
+	}
 	if !force && !settings.Enabled {
 		return
 	}
@@ -660,48 +694,44 @@ func (w *signalProcessingWorker) processRecord(record CapturedEventRecord, force
 
 	updates := make([]*signalState, 0, 4)
 	for _, rule := range settings.Rules {
-		ruleCopy := rule
-		normalizeSignalRule(&ruleCopy, settings.DefaultTTLSeconds, 0)
-		if !ruleCopy.Enabled || !signalRuleMatches(ruleCopy, event) {
+		if !rule.Enabled || !signalRuleMatches(rule, event) {
 			continue
 		}
-		stateKey, target := signalStateKey(ruleCopy, event)
+		stateKey, target := signalStateKey(rule, event)
 		if stateKey == "" {
 			continue
 		}
 		updates = append(updates, &signalState{
 			ID:            signalStateID(stateKey),
-			RuleID:        ruleCopy.ID,
-			RuleName:      ruleCopy.Name,
-			Kind:          ruleCopy.Kind,
+			RuleID:        rule.ID,
+			RuleName:      rule.Name,
+			Kind:          rule.Kind,
 			Key:           stateKey,
 			Target:        target,
 			PID:           event.GetPid(),
 			TGID:          event.GetTgid(),
 			Comm:          strings.TrimSpace(event.GetComm()),
-			TTLSeconds:    ruleCopy.TTLSeconds,
+			TTLSeconds:    rule.TTLSeconds,
 			LastMatchedAt: observedAt,
 			UpdatedAt:     observedAt,
-			ExpiresAt:     observedAt.Add(time.Duration(ruleCopy.TTLSeconds) * time.Second),
+			ExpiresAt:     observedAt.Add(time.Duration(rule.TTLSeconds) * time.Second),
 			LastEventType: signalEventType(event),
 			LastPath:      strings.TrimSpace(event.GetPath()),
 			LastExtraPath: strings.TrimSpace(event.GetExtraPath()),
 			LastEventID:   recordEnvelopeID(record),
-			Score:         ruleCopy.Weight,
+			Score:         rule.Weight,
 			Count:         1,
 		})
 	}
 	if len(updates) == 0 {
 		w.mu.Lock()
 		w.consumedTotal++
-		w.evictExpiredLocked(observedAt)
 		w.mu.Unlock()
 		return
 	}
 
 	w.mu.Lock()
 	w.consumedTotal++
-	w.evictExpiredLocked(observedAt)
 	for _, update := range updates {
 		existing := w.states[update.Key]
 		if existing == nil {
@@ -729,7 +759,7 @@ func (w *signalProcessingWorker) processRecord(record CapturedEventRecord, force
 		}
 		w.updatedTotal++
 	}
-	w.enforceMaxStatesLocked(settings.MaxStates)
+	w.enforceMaxStatesLocked(settings.MaxStates, observedAt)
 	w.updatedAt = observedAt
 	w.mu.Unlock()
 }
@@ -765,8 +795,14 @@ func (w *signalProcessingWorker) evictExpiredLocked(now time.Time) {
 	}
 }
 
-func (w *signalProcessingWorker) enforceMaxStatesLocked(maxStates int) {
+func (w *signalProcessingWorker) enforceMaxStatesLocked(maxStates int, now time.Time) {
 	if maxStates <= 0 || len(w.states) <= maxStates {
+		return
+	}
+	// The cron worker owns routine expiry. Only scan the full state map on the
+	// event hot path when capacity pressure makes reclamation necessary.
+	w.evictExpiredLocked(now)
+	if len(w.states) <= maxStates {
 		return
 	}
 	type candidate struct {

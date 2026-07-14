@@ -158,9 +158,7 @@ func (w *loopDetectionWorker) Start(ctx context.Context, queueSize int) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if queueSize <= 0 {
-		queueSize = loopDetectionDefaultQueueSize
-	}
+	queueSize = normalizeBackendWorkerQueueSize(queueSize, loopDetectionDefaultQueueSize)
 	w.lifecycleMu.Lock()
 	defer w.lifecycleMu.Unlock()
 	w.mu.Lock()
@@ -180,6 +178,7 @@ func (w *loopDetectionWorker) Start(ctx context.Context, queueSize int) {
 
 	go func() {
 		w.run(workerCtx, queue)
+		w.lifecycleMu.Lock()
 		w.mu.Lock()
 		if w.done == done {
 			w.queue = nil
@@ -190,6 +189,7 @@ func (w *loopDetectionWorker) Start(ctx context.Context, queueSize int) {
 		}
 		w.mu.Unlock()
 		close(done)
+		w.lifecycleMu.Unlock()
 	}()
 }
 
@@ -201,13 +201,14 @@ func (w *loopDetectionWorker) run(ctx context.Context, queue <-chan loopDetectio
 			return
 		case item = <-queue:
 		}
+		if ctx.Err() != nil {
+			return
+		}
 		switch item.kind {
 		case loopDetectionWorkReset:
 			w.resetNow()
 		case loopDetectionWorkScan:
-			for _, record := range item.records {
-				w.processRecord(record, item.force)
-			}
+			w.processScan(ctx, item.records, item.force)
 		case loopDetectionWorkEvent:
 			w.processRecord(item.record, item.force)
 		}
@@ -222,20 +223,18 @@ func (w *loopDetectionWorker) Shutdown(ctx context.Context) error {
 		ctx = context.Background()
 	}
 	w.lifecycleMu.Lock()
-	defer w.lifecycleMu.Unlock()
 	w.mu.Lock()
 	if !w.started {
 		w.mu.Unlock()
+		w.lifecycleMu.Unlock()
 		return nil
 	}
 	cancel := w.cancel
 	done := w.done
 	w.queue = nil
-	w.cancel = nil
-	w.done = nil
-	w.started = false
 	w.updatedAt = time.Now().UTC()
 	w.mu.Unlock()
+	w.lifecycleMu.Unlock()
 	if cancel != nil {
 		cancel()
 	}
@@ -280,18 +279,23 @@ func (w *loopDetectionWorker) enqueue(item loopDetectionWorkItem) bool {
 	}
 	w.mu.RLock()
 	queue := w.queue
-	w.mu.RUnlock()
 	if queue == nil {
+		w.mu.RUnlock()
 		w.noteDrop("loop detection worker is not started")
 		return false
 	}
+	accepted := false
 	select {
 	case queue <- item:
-		return true
+		accepted = true
 	default:
-		w.noteDrop("loop detection queue is full")
-		return false
 	}
+	w.mu.RUnlock()
+	if accepted {
+		return true
+	}
+	w.noteDrop("loop detection queue is full")
+	return false
 }
 
 func (w *loopDetectionWorker) resetNow() {
@@ -318,11 +322,38 @@ func (w *loopDetectionWorker) noteDrop(message string) {
 }
 
 func (w *loopDetectionWorker) processRecord(record CapturedEventRecord, force bool) {
-	if w == nil || record.Event == nil || shouldIgnoreLoopDetectionEvent(record.Event) {
+	if w == nil {
 		return
 	}
 	settings := runtimeSettingsStore.Snapshot().LoopDetection
 	normalizeLoopDetectionSettings(&settings)
+	w.processRecordWithSettings(record, force, settings)
+}
+
+func (w *loopDetectionWorker) processScan(ctx context.Context, records []CapturedEventRecord, force bool) {
+	if w == nil || len(records) == 0 {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	settings := runtimeSettingsStore.Snapshot().LoopDetection
+	normalizeLoopDetectionSettings(&settings)
+	if !force && !settings.Enabled {
+		return
+	}
+	for _, record := range records {
+		if ctx.Err() != nil {
+			return
+		}
+		w.processRecordWithSettings(record, force, settings)
+	}
+}
+
+func (w *loopDetectionWorker) processRecordWithSettings(record CapturedEventRecord, force bool, settings LoopDetectionSettings) {
+	if w == nil || record.Event == nil || shouldIgnoreLoopDetectionEvent(record.Event) {
+		return
+	}
 	if !force && !settings.Enabled {
 		return
 	}

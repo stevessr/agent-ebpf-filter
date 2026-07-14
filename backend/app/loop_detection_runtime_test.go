@@ -2,12 +2,66 @@ package app
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
 	"agent-ebpf-filter/pb"
 )
+
+func TestLoopDetectionWorkerShutdownTimeoutKeepsGeneration(t *testing.T) {
+	worker := newLoopDetectionWorker()
+	oldDone := make(chan struct{})
+	worker.mu.Lock()
+	worker.started = true
+	worker.queue = make(chan loopDetectionWorkItem, 1)
+	worker.cancel = func() {}
+	worker.done = oldDone
+	worker.mu.Unlock()
+
+	shutdownCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := worker.Shutdown(shutdownCtx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Shutdown() error = %v, want context cancellation", err)
+	}
+	worker.mu.RLock()
+	started, queue, done := worker.started, worker.queue, worker.done
+	worker.mu.RUnlock()
+	if !started || queue != nil || done != oldDone {
+		t.Fatalf("timed-out shutdown state = started:%v queue:%v done:%p, want active generation with nil queue and done %p", started, queue, done, oldDone)
+	}
+	worker.Start(context.Background(), 4)
+	worker.mu.RLock()
+	started, queue, done = worker.started, worker.queue, worker.done
+	worker.mu.RUnlock()
+	if !started || queue != nil || done != oldDone {
+		t.Fatalf("Start() replaced a stopping generation: started:%v queue:%v done:%p", started, queue, done)
+	}
+}
+
+func TestLoopDetectionCanceledScanDoesNotMutateState(t *testing.T) {
+	oldStore := runtimeSettingsStore
+	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{LoopDetection: LoopDetectionSettings{
+		Enabled:         true,
+		WindowSeconds:   60,
+		RepeatThreshold: 2,
+		MaxContexts:     128,
+	}}}
+	t.Cleanup(func() { runtimeSettingsStore = oldStore })
+
+	worker := newLoopDetectionWorker()
+	records := []CapturedEventRecord{{
+		ReceivedAt: time.Now().UTC(),
+		Event:      &pb.Event{Pid: 1, Type: "openat", Comm: "scan", Path: "/tmp/item", AgentRunId: "run"},
+	}}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	worker.processScan(ctx, records, true)
+	if status := worker.Status(); status.ConsumedTotal != 0 || status.WindowCount != 0 {
+		t.Fatalf("canceled scan mutated state: %+v", status)
+	}
+}
 
 func TestLoopDetectionWorkerShutdownAndRestart(t *testing.T) {
 	worker := newLoopDetectionWorker()
