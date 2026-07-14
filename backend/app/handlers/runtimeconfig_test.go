@@ -1,8 +1,8 @@
 package handlers
 
 import (
-	"agent-ebpf-filter/core"
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+
+	"agent-ebpf-filter/core"
 )
 
 type runtimeSettingsTestStore struct {
@@ -31,6 +33,9 @@ func (store *runtimeSettingsTestStore) Replace(settings RuntimeSettings) {
 }
 func (*runtimeSettingsTestStore) RecentEvents(int) ([]CapturedEventRecord, string, error) {
 	return nil, "memory", nil
+}
+func (s *runtimeSettingsTestStore) RecentEventsContext(_ context.Context, limit int) ([]CapturedEventRecord, string, error) {
+	return s.RecentEvents(limit)
 }
 func (*runtimeSettingsTestStore) TruncateEventLog() error { return nil }
 

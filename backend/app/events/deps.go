@@ -75,13 +75,14 @@ var Deps struct {
 	DNSCorrelationLookupIP              func(ip string) (string, bool)
 
 	// Graph execution / envelope event dependencies
-	Upgrader                    *websocket.Upgrader
-	ReadCapturedEvents          func(path string, limit int) ([]CapturedEventRecord, error)
-	ReadCapturedEventsContext   func(context.Context, string, int) ([]CapturedEventRecord, error)
-	RuntimeSettingsRecentEvents func(limit int) ([]CapturedEventRecord, string, error)
-	RuntimeSettingsSnapshot     func() RuntimeSettings
-	CollectorMetrics            CollectorMetricsStore
-	StringsTrimDefault          func(value, fallback string) string
+	Upgrader                           *websocket.Upgrader
+	ReadCapturedEvents                 func(path string, limit int) ([]CapturedEventRecord, error)
+	ReadCapturedEventsContext          func(context.Context, string, int) ([]CapturedEventRecord, error)
+	RuntimeSettingsRecentEvents        func(limit int) ([]CapturedEventRecord, string, error)
+	RuntimeSettingsRecentEventsContext func(context.Context, int) ([]CapturedEventRecord, string, error)
+	RuntimeSettingsSnapshot            func() RuntimeSettings
+	CollectorMetrics                   CollectorMetricsStore
+	StringsTrimDefault                 func(value, fallback string) string
 
 	// Kernel-risk feedback enforcement closures
 	BlockIP          func(ipStr string) error

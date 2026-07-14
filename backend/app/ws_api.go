@@ -1,9 +1,8 @@
 package app
 
 import (
-	"agent-ebpf-filter/app/platform"
-	"agent-ebpf-filter/pb"
 	"context"
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
@@ -12,6 +11,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"google.golang.org/protobuf/proto"
+
+	"agent-ebpf-filter/app/platform"
+	"agent-ebpf-filter/pb"
 )
 
 // ---- moved from backend/zz_merged_backend.go section ws_api.go ----
@@ -330,9 +332,16 @@ func parseEventLimitQuery(raw string, defaultLimit int) int {
 func handleRecentEvents(c *gin.Context) {
 	limit := parseEventLimitQuery(c.Query("limit"), 50)
 	filters := recentEventFiltersFromRequest(c)
-	records, source, err := runtimeSettingsStore.RecentEvents(limit)
+	records, source, err := runtimeSettingsStore.RecentEventsContext(c.Request.Context(), limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		if c.Request.Context().Err() != nil {
+			return
+		}
+		status := http.StatusInternalServerError
+		if errors.Is(err, context.DeadlineExceeded) {
+			status = http.StatusServiceUnavailable
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
 		return
 	}
 	records = filterRecentEventRecords(records, filters)

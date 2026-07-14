@@ -107,6 +107,74 @@ const compactList = (items?: Array<string | number>) => {
                   formatLatencyMs(collectorHealth.persistAppendLatencyNs)
                 }}</strong>
               </div>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap">
+                <a-tag
+                  :color="
+                    collectorHealth.persistWriterActive
+                      ? 'green'
+                      : collectorHealth.persistWriterStopping
+                        ? 'orange'
+                        : collectorHealth.persistWriterLastError
+                          ? 'red'
+                          : 'default'
+                  "
+                >
+                  persist writer:
+                  {{
+                    collectorHealth.persistWriterActive
+                      ? "active"
+                      : collectorHealth.persistWriterStopping
+                        ? "stopping"
+                        : collectorHealth.persistWriterLastError
+                          ? "failed"
+                          : "disabled"
+                  }}
+                </a-tag>
+                <a-tag color="blue">
+                  queue: {{ collectorHealth.persistQueueLen }}/{{
+                    collectorHealth.persistQueueCap
+                  }}
+                </a-tag>
+                <a-tag color="purple">
+                  pending: {{ collectorHealth.persistPending }}
+                </a-tag>
+                <a-tag color="green">
+                  persisted:
+                  {{ collectorHealth.persistGenerationPersisted }}/{{
+                    collectorHealth.persistGenerationEnqueued
+                  }}
+                </a-tag>
+                <a-tag
+                  :color="
+                    collectorHealth.persistGenerationFailed > 0
+                      ? 'red'
+                      : 'default'
+                  "
+                >
+                  failed: {{ collectorHealth.persistGenerationFailed }}
+                </a-tag>
+                <a-tag
+                  :color="
+                    collectorHealth.persistGenerationDropped > 0
+                      ? 'red'
+                      : 'default'
+                  "
+                >
+                  dropped: {{ collectorHealth.persistGenerationDropped }}
+                </a-tag>
+              </div>
+              <div>
+                last persisted flush:
+                <strong>{{
+                  formatMaybeDate(collectorHealth.persistWriterLastFlushedAt)
+                }}</strong>
+              </div>
+              <a-alert
+                v-if="collectorHealth.persistWriterLastError"
+                type="warning"
+                show-icon
+                :message="collectorHealth.persistWriterLastError"
+              />
             </div>
           </a-col>
           <a-col :xs="24" :md="12">

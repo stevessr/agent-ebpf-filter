@@ -81,6 +81,13 @@ func Main() error {
 	if _, err := AppCtx.RuntimeSettings.LoadOrCreate(); err != nil {
 		log.Printf("[WARN] failed to load runtime settings: %v", err)
 	}
+	defer func() {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), runtimeEventLogStopTimeout)
+		defer shutdownCancel()
+		if err := runtimeSettingsStore.Shutdown(shutdownCtx); err != nil {
+			log.Printf("[WARN] runtime event log shutdown did not complete cleanly: %v", err)
+		}
+	}()
 	defer otelExporterStore.Close()
 
 	runtime.KillPreviousBackendProcesses()

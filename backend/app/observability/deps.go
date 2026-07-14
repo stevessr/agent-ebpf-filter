@@ -4,9 +4,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cilium/ebpf"
+
 	"agent-ebpf-filter/core"
 	"agent-ebpf-filter/pb"
-	"github.com/cilium/ebpf"
 )
 
 // ── Re-export core types ─────────────────────────────────────────────────
@@ -20,6 +21,20 @@ type TrackerMapSet interface {
 	GetCollectorStats() *ebpf.Map
 }
 
+type PersistQueueStatus struct {
+	Active         bool
+	Stopping       bool
+	QueueLen       int
+	QueueCap       int
+	Pending        uint64
+	EnqueuedTotal  uint64
+	PersistedTotal uint64
+	FailedTotal    uint64
+	DroppedTotal   uint64
+	LastFlushedAt  string
+	LastError      string
+}
+
 type Deps struct {
 	TrackerMaps TrackerMapSet
 
@@ -31,6 +46,7 @@ type Deps struct {
 
 	LegacyWSClientCount   func() int
 	EnvelopeWSClientCount func() int
+	PersistQueueStatus    func() PersistQueueStatus
 	Broadcast             chan<- *pb.Event
 }
 

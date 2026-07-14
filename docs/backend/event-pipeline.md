@@ -59,6 +59,42 @@ flowchart TD
 - `SetMax()` 动态调整容量；
 - `Clear()` 清空内存记录。
 
+## 异步 JSONL 持久化
+
+`recordCapturedEvent()` 在完成 clone、schema 归一化和脱敏后，先写入内存
+`EventArchive`，再把同一条记录非阻塞地提交给持久化 writer。事件捕获热路径不再执行
+JSON 编码、文件写入或逐条 `Flush()`。
+
+持久化 writer 的边界如下：
+
+- 单消费者队列容量为 4096；队列满时只丢弃该条持久化副本，不阻塞 broadcast、
+  WebSocket、录制或其他派生 worker；
+- 使用 256 KiB 用户态缓冲区，按 128 条或 250 ms 批量刷盘；
+- 单条记录复用录制管线的约 4 MiB JSONL 上限；单条编码失败只记失败并继续处理，
+  文件写入/刷盘失败则终止当前 writer generation；
+- 配置替换、禁用、清空日志和后端停机会先停止接收，并在 5 秒期限内排空已接受记录；
+- 相同日志配置不会重启 writer；切换路径先准备新文件，再排空旧 generation，配置保存
+  失败时回滚原 writer；
+- 累计成功/失败计数只在实际刷盘完成后更新，不再把“未启用持久化”记为成功。
+
+`/system/collector-health` 暴露 writer active/stopping、queue length/capacity、
+pending、当前 generation 的 enqueued/persisted/failed/dropped、最后刷盘时间与最后错误。
+Prometheus 同时暴露 active、queue、pending 和 generation failure/drop gauges。
+
+## 持久化尾读
+
+`RecentEventsContext()` 在读取持久化文件前插入 flush barrier，因此 barrier 之前已接受的
+记录对本次读取可见。读取器基于请求开始时的文件大小快照，从文件尾部按 256 KiB
+反向读取，只解析满足 `limit` 所需的最新有效 JSONL，再恢复时间顺序。它限制：
+
+- 单次最多返回 50000 条（具体 HTTP/MCP 调用方可进一步收紧）；
+- 单行最多约 4 MiB；
+- 最多检查 250000 行和 128 MiB；
+- 全程检查请求取消信号，并统一使用 10 秒处理期限。
+
+取消会直接向上传播，不再继续扫描或写响应。非取消类文件读取失败会记录警告并回退到
+有界内存 archive；格式错误或缺少 event 的单行会被跳过。
+
 ## Event schema
 
 当前 `eventSchemaVersion` 是 `event.v3`。事件字段变化时必须同步 proto、生成物、后端构造、前端显示、图谱、AgentSight、OTLP 和 docs。

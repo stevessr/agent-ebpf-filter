@@ -111,7 +111,11 @@ func BuildExecutionGraphFromRequest(c *gin.Context) (ExecutionGraphResponse, err
 		}
 		source = "replay_file"
 	} else {
-		records, source, err = Deps.RuntimeSettingsRecentEvents(limit)
+		if Deps.RuntimeSettingsRecentEventsContext != nil {
+			records, source, err = Deps.RuntimeSettingsRecentEventsContext(ctx, limit)
+		} else {
+			records, source, err = Deps.RuntimeSettingsRecentEvents(limit)
+		}
 	}
 	if err != nil {
 		return ExecutionGraphResponse{}, err

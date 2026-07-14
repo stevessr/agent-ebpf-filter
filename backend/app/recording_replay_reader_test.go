@@ -89,6 +89,21 @@ func TestReplayTailReaderDoesNotScanUnneededPrefix(t *testing.T) {
 	}
 }
 
+func TestReplayTailReaderEnforcesScanByteBudget(t *testing.T) {
+	data := bytes.Repeat([]byte("x\n"), eventReplayReadChunkBytes)
+	reader := bytes.NewReader(data)
+	_, err := readCapturedEventTailWithScanLimit(
+		context.Background(),
+		reader,
+		int64(len(data)),
+		1,
+		eventReplayReadChunkBytes,
+	)
+	if !errors.Is(err, errRecordingScanTooLarge) {
+		t.Fatalf("scan budget error = %v, want errRecordingScanTooLarge", err)
+	}
+}
+
 func TestReplayTailReaderHonorsCancellationDuringMalformedTail(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "recordings")
 	if err := os.MkdirAll(root, 0o700); err != nil {

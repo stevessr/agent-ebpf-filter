@@ -177,7 +177,7 @@ func buildMCPServer() *mcp.Server {
 			if limit > 500 {
 				limit = 500
 			}
-			records, source, err := runtimeSettingsStore.RecentEvents(limit)
+			records, source, err := runtimeSettingsStore.RecentEventsContext(ctx, limit)
 			if err != nil {
 				return nil, MCPTailEventsOutput{}, err
 			}
@@ -266,7 +266,7 @@ func buildMCPServer() *mcp.Server {
 			if limit > 500 {
 				limit = 500
 			}
-			records, source, err := runtimeSettingsStore.RecentEvents(limit * 2)
+			records, source, err := runtimeSettingsStore.RecentEventsContext(ctx, limit*2)
 			if err != nil {
 				return nil, MCPTailEventsOutput{}, err
 			}

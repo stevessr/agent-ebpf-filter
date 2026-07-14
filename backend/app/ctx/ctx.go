@@ -17,6 +17,7 @@
 package ctx
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -41,6 +42,7 @@ type RuntimeSettingsStore interface {
 	UpdateLogging(enabled bool, path string) (core.RuntimeSettings, error)
 	RotateAccessToken() (core.RuntimeSettings, error)
 	RecentEvents(limit int) ([]core.CapturedEventRecord, string, error)
+	RecentEventsContext(context.Context, int) ([]core.CapturedEventRecord, string, error)
 	AppendEvent(record core.CapturedEventRecord) error
 	TruncateEventLog() error
 }

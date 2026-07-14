@@ -1,8 +1,7 @@
 package handlers
 
 import (
-	"agent-ebpf-filter/app/platform"
-	"agent-ebpf-filter/app/tls"
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -10,6 +9,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+
+	"agent-ebpf-filter/app/platform"
+	"agent-ebpf-filter/app/tls"
 )
 
 // ---- moved from app/handlers_agentsight.go ----
@@ -135,7 +137,10 @@ func HandleAgentSightEvents(tlsStore *tls.TLSCaptureStore, forceJSONL bool) gin.
 	return func(c *gin.Context) {
 		events, source, err := collectAgentSightEvents(c, tlsStore)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			if agentSightRequestCanceled(c, err) {
+				return
+			}
+			c.JSON(agentSightErrorStatus(err), gin.H{"error": err.Error()})
 			return
 		}
 		writeAgentSightEvents(c, events, source, forceJSONL)
@@ -149,9 +154,12 @@ func HandleAgentSightEventsQuery(tlsStore *tls.TLSCaptureStore) gin.HandlerFunc 
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		events, source, err := collectAgentSightEventsForQuery(query, tlsStore)
+		events, source, err := collectAgentSightEventsForQuery(c.Request.Context(), query, tlsStore)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			if agentSightRequestCanceled(c, err) {
+				return
+			}
+			c.JSON(agentSightErrorStatus(err), gin.H{"error": err.Error()})
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{
@@ -174,13 +182,19 @@ func HandleAgentSightEventsStream(tlsStore *tls.TLSCaptureStore) gin.HandlerFunc
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
 
-		emitSnapshot := func() {
-			events, _, err := collectAgentSightEventsForQuery(query, tlsStore)
+		emitSnapshot := func() bool {
+			events, _, err := collectAgentSightEventsForQuery(c.Request.Context(), query, tlsStore)
 			if err != nil {
+				if agentSightRequestCanceled(c, err) {
+					return false
+				}
 				c.SSEvent("error", gin.H{"error": err.Error()})
-				return
+				return true
 			}
-			for _, event := range events {
+			for index, event := range events {
+				if index%128 == 0 && c.Request.Context().Err() != nil {
+					return false
+				}
 				key := event.ID
 				if key == "" {
 					key = agentSightStableID("event", event.Timestamp, event.Source, event.PID, event.Comm, event.Data)
@@ -190,10 +204,13 @@ func HandleAgentSightEventsStream(tlsStore *tls.TLSCaptureStore) gin.HandlerFunc
 				}
 				c.SSEvent("event", event)
 			}
+			return true
 		}
 
 		c.Stream(func(_ io.Writer) bool {
-			emitSnapshot()
+			if !emitSnapshot() {
+				return false
+			}
 			select {
 			case <-c.Request.Context().Done():
 				return false
@@ -247,9 +264,12 @@ func HandleAgentSightEventsUpload(c *gin.Context) {
 
 func HandleAgentSightRunners(tlsStore *tls.TLSCaptureStore) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		events, _, err := collectAgentSightEventsForQuery(AgentSightEventQuery{Limit: agentSightMaxLimit, IncludeTLS: true}, tlsStore)
+		events, _, err := collectAgentSightEventsForQuery(c.Request.Context(), AgentSightEventQuery{Limit: agentSightMaxLimit, IncludeTLS: true}, tlsStore)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			if agentSightRequestCanceled(c, err) {
+				return
+			}
+			c.JSON(agentSightErrorStatus(err), gin.H{"error": err.Error()})
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{
@@ -263,13 +283,27 @@ func HandleAgentSightEventsStats(tlsStore *tls.TLSCaptureStore, runnerID string)
 		query := agentSightQueryFromRequest(c)
 		query.Limit = agentSightMaxLimit
 		query.RunnerID = platform.FirstNonEmpty(runnerID, query.RunnerID)
-		events, _, err := collectAgentSightEventsForQuery(query, tlsStore)
+		events, _, err := collectAgentSightEventsForQuery(c.Request.Context(), query, tlsStore)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			if agentSightRequestCanceled(c, err) {
+				return
+			}
+			c.JSON(agentSightErrorStatus(err), gin.H{"error": err.Error()})
 			return
 		}
 		c.JSON(http.StatusOK, buildAgentSightEventsStats(events, query.Limit, query.RunnerID))
 	}
+}
+
+func agentSightRequestCanceled(c *gin.Context, err error) bool {
+	return c.Request.Context().Err() != nil || errors.Is(err, context.Canceled)
+}
+
+func agentSightErrorStatus(err error) int {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return http.StatusServiceUnavailable
+	}
+	return http.StatusInternalServerError
 }
 
 func HandleAgentSightRunnerStats(tlsStore *tls.TLSCaptureStore) gin.HandlerFunc {

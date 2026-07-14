@@ -84,6 +84,13 @@ registerRoutes()
 > `omittedEdgeCount` 和 `truncatedFieldCount` 会显式标记被边界化的结果，前端会显示
 > `bounded output` 提示。空元数据字段不再输出。
 
+> 运行时持久化日志与录制 writer 相互独立：它使用 4096 项非阻塞队列、256 KiB
+> 缓冲区，并按 128 条或 250 ms 刷盘。`/events/recent` 会先等待 flush barrier，
+> 再按 256 KiB 块从 JSONL 尾部读取；单行最多 4 MiB、最多检查 250000 行和
+> 128 MiB，并继承 HTTP 取消信号和统一的 10 秒处理期限。文件读取失败时回退到内存 archive，客户端取消
+> 则直接终止。AgentSight 查询/SSE、执行图、信号扫描以及 MCP tail_events /
+> query_events 同样向该读取路径传播请求 context。
+
 ## 网络路由 (`/network`)
 
 | 方法 | 路径 | 用途 |
@@ -130,6 +137,21 @@ registerRoutes()
 | `POST` | `/sandbox/lsm/unblock-exec-name` | 解除 basename 阻断 |
 | `POST` | `/sandbox/lsm/block-file-name` | 阻断文件/目录 basename (open/read/write/mmap/mprotect/setattr/create/link/symlink/delete/mkdir/rmdir/mknod/rename) |
 | `POST` | `/sandbox/lsm/unblock-file-name` | 解除文件 basename 阻断 |
+
+### 系统健康路由
+
+| 方法 | 路径 | 用途 |
+|------|------|------|
+| `GET` | `/system/bootstrap-health` | 启动阶段健康状态 |
+| `GET` | `/system/collector-health` | 捕获、广播及异步持久化 writer/queue 健康状态 |
+| `GET` | `/system/otel-health` | OTLP exporter 健康状态 |
+
+`/system/collector-health` 中的 `persistGeneration*` 字段属于当前 writer generation；
+`capturedPersistedTotal` 和 `capturedPersistErrorsTotal` 为进程级累计值。最后刷盘时间、
+队列长度/容量、pending、active/stopping 和最后错误可用于区分“功能未启用”“正在排空”
+与“writer 因 I/O 失败停止”。/metrics 对应暴露 agent_ebpf_persist_writer_active、
+agent_ebpf_persist_queue_length/capacity、agent_ebpf_persist_pending 以及当前 generation
+的 failed/dropped gauges。
 
 ## 工具路由
 

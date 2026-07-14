@@ -36,6 +36,22 @@ func HandlePrometheusMetrics(c *gin.Context) {
 	writePrometheusSample(&b, "agent_ebpf_captured_persisted_total", nil, float64(health.CapturedPersistedTotal))
 	writePrometheusHeader(&b, "agent_ebpf_captured_persist_errors_total", "counter", "Total captured event persistence failures.")
 	writePrometheusSample(&b, "agent_ebpf_captured_persist_errors_total", nil, float64(health.CapturedPersistErrorsTotal))
+	writePrometheusHeader(&b, "agent_ebpf_persist_writer_active", "gauge", "Whether the asynchronous persisted-event writer is accepting records.")
+	if health.PersistWriterActive {
+		writePrometheusSample(&b, "agent_ebpf_persist_writer_active", nil, 1)
+	} else {
+		writePrometheusSample(&b, "agent_ebpf_persist_writer_active", nil, 0)
+	}
+	writePrometheusHeader(&b, "agent_ebpf_persist_queue_length", "gauge", "Current persisted-event writer queue length.")
+	writePrometheusSample(&b, "agent_ebpf_persist_queue_length", nil, float64(health.PersistQueueLen))
+	writePrometheusHeader(&b, "agent_ebpf_persist_queue_capacity", "gauge", "Configured persisted-event writer queue capacity.")
+	writePrometheusSample(&b, "agent_ebpf_persist_queue_capacity", nil, float64(health.PersistQueueCap))
+	writePrometheusHeader(&b, "agent_ebpf_persist_pending", "gauge", "Accepted persisted-event records not yet completed by the writer.")
+	writePrometheusSample(&b, "agent_ebpf_persist_pending", nil, float64(health.PersistPending))
+	writePrometheusHeader(&b, "agent_ebpf_persist_generation_failed", "gauge", "Persisted-event records failed in the current writer generation.")
+	writePrometheusSample(&b, "agent_ebpf_persist_generation_failed", nil, float64(health.PersistGenerationFailed))
+	writePrometheusHeader(&b, "agent_ebpf_persist_generation_dropped", "gauge", "Persisted-event records rejected in the current writer generation.")
+	writePrometheusSample(&b, "agent_ebpf_persist_generation_dropped", nil, float64(health.PersistGenerationDropped))
 	writePrometheusHeader(&b, "agent_ebpf_broadcast_queued_total", "counter", "Total events accepted into the backend broadcast queue.")
 	writePrometheusSample(&b, "agent_ebpf_broadcast_queued_total", nil, float64(health.BroadcastQueuedTotal))
 	writePrometheusHeader(&b, "agent_ebpf_broadcast_dropped_total", "counter", "Total events dropped before entering the backend broadcast queue.")

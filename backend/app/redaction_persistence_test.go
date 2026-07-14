@@ -1,7 +1,7 @@
 package app
 
 import (
-	"bufio"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -19,14 +19,17 @@ func TestRecordCapturedEventRedactsBeforeArchiveAndPersistence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenFile() error = %v", err)
 	}
+	writer, err := startRuntimeEventLogWriter(file)
+	if err != nil {
+		t.Fatalf("startRuntimeEventLogWriter() error = %v", err)
+	}
 
 	oldRuntime := runtimeSettingsStore
 	oldArchive := capturedEventArchive
 	oldEngine := globalRedactionEngine
 	runtimeSettingsStore = &runtimeState{
 		settings:  RuntimeSettings{LogPersistenceEnabled: true, LogFilePath: path},
-		logFile:   file,
-		logWriter: bufio.NewWriter(file),
+		logWriter: writer,
 	}
 	capturedEventArchive = newEventArchive(10)
 	globalRedactionEngine = redaction.NewRedactionEngine(redaction.RedactionPolicy{
@@ -48,6 +51,9 @@ func TestRecordCapturedEventRedactsBeforeArchiveAndPersistence(t *testing.T) {
 		Path:      "/home/user/private.txt",
 		ExtraInfo: "authorization=" + secret,
 	})
+	if err := runtimeSettingsStore.FlushEventLogContext(context.Background()); err != nil {
+		t.Fatalf("FlushEventLogContext() error = %v", err)
+	}
 	assertCapturedRecordRedacted(t, record, secret)
 
 	archived := capturedEventArchive.Snapshot(1)

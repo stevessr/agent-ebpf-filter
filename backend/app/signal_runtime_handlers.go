@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"mime"
 	"os"
@@ -34,9 +35,16 @@ func handleSignalProcessingTask(c *gin.Context) {
 		if limit > 50000 {
 			limit = 50000
 		}
-		records, _, err := runtimeSettingsStore.RecentEvents(limit)
+		records, _, err := runtimeSettingsStore.RecentEventsContext(c.Request.Context(), limit)
 		if err != nil {
-			c.JSON(500, gin.H{"error": err.Error()})
+			if c.Request.Context().Err() != nil {
+				return
+			}
+			status := 500
+			if errors.Is(err, context.DeadlineExceeded) {
+				status = 503
+			}
+			c.JSON(status, gin.H{"error": err.Error()})
 			return
 		}
 		if !signalProcessingWorkerStore.EnqueueScan(records) {
@@ -80,9 +88,16 @@ func handleSignalRuleTest(c *gin.Context) {
 	if limit > 50000 {
 		limit = 50000
 	}
-	records, _, err := runtimeSettingsStore.RecentEvents(limit)
+	records, _, err := runtimeSettingsStore.RecentEventsContext(c.Request.Context(), limit)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		if c.Request.Context().Err() != nil {
+			return
+		}
+		status := 500
+		if errors.Is(err, context.DeadlineExceeded) {
+			status = 503
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
 		return
 	}
 

@@ -67,11 +67,19 @@ func readCapturedEventsFileAtRootContext(ctx context.Context, root, path string,
 }
 
 func readCapturedEventTail(ctx context.Context, file io.ReaderAt, size int64, limit int) ([]CapturedEventRecord, error) {
+	return readCapturedEventTailWithScanLimit(ctx, file, size, limit, eventReplayMaxScannedBytes)
+}
+
+func readCapturedEventTailWithScanLimit(ctx context.Context, file io.ReaderAt, size int64, limit int, maxScannedBytes int64) ([]CapturedEventRecord, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if size <= 0 || limit <= 0 {
 		return []CapturedEventRecord{}, nil
 	}
 	records := make([]CapturedEventRecord, 0, min(limit, 1024))
 	position := size
+	var scannedBytes int64
 	var carry []byte
 	scannedLines := 0
 
@@ -107,7 +115,11 @@ func readCapturedEventTail(ctx context.Context, file io.ReaderAt, size int64, li
 		if position < chunkBytes {
 			chunkBytes = position
 		}
+		if maxScannedBytes > 0 && scannedBytes > maxScannedBytes-chunkBytes {
+			return nil, fmt.Errorf("%w: limit %d", errRecordingScanTooLarge, maxScannedBytes)
+		}
 		position -= chunkBytes
+		scannedBytes += chunkBytes
 		block := make([]byte, int(chunkBytes)+len(carry))
 		read, err := file.ReadAt(block[:int(chunkBytes)], position)
 		if err != nil && !errors.Is(err, io.EOF) {

@@ -1,7 +1,6 @@
 package observability
 
 import (
-	"agent-ebpf-filter/pb"
 	"fmt"
 	"net/http"
 	"sort"
@@ -11,6 +10,8 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/gin-gonic/gin"
+
+	"agent-ebpf-filter/pb"
 )
 
 type bpfCollectorStats struct {
@@ -68,6 +69,17 @@ type CollectorHealthResponse struct {
 	CapturedArchivedTotal          uint64            `json:"capturedArchivedTotal"`
 	CapturedPersistedTotal         uint64            `json:"capturedPersistedTotal"`
 	CapturedPersistErrorsTotal     uint64            `json:"capturedPersistErrorsTotal"`
+	PersistWriterActive            bool              `json:"persistWriterActive"`
+	PersistWriterStopping          bool              `json:"persistWriterStopping"`
+	PersistQueueLen                int               `json:"persistQueueLen"`
+	PersistQueueCap                int               `json:"persistQueueCap"`
+	PersistPending                 uint64            `json:"persistPending"`
+	PersistGenerationEnqueued      uint64            `json:"persistGenerationEnqueued"`
+	PersistGenerationPersisted     uint64            `json:"persistGenerationPersisted"`
+	PersistGenerationFailed        uint64            `json:"persistGenerationFailed"`
+	PersistGenerationDropped       uint64            `json:"persistGenerationDropped"`
+	PersistWriterLastFlushedAt     string            `json:"persistWriterLastFlushedAt,omitempty"`
+	PersistWriterLastError         string            `json:"persistWriterLastError,omitempty"`
 	BroadcastQueuedTotal           uint64            `json:"broadcastQueuedTotal"`
 	BroadcastDroppedTotal          uint64            `json:"broadcastDroppedTotal"`
 	BroadcastLastDropReason        string            `json:"broadcastLastDropReason,omitempty"`
@@ -208,18 +220,34 @@ func RecordCapturedPersist(err error, duration time.Duration) {
 }
 
 func (s *collectorMetricsState) recordCapturedPersist(err error, duration time.Duration) {
+	if err != nil {
+		s.recordCapturedPersistBatch(0, 1, duration)
+		return
+	}
+	s.recordCapturedPersistBatch(1, 0, duration)
+}
+
+func RecordCapturedPersistBatch(persisted, failed uint64, duration time.Duration) {
+	collectorMetricsStore.recordCapturedPersistBatch(persisted, failed, duration)
+}
+
+func (s *collectorMetricsState) recordCapturedPersistBatch(persisted, failed uint64, duration time.Duration) {
+	if persisted == 0 && failed == 0 {
+		return
+	}
 	s.mu.Lock()
 	s.persistAppendLatencyNs = uint64(duration.Nanoseconds())
-	if err != nil {
-		s.capturedPersistErrorsTotal++
-	} else {
-		s.capturedPersistedTotal++
-	}
+	s.capturedPersistedTotal += persisted
+	s.capturedPersistErrorsTotal += failed
 	s.mu.Unlock()
 }
 
 func (s *collectorMetricsState) RecordCapturedPersist(err error, duration time.Duration) {
 	s.recordCapturedPersist(err, duration)
+}
+
+func (s *collectorMetricsState) RecordCapturedPersistBatch(persisted, failed uint64, duration time.Duration) {
+	s.recordCapturedPersistBatch(persisted, failed, duration)
 }
 
 func RecordBroadcastEnqueue(accepted bool, reason string) {
@@ -447,6 +475,10 @@ func (s *collectorMetricsState) snapshot() CollectorHealthResponse {
 	for _, key := range agentSightKeys {
 		agentSightCounters[key] = raw.AgentSightCountersTotal[key]
 	}
+	persistQueue := PersistQueueStatus{}
+	if deps.PersistQueueStatus != nil {
+		persistQueue = deps.PersistQueueStatus()
+	}
 
 	return CollectorHealthResponse{
 		CollectorMapAvailable:          mapAvailable,
@@ -464,6 +496,17 @@ func (s *collectorMetricsState) snapshot() CollectorHealthResponse {
 		CapturedArchivedTotal:          raw.CapturedArchivedTotal,
 		CapturedPersistedTotal:         raw.CapturedPersistedTotal,
 		CapturedPersistErrorsTotal:     raw.CapturedPersistErrorsTotal,
+		PersistWriterActive:            persistQueue.Active,
+		PersistWriterStopping:          persistQueue.Stopping,
+		PersistQueueLen:                persistQueue.QueueLen,
+		PersistQueueCap:                persistQueue.QueueCap,
+		PersistPending:                 persistQueue.Pending,
+		PersistGenerationEnqueued:      persistQueue.EnqueuedTotal,
+		PersistGenerationPersisted:     persistQueue.PersistedTotal,
+		PersistGenerationFailed:        persistQueue.FailedTotal,
+		PersistGenerationDropped:       persistQueue.DroppedTotal,
+		PersistWriterLastFlushedAt:     persistQueue.LastFlushedAt,
+		PersistWriterLastError:         persistQueue.LastError,
 		BroadcastQueuedTotal:           raw.BroadcastQueuedTotal,
 		BroadcastDroppedTotal:          raw.BroadcastDroppedTotal,
 		BroadcastLastDropReason:        raw.BroadcastLastDropReason,

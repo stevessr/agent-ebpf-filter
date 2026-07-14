@@ -87,6 +87,7 @@ type TrackerMaps interface {
 type RuntimeSettingsStore interface {
 	Snapshot() RuntimeSettings
 	RecentEvents(limit int) ([]CapturedEventRecord, string, error)
+	RecentEventsContext(context.Context, int) ([]CapturedEventRecord, string, error)
 	TruncateEventLog() error
 }
 

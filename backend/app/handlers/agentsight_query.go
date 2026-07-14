@@ -1,8 +1,7 @@
 package handlers
 
 import (
-	"agent-ebpf-filter/app/platform"
-	"agent-ebpf-filter/app/tls"
+	"context"
 	"encoding/json"
 	"net/http"
 	"sort"
@@ -11,15 +10,24 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+
+	"agent-ebpf-filter/app/platform"
+	"agent-ebpf-filter/app/tls"
 )
 
 func collectAgentSightEvents(c *gin.Context, tlsStore *tls.TLSCaptureStore) ([]AgentSightExportEvent, string, error) {
 	query := agentSightQueryFromRequest(c)
-	return collectAgentSightEventsForQuery(query, tlsStore)
+	return collectAgentSightEventsForQuery(c.Request.Context(), query, tlsStore)
 }
 
-func collectAgentSightEventsForQuery(query AgentSightEventQuery, tlsStore *tls.TLSCaptureStore) ([]AgentSightExportEvent, string, error) {
-	records, source, err := Deps.RuntimeSettings.RecentEvents(query.Limit)
+func collectAgentSightEventsForQuery(ctx context.Context, query AgentSightEventQuery, tlsStore *tls.TLSCaptureStore) ([]AgentSightExportEvent, string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, "", err
+	}
+	records, source, err := Deps.RuntimeSettings.RecentEventsContext(ctx, query.Limit)
 	if err != nil {
 		return nil, "", err
 	}
@@ -28,21 +36,36 @@ func collectAgentSightEventsForQuery(query AgentSightEventQuery, tlsStore *tls.T
 		tlsCount = tlsStore.Count()
 	}
 	events := make([]AgentSightExportEvent, 0, len(records)+tlsCount)
-	for _, record := range records {
+	for index, record := range records {
+		if index%128 == 0 {
+			if err := ctx.Err(); err != nil {
+				return nil, "", err
+			}
+		}
 		converted := agentSightEventFromCapturedRecord(record)
 		if agentSightExportEventMatches(converted, query) {
 			events = append(events, converted)
 		}
 	}
 	if query.IncludeTLS && tlsStore != nil {
-		for _, event := range tlsStore.Recent(query.Limit) {
+		for index, event := range tlsStore.Recent(query.Limit) {
+			if index%128 == 0 {
+				if err := ctx.Err(); err != nil {
+					return nil, "", err
+				}
+			}
 			converted := agentSightEventFromTLSPlaintext(event)
 			if agentSightExportEventMatches(converted, query) {
 				events = append(events, converted)
 			}
 		}
 	}
-	for _, event := range Deps.AgentSightUploadedEvents.Recent(query.Limit) {
+	for index, event := range Deps.AgentSightUploadedEvents.Recent(query.Limit) {
+		if index%128 == 0 {
+			if err := ctx.Err(); err != nil {
+				return nil, "", err
+			}
+		}
 		if e, ok := event.(AgentSightExportEvent); ok && agentSightExportEventMatches(e, query) {
 			events = append(events, e)
 		}
@@ -56,6 +79,9 @@ func collectAgentSightEventsForQuery(query AgentSightEventQuery, tlsStore *tls.T
 	})
 	if len(events) > query.Limit {
 		events = events[len(events)-query.Limit:]
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, "", err
 	}
 	return events, source, nil
 }

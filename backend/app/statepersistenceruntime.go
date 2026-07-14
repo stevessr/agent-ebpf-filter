@@ -1,9 +1,7 @@
 package app
 
 import (
-	"agent-ebpf-filter/app/platform"
-	"agent-ebpf-filter/pb"
-	"bufio"
+	"context"
 	cryptorand "crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -13,6 +11,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"agent-ebpf-filter/app/platform"
+	"agent-ebpf-filter/pb"
 )
 
 // ---- moved from backend/zz_merged_backend.go section statepersistenceruntime.go ----
@@ -20,8 +21,9 @@ import (
 type runtimeState struct {
 	mu        sync.RWMutex
 	settings  RuntimeSettings
-	logFile   *os.File
-	logWriter *bufio.Writer
+	logWriter *runtimeEventLogWriter
+	logPath   string
+	logRoot   string
 }
 
 func newRuntimeState() *runtimeState {
@@ -47,29 +49,104 @@ func (s *runtimeState) saveLocked() error {
 	return platform.WriteFileAsRealUser(platform.RuntimeSettingsPath(), data, 0644)
 }
 
-func (s *runtimeState) closeLogWriterLocked() {
-	if s.logWriter != nil {
-		_ = s.logWriter.Flush()
-		s.logWriter = nil
+func cloneRuntimeSettings(settings RuntimeSettings) (RuntimeSettings, error) {
+	payload, err := json.Marshal(settings)
+	if err != nil {
+		return RuntimeSettings{}, err
 	}
-	if s.logFile != nil {
-		_ = s.logFile.Close()
-		s.logFile = nil
+	var cloned RuntimeSettings
+	if err := json.Unmarshal(payload, &cloned); err != nil {
+		return RuntimeSettings{}, err
+	}
+	return cloned, nil
+}
+
+func (s *runtimeState) closeLogWriterLocked() {
+	ctx, cancel := runtimeEventLogStopContext()
+	defer cancel()
+	if err := s.stopLogWriterLocked(ctx); err != nil {
+		log.Printf("[WARN] failed to stop runtime event log writer cleanly: %v", err)
 	}
 }
 
-func (s *runtimeState) applyLoggingLocked() error {
-	s.closeLogWriterLocked()
-	if !s.settings.LogPersistenceEnabled {
+func (s *runtimeState) stopLogWriterLocked(ctx context.Context) error {
+	writer := s.logWriter
+	if writer == nil {
 		return nil
 	}
-	file, resolvedPath, err := openRuntimeEventLogFile(s.settings.LogFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND)
+	err := writer.StopContext(ctx)
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
+	if s.logWriter == writer {
+		s.logWriter = nil
+		s.logPath = ""
+	}
+	return err
+}
+
+func (s *runtimeState) applyLoggingLocked() error {
+	if !s.settings.LogPersistenceEnabled {
+		ctx, cancel := runtimeEventLogStopContext()
+		defer cancel()
+		err := s.stopLogWriterLocked(ctx)
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return err
+		}
+		if err != nil {
+			log.Printf("[WARN] disabled runtime event log after writer failure: %v", err)
+		}
+		return nil
+	}
+	resolvedPath, err := resolveRuntimeEventLogPathWithin(s.eventLogRoot(), expandRuntimeEventLogPath(s.settings.LogFilePath))
 	if err != nil {
 		return err
 	}
+	if s.logWriter != nil && s.logPath == resolvedPath && s.logWriter.Status().Active {
+		s.settings.LogFilePath = resolvedPath
+		return nil
+	}
+	file, resolvedPath, err := openRuntimeEventLogFileWithin(s.eventLogRoot(), resolvedPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND)
+	if err != nil {
+		return err
+	}
+	writer, err := startRuntimeEventLogWriter(file)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := runtimeEventLogStopContext()
+	stopErr := s.stopLogWriterLocked(ctx)
+	cancel()
+	if errors.Is(stopErr, context.Canceled) || errors.Is(stopErr, context.DeadlineExceeded) {
+		stopCtx, stopCancel := runtimeEventLogStopContext()
+		_ = writer.StopContext(stopCtx)
+		stopCancel()
+		return stopErr
+	}
+	if stopErr != nil {
+		log.Printf("[WARN] previous runtime event log writer stopped after failure: %v", stopErr)
+	}
 	s.settings.LogFilePath = resolvedPath
-	s.logFile = file
-	s.logWriter = bufio.NewWriter(file)
+	s.logWriter = writer
+	s.logPath = resolvedPath
+	return nil
+}
+
+func (s *runtimeState) applyAndSaveSettingsLocked(previous RuntimeSettings) error {
+	if err := s.applyLoggingLocked(); err != nil {
+		s.settings = previous
+		if rollbackErr := s.applyLoggingLocked(); rollbackErr != nil {
+			return errors.Join(err, rollbackErr)
+		}
+		return err
+	}
+	if err := s.saveLocked(); err != nil {
+		s.settings = previous
+		if rollbackErr := s.applyLoggingLocked(); rollbackErr != nil {
+			return errors.Join(err, rollbackErr)
+		}
+		return err
+	}
 	return nil
 }
 
@@ -210,17 +287,20 @@ func (s *runtimeState) UpdateLogging(enabled bool, path string) (RuntimeSettings
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.settings.LogPersistenceEnabled = enabled
+	previous := s.settings
+	candidate, err := cloneRuntimeSettings(s.settings)
+	if err != nil {
+		return RuntimeSettings{}, err
+	}
+	candidate.LogPersistenceEnabled = enabled
 	if strings.TrimSpace(path) != "" {
-		s.settings.LogFilePath = path
+		candidate.LogFilePath = path
 	}
-	if err := normalizeRuntimeSettings(&s.settings); err != nil {
+	if err := normalizeRuntimeSettings(&candidate); err != nil {
 		return RuntimeSettings{}, err
 	}
-	if err := s.saveLocked(); err != nil {
-		return RuntimeSettings{}, err
-	}
-	if err := s.applyLoggingLocked(); err != nil {
+	s.settings = candidate
+	if err := s.applyAndSaveSettingsLocked(previous); err != nil {
 		return RuntimeSettings{}, err
 	}
 	return s.settings, nil
@@ -248,20 +328,18 @@ func (s *runtimeState) Replace(settings RuntimeSettings) (RuntimeSettings, error
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	previous := s.settings
 	seedRuntimeAccessTokenFromEnv(&settings)
 	if settings.MLConfig == (MLConfig{}) {
 		settings.MLConfig = s.settings.MLConfig
 	} else if settings.MLConfig.LlmAPIKey == "" {
 		settings.MLConfig.LlmAPIKey = s.settings.MLConfig.LlmAPIKey
 	}
+	if err := normalizeRuntimeSettings(&settings); err != nil {
+		return RuntimeSettings{}, err
+	}
 	s.settings = settings
-	if err := normalizeRuntimeSettings(&s.settings); err != nil {
-		return RuntimeSettings{}, err
-	}
-	if err := s.saveLocked(); err != nil {
-		return RuntimeSettings{}, err
-	}
-	if err := s.applyLoggingLocked(); err != nil {
+	if err := s.applyAndSaveSettingsLocked(previous); err != nil {
 		return RuntimeSettings{}, err
 	}
 	mlConfig = s.settings.MLConfig
@@ -274,17 +352,24 @@ func (s *runtimeState) TruncateEventLog() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.closeLogWriterLocked()
+	ctx, cancel := runtimeEventLogStopContext()
+	if err := s.stopLogWriterLocked(ctx); errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		cancel()
+		return err
+	} else if err != nil {
+		log.Printf("[WARN] truncating runtime event log after writer failure: %v", err)
+	}
+	cancel()
 	path := strings.TrimSpace(s.settings.LogFilePath)
 	if path == "" {
-		return nil
+		return s.applyLoggingLocked()
 	}
-	file, _, err := openRuntimeEventLogFile(path, os.O_WRONLY|os.O_TRUNC)
+	file, _, err := openRuntimeEventLogFileWithin(s.eventLogRoot(), expandRuntimeEventLogPath(path), os.O_WRONLY|os.O_TRUNC)
 	if err != nil {
-		return err
+		return errors.Join(err, s.applyLoggingLocked())
 	}
 	if err := file.Close(); err != nil {
-		return err
+		return errors.Join(err, s.applyLoggingLocked())
 	}
 	return s.applyLoggingLocked()
 }
@@ -299,18 +384,43 @@ func applyRetentionConfig(settings RuntimeSettings) {
 }
 
 func (s *runtimeState) RecentEvents(limit int) ([]CapturedEventRecord, string, error) {
-	if limit == 0 {
+	return s.RecentEventsContext(context.Background(), limit)
+}
+
+func (s *runtimeState) RecentEventsContext(ctx context.Context, limit int) ([]CapturedEventRecord, string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(ctx, runtimeEventLogRecentTimeout)
+	defer cancel()
+	if limit <= 0 {
 		limit = 50
+	} else if limit > runtimeEventLogMaxRecords {
+		limit = runtimeEventLogMaxRecords
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, "", err
 	}
 	s.mu.RLock()
 	settings := s.settings
+	writer := s.logWriter
 	s.mu.RUnlock()
 
 	if settings.LogPersistenceEnabled {
 		logPath := strings.TrimSpace(settings.LogFilePath)
 		if logPath != "" {
-			if records, err := tailCapturedEventsFile(logPath, limit); err == nil {
+			if writer != nil {
+				if err := writer.FlushContext(ctx); err != nil {
+					if ctx.Err() != nil {
+						return nil, "", ctx.Err()
+					}
+					log.Printf("[WARN] failed to flush persisted event log %s before reading: %v", logPath, err)
+				}
+			}
+			if records, err := tailCapturedEventsFileAtRootContext(ctx, s.eventLogRoot(), expandRuntimeEventLogPath(logPath), limit); err == nil {
 				return records, "file", nil
+			} else if ctx.Err() != nil {
+				return nil, "", ctx.Err()
 			} else if !errors.Is(err, os.ErrNotExist) {
 				log.Printf("[WARN] failed to read persisted event log %s: %v", logPath, err)
 			}
@@ -325,64 +435,69 @@ func (s *runtimeState) RecentEvents(limit int) ([]CapturedEventRecord, string, e
 }
 
 func (s *runtimeState) AppendEvent(record CapturedEventRecord) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.logWriter == nil {
-		return nil
-	}
-	payload, err := json.Marshal(record)
-	if err != nil {
-		return err
-	}
-	if _, err := s.logWriter.Write(payload); err != nil {
-		return err
-	}
-	if err := s.logWriter.WriteByte('\n'); err != nil {
-		return err
-	}
-	return s.logWriter.Flush()
+	_, err := s.enqueueEvent(record)
+	return err
 }
 
-func tailCapturedEventsFile(path string, limit int) ([]CapturedEventRecord, error) {
-	if limit == 0 {
-		limit = 50
+func (s *runtimeState) enqueueEvent(record CapturedEventRecord) (bool, error) {
+	if s == nil {
+		return false, nil
 	}
+	s.mu.RLock()
+	writer := s.logWriter
+	enabled := s.settings.LogPersistenceEnabled
+	if writer == nil || !enabled {
+		s.mu.RUnlock()
+		return false, nil
+	}
+	accepted, err := writer.Enqueue(record)
+	s.mu.RUnlock()
+	return accepted, err
+}
 
-	file, _, err := openRuntimeEventLogFile(path, os.O_RDONLY)
-	if err != nil {
-		return nil, err
+func (s *runtimeState) FlushEventLogContext(ctx context.Context) error {
+	if s == nil {
+		return nil
 	}
-	defer file.Close()
+	s.mu.RLock()
+	writer := s.logWriter
+	s.mu.RUnlock()
+	if writer == nil {
+		return nil
+	}
+	return writer.FlushContext(ctx)
+}
 
-	scanner := bufio.NewScanner(file)
-	scanner.Buffer(make([]byte, 64*1024), 2*1024*1024)
+func (s *runtimeState) EventLogStatus() runtimeEventLogStatus {
+	if s == nil {
+		return runtimeEventLogStatus{}
+	}
+	s.mu.RLock()
+	writer := s.logWriter
+	s.mu.RUnlock()
+	if writer == nil {
+		return runtimeEventLogStatus{}
+	}
+	return writer.Status()
+}
 
-	buffer := make([]CapturedEventRecord, 0)
-	if limit > 0 {
-		buffer = make([]CapturedEventRecord, 0, limit)
+func (s *runtimeState) Shutdown(ctx context.Context) error {
+	if s == nil {
+		return nil
 	}
-	for scanner.Scan() {
-		var record CapturedEventRecord
-		if err := json.Unmarshal(scanner.Bytes(), &record); err != nil {
-			continue
-		}
-		record = normalizeCapturedEventRecord(record)
-		if record.Event == nil {
-			continue
-		}
-		if limit < 0 || len(buffer) < limit {
-			buffer = append(buffer, record)
-			continue
-		}
-		copy(buffer, buffer[1:])
-		buffer[len(buffer)-1] = record
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.stopLogWriterLocked(ctx)
+}
 
-	return buffer, nil
+func (s *runtimeState) eventLogRoot() string {
+	if s != nil && strings.TrimSpace(s.logRoot) != "" {
+		return s.logRoot
+	}
+	return platform.RuntimeSettingsDir()
 }
 
 func recordCapturedEvent(event *pb.Event) CapturedEventRecord {
@@ -401,10 +516,9 @@ func recordCapturedEvent(event *pb.Event) CapturedEventRecord {
 	capturedEventArchive.Add(record)
 	collectorMetricsStore.RecordCapturedArchive()
 	appendStart := time.Now()
-	appendErr := runtimeSettingsStore.AppendEvent(record)
-	collectorMetricsStore.RecordCapturedPersist(appendErr, time.Since(appendStart))
+	_, appendErr := runtimeSettingsStore.enqueueEvent(record)
 	if appendErr != nil {
-		log.Printf("[WARN] failed to append captured event: %v", appendErr)
+		collectorMetricsStore.RecordCapturedPersistBatch(0, 1, time.Since(appendStart))
 	}
 	eventRecordingStore.Record(record)
 	otelExporterStore.Record(record)

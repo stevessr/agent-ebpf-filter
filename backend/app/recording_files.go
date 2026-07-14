@@ -19,6 +19,7 @@ const (
 	eventReplayReadChunkBytes             = 256 * 1024
 	eventReplayMaxLineBytes               = 4 * 1024 * 1024
 	eventReplayMaxScannedLines            = 250000
+	eventReplayMaxScannedBytes            = eventReplayMaxFileBytes
 	eventReplayMaxRecords                 = 10000
 	eventReplayProcessingTimeout          = 15 * time.Second
 	browserRecordingExportMaxBytes        = 16 * 1024 * 1024
@@ -32,6 +33,7 @@ var (
 	errRecordingFileTooLarge    = errors.New("recording file exceeds the replay size limit")
 	errRecordingLineTooLarge    = errors.New("recording line exceeds the replay line size limit")
 	errRecordingTooManyLines    = errors.New("recording replay scanned too many lines")
+	errRecordingScanTooLarge    = errors.New("recording replay scanned too many bytes")
 	errBrowserRecordingTooLarge = errors.New("browser recording export exceeds the size limit")
 )
 

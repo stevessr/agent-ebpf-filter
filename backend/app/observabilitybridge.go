@@ -1,8 +1,11 @@
 package app
 
 import (
-	"agent-ebpf-filter/app/observability"
+	"time"
+
 	"github.com/cilium/ebpf"
+
+	"agent-ebpf-filter/app/observability"
 )
 
 // ── TrackerMapSet adapter ─────────────────────────────────────────────────
@@ -36,6 +39,26 @@ func initObservability() {
 				return 0
 			}
 			return AppCtx.EnvelopeClientHub.ClientCount()
+		},
+		PersistQueueStatus: func() observability.PersistQueueStatus {
+			status := runtimeSettingsStore.EventLogStatus()
+			lastFlushedAt := ""
+			if !status.LastFlushedAt.IsZero() {
+				lastFlushedAt = status.LastFlushedAt.Format(time.RFC3339Nano)
+			}
+			return observability.PersistQueueStatus{
+				Active:         status.Active,
+				Stopping:       status.Stopping,
+				QueueLen:       status.QueueLen,
+				QueueCap:       status.QueueCap,
+				Pending:        status.Pending,
+				EnqueuedTotal:  status.EnqueuedTotal,
+				PersistedTotal: status.PersistedTotal,
+				FailedTotal:    status.FailedTotal,
+				DroppedTotal:   status.DroppedTotal,
+				LastFlushedAt:  lastFlushedAt,
+				LastError:      status.LastError,
+			}
 		},
 		Broadcast: broadcast,
 	})

@@ -128,6 +128,7 @@ func init() {
 	events.Deps.ReadCapturedEvents = readCapturedEventsFile
 	events.Deps.ReadCapturedEventsContext = readCapturedEventsFileContext
 	events.Deps.RuntimeSettingsRecentEvents = runtimeSettingsStore.RecentEvents
+	events.Deps.RuntimeSettingsRecentEventsContext = runtimeSettingsStore.RecentEventsContext
 	events.Deps.RuntimeSettingsSnapshot = func() events.RuntimeSettings {
 		return runtimeSettingsStore.Snapshot()
 	}

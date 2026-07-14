@@ -28,6 +28,22 @@
 | `SignalProcessing` | 信号规则、TTL 衰减、cron 清理和选中程序 protobuf 二进制日志配置 |
 | `DomainForwardProxy` | 80/443 Host/SNI forward config |
 
+### 事件日志持久化语义
+
+启用 `LogPersistenceEnabled` 后，捕获线程只向 4096 项有界队列执行非阻塞提交；
+单消费者 writer 使用 256 KiB 缓冲区，按 128 条或 250 ms 批量刷盘。队列满、单条
+JSON 编码失败和文件 I/O 失败都会进入健康指标，但不会让内核事件读取线程等待磁盘。
+
+`LogFilePath` 仍只允许 runtime settings 目录下的直接子普通文件，并拒绝符号链接、
+硬链接和特殊文件。配置更新采用 prepare/drain/swap：相同路径保持当前 writer，
+路径变更排空旧 generation，持久化配置写入失败时回滚原配置。禁用、清空和停机也会在
+有界期限内排空已接受记录。
+
+读取近期事件会先等待 flush barrier，然后从文件尾部反向读取；单行、扫描行数、
+扫描字节数、返回条数和取消信号都有明确边界。writer 的 generation 计数会在重启或
+路径切换后重置，而 `capturedPersistedTotal` / `capturedPersistErrorsTotal` 是进程级
+累计计数。
+
 ## Feature manifest
 
 定义：`backend/app/feature_manifest.go`
