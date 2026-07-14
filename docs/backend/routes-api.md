@@ -63,6 +63,13 @@ registerRoutes()
 > 录制文件路径可使用文件名，或使用位于
 > `~/.config/agent-ebpf-filter/recordings/` 下的绝对路径。父目录跳转、嵌套目录、
 > 符号链接、硬链接与 FIFO/设备等特殊文件会被拒绝。
+>
+> 事件录制采用 2048 项有界单消费者队列和 256 KiB 缓冲区，按 128 条或
+> 250 ms 批量刷盘；未启用录制时不会执行事件 JSON 编码。`Stop`、录制替换和
+> 后端停机会停止接收并排空已接受事件，状态响应包含
+> `pending`/`queueLen`/`queueCap`/`failedTotal`/`droppedTotal` 指标。单条 JSONL
+> 记录最大约 4 MiB；录制文件达到与回放一致的 128 MiB 上限后会停止该 writer，
+> 避免生成无法回放的文件。
 
 ## 网络路由 (`/network`)
 

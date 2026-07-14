@@ -190,6 +190,16 @@ func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) 
 	})
 	jobs.Go(func() {
 		<-ctx.Done()
+		// Leave the runtime job group enough time to observe this goroutine exit
+		// before main's five-second shutdown deadline expires.
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+		defer cancel()
+		if _, err := eventRecordingStore.StopContext(shutdownCtx); err != nil {
+			log.Printf("[WARN] event recording writer did not stop cleanly: %v", err)
+		}
+	})
+	jobs.Go(func() {
+		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 		defer cancel()
 		if err := shutdownCameraStreams(shutdownCtx); err != nil {

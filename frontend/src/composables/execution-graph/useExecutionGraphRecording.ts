@@ -1,4 +1,4 @@
-import { ref, type Ref } from "vue";
+import { shallowRef, type Ref } from "vue";
 import axios from "axios";
 import { message } from "ant-design-vue";
 
@@ -12,6 +12,21 @@ export type GraphState = ExecutionGraphResponse & {
   edges: any[];
 };
 export type BrowserGraphSnapshot = { recordedAt: string; graph: GraphState };
+type EventRecordingStatusPayload = {
+  active: boolean;
+  stopping: boolean;
+  path: string;
+  defaultPath: string;
+  startedAt: string;
+  count: number;
+  pending: number;
+  queueLen: number;
+  queueCap: number;
+  failedTotal: number;
+  droppedTotal: number;
+  lastFlushedAt: string;
+  lastError: string;
+};
 
 export type ExecutionGraphRecordingDeps = {
   graph: Ref<GraphState>;
@@ -38,23 +53,48 @@ export type ExecutionGraphRecordingDeps = {
 
 export function useExecutionGraphRecording(deps: ExecutionGraphRecordingDeps) {
   // ── File recording state ──
-  const recordingPath = ref("");
-  const recordingActive = ref(false);
-  const recordingCount = ref(0);
-  const recordingStartedAt = ref("");
-  const recordingBusy = ref(false);
-  const replayBusy = ref(false);
+  const recordingPath = shallowRef("");
+  const recordingActive = shallowRef(false);
+  const recordingStopping = shallowRef(false);
+  const recordingCount = shallowRef(0);
+  const recordingPending = shallowRef(0);
+  const recordingQueueLen = shallowRef(0);
+  const recordingQueueCap = shallowRef(0);
+  const recordingFailed = shallowRef(0);
+  const recordingDropped = shallowRef(0);
+  const recordingLastError = shallowRef("");
+  const recordingStartedAt = shallowRef("");
+  const recordingLastFlushedAt = shallowRef("");
+  const recordingBusy = shallowRef(false);
+  const replayBusy = shallowRef(false);
   let recordingStatusTimer: ReturnType<typeof setInterval> | null = null;
   let recordingStatusGeneration = 0;
   let disposed = false;
 
   // ── Browser recording state ──
-  const browserReplayIndex = ref(0);
-  const browserSavePath = ref("");
-  const browserSaveBusy = ref(false);
+  const browserReplayIndex = shallowRef(0);
+  const browserSavePath = shallowRef("");
+  const browserSaveBusy = shallowRef(false);
   let browserReplayTimer: ReturnType<typeof setInterval> | null = null;
 
   // ── File recording functions ──
+
+  const applyRecordingStatus = (data?: Partial<EventRecordingStatusPayload>) => {
+    recordingActive.value = Boolean(data?.active);
+    recordingStopping.value = Boolean(data?.stopping);
+    recordingCount.value = Number(data?.count ?? 0);
+    recordingPending.value = Number(data?.pending ?? 0);
+    recordingQueueLen.value = Number(data?.queueLen ?? 0);
+    recordingQueueCap.value = Number(data?.queueCap ?? 0);
+    recordingFailed.value = Number(data?.failedTotal ?? 0);
+    recordingDropped.value = Number(data?.droppedTotal ?? 0);
+    recordingLastError.value = String(data?.lastError ?? "");
+    recordingStartedAt.value = String(data?.startedAt ?? "");
+    recordingLastFlushedAt.value = String(data?.lastFlushedAt ?? "");
+    if (!recordingPath.value) {
+      recordingPath.value = String(data?.path || data?.defaultPath || "");
+    }
+  };
 
   const loadRecordingStatus = async () => {
     if (disposed || recordingBusy.value) return;
@@ -62,12 +102,7 @@ export function useExecutionGraphRecording(deps: ExecutionGraphRecordingDeps) {
     try {
       const { data } = await axios.get("/events/recording");
       if (disposed || generation !== recordingStatusGeneration) return;
-      recordingActive.value = Boolean(data?.active);
-      recordingCount.value = Number(data?.count ?? 0);
-      recordingStartedAt.value = String(data?.startedAt ?? "");
-      if (!recordingPath.value) {
-        recordingPath.value = String(data?.path || data?.defaultPath || "");
-      }
+      applyRecordingStatus(data);
     } catch (error) {
       console.error("Failed to load event recording status", error);
     }
@@ -81,9 +116,7 @@ export function useExecutionGraphRecording(deps: ExecutionGraphRecordingDeps) {
         path: recordingPath.value,
         truncate: false,
       });
-      recordingActive.value = Boolean(data?.active);
-      recordingCount.value = Number(data?.count ?? 0);
-      recordingStartedAt.value = String(data?.startedAt ?? "");
+      applyRecordingStatus(data);
       recordingPath.value = String(data?.path || recordingPath.value);
       message.success("已开始录制事件到文件");
     } catch (error) {
@@ -99,8 +132,7 @@ export function useExecutionGraphRecording(deps: ExecutionGraphRecordingDeps) {
     recordingBusy.value = true;
     try {
       const { data } = await axios.post("/events/recording/stop");
-      recordingActive.value = Boolean(data?.active);
-      recordingCount.value = Number(data?.count ?? recordingCount.value);
+      applyRecordingStatus(data);
       message.success("已停止录制");
     } catch (error) {
       console.error("Failed to stop event recording", error);
@@ -298,8 +330,16 @@ export function useExecutionGraphRecording(deps: ExecutionGraphRecordingDeps) {
     // File recording
     recordingPath,
     recordingActive,
+    recordingStopping,
     recordingCount,
+    recordingPending,
+    recordingQueueLen,
+    recordingQueueCap,
+    recordingFailed,
+    recordingDropped,
+    recordingLastError,
     recordingStartedAt,
+    recordingLastFlushedAt,
     recordingBusy,
     replayBusy,
     loadRecordingStatus,

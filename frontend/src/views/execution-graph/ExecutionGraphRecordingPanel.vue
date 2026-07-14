@@ -13,8 +13,16 @@ const props = defineProps<{
 const {
   recordingPath,
   recordingActive,
+  recordingStopping,
   recordingCount,
+  recordingPending,
+  recordingQueueLen,
+  recordingQueueCap,
+  recordingFailed,
+  recordingDropped,
+  recordingLastError,
   recordingStartedAt,
+  recordingLastFlushedAt,
   recordingBusy,
   replayBusy,
   startRecording,
@@ -72,6 +80,17 @@ const {
                 <a-tag v-if="recordingActive" color="red"
                   >录制中 · {{ recordingCount }}</a-tag
                 >
+                <a-tag v-if="recordingStopping" color="orange">正在排空</a-tag>
+                <a-tag v-if="recordingActive || recordingStopping" color="blue">
+                  queue {{ recordingQueueLen }}/{{ recordingQueueCap }} · pending
+                  {{ recordingPending }}
+                </a-tag>
+                <a-tag v-if="recordingDropped" color="volcano">
+                  dropped {{ recordingDropped }}
+                </a-tag>
+                <a-tag v-if="recordingFailed" color="red">
+                  failed {{ recordingFailed }}
+                </a-tag>
                 <a-tag v-if="replayEnabled" color="purple">回放中</a-tag>
               </a-space>
             </a-col>
@@ -82,7 +101,17 @@ const {
             class="recording-meta"
           >
             started {{ recordingStartedAt }}
+            <template v-if="recordingLastFlushedAt">
+              · flushed {{ recordingLastFlushedAt }}
+            </template>
           </a-typography-text>
+          <a-alert
+            v-if="recordingLastError"
+            type="warning"
+            show-icon
+            :message="recordingLastError"
+            class="recording-meta"
+          />
           <div class="browser-recording-row">
             <a-space wrap>
               <a-button
