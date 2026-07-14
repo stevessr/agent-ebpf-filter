@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -198,5 +199,147 @@ func TestLoopDetectionSemanticAlertShape(t *testing.T) {
 	}
 	if !shouldIgnoreLoopDetectionEvent(alert) {
 		t.Fatalf("semantic alert must not be fed back into the loop detector")
+	}
+}
+
+func TestLoopDetectionWindowLRUEvictsLeastRecentlyUsed(t *testing.T) {
+	worker := newLoopDetectionWorker()
+	settings := LoopDetectionSettings{Enabled: true, WindowSeconds: 60, RepeatThreshold: 1000, MaxContexts: 3}
+	base := time.Date(2026, 7, 14, 8, 0, 0, 0, time.UTC)
+	process := func(taskID string, offset time.Duration) *pb.Event {
+		event := &pb.Event{Type: "openat", TaskId: taskID, Path: "/tmp/shared"}
+		worker.processRecordWithSettings(CapturedEventRecord{ReceivedAt: base.Add(offset), Event: event}, true, settings)
+		return event
+	}
+
+	a := process("a", 0)
+	process("b", time.Second)
+	process("c", 2*time.Second)
+	process("a", 3*time.Second)
+	d := process("d", 4*time.Second)
+
+	keyFor := func(event *pb.Event) loopDetectionWindowKey {
+		_, contextKey := loopDetectionContext(event)
+		fingerprint, _ := loopDetectionFingerprint(event)
+		return loopDetectionWindowKey{contextKey: contextKey, fingerprint: fingerprint}
+	}
+	if len(worker.windows) != 3 {
+		t.Fatalf("window count = %d, want 3", len(worker.windows))
+	}
+	if _, ok := worker.windows[keyFor(a)]; !ok {
+		t.Fatal("recently touched window was evicted")
+	}
+	if _, ok := worker.windows[loopDetectionWindowKey{contextKey: "task:b", fingerprint: keyFor(a).fingerprint}]; ok {
+		t.Fatal("least recently used window was retained")
+	}
+	if _, ok := worker.windows[keyFor(d)]; !ok {
+		t.Fatal("newest window is missing")
+	}
+	if worker.windowLRUHead == nil || worker.windowLRUHead.ContextKey != "task:c" || worker.windowLRUTail == nil || worker.windowLRUTail.ContextKey != "task:d" {
+		t.Fatalf("unexpected LRU endpoints: head=%v tail=%v", worker.windowLRUHead, worker.windowLRUTail)
+	}
+	worker.resetNow()
+	if len(worker.windows) != 0 || worker.windowLRUHead != nil || worker.windowLRUTail != nil || !worker.lastWindowGC.IsZero() {
+		t.Fatal("reset did not clear loop detection window indexes")
+	}
+}
+
+func TestLoopDetectionWindowGCIsPeriodic(t *testing.T) {
+	worker := newLoopDetectionWorker()
+	settings := LoopDetectionSettings{Enabled: true, WindowSeconds: 1, RepeatThreshold: 1000, MaxContexts: 16}
+	base := time.Date(2026, 7, 14, 9, 0, 0, 0, time.UTC)
+	process := func(taskID string, at time.Time) {
+		worker.processRecordWithSettings(CapturedEventRecord{
+			ReceivedAt: at,
+			Event:      &pb.Event{Type: "openat", TaskId: taskID, Path: "/tmp/gc"},
+		}, true, settings)
+	}
+	process("old-a", base)
+	process("old-b", base.Add(100*time.Millisecond))
+	if worker.windowGCRuns != 1 {
+		t.Fatalf("GC runs before interval = %d, want 1", worker.windowGCRuns)
+	}
+	process("fresh", base.Add(3*time.Second))
+
+	if worker.windowGCRuns != 2 {
+		t.Fatalf("GC runs after interval = %d, want 2", worker.windowGCRuns)
+	}
+	if len(worker.windows) != 1 || worker.windowLRUHead == nil || worker.windowLRUHead.ContextKey != "task:fresh" || worker.windowLRUTail != worker.windowLRUHead {
+		t.Fatalf("expired window GC state: windows=%d head=%v tail=%v", len(worker.windows), worker.windowLRUHead, worker.windowLRUTail)
+	}
+	if worker.windowEvicted != 2 {
+		t.Fatalf("evicted windows = %d, want 2", worker.windowEvicted)
+	}
+	status := worker.Status()
+	if status.WindowGCRuns != 2 || status.WindowEvicted != 2 {
+		t.Fatalf("GC status counters = %+v", status)
+	}
+}
+
+func TestLoopDetectionWindowMetadataIsBounded(t *testing.T) {
+	worker := newLoopDetectionWorker()
+	settings := LoopDetectionSettings{Enabled: true, WindowSeconds: 60, RepeatThreshold: 1000, MaxContexts: 16}
+	base := time.Date(2026, 7, 14, 10, 0, 0, 0, time.UTC)
+	longTaskID := strings.Repeat("任务", 256)
+	for index := 0; index < 100; index++ {
+		worker.processRecordWithSettings(CapturedEventRecord{
+			ReceivedAt: base,
+			Event: &pb.Event{
+				Pid:       uint32(index + 1),
+				Type:      "openat",
+				TaskId:    longTaskID,
+				Comm:      strings.Repeat("c", 200) + strconv.Itoa(index),
+				Path:      "/tmp/fixed",
+				ExtraPath: "/tmp/extra-" + strconv.Itoa(index),
+			},
+		}, true, settings)
+	}
+
+	if len(worker.windows) != 1 {
+		t.Fatalf("window count = %d, want 1", len(worker.windows))
+	}
+	win := worker.windowLRUHead
+	if win == nil {
+		t.Fatal("missing retained window")
+	}
+	for name, size := range map[string]int{
+		"eventTypes": len(win.EventTypes),
+		"pids":       len(win.Pids),
+		"comms":      len(win.Comms),
+		"paths":      len(win.Paths),
+		"toolNames":  len(win.ToolNames),
+	} {
+		if size > loopDetectionWindowMetadataLimit {
+			t.Fatalf("%s size = %d, limit %d", name, size, loopDetectionWindowMetadataLimit)
+		}
+	}
+	if len(win.TaskID) > loopDetectionContextComponentBytes || len(win.Comm) > loopDetectionMetadataValueBytes || len(win.Target) > loopDetectionTargetBytes {
+		t.Fatalf("retained values are not bounded: task=%d comm=%d target=%d", len(win.TaskID), len(win.Comm), len(win.Target))
+	}
+	if !strings.Contains(win.TaskID, "~sha256:") {
+		t.Fatalf("long task id lacks stable digest suffix: %q", win.TaskID)
+	}
+}
+
+func BenchmarkLoopDetectionSteadyStateWindowHit(b *testing.B) {
+	for _, maxContexts := range []int{64, loopDetectionDefaultMaxContexts} {
+		b.Run(strconv.Itoa(maxContexts), func(b *testing.B) {
+			worker := newLoopDetectionWorker()
+			settings := LoopDetectionSettings{Enabled: true, WindowSeconds: 60, RepeatThreshold: 1 << 30, MaxContexts: maxContexts}
+			base := time.Unix(1, 0).UTC()
+			for index := 0; index < maxContexts; index++ {
+				worker.processRecordWithSettings(CapturedEventRecord{
+					ReceivedAt: base,
+					Event:      &pb.Event{Type: "openat", TaskId: "warm-" + strconv.Itoa(index), Path: "/tmp/hot"},
+				}, true, settings)
+			}
+			hot := CapturedEventRecord{ReceivedAt: base, Event: &pb.Event{Type: "openat", TaskId: "warm-0", Path: "/tmp/hot"}}
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for iteration := 0; iteration < b.N; iteration++ {
+				worker.processRecordWithSettings(hot, true, settings)
+			}
+		})
 	}
 }

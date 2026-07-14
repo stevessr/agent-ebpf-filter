@@ -315,6 +315,10 @@ const schemeOptions = [
             <a-tag color="blue">
               windows: {{ loopDetectionStatus.windowCount }}
             </a-tag>
+            <a-tag color="cyan">
+              gc: {{ loopDetectionStatus.windowGCRunsTotal }} / evicted:
+              {{ loopDetectionStatus.windowEvictedTotal }}
+            </a-tag>
             <a-tag color="geekblue">
               queue:
               {{ loopDetectionStatus.queueLen }}/{{ loopDetectionStatus.queueCap }}
@@ -324,7 +328,7 @@ const schemeOptions = [
             type="info"
             show-icon
             message="Research-friendly repeated-context localization"
-            description="The backend consumes event records on one worker thread, groups repeated fingerprints by run/task/tool/trace/PID context, and keeps findings in /system/loop-detection/status. Settings persist to the home config folder; AGENT_RUNTIME_LOOP_DETECTION_* environment variables override them on startup."
+            description="The backend consumes event records on one worker thread, groups repeated fingerprints by run/task/tool/trace/PID context, and retains contexts in a bounded O(1) LRU with periodic expiry GC. Settings persist to the home config folder; AGENT_RUNTIME_LOOP_DETECTION_* environment variables override them on startup."
           />
           <a-button type="primary" @click="saveRuntime">
             <ReloadOutlined /> Save Loop Detection

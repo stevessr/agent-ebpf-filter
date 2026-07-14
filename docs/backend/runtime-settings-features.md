@@ -28,6 +28,15 @@
 | `SignalProcessing` | 信号规则、TTL 衰减、cron 清理和选中程序 protobuf 二进制日志配置 |
 | `DomainForwardProxy` | 80/443 Host/SNI forward config |
 
+### Loop Detection worker
+
+Loop Detection 使用单消费者有界队列处理重复上下文。活跃窗口按访问顺序维护 O(1)
+LRU；容量压力只淘汰最久未使用窗口，不再在每条事件上复制并排序全部 context。
+事件热路径最多每 30 秒（短窗口使用其自身时长）批量扫描一次过期窗口；每个窗口的
+PID、命令、路径、工具名和事件类型集合最多各保留 12 项，长键以稳定 SHA-256 后缀截断。
+`/system/loop-detection/status` 的 `windowGCRunsTotal` 与 `windowEvictedTotal`
+可用于确认清理频率和容量压力。
+
 ### 事件日志持久化语义
 
 启用 `LogPersistenceEnabled` 后，捕获线程只向 4096 项有界队列执行非阻塞提交；

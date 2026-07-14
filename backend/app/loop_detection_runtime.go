@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"path/filepath"
@@ -11,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
@@ -24,6 +27,12 @@ const (
 	loopDetectionDefaultMaxContexts     = 512
 	loopDetectionDefaultQueueSize       = 2048
 	loopDetectionFindingLimit           = 50
+	loopDetectionWindowGCMaxInterval    = 30 * time.Second
+	loopDetectionWindowMetadataLimit    = 12
+	loopDetectionContextComponentBytes  = 128
+	loopDetectionMetadataValueBytes     = 160
+	loopDetectionTargetBytes            = 240
+	loopDetectionExtraInfoScanBytes     = 4096
 )
 
 type loopDetectionFinding struct {
@@ -62,6 +71,8 @@ type loopDetectionStatus struct {
 	FindingsTotal  uint64                 `json:"findingsTotal"`
 	DroppedTotal   uint64                 `json:"droppedTotal"`
 	WindowCount    int                    `json:"windowCount"`
+	WindowGCRuns   uint64                 `json:"windowGCRunsTotal"`
+	WindowEvicted  uint64                 `json:"windowEvictedTotal"`
 	RecentFindings []loopDetectionFinding `json:"recentFindings"`
 	LastError      string                 `json:"lastError,omitempty"`
 	UpdatedAt      time.Time              `json:"updatedAt"`
@@ -94,6 +105,11 @@ type loopDetectionWorkItem struct {
 	force   bool
 }
 
+type loopDetectionWindowKey struct {
+	contextKey  string
+	fingerprint string
+}
+
 type loopDetectionWindow struct {
 	FirstSeen     time.Time
 	LastSeen      time.Time
@@ -115,8 +131,11 @@ type loopDetectionWindow struct {
 	RootAgentPID  uint32
 	PID           uint32
 	Comm          string
-	SampleEvent   *pb.Event
 	WindowSeconds int
+
+	key     loopDetectionWindowKey
+	lruPrev *loopDetectionWindow
+	lruNext *loopDetectionWindow
 }
 
 type loopDetectionWorker struct {
@@ -126,7 +145,12 @@ type loopDetectionWorker struct {
 	cancel        context.CancelFunc
 	done          chan struct{}
 	started       bool
-	windows       map[string]*loopDetectionWindow
+	windows       map[loopDetectionWindowKey]*loopDetectionWindow
+	windowLRUHead *loopDetectionWindow
+	windowLRUTail *loopDetectionWindow
+	lastWindowGC  time.Time
+	windowGCRuns  uint64
+	windowEvicted uint64
 	findings      []loopDetectionFinding
 	consumedTotal uint64
 	findingsTotal uint64
@@ -139,7 +163,7 @@ var loopDetectionWorkerStore = newLoopDetectionWorker()
 
 func newLoopDetectionWorker() *loopDetectionWorker {
 	return &loopDetectionWorker{
-		windows:   make(map[string]*loopDetectionWindow),
+		windows:   make(map[loopDetectionWindowKey]*loopDetectionWindow),
 		findings:  make([]loopDetectionFinding, 0, loopDetectionFindingLimit),
 		updatedAt: time.Now().UTC(),
 	}
@@ -303,7 +327,10 @@ func (w *loopDetectionWorker) resetNow() {
 		return
 	}
 	w.mu.Lock()
-	w.windows = make(map[string]*loopDetectionWindow)
+	w.windows = make(map[loopDetectionWindowKey]*loopDetectionWindow)
+	w.windowLRUHead = nil
+	w.windowLRUTail = nil
+	w.lastWindowGC = time.Time{}
 	w.findings = w.findings[:0]
 	w.lastError = ""
 	w.updatedAt = time.Now().UTC()
@@ -377,22 +404,29 @@ func (w *loopDetectionWorker) processRecordWithSettings(record CapturedEventReco
 	if threshold <= 0 {
 		threshold = loopDetectionDefaultRepeatThreshold
 	}
-	windowKey := contextKey + "\x00" + fingerprint
+	windowKey := loopDetectionWindowKey{contextKey: contextKey, fingerprint: fingerprint}
 
 	var finding *loopDetectionFinding
 	w.mu.Lock()
 	w.consumedTotal++
 	win := w.windows[windowKey]
 	if win == nil || win.FirstSeen.IsZero() || observedAt.Sub(win.FirstSeen) > windowDuration {
+		if win != nil {
+			w.removeLoopDetectionWindowLocked(win)
+		}
 		win = newLoopDetectionWindow(contextType, contextKey, fingerprint, target, event, observedAt, windowSeconds)
+		win.key = windowKey
 		w.windows[windowKey] = win
+		w.appendLoopDetectionWindowLocked(win)
 	} else {
 		win.Count++
 		win.LastSeen = observedAt
 		win.WindowSeconds = windowSeconds
 		mergeLoopDetectionWindow(win, event, target)
+		w.touchLoopDetectionWindowLocked(win)
 	}
-	w.evictLoopDetectionWindowsLocked(observedAt, windowDuration, settings.MaxContexts)
+	w.maybeEvictExpiredLoopDetectionWindowsLocked(observedAt, windowDuration)
+	w.enforceLoopDetectionWindowCapacityLocked(settings.MaxContexts)
 	if win.Count >= threshold && !win.Alerted {
 		built := buildLoopDetectionFinding(win, observedAt)
 		w.appendFindingLocked(built)
@@ -407,31 +441,93 @@ func (w *loopDetectionWorker) processRecordWithSettings(record CapturedEventReco
 	}
 }
 
-func (w *loopDetectionWorker) evictLoopDetectionWindowsLocked(now time.Time, windowDuration time.Duration, maxContexts int) {
+func (w *loopDetectionWorker) maybeEvictExpiredLoopDetectionWindowsLocked(now time.Time, windowDuration time.Duration) {
+	if w == nil || now.IsZero() || windowDuration <= 0 {
+		return
+	}
+	interval := windowDuration
+	if interval > loopDetectionWindowGCMaxInterval {
+		interval = loopDetectionWindowGCMaxInterval
+	}
+	if !w.lastWindowGC.IsZero() && now.Sub(w.lastWindowGC) < interval {
+		return
+	}
+	w.lastWindowGC = now
+	w.windowGCRuns++
+	for key, win := range w.windows {
+		if win == nil {
+			delete(w.windows, key)
+			w.windowEvicted++
+			continue
+		}
+		if !win.LastSeen.IsZero() && now.Sub(win.LastSeen) > windowDuration*2 {
+			w.removeLoopDetectionWindowLocked(win)
+		}
+	}
+}
+
+func (w *loopDetectionWorker) enforceLoopDetectionWindowCapacityLocked(maxContexts int) {
 	if maxContexts <= 0 {
 		maxContexts = loopDetectionDefaultMaxContexts
 	}
-	for key, win := range w.windows {
-		if win == nil || (!win.LastSeen.IsZero() && now.Sub(win.LastSeen) > windowDuration*2) {
-			delete(w.windows, key)
-		}
+	for len(w.windows) > maxContexts && w.windowLRUHead != nil {
+		w.removeLoopDetectionWindowLocked(w.windowLRUHead)
 	}
-	if len(w.windows) <= maxContexts {
+}
+
+func (w *loopDetectionWorker) appendLoopDetectionWindowLocked(win *loopDetectionWindow) {
+	if w == nil || win == nil {
 		return
 	}
-	type candidate struct {
-		key string
-		ts  time.Time
+	win.lruPrev = w.windowLRUTail
+	win.lruNext = nil
+	if w.windowLRUTail == nil {
+		w.windowLRUHead = win
+	} else {
+		w.windowLRUTail.lruNext = win
 	}
-	candidates := make([]candidate, 0, len(w.windows))
-	for key, win := range w.windows {
-		candidates = append(candidates, candidate{key: key, ts: win.LastSeen})
+	w.windowLRUTail = win
+}
+
+func (w *loopDetectionWorker) touchLoopDetectionWindowLocked(win *loopDetectionWindow) {
+	if w == nil || win == nil || w.windowLRUTail == win {
+		return
 	}
-	sort.Slice(candidates, func(i, j int) bool { return candidates[i].ts.Before(candidates[j].ts) })
-	for len(w.windows) > maxContexts && len(candidates) > 0 {
-		delete(w.windows, candidates[0].key)
-		candidates = candidates[1:]
+	w.detachLoopDetectionWindowLocked(win)
+	w.appendLoopDetectionWindowLocked(win)
+}
+
+func (w *loopDetectionWorker) removeLoopDetectionWindowLocked(win *loopDetectionWindow) {
+	if w == nil || win == nil {
+		return
 	}
+	if current := w.windows[win.key]; current == win {
+		delete(w.windows, win.key)
+	}
+	w.detachLoopDetectionWindowLocked(win)
+	w.windowEvicted++
+}
+
+func (w *loopDetectionWorker) detachLoopDetectionWindowLocked(win *loopDetectionWindow) {
+	if w == nil || win == nil {
+		return
+	}
+	if win.lruPrev == nil {
+		if w.windowLRUHead == win {
+			w.windowLRUHead = win.lruNext
+		}
+	} else {
+		win.lruPrev.lruNext = win.lruNext
+	}
+	if win.lruNext == nil {
+		if w.windowLRUTail == win {
+			w.windowLRUTail = win.lruPrev
+		}
+	} else {
+		win.lruNext.lruPrev = win.lruPrev
+	}
+	win.lruPrev = nil
+	win.lruNext = nil
 }
 
 func (w *loopDetectionWorker) appendFindingLocked(finding loopDetectionFinding) {
@@ -476,6 +572,8 @@ func (w *loopDetectionWorker) Status() loopDetectionStatus {
 		FindingsTotal:  w.findingsTotal,
 		DroppedTotal:   w.droppedTotal,
 		WindowCount:    len(w.windows),
+		WindowGCRuns:   w.windowGCRuns,
+		WindowEvicted:  w.windowEvicted,
 		RecentFindings: findings,
 		LastError:      w.lastError,
 		UpdatedAt:      w.updatedAt,
@@ -492,20 +590,14 @@ func newLoopDetectionWindow(contextType, contextKey, fingerprint, target string,
 		ContextType:   contextType,
 		ContextKey:    contextKey,
 		Fingerprint:   fingerprint,
-		Target:        target,
-		EventTypes:    make(map[string]struct{}),
-		Pids:          make(map[uint32]struct{}),
-		Comms:         make(map[string]struct{}),
-		Paths:         make(map[string]struct{}),
-		ToolNames:     make(map[string]struct{}),
-		AgentRunID:    strings.TrimSpace(event.GetAgentRunId()),
-		TaskID:        strings.TrimSpace(event.GetTaskId()),
-		ToolCallID:    strings.TrimSpace(event.GetToolCallId()),
-		TraceID:       strings.TrimSpace(event.GetTraceId()),
+		Target:        strings.Clone(target),
+		AgentRunID:    cloneBoundedLoopDetectionString(event.GetAgentRunId(), loopDetectionContextComponentBytes),
+		TaskID:        cloneBoundedLoopDetectionString(event.GetTaskId(), loopDetectionContextComponentBytes),
+		ToolCallID:    cloneBoundedLoopDetectionString(event.GetToolCallId(), loopDetectionContextComponentBytes),
+		TraceID:       cloneBoundedLoopDetectionString(event.GetTraceId(), loopDetectionContextComponentBytes),
 		RootAgentPID:  event.GetRootAgentPid(),
 		PID:           event.GetPid(),
-		Comm:          strings.TrimSpace(event.GetComm()),
-		SampleEvent:   cloneProtoEvent(event),
+		Comm:          cloneBoundedLoopDetectionString(event.GetComm(), loopDetectionMetadataValueBytes),
 		WindowSeconds: windowSeconds,
 	}
 	mergeLoopDetectionWindow(win, event, target)
@@ -517,43 +609,44 @@ func mergeLoopDetectionWindow(win *loopDetectionWindow, event *pb.Event, target 
 		return
 	}
 	if eventType := normalizedLoopEventType(event); eventType != "" {
-		win.EventTypes[eventType] = struct{}{}
+		win.EventTypes = addLoopDetectionString(win.EventTypes, eventType)
 	}
 	if pid := event.GetPid(); pid != 0 {
-		win.Pids[pid] = struct{}{}
+		win.Pids = addBoundedLoopPID(win.Pids, pid)
 		if win.PID == 0 {
 			win.PID = pid
 		}
 	}
 	if comm := strings.TrimSpace(event.GetComm()); comm != "" {
-		win.Comms[comm] = struct{}{}
+		comm = boundLoopDetectionString(comm, loopDetectionMetadataValueBytes)
+		win.Comms = addLoopDetectionString(win.Comms, comm)
 		if win.Comm == "" {
-			win.Comm = comm
+			win.Comm = strings.Clone(comm)
 		}
 	}
 	if path := strings.TrimSpace(event.GetPath()); path != "" {
-		win.Paths[path] = struct{}{}
+		win.Paths = addLoopDetectionString(win.Paths, normalizeLoopDetectionTarget(path))
 	}
 	if extraPath := strings.TrimSpace(event.GetExtraPath()); extraPath != "" {
-		win.Paths[extraPath] = struct{}{}
+		win.Paths = addLoopDetectionString(win.Paths, normalizeLoopDetectionTarget(extraPath))
 	}
 	if toolName := strings.TrimSpace(event.GetToolName()); toolName != "" {
-		win.ToolNames[toolName] = struct{}{}
+		win.ToolNames = addLoopDetectionString(win.ToolNames, boundLoopDetectionString(toolName, loopDetectionMetadataValueBytes))
 	}
 	if win.Target == "" {
-		win.Target = target
+		win.Target = strings.Clone(target)
 	}
 	if win.AgentRunID == "" {
-		win.AgentRunID = strings.TrimSpace(event.GetAgentRunId())
+		win.AgentRunID = cloneBoundedLoopDetectionString(event.GetAgentRunId(), loopDetectionContextComponentBytes)
 	}
 	if win.TaskID == "" {
-		win.TaskID = strings.TrimSpace(event.GetTaskId())
+		win.TaskID = cloneBoundedLoopDetectionString(event.GetTaskId(), loopDetectionContextComponentBytes)
 	}
 	if win.ToolCallID == "" {
-		win.ToolCallID = strings.TrimSpace(event.GetToolCallId())
+		win.ToolCallID = cloneBoundedLoopDetectionString(event.GetToolCallId(), loopDetectionContextComponentBytes)
 	}
 	if win.TraceID == "" {
-		win.TraceID = strings.TrimSpace(event.GetTraceId())
+		win.TraceID = cloneBoundedLoopDetectionString(event.GetTraceId(), loopDetectionContextComponentBytes)
 	}
 	if win.RootAgentPID == 0 {
 		win.RootAgentPID = event.GetRootAgentPid()
@@ -657,15 +750,15 @@ func loopDetectionContext(event *pb.Event) (string, string) {
 	if event == nil {
 		return "", ""
 	}
-	runID := strings.TrimSpace(event.GetAgentRunId())
-	taskID := strings.TrimSpace(event.GetTaskId())
-	toolCallID := strings.TrimSpace(event.GetToolCallId())
-	traceID := strings.TrimSpace(event.GetTraceId())
+	runID := boundLoopDetectionString(event.GetAgentRunId(), loopDetectionContextComponentBytes)
+	taskID := boundLoopDetectionString(event.GetTaskId(), loopDetectionContextComponentBytes)
+	toolCallID := boundLoopDetectionString(event.GetToolCallId(), loopDetectionContextComponentBytes)
+	traceID := boundLoopDetectionString(event.GetTraceId(), loopDetectionContextComponentBytes)
 	if toolCallID != "" {
-		return "tool_call", "tool_call:" + strings.Join(nonEmptyLoopParts(runID, taskID, toolCallID), "/")
+		return "tool_call", buildLoopDetectionContextKey("tool_call:", runID, taskID, toolCallID)
 	}
 	if taskID != "" {
-		return "task", "task:" + strings.Join(nonEmptyLoopParts(runID, taskID), "/")
+		return "task", buildLoopDetectionContextKey("task:", runID, taskID)
 	}
 	if runID != "" {
 		return "agent_run", "agent_run:" + runID
@@ -682,20 +775,39 @@ func loopDetectionContext(event *pb.Event) (string, string) {
 	if pid := event.GetPid(); pid != 0 {
 		return "pid", fmt.Sprintf("pid:%d", pid)
 	}
-	if comm := strings.TrimSpace(event.GetComm()); comm != "" {
+	if comm := boundLoopDetectionString(event.GetComm(), loopDetectionMetadataValueBytes); comm != "" {
 		return "comm", "comm:" + comm
 	}
 	return "", ""
 }
 
-func nonEmptyLoopParts(values ...string) []string {
-	parts := make([]string, 0, len(values))
+func buildLoopDetectionContextKey(prefix string, values ...string) string {
+	size := len(prefix)
+	count := 0
 	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			parts = append(parts, trimmed)
+		if value != "" {
+			size += len(value)
+			if count > 0 {
+				size++
+			}
+			count++
 		}
 	}
-	return parts
+	var out strings.Builder
+	out.Grow(size)
+	out.WriteString(prefix)
+	wroteValue := false
+	for _, value := range values {
+		if value == "" {
+			continue
+		}
+		if wroteValue {
+			out.WriteByte('/')
+		}
+		out.WriteString(value)
+		wroteValue = true
+	}
+	return out.String()
 }
 
 func loopDetectionFingerprint(event *pb.Event) (fingerprint string, target string) {
@@ -704,27 +816,39 @@ func loopDetectionFingerprint(event *pb.Event) (fingerprint string, target strin
 	}
 	eventType := normalizedLoopEventType(event)
 	target = loopDetectionStableTarget(event)
-	parts := []string{eventType}
-	if toolName := strings.TrimSpace(event.GetToolName()); toolName != "" {
-		parts = append(parts, "tool="+strings.ToLower(toolName))
-	}
-	if target != "" {
-		parts = append(parts, "target="+target)
-	}
+	toolName := strings.ToLower(boundLoopDetectionString(event.GetToolName(), loopDetectionMetadataValueBytes))
 	if eventType == "" && target == "" {
 		return "", ""
 	}
-	return strings.Join(parts, "|"), target
+	size := len(eventType)
+	if toolName != "" {
+		size += len("|tool=") + len(toolName)
+	}
+	if target != "" {
+		size += len("|target=") + len(target)
+	}
+	var out strings.Builder
+	out.Grow(size)
+	out.WriteString(eventType)
+	if toolName != "" {
+		out.WriteString("|tool=")
+		out.WriteString(toolName)
+	}
+	if target != "" {
+		out.WriteString("|target=")
+		out.WriteString(target)
+	}
+	return out.String(), target
 }
 
 func normalizedLoopEventType(event *pb.Event) string {
 	if event == nil {
 		return ""
 	}
-	if value := strings.TrimSpace(event.GetType()); value != "" {
+	if value := boundLoopDetectionString(event.GetType(), loopDetectionMetadataValueBytes); value != "" {
 		return strings.ToLower(value)
 	}
-	if value := strings.TrimSpace(event.GetEventType().String()); value != "" {
+	if value := boundLoopDetectionString(event.GetEventType().String(), loopDetectionMetadataValueBytes); value != "" {
 		return strings.ToLower(value)
 	}
 	return ""
@@ -762,6 +886,9 @@ func extractLoopDetectionDigest(extraInfo string) string {
 	if extraInfo == "" {
 		return ""
 	}
+	if len(extraInfo) > loopDetectionExtraInfoScanBytes {
+		extraInfo = extraInfo[:loopDetectionExtraInfoScanBytes]
+	}
 	lower := strings.ToLower(extraInfo)
 	keys := []string{"prompt_digest", "promptdigest", "context_digest", "request_digest", "response_digest", "argv_digest", "digest"}
 	for _, key := range keys {
@@ -783,7 +910,7 @@ func extractLoopDetectionDigest(extraInfo string) string {
 		}
 		value := strings.Trim(rest[:end], " _-")
 		if len(value) >= 6 {
-			return value
+			return boundLoopDetectionString(value, loopDetectionContextComponentBytes)
 		}
 	}
 	return ""
@@ -794,17 +921,77 @@ func normalizeLoopDetectionTarget(value string) string {
 	if value == "" {
 		return ""
 	}
-	value = strings.Join(strings.Fields(value), " ")
+	if len(value) > loopDetectionTargetBytes {
+		return boundLoopDetectionString(value, loopDetectionTargetBytes)
+	}
+	if strings.IndexFunc(value, unicode.IsSpace) >= 0 {
+		value = strings.Join(strings.Fields(value), " ")
+	}
 	if strings.HasPrefix(value, "/") {
 		value = filepath.Clean(value)
 	}
 	if strings.Contains(value, "://") || strings.Contains(value, ".") || strings.Contains(value, ":") {
 		value = strings.ToLower(value)
 	}
-	if len(value) > 240 {
-		value = value[:240]
+	return boundLoopDetectionString(value, loopDetectionTargetBytes)
+}
+
+func boundLoopDetectionString(value string, maxBytes int) string {
+	value = strings.TrimSpace(value)
+	if value == "" || maxBytes <= 0 {
+		return ""
 	}
-	return value
+	if len(value) <= maxBytes {
+		return value
+	}
+	sum := sha256.Sum256([]byte(value))
+	suffix := "~sha256:" + hex.EncodeToString(sum[:8])
+	if len(suffix) >= maxBytes {
+		return suffix[:maxBytes]
+	}
+	prefixBytes := maxBytes - len(suffix)
+	for prefixBytes > 0 && !utf8.ValidString(value[:prefixBytes]) {
+		prefixBytes--
+	}
+	return value[:prefixBytes] + suffix
+}
+
+func cloneBoundedLoopDetectionString(value string, maxBytes int) string {
+	return strings.Clone(boundLoopDetectionString(value, maxBytes))
+}
+
+func addLoopDetectionString(values map[string]struct{}, value string) map[string]struct{} {
+	if value == "" {
+		return values
+	}
+	if _, exists := values[value]; exists {
+		return values
+	}
+	if len(values) >= loopDetectionWindowMetadataLimit {
+		return values
+	}
+	if values == nil {
+		values = make(map[string]struct{}, loopDetectionWindowMetadataLimit)
+	}
+	values[strings.Clone(value)] = struct{}{}
+	return values
+}
+
+func addBoundedLoopPID(values map[uint32]struct{}, value uint32) map[uint32]struct{} {
+	if value == 0 {
+		return values
+	}
+	if _, exists := values[value]; exists {
+		return values
+	}
+	if len(values) >= loopDetectionWindowMetadataLimit {
+		return values
+	}
+	if values == nil {
+		values = make(map[uint32]struct{}, loopDetectionWindowMetadataLimit)
+	}
+	values[value] = struct{}{}
+	return values
 }
 
 func sortedStringSet(set map[string]struct{}, limit int) []string {

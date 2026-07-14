@@ -384,6 +384,10 @@ const compactList = (items?: Array<string | number>) => {
             <a-tag color="blue">
               windows: {{ loopDetectionStatus.windowCount }}
             </a-tag>
+            <a-tag color="cyan">
+              gc: {{ loopDetectionStatus.windowGCRunsTotal }} / evicted:
+              {{ loopDetectionStatus.windowEvictedTotal }}
+            </a-tag>
             <a-tag color="geekblue">
               queue:
               {{ loopDetectionStatus.queueLen }}/{{ loopDetectionStatus.queueCap }}

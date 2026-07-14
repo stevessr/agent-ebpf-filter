@@ -68,6 +68,8 @@ export const defaultLoopDetectionStatus = (): LoopDetectionStatus => ({
   findingsTotal: 0,
   droppedTotal: 0,
   windowCount: 0,
+  windowGCRunsTotal: 0,
+  windowEvictedTotal: 0,
   recentFindings: [],
   updatedAt: "",
 });

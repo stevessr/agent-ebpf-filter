@@ -41,6 +41,8 @@ export interface LoopDetectionStatus {
   findingsTotal: number;
   droppedTotal: number;
   windowCount: number;
+  windowGCRunsTotal: number;
+  windowEvictedTotal: number;
   recentFindings: LoopDetectionFinding[];
   lastError?: string;
   updatedAt: string;
