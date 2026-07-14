@@ -51,22 +51,27 @@ type signalState struct {
 	LastPath      string    `json:"lastPath,omitempty"`
 	LastExtraPath string    `json:"lastExtraPath,omitempty"`
 	LastEventID   string    `json:"lastEventId,omitempty"`
+
+	lruPrev *signalState
+	lruNext *signalState
 }
 
 type signalProcessingStatus struct {
-	Enabled        bool                     `json:"enabled"`
-	Settings       SignalProcessingSettings `json:"settings"`
-	QueueLen       int                      `json:"queueLen"`
-	QueueCap       int                      `json:"queueCap"`
-	ConsumedTotal  uint64                   `json:"consumedTotal"`
-	UpdatedTotal   uint64                   `json:"updatedTotal"`
-	DroppedTotal   uint64                   `json:"droppedTotal"`
-	ExpiredTotal   uint64                   `json:"expiredTotal"`
-	ActiveStates   int                      `json:"activeStates"`
-	RecentStates   []signalState            `json:"recentStates"`
-	AvailableKinds []signalKindInfo         `json:"availableKinds"`
-	LastError      string                   `json:"lastError,omitempty"`
-	UpdatedAt      time.Time                `json:"updatedAt"`
+	Enabled              bool                     `json:"enabled"`
+	Settings             SignalProcessingSettings `json:"settings"`
+	QueueLen             int                      `json:"queueLen"`
+	QueueCap             int                      `json:"queueCap"`
+	ConsumedTotal        uint64                   `json:"consumedTotal"`
+	UpdatedTotal         uint64                   `json:"updatedTotal"`
+	DroppedTotal         uint64                   `json:"droppedTotal"`
+	ExpiredTotal         uint64                   `json:"expiredTotal"`
+	CapacityEvictedTotal uint64                   `json:"capacityEvictedTotal"`
+	ExpiryRunsTotal      uint64                   `json:"expiryRunsTotal"`
+	ActiveStates         int                      `json:"activeStates"`
+	RecentStates         []signalState            `json:"recentStates"`
+	AvailableKinds       []signalKindInfo         `json:"availableKinds"`
+	LastError            string                   `json:"lastError,omitempty"`
+	UpdatedAt            time.Time                `json:"updatedAt"`
 }
 
 type signalProcessingTaskRequest struct {
@@ -142,19 +147,23 @@ type signalProcessingWorkItem struct {
 }
 
 type signalProcessingWorker struct {
-	lifecycleMu   sync.Mutex
-	mu            sync.RWMutex
-	queue         chan signalProcessingWorkItem
-	cancel        context.CancelFunc
-	done          chan struct{}
-	started       bool
-	states        map[string]*signalState
-	consumedTotal uint64
-	updatedTotal  uint64
-	droppedTotal  uint64
-	expiredTotal  uint64
-	lastError     string
-	updatedAt     time.Time
+	lifecycleMu          sync.Mutex
+	mu                   sync.RWMutex
+	queue                chan signalProcessingWorkItem
+	cancel               context.CancelFunc
+	done                 chan struct{}
+	started              bool
+	states               map[string]*signalState
+	stateLRUHead         *signalState
+	stateLRUTail         *signalState
+	consumedTotal        uint64
+	updatedTotal         uint64
+	droppedTotal         uint64
+	expiredTotal         uint64
+	capacityEvictedTotal uint64
+	expiryRunsTotal      uint64
+	lastError            string
+	updatedAt            time.Time
 }
 
 var (
@@ -612,6 +621,8 @@ func (w *signalProcessingWorker) resetNow() {
 	}
 	w.mu.Lock()
 	w.states = make(map[string]*signalState)
+	w.stateLRUHead = nil
+	w.stateLRUTail = nil
 	w.lastError = ""
 	w.updatedAt = time.Now().UTC()
 	w.mu.Unlock()
@@ -646,6 +657,7 @@ func (w *signalProcessingWorker) expireNow(now time.Time) {
 		now = time.Now().UTC()
 	}
 	w.mu.Lock()
+	w.expiryRunsTotal++
 	w.evictExpiredLocked(now)
 	w.updatedAt = now
 	w.mu.Unlock()
@@ -742,6 +754,7 @@ func (w *signalProcessingWorker) processRecordWithSettings(record CapturedEventR
 		if existing == nil {
 			update.FirstSeen = observedAt
 			w.states[update.Key] = update
+			w.appendSignalStateLocked(update)
 		} else {
 			decayed := decaySignalScore(existing.Score, existing.LastMatchedAt, observedAt, update.TTLSeconds)
 			existing.RuleID = update.RuleID
@@ -761,6 +774,7 @@ func (w *signalProcessingWorker) processRecordWithSettings(record CapturedEventR
 			existing.LastPath = update.LastPath
 			existing.LastExtraPath = update.LastExtraPath
 			existing.LastEventID = update.LastEventID
+			w.touchSignalStateLocked(existing)
 		}
 		w.updatedTotal++
 	}
@@ -794,40 +808,96 @@ func decaySignalScore(score float64, lastMatchedAt, now time.Time, ttlSeconds in
 func (w *signalProcessingWorker) evictExpiredLocked(now time.Time) {
 	for key, state := range w.states {
 		if state == nil || (!state.ExpiresAt.IsZero() && !state.ExpiresAt.After(now)) {
-			delete(w.states, key)
-			w.expiredTotal++
+			if state == nil {
+				delete(w.states, key)
+				w.expiredTotal++
+				continue
+			}
+			w.removeSignalStateLocked(state, false)
 		}
 	}
 }
 
 func (w *signalProcessingWorker) enforceMaxStatesLocked(maxStates int, now time.Time) {
-	if maxStates <= 0 || len(w.states) <= maxStates {
-		return
+	if maxStates <= 0 {
+		maxStates = signalDefaultMaxStates
 	}
-	// The cron worker owns routine expiry. Only scan the full state map on the
-	// event hot path when capacity pressure makes reclamation necessary.
-	w.evictExpiredLocked(now)
-	if len(w.states) <= maxStates {
-		return
+	for len(w.states) > maxStates && w.stateLRUHead != nil {
+		state := w.stateLRUHead
+		capacityEviction := state.ExpiresAt.IsZero() || state.ExpiresAt.After(now)
+		w.removeSignalStateLocked(state, capacityEviction)
 	}
-	type candidate struct {
-		key string
-		ts  time.Time
-	}
-	candidates := make([]candidate, 0, len(w.states))
-	for key, state := range w.states {
-		ts := state.UpdatedAt
-		if ts.IsZero() {
-			ts = state.ExpiresAt
+	// All production inserts are linked into the LRU. Keep a bounded defensive
+	// fallback for malformed test or migrated state rather than leaving the map
+	// above its configured hard limit.
+	for len(w.states) > maxStates {
+		for key, state := range w.states {
+			if state == nil {
+				delete(w.states, key)
+				w.expiredTotal++
+			} else {
+				capacityEviction := state.ExpiresAt.IsZero() || state.ExpiresAt.After(now)
+				w.removeSignalStateLocked(state, capacityEviction)
+			}
+			break
 		}
-		candidates = append(candidates, candidate{key: key, ts: ts})
 	}
-	sort.Slice(candidates, func(i, j int) bool { return candidates[i].ts.Before(candidates[j].ts) })
-	for len(w.states) > maxStates && len(candidates) > 0 {
-		delete(w.states, candidates[0].key)
-		w.expiredTotal++
-		candidates = candidates[1:]
+}
+
+func (w *signalProcessingWorker) appendSignalStateLocked(state *signalState) {
+	if w == nil || state == nil {
+		return
 	}
+	state.lruPrev = w.stateLRUTail
+	state.lruNext = nil
+	if w.stateLRUTail == nil {
+		w.stateLRUHead = state
+	} else {
+		w.stateLRUTail.lruNext = state
+	}
+	w.stateLRUTail = state
+}
+
+func (w *signalProcessingWorker) touchSignalStateLocked(state *signalState) {
+	if w == nil || state == nil || w.stateLRUTail == state {
+		return
+	}
+	w.detachSignalStateLocked(state)
+	w.appendSignalStateLocked(state)
+}
+
+func (w *signalProcessingWorker) removeSignalStateLocked(state *signalState, capacityEviction bool) {
+	if w == nil || state == nil || w.states[state.Key] != state {
+		return
+	}
+	delete(w.states, state.Key)
+	w.detachSignalStateLocked(state)
+	w.expiredTotal++
+	if capacityEviction {
+		w.capacityEvictedTotal++
+	}
+}
+
+func (w *signalProcessingWorker) detachSignalStateLocked(state *signalState) {
+	if w == nil || state == nil {
+		return
+	}
+	if state.lruPrev == nil {
+		if w.stateLRUHead == state {
+			w.stateLRUHead = state.lruNext
+		}
+	} else {
+		state.lruPrev.lruNext = state.lruNext
+	}
+	if state.lruNext == nil {
+		if w.stateLRUTail == state {
+			w.stateLRUTail = state.lruPrev
+		}
+	} else {
+		state.lruNext.lruPrev = state.lruPrev
+	}
+	state.lruPrev = nil
+	state.lruNext = nil
 }
 
 func (w *signalProcessingWorker) Status() signalProcessingStatus {
@@ -858,28 +928,44 @@ func (w *signalProcessingWorker) Status() signalProcessingStatus {
 			continue
 		}
 		cloned := *state
-		cloned.Score = decaySignalScore(cloned.Score, cloned.LastMatchedAt, now, cloned.TTLSeconds)
+		cloned.lruPrev = nil
+		cloned.lruNext = nil
 		states = append(states, cloned)
 	}
+	consumedTotal := w.consumedTotal
+	updatedTotal := w.updatedTotal
+	droppedTotal := w.droppedTotal
+	expiredTotal := w.expiredTotal
+	capacityEvictedTotal := w.capacityEvictedTotal
+	expiryRunsTotal := w.expiryRunsTotal
+	lastError := w.lastError
+	updatedAt := w.updatedAt
+	w.mu.RUnlock()
+
+	for index := range states {
+		states[index].Score = decaySignalScore(states[index].Score, states[index].LastMatchedAt, now, states[index].TTLSeconds)
+	}
+	activeStates := len(states)
 	sort.Slice(states, func(i, j int) bool { return states[i].UpdatedAt.After(states[j].UpdatedAt) })
 	if len(states) > signalRecentStateLimit {
 		states = states[:signalRecentStateLimit]
 	}
 	status := signalProcessingStatus{
-		Enabled:        settings.Enabled,
-		Settings:       settings,
-		QueueLen:       queueLen,
-		QueueCap:       queueCap,
-		ConsumedTotal:  w.consumedTotal,
-		UpdatedTotal:   w.updatedTotal,
-		DroppedTotal:   w.droppedTotal,
-		ExpiredTotal:   w.expiredTotal,
-		ActiveStates:   len(states),
-		RecentStates:   states,
-		AvailableKinds: availableSignalKinds(),
-		LastError:      w.lastError,
-		UpdatedAt:      w.updatedAt,
+		Enabled:              settings.Enabled,
+		Settings:             settings,
+		QueueLen:             queueLen,
+		QueueCap:             queueCap,
+		ConsumedTotal:        consumedTotal,
+		UpdatedTotal:         updatedTotal,
+		DroppedTotal:         droppedTotal,
+		ExpiredTotal:         expiredTotal,
+		CapacityEvictedTotal: capacityEvictedTotal,
+		ExpiryRunsTotal:      expiryRunsTotal,
+		ActiveStates:         activeStates,
+		RecentStates:         states,
+		AvailableKinds:       availableSignalKinds(),
+		LastError:            lastError,
+		UpdatedAt:            updatedAt,
 	}
-	w.mu.RUnlock()
 	return status
 }

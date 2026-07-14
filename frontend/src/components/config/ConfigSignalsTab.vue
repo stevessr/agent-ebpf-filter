@@ -65,10 +65,15 @@ const signalStats = computed(() => [
     value: `${signalProcessingStatus.value.queueLen}/${signalProcessingStatus.value.queueCap}`,
   },
   {
-    title: "Expired",
-    value: signalProcessingStatus.value.expiredTotal,
+    title: "Removed / capacity",
+    value: `${signalProcessingStatus.value.expiredTotal} / ${signalProcessingStatus.value.capacityEvictedTotal}`,
   },
 ]);
+
+const signalEngineDescription = computed(
+  () =>
+    `Configure signal kinds, TTL decay, ANDed conditions, and selected-program protobuf binary log persistence. Active keys use O(1) LRU capacity retention; cron has completed ${signalProcessingStatus.value.expiryRunsTotal} TTL sweeps.`,
+);
 
 const signalProgramLogWriterAlert = computed(() => {
   const status = signalProgramLogWriterStatus.value;
@@ -212,7 +217,7 @@ onUnmounted(stopAutoRefresh);
         type="info"
         show-icon
         message="Signal processing adds lazy, TTL-decayed runtime signals."
-        description="Configure signal kinds, TTL decay, ANDed conditions, and selected-program protobuf binary log persistence. The worker updates only matching signal keys on event updates; a cron pass evicts expired states in parallel."
+        :description="signalEngineDescription"
       />
     </a-col>
 

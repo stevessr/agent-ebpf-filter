@@ -174,6 +174,8 @@ export const defaultSignalProcessingStatus = (): SignalProcessingStatus => ({
   updatedTotal: 0,
   droppedTotal: 0,
   expiredTotal: 0,
+  capacityEvictedTotal: 0,
+  expiryRunsTotal: 0,
   activeStates: 0,
   recentStates: [],
   availableKinds: [

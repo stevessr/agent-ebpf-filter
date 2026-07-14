@@ -314,7 +314,7 @@ Research training API：`GET /research/sessions/:id/training` 和 `POST /researc
 | `GET` | `/system/signals/program-logs` | 选中程序的本地 protobuf 压缩日志状态、路径、frame 数 |
 | `GET` | `/system/signals/program-logs/download?program=...` | 下载某个已配置选中程序的 length-framed gzip protobuf 日志 |
 
-`/system/signals/status` 对应 `RuntimeSettings.signalProcessing`。信号规则支持 `path_access`、`child_process`、`repeated_read` 与 `custom` kind，规则内条件按 AND 组合；选中的程序会由后端写入本地 length-framed gzip protobuf (`ProgramSignalLogRecord`) 二进制日志。
+`/system/signals/status` 对应 `RuntimeSettings.signalProcessing`。信号规则支持 `path_access`、`child_process`、`repeated_read` 与 `custom` kind，规则内条件按 AND 组合；选中的程序会由后端写入本地 length-framed gzip protobuf (`ProgramSignalLogRecord`) 二进制日志。状态响应的 `capacityEvictedTotal` 区分 LRU 容量淘汰，`expiryRunsTotal` 记录 TTL 扫描次数。
 
 选中程序日志只允许位于 `~/.config/agent-ebpf-filter/signals/program-logs/` 目录的直接子文件；`path` 可留空使用按程序名生成的默认文件名，或填写该目录下的单一文件名。后端会拒绝越界/嵌套路径、symlink、多硬链接和 FIFO/设备等特殊文件，并将单个日志的追加与下载上限固定为 128 MiB。事件热路径通过有界单消费者队列异步追加，停机时停止接收并排空已接受任务；状态响应的 `writer` 字段提供队列、完成、失败和丢弃计数。frame 计数按文件大小/修改时间缓存，成功追加会常数时间推进计数，轮询状态不会反复扫描完整日志。读取时最多接受 100000 个 frame，单个 gzip frame 最大 8 MiB，解压后的 protobuf payload 最大 4 MiB，以阻止异常文件和压缩炸弹造成资源耗尽。
 

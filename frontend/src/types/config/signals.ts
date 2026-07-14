@@ -79,6 +79,8 @@ export interface SignalProcessingStatus {
   updatedTotal: number;
   droppedTotal: number;
   expiredTotal: number;
+  capacityEvictedTotal: number;
+  expiryRunsTotal: number;
   activeStates: number;
   recentStates: SignalState[];
   availableKinds: SignalKindInfo[];

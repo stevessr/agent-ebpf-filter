@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -82,8 +83,12 @@ func TestSignalProcessingCanceledScanDoesNotMutateState(t *testing.T) {
 func TestSignalProcessingCapacityPressureReclaimsExpiredStatesFirst(t *testing.T) {
 	worker := newSignalProcessingWorker()
 	now := time.Now().UTC()
-	worker.states["expired"] = &signalState{Key: "expired", UpdatedAt: now.Add(-time.Minute), ExpiresAt: now.Add(-time.Second)}
-	worker.states["active"] = &signalState{Key: "active", UpdatedAt: now, ExpiresAt: now.Add(time.Minute)}
+	expired := &signalState{Key: "expired", UpdatedAt: now.Add(-time.Minute), ExpiresAt: now.Add(-time.Second)}
+	active := &signalState{Key: "active", UpdatedAt: now, ExpiresAt: now.Add(time.Minute)}
+	worker.states[expired.Key] = expired
+	worker.appendSignalStateLocked(expired)
+	worker.states[active.Key] = active
+	worker.appendSignalStateLocked(active)
 
 	worker.mu.Lock()
 	worker.enforceMaxStatesLocked(1, now)
@@ -93,6 +98,88 @@ func TestSignalProcessingCapacityPressureReclaimsExpiredStatesFirst(t *testing.T
 	}
 	if worker.expiredTotal != 1 {
 		t.Fatalf("expired total = %d, want 1", worker.expiredTotal)
+	}
+	if worker.capacityEvictedTotal != 0 {
+		t.Fatalf("capacity evicted total = %d, want 0", worker.capacityEvictedTotal)
+	}
+	if worker.stateLRUHead != active || worker.stateLRUTail != active || active.lruPrev != nil || active.lruNext != nil {
+		t.Fatalf("remaining LRU links are inconsistent: head=%p tail=%p state=%+v", worker.stateLRUHead, worker.stateLRUTail, active)
+	}
+}
+
+func TestSignalProcessingCapacityLRUPromotesUpdatedState(t *testing.T) {
+	worker := newSignalProcessingWorker()
+	now := time.Now().UTC()
+	states := make([]*signalState, 3)
+	for index, key := range []string{"old", "middle", "new"} {
+		state := &signalState{Key: key, UpdatedAt: now.Add(time.Duration(index) * time.Second), ExpiresAt: now.Add(time.Hour)}
+		states[index] = state
+		worker.states[key] = state
+		worker.appendSignalStateLocked(state)
+	}
+	worker.touchSignalStateLocked(states[0])
+	worker.enforceMaxStatesLocked(2, now)
+
+	if worker.states["middle"] != nil || worker.states["old"] == nil || worker.states["new"] == nil {
+		t.Fatalf("LRU capacity eviction kept wrong states: %#v", worker.states)
+	}
+	if worker.capacityEvictedTotal != 1 || worker.expiredTotal != 1 {
+		t.Fatalf("capacity counters = removed:%d capacity:%d, want 1/1", worker.expiredTotal, worker.capacityEvictedTotal)
+	}
+	if worker.stateLRUHead != states[2] || worker.stateLRUTail != states[0] {
+		t.Fatalf("LRU order = head:%v tail:%v, want new/old", worker.stateLRUHead.Key, worker.stateLRUTail.Key)
+	}
+}
+
+func TestSignalProcessingExpiryDetachesStateAndCountsRun(t *testing.T) {
+	worker := newSignalProcessingWorker()
+	now := time.Now().UTC()
+	states := make([]*signalState, 3)
+	for index, key := range []string{"before", "expired", "after"} {
+		expiresAt := now.Add(time.Hour)
+		if key == "expired" {
+			expiresAt = now.Add(-time.Second)
+		}
+		state := &signalState{Key: key, UpdatedAt: now.Add(time.Duration(index) * time.Second), ExpiresAt: expiresAt}
+		states[index] = state
+		worker.states[key] = state
+		worker.appendSignalStateLocked(state)
+	}
+
+	worker.expireNow(now)
+	if worker.states["expired"] != nil || len(worker.states) != 2 {
+		t.Fatalf("expired state was retained: %#v", worker.states)
+	}
+	if worker.stateLRUHead != states[0] || worker.stateLRUTail != states[2] || states[0].lruNext != states[2] || states[2].lruPrev != states[0] {
+		t.Fatalf("LRU did not reconnect around expired state")
+	}
+	if states[1].lruPrev != nil || states[1].lruNext != nil {
+		t.Fatalf("removed state retained LRU links: %+v", states[1])
+	}
+	if worker.expiredTotal != 1 || worker.capacityEvictedTotal != 0 || worker.expiryRunsTotal != 1 {
+		t.Fatalf("expiry counters = removed:%d capacity:%d runs:%d", worker.expiredTotal, worker.capacityEvictedTotal, worker.expiryRunsTotal)
+	}
+}
+
+func TestSignalProcessingStatusReportsAllActiveStatesAndBoundsRecent(t *testing.T) {
+	worker := newSignalProcessingWorker()
+	now := time.Now().UTC()
+	for index := 0; index < signalRecentStateLimit+25; index++ {
+		key := strconv.Itoa(index)
+		state := &signalState{Key: key, UpdatedAt: now.Add(time.Duration(index) * time.Second), ExpiresAt: now.Add(time.Hour)}
+		worker.states[key] = state
+		worker.appendSignalStateLocked(state)
+	}
+
+	status := worker.Status()
+	if status.ActiveStates != signalRecentStateLimit+25 {
+		t.Fatalf("active states = %d, want %d", status.ActiveStates, signalRecentStateLimit+25)
+	}
+	if len(status.RecentStates) != signalRecentStateLimit {
+		t.Fatalf("recent states = %d, want %d", len(status.RecentStates), signalRecentStateLimit)
+	}
+	if status.RecentStates[0].Key != strconv.Itoa(signalRecentStateLimit+24) {
+		t.Fatalf("newest state = %q", status.RecentStates[0].Key)
 	}
 }
 
@@ -334,5 +421,36 @@ func TestSignalRuleTestAndProgramLogStatusHandlers(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK || rec.Body.Len() == 0 {
 		t.Fatalf("download status=%d len=%d body=%s", rec.Code, rec.Body.Len(), rec.Body.String())
+	}
+}
+
+func BenchmarkSignalProcessingCapacityPressure(b *testing.B) {
+	for _, limit := range []int{64, signalDefaultMaxStates} {
+		b.Run(strconv.Itoa(limit), func(b *testing.B) {
+			worker := newSignalProcessingWorker()
+			base := time.Unix(1, 0).UTC()
+			for index := 0; index < limit; index++ {
+				key := "warm-" + strconv.Itoa(index)
+				state := &signalState{Key: key, UpdatedAt: base, ExpiresAt: base.Add(time.Hour)}
+				worker.states[key] = state
+				worker.appendSignalStateLocked(state)
+			}
+			keys := make([]string, b.N)
+			for index := range keys {
+				keys[index] = "new-" + strconv.Itoa(index)
+			}
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for index, key := range keys {
+				now := base.Add(time.Duration(index+1) * time.Nanosecond)
+				state := &signalState{Key: key, UpdatedAt: now, ExpiresAt: now.Add(time.Hour)}
+				worker.mu.Lock()
+				worker.states[key] = state
+				worker.appendSignalStateLocked(state)
+				worker.enforceMaxStatesLocked(limit, now)
+				worker.mu.Unlock()
+			}
+		})
 	}
 }

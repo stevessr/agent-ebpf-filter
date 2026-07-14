@@ -28,6 +28,15 @@
 | `SignalProcessing` | 信号规则、TTL 衰减、cron 清理和选中程序 protobuf 二进制日志配置 |
 | `DomainForwardProxy` | 80/443 Host/SNI forward config |
 
+### Signal Processing worker
+
+Signal Processing 的活跃状态使用侵入式 LRU 维护访问顺序。更新已有状态、插入新状态和
+超过 `MaxStates` 时淘汰最久未使用状态均为 O(1)，不再在容量压力下扫描并排序整个状态
+表；TTL 全表扫描仅由独立 cron 或显式 expire 任务执行。状态接口的 `expiredTotal` 保持
+“累计移除”兼容语义，`capacityEvictedTotal` 是其中由容量压力造成的子集，
+`expiryRunsTotal` 记录实际完成的 TTL 扫描次数。`activeStates` 返回全部未过期状态数，
+而 `recentStates` 仍最多返回 50 条。
+
 ### Loop Detection worker
 
 Loop Detection 使用单消费者有界队列处理重复上下文。活跃窗口按访问顺序维护 O(1)
