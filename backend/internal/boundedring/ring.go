@@ -94,6 +94,28 @@ func (r *Ring[T]) Snapshot() []T {
 	return r.Recent(0)
 }
 
+// Retain removes values for which keep returns false while preserving logical
+// insertion order. It performs the compaction in place and returns the number
+// of removed values. A nil predicate leaves the ring unchanged.
+func (r *Ring[T]) Retain(keep func(T) bool) int {
+	if r == nil || len(r.items) == 0 || keep == nil {
+		return 0
+	}
+	r.normalize()
+	write := 0
+	for _, value := range r.items {
+		if !keep(value) {
+			continue
+		}
+		r.items[write] = value
+		write++
+	}
+	removed := len(r.items) - write
+	clear(r.items[write:])
+	r.items = r.items[:write]
+	return removed
+}
+
 // Reset removes all values while retaining the bounded backing allocation.
 func (r *Ring[T]) Reset() {
 	if r == nil {
@@ -152,4 +174,20 @@ func (r *Ring[T]) grow(needed int) {
 	items := make([]T, len(r.items), capacity)
 	copy(items, r.items)
 	r.items = items
+}
+
+func (r *Ring[T]) normalize() {
+	if r == nil || r.start == 0 || len(r.items) < 2 {
+		return
+	}
+	reverse(r.items[:r.start])
+	reverse(r.items[r.start:])
+	reverse(r.items)
+	r.start = 0
+}
+
+func reverse[T any](values []T) {
+	for left, right := 0, len(values)-1; left < right; left, right = left+1, right-1 {
+		values[left], values[right] = values[right], values[left]
+	}
 }

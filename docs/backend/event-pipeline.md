@@ -53,11 +53,14 @@ flowchart TD
 
 `backend/core/state_types.go` 中 `EventArchive` 是 bounded ring：
 
-- `Add()` 超出容量时裁掉最旧记录；
+- `Add()` 满容量后以 O(1) 覆盖最旧槽位，不在事件写锁内搬移完整数组；
 - `Snapshot(limit)` 返回最新 N 条；
-- `EvictOlderThan()` 按时间清理；
+- `EvictOlderThan()` 按逻辑接收顺序原地压缩并清理失效引用；
 - `SetMax()` 动态调整容量；
 - `Clear()` 清空内存记录。
+
+底层缓冲按需增长且 backing capacity 不超过 `MaxEventCount`。默认 1500 条归档在
+稳定写入阶段不再让单条捕获事件复制约 1500 个记录结构，容量调大时追加成本也保持恒定。
 
 ## 语义关联状态
 

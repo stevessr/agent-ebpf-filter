@@ -50,6 +50,22 @@ func TestRingResetClearsReferencesAndRetainsCapacity(t *testing.T) {
 	}
 }
 
+func TestRingRetainCompactsWrappedValuesInLogicalOrder(t *testing.T) {
+	ring := New[int](5)
+	ring.AddBatch([]int{1, 2, 3, 4, 5})
+	ring.Add(6)
+	if removed := ring.Retain(func(value int) bool { return value%2 == 0 }); removed != 2 {
+		t.Fatalf("retain removed %d values, want 2", removed)
+	}
+	assertRingValues(t, ring.Snapshot(), []int{2, 4, 6})
+
+	ring.AddBatch([]int{7, 8, 9})
+	assertRingValues(t, ring.Snapshot(), []int{4, 6, 7, 8, 9})
+	if removed := ring.Retain(nil); removed != 0 {
+		t.Fatalf("nil retain removed %d values", removed)
+	}
+}
+
 func TestRingNormalizesInvalidLimit(t *testing.T) {
 	ring := New[int](0)
 	ring.Add(1)

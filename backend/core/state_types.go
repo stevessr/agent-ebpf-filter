@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"agent-ebpf-filter/internal/boundedring"
 	"agent-ebpf-filter/pb"
 	"agent-ebpf-filter/redaction"
 )
@@ -149,8 +150,7 @@ type CapturedEventRecord struct {
 // EventArchive is a bounded, thread-safe ring of recent events.
 type EventArchive struct {
 	mu      sync.RWMutex
-	records []CapturedEventRecord
-	max     int
+	records *boundedring.Ring[CapturedEventRecord]
 }
 
 // NewEventArchive creates a new archive with the given capacity.
@@ -158,19 +158,17 @@ func NewEventArchive(max int) *EventArchive {
 	if max <= 0 {
 		max = 1000
 	}
-	return &EventArchive{max: max}
+	return &EventArchive{records: boundedring.New[CapturedEventRecord](max)}
 }
 
 // Add appends a record, evicting the oldest if at capacity.
 func (a *EventArchive) Add(record CapturedEventRecord) {
 	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	a.records = append(a.records, record)
-	if len(a.records) > a.max {
-		copy(a.records, a.records[len(a.records)-a.max:])
-		a.records = a.records[:a.max]
+	if a.records == nil {
+		a.records = boundedring.New[CapturedEventRecord](1000)
 	}
+	a.records.Add(record)
+	a.mu.Unlock()
 }
 
 // Snapshot returns up to limit recent records (newest last).
@@ -178,56 +176,55 @@ func (a *EventArchive) Snapshot(limit int) []CapturedEventRecord {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
-	if limit <= 0 || limit > len(a.records) {
-		limit = len(a.records)
-	}
-	if limit == 0 {
+	if a.records == nil {
 		return nil
 	}
-
-	out := make([]CapturedEventRecord, limit)
-	copy(out, a.records[len(a.records)-limit:])
-	return out
+	return a.records.Recent(limit)
 }
 
 // Clear drops all records.
 func (a *EventArchive) Clear() {
 	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.records = nil
+	if a.records != nil {
+		a.records.Clear()
+	}
+	a.mu.Unlock()
 }
 
 // SetMax updates the maximum capacity, evicting if necessary.
 func (a *EventArchive) SetMax(n int) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
 	if n <= 0 {
 		n = 1000
 	}
-	a.max = n
-	if len(a.records) > a.max {
-		copy(a.records, a.records[len(a.records)-a.max:])
-		a.records = a.records[:a.max]
+	a.mu.Lock()
+	if a.records == nil {
+		a.records = boundedring.New[CapturedEventRecord](n)
+	} else if a.records.Limit() != n {
+		retained := a.records.Recent(n)
+		a.records = boundedring.New[CapturedEventRecord](n)
+		a.records.AddBatch(retained)
 	}
+	a.mu.Unlock()
 }
 
 // EvictOlderThan removes records older than the given threshold.
 func (a *EventArchive) EvictOlderThan(threshold time.Time) {
 	a.mu.Lock()
-	defer a.mu.Unlock()
-	keep := 0
-	for _, r := range a.records {
-		if !r.ReceivedAt.Before(threshold) {
-			a.records[keep] = r
-			keep++
-		}
+	if a.records != nil {
+		a.records.Retain(func(record CapturedEventRecord) bool {
+			return !record.ReceivedAt.Before(threshold)
+		})
 	}
-	a.records = a.records[:keep]
+	a.mu.Unlock()
 }
 
 // Count returns the current number of records.
 func (a *EventArchive) Count() int {
 	a.mu.RLock()
-	defer a.mu.RUnlock()
-	return len(a.records)
+	count := 0
+	if a.records != nil {
+		count = a.records.Len()
+	}
+	a.mu.RUnlock()
+	return count
 }

@@ -220,7 +220,7 @@ $$
 
 
 其中：
-- $n$：最大事件数（默认 10,000）
+- $n$：最大事件数（`MaxEventCount`，默认 1,500）
 - $s_{event}$：平均事件大小（$\sim$ 512 bytes）
 - $s_{overhead}$：Go slice/struct overhead（$\sim$ 64 bytes）
 
