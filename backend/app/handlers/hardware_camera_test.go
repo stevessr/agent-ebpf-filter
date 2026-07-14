@@ -1,6 +1,12 @@
 package handlers
 
-import "testing"
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/gin-gonic/gin"
+)
 
 func TestNormalizeCameraDeviceName(t *testing.T) {
 	t.Parallel()
@@ -37,5 +43,20 @@ func TestNormalizeCameraDeviceName(t *testing.T) {
 				t.Fatalf("normalizeCameraDeviceName(%q) = %q, want %q", tc.input, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestHandleCameraSnapshotHandlesMissingStream(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	previousDeps := Deps
+	t.Cleanup(func() { Deps = previousDeps })
+	Deps.GetCameraStream = func(string) *CameraStream { return nil }
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/camera/snapshot?device=/dev/video0", nil)
+	HandleCameraSnapshot(ctx)
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
 	}
 }

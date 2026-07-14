@@ -1,8 +1,6 @@
 package shell
 
 import (
-	"agent-ebpf-filter/app/platform"
-	"agent-ebpf-filter/pb"
 	"bytes"
 	"errors"
 	"fmt"
@@ -12,6 +10,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"agent-ebpf-filter/app/platform"
+	"agent-ebpf-filter/app/wsstream"
+	"agent-ebpf-filter/pb"
 
 	"github.com/creack/pty/v2"
 	"github.com/gorilla/websocket"
@@ -249,7 +251,7 @@ func (s *Session) forwardOutput(payload []byte) {
 	}
 
 	s.writeMu.Lock()
-	err := conn.WriteMessage(websocket.BinaryMessage, payload)
+	err := wsstream.WriteMessage(conn, websocket.BinaryMessage, payload)
 	s.writeMu.Unlock()
 	if err != nil {
 		s.Detach(conn)
@@ -290,27 +292,40 @@ func (s *Session) finishRead(readErr error) {
 
 // Attach attaches a WebSocket connection to the session, sending the backlog first.
 func (s *Session) Attach(conn *websocket.Conn) error {
+	if conn == nil {
+		return fmt.Errorf("shell session WebSocket is unavailable")
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.closed {
+		s.mu.Unlock()
 		return fmt.Errorf("shell session has been closed")
 	}
 	if s.status != StatusRunning {
+		s.mu.Unlock()
 		return fmt.Errorf("shell session is not running")
 	}
 	if s.conn != nil {
+		s.mu.Unlock()
 		return fmt.Errorf("shell session is already attached")
 	}
 	s.conn = conn
 	s.attached = true
 	s.updatedAt = time.Now()
-	if len(s.backlog) > 0 {
-		s.writeMu.Lock()
-		err := conn.WriteMessage(websocket.BinaryMessage, bytes.Clone(s.backlog))
-		s.writeMu.Unlock()
-		if err != nil {
-			s.conn = nil
-			s.attached = false
+	backlog := bytes.Clone(s.backlog)
+	s.mu.Unlock()
+
+	if len(backlog) > 0 {
+		if err := wsstream.WriteMessage(conn, websocket.BinaryMessage, backlog); err != nil {
+			s.mu.Lock()
+			if s.conn == conn {
+				s.conn = nil
+				s.attached = false
+				s.updatedAt = time.Now()
+			}
+			s.mu.Unlock()
 			return fmt.Errorf("backlog write failed: %w", err)
 		}
 	}

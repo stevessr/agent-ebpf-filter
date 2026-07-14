@@ -1,11 +1,13 @@
 package events
 
 import (
-	"agent-ebpf-filter/internal/executiongraph"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"agent-ebpf-filter/app/wsstream"
+	"agent-ebpf-filter/internal/executiongraph"
 
 	"github.com/gin-gonic/gin"
 )
@@ -33,6 +35,7 @@ func ServeExecutionGraphWS(c *gin.Context) {
 		return
 	}
 	defer conn.Close()
+	conn.SetReadLimit(wsstream.ControlReadLimit)
 
 	interval := ParseExecutionGraphInterval(c.Query("interval"))
 	ticker := time.NewTicker(interval)
@@ -50,10 +53,10 @@ func ServeExecutionGraphWS(c *gin.Context) {
 	writeGraph := func() bool {
 		graph, err := BuildExecutionGraphFromRequest(c)
 		if err != nil {
-			_ = conn.WriteJSON(gin.H{"error": err.Error()})
+			_ = wsstream.WriteJSON(conn, gin.H{"error": err.Error()})
 			return false
 		}
-		if err := conn.WriteJSON(graph); err != nil {
+		if err := wsstream.WriteJSON(conn, graph); err != nil {
 			return false
 		}
 		return true
@@ -65,6 +68,8 @@ func ServeExecutionGraphWS(c *gin.Context) {
 	for {
 		select {
 		case <-done:
+			return
+		case <-c.Request.Context().Done():
 			return
 		case <-ticker.C:
 			if !writeGraph() {

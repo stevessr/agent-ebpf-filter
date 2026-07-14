@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 
+	"agent-ebpf-filter/app/wsstream"
+
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
@@ -18,6 +20,7 @@ func ServeShellSessionsWS(c *gin.Context) {
 		return
 	}
 	defer conn.Close()
+	conn.SetReadLimit(wsstream.ControlReadLimit)
 
 	notifyCh := Deps.ShellSessions.Subscribe()
 	defer Deps.ShellSessions.Unsubscribe(notifyCh)
@@ -38,7 +41,7 @@ func ServeShellSessionsWS(c *gin.Context) {
 		if err != nil {
 			return false
 		}
-		if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+		if err := wsstream.WriteMessage(conn, websocket.TextMessage, data); err != nil {
 			return false
 		}
 		return true
@@ -58,6 +61,8 @@ func ServeShellSessionsWS(c *gin.Context) {
 				return
 			}
 		case <-done:
+			return
+		case <-c.Request.Context().Done():
 			return
 		}
 	}

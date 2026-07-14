@@ -1,20 +1,22 @@
 package app
 
 import (
-	"agent-ebpf-filter/app/handlers"
-	"agent-ebpf-filter/app/platform"
-	"agent-ebpf-filter/app/shell"
-	"agent-ebpf-filter/app/tls"
-	"agent-ebpf-filter/core"
-	"agent-ebpf-filter/internal/behavior"
-	"agent-ebpf-filter/internal/geoip"
-	netcore "agent-ebpf-filter/internal/network"
-	"agent-ebpf-filter/pb"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
+
+	"agent-ebpf-filter/app/handlers"
+	"agent-ebpf-filter/app/platform"
+	"agent-ebpf-filter/app/shell"
+	"agent-ebpf-filter/app/tls"
+	"agent-ebpf-filter/app/wsstream"
+	"agent-ebpf-filter/core"
+	"agent-ebpf-filter/internal/behavior"
+	"agent-ebpf-filter/internal/geoip"
+	netcore "agent-ebpf-filter/internal/network"
+	"agent-ebpf-filter/pb"
 
 	"github.com/cilium/ebpf"
 	"github.com/gin-gonic/gin"
@@ -333,6 +335,7 @@ func (a *shellManagerAdapter) AttachWebSocket(id string, conn *websocket.Conn) e
 }
 func (a *shellManagerAdapter) readWebSocket(session *shell.Session, conn *websocket.Conn) {
 	defer session.Detach(conn)
+	conn.SetReadLimit(wsstream.ControlReadLimit)
 	for {
 		msgType, data, err := conn.ReadMessage()
 		if err != nil {

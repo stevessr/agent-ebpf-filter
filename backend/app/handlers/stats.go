@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"time"
 
+	"agent-ebpf-filter/app/wsstream"
 	"agent-ebpf-filter/pb"
 
 	"github.com/gin-gonic/gin"
@@ -20,17 +21,21 @@ import (
 
 // ---- moved from app/handlersstatssystem.go ----
 
+const (
+	systemStatsMaxProcesses        = 8192
+	systemStatsMaxNameBytes        = 512
+	systemStatsMaxUserBytes        = 512
+	systemStatsMaxCommandLineBytes = 4096
+)
+
 func ServeSystemStatsWS(c *gin.Context) {
 	conn, err := Deps.Upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		return
 	}
 	defer conn.Close()
-	intervalStr := c.DefaultQuery("interval", "2000")
-	iv, _ := time.ParseDuration(intervalStr + "ms")
-	if iv < 500*time.Millisecond {
-		iv = 500 * time.Millisecond
-	}
+	conn.SetReadLimit(wsstream.ControlReadLimit)
+	iv := wsstream.IntervalMilliseconds(c.Query("interval"), 2*time.Second, wsstream.MinStreamInterval, wsstream.MaxStreamInterval)
 	ticker := time.NewTicker(iv)
 	defer ticker.Stop()
 	done := make(chan struct{})
@@ -73,7 +78,13 @@ func ServeSystemStatsWS(c *gin.Context) {
 		}
 		gm, gs := Deps.GetGPUMetrics()
 		vm, _ := mem.VirtualMemory()
+		if vm == nil {
+			vm = &mem.VirtualMemoryStat{}
+		}
 		sm, _ := mem.SwapMemory()
+		if sm == nil {
+			sm = &mem.SwapMemoryStat{}
+		}
 		cc, _ := cpu.Percent(0, false)
 		cp, _ := cpu.Percent(0, true)
 		netIO, _ := gnet.IOCounters(true)
@@ -151,7 +162,11 @@ func ServeSystemStatsWS(c *gin.Context) {
 		lastNetIO = netIO
 		lastDiskIO = diskIO
 		lastIOStatTime = now
-		cpuInfo := &pb.CPUInfo{Total: cc[0], Cores: cp}
+		totalCPU := 0.0
+		if len(cc) > 0 {
+			totalCPU = cc[0]
+		}
+		cpuInfo := &pb.CPUInfo{Total: totalCPU, Cores: cp}
 		for i, usage := range cp {
 			ct := pb.CPUInfo_Core_PERFORMANCE
 			if i < len(coreTypes) {
@@ -174,6 +189,14 @@ func ServeSystemStatsWS(c *gin.Context) {
 		}, Io: pbIO, Faults: faultInfo}
 		psList, _ := ps.Processes()
 		for _, p := range psList {
+			if len(stats.Processes) >= systemStatsMaxProcesses {
+				break
+			}
+			select {
+			case <-c.Request.Context().Done():
+				return
+			default:
+			}
 			n, _ := p.Name()
 			pp, _ := p.Ppid()
 			ct, _ := p.CreateTime()
@@ -206,6 +229,9 @@ func ServeSystemStatsWS(c *gin.Context) {
 				majF = faults.MajorFaults
 			}
 			currentPIDs[p.Pid] = struct{}{}
+			n = boundedHandlerText(n, systemStatsMaxNameBytes)
+			u = boundedHandlerText(u, systemStatsMaxUserBytes)
+			cmdl = boundedHandlerText(cmdl, systemStatsMaxCommandLineBytes)
 			stats.Processes = append(stats.Processes, &pb.Process{Pid: p.Pid, Ppid: pp, Name: n, Cpu: ccp, Mem: mp, User: u, GpuMem: gmem, GpuId: gid, GpuUtil: gutil, Cmdline: cmdl, CreateTime: ct, MinorFaults: minF, MajorFaults: majF})
 			if !emittedSystemMetric && (ccp >= 80 || mp >= 20) {
 				emitSystemMetricEvent(p.Pid, pp, n, ccp, mp, uint64(float64(vm.Total)*float64(mp)/100), "threshold")
@@ -217,8 +243,11 @@ func ServeSystemStatsWS(c *gin.Context) {
 				delete(procCPUSamples, pid)
 			}
 		}
-		data, _ := proto.Marshal(stats)
-		if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
+		data, err := proto.Marshal(stats)
+		if err != nil {
+			return
+		}
+		if err := wsstream.WriteMessage(conn, websocket.BinaryMessage, data); err != nil {
 			return
 		}
 	}

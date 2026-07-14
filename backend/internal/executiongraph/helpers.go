@@ -136,15 +136,14 @@ func ParseInterval(raw string) time.Duration {
 	if value == "" {
 		return 1500 * time.Millisecond
 	}
-	if millis, err := strconv.Atoi(value); err == nil {
-		d := time.Duration(millis) * time.Millisecond
-		if d < 500*time.Millisecond {
+	if millis, err := strconv.ParseInt(value, 10, 64); err == nil {
+		if millis < 500 {
 			return 500 * time.Millisecond
 		}
-		if d > 30*time.Second {
+		if millis > 30000 {
 			return 30 * time.Second
 		}
-		return d
+		return time.Duration(millis) * time.Millisecond
 	}
 	if d, err := time.ParseDuration(value); err == nil {
 		if d < 500*time.Millisecond {

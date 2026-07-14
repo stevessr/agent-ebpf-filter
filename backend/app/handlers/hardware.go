@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"agent-ebpf-filter/app/wsstream"
 	"agent-ebpf-filter/pb"
 
 	"github.com/gin-gonic/gin"
@@ -70,6 +71,10 @@ func HandleCameraSnapshot(c *gin.Context) {
 	}
 
 	stream := Deps.GetCameraStream(devName)
+	if stream == nil {
+		c.JSON(500, gin.H{"error": "Failed to access camera"})
+		return
+	}
 	sub := stream.Subscribe()
 	if sub == nil {
 		c.JSON(500, gin.H{"error": "Failed to access camera"})
@@ -93,11 +98,13 @@ func HandleMicrophones(c *gin.Context) {
 	seen := make(map[string]bool)
 
 	// 1. ALSA hardware capture devices (arecord -l)
-	cmd := exec.Command("arecord", "-l")
-	out, _ := cmd.Output()
+	out, _ := runBoundedHardwareCommand(c.Request.Context(), hardwareDiscoveryTimeout, hardwareDiscoveryMaxOutputBytes, "arecord", "-l")
 	re := regexp.MustCompile(`card (\d+): .*? \[([^\]]+)\], device (\d+): .*? \[([^\]]+)\]`)
 	matches := re.FindAllStringSubmatch(string(out), -1)
 	for _, m := range matches {
+		if len(devices) >= hardwareDeviceListLimit {
+			break
+		}
 		if len(m) >= 5 {
 			id := fmt.Sprintf("hw:%s,%s", m[1], m[3])
 			if seen[id] {
@@ -106,21 +113,27 @@ func HandleMicrophones(c *gin.Context) {
 			seen[id] = true
 			devices = append(devices, gin.H{
 				"id":          id,
-				"name":        fmt.Sprintf("%s (%s)", m[2], m[4]),
+				"name":        boundedHandlerText(fmt.Sprintf("%s (%s)", m[2], m[4]), hardwareDeviceLabelMaxBytes),
 				"source_type": "alsa",
 			})
 		}
 	}
 
 	// 2. PulseAudio / PipeWire sources (includes Bluetooth A2DP/HFP)
-	if pactlOut, err := exec.Command("pactl", "list", "sources", "short").Output(); err == nil {
+	if pactlOut, err := runBoundedHardwareCommand(c.Request.Context(), hardwareDiscoveryTimeout, hardwareDiscoveryMaxOutputBytes, "pactl", "list", "sources", "short"); err == nil {
 		// pactl output lines: <index>\t<name>\t<driver>\t<format>\t<state>
 		for _, line := range strings.Split(strings.TrimSpace(string(pactlOut)), "\n") {
+			if len(devices) >= hardwareDeviceListLimit {
+				break
+			}
 			fields := strings.Split(line, "\t")
 			if len(fields) < 2 {
 				continue
 			}
-			sourceName := fields[1]
+			sourceName, err := normalizeMicrophoneDeviceName(fields[1])
+			if err != nil || sourceName == "default" {
+				continue
+			}
 
 			// Skip monitor sources (output sinks, not input devices)
 			if strings.HasSuffix(sourceName, ".monitor") {
@@ -135,9 +148,9 @@ func HandleMicrophones(c *gin.Context) {
 			isBlueZ := strings.Contains(sourceName, "bluez") || strings.Contains(sourceName, "bluez_input")
 			name := sourceName
 			if isBlueZ {
-				name = "🎧 [BT] " + sourceName
+				name = boundedHandlerText("🎧 [BT] "+sourceName, hardwareDeviceLabelMaxBytes)
 			} else {
-				name = "🎙 " + sourceName
+				name = boundedHandlerText("🎙 "+sourceName, hardwareDeviceLabelMaxBytes)
 			}
 
 			devices = append(devices, gin.H{
@@ -155,13 +168,25 @@ func HandleMicrophones(c *gin.Context) {
 }
 
 func ServeMicrophoneWS(c *gin.Context) {
-	device := c.DefaultQuery("device", "default")
+	device, err := normalizeMicrophoneDeviceName(c.Query("device"))
+	if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	select {
+	case microphoneCaptureSlots <- struct{}{}:
+		defer func() { <-microphoneCaptureSlots }()
+	default:
+		c.JSON(429, gin.H{"error": "too many active microphone streams"})
+		return
+	}
 
 	conn, err := Deps.Upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		return
 	}
 	defer conn.Close()
+	conn.SetReadLimit(wsstream.ControlReadLimit)
 
 	done := make(chan struct{})
 	go func() {
@@ -173,31 +198,35 @@ func ServeMicrophoneWS(c *gin.Context) {
 		}
 	}()
 
+	captureCtx, cancelCapture := context.WithCancel(c.Request.Context())
+	defer cancelCapture()
+
 	// Choose recording backend based on device type
 	var cmd *exec.Cmd
 	if strings.HasPrefix(device, "hw:") {
 		// ALSA hardware device
-		cmd = exec.Command("arecord", "-D", "plughw:"+device[3:], "-f", "S16_LE", "-r", "16000", "-c", "1", "-t", "raw")
+		cmd = exec.CommandContext(captureCtx, "arecord", "-D", "plughw:"+device[3:], "-f", "S16_LE", "-r", "16000", "-c", "1", "-t", "raw")
 	} else if device == "default" {
 		// ALSA default (routes through PulseAudio/PipeWire if available)
-		cmd = exec.Command("arecord", "-D", "default", "-f", "S16_LE", "-r", "16000", "-c", "1", "-t", "raw")
+		cmd = exec.CommandContext(captureCtx, "arecord", "-D", "default", "-f", "S16_LE", "-r", "16000", "-c", "1", "-t", "raw")
 	} else {
 		// PulseAudio / PipeWire source (Bluetooth, USB, etc.)
 		// Try parec first, fall back to arecord with the source name
 		if _, err := exec.LookPath("parec"); err == nil {
-			cmd = exec.Command("parec", "-d", device, "--format=s16le", "--rate=16000", "--channels=1")
+			cmd = exec.CommandContext(captureCtx, "parec", "-d", device, "--format=s16le", "--rate=16000", "--channels=1")
 		} else {
 			// Fallback: try arecord with the device name as-is
-			cmd = exec.Command("arecord", "-D", device, "-f", "S16_LE", "-r", "16000", "-c", "1", "-t", "raw")
+			cmd = exec.CommandContext(captureCtx, "arecord", "-D", device, "-f", "S16_LE", "-r", "16000", "-c", "1", "-t", "raw")
 		}
 	}
+	cmd.WaitDelay = hardwareProcessWaitDelay
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return
 	}
 	if err := cmd.Start(); err != nil {
-		_ = conn.WriteMessage(websocket.TextMessage, []byte("Error: Failed to open microphone device"))
+		_ = wsstream.WriteMessage(conn, websocket.TextMessage, []byte("Error: Failed to open microphone device"))
 		return
 	}
 
@@ -206,7 +235,7 @@ func ServeMicrophoneWS(c *gin.Context) {
 		case <-done:
 		case <-c.Request.Context().Done():
 		}
-		_ = cmd.Process.Kill()
+		cancelCapture()
 	}()
 
 	buf := make([]byte, 4096)
@@ -215,10 +244,11 @@ func ServeMicrophoneWS(c *gin.Context) {
 		if err != nil || n == 0 {
 			break
 		}
-		if err := conn.WriteMessage(websocket.BinaryMessage, buf[:n]); err != nil {
+		if err := wsstream.WriteMessage(conn, websocket.BinaryMessage, buf[:n]); err != nil {
 			break
 		}
 	}
+	cancelCapture()
 	_ = cmd.Wait()
 }
 
@@ -233,11 +263,16 @@ func ServeCameraWS(c *gin.Context) {
 		return
 	}
 	defer conn.Close()
+	conn.SetReadLimit(wsstream.ControlReadLimit)
 
 	stream := Deps.GetCameraStream(devName)
+	if stream == nil {
+		_ = wsstream.WriteMessage(conn, websocket.TextMessage, []byte("Error: Failed to access camera"))
+		return
+	}
 	sub := stream.Subscribe()
 	if sub == nil {
-		_ = conn.WriteMessage(websocket.TextMessage, []byte("Error: Failed to access camera"))
+		_ = wsstream.WriteMessage(conn, websocket.TextMessage, []byte("Error: Failed to access camera"))
 		return
 	}
 	defer sub.Unsubscribe()
@@ -258,7 +293,7 @@ func ServeCameraWS(c *gin.Context) {
 		if err != nil {
 			return
 		}
-		if err := conn.WriteMessage(websocket.BinaryMessage, frame); err != nil {
+		if err := wsstream.WriteMessage(conn, websocket.BinaryMessage, frame); err != nil {
 			return
 		}
 	}
@@ -270,12 +305,9 @@ func ServeSensorsWS(c *gin.Context) {
 		return
 	}
 	defer conn.Close()
+	conn.SetReadLimit(wsstream.ControlReadLimit)
 
-	intervalStr := c.DefaultQuery("interval", "2000")
-	iv, _ := time.ParseDuration(intervalStr + "ms")
-	if iv < 500*time.Millisecond {
-		iv = 500 * time.Millisecond
-	}
+	iv := wsstream.IntervalMilliseconds(c.Query("interval"), 2*time.Second, wsstream.MinStreamInterval, wsstream.MaxStreamInterval)
 	ticker := time.NewTicker(iv)
 	defer ticker.Stop()
 
@@ -300,11 +332,16 @@ func ServeSensorsWS(c *gin.Context) {
 					Value: t.Temperature,
 				})
 			}
-			data, _ := proto.Marshal(snap)
-			if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
+			data, err := proto.Marshal(snap)
+			if err != nil {
+				return
+			}
+			if err := wsstream.WriteMessage(conn, websocket.BinaryMessage, data); err != nil {
 				return
 			}
 		case <-done:
+			return
+		case <-c.Request.Context().Done():
 			return
 		}
 	}

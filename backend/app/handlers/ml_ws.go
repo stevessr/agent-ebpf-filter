@@ -3,6 +3,8 @@ package handlers
 import (
 	"time"
 
+	"agent-ebpf-filter/app/wsstream"
+
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
@@ -16,12 +18,9 @@ func ServeMLStatusWS(c *gin.Context) {
 		return
 	}
 	defer conn.Close()
+	conn.SetReadLimit(wsstream.ControlReadLimit)
 
-	intervalStr := c.DefaultQuery("interval", "1000")
-	iv, _ := time.ParseDuration(intervalStr + "ms")
-	if iv < 500*time.Millisecond {
-		iv = 500 * time.Millisecond
-	}
+	iv := wsstream.IntervalMilliseconds(c.Query("interval"), time.Second, wsstream.MinStreamInterval, wsstream.MaxStreamInterval)
 	ticker := time.NewTicker(iv)
 	defer ticker.Stop()
 
@@ -36,17 +35,19 @@ func ServeMLStatusWS(c *gin.Context) {
 	}()
 
 	// Send initial state immediately
-	if err := conn.WriteMessage(websocket.TextMessage, Deps.BuildMLStatusJSON()); err != nil {
+	if err := wsstream.WriteMessage(conn, websocket.TextMessage, Deps.BuildMLStatusJSON()); err != nil {
 		return
 	}
 
 	for {
 		select {
 		case <-ticker.C:
-			if err := conn.WriteMessage(websocket.TextMessage, Deps.BuildMLStatusJSON()); err != nil {
+			if err := wsstream.WriteMessage(conn, websocket.TextMessage, Deps.BuildMLStatusJSON()); err != nil {
 				return
 			}
 		case <-done:
+			return
+		case <-c.Request.Context().Done():
 			return
 		}
 	}
