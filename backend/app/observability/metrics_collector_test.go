@@ -20,6 +20,18 @@ func TestCollectorPipelineMetricsSnapshot(t *testing.T) {
 		PersistQueueStatus: func() PersistQueueStatus {
 			return PersistQueueStatus{Active: true, QueueLen: 7, QueueCap: 64, Pending: 9, EnqueuedTotal: 20, PersistedTotal: 10, FailedTotal: 1, DroppedTotal: 2, LastFlushedAt: "2026-07-14T12:00:00Z", LastError: "queue full"}
 		},
+		SemanticStateStatus: func() SemanticStateStatus {
+			return SemanticStateStatus{
+				EntriesByKind:                 map[string]int{"agentic_loops": 2, "secrets": 3},
+				Entries:                       5,
+				MaxEntries:                    24576,
+				ExpiredEvictionsTotal:         11,
+				CapacityEvictionsTotal:        12,
+				TruncatedStateValuesTotal:     13,
+				IgnoredOversizedMetadataTotal: 14,
+				LastSweepAt:                   "2026-07-14T12:00:01Z",
+			}
+		},
 	}
 	t.Cleanup(func() {
 		collectorMetricsStore = oldStore
@@ -52,6 +64,12 @@ func TestCollectorPipelineMetricsSnapshot(t *testing.T) {
 	}
 	if !health.PersistWriterActive || health.PersistQueueLen != 7 || health.PersistQueueCap != 64 || health.PersistPending != 9 || health.PersistGenerationEnqueued != 20 || health.PersistGenerationPersisted != 10 || health.PersistGenerationFailed != 1 || health.PersistGenerationDropped != 2 || health.PersistWriterLastFlushedAt != "2026-07-14T12:00:00Z" || health.PersistWriterLastError != "queue full" {
 		t.Fatalf("persist queue status mismatch: %+v", health)
+	}
+	if health.SemanticStateEntries != 5 || health.SemanticStateMaxEntries != 24576 || health.SemanticStateEntriesByKind["secrets"] != 3 || health.SemanticStateEntriesByKind["agentic_loops"] != 2 {
+		t.Fatalf("semantic state size mismatch: %+v", health)
+	}
+	if health.SemanticStateExpiredEvictions != 11 || health.SemanticStateCapacityEvictions != 12 || health.SemanticStateTruncatedValues != 13 || health.SemanticStateIgnoredMetadata != 14 || health.SemanticStateLastSweepAt != "2026-07-14T12:00:01Z" {
+		t.Fatalf("semantic state counters mismatch: %+v", health)
 	}
 	if health.WsClients != 5 {
 		t.Fatalf("websocket client count = %d, want 5", health.WsClients)

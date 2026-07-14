@@ -11,6 +11,8 @@ import (
 	"time"
 	"unsafe"
 
+	"agent-ebpf-filter/app/events"
+
 	"github.com/cilium/ebpf/ringbuf"
 )
 
@@ -159,6 +161,7 @@ func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) 
 	jobs := &runtimeBackgroundJobs{}
 	initRedactionEngine()
 	jobs.Go(func() { runEventBroadcaster(ctx) })
+	jobs.Go(func() { runSemanticAlertStateGC(ctx, semanticAlertsState, semanticStateGCInterval) })
 	startKernelRiskFeedbackWorker(ctx)
 	startLoopDetectionWorker(ctx)
 	startResearchProcessingWorker(ctx)
@@ -262,6 +265,22 @@ func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) 
 		})
 	}
 	return jobs
+}
+
+func runSemanticAlertStateGC(ctx context.Context, state *events.SemanticAlertState, interval time.Duration) {
+	if ctx == nil || state == nil || interval <= 0 {
+		return
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-ticker.C:
+			state.EvictExpired(now.UTC())
+		}
+	}
 }
 
 func runArchiveEvictionLoop(ctx context.Context, archive *eventArchive, interval time.Duration) {

@@ -59,6 +59,25 @@ flowchart TD
 - `SetMax()` 动态调整容量；
 - `Clear()` 清空内存记录。
 
+## 语义关联状态
+
+`BuildSemanticAlerts()` 会跨事件关联 secret access、chmod 后执行、fork window、
+agentic resource loop 和多 Agent 文件写入。关联状态不能随长期运行或攻击者控制的
+context/path 无限增长，因此 `SemanticAlertState` 使用五个受同一互斥锁保护的有界 LRU：
+
+- secret、executable、fork 和 agentic-loop 各最多 4096 个 context；
+- file-mutation 最多 8192 个 path；总容量上限为 24576；
+- context、path、target、mode 和 prompt digest 都有字节上限，超长值使用稳定 SHA-256
+  后缀保留区分度，不把原始大值留在状态中；
+- `extra_info` 采用流式字段扫描，只检查前 64 KiB，prompt digest 最多 256 bytes，
+  不再复制并切分整段 metadata；
+- 与 prompt/API/file-I/O correlation 无关的事件在创建 key 和加锁前返回，不写入空 window；
+- 每 5 秒由可取消的后台任务扫描 TTL，按容量淘汰则在插入时以 O(1) 完成。
+
+`/system/collector-health` 暴露各类 entry 数、总量/上限、TTL/容量淘汰、受限值、
+忽略的超限 metadata 和最后 GC 时间。Prometheus 对应暴露
+`agent_ebpf_semantic_state_entries{kind=...}`、`*_max_entries` 及四个累计 counter。
+
 ## 异步 JSONL 持久化
 
 `recordCapturedEvent()` 在完成 clone、schema 归一化和脱敏后，先写入内存

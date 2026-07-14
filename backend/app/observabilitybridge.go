@@ -60,6 +60,29 @@ func initObservability() {
 				LastError:      status.LastError,
 			}
 		},
+		SemanticStateStatus: func() observability.SemanticStateStatus {
+			status := semanticAlertsState.Status()
+			lastSweepAt := ""
+			if !status.LastSweepAt.IsZero() {
+				lastSweepAt = status.LastSweepAt.Format(time.RFC3339Nano)
+			}
+			return observability.SemanticStateStatus{
+				EntriesByKind: map[string]int{
+					"secrets":        status.RecentSecrets,
+					"executables":    status.RecentExecutables,
+					"forks":          status.ForkWindows,
+					"agentic_loops":  status.AgenticLoopWindows,
+					"file_mutations": status.RecentFileMutations,
+				},
+				Entries:                       status.Entries,
+				MaxEntries:                    status.MaxEntries,
+				ExpiredEvictionsTotal:         status.ExpiredEvictionsTotal,
+				CapacityEvictionsTotal:        status.CapacityEvictionsTotal,
+				TruncatedStateValuesTotal:     status.TruncatedStateValuesTotal,
+				IgnoredOversizedMetadataTotal: status.IgnoredOversizedMetadataTotal,
+				LastSweepAt:                   lastSweepAt,
+			}
+		},
 		Broadcast: broadcast,
 	})
 }

@@ -143,7 +143,7 @@ registerRoutes()
 | 方法 | 路径 | 用途 |
 |------|------|------|
 | `GET` | `/system/bootstrap-health` | 启动阶段健康状态 |
-| `GET` | `/system/collector-health` | 捕获、广播及异步持久化 writer/queue 健康状态 |
+| `GET` | `/system/collector-health` | 捕获、广播、语义关联状态及异步持久化 writer/queue 健康状态 |
 | `GET` | `/system/otel-health` | OTLP exporter 健康状态 |
 
 `/system/collector-health` 中的 `persistGeneration*` 字段属于当前 writer generation；
@@ -152,6 +152,17 @@ registerRoutes()
 与“writer 因 I/O 失败停止”。/metrics 对应暴露 agent_ebpf_persist_writer_active、
 agent_ebpf_persist_queue_length/capacity、agent_ebpf_persist_pending 以及当前 generation
 的 failed/dropped gauges。
+
+同一响应中的 `semanticStateEntriesByKind`、`semanticStateEntries` 和
+`semanticStateMaxEntries` 展示五类有界语义关联状态的当前占用；
+`semanticStateExpiredEvictionsTotal`、`semanticStateCapacityEvictionsTotal`、
+`semanticStateTruncatedValuesTotal`、`semanticStateIgnoredOversizedMetadataTotal` 与
+`semanticStateLastSweepAt` 用于发现 TTL 清理、容量压力和异常大输入。`/metrics` 对应暴露
+`agent_ebpf_semantic_state_entries{kind=...}`、`agent_ebpf_semantic_state_max_entries`、
+`agent_ebpf_semantic_state_expired_evictions_total`、
+`agent_ebpf_semantic_state_capacity_evictions_total`、
+`agent_ebpf_semantic_state_truncated_values_total` 和
+`agent_ebpf_semantic_state_ignored_metadata_total`。
 
 ## 工具路由
 

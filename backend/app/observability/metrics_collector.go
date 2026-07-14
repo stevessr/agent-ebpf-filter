@@ -63,6 +63,14 @@ type CollectorHealthResponse struct {
 	EventsByTypeTotal              map[string]uint64 `json:"eventsByTypeTotal"`
 	EventsByPidTotal               map[string]uint64 `json:"eventsByPidTotal,omitempty"`
 	AgentSightCountersTotal        map[string]uint64 `json:"agentSightCountersTotal,omitempty"`
+	SemanticStateEntriesByKind     map[string]int    `json:"semanticStateEntriesByKind"`
+	SemanticStateEntries           int               `json:"semanticStateEntries"`
+	SemanticStateMaxEntries        int               `json:"semanticStateMaxEntries"`
+	SemanticStateExpiredEvictions  uint64            `json:"semanticStateExpiredEvictionsTotal"`
+	SemanticStateCapacityEvictions uint64            `json:"semanticStateCapacityEvictionsTotal"`
+	SemanticStateTruncatedValues   uint64            `json:"semanticStateTruncatedValuesTotal"`
+	SemanticStateIgnoredMetadata   uint64            `json:"semanticStateIgnoredOversizedMetadataTotal"`
+	SemanticStateLastSweepAt       string            `json:"semanticStateLastSweepAt,omitempty"`
 	BackendQueueLen                int               `json:"backendQueueLen"`
 	WsClients                      int               `json:"wsClients"`
 	PersistAppendLatencyNs         uint64            `json:"persistAppendLatencyNs"`
@@ -479,6 +487,13 @@ func (s *collectorMetricsState) snapshot() CollectorHealthResponse {
 	if deps.PersistQueueStatus != nil {
 		persistQueue = deps.PersistQueueStatus()
 	}
+	semanticState := SemanticStateStatus{EntriesByKind: map[string]int{}}
+	if deps.SemanticStateStatus != nil {
+		semanticState = deps.SemanticStateStatus()
+	}
+	if semanticState.EntriesByKind == nil {
+		semanticState.EntriesByKind = map[string]int{}
+	}
 
 	return CollectorHealthResponse{
 		CollectorMapAvailable:          mapAvailable,
@@ -490,6 +505,14 @@ func (s *collectorMetricsState) snapshot() CollectorHealthResponse {
 		EventsByTypeTotal:              eventsByType,
 		EventsByPidTotal:               eventsByPID,
 		AgentSightCountersTotal:        agentSightCounters,
+		SemanticStateEntriesByKind:     semanticState.EntriesByKind,
+		SemanticStateEntries:           semanticState.Entries,
+		SemanticStateMaxEntries:        semanticState.MaxEntries,
+		SemanticStateExpiredEvictions:  semanticState.ExpiredEvictionsTotal,
+		SemanticStateCapacityEvictions: semanticState.CapacityEvictionsTotal,
+		SemanticStateTruncatedValues:   semanticState.TruncatedStateValuesTotal,
+		SemanticStateIgnoredMetadata:   semanticState.IgnoredOversizedMetadataTotal,
+		SemanticStateLastSweepAt:       semanticState.LastSweepAt,
 		BackendQueueLen:                len(deps.Broadcast),
 		WsClients:                      legacyWSClients + envelopeWSClients,
 		PersistAppendLatencyNs:         raw.PersistAppendLatencyNs,

@@ -35,6 +35,17 @@ type PersistQueueStatus struct {
 	LastError      string
 }
 
+type SemanticStateStatus struct {
+	EntriesByKind                 map[string]int
+	Entries                       int
+	MaxEntries                    int
+	ExpiredEvictionsTotal         uint64
+	CapacityEvictionsTotal        uint64
+	TruncatedStateValuesTotal     uint64
+	IgnoredOversizedMetadataTotal uint64
+	LastSweepAt                   string
+}
+
 type Deps struct {
 	TrackerMaps TrackerMapSet
 
@@ -47,6 +58,7 @@ type Deps struct {
 	LegacyWSClientCount   func() int
 	EnvelopeWSClientCount func() int
 	PersistQueueStatus    func() PersistQueueStatus
+	SemanticStateStatus   func() SemanticStateStatus
 	Broadcast             chan<- *pb.Event
 }
 

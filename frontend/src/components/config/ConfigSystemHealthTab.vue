@@ -204,6 +204,61 @@ const compactList = (items?: Array<string | number>) => {
                 message="Sampling may be incomplete because the kernel ringbuf dropped events."
               />
               <a-divider style="margin: 4px 0" />
+              <div style="font-weight: 600">Semantic correlation state</div>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap">
+                <a-tag color="blue">
+                  entries: {{ collectorHealth.semanticStateEntries }}/{{
+                    collectorHealth.semanticStateMaxEntries
+                  }}
+                </a-tag>
+                <a-tag color="default">
+                  expired:
+                  {{ collectorHealth.semanticStateExpiredEvictionsTotal }}
+                </a-tag>
+                <a-tag
+                  :color="
+                    collectorHealth.semanticStateCapacityEvictionsTotal > 0
+                      ? 'orange'
+                      : 'default'
+                  "
+                >
+                  capacity evictions:
+                  {{ collectorHealth.semanticStateCapacityEvictionsTotal }}
+                </a-tag>
+                <a-tag color="purple">
+                  bounded values:
+                  {{ collectorHealth.semanticStateTruncatedValuesTotal }}
+                </a-tag>
+                <a-tag
+                  :color="
+                    collectorHealth.semanticStateIgnoredOversizedMetadataTotal >
+                    0
+                      ? 'orange'
+                      : 'default'
+                  "
+                >
+                  ignored metadata:
+                  {{
+                    collectorHealth.semanticStateIgnoredOversizedMetadataTotal
+                  }}
+                </a-tag>
+              </div>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap">
+                <a-tag
+                  v-for="(count, kind) in collectorHealth.semanticStateEntriesByKind"
+                  :key="kind"
+                  color="default"
+                >
+                  {{ kind }}: {{ count }}
+                </a-tag>
+              </div>
+              <div>
+                last semantic GC:
+                <strong>{{
+                  formatMaybeDate(collectorHealth.semanticStateLastSweepAt)
+                }}</strong>
+              </div>
+              <a-divider style="margin: 4px 0" />
               <div style="font-weight: 600">Kernel-risk loop</div>
               <div style="display: flex; gap: 8px; flex-wrap: wrap">
                 <a-tag color="purple">

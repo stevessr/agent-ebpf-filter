@@ -88,6 +88,7 @@ const (
 	semanticPromptLoopThreshold = events.SemanticPromptLoopThreshold
 	semanticAPILoopThreshold    = events.SemanticAPILoopThreshold
 	semanticFileIOLoopThreshold = events.SemanticFileIOLoopThreshold
+	semanticStateGCInterval     = events.SemanticStateGCInterval
 )
 const (
 	kernelRiskFeedbackKindNetworkIP   = events.KernelRiskFeedbackKindNetworkIP

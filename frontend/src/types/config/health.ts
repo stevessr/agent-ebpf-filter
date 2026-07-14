@@ -8,6 +8,14 @@ export interface CollectorHealthResponse {
   eventsByTypeTotal: Record<string, number>;
   eventsByPidTotal?: Record<string, number>;
   agentSightCountersTotal?: Record<string, number>;
+  semanticStateEntriesByKind: Record<string, number>;
+  semanticStateEntries: number;
+  semanticStateMaxEntries: number;
+  semanticStateExpiredEvictionsTotal: number;
+  semanticStateCapacityEvictionsTotal: number;
+  semanticStateTruncatedValuesTotal: number;
+  semanticStateIgnoredOversizedMetadataTotal: number;
+  semanticStateLastSweepAt?: string;
   backendQueueLen: number;
   wsClients: number;
   persistAppendLatencyNs: number;

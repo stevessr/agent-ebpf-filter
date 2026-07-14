@@ -9,6 +9,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"agent-ebpf-filter/app/events"
+	"agent-ebpf-filter/pb"
 )
 
 func TestRunCgroupAttributionGCStopsWithContext(t *testing.T) {
@@ -55,6 +58,39 @@ func TestRunArchiveEvictionLoopStopsWithContext(t *testing.T) {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("archive eviction loop did not stop after cancellation")
+	}
+}
+
+func TestRunSemanticAlertStateGCStopsWithContext(t *testing.T) {
+	state := events.NewSemanticAlertState()
+	state.RememberSecret(
+		&pb.Event{ToolCallId: "stale-semantic-context"},
+		"/tmp/old-secret",
+		time.Now().UTC().Add(-events.SemanticSecretCorrelationTTL-time.Second),
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		runSemanticAlertStateGC(ctx, state, time.Millisecond)
+		close(done)
+	}()
+
+	deadline := time.Now().Add(time.Second)
+	for state.Status().Entries != 0 {
+		if time.Now().After(deadline) {
+			t.Fatalf("semantic state GC did not evict stale entry: %+v", state.Status())
+		}
+		time.Sleep(time.Millisecond)
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("semantic state GC did not stop after cancellation")
+	}
+	if state.Status().LastSweepAt.IsZero() {
+		t.Fatal("semantic state GC did not record its sweep time")
 	}
 }
 

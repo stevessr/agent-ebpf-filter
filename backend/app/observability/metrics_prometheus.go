@@ -76,6 +76,25 @@ func HandlePrometheusMetrics(c *gin.Context) {
 	} else {
 		writePrometheusSample(&b, "agent_ebpf_capture_healthy", nil, 0)
 	}
+	writePrometheusHeader(&b, "agent_ebpf_semantic_state_entries", "gauge", "Current bounded semantic-correlation state entries by kind.")
+	semanticKinds := make([]string, 0, len(health.SemanticStateEntriesByKind))
+	for kind := range health.SemanticStateEntriesByKind {
+		semanticKinds = append(semanticKinds, kind)
+	}
+	sort.Strings(semanticKinds)
+	for _, kind := range semanticKinds {
+		writePrometheusSample(&b, "agent_ebpf_semantic_state_entries", map[string]string{"kind": kind}, float64(health.SemanticStateEntriesByKind[kind]))
+	}
+	writePrometheusHeader(&b, "agent_ebpf_semantic_state_max_entries", "gauge", "Combined capacity of bounded semantic-correlation state.")
+	writePrometheusSample(&b, "agent_ebpf_semantic_state_max_entries", nil, float64(health.SemanticStateMaxEntries))
+	writePrometheusHeader(&b, "agent_ebpf_semantic_state_expired_evictions_total", "counter", "Semantic-correlation entries evicted after their TTL.")
+	writePrometheusSample(&b, "agent_ebpf_semantic_state_expired_evictions_total", nil, float64(health.SemanticStateExpiredEvictions))
+	writePrometheusHeader(&b, "agent_ebpf_semantic_state_capacity_evictions_total", "counter", "Semantic-correlation entries evicted to enforce capacity.")
+	writePrometheusSample(&b, "agent_ebpf_semantic_state_capacity_evictions_total", nil, float64(health.SemanticStateCapacityEvictions))
+	writePrometheusHeader(&b, "agent_ebpf_semantic_state_truncated_values_total", "counter", "Oversized semantic-correlation keys or values replaced with bounded stable identifiers.")
+	writePrometheusSample(&b, "agent_ebpf_semantic_state_truncated_values_total", nil, float64(health.SemanticStateTruncatedValues))
+	writePrometheusHeader(&b, "agent_ebpf_semantic_state_ignored_metadata_total", "counter", "Oversized semantic metadata fields ignored before correlation.")
+	writePrometheusSample(&b, "agent_ebpf_semantic_state_ignored_metadata_total", nil, float64(health.SemanticStateIgnoredMetadata))
 	writePrometheusHeader(&b, "agent_ebpf_kernel_risk_evaluations_total", "counter", "Total low-latency kernel event risk evaluations run before event broadcast.")
 	writePrometheusSample(&b, "agent_ebpf_kernel_risk_evaluations_total", nil, float64(health.KernelRiskEvaluationsTotal))
 	writePrometheusHeader(&b, "agent_ebpf_kernel_risk_alerts_total", "counter", "Total kernel event risk evaluations that produced ALERT or OBSERVE decisions.")
