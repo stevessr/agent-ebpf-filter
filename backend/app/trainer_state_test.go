@@ -63,3 +63,44 @@ func TestModelTrainerStateSnapshot(t *testing.T) {
 		t.Fatalf("unexpected trainer state: %+v", state)
 	}
 }
+
+func TestTrainWithConfigUsesCallerValidationRatio(t *testing.T) {
+	store := newTrainingDataStore(120)
+	for index := 0; index < 120; index++ {
+		var features [FeatureDim]float64
+		features[0] = float64(index%4) / 3
+		features[1] = float64(index%11) / 10
+		store.Add(TrainingSample{
+			Features:  features,
+			Label:     int32(index % 4),
+			UserLabel: "test",
+		})
+	}
+
+	previousConfig := mlConfig
+	mlConfig = DefaultMLConfig()
+	mlConfig.ValidationSplitRatio = 0.10
+	t.Cleanup(func() { mlConfig = previousConfig })
+
+	trainer := &ModelTrainer{
+		mu:         make(chan struct{}, 1),
+		cancelCh:   make(chan struct{}),
+		logMaxSize: 16,
+	}
+	cfg := DefaultMLConfig()
+	cfg.ModelType = ModelRandomForest
+	cfg.NumTrees = 3
+	cfg.MaxDepth = 4
+	cfg.MinSamplesLeaf = 2
+	cfg.ValidationSplitRatio = 0.25
+	model, result := trainer.TrainWithConfig(store, cfg)
+	if result.Error != "" || model == nil {
+		t.Fatalf("TrainWithConfig() model/error = %T/%q", model, result.Error)
+	}
+	if result.TrainSamples != 90 || result.ValidationSamples != 30 {
+		t.Fatalf("explicit split = train:%d validation:%d, want 90/30", result.TrainSamples, result.ValidationSamples)
+	}
+	if ratio := trainer.stateSnapshot().ValidationRatio; ratio != cfg.ValidationSplitRatio {
+		t.Fatalf("trainer validation ratio = %f, want %f", ratio, cfg.ValidationSplitRatio)
+	}
+}

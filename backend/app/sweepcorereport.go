@@ -67,18 +67,6 @@ func runMLSweepReport() error {
 		return fmt.Errorf("no sweep datasets selected")
 	}
 
-	origMLConfig := mlConfig
-	defer func() {
-		mlConfig = origMLConfig
-	}()
-
-	mlConfig = DefaultMLConfig()
-	mlConfig.ValidationSplitRatio = 0.2
-	mlConfig.LlmEnabled = false
-	mlConfig.LlmBaseURL = ""
-	mlConfig.LlmModel = ""
-	mlConfig.LlmAPIKey = ""
-
 	profiles := profilesForModeWithPoints(mode, pointsPerParam)
 	if len(selectedModels) > 0 {
 		filtered := make([]sweepProfile, 0, len(profiles))

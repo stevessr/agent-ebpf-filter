@@ -41,6 +41,8 @@ ML 自动训练与数据 flush 循环由进程 context 统一管理，运行时�
 master 身份时保持 dormant，配置恢复后继续工作，而不是退出 goroutine。
 自动训练每轮重读 `TrainInterval`；ML auto-tune 使用容量为 1 的专用任务队列，
 因为 auto-tune state 本身只允许一个活动 job，不再懒加载 2048 槽位通用队列。
+训练器和参数搜索显式接收不可变 `MLConfig` 快照；候选调优与离线 sweep 不会再借用
+进程级 `mlConfig` 传参，从而避免在线状态、推理和后台训练之间的候选配置串扰。
 
 ### Signal Processing worker
 

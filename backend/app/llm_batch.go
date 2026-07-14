@@ -435,11 +435,10 @@ func llmAssessmentFromScore(result *llmScoringResult, err error) *llmAssessment 
 	}
 }
 
-func (t *ModelTrainer) reviewValidationWithLLM(samples []TrainingSample) (*LLMReviewSummary, error) {
+func (t *ModelTrainer) reviewValidationWithLLM(samples []TrainingSample, validationRatio float64) (*LLMReviewSummary, error) {
 	if !llmScoringConfigured() || len(samples) == 0 {
 		return nil, nil
 	}
-	cfg := currentMLConfig()
 
 	limit := defaultLLMReviewLimit
 	if len(samples) < limit {
@@ -452,7 +451,7 @@ func (t *ModelTrainer) reviewValidationWithLLM(samples []TrainingSample) (*LLMRe
 	}
 	ctx, stop := trainerCancellationContext(t, context.Background())
 	defer stop()
-	resp, err := scoreLLMSampleSubjects(ctx, "validation", subjects, limit, false, false, cfg.ValidationSplitRatio)
+	resp, err := scoreLLMSampleSubjects(ctx, "validation", subjects, limit, false, false, validationRatio)
 	if err != nil {
 		return nil, err
 	}

@@ -102,11 +102,7 @@ func runModelAutoTuneWithCancel(store *TrainingDataStore, req MLModelTuneRequest
 				MinY:                 req.MinY,
 				MaxY:                 req.MaxY,
 			}
-			origConfig, origType := mlConfig, currentModelType
-			mlConfig = cfg
-			currentModelType = modelType
-			paramResp, err := globalTrainer.AutoTune(store, paramReq, nil)
-			mlConfig, currentModelType = origConfig, origType
+			paramResp, err := globalTrainer.AutoTuneWithConfig(store, cfg, paramReq, nil)
 			if err == nil && paramResp != nil && paramResp.Best != nil {
 				candidate.ParamTune = paramResp
 				cfg.NumTrees = paramResp.Best.NumTrees

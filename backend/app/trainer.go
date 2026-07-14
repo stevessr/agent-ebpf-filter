@@ -13,6 +13,10 @@ import (
 // Train builds a random forest from labeled training data.
 // Uses bootstrap aggregating (bagging) with Gini impurity splitting.
 func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSamplesLeaf int) (*DecisionForest, TrainResult) {
+	return t.trainForestWithConfig(store, numTrees, maxDepth, minSamplesLeaf, currentMLConfig())
+}
+
+func (t *ModelTrainer) trainForestWithConfig(store *TrainingDataStore, numTrees, maxDepth, minSamplesLeaf int, cfg MLConfig) (*DecisionForest, TrainResult) {
 	select {
 	case t.mu <- struct{}{}:
 		defer func() { <-t.mu }()
@@ -43,7 +47,7 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 	t.logf("Class distribution: ALLOW=%d, BLOCK=%d, ALERT=%d, REWRITE=%d",
 		classDist[0], classDist[1], classDist[3], classDist[2])
 
-	validationRatio := mlConfig.ValidationSplitRatio
+	validationRatio := cfg.ValidationSplitRatio
 	if validationRatio <= 0 || validationRatio >= 0.5 {
 		validationRatio = 0.20
 	}
@@ -135,8 +139,8 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 	llmReviewSamples := 0
 	llmAverageRiskScore := 0.0
 	llmAgreement := 0.0
-	if mlConfig.LlmEnabled {
-		if review, err := t.reviewValidationWithLLM(validationRaw); err != nil {
+	if cfg.LlmEnabled {
+		if review, err := t.reviewValidationWithLLM(validationRaw, validationRatio); err != nil {
 			t.logf("WARN: LLM post-training review failed: %v", err)
 		} else if review != nil {
 			llmReviewSamples = review.ScoredSamples
@@ -198,7 +202,7 @@ func (t *ModelTrainer) TrainWithConfig(store *TrainingDataStore, cfg MLConfig) (
 	)
 	switch effectiveCfg.ModelType {
 	case ModelRandomForest:
-		model, result = t.Train(store, effectiveCfg.NumTrees, effectiveCfg.MaxDepth, effectiveCfg.MinSamplesLeaf)
+		model, result = t.trainForestWithConfig(store, effectiveCfg.NumTrees, effectiveCfg.MaxDepth, effectiveCfg.MinSamplesLeaf, effectiveCfg)
 	case ModelKNN:
 		model, result = t.trainKNN(store, effectiveCfg)
 	case ModelLogisticRegression:
@@ -226,7 +230,7 @@ func (t *ModelTrainer) TrainWithConfig(store *TrainingDataStore, cfg MLConfig) (
 	case ModelGANTransformer:
 		model, result = t.trainGANTransformer(store, effectiveCfg)
 	default:
-		model, result = t.Train(store, effectiveCfg.NumTrees, effectiveCfg.MaxDepth, effectiveCfg.MinSamplesLeaf)
+		model, result = t.trainForestWithConfig(store, effectiveCfg.NumTrees, effectiveCfg.MaxDepth, effectiveCfg.MinSamplesLeaf, effectiveCfg)
 	}
 	return wrapModelType(model, requestedType), result
 }

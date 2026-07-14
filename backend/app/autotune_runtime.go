@@ -68,9 +68,10 @@ func runMLAutoTuneTask(entry *backendTaskRuntimeEntry) (err error) {
 }
 
 func runMLAutoTuneParamsTask(entry *backendTaskRuntimeEntry, jobID string, req MLAutoTuneRequest) error {
+	cfg := currentMLConfig()
 	log.Printf("[ML] Auto-tune started: jobID=%s, model=%s, grid=%dx%d, x=%s, y=%s",
-		jobID, currentMLConfig().ModelType, req.GridSize, req.GridSize, req.XAxis, req.YAxis)
-	resp, err := globalTrainer.AutoTune(globalTrainingStore, req, func(completed, total int, message string) {
+		jobID, cfg.ModelType, req.GridSize, req.GridSize, req.XAxis, req.YAxis)
+	resp, err := globalTrainer.AutoTuneWithConfig(globalTrainingStore, cfg, req, func(completed, total int, message string) {
 		if total > 0 {
 			entry.SetProgress(float64(completed) / float64(total))
 		}

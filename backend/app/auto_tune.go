@@ -14,6 +14,12 @@ import (
 
 // AutoTune runs a grid search over hyperparameters and returns the best configuration.
 func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest, progressCb func(completed, total int, message string)) (*MLAutoTuneResponse, error) {
+	return t.AutoTuneWithConfig(store, currentMLConfig(), req, progressCb)
+}
+
+// AutoTuneWithConfig runs a grid search against an immutable caller-provided
+// configuration so candidate jobs never have to mutate process-wide ML state.
+func (t *ModelTrainer) AutoTuneWithConfig(store *TrainingDataStore, cfg MLConfig, req MLAutoTuneRequest, progressCb func(completed, total int, message string)) (*MLAutoTuneResponse, error) {
 	select {
 	case t.mu <- struct{}{}:
 		defer func() { <-t.mu }()
@@ -42,7 +48,7 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 		metric = "validationAccuracy"
 	}
 
-	effectiveCfg := applyBuiltinModelPreset(mlConfig)
+	effectiveCfg := applyBuiltinModelPreset(cfg)
 	baseNumTrees := effectiveCfg.NumTrees
 	if baseNumTrees <= 0 {
 		baseNumTrees = 31
@@ -87,7 +93,7 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 	if totalCombos <= 0 {
 		return nil, errors.New("no valid parameter combinations found for tuning")
 	}
-	requestedModelType := mlConfig.ModelType
+	requestedModelType := cfg.ModelType
 	if requestedModelType == "" {
 		requestedModelType = ModelRandomForest
 	}
@@ -304,14 +310,14 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 				}
 
 			case ModelGANTransformer:
-				cfg := DefaultMLConfig()
-				cfg.ModelType = ModelGANTransformer
-				cfg.NumTrees = numTrees
-				cfg.MaxDepth = maxDepth
-				cfg.MinSamplesLeaf = minLeaf
-				cfg.ValidationSplitRatio = validationRatio
+				modelCfg := DefaultMLConfig()
+				modelCfg.ModelType = ModelGANTransformer
+				modelCfg.NumTrees = numTrees
+				modelCfg.MaxDepth = maxDepth
+				modelCfg.MinSamplesLeaf = minLeaf
+				modelCfg.ValidationSplitRatio = validationRatio
 				model := NewGANTransformerModel(numTrees, maxDepth*4, minLeaf*2)
-				model.Train(toTrainingSamples(trainSet), cfg)
+				model.Train(toTrainingSamples(trainSet), modelCfg)
 				trainAccuracy = evalModelSamples(model, trainSet)
 				evalStart = time.Now()
 				validationAccuracy = evalModelSamples(model, validationSet)

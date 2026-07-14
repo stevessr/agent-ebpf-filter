@@ -270,6 +270,9 @@ LLM 出站请求共享 4 个全局并发槽位，单次响应限制为 256 KiB�
 每轮会重新读取 `TrainInterval`；定时 flush worker 也保持存活直到进程 context
 取消。超参/模型调优使用单槽位有界任务队列，`/config/ml/status` 的
 `autoTuneRuntime` 暴露队列、完成、取消、拒绝与耗时统计。
+每个调优 job 在开始时取得一份 `MLConfig` 快照，并把候选模型配置显式传给训练器；
+跨模型参数搜索和离线 sweep 不再临时改写在线 `mlConfig` / `currentModelType`，因此
+状态接口和并发推理不会短暂看到尚未应用的候选配置。
 
 `/config/ml/datasets/pull` 与 `/config/ml/datasets/import` 支持 `json`、`jsonl`、`csv`、`tsv`、纯文本与常见压缩包；纯文本 `.te`/SELinux policy 规则以及 JSON `rules[].rule` / `rules[].selinuxRule` 字段会自动识别为 `selinux-rule ...` 训练样本，并按 `allow/type_transition=ALLOW`、`neverallow=BLOCK`、`dontaudit/auditallow/permissive=ALERT` 保留来源标签。响应会附带 `byLabel`、`byCategory`、`bySource`、`normalization`、`quality`，导入响应还会附带 `skipReasons`；压缩包成员打开/读取失败、归档流后续读取失败、嵌套压缩流解码失败、条目解析失败或 limit 截断会连同成员或归档来源出现在 `parseWarnings`。
 

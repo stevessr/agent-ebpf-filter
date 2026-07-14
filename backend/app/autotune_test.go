@@ -55,7 +55,7 @@ func TestAutoTuneReportsLegalRecallBalancedAccuracyAndNormalization(t *testing.T
 
 	minTrees, maxTrees := 5, 9
 	minDepth, maxDepth := 3, 5
-	resp, err := globalTrainer.AutoTune(store, MLAutoTuneRequest{
+	resp, err := globalTrainer.AutoTuneWithConfig(store, mlConfig, MLAutoTuneRequest{
 		XAxis:                "numTrees",
 		YAxis:                "maxDepth",
 		GridSize:             3,
