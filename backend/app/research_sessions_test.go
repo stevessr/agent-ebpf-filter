@@ -9,7 +9,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -421,12 +423,137 @@ func TestResearchTaskRetentionOnlyPrunesTerminalHistory(t *testing.T) {
 	manager.tasks[terminal.task.TaskID] = terminal
 	manager.tasks[active.task.TaskID] = active
 
-	manager.pruneTrackedTasks()
+	manager.noteTaskFinished(terminal)
 	if _, ok := manager.tasks[terminal.task.TaskID]; ok {
 		t.Fatal("terminal history was not pruned")
 	}
 	if got := manager.tasks[active.task.TaskID]; got != active {
 		t.Fatal("active research task was evicted")
+	}
+}
+
+func TestResearchTaskRetentionKeepsCanceledQueueUntilDrain(t *testing.T) {
+	store := newResearchSessionStore(t.TempDir())
+	session, err := store.Create(researchCreateSessionRequest{Name: "retention-cancel"})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	manager := newResearchTaskManager(store)
+	manager.maxItems = 1
+	manager.runtime.queue = make(chan *backendTaskRuntimeEntry, 2)
+	manager.runtime.started = true
+
+	first, err := manager.Submit(session.ID, researchTaskRequest{Action: "scan_recent", Limit: 1}, nil)
+	if err != nil {
+		t.Fatalf("submit first: %v", err)
+	}
+	manager.Cancel(first.TaskID)
+	second, err := manager.Submit(session.ID, researchTaskRequest{Action: "scan_recent", Limit: 1}, nil)
+	if err != nil {
+		t.Fatalf("submit second: %v", err)
+	}
+	firstEntry := manager.tasks[first.TaskID]
+	if _, ok := manager.Get(first.TaskID); !ok || firstEntry == nil {
+		t.Fatal("canceled queued research task was pruned before drain")
+	}
+	if got := manager.Status().TrackedTotal; got != 2 {
+		t.Fatalf("tracked tasks before drain = %d, want 2", got)
+	}
+
+	manager.noteTaskFinished(firstEntry)
+	if _, ok := manager.Get(first.TaskID); ok {
+		t.Fatal("drained canceled research task was not pruned")
+	}
+	if got, ok := manager.Get(second.TaskID); !ok || got.TaskID != second.TaskID {
+		t.Fatal("active research task was pruned")
+	}
+}
+
+func TestResearchTaskCancelDoesNotMutateTerminalTask(t *testing.T) {
+	entry := &researchTaskEntry{
+		task: ResearchTask{
+			TaskID:     "terminal",
+			Status:     researchTaskSucceeded,
+			Progress:   1,
+			QueuedAt:   time.Now().UTC().Add(-time.Second),
+			FinishedAt: ptrTime(time.Now().UTC()),
+		},
+		runtime: newBackendTaskRuntimeEntry("terminal", "research", nil),
+	}
+	before := entry.snapshot()
+	entry.requestCancel()
+	after := entry.snapshot()
+	if after.Status != before.Status || after.CancelAsked || entry.runtime.IsCanceled() {
+		t.Fatalf("terminal research task changed after cancel: before=%+v after=%+v", before, after)
+	}
+}
+
+func TestResearchTaskFinishHonorsPendingCancel(t *testing.T) {
+	runtimeEntry := newBackendTaskRuntimeEntry("cancel-finish", "research", nil)
+	if !runtimeEntry.markRunning() {
+		t.Fatal("runtime entry did not start")
+	}
+	entry := &researchTaskEntry{
+		task: ResearchTask{
+			TaskID:    runtimeEntry.id,
+			Status:    researchTaskRunning,
+			Progress:  0.5,
+			QueuedAt:  time.Now().UTC().Add(-time.Second),
+			StartedAt: ptrTime(time.Now().UTC().Add(-time.Millisecond)),
+		},
+		runtime: runtimeEntry,
+		cancel:  runtimeEntry.cancel,
+	}
+	entry.requestCancel()
+	entry.finish(researchTaskSucceeded, 1, "should be discarded", map[string]any{"done": true})
+
+	snapshot := entry.snapshot()
+	if snapshot.Status != researchTaskCanceled || snapshot.Progress != 1 || snapshot.Error != "" || !snapshot.CancelAsked {
+		t.Fatalf("cancel-vs-finish snapshot = %+v", snapshot)
+	}
+}
+
+func TestResearchTaskCancelAndCompletionStayConsistent(t *testing.T) {
+	const iterations = 256
+	for iteration := 0; iteration < iterations; iteration++ {
+		runtime := newBackendTaskRuntime("research-race", 1, nil)
+		runtimeEntry := newBackendTaskRuntimeEntry(strconv.Itoa(iteration), "research", nil)
+		if !runtimeEntry.markRunning() {
+			t.Fatal("runtime entry did not start")
+		}
+		runtime.tasks[runtimeEntry.id] = runtimeEntry
+		entry := &researchTaskEntry{
+			task: ResearchTask{
+				TaskID:   runtimeEntry.id,
+				Status:   researchTaskRunning,
+				QueuedAt: time.Now().UTC(),
+			},
+			runtime: runtimeEntry,
+			cancel:  runtimeEntry.cancel,
+		}
+
+		start := make(chan struct{})
+		var racers sync.WaitGroup
+		racers.Add(2)
+		go func() {
+			defer racers.Done()
+			<-start
+			entry.requestCancel()
+		}()
+		go func() {
+			defer racers.Done()
+			<-start
+			entry.finish(researchTaskSucceeded, 1, "", nil)
+		}()
+		close(start)
+		racers.Wait()
+		runtime.completeEntry(runtimeEntry, backendTaskStatusSucceeded, 1, "", false)
+
+		researchStatus := entry.snapshot().Status
+		runtimeStatus := runtimeEntry.Snapshot().Status
+		if researchStatus != runtimeStatus {
+			t.Fatalf("iteration %d status mismatch: research=%q runtime=%q", iteration, researchStatus, runtimeStatus)
+		}
 	}
 }
 
@@ -561,6 +688,37 @@ func TestResearchExportBundleContainsManifest(t *testing.T) {
 		if !bytes.Contains(manifest, []byte(needle)) {
 			t.Fatalf("training manifest missing %s: %s", needle, string(manifest))
 		}
+	}
+}
+
+func BenchmarkResearchTaskManagerSteadyStateRetention(b *testing.B) {
+	for _, limit := range []int{64, researchTaskStoreMaxItems} {
+		b.Run(strconv.Itoa(limit), func(b *testing.B) {
+			manager := newResearchTaskManager(newResearchSessionStore(b.TempDir()))
+			manager.maxItems = limit
+			finishedAt := time.Unix(1, 0).UTC()
+			complete := func(id string) {
+				entry := &researchTaskEntry{task: ResearchTask{
+					TaskID:     id,
+					Status:     researchTaskSucceeded,
+					QueuedAt:   finishedAt.Add(-time.Second),
+					FinishedAt: &finishedAt,
+				}}
+				manager.mu.Lock()
+				manager.tasks[id] = entry
+				manager.mu.Unlock()
+				manager.noteTaskFinished(entry)
+			}
+			for index := 0; index < limit; index++ {
+				complete("warm-" + strconv.Itoa(index))
+			}
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for iteration := 0; iteration < b.N; iteration++ {
+				complete("task-" + strconv.Itoa(iteration))
+			}
+		})
 	}
 }
 

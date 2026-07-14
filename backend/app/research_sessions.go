@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -250,6 +249,10 @@ type researchTaskEntry struct {
 	runtime    *backendTaskRuntimeEntry
 	cancel     chan struct{}
 	cancelOnce sync.Once
+
+	// retention fields are owned by researchTaskManager.mu.
+	retentionTracked bool
+	retentionNext    *researchTaskEntry
 }
 
 type researchSessionStore struct {
@@ -267,6 +270,9 @@ type researchTaskManager struct {
 	store       *researchSessionStore
 	maxItems    int
 	taskHandler func(*researchTaskEntry) error
+
+	terminalHead *researchTaskEntry
+	terminalTail *researchTaskEntry
 }
 
 var (
@@ -343,7 +349,7 @@ func (m *researchTaskManager) runRuntimeTask(runtimeEntry *backendTaskRuntimeEnt
 				entry.finish(researchTaskFailed, entry.progress(), err.Error(), nil)
 			}
 		}
-		m.pruneTrackedTasks()
+		m.noteTaskFinished(entry)
 	}()
 	if runtimeEntry == nil {
 		return errors.New("research task runtime entry is nil")
@@ -498,44 +504,42 @@ func (m *researchTaskManager) pruneLocked() {
 	if limit <= 0 {
 		limit = researchTaskStoreMaxItems
 	}
-	if len(m.tasks) <= limit {
-		return
-	}
-	type item struct {
-		id string
-		ts time.Time
-	}
-	items := make([]item, 0, len(m.tasks))
-	for id, entry := range m.tasks {
-		task := entry.snapshot()
-		if !researchTaskStatusTerminal(task.Status) {
-			continue
+	for len(m.tasks) > limit {
+		entry := m.terminalHead
+		if entry == nil {
+			return
 		}
-		ts := task.QueuedAt
-		if task.FinishedAt != nil {
-			ts = *task.FinishedAt
+		m.terminalHead = entry.retentionNext
+		entry.retentionNext = nil
+		if m.terminalHead == nil {
+			m.terminalTail = nil
 		}
-		items = append(items, item{id: id, ts: ts})
-	}
-	sort.Slice(items, func(i, j int) bool {
-		if items[i].ts.Equal(items[j].ts) {
-			return items[i].id < items[j].id
+		if current := m.tasks[entry.task.TaskID]; current == entry {
+			delete(m.tasks, entry.task.TaskID)
 		}
-		return items[i].ts.Before(items[j].ts)
-	})
-	for len(m.tasks) > limit && len(items) > 0 {
-		delete(m.tasks, items[0].id)
-		items = items[1:]
 	}
 }
 
-func researchTaskStatusTerminal(status string) bool {
-	switch status {
-	case researchTaskSucceeded, researchTaskFailed, researchTaskCanceled:
-		return true
-	default:
-		return false
+func (m *researchTaskManager) noteTaskFinished(entry *researchTaskEntry) {
+	if m == nil || entry == nil {
+		return
 	}
+	// Only the worker drain path calls this method. A queued task that was
+	// canceled by the API therefore stays addressable until its queue slot has
+	// actually been consumed.
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if current := m.tasks[entry.task.TaskID]; current != entry || entry.retentionTracked {
+		return
+	}
+	entry.retentionTracked = true
+	if m.terminalTail == nil {
+		m.terminalHead = entry
+	} else {
+		m.terminalTail.retentionNext = entry
+	}
+	m.terminalTail = entry
+	m.pruneLocked()
 }
 
 func (m *researchTaskManager) runTask(entry *researchTaskEntry) error {
@@ -719,18 +723,24 @@ func (entry *researchTaskEntry) requestCancel() {
 	if entry == nil {
 		return
 	}
-	if entry.runtime != nil {
-		entry.runtime.Cancel()
-	} else {
-		entry.cancelOnce.Do(func() { close(entry.cancel) })
-	}
 	now := time.Now().UTC()
 	entry.mu.Lock()
+	if researchTaskStatusTerminal(entry.task.Status) {
+		entry.mu.Unlock()
+		return
+	}
 	entry.task.CancelAsked = true
 	if entry.task.Status == researchTaskQueued {
 		entry.task.Status = researchTaskCanceled
 		entry.task.Progress = 1
 		entry.task.FinishedAt = &now
+	}
+	// Commit the shared runtime cancellation before releasing the domain lock.
+	// finish() uses the same lock, so both task views linearize in one order.
+	if entry.runtime != nil {
+		entry.runtime.Cancel()
+	} else if entry.cancel != nil {
+		entry.cancelOnce.Do(func() { close(entry.cancel) })
 	}
 	entry.mu.Unlock()
 }
@@ -816,8 +826,14 @@ func (entry *researchTaskEntry) finish(status string, progress float64, message 
 	}
 	now := time.Now().UTC()
 	entry.mu.Lock()
-	if entry.task.Status == researchTaskCanceled && status == researchTaskSucceeded {
+	if researchTaskStatusTerminal(entry.task.Status) && entry.task.FinishedAt != nil {
+		entry.mu.Unlock()
+		return
+	}
+	if status != researchTaskCanceled && (entry.task.CancelAsked || entry.isCanceled()) {
 		status = researchTaskCanceled
+		progress = 1
+		message = ""
 	}
 	entry.task.Status = status
 	entry.task.Progress = progress
@@ -827,4 +843,13 @@ func (entry *researchTaskEntry) finish(status string, progress float64, message 
 		entry.task.Result = result
 	}
 	entry.mu.Unlock()
+}
+
+func researchTaskStatusTerminal(status string) bool {
+	switch status {
+	case researchTaskSucceeded, researchTaskFailed, researchTaskCanceled:
+		return true
+	default:
+		return false
+	}
 }
