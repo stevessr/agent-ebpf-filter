@@ -605,6 +605,17 @@ const compactList = (items?: Array<string | number>) => {
                   runtimeSettings.otlpServiceName ||
                   "agent-ebpf-filter"
                 }}</a-tag>
+                <a-tag
+                  v-if="
+                    otelHealth.evictedRunSpans +
+                      otelHealth.evictedTaskSpans +
+                      otelHealth.evictedToolSpans >
+                    0
+                  "
+                  color="orange"
+                >
+                  span capacity reclaim active
+                </a-tag>
               </div>
               <div>
                 endpoint:
@@ -615,7 +626,17 @@ const compactList = (items?: Array<string | number>) => {
                 }}</strong>
               </div>
               <div>
-                queue len: <strong>{{ otelHealth.queueLen }}</strong>
+                queue len:
+                <strong
+                  >{{ otelHealth.queueLen }} / {{ otelHealth.queueCap }}</strong
+                >
+              </div>
+              <div>
+                processed / accepted:
+                <strong
+                  >{{ otelHealth.processedEvents }} /
+                  {{ otelHealth.enqueuedEvents }}</strong
+                >
               </div>
               <div>
                 exported spans: <strong>{{ otelHealth.exportedSpans }}</strong>
@@ -635,15 +656,32 @@ const compactList = (items?: Array<string | number>) => {
             <div style="display: flex; flex-direction: column; gap: 10px">
               <div>
                 active run spans:
-                <strong>{{ otelHealth.activeRunSpans }}</strong>
+                <strong
+                  >{{ otelHealth.activeRunSpans }} /
+                  {{ otelHealth.maxRunSpans }}</strong
+                >
               </div>
               <div>
                 active task spans:
-                <strong>{{ otelHealth.activeTaskSpans }}</strong>
+                <strong
+                  >{{ otelHealth.activeTaskSpans }} /
+                  {{ otelHealth.maxTaskSpans }}</strong
+                >
               </div>
               <div>
                 active tool spans:
-                <strong>{{ otelHealth.activeToolSpans }}</strong>
+                <strong
+                  >{{ otelHealth.activeToolSpans }} /
+                  {{ otelHealth.maxToolSpans }}</strong
+                >
+              </div>
+              <div>
+                capacity evictions (run / task / tool):
+                <strong
+                  >{{ otelHealth.evictedRunSpans }} /
+                  {{ otelHealth.evictedTaskSpans }} /
+                  {{ otelHealth.evictedToolSpans }}</strong
+                >
               </div>
               <a-alert
                 v-if="otelHealth.lastError"

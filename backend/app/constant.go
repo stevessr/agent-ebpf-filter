@@ -110,24 +110,24 @@ const FeatureDim = core.FeatureDim
 
 // ── Bridge: ModelType re-exports ─────────────────────────────────────────────
 const (
-	ModelRandomForest              = core.ModelRandomForest
-	ModelKNN                       = core.ModelKNN
-	ModelLogisticRegression        = core.ModelLogisticRegression
-	ModelNaiveBayes                = core.ModelNaiveBayes
-	ModelNearestCentroid           = core.ModelNearestCentroid
-	ModelExtraTrees                = core.ModelExtraTrees
-	ModelAdaBoost                  = core.ModelAdaBoost
-	ModelSVM                       = core.ModelSVM
-	ModelRidge                     = core.ModelRidge
-	ModelPerceptron                = core.ModelPerceptron
-	ModelPassiveAggressive         = core.ModelPassiveAggressive
-	ModelEnsemble                  = core.ModelEnsemble
-	ModelAdditiveAttention         = core.ModelAdditiveAttention
-	ModelGANTransformer            = core.ModelGANTransformer
-	ModelScaledDotProductAttention = core.ModelScaledDotProductAttention
-	ModelMultiHeadAttention        = core.ModelMultiHeadAttention
-	ModelRWKVAttention             = core.ModelRWKVAttention
-	ModelMambaAttention            = core.ModelMambaAttention
+	ModelRandomForest                 = core.ModelRandomForest
+	ModelKNN                          = core.ModelKNN
+	ModelLogisticRegression           = core.ModelLogisticRegression
+	ModelNaiveBayes                   = core.ModelNaiveBayes
+	ModelNearestCentroid              = core.ModelNearestCentroid
+	ModelExtraTrees                   = core.ModelExtraTrees
+	ModelAdaBoost                     = core.ModelAdaBoost
+	ModelSVM                          = core.ModelSVM
+	ModelRidge                        = core.ModelRidge
+	ModelPerceptron                   = core.ModelPerceptron
+	ModelPassiveAggressive            = core.ModelPassiveAggressive
+	ModelEnsemble                     = core.ModelEnsemble
+	ModelAdditiveAttention            = core.ModelAdditiveAttention
+	ModelGANTransformer               = core.ModelGANTransformer
+	ModelScaledDotProductAttention    = core.ModelScaledDotProductAttention
+	ModelMultiHeadAttention           = core.ModelMultiHeadAttention
+	ModelRWKVAttention                = core.ModelRWKVAttention
+	ModelMambaAttention               = core.ModelMambaAttention
 	ModelRandomForestScaledDotProduct = core.ModelRandomForestScaledDotProduct
 	ModelLogisticScaledDotProduct     = core.ModelLogisticScaledDotProduct
 	ModelKNNScaledDotProduct          = core.ModelKNNScaledDotProduct
@@ -191,14 +191,24 @@ const (
 	bpfEventSampleAlign = uintptr(unsafe.Alignof(bpfEvent{}))
 )
 const (
-	otelExporterQueueSize = 2048
-	otelToolIdleTimeout   = 20 * time.Second
-	otelTaskIdleTimeout   = 45 * time.Second
-	otelRunIdleTimeout    = 90 * time.Second
+	otelExporterQueueSize  = 2048
+	otelMaxActiveRunSpans  = 1024
+	otelMaxActiveTaskSpans = 4096
+	otelMaxActiveToolSpans = 8192
+	otelMaxAttributeLength = 4096
+	otelMaxNameLength      = 256
+	otelMaxSpanAttributes  = 128
+	otelMaxSpanEvents      = 128
+	otelMaxEventAttributes = 128
+	otelMaxSpanLinks       = 32
+	otelMaxLinkAttributes  = 32
+	otelToolIdleTimeout    = 20 * time.Second
+	otelTaskIdleTimeout    = 45 * time.Second
+	otelRunIdleTimeout     = 90 * time.Second
 )
 const (
-	agentSightDefaultLimit   = 1000
-	agentSightMaxLimit       = 10000
+	agentSightDefaultLimit = 1000
+	agentSightMaxLimit     = 10000
 )
 const (
 	hookMarker              = "agent-ebpf-hook-active"

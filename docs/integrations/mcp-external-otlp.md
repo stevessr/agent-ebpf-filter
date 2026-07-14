@@ -196,7 +196,10 @@ docker run -d --name jaeger \
 curl -H "X-API-KEY: <token>" http://127.0.0.1:8080/system/otel-health
 ```
 
-返回：exporter readiness、queue length、active span counts、exported/dropped totals。
+返回：exporter readiness、有界队列长度/容量、accepted/processed totals、active span
+counts/limits、LRU capacity eviction totals，以及 exported/dropped totals。活动层级硬上限为
+1024 runs、4096 tasks、8192 tools，导出由 SDK batch processor 异步完成，不在事件 worker
+内执行同步 flush。
 
 ---
 
@@ -234,4 +237,3 @@ docker compose -f docs/agentsight-grafana-compose.yml up -d
 - [OTLP 导出配置](otel-export.md)
 - [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)
 - [Agents、Adapters 与 PID 注册](agents.md)
-

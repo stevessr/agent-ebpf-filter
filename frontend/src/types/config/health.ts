@@ -36,9 +36,18 @@ export interface OTelHealthResponse {
   endpoint: string;
   serviceName: string;
   queueLen: number;
+  queueCap: number;
+  enqueuedEvents: number;
+  processedEvents: number;
   activeRunSpans: number;
   activeTaskSpans: number;
   activeToolSpans: number;
+  maxRunSpans: number;
+  maxTaskSpans: number;
+  maxToolSpans: number;
+  evictedRunSpans: number;
+  evictedTaskSpans: number;
+  evictedToolSpans: number;
   exportedSpans: number;
   droppedEvents: number;
   lastExportedAt?: string;

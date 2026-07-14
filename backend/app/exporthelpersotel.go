@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/otel/attribute"
@@ -41,12 +42,32 @@ func buildOTelTracerProvider(endpoint, serviceName string, headers map[string]st
 	}
 	provider := sdktrace.NewTracerProvider(
 		sdktrace.WithResource(res),
+		sdktrace.WithRawSpanLimits(boundedOTelSpanLimits()),
 		sdktrace.WithBatcher(exporter,
 			sdktrace.WithBatchTimeout(2*time.Second),
 			sdktrace.WithMaxExportBatchSize(256),
+			sdktrace.WithMaxQueueSize(otelExporterQueueSize),
 		),
 	)
 	return provider, provider.Tracer("agent-ebpf-filter/otel"), nil
+}
+
+func boundedOTelSpanLimits() sdktrace.SpanLimits {
+	limits := sdktrace.NewSpanLimits()
+	limits.AttributeValueLengthLimit = boundedOTelLimit(limits.AttributeValueLengthLimit, otelMaxAttributeLength)
+	limits.AttributeCountLimit = boundedOTelLimit(limits.AttributeCountLimit, otelMaxSpanAttributes)
+	limits.EventCountLimit = boundedOTelLimit(limits.EventCountLimit, otelMaxSpanEvents)
+	limits.AttributePerEventCountLimit = boundedOTelLimit(limits.AttributePerEventCountLimit, otelMaxEventAttributes)
+	limits.LinkCountLimit = boundedOTelLimit(limits.LinkCountLimit, otelMaxSpanLinks)
+	limits.AttributePerLinkCountLimit = boundedOTelLimit(limits.AttributePerLinkCountLimit, otelMaxLinkAttributes)
+	return limits
+}
+
+func boundedOTelLimit(configured, maximum int) int {
+	if configured < 0 || configured > maximum {
+		return maximum
+	}
+	return configured
 }
 
 func buildOTLPHTTPExporter(endpoint string, headers map[string]string, owner *otelExporterState) (sdktrace.SpanExporter, error) {
@@ -101,14 +122,14 @@ func buildOTelAttributes(envelope *pb.EventEnvelope) []attribute.KeyValue {
 		return nil
 	}
 	attrs := []attribute.KeyValue{
-		attribute.String("agent.schema_version", envelope.GetSchemaVersion()),
-		attribute.String("agent.event_id", envelope.GetEventId()),
-		attribute.String("agent.source", envelope.GetSource()),
-		attribute.String("agent.event_type", envelope.GetEventType().String()),
+		attribute.String("agent.schema_version", boundedOTelAttributeValue(envelope.GetSchemaVersion())),
+		attribute.String("agent.event_id", boundedOTelAttributeValue(envelope.GetEventId())),
+		attribute.String("agent.source", boundedOTelAttributeValue(envelope.GetSource())),
+		attribute.String("agent.event_type", boundedOTelAttributeValue(envelope.GetEventType().String())),
 	}
 	appendStringAttr := func(key, value string) {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			attrs = append(attrs, attribute.String(key, trimmed))
+		if bounded := boundedOTelAttributeValue(value); bounded != "" {
+			attrs = append(attrs, attribute.String(key, bounded))
 		}
 	}
 	appendIntAttr := func(key string, value uint64) {
@@ -190,29 +211,58 @@ func buildOTelAttributes(envelope *pb.EventEnvelope) []attribute.KeyValue {
 	return attrs
 }
 
+func boundedOTelAttributeValue(value string) string {
+	return boundedOTelString(value, otelMaxAttributeLength)
+}
+
+func boundedOTelName(value string) string {
+	return boundedOTelString(value, otelMaxNameLength)
+}
+
+func boundedOTelString(value string, limit int) string {
+	value = strings.TrimSpace(value)
+	if value == "" || limit <= 0 {
+		return ""
+	}
+	if !utf8.ValidString(value) {
+		value = strings.ToValidUTF8(value, "�")
+	}
+	if len(value) <= limit {
+		return value
+	}
+	characters := 0
+	for index := range value {
+		if characters == limit {
+			return value[:index]
+		}
+		characters++
+	}
+	return value
+}
+
 func buildHierarchyAttributes(envelope *pb.EventEnvelope, level string) []attribute.KeyValue {
 	attrs := []attribute.KeyValue{
 		attribute.String("agent.hierarchy_level", level),
 	}
 	switch level {
 	case "run":
-		if value := platform.FirstNonEmpty(envelope.GetAgentRunId(), otelRunKey(envelope)); value != "" {
+		if value := boundedOTelAttributeValue(platform.FirstNonEmpty(envelope.GetAgentRunId(), otelRunKey(envelope))); value != "" {
 			attrs = append(attrs, attribute.String("agent.run_id", value))
 		}
 	case "task":
-		if value := platform.FirstNonEmpty(envelope.GetTaskId(), otelTaskKey(envelope, otelRunKey(envelope))); value != "" {
+		if value := boundedOTelAttributeValue(platform.FirstNonEmpty(envelope.GetTaskId(), otelTaskKey(envelope, otelRunKey(envelope)))); value != "" {
 			attrs = append(attrs, attribute.String("agent.task_id", value))
 		}
 	case "tool":
-		if value := platform.FirstNonEmpty(envelope.GetToolCallId(), otelToolKey(envelope, otelTaskKey(envelope, otelRunKey(envelope)), otelRunKey(envelope))); value != "" {
+		if value := boundedOTelAttributeValue(platform.FirstNonEmpty(envelope.GetToolCallId(), otelToolKey(envelope, otelTaskKey(envelope, otelRunKey(envelope)), otelRunKey(envelope)))); value != "" {
 			attrs = append(attrs, attribute.String("agent.tool_call_id", value))
 		}
 		if toolName := strings.TrimSpace(envelope.GetToolName()); toolName != "" {
-			attrs = append(attrs, attribute.String("agent.tool_name", toolName))
+			attrs = append(attrs, attribute.String("agent.tool_name", boundedOTelAttributeValue(toolName)))
 		}
 	}
 	if traceID := strings.TrimSpace(envelope.GetTraceId()); traceID != "" {
-		attrs = append(attrs, attribute.String("agent.trace_id", traceID))
+		attrs = append(attrs, attribute.String("agent.trace_id", boundedOTelAttributeValue(traceID)))
 	}
 	return attrs
 }
@@ -226,16 +276,16 @@ func otelEventName(envelope *pb.EventEnvelope) string {
 		return "process.exec"
 	case *pb.EventEnvelope_FileEvent:
 		file := envelope.GetFileEvent()
-		operation := strings.TrimSpace(file.GetOperation())
+		operation := boundedOTelName(file.GetOperation())
 		if operation == "" {
 			operation = "unknown"
 		}
-		return "file." + operation
+		return boundedOTelName("file." + operation)
 	case *pb.EventEnvelope_NetworkEvent:
 		network := envelope.GetNetworkEvent()
 		direction := strings.TrimSpace(network.GetDirection())
 		switch {
-		case strings.EqualFold(direction, "connect"), strings.Contains(strings.ToLower(network.GetEndpoint()), ":"):
+		case strings.EqualFold(direction, "connect"), strings.Contains(network.GetEndpoint(), ":"):
 			return "network.connect"
 		case strings.EqualFold(direction, "send"):
 			return "network.send"
@@ -245,11 +295,11 @@ func otelEventName(envelope *pb.EventEnvelope) string {
 			return "network.flow"
 		}
 	case *pb.EventEnvelope_ProcessEvent:
-		phase := strings.TrimSpace(envelope.GetProcessEvent().GetPhase())
+		phase := boundedOTelName(envelope.GetProcessEvent().GetPhase())
 		if phase == "" {
 			phase = "unknown"
 		}
-		return "process." + phase
+		return boundedOTelName("process." + phase)
 	case *pb.EventEnvelope_PolicyEvent:
 		return "policy.decision"
 	case *pb.EventEnvelope_WrapperEvent:
@@ -259,7 +309,7 @@ func otelEventName(envelope *pb.EventEnvelope) string {
 	case *pb.EventEnvelope_McpEvent:
 		return "mcp.call"
 	default:
-		return "event." + strings.ToLower(strings.TrimSpace(envelope.GetSource()))
+		return boundedOTelName("event." + strings.ToLower(boundedOTelName(envelope.GetSource())))
 	}
 }
 
@@ -270,11 +320,12 @@ func otelToolSpanName(envelope *pb.EventEnvelope) string {
 	if _, ok := envelope.GetPayload().(*pb.EventEnvelope_McpEvent); ok {
 		return "mcp.call"
 	}
-	toolName := strings.ToLower(strings.TrimSpace(envelope.GetToolName()))
+	toolName := strings.ToLower(boundedOTelName(envelope.GetToolName()))
+	taskID := strings.ToLower(boundedOTelName(envelope.GetTaskId()))
 	switch {
 	case strings.Contains(toolName, "llm"), strings.Contains(toolName, "chat"), strings.Contains(toolName, "completion"):
 		return "llm.call"
-	case strings.Contains(toolName, "review"), strings.Contains(strings.ToLower(strings.TrimSpace(envelope.GetTaskId())), "review"):
+	case strings.Contains(toolName, "review"), strings.Contains(taskID, "review"):
 		return "pr.review"
 	default:
 		return "tool.call"
@@ -285,7 +336,7 @@ func shouldMarkSpanError(envelope *pb.EventEnvelope) bool {
 	if envelope == nil {
 		return false
 	}
-	if decision := strings.ToUpper(strings.TrimSpace(envelope.GetPolicyDecision())); decision == "BLOCK" || decision == "ALERT" {
+	if decision := strings.TrimSpace(envelope.GetPolicyDecision()); strings.EqualFold(decision, "BLOCK") || strings.EqualFold(decision, "ALERT") {
 		return true
 	}
 	if legacy := envelope.GetLegacyEvent(); legacy != nil && legacy.GetRetval() < 0 {
@@ -299,7 +350,7 @@ func otelStatusMessage(envelope *pb.EventEnvelope) string {
 		return ""
 	}
 	if decision := strings.TrimSpace(envelope.GetPolicyDecision()); decision != "" {
-		return "policy decision: " + decision
+		return boundedOTelAttributeValue("policy decision: " + boundedOTelAttributeValue(decision))
 	}
 	if legacy := envelope.GetLegacyEvent(); legacy != nil && legacy.GetRetval() < 0 {
 		return fmt.Sprintf("retval=%d", legacy.GetRetval())
@@ -323,7 +374,7 @@ func otelRunKey(envelope *pb.EventEnvelope) string {
 		return ""
 	}
 	parts := []string{}
-	if runID := strings.TrimSpace(envelope.GetAgentRunId()); runID != "" {
+	if runID := boundedOTelKeyComponent(envelope.GetAgentRunId()); runID != "" {
 		parts = append(parts, "run:"+runID)
 	}
 	if rootPID := envelope.GetPid(); envelope.GetLegacyEvent() != nil && envelope.GetLegacyEvent().GetRootAgentPid() != 0 {
@@ -332,7 +383,7 @@ func otelRunKey(envelope *pb.EventEnvelope) string {
 			parts = append(parts, fmt.Sprintf("root:%d", rootPID))
 		}
 	}
-	if traceID := strings.TrimSpace(envelope.GetTraceId()); traceID != "" {
+	if traceID := boundedOTelKeyComponent(envelope.GetTraceId()); traceID != "" {
 		parts = append(parts, "trace:"+traceID)
 	}
 	if len(parts) == 0 {
@@ -349,12 +400,15 @@ func otelTaskKey(envelope *pb.EventEnvelope, runKey string) string {
 		return ""
 	}
 	parts := []string{runKey}
-	if taskID := strings.TrimSpace(envelope.GetTaskId()); taskID != "" {
+	if taskID := boundedOTelKeyComponent(envelope.GetTaskId()); taskID != "" {
 		parts = append(parts, "task:"+taskID)
-	} else if conversationID := strings.TrimSpace(envelope.GetConversationId()); conversationID != "" || strings.TrimSpace(envelope.GetTurnId()) != "" {
-		parts = append(parts, "conversation:"+conversationID, "turn:"+strings.TrimSpace(envelope.GetTurnId()))
 	} else {
-		return ""
+		conversationID := boundedOTelKeyComponent(envelope.GetConversationId())
+		turnID := boundedOTelKeyComponent(envelope.GetTurnId())
+		if conversationID == "" && turnID == "" {
+			return ""
+		}
+		parts = append(parts, "conversation:"+conversationID, "turn:"+turnID)
 	}
 	return stableOTelKey(parts...)
 }
@@ -364,9 +418,9 @@ func otelToolKey(envelope *pb.EventEnvelope, taskKey, runKey string) string {
 		return ""
 	}
 	parts := []string{runKey, taskKey}
-	if toolCallID := strings.TrimSpace(envelope.GetToolCallId()); toolCallID != "" {
+	if toolCallID := boundedOTelKeyComponent(envelope.GetToolCallId()); toolCallID != "" {
 		parts = append(parts, "tool_call:"+toolCallID)
-	} else if toolName := strings.TrimSpace(envelope.GetToolName()); toolName != "" {
+	} else if toolName := boundedOTelKeyComponent(envelope.GetToolName()); toolName != "" {
 		parts = append(parts, "tool_name:"+toolName)
 		if envelope.GetPid() != 0 {
 			parts = append(parts, fmt.Sprintf("pid:%d", envelope.GetPid()))
@@ -389,6 +443,15 @@ func stableOTelKey(parts ...string) string {
 	}
 	sum := sha256.Sum256([]byte(strings.Join(filtered, "\x00")))
 	return "otel_" + hex.EncodeToString(sum[:10])
+}
+
+func boundedOTelKeyComponent(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || len(value) <= otelMaxAttributeLength {
+		return value
+	}
+	sum := sha256.Sum256([]byte(value))
+	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 func cloneStringMap(input map[string]string) map[string]string {

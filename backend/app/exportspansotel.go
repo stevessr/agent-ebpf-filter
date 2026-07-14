@@ -26,10 +26,11 @@ func (s *otelExporterState) ensureSpanHierarchy(envelope *pb.EventEnvelope, ts t
 	}
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if !s.ready || s.tracer == nil {
+		s.mu.Unlock()
 		return hierarchy
 	}
+	var evicted otelSpanEvictions
 
 	runKey := otelRunKey(envelope)
 	taskKey := otelTaskKey(envelope, runKey)
@@ -37,9 +38,18 @@ func (s *otelExporterState) ensureSpanHierarchy(envelope *pb.EventEnvelope, ts t
 
 	if runKey != "" {
 		if span := s.runSpans[runKey]; span != nil {
-			span.lastSeen = ts
+			touchActiveOTelSpan(s.runLRU, span, ts)
 			hierarchy.run = span
 		} else {
+			for s.maxRunSpans > 0 && len(s.runSpans) >= s.maxRunSpans {
+				before := len(s.runSpans)
+				reclaimed := s.evictOldestRunLocked()
+				s.noteCapacityEvictionsLocked(reclaimed)
+				appendOTelSpanEvictions(&evicted, reclaimed)
+				if len(s.runSpans) >= before {
+					break
+				}
+			}
 			ctx, span := s.tracer.Start(
 				context.Background(),
 				"agent.run",
@@ -47,16 +57,25 @@ func (s *otelExporterState) ensureSpanHierarchy(envelope *pb.EventEnvelope, ts t
 				oteltrace.WithAttributes(buildHierarchyAttributes(envelope, "run")...),
 			)
 			active := &activeOTelSpan{ctx: ctx, span: span, key: runKey, runKey: runKey, lastSeen: ts}
-			s.runSpans[runKey] = active
+			s.addRunSpanLocked(active)
 			hierarchy.run = active
 		}
 	}
 
 	if taskKey != "" {
 		if span := s.taskSpans[taskKey]; span != nil {
-			span.lastSeen = ts
+			touchActiveOTelSpan(s.taskLRU, span, ts)
 			hierarchy.task = span
 		} else {
+			for s.maxTaskSpans > 0 && len(s.taskSpans) >= s.maxTaskSpans {
+				before := len(s.taskSpans)
+				reclaimed := s.evictOldestTaskLocked()
+				s.noteCapacityEvictionsLocked(reclaimed)
+				appendOTelSpanEvictions(&evicted, reclaimed)
+				if len(s.taskSpans) >= before {
+					break
+				}
+			}
 			parentCtx := context.Background()
 			if hierarchy.run != nil {
 				parentCtx = hierarchy.run.ctx
@@ -68,16 +87,25 @@ func (s *otelExporterState) ensureSpanHierarchy(envelope *pb.EventEnvelope, ts t
 				oteltrace.WithAttributes(buildHierarchyAttributes(envelope, "task")...),
 			)
 			active := &activeOTelSpan{ctx: ctx, span: span, key: taskKey, runKey: runKey, taskKey: taskKey, lastSeen: ts}
-			s.taskSpans[taskKey] = active
+			s.addTaskSpanLocked(active)
 			hierarchy.task = active
 		}
 	}
 
 	if toolKey != "" {
 		if span := s.toolSpans[toolKey]; span != nil {
-			span.lastSeen = ts
+			touchActiveOTelSpan(s.toolLRU, span, ts)
 			hierarchy.tool = span
 		} else {
+			for s.maxToolSpans > 0 && len(s.toolSpans) >= s.maxToolSpans {
+				before := len(s.toolSpans)
+				reclaimed := s.evictOldestToolLocked()
+				s.noteCapacityEvictionsLocked(reclaimed)
+				appendOTelSpanEvictions(&evicted, reclaimed)
+				if len(s.toolSpans) >= before {
+					break
+				}
+			}
 			parentCtx := context.Background()
 			if hierarchy.task != nil {
 				parentCtx = hierarchy.task.ctx
@@ -91,7 +119,7 @@ func (s *otelExporterState) ensureSpanHierarchy(envelope *pb.EventEnvelope, ts t
 				oteltrace.WithAttributes(buildHierarchyAttributes(envelope, "tool")...),
 			)
 			active := &activeOTelSpan{ctx: ctx, span: span, key: toolKey, runKey: runKey, taskKey: taskKey, lastSeen: ts}
-			s.toolSpans[toolKey] = active
+			s.addToolSpanLocked(active)
 			hierarchy.tool = active
 		}
 	}
@@ -107,6 +135,11 @@ func (s *otelExporterState) ensureSpanHierarchy(envelope *pb.EventEnvelope, ts t
 			hierarchy.run = s.runSpans[hierarchy.task.runKey]
 		}
 	}
+	s.mu.Unlock()
+
+	// Span.End may synchronously invoke a configured span processor. Keep it
+	// outside the state mutex so monitoring callbacks can safely update health.
+	endOTelSpanEvictions(evicted, ts)
 	return hierarchy
 }
 
@@ -152,30 +185,26 @@ func (s *otelExporterState) endIdleSpans(now time.Time) {
 	if s == nil {
 		return
 	}
+	s.processMu.Lock()
+	defer s.processMu.Unlock()
 	s.mu.Lock()
 	toolSpans := collectIdleSpans(s.toolSpans, now, otelToolIdleTimeout)
 	for _, span := range toolSpans {
-		delete(s.toolSpans, span.key)
+		s.removeToolSpanLocked(span.key)
 	}
-	taskSpans := collectIdleTaskSpans(s.taskSpans, s.toolSpans, now, otelTaskIdleTimeout)
+	taskSpans := collectIdleTaskSpans(s.taskSpans, s.taskTools, now, otelTaskIdleTimeout)
 	for _, span := range taskSpans {
-		delete(s.taskSpans, span.key)
+		s.removeTaskSpanLocked(span.key)
 	}
-	runSpans := collectIdleRunSpans(s.runSpans, s.taskSpans, s.toolSpans, now, otelRunIdleTimeout)
+	runSpans := collectIdleRunSpans(s.runSpans, s.runTasks, s.runTools, now, otelRunIdleTimeout)
 	for _, span := range runSpans {
-		delete(s.runSpans, span.key)
+		s.removeRunSpanLocked(span.key)
 	}
-	tp := s.tp
 	s.mu.Unlock()
 
 	endSpanSlice(toolSpans, now)
 	endSpanSlice(taskSpans, now)
 	endSpanSlice(runSpans, now)
-	if tp != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		_ = tp.ForceFlush(ctx)
-		cancel()
-	}
 }
 
 func (s *otelExporterState) endRelatedSpans(envelope *pb.EventEnvelope, ts time.Time) {
@@ -191,28 +220,22 @@ func (s *otelExporterState) endRelatedSpans(envelope *pb.EventEnvelope, ts time.
 	if toolKey != "" {
 		if span := s.toolSpans[toolKey]; span != nil {
 			spans = append(spans, span)
-			delete(s.toolSpans, toolKey)
+			s.removeToolSpanLocked(toolKey)
 		}
 	}
-	if taskKey != "" && !hasActiveToolForTask(s.toolSpans, taskKey) {
+	if taskKey != "" && !hasOTelIndexedChildren(s.taskTools, taskKey) {
 		if span := s.taskSpans[taskKey]; span != nil {
 			spans = append(spans, span)
-			delete(s.taskSpans, taskKey)
+			s.removeTaskSpanLocked(taskKey)
 		}
 	}
-	if runKey != "" && !hasActiveTaskForRun(s.taskSpans, runKey) && !hasActiveToolForRun(s.toolSpans, runKey) {
+	if runKey != "" && !hasOTelIndexedChildren(s.runTasks, runKey) && !hasOTelIndexedChildren(s.runTools, runKey) {
 		if span := s.runSpans[runKey]; span != nil {
 			spans = append(spans, span)
-			delete(s.runSpans, runKey)
+			s.removeRunSpanLocked(runKey)
 		}
 	}
-	tp := s.tp
 	s.mu.Unlock()
 
 	endSpanSlice(spans, ts)
-	if tp != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		_ = tp.ForceFlush(ctx)
-		cancel()
-	}
 }
