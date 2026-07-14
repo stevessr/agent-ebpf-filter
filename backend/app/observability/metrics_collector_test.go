@@ -32,6 +32,21 @@ func TestCollectorPipelineMetricsSnapshot(t *testing.T) {
 				LastSweepAt:                   "2026-07-14T12:00:01Z",
 			}
 		},
+		ToolBaselineStatus: func() ToolBaselineStatus {
+			return ToolBaselineStatus{
+				Tools:                     4,
+				Samples:                   21,
+				MaxTools:                  512,
+				MaxSamples:                65536,
+				MaxSamplesPerTool:         128,
+				ObservationsTotal:         22,
+				DriftsTotal:               23,
+				ExpiredEvictionsTotal:     24,
+				CapacityEvictionsTotal:    25,
+				TruncatedStateValuesTotal: 26,
+				LastSweepAt:               "2026-07-14T12:00:02Z",
+			}
+		},
 	}
 	t.Cleanup(func() {
 		collectorMetricsStore = oldStore
@@ -70,6 +85,12 @@ func TestCollectorPipelineMetricsSnapshot(t *testing.T) {
 	}
 	if health.SemanticStateExpiredEvictions != 11 || health.SemanticStateCapacityEvictions != 12 || health.SemanticStateTruncatedValues != 13 || health.SemanticStateIgnoredMetadata != 14 || health.SemanticStateLastSweepAt != "2026-07-14T12:00:01Z" {
 		t.Fatalf("semantic state counters mismatch: %+v", health)
+	}
+	if health.ToolBaselineTools != 4 || health.ToolBaselineSamples != 21 || health.ToolBaselineMaxTools != 512 || health.ToolBaselineMaxSamples != 65536 || health.ToolBaselineMaxSamplesPerTool != 128 {
+		t.Fatalf("tool baseline size mismatch: %+v", health)
+	}
+	if health.ToolBaselineObservations != 22 || health.ToolBaselineDrifts != 23 || health.ToolBaselineExpiredEvictions != 24 || health.ToolBaselineCapacityEvictions != 25 || health.ToolBaselineTruncatedValues != 26 || health.ToolBaselineLastSweepAt != "2026-07-14T12:00:02Z" {
+		t.Fatalf("tool baseline counters mismatch: %+v", health)
 	}
 	if health.WsClients != 5 {
 		t.Fatalf("websocket client count = %d, want 5", health.WsClients)

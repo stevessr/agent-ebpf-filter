@@ -113,12 +113,14 @@ func TestRuntimeReplaySuite(t *testing.T) {
 	catalog := loadRuntimeReplayCatalog(t)
 	origTracked := trackedProcessContexts
 	origSemanticState := semanticAlertsState
+	origToolBaseline := toolBaseline
 	origMLEnabled := mlEnabled
 	origMLLoaded := mlModelLoaded
 	origMLConfig := mlConfig
 	defer func() {
 		trackedProcessContexts = origTracked
 		semanticAlertsState = origSemanticState
+		toolBaseline = origToolBaseline
 		mlEnabled = origMLEnabled
 		mlModelLoaded = origMLLoaded
 		mlConfig = origMLConfig
@@ -230,6 +232,7 @@ func runRuntimeReplayScenario(t *testing.T, scenario runtimeReplayScenario) (run
 	t.Helper()
 	trackedProcessContexts = newProcessContextStore()
 	resetSemanticAlertState()
+	toolBaseline = newToolBaselineStore()
 
 	result := runtimeReplayScenarioResult{
 		ID:                 scenario.ID,

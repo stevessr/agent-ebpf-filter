@@ -39,6 +39,20 @@ func TestPrometheusMetricsExposePersistQueueState(t *testing.T) {
 				IgnoredOversizedMetadataTotal: 14,
 			}
 		},
+		ToolBaselineStatus: func() ToolBaselineStatus {
+			return ToolBaselineStatus{
+				Tools:                     4,
+				Samples:                   21,
+				MaxTools:                  512,
+				MaxSamples:                65536,
+				MaxSamplesPerTool:         128,
+				ObservationsTotal:         22,
+				DriftsTotal:               23,
+				ExpiredEvictionsTotal:     24,
+				CapacityEvictionsTotal:    25,
+				TruncatedStateValuesTotal: 26,
+			}
+		},
 	}
 	t.Cleanup(func() {
 		collectorMetricsStore = oldStore
@@ -66,6 +80,15 @@ func TestPrometheusMetricsExposePersistQueueState(t *testing.T) {
 		"agent_ebpf_semantic_state_capacity_evictions_total 12",
 		"agent_ebpf_semantic_state_truncated_values_total 13",
 		"agent_ebpf_semantic_state_ignored_metadata_total 14",
+		"agent_ebpf_tool_baseline_tools 4",
+		"agent_ebpf_tool_baseline_samples 21",
+		"agent_ebpf_tool_baseline_max_tools 512",
+		"agent_ebpf_tool_baseline_max_samples 65536",
+		"agent_ebpf_tool_baseline_observations_total 22",
+		"agent_ebpf_tool_baseline_drifts_total 23",
+		"agent_ebpf_tool_baseline_expired_evictions_total 24",
+		"agent_ebpf_tool_baseline_capacity_evictions_total 25",
+		"agent_ebpf_tool_baseline_truncated_values_total 26",
 	} {
 		if !strings.Contains(response.Body.String(), sample) {
 			t.Fatalf("metrics omitted %q:\n%s", sample, response.Body.String())

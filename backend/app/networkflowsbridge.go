@@ -157,10 +157,10 @@ func init() {
 			CreatedAt:    entry.CreatedAt,
 		})
 	}
-	events.Deps.ToolBaselineRecord = toolBaseline.Record
-
 	// Semantic alerts
 	events.Deps.SemanticAlertsState = semanticAlertsState
-	events.Deps.ToolBaselineDetectDrift = toolBaseline.detectDrift
+	events.Deps.ToolBaselineObserve = func(toolName, comm, eventType string) (string, bool) {
+		return toolBaseline.Observe(toolName, comm, eventType)
+	}
 	events.Deps.EventSchemaVersion = eventSchemaVersion
 }

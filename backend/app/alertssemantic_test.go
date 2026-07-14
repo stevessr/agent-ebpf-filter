@@ -99,6 +99,63 @@ func TestSemanticAlertsDetectMultiAgentFileContention(t *testing.T) {
 	}
 }
 
+func TestSemanticAlertsDetectToolBaselineDriftBeforeRecording(t *testing.T) {
+	previousBaseline := toolBaseline
+	toolBaseline = newToolBaselineStore()
+	t.Cleanup(func() { toolBaseline = previousBaseline })
+	resetSemanticAlertState()
+
+	for index, behavior := range []struct {
+		comm      string
+		eventType string
+	}{
+		{comm: "git", eventType: "baseline_exec"},
+		{comm: "rg", eventType: "baseline_read"},
+		{comm: "cat", eventType: "baseline_open"},
+	} {
+		event := &pb.Event{
+			Pid:      uint32(900 + index),
+			ToolName: "baseline-review-tool",
+			Comm:     behavior.comm,
+			Type:     behavior.eventType,
+			Path:     "/workspace",
+		}
+		enrichEventContext(event)
+		if alert := findSemanticAlertCode(buildSemanticAlerts(event), "TOOL_BEHAVIOR_DRIFT"); alert != nil {
+			t.Fatalf("baseline warm-up emitted drift: %+v", alert)
+		}
+	}
+	for observation := 3; observation < toolBaselineMinObservations; observation++ {
+		event := &pb.Event{
+			Pid:      uint32(1000 + observation),
+			ToolName: "baseline-review-tool",
+			Comm:     "git",
+			Type:     "baseline_exec",
+			Path:     "/workspace",
+		}
+		enrichEventContext(event)
+		if alert := findSemanticAlertCode(buildSemanticAlerts(event), "TOOL_BEHAVIOR_DRIFT"); alert != nil {
+			t.Fatalf("known baseline warm-up emitted drift: %+v", alert)
+		}
+	}
+
+	driftEvent := &pb.Event{
+		Pid:      999,
+		ToolName: "baseline-review-tool",
+		Comm:     "curl",
+		Type:     "baseline_network",
+		Path:     "/usr/bin/curl",
+	}
+	enrichEventContext(driftEvent)
+	alert := findSemanticAlertCode(buildSemanticAlerts(driftEvent), "TOOL_BEHAVIOR_DRIFT")
+	if alert == nil || !strings.Contains(alert.GetExtraInfo(), "baseline drift") {
+		t.Fatalf("expected detect-before-record drift alert, got %+v", alert)
+	}
+	if repeated := findSemanticAlertCode(buildSemanticAlerts(driftEvent), "TOOL_BEHAVIOR_DRIFT"); repeated != nil {
+		t.Fatalf("recorded behavior emitted drift twice: %+v", repeated)
+	}
+}
+
 func findSemanticAlertCode(alerts []*pb.Event, code string) *pb.Event {
 	for _, alert := range alerts {
 		if alert.GetType() == "semantic_alert" && alert.GetComm() == code {

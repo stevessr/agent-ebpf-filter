@@ -78,6 +78,26 @@ context/path 无限增长，因此 `SemanticAlertState` 使用五个受同一互
 忽略的超限 metadata 和最后 GC 时间。Prometheus 对应暴露
 `agent_ebpf_semantic_state_entries{kind=...}`、`*_max_entries` 及四个累计 counter。
 
+## 工具行为基线
+
+工具基线在 `BuildSemanticAlerts()` 末尾执行一次原子的 **detect-then-record**：
+先只用此前行为判断 drift，再把当前行为写入 baseline。这样当前事件不会在检查前把自己
+加入 baseline；并发出现同一种新行为时，也只有第一个观察会产生 drift，后续观察直接
+命中刚写入的样本。`enrichEventContext()` 只负责上下文，不再提前污染 baseline。
+
+为避免冷启动误报，某个工具至少需要 3 种既有行为且累计 16 次有效观察后，新的
+`comm/eventType` 组合才会触发 baseline drift。状态边界如下：
+
+- 最多 512 个工具、每个工具最多 128 个行为样本，总上限 65536；
+- 外层工具和内层行为都使用 O(1) LRU 容量淘汰；key 使用结构体，不再拼接字符串；
+- 工具名、comm 和 event type 受 rune 数限制，超长值使用稳定 SHA-256 派生后缀，
+  去空白后的短切片会 clone，避免小值长期引用攻击者控制的大字符串；
+- 每分钟由可取消后台任务统一清理 24 小时 TTL；观察时只从当前工具的 LRU 尾部移除
+  已过期项，不再在事件热路径扫描当前工具或全部 65536 个样本。
+
+collector health 和 Prometheus 暴露 tools/samples 占用、观察数、drift 数、TTL/容量
+淘汰、受限值与最后 GC 时间。
+
 ## 异步 JSONL 持久化
 
 `recordCapturedEvent()` 在完成 clone、schema 归一化和脱敏后，先写入内存

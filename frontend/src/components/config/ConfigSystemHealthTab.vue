@@ -259,6 +259,61 @@ const compactList = (items?: Array<string | number>) => {
                 }}</strong>
               </div>
               <a-divider style="margin: 4px 0" />
+              <div style="font-weight: 600">Tool behavior baseline</div>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap">
+                <a-tag color="blue">
+                  tools: {{ collectorHealth.toolBaselineTools }}/{{
+                    collectorHealth.toolBaselineMaxTools
+                  }}
+                </a-tag>
+                <a-tag color="cyan">
+                  samples: {{ collectorHealth.toolBaselineSamples }}/{{
+                    collectorHealth.toolBaselineMaxSamples
+                  }}
+                </a-tag>
+                <a-tag color="default">
+                  per-tool cap:
+                  {{ collectorHealth.toolBaselineMaxSamplesPerTool }}
+                </a-tag>
+                <a-tag color="purple">
+                  observations:
+                  {{ collectorHealth.toolBaselineObservationsTotal }}
+                </a-tag>
+                <a-tag
+                  :color="
+                    collectorHealth.toolBaselineDriftsTotal > 0
+                      ? 'orange'
+                      : 'default'
+                  "
+                >
+                  drifts: {{ collectorHealth.toolBaselineDriftsTotal }}
+                </a-tag>
+                <a-tag color="default">
+                  expired:
+                  {{ collectorHealth.toolBaselineExpiredEvictionsTotal }}
+                </a-tag>
+                <a-tag
+                  :color="
+                    collectorHealth.toolBaselineCapacityEvictionsTotal > 0
+                      ? 'orange'
+                      : 'default'
+                  "
+                >
+                  capacity evictions:
+                  {{ collectorHealth.toolBaselineCapacityEvictionsTotal }}
+                </a-tag>
+                <a-tag color="purple">
+                  bounded values:
+                  {{ collectorHealth.toolBaselineTruncatedValuesTotal }}
+                </a-tag>
+              </div>
+              <div>
+                last baseline GC:
+                <strong>{{
+                  formatMaybeDate(collectorHealth.toolBaselineLastSweepAt)
+                }}</strong>
+              </div>
+              <a-divider style="margin: 4px 0" />
               <div style="font-weight: 600">Kernel-risk loop</div>
               <div style="display: flex; gap: 8px; flex-wrap: wrap">
                 <a-tag color="purple">

@@ -16,6 +16,17 @@ export interface CollectorHealthResponse {
   semanticStateTruncatedValuesTotal: number;
   semanticStateIgnoredOversizedMetadataTotal: number;
   semanticStateLastSweepAt?: string;
+  toolBaselineTools: number;
+  toolBaselineSamples: number;
+  toolBaselineMaxTools: number;
+  toolBaselineMaxSamples: number;
+  toolBaselineMaxSamplesPerTool: number;
+  toolBaselineObservationsTotal: number;
+  toolBaselineDriftsTotal: number;
+  toolBaselineExpiredEvictionsTotal: number;
+  toolBaselineCapacityEvictionsTotal: number;
+  toolBaselineTruncatedValuesTotal: number;
+  toolBaselineLastSweepAt?: string;
   backendQueueLen: number;
   wsClients: number;
   persistAppendLatencyNs: number;

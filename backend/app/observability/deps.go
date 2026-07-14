@@ -46,6 +46,20 @@ type SemanticStateStatus struct {
 	LastSweepAt                   string
 }
 
+type ToolBaselineStatus struct {
+	Tools                     int
+	Samples                   int
+	MaxTools                  int
+	MaxSamples                int
+	MaxSamplesPerTool         int
+	ObservationsTotal         uint64
+	DriftsTotal               uint64
+	ExpiredEvictionsTotal     uint64
+	CapacityEvictionsTotal    uint64
+	TruncatedStateValuesTotal uint64
+	LastSweepAt               string
+}
+
 type Deps struct {
 	TrackerMaps TrackerMapSet
 
@@ -59,6 +73,7 @@ type Deps struct {
 	EnvelopeWSClientCount func() int
 	PersistQueueStatus    func() PersistQueueStatus
 	SemanticStateStatus   func() SemanticStateStatus
+	ToolBaselineStatus    func() ToolBaselineStatus
 	Broadcast             chan<- *pb.Event
 }
 

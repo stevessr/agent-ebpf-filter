@@ -71,6 +71,17 @@ type CollectorHealthResponse struct {
 	SemanticStateTruncatedValues   uint64            `json:"semanticStateTruncatedValuesTotal"`
 	SemanticStateIgnoredMetadata   uint64            `json:"semanticStateIgnoredOversizedMetadataTotal"`
 	SemanticStateLastSweepAt       string            `json:"semanticStateLastSweepAt,omitempty"`
+	ToolBaselineTools              int               `json:"toolBaselineTools"`
+	ToolBaselineSamples            int               `json:"toolBaselineSamples"`
+	ToolBaselineMaxTools           int               `json:"toolBaselineMaxTools"`
+	ToolBaselineMaxSamples         int               `json:"toolBaselineMaxSamples"`
+	ToolBaselineMaxSamplesPerTool  int               `json:"toolBaselineMaxSamplesPerTool"`
+	ToolBaselineObservations       uint64            `json:"toolBaselineObservationsTotal"`
+	ToolBaselineDrifts             uint64            `json:"toolBaselineDriftsTotal"`
+	ToolBaselineExpiredEvictions   uint64            `json:"toolBaselineExpiredEvictionsTotal"`
+	ToolBaselineCapacityEvictions  uint64            `json:"toolBaselineCapacityEvictionsTotal"`
+	ToolBaselineTruncatedValues    uint64            `json:"toolBaselineTruncatedValuesTotal"`
+	ToolBaselineLastSweepAt        string            `json:"toolBaselineLastSweepAt,omitempty"`
 	BackendQueueLen                int               `json:"backendQueueLen"`
 	WsClients                      int               `json:"wsClients"`
 	PersistAppendLatencyNs         uint64            `json:"persistAppendLatencyNs"`
@@ -494,6 +505,10 @@ func (s *collectorMetricsState) snapshot() CollectorHealthResponse {
 	if semanticState.EntriesByKind == nil {
 		semanticState.EntriesByKind = map[string]int{}
 	}
+	toolBaseline := ToolBaselineStatus{}
+	if deps.ToolBaselineStatus != nil {
+		toolBaseline = deps.ToolBaselineStatus()
+	}
 
 	return CollectorHealthResponse{
 		CollectorMapAvailable:          mapAvailable,
@@ -513,6 +528,17 @@ func (s *collectorMetricsState) snapshot() CollectorHealthResponse {
 		SemanticStateTruncatedValues:   semanticState.TruncatedStateValuesTotal,
 		SemanticStateIgnoredMetadata:   semanticState.IgnoredOversizedMetadataTotal,
 		SemanticStateLastSweepAt:       semanticState.LastSweepAt,
+		ToolBaselineTools:              toolBaseline.Tools,
+		ToolBaselineSamples:            toolBaseline.Samples,
+		ToolBaselineMaxTools:           toolBaseline.MaxTools,
+		ToolBaselineMaxSamples:         toolBaseline.MaxSamples,
+		ToolBaselineMaxSamplesPerTool:  toolBaseline.MaxSamplesPerTool,
+		ToolBaselineObservations:       toolBaseline.ObservationsTotal,
+		ToolBaselineDrifts:             toolBaseline.DriftsTotal,
+		ToolBaselineExpiredEvictions:   toolBaseline.ExpiredEvictionsTotal,
+		ToolBaselineCapacityEvictions:  toolBaseline.CapacityEvictionsTotal,
+		ToolBaselineTruncatedValues:    toolBaseline.TruncatedStateValuesTotal,
+		ToolBaselineLastSweepAt:        toolBaseline.LastSweepAt,
 		BackendQueueLen:                len(deps.Broadcast),
 		WsClients:                      legacyWSClients + envelopeWSClients,
 		PersistAppendLatencyNs:         raw.PersistAppendLatencyNs,

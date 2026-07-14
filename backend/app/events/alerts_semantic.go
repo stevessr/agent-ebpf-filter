@@ -313,7 +313,9 @@ func (s *SemanticAlertState) ObserveAgenticResourceLoop(event *pb.Event, now tim
 		if observation.PromptDigest == promptDigest {
 			observation.PromptRepeats++
 		} else {
-			observation.PromptDigest = promptDigest
+			// The parser returns a view into ExtraInfo. Clone only when a new
+			// digest is retained so a small state value cannot pin a large event.
+			observation.PromptDigest = strings.Clone(promptDigest)
 			observation.PromptRepeats = 1
 			observation.Alerted = false
 		}
@@ -577,8 +579,8 @@ func BuildSemanticAlerts(event *pb.Event) []*pb.Event {
 	}
 
 	// Per-tool baseline drift detection
-	if event.GetToolName() != "" && event.GetComm() != "" {
-		if reason, ok := Deps.ToolBaselineDetectDrift(event.GetToolName(), event.GetComm(), event.GetType()); ok {
+	if event.GetToolName() != "" && event.GetComm() != "" && Deps.ToolBaselineObserve != nil {
+		if reason, ok := Deps.ToolBaselineObserve(event.GetToolName(), event.GetComm(), event.GetType()); ok {
 			addAlert("TOOL_BEHAVIOR_DRIFT", platform.FirstNonEmpty(event.GetComm(), event.GetPath()), reason, 0.91)
 		}
 	}

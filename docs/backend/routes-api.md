@@ -143,7 +143,7 @@ registerRoutes()
 | 方法 | 路径 | 用途 |
 |------|------|------|
 | `GET` | `/system/bootstrap-health` | 启动阶段健康状态 |
-| `GET` | `/system/collector-health` | 捕获、广播、语义关联状态及异步持久化 writer/queue 健康状态 |
+| `GET` | `/system/collector-health` | 捕获、广播、语义关联/工具基线状态及异步持久化 writer/queue 健康状态 |
 | `GET` | `/system/otel-health` | OTLP exporter 健康状态 |
 
 `/system/collector-health` 中的 `persistGeneration*` 字段属于当前 writer generation；
@@ -163,6 +163,15 @@ agent_ebpf_persist_queue_length/capacity、agent_ebpf_persist_pending 以及当�
 `agent_ebpf_semantic_state_capacity_evictions_total`、
 `agent_ebpf_semantic_state_truncated_values_total` 和
 `agent_ebpf_semantic_state_ignored_metadata_total`。
+
+工具行为基线通过 `toolBaselineTools`、`toolBaselineSamples`、对应上限、每工具样本上限、
+`toolBaselineObservationsTotal`、`toolBaselineDriftsTotal`、TTL/容量淘汰、受限值和
+`toolBaselineLastSweepAt` 暴露。`/metrics` 对应提供
+`agent_ebpf_tool_baseline_tools`、`agent_ebpf_tool_baseline_samples`、两个容量 gauge，
+以及 `agent_ebpf_tool_baseline_observations_total`、`agent_ebpf_tool_baseline_drifts_total`、
+`agent_ebpf_tool_baseline_expired_evictions_total`、
+`agent_ebpf_tool_baseline_capacity_evictions_total` 和
+`agent_ebpf_tool_baseline_truncated_values_total`。
 
 ## 工具路由
 

@@ -281,8 +281,8 @@ func ApplyProcessContextToEvent(event *pb.Event, ctx ProcessContext) {
 	}
 }
 
-// EnrichEventContext applies process context, cgroup attribution, and tool baseline
-// to an event. It uses injected Deps for cgroup/tool-baseline lookups.
+// EnrichEventContext applies process context and cgroup attribution to an
+// event. Tool-baseline observation runs later in BuildSemanticAlerts.
 func EnrichEventContext(event *pb.Event) *pb.Event {
 	if event == nil {
 		return nil
@@ -329,11 +329,6 @@ func EnrichEventContext(event *pb.Event) *pb.Event {
 				RootAgentPID: ctx.RootAgentPid,
 			})
 		}
-	}
-
-	// Record tool baseline for drift detection
-	if event.ToolName != "" && event.Comm != "" {
-		Deps.ToolBaselineRecord(event.ToolName, event.Comm, event.Type, event.Path)
 	}
 
 	if event.Type == "process_exit" || event.Type == "exit" {

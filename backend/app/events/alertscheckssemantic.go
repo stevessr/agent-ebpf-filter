@@ -156,16 +156,14 @@ func semanticAlertContextKeyBounded(event *pb.Event) (string, bool) {
 	if event == nil {
 		return "", false
 	}
-	if toolCallID := strings.TrimSpace(event.GetToolCallId()); toolCallID != "" {
-		return boundSemanticStateString(toolCallID, SemanticStateMaxContextBytes)
+	if toolCallID, truncated := boundSemanticStateString(event.GetToolCallId(), SemanticStateMaxContextBytes); toolCallID != "" {
+		return toolCallID, truncated
 	}
-	taskID := strings.TrimSpace(event.GetTaskId())
-	traceID := strings.TrimSpace(event.GetTraceId())
-	if taskID != "" || traceID != "" {
-		return boundSemanticStatePair(taskID, traceID, SemanticStateMaxContextBytes)
+	if taskTrace, truncated := boundSemanticStatePair(event.GetTaskId(), event.GetTraceId(), SemanticStateMaxContextBytes); taskTrace != "" {
+		return taskTrace, truncated
 	}
-	if agentRunID := strings.TrimSpace(event.GetAgentRunId()); agentRunID != "" {
-		return boundSemanticStateString(agentRunID, SemanticStateMaxContextBytes)
+	if agentRunID, truncated := boundSemanticStateString(event.GetAgentRunId(), SemanticStateMaxContextBytes); agentRunID != "" {
+		return agentRunID, truncated
 	}
 	if event.GetRootAgentPid() > 0 {
 		return fmt.Sprintf("pid:%d", event.GetRootAgentPid()), false
@@ -347,11 +345,13 @@ func semanticFileMutationPath(event *pb.Event) (string, bool, bool) {
 		(len(trimmedPath) >= len("socket ") && strings.EqualFold(trimmedPath[:len("socket ")], "socket ")) {
 		return "", false, false
 	}
-	normalized, truncated := normalizeSemanticPath(trimmedPath, event.GetCwd())
+	normalized, truncated := normalizeSemanticPath(path, event.GetCwd())
 	return normalized, truncated, normalized != ""
 }
 
 func normalizeSemanticPath(path, cwd string) (string, bool) {
+	rawPath := path
+	boundedInput := rawPath
 	trimmed := strings.TrimSpace(path)
 	if trimmed == "" {
 		return "", false
@@ -363,9 +363,10 @@ func normalizeSemanticPath(path, cwd string) (string, bool) {
 				return semanticBoundWithDigest(trimmed, SemanticStateMaxPathBytes, semanticStateDigest(base, trimmed)), true
 			}
 			trimmed = filepath.Join(base, trimmed)
+			boundedInput = trimmed
 		}
 	}
-	trimmed, truncated := boundSemanticStateString(trimmed, SemanticStateMaxPathBytes)
+	trimmed, truncated := boundSemanticStateString(boundedInput, SemanticStateMaxPathBytes)
 	if trimmed == "" {
 		return "", truncated
 	}
@@ -376,17 +377,17 @@ func semanticAgentIdentity(event *pb.Event) (string, bool) {
 	if event == nil {
 		return "", false
 	}
-	if value := strings.TrimSpace(event.GetAgentRunId()); value != "" {
-		return boundSemanticStatePrefixed("agent_run:", value, SemanticStateMaxContextBytes)
+	if value, truncated := boundSemanticStatePrefixed("agent_run:", event.GetAgentRunId(), SemanticStateMaxContextBytes); value != "" {
+		return value, truncated
 	}
-	if value := strings.TrimSpace(event.GetTaskId()); value != "" {
-		return boundSemanticStatePrefixed("task:", value, SemanticStateMaxContextBytes)
+	if value, truncated := boundSemanticStatePrefixed("task:", event.GetTaskId(), SemanticStateMaxContextBytes); value != "" {
+		return value, truncated
 	}
-	if value := strings.TrimSpace(event.GetToolCallId()); value != "" {
-		return boundSemanticStatePrefixed("tool_call:", value, SemanticStateMaxContextBytes)
+	if value, truncated := boundSemanticStatePrefixed("tool_call:", event.GetToolCallId(), SemanticStateMaxContextBytes); value != "" {
+		return value, truncated
 	}
-	if value := strings.TrimSpace(event.GetTraceId()); value != "" {
-		return boundSemanticStatePrefixed("trace:", value, SemanticStateMaxContextBytes)
+	if value, truncated := boundSemanticStatePrefixed("trace:", event.GetTraceId(), SemanticStateMaxContextBytes); value != "" {
+		return value, truncated
 	}
 	if event.GetRootAgentPid() > 0 {
 		return fmt.Sprintf("root_pid:%d", event.GetRootAgentPid()), false

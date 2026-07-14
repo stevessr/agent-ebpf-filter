@@ -83,6 +83,26 @@ func initObservability() {
 				LastSweepAt:                   lastSweepAt,
 			}
 		},
+		ToolBaselineStatus: func() observability.ToolBaselineStatus {
+			status := toolBaseline.Status()
+			lastSweepAt := ""
+			if !status.LastSweepAt.IsZero() {
+				lastSweepAt = status.LastSweepAt.Format(time.RFC3339Nano)
+			}
+			return observability.ToolBaselineStatus{
+				Tools:                     status.Tools,
+				Samples:                   status.Samples,
+				MaxTools:                  status.MaxTools,
+				MaxSamples:                status.MaxSamples,
+				MaxSamplesPerTool:         status.MaxSamplesPerTool,
+				ObservationsTotal:         status.ObservationsTotal,
+				DriftsTotal:               status.DriftsTotal,
+				ExpiredEvictionsTotal:     status.ExpiredEvictionsTotal,
+				CapacityEvictionsTotal:    status.CapacityEvictionsTotal,
+				TruncatedStateValuesTotal: status.TruncatedStateValuesTotal,
+				LastSweepAt:               lastSweepAt,
+			}
+		},
 		Broadcast: broadcast,
 	})
 }

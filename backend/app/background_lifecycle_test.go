@@ -94,6 +94,40 @@ func TestRunSemanticAlertStateGCStopsWithContext(t *testing.T) {
 	}
 }
 
+func TestRunToolBaselineGCStopsWithContext(t *testing.T) {
+	state := newToolBaselineStore()
+	state.observeAt(
+		"stale-tool",
+		"stale-comm",
+		"execve",
+		time.Now().UTC().Add(-toolBaselineTTL-time.Second),
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		runToolBaselineGC(ctx, state, time.Millisecond)
+		close(done)
+	}()
+
+	deadline := time.Now().Add(time.Second)
+	for state.Status().Samples != 0 {
+		if time.Now().After(deadline) {
+			t.Fatalf("tool baseline GC did not evict stale sample: %+v", state.Status())
+		}
+		time.Sleep(time.Millisecond)
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("tool baseline GC did not stop after cancellation")
+	}
+	if state.Status().LastSweepAt.IsZero() {
+		t.Fatal("tool baseline GC did not record its sweep time")
+	}
+}
+
 func TestRunClusterHeartbeatLoopStopsWithContext(t *testing.T) {
 	cfg := ClusterConfig{
 		Role:      ClusterRoleSlave,

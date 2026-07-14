@@ -38,11 +38,15 @@ type SemanticAlertStateStatus struct {
 }
 
 func boundSemanticStateString(value string, maxBytes int) (string, bool) {
+	originalLength := len(value)
 	value = strings.TrimSpace(value)
 	if value == "" || maxBytes <= 0 {
 		return "", value != ""
 	}
 	if len(value) <= maxBytes {
+		if len(value) != originalLength {
+			value = strings.Clone(value)
+		}
 		return value, false
 	}
 	return semanticBoundWithDigest(value, maxBytes, semanticStateDigest(value)), true

@@ -114,6 +114,13 @@ func TestSemanticStateBoundsOversizedIdentifiersAndValues(t *testing.T) {
 	}
 }
 
+func TestNormalizeSemanticPathJoinsTrimmedRelativePath(t *testing.T) {
+	path, truncated := normalizeSemanticPath("  cache/result.json  ", "  /workspace/project  ")
+	if truncated || path != "/workspace/project/cache/result.json" {
+		t.Fatalf("normalized path = %q, truncated=%v", path, truncated)
+	}
+}
+
 func TestSemanticAlertStateEvictsExpiredEntriesAcrossKinds(t *testing.T) {
 	state := NewSemanticAlertState()
 	now := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)

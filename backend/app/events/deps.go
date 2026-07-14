@@ -95,11 +95,10 @@ var Deps struct {
 	ProcessContexts         *ProcessContextStore
 	CgroupAttributionEnrich func(cgroupID uint64) (agentRunID, taskID, toolCallID string)
 	CgroupAttributionSet    func(cgroupID uint64, entry CgroupAttributionEntry)
-	ToolBaselineRecord      func(toolName, comm, eventType, path string)
 
 	// Semantic alerts (used by alerts_semantic.go, alertsdetectsemantic.go)
-	SemanticAlertsState     *SemanticAlertState
-	ToolBaselineDetectDrift func(toolName, comm, eventType string) (string, bool)
+	SemanticAlertsState *SemanticAlertState
+	ToolBaselineObserve func(toolName, comm, eventType string) (string, bool)
 
 	// Event schema version (used by alerts_semantic.go)
 	EventSchemaVersion string

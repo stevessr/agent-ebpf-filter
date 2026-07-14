@@ -162,6 +162,7 @@ func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) 
 	initRedactionEngine()
 	jobs.Go(func() { runEventBroadcaster(ctx) })
 	jobs.Go(func() { runSemanticAlertStateGC(ctx, semanticAlertsState, semanticStateGCInterval) })
+	jobs.Go(func() { runToolBaselineGC(ctx, toolBaseline, toolBaselineEvictionInterval) })
 	startKernelRiskFeedbackWorker(ctx)
 	startLoopDetectionWorker(ctx)
 	startResearchProcessingWorker(ctx)
@@ -268,6 +269,22 @@ func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) 
 }
 
 func runSemanticAlertStateGC(ctx context.Context, state *events.SemanticAlertState, interval time.Duration) {
+	if ctx == nil || state == nil || interval <= 0 {
+		return
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-ticker.C:
+			state.EvictExpired(now.UTC())
+		}
+	}
+}
+
+func runToolBaselineGC(ctx context.Context, state *toolBaselineStore, interval time.Duration) {
 	if ctx == nil || state == nil || interval <= 0 {
 		return
 	}
