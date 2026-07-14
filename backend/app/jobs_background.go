@@ -216,6 +216,9 @@ func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) 
 			log.Printf("[WARN] shell sessions did not stop cleanly: %v", err)
 		}
 	})
+	if features != nil && features.CompiledIn(FeatureML) {
+		startMLAutoTuneTasks()
+	}
 	jobs.Go(func() {
 		<-ctx.Done()
 		cancelMLAutoTuneTasks()

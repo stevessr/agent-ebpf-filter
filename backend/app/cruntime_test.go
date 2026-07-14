@@ -174,8 +174,9 @@ func TestBuildMLStatusJSONUsesCurrentRuntimeSettings(t *testing.T) {
 	}
 
 	var payload struct {
-		ModelPath string `json:"modelPath"`
-		MLConfig  struct {
+		ModelPath       string                  `json:"modelPath"`
+		AutoTuneRuntime backendTaskRuntimeStats `json:"autoTuneRuntime"`
+		MLConfig        struct {
 			ModelType            string  `json:"modelType"`
 			ValidationSplitRatio float64 `json:"validationSplitRatio"`
 			LLMEnabled           bool    `json:"llmEnabled"`
@@ -195,6 +196,9 @@ func TestBuildMLStatusJSONUsesCurrentRuntimeSettings(t *testing.T) {
 	}
 	if err := json.Unmarshal(buildMLStatusJSON(), &payload); err != nil {
 		t.Fatalf("unmarshal status payload: %v", err)
+	}
+	if payload.AutoTuneRuntime.Name != "ml-auto-tune" {
+		t.Fatalf("auto-tune runtime name = %q", payload.AutoTuneRuntime.Name)
 	}
 	if payload.ModelPath != runtimeCfg.ModelPath {
 		t.Fatalf("payload.ModelPath = %q, want %q", payload.ModelPath, runtimeCfg.ModelPath)

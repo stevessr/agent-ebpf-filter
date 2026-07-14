@@ -258,12 +258,18 @@ agent_ebpf_persist_queue_length/capacity、agent_ebpf_persist_pending 以及当�
 | `POST` | `/config/ml/health/register` | 注册健康监测 |
 | `POST` | `/config/ml/health/unregister` | 注销健康监测 |
 | `POST` | `/config/ml/health/run` | 运行健康检查 |
+| `POST` | `/config/ml/backtest` | 回测 (同 assess) |
 
 LLM 出站请求共享 4 个全局并发槽位，单次响应限制为 256 KiB，配置超时会被收敛到
 5–120 秒。批量评分默认处理 20 条、单次最多 100 条，同时最多运行 2 个批次；每批
 使用最多 4 个有界 worker，整体最长运行 10 分钟并继承 HTTP 请求取消信号；
 启发式数据导入不会触发外部 LLM。
-| `POST` | `/config/ml/backtest` | 回测 (同 assess) |
+
+自动训练 scheduler 在启动时已初始化 ML 的节点上始终保持存活；临时关闭
+`AutoTrain`、关闭 ML 或 master 身份变更只会让它跳过当次检查，不会永久退出。
+每轮会重新读取 `TrainInterval`；定时 flush worker 也保持存活直到进程 context
+取消。超参/模型调优使用单槽位有界任务队列，`/config/ml/status` 的
+`autoTuneRuntime` 暴露队列、完成、取消、拒绝与耗时统计。
 
 `/config/ml/datasets/pull` 与 `/config/ml/datasets/import` 支持 `json`、`jsonl`、`csv`、`tsv`、纯文本与常见压缩包；纯文本 `.te`/SELinux policy 规则以及 JSON `rules[].rule` / `rules[].selinuxRule` 字段会自动识别为 `selinux-rule ...` 训练样本，并按 `allow/type_transition=ALLOW`、`neverallow=BLOCK`、`dontaudit/auditallow/permissive=ALERT` 保留来源标签。响应会附带 `byLabel`、`byCategory`、`bySource`、`normalization`、`quality`，导入响应还会附带 `skipReasons`；压缩包成员打开/读取失败、归档流后续读取失败、嵌套压缩流解码失败、条目解析失败或 limit 截断会连同成员或归档来源出现在 `parseWarnings`。
 

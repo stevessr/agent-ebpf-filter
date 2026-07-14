@@ -15,6 +15,7 @@ const VueApexCharts = defineAsyncComponent(
 const props = defineProps<{ ml: ReturnType<typeof useConfigML> }>();
 const emit = defineEmits<{ (e: "nav", tab: string): void }>();
 const {
+  mlStatus,
   modelType,
   builtinModelCatalog,
   selectedBuiltinModel,
@@ -87,6 +88,14 @@ const modelTuneProgressTotal = computed(
     <a-card title="Auto Parameter Tuning" size="small">
       <template #extra>
         <a-space>
+          <a-tag
+            v-if="mlStatus.auto_tune_runtime"
+            :color="mlStatus.auto_tune_runtime.closed ? 'red' : 'blue'"
+          >
+            queue {{ mlStatus.auto_tune_runtime.queueLen }}/{{
+              mlStatus.auto_tune_runtime.queueCap
+            }}
+          </a-tag>
           <a-tag color="magenta">{{
             autoTuneMode === "models"
               ? `${modelTuneSelectedTypes.length || modelTuneRecommendedTypes.length} 个模型`

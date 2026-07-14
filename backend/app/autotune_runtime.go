@@ -17,7 +17,13 @@ type mlAutoTuneModelsTask struct {
 	ModelTypes []ModelType
 }
 
+const mlAutoTuneTaskQueueSize = 1
+
 var mlAutoTuneTasks = newBackendTaskRuntime("ml-auto-tune", 32, runMLAutoTuneTask)
+
+func startMLAutoTuneTasks() {
+	mlAutoTuneTasks.Start(mlAutoTuneTaskQueueSize)
+}
 
 func runMLAutoTuneTask(entry *backendTaskRuntimeEntry) (err error) {
 	if entry == nil {

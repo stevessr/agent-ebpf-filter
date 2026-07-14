@@ -45,6 +45,29 @@ export interface MLCRuntimeStatus {
   updatedAt?: string;
   note?: string;
 }
+export interface BackendTaskRuntimeStats {
+  name: string;
+  started: boolean;
+  closed: boolean;
+  queueLen: number;
+  queueCap: number;
+  trackedTotal: number;
+  enqueuedTotal: number;
+  completedTotal: number;
+  failedTotal: number;
+  canceledTotal: number;
+  panickedTotal: number;
+  rejectedTotal: number;
+  lastQueueLatencyMs?: number;
+  lastRunDurationMs?: number;
+  lastTotalDurationMs?: number;
+  avgRunDurationMs?: number;
+  lastStartedAt?: string;
+  lastFinishedAt?: string;
+  lastError?: string;
+  lastRejectReason?: string;
+  updatedAt: string;
+}
 export interface MLStatusState {
   model_type?: string;
   model_loaded: boolean;
@@ -63,6 +86,7 @@ export interface MLStatusState {
   validation_split_ratio: number;
   training_readiness: MLTrainingReadiness | null;
   llm_review: MLReviewSummary | null;
+  auto_tune_runtime: BackendTaskRuntimeStats | null;
 }
 export interface MLLlmConfig {
   enabled: boolean;

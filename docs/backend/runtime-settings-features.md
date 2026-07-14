@@ -35,6 +35,13 @@ TLS 明文捕获、AgentSight 上传事件、wrapper 特征历史和已关闭网
 配置上限；满容量后追加为 O(1) 覆盖，快照仍按最旧到最新的逻辑顺序返回。
 这避免高频采集在锁内搬移整个历史切片，也避免通过反复重分配间歇性复制大缓冲。
 
+### ML 后台任务
+
+ML 自动训练与数据 flush 循环由进程 context 统一管理，运行时暂时禁用或丢失
+master 身份时保持 dormant，配置恢复后继续工作，而不是退出 goroutine。
+自动训练每轮重读 `TrainInterval`；ML auto-tune 使用容量为 1 的专用任务队列，
+因为 auto-tune state 本身只允许一个活动 job，不再懒加载 2048 槽位通用队列。
+
 ### Signal Processing worker
 
 Signal Processing 的活跃状态使用侵入式 LRU 维护访问顺序。更新已有状态、插入新状态和

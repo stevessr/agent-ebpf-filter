@@ -65,6 +65,7 @@ func buildMLStatusJSON() []byte {
 		"autoTuneError":        autoTuneState.Error,
 		"autoTuneResult":       autoTuneState.Result,
 		"modelTuneResult":      autoTuneState.ModelResult,
+		"autoTuneRuntime":      mlAutoTuneTasks.Stats(),
 		"mlConfig": map[string]interface{}{
 			"modelType":            string(cfg.ModelType),
 			"ensembleVoting":       cfg.EnsembleVoting,

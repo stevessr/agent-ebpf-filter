@@ -26,6 +26,11 @@ var (
 	currentModelType ModelType
 )
 
+const (
+	mlAutoTrainFallbackInterval = time.Hour
+	mlFlushInterval             = time.Minute
+)
+
 func currentMLConfig() MLConfig {
 	return runtimeSettingsStore.Snapshot().MLConfig
 }
@@ -153,14 +158,14 @@ func StartMLEngine(ctx context.Context) {
 
 	var workers sync.WaitGroup
 
-	// Auto-training scheduler
-	if cfg.AutoTrain {
-		workers.Add(1)
-		go func() {
-			defer workers.Done()
-			mlAutoTrainLoop(ctx)
-		}()
-	}
+	// Keep the scheduler alive even when AutoTrain is toggled off temporarily.
+	// It re-reads runtime settings after every interval and becomes active again
+	// without requiring a process restart.
+	workers.Add(1)
+	go func() {
+		defer workers.Done()
+		mlAutoTrainLoop(ctx)
+	}()
 
 	// Periodic data flush
 	workers.Add(1)
@@ -266,23 +271,26 @@ func resolveAction(
 
 // mlAutoTrainLoop periodically checks if enough labeled data exists and triggers training
 func mlAutoTrainLoop(ctx context.Context) {
-	interval := 1 * time.Hour
-	if d, err := time.ParseDuration(currentMLConfig().TrainInterval); err == nil && d > 0 {
-		interval = d
+	mlAutoTrainLoopWithWait(ctx, waitForMLInterval)
+}
+
+type mlIntervalWaitFunc func(context.Context, time.Duration) bool
+
+func mlAutoTrainLoopWithWait(ctx context.Context, wait mlIntervalWaitFunc) {
+	if ctx == nil {
+		ctx = context.Background()
 	}
-
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
+	if wait == nil {
+		wait = waitForMLInterval
+	}
 	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-		}
 		cfg := currentMLConfig()
-		if !cfg.Enabled || !cfg.AutoTrain || !clusterManagerStore.IsMaster() || globalTrainingStore == nil {
+		if !wait(ctx, mlAutoTrainInterval(cfg)) {
 			return
+		}
+		cfg = currentMLConfig()
+		if !cfg.Enabled || !cfg.AutoTrain || !clusterManagerStore.IsMaster() || globalTrainingStore == nil {
+			continue
 		}
 		_, labeled := globalTrainingStore.Status()
 		if labeled >= cfg.MinSamplesForTraining {
@@ -308,23 +316,61 @@ func mlAutoTrainLoop(ctx context.Context) {
 	}
 }
 
+func mlAutoTrainInterval(cfg MLConfig) time.Duration {
+	if interval, err := time.ParseDuration(strings.TrimSpace(cfg.TrainInterval)); err == nil && interval > 0 {
+		return interval
+	}
+	return mlAutoTrainFallbackInterval
+}
+
+func waitForMLInterval(ctx context.Context, interval time.Duration) bool {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if interval <= 0 {
+		interval = mlAutoTrainFallbackInterval
+	}
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
+}
+
 // mlFlushLoop periodically flushes training data to disk
 func mlFlushLoop(ctx context.Context) {
-	ticker := time.NewTicker(60 * time.Second)
-	defer ticker.Stop()
+	mlFlushLoopWithInterval(ctx, mlFlushInterval)
+}
+
+func mlFlushLoopWithInterval(ctx context.Context, interval time.Duration) {
+	mlFlushLoopWithWait(ctx, interval, waitForMLInterval, flushMLTrainingStore)
+}
+
+func mlFlushLoopWithWait(ctx context.Context, interval time.Duration, wait mlIntervalWaitFunc, flush func()) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if interval <= 0 {
+		interval = mlFlushInterval
+	}
+	if wait == nil {
+		wait = waitForMLInterval
+	}
+	if flush == nil {
+		flush = flushMLTrainingStore
+	}
 
 	for {
-		select {
-		case <-ctx.Done():
-			flushMLTrainingStore()
-			return
-		case <-ticker.C:
-		}
-		if !currentMLConfig().Enabled {
-			flushMLTrainingStore()
+		if !wait(ctx, interval) {
+			flush()
 			return
 		}
-		flushMLTrainingStore()
+		// A disabled runtime can be enabled again. Keep the flush worker alive so
+		// it resumes automatically and any pre-disable data remains durable.
+		flush()
 	}
 }
 

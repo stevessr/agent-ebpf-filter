@@ -98,6 +98,7 @@ export function useConfigML() {
     validation_split_ratio: 0.2,
     training_readiness: null,
     llm_review: null,
+    auto_tune_runtime: null,
   });
   const trainingModel = ref(false);
   const feedbackComm = ref("");
@@ -215,6 +216,8 @@ export function useConfigML() {
     mlStatus.value.training_readiness =
       data.trainingReadiness ?? data.training_readiness ?? null;
     mlStatus.value.llm_review = data.llmReview ?? data.llm_review ?? null;
+    mlStatus.value.auto_tune_runtime =
+      data.autoTuneRuntime ?? data.auto_tune_runtime ?? null;
     const remoteBuiltinModels = data.builtinModels ?? data.builtin_models;
     if (Array.isArray(remoteBuiltinModels) && remoteBuiltinModels.length > 0) {
       builtinModelCatalog.value = remoteBuiltinModels;
