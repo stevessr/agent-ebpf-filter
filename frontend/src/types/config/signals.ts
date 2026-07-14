@@ -115,7 +115,24 @@ export interface SignalProgramLogStatus {
   modifiedAt?: string;
   error?: string;
 }
+export interface SignalProgramLogWriterStatus {
+  running: boolean;
+  accepting: boolean;
+  queueLen: number;
+  queueCap: number;
+  enqueuedTotal: number;
+  completedTotal: number;
+  persistedTotal: number;
+  failedTotal: number;
+  droppedTotal: number;
+  lastError?: string;
+  lastEnqueuedAt?: string;
+  lastCompletedAt?: string;
+  lastDroppedAt?: string;
+  updatedAt: string;
+}
 export interface SignalProgramLogsResponse {
   compression: string;
   logs: SignalProgramLogStatus[];
+  writer: SignalProgramLogWriterStatus;
 }

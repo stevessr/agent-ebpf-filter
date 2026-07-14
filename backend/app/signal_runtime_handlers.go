@@ -128,6 +128,7 @@ func handleSignalProgramLogs(c *gin.Context) {
 	c.JSON(200, signalProgramLogsResponse{
 		Compression: settings.ProtoLogCompression,
 		Logs:        selectedProgramLogStatuses(settings),
+		Writer:      signalProgramLogWriterStore.Status(),
 	})
 }
 

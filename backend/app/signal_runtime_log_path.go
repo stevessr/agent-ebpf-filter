@@ -11,7 +11,12 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const signalProgramLogMaxBytes int64 = 128 * 1024 * 1024
+const (
+	signalProgramLogMaxBytes                int64 = 128 * 1024 * 1024
+	signalProgramLogMaxCompressedFrameBytes       = 8 * 1024 * 1024
+	signalProgramLogMaxPayloadBytes               = 4 * 1024 * 1024
+	signalProgramLogMaxFrames                     = 100000
+)
 
 var signalProgramLogsRootPath = func() string {
 	return filepath.Join(platform.RuntimeSettingsDir(), "signals", "program-logs")

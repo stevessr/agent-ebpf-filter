@@ -7,6 +7,7 @@ import type {
   ResearchProcessingSettings,
   ResearchProcessingStatus,
   SignalCondition,
+  SignalProgramLogWriterStatus,
   SignalProcessingSettings,
   SignalProcessingStatus,
   SignalRule,
@@ -195,6 +196,27 @@ export const defaultSignalProcessingStatus = (): SignalProcessingStatus => ({
     },
   ],
   updatedAt: "",
+});
+
+export const defaultSignalProgramLogWriterStatus =
+  (): SignalProgramLogWriterStatus => ({
+    running: false,
+    accepting: false,
+    queueLen: 0,
+    queueCap: 0,
+    enqueuedTotal: 0,
+    completedTotal: 0,
+    persistedTotal: 0,
+    failedTotal: 0,
+    droppedTotal: 0,
+    updatedAt: "",
+  });
+
+export const normalizeSignalProgramLogWriterStatus = (
+  value?: Partial<SignalProgramLogWriterStatus>,
+): SignalProgramLogWriterStatus => ({
+  ...defaultSignalProgramLogWriterStatus(),
+  ...value,
 });
 
 export const defaultTracepointBootstrapStatus = (): TracepointBootstrapStatus => ({
@@ -419,7 +441,7 @@ export const normalizeSignalProcessing = (
       value?.protoLogCompression || defaults.protoLogCompression,
     ),
     selectedPrograms: Array.isArray(value?.selectedPrograms)
-      ? value.selectedPrograms.map((program) => ({
+      ? value.selectedPrograms.slice(0, 128).map((program) => ({
           program: String(program.program || ""),
           enabled: program.enabled ?? true,
           path: String(program.path || ""),

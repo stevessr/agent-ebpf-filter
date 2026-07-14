@@ -25,6 +25,7 @@ const {
   resetSignalProcessing,
   expireSignalProcessing,
   signalProgramLogs,
+  signalProgramLogWriterStatus,
   fetchSignalProgramLogs,
   downloadSignalProgramLog,
   testSignalRule,
@@ -68,6 +69,18 @@ const signalStats = computed(() => [
     value: signalProcessingStatus.value.expiredTotal,
   },
 ]);
+
+const signalProgramLogWriterAlert = computed(() => {
+  const status = signalProgramLogWriterStatus.value;
+  const unhealthy = status.failedTotal > 0 || status.droppedTotal > 0;
+  return {
+    type: unhealthy ? "warning" : status.accepting ? "success" : "info",
+    message: status.accepting
+      ? "Selected-program logs use an asynchronous bounded writer."
+      : "Selected-program log writer is not accepting events.",
+    description: `Queue ${status.queueLen}/${status.queueCap} · enqueued ${status.enqueuedTotal} · completed ${status.completedTotal} · persisted ${status.persistedTotal} · failed ${status.failedTotal} · dropped ${status.droppedTotal}`,
+  } as const;
+});
 
 const fieldOptions = [
   { label: "Path / extra path", value: "path" },
@@ -126,6 +139,7 @@ const removeCondition = (rule: SignalRule, index: number) => {
 };
 
 const addSelectedProgram = () => {
+  if (signalSettings.value.selectedPrograms.length >= 128) return;
   signalSettings.value.selectedPrograms.push({
     program: "",
     enabled: true,
@@ -321,7 +335,12 @@ onUnmounted(stopAutoRefresh);
             <a-button size="small" @click="fetchSignalProgramLogs">
               <ReloadOutlined /> Refresh logs
             </a-button>
-            <a-button size="small" type="primary" @click="addSelectedProgram">
+            <a-button
+              size="small"
+              type="primary"
+              :disabled="signalSettings.selectedPrograms.length >= 128"
+              @click="addSelectedProgram"
+            >
               <PlusOutlined /> Add program
             </a-button>
           </div>
@@ -330,6 +349,13 @@ onUnmounted(stopAutoRefresh);
           type="success"
           show-icon
           message="When a selected program matches event comm/path/basename, the backend appends a length-framed gzip protobuf ProgramSignalLogRecord locally."
+          style="margin-bottom: 12px"
+        />
+        <a-alert
+          :type="signalProgramLogWriterAlert.type"
+          show-icon
+          :message="signalProgramLogWriterAlert.message"
+          :description="signalProgramLogWriterAlert.description"
           style="margin-bottom: 12px"
         />
         <a-empty

@@ -10,6 +10,7 @@ import {
   defaultLoopDetectionStatus,
   defaultResearchProcessing,
   defaultResearchProcessingStatus,
+  defaultSignalProgramLogWriterStatus,
   defaultSignalProcessing,
   defaultSignalProcessingStatus,
   defaultTracepointBootstrapStatus,
@@ -20,6 +21,7 @@ import {
   normalizeLoopDetectionStatus,
   normalizeResearchProcessing,
   normalizeResearchProcessingStatus,
+  normalizeSignalProgramLogWriterStatus,
   normalizeSignalProcessing,
   normalizeSignalProcessingStatus,
   normalizeTracepointBootstrapStatus,
@@ -41,6 +43,7 @@ import type {
   SignalCondition,
   SignalProgramLogStatus,
   SignalProgramLogsResponse,
+  SignalProgramLogWriterStatus,
   SignalProcessingSettings,
   SignalProcessingStatus,
   SignalRule,
@@ -135,6 +138,17 @@ export function useConfigRuntime() {
     defaultSignalProcessingStatus(),
   );
   const signalProgramLogs = ref<SignalProgramLogStatus[]>([]);
+  const signalProgramLogWriterStatus = ref<SignalProgramLogWriterStatus>(
+    defaultSignalProgramLogWriterStatus(),
+  );
+
+  const applySignalProgramLogsResponse = (
+    value?: Partial<SignalProgramLogsResponse>,
+  ) => {
+    signalProgramLogs.value = Array.isArray(value?.logs) ? value.logs : [];
+    signalProgramLogWriterStatus.value =
+      normalizeSignalProgramLogWriterStatus(value?.writer);
+  };
 
   const syncApiToken = (token: string) => {
     const normalized = token.trim();
@@ -277,9 +291,9 @@ export function useConfigRuntime() {
       console.error("Failed to fetch signal processing status");
     }
     if (signalProgramLogsRes.status === "fulfilled") {
-      signalProgramLogs.value = (
-        signalProgramLogsRes.value.data as SignalProgramLogsResponse
-      ).logs || [];
+      applySignalProgramLogsResponse(
+        signalProgramLogsRes.value.data as SignalProgramLogsResponse,
+      );
     } else {
       console.error("Failed to fetch signal program logs");
     }
@@ -356,9 +370,9 @@ export function useConfigRuntime() {
       console.error("Failed to fetch signal processing status");
     }
     if (signalProgramLogsRes.status === "fulfilled") {
-      signalProgramLogs.value = (
-        signalProgramLogsRes.value.data as SignalProgramLogsResponse
-      ).logs || [];
+      applySignalProgramLogsResponse(
+        signalProgramLogsRes.value.data as SignalProgramLogsResponse,
+      );
     } else {
       console.error("Failed to fetch signal program logs");
     }
@@ -590,8 +604,7 @@ export function useConfigRuntime() {
   const fetchSignalProgramLogs = async () => {
     try {
       const res = await axios.get("/system/signals/program-logs");
-      signalProgramLogs.value =
-        (res.data as SignalProgramLogsResponse).logs || [];
+      applySignalProgramLogsResponse(res.data as SignalProgramLogsResponse);
     } catch (_) {
       message.error("Failed to fetch signal program logs");
     }
@@ -724,6 +737,7 @@ export function useConfigRuntime() {
     researchProcessingStatus,
     signalProcessingStatus,
     signalProgramLogs,
+    signalProgramLogWriterStatus,
     mcpEndpoint,
     authHeaderName,
     bearerAuthHeaderName,

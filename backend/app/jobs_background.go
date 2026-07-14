@@ -179,6 +179,15 @@ func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) 
 		<-ctx.Done()
 		_ = signalProcessingWorkerStore.Shutdown(context.Background())
 	})
+	startSignalProgramLogWriter(ctx)
+	jobs.Go(func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+		defer cancel()
+		if err := signalProgramLogWriterStore.Shutdown(shutdownCtx); err != nil {
+			log.Printf("[WARN] signal program log writer did not stop cleanly: %v", err)
+		}
+	})
 	jobs.Go(func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 4*time.Second)

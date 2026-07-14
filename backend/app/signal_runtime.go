@@ -21,6 +21,7 @@ const (
 	signalDefaultMaxStates           = 4096
 	signalRecentStateLimit           = 50
 	signalProtoLogCompressionGzip    = "gzip"
+	signalMaxSelectedPrograms        = 128
 )
 
 type signalKindInfo struct {
@@ -119,8 +120,9 @@ type signalProgramLogStatus struct {
 }
 
 type signalProgramLogsResponse struct {
-	Compression string                   `json:"compression"`
-	Logs        []signalProgramLogStatus `json:"logs"`
+	Compression string                       `json:"compression"`
+	Logs        []signalProgramLogStatus     `json:"logs"`
+	Writer      signalProgramLogWriterStatus `json:"writer"`
 }
 
 type signalProcessingWorkKind string
@@ -255,6 +257,9 @@ func normalizeSignalProcessingSettings(settings *SignalProcessingSettings) {
 		normalizeSignalRule(&settings.Rules[index], settings.DefaultTTLSeconds, index)
 	}
 	dedupeSignalRuleIDs(settings.Rules)
+	if len(settings.SelectedPrograms) > signalMaxSelectedPrograms {
+		settings.SelectedPrograms = settings.SelectedPrograms[:signalMaxSelectedPrograms]
+	}
 	for index := range settings.SelectedPrograms {
 		settings.SelectedPrograms[index].Program = strings.TrimSpace(settings.SelectedPrograms[index].Program)
 		settings.SelectedPrograms[index].Path = strings.TrimSpace(settings.SelectedPrograms[index].Path)
