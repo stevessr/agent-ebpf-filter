@@ -399,6 +399,8 @@ AgentSight 事件上传端点（`POST /agentsight/events`及兼容路由）单�
 所有路由使用运行时访问 token。研究会话只保存归一化/脱敏后的研究视图与导出产物，任务通过单 worker 有界队列异步执行。
 前端 `/research` 工作台封装了会话创建、`build_session`/`scan_recent`/`compare_windows`/`security_eval`/`export_bundle` 任务提交、事件/聚合结果浏览、安全评测、训练样本预览/导入和 JSONL/CSV/Bundle 下载；ML 页面也可直接从 Research Session 导入 128 维结构化训练样本。
 
+任务运行时只按完成顺序以 O(1) 淘汰最旧终态历史；排队中和运行中的任务不会因保留上限被删除，因此高峰期 `trackedTotal` 可暂时超过上限。已取消的排队任务会保留到 worker 实际排空，取消若先于终态发布发生会覆盖成功/失败结果，且每个任务的完成统计只记一次。
+
 Research 控制请求最大 64 KiB；会话最多保留 1024 个，单会话事件上限最大可配置为 100000。持久化文件通过 dirfd/`openat2` 限定在专用 research 目录，拒绝 symlink、硬链接和特殊文件并原子替换。`session.json`、`results.json`、`events.jsonl` 和单个 artifact 分别限制为 1/32/256/256 MiB；bundle 另限制单 payload 64 MiB、未压缩总量 256 MiB、ZIP 输出 128 MiB。
 
 | 方法 | 路径 | 用途 |

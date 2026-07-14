@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -35,11 +34,14 @@ type backendTaskRuntimeEntry struct {
 	queuedAt   time.Time
 	startedAt  *time.Time
 	finishedAt *time.Time
-	err        string
-	payload    any
-	cancel     chan struct{}
-	cancelOnce sync.Once
-	queueLen   int
+	accounted  bool
+	// terminalNext is owned by backendTaskRuntime.mu after accounted is set.
+	terminalNext *backendTaskRuntimeEntry
+	err          string
+	payload      any
+	cancel       chan struct{}
+	cancelOnce   sync.Once
+	queueLen     int
 }
 
 type backendTaskRuntimeSnapshot struct {
@@ -91,6 +93,9 @@ type backendTaskRuntime struct {
 	tasks    map[string]*backendTaskRuntimeEntry
 	maxItems int
 	handler  func(*backendTaskRuntimeEntry) error
+
+	terminalHead *backendTaskRuntimeEntry
+	terminalTail *backendTaskRuntimeEntry
 
 	enqueuedTotal      uint64
 	completedTotal     uint64
@@ -359,27 +364,20 @@ func (r *backendTaskRuntime) completeEntry(entry *backendTaskRuntimeEntry, statu
 	if r == nil || entry == nil {
 		return
 	}
-	snapshot := entry.Snapshot()
-	if snapshot.FinishedAt == nil {
-		finishedAt := time.Now().UTC()
-		snapshot.FinishedAt = &finishedAt
+	snapshot, accounted := entry.finishForRuntime(status, progress, message, time.Now().UTC())
+	if !accounted {
+		return
 	}
-	snapshot.Status = status
-	snapshot.Progress = progress
-	snapshot.Error = message
-	r.noteFinished(snapshot, status, message, panicked)
-	entry.finishAt(status, progress, message, *snapshot.FinishedAt)
-	r.mu.Lock()
-	r.pruneLocked()
-	r.mu.Unlock()
+	r.noteFinished(entry, snapshot, panicked && snapshot.Status == backendTaskStatusFailed)
 }
 
-func (r *backendTaskRuntime) noteFinished(snapshot backendTaskRuntimeSnapshot, status, message string, panicked bool) {
+func (r *backendTaskRuntime) noteFinished(entry *backendTaskRuntimeEntry, snapshot backendTaskRuntimeSnapshot, panicked bool) {
 	if r == nil {
 		return
 	}
 	queueLatency, runDuration, totalDuration := backendTaskSnapshotDurations(snapshot)
 	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.completedTotal++
 	if snapshot.StartedAt != nil {
 		r.runDurationTotal += runDuration
@@ -394,7 +392,7 @@ func (r *backendTaskRuntime) noteFinished(snapshot backendTaskRuntimeSnapshot, s
 	if snapshot.FinishedAt != nil {
 		r.lastFinishedAt = *snapshot.FinishedAt
 	}
-	switch status {
+	switch snapshot.Status {
 	case backendTaskStatusFailed:
 		r.failedTotal++
 	case backendTaskStatusCanceled:
@@ -403,45 +401,45 @@ func (r *backendTaskRuntime) noteFinished(snapshot backendTaskRuntimeSnapshot, s
 	if panicked {
 		r.panickedTotal++
 	}
-	r.lastError = message
+	r.lastError = snapshot.Error
 	r.updatedAt = time.Now().UTC()
-	r.mu.Unlock()
+	r.trackTerminalLocked(entry)
+	r.pruneLocked()
 }
 
 func (r *backendTaskRuntime) pruneLocked() {
 	if r == nil {
 		return
 	}
-	limit := r.maxItems
-	if len(r.tasks) <= limit {
+	for len(r.tasks) > r.maxItems {
+		entry := r.terminalHead
+		if entry == nil {
+			return
+		}
+		r.terminalHead = entry.terminalNext
+		entry.terminalNext = nil
+		if r.terminalHead == nil {
+			r.terminalTail = nil
+		}
+		if current := r.tasks[entry.id]; current == entry {
+			delete(r.tasks, entry.id)
+		}
+	}
+}
+
+func (r *backendTaskRuntime) trackTerminalLocked(entry *backendTaskRuntimeEntry) {
+	if r == nil || entry == nil || entry.id == "" {
 		return
 	}
-	type item struct {
-		id string
-		ts time.Time
+	if current := r.tasks[entry.id]; current != entry {
+		return
 	}
-	items := make([]item, 0, len(r.tasks))
-	for id, entry := range r.tasks {
-		snapshot := entry.Snapshot()
-		if !backendTaskStatusTerminal(snapshot.Status) {
-			continue
-		}
-		ts := snapshot.QueuedAt
-		if snapshot.FinishedAt != nil {
-			ts = *snapshot.FinishedAt
-		}
-		items = append(items, item{id: id, ts: ts})
+	if r.terminalTail == nil {
+		r.terminalHead = entry
+	} else {
+		r.terminalTail.terminalNext = entry
 	}
-	sort.Slice(items, func(i, j int) bool {
-		if items[i].ts.Equal(items[j].ts) {
-			return items[i].id < items[j].id
-		}
-		return items[i].ts.Before(items[j].ts)
-	})
-	for len(r.tasks) > limit && len(items) > 0 {
-		delete(r.tasks, items[0].id)
-		items = items[1:]
-	}
+	r.terminalTail = entry
 }
 
 func backendTaskStatusTerminal(status string) bool {
@@ -458,7 +456,14 @@ func (entry *backendTaskRuntimeEntry) Snapshot() backendTaskRuntimeSnapshot {
 		return backendTaskRuntimeSnapshot{}
 	}
 	entry.mu.RLock()
-	out := backendTaskRuntimeSnapshot{
+	out := entry.snapshotLocked()
+	entry.mu.RUnlock()
+	setBackendTaskSnapshotDurations(&out)
+	return out
+}
+
+func (entry *backendTaskRuntimeEntry) snapshotLocked() backendTaskRuntimeSnapshot {
+	return backendTaskRuntimeSnapshot{
 		ID:         entry.id,
 		Kind:       entry.kind,
 		Status:     entry.status,
@@ -469,12 +474,16 @@ func (entry *backendTaskRuntimeEntry) Snapshot() backendTaskRuntimeSnapshot {
 		Error:      entry.err,
 		QueueLen:   entry.queueLen,
 	}
-	entry.mu.RUnlock()
-	queueLatency, runDuration, totalDuration := backendTaskSnapshotDurations(out)
-	out.QueueLatencyMs = durationMilliseconds(queueLatency)
-	out.RunDurationMs = durationMilliseconds(runDuration)
-	out.TotalDurationMs = durationMilliseconds(totalDuration)
-	return out
+}
+
+func setBackendTaskSnapshotDurations(snapshot *backendTaskRuntimeSnapshot) {
+	if snapshot == nil {
+		return
+	}
+	queueLatency, runDuration, totalDuration := backendTaskSnapshotDurations(*snapshot)
+	snapshot.QueueLatencyMs = durationMilliseconds(queueLatency)
+	snapshot.RunDurationMs = durationMilliseconds(runDuration)
+	snapshot.TotalDurationMs = durationMilliseconds(totalDuration)
 }
 
 func (entry *backendTaskRuntimeEntry) Payload() any {
@@ -562,29 +571,65 @@ func (entry *backendTaskRuntimeEntry) Progress() float64 {
 }
 
 func (entry *backendTaskRuntimeEntry) finish(status string, progress float64, message string) {
-	entry.finishAt(status, progress, message, time.Now().UTC())
+	_ = entry.finishAt(status, progress, message, time.Now().UTC())
 }
 
-func (entry *backendTaskRuntimeEntry) finishAt(status string, progress float64, message string, finishedAt time.Time) {
+func (entry *backendTaskRuntimeEntry) finishAt(status string, progress float64, message string, finishedAt time.Time) string {
 	if entry == nil {
-		return
+		return status
 	}
-	if progress < 0 {
-		progress = 0
-	}
-	if progress > 1 {
-		progress = 1
-	}
+	progress = clampBackendTaskProgress(progress)
 	entry.mu.Lock()
-	if backendTaskStatusTerminal(entry.status) && entry.finishedAt != nil {
+	status = entry.finishLocked(status, progress, message, finishedAt)
+	entry.mu.Unlock()
+	return status
+}
+
+// finishForRuntime publishes the terminal state and claims its metrics/history
+// accounting under the same entry lock. This makes duplicate or concurrent
+// completion attempts harmless without adding a second runtime-side index.
+func (entry *backendTaskRuntimeEntry) finishForRuntime(status string, progress float64, message string, finishedAt time.Time) (backendTaskRuntimeSnapshot, bool) {
+	if entry == nil {
+		return backendTaskRuntimeSnapshot{}, false
+	}
+	progress = clampBackendTaskProgress(progress)
+	entry.mu.Lock()
+	if entry.accounted {
 		entry.mu.Unlock()
-		return
+		return backendTaskRuntimeSnapshot{}, false
+	}
+	entry.finishLocked(status, progress, message, finishedAt)
+	entry.accounted = true
+	snapshot := entry.snapshotLocked()
+	entry.mu.Unlock()
+	setBackendTaskSnapshotDurations(&snapshot)
+	return snapshot, true
+}
+
+func (entry *backendTaskRuntimeEntry) finishLocked(status string, progress float64, message string, finishedAt time.Time) string {
+	if backendTaskStatusTerminal(entry.status) && entry.finishedAt != nil {
+		return entry.status
+	}
+	if status != backendTaskStatusCanceled && entry.IsCanceled() {
+		status = backendTaskStatusCanceled
+		progress = 1
+		message = ""
 	}
 	entry.status = status
 	entry.progress = progress
 	entry.finishedAt = &finishedAt
 	entry.err = message
-	entry.mu.Unlock()
+	return status
+}
+
+func clampBackendTaskProgress(progress float64) float64 {
+	if progress < 0 {
+		return 0
+	}
+	if progress > 1 {
+		return 1
+	}
+	return progress
 }
 
 func (entry *backendTaskRuntimeEntry) setQueueLen(queueLen int) {

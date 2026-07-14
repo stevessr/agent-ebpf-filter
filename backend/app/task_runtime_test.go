@@ -3,7 +3,9 @@ package app
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -209,6 +211,85 @@ func TestBackendTaskRuntimeCancelDoesNotMutateTerminalTask(t *testing.T) {
 	}
 }
 
+func TestBackendTaskRuntimeCompletionHonorsPendingCancel(t *testing.T) {
+	runtime := newBackendTaskRuntime("unit", 8, nil)
+	entry := newBackendTaskRuntimeEntry("cancel-race", "unit", nil)
+	if !entry.markRunning() {
+		t.Fatal("entry did not start")
+	}
+	runtime.tasks[entry.id] = entry
+
+	entry.Cancel()
+	runtime.completeEntry(entry, backendTaskStatusSucceeded, 1, "", false)
+
+	snapshot := entry.Snapshot()
+	if snapshot.Status != backendTaskStatusCanceled || snapshot.Progress != 1 || snapshot.FinishedAt == nil {
+		t.Fatalf("cancel-vs-success completion = %+v", snapshot)
+	}
+	stats := runtime.Stats()
+	if stats.CompletedTotal != 1 || stats.CanceledTotal != 1 || stats.FailedTotal != 0 {
+		t.Fatalf("cancel-vs-success stats = %+v", stats)
+	}
+}
+
+func TestBackendTaskRuntimeCompletionIsAccountedOnce(t *testing.T) {
+	runtime := newBackendTaskRuntime("unit", 8, nil)
+	entry := newBackendTaskRuntimeEntry("complete-once", "unit", nil)
+	if !entry.markRunning() {
+		t.Fatal("entry did not start")
+	}
+	runtime.tasks[entry.id] = entry
+
+	const attempts = 64
+	var callers sync.WaitGroup
+	callers.Add(attempts)
+	for index := 0; index < attempts; index++ {
+		go func() {
+			defer callers.Done()
+			runtime.completeEntry(entry, backendTaskStatusSucceeded, 1, "", false)
+		}()
+	}
+	callers.Wait()
+
+	stats := runtime.Stats()
+	if stats.CompletedTotal != 1 || stats.FailedTotal != 0 || stats.CanceledTotal != 0 {
+		t.Fatalf("duplicate completion stats = %+v", stats)
+	}
+	if runtime.terminalHead != entry || runtime.terminalTail != entry || entry.terminalNext != nil {
+		t.Fatal("terminal retention queue contains duplicate completion entries")
+	}
+}
+
+func TestBackendTaskRuntimeDoesNotPruneCanceledQueuedEntryBeforeDrain(t *testing.T) {
+	runtime := newBackendTaskRuntime("unit", 1, nil)
+	runtime.queue = make(chan *backendTaskRuntimeEntry, 2)
+	runtime.started = true
+
+	first := newBackendTaskRuntimeEntry("first", "unit", nil)
+	if err := runtime.Submit(first); err != nil {
+		t.Fatalf("submit first: %v", err)
+	}
+	first.Cancel()
+	second := newBackendTaskRuntimeEntry("second", "unit", nil)
+	if err := runtime.Submit(second); err != nil {
+		t.Fatalf("submit second: %v", err)
+	}
+	if got, ok := runtime.Get(first.id); !ok || got != first {
+		t.Fatal("canceled queued task was pruned before the worker drained it")
+	}
+	if got := runtime.Stats().TrackedTotal; got != 2 {
+		t.Fatalf("tracked tasks before drain = %d, want 2", got)
+	}
+
+	runtime.completeEntry(first, backendTaskStatusCanceled, 1, "", false)
+	if _, ok := runtime.Get(first.id); ok {
+		t.Fatal("drained terminal task was not pruned")
+	}
+	if got, ok := runtime.Get(second.id); !ok || got != second {
+		t.Fatal("queued nonterminal task was pruned")
+	}
+}
+
 func TestBackendTaskRuntimeShutdownCancelsAndRejectsTasks(t *testing.T) {
 	started := make(chan struct{})
 	runtime := newBackendTaskRuntime("shutdown", 8, func(entry *backendTaskRuntimeEntry) error {
@@ -268,4 +349,29 @@ func waitForBackendTaskStatus(t *testing.T, entry *backendTaskRuntimeEntry, stat
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("task status = %q, want %q", entry.Snapshot().Status, status)
+}
+
+func BenchmarkBackendTaskRuntimeSteadyStateRetention(b *testing.B) {
+	for _, limit := range []int{64, 2048} {
+		b.Run(strconv.Itoa(limit), func(b *testing.B) {
+			runtime := newBackendTaskRuntime("benchmark", limit, nil)
+			complete := func(id string) {
+				entry := newBackendTaskRuntimeEntry(id, "benchmark", nil)
+				entry.markRunning()
+				runtime.mu.Lock()
+				runtime.tasks[id] = entry
+				runtime.mu.Unlock()
+				runtime.completeEntry(entry, backendTaskStatusSucceeded, 1, "", false)
+			}
+			for index := 0; index < limit; index++ {
+				complete("warm-" + strconv.Itoa(index))
+			}
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for iteration := 0; iteration < b.N; iteration++ {
+				complete("task-" + strconv.Itoa(iteration))
+			}
+		})
+	}
 }
