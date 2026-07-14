@@ -1,22 +1,21 @@
 package app
 
 import (
-	"agent-ebpf-filter/app/platform"
-	"bytes"
-	"encoding/binary"
-	"encoding/json"
-	"fmt"
-	"math"
-	"os"
+	"log"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
+
+	"agent-ebpf-filter/app/platform"
 )
 
 // ---- moved from backend/zz_merged_backend.go section dataset_data.go ----
 
-const trainingStoreMagic = "AEF2"
+const (
+	trainingStoreMagic              = "AEF2"
+	trainingStoreMaxSamples         = 100000
+	trainingStoreMaxFileBytes int64 = 512 << 20
+)
 
 // TrainingSample represents one labeled wrapper intercept event for ML training
 type TrainingSample struct {
@@ -45,6 +44,7 @@ func (s *TrainingSample) IsLabeled() bool {
 // TrainingDataStore is a ring buffer of training samples with disk persistence
 type TrainingDataStore struct {
 	mu          sync.RWMutex
+	flushMu     sync.Mutex
 	samples     []TrainingSample
 	maxSamples  int
 	nextWrite   int
@@ -52,11 +52,13 @@ type TrainingDataStore struct {
 	dataDir     string
 	persistPath string
 	dirtyCount  int // number of unsaved samples
+	revision    uint64
 }
 
 var globalTrainingStore *TrainingDataStore
 
 func newTrainingDataStore(maxSamples int) *TrainingDataStore {
+	maxSamples = normalizeTrainingStoreCapacity(maxSamples)
 	dataDir := filepath.Join(platform.GetRealHomeDir(), ".config", "agent-ebpf-filter")
 	return &TrainingDataStore{
 		samples:     make([]TrainingSample, maxSamples),
@@ -69,11 +71,17 @@ func newTrainingDataStore(maxSamples int) *TrainingDataStore {
 // InitTrainingStore initializes the global training data store
 func InitTrainingStore(maxSamples int) {
 	globalTrainingStore = newTrainingDataStore(maxSamples)
-	globalTrainingStore.loadFromDisk()
+	if err := globalTrainingStore.loadFromDisk(); err != nil {
+		log.Printf("[WARN] failed to load persisted ML training data: %v", err)
+	}
 }
 
 // Add adds a training sample to the store
 func (s *TrainingDataStore) Add(sample TrainingSample) {
+	if s == nil || s.maxSamples <= 0 || len(s.samples) == 0 {
+		return
+	}
+	sample = normalizeTrainingSample(sample)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -81,6 +89,7 @@ func (s *TrainingDataStore) Add(sample TrainingSample) {
 	s.nextWrite = (s.nextWrite + 1) % s.maxSamples
 	s.totalAdded++
 	s.dirtyCount++
+	s.revision++
 }
 
 // Clear removes all samples from the store and resets the ring buffer state.
@@ -98,6 +107,7 @@ func (s *TrainingDataStore) Clear() int {
 	s.nextWrite = 0
 	s.totalAdded = 0
 	s.dirtyCount++
+	s.revision++
 	return cleared
 }
 
@@ -109,16 +119,8 @@ func (s *TrainingDataStore) LabeledSamples() []TrainingSample {
 	var out []TrainingSample
 	for i := range s.samples {
 		if s.samples[i].IsLabeled() {
-			out = append(out, s.samples[i])
+			out = append(out, cloneTrainingSample(s.samples[i]))
 		}
-	}
-	// Ensure at least one empty check
-	for i := range s.samples {
-		if s.samples[i].Timestamp.IsZero() {
-			continue
-		}
-		_ = i
-		break
 	}
 	return out
 }
@@ -131,7 +133,7 @@ func (s *TrainingDataStore) AllSamples() []TrainingSample {
 	var out []TrainingSample
 	for i := range s.samples {
 		if !s.samples[i].Timestamp.IsZero() {
-			out = append(out, s.samples[i])
+			out = append(out, cloneTrainingSample(s.samples[i]))
 		}
 	}
 	return out
@@ -150,6 +152,7 @@ func (s *TrainingDataStore) RemoveSample(index int) bool {
 	}
 	s.samples[index] = TrainingSample{} // zero out
 	s.dirtyCount++
+	s.revision++
 	return true
 }
 
@@ -164,9 +167,13 @@ func (s *TrainingDataStore) UpdateSampleLabel(index int, label int32, userLabel 
 	if s.samples[index].Timestamp.IsZero() {
 		return false
 	}
+	if label < -1 || label > 3 {
+		return false
+	}
 	s.samples[index].Label = label
-	s.samples[index].UserLabel = userLabel
+	s.samples[index].UserLabel = normalizeTrainingMetadata(userLabel, trainingSampleMaxUserLabelBytes, true)
 	s.dirtyCount++
+	s.revision++
 	return true
 }
 
@@ -181,16 +188,14 @@ func (s *TrainingDataStore) UpdateSampleAnomaly(index int, anomalyScore float64)
 	if s.samples[index].Timestamp.IsZero() {
 		return false
 	}
-	s.samples[index].AnomalyScore = anomalyScore
+	s.samples[index].AnomalyScore = normalizeTrainingScore(anomalyScore)
 	s.dirtyCount++
+	s.revision++
 	return true
 }
 
 // ApplyFeedback applies user feedback to label matching samples
 func (s *TrainingDataStore) ApplyFeedback(comm string, userAction string) int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	label := int32(-1)
 	switch userAction {
 	case "accepted":
@@ -199,7 +204,13 @@ func (s *TrainingDataStore) ApplyFeedback(comm string, userAction string) int {
 		label = 1 // BLOCK
 	case "alerted":
 		label = 3 // ALERT
+	default:
+		return 0
 	}
+	userAction = normalizeTrainingMetadata(userAction, trainingSampleMaxUserLabelBytes, true)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	matched := 0
 	for i := range s.samples {
@@ -209,6 +220,9 @@ func (s *TrainingDataStore) ApplyFeedback(comm string, userAction string) int {
 			s.dirtyCount++
 			matched++
 		}
+	}
+	if matched > 0 {
+		s.revision++
 	}
 	return matched
 }
@@ -242,6 +256,7 @@ func (s *TrainingDataStore) LabelSample(index int, label string) bool {
 	s.samples[index].Label = labelInt
 	s.samples[index].UserLabel = "manual-index"
 	s.dirtyCount++
+	s.revision++
 	return true
 }
 
@@ -253,7 +268,7 @@ func (s *TrainingDataStore) AllSamplesWithIndex() []IndexedTrainingSample {
 	var out []IndexedTrainingSample
 	for i := range s.samples {
 		if !s.samples[i].Timestamp.IsZero() {
-			out = append(out, IndexedTrainingSample{Index: i, Sample: s.samples[i]})
+			out = append(out, IndexedTrainingSample{Index: i, Sample: cloneTrainingSample(s.samples[i])})
 		}
 	}
 	return out
@@ -273,7 +288,7 @@ func (s *TrainingDataStore) BoundedSamplesWithIndex(limit int, onlyUnlabeled boo
 		if sample.Timestamp.IsZero() || (onlyUnlabeled && sample.IsLabeled()) {
 			continue
 		}
-		sample.Args = append([]string(nil), sample.Args...)
+		sample = cloneTrainingSample(sample)
 		out = append(out, IndexedTrainingSample{Index: i, Sample: sample})
 		if len(out) >= limit {
 			break
@@ -293,7 +308,7 @@ func (s *TrainingDataStore) ExactMatches(comm string, args []string) []IndexedTr
 			continue
 		}
 		if s.samples[i].Comm == comm && sameStringSlice(s.samples[i].Args, args) {
-			out = append(out, IndexedTrainingSample{Index: i, Sample: s.samples[i]})
+			out = append(out, IndexedTrainingSample{Index: i, Sample: cloneTrainingSample(s.samples[i])})
 		}
 	}
 	return out
@@ -331,242 +346,83 @@ func (s *TrainingDataStore) Status() (totalSamples, labeledSamples int) {
 	return
 }
 
-// Flush writes dirty samples to disk
+// Flush writes a stable snapshot without holding the sample mutex during disk I/O.
 func (s *TrainingDataStore) Flush() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.dirtyCount == 0 {
+	if s == nil {
 		return nil
 	}
-	if err := s.persistLocked(); err != nil {
+	s.flushMu.Lock()
+	defer s.flushMu.Unlock()
+
+	s.mu.RLock()
+	if s.dirtyCount == 0 {
+		s.mu.RUnlock()
+		return nil
+	}
+	dirtySnapshot := s.dirtyCount
+	samples := make([]TrainingSample, 0, len(s.samples))
+	for _, sample := range s.samples {
+		if !sample.Timestamp.IsZero() {
+			samples = append(samples, cloneTrainingSample(sample))
+		}
+	}
+	dataDir := s.dataDir
+	persistPath := s.persistPath
+	s.mu.RUnlock()
+
+	if err := persistTrainingStoreSnapshot(dataDir, persistPath, samples); err != nil {
 		return err
 	}
-	s.dirtyCount = 0
+
+	s.mu.Lock()
+	if s.dirtyCount >= dirtySnapshot {
+		s.dirtyCount -= dirtySnapshot
+	} else {
+		s.dirtyCount = 0
+	}
+	s.mu.Unlock()
 	return nil
 }
 
-func (s *TrainingDataStore) persistLocked() error {
-	if err := platform.MkdirAllAsRealUser(s.dataDir, 0755); err != nil {
-		return err
+func (s *TrainingDataStore) loadFromDisk() error {
+	if s == nil {
+		return nil
 	}
+	s.flushMu.Lock()
+	defer s.flushMu.Unlock()
 
-	tmpPath := s.persistPath + ".tmp"
-	f, err := os.Create(tmpPath)
+	s.mu.RLock()
+	persistPath := s.persistPath
+	maxSamples := s.maxSamples
+	revision := s.revision
+	s.mu.RUnlock()
+
+	samples, err := readTrainingStoreFile(persistPath, maxSamples)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-	// Fix ownership if running as root
-	if os.Getuid() == 0 {
-		if uid, gid, ok := platform.OriginalInvokerIDs(); ok {
-			_ = os.Chown(tmpPath, int(uid), int(gid))
-		}
+	if samples == nil {
+		return nil
 	}
 
-	// Format: [4 bytes magic][4 bytes count][records...]
-	// Each record: timestamp(8), label(4), anomaly_score(8),
-	//             command_line_len(2), command_line_bytes...,
-	//             comm_len(2), comm_bytes...,
-	//             args_len(2), args_json_bytes..., features(128*8)
-	count := uint32(0)
-	// Count valid entries first
-	for i := range s.samples {
-		if !s.samples[i].Timestamp.IsZero() {
-			count++
-		}
-	}
-
-	if _, err := f.Write([]byte(trainingStoreMagic)); err != nil {
-		return err
-	}
-	if err := binary.Write(f, binary.LittleEndian, count); err != nil {
-		return err
-	}
-
-	for i := range s.samples {
-		sample := &s.samples[i]
-		if sample.Timestamp.IsZero() {
-			continue
-		}
-		if err := binary.Write(f, binary.LittleEndian, sample.Timestamp.UnixNano()); err != nil {
-			return err
-		}
-		if err := binary.Write(f, binary.LittleEndian, sample.Label); err != nil {
-			return err
-		}
-		if err := binary.Write(f, binary.LittleEndian, float64(sample.AnomalyScore)); err != nil {
-			return err
-		}
-		commandLine := strings.TrimSpace(sample.CommandLine)
-		if commandLine == "" {
-			commandLine = joinCommandLine(sample.Comm, sample.Args)
-		}
-		commandLineBytes := []byte(commandLine)
-		if err := binary.Write(f, binary.LittleEndian, uint16(len(commandLineBytes))); err != nil {
-			return err
-		}
-		if _, err := f.Write(commandLineBytes); err != nil {
-			return err
-		}
-		commBytes := []byte(sample.Comm)
-		if err := binary.Write(f, binary.LittleEndian, uint16(len(commBytes))); err != nil {
-			return err
-		}
-		if _, err := f.Write(commBytes); err != nil {
-			return err
-		}
-		argsBytes, err := json.Marshal(sample.Args)
-		if err != nil {
-			return err
-		}
-		if err := binary.Write(f, binary.LittleEndian, uint16(len(argsBytes))); err != nil {
-			return err
-		}
-		if _, err := f.Write(argsBytes); err != nil {
-			return err
-		}
-		// Write features
-		var featureBytes [FeatureDim * 8]byte
-		for fi, v := range sample.Features {
-			binary.LittleEndian.PutUint64(featureBytes[fi*8:(fi+1)*8], math.Float64bits(v))
-		}
-		if _, err := f.Write(featureBytes[:]); err != nil {
-			return err
-		}
-	}
-
-	return os.Rename(tmpPath, s.persistPath)
-}
-
-func (s *TrainingDataStore) loadFromDisk() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	data, err := os.ReadFile(s.persistPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
+	if s.revision != revision {
+		return errTrainingStoreChangedDuringLoad
 	}
-	if len(data) < 4 {
-		return fmt.Errorf("training data file too short")
+	for index := range s.samples {
+		s.samples[index] = TrainingSample{}
 	}
-
-	versioned := len(data) >= 8 && bytes.Equal(data[0:4], []byte(trainingStoreMagic))
-	offset := 4
-	count := binary.LittleEndian.Uint32(data[0:4])
-	if versioned {
-		count = binary.LittleEndian.Uint32(data[4:8])
-		offset = 8
+	for index, sample := range samples {
+		s.samples[index] = sample
 	}
-
-	loaded := 0
-	for i := uint32(0); i < count && loaded < s.maxSamples; i++ {
-		var sample TrainingSample
-		if offset+24 > len(data) {
-			break
-		}
-
-		sample.Timestamp = time.Unix(0, int64(binary.LittleEndian.Uint64(data[offset:offset+8])))
-		offset += 8
-		sample.Label = int32(binary.LittleEndian.Uint32(data[offset : offset+4]))
-		offset += 4
-		sample.AnomalyScore = math.Float64frombits(binary.LittleEndian.Uint64(data[offset : offset+8]))
-		offset += 8
-
-		if versioned {
-			commandLineLen := int(binary.LittleEndian.Uint16(data[offset : offset+2]))
-			offset += 2
-			if offset+commandLineLen > len(data) {
-				break
-			}
-			commandLine := string(data[offset : offset+commandLineLen])
-			offset += commandLineLen
-
-			commLen := int(binary.LittleEndian.Uint16(data[offset : offset+2]))
-			offset += 2
-			if offset+commLen > len(data) {
-				break
-			}
-			sample.Comm = string(data[offset : offset+commLen])
-			offset += commLen
-
-			argsLen := int(binary.LittleEndian.Uint16(data[offset : offset+2]))
-			offset += 2
-			if offset+argsLen > len(data) {
-				break
-			}
-			// Prefer JSON array encoding, but keep compatibility with older bracketed string records.
-			argsRaw := strings.TrimSpace(string(data[offset : offset+argsLen]))
-			if argsRaw != "" {
-				var parsedArgs []string
-				if err := json.Unmarshal([]byte(argsRaw), &parsedArgs); err == nil {
-					sample.Args = parsedArgs
-				} else {
-					fallback := strings.TrimSpace(strings.TrimPrefix(strings.TrimSuffix(argsRaw, "]"), "["))
-					if fallback != "" {
-						sample.Args = splitCommandLine(fallback)
-					}
-				}
-			}
-			offset += argsLen
-			sample.CommandLine = strings.TrimSpace(commandLine)
-		} else {
-			commLen := int(binary.LittleEndian.Uint16(data[offset : offset+2]))
-			offset += 2
-			if offset+commLen > len(data) {
-				break
-			}
-			sample.Comm = string(data[offset : offset+commLen])
-			offset += commLen
-
-			argsLen := int(binary.LittleEndian.Uint16(data[offset : offset+2]))
-			offset += 2
-			if offset+argsLen > len(data) {
-				break
-			}
-			// Prefer JSON array encoding, but keep compatibility with older bracketed string records.
-			argsRaw := strings.TrimSpace(string(data[offset : offset+argsLen]))
-			if argsRaw != "" {
-				var parsedArgs []string
-				if err := json.Unmarshal([]byte(argsRaw), &parsedArgs); err == nil {
-					sample.Args = parsedArgs
-				} else {
-					fallback := strings.TrimSpace(strings.TrimPrefix(strings.TrimSuffix(argsRaw, "]"), "["))
-					if fallback != "" {
-						sample.Args = splitCommandLine(fallback)
-					}
-				}
-			}
-			offset += argsLen
-			sample.CommandLine = joinCommandLine(sample.Comm, sample.Args)
-		}
-
-		if strings.TrimSpace(sample.CommandLine) == "" {
-			sample.CommandLine = joinCommandLine(sample.Comm, sample.Args)
-		}
-
-		if offset+FeatureDim*8 > len(data) {
-			break
-		}
-		for fi := 0; fi < FeatureDim; fi++ {
-			sample.Features[fi] = math.Float64frombits(
-				binary.LittleEndian.Uint64(data[offset+fi*8 : offset+(fi+1)*8]))
-		}
-		offset += FeatureDim * 8
-
-		// Derive UserLabel from label
-		if sample.Label >= 0 {
-			sample.UserLabel = "loaded"
-		}
-
-		s.samples[s.nextWrite] = sample
-		s.nextWrite = (s.nextWrite + 1) % s.maxSamples
-		loaded++
+	if s.maxSamples > 0 {
+		s.nextWrite = len(samples) % s.maxSamples
+	} else {
+		s.nextWrite = 0
 	}
-	s.totalAdded = loaded
-
+	s.totalAdded = len(samples)
+	s.dirtyCount = 0
+	s.revision++
 	return nil
 }
