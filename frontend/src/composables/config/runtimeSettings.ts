@@ -94,6 +94,7 @@ export const defaultResearchProcessingStatus = (): ResearchProcessingStatus => (
   consumedTotal: 0,
   droppedTotal: 0,
   bufferedTotal: 0,
+  bufferEvictedTotal: 0,
   updatedAt: "",
   summary: {
     total: 0,

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
@@ -37,6 +38,109 @@ func TestResearchProcessingWorkerShutdownTimeoutKeepsGeneration(t *testing.T) {
 	worker.mu.RUnlock()
 	if !started || queue != nil || done != oldDone {
 		t.Fatalf("Start() replaced a stopping generation: started:%v queue:%v done:%p", started, queue, done)
+	}
+}
+
+func TestResearchEventRingPreservesOrderAcrossWrapAndResize(t *testing.T) {
+	var ring researchEventRing
+	samples := func(ids ...string) []researchEventSample {
+		out := make([]researchEventSample, len(ids))
+		for index, id := range ids {
+			out[index] = researchEventSample{ID: id}
+		}
+		return out
+	}
+	ids := func(items []researchEventSample) []string {
+		out := make([]string, len(items))
+		for index := range items {
+			out[index] = items[index].ID
+		}
+		return out
+	}
+	wantIDs := func(want ...string) {
+		t.Helper()
+		got := ids(ring.Snapshot())
+		if len(got) != len(want) {
+			t.Fatalf("ring IDs = %v, want %v", got, want)
+		}
+		for index := range want {
+			if got[index] != want[index] {
+				t.Fatalf("ring IDs = %v, want %v", got, want)
+			}
+		}
+	}
+
+	if evicted := ring.Append(samples("1", "2", "3"), 3); evicted != 0 {
+		t.Fatalf("initial append evicted %d samples", evicted)
+	}
+	wantIDs("1", "2", "3")
+	if evicted := ring.Append(samples("4"), 3); evicted != 1 {
+		t.Fatalf("wrapped append evicted %d samples, want 1", evicted)
+	}
+	wantIDs("2", "3", "4")
+	if evicted := ring.Append(samples("5", "6"), 3); evicted != 2 {
+		t.Fatalf("batch append evicted %d samples, want 2", evicted)
+	}
+	wantIDs("4", "5", "6")
+	if evicted := ring.Append(samples("7"), 2); evicted != 2 {
+		t.Fatalf("shrink append evicted %d samples, want 2", evicted)
+	}
+	wantIDs("6", "7")
+	if evicted := ring.Append(samples("8"), 4); evicted != 0 {
+		t.Fatalf("grow append evicted %d samples", evicted)
+	}
+	wantIDs("6", "7", "8")
+	if cap(ring.items) > ring.limit {
+		t.Fatalf("ring capacity = %d, limit %d", cap(ring.items), ring.limit)
+	}
+
+	ring.Reset()
+	wantIDs()
+	if ring.start != 0 || ring.limit != 4 {
+		t.Fatalf("reset ring state = start:%d limit:%d", ring.start, ring.limit)
+	}
+	if evicted := ring.Append(samples("9", "10", "11", "12", "13"), 3); evicted != 2 {
+		t.Fatalf("large batch evicted %d samples, want 2", evicted)
+	}
+	wantIDs("11", "12", "13")
+}
+
+func TestResearchProcessingRingSummaryKeepsNewestEventsInOrder(t *testing.T) {
+	oldStore := runtimeSettingsStore
+	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{ResearchProcessing: ResearchProcessingSettings{
+		Enabled:               true,
+		MaxEvents:             100,
+		TimelineBucketSeconds: 60,
+		TopK:                  10,
+		RecentSamples:         5,
+	}}}
+	t.Cleanup(func() { runtimeSettingsStore = oldStore })
+
+	worker := newResearchProcessingWorker()
+	base := time.Date(2026, 7, 14, 11, 0, 0, 0, time.UTC)
+	records := make([]CapturedEventRecord, 150)
+	for index := range records {
+		records[index] = CapturedEventRecord{
+			ReceivedAt: base.Add(time.Duration(index) * time.Second),
+			Event:      &pb.Event{Pid: uint32(index + 1), Type: "openat", Comm: "ring", Path: "/tmp/" + strconv.Itoa(index)},
+		}
+	}
+	worker.processRecords(records, false, time.Time{})
+	status := worker.Status()
+	if status.ConsumedTotal != 150 || status.BufferedTotal != 100 || status.BufferEvictedTotal != 50 || status.Summary.Total != 100 {
+		t.Fatalf("ring summary totals = %+v", status)
+	}
+	if status.Summary.EarliestTimestamp != base.Add(50*time.Second).UnixMilli() || status.Summary.LatestTimestamp != base.Add(149*time.Second).UnixMilli() {
+		t.Fatalf("ring summary time range = %d..%d", status.Summary.EarliestTimestamp, status.Summary.LatestTimestamp)
+	}
+	if len(status.Summary.RecentSamples) != 5 {
+		t.Fatalf("recent sample count = %d, want 5", len(status.Summary.RecentSamples))
+	}
+	for index, sample := range status.Summary.RecentSamples {
+		want := base.Add(time.Duration(145+index) * time.Second).UnixMilli()
+		if sample.Timestamp != want {
+			t.Fatalf("recent sample %d timestamp = %d, want %d", index, sample.Timestamp, want)
+		}
 	}
 }
 
@@ -247,5 +351,26 @@ func TestResearchProcessingWorkerDropReasons(t *testing.T) {
 	status = researchProcessingWorkerStore.Status()
 	if status.LastDropReason != "disabled" || status.DroppedTotal != 1 {
 		t.Fatalf("disabled drop mismatch: %+v", status)
+	}
+}
+
+func BenchmarkResearchEventRingSteadyStateAppend(b *testing.B) {
+	for _, limit := range []int{100, researchProcessingDefaultMaxEvents} {
+		b.Run(strconv.Itoa(limit), func(b *testing.B) {
+			var ring researchEventRing
+			warm := make([]researchEventSample, limit)
+			for index := range warm {
+				warm[index].Timestamp = int64(index)
+			}
+			ring.Append(warm, limit)
+			sample := []researchEventSample{{Timestamp: int64(limit)}}
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for iteration := 0; iteration < b.N; iteration++ {
+				sample[0].Timestamp = int64(iteration)
+				ring.Append(sample, limit)
+			}
+		})
 	}
 }

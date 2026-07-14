@@ -80,6 +80,7 @@ export interface ResearchProcessingStatus {
   consumedTotal: number;
   droppedTotal: number;
   bufferedTotal: number;
+  bufferEvictedTotal: number;
   lastError?: string;
   updatedAt: string;
   summary: ResearchProcessingSummary;

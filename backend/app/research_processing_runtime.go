@@ -119,6 +119,7 @@ type researchProcessingStatus struct {
 	ConsumedTotal         uint64                     `json:"consumedTotal"`
 	DroppedTotal          uint64                     `json:"droppedTotal"`
 	BufferedTotal         int                        `json:"bufferedTotal"`
+	BufferEvictedTotal    uint64                     `json:"bufferEvictedTotal"`
 	LastError             string                     `json:"lastError,omitempty"`
 	LastDropReason        string                     `json:"lastDropReason,omitempty"`
 	LastEnqueuedAt        *time.Time                 `json:"lastEnqueuedAt,omitempty"`
@@ -154,7 +155,7 @@ type researchProcessingWorker struct {
 	done                chan struct{}
 	started             bool
 	startedAt           time.Time
-	events              []researchEventSample
+	events              researchEventRing
 	eventsVersion       uint64
 	summary             researchProcessingSummary
 	summaryDirty        bool
@@ -165,6 +166,7 @@ type researchProcessingWorker struct {
 	enqueuedTotal       uint64
 	consumedTotal       uint64
 	droppedTotal        uint64
+	bufferEvictedTotal  uint64
 	lastError           string
 	lastDropReason      string
 	lastEnqueuedAt      time.Time
@@ -182,10 +184,132 @@ type researchProcessingSummarySettings struct {
 	RecentSamples         int
 }
 
+// researchEventRing retains samples in insertion order while
+// overwriting the oldest slot in O(1) once full. It is guarded by the owning
+// researchProcessingWorker.mu.
+type researchEventRing struct {
+	items []researchEventSample
+	start int
+	limit int
+}
+
+func (r *researchEventRing) Len() int {
+	if r == nil {
+		return 0
+	}
+	return len(r.items)
+}
+
+func (r *researchEventRing) Reset() {
+	if r == nil {
+		return
+	}
+	clear(r.items)
+	r.items = r.items[:0]
+	r.start = 0
+}
+
+func (r *researchEventRing) Append(samples []researchEventSample, limit int) int {
+	if r == nil || len(samples) == 0 {
+		return 0
+	}
+	if limit <= 0 {
+		limit = researchProcessingDefaultMaxEvents
+	}
+	evicted := r.resize(limit)
+	if overflow := len(r.items) + len(samples) - limit; overflow > 0 {
+		evicted += overflow
+	}
+	if len(samples) >= limit {
+		if cap(r.items) < limit {
+			r.items = make([]researchEventSample, limit)
+		} else {
+			clear(r.items)
+			r.items = r.items[:limit]
+		}
+		copy(r.items, samples[len(samples)-limit:])
+		r.start = 0
+		return evicted
+	}
+	needed := len(r.items) + len(samples)
+	if needed > limit {
+		needed = limit
+	}
+	r.grow(needed, limit)
+	for _, sample := range samples {
+		if len(r.items) < limit {
+			r.items = append(r.items, sample)
+			continue
+		}
+		r.items[r.start] = sample
+		r.start++
+		if r.start == limit {
+			r.start = 0
+		}
+	}
+	return evicted
+}
+
+func (r *researchEventRing) Snapshot() []researchEventSample {
+	if r == nil || len(r.items) == 0 {
+		return nil
+	}
+	out := make([]researchEventSample, len(r.items))
+	if r.start == 0 {
+		copy(out, r.items)
+		return out
+	}
+	copied := copy(out, r.items[r.start:])
+	copy(out[copied:], r.items[:r.start])
+	return out
+}
+
+func (r *researchEventRing) resize(limit int) int {
+	if r.limit == limit {
+		return 0
+	}
+	ordered := r.Snapshot()
+	evicted := 0
+	if len(ordered) > limit {
+		evicted = len(ordered) - limit
+		ordered = ordered[len(ordered)-limit:]
+	}
+	r.items = nil
+	if len(ordered) > 0 {
+		capacity := len(ordered)
+		if capacity < 16 {
+			capacity = min(16, limit)
+		}
+		r.items = make([]researchEventSample, len(ordered), capacity)
+		copy(r.items, ordered)
+	}
+	r.start = 0
+	r.limit = limit
+	return evicted
+}
+
+func (r *researchEventRing) grow(needed, limit int) {
+	if needed <= cap(r.items) {
+		return
+	}
+	capacity := cap(r.items) * 2
+	if capacity < 16 {
+		capacity = 16
+	}
+	if capacity < needed {
+		capacity = needed
+	}
+	if capacity > limit {
+		capacity = limit
+	}
+	items := make([]researchEventSample, len(r.items), capacity)
+	copy(items, r.items)
+	r.items = items
+}
+
 func newResearchProcessingWorker() *researchProcessingWorker {
 	now := time.Now().UTC()
 	return &researchProcessingWorker{
-		events:    make([]researchEventSample, 0, researchProcessingDefaultMaxEvents),
 		summary:   researchProcessingSummary{},
 		startedAt: now,
 		updatedAt: now,
@@ -387,7 +511,7 @@ func (w *researchProcessingWorker) resetNow() {
 		return
 	}
 	w.mu.Lock()
-	w.events = w.events[:0]
+	w.events.Reset()
 	w.eventsVersion++
 	w.summary = researchProcessingSummary{}
 	w.summaryDirty = false
@@ -449,11 +573,7 @@ func (w *researchProcessingWorker) processRecordsContext(ctx context.Context, re
 		now := time.Now().UTC()
 		w.mu.Lock()
 		w.consumedTotal += uint64(len(samples))
-		w.events = append(w.events, samples...)
-		if len(w.events) > maxEvents {
-			copy(w.events, w.events[len(w.events)-maxEvents:])
-			w.events = w.events[:maxEvents]
-		}
+		w.bufferEvictedTotal += uint64(w.events.Append(samples, maxEvents))
 		w.eventsVersion++
 		w.summaryDirty = true
 		w.lastProcessedAt = now
@@ -493,7 +613,8 @@ func (w *researchProcessingWorker) Status() researchProcessingStatus {
 		EnqueuedTotal:         w.enqueuedTotal,
 		ConsumedTotal:         w.consumedTotal,
 		DroppedTotal:          w.droppedTotal,
-		BufferedTotal:         len(w.events),
+		BufferedTotal:         w.events.Len(),
+		BufferEvictedTotal:    w.bufferEvictedTotal,
 		LastError:             w.lastError,
 		LastDropReason:        w.lastDropReason,
 		LastEnqueuedAt:        lastEnqueuedAt,
@@ -524,7 +645,7 @@ func (w *researchProcessingWorker) refreshSummaryIfNeeded(settings ResearchProce
 			w.mu.RUnlock()
 			return
 		}
-		events := append([]researchEventSample(nil), w.events...)
+		events := w.events.Snapshot()
 		version := w.eventsVersion
 		w.mu.RUnlock()
 
@@ -551,7 +672,7 @@ func (w *researchProcessingWorker) refreshSummaryIfNeeded(settings ResearchProce
 	w.mu.Lock()
 	if w.summaryDirty || w.summarySettings != key {
 		started := time.Now()
-		w.summary = buildResearchProcessingSummary(w.events, settings)
+		w.summary = buildResearchProcessingSummary(w.events.Snapshot(), settings)
 		w.summarySettings = key
 		w.summaryDirty = false
 		w.summaryRebuilds++

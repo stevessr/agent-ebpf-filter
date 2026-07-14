@@ -37,6 +37,13 @@ PID、命令、路径、工具名和事件类型集合最多各保留 12 项，�
 `/system/loop-detection/status` 的 `windowGCRunsTotal` 与 `windowEvictedTotal`
 可用于确认清理频率和容量压力。
 
+### Research Processing worker
+
+Research Processing 的事件历史使用按需增长的有界环形缓冲。达到 `MaxEvents` 后，
+每条新样本只覆盖一个最旧槽位，不再移动整个事件切片；动态缩小上限时仍按接收顺序
+保留最新样本。`/system/research-processing/status` 的 `bufferEvictedTotal` 是进程级
+累计淘汰数，可区分“已消费但超出历史容量”与 worker 队列的 `droppedTotal`。
+
 ### 事件日志持久化语义
 
 启用 `LogPersistenceEnabled` 后，捕获线程只向 4096 项有界队列执行非阻塞提交；

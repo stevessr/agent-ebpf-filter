@@ -457,6 +457,9 @@ const schemeOptions = [
             <a-tag color="purple">
               buffered: {{ researchProcessingStatus.bufferedTotal }}
             </a-tag>
+            <a-tag color="cyan">
+              evicted: {{ researchProcessingStatus.bufferEvictedTotal }}
+            </a-tag>
             <a-tag color="blue">
               summary total: {{ researchProcessingStatus.summary.total }}
             </a-tag>

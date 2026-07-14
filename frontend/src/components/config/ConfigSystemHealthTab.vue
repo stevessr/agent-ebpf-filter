@@ -508,6 +508,9 @@ const compactList = (items?: Array<string | number>) => {
             <a-tag color="blue">
               buffered: {{ researchProcessingStatus.bufferedTotal }}
             </a-tag>
+            <a-tag color="cyan">
+              evicted: {{ researchProcessingStatus.bufferEvictedTotal }}
+            </a-tag>
             <a-tag color="orange">
               summarized: {{ researchProcessingStatus.summary.total }}
             </a-tag>
