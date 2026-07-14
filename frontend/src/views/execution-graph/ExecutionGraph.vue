@@ -67,6 +67,11 @@ const graph = ref<GraphState>({
   source: "memory",
   nodeCounts: {},
   edgeCounts: {},
+  truncated: false,
+  omittedEventCount: 0,
+  omittedNodeCount: 0,
+  omittedEdgeCount: 0,
+  truncatedFieldCount: 0,
   nodes: [],
   edges: [],
 });
@@ -428,6 +433,12 @@ onUnmounted(() => {
           <a-tag color="purple">{{ graph.eventCount }} matched events</a-tag>
           <a-tag color="blue">{{ graph.nodes.length }} nodes</a-tag>
           <a-tag color="geekblue">{{ graph.edges.length }} edges</a-tag>
+          <a-tooltip
+            v-if="graph.truncated"
+            :title="`Omitted: ${graph.omittedEventCount} events, ${graph.omittedNodeCount} nodes, ${graph.omittedEdgeCount} edges; clipped fields: ${graph.truncatedFieldCount}`"
+          >
+            <a-tag color="orange">bounded output</a-tag>
+          </a-tooltip>
           <a-tag v-if="lastLoadedAt" color="default"
             >Updated {{ lastLoadedAt }}</a-tag
           >

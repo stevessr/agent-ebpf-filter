@@ -3,7 +3,6 @@ package executiongraph
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -28,12 +27,17 @@ type Edge struct {
 }
 
 type Response struct {
-	EventCount int            `json:"eventCount"`
-	Source     string         `json:"source"`
-	NodeCounts map[string]int `json:"nodeCounts,omitempty"`
-	EdgeCounts map[string]int `json:"edgeCounts,omitempty"`
-	Nodes      []Node         `json:"nodes"`
-	Edges      []Edge         `json:"edges"`
+	EventCount          int            `json:"eventCount"`
+	Source              string         `json:"source"`
+	NodeCounts          map[string]int `json:"nodeCounts,omitempty"`
+	EdgeCounts          map[string]int `json:"edgeCounts,omitempty"`
+	Nodes               []Node         `json:"nodes"`
+	Edges               []Edge         `json:"edges"`
+	Truncated           bool           `json:"truncated"`
+	OmittedEventCount   int            `json:"omittedEventCount"`
+	OmittedNodeCount    int            `json:"omittedNodeCount"`
+	OmittedEdgeCount    int            `json:"omittedEdgeCount"`
+	TruncatedFieldCount int            `json:"truncatedFieldCount"`
 }
 
 type Filters struct {
@@ -66,54 +70,19 @@ func BuildContext(ctx context.Context, records []Record, filters Filters) (Respo
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	nodes := make(map[string]Node)
-	edges := make(map[string]Edge)
+	if err := ctx.Err(); err != nil {
+		return Response{}, err
+	}
+	builder := newGraphBuilder()
+	if len(records) > graphMaxInputRecords {
+		builder.omittedEvents = len(records) - graphMaxInputRecords
+		records = records[len(records)-graphMaxInputRecords:]
+	}
+	filters = prepareExecutionGraphFilters(filters)
 	matchedEvents := 0
 	pidTree, err := buildExecutionGraphPIDTreeContext(ctx, records, filters)
 	if err != nil {
 		return Response{}, err
-	}
-
-	addNode := func(node Node) {
-		if node.ID == "" {
-			return
-		}
-		if existing, ok := nodes[node.ID]; ok {
-			if node.RiskScore > existing.RiskScore {
-				existing.RiskScore = node.RiskScore
-			}
-			if existing.Subtitle == "" && node.Subtitle != "" {
-				existing.Subtitle = node.Subtitle
-			}
-			if (existing.Label == "" || isGenericProcessLabel(existing)) && node.Label != "" && !isGenericProcessLabel(node) {
-				existing.Label = node.Label
-			}
-			if existing.PID == 0 && node.PID != 0 {
-				existing.PID = node.PID
-			}
-			if len(node.Metadata) > 0 {
-				if existing.Metadata == nil {
-					existing.Metadata = make(map[string]string, len(node.Metadata))
-				}
-				for key, value := range node.Metadata {
-					if strings.TrimSpace(value) == "" {
-						continue
-					}
-					if _, exists := existing.Metadata[key]; !exists {
-						existing.Metadata[key] = value
-					}
-				}
-			}
-			nodes[node.ID] = existing
-			return
-		}
-		nodes[node.ID] = node
-	}
-	addEdge := func(edge Edge) {
-		if edge.ID == "" || edge.Source == "" || edge.Target == "" {
-			return
-		}
-		edges[edge.ID] = edge
 	}
 
 	for index, record := range records {
@@ -128,11 +97,10 @@ func BuildContext(ctx context.Context, records []Record, filters Filters) (Respo
 		}
 		matchedEvents++
 
-		processNode := buildProcessGraphNode(event)
-		addNode(processNode)
+		processNode := builder.addNode(buildProcessGraphNode(event))
 		if event.GetPpid() > 0 && event.GetPpid() != event.GetPid() {
 			parentID := processNodeID(event.GetPpid())
-			addNode(Node{
+			parentNode := builder.addNode(Node{
 				ID:       parentID,
 				Kind:     "process",
 				Label:    fmt.Sprintf("pid %d", event.GetPpid()),
@@ -142,13 +110,12 @@ func BuildContext(ctx context.Context, records []Record, filters Filters) (Respo
 					"pid": strconv.FormatUint(uint64(event.GetPpid()), 10),
 				},
 			})
-			addEdge(Edge{ID: parentID + "->" + processNode.ID + ":parent_process", Source: parentID, Target: processNode.ID, Kind: "parent_process", Label: "parent process"})
+			builder.addEdge(Edge{ID: parentNode.ID + "->" + processNode.ID + ":parent_process", Source: parentNode.ID, Target: processNode.ID, Kind: "parent_process", Label: "parent process"})
 		}
 
-		activityNode := buildExecutionGraphActivityNode(record, event, index)
-		addNode(activityNode)
+		activityNode := builder.addNode(buildExecutionGraphActivityNode(record, event, index))
 		processToActivityKind := graphActivityEdgeKind(event)
-		addEdge(Edge{
+		builder.addEdge(Edge{
 			ID:     processNode.ID + "->" + activityNode.ID + ":" + processToActivityKind,
 			Source: processNode.ID,
 			Target: activityNode.ID,
@@ -157,9 +124,8 @@ func BuildContext(ctx context.Context, records []Record, filters Filters) (Respo
 		})
 
 		if event.GetAgentRunId() != "" {
-			runID := "run:" + event.GetAgentRunId()
-			addNode(Node{
-				ID:        runID,
+			runNode := builder.addNode(Node{
+				ID:        graphEntityNodeID("run", event.GetAgentRunId()),
 				Kind:      "agent_run",
 				Label:     event.GetAgentRunId(),
 				Subtitle:  buildRunSubtitle(event),
@@ -171,11 +137,10 @@ func BuildContext(ctx context.Context, records []Record, filters Filters) (Respo
 					"traceId":        event.GetTraceId(),
 				},
 			})
-			addEdge(Edge{ID: runID + "->" + processNode.ID + ":contains", Source: runID, Target: processNode.ID, Kind: "contains", Label: "contains"})
+			builder.addEdge(Edge{ID: runNode.ID + "->" + processNode.ID + ":contains", Source: runNode.ID, Target: processNode.ID, Kind: "contains", Label: "contains"})
 			if event.GetToolCallId() != "" {
-				toolID := "tool:" + event.GetToolCallId()
-				addNode(Node{
-					ID:        toolID,
+				toolNode := builder.addNode(Node{
+					ID:        graphEntityNodeID("tool", event.GetToolCallId()),
 					Kind:      "tool_call",
 					Label:     event.GetToolCallId(),
 					Subtitle:  event.GetToolName(),
@@ -187,15 +152,15 @@ func BuildContext(ctx context.Context, records []Record, filters Filters) (Respo
 						"agentRunId": event.GetAgentRunId(),
 					},
 				})
-				addEdge(Edge{ID: runID + "->" + toolID + ":contains", Source: runID, Target: toolID, Kind: "contains", Label: "contains"})
-				addEdge(Edge{ID: toolID + "->" + processNode.ID + ":owns", Source: toolID, Target: processNode.ID, Kind: "owns", Label: "owns"})
+				builder.addEdge(Edge{ID: runNode.ID + "->" + toolNode.ID + ":contains", Source: runNode.ID, Target: toolNode.ID, Kind: "contains", Label: "contains"})
+				builder.addEdge(Edge{ID: toolNode.ID + "->" + processNode.ID + ":owns", Source: toolNode.ID, Target: processNode.ID, Kind: "owns", Label: "owns"})
 			}
 		}
 
 		if event.GetDecision() != "" {
 			decisionNode, decisionEdgeKind := buildExecutionDecisionNode(record, event, index)
-			addNode(decisionNode)
-			addEdge(Edge{
+			decisionNode = builder.addNode(decisionNode)
+			builder.addEdge(Edge{
 				ID:     activityNode.ID + "->" + decisionNode.ID + ":" + decisionEdgeKind,
 				Source: activityNode.ID,
 				Target: decisionNode.ID,
@@ -206,44 +171,41 @@ func BuildContext(ctx context.Context, records []Record, filters Filters) (Respo
 
 		switch event.GetType() {
 		case "process_exec":
-			if oldPID, ok := extractGraphInt(event.GetExtraInfo(), "old_pid"); ok && oldPID > 0 && uint32(oldPID) != event.GetPid() {
-				oldNode := Node{
-					ID:       processNodeID(uint32(oldPID)),
+			if oldPID, ok := extractGraphPID(event.GetExtraInfo(), "old_pid"); ok && oldPID != event.GetPid() {
+				oldNode := builder.addNode(Node{
+					ID:       processNodeID(oldPID),
 					Kind:     "process",
 					Label:    fmt.Sprintf("pid %d", oldPID),
 					Subtitle: "pre-exec pid",
-					PID:      uint32(oldPID),
-					Metadata: map[string]string{"pid": strconv.Itoa(oldPID)},
-				}
-				addNode(oldNode)
-				addEdge(Edge{ID: oldNode.ID + "->" + processNode.ID + ":exec_chain", Source: oldNode.ID, Target: processNode.ID, Kind: "exec_chain", Label: "exec"})
+					PID:      oldPID,
+					Metadata: map[string]string{"pid": strconv.FormatUint(uint64(oldPID), 10)},
+				})
+				builder.addEdge(Edge{ID: oldNode.ID + "->" + processNode.ID + ":exec_chain", Source: oldNode.ID, Target: processNode.ID, Kind: "exec_chain", Label: "exec"})
 			}
 		case "process_fork", "clone":
-			if childPID, ok := extractGraphInt(event.GetExtraInfo(), "child_pid"); ok && childPID > 0 {
-				childNode := Node{
-					ID:       processNodeID(uint32(childPID)),
+			if childPID, ok := extractGraphPID(event.GetExtraInfo(), "child_pid"); ok {
+				childNode := builder.addNode(Node{
+					ID:       processNodeID(childPID),
 					Kind:     "process",
 					Label:    fmt.Sprintf("pid %d", childPID),
 					Subtitle: "child process",
-					PID:      uint32(childPID),
-					Metadata: map[string]string{"pid": strconv.Itoa(childPID)},
-				}
-				addNode(childNode)
-				addEdge(Edge{ID: processNode.ID + "->" + childNode.ID + ":child_process", Source: processNode.ID, Target: childNode.ID, Kind: "child_process", Label: "child process"})
-				addEdge(Edge{ID: activityNode.ID + "->" + childNode.ID + ":spawned", Source: activityNode.ID, Target: childNode.ID, Kind: "spawned", Label: "spawned"})
+					PID:      childPID,
+					Metadata: map[string]string{"pid": strconv.FormatUint(uint64(childPID), 10)},
+				})
+				builder.addEdge(Edge{ID: processNode.ID + "->" + childNode.ID + ":child_process", Source: processNode.ID, Target: childNode.ID, Kind: "child_process", Label: "child process"})
+				builder.addEdge(Edge{ID: activityNode.ID + "->" + childNode.ID + ":spawned", Source: activityNode.ID, Target: childNode.ID, Kind: "spawned", Label: "spawned"})
 			}
 		case "wait4":
-			if targetPID, ok := extractGraphInt(event.GetExtraInfo(), "target_pid"); ok && targetPID > 0 {
-				targetNode := Node{
-					ID:       processNodeID(uint32(targetPID)),
+			if targetPID, ok := extractGraphPID(event.GetExtraInfo(), "target_pid"); ok {
+				targetNode := builder.addNode(Node{
+					ID:       processNodeID(targetPID),
 					Kind:     "process",
 					Label:    fmt.Sprintf("pid %d", targetPID),
 					Subtitle: "wait target",
-					PID:      uint32(targetPID),
-					Metadata: map[string]string{"pid": strconv.Itoa(targetPID)},
-				}
-				addNode(targetNode)
-				addEdge(Edge{ID: activityNode.ID + "->" + targetNode.ID + ":waited", Source: activityNode.ID, Target: targetNode.ID, Kind: "waited", Label: "waited"})
+					PID:      targetPID,
+					Metadata: map[string]string{"pid": strconv.FormatUint(uint64(targetPID), 10)},
+				})
+				builder.addEdge(Edge{ID: activityNode.ID + "->" + targetNode.ID + ":waited", Source: activityNode.ID, Target: targetNode.ID, Kind: "waited", Label: "waited"})
 			}
 		case "process_exit", "exit":
 			exitID := processNode.ID + ":exit:" + strconv.FormatInt(record.ReceivedAt.UnixNano(), 10)
@@ -251,16 +213,16 @@ func BuildContext(ctx context.Context, records []Record, filters Filters) (Respo
 			if status == "" {
 				status = "exit status"
 			}
-			addNode(Node{
+			exitNode := builder.addNode(Node{
 				ID:       exitID,
 				Kind:     "exit_status",
 				Label:    status,
 				Metadata: map[string]string{"status": status},
 			})
-			addEdge(Edge{ID: activityNode.ID + "->" + exitID + ":exited", Source: activityNode.ID, Target: exitID, Kind: "exited", Label: "exited"})
+			builder.addEdge(Edge{ID: activityNode.ID + "->" + exitNode.ID + ":exited", Source: activityNode.ID, Target: exitNode.ID, Kind: "exited", Label: "exited"})
 		case "semantic_alert":
-			alertID := processNode.ID + ":alert:" + sanitizeGraphID(event.GetComm()+":"+event.GetPath()+":"+event.GetExtraInfo())
-			addNode(Node{
+			alertID := processNode.ID + ":alert:" + sanitizeGraphIDParts(event.GetComm(), event.GetPath(), event.GetExtraInfo())
+			alertNode := builder.addNode(Node{
 				ID:        alertID,
 				Kind:      "policy_alert",
 				Label:     event.GetComm(),
@@ -271,21 +233,21 @@ func BuildContext(ctx context.Context, records []Record, filters Filters) (Respo
 					"path":     event.GetPath(),
 				},
 			})
-			addEdge(Edge{ID: activityNode.ID + "->" + alertID + ":alerted", Source: activityNode.ID, Target: alertID, Kind: "alerted", Label: "alerted"})
+			builder.addEdge(Edge{ID: activityNode.ID + "->" + alertNode.ID + ":alerted", Source: activityNode.ID, Target: alertNode.ID, Kind: "alerted", Label: "alerted"})
 		}
 
 		for _, relation := range graphFileRelations(event) {
-			addNode(relation.Node)
-			addEdge(Edge{ID: activityNode.ID + "->" + relation.Node.ID + ":" + relation.Kind, Source: activityNode.ID, Target: relation.Node.ID, Kind: relation.Kind, Label: relation.Kind})
+			relation.Node = builder.addNode(relation.Node)
+			builder.addEdge(Edge{ID: activityNode.ID + "->" + relation.Node.ID + ":" + relation.Kind, Source: activityNode.ID, Target: relation.Node.ID, Kind: relation.Kind, Label: relation.Kind})
 		}
 		for _, relation := range graphNetworkRelations(event) {
-			addNode(relation.Node)
-			addEdge(Edge{ID: activityNode.ID + "->" + relation.Node.ID + ":" + relation.Kind, Source: activityNode.ID, Target: relation.Node.ID, Kind: relation.Kind, Label: relation.Kind})
+			relation.Node = builder.addNode(relation.Node)
+			builder.addEdge(Edge{ID: activityNode.ID + "->" + relation.Node.ID + ":" + relation.Kind, Source: activityNode.ID, Target: relation.Node.ID, Kind: relation.Kind, Label: relation.Kind})
 		}
 	}
 
 	if filters.PID != nil && filters.ProcessTree {
-		addNode(Node{
+		builder.addNode(Node{
 			ID:       processNodeID(*filters.PID),
 			Kind:     "process",
 			Label:    fmt.Sprintf("pid %d", *filters.PID),
@@ -300,50 +262,5 @@ func BuildContext(ctx context.Context, records []Record, filters Filters) (Respo
 	if err := ctx.Err(); err != nil {
 		return Response{}, err
 	}
-
-	nodeList := make([]Node, 0, len(nodes))
-	nodeCounts := make(map[string]int)
-	nodeIndex := 0
-	for _, node := range nodes {
-		if nodeIndex%256 == 0 {
-			if err := ctx.Err(); err != nil {
-				return Response{}, err
-			}
-		}
-		nodeList = append(nodeList, node)
-		nodeCounts[node.Kind]++
-		nodeIndex++
-	}
-	sort.Slice(nodeList, func(i, j int) bool {
-		if nodeList[i].Kind == nodeList[j].Kind {
-			return nodeList[i].Label < nodeList[j].Label
-		}
-		return nodeList[i].Kind < nodeList[j].Kind
-	})
-
-	edgeList := make([]Edge, 0, len(edges))
-	edgeCounts := make(map[string]int)
-	edgeIndex := 0
-	for _, edge := range edges {
-		if edgeIndex%256 == 0 {
-			if err := ctx.Err(); err != nil {
-				return Response{}, err
-			}
-		}
-		edgeList = append(edgeList, edge)
-		edgeCounts[edge.Kind]++
-		edgeIndex++
-	}
-	sort.Slice(edgeList, func(i, j int) bool { return edgeList[i].ID < edgeList[j].ID })
-	if err := ctx.Err(); err != nil {
-		return Response{}, err
-	}
-
-	return Response{
-		EventCount: matchedEvents,
-		NodeCounts: nodeCounts,
-		EdgeCounts: edgeCounts,
-		Nodes:      nodeList,
-		Edges:      edgeList,
-	}, nil
+	return builder.response(ctx, matchedEvents)
 }

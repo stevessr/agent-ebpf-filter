@@ -3,6 +3,7 @@ package executiongraph
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -53,5 +54,36 @@ func TestBuildExecutionGraphPIDTreeReverseChainIsLinearAndCancelable(t *testing.
 	cancelNow()
 	if _, err := buildExecutionGraphPIDTreeContext(canceled, records, Filters{PID: &seed, ProcessTree: true}); !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled PID tree error = %v, want context.Canceled", err)
+	}
+}
+
+func TestExecutionGraphFilterSearchIsCaseInsensitiveAndAllocationFreeForASCII(t *testing.T) {
+	prepared := prepareExecutionGraphFilters(Filters{
+		ToolName: "BASH",
+		Comm:     "CODEX",
+		Path:     "/TMP/WORK",
+		Domain:   "EXAMPLE.COM",
+	})
+	if prepared.ToolName != "bash" || prepared.Comm != "codex" || prepared.Path != "/tmp/work" || prepared.Domain != "example.com" {
+		t.Fatalf("unexpected prepared filters %#v", prepared)
+	}
+	if !containsExecutionGraphFilter("/TMP/Work/FILE", prepared.Path) {
+		t.Fatal("ASCII case-insensitive filter did not match")
+	}
+	if containsExecutionGraphFilter("/tmp/other", prepared.Path) {
+		t.Fatal("ASCII filter matched unrelated text")
+	}
+	if !containsExecutionGraphFilter("KELVIN.example", strings.ToLower("kelvin")) {
+		t.Fatal("Unicode fallback did not preserve lower-case matching semantics")
+	}
+
+	largeValue := strings.Repeat("A", 100000) + "TARGET"
+	allocations := testing.AllocsPerRun(20, func() {
+		if !containsExecutionGraphFilter(largeValue, "target") {
+			panic("ASCII filter failed")
+		}
+	})
+	if allocations != 0 {
+		t.Fatalf("ASCII filter allocations = %.2f, want 0", allocations)
 	}
 }

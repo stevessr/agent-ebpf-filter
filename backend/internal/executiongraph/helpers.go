@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"agent-ebpf-filter/pb"
 )
@@ -22,13 +23,13 @@ func matchesExecutionGraphFilters(record Record, event *pb.Event, filters Filter
 	if filters.TraceID != "" && event.GetTraceId() != filters.TraceID {
 		return false
 	}
-	if filters.ToolName != "" && !strings.Contains(strings.ToLower(event.GetToolName()), strings.ToLower(filters.ToolName)) {
+	if filters.ToolName != "" && !containsExecutionGraphFilter(event.GetToolName(), filters.ToolName) {
 		return false
 	}
 	if filters.Decision != "" && !strings.EqualFold(event.GetDecision(), filters.Decision) {
 		return false
 	}
-	if filters.Comm != "" && !strings.Contains(strings.ToLower(event.GetComm()), strings.ToLower(filters.Comm)) {
+	if filters.Comm != "" && !containsExecutionGraphFilter(event.GetComm(), filters.Comm) {
 		return false
 	}
 	if filters.PID != nil {
@@ -50,18 +51,95 @@ func matchesExecutionGraphFilters(record Record, event *pb.Event, filters Filter
 		return false
 	}
 	if filters.Path != "" {
-		needle := strings.ToLower(filters.Path)
-		if !strings.Contains(strings.ToLower(event.GetPath()), needle) && !strings.Contains(strings.ToLower(event.GetExtraPath()), needle) {
+		if !containsExecutionGraphFilter(event.GetPath(), filters.Path) && !containsExecutionGraphFilter(event.GetExtraPath(), filters.Path) {
 			return false
 		}
 	}
 	if filters.Domain != "" {
-		needle := strings.ToLower(filters.Domain)
-		if !strings.Contains(strings.ToLower(event.GetDomain()), needle) && !strings.Contains(strings.ToLower(event.GetNetEndpoint()), needle) {
+		if !containsExecutionGraphFilter(event.GetDomain(), filters.Domain) && !containsExecutionGraphFilter(event.GetNetEndpoint(), filters.Domain) {
 			return false
 		}
 	}
 	return true
+}
+
+func prepareExecutionGraphFilters(filters Filters) Filters {
+	filters.ToolName = strings.ToLower(filters.ToolName)
+	filters.Comm = strings.ToLower(filters.Comm)
+	filters.Path = strings.ToLower(filters.Path)
+	filters.Domain = strings.ToLower(filters.Domain)
+	return filters
+}
+
+func containsExecutionGraphFilter(value, lowercaseNeedle string) bool {
+	if lowercaseNeedle == "" {
+		return true
+	}
+	if isASCIIExecutionGraphText(value) && isASCIIExecutionGraphText(lowercaseNeedle) {
+		if len(value) < len(lowercaseNeedle) {
+			return false
+		}
+		return containsASCIIFold(value, lowercaseNeedle)
+	}
+	return strings.Contains(strings.ToLower(value), lowercaseNeedle)
+}
+
+func isASCIIExecutionGraphText(value string) bool {
+	for index := 0; index < len(value); index++ {
+		if value[index] >= utf8.RuneSelf {
+			return false
+		}
+	}
+	return true
+}
+
+func containsASCIIFold(value, lowercaseNeedle string) bool {
+	needleBytes := len(lowercaseNeedle)
+	if needleBytes == 0 {
+		return true
+	}
+	if len(value) < needleBytes {
+		return false
+	}
+	const hashBase uint64 = 16777619
+	var needleHash uint64
+	var windowHash uint64
+	power := uint64(1)
+	for index := 0; index < needleBytes; index++ {
+		needleHash = needleHash*hashBase + uint64(lowercaseNeedle[index])
+		windowHash = windowHash*hashBase + uint64(lowerASCIIByte(value[index]))
+		if index+1 < needleBytes {
+			power *= hashBase
+		}
+	}
+	if needleHash == windowHash && equalASCIIFold(value[:needleBytes], lowercaseNeedle) {
+		return true
+	}
+	for index := needleBytes; index < len(value); index++ {
+		outgoing := uint64(lowerASCIIByte(value[index-needleBytes]))
+		incoming := uint64(lowerASCIIByte(value[index]))
+		windowHash = (windowHash-outgoing*power)*hashBase + incoming
+		if needleHash == windowHash && equalASCIIFold(value[index-needleBytes+1:index+1], lowercaseNeedle) {
+			return true
+		}
+	}
+	return false
+}
+
+func equalASCIIFold(value, lowercaseNeedle string) bool {
+	for index := range lowercaseNeedle {
+		if lowerASCIIByte(value[index]) != lowercaseNeedle[index] {
+			return false
+		}
+	}
+	return true
+}
+
+func lowerASCIIByte(value byte) byte {
+	if value >= 'A' && value <= 'Z' {
+		return value + ('a' - 'A')
+	}
+	return value
 }
 
 func buildExecutionGraphPIDTree(records []Record, filters Filters) map[uint32]struct{} {
@@ -93,8 +171,8 @@ func buildExecutionGraphPIDTreeContext(ctx context.Context, records []Record, fi
 		if pid != 0 {
 			children[event.GetPpid()] = append(children[event.GetPpid()], pid)
 		}
-		if childPID, ok := extractGraphInt(event.GetExtraInfo(), "child_pid"); ok && childPID > 0 {
-			children[pid] = append(children[pid], uint32(childPID))
+		if childPID, ok := extractGraphPID(event.GetExtraInfo(), "child_pid"); ok {
+			children[pid] = append(children[pid], childPID)
 		}
 	}
 	queue := []uint32{seed}
@@ -131,8 +209,8 @@ func eventMatchesExecutionGraphPIDTree(event *pb.Event, pidTree map[uint32]struc
 	if _, ok := pidTree[event.GetPpid()]; ok {
 		return true
 	}
-	if childPID, ok := extractGraphInt(event.GetExtraInfo(), "child_pid"); ok && childPID > 0 {
-		_, ok := pidTree[uint32(childPID)]
+	if childPID, ok := extractGraphPID(event.GetExtraInfo(), "child_pid"); ok {
+		_, ok := pidTree[childPID]
 		return ok
 	}
 	return false

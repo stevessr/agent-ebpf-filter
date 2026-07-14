@@ -323,6 +323,11 @@ export function useExecutionGraph(options: ExecutionGraphComposableOptions) {
     source: String(payload?.source ?? "memory"),
     nodeCounts: payload?.nodeCounts ?? {},
     edgeCounts: payload?.edgeCounts ?? {},
+    truncated: Boolean(payload?.truncated),
+    omittedEventCount: Number(payload?.omittedEventCount ?? 0),
+    omittedNodeCount: Number(payload?.omittedNodeCount ?? 0),
+    omittedEdgeCount: Number(payload?.omittedEdgeCount ?? 0),
+    truncatedFieldCount: Number(payload?.truncatedFieldCount ?? 0),
     nodes: Array.isArray(payload?.nodes)
       ? (payload!.nodes as ExecutionGraphNode[])
       : [],
@@ -336,6 +341,11 @@ export function useExecutionGraph(options: ExecutionGraphComposableOptions) {
     source: state.source,
     nodeCounts: { ...(state.nodeCounts ?? {}) },
     edgeCounts: { ...(state.edgeCounts ?? {}) },
+    truncated: state.truncated,
+    omittedEventCount: state.omittedEventCount,
+    omittedNodeCount: state.omittedNodeCount,
+    omittedEdgeCount: state.omittedEdgeCount,
+    truncatedFieldCount: state.truncatedFieldCount,
     nodes: state.nodes.map((node) => ({
       ...node,
       metadata: node.metadata ? { ...node.metadata } : undefined,

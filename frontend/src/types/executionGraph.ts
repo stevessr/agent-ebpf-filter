@@ -21,6 +21,11 @@ export interface ExecutionGraphResponse {
   source: string;
   nodeCounts?: Record<string, number>;
   edgeCounts?: Record<string, number>;
+  truncated: boolean;
+  omittedEventCount: number;
+  omittedNodeCount: number;
+  omittedEdgeCount: number;
+  truncatedFieldCount: number;
   nodes: ExecutionGraphNode[];
   edges: ExecutionGraphEdge[];
 }

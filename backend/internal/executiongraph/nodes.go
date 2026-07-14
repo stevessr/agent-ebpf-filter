@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"agent-ebpf-filter/pb"
 )
@@ -80,14 +82,16 @@ func buildExecutionGraphActivityNode(record Record, event *pb.Event, index int) 
 func buildExecutionDecisionNode(record Record, event *pb.Event, index int) (Node, string) {
 	decisionKind := graphDecisionEdgeKind(event.GetDecision())
 	id := fmt.Sprintf("decision:%d:%d:%s", record.ReceivedAt.UnixNano(), index, sanitizeGraphID(event.GetDecision()))
+	decision, _ := truncateGraphText(strings.TrimSpace(event.GetDecision()), graphLabelMaxBytes)
+	decision = strings.ToUpper(decision)
 	return Node{
 		ID:        id,
 		Kind:      "policy_decision",
-		Label:     strings.ToUpper(strings.TrimSpace(event.GetDecision())),
+		Label:     decision,
 		Subtitle:  strings.TrimSpace(event.GetToolName()),
 		RiskScore: event.GetRiskScore(),
 		Metadata: map[string]string{
-			"decision":   strings.ToUpper(strings.TrimSpace(event.GetDecision())),
+			"decision":   decision,
 			"toolName":   event.GetToolName(),
 			"toolCallId": event.GetToolCallId(),
 			"agentRunId": event.GetAgentRunId(),
@@ -103,9 +107,9 @@ func buildRunSubtitle(event *pb.Event) string {
 		parts = append(parts, conversationID)
 	}
 	if turnID := strings.TrimSpace(event.GetTurnId()); turnID != "" {
-		parts = append(parts, "turn="+turnID)
+		parts = append(parts, joinGraphText(graphSubtitleMaxBytes, "", "turn=", turnID))
 	}
-	return strings.Join(parts, " • ")
+	return joinGraphText(graphSubtitleMaxBytes, " • ", parts...)
 }
 
 func buildGraphEventSubtitle(event *pb.Event) string {
@@ -158,14 +162,15 @@ func graphActivityEdgeKind(event *pb.Event) string {
 }
 
 func graphDecisionEdgeKind(decision string) string {
-	switch strings.ToUpper(strings.TrimSpace(decision)) {
-	case "BLOCK":
+	decision = strings.TrimSpace(decision)
+	switch {
+	case strings.EqualFold(decision, "BLOCK"):
 		return "blocked"
-	case "REWRITE":
+	case strings.EqualFold(decision, "REWRITE"):
 		return "rewritten"
-	case "ALERT":
+	case strings.EqualFold(decision, "ALERT"):
 		return "alerted"
-	case "ALLOW":
+	case strings.EqualFold(decision, "ALLOW"):
 		return "allowed"
 	default:
 		return "decided"
@@ -189,7 +194,7 @@ func graphFileRelations(event *pb.Event) []graphRelation {
 		}
 		relations = append(relations, graphRelation{
 			Node: Node{
-				ID:       "file:" + path,
+				ID:       graphEntityNodeID("file", path),
 				Kind:     "file",
 				Label:    path,
 				Metadata: map[string]string{"path": path},
@@ -246,7 +251,7 @@ func graphNetworkRelations(event *pb.Event) []graphRelation {
 	}
 	return []graphRelation{{
 		Node: Node{
-			ID:       "net:" + endpoint,
+			ID:       graphEntityNodeID("net", endpoint),
 			Kind:     "network",
 			Label:    endpoint,
 			Subtitle: event.GetDomain(),
@@ -256,24 +261,37 @@ func graphNetworkRelations(event *pb.Event) []graphRelation {
 	}}
 }
 
-func extractGraphInt(extraInfo, key string) (int, bool) {
-	pattern := key + "="
-	for _, field := range strings.Fields(extraInfo) {
-		if !strings.HasPrefix(field, pattern) {
-			continue
-		}
-		value := strings.TrimPrefix(field, pattern)
-		parsed, err := strconv.Atoi(value)
-		if err == nil {
-			return parsed, true
-		}
+func extractGraphPID(extraInfo, key string) (uint32, bool) {
+	value, ok := extractGraphString(extraInfo, key)
+	if !ok {
+		return 0, false
 	}
-	return 0, false
+	parsed, err := strconv.ParseUint(value, 10, 32)
+	if err != nil || parsed == 0 {
+		return 0, false
+	}
+	return uint32(parsed), true
 }
 
 func extractGraphString(extraInfo, key string) (string, bool) {
 	pattern := key + "="
-	for _, field := range strings.Fields(extraInfo) {
+	for offset := 0; offset < len(extraInfo); {
+		for offset < len(extraInfo) {
+			width, space := graphSpaceWidth(extraInfo[offset:])
+			if !space {
+				break
+			}
+			offset += width
+		}
+		start := offset
+		for offset < len(extraInfo) {
+			width, space := graphSpaceWidth(extraInfo[offset:])
+			if space {
+				break
+			}
+			offset += width
+		}
+		field := extraInfo[start:offset]
 		if !strings.HasPrefix(field, pattern) {
 			continue
 		}
@@ -285,20 +303,18 @@ func extractGraphString(extraInfo, key string) (string, bool) {
 	return "", false
 }
 
-func sanitizeGraphID(value string) string {
-	value = strings.TrimSpace(strings.ToLower(value))
+func graphSpaceWidth(value string) (int, bool) {
 	if value == "" {
-		return "unknown"
+		return 0, false
 	}
-	replacer := strings.NewReplacer(
-		"/", "_",
-		" ", "_",
-		":", "_",
-		"|", "_",
-		"\\", "_",
-		"=", "_",
-		"?", "_",
-		"&", "_",
-	)
-	return replacer.Replace(value)
+	if value[0] < utf8.RuneSelf {
+		switch value[0] {
+		case ' ', '\t', '\n', '\r', '\v', '\f':
+			return 1, true
+		default:
+			return 1, false
+		}
+	}
+	runeValue, width := utf8.DecodeRuneInString(value)
+	return width, unicode.IsSpace(runeValue)
 }
