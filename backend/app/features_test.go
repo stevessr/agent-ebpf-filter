@@ -6,6 +6,22 @@ import (
 	"time"
 )
 
+func TestRecentHistoryBufferKeepsNewestEventsInOrder(t *testing.T) {
+	buffer := newRecentHistoryBuffer(3)
+	for pid := uint32(1); pid <= 5; pid++ {
+		buffer.Add(RecentWrapperEvent{Pid: pid})
+	}
+	snapshot := buffer.Snapshot()
+	if buffer.Len() != 3 || len(snapshot) != 3 {
+		t.Fatalf("history sizes = len:%d snapshot:%d", buffer.Len(), len(snapshot))
+	}
+	for index, pid := range []uint32{3, 4, 5} {
+		if snapshot[index].Pid != pid {
+			t.Fatalf("history[%d].Pid = %d, want %d", index, snapshot[index].Pid, pid)
+		}
+	}
+}
+
 func TestNormalizeFeatureVectorRepairsAndBounds(t *testing.T) {
 	var f [FeatureDim]float64
 	f[0] = -0.25

@@ -1,10 +1,12 @@
 package app
 
 import (
-	"agent-ebpf-filter/app/handlers"
 	"sync"
 
 	"github.com/gin-gonic/gin"
+
+	"agent-ebpf-filter/app/handlers"
+	"agent-ebpf-filter/internal/boundedring"
 )
 
 // ---- AgentSight route registration and event store (kept in app/) ----
@@ -22,7 +24,7 @@ var agentSightUploadedEvents = newAgentSightEventStore(handlers.AgentSightUpload
 
 type agentSightEventStore struct {
 	mu     sync.RWMutex
-	events []agentSightExportEvent
+	events *boundedring.Ring[agentSightExportEvent]
 	max    int
 }
 
@@ -30,7 +32,10 @@ func newAgentSightEventStore(max int) *agentSightEventStore {
 	if max <= 0 {
 		max = 1000
 	}
-	return &agentSightEventStore{max: max}
+	return &agentSightEventStore{
+		events: boundedring.New[agentSightExportEvent](max),
+		max:    max,
+	}
 }
 
 func (s *agentSightEventStore) Add(events ...agentSightExportEvent) {
@@ -39,22 +44,7 @@ func (s *agentSightEventStore) Add(events ...agentSightExportEvent) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if len(events) >= s.max {
-		// Replace the backing array instead of appending a large batch and then
-		// slicing it down. That keeps the retained heap proportional to max and
-		// releases references to all discarded event payloads immediately.
-		s.events = append(make([]agentSightExportEvent, 0, s.max), events[len(events)-s.max:]...)
-		return
-	}
-
-	keepExisting := s.max - len(events)
-	if len(s.events) > keepExisting {
-		drop := len(s.events) - keepExisting
-		copy(s.events, s.events[drop:])
-		clear(s.events[keepExisting:])
-		s.events = s.events[:keepExisting]
-	}
-	s.events = append(s.events, events...)
+	s.events.AddBatch(events)
 }
 
 func (s *agentSightEventStore) Recent(limit int) []agentSightExportEvent {
@@ -63,15 +53,7 @@ func (s *agentSightEventStore) Recent(limit int) []agentSightExportEvent {
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if limit <= 0 || limit > len(s.events) {
-		limit = len(s.events)
-	}
-	if limit == 0 {
-		return nil
-	}
-	out := make([]agentSightExportEvent, limit)
-	copy(out, s.events[len(s.events)-limit:])
-	return out
+	return s.events.Recent(limit)
 }
 
 func (s *agentSightEventStore) Clear() {
@@ -80,7 +62,7 @@ func (s *agentSightEventStore) Clear() {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.events = nil
+	s.events.Clear()
 }
 
 // ── Route registration ──────────────────────────────────────────────

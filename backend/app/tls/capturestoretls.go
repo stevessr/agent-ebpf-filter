@@ -3,14 +3,15 @@ package tls
 import (
 	"sort"
 	"sync"
+
+	"agent-ebpf-filter/internal/boundedring"
 )
 
 // ---- moved from backend/zz_merged_backend.go section capturestoretls.go ----
 
 type TLSCaptureStore struct {
 	mu        sync.RWMutex
-	events    []TLSPlaintextEvent
-	max       int
+	events    *boundedring.Ring[TLSPlaintextEvent]
 	libraries map[string]TLSLibraryStatus
 }
 
@@ -19,7 +20,7 @@ func NewTLSCaptureStore(max int) *TLSCaptureStore {
 		max = 1000
 	}
 	return &TLSCaptureStore{
-		max:       max,
+		events:    boundedring.New[TLSPlaintextEvent](max),
 		libraries: make(map[string]TLSLibraryStatus),
 	}
 }
@@ -31,11 +32,7 @@ func (s *TLSCaptureStore) Add(event TLSPlaintextEvent) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.events = append(s.events, event)
-	if len(s.events) > s.max {
-		copy(s.events, s.events[len(s.events)-s.max:])
-		s.events = s.events[:s.max]
-	}
+	s.events.Add(event)
 }
 
 func (s *TLSCaptureStore) Recent(limit int) []TLSPlaintextEvent {
@@ -45,14 +42,10 @@ func (s *TLSCaptureStore) Recent(limit int) []TLSPlaintextEvent {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if limit <= 0 || limit > len(s.events) {
-		limit = len(s.events)
-	}
-	if limit == 0 {
+	out := s.events.Recent(limit)
+	if out == nil {
 		return []TLSPlaintextEvent{}
 	}
-	out := make([]TLSPlaintextEvent, limit)
-	copy(out, s.events[len(s.events)-limit:])
 	return out
 }
 
@@ -96,5 +89,5 @@ func (s *TLSCaptureStore) Count() int {
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return len(s.events)
+	return s.events.Len()
 }

@@ -1,13 +1,15 @@
 package app
 
 import (
-	"agent-ebpf-filter/app/ml"
-	"agent-ebpf-filter/app/platform"
-	"agent-ebpf-filter/internal/behavior"
 	"math"
 	"strings"
 	"sync"
 	"time"
+
+	"agent-ebpf-filter/app/ml"
+	"agent-ebpf-filter/app/platform"
+	"agent-ebpf-filter/internal/behavior"
+	"agent-ebpf-filter/internal/boundedring"
 )
 
 // ---- moved from backend/zz_merged_backend.go section features.go ----
@@ -27,40 +29,33 @@ type RecentWrapperEvent struct {
 
 // RecentHistoryBuffer is a sliding window of recent wrapper intercept events
 type RecentHistoryBuffer struct {
-	mu      sync.RWMutex
-	events  []RecentWrapperEvent
-	maxSize int
+	mu     sync.RWMutex
+	events *boundedring.Ring[RecentWrapperEvent]
 }
 
 func newRecentHistoryBuffer(size int) *RecentHistoryBuffer {
 	if size <= 0 {
 		size = 100
 	}
-	return &RecentHistoryBuffer{maxSize: size}
+	return &RecentHistoryBuffer{events: boundedring.New[RecentWrapperEvent](size)}
 }
 
 func (b *RecentHistoryBuffer) Add(e RecentWrapperEvent) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.events = append(b.events, e)
-	if len(b.events) > b.maxSize {
-		copy(b.events, b.events[len(b.events)-b.maxSize:])
-		b.events = b.events[:b.maxSize]
-	}
+	b.events.Add(e)
 }
 
 func (b *RecentHistoryBuffer) Snapshot() []RecentWrapperEvent {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	out := make([]RecentWrapperEvent, len(b.events))
-	copy(out, b.events)
-	return out
+	return b.events.Snapshot()
 }
 
 func (b *RecentHistoryBuffer) Len() int {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	return len(b.events)
+	return b.events.Len()
 }
 
 // FeatureExtractor builds a 128-dim feature vector from wrapper request context

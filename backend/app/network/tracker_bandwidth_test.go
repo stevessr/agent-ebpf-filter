@@ -85,3 +85,19 @@ func TestBandwidthTrackerRejectsUnknownDirection(t *testing.T) {
 		t.Fatalf("unknown direction created flows: %#v", flows)
 	}
 }
+
+func TestConnectionArchiveKeepsNewestConnectionsInOrder(t *testing.T) {
+	archive := newConnectionArchive(3)
+	for pid := uint32(1); pid <= 5; pid++ {
+		archive.Archive(archivedConnection{PID: pid})
+	}
+	snapshot := archive.Snapshot()
+	if len(snapshot) != 3 {
+		t.Fatalf("archive snapshot = %d entries, want 3", len(snapshot))
+	}
+	for index, pid := range []uint32{3, 4, 5} {
+		if snapshot[index].PID != pid {
+			t.Fatalf("archive[%d].PID = %d, want %d", index, snapshot[index].PID, pid)
+		}
+	}
+}

@@ -323,6 +323,7 @@ Research training API：`GET /research/sessions/:id/training` 和 `POST /researc
 ### TLS 捕获路由 (`/tls-capture`)
 
 需要 `FeatureTLSCapture` 编译特性，并受 `TlsCaptureEnabled` 运行时 gate 保护；gate 关闭时 `/tls-capture/**`、`/codex/capture` 与 `/ws/tls-capture` 返回 `403`。
+近期明文历史使用有界环形缓冲，容量满后每条新事件只覆盖一个最旧槽位，不在高吞吐 TLS 捕获热路径移动完整历史。
 
 | 方法 | 路径 | 用途 |
 |------|------|------|
@@ -379,7 +380,7 @@ curl -s http://localhost:8080/tls-capture/status | \
 
 需要 `FeatureAgentSight` 编译特性:
 
-AgentSight 事件上传端点（`POST /agentsight/events`及兼容路由）单次最多接收 16 MiB 或 10,000 条事件；超限返回 `413` 且不导入部分数据，已接受的 10,000 条事件均可保留在上传事件环形库中。前端本地文件/粘贴导入使用相同的 16 MiB 和 10,000 条限制，并始终将导入缓存、WebSocket 事件和系统采样缓冲区保持在 10,000 条以内。SSE 流每个连接的事件 ID 去重状态限制为请求 `limit` 的两倍（最多 10,000 个 ID），长时间连接不会无界积累历史 ID。
+AgentSight 事件上传端点（`POST /agentsight/events`及兼容路由）单次最多接收 16 MiB 或 10,000 条事件；超限返回 `413` 且不导入部分数据，已接受的 10,000 条事件均可保留在上传事件环形库中。环形库按需增长且永不超过上限，单条满容量追加为 O(1)，大批次可直接替换为最新 10,000 条。前端本地文件/粘贴导入使用相同的 16 MiB 和 10,000 条限制，并始终将导入缓存、WebSocket 事件和系统采样缓冲区保持在 10,000 条以内。SSE 流每个连接的事件 ID 去重状态限制为请求 `limit` 的两倍（最多 10,000 个 ID），长时间连接不会无界积累历史 ID。
 
 | 方法 | 路径 | 用途 |
 |------|------|------|

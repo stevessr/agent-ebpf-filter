@@ -1,0 +1,155 @@
+// Package boundedring provides a non-concurrent, insertion-ordered ring for
+// fixed-size runtime histories. Callers own synchronization.
+package boundedring
+
+// Ring retains the newest limit values in insertion order. Its zero value is
+// not usable; construct one with New.
+type Ring[T any] struct {
+	items []T
+	start int
+	limit int
+}
+
+// New constructs a lazily allocated ring. Invalid limits are normalized to 1.
+func New[T any](limit int) *Ring[T] {
+	if limit <= 0 {
+		limit = 1
+	}
+	return &Ring[T]{limit: limit}
+}
+
+// Add appends one value, overwriting the oldest slot in O(1) when full. It
+// reports whether an existing value was evicted.
+func (r *Ring[T]) Add(value T) bool {
+	if r == nil {
+		return false
+	}
+	if len(r.items) < r.limit {
+		r.grow(len(r.items) + 1)
+		r.items = append(r.items, value)
+		return false
+	}
+	r.items[r.start] = value
+	r.start++
+	if r.start == r.limit {
+		r.start = 0
+	}
+	return true
+}
+
+// AddBatch appends values and returns the number of old or incoming values not
+// retained. A batch at least as large as the limit replaces the ring directly.
+func (r *Ring[T]) AddBatch(values []T) int {
+	if r == nil || len(values) == 0 {
+		return 0
+	}
+	if len(values) >= r.limit {
+		evicted := len(r.items) + len(values) - r.limit
+		if cap(r.items) < r.limit {
+			r.items = make([]T, r.limit)
+		} else {
+			clear(r.items)
+			r.items = r.items[:r.limit]
+		}
+		copy(r.items, values[len(values)-r.limit:])
+		r.start = 0
+		return evicted
+	}
+
+	needed := len(r.items) + len(values)
+	if needed > r.limit {
+		needed = r.limit
+	}
+	r.grow(needed)
+	evicted := 0
+	for _, value := range values {
+		if r.Add(value) {
+			evicted++
+		}
+	}
+	return evicted
+}
+
+// Recent returns up to limit newest values in their original insertion order.
+// A non-positive limit returns the complete retained history.
+func (r *Ring[T]) Recent(limit int) []T {
+	if r == nil || len(r.items) == 0 {
+		return nil
+	}
+	if limit <= 0 || limit > len(r.items) {
+		limit = len(r.items)
+	}
+	out := make([]T, limit)
+	logicalStart := len(r.items) - limit
+	physicalStart := (r.start + logicalStart) % len(r.items)
+	copied := copy(out, r.items[physicalStart:])
+	if copied < limit {
+		copy(out[copied:], r.items[:limit-copied])
+	}
+	return out
+}
+
+// Snapshot returns the complete retained history in insertion order.
+func (r *Ring[T]) Snapshot() []T {
+	return r.Recent(0)
+}
+
+// Reset removes all values while retaining the bounded backing allocation.
+func (r *Ring[T]) Reset() {
+	if r == nil {
+		return
+	}
+	clear(r.items)
+	r.items = r.items[:0]
+	r.start = 0
+}
+
+// Clear removes all values and releases the backing allocation.
+func (r *Ring[T]) Clear() {
+	if r == nil {
+		return
+	}
+	clear(r.items)
+	r.items = nil
+	r.start = 0
+}
+
+func (r *Ring[T]) Len() int {
+	if r == nil {
+		return 0
+	}
+	return len(r.items)
+}
+
+func (r *Ring[T]) Cap() int {
+	if r == nil {
+		return 0
+	}
+	return cap(r.items)
+}
+
+func (r *Ring[T]) Limit() int {
+	if r == nil {
+		return 0
+	}
+	return r.limit
+}
+
+func (r *Ring[T]) grow(needed int) {
+	if r == nil || needed <= cap(r.items) {
+		return
+	}
+	capacity := cap(r.items) * 2
+	if capacity < 16 {
+		capacity = 16
+	}
+	if capacity < needed {
+		capacity = needed
+	}
+	if capacity > r.limit {
+		capacity = r.limit
+	}
+	items := make([]T, len(r.items), capacity)
+	copy(items, r.items)
+	r.items = items
+}

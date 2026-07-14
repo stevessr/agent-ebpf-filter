@@ -7,6 +7,8 @@ import (
 	"math"
 	"sync"
 	"time"
+
+	"agent-ebpf-filter/internal/boundedring"
 )
 
 // ---- moved from backend/zz_merged_backend.go section tracker_bandwidth.go ----
@@ -352,14 +354,12 @@ type archivedConnection struct {
 
 type connectionArchive struct {
 	mu       sync.RWMutex
-	archived []archivedConnection
-	maxSize  int
+	archived *boundedring.Ring[archivedConnection]
 }
 
 func newConnectionArchive(maxSize int) *connectionArchive {
 	return &connectionArchive{
-		archived: make([]archivedConnection, 0, maxSize),
-		maxSize:  maxSize,
+		archived: boundedring.New[archivedConnection](maxSize),
 	}
 }
 
@@ -370,20 +370,14 @@ func (a *connectionArchive) Archive(conn archivedConnection) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	a.archived = append(a.archived, conn)
-	if len(a.archived) > a.maxSize {
-		// Evict oldest
-		a.archived = a.archived[len(a.archived)-a.maxSize:]
-	}
+	a.archived.Add(conn)
 }
 
 func (a *connectionArchive) Snapshot() []archivedConnection {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
-	result := make([]archivedConnection, len(a.archived))
-	copy(result, a.archived)
-	return result
+	return a.archived.Snapshot()
 }
 
 var connectionHistory = newConnectionArchive(5000) // used by Manager.NewManager

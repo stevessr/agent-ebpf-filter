@@ -28,6 +28,13 @@
 | `SignalProcessing` | 信号规则、TTL 衰减、cron 清理和选中程序 protobuf 二进制日志配置 |
 | `DomainForwardProxy` | 80/443 Host/SNI forward config |
 
+### 共享有界历史缓冲
+
+TLS 明文捕获、AgentSight 上传事件、wrapper 特征历史和已关闭网络连接共用
+`internal/boundedring` 的插入顺序环形缓冲。缓冲按需增长且 backing capacity 不超过
+配置上限；满容量后追加为 O(1) 覆盖，快照仍按最旧到最新的逻辑顺序返回。
+这避免高频采集在锁内搬移整个历史切片，也避免通过反复重分配间歇性复制大缓冲。
+
 ### Signal Processing worker
 
 Signal Processing 的活跃状态使用侵入式 LRU 维护访问顺序。更新已有状态、插入新状态和
