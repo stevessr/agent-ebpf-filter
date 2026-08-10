@@ -277,7 +277,7 @@ func recentEventRecordMatches(record CapturedEventRecord, filters recentEventFil
 }
 
 func envelopeEventTypeName(envelope *pb.EventEnvelope, event *pb.Event) string {
-	if envelope != nil && envelope.GetEventType() != pb.EventType_EVENT_TYPE_UNSPECIFIED {
+	if envelope != nil {
 		return envelope.GetEventType().String()
 	}
 	if event != nil {

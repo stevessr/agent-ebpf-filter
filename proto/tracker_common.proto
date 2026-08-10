@@ -3,9 +3,12 @@ syntax = "proto3";
 package pb;
 option go_package = "agent-ebpf-filter/pb";
 
-// Normalized event types for kernel + user-space events
+// Normalized event types for kernel + user-space events.
+// NOTE: proto3 enums cannot have negative values and the first value must
+// be zero, so there is no UNSPECIFIED sentinel; EXECVE=0 doubles as the
+// default/unset value. Kernel event numbers in backend/ebpf/*.c (TYPE_*)
+// must stay in sync with these numbers.
 enum EventType {
-  EVENT_TYPE_UNSPECIFIED = -1;
   EXECVE = 0;
   OPENAT = 1;
   NETWORK_CONNECT = 2;
