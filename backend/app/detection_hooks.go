@@ -1,13 +1,14 @@
 package app
 
 import (
-	"agent-ebpf-filter/app/platform"
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"agent-ebpf-filter/app/platform"
 
 	"github.com/pelletier/go-toml/v2"
 )
@@ -76,7 +77,7 @@ func isHookInstalled(h HookDef) bool {
 }
 
 func ensureCodexHooksFeatureEnabled(cfgPath string) error {
-	if err := platform.MkdirAllAsRealUser(filepath.Dir(cfgPath), 0755); err != nil {
+	if err := platform.MkdirAllAsRealUser(filepath.Dir(cfgPath), 0o755); err != nil {
 		return err
 	}
 
@@ -99,11 +100,18 @@ func ensureCodexHooksFeatureEnabled(cfgPath string) error {
 	if err != nil {
 		return err
 	}
-	return platform.WriteFileAsRealUser(cfgPath, out, 0644)
+	return platform.WriteFileAsRealUser(cfgPath, out, 0o644)
+}
+
+func hookRelayScriptDir(h HookDef) string {
+	if h.ID == "pi" || h.ID == "omp" {
+		return filepath.Dir(filepath.Dir(h.NativeConfigPath))
+	}
+	return filepath.Join(filepath.Dir(h.NativeConfigPath), "hooks")
 }
 
 func hookRelayScriptPath(h HookDef) string {
-	return filepath.Join(filepath.Dir(h.NativeConfigPath), "hooks", hookMarker+"-"+h.ID+".sh")
+	return filepath.Join(hookRelayScriptDir(h), hookMarker+"-"+h.ID+".sh")
 }
 
 func hookCommand(h HookDef, hookEvent string) string {
@@ -140,12 +148,12 @@ func readJSONObjectFile(path string) (map[string]interface{}, error) {
 }
 
 func writeJSONObjectFile(path string, cfg map[string]interface{}) error {
-	if err := platform.MkdirAllAsRealUser(filepath.Dir(path), 0755); err != nil {
+	if err := platform.MkdirAllAsRealUser(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
 	b, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return err
 	}
-	return platform.WriteFileAsRealUser(path, b, 0644)
+	return platform.WriteFileAsRealUser(path, b, 0o644)
 }

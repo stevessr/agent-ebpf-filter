@@ -36,9 +36,10 @@ const localOpen = computed({
 
 const rawConfig = ref("");
 const configPath = ref("");
-const configFormat = ref<"json" | "toml">("json");
+const configFormat = ref<"json" | "toml" | "typescript">("json");
 const savingConfig = ref(false);
 const editorMode = ref<"visual" | "raw">("visual");
+const loadingConfig = ref(false);
 const newEventName = ref("");
 const parsedConfig = ref<any>({ hooks: {} });
 
@@ -64,7 +65,7 @@ const supportsTimeoutCommandHooks = computed(
   () => props.hook?.id === "augment",
 );
 const supportsVisualEditor = computed(
-  () => !["kiro", "antigravity"].includes(props.hook?.id || ""),
+	() => !["kiro", "antigravity", "pi", "omp"].includes(props.hook?.id || ""),
 );
 
 const stripUnsupportedFields = (cfg: any): any => {
@@ -99,36 +100,46 @@ const syncToParsed = () => {
 };
 
 const syncToRaw = () => {
-  try {
-    const normalized = stripUnsupportedFields(parsedConfig.value);
-    parsedConfig.value = normalized;
-    rawConfig.value =
-      configFormat.value === "toml"
-        ? TOML.stringify(normalized)
-        : JSON.stringify(normalized, null, 2);
-  } catch (e) {
-    console.error("Failed to stringify parsed config", e);
-  }
+	if (configFormat.value === "typescript") return;
+	try {
+		const normalized = stripUnsupportedFields(parsedConfig.value);
+		parsedConfig.value = normalized;
+		rawConfig.value =
+			configFormat.value === "toml"
+				? TOML.stringify(normalized)
+				: JSON.stringify(normalized, null, 2);
+	} catch (e) {
+		console.error("Failed to stringify parsed config", e);
+	}
 };
 
 watch(editorMode, (newMode) => {
-  if (newMode === "visual") syncToParsed();
-  else syncToRaw();
+	if (loadingConfig.value) return;
+	if (newMode === "visual") syncToParsed();
+	else if (configFormat.value !== "typescript") syncToRaw();
 });
 
 const loadConfig = async () => {
-  if (!props.hook) return;
-  try {
-    const res = await axios.get(`/config/hooks/${props.hook.id}/raw`);
-    rawConfig.value = res.data.content;
-    configPath.value = res.data.path;
-    configFormat.value = res.data.format || "json";
-    editorMode.value = props.hook.id === "kiro" ? "raw" : "visual";
-    if (editorMode.value === "visual") syncToParsed();
-  } catch (err: any) {
-    message.error(err.response?.data?.error || "Failed to load configuration");
-    emit("update:open", false);
-  }
+	if (!props.hook) return;
+	loadingConfig.value = true;
+	try {
+		const res = await axios.get(`/config/hooks/${props.hook.id}/raw`);
+		rawConfig.value = res.data.content;
+		configPath.value = res.data.path;
+		configFormat.value = res.data.format || "json";
+		editorMode.value =
+			props.hook.id === "kiro" ||
+			props.hook.id === "antigravity" ||
+			configFormat.value === "typescript"
+				? "raw"
+				: "visual";
+		if (editorMode.value === "visual") syncToParsed();
+	} catch (err: any) {
+		message.error(err.response?.data?.error || "Failed to load configuration");
+		emit("update:open", false);
+	} finally {
+		loadingConfig.value = false;
+	}
 };
 
 watch(
@@ -143,8 +154,8 @@ const saveConfig = async () => {
   savingConfig.value = true;
   if (editorMode.value === "visual") syncToRaw();
   try {
-    if (configFormat.value === "toml") TOML.parse(rawConfig.value);
-    else JSON.parse(rawConfig.value);
+	if (configFormat.value === "toml") TOML.parse(rawConfig.value);
+	else if (configFormat.value === "json") JSON.parse(rawConfig.value);
     await axios.post(`/config/hooks/${props.hook.id}/raw`, {
       content: rawConfig.value,
     });
@@ -611,11 +622,19 @@ const formatFieldLabel = (field: HookFieldDoc) =>
         message="Antigravity CLI uses plugin-scoped hooks.json"
         description="The backend installs ~/.gemini/antigravity-cli/plugins/agent-ebpf-hook-active/hooks.json plus plugin.json. It is edited in raw mode because Antigravity maps hook names to event definitions rather than using the shared top-level hooks object."
       />
+      <a-alert
+        v-else-if="hook?.id === 'pi' || hook?.id === 'omp'"
+        type="info"
+        show-icon
+        style="margin-bottom: 12px"
+        :message="hook?.id === 'pi' ? 'Pi uses a TypeScript extension' : 'Oh My Pi uses a TypeScript extension'"
+        description="This generated TypeScript integration is installed in the CLI's extension discovery directory and forwards only safe session and tool metadata through the authenticated relay."
+      />
       <a-textarea
         v-model:value="rawConfig"
         :rows="20"
         style="font-family: monospace; font-size: 12px; background: #fafafa"
-        placeholder="{ ... }"
+        :placeholder="configFormat === 'typescript' ? '// TypeScript extension source' : '{ ... }'"
       />
     </div>
   </a-modal>

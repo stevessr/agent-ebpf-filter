@@ -6,17 +6,23 @@ import { kiroHook } from "./hooks/kiro";
 import { augmentHook } from "./hooks/augment";
 import { antigravityHook } from "./hooks/antigravity";
 import { copilotHook } from "./hooks/copilot";
+import { dshHook } from "./hooks/dsh";
+import { piHook } from "./hooks/pi";
+import { ompHook } from "./hooks/omp";
 
 export type { HookCliDoc, HookEventDoc, HookFieldDoc, HookSourceDoc } from "./hooks/types";
 
 export const hookCatalog: Record<string, HookCliDoc> = {
-  claude: claudeHook,
-  gemini: geminiHook,
-  codex: codexHook,
-  kiro: kiroHook,
-  augment: augmentHook,
-  antigravity: antigravityHook,
-  copilot: copilotHook,
+	claude: claudeHook,
+	gemini: geminiHook,
+	codex: codexHook,
+	kiro: kiroHook,
+	augment: augmentHook,
+	antigravity: antigravityHook,
+	copilot: copilotHook,
+	dsh: dshHook,
+	pi: piHook,
+	omp: ompHook,
 };
 
 export const getHookCliDoc = (hookId?: string | null) => {

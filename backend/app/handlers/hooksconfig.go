@@ -11,6 +11,7 @@ import (
 	"agent-ebpf-filter/core"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pelletier/go-toml/v2"
 )
 
 // ---- moved from app/handlershooksconfig.go ----
@@ -18,11 +19,15 @@ import (
 func HandleConfigHooksList(c *gin.Context) {
 	res := []gin.H{}
 	for _, h := range Deps.AvailableHooks() {
-		res = append(res, gin.H{
+		item := gin.H{
 			"id": h.ID, "name": h.Name, "description": h.Description,
 			"target_cmd": h.TargetCmd, "hook_type": h.HookType,
 			"installed": Deps.IsHookInstalled(h),
-		})
+		}
+		if h.ConfigFormat != "" {
+			item["config_format"] = h.ConfigFormat
+		}
+		res = append(res, item)
 	}
 	c.JSON(200, res)
 }
@@ -69,7 +74,7 @@ func HandleConfigHooksInstall(c *gin.Context) {
 			aliasLine := fmt.Sprintf("\nalias %s='agent-wrapper %s' # agent-ebpf-hook\n", target.TargetCmd, target.TargetCmd)
 			if !strings.Contains(content, fmt.Sprintf("alias %s=", target.TargetCmd)) {
 				newContent := content + aliasLine
-				if err := platform.WriteFileAsRealUser(p, []byte(newContent), 0644); err != nil {
+				if err := platform.WriteFileAsRealUser(p, []byte(newContent), 0o644); err != nil {
 					c.JSON(500, gin.H{"error": err.Error()})
 					return
 				}
@@ -88,7 +93,7 @@ func HandleConfigHooksInstall(c *gin.Context) {
 				newLines = append(newLines, l)
 			}
 		}
-		_ = platform.WriteFileAsRealUser(p, []byte(strings.Join(newLines, "\n")), 0644)
+		_ = platform.WriteFileAsRealUser(p, []byte(strings.Join(newLines, "\n")), 0o644)
 	}
 	c.JSON(200, gin.H{"status": "ok"})
 }
@@ -117,7 +122,11 @@ func HandleConfigHooksRawGet(c *gin.Context) {
 	b, err := os.ReadFile(target.NativeConfigPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			c.JSON(200, gin.H{"content": "{}", "path": target.NativeConfigPath, "format": target.ConfigFormat})
+			content := "{}"
+			if target.ConfigFormat == core.ConfigFormatTypeScript {
+				content = ""
+			}
+			c.JSON(200, gin.H{"content": content, "path": target.NativeConfigPath, "format": target.ConfigFormat})
 			return
 		}
 		c.JSON(500, gin.H{"error": err.Error()})
@@ -148,17 +157,28 @@ func HandleConfigHooksRawPost(c *gin.Context) {
 		c.JSON(404, gin.H{"error": "native hook not found"})
 		return
 	}
-	var js map[string]interface{}
-	if err := json.Unmarshal([]byte(req.Content), &js); err != nil {
-		c.JSON(400, gin.H{"error": "invalid JSON: " + err.Error()})
-		return
+	switch target.ConfigFormat {
+	case core.ConfigFormatTypeScript:
+		// TypeScript extensions are source files, not JSON documents.
+	case core.ConfigFormatTOML:
+		var document map[string]interface{}
+		if err := toml.Unmarshal([]byte(req.Content), &document); err != nil {
+			c.JSON(400, gin.H{"error": "invalid TOML: " + err.Error()})
+			return
+		}
+	default:
+		var document map[string]interface{}
+		if err := json.Unmarshal([]byte(req.Content), &document); err != nil {
+			c.JSON(400, gin.H{"error": "invalid JSON: " + err.Error()})
+			return
+		}
 	}
 
-	if err := platform.MkdirAllAsRealUser(filepath.Dir(target.NativeConfigPath), 0755); err != nil {
+	if err := platform.MkdirAllAsRealUser(filepath.Dir(target.NativeConfigPath), 0o755); err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
-	if err := platform.WriteFileAsRealUser(target.NativeConfigPath, []byte(req.Content), 0644); err != nil {
+	if err := platform.WriteFileAsRealUser(target.NativeConfigPath, []byte(req.Content), 0o644); err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}

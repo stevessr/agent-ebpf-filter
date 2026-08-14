@@ -158,8 +158,11 @@ Examples:
 - `bun`
 - `npm`
 - `cargo`
+- `dsh`
+- `pi`
+- `omp`
 
-This is useful when an agent shells out to well-known tools.
+The built-in Agent CLI set also includes Claude, Gemini, Codex, Kiro, Copilot, Augment, Antigravity, and Cursor command names. This is useful when an agent shells out to well-known tools.
 
 ### Track exact paths
 
@@ -179,13 +182,14 @@ Commands run through the wrapper always produce a `wrapper_intercept` event and 
 
 ### Use native hooks
 
-For supported AI CLIs, hook callbacks produce `native_hook` events even when there is no matching kernel event.
-In release mode, installed relay scripts authenticate with a per-hook secret header instead of anonymous localhost POSTs.
-Relay scripts are CLI-aware: Antigravity CLI is installed as a native `agy`
-plugin under `~/.gemini/antigravity-cli/plugins/agent-ebpf-hook-active/` and
-returns Antigravity's required JSON stdout while preserving telemetry-only
-`allow` behavior.
+For supported AI CLIs, hook callbacks produce `native_hook` events even when there is no matching kernel event. In release mode, installed relay scripts authenticate with a per-hook secret header instead of anonymous localhost POSTs.
 
+- **DeepSeek Harness (`dsh`)**: uses the wrapper alias only; dsh profiles, bundles, plugins, and Cordis patches remain managed by dsh because no generic native hook file is assumed.
+- **Pi**: the generated TypeScript extension is discovered from `~/.pi/agent/extensions/` and emits `session_start`, `tool_call`, and `tool_result` metadata.
+- **Oh My Pi**: the generated TypeScript extension is discovered from the active OMP agent directory's `extensions/` folder. `OMP_PROFILE=<name>` (or legacy `PI_PROFILE` when unset) selects `~/.omp/profiles/<name>/agent`; otherwise the default is `~/.omp/agent`.
+- `PI_CONFIG_DIR` changes the `.omp` root; `PI_CODING_AGENT_DIR` relocates the default OMP agent directory and is ignored when a named profile is active.
+
+Relay scripts are CLI-aware: Antigravity CLI is installed as a native `agy` plugin under `~/.gemini/antigravity-cli/plugins/agent-ebpf-hook-active/` and returns Antigravity's required JSON stdout while preserving telemetry-only `allow` behavior.
 ---
 
 ## 7. Register / unregister API
@@ -255,7 +259,7 @@ Combine:
 
 ### Best for AI CLI monitoring
 
-Use the **Hooks** page to install native hooks for supported CLIs, then combine that with tracked commands / paths for kernel-level detail.
+Use the **Hooks** page to install native hooks or TypeScript extensions for supported CLIs, or the wrapper mode for `dsh`; combine that with tracked commands / paths for kernel-level detail.
 
 ---
 

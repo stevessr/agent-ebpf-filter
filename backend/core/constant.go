@@ -92,6 +92,7 @@ const (
 
 	ConfigFormatJSON  = "json"
 	ConfigFormatTOML  = "toml"
+	ConfigFormatTypeScript = "typescript"
 )
 
 const FeatureDim = 128

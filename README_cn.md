@@ -33,8 +33,8 @@ Agent eBPF Filter 结合 **eBPF 内核追踪**、**Go 后端**、**Vue.js 仪表
 
 ### 🎯 **语义关联**
 - 通过 Python/Node.js 适配器进行 PID 注册
-- 原生 Hook 支持：Claude Code、Gemini CLI、Codex、GitHub Copilot、Kiro CLI、Augment、Antigravity CLI
-- 基于 Wrapper 的命令拦截
+- 原生 Hook 支持：Claude Code、Gemini CLI、Codex、Pi、Oh My Pi、GitHub Copilot、Kiro CLI、Augment、Antigravity CLI
+- Wrapper 命令拦截支持 Cursor 和 DeepSeek Harness（`dsh`）
 - 上下文追踪：`agent_run_id`、`tool_call_id`、`trace_id`、`cwd`、`argv_digest`
 
 ### 🛡️ **多层强制执行**
@@ -156,10 +156,13 @@ tracker.start();
 
 ### 安装 AI CLI Hook
 
-在 **Hooks** 页面，为以下工具安装原生 hook：
+在 **Hooks** 页面，为以下工具安装原生或 wrapper 集成：
 - Claude Code
 - Gemini CLI
 - Codex
+- DeepSeek Harness（`dsh`，仅 wrapper）
+- Pi（TypeScript extension）
+- Oh My Pi（`omp`，TypeScript extension）
 - GitHub Copilot CLI
 - Kiro CLI
 - Augment/Auggie CLI
@@ -442,7 +445,9 @@ make runtime-benchmark
 ### 原生 hook 不工作
 
 检查：
-- 目标 CLI 配置文件包含 `agent-ebpf-hook-active` 标记
+- 目标 CLI 配置文件或 extension 文件包含 `agent-ebpf-hook-active` 标记
+- Pi/Oh My Pi 正从 active extension 目录加载生成的 TypeScript extension
+- DeepSeek Harness 通过 `agent-wrapper` 别名启动；dsh 的 profile/plugin 配置仍由 dsh 管理
 - Hook 回调 URL 可从 CLI 进程访问
 - `curl` 在 PATH 中可用
 - 后端正在运行且认证令牌有效（如果在发布模式）

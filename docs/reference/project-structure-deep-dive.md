@@ -126,7 +126,7 @@ flowchart TD
     Event --> Sinks["Dashboard / AgentSight / OTLP / persistence"]
 ```
 
-支持方向包括 Claude Code、Gemini、Codex、Copilot、Kiro、Cursor 等 AI CLI 或 wrapper alias。
+支持方向包括 Claude Code、Gemini、Codex、DeepSeek Harness（`dsh`，wrapper-only）、Pi、Oh My Pi、Copilot、Kiro、Cursor 等 AI CLI 或 wrapper alias。
 
 关键文件：
 

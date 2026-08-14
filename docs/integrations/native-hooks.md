@@ -1,6 +1,6 @@
 # Native Hooks
 
-Native hooks 连接 Claude Code、Gemini CLI、Codex、GitHub Copilot、Kiro、Augment、Antigravity 等 AI CLI 的 hook 机制，把工具调用语义补充到 eBPF 事实之上。
+Native hook 与 wrapper 集成连接 Claude Code、Gemini CLI、Codex、DeepSeek Harness (`dsh`)、Pi、Oh My Pi、GitHub Copilot、Kiro、Augment、Antigravity 等 AI CLI，把工具调用语义补充到 eBPF 事实之上；其中 dsh 仅使用 wrapper alias。
 
 ---
 
@@ -8,7 +8,7 @@ Native hooks 连接 Claude Code、Gemini CLI、Codex、GitHub Copilot、Kiro、A
 
 ```mermaid
 flowchart TD
-    CLI["AI CLI (Claude/Gemini/Codex/...)"] --> Hook["CLI hook 机制"]
+    CLI["AI CLI (Claude/Gemini/Codex/dsh/Pi/OMP/...)"] --> Hook["native hook / wrapper integration"]
     Hook --> Relay["generated relay script"]
     Relay --> Curl["curl POST /hooks/event"]
     Curl --> Auth["hookIngressAuthMiddleware()"]
@@ -18,23 +18,25 @@ flowchart TD
     Event --> Sinks["EventEnvelope / Dashboard<br/>AgentSight / OTLP"]
 ```
 
-当 AI CLI 执行工具调用时，其 hook 机制触发 relay script，relay script 通过 `curl` 将事件 POST 到后端 `/hooks/event`。后端解析、归一化后广播到所有事件消费者。
+当 AI CLI 执行工具调用时，原生 CLI hook 或 dsh 的 wrapper alias 触发 relay script；relay script 通过 `curl` 将事件 POST 到后端 `/hooks/event`。后端解析、归一化后广播到所有事件消费者。
 
 ---
 
 ## 支持的 Hook 目标
 
-| CLI | 配置文件路径 | 安装方式 |
+| CLI | 配置文件或扩展路径 | 安装方式 |
 | --- | --- | --- |
 | **Claude Code** | `~/.claude/settings.json` | Native hook |
 | **Gemini CLI** | `~/.gemini/settings.json` | Native hook |
 | **Codex** | `~/.codex/hooks.json` | Native hook |
+| **DeepSeek Harness (`dsh`)** | 无通用 native hook 文件 | Wrapper alias / `agent-wrapper` |
+| **Pi** | `~/.pi/agent/extensions/agent-ebpf-hook-active-pi.ts` | TypeScript extension |
+| **Oh My Pi (`omp`)** | `~/.omp/agent/extensions/agent-ebpf-hook-active-omp.ts`（profile 由 `OMP_PROFILE` 决定） | TypeScript extension |
 | **GitHub Copilot CLI** | `~/.copilot/config.json` | Native hook |
 | **Kiro CLI** | `~/.kiro/agents/agent-ebpf-hook.json` | Managed agent |
 | **Augment / Auggie CLI** | `~/.augment/settings.json` | Native hook |
 | **Antigravity CLI (`agy`)** | `~/.gemini/antigravity-cli/plugins/agent-ebpf-hook-active/` | Native plugin |
 | **Cursor** | `~/.bashrc` / `~/.zshrc` | Wrapper alias |
-
 ---
 
 ## 安装与卸载
@@ -49,9 +51,10 @@ flowchart TD
 
 安装 native hook 时，后端会：
 
-1. 在目标 CLI 配置目录的 `hooks/` 子目录下生成 relay script
-2. 修改目标 CLI 的配置文件，注入 hook 入口
+1. 对 JSON/TOML CLI 在配置目录的 `hooks/` 子目录下生成 relay script，并注入 hook 入口
+2. 对 Pi/Oh My Pi 在各自的 `extensions/` 目录生成带 marker 的 TypeScript extension，同时生成共享 relay script
 3. 为每个 hook 生成唯一的 per-hook secret
+4. dsh 不伪造通用 native 配置文件；选择 dsh 时写入 wrapper alias，经 `agent-wrapper` 进行命令跟踪与策略处理
 
 ### 各 CLI 特殊行为
 
@@ -63,6 +66,15 @@ codex_hooks = true
 ```
 
 **Kiro CLI**：创建一个 managed agent（从 `kiro_default` 克隆），写入 `~/.kiro/agents/agent-ebpf-hook.json`，并将 `~/.kiro/settings/cli.json` 中的 `chat.defaultAgent` 指向该 agent。卸载时恢复原默认 agent。
+
+
+**DeepSeek Harness (`dsh`)**：使用 wrapper-only 集成。`dsh` 的 profile、bundle、plugin 和 Cordis patch 仍由 dsh 管理；本项目不写入未经官方定义的 `.dsh/hooks.json`。
+
+**Pi**：生成 `~/.pi/agent/extensions/agent-ebpf-hook-active-pi.ts`。extension 监听 `session_start`、`tool_call`、`tool_result`，通过带 per-hook secret 的 relay 上报。
+
+**Oh My Pi (`omp`)**：生成 active agent directory 下的 `extensions/agent-ebpf-hook-active-omp.ts`。默认目录为 `~/.omp/agent`；设置 `OMP_PROFILE=<name>`（或在未设置 OMP_PROFILE 时使用 legacy `PI_PROFILE`）时使用 `~/.omp/profiles/<name>/agent`。OMP 的 `hooks/pre` / `hooks/post` 是 shell-script capability，本集成使用官方 TypeScript extension module capability。
+
+`PI_CONFIG_DIR` 可改变 `.omp` 根目录；默认 profile 还可由 `PI_CODING_AGENT_DIR` 重定位，命名 profile 会忽略该默认目录覆盖。
 
 **Antigravity CLI**：在 `~/.gemini/antigravity-cli/plugins/agent-ebpf-hook-active/` 下创建 `plugin.json` 和 `hooks.json`，relay script 返回 Antigravity 要求的 JSON stdout（`decision: allow`）。
 
@@ -123,7 +135,7 @@ curl -X POST \
 
 | 字段 | 说明 |
 | --- | --- |
-| `cli` | CLI 标识（claude / gemini / codex 等） |
+| `cli` | CLI 标识（claude / gemini / codex / dsh / pi / omp 等） |
 | `event_name` | 事件名称 |
 | `hook_name` | Hook 配置名称 |
 | `tool_name` | 工具名称（如有） |
@@ -131,6 +143,7 @@ curl -X POST \
 | `extra_info` | 扩展信息（digest、length 等） |
 | `timestamp` | 事件时间戳 |
 
+Pi/Oh My Pi extension 当前上报 `session_start`、`tool_call` 和 `tool_result`。工具输入可用于路径归一化；tool result 只上报错误标志，不转发原始输出。
 ---
 
 ## 故障排查

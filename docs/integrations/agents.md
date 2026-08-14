@@ -162,22 +162,22 @@ export AGENT_API_KEY="$(jq -r .accessToken ~/.config/agent-ebpf-filter/runtime.j
 
 ### 何时使用 Tracked Commands
 
-- **子进程是常见 CLI**：如 `git`、`node`、`python`、`npm`、`cargo`
+- **子进程是常见 CLI**：如 `git`、`node`、`python`、`npm`、`cargo`、`dsh`、`pi`、`omp`
 - **不想修改 Agent 代码**：通过 Configuration 页面添加命令名称
 - **Shell 密集型工作流**：命令名称匹配是低开销的 exact match
 
 ### 何时使用 Native Hooks
 
-- **监控 AI CLI 行为**：Claude Code、Gemini CLI、Codex 等
-- **需要工具调用语义**：hook 提供 tool_name、target_path 等 Agent 层信息
-- **与内核事件互补**：hook 事件 + eBPF 事件构成完整证据链
+- **监控 AI CLI 行为**：Claude Code、Gemini CLI、Codex、Pi、Oh My Pi 等
+- **DeepSeek Harness**：使用 wrapper-only 的 `dsh` 命令拦截，不写入未定义的 generic hook 文件
+- **需要工具调用语义**：native hook 提供 tool_name、target_path 等 Agent 层信息
 
 ### 推荐组合
 
 ```mermaid
 flowchart LR
     Main["主 Agent 进程<br/>adapter 注册"] --> Sub["子进程<br/>tracked_comms"]
-    Main --> Hook["AI CLI<br/>native hooks"]
+    Main --> Hook["AI CLI<br/>native hooks or extensions"]
     Sub --> Policy["危险命令<br/>wrapper rules"]
 ```
 

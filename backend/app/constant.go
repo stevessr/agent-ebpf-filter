@@ -104,6 +104,7 @@ const (
 	HookTypeWrapper  = core.HookTypeWrapper
 	ConfigFormatJSON = core.ConfigFormatJSON
 	ConfigFormatTOML = core.ConfigFormatTOML
+	ConfigFormatTypeScript = core.ConfigFormatTypeScript
 )
 
 // FeatureDim is re-exported from core; kept here for array-size references.

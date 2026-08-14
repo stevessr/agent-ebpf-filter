@@ -1,7 +1,6 @@
 package app
 
 import (
-	"agent-ebpf-filter/app/platform"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -15,11 +14,11 @@ import (
 	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
+
+	"agent-ebpf-filter/app/platform"
 )
 
 // ---- moved from backend/zz_merged_backend.go section helpers_fs.go ----
-
-var ()
 
 // writeFileAsRealUser writes a file with the real user's ownership instead of root
 
@@ -316,6 +315,51 @@ func getZramStats() (used, total uint64) {
 	return
 }
 
+func resolveUserConfigPath(raw, home string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "~" {
+		return home
+	}
+	if strings.HasPrefix(raw, "~/") {
+		return filepath.Join(home, strings.TrimPrefix(raw, "~/"))
+	}
+	if filepath.IsAbs(raw) {
+		return filepath.Clean(raw)
+	}
+	return filepath.Join(home, raw)
+}
+
+func validProfileSegment(profile string) bool {
+	return profile != "" && profile != "." && profile != ".." &&
+		!strings.ContainsAny(profile, `/\\`) && strings.TrimSpace(profile) == profile
+}
+
+func resolvePiAgentDir(home string) string {
+	if configured := strings.TrimSpace(os.Getenv("PI_CODING_AGENT_DIR")); configured != "" {
+		return resolveUserConfigPath(configured, home)
+	}
+	return filepath.Join(home, ".pi", "agent")
+}
+
+func resolveOmpAgentDir(home string) string {
+	configRoot := filepath.Join(home, ".omp")
+	if configured := strings.TrimSpace(os.Getenv("PI_CONFIG_DIR")); configured != "" {
+		configRoot = resolveUserConfigPath(configured, home)
+	}
+	profile, profileSet := os.LookupEnv("OMP_PROFILE")
+	if !profileSet {
+		profile = os.Getenv("PI_PROFILE")
+	}
+	profile = strings.TrimSpace(profile)
+	if validProfileSegment(profile) && profile != "default" {
+		return filepath.Join(configRoot, "profiles", profile, "agent")
+	}
+	if configured := strings.TrimSpace(os.Getenv("PI_CODING_AGENT_DIR")); configured != "" {
+		return resolveUserConfigPath(configured, home)
+	}
+	return filepath.Join(configRoot, "agent")
+}
+
 func refreshHooksPaths() {
 	home := platform.GetRealHomeDir()
 	log.Printf("[DEBUG] Resolving agent config paths for home: %s", home)
@@ -329,6 +373,10 @@ func refreshHooksPaths() {
 			case "codex":
 				availableHooks[i].NativeConfigPath = filepath.Join(home, ".codex", "hooks.json")
 				availableHooks[i].NativeFeatureConfigPath = filepath.Join(home, ".codex", "config.toml")
+			case "pi":
+				availableHooks[i].NativeConfigPath = filepath.Join(resolvePiAgentDir(home), "extensions", hookMarker+"-pi.ts")
+			case "omp":
+				availableHooks[i].NativeConfigPath = filepath.Join(resolveOmpAgentDir(home), "extensions", hookMarker+"-omp.ts")
 			case "kiro":
 				availableHooks[i].NativeConfigPath = filepath.Join(home, ".kiro", "agents", "agent-ebpf-hook.json")
 			case "copilot":

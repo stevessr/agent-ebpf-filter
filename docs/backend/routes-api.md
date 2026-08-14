@@ -273,6 +273,8 @@ LLM 出站请求共享 4 个全局并发槽位，单次响应限制为 256 KiB�
 每个调优 job 在开始时取得一份 `MLConfig` 快照，并把候选模型配置显式传给训练器；
 跨模型参数搜索和离线 sweep 不再临时改写在线 `mlConfig` / `currentModelType`，因此
 状态接口和并发推理不会短暂看到尚未应用的候选配置。
+训练完成或选择最佳模型时，engine、loaded 标志和实际模型类型会原子发布并清理旧预测
+缓存；`/config/ml/status` 与推理入口从同一在线快照读取，不会组合新模型与旧元数据。
 
 `/config/ml/datasets/pull` 与 `/config/ml/datasets/import` 支持 `json`、`jsonl`、`csv`、`tsv`、纯文本与常见压缩包；纯文本 `.te`/SELinux policy 规则以及 JSON `rules[].rule` / `rules[].selinuxRule` 字段会自动识别为 `selinux-rule ...` 训练样本，并按 `allow/type_transition=ALLOW`、`neverallow=BLOCK`、`dontaudit/auditallow/permissive=ALERT` 保留来源标签。响应会附带 `byLabel`、`byCategory`、`bySource`、`normalization`、`quality`，导入响应还会附带 `skipReasons`；压缩包成员打开/读取失败、归档流后续读取失败、嵌套压缩流解码失败、条目解析失败或 limit 截断会连同成员或归档来源出现在 `parseWarnings`。
 
@@ -290,6 +292,8 @@ Research training API：`GET /research/sessions/:id/training` 和 `POST /researc
 | `POST` | `/config/hooks` | 安装/卸载 Hook |
 | `GET` | `/config/hooks/:id/raw` | 读取原始配置 |
 | `POST` | `/config/hooks/:id/raw` | 写入原始配置 |
+
+`GET /config/hooks` 对原生集成返回 `config_format`（`json`、`toml` 或 `typescript`）。Pi 与 Oh My Pi 使用 raw TypeScript extension editor；DeepSeek Harness (`dsh`) 是 wrapper-only，不提供 raw native 配置文件。
 
 ### 系统路由 (`/system`)
 

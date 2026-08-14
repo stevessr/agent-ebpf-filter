@@ -12,8 +12,6 @@ import (
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-
-
 // ── eBPF event ───────────────────────────────────────────────────────────────
 
 // BpfEvent is the raw event struct read from the eBPF ring buffer.
@@ -54,7 +52,7 @@ type WrapperRule struct {
 // HookType distinguishes how the hook intercepts the agent CLI.
 type HookType string
 
-// ConfigFormat defines if the config is JSON or TOML.
+// ConfigFormat defines the native configuration representation (JSON, TOML, or TypeScript).
 type ConfigFormat string
 
 // HookDef describes one supported AI-CLI hook integration.
@@ -72,7 +70,7 @@ type HookDef struct {
 	NativeHookEvent string `json:"-"`
 	// NativeMatcher is an optional default matcher to inject for native hooks.
 	NativeMatcher string `json:"-"`
-	// ConfigFormat defines if the config is JSON or TOML.
+	// ConfigFormat defines the native configuration representation.
 	ConfigFormat ConfigFormat `json:"-"`
 }
 
@@ -99,6 +97,23 @@ var AvailableHooks = []HookDef{
 		NativeHookEvent: "PreToolUse",
 		NativeMatcher:   "Bash",
 		ConfigFormat:    ConfigFormatJSON,
+	},
+	{
+		ID: "dsh", Name: "DeepSeek Harness", HookType: HookTypeWrapper,
+		Description: "Tracks dsh through the agent-wrapper command shim; dsh profiles and plugins remain managed by dsh.",
+		TargetCmd:   "dsh",
+	},
+	{
+		ID: "pi", Name: "Pi", HookType: HookTypeNative,
+		Description:  "Installs a TypeScript extension in Pi's user extension directory for session and tool-call telemetry",
+		TargetCmd:    "pi",
+		ConfigFormat: ConfigFormatTypeScript,
+	},
+	{
+		ID: "omp", Name: "Oh My Pi", HookType: HookTypeNative,
+		Description:  "Installs a TypeScript extension in Oh My Pi's active agent extension directory for session and tool-call telemetry",
+		TargetCmd:    "omp",
+		ConfigFormat: ConfigFormatTypeScript,
 	},
 	{
 		ID: "copilot", Name: "GitHub Copilot", HookType: HookTypeNative,

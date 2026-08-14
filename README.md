@@ -33,8 +33,8 @@ Agent eBPF Filter combines **eBPF kernel tracing**, **Go backend**, **Vue.js das
 
 ### 🎯 **Semantic Correlation**
 - PID registration via Python/Node.js adapters
-- Native hooks for Claude Code, Gemini CLI, Codex, GitHub Copilot, Kiro CLI, Augment, Antigravity CLI
-- Wrapper-based command interception
+- Native hooks for Claude Code, Gemini CLI, Codex, Pi, Oh My Pi, GitHub Copilot, Kiro CLI, Augment, and Antigravity CLI
+- Wrapper-based command interception for Cursor and DeepSeek Harness (`dsh`)
 - Context tracking: `agent_run_id`, `tool_call_id`, `trace_id`, `cwd`, `argv_digest`
 
 ### 🛡️ **Multi-Layer Enforcement**
@@ -156,10 +156,13 @@ From the **Configuration** page in the web UI:
 
 ### Install AI CLI Hooks
 
-From the **Hooks** page, install native hooks for:
+From the **Hooks** page, install native or wrapper integrations for:
 - Claude Code
 - Gemini CLI
 - Codex
+- DeepSeek Harness (`dsh`, wrapper-only)
+- Pi (TypeScript extension)
+- Oh My Pi (`omp`, TypeScript extension)
 - GitHub Copilot CLI
 - Kiro CLI
 - Augment/Auggie CLI
@@ -449,7 +452,9 @@ Check:
 ### Native hooks not working
 
 Check:
-- Target CLI config file contains `agent-ebpf-hook-active` marker
+- Target CLI config or extension file contains the `agent-ebpf-hook-active` marker
+- Pi/Oh My Pi are loading the generated TypeScript extension from their active extension directory
+- DeepSeek Harness is invoked through the `agent-wrapper` alias; dsh profile/plugin configuration remains dsh-owned
 - Hook callback URL is reachable from CLI process
 - `curl` is available in PATH
 - Backend is running and auth token is valid (if in release mode)

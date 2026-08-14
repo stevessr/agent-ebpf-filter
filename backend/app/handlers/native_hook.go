@@ -1,12 +1,13 @@
 package handlers
 
 import (
-	"agent-ebpf-filter/app/events"
-	"agent-ebpf-filter/pb"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"strings"
+
+	"agent-ebpf-filter/app/events"
+	"agent-ebpf-filter/pb"
 
 	"github.com/gin-gonic/gin"
 )
@@ -66,32 +67,11 @@ func HandleNativeHookEvent(c *gin.Context) {
 		Deps.ProcessContexts.Set(pid, ctx)
 	}
 
-	tag := "Native Hook"
-	sourceCLI := strings.ToLower(strings.TrimSpace(c.GetHeader("X-Agent-CLI")))
-	ua := strings.ToLower(c.GetHeader("User-Agent"))
-	if sourceCLI == "claude" || strings.Contains(ua, "claude") {
-		tag = "Claude Code"
-	} else if sourceCLI == "gemini" || strings.Contains(ua, "gemini") {
-		tag = "Gemini CLI"
-	} else if sourceCLI == "codex" || strings.Contains(ua, "codex") {
-		tag = "Codex"
-	} else if sourceCLI == "copilot" || strings.Contains(ua, "copilot") || strings.Contains(ua, "gh-copilot") {
-		tag = "GitHub Copilot"
-	} else if sourceCLI == "kiro" || strings.Contains(ua, "kiro") {
-		tag = "Kiro CLI"
-	} else if sourceCLI == "augment" || strings.Contains(ua, "augment") || strings.Contains(ua, "auggie") {
-		tag = "Augment"
-	} else if sourceCLI == "antigravity" || sourceCLI == "agy" || strings.Contains(ua, "antigravity") || strings.Contains(ua, "agy") {
-		tag = "Antigravity CLI"
-	} else {
-		if hookEvent == "BeforeTool" {
-			tag = "Gemini CLI"
-		} else if hookEvent == "preToolUse" {
-			tag = "GitHub Copilot"
-		} else if hookEvent == "agentSpawn" || hookEvent == "userPromptSubmit" || hookEvent == "stop" {
-			tag = "Kiro CLI"
-		}
-	}
+	tag := nativeHookProviderTag(
+		strings.ToLower(strings.TrimSpace(c.GetHeader("X-Agent-CLI"))),
+		strings.ToLower(c.GetHeader("User-Agent")),
+		hookEvent,
+	)
 
 	Deps.BroadcastCh <- &pb.Event{
 		Pid:            pid,
@@ -118,6 +98,50 @@ func HandleNativeHookEvent(c *gin.Context) {
 		Cwd:            ctx.Cwd,
 	}
 	c.JSON(200, gin.H{"status": "ok"})
+}
+
+func nativeHookProviderTag(sourceCLI, userAgent, hookEvent string) string {
+	tag := "Native Hook"
+	if sourceCLI == "claude" || strings.Contains(userAgent, "claude") {
+		return "Claude Code"
+	}
+	if sourceCLI == "gemini" || strings.Contains(userAgent, "gemini") {
+		return "Gemini CLI"
+	}
+	if sourceCLI == "codex" || strings.Contains(userAgent, "codex") {
+		return "Codex"
+	}
+	if sourceCLI == "dsh" || strings.Contains(userAgent, "deepseek-harness") {
+		return "DeepSeek Harness"
+	}
+	if sourceCLI == "pi" || strings.Contains(userAgent, "pi-coding-agent") {
+		return "Pi"
+	}
+	if sourceCLI == "omp" || strings.Contains(userAgent, "oh-my-pi") {
+		return "Oh My Pi"
+	}
+	if sourceCLI == "copilot" || strings.Contains(userAgent, "copilot") || strings.Contains(userAgent, "gh-copilot") {
+		return "GitHub Copilot"
+	}
+	if sourceCLI == "kiro" || strings.Contains(userAgent, "kiro") {
+		return "Kiro CLI"
+	}
+	if sourceCLI == "augment" || strings.Contains(userAgent, "augment") || strings.Contains(userAgent, "auggie") {
+		return "Augment"
+	}
+	if sourceCLI == "antigravity" || sourceCLI == "agy" || strings.Contains(userAgent, "antigravity") || strings.Contains(userAgent, "agy") {
+		return "Antigravity CLI"
+	}
+	if hookEvent == "BeforeTool" {
+		return "Gemini CLI"
+	}
+	if hookEvent == "preToolUse" {
+		return "GitHub Copilot"
+	}
+	if hookEvent == "agentSpawn" || hookEvent == "userPromptSubmit" || hookEvent == "stop" {
+		return "Kiro CLI"
+	}
+	return tag
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
