@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/recording"
 	"context"
 	cryptorand "crypto/rand"
 	"encoding/hex"
@@ -520,7 +521,7 @@ func recordCapturedEvent(event *pb.Event) CapturedEventRecord {
 	if appendErr != nil {
 		collectorMetricsStore.RecordCapturedPersistBatch(0, 1, time.Since(appendStart))
 	}
-	eventRecordingStore.Record(record)
+	recording.Default().Record(record)
 	otelExporterStore.Record(record)
 	queueLoopDetectionRecord(record)
 	queueResearchProcessingRecord(record)

@@ -1,12 +1,9 @@
-package app
+package recording
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,13 +12,12 @@ import (
 
 	"agent-ebpf-filter/pb"
 
-	"github.com/gin-gonic/gin"
 	"golang.org/x/sys/unix"
 )
 
 func TestEventRecordingWritesAndReadsConfinedJSONL(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "recordings")
-	store := &eventRecordingState{}
+	store := &State{}
 	status, err := store.startAtRoot(root, "events.jsonl", true)
 	if err != nil {
 		t.Fatalf("startAtRoot() error = %v", err)
@@ -48,9 +44,9 @@ func TestEventRecordingWritesAndReadsConfinedJSONL(t *testing.T) {
 	if got := info.Mode().Perm(); got != 0o600 {
 		t.Fatalf("recording mode = %o, want 600", got)
 	}
-	records, resolved, err := readCapturedEventsFileAtRoot(root, status.Path, 100)
+	records, resolved, err := ReadCapturedEventsFileAtRoot(root, status.Path, 100)
 	if err != nil {
-		t.Fatalf("readCapturedEventsFileAtRoot() error = %v", err)
+		t.Fatalf("ReadCapturedEventsFileAtRoot() error = %v", err)
 	}
 	if resolved != status.Path || len(records) != 1 || records[0].Event.GetPid() != 42 || records[0].Envelope == nil {
 		t.Fatalf("unexpected replay path=%q records=%#v", resolved, records)
@@ -59,9 +55,9 @@ func TestEventRecordingWritesAndReadsConfinedJSONL(t *testing.T) {
 
 func TestRecordingPathsRejectEscapeAndNestedDirectories(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "recordings")
-	store := &eventRecordingState{}
+	store := &State{}
 	for _, path := range []string{"../escape.jsonl", "nested/events.jsonl", filepath.Join(filepath.Dir(root), "outside.jsonl")} {
-		if _, err := store.startAtRoot(root, path, false); !errors.Is(err, errRecordingPathOutsideRoot) {
+		if _, err := store.startAtRoot(root, path, false); !errors.Is(err, ErrPathOutsideRoot) {
 			t.Fatalf("path %q error = %v, want confinement error", path, err)
 		}
 	}
@@ -81,13 +77,13 @@ func TestRecordingOperationsRejectSymlinksAndHardlinks(t *testing.T) {
 	if err := os.Symlink(outside, symlink); err != nil {
 		t.Fatal(err)
 	}
-	store := &eventRecordingState{}
+	store := &State{}
 	for _, truncate := range []bool{false, true} {
 		if _, err := store.startAtRoot(root, "events.jsonl", truncate); err == nil {
 			t.Fatalf("truncate=%t unexpectedly accepted symlink", truncate)
 		}
 	}
-	if _, _, err := readCapturedEventsFileAtRoot(root, "events.jsonl", 10); err == nil {
+	if _, _, err := ReadCapturedEventsFileAtRoot(root, "events.jsonl", 10); err == nil {
 		t.Fatal("replay unexpectedly accepted symlink")
 	}
 	if _, _, err := saveBrowserRecordingExportAtRoot(root, "events.jsonl", json.RawMessage(`{"snapshots":[]}`)); err == nil {
@@ -154,7 +150,7 @@ func TestReplayRejectsSpecialAndOversizedFiles(t *testing.T) {
 	if err := unix.Mkfifo(fifo, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := readCapturedEventsFileAtRoot(root, "events.fifo", 10); err == nil {
+	if _, _, err := ReadCapturedEventsFileAtRoot(root, "events.fifo", 10); err == nil {
 		t.Fatal("replay unexpectedly accepted FIFO")
 	}
 	large := filepath.Join(root, "large.jsonl")
@@ -167,7 +163,7 @@ func TestReplayRejectsSpecialAndOversizedFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = file.Close()
-	if _, _, err := readCapturedEventsFileAtRoot(root, "large.jsonl", 10); !errors.Is(err, errRecordingFileTooLarge) {
+	if _, _, err := ReadCapturedEventsFileAtRoot(root, "large.jsonl", 10); !errors.Is(err, ErrFileTooLarge) {
 		t.Fatalf("oversized replay error = %v", err)
 	}
 }
@@ -191,56 +187,9 @@ func TestSaveBrowserRecordingExportIsConfinedAndBounded(t *testing.T) {
 		t.Fatalf("saved mode=%v err=%v", info.Mode(), err)
 	}
 	oversized := json.RawMessage(bytes.Repeat([]byte(" "), browserRecordingExportMaxBytes+1))
-	if _, _, err := saveBrowserRecordingExportAtRoot(root, "large.json", oversized); !errors.Is(err, errBrowserRecordingTooLarge) {
+	if _, _, err := saveBrowserRecordingExportAtRoot(root, "large.json", oversized); !errors.Is(err, ErrBrowserExportTooLarge) {
 		t.Fatalf("oversized browser export error = %v", err)
 	}
-}
-
-func TestHandleSaveBrowserRecordingRejectsOversizedBody(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	reader := &spaceReader{remaining: browserRecordingRequestMaxBytes + 1}
-	req := httptest.NewRequest(http.MethodPost, "/events/recording/browser/save", reader)
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-	ctx, _ := gin.CreateTestContext(rec)
-	ctx.Request = req
-	handleSaveBrowserRecording(ctx)
-	if rec.Code != http.StatusRequestEntityTooLarge {
-		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
-	}
-}
-
-func TestHandleReplayEventRecordingStopsOnCanceledRequest(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	requestContext, cancel := context.WithCancel(context.Background())
-	cancel()
-	req := httptest.NewRequest(http.MethodPost, "/events/recording/replay", strings.NewReader(`{"path":"events.jsonl"}`)).WithContext(requestContext)
-	req.Header.Set("Content-Type", "application/json")
-	recorder := httptest.NewRecorder()
-	ginContext, _ := gin.CreateTestContext(recorder)
-	ginContext.Request = req
-	handleReplayEventRecording(ginContext)
-	if recorder.Body.Len() != 0 {
-		t.Fatalf("canceled replay wrote response body %q", recorder.Body.String())
-	}
-}
-
-type spaceReader struct {
-	remaining int64
-}
-
-func (reader *spaceReader) Read(buffer []byte) (int, error) {
-	if reader.remaining <= 0 {
-		return 0, errors.New("unexpected end")
-	}
-	if int64(len(buffer)) > reader.remaining {
-		buffer = buffer[:reader.remaining]
-	}
-	for index := range buffer {
-		buffer[index] = ' '
-	}
-	reader.remaining -= int64(len(buffer))
-	return len(buffer), nil
 }
 
 func TestResolveRecordingTargetAcceptsAbsoluteFileWithinRoot(t *testing.T) {

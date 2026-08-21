@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/recording"
 	"bufio"
 	"context"
 	"errors"
@@ -284,7 +285,7 @@ func (w *runtimeEventLogWriter) run(file *os.File) {
 
 	processRecord := func(record CapturedEventRecord) error {
 		startedAt := time.Now()
-		payload, err := marshalEventRecordingRecord(record)
+		payload, err := recording.MarshalRecord(record)
 		if err != nil {
 			w.noteFailed(1, err, time.Since(startedAt))
 			return nil

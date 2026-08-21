@@ -1,4 +1,4 @@
-package app
+package recording
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 )
 
 func TestEventRecordingQueueIsBoundedAndInactivePathDoesNoWork(t *testing.T) {
-	store := newEventRecordingState()
+	store := NewState()
 	record := CapturedEventRecord{Event: &pb.Event{Pid: 1, Comm: "codex"}}
 	store.Record(record)
 	if status := store.Status(); status.EnqueuedTotal != 0 || status.DroppedTotal != 0 {
@@ -36,7 +36,7 @@ func TestEventRecordingQueueIsBoundedAndInactivePathDoesNoWork(t *testing.T) {
 
 func TestEventRecordingStopDrainsEveryAcceptedRecord(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "recordings")
-	store := newEventRecordingState()
+	store := NewState()
 	if _, err := store.startAtRoot(root, "events.jsonl", true); err != nil {
 		t.Fatalf("startAtRoot() error = %v", err)
 	}
@@ -62,7 +62,7 @@ func TestEventRecordingStopDrainsEveryAcceptedRecord(t *testing.T) {
 		t.Fatalf("no records were persisted: %+v", status)
 	}
 
-	records, _, err := readCapturedEventsFileAtRoot(root, "events.jsonl", 10000)
+	records, _, err := ReadCapturedEventsFileAtRoot(root, "events.jsonl", 10000)
 	if err != nil {
 		t.Fatalf("read recording: %v", err)
 	}
@@ -73,7 +73,7 @@ func TestEventRecordingStopDrainsEveryAcceptedRecord(t *testing.T) {
 
 func TestEventRecordingConcurrentStopIsLinearizedWithProducers(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "recordings")
-	store := newEventRecordingState()
+	store := NewState()
 	if _, err := store.startAtRoot(root, "events.jsonl", true); err != nil {
 		t.Fatalf("startAtRoot() error = %v", err)
 	}
@@ -116,7 +116,7 @@ func TestEventRecordingConcurrentStopIsLinearizedWithProducers(t *testing.T) {
 
 func TestEventRecordingRejectsOversizedRecordWithoutStoppingGeneration(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "recordings")
-	store := newEventRecordingState()
+	store := NewState()
 	if _, err := store.startAtRoot(root, "events.jsonl", true); err != nil {
 		t.Fatalf("startAtRoot() error = %v", err)
 	}
@@ -156,7 +156,7 @@ func TestEventRecordingStopsAtReplayFileLimit(t *testing.T) {
 		t.Fatalf("Close() error = %v", err)
 	}
 
-	store := newEventRecordingState()
+	store := NewState()
 	if _, err := store.startAtRoot(root, "events.jsonl", false); err != nil {
 		t.Fatalf("startAtRoot() error = %v", err)
 	}
@@ -170,7 +170,7 @@ func TestEventRecordingStopsAtReplayFileLimit(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 	status, err := store.Stop()
-	if !errors.Is(err, errRecordingFileTooLarge) {
+	if !errors.Is(err, ErrFileTooLarge) {
 		t.Fatalf("Stop() error = %v, want file size error", err)
 	}
 	if status.Active || status.Stopping || status.Count != 0 || status.FailedTotal != 1 || status.Pending != 0 {
@@ -179,7 +179,7 @@ func TestEventRecordingStopsAtReplayFileLimit(t *testing.T) {
 }
 
 func TestEventRecordingShutdownTimeoutKeepsStoppingGeneration(t *testing.T) {
-	store := newEventRecordingState()
+	store := NewState()
 	stopCh := make(chan struct{})
 	done := make(chan struct{})
 	store.mu.Lock()

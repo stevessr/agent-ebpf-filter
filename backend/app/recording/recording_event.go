@@ -1,43 +1,24 @@
-package app
+package recording
 
 import (
+	"agent-ebpf-filter/app/events"
 	"agent-ebpf-filter/app/platform"
 	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"golang.org/x/sys/unix"
 )
 
 // ---- moved from backend/zz_merged_backend.go section recording_event.go ----
 
-type eventRecordingRequest struct {
-	Path     string `json:"path"`
-	Truncate bool   `json:"truncate"`
-	Limit    int    `json:"limit"`
-}
-
-type eventReplayRequest struct {
-	Path  string `json:"path"`
-	Limit int    `json:"limit"`
-}
-
-type browserRecordingSaveRequest struct {
-	Path   string          `json:"path"`
-	Export json.RawMessage `json:"export"`
-}
-
-type eventRecordingStatus struct {
+type Status struct {
 	Active        bool   `json:"active"`
 	Stopping      bool   `json:"stopping"`
 	Path          string `json:"path,omitempty"`
@@ -54,7 +35,7 @@ type eventRecordingStatus struct {
 	LastError     string `json:"lastError,omitempty"`
 }
 
-type eventRecordingState struct {
+type State struct {
 	lifecycleMu sync.Mutex
 	mu          sync.RWMutex
 	queue       chan CapturedEventRecord
@@ -74,7 +55,10 @@ type eventRecordingState struct {
 	terminalErr error
 }
 
-var eventRecordingStore = newEventRecordingState()
+var defaultStore = NewState()
+
+// Default returns the process-wide event recording store.
+func Default() *State { return defaultStore }
 
 const (
 	eventRecordingQueueSize      = 2048
@@ -82,21 +66,21 @@ const (
 	eventRecordingFlushBatch     = 128
 	eventRecordingFlushInterval  = 250 * time.Millisecond
 	eventRecordingMaxRecordBytes = 4*1024*1024 - 1
-	eventRecordingStopTimeout    = 5 * time.Second
+	EventRecordingStopTimeout    = 5 * time.Second
 )
 
 var errEventRecordingRecordTooLarge = errors.New("event recording record exceeds the JSONL line size limit")
 
-func newEventRecordingState() *eventRecordingState {
-	return &eventRecordingState{}
+func NewState() *State {
+	return &State{}
 }
 
 func defaultEventRecordingPath() string {
-	return defaultEventRecordingPathAtRoot(runtimeRecordingsRoot())
+	return defaultEventRecordingPathAtRoot(RuntimeRecordingsRoot())
 }
 
 func defaultBrowserRecordingPath() string {
-	return defaultBrowserRecordingPathAtRoot(runtimeRecordingsRoot())
+	return defaultBrowserRecordingPathAtRoot(RuntimeRecordingsRoot())
 }
 
 func defaultEventRecordingPathAtRoot(root string) string {
@@ -107,30 +91,30 @@ func defaultBrowserRecordingPathAtRoot(root string) string {
 	return filepath.Join(root, "browser-memory-"+time.Now().UTC().Format("20060102-150405.000000000")+".json")
 }
 
-func (s *eventRecordingState) Status() eventRecordingStatus {
+func (s *State) Status() Status {
 	if s == nil {
-		return eventRecordingStatus{DefaultPath: defaultEventRecordingPath()}
+		return Status{DefaultPath: defaultEventRecordingPath()}
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.statusLocked()
 }
 
-func (s *eventRecordingState) Start(path string, truncate bool) (eventRecordingStatus, error) {
+func (s *State) Start(path string, truncate bool) (Status, error) {
 	return s.StartContext(context.Background(), path, truncate)
 }
 
-func (s *eventRecordingState) StartContext(ctx context.Context, path string, truncate bool) (eventRecordingStatus, error) {
-	return s.startAtRootContext(ctx, runtimeRecordingsRoot(), path, truncate)
+func (s *State) StartContext(ctx context.Context, path string, truncate bool) (Status, error) {
+	return s.startAtRootContext(ctx, RuntimeRecordingsRoot(), path, truncate)
 }
 
-func (s *eventRecordingState) startAtRoot(root, path string, truncate bool) (eventRecordingStatus, error) {
+func (s *State) startAtRoot(root, path string, truncate bool) (Status, error) {
 	return s.startAtRootContext(context.Background(), root, path, truncate)
 }
 
-func (s *eventRecordingState) startAtRootContext(ctx context.Context, root, path string, truncate bool) (eventRecordingStatus, error) {
+func (s *State) startAtRootContext(ctx context.Context, root, path string, truncate bool) (Status, error) {
 	if s == nil {
-		return eventRecordingStatus{}, errors.New("event recording state is nil")
+		return Status{}, errors.New("event recording state is nil")
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -150,13 +134,13 @@ func (s *eventRecordingState) startAtRootContext(ctx context.Context, root, path
 
 	rootFile, absRoot, err := openRecordingsRoot(root)
 	if err != nil {
-		return eventRecordingStatus{}, err
+		return Status{}, err
 	}
 	defer rootFile.Close()
 	defaultName := filepath.Base(defaultEventRecordingPathAtRoot(absRoot))
 	name, absPath, err := resolveRecordingTarget(absRoot, path, defaultName)
 	if err != nil {
-		return eventRecordingStatus{}, err
+		return Status{}, err
 	}
 	var file *os.File
 	if truncate {
@@ -165,16 +149,16 @@ func (s *eventRecordingState) startAtRootContext(ctx context.Context, root, path
 		file, err = openRecordingForAppend(rootFile, name)
 	}
 	if err != nil {
-		return eventRecordingStatus{}, fmt.Errorf("open recording file: %w", err)
+		return Status{}, fmt.Errorf("open recording file: %w", err)
 	}
 	info, err := file.Stat()
 	if err != nil {
 		_ = file.Close()
-		return eventRecordingStatus{}, err
+		return Status{}, err
 	}
 	if info.Size() < 0 || info.Size() > eventReplayMaxFileBytes {
 		_ = file.Close()
-		return eventRecordingStatus{}, fmt.Errorf("%w: %d bytes (limit %d)", errRecordingFileTooLarge, info.Size(), eventReplayMaxFileBytes)
+		return Status{}, fmt.Errorf("%w: %d bytes (limit %d)", ErrFileTooLarge, info.Size(), eventReplayMaxFileBytes)
 	}
 	if err := ctx.Err(); err != nil {
 		_ = file.Close()
@@ -207,13 +191,13 @@ func (s *eventRecordingState) startAtRootContext(ctx context.Context, root, path
 	return status, nil
 }
 
-func (s *eventRecordingState) Stop() (eventRecordingStatus, error) {
+func (s *State) Stop() (Status, error) {
 	return s.StopContext(context.Background())
 }
 
-func (s *eventRecordingState) StopContext(ctx context.Context) (eventRecordingStatus, error) {
+func (s *State) StopContext(ctx context.Context) (Status, error) {
 	if s == nil {
-		return eventRecordingStatus{}, nil
+		return Status{}, nil
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -223,7 +207,7 @@ func (s *eventRecordingState) StopContext(ctx context.Context) (eventRecordingSt
 	return s.stopLocked(ctx)
 }
 
-func (s *eventRecordingState) stopLocked(ctx context.Context) (eventRecordingStatus, error) {
+func (s *State) stopLocked(ctx context.Context) (Status, error) {
 	s.mu.Lock()
 	if !s.started {
 		status := s.statusLocked()
@@ -256,7 +240,7 @@ func (s *eventRecordingState) stopLocked(ctx context.Context) (eventRecordingSta
 	}
 }
 
-func (s *eventRecordingState) Record(record CapturedEventRecord) {
+func (s *State) Record(record CapturedEventRecord) {
 	if s == nil || record.Event == nil {
 		return
 	}
@@ -275,8 +259,8 @@ func (s *eventRecordingState) Record(record CapturedEventRecord) {
 	s.mu.Unlock()
 }
 
-func (s *eventRecordingState) statusLocked() eventRecordingStatus {
-	status := eventRecordingStatus{
+func (s *State) statusLocked() Status {
+	status := Status{
 		Active:        s.queue != nil,
 		Stopping:      s.stopping,
 		Path:          s.path,
@@ -308,7 +292,7 @@ func (s *eventRecordingState) statusLocked() eventRecordingStatus {
 	return status
 }
 
-func (s *eventRecordingState) runGeneration(
+func (s *State) runGeneration(
 	file *os.File,
 	initialSize int64,
 	queue <-chan CapturedEventRecord,
@@ -337,14 +321,14 @@ func (s *eventRecordingState) runGeneration(
 	}
 
 	process := func(record CapturedEventRecord) error {
-		payload, err := marshalEventRecordingRecord(record)
+		payload, err := MarshalRecord(record)
 		if err != nil {
 			s.noteRecordingFailure(1, err)
 			return nil
 		}
 		recordBytes := int64(len(payload) + 1)
 		if logicalSize > eventReplayMaxFileBytes-recordBytes {
-			err := fmt.Errorf("%w: recording reached %d bytes", errRecordingFileTooLarge, eventReplayMaxFileBytes)
+			err := fmt.Errorf("%w: recording reached %d bytes", ErrFileTooLarge, eventReplayMaxFileBytes)
 			s.noteRecordingFailure(1, err)
 			return err
 		}
@@ -423,11 +407,11 @@ func (s *eventRecordingState) runGeneration(
 	}
 }
 
-func marshalEventRecordingRecord(record CapturedEventRecord) ([]byte, error) {
+func MarshalRecord(record CapturedEventRecord) ([]byte, error) {
 	if record.Event == nil {
 		return nil, errors.New("event recording record has no event")
 	}
-	record = normalizeCapturedEventRecord(record)
+	record = events.NormalizeCapturedEventRecord(record)
 	payload, err := json.Marshal(record)
 	if err != nil {
 		return nil, err
@@ -438,7 +422,7 @@ func marshalEventRecordingRecord(record CapturedEventRecord) ([]byte, error) {
 	return payload, nil
 }
 
-func (s *eventRecordingState) stopAcceptingRecordingGeneration(queue <-chan CapturedEventRecord, err error) {
+func (s *State) stopAcceptingRecordingGeneration(queue <-chan CapturedEventRecord, err error) {
 	s.mu.Lock()
 	if s.queue == queue {
 		s.queue = nil
@@ -450,7 +434,7 @@ func (s *eventRecordingState) stopAcceptingRecordingGeneration(queue <-chan Capt
 	s.mu.Unlock()
 }
 
-func (s *eventRecordingState) noteRecordingPersisted(count int64) {
+func (s *State) noteRecordingPersisted(count int64) {
 	if count <= 0 {
 		return
 	}
@@ -460,7 +444,7 @@ func (s *eventRecordingState) noteRecordingPersisted(count int64) {
 	s.mu.Unlock()
 }
 
-func (s *eventRecordingState) noteRecordingFailure(count uint64, err error) {
+func (s *State) noteRecordingFailure(count uint64, err error) {
 	if count == 0 && err == nil {
 		return
 	}
@@ -472,7 +456,7 @@ func (s *eventRecordingState) noteRecordingFailure(count uint64, err error) {
 	s.mu.Unlock()
 }
 
-func (s *eventRecordingState) noteRecordingError(err error) {
+func (s *State) noteRecordingError(err error) {
 	if err == nil {
 		return
 	}
@@ -481,7 +465,7 @@ func (s *eventRecordingState) noteRecordingError(err error) {
 	s.mu.Unlock()
 }
 
-func (s *eventRecordingState) finishRecordingGeneration(done chan struct{}, terminalErr error) {
+func (s *State) finishRecordingGeneration(done chan struct{}, terminalErr error) {
 	s.mu.Lock()
 	if s.done == done {
 		s.queue = nil
@@ -498,21 +482,21 @@ func (s *eventRecordingState) finishRecordingGeneration(done chan struct{}, term
 	close(done)
 }
 
-func readCapturedEventsFile(path string, limit int) ([]CapturedEventRecord, error) {
-	return readCapturedEventsFileContext(context.Background(), path, limit)
+func ReadCapturedEventsFile(path string, limit int) ([]CapturedEventRecord, error) {
+	return ReadCapturedEventsFileContext(context.Background(), path, limit)
 }
 
-func readCapturedEventsFileContext(ctx context.Context, path string, limit int) ([]CapturedEventRecord, error) {
-	records, _, err := readCapturedEventsFileAtRootContext(ctx, runtimeRecordingsRoot(), path, limit)
+func ReadCapturedEventsFileContext(ctx context.Context, path string, limit int) ([]CapturedEventRecord, error) {
+	records, _, err := ReadCapturedEventsFileAtRootContext(ctx, RuntimeRecordingsRoot(), path, limit)
 	return records, err
 }
 
-func readCapturedEventsFileAtRoot(root, path string, limit int) ([]CapturedEventRecord, string, error) {
-	return readCapturedEventsFileAtRootContext(context.Background(), root, path, limit)
+func ReadCapturedEventsFileAtRoot(root, path string, limit int) ([]CapturedEventRecord, string, error) {
+	return ReadCapturedEventsFileAtRootContext(context.Background(), root, path, limit)
 }
 
-func saveBrowserRecordingExport(path string, payload json.RawMessage) (string, int, error) {
-	return saveBrowserRecordingExportAtRoot(runtimeRecordingsRoot(), path, payload)
+func SaveBrowserRecordingExport(path string, payload json.RawMessage) (string, int, error) {
+	return saveBrowserRecordingExportAtRoot(RuntimeRecordingsRoot(), path, payload)
 }
 
 func saveBrowserRecordingExportAtRoot(root, path string, payload json.RawMessage) (string, int, error) {
@@ -520,7 +504,7 @@ func saveBrowserRecordingExportAtRoot(root, path string, payload json.RawMessage
 		return "", 0, errors.New("browser recording export is empty")
 	}
 	if len(payload) > browserRecordingExportMaxBytes {
-		return "", 0, fmt.Errorf("%w: %d bytes (limit %d)", errBrowserRecordingTooLarge, len(payload), browserRecordingExportMaxBytes)
+		return "", 0, fmt.Errorf("%w: %d bytes (limit %d)", ErrBrowserExportTooLarge, len(payload), browserRecordingExportMaxBytes)
 	}
 	var normalized any
 	if err := json.Unmarshal(payload, &normalized); err != nil {
@@ -531,7 +515,7 @@ func saveBrowserRecordingExportAtRoot(root, path string, payload json.RawMessage
 		return "", 0, err
 	}
 	if len(pretty)+1 > browserRecordingOutputMaxBytes {
-		return "", 0, fmt.Errorf("%w after formatting: %d bytes (limit %d)", errBrowserRecordingTooLarge, len(pretty)+1, browserRecordingOutputMaxBytes)
+		return "", 0, fmt.Errorf("%w after formatting: %d bytes (limit %d)", ErrBrowserExportTooLarge, len(pretty)+1, browserRecordingOutputMaxBytes)
 	}
 	rootFile, absRoot, err := openRecordingsRoot(root)
 	if err != nil {
@@ -574,138 +558,4 @@ func saveBrowserRecordingExportAtRoot(root, path string, payload json.RawMessage
 		}
 	}
 	return absPath, count, nil
-}
-
-func handleEventRecordingStatus(c *gin.Context) {
-	c.JSON(200, eventRecordingStore.Status())
-}
-
-func handleStartEventRecording(c *gin.Context) {
-	var req eventRecordingRequest
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, recordingControlRequestMaxBytes)
-	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
-		writeRecordingBindError(c, err)
-		return
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), eventRecordingStopTimeout)
-	defer cancel()
-	status, err := eventRecordingStore.StartContext(ctx, req.Path, req.Truncate)
-	if err != nil {
-		code := http.StatusBadRequest
-		if errors.Is(err, errRecordingFileTooLarge) {
-			code = http.StatusRequestEntityTooLarge
-		} else if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-			code = http.StatusServiceUnavailable
-		}
-		c.JSON(code, gin.H{"error": err.Error(), "status": status})
-		return
-	}
-	c.JSON(200, status)
-}
-
-func handleStopEventRecording(c *gin.Context) {
-	ctx, cancel := context.WithTimeout(context.Background(), eventRecordingStopTimeout)
-	defer cancel()
-	status, err := eventRecordingStore.StopContext(ctx)
-	if err != nil {
-		code := http.StatusInternalServerError
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-			code = http.StatusServiceUnavailable
-		}
-		c.JSON(code, gin.H{"error": err.Error(), "status": status})
-		return
-	}
-	c.JSON(200, status)
-}
-
-func handleReplayEventRecording(c *gin.Context) {
-	var req eventReplayRequest
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, recordingControlRequestMaxBytes)
-	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
-		writeRecordingBindError(c, err)
-		return
-	}
-	if req.Path == "" {
-		req.Path = c.Query("path")
-	}
-	if req.Limit <= 0 {
-		if parsed, ok := parsePositiveIntQuery(c.Query("limit"), 10000); ok {
-			req.Limit = parsed
-		}
-	}
-	ctx, cancel := context.WithTimeout(c.Request.Context(), eventReplayProcessingTimeout)
-	defer cancel()
-	records, resolvedPath, err := readCapturedEventsFileAtRootContext(ctx, runtimeRecordingsRoot(), req.Path, req.Limit)
-	if err != nil {
-		if c.Request.Context().Err() != nil {
-			return
-		}
-		status := http.StatusBadRequest
-		if errors.Is(err, errRecordingFileTooLarge) || errors.Is(err, errRecordingLineTooLarge) || errors.Is(err, errRecordingTooManyLines) {
-			status = http.StatusRequestEntityTooLarge
-		} else if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-			status = http.StatusServiceUnavailable
-		}
-		c.JSON(status, gin.H{"error": err.Error()})
-		return
-	}
-	graph, err := buildExecutionGraphContext(ctx, records, executionGraphFiltersFromRequest(c))
-	if err != nil {
-		if c.Request.Context().Err() != nil {
-			return
-		}
-		status := http.StatusInternalServerError
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-			status = http.StatusServiceUnavailable
-		}
-		c.JSON(status, gin.H{"error": err.Error()})
-		return
-	}
-	graph.Source = "replay_file"
-	c.JSON(200, gin.H{"path": resolvedPath, "events": len(records), "graph": graph})
-}
-
-func handleSaveBrowserRecording(c *gin.Context) {
-	var req browserRecordingSaveRequest
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, browserRecordingRequestMaxBytes)
-	if err := c.ShouldBindJSON(&req); err != nil {
-		status := http.StatusBadRequest
-		var maxBytesErr *http.MaxBytesError
-		if errors.As(err, &maxBytesErr) {
-			status = http.StatusRequestEntityTooLarge
-		}
-		c.JSON(status, gin.H{"error": "invalid request"})
-		return
-	}
-	path, snapshots, err := saveBrowserRecordingExport(req.Path, req.Export)
-	if err != nil {
-		status := http.StatusBadRequest
-		if errors.Is(err, errBrowserRecordingTooLarge) {
-			status = http.StatusRequestEntityTooLarge
-		}
-		c.JSON(status, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(200, gin.H{"path": path, "snapshots": snapshots})
-}
-
-func writeRecordingBindError(c *gin.Context, err error) {
-	status := http.StatusBadRequest
-	var maxBytesErr *http.MaxBytesError
-	if errors.As(err, &maxBytesErr) {
-		status = http.StatusRequestEntityTooLarge
-	}
-	c.JSON(status, gin.H{"error": "invalid request"})
-}
-
-func parsePositiveIntQuery(raw string, fallback int) (int, bool) {
-	value := strings.TrimSpace(raw)
-	if value == "" {
-		return fallback, false
-	}
-	var parsed int
-	if err := json.Unmarshal([]byte(value), &parsed); err != nil || parsed <= 0 {
-		return fallback, false
-	}
-	return parsed, true
 }

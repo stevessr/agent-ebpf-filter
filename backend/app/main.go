@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/recording"
 	"context"
 	"fmt"
 	"log"
@@ -66,7 +67,7 @@ func Main() error {
 	AppCtx.CapturedEventArchive = capturedEventArchive
 	AppCtx.ShellSessions = shellSessions
 	AppCtx.PluginRegistry = pluginRegistry
-	AppCtx.EventRecordingStore = eventRecordingStore
+	AppCtx.EventRecordingStore = recording.Default()
 	AppCtx.CollectorMetricsStore = &collectorMetricsStore
 	AppCtx.OTelExporterStore = otelExporterStore
 	AppCtx.ClusterManager = clusterManagerStore

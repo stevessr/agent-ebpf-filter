@@ -1,4 +1,4 @@
-package app
+package recording
 
 import (
 	"errors"
@@ -20,23 +20,23 @@ const (
 	eventReplayMaxScannedLines            = 250000
 	eventReplayMaxScannedBytes            = eventReplayMaxFileBytes
 	eventReplayMaxRecords                 = 10000
-	eventReplayProcessingTimeout          = 15 * time.Second
+	EventReplayProcessingTimeout          = 15 * time.Second
 	browserRecordingExportMaxBytes        = 16 * 1024 * 1024
 	browserRecordingOutputMaxBytes        = 32 * 1024 * 1024
-	browserRecordingRequestMaxBytes int64 = 20 * 1024 * 1024
-	recordingControlRequestMaxBytes int64 = 64 * 1024
+	BrowserRecordingRequestMaxBytes int64 = 20 * 1024 * 1024
+	ControlRequestMaxBytes          int64 = 64 * 1024
 )
 
 var (
-	errRecordingPathOutsideRoot = errors.New("recording path must be a file directly under the runtime recordings directory")
-	errRecordingFileTooLarge    = errors.New("recording file exceeds the replay size limit")
-	errRecordingLineTooLarge    = errors.New("recording line exceeds the replay line size limit")
-	errRecordingTooManyLines    = errors.New("recording replay scanned too many lines")
-	errRecordingScanTooLarge    = errors.New("recording replay scanned too many bytes")
-	errBrowserRecordingTooLarge = errors.New("browser recording export exceeds the size limit")
+	ErrPathOutsideRoot       = errors.New("recording path must be a file directly under the runtime recordings directory")
+	ErrFileTooLarge          = errors.New("recording file exceeds the replay size limit")
+	ErrLineTooLarge          = errors.New("recording line exceeds the replay line size limit")
+	ErrTooManyLines          = errors.New("recording replay scanned too many lines")
+	ErrScanTooLarge          = errors.New("recording replay scanned too many bytes")
+	ErrBrowserExportTooLarge = errors.New("browser recording export exceeds the size limit")
 )
 
-func runtimeRecordingsRoot() string {
+func RuntimeRecordingsRoot() string {
 	return filepath.Join(platform.RuntimeSettingsDir(), "recordings")
 }
 
@@ -85,12 +85,12 @@ func resolveRecordingTarget(root, raw, defaultName string) (name, absPath string
 	if filepath.IsAbs(value) {
 		clean := filepath.Clean(value)
 		if filepath.Dir(clean) != absRoot {
-			return "", "", errRecordingPathOutsideRoot
+			return "", "", ErrPathOutsideRoot
 		}
 		value = filepath.Base(clean)
 	}
 	if value != filepath.Base(value) || value == "." || value == ".." || strings.ContainsRune(value, 0) {
-		return "", "", errRecordingPathOutsideRoot
+		return "", "", ErrPathOutsideRoot
 	}
 	if len(value) > 240 {
 		return "", "", errors.New("recording filename is too long")

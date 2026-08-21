@@ -1,6 +1,8 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/recording"
+
 	"context"
 	"errors"
 	"math"
@@ -326,4 +328,12 @@ func TestRuntimeStateLogReconfigurationDrainsAndTruncatesGenerations(t *testing.
 	if status := state.EventLogStatus(); status.Active || status.QueueCap != 0 {
 		t.Fatalf("disabled event log status = %+v", status)
 	}
+}
+
+func replayRecordPIDs(records []recording.CapturedEventRecord) []uint32 {
+	pids := make([]uint32, 0, len(records))
+	for _, record := range records {
+		pids = append(pids, record.Event.GetPid())
+	}
+	return pids
 }

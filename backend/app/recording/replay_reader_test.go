@@ -1,4 +1,4 @@
-package app
+package recording
 
 import (
 	"bytes"
@@ -52,9 +52,9 @@ func TestReplayTailReaderReturnsLastValidRecordsInOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	records, resolved, err := readCapturedEventsFileAtRootContext(context.Background(), root, "events.jsonl", 2)
+	records, resolved, err := ReadCapturedEventsFileAtRootContext(context.Background(), root, "events.jsonl", 2)
 	if err != nil {
-		t.Fatalf("readCapturedEventsFileAtRootContext() error = %v", err)
+		t.Fatalf("ReadCapturedEventsFileAtRootContext() error = %v", err)
 	}
 	if resolved != path || len(records) != 2 || records[0].Event.GetPid() != 2 || records[1].Event.GetPid() != 3 {
 		t.Fatalf("unexpected replay tail path=%q records=%v", resolved, replayRecordPIDs(records))
@@ -77,9 +77,9 @@ func TestReplayTailReaderDoesNotScanUnneededPrefix(t *testing.T) {
 	data := bytes.Repeat([]byte("not-json\n"), 100_000)
 	data = append(data, payload...)
 	reader := &countingReaderAt{ReaderAt: bytes.NewReader(data)}
-	records, err := readCapturedEventTail(context.Background(), reader, int64(len(data)), 1)
+	records, err := ReadCapturedEventTail(context.Background(), reader, int64(len(data)), 1)
 	if err != nil {
-		t.Fatalf("readCapturedEventTail() error = %v", err)
+		t.Fatalf("ReadCapturedEventTail() error = %v", err)
 	}
 	if len(records) != 1 || records[0].Event.GetPid() != 3 {
 		t.Fatalf("unexpected replay records %v", replayRecordPIDs(records))
@@ -92,15 +92,15 @@ func TestReplayTailReaderDoesNotScanUnneededPrefix(t *testing.T) {
 func TestReplayTailReaderEnforcesScanByteBudget(t *testing.T) {
 	data := bytes.Repeat([]byte("x\n"), eventReplayReadChunkBytes)
 	reader := bytes.NewReader(data)
-	_, err := readCapturedEventTailWithScanLimit(
+	_, err := ReadCapturedEventTailWithScanLimit(
 		context.Background(),
 		reader,
 		int64(len(data)),
 		1,
 		eventReplayReadChunkBytes,
 	)
-	if !errors.Is(err, errRecordingScanTooLarge) {
-		t.Fatalf("scan budget error = %v, want errRecordingScanTooLarge", err)
+	if !errors.Is(err, ErrScanTooLarge) {
+		t.Fatalf("scan budget error = %v, want ErrScanTooLarge", err)
 	}
 }
 
@@ -114,7 +114,7 @@ func TestReplayTailReaderHonorsCancellationDuringMalformedTail(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := &cancelAfterErrChecksContext{Context: context.Background(), cancelAfter: 6}
-	if _, _, err := readCapturedEventsFileAtRootContext(ctx, root, "events.jsonl", 10); !errors.Is(err, context.Canceled) {
+	if _, _, err := ReadCapturedEventsFileAtRootContext(ctx, root, "events.jsonl", 10); !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled replay error = %v, want context.Canceled", err)
 	}
 }
@@ -128,7 +128,7 @@ func TestReplayTailReaderRejectsOversizedLineAndMalformedLineFlood(t *testing.T)
 	if err := os.WriteFile(path, bytes.Repeat([]byte("x"), eventReplayMaxLineBytes+1), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := readCapturedEventsFileAtRoot(root, "events.jsonl", 10); !errors.Is(err, errRecordingLineTooLarge) {
+	if _, _, err := ReadCapturedEventsFileAtRoot(root, "events.jsonl", 10); !errors.Is(err, ErrLineTooLarge) {
 		t.Fatalf("oversized line error = %v", err)
 	}
 
@@ -137,7 +137,7 @@ func TestReplayTailReaderRejectsOversizedLineAndMalformedLineFlood(t *testing.T)
 	if err := os.WriteFile(path, flood, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := readCapturedEventsFileAtRoot(root, "events.jsonl", 10); !errors.Is(err, errRecordingTooManyLines) {
+	if _, _, err := ReadCapturedEventsFileAtRoot(root, "events.jsonl", 10); !errors.Is(err, ErrTooManyLines) {
 		t.Fatalf("malformed line flood error = %v", err)
 	}
 }

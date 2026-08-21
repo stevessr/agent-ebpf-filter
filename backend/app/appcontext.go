@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/recording"
 	"sync"
 
 	"agent-ebpf-filter/app/network"
@@ -61,7 +62,7 @@ type AppContext struct {
 
 	// ── Telemetry ────────────────────────────────────────────────────
 	OTelExporterStore     *otelExporterState
-	EventRecordingStore   *eventRecordingState
+	EventRecordingStore   *recording.State
 	CollectorMetricsStore *metricsStoreBridge
 
 	// ── Cluster ──────────────────────────────────────────────────────

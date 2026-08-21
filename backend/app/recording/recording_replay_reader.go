@@ -1,6 +1,7 @@
-package app
+package recording
 
 import (
+	"agent-ebpf-filter/app/events"
 	"agent-ebpf-filter/app/platform"
 	"bytes"
 	"context"
@@ -12,7 +13,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func readCapturedEventsFileAtRootContext(ctx context.Context, root, path string, limit int) ([]CapturedEventRecord, string, error) {
+func ReadCapturedEventsFileAtRootContext(ctx context.Context, root, path string, limit int) ([]CapturedEventRecord, string, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -48,10 +49,10 @@ func readCapturedEventsFileAtRootContext(ctx context.Context, root, path string,
 		return nil, "", err
 	}
 	if info.Size() < 0 || info.Size() > eventReplayMaxFileBytes {
-		return nil, "", fmt.Errorf("%w: %d bytes (limit %d)", errRecordingFileTooLarge, info.Size(), eventReplayMaxFileBytes)
+		return nil, "", fmt.Errorf("%w: %d bytes (limit %d)", ErrFileTooLarge, info.Size(), eventReplayMaxFileBytes)
 	}
 
-	records, err := readCapturedEventTail(ctx, file, info.Size(), limit)
+	records, err := ReadCapturedEventTail(ctx, file, info.Size(), limit)
 	if err != nil {
 		return nil, "", err
 	}
@@ -63,7 +64,7 @@ func readCapturedEventsFileAtRootContext(ctx context.Context, root, path string,
 		return nil, "", err
 	}
 	if finalInfo.Size() < 0 || finalInfo.Size() > eventReplayMaxFileBytes {
-		return nil, "", fmt.Errorf("%w: file grew to %d bytes during replay (limit %d)", errRecordingFileTooLarge, finalInfo.Size(), eventReplayMaxFileBytes)
+		return nil, "", fmt.Errorf("%w: file grew to %d bytes during replay (limit %d)", ErrFileTooLarge, finalInfo.Size(), eventReplayMaxFileBytes)
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, "", err
@@ -71,11 +72,11 @@ func readCapturedEventsFileAtRootContext(ctx context.Context, root, path string,
 	return records, absPath, nil
 }
 
-func readCapturedEventTail(ctx context.Context, file io.ReaderAt, size int64, limit int) ([]CapturedEventRecord, error) {
-	return readCapturedEventTailWithScanLimit(ctx, file, size, limit, eventReplayMaxScannedBytes)
+func ReadCapturedEventTail(ctx context.Context, file io.ReaderAt, size int64, limit int) ([]CapturedEventRecord, error) {
+	return ReadCapturedEventTailWithScanLimit(ctx, file, size, limit, eventReplayMaxScannedBytes)
 }
 
-func readCapturedEventTailWithScanLimit(ctx context.Context, file io.ReaderAt, size int64, limit int, maxScannedBytes int64) ([]CapturedEventRecord, error) {
+func ReadCapturedEventTailWithScanLimit(ctx context.Context, file io.ReaderAt, size int64, limit int, maxScannedBytes int64) ([]CapturedEventRecord, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -91,7 +92,7 @@ func readCapturedEventTailWithScanLimit(ctx context.Context, file io.ReaderAt, s
 	processLine := func(line []byte) (bool, error) {
 		scannedLines++
 		if scannedLines > eventReplayMaxScannedLines {
-			return false, fmt.Errorf("%w: limit %d", errRecordingTooManyLines, eventReplayMaxScannedLines)
+			return false, fmt.Errorf("%w: limit %d", ErrTooManyLines, eventReplayMaxScannedLines)
 		}
 		if scannedLines == 1 || scannedLines%128 == 0 {
 			if err := ctx.Err(); err != nil {
@@ -99,7 +100,7 @@ func readCapturedEventTailWithScanLimit(ctx context.Context, file io.ReaderAt, s
 			}
 		}
 		if len(line) > eventReplayMaxLineBytes {
-			return false, fmt.Errorf("%w: %d bytes (limit %d)", errRecordingLineTooLarge, len(line), eventReplayMaxLineBytes)
+			return false, fmt.Errorf("%w: %d bytes (limit %d)", ErrLineTooLarge, len(line), eventReplayMaxLineBytes)
 		}
 		if len(bytes.TrimSpace(line)) == 0 {
 			return false, nil
@@ -108,7 +109,7 @@ func readCapturedEventTailWithScanLimit(ctx context.Context, file io.ReaderAt, s
 		if err := json.Unmarshal(line, &record); err != nil || record.Event == nil {
 			return false, nil
 		}
-		records = append(records, normalizeCapturedEventRecord(record))
+		records = append(records, events.NormalizeCapturedEventRecord(record))
 		return len(records) >= limit, nil
 	}
 
@@ -121,7 +122,7 @@ func readCapturedEventTailWithScanLimit(ctx context.Context, file io.ReaderAt, s
 			chunkBytes = position
 		}
 		if maxScannedBytes > 0 && scannedBytes > maxScannedBytes-chunkBytes {
-			return nil, fmt.Errorf("%w: limit %d", errRecordingScanTooLarge, maxScannedBytes)
+			return nil, fmt.Errorf("%w: limit %d", ErrScanTooLarge, maxScannedBytes)
 		}
 		position -= chunkBytes
 		scannedBytes += chunkBytes
@@ -151,7 +152,7 @@ func readCapturedEventTailWithScanLimit(ctx context.Context, file io.ReaderAt, s
 			lineEnd = index
 		}
 		if lineEnd > eventReplayMaxLineBytes {
-			return nil, fmt.Errorf("%w: more than %d bytes without a line boundary", errRecordingLineTooLarge, eventReplayMaxLineBytes)
+			return nil, fmt.Errorf("%w: more than %d bytes without a line boundary", ErrLineTooLarge, eventReplayMaxLineBytes)
 		}
 		carry = append(carry[:0], block[:lineEnd]...)
 	}

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/recording"
 	"bytes"
 	"context"
 	"encoding/binary"
@@ -198,7 +199,7 @@ func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) 
 		// before main's five-second shutdown deadline expires.
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 		defer cancel()
-		if _, err := eventRecordingStore.StopContext(shutdownCtx); err != nil {
+		if _, err := recording.Default().StopContext(shutdownCtx); err != nil {
 			log.Printf("[WARN] event recording writer did not stop cleanly: %v", err)
 		}
 	})

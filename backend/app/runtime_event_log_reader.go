@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/recording"
 	"context"
 	"os"
 )
@@ -26,5 +27,5 @@ func tailCapturedEventsFileAtRootContext(ctx context.Context, root, path string,
 	if err != nil {
 		return nil, err
 	}
-	return readCapturedEventTail(ctx, file, info.Size(), limit)
+	return recording.ReadCapturedEventTail(ctx, file, info.Size(), limit)
 }
