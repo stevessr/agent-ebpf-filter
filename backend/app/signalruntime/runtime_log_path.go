@@ -1,4 +1,4 @@
-package app
+package signalruntime
 
 import (
 	"errors"

@@ -1,4 +1,4 @@
-package app
+package signalruntime
 
 import (
 	"bytes"
@@ -33,7 +33,7 @@ func TestNormalizeSignalProcessingSettingsBoundsSelectedPrograms(t *testing.T) {
 	for index := range settings.SelectedPrograms {
 		settings.SelectedPrograms[index] = SelectedProgramSignalLog{Program: "codex", Enabled: true}
 	}
-	normalizeSignalProcessingSettings(&settings)
+	NormalizeSettings(&settings)
 	if len(settings.SelectedPrograms) != signalMaxSelectedPrograms {
 		t.Fatalf("selected program count = %d, want %d", len(settings.SelectedPrograms), signalMaxSelectedPrograms)
 	}

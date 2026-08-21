@@ -1,6 +1,7 @@
-package app
+package signalruntime
 
 import (
+	"agent-ebpf-filter/app/events"
 	"bytes"
 	"compress/gzip"
 	"encoding/binary"
@@ -63,8 +64,8 @@ func prepareSignalProgramLogWork(record CapturedEventRecord) (signalProgramLogWo
 	if record.Event == nil {
 		return signalProgramLogWorkItem{}, false
 	}
-	settings := runtimeSettingsStore.Snapshot().SignalProcessing
-	normalizeSignalProcessingSettings(&settings)
+	settings := SnapshotSettingsHook().SignalProcessing
+	NormalizeSettings(&settings)
 	if len(settings.SelectedPrograms) == 0 {
 		return signalProgramLogWorkItem{}, false
 	}
@@ -100,7 +101,7 @@ func persistSignalProgramLogWork(item signalProgramLogWorkItem) (persisted, fail
 			continue
 		}
 		logRecord := &pb.ProgramSignalLogRecord{
-			SchemaVersion: eventSchemaVersion,
+			SchemaVersion: events.EventSchemaVersion,
 			Program:       strings.TrimSpace(selected.Program),
 			Reason:        match.reason,
 			PersistedAt:   time.Now().UTC().UnixMilli(),
@@ -125,7 +126,7 @@ func reportSignalProgramLogError(message string) {
 }
 
 func recordToProtoCapturedEvent(record CapturedEventRecord) *pb.CapturedEventRecord {
-	record = normalizeCapturedEventRecord(record)
+	record = events.NormalizeCapturedEventRecord(record)
 	return &pb.CapturedEventRecord{
 		Event:     record.Event,
 		Timestamp: record.ReceivedAt.UnixMilli(),
@@ -182,7 +183,7 @@ func signalProgramPatternMatches(pattern, value string) bool {
 }
 
 func selectedProgramLogStatuses(settings SignalProcessingSettings) []signalProgramLogStatus {
-	normalizeSignalProcessingSettings(&settings)
+	NormalizeSettings(&settings)
 	statuses := make([]signalProgramLogStatus, 0, len(settings.SelectedPrograms))
 	for _, selected := range settings.SelectedPrograms {
 		program := strings.TrimSpace(selected.Program)
@@ -254,7 +255,7 @@ func populateSignalProgramLogStatus(status *signalProgramLogStatus, selected Sel
 }
 
 func resolveSelectedProgramLog(settings SignalProcessingSettings, program string) (SelectedProgramSignalLog, bool) {
-	normalizeSignalProcessingSettings(&settings)
+	NormalizeSettings(&settings)
 	program = strings.TrimSpace(program)
 	if program == "" {
 		return SelectedProgramSignalLog{}, false
@@ -531,3 +532,6 @@ func countCompressedProtoFramesReaderWithLimits(
 		count++
 	}
 }
+
+// PersistProgramLog writes one captured event into the selected program logs.
+func PersistProgramLog(record CapturedEventRecord) { persistSignalProgramLog(record) }

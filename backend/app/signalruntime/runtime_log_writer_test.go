@@ -1,6 +1,7 @@
-package app
+package signalruntime
 
 import (
+	"agent-ebpf-filter/core"
 	"context"
 	"errors"
 	"path/filepath"
@@ -188,22 +189,24 @@ func TestSignalProgramLogWriterConcurrentShutdownDrainsEveryAcceptedItem(t *test
 func TestPersistSignalProgramLogUsesActiveWriter(t *testing.T) {
 	tempDir := t.TempDir()
 	oldRoot := signalProgramLogsRootPath
-	oldRuntimeStore := runtimeSettingsStore
+	oldSnapshot := SnapshotSettingsHook
 	oldWriterStore := signalProgramLogWriterStore
 	signalProgramLogsRootPath = func() string { return tempDir }
-	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{SignalProcessing: SignalProcessingSettings{
-		QueueSize: 8,
-		SelectedPrograms: []SelectedProgramSignalLog{{
-			Program: "codex",
-			Enabled: true,
-			Path:    "codex.pb.gzlog",
-		}},
-	}}}
+	SnapshotSettingsHook = func() core.RuntimeSettings {
+		return core.RuntimeSettings{SignalProcessing: SignalProcessingSettings{
+			QueueSize: 8,
+			SelectedPrograms: []SelectedProgramSignalLog{{
+				Program: "codex",
+				Enabled: true,
+				Path:    "codex.pb.gzlog",
+			}},
+		}}
+	}
 	writer := newSignalProgramLogWriter()
 	signalProgramLogWriterStore = writer
 	t.Cleanup(func() {
 		signalProgramLogsRootPath = oldRoot
-		runtimeSettingsStore = oldRuntimeStore
+		SnapshotSettingsHook = oldSnapshot
 		signalProgramLogWriterStore = oldWriterStore
 	})
 

@@ -1,6 +1,7 @@
-package app
+package signalruntime
 
 import (
+	"agent-ebpf-filter/app/events"
 	"context"
 	"errors"
 	"mime"
@@ -35,7 +36,7 @@ func handleSignalProcessingTask(c *gin.Context) {
 		if limit > 50000 {
 			limit = 50000
 		}
-		records, _, err := runtimeSettingsStore.RecentEventsContext(c.Request.Context(), limit)
+		records, _, err := RecentEventsContextHook(c.Request.Context(), limit)
 		if err != nil {
 			if c.Request.Context().Err() != nil {
 				return
@@ -76,8 +77,8 @@ func handleSignalRuleTest(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "invalid signal rule test request"})
 		return
 	}
-	settings := runtimeSettingsStore.Snapshot().SignalProcessing
-	normalizeSignalProcessingSettings(&settings)
+	settings := SnapshotSettingsHook().SignalProcessing
+	NormalizeSettings(&settings)
 	rule := *req.Rule
 	normalizeSignalRule(&rule, settings.DefaultTTLSeconds, 0)
 
@@ -88,7 +89,7 @@ func handleSignalRuleTest(c *gin.Context) {
 	if limit > 50000 {
 		limit = 50000
 	}
-	records, _, err := runtimeSettingsStore.RecentEventsContext(c.Request.Context(), limit)
+	records, _, err := RecentEventsContextHook(c.Request.Context(), limit)
 	if err != nil {
 		if c.Request.Context().Err() != nil {
 			return
@@ -107,7 +108,7 @@ func handleSignalRuleTest(c *gin.Context) {
 		Matches:      make([]signalRuleTestMatch, 0, 25),
 	}
 	for _, record := range records {
-		record = normalizeCapturedEventRecord(record)
+		record = events.NormalizeCapturedEventRecord(record)
 		if record.Event == nil || shouldIgnoreSignalProcessingEvent(record.Event) {
 			continue
 		}
@@ -138,8 +139,8 @@ func handleSignalRuleTest(c *gin.Context) {
 }
 
 func handleSignalProgramLogs(c *gin.Context) {
-	settings := runtimeSettingsStore.Snapshot().SignalProcessing
-	normalizeSignalProcessingSettings(&settings)
+	settings := SnapshotSettingsHook().SignalProcessing
+	NormalizeSettings(&settings)
 	c.JSON(200, signalProgramLogsResponse{
 		Compression: settings.ProtoLogCompression,
 		Logs:        selectedProgramLogStatuses(settings),
@@ -148,7 +149,7 @@ func handleSignalProgramLogs(c *gin.Context) {
 }
 
 func handleSignalProgramLogDownload(c *gin.Context) {
-	settings := runtimeSettingsStore.Snapshot().SignalProcessing
+	settings := SnapshotSettingsHook().SignalProcessing
 	program := c.Query("program")
 	selected, ok := resolveSelectedProgramLog(settings, program)
 	if !ok {
@@ -179,3 +180,19 @@ func handleSignalProgramLogDownload(c *gin.Context) {
 		"X-Content-Type-Options": "nosniff",
 	})
 }
+
+
+// HandleStatus serves GET /signals/status.
+func HandleStatus(c *gin.Context) { handleSignalProcessingStatus(c) }
+
+// HandleTask serves POST /signals/task.
+func HandleTask(c *gin.Context) { handleSignalProcessingTask(c) }
+
+// HandleRuleTest serves POST /signals/rules/test.
+func HandleRuleTest(c *gin.Context) { handleSignalRuleTest(c) }
+
+// HandleProgramLogs serves GET /signals/program-logs.
+func HandleProgramLogs(c *gin.Context) { handleSignalProgramLogs(c) }
+
+// HandleProgramLogDownload serves GET /signals/program-logs/download.
+func HandleProgramLogDownload(c *gin.Context) { handleSignalProgramLogDownload(c) }

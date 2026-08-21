@@ -1,6 +1,7 @@
-package app
+package signalruntime
 
 import (
+	"agent-ebpf-filter/app/tasks"
 	"context"
 	"sync"
 	"time"
@@ -52,8 +53,8 @@ func newSignalProgramLogWriter() *signalProgramLogWriter {
 }
 
 func startSignalProgramLogWriter(ctx context.Context) {
-	settings := runtimeSettingsStore.Snapshot().SignalProcessing
-	normalizeSignalProcessingSettings(&settings)
+	settings := SnapshotSettingsHook().SignalProcessing
+	NormalizeSettings(&settings)
 	signalProgramLogWriterStore.Start(ctx, settings.QueueSize)
 }
 
@@ -64,7 +65,7 @@ func (w *signalProgramLogWriter) Start(ctx context.Context, queueSize int) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	queueSize = normalizeBackendWorkerQueueSize(queueSize, signalProgramLogWriterDefaultQueueSize)
+	queueSize = tasks.NormalizeQueueSize(queueSize, signalProgramLogWriterDefaultQueueSize)
 
 	w.lifecycleMu.Lock()
 	defer w.lifecycleMu.Unlock()
@@ -259,3 +260,10 @@ func signalProgramLogTimePointer(value time.Time) *time.Time {
 	value = value.UTC()
 	return &value
 }
+
+
+// LogWriter returns the shared signal program-log writer.
+func LogWriter() *signalProgramLogWriter { return signalProgramLogWriterStore }
+
+// StartProgramLogWriter launches the shared program-log writer loop.
+func StartProgramLogWriter(ctx context.Context) { startSignalProgramLogWriter(ctx) }

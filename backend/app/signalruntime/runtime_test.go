@@ -1,6 +1,8 @@
-package app
+package signalruntime
 
 import (
+	"agent-ebpf-filter/app/events"
+	"agent-ebpf-filter/core"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -49,23 +51,25 @@ func TestSignalProcessingWorkerShutdownTimeoutKeepsGeneration(t *testing.T) {
 }
 
 func TestSignalProcessingCanceledScanDoesNotMutateState(t *testing.T) {
-	oldStore := runtimeSettingsStore
-	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{SignalProcessing: SignalProcessingSettings{
-		Enabled:             true,
-		QueueSize:           128,
-		CronIntervalSeconds: 60,
-		DefaultTTLSeconds:   60,
-		MaxStates:           128,
-		Rules: []SignalRule{{
-			ID:         "reads",
-			Enabled:    true,
-			Kind:       signalKindRepeatedRead,
-			TTLSeconds: 60,
-			Weight:     1,
-			Conditions: []SignalCondition{{Field: "path", Operator: "prefix", Value: "/tmp/"}},
-		}},
-	}}}
-	t.Cleanup(func() { runtimeSettingsStore = oldStore })
+	oldSnapshot := SnapshotSettingsHook
+	SnapshotSettingsHook = func() core.RuntimeSettings {
+		return core.RuntimeSettings{SignalProcessing: SignalProcessingSettings{
+			Enabled:             true,
+			QueueSize:           128,
+			CronIntervalSeconds: 60,
+			DefaultTTLSeconds:   60,
+			MaxStates:           128,
+			Rules: []SignalRule{{
+				ID:         "reads",
+				Enabled:    true,
+				Kind:       signalKindRepeatedRead,
+				TTLSeconds: 60,
+				Weight:     1,
+				Conditions: []SignalCondition{{Field: "path", Operator: "prefix", Value: "/tmp/"}},
+			}},
+		}}
+	}
+	t.Cleanup(func() { SnapshotSettingsHook = oldSnapshot })
 
 	worker := newSignalProcessingWorker()
 	records := []CapturedEventRecord{{
@@ -184,13 +188,15 @@ func TestSignalProcessingStatusReportsAllActiveStatesAndBoundsRecent(t *testing.
 }
 
 func TestSignalProcessingWorkerShutdownAndRestart(t *testing.T) {
-	oldStore := runtimeSettingsStore
-	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{SignalProcessing: SignalProcessingSettings{
-		Enabled:             true,
-		QueueSize:           8,
-		CronIntervalSeconds: 60,
-	}}}
-	t.Cleanup(func() { runtimeSettingsStore = oldStore })
+	oldSnapshot := SnapshotSettingsHook
+	SnapshotSettingsHook = func() core.RuntimeSettings {
+		return core.RuntimeSettings{SignalProcessing: SignalProcessingSettings{
+			Enabled:             true,
+			QueueSize:           8,
+			CronIntervalSeconds: 60,
+		}}
+	}
+	t.Cleanup(func() { SnapshotSettingsHook = oldSnapshot })
 
 	worker := newSignalProcessingWorker()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -220,25 +226,27 @@ func TestSignalProcessingWorkerShutdownAndRestart(t *testing.T) {
 }
 
 func TestSignalProcessingWorkerUpdatesOnlyMatchingSignalsWithTTLDecay(t *testing.T) {
-	oldStore := runtimeSettingsStore
-	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{SignalProcessing: SignalProcessingSettings{
-		Enabled:             true,
-		QueueSize:           128,
-		CronIntervalSeconds: 1,
-		DefaultTTLSeconds:   300,
-		MaxStates:           128,
-		ProtoLogCompression: "gzip",
-		Rules: []SignalRule{{
-			ID:         "tmp_read",
-			Name:       "tmp read",
-			Enabled:    true,
-			Kind:       signalKindRepeatedRead,
-			TTLSeconds: 300,
-			Weight:     1,
-			Conditions: []SignalCondition{{Field: "path", Operator: "prefix", Value: "/tmp/"}},
-		}},
-	}}}
-	t.Cleanup(func() { runtimeSettingsStore = oldStore })
+	oldSnapshot := SnapshotSettingsHook
+	SnapshotSettingsHook = func() core.RuntimeSettings {
+		return core.RuntimeSettings{SignalProcessing: SignalProcessingSettings{
+			Enabled:             true,
+			QueueSize:           128,
+			CronIntervalSeconds: 1,
+			DefaultTTLSeconds:   300,
+			MaxStates:           128,
+			ProtoLogCompression: "gzip",
+			Rules: []SignalRule{{
+				ID:         "tmp_read",
+				Name:       "tmp read",
+				Enabled:    true,
+				Kind:       signalKindRepeatedRead,
+				TTLSeconds: 300,
+				Weight:     1,
+				Conditions: []SignalCondition{{Field: "path", Operator: "prefix", Value: "/tmp/"}},
+			}},
+		}}
+	}
+	t.Cleanup(func() { SnapshotSettingsHook = oldSnapshot })
 
 	worker := newSignalProcessingWorker()
 	base := time.Now().UTC().Add(-time.Minute)
@@ -293,22 +301,24 @@ func TestSignalSelectedProgramPersistsCompressedProtoBinary(t *testing.T) {
 	logPath := filepath.Join(tempDir, "codex.pb.gzlog")
 	oldRoot := signalProgramLogsRootPath
 	signalProgramLogsRootPath = func() string { return tempDir }
-	oldStore := runtimeSettingsStore
-	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{SignalProcessing: SignalProcessingSettings{
-		Enabled:             false,
-		QueueSize:           128,
-		CronIntervalSeconds: 1,
-		DefaultTTLSeconds:   300,
-		MaxStates:           128,
-		ProtoLogCompression: "gzip",
-		SelectedPrograms: []SelectedProgramSignalLog{{
-			Program: "codex",
-			Enabled: true,
-			Path:    filepath.Base(logPath),
-		}},
-	}}}
+	oldSnapshot := SnapshotSettingsHook
+	SnapshotSettingsHook = func() core.RuntimeSettings {
+		return core.RuntimeSettings{SignalProcessing: SignalProcessingSettings{
+			Enabled:             false,
+			QueueSize:           128,
+			CronIntervalSeconds: 1,
+			DefaultTTLSeconds:   300,
+			MaxStates:           128,
+			ProtoLogCompression: "gzip",
+			SelectedPrograms: []SelectedProgramSignalLog{{
+				Program: "codex",
+				Enabled: true,
+				Path:    filepath.Base(logPath),
+			}},
+		}}
+	}
 	t.Cleanup(func() {
-		runtimeSettingsStore = oldStore
+		SnapshotSettingsHook = oldSnapshot
 		signalProgramLogsRootPath = oldRoot
 	})
 
@@ -349,36 +359,39 @@ func TestSignalRuleTestAndProgramLogStatusHandlers(t *testing.T) {
 	oldRoot := signalProgramLogsRootPath
 	signalProgramLogsRootPath = func() string { return tempDir }
 
-	oldStore := runtimeSettingsStore
-	oldArchive := capturedEventArchive
-	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{SignalProcessing: SignalProcessingSettings{
-		Enabled:             true,
-		QueueSize:           128,
-		CronIntervalSeconds: 1,
-		DefaultTTLSeconds:   300,
-		MaxStates:           128,
-		ProtoLogCompression: "gzip",
-		SelectedPrograms: []SelectedProgramSignalLog{{
-			Program: "codex",
-			Enabled: true,
-			Path:    filepath.Base(logPath),
-		}},
-	}}}
-	capturedEventArchive = newEventArchive(10)
+	oldSnapshot := SnapshotSettingsHook
+	archive := core.NewEventArchive(10)
+	SnapshotSettingsHook = func() core.RuntimeSettings {
+		return core.RuntimeSettings{SignalProcessing: SignalProcessingSettings{
+			Enabled:             true,
+			QueueSize:           128,
+			CronIntervalSeconds: 1,
+			DefaultTTLSeconds:   300,
+			MaxStates:           128,
+			ProtoLogCompression: "gzip",
+			SelectedPrograms: []SelectedProgramSignalLog{{
+				Program: "codex",
+				Enabled: true,
+				Path:    filepath.Base(logPath),
+			}},
+		}}
+	}
+	RecentEventsContextHook = func(ctx context.Context, limit int) ([]CapturedEventRecord, string, error) {
+		return archive.Snapshot(limit), "", nil
+	}
 	t.Cleanup(func() {
-		runtimeSettingsStore = oldStore
-		capturedEventArchive = oldArchive
+		SnapshotSettingsHook = oldSnapshot
 		signalProgramLogsRootPath = oldRoot
 	})
 
-	record := normalizeCapturedEventRecord(CapturedEventRecord{ReceivedAt: time.Now().UTC(), Event: &pb.Event{
+	record := events.NormalizeCapturedEventRecord(CapturedEventRecord{ReceivedAt: time.Now().UTC(), Event: &pb.Event{
 		Pid:       9090,
 		Type:      "read",
 		EventType: pb.EventType_READ,
 		Comm:      "codex",
 		Path:      "/tmp/dry-run.txt",
 	}})
-	capturedEventArchive.Add(record)
+	archive.Add(record)
 	persistSignalProgramLog(record)
 
 	router := gin.New()

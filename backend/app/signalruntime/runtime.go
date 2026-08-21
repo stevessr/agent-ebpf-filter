@@ -1,6 +1,8 @@
-package app
+package signalruntime
 
 import (
+	"agent-ebpf-filter/app/tasks"
+	"agent-ebpf-filter/app/events"
 	"context"
 	"fmt"
 	"sort"
@@ -171,7 +173,7 @@ var (
 	signalProgramLogMu          sync.Mutex
 )
 
-func defaultSignalProcessingSettings() SignalProcessingSettings {
+func DefaultSettings() SignalProcessingSettings {
 	return SignalProcessingSettings{
 		Enabled:             false,
 		QueueSize:           signalDefaultQueueSize,
@@ -211,7 +213,7 @@ func defaultSignalProcessingSettings() SignalProcessingSettings {
 	}
 }
 
-func normalizeSignalProcessingSettings(settings *SignalProcessingSettings) {
+func NormalizeSettings(settings *SignalProcessingSettings) {
 	if settings == nil {
 		return
 	}
@@ -259,7 +261,7 @@ func normalizeSignalProcessingSettings(settings *SignalProcessingSettings) {
 		settings.ProtoLogCompression = signalProtoLogCompressionGzip
 	}
 	if settings.Rules == nil {
-		defaults := defaultSignalProcessingSettings()
+		defaults := DefaultSettings()
 		settings.Rules = defaults.Rules
 	}
 	for index := range settings.Rules {
@@ -423,8 +425,8 @@ func newSignalProcessingWorker() *signalProcessingWorker {
 }
 
 func startSignalProcessingWorker(ctx context.Context) {
-	settings := runtimeSettingsStore.Snapshot().SignalProcessing
-	normalizeSignalProcessingSettings(&settings)
+	settings := SnapshotSettingsHook().SignalProcessing
+	NormalizeSettings(&settings)
 	signalProcessingWorkerStore.Start(ctx, settings.QueueSize)
 }
 
@@ -435,7 +437,7 @@ func (w *signalProcessingWorker) Start(ctx context.Context, queueSize int) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	queueSize = normalizeBackendWorkerQueueSize(queueSize, signalDefaultQueueSize)
+	queueSize = tasks.NormalizeQueueSize(queueSize, signalDefaultQueueSize)
 	w.lifecycleMu.Lock()
 	defer w.lifecycleMu.Unlock()
 	w.mu.Lock()
@@ -506,8 +508,8 @@ func (w *signalProcessingWorker) run(ctx context.Context, queue <-chan signalPro
 
 func (w *signalProcessingWorker) runCron(ctx context.Context) {
 	for {
-		settings := runtimeSettingsStore.Snapshot().SignalProcessing
-		normalizeSignalProcessingSettings(&settings)
+		settings := SnapshotSettingsHook().SignalProcessing
+		NormalizeSettings(&settings)
 		interval := time.Duration(settings.CronIntervalSeconds) * time.Second
 		if interval <= 0 {
 			interval = signalDefaultCronIntervalSeconds * time.Second
@@ -566,8 +568,8 @@ func queueSignalProcessingRecord(record CapturedEventRecord) {
 	if record.Event == nil || shouldIgnoreSignalProcessingEvent(record.Event) {
 		return
 	}
-	settings := runtimeSettingsStore.Snapshot().SignalProcessing
-	normalizeSignalProcessingSettings(&settings)
+	settings := SnapshotSettingsHook().SignalProcessing
+	NormalizeSettings(&settings)
 	if !settings.Enabled {
 		return
 	}
@@ -667,8 +669,8 @@ func (w *signalProcessingWorker) processRecord(record CapturedEventRecord, force
 	if w == nil {
 		return
 	}
-	settings := runtimeSettingsStore.Snapshot().SignalProcessing
-	normalizeSignalProcessingSettings(&settings)
+	settings := SnapshotSettingsHook().SignalProcessing
+	NormalizeSettings(&settings)
 	w.processRecordWithSettings(record, force, settings)
 }
 
@@ -679,8 +681,8 @@ func (w *signalProcessingWorker) processScan(ctx context.Context, records []Capt
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	settings := runtimeSettingsStore.Snapshot().SignalProcessing
-	normalizeSignalProcessingSettings(&settings)
+	settings := SnapshotSettingsHook().SignalProcessing
+	NormalizeSettings(&settings)
 	if !force && !settings.Enabled {
 		return
 	}
@@ -702,7 +704,7 @@ func (w *signalProcessingWorker) processRecordWithSettings(record CapturedEventR
 	if len(settings.Rules) == 0 {
 		return
 	}
-	record = normalizeCapturedEventRecord(record)
+	record = events.NormalizeCapturedEventRecord(record)
 	event := record.Event
 	observedAt := record.ReceivedAt.UTC()
 	if observedAt.IsZero() {
@@ -901,8 +903,8 @@ func (w *signalProcessingWorker) detachSignalStateLocked(state *signalState) {
 }
 
 func (w *signalProcessingWorker) Status() signalProcessingStatus {
-	settings := runtimeSettingsStore.Snapshot().SignalProcessing
-	normalizeSignalProcessingSettings(&settings)
+	settings := SnapshotSettingsHook().SignalProcessing
+	NormalizeSettings(&settings)
 	if w == nil {
 		return signalProcessingStatus{
 			Enabled:        settings.Enabled,
@@ -969,3 +971,14 @@ func (w *signalProcessingWorker) Status() signalProcessingStatus {
 	}
 	return status
 }
+
+
+// StartProcessingWorker launches the shared signal processing worker.
+func StartProcessingWorker(ctx context.Context) { startSignalProcessingWorker(ctx) }
+
+// QueueProcessingRecord enqueues a captured event into the signal worker.
+func QueueProcessingRecord(record CapturedEventRecord) { queueSignalProcessingRecord(record) }
+
+
+// Worker returns the shared signal processing worker.
+func Worker() *signalProcessingWorker { return signalProcessingWorkerStore }
