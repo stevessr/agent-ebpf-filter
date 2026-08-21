@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/research"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -148,7 +149,7 @@ func (s *pluginStore) ensureLoaded() error {
 		return err
 	}
 	defer root.Close()
-	names, err := researchDirectoryNames(root, 1024)
+	names, err := research.DirectoryNames(root, 1024)
 	if err != nil {
 		return err
 	}

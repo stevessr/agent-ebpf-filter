@@ -72,7 +72,7 @@ var globalFeatureExtractor = &FeatureExtractor{
 	history: newRecentHistoryBuffer(100),
 }
 
-var globalEmbedder = behavior.NewInstructionEmbedder()
+var globalEmbedder = behavior.DefaultEmbedder()
 
 func (fe *FeatureExtractor) Extract(comm string, args []string, user string, pid uint32) [FeatureDim]float64 {
 	var f [FeatureDim]float64

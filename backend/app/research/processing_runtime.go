@@ -1,6 +1,10 @@
-package app
+package research
 
 import (
+	"agent-ebpf-filter/app/events"
+	"agent-ebpf-filter/app/ml"
+	"agent-ebpf-filter/app/tasks"
+	"agent-ebpf-filter/core"
 	"context"
 	"fmt"
 	"sort"
@@ -58,11 +62,6 @@ type researchEventSample struct {
 	Decision  string  `json:"decision,omitempty"`
 }
 
-type researchCount struct {
-	Key   string `json:"key"`
-	Count int    `json:"count"`
-}
-
 type researchTimelineBucket struct {
 	Start int64  `json:"start"`
 	End   int64  `json:"end"`
@@ -110,7 +109,7 @@ type researchProcessingSummary struct {
 	GeneratedTime      string                   `json:"generatedTime"`
 }
 
-type researchProcessingStatus struct {
+type ResearchProcessingStatus struct {
 	Enabled               bool                       `json:"enabled"`
 	Settings              ResearchProcessingSettings `json:"settings"`
 	QueueLen              int                        `json:"queueLen"`
@@ -176,7 +175,7 @@ type researchProcessingWorker struct {
 	updatedAt           time.Time
 }
 
-var researchProcessingWorkerStore = newResearchProcessingWorker()
+var ProcessingWorker = newResearchProcessingWorker()
 
 type researchProcessingSummarySettings struct {
 	TimelineBucketSeconds int
@@ -317,9 +316,9 @@ func newResearchProcessingWorker() *researchProcessingWorker {
 }
 
 func startResearchProcessingWorker(ctx context.Context) {
-	settings := runtimeSettingsStore.Snapshot().ResearchProcessing
+	settings := snapshotRuntimeSettings().ResearchProcessing
 	normalizeResearchProcessingSettings(&settings)
-	researchProcessingWorkerStore.Start(ctx, settings.QueueSize)
+	ProcessingWorker.Start(ctx, settings.QueueSize)
 }
 
 func (w *researchProcessingWorker) Start(ctx context.Context, queueSize int) {
@@ -329,7 +328,7 @@ func (w *researchProcessingWorker) Start(ctx context.Context, queueSize int) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	queueSize = normalizeBackendWorkerQueueSize(queueSize, researchProcessingDefaultQueueSize)
+	queueSize = tasks.NormalizeQueueSize(queueSize, researchProcessingDefaultQueueSize)
 	w.lifecycleMu.Lock()
 	defer w.lifecycleMu.Unlock()
 	w.mu.Lock()
@@ -428,13 +427,13 @@ func queueResearchProcessingRecord(record CapturedEventRecord) {
 	if record.Event == nil {
 		return
 	}
-	settings := runtimeSettingsStore.Snapshot().ResearchProcessing
+	settings := snapshotRuntimeSettings().ResearchProcessing
 	normalizeResearchProcessingSettings(&settings)
 	if !settings.Enabled {
-		researchProcessingWorkerStore.noteDrop("disabled", "research processing is disabled")
+		ProcessingWorker.noteDrop("disabled", "research processing is disabled")
 		return
 	}
-	researchProcessingWorkerStore.EnqueueEvent(record)
+	ProcessingWorker.EnqueueEvent(record)
 }
 
 func (w *researchProcessingWorker) EnqueueEvent(record CapturedEventRecord) bool {
@@ -539,7 +538,7 @@ func (w *researchProcessingWorker) processRecordsContext(ctx context.Context, re
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	settings := runtimeSettingsStore.Snapshot().ResearchProcessing
+	settings := snapshotRuntimeSettings().ResearchProcessing
 	normalizeResearchProcessingSettings(&settings)
 	if !force && !settings.Enabled {
 		w.noteDrop("disabled", "research processing is disabled")
@@ -549,11 +548,11 @@ func (w *researchProcessingWorker) processRecordsContext(ctx context.Context, re
 	if maxEvents <= 0 {
 		maxEvents = researchProcessingDefaultMaxEvents
 	}
-	for offset := 0; offset < len(records); offset += backendWorkerScanBatchSize {
+	for offset := 0; offset < len(records); offset += core.WorkerScanBatchSize {
 		if ctx.Err() != nil {
 			return
 		}
-		end := min(offset+backendWorkerScanBatchSize, len(records))
+		end := min(offset+core.WorkerScanBatchSize, len(records))
 		samples := make([]researchEventSample, 0, end-offset)
 		for _, record := range records[offset:end] {
 			if record.Event == nil {
@@ -587,11 +586,11 @@ func (w *researchProcessingWorker) processRecordsContext(ctx context.Context, re
 	}
 }
 
-func (w *researchProcessingWorker) Status() researchProcessingStatus {
-	settings := runtimeSettingsStore.Snapshot().ResearchProcessing
+func (w *researchProcessingWorker) Status() ResearchProcessingStatus {
+	settings := snapshotRuntimeSettings().ResearchProcessing
 	normalizeResearchProcessingSettings(&settings)
 	if w == nil {
-		return researchProcessingStatus{Enabled: settings.Enabled, Settings: settings, UpdatedAt: time.Now().UTC()}
+		return ResearchProcessingStatus{Enabled: settings.Enabled, Settings: settings, UpdatedAt: time.Now().UTC()}
 	}
 	w.refreshSummaryIfNeeded(settings)
 	w.mu.RLock()
@@ -605,7 +604,7 @@ func (w *researchProcessingWorker) Status() researchProcessingStatus {
 	lastProcessedAt := ptrTimeIfSet(w.lastProcessedAt)
 	lastDroppedAt := ptrTimeIfSet(w.lastDroppedAt)
 	lastSummaryAt := ptrTimeIfSet(w.lastSummaryAt)
-	status := researchProcessingStatus{
+	status := ResearchProcessingStatus{
 		Enabled:               settings.Enabled,
 		Settings:              settings,
 		QueueLen:              queueLen,
@@ -714,7 +713,7 @@ func throughputPerSecond(total uint64, startedAt, now time.Time) float64 {
 }
 
 func researchEventSampleFromRecord(record CapturedEventRecord) (researchEventSample, bool) {
-	record = normalizeCapturedEventRecord(record)
+	record = events.NormalizeCapturedEventRecord(record)
 	event := record.Event
 	if event == nil {
 		return researchEventSample{}, false
@@ -727,14 +726,14 @@ func researchEventSampleFromRecord(record CapturedEventRecord) (researchEventSam
 	if observedAt.IsZero() {
 		observedAt = time.Now().UTC()
 	}
-	source := determineEventEnvelopeSource(event)
+	source := events.DetermineEnvelopeSource(event)
 	if envelope != nil && strings.TrimSpace(envelope.GetSource()) != "" {
 		source = envelope.GetSource()
 	}
 	if strings.TrimSpace(source) == "" {
 		source = "unknown"
 	}
-	eventType := envelopeEventTypeName(envelope, event)
+	eventType := events.EnvelopeEventTypeName(envelope, event)
 	if eventType == "" {
 		eventType = platform.FirstNonEmpty(event.GetType(), event.GetEventType().String())
 	}
@@ -826,11 +825,11 @@ func buildResearchProcessingSummary(events []researchEventSample, settings Resea
 		if event.Timestamp > summary.LatestTimestamp {
 			summary.LatestTimestamp = event.Timestamp
 		}
-		incrementResearchCount(bySource, event.Source)
-		incrementResearchCount(byType, event.EventType)
-		incrementResearchCount(byComm, event.Comm)
+		ml.IncrementResearchCount(bySource, event.Source)
+		ml.IncrementResearchCount(byType, event.EventType)
+		ml.IncrementResearchCount(byComm, event.Comm)
 		if event.PID != 0 {
-			incrementResearchCount(byPID, strconv.FormatUint(uint64(event.PID), 10)+":"+event.Comm)
+			ml.IncrementResearchCount(byPID, strconv.FormatUint(uint64(event.PID), 10)+":"+event.Comm)
 			proc := processes[event.PID]
 			if proc == nil {
 				proc = &mutableResearchProcess{summary: researchProcessSummary{PID: event.PID, PPID: event.PPID, Comm: platform.FirstNonEmpty(event.Comm, "unknown")}, sources: map[string]struct{}{}, eventTypes: map[string]struct{}{}, childPids: map[uint32]struct{}{}}
@@ -854,7 +853,7 @@ func buildResearchProcessingSummary(events []researchEventSample, settings Resea
 			}
 		}
 		if event.TraceID != "" {
-			incrementResearchCount(byTrace, event.TraceID)
+			ml.IncrementResearchCount(byTrace, event.TraceID)
 			trace := traces[event.TraceID]
 			if trace == nil {
 				trace = &mutableResearchTrace{summary: researchTraceSummary{TraceID: event.TraceID}, sources: map[string]struct{}{}, comms: map[string]struct{}{}}
@@ -884,11 +883,11 @@ func buildResearchProcessingSummary(events []researchEventSample, settings Resea
 			}
 		}
 	}
-	summary.BySource = topResearchCounts(bySource, settings.TopK)
-	summary.ByType = topResearchCounts(byType, settings.TopK)
-	summary.ByComm = topResearchCounts(byComm, settings.TopK)
-	summary.ByPID = topResearchCounts(byPID, settings.TopK)
-	summary.ByTrace = topResearchCounts(byTrace, settings.TopK)
+	summary.BySource = ml.TopResearchCounts(bySource, settings.TopK)
+	summary.ByType = ml.TopResearchCounts(byType, settings.TopK)
+	summary.ByComm = ml.TopResearchCounts(byComm, settings.TopK)
+	summary.ByPID = ml.TopResearchCounts(byPID, settings.TopK)
+	summary.ByTrace = ml.TopResearchCounts(byTrace, settings.TopK)
 	summary.TopProcesses = topResearchProcesses(processes, settings.TopK)
 	summary.TopTraces = topResearchTraces(traces, settings.TopK)
 	summary.Timeline = researchTimelineBuckets(timeline, bucketMs)
@@ -913,31 +912,6 @@ type mutableResearchTrace struct {
 	summary researchTraceSummary
 	sources map[string]struct{}
 	comms   map[string]struct{}
-}
-
-func incrementResearchCount(counts map[string]int, key string) {
-	key = strings.TrimSpace(key)
-	if key == "" {
-		return
-	}
-	counts[key]++
-}
-
-func topResearchCounts(counts map[string]int, limit int) []researchCount {
-	items := make([]researchCount, 0, len(counts))
-	for key, count := range counts {
-		items = append(items, researchCount{Key: key, Count: count})
-	}
-	sort.Slice(items, func(i, j int) bool {
-		if items[i].Count == items[j].Count {
-			return items[i].Key < items[j].Key
-		}
-		return items[i].Count > items[j].Count
-	})
-	if limit > 0 && len(items) > limit {
-		return items[:limit]
-	}
-	return items
 }
 
 func topResearchProcesses(processes map[uint32]*mutableResearchProcess, limit int) []researchProcessSummary {
@@ -1074,7 +1048,7 @@ func nonEmptyResearchParts(values ...string) []string {
 }
 
 func handleResearchProcessingStatus(c *gin.Context) {
-	c.JSON(200, researchProcessingWorkerStore.Status())
+	c.JSON(200, ProcessingWorker.Status())
 }
 
 func handleResearchProcessingTask(c *gin.Context) {
@@ -1096,24 +1070,48 @@ func handleResearchProcessingTask(c *gin.Context) {
 		if limit > 50000 {
 			limit = 50000
 		}
-		records, _, err := runtimeSettingsStore.RecentEvents(limit)
+		records, _, err := recentCapturedEvents(limit)
 		if err != nil {
 			c.JSON(500, gin.H{"error": err.Error()})
 			return
 		}
-		if !researchProcessingWorkerStore.EnqueueScan(records) {
+		if !ProcessingWorker.EnqueueScan(records) {
 			c.JSON(503, gin.H{"error": "research processing worker queue is full or not started"})
 			return
 		}
-		status := researchProcessingWorkerStore.Status()
+		status := ProcessingWorker.Status()
 		c.JSON(202, researchProcessingTaskResponse{Status: "queued", Action: "scan_recent", Records: len(records), QueueLen: status.QueueLen})
 	case "reset":
-		if !researchProcessingWorkerStore.EnqueueReset() {
-			researchProcessingWorkerStore.resetNow()
+		if !ProcessingWorker.EnqueueReset() {
+			ProcessingWorker.resetNow()
 		}
-		status := researchProcessingWorkerStore.Status()
+		status := ProcessingWorker.Status()
 		c.JSON(202, researchProcessingTaskResponse{Status: "queued", Action: "reset", QueueLen: status.QueueLen})
 	default:
 		c.JSON(400, gin.H{"error": "unsupported research processing task", "supported": []string{"scan_recent", "reset"}})
 	}
 }
+
+// HandleProcessingStatus serves GET /research-processing/status.
+func HandleProcessingStatus(c *gin.Context) { handleResearchProcessingStatus(c) }
+
+// HandleProcessingTask serves POST /research-processing/task.
+func HandleProcessingTask(c *gin.Context) { handleResearchProcessingTask(c) }
+
+// StartProcessingWorker launches the background research-processing worker.
+func StartProcessingWorker(ctx context.Context) { startResearchProcessingWorker(ctx) }
+
+// ProcessingWorker exposes the shared worker for lifecycle management.
+// NewProcessingWorker builds an isolated worker instance (tests).
+func NewProcessingWorker() *researchProcessingWorker { return newResearchProcessingWorker() }
+
+// Defaults exported for the app settings normalizer.
+const (
+	ArtifactRetentionDaysDefault = researchProcessingDefaultArtifactRetentionDays
+	MaxSessionEventsDefault      = researchProcessingDefaultMaxSessionEvents
+	ExportFormatsDefault         = researchProcessingDefaultExportFormats
+)
+
+// QueueProcessingRecord enqueues a captured event into the research
+// processing pipeline from the app worker path.
+func QueueProcessingRecord(record CapturedEventRecord) { queueResearchProcessingRecord(record) }

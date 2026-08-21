@@ -2,6 +2,8 @@ package app
 
 import (
 	"agent-ebpf-filter/app/recording"
+	"agent-ebpf-filter/app/research"
+	"agent-ebpf-filter/core"
 	"context"
 	"fmt"
 	"log"
@@ -57,10 +59,24 @@ func Main() error {
 	defer func() {
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer shutdownCancel()
-		if err := researchTaskStore.Shutdown(shutdownCtx); err != nil {
+		if err := research.TaskStoreShutdown(shutdownCtx); err != nil {
 			log.Printf("[WARN] research task shutdown did not complete cleanly: %v", err)
 		}
 	}()
+	// Wire research-package runtime hooks (research cannot import app).
+	research.SnapshotRuntimeSettingsHook = func() core.RuntimeSettings { return runtimeSettingsStore.Snapshot() }
+	research.RecentCapturedEventsHook = runtimeSettingsStore.RecentEvents
+	research.RecentLoopFindingsHook = func() []core.LoopDetectionFinding {
+		return loopDetectionWorkerStore.Status().RecentFindings
+	}
+	research.AgentSightUploadedEvents = agentSightUploadedEvents
+	research.FeatureExtractorHook = func() research.TrainingFeatureSink { return globalFeatureExtractor }
+	research.RecordSampleSideEffectsHook = recordCommandSampleSideEffects
+	research.SampleLabelNameHook = sampleLabelName
+	research.AssessCommandSafetyHook = func(ctx context.Context, comm string, args []string, user string, pid uint32, includeLLM bool) map[string]any {
+		return assessCommandSafetyWithOptions(ctx, comm, args, user, pid, commandSafetyAssessmentOptions{IncludeLLM: includeLLM})
+	}
+
 	AppCtx.Broadcast = broadcast
 	AppCtx.Upgrader = upgrader
 	AppCtx.RuntimeSettings = runtimeSettingsStore

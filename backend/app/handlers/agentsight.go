@@ -1,6 +1,9 @@
 package handlers
 
 import (
+	"sync"
+
+	"agent-ebpf-filter/internal/boundedring"
 	"context"
 	"errors"
 	"io"
@@ -314,3 +317,56 @@ func HandleAgentSightRunnerStats(tlsStore *tls.TLSCaptureStore) gin.HandlerFunc 
 }
 
 // ── Data collection ─────────────────────────────────────────────────
+
+// ── Uploaded-event store (moved from app bridge) ────────────────────
+
+type AgentSightEventStore struct {
+	mu     sync.RWMutex
+	events *boundedring.Ring[AgentSightExportEvent]
+	max    int
+}
+
+// Cap reports the backing ring capacity.
+func (s *AgentSightEventStore) Cap() int {
+	if s == nil {
+		return 0
+	}
+	return s.events.Cap()
+}
+
+func NewAgentSightEventStore(max int) *AgentSightEventStore {
+	if max <= 0 {
+		max = 1000
+	}
+	return &AgentSightEventStore{
+		events: boundedring.New[AgentSightExportEvent](max),
+		max:    max,
+	}
+}
+
+func (s *AgentSightEventStore) Add(events ...AgentSightExportEvent) {
+	if s == nil || len(events) == 0 {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.events.AddBatch(events)
+}
+
+func (s *AgentSightEventStore) Recent(limit int) []AgentSightExportEvent {
+	if s == nil {
+		return nil
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.events.Recent(limit)
+}
+
+func (s *AgentSightEventStore) Clear() {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.events.Clear()
+}

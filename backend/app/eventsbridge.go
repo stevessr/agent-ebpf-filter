@@ -15,9 +15,7 @@ func eventEnvelopeToJSONValue(envelope *pb.EventEnvelope) map[string]any {
 	return events.EnvelopeToJSONValue(envelope)
 }
 
-func determineEventEnvelopeSource(event *pb.Event) string {
-	return events.DetermineEnvelopeSource(event)
-}
+var determineEventEnvelopeSource = events.DetermineEnvelopeSource
 
 var eventEnvelopeJSONMarshaller = events.EnvelopeJSONMarshaller
 

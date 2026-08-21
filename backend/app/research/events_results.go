@@ -1,14 +1,17 @@
-package app
+package research
 
 import (
+	"agent-ebpf-filter/app/events"
+	"agent-ebpf-filter/app/ml"
 	"agent-ebpf-filter/app/platform"
+	"agent-ebpf-filter/core"
 	"sort"
 	"strings"
 	"time"
 )
 
 func collectResearchEvents(filter ResearchSourceFilter, timerange ResearchTimeRange, limit int, tlsStore *TLSCaptureStore, entry *researchTaskEntry) ([]ResearchEvent, error) {
-	settings := runtimeSettingsStore.Snapshot().ResearchProcessing
+	settings := snapshotRuntimeSettings().ResearchProcessing
 	normalizeResearchProcessingSettings(&settings)
 	filter = normalizeResearchSourceFilter(filter)
 	timerange = normalizeResearchTimeRange(timerange)
@@ -24,7 +27,7 @@ func collectResearchEvents(filter ResearchSourceFilter, timerange ResearchTimeRa
 	if limit > researchMaxTaskLimit && settings.MaxSessionEvents <= researchMaxTaskLimit {
 		limit = researchMaxTaskLimit
 	}
-	records, _, err := runtimeSettingsStore.RecentEvents(limit)
+	records, _, err := recentCapturedEvents(limit)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +51,7 @@ func collectResearchEvents(filter ResearchSourceFilter, timerange ResearchTimeRa
 		}
 	}
 	if researchIncludeUploaded(filter) {
-		for _, uploaded := range agentSightUploadedEvents.Recent(limit) {
+		for _, uploaded := range AgentSightUploadedEvents.Recent(limit) {
 			if entry != nil && entry.isCanceled() {
 				return nil, errResearchTaskCanceled
 			}
@@ -74,7 +77,7 @@ func researchEventFromCapturedRecord(record CapturedEventRecord) (ResearchEvent,
 	if !ok {
 		return ResearchEvent{}, false
 	}
-	record = normalizeCapturedEventRecord(record)
+	record = events.NormalizeCapturedEventRecord(record)
 	event := record.Event
 	features := researchFeaturesFromEvent(event, record.Envelope)
 	redaction := ""
@@ -82,7 +85,7 @@ func researchEventFromCapturedRecord(record CapturedEventRecord) (ResearchEvent,
 		redaction = strings.TrimSpace(event.GetRedactionLevel())
 	}
 	if redaction == "" {
-		redaction = envelopeRedactionState(record.Envelope)
+		redaction = events.EnvelopeRedactionState(record.Envelope)
 	}
 	if redaction == "" {
 		redaction = "metadata_only"
@@ -319,8 +322,8 @@ func buildResearchResultsWithCancel(sessionID string, events []ResearchEvent, co
 			}
 		}
 		samples = append(samples, researchSampleFromResearchEvent(event))
-		incrementResearchCount(byTarget, event.Target)
-		incrementResearchCount(byDecision, event.Decision)
+		ml.IncrementResearchCount(byTarget, event.Target)
+		ml.IncrementResearchCount(byDecision, event.Decision)
 		if event.RiskScore >= 80 || strings.EqualFold(event.Decision, "ALERT") || strings.EqualFold(event.Decision, "BLOCK") || strings.Contains(strings.ToLower(event.EventType), "alert") {
 			riskAlerts = append(riskAlerts, ResearchRiskFinding{EventID: event.ID, Timestamp: event.Timestamp, Time: event.Time, Source: event.Source, EventType: event.EventType, PID: event.PID, Comm: event.Comm, Target: event.Target, RiskScore: event.RiskScore, Decision: event.Decision, TraceID: event.TraceID, Associated: researchRiskAssociation(event)})
 		}
@@ -328,18 +331,18 @@ func buildResearchResultsWithCancel(sessionID string, events []ResearchEvent, co
 	if err := entry.checkCanceled(); err != nil {
 		return ResearchResults{}, err
 	}
-	settings := runtimeSettingsStore.Snapshot().ResearchProcessing
+	settings := snapshotRuntimeSettings().ResearchProcessing
 	normalizeResearchProcessingSettings(&settings)
-	loopStatus := loopDetectionWorkerStore.Status()
+	loopFindings := recentLoopFindings()
 	results := ResearchResults{
 		SchemaVersion:      researchSchemaVersion,
 		SessionID:          sessionID,
 		GeneratedTimestamp: now.UnixMilli(),
 		GeneratedTime:      now.Format(time.RFC3339Nano),
 		Summary:            buildResearchProcessingSummary(samples, settings),
-		TopTargets:         topResearchCounts(byTarget, settings.TopK),
-		TopDecisions:       topResearchCounts(byDecision, settings.TopK),
-		LoopFindings:       matchResearchLoopFindings(events, loopStatus.RecentFindings),
+		TopTargets:         ml.TopResearchCounts(byTarget, settings.TopK),
+		TopDecisions:       ml.TopResearchCounts(byDecision, settings.TopK),
+		LoopFindings:       matchResearchLoopFindings(events, loopFindings),
 		RiskAlerts:         riskAlerts,
 		KernelRiskFeedback: currentResearchKernelRiskFeedbackInfo(),
 		CompareWindows:     compare,
@@ -366,9 +369,9 @@ func buildResearchSessionSummary(events []ResearchEvent, results ResearchResults
 		if event.RiskScore > summary.MaxRiskScore {
 			summary.MaxRiskScore = event.RiskScore
 		}
-		incrementResearchCount(bySource, event.Source)
-		incrementResearchCount(byType, event.EventType)
-		incrementResearchCount(byComm, event.Comm)
+		ml.IncrementResearchCount(bySource, event.Source)
+		ml.IncrementResearchCount(byType, event.EventType)
+		ml.IncrementResearchCount(byComm, event.Comm)
 	}
 	if summary.EarliestTimestamp > 0 {
 		summary.EarliestTime = time.UnixMilli(summary.EarliestTimestamp).UTC().Format(time.RFC3339Nano)
@@ -376,13 +379,13 @@ func buildResearchSessionSummary(events []ResearchEvent, results ResearchResults
 	if summary.LatestTimestamp > 0 {
 		summary.LatestTime = time.UnixMilli(summary.LatestTimestamp).UTC().Format(time.RFC3339Nano)
 	}
-	if top := topResearchCounts(bySource, 1); len(top) > 0 {
+	if top := ml.TopResearchCounts(bySource, 1); len(top) > 0 {
 		summary.TopSource = top[0].Key
 	}
-	if top := topResearchCounts(byType, 1); len(top) > 0 {
+	if top := ml.TopResearchCounts(byType, 1); len(top) > 0 {
 		summary.TopEventType = top[0].Key
 	}
-	if top := topResearchCounts(byComm, 1); len(top) > 0 {
+	if top := ml.TopResearchCounts(byComm, 1); len(top) > 0 {
 		summary.TopComm = top[0].Key
 	}
 	return summary
@@ -393,7 +396,7 @@ func buildResearchWindowCompare(events []ResearchEvent, leftRange, rightRange Re
 	rightRange = normalizeResearchTimeRange(rightRange)
 	leftEvents := filterResearchEventsByRange(events, leftRange)
 	rightEvents := filterResearchEventsByRange(events, rightRange)
-	settings := runtimeSettingsStore.Snapshot().ResearchProcessing
+	settings := snapshotRuntimeSettings().ResearchProcessing
 	normalizeResearchProcessingSettings(&settings)
 	leftSummary := buildResearchProcessingSummary(researchSamplesFromResearchEvents(leftEvents), settings)
 	rightSummary := buildResearchProcessingSummary(researchSamplesFromResearchEvents(rightEvents), settings)
@@ -500,7 +503,7 @@ func matchResearchLoopFindings(events []ResearchEvent, findings []loopDetectionF
 }
 
 func currentResearchKernelRiskFeedbackInfo() ResearchKernelRiskFeedbackInfo {
-	settings := runtimeSettingsStore.Snapshot()
-	normalizeKernelRiskFeedbackSettings(&settings.KernelRiskFeedback)
+	settings := snapshotRuntimeSettings()
+	core.NormalizeKernelRiskFeedbackSettings(&settings.KernelRiskFeedback)
 	return ResearchKernelRiskFeedbackInfo{Enabled: settings.KernelRiskFeedback.Enabled, PolicyGateEnabled: settings.PolicyManagementEnabled, MinRiskScore: settings.KernelRiskFeedback.MinRiskScore, EnforceNetwork: settings.KernelRiskFeedback.EnforceNetwork, EnforceFileNames: settings.KernelRiskFeedback.EnforceFileNames, EnforceExec: settings.KernelRiskFeedback.EnforceExec, MaxActionsPerMinute: settings.KernelRiskFeedback.MaxActionsPerMinute}
 }

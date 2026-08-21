@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/research"
 	"agent-ebpf-filter/app/tls"
 	codexhandlers "agent-ebpf-filter/codex/capture/handlers"
 	"os"
@@ -140,7 +141,7 @@ func registerAuthenticatedAPIRoutes(r *gin.Engine, ac *AppContext, features *Fea
 		if features.CompiledIn(FeatureAgentSight) {
 			registerAgentSightRoutes(api, tlsStore)
 		}
-		registerResearchRoutes(api.Group("/research"), tlsStore)
+		research.RegisterRoutes(api.Group("/research"), tlsStore)
 		if features.CompiledIn(FeaturePlugins) {
 			registerPluginRoutes(api.Group("/plugins"))
 		}

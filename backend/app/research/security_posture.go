@@ -1,6 +1,8 @@
-package app
+package research
 
 import (
+	"agent-ebpf-filter/app/ml"
+	"agent-ebpf-filter/core"
 	"fmt"
 	"sort"
 	"strings"
@@ -47,7 +49,7 @@ func buildResearchSecurityEvaluationPosture(report ResearchSecurityEvaluationRep
 	posture := ResearchSecurityEvaluationPosture{
 		Status:               "pass",
 		RiskScore:            researchSecurityRoundFloat(riskScore, 2),
-		FindingCounts:        topResearchCounts(findingCounts, 0),
+		FindingCounts:        ml.TopResearchCounts(findingCounts, 0),
 		TopFailingCategories: researchSecurityTopFailingGroups(report.ByCategory, 5),
 	}
 
@@ -272,7 +274,7 @@ func researchSecurityPostureSuggestedActions(posture ResearchSecurityEvaluationP
 	if len(actions) == 0 {
 		actions = append(actions, "security_posture_passed_export_report_for_reproducibility")
 	}
-	return uniqueStringsPreserveOrder(actions)
+	return core.UniqueStringsPreserveOrder(actions)
 }
 
 func researchSecurityRecommendation(findingType, expected, observed string) string {

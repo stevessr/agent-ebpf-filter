@@ -1,4 +1,6 @@
-package app
+package research
+
+import "strings"
 
 import "testing"
 
@@ -48,6 +50,24 @@ func TestResearchSecurityEvaluationPostureRecommendations(t *testing.T) {
 func hasRemediationAction(items []ResearchSecurityRemediationItem, action string) bool {
 	for _, item := range items {
 		if item.Action == action {
+			return true
+		}
+	}
+	return false
+}
+
+func hasExact(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
+func hasPrefix(values []string, wantPrefix string) bool {
+	for _, value := range values {
+		if strings.HasPrefix(value, wantPrefix) {
 			return true
 		}
 	}

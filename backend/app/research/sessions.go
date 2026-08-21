@@ -1,4 +1,4 @@
-package app
+package research
 
 import (
 	"context"
@@ -242,13 +242,12 @@ type researchTaskManagerStatus struct {
 }
 
 type researchTaskEntry struct {
-	mu         sync.RWMutex
-	task       ResearchTask
-	request    researchTaskRequest
-	tlsStore   *TLSCaptureStore
-	runtime    *backendTaskRuntimeEntry
-	cancel     chan struct{}
-	cancelOnce sync.Once
+	mu       sync.RWMutex
+	task     ResearchTask
+	request  researchTaskRequest
+	tlsStore *TLSCaptureStore
+	runtime  *backendTaskRuntimeEntry
+	cancel   <-chan struct{}
 
 	// retention fields are owned by researchTaskManager.mu.
 	retentionTracked bool
@@ -302,7 +301,7 @@ func newResearchTaskManager(store *researchSessionStore) *researchTaskManager {
 }
 
 func startResearchTaskWorker() {
-	settings := runtimeSettingsStore.Snapshot().ResearchProcessing
+	settings := snapshotRuntimeSettings().ResearchProcessing
 	normalizeResearchProcessingSettings(&settings)
 	researchTaskStore.Start(settings.QueueSize)
 	_ = researchSessionsStore.CleanupRetention(settings.ArtifactRetentionDays)
@@ -390,7 +389,7 @@ func (m *researchTaskManager) Submit(sessionID string, req researchTaskRequest, 
 	if m == nil {
 		return ResearchTask{}, errors.New("research task manager is unavailable")
 	}
-	m.Start(runtimeSettingsStore.Snapshot().ResearchProcessing.QueueSize)
+	m.Start(snapshotRuntimeSettings().ResearchProcessing.QueueSize)
 	action := normalizeResearchAction(req.Action)
 	if action == "cancel" {
 		if strings.TrimSpace(req.TargetTaskID) == "" {
@@ -418,7 +417,7 @@ func (m *researchTaskManager) Submit(sessionID string, req researchTaskRequest, 
 	}
 	runtimeEntry := newBackendTaskRuntimeEntry(entry.task.TaskID, action, entry)
 	entry.runtime = runtimeEntry
-	entry.cancel = runtimeEntry.cancel
+	entry.cancel = runtimeEntry.CancelChan()
 	m.mu.Lock()
 	m.tasks[entry.task.TaskID] = entry
 	m.mu.Unlock()
@@ -555,7 +554,7 @@ func (m *researchTaskManager) runTask(entry *researchTaskEntry) error {
 			return err
 		}
 		limit := entry.request.Limit
-		settings := runtimeSettingsStore.Snapshot().ResearchProcessing
+		settings := snapshotRuntimeSettings().ResearchProcessing
 		normalizeResearchProcessingSettings(&settings)
 		if limit <= 0 {
 			limit = entry.request.SourceFilter.Limit
@@ -739,8 +738,6 @@ func (entry *researchTaskEntry) requestCancel() {
 	// finish() uses the same lock, so both task views linearize in one order.
 	if entry.runtime != nil {
 		entry.runtime.Cancel()
-	} else if entry.cancel != nil {
-		entry.cancelOnce.Do(func() { close(entry.cancel) })
 	}
 	entry.mu.Unlock()
 }
@@ -751,6 +748,14 @@ func (entry *researchTaskEntry) isCanceled() bool {
 	}
 	if entry.runtime != nil {
 		return entry.runtime.IsCanceled()
+	}
+	// Runtime-less entries (tests, detached tasks): honor an explicit cancel
+	// request or a closed cancel channel.
+	entry.mu.RLock()
+	asked := entry.task.CancelAsked
+	entry.mu.RUnlock()
+	if asked {
+		return true
 	}
 	if entry.cancel == nil {
 		return false
@@ -852,4 +857,12 @@ func researchTaskStatusTerminal(status string) bool {
 	default:
 		return false
 	}
+}
+
+// StartTaskWorker launches the research task manager worker loop.
+func StartTaskWorker() { startResearchTaskWorker() }
+
+// TaskStoreShutdown gracefully stops the shared research task manager.
+func TaskStoreShutdown(ctx context.Context) error {
+	return researchTaskStore.Shutdown(ctx)
 }

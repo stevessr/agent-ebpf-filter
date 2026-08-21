@@ -1,4 +1,4 @@
-package app
+package research
 
 import "time"
 

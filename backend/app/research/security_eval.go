@@ -1,4 +1,8 @@
-package app
+package research
+
+import "agent-ebpf-filter/app/ml"
+
+import "agent-ebpf-filter/core"
 
 import "time"
 
@@ -35,10 +39,10 @@ func buildResearchSecurityEvaluationReport(sessionID string, events []ResearchEv
 	req.TimeRange = normalizeResearchTimeRange(req.TimeRange)
 	req.Limit = normalizeResearchSecurityEvaluationLimit(req.Limit)
 
-	candidates := make([]researchSecurityEvaluationCandidate, 0, len(benchmarkCases)+len(events))
+	candidates := make([]researchSecurityEvaluationCandidate, 0, len(benchmarkCases())+len(events))
 	skipped := 0
 	if req.Mode == researchSecurityEvaluationModeBuiltin || req.Mode == researchSecurityEvaluationModeCombined {
-		for _, bc := range benchmarkCases {
+		for _, bc := range benchmarkCases() {
 			candidates = append(candidates, researchSecurityCandidateFromBenchmarkCase(bc))
 		}
 	}
@@ -98,7 +102,7 @@ func buildResearchSecurityEvaluationReport(sessionID string, events []ResearchEv
 			report.ConfusionMatrix[expected] = map[string]int{}
 		}
 		report.ConfusionMatrix[expected][observed]++
-		incrementResearchCount(riskBuckets, researchSecurityRiskBucket(row.RiskScore))
+		ml.IncrementResearchCount(riskBuckets, researchSecurityRiskBucket(row.RiskScore))
 
 		labeled := researchSecurityActionIsLabeled(expected)
 		if labeled {
@@ -127,7 +131,17 @@ func buildResearchSecurityEvaluationReport(sessionID string, events []ResearchEv
 	report.ByCategory = finishResearchSecurityGroups(byCategory)
 	report.ByCommand = finishResearchSecurityGroups(byCommand)
 	report.BySource = finishResearchSecurityGroups(bySource)
-	report.RiskBuckets = topResearchCounts(riskBuckets, 0)
+	report.RiskBuckets = ml.TopResearchCounts(riskBuckets, 0)
 	report.Posture = buildResearchSecurityEvaluationPosture(report)
 	return report, nil
+}
+
+// benchmarkCases exposes the built-in security benchmark fixtures.
+func benchmarkCases() []benchmarkCase { return core.DefaultBenchmarkCases() }
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

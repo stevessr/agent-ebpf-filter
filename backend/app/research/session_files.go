@@ -1,4 +1,4 @@
-package app
+package research
 
 import (
 	"agent-ebpf-filter/app/platform"
@@ -107,7 +107,7 @@ func openResearchArtifacts(session *os.File, create bool) (*os.File, error) {
 	return openResearchDirChild(session, "artifacts", create)
 }
 
-func atomicWriteResearchFile(dir *os.File, name string, payload []byte, maxBytes int64) error {
+func AtomicWriteFile(dir *os.File, name string, payload []byte, maxBytes int64) error {
 	if _, err := validateResearchFileComponent(name, "filename", true); err != nil {
 		return err
 	}
@@ -137,7 +137,7 @@ func atomicWriteResearchFile(dir *os.File, name string, payload []byte, maxBytes
 	cleanup = false
 	return nil
 }
-func readResearchFile(dir *os.File, name string, maxBytes int64) ([]byte, error) {
+func ReadFile(dir *os.File, name string, maxBytes int64) ([]byte, error) {
 	if _, err := validateResearchFileComponent(name, "filename", true); err != nil {
 		return nil, err
 	}
@@ -166,7 +166,7 @@ func readResearchFile(dir *os.File, name string, maxBytes int64) ([]byte, error)
 	}
 	return payload, nil
 }
-func removeResearchFile(dir *os.File, name string) error {
+func RemoveFile(dir *os.File, name string) error {
 	if _, err := validateResearchFileComponent(name, "filename", true); err != nil {
 		return err
 	}
@@ -206,7 +206,7 @@ func researchFileInfo(dir *os.File, name string) (os.FileInfo, error) {
 	return f.Stat()
 }
 
-func researchDirectoryNames(dir *os.File, max int) ([]string, error) {
+func DirectoryNames(dir *os.File, max int) ([]string, error) {
 	if _, err := dir.Seek(0, io.SeekStart); err != nil {
 		return nil, err
 	}
@@ -223,7 +223,7 @@ func researchDirectoryNames(dir *os.File, max int) ([]string, error) {
 	return names, nil
 }
 
-func removeResearchDirectory(parent *os.File, name string) error {
+func RemoveDirectory(parent *os.File, name string) error {
 	if _, err := validateResearchFileComponent(name, "directory", false); err != nil {
 		return err
 	}

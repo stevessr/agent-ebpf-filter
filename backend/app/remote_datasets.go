@@ -129,19 +129,19 @@ func handleMLDatasetImportPost(c *gin.Context) {
 	for _, row := range resp.Rows {
 		if row.Comm == "" {
 			skipped++
-			incrementResearchCount(skipReasons, "empty_comm")
+			ml.IncrementResearchCount(skipReasons, "empty_comm")
 			continue
 		}
 		key := behavior.CommandKey(row.Comm, row.Args)
 		if _, exists := seen[key]; exists {
 			skipped++
-			incrementResearchCount(skipReasons, "duplicate_in_payload")
+			ml.IncrementResearchCount(skipReasons, "duplicate_in_payload")
 			continue
 		}
 		seen[key] = struct{}{}
 		if ml.GlobalTrainingStore.HasExactCommand(row.Comm, row.Args) {
 			skipped++
-			incrementResearchCount(skipReasons, "duplicate_in_store")
+			ml.IncrementResearchCount(skipReasons, "duplicate_in_store")
 			continue
 		}
 
@@ -161,7 +161,7 @@ func handleMLDatasetImportPost(c *gin.Context) {
 	resp.Skipped = skipped
 	resp.TotalSamples = total
 	resp.LabeledSamples = labeled
-	resp.SkipReasons = topResearchCounts(skipReasons, 0)
+	resp.SkipReasons = ml.TopResearchCounts(skipReasons, 0)
 	resp.Quality = datasetQualityFromRows(resp.Rows, resp.Normalization)
 	log.Printf("[ML] Remote dataset import source=%q format=%s rows=%d imported=%d skipped=%d labelMode=%s cleanSensitive=%t", resp.Source, resp.Format, len(resp.Rows), imported, skipped, req.LabelMode, req.CleanSensitive)
 	c.JSON(http.StatusOK, resp)

@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"agent-ebpf-filter/app/research"
+	"agent-ebpf-filter/core"
 	"agent-ebpf-filter/pb"
 
 	"github.com/gin-gonic/gin"
@@ -16,20 +18,25 @@ import (
 
 func TestResearchProcessingTaskAndStatusHandlers(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	oldStore := runtimeSettingsStore
-	oldArchive := capturedEventArchive
-	oldWorker := researchProcessingWorkerStore
-	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{ResearchProcessing: ResearchProcessingSettings{
-		Enabled:               false,
-		MaxEvents:             100,
-		QueueSize:             16,
-		TimelineBucketSeconds: 60,
-		TopK:                  10,
-		RecentSamples:         5,
-	}}}
-	capturedEventArchive = newEventArchive(10)
-	researchProcessingWorkerStore = newResearchProcessingWorker()
-	worker := researchProcessingWorkerStore
+	oldSnapshot := research.SnapshotRuntimeSettingsHook
+	oldRecent := research.RecentCapturedEventsHook
+	oldWorker := research.ProcessingWorker
+	research.SnapshotRuntimeSettingsHook = func() core.RuntimeSettings {
+		return core.RuntimeSettings{ResearchProcessing: core.ResearchProcessingSettings{
+			Enabled:               false,
+			MaxEvents:             100,
+			QueueSize:             16,
+			TimelineBucketSeconds: 60,
+			TopK:                  10,
+			RecentSamples:         5,
+		}}
+	}
+	archive := core.NewEventArchive(10)
+	research.RecentCapturedEventsHook = func(limit int) ([]research.CapturedEventRecord, string, error) {
+		return archive.Snapshot(limit), "", nil
+	}
+	research.ProcessingWorker = research.NewProcessingWorker()
+	worker := research.ProcessingWorker
 	worker.Start(context.Background(), 16)
 	t.Cleanup(func() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -37,12 +44,12 @@ func TestResearchProcessingTaskAndStatusHandlers(t *testing.T) {
 		_ = worker.Shutdown(shutdownCtx)
 	})
 	t.Cleanup(func() {
-		runtimeSettingsStore = oldStore
-		capturedEventArchive = oldArchive
-		researchProcessingWorkerStore = oldWorker
+		research.SnapshotRuntimeSettingsHook = oldSnapshot
+		research.RecentCapturedEventsHook = oldRecent
+		research.ProcessingWorker = oldWorker
 	})
 
-	capturedEventArchive.Add(CapturedEventRecord{
+	archive.Add(core.CapturedEventRecord{
 		ReceivedAt: time.Now().UTC(),
 		Event: &pb.Event{
 			Pid:      321,
@@ -55,8 +62,8 @@ func TestResearchProcessingTaskAndStatusHandlers(t *testing.T) {
 	})
 
 	router := gin.New()
-	router.GET("/system/research-processing/status", handleResearchProcessingStatus)
-	router.POST("/system/research-processing/task", handleResearchProcessingTask)
+	router.GET("/system/research-processing/status", research.HandleProcessingStatus)
+	router.POST("/system/research-processing/task", research.HandleProcessingTask)
 
 	req := httptest.NewRequest(http.MethodPost, "/system/research-processing/task", bytes.NewBufferString(`{"action":"scan_recent","limit":5}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -66,10 +73,10 @@ func TestResearchProcessingTaskAndStatusHandlers(t *testing.T) {
 		t.Fatalf("POST task status=%d body=%s", rec.Code, rec.Body.String())
 	}
 
-	var status researchProcessingStatus
+	var status research.ResearchProcessingStatus
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
-		status = researchProcessingWorkerStore.Status()
+		status = research.ProcessingWorker.Status()
 		if status.Summary.Total == 1 {
 			break
 		}
@@ -85,7 +92,7 @@ func TestResearchProcessingTaskAndStatusHandlers(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("GET status=%d body=%s", rec.Code, rec.Body.String())
 	}
-	var decoded researchProcessingStatus
+	var decoded research.ResearchProcessingStatus
 	if err := json.Unmarshal(rec.Body.Bytes(), &decoded); err != nil {
 		t.Fatalf("decode status: %v", err)
 	}

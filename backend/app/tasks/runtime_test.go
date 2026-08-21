@@ -1,4 +1,4 @@
-package app
+package tasks
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-func startBackendTaskRuntimeForTest(t *testing.T, runtime *backendTaskRuntime, queueSize int) {
+func startBackendTaskRuntimeForTest(t *testing.T, runtime *Runtime, queueSize int) {
 	t.Helper()
 	runtime.Start(queueSize)
 	t.Cleanup(func() {
@@ -24,7 +24,7 @@ func startBackendTaskRuntimeForTest(t *testing.T, runtime *backendTaskRuntime, q
 
 func TestBackendTaskRuntimeCompletesAndTracksStats(t *testing.T) {
 	done := make(chan struct{})
-	runtime := newBackendTaskRuntime("unit", 8, func(entry *backendTaskRuntimeEntry) error {
+	runtime := New("unit", 8, func(entry *Entry) error {
 		if payload, ok := entry.Payload().(string); !ok || payload != "payload" {
 			t.Fatalf("payload mismatch: %#v", entry.Payload())
 		}
@@ -35,7 +35,7 @@ func TestBackendTaskRuntimeCompletesAndTracksStats(t *testing.T) {
 	})
 	startBackendTaskRuntimeForTest(t, runtime, 4)
 
-	entry := newBackendTaskRuntimeEntry("task-1", "unit", "payload")
+	entry := NewEntry("task-1", "unit", "payload")
 	entry.queuedAt = time.Now().UTC().Add(-10 * time.Millisecond)
 	if err := runtime.Submit(entry); err != nil {
 		t.Fatalf("submit: %v", err)
@@ -46,10 +46,10 @@ func TestBackendTaskRuntimeCompletesAndTracksStats(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("runtime task did not run")
 	}
-	waitForBackendTaskStatus(t, entry, backendTaskStatusSucceeded)
+	waitForBackendTaskStatus(t, entry, StatusSucceeded)
 
 	snapshot := entry.Snapshot()
-	if snapshot.Status != backendTaskStatusSucceeded || snapshot.Progress != 1 || snapshot.StartedAt == nil || snapshot.FinishedAt == nil {
+	if snapshot.Status != StatusSucceeded || snapshot.Progress != 1 || snapshot.StartedAt == nil || snapshot.FinishedAt == nil {
 		t.Fatalf("snapshot mismatch: %+v", snapshot)
 	}
 	if snapshot.QueueLatencyMs <= 0 || snapshot.RunDurationMs <= 0 || snapshot.TotalDurationMs <= 0 {
@@ -65,23 +65,23 @@ func TestBackendTaskRuntimeCompletesAndTracksStats(t *testing.T) {
 }
 
 func TestBackendTaskRuntimeQueueFullAndCancel(t *testing.T) {
-	runtime := newBackendTaskRuntime("unit", 8, nil)
-	runtime.queue = make(chan *backendTaskRuntimeEntry, 1)
+	runtime := New("unit", 8, nil)
+	runtime.queue = make(chan *Entry, 1)
 	runtime.started = true
 
-	first := newBackendTaskRuntimeEntry("task-1", "unit", nil)
+	first := NewEntry("task-1", "unit", nil)
 	if err := runtime.Submit(first); err != nil {
 		t.Fatalf("first submit: %v", err)
 	}
-	second := newBackendTaskRuntimeEntry("task-2", "unit", nil)
-	if err := runtime.Submit(second); !errors.Is(err, errBackendTaskQueueFull) {
-		t.Fatalf("second submit error = %v, want %v", err, errBackendTaskQueueFull)
+	second := NewEntry("task-2", "unit", nil)
+	if err := runtime.Submit(second); !errors.Is(err, ErrQueueFull) {
+		t.Fatalf("second submit error = %v, want %v", err, ErrQueueFull)
 	}
 	if _, ok := runtime.Cancel(first.id); !ok {
 		t.Fatal("expected cancel to find first task")
 	}
 	snapshot := first.Snapshot()
-	if snapshot.Status != backendTaskStatusCanceled || snapshot.Progress != 1 || snapshot.FinishedAt == nil {
+	if snapshot.Status != StatusCanceled || snapshot.Progress != 1 || snapshot.FinishedAt == nil {
 		t.Fatalf("canceled snapshot mismatch: %+v", snapshot)
 	}
 	stats := runtime.Stats()
@@ -91,17 +91,17 @@ func TestBackendTaskRuntimeQueueFullAndCancel(t *testing.T) {
 }
 
 func TestBackendTaskRuntimeRejectsDuplicateIDWithoutLosingOriginal(t *testing.T) {
-	runtime := newBackendTaskRuntime("unit", 8, nil)
-	runtime.queue = make(chan *backendTaskRuntimeEntry, 2)
+	runtime := New("unit", 8, nil)
+	runtime.queue = make(chan *Entry, 2)
 	runtime.started = true
 
-	original := newBackendTaskRuntimeEntry("task-1", "unit", "original")
+	original := NewEntry("task-1", "unit", "original")
 	if err := runtime.Submit(original); err != nil {
 		t.Fatalf("submit original: %v", err)
 	}
-	duplicate := newBackendTaskRuntimeEntry("task-1", "unit", "duplicate")
-	if err := runtime.Submit(duplicate); !errors.Is(err, errBackendTaskDuplicateID) {
-		t.Fatalf("duplicate submit error = %v, want %v", err, errBackendTaskDuplicateID)
+	duplicate := NewEntry("task-1", "unit", "duplicate")
+	if err := runtime.Submit(duplicate); !errors.Is(err, ErrDuplicateID) {
+		t.Fatalf("duplicate submit error = %v, want %v", err, ErrDuplicateID)
 	}
 
 	got, ok := runtime.Get(original.id)
@@ -115,7 +115,7 @@ func TestBackendTaskRuntimeRejectsDuplicateIDWithoutLosingOriginal(t *testing.T)
 }
 
 func TestBackendTaskRuntimeRecoversHandlerPanicAndContinues(t *testing.T) {
-	runtime := newBackendTaskRuntime("unit", 8, func(entry *backendTaskRuntimeEntry) error {
+	runtime := New("unit", 8, func(entry *Entry) error {
 		if entry.id == "panic" {
 			panic("boom")
 		}
@@ -123,8 +123,8 @@ func TestBackendTaskRuntimeRecoversHandlerPanicAndContinues(t *testing.T) {
 	})
 	startBackendTaskRuntimeForTest(t, runtime, 2)
 
-	panicked := newBackendTaskRuntimeEntry("panic", "unit", nil)
-	next := newBackendTaskRuntimeEntry("next", "unit", nil)
+	panicked := NewEntry("panic", "unit", nil)
+	next := NewEntry("next", "unit", nil)
 	if err := runtime.Submit(panicked); err != nil {
 		t.Fatalf("submit panic task: %v", err)
 	}
@@ -132,9 +132,9 @@ func TestBackendTaskRuntimeRecoversHandlerPanicAndContinues(t *testing.T) {
 		t.Fatalf("submit next task: %v", err)
 	}
 
-	waitForBackendTaskStatus(t, panicked, backendTaskStatusFailed)
-	waitForBackendTaskStatus(t, next, backendTaskStatusSucceeded)
-	if message := panicked.Snapshot().Error; !strings.Contains(message, errBackendTaskHandlerPanic.Error()) || !strings.Contains(message, "boom") {
+	waitForBackendTaskStatus(t, panicked, StatusFailed)
+	waitForBackendTaskStatus(t, next, StatusSucceeded)
+	if message := panicked.Snapshot().Error; !strings.Contains(message, ErrHandlerPanic.Error()) || !strings.Contains(message, "boom") {
 		t.Fatalf("panic error = %q", message)
 	}
 	stats := runtime.Stats()
@@ -146,7 +146,7 @@ func TestBackendTaskRuntimeRecoversHandlerPanicAndContinues(t *testing.T) {
 func TestBackendTaskRuntimeRetentionNeverEvictsActiveTasks(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})
-	runtime := newBackendTaskRuntime("unit", 1, func(entry *backendTaskRuntimeEntry) error {
+	runtime := New("unit", 1, func(entry *Entry) error {
 		if entry.id == "first" {
 			close(started)
 			<-release
@@ -155,8 +155,8 @@ func TestBackendTaskRuntimeRetentionNeverEvictsActiveTasks(t *testing.T) {
 	})
 	startBackendTaskRuntimeForTest(t, runtime, 2)
 
-	first := newBackendTaskRuntimeEntry("first", "unit", nil)
-	second := newBackendTaskRuntimeEntry("second", "unit", nil)
+	first := NewEntry("first", "unit", nil)
+	second := NewEntry("second", "unit", nil)
 	if err := runtime.Submit(first); err != nil {
 		t.Fatalf("submit first: %v", err)
 	}
@@ -179,8 +179,8 @@ func TestBackendTaskRuntimeRetentionNeverEvictsActiveTasks(t *testing.T) {
 	}
 
 	close(release)
-	waitForBackendTaskStatus(t, first, backendTaskStatusSucceeded)
-	waitForBackendTaskStatus(t, second, backendTaskStatusSucceeded)
+	waitForBackendTaskStatus(t, first, StatusSucceeded)
+	waitForBackendTaskStatus(t, second, StatusSucceeded)
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) && runtime.Stats().TrackedTotal != 1 {
 		time.Sleep(time.Millisecond)
@@ -197,8 +197,8 @@ func TestBackendTaskRuntimeRetentionNeverEvictsActiveTasks(t *testing.T) {
 }
 
 func TestBackendTaskRuntimeCancelDoesNotMutateTerminalTask(t *testing.T) {
-	entry := newBackendTaskRuntimeEntry("done", "unit", nil)
-	entry.finish(backendTaskStatusSucceeded, 1, "")
+	entry := NewEntry("done", "unit", nil)
+	entry.finish(StatusSucceeded, 1, "")
 	before := entry.Snapshot()
 	entry.Cancel()
 	after := entry.Snapshot()
@@ -212,18 +212,18 @@ func TestBackendTaskRuntimeCancelDoesNotMutateTerminalTask(t *testing.T) {
 }
 
 func TestBackendTaskRuntimeCompletionHonorsPendingCancel(t *testing.T) {
-	runtime := newBackendTaskRuntime("unit", 8, nil)
-	entry := newBackendTaskRuntimeEntry("cancel-race", "unit", nil)
+	runtime := New("unit", 8, nil)
+	entry := NewEntry("cancel-race", "unit", nil)
 	if !entry.markRunning() {
 		t.Fatal("entry did not start")
 	}
 	runtime.tasks[entry.id] = entry
 
 	entry.Cancel()
-	runtime.completeEntry(entry, backendTaskStatusSucceeded, 1, "", false)
+	runtime.completeEntry(entry, StatusSucceeded, 1, "", false)
 
 	snapshot := entry.Snapshot()
-	if snapshot.Status != backendTaskStatusCanceled || snapshot.Progress != 1 || snapshot.FinishedAt == nil {
+	if snapshot.Status != StatusCanceled || snapshot.Progress != 1 || snapshot.FinishedAt == nil {
 		t.Fatalf("cancel-vs-success completion = %+v", snapshot)
 	}
 	stats := runtime.Stats()
@@ -233,8 +233,8 @@ func TestBackendTaskRuntimeCompletionHonorsPendingCancel(t *testing.T) {
 }
 
 func TestBackendTaskRuntimeCompletionIsAccountedOnce(t *testing.T) {
-	runtime := newBackendTaskRuntime("unit", 8, nil)
-	entry := newBackendTaskRuntimeEntry("complete-once", "unit", nil)
+	runtime := New("unit", 8, nil)
+	entry := NewEntry("complete-once", "unit", nil)
 	if !entry.markRunning() {
 		t.Fatal("entry did not start")
 	}
@@ -246,7 +246,7 @@ func TestBackendTaskRuntimeCompletionIsAccountedOnce(t *testing.T) {
 	for index := 0; index < attempts; index++ {
 		go func() {
 			defer callers.Done()
-			runtime.completeEntry(entry, backendTaskStatusSucceeded, 1, "", false)
+			runtime.completeEntry(entry, StatusSucceeded, 1, "", false)
 		}()
 	}
 	callers.Wait()
@@ -261,16 +261,16 @@ func TestBackendTaskRuntimeCompletionIsAccountedOnce(t *testing.T) {
 }
 
 func TestBackendTaskRuntimeDoesNotPruneCanceledQueuedEntryBeforeDrain(t *testing.T) {
-	runtime := newBackendTaskRuntime("unit", 1, nil)
-	runtime.queue = make(chan *backendTaskRuntimeEntry, 2)
+	runtime := New("unit", 1, nil)
+	runtime.queue = make(chan *Entry, 2)
 	runtime.started = true
 
-	first := newBackendTaskRuntimeEntry("first", "unit", nil)
+	first := NewEntry("first", "unit", nil)
 	if err := runtime.Submit(first); err != nil {
 		t.Fatalf("submit first: %v", err)
 	}
 	first.Cancel()
-	second := newBackendTaskRuntimeEntry("second", "unit", nil)
+	second := NewEntry("second", "unit", nil)
 	if err := runtime.Submit(second); err != nil {
 		t.Fatalf("submit second: %v", err)
 	}
@@ -281,7 +281,7 @@ func TestBackendTaskRuntimeDoesNotPruneCanceledQueuedEntryBeforeDrain(t *testing
 		t.Fatalf("tracked tasks before drain = %d, want 2", got)
 	}
 
-	runtime.completeEntry(first, backendTaskStatusCanceled, 1, "", false)
+	runtime.completeEntry(first, StatusCanceled, 1, "", false)
 	if _, ok := runtime.Get(first.id); ok {
 		t.Fatal("drained terminal task was not pruned")
 	}
@@ -292,17 +292,17 @@ func TestBackendTaskRuntimeDoesNotPruneCanceledQueuedEntryBeforeDrain(t *testing
 
 func TestBackendTaskRuntimeShutdownCancelsAndRejectsTasks(t *testing.T) {
 	started := make(chan struct{})
-	runtime := newBackendTaskRuntime("shutdown", 8, func(entry *backendTaskRuntimeEntry) error {
+	runtime := New("shutdown", 8, func(entry *Entry) error {
 		if entry.id == "running" {
 			close(started)
 			<-entry.cancel
-			return errBackendTaskCanceled
+			return ErrCanceled
 		}
 		return nil
 	})
 	runtime.Start(2)
-	running := newBackendTaskRuntimeEntry("running", "unit", nil)
-	queued := newBackendTaskRuntimeEntry("queued", "unit", nil)
+	running := NewEntry("running", "unit", nil)
+	queued := NewEntry("queued", "unit", nil)
 	if err := runtime.Submit(running); err != nil {
 		t.Fatalf("submit running task: %v", err)
 	}
@@ -320,15 +320,15 @@ func TestBackendTaskRuntimeShutdownCancelsAndRejectsTasks(t *testing.T) {
 	if err := runtime.Shutdown(ctx); err != nil {
 		t.Fatalf("Shutdown() error = %v", err)
 	}
-	if running.Snapshot().Status != backendTaskStatusCanceled || queued.Snapshot().Status != backendTaskStatusCanceled {
+	if running.Snapshot().Status != StatusCanceled || queued.Snapshot().Status != StatusCanceled {
 		t.Fatalf("shutdown task statuses = %q/%q", running.Snapshot().Status, queued.Snapshot().Status)
 	}
 	stats := runtime.Stats()
 	if !stats.Closed || stats.Started || stats.CanceledTotal != 2 {
 		t.Fatalf("shutdown stats = %+v", stats)
 	}
-	if err := runtime.Submit(newBackendTaskRuntimeEntry("late", "unit", nil)); !errors.Is(err, errBackendTaskRuntimeClosed) {
-		t.Fatalf("late submit error = %v, want %v", err, errBackendTaskRuntimeClosed)
+	if err := runtime.Submit(NewEntry("late", "unit", nil)); !errors.Is(err, ErrClosed) {
+		t.Fatalf("late submit error = %v, want %v", err, ErrClosed)
 	}
 	if stats = runtime.Stats(); stats.LastRejectReason != "runtime_closed" || stats.RejectedTotal != 1 {
 		t.Fatalf("closed runtime rejection stats = %+v", stats)
@@ -339,7 +339,7 @@ func TestBackendTaskRuntimeShutdownCancelsAndRejectsTasks(t *testing.T) {
 	}
 }
 
-func waitForBackendTaskStatus(t *testing.T, entry *backendTaskRuntimeEntry, status string) {
+func waitForBackendTaskStatus(t *testing.T, entry *Entry, status string) {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
@@ -354,14 +354,14 @@ func waitForBackendTaskStatus(t *testing.T, entry *backendTaskRuntimeEntry, stat
 func BenchmarkBackendTaskRuntimeSteadyStateRetention(b *testing.B) {
 	for _, limit := range []int{64, 2048} {
 		b.Run(strconv.Itoa(limit), func(b *testing.B) {
-			runtime := newBackendTaskRuntime("benchmark", limit, nil)
+			runtime := New("benchmark", limit, nil)
 			complete := func(id string) {
-				entry := newBackendTaskRuntimeEntry(id, "benchmark", nil)
+				entry := NewEntry(id, "benchmark", nil)
 				entry.markRunning()
 				runtime.mu.Lock()
 				runtime.tasks[id] = entry
 				runtime.mu.Unlock()
-				runtime.completeEntry(entry, backendTaskStatusSucceeded, 1, "", false)
+				runtime.completeEntry(entry, StatusSucceeded, 1, "", false)
 			}
 			for index := 0; index < limit; index++ {
 				complete("warm-" + strconv.Itoa(index))

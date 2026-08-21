@@ -164,8 +164,8 @@ func TestAgentSightEventStoreReplacesFullCapacityInOneBatch(t *testing.T) {
 	if len(recent) != 3 || recent[0].ID != "new-1" || recent[1].ID != "new-2" || recent[2].ID != "new-3" {
 		t.Fatalf("recent batch = %#v", recent)
 	}
-	if capacity := store.events.Cap(); capacity != store.max {
-		t.Fatalf("event store backing capacity = %d, want %d", capacity, store.max)
+	if capacity := store.Cap(); capacity != 3 {
+		t.Fatalf("event store backing capacity = %d, want 3", capacity)
 	}
 }
 
@@ -181,8 +181,8 @@ func TestAgentSightEventStoreLargeBatchDoesNotRetainOversizeBackingArray(t *test
 	if len(recent) != 3 || recent[0].ID != "event-7" || recent[2].ID != "event-9" {
 		t.Fatalf("recent events = %#v", recent)
 	}
-	if capacity := store.events.Cap(); capacity != store.max {
-		t.Fatalf("event store backing capacity = %d, want %d", capacity, store.max)
+	if capacity := store.Cap(); capacity != 3 {
+		t.Fatalf("event store backing capacity = %d, want 3", capacity)
 	}
 }
 

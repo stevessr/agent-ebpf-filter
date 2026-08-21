@@ -55,8 +55,8 @@ func buildMLTrainingReadiness(store *ml.TrainingDataStore, cfg MLConfig) MLTrain
 	classLabels := map[string]int{}
 	for _, sample := range allSamples {
 		label := normalizedTrainingSampleLabelKey(sample)
-		incrementResearchCount(byLabel, label)
-		incrementResearchCount(byCategory, normalizedDatasetCategoryKey(sample.Category))
+		ml.IncrementResearchCount(byLabel, label)
+		ml.IncrementResearchCount(byCategory, normalizedDatasetCategoryKey(sample.Category))
 		if label == "UNLABELED" {
 			readiness.UnlabeledCount++
 			continue
@@ -68,8 +68,8 @@ func buildMLTrainingReadiness(store *ml.TrainingDataStore, cfg MLConfig) MLTrain
 	readiness.SampleCount = len(allSamples)
 	readiness.LabeledCount = len(labeledSamples)
 	readiness.ClassCount = len(classLabels)
-	readiness.ByLabel = topResearchCounts(byLabel, 0)
-	readiness.ByCategory = topResearchCounts(byCategory, 10)
+	readiness.ByLabel = ml.TopResearchCounts(byLabel, 0)
+	readiness.ByCategory = ml.TopResearchCounts(byCategory, 10)
 	readiness.Normalization = ml.SummarizeFeatureNormalization(labeledSamples)
 	readiness.Quality = datasetQualityFromTrainingSamples(allSamples, readiness.Normalization)
 
@@ -215,22 +215,4 @@ func mlTrainingReadinessSuggestedActions(readiness MLTrainingReadiness) []string
 	return uniqueStringsPreserveOrder(actions)
 }
 
-func uniqueStringsPreserveOrder(values []string) []string {
-	if len(values) == 0 {
-		return nil
-	}
-	seen := map[string]struct{}{}
-	out := make([]string, 0, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value == "" {
-			continue
-		}
-		if _, ok := seen[value]; ok {
-			continue
-		}
-		seen[value] = struct{}{}
-		out = append(out, value)
-	}
-	return out
-}
+var uniqueStringsPreserveOrder = core.UniqueStringsPreserveOrder

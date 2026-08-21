@@ -1,6 +1,7 @@
-package app
+package research
 
 import (
+	"agent-ebpf-filter/app/events"
 	"agent-ebpf-filter/app/platform"
 	"encoding/json"
 	"errors"
@@ -175,7 +176,7 @@ func handleResearchSessionExport(c *gin.Context) {
 }
 
 func registerResearchRoutes(router gin.IRouter, tlsStore *TLSCaptureStore) {
-	researchTaskStore.Start(runtimeSettingsStore.Snapshot().ResearchProcessing.QueueSize)
+	researchTaskStore.Start(snapshotRuntimeSettings().ResearchProcessing.QueueSize)
 	router.GET("/sessions", handleResearchSessionsList)
 	router.POST("/sessions", handleResearchSessionsCreate)
 	router.GET("/sessions/:id", handleResearchSessionGet)
@@ -385,12 +386,12 @@ func normalizeResearchTerms(values []string) []string {
 
 func normalizeResearchTimeRange(timerange ResearchTimeRange) ResearchTimeRange {
 	if timerange.Since <= 0 && strings.TrimSpace(timerange.SinceTime) != "" {
-		if parsed := parseRecentEventTime(timerange.SinceTime); !parsed.IsZero() {
+		if parsed := events.ParseRecentEventTime(timerange.SinceTime); !parsed.IsZero() {
 			timerange.Since = parsed.UnixMilli()
 		}
 	}
 	if timerange.Until <= 0 && strings.TrimSpace(timerange.UntilTime) != "" {
-		if parsed := parseRecentEventTime(timerange.UntilTime); !parsed.IsZero() {
+		if parsed := events.ParseRecentEventTime(timerange.UntilTime); !parsed.IsZero() {
 			timerange.Until = parsed.UnixMilli()
 		}
 	}
@@ -578,4 +579,10 @@ func researchUint32InList(value uint32, candidates []uint32) bool {
 		}
 	}
 	return false
+}
+
+// RegisterRoutes wires the research workbench API onto the router; the
+// transport entry point kept importable from the app layer.
+func RegisterRoutes(router gin.IRouter, tlsStore *TLSCaptureStore) {
+	registerResearchRoutes(router, tlsStore)
 }

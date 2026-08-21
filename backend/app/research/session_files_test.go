@@ -1,4 +1,4 @@
-package app
+package research
 
 import (
 	"os"
@@ -31,13 +31,13 @@ func TestResearchFilesRejectUnsafeTargets(t *testing.T) {
 		if err = tc.setup(p); err != nil {
 			t.Fatal(err)
 		}
-		if err = atomicWriteResearchFile(session, tc.name, []byte("changed"), researchSessionFileMaxBytes); err == nil {
+		if err = AtomicWriteFile(session, tc.name, []byte("changed"), researchSessionFileMaxBytes); err == nil {
 			t.Fatalf("%s accepted", tc.name)
 		}
-		if _, err = readResearchFile(session, tc.name, researchSessionFileMaxBytes); err == nil {
+		if _, err = ReadFile(session, tc.name, researchSessionFileMaxBytes); err == nil {
 			t.Fatalf("%s read", tc.name)
 		}
-		if err = removeResearchFile(session, tc.name); err == nil {
+		if err = RemoveFile(session, tc.name); err == nil {
 			t.Fatalf("%s removed", tc.name)
 		}
 	}
@@ -54,13 +54,13 @@ func TestResearchFilesAtomicPrivateRoundTrip(t *testing.T) {
 	}
 	defer root.Close()
 	defer session.Close()
-	if err = atomicWriteResearchFile(session, "session.json", []byte("first"), researchSessionFileMaxBytes); err != nil {
+	if err = AtomicWriteFile(session, "session.json", []byte("first"), researchSessionFileMaxBytes); err != nil {
 		t.Fatal(err)
 	}
-	if err = atomicWriteResearchFile(session, "session.json", []byte("second"), researchSessionFileMaxBytes); err != nil {
+	if err = AtomicWriteFile(session, "session.json", []byte("second"), researchSessionFileMaxBytes); err != nil {
 		t.Fatal(err)
 	}
-	got, err := readResearchFile(session, "session.json", researchSessionFileMaxBytes)
+	got, err := ReadFile(session, "session.json", researchSessionFileMaxBytes)
 	if err != nil || string(got) != "second" {
 		t.Fatalf("got %q %v", got, err)
 	}

@@ -2,6 +2,7 @@ package app
 
 import (
 	"agent-ebpf-filter/app/recording"
+	"agent-ebpf-filter/app/research"
 	"bytes"
 	"context"
 	"encoding/binary"
@@ -166,7 +167,7 @@ func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) 
 	jobs.Go(func() { runToolBaselineGC(ctx, toolBaseline, toolBaselineEvictionInterval) })
 	startKernelRiskFeedbackWorker(ctx)
 	startLoopDetectionWorker(ctx)
-	startResearchProcessingWorker(ctx)
+	research.StartProcessingWorker(ctx)
 	jobs.Go(func() {
 		<-ctx.Done()
 		_ = shutdownKernelRiskFeedbackWorker(context.Background())
@@ -177,7 +178,7 @@ func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) 
 	})
 	jobs.Go(func() {
 		<-ctx.Done()
-		_ = researchProcessingWorkerStore.Shutdown(context.Background())
+		_ = research.ProcessingWorker.Shutdown(context.Background())
 	})
 	startSignalProcessingWorker(ctx)
 	jobs.Go(func() {
@@ -229,7 +230,7 @@ func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) 
 			log.Printf("[WARN] ML auto-tune tasks did not stop cleanly: %v", err)
 		}
 	})
-	startResearchTaskWorker()
+	research.StartTaskWorker()
 	jobs.Go(func() { startUDSServer(ctx, broadcast) })
 	jobs.Go(func() {
 		runCgroupAttributionGC(ctx, cgroupAttribution, 5*time.Minute, 30*time.Minute)

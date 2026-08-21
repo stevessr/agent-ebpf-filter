@@ -1,6 +1,7 @@
-package app
+package research
 
 import (
+	"agent-ebpf-filter/core"
 	"context"
 	"errors"
 	"strconv"
@@ -106,15 +107,17 @@ func TestResearchEventRingPreservesOrderAcrossWrapAndResize(t *testing.T) {
 }
 
 func TestResearchProcessingRingSummaryKeepsNewestEventsInOrder(t *testing.T) {
-	oldStore := runtimeSettingsStore
-	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{ResearchProcessing: ResearchProcessingSettings{
-		Enabled:               true,
-		MaxEvents:             100,
-		TimelineBucketSeconds: 60,
-		TopK:                  10,
-		RecentSamples:         5,
-	}}}
-	t.Cleanup(func() { runtimeSettingsStore = oldStore })
+	oldSnapshot := SnapshotRuntimeSettingsHook
+	SnapshotRuntimeSettingsHook = func() core.RuntimeSettings {
+		return core.RuntimeSettings{ResearchProcessing: ResearchProcessingSettings{
+			Enabled:               true,
+			MaxEvents:             100,
+			TimelineBucketSeconds: 60,
+			TopK:                  10,
+			RecentSamples:         5,
+		}}
+	}
+	t.Cleanup(func() { SnapshotRuntimeSettingsHook = oldSnapshot })
 
 	worker := newResearchProcessingWorker()
 	base := time.Date(2026, 7, 14, 11, 0, 0, 0, time.UTC)
@@ -145,15 +148,17 @@ func TestResearchProcessingRingSummaryKeepsNewestEventsInOrder(t *testing.T) {
 }
 
 func TestResearchProcessingCanceledScanDoesNotMutateState(t *testing.T) {
-	oldStore := runtimeSettingsStore
-	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{ResearchProcessing: ResearchProcessingSettings{
-		Enabled:   true,
-		MaxEvents: 300,
-	}}}
-	t.Cleanup(func() { runtimeSettingsStore = oldStore })
+	oldSnapshot := SnapshotRuntimeSettingsHook
+	SnapshotRuntimeSettingsHook = func() core.RuntimeSettings {
+		return core.RuntimeSettings{ResearchProcessing: ResearchProcessingSettings{
+			Enabled:   true,
+			MaxEvents: 300,
+		}}
+	}
+	t.Cleanup(func() { SnapshotRuntimeSettingsHook = oldSnapshot })
 
 	worker := newResearchProcessingWorker()
-	records := make([]CapturedEventRecord, backendWorkerScanBatchSize*2+1)
+	records := make([]CapturedEventRecord, core.WorkerScanBatchSize*2+1)
 	for index := range records {
 		records[index] = CapturedEventRecord{
 			ReceivedAt: time.Unix(1700000000+int64(index), 0),
@@ -203,16 +208,18 @@ func TestResearchProcessingWorkerShutdownAndRestart(t *testing.T) {
 }
 
 func TestResearchProcessingWorkerBuildsFrontendLikeSummary(t *testing.T) {
-	oldStore := runtimeSettingsStore
-	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{ResearchProcessing: ResearchProcessingSettings{
-		Enabled:               true,
-		MaxEvents:             100,
-		QueueSize:             128,
-		TimelineBucketSeconds: 60,
-		TopK:                  10,
-		RecentSamples:         5,
-	}}}
-	t.Cleanup(func() { runtimeSettingsStore = oldStore })
+	oldSnapshot := SnapshotRuntimeSettingsHook
+	SnapshotRuntimeSettingsHook = func() core.RuntimeSettings {
+		return core.RuntimeSettings{ResearchProcessing: ResearchProcessingSettings{
+			Enabled:               true,
+			MaxEvents:             100,
+			QueueSize:             128,
+			TimelineBucketSeconds: 60,
+			TopK:                  10,
+			RecentSamples:         5,
+		}}
+	}
+	t.Cleanup(func() { SnapshotRuntimeSettingsHook = oldSnapshot })
 
 	worker := newResearchProcessingWorker()
 	base := time.Date(2026, 7, 3, 9, 0, 0, 0, time.UTC)
@@ -244,16 +251,18 @@ func TestResearchProcessingWorkerBuildsFrontendLikeSummary(t *testing.T) {
 }
 
 func TestResearchProcessingManualScanWorksWhenDisabled(t *testing.T) {
-	oldStore := runtimeSettingsStore
-	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{ResearchProcessing: ResearchProcessingSettings{
-		Enabled:               false,
-		MaxEvents:             100,
-		QueueSize:             128,
-		TimelineBucketSeconds: 60,
-		TopK:                  10,
-		RecentSamples:         5,
-	}}}
-	t.Cleanup(func() { runtimeSettingsStore = oldStore })
+	oldSnapshot := SnapshotRuntimeSettingsHook
+	SnapshotRuntimeSettingsHook = func() core.RuntimeSettings {
+		return core.RuntimeSettings{ResearchProcessing: ResearchProcessingSettings{
+			Enabled:               false,
+			MaxEvents:             100,
+			QueueSize:             128,
+			TimelineBucketSeconds: 60,
+			TopK:                  10,
+			RecentSamples:         5,
+		}}
+	}
+	t.Cleanup(func() { SnapshotRuntimeSettingsHook = oldSnapshot })
 
 	worker := newResearchProcessingWorker()
 	record := CapturedEventRecord{ReceivedAt: time.Now().UTC(), Event: &pb.Event{Pid: 200, Type: "openat", Comm: "research", Path: "/tmp/research.txt"}}
@@ -268,16 +277,18 @@ func TestResearchProcessingManualScanWorksWhenDisabled(t *testing.T) {
 }
 
 func TestResearchProcessingWorkerRebuildsSummaryLazily(t *testing.T) {
-	oldStore := runtimeSettingsStore
-	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{ResearchProcessing: ResearchProcessingSettings{
-		Enabled:               true,
-		MaxEvents:             100,
-		QueueSize:             128,
-		TimelineBucketSeconds: 60,
-		TopK:                  10,
-		RecentSamples:         5,
-	}}}
-	t.Cleanup(func() { runtimeSettingsStore = oldStore })
+	oldSnapshot := SnapshotRuntimeSettingsHook
+	SnapshotRuntimeSettingsHook = func() core.RuntimeSettings {
+		return core.RuntimeSettings{ResearchProcessing: ResearchProcessingSettings{
+			Enabled:               true,
+			MaxEvents:             100,
+			QueueSize:             128,
+			TimelineBucketSeconds: 60,
+			TopK:                  10,
+			RecentSamples:         5,
+		}}
+	}
+	t.Cleanup(func() { SnapshotRuntimeSettingsHook = oldSnapshot })
 
 	worker := newResearchProcessingWorker()
 	base := time.Date(2026, 7, 4, 12, 0, 0, 0, time.UTC)
@@ -332,23 +343,25 @@ func TestResearchProcessingWorkerDropReasons(t *testing.T) {
 		t.Fatalf("queue_full drop mismatch: %+v", status)
 	}
 
-	oldStore := runtimeSettingsStore
-	oldWorker := researchProcessingWorkerStore
-	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{ResearchProcessing: ResearchProcessingSettings{
-		Enabled:               false,
-		MaxEvents:             100,
-		QueueSize:             128,
-		TimelineBucketSeconds: 60,
-		TopK:                  10,
-		RecentSamples:         5,
-	}}}
-	researchProcessingWorkerStore = newResearchProcessingWorker()
+	oldSnapshot := SnapshotRuntimeSettingsHook
+	oldWorker := ProcessingWorker
+	SnapshotRuntimeSettingsHook = func() core.RuntimeSettings {
+		return core.RuntimeSettings{ResearchProcessing: ResearchProcessingSettings{
+			Enabled:               false,
+			MaxEvents:             100,
+			QueueSize:             128,
+			TimelineBucketSeconds: 60,
+			TopK:                  10,
+			RecentSamples:         5,
+		}}
+	}
+	ProcessingWorker = newResearchProcessingWorker()
 	t.Cleanup(func() {
-		runtimeSettingsStore = oldStore
-		researchProcessingWorkerStore = oldWorker
+		SnapshotRuntimeSettingsHook = oldSnapshot
+		ProcessingWorker = oldWorker
 	})
 	queueResearchProcessingRecord(record)
-	status = researchProcessingWorkerStore.Status()
+	status = ProcessingWorker.Status()
 	if status.LastDropReason != "disabled" || status.DroppedTotal != 1 {
 		t.Fatalf("disabled drop mismatch: %+v", status)
 	}

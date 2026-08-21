@@ -1,4 +1,4 @@
-package app
+package research
 
 import (
 	"context"
@@ -75,7 +75,7 @@ func researchSecurityCandidateFromEvent(event ResearchEvent, labelPolicy string)
 }
 
 func evaluateResearchSecurityCandidate(candidate researchSecurityEvaluationCandidate, includeLLM bool) ResearchSecurityEvaluationSampleRow {
-	assessment := assessCommandSafetyWithOptions(context.Background(), candidate.Comm, candidate.Args, "", 0, commandSafetyAssessmentOptions{IncludeLLM: includeLLM})
+	assessment := AssessCommandSafetyHook(context.Background(), candidate.Comm, candidate.Args, "", 0, includeLLM)
 	observed := normalizeResearchSecurityAction(researchSecurityString(assessment["recommendedAction"]))
 	riskScore := researchSecurityFloat(assessment["riskScore"])
 	if !researchSecurityActionIsLabeled(observed) {

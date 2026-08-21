@@ -1,4 +1,4 @@
-package app
+package research
 
 import (
 	"bytes"
@@ -52,7 +52,7 @@ func (s *researchSessionStore) ensureLoaded() error {
 		if err != nil {
 			continue
 		}
-		payload, err := readResearchFile(sessionDir, "session.json", researchSessionFileMaxBytes)
+		payload, err := ReadFile(sessionDir, "session.json", researchSessionFileMaxBytes)
 		_ = sessionDir.Close()
 		if err != nil {
 			continue
@@ -188,7 +188,7 @@ func (s *researchSessionStore) Delete(id string) error {
 		return nil
 	}
 	for _, name := range []string{"events.jsonl", "results.json", "session.json"} {
-		if err := removeResearchFile(sessionDir, name); err != nil {
+		if err := RemoveFile(sessionDir, name); err != nil {
 			log.Printf("[WARN] research session %s deleted but tombstone cleanup failed: %v", id, err)
 			return nil
 		}
@@ -196,7 +196,7 @@ func (s *researchSessionStore) Delete(id string) error {
 	if err := sessionDir.Close(); err != nil {
 		return err
 	}
-	if err := removeResearchDirectory(root, tombstone); err != nil {
+	if err := RemoveDirectory(root, tombstone); err != nil {
 		log.Printf("[WARN] research session %s deleted but tombstone cleanup failed: %v", id, err)
 		return nil
 	}
@@ -323,7 +323,7 @@ func (s *researchSessionStore) SaveSecurityEvaluation(id string, report Research
 	}
 	defer artifactDir.Close()
 	name := "security-evaluation.json"
-	if err := atomicWriteResearchFile(artifactDir, name, payload, researchArtifactMaxBytes); err != nil {
+	if err := AtomicWriteFile(artifactDir, name, payload, researchArtifactMaxBytes); err != nil {
 		return err
 	}
 	path := researchDisplayArtifactPath(s.baseDir, id, name)
@@ -367,7 +367,7 @@ func (s *researchSessionStore) ResetSession(id string) error {
 		return err
 	}
 	for _, name := range []string{"events.jsonl", "results.json"} {
-		if err := removeResearchFile(sessionDir, name); err != nil {
+		if err := RemoveFile(sessionDir, name); err != nil {
 			return err
 		}
 	}
@@ -398,7 +398,7 @@ func (s *researchSessionStore) LoadEvents(id string) ([]ResearchEvent, error) {
 	}
 	defer root.Close()
 	defer sessionDir.Close()
-	payload, err := readResearchFile(sessionDir, "events.jsonl", researchEventsFileMaxBytes)
+	payload, err := ReadFile(sessionDir, "events.jsonl", researchEventsFileMaxBytes)
 	if errors.Is(err, os.ErrNotExist) {
 		return []ResearchEvent{}, nil
 	}
@@ -407,7 +407,7 @@ func (s *researchSessionStore) LoadEvents(id string) ([]ResearchEvent, error) {
 	}
 	decoder := json.NewDecoder(bytes.NewReader(payload))
 	events := make([]ResearchEvent, 0)
-	settings := runtimeSettingsStore.Snapshot().ResearchProcessing
+	settings := snapshotRuntimeSettings().ResearchProcessing
 	normalizeResearchProcessingSettings(&settings)
 	for {
 		var event ResearchEvent
@@ -438,7 +438,7 @@ func (s *researchSessionStore) LoadResults(id string) (ResearchResults, error) {
 	}
 	defer root.Close()
 	defer sessionDir.Close()
-	payload, err := readResearchFile(sessionDir, "results.json", researchResultsFileMaxBytes)
+	payload, err := ReadFile(sessionDir, "results.json", researchResultsFileMaxBytes)
 	if errors.Is(err, os.ErrNotExist) {
 		events, loadErr := s.LoadEvents(id)
 		if loadErr != nil {
@@ -463,7 +463,7 @@ func (s *researchSessionStore) GenerateExports(id string, formats []string) ([]R
 func (s *researchSessionStore) GenerateExportsWithCancel(id string, formats []string, entry *researchTaskEntry) ([]ResearchArtifactRef, error) {
 	s.fsMu.Lock()
 	defer s.fsMu.Unlock()
-	settings := runtimeSettingsStore.Snapshot().ResearchProcessing
+	settings := snapshotRuntimeSettings().ResearchProcessing
 	normalizeResearchProcessingSettings(&settings)
 	formats = normalizeResearchFormats(formats)
 	if len(formats) == 0 {
@@ -567,7 +567,7 @@ func (s *researchSessionStore) GenerateExportsWithCancel(id string, formats []st
 		if int64(len(payload)) > researchArtifactMaxBytes {
 			return nil, fmt.Errorf("research artifact %s exceeds size limit", name)
 		}
-		if err := atomicWriteResearchFile(artifactDir, name, payload, researchArtifactMaxBytes); err != nil {
+		if err := AtomicWriteFile(artifactDir, name, payload, researchArtifactMaxBytes); err != nil {
 			return nil, err
 		}
 		path := researchDisplayArtifactPath(s.baseDir, id, name)
@@ -586,7 +586,7 @@ func (s *researchSessionStore) GenerateExportsWithCancel(id string, formats []st
 			return nil, err
 		}
 		name := "manifest.json"
-		if err := atomicWriteResearchFile(artifactDir, name, payload, researchArtifactMaxBytes); err != nil {
+		if err := AtomicWriteFile(artifactDir, name, payload, researchArtifactMaxBytes); err != nil {
 			return nil, err
 		}
 		path := researchDisplayArtifactPath(s.baseDir, id, name)
@@ -657,7 +657,7 @@ func (s *researchSessionStore) ExportArtifact(id, format string) (ResearchArtifa
 	}
 	defer artifactDir.Close()
 	ref.Path = researchDisplayArtifactPath(s.baseDir, id, name)
-	payload, err := readResearchFile(artifactDir, name, researchArtifactMaxBytes)
+	payload, err := ReadFile(artifactDir, name, researchArtifactMaxBytes)
 	if errors.Is(err, os.ErrNotExist) {
 		refs, genErr := s.GenerateExports(id, []string{format})
 		if genErr != nil {
@@ -668,7 +668,7 @@ func (s *researchSessionStore) ExportArtifact(id, format string) (ResearchArtifa
 		if !ok || ref.Name != name {
 			return ResearchArtifactRef{}, nil, fmt.Errorf("invalid generated research artifact reference")
 		}
-		payload, err = readResearchFile(artifactDir, name, researchArtifactMaxBytes)
+		payload, err = ReadFile(artifactDir, name, researchArtifactMaxBytes)
 	}
 	if err != nil {
 		return ResearchArtifactRef{}, nil, err
@@ -739,7 +739,7 @@ func (s *researchSessionStore) CleanupRetention(days int) error {
 			if info.ModTime().After(cutoff) {
 				continue
 			}
-			if err := removeResearchFile(artifactDir, name); err != nil {
+			if err := RemoveFile(artifactDir, name); err != nil {
 				_ = artifactDir.Close()
 				_ = sessionDir.Close()
 				_ = root.Close()
@@ -770,7 +770,7 @@ func (s *researchSessionStore) CleanupRetention(days int) error {
 }
 
 func (s *researchSessionStore) writeEvents(id string, events []ResearchEvent) error {
-	settings := runtimeSettingsStore.Snapshot().ResearchProcessing
+	settings := snapshotRuntimeSettings().ResearchProcessing
 	normalizeResearchProcessingSettings(&settings)
 	if len(events) > settings.MaxSessionEvents {
 		return fmt.Errorf("research event log exceeds %d events", settings.MaxSessionEvents)
@@ -789,7 +789,7 @@ func (s *researchSessionStore) writeEvents(id string, events []ResearchEvent) er
 	}
 	defer root.Close()
 	defer sessionDir.Close()
-	return atomicWriteResearchFile(sessionDir, "events.jsonl", buf.buf.Bytes(), researchEventsFileMaxBytes)
+	return AtomicWriteFile(sessionDir, "events.jsonl", buf.buf.Bytes(), researchEventsFileMaxBytes)
 }
 
 func (s *researchSessionStore) writeResults(id string, results ResearchResults) error {
@@ -803,7 +803,7 @@ func (s *researchSessionStore) writeResults(id string, results ResearchResults) 
 	}
 	defer root.Close()
 	defer sessionDir.Close()
-	return atomicWriteResearchFile(sessionDir, "results.json", payload, researchResultsFileMaxBytes)
+	return AtomicWriteFile(sessionDir, "results.json", payload, researchResultsFileMaxBytes)
 }
 
 func (s *researchSessionStore) saveSessionLocked(session *ResearchSession) error {
@@ -821,7 +821,7 @@ func (s *researchSessionStore) saveSessionLocked(session *ResearchSession) error
 	if err != nil {
 		return err
 	}
-	return atomicWriteResearchFile(sessionDir, "session.json", payload, researchSessionFileMaxBytes)
+	return AtomicWriteFile(sessionDir, "session.json", payload, researchSessionFileMaxBytes)
 }
 
 func (s *researchSessionStore) clearResearchArtifacts(sessionDir *os.File) error {
@@ -832,13 +832,13 @@ func (s *researchSessionStore) clearResearchArtifacts(sessionDir *os.File) error
 	if err != nil {
 		return err
 	}
-	names, err := researchDirectoryNames(artifactDir, 64)
+	names, err := DirectoryNames(artifactDir, 64)
 	if err != nil {
 		_ = artifactDir.Close()
 		return err
 	}
 	for _, name := range names {
-		if err := removeResearchFile(artifactDir, name); err != nil {
+		if err := RemoveFile(artifactDir, name); err != nil {
 			_ = artifactDir.Close()
 			return err
 		}
@@ -846,11 +846,11 @@ func (s *researchSessionStore) clearResearchArtifacts(sessionDir *os.File) error
 	if err := artifactDir.Close(); err != nil {
 		return err
 	}
-	return removeResearchDirectory(sessionDir, "artifacts")
+	return RemoveDirectory(sessionDir, "artifacts")
 }
 
 func (s *researchSessionStore) preflightResearchSession(sessionDir *os.File) error {
-	names, err := researchDirectoryNames(sessionDir, 8)
+	names, err := DirectoryNames(sessionDir, 8)
 	if err != nil {
 		return err
 	}
@@ -865,7 +865,7 @@ func (s *researchSessionStore) preflightResearchSession(sessionDir *os.File) err
 			if err != nil {
 				return err
 			}
-			artifactNames, err := researchDirectoryNames(artifactDir, 64)
+			artifactNames, err := DirectoryNames(artifactDir, 64)
 			if err != nil {
 				_ = artifactDir.Close()
 				return err
@@ -899,14 +899,14 @@ func (s *researchSessionStore) cleanupResearchTombstone(root *os.File, name stri
 		return err
 	}
 	for _, filename := range []string{"events.jsonl", "results.json", "session.json"} {
-		if err := removeResearchFile(sessionDir, filename); err != nil {
+		if err := RemoveFile(sessionDir, filename); err != nil {
 			return err
 		}
 	}
 	if err := sessionDir.Close(); err != nil {
 		return err
 	}
-	if err := removeResearchDirectory(root, name); err != nil {
+	if err := RemoveDirectory(root, name); err != nil {
 		return err
 	}
 	return unix.Fsync(int(root.Fd()))

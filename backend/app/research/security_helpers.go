@@ -1,4 +1,4 @@
-package app
+package research
 
 import (
 	"bytes"
@@ -87,7 +87,7 @@ func normalizeResearchSecurityEvaluationLabelPolicy(raw string) string {
 }
 
 func normalizeResearchSecurityEvaluationLimit(limit int) int {
-	settings := runtimeSettingsStore.Snapshot().ResearchProcessing
+	settings := snapshotRuntimeSettings().ResearchProcessing
 	normalizeResearchProcessingSettings(&settings)
 	if limit <= 0 {
 		limit = researchDefaultTaskLimit

@@ -2,6 +2,7 @@ package app
 
 import (
 	"agent-ebpf-filter/app/recording"
+	"agent-ebpf-filter/app/research"
 	"context"
 	cryptorand "crypto/rand"
 	"encoding/hex"
@@ -174,9 +175,9 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 			TimelineBucketSeconds: 60,
 			TopK:                  20,
 			RecentSamples:         25,
-			ArtifactRetentionDays: researchProcessingDefaultArtifactRetentionDays,
-			MaxSessionEvents:      researchProcessingDefaultMaxSessionEvents,
-			ExportFormats:         researchProcessingDefaultExportFormats,
+			ArtifactRetentionDays: research.ArtifactRetentionDaysDefault,
+			MaxSessionEvents:      research.MaxSessionEventsDefault,
+			ExportFormats:         research.ExportFormatsDefault,
 		},
 		SignalProcessing: defaultSignalProcessingSettings(),
 	}
@@ -202,9 +203,9 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 					TimelineBucketSeconds: 60,
 					TopK:                  20,
 					RecentSamples:         25,
-					ArtifactRetentionDays: researchProcessingDefaultArtifactRetentionDays,
-					MaxSessionEvents:      researchProcessingDefaultMaxSessionEvents,
-					ExportFormats:         researchProcessingDefaultExportFormats,
+					ArtifactRetentionDays: research.ArtifactRetentionDaysDefault,
+					MaxSessionEvents:      research.MaxSessionEventsDefault,
+					ExportFormats:         research.ExportFormatsDefault,
 				},
 				SignalProcessing: defaultSignalProcessingSettings(),
 			}
@@ -226,9 +227,9 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 			TimelineBucketSeconds: 60,
 			TopK:                  20,
 			RecentSamples:         25,
-			ArtifactRetentionDays: researchProcessingDefaultArtifactRetentionDays,
-			MaxSessionEvents:      researchProcessingDefaultMaxSessionEvents,
-			ExportFormats:         researchProcessingDefaultExportFormats,
+			ArtifactRetentionDays: research.ArtifactRetentionDaysDefault,
+			MaxSessionEvents:      research.MaxSessionEventsDefault,
+			ExportFormats:         research.ExportFormatsDefault,
 		}
 	}
 	if settings.SignalProcessing.QueueSize == 0 &&
@@ -524,7 +525,7 @@ func recordCapturedEvent(event *pb.Event) CapturedEventRecord {
 	recording.Default().Record(record)
 	otelExporterStore.Record(record)
 	queueLoopDetectionRecord(record)
-	queueResearchProcessingRecord(record)
+	research.QueueProcessingRecord(record)
 	queueSignalProcessingRecord(record)
 	persistSignalProgramLog(record)
 	return record

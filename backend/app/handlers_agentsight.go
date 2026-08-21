@@ -1,12 +1,9 @@
 package app
 
 import (
-	"sync"
-
 	"github.com/gin-gonic/gin"
 
 	"agent-ebpf-filter/app/handlers"
-	"agent-ebpf-filter/internal/boundedring"
 )
 
 // ---- AgentSight route registration and event store (kept in app/) ----
@@ -22,48 +19,9 @@ var agentSightUploadedEvents = newAgentSightEventStore(handlers.AgentSightUpload
 
 // ── Event store ──────────────────────────────────────────────────────
 
-type agentSightEventStore struct {
-	mu     sync.RWMutex
-	events *boundedring.Ring[agentSightExportEvent]
-	max    int
-}
+type agentSightEventStore = handlers.AgentSightEventStore
 
-func newAgentSightEventStore(max int) *agentSightEventStore {
-	if max <= 0 {
-		max = 1000
-	}
-	return &agentSightEventStore{
-		events: boundedring.New[agentSightExportEvent](max),
-		max:    max,
-	}
-}
-
-func (s *agentSightEventStore) Add(events ...agentSightExportEvent) {
-	if s == nil || len(events) == 0 {
-		return
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.events.AddBatch(events)
-}
-
-func (s *agentSightEventStore) Recent(limit int) []agentSightExportEvent {
-	if s == nil {
-		return nil
-	}
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.events.Recent(limit)
-}
-
-func (s *agentSightEventStore) Clear() {
-	if s == nil {
-		return
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.events.Clear()
-}
+var newAgentSightEventStore = handlers.NewAgentSightEventStore
 
 // ── Route registration ──────────────────────────────────────────────
 

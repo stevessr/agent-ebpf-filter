@@ -30,7 +30,7 @@ func runMLAutoTuneTask(entry *backendTaskRuntimeEntry) (err error) {
 	if entry == nil {
 		return errors.New("ML auto-tune task is unavailable")
 	}
-	jobID := entry.id
+	jobID := entry.ID()
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			message := fmt.Sprintf("panic: %v", recovered)
@@ -46,7 +46,7 @@ func runMLAutoTuneTask(entry *backendTaskRuntimeEntry) (err error) {
 	go func() {
 		defer close(cancelWatchDone)
 		select {
-		case <-entry.cancel:
+		case <-entry.CancelChan():
 			ml.GlobalTrainer.RequestCancel()
 		case <-stopCancelWatch:
 		}

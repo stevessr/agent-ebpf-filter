@@ -2,6 +2,7 @@ package app
 
 import (
 	"agent-ebpf-filter/app/handlers"
+	"agent-ebpf-filter/app/research"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/gin-gonic/gin"
@@ -119,8 +120,8 @@ func registerSystemRoutes(rg *gin.RouterGroup, registries ...*FeatureRegistry) {
 	rg.GET("/domain-forward/status", handleDomainForwardProxyStatus)
 	rg.GET("/loop-detection/status", handleLoopDetectionStatus)
 	rg.POST("/loop-detection/task", handleLoopDetectionTask)
-	rg.GET("/research-processing/status", handleResearchProcessingStatus)
-	rg.POST("/research-processing/task", handleResearchProcessingTask)
+	rg.GET("/research-processing/status", research.HandleProcessingStatus)
+	rg.POST("/research-processing/task", research.HandleProcessingTask)
 	rg.GET("/signals/status", handleSignalProcessingStatus)
 	rg.POST("/signals/task", handleSignalProcessingTask)
 	rg.POST("/signals/rules/test", handleSignalRuleTest)

@@ -1,4 +1,4 @@
-package app
+package research
 
 import (
 	"bytes"
@@ -102,9 +102,9 @@ func buildResearchTrainingDataset(sessionID string, events []ResearchEvent, labe
 		}
 		trainingSamples = append(trainingSamples, sample)
 		mlSamples = append(mlSamples, sample.trainingSample)
-		incrementResearchCount(byLabel, sample.LabelName)
-		incrementResearchCount(byCategory, normalizedDatasetCategoryKey(sample.Category))
-		incrementResearchCount(bySource, sample.Source)
+		ml.IncrementResearchCount(byLabel, sample.LabelName)
+		ml.IncrementResearchCount(byCategory, ml.NormalizedDatasetCategoryKey(sample.Category))
+		ml.IncrementResearchCount(bySource, sample.Source)
 		if sample.Label >= 0 && sample.Label <= 3 {
 			labeled++
 			key := behavior.CommandKey(sample.trainingSample.Comm, sample.trainingSample.Args)
@@ -128,11 +128,11 @@ func buildResearchTrainingDataset(sessionID string, events []ResearchEvent, labe
 		FeatureNames:  researchTrainingFeatureNames(),
 		SampleCount:   len(trainingSamples),
 		LabeledCount:  labeled,
-		ByLabel:       topResearchCounts(byLabel, 0),
-		ByCategory:    topResearchCounts(byCategory, 0),
-		BySource:      topResearchCounts(bySource, 10),
+		ByLabel:       ml.TopResearchCounts(byLabel, 0),
+		ByCategory:    ml.TopResearchCounts(byCategory, 0),
+		BySource:      ml.TopResearchCounts(bySource, 10),
 		Normalization: normalization,
-		Quality:       buildDatasetQualitySummary(len(trainingSamples), importable, labeled, unlabeled, duplicates, byLabel, normalization),
+		Quality:       ml.BuildDatasetQualitySummary(len(trainingSamples), importable, labeled, unlabeled, duplicates, byLabel, normalization),
 	}
 	if includeSamples {
 		dataset.Samples = trainingSamples
@@ -147,9 +147,9 @@ func researchTrainingSampleFromEvent(event ResearchEvent, labelPolicy string) (R
 	}
 	label, labelName, labelSource := researchTrainingLabelForEvent(event, labelPolicy)
 	classification := behavior.ClassifyBehavior(comm, args)
-	_, emb := globalEmbedder.ClassifyAndEmbed(comm, args)
-	anomalyScore := globalEmbedder.ComputeAnomalyScore(emb)
-	features := globalFeatureExtractor.Extract(comm, args, "", event.PID)
+	_, emb := EmbedderHook().ClassifyAndEmbed(comm, args)
+	anomalyScore := EmbedderHook().ComputeAnomalyScore(emb)
+	features := FeatureExtractorHook().Extract(comm, args, "", event.PID)
 	timestamp := time.UnixMilli(event.Timestamp).UTC()
 	if event.Timestamp <= 0 {
 		timestamp = time.Now().UTC()
@@ -256,11 +256,11 @@ func researchTrainingLabelForEvent(event ResearchEvent, labelPolicy string) (int
 		if decision == "" {
 			return -1, "UNLABELED", "research-decision-missing"
 		}
-		return ml.ActionFromLabel(decision), sampleLabelName(ml.ActionFromLabel(decision)), "research-decision"
+		return ml.ActionFromLabel(decision), SampleLabelNameHook(ml.ActionFromLabel(decision)), "research-decision"
 	default:
 		if decision != "" {
 			label := ml.ActionFromLabel(decision)
-			return label, sampleLabelName(label), "research-decision"
+			return label, SampleLabelNameHook(label), "research-decision"
 		}
 		if event.RiskScore >= 90 || strings.Contains(strings.ToLower(event.EventType), "alert") {
 			return ml.ActionFromLabel("ALERT"), "ALERT", "research-risk-heuristic"
@@ -370,9 +370,9 @@ func researchRedactionLevelCounts(events []ResearchEvent) []researchCount {
 		if level == "" {
 			level = "unknown"
 		}
-		incrementResearchCount(counts, level)
+		ml.IncrementResearchCount(counts, level)
 	}
-	return topResearchCounts(counts, 0)
+	return ml.TopResearchCounts(counts, 0)
 }
 
 func handleResearchSessionTraining(c *gin.Context) {
@@ -438,19 +438,19 @@ func handleResearchSessionTrainingImport(c *gin.Context) {
 	for _, sample := range dataset.Samples[:limit] {
 		if sample.Label < 0 || sample.Label > 3 {
 			skipped++
-			incrementResearchCount(skipReasons, "unlabeled")
+			ml.IncrementResearchCount(skipReasons, "unlabeled")
 			continue
 		}
 		key := behavior.CommandKey(sample.trainingSample.Comm, sample.trainingSample.Args) + "\x00" + sample.LabelName
 		if _, ok := seen[key]; ok {
 			skipped++
-			incrementResearchCount(skipReasons, "duplicate_in_dataset")
+			ml.IncrementResearchCount(skipReasons, "duplicate_in_dataset")
 			continue
 		}
 		seen[key] = struct{}{}
 		if ml.GlobalTrainingStore.HasExactCommand(sample.trainingSample.Comm, sample.trainingSample.Args) {
 			skipped++
-			incrementResearchCount(skipReasons, "duplicate_in_store")
+			ml.IncrementResearchCount(skipReasons, "duplicate_in_store")
 			continue
 		}
 		if req.Preview {
@@ -458,7 +458,7 @@ func handleResearchSessionTrainingImport(c *gin.Context) {
 			continue
 		}
 		ml.GlobalTrainingStore.Add(sample.trainingSample)
-		recordCommandSampleSideEffects(sample.trainingSample)
+		RecordSampleSideEffectsHook(sample.trainingSample)
 		imported++
 		importedSamples = append(importedSamples, sample)
 	}
@@ -472,7 +472,7 @@ func handleResearchSessionTrainingImport(c *gin.Context) {
 	if !req.Preview {
 		log.Printf("[Research] Training import session=%q policy=%s total=%d imported=%d skipped=%d limit=%d", sessionID, labelPolicy, len(dataset.Samples), imported, skipped, limit)
 	}
-	c.JSON(http.StatusOK, ResearchTrainingImportResponse{SessionID: sessionID, LabelPolicy: labelPolicy, Total: len(dataset.Samples), Imported: imported, Skipped: skipped, TotalSamples: total, LabeledSamples: labeled, SkippedByReason: topResearchCounts(skipReasons, 0), Normalization: dataset.Normalization, Quality: dataset.Quality, ImportedSamples: importedSamples})
+	c.JSON(http.StatusOK, ResearchTrainingImportResponse{SessionID: sessionID, LabelPolicy: labelPolicy, Total: len(dataset.Samples), Imported: imported, Skipped: skipped, TotalSamples: total, LabeledSamples: labeled, SkippedByReason: ml.TopResearchCounts(skipReasons, 0), Normalization: dataset.Normalization, Quality: dataset.Quality, ImportedSamples: importedSamples})
 }
 
 func normalizeResearchTrainingFormat(raw string) string {

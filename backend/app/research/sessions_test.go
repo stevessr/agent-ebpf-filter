@@ -1,6 +1,11 @@
-package app
+package research
 
 import (
+	"agent-ebpf-filter/app/events"
+	"agent-ebpf-filter/app/handlers"
+	"agent-ebpf-filter/app/tasks"
+	"agent-ebpf-filter/app/tls"
+	"agent-ebpf-filter/core"
 	"archive/zip"
 	"bytes"
 	"context"
@@ -20,30 +25,48 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func restoreResearchV2TestState(t *testing.T) (*researchSessionStore, *researchTaskManager) {
+var _ = stubTrainingFeatureSink{}
+
+type stubTrainingFeatureSink struct{}
+
+func (stubTrainingFeatureSink) Extract(comm string, args []string, user string, pid uint32) [FeatureDim]float64 {
+	return [FeatureDim]float64{}
+}
+
+func (stubTrainingFeatureSink) AddHistory(comm, category, action string, anomalyScore float64, pid uint32, user string, argsLen int, argsCount int) {
+}
+
+func restoreResearchV2TestState(t *testing.T) (*researchSessionStore, *researchTaskManager, *core.EventArchive) {
 	t.Helper()
-	oldRuntime := runtimeSettingsStore
-	oldArchive := capturedEventArchive
+	oldSnapshot := SnapshotRuntimeSettingsHook
+	oldRecent := RecentCapturedEventsHook
+	oldLoop := RecentLoopFindingsHook
+	oldFeatures := FeatureExtractorHook
+	FeatureExtractorHook = func() TrainingFeatureSink { return stubTrainingFeatureSink{} }
+	t.Cleanup(func() { FeatureExtractorHook = oldFeatures })
 	oldSessions := researchSessionsStore
 	oldTasks := researchTaskStore
-	oldUploaded := agentSightUploadedEvents
-	oldLoop := loopDetectionWorkerStore
+	oldUploaded := AgentSightUploadedEvents
 	oldTraining := ml.GlobalTrainingStore
 
-	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{ResearchProcessing: ResearchProcessingSettings{
-		Enabled:               true,
-		MaxEvents:             100,
-		QueueSize:             128,
-		TimelineBucketSeconds: 60,
-		TopK:                  10,
-		RecentSamples:         5,
-		ArtifactRetentionDays: 14,
-		MaxSessionEvents:      1000,
-		ExportFormats:         "jsonl,csv,bundle",
-	}}}
-	capturedEventArchive = newEventArchive(50)
-	agentSightUploadedEvents = newAgentSightEventStore(50)
-	loopDetectionWorkerStore = newLoopDetectionWorker()
+	SnapshotRuntimeSettingsHook = func() core.RuntimeSettings {
+		return core.RuntimeSettings{ResearchProcessing: ResearchProcessingSettings{
+			Enabled:               true,
+			MaxEvents:             100,
+			QueueSize:             128,
+			TimelineBucketSeconds: 60,
+			TopK:                  10,
+			RecentSamples:         5,
+			ArtifactRetentionDays: 14,
+			MaxSessionEvents:      1000,
+			ExportFormats:         "jsonl,csv,bundle",
+		}}
+	}
+	archive := core.NewEventArchive(50)
+	RecentCapturedEventsHook = func(limit int) ([]CapturedEventRecord, string, error) {
+		return archive.Snapshot(limit), "", nil
+	}
+	AgentSightUploadedEvents = handlers.NewAgentSightEventStore(50)
 	ml.GlobalTrainingStore = ml.NewTrainingDataStore(64)
 	ml.GlobalTrainingStore.SetPersistLocation(t.TempDir())
 
@@ -59,23 +82,23 @@ func restoreResearchV2TestState(t *testing.T) (*researchSessionStore, *researchT
 			t.Errorf("research task manager shutdown: %v", err)
 		}
 		shutdownCancel()
-		runtimeSettingsStore = oldRuntime
-		capturedEventArchive = oldArchive
+		SnapshotRuntimeSettingsHook = oldSnapshot
+		RecentCapturedEventsHook = oldRecent
+		RecentLoopFindingsHook = oldLoop
 		researchSessionsStore = oldSessions
 		researchTaskStore = oldTasks
-		agentSightUploadedEvents = oldUploaded
-		loopDetectionWorkerStore = oldLoop
+		AgentSightUploadedEvents = oldUploaded
 		ml.GlobalTrainingStore = oldTraining
 	})
-	return store, manager
+	return store, manager, archive
 }
 
 func TestResearchSessionHandlersBuildResultsAndExports(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	restoreResearchV2TestState(t)
+	_, _, archive := restoreResearchV2TestState(t)
 
 	base := time.UnixMilli(1710000000000).UTC()
-	capturedEventArchive.Add(normalizeCapturedEventRecord(CapturedEventRecord{ReceivedAt: base, Event: &pb.Event{
+	archive.Add(events.NormalizeCapturedEventRecord(CapturedEventRecord{ReceivedAt: base, Event: &pb.Event{
 		Pid:            101,
 		Ppid:           1,
 		Type:           "openat",
@@ -87,7 +110,7 @@ func TestResearchSessionHandlersBuildResultsAndExports(t *testing.T) {
 		RiskScore:      12,
 		RedactionLevel: "standard",
 	}}))
-	capturedEventArchive.Add(normalizeCapturedEventRecord(CapturedEventRecord{ReceivedAt: base.Add(time.Second), Event: &pb.Event{
+	archive.Add(events.NormalizeCapturedEventRecord(CapturedEventRecord{ReceivedAt: base.Add(time.Second), Event: &pb.Event{
 		Pid:            101,
 		Type:           "network_connect",
 		EventType:      pb.EventType_NETWORK_CONNECT,
@@ -99,9 +122,9 @@ func TestResearchSessionHandlersBuildResultsAndExports(t *testing.T) {
 		RedactionLevel: "standard",
 	}}))
 
-	tlsStore := NewTLSCaptureStore(10)
-	tlsStore.Add(TLSPlaintextEvent{Type: "http_request", Timestamp: base.Add(2 * time.Second), PID: 202, Comm: "node", Method: "POST", URL: "/v1/chat", Host: "api.example.test", Body: "secret body", BodySize: 99, RedactionState: "sanitized", TraceID: "trace-r"})
-	agentSightUploadedEvents.Add(agentSightExportEvent{ID: "upload-1", Timestamp: base.Add(3 * time.Second).UnixMilli(), Source: "stdio", PID: 303, Comm: "claude", TraceID: "trace-r", Data: map[string]any{"event_type": "MCP_TOOL", "target": "tool.call", "body": "must-not-persist"}})
+	tlsStore := tls.NewTLSCaptureStore(10)
+	tlsStore.Add(tls.TLSPlaintextEvent{Type: "http_request", Timestamp: base.Add(2 * time.Second), PID: 202, Comm: "node", Method: "POST", URL: "/v1/chat", Host: "api.example.test", Body: "secret body", BodySize: 99, RedactionState: "sanitized", TraceID: "trace-r"})
+	AgentSightUploadedEvents.Add(handlers.AgentSightExportEvent{ID: "upload-1", Timestamp: base.Add(3 * time.Second).UnixMilli(), Source: "stdio", PID: 303, Comm: "claude", TraceID: "trace-r", Data: map[string]any{"event_type": "MCP_TOOL", "target": "tool.call", "body": "must-not-persist"}})
 
 	router := gin.New()
 	registerResearchRoutes(router.Group("/research"), tlsStore)
@@ -233,7 +256,7 @@ func TestResearchSessionHandlersBuildResultsAndExports(t *testing.T) {
 
 func TestResearchSecurityEvaluationTaskAndExports(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	store, _ := restoreResearchV2TestState(t)
+	store, _, _ := restoreResearchV2TestState(t)
 
 	session, err := store.Create(researchCreateSessionRequest{Name: "security eval"})
 	if err != nil {
@@ -309,7 +332,7 @@ func TestResearchSecurityEvaluationTaskAndExports(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	if task.Status != researchTaskSucceeded || task.Records != len(benchmarkCases) {
+	if task.Status != researchTaskSucceeded || task.Records != len(core.DefaultBenchmarkCases()) {
 		t.Fatalf("security eval task mismatch: %+v", task)
 	}
 
@@ -326,7 +349,7 @@ func TestResearchSecurityEvaluationTaskAndExports(t *testing.T) {
 	if results.SecurityEvaluation == nil {
 		t.Fatal("missing security evaluation report")
 	}
-	if results.SecurityEvaluation.Mode != "builtin" || results.SecurityEvaluation.Totals.Builtin != len(benchmarkCases) || results.SecurityEvaluation.Totals.Session != 0 {
+	if results.SecurityEvaluation.Mode != "builtin" || results.SecurityEvaluation.Totals.Builtin != len(core.DefaultBenchmarkCases()) || results.SecurityEvaluation.Totals.Session != 0 {
 		t.Fatalf("security evaluation report mismatch: %+v", results.SecurityEvaluation.Totals)
 	}
 	if results.SecurityEvaluation.Metrics.Accuracy < 0 || len(results.SecurityEvaluation.ConfusionMatrix) == 0 {
@@ -366,8 +389,7 @@ func TestResearchTaskQueueFullAndCancelIdempotent(t *testing.T) {
 		t.Fatalf("create session: %v", err)
 	}
 	manager := newResearchTaskManager(store)
-	manager.runtime.queue = make(chan *backendTaskRuntimeEntry, 1)
-	manager.runtime.started = true
+	manager.runtime = newUnstartedTaskRuntime("research", researchTaskStoreMaxItems, manager.runRuntimeTask, 1)
 
 	first, err := manager.Submit(session.ID, researchTaskRequest{Action: "scan_recent", Limit: 1}, nil)
 	if err != nil {
@@ -439,8 +461,7 @@ func TestResearchTaskRetentionKeepsCanceledQueueUntilDrain(t *testing.T) {
 	}
 	manager := newResearchTaskManager(store)
 	manager.maxItems = 1
-	manager.runtime.queue = make(chan *backendTaskRuntimeEntry, 2)
-	manager.runtime.started = true
+	manager.runtime = newUnstartedTaskRuntime("research", researchTaskStoreMaxItems, manager.runRuntimeTask, 2)
 
 	first, err := manager.Submit(session.ID, researchTaskRequest{Action: "scan_recent", Limit: 1}, nil)
 	if err != nil {
@@ -489,19 +510,19 @@ func TestResearchTaskCancelDoesNotMutateTerminalTask(t *testing.T) {
 
 func TestResearchTaskFinishHonorsPendingCancel(t *testing.T) {
 	runtimeEntry := newBackendTaskRuntimeEntry("cancel-finish", "research", nil)
-	if !runtimeEntry.markRunning() {
+	if !runtimeEntry.MarkRunning() {
 		t.Fatal("runtime entry did not start")
 	}
 	entry := &researchTaskEntry{
 		task: ResearchTask{
-			TaskID:    runtimeEntry.id,
+			TaskID:    runtimeEntry.ID(),
 			Status:    researchTaskRunning,
 			Progress:  0.5,
 			QueuedAt:  time.Now().UTC().Add(-time.Second),
 			StartedAt: ptrTime(time.Now().UTC().Add(-time.Millisecond)),
 		},
 		runtime: runtimeEntry,
-		cancel:  runtimeEntry.cancel,
+		cancel:  runtimeEntry.CancelChan(),
 	}
 	entry.requestCancel()
 	entry.finish(researchTaskSucceeded, 1, "should be discarded", map[string]any{"done": true})
@@ -517,18 +538,18 @@ func TestResearchTaskCancelAndCompletionStayConsistent(t *testing.T) {
 	for iteration := 0; iteration < iterations; iteration++ {
 		runtime := newBackendTaskRuntime("research-race", 1, nil)
 		runtimeEntry := newBackendTaskRuntimeEntry(strconv.Itoa(iteration), "research", nil)
-		if !runtimeEntry.markRunning() {
+		if !runtimeEntry.MarkRunning() {
 			t.Fatal("runtime entry did not start")
 		}
-		runtime.tasks[runtimeEntry.id] = runtimeEntry
+		runtime.Track(runtimeEntry)
 		entry := &researchTaskEntry{
 			task: ResearchTask{
-				TaskID:   runtimeEntry.id,
+				TaskID:   runtimeEntry.ID(),
 				Status:   researchTaskRunning,
 				QueuedAt: time.Now().UTC(),
 			},
 			runtime: runtimeEntry,
-			cancel:  runtimeEntry.cancel,
+			cancel:  runtimeEntry.CancelChan(),
 		}
 
 		start := make(chan struct{})
@@ -546,7 +567,7 @@ func TestResearchTaskCancelAndCompletionStayConsistent(t *testing.T) {
 		}()
 		close(start)
 		racers.Wait()
-		runtime.completeEntry(runtimeEntry, backendTaskStatusSucceeded, 1, "", false)
+		runtime.CompleteEntry(runtimeEntry, tasks.StatusSucceeded, 1, "", false)
 
 		researchStatus := entry.snapshot().Status
 		runtimeStatus := runtimeEntry.Snapshot().Status
@@ -571,14 +592,14 @@ func TestResearchTaskRuntimeConvertsPanicToFailure(t *testing.T) {
 	}
 	runtimeEntry := newBackendTaskRuntimeEntry(entry.task.TaskID, entry.task.Action, entry)
 	entry.runtime = runtimeEntry
-	entry.cancel = runtimeEntry.cancel
+	entry.cancel = runtimeEntry.CancelChan()
 
 	err := manager.runRuntimeTask(runtimeEntry)
-	if !errors.Is(err, errBackendTaskHandlerPanic) {
-		t.Fatalf("panic error = %v, want %v", err, errBackendTaskHandlerPanic)
+	if !errors.Is(err, tasks.ErrHandlerPanic) {
+		t.Fatalf("panic error = %v, want %v", err, tasks.ErrHandlerPanic)
 	}
 	snapshot := entry.snapshot()
-	if snapshot.Status != researchTaskFailed || !strings.Contains(snapshot.Error, errBackendTaskHandlerPanic.Error()) {
+	if snapshot.Status != researchTaskFailed || !strings.Contains(snapshot.Error, tasks.ErrHandlerPanic.Error()) {
 		t.Fatalf("panic task snapshot mismatch: %+v", snapshot)
 	}
 }
@@ -586,18 +607,24 @@ func TestResearchTaskRuntimeConvertsPanicToFailure(t *testing.T) {
 func TestResearchTasksStatusHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	oldTasks := researchTaskStore
-	manager := newResearchTaskManager(newResearchSessionStore(t.TempDir()))
-	now := time.Now().UTC()
-	manager.runtime.completedTotal = 1
-	manager.runtime.panickedTotal = 1
-	manager.runtime.runDurationTotal = 3 * time.Millisecond
-	manager.runtime.runDurationSamples = 1
-	manager.runtime.lastQueueLatency = 2 * time.Millisecond
-	manager.runtime.lastRunDuration = 3 * time.Millisecond
-	manager.runtime.lastTotalDuration = 5 * time.Millisecond
-	manager.runtime.lastStartedAt = now.Add(-3 * time.Millisecond)
-	manager.runtime.lastFinishedAt = now
+	store := newResearchSessionStore(t.TempDir())
+	session, err := store.Create(researchCreateSessionRequest{Name: "status"})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	manager := newResearchTaskManager(store)
+	manager.taskHandler = func(*researchTaskEntry) error { panic("status boom") }
 	researchTaskStore = manager
+	if _, err := manager.Submit(session.ID, researchTaskRequest{Action: "reset_session"}, nil); err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for manager.Status().Runtime.PanickedTotal == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("panic task never recorded")
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
 	t.Cleanup(func() { researchTaskStore = oldTasks })
 
 	router := gin.New()
@@ -659,9 +686,11 @@ func TestResearchEventNormalizationRedactsSensitiveAgentSightData(t *testing.T) 
 
 func TestResearchExportBundleContainsManifest(t *testing.T) {
 	store := newResearchSessionStore(t.TempDir())
-	oldRuntime := runtimeSettingsStore
-	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{ResearchProcessing: ResearchProcessingSettings{MaxSessionEvents: 100, ExportFormats: "jsonl,csv,bundle"}}}
-	t.Cleanup(func() { runtimeSettingsStore = oldRuntime })
+	oldSnapshot := SnapshotRuntimeSettingsHook
+	SnapshotRuntimeSettingsHook = func() core.RuntimeSettings {
+		return core.RuntimeSettings{ResearchProcessing: ResearchProcessingSettings{MaxSessionEvents: 100, ExportFormats: "jsonl,csv,bundle"}}
+	}
+	t.Cleanup(func() { SnapshotRuntimeSettingsHook = oldSnapshot })
 	session, err := store.Create(researchCreateSessionRequest{Name: "bundle"})
 	if err != nil {
 		t.Fatalf("create: %v", err)

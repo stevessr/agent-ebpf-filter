@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/events"
 	"context"
 	"errors"
 	"log"
@@ -184,22 +185,7 @@ func recentEventFiltersFromRequest(c *gin.Context) recentEventFilters {
 	return filters
 }
 
-func parseRecentEventTime(raw string) time.Time {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return time.Time{}
-	}
-	if parsed, err := time.Parse(time.RFC3339Nano, raw); err == nil {
-		return parsed.UTC()
-	}
-	if millis, err := strconv.ParseInt(raw, 10, 64); err == nil && millis > 0 {
-		if millis > 1_000_000_000_000_000 {
-			return time.Unix(0, millis).UTC()
-		}
-		return time.UnixMilli(millis).UTC()
-	}
-	return time.Time{}
-}
+var parseRecentEventTime = events.ParseRecentEventTime
 
 func filterRecentEventRecords(records []CapturedEventRecord, filters recentEventFilters) []CapturedEventRecord {
 	if filters == (recentEventFilters{}) {
@@ -276,34 +262,9 @@ func recentEventRecordMatches(record CapturedEventRecord, filters recentEventFil
 	return true
 }
 
-func envelopeEventTypeName(envelope *pb.EventEnvelope, event *pb.Event) string {
-	if envelope != nil {
-		return envelope.GetEventType().String()
-	}
-	if event != nil {
-		return event.GetEventType().String()
-	}
-	return ""
-}
+var envelopeEventTypeName = events.EnvelopeEventTypeName
 
-func envelopeRedactionState(envelope *pb.EventEnvelope) string {
-	if envelope == nil {
-		return ""
-	}
-	switch payload := envelope.GetPayload().(type) {
-	case *pb.EventEnvelope_TlsEvent:
-		return payload.TlsEvent.GetRedactionState()
-	case *pb.EventEnvelope_HttpEvent:
-		return payload.HttpEvent.GetRedactionState()
-	case *pb.EventEnvelope_SseEvent:
-		return payload.SseEvent.GetRedactionState()
-	case *pb.EventEnvelope_StdioEvent:
-		return payload.StdioEvent.GetRedactionState()
-	case *pb.EventEnvelope_AgentsightAlertEvent:
-		return payload.AgentsightAlertEvent.GetRedactionState()
-	}
-	return ""
-}
+var envelopeRedactionState = events.EnvelopeRedactionState
 
 const maxRecentEventLimit = 1000
 

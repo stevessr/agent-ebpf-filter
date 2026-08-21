@@ -1,4 +1,4 @@
-package app
+package tasks
 
 import (
 	"context"
@@ -10,22 +10,22 @@ import (
 )
 
 const (
-	backendTaskStatusQueued    = "queued"
-	backendTaskStatusRunning   = "running"
-	backendTaskStatusSucceeded = "succeeded"
-	backendTaskStatusFailed    = "failed"
-	backendTaskStatusCanceled  = "canceled"
+	StatusQueued    = "queued"
+	StatusRunning   = "running"
+	StatusSucceeded = "succeeded"
+	StatusFailed    = "failed"
+	StatusCanceled  = "canceled"
 )
 
 var (
-	errBackendTaskQueueFull     = errors.New("backend task queue is full")
-	errBackendTaskDuplicateID   = errors.New("backend task id already exists")
-	errBackendTaskRuntimeClosed = errors.New("backend task runtime is closed")
-	errBackendTaskCanceled      = errors.New("backend task canceled")
-	errBackendTaskHandlerPanic  = errors.New("backend task handler panicked")
+	ErrQueueFull    = errors.New("backend task queue is full")
+	ErrDuplicateID  = errors.New("backend task id already exists")
+	ErrClosed       = errors.New("backend task runtime is closed")
+	ErrCanceled     = errors.New("backend task canceled")
+	ErrHandlerPanic = errors.New("backend task handler panicked")
 )
 
-type backendTaskRuntimeEntry struct {
+type Entry struct {
 	mu         sync.RWMutex
 	id         string
 	kind       string
@@ -35,8 +35,8 @@ type backendTaskRuntimeEntry struct {
 	startedAt  *time.Time
 	finishedAt *time.Time
 	accounted  bool
-	// terminalNext is owned by backendTaskRuntime.mu after accounted is set.
-	terminalNext *backendTaskRuntimeEntry
+	// terminalNext is owned by Runtime.mu after accounted is set.
+	terminalNext *Entry
 	err          string
 	payload      any
 	cancel       chan struct{}
@@ -44,7 +44,7 @@ type backendTaskRuntimeEntry struct {
 	queueLen     int
 }
 
-type backendTaskRuntimeSnapshot struct {
+type Snapshot struct {
 	ID              string     `json:"id"`
 	Kind            string     `json:"kind"`
 	Status          string     `json:"status"`
@@ -59,7 +59,7 @@ type backendTaskRuntimeSnapshot struct {
 	TotalDurationMs float64    `json:"totalDurationMs,omitempty"`
 }
 
-type backendTaskRuntimeStats struct {
+type Stats struct {
 	Name                string     `json:"name"`
 	Started             bool       `json:"started"`
 	Closed              bool       `json:"closed"`
@@ -83,19 +83,19 @@ type backendTaskRuntimeStats struct {
 	UpdatedAt           time.Time  `json:"updatedAt"`
 }
 
-type backendTaskRuntime struct {
+type Runtime struct {
 	mu       sync.RWMutex
 	name     string
-	queue    chan *backendTaskRuntimeEntry
+	queue    chan *Entry
 	done     chan struct{}
 	started  bool
 	closed   bool
-	tasks    map[string]*backendTaskRuntimeEntry
+	tasks    map[string]*Entry
 	maxItems int
-	handler  func(*backendTaskRuntimeEntry) error
+	handler  func(*Entry) error
 
-	terminalHead *backendTaskRuntimeEntry
-	terminalTail *backendTaskRuntimeEntry
+	terminalHead *Entry
+	terminalTail *Entry
 
 	enqueuedTotal      uint64
 	completedTotal     uint64
@@ -115,7 +115,32 @@ type backendTaskRuntime struct {
 	updatedAt          time.Time
 }
 
-func newBackendTaskRuntime(name string, maxItems int, handler func(*backendTaskRuntimeEntry) error) *backendTaskRuntime {
+// DefaultQueueSize is the default worker-queue capacity.
+const DefaultQueueSize = 2048
+
+func ptrTimeIfSet(t time.Time) *time.Time {
+	if t.IsZero() {
+		return nil
+	}
+	cp := t
+	return &cp
+}
+
+func maxFloat(a float64, b float64) float64 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func durationMS(d time.Duration) float64 {
+	if d < 0 {
+		d = 0
+	}
+	return float64(d.Nanoseconds()) / float64(time.Millisecond)
+}
+
+func New(name string, maxItems int, handler func(*Entry) error) *Runtime {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		name = "backend"
@@ -123,33 +148,47 @@ func newBackendTaskRuntime(name string, maxItems int, handler func(*backendTaskR
 	if maxItems <= 0 {
 		maxItems = 1024
 	}
-	return &backendTaskRuntime{
+	return &Runtime{
 		name:      name,
-		tasks:     make(map[string]*backendTaskRuntimeEntry),
+		tasks:     make(map[string]*Entry),
 		maxItems:  maxItems,
 		handler:   handler,
 		updatedAt: time.Now().UTC(),
 	}
 }
 
-func newBackendTaskRuntimeEntry(id, kind string, payload any) *backendTaskRuntimeEntry {
+// NewUnstarted builds a runtime with a pre-allocated queue but no consumer
+// goroutine. Embedders that drive execution themselves (and tests that need a
+// deterministic full queue) use it; Submit still enforces capacity.
+func NewUnstarted(name string, maxItems int, handler func(*Entry) error, queueSize int) *Runtime {
+	r := New(name, maxItems, handler)
+	if queueSize <= 0 {
+		queueSize = DefaultQueueSize
+	}
+	r.mu.Lock()
+	r.startLocked(queueSize)
+	r.mu.Unlock()
+	return r
+}
+
+func NewEntry(id, kind string, payload any) *Entry {
 	now := time.Now().UTC()
-	return &backendTaskRuntimeEntry{
+	return &Entry{
 		id:       strings.TrimSpace(id),
 		kind:     strings.TrimSpace(kind),
-		status:   backendTaskStatusQueued,
+		status:   StatusQueued,
 		queuedAt: now,
 		payload:  payload,
 		cancel:   make(chan struct{}),
 	}
 }
 
-func (r *backendTaskRuntime) Start(queueSize int) {
+func (r *Runtime) Start(queueSize int) {
 	if r == nil {
 		return
 	}
 	if queueSize <= 0 {
-		queueSize = researchProcessingDefaultQueueSize
+		queueSize = DefaultQueueSize
 	}
 	r.mu.Lock()
 	if r.started || r.closed {
@@ -161,8 +200,8 @@ func (r *backendTaskRuntime) Start(queueSize int) {
 	go r.run(queue, done)
 }
 
-func (r *backendTaskRuntime) startLocked(queueSize int) (chan *backendTaskRuntimeEntry, chan struct{}) {
-	queue := make(chan *backendTaskRuntimeEntry, queueSize)
+func (r *Runtime) startLocked(queueSize int) (chan *Entry, chan struct{}) {
+	queue := make(chan *Entry, queueSize)
 	done := make(chan struct{})
 	r.queue = queue
 	r.done = done
@@ -171,7 +210,7 @@ func (r *backendTaskRuntime) startLocked(queueSize int) (chan *backendTaskRuntim
 	return queue, done
 }
 
-func (r *backendTaskRuntime) Submit(entry *backendTaskRuntimeEntry) error {
+func (r *Runtime) Submit(entry *Entry) error {
 	if r == nil {
 		return errors.New("backend task runtime is unavailable")
 	}
@@ -180,19 +219,19 @@ func (r *backendTaskRuntime) Submit(entry *backendTaskRuntimeEntry) error {
 	}
 	r.mu.Lock()
 	if r.closed {
-		r.noteRejectedLocked("runtime_closed", errBackendTaskRuntimeClosed)
+		r.noteRejectedLocked("runtime_closed", ErrClosed)
 		r.mu.Unlock()
-		return errBackendTaskRuntimeClosed
+		return ErrClosed
 	}
 	if _, exists := r.tasks[entry.id]; exists {
-		r.noteRejectedLocked("duplicate_id", errBackendTaskDuplicateID)
+		r.noteRejectedLocked("duplicate_id", ErrDuplicateID)
 		r.mu.Unlock()
-		return errBackendTaskDuplicateID
+		return ErrDuplicateID
 	}
 	queue := r.queue
 	if queue == nil {
 		var done chan struct{}
-		queue, done = r.startLocked(researchProcessingDefaultQueueSize)
+		queue, done = r.startLocked(DefaultQueueSize)
 		go r.run(queue, done)
 	}
 	r.tasks[entry.id] = entry
@@ -211,13 +250,13 @@ func (r *backendTaskRuntime) Submit(entry *backendTaskRuntimeEntry) error {
 		if current := r.tasks[entry.id]; current == entry {
 			delete(r.tasks, entry.id)
 		}
-		r.noteRejectedLocked("queue_full", errBackendTaskQueueFull)
+		r.noteRejectedLocked("queue_full", ErrQueueFull)
 		r.mu.Unlock()
-		return errBackendTaskQueueFull
+		return ErrQueueFull
 	}
 }
 
-func (r *backendTaskRuntime) noteRejectedLocked(reason string, err error) {
+func (r *Runtime) noteRejectedLocked(reason string, err error) {
 	r.rejectedTotal++
 	r.lastRejectReason = reason
 	if err != nil {
@@ -226,7 +265,7 @@ func (r *backendTaskRuntime) noteRejectedLocked(reason string, err error) {
 	r.updatedAt = time.Now().UTC()
 }
 
-func (r *backendTaskRuntime) Get(id string) (*backendTaskRuntimeEntry, bool) {
+func (r *Runtime) Get(id string) (*Entry, bool) {
 	if r == nil {
 		return nil, false
 	}
@@ -236,7 +275,7 @@ func (r *backendTaskRuntime) Get(id string) (*backendTaskRuntimeEntry, bool) {
 	return entry, entry != nil
 }
 
-func (r *backendTaskRuntime) Cancel(id string) (*backendTaskRuntimeEntry, bool) {
+func (r *Runtime) Cancel(id string) (*Entry, bool) {
 	entry, ok := r.Get(id)
 	if !ok {
 		return nil, false
@@ -245,9 +284,9 @@ func (r *backendTaskRuntime) Cancel(id string) (*backendTaskRuntimeEntry, bool) 
 	return entry, true
 }
 
-func (r *backendTaskRuntime) Stats() backendTaskRuntimeStats {
+func (r *Runtime) Stats() Stats {
 	if r == nil {
-		return backendTaskRuntimeStats{}
+		return Stats{}
 	}
 	r.mu.RLock()
 	queueLen := 0
@@ -256,7 +295,7 @@ func (r *backendTaskRuntime) Stats() backendTaskRuntimeStats {
 		queueLen = len(r.queue)
 		queueCap = cap(r.queue)
 	}
-	stats := backendTaskRuntimeStats{
+	stats := Stats{
 		Name:                r.name,
 		Started:             r.started,
 		Closed:              r.closed,
@@ -269,9 +308,9 @@ func (r *backendTaskRuntime) Stats() backendTaskRuntimeStats {
 		CanceledTotal:       r.canceledTotal,
 		PanickedTotal:       r.panickedTotal,
 		RejectedTotal:       r.rejectedTotal,
-		LastQueueLatencyMs:  durationMilliseconds(r.lastQueueLatency),
-		LastRunDurationMs:   durationMilliseconds(r.lastRunDuration),
-		LastTotalDurationMs: durationMilliseconds(r.lastTotalDuration),
+		LastQueueLatencyMs:  durationMS(r.lastQueueLatency),
+		LastRunDurationMs:   durationMS(r.lastRunDuration),
+		LastTotalDurationMs: durationMS(r.lastTotalDuration),
 		AvgRunDurationMs:    backendTaskAverageDurationMs(r.runDurationTotal, r.runDurationSamples),
 		LastStartedAt:       ptrTimeIfSet(r.lastStartedAt),
 		LastFinishedAt:      ptrTimeIfSet(r.lastFinishedAt),
@@ -283,36 +322,36 @@ func (r *backendTaskRuntime) Stats() backendTaskRuntimeStats {
 	return stats
 }
 
-func (r *backendTaskRuntime) run(queue <-chan *backendTaskRuntimeEntry, done chan<- struct{}) {
+func (r *Runtime) run(queue <-chan *Entry, done chan<- struct{}) {
 	defer close(done)
 	for entry := range queue {
 		if entry == nil {
 			continue
 		}
 		if !entry.markRunning() {
-			r.completeEntry(entry, backendTaskStatusCanceled, 1, "", false)
+			r.completeEntry(entry, StatusCanceled, 1, "", false)
 			continue
 		}
 		err := r.execute(entry)
 		if err != nil {
-			if errors.Is(err, errBackendTaskCanceled) || entry.IsCanceled() {
-				r.completeEntry(entry, backendTaskStatusCanceled, 1, "", false)
+			if errors.Is(err, ErrCanceled) || entry.IsCanceled() {
+				r.completeEntry(entry, StatusCanceled, 1, "", false)
 				continue
 			}
-			r.completeEntry(entry, backendTaskStatusFailed, entry.Progress(), err.Error(), errors.Is(err, errBackendTaskHandlerPanic))
+			r.completeEntry(entry, StatusFailed, entry.Progress(), err.Error(), errors.Is(err, ErrHandlerPanic))
 			continue
 		}
 		if entry.IsCanceled() {
-			r.completeEntry(entry, backendTaskStatusCanceled, 1, "", false)
+			r.completeEntry(entry, StatusCanceled, 1, "", false)
 			continue
 		}
-		r.completeEntry(entry, backendTaskStatusSucceeded, 1, "", false)
+		r.completeEntry(entry, StatusSucceeded, 1, "", false)
 	}
 }
 
 // Shutdown rejects new submissions, cancels tracked active tasks, closes the
 // queue, and waits for the worker to finish draining canceled entries.
-func (r *backendTaskRuntime) Shutdown(ctx context.Context) error {
+func (r *Runtime) Shutdown(ctx context.Context) error {
 	if r == nil {
 		return nil
 	}
@@ -344,7 +383,7 @@ func (r *backendTaskRuntime) Shutdown(ctx context.Context) error {
 	}
 }
 
-func (r *backendTaskRuntime) execute(entry *backendTaskRuntimeEntry) (err error) {
+func (r *Runtime) execute(entry *Entry) (err error) {
 	if r == nil || r.handler == nil {
 		return nil
 	}
@@ -357,10 +396,10 @@ func (r *backendTaskRuntime) execute(entry *backendTaskRuntimeEntry) (err error)
 }
 
 func newBackendTaskPanicError(recovered any) error {
-	return fmt.Errorf("%w: %v", errBackendTaskHandlerPanic, recovered)
+	return fmt.Errorf("%w: %v", ErrHandlerPanic, recovered)
 }
 
-func (r *backendTaskRuntime) completeEntry(entry *backendTaskRuntimeEntry, status string, progress float64, message string, panicked bool) {
+func (r *Runtime) completeEntry(entry *Entry, status string, progress float64, message string, panicked bool) {
 	if r == nil || entry == nil {
 		return
 	}
@@ -368,10 +407,10 @@ func (r *backendTaskRuntime) completeEntry(entry *backendTaskRuntimeEntry, statu
 	if !accounted {
 		return
 	}
-	r.noteFinished(entry, snapshot, panicked && snapshot.Status == backendTaskStatusFailed)
+	r.noteFinished(entry, snapshot, panicked && snapshot.Status == StatusFailed)
 }
 
-func (r *backendTaskRuntime) noteFinished(entry *backendTaskRuntimeEntry, snapshot backendTaskRuntimeSnapshot, panicked bool) {
+func (r *Runtime) noteFinished(entry *Entry, snapshot Snapshot, panicked bool) {
 	if r == nil {
 		return
 	}
@@ -393,9 +432,9 @@ func (r *backendTaskRuntime) noteFinished(entry *backendTaskRuntimeEntry, snapsh
 		r.lastFinishedAt = *snapshot.FinishedAt
 	}
 	switch snapshot.Status {
-	case backendTaskStatusFailed:
+	case StatusFailed:
 		r.failedTotal++
-	case backendTaskStatusCanceled:
+	case StatusCanceled:
 		r.canceledTotal++
 	}
 	if panicked {
@@ -407,7 +446,7 @@ func (r *backendTaskRuntime) noteFinished(entry *backendTaskRuntimeEntry, snapsh
 	r.pruneLocked()
 }
 
-func (r *backendTaskRuntime) pruneLocked() {
+func (r *Runtime) pruneLocked() {
 	if r == nil {
 		return
 	}
@@ -427,7 +466,7 @@ func (r *backendTaskRuntime) pruneLocked() {
 	}
 }
 
-func (r *backendTaskRuntime) trackTerminalLocked(entry *backendTaskRuntimeEntry) {
+func (r *Runtime) trackTerminalLocked(entry *Entry) {
 	if r == nil || entry == nil || entry.id == "" {
 		return
 	}
@@ -444,16 +483,16 @@ func (r *backendTaskRuntime) trackTerminalLocked(entry *backendTaskRuntimeEntry)
 
 func backendTaskStatusTerminal(status string) bool {
 	switch status {
-	case backendTaskStatusSucceeded, backendTaskStatusFailed, backendTaskStatusCanceled:
+	case StatusSucceeded, StatusFailed, StatusCanceled:
 		return true
 	default:
 		return false
 	}
 }
 
-func (entry *backendTaskRuntimeEntry) Snapshot() backendTaskRuntimeSnapshot {
+func (entry *Entry) Snapshot() Snapshot {
 	if entry == nil {
-		return backendTaskRuntimeSnapshot{}
+		return Snapshot{}
 	}
 	entry.mu.RLock()
 	out := entry.snapshotLocked()
@@ -462,8 +501,8 @@ func (entry *backendTaskRuntimeEntry) Snapshot() backendTaskRuntimeSnapshot {
 	return out
 }
 
-func (entry *backendTaskRuntimeEntry) snapshotLocked() backendTaskRuntimeSnapshot {
-	return backendTaskRuntimeSnapshot{
+func (entry *Entry) snapshotLocked() Snapshot {
+	return Snapshot{
 		ID:         entry.id,
 		Kind:       entry.kind,
 		Status:     entry.status,
@@ -476,17 +515,17 @@ func (entry *backendTaskRuntimeEntry) snapshotLocked() backendTaskRuntimeSnapsho
 	}
 }
 
-func setBackendTaskSnapshotDurations(snapshot *backendTaskRuntimeSnapshot) {
+func setBackendTaskSnapshotDurations(snapshot *Snapshot) {
 	if snapshot == nil {
 		return
 	}
 	queueLatency, runDuration, totalDuration := backendTaskSnapshotDurations(*snapshot)
-	snapshot.QueueLatencyMs = durationMilliseconds(queueLatency)
-	snapshot.RunDurationMs = durationMilliseconds(runDuration)
-	snapshot.TotalDurationMs = durationMilliseconds(totalDuration)
+	snapshot.QueueLatencyMs = durationMS(queueLatency)
+	snapshot.RunDurationMs = durationMS(runDuration)
+	snapshot.TotalDurationMs = durationMS(totalDuration)
 }
 
-func (entry *backendTaskRuntimeEntry) Payload() any {
+func (entry *Entry) Payload() any {
 	if entry == nil {
 		return nil
 	}
@@ -496,7 +535,7 @@ func (entry *backendTaskRuntimeEntry) Payload() any {
 	return payload
 }
 
-func (entry *backendTaskRuntimeEntry) Cancel() {
+func (entry *Entry) Cancel() {
 	if entry == nil {
 		return
 	}
@@ -507,15 +546,15 @@ func (entry *backendTaskRuntimeEntry) Cancel() {
 		return
 	}
 	entry.cancelOnce.Do(func() { close(entry.cancel) })
-	if entry.status == backendTaskStatusQueued {
-		entry.status = backendTaskStatusCanceled
+	if entry.status == StatusQueued {
+		entry.status = StatusCanceled
 		entry.progress = 1
 		entry.finishedAt = &now
 	}
 	entry.mu.Unlock()
 }
 
-func (entry *backendTaskRuntimeEntry) IsCanceled() bool {
+func (entry *Entry) IsCanceled() bool {
 	if entry == nil || entry.cancel == nil {
 		return false
 	}
@@ -527,23 +566,23 @@ func (entry *backendTaskRuntimeEntry) IsCanceled() bool {
 	}
 }
 
-func (entry *backendTaskRuntimeEntry) markRunning() bool {
+func (entry *Entry) markRunning() bool {
 	if entry == nil {
 		return false
 	}
 	now := time.Now().UTC()
 	entry.mu.Lock()
 	defer entry.mu.Unlock()
-	if entry.status == backendTaskStatusCanceled || entry.IsCanceled() {
+	if entry.status == StatusCanceled || entry.IsCanceled() {
 		return false
 	}
-	entry.status = backendTaskStatusRunning
+	entry.status = StatusRunning
 	entry.progress = maxFloat(entry.progress, 0.01)
 	entry.startedAt = &now
 	return true
 }
 
-func (entry *backendTaskRuntimeEntry) SetProgress(progress float64) {
+func (entry *Entry) SetProgress(progress float64) {
 	if entry == nil {
 		return
 	}
@@ -554,13 +593,13 @@ func (entry *backendTaskRuntimeEntry) SetProgress(progress float64) {
 		progress = 1
 	}
 	entry.mu.Lock()
-	if entry.status == backendTaskStatusRunning && progress > entry.progress {
+	if entry.status == StatusRunning && progress > entry.progress {
 		entry.progress = progress
 	}
 	entry.mu.Unlock()
 }
 
-func (entry *backendTaskRuntimeEntry) Progress() float64 {
+func (entry *Entry) Progress() float64 {
 	if entry == nil {
 		return 0
 	}
@@ -570,11 +609,11 @@ func (entry *backendTaskRuntimeEntry) Progress() float64 {
 	return progress
 }
 
-func (entry *backendTaskRuntimeEntry) finish(status string, progress float64, message string) {
+func (entry *Entry) finish(status string, progress float64, message string) {
 	_ = entry.finishAt(status, progress, message, time.Now().UTC())
 }
 
-func (entry *backendTaskRuntimeEntry) finishAt(status string, progress float64, message string, finishedAt time.Time) string {
+func (entry *Entry) finishAt(status string, progress float64, message string, finishedAt time.Time) string {
 	if entry == nil {
 		return status
 	}
@@ -588,15 +627,15 @@ func (entry *backendTaskRuntimeEntry) finishAt(status string, progress float64, 
 // finishForRuntime publishes the terminal state and claims its metrics/history
 // accounting under the same entry lock. This makes duplicate or concurrent
 // completion attempts harmless without adding a second runtime-side index.
-func (entry *backendTaskRuntimeEntry) finishForRuntime(status string, progress float64, message string, finishedAt time.Time) (backendTaskRuntimeSnapshot, bool) {
+func (entry *Entry) finishForRuntime(status string, progress float64, message string, finishedAt time.Time) (Snapshot, bool) {
 	if entry == nil {
-		return backendTaskRuntimeSnapshot{}, false
+		return Snapshot{}, false
 	}
 	progress = clampBackendTaskProgress(progress)
 	entry.mu.Lock()
 	if entry.accounted {
 		entry.mu.Unlock()
-		return backendTaskRuntimeSnapshot{}, false
+		return Snapshot{}, false
 	}
 	entry.finishLocked(status, progress, message, finishedAt)
 	entry.accounted = true
@@ -606,12 +645,12 @@ func (entry *backendTaskRuntimeEntry) finishForRuntime(status string, progress f
 	return snapshot, true
 }
 
-func (entry *backendTaskRuntimeEntry) finishLocked(status string, progress float64, message string, finishedAt time.Time) string {
+func (entry *Entry) finishLocked(status string, progress float64, message string, finishedAt time.Time) string {
 	if backendTaskStatusTerminal(entry.status) && entry.finishedAt != nil {
 		return entry.status
 	}
-	if status != backendTaskStatusCanceled && entry.IsCanceled() {
-		status = backendTaskStatusCanceled
+	if status != StatusCanceled && entry.IsCanceled() {
+		status = StatusCanceled
 		progress = 1
 		message = ""
 	}
@@ -632,7 +671,7 @@ func clampBackendTaskProgress(progress float64) float64 {
 	return progress
 }
 
-func (entry *backendTaskRuntimeEntry) setQueueLen(queueLen int) {
+func (entry *Entry) setQueueLen(queueLen int) {
 	if entry == nil {
 		return
 	}
@@ -649,7 +688,7 @@ func cloneTimePtr(value *time.Time) *time.Time {
 	return &cloned
 }
 
-func backendTaskSnapshotDurations(snapshot backendTaskRuntimeSnapshot) (time.Duration, time.Duration, time.Duration) {
+func backendTaskSnapshotDurations(snapshot Snapshot) (time.Duration, time.Duration, time.Duration) {
 	var queueLatency time.Duration
 	var runDuration time.Duration
 	var totalDuration time.Duration
@@ -669,5 +708,58 @@ func backendTaskAverageDurationMs(total time.Duration, count uint64) float64 {
 	if total <= 0 || count == 0 {
 		return 0
 	}
-	return durationMilliseconds(total / time.Duration(count))
+	return durationMS(total / time.Duration(count))
+}
+
+// ScanBatchSize bounds temporary allocations and lock hold times while
+// workers process large manual replay requests.
+const ScanBatchSize = 256
+
+// MaxQueueSize is the hard ceiling for worker queues.
+const MaxQueueSize = 65536
+
+// NormalizeQueueSize clamps a requested queue size against the default.
+func NormalizeQueueSize(queueSize, defaultSize int) int {
+	if defaultSize <= 0 {
+		defaultSize = 1
+	}
+	if queueSize <= 0 {
+		queueSize = defaultSize
+	}
+	if queueSize > MaxQueueSize {
+		queueSize = MaxQueueSize
+	}
+	return queueSize
+}
+
+func NewPanicError(recovered any) error {
+	return fmt.Errorf("%w: %v", ErrHandlerPanic, recovered)
+}
+
+// ID returns the entry identifier.
+func (e *Entry) ID() string { return e.id }
+
+// MarkRunning transitions a queued entry into the running state; it reports
+// false when the entry was canceled first.
+func (e *Entry) MarkRunning() bool { return e.markRunning() }
+
+// CancelChan exposes the entry's cancellation channel for external
+// coordination (closed on Cancel or completion).
+func (e *Entry) CancelChan() <-chan struct{} { return e.cancel }
+
+// Track registers an entry with the runtime bookkeeping without enqueueing
+// it; used by embedders that manage their own execution loop.
+func (r *Runtime) Track(entry *Entry) {
+	if entry == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.tasks[entry.id] = entry
+}
+
+// CompleteEntry finalizes an entry that was executed outside the runtime
+// worker goroutine.
+func (r *Runtime) CompleteEntry(entry *Entry, status string, progress float64, message string, panicked bool) {
+	r.completeEntry(entry, status, progress, message, panicked)
 }

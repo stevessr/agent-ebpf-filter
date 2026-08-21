@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/research"
 	"context"
 	"errors"
 	"fmt"
@@ -105,7 +106,7 @@ func readPluginFile(id, name string, max int64) ([]byte, error) {
 		return nil, err
 	}
 	defer dir.Close()
-	return readResearchFile(dir, name, max)
+	return research.ReadFile(dir, name, max)
 }
 
 func writePluginFile(id, name string, data []byte, max int64) error {
@@ -119,7 +120,7 @@ func writePluginFile(id, name string, data []byte, max int64) error {
 		return err
 	}
 	defer dir.Close()
-	return atomicWriteResearchFile(dir, name, data, max)
+	return research.AtomicWriteFile(dir, name, data, max)
 }
 
 func writePluginSource(id, source string) error {
@@ -141,7 +142,7 @@ func removePluginFileIfExists(id, name string) error {
 		return err
 	}
 	defer dir.Close()
-	if err := removeResearchFile(dir, name); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err := research.RemoveFile(dir, name); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 	return unix.Fsync(int(dir.Fd()))
@@ -158,7 +159,7 @@ func deletePluginFiles(id string) error {
 		return err
 	}
 	defer dir.Close()
-	names, err := researchDirectoryNames(dir, 4)
+	names, err := research.DirectoryNames(dir, 4)
 	if err != nil {
 		return err
 	}
@@ -168,14 +169,14 @@ func deletePluginFiles(id string) error {
 		default:
 			return fmt.Errorf("unexpected plugin entry %q", name)
 		}
-		if err := removeResearchFile(dir, name); err != nil {
+		if err := research.RemoveFile(dir, name); err != nil {
 			return err
 		}
 	}
 	if err = dir.Close(); err != nil {
 		return err
 	}
-	if err = removeResearchDirectory(root, id); err != nil {
+	if err = research.RemoveDirectory(root, id); err != nil {
 		return err
 	}
 	return unix.Fsync(int(root.Fd()))

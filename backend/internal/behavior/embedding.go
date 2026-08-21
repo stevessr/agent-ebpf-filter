@@ -385,3 +385,9 @@ func (e *InstructionEmbedder) ComputeAnomalyScore(emb BehaviorEmbedding) float64
 	}
 	return 1.0 - bestSim
 }
+
+var globalEmbedderInstance = NewInstructionEmbedder()
+
+// DefaultEmbedder returns the process-wide instruction embedder so all
+// callers share one learned vocabulary and clustering state.
+func DefaultEmbedder() *InstructionEmbedder { return globalEmbedderInstance }

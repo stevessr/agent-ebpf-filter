@@ -35,33 +35,6 @@ const (
 	loopDetectionExtraInfoScanBytes     = 4096
 )
 
-type loopDetectionFinding struct {
-	ID              string    `json:"id"`
-	ObservedAt      time.Time `json:"observedAt"`
-	FirstSeen       time.Time `json:"firstSeen"`
-	LastSeen        time.Time `json:"lastSeen"`
-	ContextType     string    `json:"contextType"`
-	ContextKey      string    `json:"contextKey"`
-	RepeatCount     int       `json:"repeatCount"`
-	WindowSeconds   int       `json:"windowSeconds"`
-	Fingerprint     string    `json:"fingerprint"`
-	Target          string    `json:"target"`
-	EventTypes      []string  `json:"eventTypes"`
-	Pids            []uint32  `json:"pids"`
-	Comms           []string  `json:"comms"`
-	Paths           []string  `json:"paths"`
-	ToolNames       []string  `json:"toolNames"`
-	AgentRunID      string    `json:"agentRunId,omitempty"`
-	TaskID          string    `json:"taskId,omitempty"`
-	ToolCallID      string    `json:"toolCallId,omitempty"`
-	TraceID         string    `json:"traceId,omitempty"`
-	RootAgentPID    uint32    `json:"rootAgentPid,omitempty"`
-	PID             uint32    `json:"pid,omitempty"`
-	Comm            string    `json:"comm,omitempty"`
-	Reason          string    `json:"reason"`
-	SuggestedAction string    `json:"suggestedAction"`
-}
-
 type loopDetectionStatus struct {
 	Enabled        bool                   `json:"enabled"`
 	Settings       LoopDetectionSettings  `json:"settings"`
