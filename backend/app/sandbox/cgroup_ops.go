@@ -1,4 +1,4 @@
-package app
+package sandbox
 
 import (
 	"encoding/binary"
@@ -19,13 +19,13 @@ import (
 
 // ── Management operations ─────────────────────────────────────────────
 
-func blockCgroup(cgroupID uint64) error {
-	snap := currentCgroupSandboxSnapshot()
-	if !snap.available() || !snap.attached() {
+func BlockCgroup(cgroupID uint64) error {
+	snap := CurrentCgroupSandboxSnapshot()
+	if !snap.Available() || !snap.Attached() {
 		if err := ensureCgroupSandboxLoaded(); err != nil {
 			return err
 		}
-		snap = currentCgroupSandboxSnapshot()
+		snap = CurrentCgroupSandboxSnapshot()
 	}
 	if snap.CgroupBlocklist == nil {
 		return fmt.Errorf("cgroup sandbox not loaded")
@@ -34,13 +34,13 @@ func blockCgroup(cgroupID uint64) error {
 	return snap.CgroupBlocklist.Put(&cgroupID, &val)
 }
 
-func unblockCgroup(cgroupID uint64) error {
-	snap := currentCgroupSandboxSnapshot()
-	if !snap.available() || !snap.attached() {
+func UnblockCgroup(cgroupID uint64) error {
+	snap := CurrentCgroupSandboxSnapshot()
+	if !snap.Available() || !snap.Attached() {
 		if err := ensureCgroupSandboxLoaded(); err != nil {
 			return err
 		}
-		snap = currentCgroupSandboxSnapshot()
+		snap = CurrentCgroupSandboxSnapshot()
 	}
 	if snap.CgroupBlocklist == nil {
 		return fmt.Errorf("cgroup sandbox not loaded")
@@ -48,7 +48,7 @@ func unblockCgroup(cgroupID uint64) error {
 	return ignoreMissingMapKey(snap.CgroupBlocklist.Delete(&cgroupID))
 }
 
-func cgroupIDForPID(pid int, root string) (uint64, string, error) {
+func CgroupIDForPID(pid int, root string) (uint64, string, error) {
 	if pid <= 0 {
 		return 0, "", fmt.Errorf("invalid pid: %d", pid)
 	}
@@ -140,7 +140,7 @@ func ip6BlockKeyFromIP(ip net.IP) (ip6BlockKey, error) {
 	return key, nil
 }
 
-func parseCgroupSandboxIP(ipStr string) (net.IP, string, error) {
+func ParseIP(ipStr string) (net.IP, string, error) {
 	trimmed := strings.TrimSpace(ipStr)
 	if trimmed == "" {
 		return nil, "", fmt.Errorf("empty IP")
@@ -159,17 +159,17 @@ func canonicalCgroupSandboxIPText(ip net.IP) string {
 	return ip.String()
 }
 
-func blockIP(ipStr string) error {
-	ip, _, err := parseCgroupSandboxIP(ipStr)
+func BlockIP(ipStr string) error {
+	ip, _, err := ParseIP(ipStr)
 	if err != nil {
 		return err
 	}
-	snap := currentCgroupSandboxSnapshot()
-	if !snap.available() || !snap.attached() {
+	snap := CurrentCgroupSandboxSnapshot()
+	if !snap.Available() || !snap.Attached() {
 		if err := ensureCgroupSandboxLoaded(); err != nil {
 			return err
 		}
-		snap = currentCgroupSandboxSnapshot()
+		snap = CurrentCgroupSandboxSnapshot()
 	}
 	val := uint32(1)
 	if ip4 := ip.To4(); ip4 != nil {
@@ -189,17 +189,17 @@ func blockIP(ipStr string) error {
 	return snap.IP6Blocklist.Put(&key, &val)
 }
 
-func unblockIP(ipStr string) error {
-	ip, _, err := parseCgroupSandboxIP(ipStr)
+func UnblockIP(ipStr string) error {
+	ip, _, err := ParseIP(ipStr)
 	if err != nil {
 		return err
 	}
-	snap := currentCgroupSandboxSnapshot()
-	if !snap.available() || !snap.attached() {
+	snap := CurrentCgroupSandboxSnapshot()
+	if !snap.Available() || !snap.Attached() {
 		if err := ensureCgroupSandboxLoaded(); err != nil {
 			return err
 		}
-		snap = currentCgroupSandboxSnapshot()
+		snap = CurrentCgroupSandboxSnapshot()
 	}
 	if ip4 := ip.To4(); ip4 != nil {
 		if snap.IPBlocklist == nil {
@@ -218,16 +218,16 @@ func unblockIP(ipStr string) error {
 	return ignoreMissingMapKey(snap.IP6Blocklist.Delete(&key))
 }
 
-func blockPort(port uint16) error {
-	if err := validateCgroupSandboxPort(port); err != nil {
+func BlockPort(port uint16) error {
+	if err := ValidatePort(port); err != nil {
 		return err
 	}
-	snap := currentCgroupSandboxSnapshot()
-	if !snap.available() || !snap.attached() {
+	snap := CurrentCgroupSandboxSnapshot()
+	if !snap.Available() || !snap.Attached() {
 		if err := ensureCgroupSandboxLoaded(); err != nil {
 			return err
 		}
-		snap = currentCgroupSandboxSnapshot()
+		snap = CurrentCgroupSandboxSnapshot()
 	}
 	if snap.PortBlocklist == nil {
 		return fmt.Errorf("cgroup sandbox port blocklist not loaded")
@@ -237,16 +237,16 @@ func blockPort(port uint16) error {
 	return snap.PortBlocklist.Put(&portU32, &val)
 }
 
-func unblockPort(port uint16) error {
-	if err := validateCgroupSandboxPort(port); err != nil {
+func UnblockPort(port uint16) error {
+	if err := ValidatePort(port); err != nil {
 		return err
 	}
-	snap := currentCgroupSandboxSnapshot()
-	if !snap.available() || !snap.attached() {
+	snap := CurrentCgroupSandboxSnapshot()
+	if !snap.Available() || !snap.Attached() {
 		if err := ensureCgroupSandboxLoaded(); err != nil {
 			return err
 		}
-		snap = currentCgroupSandboxSnapshot()
+		snap = CurrentCgroupSandboxSnapshot()
 	}
 	if snap.PortBlocklist == nil {
 		return fmt.Errorf("cgroup sandbox port blocklist not loaded")
@@ -255,14 +255,14 @@ func unblockPort(port uint16) error {
 	return ignoreMissingMapKey(snap.PortBlocklist.Delete(&portU32))
 }
 
-func validateCgroupSandboxPort(port uint16) error {
+func ValidatePort(port uint16) error {
 	if port == 0 {
 		return fmt.Errorf("invalid destination port: 0")
 	}
 	return nil
 }
 
-func listBlockedCgroups(blocklist *ebpf.Map) []string {
+func ListBlockedCgroups(blocklist *ebpf.Map) []string {
 	if blocklist == nil {
 		return nil
 	}
@@ -285,7 +285,7 @@ func listBlockedCgroups(blocklist *ebpf.Map) []string {
 	return items
 }
 
-func listBlockedIPs(blocklist, ip6Blocklist *ebpf.Map) []string {
+func ListBlockedIPs(blocklist, ip6Blocklist *ebpf.Map) []string {
 	items := []string{}
 	if blocklist != nil {
 		iter := blocklist.Iterate()
@@ -325,7 +325,7 @@ func ip6StringFromBlockKey(key ip6BlockKey) string {
 	return net.IP(raw[:]).String()
 }
 
-func listBlockedPorts(blocklist *ebpf.Map) []uint16 {
+func ListBlockedPorts(blocklist *ebpf.Map) []uint16 {
 	if blocklist == nil {
 		return nil
 	}
@@ -374,7 +374,7 @@ func parseCgroupID(raw json.RawMessage) (uint64, error) {
 
 // ── Statistics ────────────────────────────────────────────────────────
 
-type cgroupSandboxStats struct {
+type CgroupSandboxStats struct {
 	ConnectChecked uint64 `json:"connectChecked"`
 	ConnectBlocked uint64 `json:"connectBlocked"`
 	ConnectAllowed uint64 `json:"connectAllowed"`
@@ -383,14 +383,14 @@ type cgroupSandboxStats struct {
 	Allowed        uint64 `json:"allowed"`
 }
 
-func getCgroupSandboxStats(statsMap *ebpf.Map) (cgroupSandboxStats, error) {
+func GetCgroupSandboxStats(statsMap *ebpf.Map) (CgroupSandboxStats, error) {
 	if statsMap == nil {
-		return cgroupSandboxStats{}, fmt.Errorf("stats map not loaded")
+		return CgroupSandboxStats{}, fmt.Errorf("stats map not loaded")
 	}
 
 	cpuCount, err := ebpf.PossibleCPU()
 	if err != nil || cpuCount <= 0 {
-		return cgroupSandboxStats{}, err
+		return CgroupSandboxStats{}, err
 	}
 
 	type rawStats struct {
@@ -402,10 +402,10 @@ func getCgroupSandboxStats(statsMap *ebpf.Map) (cgroupSandboxStats, error) {
 	values := make([]rawStats, cpuCount)
 	key := uint32(0)
 	if err := statsMap.Lookup(&key, &values); err != nil {
-		return cgroupSandboxStats{}, err
+		return CgroupSandboxStats{}, err
 	}
 
-	var total cgroupSandboxStats
+	var total CgroupSandboxStats
 	for _, s := range values {
 		total.ConnectChecked += s.ConnectChecked
 		total.ConnectBlocked += s.ConnectBlocked
@@ -419,16 +419,19 @@ func getCgroupSandboxStats(statsMap *ebpf.Map) (cgroupSandboxStats, error) {
 
 // Apply cgroup sandbox to a specific agent run (block all outbound for that cgroup)
 func sandboxCgroupForAgent(cgroupID uint64) error {
-	if currentCgroupSandboxSnapshot().CgroupBlocklist == nil {
+	if CurrentCgroupSandboxSnapshot().CgroupBlocklist == nil {
 		return fmt.Errorf("cgroup sandbox not available")
 	}
-	return blockCgroup(cgroupID)
+	return BlockCgroup(cgroupID)
 }
 
 // Release cgroup sandbox (allow outbound again)
 func releaseCgroupSandbox(cgroupID uint64) error {
-	if currentCgroupSandboxSnapshot().CgroupBlocklist == nil {
+	if CurrentCgroupSandboxSnapshot().CgroupBlocklist == nil {
 		return nil
 	}
-	return unblockCgroup(cgroupID)
+	return UnblockCgroup(cgroupID)
 }
+
+// ParseID parses a cgroup id from its textual form.
+func ParseID(raw string) (uint64, error) { return parseCgroupID(json.RawMessage(raw)) }

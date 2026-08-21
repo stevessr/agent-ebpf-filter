@@ -1,4 +1,4 @@
-package app
+package sandbox
 
 import (
 	"errors"
@@ -18,10 +18,10 @@ import (
 // getLsmEnforcerStats(snap.Stats)
 // len(lsmEnforcer.Links) >= expectedLsmEnforcerLinks
 
-const lsmEnforcerPinRoot = ebpfPinRoot + "/lsm_enforcer"
-const lsmEnforcerMapsDir = lsmEnforcerPinRoot + "/maps"
-const lsmEnforcerLinksDir = lsmEnforcerPinRoot + "/links"
-const lsmEnforcerMapPinMode os.FileMode = 0600
+var lsmEnforcerMapsDir = lsmEnforcerPinRoot + "/maps"
+var lsmEnforcerLinksDir = lsmEnforcerPinRoot + "/links"
+
+const LsmEnforcerMapPinMode os.FileMode = 0600
 const expectedLsmEnforcerLinks = 14
 
 type lsmEnforcerRuntime struct {
@@ -42,7 +42,7 @@ type lsmNameKey struct {
 	Name [64]byte
 }
 
-type lsmEnforcerStats struct {
+type LsmEnforcerStats struct {
 	ExecChecked uint64 `json:"execChecked"`
 	ExecBlocked uint64 `json:"execBlocked"`
 	FileChecked uint64 `json:"fileChecked"`
@@ -53,7 +53,7 @@ var lsmEnforcer lsmEnforcerRuntime
 var lsmEnforcerMu sync.RWMutex
 var errLsmEnforcerPinnedLinksMissing = errors.New("BPF LSM pinned links missing")
 
-type lsmEnforcerSnapshot struct {
+type LsmEnforcerSnapshot struct {
 	ExecPathBlocklist *ebpf.Map
 	ExecNameBlocklist *ebpf.Map
 	FileNameBlocklist *ebpf.Map
@@ -63,10 +63,10 @@ type lsmEnforcerSnapshot struct {
 	LastError         string
 }
 
-func currentLsmEnforcerSnapshot() lsmEnforcerSnapshot {
+func CurrentLsmEnforcerSnapshot() LsmEnforcerSnapshot {
 	lsmEnforcerMu.RLock()
 	defer lsmEnforcerMu.RUnlock()
-	return lsmEnforcerSnapshot{
+	return LsmEnforcerSnapshot{
 		ExecPathBlocklist: lsmEnforcer.ExecPathBlocklist,
 		ExecNameBlocklist: lsmEnforcer.ExecNameBlocklist,
 		FileNameBlocklist: lsmEnforcer.FileNameBlocklist,
@@ -77,11 +77,11 @@ func currentLsmEnforcerSnapshot() lsmEnforcerSnapshot {
 	}
 }
 
-func (s lsmEnforcerSnapshot) available() bool {
+func (s LsmEnforcerSnapshot) Available() bool {
 	return s.ExecPathBlocklist != nil && s.ExecNameBlocklist != nil && s.FileNameBlocklist != nil && s.Stats != nil
 }
 
-func (s lsmEnforcerSnapshot) attached() bool {
+func (s LsmEnforcerSnapshot) Attached() bool {
 	return s.LinkCount >= expectedLsmEnforcerLinks
 }
 

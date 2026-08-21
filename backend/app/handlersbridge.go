@@ -87,8 +87,8 @@ type cgroupSandboxAdapter struct{}
 func (a *cgroupSandboxAdapter) Snapshot() handlers.CgroupSandboxSnapshot {
 	snap := currentCgroupSandboxSnapshot()
 	return handlers.CgroupSandboxSnapshot{
-		Available:       snap.available(),
-		Attached:        snap.attached(),
+		Available:       snap.Available(),
+		Attached:        snap.Attached(),
 		CgroupPath:      snap.CgroupPath,
 		LinkCount:       snap.LinkCount,
 		LinkPins:        snap.LinkPins,
@@ -154,10 +154,7 @@ func (a *cgroupSandboxAdapter) UnblockIP(ip string) error     { return unblockIP
 func (a *cgroupSandboxAdapter) BlockPort(port uint16) error   { return blockPort(port) }
 func (a *cgroupSandboxAdapter) UnblockPort(port uint16) error { return unblockPort(port) }
 
-// parseCgroupIDStr wraps parseCgroupID which takes json.RawMessage.
-func parseCgroupIDStr(raw string) (uint64, error) {
-	return parseCgroupID(json.RawMessage(raw))
-}
+func parseCgroupIDStr(raw string) (uint64, error) { return parseSandboxCgroupID(raw) }
 
 // ── LSM enforcer adapter ────────────────────────────────────────────
 
@@ -167,8 +164,8 @@ type lsmEnforcerAdapter struct{}
 func (a *lsmEnforcerAdapter) Snapshot() handlers.LsmEnforcerSnapshot {
 	snap := currentLsmEnforcerSnapshot()
 	return handlers.LsmEnforcerSnapshot{
-		Available:         snap.available(),
-		Attached:          snap.attached(),
+		Available:         snap.Available(),
+		Attached:          snap.Attached(),
 		LinkCount:         snap.LinkCount,
 		LinkPins:          snap.LinkPins,
 		LastError:         snap.LastError,
@@ -220,11 +217,6 @@ func (a *lsmEnforcerAdapter) BlockExecName(name string) error   { return blockLs
 func (a *lsmEnforcerAdapter) UnblockExecName(name string) error { return unblockLsmExecName(name) }
 func (a *lsmEnforcerAdapter) BlockFileName(name string) error   { return blockLsmFileName(name) }
 func (a *lsmEnforcerAdapter) UnblockFileName(name string) error { return unblockLsmFileName(name) }
-
-// normalizeLsmNameString is a thin wrapper for the 2-arg version.
-func normalizeLsmNameString(name string) (string, error) {
-	return normalizeLsmNameStringWithLabel(name, "name")
-}
 
 // ── AgentSight event store adapter ──────────────────────────────────
 

@@ -315,8 +315,8 @@ func buildMCPServer() *mcp.Server {
 				CollectorHealth:       collectorMetricsStore.Snapshot(),
 				TracepointBootstrap:   bootstrapTracepointStatusStore.Snapshot(),
 				OTelExporter:          otelExporterStore.Snapshot(),
-				CgroupSandboxAttached: currentCgroupSandboxSnapshot().attached(),
-				LSMEnforcerAttached:   currentLsmEnforcerSnapshot().attached(),
+				CgroupSandboxAttached: currentCgroupSandboxSnapshot().Attached(),
+				LSMEnforcerAttached:   currentLsmEnforcerSnapshot().Attached(),
 			}, nil
 		})
 

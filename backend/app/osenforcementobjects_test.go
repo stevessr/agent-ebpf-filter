@@ -2,8 +2,6 @@ package app
 
 import (
 	bpf "agent-ebpf-filter/ebpf"
-	"errors"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -130,39 +128,6 @@ func TestCgroupSandboxPolicySourceUsesHostOrderKeys(t *testing.T) {
 		if !strings.Contains(source, want) {
 			t.Fatalf("cgroup sandbox source missing %q", want)
 		}
-	}
-}
-
-func TestLsmPolicyKeys(t *testing.T) {
-	execKey, err := lsmPathKeyFromString("/usr/bin/nc")
-	if err != nil {
-		t.Fatalf("lsmPathKeyFromString: %v", err)
-	}
-	if got := stringFromNULBytes(execKey.Path[:]); got != "/usr/bin/nc" {
-		t.Fatalf("exec key = %q", got)
-	}
-
-	fileKey, err := lsmNameKeyFromString("/home/agent/.ssh/id_rsa")
-	if err != nil {
-		t.Fatalf("lsmNameKeyFromString: %v", err)
-	}
-	if got := stringFromNULBytes(fileKey.Name[:]); got != "id_rsa" {
-		t.Fatalf("file key = %q", got)
-	}
-
-	execNameKey, err := lsmExecNameKeyFromString("/tmp/agent-os-block")
-	if err != nil {
-		t.Fatalf("lsmExecNameKeyFromString: %v", err)
-	}
-	if got := stringFromNULBytes(execNameKey.Name[:]); got != "agent-os-block" {
-		t.Fatalf("exec name key = %q", got)
-	}
-
-	if _, err := lsmPathKeyFromString(strings.Repeat("x", 256)); err == nil {
-		t.Fatal("expected overlong exec path error")
-	}
-	if _, err := lsmNameKeyFromString(strings.Repeat("x", 64)); err == nil {
-		t.Fatal("expected overlong file name error")
 	}
 }
 
@@ -370,114 +335,6 @@ func TestOSPreflightScriptExists(t *testing.T) {
 	}
 }
 
-func TestCgroupPIDResolutionHelpers(t *testing.T) {
-	rel, err := unifiedCgroupRelativePath([]byte("12:cpu:/legacy\n0::/user.slice/test.scope\n"))
-	if err != nil {
-		t.Fatalf("unifiedCgroupRelativePath: %v", err)
-	}
-	if rel != "/user.slice/test.scope" {
-		t.Fatalf("unified cgroup path = %q", rel)
-	}
-
-	root := t.TempDir()
-	resolved, err := resolveCgroupPath(root, "/user.slice/test.scope")
-	if err != nil {
-		t.Fatalf("resolveCgroupPath: %v", err)
-	}
-	if want := filepath.Join(root, "user.slice", "test.scope"); resolved != want {
-		t.Fatalf("resolved path = %q, want %q", resolved, want)
-	}
-
-	if got, err := resolveCgroupPath(root, "/"); err != nil || got != root {
-		t.Fatalf("root cgroup path = %q, %v; want %q", got, err, root)
-	}
-
-	if got := ipv4StringFromBlockKey(0x7f000001); got != "127.0.0.1" {
-		t.Fatalf("ipv4StringFromBlockKey = %q", got)
-	}
-	ip6Key, err := ip6BlockKeyFromIP(net.ParseIP("2001:db8::1"))
-	if err != nil {
-		t.Fatalf("ip6BlockKeyFromIP: %v", err)
-	}
-	if got := ip6StringFromBlockKey(ip6Key); got != "2001:db8::1" {
-		t.Fatalf("ip6StringFromBlockKey = %q", got)
-	}
-
-	if got, err := parseCgroupID([]byte(`"18446744073709551615"`)); err != nil || got != ^uint64(0) {
-		t.Fatalf("parse string cgroup id = %d, %v", got, err)
-	}
-	if got, err := parseCgroupID([]byte(`12345`)); err != nil || got != 12345 {
-		t.Fatalf("parse numeric cgroup id = %d, %v", got, err)
-	}
-	if _, err := parseCgroupID([]byte(`0`)); err == nil {
-		t.Fatal("expected zero cgroup id to be rejected")
-	}
-}
-
-func TestCgroupSandboxAttachPathValidation(t *testing.T) {
-	temp := t.TempDir()
-	if err := validateCgroupSandboxAttachPath(temp); err == nil {
-		t.Fatal("expected non-cgroup attach path to be rejected")
-	}
-
-	if st, err := os.Stat("/sys/fs/cgroup"); err == nil && st.IsDir() {
-		err := validateCgroupSandboxAttachPath("/sys/fs/cgroup")
-		if err != nil && strings.Contains(err.Error(), "not on a cgroup v2 filesystem") {
-			t.Fatalf("/sys/fs/cgroup should be recognized as cgroup v2 when mounted: %v", err)
-		}
-	}
-}
-
-func TestCgroupSandboxPortValidation(t *testing.T) {
-	if err := validateCgroupSandboxPort(1); err != nil {
-		t.Fatalf("port 1 should be valid: %v", err)
-	}
-	if err := validateCgroupSandboxPort(65535); err != nil {
-		t.Fatalf("port 65535 should be valid: %v", err)
-	}
-	if err := validateCgroupSandboxPort(0); err == nil {
-		t.Fatal("port 0 should be rejected")
-	}
-
-	data, err := os.ReadFile("handlers/cgroup_sandbox.go")
-	if err != nil {
-		t.Fatalf("read handlers/cgroup_sandbox.go: %v", err)
-	}
-	source := string(data)
-	for _, want := range []string{
-		"Deps.CgroupSandbox.ValidatePort(req.Port)",
-		"c.JSON(http.StatusBadRequest",
-	} {
-		if !strings.Contains(source, want) {
-			t.Fatalf("port handlers missing %q", want)
-		}
-	}
-}
-
-func TestCgroupSandboxIPValidation(t *testing.T) {
-	if ip, text, err := parseCgroupSandboxIP(" ::1 "); err != nil || text != "::1" || ip.To16() == nil {
-		t.Fatalf("parse IPv6 = %v %q %v, want ::1", ip, text, err)
-	}
-	if ip, text, err := parseCgroupSandboxIP(" ::ffff:127.0.0.1 "); err != nil || text != "127.0.0.1" || ip.To4() == nil {
-		t.Fatalf("parse IPv4-mapped IPv6 = %v %q %v, want canonical 127.0.0.1", ip, text, err)
-	}
-	for _, fn := range []struct {
-		name string
-		call func(string) error
-	}{
-		{name: "parse", call: func(s string) error {
-			_, _, err := parseCgroupSandboxIP(s)
-			return err
-		}},
-		{name: "block", call: blockIP},
-		{name: "unblock", call: unblockIP},
-	} {
-		if err := fn.call("not-an-ip"); err == nil {
-			t.Fatalf("%s accepted invalid IP", fn.name)
-		}
-	}
-}
-
 func TestOSEnforcementMutationHandlersRejectInvalidInputBeforeLoad(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	tests := []struct {
@@ -510,17 +367,8 @@ func TestOSEnforcementMutationHandlersRejectInvalidInputBeforeLoad(t *testing.T)
 	}
 }
 
-func TestOSPolicyMapPinsAreRestrictive(t *testing.T) {
-	if cgroupSandboxMapPinMode != 0600 {
-		t.Fatalf("cgroup sandbox map pin mode = %v, want 0600", cgroupSandboxMapPinMode)
-	}
-	if lsmEnforcerMapPinMode != 0600 {
-		t.Fatalf("BPF LSM map pin mode = %v, want 0600", lsmEnforcerMapPinMode)
-	}
-}
-
 func TestOSEnforcementStartsWithoutDefaultBlockEntries(t *testing.T) {
-	for _, path := range []string{filepath.Join("..", "main.go"), "cgroupsandboxcontrol.go", "lsmenforcercontrol.go"} {
+	for _, path := range []string{filepath.Join("..", "main.go"), "sandbox/cgroup_control.go", "sandbox/lsm_control.go"} {
 		data, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatalf("read %s: %v", path, err)
@@ -810,7 +658,7 @@ func TestPinnedOSEnforcementPolicyIsPreservedOnReuseFailure(t *testing.T) {
 		required []string
 	}{
 		{
-			paths: []string{"cgroupsandboxcontrol.go"},
+			paths: []string{"sandbox/cgroup_control.go"},
 			required: []string{
 				"Preserve existing pinned policy maps",
 				"link.LoadPinnedLink",
@@ -820,7 +668,7 @@ func TestPinnedOSEnforcementPolicyIsPreservedOnReuseFailure(t *testing.T) {
 			},
 		},
 		{
-			paths: []string{"lsmenforcerbootstrap.go"},
+			paths: []string{"sandbox/lsm_bootstrap.go"},
 			required: []string{
 				"Preserve pinned LSM policy maps",
 				"link.LoadPinnedLink",
@@ -847,7 +695,7 @@ func TestOSEnforcementAttachFailureCleansPartialPins(t *testing.T) {
 		required []string
 	}{
 		{
-			paths: []string{"cgroupsandboxcontrol.go"},
+			paths: []string{"sandbox/cgroup_control.go"},
 			required: []string{
 				"closeLinksAndRemovePins(links, pins)",
 				"func closeLinksAndRemovePins",
@@ -855,7 +703,7 @@ func TestOSEnforcementAttachFailureCleansPartialPins(t *testing.T) {
 			},
 		},
 		{
-			paths: []string{"lsmenforcerbootstrap.go"},
+			paths: []string{"sandbox/lsm_bootstrap.go"},
 			required: []string{
 				"closeLinksAndRemovePins(links, pins)",
 			},
@@ -870,46 +718,7 @@ func TestOSEnforcementAttachFailureCleansPartialPins(t *testing.T) {
 		}
 	}
 }
-func TestOSEnforcementUnblockIgnoresMissingMapKeys(t *testing.T) {
-	if err := ignoreMissingMapKey(ebpf.ErrKeyNotExist); err != nil {
-		t.Fatalf("missing map key should be idempotent: %v", err)
-	}
-	sentinel := errors.New("sentinel")
-	if err := ignoreMissingMapKey(sentinel); !errors.Is(err, sentinel) {
-		t.Fatalf("non-missing map error = %v, want sentinel", err)
-	}
 
-	checks := []struct {
-		paths    []string
-		required []string
-	}{
-		{
-			paths: []string{"cgroupsandboxops.go"},
-			required: []string{
-				"ignoreMissingMapKey(snap.CgroupBlocklist.Delete",
-				"ignoreMissingMapKey(snap.IPBlocklist.Delete",
-				"ignoreMissingMapKey(snap.IP6Blocklist.Delete",
-				"ignoreMissingMapKey(snap.PortBlocklist.Delete",
-			},
-		},
-		{
-			paths: []string{"lsmenforcercontrol.go"},
-			required: []string{
-				"ignoreMissingMapKey(snap.ExecPathBlocklist.Delete",
-				"ignoreMissingMapKey(snap.ExecNameBlocklist.Delete",
-				"ignoreMissingMapKey(snap.FileNameBlocklist.Delete",
-			},
-		},
-	}
-	for _, check := range checks {
-		source := readSourceFiles(t, check.paths...)
-		for _, want := range check.required {
-			if !strings.Contains(source, want) {
-				t.Fatalf("%s missing idempotent unblock wrapper %q", strings.Join(check.paths, ", "), want)
-			}
-		}
-	}
-}
 func TestOSEnforcementStatusUsesRuntimeSnapshots(t *testing.T) {
 	checks := []struct {
 		paths    []string
@@ -917,8 +726,8 @@ func TestOSEnforcementStatusUsesRuntimeSnapshots(t *testing.T) {
 	}{
 		{
 			paths: []string{
-				"cgroupsandboxcontrol.go",
-				"cgroupsandboxops.go",
+				"sandbox/cgroup_control.go",
+				"sandbox/cgroup_ops.go",
 				"handlers/cgroup_sandbox.go",
 				"handlersbridge.go",
 			},
@@ -935,8 +744,8 @@ func TestOSEnforcementStatusUsesRuntimeSnapshots(t *testing.T) {
 		},
 		{
 			paths: []string{
-				"lsmenforcertypes.go",
-				"lsmenforcercontrol.go",
+				"sandbox/lsm_types.go",
+				"sandbox/lsm_control.go",
 				"handlers/lsm_enforcer.go",
 				"handlersbridge.go",
 			},

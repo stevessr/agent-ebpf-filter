@@ -1,4 +1,4 @@
-package app
+package sandbox
 
 import (
 	"agent-ebpf-filter/app/platform"
@@ -36,10 +36,10 @@ var cgroupSandbox cgroupSandboxMaps
 var cgroupSandboxMu sync.RWMutex
 var errCgroupSandboxPinnedLinksMissing = errors.New("cgroup sandbox pinned links missing")
 
-const cgroupSandboxPinRoot = ebpfPinRoot + "/cgroup_sandbox"
-const cgroupSandboxMapsDir = cgroupSandboxPinRoot + "/maps"
-const cgroupSandboxLinksDir = cgroupSandboxPinRoot + "/links"
-const cgroupSandboxMapPinMode os.FileMode = 0600
+var cgroupSandboxMapsDir = cgroupSandboxPinRoot + "/maps"
+var cgroupSandboxLinksDir = cgroupSandboxPinRoot + "/links"
+
+const CgroupSandboxMapPinMode os.FileMode = 0600
 const cgroup2SuperMagic = 0x63677270
 
 func ensureCgroupSandboxLoaded() error {
@@ -105,7 +105,7 @@ func cgroupSandboxAttachedLocked() bool {
 	return len(cgroupSandbox.Links) >= 4
 }
 
-type cgroupSandboxSnapshot struct {
+type CgroupSandboxSnapshot struct {
 	CgroupBlocklist *ebpf.Map
 	IPBlocklist     *ebpf.Map
 	IP6Blocklist    *ebpf.Map
@@ -117,10 +117,10 @@ type cgroupSandboxSnapshot struct {
 	LastError       string
 }
 
-func currentCgroupSandboxSnapshot() cgroupSandboxSnapshot {
+func CurrentCgroupSandboxSnapshot() CgroupSandboxSnapshot {
 	cgroupSandboxMu.RLock()
 	defer cgroupSandboxMu.RUnlock()
-	return cgroupSandboxSnapshot{
+	return CgroupSandboxSnapshot{
 		CgroupBlocklist: cgroupSandbox.CgroupBlocklist,
 		IPBlocklist:     cgroupSandbox.IPBlocklist,
 		IP6Blocklist:    cgroupSandbox.IP6Blocklist,
@@ -133,11 +133,11 @@ func currentCgroupSandboxSnapshot() cgroupSandboxSnapshot {
 	}
 }
 
-func (s cgroupSandboxSnapshot) available() bool {
+func (s CgroupSandboxSnapshot) Available() bool {
 	return s.CgroupBlocklist != nil && s.IPBlocklist != nil && s.IP6Blocklist != nil && s.PortBlocklist != nil && s.SandboxStats != nil
 }
 
-func (s cgroupSandboxSnapshot) attached() bool {
+func (s CgroupSandboxSnapshot) Attached() bool {
 	return s.LinkCount >= 4
 }
 
@@ -316,7 +316,7 @@ func ensureCgroupSandboxPinnedMapCompatibility() error {
 	if err := m.Pin(ip6Path); err != nil {
 		return fmt.Errorf("pin missing cgroup sandbox IPv6 blocklist map: %w", err)
 	}
-	if err := os.Chmod(ip6Path, cgroupSandboxMapPinMode); err != nil {
+	if err := os.Chmod(ip6Path, CgroupSandboxMapPinMode); err != nil {
 		return fmt.Errorf("chmod missing cgroup sandbox IPv6 blocklist map: %w", err)
 	}
 	return nil
@@ -472,9 +472,15 @@ func ensureCgroupSandboxMapPermissions() error {
 		// Keep OS-level enforcement maps writable only by the privileged backend.
 		// Unlike agent registration maps, these policy maps should not be
 		// mutated directly by unprivileged adapters or local users.
-		if err := os.Chmod(path, cgroupSandboxMapPinMode); err != nil {
+		if err := os.Chmod(path, CgroupSandboxMapPinMode); err != nil {
 			return fmt.Errorf("chmod cgroup sandbox map %s: %w", name, err)
 		}
 	}
 	return nil
 }
+
+// EnsureLoaded lazily loads and attaches the cgroup sandbox programs.
+func EnsureLoaded() error { return ensureCgroupSandboxLoaded() }
+
+// AttachPath returns the cgroup path the sandbox attaches to.
+func AttachPath() (string, error) { return cgroupSandboxAttachPath() }

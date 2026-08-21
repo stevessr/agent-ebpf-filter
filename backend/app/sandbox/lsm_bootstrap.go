@@ -1,4 +1,4 @@
-package app
+package sandbox
 
 import (
 	"agent-ebpf-filter/app/platform"
@@ -263,9 +263,12 @@ func ensureLsmEnforcerMapPermissions() error {
 		path := filepath.Join(lsmEnforcerMapsDir, name)
 		// Keep kernel-enforced block policy mutable only through the privileged,
 		// authenticated backend API instead of exposing world-writable map pins.
-		if err := os.Chmod(path, lsmEnforcerMapPinMode); err != nil {
+		if err := os.Chmod(path, LsmEnforcerMapPinMode); err != nil {
 			return fmt.Errorf("chmod BPF LSM map %s: %w", name, err)
 		}
 	}
 	return nil
 }
+
+// EnsureLSMLoaded lazily loads and attaches the BPF LSM enforcer.
+func EnsureLSMLoaded() error { return ensureLsmEnforcerLoaded() }
