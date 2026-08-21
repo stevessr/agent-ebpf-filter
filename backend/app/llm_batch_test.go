@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"context"
 	"fmt"
 	"net/http"
@@ -34,7 +35,7 @@ func TestScoreLLMSampleSubjectsUsesBoundedWorkersAndPreservesOrder(t *testing.T)
 	for i := range subjects {
 		subjects[i] = llmScoreSubject{
 			Index: i,
-			Sample: TrainingSample{
+			Sample: ml.TrainingSample{
 				CommandLine: fmt.Sprintf("echo %d", i),
 				Comm:        "echo",
 				Args:        []string{"echo", fmt.Sprint(i)},
@@ -66,7 +67,7 @@ func TestScoreLLMSampleSubjectsStopsOnCanceledContext(t *testing.T) {
 	cancel()
 	_, err := scoreLLMSampleSubjects(ctx, "test", []llmScoreSubject{{
 		Index:  1,
-		Sample: TrainingSample{CommandLine: "echo", Comm: "echo", Args: []string{"echo"}, Label: -1},
+		Sample: ml.TrainingSample{CommandLine: "echo", Comm: "echo", Args: []string{"echo"}, Label: -1},
 	}}, 1, false, false, 0.2)
 	if err == nil {
 		t.Fatal("canceled batch was accepted")
@@ -74,10 +75,10 @@ func TestScoreLLMSampleSubjectsStopsOnCanceledContext(t *testing.T) {
 }
 
 func TestTrainerCancellationContextStopsLLMReview(t *testing.T) {
-	trainer := &ModelTrainer{cancelCh: make(chan struct{})}
-	ctx, stop := trainerCancellationContext(trainer, context.Background())
+	trainer := ml.NewModelTrainer()
+	ctx, stop := trainer.CancellationContext(context.Background())
 	defer stop()
-	trainer.requestCancel()
+	trainer.RequestCancel()
 	select {
 	case <-ctx.Done():
 	case <-time.After(time.Second):
@@ -100,9 +101,9 @@ func TestScoreLLMBatchRejectsExcessConcurrentBatch(t *testing.T) {
 }
 
 func TestBoundedLLMSubjectSnapshotsFilterBeforeLimit(t *testing.T) {
-	store := newTrainingDataStore(8)
+	store := ml.NewTrainingDataStore(8)
 	for i := 0; i < 6; i++ {
-		sample := TrainingSample{
+		sample := ml.TrainingSample{
 			Timestamp:   time.Now(),
 			CommandLine: fmt.Sprintf("echo %d", i),
 			Comm:        "echo",

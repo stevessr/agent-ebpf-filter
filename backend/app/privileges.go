@@ -11,7 +11,6 @@ import (
 
 // ---- moved from backend/zz_merged_backend.go section privileges.go ----
 
-
 func allowedControlPlaneUIDs() map[uint32]struct{} {
 	allowed := map[uint32]struct{}{
 		uint32(os.Getuid()): {},

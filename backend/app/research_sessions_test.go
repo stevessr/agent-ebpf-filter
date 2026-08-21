@@ -8,13 +8,13 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"agent-ebpf-filter/app/ml"
 	"agent-ebpf-filter/pb"
 
 	"github.com/gin-gonic/gin"
@@ -28,7 +28,7 @@ func restoreResearchV2TestState(t *testing.T) (*researchSessionStore, *researchT
 	oldTasks := researchTaskStore
 	oldUploaded := agentSightUploadedEvents
 	oldLoop := loopDetectionWorkerStore
-	oldTraining := globalTrainingStore
+	oldTraining := ml.GlobalTrainingStore
 
 	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{ResearchProcessing: ResearchProcessingSettings{
 		Enabled:               true,
@@ -44,9 +44,8 @@ func restoreResearchV2TestState(t *testing.T) (*researchSessionStore, *researchT
 	capturedEventArchive = newEventArchive(50)
 	agentSightUploadedEvents = newAgentSightEventStore(50)
 	loopDetectionWorkerStore = newLoopDetectionWorker()
-	globalTrainingStore = newTrainingDataStore(64)
-	globalTrainingStore.dataDir = t.TempDir()
-	globalTrainingStore.persistPath = filepath.Join(globalTrainingStore.dataDir, "ml_training_data.bin")
+	ml.GlobalTrainingStore = ml.NewTrainingDataStore(64)
+	ml.GlobalTrainingStore.SetPersistLocation(t.TempDir())
 
 	store := newResearchSessionStore(t.TempDir())
 	manager := newResearchTaskManager(store)
@@ -66,7 +65,7 @@ func restoreResearchV2TestState(t *testing.T) (*researchSessionStore, *researchT
 		researchTaskStore = oldTasks
 		agentSightUploadedEvents = oldUploaded
 		loopDetectionWorkerStore = oldLoop
-		globalTrainingStore = oldTraining
+		ml.GlobalTrainingStore = oldTraining
 	})
 	return store, manager
 }
@@ -336,7 +335,7 @@ func TestResearchSecurityEvaluationTaskAndExports(t *testing.T) {
 	if results.SecurityEvaluation.Posture.Status == "" || len(results.SecurityEvaluation.Posture.SuggestedActions) == 0 || len(results.SecurityEvaluation.Posture.RemediationPlan) == 0 {
 		t.Fatalf("security evaluation posture mismatch: %+v", results.SecurityEvaluation.Posture)
 	}
-	totalSamples, labeledSamples := globalTrainingStore.Status()
+	totalSamples, labeledSamples := ml.GlobalTrainingStore.Status()
 	if totalSamples != 0 || labeledSamples != 0 {
 		t.Fatalf("security evaluation must not mutate training store: total=%d labeled=%d", totalSamples, labeledSamples)
 	}

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -10,20 +11,20 @@ import (
 // These wire the handlers/ ML closures to app-level globals.
 
 func mlGetLogsResponse() gin.H {
-	logs := globalTrainer.GetLogs(200)
+	logs := ml.GlobalTrainer.GetLogs(200)
 	items := make([]gin.H, len(logs))
 	for i, entry := range logs {
 		items[i] = gin.H{"time": entry.Timestamp.Format("15:04:05"), "message": entry.Message}
 	}
-	return gin.H{"logs": items, "total": globalTrainer.LogTotal()}
+	return gin.H{"logs": items, "total": ml.GlobalTrainer.LogTotal()}
 }
 
 func mlGetHistoryResponse() gin.H {
-	return gin.H{"history": globalTrainer.GetHistory()}
+	return gin.H{"history": ml.GlobalTrainer.GetHistory()}
 }
 
 func mlTrain(numTrees, maxDepth, minLeaf int) gin.H {
-	if !snapshotMLRuntime().Enabled {
+	if !ml.SnapshotMLRuntime().Enabled {
 		return gin.H{"error": "ML engine is not enabled on this node"}
 	}
 
@@ -38,12 +39,12 @@ func mlTrain(numTrees, maxDepth, minLeaf int) gin.H {
 		cfg.MinSamplesLeaf = minLeaf
 	}
 
-	trainingReadiness := buildMLTrainingReadiness(globalTrainingStore, cfg)
-	model, result := globalTrainer.TrainWithConfig(globalTrainingStore, cfg)
+	trainingReadiness := buildMLTrainingReadiness(ml.GlobalTrainingStore, cfg)
+	model, result := ml.GlobalTrainer.TrainWithConfig(ml.GlobalTrainingStore, cfg)
 	if result.Error != "" {
 		return gin.H{"error": result.Error, "trainingReadiness": trainingReadiness}
 	}
-	publishMLRuntimeModel(model, model.Type())
+	ml.PublishMLRuntimeModel(model, model.Type())
 
 	modelPath := cfg.ModelPath
 	if modelPath == "" {
@@ -70,18 +71,18 @@ func mlTrain(numTrees, maxDepth, minLeaf int) gin.H {
 }
 
 func mlFeedbackResult(comm, userAction string) gin.H {
-	if globalTrainingStore == nil {
+	if ml.GlobalTrainingStore == nil {
 		return gin.H{"error": "ML training store not initialized"}
 	}
-	matched := globalTrainingStore.ApplyFeedback(comm, userAction)
+	matched := ml.GlobalTrainingStore.ApplyFeedback(comm, userAction)
 	return gin.H{"status": "ok", "matched": matched}
 }
 
 func mlSamplesResponse() gin.H {
-	if globalTrainingStore == nil {
+	if ml.GlobalTrainingStore == nil {
 		return gin.H{"error": "ML training store not initialized"}
 	}
-	items := globalTrainingStore.AllSamplesWithIndex()
+	items := ml.GlobalTrainingStore.AllSamplesWithIndex()
 	type sampleJSON struct {
 		Index        int      `json:"index"`
 		CommandLine  string   `json:"commandLine"`
@@ -97,7 +98,7 @@ func mlSamplesResponse() gin.H {
 	for _, it := range items {
 		lbl := "-"
 		if it.Sample.Label >= 0 {
-			lbl = actionLabel[it.Sample.Label]
+			lbl = ml.ActionLabel[it.Sample.Label]
 		}
 		out = append(out, sampleJSON{
 			Index:        it.Index,
@@ -115,33 +116,33 @@ func mlSamplesResponse() gin.H {
 }
 
 func mlSampleLabelResult(index int, label string) gin.H {
-	if globalTrainingStore == nil {
+	if ml.GlobalTrainingStore == nil {
 		return gin.H{"error": "ML training store not initialized"}
 	}
-	if !globalTrainingStore.LabelSample(index, label) {
+	if !ml.GlobalTrainingStore.LabelSample(index, label) {
 		return gin.H{"error": "invalid index or sample not found"}
 	}
 	return gin.H{"status": "ok"}
 }
 
 func mlRemoveSampleResult(index int) gin.H {
-	if globalTrainingStore == nil {
+	if ml.GlobalTrainingStore == nil {
 		return gin.H{"error": "ML training store not initialized"}
 	}
-	if !globalTrainingStore.RemoveSample(index) {
+	if !ml.GlobalTrainingStore.RemoveSample(index) {
 		return gin.H{"error": "invalid index or sample not found"}
 	}
 	return gin.H{"status": "ok"}
 }
 
 func mlSampleAnomalyResult(index int, score float64) gin.H {
-	if globalTrainingStore == nil {
+	if ml.GlobalTrainingStore == nil {
 		return gin.H{"error": "ML training store not initialized"}
 	}
 	if score < 0 || score > 1 {
 		return gin.H{"error": "anomaly score must be between 0 and 1"}
 	}
-	if !globalTrainingStore.UpdateSampleAnomaly(index, score) {
+	if !ml.GlobalTrainingStore.UpdateSampleAnomaly(index, score) {
 		return gin.H{"error": "invalid index or sample not found"}
 	}
 	return gin.H{"status": "ok"}

@@ -4,12 +4,13 @@ import (
 	"math"
 	"strings"
 
+	"agent-ebpf-filter/app/ml"
 	"agent-ebpf-filter/pb"
 )
 
 // computeRiskScore combines classification, anomaly, and ML into a 0-100 risk score.
-// Uses app-level types (Prediction, NetworkAuditResult, llmAssessment).
-func computeRiskScore(classification *pb.BehaviorClassification, anomalyScore float64, mlPrediction Prediction, netAudit NetworkAuditResult, llmAssessment *llmAssessment) float64 {
+// Uses app-level types (ml.Prediction, NetworkAuditResult, llmAssessment).
+func computeRiskScore(classification *pb.BehaviorClassification, anomalyScore float64, mlPrediction ml.Prediction, netAudit NetworkAuditResult, llmAssessment *llmAssessment) float64 {
 	score := 0.0
 
 	if classification != nil {

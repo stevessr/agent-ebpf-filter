@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"strconv"
 )
 
@@ -10,9 +11,9 @@ func comprehensiveAxisSweepProfiles(pointsPerParam int) []sweepProfile {
 	if pointsPerParam < 1 {
 		pointsPerParam = 1000
 	}
-	profiles := make([]sweepProfile, 0, len(AllModelTypes())*3)
-	for _, mt := range AllModelTypes() {
-		base := baseModelType(mt)
+	profiles := make([]sweepProfile, 0, len(ml.AllModelTypes())*3)
+	for _, mt := range ml.AllModelTypes() {
+		base := ml.BaseModelType(mt)
 		switch base {
 		case ModelRandomForest, ModelExtraTrees:
 			profiles = append(profiles,

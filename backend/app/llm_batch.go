@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"agent-ebpf-filter/app/ml"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -42,13 +44,13 @@ type llmBatchScoreResponse struct {
 	AverageRiskScore     float64              `json:"averageRiskScore"`
 	Agreement            float64              `json:"agreement"`
 	ValidationSplitRatio float64              `json:"validationSplitRatio"`
-	Review               *LLMReviewSummary    `json:"review,omitempty"`
+	Review               *ml.LLMReviewSummary `json:"review,omitempty"`
 	Entries              []llmBatchScoreEntry `json:"entries"`
 }
 
 type llmScoreSubject struct {
 	Index  int
-	Sample TrainingSample
+	Sample ml.TrainingSample
 }
 
 type llmBatchScoreEntry struct {
@@ -224,8 +226,8 @@ func scoreLLMSampleSubjects(ctx context.Context, source string, subjects []llmSc
 		}
 
 		if applyLabels && source == "training" && subject.Index >= 0 && !subject.Sample.IsLabeled() {
-			if globalTrainingStore != nil {
-				if globalTrainingStore.UpdateSampleLabel(subject.Index, labelFromLLMAction(assessment.RecommendedAction, assessment.RiskScore), "llm-score") {
+			if ml.GlobalTrainingStore != nil {
+				if ml.GlobalTrainingStore.UpdateSampleLabel(subject.Index, labelFromLLMAction(assessment.RecommendedAction, assessment.RiskScore), "llm-score") {
 					entry.Applied = true
 					applied++
 				}
@@ -235,7 +237,7 @@ func scoreLLMSampleSubjects(ctx context.Context, source string, subjects []llmSc
 		entries = append(entries, entry)
 	}
 
-	review := &LLMReviewSummary{
+	review := &ml.LLMReviewSummary{
 		Source:               source,
 		Model:                strings.TrimSpace(cfg.LlmModel),
 		ScoredSamples:        scored,
@@ -265,8 +267,8 @@ func scoreLLMSampleSubjects(ctx context.Context, source string, subjects []llmSc
 		Entries:              entries,
 	}
 
-	if source == "validation" && globalTrainer != nil {
-		globalTrainer.setLastLLMReview(review)
+	if source == "validation" && ml.GlobalTrainer != nil {
+		ml.GlobalTrainer.SetLastLLMReview(review)
 	}
 
 	return resp, nil
@@ -357,20 +359,20 @@ func llmBatchSubjects(source string, limit int, onlyUnlabeled bool) ([]llmScoreS
 	limit = normalizeLLMBatchLimit(limit)
 	switch source {
 	case "", "training":
-		if globalTrainingStore == nil {
+		if ml.GlobalTrainingStore == nil {
 			return nil, 0, errors.New("ML training store not initialized")
 		}
-		items := globalTrainingStore.BoundedSamplesWithIndex(limit, onlyUnlabeled)
+		items := ml.GlobalTrainingStore.BoundedSamplesWithIndex(limit, onlyUnlabeled)
 		subjects := make([]llmScoreSubject, 0, len(items))
 		for _, item := range items {
 			subjects = append(subjects, llmScoreSubject{Index: item.Index, Sample: item.Sample})
 		}
 		return subjects, cfg.ValidationSplitRatio, nil
 	case "validation":
-		if globalTrainer == nil {
+		if ml.GlobalTrainer == nil {
 			return nil, 0, errors.New("ML trainer not initialized")
 		}
-		items := globalTrainer.BoundedValidationSamples(limit, onlyUnlabeled)
+		items := ml.GlobalTrainer.BoundedValidationSamples(limit, onlyUnlabeled)
 		subjects := make([]llmScoreSubject, 0, len(items))
 		for _, sample := range items {
 			subjects = append(subjects, llmScoreSubject{Index: -1, Sample: sample})
@@ -435,7 +437,10 @@ func llmAssessmentFromScore(result *llmScoringResult, err error) *llmAssessment 
 	}
 }
 
-func (t *ModelTrainer) reviewValidationWithLLM(samples []TrainingSample, validationRatio float64) (*LLMReviewSummary, error) {
+// runLLMValidationReview scores validation samples through the configured
+// LLM provider. Installed into ml.LLMReviewHook at process start so the ML
+// core stays decoupled from HTTP clients.
+func runLLMValidationReview(t *ml.ModelTrainer, samples []ml.TrainingSample, validationRatio float64) (*ml.LLMReviewSummary, error) {
 	if !llmScoringConfigured() || len(samples) == 0 {
 		return nil, nil
 	}
@@ -446,10 +451,10 @@ func (t *ModelTrainer) reviewValidationWithLLM(samples []TrainingSample, validat
 	}
 
 	subjects := make([]llmScoreSubject, 0, len(samples))
-	for i := 0; i < len(samples); i++ {
+	for i := range len(samples) {
 		subjects = append(subjects, llmScoreSubject{Index: -1, Sample: samples[i]})
 	}
-	ctx, stop := trainerCancellationContext(t, context.Background())
+	ctx, stop := t.CancellationContext(context.Background())
 	defer stop()
 	resp, err := scoreLLMSampleSubjects(ctx, "validation", subjects, limit, false, false, validationRatio)
 	if err != nil {
@@ -458,28 +463,6 @@ func (t *ModelTrainer) reviewValidationWithLLM(samples []TrainingSample, validat
 	return resp.Review, nil
 }
 
-func trainerCancellationContext(trainer *ModelTrainer, parent context.Context) (context.Context, func()) {
-	if parent == nil {
-		parent = context.Background()
-	}
-	ctx, cancel := context.WithCancel(parent)
-	if trainer == nil {
-		return ctx, cancel
-	}
-	stopWatch := make(chan struct{})
-	watchDone := make(chan struct{})
-	go func() {
-		defer close(watchDone)
-		select {
-		case <-trainer.cancellationSignal():
-			cancel()
-		case <-stopWatch:
-		}
-	}()
-	var stopOnce sync.Once
-	return ctx, func() {
-		stopOnce.Do(func() { close(stopWatch) })
-		cancel()
-		<-watchDone
-	}
+func init() {
+	ml.LLMReviewHook = runLLMValidationReview
 }

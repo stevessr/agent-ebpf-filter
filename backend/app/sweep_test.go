@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"fmt"
 	"os"
 	"testing"
@@ -31,7 +32,7 @@ func TestComprehensiveSweepProfilesCoverThousandPointsPerNumericParameter(t *tes
 		}
 		seen[profile.ModelType][profile.ParameterName] = unique
 	}
-	for _, modelType := range AllModelTypes() {
+	for _, modelType := range ml.AllModelTypes() {
 		for _, param := range numericSweepParametersForModel(modelType) {
 			if seen[modelType][param] < 1000 {
 				t.Fatalf("%s/%s coverage = %d, want >=1000 discrete points", modelType, param, seen[modelType][param])
@@ -41,7 +42,7 @@ func TestComprehensiveSweepProfilesCoverThousandPointsPerNumericParameter(t *tes
 }
 
 func TestComprehensiveSweepDefaultsToMultipleDatasets(t *testing.T) {
-	samples := make([]TrainingSample, 0, 30)
+	samples := make([]ml.TrainingSample, 0, 30)
 	for i := 0; i < 12; i++ {
 		samples = append(samples, sweepTestSample(0, "allow"))
 	}
@@ -73,8 +74,8 @@ func TestComprehensiveSweepDefaultsToMultipleDatasets(t *testing.T) {
 	}
 }
 
-func sweepTestSample(label int32, userLabel string) TrainingSample {
-	return TrainingSample{
+func sweepTestSample(label int32, userLabel string) ml.TrainingSample {
+	return ml.TrainingSample{
 		Label:     label,
 		UserLabel: userLabel,
 		Timestamp: time.Now(),

@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"agent-ebpf-filter/app"
+	"agent-ebpf-filter/app/ml"
 )
 
 type datasetSplit struct {
@@ -31,13 +32,13 @@ func main() {
 	split := makeSplit(ds.Features, ds.Labels, 0.8)
 	fmt.Printf("数据划分：%d 训练 / %d 验证\n\n", len(split.trainX), len(split.valX))
 
-	logistic := app.NewLogisticModel(0.02, "l2", 800)
+	logistic := ml.NewLogisticModel(0.02, "l2", 800)
 	logistic.NumClasses = classCount(ds.Labels)
 	logistic.Train(toFixed(split.trainX), split.trainY)
 
 	baseTrainAcc, baseValAcc := evaluateLogistic(logistic, split)
 
-	attnBase := app.NewLogisticModel(0.02, "l2", 800)
+	attnBase := ml.NewLogisticModel(0.02, "l2", 800)
 	attnBase.NumClasses = classCount(ds.Labels)
 	attnModel := newAttentionLogisticModel(attnBase)
 	attnModel.Train(toFixed(split.trainX), split.trainY)
@@ -104,21 +105,21 @@ func makeSplit(features [][]float64, labels []string, trainRatio float64) datase
 	return split
 }
 
-func toFixed(xs [][]float64) [][app.FeatureDim]float64 {
-	out := make([][app.FeatureDim]float64, len(xs))
+func toFixed(xs [][]float64) [][ml.FeatureDim]float64 {
+	out := make([][ml.FeatureDim]float64, len(xs))
 	for i, row := range xs {
-		for j := 0; j < app.FeatureDim && j < len(row); j++ {
+		for j := 0; j < ml.FeatureDim && j < len(row); j++ {
 			out[i][j] = row[j]
 		}
 	}
 	return out
 }
 
-func evaluateLogistic(m *app.LogisticModel, split datasetSplit) (float64, float64) {
+func evaluateLogistic(m *ml.LogisticModel, split datasetSplit) (float64, float64) {
 	return accuracyLogistic(m, toFixed(split.trainX), split.trainY), accuracyLogistic(m, toFixed(split.valX), split.valY)
 }
 
-func accuracyLogistic(m *app.LogisticModel, xs [][app.FeatureDim]float64, ys []int32) float64 {
+func accuracyLogistic(m *ml.LogisticModel, xs [][ml.FeatureDim]float64, ys []int32) float64 {
 	if len(xs) == 0 {
 		return 0
 	}
@@ -132,19 +133,19 @@ func accuracyLogistic(m *app.LogisticModel, xs [][app.FeatureDim]float64, ys []i
 }
 
 type attentionLogisticModel struct {
-	attention *app.SelfAttention
-	base      *app.LogisticModel
+	attention *ml.SelfAttention
+	base      *ml.LogisticModel
 }
 
-func newAttentionLogisticModel(base *app.LogisticModel) *attentionLogisticModel {
-	return &attentionLogisticModel{attention: app.NewSelfAttention(), base: base}
+func newAttentionLogisticModel(base *ml.LogisticModel) *attentionLogisticModel {
+	return &attentionLogisticModel{attention: ml.NewSelfAttention(), base: base}
 }
 
-func (m *attentionLogisticModel) Train(samples [][app.FeatureDim]float64, labels []int32) {
+func (m *attentionLogisticModel) Train(samples [][ml.FeatureDim]float64, labels []int32) {
 	m.base.Train(samples, labels)
 }
 
-func (m *attentionLogisticModel) Predict(x [app.FeatureDim]float64) app.Prediction {
+func (m *attentionLogisticModel) Predict(x [ml.FeatureDim]float64) ml.Prediction {
 	return m.base.Predict(m.attention.Forward(x))
 }
 
@@ -152,7 +153,7 @@ func evaluateAttentionModel(m *attentionLogisticModel, split datasetSplit) (floa
 	return accuracyAttention(m, toFixed(split.trainX), split.trainY), accuracyAttention(m, toFixed(split.valX), split.valY)
 }
 
-func accuracyAttention(m *attentionLogisticModel, xs [][app.FeatureDim]float64, ys []int32) float64 {
+func accuracyAttention(m *attentionLogisticModel, xs [][ml.FeatureDim]float64, ys []int32) float64 {
 	if len(xs) == 0 {
 		return 0
 	}

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"encoding/json"
 	"testing"
 	"time"
@@ -14,8 +15,8 @@ func resetMLCRuntimeCacheForTest() {
 	mlCRuntimeKey = ""
 }
 
-func makeDummyLinearModel() *LogisticModel {
-	model := &LogisticModel{NumClasses: 4}
+func makeDummyLinearModel() *ml.LogisticModel {
+	model := &ml.LogisticModel{NumClasses: 4}
 	model.Weights = make([][FeatureDim + 1]float64, model.NumClasses)
 	for c := 0; c < model.NumClasses; c++ {
 		for d := 0; d <= FeatureDim; d++ {
@@ -29,7 +30,7 @@ func TestMLCRuntimeStatusForLinearModel(t *testing.T) {
 	initMLTest(t, 240)
 	resetMLCRuntimeCacheForTest()
 
-	status := buildMLCRuntimeStatus(makeDummyLinearModel(), globalTrainingStore)
+	status := buildMLCRuntimeStatus(makeDummyLinearModel(), ml.GlobalTrainingStore)
 	if !status.Available {
 		t.Fatal("expected runtime status to be available")
 	}
@@ -60,9 +61,9 @@ func TestBuildMLStatusJSONIncludesCRuntime(t *testing.T) {
 	initMLTest(t, 180)
 	resetMLCRuntimeCacheForTest()
 
-	previousRuntime := snapshotMLRuntime()
+	previousRuntime := ml.SnapshotMLRuntime()
 	t.Cleanup(func() {
-		replaceMLRuntime(previousRuntime)
+		ml.ReplaceMLRuntime(previousRuntime)
 		resetMLCRuntimeCacheForTest()
 	})
 
@@ -71,7 +72,7 @@ func TestBuildMLStatusJSONIncludesCRuntime(t *testing.T) {
 	runtime.ModelLoaded = true
 	runtime.ModelType = ModelLogisticRegression
 	runtime.Enabled = true
-	replaceMLRuntime(runtime)
+	ml.ReplaceMLRuntime(runtime)
 
 	var payload struct {
 		ModelType         string              `json:"modelType"`
@@ -108,10 +109,10 @@ func TestBuildMLStatusJSONUsesCurrentRuntimeSettings(t *testing.T) {
 	resetMLCRuntimeCacheForTest()
 
 	oldStore := runtimeSettingsStore
-	previousRuntime := snapshotMLRuntime()
+	previousRuntime := ml.SnapshotMLRuntime()
 	t.Cleanup(func() {
 		runtimeSettingsStore = oldStore
-		replaceMLRuntime(previousRuntime)
+		ml.ReplaceMLRuntime(previousRuntime)
 		resetMLCRuntimeCacheForTest()
 	})
 
@@ -133,7 +134,7 @@ func TestBuildMLStatusJSONUsesCurrentRuntimeSettings(t *testing.T) {
 		LlmSystemPrompt:      "runtime prompt",
 	}
 	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{MLConfig: runtimeCfg}}
-	updateMLRuntimeConfig(runtimeCfg, true)
+	ml.UpdateMLRuntimeConfig(runtimeCfg, true)
 
 	if got := currentMLConfig(); got != runtimeCfg {
 		t.Fatalf("currentMLConfig() = %+v, want %+v", got, runtimeCfg)
@@ -211,13 +212,13 @@ func TestBuildMLStatusJSONUsesCurrentRuntimeSettings(t *testing.T) {
 }
 
 func TestMLCRuntimeStatusWithoutSamples(t *testing.T) {
-	InitTrainingStore(32)
-	if globalTrainingStore != nil {
-		globalTrainingStore.Clear()
+	ml.InitTrainingStore(32)
+	if ml.GlobalTrainingStore != nil {
+		ml.GlobalTrainingStore.Clear()
 	}
 	resetMLCRuntimeCacheForTest()
 
-	status := buildMLCRuntimeStatus(nil, globalTrainingStore)
+	status := buildMLCRuntimeStatus(nil, ml.GlobalTrainingStore)
 	if !status.Available {
 		t.Fatal("runtime status should still be available without samples")
 	}

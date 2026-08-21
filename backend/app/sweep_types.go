@@ -1,5 +1,7 @@
 package app
 
+import "agent-ebpf-filter/app/ml"
+
 // ---- moved from backend/zz_merged_backend.go section sweep_types.go ----
 
 type sweepProfile struct {
@@ -64,7 +66,7 @@ type profileSummary struct {
 type sweepDataset struct {
 	Name        string
 	Description string
-	Samples     []TrainingSample
+	Samples     []ml.TrainingSample
 }
 
 type repeatRunResult struct {
@@ -129,6 +131,6 @@ type repeatSummary struct {
 type stabilityTask struct {
 	Profile          sweepProfile
 	Config           sweepResult
-	Store            *TrainingDataStore
-	BenchmarkSamples []TrainingSample
+	Store            *ml.TrainingDataStore
+	BenchmarkSamples []ml.TrainingSample
 }

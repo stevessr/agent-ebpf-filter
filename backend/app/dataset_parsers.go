@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"agent-ebpf-filter/app/ml"
 	"agent-ebpf-filter/internal/behavior"
 )
 
@@ -332,7 +333,7 @@ func parseTextDatasetRecordsWithLimits(raw []byte, source string, limits remoteD
 			}
 		}
 
-		parts := splitCommandLine(line)
+		parts := behavior.SplitCommandLine(line)
 		if len(parts) == 0 {
 			continue
 		}
@@ -352,7 +353,7 @@ func parseTextDatasetRecordsWithLimits(raw []byte, source string, limits remoteD
 			record.Comm = "syscall-seq"
 			record.Args = append([]string(nil), parts...)
 		} else {
-			record.Comm, record.Args = normalizeCommandInput(line, "", nil)
+			record.Comm, record.Args = behavior.NormalizeCommandInput(line, "", nil)
 		}
 		if record.Comm == "" {
 			continue
@@ -568,7 +569,7 @@ func remoteDatasetRecordFromAny(decoded any, rowIndex int, source string) (remot
 		if record, ok := selinuxPolicyRuleRecordFromLine(value, rowIndex, source); ok {
 			return record, true
 		}
-		comm, args := normalizeCommandInput(value, "", nil)
+		comm, args := behavior.NormalizeCommandInput(value, "", nil)
 		if comm == "" {
 			return remoteDatasetRecord{}, false
 		}
@@ -621,10 +622,10 @@ func remoteDatasetRecordFromMap(row map[string]any, rowIndex int, source string)
 	comm := firstStringValue(row, "comm", "commandName", "commandname", "name", "executable", "Name", "_injected_name")
 	args := extractDatasetArgs(row, commandLine)
 	if commandLine == "" && comm != "" {
-		commandLine = joinCommandLine(comm, args)
+		commandLine = behavior.JoinCommandLine(comm, args)
 	}
 	if commandLine != "" && comm == "" {
-		comm, args = normalizeCommandInput(commandLine, "", nil)
+		comm, args = behavior.NormalizeCommandInput(commandLine, "", nil)
 	}
 	if comm == "" && commandLine == "" {
 		return remoteDatasetRecord{}, false
@@ -663,7 +664,7 @@ func buildRemoteDatasetRow(record remoteDatasetRecord, mode string, cleanSensiti
 	if cleanSensitive {
 		record = sanitizeRemoteDatasetRecord(record)
 	}
-	comm, args := normalizeCommandInput(record.CommandLine, record.Comm, record.Args)
+	comm, args := behavior.NormalizeCommandInput(record.CommandLine, record.Comm, record.Args)
 	label := record.Label
 	labelSource := record.LabelSource
 	if label == "" {
@@ -701,7 +702,7 @@ func buildRemoteDatasetRow(record remoteDatasetRecord, mode string, cleanSensiti
 	}
 	commandLine := strings.TrimSpace(record.CommandLine)
 	if commandLine == "" {
-		commandLine = joinCommandLine(comm, args)
+		commandLine = behavior.JoinCommandLine(comm, args)
 	}
 
 	return remoteDatasetRow{
@@ -720,11 +721,11 @@ func buildRemoteDatasetRow(record remoteDatasetRecord, mode string, cleanSensiti
 	}
 }
 
-func buildRemoteDatasetSample(row remoteDatasetRow, mode string, cleanSensitive bool) TrainingSample {
+func buildRemoteDatasetSample(row remoteDatasetRow, mode string, cleanSensitive bool) ml.TrainingSample {
 	if cleanSensitive {
 		row = sanitizeRemoteDatasetRow(row)
 	}
-	comm, args := normalizeCommandInput(row.CommandLine, row.Comm, row.Args)
+	comm, args := behavior.NormalizeCommandInput(row.CommandLine, row.Comm, row.Args)
 	timestamp := time.Now().UTC()
 	if parsed, err := time.Parse(time.RFC3339, row.Timestamp); err == nil {
 		timestamp = parsed.UTC()
@@ -747,25 +748,25 @@ func buildRemoteDatasetSample(row remoteDatasetRow, mode string, cleanSensitive 
 	}
 	switch strings.ToLower(strings.TrimSpace(mode)) {
 	case "block":
-		label = actionFromLabel("BLOCK")
+		label = ml.ActionFromLabel("BLOCK")
 		userLabel = "remote-block"
 	case "unlabeled":
 		userLabel = "remote-import-unlabeled"
 	default:
 		if normalized := normalizeActionLabel(row.Label); normalized != "" {
-			label = actionFromLabel(normalized)
+			label = ml.ActionFromLabel(normalized)
 			if userLabel == "remote-import" {
 				userLabel = "remote-source-label"
 			}
 		} else if inferredLabel, inferredSource := inferRemoteDatasetLabelFromSource(row.Source); inferredLabel != "" {
-			label = actionFromLabel(inferredLabel)
+			label = ml.ActionFromLabel(inferredLabel)
 			if inferredSource != "" && userLabel == "remote-import" {
 				userLabel = "remote-source-label"
 			}
 		} else if strings.EqualFold(strings.TrimSpace(mode), "heuristic") {
 			assessment := assessCommandSafetyWithOptions(nil, comm, args, "", 0, commandSafetyAssessmentOptions{IncludeLLM: false})
 			if action, ok := assessment["recommendedAction"].(string); ok {
-				label = actionFromLabel(action)
+				label = ml.ActionFromLabel(action)
 				if userLabel == "remote-import" {
 					userLabel = "remote-heuristic"
 				}
@@ -776,9 +777,9 @@ func buildRemoteDatasetSample(row remoteDatasetRow, mode string, cleanSensitive 
 	features := globalFeatureExtractor.Extract(comm, args, "", 0)
 	commandLine := strings.TrimSpace(row.CommandLine)
 	if commandLine == "" {
-		commandLine = joinCommandLine(comm, args)
+		commandLine = behavior.JoinCommandLine(comm, args)
 	}
-	return TrainingSample{
+	return ml.TrainingSample{
 		Features:     features,
 		Label:        label,
 		CommandLine:  commandLine,

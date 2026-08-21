@@ -4,7 +4,9 @@ import (
 	"strings"
 	"time"
 
+	"agent-ebpf-filter/app/ml"
 	"agent-ebpf-filter/internal/behavior"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -15,7 +17,7 @@ func handleMLAddSampleImpl(cmdLine, comm string, args []string, label string) gi
 	commandLine := strings.TrimSpace(cmdLine)
 	comm = strings.TrimSpace(comm)
 	if commandLine != "" {
-		comm, args = normalizeCommandInput(commandLine, comm, args)
+		comm, args = behavior.NormalizeCommandInput(commandLine, comm, args)
 		if comm == "" {
 			return gin.H{"error": "commandLine is required"}
 		}
@@ -23,15 +25,15 @@ func handleMLAddSampleImpl(cmdLine, comm string, args []string, label string) gi
 		return gin.H{"error": "comm is required"}
 	}
 	if commandLine == "" {
-		commandLine = joinCommandLine(comm, args)
+		commandLine = behavior.JoinCommandLine(comm, args)
 	}
 	classification := behavior.ClassifyBehavior(comm, args)
 	_, emb := globalEmbedder.ClassifyAndEmbed(comm, args)
 	anomalyScore := globalEmbedder.ComputeAnomalyScore(emb)
 	features := globalFeatureExtractor.Extract(comm, args, "", 0)
-	labelInt := actionFromLabel(label)
+	labelInt := ml.ActionFromLabel(label)
 
-	sample := TrainingSample{
+	sample := ml.TrainingSample{
 		Features:     features,
 		Label:        labelInt,
 		CommandLine:  commandLine,
@@ -42,11 +44,11 @@ func handleMLAddSampleImpl(cmdLine, comm string, args []string, label string) gi
 		Timestamp:    time.Now(),
 		UserLabel:    "manual",
 	}
-	globalTrainingStore.Add(sample)
+	ml.GlobalTrainingStore.Add(sample)
 	globalEmbedder.AddToCluster(emb)
 	globalFeatureExtractor.AddHistory(comm, classification.PrimaryCategory, label, anomalyScore, 0, "", len(strings.Join(args, " ")), len(args))
 
-	total, labeled := globalTrainingStore.Status()
+	total, labeled := ml.GlobalTrainingStore.Status()
 	return gin.H{
 		"status":         "ok",
 		"totalSamples":   total,

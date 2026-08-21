@@ -1,7 +1,9 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"agent-ebpf-filter/app/platform"
+	"agent-ebpf-filter/internal/behavior"
 	"agent-ebpf-filter/pb"
 	"agent-ebpf-filter/udsframe"
 	"context"
@@ -246,8 +248,8 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 
 				// ── Layer 2: ML random forest prediction ──
 				features := globalFeatureExtractor.Extract(req.Comm, req.Args, req.User, req.Pid)
-				mlRuntime := snapshotMLRuntime()
-				var mlPrediction Prediction
+				mlRuntime := ml.SnapshotMLRuntime()
+				var mlPrediction ml.Prediction
 				if mlRuntime.Enabled && mlRuntime.ModelLoaded && mlRuntime.Engine != nil {
 					mlPrediction = mlRuntime.Engine.Predict(features)
 				}
@@ -283,8 +285,8 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 
 				if mlRuntime.Enabled && mlRuntime.ModelLoaded {
 					resp.MlScore = mlPrediction.Confidence
-					resp.MlAction = actionLabel[mlPrediction.Action]
-					resp.MlReasoning = mlReasoning(mlPrediction, anomalyScore, classification)
+					resp.MlAction = ml.ActionLabel[mlPrediction.Action]
+					resp.MlReasoning = ml.MLReasoning(mlPrediction, anomalyScore, classification)
 				}
 
 				resp.Message = reason
@@ -306,7 +308,7 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 				}
 
 				// ── Record to training store and history buffer ──
-				if mlRuntime.Enabled && globalTrainingStore != nil {
+				if mlRuntime.Enabled && ml.GlobalTrainingStore != nil {
 					labelVal := int32(-1) // unlabeled initially
 					userLabelVal := ""
 					if isHealthGenerator {
@@ -314,10 +316,10 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 						userLabelVal = "health-generator"
 					}
 					trainingArgs := boundedWrapperTrainingArgs(req.Args)
-					sample := TrainingSample{
+					sample := ml.TrainingSample{
 						Features:     features,
 						Label:        labelVal,
-						CommandLine:  boundedWrapperTrainingString(joinCommandLine(req.Comm, trainingArgs), udsMaxTrainingCommandBytes),
+						CommandLine:  boundedWrapperTrainingString(behavior.JoinCommandLine(req.Comm, trainingArgs), udsMaxTrainingCommandBytes),
 						Comm:         boundedWrapperTrainingString(req.Comm, udsMaxTrainingCommBytes),
 						Args:         trainingArgs,
 						Category:     classification.PrimaryCategory,
@@ -325,13 +327,13 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 						Timestamp:    time.Now(),
 						UserLabel:    userLabelVal,
 					}
-					globalTrainingStore.Add(sample)
+					ml.GlobalTrainingStore.Add(sample)
 				}
 
 				globalFeatureExtractor.AddHistory(
 					req.Comm,
 					classification.PrimaryCategory,
-					actionLabel[mlPrediction.Action],
+					ml.ActionLabel[mlPrediction.Action],
 					anomalyScore,
 					req.Pid,
 					req.User,
@@ -339,7 +341,7 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 					len(req.Args),
 				)
 
-				decision := actionLabel[int32(resolvedAction)]
+				decision := ml.ActionLabel[int32(resolvedAction)]
 				riskScore := platform.MaxFloat64(anomalyScore, mlPrediction.Confidence)
 				processCtx := buildProcessContextFromWrapperRequest(req, decision, riskScore)
 				trackedProcessContexts.Set(req.Pid, processCtx)

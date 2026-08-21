@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/internal/behavior"
 	"agent-ebpf-filter/pb"
 	"reflect"
 	"testing"
@@ -10,10 +11,10 @@ import (
 // ---- moved from backend/zz_merged_backend_test.go section commandsafety_test.go ----
 
 func TestSplitCommandLinePreservesQuotedCommandArgument(t *testing.T) {
-	got := splitCommandLine(`sudo bash -c "rm -rf /tmp/demo"`)
+	got := behavior.SplitCommandLine(`sudo bash -c "rm -rf /tmp/demo"`)
 	want := []string{"sudo", "bash", "-c", "rm -rf /tmp/demo"}
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("splitCommandLine() = %#v, want %#v", got, want)
+		t.Fatalf("behavior.SplitCommandLine() = %#v, want %#v", got, want)
 	}
 }
 

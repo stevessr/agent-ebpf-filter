@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"agent-ebpf-filter/app/ml"
 	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/core"
 	"agent-ebpf-filter/pb"
@@ -30,24 +31,24 @@ func currentMLConfig() MLConfig {
 // InitMLEngine initializes the ML engine. Only active on master nodes.
 func InitMLEngine(cfg MLConfig) {
 	if !cfg.Enabled {
-		replaceMLRuntime(mlRuntimeSnapshot{Config: cfg, ModelType: cfg.ModelType})
+		ml.ReplaceMLRuntime(ml.MLRuntimeSnapshot{Config: cfg, ModelType: cfg.ModelType})
 		log.Printf("[ML] Behavior classifier disabled by configuration")
 		return
 	}
 
 	if !clusterManagerStore.IsMaster() {
-		replaceMLRuntime(mlRuntimeSnapshot{Config: cfg, ModelType: cfg.ModelType})
+		ml.ReplaceMLRuntime(ml.MLRuntimeSnapshot{Config: cfg, ModelType: cfg.ModelType})
 		log.Printf("[ML] Slave node detected — ML inference disabled (runs only on master)")
 		return
 	}
 
 	// Initialize training store
-	InitTrainingStore(100000)
+	ml.InitTrainingStore(100000)
 
 	if cfg.ModelType == "" {
 		cfg.ModelType = ModelRandomForest
 	}
-	if _, ok := modelRegistry[cfg.ModelType]; !ok {
+	if _, ok := ml.ModelRegistry[cfg.ModelType]; !ok {
 		log.Printf("[ML] Unknown model type %q; falling back to %s", cfg.ModelType, ModelRandomForest)
 		cfg.ModelType = ModelRandomForest
 	}
@@ -59,12 +60,12 @@ func InitMLEngine(cfg MLConfig) {
 
 	model := tryLoadModel(modelPath, cfg.ModelType)
 	if model != nil {
-		log.Printf("[ML] Loaded pre-trained %s model from %s", modelName(cfg.ModelType), modelPath)
+		log.Printf("[ML] Loaded pre-trained %s model from %s", ml.ModelName(cfg.ModelType), modelPath)
 	} else {
-		log.Printf("[ML] No pre-trained %s model found at %s — will train once sufficient data is collected", modelName(cfg.ModelType), modelPath)
+		log.Printf("[ML] No pre-trained %s model found at %s — will train once sufficient data is collected", ml.ModelName(cfg.ModelType), modelPath)
 	}
 
-	replaceMLRuntime(mlRuntimeSnapshot{
+	ml.ReplaceMLRuntime(ml.MLRuntimeSnapshot{
 		Engine:      model,
 		Config:      cfg,
 		Enabled:     true,
@@ -74,69 +75,69 @@ func InitMLEngine(cfg MLConfig) {
 	log.Printf("[ML] Behavior classifier initialized on master node (type=%s, features=%d dims)", cfg.ModelType, FeatureDim)
 }
 
-func tryLoadModel(path string, t ModelType) Model {
+func tryLoadModel(path string, t ModelType) ml.Model {
 	requested := t
-	base := baseModelType(t)
-	var loaded Model
+	base := ml.BaseModelType(t)
+	var loaded ml.Model
 	switch base {
 	case ModelRandomForest:
-		if m, err := DeserializeForest(path); err == nil {
+		if m, err := ml.DeserializeForest(path); err == nil {
 			loaded = m
 		}
 	case ModelExtraTrees:
-		if m, err := DeserializeForest(path); err == nil {
-			loaded = &ExtraTreesModel{Forest: m, MaxDepth: m.MaxDepth, NumTrees: len(m.Trees)}
+		if m, err := ml.DeserializeForest(path); err == nil {
+			loaded = &ml.ExtraTreesModel{Forest: m, MaxDepth: m.MaxDepth, NumTrees: len(m.Trees)}
 		}
 	case ModelKNN:
-		if m, err := DeserializeKNN(path); err == nil {
+		if m, err := ml.DeserializeKNN(path); err == nil {
 			loaded = m
 		}
 	case ModelLogisticRegression:
-		if m, err := DeserializeLogistic(path); err == nil {
+		if m, err := ml.DeserializeLogistic(path); err == nil {
 			loaded = m
 		}
 	case ModelNaiveBayes:
-		if m, err := DeserializeNaiveBayes(path); err == nil {
+		if m, err := ml.DeserializeNaiveBayes(path); err == nil {
 			loaded = m
 		}
 	case ModelNearestCentroid:
-		if m, err := DeserializeNearestCentroid(path); err == nil {
+		if m, err := ml.DeserializeNearestCentroid(path); err == nil {
 			loaded = m
 		}
 	case ModelAdaBoost:
-		if m, err := DeserializeAdaBoost(path); err == nil {
+		if m, err := ml.DeserializeAdaBoost(path); err == nil {
 			loaded = m
 		}
 	case ModelSVM:
-		if m, err := DeserializeSVM(path); err == nil {
+		if m, err := ml.DeserializeSVM(path); err == nil {
 			loaded = m
 		}
 	case ModelRidge:
-		if m, err := DeserializeRidge(path); err == nil {
+		if m, err := ml.DeserializeRidge(path); err == nil {
 			loaded = m
 		}
 	case ModelPerceptron:
-		if m, err := DeserializePerceptron(path); err == nil {
+		if m, err := ml.DeserializePerceptron(path); err == nil {
 			loaded = m
 		}
 	case ModelPassiveAggressive:
-		if m, err := DeserializePA(path); err == nil {
+		if m, err := ml.DeserializePA(path); err == nil {
 			loaded = m
 		}
 	case ModelEnsemble:
-		if m, err := DeserializeEnsemble(path); err == nil {
+		if m, err := ml.DeserializeEnsemble(path); err == nil {
 			loaded = m
 		}
 	case core.ModelGraphLearning:
-		if m, err := DeserializeGraphLearning(path); err == nil {
+		if m, err := ml.DeserializeGraphLearning(path); err == nil {
 			loaded = m
 		}
 	case ModelGANTransformer:
-		if m, err := DeserializeGANTransformer(path); err == nil {
+		if m, err := ml.DeserializeGANTransformer(path); err == nil {
 			loaded = m
 		}
 	}
-	return wrapModelType(loaded, requested)
+	return ml.WrapModelType(loaded, requested)
 }
 
 // StartMLEngine runs the ML background tasks until ctx is cancelled. The call
@@ -182,7 +183,7 @@ func resolveAction(
 	rulePriority int,
 	classification *pb.BehaviorClassification,
 	anomalyScore float64,
-	mlPrediction Prediction,
+	mlPrediction ml.Prediction,
 	cfg MLConfig,
 	mlEnabled bool,
 	mlModelLoaded bool,
@@ -285,18 +286,18 @@ func mlAutoTrainLoopWithWait(ctx context.Context, wait mlIntervalWaitFunc) {
 			return
 		}
 		cfg = currentMLConfig()
-		if !cfg.Enabled || !cfg.AutoTrain || !clusterManagerStore.IsMaster() || globalTrainingStore == nil {
+		if !cfg.Enabled || !cfg.AutoTrain || !clusterManagerStore.IsMaster() || ml.GlobalTrainingStore == nil {
 			continue
 		}
-		_, labeled := globalTrainingStore.Status()
+		_, labeled := ml.GlobalTrainingStore.Status()
 		if labeled >= cfg.MinSamplesForTraining {
 			log.Printf("[ML] Auto-training triggered: %d labeled samples available", labeled)
-			model, result := globalTrainer.TrainWithConfig(globalTrainingStore, cfg)
+			model, result := ml.GlobalTrainer.TrainWithConfig(ml.GlobalTrainingStore, cfg)
 			if result.Error != "" {
 				log.Printf("[ML] Auto-training failed: %s", result.Error)
 				continue
 			}
-			publishMLRuntimeModel(model, model.Type())
+			ml.PublishMLRuntimeModel(model, model.Type())
 			log.Printf("[ML] Auto-training complete: accuracy=%.2f%%, type=%s", result.Accuracy*100, model.Type())
 
 			// Persist model
@@ -370,10 +371,10 @@ func mlFlushLoopWithWait(ctx context.Context, interval time.Duration, wait mlInt
 }
 
 func flushMLTrainingStore() {
-	if globalTrainingStore == nil {
+	if ml.GlobalTrainingStore == nil {
 		return
 	}
-	if err := globalTrainingStore.Flush(); err != nil {
+	if err := ml.GlobalTrainingStore.Flush(); err != nil {
 		log.Printf("[ML] Failed to flush training data: %v", err)
 	}
 }
@@ -384,12 +385,12 @@ func defaultMLModelPath() string {
 
 // mlStatus builds the ML status protobuf for the API
 func mlStatus() *pb.MLStatus {
-	return mlStatusFromRuntime(snapshotMLRuntime())
+	return mlStatusFromRuntime(ml.SnapshotMLRuntime())
 }
 
-func mlStatusFromRuntime(runtime mlRuntimeSnapshot) *pb.MLStatus {
+func mlStatusFromRuntime(runtime ml.MLRuntimeSnapshot) *pb.MLStatus {
 	cfg := runtime.Config
-	trainerState := globalTrainer.stateSnapshot()
+	trainerState := ml.GlobalTrainer.StateSnapshot()
 	status := &pb.MLStatus{
 		ModelLoaded:        runtime.ModelLoaded,
 		TrainingInProgress: trainerState.IsRunning,
@@ -397,28 +398,28 @@ func mlStatusFromRuntime(runtime mlRuntimeSnapshot) *pb.MLStatus {
 	}
 
 	if runtime.Engine != nil {
-		switch model := unwrapModelType(runtime.Engine).(type) {
-		case *DecisionForest:
+		switch model := ml.UnwrapModelType(runtime.Engine).(type) {
+		case *ml.DecisionForest:
 			status.NumTrees = int32(len(model.Trees))
-		case *ExtraTreesModel:
+		case *ml.ExtraTreesModel:
 			if model.Forest != nil {
 				status.NumTrees = int32(len(model.Forest.Trees))
 			} else {
 				status.NumTrees = int32(model.NumTrees)
 			}
-		case *AdaBoostModel:
+		case *ml.AdaBoostModel:
 			status.NumTrees = int32(len(model.Stumps))
-		case *EnsembleModel:
+		case *ml.EnsembleModel:
 			status.NumTrees = int32(len(model.Models))
-		case *GraphLearningModel:
+		case *ml.GraphLearningModel:
 			if model.Classifier != nil {
 				status.NumTrees = int32(model.Classifier.Config.HiddenDim)
 			}
 		}
 	}
 
-	if globalTrainingStore != nil {
-		total, labeled := globalTrainingStore.Status()
+	if ml.GlobalTrainingStore != nil {
+		total, labeled := ml.GlobalTrainingStore.Status()
 		status.NumSamples = int32(total)
 		status.NumLabeledSamples = int32(labeled)
 	}

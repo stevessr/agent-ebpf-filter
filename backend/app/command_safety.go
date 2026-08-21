@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"agent-ebpf-filter/internal/behavior"
 	"agent-ebpf-filter/pb"
 	"context"
@@ -94,7 +95,7 @@ func cmdsafetyImportExistingPost(c *gin.Context) {
 		return
 	}
 
-	if globalTrainingStore == nil {
+	if ml.GlobalTrainingStore == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ML training store not initialized"})
 		return
 	}
@@ -121,7 +122,7 @@ func cmdsafetyImportExistingPost(c *gin.Context) {
 		if c.Request.Context().Err() != nil {
 			return
 		}
-		if candidate.Comm == "" || globalTrainingStore.HasExactCommand(candidate.Comm, candidate.Args) {
+		if candidate.Comm == "" || ml.GlobalTrainingStore.HasExactCommand(candidate.Comm, candidate.Args) {
 			skipped++
 			continue
 		}
@@ -131,23 +132,23 @@ func cmdsafetyImportExistingPost(c *gin.Context) {
 		if labelMode == "heuristic" {
 			assessment := assessCommandSafetyWithOptions(c.Request.Context(), candidate.Comm, candidate.Args, "", 0, commandSafetyAssessmentOptions{IncludeLLM: false})
 			if action, ok := assessment["recommendedAction"].(string); ok {
-				label = actionFromLabel(action)
+				label = ml.ActionFromLabel(action)
 				userLabel = "import-heuristic"
 			}
 		}
 
 		sample := buildCommandTrainingSample(candidate.Comm, candidate.Args, "", 0, label, userLabel, candidate.eventTime)
-		globalTrainingStore.Add(sample)
+		ml.GlobalTrainingStore.Add(sample)
 		recordCommandSampleSideEffects(sample)
 		imported++
 	}
 
-	if err := globalTrainingStore.Flush(); err != nil {
+	if err := ml.GlobalTrainingStore.Flush(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "imported samples but failed to persist: " + err.Error()})
 		return
 	}
 
-	total, labeled := globalTrainingStore.Status()
+	total, labeled := ml.GlobalTrainingStore.Status()
 	c.JSON(http.StatusOK, gin.H{
 		"status":          "ok",
 		"source":          source,
@@ -168,7 +169,7 @@ func bindCommandSafetyRequest(c *gin.Context) (commandSafetyRequest, bool) {
 	}
 
 	rawCommandLine := strings.TrimSpace(req.CommandLine)
-	comm, args := normalizeCommandInput(rawCommandLine, req.Comm, req.Args)
+	comm, args := behavior.NormalizeCommandInput(rawCommandLine, req.Comm, req.Args)
 	if comm == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "commandLine or comm is required"})
 		return req, false
@@ -179,7 +180,7 @@ func bindCommandSafetyRequest(c *gin.Context) (commandSafetyRequest, bool) {
 	if rawCommandLine != "" {
 		req.CommandLine = rawCommandLine
 	} else {
-		req.CommandLine = joinCommandLine(comm, args)
+		req.CommandLine = behavior.JoinCommandLine(comm, args)
 	}
 	if err := validateLLMCommandInput(req.CommandLine, req.Comm, req.Args); err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
@@ -200,15 +201,15 @@ func assessCommandSafetyWithOptions(ctx context.Context, comm string, args []str
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	commandLine := joinCommandLine(comm, args)
+	commandLine := behavior.JoinCommandLine(comm, args)
 
 	classification := behavior.ClassifyBehavior(comm, args)
 	_, emb := globalEmbedder.ClassifyAndEmbed(comm, args)
 	anomalyScore := globalEmbedder.ComputeAnomalyScore(emb)
 	features := globalFeatureExtractor.Extract(comm, args, user, pid)
 
-	mlRuntime := snapshotMLRuntime()
-	var mlPrediction Prediction
+	mlRuntime := ml.SnapshotMLRuntime()
+	var mlPrediction ml.Prediction
 	if mlRuntime.Enabled && mlRuntime.ModelLoaded && mlRuntime.Engine != nil {
 		mlPrediction = mlRuntime.Engine.Predict(features)
 	}
@@ -224,11 +225,11 @@ func assessCommandSafetyWithOptions(ctx context.Context, comm string, args []str
 
 	netAudit := AuditNetworkBehavior(comm, strings.Join(args, " "))
 	riskScore := computeRiskScore(classification, anomalyScore, mlPrediction, netAudit, nil)
-	recommendedAction := actionLabel[int32(simulatedAction)]
+	recommendedAction := ml.ActionLabel[int32(simulatedAction)]
 
-	var matches []IndexedTrainingSample
-	if globalTrainingStore != nil {
-		matches = globalTrainingStore.ExactMatches(comm, args)
+	var matches []ml.IndexedTrainingSample
+	if ml.GlobalTrainingStore != nil {
+		matches = ml.GlobalTrainingStore.ExactMatches(comm, args)
 	}
 
 	sampleMatches := sampleMatchesJSON(matches)
@@ -246,7 +247,7 @@ func assessCommandSafetyWithOptions(ctx context.Context, comm string, args []str
 			Category:       classification.PrimaryCategory,
 			AnomalyScore:   anomalyScore,
 			Classification: classification,
-			MlAction:       actionLabel[mlPrediction.Action],
+			MlAction:       ml.ActionLabel[mlPrediction.Action],
 			MlConfidence:   mlPrediction.Confidence,
 			NetworkRisk:    netAudit.RiskLevel,
 			NetworkScore:   netAudit.RiskScore,
@@ -272,7 +273,7 @@ func assessCommandSafetyWithOptions(ctx context.Context, comm string, args []str
 		"args":              args,
 		"classification":    classification,
 		"anomalyScore":      anomalyScore,
-		"mlPrediction":      gin.H{"action": actionLabel[mlPrediction.Action], "confidence": mlPrediction.Confidence},
+		"mlPrediction":      gin.H{"action": ml.ActionLabel[mlPrediction.Action], "confidence": mlPrediction.Confidence},
 		"recommendedAction": recommendedAction,
 		"reasoning":         reason,
 		"riskScore":         riskScore,
@@ -299,13 +300,13 @@ func existingCommandCandidates(limit int) ([]existingCommandCandidate, string, e
 		if !ok {
 			continue
 		}
-		key := commandKey(candidate.Comm, candidate.Args)
+		key := behavior.CommandKey(candidate.Comm, candidate.Args)
 		if _, exists := seen[key]; exists {
 			continue
 		}
 		seen[key] = struct{}{}
-		if globalTrainingStore != nil {
-			candidate.Duplicate = globalTrainingStore.HasExactCommand(candidate.Comm, candidate.Args)
+		if ml.GlobalTrainingStore != nil {
+			candidate.Duplicate = ml.GlobalTrainingStore.HasExactCommand(candidate.Comm, candidate.Args)
 		}
 		candidates = append(candidates, candidate)
 	}
@@ -344,7 +345,7 @@ func commandCandidateFromRecord(record CapturedEventRecord, source string) (exis
 		return existingCommandCandidate{}, false
 	}
 
-	comm, args := normalizeCommandInput(commandLine, event.Comm, nil)
+	comm, args := behavior.NormalizeCommandInput(commandLine, event.Comm, nil)
 	if comm == "" {
 		return existingCommandCandidate{}, false
 	}
@@ -358,7 +359,7 @@ func commandCandidateFromRecord(record CapturedEventRecord, source string) (exis
 	}
 
 	return existingCommandCandidate{
-		CommandLine: joinCommandLine(comm, args),
+		CommandLine: behavior.JoinCommandLine(comm, args),
 		Comm:        comm,
 		Args:        args,
 		EventType:   eventType,
@@ -369,7 +370,7 @@ func commandCandidateFromRecord(record CapturedEventRecord, source string) (exis
 	}, true
 }
 
-func buildCommandTrainingSample(comm string, args []string, user string, pid uint32, label int32, userLabel string, timestamp time.Time) TrainingSample {
+func buildCommandTrainingSample(comm string, args []string, user string, pid uint32, label int32, userLabel string, timestamp time.Time) ml.TrainingSample {
 	if timestamp.IsZero() {
 		timestamp = time.Now()
 	}
@@ -379,10 +380,10 @@ func buildCommandTrainingSample(comm string, args []string, user string, pid uin
 	anomalyScore := globalEmbedder.ComputeAnomalyScore(emb)
 	features := globalFeatureExtractor.Extract(comm, args, user, pid)
 
-	return TrainingSample{
+	return ml.TrainingSample{
 		Features:     features,
 		Label:        label,
-		CommandLine:  joinCommandLine(comm, args),
+		CommandLine:  behavior.JoinCommandLine(comm, args),
 		Comm:         comm,
 		Args:         args,
 		Category:     classification.PrimaryCategory,
@@ -392,7 +393,7 @@ func buildCommandTrainingSample(comm string, args []string, user string, pid uin
 	}
 }
 
-func recordCommandSampleSideEffects(sample TrainingSample) {
+func recordCommandSampleSideEffects(sample ml.TrainingSample) {
 	_, emb := globalEmbedder.ClassifyAndEmbed(sample.Comm, sample.Args)
 	globalEmbedder.AddToCluster(emb)
 
@@ -403,89 +404,14 @@ func recordCommandSampleSideEffects(sample TrainingSample) {
 	globalFeatureExtractor.AddHistory(sample.Comm, sample.Category, action, sample.AnomalyScore, 0, "", len(strings.Join(sample.Args, " ")), len(sample.Args))
 }
 
-func normalizeCommandInput(commandLine string, comm string, args []string) (string, []string) {
-	parts := splitCommandLine(commandLine)
-	if len(parts) > 0 {
-		return parts[0], parts[1:]
-	}
-
-	comm = strings.TrimSpace(comm)
-	if comm == "" {
-		return "", nil
-	}
-	cleanArgs := make([]string, 0, len(args))
-	for _, arg := range args {
-		if strings.TrimSpace(arg) == "" {
-			continue
-		}
-		cleanArgs = append(cleanArgs, arg)
-	}
-	return comm, cleanArgs
-}
-
-func splitCommandLine(commandLine string) []string {
-	commandLine = strings.TrimSpace(strings.ReplaceAll(commandLine, "\x00", " "))
-	if commandLine == "" {
-		return nil
-	}
-
-	var parts []string
-	var b strings.Builder
-	inSingle := false
-	inDouble := false
-	escaped := false
-	emit := func() {
-		if b.Len() == 0 {
-			return
-		}
-		parts = append(parts, b.String())
-		b.Reset()
-	}
-
-	for _, r := range commandLine {
-		switch {
-		case escaped:
-			b.WriteRune(r)
-			escaped = false
-		case r == '\\' && !inSingle:
-			escaped = true
-		case r == '\'' && !inDouble:
-			inSingle = !inSingle
-		case r == '"' && !inSingle:
-			inDouble = !inDouble
-		case (r == ' ' || r == '\t' || r == '\n' || r == '\r') && !inSingle && !inDouble:
-			emit()
-		default:
-			b.WriteRune(r)
-		}
-	}
-	if escaped {
-		b.WriteRune('\\')
-	}
-	emit()
-	return parts
-}
-
-func joinCommandLine(comm string, args []string) string {
-	parts := append([]string{strings.TrimSpace(comm)}, args...)
-	compact := make([]string, 0, len(parts))
-	for _, part := range parts {
-		if strings.TrimSpace(part) == "" {
-			continue
-		}
-		compact = append(compact, part)
-	}
-	return strings.Join(compact, " ")
-}
-
-func trainingSampleCommandLine(sample TrainingSample) string {
+func trainingSampleCommandLine(sample ml.TrainingSample) string {
 	if strings.TrimSpace(sample.CommandLine) != "" {
 		return strings.TrimSpace(sample.CommandLine)
 	}
-	return joinCommandLine(sample.Comm, sample.Args)
+	return behavior.JoinCommandLine(sample.Comm, sample.Args)
 }
 
-func sampleMatchesJSON(matches []IndexedTrainingSample) []commandSampleMatch {
+func sampleMatchesJSON(matches []ml.IndexedTrainingSample) []commandSampleMatch {
 	out := make([]commandSampleMatch, 0, len(matches))
 	for _, match := range matches {
 		sample := match.Sample
@@ -504,7 +430,7 @@ func sampleMatchesJSON(matches []IndexedTrainingSample) []commandSampleMatch {
 	return out
 }
 
-func summarizeSampleEvidence(matches []IndexedTrainingSample) gin.H {
+func summarizeSampleEvidence(matches []ml.IndexedTrainingSample) gin.H {
 	labelCounts := map[string]int{}
 	labeledMatches := 0
 	for _, match := range matches {
@@ -582,26 +508,10 @@ func sampleLabelName(label int32) string {
 	if label < 0 {
 		return "-"
 	}
-	if name, ok := actionLabel[label]; ok {
+	if name, ok := ml.ActionLabel[label]; ok {
 		return name
 	}
 	return "-"
-}
-
-func commandKey(comm string, args []string) string {
-	return comm + "\x00" + strings.Join(args, "\x00")
-}
-
-func sameStringSlice(a []string, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }
 
 func parseCommandDataLimit(raw string) int {

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"bufio"
 	"context"
 	"encoding/json"
@@ -542,7 +543,7 @@ func saveBrowserRecordingExportAtRoot(root, path string, payload json.RawMessage
 	if err != nil {
 		return "", 0, err
 	}
-	tempFile, tempName, err := createRecordingTemp(rootFile, "browser")
+	tempFile, tempName, err := platform.CreateTempSibling(rootFile, "browser")
 	if err != nil {
 		return "", 0, err
 	}
@@ -562,7 +563,7 @@ func saveBrowserRecordingExportAtRoot(root, path string, payload json.RawMessage
 	if err := tempFile.Close(); err != nil {
 		return "", 0, err
 	}
-	if err := replaceRecordingDestination(rootFile, tempName, name); err != nil {
+	if err := platform.ReplaceFileInDir(rootFile, tempName, name); err != nil {
 		return "", 0, err
 	}
 	cleanup = false

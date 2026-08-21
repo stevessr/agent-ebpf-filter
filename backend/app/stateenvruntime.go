@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"agent-ebpf-filter/app/platform"
 	"errors"
 	"path/filepath"
@@ -86,7 +87,7 @@ func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 	if settings.MLConfig.ModelType == "" {
 		settings.MLConfig.ModelType = ModelRandomForest
 	}
-	if _, ok := modelRegistry[settings.MLConfig.ModelType]; !ok {
+	if _, ok := ml.ModelRegistry[settings.MLConfig.ModelType]; !ok {
 		settings.MLConfig.ModelType = ModelRandomForest
 	}
 	if settings.MLConfig.ModelPath == "" {

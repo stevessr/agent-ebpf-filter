@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"archive/zip"
 	"bytes"
 	"crypto/rand"
@@ -123,20 +124,20 @@ func researchBundleZipBytesWithLimits(session ResearchSession, events []Research
 		return nil, err
 	}
 	trainingManifestJSON, err := json.MarshalIndent(struct {
-		SchemaVersion   string                     `json:"schemaVersion"`
-		LabelPolicy     string                     `json:"labelPolicy"`
-		FeatureSpace    string                     `json:"featureSpace"`
-		FeatureVersion  string                     `json:"featureVersion"`
-		FeatureDim      int                        `json:"featureDim"`
-		FeatureNames    []string                   `json:"featureNames"`
-		RedactionLevels []researchCount            `json:"redactionLevels"`
-		SampleCount     int                        `json:"sampleCount"`
-		LabeledCount    int                        `json:"labeledCount"`
-		ByLabel         []researchCount            `json:"byLabel"`
-		ByCategory      []researchCount            `json:"byCategory"`
-		BySource        []researchCount            `json:"bySource"`
-		Normalization   FeatureNormalizationReport `json:"normalization"`
-		Quality         DatasetQualitySummary      `json:"quality"`
+		SchemaVersion   string                        `json:"schemaVersion"`
+		LabelPolicy     string                        `json:"labelPolicy"`
+		FeatureSpace    string                        `json:"featureSpace"`
+		FeatureVersion  string                        `json:"featureVersion"`
+		FeatureDim      int                           `json:"featureDim"`
+		FeatureNames    []string                      `json:"featureNames"`
+		RedactionLevels []researchCount               `json:"redactionLevels"`
+		SampleCount     int                           `json:"sampleCount"`
+		LabeledCount    int                           `json:"labeledCount"`
+		ByLabel         []researchCount               `json:"byLabel"`
+		ByCategory      []researchCount               `json:"byCategory"`
+		BySource        []researchCount               `json:"bySource"`
+		Normalization   ml.FeatureNormalizationReport `json:"normalization"`
+		Quality         DatasetQualitySummary         `json:"quality"`
 	}{
 		SchemaVersion:   training.SchemaVersion,
 		LabelPolicy:     training.LabelPolicy,

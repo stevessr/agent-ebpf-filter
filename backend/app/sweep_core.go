@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"fmt"
 	"math"
 	"runtime"
@@ -14,7 +15,7 @@ func canRunIncrementalCountProfile(profile sweepProfile) bool {
 	if profile.Kind != "bar" || profile.ParameterKind != "numeric" {
 		return false
 	}
-	switch baseModelType(profile.ModelType) {
+	switch ml.BaseModelType(profile.ModelType) {
 	case ModelRandomForest, ModelExtraTrees:
 		return profile.ParameterName == "numTrees"
 	case ModelAdaBoost:
@@ -32,16 +33,16 @@ type incrementalCountContext struct {
 	NumSamples     int
 	TrainSamples   int
 	ValSamples     int
-	TrainSet       []trainSample
-	ValSet         []trainSample
-	ValRaw         []TrainingSample
-	Benchmark      []TrainingSample
-	ModelForValue  func(int) Model
+	TrainSet       []ml.TrainSample
+	ValSet         []ml.TrainSample
+	ValRaw         []ml.TrainingSample
+	Benchmark      []ml.TrainingSample
+	ModelForValue  func(int) ml.Model
 	ConfigForValue func(int) MLConfig
 	SummaryForCfg  func(MLConfig) string
 }
 
-func runIncrementalCountProfile(profile sweepProfile, store *TrainingDataStore, benchmarkSamples []TrainingSample, workers int) ([]sweepResult, sweepResult, error) {
+func runIncrementalCountProfile(profile sweepProfile, store *ml.TrainingDataStore, benchmarkSamples []ml.TrainingSample, workers int) ([]sweepResult, sweepResult, error) {
 	ctx, err := buildIncrementalCountContext(profile, store, benchmarkSamples)
 	if err != nil {
 		return nil, sweepResult{}, err
@@ -92,7 +93,7 @@ func runIncrementalCountProfile(profile sweepProfile, store *TrainingDataStore, 
 	return profileRunBest(profile, results)
 }
 
-func buildIncrementalCountContext(profile sweepProfile, store *TrainingDataStore, benchmarkSamples []TrainingSample) (incrementalCountContext, error) {
+func buildIncrementalCountContext(profile sweepProfile, store *ml.TrainingDataStore, benchmarkSamples []ml.TrainingSample) (incrementalCountContext, error) {
 	maxValue := maxSweepInt(profile.XValues)
 	if maxValue < 1 {
 		return incrementalCountContext{}, fmt.Errorf("%s has no positive count values", profile.Name)
@@ -114,41 +115,41 @@ func buildIncrementalCountContext(profile sweepProfile, store *TrainingDataStore
 	var memBefore, memAfter runtime.MemStats
 	runtime.ReadMemStats(&memBefore)
 	start := time.Now()
-	switch baseModelType(profile.ModelType) {
+	switch ml.BaseModelType(profile.ModelType) {
 	case ModelRandomForest:
 		if len(labeled) < cfgMax.MinSamplesLeaf*10 {
 			return incrementalCountContext{}, fmt.Errorf("insufficient labeled samples: need >=%d, have %d", cfgMax.MinSamplesLeaf*10, len(labeled))
 		}
-		trainSet, valSet, _, valRaw, err := prepareAutoTuneSplit(labeled, cfgMax.ValidationSplitRatio)
+		trainSet, valSet, _, valRaw, err := ml.PrepareAutoTuneSplit(labeled, cfgMax.ValidationSplitRatio)
 		if err != nil {
 			return incrementalCountContext{}, err
 		}
-		forest := buildAutoTuneForest(trainSet, maxValue, cfgMax.MaxDepth, cfgMax.MinSamplesLeaf, time.Now().UnixNano())
+		forest := ml.BuildAutoTuneForest(trainSet, maxValue, cfgMax.MaxDepth, cfgMax.MinSamplesLeaf, time.Now().UnixNano())
 		ctx.TrainSet = trainSet
 		ctx.ValSet = valSet
 		ctx.ValRaw = valRaw
 		ctx.TrainSamples = len(trainSet)
 		ctx.ValSamples = len(valSet)
-		ctx.ModelForValue = func(v int) Model {
+		ctx.ModelForValue = func(v int) ml.Model {
 			return prefixDecisionForest(forest, v)
 		}
 	case ModelExtraTrees:
 		if len(labeled) < cfgMax.MinSamplesLeaf*10 {
 			return incrementalCountContext{}, fmt.Errorf("insufficient labeled samples: need >=%d, have %d", cfgMax.MinSamplesLeaf*10, len(labeled))
 		}
-		trainSet, valSet, _, valRaw, err := prepareAutoTuneSplit(labeled, cfgMax.ValidationSplitRatio)
+		trainSet, valSet, _, valRaw, err := ml.PrepareAutoTuneSplit(labeled, cfgMax.ValidationSplitRatio)
 		if err != nil {
 			return incrementalCountContext{}, err
 		}
-		allSamples := toTrainSamples(labeled)
-		forest := buildExtraTrees(allSamples, maxValue, cfgMax.MaxDepth, cfgMax.MinSamplesLeaf, time.Now().UnixNano())
+		allSamples := ml.ToTrainSamples(labeled)
+		forest := ml.BuildExtraTrees(allSamples, maxValue, cfgMax.MaxDepth, cfgMax.MinSamplesLeaf, time.Now().UnixNano())
 		ctx.TrainSet = trainSet
 		ctx.ValSet = valSet
 		ctx.ValRaw = valRaw
 		ctx.TrainSamples = len(trainSet)
 		ctx.ValSamples = len(valSet)
-		ctx.ModelForValue = func(v int) Model {
-			return &ExtraTreesModel{Forest: prefixDecisionForest(forest, v), NumTrees: clampCount(v, len(forest.Trees)), MaxDepth: cfgMax.MaxDepth}
+		ctx.ModelForValue = func(v int) ml.Model {
+			return &ml.ExtraTreesModel{Forest: prefixDecisionForest(forest, v), NumTrees: clampCount(v, len(forest.Trees)), MaxDepth: cfgMax.MaxDepth}
 		}
 	case ModelAdaBoost:
 		trainer := newSweepTrainer()
@@ -156,17 +157,17 @@ func buildIncrementalCountContext(profile sweepProfile, store *TrainingDataStore
 		if result.Error != "" {
 			return incrementalCountContext{}, fmt.Errorf("%s", result.Error)
 		}
-		ada, ok := unwrapModelType(model).(*AdaBoostModel)
+		ada, ok := ml.UnwrapModelType(model).(*ml.AdaBoostModel)
 		if !ok || ada == nil || len(ada.Stumps) == 0 {
 			return incrementalCountContext{}, fmt.Errorf("expected AdaBoost model for %s", profile.Name)
 		}
-		allSamples := toTrainSamples(labeled)
+		allSamples := ml.ToTrainSamples(labeled)
 		ctx.TrainSet = allSamples
 		ctx.ValSet = allSamples
 		ctx.ValRaw = labeled
 		ctx.TrainSamples = len(allSamples)
 		ctx.ValSamples = 0
-		ctx.ModelForValue = func(v int) Model {
+		ctx.ModelForValue = func(v int) ml.Model {
 			return prefixAdaBoostModel(ada, v)
 		}
 	default:
@@ -192,7 +193,7 @@ func runIncrementalCountValue(ctx incrementalCountContext, x int) sweepResult {
 	if len(ctx.ValRaw) > 0 {
 		allowPassRate = evaluateClassMetrics(model, ctx.ValRaw).AllowPassRate
 	}
-	inferenceDuration, inferenceThroughput, inferenceLatencyMs, inferenceSamples := benchmarkModelInference(model, ctx.Benchmark)
+	inferenceDuration, inferenceThroughput, inferenceLatencyMs, inferenceSamples := ml.BenchmarkModelInference(model, ctx.Benchmark)
 	ratio := float64(clampCount(x, ctx.MaxValue)) / float64(ctx.MaxValue)
 	return sweepResult{
 		Profile:             ctx.Profile.Name,
@@ -290,7 +291,7 @@ func annotateSweepResults(profile sweepProfile, results []sweepResult) []sweepRe
 	return out
 }
 
-func runSingleConfig(profile sweepProfile, store *TrainingDataStore, x, y int, benchmarkSamples []TrainingSample) (sweepResult, error) {
+func runSingleConfig(profile sweepProfile, store *ml.TrainingDataStore, x, y int, benchmarkSamples []ml.TrainingSample) (sweepResult, error) {
 	cfg := profile.Build(x, y)
 	trainer := newSweepTrainer()
 
@@ -336,7 +337,7 @@ func runSingleConfig(profile sweepProfile, store *TrainingDataStore, x, y int, b
 			row.AllowPassRate = evaluateClassMetrics(model, validationSamples).AllowPassRate
 		}
 		infStartMem := allocMem()
-		row.InferenceDuration, row.InferenceThroughput, row.InferenceLatencyMs, row.InferenceSamples = benchmarkModelInference(model, benchmarkSamples)
+		row.InferenceDuration, row.InferenceThroughput, row.InferenceLatencyMs, row.InferenceSamples = ml.BenchmarkModelInference(model, benchmarkSamples)
 		row.MemoryBytes = int64(allocMem()-infStartMem) + memUsed
 	} else {
 		row.MemoryBytes = memUsed
@@ -347,25 +348,21 @@ func runSingleConfig(profile sweepProfile, store *TrainingDataStore, x, y int, b
 	return row, nil
 }
 
-func newSweepTrainer() *ModelTrainer {
-	return &ModelTrainer{
-		mu:         make(chan struct{}, 1),
-		cancelCh:   make(chan struct{}),
-		logMaxSize: 64,
-	}
+func newSweepTrainer() *ml.ModelTrainer {
+	return ml.NewModelTrainer()
 }
 
-func selectBenchmarkSamples(samples []TrainingSample, target int) []TrainingSample {
+func selectBenchmarkSamples(samples []ml.TrainingSample, target int) []ml.TrainingSample {
 	if target <= 0 || len(samples) == 0 {
 		return nil
 	}
 	if target >= len(samples) {
-		return append([]TrainingSample(nil), samples...)
+		return append([]ml.TrainingSample(nil), samples...)
 	}
 	if target == 1 {
-		return []TrainingSample{samples[len(samples)/2]}
+		return []ml.TrainingSample{samples[len(samples)/2]}
 	}
-	out := make([]TrainingSample, 0, target)
+	out := make([]ml.TrainingSample, 0, target)
 	for i := 0; i < target; i++ {
 		idx := int(math.Round(float64(i) * float64(len(samples)-1) / float64(target-1)))
 		if idx < 0 {
@@ -379,44 +376,6 @@ func selectBenchmarkSamples(samples []TrainingSample, target int) []TrainingSamp
 	return out
 }
 
-func benchmarkModelInference(model Model, samples []TrainingSample) (float64, float64, float64, int) {
-	if model == nil || len(samples) == 0 {
-		return 0, 0, 0, 0
-	}
-	warmup := 8
-	if warmup > len(samples) {
-		warmup = len(samples)
-	}
-	for i := 0; i < warmup; i++ {
-		_ = model.Predict(samples[i].Features)
-	}
-
-	const targetPredictions = 256
-	rounds := targetPredictions / len(samples)
-	if targetPredictions%len(samples) != 0 {
-		rounds++
-	}
-	if rounds < 1 {
-		rounds = 1
-	}
-
-	totalPredictions := 0
-	start := time.Now()
-	for r := 0; r < rounds; r++ {
-		for _, sample := range samples {
-			_ = model.Predict(sample.Features)
-			totalPredictions++
-		}
-	}
-	duration := time.Since(start).Seconds()
-	if duration <= 0 {
-		duration = 1e-9
-	}
-	throughput := float64(totalPredictions) / duration
-	latencyMs := duration * 1000 / float64(totalPredictions)
-	return duration, throughput, latencyMs, totalPredictions
-}
-
 type classMetrics struct {
 	Accuracy      float64
 	AllowPassRate float64
@@ -424,7 +383,7 @@ type classMetrics struct {
 	AllowCorrect  int
 }
 
-func evaluateClassMetrics(model Model, samples []TrainingSample) classMetrics {
+func evaluateClassMetrics(model ml.Model, samples []ml.TrainingSample) classMetrics {
 	if model == nil || len(samples) == 0 {
 		return classMetrics{}
 	}

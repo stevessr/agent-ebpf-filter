@@ -16,12 +16,12 @@ import (
 
 // ClassicDataset holds a small built-in dataset with preprocessing and cached loads.
 type ClassicDataset struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description,omitempty"`
-	Features    [][]float64            `json:"features"`
-	Labels      []string               `json:"labels"`
-	Metadata    map[string]any         `json:"metadata,omitempty"`
-	Statistics  map[string]float64     `json:"statistics,omitempty"`
+	Name        string                    `json:"name"`
+	Description string                    `json:"description,omitempty"`
+	Features    [][]float64               `json:"features"`
+	Labels      []string                  `json:"labels"`
+	Metadata    map[string]any            `json:"metadata,omitempty"`
+	Statistics  map[string]float64        `json:"statistics,omitempty"`
 	Encodings   map[string]map[string]int `json:"encodings,omitempty"`
 }
 
@@ -36,7 +36,7 @@ type classicDatasetLoaderFunc struct {
 	load func() (*ClassicDataset, error)
 }
 
-func (l classicDatasetLoaderFunc) Name() string { return l.name }
+func (l classicDatasetLoaderFunc) Name() string                   { return l.name }
 func (l classicDatasetLoaderFunc) Load() (*ClassicDataset, error) { return l.load() }
 
 var (
@@ -288,8 +288,12 @@ func computeClassicDatasetStats(features [][]float64) map[string]float64 {
 		sum := 0.0
 		for r := 0; r < rows; r++ {
 			v := features[r][c]
-			if v < minV { minV = v }
-			if v > maxV { maxV = v }
+			if v < minV {
+				minV = v
+			}
+			if v > maxV {
+				maxV = v
+			}
 			sum += v
 		}
 		stats[fmt.Sprintf("col_%d_min", c)] = minV
@@ -310,8 +314,12 @@ func minMaxNormalize(features [][]float64) [][]float64 {
 	copy(maxs, features[0])
 	for r := 1; r < rows; r++ {
 		for c := 0; c < cols; c++ {
-			if features[r][c] < mins[c] { mins[c] = features[r][c] }
-			if features[r][c] > maxs[c] { maxs[c] = features[r][c] }
+			if features[r][c] < mins[c] {
+				mins[c] = features[r][c]
+			}
+			if features[r][c] > maxs[c] {
+				maxs[c] = features[r][c]
+			}
 		}
 	}
 	out := make([][]float64, rows)
@@ -386,9 +394,9 @@ func loadIrisDataset() (*ClassicDataset, error) {
 	return &ClassicDataset{
 		Name:        "iris",
 		Description: "Iris flower classification dataset",
-		Features: [][]float64{{5.1, 3.5, 1.4, 0.2}, {4.9, 3.0, 1.4, 0.2}, {6.2, 3.4, 5.4, 2.3}, {5.9, 3.0, 5.1, 1.8}},
-		Labels:   []string{"setosa", "setosa", "virginica", "virginica"},
-		Metadata: map[string]any{"classes": 3, "features": 4, "samples": 4},
+		Features:    [][]float64{{5.1, 3.5, 1.4, 0.2}, {4.9, 3.0, 1.4, 0.2}, {6.2, 3.4, 5.4, 2.3}, {5.9, 3.0, 5.1, 1.8}},
+		Labels:      []string{"setosa", "setosa", "virginica", "virginica"},
+		Metadata:    map[string]any{"classes": 3, "features": 4, "samples": 4},
 	}, nil
 }
 
@@ -396,9 +404,9 @@ func loadWineDataset() (*ClassicDataset, error) {
 	return &ClassicDataset{
 		Name:        "wine",
 		Description: "Wine recognition dataset",
-		Features: [][]float64{{14.23, 1.71, 2.43}, {13.20, 1.78, 2.14}, {12.37, 1.17, 1.92}},
-		Labels:   []string{"1", "1", "2"},
-		Metadata: map[string]any{"classes": 3, "features": 3, "samples": 3},
+		Features:    [][]float64{{14.23, 1.71, 2.43}, {13.20, 1.78, 2.14}, {12.37, 1.17, 1.92}},
+		Labels:      []string{"1", "1", "2"},
+		Metadata:    map[string]any{"classes": 3, "features": 3, "samples": 3},
 	}, nil
 }
 
@@ -406,9 +414,9 @@ func loadBreastCancerDataset() (*ClassicDataset, error) {
 	return &ClassicDataset{
 		Name:        "breast_cancer",
 		Description: "Breast cancer diagnostic dataset",
-		Features: [][]float64{{17.99, 10.38, 122.8}, {20.57, 17.77, 132.9}, {19.69, 21.25, 130.0}},
-		Labels:   []string{"malignant", "malignant", "benign"},
-		Metadata: map[string]any{"classes": 2, "features": 3, "samples": 3},
+		Features:    [][]float64{{17.99, 10.38, 122.8}, {20.57, 17.77, 132.9}, {19.69, 21.25, 130.0}},
+		Labels:      []string{"malignant", "malignant", "benign"},
+		Metadata:    map[string]any{"classes": 2, "features": 3, "samples": 3},
 	}, nil
 }
 

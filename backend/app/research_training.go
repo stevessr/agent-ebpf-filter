@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"agent-ebpf-filter/app/ml"
 	"agent-ebpf-filter/internal/behavior"
 
 	"github.com/gin-gonic/gin"
@@ -24,68 +25,68 @@ const (
 )
 
 type ResearchTrainingDataset struct {
-	SchemaVersion string                     `json:"schemaVersion"`
-	SessionID     string                     `json:"sessionId"`
-	GeneratedAt   time.Time                  `json:"generatedAt"`
-	LabelPolicy   string                     `json:"labelPolicy"`
-	FeatureDim    int                        `json:"featureDim"`
-	FeatureNames  []string                   `json:"featureNames"`
-	SampleCount   int                        `json:"sampleCount"`
-	LabeledCount  int                        `json:"labeledCount"`
-	ByLabel       []researchCount            `json:"byLabel"`
-	ByCategory    []researchCount            `json:"byCategory,omitempty"`
-	BySource      []researchCount            `json:"bySource,omitempty"`
-	Normalization FeatureNormalizationReport `json:"normalization"`
-	Quality       DatasetQualitySummary      `json:"quality"`
-	Samples       []ResearchTrainingSample   `json:"samples,omitempty"`
+	SchemaVersion string                        `json:"schemaVersion"`
+	SessionID     string                        `json:"sessionId"`
+	GeneratedAt   time.Time                     `json:"generatedAt"`
+	LabelPolicy   string                        `json:"labelPolicy"`
+	FeatureDim    int                           `json:"featureDim"`
+	FeatureNames  []string                      `json:"featureNames"`
+	SampleCount   int                           `json:"sampleCount"`
+	LabeledCount  int                           `json:"labeledCount"`
+	ByLabel       []researchCount               `json:"byLabel"`
+	ByCategory    []researchCount               `json:"byCategory,omitempty"`
+	BySource      []researchCount               `json:"bySource,omitempty"`
+	Normalization ml.FeatureNormalizationReport `json:"normalization"`
+	Quality       DatasetQualitySummary         `json:"quality"`
+	Samples       []ResearchTrainingSample      `json:"samples,omitempty"`
 }
 
 type ResearchTrainingSample struct {
-	SampleID       string         `json:"sampleId"`
-	EventID        string         `json:"eventId"`
-	Timestamp      int64          `json:"timestamp"`
-	Time           string         `json:"time"`
-	Source         string         `json:"source"`
-	EventType      string         `json:"eventType"`
-	PID            uint32         `json:"pid,omitempty"`
-	Comm           string         `json:"comm"`
-	CommandLine    string         `json:"commandLine"`
-	Args           []string       `json:"args"`
-	Category       string         `json:"category"`
-	Target         string         `json:"target,omitempty"`
-	TraceID        string         `json:"traceId,omitempty"`
-	SpanID         string         `json:"spanId,omitempty"`
-	Decision       string         `json:"decision,omitempty"`
-	RiskScore      float64        `json:"riskScore,omitempty"`
-	Label          int32          `json:"label"`
-	LabelName      string         `json:"labelName"`
-	LabelSource    string         `json:"labelSource"`
-	AnomalyScore   float64        `json:"anomalyScore"`
-	FeatureVector  []float64      `json:"featureVector"`
-	FeatureSpace   string         `json:"featureSpace"`
-	FeatureVersion string         `json:"featureVersion"`
-	Metadata       map[string]any `json:"metadata,omitempty"`
-	trainingSample TrainingSample `json:"-"`
+	SampleID       string            `json:"sampleId"`
+	EventID        string            `json:"eventId"`
+	Timestamp      int64             `json:"timestamp"`
+	Time           string            `json:"time"`
+	Source         string            `json:"source"`
+	EventType      string            `json:"eventType"`
+	PID            uint32            `json:"pid,omitempty"`
+	Comm           string            `json:"comm"`
+	CommandLine    string            `json:"commandLine"`
+	Args           []string          `json:"args"`
+	Category       string            `json:"category"`
+	Target         string            `json:"target,omitempty"`
+	TraceID        string            `json:"traceId,omitempty"`
+	SpanID         string            `json:"spanId,omitempty"`
+	Decision       string            `json:"decision,omitempty"`
+	RiskScore      float64           `json:"riskScore,omitempty"`
+	Label          int32             `json:"label"`
+	LabelName      string            `json:"labelName"`
+	LabelSource    string            `json:"labelSource"`
+	AnomalyScore   float64           `json:"anomalyScore"`
+	FeatureVector  []float64         `json:"featureVector"`
+	FeatureSpace   string            `json:"featureSpace"`
+	FeatureVersion string            `json:"featureVersion"`
+	Metadata       map[string]any    `json:"metadata,omitempty"`
+	trainingSample ml.TrainingSample `json:"-"`
 }
 
 type ResearchTrainingImportResponse struct {
-	SessionID       string                     `json:"sessionId"`
-	LabelPolicy     string                     `json:"labelPolicy"`
-	Total           int                        `json:"total"`
-	Imported        int                        `json:"imported"`
-	Skipped         int                        `json:"skipped"`
-	TotalSamples    int                        `json:"totalSamples"`
-	LabeledSamples  int                        `json:"labeledSamples"`
-	SkippedByReason []researchCount            `json:"skippedByReason,omitempty"`
-	Normalization   FeatureNormalizationReport `json:"normalization"`
-	Quality         DatasetQualitySummary      `json:"quality"`
-	ImportedSamples []ResearchTrainingSample   `json:"importedSamples,omitempty"`
+	SessionID       string                        `json:"sessionId"`
+	LabelPolicy     string                        `json:"labelPolicy"`
+	Total           int                           `json:"total"`
+	Imported        int                           `json:"imported"`
+	Skipped         int                           `json:"skipped"`
+	TotalSamples    int                           `json:"totalSamples"`
+	LabeledSamples  int                           `json:"labeledSamples"`
+	SkippedByReason []researchCount               `json:"skippedByReason,omitempty"`
+	Normalization   ml.FeatureNormalizationReport `json:"normalization"`
+	Quality         DatasetQualitySummary         `json:"quality"`
+	ImportedSamples []ResearchTrainingSample      `json:"importedSamples,omitempty"`
 }
 
 func buildResearchTrainingDataset(sessionID string, events []ResearchEvent, labelPolicy string, includeSamples bool) ResearchTrainingDataset {
 	labelPolicy = normalizeResearchTrainingLabelPolicy(labelPolicy)
 	trainingSamples := make([]ResearchTrainingSample, 0, len(events))
-	mlSamples := make([]TrainingSample, 0, len(events))
+	mlSamples := make([]ml.TrainingSample, 0, len(events))
 	byLabel := map[string]int{}
 	byCategory := map[string]int{}
 	bySource := map[string]int{}
@@ -106,7 +107,7 @@ func buildResearchTrainingDataset(sessionID string, events []ResearchEvent, labe
 		incrementResearchCount(bySource, sample.Source)
 		if sample.Label >= 0 && sample.Label <= 3 {
 			labeled++
-			key := commandKey(sample.trainingSample.Comm, sample.trainingSample.Args)
+			key := behavior.CommandKey(sample.trainingSample.Comm, sample.trainingSample.Args)
 			if _, ok := seenCommands[key]; ok {
 				duplicates++
 			} else {
@@ -117,7 +118,7 @@ func buildResearchTrainingDataset(sessionID string, events []ResearchEvent, labe
 			unlabeled++
 		}
 	}
-	normalization := summarizeFeatureNormalization(mlSamples)
+	normalization := ml.SummarizeFeatureNormalization(mlSamples)
 	dataset := ResearchTrainingDataset{
 		SchemaVersion: researchTrainingSchemaVersion,
 		SessionID:     sessionID,
@@ -153,7 +154,7 @@ func researchTrainingSampleFromEvent(event ResearchEvent, labelPolicy string) (R
 	if event.Timestamp <= 0 {
 		timestamp = time.Now().UTC()
 	}
-	mlSample := TrainingSample{
+	mlSample := ml.TrainingSample{
 		Features:     features,
 		Label:        label,
 		CommandLine:  commandLine,
@@ -215,21 +216,21 @@ func researchCommandPartsFromEvent(event ResearchEvent) (string, []string, strin
 		commandLine = strings.TrimSpace(event.Target)
 	}
 	if commandLine == "" && comm != "" && strings.TrimSpace(event.Target) != "" {
-		commandLine = joinCommandLine(comm, []string{event.Target})
+		commandLine = behavior.JoinCommandLine(comm, []string{event.Target})
 	}
 	if commandLine == "" {
 		commandLine = comm
 	}
-	parsedComm, args := normalizeCommandInput(commandLine, comm, nil)
+	parsedComm, args := behavior.NormalizeCommandInput(commandLine, comm, nil)
 	if parsedComm != "" {
 		comm = parsedComm
 	}
 	if len(args) == 0 && strings.TrimSpace(event.Target) != "" && !strings.EqualFold(strings.TrimSpace(event.Target), comm) {
 		args = []string{event.Target}
-		commandLine = joinCommandLine(comm, args)
+		commandLine = behavior.JoinCommandLine(comm, args)
 	}
 	if commandLine == "" {
-		commandLine = joinCommandLine(comm, args)
+		commandLine = behavior.JoinCommandLine(comm, args)
 	}
 	return comm, args, commandLine
 }
@@ -255,16 +256,16 @@ func researchTrainingLabelForEvent(event ResearchEvent, labelPolicy string) (int
 		if decision == "" {
 			return -1, "UNLABELED", "research-decision-missing"
 		}
-		return actionFromLabel(decision), sampleLabelName(actionFromLabel(decision)), "research-decision"
+		return ml.ActionFromLabel(decision), sampleLabelName(ml.ActionFromLabel(decision)), "research-decision"
 	default:
 		if decision != "" {
-			label := actionFromLabel(decision)
+			label := ml.ActionFromLabel(decision)
 			return label, sampleLabelName(label), "research-decision"
 		}
 		if event.RiskScore >= 90 || strings.Contains(strings.ToLower(event.EventType), "alert") {
-			return actionFromLabel("ALERT"), "ALERT", "research-risk-heuristic"
+			return ml.ActionFromLabel("ALERT"), "ALERT", "research-risk-heuristic"
 		}
-		return actionFromLabel("ALLOW"), "ALLOW", "research-low-risk-heuristic"
+		return ml.ActionFromLabel("ALLOW"), "ALLOW", "research-low-risk-heuristic"
 	}
 }
 
@@ -400,7 +401,7 @@ func handleResearchSessionTraining(c *gin.Context) {
 
 func handleResearchSessionTrainingImport(c *gin.Context) {
 	sessionID := c.Param("id")
-	if globalTrainingStore == nil {
+	if ml.GlobalTrainingStore == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ML training store not initialized"})
 		return
 	}
@@ -440,14 +441,14 @@ func handleResearchSessionTrainingImport(c *gin.Context) {
 			incrementResearchCount(skipReasons, "unlabeled")
 			continue
 		}
-		key := commandKey(sample.trainingSample.Comm, sample.trainingSample.Args) + "\x00" + sample.LabelName
+		key := behavior.CommandKey(sample.trainingSample.Comm, sample.trainingSample.Args) + "\x00" + sample.LabelName
 		if _, ok := seen[key]; ok {
 			skipped++
 			incrementResearchCount(skipReasons, "duplicate_in_dataset")
 			continue
 		}
 		seen[key] = struct{}{}
-		if globalTrainingStore.HasExactCommand(sample.trainingSample.Comm, sample.trainingSample.Args) {
+		if ml.GlobalTrainingStore.HasExactCommand(sample.trainingSample.Comm, sample.trainingSample.Args) {
 			skipped++
 			incrementResearchCount(skipReasons, "duplicate_in_store")
 			continue
@@ -456,18 +457,18 @@ func handleResearchSessionTrainingImport(c *gin.Context) {
 			importedSamples = append(importedSamples, sample)
 			continue
 		}
-		globalTrainingStore.Add(sample.trainingSample)
+		ml.GlobalTrainingStore.Add(sample.trainingSample)
 		recordCommandSampleSideEffects(sample.trainingSample)
 		imported++
 		importedSamples = append(importedSamples, sample)
 	}
 	if !req.Preview {
-		if err := globalTrainingStore.Flush(); err != nil {
+		if err := ml.GlobalTrainingStore.Flush(); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 	}
-	total, labeled := globalTrainingStore.Status()
+	total, labeled := ml.GlobalTrainingStore.Status()
 	if !req.Preview {
 		log.Printf("[Research] Training import session=%q policy=%s total=%d imported=%d skipped=%d limit=%d", sessionID, labelPolicy, len(dataset.Samples), imported, skipped, limit)
 	}

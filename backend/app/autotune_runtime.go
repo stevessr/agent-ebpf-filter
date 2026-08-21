@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"errors"
 	"fmt"
 	"log"
@@ -9,11 +10,11 @@ import (
 )
 
 type mlAutoTuneParamsTask struct {
-	Request MLAutoTuneRequest
+	Request ml.MLAutoTuneRequest
 }
 
 type mlAutoTuneModelsTask struct {
-	Request    MLModelTuneRequest
+	Request    ml.MLModelTuneRequest
 	ModelTypes []ModelType
 }
 
@@ -34,7 +35,7 @@ func runMLAutoTuneTask(entry *backendTaskRuntimeEntry) (err error) {
 		if recovered := recover(); recovered != nil {
 			message := fmt.Sprintf("panic: %v", recovered)
 			log.Printf("[ML] Auto-tune panic: %v", recovered)
-			globalAutoTuneState.setError(jobID, message)
+			ml.GlobalAutoTuneState.SetError(jobID, message)
 			err = newBackendTaskPanicError(recovered)
 		}
 	}()
@@ -46,7 +47,7 @@ func runMLAutoTuneTask(entry *backendTaskRuntimeEntry) (err error) {
 		defer close(cancelWatchDone)
 		select {
 		case <-entry.cancel:
-			globalTrainer.requestCancel()
+			ml.GlobalTrainer.RequestCancel()
 		case <-stopCancelWatch:
 		}
 	}()
@@ -62,50 +63,50 @@ func runMLAutoTuneTask(entry *backendTaskRuntimeEntry) (err error) {
 		return runMLAutoTuneModelsTask(entry, jobID, payload)
 	default:
 		err := fmt.Errorf("unsupported ML auto-tune payload %T", payload)
-		globalAutoTuneState.setError(jobID, err.Error())
+		ml.GlobalAutoTuneState.SetError(jobID, err.Error())
 		return err
 	}
 }
 
-func runMLAutoTuneParamsTask(entry *backendTaskRuntimeEntry, jobID string, req MLAutoTuneRequest) error {
+func runMLAutoTuneParamsTask(entry *backendTaskRuntimeEntry, jobID string, req ml.MLAutoTuneRequest) error {
 	cfg := currentMLConfig()
 	log.Printf("[ML] Auto-tune started: jobID=%s, model=%s, grid=%dx%d, x=%s, y=%s",
 		jobID, cfg.ModelType, req.GridSize, req.GridSize, req.XAxis, req.YAxis)
-	resp, err := globalTrainer.AutoTuneWithConfig(globalTrainingStore, cfg, req, func(completed, total int, message string) {
+	resp, err := ml.GlobalTrainer.AutoTuneWithConfig(ml.GlobalTrainingStore, cfg, req, func(completed, total int, message string) {
 		if total > 0 {
 			entry.SetProgress(float64(completed) / float64(total))
 		}
 		if completed%5 == 0 || completed == total {
 			log.Printf("[ML] Auto-tune progress: %d/%d — %s", completed, total, message)
 		}
-		globalAutoTuneState.update(jobID, completed, total, message)
+		ml.GlobalAutoTuneState.Update(jobID, completed, total, message)
 	})
 	if err != nil {
 		log.Printf("[ML] Auto-tune error: %v", err)
 	} else {
-		log.Printf("[ML] Auto-tune done: %d cells, best score=%.4f", len(resp.Cells), autoTuneBestScore(resp))
+		log.Printf("[ML] Auto-tune done: %d cells, best score=%.4f", len(resp.Cells), ml.AutoTuneBestScore(resp))
 	}
-	globalAutoTuneState.finish(jobID, resp, err)
+	ml.GlobalAutoTuneState.Finish(jobID, resp, err)
 	return normalizeMLAutoTuneTaskError(entry, err)
 }
 
 func runMLAutoTuneModelsTask(entry *backendTaskRuntimeEntry, jobID string, payload mlAutoTuneModelsTask) error {
-	resp, err := runModelAutoTuneWithCancel(globalTrainingStore, payload.Request, payload.ModelTypes, func(completed, total int, message string) {
+	resp, err := runModelAutoTuneWithCancel(ml.GlobalTrainingStore, payload.Request, payload.ModelTypes, func(completed, total int, message string) {
 		if total > 0 {
 			entry.SetProgress(float64(completed) / float64(total))
 		}
-		globalAutoTuneState.update(jobID, completed, total, message)
+		ml.GlobalAutoTuneState.Update(jobID, completed, total, message)
 	}, entry.IsCanceled)
 	if err != nil {
-		log.Printf("[ML] Model auto-tune error: %v", err)
+		log.Printf("[ML] ml.Model auto-tune error: %v", err)
 	} else {
 		best := ""
 		if resp.Best != nil {
 			best = resp.Best.ModelType
 		}
-		log.Printf("[ML] Model auto-tune done: %d candidates, best=%s", len(resp.Candidates), best)
+		log.Printf("[ML] ml.Model auto-tune done: %d candidates, best=%s", len(resp.Candidates), best)
 	}
-	globalAutoTuneState.finishModelTune(jobID, resp, err)
+	ml.GlobalAutoTuneState.FinishModelTune(jobID, resp, err)
 	return normalizeMLAutoTuneTaskError(entry, err)
 }
 
@@ -120,12 +121,12 @@ func normalizeMLAutoTuneTaskError(entry *backendTaskRuntimeEntry, err error) err
 }
 
 func cancelMLAutoTuneTasks() {
-	state := globalAutoTuneState.snapshot()
+	state := ml.GlobalAutoTuneState.Snapshot()
 	if state.JobID != "" {
 		mlAutoTuneTasks.Cancel(state.JobID)
 	}
-	globalTrainer.requestCancel()
+	ml.GlobalTrainer.RequestCancel()
 	if state.Running {
-		globalAutoTuneState.setError(state.JobID, "cancelled")
+		ml.GlobalAutoTuneState.SetError(state.JobID, "cancelled")
 	}
 }

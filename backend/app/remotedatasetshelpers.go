@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"context"
 	"errors"
 	"fmt"
@@ -307,7 +308,7 @@ func parseDatasetLimit(limit int) int {
 	return limit
 }
 
-func trainingSampleToRemoteDatasetRow(index int, sample TrainingSample) remoteDatasetRow {
+func trainingSampleToRemoteDatasetRow(index int, sample ml.TrainingSample) remoteDatasetRow {
 	label := sampleLabelName(sample.Label)
 	if label == "" {
 		label = "-"

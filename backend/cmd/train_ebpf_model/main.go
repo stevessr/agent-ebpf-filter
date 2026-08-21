@@ -2,6 +2,7 @@ package main
 
 import (
 	"agent-ebpf-filter/app"
+	"agent-ebpf-filter/app/ml"
 	"fmt"
 	"os"
 )
@@ -14,7 +15,7 @@ func main() {
 	fmt.Println("🌲 创建轻量级随机森林...")
 	fmt.Println("配置：trees=15, depth=6, min_leaf=4")
 
-	forest := app.NewDecisionForest(15, 6, 4)
+	forest := ml.NewDecisionForest(15, 6, 4)
 	fmt.Println("✅ 模型创建成功")
 	fmt.Println()
 

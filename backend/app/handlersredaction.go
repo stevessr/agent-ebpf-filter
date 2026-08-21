@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"agent-ebpf-filter/redaction"
+
 	"github.com/gin-gonic/gin"
 )
 

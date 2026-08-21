@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"context"
 	"testing"
 	"time"
@@ -8,16 +9,16 @@ import (
 
 func TestMLAutoTrainLoopSurvivesDisabledRuntimeAndReloadsInterval(t *testing.T) {
 	previousRuntime := runtimeSettingsStore
-	previousStore := globalTrainingStore
+	previousStore := ml.GlobalTrainingStore
 	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{MLConfig: MLConfig{
 		Enabled:       false,
 		AutoTrain:     false,
 		TrainInterval: "5ms",
 	}}}
-	globalTrainingStore = nil
+	ml.GlobalTrainingStore = nil
 	t.Cleanup(func() {
 		runtimeSettingsStore = previousRuntime
-		globalTrainingStore = previousStore
+		ml.GlobalTrainingStore = previousStore
 	})
 
 	var intervals []time.Duration
@@ -65,9 +66,9 @@ func TestMLAutoTrainIntervalUsesSafeFallback(t *testing.T) {
 }
 
 func TestMLBackgroundLoopsStopOnContextCancellation(t *testing.T) {
-	previousStore := globalTrainingStore
-	globalTrainingStore = nil
-	t.Cleanup(func() { globalTrainingStore = previousStore })
+	previousStore := ml.GlobalTrainingStore
+	ml.GlobalTrainingStore = nil
+	t.Cleanup(func() { ml.GlobalTrainingStore = previousStore })
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -87,5 +88,15 @@ func TestMLBackgroundLoopsStopOnContextCancellation(t *testing.T) {
 				t.Fatalf("%s loop did not stop after context cancellation", name)
 			}
 		})
+	}
+}
+
+func TestMLStatusUsesPublishedRuntimeConfig(t *testing.T) {
+	const modelPath = "/tmp/published-ml-model.bin"
+	status := mlStatusFromRuntime(ml.MLRuntimeSnapshot{
+		Config: ml.MLConfig{ModelPath: modelPath},
+	})
+	if status.GetModelPath() != modelPath {
+		t.Fatalf("model path = %q, want published runtime path %q", status.GetModelPath(), modelPath)
 	}
 }

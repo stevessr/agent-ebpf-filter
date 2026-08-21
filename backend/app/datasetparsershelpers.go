@@ -1,6 +1,8 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
+	"agent-ebpf-filter/internal/behavior"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -16,18 +18,18 @@ func normalizeDatasetLabelValue(raw any) string {
 		return normalizeActionLabel(v)
 	case json.Number:
 		if n, err := strconv.Atoi(v.String()); err == nil {
-			return actionLabel[int32(n)]
+			return ml.ActionLabel[int32(n)]
 		}
 	case float64:
-		return actionLabel[int32(v)]
+		return ml.ActionLabel[int32(v)]
 	case int:
-		return actionLabel[int32(v)]
+		return ml.ActionLabel[int32(v)]
 	case int64:
-		return actionLabel[int32(v)]
+		return ml.ActionLabel[int32(v)]
 	case uint32:
-		return actionLabel[int32(v)]
+		return ml.ActionLabel[int32(v)]
 	case uint64:
-		return actionLabel[int32(v)]
+		return ml.ActionLabel[int32(v)]
 	}
 	return ""
 }
@@ -53,11 +55,11 @@ func extractDatasetArgs(row map[string]any, commandLine string) []string {
 	}
 	if raw := firstAnyValue(row, "args", "argv", "arguments", "commandArgs"); raw != nil {
 		if str, ok := raw.(string); ok && strings.TrimSpace(str) != "" {
-			return splitCommandLine(str)
+			return behavior.SplitCommandLine(str)
 		}
 	}
 	if commandLine != "" {
-		_, args := normalizeCommandInput(commandLine, "", nil)
+		_, args := behavior.NormalizeCommandInput(commandLine, "", nil)
 		return args
 	}
 	return nil
@@ -82,7 +84,7 @@ func extractDatasetStringSlice(row map[string]any, keys ...string) []string {
 			}
 		case string:
 			if strings.TrimSpace(value) != "" {
-				return splitCommandLine(value)
+				return behavior.SplitCommandLine(value)
 			}
 		}
 	}

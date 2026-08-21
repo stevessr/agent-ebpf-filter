@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"errors"
 	"fmt"
 	"io"
@@ -42,7 +43,7 @@ func openResearchRoot(base string) (*os.File, error) {
 	if abs == string(os.PathSeparator) {
 		return nil, errors.New("research root must not be filesystem root")
 	}
-	f, err := secureOpenOrCreateDirectory(abs)
+	f, err := platform.SecureOpenOrCreateDir(abs)
 	if err != nil {
 		return nil, fmt.Errorf("open research root: %w", err)
 	}
@@ -50,7 +51,7 @@ func openResearchRoot(base string) (*os.File, error) {
 		f.Close()
 		return nil, err
 	}
-	if err = chownArtifactFile(f); err != nil {
+	if err = platform.ChownArtifactFile(f); err != nil {
 		f.Close()
 		return nil, err
 	}
@@ -80,7 +81,7 @@ func openResearchDirChild(parent *os.File, name string, create bool) (*os.File, 
 		_ = f.Close()
 		return nil, err
 	}
-	if err := chownArtifactFile(f); err != nil {
+	if err := platform.ChownArtifactFile(f); err != nil {
 		_ = f.Close()
 		return nil, err
 	}
@@ -113,7 +114,7 @@ func atomicWriteResearchFile(dir *os.File, name string, payload []byte, maxBytes
 	if maxBytes <= 0 || int64(len(payload)) > maxBytes {
 		return errors.New("research file exceeds size limit")
 	}
-	f, tmp, err := createRecordingTemp(dir, "research")
+	f, tmp, err := platform.CreateTempSibling(dir, "research")
 	if err != nil {
 		return err
 	}
@@ -130,7 +131,7 @@ func atomicWriteResearchFile(dir *os.File, name string, payload []byte, maxBytes
 	if err = f.Sync(); err != nil {
 		return err
 	}
-	if err = replaceRecordingDestination(dir, tmp, name); err != nil {
+	if err = platform.ReplaceFileInDir(dir, tmp, name); err != nil {
 		return err
 	}
 	cleanup = false
@@ -140,8 +141,12 @@ func readResearchFile(dir *os.File, name string, maxBytes int64) ([]byte, error)
 	if _, err := validateResearchFileComponent(name, "filename", true); err != nil {
 		return nil, err
 	}
-	f, err := openRecordingChild(dir, name, os.O_RDONLY, 0)
+	f, err := platform.OpenBeneath(dir, name, os.O_RDONLY, 0)
 	if err != nil {
+		return nil, err
+	}
+	if err := platform.ValidateRegularSingleLink(f); err != nil {
+		_ = f.Close()
 		return nil, err
 	}
 	defer f.Close()
@@ -189,8 +194,12 @@ func validateResearchRegularEntry(dir *os.File, name string) error {
 }
 
 func researchFileInfo(dir *os.File, name string) (os.FileInfo, error) {
-	f, err := openRecordingChild(dir, name, os.O_RDONLY, 0)
+	f, err := platform.OpenBeneath(dir, name, os.O_RDONLY, 0)
 	if err != nil {
+		return nil, err
+	}
+	if err := platform.ValidateRegularSingleLink(f); err != nil {
+		_ = f.Close()
 		return nil, err
 	}
 	defer f.Close()

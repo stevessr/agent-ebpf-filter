@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"agent-ebpf-filter/app/ml"
 	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/internal/behavior"
 	"agent-ebpf-filter/pb"
@@ -115,15 +116,15 @@ func TestRuntimeReplaySuite(t *testing.T) {
 	origTracked := trackedProcessContexts
 	origSemanticState := semanticAlertsState
 	origToolBaseline := toolBaseline
-	origMLRuntime := snapshotMLRuntime()
+	origMLRuntime := ml.SnapshotMLRuntime()
 	defer func() {
 		trackedProcessContexts = origTracked
 		semanticAlertsState = origSemanticState
 		toolBaseline = origToolBaseline
-		replaceMLRuntime(origMLRuntime)
+		ml.ReplaceMLRuntime(origMLRuntime)
 	}()
 
-	replaceMLRuntime(mlRuntimeSnapshot{
+	ml.ReplaceMLRuntime(ml.MLRuntimeSnapshot{
 		Config:  DefaultMLConfig(),
 		Enabled: false,
 	})
@@ -358,8 +359,8 @@ func simulateWrapperDecision(req *pb.WrapperRequest) string {
 		return ""
 	}
 	classification := behavior.ClassifyBehavior(req.GetComm(), req.GetArgs())
-	action, _ := resolveAction(req, "", 0, classification, 0, Prediction{}, DefaultMLConfig(), false, false)
-	return actionLabel[int32(action)]
+	action, _ := resolveAction(req, "", 0, classification, 0, ml.Prediction{}, DefaultMLConfig(), false, false)
+	return ml.ActionLabel[int32(action)]
 }
 
 func contextMatchesSeed(envelope *pb.EventEnvelope, seed *pb.WrapperRequest) bool {

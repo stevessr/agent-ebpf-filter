@@ -1,15 +1,16 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"encoding/json"
 	"fmt"
 	"os"
 )
 
 // ExportModelToEBPF 将训练好的决策森林导出为 eBPF 格式
-func ExportModelToEBPF(model *DecisionForest, outputPath string) error {
+func ExportModelToEBPF(model *ml.DecisionForest, outputPath string) error {
 	// 简化的导出：直接将现有结构序列化
-	// 实际的 DecisionForest 没有公开的树结构
+	// 实际的 ml.DecisionForest 没有公开的树结构
 	// 我们创建一个简化的表示
 
 	forestJSON := map[string]interface{}{
@@ -51,7 +52,7 @@ func generateSimplifiedNodes(depth int) []map[string]interface{} {
 		isLeaf := leftChild >= numNodes
 
 		node := map[string]interface{}{
-			"feature_idx": i % 4,  // Iris 有 4 个特征
+			"feature_idx": i % 4, // Iris 有 4 个特征
 			"threshold":   0.5,
 			"is_leaf":     isLeaf,
 			"leaf_value":  i % 3, // 3 个类别
@@ -72,7 +73,7 @@ func generateSimplifiedNodes(depth int) []map[string]interface{} {
 }
 
 // AnalyzeModelSize 分析模型大小
-func AnalyzeModelSize(forest *DecisionForest) map[string]interface{} {
+func AnalyzeModelSize(forest *ml.DecisionForest) map[string]interface{} {
 	numTrees := len(forest.Trees)
 
 	// 估算：depth=6 的完全二叉树有 63 个节点

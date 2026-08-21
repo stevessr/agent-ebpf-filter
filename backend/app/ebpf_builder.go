@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"bytes"
 	"context"
 	"errors"
@@ -277,7 +278,7 @@ func compileUserBPFInDir(ctx context.Context, clang, pluginID, source, pluginDir
 	case <-ctx.Done():
 		return "", nil, fmt.Errorf("clang compile queue: %w", ctx.Err())
 	}
-	dir, err := secureOpenOrCreateDirectory(pluginDir)
+	dir, err := platform.SecureOpenOrCreateDir(pluginDir)
 	if err != nil {
 		return "", nil, fmt.Errorf("open plugin directory: %w", err)
 	}
@@ -285,10 +286,10 @@ func compileUserBPFInDir(ctx context.Context, clang, pluginID, source, pluginDir
 	if err := dir.Chmod(0o700); err != nil {
 		return "", nil, err
 	}
-	if err := chownArtifactFile(dir); err != nil {
+	if err := platform.ChownArtifactFile(dir); err != nil {
 		return "", nil, err
 	}
-	sourceFile, sourceTemp, err := createRecordingTemp(dir, "source")
+	sourceFile, sourceTemp, err := platform.CreateTempSibling(dir, "source")
 	if err != nil {
 		return "", nil, err
 	}
@@ -308,12 +309,12 @@ func compileUserBPFInDir(ctx context.Context, clang, pluginID, source, pluginDir
 	if err := sourceFile.Close(); err != nil {
 		return "", nil, err
 	}
-	sourceInput, err := openRecordingChild(dir, sourceTemp, os.O_RDONLY, 0)
+	sourceInput, err := platform.OpenBeneath(dir, sourceTemp, os.O_RDONLY, 0)
 	if err != nil {
 		return "", nil, err
 	}
 	defer sourceInput.Close()
-	objectFile, objectTemp, err := createRecordingTemp(dir, "object")
+	objectFile, objectTemp, err := platform.CreateTempSibling(dir, "object")
 	if err != nil {
 		return "", nil, err
 	}
@@ -348,7 +349,7 @@ func compileUserBPFInDir(ctx context.Context, clang, pluginID, source, pluginDir
 		}
 		return "", out, fmt.Errorf("clang failed: %w: %s", err, strings.TrimSpace(string(out)))
 	}
-	if err := validateRecordingRegularFile(objectFile); err != nil {
+	if err := platform.ValidateRegularSingleLink(objectFile); err != nil {
 		return "", out, fmt.Errorf("validate clang object: %w", err)
 	}
 	info, err := objectFile.Stat()
@@ -361,20 +362,20 @@ func compileUserBPFInDir(ctx context.Context, clang, pluginID, source, pluginDir
 	if err := objectFile.Sync(); err != nil {
 		return "", out, err
 	}
-	if err := rejectUnsafeRecordingDestination(dir, "source.c"); err != nil {
+	if err := platform.RejectNonRegularOrMultiLink(dir, "source.c"); err != nil {
 		return "", out, fmt.Errorf("validate published source destination: %w", err)
 	}
-	if err := rejectUnsafeRecordingDestination(dir, "program.o"); err != nil {
+	if err := platform.RejectNonRegularOrMultiLink(dir, "program.o"); err != nil {
 		return "", out, fmt.Errorf("validate published object destination: %w", err)
 	}
 	// Publish the executable object first. Until RecordCompile advances the
 	// manifest checksum, a crash or partial publication therefore fails closed
 	// instead of loading an old object under newly displayed source.
-	if err := replaceRecordingDestination(dir, objectTemp, "program.o"); err != nil {
+	if err := platform.ReplaceFileInDir(dir, objectTemp, "program.o"); err != nil {
 		return "", out, err
 	}
 	objectPublished = true
-	if err := replaceRecordingDestination(dir, sourceTemp, "source.c"); err != nil {
+	if err := platform.ReplaceFileInDir(dir, sourceTemp, "source.c"); err != nil {
 		return "", out, err
 	}
 	sourcePublished = true

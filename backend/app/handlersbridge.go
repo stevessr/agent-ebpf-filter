@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"agent-ebpf-filter/app/handlers"
+	"agent-ebpf-filter/app/ml"
 	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/app/shell"
 	"agent-ebpf-filter/app/tls"
@@ -802,11 +803,11 @@ func init() {
 func initMLHandlersDeps() {
 	handlers.Deps.MLStatus = mlStatus
 	handlers.Deps.BuildMLStatusJSON = buildMLStatusJSON
-	handlers.Deps.MLEnabled = func() bool { return snapshotMLRuntime().Enabled }
-	handlers.Deps.MLConfig = func() core.MLConfig { return snapshotMLRuntime().Config }
+	handlers.Deps.MLEnabled = func() bool { return ml.SnapshotMLRuntime().Enabled }
+	handlers.Deps.MLConfig = func() core.MLConfig { return ml.SnapshotMLRuntime().Config }
 	handlers.Deps.CurrentMLConfig = currentMLConfig
-	handlers.Deps.MLIsRunning = globalTrainer.IsRunning
-	handlers.Deps.MLLogTotal = globalTrainer.LogTotal
+	handlers.Deps.MLIsRunning = ml.GlobalTrainer.IsRunning
+	handlers.Deps.MLLogTotal = ml.GlobalTrainer.LogTotal
 	handlers.Deps.MLGetLogsResponse = mlGetLogsResponse
 	handlers.Deps.MLCancelTraining = cancelMLAutoTuneTasks
 	handlers.Deps.MLGetHistoryResponse = mlGetHistoryResponse

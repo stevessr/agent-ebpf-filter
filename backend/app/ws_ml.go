@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"agent-ebpf-filter/cuda"
 	"encoding/json"
 	"strings"
@@ -12,12 +13,12 @@ import (
 // Shared by the HTTP handler and the WebSocket handler.
 func buildMLStatusJSON() []byte {
 	cfg := currentMLConfig()
-	mlRuntime := snapshotMLRuntime()
+	mlRuntime := ml.SnapshotMLRuntime()
 	status := mlStatusFromRuntime(mlRuntime)
-	logs := globalTrainer.GetLogs(100)
-	trainAccuracy, validationAccuracy, validationRatio, trainSamples, validationSamples := globalTrainer.SplitMetrics()
-	autoTuneState := globalAutoTuneState.snapshot()
-	trainingReadiness := buildMLTrainingReadiness(globalTrainingStore, cfg)
+	logs := ml.GlobalTrainer.GetLogs(100)
+	trainAccuracy, validationAccuracy, validationRatio, trainSamples, validationSamples := ml.GlobalTrainer.SplitMetrics()
+	autoTuneState := ml.GlobalAutoTuneState.Snapshot()
+	trainingReadiness := buildMLTrainingReadiness(ml.GlobalTrainingStore, cfg)
 
 	logItems := make([]map[string]string, len(logs))
 	for i, entry := range logs {
@@ -35,10 +36,10 @@ func buildMLStatusJSON() []byte {
 		"cudaInfo":             cudaInfo,
 		"cudaMemUsedMB":        cuda.MemUsedMB(),
 		"cudaMemTotalMB":       cuda.MemTotalMB(),
-		"cRuntime":             buildMLCRuntimeStatus(mlRuntime.Engine, globalTrainingStore),
+		"cRuntime":             buildMLCRuntimeStatus(mlRuntime.Engine, ml.GlobalTrainingStore),
 		"modelType":            string(mlRuntime.ModelType),
-		"availableModelTypes":  AllModelTypeStrings(),
-		"builtinModels":        BuiltinModelCatalog(),
+		"availableModelTypes":  ml.AllModelTypeStrings(),
+		"builtinModels":        ml.BuiltinModelCatalog(),
 		"modelLoaded":          status.GetModelLoaded(),
 		"numTrees":             status.GetNumTrees(),
 		"numSamples":           status.GetNumSamples(),
@@ -55,7 +56,7 @@ func buildMLStatusJSON() []byte {
 		"validationSamples":    validationSamples,
 		"validationSplitRatio": validationRatio,
 		"trainingReadiness":    trainingReadiness,
-		"llmReview":            globalTrainer.LastLLMReview(),
+		"llmReview":            ml.GlobalTrainer.LastLLMReview(),
 		"autoTuneJobId":        autoTuneState.JobID,
 		"autoTuneMode":         autoTuneState.Mode,
 		"autoTuneInProgress":   autoTuneState.Running,

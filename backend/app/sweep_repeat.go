@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"fmt"
 	"math"
 	"runtime"
@@ -11,7 +12,7 @@ import (
 
 // ---- moved from backend/zz_merged_backend.go section sweep_repeat.go ----
 
-func selectTopRepeatConfigs(profile sweepProfile, results []sweepResult, topN int, store *TrainingDataStore, benchmarkSamples []TrainingSample) []stabilityTask {
+func selectTopRepeatConfigs(profile sweepProfile, results []sweepResult, topN int, store *ml.TrainingDataStore, benchmarkSamples []ml.TrainingSample) []stabilityTask {
 	if topN < 1 {
 		topN = 1
 	}
@@ -350,12 +351,12 @@ func clampCount(value, maxValue int) int {
 	return value
 }
 
-func prefixDecisionForest(forest *DecisionForest, count int) *DecisionForest {
+func prefixDecisionForest(forest *ml.DecisionForest, count int) *ml.DecisionForest {
 	if forest == nil || len(forest.Trees) == 0 {
-		return &DecisionForest{NumClasses: 4, NumFeatures: FeatureDim}
+		return &ml.DecisionForest{NumClasses: 4, NumFeatures: FeatureDim}
 	}
 	count = clampCount(count, len(forest.Trees))
-	return &DecisionForest{
+	return &ml.DecisionForest{
 		Trees:       forest.Trees[:count],
 		NumClasses:  forest.NumClasses,
 		MaxDepth:    forest.MaxDepth,
@@ -364,12 +365,12 @@ func prefixDecisionForest(forest *DecisionForest, count int) *DecisionForest {
 	}
 }
 
-func prefixAdaBoostModel(model *AdaBoostModel, count int) *AdaBoostModel {
+func prefixAdaBoostModel(model *ml.AdaBoostModel, count int) *ml.AdaBoostModel {
 	if model == nil || len(model.Stumps) == 0 {
-		return NewAdaBoost(10)
+		return ml.NewAdaBoost(10)
 	}
 	count = clampCount(count, len(model.Stumps))
-	return &AdaBoostModel{
+	return &ml.AdaBoostModel{
 		Stumps:  model.Stumps[:count],
 		Alphas:  model.Alphas[:count],
 		NEst:    count,
@@ -377,13 +378,13 @@ func prefixAdaBoostModel(model *AdaBoostModel, count int) *AdaBoostModel {
 	}
 }
 
-func evalModelTrainSamples(model Model, samples []trainSample) float64 {
+func evalModelTrainSamples(model ml.Model, samples []ml.TrainSample) float64 {
 	if model == nil || len(samples) == 0 {
 		return 0
 	}
 	correct := 0
 	for _, sample := range samples {
-		if pred := model.Predict(sample.features); pred.Action == sample.label {
+		if pred := model.Predict(sample.Features()); pred.Action == sample.Label() {
 			correct++
 		}
 	}

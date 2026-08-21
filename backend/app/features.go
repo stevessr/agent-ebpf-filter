@@ -416,7 +416,7 @@ func (fe *FeatureExtractor) Extract(comm string, args []string, user string, pid
 	f[126] = platform.BoolToFloat(netAudit.Flags.UnusualTarget)
 	f[127] = platform.BoolToFloat(netAudit.Flags.PortScan)
 
-	f = normalizeFeatureVector(f)
+	f = ml.NormalizeFeatureVector(f)
 	fe.updateStats(f)
 	return f
 }

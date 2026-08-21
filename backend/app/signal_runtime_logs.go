@@ -388,7 +388,7 @@ func readCompressedProtoFrames(path string, newMessage func() proto.Message) ([]
 		return nil, errors.New("open signal program log: invalid file descriptor")
 	}
 	defer file.Close()
-	if err := validateRecordingRegularFile(file); err != nil {
+	if err := platform.ValidateRegularSingleLink(file); err != nil {
 		return nil, fmt.Errorf("validate signal program log: %w", err)
 	}
 	info, err := file.Stat()

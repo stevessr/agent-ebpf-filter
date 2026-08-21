@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"agent-ebpf-filter/app/ml"
 	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
 )
@@ -342,7 +343,7 @@ func (s *runtimeState) Replace(settings RuntimeSettings) (RuntimeSettings, error
 	if err := s.applyAndSaveSettingsLocked(previous); err != nil {
 		return RuntimeSettings{}, err
 	}
-	updateMLRuntimeConfig(s.settings.MLConfig, s.settings.MLConfig.Enabled && clusterManagerStore.IsMaster())
+	ml.UpdateMLRuntimeConfig(s.settings.MLConfig, s.settings.MLConfig.Enabled && clusterManagerStore.IsMaster())
 	otelExporterStore.ApplySettings(s.settings)
 	return s.settings, nil
 }

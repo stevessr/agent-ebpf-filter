@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"fmt"
 	"strconv"
 )
@@ -812,7 +813,7 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 }
 
 func numericSweepParametersForModel(modelType ModelType) []string {
-	switch baseModelType(modelType) {
+	switch ml.BaseModelType(modelType) {
 	case ModelRandomForest, ModelExtraTrees:
 		return []string{"numTrees", "maxDepth", "minSamplesLeaf"}
 	case ModelLogisticRegression:

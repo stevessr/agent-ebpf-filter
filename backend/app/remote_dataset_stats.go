@@ -1,6 +1,9 @@
 package app
 
-import "strings"
+import (
+	"agent-ebpf-filter/app/ml"
+	"strings"
+)
 
 func applyRemoteDatasetResponseStats(resp *remoteDatasetResponse, labelMode string, cleanSensitive bool) {
 	if resp == nil {
@@ -9,7 +12,7 @@ func applyRemoteDatasetResponseStats(resp *remoteDatasetResponse, labelMode stri
 	byLabel := map[string]int{}
 	byCategory := map[string]int{}
 	bySource := map[string]int{}
-	samples := make([]TrainingSample, 0, len(resp.Rows))
+	samples := make([]ml.TrainingSample, 0, len(resp.Rows))
 	for _, row := range resp.Rows {
 		incrementResearchCount(byLabel, normalizedDatasetLabelKey(row.Label))
 		incrementResearchCount(byCategory, normalizedDatasetCategoryKey(row.Category))
@@ -29,6 +32,6 @@ func applyRemoteDatasetResponseStats(resp *remoteDatasetResponse, labelMode stri
 	resp.ByLabel = topResearchCounts(byLabel, 0)
 	resp.ByCategory = topResearchCounts(byCategory, 0)
 	resp.BySource = topResearchCounts(bySource, 10)
-	resp.Normalization = summarizeFeatureNormalization(samples)
+	resp.Normalization = ml.SummarizeFeatureNormalization(samples)
 	resp.Quality = datasetQualityFromRows(resp.Rows, resp.Normalization)
 }

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -54,11 +55,11 @@ func runMLSweepReport() error {
 		_ = os.Remove(resultsPath)
 	}
 
-	InitTrainingStore(100000)
-	if globalTrainingStore == nil {
+	ml.InitTrainingStore(100000)
+	if ml.GlobalTrainingStore == nil {
 		return fmt.Errorf("training store not initialized")
 	}
-	labeled := globalTrainingStore.LabeledSamples()
+	labeled := ml.GlobalTrainingStore.LabeledSamples()
 	if len(labeled) == 0 {
 		return fmt.Errorf("no labeled samples found in the persisted training store")
 	}
@@ -307,7 +308,7 @@ func runMLSweepReport() error {
 	return nil
 }
 
-func runProfile(profile sweepProfile, store *TrainingDataStore, benchmarkSamples []TrainingSample, workers int) ([]sweepResult, sweepResult, error) {
+func runProfile(profile sweepProfile, store *ml.TrainingDataStore, benchmarkSamples []ml.TrainingSample, workers int) ([]sweepResult, sweepResult, error) {
 	if len(profile.XValues) == 0 {
 		return nil, sweepResult{}, fmt.Errorf("profile %s has no x-values", profile.Name)
 	}

@@ -1,6 +1,8 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
+	"agent-ebpf-filter/internal/behavior"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -47,26 +49,26 @@ type remoteDatasetRow struct {
 }
 
 type remoteDatasetResponse struct {
-	Source            string                      `json:"source"`
-	Format            string                      `json:"format"`
-	ContentType       string                      `json:"contentType"`
-	Total             int                         `json:"total"`
-	TotalIsLowerBound bool                        `json:"totalIsLowerBound,omitempty"`
-	Limit             int                         `json:"limit"`
-	RecordLimit       int                         `json:"recordLimit,omitempty"`
-	Truncated         bool                        `json:"truncated"`
-	Imported          int                         `json:"imported,omitempty"`
-	Skipped           int                         `json:"skipped,omitempty"`
-	TotalSamples      int                         `json:"totalSamples,omitempty"`
-	LabeledSamples    int                         `json:"labeledSamples,omitempty"`
-	ByLabel           []researchCount             `json:"byLabel,omitempty"`
-	ByCategory        []researchCount             `json:"byCategory,omitempty"`
-	BySource          []researchCount             `json:"bySource,omitempty"`
-	SkipReasons       []researchCount             `json:"skipReasons,omitempty"`
-	ParseWarnings     []remoteDatasetParseWarning `json:"parseWarnings,omitempty"`
-	Normalization     FeatureNormalizationReport  `json:"normalization,omitempty"`
-	Quality           DatasetQualitySummary       `json:"quality,omitempty"`
-	Rows              []remoteDatasetRow          `json:"rows,omitempty"`
+	Source            string                        `json:"source"`
+	Format            string                        `json:"format"`
+	ContentType       string                        `json:"contentType"`
+	Total             int                           `json:"total"`
+	TotalIsLowerBound bool                          `json:"totalIsLowerBound,omitempty"`
+	Limit             int                           `json:"limit"`
+	RecordLimit       int                           `json:"recordLimit,omitempty"`
+	Truncated         bool                          `json:"truncated"`
+	Imported          int                           `json:"imported,omitempty"`
+	Skipped           int                           `json:"skipped,omitempty"`
+	TotalSamples      int                           `json:"totalSamples,omitempty"`
+	LabeledSamples    int                           `json:"labeledSamples,omitempty"`
+	ByLabel           []researchCount               `json:"byLabel,omitempty"`
+	ByCategory        []researchCount               `json:"byCategory,omitempty"`
+	BySource          []researchCount               `json:"bySource,omitempty"`
+	SkipReasons       []researchCount               `json:"skipReasons,omitempty"`
+	ParseWarnings     []remoteDatasetParseWarning   `json:"parseWarnings,omitempty"`
+	Normalization     ml.FeatureNormalizationReport `json:"normalization,omitempty"`
+	Quality           DatasetQualitySummary         `json:"quality,omitempty"`
+	Rows              []remoteDatasetRow            `json:"rows,omitempty"`
 }
 
 type remoteDatasetRecord struct {
@@ -109,7 +111,7 @@ func handleMLDatasetImportPost(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if globalTrainingStore == nil {
+	if ml.GlobalTrainingStore == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ML training store not initialized"})
 		return
 	}
@@ -130,31 +132,31 @@ func handleMLDatasetImportPost(c *gin.Context) {
 			incrementResearchCount(skipReasons, "empty_comm")
 			continue
 		}
-		key := commandKey(row.Comm, row.Args)
+		key := behavior.CommandKey(row.Comm, row.Args)
 		if _, exists := seen[key]; exists {
 			skipped++
 			incrementResearchCount(skipReasons, "duplicate_in_payload")
 			continue
 		}
 		seen[key] = struct{}{}
-		if globalTrainingStore.HasExactCommand(row.Comm, row.Args) {
+		if ml.GlobalTrainingStore.HasExactCommand(row.Comm, row.Args) {
 			skipped++
 			incrementResearchCount(skipReasons, "duplicate_in_store")
 			continue
 		}
 
 		sample := buildRemoteDatasetSample(row, req.LabelMode, req.CleanSensitive)
-		globalTrainingStore.Add(sample)
+		ml.GlobalTrainingStore.Add(sample)
 		recordCommandSampleSideEffects(sample)
 		imported++
 	}
 
-	if err := globalTrainingStore.Flush(); err != nil {
+	if err := ml.GlobalTrainingStore.Flush(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "imported remote dataset but failed to persist: " + err.Error()})
 		return
 	}
 
-	total, labeled := globalTrainingStore.Status()
+	total, labeled := ml.GlobalTrainingStore.Status()
 	resp.Imported = imported
 	resp.Skipped = skipped
 	resp.TotalSamples = total
@@ -166,17 +168,17 @@ func handleMLDatasetImportPost(c *gin.Context) {
 }
 
 func handleMLDatasetExportGet(c *gin.Context) {
-	if globalTrainingStore == nil {
+	if ml.GlobalTrainingStore == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ML training store not initialized"})
 		return
 	}
 
-	items := globalTrainingStore.AllSamplesWithIndex()
+	items := ml.GlobalTrainingStore.AllSamplesWithIndex()
 	rows := make([]remoteDatasetRow, 0, len(items))
 	for _, item := range items {
 		rows = append(rows, trainingSampleToRemoteDatasetRow(item.Index, item.Sample))
 	}
-	total, labeled := globalTrainingStore.Status()
+	total, labeled := ml.GlobalTrainingStore.Status()
 	resp := remoteDatasetResponse{
 		Source:         "local-training-store",
 		Format:         "json",
@@ -193,18 +195,18 @@ func handleMLDatasetExportGet(c *gin.Context) {
 }
 
 func handleMLDatasetClearDelete(c *gin.Context) {
-	if globalTrainingStore == nil {
+	if ml.GlobalTrainingStore == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ML training store not initialized"})
 		return
 	}
 
-	cleared := globalTrainingStore.Clear()
-	if err := globalTrainingStore.Flush(); err != nil {
+	cleared := ml.GlobalTrainingStore.Clear()
+	if err := ml.GlobalTrainingStore.Flush(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "cleared training store but failed to persist: " + err.Error()})
 		return
 	}
 
-	total, labeled := globalTrainingStore.Status()
+	total, labeled := ml.GlobalTrainingStore.Status()
 	c.JSON(http.StatusOK, gin.H{
 		"status":         "ok",
 		"cleared":        cleared,
@@ -342,8 +344,8 @@ func pullRemoteDatasetWithRecordLimit(req remoteDatasetRequest, client *http.Cli
 	rows := make([]remoteDatasetRow, 0, len(records))
 	for _, record := range records {
 		row := buildRemoteDatasetRow(record, req.LabelMode, req.CleanSensitive)
-		if globalTrainingStore != nil {
-			row.Duplicate = globalTrainingStore.HasExactCommand(row.Comm, row.Args)
+		if ml.GlobalTrainingStore != nil {
+			row.Duplicate = ml.GlobalTrainingStore.HasExactCommand(row.Comm, row.Args)
 		}
 		rows = append(rows, row)
 	}

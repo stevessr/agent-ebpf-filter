@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"agent-ebpf-filter/internal/behavior"
 	"encoding/json"
 	"errors"
@@ -81,11 +82,11 @@ func handleMLLLMProductionDatasetPullPost(c *gin.Context) {
 }
 
 func buildLLMProductionDataset(req llmProductionDatasetRequest) (*llmProductionDatasetResponse, error) {
-	if globalTrainingStore == nil {
+	if ml.GlobalTrainingStore == nil {
 		return nil, errors.New("ML training store not initialized")
 	}
 
-	items := globalTrainingStore.AllSamplesWithIndex()
+	items := ml.GlobalTrainingStore.AllSamplesWithIndex()
 	total := len(items)
 	limit := parseLLMProductionDatasetLimit(req.Limit)
 	truncated := false
@@ -94,7 +95,7 @@ func buildLLMProductionDataset(req llmProductionDatasetRequest) (*llmProductionD
 		truncated = true
 	}
 
-	systemPrompt := strings.TrimSpace(snapshotMLRuntime().Config.LlmSystemPrompt)
+	systemPrompt := strings.TrimSpace(ml.SnapshotMLRuntime().Config.LlmSystemPrompt)
 	if systemPrompt == "" {
 		systemPrompt = defaultLLMScoringSystemPrompt
 	}
@@ -116,7 +117,7 @@ func buildLLMProductionDataset(req llmProductionDatasetRequest) (*llmProductionD
 			continue
 		}
 
-		key := commandKey(sample.Comm, sample.Args) + "\x00" + sampleLabelName(sample.Label)
+		key := behavior.CommandKey(sample.Comm, sample.Args) + "\x00" + sampleLabelName(sample.Label)
 		if req.Deduplicate {
 			if _, exists := seen[key]; exists {
 				skippedDuplicates++
@@ -144,11 +145,11 @@ func buildLLMProductionDataset(req llmProductionDatasetRequest) (*llmProductionD
 	}, nil
 }
 
-func buildLLMProductionDatasetRow(index int, sample TrainingSample, systemPrompt string) llmProductionDatasetRow {
-	comm, args := normalizeCommandInput("", sample.Comm, sample.Args)
+func buildLLMProductionDatasetRow(index int, sample ml.TrainingSample, systemPrompt string) llmProductionDatasetRow {
+	comm, args := behavior.NormalizeCommandInput("", sample.Comm, sample.Args)
 	commandLine := trainingSampleCommandLine(sample)
 	if strings.TrimSpace(commandLine) == "" {
-		commandLine = joinCommandLine(comm, args)
+		commandLine = behavior.JoinCommandLine(comm, args)
 	}
 
 	category := strings.TrimSpace(sample.Category)

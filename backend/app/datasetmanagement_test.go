@@ -1,10 +1,10 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -15,13 +15,13 @@ import (
 // ---- moved from backend/zz_merged_backend_test.go section datasetmanagement_test.go ----
 
 func TestTrainingDataStoreClearResetsSamples(t *testing.T) {
-	store := newTrainingDataStore(8)
-	store.Add(TrainingSample{
+	store := ml.NewTrainingDataStore(8)
+	store.Add(ml.TrainingSample{
 		Comm:      "echo",
 		Args:      []string{"hello"},
 		Timestamp: time.Unix(1700000000, 0).UTC(),
 	})
-	store.Add(TrainingSample{
+	store.Add(ml.TrainingSample{
 		Comm:      "rm",
 		Args:      []string{"-rf", "/tmp/demo"},
 		Timestamp: time.Unix(1700000001, 0).UTC(),
@@ -90,16 +90,14 @@ func TestPullRemoteDatasetFromContentSupportsImportAll(t *testing.T) {
 }
 
 func TestHandleMLDatasetExportAndClear(t *testing.T) {
-	oldStore := globalTrainingStore
-	globalTrainingStore = newTrainingDataStore(8)
+	oldStore := ml.GlobalTrainingStore
+	ml.GlobalTrainingStore = ml.NewTrainingDataStore(8)
 	tmpDir := t.TempDir()
-	globalTrainingStore.dataDir = tmpDir
-	globalTrainingStore.persistPath = filepath.Join(tmpDir, "ml_training_data.bin")
+	ml.GlobalTrainingStore.SetPersistLocation(tmpDir)
 	t.Cleanup(func() {
-		globalTrainingStore = oldStore
+		ml.GlobalTrainingStore = oldStore
 	})
-
-	globalTrainingStore.Add(TrainingSample{
+	ml.GlobalTrainingStore.Add(ml.TrainingSample{
 		Label:        1,
 		Comm:         "rm",
 		Args:         []string{"-rf", "/tmp/demo"},
@@ -139,16 +137,16 @@ func TestHandleMLDatasetExportAndClear(t *testing.T) {
 	if clearRec.Code != http.StatusOK {
 		t.Fatalf("clear status = %d, body = %s", clearRec.Code, clearRec.Body.String())
 	}
-	if total, labeled := globalTrainingStore.Status(); total != 0 || labeled != 0 {
+	if total, labeled := ml.GlobalTrainingStore.Status(); total != 0 || labeled != 0 {
 		t.Fatalf("store status after clear = %d/%d, want 0/0", total, labeled)
 	}
 }
 
 func TestHandleMLSamplesPostPreservesCommandLine(t *testing.T) {
-	oldStore := globalTrainingStore
-	globalTrainingStore = newTrainingDataStore(8)
+	oldStore := ml.GlobalTrainingStore
+	ml.GlobalTrainingStore = ml.NewTrainingDataStore(8)
 	t.Cleanup(func() {
-		globalTrainingStore = oldStore
+		ml.GlobalTrainingStore = oldStore
 	})
 
 	rec := httptest.NewRecorder()
@@ -163,7 +161,7 @@ func TestHandleMLSamplesPostPreservesCommandLine(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 
-	items := globalTrainingStore.AllSamplesWithIndex()
+	items := ml.GlobalTrainingStore.AllSamplesWithIndex()
 	if len(items) != 1 {
 		t.Fatalf("sample count = %d, want 1", len(items))
 	}
@@ -192,11 +190,10 @@ func TestHandleMLSamplesPostPreservesCommandLine(t *testing.T) {
 }
 
 func TestTrainingDataStorePersistenceRestoresArgs(t *testing.T) {
-	store := newTrainingDataStore(8)
+	store := ml.NewTrainingDataStore(8)
 	tmpDir := t.TempDir()
-	store.dataDir = tmpDir
-	store.persistPath = filepath.Join(tmpDir, "ml_training_data.bin")
-	store.Add(TrainingSample{
+	store.SetPersistLocation(tmpDir)
+	store.Add(ml.TrainingSample{
 		Label:        1,
 		CommandLine:  `bash -c "rm -rf /tmp/demo"`,
 		Comm:         "rm",
@@ -210,11 +207,10 @@ func TestTrainingDataStorePersistenceRestoresArgs(t *testing.T) {
 		t.Fatalf("Flush() error = %v", err)
 	}
 
-	loaded := newTrainingDataStore(8)
-	loaded.dataDir = tmpDir
-	loaded.persistPath = filepath.Join(tmpDir, "ml_training_data.bin")
-	if err := loaded.loadFromDisk(); err != nil {
-		t.Fatalf("loadFromDisk() error = %v", err)
+	loaded := ml.NewTrainingDataStore(8)
+	loaded.SetPersistLocation(tmpDir)
+	if err := loaded.LoadFromDisk(); err != nil {
+		t.Fatalf("LoadFromDisk() error = %v", err)
 	}
 
 	items := loaded.AllSamplesWithIndex()
@@ -237,18 +233,17 @@ func TestTrainingDataStorePersistenceRestoresArgs(t *testing.T) {
 }
 
 func TestBuildLLMProductionDatasetCleansTrainingSamples(t *testing.T) {
-	oldStore := globalTrainingStore
-	previousRuntime := snapshotMLRuntime()
-	globalTrainingStore = newTrainingDataStore(8)
+	oldStore := ml.GlobalTrainingStore
+	previousRuntime := ml.SnapshotMLRuntime()
+	ml.GlobalTrainingStore = ml.NewTrainingDataStore(8)
 	cfg := previousRuntime.Config
 	cfg.LlmSystemPrompt = "SYSTEM PROMPT"
-	updateMLRuntimeConfig(cfg, previousRuntime.Enabled)
+	ml.UpdateMLRuntimeConfig(cfg, previousRuntime.Enabled)
 	t.Cleanup(func() {
-		globalTrainingStore = oldStore
-		replaceMLRuntime(previousRuntime)
+		ml.GlobalTrainingStore = oldStore
+		ml.ReplaceMLRuntime(previousRuntime)
 	})
-
-	globalTrainingStore.Add(TrainingSample{
+	ml.GlobalTrainingStore.Add(ml.TrainingSample{
 		Label:        1,
 		Comm:         "rm",
 		Args:         []string{"-rf", "/tmp/demo"},
@@ -257,7 +252,7 @@ func TestBuildLLMProductionDatasetCleansTrainingSamples(t *testing.T) {
 		Timestamp:    time.Unix(1700000000, 0).UTC(),
 		UserLabel:    "manual",
 	})
-	globalTrainingStore.Add(TrainingSample{
+	ml.GlobalTrainingStore.Add(ml.TrainingSample{
 		Label:        1,
 		Comm:         "rm",
 		Args:         []string{"-rf", "/tmp/demo"},
@@ -266,7 +261,7 @@ func TestBuildLLMProductionDatasetCleansTrainingSamples(t *testing.T) {
 		Timestamp:    time.Unix(1700000001, 0).UTC(),
 		UserLabel:    "manual",
 	})
-	globalTrainingStore.Add(TrainingSample{
+	ml.GlobalTrainingStore.Add(ml.TrainingSample{
 		Label:        3,
 		Comm:         "git",
 		Args:         []string{"status"},
@@ -275,7 +270,7 @@ func TestBuildLLMProductionDatasetCleansTrainingSamples(t *testing.T) {
 		Timestamp:    time.Unix(1700000002, 0).UTC(),
 		UserLabel:    "remote-heuristic",
 	})
-	globalTrainingStore.Add(TrainingSample{
+	ml.GlobalTrainingStore.Add(ml.TrainingSample{
 		Label:        -1,
 		Comm:         "echo",
 		Args:         []string{"hello"},

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"fmt"
 	"strings"
 )
@@ -45,7 +46,7 @@ func normalizedDatasetCategoryKey(raw string) string {
 	return category
 }
 
-func datasetQualityFromRows(rows []remoteDatasetRow, normalization FeatureNormalizationReport) DatasetQualitySummary {
+func datasetQualityFromRows(rows []remoteDatasetRow, normalization ml.FeatureNormalizationReport) DatasetQualitySummary {
 	labels := map[string]int{}
 	importable := 0
 	labeled := 0
@@ -70,7 +71,7 @@ func datasetQualityFromRows(rows []remoteDatasetRow, normalization FeatureNormal
 	return buildDatasetQualitySummary(len(rows), importable, labeled, unlabeled, duplicates, labels, normalization)
 }
 
-func buildDatasetQualitySummary(total, importable, labeled, unlabeled, duplicates int, labels map[string]int, normalization FeatureNormalizationReport) DatasetQualitySummary {
+func buildDatasetQualitySummary(total, importable, labeled, unlabeled, duplicates int, labels map[string]int, normalization ml.FeatureNormalizationReport) DatasetQualitySummary {
 	dominantLabel, dominantCount := dominantDatasetLabel(labels)
 	dominantRatio := 0.0
 	if labeled > 0 && dominantLabel != "" && dominantLabel != "UNLABELED" {

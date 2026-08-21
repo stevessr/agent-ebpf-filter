@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"agent-ebpf-filter/app"
+	"agent-ebpf-filter/app/ml"
 )
 
 const (
@@ -108,7 +109,7 @@ func (m *randomForestStub) Predict(_ []float64) string {
 
 type randomForestSelfAttention struct {
 	forest *randomForestStub
-	attn   *app.SelfAttention
+	attn   *ml.SelfAttention
 	means  []float64
 	scales []float64
 	labels []string
@@ -117,10 +118,10 @@ type randomForestSelfAttention struct {
 func trainRandomForestSelfAttention(features [][]float64, labels []string, trees, depth int) *randomForestSelfAttention {
 	forest := trainRandomForestStub(features, labels, trees, depth)
 	normalized, means, scales := normalizeFeatures(features)
-	attn := app.NewSelfAttention()
+	attn := ml.NewSelfAttention()
 	if len(normalized) > 0 {
 		for _, row := range normalized {
-			var vec [app.FeatureDim]float64
+			var vec [ml.FeatureDim]float64
 			copy(vec[:], row)
 			_ = attn.Forward(vec)
 		}

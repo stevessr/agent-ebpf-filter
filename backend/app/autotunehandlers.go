@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"fmt"
 	"strings"
 	"time"
@@ -11,39 +12,39 @@ import (
 // ---- moved from backend/zz_merged_backend.go section autotunehandlers.go ----
 
 func autotuneTunePost(c *gin.Context) {
-	if !snapshotMLRuntime().Enabled {
+	if !ml.SnapshotMLRuntime().Enabled {
 		c.JSON(400, gin.H{"error": "ML engine is not enabled on this node"})
 		return
 	}
-	if globalTrainingStore == nil {
+	if ml.GlobalTrainingStore == nil {
 		c.JSON(400, gin.H{"error": "ML training store not initialized"})
 		return
 	}
 
-	var req MLAutoTuneRequest
+	var req ml.MLAutoTuneRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(400, gin.H{"error": "invalid request"})
 		return
 	}
 
-	if globalAutoTuneState.snapshot().Running {
+	if ml.GlobalAutoTuneState.Snapshot().Running {
 		c.JSON(409, gin.H{"error": "auto tuning already in progress"})
 		return
 	}
-	if globalTrainer.IsRunning() {
+	if ml.GlobalTrainer.IsRunning() {
 		c.JSON(409, gin.H{"error": "training already in progress"})
 		return
 	}
 
 	jobID := fmt.Sprintf("tune-%d", time.Now().UnixNano())
-	if !globalAutoTuneState.tryBegin(jobID, 0, "自动调参任务已接收") {
+	if !ml.GlobalAutoTuneState.TryBegin(jobID, 0, "自动调参任务已接收") {
 		c.JSON(409, gin.H{"error": "auto tuning already in progress"})
 		return
 	}
 
 	entry := newBackendTaskRuntimeEntry(jobID, "ml_auto_tune_params", mlAutoTuneParamsTask{Request: req})
 	if err := mlAutoTuneTasks.Submit(entry); err != nil {
-		globalAutoTuneState.setError(jobID, err.Error())
+		ml.GlobalAutoTuneState.SetError(jobID, err.Error())
 		c.JSON(503, gin.H{"error": err.Error()})
 		return
 	}
@@ -56,26 +57,26 @@ func autotuneTunePost(c *gin.Context) {
 }
 
 func autotuneTuneModelsPost(c *gin.Context) {
-	if !snapshotMLRuntime().Enabled {
+	if !ml.SnapshotMLRuntime().Enabled {
 		c.JSON(400, gin.H{"error": "ML engine is not enabled on this node"})
 		return
 	}
-	if globalTrainingStore == nil {
+	if ml.GlobalTrainingStore == nil {
 		c.JSON(400, gin.H{"error": "ML training store not initialized"})
 		return
 	}
 
-	var req MLModelTuneRequest
+	var req ml.MLModelTuneRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(400, gin.H{"error": "invalid request"})
 		return
 	}
 
-	if globalAutoTuneState.snapshot().Running {
+	if ml.GlobalAutoTuneState.Snapshot().Running {
 		c.JSON(409, gin.H{"error": "auto tuning already in progress"})
 		return
 	}
-	if globalTrainer.IsRunning() {
+	if ml.GlobalTrainer.IsRunning() {
 		c.JSON(409, gin.H{"error": "training already in progress"})
 		return
 	}
@@ -87,7 +88,7 @@ func autotuneTuneModelsPost(c *gin.Context) {
 	}
 
 	jobID := fmt.Sprintf("tune-models-%d", time.Now().UnixNano())
-	if !globalAutoTuneState.tryBeginMode(jobID, "models", len(modelTypes), "模型调优任务已接收") {
+	if !ml.GlobalAutoTuneState.TryBeginMode(jobID, "models", len(modelTypes), "模型调优任务已接收") {
 		c.JSON(409, gin.H{"error": "auto tuning already in progress"})
 		return
 	}
@@ -97,7 +98,7 @@ func autotuneTuneModelsPost(c *gin.Context) {
 		ModelTypes: append([]ModelType(nil), modelTypes...),
 	})
 	if err := mlAutoTuneTasks.Submit(entry); err != nil {
-		globalAutoTuneState.setError(jobID, err.Error())
+		ml.GlobalAutoTuneState.SetError(jobID, err.Error())
 		c.JSON(503, gin.H{"error": err.Error()})
 		return
 	}
@@ -117,7 +118,7 @@ func normalizeModelTuneTypes(raw []string) []ModelType {
 		if t == "" || seen[t] {
 			return
 		}
-		if _, ok := modelRegistry[t]; !ok {
+		if _, ok := ml.ModelRegistry[t]; !ok {
 			return
 		}
 		seen[t] = true
@@ -127,7 +128,7 @@ func normalizeModelTuneTypes(raw []string) []ModelType {
 		add(ModelType(strings.TrimSpace(value)))
 	}
 	if len(out) == 0 {
-		for _, item := range BuiltinModelCatalog() {
+		for _, item := range ml.BuiltinModelCatalog() {
 			if item.Recommended {
 				add(ModelType(item.Value))
 			}
@@ -140,10 +141,10 @@ func normalizeModelTuneTypes(raw []string) []ModelType {
 }
 
 func modelTuneCatalogInfo(t ModelType) (label, base string, recommended bool) {
-	for _, item := range BuiltinModelCatalog() {
+	for _, item := range ml.BuiltinModelCatalog() {
 		if item.Value == string(t) {
 			return item.Label, item.Base, item.Recommended
 		}
 	}
-	return modelName(t), string(baseModelType(t)), false
+	return ml.ModelName(t), string(ml.BaseModelType(t)), false
 }

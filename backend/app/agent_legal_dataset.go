@@ -1,6 +1,8 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
+	"agent-ebpf-filter/internal/behavior"
 	"log"
 	"net/http"
 	"time"
@@ -22,23 +24,23 @@ type agentLegalBehaviorTemplate struct {
 }
 
 type agentLegalDatasetResponse struct {
-	Source         string                     `json:"source"`
-	Format         string                     `json:"format"`
-	ContentType    string                     `json:"contentType"`
-	Total          int                        `json:"total"`
-	Limit          int                        `json:"limit"`
-	Truncated      bool                       `json:"truncated"`
-	Imported       int                        `json:"imported,omitempty"`
-	Skipped        int                        `json:"skipped,omitempty"`
-	TotalSamples   int                        `json:"totalSamples,omitempty"`
-	LabeledSamples int                        `json:"labeledSamples,omitempty"`
-	ByLabel        []researchCount            `json:"byLabel,omitempty"`
-	ByCategory     []researchCount            `json:"byCategory,omitempty"`
-	BySource       []researchCount            `json:"bySource,omitempty"`
-	Rows           []remoteDatasetRow         `json:"rows,omitempty"`
-	Families       map[string]int             `json:"families,omitempty"`
-	Normalization  FeatureNormalizationReport `json:"normalization"`
-	Quality        DatasetQualitySummary      `json:"quality,omitempty"`
+	Source         string                        `json:"source"`
+	Format         string                        `json:"format"`
+	ContentType    string                        `json:"contentType"`
+	Total          int                           `json:"total"`
+	Limit          int                           `json:"limit"`
+	Truncated      bool                          `json:"truncated"`
+	Imported       int                           `json:"imported,omitempty"`
+	Skipped        int                           `json:"skipped,omitempty"`
+	TotalSamples   int                           `json:"totalSamples,omitempty"`
+	LabeledSamples int                           `json:"labeledSamples,omitempty"`
+	ByLabel        []researchCount               `json:"byLabel,omitempty"`
+	ByCategory     []researchCount               `json:"byCategory,omitempty"`
+	BySource       []researchCount               `json:"bySource,omitempty"`
+	Rows           []remoteDatasetRow            `json:"rows,omitempty"`
+	Families       map[string]int                `json:"families,omitempty"`
+	Normalization  ml.FeatureNormalizationReport `json:"normalization"`
+	Quality        DatasetQualitySummary         `json:"quality,omitempty"`
 }
 
 func handleMLAgentLegalDatasetPost(c *gin.Context) {
@@ -47,7 +49,7 @@ func handleMLAgentLegalDatasetPost(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
-	if globalTrainingStore == nil {
+	if ml.GlobalTrainingStore == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ML training store not initialized"})
 		return
 	}
@@ -61,7 +63,7 @@ func handleMLAgentLegalDatasetPost(c *gin.Context) {
 		}
 		resp.Imported = imported
 		resp.Skipped += skipped
-		total, labeled := globalTrainingStore.Status()
+		total, labeled := ml.GlobalTrainingStore.Status()
 		resp.TotalSamples = total
 		resp.LabeledSamples = labeled
 		log.Printf("[ML] Builtin dataset import source=%q rows=%d imported=%d skipped=%d", resp.Source, len(resp.Rows), imported, resp.Skipped)
@@ -69,7 +71,7 @@ func handleMLAgentLegalDatasetPost(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-func buildAgentLegalDatasetResponse(limit int) (agentLegalDatasetResponse, []TrainingSample) {
+func buildAgentLegalDatasetResponse(limit int) (agentLegalDatasetResponse, []ml.TrainingSample) {
 	templates := builtinAgentLegalBehaviorTemplates()
 	if limit <= 0 || limit > len(templates) {
 		limit = len(templates)
@@ -77,7 +79,7 @@ func buildAgentLegalDatasetResponse(limit int) (agentLegalDatasetResponse, []Tra
 
 	now := time.Now().UTC()
 	rows := make([]remoteDatasetRow, 0, limit)
-	samples := make([]TrainingSample, 0, limit)
+	samples := make([]ml.TrainingSample, 0, limit)
 	families := make(map[string]int)
 	skipped := 0
 
@@ -90,13 +92,13 @@ func buildAgentLegalDatasetResponse(limit int) (agentLegalDatasetResponse, []Tra
 		row := trainingSampleToRemoteDatasetRow(i+1, sample)
 		row.Source = tmpl.Family
 		row.LabelSource = sample.UserLabel
-		row.Duplicate = globalTrainingStore != nil && globalTrainingStore.HasExactCommand(sample.Comm, sample.Args)
+		row.Duplicate = ml.GlobalTrainingStore != nil && ml.GlobalTrainingStore.HasExactCommand(sample.Comm, sample.Args)
 		rows = append(rows, row)
 		samples = append(samples, sample)
 		families[tmpl.Family]++
 	}
 
-	normalization := summarizeFeatureNormalization(samples)
+	normalization := ml.SummarizeFeatureNormalization(samples)
 	statResp := remoteDatasetResponse{Source: "builtin-agent-legal-behavior", Rows: rows, Normalization: normalization}
 	applyRemoteDatasetResponseStats(&statResp, "preserve", false)
 
@@ -119,7 +121,7 @@ func buildAgentLegalDatasetResponse(limit int) (agentLegalDatasetResponse, []Tra
 	return resp, samples
 }
 
-func importAgentLegalSamples(samples []TrainingSample) (int, int, error) {
+func importAgentLegalSamples(samples []ml.TrainingSample) (int, int, error) {
 	imported := 0
 	skipped := 0
 	seen := make(map[string]struct{})
@@ -128,27 +130,27 @@ func importAgentLegalSamples(samples []TrainingSample) (int, int, error) {
 			skipped++
 			continue
 		}
-		key := commandKey(sample.Comm, sample.Args)
+		key := behavior.CommandKey(sample.Comm, sample.Args)
 		if _, ok := seen[key]; ok {
 			skipped++
 			continue
 		}
 		seen[key] = struct{}{}
-		if globalTrainingStore.HasExactCommand(sample.Comm, sample.Args) {
+		if ml.GlobalTrainingStore.HasExactCommand(sample.Comm, sample.Args) {
 			skipped++
 			continue
 		}
-		globalTrainingStore.Add(sample)
+		ml.GlobalTrainingStore.Add(sample)
 		recordCommandSampleSideEffects(sample)
 		imported++
 	}
-	if err := globalTrainingStore.Flush(); err != nil {
+	if err := ml.GlobalTrainingStore.Flush(); err != nil {
 		return imported, skipped, err
 	}
 	return imported, skipped, nil
 }
 
-func buildAgentLegalTrainingSample(tmpl agentLegalBehaviorTemplate, timestamp time.Time) TrainingSample {
+func buildAgentLegalTrainingSample(tmpl agentLegalBehaviorTemplate, timestamp time.Time) ml.TrainingSample {
 	sample := buildCommandTrainingSample(tmpl.Comm, tmpl.Args, "", 0, 0, "agent-legal", timestamp)
 	sample.CommandLine = tmpl.CommandLine
 	return sample
@@ -277,7 +279,7 @@ func builtinAgentLegalBehaviorTemplates() []agentLegalBehaviorTemplate {
 
 	out := make([]agentLegalBehaviorTemplate, 0, len(commands))
 	for _, item := range commands {
-		parts := splitCommandLine(item.commandLine)
+		parts := behavior.SplitCommandLine(item.commandLine)
 		if len(parts) == 0 {
 			continue
 		}

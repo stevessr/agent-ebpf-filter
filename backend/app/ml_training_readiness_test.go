@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"strings"
 	"testing"
 	"time"
@@ -14,12 +15,12 @@ func readinessTestConfig() MLConfig {
 	return cfg
 }
 
-func addReadinessSample(store *TrainingDataStore, label int32, userLabel string, comm string, value float64) {
+func addReadinessSample(store *ml.TrainingDataStore, label int32, userLabel string, comm string, value float64) {
 	var features [FeatureDim]float64
 	for i := range features {
 		features[i] = value
 	}
-	store.Add(TrainingSample{
+	store.Add(ml.TrainingSample{
 		Features:    features,
 		Label:       label,
 		CommandLine: comm + " --test",
@@ -32,7 +33,7 @@ func addReadinessSample(store *TrainingDataStore, label int32, userLabel string,
 }
 
 func TestBuildMLTrainingReadinessEmptyStore(t *testing.T) {
-	store := newTrainingDataStore(8)
+	store := ml.NewTrainingDataStore(8)
 	readiness := buildMLTrainingReadiness(store, readinessTestConfig())
 	if readiness.Ready {
 		t.Fatal("empty store should not be training-ready")
@@ -52,7 +53,7 @@ func TestBuildMLTrainingReadinessEmptyStore(t *testing.T) {
 }
 
 func TestBuildMLTrainingReadinessBalancedSamplesReady(t *testing.T) {
-	store := newTrainingDataStore(8)
+	store := ml.NewTrainingDataStore(8)
 	for i := 0; i < 2; i++ {
 		addReadinessSample(store, 0, "test", "allow-cmd", 0.10+float64(i)*0.01)
 		addReadinessSample(store, 1, "test", "block-cmd", 0.70+float64(i)*0.01)
@@ -74,7 +75,7 @@ func TestBuildMLTrainingReadinessBalancedSamplesReady(t *testing.T) {
 }
 
 func TestBuildMLTrainingReadinessDetectsSingleClassAndOutOfRange(t *testing.T) {
-	store := newTrainingDataStore(8)
+	store := ml.NewTrainingDataStore(8)
 	for i := 0; i < 5; i++ {
 		value := 0.25
 		if i == 4 {

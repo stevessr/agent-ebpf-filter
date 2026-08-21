@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"agent-ebpf-filter/app/platform"
+
 	"golang.org/x/sys/unix"
 )
 
@@ -59,7 +60,7 @@ func openRuntimeEventLogFileWithin(rootPath, path string, flags int) (*os.File, 
 	if err != nil {
 		return nil, "", err
 	}
-	rootFile, err := secureOpenOrCreateDirectory(rootPath)
+	rootFile, err := platform.SecureOpenOrCreateDir(rootPath)
 	if err != nil {
 		return nil, "", fmt.Errorf("open runtime log root: %w", err)
 	}
@@ -67,7 +68,7 @@ func openRuntimeEventLogFileWithin(rootPath, path string, flags int) (*os.File, 
 	if err := rootFile.Chmod(0o700); err != nil {
 		return nil, "", fmt.Errorf("set runtime log root permissions: %w", err)
 	}
-	if err := chownArtifactFile(rootFile); err != nil {
+	if err := platform.ChownArtifactFile(rootFile); err != nil {
 		return nil, "", fmt.Errorf("set runtime log root ownership: %w", err)
 	}
 	rel := filepath.Base(resolved)
@@ -110,7 +111,7 @@ func openRuntimeEventLogFileWithin(rootPath, path string, flags int) (*os.File, 
 			_ = file.Close()
 			return nil, "", fmt.Errorf("set runtime log permissions: %w", err)
 		}
-		if err := chownArtifactFile(file); err != nil {
+		if err := platform.ChownArtifactFile(file); err != nil {
 			_ = file.Close()
 			return nil, "", fmt.Errorf("set runtime log ownership: %w", err)
 		}

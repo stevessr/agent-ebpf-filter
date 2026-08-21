@@ -83,6 +83,7 @@ import (
 	"time"
 	"unsafe"
 
+	"agent-ebpf-filter/app/ml"
 	"agent-ebpf-filter/cuda"
 )
 
@@ -123,7 +124,7 @@ var (
 	mlCRuntimeSink   int64
 )
 
-func buildMLCRuntimeStatus(model Model, store *TrainingDataStore) MLCRuntimeStatus {
+func buildMLCRuntimeStatus(model ml.Model, store *ml.TrainingDataStore) MLCRuntimeStatus {
 	cacheKey := mlCRuntimeCacheKey(model, store)
 	mlCRuntimeMu.Lock()
 	defer mlCRuntimeMu.Unlock()
@@ -172,7 +173,7 @@ func buildMLCRuntimeStatus(model Model, store *TrainingDataStore) MLCRuntimeStat
 	return status
 }
 
-func mlCRuntimeCacheKey(model Model, store *TrainingDataStore) string {
+func mlCRuntimeCacheKey(model ml.Model, store *ml.TrainingDataStore) string {
 	modelType := "none"
 	if model != nil {
 		modelType = fmt.Sprintf("%T:%p", model, model)
@@ -257,7 +258,7 @@ type mlCInferenceBenchmark struct {
 	Speedup       float64
 }
 
-func benchmarkModelCInference(model Model, store *TrainingDataStore) *mlCInferenceBenchmark {
+func benchmarkModelCInference(model ml.Model, store *ml.TrainingDataStore) *mlCInferenceBenchmark {
 	if model == nil || store == nil {
 		return nil
 	}
@@ -289,24 +290,24 @@ func benchmarkModelCInference(model Model, store *TrainingDataStore) *mlCInferen
 
 	var cElapsed time.Duration
 	var cAcc int64
-	inner := unwrapModelType(model)
+	inner := ml.UnwrapModelType(model)
 	switch m := inner.(type) {
-	case *DecisionForest:
+	case *ml.DecisionForest:
 		cElapsed, cAcc = benchCDecisionForest(m, features, len(samples), repeat)
-	case *ExtraTreesModel:
+	case *ml.ExtraTreesModel:
 		if m.Forest == nil {
 			return nil
 		}
 		cElapsed, cAcc = benchCDecisionForest(m.Forest, features, len(samples), repeat)
-	case *LogisticModel:
+	case *ml.LogisticModel:
 		cElapsed, cAcc = benchCLinearWeights(m.Weights, m.NumClasses, features, len(samples), repeat)
-	case *SVMModel:
+	case *ml.SVMModel:
 		cElapsed, cAcc = benchCLinearWeights(m.Weights, m.Classes, features, len(samples), repeat)
-	case *RidgeModel:
+	case *ml.RidgeModel:
 		cElapsed, cAcc = benchCLinearWeights(m.Weights, m.Classes, features, len(samples), repeat)
-	case *PerceptronModel:
+	case *ml.PerceptronModel:
 		cElapsed, cAcc = benchCLinearWeights(m.Weights, m.Classes, features, len(samples), repeat)
-	case *PAModel:
+	case *ml.PAModel:
 		cElapsed, cAcc = benchCLinearWeights(m.Weights, m.Classes, features, len(samples), repeat)
 	default:
 		return nil
@@ -326,7 +327,7 @@ func benchmarkModelCInference(model Model, store *TrainingDataStore) *mlCInferen
 	return &mlCInferenceBenchmark{SampleCount: len(samples), GoMsPerSample: goMs, CMsPerSample: cMs, Speedup: speedup}
 }
 
-func flattenRuntimeFeatures(samples []TrainingSample) []float64 {
+func flattenRuntimeFeatures(samples []ml.TrainingSample) []float64 {
 	out := make([]float64, 0, len(samples)*FeatureDim)
 	for _, sample := range samples {
 		for _, v := range sample.Features {
@@ -358,7 +359,7 @@ func benchCLinearWeights(weights [][FeatureDim + 1]float64, classes int, feature
 	return time.Since(start), int64(acc)
 }
 
-func benchCDecisionForest(forest *DecisionForest, features []float64, n int, repeat int) (time.Duration, int64) {
+func benchCDecisionForest(forest *ml.DecisionForest, features []float64, n int, repeat int) (time.Duration, int64) {
 	if forest == nil || len(forest.Trees) == 0 || n <= 0 || len(features) == 0 {
 		return 0, 0
 	}

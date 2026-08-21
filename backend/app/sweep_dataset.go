@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"runtime"
 	"sort"
 	"strconv"
@@ -55,10 +56,10 @@ func modelFilterMatches(selected map[ModelType]bool, modelType ModelType) bool {
 	if len(selected) == 0 {
 		return true
 	}
-	return selected[modelType] || selected[baseModelType(modelType)]
+	return selected[modelType] || selected[ml.BaseModelType(modelType)]
 }
 
-func datasetProfilesForMode(labeled []TrainingSample, mode string, selected map[string]bool) []sweepDataset {
+func datasetProfilesForMode(labeled []ml.TrainingSample, mode string, selected map[string]bool) []sweepDataset {
 	candidates := buildSweepDatasetCandidates(labeled)
 	if len(candidates) == 0 {
 		return nil
@@ -85,14 +86,14 @@ func datasetProfilesForMode(labeled []TrainingSample, mode string, selected map[
 	return out
 }
 
-func buildSweepDatasetCandidates(labeled []TrainingSample) []sweepDataset {
+func buildSweepDatasetCandidates(labeled []ml.TrainingSample) []sweepDataset {
 	if len(labeled) == 0 {
 		return nil
 	}
 	out := []sweepDataset{{
 		Name:        "all",
 		Description: "all persisted labeled samples",
-		Samples:     append([]TrainingSample(nil), labeled...),
+		Samples:     append([]ml.TrainingSample(nil), labeled...),
 	}}
 	if balanced := balancedLabelDataset(labeled); len(balanced) >= 10 && len(balanced) < len(labeled) {
 		out = append(out, sweepDataset{
@@ -125,8 +126,8 @@ func buildSweepDatasetCandidates(labeled []TrainingSample) []sweepDataset {
 	return out
 }
 
-func balancedLabelDataset(samples []TrainingSample) []TrainingSample {
-	byLabel := make(map[int32][]TrainingSample)
+func balancedLabelDataset(samples []ml.TrainingSample) []ml.TrainingSample {
+	byLabel := make(map[int32][]ml.TrainingSample)
 	for _, sample := range samples {
 		byLabel[sample.Label] = append(byLabel[sample.Label], sample)
 	}
@@ -148,7 +149,7 @@ func balancedLabelDataset(samples []TrainingSample) []TrainingSample {
 		return nil
 	}
 	sort.Ints(labels)
-	out := make([]TrainingSample, 0, minCount*len(labels))
+	out := make([]ml.TrainingSample, 0, minCount*len(labels))
 	for _, label := range labels {
 		group := byLabel[int32(label)]
 		if len(group) > minCount {
@@ -159,8 +160,8 @@ func balancedLabelDataset(samples []TrainingSample) []TrainingSample {
 	return out
 }
 
-func filterSamplesByLabel(samples []TrainingSample, labels map[int32]bool) []TrainingSample {
-	out := make([]TrainingSample, 0, len(samples))
+func filterSamplesByLabel(samples []ml.TrainingSample, labels map[int32]bool) []ml.TrainingSample {
+	out := make([]ml.TrainingSample, 0, len(samples))
 	for _, sample := range samples {
 		if labels[sample.Label] {
 			out = append(out, sample)
@@ -169,8 +170,8 @@ func filterSamplesByLabel(samples []TrainingSample, labels map[int32]bool) []Tra
 	return out
 }
 
-func deterministicIndexSubset(samples []TrainingSample, parity int) []TrainingSample {
-	out := make([]TrainingSample, 0, (len(samples)+1)/2)
+func deterministicIndexSubset(samples []ml.TrainingSample, parity int) []ml.TrainingSample {
+	out := make([]ml.TrainingSample, 0, (len(samples)+1)/2)
 	for i, sample := range samples {
 		if i%2 == parity {
 			out = append(out, sample)
@@ -179,18 +180,15 @@ func deterministicIndexSubset(samples []TrainingSample, parity int) []TrainingSa
 	return out
 }
 
-func trainingStoreFromSamples(samples []TrainingSample) *TrainingDataStore {
+func trainingStoreFromSamples(samples []ml.TrainingSample) *ml.TrainingDataStore {
 	maxSamples := len(samples)
 	if maxSamples < 1 {
 		maxSamples = 1
 	}
-	store := &TrainingDataStore{
-		samples:    make([]TrainingSample, maxSamples),
-		maxSamples: maxSamples,
-	}
+	store := ml.NewTrainingDataStore(maxSamples)
 	for _, sample := range samples {
 		store.Add(sample)
 	}
-	store.dirtyCount = 0
+	store.MarkPristine()
 	return store
 }

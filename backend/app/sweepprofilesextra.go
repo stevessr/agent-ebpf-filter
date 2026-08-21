@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"fmt"
 	"strconv"
 	"strings"
@@ -66,7 +67,7 @@ func defaultSweepConfigForModel(modelType ModelType) MLConfig {
 	cfg.LlmBaseURL = ""
 	cfg.LlmModel = ""
 	cfg.LlmAPIKey = ""
-	for _, profile := range builtinModelProfiles {
+	for _, profile := range ml.BuiltinModelProfiles {
 		if profile.Type != modelType {
 			continue
 		}
@@ -88,7 +89,7 @@ func defaultSweepConfigForModel(modelType ModelType) MLConfig {
 }
 
 func summarizeSweepConfig(cfg MLConfig) string {
-	switch baseModelType(cfg.ModelType) {
+	switch ml.BaseModelType(cfg.ModelType) {
 	case ModelRandomForest, ModelExtraTrees:
 		return fmt.Sprintf("trees=%d depth=%d leaf=%d", cfg.NumTrees, cfg.MaxDepth, cfg.MinSamplesLeaf)
 	case ModelLogisticRegression:

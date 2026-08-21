@@ -108,7 +108,7 @@ func handleMLHealthGeneratorsGet(c *gin.Context) {
 		name := "Dead Process"
 		cmdline := ""
 		username := ""
-		
+
 		if statInfo, err := os.Stat(fmt.Sprintf("/proc/%d", pid)); err == nil {
 			if nameBytes, err := os.ReadFile(fmt.Sprintf("/proc/%d/comm", pid)); err == nil {
 				name = strings.TrimSpace(string(nameBytes))

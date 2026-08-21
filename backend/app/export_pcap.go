@@ -58,7 +58,7 @@ func writePCAPExportFiles(exportDir string, flows []NetworkFlowSummary, tcpConns
 	if err := f.Chmod(0o600); err != nil {
 		return "", "", 0, fmt.Errorf("set PCAP permissions: %w", err)
 	}
-	if err := chownArtifactFile(f); err != nil {
+	if err := platform.ChownArtifactFile(f); err != nil {
 		return "", "", 0, fmt.Errorf("set PCAP ownership: %w", err)
 	}
 	if err := export.WritePCAPHeader(f); err != nil {
@@ -113,7 +113,7 @@ func writePCAPExportFiles(exportDir string, flows []NetworkFlowSummary, tcpConns
 	if err != nil {
 		return "", "", 0, fmt.Errorf("create PCAP sidecar: %w", err)
 	}
-	if err := chownArtifactFile(jsonlFile); err != nil {
+	if err := platform.ChownArtifactFile(jsonlFile); err != nil {
 		_ = jsonlFile.Close()
 		return "", "", 0, fmt.Errorf("set PCAP sidecar ownership: %w", err)
 	}
@@ -148,15 +148,4 @@ func syncAndCloseFile(file *os.File) error {
 		return err
 	}
 	return file.Close()
-}
-
-func chownArtifactFile(file *os.File) error {
-	if file == nil || os.Getuid() != 0 {
-		return nil
-	}
-	uid, gid, ok := platform.OriginalInvokerIDs()
-	if !ok {
-		return nil
-	}
-	return file.Chown(int(uid), int(gid))
 }

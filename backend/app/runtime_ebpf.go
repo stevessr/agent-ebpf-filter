@@ -1,8 +1,8 @@
 package app
 
 import (
-	bpf "agent-ebpf-filter/ebpf"
 	"agent-ebpf-filter/app/platform"
+	bpf "agent-ebpf-filter/ebpf"
 	"errors"
 	"fmt"
 	"log"

@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"agent-ebpf-filter/app/platform"
+
 	"golang.org/x/sys/unix"
 )
 
@@ -49,7 +50,7 @@ func acquirePluginArtifactLock(ctx context.Context, id string) (func(), error) {
 }
 
 func openPluginsRoot() (*os.File, error) {
-	root, err := secureOpenOrCreateDirectory(pluginsRootPath())
+	root, err := platform.SecureOpenOrCreateDir(pluginsRootPath())
 	if err != nil {
 		return nil, fmt.Errorf("open plugins root: %w", err)
 	}
@@ -57,7 +58,7 @@ func openPluginsRoot() (*os.File, error) {
 		root.Close()
 		return nil, err
 	}
-	if err = chownArtifactFile(root); err != nil {
+	if err = platform.ChownArtifactFile(root); err != nil {
 		root.Close()
 		return nil, err
 	}
@@ -86,7 +87,7 @@ func openPluginDir(root *os.File, id string, create bool) (*os.File, error) {
 		dir.Close()
 		return nil, err
 	}
-	if err = chownArtifactFile(dir); err != nil {
+	if err = platform.ChownArtifactFile(dir); err != nil {
 		dir.Close()
 		return nil, err
 	}

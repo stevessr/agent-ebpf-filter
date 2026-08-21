@@ -5,6 +5,7 @@ import (
 	"math"
 	"strings"
 
+	"agent-ebpf-filter/app/ml"
 	"agent-ebpf-filter/core"
 )
 
@@ -13,32 +14,32 @@ import (
 // data store at request time so the UI, API clients and async import paths share
 // one source of truth for pre-train quality gates.
 type MLTrainingReadiness struct {
-	Ready            bool                       `json:"ready"`
-	SampleCount      int                        `json:"sampleCount"`
-	LabeledCount     int                        `json:"labeledCount"`
-	UnlabeledCount   int                        `json:"unlabeledCount"`
-	MinSamples       int                        `json:"minSamples"`
-	MinClasses       int                        `json:"minClasses"`
-	ClassCount       int                        `json:"classCount"`
-	FeatureDim       int                        `json:"featureDim"`
-	ByLabel          []researchCount            `json:"byLabel,omitempty"`
-	ByCategory       []researchCount            `json:"byCategory,omitempty"`
-	Normalization    FeatureNormalizationReport `json:"normalization"`
-	Quality          DatasetQualitySummary      `json:"quality"`
-	BlockingReasons  []string                   `json:"blockingReasons,omitempty"`
-	Warnings         []string                   `json:"warnings,omitempty"`
-	SuggestedActions []string                   `json:"suggestedActions,omitempty"`
+	Ready            bool                          `json:"ready"`
+	SampleCount      int                           `json:"sampleCount"`
+	LabeledCount     int                           `json:"labeledCount"`
+	UnlabeledCount   int                           `json:"unlabeledCount"`
+	MinSamples       int                           `json:"minSamples"`
+	MinClasses       int                           `json:"minClasses"`
+	ClassCount       int                           `json:"classCount"`
+	FeatureDim       int                           `json:"featureDim"`
+	ByLabel          []researchCount               `json:"byLabel,omitempty"`
+	ByCategory       []researchCount               `json:"byCategory,omitempty"`
+	Normalization    ml.FeatureNormalizationReport `json:"normalization"`
+	Quality          DatasetQualitySummary         `json:"quality"`
+	BlockingReasons  []string                      `json:"blockingReasons,omitempty"`
+	Warnings         []string                      `json:"warnings,omitempty"`
+	SuggestedActions []string                      `json:"suggestedActions,omitempty"`
 }
 
-func buildMLTrainingReadiness(store *TrainingDataStore, cfg MLConfig) MLTrainingReadiness {
+func buildMLTrainingReadiness(store *ml.TrainingDataStore, cfg MLConfig) MLTrainingReadiness {
 	minSamples := mlTrainingReadinessMinSamples(cfg)
 	readiness := MLTrainingReadiness{
 		Ready:         false,
 		MinSamples:    minSamples,
 		MinClasses:    2,
 		FeatureDim:    FeatureDim,
-		Normalization: summarizeFeatureNormalization(nil),
-		Quality:       buildDatasetQualitySummary(0, 0, 0, 0, 0, nil, summarizeFeatureNormalization(nil)),
+		Normalization: ml.SummarizeFeatureNormalization(nil),
+		Quality:       buildDatasetQualitySummary(0, 0, 0, 0, 0, nil, ml.SummarizeFeatureNormalization(nil)),
 	}
 	if store == nil {
 		readiness.BlockingReasons = append(readiness.BlockingReasons, "training_store_unavailable")
@@ -48,7 +49,7 @@ func buildMLTrainingReadiness(store *TrainingDataStore, cfg MLConfig) MLTraining
 	}
 
 	allSamples := store.AllSamples()
-	labeledSamples := make([]TrainingSample, 0, len(allSamples))
+	labeledSamples := make([]ml.TrainingSample, 0, len(allSamples))
 	byLabel := map[string]int{}
 	byCategory := map[string]int{}
 	classLabels := map[string]int{}
@@ -69,7 +70,7 @@ func buildMLTrainingReadiness(store *TrainingDataStore, cfg MLConfig) MLTraining
 	readiness.ClassCount = len(classLabels)
 	readiness.ByLabel = topResearchCounts(byLabel, 0)
 	readiness.ByCategory = topResearchCounts(byCategory, 10)
-	readiness.Normalization = summarizeFeatureNormalization(labeledSamples)
+	readiness.Normalization = ml.SummarizeFeatureNormalization(labeledSamples)
 	readiness.Quality = datasetQualityFromTrainingSamples(allSamples, readiness.Normalization)
 
 	if readiness.LabeledCount < minSamples {
@@ -109,7 +110,7 @@ func mlTrainingReadinessMinSamples(cfg MLConfig) int {
 	if minSamples <= 0 {
 		minSamples = defaults.MinSamplesForTraining
 	}
-	effective := applyBuiltinModelPreset(cfg)
+	effective := ml.ApplyBuiltinModelPreset(cfg)
 	if effective.ModelType == "" {
 		effective.ModelType = defaults.ModelType
 	}
@@ -128,16 +129,16 @@ func mlTrainingReadinessMinSamples(cfg MLConfig) int {
 	return minSamples
 }
 
-func normalizedTrainingSampleLabelKey(sample TrainingSample) string {
+func normalizedTrainingSampleLabelKey(sample ml.TrainingSample) string {
 	if sample.IsLabeled() {
-		if label, ok := actionLabel[sample.Label]; ok {
+		if label, ok := ml.ActionLabel[sample.Label]; ok {
 			return label
 		}
 	}
 	return "UNLABELED"
 }
 
-func datasetQualityFromTrainingSamples(samples []TrainingSample, normalization FeatureNormalizationReport) DatasetQualitySummary {
+func datasetQualityFromTrainingSamples(samples []ml.TrainingSample, normalization ml.FeatureNormalizationReport) DatasetQualitySummary {
 	labels := map[string]int{}
 	seenCommands := map[string]int{}
 	importable := 0
@@ -167,7 +168,7 @@ func datasetQualityFromTrainingSamples(samples []TrainingSample, normalization F
 	return buildDatasetQualitySummary(len(samples), importable, labeled, unlabeled, duplicates, labels, normalization)
 }
 
-func trainingSampleDuplicateKey(sample TrainingSample) string {
+func trainingSampleDuplicateKey(sample ml.TrainingSample) string {
 	comm := strings.TrimSpace(sample.Comm)
 	if comm == "" {
 		return ""

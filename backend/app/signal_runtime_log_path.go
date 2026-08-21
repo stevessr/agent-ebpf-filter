@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"agent-ebpf-filter/app/platform"
+
 	"golang.org/x/sys/unix"
 )
 
@@ -68,7 +69,7 @@ func openSignalProgramLogWithin(rootPath string, selected SelectedProgramSignalL
 	if err != nil {
 		return nil, "", err
 	}
-	root, err := secureOpenOrCreateDirectory(rootPath)
+	root, err := platform.SecureOpenOrCreateDir(rootPath)
 	if err != nil {
 		return nil, "", fmt.Errorf("open signal program log root: %w", err)
 	}
@@ -76,7 +77,7 @@ func openSignalProgramLogWithin(rootPath string, selected SelectedProgramSignalL
 	if err := root.Chmod(0o700); err != nil {
 		return nil, "", fmt.Errorf("set signal program log root permissions: %w", err)
 	}
-	if err := chownArtifactFile(root); err != nil {
+	if err := platform.ChownArtifactFile(root); err != nil {
 		return nil, "", fmt.Errorf("set signal program log root ownership: %w", err)
 	}
 	mode := uint64(0)
@@ -98,12 +99,12 @@ func openSignalProgramLogWithin(rootPath string, selected SelectedProgramSignalL
 		_ = unix.Close(fd)
 		return nil, "", errors.New("open signal program log: invalid file descriptor")
 	}
-	if err := validateRecordingRegularFile(file); err != nil {
+	if err := platform.ValidateRegularSingleLink(file); err != nil {
 		_ = file.Close()
 		return nil, "", fmt.Errorf("validate signal program log: %w", err)
 	}
 	if flags&(os.O_WRONLY|os.O_RDWR) != 0 {
-		if err := prepareRecordingFile(file); err != nil {
+		if err := platform.PreparePrivateFile(file); err != nil {
 			_ = file.Close()
 			return nil, "", fmt.Errorf("prepare signal program log: %w", err)
 		}

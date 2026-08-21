@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"errors"
 	"fmt"
 	"math"
@@ -9,16 +10,16 @@ import (
 
 // ---- moved from backend/zz_merged_backend.go section autotunemodel.go ----
 
-func runModelAutoTune(store *TrainingDataStore, req MLModelTuneRequest, modelTypes []ModelType, progressCb func(completed, total int, message string)) (*MLModelTuneResponse, error) {
+func runModelAutoTune(store *ml.TrainingDataStore, req ml.MLModelTuneRequest, modelTypes []ModelType, progressCb func(completed, total int, message string)) (*ml.MLModelTuneResponse, error) {
 	return runModelAutoTuneWithCancel(store, req, modelTypes, progressCb, nil)
 }
 
-func runModelAutoTuneWithCancel(store *TrainingDataStore, req MLModelTuneRequest, modelTypes []ModelType, progressCb func(completed, total int, message string), isCanceled func() bool) (*MLModelTuneResponse, error) {
+func runModelAutoTuneWithCancel(store *ml.TrainingDataStore, req ml.MLModelTuneRequest, modelTypes []ModelType, progressCb func(completed, total int, message string), isCanceled func() bool) (*ml.MLModelTuneResponse, error) {
 	labeled := store.LabeledSamples()
 	if len(labeled) < 2 {
 		return nil, errors.New("need at least 2 labeled samples for model tuning")
 	}
-	metric := normalizeAutoTuneMetric(req.Metric)
+	metric := ml.NormalizeAutoTuneMetric(req.Metric)
 	if metric == "" {
 		metric = "validationAccuracy"
 	}
@@ -31,9 +32,9 @@ func runModelAutoTuneWithCancel(store *TrainingDataStore, req MLModelTuneRequest
 	}
 
 	start := time.Now()
-	candidates := make([]MLModelTuneCandidate, 0, len(modelTypes))
-	var best *MLModelTuneCandidate
-	var bestModel Model
+	candidates := make([]ml.MLModelTuneCandidate, 0, len(modelTypes))
+	var best *ml.MLModelTuneCandidate
+	var bestModel ml.Model
 	bestScore := math.Inf(-1)
 	benchmarkSamples := selectBenchmarkSamples(labeled, 64)
 	baseCfg := currentMLConfig()
@@ -43,15 +44,15 @@ func runModelAutoTuneWithCancel(store *TrainingDataStore, req MLModelTuneRequest
 	}
 
 	for i, modelType := range modelTypes {
-		if (isCanceled != nil && isCanceled()) || globalTrainer.IsCancelled() {
+		if (isCanceled != nil && isCanceled()) || ml.GlobalTrainer.IsCancelled() {
 			return nil, errors.New("cancelled")
 		}
 		label, base, recommended := modelTuneCatalogInfo(modelType)
 		cfg := baseCfg
 		cfg.ModelType = modelType
 		cfg.ValidationSplitRatio = validationRatio
-		effectiveCfg := applyBuiltinModelPreset(cfg)
-		candidate := MLModelTuneCandidate{
+		effectiveCfg := ml.ApplyBuiltinModelPreset(cfg)
+		candidate := ml.MLModelTuneCandidate{
 			ModelType:   string(modelType),
 			Label:       label,
 			Base:        base,
@@ -68,7 +69,7 @@ func runModelAutoTuneWithCancel(store *TrainingDataStore, req MLModelTuneRequest
 		}
 
 		trainStart := time.Now()
-		model, result := globalTrainer.TrainWithConfig(store, cfg)
+		model, result := ml.GlobalTrainer.TrainWithConfig(store, cfg)
 		candidate.TrainDuration = time.Since(trainStart).Seconds()
 		if result.Error != "" {
 			candidate.Error = result.Error
@@ -83,14 +84,14 @@ func runModelAutoTuneWithCancel(store *TrainingDataStore, req MLModelTuneRequest
 		candidate.ValidationAccuracy = result.ValidationAccuracy
 		candidate.ValidationCount = result.ValidationSamples
 		if candidate.ValidationCount == 0 {
-			candidate.ValidationCount = len(globalTrainer.LastValidationSamples())
+			candidate.ValidationCount = len(ml.GlobalTrainer.LastValidationSamples())
 		}
-		validationMetrics := evaluateAutoTuneTrainingSampleMetrics(globalTrainer.LastValidationSamples(), model)
+		validationMetrics := ml.EvaluateAutoTuneTrainingSampleMetrics(ml.GlobalTrainer.LastValidationSamples(), model)
 		candidate.AllowRecall = validationMetrics.AllowRecall
 		candidate.BalancedAccuracy = validationMetrics.BalancedAccuracy
 
 		if req.TuneParams {
-			paramReq := MLAutoTuneRequest{
+			paramReq := ml.MLAutoTuneRequest{
 				XAxis:                req.XAxis,
 				YAxis:                req.YAxis,
 				GridSize:             req.GridSize,
@@ -102,7 +103,7 @@ func runModelAutoTuneWithCancel(store *TrainingDataStore, req MLModelTuneRequest
 				MinY:                 req.MinY,
 				MaxY:                 req.MaxY,
 			}
-			paramResp, err := globalTrainer.AutoTuneWithConfig(store, cfg, paramReq, nil)
+			paramResp, err := ml.GlobalTrainer.AutoTuneWithConfig(store, cfg, paramReq, nil)
 			if err == nil && paramResp != nil && paramResp.Best != nil {
 				candidate.ParamTune = paramResp
 				cfg.NumTrees = paramResp.Best.NumTrees
@@ -112,13 +113,13 @@ func runModelAutoTuneWithCancel(store *TrainingDataStore, req MLModelTuneRequest
 				candidate.HyperParams["maxDepth"] = cfg.MaxDepth
 				candidate.HyperParams["minSamplesLeaf"] = cfg.MinSamplesLeaf
 				trainStart = time.Now()
-				model, result = globalTrainer.TrainWithConfig(store, cfg)
+				model, result = ml.GlobalTrainer.TrainWithConfig(store, cfg)
 				candidate.TrainDuration += time.Since(trainStart).Seconds()
 				if result.Error == "" {
 					candidate.TrainAccuracy = result.TrainAccuracy
 					candidate.ValidationAccuracy = result.ValidationAccuracy
 					candidate.ValidationCount = result.ValidationSamples
-					validationMetrics = evaluateAutoTuneTrainingSampleMetrics(globalTrainer.LastValidationSamples(), model)
+					validationMetrics = ml.EvaluateAutoTuneTrainingSampleMetrics(ml.GlobalTrainer.LastValidationSamples(), model)
 					candidate.AllowRecall = validationMetrics.AllowRecall
 					candidate.BalancedAccuracy = validationMetrics.BalancedAccuracy
 				} else {
@@ -127,11 +128,11 @@ func runModelAutoTuneWithCancel(store *TrainingDataStore, req MLModelTuneRequest
 			}
 		}
 
-		evalDuration, throughput, latencyMs, _ := benchmarkModelInference(model, benchmarkSamples)
+		evalDuration, throughput, latencyMs, _ := ml.BenchmarkModelInference(model, benchmarkSamples)
 		candidate.EvalDuration = evalDuration
 		candidate.InferenceThroughput = throughput
 		candidate.InferenceMsPerSample = latencyMs
-		candidate.Score = autoTuneMetricScore(metric, candidate.ValidationAccuracy, candidate.InferenceThroughput, autoTuneClassificationMetrics{
+		candidate.Score = ml.AutoTuneMetricScore(metric, candidate.ValidationAccuracy, candidate.InferenceThroughput, ml.AutoTuneClassificationMetrics{
 			AllowRecall:      candidate.AllowRecall,
 			BalancedAccuracy: candidate.BalancedAccuracy,
 		})
@@ -142,7 +143,7 @@ func runModelAutoTuneWithCancel(store *TrainingDataStore, req MLModelTuneRequest
 			bestModel = model
 			bestScore = candidate.Score
 		}
-		globalTrainer.logf("模型调优: %s 验证准确率 %.1f%% 推理 %.0f/s", label, candidate.ValidationAccuracy*100, candidate.InferenceThroughput)
+		ml.GlobalTrainer.Logf("模型调优: %s 验证准确率 %.1f%% 推理 %.0f/s", label, candidate.ValidationAccuracy*100, candidate.InferenceThroughput)
 		if progressCb != nil {
 			progressCb(i+1, len(modelTypes), fmt.Sprintf("完成 %s (%d/%d)", label, i+1, len(modelTypes)))
 		}
@@ -152,7 +153,7 @@ func runModelAutoTuneWithCancel(store *TrainingDataStore, req MLModelTuneRequest
 		return nil, errors.New("cancelled")
 	}
 	if best == nil {
-		return &MLModelTuneResponse{Metric: metric, SampleCount: len(labeled), TotalDuration: time.Since(start).Seconds(), Candidates: candidates}, errors.New("no model candidate trained successfully")
+		return &ml.MLModelTuneResponse{Metric: metric, SampleCount: len(labeled), TotalDuration: time.Since(start).Seconds(), Candidates: candidates}, errors.New("no model candidate trained successfully")
 	}
 	if req.ApplyBest {
 		if err := applyModelTuneBest(*best, bestModel, validationRatio); err != nil {
@@ -166,7 +167,7 @@ func runModelAutoTuneWithCancel(store *TrainingDataStore, req MLModelTuneRequest
 		}
 	}
 
-	return &MLModelTuneResponse{
+	return &ml.MLModelTuneResponse{
 		Metric:          metric,
 		SampleCount:     len(labeled),
 		ValidationCount: best.ValidationCount,
@@ -176,7 +177,7 @@ func runModelAutoTuneWithCancel(store *TrainingDataStore, req MLModelTuneRequest
 	}, nil
 }
 
-func applyModelTuneBest(best MLModelTuneCandidate, model Model, validationRatio float64) error {
+func applyModelTuneBest(best ml.MLModelTuneCandidate, model ml.Model, validationRatio float64) error {
 	if model == nil {
 		return errors.New("best model is not available")
 	}
@@ -195,7 +196,7 @@ func applyModelTuneBest(best MLModelTuneCandidate, model Model, validationRatio 
 	if _, err := runtimeSettingsStore.Replace(settings); err != nil {
 		return err
 	}
-	publishMLRuntimeModel(model, settings.MLConfig.ModelType)
+	ml.PublishMLRuntimeModel(model, settings.MLConfig.ModelType)
 	modelPath := settings.MLConfig.ModelPath
 	if modelPath == "" {
 		modelPath = defaultMLModelPath()

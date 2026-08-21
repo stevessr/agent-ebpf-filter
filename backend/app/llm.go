@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/internal/behavior"
 	"agent-ebpf-filter/pb"
 	"bytes"
 	"context"
@@ -83,16 +84,6 @@ type llmAssessment struct {
 	RawContent        string   `json:"rawContent,omitempty"`
 }
 
-type LLMReviewSummary struct {
-	Source               string    `json:"source"`
-	Model                string    `json:"model"`
-	ScoredSamples        int       `json:"scoredSamples"`
-	AverageRiskScore     float64   `json:"averageRiskScore"`
-	Agreement            float64   `json:"agreement"`
-	ValidationSplitRatio float64   `json:"validationSplitRatio,omitempty"`
-	ReviewedAt           time.Time `json:"reviewedAt"`
-}
-
 type openAIChatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
@@ -131,10 +122,10 @@ func bindLLMScoreRequest(c *gin.Context) (llmScoreRequest, bool) {
 		return req, false
 	}
 	if req.Comm == "" && req.CommandLine != "" {
-		req.Comm, req.Args = splitCommandLine(req.CommandLine)[0], splitCommandLine(req.CommandLine)[1:]
+		req.Comm, req.Args = behavior.SplitCommandLine(req.CommandLine)[0], behavior.SplitCommandLine(req.CommandLine)[1:]
 	}
 	if req.CommandLine == "" {
-		req.CommandLine = joinCommandLine(req.Comm, req.Args)
+		req.CommandLine = behavior.JoinCommandLine(req.Comm, req.Args)
 	}
 	if err := validateLLMCommandInput(req.CommandLine, req.Comm, req.Args); err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})

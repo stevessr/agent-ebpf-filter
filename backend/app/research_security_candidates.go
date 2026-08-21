@@ -11,7 +11,7 @@ import (
 
 func researchSecurityCandidateFromBenchmarkCase(bc benchmarkCase) researchSecurityEvaluationCandidate {
 	args := normalizeResearchSecurityBenchmarkArgs(bc.Comm, bc.Args)
-	commandLine := joinCommandLine(bc.Comm, args)
+	commandLine := behavior.JoinCommandLine(bc.Comm, args)
 	now := time.Now().UTC()
 	return researchSecurityEvaluationCandidate{
 		ID:              researchStableID("security-benchmark", bc.Name, bc.Comm, commandLine, bc.Expected),

@@ -1,0 +1,83 @@
+package ml
+
+import (
+	"math"
+	"time"
+)
+
+// ---- moved from backend/zz_merged_backend.go section trainer_eval.go ----
+
+func (t *ModelTrainer) acquire() { t.mu <- struct{}{} }
+func (t *ModelTrainer) release() { <-t.mu }
+
+func (t *ModelTrainer) finishMetrics(acc, trainAcc, valAcc float64, total, trainN, valN int) {
+	trainedAt := time.Now()
+	t.setTrainingResult(trainedAt, acc, trainAcc, valAcc)
+	t.addHistory(TrainingHistoryEntry{Timestamp: trainedAt, Accuracy: acc, NumSamples: total})
+}
+
+func evalModelLabeled(model Model, labeled []TrainingSample) float64 {
+	if len(labeled) == 0 {
+		return 0
+	}
+	correct := 0
+	for _, s := range labeled {
+		if model.Predict(s.Features).Action == s.Label {
+			correct++
+		}
+	}
+	return float64(correct) / float64(len(labeled))
+}
+
+func EvalModelSamples(model Model, samples []TrainSample) float64 {
+	if len(samples) == 0 {
+		return 0
+	}
+	correct := 0
+	for _, s := range samples {
+		if model.Predict(s.features).Action == s.label {
+			correct++
+		}
+	}
+	return float64(correct) / float64(len(samples))
+}
+
+func EvalLinearModel(W [][FeatureDim + 1]float64, nClasses int, samples []TrainSample) float64 {
+	if len(samples) == 0 {
+		return 0
+	}
+	correct := 0
+	for _, s := range samples {
+		bestC, bestS := 0, math.Inf(-1)
+		for c := 0; c < nClasses; c++ {
+			score := W[c][FeatureDim]
+			for d := 0; d < FeatureDim; d++ {
+				score += W[c][d] * s.features[d]
+			}
+			if score > bestS {
+				bestS = score
+				bestC = c
+			}
+		}
+		if int32(bestC) == s.label {
+			correct++
+		}
+	}
+	return float64(correct) / float64(len(samples))
+}
+
+func ToTrainSamples(labeled []TrainingSample) []TrainSample {
+	out := make([]TrainSample, len(labeled))
+	for i, s := range labeled {
+		out[i] = TrainSample{features: s.Features, label: s.Label}
+	}
+	return out
+}
+
+func ToTrainingSamples(samples []TrainSample) []TrainingSample {
+	out := make([]TrainingSample, len(samples))
+	for i, s := range samples {
+		out[i] = TrainingSample{Features: s.features, Label: s.label}
+	}
+	return out
+}

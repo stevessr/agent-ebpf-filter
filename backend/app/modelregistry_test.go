@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"fmt"
 	"math/rand"
 	"os"
@@ -17,11 +18,11 @@ func seedRand() *rand.Rand { return rand.New(rand.NewSource(42)) }
 
 func initMLTest(t *testing.T, nSamples int) {
 	t.Helper()
-	InitTrainingStore(100000)
-	previous := snapshotMLRuntime()
-	t.Cleanup(func() { replaceMLRuntime(previous) })
-	replaceMLRuntime(mlRuntimeSnapshot{Config: DefaultMLConfig(), Enabled: true})
-	globalTrainer.ResetCancel()
+	ml.InitTrainingStore(100000)
+	previous := ml.SnapshotMLRuntime()
+	t.Cleanup(func() { ml.ReplaceMLRuntime(previous) })
+	ml.ReplaceMLRuntime(ml.MLRuntimeSnapshot{Config: DefaultMLConfig(), Enabled: true})
+	ml.GlobalTrainer.ResetCancel()
 
 	rng := seedRand()
 	for i := 0; i < nSamples; i++ {
@@ -29,7 +30,7 @@ func initMLTest(t *testing.T, nSamples int) {
 		for d := 0; d < FeatureDim; d++ {
 			features[d] = rng.Float64()
 		}
-		globalTrainingStore.Add(TrainingSample{
+		ml.GlobalTrainingStore.Add(ml.TrainingSample{
 			Features:  features,
 			Label:     int32(i % 4),
 			Comm:      fmt.Sprintf("cmd-%d", i%4),
@@ -50,13 +51,13 @@ func tmpModelPath(t *testing.T, name string) string {
 func TestDecisionForestTrainPredict(t *testing.T) {
 	initMLTest(t, 300)
 
-	labeled := globalTrainingStore.LabeledSamples()
-	samples := make([]trainSample, len(labeled))
+	labeled := ml.GlobalTrainingStore.LabeledSamples()
+	samples := make([]ml.TrainSample, len(labeled))
 	for i, s := range labeled {
-		samples[i] = trainSample{features: s.Features, label: s.Label}
+		samples[i] = ml.NewTrainSample(s.Features, s.Label)
 	}
 
-	forest := buildAutoTuneForest(samples, 11, 5, 3, 42)
+	forest := ml.BuildAutoTuneForest(samples, 11, 5, 3, 42)
 	if len(forest.Trees) != 11 {
 		t.Fatalf("expected 11 trees, got %d", len(forest.Trees))
 	}
@@ -67,8 +68,8 @@ func TestDecisionForestTrainPredict(t *testing.T) {
 	// Predict all samples — should not hang
 	correct := 0
 	for _, s := range samples {
-		pred := forest.Predict(s.features)
-		if pred.Action == s.label {
+		pred := forest.Predict(s.Features())
+		if pred.Action == s.Label() {
 			correct++
 		}
 	}
@@ -82,20 +83,20 @@ func TestDecisionForestTrainPredict(t *testing.T) {
 func TestDecisionForestSerializeRoundtrip(t *testing.T) {
 	initMLTest(t, 200)
 
-	labeled := globalTrainingStore.LabeledSamples()
-	samples := make([]trainSample, len(labeled))
+	labeled := ml.GlobalTrainingStore.LabeledSamples()
+	samples := make([]ml.TrainSample, len(labeled))
 	for i, s := range labeled {
-		samples[i] = trainSample{features: s.Features, label: s.Label}
+		samples[i] = ml.NewTrainSample(s.Features, s.Label)
 	}
 
-	forest := buildAutoTuneForest(samples, 7, 4, 2, 99)
+	forest := ml.BuildAutoTuneForest(samples, 7, 4, 2, 99)
 	path := tmpModelPath(t, "rf_test")
 
 	if err := forest.Serialize(path); err != nil {
 		t.Fatalf("serialize: %v", err)
 	}
 
-	loaded, err := DeserializeForest(path)
+	loaded, err := ml.DeserializeForest(path)
 	if err != nil {
 		t.Fatalf("deserialize: %v", err)
 	}
@@ -105,8 +106,8 @@ func TestDecisionForestSerializeRoundtrip(t *testing.T) {
 
 	// Verify predictions match
 	for i, s := range samples[:10] {
-		orig := forest.Predict(s.features)
-		reloaded := loaded.Predict(s.features)
+		orig := forest.Predict(s.Features())
+		reloaded := loaded.Predict(s.Features())
 		if orig.Action != reloaded.Action {
 			t.Errorf("sample %d: action mismatch %d vs %d", i, orig.Action, reloaded.Action)
 		}
@@ -119,8 +120,8 @@ func TestDecisionForestSerializeRoundtrip(t *testing.T) {
 func TestKNNPredict(t *testing.T) {
 	initMLTest(t, 500)
 
-	labeled := globalTrainingStore.LabeledSamples()
-	model := NewKNNModel(5, "euclidean", "uniform")
+	labeled := ml.GlobalTrainingStore.LabeledSamples()
+	model := ml.NewKNNModel(5, "euclidean", "uniform")
 	model.NumClasses = 4
 	model.Samples = make([][FeatureDim]float64, len(labeled))
 	model.Labels = make([]int32, len(labeled))
@@ -140,7 +141,7 @@ func TestKNNPredict(t *testing.T) {
 		pred.Action, pred.Confidence, pred.AnomalyScore)
 
 	// Empty model should return safe defaults
-	empty := NewKNNModel(3, "euclidean", "uniform")
+	empty := ml.NewKNNModel(3, "euclidean", "uniform")
 	emptyPred := empty.Predict(labeled[0].Features)
 	if emptyPred.Action != 0 {
 		t.Errorf("empty model should return ALLOW(0), got %d", emptyPred.Action)
@@ -150,8 +151,8 @@ func TestKNNPredict(t *testing.T) {
 func TestKNNSerializeRoundtrip(t *testing.T) {
 	initMLTest(t, 200)
 
-	labeled := globalTrainingStore.LabeledSamples()
-	model := NewKNNModel(7, "manhattan", "distance")
+	labeled := ml.GlobalTrainingStore.LabeledSamples()
+	model := ml.NewKNNModel(7, "manhattan", "distance")
 	model.NumClasses = 4
 	model.Samples = make([][FeatureDim]float64, len(labeled))
 	model.Labels = make([]int32, len(labeled))
@@ -165,7 +166,7 @@ func TestKNNSerializeRoundtrip(t *testing.T) {
 		t.Fatalf("serialize: %v", err)
 	}
 
-	loaded, err := DeserializeKNN(path)
+	loaded, err := ml.DeserializeKNN(path)
 	if err != nil {
 		t.Fatalf("deserialize: %v", err)
 	}
@@ -192,11 +193,11 @@ func TestKNNSerializeRoundtrip(t *testing.T) {
 
 func TestKNNDistanceMetrics(t *testing.T) {
 	initMLTest(t, 100)
-	labeled := globalTrainingStore.LabeledSamples()
+	labeled := ml.GlobalTrainingStore.LabeledSamples()
 
-	euclidean := NewKNNModel(3, "euclidean", "uniform")
-	manhattan := NewKNNModel(3, "manhattan", "uniform")
-	for _, m := range []*KNNModel{euclidean, manhattan} {
+	euclidean := ml.NewKNNModel(3, "euclidean", "uniform")
+	manhattan := ml.NewKNNModel(3, "manhattan", "uniform")
+	for _, m := range []*ml.KNNModel{euclidean, manhattan} {
 		m.NumClasses = 4
 		m.Samples = make([][FeatureDim]float64, len(labeled))
 		m.Labels = make([]int32, len(labeled))
@@ -218,7 +219,7 @@ func TestKNNDistanceMetrics(t *testing.T) {
 func TestLogisticTrainPredict(t *testing.T) {
 	initMLTest(t, 500)
 
-	labeled := globalTrainingStore.LabeledSamples()
+	labeled := ml.GlobalTrainingStore.LabeledSamples()
 	samples := make([][FeatureDim]float64, len(labeled))
 	labels := make([]int32, len(labeled))
 	for i, s := range labeled {
@@ -226,7 +227,7 @@ func TestLogisticTrainPredict(t *testing.T) {
 		labels[i] = s.Label
 	}
 
-	model := NewLogisticModel(0.01, "l2", 500)
+	model := ml.NewLogisticModel(0.01, "l2", 500)
 	model.NumClasses = 4
 	model.Train(samples, labels)
 
@@ -252,7 +253,7 @@ func TestLogisticTrainPredict(t *testing.T) {
 func TestLogisticSerializeRoundtrip(t *testing.T) {
 	initMLTest(t, 200)
 
-	labeled := globalTrainingStore.LabeledSamples()
+	labeled := ml.GlobalTrainingStore.LabeledSamples()
 	samples := make([][FeatureDim]float64, len(labeled))
 	labels := make([]int32, len(labeled))
 	for i, s := range labeled {
@@ -260,7 +261,7 @@ func TestLogisticSerializeRoundtrip(t *testing.T) {
 		labels[i] = s.Label
 	}
 
-	model := NewLogisticModel(0.01, "l2", 300)
+	model := ml.NewLogisticModel(0.01, "l2", 300)
 	model.NumClasses = 4
 	model.Train(samples, labels)
 
@@ -269,7 +270,7 @@ func TestLogisticSerializeRoundtrip(t *testing.T) {
 		t.Fatalf("serialize: %v", err)
 	}
 
-	loaded, err := DeserializeLogistic(path)
+	loaded, err := ml.DeserializeLogistic(path)
 	if err != nil {
 		t.Fatalf("deserialize: %v", err)
 	}
@@ -292,11 +293,11 @@ func TestLogisticSerializeRoundtrip(t *testing.T) {
 	t.Logf("Logistic roundtrip OK: classes=%d, match=%d/20", loaded.NumClasses, match)
 }
 
-// ── Model Registry ──────────────────────────────────────────────────
+// ── ml.Model Registry ──────────────────────────────────────────────────
 
 func TestModelRegistry(t *testing.T) {
-	for _, mt := range AllModelTypes() {
-		m, err := NewModel(mt)
+	for _, mt := range ml.AllModelTypes() {
+		m, err := ml.NewModel(mt)
 		if err != nil {
 			t.Fatalf("NewModel(%s): %v", mt, err)
 		}
@@ -306,28 +307,28 @@ func TestModelRegistry(t *testing.T) {
 		if m.Type() != mt {
 			t.Fatalf("type mismatch: expected %s, got %s", mt, m.Type())
 		}
-		t.Logf("Model %s: type=%s ✓", modelName(mt), m.Type())
+		t.Logf("ml.Model %s: type=%s ✓", ml.ModelName(mt), m.Type())
 	}
 
-	_, err := NewModel("nonexistent")
+	_, err := ml.NewModel("nonexistent")
 	if err == nil {
 		t.Fatal("expected error for unknown model type")
 	}
 }
 
 func TestModelTypeNames(t *testing.T) {
-	if modelName(ModelRandomForest) == string(ModelRandomForest) {
-		t.Error("modelName should return human-readable name, not the constant")
+	if ml.ModelName(ModelRandomForest) == string(ModelRandomForest) {
+		t.Error("ml.ModelName should return human-readable name, not the constant")
 	}
-	types := AllModelTypes()
+	types := ml.AllModelTypes()
 	if len(types) < 3 {
 		t.Fatalf("expected at least 3 model types, got %d", len(types))
 	}
 }
 
 func TestBuiltinModelCatalogCoversAllModelTypes(t *testing.T) {
-	types := AllModelTypes()
-	catalog := BuiltinModelCatalog()
+	types := ml.AllModelTypes()
+	catalog := ml.BuiltinModelCatalog()
 	if len(types) < 30 {
 		t.Fatalf("expected at least 30 built-in model profiles, got %d", len(types))
 	}
@@ -364,15 +365,15 @@ func TestTrainingStoreAddAndQuery(t *testing.T) {
 	}
 }
 
-func initTestStore(n int) *TrainingDataStore {
-	InitTrainingStore(n + 10)
+func initTestStore(n int) *ml.TrainingDataStore {
+	ml.InitTrainingStore(n + 10)
 	rng := seedRand()
 	for i := 0; i < n; i++ {
 		var features [FeatureDim]float64
 		for d := 0; d < FeatureDim; d++ {
 			features[d] = rng.Float64()
 		}
-		globalTrainingStore.Add(TrainingSample{
+		ml.GlobalTrainingStore.Add(ml.TrainingSample{
 			Features:    features,
 			Label:       int32(i % 4),
 			Comm:        "test",
@@ -381,7 +382,7 @@ func initTestStore(n int) *TrainingDataStore {
 			UserLabel:   "test",
 		})
 	}
-	return globalTrainingStore
+	return ml.GlobalTrainingStore
 }
 
 // ── Trainer with different model types ──────────────────────────────
@@ -423,8 +424,8 @@ func TestTrainerAllModelTypes(t *testing.T) {
 			cfg.MinSamplesLeaf = tc.minLeaf
 			cfg.BalanceClasses = tc.balance
 
-			globalTrainer.ResetCancel()
-			model, result := globalTrainer.TrainWithConfig(globalTrainingStore, cfg)
+			ml.GlobalTrainer.ResetCancel()
+			model, result := ml.GlobalTrainer.TrainWithConfig(ml.GlobalTrainingStore, cfg)
 			if result.Error != "" {
 				t.Fatalf("TrainWithConfig failed: %s", result.Error)
 			}
@@ -436,7 +437,7 @@ func TestTrainerAllModelTypes(t *testing.T) {
 			}
 
 			// Test prediction doesn't hang
-			labeled := globalTrainingStore.LabeledSamples()
+			labeled := ml.GlobalTrainingStore.LabeledSamples()
 			pred := model.Predict(labeled[0].Features)
 			t.Logf("%s: accuracy=%.2f%%, pred action=%d conf=%.3f",
 				model.Type(), result.Accuracy*100, pred.Action, pred.Confidence)
@@ -470,8 +471,8 @@ func TestMLCRuntimeStatusForForest(t *testing.T) {
 	cfg.MaxDepth = 4
 	cfg.MinSamplesLeaf = 2
 
-	globalTrainer.ResetCancel()
-	model, result := globalTrainer.TrainWithConfig(globalTrainingStore, cfg)
+	ml.GlobalTrainer.ResetCancel()
+	model, result := ml.GlobalTrainer.TrainWithConfig(ml.GlobalTrainingStore, cfg)
 	if result.Error != "" {
 		t.Fatalf("TrainWithConfig failed: %s", result.Error)
 	}
@@ -484,7 +485,7 @@ func TestMLCRuntimeStatusForForest(t *testing.T) {
 	mlCRuntimeKey = ""
 	mlCRuntimeMu.Unlock()
 
-	status := buildMLCRuntimeStatus(model, globalTrainingStore)
+	status := buildMLCRuntimeStatus(model, ml.GlobalTrainingStore)
 	if !status.Available {
 		t.Fatal("C runtime status should be available")
 	}
@@ -516,13 +517,13 @@ func TestMLCRuntimeStatusForForest(t *testing.T) {
 // ── Trainer edge cases ──────────────────────────────────────────────
 
 func TestTrainerEmptyStore(t *testing.T) {
-	InitTrainingStore(10)
-	store := globalTrainingStore
+	ml.InitTrainingStore(10)
+	store := ml.GlobalTrainingStore
 	cfg := DefaultMLConfig()
 	cfg.ModelType = ModelRandomForest
 
-	globalTrainer.ResetCancel()
-	_, result := globalTrainer.TrainWithConfig(store, cfg)
+	ml.GlobalTrainer.ResetCancel()
+	_, result := ml.GlobalTrainer.TrainWithConfig(store, cfg)
 	if result.Error == "" {
 		t.Fatal("expected error for empty store")
 	}
@@ -535,16 +536,16 @@ func TestTrainerDuplicateRun(t *testing.T) {
 	cfg.ModelType = ModelRandomForest
 	cfg.NumTrees = 3
 
-	globalTrainer.ResetCancel()
+	ml.GlobalTrainer.ResetCancel()
 	// First training should succeed
-	_, result := globalTrainer.TrainWithConfig(globalTrainingStore, cfg)
+	_, result := ml.GlobalTrainer.TrainWithConfig(ml.GlobalTrainingStore, cfg)
 	if result.Error != "" {
 		t.Fatalf("first train failed: %s", result.Error)
 	}
 
 	// Second should also work (mutex is released by defer)
-	globalTrainer.ResetCancel()
-	_, result2 := globalTrainer.TrainWithConfig(globalTrainingStore, cfg)
+	ml.GlobalTrainer.ResetCancel()
+	_, result2 := ml.GlobalTrainer.TrainWithConfig(ml.GlobalTrainingStore, cfg)
 	if result2.Error != "" {
 		t.Fatalf("second train failed: %s", result2.Error)
 	}

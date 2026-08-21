@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -33,8 +34,12 @@ func readCapturedEventsFileAtRootContext(ctx context.Context, root, path string,
 	if err != nil {
 		return nil, "", err
 	}
-	file, err := openRecordingChild(rootFile, name, unix.O_RDONLY, 0)
+	file, err := platform.OpenBeneath(rootFile, name, unix.O_RDONLY, 0)
 	if err != nil {
+		return nil, "", err
+	}
+	if err := platform.ValidateRegularSingleLink(file); err != nil {
+		_ = file.Close()
 		return nil, "", err
 	}
 	defer file.Close()

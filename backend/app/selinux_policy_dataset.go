@@ -1,6 +1,8 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
+	"agent-ebpf-filter/internal/behavior"
 	"log"
 	"net/http"
 	"strings"
@@ -22,7 +24,7 @@ func handleMLSELinuxPolicyDatasetPost(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
-	if globalTrainingStore == nil {
+	if ml.GlobalTrainingStore == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ML training store not initialized"})
 		return
 	}
@@ -36,7 +38,7 @@ func handleMLSELinuxPolicyDatasetPost(c *gin.Context) {
 		}
 		resp.Imported = imported
 		resp.Skipped += skipped
-		total, labeled := globalTrainingStore.Status()
+		total, labeled := ml.GlobalTrainingStore.Status()
 		resp.TotalSamples = total
 		resp.LabeledSamples = labeled
 		log.Printf("[ML] Builtin dataset import source=%q rows=%d imported=%d skipped=%d", resp.Source, len(resp.Rows), imported, resp.Skipped)
@@ -44,7 +46,7 @@ func handleMLSELinuxPolicyDatasetPost(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-func buildSELinuxPolicyDatasetResponse(limit int) (agentLegalDatasetResponse, []TrainingSample) {
+func buildSELinuxPolicyDatasetResponse(limit int) (agentLegalDatasetResponse, []ml.TrainingSample) {
 	templates := builtinSELinuxPolicyRuleTemplates()
 	if limit <= 0 || limit > len(templates) {
 		limit = len(templates)
@@ -52,7 +54,7 @@ func buildSELinuxPolicyDatasetResponse(limit int) (agentLegalDatasetResponse, []
 
 	now := time.Now().UTC()
 	rows := make([]remoteDatasetRow, 0, limit)
-	samples := make([]TrainingSample, 0, limit)
+	samples := make([]ml.TrainingSample, 0, limit)
 	families := make(map[string]int)
 	skipped := 0
 
@@ -65,13 +67,13 @@ func buildSELinuxPolicyDatasetResponse(limit int) (agentLegalDatasetResponse, []
 		row := trainingSampleToRemoteDatasetRow(i+1, sample)
 		row.Source = tmpl.Family
 		row.LabelSource = sample.UserLabel
-		row.Duplicate = globalTrainingStore != nil && globalTrainingStore.HasExactCommand(sample.Comm, sample.Args)
+		row.Duplicate = ml.GlobalTrainingStore != nil && ml.GlobalTrainingStore.HasExactCommand(sample.Comm, sample.Args)
 		rows = append(rows, row)
 		samples = append(samples, sample)
 		families[tmpl.Family]++
 	}
 
-	normalization := summarizeFeatureNormalization(samples)
+	normalization := ml.SummarizeFeatureNormalization(samples)
 	statResp := remoteDatasetResponse{Source: "builtin-selinux-policy-rules", Rows: rows, Normalization: normalization}
 	applyRemoteDatasetResponseStats(&statResp, "preserve", false)
 
@@ -94,24 +96,24 @@ func buildSELinuxPolicyDatasetResponse(limit int) (agentLegalDatasetResponse, []
 	return resp, samples
 }
 
-func buildSELinuxPolicyTrainingSample(tmpl selinuxPolicyRuleTemplate, timestamp time.Time) (TrainingSample, bool) {
+func buildSELinuxPolicyTrainingSample(tmpl selinuxPolicyRuleTemplate, timestamp time.Time) (ml.TrainingSample, bool) {
 	rule := strings.TrimSpace(tmpl.Rule)
 	if rule == "" {
-		return TrainingSample{}, false
+		return ml.TrainingSample{}, false
 	}
 	commandLine := "selinux-rule " + strings.TrimSuffix(rule, ";")
-	parts := splitCommandLine(commandLine)
+	parts := behavior.SplitCommandLine(commandLine)
 	if len(parts) == 0 {
-		return TrainingSample{}, false
+		return ml.TrainingSample{}, false
 	}
 	comm := parts[0]
 	args := []string{}
 	if len(parts) > 1 {
 		args = append(args, parts[1:]...)
 	}
-	label := actionFromLabel(tmpl.Label)
+	label := ml.ActionFromLabel(tmpl.Label)
 	if label < 0 {
-		label = actionFromLabel("ALERT")
+		label = ml.ActionFromLabel("ALERT")
 	}
 	sample := buildCommandTrainingSample(comm, args, "", 0, label, "selinux-policy", timestamp)
 	sample.CommandLine = commandLine
@@ -130,7 +132,7 @@ func selinuxPolicyRuleRecordFromLine(line string, row int, source string) (remot
 	}
 
 	commandLine := "selinux-rule " + rule
-	parts := splitCommandLine(commandLine)
+	parts := behavior.SplitCommandLine(commandLine)
 	if len(parts) == 0 {
 		return remoteDatasetRecord{}, false
 	}
@@ -195,7 +197,7 @@ func selinuxPolicyRuleLabel(rule string) (string, bool) {
 	}
 }
 
-func importSELinuxPolicySamples(samples []TrainingSample) (int, int, error) {
+func importSELinuxPolicySamples(samples []ml.TrainingSample) (int, int, error) {
 	imported := 0
 	skipped := 0
 	seen := make(map[string]struct{})
@@ -204,21 +206,21 @@ func importSELinuxPolicySamples(samples []TrainingSample) (int, int, error) {
 			skipped++
 			continue
 		}
-		key := commandKey(sample.Comm, sample.Args)
+		key := behavior.CommandKey(sample.Comm, sample.Args)
 		if _, ok := seen[key]; ok {
 			skipped++
 			continue
 		}
 		seen[key] = struct{}{}
-		if globalTrainingStore.HasExactCommand(sample.Comm, sample.Args) {
+		if ml.GlobalTrainingStore.HasExactCommand(sample.Comm, sample.Args) {
 			skipped++
 			continue
 		}
-		globalTrainingStore.Add(sample)
+		ml.GlobalTrainingStore.Add(sample)
 		recordCommandSampleSideEffects(sample)
 		imported++
 	}
-	if err := globalTrainingStore.Flush(); err != nil {
+	if err := ml.GlobalTrainingStore.Flush(); err != nil {
 		return imported, skipped, err
 	}
 	return imported, skipped, nil

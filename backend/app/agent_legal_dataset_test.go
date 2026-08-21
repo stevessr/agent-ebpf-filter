@@ -1,10 +1,10 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -12,9 +12,9 @@ import (
 )
 
 func TestAgentLegalDatasetBuildsNormalizedAllowSamples(t *testing.T) {
-	oldStore := globalTrainingStore
-	globalTrainingStore = newAgentLegalDatasetTestStore(t, 128)
-	t.Cleanup(func() { globalTrainingStore = oldStore })
+	oldStore := ml.GlobalTrainingStore
+	ml.GlobalTrainingStore = newAgentLegalDatasetTestStore(t, 128)
+	t.Cleanup(func() { ml.GlobalTrainingStore = oldStore })
 
 	resp, samples := buildAgentLegalDatasetResponse(32)
 	if resp.Total != 32 {
@@ -48,9 +48,9 @@ func TestAgentLegalDatasetBuildsNormalizedAllowSamples(t *testing.T) {
 }
 
 func TestHandleMLAgentLegalDatasetImportsSamples(t *testing.T) {
-	oldStore := globalTrainingStore
-	globalTrainingStore = newAgentLegalDatasetTestStore(t, 128)
-	t.Cleanup(func() { globalTrainingStore = oldStore })
+	oldStore := ml.GlobalTrainingStore
+	ml.GlobalTrainingStore = newAgentLegalDatasetTestStore(t, 128)
+	t.Cleanup(func() { ml.GlobalTrainingStore = oldStore })
 
 	rec := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(rec)
@@ -69,7 +69,7 @@ func TestHandleMLAgentLegalDatasetImportsSamples(t *testing.T) {
 	if resp.Imported != 24 || resp.LabeledSamples != 24 || resp.TotalSamples != 24 {
 		t.Fatalf("import summary = imported %d labeled %d total %d", resp.Imported, resp.LabeledSamples, resp.TotalSamples)
 	}
-	for _, sample := range globalTrainingStore.LabeledSamples() {
+	for _, sample := range ml.GlobalTrainingStore.LabeledSamples() {
 		if sample.Label != 0 || sample.UserLabel != "agent-legal" {
 			t.Fatalf("imported sample = label %d userLabel %q, want ALLOW/agent-legal", sample.Label, sample.UserLabel)
 		}
@@ -77,9 +77,9 @@ func TestHandleMLAgentLegalDatasetImportsSamples(t *testing.T) {
 }
 
 func TestSELinuxPolicyDatasetBuildsLabeledNormalizedSamples(t *testing.T) {
-	oldStore := globalTrainingStore
-	globalTrainingStore = newAgentLegalDatasetTestStore(t, 128)
-	t.Cleanup(func() { globalTrainingStore = oldStore })
+	oldStore := ml.GlobalTrainingStore
+	ml.GlobalTrainingStore = newAgentLegalDatasetTestStore(t, 128)
+	t.Cleanup(func() { ml.GlobalTrainingStore = oldStore })
 
 	resp, samples := buildSELinuxPolicyDatasetResponse(64)
 	if resp.Total == 0 || len(samples) != resp.Total || len(resp.Rows) != resp.Total {
@@ -123,9 +123,9 @@ func TestSELinuxPolicyDatasetBuildsLabeledNormalizedSamples(t *testing.T) {
 }
 
 func TestHandleMLSELinuxPolicyDatasetImportsSamples(t *testing.T) {
-	oldStore := globalTrainingStore
-	globalTrainingStore = newAgentLegalDatasetTestStore(t, 128)
-	t.Cleanup(func() { globalTrainingStore = oldStore })
+	oldStore := ml.GlobalTrainingStore
+	ml.GlobalTrainingStore = newAgentLegalDatasetTestStore(t, 128)
+	t.Cleanup(func() { ml.GlobalTrainingStore = oldStore })
 
 	rec := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(rec)
@@ -144,18 +144,17 @@ func TestHandleMLSELinuxPolicyDatasetImportsSamples(t *testing.T) {
 	if resp.Imported != 18 || resp.LabeledSamples != 18 || resp.TotalSamples != 18 {
 		t.Fatalf("import summary = imported %d labeled %d total %d", resp.Imported, resp.LabeledSamples, resp.TotalSamples)
 	}
-	for _, sample := range globalTrainingStore.LabeledSamples() {
+	for _, sample := range ml.GlobalTrainingStore.LabeledSamples() {
 		if sample.UserLabel != "selinux-policy" || sample.Label < 0 || sample.Label > 3 {
 			t.Fatalf("imported SELinux sample label/userLabel mismatch: label=%d userLabel=%q", sample.Label, sample.UserLabel)
 		}
 	}
 }
 
-func newAgentLegalDatasetTestStore(t *testing.T, maxSamples int) *TrainingDataStore {
+func newAgentLegalDatasetTestStore(t *testing.T, maxSamples int) *ml.TrainingDataStore {
 	t.Helper()
-	store := newTrainingDataStore(maxSamples)
+	store := ml.NewTrainingDataStore(maxSamples)
 	tmpDir := t.TempDir()
-	store.dataDir = tmpDir
-	store.persistPath = filepath.Join(tmpDir, "ml_training_data.bin")
+	store.SetPersistLocation(tmpDir)
 	return store
 }

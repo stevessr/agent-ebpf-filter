@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
 	"math"
 	"testing"
 	"time"
@@ -30,7 +31,7 @@ func TestNormalizeFeatureVectorRepairsAndBounds(t *testing.T) {
 	f[116] = -1
 	f[117] = 1
 
-	got := normalizeFeatureVector(f)
+	got := ml.NormalizeFeatureVector(f)
 	if got[0] != 0 {
 		t.Fatalf("negative feature normalized to %f, want 0", got[0])
 	}
@@ -70,11 +71,11 @@ func TestFeatureExtractorProducesFiniteBoundedFeatures(t *testing.T) {
 }
 
 func TestFeatureNormalizationSummaryFlagsOutOfRangeRawSamples(t *testing.T) {
-	samples := []TrainingSample{
-		{Features: normalizeFeatureVector([FeatureDim]float64{0: 0.2, 1: 0.8}), Timestamp: time.Now()},
+	samples := []ml.TrainingSample{
+		{Features: ml.NormalizeFeatureVector([FeatureDim]float64{0: 0.2, 1: 0.8}), Timestamp: time.Now()},
 		{Features: [FeatureDim]float64{0: -1, 1: 2, 2: math.Inf(1)}, Timestamp: time.Now()},
 	}
-	report := summarizeFeatureNormalization(samples)
+	report := ml.SummarizeFeatureNormalization(samples)
 	if report.SampleCount != 2 || report.FeatureDim != FeatureDim {
 		t.Fatalf("report dimensions = %#v", report)
 	}
