@@ -138,7 +138,10 @@ const trainingReadiness = computed(() => mlStatus.value.training_readiness);
 const trainingReadinessPercent = computed(() => {
   const readiness = trainingReadiness.value;
   if (!readiness?.minSamples) return 0;
-  return Math.min(100, Math.round((readiness.labeledCount / readiness.minSamples) * 100));
+  return Math.min(
+    100,
+    Math.round((readiness.labeledCount / readiness.minSamples) * 100),
+  );
 });
 const trainingReadinessAlertType = computed(() => {
   const readiness = trainingReadiness.value;
@@ -264,7 +267,10 @@ const formatReadinessToken = (value: string) =>
           </a-tag>
         </a-space>
       </template>
-      <a-empty v-else description="等待 /config/ml/status 返回 readiness 信息" />
+      <a-empty
+        v-else
+        description="等待 /config/ml/status 返回 readiness 信息"
+      />
     </a-card>
   </a-col>
 
@@ -387,8 +393,7 @@ const formatReadinessToken = (value: string) =>
             ><BookOutlined /> 导入 SELinux 规则</a-button
           >
           <a-tag color="blue"
-            >一键导入数据集:
-            {{ downloadableInternetDatasetCount }}</a-tag
+            >一键导入数据集: {{ downloadableInternetDatasetCount }}</a-tag
           >
           <a-button
             size="small"

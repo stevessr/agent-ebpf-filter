@@ -48,7 +48,7 @@ const remoteDatasetWarningText = computed(() => {
 </script>
 
 <template>
-<!-- Internet Dataset Import -->
+  <!-- Internet Dataset Import -->
   <a-col :xs="24">
     <a-card size="small">
       <template #title>
@@ -159,8 +159,8 @@ const remoteDatasetWarningText = computed(() => {
             </div>
             <a-typography-text type="secondary"
               >支持公开数据集、实验室内网数据集或你自己的样本仓库，只要 URL
-              可直接 GET 访问即可；SELinux policy
-              文本会在后端解析为 selinux-rule 训练样本。</a-typography-text
+              可直接 GET 访问即可；SELinux policy 文本会在后端解析为
+              selinux-rule 训练样本。</a-typography-text
             >
           </div>
         </a-col>
@@ -177,10 +177,8 @@ const remoteDatasetWarningText = computed(() => {
                 >type: {{ remoteDatasetMeta.contentType || "unknown" }}</a-tag
               >
               <a-tag v-if="remoteDatasetMeta" color="purple"
-                >total:
-                {{ remoteDatasetMeta.totalIsLowerBound ? "≥" : "" }}{{
-                  remoteDatasetMeta.total
-                }}</a-tag
+                >total: {{ remoteDatasetMeta.totalIsLowerBound ? "≥" : ""
+                }}{{ remoteDatasetMeta.total }}</a-tag
               >
               <a-tag v-if="remoteDatasetMeta?.truncated" color="orange"
                 >truncated</a-tag
@@ -229,7 +227,10 @@ const remoteDatasetWarningText = computed(() => {
                 {{ category.key }}: {{ category.count }}
               </a-tag>
               <a-tag
-                v-for="source in (remoteDatasetMeta?.bySource || []).slice(0, 4)"
+                v-for="source in (remoteDatasetMeta?.bySource || []).slice(
+                  0,
+                  4,
+                )"
                 :key="`remote-source-${source.key}`"
                 color="geekblue"
               >
@@ -246,7 +247,7 @@ const remoteDatasetWarningText = computed(() => {
                   ? `数据集已达到 ${remoteDatasetMeta.recordLimit || remoteDatasetMeta.total} 条安全记录上限，实际总数可能更高。`
                   : remoteDatasetMeta.truncated
                     ? '列表已按 Limit 截断；importAll 仍受后端安全记录上限约束。'
-                  : '列表展示的是当前请求返回的全部可见数据。'
+                    : '列表展示的是当前请求返回的全部可见数据。'
               "
             />
             <a-alert

@@ -99,14 +99,26 @@ const modelTuneProgressTotal = computed(
       : autoTuneGridSize.value * autoTuneGridSize.value),
 );
 
-const numTreesMin = computed(() => modelBaseType.value === "graph_learning" ? 8 : 5);
-const numTreesMax = computed(() => modelBaseType.value === "graph_learning" ? 256 : 200);
+const numTreesMin = computed(() =>
+  modelBaseType.value === "graph_learning" ? 8 : 5,
+);
+const numTreesMax = computed(() =>
+  modelBaseType.value === "graph_learning" ? 256 : 200,
+);
 
-const maxDepthMin = computed(() => modelBaseType.value === "graph_learning" ? 1 : 3);
-const maxDepthMax = computed(() => modelBaseType.value === "graph_learning" ? 10 : 20);
+const maxDepthMin = computed(() =>
+  modelBaseType.value === "graph_learning" ? 1 : 3,
+);
+const maxDepthMax = computed(() =>
+  modelBaseType.value === "graph_learning" ? 10 : 20,
+);
 
-const minSamplesLeafMin = computed(() => modelBaseType.value === "graph_learning" ? 10 : 1);
-const minSamplesLeafMax = computed(() => modelBaseType.value === "graph_learning" ? 500 : 50);
+const minSamplesLeafMin = computed(() =>
+  modelBaseType.value === "graph_learning" ? 10 : 1,
+);
+const minSamplesLeafMax = computed(() =>
+  modelBaseType.value === "graph_learning" ? 500 : 50,
+);
 </script>
 
 <template>
@@ -193,8 +205,8 @@ const minSamplesLeafMax = computed(() => modelBaseType.value === "graph_learning
             modelBaseType === "extra_trees"
               ? "Num Extra Trees (极随机树数量)"
               : modelBaseType === "graph_learning"
-              ? "Hidden Dimension (图特征隐层维度)"
-              : "Num Trees (树的数量)"
+                ? "Hidden Dimension (图特征隐层维度)"
+                : "Num Trees (树的数量)"
           }}</span>
           <a-slider
             v-model:value="hyperParams.numTrees"
@@ -400,7 +412,6 @@ const minSamplesLeafMax = computed(() => modelBaseType.value === "graph_learning
 
   <!-- Training / Validation Split -->
   <a-col :xs="24">
-
     <a-card title="Training / Validation Split" size="small">
       <template #extra
         ><a-tag color="purple"

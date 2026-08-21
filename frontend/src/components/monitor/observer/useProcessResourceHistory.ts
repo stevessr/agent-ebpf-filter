@@ -52,9 +52,9 @@ export function useProcessResourceHistory(options: {
 
   const sample = () => {
     const pids = options.treePids();
-    const processes = options.processes().filter((process) =>
-      pids.has(process.pid),
-    );
+    const processes = options
+      .processes()
+      .filter((process) => pids.has(process.pid));
     const now = Date.now();
     cpuHistory.value = updateResourceHistory(
       cpuHistory.value,

@@ -37,7 +37,10 @@ const trainingReadiness = computed(() => mlStatus.value.training_readiness);
 const trainingReadinessPercent = computed(() => {
   const readiness = trainingReadiness.value;
   if (!readiness?.minSamples) return 0;
-  return Math.min(100, Math.round((readiness.labeledCount / readiness.minSamples) * 100));
+  return Math.min(
+    100,
+    Math.round((readiness.labeledCount / readiness.minSamples) * 100),
+  );
 });
 const trainingReadinessAlertType = computed(() => {
   const readiness = trainingReadiness.value;
@@ -147,7 +150,12 @@ const formatReadinessToken = (value: string) =>
               align-items: center;
             "
           >
-            <a-statistic :title="modelBaseType === 'graph_learning' ? 'Hidden Dim' : 'Trees'" :value="mlStatus.num_trees || 0" />
+            <a-statistic
+              :title="
+                modelBaseType === 'graph_learning' ? 'Hidden Dim' : 'Trees'
+              "
+              :value="mlStatus.num_trees || 0"
+            />
           </a-card>
         </a-col>
         <a-col :xs="12" :sm="8" :md="6">

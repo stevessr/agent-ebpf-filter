@@ -187,8 +187,9 @@ export function useConfigRuntime() {
     value?: Partial<SignalProgramLogsResponse>,
   ) => {
     signalProgramLogs.value = Array.isArray(value?.logs) ? value.logs : [];
-    signalProgramLogWriterStatus.value =
-      normalizeSignalProgramLogWriterStatus(value?.writer);
+    signalProgramLogWriterStatus.value = normalizeSignalProgramLogWriterStatus(
+      value?.writer,
+    );
   };
 
   const syncApiToken = (token: string) => {
@@ -199,8 +200,6 @@ export function useConfigRuntime() {
       return;
     }
     setStoredApiToken(normalized);
-    axios.defaults.headers.common["X-API-KEY"] = normalized;
-    axios.defaults.headers.common.Authorization = `Bearer ${normalized}`;
   };
 
   const applyRuntimeResponse = (data: RuntimeConfigResponse) => {
@@ -353,18 +352,17 @@ export function useConfigRuntime() {
       researchProcessingRes,
       signalProcessingRes,
       signalProgramLogsRes,
-    ] =
-      await Promise.allSettled([
-        axios.get("/system/bootstrap-health"),
-        axios.get("/system/collector-health"),
-        axios.get("/system/otel-health"),
-        axios.get("/system/domain-forward/status"),
-        axios.get("/system/loop-detection/status"),
-        axios.get("/system/research-processing/status"),
-        axios.get("/system/signals/status"),
-        axios.get("/system/signals/program-logs"),
-        featureManifest.fetchFeatureManifest(),
-      ]);
+    ] = await Promise.allSettled([
+      axios.get("/system/bootstrap-health"),
+      axios.get("/system/collector-health"),
+      axios.get("/system/otel-health"),
+      axios.get("/system/domain-forward/status"),
+      axios.get("/system/loop-detection/status"),
+      axios.get("/system/research-processing/status"),
+      axios.get("/system/signals/status"),
+      axios.get("/system/signals/program-logs"),
+      featureManifest.fetchFeatureManifest(),
+    ]);
     if (bootstrapRes.status === "fulfilled") {
       bootstrapHealth.value = normalizeTracepointBootstrapStatus(
         bootstrapRes.value.data as Partial<TracepointBootstrapStatus>,

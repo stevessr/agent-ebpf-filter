@@ -1,3 +1,20 @@
+<ProcessSslTab
+  :selectedPids="selectedPids"
+  :visibleTLSEvents="visibleTLSEvents"
+  :treeSSLAttachments="treeSSLAttachments"
+  :treeSSLPending="treeSSLPending"
+  :attachingPids="attachingPids"
+  :attachErrors="attachErrors"
+  v-model:autoAttach="autoAttach"
+  v-model:skipSSL="skipSSL"
+  :openTLSDetail="openTLSDetail"
+  :clearTLSEvents="clearTLSEvents"
+  :fetchAttachedPIDs="fetchAttachedPIDs"
+  :doAttachBuiltins="doAttachBuiltins"
+  :doAttachGo="doAttachGo"
+  :doAttachLibrary="doAttachLibrary"
+  :doAttachAllBuiltins="doAttachAllBuiltins"
+/>
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted, watch, computed } from "vue";
 import axios from "axios";
@@ -5,8 +22,6 @@ import {
   SearchOutlined,
   ReloadOutlined,
   NodeIndexOutlined,
-  CaretDownOutlined,
-  EyeOutlined,
   MergeCellsOutlined,
   PlayCircleOutlined,
 } from "@ant-design/icons-vue";
@@ -24,16 +39,14 @@ import ObserverTimeline from "./observer/ObserverTimeline.vue";
 import ObserverFlamegraph from "./observer/ObserverFlamegraph.vue";
 import ObserverResources from "./observer/ObserverResources.vue";
 import AgentContextPanel from "./observer/AgentContextPanel.vue";
+import ProcessSslTab from "./ProcessSslTab.vue";
 import FilePathBrowserModal from "./FilePathBrowserModal.vue";
 import SSLDecryptedEventModal from "./observer/SSLDecryptedEventModal.vue";
 import LaunchProgramModal from "./observer/LaunchProgramModal.vue";
 import {
   TAB_STORAGE_KEY,
   subTabKeys,
-  bestTLSPreview,
-  classifySSLLib,
   collectAllPids,
-  createExpandedTLSRowRender,
   eventColumns,
   formatBytes,
   formatTLSBodyPreview,
@@ -41,14 +54,13 @@ import {
   looksLikeJSON,
   networkFlowColumns,
   normalizeObserveTab,
-  sslAttachmentColumns,
   tcpConnColumns,
-  tlsColumns,
   type SubTabKey,
 } from "./processObserverViewHelpers";
 import { useObserverTLSPreferences } from "./useObserverTLSPreferences";
 import { useProcessAutoAttach } from "./useProcessAutoAttach";
 import { useProgramLauncher } from "./useProgramLauncher";
+import { useAttachActions } from "./useAttachActions";
 import { useRoute, useRouter } from "vue-router";
 
 // ── Props ────────────────────────────────────────────────────────────────
@@ -78,16 +90,23 @@ const handleTabChange = (key: string) => {
   const tab = normalizeObserveTab(key);
   activeSubTab.value = tab;
   router.replace({ name: "Observe", params: { tab } });
-  try { localStorage.setItem(TAB_STORAGE_KEY, tab); } catch { /* ignore */ }
+  try {
+    localStorage.setItem(TAB_STORAGE_KEY, tab);
+  } catch {
+    /* ignore */
+  }
 };
 
 // Back/forward navigation – sync tab from URL
-watch(() => route.params.tab, (param) => {
-  const tab = normalizeObserveTab(getRouteParam(param));
-  if (tab !== activeSubTab.value) {
-    activeSubTab.value = tab;
-  }
-});
+watch(
+  () => route.params.tab,
+  (param) => {
+    const tab = normalizeObserveTab(getRouteParam(param));
+    if (tab !== activeSubTab.value) {
+      activeSubTab.value = tab;
+    }
+  },
+);
 
 // ── Composable ───────────────────────────────────────────────────────────
 const obs = useProcessObserver();
@@ -135,8 +154,12 @@ watch(
   () => props.processes,
   (p) => setProcesses(p),
 );
-const processByPid = computed(() => new Map(props.processes.map((p) => [p.pid, p])));
-const treeProcessByPid = computed(() => new Map(treeProcessList.value.map((p) => [p.pid, p])));
+const processByPid = computed(
+  () => new Map(props.processes.map((p) => [p.pid, p])),
+);
+const treeProcessByPid = computed(
+  () => new Map(treeProcessList.value.map((p) => [p.pid, p])),
+);
 
 // ── PID input ────────────────────────────────────────────────────────────
 const pidInput = ref("");
@@ -158,7 +181,9 @@ const restorePidsFromStorage = () => {
         }
       }
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   // Migration: old single-PID storage
   try {
     const raw = localStorage.getItem("observe-selected-pid");
@@ -169,19 +194,27 @@ const restorePidsFromStorage = () => {
         localStorage.removeItem("observe-selected-pid");
       }
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 };
 restorePidsFromStorage();
 
-watch(selectedPids, (pids) => {
-  try {
-    if (pids.size > 0) {
-      localStorage.setItem(PIDS_STORAGE_KEY, JSON.stringify([...pids]));
-    } else {
-      localStorage.removeItem(PIDS_STORAGE_KEY);
+watch(
+  selectedPids,
+  (pids) => {
+    try {
+      if (pids.size > 0) {
+        localStorage.setItem(PIDS_STORAGE_KEY, JSON.stringify([...pids]));
+      } else {
+        localStorage.removeItem(PIDS_STORAGE_KEY);
+      }
+    } catch {
+      /* ignore */
     }
-  } catch { /* ignore */ }
-}, { deep: true });
+  },
+  { deep: true },
+);
 
 const onPidSearch = () => {
   const val = parseInt(pidInput.value, 10);
@@ -237,87 +270,10 @@ const { skipSSL, autoAttach } = useObserverTLSPreferences();
 
 // Filtered TLS events (respects skipSSL toggle)
 const visibleTLSEvents = computed(() =>
-  skipSSL.value ? [] : treeTLSEvents.value
+  skipSSL.value ? [] : treeTLSEvents.value,
 );
 
 // ── Manual SSL attach ────────────────────────────────────────────────────
-
-const attachingPids = reactive(new Set<number>());
-const attachErrors = reactive<Record<number, string>>({});
-
-const getBinaryPath = async (pid: number): Promise<string> => {
-  // Always resolve via /proc/PID/exe for the real binary, not cmdline
-  try {
-    const res = await axios.get("/system/process/exe", { params: { pid } });
-    return res.data.path || "";
-  } catch {
-    // Fallback: try cmdline
-    const p = treeProcessByPid.value.get(pid);
-    if (p?.cmdline) {
-      const parts = p.cmdline.split(/\s+/);
-      if (parts[0]) return parts[0];
-    }
-    return "";
-  }
-};
-
-const doAttachBuiltins = async (pid: number) => {
-  if (attachingPids.has(pid)) return;
-  attachingPids.add(pid);
-  delete attachErrors[pid];
-  try {
-    const exePath = await getBinaryPath(pid);
-    if (!exePath) { attachErrors[pid] = "Cannot resolve binary path for PID " + pid; return; }
-    // Use executable API which auto-detects: Go uprobes → static SSL → library (openssl/gnutls)
-    const res = await axios.post("/tls-capture/executable", { path: exePath, pid, library: "" });
-    if (res.data.result?.error) {
-      attachErrors[pid] = res.data.result.error;
-    } else {
-      await fetchAttachedPIDs();
-    }
-  } catch (e: any) {
-    attachErrors[pid] = e?.response?.data?.error || e?.message || "Auto-attach failed";
-  } finally {
-    attachingPids.delete(pid);
-  }
-};
-
-const doAttachGo = async (pid: number) => {
-  if (attachingPids.has(pid)) return;
-  attachingPids.add(pid);
-  delete attachErrors[pid];
-  try {
-    const path = await getBinaryPath(pid);
-    if (!path) { attachErrors[pid] = "Cannot determine binary path for PID " + pid; return; }
-    await axios.post("/tls-capture/go-binary", { path, pid });
-    await fetchAttachedPIDs();
-  } catch (e: any) {
-    attachErrors[pid] = e?.response?.data?.error || e?.message || "Go attach failed";
-  } finally {
-    attachingPids.delete(pid);
-  }
-};
-
-const doAttachLibrary = async (pid: number, library: string) => {
-  if (attachingPids.has(pid)) return;
-  attachingPids.add(pid);
-  delete attachErrors[pid];
-  try {
-    const path = await getBinaryPath(pid);
-    if (!path) { attachErrors[pid] = "Cannot determine binary path for PID " + pid; return; }
-    await axios.post("/tls-capture/executable", { path, pid, library });
-    await fetchAttachedPIDs();
-  } catch (e: any) {
-    attachErrors[pid] = e?.response?.data?.error || e?.message || "Library attach failed";
-  } finally {
-    attachingPids.delete(pid);
-  }
-};
-
-const doAttachAllBuiltins = async () => {
-  const pids = treeSSLPending.value.map((p) => p.pid);
-  await Promise.all(pids.map((pid) => doAttachBuiltins(pid)));
-};
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -329,17 +285,15 @@ const openTLSDetail = (event: ObserverTLSEvent) => {
   tlsDetailOpen.value = true;
 };
 
-// Expanded row render for TLS events — shows decoded body + headers
-const expandedTLSRowRender = createExpandedTLSRowRender(openTLSDetail);
-
 const detailModalOpen = ref(false);
 const detailModalProcess = ref<ProcessInfo | null>(null);
 
 const openProcessDetail = (node: ProcessTreeNode) => {
   // Look up full ProcessInfo from the processes list
-  const info = processByPid.value.get(node.pid)
-    || treeProcessByPid.value.get(node.pid)
-    || null;
+  const info =
+    processByPid.value.get(node.pid) ||
+    treeProcessByPid.value.get(node.pid) ||
+    null;
   detailModalProcess.value = info;
   detailModalOpen.value = true;
 };
@@ -356,26 +310,33 @@ const toggleExpand = (pid: number) => {
 };
 
 // Auto-expand ancestors of all selected PIDs
-watch(selectedPids, (pids) => {
-  if (pids.size > 0) {
-    const expandTo = (nodes: ProcessTreeNode[], target: number): boolean => {
-      for (const n of nodes) {
-        if (n.pid === target || expandTo(n.children, target)) {
-          expandedNodes.value = new Set([...expandedNodes.value, n.pid]);
-          return true;
+watch(
+  selectedPids,
+  (pids) => {
+    if (pids.size > 0) {
+      const expandTo = (nodes: ProcessTreeNode[], target: number): boolean => {
+        for (const n of nodes) {
+          if (n.pid === target || expandTo(n.children, target)) {
+            expandedNodes.value = new Set([...expandedNodes.value, n.pid]);
+            return true;
+          }
         }
+        return false;
+      };
+      for (const pid of pids) {
+        expandTo(processTree.value, pid);
       }
-      return false;
-    };
-    for (const pid of pids) {
-      expandTo(processTree.value, pid);
     }
-  }
-}, { deep: true });
+  },
+  { deep: true },
+);
 
 // SSL attachment status per PID
 const attachedPIDByPid = computed(
-  () => new Map(attachedPIDs.value.map((attachment) => [attachment.pid, attachment])),
+  () =>
+    new Map(
+      attachedPIDs.value.map((attachment) => [attachment.pid, attachment]),
+    ),
 );
 const sslAttachedSet = computed<Set<number>>(
   () => new Set(attachedPIDByPid.value.keys()),
@@ -398,10 +359,18 @@ const treeSSLAttachments = computed(() =>
 
 // Tree processes missing SSL attachment
 const treeSSLPending = computed(() =>
-  treeProcessList.value.filter(
-    (p) => !sslAttachedSet.value.has(p.pid),
-  ),
+  treeProcessList.value.filter((p) => !sslAttachedSet.value.has(p.pid)),
 );
+
+const {
+  attachingPids,
+  attachErrors,
+  getBinaryPath,
+  doAttachBuiltins,
+  doAttachGo,
+  doAttachLibrary,
+  doAttachAllBuiltins,
+} = useAttachActions({ treeProcessByPid, treeSSLPending, fetchAttachedPIDs });
 
 useProcessAutoAttach({
   pendingProcesses: treeSSLPending,
@@ -473,7 +442,10 @@ watch(
             >
               Clear All
             </a-button>
-            <span v-if="selectedPids.size === 0" style="color: #6b7280; font-size: 12px">
+            <span
+              v-if="selectedPids.size === 0"
+              style="color: #6b7280; font-size: 12px"
+            >
               No PID selected
             </span>
           </div>
@@ -485,7 +457,9 @@ watch(
               :key="label"
               color="processing"
               closable
-              @close="removePid(parseInt(label.match(/\[?(\d+)\]?/)?.[1] || '0'))"
+              @close="
+                removePid(parseInt(label.match(/\[?(\d+)\]?/)?.[1] || '0'))
+              "
             >
               {{ label }}
             </a-tag>
@@ -663,7 +637,12 @@ watch(
             </span>
             <span v-else-if="column.key === 'path'">
               <span v-if="text" :title="text">{{ text }}</span>
-              <span v-else-if="record.extraInfo" class="path-fallback" :title="record.extraInfo">{{ record.extraInfo }}</span>
+              <span
+                v-else-if="record.extraInfo"
+                class="path-fallback"
+                :title="record.extraInfo"
+                >{{ record.extraInfo }}</span
+              >
               <span v-else style="color: #6b7280">—</span>
             </span>
           </template>
@@ -704,7 +683,12 @@ watch(
             </span>
             <span v-else-if="column.key === 'path'">
               <span v-if="text" :title="text">{{ text }}</span>
-              <span v-else-if="record.extraInfo" class="path-fallback" :title="record.extraInfo">{{ record.extraInfo }}</span>
+              <span
+                v-else-if="record.extraInfo"
+                class="path-fallback"
+                :title="record.extraInfo"
+                >{{ record.extraInfo }}</span
+              >
               <span v-else style="color: #6b7280">—</span>
             </span>
           </template>
@@ -718,7 +702,12 @@ watch(
           v-if="selectedPids.size === 0"
           description="Select a PID to view resource usage"
         />
-        <ObserverResources v-else :processes="processes" :treePids="treePids" :mem-total="memTotal" />
+        <ObserverResources
+          v-else
+          :processes="processes"
+          :treePids="treePids"
+          :mem-total="memTotal"
+        />
       </a-tab-pane>
 
       <!-- 9. SSL -->
@@ -757,165 +746,23 @@ watch(
             >Clear</a-button
           >
         </template>
-        <a-empty
-          v-if="selectedPids.size === 0"
-          description="Select a PID to view SSL/TLS data"
+        <ProcessSslTab
+          :selectedPids="selectedPids"
+          :visibleTLSEvents="visibleTLSEvents"
+          :treeSSLAttachments="treeSSLAttachments"
+          :treeSSLPending="treeSSLPending"
+          :attachingPids="attachingPids"
+          :attachErrors="attachErrors"
+          v-model:autoAttach="autoAttach"
+          v-model:skipSSL="skipSSL"
+          :openTLSDetail="openTLSDetail"
+          :clearTLSEvents="clearTLSEvents"
+          :fetchAttachedPIDs="fetchAttachedPIDs"
+          :doAttachBuiltins="doAttachBuiltins"
+          :doAttachGo="doAttachGo"
+          :doAttachLibrary="doAttachLibrary"
+          :doAttachAllBuiltins="doAttachAllBuiltins"
         />
-        <template v-else>
-          <!-- Section 1: Uprobe captured TLS events -->
-          <div class="sub-section">
-            <div class="sub-title">
-              Decrypted TLS Events
-              <span class="sub-count">{{ visibleTLSEvents.length }}</span>
-            </div>
-            <a-table
-              :dataSource="visibleTLSEvents"
-              :columns="tlsColumns"
-              row-key="key"
-              size="small"
-              :pagination="{ pageSize: 20, size: 'small' }"
-              :expandable="{ expandedRowRender: (r: ObserverTLSEvent) => expandedTLSRowRender(r), rowExpandable: (r: ObserverTLSEvent) => !!(r.body || (r.headers && Object.keys(r.headers).length > 0)) }"
-            >
-              <template #bodyCell="{ column, record }">
-                <template v-if="column.key === 'evType'">
-                  <a-tag v-if="record.type === 'http_request'" color="blue" size="small">REQ</a-tag>
-                  <a-tag v-else-if="record.type === 'http_response'" color="green" size="small">RESP</a-tag>
-                  <a-tag v-else-if="record.type === 'sse_message'" color="purple" size="small">SSE</a-tag>
-                  <a-tag v-else color="default" size="small">{{ record.type || 'raw' }}</a-tag>
-                </template>
-                <template v-else-if="column.key === 'url' && record.type === 'tls_plaintext'">
-                  <a-tooltip :title="record.raw_hex_dump?.slice(0, 200)">
-                    <span class="tls-hex-preview">{{ record.raw_hex_dump?.slice(0, 40) }}…</span>
-                  </a-tooltip>
-                </template>
-                <template v-else-if="column.key === 'bodyPreview'">
-                  <span
-                    v-if="record.body || record.raw_hex_dump"
-                    class="tls-body-preview"
-                  >{{ bestTLSPreview(record, 80) }}</span>
-                  <span v-else style="color: #6b7280; font-size: 11px">—</span>
-                </template>
-                <template v-else-if="column.key === 'size'">
-                  <span>{{ formatBytes(record.captured_len) }}</span>
-                </template>
-                <template v-else-if="column.key === 'actions'">
-                  <a-button
-                    v-if="record.body || (record.headers && Object.keys(record.headers).length > 0)"
-                    size="small"
-                    type="link"
-                    style="padding: 0"
-                    @click="openTLSDetail(record)"
-                  >
-                    <EyeOutlined />
-                  </a-button>
-                </template>
-              </template>
-            </a-table>
-          </div>
-
-          <a-divider style="margin: 16px 0 12px; font-size: 12px; color: #4b5563">
-            SSL Probe Attachment
-          </a-divider>
-
-          <!-- Section 2: Attached probes -->
-          <div class="sub-section">
-            <div class="sub-title">
-              Active Probes
-              <a-tag color="green" size="small">{{ treeSSLAttachments.length }}</a-tag>
-            </div>
-            <a-empty
-              v-if="treeSSLAttachments.length === 0"
-              description="No SSL probes attached to tree processes"
-              style="padding: 12px"
-            />
-            <a-table
-              v-else
-              :dataSource="treeSSLAttachments"
-              :columns="sslAttachmentColumns"
-              row-key="pid"
-              size="small"
-              :pagination="false"
-            >
-              <template #bodyCell="{ column, record }">
-                <template v-if="column.key === 'comm'">
-                  <span class="ssl-attach-comm">{{ record.comm || '—' }}</span>
-                </template>
-                <template v-else-if="column.key === 'libType'">
-                  <a-tag :color="classifySSLLib(record.library_name || '').tagColor" size="small">
-                    {{ classifySSLLib(record.library_name || '').type }}
-                  </a-tag>
-                </template>
-                <template v-else-if="column.key === 'status'">
-                  <a-badge status="processing" color="green" text="Active" />
-                </template>
-              </template>
-            </a-table>
-          </div>
-
-          <!-- Section 3: Pending (not attached) processes -->
-          <div v-if="treeSSLPending.length > 0" class="sub-section">
-            <div class="sub-title">
-              Not Attached
-              <a-tag color="default" size="small">{{ treeSSLPending.length }}</a-tag>
-            </div>
-            <div v-if="Object.keys(attachErrors).length > 0" class="attach-errors">
-              <div v-for="(err, pid) in attachErrors" :key="pid" class="attach-error">
-                <code>[{{ pid }}]</code> {{ err }}
-                <a-button size="small" type="link" @click="delete attachErrors[pid]">Dismiss</a-button>
-              </div>
-            </div>
-            <div style="margin-bottom: 8px">
-                <a-button size="small" type="primary" ghost
-                  :loading="attachingPids.size > 0"
-                  @click="doAttachAllBuiltins()"
-                >Attach All ({{ treeSSLPending.length }})</a-button>
-              </div>
-            <div class="ssl-pending-list">
-              <div
-                v-for="p in treeSSLPending"
-                :key="p.pid"
-                class="ssl-pending-row"
-              >
-                <code class="ssl-pending-pid">{{ p.pid }}</code>
-                <span class="ssl-pending-name">{{ p.name }}</span>
-                <span class="ssl-pending-cmd" v-if="p.cmdline" :title="p.cmdline">
-                  {{ p.cmdline.split(/\s+/)[0]?.split('/').pop() || p.cmdline.slice(0, 40) }}
-                </span>
-                <a-dropdown :trigger="['click']" placement="bottomRight">
-                  <a-button
-                    size="small"
-                    type="dashed"
-                    :loading="attachingPids.has(p.pid)"
-                    style="margin-left: auto; font-size: 11px"
-                  >
-                    Attach <CaretDownOutlined />
-                  </a-button>
-                  <template #overlay>
-                    <a-menu @click="({ key }: { key: string }) => {
-                      if (key === 'builtins') doAttachBuiltins(p.pid);
-                      else if (key === 'go') doAttachGo(p.pid);
-                      else if (key.startsWith('lib:')) doAttachLibrary(p.pid, key.slice(4));
-                    }">
-                      <a-menu-item key="builtins">
-                        <span class="attach-menu-item">🔍 Auto-detect (builtins)</span>
-                      </a-menu-item>
-                      <a-menu-divider />
-                      <a-menu-item key="go">
-                        <span class="attach-menu-item">🔷 Go crypto/tls</span>
-                      </a-menu-item>
-                      <a-menu-item key="lib:openssl">
-                        <span class="attach-menu-item">🔒 OpenSSL</span>
-                      </a-menu-item>
-                      <a-menu-item key="lib:gnutls">
-                        <span class="attach-menu-item">🛡️ GnuTLS</span>
-                      </a-menu-item>
-                    </a-menu>
-                  </template>
-                </a-dropdown>
-              </div>
-            </div>
-          </div>
-        </template>
       </a-tab-pane>
 
       <!-- 10. Agent Context (merged send/recv with SSE grouping) -->
@@ -939,7 +786,11 @@ watch(
       :processes="processes"
       :selected-pids="[...selectedPids]"
       @update:open="showPicker = $event"
-      @select="(procs: any) => { procs.forEach((p: ProcessInfo) => addPid(p.pid)) }"
+      @select="
+        (procs: any) => {
+          procs.forEach((p: ProcessInfo) => addPid(p.pid));
+        }
+      "
     />
 
     <!-- File/directory browser modal -->
@@ -965,7 +816,9 @@ watch(
       :process-list="treeProcessList"
       @update:open="detailModalOpen = $event"
       @select-pid="(pid: number) => togglePid(pid)"
-      @signal="(pid: number, signal: string) => props.sendProcessSignal(pid, signal)"
+      @signal="
+        (pid: number, signal: string) => props.sendProcessSignal(pid, signal)
+      "
     />
 
     <!-- Launch program modal -->

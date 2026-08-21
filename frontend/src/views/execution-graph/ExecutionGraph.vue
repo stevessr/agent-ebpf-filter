@@ -22,11 +22,16 @@ import type { ProcessInfo } from "../../composables/monitor/useMonitorData";
 import { useExecutionGraph } from "../../composables/execution-graph/useExecutionGraph";
 import { useExecutionGraphRecording } from "../../composables/execution-graph/useExecutionGraphRecording";
 import ExecutionGraphRecordingPanel from "./ExecutionGraphRecordingPanel.vue";
+import NodeDetailCard from "./NodeDetailCard.vue";
 import type {
   ExecutionGraphEdge,
   ExecutionGraphFilterState,
   ExecutionGraphNode,
   ExecutionGraphResponse,
+} from "../../types/executionGraph";
+import {
+  executionDetailTabs,
+  type ExecutionDetailTab,
 } from "../../types/executionGraph";
 import { filtersFromRoute, useGraphFilters } from "./useGraphFilters";
 import { useGraphWebSocket } from "./useGraphWebSocket";
@@ -39,17 +44,9 @@ const {
   setup: setupMonitorData,
   teardown: teardownMonitorData,
 } = monitorData;
-const detailTabs = [
-  "processes",
-  "files",
-  "network",
-  "policy",
-  "edges",
-  "metadata",
-] as const;
 const traceTabs = ["topology", "behavior", "recording"] as const;
-type DetailTab = (typeof detailTabs)[number];
 type TraceTab = (typeof traceTabs)[number];
+type DetailTab = ExecutionDetailTab;
 type GraphState = ExecutionGraphResponse & {
   nodes: ExecutionGraphNode[];
   edges: ExecutionGraphEdge[];
@@ -316,11 +313,6 @@ const activeTraceTab = computed<TraceTab>({
     });
   },
 });
-const renderNodeSubtitle = (node: ExecutionGraphNode) =>
-  node.subtitle?.trim() ||
-  node.metadata?.path ||
-  node.metadata?.endpoint ||
-  "—";
 // ── Event handlers ───────────────────────────────────────────────────
 const handleSelectNode = (id: string) => {
   selectedNodeId.value = id;
@@ -345,6 +337,15 @@ const handleProcessPicked = (processes: ProcessInfo[]) => {
   const p = processes[0];
   if (p) void focusProcessBase(p.pid);
 };
+const isDetailTab = (value: string): value is DetailTab =>
+  executionDetailTabs.some((t) => t === value);
+
+const setDetailTab = (tab: string) => {
+  if (isDetailTab(tab)) {
+    activeDetailTab.value = tab;
+  }
+};
+
 const focusRelatedTab = (tab: DetailTab) => {
   activeDetailTab.value = tab;
 };
@@ -547,7 +548,9 @@ onUnmounted(() => {
         <ProcessPickerModal
           v-model:open="processPickerOpen"
           :processes="processList"
-          :selected-pids="selectedProcessPid != null ? [selectedProcessPid] : []"
+          :selected-pids="
+            selectedProcessPid != null ? [selectedProcessPid] : []
+          "
           :loading="processLoading"
           title="选择要监听的进程"
           @select="(ps: ProcessInfo[]) => handleProcessPicked(ps)"
@@ -731,250 +734,24 @@ onUnmounted(() => {
               />
             </a-spin>
           </a-card>
-          <a-card :bordered="false" class="detail-card">
-            <template #title
-              ><span><InfoCircleOutlined /> Node Details</span></template
-            >
-            <template #extra>
-              <a-space v-if="selectedNode">
-                <a-tag :color="selectedNodeKindColor">{{
-                  selectedNode.kind
-                }}</a-tag>
-                <a-tag
-                  v-if="selectedNode.riskScore !== undefined"
-                  color="volcano"
-                  >risk {{ Number(selectedNode.riskScore).toFixed(0) }}</a-tag
-                >
-              </a-space>
-            </template>
-            <a-empty
-              v-if="!selectedNode"
-              description="Select a node from the graph to inspect context, resources, and actions."
-            />
-            <template v-else>
-              <a-space direction="vertical" size="middle" style="width: 100%">
-                <div>
-                  <a-typography-title :level="5" style="margin-bottom: 6px">{{
-                    selectedNode.label
-                  }}</a-typography-title>
-                  <a-typography-paragraph
-                    type="secondary"
-                    style="margin-bottom: 0"
-                  >
-                    {{ renderNodeSubtitle(selectedNode) }}
-                  </a-typography-paragraph>
-                </div>
-                <a-descriptions :column="1" size="small" bordered>
-                  <a-descriptions-item label="Node ID">{{
-                    selectedNode.id
-                  }}</a-descriptions-item>
-                  <a-descriptions-item label="Kind">{{
-                    selectedNode.kind
-                  }}</a-descriptions-item>
-                  <a-descriptions-item v-if="selectedNode.pid" label="PID">{{
-                    selectedNode.pid
-                  }}</a-descriptions-item>
-                  <a-descriptions-item
-                    v-if="actionableComm"
-                    label="Actionable Command"
-                    >{{ actionableComm }}</a-descriptions-item
-                  >
-                </a-descriptions>
-                <div class="node-actions">
-                  <a-space wrap>
-                    <a-button size="small" @click="addRule('ALLOW')"
-                      ><SafetyCertificateOutlined /> Add allow rule</a-button
-                    >
-                    <a-button size="small" danger @click="addRule('BLOCK')"
-                      ><StopOutlined /> Add block rule</a-button
-                    >
-                    <a-button
-                      size="small"
-                      @click="exportTrainingSample('ALLOW')"
-                      >Mark benign</a-button
-                    >
-                    <a-button
-                      size="small"
-                      type="primary"
-                      ghost
-                      @click="exportTrainingSample('ALERT')"
-                      ><AlertOutlined /> Mark suspicious</a-button
-                    >
-                    <a-button
-                      size="small"
-                      type="dashed"
-                      @click="exportTrainingSample('BLOCK')"
-                      >Export BLOCK sample</a-button
-                    >
-                  </a-space>
-                </div>
-                <a-space wrap>
-                  <a-button size="small" @click="focusRelatedTab('processes')"
-                    >Show related process tree</a-button
-                  >
-                  <a-button size="small" @click="focusRelatedTab('files')"
-                    >Show related files</a-button
-                  >
-                  <a-button size="small" @click="focusRelatedTab('network')"
-                    >Show related network flows</a-button
-                  >
-                  <a-button size="small" @click="focusRelatedTab('policy')"
-                    >Show related policy events</a-button
-                  >
-                </a-space>
-                <a-tabs v-model:activeKey="activeDetailTab" size="small">
-                  <a-tab-pane
-                    key="processes"
-                    :tab="`Processes (${relatedProcesses.length})`"
-                  >
-                    <a-list
-                      size="small"
-                      :data-source="
-                        selectedNode?.kind === 'process'
-                          ? processTreeNodes
-                          : relatedProcesses
-                      "
-                      bordered
-                    >
-                      <template #renderItem="{ item }">
-                        <a-list-item
-                          @click="selectedNodeId = item.id"
-                          class="clickable-list-item"
-                        >
-                          <a-space direction="vertical" size="small">
-                            <span
-                              ><b>{{ item.label }}</b>
-                              <a-tag color="green">process</a-tag></span
-                            >
-                            <span class="muted-line">{{
-                              renderNodeSubtitle(item)
-                            }}</span>
-                          </a-space>
-                        </a-list-item>
-                      </template>
-                    </a-list>
-                  </a-tab-pane>
-                  <a-tab-pane
-                    key="files"
-                    :tab="`Files (${relatedFiles.length})`"
-                  >
-                    <a-list size="small" :data-source="relatedFiles" bordered>
-                      <template #renderItem="{ item }">
-                        <a-list-item
-                          @click="selectedNodeId = item.id"
-                          class="clickable-list-item"
-                        >
-                          <a-space direction="vertical" size="small">
-                            <span
-                              ><b>{{ item.label }}</b></span
-                            >
-                            <span class="muted-line">{{
-                              item.metadata?.path || "file access"
-                            }}</span>
-                          </a-space>
-                        </a-list-item>
-                      </template>
-                    </a-list>
-                  </a-tab-pane>
-                  <a-tab-pane
-                    key="network"
-                    :tab="`Network (${relatedNetwork.length})`"
-                  >
-                    <a-list size="small" :data-source="relatedNetwork" bordered>
-                      <template #renderItem="{ item }">
-                        <a-list-item
-                          @click="selectedNodeId = item.id"
-                          class="clickable-list-item"
-                        >
-                          <a-space direction="vertical" size="small">
-                            <span
-                              ><b>{{ item.label }}</b></span
-                            >
-                            <span class="muted-line">{{
-                              item.subtitle ||
-                              item.metadata?.domain ||
-                              "network relation"
-                            }}</span>
-                          </a-space>
-                        </a-list-item>
-                      </template>
-                    </a-list>
-                  </a-tab-pane>
-                  <a-tab-pane
-                    key="policy"
-                    :tab="`Policy (${relatedPolicies.length})`"
-                  >
-                    <a-list
-                      size="small"
-                      :data-source="relatedPolicies"
-                      bordered
-                    >
-                      <template #renderItem="{ item }">
-                        <a-list-item
-                          @click="selectedNodeId = item.id"
-                          class="clickable-list-item"
-                        >
-                          <a-space direction="vertical" size="small">
-                            <span>
-                              <b>{{ item.label }}</b>
-                              <a-tag
-                                :color="
-                                  item.kind === 'policy_alert'
-                                    ? 'error'
-                                    : 'default'
-                                "
-                                >{{ item.kind }}</a-tag
-                              >
-                            </span>
-                            <span class="muted-line">{{
-                              renderNodeSubtitle(item)
-                            }}</span>
-                          </a-space>
-                        </a-list-item>
-                      </template>
-                    </a-list>
-                  </a-tab-pane>
-                  <a-tab-pane
-                    key="edges"
-                    :tab="`Edges (${incidentEdges.length})`"
-                  >
-                    <a-list size="small" :data-source="incidentEdges" bordered>
-                      <template #renderItem="{ item }">
-                        <a-list-item>
-                          <a-space direction="vertical" size="small">
-                            <span
-                              ><b>{{ item.kind }}</b></span
-                            >
-                            <span class="muted-line"
-                              >{{ item.source }} → {{ item.target }}</span
-                            >
-                          </a-space>
-                        </a-list-item>
-                      </template>
-                    </a-list>
-                  </a-tab-pane>
-                  <a-tab-pane key="metadata" tab="Metadata">
-                    <a-list
-                      size="small"
-                      :data-source="metadataEntries"
-                      bordered
-                    >
-                      <template #renderItem="{ item }">
-                        <a-list-item>
-                          <div class="metadata-row">
-                            <span class="metadata-key">{{ item[0] }}</span>
-                            <span class="metadata-value">{{
-                              item[1] || "—"
-                            }}</span>
-                          </div>
-                        </a-list-item>
-                      </template>
-                    </a-list>
-                  </a-tab-pane>
-                </a-tabs>
-              </a-space>
-            </template>
-          </a-card>
+          <NodeDetailCard
+            :active-detail-tab="activeDetailTab"
+            @update:active-detail-tab="setDetailTab"
+            @select-node="handleSelectNode"
+            :selected-node="selectedNode"
+            :selected-node-kind-color="selectedNodeKindColor"
+            :actionable-comm="actionableComm"
+            :metadata-entries="metadataEntries"
+            :related-processes="relatedProcesses"
+            :process-tree-nodes="processTreeNodes"
+            :related-files="relatedFiles"
+            :related-network="relatedNetwork"
+            :related-policies="relatedPolicies"
+            :incident-edges="incidentEdges"
+            @add-rule="addRule"
+            @export-sample="exportTrainingSample"
+            @focus-tab="focusRelatedTab"
+          />
         </div>
       </a-tab-pane>
 

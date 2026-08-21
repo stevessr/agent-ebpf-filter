@@ -50,7 +50,9 @@ const fetchGenerators = async () => {
     const res = await axios.get("/config/ml/health/generators");
     generators.value = res.data.generators || [];
   } catch (err: any) {
-    message.error("获取可信健康进程列表失败: " + (err.response?.data?.error || err.message));
+    message.error(
+      "获取可信健康进程列表失败: " + (err.response?.data?.error || err.message),
+    );
   } finally {
     loadingGenerators.value = false;
   }
@@ -62,7 +64,9 @@ const fetchProcesses = async () => {
     const res = await axios.get("/config/ml/health/processes");
     processes.value = res.data.processes || [];
   } catch (err: any) {
-    message.error("获取系统进程列表失败: " + (err.response?.data?.error || err.message));
+    message.error(
+      "获取系统进程列表失败: " + (err.response?.data?.error || err.message),
+    );
   } finally {
     loadingProcesses.value = false;
   }
@@ -80,7 +84,9 @@ const attachProcess = async (pid: number) => {
     message.success(`成功附加可信进程 PID ${pid}`);
     fetchGenerators();
   } catch (err: any) {
-    message.error("附加进程失败: " + (err.response?.data?.error || err.message));
+    message.error(
+      "附加进程失败: " + (err.response?.data?.error || err.message),
+    );
   }
 };
 
@@ -91,7 +97,9 @@ const detachProcess = async (pid: number) => {
     message.success(`已取消附加进程 PID ${pid}`);
     fetchGenerators();
   } catch (err: any) {
-    message.error("取消附加进程失败: " + (err.response?.data?.error || err.message));
+    message.error(
+      "取消附加进程失败: " + (err.response?.data?.error || err.message),
+    );
   }
 };
 
@@ -114,12 +122,16 @@ const spawnProgram = async () => {
       args: args,
     });
 
-    message.success(`程序已成功启动，分配 PID: ${res.data.pid}. 行为已被标记为可信。`);
+    message.success(
+      `程序已成功启动，分配 PID: ${res.data.pid}. 行为已被标记为可信。`,
+    );
     spawnComm.value = "";
     spawnArgsStr.value = "";
     fetchGenerators();
   } catch (err: any) {
-    message.error("手动启动程序失败: " + (err.response?.data?.error || err.message));
+    message.error(
+      "手动启动程序失败: " + (err.response?.data?.error || err.message),
+    );
   } finally {
     runningSpawn.value = false;
   }
@@ -134,7 +146,7 @@ const filteredProcesses = computed(() => {
       p.pid.toString().includes(q) ||
       p.name.toLowerCase().includes(q) ||
       (p.cmdline && p.cmdline.toLowerCase().includes(q)) ||
-      (p.user && p.user.toLowerCase().includes(q))
+      (p.user && p.user.toLowerCase().includes(q)),
   );
 });
 
@@ -145,18 +157,46 @@ onMounted(() => {
 
 // Table column definitions
 const processColumns = [
-  { title: "PID", dataIndex: "pid", key: "pid", width: 80, sorter: (a: any, b: any) => a.pid - b.pid },
-  { title: "进程名称", dataIndex: "name", key: "name", width: 140, ellipsis: true },
-  { title: "启动命令 (Cmdline)", dataIndex: "cmdline", key: "cmdline", ellipsis: true },
+  {
+    title: "PID",
+    dataIndex: "pid",
+    key: "pid",
+    width: 80,
+    sorter: (a: any, b: any) => a.pid - b.pid,
+  },
+  {
+    title: "进程名称",
+    dataIndex: "name",
+    key: "name",
+    width: 140,
+    ellipsis: true,
+  },
+  {
+    title: "启动命令 (Cmdline)",
+    dataIndex: "cmdline",
+    key: "cmdline",
+    ellipsis: true,
+  },
   { title: "执行用户", dataIndex: "user", key: "user", width: 100 },
   { title: "操作", key: "action", width: 90 },
 ];
 
 const generatorColumns = [
   { title: "PID", dataIndex: "pid", key: "pid", width: 80 },
-  { title: "进程名称", dataIndex: "name", key: "name", width: 110, ellipsis: true },
+  {
+    title: "进程名称",
+    dataIndex: "name",
+    key: "name",
+    width: 110,
+    ellipsis: true,
+  },
   { title: "用户", dataIndex: "user", key: "user", width: 80 },
-  { title: "附加时间", dataIndex: "registeredAt", key: "registeredAt", width: 130 },
+  {
+    title: "附加时间",
+    dataIndex: "registeredAt",
+    key: "registeredAt",
+    width: 130,
+  },
   { title: "操作", key: "action", width: 90 },
 ];
 </script>
@@ -168,23 +208,42 @@ const generatorColumns = [
       <div class="card-header-title">
         <HeartOutlined class="health-icon" />
         <span>可信健康数据生成器 (Healthy Dataset Generator)</span>
-        <a-button type="link" size="small" @click="refreshAll" :loading="loadingGenerators || loadingProcesses" style="margin-left: auto">
+        <a-button
+          type="link"
+          size="small"
+          @click="refreshAll"
+          :loading="loadingGenerators || loadingProcesses"
+          style="margin-left: auto"
+        >
           <ReloadOutlined /> 刷新列表
         </a-button>
       </div>
 
-      <a-alert type="success" show-icon class="health-alert" style="margin-top: 10px">
+      <a-alert
+        type="success"
+        show-icon
+        class="health-alert"
+        style="margin-top: 10px"
+      >
         <template #message>
-          <span style="font-weight: 600">利用可信运行期行为，生成零误伤 ML 健康训练基准</span>
+          <span style="font-weight: 600"
+            >利用可信运行期行为，生成零误伤 ML 健康训练基准</span
+          >
         </template>
         <template #description>
           <div class="alert-desc">
-            为防止机器学习模型在业务运行中出现误判定（如拦截正常的构建指令或包管理更新），我们需要收集可信、健康的运行数据作为 <b>ALLOW (放行类别=0)</b> 样本训练模型。
+            为防止机器学习模型在业务运行中出现误判定（如拦截正常的构建指令或包管理更新），我们需要收集可信、健康的运行数据作为
+            <b>ALLOW (放行类别=0)</b> 样本训练模型。
             当你在本面板中<b>附加到现有进程</b>或<b>手动运行新程序</b>后，系统会：
             <ul style="margin: 4px 0 0 16px; padding: 0">
               <li>通过内核 eBPF 全程追踪该进程及其派生的所有子命令树。</li>
-              <li>在探针级直接做 <b>ALLOW (安全放行)</b> 裁决，免去任何策略拦截。</li>
-              <li>自动在训练集中以标签 <code>ALLOW</code> 且来源标记 <code>health-generator</code> 进行流式序列化落盘保存。</li>
+              <li>
+                在探针级直接做 <b>ALLOW (安全放行)</b> 裁决，免去任何策略拦截。
+              </li>
+              <li>
+                自动在训练集中以标签 <code>ALLOW</code> 且来源标记
+                <code>health-generator</code> 进行流式序列化落盘保存。
+              </li>
             </ul>
           </div>
         </template>
@@ -195,26 +254,25 @@ const generatorColumns = [
   <!-- Split Panel Layout -->
   <a-col :xs="24" :lg="10">
     <a-space direction="vertical" style="width: 100%" :size="16">
-      
       <!-- Launch New Program Card -->
       <a-card title="手动启动新可信程序" size="small">
         <a-form layout="vertical" @submit.prevent="spawnProgram">
           <a-form-item label="程序名字 / 可执行文件路径" required>
-            <a-input 
-              v-model:value="spawnComm" 
-              placeholder="例如: bun, go, make, /usr/bin/python3" 
+            <a-input
+              v-model:value="spawnComm"
+              placeholder="例如: bun, go, make, /usr/bin/python3"
             />
           </a-form-item>
           <a-form-item label="执行参数 (空格分隔)">
-            <a-input 
-              v-model:value="spawnArgsStr" 
-              placeholder="例如: run build, test, install" 
+            <a-input
+              v-model:value="spawnArgsStr"
+              placeholder="例如: run build, test, install"
             />
           </a-form-item>
-          <a-button 
-            type="primary" 
-            html-type="submit" 
-            block 
+          <a-button
+            type="primary"
+            html-type="submit"
+            block
             class="spawn-btn"
             :loading="runningSpawn"
           >
@@ -227,9 +285,11 @@ const generatorColumns = [
       <a-card size="small">
         <template #title>
           <span>已附加的可信进程 (录制中)</span>
-          <a-tag color="success" style="margin-left: 8px">{{ generators.length }}</a-tag>
+          <a-tag color="success" style="margin-left: 8px">{{
+            generators.length
+          }}</a-tag>
         </template>
-        
+
         <a-table
           size="small"
           :columns="generatorColumns"
@@ -241,7 +301,9 @@ const generatorColumns = [
         >
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'registeredAt'">
-              <span>{{ new Date(record.registeredAt).toLocaleTimeString() }}</span>
+              <span>{{
+                new Date(record.registeredAt).toLocaleTimeString()
+              }}</span>
             </template>
             <template v-else-if="column.key === 'action'">
               <a-popconfirm
@@ -250,7 +312,12 @@ const generatorColumns = [
                 cancel-text="否"
                 @confirm="detachProcess(record.pid)"
               >
-                <a-button type="link" danger size="small" class="detach-action-btn">
+                <a-button
+                  type="link"
+                  danger
+                  size="small"
+                  class="detach-action-btn"
+                >
                   <StopOutlined /> 停止录制
                 </a-button>
               </a-popconfirm>
@@ -297,9 +364,11 @@ const generatorColumns = [
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'pid'">
-            <a-tag color="default" style="font-family: monospace">{{ record.pid }}</a-tag>
+            <a-tag color="default" style="font-family: monospace">{{
+              record.pid
+            }}</a-tag>
           </template>
-          
+
           <template v-else-if="column.key === 'name'">
             <code style="font-weight: 600">{{ record.name }}</code>
           </template>
@@ -311,13 +380,13 @@ const generatorColumns = [
           </template>
 
           <template v-else-if="column.key === 'user'">
-            <span style="color: #595959">{{ record.user || '—' }}</span>
+            <span style="color: #595959">{{ record.user || "—" }}</span>
           </template>
 
           <template v-else-if="column.key === 'action'">
-            <a-button 
-              type="link" 
-              size="small" 
+            <a-button
+              type="link"
+              size="small"
               :disabled="generators.some((g) => g.pid === record.pid)"
               @click="attachProcess(record.pid)"
               class="attach-btn"
@@ -364,7 +433,8 @@ const generatorColumns = [
   border-color: #52c41a;
 }
 
-.spawn-btn:hover, .spawn-btn:focus {
+.spawn-btn:hover,
+.spawn-btn:focus {
   background: #73d13d;
   border-color: #73d13d;
 }

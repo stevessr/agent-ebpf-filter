@@ -31,7 +31,7 @@ const {
 </script>
 
 <template>
-<!-- Research Session Training Dataset -->
+  <!-- Research Session Training Dataset -->
   <a-col :xs="24">
     <a-card size="small">
       <template #title>
@@ -128,9 +128,7 @@ const {
             </div>
             <div style="display: flex; gap: 12px; flex-wrap: wrap">
               <div style="flex: 1; min-width: 180px">
-                <div style="font-weight: 600; margin-bottom: 6px">
-                  标签策略
-                </div>
+                <div style="font-weight: 600; margin-bottom: 6px">标签策略</div>
                 <a-select
                   v-model:value="researchTrainingLabelPolicy"
                   style="width: 100%"
@@ -147,9 +145,7 @@ const {
                 </a-select>
               </div>
               <div style="flex: 1; min-width: 160px">
-                <div style="font-weight: 600; margin-bottom: 6px">
-                  导入上限
-                </div>
+                <div style="font-weight: 600; margin-bottom: 6px">导入上限</div>
                 <a-input-number
                   v-model:value="researchTrainingImportLimit"
                   :min="0"
@@ -160,7 +156,8 @@ const {
               </div>
             </div>
             <a-typography-text type="secondary">
-              导入上限填 0 表示按当前会话可转换样本全部导入；后端会自动跳过未标注、重复或无效命令样本。
+              导入上限填 0
+              表示按当前会话可转换样本全部导入；后端会自动跳过未标注、重复或无效命令样本。
             </a-typography-text>
             <a-alert
               v-if="selectedResearchSession"
@@ -191,8 +188,7 @@ const {
                 >featureDim: {{ researchTrainingPreview.featureDim }}</a-tag
               >
               <a-tag v-if="researchTrainingPreview" color="cyan"
-                >norm:
-                {{ researchTrainingPreview.normalization.mode }}</a-tag
+                >norm: {{ researchTrainingPreview.normalization.mode }}</a-tag
               >
               <a-tag
                 v-for="label in researchTrainingPreview?.byLabel || []"
@@ -259,7 +255,9 @@ const {
               </a-table-column>
               <a-table-column title="Label" dataIndex="labelName" :width="100">
                 <template #default="{ record }"
-                  ><a-tag :color="getLabelColor(record.labelName)" size="small"
+                  ><a-tag
+                    :color="getLabelColor(record.labelName)"
+                    size="small"
                     >{{ record.labelName }}</a-tag
                   ></template
                 >

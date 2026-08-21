@@ -10,7 +10,8 @@ export const typeFilters = [
 ];
 
 /* ──── Helpers ──── */
-export const isRequestEvent = (e: TLSPlaintextEvent) => e.type === "http_request";
+export const isRequestEvent = (e: TLSPlaintextEvent) =>
+  e.type === "http_request";
 export const isResponseEvent = (e: TLSPlaintextEvent) =>
   e.type === "http_response" || e.type === "sse_message";
 
@@ -31,10 +32,7 @@ export const extractPathname = (url?: string): string => {
 
 export const buildFullUrl = (event: TLSPlaintextEvent): string => {
   if (!event.url) return "";
-  if (
-    event.url.startsWith("http://") ||
-    event.url.startsWith("https://")
-  )
+  if (event.url.startsWith("http://") || event.url.startsWith("https://"))
     return event.url;
   if (event.host) return `https://${event.host}${event.url}`;
   return event.url;
@@ -66,7 +64,10 @@ export const createTransactionSearchIndex = (
   return index;
 };
 
-export const activateOnKeyboard = (event: KeyboardEvent, action: () => void) => {
+export const activateOnKeyboard = (
+  event: KeyboardEvent,
+  action: () => void,
+) => {
   if (event.key !== "Enter" && event.key !== " ") return;
   event.preventDefault();
   action();
@@ -116,8 +117,7 @@ export const shortType = (ct?: string): string => {
   const lower = ct.toLowerCase();
   if (lower.includes("json")) return "json";
   if (lower.includes("html")) return "html";
-  if (lower.includes("javascript") || lower.includes("ecmascript"))
-    return "js";
+  if (lower.includes("javascript") || lower.includes("ecmascript")) return "js";
   if (lower.includes("css")) return "css";
   if (lower.includes("xml")) return "xml";
   if (lower.includes("text/plain")) return "text";
@@ -168,6 +168,20 @@ export const formatBody = (body?: string): string => {
 
 export const truncateBody = (body?: string, maxLen = 8000): string => {
   const formatted = formatBody(body);
-  if (formatted.length > maxLen) return formatted.slice(0, maxLen) + "\n\n… [truncated]";
+  if (formatted.length > maxLen)
+    return formatted.slice(0, maxLen) + "\n\n… [truncated]";
   return formatted;
+};
+
+export const buildCurl = (tx: MergedTransaction): string => {
+  const req = tx.request;
+  if (!req) return "";
+  const target = tx.fullUrl || `https://${tx.host}${tx.name}`;
+  const parts = ["curl", "-X", req.method || "GET"];
+  Object.entries(req.headers || {}).forEach(([k, v]) => {
+    if (v !== "***REDACTED***") parts.push("-H", `${k}: ${v}`);
+  });
+  if (req.body) parts.push("--data", req.body);
+  parts.push(target);
+  return parts.map((p) => `'${p.replaceAll("'", "'\''")}'`).join(" ");
 };

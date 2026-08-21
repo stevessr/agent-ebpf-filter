@@ -47,3 +47,14 @@ export interface ExecutionGraphFilterState {
   since: string;
   until: string;
 }
+
+export const executionDetailTabs = [
+  "processes",
+  "files",
+  "network",
+  "policy",
+  "edges",
+  "metadata",
+] as const;
+
+export type ExecutionDetailTab = (typeof executionDetailTabs)[number];

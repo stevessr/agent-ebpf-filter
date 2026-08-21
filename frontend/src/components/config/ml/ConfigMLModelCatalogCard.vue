@@ -42,7 +42,7 @@ const selectModelCategory = (category: string) => {
 </script>
 
 <template>
-<!-- Multi-model management -->
+  <!-- Multi-model management -->
   <a-col :xs="24">
     <a-card title="Multi-model Management" size="small">
       <template #extra>

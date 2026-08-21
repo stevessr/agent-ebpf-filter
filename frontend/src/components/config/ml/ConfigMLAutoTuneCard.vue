@@ -83,7 +83,7 @@ const modelTuneProgressTotal = computed(
 </script>
 
 <template>
-<!-- Auto Parameter Tuning -->
+  <!-- Auto Parameter Tuning -->
   <a-col :xs="24">
     <a-card title="Auto Parameter Tuning" size="small">
       <template #extra>
