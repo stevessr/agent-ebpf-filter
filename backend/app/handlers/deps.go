@@ -1,6 +1,10 @@
 package handlers
 
 import (
+	"context"
+	"os/exec"
+	"time"
+
 	"agent-ebpf-filter/app/events"
 	"agent-ebpf-filter/app/observability"
 	"agent-ebpf-filter/app/tls"
@@ -8,9 +12,6 @@ import (
 	"agent-ebpf-filter/internal/geoip"
 	netcore "agent-ebpf-filter/internal/network"
 	"agent-ebpf-filter/pb"
-	"context"
-	"os/exec"
-	"time"
 
 	"github.com/cilium/ebpf"
 	"github.com/gin-gonic/gin"
@@ -20,20 +21,24 @@ import (
 
 // ── Type re-exports ────────────────────────────────────────────────
 
-type CapturedEventRecord = core.CapturedEventRecord
-type RuntimeSettings = core.RuntimeSettings
-type ProcessContext = events.ProcessContext
-type RegisterPayload = events.RegisterPayload
-type TLSCaptureStore = tls.TLSCaptureStore
-type TLSCaptureController = tls.TLSCaptureController
-type tlsCaptureBroadcaster = tls.TLSBroadcaster
-type TLSCaptureRuleStore = tls.TLSCaptureRuleStore
+type (
+	CapturedEventRecord   = core.CapturedEventRecord
+	RuntimeSettings       = core.RuntimeSettings
+	ProcessContext        = events.ProcessContext
+	RegisterPayload       = events.RegisterPayload
+	TLSCaptureStore       = tls.TLSCaptureStore
+	TLSCaptureController  = tls.TLSCaptureController
+	tlsCaptureBroadcaster = tls.TLSBroadcaster
+	TLSCaptureRuleStore   = tls.TLSCaptureRuleStore
+)
 
-type IPScope = netcore.IPScope
-type FilePreviewResponse = core.FilePreviewResponse
-type VmFaultCounters = observability.VmFaultCounters
-type GpuInfo = observability.GpuInfo
-type ExportConfig = core.ExportConfig
+type (
+	IPScope             = netcore.IPScope
+	FilePreviewResponse = core.FilePreviewResponse
+	VmFaultCounters     = observability.VmFaultCounters
+	GpuInfo             = observability.GpuInfo
+	ExportConfig        = core.ExportConfig
+)
 
 // WrapperRule is a rule for the agent-wrapper (mirrors core.WrapperRule).
 type WrapperRule struct {
@@ -104,8 +109,8 @@ var Deps struct {
 	TrackerMaps TrackerMaps
 
 	// Runtime settings
-	RuntimeSettings           RuntimeSettingsStore
-	RuntimeSettingsReplace   func(s RuntimeSettings) (RuntimeSettings, error)
+	RuntimeSettings        RuntimeSettingsStore
+	RuntimeSettingsReplace func(s RuntimeSettings) (RuntimeSettings, error)
 
 	// Process context
 	ProcessContexts ProcessContextStore
@@ -129,40 +134,40 @@ var Deps struct {
 	// AgentSight data pipeline helpers (wired from app-level functions)
 	RecentEventFiltersFromRequest func(c any) any // *gin.Context -> recentEventFilters
 	FilterRecentEventRecords      func(records []CapturedEventRecord, filters any) []CapturedEventRecord
-	NormalizeCapturedEventRecord func(record CapturedEventRecord) CapturedEventRecord
-	EventEnvelopeToJSONValue     func(envelope *pb.EventEnvelope) map[string]any
-	EnvelopeEventTypeName        func(envelope *pb.EventEnvelope, event *pb.Event) string
-	ParseRecentEventTime         func(raw string) time.Time
+	NormalizeCapturedEventRecord  func(record CapturedEventRecord) CapturedEventRecord
+	EventEnvelopeToJSONValue      func(envelope *pb.EventEnvelope) map[string]any
+	EnvelopeEventTypeName         func(envelope *pb.EventEnvelope, event *pb.Event) string
+	ParseRecentEventTime          func(raw string) time.Time
 
 	// Plugin handler closures
-	PluginList         func() []any
-	PluginGet          func(id string) (any, bool)
-	PluginUpsert       func(manifest any) (any, error)
-	PluginDelete       func(id string) error
-	PluginSetEnabled   func(ctx context.Context, id string, enabled bool) (any, error)
-	PluginValidateID   func(id string) error
-	PluginSource       func(id string) (string, bool)
-	PluginLoadEBPF     func(ctx context.Context, id string) (any, error)
-	PluginUnloadEBPF   func(id string)
-	CompileUserBPF     func(ctx context.Context, id, source string) (objPath string, log []byte, err error)
-	BPFTemplates       func() []any
+	PluginList       func() []any
+	PluginGet        func(id string) (any, bool)
+	PluginUpsert     func(manifest any) (any, error)
+	PluginDelete     func(id string) error
+	PluginSetEnabled func(ctx context.Context, id string, enabled bool) (any, error)
+	PluginValidateID func(id string) error
+	PluginSource     func(id string) (string, bool)
+	PluginLoadEBPF   func(ctx context.Context, id string) (any, error)
+	PluginUnloadEBPF func(id string)
+	CompileUserBPF   func(ctx context.Context, id, source string) (objPath string, log []byte, err error)
+	BPFTemplates     func() []any
 
 	// Tags and rules (config handlers)
-	GetTagID        func(name string) uint32
-	GetTagName      func(id uint32) string
-	SetWrapperRule  func(comm string, rule any)
-	DeleteWrapperRule func(comm string)
-	ConfigTagNames      func() []string
-	IsCommDisabled      func(comm string) bool
-	AddDisabledComm     func(comm string)
-	RemoveDisabledComm  func(comm string)
-	DeleteDisabledComm  func(comm string)
-	DisabledEventTypes       func() []uint32
-	AddDisabledEventType     func(et uint32)
-	RemoveDisabledEventType  func(et uint32)
-	ConfigRules              func() []*pb.WrapperRule
-	UpsertConfigRule         func(comm, action, rewrittenCmd, regex, replacement string, priority int32)
-	DeleteConfigRule         func(comm string)
+	GetTagID                func(name string) uint32
+	GetTagName              func(id uint32) string
+	SetWrapperRule          func(comm string, rule any)
+	DeleteWrapperRule       func(comm string)
+	ConfigTagNames          func() []string
+	IsCommDisabled          func(comm string) bool
+	AddDisabledComm         func(comm string)
+	RemoveDisabledComm      func(comm string)
+	DeleteDisabledComm      func(comm string)
+	DisabledEventTypes      func() []uint32
+	AddDisabledEventType    func(et uint32)
+	RemoveDisabledEventType func(et uint32)
+	ConfigRules             func() []*pb.WrapperRule
+	UpsertConfigRule        func(comm, action, rewrittenCmd, regex, replacement string, priority int32)
+	DeleteConfigRule        func(comm string)
 
 	// WebSocket upgrader
 	Upgrader *websocket.Upgrader
@@ -203,11 +208,11 @@ var Deps struct {
 	WriteProtoOrJSON func(c *gin.Context, code int, msg proto.Message, jsonData interface{})
 
 	// System / platform helper closures
-	GetRealHomeDir            func() string
-	ResolveWrapperPath         func() string
-	DropPrivileges             func(cmd *exec.Cmd)
+	GetRealHomeDir              func() string
+	ResolveWrapperPath          func() string
+	DropPrivileges              func(cmd *exec.Cmd)
 	ConfigureCommandForRealUser func(cmd *exec.Cmd)
-	OriginalInvokerIDs         func() (uid, gid uint32, ok bool)
+	OriginalInvokerIDs          func() (uid, gid uint32, ok bool)
 
 	// File preview
 	BuildFilePreview func(path string) (any, error)
@@ -223,59 +228,36 @@ var Deps struct {
 	SendTLSBridge       func(bridge chan<- *pb.Event, event *pb.Event)
 
 	// Export config post-processing (wired from app-level)
-	ApplyRetentionConfig           func(settings RuntimeSettings)
-	ApplyRuntimeDomainForwardProxy func(settings RuntimeSettings)
-	ApplyRuntimeTLSCapture         func(settings RuntimeSettings)
-	BuildRuntimeConfigResponse         func() core.RuntimeConfigResponse
+	ApplyRetentionConfig                   func(settings RuntimeSettings)
+	ApplyRuntimeDomainForwardProxy         func(settings RuntimeSettings)
+	ApplyRuntimeTLSCapture                 func(settings RuntimeSettings)
+	BuildRuntimeConfigResponse             func() core.RuntimeConfigResponse
 	BuildRuntimeConfigResponseFromSettings func(s RuntimeSettings) core.RuntimeConfigResponse
-	RotateAccessToken              func(settings RuntimeSettings) RuntimeSettings
-	ApplyMLConfigPatch             func(dst *core.MLConfig, patch interface{})
+	RotateAccessToken                      func(settings RuntimeSettings) RuntimeSettings
+	ApplyMLConfigPatch                     func(dst *core.MLConfig, patch interface{})
 
 	// ML handler closures — all return gin.H or simple types to avoid type coupling
-	MLStatus              func() *pb.MLStatus
-	BuildMLStatusJSON     func() []byte
-	MLEnabled             func() bool
-	MLConfig              func() core.MLConfig
-	CurrentMLConfig       func() core.MLConfig
-	MLIsRunning           func() bool
-	MLLogTotal            func() int
-	MLGetLogsResponse     func() gin.H
-	MLCancelTraining      func()
-	MLGetHistoryResponse  func() gin.H
-	MLTrain               func(numTrees, maxDepth, minLeaf int) gin.H
-	MLFeedbackResult      func(comm, action string) gin.H
-	MLSamplesResponse     func() gin.H
-	MLSampleLabelResult   func(index int, label string) gin.H
-	MLRemoveSampleResult  func(index int) gin.H
-	MLSampleAnomalyResult func(index int, score float64) gin.H
-	MLAddSample           func(cmdLine, comm string, args []string, label string) gin.H
-	MLClassifyAndEmbed    func(comm string, args []string) (interface{}, []float64)
-	MLComputeAnomalyScore func(emb []float64) float64
-	MLPredict             func(comm string, args []string) MLPrediction
-	MLNetworkAudit        func(comm string, args []string) MLNetworkAuditResult
-	MLLLMAssessment       func(comm string, args []string) *MLLlmAssessment
+	MLStatus                func() *pb.MLStatus
+	BuildMLStatusJSON       func() []byte
+	MLEnabled               func() bool
+	MLConfig                func() core.MLConfig
+	CurrentMLConfig         func() core.MLConfig
+	MLIsRunning             func() bool
+	MLLogTotal              func() int
+	MLGetLogsResponse       func() gin.H
+	MLCancelTraining        func()
+	MLGetHistoryResponse    func() gin.H
+	MLTrain                 func(numTrees, maxDepth, minLeaf int) gin.H
+	MLFeedbackResult        func(comm, action string) gin.H
+	MLSamplesResponse       func() gin.H
+	MLSampleLabelResult     func(index int, label string) gin.H
+	MLRemoveSampleResult    func(index int) gin.H
+	MLSampleAnomalyResult   func(index int, score float64) gin.H
+	MLAddSample             func(cmdLine, comm string, args []string, label string) gin.H
 	MLExistingCommands      func() []string
-	MLImportResult          func() gin.H
 	MLAssessCommandSafety   func(c *gin.Context)
 	MLExistingCommandsGetFn func(c *gin.Context)
 	MLImportExistingFn      func(c *gin.Context)
-	MLTuneResult          func() gin.H
-	MLTuneModelsResult    func(models []string) gin.H
-	MLLLMScoreResult      func(cmdLine, comm string, args []string) gin.H
-	MLLLMBatchScoreResult func(samples []gin.H) gin.H
-	MLLlmProductionDatasetPullResult func() gin.H
-	MLClassicDatasetsList func() gin.H
-	MLClassicDatasetGetResult   func(name string) gin.H
-	MLClassicDatasetPreviewResult func(name string) gin.H
-	MLDatasetPullResult   func(url string) gin.H
-	MLDatasetImportResult func(name string) gin.H
-	MLDatasetExportResult func() gin.H
-	MLDatasetClear        func()
-	MLHealthProcesses     func() gin.H
-	MLHealthGenerators    func() gin.H
-	MLHealthRegister      func(id string)
-	MLHealthUnregister    func(id string)
-	MLHealthRun           func() gin.H
 
 	// Hooks config closures
 	AvailableHooks               func() []core.HookDef

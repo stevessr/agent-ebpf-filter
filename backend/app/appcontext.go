@@ -13,11 +13,10 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// AppContext aggregates the most-widely-used global state into a single struct.
+// AppContext aggregates the application's shared runtime state.
 //
-// This is an incremental step toward full dependency injection. A single
-// package-level var AppCtx holds the reference, set once in Main().
-// Future phases will eliminate var AppCtx by passing *AppContext explicitly.
+// The package-level AppCtx is initialized once in Main and is also attached
+// to each request by ContextMiddleware for handlers that need it.
 type AppContext struct {
 	// ── Subpackage managers ──────────────────────────────────────────
 	Network *network.Manager
@@ -34,13 +33,6 @@ type AppContext struct {
 
 	// ── Shell ───────────────────────────────────────────────────────
 	ShellSessions *shell.Manager
-
-	// ── ML engine ───────────────────────────────────────────────────
-	MLEngine         Model
-	MLEnabled        bool
-	MLConfig         MLConfig
-	MLModelLoaded    bool
-	CurrentModelType ModelType
 
 	// ── Plugins ─────────────────────────────────────────────────────
 	PluginRegistry *pluginStore
@@ -82,12 +74,6 @@ type AppContext struct {
 	// ── Semantic alerts ──────────────────────────────────────────────
 	SemanticAlertsState *events.SemanticAlertState
 
-	// ── ML training / prediction (stub interface) ────────────────────
-	GlobalTrainingStore   interface{}
-	GlobalTrainer         interface{}
-	GlobalAutoTuneState   interface{}
-	GlobalPredictionCache interface{}
-
 	// ── Protocol detection ───────────────────────────────────────────
 	ProtoCache *protoDetectionCache
 
@@ -98,8 +84,7 @@ type AppContext struct {
 	DomainForwardProxyService *domainForwardProxyRuntime
 }
 
-// AppCtx is the application's dependency-injection container.
-// Deprecated: use ctx.From(c) in handlers instead.
+// AppCtx is the application's legacy dependency container.
 var AppCtx *AppContext
 
 func currentNetworkManager() *network.Manager {
@@ -118,9 +103,8 @@ func bindAppNetworkState(appContext *AppContext) {
 	appContext.NetworkFlowAggregator = networkFlowAggregator
 }
 
-// Ctx extracts the AppContext from a gin request context.
-// Deprecated: this is a thin wrapper for backward compat.
-// New code should import "agent-ebpf-filter/app/ctx" and use ctx.From(c).
+// Ctx extracts the AppContext attached to a gin request.
+// It falls back to the package-level AppCtx for non-HTTP callers.
 func Ctx(c *gin.Context) *AppContext {
 	if v, ok := c.Get("appctx"); ok {
 		return v.(*AppContext)

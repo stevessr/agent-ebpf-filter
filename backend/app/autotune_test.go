@@ -22,9 +22,6 @@ func TestNormalizeAutoTuneMetricAndGridSize(t *testing.T) {
 }
 
 func TestAutoTuneReportsLegalRecallBalancedAccuracyAndNormalization(t *testing.T) {
-	oldConfig := mlConfig
-	t.Cleanup(func() { mlConfig = oldConfig })
-
 	store := newTrainingDataStore(160)
 	for i := 0; i < 120; i++ {
 		label := int32(i % 4)
@@ -43,7 +40,7 @@ func TestAutoTuneReportsLegalRecallBalancedAccuracyAndNormalization(t *testing.T
 		})
 	}
 
-	mlConfig = MLConfig{
+	cfg := MLConfig{
 		ModelType:            ModelRandomForest,
 		NumTrees:             5,
 		MaxDepth:             4,
@@ -55,7 +52,7 @@ func TestAutoTuneReportsLegalRecallBalancedAccuracyAndNormalization(t *testing.T
 
 	minTrees, maxTrees := 5, 9
 	minDepth, maxDepth := 3, 5
-	resp, err := globalTrainer.AutoTuneWithConfig(store, mlConfig, MLAutoTuneRequest{
+	resp, err := globalTrainer.AutoTuneWithConfig(store, cfg, MLAutoTuneRequest{
 		XAxis:                "numTrees",
 		YAxis:                "maxDepth",
 		GridSize:             3,

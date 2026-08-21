@@ -18,8 +18,9 @@ func seedRand() *rand.Rand { return rand.New(rand.NewSource(42)) }
 func initMLTest(t *testing.T, nSamples int) {
 	t.Helper()
 	InitTrainingStore(100000)
-	mlConfig = DefaultMLConfig()
-	mlEnabled = true
+	previous := snapshotMLRuntime()
+	t.Cleanup(func() { replaceMLRuntime(previous) })
+	replaceMLRuntime(mlRuntimeSnapshot{Config: DefaultMLConfig(), Enabled: true})
 	globalTrainer.ResetCancel()
 
 	rng := seedRand()
@@ -421,7 +422,6 @@ func TestTrainerAllModelTypes(t *testing.T) {
 			cfg.MaxDepth = tc.maxDepth
 			cfg.MinSamplesLeaf = tc.minLeaf
 			cfg.BalanceClasses = tc.balance
-			mlConfig = cfg
 
 			globalTrainer.ResetCancel()
 			model, result := globalTrainer.TrainWithConfig(globalTrainingStore, cfg)
@@ -534,7 +534,6 @@ func TestTrainerDuplicateRun(t *testing.T) {
 	cfg := DefaultMLConfig()
 	cfg.ModelType = ModelRandomForest
 	cfg.NumTrees = 3
-	mlConfig = cfg
 
 	globalTrainer.ResetCancel()
 	// First training should succeed

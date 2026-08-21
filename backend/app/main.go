@@ -1,9 +1,6 @@
 package app
 
 import (
-	"agent-ebpf-filter/app/runtime"
-	"agent-ebpf-filter/app/tls"
-	internal_sandbox "agent-ebpf-filter/internal/sandbox"
 	"context"
 	"fmt"
 	"log"
@@ -12,6 +9,10 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"agent-ebpf-filter/app/runtime"
+	"agent-ebpf-filter/app/tls"
+	internal_sandbox "agent-ebpf-filter/internal/sandbox"
 
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/gin-gonic/gin"
@@ -164,10 +165,6 @@ func Main() error {
 			}
 			settings := runtimeSettingsStore.Snapshot()
 			InitMLEngine(settings.MLConfig)
-			AppCtx.MLEngine = mlEngine
-			AppCtx.MLEnabled = mlEnabled
-			AppCtx.MLModelLoaded = mlModelLoaded
-			AppCtx.CurrentModelType = currentModelType
 			StartMLEngine(ctx)
 		})
 	}

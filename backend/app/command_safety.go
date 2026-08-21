@@ -207,15 +207,16 @@ func assessCommandSafetyWithOptions(ctx context.Context, comm string, args []str
 	anomalyScore := globalEmbedder.ComputeAnomalyScore(emb)
 	features := globalFeatureExtractor.Extract(comm, args, user, pid)
 
+	mlRuntime := snapshotMLRuntime()
 	var mlPrediction Prediction
-	if mlEnabled && mlModelLoaded {
-		mlPrediction = mlEngine.Predict(features)
+	if mlRuntime.Enabled && mlRuntime.ModelLoaded && mlRuntime.Engine != nil {
+		mlPrediction = mlRuntime.Engine.Predict(features)
 	}
 
 	simulatedAction, reason := resolveAction(
 		&pb.WrapperRequest{Comm: comm, Args: args, User: user, Pid: pid},
 		"", 0,
-		classification, anomalyScore, mlPrediction, mlConfig,
+		classification, anomalyScore, mlPrediction, mlRuntime.Config, mlRuntime.Enabled, mlRuntime.ModelLoaded,
 	)
 	if strings.TrimSpace(reason) == "" {
 		reason = "No blocking policy matched"
@@ -280,8 +281,8 @@ func assessCommandSafetyWithOptions(ctx context.Context, comm string, args []str
 		"sampleMatches":     sampleMatches,
 		"sampleEvidence":    sampleEvidence,
 		"llmAssessment":     llmResult,
-		"modelLoaded":       mlModelLoaded,
-		"mlEnabled":         mlEnabled,
+		"modelLoaded":       mlRuntime.ModelLoaded,
+		"mlEnabled":         mlRuntime.Enabled,
 	}
 }
 

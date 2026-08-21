@@ -71,12 +71,11 @@ AI Agent / CLI  -->  捕获 OS 行为事实  -->  深度因果关联  -->  运�
 | `tls/` | `backend/app/tls/` | TLS 明文捕获、HTTP/SSE 解析、AI 元数据富化 |
 | `observability/` | `backend/app/observability/` | 采集器指标、Prometheus 导出 |
 | `shell/` | `backend/app/shell/` | Shell 会话生命周期管理 |
-| `sandbox/` | `backend/app/sandbox/` | cgroup/BPF LSM 沙箱管控 |
+| `sandbox/` | `backend/app/handlers/cgroup_sandbox.go`, `backend/app/handlers/lsm_enforcer.go`, `backend/internal/sandbox/` | cgroup/BPF LSM 沙箱管控 |
 | `platform/` | `backend/app/platform/` | 宿主平台抽象（uid/gid、文件系统操作） |
 | `types/` | `backend/app/types/` | 特性 ID、插件类型等共享常量定义 |
 | `runtime/` | `backend/app/runtime/` | 运行时配置持久化与状态管理 |
 | `export/` | `backend/app/export/` | OTel 导出、PCAP 导出 |
-| `ctx/` | `backend/app/ctx/` | 请求级上下文传递 |
 
 ### handlers/ 子包结构
 

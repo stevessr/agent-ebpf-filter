@@ -697,7 +697,7 @@ func ensureBackendPrivileges() (bool, error) {
 ### 安全实施
 - `/backend/ebpf/lsm_enforcer.c` - LSM hook
 - `/backend/ebpf/cgroup_sandbox.c` - 网络沙箱
-- `/backend/lsm/enforcer/control.go` - 策略 API
+- `/backend/app/lsmenforcercontrol.go` - 策略 API
 
 ### 集成层
 - `/wrapper/main.go` - UDS 客户端

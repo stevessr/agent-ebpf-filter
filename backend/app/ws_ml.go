@@ -12,7 +12,8 @@ import (
 // Shared by the HTTP handler and the WebSocket handler.
 func buildMLStatusJSON() []byte {
 	cfg := currentMLConfig()
-	status := mlStatus()
+	mlRuntime := snapshotMLRuntime()
+	status := mlStatusFromRuntime(mlRuntime)
 	logs := globalTrainer.GetLogs(100)
 	trainAccuracy, validationAccuracy, validationRatio, trainSamples, validationSamples := globalTrainer.SplitMetrics()
 	autoTuneState := globalAutoTuneState.snapshot()
@@ -34,8 +35,8 @@ func buildMLStatusJSON() []byte {
 		"cudaInfo":             cudaInfo,
 		"cudaMemUsedMB":        cuda.MemUsedMB(),
 		"cudaMemTotalMB":       cuda.MemTotalMB(),
-		"cRuntime":             buildMLCRuntimeStatus(mlEngine, globalTrainingStore),
-		"modelType":            string(currentModelType),
+		"cRuntime":             buildMLCRuntimeStatus(mlRuntime.Engine, globalTrainingStore),
+		"modelType":            string(mlRuntime.ModelType),
 		"availableModelTypes":  AllModelTypeStrings(),
 		"builtinModels":        BuiltinModelCatalog(),
 		"modelLoaded":          status.GetModelLoaded(),
@@ -47,7 +48,7 @@ func buildMLStatusJSON() []byte {
 		"modelPath":            status.GetModelPath(),
 		"trainingInProgress":   status.GetTrainingInProgress(),
 		"trainingProgress":     status.GetTrainingProgress(),
-		"mlEnabled":            mlEnabled,
+		"mlEnabled":            mlRuntime.Enabled,
 		"trainAccuracy":        trainAccuracy,
 		"validationAccuracy":   validationAccuracy,
 		"trainSamples":         trainSamples,

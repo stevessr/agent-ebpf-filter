@@ -420,13 +420,18 @@ export function useDashboard() {
     const isNetworkOrFilter =
       activeTab.value === "network" || activeTab.value === "filter";
     const list = isNetworkOrFilter ? tabFilteredEvents.value : [];
-    const dirs = { outgoing: 0, incoming: 0, listening: 0, unknown: 0 };
+    const dirs: Record<string, number> = {
+      outgoing: 0,
+      incoming: 0,
+      listening: 0,
+      unknown: 0,
+    };
     for (const e of list) {
       const d = e.netDirection || "unknown";
-      if (d in dirs) (dirs as any)[d]++;
+      if (d in dirs) dirs[d]++;
       else dirs.unknown++;
     }
-    return dirs;
+    return dirs as { outgoing: number; incoming: number; listening: number; unknown: number };
   });
 
   const syscallCatStats = computed(() => {
@@ -738,8 +743,9 @@ export function useDashboard() {
       );
       previewData.value = res.data as FilePreviewResponse;
       showPreview.value = true;
-    } catch (err: any) {
-      message.error(err?.response?.data?.error || "Failed to preview file");
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: string } } };
+      message.error(axiosErr?.response?.data?.error || "Failed to preview file");
     } finally {
       previewLoading.value = false;
     }

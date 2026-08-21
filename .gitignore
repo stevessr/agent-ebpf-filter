@@ -1,4 +1,5 @@
 agent-wrapper
+agent-ebpf-filter
 backend/agent-ebpf-filter
 tmp/
 node_modules/

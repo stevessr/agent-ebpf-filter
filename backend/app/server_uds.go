@@ -246,9 +246,10 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 
 				// ── Layer 2: ML random forest prediction ──
 				features := globalFeatureExtractor.Extract(req.Comm, req.Args, req.User, req.Pid)
+				mlRuntime := snapshotMLRuntime()
 				var mlPrediction Prediction
-				if mlEnabled && mlModelLoaded {
-					mlPrediction = mlEngine.Predict(features)
+				if mlRuntime.Enabled && mlRuntime.ModelLoaded && mlRuntime.Engine != nil {
+					mlPrediction = mlRuntime.Engine.Predict(features)
 				}
 
 				// ── Check if process is trusted health dataset generator ──
@@ -265,7 +266,7 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 				// ── Decision fusion ──
 				resolvedAction, reason := resolveAction(
 					req, ruleAction, rulePriority,
-					classification, anomalyScore, mlPrediction, mlConfig,
+					classification, anomalyScore, mlPrediction, mlRuntime.Config, mlRuntime.Enabled, mlRuntime.ModelLoaded,
 				)
 
 				if isHealthGenerator {
@@ -280,7 +281,7 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 					AnomalyScore:   anomalyScore,
 				}
 
-				if mlEnabled && mlModelLoaded {
+				if mlRuntime.Enabled && mlRuntime.ModelLoaded {
 					resp.MlScore = mlPrediction.Confidence
 					resp.MlAction = actionLabel[mlPrediction.Action]
 					resp.MlReasoning = mlReasoning(mlPrediction, anomalyScore, classification)
@@ -305,7 +306,7 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 				}
 
 				// ── Record to training store and history buffer ──
-				if mlEnabled && globalTrainingStore != nil {
+				if mlRuntime.Enabled && globalTrainingStore != nil {
 					labelVal := int32(-1) // unlabeled initially
 					userLabelVal := ""
 					if isHealthGenerator {

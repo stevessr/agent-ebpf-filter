@@ -52,6 +52,7 @@ const (
 	PluginKindWebhook = types.PluginKindWebhook
 	PluginKindCommand = types.PluginKindCommand
 )
+
 const (
 	PluginAttachTracepoint = types.PluginAttachTracepoint
 	PluginAttachKprobe     = types.PluginAttachKprobe
@@ -76,6 +77,7 @@ const (
 	FeatureNetworkExport    = types.FeatureNetworkExport
 	FeatureAgentSight       = types.FeatureAgentSight
 )
+
 const (
 	FeatureDangerLow      = types.FeatureDangerLow
 	FeatureDangerMedium   = types.FeatureDangerMedium
@@ -90,6 +92,7 @@ const (
 	semanticFileIOLoopThreshold = events.SemanticFileIOLoopThreshold
 	semanticStateGCInterval     = events.SemanticStateGCInterval
 )
+
 const (
 	kernelRiskFeedbackKindNetworkIP   = events.KernelRiskFeedbackKindNetworkIP
 	kernelRiskFeedbackKindNetworkPort = events.KernelRiskFeedbackKindNetworkPort
@@ -100,10 +103,10 @@ const (
 
 // ── Bridge: Core types ───────────────────────────────────────────────────────
 const (
-	HookTypeNative   = core.HookTypeNative
-	HookTypeWrapper  = core.HookTypeWrapper
-	ConfigFormatJSON = core.ConfigFormatJSON
-	ConfigFormatTOML = core.ConfigFormatTOML
+	HookTypeNative         = core.HookTypeNative
+	HookTypeWrapper        = core.HookTypeWrapper
+	ConfigFormatJSON       = core.ConfigFormatJSON
+	ConfigFormatTOML       = core.ConfigFormatTOML
 	ConfigFormatTypeScript = core.ConfigFormatTypeScript
 )
 
@@ -192,6 +195,7 @@ const (
 	bpfEventSampleSize  = int(unsafe.Sizeof(bpfEvent{}))
 	bpfEventSampleAlign = uintptr(unsafe.Alignof(bpfEvent{}))
 )
+
 const (
 	otelExporterQueueSize  = 2048
 	otelMaxActiveRunSpans  = 1024
@@ -208,10 +212,12 @@ const (
 	otelTaskIdleTimeout    = 45 * time.Second
 	otelRunIdleTimeout     = 90 * time.Second
 )
+
 const (
 	agentSightDefaultLimit = 1000
 	agentSightMaxLimit     = 10000
 )
+
 const (
 	hookMarker              = "agent-ebpf-hook-active"
 	kiroManagedAgent        = "agent-ebpf-hook"
@@ -219,7 +225,10 @@ const (
 	binaryPreviewLimitBytes = 4 * 1024
 	imagePreviewLimitBytes  = 2 * 1024 * 1024
 )
-const udsPath = core.UDSPATH
-const ebpfPinRoot = platform.EBPFPinRoot
-const ebpfPinMapsDir = platform.EBPFPinMapsDir
-const ebpfPinLinksDir = platform.EBPFPinLinksDir
+
+const (
+	udsPath         = core.UDSPATH
+	ebpfPinRoot     = platform.EBPFPinRoot
+	ebpfPinMapsDir  = platform.EBPFPinMapsDir
+	ebpfPinLinksDir = platform.EBPFPinLinksDir
+)

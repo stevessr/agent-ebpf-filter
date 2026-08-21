@@ -106,7 +106,11 @@ export interface TLSBuiltinExecutableAttachStatus {
   target: TLSBuiltinExecutableTarget;
   available?: boolean;
   attached?: boolean;
-  result?: any;
+  result?: {
+    error?: string;
+    output?: string;
+    success?: boolean;
+  };
   error?: string;
 }
 

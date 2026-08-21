@@ -1,9 +1,6 @@
 package app
 
 import (
-	"agent-ebpf-filter/app/platform"
-	"agent-ebpf-filter/internal/behavior"
-	"agent-ebpf-filter/pb"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -12,6 +9,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"agent-ebpf-filter/app/platform"
+	"agent-ebpf-filter/internal/behavior"
+	"agent-ebpf-filter/pb"
 )
 
 // ---- moved from backend/zz_merged_backend_test.go section runtimereplaysuite_test.go ----
@@ -114,21 +115,18 @@ func TestRuntimeReplaySuite(t *testing.T) {
 	origTracked := trackedProcessContexts
 	origSemanticState := semanticAlertsState
 	origToolBaseline := toolBaseline
-	origMLEnabled := mlEnabled
-	origMLLoaded := mlModelLoaded
-	origMLConfig := mlConfig
+	origMLRuntime := snapshotMLRuntime()
 	defer func() {
 		trackedProcessContexts = origTracked
 		semanticAlertsState = origSemanticState
 		toolBaseline = origToolBaseline
-		mlEnabled = origMLEnabled
-		mlModelLoaded = origMLLoaded
-		mlConfig = origMLConfig
+		replaceMLRuntime(origMLRuntime)
 	}()
 
-	mlEnabled = false
-	mlModelLoaded = false
-	mlConfig = DefaultMLConfig()
+	replaceMLRuntime(mlRuntimeSnapshot{
+		Config:  DefaultMLConfig(),
+		Enabled: false,
+	})
 
 	var beforeMem, afterMem runtimeMemStats
 	readRuntimeMemStats(&beforeMem)
@@ -360,7 +358,7 @@ func simulateWrapperDecision(req *pb.WrapperRequest) string {
 		return ""
 	}
 	classification := behavior.ClassifyBehavior(req.GetComm(), req.GetArgs())
-	action, _ := resolveAction(req, "", 0, classification, 0, Prediction{}, DefaultMLConfig())
+	action, _ := resolveAction(req, "", 0, classification, 0, Prediction{}, DefaultMLConfig(), false, false)
 	return actionLabel[int32(action)]
 }
 
@@ -451,10 +449,10 @@ func writeRuntimeReplaySummary(t *testing.T, summary runtimeReplaySummary) {
 		t.Logf("runtime replay summary:\n%s", string(data))
 		return
 	}
-	if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 		t.Fatalf("mkdir runtime replay report dir: %v", err)
 	}
-	if err := os.WriteFile(target, data, 0644); err != nil {
+	if err := os.WriteFile(target, data, 0o644); err != nil {
 		t.Fatalf("write runtime replay summary: %v", err)
 	}
 	t.Logf("runtime replay summary written to %s", target)

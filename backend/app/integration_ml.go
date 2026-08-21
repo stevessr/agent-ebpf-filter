@@ -1,14 +1,15 @@
 package app
 
 import (
-	"agent-ebpf-filter/app/platform"
-	"agent-ebpf-filter/core"
-	"agent-ebpf-filter/pb"
 	"context"
 	"log"
 	"strings"
 	"sync"
 	"time"
+
+	"agent-ebpf-filter/app/platform"
+	"agent-ebpf-filter/core"
+	"agent-ebpf-filter/pb"
 )
 
 // ---- moved from backend/zz_merged_backend.go section integration_ml.go ----
@@ -16,15 +17,6 @@ import (
 // DefaultMLConfig re-exports the core default configuration.
 // The canonical MLConfig type lives in the core package.
 var DefaultMLConfig = core.DefaultMLConfig
-
-// Global ML state
-var (
-	mlEngine         Model
-	mlConfig         MLConfig
-	mlEnabled        bool
-	mlModelLoaded    bool
-	currentModelType ModelType
-)
 
 const (
 	mlAutoTrainFallbackInterval = time.Hour
@@ -37,13 +29,14 @@ func currentMLConfig() MLConfig {
 
 // InitMLEngine initializes the ML engine. Only active on master nodes.
 func InitMLEngine(cfg MLConfig) {
-	mlConfig = cfg
 	if !cfg.Enabled {
+		replaceMLRuntime(mlRuntimeSnapshot{Config: cfg, ModelType: cfg.ModelType})
 		log.Printf("[ML] Behavior classifier disabled by configuration")
 		return
 	}
 
 	if !clusterManagerStore.IsMaster() {
+		replaceMLRuntime(mlRuntimeSnapshot{Config: cfg, ModelType: cfg.ModelType})
 		log.Printf("[ML] Slave node detected — ML inference disabled (runs only on master)")
 		return
 	}
@@ -58,25 +51,27 @@ func InitMLEngine(cfg MLConfig) {
 		log.Printf("[ML] Unknown model type %q; falling back to %s", cfg.ModelType, ModelRandomForest)
 		cfg.ModelType = ModelRandomForest
 	}
-	mlConfig = cfg
-	currentModelType = cfg.ModelType
-
 	// Try loading existing model
 	modelPath := cfg.ModelPath
 	if modelPath == "" {
 		modelPath = defaultMLModelPath()
 	}
 
-	if m := tryLoadModel(modelPath, cfg.ModelType); m != nil {
-		mlEngine = m
-		mlModelLoaded = true
+	model := tryLoadModel(modelPath, cfg.ModelType)
+	if model != nil {
 		log.Printf("[ML] Loaded pre-trained %s model from %s", modelName(cfg.ModelType), modelPath)
 	} else {
 		log.Printf("[ML] No pre-trained %s model found at %s — will train once sufficient data is collected", modelName(cfg.ModelType), modelPath)
 	}
 
+	replaceMLRuntime(mlRuntimeSnapshot{
+		Engine:      model,
+		Config:      cfg,
+		Enabled:     true,
+		ModelLoaded: model != nil,
+		ModelType:   cfg.ModelType,
+	})
 	log.Printf("[ML] Behavior classifier initialized on master node (type=%s, features=%d dims)", cfg.ModelType, FeatureDim)
-	mlEnabled = true
 }
 
 func tryLoadModel(path string, t ModelType) Model {
@@ -189,8 +184,9 @@ func resolveAction(
 	anomalyScore float64,
 	mlPrediction Prediction,
 	cfg MLConfig,
+	mlEnabled bool,
+	mlModelLoaded bool,
 ) (pb.WrapperResponse_Action, string) {
-
 	// ── Explicit high-priority rules always win ──
 	if ruleAction != "" && rulePriority >= cfg.RuleOverridePriority {
 		switch ruleAction {
@@ -300,8 +296,7 @@ func mlAutoTrainLoopWithWait(ctx context.Context, wait mlIntervalWaitFunc) {
 				log.Printf("[ML] Auto-training failed: %s", result.Error)
 				continue
 			}
-			mlEngine = model
-			mlModelLoaded = true
+			publishMLRuntimeModel(model, model.Type())
 			log.Printf("[ML] Auto-training complete: accuracy=%.2f%%, type=%s", result.Accuracy*100, model.Type())
 
 			// Persist model
@@ -389,16 +384,20 @@ func defaultMLModelPath() string {
 
 // mlStatus builds the ML status protobuf for the API
 func mlStatus() *pb.MLStatus {
-	cfg := currentMLConfig()
+	return mlStatusFromRuntime(snapshotMLRuntime())
+}
+
+func mlStatusFromRuntime(runtime mlRuntimeSnapshot) *pb.MLStatus {
+	cfg := runtime.Config
 	trainerState := globalTrainer.stateSnapshot()
 	status := &pb.MLStatus{
-		ModelLoaded:        mlModelLoaded,
+		ModelLoaded:        runtime.ModelLoaded,
 		TrainingInProgress: trainerState.IsRunning,
 		TrainingProgress:   trainerState.Progress,
 	}
 
-	if mlEngine != nil {
-		switch model := unwrapModelType(mlEngine).(type) {
+	if runtime.Engine != nil {
+		switch model := unwrapModelType(runtime.Engine).(type) {
 		case *DecisionForest:
 			status.NumTrees = int32(len(model.Trees))
 		case *ExtraTreesModel:

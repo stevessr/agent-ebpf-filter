@@ -195,9 +195,7 @@ func applyModelTuneBest(best MLModelTuneCandidate, model Model, validationRatio 
 	if _, err := runtimeSettingsStore.Replace(settings); err != nil {
 		return err
 	}
-	currentModelType = settings.MLConfig.ModelType
-	mlEngine = model
-	mlModelLoaded = true
+	publishMLRuntimeModel(model, settings.MLConfig.ModelType)
 	modelPath := settings.MLConfig.ModelPath
 	if modelPath == "" {
 		modelPath = defaultMLModelPath()

@@ -44,6 +44,12 @@ master 身份时保持 dormant，配置恢复后继续工作，而不是退出 g
 训练器和参数搜索显式接收不可变 `MLConfig` 快照；候选调优与离线 sweep 不会再借用
 进程级 `mlConfig` 传参，从而避免在线状态、推理和后台训练之间的候选配置串扰。
 
+在线模型状态（engine、config、enabled、model-loaded、实际模型类型）通过统一的
+`mlRuntimeSnapshot` 发布。耗时训练和反序列化在锁外完成，成功后才在一个短临界区内
+同时替换模型及元数据；UDS、命令安全评估、HTTP/WebSocket 状态和 handler bridge
+均只读取一次快照。运行时配置更新只修改 config/enabled，不会清掉已发布模型；模型
+真正切换时会使旧 prediction cache 失效。快照热路径基准约为 26 ns/op、零分配。
+
 ### Signal Processing worker
 
 Signal Processing 的活跃状态使用侵入式 LRU 维护访问顺序。更新已有状态、插入新状态和

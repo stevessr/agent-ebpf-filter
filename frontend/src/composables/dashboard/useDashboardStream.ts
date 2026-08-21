@@ -141,9 +141,7 @@ export function useDashboardStream(deps: DashboardStreamDeps) {
         return;
       }
 
-      const rawEvents = ((response as any).events ??
-        (response as any).Events ??
-        []) as any[];
+      const rawEvents = response.events ?? [];
       const records = rawEvents
         .map((record) => normalizeHistoryRecord(record))
         .filter((record): record is AgentEvent => record !== null);

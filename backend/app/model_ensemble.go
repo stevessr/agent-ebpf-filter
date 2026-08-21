@@ -397,11 +397,12 @@ func makePredictionCacheKey(comm string, args []string) string {
 // fastPredict uses a lightweight model (single decision tree or fast linear model)
 // for initial assessment. Returns true if fast path is conclusive.
 func fastPredict(features [FeatureDim]float64) (Prediction, bool) {
-	if !mlModelLoaded || mlEngine == nil {
+	runtime := snapshotMLRuntime()
+	if !runtime.Enabled || !runtime.ModelLoaded || runtime.Engine == nil {
 		return Prediction{}, false
 	}
 
-	pred := mlEngine.Predict(features)
+	pred := runtime.Engine.Predict(features)
 	// Fast path: high confidence AND not BLOCK/ALERT (safe to fast-track ALLOW)
 	if pred.Confidence >= 0.90 && pred.Action == 0 {
 		return pred, true
@@ -502,8 +503,14 @@ func predictWithOptimizations(features [FeatureDim]float64, cacheKey string) Pre
 		}
 	}
 
-	// 2. Two-tier inference
-	if fastPred, ok := fastPredict(features); ok {
+	// 2. Two-tier inference. Use one immutable runtime snapshot for both paths so
+	// a concurrent model publication cannot mix engines within one prediction.
+	runtime := snapshotMLRuntime()
+	if !runtime.Enabled || !runtime.ModelLoaded || runtime.Engine == nil {
+		return Prediction{}
+	}
+	fastPred := runtime.Engine.Predict(features)
+	if fastPred.Confidence >= 0.90 && fastPred.Action == 0 {
 		if cacheKey != "" {
 			globalPredictionCache.Set(cacheKey, fastPred)
 		}
@@ -511,7 +518,7 @@ func predictWithOptimizations(features [FeatureDim]float64, cacheKey string) Pre
 	}
 
 	// 3. Full model inference
-	pred := mlEngine.Predict(features)
+	pred := runtime.Engine.Predict(features)
 
 	// 4. Cache result
 	if cacheKey != "" {

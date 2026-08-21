@@ -85,7 +85,7 @@
 - `frontend/src/views/network/Network.vue`
 - `frontend/src/views/network/NetworkFlow.vue`
 - `frontend/src/views/network/useFlowFilters.ts`
-- `frontend/src/views/network/useInterfaceMonitor.ts`
+- `frontend/src/composables/monitor/useInterfaceMonitor.ts`
 - `frontend/src/components/network/NetworkEventModal.vue`
 - `frontend/src/components/network/NetworkFlowPanel.vue`
 - `frontend/src/components/network/FlowDetailModal.vue`

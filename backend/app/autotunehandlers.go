@@ -11,7 +11,7 @@ import (
 // ---- moved from backend/zz_merged_backend.go section autotunehandlers.go ----
 
 func autotuneTunePost(c *gin.Context) {
-	if !mlEnabled {
+	if !snapshotMLRuntime().Enabled {
 		c.JSON(400, gin.H{"error": "ML engine is not enabled on this node"})
 		return
 	}
@@ -56,7 +56,7 @@ func autotuneTunePost(c *gin.Context) {
 }
 
 func autotuneTuneModelsPost(c *gin.Context) {
-	if !mlEnabled {
+	if !snapshotMLRuntime().Enabled {
 		c.JSON(400, gin.H{"error": "ML engine is not enabled on this node"})
 		return
 	}

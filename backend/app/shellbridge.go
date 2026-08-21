@@ -1,10 +1,11 @@
 package app
 
 import (
+	"os/exec"
+
 	"agent-ebpf-filter/app/shell"
 	"agent-ebpf-filter/app/tls"
 	"agent-ebpf-filter/pb"
-	"os/exec"
 )
 
 // ── Type aliases (backward compat with app/*shell* callers) ────────────────
@@ -19,7 +20,7 @@ type (
 // ── Global (backward compat with rest of app/) ────────────────────────────
 
 // shellSessions is the global shell manager used by HTTP handlers.
-// Deprecated: new code should use ctx.From(c).ShellSessions or explicit injection.
+// Deprecated: prefer explicit dependency injection through shell.Deps.
 var shellSessions = shell.NewManager()
 
 // ── Deps builder ───────────────────────────────────────────────────────────

@@ -58,7 +58,7 @@ export $(DEV_ENV_EXPORTS)
 
 .DEFAULT_GOAL := all
 
-.PHONY: all backend frontend wrapper clean proto proto-check help predev predev-check predev-go predev-python predev-frontend predev-tui dev dev-env dev-env-tui dev-env-cli dev-env-build dev-env-print dev-env-doctor run deps ebpf-bootstrap ebpf-tls ebpf-cgroup ebpf-lsm os-enforcement-preflight os-enforcement-check os-enforcement-smoke os-enforcement-smoke-start cuda ml-sweep ml-presentation runtime-benchmark test lint lint-backend lint-frontend build install uninstall docker dev-image dev-image-repository dev-image-tag exec
+.PHONY: all backend frontend wrapper clean proto proto-check help predev predev-check predev-go predev-python predev-frontend predev-tui dev dev-env dev-env-tui dev-env-cli dev-env-build dev-env-print dev-env-doctor run deps ebpf-bootstrap ebpf-tls ebpf-cgroup ebpf-lsm os-enforcement-preflight os-enforcement-check os-enforcement-smoke os-enforcement-smoke-start cuda ml-sweep ml-presentation runtime-benchmark test lint lint-backend lint-frontend githooks build install uninstall docker dev-image dev-image-repository dev-image-tag exec
 
 
 docker: ## Pull the privileged devcontainer image from GHCR
@@ -221,6 +221,7 @@ cuda: ## Build CUDA acceleration library
 predev: ## Install development dependencies in parallel
 	@$(MAKE) --no-print-directory -j4 predev-go predev-python predev-frontend predev-tui
 	@$(MAKE) --no-print-directory predev-check
+	@$(MAKE) --no-print-directory githooks
 	@echo "Development dependencies are ready."
 
 dev-env: dev-env-tui ## Open the Go TUI for local development environment variables
@@ -387,6 +388,14 @@ lint-frontend: ## Format Vue/TypeScript frontend source code with Prettier
 	@echo "Formatting frontend code..."
 	@cd frontend && bunx --bun prettier --write $(FRONTEND_FORMAT_GLOBS)
 
+githooks: ## Install git hooks (auto-format, commit lint, pre-push checks)
+	@mkdir -p .githooks
+	@git config core.hookspath .githooks
+	@echo "Git hooks installed at .githooks/"
+	@echo "  pre-commit  — auto-format Go/frontend, check for issues"
+	@echo "  commit-msg  — validate conventional commit format"
+	@echo "  pre-push    — lint, vet, and build check"
+
 dev-frontend: ## Run only the frontend development server
 	@echo "Starting frontend dev environment..."
 	@./scripts/dev-frontend.sh
@@ -422,17 +431,17 @@ clean: ## Clean build artifacts
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | sed -e 's/:.*## /: /'
 
-docs: docs-install docs-build ## Generate/update project documentation (placeholder)
+docs: docs-install docs-build ## Generate/update project documentation
 	@echo "Documentation generated/updated."
 
-docs-build: docs-install ## Generate/update frontend documentation (placeholder)
-	@bun docs:build
+docs-build: docs-install ## Build the project documentation site
+	@bun run docs:build
 
 docs-dev:
-	@bun docs:dev
+	@bun run docs:dev
 
-docs-preview: docs-build 
-	@bun docs:preview
+docs-preview: docs-build
+	@bun run docs:preview
 
 docs-install:
 	if [ -d "node_modules" ]; then \

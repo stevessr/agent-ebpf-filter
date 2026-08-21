@@ -342,8 +342,7 @@ func (s *runtimeState) Replace(settings RuntimeSettings) (RuntimeSettings, error
 	if err := s.applyAndSaveSettingsLocked(previous); err != nil {
 		return RuntimeSettings{}, err
 	}
-	mlConfig = s.settings.MLConfig
-	mlEnabled = s.settings.MLConfig.Enabled && clusterManagerStore.IsMaster()
+	updateMLRuntimeConfig(s.settings.MLConfig, s.settings.MLConfig.Enabled && clusterManagerStore.IsMaster())
 	otelExporterStore.ApplySettings(s.settings)
 	return s.settings, nil
 }

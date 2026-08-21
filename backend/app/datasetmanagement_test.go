@@ -238,12 +238,14 @@ func TestTrainingDataStorePersistenceRestoresArgs(t *testing.T) {
 
 func TestBuildLLMProductionDatasetCleansTrainingSamples(t *testing.T) {
 	oldStore := globalTrainingStore
-	oldConfig := mlConfig
+	previousRuntime := snapshotMLRuntime()
 	globalTrainingStore = newTrainingDataStore(8)
-	mlConfig.LlmSystemPrompt = "SYSTEM PROMPT"
+	cfg := previousRuntime.Config
+	cfg.LlmSystemPrompt = "SYSTEM PROMPT"
+	updateMLRuntimeConfig(cfg, previousRuntime.Enabled)
 	t.Cleanup(func() {
 		globalTrainingStore = oldStore
-		mlConfig = oldConfig
+		replaceMLRuntime(previousRuntime)
 	})
 
 	globalTrainingStore.Add(TrainingSample{

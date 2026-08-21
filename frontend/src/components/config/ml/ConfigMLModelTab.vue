@@ -841,7 +841,7 @@ const formatRuntimeSpeedup = (value?: number) => {
                 </a-descriptions-item>
               </a-descriptions>
             </div>
-            <div v-if="backtestResult.sampleEvidence?.totalMatches > 0">
+            <div v-if="(backtestResult.sampleEvidence?.totalMatches ?? 0) > 0">
               <a-alert
                 show-icon
                 :type="
@@ -851,10 +851,10 @@ const formatRuntimeSpeedup = (value?: number) => {
                       ? 'warning'
                       : 'info'
                 "
-                :message="`命中已有样本 ${backtestResult.sampleEvidence.totalMatches} 条，已标注 ${backtestResult.sampleEvidence.labeledMatches} 条`"
+                :message="`命中已有样本 ${backtestResult.sampleEvidence?.totalMatches ?? 0} 条，已标注 ${backtestResult.sampleEvidence?.labeledMatches ?? 0} 条`"
                 :description="
                   backtestResult.sampleEvidence?.decision
-                    ? `历史标注倾向：${backtestResult.sampleEvidence.decision}，置信度 ${(backtestResult.sampleEvidence.confidence * 100).toFixed(0)}%`
+                    ? `历史标注倾向：${backtestResult.sampleEvidence.decision}，置信度 ${(backtestResult.sampleEvidence?.confidence ?? 0) * 100}%`
                     : '暂无可直接用于判断的标注，但命令已存在于样本库。'
                 "
                 style="margin-bottom: 8px"
@@ -905,7 +905,7 @@ const formatRuntimeSpeedup = (value?: number) => {
             <div
               v-if="
                 backtestResult.networkAudit &&
-                backtestResult.networkAudit.findings?.length > 0
+                (backtestResult.networkAudit.findings?.length ?? 0) > 0
               "
               style="margin-top: 16px"
             >

@@ -13,7 +13,6 @@ import (
 	"agent-ebpf-filter/app/tls"
 	"agent-ebpf-filter/app/wsstream"
 	"agent-ebpf-filter/core"
-	"agent-ebpf-filter/internal/behavior"
 	"agent-ebpf-filter/internal/geoip"
 	netcore "agent-ebpf-filter/internal/network"
 	"agent-ebpf-filter/pb"
@@ -197,15 +196,19 @@ func (a *lsmEnforcerAdapter) GetStats(statsMap any) (map[string]any, error) {
 func (a *lsmEnforcerAdapter) ListExecPaths(blocklist any) []string {
 	return listLsmExecPaths(blocklist.(*ebpf.Map))
 }
+
 func (a *lsmEnforcerAdapter) ListExecNames(blocklist any) []string {
 	return listLsmExecNames(blocklist.(*ebpf.Map))
 }
+
 func (a *lsmEnforcerAdapter) ListFileNames(blocklist any) []string {
 	return listLsmFileNames(blocklist.(*ebpf.Map))
 }
+
 func (a *lsmEnforcerAdapter) NormalizePath(path string) (string, error) {
 	return normalizeLsmPathString(path)
 }
+
 func (a *lsmEnforcerAdapter) NormalizeName(name string) (string, error) {
 	return normalizeLsmNameString(name)
 }
@@ -309,6 +312,7 @@ func (a *shellManagerAdapter) List() []any {
 	}
 	return out
 }
+
 func (a *shellManagerAdapter) NewSession(req any, deps any) (any, error) {
 	// Convert through JSON to support the handler's anonymous request struct
 	// which is structurally identical to shell.CreateRequest.
@@ -322,6 +326,7 @@ func (a *shellManagerAdapter) NewSession(req any, deps any) (any, error) {
 	}
 	return a.mgr.NewSession(cr, deps.(shell.Deps))
 }
+
 func (a *shellManagerAdapter) AttachWebSocket(id string, conn *websocket.Conn) error {
 	session, ok := a.mgr.Get(id)
 	if !ok {
@@ -333,6 +338,7 @@ func (a *shellManagerAdapter) AttachWebSocket(id string, conn *websocket.Conn) e
 	go a.readWebSocket(session, conn)
 	return nil
 }
+
 func (a *shellManagerAdapter) readWebSocket(session *shell.Session, conn *websocket.Conn) {
 	defer session.Detach(conn)
 	conn.SetReadLimit(wsstream.ControlReadLimit)
@@ -796,8 +802,8 @@ func init() {
 func initMLHandlersDeps() {
 	handlers.Deps.MLStatus = mlStatus
 	handlers.Deps.BuildMLStatusJSON = buildMLStatusJSON
-	handlers.Deps.MLEnabled = func() bool { return mlEnabled }
-	handlers.Deps.MLConfig = func() core.MLConfig { return mlConfig }
+	handlers.Deps.MLEnabled = func() bool { return snapshotMLRuntime().Enabled }
+	handlers.Deps.MLConfig = func() core.MLConfig { return snapshotMLRuntime().Config }
 	handlers.Deps.CurrentMLConfig = currentMLConfig
 	handlers.Deps.MLIsRunning = globalTrainer.IsRunning
 	handlers.Deps.MLLogTotal = globalTrainer.LogTotal
@@ -811,34 +817,6 @@ func initMLHandlersDeps() {
 	handlers.Deps.MLRemoveSampleResult = mlRemoveSampleResult
 	handlers.Deps.MLSampleAnomalyResult = mlSampleAnomalyResult
 	handlers.Deps.MLAddSample = mlAddSample
-	handlers.Deps.MLClassifyAndEmbed = func(comm string, args []string) (interface{}, []float64) {
-		cls, emb := globalEmbedder.ClassifyAndEmbed(comm, args)
-		return cls, emb.Vector[:]
-	}
-	handlers.Deps.MLComputeAnomalyScore = func(emb []float64) float64 {
-		var vec [64]float64
-		copy(vec[:], emb)
-		return globalEmbedder.ComputeAnomalyScore(behavior.BehaviorEmbedding{Vector: vec})
-	}
-	handlers.Deps.MLPredict = func(comm string, args []string) handlers.MLPrediction {
-		features := globalFeatureExtractor.Extract(comm, args, "", 0)
-		pred := mlEngine.Predict(features)
-		return handlers.MLPrediction{
-			Action:     int(pred.Action),
-			Confidence: pred.Confidence,
-			Label:      actionLabel[pred.Action],
-		}
-	}
-	handlers.Deps.MLNetworkAudit = func(comm string, args []string) handlers.MLNetworkAuditResult {
-		result := AuditNetworkBehavior(comm, strings.Join(args, " "))
-		return handlers.MLNetworkAuditResult{RiskLevel: result.RiskLevel}
-	}
-	handlers.Deps.MLLLMAssessment = func(comm string, args []string) *handlers.MLLlmAssessment {
-		if !llmScoringConfigured() {
-			return &handlers.MLLlmAssessment{Error: "LLM scoring not configured"}
-		}
-		return &handlers.MLLlmAssessment{Error: "LLM assessment requires request context"}
-	}
 	handlers.Deps.MLExistingCommands = func() []string {
 		candidates, _, _ := existingCommandCandidates(200)
 		cmds := make([]string, 0, len(candidates))
@@ -849,27 +827,9 @@ func initMLHandlersDeps() {
 		}
 		return cmds
 	}
-	handlers.Deps.MLImportResult = mlImportResult
 	handlers.Deps.MLAssessCommandSafety = func(c *gin.Context) { cmdsafetyAssessPost(c) }
 	handlers.Deps.MLExistingCommandsGetFn = func(c *gin.Context) { cmdsafetyExistingCommandsGet(c) }
 	handlers.Deps.MLImportExistingFn = func(c *gin.Context) { cmdsafetyImportExistingPost(c) }
-	handlers.Deps.MLTuneResult = mlTuneResult
-	handlers.Deps.MLTuneModelsResult = mlTuneModelsResult
-	handlers.Deps.MLLLMScoreResult = mlLLMScoreResult
-	handlers.Deps.MLLLMBatchScoreResult = mlLLMBatchScoreResult
-	handlers.Deps.MLLlmProductionDatasetPullResult = mlLlmProductionDatasetPullResult
-	handlers.Deps.MLClassicDatasetsList = func() gin.H { return gin.H{"datasets": []string{}} }
-	handlers.Deps.MLClassicDatasetGetResult = mlClassicDatasetGetResult
-	handlers.Deps.MLClassicDatasetPreviewResult = mlClassicDatasetPreviewResult
-	handlers.Deps.MLDatasetPullResult = mlDatasetPullResult
-	handlers.Deps.MLDatasetImportResult = mlDatasetImportResult
-	handlers.Deps.MLDatasetExportResult = mlDatasetExportResult
-	handlers.Deps.MLDatasetClear = func() {}
-	handlers.Deps.MLHealthProcesses = func() gin.H { return gin.H{"processes": []string{}} }
-	handlers.Deps.MLHealthGenerators = func() gin.H { return gin.H{"generators": []string{}} }
-	handlers.Deps.MLHealthRegister = func(id string) {}
-	handlers.Deps.MLHealthUnregister = func(id string) {}
-	handlers.Deps.MLHealthRun = func() gin.H { return gin.H{"results": []string{}} }
 
 	// Hooks config wiring
 	handlers.Deps.AvailableHooks = func() []core.HookDef { return availableHooks }

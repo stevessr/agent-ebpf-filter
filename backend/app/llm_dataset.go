@@ -94,7 +94,7 @@ func buildLLMProductionDataset(req llmProductionDatasetRequest) (*llmProductionD
 		truncated = true
 	}
 
-	systemPrompt := strings.TrimSpace(mlConfig.LlmSystemPrompt)
+	systemPrompt := strings.TrimSpace(snapshotMLRuntime().Config.LlmSystemPrompt)
 	if systemPrompt == "" {
 		systemPrompt = defaultLLMScoringSystemPrompt
 	}

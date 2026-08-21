@@ -1,0 +1,77 @@
+#!/bin/sh
+# Agent eBPF Filter — Pre-commit hook
+# Auto-formatting and static scanning.
+# Runs on the working tree, then re-stages formatted files.
+
+set -e
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+echo ""
+echo "${CYAN}━━━ Pre-commit: Scan & Optimize ━━━${NC}"
+
+# ── 1. Merge conflict guard ──────────────────────────────────────────────
+if git diff --cached --diff-filter=U --name-only 2>/dev/null | grep -q .; then
+    echo "${RED}✗ Merge conflicts detected. Resolve them before committing.${NC}"
+    exit 1
+fi
+
+# ── 2. Auto-format Go files ──────────────────────────────────────────────
+STAGED_GO=$(git diff --cached --name-only --diff-filter=ACM -- '*.go' 2>/dev/null || true)
+if [ -n "$STAGED_GO" ]; then
+    echo "${YELLOW}  → Formatting Go files...${NC}"
+    # gofmt writes in place; safe for staged files since we re-add below
+    for f in $STAGED_GO; do
+        if [ -f "$f" ]; then
+            gofmt -w "$f" 2>/dev/null || true
+        fi
+    done
+    git add $STAGED_GO 2>/dev/null || true
+    echo "${GREEN}    ✓ Go files formatted${NC}"
+fi
+
+# ── 3. Auto-format frontend files with Prettier ──────────────────────────
+STAGED_FE=$(git diff --cached --name-only --diff-filter=ACM -- 'frontend/*.vue' 'frontend/*.ts' 'frontend/*.js' 'frontend/*.css' 'frontend/*.json' 'frontend/*.md' 'frontend/index.html' 2>/dev/null || true)
+if [ -n "$STAGED_FE" ]; then
+    echo "${YELLOW}  → Formatting frontend files with Prettier...${NC}"
+    for f in $STAGED_FE; do
+        if [ -f "$f" ]; then
+            prettier --write --ignore-unknown "$f" 2>/dev/null || true
+        fi
+    done
+    git add $STAGED_FE 2>/dev/null || true
+    echo "${GREEN}    ✓ Frontend files formatted${NC}"
+fi
+
+# ── 4. Warn on new large files ────────────────────────────────────────────
+NEW_LARGE=$(git diff --cached --name-only --diff-filter=A 2>/dev/null | xargs -I{} sh -c 'test -f "{}" && s=$(stat -c%s "{}" 2>/dev/null || stat -f%z "{}" 2>/dev/null) && [ "${s:-0}" -gt 1048576 ] && echo "{}"' 2>/dev/null || true)
+if [ -n "$NEW_LARGE" ]; then
+    echo "${YELLOW}  ⚠ Large files staged (>1 MiB):${NC}"
+    for f in $NEW_LARGE; do
+        echo "    - $f"
+    done
+    echo "    Consider using Git LFS."
+fi
+
+# ── 5. Quick syntax check on staged shell scripts ─────────────────────────
+STAGED_SH=$(git diff --cached --name-only --diff-filter=ACM -- '*.sh' 2>/dev/null || true)
+HAS_SH_ERROR=0
+if [ -n "$STAGED_SH" ]; then
+    for f in $STAGED_SH; do
+        if [ -f "$f" ]; then
+            bash -n "$f" 2>/dev/null || { echo "${RED}  ✗ Shell syntax error in $f${NC}"; HAS_SH_ERROR=1; }
+        fi
+    done
+    if [ "$HAS_SH_ERROR" -eq 1 ]; then
+        echo "${RED}✗ Fix shell syntax errors before committing.${NC}"
+        exit 1
+    fi
+    echo "${GREEN}    ✓ Shell syntax OK${NC}"
+fi
+
+echo "${GREEN}━━━ Pre-commit checks passed ━━━${NC}"
+echo ""

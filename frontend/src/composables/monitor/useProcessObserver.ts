@@ -268,12 +268,12 @@ const extractEventType = (event: pb.IEvent): number | undefined => {
     event.eventType !== null &&
     event.eventType !== undefined
   ) {
-    const val = event.eventType as any;
+    const val = event.eventType;
     // Binary protobuf: numeric enum value (e.g., 0, 1, 2...)
     if (typeof val === "number") return Number.isFinite(val) ? val : undefined;
     // JSON: string enum name (e.g., "EXECVE", "OPENAT"...) — map to number
     if (typeof val === "string") {
-      const num = (pb.EventType as any)[val];
+      const num = (pb.EventType as Record<string, unknown>)[val];
       if (typeof num === "number") return num;
       const parsed = parseInt(val, 10);
       if (!isNaN(parsed)) return parsed;
@@ -286,7 +286,7 @@ const extractEventType = (event: pb.IEvent): number | undefined => {
     const mapped = TYPE_NAME_MAP[t];
     if (typeof mapped === "number") return mapped;
     // Also try via pb.EventType reverse lookup (e.g. "EXECVE" → 0)
-    const rev = (pb.EventType as any)[t.toUpperCase()] ?? (pb.EventType as any)[t];
+    const rev = (pb.EventType as Record<string, unknown>)[t.toUpperCase()] ?? (pb.EventType as Record<string, unknown>)[t];
     if (typeof rev === "number") return rev;
   }
   return undefined;

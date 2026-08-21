@@ -18,7 +18,7 @@
 | TLS 捕获 | `backend/app/tls/` (明文捕获/HTTP解析/SSL过滤器/AI元数据富化) |
 | 采集器指标 | `backend/app/observability/` |
 | Shell 会话 | `backend/app/shell/` |
-| 沙箱管控 | `backend/app/sandbox/` |
+| 沙箱管控 | `backend/app/handlers/cgroup_sandbox.go`, `backend/app/handlers/lsm_enforcer.go`, `backend/internal/sandbox/` |
 | 平台抽象 | `backend/app/platform/` |
 | 运行时状态 | `backend/app/runtime/` |
 | 导出 | `backend/app/export/` |
@@ -29,7 +29,7 @@
 | 网络核心算法 | `backend/internal/network/` (Flow/TCP/DNS/Scope) |
 | 行为分类 | `backend/internal/behavior/` |
 | GeoIP | `backend/internal/geoip/` |
-| 进程上下文 | `backend/app/ctx/` |
+| 进程上下文 | `backend/app/events/context_event.go` |
 | 插件系统 | `backend/app/handlers/plugin.go`, `backend/app/plugins.go` |
 
 ## eBPF

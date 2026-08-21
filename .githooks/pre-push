@@ -1,0 +1,90 @@
+#!/bin/sh
+# Agent eBPF Filter — Pre-push hook
+# Runs lint and test gates before allowing push.
+
+set -e
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+echo ""
+echo "${CYAN}━━━ Pre-push: Verification Gate ━━━${NC}"
+
+REMOTE="$1"
+URL="$2"
+LOCAL_REF="$3"
+LOCAL_SHA="$4"
+REMOTE_REF="$5"
+REMOTE_SHA="$6"
+
+# Only check on branch pushes, not tag pushes or deletions
+if [ -z "$LOCAL_SHA" ] || [ "$LOCAL_SHA" = "0000000000000000000000000000000000000000" ]; then
+    exit 0
+fi
+
+# ── 1. Lint backend ──────────────────────────────────────────────────────
+echo "${YELLOW}  → Running Go fmt check...${NC}"
+UNFORMATTED=$(cd backend && gofmt -l . 2>/dev/null || true)
+if [ -n "$UNFORMATTED" ]; then
+    echo "${RED}  ✗ Unformatted Go files:${NC}"
+    for f in $UNFORMATTED; do echo "    - backend/$f"; done
+    echo "  ${YELLOW}Run 'make lint-backend' to fix.${NC}"
+    echo "${RED}✗ Push rejected${NC}"
+    exit 1
+fi
+echo "${GREEN}    ✓ Go formatting OK${NC}"
+
+# ── 2. Lint wrapper ──────────────────────────────────────────────────────
+UNFORMATTED_WRAPPER=$(cd wrapper && gofmt -l . 2>/dev/null || true)
+if [ -n "$UNFORMATTED_WRAPPER" ]; then
+    echo "${RED}  ✗ Unformatted wrapper files:${NC}"
+    for f in $UNFORMATTED_WRAPPER; do echo "    - wrapper/$f"; done
+    echo "${RED}✗ Push rejected${NC}"
+    exit 1
+fi
+echo "${GREEN}    ✓ Wrapper formatting OK${NC}"
+
+# ── 3. Frontend lint (if prettier available) ──────────────────────────────
+if command -v prettier >/dev/null 2>&1; then
+    echo "${YELLOW}  → Checking frontend formatting...${NC}"
+    cd frontend
+    PRETTIER_ERR=0
+    prettier --check "src/**/*.{vue,ts,js,css,json,md}" "index.html" 2>/dev/null || PRETTIER_ERR=1
+    cd ..
+    if [ "$PRETTIER_ERR" -ne 0 ]; then
+        echo "${YELLOW}  ⚠ Frontend formatting issues found (non-blocking).${NC}"
+        echo "    ${YELLOW}Run 'make lint-frontend' to fix.${NC}"
+    else
+        echo "${GREEN}    ✓ Frontend formatting OK${NC}"
+    fi
+fi
+
+# ── 4. Go vet ─────────────────────────────────────────────────────────────
+echo "${YELLOW}  → Running go vet...${NC}"
+cd backend && go vet ./... 2>/dev/null && cd .. || {
+    cd ..
+    echo "${RED}  ✗ Go vet found issues. Fix before pushing.${NC}"
+    echo "${RED}✗ Push rejected${NC}"
+    exit 1
+}
+echo "${GREEN}    ✓ Go vet OK${NC}"
+
+# ── 5. Build check ────────────────────────────────────────────────────────
+echo "${YELLOW}  → Checking compilation...${NC}"
+(cd backend && go build -o /dev/null . 2>/dev/null) || {
+    echo "${RED}  ✗ Backend does not compile.${NC}"
+    echo "${RED}✗ Push rejected${NC}"
+    exit 1
+}
+(cd wrapper && go build -o /dev/null . 2>/dev/null) || {
+    echo "${RED}  ✗ Wrapper does not compile.${NC}"
+    echo "${RED}✗ Push rejected${NC}"
+    exit 1
+}
+echo "${GREEN}    ✓ Compilation OK${NC}"
+
+echo "${GREEN}━━━ Pre-push checks passed ━━━${NC}"
+echo ""

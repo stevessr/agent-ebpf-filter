@@ -60,22 +60,18 @@ func TestBuildMLStatusJSONIncludesCRuntime(t *testing.T) {
 	initMLTest(t, 180)
 	resetMLCRuntimeCacheForTest()
 
-	oldEngine := mlEngine
-	oldLoaded := mlModelLoaded
-	oldType := currentModelType
-	oldEnabled := mlEnabled
+	previousRuntime := snapshotMLRuntime()
 	t.Cleanup(func() {
-		mlEngine = oldEngine
-		mlModelLoaded = oldLoaded
-		currentModelType = oldType
-		mlEnabled = oldEnabled
+		replaceMLRuntime(previousRuntime)
 		resetMLCRuntimeCacheForTest()
 	})
 
-	mlEngine = makeDummyLinearModel()
-	mlModelLoaded = true
-	currentModelType = ModelLogisticRegression
-	mlEnabled = true
+	runtime := previousRuntime
+	runtime.Engine = makeDummyLinearModel()
+	runtime.ModelLoaded = true
+	runtime.ModelType = ModelLogisticRegression
+	runtime.Enabled = true
+	replaceMLRuntime(runtime)
 
 	var payload struct {
 		ModelType         string              `json:"modelType"`
@@ -112,18 +108,10 @@ func TestBuildMLStatusJSONUsesCurrentRuntimeSettings(t *testing.T) {
 	resetMLCRuntimeCacheForTest()
 
 	oldStore := runtimeSettingsStore
-	oldEngine := mlEngine
-	oldLoaded := mlModelLoaded
-	oldType := currentModelType
-	oldConfig := mlConfig
-	oldEnabled := mlEnabled
+	previousRuntime := snapshotMLRuntime()
 	t.Cleanup(func() {
 		runtimeSettingsStore = oldStore
-		mlEngine = oldEngine
-		mlModelLoaded = oldLoaded
-		currentModelType = oldType
-		mlConfig = oldConfig
-		mlEnabled = oldEnabled
+		replaceMLRuntime(previousRuntime)
 		resetMLCRuntimeCacheForTest()
 	})
 
@@ -145,29 +133,7 @@ func TestBuildMLStatusJSONUsesCurrentRuntimeSettings(t *testing.T) {
 		LlmSystemPrompt:      "runtime prompt",
 	}
 	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{MLConfig: runtimeCfg}}
-
-	// Leave the globals in a conflicting state to ensure the status payload
-	// is sourced from the runtime snapshot rather than stale package state.
-	mlConfig = MLConfig{
-		Enabled:              true,
-		ModelType:            ModelRandomForest,
-		ModelPath:            "/stale/model.bin",
-		ValidationSplitRatio: 0.20,
-		NumTrees:             31,
-		MaxDepth:             8,
-		MinSamplesLeaf:       5,
-		LlmEnabled:           false,
-		LlmBaseURL:           "https://stale.example",
-		LlmModel:             "stale-llm",
-		LlmTimeoutSeconds:    11,
-		LlmTemperature:       0.99,
-		LlmMaxTokens:         12,
-		LlmSystemPrompt:      "stale prompt",
-	}
-	mlEnabled = true
-	mlEngine = nil
-	mlModelLoaded = false
-	currentModelType = ModelRandomForest
+	updateMLRuntimeConfig(runtimeCfg, true)
 
 	if got := currentMLConfig(); got != runtimeCfg {
 		t.Fatalf("currentMLConfig() = %+v, want %+v", got, runtimeCfg)

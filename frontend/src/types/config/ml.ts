@@ -442,12 +442,28 @@ export interface MLCommandSafetyResult {
   comm?: string;
   args?: string[];
   recommendedAction?: string;
-  classification?: any;
+  classification?: Record<string, unknown> & {
+    label?: string;
+    confidence?: number;
+    source?: string;
+    primary_category?: string;
+  };
   anomalyScore?: number;
   mlPrediction?: { action?: string; confidence?: number };
   reasoning?: string;
-  sampleEvidence?: any;
-  sampleMatches?: any[];
-  networkAudit?: any;
+  sampleEvidence?: Record<string, unknown> & {
+    totalMatches?: number;
+    labeledMatches?: number;
+    decision?: string;
+    confidence?: number;
+  };
+  sampleMatches?: Record<string, unknown>[];
+  networkAudit?: Record<string, unknown> & {
+    connections?: { destIp: string; destPort: number }[];
+    summary?: string;
+    findings?: Record<string, unknown>[];
+    riskLevel?: string;
+    riskScore?: number;
+  };
   llmAssessment?: MLLlmAssessment;
 }

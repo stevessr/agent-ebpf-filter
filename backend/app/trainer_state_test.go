@@ -77,11 +77,6 @@ func TestTrainWithConfigUsesCallerValidationRatio(t *testing.T) {
 		})
 	}
 
-	previousConfig := mlConfig
-	mlConfig = DefaultMLConfig()
-	mlConfig.ValidationSplitRatio = 0.10
-	t.Cleanup(func() { mlConfig = previousConfig })
-
 	trainer := &ModelTrainer{
 		mu:         make(chan struct{}, 1),
 		cancelCh:   make(chan struct{}),

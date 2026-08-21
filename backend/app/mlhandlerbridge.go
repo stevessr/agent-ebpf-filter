@@ -23,7 +23,7 @@ func mlGetHistoryResponse() gin.H {
 }
 
 func mlTrain(numTrees, maxDepth, minLeaf int) gin.H {
-	if !mlEnabled {
+	if !snapshotMLRuntime().Enabled {
 		return gin.H{"error": "ML engine is not enabled on this node"}
 	}
 
@@ -43,10 +43,9 @@ func mlTrain(numTrees, maxDepth, minLeaf int) gin.H {
 	if result.Error != "" {
 		return gin.H{"error": result.Error, "trainingReadiness": trainingReadiness}
 	}
-	mlEngine = model
-	mlModelLoaded = true
+	publishMLRuntimeModel(model, model.Type())
 
-	modelPath := mlConfig.ModelPath
+	modelPath := cfg.ModelPath
 	if modelPath == "" {
 		modelPath = defaultMLModelPath()
 	}
@@ -150,53 +149,4 @@ func mlSampleAnomalyResult(index int, score float64) gin.H {
 
 func mlAddSample(cmdLine, comm string, args []string, label string) gin.H {
 	return handleMLAddSampleImpl(cmdLine, comm, args, label)
-}
-
-func mlImportResult() gin.H {
-	count := handleMLImportExistingImpl()
-	return gin.H{"status": "ok", "imported": count}
-}
-
-func mlTuneResult() gin.H {
-	result := handleMLTuneImpl()
-	if result.Error != "" {
-		return gin.H{"error": result.Error}
-	}
-	return gin.H{"status": "ok", "accuracy": result.Accuracy}
-}
-
-func mlTuneModelsResult(models []string) gin.H {
-	return handleMLTuneModelsImpl(models)
-}
-
-func mlLLMScoreResult(cmdLine, comm string, args []string) gin.H {
-	return handleMLLLMScoreImpl(cmdLine, comm, args)
-}
-
-func mlLLMBatchScoreResult(samples []gin.H) gin.H {
-	return handleMLLLMBatchScoreImpl(samples)
-}
-
-func mlLlmProductionDatasetPullResult() gin.H {
-	return handleMLLLMProductionDatasetPullImpl()
-}
-
-func mlClassicDatasetGetResult(name string) gin.H {
-	return handleMLClassicDatasetGetImpl(name)
-}
-
-func mlClassicDatasetPreviewResult(name string) gin.H {
-	return handleMLClassicDatasetPreviewImpl(name)
-}
-
-func mlDatasetPullResult(url string) gin.H {
-	return handleMLDatasetPullImpl(url)
-}
-
-func mlDatasetImportResult(name string) gin.H {
-	return handleMLDatasetImportImpl(name)
-}
-
-func mlDatasetExportResult() gin.H {
-	return handleMLDatasetExportImpl()
 }

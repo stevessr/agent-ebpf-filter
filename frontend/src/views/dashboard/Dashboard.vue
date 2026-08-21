@@ -86,8 +86,6 @@ const copyPath = async (path: string) => {
     // clipboard write failed
   }
 };
-
-void tableWrapperRef;
 </script>
 
 <template>
@@ -185,7 +183,7 @@ void tableWrapperRef;
           d === "unknown" ? "Unknown" : d.charAt(0).toUpperCase() + d.slice(1)
         }}
         <span style="margin-left: 2px; font-weight: 600">{{
-          (networkDirStats as any)[d]
+          (networkDirStats as Record<string, number>)[d] || 0
         }}</span>
       </a-tag>
       <a-tag

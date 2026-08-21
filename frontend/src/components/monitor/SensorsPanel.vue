@@ -190,7 +190,7 @@ onUnmounted(() => {
                       },
                     }"
                     :series="
-                      (sensors as any[])
+                      (sensors as { sensorKey: string; label?: string }[])
                         .filter((s) => sensorVisibility[s.sensorKey])
                         .map((s) => ({
                           name: s.label || s.sensorKey,
