@@ -71,7 +71,10 @@ AI Agent / CLI  -->  捕获 OS 行为事实  -->  深度因果关联  -->  运�
 | `tls/` | `backend/app/tls/` | TLS 明文捕获、HTTP/SSE 解析、AI 元数据富化 |
 | `observability/` | `backend/app/observability/` | 采集器指标、Prometheus 导出 |
 | `shell/` | `backend/app/shell/` | Shell 会话生命周期管理 |
-| `sandbox/` | `backend/app/handlers/cgroup_sandbox.go`, `backend/app/handlers/lsm_enforcer.go`, `backend/internal/sandbox/` | cgroup/BPF LSM 沙箱管控 |
+| `research/` | `backend/app/research/` | 研究工作区：会话存储、处理任务、导出、安全评估 |
+| `signalruntime/` | `backend/app/signalruntime/` | 单消费者信号处理 worker 与程序日志持久化 |
+| `tasks/` | `backend/app/tasks/` | 可嵌入的后台任务运行时（队列/取消/统计） |
+| `sandbox/` | `backend/app/sandbox/` | cgroup/BPF LSM 沙箱管控（加载、附着、黑名单、统计） |
 | `platform/` | `backend/app/platform/` | 宿主平台抽象（uid/gid、文件系统操作） |
 | `types/` | `backend/app/types/` | 特性 ID、插件类型等共享常量定义 |
 | `runtime/` | `backend/app/runtime/` | 运行时配置持久化与状态管理 |
@@ -117,6 +120,10 @@ backend/app/handlers/
 | `networkflowsbridge.go` | `events/` + `network/` | 函数指针注入 |
 | `shellbridge.go` | `shell/` | 全局变量兼容 |
 | `observabilitybridge.go` | `observability/` | 接口适配 |
+| `tasksbridge.go` | `tasks/` | 任务运行时别名 |
+| `signalbridge.go` | `signalruntime/` | worker/handler 别名 + Main() 钩子注入 |
+| `sandboxbridge.go` | `sandbox/` | enforcement 函数别名 |
+| `research/bridge.go`、`signalruntime/bridge.go`、`sandbox/bridge.go` | core 类型别名 | 反向依赖隔离 |
 | `collectormetricsbridge.go` | metrics 采集 | 桥接适配 |
 | `contextbridge.go` | 进程上下文 | 函数桥接 |
 
@@ -129,7 +136,7 @@ backend/app/handlers/
 | `internal/network/` | `backend/internal/network/` | 网络核心算法（Flow/TCP/DNS/Scope） |
 | `internal/behavior/` | `backend/internal/behavior/` | 行为分类与向量嵌入 |
 | `internal/geoip/` | `backend/internal/geoip/` | GeoIP 解析与风险国家判定 |
-| `ml/` | `backend/ml/` | 机器学习模型定义与训练器 |
+| `ml/` | `backend/app/ml/` | 机器学习模型定义与训练器 |
 | `redaction/` | `backend/redaction/` | 数据脱敏引擎 |
 | `probe/manager/` | `backend/probe/manager/` | TLS 探针管理器 |
 
