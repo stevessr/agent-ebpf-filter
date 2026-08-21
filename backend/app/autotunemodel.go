@@ -36,7 +36,7 @@ func runModelAutoTuneWithCancel(store *ml.TrainingDataStore, req ml.MLModelTuneR
 	var best *ml.MLModelTuneCandidate
 	var bestModel ml.Model
 	bestScore := math.Inf(-1)
-	benchmarkSamples := selectBenchmarkSamples(labeled, 64)
+	benchmarkSamples := ml.SelectBenchmarkSamples(labeled, 64)
 	baseCfg := currentMLConfig()
 
 	if progressCb != nil {

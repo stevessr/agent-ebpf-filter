@@ -1,4 +1,4 @@
-package app
+package sweep
 
 import (
 	"agent-ebpf-filter/app/ml"
@@ -352,29 +352,6 @@ func newSweepTrainer() *ml.ModelTrainer {
 	return ml.NewModelTrainer()
 }
 
-func selectBenchmarkSamples(samples []ml.TrainingSample, target int) []ml.TrainingSample {
-	if target <= 0 || len(samples) == 0 {
-		return nil
-	}
-	if target >= len(samples) {
-		return append([]ml.TrainingSample(nil), samples...)
-	}
-	if target == 1 {
-		return []ml.TrainingSample{samples[len(samples)/2]}
-	}
-	out := make([]ml.TrainingSample, 0, target)
-	for i := 0; i < target; i++ {
-		idx := int(math.Round(float64(i) * float64(len(samples)-1) / float64(target-1)))
-		if idx < 0 {
-			idx = 0
-		}
-		if idx >= len(samples) {
-			idx = len(samples) - 1
-		}
-		out = append(out, samples[idx])
-	}
-	return out
-}
 
 type classMetrics struct {
 	Accuracy      float64

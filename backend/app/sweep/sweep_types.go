@@ -1,4 +1,4 @@
-package app
+package sweep
 
 import "agent-ebpf-filter/app/ml"
 
