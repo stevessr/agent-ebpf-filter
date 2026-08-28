@@ -121,7 +121,6 @@ func (m *TLSProbeManager) pruneDeadProcessAttachments() {
 		return
 	}
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	for pid := range m.attachedExec {
 		if !processExists(pid) {
 			delete(m.attachedExec, pid)
@@ -137,6 +136,8 @@ func (m *TLSProbeManager) pruneDeadProcessAttachments() {
 			delete(m.attachedStatic, key)
 		}
 	}
+	m.mu.Unlock()
+	m.pruneAutoDiscoveryState()
 }
 
 func (m *TLSProbeManager) pidAlreadyAttached(pid int) bool {
@@ -182,15 +183,23 @@ func (m *TLSProbeManager) DiscoverGoProcesses() {
 		if _, err := parseGoTLSTargets(binPath); err != nil {
 			continue
 		}
+		now := time.Now()
+		if !m.autoAttachAllowed("go", pid, binPath, now) {
+			continue
+		}
 		if !m.shouldAttachGoBinary(binPath, pid) {
 			continue
 		}
+		m.recordAutoAttachAttempt()
 		if err := m.AttachGoUprobes(binPath, pid); err != nil {
 			m.forgetGoBinaryAttach(binPath, pid)
+			m.recordAutoAttachFailure("go", pid, binPath, err, now)
 			if m.store != nil {
 				m.store.SetLibraryStatus(TLSLibraryStatus{Name: "Go", Path: binPath, Attached: false, Available: true, Error: err.Error()})
 			}
+			continue
 		}
+		m.recordAutoAttachSuccess("go", pid, binPath)
 	}
 }
 
@@ -255,18 +264,26 @@ func (m *TLSProbeManager) DiscoverNodeProcesses() {
 		if !isAgentTLSProcess(baseName, normalizedProcCmdline(pid)) {
 			continue
 		}
+		now := time.Now()
+		if !m.autoAttachAllowed("agent", pid, binPath, now) {
+			continue
+		}
 		if !m.shouldAttachStaticSSL(binPath, pid) {
 			continue
 		}
 
+		m.recordAutoAttachAttempt()
 		result := m.AttachExecutable(binPath, pid, "auto")
 		if result.Error != "" {
 			m.forgetStaticSSLAttach(binPath, pid)
+			attachErr := fmt.Errorf("%s", result.Error)
+			m.recordAutoAttachFailure("agent", pid, binPath, attachErr, now)
 			if m.store != nil {
 				m.store.SetLibraryStatus(TLSLibraryStatus{Name: "auto:" + baseName, Path: binPath, Attached: false, Available: true, Error: result.Error})
 			}
 			continue
 		}
+		m.recordAutoAttachSuccess("agent", pid, binPath)
 		if m.store != nil {
 			library := result.Library
 			if library == "" {
