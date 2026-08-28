@@ -10,18 +10,6 @@ import (
 // AttachRustlsUprobes attaches the rustls-specific uprobes inside a stripped
 // static-pie Rust binary (codex, cursor). The offsets are discovered via
 // .eh_frame + .rodata anchor cross-referencing in probediscoveryrustls.go.
-//
-// SEND: a dedicated uprobe_rustls_encrypt_outgoing program dereferences the
-// borrowed OutboundPlainMessage (passed in rdx at entry, sret ABI) to read the
-// plaintext slice {ptr@+0x08, len@+0x10} before it is encrypted.
-//
-// RECV: a dedicated uprobe_rustls_consume_first_chunk program attaches to the
-// inline-combined Reader::consume + ChunkVecBuffer::consume_first_chunk
-// function (located via the "illegal `BufRead::consume` usage" assert). On
-// entry (rdi=&Reader, rsi=amt) it navigates *rdi -> ChunkVecBuffer ->
-// VecDeque front chunk and emits min(amt, available) plaintext bytes — exactly
-// what the application reads, no duplicates, no gaps. read_tls is NOT used (it
-// reads encrypted socket bytes; capturing ciphertext is rejected by constraint).
 func (m *TLSProbeManager) AttachRustlsUprobes(binPath string, pid int) error {
 	if m == nil {
 		return nil
@@ -31,7 +19,6 @@ func (m *TLSProbeManager) AttachRustlsUprobes(binPath string, pid int) error {
 	if err != nil {
 		return fmt.Errorf("find rustls offsets: %w", err)
 	}
-
 	if offsets.WriteTLS == 0 && offsets.ReadTLS == 0 {
 		return fmt.Errorf("no rustls functions found")
 	}
@@ -55,9 +42,6 @@ func (m *TLSProbeManager) AttachRustlsUprobes(binPath string, pid int) error {
 	startLinks := len(m.links)
 	var errs []error
 
-	// Attach encrypt_outgoing (SEND direction): the uprobe dereferences the
-	// borrowed OutboundPlainMessage to capture the about-to-be-encrypted
-	// plaintext slice.
 	if offsets.WriteTLS > 0 {
 		opts.Address = offsets.WriteTLS
 		if prog, ok := programByName(&m.objs.AgentTlsCapturePrograms, "uprobe_rustls_encrypt_outgoing"); ok && prog != nil {
@@ -72,9 +56,6 @@ func (m *TLSProbeManager) AttachRustlsUprobes(binPath string, pid int) error {
 		}
 	}
 
-	// Attach consume_first_chunk (RECV direction): the uprobe navigates the
-	// ChunkVecBuffer + VecDeque front chunk to capture the plaintext the app is
-	// consuming.
 	if offsets.ReadTLS > 0 {
 		opts.Address = offsets.ReadTLS
 		if prog, ok := programByName(&m.objs.AgentTlsCapturePrograms, "uprobe_rustls_consume_first_chunk"); ok && prog != nil {
@@ -99,6 +80,7 @@ func (m *TLSProbeManager) AttachRustlsUprobes(binPath string, pid int) error {
 		return err
 	}
 
+	m.registerPIDLinkRangeLocked(pid, startLinks)
 	if m.store != nil {
 		m.store.SetLibraryStatus(TLSLibraryStatus{
 			Name:      "rustls",
