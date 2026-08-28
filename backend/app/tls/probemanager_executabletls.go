@@ -52,20 +52,27 @@ func (m *TLSProbeManager) AttachGoUprobes(binPath string, pid int) error {
 			}
 		}
 	}
-	if err := errors.Join(errs...); err != nil {
+	if attachedCount == 0 {
 		for _, l := range m.links[startLinks:] {
 			if l != nil {
 				_ = l.Close()
 			}
 		}
 		m.links = m.links[:startLinks]
-		return err
-	}
-	if attachedCount == 0 {
+		if err := errors.Join(errs...); err != nil {
+			return err
+		}
 		return fmt.Errorf("zero Go TLS probes attached to %s", binPath)
 	}
+	if len(errs) > 0 {
+		log.Printf("[tls] AttachGoUprobes: partial coverage for %s (pid=%d): %v", binPath, pid, errors.Join(errs...))
+	}
 	if m.store != nil {
-		m.store.SetLibraryStatus(TLSLibraryStatus{Name: "go", Path: binPath, Attached: true, Available: true})
+		status := TLSLibraryStatus{Name: "go", Path: binPath, Attached: true, Available: true}
+		if len(errs) > 0 {
+			status.Error = "partial probe coverage: " + errors.Join(errs...).Error()
+		}
+		m.store.SetLibraryStatus(status)
 	}
 	return nil
 }
@@ -107,20 +114,27 @@ func (m *TLSProbeManager) AttachStaticSSLUprobes(binPath string, pid int) error 
 		}
 	}
 	log.Printf("[tls] AttachStaticSSLUprobes: %d probes attached for %s (pid=%d)", attachedCount, binPath, pid)
-	if err := errors.Join(errs...); err != nil {
+	if attachedCount == 0 {
 		for _, l := range m.links[startLinks:] {
 			if l != nil {
 				_ = l.Close()
 			}
 		}
 		m.links = m.links[:startLinks]
-		return err
-	}
-	if attachedCount == 0 {
+		if err := errors.Join(errs...); err != nil {
+			return err
+		}
 		return fmt.Errorf("zero TLS probes attached to %s — symbols may exist but eBPF program lookup failed", binPath)
 	}
+	if len(errs) > 0 {
+		log.Printf("[tls] AttachStaticSSLUprobes: partial coverage for %s (pid=%d): %v", binPath, pid, errors.Join(errs...))
+	}
 	if m.store != nil {
-		m.store.SetLibraryStatus(TLSLibraryStatus{Name: "static-openssl", Path: binPath, Attached: true, Available: true})
+		status := TLSLibraryStatus{Name: "static-openssl", Path: binPath, Attached: true, Available: true}
+		if len(errs) > 0 {
+			status.Error = "partial probe coverage: " + errors.Join(errs...).Error()
+		}
+		m.store.SetLibraryStatus(status)
 	}
 	return nil
 }
@@ -159,8 +173,6 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 		return result
 	}
 
-	// Try symbols on the executable before heuristic offset discovery. This is
-	// inexpensive for unstripped Node/Bun/OpenSSL-linked static binaries.
 	if err := m.AttachStaticSSLUprobes(attachPath, pid); err == nil {
 		log.Printf("[tls] AttachExecutable: static SSL uprobes attached to %s (pid=%d)", attachPath, pid)
 		result.TargetKind = "static-ssl"
@@ -177,9 +189,6 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 	}
 	log.Printf("[tls] AttachExecutable: symbol-based static SSL failed for %s, trying rustls offset detection...", attachPath)
 
-	// Try rustls before generic OpenSSL/BoringSSL patterns. Generic prologue
-	// matching can otherwise select unrelated functions inside stripped Rust
-	// binaries and report a false-positive attach.
 	if err := m.AttachRustlsUprobes(attachPath, pid); err == nil {
 		log.Printf("[tls] AttachExecutable: rustls uprobes attached to %s (pid=%d)", attachPath, pid)
 		result.TargetKind = "static-ssl"
@@ -222,9 +231,6 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 	for _, target := range libraries {
 		libPath, libOk := findLoadedLibForTarget(loadedLibs, target)
 		if !libOk && pid <= 0 {
-			// Only use system-library fallbacks for an explicit system-wide attach.
-			// For PID-scoped auto-discovery, attaching an unrelated library that the
-			// process did not map is a misleading false success.
 			libPath, libOk = findFirstExistingPath(target.paths...)
 		}
 		if !libOk {
@@ -313,9 +319,6 @@ func findLoadedSSLLibraries(pid int) []string {
 	return libs
 }
 
-// findLoadedLibForTarget checks if any of the loaded library paths match
-// the given ProbeTarget. OpenSSL deliberately requires libssl: SSL_read/write
-// live there, and choosing libcrypto first yields a false attach failure.
 func findLoadedLibForTarget(loadedLibs []string, target ProbeTarget) (string, bool) {
 	if len(loadedLibs) == 0 {
 		return "", false
