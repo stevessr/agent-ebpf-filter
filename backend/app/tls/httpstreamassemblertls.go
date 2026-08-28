@@ -14,16 +14,18 @@ const tlsHTTPStreamMaxBuffer = 512 * 1024
 const tlsHTTPStreamRequestQueueLimit = 64
 
 type tlsHTTPStreamKey struct {
-	PID     uint32
-	TGID    uint32
-	LibType uint8
+	PID          uint32
+	TGID         uint32
+	ConnectionID uint64
+	LibType      uint8
 }
 
 type tlsHTTPBufferKey struct {
-	PID       uint32
-	TGID      uint32
-	LibType   uint8
-	Direction uint8
+	PID          uint32
+	TGID         uint32
+	ConnectionID uint64
+	LibType      uint8
+	Direction    uint8
 }
 
 type pendingTLSHTTPStream struct {
@@ -63,9 +65,13 @@ func (a *TLSHTTPStreamAssembler) Add(fragment CompletedTLSFragment) []TLSPlainte
 	if a == nil || len(fragment.Payload) == 0 {
 		return nil
 	}
-	now := time.Unix(0, int64(fragment.TimestampNS))
-	if now.IsZero() {
+	var now time.Time
+	if fragment.TimestampNS == 0 {
 		now = time.Now()
+	} else {
+		// TimestampNS is monotonic since boot. Using Unix epoch as an arbitrary
+		// origin is intentional here: stream expiry only depends on deltas.
+		now = time.Unix(0, int64(fragment.TimestampNS))
 	}
 
 	a.mu.Lock()
@@ -73,7 +79,13 @@ func (a *TLSHTTPStreamAssembler) Add(fragment CompletedTLSFragment) []TLSPlainte
 
 	a.cleanupExpiredLocked(now)
 
-	key := tlsHTTPBufferKey{PID: fragment.PID, TGID: fragment.TGID, LibType: fragment.LibType, Direction: fragment.Direction}
+	key := tlsHTTPBufferKey{
+		PID:          fragment.PID,
+		TGID:         fragment.TGID,
+		ConnectionID: fragment.ConnectionID,
+		LibType:      fragment.LibType,
+		Direction:    fragment.Direction,
+	}
 	pending := a.pending[key]
 	if pending == nil {
 		payload := trimTLSHTTPMessageSeparators(fragment.Payload)
@@ -166,7 +178,12 @@ func (a *TLSHTTPStreamAssembler) cleanupExpiredLocked(now time.Time) {
 }
 
 func (a *TLSHTTPStreamAssembler) trackHTTPEventLocked(key tlsHTTPBufferKey, event *TLSPlaintextEvent) {
-	streamKey := tlsHTTPStreamKey{PID: key.PID, TGID: key.TGID, LibType: key.LibType}
+	streamKey := tlsHTTPStreamKey{
+		PID:          key.PID,
+		TGID:         key.TGID,
+		ConnectionID: key.ConnectionID,
+		LibType:      key.LibType,
+	}
 	if event.Type == "http_request" {
 		queue := append(a.requests[streamKey], tlsHTTPRequestContext{Method: event.Method, URL: event.URL, Host: event.Host})
 		if len(queue) > tlsHTTPStreamRequestQueueLimit {
