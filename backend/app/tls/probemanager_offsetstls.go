@@ -175,11 +175,11 @@ func (m *TLSProbeManager) AttachBoringSSLByOffsets(binPath string, pid int) erro
 
 	startLinks := len(m.links)
 	var errs []error
+	// SSL_write is captured at function entry by uprobe_ssl_write, so there is
+	// intentionally no SSL_write return program. SSL_read must keep entry+return
+	// because the return value supplies the actual plaintext byte count.
 	if err := attachOffsetProbe(bin, m, "uprobe_ssl_write", uint64(writeOff), false, opts); err != nil {
 		errs = append(errs, fmt.Errorf("SSL_write entry: %w", err))
-	}
-	if err := attachOffsetProbe(bin, m, "uretprobe_ssl_write", uint64(writeOff), true, opts); err != nil {
-		errs = append(errs, fmt.Errorf("SSL_write ret: %w", err))
 	}
 	if err := attachOffsetProbe(bin, m, "uprobe_ssl_read", uint64(readOff), false, opts); err != nil {
 		errs = append(errs, fmt.Errorf("SSL_read entry: %w", err))
