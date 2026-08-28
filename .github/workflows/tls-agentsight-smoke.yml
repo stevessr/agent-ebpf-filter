@@ -1,0 +1,47 @@
+name: TLS and AgentSight smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - perf/tls-agentsight-refresh
+    paths:
+      - "backend/app/tls/**"
+      - "backend/ebpf/agent_tls_capture.c"
+      - "backend/go.mod"
+      - "backend/go.sum"
+      - "frontend/src/components/agentsight/**"
+      - "frontend/src/composables/agentsight/**"
+      - "frontend/src/utils/agentsight.ts"
+      - "frontend/src/utils/agentsight/**"
+      - "frontend/package.json"
+      - "frontend/bun.lock"
+      - ".github/workflows/tls-agentsight-smoke.yml"
+
+jobs:
+  backend-tls:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: TLS package tests
+        run: go test ./app/tls -count=1
+
+  frontend-agentsight:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Typecheck and build
+        run: bun run build
