@@ -19,6 +19,10 @@ on:
       - "frontend/bun.lock"
       - ".github/workflows/tls-agentsight-smoke.yml"
 
+concurrency:
+  group: tls-agentsight-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backend-tls:
     runs-on: ubuntu-latest
