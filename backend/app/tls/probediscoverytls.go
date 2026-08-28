@@ -104,10 +104,15 @@ func pidFromGoAttachKey(key string) (int, bool) {
 }
 
 func pidFromStaticAttachKey(key string) (int, bool) {
-	if !strings.HasPrefix(key, "exec\x00") {
+	var rest string
+	switch {
+	case strings.HasPrefix(key, "exec\x00"):
+		rest = strings.TrimPrefix(key, "exec\x00")
+	case strings.HasPrefix(key, "pid\x00"):
+		rest = strings.TrimPrefix(key, "pid\x00")
+	default:
 		return 0, false
 	}
-	rest := strings.TrimPrefix(key, "exec\x00")
 	pidText, _, ok := strings.Cut(rest, "\x00")
 	if !ok {
 		return 0, false
@@ -176,10 +181,6 @@ func (m *TLSProbeManager) DiscoverGoProcesses() {
 			continue
 		}
 
-		// parseGoTLSTargets first checks ordinary ELF symbols and then falls back
-		// to .gopclntab, so release binaries built with -s -w are discoverable.
-		// The result is cached by path/size/mtime, keeping the frequent /proc scan
-		// cheap for the overwhelming majority of non-Go processes.
 		if _, err := parseGoTLSTargets(binPath); err != nil {
 			continue
 		}
