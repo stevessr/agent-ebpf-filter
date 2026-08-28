@@ -150,6 +150,10 @@ func (m *TLSProbeManager) recordAutoAttachFailure(kind string, pid int, path str
 	}
 	state.retries[key] = retry
 	state.mu.Unlock()
+	// Failed attachments are also process-specific. Remember the process
+	// identity so a newly spawned process that reuses the same PID and binary
+	// path does not inherit the old process's exponential backoff window.
+	m.rememberAutoAttachProcess(pid)
 }
 
 func (m *TLSProbeManager) markTLSCaptureObserved(pid int, timestampNS int64) {
