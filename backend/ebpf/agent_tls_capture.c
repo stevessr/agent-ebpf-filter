@@ -112,14 +112,16 @@ static __always_inline void inc_probe_hit(__u8 function) {
 	}
 }
 
-static __always_inline int emit_tls_fragment(void *ctx, __u64 connection_id, const void *buf, __u32 original_len, __u8 lib, __u8 dir, __u8 function)
+// Submit a payload without touching the per-function hit counter. Entry-only
+// probes call emit_tls_fragment(), which counts once before delegating here.
+// Entry+return probes count in save_retprobe_ctx() and call this helper from the
+// return path so a successful call is not reported as two probe hits.
+static __always_inline int emit_tls_fragment_uncounted(void *ctx, __u64 connection_id, const void *buf, __u32 original_len, __u8 lib, __u8 dir, __u8 function)
 {
 	__u32 diag_output_fail = TLS_DIAG_PERF_OUTPUT_FAIL;
 	__u32 diag_read_fail  = TLS_DIAG_PROBE_READ_FAIL;
 	__u32 diag_submit_ok  = TLS_DIAG_PERF_SUBMIT_OK;
 	__u32 zero = 0;
-
-	inc_probe_hit(function);
 
 	if (!buf || original_len == 0) {
 		return 0;
@@ -185,6 +187,12 @@ static __always_inline int emit_tls_fragment(void *ctx, __u64 connection_id, con
 	return 0;
 }
 
+static __always_inline int emit_tls_fragment(void *ctx, __u64 connection_id, const void *buf, __u32 original_len, __u8 lib, __u8 dir, __u8 function)
+{
+	inc_probe_hit(function);
+	return emit_tls_fragment_uncounted(ctx, connection_id, buf, original_len, lib, dir, function);
+}
+
 static __always_inline int save_retprobe_ctx(__u64 connection_id, void *buf, const void *len_ptr, __u32 len, __u8 lib, __u8 dir, __u8 function)
 {
 	inc_probe_hit(function);
@@ -219,7 +227,7 @@ static __always_inline int emit_retprobe_payload(void *ctx, __u32 len)
 	if (!load_retprobe_ctx(&rc)) {
 		return 0;
 	}
-	return emit_tls_fragment(ctx, rc.connection_id, (const void *)rc.buf, len, rc.lib_type, rc.direction, rc.function);
+	return emit_tls_fragment_uncounted(ctx, rc.connection_id, (const void *)rc.buf, len, rc.lib_type, rc.direction, rc.function);
 }
 
 SEC("uprobe/SSL_write")
@@ -251,9 +259,9 @@ int uretprobe_ssl_write_ex(struct pt_regs *ctx)
 	}
 	__u64 written = 0;
 	if (rc.len_ptr && bpf_probe_read_user(&written, sizeof(written), (const void *)rc.len_ptr) == 0 && written > 0) {
-		return emit_tls_fragment(ctx, rc.connection_id, (const void *)rc.buf, (__u32)written, rc.lib_type, rc.direction, rc.function);
+		return emit_tls_fragment_uncounted(ctx, rc.connection_id, (const void *)rc.buf, (__u32)written, rc.lib_type, rc.direction, rc.function);
 	}
-	return emit_tls_fragment(ctx, rc.connection_id, (const void *)rc.buf, rc.len, rc.lib_type, rc.direction, rc.function);
+	return emit_tls_fragment_uncounted(ctx, rc.connection_id, (const void *)rc.buf, rc.len, rc.lib_type, rc.direction, rc.function);
 }
 
 SEC("uprobe/SSL_write_ex2")
@@ -281,9 +289,9 @@ int uretprobe_ssl_write_ex2(struct pt_regs *ctx)
 	}
 	__u64 written = 0;
 	if (rc.len_ptr && bpf_probe_read_user(&written, sizeof(written), (const void *)rc.len_ptr) == 0 && written > 0) {
-		return emit_tls_fragment(ctx, rc.connection_id, (const void *)rc.buf, (__u32)written, rc.lib_type, rc.direction, rc.function);
+		return emit_tls_fragment_uncounted(ctx, rc.connection_id, (const void *)rc.buf, (__u32)written, rc.lib_type, rc.direction, rc.function);
 	}
-	return emit_tls_fragment(ctx, rc.connection_id, (const void *)rc.buf, rc.len, rc.lib_type, rc.direction, rc.function);
+	return emit_tls_fragment_uncounted(ctx, rc.connection_id, (const void *)rc.buf, rc.len, rc.lib_type, rc.direction, rc.function);
 #else
 	return 0;
 #endif
@@ -323,7 +331,7 @@ int uretprobe_ssl_read_ex(struct pt_regs *ctx)
 	if (bpf_probe_read_user(&read_len, sizeof(read_len), (const void *)rc.len_ptr) < 0 || read_len == 0) {
 		return 0;
 	}
-	return emit_tls_fragment(ctx, rc.connection_id, (const void *)rc.buf, (__u32)read_len, rc.lib_type, rc.direction, rc.function);
+	return emit_tls_fragment_uncounted(ctx, rc.connection_id, (const void *)rc.buf, (__u32)read_len, rc.lib_type, rc.direction, rc.function);
 }
 
 SEC("uprobe/gnutls_record_send")
