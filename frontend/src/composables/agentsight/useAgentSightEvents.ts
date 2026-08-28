@@ -26,6 +26,8 @@ const AGENTSIGHT_SAMPLE_TRACE_URL = "/agentsight-sample-trace.jsonl";
 const AGENTSIGHT_SYSTEM_TOP_PROCESSES = 40;
 const AGENTSIGHT_DEFAULT_LIMIT = 500;
 const AGENTSIGHT_UNLIMITED_LIMIT = 0;
+const AGENTSIGHT_TLS_BATCH_MS = 32;
+const AGENTSIGHT_RECONCILE_MS = 15000;
 export const AGENTSIGHT_IMPORT_MAX_BYTES = 16 * 1024 * 1024;
 export const AGENTSIGHT_IMPORT_MAX_RECORDS = 10000;
 
@@ -34,6 +36,8 @@ export interface AgentSightImportResult {
   retained: number;
   truncated: boolean;
 }
+
+const eventSearchTextCache = new WeakMap<AgentSightEvent, string>();
 
 const defaultFilters = (): AgentSightFilters => ({
   source: "",
@@ -58,10 +62,7 @@ function loadCachedAgentSightRecords(): AgentSightEventRecord[] {
     if (!Array.isArray(parsed)) return [];
     const retained = retainAgentSightRecords(parsed);
     if (retained.length !== parsed.length) {
-      window.localStorage.setItem(
-        AGENTSIGHT_CACHE_KEY,
-        JSON.stringify(retained),
-      );
+      window.localStorage.setItem(AGENTSIGHT_CACHE_KEY, JSON.stringify(retained));
     }
     return retained;
   } catch {
@@ -103,14 +104,13 @@ function normalizeImportedAgentSightRecord(
     value.envelope ||
     value.timestamp ||
     value.source
-  )
+  ) {
     return value as AgentSightEventRecord;
+  }
   return { Event: value, Timestamp: Date.now() + index };
 }
 
-export function parseAgentSightRecordsText(
-  text: string,
-): AgentSightEventRecord[] {
+export function parseAgentSightRecordsText(text: string): AgentSightEventRecord[] {
   return parseAgentSightRecordsTextWithLimit(text).records;
 }
 
@@ -148,7 +148,7 @@ export function parseAgentSightRecordsTextWithLimit(
         );
         if (record) records.push(record);
       } catch {
-        // Preserve the existing tolerant JSONL import behavior.
+        // Keep tolerant JSONL imports: malformed lines are skipped.
       }
     }
     return { records, truncated };
@@ -179,15 +179,23 @@ function tlsCaptureEventToRecord(
 
 function numberValue(value: any, fallback = 0): number {
   if (value === undefined || value === null) return fallback;
-  if (typeof value === "number")
+  if (typeof value === "number") {
     return Number.isFinite(value) ? value : fallback;
+  }
   if (typeof value === "string") {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
   }
   if (typeof value === "object") {
+    if (typeof value.toNumber === "function") {
+      const parsed = value.toNumber();
+      return Number.isFinite(parsed) ? parsed : fallback;
+    }
+    if (typeof value.toString === "function") {
+      const parsed = Number(value.toString());
+      if (Number.isFinite(parsed)) return parsed;
+    }
     if (typeof value.low === "number") return value.low;
-    if (typeof value.toNumber === "function") return value.toNumber();
   }
   return fallback;
 }
@@ -267,9 +275,7 @@ function systemStatsToRecords(
           rss_mb: Math.round(numberValue(stats.memory?.used, 0) / 1024 / 1024),
           used_percent: numberValue(stats.memory?.percent, 0),
         },
-        process: {
-          children: processes.length,
-        },
+        process: { children: processes.length },
         alert:
           numberValue(stats.cpu?.total, 0) >= 80 ||
           numberValue(stats.memory?.percent, 0) >= 80,
@@ -304,12 +310,28 @@ function agentSightLimitQuery(limit: number): string {
   return limit > AGENTSIGHT_UNLIMITED_LIMIT ? String(limit) : "all";
 }
 
+function agentSightSearchText(event: AgentSightEvent): string {
+  const cached = eventSearchTextCache.get(event);
+  if (cached !== undefined) return cached;
+  let data = "";
+  try {
+    data = JSON.stringify(event.data);
+  } catch {
+    data = "";
+  }
+  const searchable = `${event.title} ${event.source} ${event.rawSource} ${event.eventType} ${event.comm} ${event.id} ${event.pid} ${event.traceId} ${data}`.toLowerCase();
+  eventSearchTextCache.set(event, searchable);
+  return searchable;
+}
+
 export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
-  const liveRecords = ref<AgentSightEventRecord[]>([]);
-  const tlsRecords = ref<AgentSightEventRecord[]>([]);
-  const systemRecords = ref<AgentSightEventRecord[]>([]);
-  const sampleRecords = ref<AgentSightEventRecord[]>([]);
-  const importedRecords = ref<AgentSightEventRecord[]>(
+  // Record payloads are immutable snapshots that are always replaced as arrays.
+  // shallowRef avoids recursively proxying large imported/protobuf payload trees.
+  const liveRecords = shallowRef<AgentSightEventRecord[]>([]);
+  const tlsRecords = shallowRef<AgentSightEventRecord[]>([]);
+  const systemRecords = shallowRef<AgentSightEventRecord[]>([]);
+  const sampleRecords = shallowRef<AgentSightEventRecord[]>([]);
+  const importedRecords = shallowRef<AgentSightEventRecord[]>(
     loadCachedAgentSightRecords(),
   );
   const loading = shallowRef(false);
@@ -318,24 +340,18 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
   const limit = shallowRef(AGENTSIGHT_DEFAULT_LIMIT);
   const activeTab = shallowRef("flamegraph");
   const initialFilters = defaultFilters();
-  if (options?.initialPid) {
-    initialFilters.pid = String(options.initialPid);
-  }
-  if (options?.initialComm) {
-    initialFilters.comm = options.initialComm;
-  }
+  if (options?.initialPid) initialFilters.pid = String(options.initialPid);
+  if (options?.initialComm) initialFilters.comm = options.initialComm;
   const filters = ref<AgentSightFilters>(initialFilters);
   const isEnvelopeConnected = shallowRef(false);
   const isTLSConnected = shallowRef(false);
   const isSystemConnected = shallowRef(false);
   const sampleAttempted = shallowRef(false);
-  // When paused, live feeds (envelope/TLS/system WebSockets + the periodic
-  // refresh) keep their connections open but stop mutating the record buffers,
-  // so the timeline and other views freeze for inspection. Manual Refresh still
-  // works as an explicit override.
   const paused = shallowRef(false);
 
   let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+  let tlsFlushTimer: ReturnType<typeof setTimeout> | null = null;
+  let pendingTLSRecords: AgentSightEventRecord[] = [];
   let envelopeWS: WebSocket | null = null;
   let tlsWS: WebSocket | null = null;
   let systemWS: WebSocket | null = null;
@@ -360,10 +376,7 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
     realRecords.value.length > 0 ? realRecords.value : sampleRecords.value,
   );
   const retainedEvents = computed<AgentSightEvent[]>(() =>
-    normalizeAgentSightEvents(rawRecords.value).slice(
-      0,
-      AGENTSIGHT_IMPORT_MAX_RECORDS,
-    ),
+    normalizeAgentSightEvents(rawRecords.value).slice(0, AGENTSIGHT_IMPORT_MAX_RECORDS),
   );
   const events = computed<AgentSightEvent[]>(() =>
     applyAgentSightLimit(retainedEvents.value, limit.value),
@@ -374,13 +387,13 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
     const params = new URLSearchParams();
     params.set("limit", agentSightLimitQuery(limit.value));
     if (filters.value.source) params.set("source", filters.value.source);
-    if (filters.value.eventType)
-      params.set("event_type", filters.value.eventType);
+    if (filters.value.eventType) params.set("event_type", filters.value.eventType);
     if (filters.value.pid) params.set("pid", filters.value.pid);
     if (filters.value.comm) params.set("comm", filters.value.comm);
     if (filters.value.traceId) params.set("trace_id", filters.value.traceId);
-    if (filters.value.redactionState)
+    if (filters.value.redactionState) {
       params.set("redaction_state", filters.value.redactionState);
+    }
     return params.toString();
   });
 
@@ -400,11 +413,9 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
         : [];
       liveRecords.value = retainAgentSightRecords(live);
     } catch (error: any) {
-      if (controller.signal.aborted || generation !== envelopeFetchGeneration)
-        return;
+      if (controller.signal.aborted || generation !== envelopeFetchGeneration) return;
       message.error(
-        error?.response?.data?.error ||
-          "Failed to load AgentSight event envelopes",
+        error?.response?.data?.error || "Failed to load AgentSight event envelopes",
       );
     } finally {
       if (generation === envelopeFetchGeneration) {
@@ -439,8 +450,7 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
         tlsCaptureAvailable = false;
       } else if (status) {
         message.warning(
-          error?.response?.data?.error ||
-            "TLS capture history is not available",
+          error?.response?.data?.error || "TLS capture history is not available",
         );
       }
       tlsRecords.value = [];
@@ -458,21 +468,42 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
   };
 
   const mergeEnvelopeRecords = (incoming: Record<string, any>[]) => {
-    if (paused.value) return;
-    if (incoming.length === 0) return;
-    const records = incoming.map((envelope) => ({
-      Envelope: envelope,
-      Timestamp:
-        envelope.timestamp_ns || envelope.timestampNs
-          ? Math.floor(
-              Number(envelope.timestamp_ns || envelope.timestampNs) / 1_000_000,
-            )
-          : Date.now(),
-    }));
+    if (paused.value || incoming.length === 0) return;
+    const records = incoming.map((envelope) => {
+      const timestampNs = numberValue(
+        envelope.timestamp_ns ?? envelope.timestampNs,
+        0,
+      );
+      return {
+        Envelope: envelope,
+        Timestamp: timestampNs > 0 ? Math.floor(timestampNs / 1_000_000) : Date.now(),
+      } satisfies AgentSightEventRecord;
+    });
     liveRecords.value = retainAgentSightRecords([
       ...records.reverse(),
       ...liveRecords.value,
     ]);
+  };
+
+  const flushTLSRecords = () => {
+    tlsFlushTimer = null;
+    if (paused.value || pendingTLSRecords.length === 0) {
+      pendingTLSRecords = [];
+      return;
+    }
+    const batch = pendingTLSRecords;
+    pendingTLSRecords = [];
+    tlsRecords.value = retainAgentSightRecords([
+      ...batch.reverse(),
+      ...tlsRecords.value,
+    ]);
+  };
+
+  const enqueueTLSRecord = (record: AgentSightEventRecord) => {
+    pendingTLSRecords.push(record);
+    if (tlsFlushTimer === null) {
+      tlsFlushTimer = setTimeout(flushTLSRecords, AGENTSIGHT_TLS_BATCH_MS);
+    }
   };
 
   const disposeWebSocket = (socket: WebSocket | null) => {
@@ -494,8 +525,9 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
     if (
       envelopeWS?.readyState === WebSocket.CONNECTING ||
       envelopeWS?.readyState === WebSocket.OPEN
-    )
+    ) {
       return;
+    }
     disposeWebSocket(envelopeWS);
     if (envelopeReconnectTimer) {
       clearTimeout(envelopeReconnectTimer);
@@ -512,7 +544,9 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
       if (envelopeWS !== socket) return;
       try {
         const batch = pb.EventEnvelopeBatch.decode(new Uint8Array(event.data));
-        const envelopes = JSON.parse(JSON.stringify(batch.envelopes || []));
+        // protobufjs messages are already readable by the normalization layer.
+        // Avoid stringify/parse, which copied every nested payload twice.
+        const envelopes = (batch.envelopes || []) as unknown as Record<string, any>[];
         mergeEnvelopeRecords(envelopes);
       } catch (error) {
         console.error("AgentSight envelope websocket parse error", error);
@@ -538,8 +572,9 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
     if (
       tlsWS?.readyState === WebSocket.CONNECTING ||
       tlsWS?.readyState === WebSocket.OPEN
-    )
+    ) {
       return;
+    }
     disposeWebSocket(tlsWS);
     if (tlsReconnectTimer) {
       clearTimeout(tlsReconnectTimer);
@@ -552,14 +587,10 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
       isTLSConnected.value = true;
     };
     socket.onmessage = (event) => {
-      if (tlsWS !== socket) return;
-      if (paused.value) return;
+      if (tlsWS !== socket || paused.value) return;
       try {
         const payload = JSON.parse(String(event.data));
-        tlsRecords.value = retainAgentSightRecords([
-          tlsCaptureEventToRecord(payload),
-          ...tlsRecords.value,
-        ]);
+        enqueueTLSRecord(tlsCaptureEventToRecord(payload));
       } catch (error) {
         console.error("AgentSight TLS websocket parse error", error);
       }
@@ -584,8 +615,9 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
     if (
       systemWS?.readyState === WebSocket.CONNECTING ||
       systemWS?.readyState === WebSocket.OPEN
-    )
+    ) {
       return;
+    }
     disposeWebSocket(systemWS);
     if (systemReconnectTimer) {
       clearTimeout(systemReconnectTimer);
@@ -601,14 +633,15 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
       isSystemConnected.value = true;
     };
     socket.onmessage = (event) => {
-      if (systemWS !== socket) return;
-      if (paused.value) return;
+      if (systemWS !== socket || paused.value) return;
       try {
         const stats = pb.SystemStats.decode(new Uint8Array(event.data));
-        const plain = JSON.parse(JSON.stringify(stats));
         const timestamp = Date.now();
         systemRecords.value = retainAgentSightRecords([
-          ...systemStatsToRecords(plain, timestamp),
+          ...systemStatsToRecords(
+            stats as unknown as Record<string, any>,
+            timestamp,
+          ),
           ...systemRecords.value,
         ]);
       } catch (error) {
@@ -656,9 +689,7 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
       const response = await axios.get(AGENTSIGHT_SAMPLE_TRACE_URL, {
         responseType: "text",
       });
-      const parsed = parseAgentSightRecordsTextWithLimit(
-        String(response.data || ""),
-      );
+      const parsed = parseAgentSightRecordsTextWithLimit(String(response.data || ""));
       sampleRecords.value = parsed.records;
       return parsed.records.length;
     } catch {
@@ -674,8 +705,9 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
       sampleAttempted.value ||
       realRecords.value.length > 0 ||
       sampleRecords.value.length > 0
-    )
+    ) {
       return;
+    }
     await loadSampleTrace();
   };
 
@@ -690,6 +722,7 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
     systemRecords.value = [];
     sampleRecords.value = [];
     importedRecords.value = [];
+    pendingTLSRecords = [];
     cacheAgentSightRecords([]);
   };
 
@@ -699,8 +732,6 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
 
   const togglePaused = () => {
     paused.value = !paused.value;
-    // Resuming pulls a fresh snapshot so the views immediately reflect whatever
-    // accumulated server-side while paused, instead of waiting for the next tick.
     if (!paused.value) void fetchEvents();
   };
 
@@ -725,33 +756,16 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
 
   const visibleEvents = computed(() => {
     const f = filters.value;
+    const comm = f.comm.toLowerCase();
+    const search = f.searchTerm.trim().toLowerCase();
     return events.value.filter((event) => {
       if (f.source && event.source !== f.source) return false;
       if (f.eventType && event.eventType !== f.eventType) return false;
       if (f.pid && String(event.pid) !== f.pid) return false;
-      if (f.comm && !event.comm.toLowerCase().includes(f.comm.toLowerCase()))
-        return false;
+      if (comm && !event.comm.toLowerCase().includes(comm)) return false;
       if (f.traceId && !event.traceId.includes(f.traceId)) return false;
-      if (f.redactionState && event.redactionState !== f.redactionState)
-        return false;
-      if (f.searchTerm) {
-        const q = f.searchTerm.toLowerCase();
-        if (
-          ![
-            event.title,
-            event.source,
-            event.eventType,
-            event.comm,
-            event.id,
-            JSON.stringify(event.data),
-          ].some((value) =>
-            String(value || "")
-              .toLowerCase()
-              .includes(q),
-          )
-        )
-          return false;
-      }
+      if (f.redactionState && event.redactionState !== f.redactionState) return false;
+      if (search && !agentSightSearchText(event).includes(search)) return false;
       return true;
     });
   });
@@ -762,28 +776,38 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
 
   const metrics = computed(() => {
     const list = visibleEvents.value;
+    const processIDs = new Set<number>();
+    let tls = 0;
+    let http = 0;
+    let sse = 0;
+    let sanitized = 0;
+    let alerts = 0;
+    let stdio = 0;
+    let system = 0;
+
+    for (const event of list) {
+      if (event.source === "ssl") tls++;
+      if (event.source === "http_parser" || event.eventType.includes("HTTP")) http++;
+      if (event.source === "sse_processor" || event.eventType.includes("SSE")) sse++;
+      if (event.redactionState === "sanitized") sanitized++;
+      if (event.source === "policy" || event.eventType.includes("ALERT")) alerts++;
+      if (event.source === "stdio") stdio++;
+      if (event.source === "system") system++;
+      if (event.pid) processIDs.add(event.pid);
+    }
+
     return {
       total: list.length,
-      tls: list.filter((event) => event.source === "ssl").length,
-      http: list.filter(
-        (event) =>
-          event.source === "http_parser" || event.eventType.includes("HTTP"),
-      ).length,
-      sse: list.filter(
-        (event) =>
-          event.source === "sse_processor" || event.eventType.includes("SSE"),
-      ).length,
-      sanitized: list.filter((event) => event.redactionState === "sanitized")
-        .length,
-      alerts: list.filter(
-        (event) =>
-          event.source === "policy" || event.eventType.includes("ALERT"),
-      ).length,
-      processes: new Set(list.map((event) => event.pid).filter(Boolean)).size,
-      stdio: list.filter((event) => event.source === "stdio").length,
+      tls,
+      http,
+      sse,
+      sanitized,
+      alerts,
+      processes: processIDs.size,
+      stdio,
       imported: importedRecords.value.length,
       sample: realRecords.value.length > 0 ? 0 : sampleRecords.value.length,
-      system: list.filter((event) => event.source === "system").length,
+      system,
     };
   });
 
@@ -844,9 +868,20 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
 
   const runRefreshLoop = async () => {
     if (!componentMounted) return;
-    if (!paused.value) await fetchEvents();
+    if (!paused.value) {
+      // WebSockets are the hot path. Poll only as reconciliation when a live
+      // channel is unavailable, instead of replacing large arrays every 10s.
+      if (
+        !isEnvelopeConnected.value ||
+        (tlsCaptureAvailable && !isTLSConnected.value)
+      ) {
+        await fetchEvents();
+      } else {
+        await autoLoadSampleIfEmpty();
+      }
+    }
     if (componentMounted) {
-      refreshTimer = setTimeout(() => void runRefreshLoop(), 10000);
+      refreshTimer = setTimeout(() => void runRefreshLoop(), AGENTSIGHT_RECONCILE_MS);
     }
   };
 
@@ -855,17 +890,21 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
     shouldReconnect = true;
     connectEnvelopeWebSocket();
     connectSystemWebSocket();
-    void runRefreshLoop();
+    void fetchEvents();
+    refreshTimer = setTimeout(() => void runRefreshLoop(), AGENTSIGHT_RECONCILE_MS);
   });
 
   onUnmounted(() => {
     componentMounted = false;
     shouldReconnect = false;
     if (refreshTimer) clearTimeout(refreshTimer);
+    if (tlsFlushTimer) clearTimeout(tlsFlushTimer);
     if (envelopeReconnectTimer) clearTimeout(envelopeReconnectTimer);
     if (tlsReconnectTimer) clearTimeout(tlsReconnectTimer);
     if (systemReconnectTimer) clearTimeout(systemReconnectTimer);
     refreshTimer = null;
+    tlsFlushTimer = null;
+    pendingTLSRecords = [];
     envelopeReconnectTimer = null;
     tlsReconnectTimer = null;
     systemReconnectTimer = null;
