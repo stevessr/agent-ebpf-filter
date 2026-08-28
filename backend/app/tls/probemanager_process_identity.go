@@ -10,8 +10,8 @@ import (
 )
 
 type tlsPIDIdentityState struct {
-	mu         sync.Mutex
-	startTimes map[int]uint64
+	mu          sync.Mutex
+	startTimes  map[int]uint64
 	reuseResets atomic.Uint64
 }
 
@@ -100,6 +100,53 @@ func (m *TLSProbeManager) autoAttachProcessCurrent(pid int) bool {
 	}
 	current, ok := readProcStartTime(pid)
 	return ok && current == recorded
+}
+
+// pruneReusedProcessAttachments removes old bookkeeping and PID-scoped links
+// when a new process has already reused a tracked numeric PID between discovery
+// ticks. Dead PIDs remain handled by the ordinary dead-process cleanup path.
+func (m *TLSProbeManager) pruneReusedProcessAttachments() int {
+	if m == nil {
+		return 0
+	}
+	state := pidIdentityStateFor(m)
+	if state == nil {
+		return 0
+	}
+
+	state.mu.Lock()
+	reused := make([]int, 0)
+	for pid, recorded := range state.startTimes {
+		current, ok := readProcStartTime(pid)
+		if ok && current != recorded {
+			reused = append(reused, pid)
+		}
+	}
+	state.mu.Unlock()
+	if len(reused) == 0 {
+		return 0
+	}
+
+	closed := 0
+	m.mu.Lock()
+	for _, pid := range reused {
+		delete(m.attachedExec, pid)
+		for key := range m.attachedGo {
+			attachedPID, ok := pidFromGoAttachKey(key)
+			if ok && attachedPID == pid {
+				delete(m.attachedGo, key)
+			}
+		}
+		for key := range m.attachedStatic {
+			attachedPID, ok := pidFromStaticAttachKey(key)
+			if ok && attachedPID == pid {
+				delete(m.attachedStatic, key)
+			}
+		}
+		closed += m.closePIDLinksLocked(pid)
+	}
+	m.mu.Unlock()
+	return closed
 }
 
 // pruneProcessIdentities drops identities for exited or PID-reused processes.
