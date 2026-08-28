@@ -37,41 +37,44 @@ const tlsFuncRustlsEncryptOutgoing = 12   // rustls RecordLayer::encrypt_outgoin
 const tlsFuncRustlsConsumeFirstChunk = 13 // rustls Reader::consume + consume_first_chunk (RECV plaintext)
 
 type tlsFragment struct {
-	TimestampNS uint64
-	PID         uint32
-	TGID        uint32
-	DataLen     uint32
-	TotalLen    uint32
-	OriginalLen uint32
-	FragIndex   uint16
-	FragCount   uint16
-	LibType     uint8
-	Direction   uint8
-	Flags       uint8
-	Function    uint8
-	Comm        [16]byte
-	Data        [tlsFragmentSize]byte
+	TimestampNS  uint64
+	ConnectionID uint64
+	PID          uint32
+	TGID         uint32
+	DataLen      uint32
+	TotalLen     uint32
+	OriginalLen  uint32
+	FragIndex    uint16
+	FragCount    uint16
+	LibType      uint8
+	Direction    uint8
+	Flags        uint8
+	Function     uint8
+	Comm         [16]byte
+	Data         [tlsFragmentSize]byte
 }
 
 type CompletedTLSFragment struct {
-	TimestampNS uint64
-	PID         uint32
-	TGID        uint32
-	DataLen     uint32
-	TotalLen    uint32
-	OriginalLen uint32
-	FragCount   uint16
-	LibType     uint8
-	Direction   uint8
-	Flags       uint8
-	Function    uint8
-	Comm        string
-	Payload     []byte
+	TimestampNS  uint64
+	ConnectionID uint64
+	PID          uint32
+	TGID         uint32
+	DataLen      uint32
+	TotalLen     uint32
+	OriginalLen  uint32
+	FragCount    uint16
+	LibType      uint8
+	Direction    uint8
+	Flags        uint8
+	Function     uint8
+	Comm         string
+	Payload      []byte
 }
 
 type TLSPlaintextEvent struct {
 	Type           string            `json:"type"`
 	Timestamp      time.Time         `json:"timestamp"`
+	ConnectionID   uint64            `json:"connection_id,omitempty"`
 	PID            uint32            `json:"pid"`
 	TGID           uint32            `json:"tgid"`
 	Comm           string            `json:"comm"`
