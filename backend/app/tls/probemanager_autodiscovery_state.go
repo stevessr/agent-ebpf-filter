@@ -184,7 +184,9 @@ func (m *TLSProbeManager) pruneAutoDiscoveryState() {
 	if state == nil {
 		return
 	}
-	if detached := m.pruneDeadPIDLinks(); detached > 0 {
+	detached := m.pruneReusedProcessAttachments()
+	detached += m.pruneDeadPIDLinks()
+	if detached > 0 {
 		state.detachedLinks.Add(uint64(detached))
 	}
 	state.mu.Lock()
