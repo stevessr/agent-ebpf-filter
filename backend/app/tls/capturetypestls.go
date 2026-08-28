@@ -74,7 +74,6 @@ type CompletedTLSFragment struct {
 type TLSPlaintextEvent struct {
 	Type           string            `json:"type"`
 	Timestamp      time.Time         `json:"timestamp"`
-	ConnectionID   uint64            `json:"connection_id,omitempty"`
 	PID            uint32            `json:"pid"`
 	TGID           uint32            `json:"tgid"`
 	Comm           string            `json:"comm"`
