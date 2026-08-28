@@ -182,7 +182,9 @@ func (m *TLSProbeManager) AttachBoringSSLByOffsets(binPath string, pid int) erro
 		return fmt.Errorf("no SSL function patterns matched in stripped binary (%d bytes)", len(data))
 	}
 
-	// Attach uprobes by offset
+	// Attach uprobes by absolute file offset. With cilium/ebpf v0.21 an empty
+	// symbol requires UprobeOptions.Address; Offset is only relative to a
+	// resolved symbol/Address and therefore cannot be used by itself.
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.closed || m.objs == nil {
@@ -257,14 +259,16 @@ func findBSNear(data, pattern []byte, center int64, searchRange int64) int64 {
 	return start + off
 }
 
-// attachOffsetProbe attaches a uprobe/uretprobe at a file offset (no symbol lookup).
-func attachOffsetProbe(bin *link.Executable, m *TLSProbeManager, progName string, offset uint64, retprobe bool, baseOpts *link.UprobeOptions) error {
+// attachOffsetProbe attaches a uprobe/uretprobe at an absolute file offset
+// without symbol lookup.
+func attachOffsetProbe(bin *link.Executable, m *TLSProbeManager, progName string, address uint64, retprobe bool, baseOpts *link.UprobeOptions) error {
 	prog, ok := programByName(&m.objs.AgentTlsCapturePrograms, progName)
 	if !ok || prog == nil {
-		return nil // Program not compiled into this eBPF object
+		return fmt.Errorf("TLS BPF program %s is not loaded", progName)
 	}
 	opts := *baseOpts
-	opts.Offset = offset
+	opts.Address = address
+	opts.Offset = 0
 	var l link.Link
 	var err error
 	if retprobe {
