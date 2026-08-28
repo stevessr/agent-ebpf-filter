@@ -121,6 +121,13 @@ func EnrichTLSEventWithAIMetadata(data map[string]any, event TLSPlaintextEvent) 
 		data["data_type"] = DetectSSLDataType(raw)
 	}
 
+	// Preserve the historical AgentSight payload shape. StatusCode is encoded
+	// as "status" by TLSPlaintextEvent's JSON tag while the optimized converter
+	// also exposes "status_code" for normalized clients.
+	if event.StatusCode > 0 {
+		data["status"] = event.StatusCode
+	}
+
 	// Populate AgentSight-compatible fields from event struct
 	if event.UID > 0 {
 		data["uid"] = event.UID
