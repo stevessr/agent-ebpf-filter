@@ -2,24 +2,13 @@ package tls
 
 import (
 	"context"
-	"debug/elf"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
-
-type goTLSSymbolCacheEntry struct {
-	size        int64
-	modUnixNano int64
-	symbols     []string
-	err         string
-}
-
-var goTLSSymbolCache sync.Map
 
 func parseProcPID(path string) (int, bool) {
 	cleaned := filepath.Clean(path)
@@ -37,6 +26,14 @@ func parseProcPID(path string) (int, bool) {
 	return 0, false
 }
 
+func goAttachKey(binPath string, pid int) string {
+	return fmt.Sprintf("%d\x00%s", pid, binPath)
+}
+
+func staticSSLAttachKey(binPath string, pid int) string {
+	return fmt.Sprintf("exec\x00%d\x00%s", pid, binPath)
+}
+
 func (m *TLSProbeManager) shouldAttachGoBinary(binPath string, pid int) bool {
 	if m == nil {
 		return false
@@ -52,10 +49,6 @@ func (m *TLSProbeManager) shouldAttachGoBinary(binPath string, pid int) bool {
 	}
 	m.attachedGo[key] = true
 	return true
-}
-
-func staticSSLAttachKey(binPath string, pid int) string {
-	return fmt.Sprintf("exec\x00%d\x00%s", pid, binPath)
 }
 
 func (m *TLSProbeManager) shouldAttachStaticSSL(binPath string, pid int) bool {
@@ -80,8 +73,8 @@ func (m *TLSProbeManager) forgetGoBinaryAttach(binPath string, pid int) {
 		return
 	}
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	delete(m.attachedGo, goAttachKey(binPath, pid))
+	m.mu.Unlock()
 }
 
 func (m *TLSProbeManager) forgetStaticSSLAttach(binPath string, pid int) {
@@ -89,12 +82,8 @@ func (m *TLSProbeManager) forgetStaticSSLAttach(binPath string, pid int) {
 		return
 	}
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	delete(m.attachedStatic, staticSSLAttachKey(binPath, pid))
-}
-
-func goAttachKey(binPath string, pid int) string {
-	return fmt.Sprintf("%d\x00%s", pid, binPath)
+	m.mu.Unlock()
 }
 
 func processExists(pid int) bool {
@@ -186,10 +175,11 @@ func (m *TLSProbeManager) DiscoverGoProcesses() {
 			continue
 		}
 
-		// Parse/cached-classify the binary before reserving an attach key. This
-		// avoids repeatedly marking every non-Go process as a failed Go attach on
-		// each /proc discovery pass.
-		if _, err := parseGoTLSSymbols(binPath); err != nil {
+		// parseGoTLSTargets first checks ordinary ELF symbols and then falls back
+		// to .gopclntab, so release binaries built with -s -w are discoverable.
+		// The result is cached by path/size/mtime, keeping the frequent /proc scan
+		// cheap for the overwhelming majority of non-Go processes.
+		if _, err := parseGoTLSTargets(binPath); err != nil {
 			continue
 		}
 		if !m.shouldAttachGoBinary(binPath, pid) {
@@ -240,9 +230,9 @@ func isAgentTLSProcess(baseName, cmdline string) bool {
 	return false
 }
 
-// DiscoverNodeProcesses keeps the historical name for API/test compatibility,
-// but now discovers agent runtimes broadly (Node/Bun/Deno, Python, Rust-native
-// CLIs, etc.) and lets AttachExecutable select the best TLS strategy.
+// DiscoverNodeProcesses keeps the historical name for API compatibility but
+// now discovers agent runtimes broadly and lets AttachExecutable choose Go,
+// static OpenSSL/BoringSSL, rustls, or an actually loaded shared library.
 func (m *TLSProbeManager) DiscoverNodeProcesses() {
 	if m == nil {
 		return
@@ -262,8 +252,7 @@ func (m *TLSProbeManager) DiscoverNodeProcesses() {
 		}
 
 		baseName := filepath.Base(binPath)
-		cmdline := normalizedProcCmdline(pid)
-		if !isAgentTLSProcess(baseName, cmdline) {
+		if !isAgentTLSProcess(baseName, normalizedProcCmdline(pid)) {
 			continue
 		}
 		if !m.shouldAttachStaticSSL(binPath, pid) {
@@ -274,50 +263,18 @@ func (m *TLSProbeManager) DiscoverNodeProcesses() {
 		if result.Error != "" {
 			m.forgetStaticSSLAttach(binPath, pid)
 			if m.store != nil {
-				m.store.SetLibraryStatus(TLSLibraryStatus{
-					Name:      "auto:" + baseName,
-					Path:      binPath,
-					Attached:  false,
-					Available: true,
-					Error:     result.Error,
-				})
+				m.store.SetLibraryStatus(TLSLibraryStatus{Name: "auto:" + baseName, Path: binPath, Attached: false, Available: true, Error: result.Error})
 			}
 			continue
 		}
-
 		if m.store != nil {
 			library := result.Library
 			if library == "" {
 				library = result.TargetKind
 			}
-			m.store.SetLibraryStatus(TLSLibraryStatus{
-				Name:      "auto:" + library,
-				Path:      binPath,
-				Attached:  true,
-				Available: true,
-			})
+			m.store.SetLibraryStatus(TLSLibraryStatus{Name: "auto:" + library, Path: binPath, Attached: true, Available: true})
 		}
 	}
-}
-
-func hasSSLSymbols(binPath string) bool {
-	exe, err := elf.Open(binPath)
-	if err != nil {
-		return false
-	}
-	defer exe.Close()
-
-	symbols, err := exe.Symbols()
-	if err != nil {
-		symbols, _ = exe.DynamicSymbols()
-	}
-
-	for _, sym := range symbols {
-		if sym.Name == "SSL_write" || sym.Name == "SSL_read" || sym.Name == "SSL_write_ex" || sym.Name == "SSL_read_ex" || sym.Name == "SSL_write_ex2" {
-			return true
-		}
-	}
-	return false
 }
 
 func (m *TLSProbeManager) StartGoDiscoveryLoop(interval time.Duration) {
@@ -329,14 +286,11 @@ func (m *TLSProbeManager) StartGoDiscoveryLoop(interval time.Duration) {
 }
 
 func (m *TLSProbeManager) startGoDiscoveryLoop(interval time.Duration, discover func()) {
-	if m == nil {
+	if m == nil || discover == nil {
 		return
 	}
 	if interval <= 0 {
-		interval = time.Minute
-	}
-	if discover == nil {
-		return
+		interval = 5 * time.Second
 	}
 	m.mu.Lock()
 	if m.closed || m.discoveryStarted {
@@ -377,59 +331,6 @@ func findFirstExistingPath(paths ...string) (string, bool) {
 		}
 	}
 	return "", false
-}
-
-func parseGoTLSSymbols(binPath string) ([]string, error) {
-	info, statErr := os.Stat(binPath)
-	if statErr != nil {
-		return nil, statErr
-	}
-	cacheKey := filepath.Clean(binPath)
-	if cached, ok := goTLSSymbolCache.Load(cacheKey); ok {
-		entry := cached.(goTLSSymbolCacheEntry)
-		if entry.size == info.Size() && entry.modUnixNano == info.ModTime().UnixNano() {
-			if entry.err != "" {
-				return nil, fmt.Errorf("%s", entry.err)
-			}
-			return append([]string(nil), entry.symbols...), nil
-		}
-	}
-
-	exe, err := elf.Open(binPath)
-	if err != nil {
-		goTLSSymbolCache.Store(cacheKey, goTLSSymbolCacheEntry{size: info.Size(), modUnixNano: info.ModTime().UnixNano(), err: err.Error()})
-		return nil, err
-	}
-	defer exe.Close()
-
-	symbols, err := exe.Symbols()
-	if err != nil {
-		symbols, err = exe.DynamicSymbols()
-		if err != nil {
-			cacheErr := fmt.Errorf("no ELF symbols available in %s: %w", binPath, err)
-			goTLSSymbolCache.Store(cacheKey, goTLSSymbolCacheEntry{size: info.Size(), modUnixNano: info.ModTime().UnixNano(), err: cacheErr.Error()})
-			return nil, cacheErr
-		}
-	}
-
-	out := make([]string, 0, 2)
-	seen := make(map[string]struct{}, 2)
-	for _, sym := range symbols {
-		if name, ok := goTLSSymbolName(sym.Name); ok {
-			if _, exists := seen[name]; exists {
-				continue
-			}
-			seen[name] = struct{}{}
-			out = append(out, name)
-		}
-	}
-	if len(out) == 0 {
-		cacheErr := fmt.Errorf("no Go TLS symbols found in %s", binPath)
-		goTLSSymbolCache.Store(cacheKey, goTLSSymbolCacheEntry{size: info.Size(), modUnixNano: info.ModTime().UnixNano(), err: cacheErr.Error()})
-		return nil, cacheErr
-	}
-	goTLSSymbolCache.Store(cacheKey, goTLSSymbolCacheEntry{size: info.Size(), modUnixNano: info.ModTime().UnixNano(), symbols: append([]string(nil), out...)})
-	return out, nil
 }
 
 func goTLSSymbolName(name string) (string, bool) {
