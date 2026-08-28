@@ -98,6 +98,30 @@ func binaryEmbedsSSL(binPath string) bool {
 	return bytes.Contains(data, []byte("SSL_write"))
 }
 
+func binaryContainsSSLReadWriteStrings(data []byte) bool {
+	return bytes.Contains(data, []byte("SSL_write")) && bytes.Contains(data, []byte("SSL_read"))
+}
+
+// selectUnambiguousOpenSSLPair intentionally fails closed. The common prefix
+// is not an SSL signature; it is a compiler-generated function prologue that
+// can appear throughout a large statically linked binary. Treating the closest
+// two out of dozens of hits as SSL_write/SSL_read produces a particularly bad
+// failure mode: attach succeeds but captures arbitrary userspace buffers.
+//
+// We only retain this fallback when the scan produces exactly two candidates,
+// both SSL function names are present elsewhere in the binary, and the pair is
+// plausibly close without being effectively the same function.
+func selectUnambiguousOpenSSLPair(matches []int64, hasSSLNames bool) (writeOff, readOff, distance int64, ok bool) {
+	if !hasSSLNames || len(matches) != 2 {
+		return 0, 0, 0, false
+	}
+	distance = matches[1] - matches[0]
+	if distance < 0x100 || distance >= 0x10000 {
+		return 0, 0, 0, false
+	}
+	return matches[0], matches[1], distance, true
+}
+
 func (m *TLSProbeManager) AttachBoringSSLByOffsets(binPath string, pid int) error {
 	if m == nil {
 		return fmt.Errorf("manager is nil")
@@ -115,6 +139,7 @@ func (m *TLSProbeManager) AttachBoringSSLByOffsets(binPath string, pid int) erro
 	var readOff, writeOff int64
 	found := false
 
+	// Exact BoringSSL patterns remain the preferred stripped-binary path.
 	readOff = findBS(data, bsSSLRead.pattern)
 	if readOff >= 0 {
 		writeCenter := readOff + 0xCA0
@@ -133,28 +158,18 @@ func (m *TLSProbeManager) AttachBoringSSLByOffsets(binPath string, pid int) erro
 				matches = append(matches, i)
 			}
 		}
-		log.Printf("[tls] OpenSSL common prefix found at %d locations in .text", len(matches))
-		if len(matches) >= 2 {
-			bestDist := int64(^uint64(0) >> 1)
-			for i := 0; i < len(matches); i++ {
-				for j := i + 1; j < len(matches); j++ {
-					dist := matches[j] - matches[i]
-					if dist > 0 && dist < bestDist && dist < 0x10000 {
-						bestDist = dist
-						writeOff = matches[i]
-						readOff = matches[j]
-						found = true
-					}
-				}
-			}
-			if found {
-				log.Printf("[tls] → matched OpenSSL patterns: SSL_write=%#x SSL_read=%#x (dist=%#x)", writeOff, readOff, bestDist)
-			}
+		log.Printf("[tls] OpenSSL common prologue found at %d locations", len(matches))
+		var distance int64
+		writeOff, readOff, distance, found = selectUnambiguousOpenSSLPair(matches, binaryContainsSSLReadWriteStrings(data))
+		if found {
+			log.Printf("[tls] → accepted unambiguous OpenSSL fallback: SSL_write=%#x SSL_read=%#x (dist=%#x)", writeOff, readOff, distance)
+		} else if len(matches) > 0 {
+			log.Printf("[tls] → refusing ambiguous OpenSSL offset fallback (%d common-prologue candidates)", len(matches))
 		}
 	}
 
 	if !found {
-		return fmt.Errorf("no SSL function patterns matched in stripped binary (%d bytes)", len(data))
+		return fmt.Errorf("no unambiguous SSL function patterns matched in stripped binary (%d bytes)", len(data))
 	}
 
 	m.mu.Lock()
