@@ -49,17 +49,13 @@ jobs:
             proto/tracker_shell.proto
       - name: Generate eBPF objects and bindings
         working-directory: backend/ebpf
-        run: |
-          go generate
-          go generate gen_tls.go
-          go generate gen_cgroup.go
-          go generate gen_lsm.go
+        run: go generate
       - name: TLS package tests
         working-directory: backend
         run: go test ./app/tls -count=1
-      - name: AgentSight backend compile tests
+      - name: AgentSight backend tests
         working-directory: backend
-        run: go test ./app/handlers -run '^TestAgentSight' -count=1
+        run: go test ./app/handlers -count=1
 
   frontend-agentsight:
     runs-on: ubuntu-latest
