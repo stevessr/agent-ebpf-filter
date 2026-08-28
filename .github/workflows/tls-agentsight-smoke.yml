@@ -7,9 +7,10 @@ on:
       - perf/tls-agentsight-refresh
     paths:
       - "backend/app/tls/**"
-      - "backend/ebpf/agent_tls_capture.c"
+      - "backend/ebpf/**"
       - "backend/go.mod"
       - "backend/go.sum"
+      - "proto/**"
       - "frontend/src/components/agentsight/**"
       - "frontend/src/composables/agentsight/**"
       - "frontend/src/utils/agentsight.ts"
@@ -21,16 +22,34 @@ on:
 jobs:
   backend-tls:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
+      - name: Install native build dependencies
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler clang llvm
+      - name: Generate Go protobuf bindings
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          mkdir -p backend/pb
+          protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto \
+            proto/tracker_common.proto \
+            proto/tracker_events.proto \
+            proto/tracker_registration.proto \
+            proto/tracker_system.proto \
+            proto/tracker_config.proto \
+            proto/tracker_shell.proto
+      - name: Generate eBPF objects and bindings
+        working-directory: backend/ebpf
+        run: |
+          go generate
+          go generate gen_tls.go
+          go generate gen_cgroup.go
+          go generate gen_lsm.go
       - name: TLS package tests
+        working-directory: backend
         run: go test ./app/tls -count=1
 
   frontend-agentsight:
