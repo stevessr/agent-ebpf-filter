@@ -32,17 +32,23 @@ func (m *TLSProbeManager) AttachGoUprobes(binPath string, pid int) error {
 		return fmt.Errorf("TLS probe manager is closed")
 	}
 	opts := &link.UprobeOptions{}
-	// Kernel 7.1+ PID-specific uprobe workaround — see AttachStaticSSLUprobes.
-	_ = pid
+	if pid > 0 {
+		opts.PID = pid
+	}
 	startLinks := len(m.links)
 	var errs []error
+	attachedCount := 0
 	for _, sym := range parsed {
-		if _, err := m.attachEntryProbe(bin, "go", sym, opts); err != nil {
+		if l, err := m.attachEntryProbe(bin, "go", sym, opts); err != nil {
 			errs = append(errs, err)
+		} else if l != nil {
+			attachedCount++
 		}
 		if _, ok := tlsReturnProgramForSymbol(sym); ok {
-			if _, err := m.attachReturnProbe(bin, "go", sym, opts); err != nil {
+			if l, err := m.attachReturnProbe(bin, "go", sym, opts); err != nil {
 				errs = append(errs, err)
+			} else if l != nil {
+				attachedCount++
 			}
 		}
 	}
@@ -54,6 +60,9 @@ func (m *TLSProbeManager) AttachGoUprobes(binPath string, pid int) error {
 		}
 		m.links = m.links[:startLinks]
 		return err
+	}
+	if attachedCount == 0 {
+		return fmt.Errorf("zero Go TLS probes attached to %s", binPath)
 	}
 	if m.store != nil {
 		m.store.SetLibraryStatus(TLSLibraryStatus{Name: "go", Path: binPath, Attached: true, Available: true})
@@ -76,10 +85,9 @@ func (m *TLSProbeManager) AttachStaticSSLUprobes(binPath string, pid int) error 
 		return fmt.Errorf("TLS probe manager is closed")
 	}
 	opts := &link.UprobeOptions{}
-	// Kernel 7.1+ appears to have issues with PID-specific uprobes.
-	// Use global uprobes (PID=0) as a workaround — the probe fires for
-	// all processes that map this binary, not just the target PID.
-	_ = pid // keep signature; TODO: re-enable PID filter when kernel compat is confirmed
+	if pid > 0 {
+		opts.PID = pid
+	}
 	startLinks := len(m.links)
 	var errs []error
 	staticSymbols := []string{"SSL_write", "SSL_write_ex", "SSL_read", "SSL_read_ex", "SSL_write_ex2"}
@@ -98,8 +106,7 @@ func (m *TLSProbeManager) AttachStaticSSLUprobes(binPath string, pid int) error 
 			}
 		}
 	}
-	log.Printf("[tls] AttachStaticSSLUprobes: %d/%d probes attached for %s (pid=%d)",
-		attachedCount, len(staticSymbols)*2, binPath, pid)
+	log.Printf("[tls] AttachStaticSSLUprobes: %d probes attached for %s (pid=%d)", attachedCount, binPath, pid)
 	if err := errors.Join(errs...); err != nil {
 		for _, l := range m.links[startLinks:] {
 			if l != nil {
@@ -141,96 +148,87 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 	if err := m.AttachGoUprobes(attachPath, pid); err == nil {
 		result.TargetKind = "go"
 		result.Library = "go"
-		// Track PID for Go uprobes (already done by shouldAttachGoBinary, but ensure)
-		m.mu.Lock()
-		if m.attachedExec == nil {
-			m.attachedExec = make(map[int]string)
+		if pid > 0 {
+			m.mu.Lock()
+			if m.attachedExec == nil {
+				m.attachedExec = make(map[int]string)
+			}
+			m.attachedExec[pid] = "go-crypto-tls"
+			m.mu.Unlock()
 		}
-		m.attachedExec[pid] = "go-crypto-tls"
-		m.mu.Unlock()
 		return result
 	}
 
-	// Always try static SSL uprobes on the executable itself — this handles
-	// statically-linked SSL (Node.js/BoringSSL, Python, etc.) where no
-	// dynamic libssl.so is loaded.
+	// Try symbols on the executable before heuristic offset discovery. This is
+	// inexpensive for unstripped Node/Bun/OpenSSL-linked static binaries.
 	if err := m.AttachStaticSSLUprobes(attachPath, pid); err == nil {
 		log.Printf("[tls] AttachExecutable: static SSL uprobes attached to %s (pid=%d)", attachPath, pid)
 		result.TargetKind = "static-ssl"
 		result.Library = "static-openssl"
-		m.mu.Lock()
-		if m.attachedExec == nil {
-			m.attachedExec = make(map[int]string)
+		if pid > 0 {
+			m.mu.Lock()
+			if m.attachedExec == nil {
+				m.attachedExec = make(map[int]string)
+			}
+			m.attachedExec[pid] = "static-openssl"
+			m.mu.Unlock()
 		}
-		m.attachedExec[pid] = "static-openssl"
-		m.mu.Unlock()
 		return result
 	}
 	log.Printf("[tls] AttachExecutable: symbol-based static SSL failed for %s, trying rustls offset detection...", attachPath)
 
-	// Try rustls BEFORE the BoringSSL byte-pattern heuristic for binaries known
-	// to use rustls (codex/cursor — stripped static-pie Rust). The BoringSSL
-	// heuristic greps for the "SSL_write" string (present in rustls error/feature
-	// strings) and pattern-matches OpenSSL prologues that coincidentally exist
-	// elsewhere in .text, attaching uprobes at wrong offsets and returning
-	// success — which prevents the precise rustls .eh_frame probe from ever
-	// running. So for rustls binaries, try the precise offset probe first.
+	// Try rustls before generic OpenSSL/BoringSSL patterns. Generic prologue
+	// matching can otherwise select unrelated functions inside stripped Rust
+	// binaries and report a false-positive attach.
 	if err := m.AttachRustlsUprobes(attachPath, pid); err == nil {
 		log.Printf("[tls] AttachExecutable: rustls uprobes attached to %s (pid=%d)", attachPath, pid)
 		result.TargetKind = "static-ssl"
 		result.Library = "rustls"
-		m.mu.Lock()
-		if m.attachedExec == nil {
-			m.attachedExec = make(map[int]string)
+		if pid > 0 {
+			m.mu.Lock()
+			if m.attachedExec == nil {
+				m.attachedExec = make(map[int]string)
+			}
+			m.attachedExec[pid] = "rustls"
+			m.mu.Unlock()
 		}
-		m.attachedExec[pid] = "rustls"
-		m.mu.Unlock()
 		return result
 	}
 	log.Printf("[tls] AttachExecutable: rustls offset detection failed for %s, trying BoringSSL byte-pattern detection...", attachPath)
 
-	// Try BoringSSL byte-pattern detection for stripped binaries
-	// (Node.js with BoringSSL, Bun, Claude CLI, etc.)
 	if err := m.AttachBoringSSLByOffsets(attachPath, pid); err == nil {
-		log.Printf("[tls] AttachExecutable: BoringSSL detected and attached by offset in %s (pid=%d)", attachPath, pid)
+		log.Printf("[tls] AttachExecutable: BoringSSL/OpenSSL attached by absolute offset in %s (pid=%d)", attachPath, pid)
 		result.TargetKind = "static-ssl"
 		result.Library = "boringssl"
-		m.mu.Lock()
-		if m.attachedExec == nil {
-			m.attachedExec = make(map[int]string)
+		if pid > 0 {
+			m.mu.Lock()
+			if m.attachedExec == nil {
+				m.attachedExec = make(map[int]string)
+			}
+			m.attachedExec[pid] = "boringssl"
+			m.mu.Unlock()
 		}
-		m.attachedExec[pid] = "boringssl"
-		m.mu.Unlock()
 		return result
 	}
 	log.Printf("[tls] AttachExecutable: BoringSSL detection also failed for %s", attachPath)
 
-	// Rustls already attempted above; if we reach here it failed.
-	// Check if this looks like a Rust binary via .rodata strings
 	if hasRustlsStrings(attachPath) {
-		log.Printf("[tls] AttachExecutable: %s contains rustls strings but offset detection failed — byte-pattern heuristics need improvement", attachPath)
-		// Fall through to dynamic library attempt (which will also fail for static binaries)
-		// but at least we've diagnosed the situation clearly.
+		log.Printf("[tls] AttachExecutable: %s contains rustls strings but offset detection failed", attachPath)
 	}
 
-	// Dump binary symbols for diagnosis
-	dumpCandidateTLSSymbols(attachPath)
-
-	// Find which SSL/TLS libraries this PID actually has loaded via /proc/PID/maps.
-	// Attaching to a .so file on disk is useless if the process never mmap'd it.
 	loadedLibs := findLoadedSSLLibraries(pid)
-
 	libraries := executableLibraryCandidates(libraryHint)
 	var errs []error
 	for _, target := range libraries {
-		// Prefer the actual loaded library path for this PID, fall back to
-		// the first existing path on the system (for system-wide attaches).
 		libPath, libOk := findLoadedLibForTarget(loadedLibs, target)
-		if !libOk {
+		if !libOk && pid <= 0 {
+			// Only use system-library fallbacks for an explicit system-wide attach.
+			// For PID-scoped auto-discovery, attaching an unrelated library that the
+			// process did not map is a misleading false success.
 			libPath, libOk = findFirstExistingPath(target.paths...)
 		}
 		if !libOk {
-			errs = append(errs, fmt.Errorf("library %s not found on system", target.name))
+			errs = append(errs, fmt.Errorf("process %d has no loaded %s library", pid, target.name))
 			continue
 		}
 		m.mu.Lock()
@@ -241,7 +239,7 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 			log.Printf("[tls] AttachExecutable: library %s (%s) attach failed: %v", target.name, libPath, err)
 			errs = append(errs, err)
 		} else {
-			log.Printf("[tls] AttachExecutable: library %s (%s) attached successfully (loaded=%v)", target.name, libPath, loadedLibs != nil)
+			log.Printf("[tls] AttachExecutable: library %s (%s) attached successfully", target.name, libPath)
 			if pid > 0 {
 				if m.attachedExec == nil {
 					m.attachedExec = make(map[int]string)
@@ -254,15 +252,6 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 	if m.store != nil {
 		result.LibraryPaths = m.store.LibraryStatuses()
 	}
-	for _, status := range result.LibraryPaths {
-		if status.Attached {
-			result.TargetKind = "executable"
-			result.Library = status.Name
-			return result
-		}
-	}
-	// Check PID-tracking map — library uprobe may have succeeded even if
-	// the store filter above didn't find it (library path ≠ executable path).
 	if pid > 0 {
 		m.mu.Lock()
 		lib, ok := m.attachedExec[pid]
@@ -271,6 +260,15 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 			result.TargetKind = "executable"
 			result.Library = lib
 			return result
+		}
+	}
+	if pid <= 0 {
+		for _, status := range result.LibraryPaths {
+			if status.Attached {
+				result.TargetKind = "executable"
+				result.Library = status.Name
+				return result
+			}
 		}
 	}
 	if err := errors.Join(errs...); err != nil {
@@ -292,7 +290,6 @@ func findLoadedSSLLibraries(pid int) []string {
 	}
 	var libs []string
 	seen := make(map[string]bool)
-	allSos := []string{}
 	for _, line := range strings.Split(string(data), "\n") {
 		fields := strings.Fields(line)
 		if len(fields) < 6 {
@@ -302,32 +299,23 @@ func findLoadedSSLLibraries(pid int) []string {
 		if !strings.HasSuffix(path, ".so") && !strings.Contains(path, ".so.") {
 			continue
 		}
-		allSos = append(allSos, path)
-		base := filepath.Base(path)
-		// Match known SSL/TLS library names
-		for _, prefix := range []string{"libssl", "libcrypto", "libgnutls", "libnspr4", "libnss3", "libnssutil3", "libtls", "libbearssl"} {
+		base := strings.ToLower(filepath.Base(path))
+		for _, prefix := range []string{"libssl", "libgnutls", "libnspr4", "libnss3", "libnssutil3", "libtls", "libbearssl"} {
 			if strings.HasPrefix(base, prefix) {
 				if !seen[path] {
 					seen[path] = true
 					libs = append(libs, path)
-					log.Printf("[tls] PID %d loaded SSL lib: %s", pid, path)
 				}
 				break
 			}
-		}
-	}
-	// Dump ALL loaded .so files for diagnosis
-	if len(libs) == 0 {
-		log.Printf("[tls] PID %d: NO known SSL lib found among %d loaded .so files:", pid, len(allSos))
-		for _, so := range allSos {
-			log.Printf("[tls]   PID %d loaded: %s", pid, so)
 		}
 	}
 	return libs
 }
 
 // findLoadedLibForTarget checks if any of the loaded library paths match
-// the given ProbeTarget (by library name prefix).
+// the given ProbeTarget. OpenSSL deliberately requires libssl: SSL_read/write
+// live there, and choosing libcrypto first yields a false attach failure.
 func findLoadedLibForTarget(loadedLibs []string, target ProbeTarget) (string, bool) {
 	if len(loadedLibs) == 0 {
 		return "", false
@@ -336,7 +324,7 @@ func findLoadedLibForTarget(loadedLibs []string, target ProbeTarget) (string, bo
 		base := strings.ToLower(filepath.Base(lib))
 		switch target.name {
 		case "openssl":
-			if strings.HasPrefix(base, "libssl") || strings.HasPrefix(base, "libcrypto") {
+			if strings.HasPrefix(base, "libssl") {
 				return lib, true
 			}
 		case "gnutls":
@@ -344,15 +332,10 @@ func findLoadedLibForTarget(loadedLibs []string, target ProbeTarget) (string, bo
 				return lib, true
 			}
 		case "nss":
-			if strings.HasPrefix(base, "libnspr4") || strings.HasPrefix(base, "libnss3") || strings.HasPrefix(base, "libnssutil3") {
+			if strings.HasPrefix(base, "libnspr4") {
 				return lib, true
 			}
 		}
 	}
 	return "", false
 }
-
-// SSL function prologue byte patterns for stripped binaries.
-// First byte of each pattern must match exactly; '0x00' bytes in the
-// pattern act as wildcards (match any byte at that position).
-// Derived from AgentSight's bpf/sslsniff.c + OpenSSL 3.x disassembly.
