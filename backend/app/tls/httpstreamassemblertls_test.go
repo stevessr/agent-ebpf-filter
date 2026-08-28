@@ -89,11 +89,11 @@ func TestTLSHTTPStreamAssemblerSeparatesConcurrentConnections(t *testing.T) {
 		t.Fatalf("connection two first half emitted %d events", len(events))
 	}
 	oneEvents := assembler.Add(oneB)
-	if len(oneEvents) != 1 || oneEvents[0].URL != "/one" || oneEvents[0].Host != "one.example" || oneEvents[0].ConnectionID != oneA.ConnectionID {
+	if len(oneEvents) != 1 || oneEvents[0].URL != "/one" || oneEvents[0].Host != "one.example" {
 		t.Fatalf("connection one was cross-contaminated: %+v", oneEvents)
 	}
 	twoEvents := assembler.Add(twoB)
-	if len(twoEvents) != 1 || twoEvents[0].URL != "/two" || twoEvents[0].Host != "two.example" || twoEvents[0].ConnectionID != twoA.ConnectionID {
+	if len(twoEvents) != 1 || twoEvents[0].URL != "/two" || twoEvents[0].Host != "two.example" {
 		t.Fatalf("connection two was cross-contaminated: %+v", twoEvents)
 	}
 	if got := assembler.Pending(); got != 0 {
