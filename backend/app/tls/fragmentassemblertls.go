@@ -10,10 +10,11 @@ import (
 const tlsMaxPendingFragments = 4096
 
 type tlsFragmentAssemblerKey struct {
-	PID         uint32
-	TGID        uint32
-	TimestampNS uint64
-	Direction   uint8
+	PID          uint32
+	TGID         uint32
+	ConnectionID uint64
+	TimestampNS  uint64
+	Direction    uint8
 }
 
 type pendingTLSFragment struct {
@@ -43,10 +44,11 @@ func NewFragmentAssembler(timeout time.Duration) *FragmentAssembler {
 
 func fragmentAssemblerKey(f tlsFragment) tlsFragmentAssemblerKey {
 	return tlsFragmentAssemblerKey{
-		PID:         f.PID,
-		TGID:        f.TGID,
-		TimestampNS: f.TimestampNS,
-		Direction:   f.Direction,
+		PID:          f.PID,
+		TGID:         f.TGID,
+		ConnectionID: f.ConnectionID,
+		TimestampNS:  f.TimestampNS,
+		Direction:    f.Direction,
 	}
 }
 
@@ -143,19 +145,20 @@ func (a *FragmentAssembler) Add(fragment tlsFragment) (*CompletedTLSFragment, bo
 	delete(a.pending, key)
 
 	return &CompletedTLSFragment{
-		TimestampNS: fragment.TimestampNS,
-		PID:         fragment.PID,
-		TGID:        fragment.TGID,
-		DataLen:     fragment.DataLen,
-		TotalLen:    pending.totalLen,
-		OriginalLen: pending.originalLen,
-		FragCount:   pending.fragCount,
-		LibType:     fragment.LibType,
-		Direction:   fragment.Direction,
-		Flags:       pending.flags,
-		Function:    pending.function,
-		Comm:        pending.comm,
-		Payload:     payload,
+		TimestampNS:  fragment.TimestampNS,
+		ConnectionID: fragment.ConnectionID,
+		PID:          fragment.PID,
+		TGID:         fragment.TGID,
+		DataLen:      fragment.DataLen,
+		TotalLen:     pending.totalLen,
+		OriginalLen:  pending.originalLen,
+		FragCount:    pending.fragCount,
+		LibType:      fragment.LibType,
+		Direction:    fragment.Direction,
+		Flags:        pending.flags,
+		Function:     pending.function,
+		Comm:         pending.comm,
+		Payload:      payload,
 	}, true
 }
 
