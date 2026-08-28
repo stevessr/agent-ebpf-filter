@@ -81,6 +81,29 @@ func (m *TLSProbeManager) closePIDLinksLocked(pid int) int {
 	return closed
 }
 
+func (m *TLSProbeManager) pruneDeadPIDLinks() int {
+	state := pidLinkStateFor(m)
+	if state == nil {
+		return 0
+	}
+	state.mu.Lock()
+	pids := make([]int, 0, len(state.indexes))
+	for pid := range state.indexes {
+		pids = append(pids, pid)
+	}
+	state.mu.Unlock()
+
+	closed := 0
+	m.mu.Lock()
+	for _, pid := range pids {
+		if !processExists(pid) {
+			closed += m.closePIDLinksLocked(pid)
+		}
+	}
+	m.mu.Unlock()
+	return closed
+}
+
 func (m *TLSProbeManager) pidLinkCount(pid int) int {
 	state := pidLinkStateFor(m)
 	if state == nil || pid <= 0 {
