@@ -145,9 +145,6 @@ func (a *TLSHTTPStreamAssembler) Add(fragment CompletedTLSFragment) []TLSPlainte
 		messageFragment.FragCount = 1
 		messageFragment.Flags = pending.flags
 		event := parseTLSPlaintext(messageFragment)
-		// parseTLSPlaintext predates per-connection capture. Preserve the stable
-		// identity explicitly so API/AgentSight consumers can correlate events.
-		event.ConnectionID = messageFragment.ConnectionID
 		if isTLSHTTPDisplayEvent(event) {
 			a.trackHTTPEventLocked(key, &event, now)
 			events = append(events, event)
