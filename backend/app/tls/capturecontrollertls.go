@@ -202,16 +202,26 @@ func (c *TLSCaptureController) Status() map[string]any {
 		return map[string]any{"enabled": false, "available": false, "error": "TLS capture controller is unavailable"}
 	}
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	return map[string]any{
-		"enabled":                 c.manager != nil,
-		"available":               c.manager != nil,
-		"readStarted":             c.readStarted,
-		"goDiscoveryStarted":      c.goDiscoveryStarted,
+	manager := c.manager
+	readStarted := c.readStarted
+	discoveryStarted := c.goDiscoveryStarted
+	lastError := c.lastError
+	broadcaster := c.broadcaster
+	c.mu.Unlock()
+
+	status := map[string]any{
+		"enabled":                 manager != nil,
+		"available":               manager != nil,
+		"readStarted":             readStarted,
+		"goDiscoveryStarted":      discoveryStarted,
 		"autoDiscoveryIntervalMs": tlsAutoDiscoveryInterval.Milliseconds(),
-		"error":                   c.lastError,
-		"broadcast":               c.broadcaster.Status(),
+		"error":                   lastError,
+		"broadcast":               broadcaster.Status(),
 	}
+	if manager != nil {
+		status["autoDiscovery"] = manager.AutoDiscoveryStatus()
+	}
+	return status
 }
 
 func (c *TLSCaptureController) AttachedPIDs() []AttachedPIDInfo {
