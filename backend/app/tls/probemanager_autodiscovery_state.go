@@ -30,10 +30,11 @@ type tlsDiscoveryRuntimeState struct {
 	lastError     string
 	lastErrorAt   time.Time
 
-	attempts     atomic.Uint64
-	successes    atomic.Uint64
-	failures     atomic.Uint64
-	backoffSkips atomic.Uint64
+	attempts      atomic.Uint64
+	successes     atomic.Uint64
+	failures      atomic.Uint64
+	backoffSkips  atomic.Uint64
+	detachedLinks atomic.Uint64
 }
 
 type TLSAutoDiscoveryStatus struct {
@@ -41,6 +42,7 @@ type TLSAutoDiscoveryStatus struct {
 	Successes         uint64 `json:"successes"`
 	Failures          uint64 `json:"failures"`
 	BackoffSkips      uint64 `json:"backoffSkips"`
+	DetachedLinks     uint64 `json:"detachedLinks"`
 	ActiveBackoffs    int    `json:"activeBackoffs"`
 	ObservedPIDs      int    `json:"observedPids"`
 	LastError         string `json:"lastError,omitempty"`
@@ -67,6 +69,7 @@ func discoveryRuntimeStateFor(m *TLSProbeManager) *tlsDiscoveryRuntimeState {
 func dropDiscoveryRuntimeState(m *TLSProbeManager) {
 	if m != nil {
 		tlsDiscoveryRuntimeStates.Delete(m)
+		dropPIDLinkState(m)
 	}
 }
 
@@ -178,6 +181,9 @@ func (m *TLSProbeManager) pruneAutoDiscoveryState() {
 	if state == nil {
 		return
 	}
+	if detached := m.pruneDeadPIDLinks(); detached > 0 {
+		state.detachedLinks.Add(uint64(detached))
+	}
 	state.mu.Lock()
 	for key, retry := range state.retries {
 		if retry.PID > 0 && !processExists(retry.PID) {
@@ -199,10 +205,11 @@ func (m *TLSProbeManager) AutoDiscoveryStatus() TLSAutoDiscoveryStatus {
 	}
 	now := time.Now()
 	status := TLSAutoDiscoveryStatus{
-		Attempts:     state.attempts.Load(),
-		Successes:    state.successes.Load(),
-		Failures:     state.failures.Load(),
-		BackoffSkips: state.backoffSkips.Load(),
+		Attempts:      state.attempts.Load(),
+		Successes:     state.successes.Load(),
+		Failures:      state.failures.Load(),
+		BackoffSkips:  state.backoffSkips.Load(),
+		DetachedLinks: state.detachedLinks.Load(),
 	}
 	state.mu.Lock()
 	for _, retry := range state.retries {
