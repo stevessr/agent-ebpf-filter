@@ -1,10 +1,6 @@
 package tls
 
-import (
-	"sync"
-
-	"github.com/cilium/ebpf/link"
-)
+import "sync"
 
 type tlsPIDLinkState struct {
 	mu      sync.Mutex
@@ -95,7 +91,3 @@ func (m *TLSProbeManager) pidLinkCount(pid int) int {
 	state.mu.Unlock()
 	return count
 }
-
-// Compile-time assertion: the tracking layer stores ordinary cilium links; it
-// intentionally does not wrap or replace the link.Link interface.
-var _ link.Link
