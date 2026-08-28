@@ -141,6 +141,83 @@ func (m *TLSProbeManager) AttachStaticSSLUprobes(binPath string, pid int) error 
 	return nil
 }
 
+// attachLoadedLibraryForPIDLocked attaches a shared TLS library only to the
+// process that actually mapped it. The caller must hold m.mu.
+func (m *TLSProbeManager) attachLoadedLibraryForPIDLocked(target ProbeTarget, path string, pid int, status TLSLibraryStatus) error {
+	if pid <= 0 {
+		return m.attachLibraryPathLocked(target, path, status)
+	}
+	if m.closed || m.objs == nil {
+		return fmt.Errorf("TLS probe manager is closed")
+	}
+	if m.attachedStatic == nil {
+		m.attachedStatic = make(map[string]bool)
+	}
+	attachKey := fmt.Sprintf("pid\x00%d\x00%s\x00%s", pid, target.name, path)
+	if m.attachedStatic[attachKey] {
+		status.Attached = true
+		m.store.SetLibraryStatus(status)
+		return nil
+	}
+
+	lib, err := link.OpenExecutable(path)
+	if err != nil {
+		status.Error = err.Error()
+		m.store.SetLibraryStatus(status)
+		return fmt.Errorf("open %s: %w", path, err)
+	}
+	opts := &link.UprobeOptions{PID: pid}
+	startLinks := len(m.links)
+	attached := 0
+	var errs []error
+	attachSymbol := func(symbol string) {
+		if l, err := m.attachEntryProbe(lib, target.name, symbol, opts); err != nil {
+			errs = append(errs, err)
+		} else if l != nil {
+			attached++
+		}
+		if _, ok := tlsReturnProgramForSymbol(symbol); ok {
+			if l, err := m.attachReturnProbe(lib, target.name, symbol, opts); err != nil {
+				errs = append(errs, err)
+			} else if l != nil {
+				attached++
+			}
+		}
+	}
+	for _, symbol := range target.sendSymbols {
+		attachSymbol(symbol)
+	}
+	for _, symbol := range target.recvSymbols {
+		attachSymbol(symbol)
+	}
+
+	if attached == 0 {
+		for _, l := range m.links[startLinks:] {
+			if l != nil {
+				_ = l.Close()
+			}
+		}
+		m.links = m.links[:startLinks]
+		if err := errors.Join(errs...); err != nil {
+			status.Error = err.Error()
+			m.store.SetLibraryStatus(status)
+			return err
+		}
+		err := fmt.Errorf("no TLS probes attached for %s", path)
+		status.Error = err.Error()
+		m.store.SetLibraryStatus(status)
+		return err
+	}
+
+	status.Attached = true
+	m.attachedStatic[attachKey] = true
+	if len(errs) > 0 {
+		status.Error = "partial probe coverage: " + errors.Join(errs...).Error()
+	}
+	m.store.SetLibraryStatus(status)
+	return nil
+}
+
 func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint string) TLSExecutableAttachResult {
 	result := TLSExecutableAttachResult{PID: pid}
 	if m == nil {
@@ -241,13 +318,13 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 		}
 		m.mu.Lock()
 		status := TLSLibraryStatus{Name: target.name, Path: libPath, Available: true}
-		err := m.attachLibraryPathLocked(target, libPath, status)
+		err := m.attachLoadedLibraryForPIDLocked(target, libPath, pid, status)
 		if err != nil {
 			m.mu.Unlock()
 			log.Printf("[tls] AttachExecutable: library %s (%s) attach failed: %v", target.name, libPath, err)
 			errs = append(errs, err)
 		} else {
-			log.Printf("[tls] AttachExecutable: library %s (%s) attached successfully", target.name, libPath)
+			log.Printf("[tls] AttachExecutable: library %s (%s) attached successfully (pid=%d)", target.name, libPath, pid)
 			if pid > 0 {
 				if m.attachedExec == nil {
 					m.attachedExec = make(map[int]string)
