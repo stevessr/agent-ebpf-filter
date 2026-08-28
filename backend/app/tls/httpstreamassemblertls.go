@@ -42,10 +42,15 @@ type tlsHTTPRequestContext struct {
 	Host   string
 }
 
+type pendingTLSHTTPRequestContexts struct {
+	lastSeen time.Time
+	items    []tlsHTTPRequestContext
+}
+
 type TLSHTTPStreamAssembler struct {
 	mu       sync.Mutex
 	pending  map[tlsHTTPBufferKey]*pendingTLSHTTPStream
-	requests map[tlsHTTPStreamKey][]tlsHTTPRequestContext
+	requests map[tlsHTTPStreamKey]*pendingTLSHTTPRequestContexts
 	timeout  time.Duration
 	dropped  int
 }
@@ -56,7 +61,7 @@ func NewTLSHTTPStreamAssembler(timeout time.Duration) *TLSHTTPStreamAssembler {
 	}
 	return &TLSHTTPStreamAssembler{
 		pending:  make(map[tlsHTTPBufferKey]*pendingTLSHTTPStream),
-		requests: make(map[tlsHTTPStreamKey][]tlsHTTPRequestContext),
+		requests: make(map[tlsHTTPStreamKey]*pendingTLSHTTPRequestContexts),
 		timeout:  timeout,
 	}
 }
@@ -140,8 +145,11 @@ func (a *TLSHTTPStreamAssembler) Add(fragment CompletedTLSFragment) []TLSPlainte
 		messageFragment.FragCount = 1
 		messageFragment.Flags = pending.flags
 		event := parseTLSPlaintext(messageFragment)
+		// parseTLSPlaintext predates per-connection capture. Preserve the stable
+		// identity explicitly so API/AgentSight consumers can correlate events.
+		event.ConnectionID = messageFragment.ConnectionID
 		if isTLSHTTPDisplayEvent(event) {
-			a.trackHTTPEventLocked(key, &event)
+			a.trackHTTPEventLocked(key, &event, now)
 			events = append(events, event)
 		}
 
@@ -175,9 +183,14 @@ func (a *TLSHTTPStreamAssembler) cleanupExpiredLocked(now time.Time) {
 			a.dropped++
 		}
 	}
+	for key, pending := range a.requests {
+		if pending == nil || now.Sub(pending.lastSeen) > 2*a.timeout {
+			delete(a.requests, key)
+		}
+	}
 }
 
-func (a *TLSHTTPStreamAssembler) trackHTTPEventLocked(key tlsHTTPBufferKey, event *TLSPlaintextEvent) {
+func (a *TLSHTTPStreamAssembler) trackHTTPEventLocked(key tlsHTTPBufferKey, event *TLSPlaintextEvent, now time.Time) {
 	streamKey := tlsHTTPStreamKey{
 		PID:          key.PID,
 		TGID:         key.TGID,
@@ -185,25 +198,31 @@ func (a *TLSHTTPStreamAssembler) trackHTTPEventLocked(key tlsHTTPBufferKey, even
 		LibType:      key.LibType,
 	}
 	if event.Type == "http_request" {
-		queue := append(a.requests[streamKey], tlsHTTPRequestContext{Method: event.Method, URL: event.URL, Host: event.Host})
-		if len(queue) > tlsHTTPStreamRequestQueueLimit {
-			queue = queue[len(queue)-tlsHTTPStreamRequestQueueLimit:]
+		pending := a.requests[streamKey]
+		if pending == nil {
+			pending = &pendingTLSHTTPRequestContexts{}
+			a.requests[streamKey] = pending
 		}
-		a.requests[streamKey] = queue
+		pending.lastSeen = now
+		pending.items = append(pending.items, tlsHTTPRequestContext{Method: event.Method, URL: event.URL, Host: event.Host})
+		if len(pending.items) > tlsHTTPStreamRequestQueueLimit {
+			pending.items = pending.items[len(pending.items)-tlsHTTPStreamRequestQueueLimit:]
+		}
 		return
 	}
 	if event.Type != "http_response" && event.Type != "sse_message" {
 		return
 	}
-	queue := a.requests[streamKey]
-	if len(queue) == 0 {
+	pending := a.requests[streamKey]
+	if pending == nil || len(pending.items) == 0 {
 		return
 	}
-	request := queue[0]
-	if len(queue) == 1 {
+	pending.lastSeen = now
+	request := pending.items[0]
+	if len(pending.items) == 1 {
 		delete(a.requests, streamKey)
 	} else {
-		a.requests[streamKey] = queue[1:]
+		pending.items = pending.items[1:]
 	}
 	if event.Method == "" {
 		event.Method = request.Method
