@@ -33,7 +33,7 @@ jobs:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
       - name: Install native build dependencies
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler clang llvm
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler clang llvm libbpf-dev libelf-dev
       - name: Generate Go protobuf bindings
         run: |
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
