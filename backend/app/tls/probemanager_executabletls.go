@@ -16,7 +16,7 @@ func (m *TLSProbeManager) AttachGoUprobes(binPath string, pid int) error {
 	if m == nil {
 		return nil
 	}
-	parsed, err := parseGoTLSSymbols(binPath)
+	targets, err := parseGoTLSTargets(binPath)
 	if err != nil {
 		return err
 	}
@@ -38,16 +38,18 @@ func (m *TLSProbeManager) AttachGoUprobes(binPath string, pid int) error {
 	startLinks := len(m.links)
 	var errs []error
 	attachedCount := 0
-	for _, sym := range parsed {
-		if l, err := m.attachEntryProbe(bin, "go", sym, opts); err != nil {
-			errs = append(errs, err)
-		} else if l != nil {
-			attachedCount++
+	for _, target := range targets {
+		if programName := tlsProgramForSymbolName(target.Name); programName != "" {
+			if err := attachOffsetProbe(bin, m, programName, target.Address, false, opts); err != nil {
+				errs = append(errs, fmt.Errorf("%s entry: %w", target.Name, err))
+			} else {
+				attachedCount++
+			}
 		}
-		if _, ok := tlsReturnProgramForSymbol(sym); ok {
-			if l, err := m.attachReturnProbe(bin, "go", sym, opts); err != nil {
-				errs = append(errs, err)
-			} else if l != nil {
+		if programName := tlsReturnProgramForSymbolName(target.Name); programName != "" {
+			if err := attachOffsetProbe(bin, m, programName, target.Address, true, opts); err != nil {
+				errs = append(errs, fmt.Errorf("%s return: %w", target.Name, err))
+			} else {
 				attachedCount++
 			}
 		}
