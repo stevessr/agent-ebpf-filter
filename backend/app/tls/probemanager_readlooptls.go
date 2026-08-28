@@ -36,7 +36,10 @@ func (m *TLSProbeManager) ReadLoop() error {
 	m.mu.Unlock()
 
 	log.Printf("[tls] ReadLoop: started, waiting for perf events...")
-	reader, err := perf.NewReader(events, os.Getpagesize()*64)
+	// TLS plaintext can arrive in bursts and each logical payload is split into
+	// up to 18 ~1 KiB perf records. A larger per-CPU buffer materially reduces
+	// perf-ring overwrites under concurrent agent traffic while remaining bounded.
+	reader, err := perf.NewReader(events, os.Getpagesize()*256)
 	if err != nil {
 		log.Printf("[tls] ReadLoop: perf.NewReader failed: %v", err)
 		return err
@@ -70,6 +73,15 @@ func (m *TLSProbeManager) ReadLoop() error {
 			log.Printf("[tls] ReadLoop: perf read error: %v", err)
 			return err
 		}
+
+		if rec.LostSamples > 0 {
+			m.readLoopStats.droppedFrags.Add(int64(rec.LostSamples))
+			log.Printf("[tls] ReadLoop: kernel perf buffer lost %d samples", rec.LostSamples)
+		}
+		if len(rec.RawSample) == 0 {
+			continue
+		}
+
 		totalFrags := m.readLoopStats.totalFrags.Add(1)
 		m.readLoopStats.lastFragmentNS.Store(time.Now().UnixNano())
 		if totalFrags <= 5 {
@@ -77,6 +89,7 @@ func (m *TLSProbeManager) ReadLoop() error {
 		}
 		var fragment tlsFragment
 		if err := binary.Read(bytes.NewReader(rec.RawSample), binary.LittleEndian, &fragment); err != nil {
+			m.readLoopStats.droppedFrags.Add(1)
 			if totalFrags <= 5 {
 				log.Printf("[tls] ReadLoop: binary.Read FAIL on fragment #%d (raw_len=%d): %v", totalFrags, len(rec.RawSample), err)
 			}
@@ -84,13 +97,12 @@ func (m *TLSProbeManager) ReadLoop() error {
 		}
 		completed, ok := assembler.Add(fragment)
 		if !ok || completed == nil {
-			m.readLoopStats.droppedFrags.Add(1)
+			// A multi-fragment payload is expected to return incomplete until its
+			// final fragment arrives. Do not count those normal states as drops.
 			continue
 		}
 		m.readLoopStats.completedFrags.Add(1)
 		parsedEvents := httpStreams.Add(*completed)
-		// If HTTP parser produced nothing (HTTP/2, non-HTTP protocol, etc.),
-		// still emit a raw event so the user sees captured data.
 		if len(parsedEvents) == 0 {
 			raw := completedToPlaintextEvent(*completed)
 			if rules == nil || rules.Allows(raw) {
@@ -109,7 +121,6 @@ func (m *TLSProbeManager) ReadLoop() error {
 				m.readLoopStats.httpEvents.Add(1)
 			}
 		}
-		// Periodic summary every 100 fragments
 		if totalFrags%100 == 0 {
 			stats := m.readLoopStats.Snapshot()
 			log.Printf("[tls] ReadLoop: %d frags, %d dropped, %d completed, %d http, %d raw",
@@ -133,14 +144,12 @@ func completedToPlaintextEvent(f CompletedTLSFragment) TLSPlaintextEvent {
 	contentType := ""
 	hexDump := ""
 
-	// HTTP/2 detection: check for connection preface or frame header magic
 	if len(f.Payload) >= 24 {
 		if isTLSHTTP2Preface(f.Payload) {
 			evType = "http2_preface"
 			hexDump = fmt.Sprintf("%x", f.Payload[:min(len(f.Payload), 512)])
 		} else if isTLSHTTP2Frame(f.Payload) {
 			evType = "http2_frame"
-			// Try to extract readable content from HTTP/2 frames
 			body = extractTLSHTTP2BodyText(f.Payload)
 			if body != "" {
 				contentType = "text/plain"
@@ -153,7 +162,7 @@ func completedToPlaintextEvent(f CompletedTLSFragment) TLSPlaintextEvent {
 		hexDump = fmt.Sprintf("%x", f.Payload[:min(len(f.Payload), 512)])
 	}
 
-	ev := TLSPlaintextEvent{
+	return TLSPlaintextEvent{
 		Type:         evType,
 		Timestamp:    now,
 		PID:          f.PID,
@@ -171,73 +180,52 @@ func completedToPlaintextEvent(f CompletedTLSFragment) TLSPlaintextEvent {
 		Body:         body,
 		ContentType:  contentType,
 	}
-
-	return ev
 }
 
-// HTTP/2 connection preface: "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
 func isTLSHTTP2Preface(data []byte) bool {
 	return len(data) >= 24 &&
-		data[0] == 0x50 && data[1] == 0x52 && data[2] == 0x49 && // "PRI"
-		data[3] == 0x20 && data[4] == 0x2a && data[5] == 0x20 && // " * "
-		data[6] == 0x48 && data[7] == 0x54 && data[8] == 0x54 && // "HTT"
-		data[9] == 0x50 && data[10] == 0x2f && data[11] == 0x32 // "P/2"
+		data[0] == 0x50 && data[1] == 0x52 && data[2] == 0x49 &&
+		data[3] == 0x20 && data[4] == 0x2a && data[5] == 0x20 &&
+		data[6] == 0x48 && data[7] == 0x54 && data[8] == 0x54 &&
+		data[9] == 0x50 && data[10] == 0x2f && data[11] == 0x32
 }
 
-// HTTP/2 frame header: 3 bytes length + 1 byte type (0-9) + 1 byte flags + 4 bytes stream ID (MSB cleared)
 func isTLSHTTP2Frame(data []byte) bool {
 	if len(data) < 9 {
 		return false
 	}
-	// Frame type must be 0x00-0x09 (DATA through CONTINUATION)
 	frameType := data[3]
 	if frameType > 0x09 {
 		return false
 	}
-	// Stream ID top bit must be 0
 	if data[5]&0x80 != 0 {
 		return false
 	}
-	// Frame length should be plausible
 	frameLen := int(data[0])<<16 | int(data[1])<<8 | int(data[2])
 	if frameLen < 0 || frameLen > 16*1024*1024 {
 		return false
 	}
-	// Additional heuristic: if we have a full frame header + some payload,
-	// check that the length isn't wildly larger than the available data
-	if len(data) >= 9 && frameLen > 0 && len(data) < 9+frameLen {
-		// Partial frame — still valid HTTP/2
-		return true
-	}
 	return true
 }
 
-// extractTLSHTTP2BodyText tries to extract readable text from HTTP/2 frames
-// (primarily DATA frame payloads, skipping HEADERS frame HPACK encoding)
 func extractTLSHTTP2BodyText(data []byte) string {
 	if len(data) < 9 {
 		return ""
 	}
 	var textParts []string
 	offset := 0
-	maxFrames := 32 // safety limit
+	maxFrames := 32
 
 	for frame := 0; frame < maxFrames && offset+9 <= len(data); frame++ {
 		frameLen := int(data[offset])<<16 | int(data[offset+1])<<8 | int(data[offset+2])
 		frameType := data[offset+3]
 		offset += 9
 
-		if offset+frameLen > len(data) {
+		if offset+frameLen > len(data) || frameLen < 0 {
 			break
 		}
-		if frameLen < 0 {
-			break
-		}
-
-		// DATA frame (0x00): extract payload if it looks like text/JSON
 		if frameType == 0x00 && frameLen > 0 {
 			payload := data[offset : offset+frameLen]
-			// Try as UTF-8 text
 			if utf8.Valid(payload) {
 				trimmed := bytes.TrimSpace(payload)
 				if len(trimmed) > 0 {
@@ -253,7 +241,6 @@ func extractTLSHTTP2BodyText(data []byte) string {
 	return strings.Join(textParts, "\n")
 }
 
-// looksLikeReadable checks if data is mostly printable ASCII
 func looksLikeReadable(data []byte) bool {
 	if len(data) == 0 {
 		return false
