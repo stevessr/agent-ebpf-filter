@@ -42,6 +42,10 @@ char LICENSE[] SEC("license") = "GPL";
 
 struct tls_fragment {
 	__u64 timestamp_ns;
+	// Stable userspace TLS/session object identity when the ABI exposes one.
+	// This lets userspace keep concurrent HTTPS connections from the same
+	// process/thread in separate reassembly buffers.
+	__u64 connection_id;
 	__u32 pid;
 	__u32 tgid;
 	__u32 data_len;
@@ -60,6 +64,7 @@ struct tls_fragment {
 struct retprobe_ctx {
 	__u64 buf;
 	__u64 len_ptr;
+	__u64 connection_id;
 	__u32 len;
 	__u8 lib_type;
 	__u8 direction;
@@ -107,7 +112,7 @@ static __always_inline void inc_probe_hit(__u8 function) {
 	}
 }
 
-static __always_inline int emit_tls_fragment(void *ctx, const void *buf, __u32 original_len, __u8 lib, __u8 dir, __u8 function)
+static __always_inline int emit_tls_fragment(void *ctx, __u64 connection_id, const void *buf, __u32 original_len, __u8 lib, __u8 dir, __u8 function)
 {
 	__u32 diag_output_fail = TLS_DIAG_PERF_OUTPUT_FAIL;
 	__u32 diag_read_fail  = TLS_DIAG_PROBE_READ_FAIL;
@@ -147,6 +152,7 @@ static __always_inline int emit_tls_fragment(void *ctx, const void *buf, __u32 o
 		}
 
 		scratch->timestamp_ns = now_ns;
+		scratch->connection_id = connection_id;
 		scratch->pid = (__u32)pid_tgid;
 		scratch->tgid = (__u32)(pid_tgid >> 32);
 		scratch->data_len = chunk;
@@ -179,13 +185,14 @@ static __always_inline int emit_tls_fragment(void *ctx, const void *buf, __u32 o
 	return 0;
 }
 
-static __always_inline int save_retprobe_ctx(void *buf, const void *len_ptr, __u32 len, __u8 lib, __u8 dir, __u8 function)
+static __always_inline int save_retprobe_ctx(__u64 connection_id, void *buf, const void *len_ptr, __u32 len, __u8 lib, __u8 dir, __u8 function)
 {
 	inc_probe_hit(function);
 	__u64 pid_tgid = bpf_get_current_pid_tgid();
 	struct retprobe_ctx rc = {
 		.buf = (__u64)buf,
 		.len_ptr = (__u64)len_ptr,
+		.connection_id = connection_id,
 		.len = len,
 		.lib_type = lib,
 		.direction = dir,
@@ -212,24 +219,26 @@ static __always_inline int emit_retprobe_payload(void *ctx, __u32 len)
 	if (!load_retprobe_ctx(&rc)) {
 		return 0;
 	}
-	return emit_tls_fragment(ctx, (const void *)rc.buf, len, rc.lib_type, rc.direction, rc.function);
+	return emit_tls_fragment(ctx, rc.connection_id, (const void *)rc.buf, len, rc.lib_type, rc.direction, rc.function);
 }
 
 SEC("uprobe/SSL_write")
 int uprobe_ssl_write(struct pt_regs *ctx)
 {
+	__u64 connection_id = (__u64)PT_REGS_PARM1(ctx);
 	const void *buf = (const void *)PT_REGS_PARM2(ctx);
 	__u32 len = (__u32)PT_REGS_PARM3(ctx);
-	return emit_tls_fragment(ctx, buf, len, TLS_LIB_OPENSSL, TLS_DIR_SEND, TLS_FUNC_SSL_WRITE);
+	return emit_tls_fragment(ctx, connection_id, buf, len, TLS_LIB_OPENSSL, TLS_DIR_SEND, TLS_FUNC_SSL_WRITE);
 }
 
 SEC("uprobe/SSL_write_ex")
 int uprobe_ssl_write_ex(struct pt_regs *ctx)
 {
+	__u64 connection_id = (__u64)PT_REGS_PARM1(ctx);
 	const void *buf = (const void *)PT_REGS_PARM2(ctx);
 	__u32 len = (__u32)PT_REGS_PARM3(ctx);
 	const void *written = (const void *)PT_REGS_PARM4(ctx);
-	return save_retprobe_ctx((void *)buf, written, len, TLS_LIB_OPENSSL, TLS_DIR_SEND, TLS_FUNC_SSL_WRITE_EX);
+	return save_retprobe_ctx(connection_id, (void *)buf, written, len, TLS_LIB_OPENSSL, TLS_DIR_SEND, TLS_FUNC_SSL_WRITE_EX);
 }
 
 SEC("uretprobe/SSL_write_ex")
@@ -242,19 +251,20 @@ int uretprobe_ssl_write_ex(struct pt_regs *ctx)
 	}
 	__u64 written = 0;
 	if (rc.len_ptr && bpf_probe_read_user(&written, sizeof(written), (const void *)rc.len_ptr) == 0 && written > 0) {
-		return emit_tls_fragment(ctx, (const void *)rc.buf, (__u32)written, rc.lib_type, rc.direction, rc.function);
+		return emit_tls_fragment(ctx, rc.connection_id, (const void *)rc.buf, (__u32)written, rc.lib_type, rc.direction, rc.function);
 	}
-	return emit_tls_fragment(ctx, (const void *)rc.buf, rc.len, rc.lib_type, rc.direction, rc.function);
+	return emit_tls_fragment(ctx, rc.connection_id, (const void *)rc.buf, rc.len, rc.lib_type, rc.direction, rc.function);
 }
 
 SEC("uprobe/SSL_write_ex2")
 int uprobe_ssl_write_ex2(struct pt_regs *ctx)
 {
 #if defined(__TARGET_ARCH_x86)
+	__u64 connection_id = (__u64)PT_REGS_PARM1(ctx);
 	const void *buf = (const void *)PT_REGS_PARM2(ctx);
 	__u32 len = (__u32)PT_REGS_PARM3(ctx);
 	const void *written = (const void *)PT_REGS_PARM4(ctx);
-	return save_retprobe_ctx((void *)buf, written, len, TLS_LIB_OPENSSL, TLS_DIR_SEND, TLS_FUNC_SSL_WRITE_EX2);
+	return save_retprobe_ctx(connection_id, (void *)buf, written, len, TLS_LIB_OPENSSL, TLS_DIR_SEND, TLS_FUNC_SSL_WRITE_EX2);
 #else
 	return 0;
 #endif
@@ -271,9 +281,9 @@ int uretprobe_ssl_write_ex2(struct pt_regs *ctx)
 	}
 	__u64 written = 0;
 	if (rc.len_ptr && bpf_probe_read_user(&written, sizeof(written), (const void *)rc.len_ptr) == 0 && written > 0) {
-		return emit_tls_fragment(ctx, (const void *)rc.buf, (__u32)written, rc.lib_type, rc.direction, rc.function);
+		return emit_tls_fragment(ctx, rc.connection_id, (const void *)rc.buf, (__u32)written, rc.lib_type, rc.direction, rc.function);
 	}
-	return emit_tls_fragment(ctx, (const void *)rc.buf, rc.len, rc.lib_type, rc.direction, rc.function);
+	return emit_tls_fragment(ctx, rc.connection_id, (const void *)rc.buf, rc.len, rc.lib_type, rc.direction, rc.function);
 #else
 	return 0;
 #endif
@@ -282,7 +292,7 @@ int uretprobe_ssl_write_ex2(struct pt_regs *ctx)
 SEC("uprobe/SSL_read")
 int uprobe_ssl_read(struct pt_regs *ctx)
 {
-	return save_retprobe_ctx((void *)PT_REGS_PARM2(ctx), 0, (__u32)PT_REGS_PARM3(ctx), TLS_LIB_OPENSSL, TLS_DIR_RECV, TLS_FUNC_SSL_READ);
+	return save_retprobe_ctx((__u64)PT_REGS_PARM1(ctx), (void *)PT_REGS_PARM2(ctx), 0, (__u32)PT_REGS_PARM3(ctx), TLS_LIB_OPENSSL, TLS_DIR_RECV, TLS_FUNC_SSL_READ);
 }
 
 SEC("uretprobe/SSL_read")
@@ -298,7 +308,7 @@ int uretprobe_ssl_read(struct pt_regs *ctx)
 SEC("uprobe/SSL_read_ex")
 int uprobe_ssl_read_ex(struct pt_regs *ctx)
 {
-	return save_retprobe_ctx((void *)PT_REGS_PARM2(ctx), (const void *)PT_REGS_PARM4(ctx), (__u32)PT_REGS_PARM3(ctx), TLS_LIB_OPENSSL, TLS_DIR_RECV, TLS_FUNC_SSL_READ_EX);
+	return save_retprobe_ctx((__u64)PT_REGS_PARM1(ctx), (void *)PT_REGS_PARM2(ctx), (const void *)PT_REGS_PARM4(ctx), (__u32)PT_REGS_PARM3(ctx), TLS_LIB_OPENSSL, TLS_DIR_RECV, TLS_FUNC_SSL_READ_EX);
 }
 
 SEC("uretprobe/SSL_read_ex")
@@ -313,21 +323,22 @@ int uretprobe_ssl_read_ex(struct pt_regs *ctx)
 	if (bpf_probe_read_user(&read_len, sizeof(read_len), (const void *)rc.len_ptr) < 0 || read_len == 0) {
 		return 0;
 	}
-	return emit_tls_fragment(ctx, (const void *)rc.buf, (__u32)read_len, rc.lib_type, rc.direction, rc.function);
+	return emit_tls_fragment(ctx, rc.connection_id, (const void *)rc.buf, (__u32)read_len, rc.lib_type, rc.direction, rc.function);
 }
 
 SEC("uprobe/gnutls_record_send")
 int uprobe_gnutls_record_send(struct pt_regs *ctx)
 {
+	__u64 connection_id = (__u64)PT_REGS_PARM1(ctx);
 	const void *buf = (const void *)PT_REGS_PARM2(ctx);
 	__u32 len = (__u32)PT_REGS_PARM3(ctx);
-	return emit_tls_fragment(ctx, buf, len, TLS_LIB_GNUTLS, TLS_DIR_SEND, TLS_FUNC_GNUTLS_RECORD_SEND);
+	return emit_tls_fragment(ctx, connection_id, buf, len, TLS_LIB_GNUTLS, TLS_DIR_SEND, TLS_FUNC_GNUTLS_RECORD_SEND);
 }
 
 SEC("uprobe/gnutls_record_recv")
 int uprobe_gnutls_record_recv(struct pt_regs *ctx)
 {
-	return save_retprobe_ctx((void *)PT_REGS_PARM2(ctx), 0, (__u32)PT_REGS_PARM3(ctx), TLS_LIB_GNUTLS, TLS_DIR_RECV, TLS_FUNC_GNUTLS_RECORD_RECV);
+	return save_retprobe_ctx((__u64)PT_REGS_PARM1(ctx), (void *)PT_REGS_PARM2(ctx), 0, (__u32)PT_REGS_PARM3(ctx), TLS_LIB_GNUTLS, TLS_DIR_RECV, TLS_FUNC_GNUTLS_RECORD_RECV);
 }
 
 SEC("uretprobe/gnutls_record_recv")
@@ -343,15 +354,16 @@ int uretprobe_gnutls_record_recv(struct pt_regs *ctx)
 SEC("uprobe/PR_Write")
 int uprobe_pr_write(struct pt_regs *ctx)
 {
+	__u64 connection_id = (__u64)PT_REGS_PARM1(ctx);
 	const void *buf = (const void *)PT_REGS_PARM2(ctx);
 	__u32 len = (__u32)PT_REGS_PARM3(ctx);
-	return emit_tls_fragment(ctx, buf, len, TLS_LIB_NSS, TLS_DIR_SEND, TLS_FUNC_PR_WRITE);
+	return emit_tls_fragment(ctx, connection_id, buf, len, TLS_LIB_NSS, TLS_DIR_SEND, TLS_FUNC_PR_WRITE);
 }
 
 SEC("uprobe/PR_Read")
 int uprobe_pr_read(struct pt_regs *ctx)
 {
-	return save_retprobe_ctx((void *)PT_REGS_PARM2(ctx), 0, (__u32)PT_REGS_PARM3(ctx), TLS_LIB_NSS, TLS_DIR_RECV, TLS_FUNC_PR_READ);
+	return save_retprobe_ctx((__u64)PT_REGS_PARM1(ctx), (void *)PT_REGS_PARM2(ctx), 0, (__u32)PT_REGS_PARM3(ctx), TLS_LIB_NSS, TLS_DIR_RECV, TLS_FUNC_PR_READ);
 }
 
 SEC("uretprobe/PR_Read")
@@ -368,22 +380,26 @@ SEC("uprobe/crypto_tls_Conn_Write")
 int uprobe_crypto_tls_conn_write(struct pt_regs *ctx)
 {
 #if defined(__TARGET_ARCH_x86)
+	// Go register ABI: receiver *tls.Conn in AX, []byte data/len in BX/CX.
+	__u64 connection_id = ctx->ax;
 	const void *buf = (const void *)ctx->bx;
 	__u32 len = (__u32)ctx->cx;
 #else
+	__u64 connection_id = 0;
 	const void *buf = 0;
 	__u32 len = 0;
 #endif
-	return emit_tls_fragment(ctx, buf, len, TLS_LIB_GO, TLS_DIR_SEND, TLS_FUNC_GO_CONN_WRITE);
+	return emit_tls_fragment(ctx, connection_id, buf, len, TLS_LIB_GO, TLS_DIR_SEND, TLS_FUNC_GO_CONN_WRITE);
 }
 
 SEC("uprobe/crypto_tls_Conn_Read")
 int uprobe_crypto_tls_conn_read(struct pt_regs *ctx)
 {
 #if defined(__TARGET_ARCH_x86)
+	__u64 connection_id = ctx->ax;
 	const void *buf = (const void *)ctx->bx;
 	__u32 len = (__u32)ctx->cx;
-	return save_retprobe_ctx((void *)buf, 0, len, TLS_LIB_GO, TLS_DIR_RECV, TLS_FUNC_GO_CONN_READ);
+	return save_retprobe_ctx(connection_id, (void *)buf, 0, len, TLS_LIB_GO, TLS_DIR_RECV, TLS_FUNC_GO_CONN_READ);
 #else
 	return 0;
 #endif
@@ -407,6 +423,9 @@ SEC("uprobe/rustls_encrypt_outgoing")
 int uprobe_rustls_encrypt_outgoing(struct pt_regs *ctx)
 {
 #if defined(__TARGET_ARCH_x86)
+	// This rustls path uses an sret ABI in the supported builds: RSI is the
+	// record-layer receiver and RDX is the borrowed OutboundPlainMessage.
+	__u64 connection_id = ctx->si;
 	__u64 msg = ctx->dx;
 	if (!msg) {
 		return 0;
@@ -418,7 +437,7 @@ int uprobe_rustls_encrypt_outgoing(struct pt_regs *ctx)
 	if (bpf_probe_read_user(&data_len, sizeof(data_len), (const void *)(msg + 0x10)) < 0 || data_len == 0) {
 		return 0;
 	}
-	return emit_tls_fragment(ctx, (const void *)data_ptr, (__u32)data_len,
+	return emit_tls_fragment(ctx, connection_id, (const void *)data_ptr, (__u32)data_len,
 		TLS_LIB_RUSTLS, TLS_DIR_SEND, TLS_FUNC_RUSTLS_ENCRYPT_OUTGOING);
 #else
 	return 0;
@@ -474,7 +493,7 @@ int uprobe_rustls_consume_first_chunk(struct pt_regs *ctx)
 	}
 
 	const void *emit_ptr = (const void *)(data_ptr + prefix_used);
-	return emit_tls_fragment(ctx, emit_ptr, (__u32)emit_len,
+	return emit_tls_fragment(ctx, reader, emit_ptr, (__u32)emit_len,
 		TLS_LIB_RUSTLS, TLS_DIR_RECV, TLS_FUNC_RUSTLS_CONSUME_FIRST_CHUNK);
 #else
 	return 0;
