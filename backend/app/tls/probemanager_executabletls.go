@@ -66,6 +66,7 @@ func (m *TLSProbeManager) AttachGoUprobes(binPath string, pid int) error {
 		}
 		return fmt.Errorf("zero Go TLS probes attached to %s", binPath)
 	}
+	m.registerPIDLinkRangeLocked(pid, startLinks)
 	if len(errs) > 0 {
 		log.Printf("[tls] AttachGoUprobes: partial coverage for %s (pid=%d): %v", binPath, pid, errors.Join(errs...))
 	}
@@ -128,6 +129,7 @@ func (m *TLSProbeManager) AttachStaticSSLUprobes(binPath string, pid int) error 
 		}
 		return fmt.Errorf("zero TLS probes attached to %s — symbols may exist but eBPF program lookup failed", binPath)
 	}
+	m.registerPIDLinkRangeLocked(pid, startLinks)
 	if len(errs) > 0 {
 		log.Printf("[tls] AttachStaticSSLUprobes: partial coverage for %s (pid=%d): %v", binPath, pid, errors.Join(errs...))
 	}
@@ -209,6 +211,7 @@ func (m *TLSProbeManager) attachLoadedLibraryForPIDLocked(target ProbeTarget, pa
 		return err
 	}
 
+	m.registerPIDLinkRangeLocked(pid, startLinks)
 	status.Attached = true
 	m.attachedStatic[attachKey] = true
 	if len(errs) > 0 {
