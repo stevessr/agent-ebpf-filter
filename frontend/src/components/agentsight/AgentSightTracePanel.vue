@@ -42,8 +42,8 @@ const state = useAgentSightEvents({
 });
 const { locale, localeOptions, t, setLocale } = useAgentSightI18n();
 const pasteText = ref("");
+const searchDraft = ref(state.filters.value.searchTerm);
 
-// 监听外部 props 变化并更新内部 filters
 watch(
   () => props.pid,
   (newPid) => {
@@ -59,6 +59,22 @@ watch(
     if (newComm) {
       state.filters.value.comm = newComm;
     }
+  },
+);
+
+// Searching can stringify payload data for thousands of rows. Keep typing
+// responsive by updating the expensive filter after a short idle window.
+watch(searchDraft, (value, _oldValue, onCleanup) => {
+  const timer = window.setTimeout(() => {
+    state.filters.value.searchTerm = value;
+  }, 180);
+  onCleanup(() => window.clearTimeout(timer));
+});
+
+watch(
+  () => state.filters.value.searchTerm,
+  (value) => {
+    if (value !== searchDraft.value) searchDraft.value = value;
   },
 );
 
@@ -143,11 +159,7 @@ const loadSampleDemo = async () => {
           />
           <a-badge
             :status="state.isEnvelopeConnected.value ? 'success' : 'error'"
-            :text="
-              state.isEnvelopeConnected.value
-                ? 'Envelope live'
-                : 'Envelope offline'
-            "
+            :text="state.isEnvelopeConnected.value ? 'Envelope live' : 'Envelope offline'"
           />
           <a-badge
             :status="state.isTLSConnected.value ? 'success' : 'warning'"
@@ -155,9 +167,7 @@ const loadSampleDemo = async () => {
           />
           <a-badge
             :status="state.isSystemConnected.value ? 'success' : 'warning'"
-            :text="
-              state.isSystemConnected.value ? 'System live' : 'System offline'
-            "
+            :text="state.isSystemConnected.value ? 'System live' : 'System offline'"
           />
           <a-select
             v-model:value="state.limit.value"
@@ -165,9 +175,7 @@ const loadSampleDemo = async () => {
             style="width: 110px"
             :options="limitOptions"
           />
-          <a-tag color="purple"
-            >{{ state.metrics.value.total }} {{ t.events }}</a-tag
-          >
+          <a-tag color="purple">{{ state.metrics.value.total }} {{ t.events }}</a-tag>
           <a-button
             size="small"
             :type="state.paused.value ? 'primary' : 'default'"
@@ -200,54 +208,14 @@ const loadSampleDemo = async () => {
       />
 
       <a-row :gutter="[12, 12]" class="summary-row">
-        <a-col :xs="12" :md="3"
-          ><a-card size="small"
-            ><a-statistic
-              title="Total"
-              :value="state.metrics.value.total" /></a-card
-        ></a-col>
-        <a-col :xs="12" :md="3"
-          ><a-card size="small"
-            ><a-statistic
-              title="TLS"
-              :value="state.metrics.value.tls" /></a-card
-        ></a-col>
-        <a-col :xs="12" :md="3"
-          ><a-card size="small"
-            ><a-statistic
-              title="HTTP"
-              :value="state.metrics.value.http" /></a-card
-        ></a-col>
-        <a-col :xs="12" :md="3"
-          ><a-card size="small"
-            ><a-statistic
-              title="SSE"
-              :value="state.metrics.value.sse" /></a-card
-        ></a-col>
-        <a-col :xs="12" :md="3"
-          ><a-card size="small"
-            ><a-statistic
-              title="Stdio/MCP"
-              :value="state.metrics.value.stdio" /></a-card
-        ></a-col>
-        <a-col :xs="12" :md="3"
-          ><a-card size="small"
-            ><a-statistic
-              title="Alerts"
-              :value="state.metrics.value.alerts" /></a-card
-        ></a-col>
-        <a-col :xs="12" :md="3"
-          ><a-card size="small"
-            ><a-statistic
-              title="Processes"
-              :value="state.metrics.value.processes" /></a-card
-        ></a-col>
-        <a-col :xs="12" :md="3"
-          ><a-card size="small"
-            ><a-statistic
-              title="System"
-              :value="state.metrics.value.system" /></a-card
-        ></a-col>
+        <a-col :xs="12" :md="3"><a-card size="small"><a-statistic title="Total" :value="state.metrics.value.total" /></a-card></a-col>
+        <a-col :xs="12" :md="3"><a-card size="small"><a-statistic title="TLS" :value="state.metrics.value.tls" /></a-card></a-col>
+        <a-col :xs="12" :md="3"><a-card size="small"><a-statistic title="HTTP" :value="state.metrics.value.http" /></a-card></a-col>
+        <a-col :xs="12" :md="3"><a-card size="small"><a-statistic title="SSE" :value="state.metrics.value.sse" /></a-card></a-col>
+        <a-col :xs="12" :md="3"><a-card size="small"><a-statistic title="Stdio/MCP" :value="state.metrics.value.stdio" /></a-card></a-col>
+        <a-col :xs="12" :md="3"><a-card size="small"><a-statistic title="Alerts" :value="state.metrics.value.alerts" /></a-card></a-col>
+        <a-col :xs="12" :md="3"><a-card size="small"><a-statistic title="Processes" :value="state.metrics.value.processes" /></a-card></a-col>
+        <a-col :xs="12" :md="3"><a-card size="small"><a-statistic title="System" :value="state.metrics.value.system" /></a-card></a-col>
       </a-row>
 
       <a-card size="small" :title="t.traceImport" class="agentsight-import">
@@ -258,57 +226,20 @@ const loadSampleDemo = async () => {
               :show-upload-list="false"
               accept=".json,.jsonl,.log,.txt"
             >
-              <a-button size="small"
-                ><template #icon><UploadOutlined /></template
-                >{{ t.uploadTrace }}</a-button
-              >
+              <a-button size="small"><template #icon><UploadOutlined /></template>{{ t.uploadTrace }}</a-button>
             </a-upload>
-            <a-tag color="blue"
-              >{{ state.importedRecords.value.length }}
-              {{ t.importedRecords }}</a-tag
-            >
-            <a-tag v-if="state.metrics.value.sample" color="gold"
-              >{{ state.metrics.value.sample }} sample events</a-tag
-            >
-            <a-button size="small" danger @click="state.clearImportedRecords">{{
-              t.clearImported
-            }}</a-button>
-            <a-button
-              size="small"
-              :loading="state.sampleLoading.value"
-              @click="loadSampleDemo"
-              >Load bundled demo</a-button
-            >
+            <a-tag color="blue">{{ state.importedRecords.value.length }} {{ t.importedRecords }}</a-tag>
+            <a-tag v-if="state.metrics.value.sample" color="gold">{{ state.metrics.value.sample }} sample events</a-tag>
+            <a-button size="small" danger @click="state.clearImportedRecords">{{ t.clearImported }}</a-button>
+            <a-button size="small" :loading="state.sampleLoading.value" @click="loadSampleDemo">Load bundled demo</a-button>
           </a-space>
-          <a-textarea
-            v-model:value="pasteText"
-            :rows="3"
-            :placeholder="t.pastePlaceholder"
-          />
+          <a-textarea v-model:value="pasteText" :rows="3" :placeholder="t.pastePlaceholder" />
           <a-space wrap>
-            <a-button
-              size="small"
-              type="primary"
-              :disabled="!pasteText.trim()"
-              @click="importPastedRecords"
-              >{{ t.importPasted }}</a-button
-            >
-            <a-button size="small" @click="state.exportVisibleJSON">
-              <template #icon><DownloadOutlined /></template>
-              Export JSON
-            </a-button>
-            <a-button size="small" @click="state.exportVisibleJSONL">
-              <template #icon><DownloadOutlined /></template>
-              Export JSONL
-            </a-button>
-            <a-button size="small" @click="state.exportVisibleCSV">
-              <template #icon><DownloadOutlined /></template>
-              Export CSV
-            </a-button>
-            <a-button size="small" danger @click="state.clearAllRecords">
-              <template #icon><DeleteOutlined /></template>
-              Clear all local data
-            </a-button>
+            <a-button size="small" type="primary" :disabled="!pasteText.trim()" @click="importPastedRecords">{{ t.importPasted }}</a-button>
+            <a-button size="small" @click="state.exportVisibleJSON"><template #icon><DownloadOutlined /></template>Export JSON</a-button>
+            <a-button size="small" @click="state.exportVisibleJSONL"><template #icon><DownloadOutlined /></template>Export JSONL</a-button>
+            <a-button size="small" @click="state.exportVisibleCSV"><template #icon><DownloadOutlined /></template>Export CSV</a-button>
+            <a-button size="small" danger @click="state.clearAllRecords"><template #icon><DeleteOutlined /></template>Clear all local data</a-button>
           </a-space>
         </a-space>
       </a-card>
@@ -316,98 +247,57 @@ const loadSampleDemo = async () => {
       <a-card size="small" class="agentsight-filters">
         <a-row :gutter="[12, 12]">
           <a-col :xs="24" :md="5">
-            <a-input
-              v-model:value="state.filters.value.searchTerm"
-              size="small"
-              placeholder="Search everything"
-              allow-clear
-            >
+            <a-input v-model:value="searchDraft" size="small" placeholder="Search everything" allow-clear>
               <template #prefix><SearchOutlined /></template>
             </a-input>
           </a-col>
           <a-col :xs="24" :md="3">
-            <a-input
-              v-model:value="state.filters.value.comm"
-              size="small"
-              :placeholder="t.command"
-              allow-clear
-            />
+            <a-input v-model:value="state.filters.value.comm" size="small" :placeholder="t.command" allow-clear />
           </a-col>
           <a-col :xs="24" :md="2">
-            <a-input
-              v-model:value="state.filters.value.pid"
-              size="small"
-              :placeholder="t.pid"
-              allow-clear
-            />
+            <a-input v-model:value="state.filters.value.pid" size="small" :placeholder="t.pid" allow-clear />
           </a-col>
           <a-col :xs="24" :md="3">
-            <a-input
-              v-model:value="state.filters.value.traceId"
-              size="small"
-              :placeholder="t.traceId"
-              allow-clear
-            />
+            <a-input v-model:value="state.filters.value.traceId" size="small" :placeholder="t.traceId" allow-clear />
           </a-col>
           <a-col :xs="24" :md="3">
-            <a-select
-              v-model:value="state.filters.value.source"
-              size="small"
-              allow-clear
-              :placeholder="t.source"
-              style="width: 100%"
-              :options="state.sourceOptions.value"
-            />
+            <a-select v-model:value="state.filters.value.source" size="small" allow-clear :placeholder="t.source" style="width: 100%" :options="state.sourceOptions.value" />
           </a-col>
           <a-col :xs="24" :md="3">
-            <a-select
-              v-model:value="state.filters.value.eventType"
-              size="small"
-              allow-clear
-              :placeholder="t.eventType"
-              style="width: 100%"
-              :options="state.eventTypeOptions.value"
-            />
+            <a-select v-model:value="state.filters.value.eventType" size="small" allow-clear :placeholder="t.eventType" style="width: 100%" :options="state.eventTypeOptions.value" />
           </a-col>
           <a-col :xs="24" :md="3">
-            <a-select
-              v-model:value="state.filters.value.redactionState"
-              size="small"
-              allow-clear
-              :placeholder="t.redaction"
-              style="width: 100%"
-              :options="state.redactionStateOptions.value"
-            />
+            <a-select v-model:value="state.filters.value.redactionState" size="small" allow-clear :placeholder="t.redaction" style="width: 100%" :options="state.redactionStateOptions.value" />
           </a-col>
           <a-col :xs="24" :md="2">
-            <a-button size="small" block @click="state.clearFilters">{{
-              t.clear
-            }}</a-button>
+            <a-button size="small" block @click="state.clearFilters">{{ t.clear }}</a-button>
           </a-col>
         </a-row>
       </a-card>
 
-      <a-tabs v-model:activeKey="state.activeTab.value">
-        <a-tab-pane v-for="tab in tabs" :key="tab.key" :tab="tab.label">
-          <AgentSightProcessTreeView
-            v-if="tab.key === 'process-tree'"
-            :events="state.visibleEvents.value"
-          />
-          <AgentSightTimelineView
-            v-else-if="tab.key === 'timeline'"
-            :events="state.visibleProcessedEvents.value"
-          />
-          <AgentSightFlamegraphView
-            v-else-if="tab.key === 'flamegraph'"
-            :events="state.visibleProcessedEvents.value"
-          />
-          <AgentSightLogView
-            v-else-if="tab.key === 'log'"
-            :events="state.visibleProcessedEvents.value"
-          />
-          <AgentSightMetricsView v-else :events="state.visibleEvents.value" />
-        </a-tab-pane>
+      <a-tabs v-model:activeKey="state.activeTab.value" class="agentsight-tabs">
+        <a-tab-pane v-for="tab in tabs" :key="tab.key" :tab="tab.label" />
       </a-tabs>
+
+      <div class="agentsight-active-view">
+        <AgentSightProcessTreeView
+          v-if="state.activeTab.value === 'process-tree'"
+          :events="state.visibleEvents.value"
+        />
+        <AgentSightTimelineView
+          v-else-if="state.activeTab.value === 'timeline'"
+          :events="state.visibleProcessedEvents.value"
+        />
+        <AgentSightFlamegraphView
+          v-else-if="state.activeTab.value === 'flamegraph'"
+          :events="state.visibleProcessedEvents.value"
+        />
+        <AgentSightLogView
+          v-else-if="state.activeTab.value === 'log'"
+          :events="state.visibleProcessedEvents.value"
+        />
+        <AgentSightMetricsView v-else :events="state.visibleEvents.value" />
+      </div>
     </a-card>
   </div>
 </template>
@@ -433,6 +323,15 @@ const loadSampleDemo = async () => {
 .agentsight-import,
 .agentsight-filters {
   margin-bottom: 16px;
+}
+
+.agentsight-tabs {
+  margin-bottom: 4px;
+}
+
+.agentsight-active-view {
+  min-width: 0;
+  contain: layout style;
 }
 
 .summary-row :deep(.ant-statistic-title) {
