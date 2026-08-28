@@ -95,6 +95,12 @@ func (m *TLSProbeManager) ReadLoop() error {
 			}
 			continue
 		}
+		observedPID := int(fragment.TGID)
+		if observedPID <= 0 {
+			observedPID = int(fragment.PID)
+		}
+		m.markTLSCaptureObserved(observedPID, time.Now().UnixNano())
+
 		completed, ok := assembler.Add(fragment)
 		if !ok || completed == nil {
 			// A multi-fragment payload is expected to return incomplete until its
