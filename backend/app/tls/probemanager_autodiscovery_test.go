@@ -28,6 +28,25 @@ func TestStaticAndGoAttachReservationsAreIndependent(t *testing.T) {
 	}
 }
 
+func TestPIDFromStaticAttachKeySupportsExecutableAndSharedLibraryKeys(t *testing.T) {
+	tests := []struct {
+		key  string
+		want int
+		ok   bool
+	}{
+		{key: "exec\x0042\x00/usr/bin/node", want: 42, ok: true},
+		{key: "pid\x0043\x00openssl\x00/usr/lib/libssl.so.3", want: 43, ok: true},
+		{key: "openssl\x00/usr/lib/libssl.so.3", want: 0, ok: false},
+		{key: "pid\x00oops\x00openssl\x00/usr/lib/libssl.so.3", want: 0, ok: false},
+	}
+	for _, tt := range tests {
+		got, ok := pidFromStaticAttachKey(tt.key)
+		if got != tt.want || ok != tt.ok {
+			t.Fatalf("pidFromStaticAttachKey(%q) = (%d, %v), want (%d, %v)", tt.key, got, ok, tt.want, tt.ok)
+		}
+	}
+}
+
 func TestIsAgentTLSProcessRecognizesModernAgentRuntimes(t *testing.T) {
 	tests := []struct {
 		name    string
