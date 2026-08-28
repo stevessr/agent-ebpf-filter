@@ -5,6 +5,7 @@ import { message } from "ant-design-vue";
 import { pb } from "../../pb/tracker_pb.js";
 import { buildWebSocketUrl } from "../../utils/requestContext";
 import {
+  mergeSortedAgentSightEvents,
   normalizeAgentSightEvents,
   processAgentSightEvents,
   type AgentSightEvent,
@@ -24,9 +25,11 @@ export interface AgentSightFilters {
 const AGENTSIGHT_CACHE_KEY = "agent-ebpf.agentsight.importedRecords";
 const AGENTSIGHT_SAMPLE_TRACE_URL = "/agentsight-sample-trace.jsonl";
 const AGENTSIGHT_SYSTEM_TOP_PROCESSES = 40;
+const AGENTSIGHT_SYSTEM_RECORD_LIMIT = 1000;
 const AGENTSIGHT_DEFAULT_LIMIT = 500;
 const AGENTSIGHT_UNLIMITED_LIMIT = 0;
 const AGENTSIGHT_TLS_BATCH_MS = 32;
+const AGENTSIGHT_SEARCH_DEBOUNCE_MS = 120;
 const AGENTSIGHT_RECONCILE_MS = 15000;
 export const AGENTSIGHT_IMPORT_MAX_BYTES = 16 * 1024 * 1024;
 export const AGENTSIGHT_IMPORT_MAX_RECORDS = 10000;
@@ -325,8 +328,6 @@ function agentSightSearchText(event: AgentSightEvent): string {
 }
 
 export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
-  // Record payloads are immutable snapshots that are always replaced as arrays.
-  // shallowRef avoids recursively proxying large imported/protobuf payload trees.
   const liveRecords = shallowRef<AgentSightEventRecord[]>([]);
   const tlsRecords = shallowRef<AgentSightEventRecord[]>([]);
   const systemRecords = shallowRef<AgentSightEventRecord[]>([]);
@@ -343,6 +344,7 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
   if (options?.initialPid) initialFilters.pid = String(options.initialPid);
   if (options?.initialComm) initialFilters.comm = options.initialComm;
   const filters = ref<AgentSightFilters>(initialFilters);
+  const debouncedSearchTerm = shallowRef("");
   const isEnvelopeConnected = shallowRef(false);
   const isTLSConnected = shallowRef(false);
   const isSystemConnected = shallowRef(false);
@@ -351,6 +353,7 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
 
   let refreshTimer: ReturnType<typeof setTimeout> | null = null;
   let tlsFlushTimer: ReturnType<typeof setTimeout> | null = null;
+  let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   let pendingTLSRecords: AgentSightEventRecord[] = [];
   let envelopeWS: WebSocket | null = null;
   let tlsWS: WebSocket | null = null;
@@ -366,6 +369,15 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
   let envelopeFetchGeneration = 0;
   let tlsFetchGeneration = 0;
 
+  const realRecordCount = computed(
+    () =>
+      importedRecords.value.length +
+      systemRecords.value.length +
+      tlsRecords.value.length +
+      liveRecords.value.length,
+  );
+  // Kept for export/debug consumers. The hot rendering path below does not
+  // concatenate this raw array on every source update.
   const realRecords = computed(() => [
     ...importedRecords.value,
     ...systemRecords.value,
@@ -373,11 +385,41 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
     ...liveRecords.value,
   ]);
   const rawRecords = computed(() =>
-    realRecords.value.length > 0 ? realRecords.value : sampleRecords.value,
+    realRecordCount.value > 0 ? realRecords.value : sampleRecords.value,
   );
-  const retainedEvents = computed<AgentSightEvent[]>(() =>
-    normalizeAgentSightEvents(rawRecords.value).slice(0, AGENTSIGHT_IMPORT_MAX_RECORDS),
+
+  // Normalize each immutable source independently. Vue caches unchanged source
+  // computeds, so a TLS flush does not re-normalize imported/system/live data.
+  const normalizedImportedEvents = computed(() =>
+    normalizeAgentSightEvents(importedRecords.value),
   );
+  const normalizedSystemEvents = computed(() =>
+    normalizeAgentSightEvents(systemRecords.value),
+  );
+  const normalizedTLSEvents = computed(() =>
+    normalizeAgentSightEvents(tlsRecords.value),
+  );
+  const normalizedLiveEvents = computed(() =>
+    normalizeAgentSightEvents(liveRecords.value),
+  );
+  const normalizedSampleEvents = computed(() =>
+    normalizeAgentSightEvents(sampleRecords.value),
+  );
+
+  const retainedEvents = computed<AgentSightEvent[]>(() => {
+    if (realRecordCount.value === 0) {
+      return normalizedSampleEvents.value.slice(0, AGENTSIGHT_IMPORT_MAX_RECORDS);
+    }
+    return mergeSortedAgentSightEvents(
+      [
+        normalizedImportedEvents.value,
+        normalizedSystemEvents.value,
+        normalizedTLSEvents.value,
+        normalizedLiveEvents.value,
+      ],
+      AGENTSIGHT_IMPORT_MAX_RECORDS,
+    );
+  });
   const events = computed<AgentSightEvent[]>(() =>
     applyAgentSightLimit(retainedEvents.value, limit.value),
   );
@@ -544,8 +586,6 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
       if (envelopeWS !== socket) return;
       try {
         const batch = pb.EventEnvelopeBatch.decode(new Uint8Array(event.data));
-        // protobufjs messages are already readable by the normalization layer.
-        // Avoid stringify/parse, which copied every nested payload twice.
         const envelopes = (batch.envelopes || []) as unknown as Record<string, any>[];
         mergeEnvelopeRecords(envelopes);
       } catch (error) {
@@ -637,13 +677,14 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
       try {
         const stats = pb.SystemStats.decode(new Uint8Array(event.data));
         const timestamp = Date.now();
-        systemRecords.value = retainAgentSightRecords([
-          ...systemStatsToRecords(
-            stats as unknown as Record<string, any>,
-            timestamp,
-          ),
+        const incoming = systemStatsToRecords(
+          stats as unknown as Record<string, any>,
+          timestamp,
+        );
+        systemRecords.value = [
+          ...incoming,
           ...systemRecords.value,
-        ]);
+        ].slice(0, AGENTSIGHT_SYSTEM_RECORD_LIMIT);
       } catch (error) {
         console.error("AgentSight system websocket parse error", error);
       }
@@ -703,7 +744,7 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
   const autoLoadSampleIfEmpty = async () => {
     if (
       sampleAttempted.value ||
-      realRecords.value.length > 0 ||
+      realRecordCount.value > 0 ||
       sampleRecords.value.length > 0
     ) {
       return;
@@ -757,7 +798,7 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
   const visibleEvents = computed(() => {
     const f = filters.value;
     const comm = f.comm.toLowerCase();
-    const search = f.searchTerm.trim().toLowerCase();
+    const search = debouncedSearchTerm.value;
     return events.value.filter((event) => {
       if (f.source && event.source !== f.source) return false;
       if (f.eventType && event.eventType !== f.eventType) return false;
@@ -806,7 +847,7 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
       processes: processIDs.size,
       stdio,
       imported: importedRecords.value.length,
-      sample: realRecords.value.length > 0 ? 0 : sampleRecords.value.length,
+      sample: realRecordCount.value > 0 ? 0 : sampleRecords.value.length,
       system,
     };
   });
@@ -866,11 +907,20 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
     void fetchEnvelopeEvents();
   });
 
+  watch(
+    () => filters.value.searchTerm,
+    (value) => {
+      if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        searchDebounceTimer = null;
+        debouncedSearchTerm.value = value.trim().toLowerCase();
+      }, AGENTSIGHT_SEARCH_DEBOUNCE_MS);
+    },
+  );
+
   const runRefreshLoop = async () => {
     if (!componentMounted) return;
     if (!paused.value) {
-      // WebSockets are the hot path. Poll only as reconciliation when a live
-      // channel is unavailable, instead of replacing large arrays every 10s.
       if (
         !isEnvelopeConnected.value ||
         (tlsCaptureAvailable && !isTLSConnected.value)
@@ -899,11 +949,13 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
     shouldReconnect = false;
     if (refreshTimer) clearTimeout(refreshTimer);
     if (tlsFlushTimer) clearTimeout(tlsFlushTimer);
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
     if (envelopeReconnectTimer) clearTimeout(envelopeReconnectTimer);
     if (tlsReconnectTimer) clearTimeout(tlsReconnectTimer);
     if (systemReconnectTimer) clearTimeout(systemReconnectTimer);
     refreshTimer = null;
     tlsFlushTimer = null;
+    searchDebounceTimer = null;
     pendingTLSRecords = [];
     envelopeReconnectTimer = null;
     tlsReconnectTimer = null;
