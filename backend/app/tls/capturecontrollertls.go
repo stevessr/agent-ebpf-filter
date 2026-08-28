@@ -8,7 +8,7 @@ import (
 
 var ErrTLSCaptureDisabled = errors.New("TLS capture is disabled")
 
-// ── Builtin executable attach status (deprecated, kept for API compatibility) ─
+const tlsAutoDiscoveryInterval = 5 * time.Second
 
 // TLSBuiltinExecutableAttachStatus reports the result of attaching to a builtin TLS executable.
 type TLSBuiltinExecutableAttachStatus struct {
@@ -16,8 +16,6 @@ type TLSBuiltinExecutableAttachStatus struct {
 	Attached bool   `json:"attached"`
 	Error    string `json:"error,omitempty"`
 }
-
-// ---- moved from backend/zz_merged_backend.go section capturecontrollertls.go ----
 
 type TLSCaptureController struct {
 	transitionMu       sync.Mutex
@@ -196,7 +194,6 @@ func (c *TLSCaptureController) AttachGoUprobes(path string, pid int) error {
 }
 
 func (c *TLSCaptureController) AttachBuiltinExecutables(pid int) ([]TLSBuiltinExecutableAttachStatus, error) {
-	// Deprecated: built-in executable list was replaced by auto-discovery
 	return []TLSBuiltinExecutableAttachStatus{}, nil
 }
 
@@ -207,12 +204,13 @@ func (c *TLSCaptureController) Status() map[string]any {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return map[string]any{
-		"enabled":            c.manager != nil,
-		"available":          c.manager != nil,
-		"readStarted":        c.readStarted,
-		"goDiscoveryStarted": c.goDiscoveryStarted,
-		"error":              c.lastError,
-		"broadcast":          c.broadcaster.Status(),
+		"enabled":                 c.manager != nil,
+		"available":               c.manager != nil,
+		"readStarted":             c.readStarted,
+		"goDiscoveryStarted":      c.goDiscoveryStarted,
+		"autoDiscoveryIntervalMs": tlsAutoDiscoveryInterval.Milliseconds(),
+		"error":                   c.lastError,
+		"broadcast":               c.broadcaster.Status(),
 	}
 }
 
@@ -223,6 +221,7 @@ func (c *TLSCaptureController) AttachedPIDs() []AttachedPIDInfo {
 	}
 	return manager.AttachedPIDs()
 }
+
 func (c *TLSCaptureController) ProbeHitCounters() map[string]uint64 {
 	manager := c.Manager()
 	if manager == nil {
@@ -297,7 +296,7 @@ func (c *TLSCaptureController) startGoDiscovery(manager *TLSProbeManager) {
 	}
 	c.goDiscoveryStarted = true
 	c.mu.Unlock()
-	manager.StartGoDiscoveryLoop(time.Minute)
+	manager.StartGoDiscoveryLoop(tlsAutoDiscoveryInterval)
 }
 
 func (c *TLSCaptureController) setLastError(err error) {
