@@ -4,6 +4,7 @@ import (
 	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/app/tls"
 	"agent-ebpf-filter/pb"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -13,22 +14,22 @@ import (
 )
 
 func parseAgentSightUploadPayload(body []byte) ([]AgentSightExportEvent, error) {
-	raw := strings.TrimSpace(string(body))
-	if raw == "" {
+	raw := bytes.TrimSpace(body)
+	if len(raw) == 0 {
 		return nil, fmt.Errorf("empty AgentSight event payload")
 	}
 	var decoded any
-	if err := json.Unmarshal([]byte(raw), &decoded); err == nil {
+	if err := json.Unmarshal(raw, &decoded); err == nil {
 		return agentSightEventsFromDecodedPayload(decoded, AgentSightUploadMaxEvents)
 	}
 	events := make([]AgentSightExportEvent, 0)
-	for index, line := range strings.Split(raw, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
+	for index, line := range bytes.Split(raw, []byte{'\n'}) {
+		line = bytes.TrimSpace(line)
+		if len(line) == 0 {
 			continue
 		}
 		var item any
-		if err := json.Unmarshal([]byte(line), &item); err != nil {
+		if err := json.Unmarshal(line, &item); err != nil {
 			return nil, fmt.Errorf("line %d: %w", index+1, err)
 		}
 		event, err := agentSightEventFromDecodedPayload(item, index)
@@ -117,8 +118,6 @@ func agentSightEventFromDecodedPayload(decoded any, index int) (AgentSightExport
 	}, nil
 }
 
-// ── Event conversion ─────────────────────────────────────────────────
-
 func agentSightEventFromCapturedRecord(record CapturedEventRecord) AgentSightExportEvent {
 	record = Deps.NormalizeCapturedEventRecord(record)
 	envelope := record.Envelope
@@ -132,8 +131,16 @@ func agentSightEventFromCapturedRecord(record CapturedEventRecord) AgentSightExp
 		timestamp = time.Now().UTC()
 	}
 
+	// Envelope conversion already serializes legacy_event. Reuse that decoded
+	// map instead of independently serializing the same *pb.Event a second time.
 	envelopeMap := Deps.EventEnvelopeToJSONValue(envelope)
-	eventMap := agentSightProtoMap(event)
+	eventMap := mapFromAny(envelopeMap["legacy_event"])
+	if eventMap == nil {
+		eventMap = mapFromAny(envelopeMap["legacyEvent"])
+	}
+	if eventMap == nil && event != nil {
+		eventMap = agentSightProtoMap(event)
+	}
 	payloadMap, payloadKey := agentSightEnvelopePayload(envelopeMap)
 	data := make(map[string]any, len(payloadMap)+len(eventMap)+8)
 	for key, value := range payloadMap {
@@ -187,22 +194,64 @@ func agentSightEventFromCapturedRecord(record CapturedEventRecord) AgentSightExp
 	}
 }
 
+func agentSightTLSData(event tls.TLSPlaintextEvent, timestamp time.Time) map[string]any {
+	data := map[string]any{
+		"type":           platform.FirstNonEmpty(event.Type, "tls_plaintext"),
+		"timestamp":      timestamp.UnixMilli(),
+		"pid":            event.PID,
+		"tgid":           event.TGID,
+		"comm":           event.Comm,
+		"direction":      event.Direction,
+		"lib":            event.Lib,
+		"captured_len":   event.CapturedLen,
+		"original_len":   event.OriginalLen,
+		"body_size":      event.BodySize,
+		"raw_available":  event.RawAvailable,
+		"truncated":      event.Truncated,
+		"is_handshake":   event.IsHandshake,
+		"status_code":    event.StatusCode,
+		"event_type":     agentSightTLSEventType(event),
+	}
+	if event.Function != "" { data["function"] = event.Function }
+	if event.Method != "" { data["method"] = event.Method }
+	if event.URL != "" { data["url"] = event.URL; data["path"] = event.URL }
+	if event.Host != "" { data["host"] = event.Host }
+	if len(event.Headers) > 0 { data["headers"] = event.Headers }
+	if event.Body != "" { data["body"] = event.Body }
+	if event.ContentType != "" { data["content_type"] = event.ContentType }
+	if event.RawHexDump != "" { data["raw_hex_dump"] = event.RawHexDump }
+	if event.RedactionState != "" { data["redaction_state"] = event.RedactionState }
+	if event.SSEEvent != "" { data["sse_event"] = event.SSEEvent }
+	if event.SSEDataDigest != "" { data["sse_data_digest"] = event.SSEDataDigest }
+	if event.SSEDataCount != 0 { data["sse_data_count"] = event.SSEDataCount }
+	if event.RootAgentPID != 0 { data["root_agent_pid"] = event.RootAgentPID }
+	if event.AgentRunID != "" { data["agent_run_id"] = event.AgentRunID }
+	if event.TaskID != "" { data["task_id"] = event.TaskID }
+	if event.ConversationID != "" { data["conversation_id"] = event.ConversationID }
+	if event.TurnID != "" { data["turn_id"] = event.TurnID }
+	if event.ToolCallID != "" { data["tool_call_id"] = event.ToolCallID }
+	if event.ToolName != "" { data["tool_name"] = event.ToolName }
+	if event.TraceID != "" { data["trace_id"] = event.TraceID }
+	if event.SpanID != "" { data["span_id"] = event.SpanID }
+	if event.MessageRole != "" { data["message_role"] = event.MessageRole }
+	if event.PromptDigest != "" { data["prompt_digest"] = event.PromptDigest }
+	if event.PromptLen != 0 { data["prompt_len"] = event.PromptLen }
+	if event.Vendor != "" { data["vendor"] = event.Vendor }
+	if event.LoopAlert { data["loop_alert"] = true }
+	if event.UID != 0 { data["uid"] = event.UID }
+	if event.TID != 0 { data["tid"] = event.TID }
+	if event.LatencyMs != 0 { data["latency_ms"] = event.LatencyMs }
+	if event.DataType != "" { data["data_type"] = event.DataType }
+	if event.DeltaNs != 0 { data["delta_ns"] = event.DeltaNs }
+	return data
+}
+
 func agentSightEventFromTLSPlaintext(event tls.TLSPlaintextEvent) AgentSightExportEvent {
 	timestamp := event.Timestamp.UTC()
 	if timestamp.IsZero() {
 		timestamp = time.Now().UTC()
 	}
-	data := agentSightStructMap(event)
-	data["timestamp"] = timestamp.UnixMilli()
-	data["type"] = platform.FirstNonEmpty(event.Type, "tls_plaintext")
-	data["event_type"] = agentSightTLSEventType(event)
-	data["status_code"] = event.StatusCode
-	data["path"] = platform.FirstNonEmpty(event.URL, stringFromMap(data, "path"))
-	data["agent_run_id"] = event.AgentRunID
-	data["task_id"] = event.TaskID
-	data["trace_id"] = event.TraceID
-	data["span_id"] = event.SpanID
-
+	data := agentSightTLSData(event, timestamp)
 	tls.EnrichTLSEventWithAIMetadata(data, event)
 
 	source := agentSightSourceFromTLS(event)
@@ -218,8 +267,6 @@ func agentSightEventFromTLSPlaintext(event tls.TLSPlaintextEvent) AgentSightExpo
 		Data:      data,
 	}
 }
-
-// ── Filter matching ──────────────────────────────────────────────────
 
 func agentSightRunnerIDForEvent(event AgentSightExportEvent) string {
 	if strings.EqualFold(stringFromMap(event.Data, "runner"), "uploaded") || strings.HasPrefix(event.ID, "import-") {
@@ -253,29 +300,16 @@ func agentSightRunnerIDForEvent(event AgentSightExportEvent) string {
 	}
 }
 
-// ── Proto / JSON helpers ─────────────────────────────────────────────
-
 func agentSightProtoMap(message proto.Message) map[string]any {
 	if message == nil {
 		return nil
 	}
-	// marshal using proto then re-encode as JSON
 	raw, err := json.Marshal(message)
 	if err != nil {
 		return map[string]any{"error": err.Error()}
 	}
 	decoded := make(map[string]any)
-	_ = json.Unmarshal(raw, &decoded)
-	return decoded
-}
-
-func agentSightStructMap(value any) map[string]any {
-	payload, err := json.Marshal(value)
-	if err != nil {
-		return map[string]any{"error": err.Error()}
-	}
-	decoded := make(map[string]any)
-	if err := json.Unmarshal(payload, &decoded); err != nil {
+	if err := json.Unmarshal(raw, &decoded); err != nil {
 		return map[string]any{"error": err.Error()}
 	}
 	return decoded
@@ -383,8 +417,6 @@ func agentSightTLSEventType(event tls.TLSPlaintextEvent) string {
 		return "TLS_PLAINTEXT"
 	}
 }
-
-// ── Low-level helpers ────────────────────────────────────────────────
 
 func uint32FromEnvelopeOrEvent(envelope *pb.EventEnvelope, event *pb.Event, field string) uint32 {
 	switch field {
