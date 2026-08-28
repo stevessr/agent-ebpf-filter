@@ -2,6 +2,8 @@ package tls
 
 import (
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 // ---- moved from backend/zz_merged_backend.go section capturetypestls.go ----
@@ -136,18 +138,29 @@ type TLSCaptureStats struct {
 	LastFragmentNS uint64             `json:"lastFragmentNs,omitempty"`
 }
 
-// bpfKtimeToWallClock converts a bpf_ktime_get_ns() timestamp (monotonic
-// nanoseconds since system boot) to wall clock time. eBPF TLS uprobes use
-// bpf_ktime_get_ns() which returns monotonic time since boot, not Unix epoch
-// time. A direct time.Unix(0, ns) conversion would produce dates near 1970.
-// This function detects that case and falls back to the current wall clock.
+// bpfKtimeToWallClock converts bpf_ktime_get_ns() (CLOCK_MONOTONIC-like
+// nanoseconds since boot) into a wall-clock timestamp while preserving when the
+// probe actually fired. Returning time.Now() here would shift every event to
+// userspace assembly time and destroy ordering/latency information.
 func bpfKtimeToWallClock(monoNS uint64) time.Time {
-	t := time.Unix(0, int64(monoNS))
-	// bpf_ktime_get_ns() is monotonic — its absolute value corresponds to a
-	// date near boot time (1970 + uptime). Real wall-clock timestamps from
-	// other sources will be >= 2020 for production data.
-	if t.Year() < 2020 {
-		return time.Now()
+	now := time.Now().UTC()
+	if monoNS == 0 {
+		return now
 	}
-	return t.UTC()
+
+	var currentMono unix.Timespec
+	if err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &currentMono); err != nil {
+		return now
+	}
+	if currentMono.Sec < 0 || currentMono.Nsec < 0 {
+		return now
+	}
+	currentMonoNS := uint64(currentMono.Sec)*uint64(time.Second) + uint64(currentMono.Nsec)
+	if monoNS > currentMonoNS {
+		// A future monotonic timestamp cannot be mapped reliably; avoid emitting
+		// a future wall-clock event because it would poison timeline ordering.
+		return now
+	}
+
+	return now.Add(-time.Duration(currentMonoNS - monoNS))
 }
