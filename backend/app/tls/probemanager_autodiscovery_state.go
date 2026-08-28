@@ -43,6 +43,7 @@ type TLSAutoDiscoveryStatus struct {
 	Failures          uint64 `json:"failures"`
 	BackoffSkips      uint64 `json:"backoffSkips"`
 	DetachedLinks     uint64 `json:"detachedLinks"`
+	PIDReuseResets    uint64 `json:"pidReuseResets"`
 	ActiveBackoffs    int    `json:"activeBackoffs"`
 	ObservedPIDs      int    `json:"observedPids"`
 	LastError         string `json:"lastError,omitempty"`
@@ -70,6 +71,7 @@ func dropDiscoveryRuntimeState(m *TLSProbeManager) {
 	if m != nil {
 		tlsDiscoveryRuntimeStates.Delete(m)
 		dropPIDLinkState(m)
+		dropPIDIdentityState(m)
 	}
 }
 
@@ -123,6 +125,7 @@ func (m *TLSProbeManager) recordAutoAttachSuccess(kind string, pid int, path str
 	state.mu.Lock()
 	delete(state.retries, tlsAutoAttachKey(kind, pid, path))
 	state.mu.Unlock()
+	m.rememberAutoAttachProcess(pid)
 }
 
 func (m *TLSProbeManager) recordAutoAttachFailure(kind string, pid int, path string, err error, now time.Time) {
@@ -186,16 +189,17 @@ func (m *TLSProbeManager) pruneAutoDiscoveryState() {
 	}
 	state.mu.Lock()
 	for key, retry := range state.retries {
-		if retry.PID > 0 && !processExists(retry.PID) {
+		if retry.PID > 0 && !m.autoAttachProcessCurrent(retry.PID) {
 			delete(state.retries, key)
 		}
 	}
 	for pid := range state.lastCaptureNS {
-		if !processExists(pid) {
+		if !m.autoAttachProcessCurrent(pid) {
 			delete(state.lastCaptureNS, pid)
 		}
 	}
 	state.mu.Unlock()
+	m.pruneProcessIdentities()
 }
 
 func (m *TLSProbeManager) AutoDiscoveryStatus() TLSAutoDiscoveryStatus {
@@ -205,11 +209,12 @@ func (m *TLSProbeManager) AutoDiscoveryStatus() TLSAutoDiscoveryStatus {
 	}
 	now := time.Now()
 	status := TLSAutoDiscoveryStatus{
-		Attempts:      state.attempts.Load(),
-		Successes:     state.successes.Load(),
-		Failures:      state.failures.Load(),
-		BackoffSkips:  state.backoffSkips.Load(),
-		DetachedLinks: state.detachedLinks.Load(),
+		Attempts:       state.attempts.Load(),
+		Successes:      state.successes.Load(),
+		Failures:       state.failures.Load(),
+		BackoffSkips:   state.backoffSkips.Load(),
+		DetachedLinks:  state.detachedLinks.Load(),
+		PIDReuseResets: m.pidReuseResetCount(),
 	}
 	state.mu.Lock()
 	for _, retry := range state.retries {
