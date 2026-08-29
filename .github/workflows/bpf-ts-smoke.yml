@@ -31,7 +31,7 @@ jobs:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
       - name: Install BPF build dependencies
-        run: sudo apt-get update && sudo apt-get install -y clang llvm libbpf-dev libelf-dev
+        run: sudo apt-get update && sudo apt-get install -y clang llvm libbpf-dev libelf-dev linux-libc-dev-arm64-cross
       - name: Install compiler dependencies
         run: bun install
       - name: Typecheck compiler
@@ -42,11 +42,16 @@ jobs:
         run: |
           bun src/cli.ts examples/exec.ts --out generated/exec.bpf.c --manifest generated/exec.json
           bun src/cli.ts examples/tls-write.ts --out generated/tls-write.bpf.c --manifest generated/tls-write.json
-      - name: Compile generated C with clang BPF backend
+      - name: Compile generated C for x86 BPF ABI
         run: |
           ARCH_INCLUDE="/usr/include/$(uname -m)-linux-gnu"
           clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -I"${ARCH_INCLUDE}" -c generated/exec.bpf.c -o generated/exec.bpf.o
           clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -I"${ARCH_INCLUDE}" -c generated/tls-write.bpf.c -o generated/tls-write.bpf.o
+      - name: Cross-compile generated C for arm64 BPF ABI
+        run: |
+          ARM64_INCLUDE="/usr/aarch64-linux-gnu/include"
+          clang -O2 -g -target bpf -D__TARGET_ARCH_arm64 -I"${ARM64_INCLUDE}" -c generated/exec.bpf.c -o generated/exec.arm64.bpf.o
+          clang -O2 -g -target bpf -D__TARGET_ARCH_arm64 -I"${ARM64_INCLUDE}" -c generated/tls-write.bpf.c -o generated/tls-write.arm64.bpf.o
       - name: Go manifest loader tests
         working-directory: backend
         run: go test ./app/bpfts -count=1
@@ -56,6 +61,9 @@ jobs:
           go run ./cmd/bpfts-manifest-check \
             ../tools/bpf-ts/generated/exec.json ../tools/bpf-ts/generated/exec.bpf.o \
             ../tools/bpf-ts/generated/tls-write.json ../tools/bpf-ts/generated/tls-write.bpf.o
+          go run ./cmd/bpfts-manifest-check \
+            ../tools/bpf-ts/generated/exec.json ../tools/bpf-ts/generated/exec.arm64.bpf.o \
+            ../tools/bpf-ts/generated/tls-write.json ../tools/bpf-ts/generated/tls-write.arm64.bpf.o
       - name: Show attach manifests
         run: |
           cat generated/exec.json
