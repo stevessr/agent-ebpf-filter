@@ -77,15 +77,51 @@ func TestCountMaskedFileMatchesKeepsCountBeyondStoredPair(t *testing.T) {
 	}
 }
 
-func TestExecutableFileRangesRejectsNonExecutableAndEmptyLoads(t *testing.T) {
+func TestExecutableFileRangesFiltersSortsAndMergesLoads(t *testing.T) {
 	parsed := &elf.File{Progs: []*elf.Prog{
-		{ProgHeader: elf.ProgHeader{Type: elf.PT_LOAD, Flags: elf.PF_R | elf.PF_X, Off: 0x1000, Filesz: 0x800}},
-		{ProgHeader: elf.ProgHeader{Type: elf.PT_LOAD, Flags: elf.PF_R | elf.PF_W, Off: 0x2000, Filesz: 0x400}},
+		// Intentionally out of order and overlapping/adjacent.
+		{ProgHeader: elf.ProgHeader{Type: elf.PT_LOAD, Flags: elf.PF_R | elf.PF_X, Off: 0x1800, Filesz: 0x900}},
+		{ProgHeader: elf.ProgHeader{Type: elf.PT_LOAD, Flags: elf.PF_R | elf.PF_W, Off: 0x5000, Filesz: 0x400}},
+		{ProgHeader: elf.ProgHeader{Type: elf.PT_LOAD, Flags: elf.PF_R | elf.PF_X, Off: 0x1000, Filesz: 0x900}},
 		{ProgHeader: elf.ProgHeader{Type: elf.PT_NOTE, Flags: elf.PF_R | elf.PF_X, Off: 0x3000, Filesz: 0x100}},
-		{ProgHeader: elf.ProgHeader{Type: elf.PT_LOAD, Flags: elf.PF_R | elf.PF_X, Off: 0x4000, Filesz: 0}},
+		{ProgHeader: elf.ProgHeader{Type: elf.PT_LOAD, Flags: elf.PF_R | elf.PF_X, Off: 0x2100, Filesz: 0x300}},
+		{ProgHeader: elf.ProgHeader{Type: elf.PT_LOAD, Flags: elf.PF_R | elf.PF_X, Off: 0x6000, Filesz: 0}},
 	}}
-	ranges := executableFileRanges(parsed)
-	if len(ranges) != 1 || ranges[0].offset != 0x1000 || ranges[0].size != 0x800 {
-		t.Fatalf("executable ranges = %+v, want only the executable PT_LOAD", ranges)
+	ranges, err := executableFileRanges(parsed)
+	if err != nil {
+		t.Fatalf("executableFileRanges() error = %v", err)
+	}
+	if len(ranges) != 1 || ranges[0].offset != 0x1000 || ranges[0].size != 0x1400 {
+		t.Fatalf("executable ranges = %+v, want merged [0x1000,0x2400)", ranges)
+	}
+}
+
+func TestExecutableFileRangesRejectsOffsetOverflow(t *testing.T) {
+	parsed := &elf.File{Progs: []*elf.Prog{
+		{ProgHeader: elf.ProgHeader{
+			Type: elf.PT_LOAD,
+			Flags: elf.PF_R | elf.PF_X,
+			Off: uint64(maxInt64) - 7,
+			Filesz: 16,
+		}},
+	}}
+	if _, err := executableFileRanges(parsed); err == nil {
+		t.Fatal("overflowing executable file range was accepted")
+	}
+}
+
+func TestScanMaskedFileRangeRejectsNegativeOrOverflowingRange(t *testing.T) {
+	file := writeScanFixture(t, make([]byte, 64))
+	pattern := []byte{1}
+	for name, fileRange := range map[string]strippedSSLFileRange{
+		"negative": {offset: -1, size: 1},
+		"overflow": {offset: maxInt64 - 1, size: 4},
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := scanMaskedFileRange(file, fileRange.offset, fileRange.size, pattern, nil, func(int64) bool { return true })
+			if err == nil {
+				t.Fatalf("invalid scan range %+v was accepted", fileRange)
+			}
+		})
 	}
 }
