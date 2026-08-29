@@ -73,6 +73,7 @@ export interface ProbeIR {
   attach: ProbeAttachIR;
   contextName: string;
   contextType: string;
+  returnType: string;
   body: StmtIR[];
 }
 
