@@ -34,6 +34,15 @@ type Runtime struct {
 	links      []runtimeLink
 }
 
+// Map returns a loaded map by manifest/object name without transferring
+// ownership. The map remains valid until Runtime.Close is called.
+func (runtime *Runtime) Map(name string) *ebpf.Map {
+	if runtime == nil || runtime.Collection == nil || name == "" {
+		return nil
+	}
+	return runtime.Collection.Maps[name]
+}
+
 func closeLinksReverse(links []runtimeLink) error {
 	var errs []error
 	for index := len(links) - 1; index >= 0; index-- {
