@@ -4,7 +4,21 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - feat/bpf-ts
+      - master
+    paths:
+      - "tools/bpf-ts/**"
+      - "backend/app/bpfts/**"
+      - "backend/app/tls/**"
+      - "backend/cmd/bpfts-manifest-check/**"
+      - "backend/cmd/bpfts-attach-check/**"
+      - "backend/ebpf/**"
+      - "backend/go.mod"
+      - "backend/go.sum"
+      - "proto/**"
+      - ".github/workflows/bpf-ts-smoke.yml"
+  pull_request:
+    branches:
+      - master
     paths:
       - "tools/bpf-ts/**"
       - "backend/app/bpfts/**"
@@ -17,6 +31,9 @@ on:
       - "proto/**"
       - ".github/workflows/bpf-ts-smoke.yml"
 
+permissions:
+  contents: read
+
 concurrency:
   group: bpf-ts-smoke-${{ github.ref }}
   cancel-in-progress: true
@@ -24,13 +41,14 @@ concurrency:
 jobs:
   compiler:
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: tools/bpf-ts
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7.0.1
+      - uses: oven-sh/setup-bun@v2.2.0
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
