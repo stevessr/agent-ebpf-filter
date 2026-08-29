@@ -66,9 +66,22 @@ func NewTLSHTTPStreamAssembler(timeout time.Duration) *TLSHTTPStreamAssembler {
 	}
 }
 
+// Add preserves the original call surface for package users and tests. The
+// read loop uses AddRecognized so bytes already owned by a partial HTTP/1
+// stream are not published again through the raw TLS fallback.
 func (a *TLSHTTPStreamAssembler) Add(fragment CompletedTLSFragment) []TLSPlaintextEvent {
+	events, _ := a.AddRecognized(fragment)
+	return events
+}
+
+// AddRecognized returns whether this connection/direction was recognized as
+// HTTP/1, even when no complete message is available yet. Once recognized, the
+// assembler owns those bytes until the message completes or the state is
+// dropped. This prevents split Authorization/body data from leaking through a
+// raw fallback before the sanitized structured event is emitted.
+func (a *TLSHTTPStreamAssembler) AddRecognized(fragment CompletedTLSFragment) ([]TLSPlaintextEvent, bool) {
 	if a == nil || len(fragment.Payload) == 0 {
-		return nil
+		return nil, false
 	}
 	var now time.Time
 	if fragment.TimestampNS == 0 {
@@ -95,7 +108,7 @@ func (a *TLSHTTPStreamAssembler) Add(fragment CompletedTLSFragment) []TLSPlainte
 	if pending == nil {
 		payload := trimTLSHTTPMessageSeparators(fragment.Payload)
 		if !looksLikeTLSHTTPMessageStart(payload, fragment.Direction) {
-			return nil
+			return nil, false
 		}
 		meta := fragment
 		meta.Payload = nil
@@ -114,7 +127,7 @@ func (a *TLSHTTPStreamAssembler) Add(fragment CompletedTLSFragment) []TLSPlainte
 		if len(pending.buffer) > tlsHTTPStreamMaxBuffer {
 			delete(a.pending, key)
 			a.dropped++
-			return nil
+			return nil, true
 		}
 	}
 
@@ -123,16 +136,24 @@ func (a *TLSHTTPStreamAssembler) Add(fragment CompletedTLSFragment) []TLSPlainte
 		pending.buffer = trimTLSHTTPMessageSeparators(pending.buffer)
 		if len(pending.buffer) == 0 {
 			delete(a.pending, key)
-			return events
+			return events, true
 		}
 		messageLen, complete, invalid := tlsCompleteHTTPMessageLength(pending.buffer, fragment.Direction)
 		if invalid {
 			delete(a.pending, key)
 			a.dropped++
-			return events
+			return events, true
 		}
 		if !complete {
-			return events
+			// A truncated TLS probe record means bytes are known to be missing
+			// before the next SSL_read/SSL_write call. Keeping this buffer and
+			// appending the next call can fabricate a syntactically complete HTTP
+			// body across the gap. Drop the state instead of guessing.
+			if pending.flags&tlsFlagTruncated != 0 {
+				delete(a.pending, key)
+				a.dropped++
+			}
+			return events, true
 		}
 
 		messagePayload := append([]byte(nil), pending.buffer[:messageLen]...)
@@ -151,7 +172,12 @@ func (a *TLSHTTPStreamAssembler) Add(fragment CompletedTLSFragment) []TLSPlainte
 		}
 
 		pending.buffer = pending.buffer[messageLen:]
-		pending.flags = 0
+		// Keep a capture-gap flag until every byte present in the truncated
+		// record has been parsed. If a residual message is incomplete, the next
+		// loop iteration will drop it rather than stitching across the gap.
+		if pending.flags&tlsFlagTruncated == 0 {
+			pending.flags = 0
+		}
 	}
 }
 
@@ -336,7 +362,6 @@ func tlsHTTPHasChunkedTransfer(headers map[string][]string) bool {
 			if strings.EqualFold(strings.TrimSpace(part), "chunked") {
 				return true
 			}
-		}
 	}
 	return false
 }
