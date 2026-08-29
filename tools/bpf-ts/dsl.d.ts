@@ -14,7 +14,9 @@ type bytes<N extends number> = Uint8Array & { readonly __bpfLength?: N };
 type ProbeDecorator = (...args: any[]) => any;
 
 declare function kprobe(symbol: string): ProbeDecorator;
+declare function kretprobe(symbol: string): ProbeDecorator;
 declare function uprobe(symbol: string): ProbeDecorator;
+declare function uretprobe(symbol: string): ProbeDecorator;
 declare function tracepoint(category: string, event: string): ProbeDecorator;
 
 interface ProbeContext {}
@@ -28,6 +30,8 @@ interface RingbufMap<T> {
 
 interface KeyValueMap<K, V> {
   set(key: K, value: V): void;
+  getOr(key: K, fallback: V): V;
+  delete(key: K): void;
   increment(key: K): void;
 }
 
@@ -46,6 +50,8 @@ declare const bpf: {
   ktimeNs(): u64;
   currentTask(): u64;
   arg(ctx: ProbeContext, index: 1 | 2 | 3 | 4 | 5): u64;
+  ret(ctx: ProbeContext): i64;
+  retI32(ctx: ProbeContext): i32;
   comm(): bytes<16>;
   userString(pointer: u64): bytes<256>;
   userBytes(pointer: u64, length: u64): bytes<4096>;
