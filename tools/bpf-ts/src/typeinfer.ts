@@ -19,6 +19,13 @@ function coreFieldType(program: ProgramIR, callee: string): BpfType | null {
   return field?.type ?? null;
 }
 
+function mapLookupType(program: ProgramIR, callee: string): BpfType | null {
+  const dot = callee.lastIndexOf(".");
+  if (dot <= 0 || callee.slice(dot + 1) !== "getOr") return null;
+  const map = program.maps.find((candidate) => candidate.name === callee.slice(0, dot));
+  return map?.valueType ?? null;
+}
+
 function inferExpr(program: ProgramIR, env: TypeEnv, expr: ExprIR): BpfType {
   switch (expr.kind) {
     case "number":
@@ -44,9 +51,13 @@ function inferExpr(program: ProgramIR, env: TypeEnv, expr: ExprIR): BpfType {
     case "call": {
       if (["bpf.pid", "bpf.tid", "bpf.uid", "bpf.gid"].includes(expr.callee)) return scalar("u32");
       if (["bpf.ktimeNs", "bpf.arg", "bpf.currentTask"].includes(expr.callee)) return scalar("u64");
+      if (expr.callee === "bpf.ret") return scalar("i64");
+      if (expr.callee === "bpf.retI32") return scalar("i32");
       if (expr.callee === "bpf.comm") return { kind: "bytes", length: 16 };
       if (expr.callee === "bpf.userString") return { kind: "bytes", length: 256 };
       if (expr.callee === "bpf.userBytes") return { kind: "bytes", length: 4096 };
+      const lookupType = mapLookupType(program, expr.callee);
+      if (lookupType) return lookupType;
       const coreType = coreFieldType(program, expr.callee);
       if (coreType) return coreType;
       throw new BpfTsCompileError(`call '${expr.callee}' has no local expression type`);
