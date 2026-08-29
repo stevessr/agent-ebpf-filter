@@ -26,6 +26,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y clang llvm libbpf-dev libelf-dev
       - name: Install compiler dependencies
         run: bun install
+      - name: Typecheck compiler
+        run: bun run build
       - name: Compiler unit tests
         run: bun test
       - name: Generate example BPF C
