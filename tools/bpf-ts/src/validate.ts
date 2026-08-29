@@ -8,6 +8,7 @@ const zeroArgHelpers = new Set([
   "bpf.gid",
   "bpf.ktimeNs",
   "bpf.comm",
+  "bpf.currentTask",
 ]);
 
 interface Scope {
@@ -103,6 +104,11 @@ function validateProbeContext(probe: ProbeIR) {
 function validateCall(probe: ProbeIR, expr: Extract<ExprIR, { kind: "call" }>, maps: Map<string, MapIR>) {
   if (zeroArgHelpers.has(expr.callee)) {
     requireArity(expr, 0);
+    return;
+  }
+
+  if (expr.callee.startsWith("bpf.coreRead.")) {
+    requireArity(expr, 1);
     return;
   }
 
