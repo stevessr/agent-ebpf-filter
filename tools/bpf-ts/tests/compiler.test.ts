@@ -10,15 +10,17 @@ interface Event {
 }
 const events = ringbuf<Event>(1 << 20);
 const counts = hash<u32, u64>(1024);
-@tracepoint("syscalls", "sys_enter_execve")
-export function onExec(ctx: TracepointContext): i32 {
-  const pid = bpf.pid();
-  counts.increment(pid);
-  for (let i = 0; i < 4; i++) {
-    counts.set(pid, i);
+class Probes {
+  @tracepoint("syscalls", "sys_enter_execve")
+  static onExec(ctx: TracepointContext): i32 {
+    const pid = bpf.pid();
+    counts.increment(pid);
+    for (let i = 0; i < 4; i++) {
+      counts.set(pid, i);
+    }
+    events.emit({ pid, uid: bpf.uid(), comm: bpf.comm() });
+    return 0;
   }
-  events.emit({ pid, uid: bpf.uid(), comm: bpf.comm() });
-  return 0;
 }
 `;
 
@@ -40,18 +42,23 @@ describe("bpf-ts compiler", () => {
     });
   });
 
-  test("preserves uprobe attachment metadata while generating a generic uprobe section", () => {
+  test("preserves uprobe attachment metadata and context identifiers", () => {
     const result = compileBpfTs(`
-interface Event { pid: u32; len: u64; }
+interface Event { pid: u32; len: u64; sample: bytes<32>; }
 const events = ringbuf<Event>(65536);
-@uprobe("SSL_write")
-function capture(ctx: UProbeContext): i32 {
-  events.emit({ pid: bpf.pid(), len: bpf.arg(ctx, 3) });
-  return 0;
+class TLSProbes {
+  @uprobe("SSL_write")
+  static capture(regs: UProbeContext): i32 {
+    const buffer = bpf.arg(regs, 2);
+    events.emit({ pid: bpf.pid(), len: bpf.arg(regs, 3), sample: bpf.userBytes(buffer) });
+    return 0;
+  }
 }
 `, "tls.ts");
     expect(result.cSource).toContain('SEC("uprobe")');
-    expect(result.cSource).toContain("PT_REGS_PARM3(ctx)");
+    expect(result.cSource).toContain("struct pt_regs *regs");
+    expect(result.cSource).toContain("PT_REGS_PARM3(regs)");
+    expect(result.cSource).toContain("bpf_probe_read_user");
     expect(result.manifest.probes[0]).toEqual({
       name: "capture",
       kind: "uprobe",
@@ -61,20 +68,24 @@ function capture(ctx: UProbeContext): i32 {
 
   test("rejects unbounded while loops before C generation", () => {
     expect(() => compileBpfTs(`
-@kprobe("do_sys_open")
-function bad(ctx: KProbeContext): i32 {
-  while (bpf.pid() > 0) { return 0; }
-  return 0;
+class Bad {
+  @kprobe("do_sys_open")
+  static bad(ctx: KProbeContext): i32 {
+    while (bpf.pid() > 0) { return 0; }
+    return 0;
+  }
 }
 `, "bad.ts")).toThrow(BpfTsCompileError);
   });
 
   test("rejects bounded loops larger than the verifier-safe policy", () => {
     expect(() => compileBpfTs(`
-@kprobe("do_sys_open")
-function bad(ctx: KProbeContext): i32 {
-  for (let i = 0; i < 65; i++) { bpf.pid(); }
-  return 0;
+class Bad {
+  @kprobe("do_sys_open")
+  static bad(ctx: KProbeContext): i32 {
+    for (let i = 0; i < 65; i++) { bpf.pid(); }
+    return 0;
+  }
 }
 `, "bad-loop.ts")).toThrow("maximum is 64");
   });
@@ -82,11 +93,18 @@ function bad(ctx: KProbeContext): i32 {
   test("rejects any and oversized byte arrays", () => {
     expect(() => compileBpfTs(`
 interface Bad { value: any; }
-@kprobe("x") function p(ctx: KProbeContext): i32 { return 0; }
+class P { @kprobe("x") static p(ctx: KProbeContext): i32 { return 0; } }
 `, "any.ts")).toThrow("'any' is not allowed");
     expect(() => compileBpfTs(`
 interface Bad { data: bytes<4097>; }
-@kprobe("x") function p(ctx: KProbeContext): i32 { return 0; }
+class P { @kprobe("x") static p(ctx: KProbeContext): i32 { return 0; } }
 `, "bytes.ts")).toThrow("between 1 and 4096");
+  });
+
+  test("explains why decorated top-level functions are not the DSL surface", () => {
+    expect(() => compileBpfTs(`
+@kprobe("x")
+function p(ctx: KProbeContext): i32 { return 0; }
+`, "free-function.ts")).toThrow(/top-level functions|TypeScript syntax error/);
   });
 });
