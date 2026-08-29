@@ -11,13 +11,13 @@ import (
 )
 
 const (
-	tlsHTTP2MaxHeaderBlock   = 256 * 1024
-	tlsHTTP2MaxHeaderFields  = 128
-	tlsHTTP2MaxHeaderBytes   = 64 * 1024
-	tlsHTTP2MaxHeaderString  = 64 * 1024
-	tlsHTTP2MaxHPACKTable    = 64 * 1024
-	tlsHTTP2MaxDecoderStates = 1024
-	tlsHTTP2MaxHeaderBlocks  = 2048
+	tlsHTTP2MaxHeaderBlock    = 256 * 1024
+	tlsHTTP2MaxHeaderFields   = 128
+	tlsHTTP2MaxHeaderBytes    = 64 * 1024
+	tlsHTTP2MaxHeaderString   = 64 * 1024
+	tlsHTTP2MaxHPACKTable     = 64 * 1024
+	tlsHTTP2MaxDecoderStates  = 1024
+	tlsHTTP2MaxHeaderBlocks   = 2048
 	tlsHTTP2MaxLogicalStreams = 4096
 )
 
@@ -45,10 +45,13 @@ type tlsHTTP2HPACKDecoderState struct {
 }
 
 type tlsHTTP2LogicalStreamState struct {
-	request     tlsHTTPRequestContext
-	statusCode  int
-	contentType string
-	lastSeen    time.Time
+	request             tlsHTTPRequestContext
+	requestDirection    uint8
+	requestContentType  string
+	statusCode          int
+	responseDirection   uint8
+	responseContentType string
+	lastSeen            time.Time
 }
 
 type tlsHTTP2HeaderDecoder struct {
@@ -308,11 +311,18 @@ func (d *tlsHTTP2HeaderDecoder) applyStreamContext(key tlsHTTP2StreamKey, stream
 	if event.Host == "" {
 		event.Host = state.request.Host
 	}
-	if event.StatusCode == 0 {
+
+	// Method/path/authority describe the logical request and are useful on both
+	// directions. Status and media type are directional: do not paint response
+	// metadata onto request DATA in full-duplex streams.
+	if state.statusCode != 0 && key.Direction == state.responseDirection {
 		event.StatusCode = state.statusCode
 	}
-	if event.ContentType == "" {
-		event.ContentType = state.contentType
+	switch {
+	case state.request.Method != "" && key.Direction == state.requestDirection && state.requestContentType != "":
+		event.ContentType = state.requestContentType
+	case state.statusCode != 0 && key.Direction == state.responseDirection && state.responseContentType != "":
+		event.ContentType = state.responseContentType
 	}
 	return state
 }
@@ -330,10 +340,13 @@ func (d *tlsHTTP2HeaderDecoder) storeHeaderContext(key tlsHTTP2StreamKey, stream
 	state.lastSeen = now
 	if event.Method != "" {
 		state.request = tlsHTTPRequestContext{Method: event.Method, URL: event.URL, Host: event.Host}
+		state.requestDirection = key.Direction
+		state.requestContentType = event.ContentType
 	}
 	if event.StatusCode != 0 {
 		state.statusCode = event.StatusCode
-		state.contentType = event.ContentType
+		state.responseDirection = key.Direction
+		state.responseContentType = event.ContentType
 	}
 	return state
 }
@@ -366,7 +379,7 @@ func (d *tlsHTTP2HeaderDecoder) enrichFrame(key tlsHTTP2StreamKey, event TLSPlai
 		// that could bypass the sanitized body representation.
 		event.RawHexDump = ""
 		event.RawAvailable = true
-		if state != nil && state.statusCode > 0 && flags&0x1 != 0 {
+		if state != nil && state.statusCode > 0 && key.Direction == state.responseDirection && flags&0x1 != 0 {
 			delete(d.streams, tlsHTTP2LogicalKey(key, streamID))
 		}
 		return event
