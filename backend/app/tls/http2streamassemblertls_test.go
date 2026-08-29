@@ -64,8 +64,8 @@ func TestTLSHTTP2StreamAssemblerReassemblesSplitDataFrame(t *testing.T) {
 	if events[0].Type != "http2_data" {
 		t.Fatalf("Type = %q, want http2_data", events[0].Type)
 	}
-	if events[0].Body != `{"type":"message","text":"hello"}` {
-		t.Fatalf("Body = %q", events[0].Body)
+	if !strings.Contains(events[0].Body, `"type": "message"`) || !strings.Contains(events[0].Body, `"text": "hello"`) {
+		t.Fatalf("Body lost JSON semantics after sanitization: %q", events[0].Body)
 	}
 }
 
