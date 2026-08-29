@@ -2,8 +2,13 @@ package tls
 
 import (
 	"bytes"
+	"strconv"
+	"strings"
 	"time"
 )
+
+const tlsHTTPMaxHeaderBytes = 64 * 1024
+const tlsHTTPMaxMessagesPerCapture = 64
 
 var tlsHTTPRequestPrefixes = [][]byte{
 	[]byte("GET "),
@@ -78,6 +83,153 @@ func (a *TLSHTTPStreamAssembler) seedTLSHTTPPrefixLocked(fragment CompletedTLSFr
 	return true
 }
 
+func splitTLSHTTPHeaderLines(payload []byte) ([]string, bool, string) {
+	headerEnd, _ := tlsHTTPHeaderEnd(payload)
+	if headerEnd < 0 {
+		if len(payload) > tlsHTTPMaxHeaderBytes {
+			return nil, false, "HTTP/1 header exceeds bounded parser limit"
+		}
+		return nil, false, ""
+	}
+	if headerEnd > tlsHTTPMaxHeaderBytes {
+		return nil, true, "HTTP/1 header exceeds bounded parser limit"
+	}
+	firstLineEnd := tlsHTTPFirstLineEnd(payload)
+	if firstLineEnd < 0 || firstLineEnd > headerEnd {
+		return nil, true, "invalid HTTP/1 start line"
+	}
+	raw := strings.ReplaceAll(string(payload[firstLineEnd:headerEnd]), "\r\n", "\n")
+	return strings.Split(raw, "\n"), true, ""
+}
+
+// validateTLSHTTPHeaderFraming rejects request-smuggling-style ambiguity before
+// the permissive display parser sees it. We deliberately fail closed because
+// Agent Sight should never guess which bytes belong to a sensitive request.
+func validateTLSHTTPHeaderFraming(payload []byte) (headerComplete bool, reason string) {
+	lines, complete, reason := splitTLSHTTPHeaderLines(payload)
+	if reason != "" || !complete {
+		return complete, reason
+	}
+
+	var contentLengths []int64
+	var transferCodings []string
+	for _, rawLine := range lines {
+		line := strings.TrimRight(rawLine, "\r")
+		if line == "" {
+			continue
+		}
+		if line[0] == ' ' || line[0] == '\t' {
+			return true, "obsolete folded HTTP/1 header is not accepted"
+		}
+		separator := strings.IndexByte(line, ':')
+		if separator <= 0 {
+			return true, "malformed HTTP/1 header line"
+		}
+		rawName := line[:separator]
+		if rawName != strings.TrimSpace(rawName) {
+			return true, "whitespace around HTTP/1 header name is not accepted"
+		}
+		name := strings.ToLower(rawName)
+		value := strings.TrimSpace(line[separator+1:])
+		switch name {
+		case "content-length":
+			for _, token := range strings.Split(value, ",") {
+				token = strings.TrimSpace(token)
+				if token == "" || strings.HasPrefix(token, "+") || strings.HasPrefix(token, "-") {
+					return true, "invalid Content-Length value"
+				}
+				parsed, err := strconv.ParseInt(token, 10, 64)
+				if err != nil || parsed < 0 {
+					return true, "invalid Content-Length value"
+				}
+				if parsed > int64(tlsHTTPStreamMaxBuffer) {
+					return true, "Content-Length exceeds HTTP/1 stream buffer limit"
+				}
+				contentLengths = append(contentLengths, parsed)
+			}
+		case "transfer-encoding":
+			for _, token := range strings.Split(value, ",") {
+				coding := strings.ToLower(strings.TrimSpace(strings.SplitN(token, ";", 2)[0]))
+				if coding == "" {
+					return true, "invalid Transfer-Encoding value"
+				}
+				transferCodings = append(transferCodings, coding)
+			}
+		}
+	}
+
+	if len(contentLengths) > 1 {
+		first := contentLengths[0]
+		for _, value := range contentLengths[1:] {
+			if value != first {
+				return true, "conflicting Content-Length values"
+			}
+		}
+	}
+	if len(contentLengths) > 0 && len(transferCodings) > 0 {
+		return true, "Transfer-Encoding with Content-Length is ambiguous"
+	}
+	if len(transferCodings) > 0 {
+		chunkedCount := 0
+		for _, coding := range transferCodings {
+			if coding == "chunked" {
+				chunkedCount++
+			}
+		}
+		if transferCodings[len(transferCodings)-1] != "chunked" || chunkedCount != 1 {
+			return true, "unsupported or ambiguous Transfer-Encoding chain"
+		}
+	}
+	return true, ""
+}
+
+// validateTLSHTTPFramingSequence checks every complete pipelined message that
+// is already present. It stops at an incomplete body/header; later capture
+// fragments will resume validation before parsing continues.
+func validateTLSHTTPFramingSequence(payload []byte, direction uint8) string {
+	remaining := trimTLSHTTPMessageSeparators(payload)
+	for messages := 0; messages < tlsHTTPMaxMessagesPerCapture && len(remaining) > 0; messages++ {
+		if !looksLikeTLSHTTPMessagePrefix(remaining, direction) {
+			return ""
+		}
+		headerComplete, reason := validateTLSHTTPHeaderFraming(remaining)
+		if reason != "" {
+			return reason
+		}
+		if !headerComplete {
+			return ""
+		}
+		messageLen, complete, invalid := tlsCompleteHTTPMessageLength(remaining, direction)
+		if invalid {
+			return "invalid HTTP/1 message framing"
+		}
+		if !complete {
+			return ""
+		}
+		if messageLen <= 0 || messageLen > len(remaining) {
+			return "invalid HTTP/1 message length"
+		}
+		remaining = trimTLSHTTPMessageSeparators(remaining[messageLen:])
+	}
+	if len(remaining) > 0 {
+		return "too many pipelined HTTP/1 messages in one capture"
+	}
+	return ""
+}
+
+func tlsHTTPFramingCandidateLocked(a *TLSHTTPStreamAssembler, key tlsHTTPBufferKey, fragment CompletedTLSFragment) []byte {
+	pending := a.pending[key]
+	if pending == nil || len(pending.buffer) == 0 {
+		return trimTLSHTTPMessageSeparators(fragment.Payload)
+	}
+	// Only copy the bounded HTTP assembler state. This is a security slow-path
+	// for a partially assembled message, not the common one-shot request path.
+	candidate := make([]byte, 0, len(pending.buffer)+len(fragment.Payload))
+	candidate = append(candidate, pending.buffer...)
+	candidate = append(candidate, fragment.Payload...)
+	return trimTLSHTTPMessageSeparators(candidate)
+}
+
 // AddRecognized mirrors Add while additionally reporting ownership. The read
 // loop uses this signal to suppress raw TLS fallback for partial HTTP/1 bytes.
 // A probe-level truncation is a known capture gap: any residual pending stream
@@ -88,10 +240,23 @@ func (a *TLSHTTPStreamAssembler) AddRecognized(fragment CompletedTLSFragment) ([
 		return nil, false
 	}
 	key := tlsHTTPBufferKeyForFragment(fragment)
+	payload := trimTLSHTTPMessageSeparators(fragment.Payload)
 
 	a.mu.Lock()
 	_, alreadyOwned := a.pending[key]
-	if !alreadyOwned && !looksLikeTLSHTTPMessageStart(trimTLSHTTPMessageSeparators(fragment.Payload), fragment.Direction) {
+	recognized := alreadyOwned || looksLikeTLSHTTPMessageStart(payload, fragment.Direction) || looksLikeTLSHTTPMessagePrefix(payload, fragment.Direction)
+	if recognized {
+		candidate := tlsHTTPFramingCandidateLocked(a, key, fragment)
+		if reason := validateTLSHTTPFramingSequence(candidate, fragment.Direction); reason != "" {
+			if alreadyOwned {
+				delete(a.pending, key)
+			}
+			a.dropped++
+			a.mu.Unlock()
+			return nil, true
+		}
+	}
+	if !alreadyOwned && !looksLikeTLSHTTPMessageStart(payload, fragment.Direction) {
 		if a.seedTLSHTTPPrefixLocked(fragment, key) {
 			if fragment.Flags&tlsFlagTruncated != 0 {
 				delete(a.pending, key)
@@ -103,7 +268,6 @@ func (a *TLSHTTPStreamAssembler) AddRecognized(fragment CompletedTLSFragment) ([
 	}
 	a.mu.Unlock()
 
-	recognized := alreadyOwned || looksLikeTLSHTTPMessageStart(trimTLSHTTPMessageSeparators(fragment.Payload), fragment.Direction)
 	events := a.Add(fragment)
 	if !recognized {
 		return events, false
