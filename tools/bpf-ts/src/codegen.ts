@@ -1,5 +1,6 @@
 import { BpfTsCompileError } from "./diagnostics";
-import type { BpfType, ExprIR, MapIR, ProgramIR, StmtIR } from "./ir";
+import { ringbufScratchMapName } from "./ringbufscratch";
+import type { BpfType, ExprIR, MapIR, ProgramIR, StmtIR, StructIR } from "./ir";
 
 const scalarCType: Record<string, string> = {
   u8: "__u8",
@@ -31,7 +32,9 @@ function mapDefinition(map: MapIR) {
       ? "BPF_MAP_TYPE_RINGBUF"
       : map.kind === "hash"
         ? "BPF_MAP_TYPE_HASH"
-        : "BPF_MAP_TYPE_ARRAY";
+        : map.kind === "percpu_array"
+          ? "BPF_MAP_TYPE_PERCPU_ARRAY"
+          : "BPF_MAP_TYPE_ARRAY";
   lines.push(`  __uint(type, ${bpfType});`);
   lines.push(`  __uint(max_entries, ${map.maxEntries});`);
   if (map.kind !== "ringbuf") {
@@ -151,19 +154,128 @@ class CEmitter {
     return `__bpf_ts_${prefix}_${this.counter}`;
   }
 
-  private emitRingbuf(map: MapIR, payload: ExprIR, indent: string): string[] {
-    const valueType = map.valueType;
-    if (valueType.kind !== "named") {
+  private structForRingbuf(map: MapIR): StructIR {
+    if (map.valueType.kind !== "named") {
       throw new BpfTsCompileError(`ringbuf ${map.name} must use a named struct value type`);
     }
-    const structName = valueType.name;
+    const struct = this.program.structs.find((candidate) => candidate.name === map.valueType.name);
+    if (!struct) throw new BpfTsCompileError(`unknown ringbuf value struct '${map.valueType.name}'`);
+    return struct;
+  }
+
+  private emitByteField(
+    event: string,
+    fieldName: string,
+    value: ExprIR,
+    indent: string,
+  ): string[] {
+    if (value.kind === "call" && value.callee === "bpf.comm" && value.args.length === 0) {
+      return [
+        `${indent}bpf_get_current_comm(${event}->${fieldName}, sizeof(${event}->${fieldName}));`,
+      ];
+    }
+    if (value.kind === "call" && value.callee === "bpf.userString" && value.args.length === 1) {
+      return [
+        `${indent}bpf_probe_read_user_str(${event}->${fieldName}, sizeof(${event}->${fieldName}), (const void *)(${emitExpr(value.args[0])}));`,
+      ];
+    }
+    if (value.kind === "call" && value.callee === "bpf.userBytes" && value.args.length === 2) {
+      const readLen = this.temp("read_len");
+      return [
+        `${indent}__u64 ${readLen} = ${emitExpr(value.args[1])};`,
+        `${indent}if (${readLen} > sizeof(${event}->${fieldName})) ${readLen} = sizeof(${event}->${fieldName});`,
+        `${indent}if (${readLen} > 0) {`,
+        `${indent}  bpf_probe_read_user(${event}->${fieldName}, (__u32)${readLen}, (const void *)(${emitExpr(value.args[0])}));`,
+        `${indent}}`,
+      ];
+    }
+    throw new BpfTsCompileError(
+      `byte field '${fieldName}' requires bpf.comm(), bpf.userString(ptr), or bpf.userBytes(ptr, len)`,
+    );
+  }
+
+  private compactRingbufTail(map: MapIR, payload: Extract<ExprIR, { kind: "object" }>) {
+    const scratch = this.maps.get(ringbufScratchMapName(map.name));
+    if (!scratch || scratch.kind !== "percpu_array") return null;
+    const struct = this.structForRingbuf(map);
+    const tail = struct.fields.at(-1);
+    if (!tail || tail.type.kind !== "bytes") return null;
+    const payloadField = payload.fields.find((field) => field.name === tail.name);
+    if (
+      !payloadField ||
+      payloadField.value.kind !== "call" ||
+      payloadField.value.callee !== "bpf.userBytes" ||
+      payloadField.value.args.length !== 2
+    ) {
+      return null;
+    }
+    return { struct, tail, payloadField, scratch };
+  }
+
+  private emitCompactRingbuf(
+    map: MapIR,
+    payload: Extract<ExprIR, { kind: "object" }>,
+    indent: string,
+  ): string[] | null {
+    const compact = this.compactRingbufTail(map, payload);
+    if (!compact) return null;
+
+    const { struct, tail, payloadField, scratch } = compact;
+    const allowed = new Map(struct.fields.map((field) => [field.name, field]));
+    const key = this.temp("scratch_key");
+    const event = this.temp("event");
+    const readLen = this.temp("read_len");
+    const readRC = this.temp("read_rc");
+    const recordLen = this.temp("record_len");
+    const headerSize = `__builtin_offsetof(struct ${struct.name}, ${tail.name})`;
+    const lines = [
+      `${indent}__u32 ${key} = 0;`,
+      `${indent}struct ${struct.name} *${event} = bpf_map_lookup_elem(&${scratch.name}, &${key});`,
+      `${indent}if (${event}) {`,
+      // Zero the complete emitted prefix, including C padding. The large tail is
+      // never emitted beyond readLen and therefore does not need a 4 KiB memset.
+      `${indent}  __builtin_memset(${event}, 0, ${headerSize});`,
+    ];
+
+    for (const field of payload.fields) {
+      const definition = allowed.get(field.name);
+      if (!definition) throw new BpfTsCompileError(`struct ${struct.name} has no field '${field.name}'`);
+      if (field.name === tail.name) continue;
+      if (definition.type.kind === "bytes") {
+        lines.push(...this.emitByteField(event, field.name, field.value, `${indent}  `));
+      } else {
+        lines.push(`${indent}  ${event}->${field.name} = ${emitExpr(field.value)};`);
+      }
+    }
+
+    const tailCall = payloadField.value;
+    lines.push(
+      `${indent}  __u64 ${readLen} = ${emitExpr(tailCall.args[1])};`,
+      `${indent}  if (${readLen} > sizeof(${event}->${tail.name})) ${readLen} = sizeof(${event}->${tail.name});`,
+      `${indent}  if (${readLen} > 0) {`,
+      `${indent}    long ${readRC} = bpf_probe_read_user(${event}->${tail.name}, (__u32)${readLen}, (const void *)(${emitExpr(tailCall.args[0])}));`,
+      `${indent}    if (${readRC} == 0) {`,
+      `${indent}      __u64 ${recordLen} = ${headerSize} + ${readLen};`,
+      `${indent}      bpf_ringbuf_output(&${map.name}, ${event}, ${recordLen}, 0);`,
+      `${indent}    }`,
+      `${indent}  } else {`,
+      `${indent}    bpf_ringbuf_output(&${map.name}, ${event}, ${headerSize}, 0);`,
+      `${indent}  }`,
+      `${indent}}`,
+    );
+    return lines;
+  }
+
+  private emitRingbuf(map: MapIR, payload: ExprIR, indent: string): string[] {
     if (payload.kind !== "object") throw new BpfTsCompileError(`${map.name}.emit() requires an object literal`);
-    const struct = this.program.structs.find((candidate) => candidate.name === structName);
-    if (!struct) throw new BpfTsCompileError(`unknown ringbuf value struct '${structName}'`);
+    const compact = this.emitCompactRingbuf(map, payload, indent);
+    if (compact) return compact;
+
+    const struct = this.structForRingbuf(map);
     const allowed = new Map(struct.fields.map((field) => [field.name, field]));
     const event = this.temp("event");
     const lines = [
-      `${indent}struct ${structName} *${event} = bpf_ringbuf_reserve(&${map.name}, sizeof(*${event}), 0);`,
+      `${indent}struct ${struct.name} *${event} = bpf_ringbuf_reserve(&${map.name}, sizeof(*${event}), 0);`,
       `${indent}if (${event}) {`,
       `${indent}  __builtin_memset(${event}, 0, sizeof(*${event}));`,
     ];
@@ -171,26 +283,10 @@ class CEmitter {
       const definition = allowed.get(field.name);
       if (!definition) throw new BpfTsCompileError(`struct ${struct.name} has no field '${field.name}'`);
       if (definition.type.kind === "bytes") {
-        if (field.value.kind === "call" && field.value.callee === "bpf.comm" && field.value.args.length === 0) {
-          lines.push(`${indent}  bpf_get_current_comm(${event}->${field.name}, sizeof(${event}->${field.name}));`);
-          continue;
-        }
-        if (field.value.kind === "call" && field.value.callee === "bpf.userString" && field.value.args.length === 1) {
-          lines.push(`${indent}  bpf_probe_read_user_str(${event}->${field.name}, sizeof(${event}->${field.name}), (const void *)(${emitExpr(field.value.args[0])}));`);
-          continue;
-        }
-        if (field.value.kind === "call" && field.value.callee === "bpf.userBytes" && field.value.args.length === 2) {
-          const readLen = this.temp("read_len");
-          lines.push(`${indent}  __u64 ${readLen} = ${emitExpr(field.value.args[1])};`);
-          lines.push(`${indent}  if (${readLen} > sizeof(${event}->${field.name})) ${readLen} = sizeof(${event}->${field.name});`);
-          lines.push(`${indent}  if (${readLen} > 0) {`);
-          lines.push(`${indent}    bpf_probe_read_user(${event}->${field.name}, (__u32)${readLen}, (const void *)(${emitExpr(field.value.args[0])}));`);
-          lines.push(`${indent}  }`);
-          continue;
-        }
-        throw new BpfTsCompileError(`byte field '${field.name}' requires bpf.comm(), bpf.userString(ptr), or bpf.userBytes(ptr, len)`);
+        lines.push(...this.emitByteField(event, field.name, field.value, `${indent}  `));
+      } else {
+        lines.push(`${indent}  ${event}->${field.name} = ${emitExpr(field.value)};`);
       }
-      lines.push(`${indent}  ${event}->${field.name} = ${emitExpr(field.value)};`);
     }
     lines.push(`${indent}  bpf_ringbuf_submit(${event}, 0);`, `${indent}}`);
     return lines;
@@ -210,7 +306,7 @@ class CEmitter {
     const resolved = this.mapCall(stmt.value);
     if (!resolved || resolved.method !== "getOr") return null;
     const { mapName, map } = resolved;
-    if (map.kind === "ringbuf" || !map.keyType || stmt.value.args.length !== 2) {
+    if (map.kind === "ringbuf" || map.kind === "percpu_array" || !map.keyType || stmt.value.args.length !== 2) {
       throw new BpfTsCompileError(`${mapName}.getOr(key, fallback) requires a hash/array map`);
     }
     const key = this.temp("key");
@@ -235,7 +331,7 @@ class CEmitter {
       return this.emitRingbuf(map, call.args[0], indent);
     }
     if (method === "set") {
-      if (map.kind === "ringbuf" || call.args.length !== 2 || !map.keyType) {
+      if (map.kind === "ringbuf" || map.kind === "percpu_array" || call.args.length !== 2 || !map.keyType) {
         throw new BpfTsCompileError(`${mapName}.set(key, value) requires a hash/array map and two arguments`);
       }
       const key = this.temp("key");
@@ -260,7 +356,14 @@ class CEmitter {
       throw new BpfTsCompileError(`${mapName}.getOr() must be used as a direct local initializer`);
     }
     if (method === "increment") {
-      if (map.kind === "ringbuf" || call.args.length !== 1 || !map.keyType || map.valueType.kind !== "scalar" || map.valueType.name !== "u64") {
+      if (
+        map.kind === "ringbuf" ||
+        map.kind === "percpu_array" ||
+        call.args.length !== 1 ||
+        !map.keyType ||
+        map.valueType.kind !== "scalar" ||
+        map.valueType.name !== "u64"
+      ) {
         throw new BpfTsCompileError(`${mapName}.increment(key) requires a hash/array map with u64 values`);
       }
       const key = this.temp("key");
