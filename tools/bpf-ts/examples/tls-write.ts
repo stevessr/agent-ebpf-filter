@@ -18,7 +18,7 @@ export class TLSProbes {
       pid: bpf.pid(),
       length,
       timestampNs: bpf.ktimeNs(),
-      sample: bpf.userBytes(buffer),
+      sample: bpf.userBytes(buffer, length),
     });
     return 0;
   }
