@@ -8,7 +8,7 @@ on:
     paths:
       - "tools/bpf-ts/**"
       - "backend/app/bpfts/**"
-      - "backend/app/tls/bpfts_*.go"
+      - "backend/app/tls/**"
       - "backend/cmd/bpfts-manifest-check/**"
       - "backend/ebpf/**"
       - "backend/go.mod"
@@ -85,9 +85,9 @@ jobs:
       - name: Go manifest loader tests
         working-directory: backend
         run: go test ./app/bpfts -count=1
-      - name: TLS bpf-ts resolver adapter tests
+      - name: TLS package tests
         working-directory: backend
-        run: go test ./app/tls -run '^TestBpfTS' -count=1
+        run: go test ./app/tls -count=1
       - name: Validate generated manifest and ELF contract
         working-directory: backend
         run: |
