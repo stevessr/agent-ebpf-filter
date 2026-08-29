@@ -1,7 +1,7 @@
 import { BpfTsCompileError } from "./diagnostics";
 import type { ExprIR, ProgramIR, StmtIR } from "./ir";
 
-function isArgI32(expr: ExprIR): expr is Extract<ExprIR, { kind: "call" }> {
+function isArgI32(expr: ExprIR): boolean {
   return expr.kind === "call" && expr.callee === "bpf.argI32";
 }
 
@@ -35,7 +35,7 @@ function lowerStatements(statements: StmtIR[]): void {
   for (const statement of statements) {
     switch (statement.kind) {
       case "let":
-        if (isArgI32(statement.value)) {
+        if (statement.value.kind === "call" && statement.value.callee === "bpf.argI32") {
           if (statement.type?.kind !== "scalar" || statement.type.name !== "i32") {
             throw new BpfTsCompileError(
               `bpf.argI32() local '${statement.name}' must infer to i32 before lowering`,
