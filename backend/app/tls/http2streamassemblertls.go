@@ -3,8 +3,6 @@ package tls
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
-	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
@@ -14,6 +12,8 @@ const (
 	tlsHTTP2FrameHeaderSize = 9
 	tlsHTTP2MaxFramePayload = 1 << 20
 	tlsHTTP2MaxBuffer       = 2 << 20
+	tlsHTTP2MaxPending      = 256
+	tlsHTTP2MaxKnown        = 4096
 )
 
 var tlsHTTP2ClientPreface = []byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
@@ -38,6 +38,7 @@ type TLSHTTP2StreamAssembler struct {
 	mu      sync.Mutex
 	pending map[tlsHTTP2StreamKey]*pendingTLSHTTP2Stream
 	known   map[tlsHTTP2StreamKey]time.Time
+	headers *tlsHTTP2HeaderDecoder
 	timeout time.Duration
 	dropped int
 }
@@ -49,6 +50,7 @@ func NewTLSHTTP2StreamAssembler(timeout time.Duration) *TLSHTTP2StreamAssembler 
 	return &TLSHTTP2StreamAssembler{
 		pending: make(map[tlsHTTP2StreamKey]*pendingTLSHTTP2Stream),
 		known:   make(map[tlsHTTP2StreamKey]time.Time),
+		headers: newTLSHTTP2HeaderDecoder(timeout),
 		timeout: timeout,
 	}
 }
@@ -88,6 +90,9 @@ func (a *TLSHTTP2StreamAssembler) Add(fragment CompletedTLSFragment) ([]TLSPlain
 		if !knownConnection && !looksLikeTLSHTTP2Start(fragment.Payload) {
 			return nil, false
 		}
+		if len(a.pending) >= tlsHTTP2MaxPending {
+			a.evictOldestPendingLocked()
+		}
 		meta := fragment
 		meta.Payload = nil
 		pending = &pendingTLSHTTP2Stream{
@@ -105,35 +110,35 @@ func (a *TLSHTTP2StreamAssembler) Add(fragment CompletedTLSFragment) ([]TLSPlain
 	pending.flags |= fragment.Flags
 	pending.buffer = append(pending.buffer, fragment.Payload...)
 	if len(pending.buffer) > tlsHTTP2MaxBuffer {
-		delete(a.pending, key)
-		delete(a.known, key)
+		a.dropStreamLocked(key)
 		a.dropped++
-		return []TLSPlaintextEvent{tlsHTTP2FallbackEvent(fragment, pending.buffer, true)}, true
+		return []TLSPlaintextEvent{tlsHTTP2GapEvent(fragment, "http2_buffer_overflow", true)}, true
 	}
 
-	events, valid := consumeTLSHTTP2Pending(pending)
+	events, valid := a.consumePendingLocked(key, pending)
 	if !valid {
-		// Losing framing means we cannot safely assume the next arbitrary bytes
-		// are still aligned to a frame header. Re-enter autodetection on the next
-		// TLS call instead of permanently misclassifying the connection.
-		delete(a.pending, key)
-		delete(a.known, key)
+		// Losing framing means HPACK state can no longer be trusted either. Do
+		// not mirror the undecodable bytes into raw_hex_dump: they may contain
+		// literal credentials or application plaintext.
+		a.dropStreamLocked(key)
 		a.dropped++
-		return append(events, tlsHTTP2FallbackEvent(fragment, pending.buffer, false)), true
+		return append(events, tlsHTTP2GapEvent(fragment, "http2_framing_error", false)), true
 	}
 
 	if len(events) > 0 || knownConnection {
-		a.known[key] = now
+		a.markKnownLocked(key, now)
 	}
 
-	if fragment.Flags&tlsFlagTruncated != 0 && len(pending.buffer) > 0 {
-		// The tail of this TLS call was not captured, so an incomplete HTTP/2
-		// frame can never be reconstructed correctly. Drop the remainder now
-		// instead of prepending it to the next TLS call on the connection.
-		events = append(events, tlsHTTP2FallbackEvent(fragment, pending.buffer, true))
+	if fragment.Flags&tlsFlagTruncated != 0 {
+		// The kernel captured only a prefix of this TLS call. Even if every byte
+		// we did receive ended exactly on a frame boundary, an unknown tail was
+		// lost and could have changed HPACK / stream state. Emit a metadata-only
+		// gap and force protocol re-detection on the next call.
+		events = append(events, tlsHTTP2GapEvent(fragment, "http2_capture_gap", true))
 		pending.buffer = nil
-		delete(a.known, key)
+		a.dropStreamLocked(key)
 		a.dropped++
+		return events, true
 	}
 
 	if len(pending.buffer) == 0 {
@@ -142,18 +147,109 @@ func (a *TLSHTTP2StreamAssembler) Add(fragment CompletedTLSFragment) ([]TLSPlain
 	return events, true
 }
 
+func (a *TLSHTTP2StreamAssembler) consumePendingLocked(key tlsHTTP2StreamKey, pending *pendingTLSHTTP2Stream) ([]TLSPlaintextEvent, bool) {
+	if pending == nil {
+		return nil, false
+	}
+	var events []TLSPlaintextEvent
+
+	if len(pending.buffer) < len(tlsHTTP2ClientPreface) && bytes.Equal(pending.buffer, tlsHTTP2ClientPreface[:len(pending.buffer)]) {
+		return nil, true
+	}
+	if bytes.HasPrefix(pending.buffer, tlsHTTP2ClientPreface) {
+		preface := append([]byte(nil), pending.buffer[:len(tlsHTTP2ClientPreface)]...)
+		events = append(events, tlsHTTP2PrefaceEvent(pending.meta, preface))
+		pending.buffer = pending.buffer[len(tlsHTTP2ClientPreface):]
+	}
+
+	for len(pending.buffer) >= tlsHTTP2FrameHeaderSize {
+		header := pending.buffer[:tlsHTTP2FrameHeaderSize]
+		if !validTLSHTTP2FrameHeader(header) {
+			return events, false
+		}
+		frameLen := tlsHTTP2FrameLength(header)
+		totalLen := tlsHTTP2FrameHeaderSize + frameLen
+		if len(pending.buffer) < totalLen {
+			break
+		}
+		frame := append([]byte(nil), pending.buffer[:totalLen]...)
+		// A capture-truncated TLS call can still contain one or more completely
+		// captured frames before its missing tail. Those frames are complete;
+		// only the subsequent gap should be marked truncated.
+		frameFlags := pending.flags &^ tlsFlagTruncated
+		event := tlsHTTP2FrameEvent(pending.meta, frame, frameFlags)
+		if a.headers != nil {
+			event = a.headers.enrichFrame(key, event, frame)
+		}
+		events = append(events, event)
+		pending.buffer = pending.buffer[totalLen:]
+		pending.flags = 0
+	}
+
+	if len(pending.buffer) > 0 && cap(pending.buffer) > 4*len(pending.buffer)+4096 {
+		pending.buffer = append([]byte(nil), pending.buffer...)
+	}
+	return events, true
+}
+
+func (a *TLSHTTP2StreamAssembler) dropStreamLocked(key tlsHTTP2StreamKey) {
+	delete(a.pending, key)
+	delete(a.known, key)
+	if a.headers != nil {
+		a.headers.dropConnection(key)
+	}
+}
+
+func (a *TLSHTTP2StreamAssembler) markKnownLocked(key tlsHTTP2StreamKey, now time.Time) {
+	if _, exists := a.known[key]; !exists && len(a.known) >= tlsHTTP2MaxKnown {
+		var oldestKey tlsHTTP2StreamKey
+		var oldest time.Time
+		for candidate, seen := range a.known {
+			if oldest.IsZero() || seen.Before(oldest) {
+				oldestKey = candidate
+				oldest = seen
+			}
+		}
+		if !oldest.IsZero() {
+			delete(a.known, oldestKey)
+		}
+	}
+	a.known[key] = now
+}
+
+func (a *TLSHTTP2StreamAssembler) evictOldestPendingLocked() {
+	var oldestKey tlsHTTP2StreamKey
+	var oldest *pendingTLSHTTP2Stream
+	for key, pending := range a.pending {
+		if oldest == nil || pending.lastSeen.Before(oldest.lastSeen) {
+			oldestKey = key
+			oldest = pending
+		}
+	}
+	if oldest != nil {
+		a.dropStreamLocked(oldestKey)
+		a.dropped++
+	}
+}
+
 func (a *TLSHTTP2StreamAssembler) cleanupExpiredLocked(now time.Time) {
 	for key, pending := range a.pending {
 		if now.Sub(pending.lastSeen) > a.timeout || now.Sub(pending.firstSeen) > 2*a.timeout {
-			delete(a.pending, key)
-			delete(a.known, key)
+			a.dropStreamLocked(key)
 			a.dropped++
 		}
 	}
+	knownTTL := 6 * a.timeout
+	if knownTTL < time.Minute {
+		knownTTL = time.Minute
+	}
 	for key, lastSeen := range a.known {
-		if now.Sub(lastSeen) > 2*a.timeout {
+		if now.Sub(lastSeen) > knownTTL {
 			delete(a.known, key)
 		}
+	}
+	if a.headers != nil {
+		a.headers.cleanup(now)
 	}
 }
 
@@ -246,43 +342,6 @@ func tlsHTTP2StreamID(header []byte) uint32 {
 	return binary.BigEndian.Uint32(header[5:9]) & 0x7fffffff
 }
 
-func consumeTLSHTTP2Pending(pending *pendingTLSHTTP2Stream) ([]TLSPlaintextEvent, bool) {
-	if pending == nil {
-		return nil, false
-	}
-	var events []TLSPlaintextEvent
-
-	if len(pending.buffer) < len(tlsHTTP2ClientPreface) && bytes.Equal(pending.buffer, tlsHTTP2ClientPreface[:len(pending.buffer)]) {
-		return nil, true
-	}
-	if bytes.HasPrefix(pending.buffer, tlsHTTP2ClientPreface) {
-		preface := append([]byte(nil), pending.buffer[:len(tlsHTTP2ClientPreface)]...)
-		events = append(events, tlsHTTP2PrefaceEvent(pending.meta, preface))
-		pending.buffer = pending.buffer[len(tlsHTTP2ClientPreface):]
-	}
-
-	for len(pending.buffer) >= tlsHTTP2FrameHeaderSize {
-		header := pending.buffer[:tlsHTTP2FrameHeaderSize]
-		if !validTLSHTTP2FrameHeader(header) {
-			return events, false
-		}
-		frameLen := tlsHTTP2FrameLength(header)
-		totalLen := tlsHTTP2FrameHeaderSize + frameLen
-		if len(pending.buffer) < totalLen {
-			break
-		}
-		frame := append([]byte(nil), pending.buffer[:totalLen]...)
-		events = append(events, tlsHTTP2FrameEvent(pending.meta, frame, pending.flags))
-		pending.buffer = pending.buffer[totalLen:]
-		pending.flags = 0
-	}
-
-	if len(pending.buffer) > 0 && cap(pending.buffer) > 4*len(pending.buffer)+4096 {
-		pending.buffer = append([]byte(nil), pending.buffer...)
-	}
-	return events, true
-}
-
 func tlsHTTP2PrefaceEvent(meta CompletedTLSFragment, payload []byte) TLSPlaintextEvent {
 	return TLSPlaintextEvent{
 		Type:         "http2_preface",
@@ -295,8 +354,7 @@ func tlsHTTP2PrefaceEvent(meta CompletedTLSFragment, payload []byte) TLSPlaintex
 		Function:     tlsFuncName(meta.Function),
 		CapturedLen:  len(payload),
 		OriginalLen:  len(payload),
-		RawHexDump:   fmt.Sprintf("%x", payload),
-		RawAvailable: true,
+		RawAvailable: false,
 		BodySize:     len(payload),
 		ContentType:  "application/http2",
 	}
@@ -323,7 +381,6 @@ func tlsHTTP2FrameEvent(meta CompletedTLSFragment, frame []byte, flags uint8) TL
 		}
 	}
 
-	hexLen := min(len(frame), 512)
 	return TLSPlaintextEvent{
 		Type:         eventType,
 		Timestamp:    bpfKtimeToWallClock(meta.TimestampNS),
@@ -336,8 +393,7 @@ func tlsHTTP2FrameEvent(meta CompletedTLSFragment, frame []byte, flags uint8) TL
 		CapturedLen:  len(frame),
 		OriginalLen:  len(frame),
 		Truncated:    flags&tlsFlagTruncated != 0,
-		RawHexDump:   fmt.Sprintf("%x", frame[:hexLen]),
-		RawAvailable: true,
+		RawAvailable: false,
 		BodySize:     bodySize,
 		Body:         body,
 		ContentType:  contentType,
@@ -363,19 +419,29 @@ func tlsHTTP2DataPayload(frame []byte) []byte {
 	return payload[:len(payload)-padding]
 }
 
-func tlsHTTP2FallbackEvent(meta CompletedTLSFragment, payload []byte, truncated bool) TLSPlaintextEvent {
-	copyMeta := meta
-	copyMeta.Payload = append([]byte(nil), payload...)
-	copyMeta.TotalLen = uint32(len(payload))
-	copyMeta.OriginalLen = uint32(len(payload))
-	copyMeta.DataLen = uint32(len(payload))
-	if truncated {
-		copyMeta.Flags |= tlsFlagTruncated
+func tlsHTTP2GapEvent(meta CompletedTLSFragment, eventType string, truncated bool) TLSPlaintextEvent {
+	originalLen := int(meta.OriginalLen)
+	if originalLen == 0 {
+		originalLen = int(meta.TotalLen)
 	}
-	event := completedToPlaintextEvent(copyMeta)
-	if truncated && strings.HasPrefix(event.Type, "http2") {
-		event.Type = "http2_truncated"
-		event.Truncated = true
+	if originalLen == 0 {
+		originalLen = len(meta.Payload)
 	}
-	return event
+	return TLSPlaintextEvent{
+		Type:           eventType,
+		Timestamp:      bpfKtimeToWallClock(meta.TimestampNS),
+		PID:            meta.PID,
+		TGID:           meta.TGID,
+		Comm:           meta.Comm,
+		Direction:      tlsDirectionLabel(meta.Direction),
+		Lib:            libTypeName(meta.LibType),
+		Function:       tlsFuncName(meta.Function),
+		CapturedLen:    len(meta.Payload),
+		OriginalLen:    originalLen,
+		RawAvailable:   false,
+		Truncated:      truncated,
+		ContentType:    "application/http2",
+		RedactionState: "suppressed",
+		DataType:       "protocol_gap",
+	}
 }
