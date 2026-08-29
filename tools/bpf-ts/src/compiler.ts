@@ -3,6 +3,7 @@ import { validateCoreAccesses } from "./corevalidate";
 import { markCoreTypeProjections } from "./coretypes";
 import { parseBpfTs } from "./parser";
 import { validatePayloadShapes } from "./payloadvalidate";
+import { validateVerifierResources } from "./resourcevalidate";
 import { validateProbeSignatures } from "./signature";
 import { validateBpfProgram } from "./validate";
 import type { ProbeAttachIR, ProgramIR } from "./ir";
@@ -44,6 +45,7 @@ export function compileBpfTs(sourceText: string, fileName = "program.ts"): BpfTs
   validateBpfProgram(ir);
   validateCoreAccesses(ir);
   validatePayloadShapes(ir);
+  validateVerifierResources(ir);
   return {
     ir,
     cSource: generateBpfC(ir),
