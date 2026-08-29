@@ -49,6 +49,9 @@ func validateBpfTSOpenSSLManifest(manifest bpfts.Manifest) error {
 		bpfTSOpenSSLScratchName: {
 			Name: bpfTSOpenSSLScratchName, Kind: "percpu_array", MaxEntries: 1,
 		},
+		bpfTSOpenSSLDropName: {
+			Name: bpfTSOpenSSLDropName, Kind: "percpu_array", MaxEntries: 1,
+		},
 	}
 	if len(manifest.Maps) != len(expectedMaps) {
 		return fmt.Errorf("bpf-ts OpenSSL ABI requires exactly %d maps, got %d", len(expectedMaps), len(manifest.Maps))
