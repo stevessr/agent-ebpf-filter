@@ -25,6 +25,8 @@ const scalarTypes = new Set<ScalarType>([
 ]);
 const maxBoundedLoopIterations = 64;
 
+type ProbeNode = ts.FunctionDeclaration | ts.MethodDeclaration;
+
 function fail(source: ts.SourceFile, node: ts.Node, message: string): never {
   const pos = source.getLineAndCharacterOfPosition(node.getStart(source));
   throw new BpfTsCompileError(message, source.fileName, pos.line + 1, pos.character + 1);
@@ -127,10 +129,10 @@ function parseMap(source: ts.SourceFile, decl: ts.VariableDeclaration): MapIR | 
   };
 }
 
-function decoratorCall(source: ts.SourceFile, node: ts.FunctionDeclaration): ProbeAttachIR | null {
+function decoratorCall(source: ts.SourceFile, node: ProbeNode): ProbeAttachIR | null {
   const decorators = ts.canHaveDecorators(node) ? ts.getDecorators(node) ?? [] : [];
   if (decorators.length === 0) return null;
-  if (decorators.length !== 1) return fail(source, node, "probe functions require exactly one attach decorator");
+  if (decorators.length !== 1) return fail(source, node, "probe methods require exactly one attach decorator");
   const expr = decorators[0].expression;
   if (!ts.isCallExpression(expr) || !ts.isIdentifier(expr.expression)) {
     return fail(source, expr, "probe decorator must be a direct call such as @kprobe(\"do_sys_open\")");
@@ -319,22 +321,66 @@ function parseStatement(source: ts.SourceFile, node: ts.Statement, probeName: st
   return fail(source, node, `statement '${ts.SyntaxKind[node.kind]}' is not verifier-safe in bpf-ts`);
 }
 
-function parseProbe(source: ts.SourceFile, node: ts.FunctionDeclaration): ProbeIR | null {
+function probeNodeName(source: ts.SourceFile, node: ProbeNode): string {
+  if (!node.name || !ts.isIdentifier(node.name)) return fail(source, node, "probe method requires an identifier name");
+  return node.name.text;
+}
+
+function parseProbe(source: ts.SourceFile, node: ProbeNode): ProbeIR | null {
   const attach = decoratorCall(source, node);
   if (!attach) return null;
-  if (!node.name || !node.body) return fail(source, node, "probe functions require a name and body");
+  if (!node.body) return fail(source, node, "probe method requires a body");
   if (node.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) || node.asteriskToken) {
-    return fail(source, node, "async and generator probe functions are not supported");
+    return fail(source, node, "async and generator probe methods are not supported");
   }
-  if (node.parameters.length !== 1) return fail(source, node, "probe functions require exactly one context parameter");
+  if (ts.isMethodDeclaration(node)) {
+    if (!node.modifiers?.some((m) => m.kind === ts.SyntaxKind.StaticKeyword)) {
+      return fail(source, node, "probe namespace methods must be static");
+    }
+    if (node.questionToken) return fail(source, node, "optional probe methods are not supported");
+  }
+  if (node.parameters.length !== 1) return fail(source, node, "probe methods require exactly one context parameter");
   const parameter = node.parameters[0];
   if (!ts.isIdentifier(parameter.name)) return fail(source, parameter, "probe context parameter must be an identifier");
+  const name = probeNodeName(source, node);
   const contextType = parameter.type?.getText(source) ?? "ProbeContext";
-  return { name: node.name.text, attach, contextType, body: parseBlock(source, node.body, node.name.text) };
+  return {
+    name,
+    attach,
+    contextName: parameter.name.text,
+    contextType,
+    body: parseBlock(source, node.body, name),
+  };
+}
+
+function parseProbeClass(source: ts.SourceFile, node: ts.ClassDeclaration): ProbeIR[] {
+  if (!node.name) return fail(source, node, "probe namespace class requires a name");
+  if (node.typeParameters?.length || node.heritageClauses?.length) {
+    return fail(source, node, "probe namespace classes cannot use generics or inheritance");
+  }
+  const probes: ProbeIR[] = [];
+  for (const member of node.members) {
+    if (!ts.isMethodDeclaration(member)) {
+      return fail(source, member, "probe namespace classes may contain only decorated static methods");
+    }
+    const probe = parseProbe(source, member);
+    if (!probe) return fail(source, member, "probe namespace methods require an attach decorator");
+    probes.push(probe);
+  }
+  return probes;
 }
 
 export function parseBpfTs(sourceText: string, fileName = "program.ts"): ProgramIR {
   const source = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const parseDiagnostics = (source as ts.SourceFile & { parseDiagnostics?: readonly ts.Diagnostic[] }).parseDiagnostics ?? [];
+  if (parseDiagnostics.length > 0) {
+    const diagnostic = parseDiagnostics[0];
+    const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n");
+    const position = diagnostic.start ?? 0;
+    const pos = source.getLineAndCharacterOfPosition(position);
+    throw new BpfTsCompileError(`TypeScript syntax error: ${message}`, fileName, pos.line + 1, pos.character + 1);
+  }
+
   const structs: StructIR[] = [];
   const maps: MapIR[] = [];
   const probes: ProbeIR[] = [];
@@ -352,16 +398,22 @@ export function parseBpfTs(sourceText: string, fileName = "program.ts"): Program
       }
       continue;
     }
-    if (ts.isFunctionDeclaration(statement)) {
-      const probe = parseProbe(source, statement);
-      if (!probe) return fail(source, statement, "top-level functions must have a probe attach decorator");
-      probes.push(probe);
+    if (ts.isClassDeclaration(statement)) {
+      probes.push(...parseProbeClass(source, statement));
       continue;
+    }
+    if (ts.isFunctionDeclaration(statement)) {
+      return fail(source, statement, "top-level functions cannot be decorated in TypeScript; use a probe namespace class with decorated static methods");
     }
     if (ts.isTypeAliasDeclaration(statement) || ts.isEmptyStatement(statement)) continue;
     return fail(source, statement, `unsupported top-level declaration '${ts.SyntaxKind[statement.kind]}'`);
   }
 
-  if (probes.length === 0) throw new BpfTsCompileError("program contains no probe functions", fileName);
+  const names = new Set<string>();
+  for (const probe of probes) {
+    if (names.has(probe.name)) throw new BpfTsCompileError(`duplicate probe name '${probe.name}'`, fileName);
+    names.add(probe.name);
+  }
+  if (probes.length === 0) throw new BpfTsCompileError("program contains no probe methods", fileName);
   return { structs, maps, probes };
 }
