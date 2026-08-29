@@ -5,30 +5,72 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 )
 
-const strippedSSLScanChunkSize int64 = 1 << 20
+const (
+	strippedSSLScanChunkSize int64 = 1 << 20
+	maxInt64                      = int64(1<<63 - 1)
+)
 
 type strippedSSLFileRange struct {
 	offset int64
 	size   int64
 }
 
-func executableFileRanges(file *elf.File) []strippedSSLFileRange {
+// executableFileRanges converts executable PT_LOAD segments to file ranges,
+// sorts them by file offset and merges overlap/adjacency. ELF program headers
+// aren't required to be ordered and page-aligned segments may overlap. Without
+// normalization the same machine-code signature could be counted twice or a
+// later header could incorrectly win the "first match" search.
+func executableFileRanges(file *elf.File) ([]strippedSSLFileRange, error) {
 	if file == nil {
-		return nil
+		return nil, nil
 	}
 	ranges := make([]strippedSSLFileRange, 0, len(file.Progs))
 	for _, program := range file.Progs {
 		if program == nil || program.Type != elf.PT_LOAD || program.Flags&elf.PF_X == 0 || program.Filesz == 0 {
 			continue
 		}
+		if program.Off > uint64(maxInt64) || program.Filesz > uint64(maxInt64) || program.Off > uint64(maxInt64)-program.Filesz {
+			return nil, fmt.Errorf(
+				"executable ELF segment file range overflows int64: offset=%#x size=%#x",
+				program.Off,
+				program.Filesz,
+			)
+		}
 		ranges = append(ranges, strippedSSLFileRange{
 			offset: int64(program.Off),
 			size:   int64(program.Filesz),
 		})
 	}
-	return ranges
+	if len(ranges) < 2 {
+		return ranges, nil
+	}
+	sort.Slice(ranges, func(i, j int) bool {
+		if ranges[i].offset == ranges[j].offset {
+			return ranges[i].size < ranges[j].size
+		}
+		return ranges[i].offset < ranges[j].offset
+	})
+	merged := ranges[:0]
+	for _, current := range ranges {
+		if len(merged) == 0 {
+			merged = append(merged, current)
+			continue
+		}
+		last := &merged[len(merged)-1]
+		lastEnd := last.offset + last.size
+		currentEnd := current.offset + current.size
+		if current.offset <= lastEnd {
+			if currentEnd > lastEnd {
+				last.size = currentEnd - last.offset
+			}
+			continue
+		}
+		merged = append(merged, current)
+	}
+	return merged, nil
 }
 
 func scanMaskedFileRange(
@@ -42,6 +84,9 @@ func scanMaskedFileRange(
 	if file == nil || rangeSize <= 0 || len(pattern) == 0 || visit == nil {
 		return nil
 	}
+	if rangeOffset < 0 || rangeOffset > maxInt64-rangeSize {
+		return fmt.Errorf("scan range is outside int64 file offset space: offset=%#x size=%#x", rangeOffset, rangeSize)
+	}
 	if mask == nil {
 		mask = make([]byte, len(pattern))
 		for index := range mask {
@@ -53,10 +98,7 @@ func scanMaskedFileRange(
 	}
 
 	end := rangeOffset + rangeSize
-	if end < rangeOffset {
-		return fmt.Errorf("scan range overflows file offset space")
-	}
-	buffer := make([]byte, strippedSSLScanChunkSize+int64(len(pattern))-1)
+	buffer := make([]byte, int(strippedSSLScanChunkSize)+len(pattern)-1)
 	for chunkStart := rangeOffset; chunkStart < end; chunkStart += strippedSSLScanChunkSize {
 		primary := strippedSSLScanChunkSize
 		if remaining := end - chunkStart; remaining < primary {
@@ -120,12 +162,21 @@ func firstExactFileMatchNear(
 	center int64,
 	searchRange int64,
 ) (int64, error) {
-	windowStart := center - searchRange
-	if windowStart < 0 {
-		windowStart = 0
+	if center < 0 || searchRange < 0 {
+		return -1, fmt.Errorf("near-scan center and range must be non-negative")
 	}
-	windowEnd := center + searchRange
+	windowStart := int64(0)
+	if center > searchRange {
+		windowStart = center - searchRange
+	}
+	windowEnd := maxInt64
+	if center <= maxInt64-searchRange {
+		windowEnd = center + searchRange
+	}
 	for _, fileRange := range ranges {
+		if fileRange.offset < 0 || fileRange.size <= 0 || fileRange.offset > maxInt64-fileRange.size {
+			return -1, fmt.Errorf("near-scan range is outside int64 file offset space")
+		}
 		start := fileRange.offset
 		end := fileRange.offset + fileRange.size
 		if start < windowStart {
@@ -167,6 +218,9 @@ func countMaskedFileMatches(file *os.File, ranges []strippedSSLFileRange, patter
 }
 
 func fileContainsPattern(file *os.File, fileSize int64, pattern []byte) (bool, error) {
+	if fileSize < 0 {
+		return false, fmt.Errorf("file size must not be negative")
+	}
 	match, err := firstExactFileMatch(file, []strippedSSLFileRange{{offset: 0, size: fileSize}}, pattern)
 	return match >= 0, err
 }
@@ -194,7 +248,10 @@ func discoverKnownStrippedSSLFile(path string) (strippedSSLDiscovery, error) {
 		)
 	}
 
-	executable := executableFileRanges(parsed)
+	executable, err := executableFileRanges(parsed)
+	if err != nil {
+		return strippedSSLDiscovery{}, fmt.Errorf("normalize executable ELF ranges: %w", err)
+	}
 	if len(executable) == 0 {
 		return strippedSSLDiscovery{}, fmt.Errorf("ELF target %q has no executable PT_LOAD segment", path)
 	}
@@ -204,6 +261,9 @@ func discoverKnownStrippedSSLFile(path string) (strippedSSLDiscovery, error) {
 		return strippedSSLDiscovery{}, err
 	}
 	if readOff >= 0 {
+		if readOff > maxInt64-0xCA0 {
+			return strippedSSLDiscovery{}, fmt.Errorf("BoringSSL read offset is too large for nearby write scan")
+		}
 		writeOff, err := firstExactFileMatchNear(raw, executable, bsSSLWrite.pattern, readOff+0xCA0, 0x10000)
 		if err != nil {
 			return strippedSSLDiscovery{}, err
