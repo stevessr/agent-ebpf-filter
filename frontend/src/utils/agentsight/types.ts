@@ -124,4 +124,12 @@ export interface DecodedStdioMessage {
   preview?: string;
   title: string;
   summary: string;
+
+  // Incremental Content-Length framing metadata. These fields are optional so
+  // one-off/stateless decoding remains API-compatible.
+  streamKey?: string;
+  reassembled?: boolean;
+  reassembledBytes?: number;
+  pendingBytes?: number;
+  reassemblyReset?: string;
 }
