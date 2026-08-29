@@ -5,6 +5,7 @@ import { parseBpfTs } from "./parser";
 import { validatePayloadShapes } from "./payloadvalidate";
 import { validateVerifierResources } from "./resourcevalidate";
 import { validateProbeSignatures } from "./signature";
+import { inferLocalTypes } from "./typeinfer";
 import { validateBpfProgram } from "./validate";
 import type { ProbeAttachIR, ProgramIR } from "./ir";
 
@@ -44,6 +45,7 @@ export function compileBpfTs(sourceText: string, fileName = "program.ts"): BpfTs
   markCoreTypeProjections(sourceText, fileName, ir);
   validateBpfProgram(ir);
   validateCoreAccesses(ir);
+  inferLocalTypes(ir);
   validatePayloadShapes(ir);
   validateVerifierResources(ir);
   return {
