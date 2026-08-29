@@ -42,25 +42,28 @@ jobs:
         run: |
           bun src/cli.ts examples/exec.ts --out generated/exec.bpf.c --manifest generated/exec.json
           bun src/cli.ts examples/tls-write.ts --out generated/tls-write.bpf.c --manifest generated/tls-write.json
+          bun src/cli.ts examples/tls-read.ts --out generated/tls-read.bpf.c --manifest generated/tls-read.json
           bun src/cli.ts examples/core-task.ts --out generated/core-task.bpf.c --manifest generated/core-task.json
       - name: Compile generated C for x86 BPF ABI
         run: |
           ARCH_INCLUDE="/usr/include/$(uname -m)-linux-gnu"
           clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -I"${ARCH_INCLUDE}" -c generated/exec.bpf.c -o generated/exec.bpf.o
           clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -I"${ARCH_INCLUDE}" -c generated/tls-write.bpf.c -o generated/tls-write.bpf.o
+          clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -I"${ARCH_INCLUDE}" -c generated/tls-read.bpf.c -o generated/tls-read.bpf.o
           clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -I"${ARCH_INCLUDE}" -c generated/core-task.bpf.c -o generated/core-task.bpf.o
       - name: Cross-compile generated C for arm64 BPF ABI
         run: |
           ARM64_INCLUDE="/usr/aarch64-linux-gnu/include"
           clang -O2 -g -target bpf -D__TARGET_ARCH_arm64 -I"${ARM64_INCLUDE}" -c generated/exec.bpf.c -o generated/exec.arm64.bpf.o
           clang -O2 -g -target bpf -D__TARGET_ARCH_arm64 -I"${ARM64_INCLUDE}" -c generated/tls-write.bpf.c -o generated/tls-write.arm64.bpf.o
+          clang -O2 -g -target bpf -D__TARGET_ARCH_arm64 -I"${ARM64_INCLUDE}" -c generated/tls-read.bpf.c -o generated/tls-read.arm64.bpf.o
           clang -O2 -g -target bpf -D__TARGET_ARCH_arm64 -I"${ARM64_INCLUDE}" -c generated/core-task.bpf.c -o generated/core-task.arm64.bpf.o
       - name: Verify CO-RE BTF relocation sections
         run: |
-          llvm-readelf -S generated/core-task.bpf.o | grep -F '.BTF'
-          llvm-readelf -S generated/core-task.bpf.o | grep -F '.BTF.ext'
-          llvm-readelf -S generated/core-task.arm64.bpf.o | grep -F '.BTF'
-          llvm-readelf -S generated/core-task.arm64.bpf.o | grep -F '.BTF.ext'
+          llvm-readelf -S generated/core-task.bpf.o | grep -q '\.BTF'
+          llvm-readelf -S generated/core-task.bpf.o | grep -q '\.BTF\.ext'
+          llvm-readelf -S generated/core-task.arm64.bpf.o | grep -q '\.BTF'
+          llvm-readelf -S generated/core-task.arm64.bpf.o | grep -q '\.BTF\.ext'
       - name: Go manifest loader tests
         working-directory: backend
         run: go test ./app/bpfts -count=1
@@ -70,13 +73,16 @@ jobs:
           go run ./cmd/bpfts-manifest-check \
             ../tools/bpf-ts/generated/exec.json ../tools/bpf-ts/generated/exec.bpf.o \
             ../tools/bpf-ts/generated/tls-write.json ../tools/bpf-ts/generated/tls-write.bpf.o \
+            ../tools/bpf-ts/generated/tls-read.json ../tools/bpf-ts/generated/tls-read.bpf.o \
             ../tools/bpf-ts/generated/core-task.json ../tools/bpf-ts/generated/core-task.bpf.o
           go run ./cmd/bpfts-manifest-check \
             ../tools/bpf-ts/generated/exec.json ../tools/bpf-ts/generated/exec.arm64.bpf.o \
             ../tools/bpf-ts/generated/tls-write.json ../tools/bpf-ts/generated/tls-write.arm64.bpf.o \
+            ../tools/bpf-ts/generated/tls-read.json ../tools/bpf-ts/generated/tls-read.arm64.bpf.o \
             ../tools/bpf-ts/generated/core-task.json ../tools/bpf-ts/generated/core-task.arm64.bpf.o
       - name: Show attach manifests
         run: |
           cat generated/exec.json
           cat generated/tls-write.json
+          cat generated/tls-read.json
           cat generated/core-task.json
