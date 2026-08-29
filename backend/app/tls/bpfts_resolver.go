@@ -57,6 +57,7 @@ func (resolver *bpfTSTLSResolver) inspectELF() {
 			if symbol.Name != "" {
 				resolver.symbols[symbol.Name] = struct{}{}
 			}
+		}
 	}
 }
 
