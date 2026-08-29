@@ -8,7 +8,11 @@ import (
 
 // ---- moved from backend/zz_merged_backend.go section capturetypestls.go ----
 
-const tlsFragmentSize = 960
+// Compact perf samples make the on-wire size metadata+DataLen rather than the
+// full Go/BPF struct, so increasing the scratch fragment does not penalize small
+// TLS calls. 1984 keeps a full compact sample at 2044 bytes and doubles the
+// capture window while leaving the verifier-visible loop bound unchanged.
+const tlsFragmentSize = 1984
 const tlsMaxFragments = 18
 
 const tlsLibOpenSSL = 0
