@@ -109,13 +109,48 @@ func ValidateObjectManifest(objectPath string, manifest Manifest) error {
 	return err
 }
 
+func needsUprobeResolver(kind string) bool {
+	return kind == "uprobe" || kind == "uretprobe"
+}
+
+func attachUserProbe(
+	probe ManifestProbe,
+	program *ebpf.Program,
+	resolver UprobeResolver,
+) (link.Link, error) {
+	target, err := resolver(probe)
+	if err != nil {
+		return nil, fmt.Errorf("resolve %s %q: %w", probe.Kind, probe.Name, err)
+	}
+	if target.Path == "" {
+		return nil, fmt.Errorf("resolve %s %q: executable path is empty", probe.Kind, probe.Name)
+	}
+	executable, err := link.OpenExecutable(target.Path)
+	if err != nil {
+		return nil, fmt.Errorf("open executable for %s %q: %w", probe.Kind, probe.Name, err)
+	}
+	symbol := target.Symbol
+	if symbol == "" && target.Address == 0 {
+		symbol = probe.Target
+	}
+	options := &link.UprobeOptions{
+		Address: target.Address,
+		Offset:  target.Offset,
+		PID:     target.PID,
+	}
+	if probe.Kind == "uretprobe" {
+		return executable.Uretprobe(symbol, program, options)
+	}
+	return executable.Uprobe(symbol, program, options)
+}
+
 func LoadAndAttach(objectPath string, manifest Manifest, options LoadOptions) (*Runtime, error) {
 	if err := manifest.Validate(); err != nil {
 		return nil, err
 	}
 	for _, probe := range manifest.Probes {
-		if probe.Kind == "uprobe" && options.ResolveUprobe == nil {
-			return nil, fmt.Errorf("uprobe %q requires a UprobeResolver", probe.Name)
+		if needsUprobeResolver(probe.Kind) && options.ResolveUprobe == nil {
+			return nil, fmt.Errorf("%s %q requires a UprobeResolver", probe.Kind, probe.Name)
 		}
 	}
 
@@ -147,29 +182,12 @@ func LoadAndAttach(objectPath string, manifest Manifest, options LoadOptions) (*
 		switch probe.Kind {
 		case "kprobe":
 			attached, err = link.Kprobe(probe.Target, program, nil)
+		case "kretprobe":
+			attached, err = link.Kretprobe(probe.Target, program, nil)
 		case "tracepoint":
 			attached, err = link.Tracepoint(probe.Category, probe.Event, program, nil)
-		case "uprobe":
-			target, resolveErr := options.ResolveUprobe(probe)
-			if resolveErr != nil {
-				return cleanup(fmt.Errorf("resolve uprobe %q: %w", probe.Name, resolveErr))
-			}
-			if target.Path == "" {
-				return cleanup(fmt.Errorf("resolve uprobe %q: executable path is empty", probe.Name))
-			}
-			executable, openErr := link.OpenExecutable(target.Path)
-			if openErr != nil {
-				return cleanup(fmt.Errorf("open executable for uprobe %q: %w", probe.Name, openErr))
-			}
-			symbol := target.Symbol
-			if symbol == "" && target.Address == 0 {
-				symbol = probe.Target
-			}
-			attached, err = executable.Uprobe(symbol, program, &link.UprobeOptions{
-				Address: target.Address,
-				Offset:  target.Offset,
-				PID:     target.PID,
-			})
+		case "uprobe", "uretprobe":
+			attached, err = attachUserProbe(probe, program, options.ResolveUprobe)
 		default:
 			return cleanup(fmt.Errorf("unsupported probe kind %q", probe.Kind))
 		}
