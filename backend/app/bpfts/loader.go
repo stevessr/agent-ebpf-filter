@@ -19,8 +19,8 @@ type UprobeTarget struct {
 type UprobeResolver func(ManifestProbe) (UprobeTarget, error)
 
 type LoadOptions struct {
-	Collection     ebpf.CollectionOptions
-	ResolveUprobe  UprobeResolver
+	Collection    ebpf.CollectionOptions
+	ResolveUprobe UprobeResolver
 }
 
 type Runtime struct {
@@ -88,22 +88,37 @@ func validateCollectionSpec(spec *ebpf.CollectionSpec, manifest Manifest) error 
 	return nil
 }
 
-func LoadAndAttach(objectPath string, manifest Manifest, options LoadOptions) (*Runtime, error) {
+func loadValidatedSpec(objectPath string, manifest Manifest) (*ebpf.CollectionSpec, error) {
 	if err := manifest.Validate(); err != nil {
 		return nil, err
 	}
-	for _, probe := range manifest.Probes {
-		if probe.Kind == "uprobe" && options.ResolveUprobe == nil {
-			return nil, fmt.Errorf("uprobe %q requires a UprobeResolver", probe.Name)
-		}
-	}
-
 	spec, err := ebpf.LoadCollectionSpec(objectPath)
 	if err != nil {
 		return nil, fmt.Errorf("load bpf-ts object spec %q: %w", objectPath, err)
 	}
 	if err := validateCollectionSpec(spec, manifest); err != nil {
 		return nil, fmt.Errorf("validate bpf-ts object against manifest: %w", err)
+	}
+	return spec, nil
+}
+
+// ValidateObjectManifest checks the ELF metadata contract without loading any
+// BPF program into the kernel. It is safe to use from unprivileged CI jobs.
+func ValidateObjectManifest(objectPath string, manifest Manifest) error {
+	_, err := loadValidatedSpec(objectPath, manifest)
+	return err
+}
+
+func LoadAndAttach(objectPath string, manifest Manifest, options LoadOptions) (*Runtime, error) {
+	for _, probe := range manifest.Probes {
+		if probe.Kind == "uprobe" && options.ResolveUprobe == nil {
+			return nil, fmt.Errorf("uprobe %q requires a UprobeResolver", probe.Name)
+		}
+	}
+
+	spec, err := loadValidatedSpec(objectPath, manifest)
+	if err != nil {
+		return nil, err
 	}
 	collection, err := ebpf.NewCollectionWithOptions(spec, options.Collection)
 	if err != nil {
