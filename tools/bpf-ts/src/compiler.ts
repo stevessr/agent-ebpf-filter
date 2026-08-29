@@ -7,12 +7,13 @@ import { parseBpfTs } from "./parser";
 import { validatePayloadShapes } from "./payloadvalidate";
 import { applyReturnProbeKinds, normalizeReturnProbeDecorators } from "./probedecorators";
 import { validateVerifierResources } from "./resourcevalidate";
+import { addCompactRingbufScratchMaps } from "./ringbufscratch";
 import { lowerLargeRingbufZeroing } from "./ringbufzero";
 import { validateProbeSignatures } from "./signature";
 import { lowerTakeOr } from "./takeor";
 import { inferLocalTypes } from "./typeinfer";
 import { validateBpfProgram } from "./validate";
-import type { ProbeAttachIR, ProbeKind, ProgramIR } from "./ir";
+import type { MapKind, ProbeAttachIR, ProbeKind, ProgramIR } from "./ir";
 
 function probeSection(attach: ProbeAttachIR): string {
   switch (attach.kind) {
@@ -42,7 +43,7 @@ export interface BpfTsManifest {
   }>;
   maps: Array<{
     name: string;
-    kind: "ringbuf" | "hash" | "array";
+    kind: MapKind;
     maxEntries: number;
   }>;
 }
@@ -79,6 +80,15 @@ export function compileBpfTs(sourceText: string, fileName = "program.ts"): BpfTs
 
   validatePayloadShapes(ir);
   validateVerifierResources(ir);
+
+  // Large trailing user-byte payloads use compiler-owned per-CPU scratch
+  // storage and bpf_ringbuf_output(header + captured bytes). Add these maps only
+  // after user-program validation so the internal structured map representation
+  // never leaks into the public DSL validation surface.
+  addCompactRingbufScratchMaps(ir);
+
+  // Keep the older large-record zeroing rewrite as a fail-safe for large
+  // ringbuf records that cannot use the compact trailing-bytes path.
   const cSource = lowerLargeRingbufZeroing(ir, generateBpfC(ir));
   return {
     ir,
