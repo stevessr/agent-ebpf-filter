@@ -91,6 +91,11 @@ export function validateCoreAccesses(program: ProgramIR) {
           `CO-RE read in probe '${probe.name}' references unknown kernel struct '${access.structName}'`,
         );
       }
+      if (!struct.core) {
+        throw new BpfTsCompileError(
+          `CO-RE struct '${access.structName}' must be declared as 'declare interface ${access.structName} { ... }'`,
+        );
+      }
       const field = struct.fields.find((candidate) => candidate.name === access.fieldName);
       if (!field) {
         throw new BpfTsCompileError(
