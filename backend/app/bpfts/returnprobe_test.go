@@ -62,3 +62,10 @@ func TestLoadAndAttachRequiresResolverForUretprobeBeforeObjectLoad(t *testing.T)
 		t.Fatalf("expected uretprobe resolver error before object loading, got %v", err)
 	}
 }
+
+func TestAttachUserProbeRejectsNilResolverWithoutPanic(t *testing.T) {
+	probe := ManifestProbe{Name: "exit", Kind: "uretprobe", Section: "uretprobe", Target: "SSL_read"}
+	if _, err := attachUserProbe(probe, nil, nil); err == nil || !strings.Contains(err.Error(), "requires a UprobeResolver") {
+		t.Fatalf("expected nil-resolver error, got %v", err)
+	}
+}
