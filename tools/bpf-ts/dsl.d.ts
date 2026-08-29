@@ -44,5 +44,6 @@ declare const bpf: {
   arg(ctx: ProbeContext, index: 1 | 2 | 3 | 4 | 5): u64;
   comm(): bytes<16>;
   userString(pointer: u64): bytes<256>;
+  userBytes(pointer: u64): bytes<4096>;
   readUser<T>(target: T, pointer: u64): void;
 };
