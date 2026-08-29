@@ -23,7 +23,7 @@ export class TLSReadProbes {
   }
 
   @uretprobe("SSL_read")
-  static exit(ctx: UProbeContext): i32 {
+  static complete(ctx: UProbeContext): i32 {
     const tid = bpf.tid();
     const buffer = pendingReadBuffers.takeOr(tid, 0);
     const length = bpf.retI32(ctx);
