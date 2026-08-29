@@ -84,9 +84,6 @@ func (a *TLSHTTP2StreamAssembler) Add(fragment CompletedTLSFragment) ([]TLSPlain
 	pending := a.pending[key]
 	_, knownConnection := a.known[key]
 	if pending == nil {
-		// Once a direction on a concrete TLS connection has emitted a valid
-		// HTTP/2 preface/frame, accept even a <9-byte next chunk. TLS APIs are
-		// allowed to split the fixed frame header itself across calls.
 		if !knownConnection && !looksLikeTLSHTTP2Start(fragment.Payload) {
 			return nil, false
 		}
@@ -117,9 +114,6 @@ func (a *TLSHTTP2StreamAssembler) Add(fragment CompletedTLSFragment) ([]TLSPlain
 
 	events, valid := a.consumePendingLocked(key, pending)
 	if !valid {
-		// Losing framing means HPACK state can no longer be trusted either. Do
-		// not mirror the undecodable bytes into raw_hex_dump: they may contain
-		// literal credentials or application plaintext.
 		a.dropStreamLocked(key)
 		a.dropped++
 		return append(events, tlsHTTP2GapEvent(fragment, "http2_framing_error", false)), true
@@ -130,10 +124,6 @@ func (a *TLSHTTP2StreamAssembler) Add(fragment CompletedTLSFragment) ([]TLSPlain
 	}
 
 	if fragment.Flags&tlsFlagTruncated != 0 {
-		// The kernel captured only a prefix of this TLS call. Even if every byte
-		// we did receive ended exactly on a frame boundary, an unknown tail was
-		// lost and could have changed HPACK / stream state. Emit a metadata-only
-		// gap and force protocol re-detection on the next call.
 		events = append(events, tlsHTTP2GapEvent(fragment, "http2_capture_gap", true))
 		pending.buffer = nil
 		a.dropStreamLocked(key)
@@ -157,7 +147,9 @@ func (a *TLSHTTP2StreamAssembler) consumePendingLocked(key tlsHTTP2StreamKey, pe
 		return nil, true
 	}
 	if bytes.HasPrefix(pending.buffer, tlsHTTP2ClientPreface) {
-		preface := append([]byte(nil), pending.buffer[:len(tlsHTTP2ClientPreface)]...)
+		// The preface event only records metadata/length, so retaining a copy of
+		// these bytes is unnecessary.
+		preface := pending.buffer[:len(tlsHTTP2ClientPreface)]
 		events = append(events, tlsHTTP2PrefaceEvent(pending.meta, preface))
 		pending.buffer = pending.buffer[len(tlsHTTP2ClientPreface):]
 	}
@@ -172,14 +164,18 @@ func (a *TLSHTTP2StreamAssembler) consumePendingLocked(key tlsHTTP2StreamKey, pe
 		if len(pending.buffer) < totalLen {
 			break
 		}
-		frame := append([]byte(nil), pending.buffer[:totalLen]...)
-		// A capture-truncated TLS call can still contain one or more completely
-		// captured frames before its missing tail. Those frames are complete;
-		// only the subsequent gap should be marked truncated.
+
+		// Frame parsing, body formatting and HPACK decoding are synchronous and
+		// returned events never retain the input slice. Consume the assembler's
+		// buffer directly instead of allocating/copying every frame.
+		frame := pending.buffer[:totalLen]
 		frameFlags := pending.flags &^ tlsFlagTruncated
 		event := tlsHTTP2FrameEvent(pending.meta, frame, frameFlags)
 		if a.headers != nil {
 			event = a.headers.enrichFrame(key, event, frame)
+		}
+		if event.RawHexDump == "" {
+			event.RawAvailable = false
 		}
 		events = append(events, event)
 		pending.buffer = pending.buffer[totalLen:]
@@ -297,15 +293,15 @@ func validTLSHTTP2FrameHeader(header []byte) bool {
 	streamID := tlsHTTP2StreamID(header)
 
 	switch frameType {
-	case 0x0: // DATA
+	case 0x0:
 		return streamID != 0
-	case 0x1: // HEADERS
+	case 0x1:
 		return streamID != 0
-	case 0x2: // PRIORITY
+	case 0x2:
 		return streamID != 0 && length == 5
-	case 0x3: // RST_STREAM
+	case 0x3:
 		return streamID != 0 && length == 4
-	case 0x4: // SETTINGS
+	case 0x4:
 		if streamID != 0 {
 			return false
 		}
@@ -313,15 +309,15 @@ func validTLSHTTP2FrameHeader(header []byte) bool {
 			return length == 0
 		}
 		return length%6 == 0
-	case 0x5: // PUSH_PROMISE
+	case 0x5:
 		return streamID != 0 && length >= 4
-	case 0x6: // PING
+	case 0x6:
 		return streamID == 0 && length == 8
-	case 0x7: // GOAWAY
+	case 0x7:
 		return streamID == 0 && length >= 8
-	case 0x8: // WINDOW_UPDATE
+	case 0x8:
 		return length == 4
-	case 0x9: // CONTINUATION
+	case 0x9:
 		return streamID != 0
 	default:
 		return false
@@ -405,7 +401,7 @@ func tlsHTTP2DataPayload(frame []byte) []byte {
 		return nil
 	}
 	payload := frame[tlsHTTP2FrameHeaderSize:]
-	if frame[4]&0x8 == 0 { // PADDED
+	if frame[4]&0x8 == 0 {
 		return payload
 	}
 	if len(payload) == 0 {
