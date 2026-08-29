@@ -8,11 +8,13 @@ import (
 const (
 	bpfTSOpenSSLMetadataSize = 48
 	bpfTSOpenSSLSampleSize   = 4096
-	bpfTSOpenSSLEventSize    = bpfTSOpenSSLMetadataSize + bpfTSOpenSSLSampleSize
+	// EventSize remains the legacy fixed-size record for transition compatibility.
+	bpfTSOpenSSLEventSize = bpfTSOpenSSLMetadataSize + bpfTSOpenSSLSampleSize
 
 	bpfTSOpenSSLDirectionRecv = 0
 	bpfTSOpenSSLDirectionSend = 1
 	bpfTSOpenSSLRingName      = "tlsOpenSSLEvents"
+	bpfTSOpenSSLScratchName   = "__bpf_ts_scratch_tlsOpenSSLEvents"
 )
 
 type bpfTSOpenSSLEvent struct {
@@ -24,14 +26,26 @@ type bpfTSOpenSSLEvent struct {
 	Direction    uint8
 	Function     uint8
 	Comm         [16]byte
+	CapturedLen  uint32
 	Sample       [bpfTSOpenSSLSampleSize]byte
 }
 
+func expectedBpfTSOpenSSLCapturedLen(length int32) int {
+	if length <= 0 {
+		return 0
+	}
+	captured := int(length)
+	if captured > bpfTSOpenSSLSampleSize {
+		captured = bpfTSOpenSSLSampleSize
+	}
+	return captured
+}
+
 func decodeBpfTSOpenSSLEvent(raw []byte) (bpfTSOpenSSLEvent, error) {
-	if len(raw) != bpfTSOpenSSLEventSize {
+	if len(raw) < bpfTSOpenSSLMetadataSize || len(raw) > bpfTSOpenSSLEventSize {
 		return bpfTSOpenSSLEvent{}, fmt.Errorf(
-			"bpf-ts OpenSSL event size mismatch: got %d bytes, want %d",
-			len(raw), bpfTSOpenSSLEventSize,
+			"bpf-ts OpenSSL event size mismatch: got %d bytes, want %d..%d",
+			len(raw), bpfTSOpenSSLMetadataSize, bpfTSOpenSSLEventSize,
 		)
 	}
 
@@ -50,7 +64,6 @@ func decodeBpfTSOpenSSLEvent(raw []byte) (bpfTSOpenSSLEvent, error) {
 		Function:     raw[29],
 	}
 	copy(event.Comm[:], raw[32:48])
-	copy(event.Sample[:], raw[48:])
 
 	if event.Length <= 0 {
 		return bpfTSOpenSSLEvent{}, fmt.Errorf("bpf-ts OpenSSL event has non-positive length %d", event.Length)
@@ -67,14 +80,35 @@ func decodeBpfTSOpenSSLEvent(raw []byte) (bpfTSOpenSSLEvent, error) {
 			event.Direction, event.Function,
 		)
 	}
+
+	expectedCaptured := expectedBpfTSOpenSSLCapturedLen(event.Length)
+	wireCaptured := len(raw) - bpfTSOpenSSLMetadataSize
+	// Compact records contain exactly the captured prefix. Continue accepting the
+	// previous fixed 4096-byte tail while A/B artifacts roll forward; logical
+	// capture length remains derived from the signed SSL return/input length so
+	// zero padding from a legacy record never reaches AgentSight.
+	if wireCaptured != expectedCaptured && wireCaptured != bpfTSOpenSSLSampleSize {
+		return bpfTSOpenSSLEvent{}, fmt.Errorf(
+			"bpf-ts OpenSSL payload size mismatch: got %d bytes, expected %d compact bytes or %d legacy bytes",
+			wireCaptured, expectedCaptured, bpfTSOpenSSLSampleSize,
+		)
+	}
+	event.CapturedLen = uint32(expectedCaptured)
+	copy(event.Sample[:expectedCaptured], raw[bpfTSOpenSSLMetadataSize:bpfTSOpenSSLMetadataSize+expectedCaptured])
 	return event, nil
 }
 
 func bpfTSOpenSSLToCompleted(event bpfTSOpenSSLEvent) CompletedTLSFragment {
-	capturedLen := int(event.Length)
-	flags := uint8(0)
+	capturedLen := int(event.CapturedLen)
+	if capturedLen <= 0 {
+		capturedLen = expectedBpfTSOpenSSLCapturedLen(event.Length)
+	}
 	if capturedLen > bpfTSOpenSSLSampleSize {
 		capturedLen = bpfTSOpenSSLSampleSize
+	}
+
+	flags := uint8(0)
+	if int(event.Length) > capturedLen {
 		flags |= tlsFlagTruncated
 	}
 
