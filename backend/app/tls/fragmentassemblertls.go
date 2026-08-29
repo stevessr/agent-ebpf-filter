@@ -7,6 +7,11 @@ import (
 
 const tlsMaxPendingFragments = 4096
 
+// Values above this threshold are unmistakably Unix-nanosecond timestamps for
+// any realistic machine uptime. Live BPF samples use bpf_ktime_get_ns() and
+// therefore fall below it; offline/replay tests may carry wall-clock Unix ns.
+const tlsPlausibleUnixNSThreshold = uint64(946684800) * uint64(time.Second) // 2000-01-01
+
 type tlsFragmentAssemblerKey struct {
 	PID          uint32
 	TGID         uint32
@@ -24,10 +29,7 @@ type pendingTLSFragment struct {
 	originalLen uint32
 	comm        string
 	flags       uint8
-	// Keep only bytes that were actually captured. The previous map stored a
-	// full tlsFragment (including a 960-byte fixed data array) for every piece,
-	// even when the final piece contained only a few bytes.
-	fragMap map[uint16][]byte
+	fragMap     map[uint16][]byte
 }
 
 type FragmentAssembler struct {
@@ -54,6 +56,24 @@ func fragmentAssemblerKey(f tlsFragment) tlsFragmentAssemblerKey {
 		LibType:      f.LibType,
 		Function:     f.Function,
 	}
+}
+
+func fragmentFirstSeen(timestampNS uint64, arrival time.Time) time.Time {
+	// Production eBPF uses monotonic nanoseconds since boot. Timeout those by
+	// userspace arrival time so wall-clock CleanupExpired cannot purge them as
+	// if they originated near the Unix epoch.
+	if timestampNS < tlsPlausibleUnixNSThreshold || timestampNS > uint64(^uint64(0)>>1) {
+		return arrival
+	}
+
+	// Replay/test records sometimes carry Unix ns. Preserve that behavior when
+	// the value is plausible, but reject future timestamps and fall back to the
+	// local arrival clock.
+	captured := time.Unix(0, int64(timestampNS))
+	if captured.After(arrival.Add(time.Minute)) {
+		return arrival
+	}
+	return captured
 }
 
 func (a *FragmentAssembler) evictOldestPendingLocked() {
@@ -95,10 +115,8 @@ func (a *FragmentAssembler) Add(fragment tlsFragment) (*CompletedTLSFragment, bo
 		return nil, false
 	}
 
-	// TimestampNS is bpf_ktime_get_ns() (monotonic since boot), not Unix time.
-	// Using time.Unix(0, TimestampNS) made CleanupExpired compare a 1970-ish
-	// timestamp with wall clock and immediately purge every pending assembly.
-	now := time.Now()
+	arrival := time.Now()
+	firstSeen := fragmentFirstSeen(fragment.TimestampNS, arrival)
 	key := fragmentAssemblerKey(fragment)
 
 	a.mu.Lock()
@@ -110,7 +128,7 @@ func (a *FragmentAssembler) Add(fragment tlsFragment) (*CompletedTLSFragment, bo
 			a.evictOldestPendingLocked()
 		}
 		pending = &pendingTLSFragment{
-			firstSeen:   now,
+			firstSeen:   firstSeen,
 			fragCount:   fragment.FragCount,
 			totalLen:    fragment.TotalLen,
 			originalLen: fragment.OriginalLen,
