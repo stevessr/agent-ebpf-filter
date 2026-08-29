@@ -98,6 +98,12 @@ type TLSPlaintextEvent struct {
 	SSEDataDigest  string            `json:"sse_data_digest,omitempty"`
 	SSEDataCount   int               `json:"sse_data_count,omitempty"`
 
+	// HTTP/2 metadata is safe protocol metadata. ConnectionID deliberately
+	// remains internal because it is derived from a userspace pointer.
+	HTTP2StreamID  uint32 `json:"http2_stream_id,omitempty"`
+	HTTP2FrameType string `json:"http2_frame_type,omitempty"`
+	HTTP2Flags     uint8  `json:"http2_flags,omitempty"`
+
 	RootAgentPID   uint32 `json:"root_agent_pid,omitempty"`
 	AgentRunID     string `json:"agent_run_id,omitempty"`
 	TaskID         string `json:"task_id,omitempty"`
