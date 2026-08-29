@@ -3,8 +3,11 @@ package tls
 import (
 	"bytes"
 	"encoding/binary"
+	"strings"
 	"testing"
 	"time"
+
+	"golang.org/x/net/http2/hpack"
 )
 
 func testTLSHTTP2Frame(frameType, flags byte, streamID uint32, payload []byte) []byte {
@@ -159,10 +162,75 @@ func TestTLSHTTP2StreamAssemblerDropsTruncatedRemainder(t *testing.T) {
 	if !recognized || len(events) != 1 {
 		t.Fatalf("truncated add = (%d events, recognized=%v), want (1, true)", len(events), recognized)
 	}
-	if !events[0].Truncated {
-		t.Fatal("truncated fallback event is not marked truncated")
+	if events[0].Type != "http2_capture_gap" || !events[0].Truncated {
+		t.Fatalf("unexpected truncated gap: %+v", events[0])
+	}
+	if events[0].RawHexDump != "" {
+		t.Fatalf("capture gap leaked raw payload: %q", events[0].RawHexDump)
 	}
 	if assembler.Pending() != 0 {
 		t.Fatalf("pending = %d, want 0 after truncated payload", assembler.Pending())
+	}
+}
+
+func TestTLSHTTP2StreamAssemblerEnrichesHPACKRequest(t *testing.T) {
+	assembler := NewTLSHTTP2StreamAssembler(10 * time.Second)
+	var encoded bytes.Buffer
+	encoder := hpack.NewEncoder(&encoded)
+	for _, field := range []hpack.HeaderField{
+		{Name: ":method", Value: "POST"},
+		{Name: ":path", Value: "/v1/messages?api_key=top-secret&safe=yes"},
+		{Name: ":authority", Value: "api.example.com"},
+		{Name: "content-type", Value: "application/json"},
+		{Name: "authorization", Value: "Bearer should-not-leak"},
+	} {
+		if err := encoder.WriteField(field); err != nil {
+			t.Fatalf("WriteField(%s): %v", field.Name, err)
+		}
+	}
+	frame := testTLSHTTP2Frame(0x1, 0x4, 11, encoded.Bytes())
+	fragment := testCompletedTLSFragment(string(frame), tlsDirectionSend)
+	fragment.ConnectionID = 0x5050
+
+	events, recognized := assembler.Add(fragment)
+	if !recognized || len(events) != 1 {
+		t.Fatalf("HEADERS add = (%d events, recognized=%v), want (1, true)", len(events), recognized)
+	}
+	event := events[0]
+	if event.Type != "http2_request" || event.Method != "POST" || event.Host != "api.example.com" {
+		t.Fatalf("unexpected HPACK request: %+v", event)
+	}
+	if strings.Contains(event.URL, "top-secret") || !strings.Contains(event.URL, "safe=yes") {
+		t.Fatalf("URL was not sanitized: %q", event.URL)
+	}
+	if event.Headers["authorization"] != tlsRedactedValue {
+		t.Fatalf("authorization = %q, want redacted", event.Headers["authorization"])
+	}
+	if event.RawHexDump != "" {
+		t.Fatalf("HPACK request leaked compressed bytes: %q", event.RawHexDump)
+	}
+}
+
+func TestTLSHTTP2StreamAssemblerKeepsCompleteFrameBeforeCaptureGap(t *testing.T) {
+	assembler := NewTLSHTTP2StreamAssembler(10 * time.Second)
+	frame := testTLSHTTP2Frame(0x0, 0, 13, []byte("complete"))
+	payload := append(append([]byte(nil), frame...), []byte{0, 0, 8, 0}...)
+	fragment := testCompletedTLSFragment(string(payload), tlsDirectionRecv)
+	fragment.ConnectionID = 0x6060
+	fragment.Flags = tlsFlagTruncated
+	fragment.OriginalLen = uint32(len(payload) + 128)
+
+	events, recognized := assembler.Add(fragment)
+	if !recognized || len(events) != 2 {
+		t.Fatalf("truncated complete+tail = (%d events, recognized=%v), want (2, true): %+v", len(events), recognized, events)
+	}
+	if events[0].Type != "http2_data" || events[0].Truncated {
+		t.Fatalf("complete frame was incorrectly marked truncated: %+v", events[0])
+	}
+	if events[1].Type != "http2_capture_gap" || !events[1].Truncated {
+		t.Fatalf("missing capture gap: %+v", events[1])
+	}
+	if events[0].RawHexDump != "" || events[1].RawHexDump != "" {
+		t.Fatalf("HTTP2 output leaked raw data: frame=%q gap=%q", events[0].RawHexDump, events[1].RawHexDump)
 	}
 }
