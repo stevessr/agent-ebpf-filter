@@ -390,8 +390,10 @@ func (c *TLSCaptureController) Status() map[string]any {
 		shadowStatus = shadow.Status()
 	}
 	bridgeStatus := BpfTSOpenSSLBridgeStatus{}
+	backpressureStatus := BpfTSOpenSSLBackpressureStatus{}
 	if bridge != nil {
 		bridgeStatus = bridge.Status()
+		backpressureStatus = bridge.BackpressureStatus()
 	}
 
 	status := map[string]any{
@@ -406,6 +408,7 @@ func (c *TLSCaptureController) Status() map[string]any {
 		"bpfTsShadow":             shadowStatus,
 		"bpfTsBridge":             bridgeStatus,
 		"bpfTsWireEfficiency":     bpfTSOpenSSLWireEfficiency(bridgeStatus),
+		"bpfTsBackpressure":       backpressureStatus,
 	}
 	if manager != nil {
 		status["autoDiscovery"] = manager.AutoDiscoveryStatus()
