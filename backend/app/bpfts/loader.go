@@ -125,6 +125,18 @@ func validateCollectionSpec(spec *ebpf.CollectionSpec, manifest Manifest) error 
 				item.Name, mapSpec.MaxEntries, item.MaxEntries,
 			)
 		}
+		if item.KeySize != 0 && mapSpec.KeySize != item.KeySize {
+			return fmt.Errorf(
+				"map %q keySize mismatch: object has %d, manifest expects %d",
+				item.Name, mapSpec.KeySize, item.KeySize,
+			)
+		}
+		if item.ValueSize != 0 && mapSpec.ValueSize != item.ValueSize {
+			return fmt.Errorf(
+				"map %q valueSize mismatch: object has %d, manifest expects %d",
+				item.Name, mapSpec.ValueSize, item.ValueSize,
+			)
+		}
 	}
 	for name := range spec.Maps {
 		if _, ok := manifestMaps[name]; !ok {
