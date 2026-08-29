@@ -55,7 +55,8 @@ func TestBpfTSDiscoverKnownStrippedSSLOffsetsFailsClosedOnAmbiguousPrefix(t *tes
 	}
 }
 
-func TestBpfTSUprobeResolverUsesExistingELFSymbol(t *testing.T) {
+func executableWithSymbol(t *testing.T) (string, string) {
+	t.Helper()
 	path, err := os.Executable()
 	if err != nil {
 		t.Fatalf("os.Executable() error = %v", err)
@@ -64,23 +65,22 @@ func TestBpfTSUprobeResolverUsesExistingELFSymbol(t *testing.T) {
 	if err != nil {
 		t.Fatalf("elf.Open() error = %v", err)
 	}
+	defer file.Close()
 	symbols, err := file.Symbols()
 	if err != nil || len(symbols) == 0 {
-		_ = file.Close()
 		t.Skip("test binary has no regular ELF symbol table")
 	}
-	targetSymbol := ""
 	for _, symbol := range symbols {
 		if symbol.Name != "" {
-			targetSymbol = symbol.Name
-			break
+			return path, symbol.Name
 		}
 	}
-	_ = file.Close()
-	if targetSymbol == "" {
-		t.Skip("test binary has no named ELF symbols")
-	}
+	t.Skip("test binary has no named ELF symbols")
+	return "", ""
+}
 
+func TestBpfTSUprobeResolverUsesExistingELFSymbol(t *testing.T) {
+	path, targetSymbol := executableWithSymbol(t)
 	resolver := NewBpfTSUprobeResolver(path, 4321)
 	target, err := resolver(bpfts.ManifestProbe{
 		Name:    "testProbe",
@@ -93,6 +93,23 @@ func TestBpfTSUprobeResolverUsesExistingELFSymbol(t *testing.T) {
 	}
 	if target.Path != path || target.Symbol != targetSymbol || target.PID != 4321 || target.Address != 0 {
 		t.Fatalf("unexpected resolved target: %+v", target)
+	}
+}
+
+func TestBpfTSResolverSkipsStrippedScanForUnrelatedSymbolMiss(t *testing.T) {
+	path, _ := executableWithSymbol(t)
+	resolver := &bpfTSTLSResolver{path: path}
+	_, err := resolver.resolve(bpfts.ManifestProbe{
+		Name:    "missing",
+		Kind:    "uprobe",
+		Section: "uprobe",
+		Target:  "__bpf_ts_definitely_missing_symbol__",
+	})
+	if err == nil {
+		t.Fatal("expected unrelated missing symbol to fail closed")
+	}
+	if resolver.offsets != nil || resolver.offsetErr != nil {
+		t.Fatalf("unrelated symbol miss unexpectedly triggered stripped scan: offsets=%v err=%v", resolver.offsets, resolver.offsetErr)
 	}
 }
 
