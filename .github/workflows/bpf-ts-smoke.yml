@@ -7,6 +7,10 @@ on:
       - feat/bpf-ts
     paths:
       - "tools/bpf-ts/**"
+      - "backend/app/bpfts/**"
+      - "backend/cmd/bpfts-manifest-check/**"
+      - "backend/go.mod"
+      - "backend/go.sum"
       - ".github/workflows/bpf-ts-smoke.yml"
 
 concurrency:
@@ -22,6 +26,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
       - name: Install BPF build dependencies
         run: sudo apt-get update && sudo apt-get install -y clang llvm libbpf-dev libelf-dev
       - name: Install compiler dependencies
@@ -39,6 +47,15 @@ jobs:
           ARCH_INCLUDE="/usr/include/$(uname -m)-linux-gnu"
           clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -I"${ARCH_INCLUDE}" -c generated/exec.bpf.c -o generated/exec.bpf.o
           clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -I"${ARCH_INCLUDE}" -c generated/tls-write.bpf.c -o generated/tls-write.bpf.o
+      - name: Go manifest loader tests
+        working-directory: backend
+        run: go test ./app/bpfts -count=1
+      - name: Validate generated manifest and ELF contract
+        working-directory: backend
+        run: |
+          go run ./cmd/bpfts-manifest-check \
+            ../tools/bpf-ts/generated/exec.json ../tools/bpf-ts/generated/exec.bpf.o \
+            ../tools/bpf-ts/generated/tls-write.json ../tools/bpf-ts/generated/tls-write.bpf.o
       - name: Show attach manifests
         run: |
           cat generated/exec.json
