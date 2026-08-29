@@ -1,8 +1,30 @@
 import { BpfTsCompileError } from "./diagnostics";
 import type { ExprIR, MapIR, ProgramIR, StmtIR } from "./ir";
 
+// Small records are cheaper to reserve and fill directly. Only switch to the
+// compiler-owned scratch/output path when the trailing byte payload is large
+// enough that fixed-size reserve+zeroing becomes expensive or fails LLVM BPF
+// lowering.
+export const compactRingbufByteThreshold = 256;
+
 export function ringbufScratchMapName(ringbufName: string): string {
   return `__bpf_ts_scratch_${ringbufName}`;
+}
+
+function compactTail(program: ProgramIR, ringbuf: MapIR) {
+  const valueType = ringbuf.valueType;
+  if (valueType.kind !== "named") return null;
+  const struct = program.structs.find((candidate) => candidate.name === valueType.name);
+  const tail = struct?.fields.at(-1);
+  if (
+    !struct ||
+    !tail ||
+    tail.type.kind !== "bytes" ||
+    tail.type.length <= compactRingbufByteThreshold
+  ) {
+    return null;
+  }
+  return { struct, tail };
 }
 
 function isTrailingUserBytesEmit(program: ProgramIR, ringbuf: MapIR, expr: ExprIR): boolean {
@@ -10,12 +32,15 @@ function isTrailingUserBytesEmit(program: ProgramIR, ringbuf: MapIR, expr: ExprI
     return false;
   }
   const payload = expr.args[0];
-  if (payload.kind !== "object" || ringbuf.valueType.kind !== "named") return false;
-  const struct = program.structs.find((candidate) => candidate.name === ringbuf.valueType.name);
-  const tail = struct?.fields.at(-1);
-  if (!tail || tail.type.kind !== "bytes") return false;
-  const field = payload.fields.find((candidate) => candidate.name === tail.name);
-  return field?.value.kind === "call" && field.value.callee === "bpf.userBytes" && field.value.args.length === 2;
+  if (payload.kind !== "object") return false;
+  const resolved = compactTail(program, ringbuf);
+  if (!resolved) return false;
+  const field = payload.fields.find((candidate) => candidate.name === resolved.tail.name);
+  return (
+    field?.value.kind === "call" &&
+    field.value.callee === "bpf.userBytes" &&
+    field.value.args.length === 2
+  );
 }
 
 function statementsUseCompactRingbuf(program: ProgramIR, ringbuf: MapIR, statements: StmtIR[]): boolean {
@@ -42,9 +67,9 @@ function statementsUseCompactRingbuf(program: ProgramIR, ringbuf: MapIR, stateme
   return false;
 }
 
-// Add compiler-owned per-CPU struct storage for ringbuf records whose final
-// bytes<N> field is sourced from bpf.userBytes(). The C backend can then fill
-// the map value and call bpf_ringbuf_output() with only header+captured bytes,
+// Add compiler-owned per-CPU struct storage for large ringbuf records whose
+// final bytes<N> field is sourced from bpf.userBytes(). The C backend fills the
+// scratch map value and emits only header+captured bytes with bpf_ringbuf_output,
 // avoiding a large fixed reserve/memset and any uninitialized tail disclosure.
 //
 // This pass intentionally runs after user-program validation. The synthetic map
@@ -57,7 +82,7 @@ export function addCompactRingbufScratchMaps(program: ProgramIR): void {
   ]);
   const additions: MapIR[] = [];
   for (const ringbuf of program.maps) {
-    if (ringbuf.kind !== "ringbuf" || ringbuf.valueType.kind !== "named") continue;
+    if (ringbuf.kind !== "ringbuf" || compactTail(program, ringbuf) === null) continue;
     const compact = program.probes.some((probe) =>
       statementsUseCompactRingbuf(program, ringbuf, probe.body),
     );
