@@ -1,0 +1,43 @@
+name: bpf-ts smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/bpf-ts
+    paths:
+      - "tools/bpf-ts/**"
+      - ".github/workflows/bpf-ts-smoke.yml"
+
+concurrency:
+  group: bpf-ts-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compiler:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: tools/bpf-ts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install BPF build dependencies
+        run: sudo apt-get update && sudo apt-get install -y clang llvm libbpf-dev libelf-dev
+      - name: Install compiler dependencies
+        run: bun install
+      - name: Compiler unit tests
+        run: bun test
+      - name: Generate example BPF C
+        run: |
+          bun src/cli.ts examples/exec.ts --out generated/exec.bpf.c --manifest generated/exec.json
+          bun src/cli.ts examples/tls-write.ts --out generated/tls-write.bpf.c --manifest generated/tls-write.json
+      - name: Compile generated C with clang BPF backend
+        run: |
+          ARCH_INCLUDE="/usr/include/$(uname -m)-linux-gnu"
+          clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -I"${ARCH_INCLUDE}" -c generated/exec.bpf.c -o generated/exec.bpf.o
+          clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -I"${ARCH_INCLUDE}" -c generated/tls-write.bpf.c -o generated/tls-write.bpf.o
+      - name: Show attach manifests
+        run: |
+          cat generated/exec.json
+          cat generated/tls-write.json
