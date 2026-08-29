@@ -5,13 +5,20 @@ import (
 	"testing"
 )
 
+const legacyTLSFragmentDataSize = 960
+const legacyTLSFragmentRecordSize = tlsFragmentMetadataSize + legacyTLSFragmentDataSize + 4
+
 func encodeTLSFragmentSampleForTest(t *testing.T, fragment tlsFragment, compact bool) []byte {
 	t.Helper()
 	wireLen := tlsFragmentMetadataSize + int(fragment.DataLen)
 	if !compact {
-		// Match sizeof(struct tls_fragment): metadata + 960 data bytes + 4 bytes
-		// of tail padding for 8-byte struct alignment.
-		wireLen = tlsFragmentMetadataSize + tlsFragmentSize + 4
+		if fragment.DataLen > legacyTLSFragmentDataSize {
+			t.Fatalf("legacy fixture cannot encode data_len=%d > %d", fragment.DataLen, legacyTLSFragmentDataSize)
+		}
+		// Legacy builds emitted sizeof(struct tls_fragment) with a 960-byte data
+		// array plus four bytes of tail padding, regardless of the new fragment
+		// size used by compact-wire builds.
+		wireLen = legacyTLSFragmentRecordSize
 	}
 	raw := make([]byte, wireLen)
 	binary.LittleEndian.PutUint64(raw[0:8], fragment.TimestampNS)
@@ -53,11 +60,32 @@ func TestDecodeTLSFragmentSampleCompact(t *testing.T) {
 	}
 }
 
+func TestDecodeTLSFragmentSampleSupportsFullExpandedCompactPayload(t *testing.T) {
+	fragment := newTestTLSFragment(0, 1, uint32(tlsFragmentSize), "")
+	fragment.DataLen = uint32(tlsFragmentSize)
+	fragment.TotalLen = uint32(tlsFragmentSize)
+	for i := range fragment.Data {
+		fragment.Data[i] = byte(i)
+	}
+
+	raw := encodeTLSFragmentSampleForTest(t, fragment, true)
+	if len(raw) != tlsFragmentMetadataSize+tlsFragmentSize {
+		t.Fatalf("expanded compact sample size = %d, want %d", len(raw), tlsFragmentMetadataSize+tlsFragmentSize)
+	}
+	decoded, err := decodeTLSFragmentSample(raw)
+	if err != nil {
+		t.Fatalf("decode expanded compact sample: %v", err)
+	}
+	if decoded.DataLen != uint32(tlsFragmentSize) || decoded.Data[tlsFragmentSize-1] != byte(tlsFragmentSize-1) {
+		t.Fatalf("expanded payload mismatch: len=%d tail=%d", decoded.DataLen, decoded.Data[tlsFragmentSize-1])
+	}
+}
+
 func TestDecodeTLSFragmentSampleLegacyFixedSize(t *testing.T) {
 	fragment := newTestTLSFragment(0, 1, 3, "abc")
 	raw := encodeTLSFragmentSampleForTest(t, fragment, false)
-	if len(raw) != 1024 {
-		t.Fatalf("legacy sample size = %d, want 1024", len(raw))
+	if len(raw) != legacyTLSFragmentRecordSize {
+		t.Fatalf("legacy sample size = %d, want %d", len(raw), legacyTLSFragmentRecordSize)
 	}
 
 	decoded, err := decodeTLSFragmentSample(raw)
@@ -87,9 +115,6 @@ func TestDecodeTLSFragmentSampleRejectsInvalidDataLength(t *testing.T) {
 }
 
 func TestTLSFragmentMetadataSizeMatchesDataOffset(t *testing.T) {
-	// This is intentionally a wire-layout assertion rather than unsafe.Offsetof:
-	// binary perf records are decoded field-by-field and must remain stable even
-	// if Go's in-memory struct padding ever changes.
 	fragment := newTestTLSFragment(0, 1, 1, "x")
 	raw := encodeTLSFragmentSampleForTest(t, fragment, true)
 	if len(raw) != tlsFragmentMetadataSize+1 || raw[tlsFragmentMetadataSize] != 'x' {
