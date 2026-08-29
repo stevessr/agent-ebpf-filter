@@ -7,6 +7,7 @@ import { parseBpfTs } from "./parser";
 import { validatePayloadShapes } from "./payloadvalidate";
 import { applyReturnProbeKinds, normalizeReturnProbeDecorators } from "./probedecorators";
 import { validateVerifierResources } from "./resourcevalidate";
+import { addRingbufDropMaps } from "./ringbufdrops";
 import { addCompactRingbufScratchMaps } from "./ringbufscratch";
 import { lowerLargeRingbufZeroing } from "./ringbufzero";
 import { validateProbeSignatures } from "./signature";
@@ -81,11 +82,10 @@ export function compileBpfTs(sourceText: string, fileName = "program.ts"): BpfTs
   validatePayloadShapes(ir);
   validateVerifierResources(ir);
 
-  // Large trailing user-byte payloads use compiler-owned per-CPU scratch
-  // storage and bpf_ringbuf_output(header + captured bytes). Add these maps only
-  // after user-program validation so the internal structured map representation
-  // never leaks into the public DSL validation surface.
+  // Compiler-owned maps are appended only after validating the author's public
+  // DSL. This keeps structured/internal map kinds out of user map semantics.
   addCompactRingbufScratchMaps(ir);
+  addRingbufDropMaps(ir);
 
   // Keep the older large-record zeroing rewrite as a fail-safe for large
   // ringbuf records that cannot use the compact trailing-bytes path.
