@@ -43,23 +43,25 @@ describe("bpf-ts compiler", () => {
     });
   });
 
-  test("preserves uprobe metadata and clamps user-byte reads", () => {
+  test("preserves uprobe metadata, signed int arguments and clamps user-byte reads", () => {
     const result = compileBpfTs(`
-interface Event { pid: u32; len: u64; sample: bytes<32>; }
+interface Event { pid: u32; len: i32; sample: bytes<32>; }
 const events = ringbuf<Event>(65536);
 class TLSProbes {
   @uprobe("SSL_write")
   static capture(regs: UProbeContext): i32 {
     const buffer = bpf.arg(regs, 2);
-    const length = bpf.arg(regs, 3);
-    events.emit({ pid: bpf.pid(), len: length, sample: bpf.userBytes(buffer, length) });
+    const length = bpf.argI32(regs, 3);
+    if (length > 0) {
+      events.emit({ pid: bpf.pid(), len: length, sample: bpf.userBytes(buffer, length) });
+    }
     return 0;
   }
 }
 `, "tls.ts");
     expect(result.cSource).toContain('SEC("uprobe")');
     expect(result.cSource).toContain("struct pt_regs *regs");
-    expect(result.cSource).toContain("PT_REGS_PARM3(regs)");
+    expect(result.cSource).toContain("__s32 length = PT_REGS_PARM3(regs);");
     expect(result.cSource).toContain("bpf_probe_read_user");
     expect(result.cSource).toContain("if (__bpf_ts_read_len_");
     expect(result.cSource).toContain("sizeof(__bpf_ts_event_");
@@ -69,6 +71,30 @@ class TLSProbes {
       kind: "uprobe",
       target: "SSL_write",
     });
+  });
+
+  test("requires argI32 to be a direct local initializer", () => {
+    expect(() => compileBpfTs(`
+class TLSProbes {
+  @uprobe("SSL_write")
+  static capture(regs: UProbeContext): i32 {
+    if (bpf.argI32(regs, 3) > 0) { return 0; }
+    return 0;
+  }
+}
+`, "nested-argi32.ts")).toThrow("bpf.argI32() must be used as a direct local initializer");
+  });
+
+  test("rejects argI32 in return probes", () => {
+    expect(() => compileBpfTs(`
+class TLSProbes {
+  @uretprobe("SSL_write")
+  static complete(regs: UProbeContext): i32 {
+    const length = bpf.argI32(regs, 3);
+    return 0;
+  }
+}
+`, "return-argi32.ts")).toThrow("bpf.argI32() is not valid in uretprobe");
   });
 
   test("rejects unbounded while loops before C generation", () => {
