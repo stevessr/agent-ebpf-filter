@@ -7,6 +7,7 @@ import { validatePayloadShapes } from "./payloadvalidate";
 import { applyReturnProbeKinds, normalizeReturnProbeDecorators } from "./probedecorators";
 import { validateVerifierResources } from "./resourcevalidate";
 import { validateProbeSignatures } from "./signature";
+import { lowerTakeOr } from "./takeor";
 import { inferLocalTypes } from "./typeinfer";
 import { validateBpfProgram } from "./validate";
 import type { ProbeAttachIR, ProbeKind, ProgramIR } from "./ir";
@@ -51,10 +52,6 @@ export interface BpfTsCompilation {
 }
 
 export function compileBpfTs(sourceText: string, fileName = "program.ts"): BpfTsCompilation {
-  // TypeScript currently treats method decorators uniformly, but the existing
-  // parser deliberately understands only entry probes. Normalize return-probe
-  // decorators through the TypeScript AST, parse the normalized source, then
-  // restore the stronger attach kind in IR before semantic validation/codegen.
   const normalized = normalizeReturnProbeDecorators(sourceText, fileName);
   validateProbeSignatures(normalized.sourceText, fileName);
   const ir = parseBpfTs(normalized.sourceText, fileName);
@@ -63,6 +60,11 @@ export function compileBpfTs(sourceText: string, fileName = "program.ts"): BpfTs
   // CO-RE projections are source roles (declare interface), so retain the
   // author's original source rather than the pretty-printed normalized form.
   markCoreTypeProjections(sourceText, fileName, ir);
+
+  // takeOr is a verifier-friendly semantic primitive. Lower it before ordinary
+  // map validation so the C backend only needs the already-tested getOr/delete
+  // operations and cannot accidentally retain a map-value pointer after delete.
+  lowerTakeOr(ir);
   validateBpfProgram(ir);
   validateCoreAccesses(ir);
   validateMapExpressions(ir);
