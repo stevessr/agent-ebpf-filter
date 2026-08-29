@@ -1,7 +1,9 @@
+import { bpfTypeSize } from "./abi";
 import { lowerArgI32 } from "./argi32";
 import { generateBpfC } from "./codegen";
 import { validateCoreAccesses } from "./corevalidate";
 import { markCoreTypeProjections } from "./coretypes";
+import { BpfTsCompileError } from "./diagnostics";
 import { validateMapExpressions } from "./mapexprvalidate";
 import { parseBpfTs } from "./parser";
 import { validatePayloadShapes } from "./payloadvalidate";
@@ -17,7 +19,7 @@ import { validateProbeSignatures } from "./signature";
 import { lowerTakeOr } from "./takeor";
 import { inferLocalTypes } from "./typeinfer";
 import { validateBpfProgram } from "./validate";
-import type { MapKind, ProbeAttachIR, ProbeKind, ProgramIR } from "./ir";
+import type { MapIR, MapKind, ProbeAttachIR, ProbeKind, ProgramIR } from "./ir";
 
 function probeSection(attach: ProbeAttachIR): string {
   switch (attach.kind) {
@@ -49,6 +51,8 @@ export interface BpfTsManifest {
     name: string;
     kind: MapKind;
     maxEntries: number;
+    keySize?: number;
+    valueSize?: number;
   }>;
 }
 
@@ -56,6 +60,23 @@ export interface BpfTsCompilation {
   ir: ProgramIR;
   cSource: string;
   manifest: BpfTsManifest;
+}
+
+function manifestMap(program: ProgramIR, map: MapIR): BpfTsManifest["maps"][number] {
+  const base = {
+    name: map.name,
+    kind: map.kind,
+    maxEntries: map.maxEntries,
+  };
+  if (map.kind === "ringbuf") return base;
+  if (!map.keyType) {
+    throw new BpfTsCompileError(`map '${map.name}' is missing a key type for ABI generation`);
+  }
+  return {
+    ...base,
+    keySize: bpfTypeSize(program, map.keyType),
+    valueSize: bpfTypeSize(program, map.valueType),
+  };
 }
 
 export function compileBpfTs(sourceText: string, fileName = "program.ts"): BpfTsCompilation {
@@ -108,11 +129,7 @@ export function compileBpfTs(sourceText: string, fileName = "program.ts"): BpfTs
         section: probeSection(probe.attach),
         ...probe.attach,
       })),
-      maps: ir.maps.map((map) => ({
-        name: map.name,
-        kind: map.kind,
-        maxEntries: map.maxEntries,
-      })),
+      maps: ir.maps.map((map) => manifestMap(ir, map)),
     },
   };
 }
