@@ -148,6 +148,12 @@ func (m *TLSProbeManager) AttachStaticSSLUprobes(binPath string, pid int) error 
 // shared object already has a global default probe, reuse that coverage rather
 // than stacking a PID-scoped probe on top and emitting duplicate plaintext.
 func (m *TLSProbeManager) attachLoadedLibraryForPIDLocked(target ProbeTarget, path string, pid int, status TLSLibraryStatus) error {
+	if displayPath := tlsLibraryDisplayPath(path); displayPath != "" {
+		status.Path = displayPath
+	} else if strings.Contains(path, "/map_files/") {
+		// Do not leak virtual mapping ranges through the public status API.
+		status.Path = target.name + " (deleted mapping)"
+	}
 	if pid <= 0 {
 		return m.attachLibraryPathLocked(target, path, status)
 	}
@@ -343,7 +349,7 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 			continue
 		}
 		m.mu.Lock()
-		status := TLSLibraryStatus{Name: target.name, Path: libPath, Available: true}
+		status := TLSLibraryStatus{Name: target.name, Path: tlsLibraryDisplayPath(libPath), Available: true}
 		err := m.attachLoadedLibraryForPIDLocked(target, libPath, pid, status)
 		if err != nil {
 			m.mu.Unlock()
@@ -390,6 +396,59 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 	return result
 }
 
+var tlsSharedLibraryPrefixes = []string{
+	"libssl", "libgnutls", "libnspr4", "libnss3", "libnssutil3", "libtls", "libbearssl",
+}
+
+func parseProcMapLibraryLine(line string) (mappingRange, perms, path string, deleted, ok bool) {
+	fields := strings.Fields(line)
+	if len(fields) < 6 {
+		return "", "", "", false, false
+	}
+	mappingRange = fields[0]
+	perms = fields[1]
+	rawPath := strings.Join(fields[5:], " ")
+	deleted = strings.HasSuffix(rawPath, procDeletedSuffix)
+	path = strings.TrimSuffix(rawPath, procDeletedSuffix)
+	if path == "" {
+		return "", "", "", deleted, false
+	}
+	base := strings.ToLower(filepath.Base(path))
+	for _, prefix := range tlsSharedLibraryPrefixes {
+		if strings.HasPrefix(base, prefix) && (strings.HasSuffix(base, ".so") || strings.Contains(base, ".so.")) {
+			return mappingRange, perms, path, deleted, true
+		}
+	}
+	return "", "", "", deleted, false
+}
+
+func isProcMapFilePath(path string) bool {
+	cleaned := filepath.Clean(path)
+	return strings.HasPrefix(cleaned, "/proc/") && strings.Contains(cleaned, "/map_files/")
+}
+
+func tlsLibraryDisplayPath(path string) string {
+	if path == "" {
+		return ""
+	}
+	if isProcMapFilePath(path) {
+		target, err := os.Readlink(path)
+		if err != nil {
+			return ""
+		}
+		return strings.TrimSuffix(target, procDeletedSuffix)
+	}
+	return strings.TrimSuffix(path, procDeletedSuffix)
+}
+
+func tlsLibraryBase(path string) string {
+	display := tlsLibraryDisplayPath(path)
+	if display == "" {
+		return ""
+	}
+	return strings.ToLower(filepath.Base(display))
+}
+
 func findLoadedSSLLibraries(pid int) []string {
 	if pid <= 0 {
 		return nil
@@ -402,24 +461,25 @@ func findLoadedSSLLibraries(pid int) []string {
 	var libs []string
 	seen := make(map[string]bool)
 	for _, line := range strings.Split(string(data), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) < 6 {
+		mappingRange, perms, displayPath, deleted, ok := parseProcMapLibraryLine(line)
+		if !ok || seen[displayPath] {
 			continue
 		}
-		path := fields[len(fields)-1]
-		if !strings.HasSuffix(path, ".so") && !strings.Contains(path, ".so.") {
-			continue
-		}
-		base := strings.ToLower(filepath.Base(path))
-		for _, prefix := range []string{"libssl", "libgnutls", "libnspr4", "libnss3", "libnssutil3", "libtls", "libbearssl"} {
-			if strings.HasPrefix(base, prefix) {
-				if !seen[path] {
-					seen[path] = true
-					libs = append(libs, path)
-				}
-				break
+		attachPath := displayPath
+		if deleted {
+			// Prefer the executable mapping. /proc/<pid>/map_files keeps a handle
+			// to the old inode even after an in-place package upgrade unlinks it.
+			if !strings.Contains(perms, "x") {
+				continue
+			}
+			attachPath = fmt.Sprintf("/proc/%d/map_files/%s", pid, mappingRange)
+			if _, err := os.Stat(attachPath); err != nil {
+				log.Printf("[tls] PID %d: deleted TLS library %s map_files handle unavailable: %v", pid, displayPath, err)
+				continue
 			}
 		}
+		seen[displayPath] = true
+		libs = append(libs, attachPath)
 	}
 	return libs
 }
@@ -429,7 +489,7 @@ func findLoadedLibForTarget(loadedLibs []string, target ProbeTarget) (string, bo
 		return "", false
 	}
 	for _, lib := range loadedLibs {
-		base := strings.ToLower(filepath.Base(lib))
+		base := tlsLibraryBase(lib)
 		switch target.name {
 		case "openssl":
 			if strings.HasPrefix(base, "libssl") {
