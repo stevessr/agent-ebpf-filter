@@ -8,7 +8,7 @@ import (
 
 var (
 	ErrTLSCaptureDisabled   = errors.New("TLS capture is disabled")
-	ErrBpfTSTLSModeConflict = errors.New("bpf-ts TLS shadow and bridge modes cannot run simultaneously")
+	ErrBpfTSTLSModeConflict = errors.New("conflicting TLS capture backend is already active")
 )
 
 const tlsAutoDiscoveryInterval = 5 * time.Second
@@ -112,6 +112,14 @@ func (c *TLSCaptureController) EnsureStarted() (*TLSProbeManager, error) {
 	if !c.accepting || (c.enabledCheck != nil && !c.enabledCheck()) {
 		c.lastError = ErrTLSCaptureDisabled.Error()
 		return nil, ErrTLSCaptureDisabled
+	}
+	// Shadow mode is explicitly observational and may coexist with the legacy
+	// perf path. The data-bearing bpf-ts bridge publishes into the same store,
+	// broadcaster and AgentSight pipeline, so starting legacy capture alongside
+	// an active bridge would duplicate every captured TLS event.
+	if c.bpfTSBridge != nil && c.bpfTSBridge.Status().Active {
+		c.lastError = ErrBpfTSTLSModeConflict.Error()
+		return nil, ErrBpfTSTLSModeConflict
 	}
 	if c.manager != nil {
 		if !c.readStarted {
@@ -285,10 +293,9 @@ func (c *TLSCaptureController) BpfTSShadowStatus() BpfTSTLSShadowStatus {
 	return shadow.Status()
 }
 
-// StartBpfTSOpenSSLBridge starts the data-bearing bpf-ts OpenSSL path. The
-// legacy production manager may remain active for A/B comparison, but the
-// observational bpf-ts shadow must be stopped first to avoid duplicate bpf-ts
-// uprobe/uretprobe attachment to the same TLS process.
+// StartBpfTSOpenSSLBridge starts the data-bearing bpf-ts OpenSSL path. Shadow
+// mode is the A/B comparison path; bridge mode is an actual publisher cutover
+// and therefore cannot coexist with either shadow or the legacy perf manager.
 func (c *TLSCaptureController) StartBpfTSOpenSSLBridge(config BpfTSOpenSSLBridgeConfig) error {
 	if c == nil {
 		return errors.New("TLS capture controller is unavailable")
@@ -299,6 +306,7 @@ func (c *TLSCaptureController) StartBpfTSOpenSSLBridge(config BpfTSOpenSSLBridge
 	c.mu.Lock()
 	accepting := c.accepting
 	enabled := c.enabledCheck == nil || c.enabledCheck()
+	legacyActive := c.manager != nil
 	shadow := c.bpfTSShadow
 	bridge := c.bpfTSBridge
 	store := c.store
@@ -309,7 +317,7 @@ func (c *TLSCaptureController) StartBpfTSOpenSSLBridge(config BpfTSOpenSSLBridge
 		c.setLastError(ErrTLSCaptureDisabled)
 		return ErrTLSCaptureDisabled
 	}
-	if shadow != nil && shadow.Status().Active {
+	if legacyActive || (shadow != nil && shadow.Status().Active) {
 		c.setLastError(ErrBpfTSTLSModeConflict)
 		return ErrBpfTSTLSModeConflict
 	}
@@ -397,6 +405,7 @@ func (c *TLSCaptureController) Status() map[string]any {
 		"broadcast":               broadcaster.Status(),
 		"bpfTsShadow":             shadowStatus,
 		"bpfTsBridge":             bridgeStatus,
+		"bpfTsWireEfficiency":     bpfTSOpenSSLWireEfficiency(bridgeStatus),
 	}
 	if manager != nil {
 		status["autoDiscovery"] = manager.AutoDiscoveryStatus()
