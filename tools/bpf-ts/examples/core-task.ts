@@ -1,8 +1,8 @@
 /// <reference path="../dsl.d.ts" />
 
-// Minimal kernel BTF projection. Only fields referenced through bpf.coreRead
-// need to be declared; libbpf resolves their real offsets from target BTF.
-interface task_struct {
+// Ambient interfaces are kernel BTF projections. Only fields referenced
+// through bpf.coreRead need to be declared; libbpf resolves real offsets.
+declare interface task_struct {
   pid: i32;
   tgid: i32;
 }
