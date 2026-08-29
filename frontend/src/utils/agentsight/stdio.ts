@@ -7,10 +7,14 @@ import type {
 const utf8Encoder = new TextEncoder();
 const utf8Decoder = new TextDecoder("utf-8");
 
-interface ContentLengthDecodeResult {
+export interface ContentLengthDecodeResult {
   framed: boolean;
   payloads: string[];
   incomplete: boolean;
+  // Number of UTF-8 wire bytes that belong to complete frames (and optional
+  // leading separators). Stateful stream decoding can retain only the suffix
+  // beginning here instead of replaying already-emitted frames.
+  consumedBytes: number;
   error?: string;
 }
 
@@ -91,11 +95,16 @@ export function decodeContentLengthFrames(
     }
     if (cursor >= bytes.length) break;
 
+    // Keep cursor at the beginning of the current frame until its payload is
+    // complete. When a capture event ends mid-header or mid-payload this is
+    // exactly the suffix the incremental decoder must retain.
+    const frameStart = cursor;
     const terminator = findHeaderTerminator(bytes, cursor);
     if (!terminator) {
       if (framed || looksLikeContentLengthPrefix(bytes, cursor)) {
         framed = true;
         incomplete = true;
+        cursor = frameStart;
       }
       break;
     }
@@ -104,14 +113,21 @@ export function decodeContentLengthFrames(
     const contentLength = parseContentLength(header);
     if (!contentLength) {
       if (!framed && payloads.length === 0) {
-        return { framed: false, payloads: [], incomplete: false };
+        return {
+          framed: false,
+          payloads: [],
+          incomplete: false,
+          consumedBytes: 0,
+        };
       }
       error = "framed stdio header is missing Content-Length";
+      cursor = frameStart;
       break;
     }
     framed = true;
     if (!contentLength.valid) {
       error = "invalid Content-Length value";
+      cursor = frameStart;
       break;
     }
 
@@ -119,13 +135,20 @@ export function decodeContentLengthFrames(
     const payloadEnd = payloadStart + contentLength.value;
     if (payloadEnd > bytes.length) {
       incomplete = true;
+      cursor = frameStart;
       break;
     }
     payloads.push(utf8Decoder.decode(bytes.slice(payloadStart, payloadEnd)));
     cursor = payloadEnd;
   }
 
-  return { framed, payloads, incomplete, error };
+  return {
+    framed,
+    payloads,
+    incomplete,
+    consumedBytes: framed && !incomplete && !error ? bytes.length : cursor,
+    error,
+  };
 }
 
 function extractToolName(parsedPayload: any) {
@@ -174,11 +197,7 @@ function isLspMessage(message: any) {
   if (!message || typeof message !== "object") return false;
   const method = typeof message.method === "string" ? message.method : "";
   if (
-    [
-      "initialized",
-      "shutdown",
-      "exit",
-    ].includes(method) ||
+    ["initialized", "shutdown", "exit"].includes(method) ||
     [
       "textDocument/",
       "notebookDocument/",
@@ -410,6 +429,11 @@ export function formatStdioExpandedContent(decoded: DecodedStdioMessage) {
   if (decoded.id) sections.push(`Message ID: ${decoded.id}`);
   sections.push(`Length: ${decoded.length}`);
   sections.push(`Truncated: ${decoded.truncated ? "yes" : "no"}`);
+  if (decoded.reassembled) {
+    sections.push(`Reassembled: yes (${decoded.reassembledBytes || 0} bytes)`);
+  }
+  if (decoded.pendingBytes) sections.push(`Pending bytes: ${decoded.pendingBytes}`);
+  if (decoded.reassemblyReset) sections.push(`Reassembly reset: ${decoded.reassemblyReset}`);
   if (decoded.incompleteFrame) sections.push("Incomplete frame: yes");
   if (decoded.framingError) sections.push(`Framing error: ${decoded.framingError}`);
 
