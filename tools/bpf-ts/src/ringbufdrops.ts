@@ -1,13 +1,16 @@
 import { BpfTsCompileError } from "./diagnostics";
+import { ringbufScratchMapName } from "./ringbufscratch";
 import type { MapIR, ProgramIR } from "./ir";
 
 export function ringbufDropMapName(ringbufName: string): string {
   return `__bpf_ts_drops_${ringbufName}`;
 }
 
-// Every user ringbuf gets one compiler-owned per-CPU u64 counter. The backend
-// touches it only when reserve/output fails, keeping the successful hot path
-// free of atomic operations while making kernel backpressure observable.
+// Compact ringbufs get one compiler-owned per-CPU u64 counter. The backend
+// checks bpf_ringbuf_output() and touches the counter only on failure, so the
+// successful hot path adds no atomic operation. Small reserve/submit ringbufs
+// intentionally remain unchanged until their verifier reference semantics are
+// covered by a dedicated kernel gate.
 export function addRingbufDropMaps(program: ProgramIR): void {
   const occupied = new Set([
     ...program.maps.map((map) => map.name),
@@ -17,6 +20,9 @@ export function addRingbufDropMaps(program: ProgramIR): void {
 
   for (const ringbuf of [...program.maps]) {
     if (ringbuf.kind !== "ringbuf") continue;
+    const scratch = program.maps.find((map) => map.name === ringbufScratchMapName(ringbuf.name));
+    if (!scratch || scratch.kind !== "percpu_array") continue;
+
     const name = ringbufDropMapName(ringbuf.name);
     if (occupied.has(name)) {
       throw new BpfTsCompileError(
