@@ -1,32 +1,32 @@
 import { BpfTsCompileError } from "./diagnostics";
 import type { ExprIR, ProgramIR, StmtIR } from "./ir";
 
-function isGetOr(expr: ExprIR) {
-  return expr.kind === "call" && expr.callee.endsWith(".getOr");
+function isDirectLookup(expr: ExprIR) {
+  return expr.kind === "call" && (expr.callee.endsWith(".getOr") || expr.callee.endsWith(".takeOr"));
 }
 
-function rejectNestedGetOr(expr: ExprIR) {
-  if (isGetOr(expr)) {
+function rejectNestedLookup(expr: ExprIR) {
+  if (isDirectLookup(expr)) {
     throw new BpfTsCompileError(
       `${(expr as Extract<ExprIR, { kind: "call" }>).callee}() must be used as a direct local initializer`,
     );
   }
   switch (expr.kind) {
     case "property":
-      rejectNestedGetOr(expr.object);
+      rejectNestedLookup(expr.object);
       break;
     case "binary":
-      rejectNestedGetOr(expr.left);
-      rejectNestedGetOr(expr.right);
+      rejectNestedLookup(expr.left);
+      rejectNestedLookup(expr.right);
       break;
     case "unary":
-      rejectNestedGetOr(expr.value);
+      rejectNestedLookup(expr.value);
       break;
     case "call":
-      for (const arg of expr.args) rejectNestedGetOr(arg);
+      for (const arg of expr.args) rejectNestedLookup(arg);
       break;
     case "object":
-      for (const field of expr.fields) rejectNestedGetOr(field.value);
+      for (const field of expr.fields) rejectNestedLookup(field.value);
       break;
     default:
       break;
@@ -37,23 +37,23 @@ function validateStatements(statements: StmtIR[]) {
   for (const statement of statements) {
     switch (statement.kind) {
       case "let":
-        if (isGetOr(statement.value)) {
+        if (isDirectLookup(statement.value)) {
           const call = statement.value as Extract<ExprIR, { kind: "call" }>;
-          for (const arg of call.args) rejectNestedGetOr(arg);
+          for (const arg of call.args) rejectNestedLookup(arg);
         } else {
-          rejectNestedGetOr(statement.value);
+          rejectNestedLookup(statement.value);
         }
         break;
       case "assign":
-        rejectNestedGetOr(statement.target);
-        rejectNestedGetOr(statement.value);
+        rejectNestedLookup(statement.target);
+        rejectNestedLookup(statement.value);
         break;
       case "expr":
       case "return":
-        rejectNestedGetOr(statement.value);
+        rejectNestedLookup(statement.value);
         break;
       case "if":
-        rejectNestedGetOr(statement.test);
+        rejectNestedLookup(statement.test);
         validateStatements(statement.then);
         validateStatements(statement.otherwise);
         break;
