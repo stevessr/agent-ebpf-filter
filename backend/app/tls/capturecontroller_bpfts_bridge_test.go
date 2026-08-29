@@ -24,6 +24,9 @@ func TestTLSCaptureControllerInitializesBpfTSModes(t *testing.T) {
 	if _, ok := status["bpfTsWireEfficiency"].(BpfTSOpenSSLWireEfficiency); !ok {
 		t.Fatalf("expected bpfTsWireEfficiency status, got %#v", status["bpfTsWireEfficiency"])
 	}
+	if _, ok := status["bpfTsBackpressure"].(BpfTSOpenSSLBackpressureStatus); !ok {
+		t.Fatalf("expected bpfTsBackpressure status, got %#v", status["bpfTsBackpressure"])
+	}
 	if active, _ := status["captureActive"].(bool); active {
 		t.Fatal("fresh controller must not report an active capture backend")
 	}
