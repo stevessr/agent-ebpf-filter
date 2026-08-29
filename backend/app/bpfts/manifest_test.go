@@ -39,6 +39,22 @@ func TestParseManifestAcceptsVersionOneContract(t *testing.T) {
 	}
 }
 
+func TestParseManifestAcceptsCompilerOwnedPerCPUArray(t *testing.T) {
+	jsonText := strings.Replace(
+		validManifestJSON,
+		`{"name": "counts", "kind": "hash", "maxEntries": 1024}`,
+		`{"name": "counts", "kind": "hash", "maxEntries": 1024}, {"name": "__bpf_ts_scratch_events", "kind": "percpu_array", "maxEntries": 1}`,
+		1,
+	)
+	manifest, err := ParseManifest(strings.NewReader(jsonText))
+	if err != nil {
+		t.Fatalf("ParseManifest() per-cpu array error = %v", err)
+	}
+	if len(manifest.Maps) != 3 || manifest.Maps[2].Kind != "percpu_array" || manifest.Maps[2].MaxEntries != 1 {
+		t.Fatalf("unexpected per-cpu manifest: %#v", manifest.Maps)
+	}
+}
+
 func TestParseManifestRejectsUnknownAndTrailingData(t *testing.T) {
 	withUnknown := strings.Replace(validManifestJSON, `"source": "examples/tls-write.ts"`, `"source": "examples/tls-write.ts", "future": true`, 1)
 	if _, err := ParseManifest(strings.NewReader(withUnknown)); err == nil || !strings.Contains(err.Error(), "unknown field") {
