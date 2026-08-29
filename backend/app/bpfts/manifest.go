@@ -126,7 +126,7 @@ func (manifest Manifest) Validate() error {
 			if item.MaxEntries < 4096 || item.MaxEntries&(item.MaxEntries-1) != 0 {
 				return fmt.Errorf("ringbuf %q capacity must be a power of two and at least 4096", item.Name)
 			}
-		case "hash", "array":
+		case "hash", "array", "percpu_array":
 			if item.MaxEntries == 0 {
 				return fmt.Errorf("map %q maxEntries must be positive", item.Name)
 			}
