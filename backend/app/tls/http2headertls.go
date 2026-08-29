@@ -1,6 +1,7 @@
 package tls
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -35,8 +36,10 @@ type tlsHTTP2HeaderBlockKey struct {
 }
 
 type tlsHTTP2PendingHeaderBlock struct {
-	data     []byte
-	lastSeen time.Time
+	data             []byte
+	frameType        byte
+	promisedStreamID uint32
+	lastSeen         time.Time
 }
 
 type tlsHTTP2HPACKDecoderState struct {
@@ -84,6 +87,13 @@ func tlsHTTP2LogicalKey(key tlsHTTP2StreamKey, streamID uint32) tlsHTTP2LogicalS
 	}
 }
 
+func sameTLSHTTP2Connection(a tlsHTTP2StreamKey, b tlsHTTP2LogicalStreamKey) bool {
+	return a.PID == b.PID &&
+		a.TGID == b.TGID &&
+		a.ConnectionID == b.ConnectionID &&
+		a.LibType == b.LibType
+}
+
 func newTLSHTTP2HPACKDecoder() *hpack.Decoder {
 	decoder := hpack.NewDecoder(4096, func(hpack.HeaderField) {})
 	decoder.SetAllowedMaxDynamicTableSize(tlsHTTP2MaxHPACKTable)
@@ -102,6 +112,46 @@ func (d *tlsHTTP2HeaderDecoder) decoderFor(key tlsHTTP2StreamKey, now time.Time)
 	state := &tlsHTTP2HPACKDecoderState{decoder: newTLSHTTP2HPACKDecoder(), lastSeen: now}
 	d.decoders[key] = state
 	return state
+}
+
+func (d *tlsHTTP2HeaderDecoder) resetDirection(key tlsHTTP2StreamKey) {
+	if d == nil {
+		return
+	}
+	delete(d.decoders, key)
+	for blockKey := range d.blocks {
+		if blockKey.Stream == key {
+			delete(d.blocks, blockKey)
+		}
+	}
+}
+
+func (d *tlsHTTP2HeaderDecoder) dropConnection(key tlsHTTP2StreamKey) {
+	if d == nil {
+		return
+	}
+	for decoderKey := range d.decoders {
+		if decoderKey.PID == key.PID &&
+			decoderKey.TGID == key.TGID &&
+			decoderKey.ConnectionID == key.ConnectionID &&
+			decoderKey.LibType == key.LibType {
+			delete(d.decoders, decoderKey)
+		}
+	}
+	for blockKey := range d.blocks {
+		decoderKey := blockKey.Stream
+		if decoderKey.PID == key.PID &&
+			decoderKey.TGID == key.TGID &&
+			decoderKey.ConnectionID == key.ConnectionID &&
+			decoderKey.LibType == key.LibType {
+			delete(d.blocks, blockKey)
+		}
+	}
+	for streamKey := range d.streams {
+		if sameTLSHTTP2Connection(key, streamKey) {
+			delete(d.streams, streamKey)
+		}
+	}
 }
 
 func (d *tlsHTTP2HeaderDecoder) evictOldestDecoder() {
@@ -129,6 +179,7 @@ func (d *tlsHTTP2HeaderDecoder) evictOldestBlock() {
 	}
 	if oldest != nil {
 		delete(d.blocks, oldestKey)
+		delete(d.decoders, oldestKey.Stream)
 	}
 }
 
@@ -158,6 +209,9 @@ func (d *tlsHTTP2HeaderDecoder) cleanup(now time.Time) {
 	for key, block := range d.blocks {
 		if now.Sub(block.lastSeen) > 30*time.Second {
 			delete(d.blocks, key)
+			// A missing tail may contain dynamic-table mutations. Forget this
+			// direction rather than decoding later headers against stale state.
+			delete(d.decoders, key.Stream)
 		}
 	}
 	for key, stream := range d.streams {
@@ -217,17 +271,47 @@ func tlsHTTP2HeadersFragment(frame []byte) ([]byte, error) {
 	return payload[offset : len(payload)-padding], nil
 }
 
-func (d *tlsHTTP2HeaderDecoder) appendHeaderBlock(key tlsHTTP2HeaderBlockKey, fragment []byte, now time.Time) ([]byte, bool) {
+func tlsHTTP2PushPromiseFragment(frame []byte) (uint32, []byte, error) {
+	if len(frame) < tlsHTTP2FrameHeaderSize || frame[3] != 0x5 {
+		return 0, nil, fmt.Errorf("not an HTTP/2 PUSH_PROMISE frame")
+	}
+	payload := frame[tlsHTTP2FrameHeaderSize:]
+	offset := 0
+	padding := 0
+	if frame[4]&0x8 != 0 {
+		if len(payload) == 0 {
+			return 0, nil, fmt.Errorf("padded PUSH_PROMISE frame has no pad length")
+		}
+		padding = int(payload[0])
+		offset++
+	}
+	if len(payload)-offset < 4 {
+		return 0, nil, fmt.Errorf("PUSH_PROMISE frame missing promised stream id")
+	}
+	promisedID := binary.BigEndian.Uint32(payload[offset:offset+4]) & 0x7fffffff
+	offset += 4
+	if promisedID == 0 || padding > len(payload)-offset {
+		return 0, nil, fmt.Errorf("invalid PUSH_PROMISE stream id/padding")
+	}
+	return promisedID, payload[offset : len(payload)-padding], nil
+}
+
+func (d *tlsHTTP2HeaderDecoder) appendHeaderBlock(key tlsHTTP2HeaderBlockKey, fragment []byte, frameType byte, promisedStreamID uint32, now time.Time) ([]byte, bool) {
 	block := d.blocks[key]
 	if block == nil {
 		if len(d.blocks) >= tlsHTTP2MaxHeaderBlocks {
 			d.evictOldestBlock()
 		}
-		block = &tlsHTTP2PendingHeaderBlock{lastSeen: now}
+		block = &tlsHTTP2PendingHeaderBlock{
+			frameType:        frameType,
+			promisedStreamID: promisedStreamID,
+			lastSeen:         now,
+		}
 		d.blocks[key] = block
 	}
 	if len(block.data)+len(fragment) > tlsHTTP2MaxHeaderBlock {
 		delete(d.blocks, key)
+		delete(d.decoders, key.Stream)
 		return nil, false
 	}
 	block.data = append(block.data, fragment...)
@@ -295,6 +379,13 @@ func tlsHTTP2FieldsToMetadata(fields []hpack.HeaderField) (method, path, authori
 	return method, sanitizeTLSURL(path), sanitizeTLSInlineSecrets(authority), status, sanitizeTLSHeaders(regular), contentType
 }
 
+func oppositeTLSDirection(direction uint8) uint8 {
+	if direction == tlsDirectionSend {
+		return tlsDirectionRecv
+	}
+	return tlsDirectionSend
+}
+
 func (d *tlsHTTP2HeaderDecoder) applyStreamContext(key tlsHTTP2StreamKey, streamID uint32, event *TLSPlaintextEvent, now time.Time) *tlsHTTP2LogicalStreamState {
 	logicalKey := tlsHTTP2LogicalKey(key, streamID)
 	state := d.streams[logicalKey]
@@ -327,7 +418,7 @@ func (d *tlsHTTP2HeaderDecoder) applyStreamContext(key tlsHTTP2StreamKey, stream
 	return state
 }
 
-func (d *tlsHTTP2HeaderDecoder) storeHeaderContext(key tlsHTTP2StreamKey, streamID uint32, event *TLSPlaintextEvent, now time.Time) *tlsHTTP2LogicalStreamState {
+func (d *tlsHTTP2HeaderDecoder) streamState(streamID uint32, key tlsHTTP2StreamKey, now time.Time) *tlsHTTP2LogicalStreamState {
 	logicalKey := tlsHTTP2LogicalKey(key, streamID)
 	state := d.streams[logicalKey]
 	if state == nil {
@@ -338,6 +429,11 @@ func (d *tlsHTTP2HeaderDecoder) storeHeaderContext(key tlsHTTP2StreamKey, stream
 		d.streams[logicalKey] = state
 	}
 	state.lastSeen = now
+	return state
+}
+
+func (d *tlsHTTP2HeaderDecoder) storeHeaderContext(key tlsHTTP2StreamKey, streamID uint32, event *TLSPlaintextEvent, now time.Time) *tlsHTTP2LogicalStreamState {
+	state := d.streamState(streamID, key, now)
 	if event.Method != "" {
 		state.request = tlsHTTPRequestContext{Method: event.Method, URL: event.URL, Host: event.Host}
 		state.requestDirection = key.Direction
@@ -349,6 +445,16 @@ func (d *tlsHTTP2HeaderDecoder) storeHeaderContext(key tlsHTTP2StreamKey, stream
 		state.responseContentType = event.ContentType
 	}
 	return state
+}
+
+func (d *tlsHTTP2HeaderDecoder) storePushPromiseContext(key tlsHTTP2StreamKey, promisedStreamID uint32, event *TLSPlaintextEvent, now time.Time) {
+	state := d.streamState(promisedStreamID, key, now)
+	state.request = tlsHTTPRequestContext{Method: event.Method, URL: event.URL, Host: event.Host}
+	// PUSH_PROMISE carries the synthetic request on the same wire direction as
+	// the future pushed response. Model its logical request as the opposite
+	// direction so response status/media metadata remains directional.
+	state.requestDirection = oppositeTLSDirection(key.Direction)
+	state.requestContentType = event.ContentType
 }
 
 func (d *tlsHTTP2HeaderDecoder) enrichFrame(key tlsHTTP2StreamKey, event TLSPlaintextEvent, frame []byte) TLSPlaintextEvent {
@@ -389,12 +495,13 @@ func (d *tlsHTTP2HeaderDecoder) enrichFrame(key tlsHTTP2StreamKey, event TLSPlai
 		if err != nil {
 			event.Type = "http2_headers_invalid"
 			event.RawHexDump = ""
+			d.resetDirection(key)
 			return event
 		}
 		blockKey := tlsHTTP2HeaderBlockKey{Stream: key, ID: streamID}
 		delete(d.blocks, blockKey)
 		if flags&0x4 == 0 {
-			if _, ok := d.appendHeaderBlock(blockKey, fragment, now); !ok {
+			if _, ok := d.appendHeaderBlock(blockKey, fragment, 0x1, 0, now); !ok {
 				event.Type = "http2_headers_truncated"
 				event.Truncated = true
 			}
@@ -403,13 +510,35 @@ func (d *tlsHTTP2HeaderDecoder) enrichFrame(key tlsHTTP2StreamKey, event TLSPlai
 		}
 		return d.decodeHeaderEvent(key, streamID, event, fragment, now)
 
-	case 0x9: // CONTINUATION
+	case 0x5: // PUSH_PROMISE
+		promisedID, fragment, err := tlsHTTP2PushPromiseFragment(frame)
+		if err != nil {
+			event.Type = "http2_push_promise_invalid"
+			event.RawHexDump = ""
+			d.resetDirection(key)
+			return event
+		}
 		blockKey := tlsHTTP2HeaderBlockKey{Stream: key, ID: streamID}
-		if d.blocks[blockKey] == nil {
+		delete(d.blocks, blockKey)
+		if flags&0x4 == 0 {
+			if _, ok := d.appendHeaderBlock(blockKey, fragment, 0x5, promisedID, now); !ok {
+				event.Type = "http2_push_promise_truncated"
+				event.Truncated = true
+			}
 			event.RawHexDump = ""
 			return event
 		}
-		block, ok := d.appendHeaderBlock(blockKey, frame[tlsHTTP2FrameHeaderSize:], now)
+		return d.decodePushPromiseEvent(key, promisedID, event, fragment, now)
+
+	case 0x9: // CONTINUATION
+		blockKey := tlsHTTP2HeaderBlockKey{Stream: key, ID: streamID}
+		pending := d.blocks[blockKey]
+		if pending == nil {
+			event.RawHexDump = ""
+			d.resetDirection(key)
+			return event
+		}
+		block, ok := d.appendHeaderBlock(blockKey, frame[tlsHTTP2FrameHeaderSize:], pending.frameType, pending.promisedStreamID, now)
 		if !ok {
 			event.Type = "http2_headers_truncated"
 			event.Truncated = true
@@ -421,13 +550,32 @@ func (d *tlsHTTP2HeaderDecoder) enrichFrame(key tlsHTTP2StreamKey, event TLSPlai
 			return event
 		}
 		blockCopy := append([]byte(nil), block...)
+		frameType := pending.frameType
+		promisedID := pending.promisedStreamID
 		delete(d.blocks, blockKey)
+		if frameType == 0x5 {
+			return d.decodePushPromiseEvent(key, promisedID, event, blockCopy, now)
+		}
 		return d.decodeHeaderEvent(key, streamID, event, blockCopy, now)
 
 	case 0x3: // RST_STREAM
 		delete(d.streams, tlsHTTP2LogicalKey(key, streamID))
 	}
 	return event
+}
+
+func (d *tlsHTTP2HeaderDecoder) applyDecodedHeaderFields(event *TLSPlaintextEvent, fields []hpack.HeaderField, metadataTruncated bool) {
+	method, path, authority, status, headers, contentType := tlsHTTP2FieldsToMetadata(fields)
+	event.Method = method
+	event.URL = path
+	event.Host = authority
+	event.StatusCode = status
+	event.Headers = headers
+	event.ContentType = contentType
+	event.RedactionState = "sanitized"
+	if metadataTruncated {
+		event.Truncated = true
+	}
 }
 
 func (d *tlsHTTP2HeaderDecoder) decodeHeaderEvent(key tlsHTTP2StreamKey, streamID uint32, event TLSPlaintextEvent, block []byte, now time.Time) TLSPlaintextEvent {
@@ -441,22 +589,11 @@ func (d *tlsHTTP2HeaderDecoder) decodeHeaderEvent(key tlsHTTP2StreamKey, streamI
 		return event
 	}
 
-	method, path, authority, status, headers, contentType := tlsHTTP2FieldsToMetadata(fields)
-	event.Method = method
-	event.URL = path
-	event.Host = authority
-	event.StatusCode = status
-	event.Headers = headers
-	event.ContentType = contentType
-	event.RedactionState = "sanitized"
-	if metadataTruncated {
-		event.Truncated = true
-	}
-
-	if method != "" {
+	d.applyDecodedHeaderFields(&event, fields, metadataTruncated)
+	if event.Method != "" {
 		event.Type = "http2_request"
 		d.storeHeaderContext(key, streamID, &event, now)
-	} else if status != 0 {
+	} else if event.StatusCode != 0 {
 		event.Type = "http2_response"
 		state := d.storeHeaderContext(key, streamID, &event, now)
 		if state != nil {
@@ -467,8 +604,26 @@ func (d *tlsHTTP2HeaderDecoder) decodeHeaderEvent(key tlsHTTP2StreamKey, streamI
 		d.applyStreamContext(key, streamID, &event, now)
 	}
 
-	if status != 0 && event.HTTP2Flags&0x1 != 0 {
+	if event.StatusCode != 0 && event.HTTP2Flags&0x1 != 0 {
 		delete(d.streams, tlsHTTP2LogicalKey(key, streamID))
+	}
+	return event
+}
+
+func (d *tlsHTTP2HeaderDecoder) decodePushPromiseEvent(key tlsHTTP2StreamKey, promisedStreamID uint32, event TLSPlaintextEvent, block []byte, now time.Time) TLSPlaintextEvent {
+	fields, metadataTruncated, err := d.decodeBlock(key, block, now)
+	event.RawHexDump = ""
+	event.RawAvailable = true
+	event.Type = "http2_push_promise"
+	event.HTTP2PromisedStreamID = promisedStreamID
+	if err != nil {
+		event.Type = "http2_push_promise_decode_error"
+		return event
+	}
+	d.applyDecodedHeaderFields(&event, fields, metadataTruncated)
+	event.StatusCode = 0
+	if event.Method != "" {
+		d.storePushPromiseContext(key, promisedStreamID, &event, now)
 	}
 	return event
 }
