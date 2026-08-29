@@ -42,7 +42,7 @@ describe("bpf-ts compiler", () => {
     });
   });
 
-  test("preserves uprobe attachment metadata and context identifiers", () => {
+  test("preserves uprobe metadata and clamps user-byte reads", () => {
     const result = compileBpfTs(`
 interface Event { pid: u32; len: u64; sample: bytes<32>; }
 const events = ringbuf<Event>(65536);
@@ -50,7 +50,8 @@ class TLSProbes {
   @uprobe("SSL_write")
   static capture(regs: UProbeContext): i32 {
     const buffer = bpf.arg(regs, 2);
-    events.emit({ pid: bpf.pid(), len: bpf.arg(regs, 3), sample: bpf.userBytes(buffer) });
+    const length = bpf.arg(regs, 3);
+    events.emit({ pid: bpf.pid(), len: length, sample: bpf.userBytes(buffer, length) });
     return 0;
   }
 }
@@ -59,6 +60,8 @@ class TLSProbes {
     expect(result.cSource).toContain("struct pt_regs *regs");
     expect(result.cSource).toContain("PT_REGS_PARM3(regs)");
     expect(result.cSource).toContain("bpf_probe_read_user");
+    expect(result.cSource).toContain("if (__bpf_ts_read_len_");
+    expect(result.cSource).toContain("sizeof(__bpf_ts_event_");
     expect(result.manifest.probes[0]).toEqual({
       name: "capture",
       kind: "uprobe",
