@@ -90,14 +90,6 @@ func findMasked(data, pat, mask []byte) int64 {
 	return -1
 }
 
-func binaryEmbedsSSL(binPath string) bool {
-	data, err := os.ReadFile(binPath)
-	if err != nil {
-		return false
-	}
-	return bytes.Contains(data, []byte("SSL_write"))
-}
-
 func binaryContainsSSLReadWriteStrings(data []byte) bool {
 	return bytes.Contains(data, []byte("SSL_write")) && bytes.Contains(data, []byte("SSL_read"))
 }
@@ -126,50 +118,36 @@ func (m *TLSProbeManager) AttachBoringSSLByOffsets(binPath string, pid int) erro
 	if m == nil {
 		return fmt.Errorf("manager is nil")
 	}
-	if !binaryEmbedsSSL(binPath) {
-		return fmt.Errorf("binary does not embed SSL (no 'SSL_write' string found)")
+
+	file, err := elf.Open(binPath)
+	if err != nil {
+		return fmt.Errorf("open ELF for stripped SSL discovery: %w", err)
 	}
-	log.Printf("[tls] binary embeds SSL, searching for function patterns...")
+	machine := file.Machine
+	_ = file.Close()
 
 	data, err := os.ReadFile(binPath)
 	if err != nil {
 		return fmt.Errorf("read binary: %w", err)
 	}
-
-	var readOff, writeOff int64
-	found := false
-
-	// Exact BoringSSL patterns remain the preferred stripped-binary path.
-	readOff = findBS(data, bsSSLRead.pattern)
-	if readOff >= 0 {
-		writeCenter := readOff + 0xCA0
-		writeOff = findBSNear(data, bsSSLWrite.pattern, writeCenter, 0x10000)
-		if writeOff >= 0 {
-			log.Printf("[tls] → matched BoringSSL patterns: SSL_read=%#x SSL_write=%#x", readOff, writeOff)
-			found = true
-		}
+	discovery, err := discoverKnownStrippedSSL(machine, data)
+	if err != nil {
+		return fmt.Errorf("stripped SSL discovery: %w", err)
 	}
-
-	if !found {
-		osslMask := buildMask(osslSSLCommonPrefix.pattern)
-		var matches []int64
-		for i := int64(0); i <= int64(len(data))-int64(len(osslSSLCommonPrefix.pattern)); i++ {
-			if matchMasked(data[i:], osslSSLCommonPrefix.pattern, osslMask) {
-				matches = append(matches, i)
-			}
-		}
-		log.Printf("[tls] OpenSSL common prologue found at %d locations", len(matches))
-		var distance int64
-		writeOff, readOff, distance, found = selectUnambiguousOpenSSLPair(matches, binaryContainsSSLReadWriteStrings(data))
-		if found {
-			log.Printf("[tls] → accepted unambiguous OpenSSL fallback: SSL_write=%#x SSL_read=%#x (dist=%#x)", writeOff, readOff, distance)
-		} else if len(matches) > 0 {
-			log.Printf("[tls] → refusing ambiguous OpenSSL offset fallback (%d common-prologue candidates)", len(matches))
-		}
-	}
-
-	if !found {
-		return fmt.Errorf("no unambiguous SSL function patterns matched in stripped binary (%d bytes)", len(data))
+	switch discovery.Strategy {
+	case strippedSSLStrategyBoringSSLExact:
+		log.Printf(
+			"[tls] matched exact BoringSSL patterns: SSL_read=%#x SSL_write=%#x",
+			discovery.ReadOffset,
+			discovery.WriteOffset,
+		)
+	case strippedSSLStrategyOpenSSLCommonPrefix:
+		log.Printf(
+			"[tls] accepted fail-closed OpenSSL common-prefix fallback: SSL_write=%#x SSL_read=%#x candidates=%d",
+			discovery.WriteOffset,
+			discovery.ReadOffset,
+			discovery.CandidateCount,
+		)
 	}
 
 	m.mu.Lock()
@@ -193,13 +171,13 @@ func (m *TLSProbeManager) AttachBoringSSLByOffsets(binPath string, pid int) erro
 	// SSL_write is captured at function entry by uprobe_ssl_write, so there is
 	// intentionally no SSL_write return program. SSL_read must keep entry+return
 	// because the return value supplies the actual plaintext byte count.
-	if err := attachOffsetProbe(bin, m, "uprobe_ssl_write", uint64(writeOff), false, opts); err != nil {
+	if err := attachOffsetProbe(bin, m, "uprobe_ssl_write", discovery.WriteOffset, false, opts); err != nil {
 		errs = append(errs, fmt.Errorf("SSL_write entry: %w", err))
 	}
-	if err := attachOffsetProbe(bin, m, "uprobe_ssl_read", uint64(readOff), false, opts); err != nil {
+	if err := attachOffsetProbe(bin, m, "uprobe_ssl_read", discovery.ReadOffset, false, opts); err != nil {
 		errs = append(errs, fmt.Errorf("SSL_read entry: %w", err))
 	}
-	if err := attachOffsetProbe(bin, m, "uretprobe_ssl_read", uint64(readOff), true, opts); err != nil {
+	if err := attachOffsetProbe(bin, m, "uretprobe_ssl_read", discovery.ReadOffset, true, opts); err != nil {
 		errs = append(errs, fmt.Errorf("SSL_read ret: %w", err))
 	}
 
@@ -315,7 +293,6 @@ func dumpCandidateTLSSymbols(binPath string) {
 				httpCandidates = append(httpCandidates, s.Name)
 				break
 			}
-		}
 	}
 
 	if len(candidates) > 0 {
