@@ -100,72 +100,34 @@ type TLSProbeManager struct {
 }
 
 type ReadLoopStats struct {
-	TotalFrags          int64   `json:"totalFrags"`
-	DroppedFrags        int64   `json:"droppedFrags"`
-	CompletedFrags      int64   `json:"completedFrags"`
-	HTTPEvents          int64   `json:"httpEvents"`
-	RawEvents           int64   `json:"rawEvents"`
-	LastFragmentNS      int64   `json:"lastFragmentNs"`
-	PerfSampleBytes     int64   `json:"perfSampleBytes"`
-	CompactSamples      int64   `json:"compactSamples"`
-	LegacySamples       int64   `json:"legacySamples"`
-	MaxSampleBytes      int64   `json:"maxSampleBytes"`
-	AverageSampleBytes  float64 `json:"averageSampleBytes"`
+	TotalFrags     int64
+	DroppedFrags   int64
+	CompletedFrags int64
+	HTTPEvents     int64
+	RawEvents      int64
+	LastFragmentNS int64
 }
 
 type readLoopAtomicStats struct {
-	totalFrags      atomic.Int64
-	droppedFrags    atomic.Int64
-	completedFrags  atomic.Int64
-	httpEvents      atomic.Int64
-	rawEvents       atomic.Int64
-	lastFragmentNS  atomic.Int64
-	perfSampleBytes atomic.Int64
-	compactSamples  atomic.Int64
-	legacySamples   atomic.Int64
-	maxSampleBytes  atomic.Int64
-}
-
-func (s *readLoopAtomicStats) recordSample(rawLen int, compact bool) {
-	if s == nil || rawLen <= 0 {
-		return
-	}
-	s.perfSampleBytes.Add(int64(rawLen))
-	if compact {
-		s.compactSamples.Add(1)
-	} else {
-		s.legacySamples.Add(1)
-	}
-	candidate := int64(rawLen)
-	for current := s.maxSampleBytes.Load(); candidate > current; current = s.maxSampleBytes.Load() {
-		if s.maxSampleBytes.CompareAndSwap(current, candidate) {
-			break
-		}
-	}
+	totalFrags     atomic.Int64
+	droppedFrags   atomic.Int64
+	completedFrags atomic.Int64
+	httpEvents     atomic.Int64
+	rawEvents      atomic.Int64
+	lastFragmentNS atomic.Int64
 }
 
 func (s *readLoopAtomicStats) Snapshot() ReadLoopStats {
 	if s == nil {
 		return ReadLoopStats{}
 	}
-	total := s.totalFrags.Load()
-	bytes := s.perfSampleBytes.Load()
-	average := float64(0)
-	if total > 0 {
-		average = float64(bytes) / float64(total)
-	}
 	return ReadLoopStats{
-		TotalFrags:         total,
-		DroppedFrags:       s.droppedFrags.Load(),
-		CompletedFrags:     s.completedFrags.Load(),
-		HTTPEvents:         s.httpEvents.Load(),
-		RawEvents:          s.rawEvents.Load(),
-		LastFragmentNS:     s.lastFragmentNS.Load(),
-		PerfSampleBytes:    bytes,
-		CompactSamples:     s.compactSamples.Load(),
-		LegacySamples:      s.legacySamples.Load(),
-		MaxSampleBytes:     s.maxSampleBytes.Load(),
-		AverageSampleBytes: average,
+		TotalFrags:     s.totalFrags.Load(),
+		DroppedFrags:   s.droppedFrags.Load(),
+		CompletedFrags: s.completedFrags.Load(),
+		HTTPEvents:     s.httpEvents.Load(),
+		RawEvents:      s.rawEvents.Load(),
+		LastFragmentNS: s.lastFragmentNS.Load(),
 	}
 }
 
@@ -263,6 +225,10 @@ func (m *TLSProbeManager) attachLibraryPathLocked(target ProbeTarget, path strin
 	status.Attached = attached > 0
 	if attached > 0 {
 		m.attachedStatic[attachKey] = true
+		// TLS ABIs vary between library versions. Missing SSL_*_ex or other
+		// optional symbols must not roll back working SSL_read/SSL_write probes.
+		// Preserve the partial error for diagnostics while treating the library
+		// as attached when at least one probe is active.
 		if attachErr != nil {
 			status.Error = "partial probe coverage: " + attachErr.Error()
 		}
@@ -293,25 +259,130 @@ func (m *TLSProbeManager) attachLibraryPath(target ProbeTarget, path string, sta
 		if l, err := m.attachEntryProbe(lib, target.name, symbol, nil); err != nil {
 			errs = append(errs, err)
 		} else if l != nil {
-			m.links = append(m.links, l)
+			attached++
+		}
+		if l, err := m.attachReturnProbe(lib, target.name, symbol, nil); err != nil {
+			errs = append(errs, err)
+		} else if l != nil {
 			attached++
 		}
 	}
 	for _, symbol := range target.recvSymbols {
-		if entry, err := m.attachEntryProbe(lib, target.name, symbol, nil); err != nil {
+		if l, err := m.attachEntryProbe(lib, target.name, symbol, nil); err != nil {
 			errs = append(errs, err)
-		} else if entry != nil {
-			m.links = append(m.links, entry)
+		} else if l != nil {
 			attached++
 		}
-		if ret, err := m.attachReturnProbe(lib, target.name, symbol, nil); err != nil {
+		if l, err := m.attachReturnProbe(lib, target.name, symbol, nil); err != nil {
 			errs = append(errs, err)
-		} else if ret != nil {
-			m.links = append(m.links, ret)
+		} else if l != nil {
 			attached++
 		}
 	}
 	return attached, errors.Join(errs...)
 }
 
-// The remaining probe attachment helpers live in the companion manager files.
+func (m *TLSProbeManager) attachEntryProbe(executable *link.Executable, label, symbol string, opts *link.UprobeOptions) (link.Link, error) {
+	programName, ok := tlsProgramForSymbol(symbol)
+	if !ok {
+		log.Printf("[tls] attachEntryProbe: SKIP symbol=%q label=%s — no program mapping", symbol, label)
+		return nil, nil
+	}
+	prog, ok := programByName(&m.objs.AgentTlsCapturePrograms, programName)
+	if !ok || prog == nil {
+		log.Printf("[tls] attachEntryProbe: SKIP symbol=%q label=%s program=%q — program not found in loaded BPF object", symbol, label, programName)
+		return nil, nil
+	}
+	pidHint := ""
+	if opts != nil && opts.PID != 0 {
+		pidHint = fmt.Sprintf(" pid=%d", opts.PID)
+	}
+	l, err := executable.Uprobe(symbol, prog, opts)
+	if err != nil {
+		log.Printf("[tls] attachEntryProbe: FAIL symbol=%q label=%s program=%q%s: %v", symbol, label, programName, pidHint, err)
+		return nil, fmt.Errorf("attach %s uprobe %s: %w", label, symbol, err)
+	}
+	log.Printf("[tls] attachEntryProbe: OK symbol=%q label=%s program=%q%s", symbol, label, programName, pidHint)
+	m.links = append(m.links, l)
+	return l, nil
+}
+
+func (m *TLSProbeManager) attachReturnProbe(executable *link.Executable, label, symbol string, opts *link.UprobeOptions) (link.Link, error) {
+	programName, ok := tlsReturnProgramForSymbol(symbol)
+	if !ok {
+		log.Printf("[tls] attachReturnProbe: SKIP symbol=%q label=%s — no return program mapping", symbol, label)
+		return nil, nil
+	}
+	prog, ok := programByName(&m.objs.AgentTlsCapturePrograms, programName)
+	if !ok || prog == nil {
+		log.Printf("[tls] attachReturnProbe: SKIP symbol=%q label=%s program=%q — program not found in loaded BPF object", symbol, label, programName)
+		return nil, nil
+	}
+	pidHint := ""
+	if opts != nil && opts.PID != 0 {
+		pidHint = fmt.Sprintf(" pid=%d", opts.PID)
+	}
+	l, err := executable.Uretprobe(symbol, prog, opts)
+	if err != nil {
+		log.Printf("[tls] attachReturnProbe: FAIL symbol=%q label=%s program=%q%s: %v", symbol, label, programName, pidHint, err)
+		return nil, fmt.Errorf("attach %s uretprobe %s: %w", label, symbol, err)
+	}
+	log.Printf("[tls] attachReturnProbe: OK symbol=%q label=%s program=%q%s", symbol, label, programName, pidHint)
+	m.links = append(m.links, l)
+	return l, nil
+}
+
+func executableTLSAttachPath(resolved binaryresolver.ResolvedBinary) string {
+	if resolved.Shebang != "" {
+		if interpreter := resolveShebangInterpreter(resolved.Shebang); interpreter != "" {
+			return interpreter
+		}
+	}
+	if resolved.RealPath != "" {
+		return resolved.RealPath
+	}
+	return resolved.Path
+}
+
+func resolveShebangInterpreter(shebang string) string {
+	fields := strings.Fields(strings.TrimSpace(shebang))
+	if len(fields) == 0 {
+		return ""
+	}
+	command := fields[0]
+	if filepath.Base(command) == "env" {
+		for _, field := range fields[1:] {
+			if strings.HasPrefix(field, "-") || strings.Contains(field, "=") {
+				continue
+			}
+			command = field
+			break
+		}
+	}
+	if command == "" || filepath.Base(command) == "env" {
+		return ""
+	}
+	resolved := binaryresolver.ResolveBinary(command, "")
+	if resolved.Error == "" {
+		if resolved.RealPath != "" {
+			return resolved.RealPath
+		}
+		return resolved.Path
+	}
+	if filepath.IsAbs(command) {
+		return command
+	}
+	return ""
+}
+
+func executableLibraryCandidates(libraryHint string) []ProbeTarget {
+	libraryHint = strings.TrimSpace(libraryHint)
+	if libraryHint == "" || strings.EqualFold(libraryHint, "auto") {
+		return staticTLSLibraries
+	}
+	target, err := resolveManualTLSProbeTarget("", libraryHint)
+	if err != nil {
+		return staticTLSLibraries
+	}
+	return []ProbeTarget{target}
+}
