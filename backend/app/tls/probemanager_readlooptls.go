@@ -113,17 +113,18 @@ func (m *TLSProbeManager) ReadLoop() error {
 		}
 		m.readLoopStats.completedFrags.Add(1)
 
-		parsedEvents := httpStreams.Add(*completed)
+		parsedEvents, http1Recognized := httpStreams.AddRecognized(*completed)
 		http2Recognized := false
-		if len(parsedEvents) == 0 {
+		if len(parsedEvents) == 0 && !http1Recognized {
 			parsedEvents, http2Recognized = http2Streams.Add(*completed)
 		}
 
 		if len(parsedEvents) == 0 {
-			if http2Recognized {
-				// The HTTP/2 assembler owns these bytes and is waiting for a later
-				// TLS call to complete the frame. Publishing raw data here would
-				// duplicate and fragment the eventual structured event.
+			if http1Recognized || http2Recognized {
+				// A protocol assembler owns these bytes and is either waiting for a
+				// later TLS call or has intentionally discarded a known capture gap.
+				// Raw fallback here would duplicate traffic and could expose headers
+				// or bodies before the structured redaction path runs.
 				continue
 			}
 			raw := completedToPlaintextEvent(*completed)
