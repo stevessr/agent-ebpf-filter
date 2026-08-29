@@ -1,20 +1,26 @@
 import { BpfTsCompileError } from "./diagnostics";
 import type { BpfType, ExprIR, MapIR, ProbeIR, ProgramIR, StmtIR } from "./ir";
 
-const expressionHelpers = new Set([
+const zeroArgHelpers = new Set([
   "bpf.pid",
   "bpf.tid",
   "bpf.uid",
   "bpf.gid",
   "bpf.ktimeNs",
-  "bpf.arg",
-]);
-const ringbufByteHelpers = new Set([
   "bpf.comm",
-  "bpf.userString",
-  "bpf.userBytes",
 ]);
-const statementHelpers = new Set(["bpf.readUser"]);
+
+interface Scope {
+  defined: Set<string>;
+  readOnly: Set<string>;
+}
+
+function cloneScope(scope: Scope): Scope {
+  return {
+    defined: new Set(scope.defined),
+    readOnly: new Set(scope.readOnly),
+  };
+}
 
 function isPowerOfTwo(value: number) {
   return value > 0 && (value & (value - 1)) === 0;
@@ -34,9 +40,6 @@ function validateMap(map: MapIR, structs: Set<string>) {
     if (map.valueType.kind !== "named") {
       throw new BpfTsCompileError(`ringbuf '${map.name}' must use a named struct value type`);
     }
-    // Linux ring-buffer maps require a power-of-two capacity. Keeping the
-    // minimum at one page also avoids declarations that can never be loaded on
-    // the repository's supported Linux targets.
     if (map.maxEntries < 4096 || !isPowerOfTwo(map.maxEntries)) {
       throw new BpfTsCompileError(
         `ringbuf '${map.name}' capacity must be a power of two and at least 4096 bytes`,
@@ -45,9 +48,9 @@ function validateMap(map: MapIR, structs: Set<string>) {
     return;
   }
 
-  if (map.keyType?.kind === "bytes" || map.valueType.kind === "bytes") {
+  if (map.keyType?.kind !== "scalar" || map.valueType.kind !== "scalar") {
     throw new BpfTsCompileError(
-      `map '${map.name}' cannot use bytes<N> directly as a key/value; wrap fixed bytes in a named struct`,
+      `map '${map.name}' currently requires scalar key/value types; use a ringbuf for structured events`,
     );
   }
 }
@@ -77,53 +80,9 @@ function validateStructCycles(program: ProgramIR) {
   for (const name of structs.keys()) visit(name, []);
 }
 
-function walkExpr(expr: ExprIR, visit: (expr: ExprIR) => void) {
-  visit(expr);
-  switch (expr.kind) {
-    case "property":
-      walkExpr(expr.object, visit);
-      break;
-    case "binary":
-      walkExpr(expr.left, visit);
-      walkExpr(expr.right, visit);
-      break;
-    case "unary":
-      walkExpr(expr.value, visit);
-      break;
-    case "call":
-      for (const arg of expr.args) walkExpr(arg, visit);
-      break;
-    case "object":
-      for (const field of expr.fields) walkExpr(field.value, visit);
-      break;
-    default:
-      break;
-  }
-}
-
-function walkStatements(statements: StmtIR[], visit: (expr: ExprIR) => void) {
-  for (const stmt of statements) {
-    switch (stmt.kind) {
-      case "let":
-        walkExpr(stmt.value, visit);
-        break;
-      case "assign":
-        walkExpr(stmt.target, visit);
-        walkExpr(stmt.value, visit);
-        break;
-      case "expr":
-      case "return":
-        walkExpr(stmt.value, visit);
-        break;
-      case "if":
-        walkExpr(stmt.test, visit);
-        walkStatements(stmt.then, visit);
-        walkStatements(stmt.otherwise, visit);
-        break;
-      case "for":
-        walkStatements(stmt.body, visit);
-        break;
-    }
+function requireArity(expr: Extract<ExprIR, { kind: "call" }>, expected: number) {
+  if (expr.args.length !== expected) {
+    throw new BpfTsCompileError(`${expr.callee}() expects ${expected} argument${expected === 1 ? "" : "s"}`);
   }
 }
 
@@ -142,24 +101,40 @@ function validateProbeContext(probe: ProbeIR) {
 }
 
 function validateCall(probe: ProbeIR, expr: Extract<ExprIR, { kind: "call" }>, maps: Map<string, MapIR>) {
-  if (expressionHelpers.has(expr.callee)) {
-    if (expr.callee === "bpf.arg") {
-      if (probe.attach.kind === "tracepoint") {
-        throw new BpfTsCompileError(`bpf.arg() is not valid in tracepoint probe '${probe.name}'`);
-      }
-      if (
-        expr.args.length !== 2 ||
-        expr.args[0].kind !== "identifier" ||
-        expr.args[0].name !== probe.contextName
-      ) {
-        throw new BpfTsCompileError(
-          `bpf.arg() in probe '${probe.name}' must use its context parameter '${probe.contextName}' as the first argument`,
-        );
-      }
+  if (zeroArgHelpers.has(expr.callee)) {
+    requireArity(expr, 0);
+    return;
+  }
+
+  if (expr.callee === "bpf.arg") {
+    requireArity(expr, 2);
+    if (probe.attach.kind === "tracepoint") {
+      throw new BpfTsCompileError(`bpf.arg() is not valid in tracepoint probe '${probe.name}'`);
+    }
+    if (expr.args[0].kind !== "identifier" || expr.args[0].name !== probe.contextName) {
+      throw new BpfTsCompileError(
+        `bpf.arg() in probe '${probe.name}' must use its context parameter '${probe.contextName}' as the first argument`,
+      );
+    }
+    const index = expr.args[1];
+    if (index.kind !== "number" || !Number.isInteger(index.value) || index.value < 1 || index.value > 5) {
+      throw new BpfTsCompileError("bpf.arg() argument index must be an integer from 1 through 5");
     }
     return;
   }
-  if (ringbufByteHelpers.has(expr.callee) || statementHelpers.has(expr.callee)) return;
+
+  if (expr.callee === "bpf.userString") {
+    requireArity(expr, 1);
+    return;
+  }
+  if (expr.callee === "bpf.userBytes") {
+    requireArity(expr, 2);
+    return;
+  }
+  if (expr.callee === "bpf.readUser") {
+    requireArity(expr, 2);
+    return;
+  }
 
   const dot = expr.callee.lastIndexOf(".");
   if (dot > 0) {
@@ -167,12 +142,126 @@ function validateCall(probe: ProbeIR, expr: Extract<ExprIR, { kind: "call" }>, m
     const method = expr.callee.slice(dot + 1);
     const map = maps.get(mapName);
     if (map) {
-      if (map.kind === "ringbuf" && method === "emit") return;
-      if (map.kind !== "ringbuf" && (method === "set" || method === "increment")) return;
+      if (map.kind === "ringbuf" && method === "emit") {
+        requireArity(expr, 1);
+        return;
+      }
+      if (map.kind !== "ringbuf" && method === "set") {
+        requireArity(expr, 2);
+        return;
+      }
+      if (map.kind !== "ringbuf" && method === "increment") {
+        requireArity(expr, 1);
+        if (map.valueType.kind !== "scalar" || map.valueType.name !== "u64") {
+          throw new BpfTsCompileError(`${mapName}.increment() requires a u64 map value type`);
+        }
+        return;
+      }
       throw new BpfTsCompileError(`map operation '${expr.callee}' is not valid for ${map.kind} map '${mapName}'`);
     }
   }
   throw new BpfTsCompileError(`unknown or unsupported call '${expr.callee}' in probe '${probe.name}'`);
+}
+
+function validateExpr(
+  probe: ProbeIR,
+  expr: ExprIR,
+  maps: Map<string, MapIR>,
+  scope: Scope,
+) {
+  switch (expr.kind) {
+    case "number":
+      if (!Number.isSafeInteger(expr.value)) {
+        throw new BpfTsCompileError(
+          `bpf-ts numeric literals must be safe integers; received '${expr.value}' in probe '${probe.name}'`,
+        );
+      }
+      return;
+    case "boolean":
+      return;
+    case "identifier":
+      if (!scope.defined.has(expr.name)) {
+        throw new BpfTsCompileError(`unknown identifier '${expr.name}' in probe '${probe.name}'`);
+      }
+      return;
+    case "property":
+      throw new BpfTsCompileError(
+        `property access '${expr.property}' is not supported yet; use explicit BPF helpers instead`,
+      );
+    case "binary":
+      validateExpr(probe, expr.left, maps, scope);
+      validateExpr(probe, expr.right, maps, scope);
+      return;
+    case "unary":
+      validateExpr(probe, expr.value, maps, scope);
+      return;
+    case "call":
+      validateCall(probe, expr, maps);
+      for (const arg of expr.args) validateExpr(probe, arg, maps, scope);
+      return;
+    case "object": {
+      const fields = new Set<string>();
+      for (const field of expr.fields) {
+        if (fields.has(field.name)) {
+          throw new BpfTsCompileError(`duplicate object field '${field.name}' in probe '${probe.name}'`);
+        }
+        fields.add(field.name);
+        validateExpr(probe, field.value, maps, scope);
+      }
+    }
+  }
+}
+
+function validateStatements(
+  probe: ProbeIR,
+  statements: StmtIR[],
+  maps: Map<string, MapIR>,
+  scope: Scope,
+) {
+  for (const stmt of statements) {
+    switch (stmt.kind) {
+      case "let":
+        validateExpr(probe, stmt.value, maps, scope);
+        if (scope.defined.has(stmt.name)) {
+          throw new BpfTsCompileError(
+            `local '${stmt.name}' shadows an existing identifier in probe '${probe.name}'`,
+          );
+        }
+        scope.defined.add(stmt.name);
+        break;
+      case "assign":
+        if (stmt.target.kind !== "identifier") {
+          throw new BpfTsCompileError("assignment targets must be local scalar identifiers");
+        }
+        if (!scope.defined.has(stmt.target.name)) {
+          throw new BpfTsCompileError(`assignment to unknown identifier '${stmt.target.name}'`);
+        }
+        if (scope.readOnly.has(stmt.target.name)) {
+          throw new BpfTsCompileError(`cannot assign to read-only identifier '${stmt.target.name}'`);
+        }
+        validateExpr(probe, stmt.value, maps, scope);
+        break;
+      case "expr":
+      case "return":
+        validateExpr(probe, stmt.value, maps, scope);
+        break;
+      case "if":
+        validateExpr(probe, stmt.test, maps, scope);
+        validateStatements(probe, stmt.then, maps, cloneScope(scope));
+        validateStatements(probe, stmt.otherwise, maps, cloneScope(scope));
+        break;
+      case "for": {
+        const loopScope = cloneScope(scope);
+        if (loopScope.defined.has(stmt.variable)) {
+          throw new BpfTsCompileError(`loop variable '${stmt.variable}' shadows an existing identifier`);
+        }
+        loopScope.defined.add(stmt.variable);
+        loopScope.readOnly.add(stmt.variable);
+        validateStatements(probe, stmt.body, maps, loopScope);
+        break;
+      }
+    }
+  }
 }
 
 function validateProbe(probe: ProbeIR, maps: Map<string, MapIR>) {
@@ -180,9 +269,11 @@ function validateProbe(probe: ProbeIR, maps: Map<string, MapIR>) {
   if (probe.body.length === 0 || probe.body[probe.body.length - 1].kind !== "return") {
     throw new BpfTsCompileError(`probe '${probe.name}' must end with an explicit return statement`);
   }
-  walkStatements(probe.body, (expr) => {
-    if (expr.kind === "call") validateCall(probe, expr, maps);
-  });
+  const scope: Scope = {
+    defined: new Set([probe.contextName]),
+    readOnly: new Set([probe.contextName]),
+  };
+  validateStatements(probe, probe.body, maps, scope);
 }
 
 export function validateBpfProgram(program: ProgramIR) {
@@ -194,7 +285,12 @@ export function validateBpfProgram(program: ProgramIR) {
     structNames.add(struct.name);
   }
   for (const struct of program.structs) {
+    const fields = new Set<string>();
     for (const field of struct.fields) {
+      if (fields.has(field.name)) {
+        throw new BpfTsCompileError(`duplicate field '${field.name}' in BPF struct '${struct.name}'`);
+      }
+      fields.add(field.name);
       validateKnownType(field.type, structNames, `struct '${struct.name}' field '${field.name}'`);
     }
   }
