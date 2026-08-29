@@ -86,16 +86,16 @@ func (manifest Manifest) Validate() error {
 
 		expectedSection := ""
 		switch probe.Kind {
-		case "kprobe":
+		case "kprobe", "kretprobe":
 			if probe.Target == "" || probe.Category != "" || probe.Event != "" {
-				return fmt.Errorf("kprobe %q requires target only", probe.Name)
+				return fmt.Errorf("%s %q requires target only", probe.Kind, probe.Name)
 			}
-			expectedSection = "kprobe/" + probe.Target
-		case "uprobe":
+			expectedSection = probe.Kind + "/" + probe.Target
+		case "uprobe", "uretprobe":
 			if probe.Target == "" || probe.Category != "" || probe.Event != "" {
-				return fmt.Errorf("uprobe %q requires target only", probe.Name)
+				return fmt.Errorf("%s %q requires target only", probe.Kind, probe.Name)
 			}
-			expectedSection = "uprobe"
+			expectedSection = probe.Kind
 		case "tracepoint":
 			if probe.Category == "" || probe.Event == "" || probe.Target != "" {
 				return fmt.Errorf("tracepoint %q requires category and event only", probe.Name)
