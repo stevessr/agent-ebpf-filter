@@ -293,6 +293,7 @@ func dumpCandidateTLSSymbols(binPath string) {
 				httpCandidates = append(httpCandidates, s.Name)
 				break
 			}
+		}
 	}
 
 	if len(candidates) > 0 {
