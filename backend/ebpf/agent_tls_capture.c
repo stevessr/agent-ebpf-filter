@@ -61,6 +61,11 @@ struct tls_fragment {
 	char data[TLS_FRAG_SIZE];
 };
 
+// The perf wire format excludes unused bytes in data[] and the C struct's tail
+// alignment padding. Userspace accepts both this compact form and legacy full
+// sizeof(struct tls_fragment) records during rolling upgrades.
+#define TLS_FRAGMENT_WIRE_HEADER_SIZE ((__u32)__builtin_offsetof(struct tls_fragment, data))
+
 struct retprobe_ctx {
 	__u64 buf;
 	__u64 len_ptr;
@@ -174,7 +179,8 @@ static __always_inline int emit_tls_fragment_uncounted(void *ctx, __u64 connecti
 			break;
 		}
 
-		long ret = bpf_perf_event_output(ctx, &tls_events, BPF_F_CURRENT_CPU, scratch, sizeof(*scratch));
+		__u64 sample_size = (__u64)TLS_FRAGMENT_WIRE_HEADER_SIZE + (__u64)chunk;
+		long ret = bpf_perf_event_output(ctx, &tls_events, BPF_F_CURRENT_CPU, scratch, sample_size);
 		if (ret < 0) {
 			__u64 *cnt = bpf_map_lookup_elem(&tls_probe_hits, &diag_output_fail);
 			if (cnt) __sync_fetch_and_add(cnt, 1);
