@@ -58,6 +58,8 @@ function inferExprType(expr: ExprIR): BpfType {
     if (["bpf.pid", "bpf.tid", "bpf.uid", "bpf.gid"].includes(expr.callee)) {
       return { kind: "scalar", name: "u32" };
     }
+    if (expr.callee === "bpf.retI32") return { kind: "scalar", name: "i32" };
+    if (expr.callee === "bpf.ret") return { kind: "scalar", name: "i64" };
     if (
       ["bpf.ktimeNs", "bpf.arg", "bpf.currentTask"].includes(expr.callee) ||
       expr.callee.startsWith("bpf.coreRead.")
@@ -111,6 +113,12 @@ function emitExpr(expr: ExprIR): string {
           return "bpf_ktime_get_ns()";
         case "bpf.currentTask":
           return "((__u64)(unsigned long)bpf_get_current_task())";
+        case "bpf.ret":
+          if (expr.args.length !== 1) throw new BpfTsCompileError("bpf.ret(ctx) requires one context argument");
+          return `((__s64)PT_REGS_RC(${emitExpr(expr.args[0])}))`;
+        case "bpf.retI32":
+          if (expr.args.length !== 1) throw new BpfTsCompileError("bpf.retI32(ctx) requires one context argument");
+          return `((__s32)PT_REGS_RC(${emitExpr(expr.args[0])}))`;
         case "bpf.arg": {
           if (expr.args.length !== 2 || expr.args[1].kind !== "number") {
             throw new BpfTsCompileError("bpf.arg(ctx, N) requires a numeric argument index");
@@ -122,7 +130,7 @@ function emitExpr(expr: ExprIR): string {
           return `PT_REGS_PARM${index}(${emitExpr(expr.args[0])})`;
         }
         default:
-          throw new BpfTsCompileError(`call '${expr.callee}' is not valid in an expression`);
+          throw new BpfTsCompileError(`call '${expr.callee}' is not valid in an inline expression`);
       }
     }
     case "object":
@@ -188,13 +196,40 @@ class CEmitter {
     return lines;
   }
 
-  private emitMapCall(call: Extract<ExprIR, { kind: "call" }>, indent: string): string[] | null {
+  private mapCall(call: Extract<ExprIR, { kind: "call" }>) {
     const dot = call.callee.lastIndexOf(".");
     if (dot <= 0) return null;
     const mapName = call.callee.slice(0, dot);
-    const method = call.callee.slice(dot + 1);
     const map = this.maps.get(mapName);
     if (!map) return null;
+    return { mapName, map, method: call.callee.slice(dot + 1) };
+  }
+
+  private emitMapLookupLet(stmt: Extract<StmtIR, { kind: "let" }>, indent: string): string[] | null {
+    if (stmt.value.kind !== "call") return null;
+    const resolved = this.mapCall(stmt.value);
+    if (!resolved || resolved.method !== "getOr") return null;
+    const { mapName, map } = resolved;
+    if (map.kind === "ringbuf" || !map.keyType || stmt.value.args.length !== 2) {
+      throw new BpfTsCompileError(`${mapName}.getOr(key, fallback) requires a hash/array map`);
+    }
+    const key = this.temp("key");
+    const found = this.temp("found");
+    const type = stmt.type ?? map.valueType;
+    if (type.kind !== "scalar" || map.valueType.kind !== "scalar") {
+      throw new BpfTsCompileError(`${mapName}.getOr() currently supports scalar map values only`);
+    }
+    return [
+      `${indent}${cType(map.keyType)} ${key} = ${emitExpr(stmt.value.args[0])};`,
+      `${indent}${cType(map.valueType)} *${found} = bpf_map_lookup_elem(&${mapName}, &${key});`,
+      `${indent}${cType(type)} ${stmt.name} = ${found} ? *${found} : (${cType(type)})(${emitExpr(stmt.value.args[1])});`,
+    ];
+  }
+
+  private emitMapCall(call: Extract<ExprIR, { kind: "call" }>, indent: string): string[] | null {
+    const resolved = this.mapCall(call);
+    if (!resolved) return null;
+    const { mapName, map, method } = resolved;
     if (method === "emit") {
       if (map.kind !== "ringbuf" || call.args.length !== 1) throw new BpfTsCompileError(`${mapName}.emit(payload) is only valid for ringbuf maps`);
       return this.emitRingbuf(map, call.args[0], indent);
@@ -210,6 +245,19 @@ class CEmitter {
         `${indent}${cType(map.valueType)} ${value} = ${emitExpr(call.args[1])};`,
         `${indent}bpf_map_update_elem(&${mapName}, &${key}, &${value}, BPF_ANY);`,
       ];
+    }
+    if (method === "delete") {
+      if (map.kind !== "hash" || call.args.length !== 1 || !map.keyType) {
+        throw new BpfTsCompileError(`${mapName}.delete(key) requires a hash map`);
+      }
+      const key = this.temp("key");
+      return [
+        `${indent}${cType(map.keyType)} ${key} = ${emitExpr(call.args[0])};`,
+        `${indent}bpf_map_delete_elem(&${mapName}, &${key});`,
+      ];
+    }
+    if (method === "getOr") {
+      throw new BpfTsCompileError(`${mapName}.getOr() must be used as a direct local initializer`);
     }
     if (method === "increment") {
       if (map.kind === "ringbuf" || call.args.length !== 1 || !map.keyType || map.valueType.kind !== "scalar" || map.valueType.name !== "u64") {
@@ -245,6 +293,8 @@ class CEmitter {
     const indent = "  ".repeat(depth);
     switch (stmt.kind) {
       case "let": {
+        const lookup = this.emitMapLookupLet(stmt, indent);
+        if (lookup) return lookup;
         if (stmt.value.kind === "object") throw new BpfTsCompileError("local object literals are not supported");
         const type = stmt.type ?? inferExprType(stmt.value);
         if (type.kind === "bytes") return [`${indent}unsigned char ${stmt.name}[${type.length}] = {};`];
@@ -285,13 +335,24 @@ class CEmitter {
   }
 
   private probeSection(attach: ProgramIR["probes"][number]["attach"]) {
-    if (attach.kind === "kprobe") return `kprobe/${attach.target}`;
-    if (attach.kind === "tracepoint") return `tracepoint/${attach.category}/${attach.event}`;
-    return "uprobe";
+    switch (attach.kind) {
+      case "kprobe":
+        return `kprobe/${attach.target}`;
+      case "kretprobe":
+        return `kretprobe/${attach.target}`;
+      case "uprobe":
+        return "uprobe";
+      case "uretprobe":
+        return "uretprobe";
+      case "tracepoint":
+        return `tracepoint/${attach.category}/${attach.event}`;
+    }
   }
 
   private probeComment(attach: ProgramIR["probes"][number]["attach"]) {
-    if (attach.kind === "uprobe") return `// bpf-ts attach: uprobe symbol=${attach.target}`;
+    if (attach.kind === "uprobe" || attach.kind === "uretprobe") {
+      return `// bpf-ts attach: ${attach.kind} symbol=${attach.target}`;
+    }
     return `// bpf-ts attach: ${this.probeSection(attach)}`;
   }
 
