@@ -153,11 +153,16 @@ class CEmitter {
           lines.push(`${indent}  bpf_probe_read_user_str(${event}->${field.name}, sizeof(${event}->${field.name}), (const void *)(${emitExpr(field.value.args[0])}));`);
           continue;
         }
-        if (field.value.kind === "call" && field.value.callee === "bpf.userBytes" && field.value.args.length === 1) {
-          lines.push(`${indent}  bpf_probe_read_user(${event}->${field.name}, sizeof(${event}->${field.name}), (const void *)(${emitExpr(field.value.args[0])}));`);
+        if (field.value.kind === "call" && field.value.callee === "bpf.userBytes" && field.value.args.length === 2) {
+          const readLen = this.temp("read_len");
+          lines.push(`${indent}  __u64 ${readLen} = ${emitExpr(field.value.args[1])};`);
+          lines.push(`${indent}  if (${readLen} > sizeof(${event}->${field.name})) ${readLen} = sizeof(${event}->${field.name});`);
+          lines.push(`${indent}  if (${readLen} > 0) {`);
+          lines.push(`${indent}    bpf_probe_read_user(${event}->${field.name}, (__u32)${readLen}, (const void *)(${emitExpr(field.value.args[0])}));`);
+          lines.push(`${indent}  }`);
           continue;
         }
-        throw new BpfTsCompileError(`byte field '${field.name}' requires bpf.comm(), bpf.userString(ptr), or bpf.userBytes(ptr)`);
+        throw new BpfTsCompileError(`byte field '${field.name}' requires bpf.comm(), bpf.userString(ptr), or bpf.userBytes(ptr, len)`);
       }
       lines.push(`${indent}  ${event}->${field.name} = ${emitExpr(field.value)};`);
     }
