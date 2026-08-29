@@ -2,6 +2,7 @@ package tls
 
 import (
 	"bytes"
+	"encoding/binary"
 	"strings"
 	"testing"
 	"time"
@@ -182,6 +183,49 @@ func TestTLSHTTP2HeaderDecoderReassemblesContinuation(t *testing.T) {
 	second := decoder.enrichFrame(key, tlsHTTP2FrameEvent(meta, secondFrame, 0), secondFrame)
 	if second.Type != "http2_request" || second.Method != "GET" || second.URL != "/models" {
 		t.Fatalf("continuation result: %+v", second)
+	}
+}
+
+func TestTLSHTTP2HeaderDecoderConsumesPushPromiseAndCorrelatesPromisedResponse(t *testing.T) {
+	decoder := newTLSHTTP2HeaderDecoder(10 * time.Second)
+	connectionID := uint64(0x506)
+	meta := testHTTP2MetaFragment(tlsDirectionRecv, connectionID)
+	key := tlsHTTP2StreamKeyFor(meta)
+	var encoded bytes.Buffer
+	encoder := hpack.NewEncoder(&encoded)
+
+	pushBlock := encodeTestHPACK(t, encoder, &encoded,
+		hpack.HeaderField{Name: ":method", Value: "GET"},
+		hpack.HeaderField{Name: ":path", Value: "/assets?token=push-secret&safe=yes"},
+		hpack.HeaderField{Name: ":authority", Value: "cdn.example.com"},
+		hpack.HeaderField{Name: "authorization", Value: "Bearer push-secret"},
+	)
+	pushPayload := make([]byte, 4+len(pushBlock))
+	binary.BigEndian.PutUint32(pushPayload[:4], 2)
+	copy(pushPayload[4:], pushBlock)
+	pushFrame := testTLSHTTP2Frame(0x5, 0x4, 1, pushPayload)
+	pushEvent := decoder.enrichFrame(key, tlsHTTP2FrameEvent(meta, pushFrame, 0), pushFrame)
+	if pushEvent.Type != "http2_push_promise" || pushEvent.HTTP2PromisedStreamID != 2 {
+		t.Fatalf("unexpected push event: %+v", pushEvent)
+	}
+	if strings.Contains(pushEvent.URL, "push-secret") || !strings.Contains(pushEvent.URL, "safe=yes") {
+		t.Fatalf("push URL was not sanitized: %q", pushEvent.URL)
+	}
+	if pushEvent.Headers["authorization"] != tlsRedactedValue || pushEvent.RawHexDump != "" {
+		t.Fatalf("push secret exposure: headers=%v raw=%q", pushEvent.Headers, pushEvent.RawHexDump)
+	}
+
+	responseBlock := encodeTestHPACK(t, encoder, &encoded,
+		hpack.HeaderField{Name: ":status", Value: "200"},
+		hpack.HeaderField{Name: "content-type", Value: "text/css"},
+	)
+	responseFrame := testTLSHTTP2Frame(0x1, 0x4, 2, responseBlock)
+	responseEvent := decoder.enrichFrame(key, tlsHTTP2FrameEvent(meta, responseFrame, 0), responseFrame)
+	if responseEvent.Type != "http2_response" || responseEvent.StatusCode != 200 {
+		t.Fatalf("promised response = %+v", responseEvent)
+	}
+	if responseEvent.Method != "GET" || responseEvent.Host != "cdn.example.com" || !strings.Contains(responseEvent.URL, "safe=yes") {
+		t.Fatalf("promised response lost push context: %+v", responseEvent)
 	}
 }
 
