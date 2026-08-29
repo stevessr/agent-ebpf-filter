@@ -8,6 +8,7 @@ on:
     paths:
       - "tools/bpf-ts/**"
       - "backend/app/bpfts/**"
+      - "backend/app/tls/bpfts_*.go"
       - "backend/cmd/bpfts-manifest-check/**"
       - "backend/go.mod"
       - "backend/go.sum"
@@ -31,7 +32,16 @@ jobs:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
       - name: Install BPF build dependencies
-        run: sudo apt-get update && sudo apt-get install -y clang llvm libbpf-dev libelf-dev linux-libc-dev-arm64-cross
+        run: sudo apt-get update && sudo apt-get install -y clang llvm libbpf-dev libelf-dev linux-libc-dev-arm64-cross protobuf-compiler
+      - name: Install protobuf generator
+        working-directory: backend
+        run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+      - name: Generate protobuf bindings
+        working-directory: backend
+        run: |
+          if find proto -type f -name '*.proto' -print -quit | grep -q .; then
+            find proto -type f -name '*.proto' -print0 | xargs -0 protoc --go_out=. --go_opt=paths=source_relative
+          fi
       - name: Install compiler dependencies
         run: bun install
       - name: Typecheck compiler
@@ -67,6 +77,9 @@ jobs:
       - name: Go manifest loader tests
         working-directory: backend
         run: go test ./app/bpfts -count=1
+      - name: TLS bpf-ts resolver adapter tests
+        working-directory: backend
+        run: go test ./app/tls -run '^TestBpfTS' -count=1
       - name: Validate generated manifest and ELF contract
         working-directory: backend
         run: |
