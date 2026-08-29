@@ -220,20 +220,28 @@ func (m *TLSProbeManager) attachLibraryPathLocked(target ProbeTarget, path strin
 		m.store.SetLibraryStatus(status)
 		return nil
 	}
-	attached, err := m.attachLibraryPath(target, path, status)
+
+	attached, attachErr := m.attachLibraryPath(target, path, status)
 	status.Attached = attached > 0
-	if status.Attached {
+	if attached > 0 {
 		m.attachedStatic[attachKey] = true
+		// TLS ABIs vary between library versions. Missing SSL_*_ex or other
+		// optional symbols must not roll back working SSL_read/SSL_write probes.
+		// Preserve the partial error for diagnostics while treating the library
+		// as attached when at least one probe is active.
+		if attachErr != nil {
+			status.Error = "partial probe coverage: " + attachErr.Error()
+		}
+		m.store.SetLibraryStatus(status)
+		return nil
 	}
-	if err != nil {
-		status.Error = err.Error()
+
+	if attachErr == nil {
+		attachErr = fmt.Errorf("no TLS probes attached for %s", path)
 	}
-	if attached == 0 && err == nil {
-		err = fmt.Errorf("no TLS probes attached for %s", path)
-		status.Error = err.Error()
-	}
+	status.Error = attachErr.Error()
 	m.store.SetLibraryStatus(status)
-	return err
+	return attachErr
 }
 
 func (m *TLSProbeManager) attachLibraryPath(target ProbeTarget, path string, status TLSLibraryStatus) (int, error) {

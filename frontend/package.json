@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
+    "test:agentsight": "bun test tests/agentsight-stdio*.test.ts",
     "preview": "vite preview",
     "prepare-agentsight-sample": "node scripts/prepare-agentsight-sample.mjs"
   },

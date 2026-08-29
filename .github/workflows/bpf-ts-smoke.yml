@@ -1,0 +1,134 @@
+name: bpf-ts smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/bpf-ts
+    paths:
+      - "tools/bpf-ts/**"
+      - "backend/app/bpfts/**"
+      - "backend/app/tls/**"
+      - "backend/cmd/bpfts-manifest-check/**"
+      - "backend/cmd/bpfts-attach-check/**"
+      - "backend/ebpf/**"
+      - "backend/go.mod"
+      - "backend/go.sum"
+      - "proto/**"
+      - ".github/workflows/bpf-ts-smoke.yml"
+
+concurrency:
+  group: bpf-ts-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compiler:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: tools/bpf-ts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Install BPF build dependencies
+        run: sudo apt-get update && sudo apt-get install -y clang llvm libbpf-dev libelf-dev linux-libc-dev-arm64-cross protobuf-compiler
+      - name: Generate Go protobuf bindings
+        working-directory: .
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          mkdir -p backend/pb
+          protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto \
+            proto/tracker_common.proto \
+            proto/tracker_events.proto \
+            proto/tracker_registration.proto \
+            proto/tracker_system.proto \
+            proto/tracker_config.proto \
+            proto/tracker_shell.proto
+      - name: Generate repository eBPF objects and bindings
+        working-directory: backend/ebpf
+        run: go generate
+      - name: Install compiler dependencies
+        run: bun install
+      - name: Typecheck compiler
+        run: bun run build
+      - name: Compiler unit tests
+        run: bun test
+      - name: Generate example BPF C
+        run: |
+          bun src/cli.ts examples/exec.ts --out generated/exec.bpf.c --manifest generated/exec.json
+          bun src/cli.ts examples/tls-write.ts --out generated/tls-write.bpf.c --manifest generated/tls-write.json
+          bun src/cli.ts examples/tls-read.ts --out generated/tls-read.bpf.c --manifest generated/tls-read.json
+          bun src/cli.ts examples/tls-openssl.ts --out generated/tls-openssl.bpf.c --manifest generated/tls-openssl.json
+          bun src/cli.ts examples/core-task.ts --out generated/core-task.bpf.c --manifest generated/core-task.json
+      - name: Compile generated C for x86 BPF ABI
+        run: |
+          ARCH_INCLUDE="/usr/include/$(uname -m)-linux-gnu"
+          clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -I"${ARCH_INCLUDE}" -c generated/exec.bpf.c -o generated/exec.bpf.o
+          clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -I"${ARCH_INCLUDE}" -c generated/tls-write.bpf.c -o generated/tls-write.bpf.o
+          clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -I"${ARCH_INCLUDE}" -c generated/tls-read.bpf.c -o generated/tls-read.bpf.o
+          clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -I"${ARCH_INCLUDE}" -c generated/tls-openssl.bpf.c -o generated/tls-openssl.bpf.o
+          clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -I"${ARCH_INCLUDE}" -c generated/core-task.bpf.c -o generated/core-task.bpf.o
+      - name: Cross-compile generated C for arm64 BPF ABI
+        run: |
+          ARM64_INCLUDE="/usr/aarch64-linux-gnu/include"
+          clang -O2 -g -target bpf -D__TARGET_ARCH_arm64 -I"${ARM64_INCLUDE}" -c generated/exec.bpf.c -o generated/exec.arm64.bpf.o
+          clang -O2 -g -target bpf -D__TARGET_ARCH_arm64 -I"${ARM64_INCLUDE}" -c generated/tls-write.bpf.c -o generated/tls-write.arm64.bpf.o
+          clang -O2 -g -target bpf -D__TARGET_ARCH_arm64 -I"${ARM64_INCLUDE}" -c generated/tls-read.bpf.c -o generated/tls-read.arm64.bpf.o
+          clang -O2 -g -target bpf -D__TARGET_ARCH_arm64 -I"${ARM64_INCLUDE}" -c generated/tls-openssl.bpf.c -o generated/tls-openssl.arm64.bpf.o
+          clang -O2 -g -target bpf -D__TARGET_ARCH_arm64 -I"${ARM64_INCLUDE}" -c generated/core-task.bpf.c -o generated/core-task.arm64.bpf.o
+      - name: Verify CO-RE BTF relocation sections
+        run: |
+          llvm-readelf -S generated/core-task.bpf.o | grep -q '\.BTF'
+          llvm-readelf -S generated/core-task.bpf.o | grep -q '\.BTF\.ext'
+          llvm-readelf -S generated/core-task.arm64.bpf.o | grep -q '\.BTF'
+          llvm-readelf -S generated/core-task.arm64.bpf.o | grep -q '\.BTF\.ext'
+      - name: Go manifest loader tests
+        working-directory: backend
+        run: go test ./app/bpfts -count=1
+      - name: TLS package tests
+        working-directory: backend
+        run: go test ./app/tls -count=1
+      - name: Validate generated manifest and ELF contract
+        working-directory: backend
+        run: |
+          go run ./cmd/bpfts-manifest-check \
+            ../tools/bpf-ts/generated/exec.json ../tools/bpf-ts/generated/exec.bpf.o \
+            ../tools/bpf-ts/generated/tls-write.json ../tools/bpf-ts/generated/tls-write.bpf.o \
+            ../tools/bpf-ts/generated/tls-read.json ../tools/bpf-ts/generated/tls-read.bpf.o \
+            ../tools/bpf-ts/generated/tls-openssl.json ../tools/bpf-ts/generated/tls-openssl.bpf.o \
+            ../tools/bpf-ts/generated/core-task.json ../tools/bpf-ts/generated/core-task.bpf.o
+          go run ./cmd/bpfts-manifest-check \
+            ../tools/bpf-ts/generated/exec.json ../tools/bpf-ts/generated/exec.arm64.bpf.o \
+            ../tools/bpf-ts/generated/tls-write.json ../tools/bpf-ts/generated/tls-write.arm64.bpf.o \
+            ../tools/bpf-ts/generated/tls-read.json ../tools/bpf-ts/generated/tls-read.arm64.bpf.o \
+            ../tools/bpf-ts/generated/tls-openssl.json ../tools/bpf-ts/generated/tls-openssl.arm64.bpf.o \
+            ../tools/bpf-ts/generated/core-task.json ../tools/bpf-ts/generated/core-task.arm64.bpf.o
+      - name: Verify generated OpenSSL object with kernel verifier and links
+        working-directory: backend
+        run: |
+          LIBSSL="$(ldconfig -p | awk '/libssl\.so\.3 .*x86-64/ {print $NF; exit}')"
+          test -n "${LIBSSL}"
+          test -r "${LIBSSL}"
+          # link.OpenExecutable deliberately requires the target inode to carry
+          # an executable mode bit. Ubuntu ships libssl.so.3 without one, so use
+          # an executable staging copy of the exact same ELF for this attach-only
+          # smoke. Production target resolution remains unchanged.
+          STAGED_LIBSSL="/tmp/bpfts-libssl.so.3"
+          install -m 0755 "${LIBSSL}" "${STAGED_LIBSSL}"
+          cmp -s "${LIBSSL}" "${STAGED_LIBSSL}"
+          go build -o /tmp/bpfts-attach-check ./cmd/bpfts-attach-check
+          sudo /tmp/bpfts-attach-check \
+            ../tools/bpf-ts/generated/tls-openssl.json \
+            ../tools/bpf-ts/generated/tls-openssl.bpf.o \
+            "${STAGED_LIBSSL}"
+      - name: Show attach manifests
+        run: |
+          cat generated/exec.json
+          cat generated/tls-write.json
+          cat generated/tls-read.json
+          cat generated/tls-openssl.json
+          cat generated/core-task.json

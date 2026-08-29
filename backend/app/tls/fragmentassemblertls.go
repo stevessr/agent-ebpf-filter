@@ -5,15 +5,21 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend.go section fragmentassemblertls.go ----
-
 const tlsMaxPendingFragments = 4096
 
+// Values above this threshold are unmistakably Unix-nanosecond timestamps for
+// any realistic machine uptime. Live BPF samples use bpf_ktime_get_ns() and
+// therefore fall below it; offline/replay tests may carry wall-clock Unix ns.
+const tlsPlausibleUnixNSThreshold = uint64(946684800) * uint64(time.Second) // 2000-01-01
+
 type tlsFragmentAssemblerKey struct {
-	PID         uint32
-	TGID        uint32
-	TimestampNS uint64
-	Direction   uint8
+	PID          uint32
+	TGID         uint32
+	ConnectionID uint64
+	TimestampNS  uint64
+	Direction    uint8
+	LibType      uint8
+	Function     uint8
 }
 
 type pendingTLSFragment struct {
@@ -23,8 +29,7 @@ type pendingTLSFragment struct {
 	originalLen uint32
 	comm        string
 	flags       uint8
-	function    uint8
-	fragMap     map[uint16]tlsFragment
+	fragMap     map[uint16][]byte
 }
 
 type FragmentAssembler struct {
@@ -43,11 +48,32 @@ func NewFragmentAssembler(timeout time.Duration) *FragmentAssembler {
 
 func fragmentAssemblerKey(f tlsFragment) tlsFragmentAssemblerKey {
 	return tlsFragmentAssemblerKey{
-		PID:         f.PID,
-		TGID:        f.TGID,
-		TimestampNS: f.TimestampNS,
-		Direction:   f.Direction,
+		PID:          f.PID,
+		TGID:         f.TGID,
+		ConnectionID: f.ConnectionID,
+		TimestampNS:  f.TimestampNS,
+		Direction:    f.Direction,
+		LibType:      f.LibType,
+		Function:     f.Function,
 	}
+}
+
+func fragmentFirstSeen(timestampNS uint64, arrival time.Time) time.Time {
+	// Production eBPF uses monotonic nanoseconds since boot. Timeout those by
+	// userspace arrival time so wall-clock CleanupExpired cannot purge them as
+	// if they originated near the Unix epoch.
+	if timestampNS < tlsPlausibleUnixNSThreshold || timestampNS > uint64(^uint64(0)>>1) {
+		return arrival
+	}
+
+	// Replay/test records sometimes carry Unix ns. Preserve that behavior when
+	// the value is plausible, but reject future timestamps and fall back to the
+	// local arrival clock.
+	captured := time.Unix(0, int64(timestampNS))
+	if captured.After(arrival.Add(time.Minute)) {
+		return arrival
+	}
+	return captured
 }
 
 func (a *FragmentAssembler) evictOldestPendingLocked() {
@@ -82,17 +108,15 @@ func (a *FragmentAssembler) Add(fragment tlsFragment) (*CompletedTLSFragment, bo
 		a.mu.Unlock()
 		return nil, false
 	}
-	if fragment.DataLen > tlsFragmentSize {
+	if fragment.DataLen == 0 || fragment.DataLen > tlsFragmentSize {
 		a.mu.Lock()
 		a.dropped++
 		a.mu.Unlock()
 		return nil, false
 	}
 
-	now := time.Unix(0, int64(fragment.TimestampNS))
-	if now.IsZero() {
-		now = time.Now()
-	}
+	arrival := time.Now()
+	firstSeen := fragmentFirstSeen(fragment.TimestampNS, arrival)
 	key := fragmentAssemblerKey(fragment)
 
 	a.mu.Lock()
@@ -104,17 +128,19 @@ func (a *FragmentAssembler) Add(fragment tlsFragment) (*CompletedTLSFragment, bo
 			a.evictOldestPendingLocked()
 		}
 		pending = &pendingTLSFragment{
-			firstSeen:   now,
+			firstSeen:   firstSeen,
 			fragCount:   fragment.FragCount,
 			totalLen:    fragment.TotalLen,
 			originalLen: fragment.OriginalLen,
 			comm:        sanitizeTLSComm(fragment.Comm),
 			flags:       fragment.Flags,
-			function:    fragment.Function,
-			fragMap:     make(map[uint16]tlsFragment, fragment.FragCount),
+			fragMap:     make(map[uint16][]byte, fragment.FragCount),
 		}
 		a.pending[key] = pending
-	} else if pending.fragCount != fragment.FragCount || pending.totalLen != fragment.TotalLen || pending.originalLen != fragment.OriginalLen || pending.flags != fragment.Flags || pending.function != fragment.Function {
+	} else if pending.fragCount != fragment.FragCount ||
+		pending.totalLen != fragment.TotalLen ||
+		pending.originalLen != fragment.OriginalLen ||
+		pending.flags != fragment.Flags {
 		delete(a.pending, key)
 		a.dropped++
 		return nil, false
@@ -124,38 +150,45 @@ func (a *FragmentAssembler) Add(fragment tlsFragment) (*CompletedTLSFragment, bo
 		return nil, false
 	}
 
-	fragCopy := fragment
-	pending.fragMap[fragment.FragIndex] = fragCopy
+	chunk := make([]byte, int(fragment.DataLen))
+	copy(chunk, fragment.Data[:fragment.DataLen])
+	pending.fragMap[fragment.FragIndex] = chunk
 	if uint16(len(pending.fragMap)) != pending.fragCount {
 		return nil, false
 	}
 
 	payload := make([]byte, 0, pending.totalLen)
 	for i := uint16(0); i < pending.fragCount; i++ {
-		frag, ok := pending.fragMap[i]
+		chunk, ok := pending.fragMap[i]
 		if !ok {
 			delete(a.pending, key)
 			a.dropped++
 			return nil, false
 		}
-		payload = append(payload, frag.Data[:frag.DataLen]...)
+		payload = append(payload, chunk...)
 	}
 	delete(a.pending, key)
 
+	if uint32(len(payload)) != pending.totalLen {
+		a.dropped++
+		return nil, false
+	}
+
 	return &CompletedTLSFragment{
-		TimestampNS: fragment.TimestampNS,
-		PID:         fragment.PID,
-		TGID:        fragment.TGID,
-		DataLen:     fragment.DataLen,
-		TotalLen:    pending.totalLen,
-		OriginalLen: pending.originalLen,
-		FragCount:   pending.fragCount,
-		LibType:     fragment.LibType,
-		Direction:   fragment.Direction,
-		Flags:       pending.flags,
-		Function:    pending.function,
-		Comm:        pending.comm,
-		Payload:     payload,
+		TimestampNS:  fragment.TimestampNS,
+		ConnectionID: fragment.ConnectionID,
+		PID:          fragment.PID,
+		TGID:         fragment.TGID,
+		DataLen:      fragment.DataLen,
+		TotalLen:     pending.totalLen,
+		OriginalLen:  pending.originalLen,
+		FragCount:    pending.fragCount,
+		LibType:      fragment.LibType,
+		Direction:    fragment.Direction,
+		Flags:        pending.flags,
+		Function:     fragment.Function,
+		Comm:         pending.comm,
+		Payload:      payload,
 	}, true
 }
 
@@ -168,6 +201,7 @@ func (a *FragmentAssembler) CleanupExpired(now time.Time) int {
 		if now.Sub(pending.firstSeen) > a.timeout {
 			delete(a.pending, key)
 			removed++
+			a.dropped++
 		}
 	}
 	return removed

@@ -45,6 +45,7 @@ func tlsFuncName(fn uint8) string {
 }
 
 func (m *TLSProbeManager) Close() error {
+	defer dropDiscoveryRuntimeState(m)
 	m.mu.Lock()
 	if m.closed {
 		m.mu.Unlock()
@@ -121,14 +122,24 @@ func programByName(programs *bpf.AgentTlsCapturePrograms, name string) (*ebpf.Pr
 
 // AttachedPIDInfo describes a process that has an active SSL/TLS uprobe.
 type AttachedPIDInfo struct {
-	PID         int    `json:"pid"`
-	BinaryPath  string `json:"binary_path"`
-	LibraryName string `json:"library_name"`
+	PID               int    `json:"pid"`
+	BinaryPath        string `json:"binary_path"`
+	LibraryName       string `json:"library_name"`
+	CaptureObserved   bool   `json:"capture_observed"`
+	LastCaptureUnixMs int64  `json:"last_capture_unix_ms,omitempty"`
+}
+
+func (m *TLSProbeManager) attachObservation(pid int) (bool, int64) {
+	lastNS, observed := m.tlsCaptureObservation(pid)
+	if !observed {
+		return false, 0
+	}
+	return true, lastNS / 1_000_000
 }
 
 // AttachedPIDs returns the list of PIDs that currently have SSL/TLS uprobes
-// attached, derived from both attachedGo (Go uprobes) and attachedExec
-// (library/executable attaches).
+// attached. capture_observed distinguishes "attach syscall succeeded" from a
+// probe which has actually emitted at least one TLS fragment for that process.
 func (m *TLSProbeManager) AttachedPIDs() []AttachedPIDInfo {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -136,7 +147,6 @@ func (m *TLSProbeManager) AttachedPIDs() []AttachedPIDInfo {
 	seen := make(map[int]bool)
 	var result []AttachedPIDInfo
 
-	// Go crypto/tls uprobes
 	for key := range m.attachedGo {
 		parts := strings.SplitN(key, "\x00", 2)
 		if len(parts) != 2 {
@@ -146,31 +156,31 @@ func (m *TLSProbeManager) AttachedPIDs() []AttachedPIDInfo {
 		fmt.Sscanf(parts[0], "%d", &pid)
 		if pid > 0 && !seen[pid] {
 			seen[pid] = true
-			lib := "go-crypto-tls"
-			if strings.Contains(parts[1], "node") || strings.Contains(parts[1], "bun") || strings.Contains(parts[1], "deno") {
-				lib = "openssl"
-			}
+			observed, lastCaptureMs := m.attachObservation(pid)
 			result = append(result, AttachedPIDInfo{
-				PID:         pid,
-				BinaryPath:  parts[1],
-				LibraryName: lib,
+				PID:               pid,
+				BinaryPath:        parts[1],
+				LibraryName:       "go-crypto-tls",
+				CaptureObserved:   observed,
+				LastCaptureUnixMs: lastCaptureMs,
 			})
 		}
 	}
 
-	// Library/executable attaches (openssl, gnutls, nss, etc.)
 	for pid, lib := range m.attachedExec {
 		if pid > 0 && !seen[pid] {
 			seen[pid] = true
-			// Get binary path from /proc
 			binPath := ""
-			if link, err := os.Readlink(fmt.Sprintf("/proc/%d/exe", pid)); err == nil {
-				binPath = link
+			if executablePath, err := os.Readlink(fmt.Sprintf("/proc/%d/exe", pid)); err == nil {
+				binPath = executablePath
 			}
+			observed, lastCaptureMs := m.attachObservation(pid)
 			result = append(result, AttachedPIDInfo{
-				PID:         pid,
-				BinaryPath:  binPath,
-				LibraryName: lib,
+				PID:               pid,
+				BinaryPath:        binPath,
+				LibraryName:       lib,
+				CaptureObserved:   observed,
+				LastCaptureUnixMs: lastCaptureMs,
 			})
 		}
 	}
@@ -178,7 +188,6 @@ func (m *TLSProbeManager) AttachedPIDs() []AttachedPIDInfo {
 	return result
 }
 
-// ReadLoopStatsSnapshot returns a copy of the current ReadLoop statistics.
 func (m *TLSProbeManager) ReadLoopStatsSnapshot() ReadLoopStats {
 	if m == nil {
 		return ReadLoopStats{}
@@ -186,15 +195,11 @@ func (m *TLSProbeManager) ReadLoopStatsSnapshot() ReadLoopStats {
 	return m.readLoopStats.Snapshot()
 }
 
-// ProbeHitCounters reads the tls_probe_hits BPF map and returns per-function hit counts
-// plus diagnostic counters (perf_output_fail, probe_read_fail, perf_submit_ok).
 func (m *TLSProbeManager) ProbeHitCounters() map[string]uint64 {
 	result := make(map[string]uint64)
 	if m == nil || m.objs == nil || m.objs.TlsProbeHits == nil {
 		return result
 	}
-	// Function hit counters: indices 1-11 (classic SSL/gnutls/NSS/Go),
-	// 12 = rustls::encrypt_outgoing, 13 = rustls::consume_first_chunk.
 	for fn := uint8(1); fn <= 13; fn++ {
 		var idx uint32 = uint32(fn)
 		var val uint64
@@ -202,8 +207,6 @@ func (m *TLSProbeManager) ProbeHitCounters() map[string]uint64 {
 			result[tlsFuncName(fn)] = val
 		}
 	}
-	// Diagnostic counters (indices 100-102 in BPF map, kept separate from
-	// function-id counters 1..13 to avoid shadowing rustls 12/13).
 	diagLabels := map[uint32]string{100: "perf_output_fail", 101: "probe_read_fail", 102: "perf_submit_ok"}
 	for idx, label := range diagLabels {
 		var val uint64

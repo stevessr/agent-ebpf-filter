@@ -1,12 +1,14 @@
 package handlers
 
 import (
+	"agent-ebpf-filter/app/tls"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -60,6 +62,23 @@ func TestAgentSightStreamDedupeCapacityIsBounded(t *testing.T) {
 	}
 	if got := agentSightStreamDedupeCapacity(0); got != agentSightDefaultLimit*2 {
 		t.Fatalf("default capacity = %d, want %d", got, agentSightDefaultLimit*2)
+	}
+}
+
+func TestAgentSightTLSConversionPreservesStatusAliases(t *testing.T) {
+	event := agentSightEventFromTLSPlaintext(tls.TLSPlaintextEvent{
+		Type:       "http_response",
+		Timestamp:  time.Unix(1700000000, 0).UTC(),
+		PID:        42,
+		Comm:       "test-agent",
+		StatusCode: http.StatusOK,
+	})
+
+	if got := event.Data["status"]; got != http.StatusOK {
+		t.Fatalf("status = %#v, want %d", got, http.StatusOK)
+	}
+	if got := event.Data["status_code"]; got != http.StatusOK {
+		t.Fatalf("status_code = %#v, want %d", got, http.StatusOK)
 	}
 }
 

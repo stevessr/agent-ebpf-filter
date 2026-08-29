@@ -1,4 +1,5 @@
 import { comparePrompts, parseAgentSightEvent } from "./parsing";
+import { AgentSightStdioStreamDecoder } from "./stdio_stream";
 import type {
   AgentSightEvent,
   AgentSightFilterOptions,
@@ -18,6 +19,10 @@ export function buildProcessTree(
   const processMap = new Map<number, AgentSightProcessNode>();
   const eventsByPid = new Map<number, ParsedAgentSightEvent[]>();
   const promptHistoryByPid = new Map<number, ParsedAgentSightEvent[]>();
+  // Stateful stdio framing is scoped to exactly one chronological tree build.
+  // This lets split LSP/MCP frames reassemble without leaking state across UI
+  // recomputations or separately loaded traces.
+  const stdioDecoder = new AgentSightStdioStreamDecoder();
 
   // Sort once at the beginning
   const sortedEvents = events.slice().sort((a, b) => a.timestamp - b.timestamp);
@@ -41,7 +46,7 @@ export function buildProcessTree(
     const node = processMap.get(event.pid)!;
     if (!node.ppid && event.ppid) node.ppid = event.ppid;
 
-    const parsed = parseAgentSightEvent(event);
+    const parsed = parseAgentSightEvent(event, stdioDecoder);
     if (!parsed) continue;
 
     // Handle prompt diff
@@ -104,9 +109,11 @@ export function buildProcessTree(
 
   // Return root processes sorted by earliest timestamp
   const rootProcesses = Array.from(processMap.values()).filter(
-    (process) => !childProcesses.has(process.pid)
+    (process) => !childProcesses.has(process.pid),
   );
-  return rootProcesses.sort((a, b) => getEarliestTimestamp(a) - getEarliestTimestamp(b));
+  return rootProcesses.sort(
+    (a, b) => getEarliestTimestamp(a) - getEarliestTimestamp(b),
+  );
 }
 
 function getEarliestTimestamp(process: AgentSightProcessNode): number {
@@ -158,12 +165,18 @@ function parsedEventMatchesFilters(
   process: AgentSightProcessNode,
   filters: AgentSightProcessFilters,
 ) {
-  if (filters.eventTypes.length > 0 && !filters.eventTypes.includes(event.type))
+  if (
+    filters.eventTypes.length > 0 &&
+    !filters.eventTypes.includes(event.type)
+  )
     return false;
   const source = String(event.metadata.original_source || "");
   if (filters.sources.length > 0 && !filters.sources.includes(source))
     return false;
-  if (filters.commands.length > 0 && !filters.commands.includes(process.comm))
+  if (
+    filters.commands.length > 0 &&
+    !filters.commands.includes(process.comm)
+  )
     return false;
   if (
     filters.models.length > 0 &&

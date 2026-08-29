@@ -528,9 +528,6 @@ export function normalizeAgentSightEvents(values: any[]): AgentSightEvent[] {
   const seen = new Set<string>();
   const normalized: AgentSightEvent[] = [];
 
-  // Pre-allocate array if we know the size
-  normalized.length = 0;
-
   for (let index = 0; index < values.length; index++) {
     const event = normalizeAgentSightEvent(values[index], index);
     if (!event) continue;
@@ -549,7 +546,51 @@ export function normalizeAgentSightEvents(values: any[]): AgentSightEvent[] {
     normalized.push(event);
   }
 
-  // Use native sort for better performance
   return normalized.sort((a, b) => b.timestamp - a.timestamp);
 }
 
+// Merge multiple already-normalized, timestamp-descending streams without
+// re-normalizing or re-sorting their unchanged members. This keeps hot TLS or
+// system updates from forcing a full O(N log N) pass over every AgentSight
+// source. Duplicate event IDs are removed across streams while merging.
+export function mergeSortedAgentSightEvents(
+  groups: readonly AgentSightEvent[][],
+  limit = Number.MAX_SAFE_INTEGER,
+): AgentSightEvent[] {
+  if (groups.length === 0 || limit <= 0) return [];
+
+  const positions = new Array<number>(groups.length).fill(0);
+  const seen = new Set<string>();
+  const merged: AgentSightEvent[] = [];
+
+  while (merged.length < limit) {
+    let bestGroup = -1;
+    let bestEvent: AgentSightEvent | undefined;
+
+    for (let groupIndex = 0; groupIndex < groups.length; groupIndex++) {
+      const candidate = groups[groupIndex][positions[groupIndex]];
+      if (!candidate) continue;
+      if (!bestEvent || candidate.timestamp > bestEvent.timestamp) {
+        bestEvent = candidate;
+        bestGroup = groupIndex;
+      }
+    }
+
+    if (bestGroup < 0 || !bestEvent) break;
+    positions[bestGroup]++;
+
+    const key =
+      bestEvent.id ||
+      stableID("dedupe", [
+        bestEvent.source,
+        bestEvent.timestamp,
+        bestEvent.pid,
+        bestEvent.title,
+      ]);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(bestEvent);
+  }
+
+  return merged;
+}

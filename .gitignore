@@ -21,6 +21,7 @@ reports/
 backend/reports/
 __pycache__
 .codex/plan/*.md
+.claude/worktrees/
 .snow
 frontend/package-lock.json
 docs/ref/2508.02736v2

@@ -63,6 +63,65 @@ func TestTLSHTTPStreamAssemblerMergesSplitHTTPRequest(t *testing.T) {
 	}
 }
 
+func TestTLSHTTPStreamAssemblerSeparatesConcurrentConnections(t *testing.T) {
+	assembler := NewTLSHTTPStreamAssembler(10 * time.Second)
+	payloadOne := "POST /one HTTP/1.1\r\nHost: one.example\r\nContent-Length: 3\r\n\r\none"
+	payloadTwo := "POST /two HTTP/1.1\r\nHost: two.example\r\nContent-Length: 3\r\n\r\ntwo"
+	const split = 30
+
+	oneA := testCompletedTLSFragment(payloadOne[:split], tlsDirectionSend)
+	oneA.ConnectionID = 0x1111
+	oneB := testCompletedTLSFragment(payloadOne[split:], tlsDirectionSend)
+	oneB.ConnectionID = oneA.ConnectionID
+	oneB.TimestampNS = oneA.TimestampNS + uint64(2*time.Millisecond)
+
+	twoA := testCompletedTLSFragment(payloadTwo[:split], tlsDirectionSend)
+	twoA.ConnectionID = 0x2222
+	twoA.TimestampNS = oneA.TimestampNS + uint64(time.Millisecond)
+	twoB := testCompletedTLSFragment(payloadTwo[split:], tlsDirectionSend)
+	twoB.ConnectionID = twoA.ConnectionID
+	twoB.TimestampNS = oneA.TimestampNS + uint64(3*time.Millisecond)
+
+	if events := assembler.Add(oneA); len(events) != 0 {
+		t.Fatalf("connection one first half emitted %d events", len(events))
+	}
+	if events := assembler.Add(twoA); len(events) != 0 {
+		t.Fatalf("connection two first half emitted %d events", len(events))
+	}
+	oneEvents := assembler.Add(oneB)
+	if len(oneEvents) != 1 || oneEvents[0].URL != "/one" || oneEvents[0].Host != "one.example" {
+		t.Fatalf("connection one was cross-contaminated: %+v", oneEvents)
+	}
+	twoEvents := assembler.Add(twoB)
+	if len(twoEvents) != 1 || twoEvents[0].URL != "/two" || twoEvents[0].Host != "two.example" {
+		t.Fatalf("connection two was cross-contaminated: %+v", twoEvents)
+	}
+	if got := assembler.Pending(); got != 0 {
+		t.Fatalf("pending = %d, want 0", got)
+	}
+}
+
+func TestTLSHTTPStreamAssemblerExpiresRequestContexts(t *testing.T) {
+	const timeout = 10 * time.Millisecond
+	assembler := NewTLSHTTPStreamAssembler(timeout)
+	request := testCompletedTLSFragment("GET /stale HTTP/1.1\r\nHost: stale.example\r\nContent-Length: 0\r\n\r\n", tlsDirectionSend)
+	request.ConnectionID = 0x9999
+	if events := assembler.Add(request); len(events) != 1 {
+		t.Fatalf("request events = %d, want 1", len(events))
+	}
+	if got := len(assembler.requests); got != 1 {
+		t.Fatalf("request context entries = %d, want 1", got)
+	}
+
+	trigger := testCompletedTLSFragment("not http plaintext", tlsDirectionRecv)
+	trigger.ConnectionID = 0xaaaa
+	trigger.TimestampNS = request.TimestampNS + uint64(3*timeout)
+	_ = assembler.Add(trigger)
+	if got := len(assembler.requests); got != 0 {
+		t.Fatalf("request context entries after expiry = %d, want 0", got)
+	}
+}
+
 func TestTLSHTTPStreamAssemblerDropsRawTLSRecords(t *testing.T) {
 	assembler := NewTLSHTTPStreamAssembler(10 * time.Second)
 	fragment := testCompletedTLSFragment("not http plaintext", tlsDirectionRecv)
@@ -78,7 +137,9 @@ func TestTLSHTTPStreamAssemblerDropsRawTLSRecords(t *testing.T) {
 func TestTLSHTTPStreamAssemblerCopiesRequestContextToResponse(t *testing.T) {
 	assembler := NewTLSHTTPStreamAssembler(10 * time.Second)
 	request := testCompletedTLSFragment("GET /health HTTP/1.1\r\nHost: api.example.com\r\nContent-Length: 0\r\n\r\n", tlsDirectionSend)
+	request.ConnectionID = 0x1234
 	response := testCompletedTLSFragment("HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n", tlsDirectionRecv)
+	response.ConnectionID = request.ConnectionID
 	response.TimestampNS = request.TimestampNS + uint64(time.Millisecond)
 
 	if events := assembler.Add(request); len(events) != 1 {
