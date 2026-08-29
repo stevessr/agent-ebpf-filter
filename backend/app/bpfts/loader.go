@@ -110,6 +110,9 @@ func ValidateObjectManifest(objectPath string, manifest Manifest) error {
 }
 
 func LoadAndAttach(objectPath string, manifest Manifest, options LoadOptions) (*Runtime, error) {
+	if err := manifest.Validate(); err != nil {
+		return nil, err
+	}
 	for _, probe := range manifest.Probes {
 		if probe.Kind == "uprobe" && options.ResolveUprobe == nil {
 			return nil, fmt.Errorf("uprobe %q requires a UprobeResolver", probe.Name)
