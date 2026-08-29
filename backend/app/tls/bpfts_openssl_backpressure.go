@@ -1,25 +1,34 @@
 package tls
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/cilium/ebpf"
 )
 
 type BpfTSOpenSSLBackpressureStatus struct {
-	KernelDrops     uint64  `json:"kernelDrops"`
-	AttemptedRecords uint64 `json:"attemptedRecords"`
-	DropPercent     float64 `json:"dropPercent"`
-	Error           string  `json:"error,omitempty"`
+	KernelDrops      uint64  `json:"kernelDrops"`
+	UserReadErrors   uint64  `json:"userReadErrors"`
+	AttemptedRecords uint64  `json:"attemptedRecords"`
+	DropPercent      float64 `json:"dropPercent"`
+	TotalLosses      uint64  `json:"totalLosses"`
+	CaptureAttempts  uint64  `json:"captureAttempts"`
+	TotalLossPercent float64 `json:"totalLossPercent"`
+	Error            string  `json:"error,omitempty"`
+}
+
+func saturatingAddUint64(left, right uint64) uint64 {
+	if ^uint64(0)-left < right {
+		return ^uint64(0)
+	}
+	return left + right
 }
 
 func saturatingSumUint64(values []uint64) uint64 {
 	var total uint64
 	for _, value := range values {
-		if ^uint64(0)-total < value {
-			return ^uint64(0)
-		}
-		total += value
+		total = saturatingAddUint64(total, value)
 	}
 	return total
 }
@@ -34,6 +43,26 @@ func readPerCPUUint64Counter(counterMap *ebpf.Map) (uint64, error) {
 		return 0, fmt.Errorf("lookup per-CPU counter: %w", err)
 	}
 	return saturatingSumUint64(values), nil
+}
+
+func bpfTSOpenSSLBackpressureFromCounts(records, drops, userReadErrors uint64) BpfTSOpenSSLBackpressureStatus {
+	outputAttempts := saturatingAddUint64(records, drops)
+	totalLosses := saturatingAddUint64(drops, userReadErrors)
+	captureAttempts := saturatingAddUint64(records, totalLosses)
+	status := BpfTSOpenSSLBackpressureStatus{
+		KernelDrops:      drops,
+		UserReadErrors:   userReadErrors,
+		AttemptedRecords: outputAttempts,
+		TotalLosses:      totalLosses,
+		CaptureAttempts:  captureAttempts,
+	}
+	if outputAttempts > 0 {
+		status.DropPercent = float64(drops) * 100 / float64(outputAttempts)
+	}
+	if captureAttempts > 0 {
+		status.TotalLossPercent = float64(totalLosses) * 100 / float64(captureAttempts)
+	}
+	return status
 }
 
 func (bridge *BpfTSOpenSSLBridgeRuntime) BackpressureStatus() BpfTSOpenSSLBackpressureStatus {
@@ -52,23 +81,11 @@ func (bridge *BpfTSOpenSSLBridgeRuntime) BackpressureStatus() BpfTSOpenSSLBackpr
 		return BpfTSOpenSSLBackpressureStatus{}
 	}
 
-	drops, err := readPerCPUUint64Counter(loaded.Map(bpfTSOpenSSLDropName))
-	if err != nil {
-		return BpfTSOpenSSLBackpressureStatus{Error: err.Error()}
-	}
-	records := bridge.records.Load()
-	attempted := records
-	if ^uint64(0)-attempted < drops {
-		attempted = ^uint64(0)
-	} else {
-		attempted += drops
-	}
-	status := BpfTSOpenSSLBackpressureStatus{
-		KernelDrops:      drops,
-		AttemptedRecords: attempted,
-	}
-	if attempted > 0 {
-		status.DropPercent = float64(drops) * 100 / float64(attempted)
+	drops, dropErr := readPerCPUUint64Counter(loaded.Map(bpfTSOpenSSLDropName))
+	userReadErrors, readErr := readPerCPUUint64Counter(loaded.Map(bpfTSOpenSSLReadErrorName))
+	status := bpfTSOpenSSLBackpressureFromCounts(bridge.records.Load(), drops, userReadErrors)
+	if err := errors.Join(dropErr, readErr); err != nil {
+		status.Error = err.Error()
 	}
 	return status
 }
