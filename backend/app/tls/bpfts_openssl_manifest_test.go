@@ -21,6 +21,7 @@ func testBpfTSOpenSSLManifest() bpfts.Manifest {
 			{Name: bpfTSOpenSSLRingName, Kind: "ringbuf", MaxEntries: 1 << 20},
 			{Name: bpfTSOpenSSLScratchName, Kind: "percpu_array", MaxEntries: 1},
 			{Name: bpfTSOpenSSLDropName, Kind: "percpu_array", MaxEntries: 1},
+			{Name: bpfTSOpenSSLReadErrorName, Kind: "percpu_array", MaxEntries: 1},
 		},
 	}
 }
@@ -74,6 +75,18 @@ func TestBpfTSOpenSSLManifestRejectsDropCounterSchemaDrift(t *testing.T) {
 	}
 	if err := validateBpfTSOpenSSLManifest(manifest); err == nil {
 		t.Fatal("canonical ABI accepted drop counter schema drift")
+	}
+}
+
+func TestBpfTSOpenSSLManifestRejectsReadErrorCounterSchemaDrift(t *testing.T) {
+	manifest := testBpfTSOpenSSLManifest()
+	for index := range manifest.Maps {
+		if manifest.Maps[index].Name == bpfTSOpenSSLReadErrorName {
+			manifest.Maps[index].Kind = "array"
+		}
+	}
+	if err := validateBpfTSOpenSSLManifest(manifest); err == nil {
+		t.Fatal("canonical ABI accepted user-read counter schema drift")
 	}
 }
 
