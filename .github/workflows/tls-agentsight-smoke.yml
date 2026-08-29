@@ -17,6 +17,7 @@ on:
       - "frontend/src/composables/agentsight/**"
       - "frontend/src/utils/agentsight.ts"
       - "frontend/src/utils/agentsight/**"
+      - "frontend/tests/**"
       - "frontend/package.json"
       - "frontend/bun.lock"
       - ".github/workflows/tls-agentsight-smoke.yml"
