@@ -73,10 +73,9 @@ func (resolver *bpfTSTLSResolver) inspect() {
 }
 
 func discoverKnownStrippedSSLOffsets(data []byte) (map[string]uint64, error) {
-	if !binaryContainsSSLReadWriteStrings(data) {
-		return nil, fmt.Errorf("binary does not contain both SSL_read and SSL_write names")
-	}
-
+	// Exact BoringSSL machine-code signatures are stronger evidence than a
+	// surviving symbol-name string. Accept them even when aggressive stripping
+	// removed SSL_read/SSL_write strings from the binary.
 	readOff := findBS(data, bsSSLRead.pattern)
 	if readOff >= 0 {
 		writeCenter := readOff + 0xCA0
@@ -89,6 +88,12 @@ func discoverKnownStrippedSSLOffsets(data []byte) (map[string]uint64, error) {
 		}
 	}
 
+	// The OpenSSL common prologue is intentionally weak and compiler-generated,
+	// so its fallback remains gated by both function-name strings and the
+	// existing exact-two-candidate distance check.
+	if !binaryContainsSSLReadWriteStrings(data) {
+		return nil, fmt.Errorf("no exact BoringSSL match and binary does not contain both SSL_read and SSL_write names")
+	}
 	osslMask := buildMask(osslSSLCommonPrefix.pattern)
 	matches := make([]int64, 0, 2)
 	for i := int64(0); i <= int64(len(data))-int64(len(osslSSLCommonPrefix.pattern)); i++ {
@@ -118,18 +123,10 @@ func (resolver *bpfTSTLSResolver) resolve(probe bpfts.ManifestProbe) (bpfts.Upro
 		return bpfts.UprobeTarget{}, fmt.Errorf("TLS bpf-ts probe %q has an empty target", probe.Name)
 	}
 	if _, ok := resolver.symbols[probe.Target]; ok {
-		return bpfts.UprobeTarget{
-			Path:   resolver.path,
-			Symbol: probe.Target,
-			PID:    resolver.pid,
-		}, nil
+		return bpfts.UprobeTarget{Path: resolver.path, Symbol: probe.Target, PID: resolver.pid}, nil
 	}
 	if offset, ok := resolver.offsets[probe.Target]; ok {
-		return bpfts.UprobeTarget{
-			Path:    resolver.path,
-			Address: offset,
-			PID:     resolver.pid,
-		}, nil
+		return bpfts.UprobeTarget{Path: resolver.path, Address: offset, PID: resolver.pid}, nil
 	}
 	return bpfts.UprobeTarget{}, fmt.Errorf(
 		"TLS bpf-ts target %q has no symbol or safe stripped offset for %q",
