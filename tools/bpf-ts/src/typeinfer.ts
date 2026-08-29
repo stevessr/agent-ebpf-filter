@@ -21,7 +21,9 @@ function coreFieldType(program: ProgramIR, callee: string): BpfType | null {
 
 function mapLookupType(program: ProgramIR, callee: string): BpfType | null {
   const dot = callee.lastIndexOf(".");
-  if (dot <= 0 || callee.slice(dot + 1) !== "getOr") return null;
+  if (dot <= 0) return null;
+  const method = callee.slice(dot + 1);
+  if (method !== "getOr" && method !== "takeOr") return null;
   const map = program.maps.find((candidate) => candidate.name === callee.slice(0, dot));
   return map?.valueType ?? null;
 }
@@ -115,7 +117,6 @@ function inferStatements(program: ProgramIR, statements: StmtIR[], env: TypeEnv)
         inferExpr(program, env, statement.value);
         break;
       case "expr":
-        // Statement calls such as map operations don't need a scalar result.
         break;
       case "return":
         inferExpr(program, env, statement.value);
