@@ -109,6 +109,54 @@ func TestTLSHTTP2HeaderDecoderCorrelatesResponseAndSanitizesData(t *testing.T) {
 	}
 }
 
+func TestTLSHTTP2HeaderDecoderKeepsDuplexDirectionsSeparate(t *testing.T) {
+	decoder := newTLSHTTP2HeaderDecoder(10 * time.Second)
+	connectionID := uint64(0x505)
+	streamID := uint32(11)
+
+	var requestBuffer bytes.Buffer
+	requestEncoder := hpack.NewEncoder(&requestBuffer)
+	requestBlock := encodeTestHPACK(t, requestEncoder, &requestBuffer,
+		hpack.HeaderField{Name: ":method", Value: "POST"},
+		hpack.HeaderField{Name: ":path", Value: "/stream"},
+		hpack.HeaderField{Name: ":authority", Value: "api.example.com"},
+		hpack.HeaderField{Name: "content-type", Value: "application/x-ndjson"},
+	)
+	requestMeta := testHTTP2MetaFragment(tlsDirectionSend, connectionID)
+	requestKey := tlsHTTP2StreamKeyFor(requestMeta)
+	requestFrame := testTLSHTTP2Frame(0x1, 0x4, streamID, requestBlock)
+	decoder.enrichFrame(requestKey, tlsHTTP2FrameEvent(requestMeta, requestFrame, 0), requestFrame)
+
+	var responseBuffer bytes.Buffer
+	responseEncoder := hpack.NewEncoder(&responseBuffer)
+	responseBlock := encodeTestHPACK(t, responseEncoder, &responseBuffer,
+		hpack.HeaderField{Name: ":status", Value: "200"},
+		hpack.HeaderField{Name: "content-type", Value: "application/json"},
+	)
+	responseMeta := testHTTP2MetaFragment(tlsDirectionRecv, connectionID)
+	responseKey := tlsHTTP2StreamKeyFor(responseMeta)
+	responseFrame := testTLSHTTP2Frame(0x1, 0x4, streamID, responseBlock)
+	decoder.enrichFrame(responseKey, tlsHTTP2FrameEvent(responseMeta, responseFrame, 0), responseFrame)
+
+	requestDataFrame := testTLSHTTP2Frame(0x0, 0x1, streamID, []byte(`{"input":"hello"}`))
+	requestData := decoder.enrichFrame(requestKey, tlsHTTP2FrameEvent(requestMeta, requestDataFrame, 0), requestDataFrame)
+	if requestData.StatusCode != 0 {
+		t.Fatalf("request DATA inherited response status %d", requestData.StatusCode)
+	}
+	if requestData.ContentType != "application/x-ndjson" {
+		t.Fatalf("request DATA content type = %q", requestData.ContentType)
+	}
+
+	responseDataFrame := testTLSHTTP2Frame(0x0, 0x1, streamID, []byte(`{"result":"ok"}`))
+	responseData := decoder.enrichFrame(responseKey, tlsHTTP2FrameEvent(responseMeta, responseDataFrame, 0), responseDataFrame)
+	if responseData.StatusCode != 200 || responseData.ContentType != "application/json" {
+		t.Fatalf("response DATA lost context after request END_STREAM: %+v", responseData)
+	}
+	if responseData.Method != "POST" || responseData.URL != "/stream" {
+		t.Fatalf("response DATA lost request identity: %+v", responseData)
+	}
+}
+
 func TestTLSHTTP2HeaderDecoderReassemblesContinuation(t *testing.T) {
 	decoder := newTLSHTTP2HeaderDecoder(10 * time.Second)
 	var encoded bytes.Buffer
