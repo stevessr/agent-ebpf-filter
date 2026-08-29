@@ -36,6 +36,7 @@ describe("bpf-ts compiler", () => {
     expect(result.cSource).toContain("__sync_fetch_and_add");
     expect(result.manifest.probes[0]).toEqual({
       name: "onExec",
+      section: "tracepoint/syscalls/sys_enter_execve",
       kind: "tracepoint",
       category: "syscalls",
       event: "sys_enter_execve",
@@ -64,6 +65,7 @@ class TLSProbes {
     expect(result.cSource).toContain("sizeof(__bpf_ts_event_");
     expect(result.manifest.probes[0]).toEqual({
       name: "capture",
+      section: "uprobe",
       kind: "uprobe",
       target: "SSL_write",
     });
