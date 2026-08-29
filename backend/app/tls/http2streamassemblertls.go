@@ -65,10 +65,6 @@ func tlsHTTP2StreamKeyFor(fragment CompletedTLSFragment) tlsHTTP2StreamKey {
 	}
 }
 
-// Add returns complete HTTP/2 events and whether the payload belongs to an
-// HTTP/2 stream. A recognized but incomplete frame returns (nil, true), which
-// lets the read loop avoid publishing misleading raw fragments while waiting
-// for the rest of the frame.
 func (a *TLSHTTP2StreamAssembler) Add(fragment CompletedTLSFragment) ([]TLSPlaintextEvent, bool) {
 	if a == nil || len(fragment.Payload) == 0 {
 		return nil, false
@@ -147,8 +143,6 @@ func (a *TLSHTTP2StreamAssembler) consumePendingLocked(key tlsHTTP2StreamKey, pe
 		return nil, true
 	}
 	if bytes.HasPrefix(pending.buffer, tlsHTTP2ClientPreface) {
-		// The preface event only records metadata/length, so retaining a copy of
-		// these bytes is unnecessary.
 		preface := pending.buffer[:len(tlsHTTP2ClientPreface)]
 		events = append(events, tlsHTTP2PrefaceEvent(pending.meta, preface))
 		pending.buffer = pending.buffer[len(tlsHTTP2ClientPreface):]
@@ -165,14 +159,16 @@ func (a *TLSHTTP2StreamAssembler) consumePendingLocked(key tlsHTTP2StreamKey, pe
 			break
 		}
 
-		// Frame parsing, body formatting and HPACK decoding are synchronous and
-		// returned events never retain the input slice. Consume the assembler's
-		// buffer directly instead of allocating/copying every frame.
 		frame := pending.buffer[:totalLen]
 		frameFlags := pending.flags &^ tlsFlagTruncated
 		event := tlsHTTP2FrameEvent(pending.meta, frame, frameFlags)
 		if a.headers != nil {
-			event = a.headers.enrichFrame(key, event, frame)
+			if a.headers.acceptsFrameSequence(key, frame) {
+				event = a.headers.enrichFrame(key, event, frame)
+			} else {
+				a.headers.resetDirection(key)
+				event = tlsHTTP2SequenceErrorEvent(event)
+			}
 		}
 		if event.RawHexDump == "" {
 			event.RawAvailable = false
