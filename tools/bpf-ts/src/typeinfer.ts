@@ -2,7 +2,6 @@ import { BpfTsCompileError } from "./diagnostics";
 import type { BpfType, ExprIR, ProgramIR, ScalarType, StmtIR } from "./ir";
 
 type ScalarBpfType = Extract<BpfType, { kind: "scalar" }>;
-
 type TypeEnv = Map<string, BpfType>;
 
 const comparisonOps = new Set(["<", "<=", ">", ">=", "===", "!==", "&&", "||"]);
@@ -45,9 +44,12 @@ function inferExpr(program: ProgramIR, env: TypeEnv, expr: ExprIR): BpfType {
     case "call": {
       if (["bpf.pid", "bpf.tid", "bpf.uid", "bpf.gid"].includes(expr.callee)) return scalar("u32");
       if (["bpf.ktimeNs", "bpf.arg", "bpf.currentTask"].includes(expr.callee)) return scalar("u64");
+      if (expr.callee === "bpf.comm") return { kind: "bytes", length: 16 };
+      if (expr.callee === "bpf.userString") return { kind: "bytes", length: 256 };
+      if (expr.callee === "bpf.userBytes") return { kind: "bytes", length: 4096 };
       const coreType = coreFieldType(program, expr.callee);
       if (coreType) return coreType;
-      throw new BpfTsCompileError(`call '${expr.callee}' has no scalar expression type`);
+      throw new BpfTsCompileError(`call '${expr.callee}' has no local expression type`);
     }
     case "object":
       throw new BpfTsCompileError("object literals do not have a local scalar type");
@@ -94,8 +96,7 @@ function inferStatements(program: ProgramIR, statements: StmtIR[], env: TypeEnv)
   for (const statement of statements) {
     switch (statement.kind) {
       case "let": {
-        const inferred = inferExpr(program, env, statement.value);
-        if (!statement.type) statement.type = inferred;
+        if (!statement.type) statement.type = inferExpr(program, env, statement.value);
         env.set(statement.name, statement.type);
         break;
       }
@@ -125,7 +126,7 @@ function inferStatements(program: ProgramIR, statements: StmtIR[], env: TypeEnv)
 
 export function inferLocalTypes(program: ProgramIR) {
   for (const probe of program.probes) {
-    const env: TypeEnv = new Map([[probe.contextName, { kind: "scalar", name: "u64" }]]);
+    const env: TypeEnv = new Map([[probe.contextName, scalar("u64")]]);
     inferStatements(program, probe.body, env);
   }
 }
