@@ -4,17 +4,22 @@ interface TLSWriteEvent {
   pid: u32;
   length: u64;
   timestampNs: u64;
+  sample: bytes<64>;
 }
 
 const tlsWrites = ringbuf<TLSWriteEvent>(1 << 20);
 
-@uprobe("SSL_write")
-export function sslWrite(ctx: UProbeContext): i32 {
-  const length = bpf.arg(ctx, 3);
-  tlsWrites.emit({
-    pid: bpf.pid(),
-    length,
-    timestampNs: bpf.ktimeNs(),
-  });
-  return 0;
+export class TLSProbes {
+  @uprobe("SSL_write")
+  static sslWrite(ctx: UProbeContext): i32 {
+    const buffer = bpf.arg(ctx, 2);
+    const length = bpf.arg(ctx, 3);
+    tlsWrites.emit({
+      pid: bpf.pid(),
+      length,
+      timestampNs: bpf.ktimeNs(),
+      sample: bpf.userBytes(buffer),
+    });
+    return 0;
+  }
 }
