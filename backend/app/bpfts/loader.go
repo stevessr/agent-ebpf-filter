@@ -61,7 +61,6 @@ func validateCollectionSpec(spec *ebpf.CollectionSpec, manifest Manifest) error 
 	if spec == nil {
 		return fmt.Errorf("nil eBPF collection spec")
 	}
-
 	manifestPrograms := make(map[string]struct{}, len(manifest.Probes))
 	for _, probe := range manifest.Probes {
 		manifestPrograms[probe.Name] = struct{}{}
@@ -70,12 +69,7 @@ func validateCollectionSpec(spec *ebpf.CollectionSpec, manifest Manifest) error 
 			return fmt.Errorf("manifest probe %q is missing from eBPF object", probe.Name)
 		}
 		if program.SectionName != probe.Section {
-			return fmt.Errorf(
-				"program %q section mismatch: object has %q, manifest has %q",
-				probe.Name,
-				program.SectionName,
-				probe.Section,
-			)
+			return fmt.Errorf("program %q section mismatch: object has %q, manifest has %q", probe.Name, program.SectionName, probe.Section)
 		}
 	}
 	for name := range spec.Programs {
@@ -83,7 +77,6 @@ func validateCollectionSpec(spec *ebpf.CollectionSpec, manifest Manifest) error 
 			return fmt.Errorf("eBPF object contains undeclared program %q", name)
 		}
 	}
-
 	manifestMaps := make(map[string]struct{}, len(manifest.Maps))
 	for _, item := range manifest.Maps {
 		manifestMaps[item.Name] = struct{}{}
@@ -124,11 +117,10 @@ func needsUprobeResolver(kind string) bool {
 	return kind == "uprobe" || kind == "uretprobe"
 }
 
-func attachUserProbe(
-	probe ManifestProbe,
-	program *ebpf.Program,
-	resolver UprobeResolver,
-) (runtimeLink, error) {
+func attachUserProbe(probe ManifestProbe, program *ebpf.Program, resolver UprobeResolver) (runtimeLink, error) {
+	if resolver == nil {
+		return nil, fmt.Errorf("%s %q requires a UprobeResolver", probe.Kind, probe.Name)
+	}
 	target, err := resolver(probe)
 	if err != nil {
 		return nil, fmt.Errorf("resolve %s %q: %w", probe.Kind, probe.Name, err)
@@ -144,11 +136,7 @@ func attachUserProbe(
 	if symbol == "" && target.Address == 0 {
 		symbol = probe.Target
 	}
-	options := &link.UprobeOptions{
-		Address: target.Address,
-		Offset:  target.Offset,
-		PID:     target.PID,
-	}
+	options := &link.UprobeOptions{Address: target.Address, Offset: target.Offset, PID: target.PID}
 	if probe.Kind == "uretprobe" {
 		return executable.Uretprobe(symbol, program, options)
 	}
@@ -170,12 +158,7 @@ func attachOneProbe(probe ManifestProbe, program *ebpf.Program, options LoadOpti
 	}
 }
 
-func attachProbeSet(
-	programs map[string]*ebpf.Program,
-	manifest Manifest,
-	options LoadOptions,
-	attach probeAttachFunc,
-) ([]runtimeLink, error) {
+func attachProbeSet(programs map[string]*ebpf.Program, manifest Manifest, options LoadOptions, attach probeAttachFunc) ([]runtimeLink, error) {
 	if attach == nil {
 		attach = attachOneProbe
 	}
@@ -187,7 +170,6 @@ func attachProbeSet(
 		}
 		return nil, cause
 	}
-
 	for _, probe := range manifest.Probes {
 		program := programs[probe.Name]
 		if program == nil {
@@ -214,7 +196,6 @@ func LoadAndAttach(objectPath string, manifest Manifest, options LoadOptions) (*
 			return nil, fmt.Errorf("%s %q requires a UprobeResolver", probe.Kind, probe.Name)
 		}
 	}
-
 	spec, err := loadValidatedSpec(objectPath, manifest)
 	if err != nil {
 		return nil, err
@@ -223,7 +204,6 @@ func LoadAndAttach(objectPath string, manifest Manifest, options LoadOptions) (*
 	if err != nil {
 		return nil, fmt.Errorf("load bpf-ts collection: %w", err)
 	}
-
 	links, err := attachProbeSet(collection.Programs, manifest, options, attachOneProbe)
 	if err != nil {
 		collection.Close()
