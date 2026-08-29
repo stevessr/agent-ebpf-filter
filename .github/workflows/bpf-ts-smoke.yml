@@ -10,6 +10,7 @@ on:
       - "backend/app/bpfts/**"
       - "backend/app/tls/**"
       - "backend/cmd/bpfts-manifest-check/**"
+      - "backend/cmd/bpfts-attach-check/**"
       - "backend/ebpf/**"
       - "backend/go.mod"
       - "backend/go.sum"
@@ -106,6 +107,17 @@ jobs:
             ../tools/bpf-ts/generated/tls-read.json ../tools/bpf-ts/generated/tls-read.arm64.bpf.o \
             ../tools/bpf-ts/generated/tls-openssl.json ../tools/bpf-ts/generated/tls-openssl.arm64.bpf.o \
             ../tools/bpf-ts/generated/core-task.json ../tools/bpf-ts/generated/core-task.arm64.bpf.o
+      - name: Verify generated OpenSSL object with kernel verifier and links
+        working-directory: backend
+        run: |
+          LIBSSL="$(ldconfig -p | awk '/libssl\.so\.3 .*x86-64/ {print $NF; exit}')"
+          test -n "${LIBSSL}"
+          test -r "${LIBSSL}"
+          go build -o /tmp/bpfts-attach-check ./cmd/bpfts-attach-check
+          sudo /tmp/bpfts-attach-check \
+            ../tools/bpf-ts/generated/tls-openssl.json \
+            ../tools/bpf-ts/generated/tls-openssl.bpf.o \
+            "${LIBSSL}"
       - name: Show attach manifests
         run: |
           cat generated/exec.json
