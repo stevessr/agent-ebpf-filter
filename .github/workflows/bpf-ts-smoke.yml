@@ -113,11 +113,18 @@ jobs:
           LIBSSL="$(ldconfig -p | awk '/libssl\.so\.3 .*x86-64/ {print $NF; exit}')"
           test -n "${LIBSSL}"
           test -r "${LIBSSL}"
+          # link.OpenExecutable deliberately requires the target inode to carry
+          # an executable mode bit. Ubuntu ships libssl.so.3 without one, so use
+          # an executable staging copy of the exact same ELF for this attach-only
+          # smoke. Production target resolution remains unchanged.
+          STAGED_LIBSSL="/tmp/bpfts-libssl.so.3"
+          install -m 0755 "${LIBSSL}" "${STAGED_LIBSSL}"
+          cmp -s "${LIBSSL}" "${STAGED_LIBSSL}"
           go build -o /tmp/bpfts-attach-check ./cmd/bpfts-attach-check
           sudo /tmp/bpfts-attach-check \
             ../tools/bpf-ts/generated/tls-openssl.json \
             ../tools/bpf-ts/generated/tls-openssl.bpf.o \
-            "${LIBSSL}"
+            "${STAGED_LIBSSL}"
       - name: Show attach manifests
         run: |
           cat generated/exec.json
