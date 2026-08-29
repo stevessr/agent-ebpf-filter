@@ -2,7 +2,6 @@ package tls
 
 import (
 	"bytes"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"log"
@@ -42,8 +41,8 @@ func (m *TLSProbeManager) ReadLoop() error {
 
 	log.Printf("[tls] ReadLoop: started, waiting for perf events...")
 	// TLS plaintext can arrive in bursts and each logical payload is split into
-	// up to 18 ~1 KiB perf records. A larger per-CPU buffer materially reduces
-	// perf-ring overwrites under concurrent agent traffic while remaining bounded.
+	// multiple perf records. A larger per-CPU buffer materially reduces ring
+	// overwrites under concurrent agent traffic while remaining bounded.
 	reader, err := perf.NewReader(events, os.Getpagesize()*256)
 	if err != nil {
 		log.Printf("[tls] ReadLoop: perf.NewReader failed: %v", err)
@@ -92,11 +91,11 @@ func (m *TLSProbeManager) ReadLoop() error {
 		if totalFrags <= 5 {
 			log.Printf("[tls] ReadLoop: GOT fragment #%d raw_len=%d", totalFrags, len(rec.RawSample))
 		}
-		var fragment tlsFragment
-		if err := binary.Read(bytes.NewReader(rec.RawSample), binary.LittleEndian, &fragment); err != nil {
+		fragment, err := decodeTLSFragmentSample(rec.RawSample)
+		if err != nil {
 			m.readLoopStats.droppedFrags.Add(1)
 			if totalFrags <= 5 {
-				log.Printf("[tls] ReadLoop: binary.Read FAIL on fragment #%d (raw_len=%d): %v", totalFrags, len(rec.RawSample), err)
+				log.Printf("[tls] ReadLoop: fragment decode FAIL #%d (raw_len=%d): %v", totalFrags, len(rec.RawSample), err)
 			}
 			continue
 		}
