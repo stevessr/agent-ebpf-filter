@@ -35,7 +35,7 @@ export interface MapIR {
   maxEntries: number;
 }
 
-export type ProbeKind = "kprobe" | "kretprobe" | "uprobe" | "uretprobe" | "tracepoint";
+export type ProbeKind = "kprobe" | "uprobe" | "tracepoint";
 
 export interface ProbeAttachIR {
   kind: ProbeKind;
