@@ -22,6 +22,7 @@ export interface StructField {
 export interface StructIR {
   name: string;
   fields: StructField[];
+  core: boolean;
 }
 
 export type MapKind = "ringbuf" | "hash" | "array";
