@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"os"
 	"strings"
 
 	"github.com/cilium/ebpf/link"
@@ -119,18 +118,7 @@ func (m *TLSProbeManager) AttachBoringSSLByOffsets(binPath string, pid int) erro
 		return fmt.Errorf("manager is nil")
 	}
 
-	file, err := elf.Open(binPath)
-	if err != nil {
-		return fmt.Errorf("open ELF for stripped SSL discovery: %w", err)
-	}
-	machine := file.Machine
-	_ = file.Close()
-
-	data, err := os.ReadFile(binPath)
-	if err != nil {
-		return fmt.Errorf("read binary: %w", err)
-	}
-	discovery, err := discoverKnownStrippedSSL(machine, data)
+	discovery, err := discoverKnownStrippedSSLFile(binPath)
 	if err != nil {
 		return fmt.Errorf("stripped SSL discovery: %w", err)
 	}
