@@ -16,8 +16,7 @@ class TLS {
   @uretprobe("SSL_read")
   static exit(ctx: UProbeContext): i32 {
     const tid = bpf.tid();
-    const buffer = pending.getOr(tid, 0);
-    pending.delete(tid);
+    const buffer = pending.takeOr(tid, 0);
     const len = bpf.retI32(ctx);
     if (buffer !== 0 && len > 0) {
       events.emit({ tid, len, sample: bpf.userBytes(buffer, len) });
@@ -28,7 +27,7 @@ class TLS {
 `;
 
 describe("bpf-ts return probes", () => {
-  test("lowers uretprobe, return value, map lookup and cleanup", () => {
+  test("lowers uretprobe and takeOr into lookup-copy-delete", () => {
     const result = compileBpfTs(sslReadProgram, "tls-read.ts");
     expect(result.manifest.probes).toContainEqual({
       name: "exit",
@@ -37,11 +36,13 @@ describe("bpf-ts return probes", () => {
       target: "SSL_read",
     });
     expect(result.cSource).toContain('SEC("uretprobe")');
-    expect(result.cSource).toContain("PT_REGS_RC(ctx)");
     expect(result.cSource).toContain("((__s32)PT_REGS_RC(ctx))");
     expect(result.cSource).toContain("bpf_map_lookup_elem(&pending");
     expect(result.cSource).toContain("bpf_map_delete_elem(&pending");
     expect(result.cSource).toContain("? *");
+    expect(result.cSource.indexOf("bpf_map_lookup_elem(&pending")).toBeLessThan(
+      result.cSource.indexOf("bpf_map_delete_elem(&pending"),
+    );
   });
 
   test("lowers kretprobe sections and native-width return values", () => {
@@ -91,7 +92,7 @@ class P {
 `, "bad-entry-ret.ts")).toThrow("only valid in kretprobe/uretprobe");
   });
 
-  test("requires getOr to be a direct local initializer", () => {
+  test("requires state lookups to be direct local initializers", () => {
     expect(() => compileBpfTs(`
 const pending = hash<u32, u64>(1024);
 class P {
@@ -104,7 +105,32 @@ class P {
 `, "nested-getor.ts")).toThrow("must be used as a direct local initializer");
   });
 
-  test("rejects delete on array maps", () => {
+  test("requires takeOr to reuse an explicit key identifier", () => {
+    expect(() => compileBpfTs(`
+const pending = hash<u32, u64>(1024);
+class P {
+  @uretprobe("x")
+  static exit(ctx: UProbeContext): i32 {
+    const value = pending.takeOr(bpf.tid(), 0);
+    return 0;
+  }
+}
+`, "takeor-key.ts")).toThrow("key must be a local identifier");
+  });
+
+  test("rejects takeOr and delete on array maps", () => {
+    expect(() => compileBpfTs(`
+const values = array<u64>(16);
+class P {
+  @kprobe("x")
+  static enter(ctx: KProbeContext): i32 {
+    const key = bpf.pid();
+    const value = values.takeOr(key, 0);
+    return 0;
+  }
+}
+`, "array-takeor.ts")).toThrow("not valid for array map");
+
     expect(() => compileBpfTs(`
 const values = array<u64>(16);
 class P {
