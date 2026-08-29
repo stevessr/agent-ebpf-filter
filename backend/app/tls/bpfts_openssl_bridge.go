@@ -23,6 +23,8 @@ type BpfTSOpenSSLBridgeConfig struct {
 
 type BpfTSOpenSSLBridgeStatus struct {
 	Active       bool   `json:"active"`
+	Healthy      bool   `json:"healthy"`
+	ReaderActive bool   `json:"readerActive"`
 	StartedAt    string `json:"startedAt,omitempty"`
 	TargetPath   string `json:"targetPath,omitempty"`
 	PID          int    `json:"pid,omitempty"`
@@ -62,6 +64,7 @@ type BpfTSOpenSSLBridgeRuntime struct {
 	httpEvents   atomic.Uint64
 	rawEvents    atomic.Uint64
 	readErrors   atomic.Uint64
+	readerActive atomic.Bool
 	lastRecordNS atomic.Int64
 }
 
@@ -151,6 +154,7 @@ func (bridge *BpfTSOpenSSLBridgeRuntime) Start(config BpfTSOpenSSLBridgeConfig) 
 	bridge.httpEvents.Store(0)
 	bridge.rawEvents.Store(0)
 	bridge.readErrors.Store(0)
+	bridge.readerActive.Store(true)
 	bridge.lastRecordNS.Store(0)
 
 	bridge.mu.Lock()
@@ -179,6 +183,7 @@ func (bridge *BpfTSOpenSSLBridgeRuntime) readLoop(reader bpfTSTLSShadowRingReade
 				return
 			}
 			bridge.readErrors.Add(1)
+			bridge.readerActive.Store(false)
 			bridge.setError(fmt.Errorf("bpf-ts OpenSSL bridge ringbuf read: %w", err))
 			return
 		}
@@ -214,6 +219,7 @@ func (bridge *BpfTSOpenSSLBridgeRuntime) Stop() error {
 	bridge.active = false
 	bridge.runtime = nil
 	bridge.reader = nil
+	bridge.readerActive.Store(false)
 	bridge.mu.Unlock()
 
 	var errs []error
@@ -245,9 +251,12 @@ func (bridge *BpfTSOpenSSLBridgeRuntime) Status() BpfTSOpenSSLBridgeStatus {
 	startedAt := bridge.startedAt
 	lastError := bridge.lastError
 	bridge.mu.RUnlock()
+	readerActive := bridge.readerActive.Load()
 
 	status := BpfTSOpenSSLBridgeStatus{
 		Active:       active,
+		Healthy:      active && readerActive,
+		ReaderActive: readerActive,
 		TargetPath:   config.TargetPath,
 		PID:          config.PID,
 		Records:      bridge.records.Load(),
