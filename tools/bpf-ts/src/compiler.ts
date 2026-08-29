@@ -9,6 +9,7 @@ import { applyReturnProbeKinds, normalizeReturnProbeDecorators } from "./probede
 import { validateVerifierResources } from "./resourcevalidate";
 import { instrumentCompactRingbufDrops } from "./ringbufdropcodegen";
 import { addRingbufDropMaps } from "./ringbufdrops";
+import { instrumentCompactRingbufReadErrors } from "./ringbufreaderrorcodegen";
 import { addRingbufReadErrorMaps } from "./ringbufreaderrors";
 import { addCompactRingbufScratchMaps } from "./ringbufscratch";
 import { lowerLargeRingbufZeroing } from "./ringbufzero";
@@ -91,6 +92,7 @@ export function compileBpfTs(sourceText: string, fileName = "program.ts"): BpfTs
   addRingbufReadErrorMaps(ir);
 
   let cSource = generateBpfC(ir);
+  cSource = instrumentCompactRingbufReadErrors(ir, cSource);
   cSource = instrumentCompactRingbufDrops(ir, cSource);
   // Keep the older large-record zeroing rewrite as a fail-safe for large
   // ringbuf records that cannot use the compact trailing-bytes path.
