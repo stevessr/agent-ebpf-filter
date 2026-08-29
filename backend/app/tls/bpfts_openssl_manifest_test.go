@@ -20,6 +20,7 @@ func testBpfTSOpenSSLManifest() bpfts.Manifest {
 			{Name: "pendingReadConnections", Kind: "hash", MaxEntries: 16384},
 			{Name: bpfTSOpenSSLRingName, Kind: "ringbuf", MaxEntries: 1 << 20},
 			{Name: bpfTSOpenSSLScratchName, Kind: "percpu_array", MaxEntries: 1},
+			{Name: bpfTSOpenSSLDropName, Kind: "percpu_array", MaxEntries: 1},
 		},
 	}
 }
@@ -61,6 +62,18 @@ func TestBpfTSOpenSSLManifestRejectsScratchSchemaDrift(t *testing.T) {
 	}
 	if err := validateBpfTSOpenSSLManifest(manifest); err == nil {
 		t.Fatal("canonical ABI accepted scratch map type drift")
+	}
+}
+
+func TestBpfTSOpenSSLManifestRejectsDropCounterSchemaDrift(t *testing.T) {
+	manifest := testBpfTSOpenSSLManifest()
+	for index := range manifest.Maps {
+		if manifest.Maps[index].Name == bpfTSOpenSSLDropName {
+			manifest.Maps[index].MaxEntries = 2
+		}
+	}
+	if err := validateBpfTSOpenSSLManifest(manifest); err == nil {
+		t.Fatal("canonical ABI accepted drop counter schema drift")
 	}
 }
 
