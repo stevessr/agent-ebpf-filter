@@ -23,27 +23,38 @@ type LoadOptions struct {
 	ResolveUprobe UprobeResolver
 }
 
+type runtimeLink interface {
+	Close() error
+}
+
+type probeAttachFunc func(ManifestProbe, *ebpf.Program, LoadOptions) (runtimeLink, error)
+
 type Runtime struct {
 	Collection *ebpf.Collection
-	links      []link.Link
+	links      []runtimeLink
+}
+
+func closeLinksReverse(links []runtimeLink) error {
+	var errs []error
+	for index := len(links) - 1; index >= 0; index-- {
+		if links[index] != nil {
+			errs = append(errs, links[index].Close())
+		}
+	}
+	return errors.Join(errs...)
 }
 
 func (runtime *Runtime) Close() error {
 	if runtime == nil {
 		return nil
 	}
-	var errs []error
-	for index := len(runtime.links) - 1; index >= 0; index-- {
-		if runtime.links[index] != nil {
-			errs = append(errs, runtime.links[index].Close())
-		}
-	}
+	closeErr := closeLinksReverse(runtime.links)
 	runtime.links = nil
 	if runtime.Collection != nil {
 		runtime.Collection.Close()
 		runtime.Collection = nil
 	}
-	return errors.Join(errs...)
+	return closeErr
 }
 
 func validateCollectionSpec(spec *ebpf.CollectionSpec, manifest Manifest) error {
@@ -117,7 +128,7 @@ func attachUserProbe(
 	probe ManifestProbe,
 	program *ebpf.Program,
 	resolver UprobeResolver,
-) (link.Link, error) {
+) (runtimeLink, error) {
 	target, err := resolver(probe)
 	if err != nil {
 		return nil, fmt.Errorf("resolve %s %q: %w", probe.Kind, probe.Name, err)
@@ -144,6 +155,56 @@ func attachUserProbe(
 	return executable.Uprobe(symbol, program, options)
 }
 
+func attachOneProbe(probe ManifestProbe, program *ebpf.Program, options LoadOptions) (runtimeLink, error) {
+	switch probe.Kind {
+	case "kprobe":
+		return link.Kprobe(probe.Target, program, nil)
+	case "kretprobe":
+		return link.Kretprobe(probe.Target, program, nil)
+	case "tracepoint":
+		return link.Tracepoint(probe.Category, probe.Event, program, nil)
+	case "uprobe", "uretprobe":
+		return attachUserProbe(probe, program, options.ResolveUprobe)
+	default:
+		return nil, fmt.Errorf("unsupported probe kind %q", probe.Kind)
+	}
+}
+
+func attachProbeSet(
+	programs map[string]*ebpf.Program,
+	manifest Manifest,
+	options LoadOptions,
+	attach probeAttachFunc,
+) ([]runtimeLink, error) {
+	if attach == nil {
+		attach = attachOneProbe
+	}
+	attached := make([]runtimeLink, 0, len(manifest.Probes))
+	cleanup := func(cause error) ([]runtimeLink, error) {
+		closeErr := closeLinksReverse(attached)
+		if closeErr != nil {
+			return nil, errors.Join(cause, fmt.Errorf("cleanup attached bpf-ts probes: %w", closeErr))
+		}
+		return nil, cause
+	}
+
+	for _, probe := range manifest.Probes {
+		program := programs[probe.Name]
+		if program == nil {
+			return cleanup(fmt.Errorf("loaded collection is missing program %q", probe.Name))
+		}
+		attachedLink, err := attach(probe, program, options)
+		if err != nil {
+			return cleanup(fmt.Errorf("attach %s probe %q: %w", probe.Kind, probe.Name, err))
+		}
+		if attachedLink == nil {
+			return cleanup(fmt.Errorf("attach %s probe %q returned a nil link", probe.Kind, probe.Name))
+		}
+		attached = append(attached, attachedLink)
+	}
+	return attached, nil
+}
+
 func LoadAndAttach(objectPath string, manifest Manifest, options LoadOptions) (*Runtime, error) {
 	if err := manifest.Validate(); err != nil {
 		return nil, err
@@ -163,39 +224,10 @@ func LoadAndAttach(objectPath string, manifest Manifest, options LoadOptions) (*
 		return nil, fmt.Errorf("load bpf-ts collection: %w", err)
 	}
 
-	runtime := &Runtime{Collection: collection}
-	cleanup := func(cause error) (*Runtime, error) {
-		closeErr := runtime.Close()
-		if closeErr != nil {
-			return nil, errors.Join(cause, fmt.Errorf("cleanup bpf-ts runtime: %w", closeErr))
-		}
-		return nil, cause
+	links, err := attachProbeSet(collection.Programs, manifest, options, attachOneProbe)
+	if err != nil {
+		collection.Close()
+		return nil, err
 	}
-
-	for _, probe := range manifest.Probes {
-		program := collection.Programs[probe.Name]
-		if program == nil {
-			return cleanup(fmt.Errorf("loaded collection is missing program %q", probe.Name))
-		}
-
-		var attached link.Link
-		switch probe.Kind {
-		case "kprobe":
-			attached, err = link.Kprobe(probe.Target, program, nil)
-		case "kretprobe":
-			attached, err = link.Kretprobe(probe.Target, program, nil)
-		case "tracepoint":
-			attached, err = link.Tracepoint(probe.Category, probe.Event, program, nil)
-		case "uprobe", "uretprobe":
-			attached, err = attachUserProbe(probe, program, options.ResolveUprobe)
-		default:
-			return cleanup(fmt.Errorf("unsupported probe kind %q", probe.Kind))
-		}
-		if err != nil {
-			return cleanup(fmt.Errorf("attach %s probe %q: %w", probe.Kind, probe.Name, err))
-		}
-		runtime.links = append(runtime.links, attached)
-	}
-
-	return runtime, nil
+	return &Runtime{Collection: collection, links: links}, nil
 }
