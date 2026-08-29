@@ -16,6 +16,13 @@ func testManifest(t *testing.T) Manifest {
 	return manifest
 }
 
+func exactTestMapSpecs() map[string]*ebpf.MapSpec {
+	return map[string]*ebpf.MapSpec{
+		"events": {Type: ebpf.RingBuf, MaxEntries: 65536},
+		"counts": {Type: ebpf.Hash, MaxEntries: 1024},
+	}
+}
+
 func TestValidateCollectionSpecRequiresExactProgramAndMapContract(t *testing.T) {
 	manifest := testManifest(t)
 	spec := &ebpf.CollectionSpec{
@@ -23,10 +30,7 @@ func TestValidateCollectionSpecRequiresExactProgramAndMapContract(t *testing.T) 
 			"sslWrite": {SectionName: "uprobe"},
 			"onExec":   {SectionName: "tracepoint/syscalls/sys_enter_execve"},
 		},
-		Maps: map[string]*ebpf.MapSpec{
-			"events": {},
-			"counts": {},
-		},
+		Maps: exactTestMapSpecs(),
 	}
 	if err := validateCollectionSpec(spec, manifest); err != nil {
 		t.Fatalf("validateCollectionSpec() error = %v", err)
@@ -45,19 +49,41 @@ func TestValidateCollectionSpecRejectsWrongSectionAndExtraMap(t *testing.T) {
 			"sslWrite": {SectionName: "uprobe/SSL_write"},
 			"onExec":   {SectionName: "tracepoint/syscalls/sys_enter_execve"},
 		},
-		Maps: map[string]*ebpf.MapSpec{
-			"events": {},
-			"counts": {},
-		},
+		Maps: exactTestMapSpecs(),
 	}
 	if err := validateCollectionSpec(spec, manifest); err == nil || !strings.Contains(err.Error(), "section mismatch") {
 		t.Fatalf("expected section mismatch, got %v", err)
 	}
 
 	spec.Programs["sslWrite"].SectionName = "uprobe"
-	spec.Maps["hidden"] = &ebpf.MapSpec{}
+	spec.Maps["hidden"] = &ebpf.MapSpec{Type: ebpf.Array, MaxEntries: 1}
 	if err := validateCollectionSpec(spec, manifest); err == nil || !strings.Contains(err.Error(), "undeclared map") {
 		t.Fatalf("expected undeclared-map error, got %v", err)
+	}
+}
+
+func TestValidateCollectionSpecRejectsMapTypeAndCapacityDrift(t *testing.T) {
+	manifest := testManifest(t)
+	baseSpec := func() *ebpf.CollectionSpec {
+		return &ebpf.CollectionSpec{
+			Programs: map[string]*ebpf.ProgramSpec{
+				"sslWrite": {SectionName: "uprobe"},
+				"onExec":   {SectionName: "tracepoint/syscalls/sys_enter_execve"},
+			},
+			Maps: exactTestMapSpecs(),
+		}
+	}
+
+	spec := baseSpec()
+	spec.Maps["events"].Type = ebpf.Array
+	if err := validateCollectionSpec(spec, manifest); err == nil || !strings.Contains(err.Error(), "type mismatch") {
+		t.Fatalf("expected map-type mismatch, got %v", err)
+	}
+
+	spec = baseSpec()
+	spec.Maps["counts"].MaxEntries = 2048
+	if err := validateCollectionSpec(spec, manifest); err == nil || !strings.Contains(err.Error(), "maxEntries mismatch") {
+		t.Fatalf("expected map-capacity mismatch, got %v", err)
 	}
 }
 
