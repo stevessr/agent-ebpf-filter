@@ -66,6 +66,33 @@ func TestTLSHTTP2StreamAssemblerReassemblesSplitDataFrame(t *testing.T) {
 	}
 }
 
+func TestTLSHTTP2StreamAssemblerRetainsKnownConnectionAcrossSplitHeader(t *testing.T) {
+	assembler := NewTLSHTTP2StreamAssembler(10 * time.Second)
+	connectionID := uint64(0x2020)
+	preface := testCompletedTLSFragment(string(tlsHTTP2ClientPreface), tlsDirectionSend)
+	preface.ConnectionID = connectionID
+	if events, recognized := assembler.Add(preface); !recognized || len(events) != 1 {
+		t.Fatalf("preface = (%d events, recognized=%v), want (1, true)", len(events), recognized)
+	}
+
+	frame := testTLSHTTP2Frame(0x0, 0x1, 3, []byte("next"))
+	first := testCompletedTLSFragment(string(frame[:4]), tlsDirectionSend)
+	first.ConnectionID = connectionID
+	second := testCompletedTLSFragment(string(frame[4:]), tlsDirectionSend)
+	second.ConnectionID = connectionID
+
+	if events, recognized := assembler.Add(first); !recognized || len(events) != 0 {
+		t.Fatalf("short header = (%d events, recognized=%v), want (0, true)", len(events), recognized)
+	}
+	events, recognized := assembler.Add(second)
+	if !recognized || len(events) != 1 {
+		t.Fatalf("header tail = (%d events, recognized=%v), want (1, true)", len(events), recognized)
+	}
+	if events[0].Type != "http2_data" || events[0].Body != "next" {
+		t.Fatalf("unexpected event: %+v", events[0])
+	}
+}
+
 func TestTLSHTTP2StreamAssemblerIsolatesConnections(t *testing.T) {
 	assembler := NewTLSHTTP2StreamAssembler(10 * time.Second)
 	one := testTLSHTTP2Frame(0x0, 0x1, 1, []byte("one"))
