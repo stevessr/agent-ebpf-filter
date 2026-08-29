@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -31,6 +32,7 @@ func (runtime *fakeBpfTSShadowLoadedRuntime) Map(name string) *ebpf.Map {
 
 type fakeBpfTSShadowReader struct {
 	records chan ringbuf.Record
+	errors  chan error
 	closed  chan struct{}
 	once    sync.Once
 }
@@ -38,6 +40,7 @@ type fakeBpfTSShadowReader struct {
 func newFakeBpfTSShadowReader() *fakeBpfTSShadowReader {
 	return &fakeBpfTSShadowReader{
 		records: make(chan ringbuf.Record, 4),
+		errors:  make(chan error, 4),
 		closed:  make(chan struct{}),
 	}
 }
@@ -46,6 +49,11 @@ func (reader *fakeBpfTSShadowReader) Read() (ringbuf.Record, error) {
 	select {
 	case record := <-reader.records:
 		return record, nil
+	case err := <-reader.errors:
+		if err == nil {
+			err = errors.New("synthetic reader failure")
+		}
+		return ringbuf.Record{}, err
 	case <-reader.closed:
 		return ringbuf.Record{}, errors.New("reader closed")
 	}
@@ -122,6 +130,10 @@ func TestBpfTSTLSShadowStartCountsRingRecordsAndStopsCleanly(t *testing.T) {
 	if err := shadow.Start(config); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
+	initial := shadow.Status()
+	if !initial.Active || !initial.Healthy || !initial.Ringbufs["tlsReads"].ReaderActive {
+		t.Fatalf("shadow did not start healthy: %+v", initial)
+	}
 	if err := shadow.Start(config); !errors.Is(err, ErrBpfTSTLSShadowAlreadyActive) {
 		t.Fatalf("second Start() error = %v, want ErrBpfTSTLSShadowAlreadyActive", err)
 	}
@@ -136,6 +148,9 @@ func TestBpfTSTLSShadowStartCountsRingRecordsAndStopsCleanly(t *testing.T) {
 			}
 			if stats.ReadErrors != 0 {
 				t.Fatalf("read errors before stop = %d, want 0", stats.ReadErrors)
+			}
+			if !stats.ReaderActive {
+				t.Fatalf("reader became inactive after a valid record: %+v", stats)
 			}
 			break
 		}
@@ -152,11 +167,54 @@ func TestBpfTSTLSShadowStartCountsRingRecordsAndStopsCleanly(t *testing.T) {
 		t.Fatal("Stop() did not close loaded bpf-ts runtime")
 	}
 	status := shadow.Status()
-	if status.Active {
-		t.Fatalf("status remained active after Stop(): %+v", status)
+	if status.Active || status.Healthy {
+		t.Fatalf("status remained active/healthy after Stop(): %+v", status)
 	}
-	if stats := status.Ringbufs["tlsReads"]; stats.ReadErrors != 0 || stats.Records != 1 || stats.Bytes != 5 {
+	if stats := status.Ringbufs["tlsReads"]; stats.ReaderActive || stats.ReadErrors != 0 || stats.Records != 1 || stats.Bytes != 5 {
 		t.Fatalf("unexpected final ring stats: %+v", stats)
+	}
+}
+
+func TestBpfTSTLSShadowReportsReaderFailureAsUnhealthy(t *testing.T) {
+	loaded := &fakeBpfTSShadowLoadedRuntime{
+		maps: map[string]*ebpf.Map{"tlsReads": {}},
+	}
+	reader := newFakeBpfTSShadowReader()
+	shadow := newBpfTSTLSShadowRuntime(
+		func(_ string, _ bpfts.Manifest, _ bpfts.LoadOptions) (bpfTSTLSShadowLoadedRuntime, error) {
+			return loaded, nil
+		},
+		func(_ *ebpf.Map) (bpfTSTLSShadowRingReader, error) { return reader, nil },
+	)
+	manifestPath := writeBpfTSShadowManifest(t, testBpfTSShadowManifest())
+	if err := shadow.Start(BpfTSTLSShadowConfig{
+		ObjectPath: "fake.o", ManifestPath: manifestPath, TargetPath: "/bin/false",
+	}); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	defer shadow.Stop()
+
+	reader.errors <- errors.New("synthetic ring failure")
+	deadline := time.Now().Add(time.Second)
+	for {
+		status := shadow.Status()
+		stats := status.Ringbufs["tlsReads"]
+		if stats.ReadErrors == 1 {
+			if !status.Active {
+				t.Fatalf("reader failure detached runtime unexpectedly: %+v", status)
+			}
+			if status.Healthy || stats.ReaderActive {
+				t.Fatalf("reader failure was not reflected in health: %+v", status)
+			}
+			if !strings.Contains(status.LastError, "synthetic ring failure") {
+				t.Fatalf("reader failure did not reach status: %+v", status)
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("reader failure did not update health: %+v", status)
+		}
+		time.Sleep(time.Millisecond)
 	}
 }
 
@@ -183,7 +241,8 @@ func TestBpfTSTLSShadowMissingRingbufRollsBackLoadedRuntime(t *testing.T) {
 	if !loaded.closed.Load() {
 		t.Fatal("failed Start() did not roll back loaded runtime")
 	}
-	if shadow.Status().Active {
-		t.Fatal("failed Start() left shadow runtime active")
+	status := shadow.Status()
+	if status.Active || status.Healthy {
+		t.Fatalf("failed Start() left shadow runtime active/healthy: %+v", status)
 	}
 }
