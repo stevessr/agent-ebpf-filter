@@ -3,16 +3,26 @@ import { validateCoreAccesses } from "./corevalidate";
 import { markCoreTypeProjections } from "./coretypes";
 import { parseBpfTs } from "./parser";
 import { validatePayloadShapes } from "./payloadvalidate";
+import { applyReturnProbeKinds, normalizeReturnProbeDecorators } from "./probedecorators";
 import { validateVerifierResources } from "./resourcevalidate";
 import { validateProbeSignatures } from "./signature";
 import { inferLocalTypes } from "./typeinfer";
 import { validateBpfProgram } from "./validate";
-import type { ProbeAttachIR, ProgramIR } from "./ir";
+import type { ProbeAttachIR, ProbeKind, ProgramIR } from "./ir";
 
 function probeSection(attach: ProbeAttachIR): string {
-  if (attach.kind === "kprobe") return `kprobe/${attach.target}`;
-  if (attach.kind === "tracepoint") return `tracepoint/${attach.category}/${attach.event}`;
-  return "uprobe";
+  switch (attach.kind) {
+    case "kprobe":
+      return `kprobe/${attach.target}`;
+    case "kretprobe":
+      return `kretprobe/${attach.target}`;
+    case "uprobe":
+      return "uprobe";
+    case "uretprobe":
+      return "uretprobe";
+    case "tracepoint":
+      return `tracepoint/${attach.category}/${attach.event}`;
+  }
 }
 
 export interface BpfTsManifest {
@@ -21,7 +31,7 @@ export interface BpfTsManifest {
   probes: Array<{
     name: string;
     section: string;
-    kind: "kprobe" | "uprobe" | "tracepoint";
+    kind: ProbeKind;
     target?: string;
     category?: string;
     event?: string;
@@ -40,8 +50,17 @@ export interface BpfTsCompilation {
 }
 
 export function compileBpfTs(sourceText: string, fileName = "program.ts"): BpfTsCompilation {
-  validateProbeSignatures(sourceText, fileName);
-  const ir = parseBpfTs(sourceText, fileName);
+  // TypeScript currently treats method decorators uniformly, but the existing
+  // parser deliberately understands only entry probes. Normalize return-probe
+  // decorators through the TypeScript AST, parse the normalized source, then
+  // restore the stronger attach kind in IR before semantic validation/codegen.
+  const normalized = normalizeReturnProbeDecorators(sourceText, fileName);
+  validateProbeSignatures(normalized.sourceText, fileName);
+  const ir = parseBpfTs(normalized.sourceText, fileName);
+  applyReturnProbeKinds(ir, normalized.returnKinds);
+
+  // CO-RE projections are source roles (declare interface), so retain the
+  // author's original source rather than the pretty-printed normalized form.
   markCoreTypeProjections(sourceText, fileName, ir);
   validateBpfProgram(ir);
   validateCoreAccesses(ir);
