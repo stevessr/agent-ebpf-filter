@@ -35,6 +35,11 @@ func (m *TLSProbeManager) ReadLoop() error {
 	rules := m.rules
 	m.mu.Unlock()
 
+	// HTTP/2 framing state is local to this read-loop lifetime. It is keyed by
+	// PID/TGID/connection/direction, so concurrent model API connections cannot
+	// corrupt one another while still allowing frames to span multiple TLS calls.
+	http2Streams := NewTLSHTTP2StreamAssembler(10 * time.Second)
+
 	log.Printf("[tls] ReadLoop: started, waiting for perf events...")
 	// TLS plaintext can arrive in bursts and each logical payload is split into
 	// up to 18 ~1 KiB perf records. A larger per-CPU buffer materially reduces
@@ -108,8 +113,20 @@ func (m *TLSProbeManager) ReadLoop() error {
 			continue
 		}
 		m.readLoopStats.completedFrags.Add(1)
+
 		parsedEvents := httpStreams.Add(*completed)
+		http2Recognized := false
 		if len(parsedEvents) == 0 {
+			parsedEvents, http2Recognized = http2Streams.Add(*completed)
+		}
+
+		if len(parsedEvents) == 0 {
+			if http2Recognized {
+				// The HTTP/2 assembler owns these bytes and is waiting for a later
+				// TLS call to complete the frame. Publishing raw data here would
+				// duplicate and fragment the eventual structured event.
+				continue
+			}
 			raw := completedToPlaintextEvent(*completed)
 			if rules == nil || rules.Allows(raw) {
 				broadcaster.Broadcast(raw)
@@ -121,10 +138,14 @@ func (m *TLSProbeManager) ReadLoop() error {
 				if rules != nil && !rules.Allows(event) {
 					continue
 				}
-				DispatchTLSAgentEvent(&event, tlsAgentLoopDetector, deps.Broadcast)
+				if strings.HasPrefix(event.Type, "http2") || isTLSHTTPDisplayEvent(event) {
+					DispatchTLSAgentEvent(&event, tlsAgentLoopDetector, deps.Broadcast)
+					m.readLoopStats.httpEvents.Add(1)
+				} else {
+					m.readLoopStats.rawEvents.Add(1)
+				}
 				store.Add(event)
 				broadcaster.Broadcast(event)
-				m.readLoopStats.httpEvents.Add(1)
 			}
 		}
 		if totalFrags%100 == 0 {
@@ -150,18 +171,21 @@ func completedToPlaintextEvent(f CompletedTLSFragment) TLSPlaintextEvent {
 	contentType := ""
 	hexDump := ""
 
-	if len(f.Payload) >= 24 {
-		if isTLSHTTP2Preface(f.Payload) {
-			evType = "http2_preface"
-			hexDump = fmt.Sprintf("%x", f.Payload[:min(len(f.Payload), 512)])
-		} else if isTLSHTTP2Frame(f.Payload) {
-			evType = "http2_frame"
-			body = extractTLSHTTP2BodyText(f.Payload)
-			if body != "" {
-				contentType = "text/plain"
-			}
-			hexDump = fmt.Sprintf("%x", f.Payload[:min(len(f.Payload), 512)])
+	if isTLSHTTP2Preface(f.Payload) {
+		evType = "http2_preface"
+		hexDump = fmt.Sprintf("%x", f.Payload[:min(len(f.Payload), 512)])
+	} else if isTLSHTTP2Frame(f.Payload) {
+		evType = "http2_frame"
+		if len(f.Payload) >= tlsHTTP2FrameHeaderSize && f.Payload[3] == 0x0 {
+			evType = "http2_data"
 		}
+		body = extractTLSHTTP2BodyText(f.Payload)
+		if body != "" {
+			contentType = "text/plain"
+		} else {
+			contentType = "application/http2"
+		}
+		hexDump = fmt.Sprintf("%x", f.Payload[:min(len(f.Payload), 512)])
 	}
 
 	if hexDump == "" && len(f.Payload) > 0 {
@@ -189,49 +213,38 @@ func completedToPlaintextEvent(f CompletedTLSFragment) TLSPlaintextEvent {
 }
 
 func isTLSHTTP2Preface(data []byte) bool {
-	return len(data) >= 24 &&
-		data[0] == 0x50 && data[1] == 0x52 && data[2] == 0x49 &&
-		data[3] == 0x20 && data[4] == 0x2a && data[5] == 0x20 &&
-		data[6] == 0x48 && data[7] == 0x54 && data[8] == 0x54 &&
-		data[9] == 0x50 && data[10] == 0x2f && data[11] == 0x32
+	return len(data) >= len(tlsHTTP2ClientPreface) && bytes.Equal(data[:len(tlsHTTP2ClientPreface)], tlsHTTP2ClientPreface)
 }
 
 func isTLSHTTP2Frame(data []byte) bool {
-	if len(data) < 9 {
+	if len(data) < tlsHTTP2FrameHeaderSize || !validTLSHTTP2FrameHeader(data[:tlsHTTP2FrameHeaderSize]) {
 		return false
 	}
-	frameType := data[3]
-	if frameType > 0x09 {
-		return false
-	}
-	if data[5]&0x80 != 0 {
-		return false
-	}
-	frameLen := int(data[0])<<16 | int(data[1])<<8 | int(data[2])
-	if frameLen < 0 || frameLen > 16*1024*1024 {
-		return false
-	}
-	return true
+	frameLen := tlsHTTP2FrameLength(data[:tlsHTTP2FrameHeaderSize])
+	return len(data) >= tlsHTTP2FrameHeaderSize+frameLen
 }
 
 func extractTLSHTTP2BodyText(data []byte) string {
-	if len(data) < 9 {
+	if len(data) < tlsHTTP2FrameHeaderSize {
 		return ""
 	}
 	var textParts []string
 	offset := 0
 	maxFrames := 32
 
-	for frame := 0; frame < maxFrames && offset+9 <= len(data); frame++ {
-		frameLen := int(data[offset])<<16 | int(data[offset+1])<<8 | int(data[offset+2])
-		frameType := data[offset+3]
-		offset += 9
-
-		if offset+frameLen > len(data) || frameLen < 0 {
+	for frame := 0; frame < maxFrames && offset+tlsHTTP2FrameHeaderSize <= len(data); frame++ {
+		header := data[offset : offset+tlsHTTP2FrameHeaderSize]
+		if !validTLSHTTP2FrameHeader(header) {
 			break
 		}
-		if frameType == 0x00 && frameLen > 0 {
-			payload := data[offset : offset+frameLen]
+		frameLen := tlsHTTP2FrameLength(header)
+		totalLen := tlsHTTP2FrameHeaderSize + frameLen
+		if offset+totalLen > len(data) {
+			break
+		}
+		frameBytes := data[offset : offset+totalLen]
+		if header[3] == 0x00 && frameLen > 0 {
+			payload := tlsHTTP2DataPayload(frameBytes)
 			if utf8.Valid(payload) {
 				trimmed := bytes.TrimSpace(payload)
 				if len(trimmed) > 0 {
@@ -241,7 +254,7 @@ func extractTLSHTTP2BodyText(data []byte) string {
 				textParts = append(textParts, string(payload))
 			}
 		}
-		offset += frameLen
+		offset += totalLen
 	}
 
 	return strings.Join(textParts, "\n")
