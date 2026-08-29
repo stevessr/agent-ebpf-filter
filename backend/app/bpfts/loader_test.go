@@ -67,3 +67,11 @@ func TestLoadAndAttachRequiresResolverBeforeLoadingUprobeObject(t *testing.T) {
 		t.Fatalf("expected resolver error before object loading, got %v", err)
 	}
 }
+
+func TestLoadAndAttachRejectsInvalidManifestBeforeResolverRequirements(t *testing.T) {
+	manifest := testManifest(t)
+	manifest.Version = 99
+	if _, err := LoadAndAttach("does-not-exist.o", manifest, LoadOptions{}); err == nil || !strings.Contains(err.Error(), "unsupported bpf-ts manifest version") {
+		t.Fatalf("expected manifest validation error before resolver error, got %v", err)
+	}
+}
