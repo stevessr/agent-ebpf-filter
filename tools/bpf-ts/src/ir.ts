@@ -25,7 +25,11 @@ export interface StructIR {
   core?: boolean;
 }
 
-export type MapKind = "ringbuf" | "hash" | "array";
+// percpu_array is currently compiler-owned. It is emitted into the manifest so
+// the object/manifest contract remains exact, but there is intentionally no
+// public DSL constructor until structured map values have verifier-safe access
+// semantics of their own.
+export type MapKind = "ringbuf" | "hash" | "array" | "percpu_array";
 
 export interface MapIR {
   name: string;
