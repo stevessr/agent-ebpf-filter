@@ -7,6 +7,7 @@ import { parseBpfTs } from "./parser";
 import { validatePayloadShapes } from "./payloadvalidate";
 import { applyReturnProbeKinds, normalizeReturnProbeDecorators } from "./probedecorators";
 import { validateVerifierResources } from "./resourcevalidate";
+import { lowerLargeRingbufZeroing } from "./ringbufzero";
 import { validateProbeSignatures } from "./signature";
 import { lowerTakeOr } from "./takeor";
 import { inferLocalTypes } from "./typeinfer";
@@ -78,9 +79,10 @@ export function compileBpfTs(sourceText: string, fileName = "program.ts"): BpfTs
 
   validatePayloadShapes(ir);
   validateVerifierResources(ir);
+  const cSource = lowerLargeRingbufZeroing(ir, generateBpfC(ir));
   return {
     ir,
-    cSource: generateBpfC(ir),
+    cSource,
     manifest: {
       version: 1,
       source: fileName,
