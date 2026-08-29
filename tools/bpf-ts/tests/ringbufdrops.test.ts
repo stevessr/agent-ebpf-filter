@@ -19,11 +19,16 @@ class P {
 `;
 }
 
-describe("compact ringbuf drop accounting", () => {
-  test("adds a per-CPU drop map and checks bpf_ringbuf_output failures", () => {
+describe("compact ringbuf loss accounting", () => {
+  test("adds separate per-CPU output-drop and user-read counters", () => {
     const result = compileBpfTs(program(4096), "large.ts");
     expect(result.manifest.maps).toContainEqual({
       name: "__bpf_ts_drops_events",
+      kind: "percpu_array",
+      maxEntries: 1,
+    });
+    expect(result.manifest.maps).toContainEqual({
+      name: "__bpf_ts_read_errors_events",
       kind: "percpu_array",
       maxEntries: 1,
     });
@@ -31,13 +36,17 @@ describe("compact ringbuf drop accounting", () => {
     expect(result.cSource).toContain("static __always_inline void __bpf_ts_note_drop_events(void)");
     expect(result.cSource).toContain("static __always_inline long __bpf_ts_output_events");
     expect(result.cSource).toContain("if (rc != 0) __bpf_ts_note_drop_events();");
+    expect(result.cSource).toContain("static __always_inline void __bpf_ts_note_read_error_events(void)");
+    expect(result.cSource).toContain("} else {\n        __bpf_ts_note_read_error_events();\n      }");
     expect(result.cSource).toContain("__bpf_ts_output_events(");
   });
 
   test("leaves small reserve/submit ringbufs uninstrumented", () => {
     const result = compileBpfTs(program(64), "small.ts");
     expect(result.manifest.maps.some((map) => map.name === "__bpf_ts_drops_events")).toBe(false);
+    expect(result.manifest.maps.some((map) => map.name === "__bpf_ts_read_errors_events")).toBe(false);
     expect(result.cSource).not.toContain("__bpf_ts_note_drop_events");
+    expect(result.cSource).not.toContain("__bpf_ts_note_read_error_events");
     expect(result.cSource).toContain("bpf_ringbuf_reserve(&events");
     expect(result.cSource).toContain("bpf_ringbuf_submit(");
   });
