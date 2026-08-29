@@ -138,7 +138,7 @@ const copy = async (text: string, label: string) => {
       <a-card
         v-if="decodedStdio"
         size="small"
-        title="Decoded stdio / MCP payload"
+        title="Decoded stdio / MCP / LSP payload"
         class="details-card"
       >
         <template #extra>
@@ -150,6 +150,33 @@ const copy = async (text: string, label: string) => {
             Copy
           </a-button>
         </template>
+        <div class="stdio-meta">
+          <a-tag
+            :color="
+              decodedStdio.protocol === 'lsp'
+                ? 'blue'
+                : decodedStdio.protocol === 'mcp'
+                  ? 'purple'
+                  : decodedStdio.protocol === 'jsonrpc'
+                    ? 'cyan'
+                    : 'default'
+            "
+          >
+            {{ decodedStdio.protocol.toUpperCase() }}
+          </a-tag>
+          <a-tag :color="decodedStdio.framed ? 'green' : 'default'">
+            {{ decodedStdio.framed ? "Content-Length" : "unframed" }}
+          </a-tag>
+          <a-tag v-if="decodedStdio.frameCount > 1" color="geekblue">
+            {{ decodedStdio.frameCount }} frames
+          </a-tag>
+          <a-tag v-if="decodedStdio.incompleteFrame" color="orange">
+            partial frame
+          </a-tag>
+          <a-tag v-if="decodedStdio.framingError" color="red">
+            framing error
+          </a-tag>
+        </div>
         <pre>{{ decodedStdioText }}</pre>
       </a-card>
 
@@ -181,6 +208,13 @@ const copy = async (text: string, label: string) => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.stdio-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
 }
 
 .details-card pre {
