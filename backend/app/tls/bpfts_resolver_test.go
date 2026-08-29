@@ -8,14 +8,20 @@ import (
 	"agent-ebpf-filter/app/bpfts"
 )
 
-func TestBpfTSDiscoverKnownStrippedSSLOffsetsExactPatterns(t *testing.T) {
+func exactBoringSSLFixture(includeNames bool) ([]byte, int, int) {
 	data := make([]byte, 0x4000)
 	readOff := 0x240
 	writeOff := readOff + 0xCA0
 	copy(data[readOff:], bsSSLRead.pattern)
 	copy(data[writeOff:], bsSSLWrite.pattern)
-	copy(data[0x3000:], []byte("SSL_read\x00SSL_write\x00"))
+	if includeNames {
+		copy(data[0x3000:], []byte("SSL_read\x00SSL_write\x00"))
+	}
+	return data, readOff, writeOff
+}
 
+func assertExactBoringSSLOffsets(t *testing.T, data []byte, readOff, writeOff int) {
+	t.Helper()
 	offsets, err := discoverKnownStrippedSSLOffsets(data)
 	if err != nil {
 		t.Fatalf("discoverKnownStrippedSSLOffsets() error = %v", err)
@@ -26,6 +32,16 @@ func TestBpfTSDiscoverKnownStrippedSSLOffsetsExactPatterns(t *testing.T) {
 	if got := offsets["SSL_write"]; got != uint64(writeOff) {
 		t.Fatalf("SSL_write offset = %#x, want %#x", got, writeOff)
 	}
+}
+
+func TestBpfTSDiscoverKnownStrippedSSLOffsetsExactPatterns(t *testing.T) {
+	data, readOff, writeOff := exactBoringSSLFixture(true)
+	assertExactBoringSSLOffsets(t, data, readOff, writeOff)
+}
+
+func TestBpfTSDiscoverExactPatternsSurviveRemovedSSLStrings(t *testing.T) {
+	data, readOff, writeOff := exactBoringSSLFixture(false)
+	assertExactBoringSSLOffsets(t, data, readOff, writeOff)
 }
 
 func TestBpfTSDiscoverKnownStrippedSSLOffsetsFailsClosedOnAmbiguousPrefix(t *testing.T) {
