@@ -7,6 +7,7 @@ import { parseBpfTs } from "./parser";
 import { validatePayloadShapes } from "./payloadvalidate";
 import { applyReturnProbeKinds, normalizeReturnProbeDecorators } from "./probedecorators";
 import { validateVerifierResources } from "./resourcevalidate";
+import { instrumentCompactRingbufDrops } from "./ringbufdropcodegen";
 import { addRingbufDropMaps } from "./ringbufdrops";
 import { addCompactRingbufScratchMaps } from "./ringbufscratch";
 import { lowerLargeRingbufZeroing } from "./ringbufzero";
@@ -87,9 +88,11 @@ export function compileBpfTs(sourceText: string, fileName = "program.ts"): BpfTs
   addCompactRingbufScratchMaps(ir);
   addRingbufDropMaps(ir);
 
+  let cSource = generateBpfC(ir);
+  cSource = instrumentCompactRingbufDrops(ir, cSource);
   // Keep the older large-record zeroing rewrite as a fail-safe for large
   // ringbuf records that cannot use the compact trailing-bytes path.
-  const cSource = lowerLargeRingbufZeroing(ir, generateBpfC(ir));
+  cSource = lowerLargeRingbufZeroing(ir, cSource);
   return {
     ir,
     cSource,
