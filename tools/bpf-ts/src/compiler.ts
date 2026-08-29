@@ -1,3 +1,4 @@
+import { lowerArgI32 } from "./argi32";
 import { generateBpfC } from "./codegen";
 import { validateCoreAccesses } from "./corevalidate";
 import { markCoreTypeProjections } from "./coretypes";
@@ -69,6 +70,12 @@ export function compileBpfTs(sourceText: string, fileName = "program.ts"): BpfTs
   validateCoreAccesses(ir);
   validateMapExpressions(ir);
   inferLocalTypes(ir);
+
+  // Signed ABI arguments intentionally reuse the existing PT_REGS_PARMn C
+  // lowering. Infer their locals as i32 first, then lower argI32 to arg so the
+  // generated __s32 assignment performs the required truncation/sign handling.
+  lowerArgI32(ir);
+
   validatePayloadShapes(ir);
   validateVerifierResources(ir);
   return {
