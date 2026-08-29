@@ -28,7 +28,10 @@ export function instrumentCompactRingbufDrops(program: ProgramIR, cSource: strin
       "  if (counter) (*counter)++;",
       "}",
       "",
-      `static __always_inline long ${outputHelper}(const void *data, __u64 size, __u64 flags) {`,
+      // bpf_ringbuf_output() takes a mutable void* in libbpf's helper ABI even
+      // though it does not mutate the payload. Match that declaration exactly
+      // so generated code remains warning-clean on both target ABIs.
+      `static __always_inline long ${outputHelper}(void *data, __u64 size, __u64 flags) {`,
       `  long rc = bpf_ringbuf_output(&${ringbuf.name}, data, size, flags);`,
       `  if (rc != 0) ${noteHelper}();`,
       "  return rc;",
