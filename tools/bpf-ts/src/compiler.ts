@@ -1,5 +1,6 @@
 import { generateBpfC } from "./codegen";
 import { parseBpfTs } from "./parser";
+import { validateBpfProgram } from "./validate";
 import type { ProgramIR } from "./ir";
 
 export interface BpfTsManifest {
@@ -27,6 +28,7 @@ export interface BpfTsCompilation {
 
 export function compileBpfTs(sourceText: string, fileName = "program.ts"): BpfTsCompilation {
   const ir = parseBpfTs(sourceText, fileName);
+  validateBpfProgram(ir);
   return {
     ir,
     cSource: generateBpfC(ir),
