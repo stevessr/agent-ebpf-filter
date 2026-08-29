@@ -87,16 +87,36 @@ function requireArity(expr: Extract<ExprIR, { kind: "call" }>, expected: number)
   }
 }
 
+function isReturnProbe(probe: ProbeIR) {
+  return probe.attach.kind === "kretprobe" || probe.attach.kind === "uretprobe";
+}
+
 function validateProbeContext(probe: ProbeIR) {
   const expected =
-    probe.attach.kind === "kprobe"
+    probe.attach.kind === "kprobe" || probe.attach.kind === "kretprobe"
       ? "KProbeContext"
-      : probe.attach.kind === "uprobe"
+      : probe.attach.kind === "uprobe" || probe.attach.kind === "uretprobe"
         ? "UProbeContext"
         : "TracepointContext";
   if (probe.contextType !== expected && probe.contextType !== "ProbeContext") {
     throw new BpfTsCompileError(
       `probe '${probe.name}' uses ${probe.contextType}; ${probe.attach.kind} expects ${expected} or ProbeContext`,
+    );
+  }
+}
+
+function validateContextHelper(
+  probe: ProbeIR,
+  expr: Extract<ExprIR, { kind: "call" }>,
+  helper: "bpf.ret" | "bpf.retI32",
+) {
+  requireArity(expr, 1);
+  if (!isReturnProbe(probe)) {
+    throw new BpfTsCompileError(`${helper}() is only valid in kretprobe/uretprobe probe '${probe.name}'`);
+  }
+  if (expr.args[0].kind !== "identifier" || expr.args[0].name !== probe.contextName) {
+    throw new BpfTsCompileError(
+      `${helper}() in probe '${probe.name}' must use its context parameter '${probe.contextName}'`,
     );
   }
 }
@@ -107,6 +127,11 @@ function validateCall(probe: ProbeIR, expr: Extract<ExprIR, { kind: "call" }>, m
     return;
   }
 
+  if (expr.callee === "bpf.ret" || expr.callee === "bpf.retI32") {
+    validateContextHelper(probe, expr, expr.callee);
+    return;
+  }
+
   if (expr.callee.startsWith("bpf.coreRead.")) {
     requireArity(expr, 1);
     return;
@@ -114,8 +139,8 @@ function validateCall(probe: ProbeIR, expr: Extract<ExprIR, { kind: "call" }>, m
 
   if (expr.callee === "bpf.arg") {
     requireArity(expr, 2);
-    if (probe.attach.kind === "tracepoint") {
-      throw new BpfTsCompileError(`bpf.arg() is not valid in tracepoint probe '${probe.name}'`);
+    if (probe.attach.kind === "tracepoint" || isReturnProbe(probe)) {
+      throw new BpfTsCompileError(`bpf.arg() is not valid in ${probe.attach.kind} probe '${probe.name}'`);
     }
     if (expr.args[0].kind !== "identifier" || expr.args[0].name !== probe.contextName) {
       throw new BpfTsCompileError(
@@ -154,6 +179,14 @@ function validateCall(probe: ProbeIR, expr: Extract<ExprIR, { kind: "call" }>, m
       }
       if (map.kind !== "ringbuf" && method === "set") {
         requireArity(expr, 2);
+        return;
+      }
+      if (map.kind !== "ringbuf" && method === "getOr") {
+        requireArity(expr, 2);
+        return;
+      }
+      if (map.kind === "hash" && method === "delete") {
+        requireArity(expr, 1);
         return;
       }
       if (map.kind !== "ringbuf" && method === "increment") {
