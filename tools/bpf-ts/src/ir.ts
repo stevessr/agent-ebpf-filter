@@ -71,6 +71,7 @@ export type StmtIR =
 export interface ProbeIR {
   name: string;
   attach: ProbeAttachIR;
+  contextName: string;
   contextType: string;
   body: StmtIR[];
 }
