@@ -21,6 +21,9 @@ func TestTLSCaptureControllerInitializesBpfTSModes(t *testing.T) {
 	if _, ok := status["bpfTsBridge"].(BpfTSOpenSSLBridgeStatus); !ok {
 		t.Fatalf("expected bpfTsBridge status, got %#v", status["bpfTsBridge"])
 	}
+	if _, ok := status["bpfTsWireEfficiency"].(BpfTSOpenSSLWireEfficiency); !ok {
+		t.Fatalf("expected bpfTsWireEfficiency status, got %#v", status["bpfTsWireEfficiency"])
+	}
 	if active, _ := status["captureActive"].(bool); active {
 		t.Fatal("fresh controller must not report an active capture backend")
 	}
@@ -69,6 +72,46 @@ func TestTLSCaptureControllerRejectsBridgeWhenShadowActive(t *testing.T) {
 	shadow.mu.Lock()
 	shadow.active = false
 	shadow.mu.Unlock()
+	if err := controller.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+}
+
+func TestTLSCaptureControllerRejectsBridgeWhenLegacyManagerExists(t *testing.T) {
+	controller := NewTLSCaptureController(nil, nil, nil)
+	controller.mu.Lock()
+	controller.manager = &TLSProbeManager{}
+	controller.mu.Unlock()
+
+	err := controller.StartBpfTSOpenSSLBridge(BpfTSOpenSSLBridgeConfig{
+		ObjectPath: "unused.o", ManifestPath: "unused.json", TargetPath: "/unused/libssl.so",
+	})
+	if !errors.Is(err, ErrBpfTSTLSModeConflict) {
+		t.Fatalf("expected legacy/bridge mode conflict before file IO, got %v", err)
+	}
+
+	controller.mu.Lock()
+	controller.manager = nil
+	controller.mu.Unlock()
+	if err := controller.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+}
+
+func TestTLSCaptureControllerRejectsLegacyStartWhenBridgeActive(t *testing.T) {
+	controller := NewTLSCaptureController(nil, nil, nil)
+	bridge := controller.bpfTSBridge
+	bridge.mu.Lock()
+	bridge.active = true
+	bridge.mu.Unlock()
+
+	if _, err := controller.EnsureStarted(); !errors.Is(err, ErrBpfTSTLSModeConflict) {
+		t.Fatalf("expected bridge/legacy mode conflict, got %v", err)
+	}
+
+	bridge.mu.Lock()
+	bridge.active = false
+	bridge.mu.Unlock()
 	if err := controller.Close(); err != nil {
 		t.Fatalf("Close() error = %v", err)
 	}
