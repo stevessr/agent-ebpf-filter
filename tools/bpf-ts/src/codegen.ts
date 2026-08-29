@@ -14,6 +14,13 @@ const scalarCType: Record<string, string> = {
   bool: "__u8",
 };
 
+type CompactRingbufTail = {
+  struct: StructIR;
+  tail: StructIR["fields"][number];
+  tailCall: Extract<ExprIR, { kind: "call" }>;
+  scratch: MapIR;
+};
+
 function cType(type: BpfType): string {
   if (type.kind === "scalar") return scalarCType[type.name];
   if (type.kind === "named") return `struct ${type.name}`;
@@ -155,11 +162,12 @@ class CEmitter {
   }
 
   private structForRingbuf(map: MapIR): StructIR {
-    if (map.valueType.kind !== "named") {
+    const valueType = map.valueType;
+    if (valueType.kind !== "named") {
       throw new BpfTsCompileError(`ringbuf ${map.name} must use a named struct value type`);
     }
-    const struct = this.program.structs.find((candidate) => candidate.name === map.valueType.name);
-    if (!struct) throw new BpfTsCompileError(`unknown ringbuf value struct '${map.valueType.name}'`);
+    const struct = this.program.structs.find((candidate) => candidate.name === valueType.name);
+    if (!struct) throw new BpfTsCompileError(`unknown ringbuf value struct '${valueType.name}'`);
     return struct;
   }
 
@@ -194,22 +202,26 @@ class CEmitter {
     );
   }
 
-  private compactRingbufTail(map: MapIR, payload: Extract<ExprIR, { kind: "object" }>) {
+  private compactRingbufTail(
+    map: MapIR,
+    payload: Extract<ExprIR, { kind: "object" }>,
+  ): CompactRingbufTail | null {
     const scratch = this.maps.get(ringbufScratchMapName(map.name));
     if (!scratch || scratch.kind !== "percpu_array") return null;
     const struct = this.structForRingbuf(map);
     const tail = struct.fields.at(-1);
     if (!tail || tail.type.kind !== "bytes") return null;
     const payloadField = payload.fields.find((field) => field.name === tail.name);
+    if (!payloadField) return null;
+    const tailCall = payloadField.value;
     if (
-      !payloadField ||
-      payloadField.value.kind !== "call" ||
-      payloadField.value.callee !== "bpf.userBytes" ||
-      payloadField.value.args.length !== 2
+      tailCall.kind !== "call" ||
+      tailCall.callee !== "bpf.userBytes" ||
+      tailCall.args.length !== 2
     ) {
       return null;
     }
-    return { struct, tail, payloadField, scratch };
+    return { struct, tail, tailCall, scratch };
   }
 
   private emitCompactRingbuf(
@@ -220,7 +232,7 @@ class CEmitter {
     const compact = this.compactRingbufTail(map, payload);
     if (!compact) return null;
 
-    const { struct, tail, payloadField, scratch } = compact;
+    const { struct, tail, tailCall, scratch } = compact;
     const allowed = new Map(struct.fields.map((field) => [field.name, field]));
     const key = this.temp("scratch_key");
     const event = this.temp("event");
@@ -248,7 +260,6 @@ class CEmitter {
       }
     }
 
-    const tailCall = payloadField.value;
     lines.push(
       `${indent}  __u64 ${readLen} = ${emitExpr(tailCall.args[1])};`,
       `${indent}  if (${readLen} > sizeof(${event}->${tail.name})) ${readLen} = sizeof(${event}->${tail.name});`,
