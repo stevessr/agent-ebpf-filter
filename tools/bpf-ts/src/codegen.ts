@@ -126,16 +126,18 @@ class CEmitter {
   }
 
   private emitRingbuf(map: MapIR, payload: ExprIR, indent: string): string[] {
-    if (map.valueType.kind !== "named") {
+    const valueType = map.valueType;
+    if (valueType.kind !== "named") {
       throw new BpfTsCompileError(`ringbuf ${map.name} must use a named struct value type`);
     }
+    const structName = valueType.name;
     if (payload.kind !== "object") throw new BpfTsCompileError(`${map.name}.emit() requires an object literal`);
-    const struct = this.program.structs.find((candidate) => candidate.name === map.valueType.name);
-    if (!struct) throw new BpfTsCompileError(`unknown ringbuf value struct '${map.valueType.name}'`);
+    const struct = this.program.structs.find((candidate) => candidate.name === structName);
+    if (!struct) throw new BpfTsCompileError(`unknown ringbuf value struct '${structName}'`);
     const allowed = new Map(struct.fields.map((field) => [field.name, field]));
     const event = this.temp("event");
     const lines = [
-      `${indent}struct ${map.valueType.name} *${event} = bpf_ringbuf_reserve(&${map.name}, sizeof(*${event}), 0);`,
+      `${indent}struct ${structName} *${event} = bpf_ringbuf_reserve(&${map.name}, sizeof(*${event}), 0);`,
       `${indent}if (${event}) {`,
       `${indent}  __builtin_memset(${event}, 0, sizeof(*${event}));`,
     ];
