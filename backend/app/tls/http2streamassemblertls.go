@@ -37,6 +37,7 @@ type pendingTLSHTTP2Stream struct {
 type TLSHTTP2StreamAssembler struct {
 	mu      sync.Mutex
 	pending map[tlsHTTP2StreamKey]*pendingTLSHTTP2Stream
+	known   map[tlsHTTP2StreamKey]time.Time
 	timeout time.Duration
 	dropped int
 }
@@ -47,6 +48,7 @@ func NewTLSHTTP2StreamAssembler(timeout time.Duration) *TLSHTTP2StreamAssembler 
 	}
 	return &TLSHTTP2StreamAssembler{
 		pending: make(map[tlsHTTP2StreamKey]*pendingTLSHTTP2Stream),
+		known:   make(map[tlsHTTP2StreamKey]time.Time),
 		timeout: timeout,
 	}
 }
@@ -78,8 +80,12 @@ func (a *TLSHTTP2StreamAssembler) Add(fragment CompletedTLSFragment) ([]TLSPlain
 	a.cleanupExpiredLocked(now)
 
 	pending := a.pending[key]
+	_, knownConnection := a.known[key]
 	if pending == nil {
-		if !looksLikeTLSHTTP2Start(fragment.Payload) {
+		// Once a direction on a concrete TLS connection has emitted a valid
+		// HTTP/2 preface/frame, accept even a <9-byte next chunk. TLS APIs are
+		// allowed to split the fixed frame header itself across calls.
+		if !knownConnection && !looksLikeTLSHTTP2Start(fragment.Payload) {
 			return nil, false
 		}
 		meta := fragment
@@ -100,15 +106,24 @@ func (a *TLSHTTP2StreamAssembler) Add(fragment CompletedTLSFragment) ([]TLSPlain
 	pending.buffer = append(pending.buffer, fragment.Payload...)
 	if len(pending.buffer) > tlsHTTP2MaxBuffer {
 		delete(a.pending, key)
+		delete(a.known, key)
 		a.dropped++
 		return []TLSPlaintextEvent{tlsHTTP2FallbackEvent(fragment, pending.buffer, true)}, true
 	}
 
 	events, valid := consumeTLSHTTP2Pending(pending)
 	if !valid {
+		// Losing framing means we cannot safely assume the next arbitrary bytes
+		// are still aligned to a frame header. Re-enter autodetection on the next
+		// TLS call instead of permanently misclassifying the connection.
 		delete(a.pending, key)
+		delete(a.known, key)
 		a.dropped++
 		return append(events, tlsHTTP2FallbackEvent(fragment, pending.buffer, false)), true
+	}
+
+	if len(events) > 0 || knownConnection {
+		a.known[key] = now
 	}
 
 	if fragment.Flags&tlsFlagTruncated != 0 && len(pending.buffer) > 0 {
@@ -117,6 +132,7 @@ func (a *TLSHTTP2StreamAssembler) Add(fragment CompletedTLSFragment) ([]TLSPlain
 		// instead of prepending it to the next TLS call on the connection.
 		events = append(events, tlsHTTP2FallbackEvent(fragment, pending.buffer, true))
 		pending.buffer = nil
+		delete(a.known, key)
 		a.dropped++
 	}
 
@@ -130,7 +146,13 @@ func (a *TLSHTTP2StreamAssembler) cleanupExpiredLocked(now time.Time) {
 	for key, pending := range a.pending {
 		if now.Sub(pending.lastSeen) > a.timeout || now.Sub(pending.firstSeen) > 2*a.timeout {
 			delete(a.pending, key)
+			delete(a.known, key)
 			a.dropped++
+		}
+	}
+	for key, lastSeen := range a.known {
+		if now.Sub(lastSeen) > 2*a.timeout {
+			delete(a.known, key)
 		}
 	}
 }
