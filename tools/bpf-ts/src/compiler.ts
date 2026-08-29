@@ -1,5 +1,6 @@
 import { generateBpfC } from "./codegen";
 import { validateCoreAccesses } from "./corevalidate";
+import { markCoreTypeProjections } from "./coretypes";
 import { parseBpfTs } from "./parser";
 import { validatePayloadShapes } from "./payloadvalidate";
 import { validateProbeSignatures } from "./signature";
@@ -39,6 +40,7 @@ export interface BpfTsCompilation {
 export function compileBpfTs(sourceText: string, fileName = "program.ts"): BpfTsCompilation {
   validateProbeSignatures(sourceText, fileName);
   const ir = parseBpfTs(sourceText, fileName);
+  markCoreTypeProjections(sourceText, fileName, ir);
   validateBpfProgram(ir);
   validateCoreAccesses(ir);
   validatePayloadShapes(ir);
