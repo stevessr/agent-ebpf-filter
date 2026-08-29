@@ -31,6 +31,8 @@ interface RingbufMap<T> {
 interface KeyValueMap<K, V> {
   set(key: K, value: V): void;
   getOr(key: K, fallback: V): V;
+  /** Copy the current hash value and delete the entry before returning it. */
+  takeOr(key: K, fallback: V): V;
   delete(key: K): void;
   increment(key: K): void;
 }
