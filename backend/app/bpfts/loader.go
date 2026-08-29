@@ -66,6 +66,21 @@ func (runtime *Runtime) Close() error {
 	return closeErr
 }
 
+func manifestMapType(kind string) (ebpf.MapType, error) {
+	switch kind {
+	case "ringbuf":
+		return ebpf.RingBuf, nil
+	case "hash":
+		return ebpf.Hash, nil
+	case "array":
+		return ebpf.Array, nil
+	case "percpu_array":
+		return ebpf.PerCPUArray, nil
+	default:
+		return ebpf.UnspecifiedMap, fmt.Errorf("unsupported bpf-ts map kind %q", kind)
+	}
+}
+
 func validateCollectionSpec(spec *ebpf.CollectionSpec, manifest Manifest) error {
 	if spec == nil {
 		return fmt.Errorf("nil eBPF collection spec")
@@ -86,11 +101,29 @@ func validateCollectionSpec(spec *ebpf.CollectionSpec, manifest Manifest) error 
 			return fmt.Errorf("eBPF object contains undeclared program %q", name)
 		}
 	}
+
 	manifestMaps := make(map[string]struct{}, len(manifest.Maps))
 	for _, item := range manifest.Maps {
 		manifestMaps[item.Name] = struct{}{}
-		if _, ok := spec.Maps[item.Name]; !ok {
+		mapSpec, ok := spec.Maps[item.Name]
+		if !ok {
 			return fmt.Errorf("manifest map %q is missing from eBPF object", item.Name)
+		}
+		expectedType, err := manifestMapType(item.Kind)
+		if err != nil {
+			return err
+		}
+		if mapSpec.Type != expectedType {
+			return fmt.Errorf(
+				"map %q type mismatch: object has %s, manifest expects %s",
+				item.Name, mapSpec.Type, expectedType,
+			)
+		}
+		if mapSpec.MaxEntries != item.MaxEntries {
+			return fmt.Errorf(
+				"map %q maxEntries mismatch: object has %d, manifest expects %d",
+				item.Name, mapSpec.MaxEntries, item.MaxEntries,
+			)
 		}
 	}
 	for name := range spec.Maps {
