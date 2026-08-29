@@ -1,6 +1,7 @@
 import { generateBpfC } from "./codegen";
 import { validateCoreAccesses } from "./corevalidate";
 import { markCoreTypeProjections } from "./coretypes";
+import { validateMapExpressions } from "./mapexprvalidate";
 import { parseBpfTs } from "./parser";
 import { validatePayloadShapes } from "./payloadvalidate";
 import { applyReturnProbeKinds, normalizeReturnProbeDecorators } from "./probedecorators";
@@ -64,6 +65,7 @@ export function compileBpfTs(sourceText: string, fileName = "program.ts"): BpfTs
   markCoreTypeProjections(sourceText, fileName, ir);
   validateBpfProgram(ir);
   validateCoreAccesses(ir);
+  validateMapExpressions(ir);
   inferLocalTypes(ir);
   validatePayloadShapes(ir);
   validateVerifierResources(ir);
