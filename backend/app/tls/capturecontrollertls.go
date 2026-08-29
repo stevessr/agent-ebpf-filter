@@ -6,7 +6,10 @@ import (
 	"time"
 )
 
-var ErrTLSCaptureDisabled = errors.New("TLS capture is disabled")
+var (
+	ErrTLSCaptureDisabled   = errors.New("TLS capture is disabled")
+	ErrBpfTSTLSModeConflict = errors.New("bpf-ts TLS shadow and bridge modes cannot run simultaneously")
+)
 
 const tlsAutoDiscoveryInterval = 5 * time.Second
 
@@ -22,6 +25,7 @@ type TLSCaptureController struct {
 	mu                 sync.Mutex
 	manager            *TLSProbeManager
 	bpfTSShadow        *BpfTSTLSShadowRuntime
+	bpfTSBridge        *BpfTSOpenSSLBridgeRuntime
 	store              *TLSCaptureStore
 	rules              *TLSCaptureRuleStore
 	broadcaster        *TLSBroadcaster
@@ -85,6 +89,7 @@ func NewTLSCaptureController(store *TLSCaptureStore, rules *TLSCaptureRuleStore,
 		rules:       rules,
 		broadcaster: broadcaster,
 		bpfTSShadow: NewBpfTSTLSShadowRuntime(),
+		bpfTSBridge: NewBpfTSOpenSSLBridgeRuntime(store, rules, broadcaster),
 		accepting:   true,
 	}
 }
@@ -207,7 +212,8 @@ func (c *TLSCaptureController) AttachBuiltinExecutables(pid int) ([]TLSBuiltinEx
 // StartBpfTSShadow starts an explicitly configured bpf-ts TLS runtime alongside
 // the production capture path. It never replaces the production manager and the
 // shadow only counts ringbuf records/bytes; it does not persist a second copy of
-// captured plaintext.
+// captured plaintext. Shadow and bridge modes are intentionally mutually
+// exclusive so the generated OpenSSL probes cannot be attached twice.
 func (c *TLSCaptureController) StartBpfTSShadow(config BpfTSTLSShadowConfig) error {
 	if c == nil {
 		return errors.New("TLS capture controller is unavailable")
@@ -219,10 +225,15 @@ func (c *TLSCaptureController) StartBpfTSShadow(config BpfTSTLSShadowConfig) err
 	accepting := c.accepting
 	enabled := c.enabledCheck == nil || c.enabledCheck()
 	shadow := c.bpfTSShadow
+	bridge := c.bpfTSBridge
 	c.mu.Unlock()
 	if !accepting || !enabled {
 		c.setLastError(ErrTLSCaptureDisabled)
 		return ErrTLSCaptureDisabled
+	}
+	if bridge != nil && bridge.Status().Active {
+		c.setLastError(ErrBpfTSTLSModeConflict)
+		return ErrBpfTSTLSModeConflict
 	}
 	if shadow == nil {
 		shadow = NewBpfTSTLSShadowRuntime()
@@ -274,6 +285,84 @@ func (c *TLSCaptureController) BpfTSShadowStatus() BpfTSTLSShadowStatus {
 	return shadow.Status()
 }
 
+// StartBpfTSOpenSSLBridge starts the data-bearing bpf-ts OpenSSL path. The
+// legacy production manager may remain active for A/B comparison, but the
+// observational bpf-ts shadow must be stopped first to avoid duplicate bpf-ts
+// uprobe/uretprobe attachment to the same TLS process.
+func (c *TLSCaptureController) StartBpfTSOpenSSLBridge(config BpfTSOpenSSLBridgeConfig) error {
+	if c == nil {
+		return errors.New("TLS capture controller is unavailable")
+	}
+	c.transitionMu.Lock()
+	defer c.transitionMu.Unlock()
+
+	c.mu.Lock()
+	accepting := c.accepting
+	enabled := c.enabledCheck == nil || c.enabledCheck()
+	shadow := c.bpfTSShadow
+	bridge := c.bpfTSBridge
+	store := c.store
+	rules := c.rules
+	broadcaster := c.broadcaster
+	c.mu.Unlock()
+	if !accepting || !enabled {
+		c.setLastError(ErrTLSCaptureDisabled)
+		return ErrTLSCaptureDisabled
+	}
+	if shadow != nil && shadow.Status().Active {
+		c.setLastError(ErrBpfTSTLSModeConflict)
+		return ErrBpfTSTLSModeConflict
+	}
+	if bridge == nil {
+		bridge = NewBpfTSOpenSSLBridgeRuntime(store, rules, broadcaster)
+		c.mu.Lock()
+		if c.bpfTSBridge == nil {
+			c.bpfTSBridge = bridge
+		} else {
+			bridge = c.bpfTSBridge
+		}
+		c.mu.Unlock()
+	}
+	if err := bridge.Start(config); err != nil {
+		c.setLastError(err)
+		return err
+	}
+	c.setLastError(nil)
+	return nil
+}
+
+func (c *TLSCaptureController) StopBpfTSOpenSSLBridge() error {
+	if c == nil {
+		return nil
+	}
+	c.transitionMu.Lock()
+	defer c.transitionMu.Unlock()
+	c.mu.Lock()
+	bridge := c.bpfTSBridge
+	c.mu.Unlock()
+	if bridge == nil {
+		return nil
+	}
+	if err := bridge.Stop(); err != nil {
+		c.setLastError(err)
+		return err
+	}
+	return nil
+}
+
+func (c *TLSCaptureController) BpfTSOpenSSLBridgeStatus() BpfTSOpenSSLBridgeStatus {
+	if c == nil {
+		return BpfTSOpenSSLBridgeStatus{LastError: "TLS capture controller is unavailable"}
+	}
+	c.mu.Lock()
+	bridge := c.bpfTSBridge
+	c.mu.Unlock()
+	if bridge == nil {
+		return BpfTSOpenSSLBridgeStatus{}
+	}
+	return bridge.Status()
+}
+
 func (c *TLSCaptureController) Status() map[string]any {
 	if c == nil {
 		return map[string]any{"enabled": false, "available": false, "error": "TLS capture controller is unavailable"}
@@ -285,24 +374,32 @@ func (c *TLSCaptureController) Status() map[string]any {
 	lastError := c.lastError
 	broadcaster := c.broadcaster
 	shadow := c.bpfTSShadow
+	bridge := c.bpfTSBridge
 	c.mu.Unlock()
+
+	shadowStatus := BpfTSTLSShadowStatus{}
+	if shadow != nil {
+		shadowStatus = shadow.Status()
+	}
+	bridgeStatus := BpfTSOpenSSLBridgeStatus{}
+	if bridge != nil {
+		bridgeStatus = bridge.Status()
+	}
 
 	status := map[string]any{
 		"enabled":                 manager != nil,
 		"available":               manager != nil,
+		"captureActive":           manager != nil || shadowStatus.Active || bridgeStatus.Active,
 		"readStarted":             readStarted,
 		"goDiscoveryStarted":      discoveryStarted,
 		"autoDiscoveryIntervalMs": tlsAutoDiscoveryInterval.Milliseconds(),
 		"error":                   lastError,
 		"broadcast":               broadcaster.Status(),
+		"bpfTsShadow":             shadowStatus,
+		"bpfTsBridge":             bridgeStatus,
 	}
 	if manager != nil {
 		status["autoDiscovery"] = manager.AutoDiscoveryStatus()
-	}
-	if shadow != nil {
-		status["bpfTsShadow"] = shadow.Status()
-	} else {
-		status["bpfTsShadow"] = BpfTSTLSShadowStatus{}
 	}
 	return status
 }
@@ -340,6 +437,7 @@ func (c *TLSCaptureController) Close() error {
 	c.mu.Lock()
 	manager := c.manager
 	shadow := c.bpfTSShadow
+	bridge := c.bpfTSBridge
 	broadcaster := c.broadcaster
 	readDone := c.readDone
 	c.accepting = false
@@ -350,8 +448,11 @@ func (c *TLSCaptureController) Close() error {
 	c.mu.Unlock()
 
 	var errs []error
-	// Stop the observational shadow first so it cannot outlive or observe a
-	// partially torn-down production TLS runtime.
+	// Stop bpf-ts readers before dismantling the legacy manager so no bpf-ts
+	// runtime can continue to publish into a partially torn-down controller.
+	if bridge != nil {
+		errs = append(errs, bridge.Close())
+	}
 	if shadow != nil {
 		errs = append(errs, shadow.Close())
 	}
