@@ -9,25 +9,23 @@ class P {
   @kprobe("wake_up_new_task")
   static wake(ctx: KProbeContext): i32 {
     const task = bpf.arg(ctx, 1);
-    events.emit({
-      pid: bpf.coreRead.task_struct.pid(task),
-      tgid: bpf.coreRead.task_struct.tgid(task),
-      current: bpf.currentTask(),
-    });
+    const pid = bpf.coreRead.task_struct.pid(task);
+    const tgid = bpf.coreRead.task_struct.tgid(task);
+    events.emit({ pid, tgid, current: bpf.currentTask() });
     return 0;
   }
 }
 `;
 
 describe("bpf-ts CO-RE", () => {
-  test("lowers scalar kernel fields to BPF_CORE_READ relocations", () => {
+  test("lowers scalar kernel fields and preserves their inferred C types", () => {
     const result = compileBpfTs(coreProgram, "core.ts");
     expect(result.cSource).toContain("#include <bpf/bpf_core_read.h>");
     expect(result.cSource).toContain(
-      "BPF_CORE_READ((struct task_struct *)(unsigned long)(task), pid)",
+      "__s32 pid = BPF_CORE_READ((struct task_struct *)(unsigned long)(task), pid);",
     );
     expect(result.cSource).toContain(
-      "BPF_CORE_READ((struct task_struct *)(unsigned long)(task), tgid)",
+      "__s32 tgid = BPF_CORE_READ((struct task_struct *)(unsigned long)(task), tgid);",
     );
     expect(result.cSource).toContain("bpf_get_current_task()");
   });
