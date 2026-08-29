@@ -27,8 +27,7 @@ type bpfTSTLSResolver struct {
 // generic bpfts loader. The caller should pass the same executable or map_files
 // path that TLS auto-discovery selected. Symbol attachment is preferred on every
 // architecture. A stripped-binary byte-pattern fallback is intentionally
-// limited to x86_64 SSL_read/SSL_write, matching the existing production
-// BoringSSL/OpenSSL fallback's fail-closed architecture assumptions.
+// limited to x86_64 SSL_read/SSL_write, matching production TLS discovery.
 func NewBpfTSUprobeResolver(path string, pid int) bpfts.UprobeResolver {
 	resolver := &bpfTSTLSResolver{path: path, pid: pid}
 	return resolver.resolve
@@ -67,56 +66,31 @@ func isKnownStrippedSSLTarget(target string) bool {
 
 func (resolver *bpfTSTLSResolver) inspectOffsets() {
 	resolver.offsets = make(map[string]uint64)
-	// Exact/heuristic byte patterns in probemanager_offsetstls.go are x86_64
-	// machine code. Never apply them to another architecture.
-	if resolver.machine != elf.EM_X86_64 {
-		resolver.offsetErr = fmt.Errorf("safe stripped SSL offsets are unavailable for ELF machine %s", resolver.machine)
-		return
-	}
 	data, err := os.ReadFile(resolver.path)
 	if err != nil {
 		resolver.offsetErr = fmt.Errorf("read TLS bpf-ts target %q: %w", resolver.path, err)
 		return
 	}
-	resolver.offsets, resolver.offsetErr = discoverKnownStrippedSSLOffsets(data)
+	discovery, err := discoverKnownStrippedSSL(resolver.machine, data)
+	if err != nil {
+		resolver.offsetErr = err
+		return
+	}
+	resolver.offsets["SSL_read"] = discovery.ReadOffset
+	resolver.offsets["SSL_write"] = discovery.WriteOffset
 }
 
+// discoverKnownStrippedSSLOffsets is retained as a narrow test/helper surface;
+// production and bpf-ts resolver behavior both flow through the same discovery
+// primitive above.
 func discoverKnownStrippedSSLOffsets(data []byte) (map[string]uint64, error) {
-	// Exact BoringSSL machine-code signatures are stronger evidence than a
-	// surviving symbol-name string. Accept them even when aggressive stripping
-	// removed SSL_read/SSL_write strings from the binary.
-	readOff := findBS(data, bsSSLRead.pattern)
-	if readOff >= 0 {
-		writeCenter := readOff + 0xCA0
-		writeOff := findBSNear(data, bsSSLWrite.pattern, writeCenter, 0x10000)
-		if writeOff >= 0 {
-			return map[string]uint64{
-				"SSL_read":  uint64(readOff),
-				"SSL_write": uint64(writeOff),
-			}, nil
-		}
-	}
-
-	// The OpenSSL common prologue is intentionally weak and compiler-generated,
-	// so its fallback remains gated by both function-name strings and the
-	// existing exact-two-candidate distance check.
-	if !binaryContainsSSLReadWriteStrings(data) {
-		return nil, fmt.Errorf("no exact BoringSSL match and binary does not contain both SSL_read and SSL_write names")
-	}
-	osslMask := buildMask(osslSSLCommonPrefix.pattern)
-	matches := make([]int64, 0, 2)
-	for i := int64(0); i <= int64(len(data))-int64(len(osslSSLCommonPrefix.pattern)); i++ {
-		if matchMasked(data[i:], osslSSLCommonPrefix.pattern, osslMask) {
-			matches = append(matches, i)
-		}
-	}
-	writeOff, readOff, _, ok := selectUnambiguousOpenSSLPair(matches, true)
-	if !ok {
-		return nil, fmt.Errorf("no unambiguous stripped SSL_read/SSL_write offsets")
+	discovery, err := discoverKnownStrippedSSL(elf.EM_X86_64, data)
+	if err != nil {
+		return nil, err
 	}
 	return map[string]uint64{
-		"SSL_read":  uint64(readOff),
-		"SSL_write": uint64(writeOff),
+		"SSL_read":  discovery.ReadOffset,
+		"SSL_write": discovery.WriteOffset,
 	}, nil
 }
 
