@@ -52,6 +52,8 @@ declare const bpf: {
   ktimeNs(): u64;
   currentTask(): u64;
   arg(ctx: ProbeContext, index: 1 | 2 | 3 | 4 | 5): u64;
+  /** Read an ABI register argument and truncate/sign-extend it as a C int. */
+  argI32(ctx: ProbeContext, index: 1 | 2 | 3 | 4 | 5): i32;
   ret(ctx: ProbeContext): i64;
   retI32(ctx: ProbeContext): i32;
   comm(): bytes<16>;
