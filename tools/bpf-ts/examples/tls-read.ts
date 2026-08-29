@@ -7,9 +7,9 @@ interface TLSReadEvent {
   sample: bytes<64>;
 }
 
-// One outstanding SSL_read buffer per thread. The return probe always deletes
-// the entry before evaluating the captured return value so stale state cannot
-// leak into a later call on the same thread.
+// One outstanding SSL_read buffer per thread. takeOr copies and removes the
+// pending entry before the return value is interpreted, so EOF/errors cannot
+// leave stale state for the next SSL_read on this thread.
 const pendingReadBuffers = hash<u32, u64>(16384);
 const tlsReads = ringbuf<TLSReadEvent>(1 << 20);
 
@@ -25,8 +25,7 @@ export class TLSReadProbes {
   @uretprobe("SSL_read")
   static exit(ctx: UProbeContext): i32 {
     const tid = bpf.tid();
-    const buffer = pendingReadBuffers.getOr(tid, 0);
-    pendingReadBuffers.delete(tid);
+    const buffer = pendingReadBuffers.takeOr(tid, 0);
     const length = bpf.retI32(ctx);
     if (buffer !== 0 && length > 0) {
       tlsReads.emit({
