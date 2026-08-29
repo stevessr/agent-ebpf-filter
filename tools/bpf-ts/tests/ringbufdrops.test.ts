@@ -37,7 +37,12 @@ describe("compact ringbuf loss accounting", () => {
     expect(result.cSource).toContain("static __always_inline long __bpf_ts_output_events");
     expect(result.cSource).toContain("if (rc != 0) __bpf_ts_note_drop_events();");
     expect(result.cSource).toContain("static __always_inline void __bpf_ts_note_read_error_events(void)");
-    expect(result.cSource).toContain("} else {\n        __bpf_ts_note_read_error_events();\n      }");
+    const readCheck = result.cSource.indexOf("if (__bpf_ts_read_rc_");
+    const readError = result.cSource.indexOf("__bpf_ts_note_read_error_events();", readCheck);
+    const zeroLength = result.cSource.indexOf("} else {", readError);
+    expect(readCheck).toBeGreaterThanOrEqual(0);
+    expect(readError).toBeGreaterThan(readCheck);
+    expect(zeroLength).toBeGreaterThan(readError);
     expect(result.cSource).toContain("__bpf_ts_output_events(");
   });
 
