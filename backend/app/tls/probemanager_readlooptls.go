@@ -34,10 +34,17 @@ func (m *TLSProbeManager) ReadLoop() error {
 	rules := m.rules
 	m.mu.Unlock()
 
-	// HTTP/2 framing state is local to this read-loop lifetime. It is keyed by
-	// PID/TGID/connection/direction, so concurrent model API connections cannot
-	// corrupt one another while still allowing frames to span multiple TLS calls.
-	http2Streams := NewTLSHTTP2StreamAssembler(10 * time.Second)
+	// Keep the existing HTTP/1 assembler owned by the manager, but route all
+	// completed transport records through the same upper-layer processor used by
+	// bpf-ts. This removes a second copy of HTTP/1, HTTP/2, raw fallback, rules,
+	// AgentSight dispatch, storage and broadcast semantics from the perf reader.
+	processor := &tlsCompletedEventProcessor{
+		http1:       httpStreams,
+		http2:       NewTLSHTTP2StreamAssembler(10 * time.Second),
+		store:       store,
+		rules:       rules,
+		broadcaster: broadcaster,
+	}
 
 	log.Printf("[tls] ReadLoop: started, waiting for perf events...")
 	// TLS plaintext can arrive in bursts and each logical payload is split into
@@ -113,41 +120,14 @@ func (m *TLSProbeManager) ReadLoop() error {
 		}
 		m.readLoopStats.completedFrags.Add(1)
 
-		parsedEvents, http1Recognized := httpStreams.AddRecognized(*completed)
-		http2Recognized := false
-		if len(parsedEvents) == 0 && !http1Recognized {
-			parsedEvents, http2Recognized = http2Streams.Add(*completed)
+		result := processor.Process(*completed)
+		if result.HTTPEvents > 0 {
+			m.readLoopStats.httpEvents.Add(int64(result.HTTPEvents))
+		}
+		if result.RawEvents > 0 {
+			m.readLoopStats.rawEvents.Add(int64(result.RawEvents))
 		}
 
-		if len(parsedEvents) == 0 {
-			if http1Recognized || http2Recognized {
-				// A protocol assembler owns these bytes and is either waiting for a
-				// later TLS call or has intentionally discarded a known capture gap.
-				// Raw fallback here would duplicate traffic and could expose headers
-				// or bodies before the structured redaction path runs.
-				continue
-			}
-			raw := completedToPlaintextEvent(*completed)
-			if rules == nil || rules.Allows(raw) {
-				broadcaster.Broadcast(raw)
-				store.Add(raw)
-				m.readLoopStats.rawEvents.Add(1)
-			}
-		} else {
-			for _, event := range parsedEvents {
-				if rules != nil && !rules.Allows(event) {
-					continue
-				}
-				if strings.HasPrefix(event.Type, "http2") || isTLSHTTPDisplayEvent(event) {
-					DispatchTLSAgentEvent(&event, tlsAgentLoopDetector, deps.Broadcast)
-					m.readLoopStats.httpEvents.Add(1)
-				} else {
-					m.readLoopStats.rawEvents.Add(1)
-				}
-				store.Add(event)
-				broadcaster.Broadcast(event)
-			}
-		}
 		if totalFrags%100 == 0 {
 			stats := m.readLoopStats.Snapshot()
 			log.Printf("[tls] ReadLoop: %d frags, %d dropped, %d completed, %d http, %d raw",
