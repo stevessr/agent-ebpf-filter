@@ -100,6 +100,24 @@ function validateContextHelper(probe: ProbeIR, expr: Extract<ExprIR, { kind: "ca
   }
 }
 
+function validateArgHelper(
+  probe: ProbeIR,
+  expr: Extract<ExprIR, { kind: "call" }>,
+  helper: "bpf.arg" | "bpf.argI32",
+) {
+  requireArity(expr, 2);
+  if (probe.attach.kind === "tracepoint" || isReturnProbe(probe)) {
+    throw new BpfTsCompileError(`${helper}() is not valid in ${probe.attach.kind} probe '${probe.name}'`);
+  }
+  if (expr.args[0].kind !== "identifier" || expr.args[0].name !== probe.contextName) {
+    throw new BpfTsCompileError(`${helper}() in probe '${probe.name}' must use its context parameter '${probe.contextName}' as the first argument`);
+  }
+  const index = expr.args[1];
+  if (index.kind !== "number" || !Number.isInteger(index.value) || index.value < 1 || index.value > 5) {
+    throw new BpfTsCompileError(`${helper}() argument index must be an integer from 1 through 5`);
+  }
+}
+
 function validateCall(probe: ProbeIR, expr: Extract<ExprIR, { kind: "call" }>, maps: Map<string, MapIR>) {
   if (zeroArgHelpers.has(expr.callee)) {
     requireArity(expr, 0);
@@ -113,18 +131,8 @@ function validateCall(probe: ProbeIR, expr: Extract<ExprIR, { kind: "call" }>, m
     requireArity(expr, 1);
     return;
   }
-  if (expr.callee === "bpf.arg") {
-    requireArity(expr, 2);
-    if (probe.attach.kind === "tracepoint" || isReturnProbe(probe)) {
-      throw new BpfTsCompileError(`bpf.arg() is not valid in ${probe.attach.kind} probe '${probe.name}'`);
-    }
-    if (expr.args[0].kind !== "identifier" || expr.args[0].name !== probe.contextName) {
-      throw new BpfTsCompileError(`bpf.arg() in probe '${probe.name}' must use its context parameter '${probe.contextName}' as the first argument`);
-    }
-    const index = expr.args[1];
-    if (index.kind !== "number" || !Number.isInteger(index.value) || index.value < 1 || index.value > 5) {
-      throw new BpfTsCompileError("bpf.arg() argument index must be an integer from 1 through 5");
-    }
+  if (expr.callee === "bpf.arg" || expr.callee === "bpf.argI32") {
+    validateArgHelper(probe, expr, expr.callee);
     return;
   }
   if (expr.callee === "bpf.userString") {
