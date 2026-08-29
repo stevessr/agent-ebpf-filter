@@ -58,11 +58,26 @@ function inferExprType(expr: ExprIR): BpfType {
     if (["bpf.pid", "bpf.tid", "bpf.uid", "bpf.gid"].includes(expr.callee)) {
       return { kind: "scalar", name: "u32" };
     }
-    if (["bpf.ktimeNs", "bpf.arg"].includes(expr.callee)) {
+    if (
+      ["bpf.ktimeNs", "bpf.arg", "bpf.currentTask"].includes(expr.callee) ||
+      expr.callee.startsWith("bpf.coreRead.")
+    ) {
       return { kind: "scalar", name: "u64" };
     }
   }
   return { kind: "scalar", name: "u64" };
+}
+
+function emitCoreRead(expr: Extract<ExprIR, { kind: "call" }>): string {
+  const parts = expr.callee.split(".");
+  if (parts.length !== 4 || parts[0] !== "bpf" || parts[1] !== "coreRead" || expr.args.length !== 1) {
+    throw new BpfTsCompileError(
+      `invalid CO-RE helper '${expr.callee}'; use bpf.coreRead.<Struct>.<field>(pointer)`,
+    );
+  }
+  const structName = parts[2];
+  const fieldName = parts[3];
+  return `BPF_CORE_READ((struct ${structName} *)(unsigned long)(${emitExpr(expr.args[0])}), ${fieldName})`;
 }
 
 function emitExpr(expr: ExprIR): string {
@@ -82,6 +97,7 @@ function emitExpr(expr: ExprIR): string {
     case "unary":
       return `(${expr.op}${emitExpr(expr.value)})`;
     case "call": {
+      if (expr.callee.startsWith("bpf.coreRead.")) return emitCoreRead(expr);
       switch (expr.callee) {
         case "bpf.pid":
           return "((__u32)(bpf_get_current_pid_tgid() >> 32))";
@@ -93,6 +109,8 @@ function emitExpr(expr: ExprIR): string {
           return "((__u32)(bpf_get_current_uid_gid() >> 32))";
         case "bpf.ktimeNs":
           return "bpf_ktime_get_ns()";
+        case "bpf.currentTask":
+          return "((__u64)(unsigned long)bpf_get_current_task())";
         case "bpf.arg": {
           if (expr.args.length !== 2 || expr.args[1].kind !== "number") {
             throw new BpfTsCompileError("bpf.arg(ctx, N) requires a numeric argument index");
@@ -284,6 +302,7 @@ class CEmitter {
       "#include <linux/ptrace.h>",
       "#include <bpf/bpf_helpers.h>",
       "#include <bpf/bpf_tracing.h>",
+      "#include <bpf/bpf_core_read.h>",
       "",
     ];
     for (const struct of this.program.structs) {
