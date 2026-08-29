@@ -53,6 +53,7 @@ function inferExpr(program: ProgramIR, env: TypeEnv, expr: ExprIR): BpfType {
     case "call": {
       if (["bpf.pid", "bpf.tid", "bpf.uid", "bpf.gid"].includes(expr.callee)) return scalar("u32");
       if (["bpf.ktimeNs", "bpf.arg", "bpf.currentTask"].includes(expr.callee)) return scalar("u64");
+      if (expr.callee === "bpf.argI32") return scalar("i32");
       if (expr.callee === "bpf.ret") return scalar("i64");
       if (expr.callee === "bpf.retI32") return scalar("i32");
       if (expr.callee === "bpf.comm") return { kind: "bytes", length: 16 };
