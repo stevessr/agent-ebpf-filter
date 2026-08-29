@@ -31,6 +31,9 @@ interface KeyValueMap<K, V> {
   increment(key: K): void;
 }
 
+type CoreFieldReader = (pointer: u64) => u64;
+type CoreStructReader = Record<string, CoreFieldReader>;
+
 declare function ringbuf<T>(bytes: number): RingbufMap<T>;
 declare function hash<K, V>(maxEntries: number): KeyValueMap<K, V>;
 declare function array<V>(maxEntries: number): KeyValueMap<u32, V>;
@@ -41,9 +44,11 @@ declare const bpf: {
   uid(): u32;
   gid(): u32;
   ktimeNs(): u64;
+  currentTask(): u64;
   arg(ctx: ProbeContext, index: 1 | 2 | 3 | 4 | 5): u64;
   comm(): bytes<16>;
   userString(pointer: u64): bytes<256>;
   userBytes(pointer: u64, length: u64): bytes<4096>;
   readUser<T>(target: T, pointer: u64): void;
+  coreRead: Record<string, CoreStructReader>;
 };
