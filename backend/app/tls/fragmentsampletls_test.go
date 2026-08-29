@@ -76,8 +76,9 @@ func TestDecodeTLSFragmentSampleSupportsFullExpandedCompactPayload(t *testing.T)
 	if err != nil {
 		t.Fatalf("decode expanded compact sample: %v", err)
 	}
-	if decoded.DataLen != uint32(tlsFragmentSize) || decoded.Data[tlsFragmentSize-1] != byte(tlsFragmentSize-1) {
-		t.Fatalf("expanded payload mismatch: len=%d tail=%d", decoded.DataLen, decoded.Data[tlsFragmentSize-1])
+	expectedTail := byte((tlsFragmentSize - 1) % 256)
+	if decoded.DataLen != uint32(tlsFragmentSize) || decoded.Data[tlsFragmentSize-1] != expectedTail {
+		t.Fatalf("expanded payload mismatch: len=%d tail=%d want=%d", decoded.DataLen, decoded.Data[tlsFragmentSize-1], expectedTail)
 	}
 }
 
