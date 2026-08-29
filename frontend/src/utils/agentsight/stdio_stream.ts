@@ -11,6 +11,8 @@ const defaultStdioStreamTTL = 30_000;
 const defaultMaxStdioStreams = 256;
 const defaultMaxPendingBytesPerStream = 1024 * 1024;
 const defaultMaxTotalPendingBytes = 8 * 1024 * 1024;
+const contentLengthHeaderName = "content-length";
+const minPartialContentLengthPrefix = 8;
 
 interface PendingStdioStream {
   pending: Uint8Array;
@@ -58,6 +60,16 @@ function concatBytes(left: Uint8Array, right: Uint8Array) {
 function appendSummary(decoded: DecodedStdioMessage, suffix: string) {
   if (!suffix) return;
   decoded.summary = `${decoded.summary} · ${suffix}`;
+}
+
+function looksLikePartialContentLengthHeader(bytes: Uint8Array) {
+  if (bytes.byteLength === 0 || bytes.byteLength > 64) return false;
+  const sample = utf8Decoder.decode(bytes).trimStart().toLowerCase();
+  return (
+    sample.length >= minPartialContentLengthPrefix &&
+    sample.length < contentLengthHeaderName.length &&
+    contentLengthHeaderName.startsWith(sample)
+  );
 }
 
 // Stateful, bounded LSP/MCP/JSON-RPC Content-Length reassembly. The decoder is
@@ -194,6 +206,21 @@ export class AgentSightStdioStreamDecoder {
     if (!framing.framed) {
       const decoded = decodeStdioMessage(data);
       decoded.streamKey = key;
+      // A first segment may end inside the literal header name itself (for
+      // example "Content-Le"). Cache only reasonably distinctive prefixes so
+      // ordinary one-character console output is not held as protocol state.
+      if (
+        previousBytes === 0 &&
+        looksLikePartialContentLengthHeader(combined) &&
+        this.storePending(key, combined, timestamp)
+      ) {
+        decoded.framed = true;
+        decoded.incompleteFrame = true;
+        decoded.pendingBytes = combined.byteLength;
+        decoded.title = "partial frame";
+        appendSummary(decoded, "partial Content-Length header");
+        return decoded;
+      }
       if (previousBytes > 0) {
         decoded.reassemblyReset = "stdio stream lost Content-Length framing";
         decoded.framingError = decoded.reassemblyReset;
