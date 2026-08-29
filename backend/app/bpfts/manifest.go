@@ -41,8 +41,12 @@ func ParseManifest(r io.Reader) (Manifest, error) {
 	if err := decoder.Decode(&manifest); err != nil {
 		return Manifest{}, fmt.Errorf("decode bpf-ts manifest: %w", err)
 	}
-	if decoder.More() {
-		return Manifest{}, fmt.Errorf("decode bpf-ts manifest: trailing JSON values are not allowed")
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		if err == nil {
+			return Manifest{}, fmt.Errorf("decode bpf-ts manifest: trailing JSON values are not allowed")
+		}
+		return Manifest{}, fmt.Errorf("decode bpf-ts manifest trailing data: %w", err)
 	}
 	if err := manifest.Validate(); err != nil {
 		return Manifest{}, err
