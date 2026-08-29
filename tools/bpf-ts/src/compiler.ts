@@ -9,6 +9,7 @@ import { applyReturnProbeKinds, normalizeReturnProbeDecorators } from "./probede
 import { validateVerifierResources } from "./resourcevalidate";
 import { instrumentCompactRingbufDrops } from "./ringbufdropcodegen";
 import { addRingbufDropMaps } from "./ringbufdrops";
+import { addRingbufReadErrorMaps } from "./ringbufreaderrors";
 import { addCompactRingbufScratchMaps } from "./ringbufscratch";
 import { lowerLargeRingbufZeroing } from "./ringbufzero";
 import { validateProbeSignatures } from "./signature";
@@ -87,6 +88,7 @@ export function compileBpfTs(sourceText: string, fileName = "program.ts"): BpfTs
   // DSL. This keeps structured/internal map kinds out of user map semantics.
   addCompactRingbufScratchMaps(ir);
   addRingbufDropMaps(ir);
+  addRingbufReadErrorMaps(ir);
 
   let cSource = generateBpfC(ir);
   cSource = instrumentCompactRingbufDrops(ir, cSource);
