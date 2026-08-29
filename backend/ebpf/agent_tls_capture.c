@@ -6,7 +6,7 @@
 
 char LICENSE[] SEC("license") = "GPL";
 
-#define TLS_FRAG_SIZE 960
+#define TLS_FRAG_SIZE 1984
 #define TLS_MAX_FRAGS 18
 #define TLS_MAX_CAPTURE_SIZE (TLS_FRAG_SIZE * TLS_MAX_FRAGS)
 
