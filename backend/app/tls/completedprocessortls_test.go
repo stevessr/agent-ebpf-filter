@@ -2,7 +2,7 @@ package tls
 
 import "testing"
 
-func testCompletedTLSFragment(payload string) CompletedTLSFragment {
+func testProcessorCompletedTLSFragment(payload string) CompletedTLSFragment {
 	return CompletedTLSFragment{
 		TimestampNS:  1,
 		ConnectionID: 99,
@@ -23,7 +23,7 @@ func testCompletedTLSFragment(payload string) CompletedTLSFragment {
 func TestTLSCompletedEventProcessorStoresRawFallback(t *testing.T) {
 	store := NewTLSCaptureStore(16)
 	processor := newTLSCompletedEventProcessor(store, NewTLSCaptureRuleStore(), NewTLSCaptureBroadcaster())
-	result := processor.Process(testCompletedTLSFragment("opaque-agent-protocol"))
+	result := processor.Process(testProcessorCompletedTLSFragment("opaque-agent-protocol"))
 	if result.RawEvents != 1 || result.HTTPEvents != 0 {
 		t.Fatalf("result = %+v", result)
 	}
@@ -39,7 +39,7 @@ func TestTLSCompletedEventProcessorStoresRawFallback(t *testing.T) {
 func TestTLSCompletedEventProcessorSuppressesRecognizedPartialHTTP(t *testing.T) {
 	store := NewTLSCaptureStore(16)
 	processor := newTLSCompletedEventProcessor(store, NewTLSCaptureRuleStore(), NewTLSCaptureBroadcaster())
-	result := processor.Process(testCompletedTLSFragment("GET /v1/messages HTTP/1.1\r\nHost: api.example.test\r\nContent-Length: 12\r\n\r\nhello"))
+	result := processor.Process(testProcessorCompletedTLSFragment("GET /v1/messages HTTP/1.1\r\nHost: api.example.test\r\nContent-Length: 12\r\n\r\nhello"))
 	if result.RawEvents != 0 || result.HTTPEvents != 0 {
 		t.Fatalf("partial HTTP result = %+v", result)
 	}
