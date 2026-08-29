@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { compileBpfTs } from "../src/compiler";
 
 const coreProgram = `
-interface task_struct { pid: i32; tgid: i32; }
+declare interface task_struct { pid: i32; tgid: i32; }
 interface Event { pid: i32; tgid: i32; current: u64; }
 const events = ringbuf<Event>(65536);
 class P {
@@ -32,6 +32,29 @@ describe("bpf-ts CO-RE", () => {
     expect(result.cSource).toContain("bpf_get_current_task()");
   });
 
+  test("requires declare interface for kernel BTF projections", () => {
+    expect(() => compileBpfTs(`
+interface task_struct { pid: i32; }
+interface Event { pid: i32; }
+const events = ringbuf<Event>(65536);
+class P {
+  @kprobe("x") static p(ctx: KProbeContext): i32 {
+    const ptr = bpf.arg(ctx, 1);
+    events.emit({ pid: bpf.coreRead.task_struct.pid(ptr) });
+    return 0;
+  }
+}
+`, "ordinary-interface.ts")).toThrow("must be declared as 'declare interface task_struct");
+  });
+
+  test("rejects using kernel projections directly as map values", () => {
+    expect(() => compileBpfTs(`
+declare interface task_struct { pid: i32; }
+const events = ringbuf<task_struct>(65536);
+class P { @kprobe("x") static p(ctx: KProbeContext): i32 { return 0; } }
+`, "core-map.ts")).toThrow("cannot be used directly as map 'events' value");
+  });
+
   test("rejects unknown kernel struct projections", () => {
     expect(() => compileBpfTs(`
 interface Event { pid: u64; }
@@ -48,7 +71,7 @@ class P {
 
   test("rejects unknown and non-scalar CO-RE fields", () => {
     expect(() => compileBpfTs(`
-interface task_struct { pid: i32; }
+declare interface task_struct { pid: i32; }
 interface Event { pid: u64; }
 const events = ringbuf<Event>(65536);
 class P {
@@ -62,7 +85,7 @@ class P {
 
     expect(() => compileBpfTs(`
 interface child { value: u64; }
-interface task_struct { child: child; }
+declare interface task_struct { child: child; }
 interface Event { value: u64; }
 const events = ringbuf<Event>(65536);
 class P {
@@ -77,7 +100,7 @@ class P {
 
   test("rejects malformed CO-RE helper paths", () => {
     expect(() => compileBpfTs(`
-interface task_struct { pid: i32; }
+declare interface task_struct { pid: i32; }
 class P {
   @kprobe("x") static p(ctx: KProbeContext): i32 {
     const ptr = bpf.arg(ctx, 1);
