@@ -79,6 +79,30 @@ func detectAPIProviderFromHost(host string) string {
 // enrichTLSEventWithAIMetadata 为 TLS 事件添加 AI 工具标签
 // 在 agentSightEventFromTLSPlaintext 中调用
 func EnrichTLSEventWithAIMetadata(data map[string]any, event TLSPlaintextEvent) {
+	// HTTP/2 protocol metadata is emitted on the existing AgentSight fast path
+	// so the converter does not need another marshal/unmarshal layer. Never
+	// advertise raw availability when the sanitized HTTP/2 path suppressed it.
+	if strings.HasPrefix(event.Type, "http2_") {
+		data["protocol"] = "http2"
+		data["http_version"] = "2"
+		data["event_type"] = "HTTP2_MESSAGE"
+		if event.HTTP2StreamID != 0 {
+			data["http2_stream_id"] = event.HTTP2StreamID
+		}
+		if event.HTTP2FrameType != "" {
+			data["http2_frame_type"] = event.HTTP2FrameType
+		}
+		if event.HTTP2Flags != 0 {
+			data["http2_flags"] = event.HTTP2Flags
+		}
+		if event.HTTP2PromisedStreamID != 0 {
+			data["http2_promised_stream_id"] = event.HTTP2PromisedStreamID
+		}
+		if event.RawHexDump == "" {
+			data["raw_available"] = false
+		}
+	}
+
 	var meta *aiToolMetadata
 
 	if event.Comm != "" {
