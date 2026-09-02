@@ -12,6 +12,7 @@ export type {
 } from "./agentsight/types";
 
 export {
+  mergeSortedAgentSightEvents,
   normalizeAgentSightEvent,
   normalizeAgentSightEvents,
 } from "./agentsight/normalization";

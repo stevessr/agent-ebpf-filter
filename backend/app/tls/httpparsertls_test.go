@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 // ---- moved from backend/zz_merged_backend_test.go section httpparsertls_test.go ----
@@ -182,16 +183,30 @@ func TestParseTLSPlaintextRedactsProxyAuthorizationHeader(t *testing.T) {
 	}
 }
 
+func TestParseTLSPlaintextPreservesBodyLargerThanOldWindow(t *testing.T) {
+	body := strings.Repeat("x", 24*1024)
+	fragment := testCompletedTLSFragment(fmt.Sprintf(
+		"POST /expanded HTTP/1.1\r\nHost: example.com\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
+		len(body),
+		body,
+	), tlsDirectionSend)
+
+	event := parseTLSPlaintext(fragment)
+	if event.Truncated {
+		t.Fatalf("Truncated = true, want false for 24 KiB body inside expanded window")
+	}
+	if event.BodySize != len(body) || len(event.Body) != len(body) {
+		t.Fatalf("body sizes captured=%d displayed=%d want=%d", event.BodySize, len(event.Body), len(body))
+	}
+}
+
 func TestParseTLSPlaintextTruncatesLargeBody(t *testing.T) {
 	largeBody := "{" + strings.Repeat("\"a\":\"xxxxxxxxxx\",", 2000) + "\"z\":\"end\"}"
-	fragment := testCompletedTLSFragment(strings.Join([]string{
-		"POST /bulk HTTP/1.1",
-		"Host: example.com",
-		"Content-Type: text/plain",
-		"Content-Length: 25000",
-		"",
+	fragment := testCompletedTLSFragment(fmt.Sprintf(
+		"POST /bulk HTTP/1.1\r\nHost: example.com\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
+		len(largeBody),
 		largeBody,
-	}, "\r\n"), tlsDirectionSend)
+	), tlsDirectionSend)
 
 	event := parseTLSPlaintext(fragment)
 
@@ -203,6 +218,19 @@ func TestParseTLSPlaintextTruncatesLargeBody(t *testing.T) {
 	}
 	if len(event.Body) != tlsMaxBodySize {
 		t.Fatalf("Body length = %d, want %d", len(event.Body), tlsMaxBodySize)
+	}
+}
+
+func TestParseTLSPlaintextPreservesKernelCaptureTruncation(t *testing.T) {
+	payload := "POST /small HTTP/1.1\r\nHost: example.com\r\nContent-Length: 2\r\n\r\nok"
+	fragment := testCompletedTLSFragment(payload, tlsDirectionSend)
+	fragment.TotalLen = uint32(len(payload))
+	fragment.OriginalLen = uint32(len(payload) + 4096)
+	fragment.Flags = tlsFlagTruncated
+
+	event := parseTLSPlaintext(fragment)
+	if !event.Truncated {
+		t.Fatal("Truncated = false, want kernel capture truncation to survive HTTP formatting")
 	}
 }
 
@@ -224,6 +252,26 @@ func TestParseTLSPlaintextTruncatesBasedOnRawBodySize(t *testing.T) {
 	}
 	if event.BodySize <= tlsMaxBodySize {
 		t.Fatalf("BodySize = %d, want larger than max body size", event.BodySize)
+	}
+}
+
+func TestParseTLSPlaintextTruncationKeepsUTF8Valid(t *testing.T) {
+	body := strings.Repeat("a", tlsMaxBodySize-1) + "鱼"
+	fragment := testCompletedTLSFragment(fmt.Sprintf(
+		"POST /utf8 HTTP/1.1\r\nHost: example.com\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: %d\r\n\r\n%s",
+		len(body),
+		body,
+	), tlsDirectionSend)
+
+	event := parseTLSPlaintext(fragment)
+	if !event.Truncated {
+		t.Fatal("Truncated = false, want true at UTF-8 boundary")
+	}
+	if len(event.Body) > tlsMaxBodySize {
+		t.Fatalf("Body length = %d, want <= %d", len(event.Body), tlsMaxBodySize)
+	}
+	if !utf8.ValidString(event.Body) {
+		t.Fatalf("truncated body is invalid UTF-8")
 	}
 }
 

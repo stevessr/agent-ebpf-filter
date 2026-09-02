@@ -6,7 +6,7 @@
 
 char LICENSE[] SEC("license") = "GPL";
 
-#define TLS_FRAG_SIZE 960
+#define TLS_FRAG_SIZE 1984
 #define TLS_MAX_FRAGS 18
 #define TLS_MAX_CAPTURE_SIZE (TLS_FRAG_SIZE * TLS_MAX_FRAGS)
 
@@ -35,8 +35,17 @@ char LICENSE[] SEC("license") = "GPL";
 #define TLS_FUNC_RUSTLS_ENCRYPT_OUTGOING 12 // send: rustls encrypt_outgoing
 #define TLS_FUNC_RUSTLS_CONSUME_FIRST_CHUNK 13 // recv: rustls consume_first_chunk
 
+#define TLS_DIAG_PERF_OUTPUT_FAIL 100
+#define TLS_DIAG_PROBE_READ_FAIL 101
+#define TLS_DIAG_PERF_SUBMIT_OK 102
+#define TLS_PROBE_HIT_SLOTS 128
+
 struct tls_fragment {
 	__u64 timestamp_ns;
+	// Stable userspace TLS/session object identity when the ABI exposes one.
+	// This lets userspace keep concurrent HTTPS connections from the same
+	// process/thread in separate reassembly buffers.
+	__u64 connection_id;
 	__u32 pid;
 	__u32 tgid;
 	__u32 data_len;
@@ -52,9 +61,15 @@ struct tls_fragment {
 	char data[TLS_FRAG_SIZE];
 };
 
+// The perf wire format excludes unused bytes in data[] and the C struct's tail
+// alignment padding. Userspace accepts both this compact form and legacy full
+// sizeof(struct tls_fragment) records during rolling upgrades.
+#define TLS_FRAGMENT_WIRE_HEADER_SIZE ((__u32)__builtin_offsetof(struct tls_fragment, data))
+
 struct retprobe_ctx {
 	__u64 buf;
 	__u64 len_ptr;
+	__u64 connection_id;
 	__u32 len;
 	__u8 lib_type;
 	__u8 direction;
@@ -63,8 +78,6 @@ struct retprobe_ctx {
 
 const struct tls_fragment *tls_fragment_type_anchor __attribute__((unused));
 
-// Perf event array for submitting TLS fragment events to userspace.
-// Replaces BPF_MAP_TYPE_RINGBUF which has kernel 7.1 epoll issues.
 struct {
 	__uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
 	__uint(key_size, sizeof(__u32));
@@ -72,8 +85,6 @@ struct {
 	__uint(max_entries, 128);
 } tls_events SEC(".maps");
 
-// Per-CPU scratch buffer for building fragments before perf_event_output.
-// Only one entry needed (per CPU); key=0 always.
 struct {
 	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
 	__uint(max_entries, 1);
@@ -88,9 +99,12 @@ struct {
 	__type(value, struct retprobe_ctx);
 } retprobe_buf SEC(".maps");
 
+// Function counters occupy 1..13 and diagnostics occupy 100..102. Keep this
+// array large enough for both groups; the previous 16-slot array made every
+// diagnostic lookup return NULL and silently disabled capture diagnostics.
 struct {
 	__uint(type, BPF_MAP_TYPE_ARRAY);
-	__uint(max_entries, 16);
+	__uint(max_entries, TLS_PROBE_HIT_SLOTS);
 	__type(key, __u32);
 	__type(value, __u64);
 } tls_probe_hits SEC(".maps");
@@ -103,20 +117,16 @@ static __always_inline void inc_probe_hit(__u8 function) {
 	}
 }
 
-// emit_tls_fragment builds a tls_fragment in per-CPU scratch buffer and
-// sends it via bpf_perf_event_output.  The ctx pointer MUST come from the
-// outermost uprobe/uretprobe handler (struct pt_regs *).
-static __always_inline int emit_tls_fragment(void *ctx, const void *buf, __u32 original_len, __u8 lib, __u8 dir, __u8 function)
+// Submit a payload without touching the per-function hit counter. Entry-only
+// probes call emit_tls_fragment(), which counts once before delegating here.
+// Entry+return probes count in save_retprobe_ctx() and call this helper from the
+// return path so a successful call is not reported as two probe hits.
+static __always_inline int emit_tls_fragment_uncounted(void *ctx, __u64 connection_id, const void *buf, __u32 original_len, __u8 lib, __u8 dir, __u8 function)
 {
-	// Diagnostic counters live at indices 100+ to avoid colliding with
-	// function-id hit counters (1..13, incl. rustls encrypt_outgoing=12 /
-	// consume_first_chunk=13).
-	__u32 diag_output_fail = 100;
-	__u32 diag_read_fail  = 101;
-	__u32 diag_submit_ok  = 102;
+	__u32 diag_output_fail = TLS_DIAG_PERF_OUTPUT_FAIL;
+	__u32 diag_read_fail  = TLS_DIAG_PROBE_READ_FAIL;
+	__u32 diag_submit_ok  = TLS_DIAG_PERF_SUBMIT_OK;
 	__u32 zero = 0;
-
-	inc_probe_hit(function);
 
 	if (!buf || original_len == 0) {
 		return 0;
@@ -142,7 +152,6 @@ static __always_inline int emit_tls_fragment(void *ctx, const void *buf, __u32 o
 	}
 
 	for (__u32 i = 0; i < frag_count32; i++) {
-
 		__u32 offset = i * TLS_FRAG_SIZE;
 		__u32 chunk = total_len - offset;
 		if (chunk > TLS_FRAG_SIZE) {
@@ -150,6 +159,7 @@ static __always_inline int emit_tls_fragment(void *ctx, const void *buf, __u32 o
 		}
 
 		scratch->timestamp_ns = now_ns;
+		scratch->connection_id = connection_id;
 		scratch->pid = (__u32)pid_tgid;
 		scratch->tgid = (__u32)(pid_tgid >> 32);
 		scratch->data_len = chunk;
@@ -169,7 +179,8 @@ static __always_inline int emit_tls_fragment(void *ctx, const void *buf, __u32 o
 			break;
 		}
 
-		long ret = bpf_perf_event_output(ctx, &tls_events, BPF_F_CURRENT_CPU, scratch, sizeof(*scratch));
+		__u64 sample_size = (__u64)TLS_FRAGMENT_WIRE_HEADER_SIZE + (__u64)chunk;
+		long ret = bpf_perf_event_output(ctx, &tls_events, BPF_F_CURRENT_CPU, scratch, sample_size);
 		if (ret < 0) {
 			__u64 *cnt = bpf_map_lookup_elem(&tls_probe_hits, &diag_output_fail);
 			if (cnt) __sync_fetch_and_add(cnt, 1);
@@ -182,13 +193,20 @@ static __always_inline int emit_tls_fragment(void *ctx, const void *buf, __u32 o
 	return 0;
 }
 
-static __always_inline int save_retprobe_ctx(void *buf, const void *len_ptr, __u32 len, __u8 lib, __u8 dir, __u8 function)
+static __always_inline int emit_tls_fragment(void *ctx, __u64 connection_id, const void *buf, __u32 original_len, __u8 lib, __u8 dir, __u8 function)
+{
+	inc_probe_hit(function);
+	return emit_tls_fragment_uncounted(ctx, connection_id, buf, original_len, lib, dir, function);
+}
+
+static __always_inline int save_retprobe_ctx(__u64 connection_id, void *buf, const void *len_ptr, __u32 len, __u8 lib, __u8 dir, __u8 function)
 {
 	inc_probe_hit(function);
 	__u64 pid_tgid = bpf_get_current_pid_tgid();
 	struct retprobe_ctx rc = {
 		.buf = (__u64)buf,
 		.len_ptr = (__u64)len_ptr,
+		.connection_id = connection_id,
 		.len = len,
 		.lib_type = lib,
 		.direction = dir,
@@ -215,24 +233,26 @@ static __always_inline int emit_retprobe_payload(void *ctx, __u32 len)
 	if (!load_retprobe_ctx(&rc)) {
 		return 0;
 	}
-	return emit_tls_fragment(ctx, (const void *)rc.buf, len, rc.lib_type, rc.direction, rc.function);
+	return emit_tls_fragment_uncounted(ctx, rc.connection_id, (const void *)rc.buf, len, rc.lib_type, rc.direction, rc.function);
 }
 
 SEC("uprobe/SSL_write")
 int uprobe_ssl_write(struct pt_regs *ctx)
 {
+	__u64 connection_id = (__u64)PT_REGS_PARM1(ctx);
 	const void *buf = (const void *)PT_REGS_PARM2(ctx);
 	__u32 len = (__u32)PT_REGS_PARM3(ctx);
-	return emit_tls_fragment(ctx, buf, len, TLS_LIB_OPENSSL, TLS_DIR_SEND, TLS_FUNC_SSL_WRITE);
+	return emit_tls_fragment(ctx, connection_id, buf, len, TLS_LIB_OPENSSL, TLS_DIR_SEND, TLS_FUNC_SSL_WRITE);
 }
 
 SEC("uprobe/SSL_write_ex")
 int uprobe_ssl_write_ex(struct pt_regs *ctx)
 {
+	__u64 connection_id = (__u64)PT_REGS_PARM1(ctx);
 	const void *buf = (const void *)PT_REGS_PARM2(ctx);
 	__u32 len = (__u32)PT_REGS_PARM3(ctx);
 	const void *written = (const void *)PT_REGS_PARM4(ctx);
-	return save_retprobe_ctx((void *)buf, written, len, TLS_LIB_OPENSSL, TLS_DIR_SEND, TLS_FUNC_SSL_WRITE_EX);
+	return save_retprobe_ctx(connection_id, (void *)buf, written, len, TLS_LIB_OPENSSL, TLS_DIR_SEND, TLS_FUNC_SSL_WRITE_EX);
 }
 
 SEC("uretprobe/SSL_write_ex")
@@ -245,19 +265,20 @@ int uretprobe_ssl_write_ex(struct pt_regs *ctx)
 	}
 	__u64 written = 0;
 	if (rc.len_ptr && bpf_probe_read_user(&written, sizeof(written), (const void *)rc.len_ptr) == 0 && written > 0) {
-		return emit_tls_fragment(ctx, (const void *)rc.buf, (__u32)written, rc.lib_type, rc.direction, rc.function);
+		return emit_tls_fragment_uncounted(ctx, rc.connection_id, (const void *)rc.buf, (__u32)written, rc.lib_type, rc.direction, rc.function);
 	}
-	return emit_tls_fragment(ctx, (const void *)rc.buf, rc.len, rc.lib_type, rc.direction, rc.function);
+	return emit_tls_fragment_uncounted(ctx, rc.connection_id, (const void *)rc.buf, rc.len, rc.lib_type, rc.direction, rc.function);
 }
 
 SEC("uprobe/SSL_write_ex2")
 int uprobe_ssl_write_ex2(struct pt_regs *ctx)
 {
 #if defined(__TARGET_ARCH_x86)
+	__u64 connection_id = (__u64)PT_REGS_PARM1(ctx);
 	const void *buf = (const void *)PT_REGS_PARM2(ctx);
 	__u32 len = (__u32)PT_REGS_PARM3(ctx);
 	const void *written = (const void *)PT_REGS_PARM4(ctx);
-	return save_retprobe_ctx((void *)buf, written, len, TLS_LIB_OPENSSL, TLS_DIR_SEND, TLS_FUNC_SSL_WRITE_EX2);
+	return save_retprobe_ctx(connection_id, (void *)buf, written, len, TLS_LIB_OPENSSL, TLS_DIR_SEND, TLS_FUNC_SSL_WRITE_EX2);
 #else
 	return 0;
 #endif
@@ -274,9 +295,9 @@ int uretprobe_ssl_write_ex2(struct pt_regs *ctx)
 	}
 	__u64 written = 0;
 	if (rc.len_ptr && bpf_probe_read_user(&written, sizeof(written), (const void *)rc.len_ptr) == 0 && written > 0) {
-		return emit_tls_fragment(ctx, (const void *)rc.buf, (__u32)written, rc.lib_type, rc.direction, rc.function);
+		return emit_tls_fragment_uncounted(ctx, rc.connection_id, (const void *)rc.buf, (__u32)written, rc.lib_type, rc.direction, rc.function);
 	}
-	return emit_tls_fragment(ctx, (const void *)rc.buf, rc.len, rc.lib_type, rc.direction, rc.function);
+	return emit_tls_fragment_uncounted(ctx, rc.connection_id, (const void *)rc.buf, rc.len, rc.lib_type, rc.direction, rc.function);
 #else
 	return 0;
 #endif
@@ -285,7 +306,7 @@ int uretprobe_ssl_write_ex2(struct pt_regs *ctx)
 SEC("uprobe/SSL_read")
 int uprobe_ssl_read(struct pt_regs *ctx)
 {
-	return save_retprobe_ctx((void *)PT_REGS_PARM2(ctx), 0, (__u32)PT_REGS_PARM3(ctx), TLS_LIB_OPENSSL, TLS_DIR_RECV, TLS_FUNC_SSL_READ);
+	return save_retprobe_ctx((__u64)PT_REGS_PARM1(ctx), (void *)PT_REGS_PARM2(ctx), 0, (__u32)PT_REGS_PARM3(ctx), TLS_LIB_OPENSSL, TLS_DIR_RECV, TLS_FUNC_SSL_READ);
 }
 
 SEC("uretprobe/SSL_read")
@@ -301,7 +322,7 @@ int uretprobe_ssl_read(struct pt_regs *ctx)
 SEC("uprobe/SSL_read_ex")
 int uprobe_ssl_read_ex(struct pt_regs *ctx)
 {
-	return save_retprobe_ctx((void *)PT_REGS_PARM2(ctx), (const void *)PT_REGS_PARM4(ctx), (__u32)PT_REGS_PARM3(ctx), TLS_LIB_OPENSSL, TLS_DIR_RECV, TLS_FUNC_SSL_READ_EX);
+	return save_retprobe_ctx((__u64)PT_REGS_PARM1(ctx), (void *)PT_REGS_PARM2(ctx), (const void *)PT_REGS_PARM4(ctx), (__u32)PT_REGS_PARM3(ctx), TLS_LIB_OPENSSL, TLS_DIR_RECV, TLS_FUNC_SSL_READ_EX);
 }
 
 SEC("uretprobe/SSL_read_ex")
@@ -316,21 +337,22 @@ int uretprobe_ssl_read_ex(struct pt_regs *ctx)
 	if (bpf_probe_read_user(&read_len, sizeof(read_len), (const void *)rc.len_ptr) < 0 || read_len == 0) {
 		return 0;
 	}
-	return emit_tls_fragment(ctx, (const void *)rc.buf, (__u32)read_len, rc.lib_type, rc.direction, rc.function);
+	return emit_tls_fragment_uncounted(ctx, rc.connection_id, (const void *)rc.buf, (__u32)read_len, rc.lib_type, rc.direction, rc.function);
 }
 
 SEC("uprobe/gnutls_record_send")
 int uprobe_gnutls_record_send(struct pt_regs *ctx)
 {
+	__u64 connection_id = (__u64)PT_REGS_PARM1(ctx);
 	const void *buf = (const void *)PT_REGS_PARM2(ctx);
 	__u32 len = (__u32)PT_REGS_PARM3(ctx);
-	return emit_tls_fragment(ctx, buf, len, TLS_LIB_GNUTLS, TLS_DIR_SEND, TLS_FUNC_GNUTLS_RECORD_SEND);
+	return emit_tls_fragment(ctx, connection_id, buf, len, TLS_LIB_GNUTLS, TLS_DIR_SEND, TLS_FUNC_GNUTLS_RECORD_SEND);
 }
 
 SEC("uprobe/gnutls_record_recv")
 int uprobe_gnutls_record_recv(struct pt_regs *ctx)
 {
-	return save_retprobe_ctx((void *)PT_REGS_PARM2(ctx), 0, (__u32)PT_REGS_PARM3(ctx), TLS_LIB_GNUTLS, TLS_DIR_RECV, TLS_FUNC_GNUTLS_RECORD_RECV);
+	return save_retprobe_ctx((__u64)PT_REGS_PARM1(ctx), (void *)PT_REGS_PARM2(ctx), 0, (__u32)PT_REGS_PARM3(ctx), TLS_LIB_GNUTLS, TLS_DIR_RECV, TLS_FUNC_GNUTLS_RECORD_RECV);
 }
 
 SEC("uretprobe/gnutls_record_recv")
@@ -346,15 +368,16 @@ int uretprobe_gnutls_record_recv(struct pt_regs *ctx)
 SEC("uprobe/PR_Write")
 int uprobe_pr_write(struct pt_regs *ctx)
 {
+	__u64 connection_id = (__u64)PT_REGS_PARM1(ctx);
 	const void *buf = (const void *)PT_REGS_PARM2(ctx);
 	__u32 len = (__u32)PT_REGS_PARM3(ctx);
-	return emit_tls_fragment(ctx, buf, len, TLS_LIB_NSS, TLS_DIR_SEND, TLS_FUNC_PR_WRITE);
+	return emit_tls_fragment(ctx, connection_id, buf, len, TLS_LIB_NSS, TLS_DIR_SEND, TLS_FUNC_PR_WRITE);
 }
 
 SEC("uprobe/PR_Read")
 int uprobe_pr_read(struct pt_regs *ctx)
 {
-	return save_retprobe_ctx((void *)PT_REGS_PARM2(ctx), 0, (__u32)PT_REGS_PARM3(ctx), TLS_LIB_NSS, TLS_DIR_RECV, TLS_FUNC_PR_READ);
+	return save_retprobe_ctx((__u64)PT_REGS_PARM1(ctx), (void *)PT_REGS_PARM2(ctx), 0, (__u32)PT_REGS_PARM3(ctx), TLS_LIB_NSS, TLS_DIR_RECV, TLS_FUNC_PR_READ);
 }
 
 SEC("uretprobe/PR_Read")
@@ -371,24 +394,26 @@ SEC("uprobe/crypto_tls_Conn_Write")
 int uprobe_crypto_tls_conn_write(struct pt_regs *ctx)
 {
 #if defined(__TARGET_ARCH_x86)
-	// Go internal register ABI (Go 1.17+):
-	//   PARM1=rax(rcvr), PARM2=rbx(slice.ptr), PARM3=rcx(slice.len)
-	// NOT the SysV ABI (rdi/rsi/rdx) used by PT_REGS_PARM* macros.
+	// Go register ABI: receiver *tls.Conn in AX, []byte data/len in BX/CX.
+	__u64 connection_id = ctx->ax;
 	const void *buf = (const void *)ctx->bx;
 	__u32 len = (__u32)ctx->cx;
 #else
+	__u64 connection_id = 0;
 	const void *buf = 0;
 	__u32 len = 0;
 #endif
-	return emit_tls_fragment(ctx, buf, len, TLS_LIB_GO, TLS_DIR_SEND, TLS_FUNC_GO_CONN_WRITE);
+	return emit_tls_fragment(ctx, connection_id, buf, len, TLS_LIB_GO, TLS_DIR_SEND, TLS_FUNC_GO_CONN_WRITE);
 }
 
 SEC("uprobe/crypto_tls_Conn_Read")
 int uprobe_crypto_tls_conn_read(struct pt_regs *ctx)
 {
 #if defined(__TARGET_ARCH_x86)
-	// Go internal register ABI: PARM2=rbx(buf.ptr), PARM3=rcx(buf.len)
-	return save_retprobe_ctx((void *)ctx->bx, 0, (__u32)ctx->cx, TLS_LIB_GO, TLS_DIR_RECV, TLS_FUNC_GO_CONN_READ);
+	__u64 connection_id = ctx->ax;
+	const void *buf = (const void *)ctx->bx;
+	__u32 len = (__u32)ctx->cx;
+	return save_retprobe_ctx(connection_id, (void *)buf, 0, len, TLS_LIB_GO, TLS_DIR_RECV, TLS_FUNC_GO_CONN_READ);
 #else
 	return 0;
 #endif
@@ -397,138 +422,57 @@ int uprobe_crypto_tls_conn_read(struct pt_regs *ctx)
 SEC("uretprobe/crypto_tls_Conn_Read")
 int uretprobe_crypto_tls_conn_read(struct pt_regs *ctx)
 {
-	__s32 ret = (__s32)PT_REGS_RC(ctx);
-	if (ret <= 0) {
+#if defined(__TARGET_ARCH_x86)
+	__s64 n = (__s64)ctx->ax;
+	if (n <= 0) {
 		return 0;
 	}
-	return emit_retprobe_payload(ctx, (__u32)ret);
+	return emit_retprobe_payload(ctx, (__u32)n);
+#else
+	return 0;
+#endif
 }
 
-// ---- rustls (static-pie Rust binaries: codex, cursor) ----
-//
-// rustls encrypts TLS records internally. The plaintext-touching function is
-// `RecordLayer::encrypt_outgoing(&mut self, plain: OutboundPlainMessage)`
-// (rustls/src/record_layer.rs). It returns `OutboundOpaqueMessage` by value,
-// so the System V AMD64 ABI uses sret (return pointer in PARM1):
-//
-//   rdi = &OutboundOpaqueMessage  (sret return slot, caller-allocated)
-//   rsi = &mut self               (RecordLayer)
-//   rdx = &OutboundPlainMessage   (borrowed, on the caller's stack)
-//
-// OutboundPlainMessage {
-//   typ: ContentType (u8),
-//   version: ProtocolVersion (u16),
-//   payload: OutboundChunks,
-// }
-//
-// OutboundChunks is an enum:
-//   Single(&[u8])   -> discriminant 0, then slice { ptr, len }
-//   Multiple { .. } -> discriminant 1
-//
-// From the codex 0.142 disassembly, the compiler lays out the borrowed
-// OutboundPlainMessage (Single variant, application-data path) as:
-//
-//   +0x00: u64  discriminant (0 = Single)
-//   +0x08: *const u8  plaintext slice pointer
-//   +0x10: usize      plaintext slice length
-//   +0x20: u16  version
-//   +0x22: u8   typ
-//
-// Verified from the caller (`ConnectionCommon` encrypt path at 0x7bef680):
-//   mov %r12, 0x30(%rsp)   ; +0x08 = ptr (within the rsp+0x28 OPM base)
-//   mov %rcx, 0x38(%rsp)   ; +0x10 = len
-//   mov %ax,  0x48(%rsp)   ; +0x20 = version
-//   mov %eax, 0x4a(%rsp)   ; +0x22 = typ
-//   lea 0x28(%rsp), %rdx   ; rdx = &OPM
-//   call encrypt_outgoing
-//
-// This uprobe fires once per TLS record being encrypted — i.e. per outbound
-// plaintext fragment. We dereference the borrowed OutboundPlainMessage (in
-// PARM3 = rdx) via bpf_probe_read_user and emit the plaintext slice.
 SEC("uprobe/rustls_encrypt_outgoing")
 int uprobe_rustls_encrypt_outgoing(struct pt_regs *ctx)
 {
 #if defined(__TARGET_ARCH_x86)
-	// rdx (PARM3) = &OutboundPlainMessage. PT_REGS_PARM3 is correct for the
-	// SysV ABI; encrypt_outgoing's sret return does not shift the parameter
-	// registers (the return pointer occupies PARM1, self=PARM2, plain=PARM3).
-	const void *opm = (const void *)PT_REGS_PARM3(ctx);
-
-	// OutboundPlainMessage (Single-variant layout, as built by the caller):
-	//   +0x00: u64 discriminant (0 = Single)
-	//   +0x08: *const u8  plaintext slice pointer
-	//   +0x10: usize      plaintext slice length
-	__u64 ptr = 0, len = 0;
-	if (bpf_probe_read_user(&ptr, sizeof(ptr), (const void *)((const char *)opm + 0x08)) < 0) {
+	// This rustls path uses an sret ABI in the supported builds: RSI is the
+	// record-layer receiver and RDX is the borrowed OutboundPlainMessage.
+	__u64 connection_id = ctx->si;
+	__u64 msg = ctx->dx;
+	if (!msg) {
 		return 0;
 	}
-	if (bpf_probe_read_user(&len, sizeof(len), (const void *)((const char *)opm + 0x10)) < 0) {
+	__u64 data_ptr = 0, data_len = 0;
+	if (bpf_probe_read_user(&data_ptr, sizeof(data_ptr), (const void *)(msg + 0x08)) < 0 || data_ptr == 0) {
 		return 0;
 	}
-	return emit_tls_fragment(ctx, (const void *)ptr, (__u32)len,
+	if (bpf_probe_read_user(&data_len, sizeof(data_len), (const void *)(msg + 0x10)) < 0 || data_len == 0) {
+		return 0;
+	}
+	return emit_tls_fragment(ctx, connection_id, (const void *)data_ptr, (__u32)data_len,
 		TLS_LIB_RUSTLS, TLS_DIR_SEND, TLS_FUNC_RUSTLS_ENCRYPT_OUTGOING);
 #else
 	return 0;
 #endif
 }
 
-// ---- rustls RECV plaintext capture (consume_first_chunk) ----
-//
-// rustls deposits decrypted plaintext into `received_plaintext` (a
-// `ChunkVecBuffer`) during process_new_packets. The application drains it via
-// `Reader::read` / `Reader::consume`, which call
-// `ChunkVecBuffer::consume_first_chunk(used)` (vecbuf.rs:159). The compiler
-// inlines `Reader::consume` together with `consume_first_chunk` into a single
-// function, located via the "illegal `BufRead::consume` usage" release assert.
-//
-// On entry the System V AMD64 ABI places:
-//
-//   rdi = &Reader                 (the rustls Reader; *Reader = &ChunkVecBuffer)
-//   rsi = amt                     (bytes the application is consuming this call)
-//
-// `Reader.received_plaintext` is `&mut ChunkVecBuffer` at Reader+0x00, so:
-//
-//   cvb   = *(rdi + 0x00)         // &ChunkVecBuffer (received_plaintext)
-//
-// ChunkVecBuffer layout (as compiled for codex 0.133.0; field order is the
-// compiler's, derived from disassembly — NOT the source declaration order):
-//
-//   cvb + 0x00 : prefix_used      (usize — bytes already consumed in front chunk)
-//   cvb + 0x10 : VecDeque.cap     (usize)
-//   cvb + 0x18 : VecDeque.buf.ptr (raw pointer to the element array)
-//   cvb + 0x20 : VecDeque.head    (usize — index of the front chunk)
-//   cvb + 0x28 : VecDeque.len     (usize — chunk count)
-//   cvb + 0x30 : limit            (Option<usize>)
-//
-// Each element is a `Vec<u8>` of 24 bytes:
-//
-//   elem + 0x00 : data pointer    (*const u8)
-//   elem + 0x08 : capacity        (usize)
-//   elem + 0x10 : length          (usize — total bytes in this chunk)
-//
-// The plaintext available in the front chunk is [data + prefix_used, data + length).
-// `amt` is how many of those bytes the app consumes this call; emitting
-// min(amt, available) bytes starting at data + prefix_used yields exactly what
-// the app reads — no duplicates, no gaps — across partial consumes.
 SEC("uprobe/rustls_consume_first_chunk")
 int uprobe_rustls_consume_first_chunk(struct pt_regs *ctx)
 {
 #if defined(__TARGET_ARCH_x86)
-	// rdi = &Reader. Avoid trusting PARM1 for the borrow; read via pt_regs.
-	const __u64 reader = PT_REGS_PARM1(ctx);
-	// amt = rsi (PARM2).
+	__u64 reader = PT_REGS_PARM1(ctx);
 	__u64 amt = PT_REGS_PARM2(ctx);
 	if (amt == 0 || reader == 0) {
 		return 0;
 	}
 
-	// cvb = *(reader + 0x00) = &ChunkVecBuffer.
 	__u64 cvb = 0;
 	if (bpf_probe_read_user(&cvb, sizeof(cvb), (const void *)reader) < 0 || cvb == 0) {
 		return 0;
 	}
 
-	// ChunkVecBuffer fields.
 	__u64 prefix_used = 0, buf_ptr = 0, head = 0;
 	if (bpf_probe_read_user(&prefix_used, sizeof(prefix_used), (const void *)(cvb + 0x00)) < 0) {
 		return 0;
@@ -540,15 +484,11 @@ int uprobe_rustls_consume_first_chunk(struct pt_regs *ctx)
 		return 0;
 	}
 
-	// Front chunk element address = buf_ptr + head * 24. Bound head to a sane
-	// range to keep the verifier happy (VecDeque head < cap; cap is at most a
-	// few thousand for a TLS buffer). 65536 is a safe upper bound.
 	if (head > 65535) {
 		return 0;
 	}
 	__u64 elem = buf_ptr + head * 24;
 
-	// Vec<u8> { ptr@0x00, cap@0x08, len@0x10 }.
 	__u64 data_ptr = 0, chunk_len = 0;
 	if (bpf_probe_read_user(&data_ptr, sizeof(data_ptr), (const void *)elem) < 0 || data_ptr == 0) {
 		return 0;
@@ -557,22 +497,17 @@ int uprobe_rustls_consume_first_chunk(struct pt_regs *ctx)
 		return 0;
 	}
 
-	// available = chunk_len - prefix_used (only if chunk_len > prefix_used).
 	if (chunk_len <= prefix_used) {
 		return 0;
 	}
 	__u64 available = chunk_len - prefix_used;
-
-	// emit_len = min(amt, available). amt comes from rsi and is the app's
-	// consume count; clamp to the actual available bytes.
 	__u64 emit_len = amt < available ? amt : available;
 	if (emit_len == 0) {
 		return 0;
 	}
 
-	// Plaintext starts at data_ptr + prefix_used.
 	const void *emit_ptr = (const void *)(data_ptr + prefix_used);
-	return emit_tls_fragment(ctx, emit_ptr, (__u32)emit_len,
+	return emit_tls_fragment(ctx, reader, emit_ptr, (__u32)emit_len,
 		TLS_LIB_RUSTLS, TLS_DIR_RECV, TLS_FUNC_RUSTLS_CONSUME_FIRST_CHUNK);
 #else
 	return 0;

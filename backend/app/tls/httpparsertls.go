@@ -13,11 +13,14 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 )
 
-// ---- moved from backend/zz_merged_backend.go section httpparsertls.go ----
-
-const tlsMaxBodySize = 16 * 1024
+// Keep the formatted HTTP body below the expanded eBPF plaintext capture
+// window (35,712 bytes) so headers and framing still have headroom. The old
+// 16 KiB limit discarded useful prompt/tool payload even when the kernel had
+// already captured it successfully.
+const tlsMaxBodySize = 32 * 1024
 
 const tlsRedactedValue = "***REDACTED***"
 
@@ -177,6 +180,10 @@ func parseTLSPlaintextHTTPResponse(payload []byte) (*tlsHTTPResponse, bool) {
 	}, true
 }
 
+func declaredTLSBodyIncomplete(contentLength int64, captured int) bool {
+	return contentLength >= 0 && contentLength > int64(captured)
+}
+
 func buildTLSPlaintextHTTPRequestEvent(base TLSPlaintextEvent, parsed *tlsHTTPRequest) TLSPlaintextEvent {
 	base.Type = "http_request"
 	base.Method = parsed.req.Method
@@ -185,8 +192,12 @@ func buildTLSPlaintextHTTPRequestEvent(base TLSPlaintextEvent, parsed *tlsHTTPRe
 	base.Headers = sanitizeTLSHeaders(parsed.req.Header)
 	base.ContentType = parsed.content
 	base.BodySize = parsed.bodySize
-	base.Body, base.Truncated = formatTLSPlaintextBody(parsed.body, base.ContentType)
-	base.Body = sanitizeTLSBody(base.Body, base.ContentType)
+	body, bodyTruncated := formatTLSPlaintextBody(parsed.body, base.ContentType)
+	base.Body = sanitizeTLSBody(body, base.ContentType)
+	// Never erase the eBPF capture-level truncation flag. The previous tuple
+	// assignment overwrote it with the display-body result, making truncated
+	// kernel captures appear complete in Agent Sight.
+	base.Truncated = base.Truncated || bodyTruncated || declaredTLSBodyIncomplete(parsed.req.ContentLength, len(parsed.body))
 	base.RedactionState = "sanitized"
 	annotateTLSSSEEvent(&base)
 	base.RawAvailable = true
@@ -199,8 +210,9 @@ func buildTLSPlaintextHTTPResponseEvent(base TLSPlaintextEvent, parsed *tlsHTTPR
 	base.Headers = sanitizeTLSHeaders(parsed.resp.Header)
 	base.ContentType = parsed.content
 	base.BodySize = parsed.bodySize
-	base.Body, base.Truncated = formatTLSPlaintextBody(parsed.body, base.ContentType)
-	base.Body = sanitizeTLSBody(base.Body, base.ContentType)
+	body, bodyTruncated := formatTLSPlaintextBody(parsed.body, base.ContentType)
+	base.Body = sanitizeTLSBody(body, base.ContentType)
+	base.Truncated = base.Truncated || bodyTruncated || declaredTLSBodyIncomplete(parsed.resp.ContentLength, len(parsed.body))
 	base.RedactionState = "sanitized"
 	annotateTLSSSEEvent(&base)
 	base.RawAvailable = true
@@ -388,6 +400,23 @@ func annotateTLSSSEEvent(event *TLSPlaintextEvent) {
 	}
 }
 
+func truncateTLSBodyUTF8(body []byte, limit int) []byte {
+	if len(body) <= limit {
+		return body
+	}
+	if !utf8.Valid(body) {
+		body = bytes.ToValidUTF8(body, []byte("\uFFFD"))
+		if len(body) <= limit {
+			return body
+		}
+	}
+	end := limit
+	for end > 0 && !utf8.Valid(body[:end]) {
+		end--
+	}
+	return body[:end]
+}
+
 func formatTLSPlaintextBody(body []byte, contentType string) (string, bool) {
 	if len(body) == 0 {
 		return "", false
@@ -400,10 +429,9 @@ func formatTLSPlaintextBody(body []byte, contentType string) (string, bool) {
 
 	// Fold large base64 image payloads (Anthropic `image` blocks and OpenAI
 	// `image_url` data URIs) into compact sentinels BEFORE pretty-print. A
-	// single embedded image would otherwise consume the entire 16 KiB capture
-	// window, pushing the rest of the prompt out and leaving only the image's
-	// base64 prefix. Folding also keeps base64 substrings from spuriously
-	// triggering inline-secret redaction.
+	// single embedded image would otherwise consume most of the 32 KiB display
+	// window. Folding also keeps base64 substrings from spuriously triggering
+	// inline-secret redaction.
 	folded := foldTLSImageBase64(body, contentType)
 
 	formatted := folded
@@ -413,15 +441,16 @@ func formatTLSPlaintextBody(body []byte, contentType string) (string, bool) {
 		}
 	}
 	if len(formatted) > tlsMaxBodySize {
-		formatted = formatted[:tlsMaxBodySize]
+		truncated = true
+		formatted = truncateTLSBodyUTF8(formatted, tlsMaxBodySize)
 	}
 	return string(formatted), truncated
 }
 
 // tlsImageFoldThreshold is the base64 length below which an embedded image is
 // left intact so the frontend can still render it as a data URI. Anything
-// larger is folded to a sentinel — the full payload cannot be captured anyway
-// (eBPF fragments cap a single TLS message at ~17 KiB).
+// larger is folded to a sentinel to preserve prompt/tool text inside the
+// bounded 35 KiB plaintext capture window.
 const tlsImageFoldThreshold = 2048
 
 // tlsImageFoldedPrefix marks a folded image payload. The full sentinel format

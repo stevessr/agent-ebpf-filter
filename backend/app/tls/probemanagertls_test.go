@@ -220,8 +220,14 @@ func TestTLSProbeManagerReadLoopStatsSnapshotIsAtomic(t *testing.T) {
 
 func TestResolveShebangInterpreterUsesEnvArgument(t *testing.T) {
 	interpreter := resolveShebangInterpreter("/usr/bin/env sh -c echo")
-	if base := filepath.Base(interpreter); base != "sh" && base != "bash" {
-		t.Fatalf("interpreter = %q, want a shell executable", interpreter)
+	if interpreter == "" {
+		t.Fatal("expected env sh to resolve to an executable")
+	}
+	switch base := filepath.Base(interpreter); base {
+	case "sh", "bash", "dash":
+		// All are valid resolutions for /usr/bin/env sh depending on distro.
+	default:
+		t.Fatalf("interpreter = %q, want a POSIX shell executable", interpreter)
 	}
 }
 

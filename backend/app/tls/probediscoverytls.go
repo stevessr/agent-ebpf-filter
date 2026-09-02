@@ -2,7 +2,6 @@ package tls
 
 import (
 	"context"
-	"debug/elf"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -27,6 +26,14 @@ func parseProcPID(path string) (int, bool) {
 	return 0, false
 }
 
+func goAttachKey(binPath string, pid int) string {
+	return fmt.Sprintf("%d\x00%s", pid, binPath)
+}
+
+func staticSSLAttachKey(binPath string, pid int) string {
+	return fmt.Sprintf("exec\x00%d\x00%s", pid, binPath)
+}
+
 func (m *TLSProbeManager) shouldAttachGoBinary(binPath string, pid int) bool {
 	if m == nil {
 		return false
@@ -48,16 +55,16 @@ func (m *TLSProbeManager) shouldAttachStaticSSL(binPath string, pid int) bool {
 	if m == nil {
 		return false
 	}
-	key := goAttachKey(binPath, pid)
+	key := staticSSLAttachKey(binPath, pid)
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.attachedGo == nil {
-		m.attachedGo = make(map[string]bool)
+	if m.attachedStatic == nil {
+		m.attachedStatic = make(map[string]bool)
 	}
-	if m.attachedGo[key] {
+	if m.attachedStatic[key] {
 		return false
 	}
-	m.attachedGo[key] = true
+	m.attachedStatic[key] = true
 	return true
 }
 
@@ -66,12 +73,127 @@ func (m *TLSProbeManager) forgetGoBinaryAttach(binPath string, pid int) {
 		return
 	}
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	delete(m.attachedGo, goAttachKey(binPath, pid))
+	m.mu.Unlock()
 }
 
-func goAttachKey(binPath string, pid int) string {
-	return fmt.Sprintf("%d\x00%s", pid, binPath)
+func (m *TLSProbeManager) forgetStaticSSLAttach(binPath string, pid int) {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	delete(m.attachedStatic, staticSSLAttachKey(binPath, pid))
+	m.mu.Unlock()
+}
+
+func processExists(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	_, err := os.Stat(fmt.Sprintf("/proc/%d", pid))
+	return err == nil
+}
+
+const procDeletedSuffix = " (deleted)"
+
+// normalizeProcExecutableTarget keeps a stable display path while allowing
+// discovery to attach to /proc/<pid>/exe when an in-place package upgrade has
+// unlinked the executable that the still-running process is using.
+func normalizeProcExecutableTarget(exeLink, linkTarget string, procLinkUsable bool) (attachPath, displayPath string, deleted, ok bool) {
+	linkTarget = strings.TrimSpace(linkTarget)
+	if linkTarget == "" {
+		return "", "", false, false
+	}
+	if !strings.HasSuffix(linkTarget, procDeletedSuffix) {
+		return linkTarget, linkTarget, false, true
+	}
+	displayPath = strings.TrimSuffix(linkTarget, procDeletedSuffix)
+	if !procLinkUsable {
+		return "", displayPath, true, false
+	}
+	return exeLink, displayPath, true, true
+}
+
+func resolveProcExecutableTarget(exeLink string) (attachPath, displayPath string, deleted, ok bool) {
+	linkTarget, err := os.Readlink(exeLink)
+	if err != nil || strings.TrimSpace(linkTarget) == "" {
+		return "", "", false, false
+	}
+	usable := true
+	if strings.HasSuffix(linkTarget, procDeletedSuffix) {
+		_, err = os.Stat(exeLink)
+		usable = err == nil
+	}
+	return normalizeProcExecutableTarget(exeLink, linkTarget, usable)
+}
+
+func pidFromGoAttachKey(key string) (int, bool) {
+	pidText, _, ok := strings.Cut(key, "\x00")
+	if !ok {
+		return 0, false
+	}
+	pid, err := strconv.Atoi(pidText)
+	return pid, err == nil && pid > 0
+}
+
+func pidFromStaticAttachKey(key string) (int, bool) {
+	var rest string
+	switch {
+	case strings.HasPrefix(key, "exec\x00"):
+		rest = strings.TrimPrefix(key, "exec\x00")
+	case strings.HasPrefix(key, "pid\x00"):
+		rest = strings.TrimPrefix(key, "pid\x00")
+	default:
+		return 0, false
+	}
+	pidText, _, ok := strings.Cut(rest, "\x00")
+	if !ok {
+		return 0, false
+	}
+	pid, err := strconv.Atoi(pidText)
+	return pid, err == nil && pid > 0
+}
+
+func (m *TLSProbeManager) pruneDeadProcessAttachments() {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	for pid := range m.attachedExec {
+		if !processExists(pid) {
+			delete(m.attachedExec, pid)
+		}
+	}
+	for key := range m.attachedGo {
+		if pid, ok := pidFromGoAttachKey(key); ok && !processExists(pid) {
+			delete(m.attachedGo, key)
+		}
+	}
+	for key := range m.attachedStatic {
+		if pid, ok := pidFromStaticAttachKey(key); ok && !processExists(pid) {
+			delete(m.attachedStatic, key)
+		}
+	}
+	m.mu.Unlock()
+	m.pruneAutoDiscoveryState()
+}
+
+func (m *TLSProbeManager) pidAlreadyAttached(pid int) bool {
+	if m == nil || pid <= 0 {
+		return false
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.attachedExec[pid]; ok {
+		return true
+	}
+	for key := range m.attachedGo {
+		attachedPID, ok := pidFromGoAttachKey(key)
+		if ok && attachedPID == pid {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *TLSProbeManager) DiscoverGoProcesses() {
@@ -84,25 +206,76 @@ func (m *TLSProbeManager) DiscoverGoProcesses() {
 	}
 	for _, exeLink := range entries {
 		pid, ok := parseProcPID(exeLink)
+		if !ok || m.pidAlreadyAttached(pid) {
+			continue
+		}
+		attachPath, displayPath, _, ok := resolveProcExecutableTarget(exeLink)
 		if !ok {
 			continue
 		}
-		binPath, err := os.Readlink(exeLink)
-		if err != nil || binPath == "" {
+
+		if _, err := parseGoTLSTargets(attachPath); err != nil {
 			continue
 		}
-		if !m.shouldAttachGoBinary(binPath, pid) {
+		now := time.Now()
+		if !m.autoAttachAllowed("go", pid, attachPath, now) {
 			continue
 		}
-		if err := m.AttachGoUprobes(binPath, pid); err != nil {
-			m.forgetGoBinaryAttach(binPath, pid)
+		if !m.shouldAttachGoBinary(attachPath, pid) {
+			continue
+		}
+		m.recordAutoAttachAttempt()
+		if err := m.AttachGoUprobes(attachPath, pid); err != nil {
+			m.forgetGoBinaryAttach(attachPath, pid)
+			m.recordAutoAttachFailure("go", pid, attachPath, err, now)
 			if m.store != nil {
-				m.store.SetLibraryStatus(TLSLibraryStatus{Name: "Go", Path: binPath, Attached: false, Available: true, Error: err.Error()})
+				m.store.SetLibraryStatus(TLSLibraryStatus{Name: "Go", Path: displayPath, Attached: false, Available: true, Error: err.Error()})
 			}
+			continue
 		}
+		m.recordAutoAttachSuccess("go", pid, attachPath)
 	}
 }
 
+func normalizedProcCmdline(pid int) string {
+	cmdline, err := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", pid))
+	if err != nil {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(strings.ReplaceAll(string(cmdline), "\x00", " ")))
+}
+
+func isAgentTLSProcess(baseName, cmdline string) bool {
+	base := strings.ToLower(strings.TrimSpace(baseName))
+	cmd := strings.ToLower(cmdline)
+
+	for _, direct := range []string{
+		"claude", "codex", "opencode", "aider", "goose", "cursor", "amp",
+		"gemini", "dsh", "omp", "cline", "windsurf",
+	} {
+		if base == direct || strings.HasPrefix(base, direct+"-") {
+			return true
+		}
+	}
+
+	for _, marker := range []string{
+		"claude-code", "@anthropic", "@cometix", "anthropic",
+		"codex", "@openai", "openai",
+		"opencode", "oh-my-pi", "oh_my_pi", "aider", "goose",
+		"cursor", "github-copilot", "copilot", "gemini", "continue",
+		"cline", "windsurf", "qwen-code", "kimi-cli", "roo-code",
+		" dsh ", " omp ",
+	} {
+		if strings.Contains(cmd, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+// DiscoverNodeProcesses keeps the historical name for API compatibility but
+// now discovers agent runtimes broadly and lets AttachExecutable choose Go,
+// static OpenSSL/BoringSSL, rustls, or an actually loaded shared library.
 func (m *TLSProbeManager) DiscoverNodeProcesses() {
 	if m == nil {
 		return
@@ -113,104 +286,62 @@ func (m *TLSProbeManager) DiscoverNodeProcesses() {
 	}
 	for _, exeLink := range entries {
 		pid, ok := parseProcPID(exeLink)
+		if !ok || m.pidAlreadyAttached(pid) {
+			continue
+		}
+		attachPath, displayPath, _, ok := resolveProcExecutableTarget(exeLink)
 		if !ok {
 			continue
 		}
-		binPath, err := os.Readlink(exeLink)
-		if err != nil || binPath == "" {
+
+		baseName := filepath.Base(displayPath)
+		if !isAgentTLSProcess(baseName, normalizedProcCmdline(pid)) {
+			continue
+		}
+		now := time.Now()
+		if !m.autoAttachAllowed("agent", pid, attachPath, now) {
+			continue
+		}
+		if !m.shouldAttachStaticSSL(attachPath, pid) {
 			continue
 		}
 
-		baseName := filepath.Base(binPath)
-		if baseName != "node" && baseName != "bun" && baseName != "deno" && baseName != "codex" {
-			continue
-		}
-
-		if !m.shouldAttachStaticSSL(binPath, pid) {
-			continue
-		}
-
-		cmdline, _ := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", pid))
-		cmdStr := string(cmdline)
-
-		isClaudeCode := strings.Contains(cmdStr, "claude-code") || strings.Contains(cmdStr, "@cometix") || strings.Contains(cmdStr, "@anthropic") || baseName == "claude"
-		isCodex := strings.Contains(cmdStr, "codex") || strings.Contains(cmdStr, "@openai") || baseName == "codex"
-
-		if !isClaudeCode && !isCodex {
-			m.forgetGoBinaryAttach(binPath, pid)
-			continue
-		}
-
-		// Node.js/Bun/Deno: 使用 OpenSSL 符号
-		if baseName == "node" || baseName == "bun" || baseName == "deno" {
-			if hasSSLSymbols(binPath) {
-				if err := m.AttachStaticSSLUprobes(binPath, pid); err != nil {
-					m.forgetGoBinaryAttach(binPath, pid)
-					if m.store != nil {
-						name := "Node.js"
-						if isClaudeCode {
-							name = "Claude Code (Node.js)"
-						}
-						m.store.SetLibraryStatus(TLSLibraryStatus{Name: name, Path: binPath, Attached: false, Available: true, Error: err.Error()})
-					}
-				}
-			}
-			continue
-		}
-
-		// Codex: Rust 二进制，使用 rustls 偏移量
-		if isCodex {
-			if err := m.AttachRustlsUprobes(binPath, pid); err == nil {
-				if m.store != nil {
-					m.store.SetLibraryStatus(TLSLibraryStatus{Name: "Codex (rustls)", Path: binPath, Attached: true, Available: true})
-				}
-				continue
-			}
-			// rustls uprobe offset detection failed (stripped binary).
-			m.forgetGoBinaryAttach(binPath, pid)
+		m.recordAutoAttachAttempt()
+		result := m.AttachExecutable(attachPath, pid, "auto")
+		if result.Error != "" {
+			m.forgetStaticSSLAttach(attachPath, pid)
+			attachErr := fmt.Errorf("%s", result.Error)
+			m.recordAutoAttachFailure("agent", pid, attachPath, attachErr, now)
 			if m.store != nil {
-				m.store.SetLibraryStatus(TLSLibraryStatus{Name: "Codex (rustls)", Path: binPath, Attached: false, Available: true, Error: "rustls offset detection failed (stripped binary)"})
+				m.store.SetLibraryStatus(TLSLibraryStatus{Name: "auto:" + baseName, Path: displayPath, Attached: false, Available: true, Error: result.Error})
 			}
+			continue
+		}
+		m.recordAutoAttachSuccess("agent", pid, attachPath)
+		if m.store != nil {
+			library := result.Library
+			if library == "" {
+				library = result.TargetKind
+			}
+			m.store.SetLibraryStatus(TLSLibraryStatus{Name: "auto:" + library, Path: displayPath, Attached: true, Available: true})
 		}
 	}
-}
-
-func hasSSLSymbols(binPath string) bool {
-	exe, err := elf.Open(binPath)
-	if err != nil {
-		return false
-	}
-	defer exe.Close()
-
-	symbols, err := exe.Symbols()
-	if err != nil {
-		symbols, _ = exe.DynamicSymbols()
-	}
-
-	for _, sym := range symbols {
-		if sym.Name == "SSL_write" || sym.Name == "SSL_read" || sym.Name == "SSL_write_ex" || sym.Name == "SSL_read_ex" || sym.Name == "SSL_write_ex2" {
-			return true
-		}
-	}
-	return false
 }
 
 func (m *TLSProbeManager) StartGoDiscoveryLoop(interval time.Duration) {
 	m.startGoDiscoveryLoop(interval, func() {
+		m.pruneDeadProcessAttachments()
 		m.DiscoverGoProcesses()
 		m.DiscoverNodeProcesses()
 	})
 }
 
 func (m *TLSProbeManager) startGoDiscoveryLoop(interval time.Duration, discover func()) {
-	if m == nil {
+	if m == nil || discover == nil {
 		return
 	}
 	if interval <= 0 {
-		interval = time.Minute
-	}
-	if discover == nil {
-		return
+		interval = 5 * time.Second
 	}
 	m.mu.Lock()
 	if m.closed || m.discoveryStarted {
@@ -251,38 +382,6 @@ func findFirstExistingPath(paths ...string) (string, bool) {
 		}
 	}
 	return "", false
-}
-
-func parseGoTLSSymbols(binPath string) ([]string, error) {
-	exe, err := elf.Open(binPath)
-	if err != nil {
-		return nil, err
-	}
-	defer exe.Close()
-
-	symbols, err := exe.Symbols()
-	if err != nil {
-		symbols, err = exe.DynamicSymbols()
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	out := make([]string, 0, 2)
-	seen := make(map[string]struct{}, 2)
-	for _, sym := range symbols {
-		if name, ok := goTLSSymbolName(sym.Name); ok {
-			if _, exists := seen[name]; exists {
-				continue
-			}
-			seen[name] = struct{}{}
-			out = append(out, name)
-		}
-	}
-	if len(out) == 0 {
-		return nil, fmt.Errorf("no Go TLS symbols found in %s", binPath)
-	}
-	return out, nil
 }
 
 func goTLSSymbolName(name string) (string, bool) {

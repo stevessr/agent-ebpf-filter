@@ -7,6 +7,13 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
+	"time"
+)
+
+const (
+	tlsProcessEnrichmentCacheTTL = 30 * time.Second
+	tlsProcessEnrichmentCacheMax = 2048
 )
 
 type aiToolMetadata struct {
@@ -15,6 +22,18 @@ type aiToolMetadata struct {
 	ToolType    string
 	APIProvider string
 }
+
+type tlsProcessEnrichmentCacheEntry struct {
+	expiresAt time.Time
+	tool      *aiToolMetadata
+	uid       uint32
+	tid       uint32
+}
+
+var tlsProcessEnrichmentCache = struct {
+	sync.Mutex
+	items map[uint32]tlsProcessEnrichmentCacheEntry
+}{items: make(map[uint32]tlsProcessEnrichmentCacheEntry)}
 
 func detectAIToolFromComm(comm string) *aiToolMetadata {
 	lower := strings.ToLower(comm)
@@ -76,23 +95,97 @@ func detectAPIProviderFromHost(host string) string {
 	return ""
 }
 
-// enrichTLSEventWithAIMetadata 为 TLS 事件添加 AI 工具标签
-// 在 agentSightEventFromTLSPlaintext 中调用
-func EnrichTLSEventWithAIMetadata(data map[string]any, event TLSPlaintextEvent) {
-	var meta *aiToolMetadata
+func cachedTLSProcessEnrichment(pid uint32) tlsProcessEnrichmentCacheEntry {
+	if pid == 0 {
+		return tlsProcessEnrichmentCacheEntry{}
+	}
+	now := time.Now()
 
-	if event.Comm != "" {
-		meta = detectAIToolFromComm(event.Comm)
+	tlsProcessEnrichmentCache.Lock()
+	if cached, ok := tlsProcessEnrichmentCache.items[pid]; ok {
+		if now.Before(cached.expiresAt) {
+			tlsProcessEnrichmentCache.Unlock()
+			return cached
+		}
+		delete(tlsProcessEnrichmentCache.items, pid)
+	}
+	tlsProcessEnrichmentCache.Unlock()
+
+	// Perform procfs I/O outside the cache lock. A burst of simultaneous first
+	// events may duplicate one read, but it never stalls enrichment for every
+	// other PID behind filesystem access.
+	cmdlineBytes, _ := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", pid))
+	entry := tlsProcessEnrichmentCacheEntry{
+		expiresAt: now.Add(tlsProcessEnrichmentCacheTTL),
+		uid:       readProcessUIDUncached(pid),
+		tid:       readProcessTIDUncached(pid),
+	}
+	if len(cmdlineBytes) > 0 {
+		entry.tool = detectAIToolFromCmdline(string(cmdlineBytes))
 	}
 
-	if meta == nil && event.PID > 0 {
-		cmdlineBytes, _ := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", event.PID))
-		if len(cmdlineBytes) > 0 {
-			meta = detectAIToolFromCmdline(string(cmdlineBytes))
+	tlsProcessEnrichmentCache.Lock()
+	// Prefer a fresh value inserted by another goroutine while procfs was read.
+	if cached, ok := tlsProcessEnrichmentCache.items[pid]; ok && now.Before(cached.expiresAt) {
+		tlsProcessEnrichmentCache.Unlock()
+		return cached
+	}
+	if _, exists := tlsProcessEnrichmentCache.items[pid]; !exists && len(tlsProcessEnrichmentCache.items) >= tlsProcessEnrichmentCacheMax {
+		evictOldestTLSProcessEnrichmentLocked()
+	}
+	tlsProcessEnrichmentCache.items[pid] = entry
+	tlsProcessEnrichmentCache.Unlock()
+	return entry
+}
+
+func evictOldestTLSProcessEnrichmentLocked() {
+	var oldestPID uint32
+	var oldestExpiry time.Time
+	for pid, entry := range tlsProcessEnrichmentCache.items {
+		if oldestExpiry.IsZero() || entry.expiresAt.Before(oldestExpiry) {
+			oldestPID = pid
+			oldestExpiry = entry.expiresAt
+		}
+	}
+	if !oldestExpiry.IsZero() {
+		delete(tlsProcessEnrichmentCache.items, oldestPID)
+	}
+}
+
+// EnrichTLSEventWithAIMetadata adds AI-tool and protocol metadata to the
+// AgentSight fast-path map without introducing another JSON round trip.
+func EnrichTLSEventWithAIMetadata(data map[string]any, event TLSPlaintextEvent) {
+	if strings.HasPrefix(event.Type, "http2_") {
+		data["protocol"] = "http2"
+		data["http_version"] = "2"
+		data["event_type"] = "HTTP2_MESSAGE"
+		if event.HTTP2StreamID != 0 {
+			data["http2_stream_id"] = event.HTTP2StreamID
+		}
+		if event.HTTP2FrameType != "" {
+			data["http2_frame_type"] = event.HTTP2FrameType
+		}
+		if event.HTTP2Flags != 0 {
+			data["http2_flags"] = event.HTTP2Flags
+		}
+		if event.HTTP2PromisedStreamID != 0 {
+			data["http2_promised_stream_id"] = event.HTTP2PromisedStreamID
+		}
+		if event.RawHexDump == "" {
+			data["raw_available"] = false
 		}
 	}
 
-	// Populate AI tool metadata
+	var process tlsProcessEnrichmentCacheEntry
+	if event.PID > 0 {
+		process = cachedTLSProcessEnrichment(event.PID)
+	}
+
+	meta := detectAIToolFromComm(event.Comm)
+	if meta == nil {
+		meta = process.tool
+	}
+
 	if meta != nil {
 		if meta.ToolName != "" {
 			data["ai_tool"] = meta.ToolName
@@ -112,7 +205,6 @@ func EnrichTLSEventWithAIMetadata(data map[string]any, event TLSPlaintextEvent) 
 		}
 	}
 
-	// AgentSight-compatible SSL data enrichment
 	if body := data["body"]; body != nil {
 		if bodyStr, ok := body.(string); ok && bodyStr != "" {
 			data["data_type"] = DetectSSLDataType(bodyStr)
@@ -121,20 +213,19 @@ func EnrichTLSEventWithAIMetadata(data map[string]any, event TLSPlaintextEvent) 
 		data["data_type"] = DetectSSLDataType(raw)
 	}
 
-	// Populate AgentSight-compatible fields from event struct
+	if event.StatusCode > 0 {
+		data["status"] = event.StatusCode
+	}
+
 	if event.UID > 0 {
 		data["uid"] = event.UID
-	} else if event.PID > 0 {
-		if uid := readProcessUID(event.PID); uid > 0 {
-			data["uid"] = uid
-		}
+	} else if process.uid > 0 {
+		data["uid"] = process.uid
 	}
 	if event.TID > 0 {
 		data["tid"] = event.TID
-	} else if event.PID > 0 {
-		if tid := readProcessTID(event.PID); tid > 0 {
-			data["tid"] = tid
-		}
+	} else if process.tid > 0 {
+		data["tid"] = process.tid
 	}
 	if event.IsHandshake {
 		data["is_handshake"] = true
@@ -150,20 +241,20 @@ func EnrichTLSEventWithAIMetadata(data map[string]any, event TLSPlaintextEvent) 
 	}
 }
 
-// isTLSHandshakeFragment detects whether a TLS fragment is likely part of an
-// SSL/TLS handshake based on its content type byte (first byte of TLS record).
-// Content types: 0x16 = Handshake, 0x14 = ChangeCipherSpec, 0x15 = Alert.
 func isTLSHandshakeFragment(fragment CompletedTLSFragment) bool {
 	if len(fragment.Payload) == 0 {
 		return false
 	}
-	// TLS record header: content_type (1 byte) | version (2 bytes) | length (2 bytes)
 	contentType := fragment.Payload[0]
-	return contentType == 0x16 // Handshake
+	return contentType == 0x16
 }
 
-// readProcessUID reads the UID of a process from /proc/<pid>/loginuid.
+// readProcessUID is cached because it is called from the TLS parse hot path.
 func readProcessUID(pid uint32) uint32 {
+	return cachedTLSProcessEnrichment(pid).uid
+}
+
+func readProcessUIDUncached(pid uint32) uint32 {
 	content, err := os.ReadFile(fmt.Sprintf("/proc/%d/loginuid", pid))
 	if err != nil {
 		return 0
@@ -175,11 +266,16 @@ func readProcessUID(pid uint32) uint32 {
 	return uid
 }
 
-// readProcessTID reads the TID (thread group's tgid field from /proc/<pid>/status).
+// readProcessTID is cached for AgentSight enrichment. The fallback matches the
+// historical behavior and uses the supplied PID when /proc/status disappears.
 func readProcessTID(pid uint32) uint32 {
+	return cachedTLSProcessEnrichment(pid).tid
+}
+
+func readProcessTIDUncached(pid uint32) uint32 {
 	content, err := os.ReadFile(fmt.Sprintf("/proc/%d/status", pid))
 	if err != nil {
-		return pid // fall back to pid
+		return pid
 	}
 	for _, line := range strings.Split(string(content), "\n") {
 		if strings.HasPrefix(line, "Tgid:") {

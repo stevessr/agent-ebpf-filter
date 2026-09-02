@@ -2,11 +2,17 @@ package tls
 
 import (
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 // ---- moved from backend/zz_merged_backend.go section capturetypestls.go ----
 
-const tlsFragmentSize = 960
+// Compact perf samples make the on-wire size metadata+DataLen rather than the
+// full Go/BPF struct, so increasing the scratch fragment does not penalize small
+// TLS calls. 1984 keeps a full compact sample at 2044 bytes and doubles the
+// capture window while leaving the verifier-visible loop bound unchanged.
+const tlsFragmentSize = 1984
 const tlsMaxFragments = 18
 
 const tlsLibOpenSSL = 0
@@ -35,36 +41,38 @@ const tlsFuncRustlsEncryptOutgoing = 12   // rustls RecordLayer::encrypt_outgoin
 const tlsFuncRustlsConsumeFirstChunk = 13 // rustls Reader::consume + consume_first_chunk (RECV plaintext)
 
 type tlsFragment struct {
-	TimestampNS uint64
-	PID         uint32
-	TGID        uint32
-	DataLen     uint32
-	TotalLen    uint32
-	OriginalLen uint32
-	FragIndex   uint16
-	FragCount   uint16
-	LibType     uint8
-	Direction   uint8
-	Flags       uint8
-	Function    uint8
-	Comm        [16]byte
-	Data        [tlsFragmentSize]byte
+	TimestampNS  uint64
+	ConnectionID uint64
+	PID          uint32
+	TGID         uint32
+	DataLen      uint32
+	TotalLen     uint32
+	OriginalLen  uint32
+	FragIndex    uint16
+	FragCount    uint16
+	LibType      uint8
+	Direction    uint8
+	Flags        uint8
+	Function     uint8
+	Comm         [16]byte
+	Data         [tlsFragmentSize]byte
 }
 
 type CompletedTLSFragment struct {
-	TimestampNS uint64
-	PID         uint32
-	TGID        uint32
-	DataLen     uint32
-	TotalLen    uint32
-	OriginalLen uint32
-	FragCount   uint16
-	LibType     uint8
-	Direction   uint8
-	Flags       uint8
-	Function    uint8
-	Comm        string
-	Payload     []byte
+	TimestampNS  uint64
+	ConnectionID uint64
+	PID          uint32
+	TGID         uint32
+	DataLen      uint32
+	TotalLen     uint32
+	OriginalLen  uint32
+	FragCount    uint16
+	LibType      uint8
+	Direction    uint8
+	Flags        uint8
+	Function     uint8
+	Comm         string
+	Payload      []byte
 }
 
 type TLSPlaintextEvent struct {
@@ -93,6 +101,13 @@ type TLSPlaintextEvent struct {
 	SSEEvent       string            `json:"sse_event,omitempty"`
 	SSEDataDigest  string            `json:"sse_data_digest,omitempty"`
 	SSEDataCount   int               `json:"sse_data_count,omitempty"`
+
+	// HTTP/2 metadata is safe protocol metadata. ConnectionID deliberately
+	// remains internal because it is derived from a userspace pointer.
+	HTTP2StreamID         uint32 `json:"http2_stream_id,omitempty"`
+	HTTP2PromisedStreamID uint32 `json:"http2_promised_stream_id,omitempty"`
+	HTTP2FrameType        string `json:"http2_frame_type,omitempty"`
+	HTTP2Flags            uint8  `json:"http2_flags,omitempty"`
 
 	RootAgentPID   uint32 `json:"root_agent_pid,omitempty"`
 	AgentRunID     string `json:"agent_run_id,omitempty"`
@@ -136,18 +151,29 @@ type TLSCaptureStats struct {
 	LastFragmentNS uint64             `json:"lastFragmentNs,omitempty"`
 }
 
-// bpfKtimeToWallClock converts a bpf_ktime_get_ns() timestamp (monotonic
-// nanoseconds since system boot) to wall clock time. eBPF TLS uprobes use
-// bpf_ktime_get_ns() which returns monotonic time since boot, not Unix epoch
-// time. A direct time.Unix(0, ns) conversion would produce dates near 1970.
-// This function detects that case and falls back to the current wall clock.
+// bpfKtimeToWallClock converts bpf_ktime_get_ns() (CLOCK_MONOTONIC-like
+// nanoseconds since boot) into a wall-clock timestamp while preserving when the
+// probe actually fired. Returning time.Now() here would shift every event to
+// userspace assembly time and destroy ordering/latency information.
 func bpfKtimeToWallClock(monoNS uint64) time.Time {
-	t := time.Unix(0, int64(monoNS))
-	// bpf_ktime_get_ns() is monotonic — its absolute value corresponds to a
-	// date near boot time (1970 + uptime). Real wall-clock timestamps from
-	// other sources will be >= 2020 for production data.
-	if t.Year() < 2020 {
-		return time.Now()
+	now := time.Now().UTC()
+	if monoNS == 0 {
+		return now
 	}
-	return t.UTC()
+
+	var currentMono unix.Timespec
+	if err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &currentMono); err != nil {
+		return now
+	}
+	if currentMono.Sec < 0 || currentMono.Nsec < 0 {
+		return now
+	}
+	currentMonoNS := uint64(currentMono.Sec)*uint64(time.Second) + uint64(currentMono.Nsec)
+	if monoNS > currentMonoNS {
+		// A future monotonic timestamp cannot be mapped reliably; avoid emitting
+		// a future wall-clock event because it would poison timeline ordering.
+		return now
+	}
+
+	return now.Add(-time.Duration(currentMonoNS - monoNS))
 }

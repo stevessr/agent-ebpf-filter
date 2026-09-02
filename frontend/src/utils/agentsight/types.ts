@@ -95,6 +95,13 @@ export interface AgentSightFilterOptions {
   commands: string[];
 }
 
+export type AgentSightStdioProtocol =
+  | "lsp"
+  | "mcp"
+  | "jsonrpc"
+  | "text"
+  | "unknown";
+
 export interface DecodedStdioMessage {
   direction: string;
   fdRole: string;
@@ -104,6 +111,12 @@ export interface DecodedStdioMessage {
   truncated: boolean;
   rawPayload: string;
   parsedPayload: any | null;
+  parsedMessages: any[];
+  protocol: AgentSightStdioProtocol;
+  framed: boolean;
+  frameCount: number;
+  incompleteFrame: boolean;
+  framingError?: string;
   kind: "request" | "notification" | "response" | "error" | "text" | "unknown";
   method?: string;
   id?: string;
@@ -111,4 +124,12 @@ export interface DecodedStdioMessage {
   preview?: string;
   title: string;
   summary: string;
+
+  // Incremental Content-Length framing metadata. These fields are optional so
+  // one-off/stateless decoding remains API-compatible.
+  streamKey?: string;
+  reassembled?: boolean;
+  reassembledBytes?: number;
+  pendingBytes?: number;
+  reassemblyReset?: string;
 }

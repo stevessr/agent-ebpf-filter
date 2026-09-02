@@ -52,6 +52,60 @@ const agentPlaintextMeta = computed(() => {
   return { vendor, promptDigest, role, redaction };
 });
 
+const http2Meta = computed(() => {
+  const data = props.event?.data;
+  if (!data || typeof data !== "object") return null;
+  const protocol = String(data.protocol || "").toLowerCase();
+  const type = String(data.type || data.event_type || "").toLowerCase();
+  const version = String(data.http_version || data.httpVersion || "");
+  if (protocol !== "http2" && version !== "2" && !type.includes("http2")) {
+    return null;
+  }
+
+  const streamId = Number(data.http2_stream_id ?? data.http2StreamId ?? 0);
+  const promisedStreamId = Number(
+    data.http2_promised_stream_id ?? data.http2PromisedStreamId ?? 0,
+  );
+  const flags = Number(data.http2_flags ?? data.http2Flags ?? 0);
+  const status = Number(data.status ?? data.status_code ?? data.statusCode ?? 0);
+  const method = String(data.method || "").trim();
+  const host = String(data.host || "").trim();
+  const path = String(data.url || data.path || "").trim();
+  const contentType = String(
+    data.content_type || data.contentType || "",
+  ).trim();
+  const frameType = String(
+    data.http2_frame_type || data.http2FrameType || "",
+  ).trim();
+  const redaction = String(
+    data.redaction_state || data.redactionState || props.event?.redactionState || "",
+  ).trim();
+  const dataType = String(data.data_type || data.dataType || "").trim();
+  const truncated = Boolean(data.truncated);
+  const rawAvailable = Boolean(data.raw_available ?? data.rawAvailable ?? false);
+
+  return {
+    streamId,
+    promisedStreamId,
+    flags,
+    status,
+    method,
+    host,
+    path,
+    contentType,
+    frameType,
+    redaction,
+    dataType,
+    truncated,
+    rawAvailable,
+  };
+});
+
+const http2FlagsText = computed(() => {
+  const flags = http2Meta.value?.flags ?? 0;
+  return `0x${flags.toString(16).padStart(2, "0")}`;
+});
+
 const copy = async (text: string, label: string) => {
   await navigator.clipboard.writeText(text);
   message.success(`${label} copied`);
@@ -101,6 +155,72 @@ const copy = async (text: string, label: string) => {
       </a-descriptions>
 
       <a-card
+        v-if="http2Meta"
+        size="small"
+        title="HTTP/2 stream"
+        class="details-card"
+      >
+        <a-descriptions size="small" bordered :column="2">
+          <a-descriptions-item label="Protocol">
+            <a-tag color="blue">HTTP/2</a-tag>
+            <a-tag v-if="http2Meta.frameType" color="geekblue">
+              {{ http2Meta.frameType.toUpperCase() }}
+            </a-tag>
+          </a-descriptions-item>
+          <a-descriptions-item label="Stream">
+            <a-typography-text code>
+              {{ http2Meta.streamId || "—" }}
+            </a-typography-text>
+            <span v-if="http2Meta.promisedStreamId">
+              → promised
+              <a-typography-text code>{{
+                http2Meta.promisedStreamId
+              }}</a-typography-text>
+            </span>
+          </a-descriptions-item>
+          <a-descriptions-item label="Flags">
+            <a-typography-text code>{{ http2FlagsText }}</a-typography-text>
+          </a-descriptions-item>
+          <a-descriptions-item label="Status">
+            <a-tag v-if="http2Meta.status" color="green">
+              {{ http2Meta.status }}
+            </a-tag>
+            <span v-else>—</span>
+          </a-descriptions-item>
+          <a-descriptions-item label="Request" :span="2">
+            <a-typography-text v-if="http2Meta.method" strong>
+              {{ http2Meta.method }}
+            </a-typography-text>
+            <span v-if="http2Meta.host || http2Meta.path" class="http2-target">
+              {{ http2Meta.host }}{{ http2Meta.path }}
+            </span>
+            <span v-if="!http2Meta.method && !http2Meta.host && !http2Meta.path">
+              —
+            </span>
+          </a-descriptions-item>
+          <a-descriptions-item label="Content type">
+            {{ http2Meta.contentType || "—" }}
+          </a-descriptions-item>
+          <a-descriptions-item label="Data type">
+            {{ http2Meta.dataType || "—" }}
+          </a-descriptions-item>
+          <a-descriptions-item label="Capture state">
+            <a-tag :color="http2Meta.truncated ? 'orange' : 'green'">
+              {{ http2Meta.truncated ? "capture gap" : "complete" }}
+            </a-tag>
+            <a-tag v-if="http2Meta.redaction" color="cyan">
+              {{ http2Meta.redaction }}
+            </a-tag>
+          </a-descriptions-item>
+          <a-descriptions-item label="Raw payload">
+            <a-tag :color="http2Meta.rawAvailable ? 'orange' : 'green'">
+              {{ http2Meta.rawAvailable ? "available" : "suppressed" }}
+            </a-tag>
+          </a-descriptions-item>
+        </a-descriptions>
+      </a-card>
+
+      <a-card
         v-if="agentPlaintextMeta"
         size="small"
         title="Agent plaintext metadata"
@@ -138,7 +258,7 @@ const copy = async (text: string, label: string) => {
       <a-card
         v-if="decodedStdio"
         size="small"
-        title="Decoded stdio / MCP payload"
+        title="Decoded stdio / MCP / LSP payload"
         class="details-card"
       >
         <template #extra>
@@ -150,6 +270,33 @@ const copy = async (text: string, label: string) => {
             Copy
           </a-button>
         </template>
+        <div class="stdio-meta">
+          <a-tag
+            :color="
+              decodedStdio.protocol === 'lsp'
+                ? 'blue'
+                : decodedStdio.protocol === 'mcp'
+                  ? 'purple'
+                  : decodedStdio.protocol === 'jsonrpc'
+                    ? 'cyan'
+                    : 'default'
+            "
+          >
+            {{ decodedStdio.protocol.toUpperCase() }}
+          </a-tag>
+          <a-tag :color="decodedStdio.framed ? 'green' : 'default'">
+            {{ decodedStdio.framed ? "Content-Length" : "unframed" }}
+          </a-tag>
+          <a-tag v-if="decodedStdio.frameCount > 1" color="geekblue">
+            {{ decodedStdio.frameCount }} frames
+          </a-tag>
+          <a-tag v-if="decodedStdio.incompleteFrame" color="orange">
+            partial frame
+          </a-tag>
+          <a-tag v-if="decodedStdio.framingError" color="red">
+            framing error
+          </a-tag>
+        </div>
         <pre>{{ decodedStdioText }}</pre>
       </a-card>
 
@@ -181,6 +328,18 @@ const copy = async (text: string, label: string) => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.stdio-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.http2-target {
+  margin-left: 8px;
+  overflow-wrap: anywhere;
 }
 
 .details-card pre {

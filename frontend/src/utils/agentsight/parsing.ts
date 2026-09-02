@@ -4,6 +4,7 @@ import {
   formatStdioExpandedContent,
   isStdioSource,
 } from "./stdio";
+import type { AgentSightStdioStreamDecoder } from "./stdio_stream";
 import type {
   AgentSightEvent,
   ParsedAgentSightEvent,
@@ -162,8 +163,13 @@ function parseGenericEvent(
   };
 }
 
-function parseStdioEvent(event: AgentSightEvent): ParsedAgentSightEvent {
-  const decoded = decodeStdioMessage(event.data);
+function parseStdioEvent(
+  event: AgentSightEvent,
+  stdioDecoder?: AgentSightStdioStreamDecoder,
+): ParsedAgentSightEvent {
+  const decoded = stdioDecoder
+    ? stdioDecoder.decode(event)
+    : decodeStdioMessage(event.data);
   return {
     id: event.id,
     timestamp: event.timestamp,
@@ -174,23 +180,35 @@ function parseStdioEvent(event: AgentSightEvent): ParsedAgentSightEvent {
       ...event.data,
       original_source: event.source,
       stdio_kind: decoded.kind,
+      stdio_protocol: decoded.protocol,
+      stdio_framed: decoded.framed,
+      stdio_frame_count: decoded.frameCount,
+      stdio_incomplete_frame: decoded.incompleteFrame,
+      stdio_stream_key: decoded.streamKey,
+      stdio_reassembled: decoded.reassembled,
+      stdio_reassembled_bytes: decoded.reassembledBytes,
+      stdio_pending_bytes: decoded.pendingBytes,
+      stdio_reassembly_reset: decoded.reassemblyReset,
+      stdio_framing_error: decoded.framingError,
       rpc_method: decoded.method,
       rpc_id: decoded.id,
       tool_name: decoded.toolName,
       summary: decoded.summary,
       parsed_payload: decoded.parsedPayload,
+      parsed_messages: decoded.parsedMessages,
     },
   };
 }
 
 export function parseAgentSightEvent(
   event: AgentSightEvent,
+  stdioDecoder?: AgentSightStdioStreamDecoder,
 ): ParsedAgentSightEvent | null {
   const type = determineParsedType(event);
   if (type === "system") return null;
   if (type === "prompt") return parsePromptEvent(event);
   if (type === "response") return parseResponseEvent(event);
-  if (type === "stdio") return parseStdioEvent(event);
+  if (type === "stdio") return parseStdioEvent(event, stdioDecoder);
   return parseGenericEvent(event, type);
 }
 
