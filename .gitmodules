@@ -1,0 +1,12 @@
+[submodule "docs/ref/agentsight"]
+	path = docs/ref/agentsight
+	url = https://github.com/eunomia-bpf/agentsight.git
+[submodule "docs/ref/codex"]
+	path = docs/ref/codex
+	url = https://github.com/openai/codex.git
+[submodule "docs/ref/ebpf-docs"]
+	path = docs/ref/ebpf-docs
+	url = https://github.com/stevessr/ebpf-docs.git
+[submodule "docs/ref/privacy-filter"]
+	path = docs/ref/privacy-filter
+	url = https://github.com/packyme/privacy-filter.git
