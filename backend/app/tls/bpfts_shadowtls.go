@@ -22,6 +22,7 @@ type BpfTSTLSShadowConfig struct {
 }
 
 type BpfTSTLSShadowRingStats struct {
+	ReaderActive bool   `json:"readerActive"`
 	Records      uint64 `json:"records"`
 	Bytes        uint64 `json:"bytes"`
 	ReadErrors   uint64 `json:"readErrors"`
@@ -30,6 +31,7 @@ type BpfTSTLSShadowRingStats struct {
 
 type BpfTSTLSShadowStatus struct {
 	Active       bool                               `json:"active"`
+	Healthy      bool                               `json:"healthy"`
 	Source       string                             `json:"source,omitempty"`
 	ProbeCount   int                                `json:"probeCount"`
 	MapCount     int                                `json:"mapCount"`
@@ -54,6 +56,7 @@ type bpfTSTLSShadowRingReader interface {
 type bpfTSTLSShadowRingFactory func(*ebpf.Map) (bpfTSTLSShadowRingReader, error)
 
 type bpfTSTLSShadowCounters struct {
+	readerActive atomic.Bool
 	records      atomic.Uint64
 	bytes        atomic.Uint64
 	readErrors   atomic.Uint64
@@ -194,7 +197,9 @@ func (shadow *BpfTSTLSShadowRuntime) Start(config BpfTSTLSShadowConfig) error {
 			return cleanup(fmt.Errorf("open bpf-ts TLS shadow ringbuf %q: %w", item.Name, err))
 		}
 		readers[item.Name] = reader
-		counters[item.Name] = &bpfTSTLSShadowCounters{}
+		counter := &bpfTSTLSShadowCounters{}
+		counter.readerActive.Store(true)
+		counters[item.Name] = counter
 	}
 
 	shadow.mu.Lock()
@@ -227,6 +232,7 @@ func (shadow *BpfTSTLSShadowRuntime) readRing(name string, reader bpfTSTLSShadow
 				return
 			}
 			counters.readErrors.Add(1)
+			counters.readerActive.Store(false)
 			shadow.mu.Lock()
 			if shadow.active && shadow.readers[name] == reader {
 				shadow.lastError = fmt.Sprintf("bpf-ts TLS shadow ringbuf %s read: %v", name, err)
@@ -253,6 +259,9 @@ func (shadow *BpfTSTLSShadowRuntime) Stop() error {
 	shadow.active = false
 	shadow.runtime = nil
 	shadow.readers = nil
+	for _, counter := range shadow.counters {
+		counter.readerActive.Store(false)
+	}
 	shadow.mu.Unlock()
 
 	var errs []error
@@ -293,6 +302,7 @@ func (shadow *BpfTSTLSShadowRuntime) Status() BpfTSTLSShadowStatus {
 
 	status := BpfTSTLSShadowStatus{
 		Active:     active,
+		Healthy:    active && len(counters) > 0,
 		Source:     manifest.Source,
 		ProbeCount: len(manifest.Probes),
 		MapCount:   len(manifest.Maps),
@@ -304,8 +314,13 @@ func (shadow *BpfTSTLSShadowRuntime) Status() BpfTSTLSShadowStatus {
 	if len(counters) > 0 {
 		status.Ringbufs = make(map[string]BpfTSTLSShadowRingStats, len(counters))
 		for name, counter := range counters {
+			readerActive := counter.readerActive.Load()
+			if !readerActive {
+				status.Healthy = false
+			}
 			status.RingbufCount++
 			status.Ringbufs[name] = BpfTSTLSShadowRingStats{
+				ReaderActive: readerActive,
 				Records:      counter.records.Load(),
 				Bytes:        counter.bytes.Load(),
 				ReadErrors:   counter.readErrors.Load(),

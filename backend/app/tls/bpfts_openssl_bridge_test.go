@@ -2,6 +2,7 @@ package tls
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -42,6 +43,10 @@ func TestBpfTSOpenSSLBridgeDecodesAndForwardsCompletedFragment(t *testing.T) {
 	if err := bridge.Start(config); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
+	initial := bridge.Status()
+	if !initial.Active || !initial.Healthy || !initial.ReaderActive {
+		t.Fatalf("bridge did not start healthy: %+v", initial)
+	}
 	if err := bridge.Start(config); !errors.Is(err, ErrBpfTSOpenSSLBridgeAlreadyActive) {
 		t.Fatalf("second Start() error = %v", err)
 	}
@@ -64,7 +69,7 @@ func TestBpfTSOpenSSLBridgeDecodesAndForwardsCompletedFragment(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 	status := bridge.Status()
-	if status.Records != 1 || status.DecodeErrors != 0 || status.RawEvents != 1 {
+	if status.Records != 1 || status.DecodeErrors != 0 || status.RawEvents != 1 || !status.Healthy || !status.ReaderActive {
 		t.Fatalf("unexpected bridge status: %+v", status)
 	}
 	if err := bridge.Stop(); err != nil {
@@ -73,8 +78,9 @@ func TestBpfTSOpenSSLBridgeDecodesAndForwardsCompletedFragment(t *testing.T) {
 	if !loaded.closed.Load() {
 		t.Fatal("bridge stop did not close loaded runtime")
 	}
-	if bridge.Status().Active {
-		t.Fatal("bridge remained active after stop")
+	status = bridge.Status()
+	if status.Active || status.Healthy || status.ReaderActive {
+		t.Fatalf("bridge remained active/healthy after stop: %+v", status)
 	}
 }
 
@@ -108,9 +114,54 @@ func TestBpfTSOpenSSLBridgeCountsDecodeErrorsWithoutCallingSink(t *testing.T) {
 		}
 		time.Sleep(time.Millisecond)
 	}
+	status := bridge.Status()
+	if !status.Healthy || !status.ReaderActive {
+		t.Fatalf("payload decode failure incorrectly marked reader unhealthy: %+v", status)
+	}
 	select {
 	case <-called:
 		t.Fatal("decode error reached completed-fragment sink")
 	default:
+	}
+}
+
+func TestBpfTSOpenSSLBridgeReportsReaderFailureAsUnhealthy(t *testing.T) {
+	loaded := &fakeBpfTSShadowLoadedRuntime{maps: map[string]*ebpf.Map{bpfTSOpenSSLRingName: {}}}
+	reader := newFakeBpfTSShadowReader()
+	bridge := newBpfTSOpenSSLBridgeRuntime(
+		func(_ string, _ bpfts.Manifest, _ bpfts.LoadOptions) (bpfTSTLSShadowLoadedRuntime, error) {
+			return loaded, nil
+		},
+		func(_ *ebpf.Map) (bpfTSTLSShadowRingReader, error) { return reader, nil },
+		func(CompletedTLSFragment) tlsCompletedProcessResult { return tlsCompletedProcessResult{} },
+	)
+	manifestPath := writeBpfTSShadowManifest(t, testBpfTSOpenSSLManifest())
+	if err := bridge.Start(BpfTSOpenSSLBridgeConfig{
+		ObjectPath: "fake.o", ManifestPath: manifestPath, TargetPath: "/bin/false",
+	}); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	defer bridge.Stop()
+
+	reader.errors <- errors.New("synthetic bridge read failure")
+	deadline := time.Now().Add(time.Second)
+	for {
+		status := bridge.Status()
+		if status.ReadErrors == 1 {
+			if !status.Active {
+				t.Fatalf("reader failure detached bridge unexpectedly: %+v", status)
+			}
+			if status.Healthy || status.ReaderActive {
+				t.Fatalf("reader failure was not reflected in health: %+v", status)
+			}
+			if !strings.Contains(status.LastError, "synthetic bridge read failure") {
+				t.Fatalf("reader failure did not reach status: %+v", status)
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("reader failure did not update health: %+v", status)
+		}
+		time.Sleep(time.Millisecond)
 	}
 }

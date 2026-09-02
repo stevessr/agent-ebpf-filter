@@ -38,22 +38,22 @@ func validateBpfTSOpenSSLManifest(manifest bpfts.Manifest) error {
 
 	expectedMaps := map[string]bpfts.ManifestMap{
 		"pendingReadBuffers": {
-			Name: "pendingReadBuffers", Kind: "hash", MaxEntries: 16384,
+			Name: "pendingReadBuffers", Kind: "hash", MaxEntries: 16384, KeySize: 4, ValueSize: 8,
 		},
 		"pendingReadConnections": {
-			Name: "pendingReadConnections", Kind: "hash", MaxEntries: 16384,
+			Name: "pendingReadConnections", Kind: "hash", MaxEntries: 16384, KeySize: 4, ValueSize: 8,
 		},
 		bpfTSOpenSSLRingName: {
 			Name: bpfTSOpenSSLRingName, Kind: "ringbuf", MaxEntries: 1 << 20,
 		},
 		bpfTSOpenSSLScratchName: {
-			Name: bpfTSOpenSSLScratchName, Kind: "percpu_array", MaxEntries: 1,
+			Name: bpfTSOpenSSLScratchName, Kind: "percpu_array", MaxEntries: 1, KeySize: 4, ValueSize: bpfTSOpenSSLEventSize,
 		},
 		bpfTSOpenSSLDropName: {
-			Name: bpfTSOpenSSLDropName, Kind: "percpu_array", MaxEntries: 1,
+			Name: bpfTSOpenSSLDropName, Kind: "percpu_array", MaxEntries: 1, KeySize: 4, ValueSize: 8,
 		},
 		bpfTSOpenSSLReadErrorName: {
-			Name: bpfTSOpenSSLReadErrorName, Kind: "percpu_array", MaxEntries: 1,
+			Name: bpfTSOpenSSLReadErrorName, Kind: "percpu_array", MaxEntries: 1, KeySize: 4, ValueSize: 8,
 		},
 	}
 	if len(manifest.Maps) != len(expectedMaps) {

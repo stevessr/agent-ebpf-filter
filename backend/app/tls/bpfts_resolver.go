@@ -3,7 +3,6 @@ package tls
 import (
 	"debug/elf"
 	"fmt"
-	"os"
 	"sync"
 
 	"agent-ebpf-filter/app/bpfts"
@@ -66,12 +65,7 @@ func isKnownStrippedSSLTarget(target string) bool {
 
 func (resolver *bpfTSTLSResolver) inspectOffsets() {
 	resolver.offsets = make(map[string]uint64)
-	data, err := os.ReadFile(resolver.path)
-	if err != nil {
-		resolver.offsetErr = fmt.Errorf("read TLS bpf-ts target %q: %w", resolver.path, err)
-		return
-	}
-	discovery, err := discoverKnownStrippedSSL(resolver.machine, data)
+	discovery, err := discoverKnownStrippedSSLFile(resolver.path)
 	if err != nil {
 		resolver.offsetErr = err
 		return
@@ -81,8 +75,9 @@ func (resolver *bpfTSTLSResolver) inspectOffsets() {
 }
 
 // discoverKnownStrippedSSLOffsets is retained as a narrow test/helper surface;
-// production and bpf-ts resolver behavior both flow through the same discovery
-// primitive above.
+// production and bpf-ts resolver behavior both flow through the same fail-closed
+// signature policy. The byte-slice helper is intentionally kept for unit tests;
+// production file scanning uses bounded streaming windows.
 func discoverKnownStrippedSSLOffsets(data []byte) (map[string]uint64, error) {
 	discovery, err := discoverKnownStrippedSSL(elf.EM_X86_64, data)
 	if err != nil {
@@ -109,9 +104,10 @@ func (resolver *bpfTSTLSResolver) resolve(probe bpfts.ManifestProbe) (bpfts.Upro
 		return bpfts.UprobeTarget{Path: resolver.path, Symbol: probe.Target, PID: resolver.pid}, nil
 	}
 
-	// Avoid reading/scanning a potentially large executable for arbitrary symbol
-	// misses. The stripped fallback currently has signatures only for these two
-	// OpenSSL/BoringSSL functions.
+	// Avoid scanning a potentially large executable for arbitrary symbol misses.
+	// The stripped fallback currently has signatures only for these two
+	// OpenSSL/BoringSSL functions. Its file scanner is bounded-memory and only
+	// examines executable PT_LOAD segments for machine-code signatures.
 	if !isKnownStrippedSSLTarget(probe.Target) {
 		return bpfts.UprobeTarget{}, fmt.Errorf(
 			"TLS bpf-ts target %q has no ELF symbol for %q and no safe stripped resolver is registered for it",

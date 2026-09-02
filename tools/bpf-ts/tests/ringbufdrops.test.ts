@@ -26,11 +26,15 @@ describe("compact ringbuf loss accounting", () => {
       name: "__bpf_ts_drops_events",
       kind: "percpu_array",
       maxEntries: 1,
+      keySize: 4,
+      valueSize: 8,
     });
     expect(result.manifest.maps).toContainEqual({
       name: "__bpf_ts_read_errors_events",
       kind: "percpu_array",
       maxEntries: 1,
+      keySize: 4,
+      valueSize: 8,
     });
     expect(result.cSource).toContain("BPF_MAP_TYPE_PERCPU_ARRAY");
     expect(result.cSource).toContain("static __always_inline void __bpf_ts_note_drop_events(void)");

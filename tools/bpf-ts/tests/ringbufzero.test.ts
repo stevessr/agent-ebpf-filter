@@ -40,6 +40,8 @@ describe("large ringbuf lowering", () => {
       name: "__bpf_ts_scratch_events",
       kind: "percpu_array",
       maxEntries: 1,
+      keySize: 4,
+      valueSize: 4112,
     });
   });
 

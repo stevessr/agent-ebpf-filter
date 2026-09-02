@@ -32,6 +32,8 @@ type ManifestMap struct {
 	Name       string `json:"name"`
 	Kind       string `json:"kind"`
 	MaxEntries uint32 `json:"maxEntries"`
+	KeySize    uint32 `json:"keySize,omitempty"`
+	ValueSize  uint32 `json:"valueSize,omitempty"`
 }
 
 func ParseManifest(r io.Reader) (Manifest, error) {
@@ -121,15 +123,24 @@ func (manifest Manifest) Validate() error {
 		if _, conflicts := probeNames[item.Name]; conflicts {
 			return fmt.Errorf("bpf-ts map %q conflicts with a probe name", item.Name)
 		}
+		if (item.KeySize == 0) != (item.ValueSize == 0) {
+			return fmt.Errorf("map %q must specify keySize and valueSize together", item.Name)
+		}
 		switch item.Kind {
 		case "ringbuf":
 			if item.MaxEntries < 4096 || item.MaxEntries&(item.MaxEntries-1) != 0 {
 				return fmt.Errorf("ringbuf %q capacity must be a power of two and at least 4096", item.Name)
 			}
+			if item.KeySize != 0 || item.ValueSize != 0 {
+				return fmt.Errorf("ringbuf %q must not declare keySize/valueSize", item.Name)
+			}
 		case "hash", "array", "percpu_array":
 			if item.MaxEntries == 0 {
 				return fmt.Errorf("map %q maxEntries must be positive", item.Name)
 			}
+			// keySize/valueSize are optional only for legacy version-1 manifests.
+			// New compiler output always emits both so the ELF contract can lock
+			// the complete map ABI without revving the manifest version.
 		default:
 			return fmt.Errorf("map %q has unsupported kind %q", item.Name, item.Kind)
 		}

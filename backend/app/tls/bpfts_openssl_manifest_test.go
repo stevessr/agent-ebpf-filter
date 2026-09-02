@@ -16,12 +16,12 @@ func testBpfTSOpenSSLManifest() bpfts.Manifest {
 			{Name: "readComplete", Section: "uretprobe", Kind: "uretprobe", Target: "SSL_read"},
 		},
 		Maps: []bpfts.ManifestMap{
-			{Name: "pendingReadBuffers", Kind: "hash", MaxEntries: 16384},
-			{Name: "pendingReadConnections", Kind: "hash", MaxEntries: 16384},
+			{Name: "pendingReadBuffers", Kind: "hash", MaxEntries: 16384, KeySize: 4, ValueSize: 8},
+			{Name: "pendingReadConnections", Kind: "hash", MaxEntries: 16384, KeySize: 4, ValueSize: 8},
 			{Name: bpfTSOpenSSLRingName, Kind: "ringbuf", MaxEntries: 1 << 20},
-			{Name: bpfTSOpenSSLScratchName, Kind: "percpu_array", MaxEntries: 1},
-			{Name: bpfTSOpenSSLDropName, Kind: "percpu_array", MaxEntries: 1},
-			{Name: bpfTSOpenSSLReadErrorName, Kind: "percpu_array", MaxEntries: 1},
+			{Name: bpfTSOpenSSLScratchName, Kind: "percpu_array", MaxEntries: 1, KeySize: 4, ValueSize: bpfTSOpenSSLEventSize},
+			{Name: bpfTSOpenSSLDropName, Kind: "percpu_array", MaxEntries: 1, KeySize: 4, ValueSize: 8},
+			{Name: bpfTSOpenSSLReadErrorName, Kind: "percpu_array", MaxEntries: 1, KeySize: 4, ValueSize: 8},
 		},
 	}
 }
@@ -63,6 +63,18 @@ func TestBpfTSOpenSSLManifestRejectsScratchSchemaDrift(t *testing.T) {
 	}
 	if err := validateBpfTSOpenSSLManifest(manifest); err == nil {
 		t.Fatal("canonical ABI accepted scratch map type drift")
+	}
+}
+
+func TestBpfTSOpenSSLManifestRejectsScratchValueSizeDrift(t *testing.T) {
+	manifest := testBpfTSOpenSSLManifest()
+	for index := range manifest.Maps {
+		if manifest.Maps[index].Name == bpfTSOpenSSLScratchName {
+			manifest.Maps[index].ValueSize--
+		}
+	}
+	if err := validateBpfTSOpenSSLManifest(manifest); err == nil {
+		t.Fatal("canonical ABI accepted scratch value-size drift")
 	}
 }
 
