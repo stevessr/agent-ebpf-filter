@@ -2,8 +2,6 @@ package tls
 
 import (
 	"bytes"
-	"strconv"
-	"strings"
 	"time"
 )
 
@@ -83,7 +81,7 @@ func (a *TLSHTTPStreamAssembler) seedTLSHTTPPrefixLocked(fragment CompletedTLSFr
 	return true
 }
 
-func splitTLSHTTPHeaderLines(payload []byte) ([]string, bool, string) {
+func boundedTLSHTTPHeaderBlock(payload []byte) ([]byte, bool, string) {
 	headerEnd, _ := tlsHTTPHeaderEnd(payload)
 	if headerEnd < 0 {
 		if len(payload) > tlsHTTPMaxHeaderBytes {
@@ -98,83 +96,132 @@ func splitTLSHTTPHeaderLines(payload []byte) ([]string, bool, string) {
 	if firstLineEnd < 0 || firstLineEnd > headerEnd {
 		return nil, true, "invalid HTTP/1 start line"
 	}
-	raw := strings.ReplaceAll(string(payload[firstLineEnd:headerEnd]), "\r\n", "\n")
-	return strings.Split(raw, "\n"), true, ""
+	return payload[firstLineEnd:headerEnd], true, ""
+}
+
+func parseBoundedTLSHTTPContentLength(token []byte) (value int64, valid, exceedsLimit bool) {
+	token = bytes.TrimSpace(token)
+	if len(token) == 0 {
+		return 0, false, false
+	}
+	limit := int64(tlsHTTPStreamMaxBuffer)
+	for _, rawDigit := range token {
+		if rawDigit < '0' || rawDigit > '9' {
+			return 0, false, false
+		}
+		if exceedsLimit {
+			continue
+		}
+		digit := int64(rawDigit - '0')
+		if value > (limit-digit)/10 {
+			exceedsLimit = true
+			continue
+		}
+		value = value*10 + digit
+	}
+	return value, true, exceedsLimit
 }
 
 // validateTLSHTTPHeaderFraming rejects request-smuggling-style ambiguity before
 // the permissive display parser sees it. We deliberately fail closed because
 // Agent Sight should never guess which bytes belong to a sensitive request.
 func validateTLSHTTPHeaderFraming(payload []byte) (headerComplete bool, reason string) {
-	lines, complete, reason := splitTLSHTTPHeaderLines(payload)
+	headerBlock, complete, reason := boundedTLSHTTPHeaderBlock(payload)
 	if reason != "" || !complete {
 		return complete, reason
 	}
 
-	var contentLengths []int64
-	var transferCodings []string
-	for _, rawLine := range lines {
-		line := strings.TrimRight(rawLine, "\r")
-		if line == "" {
+	var contentLength int64
+	contentLengthSeen := false
+	transferCodingCount := 0
+	transferCodingIsChunked := true
+	for len(headerBlock) > 0 {
+		lineEnd := bytes.IndexByte(headerBlock, '\n')
+		line := headerBlock
+		if lineEnd >= 0 {
+			line = headerBlock[:lineEnd]
+			headerBlock = headerBlock[lineEnd+1:]
+		} else {
+			headerBlock = nil
+		}
+		line = bytes.TrimSuffix(line, []byte{'\r'})
+		if len(line) == 0 {
 			continue
 		}
 		if line[0] == ' ' || line[0] == '\t' {
 			return true, "obsolete folded HTTP/1 header is not accepted"
 		}
-		separator := strings.IndexByte(line, ':')
+		separator := bytes.IndexByte(line, ':')
 		if separator <= 0 {
 			return true, "malformed HTTP/1 header line"
 		}
 		rawName := line[:separator]
-		if rawName != strings.TrimSpace(rawName) {
+		if !bytes.Equal(rawName, bytes.TrimSpace(rawName)) {
 			return true, "whitespace around HTTP/1 header name is not accepted"
 		}
-		name := strings.ToLower(rawName)
-		value := strings.TrimSpace(line[separator+1:])
-		switch name {
-		case "content-length":
-			for _, token := range strings.Split(value, ",") {
-				token = strings.TrimSpace(token)
-				if token == "" || strings.HasPrefix(token, "+") || strings.HasPrefix(token, "-") {
+		value := bytes.TrimSpace(line[separator+1:])
+		switch {
+		case bytes.EqualFold(rawName, []byte("content-length")):
+			for {
+				tokenEnd := bytes.IndexByte(value, ',')
+				token := value
+				if tokenEnd >= 0 {
+					token = value[:tokenEnd]
+					value = value[tokenEnd+1:]
+				} else {
+					value = nil
+				}
+				parsed, valid, exceedsLimit := parseBoundedTLSHTTPContentLength(token)
+				if !valid {
 					return true, "invalid Content-Length value"
 				}
-				parsed, err := strconv.ParseInt(token, 10, 64)
-				if err != nil || parsed < 0 {
-					return true, "invalid Content-Length value"
-				}
-				if parsed > int64(tlsHTTPStreamMaxBuffer) {
+				if exceedsLimit {
 					return true, "Content-Length exceeds HTTP/1 stream buffer limit"
 				}
-				contentLengths = append(contentLengths, parsed)
+				if contentLengthSeen && contentLength != parsed {
+					return true, "conflicting Content-Length values"
+				}
+				contentLength = parsed
+				contentLengthSeen = true
+				if tokenEnd < 0 {
+					break
+				}
 			}
-		case "transfer-encoding":
-			for _, token := range strings.Split(value, ",") {
-				coding := strings.ToLower(strings.TrimSpace(strings.SplitN(token, ";", 2)[0]))
-				if coding == "" {
+		case bytes.EqualFold(rawName, []byte("transfer-encoding")):
+			for {
+				tokenEnd := bytes.IndexByte(value, ',')
+				token := value
+				if tokenEnd >= 0 {
+					token = value[:tokenEnd]
+					value = value[tokenEnd+1:]
+				} else {
+					value = nil
+				}
+				if parameter := bytes.IndexByte(token, ';'); parameter >= 0 {
+					token = token[:parameter]
+				}
+				coding := bytes.TrimSpace(token)
+				if len(coding) == 0 {
 					return true, "invalid Transfer-Encoding value"
 				}
-				transferCodings = append(transferCodings, coding)
+				transferCodingCount++
+				transferCodingIsChunked = transferCodingIsChunked && bytes.EqualFold(coding, []byte("chunked"))
+				if tokenEnd < 0 {
+					break
+				}
 			}
 		}
 	}
 
-	if len(contentLengths) > 1 {
-		first := contentLengths[0]
-		for _, value := range contentLengths[1:] {
-			if value != first {
-				return true, "conflicting Content-Length values"
-			}
-		}
-	}
-	if len(contentLengths) > 0 && len(transferCodings) > 0 {
+	if contentLengthSeen && transferCodingCount > 0 {
 		return true, "Transfer-Encoding with Content-Length is ambiguous"
 	}
-	if len(transferCodings) > 0 {
+	if transferCodingCount > 0 {
 		// Go's bounded display parser only decodes a single chunked transfer
 		// coding. Accepting a syntactically valid chain such as gzip, chunked
 		// would consume the stream without producing an event, hiding the drop
 		// from capture diagnostics. Reject unsupported chains explicitly.
-		if len(transferCodings) != 1 || transferCodings[0] != "chunked" {
+		if transferCodingCount != 1 || !transferCodingIsChunked {
 			return true, "unsupported or ambiguous Transfer-Encoding chain"
 		}
 	}
