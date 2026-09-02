@@ -70,7 +70,7 @@ jobs:
         working-directory: backend/ebpf
         run: go generate
       - name: Install compiler dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
       - name: Typecheck compiler
         run: bun run build
       - name: Compiler unit tests

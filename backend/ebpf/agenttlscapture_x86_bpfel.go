@@ -14,33 +14,35 @@ import (
 )
 
 type AgentTlsCaptureRetprobeCtx struct {
-	_         structs.HostLayout
-	Buf       uint64
-	LenPtr    uint64
-	Len       uint32
-	LibType   uint8
-	Direction uint8
-	Function  uint8
-	_         [1]byte
+	_            structs.HostLayout
+	Buf          uint64
+	LenPtr       uint64
+	ConnectionId uint64
+	Len          uint32
+	LibType      uint8
+	Direction    uint8
+	Function     uint8
+	_            [1]byte
 }
 
 type AgentTlsCaptureTlsFragment struct {
-	_           structs.HostLayout
-	TimestampNs uint64
-	Pid         uint32
-	Tgid        uint32
-	DataLen     uint32
-	TotalLen    uint32
-	OriginalLen uint32
-	FragIndex   uint16
-	FragCount   uint16
-	LibType     uint8
-	Direction   uint8
-	Flags       uint8
-	Function    uint8
-	Comm        [16]int8
-	Data        [960]int8
-	_           [4]byte
+	_            structs.HostLayout
+	TimestampNs  uint64
+	ConnectionId uint64
+	Pid          uint32
+	Tgid         uint32
+	DataLen      uint32
+	TotalLen     uint32
+	OriginalLen  uint32
+	FragIndex    uint16
+	FragCount    uint16
+	LibType      uint8
+	Direction    uint8
+	Flags        uint8
+	Function     uint8
+	Comm         [16]int8
+	Data         [1984]int8
+	_            [4]byte
 }
 
 // LoadAgentTlsCapture returns the embedded CollectionSpec for AgentTlsCapture.
