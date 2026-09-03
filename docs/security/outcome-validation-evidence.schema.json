@@ -2,13 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://agent-ebpf-filter.local/schemas/outcome-validation-evidence.v1.json",
   "title": "Agent eBPF Filter outcome validation evidence",
-  "description": "Reference schema for the nested features.validation object emitted by an authorized external validator. The backend also accepts documented dotted aliases; this schema intentionally describes the preferred canonical form.",
+  "description": "Reference producer/audit schema for the nested features.validation object emitted by an authorized external validator. The backend also accepts documented dotted aliases and independently enforces authorization, scope, correlation and evidence-level policy; schema conformance alone never authorizes active testing.",
   "type": "object",
   "required": ["authorized", "validatorId", "authorizationId", "runId"],
   "properties": {
     "authorized": {
       "const": true,
-      "description": "Explicit opt-in evidence authorization marker."
+      "description": "Explicit opt-in evidence authorization marker. This is an evidence-policy marker, not a cryptographic capability or permission to attack a target."
     },
     "validatorId": {
       "type": "string",
