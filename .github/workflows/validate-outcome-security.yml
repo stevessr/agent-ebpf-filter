@@ -1,0 +1,41 @@
+name: Validate outcome security branch
+
+on:
+  push:
+    branches:
+      - feat/glasswing-outcome-validation
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Check Go formatting
+        shell: bash
+        run: |
+          files="$(gofmt -l backend/app/research/security_eval.go backend/app/research/security_types.go backend/app/research/security_outcome_validation.go backend/app/research/security_outcome_posture.go backend/app/research/security_outcome_validation_test.go)"
+          test -z "$files" || { echo "Unformatted files:"; echo "$files"; exit 1; }
+      - name: Test Research security package
+        working-directory: backend
+        run: go test ./app/research
+
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: oven-sh/setup-bun@v2
+      - name: Install dependencies
+        working-directory: frontend
+        run: bun install --frozen-lockfile
+      - name: Type-check and build frontend
+        working-directory: frontend
+        run: bun run build
