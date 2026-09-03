@@ -17,18 +17,28 @@ const (
 	researchSecurityEvidenceReachable        = "reachable"
 	researchSecurityEvidenceReproduced       = "reproduced"
 	researchSecurityEvidenceImpactConfirmed  = "impact_confirmed"
+
+	researchSecurityOutcomeDefaultCorrelationWindowSeconds = 30
+	researchSecurityOutcomeMaxCorrelationWindowSeconds     = 300
 )
 
 type ResearchSecurityEvaluationRequest struct {
-	Mode              string               `json:"mode,omitempty"`
-	LabelPolicy       string               `json:"labelPolicy,omitempty"`
-	Limit             int                  `json:"limit,omitempty"`
-	IncludeLLM        bool                 `json:"includeLLM,omitempty"`
-	ValidationMode    string               `json:"validationMode,omitempty"`
-	MinimumEvidence   string               `json:"minimumEvidence,omitempty"`
-	AdversarialReview bool                 `json:"adversarialReview,omitempty"`
-	SourceFilter      ResearchSourceFilter `json:"sourceFilter,omitempty"`
-	TimeRange         ResearchTimeRange    `json:"timeRange,omitempty"`
+	Mode                         string               `json:"mode,omitempty"`
+	LabelPolicy                  string               `json:"labelPolicy,omitempty"`
+	Limit                        int                  `json:"limit,omitempty"`
+	IncludeLLM                   bool                 `json:"includeLLM,omitempty"`
+	ValidationMode               string               `json:"validationMode,omitempty"`
+	MinimumEvidence              string               `json:"minimumEvidence,omitempty"`
+	AdversarialReview            bool                 `json:"adversarialReview,omitempty"`
+	RequireAuthorization         bool                 `json:"requireAuthorization,omitempty"`
+	RequireIndependentRefutation bool                 `json:"requireIndependentRefutation,omitempty"`
+	DedupeActionable             bool                 `json:"dedupeActionable,omitempty"`
+	CorrelationWindowSeconds     int                  `json:"correlationWindowSeconds,omitempty"`
+	AllowedValidatorSources      []string             `json:"allowedValidatorSources,omitempty"`
+	AllowedAuthorizationIDs      []string             `json:"allowedAuthorizationIds,omitempty"`
+	AllowedTargets               []string             `json:"allowedTargets,omitempty"`
+	SourceFilter                 ResearchSourceFilter `json:"sourceFilter,omitempty"`
+	TimeRange                    ResearchTimeRange    `json:"timeRange,omitempty"`
 }
 
 type ResearchSecurityEvaluationReport struct {
@@ -53,26 +63,44 @@ type ResearchSecurityEvaluationReport struct {
 }
 
 type ResearchSecurityOutcomeValidationSummary struct {
-	Enabled           bool                                  `json:"enabled"`
-	MinimumEvidence   string                                `json:"minimumEvidence"`
-	AdversarialReview bool                                  `json:"adversarialReview"`
-	Candidates        int                                   `json:"candidates"`
-	NotApplicable     int                                   `json:"notApplicable"`
-	Unproven          int                                   `json:"unproven"`
-	Reachable         int                                   `json:"reachable"`
-	Reproduced        int                                   `json:"reproduced"`
-	ImpactConfirmed   int                                   `json:"impactConfirmed"`
-	Rejected          int                                   `json:"rejected"`
-	Actionable        int                                   `json:"actionable"`
-	Findings          []ResearchSecurityEvaluationSampleRow `json:"findings,omitempty"`
+	Enabled                      bool                                  `json:"enabled"`
+	MinimumEvidence              string                                `json:"minimumEvidence"`
+	AdversarialReview            bool                                  `json:"adversarialReview"`
+	RequireAuthorization         bool                                  `json:"requireAuthorization"`
+	RequireIndependentRefutation bool                                  `json:"requireIndependentRefutation"`
+	DedupeActionable             bool                                  `json:"dedupeActionable"`
+	CorrelationWindowSeconds     int                                   `json:"correlationWindowSeconds"`
+	AllowedValidatorSources      []string                              `json:"allowedValidatorSources,omitempty"`
+	AllowedAuthorizationIDs      []string                              `json:"allowedAuthorizationIds,omitempty"`
+	AllowedTargets               []string                              `json:"allowedTargets,omitempty"`
+	Candidates                   int                                   `json:"candidates"`
+	NotApplicable                int                                   `json:"notApplicable"`
+	OutOfScope                   int                                   `json:"outOfScope"`
+	Unproven                     int                                   `json:"unproven"`
+	Reachable                    int                                   `json:"reachable"`
+	Reproduced                   int                                   `json:"reproduced"`
+	ImpactConfirmed              int                                   `json:"impactConfirmed"`
+	Rejected                     int                                   `json:"rejected"`
+	Conflicted                   int                                   `json:"conflicted"`
+	UnauthorizedEvidence         int                                   `json:"unauthorizedEvidence"`
+	NonIndependentRefutations    int                                   `json:"nonIndependentRefutations"`
+	Actionable                   int                                   `json:"actionable"`
+	UniqueActionable             int                                   `json:"uniqueActionable"`
+	DuplicateActionable          int                                   `json:"duplicateActionable"`
+	Findings                     []ResearchSecurityEvaluationSampleRow `json:"findings,omitempty"`
 }
 
 type ResearchSecurityOutcomeEvidence struct {
-	Level   string `json:"level"`
-	Kind    string `json:"kind"`
-	EventID string `json:"eventId,omitempty"`
-	Source  string `json:"source,omitempty"`
-	Detail  string `json:"detail,omitempty"`
+	Level           string `json:"level"`
+	Kind            string `json:"kind"`
+	EventID         string `json:"eventId,omitempty"`
+	Source          string `json:"source,omitempty"`
+	Detail          string `json:"detail,omitempty"`
+	Correlation     string `json:"correlation,omitempty"`
+	ValidatorID     string `json:"validatorId,omitempty"`
+	AuthorizationID string `json:"authorizationId,omitempty"`
+	RunID           string `json:"runId,omitempty"`
+	Authorized      bool   `json:"authorized"`
 }
 
 type ResearchSecurityEvaluationTotals struct {
@@ -172,9 +200,11 @@ type ResearchSecurityEvaluationSampleRow struct {
 	BenchmarkDetail  string                            `json:"benchmarkDetail,omitempty"`
 	ValidationStatus string                            `json:"validationStatus,omitempty"`
 	EvidenceLevel    string                            `json:"evidenceLevel,omitempty"`
+	FindingKey       string                            `json:"findingKey,omitempty"`
 	Reachable        bool                              `json:"reachable,omitempty"`
 	Reproduced       bool                              `json:"reproduced,omitempty"`
 	ImpactConfirmed  bool                              `json:"impactConfirmed,omitempty"`
+	EvidenceConflict bool                              `json:"evidenceConflict,omitempty"`
 	Actionable       bool                              `json:"actionable,omitempty"`
 	ValidatorReason  string                            `json:"validatorReason,omitempty"`
 	Evidence         []ResearchSecurityOutcomeEvidence `json:"evidence,omitempty"`
