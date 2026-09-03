@@ -43,6 +43,14 @@ func (r *Ring[T]) AddBatch(values []T) int {
 	if r == nil || len(values) == 0 {
 		return 0
 	}
+	// Single-value batches are common on event-ingest paths. Preserve Add's
+	// minimal branch profile instead of paying the bulk-copy setup cost.
+	if len(values) == 1 {
+		if r.Add(values[0]) {
+			return 1
+		}
+		return 0
+	}
 	if len(values) >= r.limit {
 		evicted := len(r.items) + len(values) - r.limit
 		if cap(r.items) < r.limit {
