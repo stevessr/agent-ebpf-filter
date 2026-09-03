@@ -1,11 +1,12 @@
 package research
 
-import "agent-ebpf-filter/app/ml"
+import (
+	"strings"
+	"time"
 
-import "agent-ebpf-filter/core"
-
-import "strings"
-import "time"
+	"agent-ebpf-filter/app/ml"
+	"agent-ebpf-filter/core"
+)
 
 func researchSecurityEvaluationRequestFromTask(req researchTaskRequest) ResearchSecurityEvaluationRequest {
 	out := ResearchSecurityEvaluationRequest{
