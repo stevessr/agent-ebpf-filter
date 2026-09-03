@@ -6,7 +6,7 @@ on:
       - feat/glasswing-outcome-validation
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   backend:
@@ -18,6 +18,24 @@ jobs:
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
+      - name: Format Go files
+        shell: bash
+        run: |
+          files=(
+            backend/app/research/security_eval.go
+            backend/app/research/security_types.go
+            backend/app/research/security_outcome_validation.go
+            backend/app/research/security_outcome_posture.go
+            backend/app/research/security_outcome_validation_test.go
+          )
+          gofmt -w "${files[@]}"
+          if ! git diff --quiet -- "${files[@]}"; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -- "${files[@]}"
+            git commit -m "style(research): gofmt outcome validation"
+            git push
+          fi
       - name: Check Go formatting
         shell: bash
         run: |
