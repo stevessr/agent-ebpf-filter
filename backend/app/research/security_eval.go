@@ -4,6 +4,7 @@ import "agent-ebpf-filter/app/ml"
 
 import "agent-ebpf-filter/core"
 
+import "strings"
 import "time"
 
 func researchSecurityEvaluationRequestFromTask(req researchTaskRequest) ResearchSecurityEvaluationRequest {
@@ -15,6 +16,18 @@ func researchSecurityEvaluationRequestFromTask(req researchTaskRequest) Research
 		SourceFilter: req.SourceFilter,
 		TimeRange:    req.TimeRange,
 	}
+
+	// UI/API convenience aliases: keep the existing corpus selector while making
+	// the Glasswing-inspired result-oriented path an explicit opt-in choice.
+	switch strings.ToLower(strings.TrimSpace(out.Mode)) {
+	case "session_outcome", "session-outcome", "session_glasswing", "session-glasswing":
+		out.Mode = researchSecurityEvaluationModeSession
+		out.ValidationMode = researchSecurityValidationModeOutcome
+	case "combined_outcome", "combined-outcome", "combined_glasswing", "combined-glasswing", "glasswing":
+		out.Mode = researchSecurityEvaluationModeCombined
+		out.ValidationMode = researchSecurityValidationModeOutcome
+	}
+
 	if len(req.Params) > 0 {
 		out.Mode = firstNonEmptyResearchSecurityParam(req.Params, out.Mode, "mode", "evaluationMode", "corpus", "source")
 		out.LabelPolicy = firstNonEmptyResearchSecurityParam(req.Params, out.LabelPolicy, "labelPolicy", "label_policy")
