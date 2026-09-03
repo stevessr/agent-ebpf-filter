@@ -69,21 +69,8 @@ func applyResearchSecurityOutcomeValidation(report *ResearchSecurityEvaluationRe
 
 		summary.Candidates++
 		matches := correlatedResearchSecurityEvents(*row, events)
-		if len(matches) > 0 {
-			row.Reachable = true
-			row.EvidenceLevel = researchSecurityEvidenceReachable
-			row.ValidationStatus = researchSecurityEvidenceReachable
-			summary.Reachable++
-			first := matches[0]
-			row.Evidence = append(row.Evidence, ResearchSecurityOutcomeEvidence{
-				Level:   researchSecurityEvidenceReachable,
-				Kind:    "runtime_correlation",
-				EventID: first.ID,
-				Source:  first.Source,
-				Detail:  "A captured runtime event reached the same trace/span or command-target scope.",
-			})
-		}
-
+		reachable, reachableEvent := researchSecurityEvidenceMarker(matches,
+			"validation.reachable", "outcome.reachable", "trace.reachable", "proof.reachable")
 		reproduced, reproducedEvent := researchSecurityEvidenceMarker(matches,
 			"validation.reproduced", "validation.proof", "outcome.reproduced", "outcome.success",
 			"poc.success", "proof.success", "exploit.reproduced")
@@ -92,12 +79,24 @@ func applyResearchSecurityOutcomeValidation(report *ResearchSecurityEvaluationRe
 		refuted, refutedEvent := researchSecurityEvidenceMarker(matches,
 			"validation.rejected", "validation.refuted", "outcome.rejected", "proof.rejected")
 
+		if reachable {
+			row.Reachable = true
+			row.EvidenceLevel = researchSecurityEvidenceReachable
+			row.ValidationStatus = researchSecurityEvidenceReachable
+			row.Evidence = append(row.Evidence, ResearchSecurityOutcomeEvidence{
+				Level:   researchSecurityEvidenceReachable,
+				Kind:    "reachability_proof",
+				EventID: reachableEvent.ID,
+				Source:  reachableEvent.Source,
+				Detail:  "An authorized trace/validator explicitly marked the candidate path as reachable.",
+			})
+		}
+
 		if reproduced {
 			row.Reproduced = true
 			row.Reachable = true
 			row.EvidenceLevel = researchSecurityEvidenceReproduced
 			row.ValidationStatus = researchSecurityEvidenceReproduced
-			summary.Reproduced++
 			row.Evidence = append(row.Evidence, ResearchSecurityOutcomeEvidence{
 				Level:   researchSecurityEvidenceReproduced,
 				Kind:    "reproduction_proof",
@@ -113,7 +112,6 @@ func applyResearchSecurityOutcomeValidation(report *ResearchSecurityEvaluationRe
 			row.Reachable = true
 			row.EvidenceLevel = researchSecurityEvidenceImpactConfirmed
 			row.ValidationStatus = researchSecurityEvidenceImpactConfirmed
-			summary.ImpactConfirmed++
 			row.Evidence = append(row.Evidence, ResearchSecurityOutcomeEvidence{
 				Level:   researchSecurityEvidenceImpactConfirmed,
 				Kind:    "impact_proof",
@@ -121,6 +119,16 @@ func applyResearchSecurityOutcomeValidation(report *ResearchSecurityEvaluationRe
 				Source:  impactEvent.Source,
 				Detail:  "An authorized validation producer recorded confirmed security impact.",
 			})
+		}
+
+		if row.Reachable {
+			summary.Reachable++
+		}
+		if row.Reproduced {
+			summary.Reproduced++
+		}
+		if row.ImpactConfirmed {
+			summary.ImpactConfirmed++
 		}
 
 		if req.AdversarialReview && refuted && !row.ImpactConfirmed {
@@ -141,7 +149,7 @@ func applyResearchSecurityOutcomeValidation(report *ResearchSecurityEvaluationRe
 		if row.EvidenceLevel == "" {
 			row.EvidenceLevel = researchSecurityEvidenceHypothesis
 			row.ValidationStatus = "unproven"
-			row.ValidatorReason = "No correlated runtime proof was found; keep as a hypothesis instead of an actionable vulnerability."
+			row.ValidatorReason = "No explicit reachability, reproduction, or impact proof was found; keep this candidate as a hypothesis."
 			summary.Unproven++
 		} else if row.ValidatorReason == "" {
 			row.ValidatorReason = fmt.Sprintf("Outcome evidence reached %s; minimum actionable evidence is %s.", row.EvidenceLevel, minimumEvidence)
