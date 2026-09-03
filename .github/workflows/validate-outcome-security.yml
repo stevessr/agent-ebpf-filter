@@ -6,15 +6,15 @@ on:
       - feat/glasswing-outcome-validation
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   backend:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
@@ -23,21 +23,25 @@ jobs:
         run: |
           files="$(gofmt -l backend/app/research/security_eval.go backend/app/research/security_types.go backend/app/research/security_outcome_validation.go backend/app/research/security_outcome_posture.go backend/app/research/security_outcome_validation_test.go)"
           test -z "$files" || { echo "Unformatted files:"; echo "$files"; exit 1; }
-      - name: Test Research security package and preserve failure output
-        shell: bash
+      - name: Install native build dependencies
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler clang llvm libbpf-dev libelf-dev
+      - name: Generate Go protobuf bindings
         run: |
-          set +e
-          (cd backend && go test ./app/research) 2>&1 | tee outcome-go-test.log
-          status=${PIPESTATUS[0]}
-          set -e
-          if [ "$status" -ne 0 ]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add outcome-go-test.log
-            git commit -m "ci: capture outcome validation Go test failure" || true
-            git push || true
-          fi
-          exit "$status"
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          mkdir -p backend/pb
+          protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto \
+            proto/tracker_common.proto \
+            proto/tracker_events.proto \
+            proto/tracker_registration.proto \
+            proto/tracker_system.proto \
+            proto/tracker_config.proto \
+            proto/tracker_shell.proto
+      - name: Generate eBPF objects and bindings
+        working-directory: backend/ebpf
+        run: go generate
+      - name: Test Research security package
+        working-directory: backend
+        run: go test ./app/research -count=1
 
   frontend:
     runs-on: ubuntu-24.04
