@@ -50,7 +50,7 @@ func TestOutcomeValidationPromotesReproducedFinding(t *testing.T) {
 	}
 }
 
-func TestOutcomeValidationRequiresConfiguredEvidence(t *testing.T) {
+func TestOutcomeValidationDoesNotInferReachabilityFromCandidateEvent(t *testing.T) {
 	report := ResearchSecurityEvaluationReport{
 		Samples: []ResearchSecurityEvaluationSampleRow{
 			{ID: "finding-1", EventID: "event-1", Source: "session", TraceID: "trace-1"},
@@ -60,14 +60,47 @@ func TestOutcomeValidationRequiresConfiguredEvidence(t *testing.T) {
 
 	applyResearchSecurityOutcomeValidation(&report, events, ResearchSecurityEvaluationRequest{
 		ValidationMode:  "outcome",
-		MinimumEvidence: "reproduced",
+		MinimumEvidence: "reachable",
 	})
 
 	row := report.Samples[0]
-	if !row.Reachable || row.Reproduced || row.Actionable {
-		t.Fatalf("reachable-only evidence must not satisfy reproduced threshold: %+v", row)
+	if row.Reachable || row.Reproduced || row.Actionable {
+		t.Fatalf("candidate correlation alone must stay unproven: %+v", row)
 	}
-	if report.OutcomeValidation == nil || report.OutcomeValidation.Reachable != 1 || report.OutcomeValidation.Actionable != 0 {
+	if row.ValidationStatus != "unproven" || row.EvidenceLevel != researchSecurityEvidenceHypothesis {
+		t.Fatalf("expected hypothesis/unproven state, got %+v", row)
+	}
+	if report.OutcomeValidation == nil || report.OutcomeValidation.Unproven != 1 || report.OutcomeValidation.Reachable != 0 {
+		t.Fatalf("unexpected summary: %+v", report.OutcomeValidation)
+	}
+}
+
+func TestOutcomeValidationExplicitReachabilityHonorsThreshold(t *testing.T) {
+	report := ResearchSecurityEvaluationReport{
+		Samples: []ResearchSecurityEvaluationSampleRow{
+			{ID: "finding-1", EventID: "event-1", Source: "session"},
+		},
+	}
+	events := []ResearchEvent{
+		{
+			ID:     "event-1",
+			Source: "trace-validator",
+			Features: map[string]any{
+				"validation.reachable": true,
+			},
+		},
+	}
+
+	applyResearchSecurityOutcomeValidation(&report, events, ResearchSecurityEvaluationRequest{
+		ValidationMode:  "outcome",
+		MinimumEvidence: "reachable",
+	})
+
+	row := report.Samples[0]
+	if !row.Reachable || row.Reproduced || !row.Actionable {
+		t.Fatalf("explicit reachability should satisfy reachable threshold: %+v", row)
+	}
+	if report.OutcomeValidation == nil || report.OutcomeValidation.Reachable != 1 || report.OutcomeValidation.Actionable != 1 {
 		t.Fatalf("unexpected summary: %+v", report.OutcomeValidation)
 	}
 }
