@@ -200,8 +200,8 @@ func TestOutcomeValidationTargetScope(t *testing.T) {
 	}
 
 	applyResearchSecurityOutcomeValidation(&report, nil, ResearchSecurityEvaluationRequest{
-		ValidationMode:  "outcome",
-		AllowedTargets:  []string{"https://internal.invalid/*"},
+		ValidationMode:   "outcome",
+		AllowedTargets:   []string{"https://internal.invalid/*"},
 		DedupeActionable: true,
 	})
 
