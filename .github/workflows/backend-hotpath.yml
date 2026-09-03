@@ -7,7 +7,7 @@ on:
       - master
     paths:
       - "backend/app/jobs_background.go"
-      - "backend/app/kernel_event_reader_lifecycle_test.go"
+      - "backend/app/kernel_event*.go"
       - "backend/app/events/**"
       - "backend/internal/boundedring/**"
       - "backend/core/**"
@@ -60,3 +60,7 @@ jobs:
       - name: Run bounded ring allocation benchmarks
         working-directory: backend
         run: go test ./internal/boundedring -run '^$' -bench 'BenchmarkRingSteadyStateAddBatch' -benchmem -benchtime=200ms -count=1
+
+      - name: Run kernel comm filter allocation benchmarks
+        working-directory: backend
+        run: go test ./app -run '^$' -bench 'BenchmarkKernelCommFilter' -benchmem -benchtime=200ms -count=1
