@@ -18,15 +18,31 @@ func researchSecurityEvaluationRequestFromTask(req researchTaskRequest) Research
 	if len(req.Params) > 0 {
 		out.Mode = firstNonEmptyResearchSecurityParam(req.Params, out.Mode, "mode", "evaluationMode", "corpus", "source")
 		out.LabelPolicy = firstNonEmptyResearchSecurityParam(req.Params, out.LabelPolicy, "labelPolicy", "label_policy")
+		out.ValidationMode = firstNonEmptyResearchSecurityParam(req.Params, out.ValidationMode, "validationMode", "validation_mode", "validation", "proofMode")
+		out.MinimumEvidence = firstNonEmptyResearchSecurityParam(req.Params, out.MinimumEvidence, "minimumEvidence", "minimum_evidence", "evidence")
 		if limit, ok := researchSecurityParamInt(req.Params, "limit", "maxSamples", "max_samples"); ok {
 			out.Limit = limit
 		}
 		if includeLLM, ok := researchSecurityParamBool(req.Params, "includeLLM", "include_llm", "llm"); ok {
 			out.IncludeLLM = includeLLM
 		}
+		if adversarialReview, ok := researchSecurityParamBool(req.Params, "adversarialReview", "adversarial_review", "independentReview"); ok {
+			out.AdversarialReview = adversarialReview
+		}
 	}
 	out.Mode = normalizeResearchSecurityEvaluationMode(out.Mode)
 	out.LabelPolicy = normalizeResearchSecurityEvaluationLabelPolicy(out.LabelPolicy)
+	out.ValidationMode = normalizeResearchSecurityValidationMode(out.ValidationMode)
+	out.MinimumEvidence = normalizeResearchSecurityMinimumEvidence(out.MinimumEvidence)
+	if out.ValidationMode == researchSecurityValidationModeOutcome {
+		if _, ok := req.Params["adversarialReview"]; !ok {
+			if _, ok := req.Params["adversarial_review"]; !ok {
+				if _, ok := req.Params["independentReview"]; !ok {
+					out.AdversarialReview = true
+				}
+			}
+		}
+	}
 	out.SourceFilter = normalizeResearchSourceFilter(out.SourceFilter)
 	out.TimeRange = normalizeResearchTimeRange(out.TimeRange)
 	return out
@@ -35,6 +51,8 @@ func researchSecurityEvaluationRequestFromTask(req researchTaskRequest) Research
 func buildResearchSecurityEvaluationReport(sessionID string, events []ResearchEvent, req ResearchSecurityEvaluationRequest, entry *researchTaskEntry) (ResearchSecurityEvaluationReport, error) {
 	req.Mode = normalizeResearchSecurityEvaluationMode(req.Mode)
 	req.LabelPolicy = normalizeResearchSecurityEvaluationLabelPolicy(req.LabelPolicy)
+	req.ValidationMode = normalizeResearchSecurityValidationMode(req.ValidationMode)
+	req.MinimumEvidence = normalizeResearchSecurityMinimumEvidence(req.MinimumEvidence)
 	req.SourceFilter = normalizeResearchSourceFilter(req.SourceFilter)
 	req.TimeRange = normalizeResearchTimeRange(req.TimeRange)
 	req.Limit = normalizeResearchSecurityEvaluationLimit(req.Limit)
@@ -69,6 +87,7 @@ func buildResearchSecurityEvaluationReport(sessionID string, events []ResearchEv
 		Mode:            req.Mode,
 		LabelPolicy:     req.LabelPolicy,
 		IncludeLLM:      req.IncludeLLM,
+		ValidationMode:  req.ValidationMode,
 		ConfusionMatrix: make(map[string]map[string]int),
 		Samples:         make([]ResearchSecurityEvaluationSampleRow, 0, len(candidates)),
 	}
@@ -85,7 +104,7 @@ func buildResearchSecurityEvaluationReport(sessionID string, events []ResearchEv
 			if index%16 == 0 && entry.isCanceled() {
 				return ResearchSecurityEvaluationReport{}, errResearchTaskCanceled
 			}
-			entry.setProgress(0.05 + 0.85*(float64(index+1)/float64(maxInt(1, len(candidates)))))
+			entry.setProgress(0.05 + 0.82*(float64(index+1)/float64(maxInt(1, len(candidates)))))
 		}
 		row := evaluateResearchSecurityCandidate(candidate, req.IncludeLLM)
 		report.Samples = append(report.Samples, row)
@@ -132,6 +151,12 @@ func buildResearchSecurityEvaluationReport(sessionID string, events []ResearchEv
 	report.ByCommand = finishResearchSecurityGroups(byCommand)
 	report.BySource = finishResearchSecurityGroups(bySource)
 	report.RiskBuckets = ml.TopResearchCounts(riskBuckets, 0)
+	if req.ValidationMode == researchSecurityValidationModeOutcome {
+		if entry != nil {
+			entry.setProgress(0.90)
+		}
+		applyResearchSecurityOutcomeValidation(&report, events, req)
+	}
 	report.Posture = buildResearchSecurityEvaluationPosture(report)
 	return report, nil
 }
