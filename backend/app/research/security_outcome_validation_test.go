@@ -6,12 +6,12 @@ func TestOutcomeValidationPromotesReproducedFinding(t *testing.T) {
 	report := ResearchSecurityEvaluationReport{
 		Samples: []ResearchSecurityEvaluationSampleRow{
 			{
-				ID:       "finding-1",
-				EventID:  "event-1",
-				Source:   "session",
-				TraceID:  "trace-1",
-				Comm:     "curl",
-				Target:   "https://example.invalid/api",
+				ID:        "finding-1",
+				EventID:   "event-1",
+				Source:    "session",
+				TraceID:   "trace-1",
+				Comm:      "curl",
+				Target:    "https://example.invalid/api",
 				RiskScore: 91,
 			},
 		},
@@ -116,5 +116,24 @@ func TestOutcomeValidationBuiltinIsNotApplicable(t *testing.T) {
 	}
 	if report.Samples[0].ValidationStatus != "not_applicable" {
 		t.Fatalf("unexpected status: %+v", report.Samples[0])
+	}
+}
+
+func TestOutcomeCorpusAliasEnablesSafeDefaults(t *testing.T) {
+	req := researchSecurityEvaluationRequestFromTask(researchTaskRequest{
+		EvaluationMode: "session_outcome",
+	})
+
+	if req.Mode != researchSecurityEvaluationModeSession {
+		t.Fatalf("expected session corpus, got %q", req.Mode)
+	}
+	if req.ValidationMode != researchSecurityValidationModeOutcome {
+		t.Fatalf("expected outcome validation, got %q", req.ValidationMode)
+	}
+	if req.MinimumEvidence != researchSecurityEvidenceReproduced {
+		t.Fatalf("expected reproduced threshold, got %q", req.MinimumEvidence)
+	}
+	if !req.AdversarialReview {
+		t.Fatal("expected adversarial review to default on for outcome mode")
 	}
 }
