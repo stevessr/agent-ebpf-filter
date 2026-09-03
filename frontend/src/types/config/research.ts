@@ -172,6 +172,18 @@ export interface ResearchSecurityEvaluationGroup {
   falseNegatives: number;
   avgRiskScore: number;
 }
+export interface ResearchSecurityOutcomeEvidence {
+  level: "hypothesis" | "reachable" | "reproduced" | "impact_confirmed" | string;
+  kind: string;
+  eventId?: string;
+  source?: string;
+  detail?: string;
+  correlation?: string;
+  validatorId?: string;
+  authorizationId?: string;
+  runId?: string;
+  authorized: boolean;
+}
 export interface ResearchSecurityEvaluationSampleRow {
   id: string;
   eventId?: string;
@@ -201,6 +213,16 @@ export interface ResearchSecurityEvaluationSampleRow {
   benchmarkCase?: string;
   benchmarkTool?: string;
   benchmarkDetail?: string;
+  validationStatus?: string;
+  evidenceLevel?: "hypothesis" | "reachable" | "reproduced" | "impact_confirmed" | string;
+  findingKey?: string;
+  reachable?: boolean;
+  reproduced?: boolean;
+  impactConfirmed?: boolean;
+  evidenceConflict?: boolean;
+  actionable?: boolean;
+  validatorReason?: string;
+  evidence?: ResearchSecurityOutcomeEvidence[];
 }
 export interface ResearchSecurityEvaluationFindings {
   falsePositives?: ResearchSecurityEvaluationSampleRow[];
@@ -230,6 +252,33 @@ export interface ResearchSecurityEvaluationPosture {
   remediationPlan?: ResearchSecurityRemediationItem[];
   topFailingCategories?: ResearchSecurityEvaluationGroup[];
 }
+export interface ResearchSecurityOutcomeValidationSummary {
+  enabled: boolean;
+  minimumEvidence: "hypothesis" | "reachable" | "reproduced" | "impact_confirmed" | string;
+  adversarialReview: boolean;
+  requireAuthorization: boolean;
+  requireIndependentRefutation: boolean;
+  dedupeActionable: boolean;
+  correlationWindowSeconds: number;
+  allowedValidatorSources?: string[];
+  allowedAuthorizationIds?: string[];
+  allowedTargets?: string[];
+  candidates: number;
+  notApplicable: number;
+  outOfScope: number;
+  unproven: number;
+  reachable: number;
+  reproduced: number;
+  impactConfirmed: number;
+  rejected: number;
+  conflicted: number;
+  unauthorizedEvidence: number;
+  nonIndependentRefutations: number;
+  actionable: number;
+  uniqueActionable: number;
+  duplicateActionable: number;
+  findings?: ResearchSecurityEvaluationSampleRow[];
+}
 export interface ResearchSecurityEvaluationReport {
   schemaVersion: string;
   sessionId: string;
@@ -237,6 +286,8 @@ export interface ResearchSecurityEvaluationReport {
   mode: string;
   labelPolicy: string;
   includeLLM: boolean;
+  validationMode?: "prediction" | "outcome" | string;
+  outcomeValidation?: ResearchSecurityOutcomeValidationSummary;
   totals: ResearchSecurityEvaluationTotals;
   metrics: ResearchSecurityEvaluationMetrics;
   confusionMatrix: Record<string, Record<string, number>>;
