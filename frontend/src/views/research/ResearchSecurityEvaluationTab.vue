@@ -16,7 +16,12 @@ import {
   securitySampleRowKey,
 } from "./researchViewUtils";
 
-type SecurityEvaluationMode = "combined" | "builtin" | "session";
+type SecurityEvaluationMode =
+  | "combined"
+  | "builtin"
+  | "session"
+  | "session_outcome"
+  | "combined_outcome";
 type SecurityEvaluationExportFormat = "json" | "jsonl" | "csv";
 
 interface Props {
@@ -55,6 +60,31 @@ const emit = defineEmits<{
 const runSecurityEvaluation = () => emit("run");
 const downloadSecurityEvaluation = (format: SecurityEvaluationExportFormat) =>
   emit("download", format);
+
+const outcomeModeSelected = computed(() =>
+  ["session_outcome", "combined_outcome"].includes(securityEvaluationMode.value),
+);
+
+const outcomeValidation = computed(() =>
+  (props.securityEvaluation as
+    | (ResearchSecurityEvaluationReport & {
+        validationMode?: string;
+        outcomeValidation?: {
+          enabled: boolean;
+          minimumEvidence: string;
+          adversarialReview: boolean;
+          candidates: number;
+          notApplicable: number;
+          unproven: number;
+          reachable: number;
+          reproduced: number;
+          impactConfirmed: number;
+          rejected: number;
+          actionable: number;
+        };
+      })
+    | null)?.outcomeValidation,
+);
 
 const securityMetricCards = computed(() => {
   const metrics = props.securityEvaluation?.metrics;
@@ -178,11 +208,15 @@ const securityFindingGroups = computed(() => {
 
 <template>
                 <a-alert
-                  type="info"
+                  :type="outcomeModeSelected ? 'warning' : 'info'"
                   show-icon
                   style="margin-bottom: 12px"
-                  message="安全评测套件默认只读：不会写入训练集，不会生成或应用策略，也不会触发 kernel policy mutation。"
-                  description="评测样本默认来自内置 Agent 安全基准 + 当前 Research Session 事件；输出 FP/FN、混淆矩阵、策略空洞和高风险未标注事件。"
+                  :message="outcomeModeSelected
+                    ? '结果验证（Glasswing-inspired）已选择：只有达到 reproduced 证据等级的候选才进入 actionable。'
+                    : '安全评测套件默认只读：不会写入训练集，不会生成或应用策略，也不会触发 kernel policy mutation。'"
+                  :description="outcomeModeSelected
+                    ? '该模式只验证当前会话中已有的授权运行时/PoC 证据，不会自动对任意外部目标执行 exploit。默认开启独立反证，并保留未证明候选。'
+                    : '评测样本默认来自内置 Agent 安全基准 + 当前 Research Session 事件；输出 FP/FN、混淆矩阵、策略空洞和高风险未标注事件。'"
                 />
                 <div class="research-toolbar">
                   <a-space wrap>
@@ -190,7 +224,7 @@ const securityFindingGroups = computed(() => {
                     <a-select
                       v-model:value="securityEvaluationMode"
                       size="small"
-                      style="width: 180px"
+                      style="width: 250px"
                     >
                       <a-select-option value="combined">
                         内置 + 会话
@@ -200,6 +234,12 @@ const securityFindingGroups = computed(() => {
                       </a-select-option>
                       <a-select-option value="session">
                         仅当前会话
+                      </a-select-option>
+                      <a-select-option value="session_outcome">
+                        当前会话 · 结果验证
+                      </a-select-option>
+                      <a-select-option value="combined_outcome">
+                        内置 + 会话 · 结果验证
                       </a-select-option>
                     </a-select>
                     <span>Label</span>
@@ -239,7 +279,8 @@ const securityFindingGroups = computed(() => {
                       :loading="submittingTask"
                       :disabled="!selectedSessionId"
                     >
-                      <SecurityScanOutlined /> 运行安全评测
+                      <SecurityScanOutlined />
+                      {{ outcomeModeSelected ? "运行结果验证" : "运行安全评测" }}
                     </a-button>
                     <a-button
                       size="small"
@@ -283,6 +324,9 @@ const securityFindingGroups = computed(() => {
                     <a-tag color="purple">
                       label: {{ securityEvaluation.labelPolicy }}
                     </a-tag>
+                    <a-tag v-if="outcomeValidation" color="volcano">
+                      validation: outcome / {{ outcomeValidation.minimumEvidence }}
+                    </a-tag>
                     <a-tag color="geekblue">
                       generated: {{ formatTime(securityEvaluation.generatedAt) }}
                     </a-tag>
@@ -303,6 +347,20 @@ const securityFindingGroups = computed(() => {
                       </a-card>
                     </a-col>
                   </a-row>
+
+                  <a-card
+                    v-if="outcomeValidation"
+                    size="small"
+                    class="research-card"
+                    title="Outcome Validation Evidence"
+                  >
+                    <a-alert
+                      show-icon
+                      :type="outcomeValidation.actionable > 0 ? 'warning' : 'info'"
+                      :message="`${outcomeValidation.actionable} actionable / ${outcomeValidation.candidates} candidates`"
+                      :description="`证据门槛 ${outcomeValidation.minimumEvidence}；reachable ${outcomeValidation.reachable}，reproduced ${outcomeValidation.reproduced}，impact ${outcomeValidation.impactConfirmed}，rejected ${outcomeValidation.rejected}，unproven ${outcomeValidation.unproven}。`"
+                    />
+                  </a-card>
 
                   <a-card
                     v-if="securityPosture"
@@ -552,7 +610,7 @@ const securityFindingGroups = computed(() => {
                     <a-table
                       :dataSource="securityEvaluationPreviewSamples"
                       :pagination="{ pageSize: 10 }"
-                      :scroll="{ x: 1380 }"
+                      :scroll="{ x: 1510 }"
                       :rowKey="securitySampleRowKey"
                       size="small"
                     >
@@ -590,6 +648,18 @@ const securityFindingGroups = computed(() => {
                         <template #default="{ record }">
                           <a-tag :color="securityActionColor(record.observedAction)">
                             {{ record.observedAction }}
+                          </a-tag>
+                        </template>
+                      </a-table-column>
+                      <a-table-column
+                        v-if="outcomeValidation"
+                        title="Evidence"
+                        dataIndex="evidenceLevel"
+                        :width="130"
+                      >
+                        <template #default="{ record }">
+                          <a-tag :color="record.actionable ? 'red' : record.reproduced ? 'orange' : 'default'">
+                            {{ record.evidenceLevel || record.validationStatus || 'unproven' }}
                           </a-tag>
                         </template>
                       </a-table-column>
