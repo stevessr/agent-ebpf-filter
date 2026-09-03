@@ -125,6 +125,8 @@ A trailing `*` is intentionally only a **prefix wildcard**, not a general regula
 
 Outcome validation does **not** launch arbitrary exploit commands against external systems. A separate, explicitly authorized validator — for example a disposable VM/container harness or a human-run PoC — feeds its result back into the Research Session as event `features`.
 
+The preferred nested `features.validation` payload is documented as a machine-readable reference in `docs/security/outcome-validation-evidence.schema.json`. That schema is a producer/audit contract; the backend still performs its own authorization, scope, correlation and evidence-level checks when consuming Research events.
+
 ### Required authorization
 
 With the default `requireAuthorization=true`, a proof or refutation event must contain one of:
