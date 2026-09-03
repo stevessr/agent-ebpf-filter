@@ -81,11 +81,13 @@ func isEventTypeDisabled(et uint32) bool {
 	return false
 }
 
-// decodeBPFEventRecord returns a view over the ring-buffer sample when the host
-// layout matches the generated little-endian BPF object. The pointer must not be
-// retained after the caller finishes processing this record because RawSample is
-// backed by the ringbuf reader's mmap window. On non-native endian or unaligned
-// samples it falls back to the old binary.Read copy path.
+// decodeBPFEventRecord returns a view over the reusable ring-buffer sample when
+// the host layout matches the generated little-endian BPF object. The pointer
+// must not be retained after the caller finishes processing the current record,
+// because the next ReadInto call may reuse and overwrite RawSample. This avoids
+// a second decode copy; the ringbuf reader still copies kernel ring data into
+// the reusable RawSample buffer. On non-native endian or unaligned samples it
+// falls back to the binary.Read copy path.
 func decodeBPFEventRecord(raw []byte) (*bpfEvent, bool, error) {
 	if len(raw) < bpfEventSampleSize {
 		return nil, false, fmt.Errorf("short eBPF event sample: got %d bytes, want at least %d", len(raw), bpfEventSampleSize)
@@ -106,7 +108,7 @@ func decodeBPFEventRecord(raw []byte) (*bpfEvent, bool, error) {
 }
 
 type kernelEventReader interface {
-	Read() (ringbuf.Record, error)
+	ReadInto(*ringbuf.Record) error
 	Close() error
 }
 
@@ -129,25 +131,27 @@ func startKernelEventReader(ctx context.Context, rd kernelEventReader, jobs *run
 	}
 	jobs.Go(func() {
 		selfPid := uint32(os.Getpid())
+		var record ringbuf.Record
 		for {
-			record, err := rd.Read()
-			if err != nil {
+			if err := rd.ReadInto(&record); err != nil {
 				return
 			}
 			event, zeroCopy, err := decodeBPFEventRecord(record.RawSample)
-			collectorMetricsStore.RecordRingbufDecode(zeroCopy)
 			if err != nil {
 				log.Printf("[WARN] failed to decode eBPF event: %v (sample len=%d)", err, len(record.RawSample))
 				continue
 			}
+			collectorMetricsStore.RecordRingbufDecode(zeroCopy)
 			if event.PID == selfPid {
+				continue
+			}
+			// Event-type filtering is allocation-free. Do it before sanitizing comm
+			// so disabled event classes never pay for a temporary string.
+			if isEventTypeDisabledFunc(event.Type) {
 				continue
 			}
 			comm := sanitizeUTF8(event.Comm[:])
 			if isCommDisabledFunc(comm) {
-				continue
-			}
-			if isEventTypeDisabledFunc(event.Type) {
 				continue
 			}
 			enqueueBroadcastEvent(broadcast, buildKernelEventFromRaw(event), "kernel_event_reader")
