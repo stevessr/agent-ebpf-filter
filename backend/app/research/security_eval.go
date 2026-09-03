@@ -170,8 +170,10 @@ func buildResearchSecurityEvaluationReport(sessionID string, events []ResearchEv
 			entry.setProgress(0.90)
 		}
 		applyResearchSecurityOutcomeValidation(&report, events, req)
+		report.Posture = buildResearchSecurityOutcomePosture(report)
+	} else {
+		report.Posture = buildResearchSecurityEvaluationPosture(report)
 	}
-	report.Posture = buildResearchSecurityEvaluationPosture(report)
 	return report, nil
 }
 
