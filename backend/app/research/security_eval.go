@@ -10,12 +10,13 @@ import (
 
 func researchSecurityEvaluationRequestFromTask(req researchTaskRequest) ResearchSecurityEvaluationRequest {
 	out := ResearchSecurityEvaluationRequest{
-		Mode:         req.EvaluationMode,
-		LabelPolicy:  req.LabelPolicy,
-		Limit:        req.Limit,
-		IncludeLLM:   req.IncludeLLM,
-		SourceFilter: req.SourceFilter,
-		TimeRange:    req.TimeRange,
+		Mode:                     req.EvaluationMode,
+		LabelPolicy:              req.LabelPolicy,
+		Limit:                    req.Limit,
+		IncludeLLM:               req.IncludeLLM,
+		CorrelationWindowSeconds: researchSecurityOutcomeDefaultCorrelationWindowSeconds,
+		SourceFilter:             req.SourceFilter,
+		TimeRange:                req.TimeRange,
 	}
 
 	// UI/API convenience aliases: keep the existing corpus selector while making
@@ -43,18 +44,42 @@ func researchSecurityEvaluationRequestFromTask(req researchTaskRequest) Research
 		if adversarialReview, ok := researchSecurityParamBool(req.Params, "adversarialReview", "adversarial_review", "independentReview"); ok {
 			out.AdversarialReview = adversarialReview
 		}
+		if requireAuthorization, ok := researchSecurityParamBool(req.Params, "requireAuthorization", "require_authorization", "authorizedEvidenceOnly"); ok {
+			out.RequireAuthorization = requireAuthorization
+		}
+		if independentRefutation, ok := researchSecurityParamBool(req.Params, "requireIndependentRefutation", "require_independent_refutation", "independentRefutation"); ok {
+			out.RequireIndependentRefutation = independentRefutation
+		}
+		if dedupeActionable, ok := researchSecurityParamBool(req.Params, "dedupeActionable", "dedupe_actionable", "dedupe"); ok {
+			out.DedupeActionable = dedupeActionable
+		}
+		if correlationWindow, ok := researchSecurityParamInt(req.Params, "correlationWindowSeconds", "correlation_window_seconds", "correlationWindow"); ok {
+			out.CorrelationWindowSeconds = correlationWindow
+		}
+		out.AllowedValidatorSources = researchSecurityParamStrings(req.Params, "allowedValidatorSources", "allowed_validator_sources", "validatorSources")
+		out.AllowedAuthorizationIDs = researchSecurityParamStrings(req.Params, "allowedAuthorizationIds", "allowed_authorization_ids", "authorizationIds")
+		out.AllowedTargets = researchSecurityParamStrings(req.Params, "allowedTargets", "allowed_targets", "validationTargets")
 	}
 	out.Mode = normalizeResearchSecurityEvaluationMode(out.Mode)
 	out.LabelPolicy = normalizeResearchSecurityEvaluationLabelPolicy(out.LabelPolicy)
 	out.ValidationMode = normalizeResearchSecurityValidationMode(out.ValidationMode)
 	out.MinimumEvidence = normalizeResearchSecurityMinimumEvidence(out.MinimumEvidence)
+	out.CorrelationWindowSeconds = normalizeResearchSecurityOutcomeCorrelationWindow(out.CorrelationWindowSeconds)
+	out.AllowedValidatorSources = normalizeResearchSecurityStringList(out.AllowedValidatorSources)
+	out.AllowedAuthorizationIDs = normalizeResearchSecurityStringList(out.AllowedAuthorizationIDs)
+	out.AllowedTargets = normalizeResearchSecurityStringList(out.AllowedTargets)
 	if out.ValidationMode == researchSecurityValidationModeOutcome {
-		if _, ok := req.Params["adversarialReview"]; !ok {
-			if _, ok := req.Params["adversarial_review"]; !ok {
-				if _, ok := req.Params["independentReview"]; !ok {
-					out.AdversarialReview = true
-				}
-			}
+		if !researchSecurityParamPresent(req.Params, "adversarialReview", "adversarial_review", "independentReview") {
+			out.AdversarialReview = true
+		}
+		if !researchSecurityParamPresent(req.Params, "requireAuthorization", "require_authorization", "authorizedEvidenceOnly") {
+			out.RequireAuthorization = true
+		}
+		if !researchSecurityParamPresent(req.Params, "dedupeActionable", "dedupe_actionable", "dedupe") {
+			out.DedupeActionable = true
+		}
+		if out.AdversarialReview && !researchSecurityParamPresent(req.Params, "requireIndependentRefutation", "require_independent_refutation", "independentRefutation") {
+			out.RequireIndependentRefutation = true
 		}
 	}
 	out.SourceFilter = normalizeResearchSourceFilter(out.SourceFilter)
@@ -62,11 +87,89 @@ func researchSecurityEvaluationRequestFromTask(req researchTaskRequest) Research
 	return out
 }
 
+func researchSecurityParamPresent(params map[string]any, keys ...string) bool {
+	for _, key := range keys {
+		if _, ok := params[key]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func researchSecurityParamStrings(params map[string]any, keys ...string) []string {
+	for _, key := range keys {
+		value, ok := params[key]
+		if !ok || value == nil {
+			continue
+		}
+		switch typed := value.(type) {
+		case []string:
+			return append([]string(nil), typed...)
+		case []any:
+			out := make([]string, 0, len(typed))
+			for _, item := range typed {
+				if text := researchSecurityString(item); text != "" {
+					out = append(out, text)
+				}
+			}
+			return out
+		case string:
+			parts := strings.Split(typed, ",")
+			out := make([]string, 0, len(parts))
+			for _, item := range parts {
+				if text := strings.TrimSpace(item); text != "" {
+					out = append(out, text)
+				}
+			}
+			return out
+		default:
+			if text := researchSecurityString(typed); text != "" {
+				return []string{text}
+			}
+		}
+	}
+	return nil
+}
+
+func normalizeResearchSecurityStringList(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
+}
+
+func normalizeResearchSecurityOutcomeCorrelationWindow(seconds int) int {
+	if seconds <= 0 {
+		return researchSecurityOutcomeDefaultCorrelationWindowSeconds
+	}
+	if seconds > researchSecurityOutcomeMaxCorrelationWindowSeconds {
+		return researchSecurityOutcomeMaxCorrelationWindowSeconds
+	}
+	return seconds
+}
+
 func buildResearchSecurityEvaluationReport(sessionID string, events []ResearchEvent, req ResearchSecurityEvaluationRequest, entry *researchTaskEntry) (ResearchSecurityEvaluationReport, error) {
 	req.Mode = normalizeResearchSecurityEvaluationMode(req.Mode)
 	req.LabelPolicy = normalizeResearchSecurityEvaluationLabelPolicy(req.LabelPolicy)
 	req.ValidationMode = normalizeResearchSecurityValidationMode(req.ValidationMode)
 	req.MinimumEvidence = normalizeResearchSecurityMinimumEvidence(req.MinimumEvidence)
+	req.CorrelationWindowSeconds = normalizeResearchSecurityOutcomeCorrelationWindow(req.CorrelationWindowSeconds)
+	req.AllowedValidatorSources = normalizeResearchSecurityStringList(req.AllowedValidatorSources)
+	req.AllowedAuthorizationIDs = normalizeResearchSecurityStringList(req.AllowedAuthorizationIDs)
+	req.AllowedTargets = normalizeResearchSecurityStringList(req.AllowedTargets)
 	req.SourceFilter = normalizeResearchSourceFilter(req.SourceFilter)
 	req.TimeRange = normalizeResearchTimeRange(req.TimeRange)
 	req.Limit = normalizeResearchSecurityEvaluationLimit(req.Limit)
