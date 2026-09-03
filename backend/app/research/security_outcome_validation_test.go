@@ -117,7 +117,7 @@ func TestOutcomeValidationAdversarialRefutationWinsWithoutImpact(t *testing.T) {
 			Source: "validator",
 			Features: map[string]any{
 				"validation.reproduced": true,
-				"validation.refuted":   true,
+				"validation.refuted":    true,
 			},
 		},
 	}

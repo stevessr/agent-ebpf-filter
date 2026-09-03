@@ -13,10 +13,10 @@ const (
 
 	researchSecurityValidationModePrediction = "prediction"
 	researchSecurityValidationModeOutcome    = "outcome"
-	researchSecurityEvidenceHypothesis        = "hypothesis"
-	researchSecurityEvidenceReachable         = "reachable"
-	researchSecurityEvidenceReproduced        = "reproduced"
-	researchSecurityEvidenceImpactConfirmed   = "impact_confirmed"
+	researchSecurityEvidenceHypothesis       = "hypothesis"
+	researchSecurityEvidenceReachable        = "reachable"
+	researchSecurityEvidenceReproduced       = "reproduced"
+	researchSecurityEvidenceImpactConfirmed  = "impact_confirmed"
 )
 
 type ResearchSecurityEvaluationRequest struct {
@@ -32,24 +32,24 @@ type ResearchSecurityEvaluationRequest struct {
 }
 
 type ResearchSecurityEvaluationReport struct {
-	SchemaVersion     string                                     `json:"schemaVersion"`
-	SessionID         string                                     `json:"sessionId"`
-	GeneratedAt       time.Time                                  `json:"generatedAt"`
-	Mode              string                                     `json:"mode"`
-	LabelPolicy       string                                     `json:"labelPolicy"`
-	IncludeLLM        bool                                       `json:"includeLLM"`
-	ValidationMode    string                                     `json:"validationMode,omitempty"`
+	SchemaVersion     string                                    `json:"schemaVersion"`
+	SessionID         string                                    `json:"sessionId"`
+	GeneratedAt       time.Time                                 `json:"generatedAt"`
+	Mode              string                                    `json:"mode"`
+	LabelPolicy       string                                    `json:"labelPolicy"`
+	IncludeLLM        bool                                      `json:"includeLLM"`
+	ValidationMode    string                                    `json:"validationMode,omitempty"`
 	OutcomeValidation *ResearchSecurityOutcomeValidationSummary `json:"outcomeValidation,omitempty"`
-	Totals            ResearchSecurityEvaluationTotals           `json:"totals"`
-	Metrics           ResearchSecurityEvaluationMetrics          `json:"metrics"`
-	ConfusionMatrix   map[string]map[string]int                  `json:"confusionMatrix"`
-	ByCategory        []ResearchSecurityEvaluationGroup          `json:"byCategory"`
-	ByCommand         []ResearchSecurityEvaluationGroup          `json:"byCommand"`
-	BySource          []ResearchSecurityEvaluationGroup          `json:"bySource"`
-	RiskBuckets       []researchCount                            `json:"riskBuckets"`
-	Posture           ResearchSecurityEvaluationPosture          `json:"posture"`
-	Findings          ResearchSecurityEvaluationFindings         `json:"findings"`
-	Samples           []ResearchSecurityEvaluationSampleRow      `json:"samples,omitempty"`
+	Totals            ResearchSecurityEvaluationTotals          `json:"totals"`
+	Metrics           ResearchSecurityEvaluationMetrics         `json:"metrics"`
+	ConfusionMatrix   map[string]map[string]int                 `json:"confusionMatrix"`
+	ByCategory        []ResearchSecurityEvaluationGroup         `json:"byCategory"`
+	ByCommand         []ResearchSecurityEvaluationGroup         `json:"byCommand"`
+	BySource          []ResearchSecurityEvaluationGroup         `json:"bySource"`
+	RiskBuckets       []researchCount                           `json:"riskBuckets"`
+	Posture           ResearchSecurityEvaluationPosture         `json:"posture"`
+	Findings          ResearchSecurityEvaluationFindings        `json:"findings"`
+	Samples           []ResearchSecurityEvaluationSampleRow     `json:"samples,omitempty"`
 }
 
 type ResearchSecurityOutcomeValidationSummary struct {
