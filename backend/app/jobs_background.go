@@ -145,13 +145,12 @@ func startKernelEventReader(ctx context.Context, rd kernelEventReader, jobs *run
 			if event.PID == selfPid {
 				continue
 			}
-			// Event-type filtering is allocation-free. Do it before sanitizing comm
-			// so disabled event classes never pay for a temporary string.
+			// Event-type filtering is allocation-free. Do it before comm filtering
+			// so disabled event classes never touch the comm buffer.
 			if isEventTypeDisabledFunc(event.Type) {
 				continue
 			}
-			comm := sanitizeUTF8(event.Comm[:])
-			if isCommDisabledFunc(comm) {
+			if isRawCommDisabled(event.Comm[:]) {
 				continue
 			}
 			enqueueBroadcastEvent(broadcast, buildKernelEventFromRaw(event), "kernel_event_reader")
