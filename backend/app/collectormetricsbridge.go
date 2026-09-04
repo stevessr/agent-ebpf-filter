@@ -34,8 +34,9 @@ func stringsTrimDefault(value, fallback string) string {
 // ── collectorMetricsStore bridge ─────────────────────────────────────────
 //
 // collectorMetricsStore retains the same variable name so all 20+ callers
-// in app/ continue to work without modification. Every method delegates to
-// the observability subpackage.
+// in app/ continue to work without modification. Hot monotonic counters use
+// atomic accumulation in observability and are folded into the canonical state
+// before snapshots/exports; complex metrics keep their existing locked path.
 
 type metricsStoreBridge struct{}
 
@@ -52,7 +53,7 @@ func (metricsStoreBridge) SetPersistAppendLatency(duration time.Duration) {
 }
 
 func (metricsStoreBridge) RecordCapturedArchive() {
-	observability.RecordCapturedArchive()
+	observability.RecordHotCapturedArchive()
 }
 
 func (metricsStoreBridge) RecordCapturedPersist(err error, duration time.Duration) {
@@ -64,11 +65,11 @@ func (metricsStoreBridge) RecordCapturedPersistBatch(persisted, failed uint64, d
 }
 
 func (metricsStoreBridge) RecordBroadcastEnqueue(accepted bool, reason string) {
-	observability.RecordBroadcastEnqueue(accepted, reason)
+	observability.RecordHotBroadcastEnqueue(accepted, reason)
 }
 
 func (metricsStoreBridge) RecordBroadcastReceived() {
-	observability.RecordBroadcastReceived()
+	observability.RecordHotBroadcastReceived()
 }
 
 func (metricsStoreBridge) RecordBroadcastFlush(events, envelopes, marshalErrors, writeErrors int, duration time.Duration) {
@@ -76,7 +77,7 @@ func (metricsStoreBridge) RecordBroadcastFlush(events, envelopes, marshalErrors,
 }
 
 func (metricsStoreBridge) RecordRingbufDecode(zeroCopy bool) {
-	observability.RecordRingbufDecode(zeroCopy)
+	observability.RecordHotRingbufDecode(zeroCopy)
 }
 
 func (metricsStoreBridge) RecordKernelRiskDecision(decision string, elapsed time.Duration) {
@@ -88,6 +89,7 @@ func (metricsStoreBridge) RecordKernelRiskFeedback(success bool, err error) {
 }
 
 func (metricsStoreBridge) Snapshot() CollectorHealthResponse {
+	observability.FlushAppHotPathMetrics()
 	return observability.GetCollectorHealthSnapshot()
 }
 
@@ -108,9 +110,11 @@ func getCoreTypes() []pb.CPUInfo_Core_Type {
 }
 
 func handlePrometheusMetrics(c *gin.Context) {
+	observability.FlushAppHotPathMetrics()
 	observability.HandlePrometheusMetrics(c)
 }
 
 func handleCollectorHealth(c *gin.Context) {
+	observability.FlushAppHotPathMetrics()
 	observability.HandleCollectorHealth(c)
 }

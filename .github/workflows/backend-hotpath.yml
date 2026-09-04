@@ -12,6 +12,8 @@ on:
       - "backend/app/kernel_filter_snapshot*.go"
       - "backend/app/ws_*.go"
       - "backend/app/broadcast_queue*.go"
+      - "backend/app/collectormetricsbridge.go"
+      - "backend/app/observability/**"
       - "backend/app/events/**"
       - "backend/internal/boundedring/**"
       - "backend/core/**"
@@ -61,9 +63,13 @@ jobs:
         working-directory: backend
         run: go test ./... -count=1
 
-      - name: Run hot-path race tests
+      - name: Run app hot-path race tests
         working-directory: backend
         run: go test -race ./app -run 'Test(DisabledFilterSnapshotsConcurrentReadersAndWriters|ProtoClientHubSnapshotConcurrentBroadcastAndMembership)' -count=1
+
+      - name: Run metrics hot-path race tests
+        working-directory: backend
+        run: go test -race ./app/observability -run 'TestFlushAppHotPathMetricsConcurrentProducers' -count=1
 
       - name: Run bounded ring allocation benchmarks
         working-directory: backend
@@ -76,3 +82,7 @@ jobs:
       - name: Run websocket hub allocation benchmarks
         working-directory: backend
         run: go test ./app -run '^$' -bench 'BenchmarkProtoClientHubBroadcast' -benchmem -benchtime=200ms -count=1
+
+      - name: Run collector metrics hot-path benchmarks
+        working-directory: backend
+        run: go test ./app/observability -run '^$' -bench 'BenchmarkCollectorHotPathMetrics' -benchmem -benchtime=200ms -count=1
