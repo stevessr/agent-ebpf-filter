@@ -22,11 +22,10 @@ type protoBroadcastClient interface {
 
 type protoClientState struct {
 	conn      protoBroadcastClient
-	mu        sync.Mutex
 	queue     chan []byte
 	done      chan struct{}
 	closeOnce sync.Once
-	dead      bool
+	dead      atomic.Bool
 }
 
 func newProtoClientState(conn protoBroadcastClient) *protoClientState {
@@ -38,9 +37,7 @@ func newProtoClientState(conn protoBroadcastClient) *protoClientState {
 }
 
 func (state *protoClientState) enqueue(data []byte) bool {
-	state.mu.Lock()
-	defer state.mu.Unlock()
-	if state.dead {
+	if state == nil || state.dead.Load() {
 		return false
 	}
 	select {
@@ -52,31 +49,55 @@ func (state *protoClientState) enqueue(data []byte) bool {
 }
 
 func (state *protoClientState) isDead() bool {
-	state.mu.Lock()
-	defer state.mu.Unlock()
-	return state.dead
+	return state == nil || state.dead.Load()
 }
 
 func (state *protoClientState) close() {
+	if state == nil {
+		return
+	}
 	state.closeOnce.Do(func() {
-		state.mu.Lock()
-		state.dead = true
+		state.dead.Store(true)
 		close(state.done)
-		state.mu.Unlock()
-		_ = state.conn.Close()
+		if state.conn != nil {
+			_ = state.conn.Close()
+		}
 	})
 }
 
+type protoHubClient struct {
+	id    uint64
+	state *protoClientState
+}
+
+type protoClientSnapshot struct {
+	clients []protoHubClient
+}
+
 type protoClientHub struct {
-	mu           sync.Mutex
-	nextClientID uint64
-	clients      map[uint64]*protoClientState
-	writeErrors  atomic.Uint64
-	closed       bool
+	mu             sync.Mutex
+	nextClientID   uint64
+	clients        map[uint64]*protoClientState
+	clientSnapshot atomic.Pointer[protoClientSnapshot]
+	writeErrors    atomic.Uint64
+	closed         bool
 }
 
 func newProtoClientHub() *protoClientHub {
-	return &protoClientHub{clients: make(map[uint64]*protoClientState)}
+	hub := &protoClientHub{clients: make(map[uint64]*protoClientState)}
+	hub.clientSnapshot.Store(&protoClientSnapshot{})
+	return hub
+}
+
+// publishClientSnapshotLocked replaces the immutable read-side client list.
+// It must be called while hub.mu is held. Broadcast only loads this snapshot and
+// never allocates or takes the hub mutex in the steady state.
+func (hub *protoClientHub) publishClientSnapshotLocked() {
+	clients := make([]protoHubClient, 0, len(hub.clients))
+	for id, state := range hub.clients {
+		clients = append(clients, protoHubClient{id: id, state: state})
+	}
+	hub.clientSnapshot.Store(&protoClientSnapshot{clients: clients})
 }
 
 func (hub *protoClientHub) addClient(conn protoBroadcastClient) (uint64, *protoClientState) {
@@ -97,6 +118,7 @@ func (hub *protoClientHub) addClient(conn protoBroadcastClient) (uint64, *protoC
 	hub.nextClientID++
 	id := hub.nextClientID
 	hub.clients[id] = state
+	hub.publishClientSnapshotLocked()
 	hub.mu.Unlock()
 	go hub.runClient(id, state)
 	return id, state
@@ -143,40 +165,34 @@ func (hub *protoClientHub) removeClient(id uint64, state *protoClientState) {
 	if hub == nil || state == nil {
 		return
 	}
+	removed := false
 	hub.mu.Lock()
 	if current, ok := hub.clients[id]; ok && current == state {
 		delete(hub.clients, id)
+		hub.publishClientSnapshotLocked()
+		removed = true
 	}
 	hub.mu.Unlock()
-	state.close()
+	if removed || !state.isDead() {
+		state.close()
+	}
 }
 
 // Broadcast enqueues one immutable protobuf payload per client. Slow clients
-// are disconnected instead of blocking event ingestion. The return value
-// includes queue rejections and asynchronous write failures observed since the
-// previous broadcast.
+// are disconnected instead of blocking event ingestion. The read-side client
+// list is immutable, so the steady-state path does not allocate or take hub.mu.
+// The return value includes queue rejections and asynchronous write failures
+// observed since the previous broadcast.
 func (hub *protoClientHub) Broadcast(data []byte) int {
 	if hub == nil || len(data) == 0 {
 		return 0
 	}
-	type client struct {
-		id    uint64
-		state *protoClientState
-	}
-
 	writeErrors := int(hub.writeErrors.Swap(0))
-	hub.mu.Lock()
-	if hub.closed {
-		hub.mu.Unlock()
+	snapshot := hub.clientSnapshot.Load()
+	if snapshot == nil {
 		return writeErrors
 	}
-	clients := make([]client, 0, len(hub.clients))
-	for id, state := range hub.clients {
-		clients = append(clients, client{id: id, state: state})
-	}
-	hub.mu.Unlock()
-
-	for _, client := range clients {
+	for _, client := range snapshot.clients {
 		if !client.state.enqueue(data) {
 			writeErrors++
 			hub.removeClient(client.id, client.state)
@@ -189,18 +205,16 @@ func (hub *protoClientHub) ClientCount() int {
 	if hub == nil {
 		return 0
 	}
-	hub.mu.Lock()
-	defer hub.mu.Unlock()
-	return len(hub.clients)
+	snapshot := hub.clientSnapshot.Load()
+	if snapshot == nil {
+		return 0
+	}
+	return len(snapshot.clients)
 }
 
 func (hub *protoClientHub) Close() {
 	if hub == nil {
 		return
-	}
-	type client struct {
-		id    uint64
-		state *protoClientState
 	}
 	hub.mu.Lock()
 	if hub.closed {
@@ -208,12 +222,15 @@ func (hub *protoClientHub) Close() {
 		return
 	}
 	hub.closed = true
-	clients := make([]client, 0, len(hub.clients))
-	for id, state := range hub.clients {
-		clients = append(clients, client{id: id, state: state})
-	}
+	snapshot := hub.clientSnapshot.Load()
+	hub.clients = make(map[uint64]*protoClientState)
+	hub.publishClientSnapshotLocked()
 	hub.mu.Unlock()
-	for _, client := range clients {
-		hub.removeClient(client.id, client.state)
+
+	if snapshot == nil {
+		return
+	}
+	for _, client := range snapshot.clients {
+		client.state.close()
 	}
 }

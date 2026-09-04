@@ -19,9 +19,9 @@ func newBlockingKernelEventReader() *blockingKernelEventReader {
 	return &blockingKernelEventReader{closed: make(chan struct{})}
 }
 
-func (r *blockingKernelEventReader) Read() (ringbuf.Record, error) {
+func (r *blockingKernelEventReader) ReadInto(_ *ringbuf.Record) error {
 	<-r.closed
-	return ringbuf.Record{}, errors.New("reader closed")
+	return errors.New("reader closed")
 }
 
 func (r *blockingKernelEventReader) Close() error {

@@ -43,12 +43,21 @@ func (r *Ring[T]) AddBatch(values []T) int {
 	if r == nil || len(values) == 0 {
 		return 0
 	}
+	// Single-value batches are common on event-ingest paths. Preserve Add's
+	// minimal branch profile instead of paying the bulk-copy setup cost.
+	if len(values) == 1 {
+		if r.Add(values[0]) {
+			return 1
+		}
+		return 0
+	}
 	if len(values) >= r.limit {
 		evicted := len(r.items) + len(values) - r.limit
 		if cap(r.items) < r.limit {
 			r.items = make([]T, r.limit)
 		} else {
-			clear(r.items)
+			// Every retained slot is overwritten below, so clearing first would
+			// only add another O(limit) memory pass.
 			r.items = r.items[:r.limit]
 		}
 		copy(r.items, values[len(values)-r.limit:])
@@ -56,16 +65,38 @@ func (r *Ring[T]) AddBatch(values []T) int {
 		return evicted
 	}
 
-	needed := len(r.items) + len(values)
-	if needed > r.limit {
-		needed = r.limit
-	}
-	r.grow(needed)
-	evicted := 0
-	for _, value := range values {
-		if r.Add(value) {
-			evicted++
+	// A non-full ring is always normalized (start == 0). Fill its unused
+	// contiguous tail first; only the remainder can evict retained values.
+	if len(r.items) < r.limit {
+		free := r.limit - len(r.items)
+		appendCount := len(values)
+		if appendCount > free {
+			appendCount = free
 		}
+		if appendCount > 0 {
+			r.grow(len(r.items) + appendCount)
+			r.items = append(r.items, values[:appendCount]...)
+			values = values[appendCount:]
+		}
+		if len(values) == 0 {
+			return 0
+		}
+	}
+
+	// The ring is full here. Since len(values) < limit, overwriting a wrapped
+	// batch takes at most two contiguous copies and at most one start wrap.
+	evicted := len(values)
+	first := len(values)
+	if remaining := r.limit - r.start; first > remaining {
+		first = remaining
+	}
+	copy(r.items[r.start:r.start+first], values[:first])
+	if first < len(values) {
+		copy(r.items, values[first:])
+	}
+	r.start += len(values)
+	if r.start >= r.limit {
+		r.start -= r.limit
 	}
 	return evicted
 }

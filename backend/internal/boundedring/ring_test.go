@@ -32,6 +32,27 @@ func TestRingPreservesOrderAcrossWrapAndBatchReplacement(t *testing.T) {
 	}
 }
 
+func TestRingAddBatchFillsThenWrapsInBulk(t *testing.T) {
+	ring := New[int](5)
+	if evicted := ring.AddBatch([]int{1, 2, 3, 4}); evicted != 0 {
+		t.Fatalf("initial batch evicted %d values", evicted)
+	}
+
+	// Cross the not-full -> full boundary in one batch. Only the values beyond
+	// the final free slot should evict retained entries.
+	if evicted := ring.AddBatch([]int{5, 6, 7}); evicted != 2 {
+		t.Fatalf("boundary-crossing batch evicted %d values, want 2", evicted)
+	}
+	assertRingValues(t, ring.Snapshot(), []int{3, 4, 5, 6, 7})
+
+	// start is now non-zero. This batch crosses the physical slice boundary and
+	// exercises the two-copy wrapped path.
+	if evicted := ring.AddBatch([]int{8, 9, 10, 11}); evicted != 4 {
+		t.Fatalf("wrapped bulk batch evicted %d values, want 4", evicted)
+	}
+	assertRingValues(t, ring.Snapshot(), []int{7, 8, 9, 10, 11})
+}
+
 func TestRingResetClearsReferencesAndRetainsCapacity(t *testing.T) {
 	ring := New[*int](4)
 	values := []int{1, 2, 3}
@@ -62,7 +83,7 @@ func TestRingRetainCompactsWrappedValuesInLogicalOrder(t *testing.T) {
 	ring.AddBatch([]int{7, 8, 9})
 	assertRingValues(t, ring.Snapshot(), []int{4, 6, 7, 8, 9})
 	if removed := ring.Retain(nil); removed != 0 {
-		t.Fatalf("nil retain removed %d values", removed)
+		t.Fatalf("nil retain removed %d values, want 0", removed)
 	}
 }
 
@@ -86,6 +107,29 @@ func BenchmarkRingSteadyStateAdd(b *testing.B) {
 				ring.Add(iteration)
 			}
 		})
+	}
+}
+
+func BenchmarkRingSteadyStateAddBatch(b *testing.B) {
+	for _, limit := range []int{64, 10000} {
+		for _, batchSize := range []int{1, 8, 64} {
+			if batchSize > limit {
+				continue
+			}
+			name := "limit=" + strconv.Itoa(limit) + "/batch=" + strconv.Itoa(batchSize)
+			b.Run(name, func(b *testing.B) {
+				ring := New[int](limit)
+				warm := make([]int, limit)
+				ring.AddBatch(warm)
+				batch := make([]int, batchSize)
+				b.ReportAllocs()
+				b.SetBytes(int64(batchSize * 8))
+				b.ResetTimer()
+				for iteration := 0; iteration < b.N; iteration++ {
+					ring.AddBatch(batch)
+				}
+			})
+		}
 	}
 }
 

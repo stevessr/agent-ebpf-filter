@@ -57,35 +57,13 @@ var nativeLittleEndian = func() bool {
 	return *(*byte)(unsafe.Pointer(&value)) == 1
 }()
 
-// Pointers to filtering functions set at init time.
-var (
-	isCommDisabledFunc      func(comm string) bool
-	isEventTypeDisabledFunc func(et uint32) bool
-)
-
-// isCommDisabled checks whether a command name has been disabled via config.
-// Must only be called after startKernelEventReader has wired it.
-func isCommDisabled(comm string) bool {
-	if isCommDisabledFunc != nil {
-		return isCommDisabledFunc(comm)
-	}
-	return false
-}
-
-// isEventTypeDisabled checks whether an event type has been disabled via config.
-// Must only be called after startKernelEventReader has wired it.
-func isEventTypeDisabled(et uint32) bool {
-	if isEventTypeDisabledFunc != nil {
-		return isEventTypeDisabledFunc(et)
-	}
-	return false
-}
-
-// decodeBPFEventRecord returns a view over the ring-buffer sample when the host
-// layout matches the generated little-endian BPF object. The pointer must not be
-// retained after the caller finishes processing this record because RawSample is
-// backed by the ringbuf reader's mmap window. On non-native endian or unaligned
-// samples it falls back to the old binary.Read copy path.
+// decodeBPFEventRecord returns a view over the reusable ring-buffer sample when
+// the host layout matches the generated little-endian BPF object. The pointer
+// must not be retained after the caller finishes processing the current record,
+// because the next ReadInto call may reuse and overwrite RawSample. This avoids
+// a second decode copy; the ringbuf reader still copies kernel ring data into
+// the reusable RawSample buffer. On non-native endian or unaligned samples it
+// falls back to the binary.Read copy path.
 func decodeBPFEventRecord(raw []byte) (*bpfEvent, bool, error) {
 	if len(raw) < bpfEventSampleSize {
 		return nil, false, fmt.Errorf("short eBPF event sample: got %d bytes, want at least %d", len(raw), bpfEventSampleSize)
@@ -106,7 +84,7 @@ func decodeBPFEventRecord(raw []byte) (*bpfEvent, bool, error) {
 }
 
 type kernelEventReader interface {
-	Read() (ringbuf.Record, error)
+	ReadInto(*ringbuf.Record) error
 	Close() error
 }
 
@@ -114,40 +92,29 @@ func startKernelEventReader(ctx context.Context, rd kernelEventReader, jobs *run
 	if ctx == nil || rd == nil || jobs == nil {
 		return
 	}
-	// Wire config filter functions from the app-level globals.
-	isCommDisabledFunc = func(comm string) bool {
-		disabledCommsMu.RLock()
-		defer disabledCommsMu.RUnlock()
-		_, ok := disabledComms[comm]
-		return ok
-	}
-	isEventTypeDisabledFunc = func(et uint32) bool {
-		disabledEventTypesMu.RLock()
-		defer disabledEventTypesMu.RUnlock()
-		_, ok := disabledEventTypes[et]
-		return ok
-	}
 	jobs.Go(func() {
 		selfPid := uint32(os.Getpid())
+		var record ringbuf.Record
 		for {
-			record, err := rd.Read()
-			if err != nil {
+			if err := rd.ReadInto(&record); err != nil {
 				return
 			}
 			event, zeroCopy, err := decodeBPFEventRecord(record.RawSample)
-			collectorMetricsStore.RecordRingbufDecode(zeroCopy)
 			if err != nil {
 				log.Printf("[WARN] failed to decode eBPF event: %v (sample len=%d)", err, len(record.RawSample))
 				continue
 			}
+			collectorMetricsStore.RecordRingbufDecode(zeroCopy)
 			if event.PID == selfPid {
 				continue
 			}
-			comm := sanitizeUTF8(event.Comm[:])
-			if isCommDisabledFunc(comm) {
+			// Event-type filtering is a single immutable-snapshot load and bit
+			// test for built-in event IDs. Keep it ahead of comm processing so
+			// disabled classes never touch the comm buffer.
+			if isEventTypeDisabled(event.Type) {
 				continue
 			}
-			if isEventTypeDisabledFunc(event.Type) {
+			if isRawCommDisabled(event.Comm[:]) {
 				continue
 			}
 			enqueueBroadcastEvent(broadcast, buildKernelEventFromRaw(event), "kernel_event_reader")
