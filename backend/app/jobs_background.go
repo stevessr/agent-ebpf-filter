@@ -57,30 +57,6 @@ var nativeLittleEndian = func() bool {
 	return *(*byte)(unsafe.Pointer(&value)) == 1
 }()
 
-// Pointers to filtering functions set at init time.
-var (
-	isCommDisabledFunc      func(comm string) bool
-	isEventTypeDisabledFunc func(et uint32) bool
-)
-
-// isCommDisabled checks whether a command name has been disabled via config.
-// Must only be called after startKernelEventReader has wired it.
-func isCommDisabled(comm string) bool {
-	if isCommDisabledFunc != nil {
-		return isCommDisabledFunc(comm)
-	}
-	return false
-}
-
-// isEventTypeDisabled checks whether an event type has been disabled via config.
-// Must only be called after startKernelEventReader has wired it.
-func isEventTypeDisabled(et uint32) bool {
-	if isEventTypeDisabledFunc != nil {
-		return isEventTypeDisabledFunc(et)
-	}
-	return false
-}
-
 // decodeBPFEventRecord returns a view over the reusable ring-buffer sample when
 // the host layout matches the generated little-endian BPF object. The pointer
 // must not be retained after the caller finishes processing the current record,
@@ -116,19 +92,6 @@ func startKernelEventReader(ctx context.Context, rd kernelEventReader, jobs *run
 	if ctx == nil || rd == nil || jobs == nil {
 		return
 	}
-	// Wire config filter functions from the app-level globals.
-	isCommDisabledFunc = func(comm string) bool {
-		disabledCommsMu.RLock()
-		defer disabledCommsMu.RUnlock()
-		_, ok := disabledComms[comm]
-		return ok
-	}
-	isEventTypeDisabledFunc = func(et uint32) bool {
-		disabledEventTypesMu.RLock()
-		defer disabledEventTypesMu.RUnlock()
-		_, ok := disabledEventTypes[et]
-		return ok
-	}
 	jobs.Go(func() {
 		selfPid := uint32(os.Getpid())
 		var record ringbuf.Record
@@ -145,9 +108,10 @@ func startKernelEventReader(ctx context.Context, rd kernelEventReader, jobs *run
 			if event.PID == selfPid {
 				continue
 			}
-			// Event-type filtering is allocation-free. Do it before comm filtering
-			// so disabled event classes never touch the comm buffer.
-			if isEventTypeDisabledFunc(event.Type) {
+			// Event-type filtering is a single immutable-snapshot load and bit
+			// test for built-in event IDs. Keep it ahead of comm processing so
+			// disabled classes never touch the comm buffer.
+			if isEventTypeDisabled(event.Type) {
 				continue
 			}
 			if isRawCommDisabled(event.Comm[:]) {

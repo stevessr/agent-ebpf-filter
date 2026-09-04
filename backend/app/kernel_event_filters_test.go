@@ -115,6 +115,9 @@ func BenchmarkKernelCommFilterSanitizedBaseline(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for iteration := 0; iteration < b.N; iteration++ {
-		_ = lookupDisabledComm(sanitizeUTF8(raw))
+		comm := sanitizeUTF8(raw)
+		disabledCommsMu.RLock()
+		_, _ = disabledComms[comm]
+		disabledCommsMu.RUnlock()
 	}
 }

@@ -35,10 +35,7 @@ func kernelCommLookupKey(raw []byte) (string, bool) {
 }
 
 func lookupDisabledComm(comm string) bool {
-	disabledCommsMu.RLock()
-	_, disabled := disabledComms[comm]
-	disabledCommsMu.RUnlock()
-	return disabled
+	return lookupDisabledCommSnapshot(comm)
 }
 
 // isRawCommDisabled avoids constructing and sanitizing a Go string for the

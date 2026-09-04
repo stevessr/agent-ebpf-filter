@@ -49,10 +49,10 @@ var (
 	rulesMu      sync.RWMutex
 	wrapperRules = make(map[string]WrapperRule)
 
-	disabledCommsMu sync.RWMutex
+	disabledCommsMu filterPublishingRWMutex
 	disabledComms   = make(map[string]struct{})
 
-	disabledEventTypesMu sync.RWMutex
+	disabledEventTypesMu filterPublishingRWMutex
 	disabledEventTypes   = make(map[uint32]struct{})
 
 	nvmlInitialized bool
