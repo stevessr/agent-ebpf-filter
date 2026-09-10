@@ -41,6 +41,18 @@ var knownAITools = []AIToolIdentifier{
 		CmdlineMarker: []string{"github-copilot-cli", "@githubnext"},
 		VendorPath:    "",
 	},
+	{
+		Name:          "zvec-grep",
+		BinaryName:    "node",
+		CmdlineMarker: []string{"@zvec/zvec-grep", "/zvec-grep/"},
+		VendorPath:    "",
+	},
+	{
+		Name:          "zvec-grep",
+		BinaryName:    "zg",
+		CmdlineMarker: []string{"zg", "zvec-grep"},
+		VendorPath:    "",
+	},
 }
 
 type AIToolProcess struct {

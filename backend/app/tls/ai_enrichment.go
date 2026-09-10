@@ -37,6 +37,9 @@ var tlsProcessEnrichmentCache = struct {
 
 func detectAIToolFromComm(comm string) *aiToolMetadata {
 	lower := strings.ToLower(comm)
+	if lower == "zg" || lower == "zvec-grep" {
+		return &aiToolMetadata{ToolName: "zvec-grep", ToolVendor: "zvec-ai", ToolType: "search_service"}
+	}
 	if lower == "codex" {
 		return &aiToolMetadata{ToolName: "Codex", ToolVendor: "OpenAI", ToolType: "ai_assistant", APIProvider: "openai"}
 	}
@@ -47,7 +50,12 @@ func detectAIToolFromComm(comm string) *aiToolMetadata {
 }
 
 func detectAIToolFromCmdline(cmdline string) *aiToolMetadata {
-	lower := strings.ToLower(cmdline)
+	lower := strings.ToLower(strings.ReplaceAll(cmdline, "\x00", " "))
+	trimmed := strings.TrimSpace(lower)
+	if strings.Contains(lower, "@zvec/zvec-grep") || strings.Contains(lower, "/zvec-grep/") ||
+		trimmed == "zg" || strings.HasPrefix(trimmed, "zg ") || strings.Contains(lower, "/zg ") || strings.HasSuffix(trimmed, "/zg") {
+		return &aiToolMetadata{ToolName: "zvec-grep", ToolVendor: "zvec-ai", ToolType: "search_service"}
+	}
 	if strings.Contains(lower, "claude") {
 		return &aiToolMetadata{ToolName: "Claude Code", ToolVendor: "Anthropic", ToolType: "ai_assistant", APIProvider: "anthropic"}
 	}

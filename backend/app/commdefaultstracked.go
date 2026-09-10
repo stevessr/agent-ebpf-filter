@@ -17,7 +17,7 @@ var defaultTrackedCommands = map[string]string{
 	"docker": "Container CLI", "podman": "Container CLI", "kubectl": "Container CLI",
 	"claude": "Agent CLI", "gemini": "Agent CLI", "codex": "Agent CLI",
 	"dsh": "Agent CLI", "pi": "Agent CLI", "omp": "Agent CLI",
-	"kiro-cli": "Agent CLI", "gh": "Agent CLI", "cursor": "Agent CLI",
+	"kiro-cli": "Agent CLI", "gh": "Agent CLI", "cursor": "Agent CLI", "zg": "Agent CLI",
 	"go": "Build Tool", "cargo": "Build Tool", "rustc": "Build Tool",
 	"gcc": "Build Tool", "g++": "Build Tool", "clang": "Build Tool",
 	"make": "Build Tool", "cmake": "Build Tool", "ninja": "Build Tool",

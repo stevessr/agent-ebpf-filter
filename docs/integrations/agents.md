@@ -166,6 +166,29 @@ export AGENT_API_KEY="$(jq -r .accessToken ~/.config/agent-ebpf-filter/runtime.j
 - **不想修改 Agent 代码**：通过 Configuration 页面添加命令名称
 - **Shell 密集型工作流**：命令名称匹配是低开销的 exact match
 
+## zvec-grep 兼容
+
+[`zvec-ai/zvec-grep`](https://github.com/zvec-ai/zvec-grep) 的 `zg` CLI 和
+`zg --server --stdio` MCP bridge 已纳入 Agent eBPF Filter 的识别范围：
+
+- `zg` 默认按 `Agent CLI` 追踪；TLS/进程元数据会将 zvec-grep 标记为
+  `zvec-grep` / `zvec-ai` / `search_service`。
+- zvec-grep 使用 MCP 标准的 **newline-delimited JSON** stdio 传输。AgentSight
+  前端会按字节边界解析多条消息，并在采集事件把一条消息拆开时做有界重组，能够识别
+  `zvec_grep_search` 和 `zvec_grep_rg` 等工具调用。
+- 远程 Embedding 的请求内容仍遵循现有 TLS 脱敏和运行时开关；兼容层不会默认打开
+  TLS 明文采集。
+
+安装 zvec-grep 后可直接使用：
+
+```bash
+zg --install --target codex --yes
+```
+
+若需要将 zvec-grep 的 MCP 子进程显式关联到某一次 Agent run，仍可使用 Node
+adapter 或 `/register` API 注册其 PID；仅凭 `zg` 命令识别不会伪造 run/task/trace
+上下文。
+
 ### 何时使用 Native Hooks
 
 - **监控 AI CLI 行为**：Claude Code、Gemini CLI、Codex、Pi、Oh My Pi 等

@@ -96,11 +96,7 @@ export interface AgentSightFilterOptions {
 }
 
 export type AgentSightStdioProtocol =
-  | "lsp"
-  | "mcp"
-  | "jsonrpc"
-  | "text"
-  | "unknown";
+  "lsp" | "mcp" | "jsonrpc" | "text" | "unknown";
 
 export interface DecodedStdioMessage {
   direction: string;
@@ -114,6 +110,7 @@ export interface DecodedStdioMessage {
   parsedMessages: any[];
   protocol: AgentSightStdioProtocol;
   framed: boolean;
+  framing: "content-length" | "newline" | "unframed";
   frameCount: number;
   incompleteFrame: boolean;
   framingError?: string;
