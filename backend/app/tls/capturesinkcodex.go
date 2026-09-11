@@ -4,8 +4,6 @@ import (
 	codexhandlers "agent-ebpf-filter/codex/capture/handlers"
 )
 
-// ---- moved from backend/zz_merged_backend.go section capturesinkcodex.go ----
-
 type CodexCaptureSink struct {
 	Store       *TLSCaptureStore
 	Broadcaster *TLSBroadcaster

@@ -8,8 +8,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend.go section ensemble_builder.go ----
-
 // ── Ensemble Builder ────────────────────────────────────────────────
 
 // BuildEnsembleFromStore trains multiple fast models and returns an ensemble.

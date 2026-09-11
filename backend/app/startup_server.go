@@ -14,8 +14,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend.go section startup_server.go ----
-
 var listenTCP = net.Listen
 
 func listenBackend() (net.Listener, int, error) {

@@ -19,8 +19,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// ---- moved from backend/zz_merged_backend.go section ebpf_builder.go ----
-
 // loadedEBPFPlugin tracks an attached user plugin so we can detach on disable/delete.
 type loadedEBPFPlugin struct {
 	collection *ebpf.Collection

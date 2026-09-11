@@ -16,8 +16,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// ---- moved from backend/zz_merged_backend.go section recording_event.go ----
-
 type Status struct {
 	Active            bool   `json:"active"`
 	Stopping          bool   `json:"stopping"`

@@ -44,8 +44,6 @@ func (t *ModelTrainer) CancellationContext(parent context.Context) (context.Cont
 	}
 }
 
-// ---- moved from backend/zz_merged_backend.go section trainer.go ----
-
 func (t *ModelTrainer) trainForestWithConfig(store *TrainingDataStore, numTrees, maxDepth, minSamplesLeaf int, cfg MLConfig) (*DecisionForest, TrainResult) {
 	select {
 	case t.mu <- struct{}{}:

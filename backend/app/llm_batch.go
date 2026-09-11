@@ -14,8 +14,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from backend/zz_merged_backend.go section llm_batch.go ----
-
 const (
 	defaultLLMBatchScoreLimit         = 20
 	maxLLMBatchScoreLimit             = 100

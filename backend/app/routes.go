@@ -10,8 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from backend/zz_merged_backend.go section routes.go ----
-
 func registerRoutes(r *gin.Engine, ac *AppContext, features *FeatureRegistry, tlsBroadcaster *tlsCaptureBroadcaster, tlsController *TLSCaptureController, tlsStore *TLSCaptureStore, tlsRules *TLSCaptureRuleStore) {
 	registerWebSocketRoutes(r, ac, features, tlsBroadcaster)
 	registerShellSessionRoutes(r, ac, features)

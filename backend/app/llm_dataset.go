@@ -13,8 +13,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from backend/zz_merged_backend.go section llm_dataset.go ----
-
 const defaultLLMProductionDatasetLimit = 500
 
 type llmProductionDatasetRequest struct {

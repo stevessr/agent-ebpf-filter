@@ -14,8 +14,6 @@ import (
 	"agent-ebpf-filter/internal/binaryresolver"
 )
 
-// ---- moved from backend/zz_merged_backend.go section capturehandlerstls.go ----
-
 type TLSBroadcaster struct {
 	mu                         sync.Mutex
 	nextClientID               uint64

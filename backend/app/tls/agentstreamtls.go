@@ -6,8 +6,6 @@ import (
 	"strings"
 )
 
-// ---- moved from backend/zz_merged_backend.go section agentstreamtls.go ----
-
 // enrichTLSEventWithAgentContext copies the tracked process context for the
 // PID/TGID owning the TLS event into the event itself, allowing downstream
 // consumers (frontend, semantic alerting, execution graph) to correlate the

@@ -16,8 +16,6 @@ import (
 	"github.com/cilium/ebpf/link"
 )
 
-// ---- moved from backend/zz_merged_backend.go section cgroupsandboxcontrol.go ----
-
 // ── Cgroup sandbox eBPF map management ────────────────────────────────
 
 type cgroupSandboxMaps struct {

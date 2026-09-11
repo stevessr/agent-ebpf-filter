@@ -8,8 +8,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// ---- moved from backend/zz_merged_backend.go section state_api.go ----
-
 // Package-level event runtime initialized once and bound into AppContext.
 var (
 	broadcast = make(chan *pb.Event, 1000)

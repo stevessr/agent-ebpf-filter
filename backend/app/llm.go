@@ -18,8 +18,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from backend/zz_merged_backend.go section llm.go ----
-
 const defaultLLMScoringSystemPrompt = "You are a cybersecurity behavior analyst. Score command behavior for security risk and return strict JSON only."
 const defaultLLMReviewLimit = 50
 

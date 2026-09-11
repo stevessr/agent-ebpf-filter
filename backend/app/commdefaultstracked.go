@@ -1,7 +1,5 @@
 package app
 
-// ---- moved from backend/zz_merged_backend.go section commdefaultstracked.go ----
-
 const defaultEnabledTrackedCommandTag = "Agent CLI"
 
 var defaultTrackedCommands = map[string]string{

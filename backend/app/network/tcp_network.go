@@ -8,8 +8,6 @@ import (
 
 const tcpNonTerminalMaxAge = 30 * time.Minute
 
-// ---- moved from backend/zz_merged_backend.go section tcp_network.go ----
-
 type TCPState = netcore.TCPState
 
 type tcpConnectionState = netcore.TCPConnectionState

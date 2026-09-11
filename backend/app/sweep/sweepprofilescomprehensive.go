@@ -5,8 +5,6 @@ import (
 	"strconv"
 )
 
-// ---- moved from backend/zz_merged_backend.go section sweepprofilescomprehensive.go ----
-
 func comprehensiveAxisSweepProfiles(pointsPerParam int) []sweepProfile {
 	if pointsPerParam < 1 {
 		pointsPerParam = 1000

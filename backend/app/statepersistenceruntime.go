@@ -19,8 +19,6 @@ import (
 	"agent-ebpf-filter/pb"
 )
 
-// ---- moved from backend/zz_merged_backend.go section statepersistenceruntime.go ----
-
 type runtimeState struct {
 	mu        sync.RWMutex
 	settings  RuntimeSettings

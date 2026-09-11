@@ -7,8 +7,6 @@ import (
 	"agent-ebpf-filter/internal/boundedring"
 )
 
-// ---- moved from backend/zz_merged_backend.go section capturestoretls.go ----
-
 type TLSCaptureStore struct {
 	mu        sync.RWMutex
 	events    *boundedring.Ring[TLSPlaintextEvent]

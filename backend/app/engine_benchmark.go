@@ -9,8 +9,6 @@ import (
 	"strings"
 )
 
-// ---- moved from backend/zz_merged_backend.go section engine_benchmark.go ----
-
 // ── Statistics ────────────────────────────────────────────────────────
 
 func computeBenchmarkStats(runs []benchmarkRun) benchmarkStats {

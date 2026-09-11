@@ -9,8 +9,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend.go section sweeprenderhtml.go ----
-
 func writeReportHTML(path string, summaries []profileSummary, repeats []repeatSummary, repeatCount, stabilityTop int) error {
 	var b strings.Builder
 	b.WriteString(`<!doctype html><html><head><meta charset="utf-8"><title>ML Sweep Report</title>`)

@@ -12,8 +12,6 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
-// ---- moved from backend/zz_merged_backend.go section hooks.go ----
-
 func ensureHookRelayScript(h HookDef) (string, error) {
 	scriptDir := hookRelayScriptDir(h)
 	if err := platform.MkdirAllAsRealUser(scriptDir, 0o755); err != nil {

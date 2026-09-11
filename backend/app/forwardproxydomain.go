@@ -10,8 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from backend/zz_merged_backend.go section forwardproxydomain.go ----
-
 type DomainForwardProxyStatus = domainforwardproxy.Status
 
 type domainForwardProxyRuntime struct {

@@ -10,8 +10,6 @@ import (
 	"strings"
 )
 
-// ---- moved from backend/zz_merged_backend.go section stateenvruntime.go ----
-
 func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 	if settings == nil {
 		return errors.New("runtime settings are nil")

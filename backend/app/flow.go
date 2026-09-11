@@ -12,8 +12,6 @@ import (
 	"agent-ebpf-filter/pb"
 )
 
-// ---- moved from backend/zz_merged_backend.go section flow.go ----
-
 type NetworkFlowSummary = netcore.NetworkFlowSummary
 
 type flowKey = netcore.FlowKey

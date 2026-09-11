@@ -9,8 +9,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend.go section sweep_core.go ----
-
 func canRunIncrementalCountProfile(profile sweepProfile) bool {
 	if profile.Kind != "bar" || profile.ParameterKind != "numeric" {
 		return false
@@ -351,7 +349,6 @@ func runSingleConfig(profile sweepProfile, store *ml.TrainingDataStore, x, y int
 func newSweepTrainer() *ml.ModelTrainer {
 	return ml.NewModelTrainer()
 }
-
 
 type classMetrics struct {
 	Accuracy      float64

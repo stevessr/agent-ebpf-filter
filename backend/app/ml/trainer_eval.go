@@ -5,8 +5,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend.go section trainer_eval.go ----
-
 func (t *ModelTrainer) acquire() { t.mu <- struct{}{} }
 func (t *ModelTrainer) release() { <-t.mu }
 

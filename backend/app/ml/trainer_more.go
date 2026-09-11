@@ -6,8 +6,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend.go section trainer_more.go ----
-
 // ── Naive Bayes ────────────────────────────────────────────────────
 
 func (t *ModelTrainer) trainNaiveBayes(store *TrainingDataStore, cfg MLConfig) (Model, TrainResult) {

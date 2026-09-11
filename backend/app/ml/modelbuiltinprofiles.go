@@ -2,8 +2,6 @@ package ml
 
 import "agent-ebpf-filter/core"
 
-// ---- moved from backend/zz_merged_backend.go section modelbuiltinprofiles.go ----
-
 // BuiltinModelCatalogItem describes one local model/profile exposed to the UI.
 type BuiltinModelCatalogItem struct {
 	Value       string         `json:"value"`

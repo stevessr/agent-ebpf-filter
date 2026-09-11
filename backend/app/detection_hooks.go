@@ -13,8 +13,6 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
-// ---- moved from backend/zz_merged_backend.go section detection_hooks.go ----
-
 // hasNativeHookMarker checks whether the agent-ebpf hook marker is present in a config file.
 func hasNativeHookMarker(cfgPath string) bool {
 	b, err := os.ReadFile(cfgPath)

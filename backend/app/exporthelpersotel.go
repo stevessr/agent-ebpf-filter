@@ -23,8 +23,6 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
-// ---- moved from backend/zz_merged_backend.go section exporthelpersotel.go ----
-
 func buildOTelTracerProvider(endpoint, serviceName string, headers map[string]string, owner *otelExporterState) (*sdktrace.TracerProvider, oteltrace.Tracer, error) {
 	exporter, err := buildOTLPHTTPExporter(endpoint, headers, owner)
 	if err != nil {

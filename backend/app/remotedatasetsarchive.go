@@ -15,8 +15,6 @@ import (
 	"github.com/ulikunitz/xz"
 )
 
-// ---- moved from backend/zz_merged_backend.go section remotedatasetsarchive.go ----
-
 const (
 	remoteDatasetArchiveExpandedLimitBytes int64 = 64 << 20
 	remoteDatasetArchiveMemberLimit              = 4096

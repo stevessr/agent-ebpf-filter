@@ -11,8 +11,6 @@ import (
 	"strings"
 )
 
-// ---- moved from backend/zz_merged_backend.go section kiroantigravityhooks.go ----
-
 // ── Kiro-specific hook functions ──────────────────────────────────────
 
 func kiroSettingsPath() string {

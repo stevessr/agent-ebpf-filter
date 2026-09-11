@@ -5,8 +5,6 @@ import (
 	"net"
 )
 
-// ---- moved from backend/zz_merged_backend.go section scope_network.go ----
-
 // ── IP Address Classification (from rustnet bogon.rs) ─────────────────
 
 type IPScope = netcore.IPScope

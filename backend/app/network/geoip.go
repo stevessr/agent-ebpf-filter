@@ -4,8 +4,6 @@ import (
 	"agent-ebpf-filter/internal/geoip"
 )
 
-// ---- moved from backend/zz_merged_backend.go section geoip.go ----
-
 type geoipRecord = geoip.Record
 type geoipResolver = geoip.Resolver
 

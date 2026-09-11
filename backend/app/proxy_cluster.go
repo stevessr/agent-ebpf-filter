@@ -19,8 +19,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from backend/zz_merged_backend.go section proxy_cluster.go ----
-
 func clusterTargetFromContext(c *gin.Context) string {
 	if target := strings.TrimSpace(c.GetHeader(clusterTargetHeader)); target != "" {
 		return target

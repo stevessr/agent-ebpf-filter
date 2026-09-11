@@ -8,8 +8,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend.go section httpstreamassemblertls.go ----
-
 const tlsHTTPStreamMaxBuffer = 512 * 1024
 const tlsHTTPStreamRequestQueueLimit = 64
 

@@ -8,8 +8,6 @@ import (
 	"strings"
 )
 
-// ---- moved from backend/zz_merged_backend.go section sweep_dataset.go ----
-
 func allocMem() uint64 {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)

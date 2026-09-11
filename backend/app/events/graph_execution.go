@@ -14,8 +14,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from backend/zz_merged_backend.go section graph_execution.go ----
-
 type ExecutionGraphNode = executiongraph.Node
 type ExecutionGraphEdge = executiongraph.Edge
 type ExecutionGraphResponse = executiongraph.Response

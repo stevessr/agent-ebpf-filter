@@ -9,8 +9,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend.go section trainer_types.go ----
-
 // TrainingLogEntry is a single timestamped log line during training
 type TrainingLogEntry struct {
 	Timestamp time.Time

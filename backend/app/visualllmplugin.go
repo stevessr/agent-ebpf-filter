@@ -15,8 +15,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from backend/zz_merged_backend.go section visualllmplugin.go ----
-
 const defaultVisualBlocksSystemPrompt = "You are an eBPF kernel-defense policy compiler. Convert natural language into a safe low-code block graph. Return strict JSON only."
 
 const (

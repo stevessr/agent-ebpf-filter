@@ -14,8 +14,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// ---- moved from backend/zz_merged_backend.go section envelope_event.go ----
-
 const eventEnvelopeSchemaVersion = "envelope.v1"
 
 var EnvelopeJSONMarshaller = protojson.MarshalOptions{

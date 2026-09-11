@@ -18,8 +18,6 @@ import (
 	"agent-ebpf-filter/app/platform"
 )
 
-// ---- moved from backend/zz_merged_backend.go section helpers_fs.go ----
-
 // writeFileAsRealUser writes a file with the real user's ownership instead of root
 
 // mkdirAllAsRealUser creates directories with the real user's ownership

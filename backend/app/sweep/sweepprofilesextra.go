@@ -7,8 +7,6 @@ import (
 	"strings"
 )
 
-// ---- moved from backend/zz_merged_backend.go section sweepprofilesextra.go ----
-
 func categoricalAxisProfile(modelType ModelType, paramName, xName string, values []int, apply func(*MLConfig, int), label func(int) string) sweepProfile {
 	return axisProfile(modelType, paramName, "categorical", xName, values, len(values), apply, label)
 }

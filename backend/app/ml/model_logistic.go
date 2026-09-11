@@ -10,8 +10,6 @@ import (
 	"path/filepath"
 )
 
-// ---- moved from backend/zz_merged_backend.go section model_logistic.go ----
-
 func init() {
 	RegisterModel(ModelLogisticRegression, func() Model { return NewLogisticModel(0.01, "l2", 1000) })
 }

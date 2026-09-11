@@ -4,8 +4,6 @@ import (
 	"log"
 )
 
-// ---- moved from backend/zz_merged_backend.go section capturestartuptls.go ----
-
 type RuntimeBundle struct {
 	Store       *TLSCaptureStore
 	Rules       *TLSCaptureRuleStore

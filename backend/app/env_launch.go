@@ -7,8 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from backend/zz_merged_backend.go section env_launch.go ----
-
 type LaunchEnvEntry = launchenv.Entry
 
 func isBackendRuntimeEnvKey(key string) bool {

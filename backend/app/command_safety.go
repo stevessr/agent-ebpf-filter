@@ -14,8 +14,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from backend/zz_merged_backend.go section command_safety.go ----
-
 type commandSafetyRequest struct {
 	CommandLine string   `json:"commandLine"`
 	Comm        string   `json:"comm"`

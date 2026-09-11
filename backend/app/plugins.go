@@ -17,8 +17,6 @@ import (
 	"unicode/utf8"
 )
 
-// ---- moved from backend/zz_merged_backend.go section plugins.go ----
-
 // PluginKind, PluginAttachKind and PluginManifest are aliased from the
 // types subpackage via typebridge.go — they are not re-defined here.
 

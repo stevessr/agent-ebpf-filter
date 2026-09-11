@@ -10,8 +10,6 @@ import (
 	"path/filepath"
 )
 
-// ---- moved from backend/zz_merged_backend.go section model_knn.go ----
-
 func init() {
 	RegisterModel(ModelKNN, func() Model { return NewKNNModel(5, "euclidean", "uniform") })
 }
