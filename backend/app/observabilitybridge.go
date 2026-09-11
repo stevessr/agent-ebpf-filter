@@ -48,13 +48,13 @@ func initObservability() {
 			if AppCtx == nil {
 				return 0
 			}
-			return AppCtx.EventClientHub.ClientCount()
+			return AppCtx.EventClientHub.Len()
 		},
 		EnvelopeWSClientCount: func() int {
 			if AppCtx == nil {
 				return 0
 			}
-			return AppCtx.EnvelopeClientHub.ClientCount()
+			return AppCtx.EnvelopeClientHub.Len()
 		},
 		PersistQueueStatus: func() observability.PersistQueueStatus {
 			status := runtimeSettingsStore.EventLogStatus()
