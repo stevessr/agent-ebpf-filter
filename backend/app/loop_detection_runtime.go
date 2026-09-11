@@ -250,9 +250,9 @@ func queueLoopDetectionRecord(record CapturedEventRecord) {
 	if record.Event == nil || shouldIgnoreLoopDetectionEvent(record.Event) {
 		return
 	}
-	settings := runtimeSettingsStore.Snapshot().LoopDetection
-	normalizeLoopDetectionSettings(&settings)
-	if !settings.Enabled {
+	// Only the enable flag gates ingestion; the worker normalises the rest of
+	// the settings when it applies them.
+	if !runtimeSettingsStore.LoopDetectionSettings().Enabled {
 		return
 	}
 	loopDetectionWorkerStore.EnqueueEvent(record)

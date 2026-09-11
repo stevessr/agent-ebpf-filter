@@ -6,7 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -123,12 +123,16 @@ func firstNonNilEvent(candidates ...*pb.Event) *pb.Event {
 	return nil
 }
 
+// buildEventEnvelope derives the envelope for record.Event. The envelope's
+// LegacyEvent shares record.Event rather than cloning it: a captured record
+// already owns a private copy of the event, both views are only ever
+// serialised together, and redaction (redactCapturedEventRecord) is applied
+// to the shared object exactly once.
 func buildEventEnvelope(record CapturedEventRecord) *pb.EventEnvelope {
 	event := record.Event
 	if event == nil {
 		return nil
 	}
-	event = CloneProtoEvent(event)
 	timestamp := record.ReceivedAt.UTC()
 	if timestamp.IsZero() {
 		timestamp = time.Now().UTC()
@@ -253,12 +257,19 @@ func buildEventEnvelopeID(record CapturedEventRecord, event *pb.Event) string {
 	if timestamp.IsZero() {
 		timestamp = time.Unix(0, 0).UTC()
 	}
-	parts := []string{
-		strconvFormatInt(timestamp.UnixNano()),
-		DetermineEnvelopeSource(event),
-		event.GetType(),
-		strconvFormatUint32(event.GetPid()),
-		strconvFormatUint32(event.GetPpid()),
+	// The hashed material is the NUL-joined field list; it is assembled in a
+	// stack scratch buffer so typical events hash without allocating.
+	var scratch [512]byte
+	buf := strconv.AppendInt(scratch[:0], timestamp.UnixNano(), 10)
+	buf = append(buf, 0)
+	buf = append(buf, DetermineEnvelopeSource(event)...)
+	buf = append(buf, 0)
+	buf = append(buf, event.GetType()...)
+	buf = append(buf, 0)
+	buf = strconv.AppendUint(buf, uint64(event.GetPid()), 10)
+	buf = append(buf, 0)
+	buf = strconv.AppendUint(buf, uint64(event.GetPpid()), 10)
+	for _, part := range [...]string{
 		event.GetComm(),
 		event.GetPath(),
 		event.GetNetEndpoint(),
@@ -266,9 +277,15 @@ func buildEventEnvelopeID(record CapturedEventRecord, event *pb.Event) string {
 		event.GetToolCallId(),
 		event.GetDecision(),
 		event.GetExtraInfo(),
+	} {
+		buf = append(buf, 0)
+		buf = append(buf, part...)
 	}
-	sum := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
-	return "evt_" + hex.EncodeToString(sum[:12])
+	sum := sha256.Sum256(buf)
+	var id [4 + 24]byte
+	copy(id[:], "evt_")
+	hex.Encode(id[4:], sum[:12])
+	return string(id[:])
 }
 
 func buildExecEnvelopePayload(event *pb.Event) *pb.ExecEvent {
@@ -556,11 +573,11 @@ func EnvelopeToJSONValue(envelope *pb.EventEnvelope) map[string]any {
 }
 
 func strconvFormatUint32(value uint32) string {
-	return fmt.Sprintf("%d", value)
+	return strconv.FormatUint(uint64(value), 10)
 }
 
 func strconvFormatInt(value int64) string {
-	return fmt.Sprintf("%d", value)
+	return strconv.FormatInt(value, 10)
 }
 
 func tgidOrPid(event *pb.Event) uint32 {

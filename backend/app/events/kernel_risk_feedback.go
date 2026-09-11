@@ -188,6 +188,12 @@ func queueKernelRiskFeedback(event *pb.Event, decision kernelRiskDecision) {
 	if !kernelRiskFeedbackWorkerStarted() {
 		return
 	}
+	if gate := Deps.KernelRiskFeedbackGate; gate != nil {
+		policyManagement, feedback := gate()
+		if !policyManagement || !feedback.Enabled || decision.Score < kernelRiskFeedbackMinScore(feedback) {
+			return
+		}
+	}
 	settings := Deps.RuntimeSettingsSnapshot()
 	actions := kernelRiskFeedbackActions(settings, event, decision)
 	for _, action := range actions {
@@ -204,9 +210,7 @@ func kernelRiskFeedbackActions(settings RuntimeSettings, event *pb.Event, decisi
 		return nil
 	}
 	feedback := settings.KernelRiskFeedback
-	if feedback.MinRiskScore <= 0 {
-		feedback.MinRiskScore = 85
-	}
+	feedback.MinRiskScore = kernelRiskFeedbackMinScore(feedback)
 	if decision.Score < feedback.MinRiskScore {
 		return nil
 	}
@@ -307,4 +311,11 @@ func safeKernelRiskBasename(path string) string {
 	default:
 		return name
 	}
+}
+
+func kernelRiskFeedbackMinScore(feedback KernelRiskFeedbackSettings) float64 {
+	if feedback.MinRiskScore <= 0 {
+		return 85
+	}
+	return feedback.MinRiskScore
 }

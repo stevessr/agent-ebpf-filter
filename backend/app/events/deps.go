@@ -81,8 +81,11 @@ var Deps struct {
 	RuntimeSettingsRecentEvents        func(limit int) ([]CapturedEventRecord, string, error)
 	RuntimeSettingsRecentEventsContext func(context.Context, int) ([]CapturedEventRecord, string, error)
 	RuntimeSettingsSnapshot            func() RuntimeSettings
-	CollectorMetrics                   CollectorMetricsStore
-	StringsTrimDefault                 func(value, fallback string) string
+	// KernelRiskFeedbackGate answers the per-event "is feedback even on"
+	// question without copying the full RuntimeSettings.
+	KernelRiskFeedbackGate func() (policyManagement bool, feedback KernelRiskFeedbackSettings)
+	CollectorMetrics       CollectorMetricsStore
+	StringsTrimDefault     func(value, fallback string) string
 
 	// Kernel-risk feedback enforcement closures
 	BlockIP          func(ipStr string) error

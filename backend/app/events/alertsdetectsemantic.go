@@ -3,12 +3,11 @@ package events
 import (
 	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
+	"bytes"
 	"path/filepath"
 	"strings"
 	"time"
 )
-
-// ---- moved from app/alertsdetectsemantic.go ----
 
 // ── Core helper functions ─────────────────────────────────────────────
 
@@ -162,24 +161,54 @@ func detectSuspiciousShellTransport(event *pb.Event) (string, string, bool) {
 	if event == nil {
 		return "", "", false
 	}
-	lower := strings.ToLower(strings.Join([]string{
-		event.GetComm(),
-		event.GetPath(),
-		event.GetExtraInfo(),
-	}, " "))
+	var scratch [384]byte
+	lower := lowerJoinedFields(scratch[:0], event.GetComm(), event.GetPath(), event.GetExtraInfo())
+	contains := func(pattern string) bool { return bytes.Contains(lower, []byte(pattern)) }
 	switch {
-	case (strings.Contains(lower, "curl") || strings.Contains(lower, "wget")) &&
-		(strings.Contains(lower, "| sh") || strings.Contains(lower, "| bash")):
+	case (contains("curl") || contains("wget")) &&
+		(contains("| sh") || contains("| bash")):
 		return platform.FirstNonEmpty(event.GetPath(), event.GetComm()), "observed a curl/wget pipeline into a shell", true
-	case strings.Contains(lower, "bash -i >& /dev/tcp") ||
-		strings.Contains(lower, "bash -i > /dev/tcp") ||
-		strings.Contains(lower, "nc -e") ||
-		strings.Contains(lower, "socat exec:") ||
-		strings.Contains(lower, "/dev/tcp/"):
+	case contains("bash -i >& /dev/tcp") ||
+		contains("bash -i > /dev/tcp") ||
+		contains("nc -e") ||
+		contains("socat exec:") ||
+		contains("/dev/tcp/"):
 		return platform.FirstNonEmpty(event.GetPath(), event.GetComm()), "observed a reverse-shell-like shell transport pattern", true
 	default:
 		return "", "", false
 	}
+}
+
+// lowerJoinedFields appends strings.ToLower(strings.Join(fields, " ")) to dst.
+// ASCII input is folded in place without allocating; anything else goes
+// through strings.ToLower so Unicode case mapping stays identical.
+func lowerJoinedFields(dst []byte, fields ...string) []byte {
+	for i, field := range fields {
+		if i > 0 {
+			dst = append(dst, ' ')
+		}
+		if isASCIIString(field) {
+			for j := 0; j < len(field); j++ {
+				c := field[j]
+				if 'A' <= c && c <= 'Z' {
+					c += 'a' - 'A'
+				}
+				dst = append(dst, c)
+			}
+			continue
+		}
+		dst = append(dst, strings.ToLower(field)...)
+	}
+	return dst
+}
+
+func isASCIIString(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= 0x80 {
+			return false
+		}
+	}
+	return true
 }
 
 func recentExecutableAfterChmod(event *pb.Event, now time.Time) (string, bool) {

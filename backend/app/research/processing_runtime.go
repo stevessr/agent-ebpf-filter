@@ -427,9 +427,7 @@ func queueResearchProcessingRecord(record CapturedEventRecord) {
 	if record.Event == nil {
 		return
 	}
-	settings := snapshotRuntimeSettings().ResearchProcessing
-	normalizeResearchProcessingSettings(&settings)
-	if !settings.Enabled {
+	if !ResearchSettingsHook().Enabled {
 		ProcessingWorker.noteDrop("disabled", "research processing is disabled")
 		return
 	}

@@ -1,8 +1,8 @@
 package signalruntime
 
 import (
-	"agent-ebpf-filter/app/tasks"
 	"agent-ebpf-filter/app/events"
+	"agent-ebpf-filter/app/tasks"
 	"context"
 	"fmt"
 	"sort"
@@ -568,9 +568,7 @@ func queueSignalProcessingRecord(record CapturedEventRecord) {
 	if record.Event == nil || shouldIgnoreSignalProcessingEvent(record.Event) {
 		return
 	}
-	settings := SnapshotSettingsHook().SignalProcessing
-	NormalizeSettings(&settings)
-	if !settings.Enabled {
+	if !SignalSettingsHook().Enabled {
 		return
 	}
 	signalProcessingWorkerStore.EnqueueEvent(record)
@@ -972,13 +970,11 @@ func (w *signalProcessingWorker) Status() signalProcessingStatus {
 	return status
 }
 
-
 // StartProcessingWorker launches the shared signal processing worker.
 func StartProcessingWorker(ctx context.Context) { startSignalProcessingWorker(ctx) }
 
 // QueueProcessingRecord enqueues a captured event into the signal worker.
 func QueueProcessingRecord(record CapturedEventRecord) { queueSignalProcessingRecord(record) }
-
 
 // Worker returns the shared signal processing worker.
 func Worker() *signalProcessingWorker { return signalProcessingWorkerStore }

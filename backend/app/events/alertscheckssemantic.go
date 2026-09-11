@@ -3,6 +3,7 @@ package events
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -166,12 +167,18 @@ func semanticAlertContextKeyBounded(event *pb.Event) (string, bool) {
 		return agentRunID, truncated
 	}
 	if event.GetRootAgentPid() > 0 {
-		return fmt.Sprintf("pid:%d", event.GetRootAgentPid()), false
+		return pidContextKey(event.GetRootAgentPid()), false
 	}
 	if event.GetPid() > 0 {
-		return fmt.Sprintf("pid:%d", event.GetPid()), false
+		return pidContextKey(event.GetPid()), false
 	}
 	return "", false
+}
+
+func pidContextKey(pid uint32) string {
+	var scratch [16]byte
+	key := append(scratch[:0], "pid:"...)
+	return string(strconv.AppendUint(key, uint64(pid), 10))
 }
 
 func extraInfoFieldBounded(extraInfo, key string, maxValueBytes int) (string, bool) {

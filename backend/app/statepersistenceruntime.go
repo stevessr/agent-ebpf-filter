@@ -262,6 +262,34 @@ func (s *runtimeState) Snapshot() RuntimeSettings {
 	return s.settings
 }
 
+// The accessors below serve per-event gates. They copy one sub-struct under
+// the read lock instead of the whole RuntimeSettings, and callers must not
+// mutate the slices they share with the live settings.
+
+func (s *runtimeState) SignalProcessingSettings() SignalProcessingSettings {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.settings.SignalProcessing
+}
+
+func (s *runtimeState) ResearchProcessingSettings() ResearchProcessingSettings {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.settings.ResearchProcessing
+}
+
+func (s *runtimeState) LoopDetectionSettings() LoopDetectionSettings {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.settings.LoopDetection
+}
+
+func (s *runtimeState) KernelRiskFeedbackGate() (policyManagement bool, feedback KernelRiskFeedbackSettings) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.settings.PolicyManagementEnabled, s.settings.KernelRiskFeedback
+}
+
 func (s *runtimeState) ExpectedToken() string {
 	s.mu.RLock()
 	token := strings.TrimSpace(s.settings.AccessToken)

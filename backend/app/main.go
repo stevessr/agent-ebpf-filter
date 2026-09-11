@@ -79,6 +79,8 @@ func Main() error {
 	}
 
 	signalruntime.SnapshotSettingsHook = func() core.RuntimeSettings { return runtimeSettingsStore.Snapshot() }
+	signalruntime.SignalSettingsHook = runtimeSettingsStore.SignalProcessingSettings
+	research.ResearchSettingsHook = runtimeSettingsStore.ResearchProcessingSettings
 	signalruntime.RecentEventsContextHook = runtimeSettingsStore.RecentEventsContext
 
 	AppCtx.Broadcast = broadcast

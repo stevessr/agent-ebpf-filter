@@ -133,6 +133,7 @@ func init() {
 	events.Deps.RuntimeSettingsSnapshot = func() events.RuntimeSettings {
 		return runtimeSettingsStore.Snapshot()
 	}
+	events.Deps.KernelRiskFeedbackGate = runtimeSettingsStore.KernelRiskFeedbackGate
 
 	// Collector metrics (kernel risk)
 	events.Deps.CollectorMetrics = collectorMetricsStore
