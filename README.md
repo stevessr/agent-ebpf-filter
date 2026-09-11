@@ -277,6 +277,7 @@ agent-ebpf-filter/
 ├── proto/                # Protobuf definitions (source of truth)
 ├── kernel-ml/            # Optional DKMS kernel-space ML module
 ├── docs/                 # VitePress documentation site
+├── tools/agent-tui/      # Terminal event monitor (make tui)
 ├── deploy/kubernetes/    # Kubernetes manifests
 └── scripts/              # Demo and validation scripts
 ```

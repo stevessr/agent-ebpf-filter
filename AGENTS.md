@@ -67,6 +67,9 @@ agent-ebpf-filter/
 │   └── vite.config.ts
 ├── wrapper/                    # agent-wrapper CLI
 │   └── main.go
+├── tools/
+│   ├── agent-tui/              # Live event monitor TUI (make tui)
+│   └── dev-env-tui/            # .env.dev editor TUI (make dev-env)
 ├── adapters/
 │   ├── python/                 # Python PID registration
 │   │   └── agent_tracker.py
@@ -207,6 +210,17 @@ go run ./app
 cd frontend
 bun run dev
 ```
+
+### Watch Events in the Terminal
+
+```bash
+make tui                                   # auto-detects backend/.port and the runtime.json token
+make tui TUI_ARGS="-backend http://host:8080 -token $TOKEN"
+```
+
+The monitor TUI (`tools/agent-tui`) subscribes to the same protobuf `/ws` feed the
+web dashboard uses. Press `/` to filter (`comm:node type:openat risk:>=40`),
+`Space` to pause, `Enter` for the full event, `?` for all keys.
 
 ### Production Build
 

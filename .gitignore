@@ -1,6 +1,8 @@
 agent-wrapper
 agent-ebpf-filter
 backend/agent-ebpf-filter
+tools/agent-tui/agent-ebpf-filter-tui
+tools/agent-tui/agent-tui
 tmp/
 node_modules/
 dist/
