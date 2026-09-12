@@ -1,7 +1,6 @@
 package events
 
 import (
-	"context"
 	"strings"
 	"time"
 
@@ -9,8 +8,6 @@ import (
 	"agent-ebpf-filter/internal/network"
 	"agent-ebpf-filter/internal/protocoldetect"
 	"agent-ebpf-filter/pb"
-
-	"github.com/gorilla/websocket"
 )
 
 // ── Type re-exports (same aliases as the parent app package) ────────────
@@ -120,13 +117,8 @@ var Deps struct {
 	// flow context, protocol detection and DNS correlation.
 	Network NetworkSink
 
-	// Graph execution / envelope event dependencies
-	Upgrader                           *websocket.Upgrader
-	ReadCapturedEvents                 func(path string, limit int) ([]CapturedEventRecord, error)
-	ReadCapturedEventsContext          func(context.Context, string, int) ([]CapturedEventRecord, error)
-	RuntimeSettingsRecentEvents        func(limit int) ([]CapturedEventRecord, string, error)
-	RuntimeSettingsRecentEventsContext func(context.Context, int) ([]CapturedEventRecord, string, error)
-	RuntimeSettingsSnapshot            func() RuntimeSettings
+	// Runtime settings access for envelope/kernel-risk code
+	RuntimeSettingsSnapshot func() RuntimeSettings
 	// KernelRiskFeedbackGate answers the per-event "is feedback even on"
 	// question without copying the full RuntimeSettings.
 	KernelRiskFeedbackGate func() (policyManagement bool, feedback KernelRiskFeedbackSettings)

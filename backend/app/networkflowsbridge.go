@@ -7,8 +7,6 @@ package app
 // events subpackage can call back into the app package for all shared state.
 
 import (
-	"agent-ebpf-filter/app/recording"
-
 	appnetwork "agent-ebpf-filter/app/network"
 	"agent-ebpf-filter/pb"
 
@@ -132,12 +130,6 @@ func init() {
 	}
 	events.Deps.Network = appNetworkSink{}
 
-	// Graph execution / envelope event dependencies
-	events.Deps.Upgrader = &upgrader
-	events.Deps.ReadCapturedEvents = recording.ReadCapturedEventsFile
-	events.Deps.ReadCapturedEventsContext = recording.ReadCapturedEventsFileContext
-	events.Deps.RuntimeSettingsRecentEvents = runtimeSettingsStore.RecentEvents
-	events.Deps.RuntimeSettingsRecentEventsContext = runtimeSettingsStore.RecentEventsContext
 	events.Deps.RuntimeSettingsSnapshot = func() events.RuntimeSettings {
 		return runtimeSettingsStore.Snapshot()
 	}

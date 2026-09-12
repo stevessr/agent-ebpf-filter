@@ -2,13 +2,10 @@ package events
 
 import (
 	"context"
-	"errors"
-	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
-	"agent-ebpf-filter/app/wsstream"
 	"agent-ebpf-filter/internal/executiongraph"
 
 	"github.com/gin-gonic/gin"
@@ -18,118 +15,6 @@ type ExecutionGraphNode = executiongraph.Node
 type ExecutionGraphEdge = executiongraph.Edge
 type ExecutionGraphResponse = executiongraph.Response
 type executionGraphFilters = executiongraph.Filters
-
-func HandleExecutionGraph(c *gin.Context) {
-	graph, err := BuildExecutionGraphFromRequest(c)
-	if err != nil {
-		if c.Request.Context().Err() != nil || errors.Is(err, context.Canceled) {
-			return
-		}
-		status := http.StatusInternalServerError
-		if errors.Is(err, context.DeadlineExceeded) {
-			status = http.StatusServiceUnavailable
-		}
-		c.JSON(status, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, graph)
-}
-
-func ServeExecutionGraphWS(c *gin.Context) {
-	conn, err := Deps.Upgrader.Upgrade(c.Writer, c.Request, nil)
-	if err != nil {
-		c.Status(http.StatusBadRequest)
-		return
-	}
-	defer conn.Close()
-	conn.SetReadLimit(wsstream.ControlReadLimit)
-
-	interval := ParseExecutionGraphInterval(c.Query("interval"))
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		for {
-			if _, _, err := conn.ReadMessage(); err != nil {
-				return
-			}
-		}
-	}()
-
-	writeGraph := func() bool {
-		graph, err := BuildExecutionGraphFromRequest(c)
-		if err != nil {
-			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-				return false
-			}
-			_ = wsstream.WriteJSON(conn, gin.H{"error": err.Error()})
-			return false
-		}
-		if err := wsstream.WriteJSON(conn, graph); err != nil {
-			return false
-		}
-		return true
-	}
-
-	if !writeGraph() {
-		return
-	}
-	for {
-		select {
-		case <-done:
-			return
-		case <-c.Request.Context().Done():
-			return
-		case <-ticker.C:
-			if !writeGraph() {
-				return
-			}
-		}
-	}
-}
-
-func BuildExecutionGraphFromRequest(c *gin.Context) (ExecutionGraphResponse, error) {
-	ctx := c.Request.Context()
-	limit := 200
-	if raw := strings.TrimSpace(c.Query("limit")); raw != "" {
-		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 && parsed <= 2000 {
-			limit = parsed
-		}
-	}
-
-	source := "memory"
-	var records []CapturedEventRecord
-	var err error
-	if replayPath := strings.TrimSpace(c.Query("replay_path")); replayPath != "" {
-		if Deps.ReadCapturedEventsContext != nil {
-			records, err = Deps.ReadCapturedEventsContext(ctx, replayPath, limit)
-		} else {
-			records, err = Deps.ReadCapturedEvents(replayPath, limit)
-		}
-		source = "replay_file"
-	} else {
-		if Deps.RuntimeSettingsRecentEventsContext != nil {
-			records, source, err = Deps.RuntimeSettingsRecentEventsContext(ctx, limit)
-		} else {
-			records, source, err = Deps.RuntimeSettingsRecentEvents(limit)
-		}
-	}
-	if err != nil {
-		return ExecutionGraphResponse{}, err
-	}
-	if err := ctx.Err(); err != nil {
-		return ExecutionGraphResponse{}, err
-	}
-
-	filters := ExecutionGraphFiltersFromRequest(c)
-	graph, err := BuildExecutionGraphContext(ctx, records, filters)
-	if err != nil {
-		return ExecutionGraphResponse{}, err
-	}
-	graph.Source = source
-	return graph, nil
-}
 
 func BuildExecutionGraph(records []CapturedEventRecord, filters executionGraphFilters) ExecutionGraphResponse {
 	graph, _ := BuildExecutionGraphContext(context.Background(), records, filters)
