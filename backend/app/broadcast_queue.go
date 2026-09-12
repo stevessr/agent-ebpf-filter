@@ -6,6 +6,10 @@ import (
 	"agent-ebpf-filter/pb"
 )
 
+// enqueueBroadcastEvent hands event to the broadcaster, which then owns it:
+// the event is enriched and redacted in place and retained by the archive
+// and persistence queue. Producers must build a fresh event per call and
+// must not read or modify it after a successful enqueue.
 func enqueueBroadcastEvent(queue chan<- *pb.Event, event *pb.Event, source string) bool {
 	source = strings.TrimSpace(source)
 	if source == "" {

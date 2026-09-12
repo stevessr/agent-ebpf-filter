@@ -16,16 +16,24 @@ func BenchmarkBroadcastPipelinePerEvent(b *testing.B) {
 	copy(raw.Comm[:], "claude")
 	copy(raw.Path[:], "/home/steve/project/src/main.go")
 	template := buildKernelEventFromRaw(&raw)
+	// The pipeline takes ownership of each event, so hand it a pool of
+	// producer-built events instead of cloning inside the timed loop.
+	pool := make([]*pb.Event, 1024)
+	for i := range pool {
+		pool[i] = cloneProtoEvent(template)
+	}
 	b.ReportAllocs()
+	i := 0
 	for b.Loop() {
-		event := cloneProtoEvent(template)
-		event = enrichEventContext(event)
+		event := enrichEventContext(pool[i%len(pool)])
+		i++
+		alerts := buildSemanticAlerts(event)
 		record := recordCapturedEvent(event)
 		if record.Event == nil {
 			b.Fatal("nil record")
 		}
-		for _, alert := range buildSemanticAlerts(event) {
-			_ = enrichEventContext(alert)
+		for _, alert := range alerts {
+			recordCapturedEvent(enrichEventContext(alert))
 		}
 	}
 }

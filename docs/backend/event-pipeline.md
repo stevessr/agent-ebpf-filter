@@ -129,9 +129,12 @@ collector health 和 Prometheus 暴露 tools/samples 占用、观察数、drift 
 
 ## 异步 JSONL 持久化
 
-`recordCapturedEvent()` 在完成 clone、schema 归一化和脱敏后，先写入内存
-`EventArchive`，再把同一条记录非阻塞地提交给持久化 writer。事件捕获热路径不再执行
-JSON 编码、文件写入或逐条 `Flush()`。
+事件一旦通过 `enqueueBroadcastEvent()` 进入队列，所有权就移交给 broadcaster：生产者必须
+每次构造新事件，入队后不得再读写。broadcaster 先用未脱敏的事件推导语义告警，再由
+`recordCapturedEvent()` 原地完成 schema 归一化和脱敏（不再 `proto.Clone`），写入内存
+`EventArchive`，并把同一条记录非阻塞地提交给持久化 writer。envelope 的 `LegacyEvent`
+与记录共享同一个事件对象，脱敏只执行一次。事件捕获热路径不再执行 JSON 编码、文件
+写入或逐条 `Flush()`。
 
 持久化 writer 的边界如下：
 

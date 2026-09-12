@@ -528,6 +528,9 @@ func (s *runtimeState) eventLogRoot() string {
 	return platform.RuntimeSettingsDir()
 }
 
+// recordCapturedEvent takes ownership of event: it is redacted in place and
+// retained by the archive, the persistence queue and the websocket batch.
+// Callers must not read or modify it afterwards.
 func recordCapturedEvent(event *pb.Event) CapturedEventRecord {
 	if event == nil {
 		return CapturedEventRecord{}
@@ -535,10 +538,9 @@ func recordCapturedEvent(event *pb.Event) CapturedEventRecord {
 
 	collectorMetricsStore.RecordEvent(event)
 
-	eventCopy := cloneProtoEvent(event)
 	record := normalizeCapturedEventRecord(CapturedEventRecord{
 		ReceivedAt: time.Now().UTC(),
-		Event:      eventCopy,
+		Event:      event,
 	})
 	record = redactCapturedEventRecord(record, globalRedactionEngine)
 	capturedEventArchive.Add(record)

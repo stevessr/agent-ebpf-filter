@@ -132,8 +132,12 @@ func runEventBroadcaster(ctx context.Context) {
 			}
 			collectorMetricsStore.RecordBroadcastReceived()
 			event = enrichEventContext(event)
+			// Semantic alerts must see the event before recordCapturedEvent
+			// redacts it in place; the broadcaster owns the event outright
+			// once it leaves the queue (see enqueueBroadcastEvent).
+			alerts := buildSemanticAlerts(event)
 			appendRecord(recordCapturedEvent(event))
-			for _, alert := range buildSemanticAlerts(event) {
+			for _, alert := range alerts {
 				alert = enrichEventContext(alert)
 				appendRecord(recordCapturedEvent(alert))
 			}
