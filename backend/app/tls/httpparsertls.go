@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strings"
 	"unicode/utf8"
+	"unsafe"
 )
 
 // Keep the formatted HTTP body below the expanded eBPF plaintext capture
@@ -588,18 +589,25 @@ func prettyPrintJSON(body []byte) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// hexDump renders payload as space-separated lowercase hex pairs ("de ad be
+// ef") in one pass over a pre-sized buffer.
 func hexDump(payload []byte) string {
 	if len(payload) == 0 {
 		return ""
 	}
-	var b strings.Builder
+	const digits = "0123456789abcdef"
+	out := make([]byte, len(payload)*3-1)
+	j := 0
 	for i, v := range payload {
 		if i > 0 {
-			b.WriteByte(' ')
+			out[j] = ' '
+			j++
 		}
-		_, _ = fmt.Fprintf(&b, "%02x", v)
+		out[j] = digits[v>>4]
+		out[j+1] = digits[v&0x0f]
+		j += 2
 	}
-	return b.String()
+	return unsafe.String(&out[0], len(out))
 }
 
 func tlsDirectionLabel(direction uint8) string {
