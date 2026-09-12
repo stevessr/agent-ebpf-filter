@@ -98,3 +98,28 @@ func legacyBuildEventEnvelopeID(record CapturedEventRecord, event *pb.Event) str
 	sum := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
 	return "evt_" + hex.EncodeToString(sum[:12])
 }
+
+func TestIsSecretLikePathMatchesLowerCasedContains(t *testing.T) {
+	cases := []string{
+		"/home/steve/.ssh/id_rsa", "/HOME/STEVE/.SSH/ID_ED25519", "/etc/Shadow", "  /root/.aws/credentials ",
+		"/home/steve/project/src/main.go", "", "   ", "C:\\Users\\Steve\\.npmrc", "/var/lib/secrets/token",
+		"/home/steve/.envrc", "/home/steve/.env", strings.Repeat("/very/long/path", 60) + "/.git-credentials",
+		"/tmp/Ünïcödé/.netrc",
+	}
+	for _, path := range cases {
+		lower := strings.ToLower(strings.TrimSpace(path))
+		want := false
+		for _, hint := range SecretPathHints {
+			if lower != "" && strings.Contains(lower, hint) {
+				want = true
+				break
+			}
+		}
+		if got := isSecretLikePath(path); got != want {
+			t.Fatalf("isSecretLikePath(%q) = %v, want %v", path, got, want)
+		}
+	}
+	if allocs := testing.AllocsPerRun(200, func() { isSecretLikePath("/home/steve/Project/src/main.go") }); allocs != 0 {
+		t.Fatalf("isSecretLikePath allocated %.1f per call", allocs)
+	}
+}

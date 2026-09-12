@@ -33,13 +33,18 @@ func extractSecretTarget(event *pb.Event) (string, bool) {
 	return "", false
 }
 
+// isSecretLikePath reports whether path contains one of SecretPathHints,
+// ignoring case. The path is folded into a stack buffer instead of through
+// strings.ToLower so the check does not allocate on the per-event path.
 func isSecretLikePath(path string) bool {
-	lower := strings.ToLower(strings.TrimSpace(path))
-	if lower == "" {
+	path = strings.TrimSpace(path)
+	if path == "" {
 		return false
 	}
+	var scratch [512]byte
+	lower := lowerJoinedFields(scratch[:0], path)
 	for _, hint := range SecretPathHints {
-		if strings.Contains(lower, hint) {
+		if bytes.Contains(lower, []byte(hint)) {
 			return true
 		}
 	}
