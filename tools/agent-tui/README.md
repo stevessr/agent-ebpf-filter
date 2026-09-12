@@ -1,9 +1,11 @@
 # Agent TUI
 
 Terminal dashboard for a running Agent eBPF Filter backend. It subscribes to
-the same protobuf `EventBatch` feed (`/ws`) the web dashboard consumes, backfills
-recent history from `/events/recent`, and renders a live, filterable event table
-with throughput and risk summaries.
+the same feeds the web dashboard consumes — the protobuf `EventBatch` stream
+(`/ws`) and the TLS plaintext capture stream (`/ws/tls-capture`) — backfills
+recent history, and renders live, filterable tables with throughput, risk and
+traffic summaries. `Tab` switches between the kernel event view and the TLS
+view; each keeps its own filter and pause state.
 
 ```bash
 make tui                                            # from the repository root
@@ -26,6 +28,7 @@ is found. Dev-mode backends with auth disabled need no token.
 
 | Key            | Action                                                     |
 |----------------|------------------------------------------------------------|
+| `Tab`, `1`, `2` | Switch between the kernel event view and the TLS view      |
 | `/`            | Edit the filter; `Enter` applies, `Esc` cancels            |
 | `Esc`          | Clear the active filter / close an overlay                 |
 | `Enter`        | Show every populated field of the selected event           |
@@ -33,7 +36,7 @@ is found. Dev-mode backends with auth disabled need no token.
 | `↑ ↓ PgUp PgDn`, mouse wheel | Browse history (pauses following)            |
 | `End`, `G`     | Jump to the newest event and follow again                  |
 | `Home`         | Jump to the oldest retained event                          |
-| `s`            | Cycle the sidebar histogram: event types → processes → tags |
+| `s`            | Cycle the sidebar histogram (types/hosts → processes → tags/vendors) |
 | `c`            | Clear retained history and statistics                      |
 | `?`            | Key reference                                              |
 | `q`, `Ctrl+C`  | Quit                                                       |
@@ -49,6 +52,25 @@ decision:block  tool:Bash  run:<agent-run-id>  pid:1234  ppid:1  uid:1000  risk:
 ```
 
 Prefix a term with `-` to negate it: `-type:read -type:write`.
+
+In the TLS view free text matches host, URL, comm, method, type, vendor and
+content type, and the keyed terms are:
+
+```
+host:anthropic  url:/v1/messages  comm:node  method:POST  status:4  type:sse_message
+vendor:openai  dir:recv  tool:Bash  run:<agent-run-id>  pid:1234
+```
+
+`status:4` is a prefix match, so it selects every 4xx response.
+
+## TLS capture view
+
+The TLS view needs TLS capture enabled on the backend (`AGENT_RUNTIME_TLS_CAPTURE_ENABLED`
+or the runtime toggle); while it is off the sidebar shows the backend's 403 and
+the monitor retries slowly. Bodies and headers arrive already redacted by the
+backend's redaction engine — the TUI never sees raw secrets — and `Enter` shows
+the full exchange: headers sorted by name, vendor/role/prompt metadata, HTTP/2
+stream information and the captured body.
 
 ## Design notes
 

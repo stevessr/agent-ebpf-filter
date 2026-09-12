@@ -219,7 +219,9 @@ make tui TUI_ARGS="-backend http://host:8080 -token $TOKEN"
 ```
 
 The monitor TUI (`tools/agent-tui`) subscribes to the same protobuf `/ws` feed the
-web dashboard uses. Press `/` to filter (`comm:node type:openat risk:>=40`),
+web dashboard uses, plus the `/ws/tls-capture` plaintext stream. Press `Tab` to
+switch between kernel events and TLS captures, `/` to filter
+(`comm:node type:openat risk:>=40`, or `host:anthropic status:4` in the TLS view),
 `Space` to pause, `Enter` for the full event, `?` for all keys.
 
 ### Production Build

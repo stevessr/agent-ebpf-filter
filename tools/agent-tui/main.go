@@ -55,10 +55,11 @@ func run(args []string) error {
 	defer cancel()
 
 	model := NewModel(cfg.History)
-	stream := NewStream(cfg, model)
-	go stream.Run(ctx)
+	tlsModel := NewTLSModel(cfg.History)
+	go NewStream(cfg, model).Run(ctx)
+	go NewTLSStream(cfg, tlsModel).Run(ctx)
 
-	ui := NewUI(cfg, model)
+	ui := NewUI(cfg, model, tlsModel)
 	if err := ui.Run(ctx.Done()); err != nil {
 		return fmt.Errorf("terminal ui: %w", err)
 	}

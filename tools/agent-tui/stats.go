@@ -107,15 +107,18 @@ type countedKey struct {
 
 // Top returns the n most frequent keys of the requested histogram.
 func (s *Stats) Top(kind string, n int) []countedKey {
-	var src map[string]uint64
 	switch kind {
 	case "comm":
-		src = s.byComm
+		return topCounts(s.byComm, n)
 	case "tag":
-		src = s.byTag
+		return topCounts(s.byTag, n)
 	default:
-		src = s.byType
+		return topCounts(s.byType, n)
 	}
+}
+
+// topCounts returns the n largest entries of a histogram, ties broken by key.
+func topCounts(src map[string]uint64, n int) []countedKey {
 	out := make([]countedKey, 0, len(src))
 	for key, count := range src {
 		out = append(out, countedKey{Key: key, Count: count})

@@ -107,7 +107,7 @@ func TestUIBuildsAndRefreshesHeadless(t *testing.T) {
 		{Type: "unlink", Comm: "rm", Pid: 2, Path: "/x", Decision: "BLOCK", RiskScore: 90},
 	}, time.Now())
 	model.OnState(StateConnected, "ws://test/ws")
-	ui := NewUI(Config{BackendURL: "http://test"}, model)
+	ui := NewUI(Config{BackendURL: "http://test"}, model, NewTLSModel(50))
 	ui.refresh()
 	if len(ui.content.rows) != 2 {
 		t.Fatalf("table rows = %d, want 2", len(ui.content.rows))
@@ -129,13 +129,13 @@ func TestUIBuildsAndRefreshesHeadless(t *testing.T) {
 	}
 
 	// Pausing keeps the rows the user is looking at while the model moves on.
-	ui.setFollow(false)
+	ui.events.follow = false
 	model.OnEvents([]*pb.Event{{Type: "openat", Comm: "cat", Pid: 3}}, time.Now())
 	ui.refresh()
 	if len(ui.content.rows) != 2 || !strings.Contains(ui.header.GetText(true), "paused") {
 		t.Fatalf("paused table advanced to %d rows", len(ui.content.rows))
 	}
-	ui.setFollow(true)
+	ui.events.follow = true
 	ui.refresh()
 	if len(ui.content.rows) != 3 {
 		t.Fatalf("resumed table rows = %d, want 3", len(ui.content.rows))

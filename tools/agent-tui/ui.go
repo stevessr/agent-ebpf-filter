@@ -215,12 +215,60 @@ func typeColor(eventType string) tcell.Color {
 
 // ── UI ───────────────────────────────────────────────────────────────────
 
+// viewKind selects which stream the main table shows.
+type viewKind int
+
+const (
+	viewEvents viewKind = iota
+	viewTLS
+)
+
+func (v viewKind) String() string {
+	if v == viewTLS {
+		return "tls"
+	}
+	return "events"
+}
+
+// tableView is one stream's table plus its follow/pause state, so both the
+// kernel event view and the TLS capture view share the same key handling.
+type tableView struct {
+	table  *tview.Table
+	follow bool
+	// stale forces one re-snapshot on the next refresh even while paused,
+	// so a filter change or clear is reflected immediately.
+	stale bool
+	// programmatic suppresses the "user moved the selection" pause trigger
+	// while the code itself repositions the cursor.
+	programmatic bool
+}
+
+func (v *tableView) selectRow(row int) {
+	v.programmatic = true
+	v.table.Select(row, 0)
+	v.programmatic = false
+}
+
+func (v *tableView) trackEnd(rows int) {
+	if v.follow && rows > 0 {
+		v.selectRow(rows)
+		v.table.ScrollToEnd()
+	}
+}
+
 type UI struct {
-	app     *tview.Application
-	model   *Model
-	cfg     Config
-	content *eventContent
-	table   *tview.Table
+	app      *tview.Application
+	model    *Model
+	tlsModel *TLSModel
+	cfg      Config
+
+	content    *eventContent
+	tlsContent *tlsContent
+	events     tableView
+	tls        tableView
+	active     viewKind
+
+	body    *tview.Pages
 	header  *tview.TextView
 	sidebar *tview.TextView
 	footer  *tview.TextView
@@ -229,22 +277,29 @@ type UI struct {
 	pages   *tview.Pages
 	detail  *tview.TextView
 
-	follow       bool
-	programmatic bool
-	sidebarMode  int
+	sidebarMode int
 }
 
-func NewUI(cfg Config, model *Model) *UI {
+func NewUI(cfg Config, model *Model, tlsModel *TLSModel) *UI {
 	applyTheme()
 	ui := &UI{
-		app:     tview.NewApplication(),
-		model:   model,
-		cfg:     cfg,
-		content: &eventContent{},
-		follow:  true,
+		app:        tview.NewApplication(),
+		model:      model,
+		tlsModel:   tlsModel,
+		cfg:        cfg,
+		content:    &eventContent{},
+		tlsContent: &tlsContent{},
 	}
 	ui.build()
 	return ui
+}
+
+// current returns the table view the user is looking at.
+func (ui *UI) current() *tableView {
+	if ui.active == viewTLS {
+		return &ui.tls
+	}
+	return &ui.events
 }
 
 func styleBox(box *tview.Box, title string) {
@@ -255,29 +310,39 @@ func styleBox(box *tview.Box, title string) {
 		SetTitle(" " + title + " ")
 }
 
-func (ui *UI) build() {
-	ui.header = tview.NewTextView().SetDynamicColors(true).SetWrap(false)
-	ui.header.SetBackgroundColor(themePanel)
-
-	ui.table = tview.NewTable().
-		SetContent(ui.content).
+// newStreamTable builds a virtual table wired to view's follow state.
+func (ui *UI) newStreamTable(view *tableView, content tview.TableContent, title string, onSelect func(row int)) {
+	view.follow = true
+	view.table = tview.NewTable().
+		SetContent(content).
 		SetFixed(1, 0).
 		SetSelectable(true, false).
 		SetSelectedStyle(tcell.StyleDefault.Background(themePanelAlt).Foreground(themeText).Bold(true)).
 		SetSeparator(' ')
-	styleBox(ui.table.Box, "Events")
-	ui.table.SetSelectionChangedFunc(func(row, _ int) {
-		if !ui.programmatic && ui.follow {
-			ui.setFollow(false)
+	styleBox(view.table.Box, title)
+	view.table.SetSelectionChangedFunc(func(row, _ int) {
+		if !view.programmatic && view.follow {
+			view.follow = false
 		}
 	})
-	ui.table.SetSelectedFunc(func(row, _ int) { ui.showDetail(row) })
-	ui.table.SetMouseCapture(func(action tview.MouseAction, event *tcell.EventMouse) (tview.MouseAction, *tcell.EventMouse) {
+	view.table.SetSelectedFunc(func(row, _ int) { onSelect(row) })
+	view.table.SetMouseCapture(func(action tview.MouseAction, event *tcell.EventMouse) (tview.MouseAction, *tcell.EventMouse) {
 		if action == tview.MouseScrollUp || action == tview.MouseScrollDown {
-			ui.setFollow(false)
+			view.follow = false
 		}
 		return action, event
 	})
+}
+
+func (ui *UI) build() {
+	ui.header = tview.NewTextView().SetDynamicColors(true).SetWrap(false)
+	ui.header.SetBackgroundColor(themePanel)
+
+	ui.newStreamTable(&ui.events, ui.content, "Events  Tab switches view", ui.showDetail)
+	ui.newStreamTable(&ui.tls, ui.tlsContent, "TLS capture  Tab switches view", ui.showTLSDetail)
+	ui.body = tview.NewPages().
+		AddPage(viewEvents.String(), ui.events.table, true, true).
+		AddPage(viewTLS.String(), ui.tls.table, true, false)
 
 	ui.sidebar = tview.NewTextView().SetDynamicColors(true).SetWrap(false)
 	styleBox(ui.sidebar.Box, "Overview")
@@ -296,12 +361,12 @@ func (ui *UI) build() {
 	ui.filter.SetDoneFunc(func(key tcell.Key) {
 		switch key {
 		case tcell.KeyEnter:
-			ui.model.SetFilter(ParseFilter(ui.filter.GetText()))
+			ui.setFilter(ParseFilter(ui.filter.GetText()))
 		case tcell.KeyEscape:
-			ui.filter.SetText(ui.model.Summary(time.Now(), 0).Filter.Raw)
+			ui.filter.SetText(ui.activeFilter().Raw)
 		}
 		ui.bottom.SwitchToPage("keys")
-		ui.app.SetFocus(ui.table)
+		ui.app.SetFocus(ui.current().table)
 		ui.refresh()
 	})
 
@@ -310,7 +375,7 @@ func (ui *UI) build() {
 		AddPage("filter", ui.filter, true, false)
 
 	body := tview.NewFlex().
-		AddItem(ui.table, 0, 1, true).
+		AddItem(ui.body, 0, 1, true).
 		AddItem(ui.sidebar, 36, 0, false)
 
 	root := tview.NewFlex().SetDirection(tview.FlexRow).
@@ -334,7 +399,38 @@ func (ui *UI) build() {
 		AddPage("help", centered(ui.helpView(), 76, 22), true, false)
 
 	ui.app.SetRoot(ui.pages, true).EnableMouse(true).SetInputCapture(ui.handleKey)
-	ui.app.SetFocus(ui.table)
+	ui.app.SetFocus(ui.events.table)
+	ui.refresh()
+}
+
+// activeFilter returns the filter of the view being shown.
+func (ui *UI) activeFilter() Filter {
+	if ui.active == viewTLS {
+		return ui.tlsModel.Summary(0).Filter
+	}
+	return ui.model.Summary(time.Now(), 0).Filter
+}
+
+func (ui *UI) setFilter(f Filter) {
+	ui.current().stale = true
+	if ui.active == viewTLS {
+		ui.tlsModel.SetFilter(f)
+		return
+	}
+	ui.model.SetFilter(f)
+}
+
+// switchView flips between the kernel event table and the TLS table.
+func (ui *UI) switchView(kind viewKind) {
+	ui.active = kind
+	ui.body.SwitchToPage(kind.String())
+	ui.filter.SetText(ui.activeFilter().Raw)
+	if kind == viewTLS {
+		ui.filter.SetPlaceholder(`api.anthropic.com  host:openai  method:POST  status:4  comm:node  vendor:anthropic  -type:sse_message`)
+	} else {
+		ui.filter.SetPlaceholder(`node  type:openat  comm:python  pid:1234  tag:"AI Agent"  risk:>=40  -type:read`)
+	}
+	ui.app.SetFocus(ui.current().table)
 	ui.refresh()
 }
 
@@ -353,17 +449,19 @@ func (ui *UI) helpView() *tview.TextView {
 	styleBox(help.Box, "Keys  Esc closes")
 	accent := colorTag(themeAccent)
 	lines := []string{
-		"", accent + "  /[-]         edit filter        " + accent + "Esc[-]     clear filter / close",
-		accent + "  Enter[-]     event detail        " + accent + "?[-]       this help",
-		accent + "  Space[-]     pause / follow      " + accent + "End  G[-]  jump to newest, follow",
-		accent + "  ↑ ↓ PgUp[-]  browse (pauses)     " + accent + "Home[-]    jump to oldest",
-		accent + "  s[-]         cycle sidebar       " + accent + "c[-]       clear history",
-		accent + "  q  Ctrl+C[-] quit",
+		"", accent + "  Tab  1  2[-]  switch events / TLS  " + accent + "Esc[-]     clear filter / close",
+		accent + "  /[-]         edit filter          " + accent + "?[-]       this help",
+		accent + "  Enter[-]     event detail          " + accent + "End  G[-]  jump to newest, follow",
+		accent + "  Space[-]     pause / follow        " + accent + "Home[-]    jump to oldest",
+		accent + "  ↑ ↓ PgUp[-]  browse (pauses)       " + accent + "c[-]       clear history",
+		accent + "  s[-]         cycle sidebar         " + accent + "q  Ctrl+C[-] quit",
 		"",
-		colorTag(themeMuted) + "  Filter terms are ANDed. Free text matches comm, type, path,",
-		"  endpoint, domain, tag and extra info. Keyed terms: type: comm:",
-		"  path: tag: net: decision: tool: run: pid: ppid: uid: risk:>=N.",
-		"  Prefix a term with - to negate it.[-]",
+		colorTag(themeMuted) + "  Filters are per view and ANDed; prefix a term with - to negate.",
+		"  Events: free text matches comm, type, path, endpoint, domain, tag,",
+		"  extra info; keys type: comm: path: tag: net: decision: tool: run:",
+		"  pid: ppid: uid: risk:>=N.  TLS: free text matches host, url, comm,",
+		"  method, type, vendor; keys host: url: comm: method: status: type:",
+		"  vendor: dir: tool: run: pid:.[-]",
 	}
 	help.SetText(strings.Join(lines, "\n"))
 	help.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
@@ -383,47 +481,62 @@ func (ui *UI) handleKey(event *tcell.EventKey) *tcell.EventKey {
 	if ui.app.GetFocus() == ui.filter {
 		return event
 	}
+	view := ui.current()
 	switch event.Key() {
 	case tcell.KeyCtrlC:
 		ui.app.Stop()
 		return nil
+	case tcell.KeyTab, tcell.KeyBacktab:
+		if ui.active == viewEvents {
+			ui.switchView(viewTLS)
+		} else {
+			ui.switchView(viewEvents)
+		}
+		return nil
 	case tcell.KeyEscape:
-		if !ui.model.Summary(time.Now(), 0).Filter.IsZero() {
+		if !ui.activeFilter().IsZero() {
 			ui.filter.SetText("")
-			ui.model.SetFilter(Filter{})
+			ui.setFilter(Filter{})
 			ui.refresh()
 		}
 		return nil
 	case tcell.KeyEnd:
-		ui.setFollow(true)
+		view.follow = true
 		ui.refresh()
 		return nil
 	case tcell.KeyHome:
-		ui.setFollow(false)
-		ui.selectRow(1)
+		view.follow = false
+		view.selectRow(1)
 		return nil
 	case tcell.KeyUp, tcell.KeyDown, tcell.KeyPgUp, tcell.KeyPgDn:
-		if ui.follow {
-			ui.setFollow(false)
-		}
+		view.follow = false
 		return event
 	}
 	switch event.Rune() {
 	case 'q':
 		ui.app.Stop()
+	case '1':
+		ui.switchView(viewEvents)
+	case '2':
+		ui.switchView(viewTLS)
 	case '/':
 		ui.bottom.SwitchToPage("filter")
 		ui.app.SetFocus(ui.filter)
 	case ' ':
-		ui.setFollow(!ui.follow)
+		view.follow = !view.follow
 		ui.refresh()
 	case 'G':
-		ui.setFollow(true)
+		view.follow = true
 		ui.refresh()
 	case 'c':
-		ui.model.Clear()
-		ui.content.rows = ui.content.rows[:0]
-		ui.setFollow(true)
+		if ui.active == viewTLS {
+			ui.tlsModel.Clear()
+			ui.tlsContent.rows = ui.tlsContent.rows[:0]
+		} else {
+			ui.model.Clear()
+			ui.content.rows = ui.content.rows[:0]
+		}
+		view.follow = true
 		ui.refresh()
 	case 's':
 		ui.sidebarMode = (ui.sidebarMode + 1) % 3
@@ -439,35 +552,67 @@ func (ui *UI) handleKey(event *tcell.EventKey) *tcell.EventKey {
 
 func (ui *UI) closeOverlay(name string) {
 	ui.pages.HidePage(name)
-	ui.app.SetFocus(ui.table)
+	ui.app.SetFocus(ui.current().table)
 }
 
-func (ui *UI) setFollow(follow bool) {
-	ui.follow = follow
-}
-
-func (ui *UI) selectRow(row int) {
-	ui.programmatic = true
-	ui.table.Select(row, 0)
-	ui.programmatic = false
-}
-
-// refresh re-reads the model. While following, the table shows the live
-// snapshot and tracks the newest row; while paused, the rows the user is
-// browsing stay exactly where they are even though the ring keeps filling.
+// refresh re-reads the models. While a view follows, its table shows the
+// live snapshot and tracks the newest row; while paused, the rows the user
+// is browsing stay exactly where they are even though the ring keeps
+// filling. Both tables are refreshed so switching views is instant.
 func (ui *UI) refresh() {
 	now := time.Now()
 	summary := ui.model.Summary(now, 8)
-	if ui.follow {
+	tlsSummary := ui.tlsModel.Summary(8)
+	if ui.events.follow || ui.events.stale {
 		ui.content.rows = ui.model.Snapshot(ui.content.rows)
-		if n := len(ui.content.rows); n > 0 {
-			ui.selectRow(n)
-			ui.table.ScrollToEnd()
-		}
+		ui.events.trackEnd(len(ui.content.rows))
+		ui.events.stale = false
 	}
-	ui.header.SetText(ui.renderHeader(summary, now))
-	ui.sidebar.SetText(ui.renderSidebar(summary))
+	if ui.tls.follow || ui.tls.stale {
+		ui.tlsContent.rows = ui.tlsModel.Snapshot(ui.tlsContent.rows)
+		ui.tls.trackEnd(len(ui.tlsContent.rows))
+		ui.tls.stale = false
+	}
+	if ui.active == viewTLS {
+		ui.header.SetText(ui.renderTLSHeader(tlsSummary, summary))
+		ui.sidebar.SetText(ui.renderTLSSidebar(tlsSummary))
+	} else {
+		ui.header.SetText(ui.renderHeader(summary, now))
+		ui.sidebar.SetText(ui.renderSidebar(summary))
+	}
 	ui.footer.SetText(ui.renderFooter())
+}
+
+func (ui *UI) renderTLSHeader(s TLSSummary, events Summary) string {
+	var b strings.Builder
+	switch s.State {
+	case StateConnected:
+		b.WriteString(boldTag(themeSuccess) + " ● " + resetTag)
+	case StateConnecting:
+		b.WriteString(boldTag(themeWarning) + " ◌ " + resetTag)
+	default:
+		b.WriteString(boldTag(themeError) + " ○ " + resetTag)
+	}
+	fmt.Fprintf(&b, "%s%s%s  %sTLS ", colorTag(themeText), safeText(ui.cfg.BackendURL), resetTag, colorTag(themeMuted))
+	if s.State == StateConnected {
+		b.WriteString("live")
+	} else if s.StateDetail != "" {
+		b.WriteString(safeText(s.StateDetail))
+	} else {
+		b.WriteString(s.State.String())
+	}
+	fmt.Fprintf(&b, "%s   %scaptured%s %s%d%s", resetTag, colorTag(themeMuted), resetTag, colorTag(themeText), s.Total, resetTag)
+	fmt.Fprintf(&b, "   %sreq/resp%s %s%d/%d%s", colorTag(themeMuted), resetTag, colorTag(themeAccent), s.Requests, s.Responses, resetTag)
+	fmt.Fprintf(&b, "   %skernel events%s %s%d%s", colorTag(themeMuted), resetTag, colorTag(themeText), events.Total, resetTag)
+	if !s.Filter.IsZero() {
+		fmt.Fprintf(&b, "   %sfilter%s %s%s%s", colorTag(themeMuted), resetTag, colorTag(themeAccent), safeText(s.Filter.Raw), resetTag)
+	}
+	if ui.tls.follow {
+		fmt.Fprintf(&b, "   %s▶ follow%s", colorTag(themeSuccess), resetTag)
+	} else {
+		fmt.Fprintf(&b, "   %s‖ paused%s", colorTag(themeWarning), resetTag)
+	}
+	return b.String()
 }
 
 func (ui *UI) renderHeader(s Summary, now time.Time) string {
@@ -499,7 +644,7 @@ func (ui *UI) renderHeader(s Summary, now time.Time) string {
 	if !s.Filter.IsZero() {
 		fmt.Fprintf(&b, "   %sfilter%s %s%s%s", colorTag(themeMuted), resetTag, colorTag(themeAccent), safeText(s.Filter.Raw), resetTag)
 	}
-	if ui.follow {
+	if ui.events.follow {
 		fmt.Fprintf(&b, "   %s▶ follow%s", colorTag(themeSuccess), resetTag)
 	} else {
 		fmt.Fprintf(&b, "   %s‖ paused%s", colorTag(themeWarning), resetTag)
@@ -555,17 +700,17 @@ func (ui *UI) renderSidebar(s Summary) string {
 		title, items = "top tags", s.TopTags
 	}
 	fmt.Fprintf(&b, "%s%s%s  %s(s cycles)%s\n", boldTag(themeTitle), title, resetTag, muted, resetTag)
-	writeHistogram(&b, items, 32)
+	writeHistogram(&b, items, 32, 16)
 	return b.String()
 }
 
-func writeHistogram(b *strings.Builder, items []countedKey, width int) {
+// writeHistogram renders items as label/bar/count rows fitting width columns.
+func writeHistogram(b *strings.Builder, items []countedKey, width, labelWidth int) {
 	if len(items) == 0 {
 		fmt.Fprintf(b, "%s—%s\n", colorTag(themeMuted), resetTag)
 		return
 	}
 	peak := items[0].Count
-	const labelWidth = 16
 	barWidth := max(width-labelWidth-8, 4)
 	for _, item := range items {
 		label := item.Key
@@ -584,6 +729,7 @@ func writeHistogram(b *strings.Builder, items []countedKey, width int) {
 func (ui *UI) renderFooter() string {
 	accent, muted := colorTag(themeAccent), colorTag(themeMuted)
 	keys := []string{
+		accent + "Tab" + muted + " view",
 		accent + "/" + muted + " filter",
 		accent + "Enter" + muted + " detail",
 		accent + "Space" + muted + " pause",
@@ -600,8 +746,17 @@ func (ui *UI) showDetail(row int) {
 	if row <= 0 || row-1 >= len(ui.content.rows) {
 		return
 	}
-	e := ui.content.rows[row-1]
-	text := describeEvent(e)
+	ui.openDetail(describeEvent(ui.content.rows[row-1]))
+}
+
+func (ui *UI) showTLSDetail(row int) {
+	if row <= 0 || row-1 >= len(ui.tlsContent.rows) {
+		return
+	}
+	ui.openDetail(describeTLSEvent(ui.tlsContent.rows[row-1]))
+}
+
+func (ui *UI) openDetail(text string) {
 	ui.detail.SetText(text)
 	ui.detail.ScrollToBeginning()
 	// Size the overlay to its content instead of a fixed box.
@@ -625,7 +780,11 @@ func (ui *UI) Run(stop <-chan struct{}) error {
 				return
 			case now := <-ticker.C:
 				// Rate figures decay on their own; repaint at least once a second.
-				if ui.model.ConsumeDirty() || now.Sub(lastFull) >= time.Second {
+				dirty := ui.model.ConsumeDirty()
+				if ui.tlsModel.ConsumeDirty() {
+					dirty = true
+				}
+				if dirty || now.Sub(lastFull) >= time.Second {
 					lastFull = now
 					ui.app.QueueUpdateDraw(ui.refresh)
 				}
