@@ -22,8 +22,8 @@ func TestNetworkEventDependenciesUseAppContextManager(t *testing.T) {
 	})
 
 	appContext.Network.DNSCache().Record("api.example.test", "93.184.216.34")
-	events.Deps.TCPTrackerRecordConnect("10.0.0.2", "93.184.216.34", 41000, 443, 42, "curl")
-	events.Deps.BandwidthTrackerRecordBytes("10.0.0.2", "93.184.216.34", 443, "TCP", "outgoing", 512, "curl", 42)
+	events.Deps.Network.RecordTCPConnect("10.0.0.2", "93.184.216.34", 41000, 443, 42, "curl")
+	events.Deps.Network.RecordBandwidthBytes("10.0.0.2", "93.184.216.34", 443, "TCP", "outgoing", 512, "curl", 42)
 
 	connections := appContext.Network.TCPSnapshot()
 	if len(connections) != 1 || connections[0].DstIP != "93.184.216.34" || connections[0].Comm != "curl" {
@@ -33,7 +33,7 @@ func TestNetworkEventDependenciesUseAppContextManager(t *testing.T) {
 	if len(flows) != 1 || flows[0].BytesOut != 512 || flows[0].DstPort != 443 {
 		t.Fatalf("manager bandwidth state = %#v", flows)
 	}
-	if domain, ok := events.Deps.DNSCorrelationLookupIP("93.184.216.34"); !ok || domain != "api.example.test" {
+	if domain, ok := events.Deps.Network.LookupDNS("93.184.216.34"); !ok || domain != "api.example.test" {
 		t.Fatalf("manager DNS lookup = %q/%t", domain, ok)
 	}
 	if got := (handlerTCPTrackerView{}).Snapshot(); len(got) != 1 || got[0].PID != 42 {

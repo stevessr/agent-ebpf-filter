@@ -8,16 +8,88 @@ package app
 
 import (
 	"agent-ebpf-filter/app/recording"
-	"net"
 
 	appnetwork "agent-ebpf-filter/app/network"
 	"agent-ebpf-filter/pb"
 
 	"agent-ebpf-filter/app/events"
-	netcore "agent-ebpf-filter/internal/network"
 )
 
 var fallbackNetworkMetrics = appnetwork.NewManager()
+
+// appNetworkSink routes the events package's network side effects to the
+// AppContext network manager, falling back to the package-level trackers
+// before the context is bound (early startup and unit tests).
+type appNetworkSink struct{}
+
+func (appNetworkSink) RecordBandwidthBytes(srcIP, dstIP string, dstPort uint32, protocol, direction string, byteCount uint64, comm string, pid uint32) {
+	if manager := currentNetworkManager(); manager != nil {
+		manager.RecordBandwidthBytes(srcIP, dstIP, dstPort, protocol, direction, byteCount, comm, pid)
+		return
+	}
+	fallbackNetworkMetrics.RecordBandwidthBytes(srcIP, dstIP, dstPort, protocol, direction, byteCount, comm, pid)
+}
+
+func (appNetworkSink) RecordTCPConnect(srcIP, dstIP string, srcPort, dstPort uint32, pid uint32, comm string) {
+	if manager := currentNetworkManager(); manager != nil {
+		manager.RecordTCPConnect(srcIP, dstIP, srcPort, dstPort, pid, comm)
+		return
+	}
+	tcpTracker.RecordConnect(srcIP, dstIP, srcPort, dstPort, pid, comm)
+}
+
+func (appNetworkSink) RecordTCPClose(srcIP, dstIP string, srcPort, dstPort uint32) {
+	if manager := currentNetworkManager(); manager != nil {
+		manager.RecordTCPClose(srcIP, dstIP, srcPort, dstPort)
+		return
+	}
+	tcpTracker.RecordClose(srcIP, dstIP, srcPort, dstPort)
+}
+
+func (appNetworkSink) RecordTCPStateChange(srcIP, dstIP string, srcPort, dstPort uint32, oldState, newState uint8, pid uint32, comm string) {
+	if manager := currentNetworkManager(); manager != nil {
+		manager.RecordTCPStateChange(srcIP, dstIP, srcPort, dstPort, oldState, newState, pid, comm)
+		return
+	}
+	tcpTracker.RecordStateChange(srcIP, dstIP, srcPort, dstPort, oldState, newState, pid, comm)
+}
+
+func (appNetworkSink) RecordFlowContext(srcIP, dstIP string, srcPort, dstPort uint32, event *pb.Event, state string) {
+	recordNetworkFlowContextFromEvent(srcIP, dstIP, srcPort, dstPort, event, state)
+}
+
+func (appNetworkSink) ApplyFlowProtocolMetadata(srcIP, dstIP string, srcPort, dstPort uint32, protocol string, entry *events.ProtoDetectionEntry) {
+	aggregator := currentNetworkFlowAggregator()
+	if entry == nil {
+		aggregator.ApplyProtocolMetadata(srcIP, dstIP, srcPort, dstPort, protocol, nil)
+		return
+	}
+	aggregator.ApplyProtocolMetadata(srcIP, dstIP, srcPort, dstPort, protocol, &protoDetectionEntry{
+		AppProtocol: AppProtocol(entry.AppProtocol),
+		SNI:         entry.SNI,
+		ALPN:        entry.ALPN,
+		HTTPHost:    entry.HTTPHost,
+		HTTPMethod:  entry.HTTPMethod,
+	})
+}
+
+func (appNetworkSink) DetectAndRecordProtocol(dstIP string, dstPort uint32, data []byte) *events.ProtoDetectionEntry {
+	entry := detectAndRecordProtocol(dstIP, dstPort, data)
+	if entry == nil {
+		return nil
+	}
+	return &events.ProtoDetectionEntry{
+		AppProtocol: events.AppProtocol(entry.AppProtocol),
+		SNI:         entry.SNI,
+		ALPN:        entry.ALPN,
+		HTTPHost:    entry.HTTPHost,
+		HTTPMethod:  entry.HTTPMethod,
+	}
+}
+
+func (appNetworkSink) LookupDNS(ip string) (string, bool) {
+	return currentDNSCorrelation().LookupIP(ip)
+}
 
 // ── Bridge functions (called by remaining app-package code) ─────────────
 
@@ -45,84 +117,10 @@ func init() {
 	events.Deps.GetTagName = getTagName
 	events.Deps.SyscallName = syscallName
 	events.Deps.ApplyBestEffortProcessContextToEvent = applyBestEffortProcessContextToEvent
-	events.Deps.RecordNetworkFlowContextFromEvent = recordNetworkFlowContextFromEvent
 	events.Deps.ApplyKernelRiskDecision = func(raw *events.BpfEvent, event *pb.Event) {
 		applyKernelRiskDecision((*bpfEvent)(raw), event)
 	}
-	events.Deps.MakeFlowKey = func(srcIP, dstIP string, srcPort, dstPort uint32, protocol string) events.FlowKey {
-		return events.FlowKey(makeFlowKey(srcIP, dstIP, srcPort, dstPort, protocol))
-	}
-	events.Deps.LookupServiceByPort = lookupServiceByPort
-	events.Deps.ClassifyIPScope = func(ip net.IP) events.IPScope {
-		return events.IPScope(netcore.ClassifyIPScope(ip))
-	}
-	events.Deps.DetectAppProtocol = func(port uint32, domain string) string {
-		return detectAppProtocol(port, domain)
-	}
-
-	// detectAndRecordProtocol returns app's *protoDetectionEntry; wrap it.
-	events.Deps.DetectAndRecordProtocol = func(dstIP string, dstPort uint32, data []byte) *events.ProtoDetectionEntry {
-		entry := detectAndRecordProtocol(dstIP, dstPort, data)
-		if entry == nil {
-			return nil
-		}
-		return &events.ProtoDetectionEntry{
-			AppProtocol: events.AppProtocol(entry.AppProtocol),
-			SNI:         entry.SNI,
-			ALPN:        entry.ALPN,
-			HTTPHost:    entry.HTTPHost,
-			HTTPMethod:  entry.HTTPMethod,
-		}
-	}
-
-	// Global-object method wrappers
-	events.Deps.BandwidthTrackerRecordBytes = func(srcIP, dstIP string, dstPort uint32, protocol, direction string, byteCount uint64, comm string, pid uint32) {
-		if manager := currentNetworkManager(); manager != nil {
-			manager.RecordBandwidthBytes(srcIP, dstIP, dstPort, protocol, direction, byteCount, comm, pid)
-			return
-		}
-		fallbackNetworkMetrics.RecordBandwidthBytes(srcIP, dstIP, dstPort, protocol, direction, byteCount, comm, pid)
-	}
-	events.Deps.TCPTrackerRecordConnect = func(srcIP, dstIP string, srcPort, dstPort uint32, pid uint32, comm string) {
-		if manager := currentNetworkManager(); manager != nil {
-			manager.RecordTCPConnect(srcIP, dstIP, srcPort, dstPort, pid, comm)
-			return
-		}
-		tcpTracker.RecordConnect(srcIP, dstIP, srcPort, dstPort, pid, comm)
-	}
-	events.Deps.TCPTrackerRecordClose = func(srcIP, dstIP string, srcPort, dstPort uint32) {
-		if manager := currentNetworkManager(); manager != nil {
-			manager.RecordTCPClose(srcIP, dstIP, srcPort, dstPort)
-			return
-		}
-		tcpTracker.RecordClose(srcIP, dstIP, srcPort, dstPort)
-	}
-	events.Deps.TCPTrackerRecordStateChange = func(srcIP, dstIP string, srcPort, dstPort uint32, oldState, newState uint8, pid uint32, comm string) {
-		if manager := currentNetworkManager(); manager != nil {
-			manager.RecordTCPStateChange(srcIP, dstIP, srcPort, dstPort, oldState, newState, pid, comm)
-			return
-		}
-		tcpTracker.RecordStateChange(srcIP, dstIP, srcPort, dstPort, oldState, newState, pid, comm)
-	}
-
-	// ApplyProtocolMetadata takes app's *protoDetectionEntry, not *events.ProtoDetectionEntry.
-	events.Deps.FlowAggregatorApplyProtocolMetadata = func(srcIP, dstIP string, srcPort, dstPort uint32, protocol string, entry *events.ProtoDetectionEntry) {
-		aggregator := currentNetworkFlowAggregator()
-		if entry == nil {
-			aggregator.ApplyProtocolMetadata(srcIP, dstIP, srcPort, dstPort, protocol, nil)
-			return
-		}
-		aggregator.ApplyProtocolMetadata(srcIP, dstIP, srcPort, dstPort, protocol, &protoDetectionEntry{
-			AppProtocol: AppProtocol(entry.AppProtocol),
-			SNI:         entry.SNI,
-			ALPN:        entry.ALPN,
-			HTTPHost:    entry.HTTPHost,
-			HTTPMethod:  entry.HTTPMethod,
-		})
-	}
-	events.Deps.DNSCorrelationLookupIP = func(ip string) (string, bool) {
-		return currentDNSCorrelation().LookupIP(ip)
-	}
+	events.Deps.Network = appNetworkSink{}
 
 	// Graph execution / envelope event dependencies
 	events.Deps.Upgrader = &upgrader

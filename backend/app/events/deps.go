@@ -2,7 +2,6 @@ package events
 
 import (
 	"context"
-	"net"
 	"time"
 
 	"agent-ebpf-filter/core"
@@ -33,6 +32,43 @@ type ProtoDetectionEntry struct {
 	HTTPMethod  string
 }
 
+// NetworkSink receives the network side effects of kernel event decoding:
+// TCP state, bandwidth, flow context, protocol detection and DNS correlation.
+// The app package implements it over its network manager; tests use no-op or
+// recording implementations.
+type NetworkSink interface {
+	RecordBandwidthBytes(srcIP, dstIP string, dstPort uint32, protocol, direction string, bytes uint64, comm string, pid uint32)
+	RecordTCPConnect(srcIP, dstIP string, srcPort, dstPort uint32, pid uint32, comm string)
+	RecordTCPClose(srcIP, dstIP string, srcPort, dstPort uint32)
+	RecordTCPStateChange(srcIP, dstIP string, srcPort, dstPort uint32, oldState, newState uint8, pid uint32, comm string)
+	// RecordFlowContext attaches event to the flow identified by the tuple.
+	RecordFlowContext(srcIP, dstIP string, srcPort, dstPort uint32, event *pb.Event, state string)
+	// ApplyFlowProtocolMetadata records a protocol detection result on a flow.
+	ApplyFlowProtocolMetadata(srcIP, dstIP string, srcPort, dstPort uint32, protocol string, entry *ProtoDetectionEntry)
+	// DetectAndRecordProtocol fingerprints a captured payload. data is a view
+	// into the ring-buffer sample and must not be retained.
+	DetectAndRecordProtocol(dstIP string, dstPort uint32, data []byte) *ProtoDetectionEntry
+	// LookupDNS resolves an IP back to a recently queried domain.
+	LookupDNS(ip string) (string, bool)
+}
+
+// NoopNetworkSink discards every network side effect.
+type NoopNetworkSink struct{}
+
+func (NoopNetworkSink) RecordBandwidthBytes(string, string, uint32, string, string, uint64, string, uint32) {
+}
+func (NoopNetworkSink) RecordTCPConnect(string, string, uint32, uint32, uint32, string) {}
+func (NoopNetworkSink) RecordTCPClose(string, string, uint32, uint32)                   {}
+func (NoopNetworkSink) RecordTCPStateChange(string, string, uint32, uint32, uint8, uint8, uint32, string) {
+}
+func (NoopNetworkSink) RecordFlowContext(string, string, uint32, uint32, *pb.Event, string) {}
+func (NoopNetworkSink) ApplyFlowProtocolMetadata(string, string, uint32, uint32, string, *ProtoDetectionEntry) {
+}
+func (NoopNetworkSink) DetectAndRecordProtocol(string, uint32, []byte) *ProtoDetectionEntry {
+	return nil
+}
+func (NoopNetworkSink) LookupDNS(string) (string, bool) { return "", false }
+
 // CgroupAttributionEntry is used by context_event.go for cgroup-to-agent-run mapping.
 type CgroupAttributionEntry struct {
 	CgroupID     uint64
@@ -54,25 +90,15 @@ type CollectorMetricsStore interface {
 // Deps holds all dependencies injected by the parent app package at init
 // time. Every field must be set before any event processing begins.
 var Deps struct {
-	// Network/event processing closures (used by events_network.go, event_flows.go)
+	// Event processing closures (used by events_network.go, event_flows.go)
 	GetTagName                           func(id uint32) string
 	SyscallName                          func(nr uint32) string
 	ApplyBestEffortProcessContextToEvent func(event *pb.Event)
-	RecordNetworkFlowContextFromEvent    func(srcIP, dstIP string, srcPort, dstPort uint32, event *pb.Event, state string)
-	DetectAndRecordProtocol              func(dstIP string, dstPort uint32, data []byte) *ProtoDetectionEntry
 	ApplyKernelRiskDecision              func(raw *BpfEvent, event *pb.Event)
-	MakeFlowKey                          func(srcIP, dstIP string, srcPort, dstPort uint32, protocol string) FlowKey
-	LookupServiceByPort                  func(port uint32) string
-	ClassifyIPScope                      func(ip net.IP) IPScope
-	DetectAppProtocol                    func(port uint32, domain string) string
 
-	// Global-object method closures (bandwidth, TCP tracker, flow aggregator, DNS)
-	BandwidthTrackerRecordBytes         func(srcIP, dstIP string, dstPort uint32, protocol, direction string, bytes uint64, comm string, pid uint32)
-	TCPTrackerRecordConnect             func(srcIP, dstIP string, srcPort, dstPort uint32, pid uint32, comm string)
-	TCPTrackerRecordClose               func(srcIP, dstIP string, srcPort, dstPort uint32)
-	TCPTrackerRecordStateChange         func(srcIP, dstIP string, srcPort, dstPort uint32, oldState, newState uint8, pid uint32, comm string)
-	FlowAggregatorApplyProtocolMetadata func(srcIP, dstIP string, srcPort, dstPort uint32, protocol string, entry *ProtoDetectionEntry)
-	DNSCorrelationLookupIP              func(ip string) (string, bool)
+	// Network is where decoded network events report TCP state, bandwidth,
+	// flow context, protocol detection and DNS correlation.
+	Network NetworkSink
 
 	// Graph execution / envelope event dependencies
 	Upgrader                           *websocket.Upgrader

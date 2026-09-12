@@ -36,10 +36,6 @@ func lookupService(port uint16) string {
 	return netcore.LookupService(port)
 }
 
-func lookupServiceByPort(port uint32) string {
-	return netcore.LookupServiceByPort(port)
-}
-
 func isSuspiciousPortService(serviceName string) bool {
 	return netcore.IsSuspiciousPortService(serviceName)
 }

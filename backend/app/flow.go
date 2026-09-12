@@ -16,10 +16,6 @@ type NetworkFlowSummary = netcore.NetworkFlowSummary
 
 type flowKey = netcore.FlowKey
 
-func makeFlowKey(srcIP, dstIP string, srcPort, dstPort uint32, protocol string) flowKey {
-	return netcore.MakeFlowKey(srcIP, dstIP, srcPort, dstPort, protocol)
-}
-
 type flowAggregator struct {
 	inner *netcore.FlowAggregator
 }

@@ -1,7 +1,6 @@
 package events
 
 import (
-	"net"
 	"testing"
 
 	"agent-ebpf-filter/pb"
@@ -21,21 +20,8 @@ func withBenchmarkDeps(b *testing.B) {
 	Deps.GetTagName = func(uint32) string { return "agent" }
 	Deps.SyscallName = func(uint32) string { return "" }
 	Deps.ApplyBestEffortProcessContextToEvent = func(*pb.Event) {}
-	Deps.RecordNetworkFlowContextFromEvent = func(string, string, uint32, uint32, *pb.Event, string) {}
 	Deps.ApplyKernelRiskDecision = func(*BpfEvent, *pb.Event) {}
-	Deps.BandwidthTrackerRecordBytes = func(string, string, uint32, string, string, uint64, string, uint32) {}
-	Deps.TCPTrackerRecordConnect = func(string, string, uint32, uint32, uint32, string) {}
-	Deps.TCPTrackerRecordClose = func(string, string, uint32, uint32) {}
-	Deps.TCPTrackerRecordStateChange = func(string, string, uint32, uint32, uint8, uint8, uint32, string) {}
-	Deps.DetectAndRecordProtocol = func(string, uint32, []byte) *ProtoDetectionEntry { return nil }
-	Deps.FlowAggregatorApplyProtocolMetadata = func(string, string, uint32, uint32, string, *ProtoDetectionEntry) {}
-	Deps.MakeFlowKey = func(srcIP, dstIP string, srcPort, dstPort uint32, protocol string) FlowKey {
-		return FlowKey{SrcIP: srcIP, DstIP: dstIP, SrcPort: srcPort, DstPort: dstPort, Protocol: protocol}
-	}
-	Deps.LookupServiceByPort = func(uint32) string { return "https" }
-	Deps.ClassifyIPScope = func(net.IP) IPScope { return IPScope("public") }
-	Deps.DetectAppProtocol = func(uint32, string) string { return "https" }
-	Deps.DNSCorrelationLookupIP = func(string) (string, bool) { return "", false }
+	Deps.Network = NoopNetworkSink{}
 }
 
 func BenchmarkSanitizeUTF8Path(b *testing.B) {

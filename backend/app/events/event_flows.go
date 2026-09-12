@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 
+	"agent-ebpf-filter/internal/network"
 	"agent-ebpf-filter/pb"
 )
 
@@ -59,11 +60,11 @@ func RecordUDPFlowFromEvent(event *BpfEvent, out *pb.Event) {
 	if out.GetNetDirection() == "incoming" {
 		srcIP, dstIP = remote, "local"
 	}
-	Deps.RecordNetworkFlowContextFromEvent(srcIP, dstIP, srcPort, dstPort, out, "")
+	Deps.Network.RecordFlowContext(srcIP, dstIP, srcPort, dstPort, out, "")
 	PopulateEventFlowFields(out, srcIP, dstIP, srcPort, dstPort, "UDP")
 	if payload := TrimNUL(event.Extra4[:]); len(payload) > 4 {
-		entry := Deps.DetectAndRecordProtocol(remote, dstPort, payload)
-		Deps.FlowAggregatorApplyProtocolMetadata(srcIP, dstIP, srcPort, dstPort, "UDP", entry)
+		entry := Deps.Network.DetectAndRecordProtocol(remote, dstPort, payload)
+		Deps.Network.ApplyFlowProtocolMetadata(srcIP, dstIP, srcPort, dstPort, "UDP", entry)
 		ApplyProtocolMetadataToEvent(out, entry)
 	}
 }
@@ -72,22 +73,22 @@ func PopulateEventFlowFields(out *pb.Event, srcIP, dstIP string, srcPort, dstPor
 	if out == nil {
 		return
 	}
-	key := Deps.MakeFlowKey(srcIP, dstIP, srcPort, dstPort, transport)
+	key := network.MakeFlowKey(srcIP, dstIP, srcPort, dstPort, transport)
 	out.FlowId = key.ID()
 	out.SrcIp = srcIP
 	out.SrcPort = srcPort
 	out.DstIp = dstIP
 	out.DstPort = dstPort
 	out.Transport = transport
-	out.ServiceName = Deps.LookupServiceByPort(dstPort)
-	out.IpScope = string(Deps.ClassifyIPScope(NetParseIPForFlow(dstIP)))
-	if domain, ok := Deps.DNSCorrelationLookupIP(dstIP); ok {
+	out.ServiceName = network.LookupServiceByPort(dstPort)
+	out.IpScope = string(network.ClassifyIPScope(NetParseIPForFlow(dstIP)))
+	if domain, ok := Deps.Network.LookupDNS(dstIP); ok {
 		out.DnsName = domain
 		if out.Domain == "" {
 			out.Domain = domain
 		}
 	}
-	out.AppProtocol = Deps.DetectAppProtocol(dstPort, out.Domain)
+	out.AppProtocol = network.DetectAppProtocol(dstPort, out.Domain)
 	if out.NetDirection == "incoming" {
 		out.BytesIn = uint64(out.NetBytes)
 		out.PacketsIn = 1

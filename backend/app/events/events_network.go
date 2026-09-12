@@ -476,13 +476,13 @@ func BuildKernelEventFromRaw(event *BpfEvent) *pb.Event {
 				flowState = TCPStateName(uint8(event.DurationNs & 0xFFFFFFFF))
 			}
 			PopulateEventFlowFields(out, srcIP, dstIP, srcPort, dstPort, "TCP")
-			Deps.RecordNetworkFlowContextFromEvent(srcIP, dstIP, srcPort, dstPort, out, flowState)
-			Deps.BandwidthTrackerRecordBytes(srcIP, dstIP, dstPort, "TCP", out.NetDirection, uint64(out.NetBytes), out.Comm, out.Pid)
+			Deps.Network.RecordFlowContext(srcIP, dstIP, srcPort, dstPort, out, flowState)
+			Deps.Network.RecordBandwidthBytes(srcIP, dstIP, dstPort, "TCP", out.NetDirection, uint64(out.NetBytes), out.Comm, out.Pid)
 			// Protocol detection reads the captured payload in place; the raw
 			// bytes matter because TLS/DNS headers legitimately contain NULs.
 			if payload := TrimNUL(event.Extra4[:]); len(payload) > 4 {
-				entry := Deps.DetectAndRecordProtocol(dstIP, dstPort, payload)
-				Deps.FlowAggregatorApplyProtocolMetadata(srcIP, dstIP, srcPort, dstPort, "TCP", entry)
+				entry := Deps.Network.DetectAndRecordProtocol(dstIP, dstPort, payload)
+				Deps.Network.ApplyFlowProtocolMetadata(srcIP, dstIP, srcPort, dstPort, "TCP", entry)
 				ApplyProtocolMetadataToEvent(out, entry)
 				if entry != nil && entry.SNI != "" {
 					out.Domain = entry.SNI
@@ -498,19 +498,19 @@ func BuildKernelEventFromRaw(event *BpfEvent) *pb.Event {
 		switch typeName {
 		case "network_connect":
 			if srcIP != "0.0.0.0" && dstIP != "0.0.0.0" && dstPort > 0 {
-				Deps.TCPTrackerRecordConnect(srcIP, dstIP, srcPort, dstPort, out.Pid, out.Comm)
+				Deps.Network.RecordTCPConnect(srcIP, dstIP, srcPort, dstPort, out.Pid, out.Comm)
 				if event.Retval == 0 {
-					Deps.TCPTrackerRecordStateChange(srcIP, dstIP, srcPort, dstPort, uint8(TCPStateSynSent), uint8(TCPStateEstablished), out.Pid, out.Comm)
+					Deps.Network.RecordTCPStateChange(srcIP, dstIP, srcPort, dstPort, uint8(TCPStateSynSent), uint8(TCPStateEstablished), out.Pid, out.Comm)
 				}
 			}
 		case "tcp_connect":
-			Deps.TCPTrackerRecordConnect(srcIP, dstIP, srcPort, dstPort, out.Pid, out.Comm)
+			Deps.Network.RecordTCPConnect(srcIP, dstIP, srcPort, dstPort, out.Pid, out.Comm)
 		case "tcp_close":
-			Deps.TCPTrackerRecordClose(srcIP, dstIP, srcPort, dstPort)
+			Deps.Network.RecordTCPClose(srcIP, dstIP, srcPort, dstPort)
 		case "tcp_state_change":
 			oldState := uint8(event.DurationNs >> 32)
 			newState := uint8(event.DurationNs & 0xFFFFFFFF)
-			Deps.TCPTrackerRecordStateChange(srcIP, dstIP, srcPort, dstPort, oldState, newState, out.Pid, out.Comm)
+			Deps.Network.RecordTCPStateChange(srcIP, dstIP, srcPort, dstPort, oldState, newState, out.Pid, out.Comm)
 		}
 		if (typeName == "network_sendto" || typeName == "network_recvfrom") && dstPort > 0 {
 			RecordUDPFlowFromEvent(event, out)

@@ -70,7 +70,3 @@ func currentTCPConnections() []tcpConnectionState {
 	}
 	return tcpTracker.Snapshot()
 }
-
-func detectAppProtocol(port uint32, domain string) string {
-	return netcore.DetectAppProtocol(port, domain)
-}
