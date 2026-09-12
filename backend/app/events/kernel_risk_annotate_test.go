@@ -11,12 +11,12 @@ func TestAnnotateExtraInfoMatchesSprintfFormat(t *testing.T) {
 		decision kernelRiskDecision
 		extra    string
 	}{
-		{kernelRiskDecision{Decision: "ALERT", Score: 96, Reasons: []string{"sensitive_path", "secret_material_path"}}, ""},
-		{kernelRiskDecision{Decision: "", Score: 8, Reasons: []string{"agent_context"}}, "fd=3 count=512"},
-		{kernelRiskDecision{Decision: "OBSERVE", Score: 42.5, Reasons: []string{"a"}}, ""},
-		{kernelRiskDecision{Decision: "OBSERVE", Score: 43.5, Reasons: []string{"a"}}, "x"},
-		{kernelRiskDecision{Decision: "ALERT", Score: 100, Reasons: []string{"r1", "r2", "r3", "r4", "r5", "r6"}}, "existing=1"},
-		{kernelRiskDecision{Decision: "ALERT", Score: 0.4, Reasons: []string{"tiny"}}, ""},
+		{newKernelRiskDecision("ALERT", 96, "sensitive_path", "secret_material_path"), ""},
+		{newKernelRiskDecision("", 8, "agent_context"), "fd=3 count=512"},
+		{newKernelRiskDecision("OBSERVE", 42.5, "a"), ""},
+		{newKernelRiskDecision("OBSERVE", 43.5, "a"), "x"},
+		{newKernelRiskDecision("ALERT", 100, "r1", "r2", "r3", "r4", "r5", "r6"), "existing=1"},
+		{newKernelRiskDecision("ALERT", 0.4, "tiny"), ""},
 	}
 	for _, tc := range cases {
 		want := fmt.Sprintf("kernel_risk score=%.0f decision=%s reasons=%s", tc.decision.Score, trimDefault(tc.decision.Decision, "OBSERVE"), tc.decision.reasonText())
@@ -30,7 +30,7 @@ func TestAnnotateExtraInfoMatchesSprintfFormat(t *testing.T) {
 }
 
 func TestAnnotateExtraInfoAllocatesOnce(t *testing.T) {
-	decision := kernelRiskDecision{Decision: "ALERT", Score: 72, Reasons: []string{"agent_context", "destructive_file_mutation"}}
+	decision := newKernelRiskDecision("ALERT", 72, "agent_context", "destructive_file_mutation")
 	if allocs := testing.AllocsPerRun(200, func() { decision.annotateExtraInfo("fd=1 count=4096") }); allocs > 1 {
 		t.Fatalf("annotateExtraInfo allocated %.1f times, want at most 1", allocs)
 	}
@@ -57,5 +57,23 @@ func TestContainsFoldASCII(t *testing.T) {
 		if got := strings.Contains(strings.ToLower(tc.s), tc.sub); got != tc.want {
 			t.Fatalf("reference disagrees for (%q, %q)", tc.s, tc.sub)
 		}
+	}
+}
+
+func TestKernelRiskDecisionReasonsDedupeAndCap(t *testing.T) {
+	d := newKernelRiskDecision("ALERT", 10, " a ", "b", "a", "", "c", "d", "e", "f", "g", "b")
+	if got := d.Reasons(); len(got) != kernelRiskMaxReasons || got[0] != "a" || got[5] != "f" {
+		t.Fatalf("Reasons() = %v", got)
+	}
+	if d.reasonText() != "a,b,c,d,e,f" {
+		t.Fatalf("reasonText = %q", d.reasonText())
+	}
+	if allocs := testing.AllocsPerRun(200, func() {
+		var d kernelRiskDecision
+		d.addReason("agent_context")
+		d.addReason("destructive_file_mutation")
+		d.addReason("agent_context")
+	}); allocs != 0 {
+		t.Fatalf("addReason allocated %.1f per run", allocs)
 	}
 }

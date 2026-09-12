@@ -12,19 +12,56 @@ import (
 
 // ---- kernel/user risk bridge ------------------------------------------------
 
+// kernelRiskMaxReasons bounds the reasons kept per decision; the evaluator
+// keeps scoring past the cap but stops recording reason labels.
+const kernelRiskMaxReasons = 6
+
 type kernelRiskDecision struct {
 	Decision string
 	Score    float64
-	Reasons  []string
+	// reasons is a fixed array so evaluating an event never allocates; the
+	// populated prefix is exposed through Reasons().
+	reasons     [kernelRiskMaxReasons]string
+	reasonCount uint8
 }
 
 type KernelRiskDecision = kernelRiskDecision
 
-func (d kernelRiskDecision) reasonText() string {
-	if len(d.Reasons) == 0 {
-		return ""
+// newKernelRiskDecision builds a decision with the given reasons (deduplicated,
+// capped at kernelRiskMaxReasons); mainly for tests and fixtures.
+func newKernelRiskDecision(decision string, score float64, reasons ...string) kernelRiskDecision {
+	d := kernelRiskDecision{Decision: decision, Score: score}
+	for _, reason := range reasons {
+		d.addReason(reason)
 	}
-	return strings.Join(d.Reasons, ",")
+	return d
+}
+
+// Reasons returns the recorded reason labels in insertion order.
+func (d *kernelRiskDecision) Reasons() []string {
+	return d.reasons[:d.reasonCount]
+}
+
+// addReason records reason unless it is empty, already present, or the cap
+// has been reached.
+func (d *kernelRiskDecision) addReason(reason string) {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return
+	}
+	for _, seen := range d.reasons[:d.reasonCount] {
+		if seen == reason {
+			return
+		}
+	}
+	if int(d.reasonCount) < kernelRiskMaxReasons {
+		d.reasons[d.reasonCount] = reason
+		d.reasonCount++
+	}
+}
+
+func (d *kernelRiskDecision) reasonText() string {
+	return strings.Join(d.Reasons(), ",")
 }
 
 const kernelRiskInfoPrefix = "kernel_risk score="
@@ -32,10 +69,11 @@ const kernelRiskInfoPrefix = "kernel_risk score="
 // annotateExtraInfo appends the "kernel_risk score=.. decision=.. reasons=.."
 // summary to extraInfo in a single allocation. It mirrors what
 // fmt.Sprintf("%.0f") would print for the score.
-func (d kernelRiskDecision) annotateExtraInfo(extraInfo string) string {
+func (d *kernelRiskDecision) annotateExtraInfo(extraInfo string) string {
 	decision := trimDefault(d.Decision, "OBSERVE")
+	reasons := d.Reasons()
 	size := len(extraInfo) + 1 + len(kernelRiskInfoPrefix) + 4 + len(" decision=") + len(decision) + len(" reasons=")
-	for _, reason := range d.Reasons {
+	for _, reason := range reasons {
 		size += len(reason) + 1
 	}
 	var b strings.Builder
@@ -50,7 +88,7 @@ func (d kernelRiskDecision) annotateExtraInfo(extraInfo string) string {
 	b.WriteString(" decision=")
 	b.WriteString(decision)
 	b.WriteString(" reasons=")
-	for i, reason := range d.Reasons {
+	for i, reason := range reasons {
 		if i > 0 {
 			b.WriteByte(',')
 		}
@@ -81,7 +119,7 @@ func ApplyKernelRiskDecision(raw *BpfEvent, event *pb.Event) {
 	if event.Decision == "" && decision.Decision != "" {
 		event.Decision = decision.Decision
 	}
-	if len(decision.Reasons) > 0 && !strings.Contains(event.ExtraInfo, kernelRiskInfoPrefix) {
+	if decision.reasonCount > 0 && !strings.Contains(event.ExtraInfo, kernelRiskInfoPrefix) {
 		event.ExtraInfo = decision.annotateExtraInfo(event.ExtraInfo)
 	}
 	queueKernelRiskFeedback(event, decision)
@@ -89,28 +127,22 @@ func ApplyKernelRiskDecision(raw *BpfEvent, event *pb.Event) {
 
 func evaluateKernelRiskDecision(raw *BpfEvent, event *pb.Event) kernelRiskDecision {
 	var out kernelRiskDecision
-	seenReasons := make(map[string]struct{}, 6)
 	add := func(points float64, reason string) {
 		if points <= 0 {
 			return
 		}
 		out.Score += points
-		reason = strings.TrimSpace(reason)
-		if reason == "" {
-			return
-		}
-		if _, ok := seenReasons[reason]; ok {
-			return
-		}
-		seenReasons[reason] = struct{}{}
-		if len(out.Reasons) < 6 {
-			out.Reasons = append(out.Reasons, reason)
-		}
+		out.addReason(reason)
 	}
 
 	typeName := event.GetType()
 	comm := strings.ToLower(event.GetComm())
 	path := strings.ToLower(platform.FirstNonEmpty(event.GetPath(), event.GetExtraPath()))
+	// Clean once; the path predicates below only need the cleaned form.
+	cleanedPath := ""
+	if path != "" {
+		cleanedPath = filepath.Clean(path)
+	}
 
 	// Tags are short labels like "AI Agent"; a case-insensitive scan avoids
 	// lower-casing a fresh string for every event.
@@ -128,12 +160,12 @@ func evaluateKernelRiskDecision(raw *BpfEvent, event *pb.Event) kernelRiskDecisi
 	case "write":
 		add(12, "file_write")
 	case "open", "openat", "read":
-		if isSensitiveKernelRiskPath(path) {
+		if isSensitiveCleanedPath(cleanedPath) {
 			add(12, "sensitive_file_access")
 		}
 	case "execve", "process_exec":
 		add(8, "process_exec")
-		if isTmpExecutableKernelRiskPath(path) {
+		if isTmpExecutableCleanedPath(cleanedPath) {
 			add(14, "tmp_exec")
 		}
 	case "ioctl":
@@ -146,7 +178,7 @@ func evaluateKernelRiskDecision(raw *BpfEvent, event *pb.Event) kernelRiskDecisi
 		add(16, "network_egress")
 	}
 
-	if isSensitiveKernelRiskPath(path) {
+	if isSensitiveCleanedPath(cleanedPath) {
 		add(34, "sensitive_path")
 	}
 	if isSecretKernelRiskPath(path) {
@@ -224,7 +256,15 @@ func isSensitiveKernelRiskPath(path string) bool {
 	if path == "" {
 		return false
 	}
-	cleaned := filepath.Clean(path)
+	return isSensitiveCleanedPath(filepath.Clean(path))
+}
+
+// isSensitiveCleanedPath is isSensitiveKernelRiskPath for an already cleaned
+// path ("" means no path).
+func isSensitiveCleanedPath(cleaned string) bool {
+	if cleaned == "" {
+		return false
+	}
 	return strings.HasPrefix(cleaned, "/etc/") ||
 		strings.HasPrefix(cleaned, "/root/") ||
 		strings.HasPrefix(cleaned, "/home/") && strings.Contains(cleaned, "/.ssh/") ||
@@ -252,7 +292,15 @@ func isTmpExecutableKernelRiskPath(path string) bool {
 	if path == "" {
 		return false
 	}
-	cleaned := filepath.Clean(path)
+	return isTmpExecutableCleanedPath(filepath.Clean(path))
+}
+
+// isTmpExecutableCleanedPath is isTmpExecutableKernelRiskPath for an already
+// cleaned path ("" means no path).
+func isTmpExecutableCleanedPath(cleaned string) bool {
+	if cleaned == "" {
+		return false
+	}
 	return strings.HasPrefix(cleaned, "/tmp/") ||
 		strings.HasPrefix(cleaned, "/var/tmp/") ||
 		strings.HasPrefix(cleaned, "/dev/shm/")

@@ -186,7 +186,7 @@ func FormatNetworkSummary(direction, endpoint string, bytes uint32) string {
 // ever copied out of the ring-buffer sample; valid input costs exactly one
 // allocation of its own length.
 func SanitizeUTF8(b []byte) string {
-	b = bytes.TrimRight(b, "\x00")
+	b = TrimNUL(b)
 	if len(b) == 0 {
 		return ""
 	}
@@ -219,9 +219,22 @@ func ownedString(b []byte) string {
 	return unsafe.String(&b[0], len(b))
 }
 
+// zeroPad is compared against buffer tails so a NUL-terminated string can be
+// bounded with one SIMD search plus one memequal instead of a byte-by-byte
+// backwards scan through the padding.
+var zeroPad [1024]byte
+
 // TrimNUL returns the populated prefix of a fixed-size kernel buffer as a view
-// into b (no copy). The result is only valid while b is.
+// into b (no copy), exactly like bytes.TrimRight(b, "\x00"). The result is
+// only valid while b is.
 func TrimNUL(b []byte) []byte {
+	i := bytes.IndexByte(b, 0)
+	if i < 0 {
+		return b
+	}
+	if tail := b[i+1:]; len(tail) <= len(zeroPad) && bytes.Equal(tail, zeroPad[:len(tail)]) {
+		return b[:i]
+	}
 	return bytes.TrimRight(b, "\x00")
 }
 

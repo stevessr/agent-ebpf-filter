@@ -1,6 +1,7 @@
 package events
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 )
@@ -55,5 +56,29 @@ func TestTrimNULIsAView(t *testing.T) {
 	}
 	if got := TrimNUL(make([]byte, 4)); len(got) != 0 {
 		t.Fatalf("TrimNUL(all NUL) len = %d, want 0", len(got))
+	}
+}
+
+func TestTrimNULMatchesBytesTrimRight(t *testing.T) {
+	cases := [][]byte{
+		nil,
+		make([]byte, 256),
+		append([]byte("claude"), make([]byte, 10)...),
+		[]byte("no padding at all"),
+		append([]byte("embedded\x00nul\x00then"), make([]byte, 5)...),
+		[]byte("\x00\x00a"),
+		[]byte("a\x00"),
+		append(make([]byte, 0, 2048), append([]byte("huge tail"), make([]byte, 2000)...)...),
+		{0},
+	}
+	for _, in := range cases {
+		want := bytes.TrimRight(in, "\x00")
+		got := TrimNUL(in)
+		if !bytes.Equal(got, want) {
+			t.Fatalf("TrimNUL(%q) = %q, want %q", in, got, want)
+		}
+		if len(got) > 0 && &got[0] != &in[0] {
+			t.Fatal("TrimNUL returned a copy instead of a view")
+		}
 	}
 }
