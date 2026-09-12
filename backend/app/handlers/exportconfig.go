@@ -16,7 +16,7 @@ func HandleConfigExportGet(c *gin.Context) {
 		Rules:   make(map[string]core.WrapperRule),
 		Runtime: &runtimeSnapshot,
 	}
-	for _, name := range Deps.ConfigTagNames() {
+	for _, name := range Deps.Config.TagNames() {
 		cfg.Tags = append(cfg.Tags, name)
 	}
 
@@ -25,13 +25,13 @@ func HandleConfigExportGet(c *gin.Context) {
 	var tid uint32
 	i1 := Deps.TrackerMaps.TrackedCommsIterate()
 	for i1.Next(&k16, &tid) {
-		cfg.Comms[string(bytes.TrimRight(k16[:], "\x00"))] = Deps.GetTagName(tid)
+		cfg.Comms[string(bytes.TrimRight(k16[:], "\x00"))] = Deps.Config.TagName(tid)
 	}
 	i2 := Deps.TrackerMaps.TrackedPathsIterate()
 	for i2.Next(&k256, &tid) {
-		cfg.Paths[string(bytes.TrimRight(k256[:], "\x00"))] = Deps.GetTagName(tid)
+		cfg.Paths[string(bytes.TrimRight(k256[:], "\x00"))] = Deps.Config.TagName(tid)
 	}
-	for _, r := range Deps.ConfigRules() {
+	for _, r := range Deps.Config.Rules() {
 		cfg.Rules[r.Comm] = core.WrapperRule{
 			Comm:         r.Comm,
 			Action:       r.Action,
@@ -93,20 +93,20 @@ func HandleConfigImportPost(c *gin.Context) {
 		Deps.ApplyRuntimeDomainForwardProxy(settings)
 	}
 	for _, t := range cfg.Tags {
-		Deps.GetTagID(t)
+		Deps.Config.TagID(t)
 	}
 	for comm, tag := range cfg.Comms {
 		var k [16]byte
 		copy(k[:], comm)
-		_ = Deps.TrackerMaps.TrackedCommsPut(k, Deps.GetTagID(tag))
+		_ = Deps.TrackerMaps.TrackedCommsPut(k, Deps.Config.TagID(tag))
 	}
 	for p, tag := range cfg.Paths {
 		var k [256]byte
 		copy(k[:], p)
-		_ = Deps.TrackerMaps.TrackedPathsPut(k, Deps.GetTagID(tag))
+		_ = Deps.TrackerMaps.TrackedPathsPut(k, Deps.Config.TagID(tag))
 	}
 	for _, rule := range cfg.Rules {
-		Deps.UpsertConfigRule(rule.Comm, rule.Action, "", rule.Regex, rule.Replacement, int32(rule.Priority))
+		Deps.Config.UpsertRule(rule.Comm, rule.Action, "", rule.Regex, rule.Replacement, int32(rule.Priority))
 	}
 	c.JSON(200, gin.H{"status": "ok"})
 }

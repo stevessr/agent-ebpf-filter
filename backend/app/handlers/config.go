@@ -10,7 +10,7 @@ import (
 )
 
 func HandleConfigTagsGet(c *gin.Context) {
-	t := Deps.ConfigTagNames()
+	t := Deps.Config.TagNames()
 	Deps.WriteProtoOrJSON(c, 200, &pb.ConfigTagList{Names: t}, t)
 }
 
@@ -19,7 +19,7 @@ func HandleConfigTagsPost(c *gin.Context) {
 		Name string `json:"name"`
 	}
 	_ = c.ShouldBindJSON(&r)
-	Deps.GetTagID(r.Name)
+	Deps.Config.TagID(r.Name)
 	c.JSON(200, gin.H{"status": "ok"})
 }
 
@@ -31,8 +31,8 @@ func HandleConfigCommsGet(c *gin.Context) {
 	var tid uint32
 	for iter.Next(&k, &tid) {
 		comm := string(bytes.TrimRight(k[:], "\x00"))
-		tag := Deps.GetTagName(tid)
-		disabled := Deps.IsCommDisabled(comm)
+		tag := Deps.Config.TagName(tid)
+		disabled := Deps.Config.IsCommDisabled(comm)
 		items = append(items, gin.H{"comm": comm, "tag": tag, "disabled": disabled})
 		list.Items = append(list.Items, &pb.TrackedComm{Comm: comm, Tag: tag, Disabled: disabled})
 	}
@@ -47,7 +47,7 @@ func HandleConfigCommsPost(c *gin.Context) {
 	_ = c.ShouldBindJSON(&r)
 	var k [16]byte
 	copy(k[:], r.Comm)
-	_ = Deps.TrackerMaps.TrackedCommsPut(k, Deps.GetTagID(r.Tag))
+	_ = Deps.TrackerMaps.TrackedCommsPut(k, Deps.Config.TagID(r.Tag))
 	c.JSON(200, gin.H{"status": "ok"})
 }
 
@@ -56,22 +56,22 @@ func HandleConfigCommsDelete(c *gin.Context) {
 	comm := c.Param("comm")
 	copy(k[:], comm)
 	_ = Deps.TrackerMaps.TrackedCommsDelete(k)
-	Deps.DeleteDisabledComm(comm)
+	Deps.Config.RemoveDisabledComm(comm)
 	c.JSON(200, gin.H{"status": "ok"})
 }
 
 func HandleConfigCommsDisable(c *gin.Context) {
-	Deps.AddDisabledComm(c.Param("comm"))
+	Deps.Config.AddDisabledComm(c.Param("comm"))
 	c.JSON(200, gin.H{"status": "ok"})
 }
 
 func HandleConfigCommsEnable(c *gin.Context) {
-	Deps.RemoveDisabledComm(c.Param("comm"))
+	Deps.Config.RemoveDisabledComm(c.Param("comm"))
 	c.JSON(200, gin.H{"status": "ok"})
 }
 
 func HandleConfigEventTypesGet(c *gin.Context) {
-	disabled := Deps.DisabledEventTypes()
+	disabled := Deps.Config.DisabledEventTypes()
 	c.JSON(200, gin.H{"disabled_event_types": disabled})
 }
 
@@ -81,7 +81,7 @@ func HandleConfigEventTypeDisable(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "invalid event type"})
 		return
 	}
-	Deps.AddDisabledEventType(uint32(typeID))
+	Deps.Config.AddDisabledEventType(uint32(typeID))
 	c.JSON(200, gin.H{"status": "ok"})
 }
 
@@ -91,7 +91,7 @@ func HandleConfigEventTypeEnable(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "invalid event type"})
 		return
 	}
-	Deps.RemoveDisabledEventType(uint32(typeID))
+	Deps.Config.RemoveDisabledEventType(uint32(typeID))
 	c.JSON(200, gin.H{"status": "ok"})
 }
 
@@ -103,7 +103,7 @@ func HandleConfigPathsGet(c *gin.Context) {
 	var tid uint32
 	for iter.Next(&k, &tid) {
 		path := string(bytes.TrimRight(k[:], "\x00"))
-		tag := Deps.GetTagName(tid)
+		tag := Deps.Config.TagName(tid)
 		items = append(items, gin.H{"path": path, "tag": tag})
 		list.Items = append(list.Items, &pb.TrackedPath{Path: path, Tag: tag})
 	}
@@ -118,7 +118,7 @@ func HandleConfigPathsPost(c *gin.Context) {
 	_ = c.ShouldBindJSON(&r)
 	var k [256]byte
 	copy(k[:], r.Path)
-	_ = Deps.TrackerMaps.TrackedPathsPut(k, Deps.GetTagID(r.Tag))
+	_ = Deps.TrackerMaps.TrackedPathsPut(k, Deps.Config.TagID(r.Tag))
 	c.JSON(200, gin.H{"status": "ok"})
 }
 
@@ -152,7 +152,7 @@ func HandleConfigPrefixesGet(c *gin.Context) {
 		if prefixLen > 0 && uint32(len(prefix)) > prefixLen {
 			prefix = prefix[:prefixLen]
 		}
-		tag := Deps.GetTagName(tid)
+		tag := Deps.Config.TagName(tid)
 		items = append(items, gin.H{"prefix": prefix, "tag": tag})
 		list.Items = append(list.Items, &pb.TrackedPrefix{Prefix: prefix, Tag: tag})
 	}
@@ -179,7 +179,7 @@ func HandleConfigPrefixesPost(c *gin.Context) {
 	}
 	k.PrefixLen = uint32(plen * 8)
 	copy(k.Data[:], r.Prefix[:plen])
-	_ = Deps.TrackerMaps.TrackedPrefixesPut(k, Deps.GetTagID(r.Tag))
+	_ = Deps.TrackerMaps.TrackedPrefixesPut(k, Deps.Config.TagID(r.Tag))
 	c.JSON(200, gin.H{"status": "ok"})
 }
 
@@ -204,7 +204,7 @@ func HandleConfigPrefixesDelete(c *gin.Context) {
 }
 
 func HandleConfigRulesGet(c *gin.Context) {
-	rules := Deps.ConfigRules()
+	rules := Deps.Config.Rules()
 	list := &pb.WrapperRuleList{}
 	for _, r := range rules {
 		list.Items = append(list.Items, r)
@@ -225,11 +225,11 @@ func HandleConfigRulesPost(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "invalid rule"})
 		return
 	}
-	Deps.UpsertConfigRule(r.Comm, r.Action, r.RewrittenCmd, r.Regex, r.Replacement, r.Priority)
+	Deps.Config.UpsertRule(r.Comm, r.Action, r.RewrittenCmd, r.Regex, r.Replacement, r.Priority)
 	c.JSON(200, gin.H{"status": "ok"})
 }
 
 func HandleConfigRulesDelete(c *gin.Context) {
-	Deps.DeleteConfigRule(c.Param("comm"))
+	Deps.Config.DeleteRule(c.Param("comm"))
 	c.JSON(200, gin.H{"status": "ok"})
 }

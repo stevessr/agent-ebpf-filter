@@ -19,7 +19,7 @@ func HandleRegister(c *gin.Context) {
 	if tag == "" {
 		tag = "AI Agent"
 	}
-	if err := Deps.TrackerMaps.AgentPidsPut(req.PID, Deps.GetTagID(tag)); err != nil {
+	if err := Deps.TrackerMaps.AgentPidsPut(req.PID, Deps.Config.TagID(tag)); err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}

@@ -102,6 +102,26 @@ type ProcessContextStore interface {
 	Delete(pid uint32)
 }
 
+// ConfigStore is the tracking configuration the config/export handlers edit:
+// the tag registry, disabled comms and event types, and wrapper rules.
+type ConfigStore interface {
+	TagID(name string) uint32
+	TagName(id uint32) string
+	TagNames() []string
+
+	IsCommDisabled(comm string) bool
+	AddDisabledComm(comm string)
+	RemoveDisabledComm(comm string)
+
+	DisabledEventTypes() []uint32
+	AddDisabledEventType(eventType uint32)
+	RemoveDisabledEventType(eventType uint32)
+
+	Rules() []*pb.WrapperRule
+	UpsertRule(comm, action, rewrittenCmd, regex, replacement string, priority int32)
+	DeleteRule(comm string)
+}
+
 // Deps holds all dependencies injected by the app package at init time.
 // Every field must be set before any handler processing begins.
 var Deps struct {
@@ -152,22 +172,8 @@ var Deps struct {
 	CompileUserBPF   func(ctx context.Context, id, source string) (objPath string, log []byte, err error)
 	BPFTemplates     func() []any
 
-	// Tags and rules (config handlers)
-	GetTagID                func(name string) uint32
-	GetTagName              func(id uint32) string
-	SetWrapperRule          func(comm string, rule any)
-	DeleteWrapperRule       func(comm string)
-	ConfigTagNames          func() []string
-	IsCommDisabled          func(comm string) bool
-	AddDisabledComm         func(comm string)
-	RemoveDisabledComm      func(comm string)
-	DeleteDisabledComm      func(comm string)
-	DisabledEventTypes      func() []uint32
-	AddDisabledEventType    func(et uint32)
-	RemoveDisabledEventType func(et uint32)
-	ConfigRules             func() []*pb.WrapperRule
-	UpsertConfigRule        func(comm, action, rewrittenCmd, regex, replacement string, priority int32)
-	DeleteConfigRule        func(comm string)
+	// Config is the tracking configuration edited by the config handlers.
+	Config ConfigStore
 
 	// WebSocket upgrader
 	Upgrader *websocket.Upgrader

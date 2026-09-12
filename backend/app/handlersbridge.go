@@ -361,7 +361,6 @@ func (a *shellManagerAdapter) ClearClosed() { a.mgr.ClearClosed() }
 func init() {
 	// Tracker maps
 	handlers.Deps.TrackerMaps = &handlerTrackerMapsAdapter{set: &trackerMaps}
-	handlers.Deps.GetTagID = getTagID
 
 	// Process context
 	handlers.Deps.ProcessContexts = trackedProcessContexts
@@ -655,89 +654,7 @@ func init() {
 	}
 
 	// Config handlers
-	handlers.Deps.GetTagName = getTagName
-	handlers.Deps.ConfigTagNames = func() []string {
-		tagsMu.RLock()
-		defer tagsMu.RUnlock()
-		t := []string{}
-		for _, n := range tagMap {
-			t = append(t, n)
-		}
-		return t
-	}
-	handlers.Deps.IsCommDisabled = func(comm string) bool {
-		disabledCommsMu.RLock()
-		defer disabledCommsMu.RUnlock()
-		_, ok := disabledComms[comm]
-		return ok
-	}
-	handlers.Deps.AddDisabledComm = func(comm string) {
-		disabledCommsMu.Lock()
-		disabledComms[comm] = struct{}{}
-		disabledCommsMu.Unlock()
-	}
-	handlers.Deps.RemoveDisabledComm = func(comm string) {
-		disabledCommsMu.Lock()
-		delete(disabledComms, comm)
-		disabledCommsMu.Unlock()
-	}
-	handlers.Deps.DeleteDisabledComm = func(comm string) {
-		disabledCommsMu.Lock()
-		delete(disabledComms, comm)
-		disabledCommsMu.Unlock()
-	}
-	handlers.Deps.DisabledEventTypes = func() []uint32 {
-		disabledEventTypesMu.RLock()
-		defer disabledEventTypesMu.RUnlock()
-		disabled := make([]uint32, 0, len(disabledEventTypes))
-		for et := range disabledEventTypes {
-			disabled = append(disabled, et)
-		}
-		return disabled
-	}
-	handlers.Deps.AddDisabledEventType = func(et uint32) {
-		disabledEventTypesMu.Lock()
-		disabledEventTypes[et] = struct{}{}
-		disabledEventTypesMu.Unlock()
-	}
-	handlers.Deps.RemoveDisabledEventType = func(et uint32) {
-		disabledEventTypesMu.Lock()
-		delete(disabledEventTypes, et)
-		disabledEventTypesMu.Unlock()
-	}
-	handlers.Deps.ConfigRules = func() []*pb.WrapperRule {
-		rulesMu.RLock()
-		defer rulesMu.RUnlock()
-		result := make([]*pb.WrapperRule, 0, len(wrapperRules))
-		for _, r := range wrapperRules {
-			result = append(result, &pb.WrapperRule{
-				Comm:         r.Comm,
-				Action:       r.Action,
-				RewrittenCmd: r.RewrittenCmd,
-				Regex:        r.Regex,
-				Replacement:  r.Replacement,
-				Priority:     int32(r.Priority),
-			})
-		}
-		return result
-	}
-	handlers.Deps.UpsertConfigRule = func(comm, action, rewrittenCmd, regex, replacement string, priority int32) {
-		rulesMu.Lock()
-		wrapperRules[comm] = WrapperRule{
-			Comm:         comm,
-			Action:       action,
-			RewrittenCmd: []string{rewrittenCmd},
-			Regex:        regex,
-			Replacement:  replacement,
-			Priority:     int(priority),
-		}
-		rulesMu.Unlock()
-	}
-	handlers.Deps.DeleteConfigRule = func(comm string) {
-		rulesMu.Lock()
-		delete(wrapperRules, comm)
-		rulesMu.Unlock()
-	}
+	handlers.Deps.Config = trackingConfigStore{}
 
 	// Network enrichment handlers
 	handlers.Deps.NetworkFlowAggregator = handlerNetworkFlowView{}
@@ -831,4 +748,98 @@ func initMLHandlersDeps() {
 	handlers.Deps.UninstallNativeHook = uninstallNativeHook
 	handlers.Deps.GetShellConfigPath = getShellConfigPath
 	handlers.Deps.EnsureKiroManagedAgentExists = ensureKiroManagedAgentExists
+}
+
+// trackingConfigStore exposes the app's tracking configuration (tag registry,
+// disabled comms / event types, wrapper rules) to the handlers package.
+type trackingConfigStore struct{}
+
+func (trackingConfigStore) TagID(name string) uint32 { return getTagID(name) }
+func (trackingConfigStore) TagName(id uint32) string { return getTagName(id) }
+
+func (trackingConfigStore) TagNames() []string {
+	tagsMu.RLock()
+	defer tagsMu.RUnlock()
+	names := make([]string, 0, len(tagMap))
+	for _, name := range tagMap {
+		names = append(names, name)
+	}
+	return names
+}
+
+func (trackingConfigStore) IsCommDisabled(comm string) bool {
+	disabledCommsMu.RLock()
+	defer disabledCommsMu.RUnlock()
+	_, ok := disabledComms[comm]
+	return ok
+}
+
+func (trackingConfigStore) AddDisabledComm(comm string) {
+	disabledCommsMu.Lock()
+	disabledComms[comm] = struct{}{}
+	disabledCommsMu.Unlock()
+}
+
+func (trackingConfigStore) RemoveDisabledComm(comm string) {
+	disabledCommsMu.Lock()
+	delete(disabledComms, comm)
+	disabledCommsMu.Unlock()
+}
+
+func (trackingConfigStore) DisabledEventTypes() []uint32 {
+	disabledEventTypesMu.RLock()
+	defer disabledEventTypesMu.RUnlock()
+	disabled := make([]uint32, 0, len(disabledEventTypes))
+	for eventType := range disabledEventTypes {
+		disabled = append(disabled, eventType)
+	}
+	return disabled
+}
+
+func (trackingConfigStore) AddDisabledEventType(eventType uint32) {
+	disabledEventTypesMu.Lock()
+	disabledEventTypes[eventType] = struct{}{}
+	disabledEventTypesMu.Unlock()
+}
+
+func (trackingConfigStore) RemoveDisabledEventType(eventType uint32) {
+	disabledEventTypesMu.Lock()
+	delete(disabledEventTypes, eventType)
+	disabledEventTypesMu.Unlock()
+}
+
+func (trackingConfigStore) Rules() []*pb.WrapperRule {
+	rulesMu.RLock()
+	defer rulesMu.RUnlock()
+	result := make([]*pb.WrapperRule, 0, len(wrapperRules))
+	for _, r := range wrapperRules {
+		result = append(result, &pb.WrapperRule{
+			Comm:         r.Comm,
+			Action:       r.Action,
+			RewrittenCmd: r.RewrittenCmd,
+			Regex:        r.Regex,
+			Replacement:  r.Replacement,
+			Priority:     int32(r.Priority),
+		})
+	}
+	return result
+}
+
+func (trackingConfigStore) UpsertRule(comm, action, rewrittenCmd, regex, replacement string, priority int32) {
+	rulesMu.Lock()
+	wrapperRules[comm] = WrapperRule{
+		Comm:         comm,
+		Action:       action,
+		RewrittenCmd: []string{rewrittenCmd},
+		Regex:        regex,
+		Replacement:  replacement,
+		Priority:     int(priority),
+	}
+	rulesMu.Unlock()
+}
+
+func (trackingConfigStore) DeleteRule(comm string) {
+	rulesMu.Lock()
+	delete(wrapperRules, comm)
+	rulesMu.Unlock()
 }
