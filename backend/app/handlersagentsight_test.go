@@ -14,8 +14,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section handlersagentsight_test.go ----
-
 func TestAgentSightEventsExportReferenceJSONL(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	restoreAgentSightTestState(t)

@@ -9,8 +9,6 @@ import (
 	"unsafe"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section fragmentassemblertls_test.go ----
-
 func newTestTLSFragment(index, count int, totalLen int, data string) tlsFragment {
 	return newTestTLSFragmentAt(index, count, totalLen, data, uint64(time.Now().UnixNano()))
 }

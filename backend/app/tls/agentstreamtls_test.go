@@ -7,8 +7,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section agentstreamtls_test.go ----
-
 func TestExtractAgentMessageMetaOpenAI(t *testing.T) {
 	body := `{
 		"model": "gpt-4o-mini",

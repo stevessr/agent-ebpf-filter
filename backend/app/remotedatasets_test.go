@@ -19,8 +19,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section remotedatasets_test.go ----
-
 type staticRemoteDatasetResolver struct {
 	addresses map[string][]netip.Addr
 	err       error

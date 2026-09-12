@@ -41,8 +41,6 @@ func TestNetworkEventDependenciesUseAppContextManager(t *testing.T) {
 	}
 }
 
-// ---- moved from backend/zz_merged_backend_test.go section eventsnetwork_test.go ----
-
 func TestKernelEventTypeNameMatchesProtoNetworkEnums(t *testing.T) {
 	tests := map[pb.EventType]string{
 		pb.EventType_SEMANTIC_ALERT:   "semantic_alert",

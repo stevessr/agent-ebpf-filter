@@ -12,8 +12,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section datasetmanagement_test.go ----
-
 func TestTrainingDataStoreClearResetsSamples(t *testing.T) {
 	store := ml.NewTrainingDataStore(8)
 	store.Add(ml.TrainingSample{

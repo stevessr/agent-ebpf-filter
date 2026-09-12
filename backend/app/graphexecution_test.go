@@ -9,8 +9,6 @@ import (
 	"agent-ebpf-filter/pb"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section graphexecution_test.go ----
-
 func TestBuildExecutionGraphIncludesProcessTreeResourcesAndPolicy(t *testing.T) {
 	now := time.Unix(1710000000, 0).UTC()
 	records := []CapturedEventRecord{

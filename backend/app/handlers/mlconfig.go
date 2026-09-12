@@ -7,8 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from app/handlersmlconfig.go ----
-
 func HandleMLStatusGet(c *gin.Context) {
 	status := Deps.MLStatus()
 	var payload gin.H

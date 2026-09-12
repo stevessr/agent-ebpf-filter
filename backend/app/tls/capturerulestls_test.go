@@ -4,8 +4,6 @@ import (
 	"testing"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section capturerulestls_test.go ----
-
 func TestDefaultTLSCaptureRuleAllowsAllWhenEmpty(t *testing.T) {
 	rules := NewTLSCaptureRuleStore()
 

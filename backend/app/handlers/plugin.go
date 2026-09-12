@@ -29,8 +29,6 @@ func bindPluginJSON(c *gin.Context, target any, maxBytes int64) (int, error) {
 	return http.StatusOK, nil
 }
 
-// ---- moved from app/handlers_plugin.go ----
-
 // pluginUpsertRequest mirrors the request body for plugin upsert operations.
 type PluginUpsertRequest struct {
 	ID             string   `json:"id"`

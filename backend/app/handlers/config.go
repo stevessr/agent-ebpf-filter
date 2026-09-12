@@ -9,8 +9,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from app/handlers_config.go ----
-
 func HandleConfigTagsGet(c *gin.Context) {
 	t := Deps.ConfigTagNames()
 	Deps.WriteProtoOrJSON(c, 200, &pb.ConfigTagList{Names: t}, t)

@@ -10,8 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section forwardproxydomain_test.go ----
-
 func TestDomainForwardProxyRoutesByHost(t *testing.T) {
 	callCount := 0
 	transport := testRoundTripFunc(func(req *http.Request) (*http.Response, error) {

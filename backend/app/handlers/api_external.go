@@ -11,8 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from app/api_external.go ----
-
 // HandleExternalAPIHealth returns service health, collector counters, feature
 // gates, and eBPF bootstrap status.
 func HandleExternalAPIHealth(c *gin.Context) {

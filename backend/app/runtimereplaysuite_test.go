@@ -16,8 +16,6 @@ import (
 	"agent-ebpf-filter/pb"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section runtimereplaysuite_test.go ----
-
 type runtimeReplayCatalog struct {
 	Version   string                  `json:"version"`
 	Scenarios []runtimeReplayScenario `json:"scenarios"`

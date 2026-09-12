@@ -7,8 +7,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section httpstreamassemblertls_test.go ----
-
 func TestTLSHTTPStreamAssemblerMergesSplitHTTPResponse(t *testing.T) {
 	assembler := NewTLSHTTPStreamAssembler(10 * time.Second)
 	body := `{"ok":true,"message":"merged"}`

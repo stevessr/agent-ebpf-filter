@@ -8,8 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from app/handlersexportconfig.go ----
-
 func HandleConfigExportGet(c *gin.Context) {
 	runtimeSnapshot := Deps.RuntimeSettings.Snapshot()
 	cfg := core.ExportConfig{

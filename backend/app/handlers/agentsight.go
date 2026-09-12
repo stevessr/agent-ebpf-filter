@@ -17,8 +17,6 @@ import (
 	"agent-ebpf-filter/app/tls"
 )
 
-// ---- moved from app/handlers_agentsight.go ----
-
 // ── Types ───────────────────────────────────────────────────────────
 
 type AgentSightExportEvent struct {

@@ -10,8 +10,6 @@ import (
 	"agent-ebpf-filter/pb"
 )
 
-// ---- moved from app/context_event.go ----
-
 type ProcessContext struct {
 	RootAgentPid   uint32
 	AgentRunID     string

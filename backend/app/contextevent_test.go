@@ -5,8 +5,6 @@ import (
 	"testing"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section contextevent_test.go ----
-
 func TestBuildProcessContextFromRegisterDefaultsRootPID(t *testing.T) {
 	ctx := buildProcessContextFromRegister(registerPayload{
 		PID:        321,

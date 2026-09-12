@@ -13,8 +13,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section hooks_test.go ----
-
 func TestBuildNativeHookExtraInfoRecordsSafePromptMetadata(t *testing.T) {
 	payload := map[string]interface{}{
 		"prompt":     "please inspect SECRET_TOKEN=abc123",

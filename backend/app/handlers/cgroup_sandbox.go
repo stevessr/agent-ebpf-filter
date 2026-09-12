@@ -8,8 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from app/cgroupsandboxhandlers.go ----
-
 // HandleCgroupSandboxStatus returns the current cgroup sandbox state.
 func HandleCgroupSandboxStatus(c *gin.Context) {
 	snap := Deps.CgroupSandbox.Snapshot()

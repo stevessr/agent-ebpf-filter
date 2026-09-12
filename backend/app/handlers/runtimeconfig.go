@@ -18,8 +18,6 @@ var runtimeSettingsMutationMu sync.Mutex
 
 const runtimeSettingsMaxBodyBytes int64 = 1 << 20
 
-// ---- moved from app/handlersruntimeconfig.go ----
-
 // MLConfigPatch holds optional ML configuration fields for PATCH semantics.
 type MLConfigPatch struct {
 	Enabled                  *bool    `json:"enabled,omitempty"`

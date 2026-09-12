@@ -6,8 +6,6 @@ import (
 	"testing"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section alertssemantic_test.go ----
-
 func TestSemanticAlertsDetectAgenticResourceLoopFromSafeMetadata(t *testing.T) {
 	resetSemanticAlertState()
 

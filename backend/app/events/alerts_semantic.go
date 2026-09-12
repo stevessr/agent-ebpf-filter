@@ -10,8 +10,6 @@ import (
 	"time"
 )
 
-// ---- moved from app/alerts_semantic.go ----
-
 var SecretPathHints = []string{
 	"/.ssh/",
 	"id_rsa",

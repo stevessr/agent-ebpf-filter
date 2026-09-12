@@ -5,8 +5,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section capturestoretls_test.go ----
-
 func TestTLSCaptureStoreKeepsOnlyMostRecentEvents(t *testing.T) {
 	store := NewTLSCaptureStore(2)
 	store.Add(TLSPlaintextEvent{PID: 1, Timestamp: time.Unix(1, 0)})

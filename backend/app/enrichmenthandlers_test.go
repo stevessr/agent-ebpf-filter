@@ -12,8 +12,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section enrichmenthandlers_test.go ----
-
 func TestHandleNetworkFlowsSupportsFilterAndFlowDetail(t *testing.T) {
 	orig := networkFlowAggregator
 	networkFlowAggregator = newFlowAggregator()

@@ -7,8 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from app/lsmenforcercontrol.go ----
-
 // HandleLsmEnforcerStatus returns the current LSM enforcer state.
 func HandleLsmEnforcerStatus(c *gin.Context) {
 	snap := Deps.LsmEnforcer.Snapshot()

@@ -11,8 +11,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// ---- moved from app/sessionhandlersshell.go ----
-
 // ServeShellSessionsWS broadcasts shell session list updates over WebSocket.
 func ServeShellSessionsWS(c *gin.Context) {
 	conn, err := Deps.Upgrader.Upgrade(c.Writer, c.Request, nil)

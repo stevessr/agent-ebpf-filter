@@ -9,8 +9,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// ---- moved from app/ws_ml.go ----
-
 // ServeMLStatusWS streams ML status updates via WebSocket using a ticker.
 func ServeMLStatusWS(c *gin.Context) {
 	conn, err := Deps.Upgrader.Upgrade(c.Writer, c.Request, nil)

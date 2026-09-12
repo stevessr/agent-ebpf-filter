@@ -23,8 +23,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from app/handlers_system.go ----
-
 const (
 	maxUploadedFileBytes   = int64(64 << 20)
 	maxUploadRequestBytes  = maxUploadedFileBytes + (1 << 20)

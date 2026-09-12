@@ -14,8 +14,6 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
-// ---- moved from app/handlershooksconfig.go ----
-
 func HandleConfigHooksList(c *gin.Context) {
 	res := []gin.H{}
 	for _, h := range Deps.AvailableHooks() {

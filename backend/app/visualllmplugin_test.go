@@ -10,8 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section visualllmplugin_test.go ----
-
 func TestParseVisualBlocksLLMContentSocketCounter(t *testing.T) {
 	content := `{"trigger":"socket_connect","action":"KILL","conditions":{"id":"root","type":"AND","children":[{"id":"cond-comm","type":"CONDITION","field":"comm","operator":"==","value":"python"},{"id":"cond-port","type":"CONDITION","field":"port","operator":"==","value":4444}]},"mapMode":"COUNTER","mapKey":"pid","mapLimit":3,"reasoning":"外连端口强杀"}`
 

@@ -12,8 +12,6 @@ import (
 	"agent-ebpf-filter/pb"
 )
 
-// ---- moved from app/alertscheckssemantic.go ----
-
 // Codex-specific workflow semantic checks
 
 func detectPRReviewAnomaly(event *pb.Event) (string, bool) {

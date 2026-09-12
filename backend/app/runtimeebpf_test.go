@@ -6,8 +6,6 @@ import (
 	"testing"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section runtimeebpf_test.go ----
-
 func TestIsMissingTracepointError(t *testing.T) {
 	t.Parallel()
 

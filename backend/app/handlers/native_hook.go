@@ -12,8 +12,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from app/events_hooks.go ----
-
 // HandleNativeHookEvent processes a native hook event from an AI agent CLI.
 func HandleNativeHookEvent(c *gin.Context) {
 	var payload map[string]interface{}

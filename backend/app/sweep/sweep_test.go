@@ -8,8 +8,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section sweep_test.go ----
-
 func TestComprehensiveSweepProfilesCoverThousandPointsPerNumericParameter(t *testing.T) {
 	profiles := profilesForMode("comprehensive")
 	seen := make(map[ModelType]map[string]int)
