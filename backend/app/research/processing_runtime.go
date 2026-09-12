@@ -5,6 +5,7 @@ import (
 	"agent-ebpf-filter/app/ml"
 	"agent-ebpf-filter/app/tasks"
 	"agent-ebpf-filter/core"
+	"agent-ebpf-filter/internal/workerqueue"
 	"context"
 	"fmt"
 	"sort"
@@ -147,12 +148,8 @@ type researchProcessingTaskResponse struct {
 }
 
 type researchProcessingWorker struct {
-	lifecycleMu         sync.Mutex
+	queue               workerqueue.Queue[researchProcessingWorkItem]
 	mu                  sync.RWMutex
-	queue               chan researchProcessingWorkItem
-	cancel              context.CancelFunc
-	done                chan struct{}
-	started             bool
 	startedAt           time.Time
 	events              researchEventRing
 	eventsVersion       uint64
@@ -325,45 +322,27 @@ func (w *researchProcessingWorker) Start(ctx context.Context, queueSize int) {
 	if w == nil {
 		return
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	queueSize = tasks.NormalizeQueueSize(queueSize, researchProcessingDefaultQueueSize)
-	w.lifecycleMu.Lock()
-	defer w.lifecycleMu.Unlock()
-	w.mu.Lock()
-	if w.started {
-		w.mu.Unlock()
+	started := w.queue.Start(ctx, queueSize, func(ctx context.Context, items <-chan researchProcessingWorkItem) {
+		w.run(ctx, items)
+		w.touch()
+	})
+	if !started {
 		return
 	}
-	workerCtx, cancel := context.WithCancel(ctx)
-	w.queue = make(chan researchProcessingWorkItem, queueSize)
-	w.cancel = cancel
-	w.done = make(chan struct{})
-	w.started = true
 	now := time.Now().UTC()
+	w.mu.Lock()
 	if w.startedAt.IsZero() {
 		w.startedAt = now
 	}
 	w.updatedAt = now
-	queue := w.queue
-	done := w.done
 	w.mu.Unlock()
-	go func() {
-		w.run(workerCtx, queue)
-		w.lifecycleMu.Lock()
-		w.mu.Lock()
-		if w.done == done {
-			w.queue = nil
-			w.cancel = nil
-			w.done = nil
-			w.started = false
-			w.updatedAt = time.Now().UTC()
-		}
-		w.mu.Unlock()
-		close(done)
-		w.lifecycleMu.Unlock()
-	}()
+}
+
+func (w *researchProcessingWorker) touch() {
+	w.mu.Lock()
+	w.updatedAt = time.Now().UTC()
+	w.mu.Unlock()
 }
 
 func (w *researchProcessingWorker) run(ctx context.Context, queue <-chan researchProcessingWorkItem) {
@@ -393,34 +372,10 @@ func (w *researchProcessingWorker) Shutdown(ctx context.Context) error {
 	if w == nil {
 		return nil
 	}
-	if ctx == nil {
-		ctx = context.Background()
+	if w.queue.Stats().Started {
+		w.touch()
 	}
-	w.lifecycleMu.Lock()
-	w.mu.Lock()
-	if !w.started {
-		w.mu.Unlock()
-		w.lifecycleMu.Unlock()
-		return nil
-	}
-	cancel := w.cancel
-	done := w.done
-	w.queue = nil
-	w.updatedAt = time.Now().UTC()
-	w.mu.Unlock()
-	w.lifecycleMu.Unlock()
-	if cancel != nil {
-		cancel()
-	}
-	if done == nil {
-		return nil
-	}
-	select {
-	case <-done:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	return w.queue.Shutdown(ctx)
 }
 
 func queueResearchProcessingRecord(record CapturedEventRecord) {
@@ -450,28 +405,18 @@ func (w *researchProcessingWorker) enqueue(item researchProcessingWorkItem) bool
 	if w == nil {
 		return false
 	}
-	w.mu.RLock()
-	queue := w.queue
-	if queue == nil {
-		w.mu.RUnlock()
-		w.noteDrop("worker_not_started", "research processing worker is not started")
-		return false
-	}
 	if item.queuedAt.IsZero() {
 		item.queuedAt = time.Now().UTC()
 	}
-	accepted := false
-	select {
-	case queue <- item:
-		accepted = true
-	default:
-	}
-	w.mu.RUnlock()
-	if accepted {
+	switch w.queue.TryEnqueue(item) {
+	case workerqueue.Accepted:
 		w.noteEnqueued(item.queuedAt)
 		return true
+	case workerqueue.NotStarted:
+		w.noteDrop("worker_not_started", "research processing worker is not started")
+	default:
+		w.noteDrop("queue_full", "research processing queue is full")
 	}
-	w.noteDrop("queue_full", "research processing queue is full")
 	return false
 }
 
@@ -591,13 +536,9 @@ func (w *researchProcessingWorker) Status() ResearchProcessingStatus {
 		return ResearchProcessingStatus{Enabled: settings.Enabled, Settings: settings, UpdatedAt: time.Now().UTC()}
 	}
 	w.refreshSummaryIfNeeded(settings)
+	queueStats := w.queue.Stats()
+	queueLen, queueCap := queueStats.Len, queueStats.Cap
 	w.mu.RLock()
-	queueLen := 0
-	queueCap := 0
-	if w.queue != nil {
-		queueLen = len(w.queue)
-		queueCap = cap(w.queue)
-	}
 	lastEnqueuedAt := ptrTimeIfSet(w.lastEnqueuedAt)
 	lastProcessedAt := ptrTimeIfSet(w.lastProcessedAt)
 	lastDroppedAt := ptrTimeIfSet(w.lastDroppedAt)

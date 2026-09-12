@@ -16,6 +16,7 @@ import (
 	"unicode/utf8"
 
 	"agent-ebpf-filter/app/platform"
+	"agent-ebpf-filter/internal/workerqueue"
 	"agent-ebpf-filter/pb"
 
 	"github.com/gin-gonic/gin"
@@ -112,12 +113,8 @@ type loopDetectionWindow struct {
 }
 
 type loopDetectionWorker struct {
-	lifecycleMu   sync.Mutex
+	queue         workerqueue.Queue[loopDetectionWorkItem]
 	mu            sync.RWMutex
-	queue         chan loopDetectionWorkItem
-	cancel        context.CancelFunc
-	done          chan struct{}
-	started       bool
 	windows       map[loopDetectionWindowKey]*loopDetectionWindow
 	windowLRUHead *loopDetectionWindow
 	windowLRUTail *loopDetectionWindow
@@ -152,42 +149,19 @@ func (w *loopDetectionWorker) Start(ctx context.Context, queueSize int) {
 	if w == nil {
 		return
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	queueSize = normalizeBackendWorkerQueueSize(queueSize, loopDetectionDefaultQueueSize)
-	w.lifecycleMu.Lock()
-	defer w.lifecycleMu.Unlock()
-	w.mu.Lock()
-	if w.started {
-		w.mu.Unlock()
-		return
+	if w.queue.Start(ctx, queueSize, func(ctx context.Context, items <-chan loopDetectionWorkItem) {
+		w.run(ctx, items)
+		w.touch()
+	}) {
+		w.touch()
 	}
-	workerCtx, cancel := context.WithCancel(ctx)
-	w.queue = make(chan loopDetectionWorkItem, queueSize)
-	w.cancel = cancel
-	w.done = make(chan struct{})
-	w.started = true
-	w.updatedAt = time.Now().UTC()
-	queue := w.queue
-	done := w.done
-	w.mu.Unlock()
+}
 
-	go func() {
-		w.run(workerCtx, queue)
-		w.lifecycleMu.Lock()
-		w.mu.Lock()
-		if w.done == done {
-			w.queue = nil
-			w.cancel = nil
-			w.done = nil
-			w.started = false
-			w.updatedAt = time.Now().UTC()
-		}
-		w.mu.Unlock()
-		close(done)
-		w.lifecycleMu.Unlock()
-	}()
+func (w *loopDetectionWorker) touch() {
+	w.mu.Lock()
+	w.updatedAt = time.Now().UTC()
+	w.mu.Unlock()
 }
 
 func (w *loopDetectionWorker) run(ctx context.Context, queue <-chan loopDetectionWorkItem) {
@@ -216,34 +190,10 @@ func (w *loopDetectionWorker) Shutdown(ctx context.Context) error {
 	if w == nil {
 		return nil
 	}
-	if ctx == nil {
-		ctx = context.Background()
+	if w.queue.Stats().Started {
+		w.touch()
 	}
-	w.lifecycleMu.Lock()
-	w.mu.Lock()
-	if !w.started {
-		w.mu.Unlock()
-		w.lifecycleMu.Unlock()
-		return nil
-	}
-	cancel := w.cancel
-	done := w.done
-	w.queue = nil
-	w.updatedAt = time.Now().UTC()
-	w.mu.Unlock()
-	w.lifecycleMu.Unlock()
-	if cancel != nil {
-		cancel()
-	}
-	if done == nil {
-		return nil
-	}
-	select {
-	case <-done:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	return w.queue.Shutdown(ctx)
 }
 
 func queueLoopDetectionRecord(record CapturedEventRecord) {
@@ -274,24 +224,14 @@ func (w *loopDetectionWorker) enqueue(item loopDetectionWorkItem) bool {
 	if w == nil {
 		return false
 	}
-	w.mu.RLock()
-	queue := w.queue
-	if queue == nil {
-		w.mu.RUnlock()
-		w.noteDrop("loop detection worker is not started")
-		return false
-	}
-	accepted := false
-	select {
-	case queue <- item:
-		accepted = true
-	default:
-	}
-	w.mu.RUnlock()
-	if accepted {
+	switch w.queue.TryEnqueue(item) {
+	case workerqueue.Accepted:
 		return true
+	case workerqueue.NotStarted:
+		w.noteDrop("loop detection worker is not started")
+	default:
+		w.noteDrop("loop detection queue is full")
 	}
-	w.noteDrop("loop detection queue is full")
 	return false
 }
 
@@ -527,13 +467,9 @@ func (w *loopDetectionWorker) Status() loopDetectionStatus {
 	}
 	settings := runtimeSettingsStore.Snapshot().LoopDetection
 	normalizeLoopDetectionSettings(&settings)
+	queueStats := w.queue.Stats()
+	queueLen, queueCap := queueStats.Len, queueStats.Cap
 	w.mu.RLock()
-	queueLen := 0
-	queueCap := 0
-	if w.queue != nil {
-		queueLen = len(w.queue)
-		queueCap = cap(w.queue)
-	}
 	findings := make([]loopDetectionFinding, len(w.findings))
 	copy(findings, w.findings)
 	status := loopDetectionStatus{

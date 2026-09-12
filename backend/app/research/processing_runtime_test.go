@@ -3,7 +3,6 @@ package research
 import (
 	"agent-ebpf-filter/core"
 	"context"
-	"errors"
 	"strconv"
 	"testing"
 	"time"
@@ -11,34 +10,24 @@ import (
 	"agent-ebpf-filter/pb"
 )
 
+// Stopping-generation semantics live in internal/workerqueue; this only
+// checks the worker delegates to it and reports an empty queue afterwards.
 func TestResearchProcessingWorkerShutdownTimeoutKeepsGeneration(t *testing.T) {
 	worker := newResearchProcessingWorker()
-	oldDone := make(chan struct{})
-	worker.mu.Lock()
-	worker.started = true
-	worker.queue = make(chan researchProcessingWorkItem, 1)
-	worker.cancel = func() {}
-	worker.done = oldDone
-	worker.mu.Unlock()
-
-	shutdownCtx, cancel := context.WithCancel(context.Background())
-	cancel()
-	if err := worker.Shutdown(shutdownCtx); !errors.Is(err, context.Canceled) {
-		t.Fatalf("Shutdown() error = %v, want context cancellation", err)
-	}
-	worker.mu.RLock()
-	started, queue, done := worker.started, worker.queue, worker.done
-	worker.mu.RUnlock()
-	if !started || queue != nil || done != oldDone {
-		t.Fatalf("timed-out shutdown state = started:%v queue:%v done:%p, want active generation with nil queue and done %p", started, queue, done, oldDone)
-	}
-
 	worker.Start(context.Background(), 4)
-	worker.mu.RLock()
-	started, queue, done = worker.started, worker.queue, worker.done
-	worker.mu.RUnlock()
-	if !started || queue != nil || done != oldDone {
-		t.Fatalf("Start() replaced a stopping generation: started:%v queue:%v done:%p", started, queue, done)
+	expired, cancel := context.WithCancel(context.Background())
+	cancel()
+	_ = worker.Shutdown(expired)
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), time.Second)
+	defer waitCancel()
+	if err := worker.Shutdown(waitCtx); err != nil {
+		t.Fatalf("Shutdown() error = %v", err)
+	}
+	if stats := worker.queue.Stats(); stats.Started || stats.Cap != 0 {
+		t.Fatalf("worker after shutdown = %+v", stats)
+	}
+	if worker.EnqueueReset() {
+		t.Fatal("stopped worker accepted new work")
 	}
 }
 
@@ -189,11 +178,8 @@ func TestResearchProcessingWorkerShutdownAndRestart(t *testing.T) {
 	if err := worker.Shutdown(waitCtx); err != nil {
 		t.Fatalf("Shutdown() error = %v", err)
 	}
-	worker.mu.RLock()
-	started, queue := worker.started, worker.queue
-	worker.mu.RUnlock()
-	if started || queue != nil {
-		t.Fatalf("worker after shutdown = started:%v queue:%v", started, queue)
+	if stats := worker.queue.Stats(); stats.Started || stats.Cap != 0 {
+		t.Fatalf("worker after shutdown = %+v", stats)
 	}
 	if worker.EnqueueReset() {
 		t.Fatal("stopped worker accepted new work")
@@ -330,8 +316,11 @@ func TestResearchProcessingWorkerDropReasons(t *testing.T) {
 		t.Fatalf("worker_not_started drop mismatch: %+v", status)
 	}
 
-	worker.queue = make(chan researchProcessingWorkItem, 1)
-	worker.started = true
+	// A one-slot generation whose consumer never reads makes the second
+	// enqueue hit the full-queue path deterministically.
+	blockedCtx, unblock := context.WithCancel(context.Background())
+	defer unblock()
+	worker.queue.Start(blockedCtx, 1, func(ctx context.Context, _ <-chan researchProcessingWorkItem) { <-ctx.Done() })
 	if !worker.EnqueueEvent(record) {
 		t.Fatal("first enqueue should fill the manual queue")
 	}

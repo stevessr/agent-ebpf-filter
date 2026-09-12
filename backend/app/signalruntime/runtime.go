@@ -3,6 +3,7 @@ package signalruntime
 import (
 	"agent-ebpf-filter/app/events"
 	"agent-ebpf-filter/app/tasks"
+	"agent-ebpf-filter/internal/workerqueue"
 	"context"
 	"fmt"
 	"sort"
@@ -149,12 +150,8 @@ type signalProcessingWorkItem struct {
 }
 
 type signalProcessingWorker struct {
-	lifecycleMu          sync.Mutex
+	queue                workerqueue.Queue[signalProcessingWorkItem]
 	mu                   sync.RWMutex
-	queue                chan signalProcessingWorkItem
-	cancel               context.CancelFunc
-	done                 chan struct{}
-	started              bool
 	states               map[string]*signalState
 	stateLRUHead         *signalState
 	stateLRUTail         *signalState
@@ -438,48 +435,30 @@ func (w *signalProcessingWorker) Start(ctx context.Context, queueSize int) {
 		ctx = context.Background()
 	}
 	queueSize = tasks.NormalizeQueueSize(queueSize, signalDefaultQueueSize)
-	w.lifecycleMu.Lock()
-	defer w.lifecycleMu.Unlock()
-	w.mu.Lock()
-	if w.started {
-		w.mu.Unlock()
-		return
-	}
-	workerCtx, cancel := context.WithCancel(ctx)
-	w.queue = make(chan signalProcessingWorkItem, queueSize)
-	w.cancel = cancel
-	w.done = make(chan struct{})
-	w.started = true
-	w.updatedAt = time.Now().UTC()
-	queue := w.queue
-	done := w.done
-	w.mu.Unlock()
-
-	go func() {
+	if w.queue.Start(ctx, queueSize, func(ctx context.Context, items <-chan signalProcessingWorkItem) {
+		// The event consumer and the cron sweeper share one generation so a
+		// shutdown waits for both.
 		var workers sync.WaitGroup
 		workers.Add(2)
 		go func() {
 			defer workers.Done()
-			w.run(workerCtx, queue)
+			w.run(ctx, items)
 		}()
 		go func() {
 			defer workers.Done()
-			w.runCron(workerCtx)
+			w.runCron(ctx)
 		}()
 		workers.Wait()
-		w.lifecycleMu.Lock()
-		w.mu.Lock()
-		if w.done == done {
-			w.queue = nil
-			w.cancel = nil
-			w.done = nil
-			w.started = false
-			w.updatedAt = time.Now().UTC()
-		}
-		w.mu.Unlock()
-		close(done)
-		w.lifecycleMu.Unlock()
-	}()
+		w.touch()
+	}) {
+		w.touch()
+	}
+}
+
+func (w *signalProcessingWorker) touch() {
+	w.mu.Lock()
+	w.updatedAt = time.Now().UTC()
+	w.mu.Unlock()
 }
 
 func (w *signalProcessingWorker) run(ctx context.Context, queue <-chan signalProcessingWorkItem) {
@@ -534,34 +513,10 @@ func (w *signalProcessingWorker) Shutdown(ctx context.Context) error {
 	if w == nil {
 		return nil
 	}
-	if ctx == nil {
-		ctx = context.Background()
+	if w.queue.Stats().Started {
+		w.touch()
 	}
-	w.lifecycleMu.Lock()
-	w.mu.Lock()
-	if !w.started {
-		w.mu.Unlock()
-		w.lifecycleMu.Unlock()
-		return nil
-	}
-	cancel := w.cancel
-	done := w.done
-	w.queue = nil
-	w.updatedAt = time.Now().UTC()
-	w.mu.Unlock()
-	w.lifecycleMu.Unlock()
-	if cancel != nil {
-		cancel()
-	}
-	if done == nil {
-		return nil
-	}
-	select {
-	case <-done:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	return w.queue.Shutdown(ctx)
 }
 
 func queueSignalProcessingRecord(record CapturedEventRecord) {
@@ -594,24 +549,14 @@ func (w *signalProcessingWorker) enqueue(item signalProcessingWorkItem) bool {
 	if w == nil {
 		return false
 	}
-	w.mu.RLock()
-	queue := w.queue
-	if queue == nil {
-		w.mu.RUnlock()
-		w.noteDrop("signal processing worker is not started")
-		return false
-	}
-	accepted := false
-	select {
-	case queue <- item:
-		accepted = true
-	default:
-	}
-	w.mu.RUnlock()
-	if accepted {
+	switch w.queue.TryEnqueue(item) {
+	case workerqueue.Accepted:
 		return true
+	case workerqueue.NotStarted:
+		w.noteDrop("signal processing worker is not started")
+	default:
+		w.noteDrop("signal processing queue is full")
 	}
-	w.noteDrop("signal processing queue is full")
 	return false
 }
 
@@ -912,13 +857,9 @@ func (w *signalProcessingWorker) Status() signalProcessingStatus {
 		}
 	}
 	now := time.Now().UTC()
+	queueStats := w.queue.Stats()
+	queueLen, queueCap := queueStats.Len, queueStats.Cap
 	w.mu.RLock()
-	queueLen := 0
-	queueCap := 0
-	if w.queue != nil {
-		queueLen = len(w.queue)
-		queueCap = cap(w.queue)
-	}
 	states := make([]signalState, 0, len(w.states))
 	for _, state := range w.states {
 		if state == nil {
