@@ -204,14 +204,18 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 			if err := verifyPeer(c); err != nil {
 				return
 			}
+			// One frame buffer per connection; proto.Unmarshal copies what it
+			// keeps, so the buffer can be reused for the next request.
+			var frame []byte
 			for {
 				if err := c.SetReadDeadline(time.Now().Add(udsPeerIOTimeout)); err != nil {
 					return
 				}
-				payload, err := udsframe.ReadLimit(c, udsMaxWrapperRequestBytes)
+				payload, err := udsframe.ReadLimitInto(c, frame, udsMaxWrapperRequestBytes)
 				if err != nil {
 					return
 				}
+				frame = payload
 				req := &pb.WrapperRequest{}
 				if err := proto.Unmarshal(payload, req); err != nil {
 					return
