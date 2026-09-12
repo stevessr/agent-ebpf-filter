@@ -12,9 +12,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-)
+	"github.com/gorilla/websocket"
 
-// ---- moved from backend/zz_merged_backend_test.go section capturehandlerstls_test.go ----
+	"agent-ebpf-filter/internal/wsfanout"
+)
 
 func TestHandleTLSCaptureRecentReturnsStoredEventsWithoutAuthMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -179,7 +180,7 @@ type recordingTLSBroadcastClient struct {
 	closed      int
 }
 
-func (c *recordingTLSBroadcastClient) WriteJSON(value any) error {
+func (c *recordingTLSBroadcastClient) WriteMessage(messageType int, data []byte) error {
 	c.mu.Lock()
 	c.writeCalls++
 	writeErr := c.writeErr
@@ -187,9 +188,12 @@ func (c *recordingTLSBroadcastClient) WriteJSON(value any) error {
 	if writeErr != nil {
 		return writeErr
 	}
-	event, ok := value.(TLSPlaintextEvent)
-	if !ok {
-		return errors.New("unexpected TLS broadcast payload")
+	if messageType != websocket.TextMessage {
+		return errors.New("unexpected TLS broadcast frame type")
+	}
+	var event TLSPlaintextEvent
+	if err := json.Unmarshal(data, &event); err != nil {
+		return errors.New("unexpected TLS broadcast payload: " + err.Error())
 	}
 	c.mu.Lock()
 	c.events = append(c.events, event)
@@ -299,7 +303,7 @@ func newBlockingTLSBroadcastClient() *blockingTLSBroadcastClient {
 	}
 }
 
-func (c *blockingTLSBroadcastClient) WriteJSON(any) error {
+func (c *blockingTLSBroadcastClient) WriteMessage(int, []byte) error {
 	c.startOnce.Do(func() { close(c.started) })
 	<-c.closed
 	return errors.New("blocking client closed")
@@ -326,11 +330,11 @@ func (c *blockingTLSBroadcastClient) snapshot() (int, int) {
 	return c.closeCount, len(c.deadlines)
 }
 
-func addTLSBroadcastTestClient(t *testing.T, broadcaster *TLSBroadcaster, client tlsBroadcastClient) (uint64, *tlsBroadcastClientState) {
+func addTLSBroadcastTestClient(t *testing.T, broadcaster *TLSBroadcaster, client tlsBroadcastClient) *wsfanout.Client {
 	t.Helper()
-	id, state := broadcaster.addClient(client)
-	t.Cleanup(func() { broadcaster.removeClient(id, state) })
-	return id, state
+	registered := broadcaster.addClient(client)
+	t.Cleanup(func() { broadcaster.removeClient(registered) })
+	return registered
 }
 
 func waitForTLSBroadcastSnapshot(t *testing.T, client *recordingTLSBroadcastClient, wantEvents, wantCloseCount int) ([]TLSPlaintextEvent, int) {
@@ -352,9 +356,7 @@ func waitForTLSBroadcastClientCount(t *testing.T, broadcaster *TLSBroadcaster, w
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
 	for {
-		broadcaster.mu.Lock()
-		clientCount := len(broadcaster.clients)
-		broadcaster.mu.Unlock()
+		clientCount := broadcaster.Status().ActiveClients
 		if clientCount == want {
 			return
 		}
@@ -393,13 +395,13 @@ func TestTLSCaptureBroadcasterStatusTracksActiveClients(t *testing.T) {
 		t.Fatalf("initial status = %#v", initial)
 	}
 
-	firstID, firstState := addTLSBroadcastTestClient(t, broadcaster, &recordingTLSBroadcastClient{})
+	first := addTLSBroadcastTestClient(t, broadcaster, &recordingTLSBroadcastClient{})
 	addTLSBroadcastTestClient(t, broadcaster, &recordingTLSBroadcastClient{})
 	if status := broadcaster.Status(); status.ActiveClients != 2 {
 		t.Fatalf("active clients = %d, want 2", status.ActiveClients)
 	}
 
-	broadcaster.removeClient(firstID, firstState)
+	broadcaster.removeClient(first)
 	if status := broadcaster.Status(); status.ActiveClients != 1 {
 		t.Fatalf("active clients = %d after remove, want 1", status.ActiveClients)
 	}
@@ -646,12 +648,7 @@ func TestTLSCaptureBroadcasterRemovesFailedClient(t *testing.T) {
 	if closeCount != 1 {
 		t.Fatalf("failed client close count = %d, want 1", closeCount)
 	}
-	broadcaster.mu.Lock()
-	clientCount := len(broadcaster.clients)
-	broadcaster.mu.Unlock()
-	if clientCount != 0 {
-		t.Fatalf("client count = %d, want 0", clientCount)
-	}
+	waitForTLSBroadcastClientCount(t, broadcaster, 0)
 	status := broadcaster.Status()
 	if status.WriteFailuresTotal != 1 || status.QueueFullDropsTotal != 0 || status.WriteDeadlineFailuresTotal != 0 {
 		t.Fatalf("broadcast status = %#v", status)
@@ -675,7 +672,7 @@ func TestTLSCaptureBroadcasterTracksWriteDeadlineFailures(t *testing.T) {
 		t.Fatalf("broadcast status = %#v", status)
 	}
 	if client.writeCallCount() != 0 {
-		t.Fatalf("WriteJSON calls = %d, want 0", client.writeCallCount())
+		t.Fatalf("WriteMessage calls = %d, want 0", client.writeCallCount())
 	}
 	if got := metrics.count("tls.broadcast.write_deadline_failure"); got != 1 {
 		t.Fatalf("write deadline failure metric = %d, want 1", got)
@@ -730,19 +727,14 @@ func TestTLSCaptureBroadcasterConcurrentFailureClosesClientOnce(t *testing.T) {
 	if closeCount != 1 {
 		t.Fatalf("failed client close count = %d, want 1", closeCount)
 	}
-	broadcaster.mu.Lock()
-	clientCount := len(broadcaster.clients)
-	broadcaster.mu.Unlock()
-	if clientCount != 0 {
-		t.Fatalf("client count = %d, want 0", clientCount)
-	}
+	waitForTLSBroadcastClientCount(t, broadcaster, 0)
 }
 
 func TestTLSCaptureBroadcasterSlowClientDoesNotBlockHealthyClient(t *testing.T) {
 	broadcaster := NewTLSCaptureBroadcaster()
 	slow := newBlockingTLSBroadcastClient()
 	healthy := &recordingTLSBroadcastClient{}
-	slowID, slowState := addTLSBroadcastTestClient(t, broadcaster, slow)
+	slowClient := addTLSBroadcastTestClient(t, broadcaster, slow)
 	addTLSBroadcastTestClient(t, broadcaster, healthy)
 
 	started := time.Now()
@@ -764,7 +756,7 @@ func TestTLSCaptureBroadcasterSlowClientDoesNotBlockHealthyClient(t *testing.T) 
 	if deadlineCount == 0 {
 		t.Fatal("slow client write deadline was not set")
 	}
-	broadcaster.removeClient(slowID, slowState)
+	broadcaster.removeClient(slowClient)
 }
 
 func TestTLSCaptureBroadcasterDropsClientWhenQueueIsFull(t *testing.T) {

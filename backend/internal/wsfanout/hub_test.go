@@ -271,3 +271,131 @@ func TestHubSharesPreparedFrameAcrossRealConnections(t *testing.T) {
 		t.Fatal("prepared frame was not built for real connections")
 	}
 }
+
+type dropRecorder struct {
+	mu      sync.Mutex
+	reasons []DropReason
+}
+
+func (r *dropRecorder) record(reason DropReason) {
+	r.mu.Lock()
+	r.reasons = append(r.reasons, reason)
+	r.mu.Unlock()
+}
+
+func (r *dropRecorder) snapshot() []DropReason {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]DropReason(nil), r.reasons...)
+}
+
+func waitForDrops(t *testing.T, rec *dropRecorder, n int) []DropReason {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if got := rec.snapshot(); len(got) >= n {
+			return got
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("drops = %v, want %d", rec.snapshot(), n)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+type deadlineFailingConn struct {
+	recordingConn
+	writeCalls int
+}
+
+func (c *deadlineFailingConn) SetWriteDeadline(time.Time) error { return errors.New("deadline failed") }
+
+func (c *deadlineFailingConn) WriteMessage(messageType int, data []byte) error {
+	c.mu.Lock()
+	c.writeCalls++
+	c.mu.Unlock()
+	return c.recordingConn.WriteMessage(messageType, data)
+}
+
+func TestHubReportsDropReasonsOnce(t *testing.T) {
+	t.Run("write failure", func(t *testing.T) {
+		rec := &dropRecorder{}
+		hub := New(Options{OnDrop: rec.record})
+		defer hub.Close()
+		hub.Add(&recordingConn{writeErr: errors.New("write failed")})
+		hub.Broadcast(NewBinaryMessage([]byte("x")))
+		if got := waitForDrops(t, rec, 1); len(got) != 1 || got[0] != DropWriteFailure {
+			t.Fatalf("drops = %v", got)
+		}
+	})
+	t.Run("deadline failure skips the write", func(t *testing.T) {
+		rec := &dropRecorder{}
+		hub := New(Options{OnDrop: rec.record})
+		defer hub.Close()
+		conn := &deadlineFailingConn{}
+		hub.Add(conn)
+		hub.Broadcast(NewBinaryMessage([]byte("x")))
+		if got := waitForDrops(t, rec, 1); got[0] != DropDeadlineFailure {
+			t.Fatalf("drops = %v", got)
+		}
+		waitFor(t, &conn.recordingConn, 0, 1)
+		conn.mu.Lock()
+		calls := conn.writeCalls
+		conn.mu.Unlock()
+		if calls != 0 {
+			t.Fatalf("WriteMessage calls = %d, want 0", calls)
+		}
+	})
+	t.Run("queue full is not double counted as a write failure", func(t *testing.T) {
+		rec := &dropRecorder{}
+		hub := New(Options{QueueSize: 2, OnDrop: rec.record})
+		defer hub.Close()
+		slow := newBlockingConn()
+		hub.Add(slow)
+		hub.Broadcast(NewBinaryMessage([]byte("first")))
+		<-slow.started
+		for i := 0; i < 3; i++ {
+			hub.Broadcast(NewBinaryMessage([]byte("queued")))
+		}
+		got := waitForDrops(t, rec, 1)
+		// The blocked write fails once we close the connection; that failure
+		// belongs to our own disconnect and must not be reported.
+		time.Sleep(20 * time.Millisecond)
+		if got = rec.snapshot(); len(got) != 1 || got[0] != DropQueueFull {
+			t.Fatalf("drops = %v, want [queue_full]", got)
+		}
+		if slow.closes() != 1 || hub.Len() != 0 {
+			t.Fatalf("closes/len = %d/%d", slow.closes(), hub.Len())
+		}
+	})
+}
+
+func TestHubQueuedAndDisconnectAll(t *testing.T) {
+	hub := New(Options{QueueSize: 8})
+	defer hub.Close()
+	slow := newBlockingConn()
+	hub.Add(slow)
+	hub.Broadcast(NewBinaryMessage([]byte("first")))
+	<-slow.started
+	hub.Broadcast(NewBinaryMessage([]byte("second")))
+	hub.Broadcast(NewBinaryMessage([]byte("third")))
+	if queued := hub.Queued(); queued != 2 {
+		t.Fatalf("Queued() = %d, want 2", queued)
+	}
+
+	hub.DisconnectAll()
+	if hub.Len() != 0 || slow.closes() != 1 || hub.Closed() {
+		t.Fatalf("after DisconnectAll: len=%d closes=%d closed=%v", hub.Len(), slow.closes(), hub.Closed())
+	}
+	fresh := &recordingConn{}
+	if client := hub.Add(fresh); !client.Alive() {
+		t.Fatal("hub stopped accepting clients after DisconnectAll")
+	}
+	hub.Broadcast(NewBinaryMessage([]byte("after")))
+	if messages, _, _ := waitFor(t, fresh, 1, 0); string(messages[0]) != "after" {
+		t.Fatalf("message after DisconnectAll = %q", messages[0])
+	}
+	if got := DropQueueFull.String() + "," + DropDeadlineFailure.String() + "," + DropWriteFailure.String() + "," + DropReason(0).String(); got != "queue_full,write_deadline_failure,write_failure,unknown" {
+		t.Fatalf("DropReason strings = %q", got)
+	}
+}

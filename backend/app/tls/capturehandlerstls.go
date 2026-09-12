@@ -1,29 +1,36 @@
 package tls
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"agent-ebpf-filter/internal/binaryresolver"
+	"agent-ebpf-filter/internal/wsfanout"
 )
 
+// TLSBroadcaster fans TLSPlaintextEvents out to /ws/tls-capture subscribers
+// as JSON text frames. It is a thin policy layer over wsfanout.Hub: the hub
+// owns the per-client queues and writer goroutines, while this type adds the
+// runtime accept gate and the drop/failure counters exposed by Status().
 type TLSBroadcaster struct {
-	mu                         sync.Mutex
-	nextClientID               uint64
-	clients                    map[uint64]*tlsBroadcastClientState
-	upgrade                    tlsBroadcastUpgradeFunc
-	queueFullDropsTotal        uint64
-	writeFailuresTotal         uint64
-	writeDeadlineFailuresTotal uint64
-	accepting                  bool
-	enabledCheck               func() bool
+	mu           sync.Mutex
+	hub          *wsfanout.Hub
+	upgrade      tlsBroadcastUpgradeFunc
+	accepting    bool
+	enabledCheck func() bool
+
+	queueFullDropsTotal        atomic.Uint64
+	writeFailuresTotal         atomic.Uint64
+	writeDeadlineFailuresTotal atomic.Uint64
 }
 
 type TLSBroadcastStatus struct {
@@ -35,14 +42,9 @@ type TLSBroadcastStatus struct {
 	WriteDeadlineFailuresTotal uint64 `json:"writeDeadlineFailuresTotal"`
 }
 
-type tlsBroadcastClient interface {
-	WriteJSON(v any) error
-	Close() error
-}
-
-type tlsBroadcastDeadlineClient interface {
-	SetWriteDeadline(deadline time.Time) error
-}
+// tlsBroadcastClient is the connection surface the broadcaster writes to.
+// *websocket.Conn satisfies it; tests use in-memory fakes.
+type tlsBroadcastClient = wsfanout.Conn
 
 type tlsBroadcastConnection interface {
 	tlsBroadcastClient
@@ -55,61 +57,6 @@ const (
 	tlsBroadcastQueueSize    = 64
 	tlsBroadcastWriteTimeout = 2 * time.Second
 )
-
-type tlsBroadcastClientState struct {
-	conn      tlsBroadcastClient
-	mu        sync.Mutex
-	queue     chan TLSPlaintextEvent
-	done      chan struct{}
-	closeOnce sync.Once
-	dead      bool
-}
-
-type tlsBroadcastEnqueueResult uint8
-
-const (
-	tlsBroadcastEnqueueAccepted tlsBroadcastEnqueueResult = iota
-	tlsBroadcastEnqueueDead
-	tlsBroadcastEnqueueFull
-)
-
-func newTLSBroadcastClientState(conn tlsBroadcastClient) *tlsBroadcastClientState {
-	return &tlsBroadcastClientState{
-		conn:  conn,
-		queue: make(chan TLSPlaintextEvent, tlsBroadcastQueueSize),
-		done:  make(chan struct{}),
-	}
-}
-
-func (state *tlsBroadcastClientState) enqueue(event TLSPlaintextEvent) tlsBroadcastEnqueueResult {
-	state.mu.Lock()
-	defer state.mu.Unlock()
-	if state.dead {
-		return tlsBroadcastEnqueueDead
-	}
-	select {
-	case state.queue <- event:
-		return tlsBroadcastEnqueueAccepted
-	default:
-		return tlsBroadcastEnqueueFull
-	}
-}
-
-func (state *tlsBroadcastClientState) isDead() bool {
-	state.mu.Lock()
-	defer state.mu.Unlock()
-	return state.dead
-}
-
-func (state *tlsBroadcastClientState) close() {
-	state.closeOnce.Do(func() {
-		state.mu.Lock()
-		state.dead = true
-		close(state.done)
-		state.mu.Unlock()
-		_ = state.conn.Close()
-	})
-}
 
 func (b *TLSBroadcaster) SetEnabledCheck(enabled func() bool) {
 	if b == nil {
@@ -129,83 +76,44 @@ func (b *TLSBroadcaster) SetAccepting(accepting bool) {
 	b.mu.Unlock()
 }
 
-func (b *TLSBroadcaster) tryAddClient(conn tlsBroadcastClient) (uint64, *tlsBroadcastClientState, bool) {
-	state := newTLSBroadcastClientState(conn)
+// tryAddClient registers conn unless the runtime gate is closed, in which
+// case the connection is closed immediately and ok is false.
+func (b *TLSBroadcaster) tryAddClient(conn tlsBroadcastClient) (*wsfanout.Client, bool) {
 	b.mu.Lock()
-	if !b.accepting || (b.enabledCheck != nil && !b.enabledCheck()) {
-		b.mu.Unlock()
-		state.close()
-		return 0, state, false
-	}
-	if b.clients == nil {
-		b.clients = make(map[uint64]*tlsBroadcastClientState)
-	}
-	b.nextClientID++
-	id := b.nextClientID
-	b.clients[id] = state
+	accepting := b.accepting && (b.enabledCheck == nil || b.enabledCheck())
 	b.mu.Unlock()
-	go b.runClient(id, state)
-	return id, state, true
-}
-
-func (b *TLSBroadcaster) addClient(conn tlsBroadcastClient) (uint64, *tlsBroadcastClientState) {
-	id, state, _ := b.tryAddClient(conn)
-	return id, state
-}
-
-func (b *TLSBroadcaster) runClient(id uint64, state *tlsBroadcastClientState) {
-	for {
-		select {
-		case <-state.done:
-			return
-		case event := <-state.queue:
-			if state.isDead() {
-				return
-			}
-			if deadlineClient, ok := state.conn.(tlsBroadcastDeadlineClient); ok {
-				if err := deadlineClient.SetWriteDeadline(time.Now().Add(tlsBroadcastWriteTimeout)); err != nil {
-					if !state.isDead() {
-						b.recordWriteDeadlineFailure()
-					}
-					b.removeClient(id, state)
-					return
-				}
-			}
-			if err := state.conn.WriteJSON(event); err != nil {
-				if !state.isDead() {
-					b.recordWriteFailure()
-				}
-				b.removeClient(id, state)
-				return
-			}
-		}
+	if !accepting {
+		_ = conn.Close()
+		return nil, false
 	}
+	return b.hub.Add(conn), true
 }
 
-func (b *TLSBroadcaster) recordQueueFullDrop() {
-	b.mu.Lock()
-	b.queueFullDropsTotal++
-	b.mu.Unlock()
+func (b *TLSBroadcaster) addClient(conn tlsBroadcastClient) *wsfanout.Client {
+	client, _ := b.tryAddClient(conn)
+	return client
+}
+
+func (b *TLSBroadcaster) removeClient(client *wsfanout.Client) {
+	b.hub.Remove(client)
+}
+
+func (b *TLSBroadcaster) recordDrop(reason wsfanout.DropReason) {
+	var counter *atomic.Uint64
+	var metric string
+	switch reason {
+	case wsfanout.DropQueueFull:
+		counter, metric = &b.queueFullDropsTotal, "tls.broadcast.queue_full"
+	case wsfanout.DropDeadlineFailure:
+		counter, metric = &b.writeDeadlineFailuresTotal, "tls.broadcast.write_deadline_failure"
+	case wsfanout.DropWriteFailure:
+		counter, metric = &b.writeFailuresTotal, "tls.broadcast.write_failure"
+	default:
+		return
+	}
+	counter.Add(1)
 	if metrics := deps.CollectorMetrics; metrics != nil {
-		metrics.RecordAgentSightCounter("tls.broadcast.queue_full")
-	}
-}
-
-func (b *TLSBroadcaster) recordWriteFailure() {
-	b.mu.Lock()
-	b.writeFailuresTotal++
-	b.mu.Unlock()
-	if metrics := deps.CollectorMetrics; metrics != nil {
-		metrics.RecordAgentSightCounter("tls.broadcast.write_failure")
-	}
-}
-
-func (b *TLSBroadcaster) recordWriteDeadlineFailure() {
-	b.mu.Lock()
-	b.writeDeadlineFailuresTotal++
-	b.mu.Unlock()
-	if metrics := deps.CollectorMetrics; metrics != nil {
-		metrics.RecordAgentSightCounter("tls.broadcast.write_deadline_failure")
+		metrics.RecordAgentSightCounter(metric)
 	}
 }
 
@@ -213,49 +121,26 @@ func (b *TLSBroadcaster) Status() TLSBroadcastStatus {
 	if b == nil {
 		return TLSBroadcastStatus{QueueCapacity: tlsBroadcastQueueSize}
 	}
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	queuedEvents := 0
-	for _, state := range b.clients {
-		queuedEvents += len(state.queue)
-	}
 	return TLSBroadcastStatus{
-		ActiveClients:              len(b.clients),
-		QueuedEvents:               queuedEvents,
+		ActiveClients:              b.hub.Len(),
+		QueuedEvents:               b.hub.Queued(),
 		QueueCapacity:              tlsBroadcastQueueSize,
-		QueueFullDropsTotal:        b.queueFullDropsTotal,
-		WriteFailuresTotal:         b.writeFailuresTotal,
-		WriteDeadlineFailuresTotal: b.writeDeadlineFailuresTotal,
+		QueueFullDropsTotal:        b.queueFullDropsTotal.Load(),
+		WriteFailuresTotal:         b.writeFailuresTotal.Load(),
+		WriteDeadlineFailuresTotal: b.writeDeadlineFailuresTotal.Load(),
 	}
 }
 
-func (b *TLSBroadcaster) removeClient(id uint64, state *tlsBroadcastClientState) {
-	b.mu.Lock()
-	if current, ok := b.clients[id]; ok && current == state {
-		delete(b.clients, id)
-	}
-	b.mu.Unlock()
-	state.close()
-}
-
+// Close disconnects every subscriber and stops accepting new ones until
+// SetAccepting(true) re-opens the gate (runtime TLS capture toggled back on).
 func (b *TLSBroadcaster) Close() {
 	if b == nil {
 		return
 	}
-	type client struct {
-		id    uint64
-		state *tlsBroadcastClientState
-	}
 	b.mu.Lock()
 	b.accepting = false
-	clients := make([]client, 0, len(b.clients))
-	for id, state := range b.clients {
-		clients = append(clients, client{id: id, state: state})
-	}
 	b.mu.Unlock()
-	for _, client := range clients {
-		b.removeClient(client.id, client.state)
-	}
+	b.hub.DisconnectAll()
 }
 
 func (b *TLSBroadcaster) Serve(c *gin.Context) {
@@ -268,11 +153,11 @@ func (b *TLSBroadcaster) Serve(c *gin.Context) {
 		return
 	}
 
-	id, state, accepted := b.tryAddClient(conn)
+	client, accepted := b.tryAddClient(conn)
 	if !accepted {
 		return
 	}
-	defer b.removeClient(id, state)
+	defer b.removeClient(client)
 
 	for {
 		if _, _, err := conn.ReadMessage(); err != nil {
@@ -281,29 +166,27 @@ func (b *TLSBroadcaster) Serve(c *gin.Context) {
 	}
 }
 
+// Broadcast encodes event once and shares the resulting text frame with
+// every subscriber. Without subscribers nothing is encoded or allocated.
 func (b *TLSBroadcaster) Broadcast(event TLSPlaintextEvent) {
-	type client struct {
-		id    uint64
-		state *tlsBroadcastClientState
+	if b == nil || b.hub.Len() == 0 {
+		return
 	}
+	b.publish(event)
+}
 
-	b.mu.Lock()
-	clients := make([]client, 0, len(b.clients))
-	for id, state := range b.clients {
-		clients = append(clients, client{id: id, state: state})
-	}
-	b.mu.Unlock()
-
-	for _, client := range clients {
-		result := client.state.enqueue(event)
-		switch result {
-		case tlsBroadcastEnqueueAccepted:
-			continue
-		case tlsBroadcastEnqueueFull:
-			b.recordQueueFullDrop()
+// publish is split from Broadcast so that only this copy of the event is
+// forced onto the heap: json encodes an addressable struct in place, whereas
+// a by-value argument is first duplicated through reflect.New.
+func (b *TLSBroadcaster) publish(event TLSPlaintextEvent) {
+	data, err := json.Marshal(&event)
+	if err != nil {
+		if metrics := deps.CollectorMetrics; metrics != nil {
+			metrics.RecordAgentSightCounter("tls.broadcast.marshal_failure")
 		}
-		b.removeClient(client.id, client.state)
+		return
 	}
+	b.hub.Broadcast(wsfanout.NewTextMessage(data))
 }
 
 type tlsCaptureRuntime interface {
@@ -324,11 +207,14 @@ func NewTLSCaptureBroadcaster() *TLSBroadcaster {
 }
 
 func newTLSCaptureBroadcasterWithUpgrader(upgrade tlsBroadcastUpgradeFunc) *TLSBroadcaster {
-	return &TLSBroadcaster{
-		clients:   make(map[uint64]*tlsBroadcastClientState),
-		upgrade:   upgrade,
-		accepting: true,
-	}
+	b := &TLSBroadcaster{upgrade: upgrade, accepting: true}
+	b.hub = wsfanout.New(wsfanout.Options{
+		QueueSize:    tlsBroadcastQueueSize,
+		WriteTimeout: tlsBroadcastWriteTimeout,
+		PingPeriod:   -1,
+		OnDrop:       b.recordDrop,
+	})
+	return b
 }
 
 func defaultTLSBroadcastUpgrade(w http.ResponseWriter, r *http.Request, responseHeader http.Header) (tlsBroadcastConnection, error) {

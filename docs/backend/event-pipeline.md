@@ -64,10 +64,16 @@ flowchart TD
 
 ### WebSocket 扇出 (`internal/wsfanout`)
 
-`/ws`、`/ws/envelopes` 共用 `wsfanout.Hub`。一次 `Broadcast` 只序列化一份 protobuf，
-并包装成 `websocket.PreparedMessage`：帧头与 payload 只编码一次，随后对每个连接用向量
-写直接发送，不再按连接逐个拷贝到写缓冲。每个连接有独立的有界队列和 writer goroutine，
-慢客户端在队列满时被断开，不会阻塞事件摄取。该包不依赖 `app`，可独立测试。
+`/ws`、`/ws/envelopes` 与 `/ws/tls-capture` 共用 `wsfanout.Hub`。一次 `Broadcast` 只序列化
+一份 payload（protobuf 或 TLS 事件的 JSON），并包装成 `websocket.PreparedMessage`：帧头与
+payload 只编码一次，随后对每个连接用向量写直接发送，不再按连接逐个编码、拷贝。每个连接有
+独立的有界队列和 writer goroutine，慢客户端在队列满时被断开，不会阻塞事件摄取；断开原���
+通过 `Options.OnDrop` 回调上报（`queue_full` / `write_deadline_failure` / `write_failure`），
+`TLSBroadcaster.Status()` 的计数即由此维护。无订阅者时两条路径都直接跳过序列化。该包不
+依赖 `app`，可独立测试。
+
+TLS 广播在 16 个订阅者下的开销：43.4 µs / 33 次分配 → 14.2 µs / 3 次分配（编码成本不再随
+订阅者数量线性增长）。
 
 ## EventArchive
 

@@ -74,12 +74,42 @@ func (m *Message) writeTo(conn Conn) error {
 	return conn.WriteMessage(m.messageType, m.data)
 }
 
+// DropReason says why a client was disconnected by the hub.
+type DropReason uint8
+
+const (
+	// DropQueueFull: the client's queue was full when a message arrived.
+	DropQueueFull DropReason = iota + 1
+	// DropDeadlineFailure: SetWriteDeadline failed before a write.
+	DropDeadlineFailure
+	// DropWriteFailure: the write itself failed.
+	DropWriteFailure
+)
+
+func (r DropReason) String() string {
+	switch r {
+	case DropQueueFull:
+		return "queue_full"
+	case DropDeadlineFailure:
+		return "write_deadline_failure"
+	case DropWriteFailure:
+		return "write_failure"
+	default:
+		return "unknown"
+	}
+}
+
 // Options tunes a Hub. Zero values fall back to the package defaults; a
 // negative PingPeriod disables keep-alive pings.
 type Options struct {
 	QueueSize    int
 	WriteTimeout time.Duration
 	PingPeriod   time.Duration
+	// OnDrop, when set, is called once for every client the hub disconnects
+	// on its own initiative. Failures observed on a client that was already
+	// removed (for example the write that fails because we closed it) are
+	// not reported.
+	OnDrop func(DropReason)
 }
 
 func (o Options) withDefaults() Options {
@@ -157,6 +187,12 @@ type Hub struct {
 	clients     map[uint64]*Client
 	writeErrors atomic.Uint64
 	closed      bool
+
+	// broadcastMu serialises Broadcast calls so the client scratch slice can
+	// be reused instead of allocated per call. Enqueueing is non-blocking,
+	// so the critical section is short.
+	broadcastMu sync.Mutex
+	scratch     []*Client
 }
 
 // New returns an open hub.
@@ -195,37 +231,52 @@ func (h *Hub) runClient(client *Client) {
 		ping = ticker.C
 	}
 
-	write := func(send func() error) bool {
-		if err := client.conn.SetWriteDeadline(time.Now().Add(h.opts.WriteTimeout)); err != nil {
-			h.writeErrors.Add(1)
-			h.Remove(client)
-			return false
-		}
-		if err := send(); err != nil {
-			h.writeErrors.Add(1)
-			h.Remove(client)
-			return false
-		}
-		return true
-	}
-
 	for {
 		select {
 		case <-client.done:
 			return
 		case <-ping:
-			if !write(func() error { return client.conn.WriteMessage(websocket.PingMessage, nil) }) {
+			if !h.write(client, nil) {
 				return
 			}
 		case msg := <-client.queue:
 			if !client.Alive() {
 				return
 			}
-			if !write(func() error { return msg.writeTo(client.conn) }) {
+			if !h.write(client, msg) {
 				return
 			}
 		}
 	}
+}
+
+// write delivers msg to client, or a ping when msg is nil, and removes the
+// client on failure. It is a method rather than a closure so the hot path
+// does not allocate per message.
+func (h *Hub) write(client *Client, msg *Message) bool {
+	if err := client.conn.SetWriteDeadline(time.Now().Add(h.opts.WriteTimeout)); err != nil {
+		h.fail(client, DropDeadlineFailure)
+		return false
+	}
+	var err error
+	if msg == nil {
+		err = client.conn.WriteMessage(websocket.PingMessage, nil)
+	} else {
+		err = msg.writeTo(client.conn)
+	}
+	if err != nil {
+		h.fail(client, DropWriteFailure)
+		return false
+	}
+	return true
+}
+
+func (h *Hub) fail(client *Client, reason DropReason) {
+	if client.Alive() {
+		h.writeErrors.Add(1)
+		h.notifyDrop(reason)
+	}
+	h.Remove(client)
 }
 
 // Remove unregisters client and closes its connection. It is safe to call
@@ -242,17 +293,19 @@ func (h *Hub) Remove(client *Client) {
 	client.close()
 }
 
-func (h *Hub) snapshot() []*Client {
+// snapshotInto appends the live clients to dst[:0]. It returns nil once the
+// hub is closed.
+func (h *Hub) snapshotInto(dst []*Client) []*Client {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.closed {
 		return nil
 	}
-	clients := make([]*Client, 0, len(h.clients))
+	dst = dst[:0]
 	for _, client := range h.clients {
-		clients = append(clients, client)
+		dst = append(dst, client)
 	}
-	return clients
+	return dst
 }
 
 // Broadcast enqueues msg for every client. Slow clients are disconnected
@@ -262,14 +315,58 @@ func (h *Hub) Broadcast(msg *Message) int {
 	if h == nil || msg == nil || len(msg.data) == 0 {
 		return 0
 	}
+	h.broadcastMu.Lock()
+	defer h.broadcastMu.Unlock()
 	failures := int(h.writeErrors.Swap(0))
-	for _, client := range h.snapshot() {
+	h.scratch = h.snapshotInto(h.scratch)
+	for _, client := range h.scratch {
 		if !client.enqueue(msg) {
 			failures++
+			if client.Alive() {
+				h.notifyDrop(DropQueueFull)
+			}
 			h.Remove(client)
 		}
 	}
+	// Do not keep removed clients reachable from the scratch slice.
+	clear(h.scratch)
 	return failures
+}
+
+func (h *Hub) notifyDrop(reason DropReason) {
+	if h.opts.OnDrop != nil {
+		h.opts.OnDrop(reason)
+	}
+}
+
+// Queued returns the number of messages waiting in client queues.
+func (h *Hub) Queued() int {
+	if h == nil {
+		return 0
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	queued := 0
+	for _, client := range h.clients {
+		queued += len(client.queue)
+	}
+	return queued
+}
+
+// DisconnectAll removes every client but keeps the hub open for new ones.
+func (h *Hub) DisconnectAll() {
+	if h == nil {
+		return
+	}
+	h.mu.Lock()
+	clients := make([]*Client, 0, len(h.clients))
+	for _, client := range h.clients {
+		clients = append(clients, client)
+	}
+	h.mu.Unlock()
+	for _, client := range clients {
+		h.Remove(client)
+	}
 }
 
 // Len returns the number of registered clients.
