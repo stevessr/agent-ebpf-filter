@@ -30,6 +30,7 @@ type pendingTLSFragment struct {
 	comm        string
 	flags       uint8
 	payload     []byte
+	lengths     [tlsMaxFragments]uint16
 	received    uint16
 	receivedMap uint32
 }
@@ -97,37 +98,21 @@ func sanitizeTLSComm(comm [16]byte) string {
 	return sanitizeUTF8(comm[:])
 }
 
-func expectedTLSFragmentBounds(fragment tlsFragment) (int, int, bool) {
+func validTLSFragmentShape(fragment tlsFragment) bool {
 	if fragment.FragCount == 0 || fragment.FragIndex >= fragment.FragCount || fragment.TotalLen == 0 {
-		return 0, 0, false
+		return false
 	}
 	if fragment.FragCount > tlsMaxFragments || fragment.DataLen == 0 || fragment.DataLen > tlsFragmentSize {
-		return 0, 0, false
+		return false
 	}
 	if fragment.TotalLen > uint32(tlsFragmentSize*tlsMaxFragments) {
-		return 0, 0, false
+		return false
 	}
-
-	start := int(fragment.FragIndex) * tlsFragmentSize
-	end := start + int(fragment.DataLen)
-	if start < 0 || end < start || end > int(fragment.TotalLen) {
-		return 0, 0, false
-	}
-	// Every non-final fragment emitted by the BPF program is a full chunk. This
-	// catches malformed or cross-record corruption early without penalising the
-	// shorter final fragment.
-	if fragment.FragIndex+1 < fragment.FragCount && fragment.DataLen != tlsFragmentSize {
-		return 0, 0, false
-	}
-	if fragment.FragIndex+1 == fragment.FragCount && end != int(fragment.TotalLen) {
-		return 0, 0, false
-	}
-	return start, end, true
+	return true
 }
 
 func (a *FragmentAssembler) Add(fragment tlsFragment) (*CompletedTLSFragment, bool) {
-	start, end, valid := expectedTLSFragmentBounds(fragment)
-	if !valid {
+	if !validTLSFragmentShape(fragment) {
 		a.mu.Lock()
 		a.dropped++
 		a.mu.Unlock()
@@ -146,6 +131,10 @@ func (a *FragmentAssembler) Add(fragment tlsFragment) (*CompletedTLSFragment, bo
 		if len(a.pending) >= tlsMaxPendingFragments {
 			a.evictOldestPendingLocked()
 		}
+		// Reserve fixed fragment slots in one allocation. The last slot may be
+		// partially used; on completion the slots are compacted in place into the
+		// declared TotalLen. This avoids one heap object per fragment and avoids a
+		// second full-payload allocation during reassembly.
 		pending = &pendingTLSFragment{
 			firstSeen:   firstSeen,
 			fragCount:   fragment.FragCount,
@@ -153,7 +142,7 @@ func (a *FragmentAssembler) Add(fragment tlsFragment) (*CompletedTLSFragment, bo
 			originalLen: fragment.OriginalLen,
 			comm:        sanitizeTLSComm(fragment.Comm),
 			flags:       fragment.Flags,
-			payload:     make([]byte, int(fragment.TotalLen)),
+			payload:     make([]byte, int(fragment.FragCount)*tlsFragmentSize),
 		}
 		a.pending[key] = pending
 	} else if pending.fragCount != fragment.FragCount ||
@@ -170,23 +159,49 @@ func (a *FragmentAssembler) Add(fragment tlsFragment) (*CompletedTLSFragment, bo
 		a.dropped++
 		return nil, false
 	}
-	copy(pending.payload[start:end], fragment.Data[:fragment.DataLen])
+	slotStart := int(fragment.FragIndex) * tlsFragmentSize
+	slotEnd := slotStart + int(fragment.DataLen)
+	if slotStart < 0 || slotEnd < slotStart || slotEnd > len(pending.payload) {
+		delete(a.pending, key)
+		a.dropped++
+		return nil, false
+	}
+	copy(pending.payload[slotStart:slotEnd], fragment.Data[:fragment.DataLen])
+	pending.lengths[fragment.FragIndex] = uint16(fragment.DataLen)
 	pending.receivedMap |= bit
 	pending.received++
 	if pending.received != pending.fragCount {
 		return nil, false
 	}
 
-	// FragCount is bounded to 18, so a 32-bit bitset can verify that every
-	// fragment arrived without allocating a map or scanning payload slices.
-	expectedMask := uint32(1)<<pending.fragCount - 1
+	// FragCount is bounded to 18, so a 32-bit bitset verifies completeness
+	// without a map lookup per fragment.
+	expectedMask := (uint32(1) << pending.fragCount) - 1
 	if pending.receivedMap != expectedMask {
 		delete(a.pending, key)
 		a.dropped++
 		return nil, false
 	}
 
-	payload := pending.payload
+	writePos := 0
+	for i := uint16(0); i < pending.fragCount; i++ {
+		n := int(pending.lengths[i])
+		if n <= 0 {
+			delete(a.pending, key)
+			a.dropped++
+			return nil, false
+		}
+		slotStart := int(i) * tlsFragmentSize
+		copy(pending.payload[writePos:writePos+n], pending.payload[slotStart:slotStart+n])
+		writePos += n
+	}
+	if writePos != int(pending.totalLen) {
+		delete(a.pending, key)
+		a.dropped++
+		return nil, false
+	}
+
+	payload := pending.payload[:writePos]
 	delete(a.pending, key)
 	return &CompletedTLSFragment{
 		TimestampNS:  fragment.TimestampNS,
