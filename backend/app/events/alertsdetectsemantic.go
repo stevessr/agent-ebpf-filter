@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -25,30 +26,81 @@ func toolNameLooksReadOnly(toolName string) bool {
 }
 
 func extractSecretTarget(event *pb.Event) (string, bool) {
-	for _, candidate := range []string{event.GetPath(), event.GetExtraPath()} {
-		if isSecretLikePath(candidate) {
-			return candidate, true
-		}
+	return extractSecretTargetWith(event, isSecretLikePath(event.GetPath()))
+}
+
+// extractSecretTargetWith is extractSecretTarget with the verdict for
+// event.Path already known, so one event never scans its path twice.
+func extractSecretTargetWith(event *pb.Event, pathIsSecret bool) (string, bool) {
+	if pathIsSecret {
+		return event.GetPath(), true
+	}
+	if extra := event.GetExtraPath(); extra != "" && isSecretLikePath(extra) {
+		return extra, true
 	}
 	return "", false
 }
 
 // isSecretLikePath reports whether path contains one of SecretPathHints,
-// ignoring case. The path is folded into a stack buffer instead of through
-// strings.ToLower so the check does not allocate on the per-event path.
+// ignoring ASCII case. The path is folded into a stack buffer and scanned
+// once: at each position only the hints starting with that byte are tried,
+// so the cost is one pass over the path rather than one search per hint.
 func isSecretLikePath(path string) bool {
 	path = strings.TrimSpace(path)
 	if path == "" {
 		return false
 	}
-	var scratch [512]byte
-	lower := lowerJoinedFields(scratch[:0], path)
-	for _, hint := range SecretPathHints {
-		if bytes.Contains(lower, []byte(hint)) {
-			return true
+	index := secretPathHintIndex()
+	for i := 0; i < len(path); i++ {
+		c := path[i]
+		if 'A' <= c && c <= 'Z' {
+			c += 'a' - 'A'
+		}
+		for _, hint := range index[c] {
+			if hasPrefixFoldASCII(path[i:], hint) {
+				return true
+			}
 		}
 	}
 	return false
+}
+
+// hasPrefixFoldASCII reports whether s starts with lowerPrefix ignoring ASCII
+// case; lowerPrefix must already be lower-case.
+func hasPrefixFoldASCII(s, lowerPrefix string) bool {
+	if len(s) < len(lowerPrefix) {
+		return false
+	}
+	for i := 0; i < len(lowerPrefix); i++ {
+		c := s[i]
+		if 'A' <= c && c <= 'Z' {
+			c += 'a' - 'A'
+		}
+		if c != lowerPrefix[i] {
+			return false
+		}
+	}
+	return true
+}
+
+var (
+	secretPathHintsOnce  sync.Once
+	secretPathHintsTable [256][]string
+)
+
+// secretPathHintIndex groups SecretPathHints by first byte. It is built on
+// first use, so SecretPathHints must be finalised before any event is scanned.
+func secretPathHintIndex() *[256][]string {
+	secretPathHintsOnce.Do(func() {
+		for _, hint := range SecretPathHints {
+			hint = strings.ToLower(hint)
+			if hint == "" {
+				continue
+			}
+			secretPathHintsTable[hint[0]] = append(secretPathHintsTable[hint[0]], hint)
+		}
+	})
+	return &secretPathHintsTable
 }
 
 func extractNetworkTarget(event *pb.Event) (string, bool) {

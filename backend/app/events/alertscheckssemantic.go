@@ -246,6 +246,12 @@ func semanticFieldSeparatorWidth(value string) (int, bool) {
 }
 
 func isLowValueFileIOEvent(event *pb.Event) bool {
+	return isLowValueFileIOEventWith(event, isSecretLikePath(event.GetPath()))
+}
+
+// isLowValueFileIOEventWith is isLowValueFileIOEvent with the secret-path
+// verdict for event.Path already known.
+func isLowValueFileIOEventWith(event *pb.Event, pathIsSecret bool) bool {
 	if event == nil {
 		return false
 	}
@@ -253,11 +259,7 @@ func isLowValueFileIOEvent(event *pb.Event) bool {
 	case "read", "write":
 		return true
 	case "openat", "open":
-		path := strings.TrimSpace(event.GetPath())
-		if path == "" || isSecretLikePath(path) {
-			return false
-		}
-		return true
+		return strings.TrimSpace(event.GetPath()) != "" && !pathIsSecret
 	default:
 		return false
 	}

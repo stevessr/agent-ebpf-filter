@@ -278,9 +278,15 @@ func (s *SemanticAlertState) ObserveAgenticResourceLoop(event *pb.Event, now tim
 	if s == nil || event == nil {
 		return "", "", false
 	}
+	return s.observeAgenticResourceLoop(event, now, isLowValueFileIOEvent(event))
+}
+
+func (s *SemanticAlertState) observeAgenticResourceLoop(event *pb.Event, now time.Time, fileIO bool) (string, string, bool) {
+	if s == nil || event == nil {
+		return "", "", false
+	}
 	promptDigest, oversizedMetadata := extraInfoFieldBounded(event.GetExtraInfo(), "prompt_digest", SemanticPromptDigestMaxBytes)
 	apiLike := isAPILikeNetworkEvent(event)
-	fileIO := isLowValueFileIOEvent(event)
 	if oversizedMetadata {
 		s.mu.Lock()
 		s.ignoredOversizedMetadataTotal++
@@ -490,6 +496,9 @@ func BuildSemanticAlerts(event *pb.Event) []*pb.Event {
 
 	now := time.Now().UTC()
 	readonlyTool := toolNameLooksReadOnly(event.GetToolName())
+	// The secret-path scan is the most expensive predicate here; evaluate it
+	// once for event.Path and share the verdict with every check below.
+	pathIsSecret := isSecretLikePath(event.GetPath())
 	var alerts []*pb.Event
 	addAlert := func(code, target, reason string, minimumRisk float64) {
 		for _, alert := range alerts {
@@ -500,7 +509,7 @@ func BuildSemanticAlerts(event *pb.Event) []*pb.Event {
 		alerts = append(alerts, newSemanticAlertEvent(event, code, target, reason, minimumRisk))
 	}
 
-	if target, ok := extractSecretTarget(event); ok {
+	if target, ok := extractSecretTargetWith(event, pathIsSecret); ok {
 		Deps.SemanticAlertsState.RememberSecret(event, target, now)
 		addAlert("SECRET_ACCESS", target, "observed access to a secret-like path", 0.96)
 		if readonlyTool {
@@ -554,7 +563,7 @@ func BuildSemanticAlerts(event *pb.Event) []*pb.Event {
 		addAlert("RESOURCE_WASTING_LOOP", target, "observed repeated fork/clone activity suggesting a lightweight fork storm or runaway loop", 0.94)
 	}
 
-	if target, reason, ok := Deps.SemanticAlertsState.ObserveAgenticResourceLoop(event, now); ok {
+	if target, reason, ok := Deps.SemanticAlertsState.observeAgenticResourceLoop(event, now, isLowValueFileIOEventWith(event, pathIsSecret)); ok {
 		addAlert("RESOURCE_WASTING_LOOP", target, reason, 0.95)
 	}
 

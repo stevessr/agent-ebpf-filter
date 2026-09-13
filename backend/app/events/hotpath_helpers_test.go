@@ -123,3 +123,18 @@ func TestIsSecretLikePathMatchesLowerCasedContains(t *testing.T) {
 		t.Fatalf("isSecretLikePath allocated %.1f per call", allocs)
 	}
 }
+
+func BenchmarkIsSecretLikePath(b *testing.B) {
+	paths := []string{
+		"/home/steve/project/src/main.go",
+		"/usr/lib/python3.12/site-packages/requests/api.py",
+		"/home/steve/.ssh/id_ed25519",
+		"/tmp/build/CMakeFiles/target.dir/flags.make",
+	}
+	b.ReportAllocs()
+	i := 0
+	for b.Loop() {
+		isSecretLikePath(paths[i&3])
+		i++
+	}
+}
