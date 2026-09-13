@@ -2,6 +2,7 @@ package signalruntime
 
 import (
 	"agent-ebpf-filter/app/tasks"
+	"agent-ebpf-filter/internal/workerqueue"
 	"context"
 	"sync"
 	"time"
@@ -27,12 +28,8 @@ type signalProgramLogWriterStatus struct {
 }
 
 type signalProgramLogWriter struct {
-	lifecycleMu sync.Mutex
-	mu          sync.RWMutex
-	queue       chan signalProgramLogWorkItem
-	cancel      context.CancelFunc
-	done        chan struct{}
-	started     bool
+	queue workerqueue.Queue[signalProgramLogWorkItem]
+	mu    sync.RWMutex
 
 	enqueuedTotal   uint64
 	completedTotal  uint64
@@ -62,44 +59,19 @@ func (w *signalProgramLogWriter) Start(ctx context.Context, queueSize int) {
 	if w == nil {
 		return
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	queueSize = tasks.NormalizeQueueSize(queueSize, signalProgramLogWriterDefaultQueueSize)
-
-	w.lifecycleMu.Lock()
-	defer w.lifecycleMu.Unlock()
-	w.mu.Lock()
-	if w.started {
-		w.mu.Unlock()
-		return
+	if w.queue.Start(ctx, queueSize, func(ctx context.Context, items <-chan signalProgramLogWorkItem) {
+		w.run(ctx, items)
+		w.touch()
+	}) {
+		w.touch()
 	}
-	workerCtx, cancel := context.WithCancel(ctx)
-	queue := make(chan signalProgramLogWorkItem, queueSize)
-	done := make(chan struct{})
-	w.queue = queue
-	w.cancel = cancel
-	w.done = done
-	w.started = true
+}
+
+func (w *signalProgramLogWriter) touch() {
+	w.mu.Lock()
 	w.updatedAt = time.Now().UTC()
 	w.mu.Unlock()
-
-	go func() {
-		w.run(workerCtx, queue)
-
-		w.lifecycleMu.Lock()
-		w.mu.Lock()
-		if w.done == done {
-			w.queue = nil
-			w.cancel = nil
-			w.done = nil
-			w.started = false
-			w.updatedAt = time.Now().UTC()
-		}
-		w.mu.Unlock()
-		close(done)
-		w.lifecycleMu.Unlock()
-	}()
 }
 
 func (w *signalProgramLogWriter) run(ctx context.Context, queue <-chan signalProgramLogWorkItem) {
@@ -120,16 +92,14 @@ func (w *signalProgramLogWriter) run(ctx context.Context, queue <-chan signalPro
 	}
 }
 
+// stopAccepting closes the door before draining so no item can be accepted
+// after the drain has finished.
 func (w *signalProgramLogWriter) stopAccepting(queue <-chan signalProgramLogWorkItem) {
 	if w == nil {
 		return
 	}
-	w.mu.Lock()
-	if w.queue == queue {
-		w.queue = nil
-		w.updatedAt = time.Now().UTC()
-	}
-	w.mu.Unlock()
+	w.queue.StopAccepting(queue)
+	w.touch()
 }
 
 func (w *signalProgramLogWriter) drain(queue <-chan signalProgramLogWorkItem) {
@@ -166,22 +136,17 @@ func (w *signalProgramLogWriter) Enqueue(item signalProgramLogWorkItem) (accepte
 	if w == nil {
 		return false, false
 	}
+	if !w.queue.Stats().Started {
+		return false, false
+	}
 	now := time.Now().UTC()
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	active = w.started
-	if !active {
-		return false, false
-	}
-	if w.queue != nil {
-		select {
-		case w.queue <- item:
-			w.enqueuedTotal++
-			w.lastEnqueuedAt = now
-			w.updatedAt = now
-			return true, true
-		default:
-		}
+	if w.queue.TryEnqueue(item) == workerqueue.Accepted {
+		w.enqueuedTotal++
+		w.lastEnqueuedAt = now
+		w.updatedAt = now
+		return true, true
 	}
 	w.droppedTotal++
 	w.lastError = "signal program log writer queue is full or stopping"
@@ -194,47 +159,24 @@ func (w *signalProgramLogWriter) Shutdown(ctx context.Context) error {
 	if w == nil {
 		return nil
 	}
-	if ctx == nil {
-		ctx = context.Background()
+	if w.queue.Stats().Started {
+		w.touch()
 	}
-
-	w.lifecycleMu.Lock()
-	w.mu.Lock()
-	if !w.started {
-		w.mu.Unlock()
-		w.lifecycleMu.Unlock()
-		return nil
-	}
-	cancel := w.cancel
-	done := w.done
-	w.queue = nil
-	w.updatedAt = time.Now().UTC()
-	w.mu.Unlock()
-	w.lifecycleMu.Unlock()
-
-	if cancel != nil {
-		cancel()
-	}
-	if done == nil {
-		return nil
-	}
-	select {
-	case <-done:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	return w.queue.Shutdown(ctx)
 }
 
 func (w *signalProgramLogWriter) Status() signalProgramLogWriterStatus {
 	if w == nil {
 		return signalProgramLogWriterStatus{}
 	}
+	queueStats := w.queue.Stats()
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 	status := signalProgramLogWriterStatus{
-		Running:        w.started,
-		Accepting:      w.queue != nil,
+		Running:        queueStats.Started,
+		Accepting:      queueStats.Cap > 0,
+		QueueLen:       queueStats.Len,
+		QueueCap:       queueStats.Cap,
 		EnqueuedTotal:  w.enqueuedTotal,
 		CompletedTotal: w.completedTotal,
 		PersistedTotal: w.persistedTotal,
@@ -242,10 +184,6 @@ func (w *signalProgramLogWriter) Status() signalProgramLogWriterStatus {
 		DroppedTotal:   w.droppedTotal,
 		LastError:      w.lastError,
 		UpdatedAt:      w.updatedAt,
-	}
-	if w.queue != nil {
-		status.QueueLen = len(w.queue)
-		status.QueueCap = cap(w.queue)
 	}
 	status.LastEnqueuedAt = signalProgramLogTimePointer(w.lastEnqueuedAt)
 	status.LastCompletedAt = signalProgramLogTimePointer(w.lastCompletedAt)
@@ -260,7 +198,6 @@ func signalProgramLogTimePointer(value time.Time) *time.Time {
 	value = value.UTC()
 	return &value
 }
-
 
 // LogWriter returns the shared signal program-log writer.
 func LogWriter() *signalProgramLogWriter { return signalProgramLogWriterStore }

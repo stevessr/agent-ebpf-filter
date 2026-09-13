@@ -133,6 +133,35 @@ func TestQueueShutdownTimeoutKeepsStoppingGeneration(t *testing.T) {
 	q.Shutdown(waitCtx)
 }
 
+func TestStopAcceptingDetachesOnlyTheLiveGeneration(t *testing.T) {
+	var q Queue[int]
+	var live <-chan int
+	ready := make(chan struct{})
+	q.Start(context.Background(), 4, func(ctx context.Context, items <-chan int) {
+		live = items
+		close(ready)
+		<-ctx.Done()
+	})
+	<-ready
+	stale := make(chan int)
+	q.StopAccepting(stale)
+	if q.TryEnqueue(1) != Accepted {
+		t.Fatal("StopAccepting with a foreign channel detached the live queue")
+	}
+	q.StopAccepting(live)
+	if q.TryEnqueue(2) != NotStarted {
+		t.Fatal("queue still accepting after StopAccepting")
+	}
+	if stats := q.Stats(); !stats.Started || stats.Cap != 0 {
+		t.Fatalf("Stats() after StopAccepting = %+v", stats)
+	}
+	waitCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := q.Shutdown(waitCtx); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestNilQueueIsInert(t *testing.T) {
 	var q *Queue[int]
 	if q.Start(context.Background(), 1, nil) || q.TryEnqueue(1) != NotStarted || q.Shutdown(context.Background()) != nil || q.Stats().Started {

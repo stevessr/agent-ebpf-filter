@@ -121,6 +121,22 @@ func (q *Queue[T]) Shutdown(ctx context.Context) error {
 	}
 }
 
+// StopAccepting detaches the queue channel from the current generation so
+// TryEnqueue reports NotStarted while the consumer drains what it already
+// holds. A consumer that wants to drain on cancellation calls this first so
+// nothing can be enqueued after the drain finishes. It is a no-op unless
+// items is the channel of the live generation.
+func (q *Queue[T]) StopAccepting(items <-chan T) {
+	if q == nil {
+		return
+	}
+	q.mu.Lock()
+	if q.queue != nil && (<-chan T)(q.queue) == items {
+		q.queue = nil
+	}
+	q.mu.Unlock()
+}
+
 // TryEnqueue offers item to the running generation without blocking.
 func (q *Queue[T]) TryEnqueue(item T) EnqueueResult {
 	if q == nil {
