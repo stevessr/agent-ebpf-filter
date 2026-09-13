@@ -119,6 +119,25 @@ type PluginService interface {
 	BPFTemplates() []types.BPFTemplate
 }
 
+// MLService is the ML engine surface the ML handlers use. Response-shaped
+// methods return gin.H because the frontend contract is the JSON body itself.
+type MLService interface {
+	Status() *pb.MLStatus
+	StatusJSON() []byte
+	Enabled() bool
+	IsTraining() bool
+	CancelTraining()
+	Logs() gin.H
+	History() gin.H
+	Train(numTrees, maxDepth, minSamplesLeaf int) gin.H
+	Feedback(comm, userAction string) gin.H
+	Samples() gin.H
+	LabelSample(index int, label string) gin.H
+	RemoveSample(index int) gin.H
+	SetSampleAnomaly(index int, score float64) gin.H
+	AddSample(commandLine, comm string, args []string, label string) gin.H
+}
+
 // ConfigStore is the tracking configuration the config/export handlers edit:
 // the tag registry, disabled comms and event types, and wrapper rules.
 type ConfigStore interface {
@@ -249,28 +268,8 @@ var Deps struct {
 	RotateAccessToken                      func(settings RuntimeSettings) RuntimeSettings
 	ApplyMLConfigPatch                     func(dst *core.MLConfig, patch interface{})
 
-	// ML handler closures — all return gin.H or simple types to avoid type coupling
-	MLStatus                func() *pb.MLStatus
-	BuildMLStatusJSON       func() []byte
-	MLEnabled               func() bool
-	MLConfig                func() core.MLConfig
-	CurrentMLConfig         func() core.MLConfig
-	MLIsRunning             func() bool
-	MLLogTotal              func() int
-	MLGetLogsResponse       func() gin.H
-	MLCancelTraining        func()
-	MLGetHistoryResponse    func() gin.H
-	MLTrain                 func(numTrees, maxDepth, minLeaf int) gin.H
-	MLFeedbackResult        func(comm, action string) gin.H
-	MLSamplesResponse       func() gin.H
-	MLSampleLabelResult     func(index int, label string) gin.H
-	MLRemoveSampleResult    func(index int) gin.H
-	MLSampleAnomalyResult   func(index int, score float64) gin.H
-	MLAddSample             func(cmdLine, comm string, args []string, label string) gin.H
-	MLExistingCommands      func() []string
-	MLAssessCommandSafety   func(c *gin.Context)
-	MLExistingCommandsGetFn func(c *gin.Context)
-	MLImportExistingFn      func(c *gin.Context)
+	// ML backs the model status / training / sample handlers.
+	ML MLService
 
 	// Hooks config closures
 	AvailableHooks               func() []core.HookDef

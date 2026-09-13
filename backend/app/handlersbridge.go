@@ -582,36 +582,7 @@ func init() {
 // ── ML handler wiring ──────────────────────────────────────────────
 
 func initMLHandlersDeps() {
-	handlers.Deps.MLStatus = mlStatus
-	handlers.Deps.BuildMLStatusJSON = buildMLStatusJSON
-	handlers.Deps.MLEnabled = func() bool { return ml.SnapshotMLRuntime().Enabled }
-	handlers.Deps.MLConfig = func() core.MLConfig { return ml.SnapshotMLRuntime().Config }
-	handlers.Deps.CurrentMLConfig = currentMLConfig
-	handlers.Deps.MLIsRunning = ml.GlobalTrainer.IsRunning
-	handlers.Deps.MLLogTotal = ml.GlobalTrainer.LogTotal
-	handlers.Deps.MLGetLogsResponse = mlGetLogsResponse
-	handlers.Deps.MLCancelTraining = cancelMLAutoTuneTasks
-	handlers.Deps.MLGetHistoryResponse = mlGetHistoryResponse
-	handlers.Deps.MLTrain = mlTrain
-	handlers.Deps.MLFeedbackResult = mlFeedbackResult
-	handlers.Deps.MLSamplesResponse = mlSamplesResponse
-	handlers.Deps.MLSampleLabelResult = mlSampleLabelResult
-	handlers.Deps.MLRemoveSampleResult = mlRemoveSampleResult
-	handlers.Deps.MLSampleAnomalyResult = mlSampleAnomalyResult
-	handlers.Deps.MLAddSample = mlAddSample
-	handlers.Deps.MLExistingCommands = func() []string {
-		candidates, _, _ := existingCommandCandidates(200)
-		cmds := make([]string, 0, len(candidates))
-		for _, c := range candidates {
-			if c.Comm != "" {
-				cmds = append(cmds, c.Comm)
-			}
-		}
-		return cmds
-	}
-	handlers.Deps.MLAssessCommandSafety = func(c *gin.Context) { cmdsafetyAssessPost(c) }
-	handlers.Deps.MLExistingCommandsGetFn = func(c *gin.Context) { cmdsafetyExistingCommandsGet(c) }
-	handlers.Deps.MLImportExistingFn = func(c *gin.Context) { cmdsafetyImportExistingPost(c) }
+	handlers.Deps.ML = mlService{}
 
 	// Hooks config wiring
 	handlers.Deps.AvailableHooks = func() []core.HookDef { return availableHooks }
@@ -844,4 +815,30 @@ func (pluginService) CompileUserBPF(ctx context.Context, id, source string) (str
 		return objectPath, diagnostics, fmt.Errorf("record compiled plugin: %w", err)
 	}
 	return objectPath, diagnostics, nil
+}
+
+// mlService exposes the ML engine to the handlers package.
+type mlService struct{}
+
+func (mlService) Status() *pb.MLStatus { return mlStatus() }
+func (mlService) StatusJSON() []byte   { return buildMLStatusJSON() }
+func (mlService) Enabled() bool        { return ml.SnapshotMLRuntime().Enabled }
+func (mlService) IsTraining() bool     { return ml.GlobalTrainer.IsRunning() }
+func (mlService) CancelTraining()      { cancelMLAutoTuneTasks() }
+func (mlService) Logs() gin.H          { return mlGetLogsResponse() }
+func (mlService) History() gin.H       { return mlGetHistoryResponse() }
+func (mlService) Train(numTrees, maxDepth, minSamplesLeaf int) gin.H {
+	return mlTrain(numTrees, maxDepth, minSamplesLeaf)
+}
+func (mlService) Feedback(comm, userAction string) gin.H { return mlFeedbackResult(comm, userAction) }
+func (mlService) Samples() gin.H                         { return mlSamplesResponse() }
+func (mlService) LabelSample(index int, label string) gin.H {
+	return mlSampleLabelResult(index, label)
+}
+func (mlService) RemoveSample(index int) gin.H { return mlRemoveSampleResult(index) }
+func (mlService) SetSampleAnomaly(index int, score float64) gin.H {
+	return mlSampleAnomalyResult(index, score)
+}
+func (mlService) AddSample(commandLine, comm string, args []string, label string) gin.H {
+	return mlAddSample(commandLine, comm, args, label)
 }

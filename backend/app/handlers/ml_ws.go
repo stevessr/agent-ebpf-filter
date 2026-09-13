@@ -33,14 +33,14 @@ func ServeMLStatusWS(c *gin.Context) {
 	}()
 
 	// Send initial state immediately
-	if err := wsstream.WriteMessage(conn, websocket.TextMessage, Deps.BuildMLStatusJSON()); err != nil {
+	if err := wsstream.WriteMessage(conn, websocket.TextMessage, Deps.ML.StatusJSON()); err != nil {
 		return
 	}
 
 	for {
 		select {
 		case <-ticker.C:
-			if err := wsstream.WriteMessage(conn, websocket.TextMessage, Deps.BuildMLStatusJSON()); err != nil {
+			if err := wsstream.WriteMessage(conn, websocket.TextMessage, Deps.ML.StatusJSON()); err != nil {
 				return
 			}
 		case <-done:
