@@ -1,14 +1,13 @@
 package tls
 
-// applyTLSCaptureTiming annotates a user-visible event with both the raw probe
-// timestamp and the userspace observation. Keeping both clocks makes ordering,
-// capture delay and replay provenance auditable without exposing connection
-// pointer identities.
-func applyTLSCaptureTiming(event *TLSPlaintextEvent, probeTimestampNS uint64) {
+// applyTLSCaptureObservation annotates a user-visible event with a clock
+// observation that may be shared by every protocol event derived from the same
+// completed TLS transport record. This avoids repeating CLOCK_MONOTONIC
+// alignment work for HTTP/2/SSE records that fan out into multiple events.
+func applyTLSCaptureObservation(event *TLSPlaintextEvent, probeTimestampNS uint64, observation bpfKtimeObservation) {
 	if event == nil {
 		return
 	}
-	observation := observeBPFKtime(probeTimestampNS)
 	// HTTP stream assemblers may intentionally preserve the timestamp of the
 	// first transport chunk that contributed to a message. Do not replace that
 	// semantic timestamp with the final chunk's timestamp at dispatch time.
@@ -19,4 +18,13 @@ func applyTLSCaptureTiming(event *TLSPlaintextEvent, probeTimestampNS uint64) {
 	event.ProbeClock = observation.Clock
 	event.IngestTimestamp = observation.Ingested
 	event.CaptureDelayNS = observation.DelayNS
+}
+
+// applyTLSCaptureTiming remains the convenience entry point for callers that
+// do not already have a shared observation.
+func applyTLSCaptureTiming(event *TLSPlaintextEvent, probeTimestampNS uint64) {
+	if event == nil {
+		return
+	}
+	applyTLSCaptureObservation(event, probeTimestampNS, observeBPFKtime(probeTimestampNS))
 }
