@@ -11,12 +11,18 @@ permissions:
 jobs:
   patch:
     if: github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with:
           ref: feat/audit-gap-hashchain-tls-health
           fetch-depth: 0
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Install native build dependencies
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler clang llvm libbpf-dev libelf-dev
       - name: Apply patch
         run: python3 .github/scripts/one_shot_audit_gap_hashchain.py
       - name: Go fmt
@@ -31,6 +37,20 @@ jobs:
             backend/app/recording/audit_chain_test.go \
             backend/app/observability/metrics_collector.go \
             backend/app/runtime_event_log_writer.go
+      - name: Generate Go protobuf bindings
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          mkdir -p backend/pb
+          protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto \
+            proto/tracker_common.proto \
+            proto/tracker_events.proto \
+            proto/tracker_registration.proto \
+            proto/tracker_system.proto \
+            proto/tracker_config.proto \
+            proto/tracker_shell.proto
+      - name: Generate eBPF objects and bindings
+        working-directory: backend/ebpf
+        run: go generate
       - name: Focused tests
         run: |
           cd backend
