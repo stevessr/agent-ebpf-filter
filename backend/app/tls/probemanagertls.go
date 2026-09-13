@@ -100,21 +100,26 @@ type TLSProbeManager struct {
 }
 
 type ReadLoopStats struct {
-	TotalFrags     int64
-	DroppedFrags   int64
-	CompletedFrags int64
-	HTTPEvents     int64
-	RawEvents      int64
-	LastFragmentNS int64
+	TotalFrags       int64
+	DroppedFrags     int64
+	PerfLostSamples  int64
+	DecodeErrors     int64
+	AssemblerDropped int64
+	CompletedFrags   int64
+	HTTPEvents       int64
+	RawEvents        int64
+	LastFragmentNS   int64
 }
 
 type readLoopAtomicStats struct {
-	totalFrags     atomic.Int64
-	droppedFrags   atomic.Int64
-	completedFrags atomic.Int64
-	httpEvents     atomic.Int64
-	rawEvents      atomic.Int64
-	lastFragmentNS atomic.Int64
+	totalFrags      atomic.Int64
+	droppedFrags    atomic.Int64
+	perfLostSamples atomic.Int64
+	decodeErrors    atomic.Int64
+	completedFrags  atomic.Int64
+	httpEvents      atomic.Int64
+	rawEvents       atomic.Int64
+	lastFragmentNS  atomic.Int64
 }
 
 func (s *readLoopAtomicStats) Snapshot() ReadLoopStats {
@@ -122,12 +127,14 @@ func (s *readLoopAtomicStats) Snapshot() ReadLoopStats {
 		return ReadLoopStats{}
 	}
 	return ReadLoopStats{
-		TotalFrags:     s.totalFrags.Load(),
-		DroppedFrags:   s.droppedFrags.Load(),
-		CompletedFrags: s.completedFrags.Load(),
-		HTTPEvents:     s.httpEvents.Load(),
-		RawEvents:      s.rawEvents.Load(),
-		LastFragmentNS: s.lastFragmentNS.Load(),
+		TotalFrags:      s.totalFrags.Load(),
+		DroppedFrags:    s.droppedFrags.Load(),
+		PerfLostSamples: s.perfLostSamples.Load(),
+		DecodeErrors:    s.decodeErrors.Load(),
+		CompletedFrags:  s.completedFrags.Load(),
+		HTTPEvents:      s.httpEvents.Load(),
+		RawEvents:       s.rawEvents.Load(),
+		LastFragmentNS:  s.lastFragmentNS.Load(),
 	}
 }
 

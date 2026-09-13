@@ -192,7 +192,11 @@ func (m *TLSProbeManager) ReadLoopStatsSnapshot() ReadLoopStats {
 	if m == nil {
 		return ReadLoopStats{}
 	}
-	return m.readLoopStats.Snapshot()
+	stats := m.readLoopStats.Snapshot()
+	if m.assembler != nil {
+		stats.AssemblerDropped = int64(m.assembler.Dropped())
+	}
+	return stats
 }
 
 func (m *TLSProbeManager) ProbeHitCounters() map[string]uint64 {
@@ -205,7 +209,16 @@ func (m *TLSProbeManager) ProbeHitCounters() map[string]uint64 {
 				result[tlsFuncName(fn)] = val
 			}
 		}
-		diagLabels := map[uint32]string{100: "perf_output_fail", 101: "probe_read_fail", 102: "perf_submit_ok"}
+		diagLabels := map[uint32]string{
+			100: "perf_output_fail",
+			101: "probe_read_fail",
+			102: "perf_submit_ok",
+			103: "retprobe_miss",
+			104: "return_length_clamp",
+			105: "partial_capture",
+			106: "retprobe_store_fail",
+			107: "truncated_payload",
+		}
 		for idx, label := range diagLabels {
 			var val uint64
 			if err := m.objs.TlsProbeHits.Lookup(&idx, &val); err == nil && val > 0 {

@@ -36,16 +36,21 @@ TLS 事件现在额外携带：
 
 `capture_delay_max_ns` 明显抬高、同时 `perf_output_fail` / lost samples 增长时，通常应优先排查 perf buffer 压力与后端消费速度。
 
-## 主 tracker 的 audit observation window
+## 主 tracker 的 raw kernel audit provenance
 
-主 syscall tracker 当前 raw ABI 尚未增加独立的 kernel timestamp 字段。为避免把接收时间伪装成内核时间，后端为解码后的 eBPF 事件补充一个明确的 observation window：
+主 tracker raw ABI 现在在结构体尾部追加审计字段，因此旧字段偏移保持不变：
 
-- `last_seen_ms`：若事件/flow 尚未提供该字段，写入后端解码/风险处理阶段的观察时间；
-- `first_seen_ms`：若没有更权威的 flow 时间，则默认等于 observation time；如果 eBPF enter/exit correlation 已提供可信的 `duration_ns`，则用 `observation - duration` 反推近似 syscall start；
-- 已由 network flow aggregator 生成的 first/last 时间不会被覆盖；
-- `tcp_state_change` 历史 ABI 会复用 `duration_ns` 打包 old/new state，因此明确排除在 duration-based start estimation 之外。
+- `kernel_timestamp_ns`：`reserve_event()` 后立即读取 `bpf_ktime_get_ns()`；
+- `kernel_cpu`：事件发生 CPU；
+- `kernel_sequence`：该 CPU 上单调递增的事件序号，和 `kernel_cpu` 组成审计排序 tuple；
+- `audit_flags`：声明 timestamp / CPU-local sequence 是否有效；
+- `ingest_timestamp_ns`：Go 后端观察时刻；
+- `capture_delay_ns`：当前 `CLOCK_MONOTONIC - kernel_timestamp_ns`；
+- `capture_timestamp_ns`：将 monotonic probe time 对齐到 wall clock 后的纳秒时间。
 
-因此：`first_seen_ms/last_seen_ms` 对主 tracker 是**审计观察窗口**，不是 raw kernel ktime。TLS 的 `probe_timestamp_ns` 才是当前链路里真正由 eBPF probe 直接提供的 monotonic timestamp。
+`first_seen_ms/last_seen_ms` 在没有更权威 flow 时间时现在以 **kernel capture time** 为基准，而不是 backend receive time。generic syscall 若有可信的 enter→exit `duration_ns`，`first_seen_ms` 再从 capture/exit time 向前推；`tcp_state_change` 因历史 ABI 复用 `duration_ns` 存 TCP state，仍不会被当成 syscall latency。已有 network flow aggregator 的 first/last 时间继续保持优先级，不会被覆盖。
+
+`kernel_sequence` 是 **CPU-local** 而非全局原子序号。这是刻意的性能设计：`(kernel_cpu, kernel_sequence)` 可用于同 CPU 严格排序和审计缺口定位，同时避免所有 CPU 为每条事件竞争同一个共享 counter。
 
 ## TLS reassembly fast path
 
@@ -85,3 +90,19 @@ frontend / recording / exporter
 - 后端 CPU/GC 与客户端消费速度。
 
 对于普通 syscall tracker，则先使用 `first_seen_ms / last_seen_ms / duration_ns` 建立审计窗口；不要把 `last_seen_ms` 描述为 kernel timestamp。
+
+
+## TLS probe diagnostics hardening
+
+TLS eBPF 热路径新增并暴露以下安全/可靠性计数：
+
+- `retprobe_miss`：返回探针找不到 entry context（LRU 淘汰、ABI/attach 不匹配等）；
+- `retprobe_store_fail`：entry context 无法写入 retprobe map；
+- `return_length_clamp`：返回长度超过 entry 时记录的 buffer capacity，已安全 clamp；
+- `truncated_payload`：payload 超过最大 capture window，被按设计截断；
+- `partial_capture`：一个多 fragment payload 已提交部分 fragment 后发生 read/perf output 失败；
+- `perf_output_fail` / `probe_read_fail` / `perf_submit_ok`：原有底层诊断继续保留。
+
+性能上，TLS fragment loop 现在只在每次 TLS 调用开始时填一次 timestamp/PID/TGID/comm/总长度等不变量；循环内只更新 fragment index、data length 和 payload。任一 `bpf_perf_event_output()` 失败后立即终止后续 fragment，避免继续读取用户内存和产生必然无法重组的尾部数据。
+
+return-probe 路径现在无论调用成功、返回 0 还是失败都会消费 entry context，避免失败调用在 `retprobe_buf` 中留下陈旧状态；所有返回长度在读取 payload 前都会和 entry buffer capacity 校验。

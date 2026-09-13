@@ -60,12 +60,43 @@ func normalizeEventEnvelope(envelope *pb.EventEnvelope, record CapturedEventReco
 	if strings.TrimSpace(cloned.GetSchemaVersion()) == "" {
 		cloned.SchemaVersion = eventEnvelopeSchemaVersion
 	}
+	legacy := firstNonNilEvent(record.Event, cloned.GetLegacyEvent())
 	if cloned.GetTimestampNs() == 0 {
-		timestamp := record.ReceivedAt.UTC()
-		if timestamp.IsZero() {
-			timestamp = time.Now().UTC()
+		if legacy != nil && legacy.GetCaptureTimestampNs() != 0 {
+			cloned.TimestampNs = legacy.GetCaptureTimestampNs()
+		} else {
+			timestamp := record.ReceivedAt.UTC()
+			if timestamp.IsZero() {
+				timestamp = time.Now().UTC()
+			}
+			cloned.TimestampNs = uint64(timestamp.UnixNano())
 		}
-		cloned.TimestampNs = uint64(timestamp.UnixNano())
+	}
+	if legacy != nil {
+		if cloned.GetKernelTimestampNs() == 0 {
+			cloned.KernelTimestampNs = legacy.GetKernelTimestampNs()
+		}
+		if cloned.GetKernelSequence() == 0 {
+			cloned.KernelSequence = legacy.GetKernelSequence()
+		}
+		if cloned.GetKernelCpu() == 0 {
+			cloned.KernelCpu = legacy.GetKernelCpu()
+		}
+		if strings.TrimSpace(cloned.GetKernelClock()) == "" {
+			cloned.KernelClock = legacy.GetKernelClock()
+		}
+		if cloned.GetIngestTimestampNs() == 0 {
+			cloned.IngestTimestampNs = legacy.GetIngestTimestampNs()
+		}
+		if cloned.GetCaptureDelayNs() == 0 {
+			cloned.CaptureDelayNs = legacy.GetCaptureDelayNs()
+		}
+		if cloned.GetCaptureTimestampNs() == 0 {
+			cloned.CaptureTimestampNs = legacy.GetCaptureTimestampNs()
+		}
+		if cloned.GetAuditFlags() == 0 {
+			cloned.AuditFlags = legacy.GetAuditFlags()
+		}
 	}
 	if strings.TrimSpace(cloned.GetSource()) == "" {
 		cloned.Source = DetermineEnvelopeSource(record.Event)
@@ -95,32 +126,44 @@ func buildEventEnvelope(record CapturedEventRecord) *pb.EventEnvelope {
 	if timestamp.IsZero() {
 		timestamp = time.Now().UTC()
 	}
+	timestampNS := uint64(timestamp.UnixNano())
+	if event.GetCaptureTimestampNs() != 0 {
+		timestampNS = event.GetCaptureTimestampNs()
+	}
 	envelope := &pb.EventEnvelope{
-		SchemaVersion:  eventEnvelopeSchemaVersion,
-		TimestampNs:    uint64(timestamp.UnixNano()),
-		Source:         DetermineEnvelopeSource(event),
-		AgentRunId:     event.GetAgentRunId(),
-		TaskId:         event.GetTaskId(),
-		ConversationId: event.GetConversationId(),
-		TurnId:         event.GetTurnId(),
-		ToolCallId:     event.GetToolCallId(),
-		ToolName:       event.GetToolName(),
-		TraceId:        event.GetTraceId(),
-		SpanId:         event.GetSpanId(),
-		Pid:            event.GetPid(),
-		Tgid:           tgidOrPid(event),
-		Ppid:           event.GetPpid(),
-		Uid:            event.GetUid(),
-		Gid:            event.GetGid(),
-		Comm:           event.GetComm(),
-		ArgvDigest:     event.GetArgvDigest(),
-		Cwd:            event.GetCwd(),
-		CgroupId:       event.GetCgroupId(),
-		ContainerId:    event.GetContainerId(),
-		PolicyDecision: event.GetDecision(),
-		RiskScore:      event.GetRiskScore(),
-		EventType:      event.GetEventType(),
-		LegacyEvent:    event,
+		SchemaVersion:      eventEnvelopeSchemaVersion,
+		TimestampNs:        timestampNS,
+		Source:             DetermineEnvelopeSource(event),
+		AgentRunId:         event.GetAgentRunId(),
+		TaskId:             event.GetTaskId(),
+		ConversationId:     event.GetConversationId(),
+		TurnId:             event.GetTurnId(),
+		ToolCallId:         event.GetToolCallId(),
+		ToolName:           event.GetToolName(),
+		TraceId:            event.GetTraceId(),
+		SpanId:             event.GetSpanId(),
+		Pid:                event.GetPid(),
+		Tgid:               tgidOrPid(event),
+		Ppid:               event.GetPpid(),
+		Uid:                event.GetUid(),
+		Gid:                event.GetGid(),
+		Comm:               event.GetComm(),
+		ArgvDigest:         event.GetArgvDigest(),
+		Cwd:                event.GetCwd(),
+		CgroupId:           event.GetCgroupId(),
+		ContainerId:        event.GetContainerId(),
+		PolicyDecision:     event.GetDecision(),
+		RiskScore:          event.GetRiskScore(),
+		EventType:          event.GetEventType(),
+		KernelTimestampNs:  event.GetKernelTimestampNs(),
+		KernelSequence:     event.GetKernelSequence(),
+		KernelCpu:          event.GetKernelCpu(),
+		KernelClock:        event.GetKernelClock(),
+		IngestTimestampNs:  event.GetIngestTimestampNs(),
+		CaptureDelayNs:     event.GetCaptureDelayNs(),
+		CaptureTimestampNs: event.GetCaptureTimestampNs(),
+		AuditFlags:         event.GetAuditFlags(),
+		LegacyEvent:        event,
 	}
 	envelope.EventId = buildEventEnvelopeID(record, event)
 

@@ -54,40 +54,38 @@ func (s *kernelRiskFeedbackState) Allow(action kernelRiskFeedbackAction, setting
 
 const maxKernelAuditDuration = 10 * time.Minute
 
-// annotateKernelAuditTiming records the userspace observation window for an
-// eBPF ring-buffer event using fields that are already part of the event schema.
-//
-// This deliberately does NOT claim LastSeenMs is a raw kernel timestamp. It is
-// the time the decoded sample reached the backend. For generic syscall records
-// the tracker records enter/exit DurationNs, allowing FirstSeenMs to be a
-// best-effort start estimate. Flow-level network events may already carry
-// authoritative first/last timestamps; those are never overwritten.
+// annotateKernelAuditTiming preserves raw kernel provenance and derives a
+// wall-clock capture time without confusing userspace ingest time with probe
+// time. Existing flow-level first/last timestamps remain authoritative.
 func annotateKernelAuditTiming(raw *core.BpfEvent, event *pb.Event, observedAt time.Time) {
 	if raw == nil || event == nil {
 		return
 	}
-	if observedAt.IsZero() {
-		observedAt = time.Now().UTC()
-	} else {
-		observedAt = observedAt.UTC()
-	}
-	observedMS := uint64(observedAt.UnixMilli())
+	observation := observeKernelKtime(raw.KernelTimestampNs, observedAt)
+	capturedAt := observation.CapturedAt
+
+	event.KernelTimestampNs = raw.KernelTimestampNs
+	event.KernelSequence = raw.KernelSequence
+	event.KernelCpu = raw.KernelCPU
+	event.KernelClock = observation.Clock
+	event.IngestTimestampNs = uint64(observation.IngestedAt.UnixNano())
+	event.CaptureDelayNs = observation.DelayNS
+	event.CaptureTimestampNs = uint64(capturedAt.UnixNano())
+	event.AuditFlags = raw.AuditFlags
+	collectorMetricsStore.RecordKernelCaptureTiming(observation.DelayNS, observation.Clock)
+
 	if event.GetLastSeenMs() == 0 {
-		event.LastSeenMs = observedMS
+		event.LastSeenMs = uint64(capturedAt.UnixMilli())
 	}
 	if event.GetFirstSeenMs() != 0 {
 		return
 	}
 
-	startedAt := observedAt
-	// Only TYPE_GENERIC_SYSCALL has duration_ns measured from bpf_ktime_get_ns
-	// enter→exit correlation today. Other event types are intentionally ignored:
-	// notably tcp_state_change historically packs old/new TCP states into the
-	// same raw DurationNs slot.
+	startedAt := capturedAt
 	if event.GetType() == "syscall" && raw.DurationNs > 0 {
 		duration := time.Duration(raw.DurationNs)
 		if duration > 0 && duration <= maxKernelAuditDuration {
-			startedAt = observedAt.Add(-duration)
+			startedAt = capturedAt.Add(-duration)
 		}
 	}
 	event.FirstSeenMs = uint64(startedAt.UnixMilli())

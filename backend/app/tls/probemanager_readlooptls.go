@@ -87,6 +87,7 @@ func (m *TLSProbeManager) ReadLoop() error {
 
 		if rec.LostSamples > 0 {
 			m.readLoopStats.droppedFrags.Add(int64(rec.LostSamples))
+			m.readLoopStats.perfLostSamples.Add(int64(rec.LostSamples))
 			log.Printf("[tls] ReadLoop: kernel perf buffer lost %d samples", rec.LostSamples)
 		}
 		if len(rec.RawSample) == 0 {
@@ -101,6 +102,7 @@ func (m *TLSProbeManager) ReadLoop() error {
 		fragment, err := decodeTLSFragmentSample(rec.RawSample)
 		if err != nil {
 			m.readLoopStats.droppedFrags.Add(1)
+			m.readLoopStats.decodeErrors.Add(1)
 			if totalFrags <= 5 {
 				log.Printf("[tls] ReadLoop: fragment decode FAIL #%d (raw_len=%d): %v", totalFrags, len(rec.RawSample), err)
 			}

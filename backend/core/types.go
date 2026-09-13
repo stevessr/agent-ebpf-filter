@@ -32,6 +32,10 @@ type BpfEvent struct {
 	Extra2                                 uint32
 	Extra3                                 uint64
 	Extra4                                 [256]byte
+	KernelTimestampNs                      uint64
+	KernelSequence                         uint64
+	KernelCPU                              uint32
+	AuditFlags                             uint32
 }
 
 // ── Wrapper rules ────────────────────────────────────────────────────────────

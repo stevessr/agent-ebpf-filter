@@ -77,6 +77,14 @@ message Event {
   string ip_scope = 68;
   string redaction_level = 69;
   repeated string sanitized_fields = 70;
+  uint64 kernel_timestamp_ns = 71;
+  uint64 kernel_sequence = 72;
+  uint32 kernel_cpu = 73;
+  string kernel_clock = 74;
+  uint64 ingest_timestamp_ns = 75;
+  uint64 capture_delay_ns = 76;
+  uint64 capture_timestamp_ns = 77;
+  uint32 audit_flags = 78;
 }
 
 message ExecEvent {
@@ -300,6 +308,14 @@ message EventEnvelope {
     OtelSpanEvent otel_span_event = 40;
     AgentSightAlertEvent agentsight_alert_event = 41;
   }
+  uint64 kernel_timestamp_ns = 42;
+  uint64 kernel_sequence = 43;
+  uint32 kernel_cpu = 44;
+  string kernel_clock = 45;
+  uint64 ingest_timestamp_ns = 46;
+  uint64 capture_delay_ns = 47;
+  uint64 capture_timestamp_ns = 48;
+  uint32 audit_flags = 49;
 }
 
 message EventEnvelopeBatch {

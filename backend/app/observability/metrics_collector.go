@@ -17,6 +17,7 @@ import (
 type bpfCollectorStats struct {
 	RingbufEventsTotal        uint64
 	RingbufReserveFailedTotal uint64
+	EventSequence             uint64
 }
 
 type collectorPIDKey struct {
@@ -44,6 +45,10 @@ type CollectorMetricsSnapshot struct {
 	BroadcastLastFlushLatencyNs    uint64
 	RingbufZeroCopyDecodeTotal     uint64
 	RingbufCopyDecodeTotal         uint64
+	KernelCaptureDelaySamples      uint64
+	KernelCaptureDelayLastNs       uint64
+	KernelCaptureDelayMaxNs        uint64
+	KernelCaptureClockUnknown      uint64
 	KernelRiskEvaluationsTotal     uint64
 	KernelRiskAlertsTotal          uint64
 	KernelRiskBlocksTotal          uint64
@@ -60,6 +65,11 @@ type CollectorHealthResponse struct {
 	RingbufReserveFailedTotal      uint64            `json:"ringbufReserveFailedTotal"`
 	RingbufZeroCopyDecodeTotal     uint64            `json:"ringbufZeroCopyDecodeTotal"`
 	RingbufCopyDecodeTotal         uint64            `json:"ringbufCopyDecodeTotal"`
+	KernelSequencedEventsTotal     uint64            `json:"kernelSequencedEventsTotal"`
+	KernelCaptureDelaySamples      uint64            `json:"kernelCaptureDelaySamples"`
+	KernelCaptureDelayLastNs       uint64            `json:"kernelCaptureDelayLastNs"`
+	KernelCaptureDelayMaxNs        uint64            `json:"kernelCaptureDelayMaxNs"`
+	KernelCaptureClockUnknown      uint64            `json:"kernelCaptureClockUnknownTotal"`
 	EventsByTypeTotal              map[string]uint64 `json:"eventsByTypeTotal"`
 	EventsByPidTotal               map[string]uint64 `json:"eventsByPidTotal,omitempty"`
 	AgentSightCountersTotal        map[string]uint64 `json:"agentSightCountersTotal,omitempty"`
@@ -140,6 +150,10 @@ type collectorMetricsState struct {
 	broadcastLastFlushLatencyNs    uint64
 	ringbufZeroCopyDecodeTotal     uint64
 	ringbufCopyDecodeTotal         uint64
+	kernelCaptureDelaySamples      uint64
+	kernelCaptureDelayLastNs       uint64
+	kernelCaptureDelayMaxNs        uint64
+	kernelCaptureClockUnknown      uint64
 	kernelRiskEvaluationsTotal     uint64
 	kernelRiskAlertsTotal          uint64
 	kernelRiskBlocksTotal          uint64
@@ -351,6 +365,27 @@ func (s *collectorMetricsState) RecordRingbufDecode(zeroCopy bool) {
 	s.recordRingbufDecode(zeroCopy)
 }
 
+func RecordKernelCaptureTiming(delayNS uint64, clock string) {
+	collectorMetricsStore.recordKernelCaptureTiming(delayNS, clock)
+}
+
+func (s *collectorMetricsState) recordKernelCaptureTiming(delayNS uint64, clock string) {
+	s.mu.Lock()
+	s.kernelCaptureDelaySamples++
+	s.kernelCaptureDelayLastNs = delayNS
+	if delayNS > s.kernelCaptureDelayMaxNs {
+		s.kernelCaptureDelayMaxNs = delayNS
+	}
+	if strings.TrimSpace(clock) != "monotonic" {
+		s.kernelCaptureClockUnknown++
+	}
+	s.mu.Unlock()
+}
+
+func (s *collectorMetricsState) RecordKernelCaptureTiming(delayNS uint64, clock string) {
+	s.recordKernelCaptureTiming(delayNS, clock)
+}
+
 func RecordKernelRiskDecision(decision string, duration time.Duration) {
 	collectorMetricsStore.recordKernelRiskDecision(decision, duration)
 }
@@ -430,6 +465,10 @@ func (s *collectorMetricsState) rawSnapshot() CollectorMetricsSnapshot {
 		BroadcastLastFlushLatencyNs:    s.broadcastLastFlushLatencyNs,
 		RingbufZeroCopyDecodeTotal:     s.ringbufZeroCopyDecodeTotal,
 		RingbufCopyDecodeTotal:         s.ringbufCopyDecodeTotal,
+		KernelCaptureDelaySamples:      s.kernelCaptureDelaySamples,
+		KernelCaptureDelayLastNs:       s.kernelCaptureDelayLastNs,
+		KernelCaptureDelayMaxNs:        s.kernelCaptureDelayMaxNs,
+		KernelCaptureClockUnknown:      s.kernelCaptureClockUnknown,
 		KernelRiskEvaluationsTotal:     s.kernelRiskEvaluationsTotal,
 		KernelRiskAlertsTotal:          s.kernelRiskAlertsTotal,
 		KernelRiskBlocksTotal:          s.kernelRiskBlocksTotal,
@@ -517,6 +556,11 @@ func (s *collectorMetricsState) snapshot() CollectorHealthResponse {
 		RingbufReserveFailedTotal:      bpfStats.RingbufReserveFailedTotal,
 		RingbufZeroCopyDecodeTotal:     raw.RingbufZeroCopyDecodeTotal,
 		RingbufCopyDecodeTotal:         raw.RingbufCopyDecodeTotal,
+		KernelSequencedEventsTotal:     bpfStats.EventSequence,
+		KernelCaptureDelaySamples:      raw.KernelCaptureDelaySamples,
+		KernelCaptureDelayLastNs:       raw.KernelCaptureDelayLastNs,
+		KernelCaptureDelayMaxNs:        raw.KernelCaptureDelayMaxNs,
+		KernelCaptureClockUnknown:      raw.KernelCaptureClockUnknown,
 		EventsByTypeTotal:              eventsByType,
 		EventsByPidTotal:               eventsByPID,
 		AgentSightCountersTotal:        agentSightCounters,
@@ -601,6 +645,7 @@ func loadCollectorStatsSnapshot() (bpfCollectorStats, bool) {
 	for _, value := range values {
 		total.RingbufEventsTotal += value.RingbufEventsTotal
 		total.RingbufReserveFailedTotal += value.RingbufReserveFailedTotal
+		total.EventSequence += value.EventSequence
 	}
 	return total, true
 }
