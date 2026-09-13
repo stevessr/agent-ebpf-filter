@@ -9,7 +9,12 @@ func applyTLSCaptureTiming(event *TLSPlaintextEvent, probeTimestampNS uint64) {
 		return
 	}
 	observation := observeBPFKtime(probeTimestampNS)
-	event.Timestamp = observation.Captured
+	// HTTP stream assemblers may intentionally preserve the timestamp of the
+	// first transport chunk that contributed to a message. Do not replace that
+	// semantic timestamp with the final chunk's timestamp at dispatch time.
+	if event.Timestamp.IsZero() {
+		event.Timestamp = observation.Captured
+	}
 	event.ProbeTimestampNS = probeTimestampNS
 	event.ProbeClock = observation.Clock
 	event.IngestTimestamp = observation.Ingested
