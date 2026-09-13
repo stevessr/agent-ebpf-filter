@@ -52,7 +52,48 @@ func (s *kernelRiskFeedbackState) Allow(action kernelRiskFeedbackAction, setting
 	return true
 }
 
+const maxKernelAuditDuration = 10 * time.Minute
+
+// annotateKernelAuditTiming records the userspace observation window for an
+// eBPF ring-buffer event using fields that are already part of the event schema.
+//
+// This deliberately does NOT claim LastSeenMs is a raw kernel timestamp. It is
+// the time the decoded sample reached the backend. For syscall records whose
+// eBPF enter/exit correlation produced DurationNs, FirstSeenMs is a best-effort
+// start estimate. Flow-level network events may already carry authoritative
+// first/last timestamps from the flow aggregator; those are never overwritten.
+func annotateKernelAuditTiming(raw *core.BpfEvent, event *pb.Event, observedAt time.Time) {
+	if raw == nil || event == nil {
+		return
+	}
+	if observedAt.IsZero() {
+		observedAt = time.Now().UTC()
+	} else {
+		observedAt = observedAt.UTC()
+	}
+	observedMS := uint64(observedAt.UnixMilli())
+	if event.GetLastSeenMs() == 0 {
+		event.LastSeenMs = observedMS
+	}
+	if event.GetFirstSeenMs() != 0 {
+		return
+	}
+
+	startedAt := observedAt
+	// TYPE_TCP_STATE_CHANGE historically stores old/new TCP state in the raw
+	// DurationNs slot. Restrict duration-based estimation to actual syscall-like
+	// records so that packed metadata can never become a bogus multi-year span.
+	if event.GetType() != "tcp_state_change" && raw.DurationNs > 0 {
+		duration := time.Duration(raw.DurationNs)
+		if duration > 0 && duration <= maxKernelAuditDuration {
+			startedAt = observedAt.Add(-duration)
+		}
+	}
+	event.FirstSeenMs = uint64(startedAt.UnixMilli())
+}
+
 func applyKernelRiskDecision(raw *core.BpfEvent, event *pb.Event) {
+	annotateKernelAuditTiming(raw, event, time.Now().UTC())
 	events.ApplyKernelRiskDecision(raw, event)
 }
 
