@@ -1,7 +1,6 @@
 package tls
 
 import (
-	"math"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -40,6 +39,8 @@ const tlsFuncGoConnRead = 10
 const tlsFuncSSLWriteEx2 = 11
 const tlsFuncRustlsEncryptOutgoing = 12   // rustls RecordLayer::encrypt_outgoing (SEND plaintext)
 const tlsFuncRustlsConsumeFirstChunk = 13 // rustls Reader::consume + consume_first_chunk (RECV plaintext)
+
+const maxSignedNanoseconds = uint64(^uint64(0) >> 1)
 
 type tlsFragment struct {
 	TimestampNS  uint64
@@ -182,7 +183,7 @@ func observeBPFKtime(rawNS uint64) bpfKtimeObservation {
 		return observation
 	}
 
-	if rawNS >= tlsPlausibleUnixNSThreshold && rawNS <= math.MaxInt64 {
+	if rawNS >= tlsPlausibleUnixNSThreshold && rawNS <= maxSignedNanoseconds {
 		captured := time.Unix(0, int64(rawNS)).UTC()
 		if !captured.After(ingested.Add(time.Minute)) {
 			observation.Captured = captured
@@ -209,7 +210,7 @@ func observeBPFKtime(rawNS uint64) bpfKtimeObservation {
 	delta := currentMonoNS - rawNS
 	observation.DelayNS = delta
 	observation.Clock = "monotonic"
-	if delta <= uint64(math.MaxInt64) {
+	if delta <= maxSignedNanoseconds {
 		observation.Captured = ingested.Add(-time.Duration(delta))
 	}
 	return observation
