@@ -106,3 +106,27 @@ TLS eBPF 热路径新增并暴露以下安全/可靠性计数：
 性能上，TLS fragment loop 现在只在每次 TLS 调用开始时填一次 timestamp/PID/TGID/comm/总长度等不变量；循环内只更新 fragment index、data length 和 payload。任一 `bpf_perf_event_output()` 失败后立即终止后续 fragment，避免继续读取用户内存和产生必然无法重组的尾部数据。
 
 return-probe 路径现在无论调用成功、返回 0 还是失败都会消费 entry context，避免失败调用在 `retprobe_buf` 中留下陈旧状态；所有返回长度在读取 payload 前都会和 entry buffer capacity 校验。
+
+
+## Sequence continuity and tamper-evident persistence
+
+Main-tracker audit ordering is checked per CPU using `(kernel_cpu, kernel_sequence)`.
+The collector reports continuity findings through `agentSightCountersTotal`:
+
+- `kernel_sequence_gap_events`: observed forward sequence jumps;
+- `kernel_sequence_missing_events`: total sequence numbers skipped by those jumps;
+- `kernel_sequence_resets`: sequence rewinds while kernel monotonic time advances, normally a tracker/map reload;
+- `kernel_sequence_out_of_order`: stale/duplicate samples that must not rewind the live cursor.
+
+JSONL event persistence now starts a random audit-chain segment for every writer generation.
+Each persisted `CapturedEventRecord` carries `auditChainVersion`, `auditChainId`,
+`auditSequence`, `auditPrevHash`, and `auditHash`. The SHA-256 digest binds the chain
+metadata, receive timestamp, and a deterministic protobuf encoding of `EventEnvelope`.
+This avoids a second JSON serialization in the hot persistence path while detecting
+record mutation and deletion inside a chain segment. `VerifyAuditChain` validates loaded
+records; legacy unchained records remain readable and are reported separately rather
+than being silently described as verified.
+
+The chain is tamper-evident, not a signature: an attacker able to rewrite the complete
+file can recompute an unkeyed chain. For stronger external attestation, persist the
+reported chain head in an independent trusted store or sign checkpoints.

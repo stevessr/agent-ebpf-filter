@@ -17,6 +17,7 @@ type AgentTrackerCollectorStats struct {
 	_                         structs.HostLayout
 	RingbufEventsTotal        uint64
 	RingbufReserveFailedTotal uint64
+	EventSequence             uint64
 }
 
 type AgentTrackerExitMeta struct {

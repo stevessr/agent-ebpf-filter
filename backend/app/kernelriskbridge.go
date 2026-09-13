@@ -72,6 +72,7 @@ func annotateKernelAuditTiming(raw *core.BpfEvent, event *pb.Event, observedAt t
 	event.CaptureDelayNs = observation.DelayNS
 	event.CaptureTimestampNs = uint64(capturedAt.UnixNano())
 	event.AuditFlags = raw.AuditFlags
+	recordKernelSequenceObservation(raw)
 	collectorMetricsStore.RecordKernelCaptureTiming(observation.DelayNS, observation.Clock)
 
 	if event.GetLastSeenMs() == 0 {

@@ -28,17 +28,21 @@ var (
 )
 
 type runtimeEventLogStatus struct {
-	Active         bool      `json:"active"`
-	Stopping       bool      `json:"stopping"`
-	QueueLen       int       `json:"queueLen"`
-	QueueCap       int       `json:"queueCap"`
-	Pending        uint64    `json:"pending"`
-	EnqueuedTotal  uint64    `json:"enqueuedTotal"`
-	PersistedTotal uint64    `json:"persistedTotal"`
-	FailedTotal    uint64    `json:"failedTotal"`
-	DroppedTotal   uint64    `json:"droppedTotal"`
-	LastFlushedAt  time.Time `json:"lastFlushedAt,omitempty"`
-	LastError      string    `json:"lastError,omitempty"`
+	Active            bool      `json:"active"`
+	Stopping          bool      `json:"stopping"`
+	QueueLen          int       `json:"queueLen"`
+	QueueCap          int       `json:"queueCap"`
+	Pending           uint64    `json:"pending"`
+	EnqueuedTotal     uint64    `json:"enqueuedTotal"`
+	PersistedTotal    uint64    `json:"persistedTotal"`
+	FailedTotal       uint64    `json:"failedTotal"`
+	DroppedTotal      uint64    `json:"droppedTotal"`
+	LastFlushedAt     time.Time `json:"lastFlushedAt,omitempty"`
+	LastError         string    `json:"lastError,omitempty"`
+	AuditChainVersion string    `json:"auditChainVersion,omitempty"`
+	AuditChainID      string    `json:"auditChainId,omitempty"`
+	AuditSequence     uint64    `json:"auditSequence,omitempty"`
+	AuditLastHash     string    `json:"auditLastHash,omitempty"`
 }
 
 type runtimeEventLogItem struct {
@@ -64,6 +68,7 @@ type runtimeEventLogWriter struct {
 	lastError      string
 	terminalErr    error
 	stopRequested  bool
+	auditChain     *recording.AuditChain
 }
 
 func startRuntimeEventLogWriter(file *os.File) (*runtimeEventLogWriter, error) {
@@ -71,6 +76,11 @@ func startRuntimeEventLogWriter(file *os.File) (*runtimeEventLogWriter, error) {
 		return nil, errors.New("runtime event log file is nil")
 	}
 	if _, err := file.Stat(); err != nil {
+		_ = file.Close()
+		return nil, err
+	}
+	auditChain, err := recording.NewAuditChain()
+	if err != nil {
 		_ = file.Close()
 		return nil, err
 	}
@@ -82,6 +92,7 @@ func startRuntimeEventLogWriter(file *os.File) (*runtimeEventLogWriter, error) {
 		done:          make(chan struct{}),
 		eventQueueCap: runtimeEventLogQueueSize,
 		accepting:     true,
+		auditChain:    auditChain,
 	}
 	go writer.run(file)
 	return writer, nil
@@ -237,18 +248,26 @@ func (w *runtimeEventLogWriter) Status() runtimeEventLogStatus {
 	if w.enqueuedTotal > completed {
 		pending = w.enqueuedTotal - completed
 	}
+	chain := recording.AuditChainStatus{}
+	if w.auditChain != nil {
+		chain = w.auditChain.Status()
+	}
 	return runtimeEventLogStatus{
-		Active:         w.accepting,
-		Stopping:       w.stopping,
-		QueueLen:       w.queuedRecords,
-		QueueCap:       w.eventCapacityLocked(),
-		Pending:        pending,
-		EnqueuedTotal:  w.enqueuedTotal,
-		PersistedTotal: w.persistedTotal,
-		FailedTotal:    w.failedTotal,
-		DroppedTotal:   w.droppedTotal,
-		LastFlushedAt:  w.lastFlushedAt,
-		LastError:      w.lastError,
+		Active:            w.accepting,
+		Stopping:          w.stopping,
+		QueueLen:          w.queuedRecords,
+		QueueCap:          w.eventCapacityLocked(),
+		Pending:           pending,
+		EnqueuedTotal:     w.enqueuedTotal,
+		PersistedTotal:    w.persistedTotal,
+		FailedTotal:       w.failedTotal,
+		DroppedTotal:      w.droppedTotal,
+		LastFlushedAt:     w.lastFlushedAt,
+		LastError:         w.lastError,
+		AuditChainVersion: chain.Version,
+		AuditChainID:      chain.ChainID,
+		AuditSequence:     chain.Sequence,
+		AuditLastHash:     chain.LastHash,
 	}
 }
 
@@ -285,7 +304,7 @@ func (w *runtimeEventLogWriter) run(file *os.File) {
 
 	processRecord := func(record CapturedEventRecord) error {
 		startedAt := time.Now()
-		payload, err := recording.MarshalRecord(record)
+		payload, err := w.auditChain.MarshalRecord(record)
 		if err != nil {
 			w.noteFailed(1, err, time.Since(startedAt))
 			return nil
