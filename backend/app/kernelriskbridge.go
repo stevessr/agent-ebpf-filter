@@ -58,10 +58,10 @@ const maxKernelAuditDuration = 10 * time.Minute
 // eBPF ring-buffer event using fields that are already part of the event schema.
 //
 // This deliberately does NOT claim LastSeenMs is a raw kernel timestamp. It is
-// the time the decoded sample reached the backend. For syscall records whose
-// eBPF enter/exit correlation produced DurationNs, FirstSeenMs is a best-effort
-// start estimate. Flow-level network events may already carry authoritative
-// first/last timestamps from the flow aggregator; those are never overwritten.
+// the time the decoded sample reached the backend. For generic syscall records
+// the tracker records enter/exit DurationNs, allowing FirstSeenMs to be a
+// best-effort start estimate. Flow-level network events may already carry
+// authoritative first/last timestamps; those are never overwritten.
 func annotateKernelAuditTiming(raw *core.BpfEvent, event *pb.Event, observedAt time.Time) {
 	if raw == nil || event == nil {
 		return
@@ -80,10 +80,11 @@ func annotateKernelAuditTiming(raw *core.BpfEvent, event *pb.Event, observedAt t
 	}
 
 	startedAt := observedAt
-	// TYPE_TCP_STATE_CHANGE historically stores old/new TCP state in the raw
-	// DurationNs slot. Restrict duration-based estimation to actual syscall-like
-	// records so that packed metadata can never become a bogus multi-year span.
-	if event.GetType() != "tcp_state_change" && raw.DurationNs > 0 {
+	// Only TYPE_GENERIC_SYSCALL has duration_ns measured from bpf_ktime_get_ns
+	// enter→exit correlation today. Other event types are intentionally ignored:
+	// notably tcp_state_change historically packs old/new TCP states into the
+	// same raw DurationNs slot.
+	if event.GetType() == "syscall" && raw.DurationNs > 0 {
 		duration := time.Duration(raw.DurationNs)
 		if duration > 0 && duration <= maxKernelAuditDuration {
 			startedAt = observedAt.Add(-duration)
