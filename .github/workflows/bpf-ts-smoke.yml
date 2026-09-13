@@ -69,6 +69,9 @@ jobs:
       - name: Generate repository eBPF objects and bindings
         working-directory: backend/ebpf
         run: go generate
+      - name: Verify generated repository eBPF bindings are committed
+        working-directory: .
+        run: git diff --exit-code -- backend/ebpf/*_bpf*.go
       - name: Install compiler dependencies
         run: bun install --frozen-lockfile
       - name: Typecheck compiler
