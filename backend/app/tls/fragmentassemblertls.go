@@ -29,7 +29,9 @@ type pendingTLSFragment struct {
 	originalLen uint32
 	comm        string
 	flags       uint8
-	fragMap     map[uint16][]byte
+	payload     []byte
+	received    uint16
+	receivedMap uint32
 }
 
 type FragmentAssembler struct {
@@ -95,20 +97,37 @@ func sanitizeTLSComm(comm [16]byte) string {
 	return sanitizeUTF8(comm[:])
 }
 
-func (a *FragmentAssembler) Add(fragment tlsFragment) (*CompletedTLSFragment, bool) {
+func expectedTLSFragmentBounds(fragment tlsFragment) (int, int, bool) {
 	if fragment.FragCount == 0 || fragment.FragIndex >= fragment.FragCount || fragment.TotalLen == 0 {
-		a.mu.Lock()
-		a.dropped++
-		a.mu.Unlock()
-		return nil, false
+		return 0, 0, false
 	}
-	if fragment.FragCount > tlsMaxFragments {
-		a.mu.Lock()
-		a.dropped++
-		a.mu.Unlock()
-		return nil, false
+	if fragment.FragCount > tlsMaxFragments || fragment.DataLen == 0 || fragment.DataLen > tlsFragmentSize {
+		return 0, 0, false
 	}
-	if fragment.DataLen == 0 || fragment.DataLen > tlsFragmentSize {
+	if fragment.TotalLen > uint32(tlsFragmentSize*tlsMaxFragments) {
+		return 0, 0, false
+	}
+
+	start := int(fragment.FragIndex) * tlsFragmentSize
+	end := start + int(fragment.DataLen)
+	if start < 0 || end < start || end > int(fragment.TotalLen) {
+		return 0, 0, false
+	}
+	// Every non-final fragment emitted by the BPF program is a full chunk. This
+	// catches malformed or cross-record corruption early without penalising the
+	// shorter final fragment.
+	if fragment.FragIndex+1 < fragment.FragCount && fragment.DataLen != tlsFragmentSize {
+		return 0, 0, false
+	}
+	if fragment.FragIndex+1 == fragment.FragCount && end != int(fragment.TotalLen) {
+		return 0, 0, false
+	}
+	return start, end, true
+}
+
+func (a *FragmentAssembler) Add(fragment tlsFragment) (*CompletedTLSFragment, bool) {
+	start, end, valid := expectedTLSFragmentBounds(fragment)
+	if !valid {
 		a.mu.Lock()
 		a.dropped++
 		a.mu.Unlock()
@@ -134,7 +153,7 @@ func (a *FragmentAssembler) Add(fragment tlsFragment) (*CompletedTLSFragment, bo
 			originalLen: fragment.OriginalLen,
 			comm:        sanitizeTLSComm(fragment.Comm),
 			flags:       fragment.Flags,
-			fragMap:     make(map[uint16][]byte, fragment.FragCount),
+			payload:     make([]byte, int(fragment.TotalLen)),
 		}
 		a.pending[key] = pending
 	} else if pending.fragCount != fragment.FragCount ||
@@ -145,35 +164,30 @@ func (a *FragmentAssembler) Add(fragment tlsFragment) (*CompletedTLSFragment, bo
 		a.dropped++
 		return nil, false
 	}
-	if _, exists := pending.fragMap[fragment.FragIndex]; exists {
+
+	bit := uint32(1) << fragment.FragIndex
+	if pending.receivedMap&bit != 0 {
+		a.dropped++
+		return nil, false
+	}
+	copy(pending.payload[start:end], fragment.Data[:fragment.DataLen])
+	pending.receivedMap |= bit
+	pending.received++
+	if pending.received != pending.fragCount {
+		return nil, false
+	}
+
+	// FragCount is bounded to 18, so a 32-bit bitset can verify that every
+	// fragment arrived without allocating a map or scanning payload slices.
+	expectedMask := uint32(1)<<pending.fragCount - 1
+	if pending.receivedMap != expectedMask {
+		delete(a.pending, key)
 		a.dropped++
 		return nil, false
 	}
 
-	chunk := make([]byte, int(fragment.DataLen))
-	copy(chunk, fragment.Data[:fragment.DataLen])
-	pending.fragMap[fragment.FragIndex] = chunk
-	if uint16(len(pending.fragMap)) != pending.fragCount {
-		return nil, false
-	}
-
-	payload := make([]byte, 0, pending.totalLen)
-	for i := uint16(0); i < pending.fragCount; i++ {
-		chunk, ok := pending.fragMap[i]
-		if !ok {
-			delete(a.pending, key)
-			a.dropped++
-			return nil, false
-		}
-		payload = append(payload, chunk...)
-	}
+	payload := pending.payload
 	delete(a.pending, key)
-
-	if uint32(len(payload)) != pending.totalLen {
-		a.dropped++
-		return nil, false
-	}
-
 	return &CompletedTLSFragment{
 		TimestampNS:  fragment.TimestampNS,
 		ConnectionID: fragment.ConnectionID,
