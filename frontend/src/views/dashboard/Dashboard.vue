@@ -2,6 +2,7 @@
 import {
   CopyOutlined,
   EyeOutlined,
+  FilterOutlined,
   FolderOpenOutlined,
   InfoCircleOutlined,
 } from "@ant-design/icons-vue";
@@ -10,6 +11,7 @@ import FilePreviewDrawer from "../../components/explorer/FilePreviewDrawer.vue";
 import DashboardToolbar from "../../components/dashboard/DashboardToolbar.vue";
 import DashboardEventModal from "../../components/dashboard/DashboardEventModal.vue";
 import DashboardFilterPanel from "../../components/dashboard/DashboardFilterPanel.vue";
+import DashboardInsights from "../../components/dashboard/DashboardInsights.vue";
 import { useDashboard } from "../../composables/dashboard/useDashboard";
 
 import RedactionBadge from "../../components/common/RedactionBadge.vue";
@@ -102,6 +104,8 @@ const copyPath = async (path: string) => {
     >
       <a-tab-pane v-for="tab in categoryTabs" :key="tab.key" :tab="tab.label" />
     </a-tabs>
+
+    <DashboardInsights v-if="activeTab === 'all'" :events="events" />
 
     <!-- Filter panel shown only in "条件过滤" tab -->
     <DashboardFilterPanel
