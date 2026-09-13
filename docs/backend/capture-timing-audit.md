@@ -23,6 +23,19 @@ TLS 事件现在额外携带：
 
 离线测试和 replay 仍允许直接提供 Unix nanoseconds；这种记录会显式标为 `unix_replay`，避免和真实 `bpf_ktime_get_ns()` 混淆。
 
+同一个完成的 TLS transport record 只做一次 monotonic/wall-clock 对齐。一个 HTTP/2 record 即使解析出多条 frame/SSE 事件，也会复用同一个 observation，避免按派生事件重复读取时钟。
+
+现有 probe counter 接口还会附带以下无敏感数据的用户态健康指标：
+
+- `capture_delay_samples`：已经完成时钟对齐的 TLS transport record 数；
+- `capture_delay_last_ns`：最近一次 probe → userspace 延迟；
+- `capture_delay_max_ns`：进程生命周期内观察到的最大延迟；
+- `capture_clock_monotonic`：真实 eBPF monotonic 样本数；
+- `capture_clock_replay`：Unix-ns replay 样本数；
+- `capture_clock_unknown`：无法可靠对齐时钟的样本数。
+
+`capture_delay_max_ns` 明显抬高、同时 `perf_output_fail` / lost samples 增长时，通常应优先排查 perf buffer 压力与后端消费速度。
+
 ## 主 tracker 的 audit observation window
 
 主 syscall tracker 当前 raw ABI 尚未增加独立的 kernel timestamp 字段。为避免把接收时间伪装成内核时间，后端为解码后的 eBPF 事件补充一个明确的 observation window：
