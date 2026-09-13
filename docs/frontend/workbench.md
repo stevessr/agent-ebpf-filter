@@ -151,7 +151,7 @@ graph LR
 
 | 页面 | 目标 |
 | --- | --- |
-| Dashboard | 事件流、过滤、详情、strace-style summaries |
+| Dashboard | 事件流、过滤、详情、strace-style summaries，以及 Activity Insights（Agent Runs、工具/MCP、文件/安装/Git、网络轨迹、语义层↔内核层关联覆盖率） |
 | Monitor | CPU、内存、GPU、IO、faults、sensors、systemd、tracing |
 | Network | 网络事件、flow table、traffic graph、enrichment |
 | TLSCapture | TLS / Codex capture 高风险诊断面 |
@@ -162,6 +162,14 @@ graph LR
 | ML | ML status、training、tuning、dataset、LLM scoring |
 | Plugins | plugin registry、visual builder、pseudocode builder |
 | Config | runtime、security、registry、cluster、docs、system health |
+
+### Dashboard Activity Insights
+
+Dashboard 的 `all` 页签会直接从当前事件缓冲区派生一组面向 Agent 行为的聚合指标，不新增后端状态或协议字段。它会按 `agentRunId` / `conversationId` / `rootAgentPid` 聚合会话，统计工具调用、MCP server、敏感文件、软件安装、Git/GitHub 操作和网络目的地。
+
+其中 **Semantic Gap** 会把带 `toolCallId` / `spanId` / `traceId` 的 `execve` / `process_exec` 与 `wrapper_intercept` / `native_hook` 做交叉关联，用来观察“语义层是否有对应的内核执行”。没有任何关联字段的普通内核事件不会被纳入缺口统计，以降低误报。
+
+详细口径见 [Dashboard Activity Insights](dashboard-activity-insights.md)。
 
 ## 设计原则
 
@@ -238,6 +246,7 @@ sequenceDiagram
 
 - [路由与功能页](routes-and-pages.md)
 - [组件与 Composables](components-composables.md)
+- [Dashboard Activity Insights](dashboard-activity-insights.md)
 - [构建与 Feature Flags](build-feature-flags.md)
 - [事件管线](../backend/event-pipeline.md)
 - [前端 README](../../frontend/README.md)
