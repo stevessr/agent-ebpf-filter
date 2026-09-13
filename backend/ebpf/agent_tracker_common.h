@@ -181,6 +181,11 @@ struct event {
     u32 extra2;
     u64 extra3;
     char extra4[MAX_PATH_LEN];
+    // Append-only audit provenance. Keep legacy field offsets stable.
+    u64 kernel_timestamp_ns; // bpf_ktime_get_ns(), CLOCK_MONOTONIC domain
+    u64 kernel_sequence;     // CPU-local monotonic sequence
+    u32 kernel_cpu;
+    u32 audit_flags;
 };
 
 struct {
@@ -191,6 +196,7 @@ struct {
 struct collector_stats {
     u64 ringbuf_events_total;
     u64 ringbuf_reserve_failed_total;
+    u64 event_sequence; // per-CPU, used with kernel_cpu as an audit ordering tuple
 };
 
 struct {
@@ -268,10 +274,30 @@ static __always_inline void account_ringbuf_reserve_failed(void) {
     }
 }
 
+#define AUDIT_FLAG_KERNEL_TIMESTAMP (1U << 0)
+#define AUDIT_FLAG_CPU_SEQUENCE     (1U << 1)
+
 static __always_inline struct event *reserve_event(void) {
     struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e) {
         account_ringbuf_reserve_failed();
+        return 0;
+    }
+
+    // Capture provenance immediately after reserve so time includes as little
+    // probe-side formatting work as possible. Sequence is deliberately per-CPU
+    // to avoid a cross-CPU atomic hotspot on every observed syscall.
+    e->kernel_timestamp_ns = bpf_ktime_get_ns();
+    e->kernel_cpu = bpf_get_smp_processor_id();
+    e->kernel_sequence = 0;
+    e->audit_flags = AUDIT_FLAG_KERNEL_TIMESTAMP;
+
+    u32 key = 0;
+    struct collector_stats *stats = bpf_map_lookup_elem(&collector_stats, &key);
+    if (stats) {
+        stats->event_sequence++;
+        e->kernel_sequence = stats->event_sequence;
+        e->audit_flags |= AUDIT_FLAG_CPU_SEQUENCE;
     }
     return e;
 }

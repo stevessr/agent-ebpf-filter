@@ -79,6 +79,10 @@ func (metricsStoreBridge) RecordRingbufDecode(zeroCopy bool) {
 	observability.RecordRingbufDecode(zeroCopy)
 }
 
+func (metricsStoreBridge) RecordKernelCaptureTiming(delayNS uint64, clock string) {
+	observability.RecordKernelCaptureTiming(delayNS, clock)
+}
+
 func (metricsStoreBridge) RecordKernelRiskDecision(decision string, elapsed time.Duration) {
 	observability.RecordKernelRiskDecision(decision, elapsed)
 }

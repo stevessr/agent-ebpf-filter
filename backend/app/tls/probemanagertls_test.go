@@ -207,13 +207,15 @@ func TestTLSProbeManagerReadLoopStatsSnapshotIsAtomic(t *testing.T) {
 	manager := &TLSProbeManager{}
 	manager.readLoopStats.totalFrags.Add(3)
 	manager.readLoopStats.droppedFrags.Add(1)
+	manager.readLoopStats.perfLostSamples.Add(4)
+	manager.readLoopStats.decodeErrors.Add(2)
 	manager.readLoopStats.completedFrags.Add(2)
 	manager.readLoopStats.httpEvents.Add(1)
 	manager.readLoopStats.rawEvents.Add(1)
 	manager.readLoopStats.lastFragmentNS.Store(42)
 
 	stats := manager.ReadLoopStatsSnapshot()
-	if stats.TotalFrags != 3 || stats.DroppedFrags != 1 || stats.CompletedFrags != 2 || stats.HTTPEvents != 1 || stats.RawEvents != 1 || stats.LastFragmentNS != 42 {
+	if stats.TotalFrags != 3 || stats.DroppedFrags != 1 || stats.PerfLostSamples != 4 || stats.DecodeErrors != 2 || stats.CompletedFrags != 2 || stats.HTTPEvents != 1 || stats.RawEvents != 1 || stats.LastFragmentNS != 42 {
 		t.Fatalf("unexpected read-loop stats: %+v", stats)
 	}
 }
