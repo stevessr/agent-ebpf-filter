@@ -49,6 +49,12 @@ func (processor *tlsCompletedEventProcessor) Process(completed CompletedTLSFragm
 		return tlsCompletedProcessResult{}
 	}
 
+	// One transport record can fan out into several HTTP/2/SSE events. Align the
+	// eBPF monotonic timestamp once here and reuse the observation for all of
+	// them, rather than issuing a clock read per derived event.
+	observation := observeBPFKtime(completed.TimestampNS)
+	recordTLSCaptureTimingObservation(observation)
+
 	parsedEvents, http1Recognized := processor.http1.AddRecognized(completed)
 	http2Recognized := false
 	if len(parsedEvents) == 0 && !http1Recognized {
@@ -63,6 +69,7 @@ func (processor *tlsCompletedEventProcessor) Process(completed CompletedTLSFragm
 			return result
 		}
 		raw := completedToPlaintextEvent(completed)
+		applyTLSCaptureObservation(&raw, completed.TimestampNS, observation)
 		if processor.rules == nil || processor.rules.Allows(raw) {
 			processor.broadcaster.Broadcast(raw)
 			processor.store.Add(raw)
@@ -72,6 +79,7 @@ func (processor *tlsCompletedEventProcessor) Process(completed CompletedTLSFragm
 	}
 
 	for _, event := range parsedEvents {
+		applyTLSCaptureObservation(&event, completed.TimestampNS, observation)
 		if processor.rules != nil && !processor.rules.Allows(event) {
 			continue
 		}

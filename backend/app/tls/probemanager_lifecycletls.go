@@ -197,22 +197,34 @@ func (m *TLSProbeManager) ReadLoopStatsSnapshot() ReadLoopStats {
 
 func (m *TLSProbeManager) ProbeHitCounters() map[string]uint64 {
 	result := make(map[string]uint64)
-	if m == nil || m.objs == nil || m.objs.TlsProbeHits == nil {
-		return result
-	}
-	for fn := uint8(1); fn <= 13; fn++ {
-		var idx uint32 = uint32(fn)
-		var val uint64
-		if err := m.objs.TlsProbeHits.Lookup(&idx, &val); err == nil && val > 0 {
-			result[tlsFuncName(fn)] = val
+	if m != nil && m.objs != nil && m.objs.TlsProbeHits != nil {
+		for fn := uint8(1); fn <= 13; fn++ {
+			var idx uint32 = uint32(fn)
+			var val uint64
+			if err := m.objs.TlsProbeHits.Lookup(&idx, &val); err == nil && val > 0 {
+				result[tlsFuncName(fn)] = val
+			}
+		}
+		diagLabels := map[uint32]string{100: "perf_output_fail", 101: "probe_read_fail", 102: "perf_submit_ok"}
+		for idx, label := range diagLabels {
+			var val uint64
+			if err := m.objs.TlsProbeHits.Lookup(&idx, &val); err == nil && val > 0 {
+				result[label] = val
+			}
 		}
 	}
-	diagLabels := map[uint32]string{100: "perf_output_fail", 101: "probe_read_fail", 102: "perf_submit_ok"}
-	for idx, label := range diagLabels {
-		var val uint64
-		if err := m.objs.TlsProbeHits.Lookup(&idx, &val); err == nil && val > 0 {
-			result[label] = val
-		}
+
+	// Surface userspace clock-alignment health beside BPF probe counters. These
+	// values contain no plaintext and make perf-buffer backlog visible without a
+	// second diagnostics endpoint.
+	timing := TLSCaptureTimingStatsSnapshot()
+	if timing.Samples > 0 {
+		result["capture_delay_samples"] = timing.Samples
+		result["capture_delay_last_ns"] = timing.LastDelayNS
+		result["capture_delay_max_ns"] = timing.MaxDelayNS
+		result["capture_clock_monotonic"] = timing.MonotonicSamples
+		result["capture_clock_replay"] = timing.ReplaySamples
+		result["capture_clock_unknown"] = timing.UnknownClock
 	}
 	return result
 }

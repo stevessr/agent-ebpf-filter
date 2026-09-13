@@ -40,6 +40,8 @@ const tlsFuncSSLWriteEx2 = 11
 const tlsFuncRustlsEncryptOutgoing = 12   // rustls RecordLayer::encrypt_outgoing (SEND plaintext)
 const tlsFuncRustlsConsumeFirstChunk = 13 // rustls Reader::consume + consume_first_chunk (RECV plaintext)
 
+const maxSignedNanoseconds = uint64(^uint64(0) >> 1)
+
 type tlsFragment struct {
 	TimestampNS  uint64
 	ConnectionID uint64
@@ -102,6 +104,14 @@ type TLSPlaintextEvent struct {
 	SSEDataDigest  string            `json:"sse_data_digest,omitempty"`
 	SSEDataCount   int               `json:"sse_data_count,omitempty"`
 
+	// Probe timing is intentionally explicit for auditability. ProbeTimestampNS
+	// is the raw clock value emitted by the eBPF program. Live capture uses
+	// CLOCK_MONOTONIC (bpf_ktime_get_ns); replay fixtures may use Unix ns.
+	ProbeTimestampNS uint64    `json:"probe_timestamp_ns,omitempty"`
+	ProbeClock       string    `json:"probe_clock,omitempty"`
+	IngestTimestamp  time.Time `json:"ingest_timestamp,omitempty"`
+	CaptureDelayNS   uint64    `json:"capture_delay_ns,omitempty"`
+
 	// HTTP/2 metadata is safe protocol metadata. ConnectionID deliberately
 	// remains internal because it is derived from a userspace pointer.
 	HTTP2StreamID         uint32 `json:"http2_stream_id,omitempty"`
@@ -151,29 +161,63 @@ type TLSCaptureStats struct {
 	LastFragmentNS uint64             `json:"lastFragmentNs,omitempty"`
 }
 
-// bpfKtimeToWallClock converts bpf_ktime_get_ns() (CLOCK_MONOTONIC-like
-// nanoseconds since boot) into a wall-clock timestamp while preserving when the
-// probe actually fired. Returning time.Now() here would shift every event to
-// userspace assembly time and destroy ordering/latency information.
-func bpfKtimeToWallClock(monoNS uint64) time.Time {
-	now := time.Now().UTC()
-	if monoNS == 0 {
-		return now
+type bpfKtimeObservation struct {
+	Captured time.Time
+	Ingested time.Time
+	DelayNS  uint64
+	Clock    string
+}
+
+// observeBPFKtime maps the raw timestamp emitted by the TLS probe to wall clock
+// and also returns kernel→userspace delay. Using one CLOCK_MONOTONIC snapshot
+// keeps ordering and latency measurement independent of wall-clock adjustments.
+// Offline/replay fixtures that contain plausible Unix ns remain supported.
+func observeBPFKtime(rawNS uint64) bpfKtimeObservation {
+	ingested := time.Now().UTC()
+	observation := bpfKtimeObservation{
+		Captured: ingested,
+		Ingested: ingested,
+		Clock:    "unknown",
+	}
+	if rawNS == 0 {
+		return observation
+	}
+
+	if rawNS >= tlsPlausibleUnixNSThreshold && rawNS <= maxSignedNanoseconds {
+		captured := time.Unix(0, int64(rawNS)).UTC()
+		if !captured.After(ingested.Add(time.Minute)) {
+			observation.Captured = captured
+			observation.Clock = "unix_replay"
+			if !captured.After(ingested) {
+				observation.DelayNS = uint64(ingested.Sub(captured))
+			}
+			return observation
+		}
 	}
 
 	var currentMono unix.Timespec
 	if err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &currentMono); err != nil {
-		return now
+		return observation
 	}
 	if currentMono.Sec < 0 || currentMono.Nsec < 0 {
-		return now
+		return observation
 	}
 	currentMonoNS := uint64(currentMono.Sec)*uint64(time.Second) + uint64(currentMono.Nsec)
-	if monoNS > currentMonoNS {
-		// A future monotonic timestamp cannot be mapped reliably; avoid emitting
-		// a future wall-clock event because it would poison timeline ordering.
-		return now
+	if rawNS > currentMonoNS {
+		return observation
 	}
 
-	return now.Add(-time.Duration(currentMonoNS - monoNS))
+	delta := currentMonoNS - rawNS
+	observation.DelayNS = delta
+	observation.Clock = "monotonic"
+	if delta <= maxSignedNanoseconds {
+		observation.Captured = ingested.Add(-time.Duration(delta))
+	}
+	return observation
+}
+
+// bpfKtimeToWallClock remains the compatibility entry point used by parsers and
+// tests while observeBPFKtime exposes the full audit timing tuple.
+func bpfKtimeToWallClock(monoNS uint64) time.Time {
+	return observeBPFKtime(monoNS).Captured
 }
