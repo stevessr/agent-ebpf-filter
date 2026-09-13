@@ -47,6 +47,10 @@ func (metricsStoreBridge) RecordAgentSightCounter(name string) {
 	observability.RecordAgentSightCounter(name)
 }
 
+func (metricsStoreBridge) RecordAgentSightCounterN(name string, delta uint64) {
+	observability.RecordAgentSightCounterN(name, delta)
+}
+
 func (metricsStoreBridge) SetPersistAppendLatency(duration time.Duration) {
 	observability.SetPersistAppendLatency(duration)
 }

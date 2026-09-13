@@ -214,13 +214,24 @@ func StringsTrimDefault(value, fallback string) string {
 }
 
 func RecordAgentSightCounter(name string) {
-	collectorMetricsStore.recordAgentSightCounter(name)
+	collectorMetricsStore.recordAgentSightCounterN(name, 1)
+}
+
+func RecordAgentSightCounterN(name string, delta uint64) {
+	collectorMetricsStore.recordAgentSightCounterN(name, delta)
 }
 
 func (s *collectorMetricsState) recordAgentSightCounter(name string) {
+	s.recordAgentSightCounterN(name, 1)
+}
+
+func (s *collectorMetricsState) recordAgentSightCounterN(name string, delta uint64) {
+	if delta == 0 {
+		return
+	}
 	name = StringsTrimDefault(name, "unknown")
 	s.mu.Lock()
-	s.agentSightCountersTotal[name]++
+	s.agentSightCountersTotal[name] += delta
 	s.mu.Unlock()
 }
 
