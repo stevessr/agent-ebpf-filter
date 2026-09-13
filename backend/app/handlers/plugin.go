@@ -60,22 +60,22 @@ type bpfLoadRequest struct {
 }
 
 func HandlePluginsList(c *gin.Context) {
-	plugins := Deps.PluginList()
+	plugins := Deps.Plugins.List()
 	c.JSON(200, gin.H{"plugins": plugins})
 }
 
 func HandlePluginGet(c *gin.Context) {
 	id := strings.TrimSpace(c.Param("id"))
-	if err := Deps.PluginValidateID(id); err != nil {
+	if err := Deps.Plugins.ValidateID(id); err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
-	plugin, ok := Deps.PluginGet(id)
+	plugin, ok := Deps.Plugins.Get(id)
 	if !ok {
 		c.JSON(404, gin.H{"error": "plugin not found"})
 		return
 	}
-	source, _ := Deps.PluginSource(id)
+	source, _ := Deps.Plugins.Source(id)
 	c.JSON(200, gin.H{"plugin": plugin, "source": source})
 }
 
@@ -87,7 +87,7 @@ func HandlePluginUpsert(c *gin.Context) {
 	}
 	pathID := strings.TrimSpace(c.Param("id"))
 	if pathID != "" {
-		if err := Deps.PluginValidateID(pathID); err != nil {
+		if err := Deps.Plugins.ValidateID(pathID); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
@@ -98,11 +98,11 @@ func HandlePluginUpsert(c *gin.Context) {
 			return
 		}
 	}
-	if err := Deps.PluginValidateID(strings.TrimSpace(req.ID)); err != nil {
+	if err := Deps.Plugins.ValidateID(strings.TrimSpace(req.ID)); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	plugin, err := Deps.PluginUpsert(&req)
+	plugin, err := Deps.Plugins.Upsert(&req)
 	if err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
@@ -112,12 +112,12 @@ func HandlePluginUpsert(c *gin.Context) {
 
 func HandlePluginDelete(c *gin.Context) {
 	id := strings.TrimSpace(c.Param("id"))
-	if err := Deps.PluginValidateID(id); err != nil {
+	if err := Deps.Plugins.ValidateID(id); err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
-	Deps.PluginUnloadEBPF(id)
-	if err := Deps.PluginDelete(id); err != nil {
+	Deps.Plugins.UnloadEBPF(id)
+	if err := Deps.Plugins.Delete(id); err != nil {
 		c.JSON(404, gin.H{"error": err.Error()})
 		return
 	}
@@ -126,7 +126,7 @@ func HandlePluginDelete(c *gin.Context) {
 
 func HandlePluginToggle(c *gin.Context) {
 	id := strings.TrimSpace(c.Param("id"))
-	if err := Deps.PluginValidateID(id); err != nil {
+	if err := Deps.Plugins.ValidateID(id); err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
@@ -137,11 +137,11 @@ func HandlePluginToggle(c *gin.Context) {
 		c.JSON(status, gin.H{"error": err.Error()})
 		return
 	}
-	if _, ok := Deps.PluginGet(id); !ok {
+	if _, ok := Deps.Plugins.Get(id); !ok {
 		c.JSON(http.StatusNotFound, gin.H{"error": "plugin not found"})
 		return
 	}
-	result, err := Deps.PluginSetEnabled(c.Request.Context(), id, req.Enabled)
+	result, err := Deps.Plugins.SetEnabled(c.Request.Context(), id, req.Enabled)
 	if err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error(), "plugin": result})
 		return
@@ -150,7 +150,7 @@ func HandlePluginToggle(c *gin.Context) {
 }
 
 func HandleBPFTemplates(c *gin.Context) {
-	templates := Deps.BPFTemplates()
+	templates := Deps.Plugins.BPFTemplates()
 	c.JSON(200, gin.H{"templates": templates})
 }
 
@@ -160,11 +160,11 @@ func HandleBPFCompile(c *gin.Context) {
 		c.JSON(status, gin.H{"error": err.Error()})
 		return
 	}
-	if err := Deps.PluginValidateID(req.ID); err != nil {
+	if err := Deps.Plugins.ValidateID(req.ID); err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
-	objPath, log, err := Deps.CompileUserBPF(c.Request.Context(), req.ID, req.Source)
+	objPath, log, err := Deps.Plugins.CompileUserBPF(c.Request.Context(), req.ID, req.Source)
 	if err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
 			"error": err.Error(),
@@ -188,15 +188,15 @@ func HandleBPFLoad(c *gin.Context) {
 		return
 	}
 	req.ID = strings.TrimSpace(req.ID)
-	if err := Deps.PluginValidateID(req.ID); err != nil {
+	if err := Deps.Plugins.ValidateID(req.ID); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if _, ok := Deps.PluginGet(req.ID); !ok {
+	if _, ok := Deps.Plugins.Get(req.ID); !ok {
 		c.JSON(http.StatusNotFound, gin.H{"error": "plugin not found"})
 		return
 	}
-	plugin, err := Deps.PluginLoadEBPF(c.Request.Context(), req.ID)
+	plugin, err := Deps.Plugins.LoadEBPF(c.Request.Context(), req.ID)
 	if err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
@@ -211,16 +211,16 @@ func HandleBPFUnload(c *gin.Context) {
 		return
 	}
 	req.ID = strings.TrimSpace(req.ID)
-	if err := Deps.PluginValidateID(req.ID); err != nil {
+	if err := Deps.Plugins.ValidateID(req.ID); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if _, ok := Deps.PluginGet(req.ID); !ok {
+	if _, ok := Deps.Plugins.Get(req.ID); !ok {
 		c.JSON(http.StatusNotFound, gin.H{"error": "plugin not found"})
 		return
 	}
-	Deps.PluginUnloadEBPF(req.ID)
-	plugin, _ := Deps.PluginGet(req.ID)
+	Deps.Plugins.UnloadEBPF(req.ID)
+	plugin, _ := Deps.Plugins.Get(req.ID)
 	c.JSON(http.StatusOK, gin.H{"plugin": plugin})
 }
 

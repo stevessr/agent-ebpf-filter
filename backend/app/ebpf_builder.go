@@ -2,6 +2,7 @@ package app
 
 import (
 	"agent-ebpf-filter/app/platform"
+	"agent-ebpf-filter/app/types"
 	"bytes"
 	"context"
 	"errors"
@@ -627,17 +628,9 @@ func ReapplyEBPFPluginsOnBoot() {
 	}
 }
 
-// BPFTemplates returns a fixed set of starter snippets for the online builder.
-type BPFTemplate struct {
-	ID           string           `json:"id"`
-	Name         string           `json:"name"`
-	Description  string           `json:"description"`
-	AttachKind   PluginAttachKind `json:"attachKind"`
-	AttachTarget string           `json:"attachTarget"`
-	ProgramName  string           `json:"programName"`
-	Source       string           `json:"source"`
-}
+type BPFTemplate = types.BPFTemplate
 
+// bpfTemplates returns a fixed set of starter snippets for the online builder.
 func bpfTemplates() []BPFTemplate {
 	return []BPFTemplate{
 		{

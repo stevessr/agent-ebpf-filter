@@ -8,6 +8,7 @@ import (
 	"agent-ebpf-filter/app/events"
 	"agent-ebpf-filter/app/observability"
 	"agent-ebpf-filter/app/tls"
+	"agent-ebpf-filter/app/types"
 	"agent-ebpf-filter/core"
 	"agent-ebpf-filter/internal/geoip"
 	netcore "agent-ebpf-filter/internal/network"
@@ -102,6 +103,22 @@ type ProcessContextStore interface {
 	Delete(pid uint32)
 }
 
+// PluginService is the plugin registry plus eBPF build/load lifecycle used
+// by the plugin handlers.
+type PluginService interface {
+	ValidateID(id string) error
+	List() []types.PluginManifest
+	Get(id string) (types.PluginManifest, bool)
+	Source(id string) (string, bool)
+	Upsert(req *PluginUpsertRequest) (types.PluginManifest, error)
+	Delete(id string) error
+	SetEnabled(ctx context.Context, id string, enabled bool) (types.PluginManifest, error)
+	LoadEBPF(ctx context.Context, id string) (types.PluginManifest, error)
+	UnloadEBPF(id string)
+	CompileUserBPF(ctx context.Context, id, source string) (objPath string, log []byte, err error)
+	BPFTemplates() []types.BPFTemplate
+}
+
 // ConfigStore is the tracking configuration the config/export handlers edit:
 // the tag registry, disabled comms and event types, and wrapper rules.
 type ConfigStore interface {
@@ -159,18 +176,8 @@ var Deps struct {
 	EnvelopeEventTypeName         func(envelope *pb.EventEnvelope, event *pb.Event) string
 	ParseRecentEventTime          func(raw string) time.Time
 
-	// Plugin handler closures
-	PluginList       func() []any
-	PluginGet        func(id string) (any, bool)
-	PluginUpsert     func(manifest any) (any, error)
-	PluginDelete     func(id string) error
-	PluginSetEnabled func(ctx context.Context, id string, enabled bool) (any, error)
-	PluginValidateID func(id string) error
-	PluginSource     func(id string) (string, bool)
-	PluginLoadEBPF   func(ctx context.Context, id string) (any, error)
-	PluginUnloadEBPF func(id string)
-	CompileUserBPF   func(ctx context.Context, id, source string) (objPath string, log []byte, err error)
-	BPFTemplates     func() []any
+	// Plugins backs the plugin registry / eBPF builder handlers.
+	Plugins PluginService
 
 	// Config is the tracking configuration edited by the config handlers.
 	Config ConfigStore

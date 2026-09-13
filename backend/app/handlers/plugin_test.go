@@ -12,45 +12,91 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+
+	"agent-ebpf-filter/app/types"
 )
 
-func withPluginHandlerDeps(t *testing.T) {
+// fakePluginService is a PluginService whose behaviour is supplied per test
+// through function fields; unset fields return zero values.
+type fakePluginService struct {
+	validateID func(id string) error
+	get        func(id string) (types.PluginManifest, bool)
+	upsert     func(req *PluginUpsertRequest) (types.PluginManifest, error)
+	delete     func(id string) error
+	loadEBPF   func(ctx context.Context, id string) (types.PluginManifest, error)
+	unloadEBPF func(id string)
+	compile    func(ctx context.Context, id, source string) (string, []byte, error)
+}
+
+func (f *fakePluginService) ValidateID(id string) error {
+	if f.validateID == nil {
+		return nil
+	}
+	return f.validateID(id)
+}
+func (f *fakePluginService) List() []types.PluginManifest { return nil }
+func (f *fakePluginService) Get(id string) (types.PluginManifest, bool) {
+	if f.get == nil {
+		return types.PluginManifest{}, false
+	}
+	return f.get(id)
+}
+func (f *fakePluginService) Source(string) (string, bool) { return "", false }
+func (f *fakePluginService) Upsert(req *PluginUpsertRequest) (types.PluginManifest, error) {
+	if f.upsert == nil {
+		return types.PluginManifest{}, nil
+	}
+	return f.upsert(req)
+}
+func (f *fakePluginService) Delete(id string) error {
+	if f.delete == nil {
+		return nil
+	}
+	return f.delete(id)
+}
+func (f *fakePluginService) SetEnabled(context.Context, string, bool) (types.PluginManifest, error) {
+	return types.PluginManifest{}, nil
+}
+func (f *fakePluginService) LoadEBPF(ctx context.Context, id string) (types.PluginManifest, error) {
+	if f.loadEBPF == nil {
+		return types.PluginManifest{}, nil
+	}
+	return f.loadEBPF(ctx, id)
+}
+func (f *fakePluginService) UnloadEBPF(id string) {
+	if f.unloadEBPF != nil {
+		f.unloadEBPF(id)
+	}
+}
+func (f *fakePluginService) CompileUserBPF(ctx context.Context, id, source string) (string, []byte, error) {
+	if f.compile == nil {
+		return "", nil, nil
+	}
+	return f.compile(ctx, id, source)
+}
+func (f *fakePluginService) BPFTemplates() []types.BPFTemplate { return nil }
+
+func withPluginHandlerDeps(t *testing.T) *fakePluginService {
 	t.Helper()
-	oldUpsert := Deps.PluginUpsert
-	oldGet := Deps.PluginGet
-	oldValidate := Deps.PluginValidateID
-	oldDelete := Deps.PluginDelete
-	oldLoad := Deps.PluginLoadEBPF
-	oldUnload := Deps.PluginUnloadEBPF
-	oldCompile := Deps.CompileUserBPF
-	t.Cleanup(func() {
-		Deps.PluginUpsert = oldUpsert
-		Deps.PluginGet = oldGet
-		Deps.PluginValidateID = oldValidate
-		Deps.PluginDelete = oldDelete
-		Deps.PluginLoadEBPF = oldLoad
-		Deps.PluginUnloadEBPF = oldUnload
-		Deps.CompileUserBPF = oldCompile
-	})
-	Deps.PluginValidateID = func(id string) error {
+	old := Deps.Plugins
+	t.Cleanup(func() { Deps.Plugins = old })
+	fake := &fakePluginService{validateID: func(id string) error {
 		if id == "valid-plugin" {
 			return nil
 		}
 		return fmt.Errorf("invalid plugin id")
-	}
+	}}
+	Deps.Plugins = fake
+	return fake
 }
 
 func TestHandlePluginUpsertPassesTypedRequestAndEnforcesPathID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	withPluginHandlerDeps(t)
+	fake := withPluginHandlerDeps(t)
 	var received *PluginUpsertRequest
-	Deps.PluginUpsert = func(value any) (any, error) {
-		request, ok := value.(*PluginUpsertRequest)
-		if !ok {
-			return nil, fmt.Errorf("unexpected request type %T", value)
-		}
+	fake.upsert = func(request *PluginUpsertRequest) (types.PluginManifest, error) {
 		received = request
-		return map[string]any{"id": request.ID}, nil
+		return types.PluginManifest{ID: request.ID}, nil
 	}
 	router := gin.New()
 	router.POST("/plugins", HandlePluginUpsert)
@@ -86,7 +132,6 @@ func TestHandlePluginUpsertPassesTypedRequestAndEnforcesPathID(t *testing.T) {
 func TestHandlePluginUpsertRejectsOversizedBody(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	withPluginHandlerDeps(t)
-	Deps.PluginUpsert = func(any) (any, error) { return nil, nil }
 	router := gin.New()
 	router.POST("/plugins", HandlePluginUpsert)
 	body := append([]byte(`{"id":"valid-plugin","source":"`), bytes.Repeat([]byte("x"), int(pluginUpsertMaxBodyBytes))...)
@@ -102,10 +147,10 @@ func TestHandlePluginUpsertRejectsOversizedBody(t *testing.T) {
 
 func TestHandlePluginDeleteUnloadsBeforeRemoving(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	withPluginHandlerDeps(t)
+	fake := withPluginHandlerDeps(t)
 	order := make([]string, 0, 2)
-	Deps.PluginUnloadEBPF = func(string) { order = append(order, "unload") }
-	Deps.PluginDelete = func(string) error {
+	fake.unloadEBPF = func(string) { order = append(order, "unload") }
+	fake.delete = func(string) error {
 		order = append(order, "delete")
 		return nil
 	}
@@ -121,9 +166,9 @@ func TestHandlePluginDeleteUnloadsBeforeRemoving(t *testing.T) {
 
 func TestHandleBPFCompileUsesRequestContextAndCompatibilityResponse(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	withPluginHandlerDeps(t)
+	fake := withPluginHandlerDeps(t)
 	var contextError error
-	Deps.CompileUserBPF = func(ctx context.Context, id, source string) (string, []byte, error) {
+	fake.compile = func(ctx context.Context, id, source string) (string, []byte, error) {
 		contextError = ctx.Err()
 		if id != "valid-plugin" || source != "source" {
 			return "", nil, fmt.Errorf("unexpected compile request")
@@ -155,19 +200,19 @@ func TestHandleBPFCompileUsesRequestContextAndCompatibilityResponse(t *testing.T
 
 func TestHandleBPFLoadAndUnloadDelegateLifecycle(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	withPluginHandlerDeps(t)
+	fake := withPluginHandlerDeps(t)
 	loaded := false
-	Deps.PluginGet = func(id string) (any, bool) {
+	fake.get = func(id string) (types.PluginManifest, bool) {
 		if id != "valid-plugin" {
-			return nil, false
+			return types.PluginManifest{}, false
 		}
-		return map[string]any{"id": id, "loaded": loaded}, true
+		return types.PluginManifest{ID: id}, true
 	}
-	Deps.PluginLoadEBPF = func(_ context.Context, id string) (any, error) {
+	fake.loadEBPF = func(_ context.Context, id string) (types.PluginManifest, error) {
 		loaded = true
-		return map[string]any{"id": id, "loaded": true}, nil
+		return types.PluginManifest{ID: id}, nil
 	}
-	Deps.PluginUnloadEBPF = func(id string) { loaded = false }
+	fake.unloadEBPF = func(id string) { loaded = false }
 	router := gin.New()
 	router.POST("/plugins/bpf/load", HandleBPFLoad)
 	router.POST("/plugins/bpf/unload", HandleBPFUnload)
