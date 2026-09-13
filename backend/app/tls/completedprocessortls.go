@@ -63,6 +63,7 @@ func (processor *tlsCompletedEventProcessor) Process(completed CompletedTLSFragm
 			return result
 		}
 		raw := completedToPlaintextEvent(completed)
+		applyTLSCaptureTiming(&raw, completed.TimestampNS)
 		if processor.rules == nil || processor.rules.Allows(raw) {
 			processor.broadcaster.Broadcast(raw)
 			processor.store.Add(raw)
@@ -72,6 +73,7 @@ func (processor *tlsCompletedEventProcessor) Process(completed CompletedTLSFragm
 	}
 
 	for _, event := range parsedEvents {
+		applyTLSCaptureTiming(&event, completed.TimestampNS)
 		if processor.rules != nil && !processor.rules.Allows(event) {
 			continue
 		}
