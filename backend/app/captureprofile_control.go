@@ -23,19 +23,22 @@ type captureProfileCapabilities struct {
 	Protocols       []string `json:"protocols"`
 	Directions      []string `json:"directions"`
 	Methods         []string `json:"methods"`
+	Transports      []string `json:"transports"`
+	Families        []string `json:"families"`
 	PrivacyBoundary string   `json:"privacyBoundary"`
 	MaxPreviewFlows int      `json:"maxPreviewFlows"`
 }
 
 type captureProfileStateResponse struct {
-	Path              string                     `json:"path"`
-	CustomProfiles    []captureprofile.Profile   `json:"customProfiles"`
-	EffectiveProfiles []captureprofile.Profile   `json:"effectiveProfiles"`
-	BuiltinCount      int                        `json:"builtinCount"`
-	CustomCount       int                        `json:"customCount"`
-	EffectiveCount    int                        `json:"effectiveCount"`
-	UpdatedAt         string                     `json:"updatedAt,omitempty"`
-	Capabilities      captureProfileCapabilities `json:"capabilities"`
+	Path              string                       `json:"path"`
+	CustomProfiles    []captureprofile.Profile     `json:"customProfiles"`
+	EffectiveProfiles []captureprofile.Profile     `json:"effectiveProfiles"`
+	BuiltinCount      int                          `json:"builtinCount"`
+	CustomCount       int                          `json:"customCount"`
+	EffectiveCount    int                          `json:"effectiveCount"`
+	UpdatedAt         string                       `json:"updatedAt,omitempty"`
+	Capabilities      captureProfileCapabilities   `json:"capabilities"`
+	Matcher           captureprofile.RegistryStats `json:"matcher"`
 }
 
 type captureProfileUpdateRequest struct {
@@ -71,6 +74,8 @@ func captureProfileCapabilitiesValue() captureProfileCapabilities {
 		Protocols:       []string{"http1", "http2", "grpc"},
 		Directions:      []string{"outgoing", "incoming"},
 		Methods:         []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "TRACE", "CONNECT"},
+		Transports:      []string{"tcp", "udp"},
+		Families:        []string{"ipv4", "ipv6"},
 		PrivacyBoundary: "metadata-only: request/response start-line, host/path/method and header names; no body, credentials or query secrets",
 		MaxPreviewFlows: maxCaptureProfilePreviewObservations,
 	}
@@ -156,6 +161,7 @@ func buildCaptureProfileState(path string) (captureProfileStateResponse, error) 
 		EffectiveCount:    len(effective),
 		UpdatedAt:         updatedAt,
 		Capabilities:      captureProfileCapabilitiesValue(),
+		Matcher:           captureprofile.Default.Stats(),
 	}, nil
 }
 

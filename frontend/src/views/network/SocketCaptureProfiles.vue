@@ -19,6 +19,11 @@ interface CaptureProfile {
   path_contains?: string[];
   required_headers?: string[];
   content_types?: string[];
+  transports?: string[];
+  families?: string[];
+  remote_ports?: number[];
+  remote_cidrs?: string[];
+  processes?: string[];
   min_score?: number;
 }
 
@@ -30,11 +35,20 @@ interface CaptureProfileState {
   customCount: number;
   effectiveCount: number;
   updatedAt?: string;
+  matcher: {
+    generation: number;
+    profiles: number;
+    dispatchBuckets: number;
+    dispatchEntries: number;
+    maxBucket: number;
+  };
   capabilities: {
     sources: string[];
     protocols: string[];
     directions: string[];
     methods: string[];
+    transports: string[];
+    families: string[];
     privacyBoundary: string;
     maxPreviewFlows: number;
   };
@@ -76,10 +90,24 @@ const emptyProfile = (): CaptureProfile => ({
   path_contains: [],
   required_headers: [],
   content_types: [],
+  transports: [],
+  families: [],
+  remote_ports: [],
+  remote_cidrs: [],
+  processes: [],
   min_score: 60,
 });
 
 const draft = reactive<CaptureProfile>(emptyProfile());
+const remotePortsText = computed({
+  get: () => (draft.remote_ports || []).join(", "),
+  set: (value: string) => {
+    draft.remote_ports = value
+      .split(/[\s,]+/)
+      .map((item) => Number(item))
+      .filter((port) => Number.isInteger(port) && port > 0 && port <= 65535);
+  },
+});
 
 const resetDraft = (profile?: CaptureProfile) => {
   const next = profile ? JSON.parse(JSON.stringify(profile)) : emptyProfile();
@@ -137,6 +165,8 @@ const draftFromFlow = (flow?: NetworkFlow | null) => {
     protocols: [normalizedProtocol(flow)],
     directions: flow.direction ? [flow.direction.toLowerCase()] : ["outgoing"],
     methods: flow.httpMethod ? [flow.httpMethod.toUpperCase()] : [],
+    transports: [(flow.transport || flow.protocol || "tcp").toLowerCase()],
+    processes: (flow.processComms || []).slice(0, 1).map((value) => value.toLowerCase()),
     host_suffixes: host ? [host] : [],
     min_score: host ? 70 : 40,
   });
@@ -169,6 +199,11 @@ const observations = computed(() => {
     Path: "",
     Headers: {},
     ContentType: "",
+    Transport: (flow.transport || flow.protocol || "").toLowerCase(),
+    Family: flow.dstIp ? (flow.dstIp.includes(":") ? "ipv6" : "ipv4") : "",
+    RemoteIP: flow.dstIp || "",
+    RemotePort: flow.dstPort || 0,
+    Process: (flow.processComms?.[0] || "").toLowerCase(),
   }));
 });
 
@@ -265,7 +300,7 @@ onMounted(() => void loadProfiles());
       <a-col :xs="24" :md="8">
         <a-card size="small" :loading="loading">
           <a-statistic title="Effective profiles" :value="state?.effectiveCount || 0" />
-          <div class="meta-line">{{ state?.builtinCount || 0 }} built-in + {{ state?.customCount || 0 }} custom</div>
+          <div class="meta-line">{{ state?.builtinCount || 0 }} built-in + {{ state?.customCount || 0 }} custom · {{ state?.matcher.dispatchBuckets || 0 }} index buckets · max {{ state?.matcher.maxBucket || 0 }}/bucket</div>
         </a-card>
       </a-col>
       <a-col :xs="24" :md="8">
@@ -326,7 +361,9 @@ onMounted(() => void loadProfiles());
             <div v-if="record.host_suffixes?.length">host: {{ record.host_suffixes.join(', ') }}</div>
             <div v-if="record.path_prefixes?.length">path: {{ record.path_prefixes.join(', ') }}</div>
             <div v-if="record.methods?.length">method: {{ record.methods.join(', ') }}</div>
-            <span v-if="!record.host_suffixes?.length && !record.path_prefixes?.length && !record.methods?.length" class="meta-line">score-based generic rule</span>
+            <div v-if="record.remote_ports?.length">port: {{ record.remote_ports.join(', ') }}</div>
+            <div v-if="record.processes?.length">process: {{ record.processes.join(', ') }}</div>
+            <span v-if="!record.host_suffixes?.length && !record.path_prefixes?.length && !record.methods?.length && !record.remote_ports?.length && !record.processes?.length" class="meta-line">score-based generic rule</span>
           </template>
           <template v-else-if="column.key === 'actions'">
             <a-space>
@@ -388,6 +425,29 @@ onMounted(() => void loadProfiles());
         </a-row>
         <a-form-item label="HTTP methods">
           <a-select v-model:value="draft.methods" mode="multiple" :options="(state?.capabilities.methods || []).map(value => ({ value, label: value }))" @change="previewDraft" />
+        </a-form-item>
+
+        <a-divider orientation="left">Socket / process scope</a-divider>
+        <a-row :gutter="12">
+          <a-col :xs="24" :md="12">
+            <a-form-item label="Transports">
+              <a-select v-model:value="draft.transports" mode="multiple" :options="(state?.capabilities.transports || []).map(value => ({ value, label: value }))" @change="previewDraft" />
+            </a-form-item>
+          </a-col>
+          <a-col :xs="24" :md="12">
+            <a-form-item label="Address families">
+              <a-select v-model:value="draft.families" mode="multiple" :options="(state?.capabilities.families || []).map(value => ({ value, label: value }))" @change="previewDraft" />
+            </a-form-item>
+          </a-col>
+        </a-row>
+        <a-form-item label="Remote ports">
+          <a-input v-model:value="remotePortsText" placeholder="443, 8443" @blur="previewDraft" />
+        </a-form-item>
+        <a-form-item label="Remote CIDRs">
+          <a-select v-model:value="draft.remote_cidrs" mode="tags" placeholder="10.0.0.0/8" @change="previewDraft" />
+        </a-form-item>
+        <a-form-item label="Processes">
+          <a-select v-model:value="draft.processes" mode="tags" placeholder="curl" @change="previewDraft" />
         </a-form-item>
 
         <a-divider orientation="left">API fingerprint</a-divider>

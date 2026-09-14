@@ -266,6 +266,8 @@ struct exit_meta {
     u64 start_ns;
     u32 capture_flags;
     u32 capture_reserved;
+    u32 socket_type;
+    u32 socket_reserved;
 };
 
 struct {
@@ -633,6 +635,7 @@ static __always_inline void fill_network_meta_from_socket_direction(struct exit_
     meta->net_bytes = bytes;
     meta->net_port = socket->remote_port;
     meta->capture_flags |= socket->provenance_flags;
+    meta->socket_type = socket->sock_type;
     __builtin_memcpy(meta->net_addr, socket->remote_addr, sizeof(meta->net_addr));
 }
 
@@ -658,28 +661,9 @@ static __always_inline int looks_like_http1_method(const char *head, u32 len) {
 // uses bpf_probe_read_kernel_str(), so bytes after that delimiter never cross
 // into the ringbuf event. This avoids verifier state explosion from clearing a
 // dynamic 255-byte tail one byte at a time.
-static __always_inline u32 capture_http1_request_line(char *dst, const void *user_buf, u32 len) {
-    if (!dst || !user_buf || len < 4) return 0;
-    char head[8] = {};
-    u32 head_len = len < sizeof(head) ? len : sizeof(head);
-    if (bpf_probe_read_user(head, head_len, user_buf) < 0) return 0;
-    if (!looks_like_http1_method(head, head_len)) return 0;
-
-    u32 capture_len = len;
-    if (capture_len > MAX_PATH_LEN - 1) capture_len = MAX_PATH_LEN - 1;
-    if (bpf_probe_read_user(dst, capture_len, user_buf) < 0) return 0;
-#pragma clang loop unroll(disable)
-    for (int i = 0; i < MAX_PATH_LEN - 1; i++) {
-        if ((u32)i >= capture_len) break;
-        char c = dst[i];
-        if (c == '?' || c == '#' || c == '\r' || c == '\n') {
-            dst[i] = '\0';
-            return (u32)i;
-        }
-    }
-    dst[capture_len] = '\0';
-    return capture_len;
-}
+#define HTTP1_START_NONE 0
+#define HTTP1_START_REQUEST 1
+#define HTTP1_START_RESPONSE 2
 
 static __always_inline int looks_like_http1_response(const char *head, u32 len) {
     if (!head || len < 8) return 0;
@@ -687,20 +671,32 @@ static __always_inline int looks_like_http1_response(const char *head, u32 len) 
            head[4] == '/' && head[5] == '1' && head[6] == '.';
 }
 
-static __always_inline u32 capture_http1_response_line(char *dst, const void *user_buf, u32 len) {
-    if (!dst || !user_buf || len < 8) return 0;
+// Classify and copy an HTTP/1 start-line with a single 8-byte probe. The old
+// request-then-response path probed non-HTTP buffers twice. This helper keeps
+// identical privacy semantics while halving the head probes on the hot path.
+static __always_inline u32 capture_http1_start_line(char *dst, const void *user_buf, u32 len, u32 *kind) {
+    if (kind) *kind = HTTP1_START_NONE;
+    if (!dst || !user_buf || len < 4 || !kind) return 0;
     char head[8] = {};
     u32 head_len = len < sizeof(head) ? len : sizeof(head);
     if (bpf_probe_read_user(head, head_len, user_buf) < 0) return 0;
-    if (!looks_like_http1_response(head, head_len)) return 0;
+
+    int request = looks_like_http1_method(head, head_len);
+    int response = !request && looks_like_http1_response(head, head_len);
+    if (!request && !response) return 0;
+    *kind = request ? HTTP1_START_REQUEST : HTTP1_START_RESPONSE;
+
     u32 capture_len = len;
     if (capture_len > MAX_PATH_LEN - 1) capture_len = MAX_PATH_LEN - 1;
-    if (bpf_probe_read_user(dst, capture_len, user_buf) < 0) return 0;
+    if (bpf_probe_read_user(dst, capture_len, user_buf) < 0) {
+        *kind = HTTP1_START_NONE;
+        return 0;
+    }
 #pragma clang loop unroll(disable)
     for (int i = 0; i < MAX_PATH_LEN - 1; i++) {
         if ((u32)i >= capture_len) break;
         char c = dst[i];
-        if (c == '\r' || c == '\n') {
+        if (c == '\r' || c == '\n' || (request && (c == '?' || c == '#'))) {
             dst[i] = '\0';
             return (u32)i;
         }
@@ -734,6 +730,7 @@ static __always_inline void fill_from_exit_meta(struct event *e, u64 pid_tgid, s
     e->net_bytes = meta->net_bytes;
     e->net_port = meta->net_port;
     e->kernel_capture_flags = meta->capture_flags;
+    e->kernel_capture_reserved = meta->socket_type;
     __builtin_memcpy(e->net_addr, meta->net_addr, 16);
 }
 

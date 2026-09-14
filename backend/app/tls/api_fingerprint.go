@@ -55,6 +55,8 @@ func annotateTLSAPIFingerprint(event *TLSPlaintextEvent) {
 		Path:        event.RequestPath,
 		Headers:     event.Headers,
 		ContentType: event.ContentType,
+		Transport:   "tcp",
+		Process:     event.Comm,
 	})
 	if ok {
 		event.APIProfile = match.ProfileID

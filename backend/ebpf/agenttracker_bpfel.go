@@ -38,6 +38,8 @@ type AgentTrackerExitMeta struct {
 	StartNs         uint64
 	CaptureFlags    uint32
 	CaptureReserved uint32
+	SocketType      uint32
+	SocketReserved  uint32
 }
 
 type AgentTrackerExitPathData struct {

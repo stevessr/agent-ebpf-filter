@@ -40,7 +40,7 @@ type BpfEvent struct {
 	KernelDroppedSinceLast                 uint64
 	KernelReserveFailuresTotal             uint64
 	KernelCaptureFlags                     uint32
-	_                                      [4]byte // append-only capture ABI alignment
+	KernelSocketType                       uint32 // reuses append-only capture ABI word; 1=stream, 2=datagram, 3=raw
 }
 
 const (

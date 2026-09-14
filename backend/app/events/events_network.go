@@ -337,13 +337,29 @@ func BuildKernelEventFromRaw(event *BpfEvent) *pb.Event {
 		if event.KernelCaptureFlags&kernelCaptureIncoming != 0 {
 			direction = "incoming"
 		}
+		transport := ""
+		switch event.KernelSocketType {
+		case 1:
+			transport = "tcp"
+			out.SockType = "SOCK_STREAM"
+		case 2:
+			transport = "udp"
+			out.SockType = "SOCK_DGRAM"
+		case 3:
+			out.SockType = "SOCK_RAW"
+		}
+		remoteIP := ""
+		if addr := NetworkIP(event.NetFamily, event.NetAddr); addr != nil {
+			remoteIP = addr.String()
+		}
 		if ok && startLine.Kind == "request" {
 			out.HttpMethod = startLine.Method
 			out.HttpPath = startLine.Path
 			out.ExtraPath = startLine.Method + " " + startLine.Path
 			if match, matched := captureprofile.Default.Match(captureprofile.Observation{
 				Source: "kernel_socket_prefix", Protocol: "http1", Direction: direction,
-				Method: startLine.Method, Path: startLine.Path,
+				Method: startLine.Method, Path: startLine.Path, Transport: transport,
+				Family: NetworkFamilyLabel(event.NetFamily), RemoteIP: remoteIP, RemotePort: event.NetPort, Process: comm,
 			}); matched {
 				out.ApiProfile = match.ProfileID
 				out.ApiVendor = match.Vendor

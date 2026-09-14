@@ -96,3 +96,33 @@ func TestMergeProfilesCustomOverridesBuiltinID(t *testing.T) {
 		t.Fatalf("overlay override failed: ok=%v match=%+v", ok, match)
 	}
 }
+
+func TestRegistryIndexedSelectorsAndMatchAll(t *testing.T) {
+	registry := NewRegistry([]Profile{
+		{ID: "generic", Vendor: "generic", Protocols: []string{"http1"}, Methods: []string{"POST"}, PathPrefixes: []string{"/v1"}, MinScore: 35},
+		{ID: "scoped", Vendor: "scoped", Sources: []string{"kernel_socket_prefix"}, Protocols: []string{"http1"}, Directions: []string{"outgoing"}, Methods: []string{"POST"}, Transports: []string{"tcp"}, Families: []string{"ipv4"}, RemotePorts: []uint32{8443}, RemoteCIDRs: []string{"10.0.0.0/8"}, Processes: []string{"curl"}, PathPrefixes: []string{"/v1"}, MinScore: 70},
+	})
+	observation := Observation{Source: "kernel_socket_prefix", Protocol: "http1", Direction: "outgoing", Method: "POST", Transport: "tcp", RemoteIP: "10.1.2.3", RemotePort: 8443, Process: "curl", Path: "/v1/jobs"}
+	match, ok := registry.Match(observation)
+	if !ok || match.ProfileID != "scoped" {
+		t.Fatalf("indexed scoped match failed: ok=%v match=%+v", ok, match)
+	}
+	matches := registry.MatchAll(observation)
+	if len(matches) != 2 || matches[0].ProfileID != "scoped" || matches[1].ProfileID != "generic" {
+		t.Fatalf("unexpected MatchAll: %+v", matches)
+	}
+	stats := registry.Stats()
+	if stats.Profiles != 2 || stats.DispatchBuckets == 0 || stats.Generation == 0 {
+		t.Fatalf("unexpected registry stats: %+v", stats)
+	}
+}
+
+func TestRegistryRejectsInvalidNetworkSelectors(t *testing.T) {
+	registry := NewRegistry(nil)
+	if err := registry.Replace([]Profile{{ID: "bad-port", Vendor: "x", RemotePorts: []uint32{70000}}}); err == nil {
+		t.Fatal("expected invalid remote port to be rejected")
+	}
+	if err := registry.Replace([]Profile{{ID: "bad-cidr", Vendor: "x", RemoteCIDRs: []string{"not-a-cidr"}}}); err == nil {
+		t.Fatal("expected invalid CIDR to be rejected")
+	}
+}
