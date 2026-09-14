@@ -68,3 +68,15 @@ func BenchmarkRegistryMatchLinear512(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkRegistryMatchCompact512(b *testing.B) {
+	registry := benchmarkRegistry(512)
+	observation := Observation{Source: "kernel_socket_prefix", Protocol: "http1", Direction: "outgoing", Method: "POST", Transport: "tcp", Host: "target.example.test", Path: "/v1/jobs/42"}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if match, ok := registry.MatchCompact(observation); !ok || match.ProfileID != "target" {
+			b.Fatal("target profile did not match")
+		}
+	}
+}

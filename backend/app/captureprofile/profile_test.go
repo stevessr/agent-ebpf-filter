@@ -126,3 +126,26 @@ func TestRegistryRejectsInvalidNetworkSelectors(t *testing.T) {
 		t.Fatal("expected invalid CIDR to be rejected")
 	}
 }
+
+func TestRegistryMatchCompactEquivalent(t *testing.T) {
+	registry := NewRegistry([]Profile{{
+		ID: "compact", Vendor: "acme", Product: "jobs", Operation: "create",
+		Sources: []string{"kernel_socket_prefix"}, Protocols: []string{"http1"}, Methods: []string{"POST"},
+		HostSuffixes: []string{"api.example.test"}, PathPrefixes: []string{"/v1/jobs"}, MinScore: 90,
+	}})
+	observation := Observation{Source: "kernel_socket_prefix", Protocol: "http1", Method: "POST", Host: "api.example.test", Path: "/v1/jobs/42"}
+	detailed, ok := registry.Match(observation)
+	if !ok || len(detailed.MatchedBy) == 0 {
+		t.Fatalf("detailed match missing diagnostics: ok=%v match=%+v", ok, detailed)
+	}
+	compact, ok := registry.MatchCompact(observation)
+	if !ok {
+		t.Fatal("compact match failed")
+	}
+	if compact.ProfileID != detailed.ProfileID || compact.Score != detailed.Score || compact.Confidence != detailed.Confidence || compact.Vendor != detailed.Vendor || compact.Product != detailed.Product || compact.Operation != detailed.Operation {
+		t.Fatalf("compact mismatch: detailed=%+v compact=%+v", detailed, compact)
+	}
+	if compact.MatchedBy != nil {
+		t.Fatalf("compact match should omit diagnostics: %+v", compact.MatchedBy)
+	}
+}

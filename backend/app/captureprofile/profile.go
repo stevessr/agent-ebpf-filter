@@ -141,7 +141,21 @@ func (r *Registry) Match(observation Observation) (Match, bool) {
 	if snapshot == nil || snapshot.index == nil {
 		return Match{}, false
 	}
-	return matchIndexedSnapshot(snapshot, observation)
+	return matchIndexedSnapshot(snapshot, observation, true)
+}
+
+// MatchCompact runs the same matcher as Match but omits diagnostic MatchedBy
+// materialization. Production capture paths use this to avoid per-event
+// diagnostic slice allocation; control-plane preview keeps using Match.
+func (r *Registry) MatchCompact(observation Observation) (Match, bool) {
+	if r == nil {
+		return Match{}, false
+	}
+	snapshot := r.snapshot.Load()
+	if snapshot == nil || snapshot.index == nil {
+		return Match{}, false
+	}
+	return matchIndexedSnapshot(snapshot, observation, false)
 }
 
 func ParseJSON(data []byte) ([]Profile, error) {

@@ -174,14 +174,14 @@ func dispatchCandidateKeys(observation preparedObservation) ([32]dispatchKey, in
 	return keys, n
 }
 
-func matchIndexedSnapshot(snapshot *profileSnapshot, observation Observation) (Match, bool) {
+func matchIndexedSnapshot(snapshot *profileSnapshot, observation Observation, detailed bool) (Match, bool) {
 	prepared := prepareObservation(observation)
 	keys, count := dispatchCandidateKeys(prepared)
 	best := Match{}
 	matched := false
 	for i := 0; i < count; i++ {
 		for _, profileIndex := range snapshot.index.buckets[keys[i]] {
-			candidate, ok := matchCompiledProfile(snapshot.index.compiled[profileIndex], prepared)
+			candidate, ok := matchCompiledProfile(snapshot.index.compiled[profileIndex], prepared, detailed)
 			if !ok {
 				continue
 			}
@@ -207,7 +207,7 @@ func (r *Registry) MatchAll(observation Observation) []Match {
 	matches := make([]Match, 0, 4)
 	for i := 0; i < count; i++ {
 		for _, profileIndex := range snapshot.index.buckets[keys[i]] {
-			if candidate, ok := matchCompiledProfile(snapshot.index.compiled[profileIndex], prepared); ok {
+			if candidate, ok := matchCompiledProfile(snapshot.index.compiled[profileIndex], prepared, true); ok {
 				matches = append(matches, candidate)
 			}
 		}
@@ -254,7 +254,7 @@ func containsPort(items []uint32, value uint32) bool {
 	return index < len(items) && items[index] == value
 }
 
-func matchCompiledProfile(compiled compiledProfile, observation preparedObservation) (Match, bool) {
+func matchCompiledProfile(compiled compiledProfile, observation preparedObservation, detailed bool) (Match, bool) {
 	profile := compiled.profile
 	score := 0
 	var matched uint32
@@ -421,6 +421,17 @@ func matchCompiledProfile(compiled compiledProfile, observation preparedObservat
 		return Match{}, false
 	}
 
+	confidence := uint32(score)
+	if confidence > 100 {
+		confidence = 100
+	}
+	if !detailed {
+		return Match{
+			ProfileID: profile.ID, Vendor: profile.Vendor, Product: profile.Product, Operation: profile.Operation,
+			Confidence: confidence, Score: score,
+		}, true
+	}
+
 	matchedBy := make([]string, 0, 12+len(profile.RequiredHeaders))
 	fields := []struct {
 		bit   uint32
@@ -438,10 +449,6 @@ func matchCompiledProfile(compiled compiledProfile, observation preparedObservat
 	}
 	for _, header := range profile.RequiredHeaders {
 		matchedBy = append(matchedBy, "header:"+header)
-	}
-	confidence := uint32(score)
-	if confidence > 100 {
-		confidence = 100
 	}
 	return Match{
 		ProfileID: profile.ID, Vendor: profile.Vendor, Product: profile.Product, Operation: profile.Operation,

@@ -356,7 +356,7 @@ func BuildKernelEventFromRaw(event *BpfEvent) *pb.Event {
 			out.HttpMethod = startLine.Method
 			out.HttpPath = startLine.Path
 			out.ExtraPath = startLine.Method + " " + startLine.Path
-			if match, matched := captureprofile.Default.Match(captureprofile.Observation{
+			if match, matched := captureprofile.Default.MatchCompact(captureprofile.Observation{
 				Source: "kernel_socket_prefix", Protocol: "http1", Direction: direction,
 				Method: startLine.Method, Path: startLine.Path, Transport: transport,
 				Family: NetworkFamilyLabel(event.NetFamily), RemoteIP: remoteIP, RemotePort: event.NetPort, Process: comm,

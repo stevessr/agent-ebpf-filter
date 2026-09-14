@@ -46,7 +46,7 @@ func annotateTLSAPIFingerprint(event *TLSPlaintextEvent) {
 	event.AppProtocol = protocol
 	event.RequestPath = captureprofile.RequestPath(event.URL)
 
-	match, ok := captureprofile.Default.Match(captureprofile.Observation{
+	match, ok := captureprofile.Default.MatchCompact(captureprofile.Observation{
 		Source:      event.CaptureSource,
 		Protocol:    protocol,
 		Direction:   event.Direction,
