@@ -149,3 +149,40 @@ func TestRegistryMatchCompactEquivalent(t *testing.T) {
 		t.Fatalf("compact match should omit diagnostics: %+v", compact.MatchedBy)
 	}
 }
+
+func TestRequestPathFastPathAndAbsoluteURL(t *testing.T) {
+	cases := map[string]string{
+		"/v1/jobs/42":                                 "/v1/jobs/42",
+		"/v1/jobs/42?token=secret#fragment":           "/v1/jobs/42",
+		"v1/jobs/42?token=secret":                     "v1/jobs/42",
+		"https://api.example.test/v1/jobs/42?token=x": "/v1/jobs/42",
+		"//api.example.test/v1/jobs/42?token=x":       "/v1/jobs/42",
+	}
+	for input, want := range cases {
+		if got := RequestPath(input); got != want {
+			t.Fatalf("RequestPath(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
+func TestRegistryMatchCompactZeroAllocsForPreparedPath(t *testing.T) {
+	registry := NewRegistry([]Profile{{
+		ID: "zero-alloc", Vendor: "acme", Product: "jobs", Operation: "create",
+		Sources: []string{"kernel_socket_prefix"}, Protocols: []string{"http1"},
+		Directions: []string{"outgoing"}, Methods: []string{"POST"}, Transports: []string{"tcp"},
+		HostSuffixes: []string{"target.example.test"}, PathPrefixes: []string{"/v1/jobs"}, MinScore: 90,
+	}})
+	observation := Observation{
+		Source: "kernel_socket_prefix", Protocol: "http1", Direction: "outgoing", Method: "POST",
+		Transport: "tcp", Host: "target.example.test", Path: "/v1/jobs/42",
+	}
+	allocs := testing.AllocsPerRun(1000, func() {
+		match, ok := registry.MatchCompact(observation)
+		if !ok || match.ProfileID != "zero-alloc" {
+			panic("compact target profile did not match")
+		}
+	})
+	if allocs != 0 {
+		t.Fatalf("MatchCompact hot path allocations = %.2f, want 0", allocs)
+	}
+}

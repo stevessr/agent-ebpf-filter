@@ -361,6 +361,19 @@ func RequestPath(raw string) string {
 	if raw == "" {
 		return ""
 	}
+
+	// Capture parsers normally hand us a path that has already been separated
+	// from its authority. Avoid net/url.Parse on this overwhelmingly common hot
+	// path: it allocates even for simple strings such as "/v1/jobs/42". Only
+	// absolute URLs and authority-form references need URL parsing.
+	needsURLParse := strings.HasPrefix(raw, "//") || strings.Contains(raw, "://")
+	if !needsURLParse {
+		if index := strings.IndexAny(raw, "?#"); index >= 0 {
+			raw = raw[:index]
+		}
+		return raw
+	}
+
 	if parsed, err := url.Parse(raw); err == nil {
 		if parsed.Path != "" {
 			return parsed.EscapedPath()
