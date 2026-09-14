@@ -68,8 +68,8 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
     bpf_get_current_comm(&comm, sizeof(comm)); \
     u32 tag_id = get_tag_id(pid, comm, NULL); \
     if (tag_id == 0) return 0; \
-    struct exit_meta meta = {.type = type_enum, .tag_id = tag_id}; \
-    store_exit_meta(pid_tgid, &meta); \
+    struct exit_compact_meta meta = {.type = type_enum, .tag_id = tag_id}; \
+    store_exit_compact_meta(pid_tgid, &meta); \
     return 0; \
 }
 
@@ -88,18 +88,33 @@ int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) 
     return 0; \
 }
 
+#define DEFINE_COMPACT_STATIC_EXIT_HANDLER(name, path_str) \
+SEC("tracepoint/syscalls/sys_exit_" #name) \
+int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) { \
+    u64 pid_tgid = bpf_get_current_pid_tgid(); \
+    struct exit_compact_meta meta = {}; \
+    if (!consume_exit_compact_meta(pid_tgid, &meta)) return 0; \
+    struct event *e = reserve_event(); \
+    if (!e) return 0; \
+    fill_from_exit_compact_meta(e, pid_tgid, &meta); \
+    e->retval = ctx->ret; \
+    __builtin_memcpy(e->path, path_str, sizeof(path_str) - 1); \
+    submit_event(e); \
+    return 0; \
+}
+
 // Define all simple handlers with one line each
 DEFINE_SIMPLE_ENTER_HANDLER(ioctl, TYPE_IOCTL)
-DEFINE_STATIC_EXIT_HANDLER(ioctl, "Special Resource Interaction (ioctl)")
+DEFINE_COMPACT_STATIC_EXIT_HANDLER(ioctl, "Special Resource Interaction (ioctl)")
 
 DEFINE_SIMPLE_ENTER_HANDLER(chmod, TYPE_CHMOD)
-DEFINE_STATIC_EXIT_HANDLER(chmod, "chmod")
+DEFINE_COMPACT_STATIC_EXIT_HANDLER(chmod, "chmod")
 
 DEFINE_SIMPLE_ENTER_HANDLER(chown, TYPE_CHOWN)
-DEFINE_STATIC_EXIT_HANDLER(chown, "chown")
+DEFINE_COMPACT_STATIC_EXIT_HANDLER(chown, "chown")
 
 DEFINE_SIMPLE_ENTER_HANDLER(mknod, TYPE_MKNOD)
-DEFINE_STATIC_EXIT_HANDLER(mknod, "mknod")
+DEFINE_COMPACT_STATIC_EXIT_HANDLER(mknod, "mknod")
 
 SEC("tracepoint/syscalls/sys_enter_socket")
 int tracepoint__syscalls__sys_enter_socket(struct trace_event_raw_sys_enter *ctx) {
@@ -109,28 +124,28 @@ int tracepoint__syscalls__sys_enter_socket(struct trace_event_raw_sys_enter *ctx
     bpf_get_current_comm(&comm, sizeof(comm));
     u32 tag_id = get_tag_id(tgid, comm, NULL);
     if (tag_id == 0) return 0;
-    struct exit_meta meta = {
+    struct exit_compact_meta meta = {
         .type = TYPE_SOCKET,
         .tag_id = tag_id,
         .extra1 = (u32)ctx->args[0],
         .extra2 = (u32)ctx->args[1],
         .extra3 = (u32)ctx->args[2],
     };
-    store_exit_meta(pid_tgid, &meta);
+    store_exit_compact_meta(pid_tgid, &meta);
     return 0;
 }
 
 SEC("tracepoint/syscalls/sys_exit_socket")
 int tracepoint__syscalls__sys_exit_socket(struct trace_event_raw_sys_exit *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    struct exit_meta meta = {};
-    if (!consume_exit_meta(pid_tgid, &meta)) return 0;
+    struct exit_compact_meta meta = {};
+    if (!consume_exit_compact_meta(pid_tgid, &meta)) return 0;
     if (ctx->ret >= 0) {
         remember_socket_fd((u32)(pid_tgid >> 32), (s32)ctx->ret, meta.extra1, meta.extra2, (u32)meta.extra3);
     }
     struct event *e = reserve_event();
     if (!e) return 0;
-    fill_from_exit_meta(e, pid_tgid, &meta);
+    fill_from_exit_compact_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
     __builtin_memcpy(e->path, "socket create", 14);
     submit_event(e);
@@ -235,16 +250,16 @@ int tracepoint__syscalls__sys_enter_close(struct trace_event_raw_sys_enter *ctx)
     bpf_get_current_comm(&comm, sizeof(comm));
     u32 tag_id = get_tag_id(tgid, comm, NULL);
     if (tag_id == 0) return 0;
-    struct exit_meta meta = {.type = TYPE_SOCKET, .tag_id = tag_id, .extra2 = (u32)ctx->args[0]};
-    store_exit_meta(pid_tgid, &meta);
+    struct exit_compact_meta meta = {.type = TYPE_SOCKET, .tag_id = tag_id, .extra2 = (u32)ctx->args[0]};
+    store_exit_compact_meta(pid_tgid, &meta);
     return 0;
 }
 
 SEC("tracepoint/syscalls/sys_exit_close")
 int tracepoint__syscalls__sys_exit_close(struct trace_event_raw_sys_exit *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    struct exit_meta meta = {};
-    if (!consume_exit_meta(pid_tgid, &meta)) return 0;
+    struct exit_compact_meta meta = {};
+    if (!consume_exit_compact_meta(pid_tgid, &meta)) return 0;
     if (ctx->ret == 0) forget_socket_fd((u32)(pid_tgid >> 32), (s32)meta.extra2);
     return 0;
 }
@@ -260,15 +275,15 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
     bpf_get_current_comm(&comm, sizeof(comm)); \
     u32 tag_id = get_tag_id(tgid, comm, NULL); \
     if (tag_id == 0) return 0; \
-    struct exit_meta meta = {.type = TYPE_SOCKET, .tag_id = tag_id, .extra1 = (u32)ctx->args[0]}; \
-    store_exit_meta(pid_tgid, &meta); \
+    struct exit_compact_meta meta = {.type = TYPE_SOCKET, .tag_id = tag_id, .extra1 = (u32)ctx->args[0]}; \
+    store_exit_compact_meta(pid_tgid, &meta); \
     return 0; \
 } \
 SEC("tracepoint/syscalls/sys_exit_" #name) \
 int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) { \
     u64 pid_tgid = bpf_get_current_pid_tgid(); \
-    struct exit_meta meta = {}; \
-    if (!consume_exit_meta(pid_tgid, &meta)) return 0; \
+    struct exit_compact_meta meta = {}; \
+    if (!consume_exit_compact_meta(pid_tgid, &meta)) return 0; \
     if (ctx->ret >= 0) duplicate_socket_fd((u32)(pid_tgid >> 32), (s32)meta.extra1, (s32)ctx->ret, SOCKET_CAPTURE_FD_DUPLICATED); \
     return 0; \
 }
@@ -325,13 +340,13 @@ DEFINE_ACCEPT_HANDLER(accept, TYPE_ACCEPT)
 DEFINE_ACCEPT_HANDLER(accept4, TYPE_ACCEPT4)
 
 DEFINE_SIMPLE_ENTER_HANDLER(clone, TYPE_CLONE)
-DEFINE_STATIC_EXIT_HANDLER(clone, "process clone")
+DEFINE_COMPACT_STATIC_EXIT_HANDLER(clone, "process clone")
 
 DEFINE_SIMPLE_ENTER_HANDLER(wait4, TYPE_WAIT4)
-DEFINE_STATIC_EXIT_HANDLER(wait4, "process wait4")
+DEFINE_COMPACT_STATIC_EXIT_HANDLER(wait4, "process wait4")
 
 DEFINE_SIMPLE_ENTER_HANDLER(exit_group, TYPE_EXIT)
-DEFINE_STATIC_EXIT_HANDLER(exit_group, "process exit")
+DEFINE_COMPACT_STATIC_EXIT_HANDLER(exit_group, "process exit")
 
 SEC("tracepoint/syscalls/sys_enter_read")
 int tracepoint__syscalls__sys_enter_read(struct trace_event_raw_sys_enter *ctx) {
@@ -741,13 +756,13 @@ int tracepoint__syscalls__sys_exit_recvmsg(struct trace_event_raw_sys_exit *ctx)
 }
 
 DEFINE_SIMPLE_ENTER_HANDLER(open, TYPE_OPEN)
-DEFINE_STATIC_EXIT_HANDLER(open, "file open")
+DEFINE_COMPACT_STATIC_EXIT_HANDLER(open, "file open")
 
 DEFINE_SIMPLE_ENTER_HANDLER(rename, TYPE_RENAME)
-DEFINE_STATIC_EXIT_HANDLER(rename, "file rename")
+DEFINE_COMPACT_STATIC_EXIT_HANDLER(rename, "file rename")
 
 DEFINE_SIMPLE_ENTER_HANDLER(link, TYPE_LINK)
-DEFINE_STATIC_EXIT_HANDLER(link, "file link")
+DEFINE_COMPACT_STATIC_EXIT_HANDLER(link, "file link")
 
 DEFINE_SIMPLE_ENTER_HANDLER(symlink, TYPE_SYMLINK)
-DEFINE_STATIC_EXIT_HANDLER(symlink, "file symlink")
+DEFINE_COMPACT_STATIC_EXIT_HANDLER(symlink, "file symlink")

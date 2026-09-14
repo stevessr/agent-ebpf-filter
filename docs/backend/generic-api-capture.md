@@ -174,3 +174,13 @@ operations and recognized HTTP start-lines continue to use the 512-byte
 cache footprint touched by common one-path syscalls; it deliberately avoids
 re-reading user pointers on sys_exit, which could observe mutated or unmapped
 path memory.
+
+### Compact enter/exit correlation
+
+Generic filesystem/process syscalls and scalar descriptor lifecycle operations
+now correlate through a 32-byte `exit_compact_ctx` value instead of the
+network-capable 88-byte `exit_meta`. Socket creation, close, and dup lineage are
+also eligible because they only carry scalar fd metadata. Network endpoint,
+accepted-peer, payload-pointer, and L7 capture paths continue to use the full
+context. This cuts hash-map value bandwidth by about 64% for the compact class
+without changing event ABI or enter/exit semantics.

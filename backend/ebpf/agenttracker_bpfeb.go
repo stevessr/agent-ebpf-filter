@@ -22,6 +22,16 @@ type AgentTrackerCollectorStats struct {
 	AuditGeneration           uint64
 }
 
+type AgentTrackerExitCompactMeta struct {
+	_       structs.HostLayout
+	Type    uint32
+	TagId   uint32
+	Extra1  uint32
+	Extra2  uint32
+	Extra3  uint64
+	StartNs uint64
+}
+
 type AgentTrackerExitMeta struct {
 	_               structs.HostLayout
 	Type            uint32
@@ -337,6 +347,7 @@ type AgentTrackerMapSpecs struct {
 	AgentPids         *ebpf.MapSpec `ebpf:"agent_pids"`
 	CollectorStats    *ebpf.MapSpec `ebpf:"collector_stats"`
 	Events            *ebpf.MapSpec `ebpf:"events"`
+	ExitCompactCtx    *ebpf.MapSpec `ebpf:"exit_compact_ctx"`
 	ExitCtx           *ebpf.MapSpec `ebpf:"exit_ctx"`
 	ExitPathBuf       *ebpf.MapSpec `ebpf:"exit_path_buf"`
 	ExitPathCtx       *ebpf.MapSpec `ebpf:"exit_path_ctx"`
@@ -378,6 +389,7 @@ type AgentTrackerMaps struct {
 	AgentPids         *ebpf.Map `ebpf:"agent_pids"`
 	CollectorStats    *ebpf.Map `ebpf:"collector_stats"`
 	Events            *ebpf.Map `ebpf:"events"`
+	ExitCompactCtx    *ebpf.Map `ebpf:"exit_compact_ctx"`
 	ExitCtx           *ebpf.Map `ebpf:"exit_ctx"`
 	ExitPathBuf       *ebpf.Map `ebpf:"exit_path_buf"`
 	ExitPathCtx       *ebpf.Map `ebpf:"exit_path_ctx"`
@@ -395,6 +407,7 @@ func (m *AgentTrackerMaps) Close() error {
 		m.AgentPids,
 		m.CollectorStats,
 		m.Events,
+		m.ExitCompactCtx,
 		m.ExitCtx,
 		m.ExitPathBuf,
 		m.ExitPathCtx,

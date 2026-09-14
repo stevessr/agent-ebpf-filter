@@ -279,6 +279,27 @@ struct {
     __type(value, struct exit_meta);
 } exit_ctx SEC(".maps");
 
+// Most filesystem/process/descriptor correlation needs only scalar metadata.
+// Keep it out of the network-capable 88-byte exit_meta map to reduce hash-map
+// value bandwidth on common syscalls without weakening enter/exit correlation.
+struct exit_compact_meta {
+    u32 type;
+    u32 tag_id;
+    u32 extra1;
+    u32 extra2;
+    u64 extra3;
+    u64 start_ns;
+};
+
+_Static_assert(sizeof(struct exit_compact_meta) == 32, "compact exit context ABI changed");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 8192);
+    __type(key, u64);
+    __type(value, struct exit_compact_meta);
+} exit_compact_ctx SEC(".maps");
+
 struct socket_fd_key {
     u32 tgid;
     s32 fd;
@@ -590,6 +611,10 @@ static __always_inline void store_exit_meta(u64 pid_tgid, struct exit_meta *meta
     bpf_map_update_elem(&exit_ctx, &pid_tgid, meta, BPF_ANY);
 }
 
+static __always_inline void store_exit_compact_meta(u64 pid_tgid, struct exit_compact_meta *meta) {
+    bpf_map_update_elem(&exit_compact_ctx, &pid_tgid, meta, BPF_ANY);
+}
+
 static __always_inline struct socket_fd_meta *lookup_socket_fd_direct(u32 tgid, s32 fd) {
     struct socket_fd_key key = {.tgid = tgid, .fd = fd};
     return bpf_map_lookup_elem(&socket_fds, &key);
@@ -741,6 +766,28 @@ static __always_inline u32 capture_http1_start_line(char *dst, const void *user_
     }
     dst[capture_len] = '\0';
     return capture_len;
+}
+
+// Compact correlation for generic filesystem/process/fd syscalls. These events
+// intentionally carry no network endpoint or capture-provenance fields.
+static __always_inline u32 consume_exit_compact_meta(u64 pid_tgid, struct exit_compact_meta *meta) {
+    struct exit_compact_meta *m = bpf_map_lookup_elem(&exit_compact_ctx, &pid_tgid);
+    if (!m) return 0;
+    __builtin_memcpy(meta, m, sizeof(*meta));
+    bpf_map_delete_elem(&exit_compact_ctx, &pid_tgid);
+    return meta->tag_id;
+}
+
+static __always_inline void fill_from_exit_compact_meta(struct event *e, u64 pid_tgid, struct exit_compact_meta *meta) {
+    char comm[TASK_COMM_LEN];
+    bpf_get_current_comm(&comm, sizeof(comm));
+    fill_base_info(e, (u32)(pid_tgid >> 32), meta->tag_id, comm);
+    e->type = meta->type;
+    e->retval = 0;
+    e->duration_ns = 0;
+    e->extra1 = meta->extra1;
+    e->extra2 = meta->extra2;
+    e->extra3 = meta->extra3;
 }
 
 // Convenience inline for sys_exit handlers that only need pid_tgid correlation
@@ -1027,11 +1074,11 @@ int tracepoint__syscalls__sys_enter_execve(struct trace_event_raw_sys_enter *ctx
     u32 tag_id = get_tag_id(pid, comm, pd->path);
     if (tag_id == 0) return 0;
 
-    struct exit_meta meta = {};
+    struct exit_compact_meta meta = {};
     meta.type = TYPE_EXECVE;
     meta.tag_id = tag_id;
 
-    store_exit_meta(pid_tgid, &meta);
+    store_exit_compact_meta(pid_tgid, &meta);
     bpf_map_update_elem(&exit_single_path_ctx, &pid_tgid, pd, BPF_ANY);
     return 0;
 }
@@ -1039,15 +1086,15 @@ int tracepoint__syscalls__sys_enter_execve(struct trace_event_raw_sys_enter *ctx
 SEC("tracepoint/syscalls/sys_exit_execve")
 int tracepoint__syscalls__sys_exit_execve(struct trace_event_raw_sys_exit *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    struct exit_meta meta = {};
-    if (!consume_exit_meta(pid_tgid, &meta)) return 0;
+    struct exit_compact_meta meta = {};
+    if (!consume_exit_compact_meta(pid_tgid, &meta)) return 0;
 
     struct event *e = reserve_event();
     if (!e) {
         bpf_map_delete_elem(&exit_single_path_ctx, &pid_tgid);
         return 0;
     }
-    fill_from_exit_meta(e, pid_tgid, &meta);
+    fill_from_exit_compact_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
 
     struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_ctx, &pid_tgid);
@@ -1079,12 +1126,12 @@ int tracepoint__syscalls__sys_enter_openat(struct trace_event_raw_sys_enter *ctx
     u32 tag_id = get_tag_id(pid, comm, pd->path);
     if (tag_id == 0) return 0;
 
-    struct exit_meta meta = {};
+    struct exit_compact_meta meta = {};
     meta.type = TYPE_OPENAT;
     meta.tag_id = tag_id;
     meta.extra1 = (u32)ctx->args[2]; // flags
 
-    store_exit_meta(pid_tgid, &meta);
+    store_exit_compact_meta(pid_tgid, &meta);
     bpf_map_update_elem(&exit_single_path_ctx, &pid_tgid, pd, BPF_ANY);
     return 0;
 }
@@ -1092,15 +1139,15 @@ int tracepoint__syscalls__sys_enter_openat(struct trace_event_raw_sys_enter *ctx
 SEC("tracepoint/syscalls/sys_exit_openat")
 int tracepoint__syscalls__sys_exit_openat(struct trace_event_raw_sys_exit *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    struct exit_meta meta = {};
-    if (!consume_exit_meta(pid_tgid, &meta)) return 0;
+    struct exit_compact_meta meta = {};
+    if (!consume_exit_compact_meta(pid_tgid, &meta)) return 0;
 
     struct event *e = reserve_event();
     if (!e) {
         bpf_map_delete_elem(&exit_single_path_ctx, &pid_tgid);
         return 0;
     }
-    fill_from_exit_meta(e, pid_tgid, &meta);
+    fill_from_exit_compact_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
 
     struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_ctx, &pid_tgid);
@@ -1175,12 +1222,12 @@ int tracepoint__syscalls__sys_enter_mkdirat(struct trace_event_raw_sys_enter *ct
     u32 tag_id = get_tag_id(pid, comm, pd->path);
     if (tag_id == 0) return 0;
 
-    struct exit_meta meta = {};
+    struct exit_compact_meta meta = {};
     meta.type = TYPE_MKDIRAT;
     meta.tag_id = tag_id;
     meta.extra1 = (u32)ctx->args[2]; // mode
 
-    store_exit_meta(pid_tgid, &meta);
+    store_exit_compact_meta(pid_tgid, &meta);
     bpf_map_update_elem(&exit_single_path_ctx, &pid_tgid, pd, BPF_ANY);
     return 0;
 }
@@ -1188,15 +1235,15 @@ int tracepoint__syscalls__sys_enter_mkdirat(struct trace_event_raw_sys_enter *ct
 SEC("tracepoint/syscalls/sys_exit_mkdirat")
 int tracepoint__syscalls__sys_exit_mkdirat(struct trace_event_raw_sys_exit *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    struct exit_meta meta = {};
-    if (!consume_exit_meta(pid_tgid, &meta)) return 0;
+    struct exit_compact_meta meta = {};
+    if (!consume_exit_compact_meta(pid_tgid, &meta)) return 0;
 
     struct event *e = reserve_event();
     if (!e) {
         bpf_map_delete_elem(&exit_single_path_ctx, &pid_tgid);
         return 0;
     }
-    fill_from_exit_meta(e, pid_tgid, &meta);
+    fill_from_exit_compact_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
 
     struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_ctx, &pid_tgid);
@@ -1228,12 +1275,12 @@ int tracepoint__syscalls__sys_enter_unlinkat(struct trace_event_raw_sys_enter *c
     u32 tag_id = get_tag_id(pid, comm, pd->path);
     if (tag_id == 0) return 0;
 
-    struct exit_meta meta = {};
+    struct exit_compact_meta meta = {};
     meta.type = TYPE_UNLINKAT;
     meta.tag_id = tag_id;
     meta.extra1 = (u32)ctx->args[2]; // flags
 
-    store_exit_meta(pid_tgid, &meta);
+    store_exit_compact_meta(pid_tgid, &meta);
     bpf_map_update_elem(&exit_single_path_ctx, &pid_tgid, pd, BPF_ANY);
     return 0;
 }
@@ -1241,15 +1288,15 @@ int tracepoint__syscalls__sys_enter_unlinkat(struct trace_event_raw_sys_enter *c
 SEC("tracepoint/syscalls/sys_exit_unlinkat")
 int tracepoint__syscalls__sys_exit_unlinkat(struct trace_event_raw_sys_exit *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    struct exit_meta meta = {};
-    if (!consume_exit_meta(pid_tgid, &meta)) return 0;
+    struct exit_compact_meta meta = {};
+    if (!consume_exit_compact_meta(pid_tgid, &meta)) return 0;
 
     struct event *e = reserve_event();
     if (!e) {
         bpf_map_delete_elem(&exit_single_path_ctx, &pid_tgid);
         return 0;
     }
-    fill_from_exit_meta(e, pid_tgid, &meta);
+    fill_from_exit_compact_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
 
     struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_ctx, &pid_tgid);
