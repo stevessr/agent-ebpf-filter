@@ -88,11 +88,11 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
     char comm[TASK_COMM_LEN]; \
     bpf_get_current_comm(&comm, sizeof(comm)); \
     u32 zero = 0; \
-    struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero); \
+    struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_buf, &zero); \
     if (!pd) return 0; \
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); \
     if (!sys_enter_common_path(ptid, comm, pd->path, nr, 0, 0)) return 0; \
-    bpf_map_update_elem(&exit_single_path_ctx, &ptid, pd->path, BPF_ANY); \
+    bpf_map_update_elem(&exit_single_path_ctx, &ptid, pd, BPF_ANY); \
     return 0; \
 } \
 SEC("tracepoint/syscalls/sys_exit_" #name) \
@@ -131,11 +131,11 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
     char comm[TASK_COMM_LEN]; \
     bpf_get_current_comm(&comm, sizeof(comm)); \
     u32 zero = 0; \
-    struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero); \
+    struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_buf, &zero); \
     if (!pd) return 0; \
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[1]); \
     if (!sys_enter_common_path(ptid, comm, pd->path, nr, 0, 0)) return 0; \
-    bpf_map_update_elem(&exit_single_path_ctx, &ptid, pd->path, BPF_ANY); \
+    bpf_map_update_elem(&exit_single_path_ctx, &ptid, pd, BPF_ANY); \
     return 0; \
 } \
 SEC("tracepoint/syscalls/sys_exit_" #name) \
@@ -196,11 +196,11 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
     char comm[TASK_COMM_LEN]; \
     bpf_get_current_comm(&comm, sizeof(comm)); \
     u32 zero = 0; \
-    struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero); \
+    struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_buf, &zero); \
     if (!pd) return 0; \
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[4]); \
     if (!sys_enter_common_path(ptid, comm, pd->path, nr, 0, 0)) return 0; \
-    bpf_map_update_elem(&exit_single_path_ctx, &ptid, pd->path, BPF_ANY); \
+    bpf_map_update_elem(&exit_single_path_ctx, &ptid, pd, BPF_ANY); \
     return 0; \
 } \
 SEC("tracepoint/syscalls/sys_exit_" #name) \

@@ -164,3 +164,13 @@ combined preallocated value budget approximately equal to the previous 2048 x
 case. `connect()` no longer stages its fixed label in either map, and untracked
 connects return before `exit_ctx` correlation. Both path maps are explicitly
 cleaned when ring-buffer reservation fails after exit metadata is consumed.
+
+### Single-path scratch fast path
+
+The dynamic filesystem path fast path now uses a dedicated 256-byte per-CPU
+`exit_single_path_buf` before publishing into `exit_single_path_ctx`. Dual-path
+operations and recognized HTTP start-lines continue to use the 512-byte
+`exit_path_buf`. This keeps enter-time path snapshots stable while reducing the
+cache footprint touched by common one-path syscalls; it deliberately avoids
+re-reading user pointers on sys_exit, which could observe mutated or unmapped
+path memory.
