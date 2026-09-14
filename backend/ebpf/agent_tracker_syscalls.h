@@ -41,6 +41,19 @@ static __always_inline u32 capture_iov_len(u64 length) {
     return length > 0xffffffffULL ? 0xffffffffU : (u32)length;
 }
 
+static __always_inline void discard_dynamic_exit_path(u64 pid_tgid) {
+    bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
+}
+
+static __always_inline void fill_dynamic_http_exit(struct event *e, u64 pid_tgid) {
+    __builtin_memcpy(e->path, "socket http", 12);
+    struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_ctx, &pid_tgid);
+    if (pd) {
+        bpf_probe_read_kernel_str(e->extra4, MAX_PATH_LEN, pd->extra4);
+    }
+    bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
+}
+
 // Generic enter handler macro for simple syscalls
 #define DEFINE_SIMPLE_ENTER_HANDLER(name, type_enum, path_str) \
 SEC("tracepoint/syscalls/sys_enter_" #name) \
@@ -187,27 +200,47 @@ int tracepoint__syscalls__sys_enter_sendto(struct trace_event_raw_sys_enter *ctx
         meta.capture_flags |= socket->provenance_flags;
         meta.socket_type = socket->sock_type;
     }
-    u32 zero = 0;
-    struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
-    if (pd) {
-        __builtin_memcpy(pd->path, "socket sendto", 14);
-        u32 data_len = (u32)ctx->args[2];
-        u32 start_kind = HTTP1_START_NONE;
-        u32 captured = (!socket || socket_http1_capture_eligible(socket)) ? capture_http1_start_line(pd->extra4, (const void *)ctx->args[1], data_len, &start_kind) : 0;
-        if (captured > 0) {
-            meta.type = TYPE_SOCKET_HTTP;
-            meta.extra2 = captured;
-            meta.capture_flags |= SOCKET_CAPTURE_OUTGOING;
-            if (start_kind == HTTP1_START_REQUEST) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE;
-            else if (start_kind == HTTP1_START_RESPONSE) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE;
-            __builtin_memcpy(pd->path, "socket http", 12);
+    if (!socket || socket_http1_capture_eligible(socket)) {
+        u32 zero = 0;
+        struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
+        if (pd) {
+            u32 data_len = (u32)ctx->args[2];
+            u32 start_kind = HTTP1_START_NONE;
+            u32 captured = capture_http1_start_line(pd->extra4, (const void *)ctx->args[1], data_len, &start_kind);
+            if (captured > 0) {
+                meta.type = TYPE_SOCKET_HTTP;
+                meta.extra2 = captured;
+                meta.capture_flags |= SOCKET_CAPTURE_OUTGOING;
+                if (start_kind == HTTP1_START_REQUEST) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE;
+                else if (start_kind == HTTP1_START_RESPONSE) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE;
+                bpf_map_update_elem(&exit_path_ctx, &pid_tgid, pd, BPF_ANY);
+            }
         }
-        bpf_map_update_elem(&exit_path_ctx, &pid_tgid, pd, BPF_ANY);
     }
     store_exit_meta(pid_tgid, &meta);
     return 0;
 }
-DEFINE_GENERIC_EXIT_HANDLER(sendto)
+
+SEC("tracepoint/syscalls/sys_exit_sendto")
+int tracepoint__syscalls__sys_exit_sendto(struct trace_event_raw_sys_exit *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    struct exit_meta meta = {};
+    if (!consume_exit_meta(pid_tgid, &meta)) return 0;
+    struct event *e = reserve_event();
+    if (!e) {
+        if (meta.type == TYPE_SOCKET_HTTP) discard_dynamic_exit_path(pid_tgid);
+        return 0;
+    }
+    fill_from_exit_meta(e, pid_tgid, &meta);
+    e->retval = ctx->ret;
+    if (meta.type == TYPE_SOCKET_HTTP && meta.extra2 > 0) {
+        fill_dynamic_http_exit(e, pid_tgid);
+    } else {
+        __builtin_memcpy(e->path, "socket sendto", 14);
+    }
+    submit_event(e);
+    return 0;
+}
 
 SEC("tracepoint/syscalls/sys_enter_recvfrom")
 int tracepoint__syscalls__sys_enter_recvfrom(struct trace_event_raw_sys_enter *ctx) {
@@ -410,31 +443,48 @@ int tracepoint__syscalls__sys_enter_write(struct trace_event_raw_sys_enter *ctx)
     struct exit_meta meta = {.type = TYPE_WRITE, .tag_id = tag_id, .extra1 = (u32)fd, .extra3 = requested};
     if (socket) fill_network_meta_from_socket(&meta, socket, requested);
 
-    u32 zero = 0;
-    struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
-    if (pd) {
-        if (socket) {
+    if (socket_http1_capture_eligible(socket)) {
+        u32 zero = 0;
+        struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
+        if (pd) {
             u32 start_kind = HTTP1_START_NONE;
-            u32 captured = socket_http1_capture_eligible(socket) ? capture_http1_start_line(pd->extra4, (const void *)ctx->args[1], requested, &start_kind) : 0;
+            u32 captured = capture_http1_start_line(pd->extra4, (const void *)ctx->args[1], requested, &start_kind);
             if (captured > 0) {
                 meta.type = TYPE_SOCKET_HTTP;
                 meta.extra2 = captured;
                 meta.capture_flags |= SOCKET_CAPTURE_OUTGOING;
                 if (start_kind == HTTP1_START_REQUEST) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE;
                 else if (start_kind == HTTP1_START_RESPONSE) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE;
-                __builtin_memcpy(pd->path, "socket http", 12);
-            } else {
-                __builtin_memcpy(pd->path, "socket write", 13);
+                bpf_map_update_elem(&exit_path_ctx, &pid_tgid, pd, BPF_ANY);
             }
-        } else {
-            __builtin_memcpy(pd->path, "file write", 11);
         }
-        bpf_map_update_elem(&exit_path_ctx, &pid_tgid, pd, BPF_ANY);
     }
     store_exit_meta(pid_tgid, &meta);
     return 0;
 }
-DEFINE_GENERIC_EXIT_HANDLER(write)
+
+SEC("tracepoint/syscalls/sys_exit_write")
+int tracepoint__syscalls__sys_exit_write(struct trace_event_raw_sys_exit *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    struct exit_meta meta = {};
+    if (!consume_exit_meta(pid_tgid, &meta)) return 0;
+    struct event *e = reserve_event();
+    if (!e) {
+        if (meta.type == TYPE_SOCKET_HTTP) discard_dynamic_exit_path(pid_tgid);
+        return 0;
+    }
+    fill_from_exit_meta(e, pid_tgid, &meta);
+    e->retval = ctx->ret;
+    if (meta.type == TYPE_SOCKET_HTTP && meta.extra2 > 0) {
+        fill_dynamic_http_exit(e, pid_tgid);
+    } else if (meta.socket_type != 0) {
+        __builtin_memcpy(e->path, "socket write", 13);
+    } else {
+        __builtin_memcpy(e->path, "file write", 11);
+    }
+    submit_event(e);
+    return 0;
+}
 
 // writev/readv: first-iovec bounded metadata capture. The real byte count from
 // sys_exit is preserved in extra3/net_bytes, while capture_flags records that
@@ -459,28 +509,21 @@ int tracepoint__syscalls__sys_enter_writev(struct trace_event_raw_sys_enter *ctx
         meta.capture_flags |= SOCKET_CAPTURE_SCATTER_GATHER;
     }
 
-    u32 zero = 0;
-    struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
-    if (pd) {
-        if (socket && have_iov) {
+    if (socket_http1_capture_eligible(socket) && have_iov) {
+        u32 zero = 0;
+        struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
+        if (pd) {
             u32 start_kind = HTTP1_START_NONE;
-            u32 captured = socket_http1_capture_eligible(socket) ? capture_http1_start_line(pd->extra4, (const void *)iov.base, first_len, &start_kind) : 0;
+            u32 captured = capture_http1_start_line(pd->extra4, (const void *)iov.base, first_len, &start_kind);
             if (captured > 0) {
                 meta.type = TYPE_SOCKET_HTTP;
                 meta.extra2 = captured;
                 meta.capture_flags |= SOCKET_CAPTURE_OUTGOING;
                 if (start_kind == HTTP1_START_REQUEST) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE;
                 else if (start_kind == HTTP1_START_RESPONSE) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE;
-                __builtin_memcpy(pd->path, "socket http", 12);
-            } else {
-                __builtin_memcpy(pd->path, "socket writev", 14);
+                bpf_map_update_elem(&exit_path_ctx, &pid_tgid, pd, BPF_ANY);
             }
-        } else if (socket) {
-            __builtin_memcpy(pd->path, "socket writev", 14);
-        } else {
-            __builtin_memcpy(pd->path, "file writev", 12);
         }
-        bpf_map_update_elem(&exit_path_ctx, &pid_tgid, pd, BPF_ANY);
     }
     store_exit_meta(pid_tgid, &meta);
     return 0;
@@ -496,16 +539,18 @@ int tracepoint__syscalls__sys_exit_writev(struct trace_event_raw_sys_exit *ctx) 
         meta.net_bytes = (u32)ctx->ret;
     }
     struct event *e = reserve_event();
-    if (!e) return 0;
+    if (!e) {
+        if (meta.type == TYPE_SOCKET_HTTP) discard_dynamic_exit_path(pid_tgid);
+        return 0;
+    }
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
-    struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_ctx, &pid_tgid);
-    if (pd) {
-        __builtin_memcpy(e->path, pd->path, MAX_PATH_LEN);
-        if (meta.type == TYPE_SOCKET_HTTP && meta.extra2 > 0) {
-            bpf_probe_read_kernel_str(e->extra4, MAX_PATH_LEN, pd->extra4);
-        }
-        bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
+    if (meta.type == TYPE_SOCKET_HTTP && meta.extra2 > 0) {
+        fill_dynamic_http_exit(e, pid_tgid);
+    } else if (meta.socket_type != 0) {
+        __builtin_memcpy(e->path, "socket writev", 14);
+    } else {
+        __builtin_memcpy(e->path, "file writev", 12);
     }
     submit_event(e);
     return 0;
@@ -606,11 +651,10 @@ int tracepoint__syscalls__sys_enter_sendmsg(struct trace_event_raw_sys_enter *ct
     }
     if (socket) meta.capture_flags |= SOCKET_CAPTURE_SCATTER_GATHER;
 
-    u32 zero = 0;
-    struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
-    if (pd) {
-        __builtin_memcpy(pd->path, "socket sendmsg", 15);
-        if (socket && have_iov && socket_http1_capture_eligible(socket)) {
+    if (socket_http1_capture_eligible(socket) && have_iov) {
+        u32 zero = 0;
+        struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
+        if (pd) {
             u32 start_kind = HTTP1_START_NONE;
             u32 captured = capture_http1_start_line(pd->extra4, (const void *)iov.base, first_len, &start_kind);
             if (captured > 0) {
@@ -619,10 +663,9 @@ int tracepoint__syscalls__sys_enter_sendmsg(struct trace_event_raw_sys_enter *ct
                 meta.capture_flags |= SOCKET_CAPTURE_OUTGOING;
                 if (start_kind == HTTP1_START_REQUEST) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE;
                 else if (start_kind == HTTP1_START_RESPONSE) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE;
-                __builtin_memcpy(pd->path, "socket http", 12);
+                bpf_map_update_elem(&exit_path_ctx, &pid_tgid, pd, BPF_ANY);
             }
         }
-        bpf_map_update_elem(&exit_path_ctx, &pid_tgid, pd, BPF_ANY);
     }
     store_exit_meta(pid_tgid, &meta);
     return 0;
@@ -638,14 +681,16 @@ int tracepoint__syscalls__sys_exit_sendmsg(struct trace_event_raw_sys_exit *ctx)
         meta.net_bytes = (u32)ctx->ret;
     }
     struct event *e = reserve_event();
-    if (!e) return 0;
+    if (!e) {
+        if (meta.type == TYPE_SOCKET_HTTP) discard_dynamic_exit_path(pid_tgid);
+        return 0;
+    }
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
-    struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_ctx, &pid_tgid);
-    if (pd) {
-        __builtin_memcpy(e->path, pd->path, MAX_PATH_LEN);
-        if (meta.type == TYPE_SOCKET_HTTP && meta.extra2 > 0) bpf_probe_read_kernel_str(e->extra4, MAX_PATH_LEN, pd->extra4);
-        bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
+    if (meta.type == TYPE_SOCKET_HTTP && meta.extra2 > 0) {
+        fill_dynamic_http_exit(e, pid_tgid);
+    } else {
+        __builtin_memcpy(e->path, "socket sendmsg", 15);
     }
     submit_event(e);
     return 0;
@@ -680,7 +725,7 @@ int tracepoint__syscalls__sys_exit_recvmsg(struct trace_event_raw_sys_exit *ctx)
     u32 zero = 0;
     struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
     u32 captured = 0;
-    if (ctx->ret > 0 && meta.extra2 == 1 && meta.addr_ptr != 0) {
+    if (ctx->ret > 0 && meta.extra2 == 1 && (meta.socket_type & SOCK_TYPE_MASK) == SOCK_STREAM && meta.addr_ptr != 0) {
         struct capture_msghdr64 msg = {};
         struct capture_iovec64 iov = {};
         if (capture_first_msghdr_iovec((const void *)meta.addr_ptr, &msg, &iov)) {

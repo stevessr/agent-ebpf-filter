@@ -131,3 +131,12 @@ conservative fallback where the syscall itself still provides a socket endpoint.
 This avoids user-memory L7 probes on known UDP/raw sockets without changing the
 userspace profile matcher or privacy boundary.
 
+
+### Dynamic exit-context fast path
+
+Outgoing `write`, `writev`, `sendmsg`, and `sendto` no longer round-trip static
+labels through `exit_path_ctx`. The per-thread hash context is populated only
+after the bounded HTTP/1 classifier recognizes a real start-line; ordinary TLS,
+binary, file, UDP, and non-HTTP stream writes keep their static label entirely
+in the exit program. Failed ring-buffer reservations explicitly discard any
+dynamic HTTP context, preventing stale per-thread entries.
