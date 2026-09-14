@@ -72,6 +72,9 @@ func annotateKernelAuditTiming(raw *core.BpfEvent, event *pb.Event, observedAt t
 	event.CaptureDelayNs = observation.DelayNS
 	event.CaptureTimestampNs = uint64(capturedAt.UnixNano())
 	event.AuditFlags = raw.AuditFlags
+	event.KernelAuditGeneration = raw.KernelAuditGeneration
+	event.KernelDroppedSinceLast = raw.KernelDroppedSinceLast
+	event.KernelReserveFailuresTotal = raw.KernelReserveFailuresTotal
 	recordKernelSequenceObservation(raw)
 	collectorMetricsStore.RecordKernelCaptureTiming(observation.DelayNS, observation.Clock)
 

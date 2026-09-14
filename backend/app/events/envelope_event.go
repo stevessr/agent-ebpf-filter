@@ -97,6 +97,15 @@ func normalizeEventEnvelope(envelope *pb.EventEnvelope, record CapturedEventReco
 		if cloned.GetAuditFlags() == 0 {
 			cloned.AuditFlags = legacy.GetAuditFlags()
 		}
+		if cloned.GetKernelAuditGeneration() == 0 {
+			cloned.KernelAuditGeneration = legacy.GetKernelAuditGeneration()
+		}
+		if cloned.GetKernelDroppedSinceLast() == 0 {
+			cloned.KernelDroppedSinceLast = legacy.GetKernelDroppedSinceLast()
+		}
+		if cloned.GetKernelReserveFailuresTotal() == 0 {
+			cloned.KernelReserveFailuresTotal = legacy.GetKernelReserveFailuresTotal()
+		}
 	}
 	if strings.TrimSpace(cloned.GetSource()) == "" {
 		cloned.Source = DetermineEnvelopeSource(record.Event)
@@ -131,39 +140,42 @@ func buildEventEnvelope(record CapturedEventRecord) *pb.EventEnvelope {
 		timestampNS = event.GetCaptureTimestampNs()
 	}
 	envelope := &pb.EventEnvelope{
-		SchemaVersion:      eventEnvelopeSchemaVersion,
-		TimestampNs:        timestampNS,
-		Source:             DetermineEnvelopeSource(event),
-		AgentRunId:         event.GetAgentRunId(),
-		TaskId:             event.GetTaskId(),
-		ConversationId:     event.GetConversationId(),
-		TurnId:             event.GetTurnId(),
-		ToolCallId:         event.GetToolCallId(),
-		ToolName:           event.GetToolName(),
-		TraceId:            event.GetTraceId(),
-		SpanId:             event.GetSpanId(),
-		Pid:                event.GetPid(),
-		Tgid:               tgidOrPid(event),
-		Ppid:               event.GetPpid(),
-		Uid:                event.GetUid(),
-		Gid:                event.GetGid(),
-		Comm:               event.GetComm(),
-		ArgvDigest:         event.GetArgvDigest(),
-		Cwd:                event.GetCwd(),
-		CgroupId:           event.GetCgroupId(),
-		ContainerId:        event.GetContainerId(),
-		PolicyDecision:     event.GetDecision(),
-		RiskScore:          event.GetRiskScore(),
-		EventType:          event.GetEventType(),
-		KernelTimestampNs:  event.GetKernelTimestampNs(),
-		KernelSequence:     event.GetKernelSequence(),
-		KernelCpu:          event.GetKernelCpu(),
-		KernelClock:        event.GetKernelClock(),
-		IngestTimestampNs:  event.GetIngestTimestampNs(),
-		CaptureDelayNs:     event.GetCaptureDelayNs(),
-		CaptureTimestampNs: event.GetCaptureTimestampNs(),
-		AuditFlags:         event.GetAuditFlags(),
-		LegacyEvent:        event,
+		SchemaVersion:              eventEnvelopeSchemaVersion,
+		TimestampNs:                timestampNS,
+		Source:                     DetermineEnvelopeSource(event),
+		AgentRunId:                 event.GetAgentRunId(),
+		TaskId:                     event.GetTaskId(),
+		ConversationId:             event.GetConversationId(),
+		TurnId:                     event.GetTurnId(),
+		ToolCallId:                 event.GetToolCallId(),
+		ToolName:                   event.GetToolName(),
+		TraceId:                    event.GetTraceId(),
+		SpanId:                     event.GetSpanId(),
+		Pid:                        event.GetPid(),
+		Tgid:                       tgidOrPid(event),
+		Ppid:                       event.GetPpid(),
+		Uid:                        event.GetUid(),
+		Gid:                        event.GetGid(),
+		Comm:                       event.GetComm(),
+		ArgvDigest:                 event.GetArgvDigest(),
+		Cwd:                        event.GetCwd(),
+		CgroupId:                   event.GetCgroupId(),
+		ContainerId:                event.GetContainerId(),
+		PolicyDecision:             event.GetDecision(),
+		RiskScore:                  event.GetRiskScore(),
+		EventType:                  event.GetEventType(),
+		KernelTimestampNs:          event.GetKernelTimestampNs(),
+		KernelSequence:             event.GetKernelSequence(),
+		KernelCpu:                  event.GetKernelCpu(),
+		KernelClock:                event.GetKernelClock(),
+		IngestTimestampNs:          event.GetIngestTimestampNs(),
+		CaptureDelayNs:             event.GetCaptureDelayNs(),
+		CaptureTimestampNs:         event.GetCaptureTimestampNs(),
+		AuditFlags:                 event.GetAuditFlags(),
+		KernelAuditGeneration:      event.GetKernelAuditGeneration(),
+		KernelDroppedSinceLast:     event.GetKernelDroppedSinceLast(),
+		KernelReserveFailuresTotal: event.GetKernelReserveFailuresTotal(),
+		LegacyEvent:                event,
 	}
 	envelope.EventId = buildEventEnvelopeID(record, event)
 
@@ -220,6 +232,25 @@ func buildEventEnvelopeID(record CapturedEventRecord, event *pb.Event) string {
 	if event == nil {
 		return ""
 	}
+
+	// Kernel provenance is stable across persistence/replay and across
+	// userspace scheduling delays. Prefer it whenever an explicit generation
+	// and CPU-local sequence are available.
+	if event.GetKernelAuditGeneration() != 0 && event.GetKernelSequence() != 0 {
+		parts := []string{
+			"kernel-v2",
+			fmt.Sprintf("%d", event.GetKernelAuditGeneration()),
+			strconvFormatUint32(event.GetKernelCpu()),
+			fmt.Sprintf("%d", event.GetKernelSequence()),
+			fmt.Sprintf("%d", event.GetKernelTimestampNs()),
+			event.GetType(),
+			strconvFormatUint32(event.GetPid()),
+			strconvFormatUint32(tgidOrPid(event)),
+		}
+		sum := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
+		return "evt_" + hex.EncodeToString(sum[:12])
+	}
+
 	timestamp := record.ReceivedAt.UTC()
 	if timestamp.IsZero() {
 		timestamp = time.Unix(0, 0).UTC()

@@ -95,3 +95,36 @@ func TestBuildCapturedEventJSONRecordsIncludesEnvelope(t *testing.T) {
 		t.Fatalf("file_event.path = %#v, want /workspace/app.py", filePayload["path"])
 	}
 }
+
+func TestKernelEnvelopeIDStableAcrossUserspaceIngestTimes(t *testing.T) {
+	base := &pb.Event{
+		Pid: 321, Tgid: 321, Type: "openat", Comm: "python",
+		KernelTimestampNs:          9000,
+		KernelSequence:             77,
+		KernelCpu:                  3,
+		KernelAuditGeneration:      42,
+		KernelDroppedSinceLast:     2,
+		KernelReserveFailuresTotal: 9,
+	}
+	first := NormalizeCapturedEventRecord(CapturedEventRecord{
+		ReceivedAt: time.Unix(100, 0).UTC(), Event: CloneProtoEvent(base),
+	})
+	second := NormalizeCapturedEventRecord(CapturedEventRecord{
+		ReceivedAt: time.Unix(200, 0).UTC(), Event: CloneProtoEvent(base),
+	})
+	if first.Envelope.GetEventId() != second.Envelope.GetEventId() {
+		t.Fatalf("kernel event ID changed with ingest time: %q != %q", first.Envelope.GetEventId(), second.Envelope.GetEventId())
+	}
+	if first.Envelope.GetKernelAuditGeneration() != 42 || first.Envelope.GetKernelDroppedSinceLast() != 2 || first.Envelope.GetKernelReserveFailuresTotal() != 9 {
+		t.Fatalf("kernel audit provenance not propagated: %+v", first.Envelope)
+	}
+
+	changed := CloneProtoEvent(base)
+	changed.KernelSequence++
+	third := NormalizeCapturedEventRecord(CapturedEventRecord{
+		ReceivedAt: time.Unix(100, 0).UTC(), Event: changed,
+	})
+	if first.Envelope.GetEventId() == third.Envelope.GetEventId() {
+		t.Fatal("distinct kernel sequence produced the same event ID")
+	}
+}

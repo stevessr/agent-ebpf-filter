@@ -85,6 +85,9 @@ message Event {
   uint64 capture_delay_ns = 76;
   uint64 capture_timestamp_ns = 77;
   uint32 audit_flags = 78;
+  uint64 kernel_audit_generation = 79;
+  uint64 kernel_dropped_since_last = 80;
+  uint64 kernel_reserve_failures_total = 81;
 }
 
 message ExecEvent {
@@ -316,6 +319,9 @@ message EventEnvelope {
   uint64 capture_delay_ns = 47;
   uint64 capture_timestamp_ns = 48;
   uint32 audit_flags = 49;
+  uint64 kernel_audit_generation = 50;
+  uint64 kernel_dropped_since_last = 51;
+  uint64 kernel_reserve_failures_total = 52;
 }
 
 message EventEnvelopeBatch {

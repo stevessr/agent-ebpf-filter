@@ -36,7 +36,18 @@ type BpfEvent struct {
 	KernelSequence                         uint64
 	KernelCPU                              uint32
 	AuditFlags                             uint32
+	KernelAuditGeneration                  uint64
+	KernelDroppedSinceLast                 uint64
+	KernelReserveFailuresTotal             uint64
 }
+
+const (
+	BpfAuditFlagKernelTimestamp uint32 = 1 << iota
+	BpfAuditFlagCPUSequence
+	BpfAuditFlagReserveGap
+	BpfAuditFlagGeneration
+	BpfAuditFlagReserveTotal
+)
 
 // ── Wrapper rules ────────────────────────────────────────────────────────────
 

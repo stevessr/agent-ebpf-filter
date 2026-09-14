@@ -130,3 +130,37 @@ than being silently described as verified.
 The chain is tamper-evident, not a signature: an attacker able to rewrite the complete
 file can recompute an unkeyed chain. For stronger external attestation, persist the
 reported chain head in an independent trusted store or sign checkpoints.
+
+
+## Kernel loss provenance and explicit tracker generations
+
+The main tracker now assigns the CPU-local audit sequence **before**
+`bpf_ringbuf_reserve()`. A reserve failure therefore consumes a sequence number;
+the next successful event exposes that failure as a real sequence hole instead
+of leaving userspace to infer pressure only from an aggregate map counter.
+
+Each per-CPU `collector_stats` slot also maintains:
+
+- `pending_dropped_events`: reserve failures not yet acknowledged by a successful event;
+- `audit_generation`: a random non-zero generation rotated by privileged bootstrap whenever tracker programs are reloaded/re-attached.
+
+A successful event carries three append-only provenance fields:
+
+- `kernel_audit_generation`;
+- `kernel_dropped_since_last`;
+- `kernel_reserve_failures_total`.
+
+`AUDIT_FLAG_RESERVE_GAP`, `AUDIT_FLAG_GENERATION`, and
+`AUDIT_FLAG_RESERVE_TOTAL` state which values are authoritative. This lets the
+backend classify a sequence hole as kernel-ringbuf-explained versus unexplained
+(userspace/ring-reader/decode loss), and makes tracker reloads explicit rather
+than relying on sequence/timestamp heuristics.
+
+The event ID path now prefers `(generation, cpu, sequence, kernel_timestamp_ns)`
+when available, so persistence/replay or userspace scheduling delays do not
+change the forensic identity of the same kernel event.
+
+The repository additionally guards this ABI in three places: C `_Static_assert`
+size checks, a Go `unsafe.Sizeof/Offsetof` test, and CI that both regenerates the
+committed bpf2go bindings and loads the main tracker through the host kernel BPF
+verifier.
