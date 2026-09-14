@@ -27,6 +27,7 @@ jobs:
       - name: Apply phase2 generalized capture patch
         run: |
           python3 .github/scripts/one_shot_generic_api_capture_phase2_kernel.py
+          python3 .github/scripts/one_shot_generic_api_capture_phase2_prepatch.py
           python3 .github/scripts/one_shot_generic_api_capture_phase2_user.py
           python3 .github/scripts/one_shot_generic_api_capture_phase2_tests.py
       - name: Go fmt
@@ -69,8 +70,8 @@ jobs:
         run: |
           go build -o /tmp/agenttracker-verifier-check ./cmd/agenttracker-verifier-check
           sudo /tmp/agenttracker-verifier-check
-      - name: Verify generated tracker bindings are stable
-        run: git diff --exit-code -- backend/ebpf/agenttracker_bpfel.go backend/ebpf/agenttracker_bpfeb.go || true
+      - name: Show generated tracker binding delta
+        run: git diff -- backend/ebpf/agenttracker_bpfel.go backend/ebpf/agenttracker_bpfeb.go
       - name: Commit phase2 functional patch
         run: |
           git config user.name github-actions[bot]
