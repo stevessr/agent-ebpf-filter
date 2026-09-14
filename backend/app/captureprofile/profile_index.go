@@ -181,7 +181,7 @@ func matchIndexedSnapshot(snapshot *profileSnapshot, observation Observation, de
 	matched := false
 	for i := 0; i < count; i++ {
 		for _, profileIndex := range snapshot.index.buckets[keys[i]] {
-			candidate, ok := matchCompiledProfile(snapshot.index.compiled[profileIndex], prepared, detailed)
+			candidate, ok := matchCompiledProfile(&snapshot.index.compiled[profileIndex], &prepared, detailed)
 			if !ok {
 				continue
 			}
@@ -207,7 +207,7 @@ func (r *Registry) MatchAll(observation Observation) []Match {
 	matches := make([]Match, 0, 4)
 	for i := 0; i < count; i++ {
 		for _, profileIndex := range snapshot.index.buckets[keys[i]] {
-			if candidate, ok := matchCompiledProfile(snapshot.index.compiled[profileIndex], prepared, true); ok {
+			if candidate, ok := matchCompiledProfile(&snapshot.index.compiled[profileIndex], &prepared, true); ok {
 				matches = append(matches, candidate)
 			}
 		}
@@ -254,8 +254,8 @@ func containsPort(items []uint32, value uint32) bool {
 	return index < len(items) && items[index] == value
 }
 
-func matchCompiledProfile(compiled compiledProfile, observation preparedObservation, detailed bool) (Match, bool) {
-	profile := compiled.profile
+func matchCompiledProfile(compiled *compiledProfile, observation *preparedObservation, detailed bool) (Match, bool) {
+	profile := &compiled.profile
 	score := 0
 	var matched uint32
 	const (
@@ -350,7 +350,7 @@ func matchCompiledProfile(compiled compiledProfile, observation preparedObservat
 	hostMatched := false
 	if observation.Host != "" {
 		for _, suffix := range profile.HostSuffixes {
-			if hostSuffixMatch(observation.Host, suffix) {
+			if hostSuffixMatchNormalized(observation.Host, suffix) {
 				hostMatched = true
 				break
 			}

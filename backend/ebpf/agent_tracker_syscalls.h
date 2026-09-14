@@ -193,7 +193,7 @@ int tracepoint__syscalls__sys_enter_sendto(struct trace_event_raw_sys_enter *ctx
         __builtin_memcpy(pd->path, "socket sendto", 14);
         u32 data_len = (u32)ctx->args[2];
         u32 start_kind = HTTP1_START_NONE;
-        u32 captured = capture_http1_start_line(pd->extra4, (const void *)ctx->args[1], data_len, &start_kind);
+        u32 captured = (!socket || socket_http1_capture_eligible(socket)) ? capture_http1_start_line(pd->extra4, (const void *)ctx->args[1], data_len, &start_kind) : 0;
         if (captured > 0) {
             meta.type = TYPE_SOCKET_HTTP;
             meta.extra2 = captured;
@@ -361,7 +361,7 @@ int tracepoint__syscalls__sys_exit_read(struct trace_event_raw_sys_exit *ctx) {
     u32 zero = 0;
     struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
     u32 captured = 0;
-    if (ctx->ret > 0 && meta.extra2 == 1 && pd && meta.addr_ptr != 0) {
+    if (ctx->ret > 0 && meta.extra2 == 1 && (meta.socket_type & SOCK_TYPE_MASK) == SOCK_STREAM && pd && meta.addr_ptr != 0) {
         u32 actual = (u32)ctx->ret;
         u32 start_kind = HTTP1_START_NONE;
         captured = capture_http1_start_line(pd->extra4, (const void *)meta.addr_ptr, actual, &start_kind);
@@ -415,7 +415,7 @@ int tracepoint__syscalls__sys_enter_write(struct trace_event_raw_sys_enter *ctx)
     if (pd) {
         if (socket) {
             u32 start_kind = HTTP1_START_NONE;
-            u32 captured = capture_http1_start_line(pd->extra4, (const void *)ctx->args[1], requested, &start_kind);
+            u32 captured = socket_http1_capture_eligible(socket) ? capture_http1_start_line(pd->extra4, (const void *)ctx->args[1], requested, &start_kind) : 0;
             if (captured > 0) {
                 meta.type = TYPE_SOCKET_HTTP;
                 meta.extra2 = captured;
@@ -464,7 +464,7 @@ int tracepoint__syscalls__sys_enter_writev(struct trace_event_raw_sys_enter *ctx
     if (pd) {
         if (socket && have_iov) {
             u32 start_kind = HTTP1_START_NONE;
-            u32 captured = capture_http1_start_line(pd->extra4, (const void *)iov.base, first_len, &start_kind);
+            u32 captured = socket_http1_capture_eligible(socket) ? capture_http1_start_line(pd->extra4, (const void *)iov.base, first_len, &start_kind) : 0;
             if (captured > 0) {
                 meta.type = TYPE_SOCKET_HTTP;
                 meta.extra2 = captured;
@@ -539,7 +539,7 @@ int tracepoint__syscalls__sys_exit_readv(struct trace_event_raw_sys_exit *ctx) {
     u32 zero = 0;
     struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
     u32 captured = 0;
-    if (ctx->ret > 0 && meta.extra2 == 1 && pd && meta.addr_ptr != 0 && meta.capture_reserved > 0) {
+    if (ctx->ret > 0 && meta.extra2 == 1 && (meta.socket_type & SOCK_TYPE_MASK) == SOCK_STREAM && pd && meta.addr_ptr != 0 && meta.capture_reserved > 0) {
         struct capture_iovec64 iov = {};
         if (capture_first_iovec((const void *)meta.addr_ptr, meta.capture_reserved, &iov)) {
             u32 available = capture_iov_len(iov.len);
@@ -610,7 +610,7 @@ int tracepoint__syscalls__sys_enter_sendmsg(struct trace_event_raw_sys_enter *ct
     struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
     if (pd) {
         __builtin_memcpy(pd->path, "socket sendmsg", 15);
-        if (socket && have_iov) {
+        if (socket && have_iov && socket_http1_capture_eligible(socket)) {
             u32 start_kind = HTTP1_START_NONE;
             u32 captured = capture_http1_start_line(pd->extra4, (const void *)iov.base, first_len, &start_kind);
             if (captured > 0) {
