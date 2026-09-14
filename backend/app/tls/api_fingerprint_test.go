@@ -29,3 +29,18 @@ func TestAnnotateTLSAPIFingerprintHTTP2(t *testing.T) {
 		t.Fatalf("fingerprint = %+v", event)
 	}
 }
+
+func TestAnnotateTLSAPIFingerprintGRPC(t *testing.T) {
+	event := &TLSPlaintextEvent{
+		Type: "http2_headers", Direction: "send", Method: "POST",
+		Host: "grpc.example", URL: "/acme.agent.v1.AgentService/Run?token=secret",
+		ContentType: "application/grpc+proto",
+	}
+	annotateTLSAPIFingerprint(event)
+	if event.AppProtocol != "grpc" || event.RequestPath != "/acme.agent.v1.AgentService/Run" {
+		t.Fatalf("grpc normalization = %+v", event)
+	}
+	if event.APIProduct != "acme.agent.v1.AgentService" || event.APIOperation != "Run" || event.APIConfidence != 70 {
+		t.Fatalf("grpc fingerprint = %+v", event)
+	}
+}

@@ -1,13 +1,17 @@
 package captureprofile
 
 import (
+	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync/atomic"
+	"time"
 )
 
 // Observation is the protocol-neutral metadata available after a capture
@@ -33,7 +37,9 @@ type Profile struct {
 	Vendor          string   `json:"vendor"`
 	Product         string   `json:"product,omitempty"`
 	Operation       string   `json:"operation,omitempty"`
+	Sources         []string `json:"sources,omitempty"`
 	Protocols       []string `json:"protocols,omitempty"`
+	Directions      []string `json:"directions,omitempty"`
 	Methods         []string `json:"methods,omitempty"`
 	HostSuffixes    []string `json:"host_suffixes,omitempty"`
 	HostContains    []string `json:"host_contains,omitempty"`
@@ -157,7 +163,9 @@ func normalizeProfile(profile Profile) Profile {
 	profile.Vendor = strings.TrimSpace(profile.Vendor)
 	profile.Product = strings.TrimSpace(profile.Product)
 	profile.Operation = strings.TrimSpace(profile.Operation)
+	profile.Sources = normalizeList(profile.Sources)
 	profile.Protocols = normalizeList(profile.Protocols)
+	profile.Directions = normalizeList(profile.Directions)
 	profile.Methods = normalizeUpperList(profile.Methods)
 	profile.HostSuffixes = normalizeList(profile.HostSuffixes)
 	profile.HostContains = normalizeList(profile.HostContains)
@@ -181,14 +189,28 @@ func normalizeObservation(observation Observation) Observation {
 
 func matchProfile(profile Profile, observation Observation) (Match, bool) {
 	score := 0
-	matchedBy := make([]string, 0, 6)
+	matchedBy := make([]string, 0, 8)
 
+	if len(profile.Sources) != 0 {
+		if !containsFold(profile.Sources, observation.Source) {
+			return Match{}, false
+		}
+		score += 3
+		matchedBy = append(matchedBy, "source")
+	}
 	if len(profile.Protocols) != 0 {
 		if !containsFold(profile.Protocols, observation.Protocol) {
 			return Match{}, false
 		}
 		score += 5
 		matchedBy = append(matchedBy, "protocol")
+	}
+	if len(profile.Directions) != 0 {
+		if !containsFold(profile.Directions, observation.Direction) {
+			return Match{}, false
+		}
+		score += 3
+		matchedBy = append(matchedBy, "direction")
 	}
 	if len(profile.Methods) != 0 {
 		if observation.Method == "" || !containsFold(profile.Methods, observation.Method) {
@@ -321,27 +343,65 @@ func RequestPath(raw string) string {
 	return raw
 }
 
-func ParseHTTP1RequestLine(line string) (method, path string, ok bool) {
+type HTTP1StartLine struct {
+	Kind   string
+	Method string
+	Path   string
+	Status uint32
+}
+
+func ParseHTTP1StartLine(line string) (HTTP1StartLine, bool) {
 	line = strings.TrimSpace(strings.TrimRight(line, "\x00"))
 	if line == "" {
-		return "", "", false
+		return HTTP1StartLine{}, false
 	}
 	if index := strings.IndexAny(line, "\r\n"); index >= 0 {
 		line = line[:index]
 	}
 	parts := strings.Fields(line)
 	if len(parts) < 2 {
-		return "", "", false
+		return HTTP1StartLine{}, false
 	}
-	method = strings.ToUpper(parts[0])
+	if strings.HasPrefix(strings.ToUpper(parts[0]), "HTTP/1.") {
+		status, err := strconv.ParseUint(parts[1], 10, 32)
+		if err != nil || status < 100 || status > 999 {
+			return HTTP1StartLine{}, false
+		}
+		return HTTP1StartLine{Kind: "response", Status: uint32(status)}, true
+	}
+	method := strings.ToUpper(parts[0])
 	if !isHTTPMethod(method) {
-		return "", "", false
+		return HTTP1StartLine{}, false
 	}
-	path = RequestPath(parts[1])
+	path := RequestPath(parts[1])
 	if path == "" {
+		return HTTP1StartLine{}, false
+	}
+	return HTTP1StartLine{Kind: "request", Method: method, Path: path}, true
+}
+
+func ParseHTTP1RequestLine(line string) (method, path string, ok bool) {
+	parsed, ok := ParseHTTP1StartLine(line)
+	if !ok || parsed.Kind != "request" {
 		return "", "", false
 	}
-	return method, path, true
+	return parsed.Method, parsed.Path, true
+}
+
+// ParseGRPCPath normalizes the canonical HTTP/2 gRPC route
+// /package.Service/Method without inspecting protobuf message bodies.
+func ParseGRPCPath(raw string) (service, method string, ok bool) {
+	path := strings.TrimPrefix(RequestPath(raw), "/")
+	parts := strings.Split(path, "/")
+	if len(parts) != 2 {
+		return "", "", false
+	}
+	service = strings.TrimSpace(parts[0])
+	method = strings.TrimSpace(parts[1])
+	if service == "" || method == "" {
+		return "", "", false
+	}
+	return service, method, true
 }
 
 func isHTTPMethod(method string) bool {
@@ -414,6 +474,82 @@ func containsFold(items []string, value string) bool {
 		}
 	}
 	return false
+}
+
+// MergeProfiles overlays custom profiles by ID while retaining all built-ins
+// that were not explicitly replaced. The result is validated atomically by the
+// Registry before publication.
+func MergeProfiles(base, overlay []Profile) []Profile {
+	merged := make(map[string]Profile, len(base)+len(overlay))
+	for _, profile := range base {
+		profile = normalizeProfile(profile)
+		if profile.ID != "" {
+			merged[profile.ID] = profile
+		}
+	}
+	for _, profile := range overlay {
+		profile = normalizeProfile(profile)
+		if profile.ID != "" {
+			merged[profile.ID] = profile
+		}
+	}
+	out := make([]Profile, 0, len(merged))
+	for _, profile := range merged {
+		out = append(out, profile)
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out
+}
+
+func ReloadDefaultJSON(path string) error {
+	overlay, err := LoadJSON(path)
+	if err != nil {
+		return err
+	}
+	return Default.Replace(MergeProfiles(BuiltinProfiles(), overlay))
+}
+
+// WatchDefaultJSON hashes the file contents instead of relying only on mtime,
+// which makes atomic replace/ConfigMap style updates reliable. Invalid updates
+// never replace the last known-good immutable registry snapshot.
+func WatchDefaultJSON(ctx context.Context, path string, interval time.Duration, onError func(error)) {
+	if ctx == nil || strings.TrimSpace(path) == "" {
+		return
+	}
+	if interval <= 0 {
+		interval = 2 * time.Second
+	}
+	var lastAttempt [32]byte
+	var attempted bool
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			data, err := os.ReadFile(path)
+			if err != nil {
+				if onError != nil {
+					onError(fmt.Errorf("read API capture profiles: %w", err))
+				}
+				continue
+			}
+			digest := sha256.Sum256(data)
+			if attempted && digest == lastAttempt {
+				continue
+			}
+			lastAttempt = digest
+			attempted = true
+			overlay, err := ParseJSON(data)
+			if err == nil {
+				err = Default.Replace(MergeProfiles(BuiltinProfiles(), overlay))
+			}
+			if err != nil && onError != nil {
+				onError(err)
+			}
+		}
+	}
 }
 
 func BuiltinProfiles() []Profile {

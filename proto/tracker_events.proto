@@ -99,6 +99,9 @@ message Event {
   uint32 kernel_payload_prefix_len = 90;
   uint32 kernel_capture_flags = 91;
   int32 kernel_socket_fd = 92;
+  uint32 http_status = 93;
+  string grpc_service = 94;
+  string grpc_method = 95;
 }
 
 message ExecEvent {

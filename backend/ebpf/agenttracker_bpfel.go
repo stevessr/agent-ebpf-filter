@@ -23,19 +23,21 @@ type AgentTrackerCollectorStats struct {
 }
 
 type AgentTrackerExitMeta struct {
-	_            structs.HostLayout
-	Type         uint32
-	TagId        uint32
-	Extra1       uint32
-	Extra2       uint32
-	Extra3       uint64
-	NetFamily    uint32
-	NetDirection uint32
-	NetBytes     uint32
-	NetPort      uint32
-	NetAddr      [16]int8
-	AddrPtr      uint64
-	StartNs      uint64
+	_               structs.HostLayout
+	Type            uint32
+	TagId           uint32
+	Extra1          uint32
+	Extra2          uint32
+	Extra3          uint64
+	NetFamily       uint32
+	NetDirection    uint32
+	NetBytes        uint32
+	NetPort         uint32
+	NetAddr         [16]int8
+	AddrPtr         uint64
+	StartNs         uint64
+	CaptureFlags    uint32
+	CaptureReserved uint32
 }
 
 type AgentTrackerExitPathData struct {
@@ -57,12 +59,14 @@ type AgentTrackerSocketFdKey struct {
 }
 
 type AgentTrackerSocketFdMeta struct {
-	_          structs.HostLayout
-	Family     uint32
-	SockType   uint32
-	Protocol   uint32
-	RemotePort uint32
-	RemoteAddr [16]int8
+	_               structs.HostLayout
+	Family          uint32
+	SockType        uint32
+	Protocol        uint32
+	RemotePort      uint32
+	RemoteAddr      [16]int8
+	ProvenanceFlags uint32
+	Reserved        uint32
 }
 
 // LoadAgentTracker returns the embedded CollectionSpec for AgentTracker.
@@ -126,6 +130,9 @@ type AgentTrackerProgramSpecs struct {
 	TracepointSyscallsSysEnterClose           *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_close"`
 	TracepointSyscallsSysEnterConnect         *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_connect"`
 	TracepointSyscallsSysEnterCreat           *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_creat"`
+	TracepointSyscallsSysEnterDup             *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_dup"`
+	TracepointSyscallsSysEnterDup2            *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_dup2"`
+	TracepointSyscallsSysEnterDup3            *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_dup3"`
 	TracepointSyscallsSysEnterExecve          *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_execve"`
 	TracepointSyscallsSysEnterExecveat        *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_execveat"`
 	TracepointSyscallsSysEnterExitGroup       *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_exit_group"`
@@ -221,6 +228,9 @@ type AgentTrackerProgramSpecs struct {
 	TracepointSyscallsSysExitClose            *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_close"`
 	TracepointSyscallsSysExitConnect          *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_connect"`
 	TracepointSyscallsSysExitCreat            *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_creat"`
+	TracepointSyscallsSysExitDup              *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_dup"`
+	TracepointSyscallsSysExitDup2             *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_dup2"`
+	TracepointSyscallsSysExitDup3             *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_dup3"`
 	TracepointSyscallsSysExitExecve           *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_execve"`
 	TracepointSyscallsSysExitExecveat         *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_execveat"`
 	TracepointSyscallsSysExitExitGroup        *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_exit_group"`
@@ -315,6 +325,7 @@ type AgentTrackerMapSpecs struct {
 	ExitCtx         *ebpf.MapSpec `ebpf:"exit_ctx"`
 	ExitPathBuf     *ebpf.MapSpec `ebpf:"exit_path_buf"`
 	ExitPathCtx     *ebpf.MapSpec `ebpf:"exit_path_ctx"`
+	SocketFdParents *ebpf.MapSpec `ebpf:"socket_fd_parents"`
 	SocketFds       *ebpf.MapSpec `ebpf:"socket_fds"`
 	TrackedComms    *ebpf.MapSpec `ebpf:"tracked_comms"`
 	TrackedPaths    *ebpf.MapSpec `ebpf:"tracked_paths"`
@@ -353,6 +364,7 @@ type AgentTrackerMaps struct {
 	ExitCtx         *ebpf.Map `ebpf:"exit_ctx"`
 	ExitPathBuf     *ebpf.Map `ebpf:"exit_path_buf"`
 	ExitPathCtx     *ebpf.Map `ebpf:"exit_path_ctx"`
+	SocketFdParents *ebpf.Map `ebpf:"socket_fd_parents"`
 	SocketFds       *ebpf.Map `ebpf:"socket_fds"`
 	TrackedComms    *ebpf.Map `ebpf:"tracked_comms"`
 	TrackedPaths    *ebpf.Map `ebpf:"tracked_paths"`
@@ -367,6 +379,7 @@ func (m *AgentTrackerMaps) Close() error {
 		m.ExitCtx,
 		m.ExitPathBuf,
 		m.ExitPathCtx,
+		m.SocketFdParents,
 		m.SocketFds,
 		m.TrackedComms,
 		m.TrackedPaths,
@@ -403,6 +416,9 @@ type AgentTrackerPrograms struct {
 	TracepointSyscallsSysEnterClose           *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_close"`
 	TracepointSyscallsSysEnterConnect         *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_connect"`
 	TracepointSyscallsSysEnterCreat           *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_creat"`
+	TracepointSyscallsSysEnterDup             *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_dup"`
+	TracepointSyscallsSysEnterDup2            *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_dup2"`
+	TracepointSyscallsSysEnterDup3            *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_dup3"`
 	TracepointSyscallsSysEnterExecve          *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_execve"`
 	TracepointSyscallsSysEnterExecveat        *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_execveat"`
 	TracepointSyscallsSysEnterExitGroup       *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_exit_group"`
@@ -498,6 +514,9 @@ type AgentTrackerPrograms struct {
 	TracepointSyscallsSysExitClose            *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_close"`
 	TracepointSyscallsSysExitConnect          *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_connect"`
 	TracepointSyscallsSysExitCreat            *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_creat"`
+	TracepointSyscallsSysExitDup              *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_dup"`
+	TracepointSyscallsSysExitDup2             *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_dup2"`
+	TracepointSyscallsSysExitDup3             *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_dup3"`
 	TracepointSyscallsSysExitExecve           *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_execve"`
 	TracepointSyscallsSysExitExecveat         *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_execveat"`
 	TracepointSyscallsSysExitExitGroup        *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_exit_group"`
@@ -603,6 +622,9 @@ func (p *AgentTrackerPrograms) Close() error {
 		p.TracepointSyscallsSysEnterClose,
 		p.TracepointSyscallsSysEnterConnect,
 		p.TracepointSyscallsSysEnterCreat,
+		p.TracepointSyscallsSysEnterDup,
+		p.TracepointSyscallsSysEnterDup2,
+		p.TracepointSyscallsSysEnterDup3,
 		p.TracepointSyscallsSysEnterExecve,
 		p.TracepointSyscallsSysEnterExecveat,
 		p.TracepointSyscallsSysEnterExitGroup,
@@ -698,6 +720,9 @@ func (p *AgentTrackerPrograms) Close() error {
 		p.TracepointSyscallsSysExitClose,
 		p.TracepointSyscallsSysExitConnect,
 		p.TracepointSyscallsSysExitCreat,
+		p.TracepointSyscallsSysExitDup,
+		p.TracepointSyscallsSysExitDup2,
+		p.TracepointSyscallsSysExitDup3,
 		p.TracepointSyscallsSysExitExecve,
 		p.TracepointSyscallsSysExitExecveat,
 		p.TracepointSyscallsSysExitExitGroup,

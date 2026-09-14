@@ -39,6 +39,8 @@ type BpfEvent struct {
 	KernelAuditGeneration                  uint64
 	KernelDroppedSinceLast                 uint64
 	KernelReserveFailuresTotal             uint64
+	KernelCaptureFlags                     uint32
+	_                                      [4]byte // append-only capture ABI alignment
 }
 
 const (
@@ -216,6 +218,7 @@ type TrackerMapSet struct {
 	Events          *ebpf.Map
 	CollectorStats  *ebpf.Map
 	SocketFds       *ebpf.Map
+	SocketFdParents *ebpf.Map
 }
 
 // ShellControlMessage is sent over the WebSocket to resize the PTY.

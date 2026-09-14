@@ -39,3 +39,26 @@ Kernel `SOCKET_HTTP` events inherit the tracker audit tuple (`kernel_audit_gener
 ## Known next steps
 
 The socket-fd map currently follows `socket`, `connect`, `write`, `sendto`, and `close`. It is cleared on tracker generation rotation so a recycled `(tgid, fd)` cannot inherit provenance across backend downtime. Descriptor duplication (`dup*`), inherited sockets across fork, scatter/gather `writev/sendmsg`, and decrypted HTTP/3/QUIC are separate follow-ups. TLS/library capture already remains the authoritative source for encrypted HTTP request paths.
+
+
+## Phase 2: descriptor lineage and bidirectional metadata
+
+The kernel socket identity layer now follows descriptor topology rather than only the original `socket()` return value:
+
+- `dup`, `dup2`, and `dup3` copy or invalidate socket provenance as descriptors are replaced;
+- `sched_process_fork` records a bounded lazy parent lineage, allowing a child to materialize inherited socket metadata on first use without iterating descriptor tables in eBPF;
+- `accept` and `accept4` mark returned sockets as accepted and preserve listener family/type/protocol plus peer endpoint when the sockaddr is available;
+- `read` and `write` recognize both HTTP/1 request lines and response status lines on confirmed plaintext sockets;
+- raw `kernel_capture_flags` distinguish request/response, incoming/outgoing, duplicated/inherited/accepted descriptor provenance, and future scatter/gather capture.
+
+The lineage resolver intentionally follows at most two parent generations before materializing a child entry. This keeps verifier complexity and map lookups bounded. Long-lived descendants normally materialize entries during their first socket operation, making subsequent lookups direct.
+
+## Runtime profile overlays
+
+Set `AGENT_EBPF_API_PROFILES=/path/to/profiles.json` to layer custom rules over the built-ins. The file remains a JSON array of profile objects. Custom profiles with an existing `id` replace that built-in ID; new IDs are appended. The watcher hashes file contents every two seconds and publishes a fully validated immutable snapshot atomically. Invalid updates are rejected while the last known-good rules remain active.
+
+Profiles can additionally restrict `sources` and `directions`, for example `kernel_socket_prefix` + `incoming` for a local webhook/API server. This lets the same engine classify client APIs, reverse proxies, local gateways, and self-hosted OpenAI/Anthropic-compatible endpoints without adding provider-specific eBPF code.
+
+## gRPC
+
+HTTP/2 plaintext events with an `application/grpc` content type are normalized to `grpc`. The canonical `/package.Service/Method` route is split into service and method without decoding protobuf bodies. If no explicit vendor profile matches, the event still receives a generic `grpc:<service>` profile, service as the product, method as the operation, and a moderate metadata-only confidence score.

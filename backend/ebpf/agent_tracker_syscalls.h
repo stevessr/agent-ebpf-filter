@@ -142,9 +142,11 @@ int tracepoint__syscalls__sys_enter_sendto(struct trace_event_raw_sys_enter *ctx
     fill_network_meta(&meta, (const void *)ctx->args[4], NET_DIR_OUTGOING, (u32)ctx->args[2]);
     meta.extra1 = (u32)ctx->args[0];
     meta.extra3 = (u32)ctx->args[2];
+    struct socket_fd_meta *socket = lookup_socket_fd(pid, (s32)ctx->args[0]);
     if (meta.net_family == 0) {
-        struct socket_fd_meta *socket = lookup_socket_fd(pid, (s32)ctx->args[0]);
         if (socket) fill_network_meta_from_socket(&meta, socket, (u32)ctx->args[2]);
+    } else if (socket) {
+        meta.capture_flags |= socket->provenance_flags;
     }
     u32 zero = 0;
     struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
@@ -155,7 +157,16 @@ int tracepoint__syscalls__sys_enter_sendto(struct trace_event_raw_sys_enter *ctx
         if (captured > 0) {
             meta.type = TYPE_SOCKET_HTTP;
             meta.extra2 = captured;
+            meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE | SOCKET_CAPTURE_OUTGOING;
             __builtin_memcpy(pd->path, "socket http", 12);
+        } else {
+            captured = capture_http1_response_line(pd->extra4, (const void *)ctx->args[1], data_len);
+            if (captured > 0) {
+                meta.type = TYPE_SOCKET_HTTP;
+                meta.extra2 = captured;
+                meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE | SOCKET_CAPTURE_OUTGOING;
+                __builtin_memcpy(pd->path, "socket http", 12);
+            }
         }
         bpf_map_update_elem(&exit_path_ctx, &pid_tgid, pd, BPF_ANY);
     }
@@ -205,12 +216,80 @@ int tracepoint__syscalls__sys_exit_close(struct trace_event_raw_sys_exit *ctx) {
     return 0;
 }
 
-// Add remaining handlers using macros...
-DEFINE_SIMPLE_ENTER_HANDLER(accept, TYPE_ACCEPT, "socket accept")
-DEFINE_GENERIC_EXIT_HANDLER(accept)
+// Descriptor lineage maintenance. These handlers intentionally do not emit
+// extra semantic events; their job is to keep later socket/L7 events accurate.
+#define DEFINE_DUP_HANDLER(name) \
+SEC("tracepoint/syscalls/sys_enter_" #name) \
+int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx) { \
+    u64 pid_tgid = bpf_get_current_pid_tgid(); \
+    u32 tgid = (u32)(pid_tgid >> 32); \
+    char comm[TASK_COMM_LEN]; \
+    bpf_get_current_comm(&comm, sizeof(comm)); \
+    u32 tag_id = get_tag_id(tgid, comm, NULL); \
+    if (tag_id == 0) return 0; \
+    struct exit_meta meta = {.type = TYPE_SOCKET, .tag_id = tag_id, .extra1 = (u32)ctx->args[0]}; \
+    store_exit_meta(pid_tgid, &meta); \
+    return 0; \
+} \
+SEC("tracepoint/syscalls/sys_exit_" #name) \
+int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) { \
+    u64 pid_tgid = bpf_get_current_pid_tgid(); \
+    struct exit_meta meta = {}; \
+    if (!consume_exit_meta(pid_tgid, &meta)) return 0; \
+    if (ctx->ret >= 0) duplicate_socket_fd((u32)(pid_tgid >> 32), (s32)meta.extra1, (s32)ctx->ret, SOCKET_CAPTURE_FD_DUPLICATED); \
+    return 0; \
+}
 
-DEFINE_SIMPLE_ENTER_HANDLER(accept4, TYPE_ACCEPT4, "socket accept4")
-DEFINE_GENERIC_EXIT_HANDLER(accept4)
+DEFINE_DUP_HANDLER(dup)
+DEFINE_DUP_HANDLER(dup2)
+DEFINE_DUP_HANDLER(dup3)
+
+#define DEFINE_ACCEPT_HANDLER(name, type_enum) \
+SEC("tracepoint/syscalls/sys_enter_" #name) \
+int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx) { \
+    u64 pid_tgid = bpf_get_current_pid_tgid(); \
+    u32 tgid = (u32)(pid_tgid >> 32); \
+    char comm[TASK_COMM_LEN]; \
+    bpf_get_current_comm(&comm, sizeof(comm)); \
+    u32 tag_id = get_tag_id(tgid, comm, NULL); \
+    if (tag_id == 0) return 0; \
+    struct exit_meta meta = {.type = type_enum, .tag_id = tag_id, .extra1 = (u32)ctx->args[0], .addr_ptr = ctx->args[1]}; \
+    store_exit_meta(pid_tgid, &meta); \
+    return 0; \
+} \
+SEC("tracepoint/syscalls/sys_exit_" #name) \
+int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) { \
+    u64 pid_tgid = bpf_get_current_pid_tgid(); \
+    u32 tgid = (u32)(pid_tgid >> 32); \
+    struct exit_meta meta = {}; \
+    if (!consume_exit_meta(pid_tgid, &meta)) return 0; \
+    if (ctx->ret >= 0) { \
+        duplicate_socket_fd(tgid, (s32)meta.extra1, (s32)ctx->ret, SOCKET_CAPTURE_ACCEPTED); \
+        struct socket_fd_meta *accepted = lookup_socket_fd(tgid, (s32)ctx->ret); \
+        if (accepted) fill_network_meta_from_socket_direction(&meta, accepted, 0, NET_DIR_INCOMING); \
+        if (meta.addr_ptr != 0) { \
+            struct exit_meta peer = {}; \
+            fill_network_meta(&peer, (const void *)meta.addr_ptr, NET_DIR_INCOMING, 0); \
+            if (peer.net_family != 0) { \
+                update_socket_fd_remote(tgid, (s32)ctx->ret, &peer); \
+                meta.net_family = peer.net_family; \
+                meta.net_port = peer.net_port; \
+                __builtin_memcpy(meta.net_addr, peer.net_addr, sizeof(meta.net_addr)); \
+            } \
+        } \
+        meta.extra2 = (u32)ctx->ret; \
+        meta.capture_flags |= SOCKET_CAPTURE_ACCEPTED; \
+    } \
+    struct event *e = reserve_event(); \
+    if (!e) return 0; \
+    fill_from_exit_meta(e, pid_tgid, &meta); \
+    e->retval = ctx->ret; \
+    submit_event(e); \
+    return 0; \
+}
+
+DEFINE_ACCEPT_HANDLER(accept, TYPE_ACCEPT)
+DEFINE_ACCEPT_HANDLER(accept4, TYPE_ACCEPT4)
 
 DEFINE_SIMPLE_ENTER_HANDLER(clone, TYPE_CLONE, "process clone")
 DEFINE_GENERIC_EXIT_HANDLER(clone)
@@ -221,8 +300,66 @@ DEFINE_GENERIC_EXIT_HANDLER(wait4)
 DEFINE_SIMPLE_ENTER_HANDLER(exit_group, TYPE_EXIT, "process exit")
 DEFINE_GENERIC_EXIT_HANDLER(exit_group)
 
-DEFINE_SIMPLE_ENTER_HANDLER(read, TYPE_READ, "file read")
-DEFINE_GENERIC_EXIT_HANDLER(read)
+SEC("tracepoint/syscalls/sys_enter_read")
+int tracepoint__syscalls__sys_enter_read(struct trace_event_raw_sys_enter *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 tgid = (u32)(pid_tgid >> 32);
+    char comm[TASK_COMM_LEN];
+    bpf_get_current_comm(&comm, sizeof(comm));
+    u32 tag_id = get_tag_id(tgid, comm, NULL);
+    if (tag_id == 0) return 0;
+    s32 fd = (s32)ctx->args[0];
+    struct exit_meta meta = {.type = TYPE_READ, .tag_id = tag_id, .extra1 = (u32)fd, .extra3 = (u32)ctx->args[2], .addr_ptr = ctx->args[1]};
+    struct socket_fd_meta *socket = lookup_socket_fd(tgid, fd);
+    if (socket) {
+        meta.extra2 = 1; // socket marker until a start-line length replaces it
+        fill_network_meta_from_socket_direction(&meta, socket, (u32)ctx->args[2], NET_DIR_INCOMING);
+    }
+    store_exit_meta(pid_tgid, &meta);
+    return 0;
+}
+
+SEC("tracepoint/syscalls/sys_exit_read")
+int tracepoint__syscalls__sys_exit_read(struct trace_event_raw_sys_exit *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    struct exit_meta meta = {};
+    if (!consume_exit_meta(pid_tgid, &meta)) return 0;
+    u32 zero = 0;
+    struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
+    u32 captured = 0;
+    if (ctx->ret > 0 && meta.extra2 == 1 && pd && meta.addr_ptr != 0) {
+        u32 actual = (u32)ctx->ret;
+        captured = capture_http1_request_line(pd->extra4, (const void *)meta.addr_ptr, actual);
+        if (captured > 0) {
+            meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE | SOCKET_CAPTURE_INCOMING;
+        } else {
+            captured = capture_http1_response_line(pd->extra4, (const void *)meta.addr_ptr, actual);
+            if (captured > 0) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE | SOCKET_CAPTURE_INCOMING;
+        }
+        if (captured > 0) {
+            meta.type = TYPE_SOCKET_HTTP;
+            meta.extra2 = captured;
+        }
+    }
+    if (ctx->ret > 0) {
+        meta.extra3 = (u32)ctx->ret;
+        meta.net_bytes = (u32)ctx->ret;
+    }
+    struct event *e = reserve_event();
+    if (!e) return 0;
+    fill_from_exit_meta(e, pid_tgid, &meta);
+    e->retval = ctx->ret;
+    if (pd && captured > 0) {
+        __builtin_memcpy(e->path, "socket http", 12);
+        bpf_probe_read_kernel_str(e->extra4, MAX_PATH_LEN, pd->extra4);
+    } else if (meta.extra2 == 1) {
+        __builtin_memcpy(e->path, "socket read", 12);
+    } else {
+        __builtin_memcpy(e->path, "file read", 10);
+    }
+    submit_event(e);
+    return 0;
+}
 
 SEC("tracepoint/syscalls/sys_enter_write")
 int tracepoint__syscalls__sys_enter_write(struct trace_event_raw_sys_enter *ctx) {
@@ -247,9 +384,18 @@ int tracepoint__syscalls__sys_enter_write(struct trace_event_raw_sys_enter *ctx)
             if (captured > 0) {
                 meta.type = TYPE_SOCKET_HTTP;
                 meta.extra2 = captured;
+                meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE | SOCKET_CAPTURE_OUTGOING;
                 __builtin_memcpy(pd->path, "socket http", 12);
             } else {
-                __builtin_memcpy(pd->path, "socket write", 13);
+                captured = capture_http1_response_line(pd->extra4, (const void *)ctx->args[1], requested);
+                if (captured > 0) {
+                    meta.type = TYPE_SOCKET_HTTP;
+                    meta.extra2 = captured;
+                    meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE | SOCKET_CAPTURE_OUTGOING;
+                    __builtin_memcpy(pd->path, "socket http", 12);
+                } else {
+                    __builtin_memcpy(pd->path, "socket write", 13);
+                }
             }
         } else {
             __builtin_memcpy(pd->path, "file write", 11);

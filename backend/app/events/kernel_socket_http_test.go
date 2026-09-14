@@ -25,6 +25,7 @@ func TestBuildKernelSocketHTTPEventSanitizesAndClassifiesPath(t *testing.T) {
 	raw.Extra3 = 4096
 	raw.NetFamily = 2
 	raw.NetDirection = 1
+	raw.KernelCaptureFlags = kernelCaptureHTTPRequest | kernelCaptureOutgoing
 	copy(raw.Comm[:], "agent")
 	copy(raw.Path[:], "socket http")
 	copy(raw.Extra4[:], "POST /v1/responses?api_key=top-secret HTTP/1.1")
@@ -42,7 +43,40 @@ func TestBuildKernelSocketHTTPEventSanitizesAndClassifiesPath(t *testing.T) {
 	if event.GetApiProfile() != "openai-compatible.responses" || event.GetApiVendor() != "openai-compatible" {
 		t.Fatalf("profile = %q vendor=%q", event.GetApiProfile(), event.GetApiVendor())
 	}
-	if event.GetKernelSocketFd() != 9 || event.GetKernelPayloadPrefixLen() != 53 || event.GetKernelCaptureFlags() != 1 {
+	if event.GetKernelSocketFd() != 9 || event.GetKernelPayloadPrefixLen() != 53 || event.GetKernelCaptureFlags() != kernelCaptureHTTPRequest|kernelCaptureOutgoing {
 		t.Fatalf("kernel capture metadata missing: %+v", event)
+	}
+}
+
+func TestBuildKernelSocketHTTPResponseEvent(t *testing.T) {
+	oldGetTagName := Deps.GetTagName
+	oldApplyRisk := Deps.ApplyKernelRiskDecision
+	Deps.GetTagName = func(uint32) string { return "test" }
+	Deps.ApplyKernelRiskDecision = func(*BpfEvent, *pb.Event) {}
+	defer func() {
+		Deps.GetTagName = oldGetTagName
+		Deps.ApplyKernelRiskDecision = oldApplyRisk
+	}()
+
+	var raw BpfEvent
+	raw.PID = 124
+	raw.TGID = 124
+	raw.Type = 43
+	raw.Extra1 = 11
+	raw.Extra2 = 28
+	raw.Extra3 = 512
+	raw.NetFamily = 2
+	raw.NetDirection = 2
+	raw.KernelCaptureFlags = kernelCaptureHTTPResponse | kernelCaptureIncoming | kernelCaptureFDInherited
+	copy(raw.Comm[:], "agent")
+	copy(raw.Path[:], "socket http")
+	copy(raw.Extra4[:], "HTTP/1.1 429 Too Many Requests")
+
+	event := BuildKernelEvent(raw)
+	if event.GetHttpStatus() != 429 || event.GetKernelSocketFd() != 11 {
+		t.Fatalf("response event = %+v", event)
+	}
+	if event.GetKernelCaptureFlags() != raw.KernelCaptureFlags || event.GetNetDirection() != "incoming" {
+		t.Fatalf("response provenance = %+v", event)
 	}
 }

@@ -11,6 +11,18 @@ func tlsCaptureProtocol(event *TLSPlaintextEvent) string {
 		return ""
 	}
 	if strings.HasPrefix(event.Type, "http2_") {
+		contentType := strings.ToLower(strings.TrimSpace(event.ContentType))
+		if contentType == "" {
+			for key, value := range event.Headers {
+				if strings.EqualFold(strings.TrimSpace(key), "content-type") {
+					contentType = strings.ToLower(strings.TrimSpace(value))
+					break
+				}
+			}
+		}
+		if strings.Contains(contentType, "application/grpc") {
+			return "grpc"
+		}
 		return "http2"
 	}
 	if event.Type == "http_request" || event.Type == "http_response" {
@@ -44,16 +56,22 @@ func annotateTLSAPIFingerprint(event *TLSPlaintextEvent) {
 		Headers:     event.Headers,
 		ContentType: event.ContentType,
 	})
-	if !ok {
+	if ok {
+		event.APIProfile = match.ProfileID
+		event.APIProduct = match.Product
+		event.APIOperation = match.Operation
+		event.APIConfidence = match.Confidence
+		if event.Vendor == "" || !strings.HasSuffix(match.Vendor, "-compatible") {
+			event.Vendor = match.Vendor
+		}
 		return
 	}
-	event.APIProfile = match.ProfileID
-	event.APIProduct = match.Product
-	event.APIOperation = match.Operation
-	event.APIConfidence = match.Confidence
-	// A host-specific fingerprint is stronger than the historical substring
-	// vendor inference. Path-only compatible profiles only fill an empty value.
-	if event.Vendor == "" || !strings.HasSuffix(match.Vendor, "-compatible") {
-		event.Vendor = match.Vendor
+	if protocol == "grpc" {
+		if service, method, parsed := captureprofile.ParseGRPCPath(event.RequestPath); parsed {
+			event.APIProfile = "grpc:" + service
+			event.APIProduct = service
+			event.APIOperation = method
+			event.APIConfidence = 70
+		}
 	}
 }

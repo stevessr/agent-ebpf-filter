@@ -56,3 +56,43 @@ func TestRegistryReplaceCustomProfile(t *testing.T) {
 		t.Fatalf("custom match failed: ok=%v match=%+v", ok, match)
 	}
 }
+
+func TestParseHTTP1ResponseLine(t *testing.T) {
+	line, ok := ParseHTTP1StartLine("HTTP/1.1 429 Too Many Requests\r\n")
+	if !ok || line.Kind != "response" || line.Status != 429 {
+		t.Fatalf("response line = %+v ok=%v", line, ok)
+	}
+}
+
+func TestParseGRPCPath(t *testing.T) {
+	service, method, ok := ParseGRPCPath("/google.ai.generativelanguage.v1beta.GenerativeService/GenerateContent?key=secret")
+	if !ok || service != "google.ai.generativelanguage.v1beta.GenerativeService" || method != "GenerateContent" {
+		t.Fatalf("grpc service=%q method=%q ok=%v", service, method, ok)
+	}
+}
+
+func TestProfileSourceAndDirectionSelectors(t *testing.T) {
+	registry := NewRegistry([]Profile{{
+		ID: "acme.inbound", Vendor: "acme", Sources: []string{"kernel_socket_prefix"},
+		Protocols: []string{"http1"}, Directions: []string{"incoming"}, Methods: []string{"POST"},
+		PathPrefixes: []string{"/hook"}, MinScore: 40,
+	}})
+	if _, ok := registry.Match(Observation{Source: "kernel_socket_prefix", Protocol: "http1", Direction: "outgoing", Method: "POST", Path: "/hook"}); ok {
+		t.Fatal("outgoing observation unexpectedly matched inbound profile")
+	}
+	if match, ok := registry.Match(Observation{Source: "kernel_socket_prefix", Protocol: "http1", Direction: "incoming", Method: "POST", Path: "/hook"}); !ok || match.ProfileID != "acme.inbound" {
+		t.Fatalf("inbound match failed: ok=%v match=%+v", ok, match)
+	}
+}
+
+func TestMergeProfilesCustomOverridesBuiltinID(t *testing.T) {
+	merged := MergeProfiles(BuiltinProfiles(), []Profile{{
+		ID: "openai.responses", Vendor: "private-gateway", Product: "responses", Operation: "proxy.responses",
+		Protocols: []string{"http2"}, HostSuffixes: []string{"gateway.example"}, PathPrefixes: []string{"/v1/responses"}, MinScore: 90,
+	}})
+	registry := NewRegistry(merged)
+	match, ok := registry.Match(Observation{Protocol: "http2", Method: "POST", Host: "gateway.example", Path: "/v1/responses"})
+	if !ok || match.Vendor != "private-gateway" || match.Operation != "proxy.responses" {
+		t.Fatalf("overlay override failed: ok=%v match=%+v", ok, match)
+	}
+}

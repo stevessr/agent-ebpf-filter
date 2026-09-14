@@ -66,6 +66,13 @@ struct task_struct {
 #define TYPE_SOCKET_HTTP 43
 
 #define SOCKET_CAPTURE_HTTP1_REQUEST_LINE (1U << 0)
+#define SOCKET_CAPTURE_HTTP1_RESPONSE_LINE (1U << 1)
+#define SOCKET_CAPTURE_INCOMING            (1U << 2)
+#define SOCKET_CAPTURE_OUTGOING            (1U << 3)
+#define SOCKET_CAPTURE_FD_DUPLICATED        (1U << 4)
+#define SOCKET_CAPTURE_FD_INHERITED         (1U << 5)
+#define SOCKET_CAPTURE_ACCEPTED             (1U << 6)
+#define SOCKET_CAPTURE_SCATTER_GATHER       (1U << 7)
 
 struct trace_entry {
     short unsigned int type;
@@ -192,6 +199,8 @@ struct event {
     u64 kernel_audit_generation;      // userspace-rotated tracker generation
     u64 kernel_dropped_since_last;    // reserve failures since previous successful reserve on this CPU
     u64 kernel_reserve_failures_total; // CPU-local cumulative reserve failures snapshot
+    u32 kernel_capture_flags;        // bounded-L7 capture source/direction/provenance bits
+    u32 kernel_capture_reserved;     // append-only ABI padding / future capture metadata
 };
 
 struct {
@@ -207,7 +216,7 @@ struct collector_stats {
     u64 audit_generation; // rotated when tracker programs are reloaded/re-attached
 };
 
-_Static_assert(sizeof(struct event) == 680, "event ABI size changed; update Go BpfEvent intentionally");
+_Static_assert(sizeof(struct event) == 688, "event ABI size changed; update Go BpfEvent intentionally");
 _Static_assert(sizeof(struct collector_stats) == 40, "collector_stats ABI size changed; regenerate bindings");
 
 struct {
@@ -255,6 +264,8 @@ struct exit_meta {
     char net_addr[16];
     u64 addr_ptr;
     u64 start_ns;
+    u32 capture_flags;
+    u32 capture_reserved;
 };
 
 struct {
@@ -275,6 +286,8 @@ struct socket_fd_meta {
     u32 protocol;
     u32 remote_port;
     char remote_addr[16];
+    u32 provenance_flags;
+    u32 reserved;
 };
 
 // LRU bounds stale descriptors when a process exits or uses close paths that
@@ -286,6 +299,15 @@ struct {
     __type(key, struct socket_fd_key);
     __type(value, struct socket_fd_meta);
 } socket_fds SEC(".maps");
+
+// Lazy process lineage for inherited descriptor tables. We intentionally keep
+// this LRU map bounded instead of walking/copying all descriptors at fork.
+struct {
+    __uint(type, BPF_MAP_TYPE_LRU_HASH);
+    __uint(max_entries, 8192);
+    __type(key, u32);   // child TGID
+    __type(value, u32); // parent TGID
+} socket_fd_parents SEC(".maps");
 
 // Exit path context map: stores path data for sys_exit (split due to 512-byte stack limit)
 struct exit_path_data {
@@ -342,6 +364,8 @@ static __always_inline struct event *reserve_event(void) {
     e->kernel_audit_generation = generation;
     e->kernel_dropped_since_last = 0;
     e->kernel_reserve_failures_total = 0;
+    e->kernel_capture_flags = 0;
+    e->kernel_capture_reserved = 0;
 
     if (stats) {
         if (sequence != 0) {
@@ -526,9 +550,37 @@ static __always_inline void store_exit_meta(u64 pid_tgid, struct exit_meta *meta
     bpf_map_update_elem(&exit_ctx, &pid_tgid, meta, BPF_ANY);
 }
 
-static __always_inline struct socket_fd_meta *lookup_socket_fd(u32 tgid, s32 fd) {
+static __always_inline struct socket_fd_meta *lookup_socket_fd_direct(u32 tgid, s32 fd) {
     struct socket_fd_key key = {.tgid = tgid, .fd = fd};
     return bpf_map_lookup_elem(&socket_fds, &key);
+}
+
+// Resolve one or two parent generations lazily. The copied child entry becomes
+// authoritative after first use, keeping the normal hot path to one hash lookup.
+static __always_inline struct socket_fd_meta *lookup_socket_fd(u32 tgid, s32 fd) {
+    struct socket_fd_meta *direct = lookup_socket_fd_direct(tgid, fd);
+    if (direct) return direct;
+
+    u32 *parent_ptr = bpf_map_lookup_elem(&socket_fd_parents, &tgid);
+    if (!parent_ptr) return 0;
+    u32 parent = *parent_ptr;
+    struct socket_fd_meta *inherited = lookup_socket_fd_direct(parent, fd);
+
+    if (!inherited) {
+        u32 *grand_ptr = bpf_map_lookup_elem(&socket_fd_parents, &parent);
+        if (grand_ptr) {
+            u32 grand = *grand_ptr;
+            inherited = lookup_socket_fd_direct(grand, fd);
+        }
+    }
+    if (!inherited) return 0;
+
+    struct socket_fd_meta value = {};
+    __builtin_memcpy(&value, inherited, sizeof(value));
+    value.provenance_flags |= SOCKET_CAPTURE_FD_INHERITED;
+    struct socket_fd_key child_key = {.tgid = tgid, .fd = fd};
+    bpf_map_update_elem(&socket_fds, &child_key, &value, BPF_ANY);
+    return bpf_map_lookup_elem(&socket_fds, &child_key);
 }
 
 static __always_inline void remember_socket_fd(u32 tgid, s32 fd, u32 family, u32 sock_type, u32 protocol) {
@@ -542,11 +594,26 @@ static __always_inline void remember_socket_fd(u32 tgid, s32 fd, u32 family, u32
     bpf_map_update_elem(&socket_fds, &key, &value, BPF_ANY);
 }
 
+static __always_inline void duplicate_socket_fd(u32 tgid, s32 oldfd, s32 newfd, u32 flags) {
+    if (newfd < 0 || oldfd == newfd) return;
+    struct socket_fd_meta *source = lookup_socket_fd(tgid, oldfd);
+    struct socket_fd_key new_key = {.tgid = tgid, .fd = newfd};
+    if (!source) {
+        // dup2/dup3 can replace a socket with a non-socket descriptor.
+        bpf_map_delete_elem(&socket_fds, &new_key);
+        return;
+    }
+    struct socket_fd_meta value = {};
+    __builtin_memcpy(&value, source, sizeof(value));
+    value.provenance_flags |= flags | SOCKET_CAPTURE_FD_DUPLICATED;
+    bpf_map_update_elem(&socket_fds, &new_key, &value, BPF_ANY);
+}
+
 static __always_inline void update_socket_fd_remote(u32 tgid, s32 fd, struct exit_meta *meta) {
     if (fd < 0 || !meta) return;
     struct socket_fd_key key = {.tgid = tgid, .fd = fd};
     struct socket_fd_meta value = {};
-    struct socket_fd_meta *existing = bpf_map_lookup_elem(&socket_fds, &key);
+    struct socket_fd_meta *existing = lookup_socket_fd(tgid, fd);
     if (existing) __builtin_memcpy(&value, existing, sizeof(value));
     value.family = meta->net_family;
     value.remote_port = meta->net_port;
@@ -559,13 +626,18 @@ static __always_inline void forget_socket_fd(u32 tgid, s32 fd) {
     bpf_map_delete_elem(&socket_fds, &key);
 }
 
-static __always_inline void fill_network_meta_from_socket(struct exit_meta *meta, struct socket_fd_meta *socket, u32 bytes) {
+static __always_inline void fill_network_meta_from_socket_direction(struct exit_meta *meta, struct socket_fd_meta *socket, u32 bytes, u32 direction) {
     if (!meta || !socket) return;
     meta->net_family = socket->family;
-    meta->net_direction = NET_DIR_OUTGOING;
+    meta->net_direction = direction;
     meta->net_bytes = bytes;
     meta->net_port = socket->remote_port;
+    meta->capture_flags |= socket->provenance_flags;
     __builtin_memcpy(meta->net_addr, socket->remote_addr, sizeof(meta->net_addr));
+}
+
+static __always_inline void fill_network_meta_from_socket(struct exit_meta *meta, struct socket_fd_meta *socket, u32 bytes) {
+    fill_network_meta_from_socket_direction(meta, socket, bytes, NET_DIR_OUTGOING);
 }
 
 static __always_inline int looks_like_http1_method(const char *head, u32 len) {
@@ -609,6 +681,34 @@ static __always_inline u32 capture_http1_request_line(char *dst, const void *use
     return capture_len;
 }
 
+static __always_inline int looks_like_http1_response(const char *head, u32 len) {
+    if (!head || len < 8) return 0;
+    return head[0] == 'H' && head[1] == 'T' && head[2] == 'T' && head[3] == 'P' &&
+           head[4] == '/' && head[5] == '1' && head[6] == '.';
+}
+
+static __always_inline u32 capture_http1_response_line(char *dst, const void *user_buf, u32 len) {
+    if (!dst || !user_buf || len < 8) return 0;
+    char head[8] = {};
+    u32 head_len = len < sizeof(head) ? len : sizeof(head);
+    if (bpf_probe_read_user(head, head_len, user_buf) < 0) return 0;
+    if (!looks_like_http1_response(head, head_len)) return 0;
+    u32 capture_len = len;
+    if (capture_len > MAX_PATH_LEN - 1) capture_len = MAX_PATH_LEN - 1;
+    if (bpf_probe_read_user(dst, capture_len, user_buf) < 0) return 0;
+#pragma clang loop unroll(disable)
+    for (int i = 0; i < MAX_PATH_LEN - 1; i++) {
+        if ((u32)i >= capture_len) break;
+        char c = dst[i];
+        if (c == '\r' || c == '\n') {
+            dst[i] = '\0';
+            return (u32)i;
+        }
+    }
+    dst[capture_len] = '\0';
+    return capture_len;
+}
+
 // Convenience inline for sys_exit handlers that only need pid_tgid correlation
 // Returns 0 if no context was found (not a tracked syscall)
 static __always_inline u32 consume_exit_meta(u64 pid_tgid, struct exit_meta *meta) {
@@ -633,6 +733,7 @@ static __always_inline void fill_from_exit_meta(struct event *e, u64 pid_tgid, s
     e->net_direction = meta->net_direction;
     e->net_bytes = meta->net_bytes;
     e->net_port = meta->net_port;
+    e->kernel_capture_flags = meta->capture_flags;
     __builtin_memcpy(e->net_addr, meta->net_addr, 16);
 }
 
@@ -649,6 +750,10 @@ int tracepoint__sched__sched_process_fork(struct trace_event_raw_sched_process_f
     if (!tag) return 0;
 
     bpf_map_update_elem(&agent_pids, &child_pid, tag, BPF_ANY);
+    u32 parent_tgid = (u32)(bpf_get_current_pid_tgid() >> 32);
+    if (parent_tgid != 0 && child_pid != parent_tgid) {
+        bpf_map_update_elem(&socket_fd_parents, &child_pid, &parent_tgid, BPF_ANY);
+    }
 
     struct event *e = reserve_event();
     if (!e) return 0;
