@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 	"sync"
 	"time"
 	"unsafe"
@@ -280,8 +279,9 @@ func startAPICaptureProfileWatcher(ctx context.Context, jobs *runtimeBackgroundJ
 	if ctx == nil || jobs == nil {
 		return
 	}
-	path := strings.TrimSpace(os.Getenv("AGENT_EBPF_API_PROFILES"))
-	if path == "" {
+	path := captureProfileOverlayPath()
+	if err := ensureCaptureProfileOverlayFile(path); err != nil {
+		log.Printf("[WARN] API capture profile control plane unavailable: %v", err)
 		return
 	}
 	if err := captureprofile.ReloadDefaultJSON(path); err != nil {

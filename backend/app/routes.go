@@ -71,6 +71,9 @@ func registerNetworkRoutes(r gin.IRouter, ac *AppContext, features *FeatureRegis
 	r.GET("/network/dns-lookup", authMiddleware(), handleDNSLookup)
 	r.GET("/network/dns-cache", authMiddleware(), handleDNSCache)
 	r.GET("/network/interfaces", authMiddleware(), handleNetworkInterfaces)
+	r.GET("/network/capture-profiles", authMiddleware(), handleGetCaptureProfiles)
+	r.PUT("/network/capture-profiles", authMiddleware(), handlePutCaptureProfiles)
+	r.POST("/network/capture-profiles/preview", authMiddleware(), handlePreviewCaptureProfile)
 	if features.CompiledIn(FeatureNetworkExport) {
 		r.GET("/network/export/jsonl", authMiddleware(), handleNetworkFlowJSONLExport)
 		r.POST("/network/export-pcap", authMiddleware(), handlePCAPExport)

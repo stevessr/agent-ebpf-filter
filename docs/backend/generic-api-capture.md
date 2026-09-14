@@ -69,3 +69,34 @@ HTTP/2 plaintext events with an `application/grpc` content type are normalized t
 The plaintext kernel sampler also covers native 64-bit `writev`, `readv`, `sendmsg`, and `recvmsg`. To keep both verifier cost and privacy exposure bounded, only the first iovec is inspected and only enough bytes for an HTTP/1 start-line candidate are copied into the per-CPU scratch buffer. The body, subsequent iovecs, authorization headers, cookies, and arbitrary message control data are not captured.
 
 `kernel_capture_flags` includes `SCATTER_GATHER`, so downstream analysis can distinguish this best-effort prefix from a contiguous `read`/`write` sample. `sendmsg` uses `msg_name` when present and otherwise reuses connected-fd provenance; `recvmsg` can refresh the peer endpoint after return. compat32 user tasks are intentionally not decoded as 64-bit `iovec/msghdr`; they retain ordinary syscall telemetry rather than risking pointer-layout misinterpretation.
+
+
+## Socket-view visual configuration
+
+The Network Flow workspace now owns the capture-profile control plane. Open a
+flow/socket detail and choose **Create capture profile from this socket**, or use
+the **Capture Profiles** tab directly.
+
+The editor writes one canonical overlay file:
+
+- `AGENT_EBPF_API_PROFILES` when explicitly configured;
+- otherwise `${runtime settings dir}/api-capture-profiles.json`.
+
+The file is atomically replaced, validated before publication, and consumed by
+the same hot-reload watcher used for external/ConfigMap updates. Built-in
+profiles remain the base layer; custom profiles override built-ins with the same
+ID.
+
+Authenticated endpoints:
+
+- `GET /network/capture-profiles` — custom/effective profile state and supported
+  source/protocol/direction selectors;
+- `PUT /network/capture-profiles` — atomically replace the custom overlay;
+- `POST /network/capture-profiles/preview` — evaluate one draft against up to
+  500 protocol-neutral observations using the production matcher.
+
+The flow preview is intentionally host/method/protocol oriented because the
+aggregated socket table does not persist request paths. Path selectors are still
+evaluated against real L7 capture events. This keeps the visual configuration
+honest instead of fabricating path visibility that the flow aggregator does not
+have.
