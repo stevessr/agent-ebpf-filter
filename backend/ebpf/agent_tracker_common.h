@@ -183,9 +183,12 @@ struct event {
     char extra4[MAX_PATH_LEN];
     // Append-only audit provenance. Keep legacy field offsets stable.
     u64 kernel_timestamp_ns; // bpf_ktime_get_ns(), CLOCK_MONOTONIC domain
-    u64 kernel_sequence;     // CPU-local monotonic sequence
+    u64 kernel_sequence;     // CPU-local attempt sequence; reserve failures create holes
     u32 kernel_cpu;
     u32 audit_flags;
+    u64 kernel_audit_generation;      // userspace-rotated tracker generation
+    u64 kernel_dropped_since_last;    // reserve failures since previous successful reserve on this CPU
+    u64 kernel_reserve_failures_total; // CPU-local cumulative reserve failures snapshot
 };
 
 struct {
@@ -196,8 +199,13 @@ struct {
 struct collector_stats {
     u64 ringbuf_events_total;
     u64 ringbuf_reserve_failed_total;
-    u64 event_sequence; // per-CPU, used with kernel_cpu as an audit ordering tuple
+    u64 event_sequence; // per-CPU attempt sequence; increments before ringbuf reserve
+    u64 pending_dropped_events; // reserve failures not yet reported by a successful event
+    u64 audit_generation; // rotated when tracker programs are reloaded/re-attached
 };
+
+_Static_assert(sizeof(struct event) == 680, "event ABI size changed; update Go BpfEvent intentionally");
+_Static_assert(sizeof(struct collector_stats) == 40, "collector_stats ABI size changed; regenerate bindings");
 
 struct {
     __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
@@ -266,38 +274,63 @@ struct {
     __type(value, struct exit_path_data);
 } exit_path_ctx SEC(".maps");
 
-static __always_inline void account_ringbuf_reserve_failed(void) {
-    u32 key = 0;
-    struct collector_stats *stats = bpf_map_lookup_elem(&collector_stats, &key);
+static __always_inline void account_ringbuf_reserve_failed(struct collector_stats *stats) {
     if (stats) {
         stats->ringbuf_reserve_failed_total++;
+        stats->pending_dropped_events++;
     }
 }
 
 #define AUDIT_FLAG_KERNEL_TIMESTAMP (1U << 0)
 #define AUDIT_FLAG_CPU_SEQUENCE     (1U << 1)
+#define AUDIT_FLAG_RESERVE_GAP      (1U << 2)
+#define AUDIT_FLAG_GENERATION       (1U << 3)
+#define AUDIT_FLAG_RESERVE_TOTAL    (1U << 4)
 
 static __always_inline struct event *reserve_event(void) {
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
-    if (!e) {
-        account_ringbuf_reserve_failed();
-        return 0;
-    }
-
-    // Capture provenance immediately after reserve so time includes as little
-    // probe-side formatting work as possible. Sequence is deliberately per-CPU
-    // to avoid a cross-CPU atomic hotspot on every observed syscall.
-    e->kernel_timestamp_ns = bpf_ktime_get_ns();
-    e->kernel_cpu = bpf_get_smp_processor_id();
-    e->kernel_sequence = 0;
-    e->audit_flags = AUDIT_FLAG_KERNEL_TIMESTAMP;
-
+    // Assign provenance before ringbuf reserve. A failed reserve therefore
+    // consumes a CPU-local sequence number, making loss visible as a hole in
+    // the next successfully delivered event without any cross-CPU atomic.
+    u64 timestamp_ns = bpf_ktime_get_ns();
+    u32 cpu = bpf_get_smp_processor_id();
+    u64 sequence = 0;
+    u64 generation = 0;
     u32 key = 0;
     struct collector_stats *stats = bpf_map_lookup_elem(&collector_stats, &key);
     if (stats) {
         stats->event_sequence++;
-        e->kernel_sequence = stats->event_sequence;
-        e->audit_flags |= AUDIT_FLAG_CPU_SEQUENCE;
+        sequence = stats->event_sequence;
+        generation = stats->audit_generation;
+    }
+
+    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    if (!e) {
+        account_ringbuf_reserve_failed(stats);
+        return 0;
+    }
+
+    e->kernel_timestamp_ns = timestamp_ns;
+    e->kernel_cpu = cpu;
+    e->kernel_sequence = sequence;
+    e->audit_flags = AUDIT_FLAG_KERNEL_TIMESTAMP;
+    e->kernel_audit_generation = generation;
+    e->kernel_dropped_since_last = 0;
+    e->kernel_reserve_failures_total = 0;
+
+    if (stats) {
+        if (sequence != 0) {
+            e->audit_flags |= AUDIT_FLAG_CPU_SEQUENCE;
+        }
+        if (generation != 0) {
+            e->audit_flags |= AUDIT_FLAG_GENERATION;
+        }
+        e->kernel_reserve_failures_total = stats->ringbuf_reserve_failed_total;
+        e->audit_flags |= AUDIT_FLAG_RESERVE_TOTAL;
+        if (stats->pending_dropped_events != 0) {
+            e->kernel_dropped_since_last = stats->pending_dropped_events;
+            e->audit_flags |= AUDIT_FLAG_RESERVE_GAP;
+            stats->pending_dropped_events = 0;
+        }
     }
     return e;
 }

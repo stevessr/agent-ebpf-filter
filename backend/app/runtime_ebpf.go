@@ -3,6 +3,8 @@ package app
 import (
 	"agent-ebpf-filter/app/platform"
 	bpf "agent-ebpf-filter/ebpf"
+	"crypto/rand"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"log"
@@ -112,6 +114,11 @@ func doBootstrap() (map[string]*ebpf.Map, error) {
 			defer objs.Close()
 			_ = os.RemoveAll(ebpfPinLinksDir)
 			_ = os.MkdirAll(ebpfPinLinksDir, 0755)
+			generation, err := rotateKernelAuditGeneration(objs.CollectorStats)
+			if err != nil {
+				platform.CloseMapHandles(replacements)
+				return nil, err
+			}
 			if err := pinLinks(&objs); err != nil {
 				platform.CloseMapHandles(replacements)
 				return nil, err
@@ -120,6 +127,7 @@ func doBootstrap() (map[string]*ebpf.Map, error) {
 				platform.CloseMapHandles(replacements)
 				return nil, err
 			}
+			log.Printf("[INFO] kernel audit generation rotated: %016x", generation)
 			return replacements, nil
 		}
 		// Preserve tracked data before closing old map handles
@@ -138,6 +146,10 @@ func doBootstrap() (map[string]*ebpf.Map, error) {
 		return nil, fmt.Errorf("load eBPF objects: %w", err)
 	}
 	defer objs.Close()
+	generation, err := rotateKernelAuditGeneration(objs.CollectorStats)
+	if err != nil {
+		return nil, err
+	}
 	if err := pinMaps(&objs); err != nil {
 		return nil, err
 	}
@@ -147,7 +159,57 @@ func doBootstrap() (map[string]*ebpf.Map, error) {
 	if err := ensurePinnedMapPermissions(); err != nil {
 		return nil, err
 	}
+	log.Printf("[INFO] kernel audit generation initialized: %016x", generation)
 	return loadPinnedMapHandles()
+}
+
+func newKernelAuditGeneration() (uint64, error) {
+	var seed [8]byte
+	if _, err := rand.Read(seed[:]); err != nil {
+		return 0, fmt.Errorf("generate kernel audit generation: %w", err)
+	}
+	generation := binary.LittleEndian.Uint64(seed[:])
+	if generation == 0 {
+		generation = 1
+	}
+	return generation, nil
+}
+
+func applyKernelAuditGeneration(values []bpf.AgentTrackerCollectorStats, generation uint64) {
+	for i := range values {
+		// Keep cumulative successful/reserve-failure/attempt counters across a
+		// compatible reload. The generation itself is the continuity epoch, so
+		// the CPU-local attempt sequence can remain monotonic across reloads.
+		values[i].PendingDroppedEvents = 0
+		values[i].AuditGeneration = generation
+	}
+}
+
+func rotateKernelAuditGeneration(stats *ebpf.Map) (uint64, error) {
+	if stats == nil {
+		return 0, errors.New("collector_stats map is nil")
+	}
+	generation, err := newKernelAuditGeneration()
+	if err != nil {
+		return 0, err
+	}
+	cpuCount, err := ebpf.PossibleCPU()
+	if err != nil {
+		return 0, fmt.Errorf("discover possible CPUs for audit generation: %w", err)
+	}
+	if cpuCount <= 0 {
+		return 0, errors.New("discover possible CPUs for audit generation: no CPUs reported")
+	}
+	values := make([]bpf.AgentTrackerCollectorStats, cpuCount)
+	key := uint32(0)
+	if err := stats.Lookup(&key, &values); err != nil {
+		return 0, fmt.Errorf("read collector_stats before audit generation rotation: %w", err)
+	}
+	applyKernelAuditGeneration(values, generation)
+	if err := stats.Update(&key, values, ebpf.UpdateAny); err != nil {
+		return 0, fmt.Errorf("write kernel audit generation: %w", err)
+	}
+	return generation, nil
 }
 
 func pinMaps(objs *bpf.AgentTrackerObjects) error {
