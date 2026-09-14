@@ -121,3 +121,13 @@ HTTP/1 socket start-line classification now performs one bounded 8-byte userspac
 probe to distinguish request/response/non-HTTP before copying a start-line. This
 replaces the previous request probe followed by a second response probe on the
 same syscall while preserving the same query/fragment truncation boundary.
+
+## Hot-path rejection
+
+Kernel HTTP/1 metadata probing is restricted to known `SOCK_STREAM` descriptors.
+The socket type is masked with `SOCK_TYPE_MASK`, so `SOCK_NONBLOCK`/`SOCK_CLOEXEC`
+flags do not accidentally disable capture. Unknown descriptor provenance keeps the
+conservative fallback where the syscall itself still provides a socket endpoint.
+This avoids user-memory L7 probes on known UDP/raw sockets without changing the
+userspace profile matcher or privacy boundary.
+

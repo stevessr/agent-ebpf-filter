@@ -14,6 +14,8 @@ typedef long long s64;
 
 #define AF_INET 2
 #define AF_INET6 10
+#define SOCK_STREAM 1
+#define SOCK_TYPE_MASK 0xf
 
 #define NET_DIR_OUTGOING 1
 #define NET_DIR_INCOMING 2
@@ -301,6 +303,13 @@ struct {
     __type(key, struct socket_fd_key);
     __type(value, struct socket_fd_meta);
 } socket_fds SEC(".maps");
+
+// HTTP/1 start-line capture only makes sense on byte-stream sockets. socket(2)
+// can OR SOCK_NONBLOCK/SOCK_CLOEXEC into the type argument, so mask to the
+// low socket-kind bits instead of comparing the raw value.
+static __always_inline int socket_http1_capture_eligible(const struct socket_fd_meta *socket) {
+    return socket && ((socket->sock_type & SOCK_TYPE_MASK) == SOCK_STREAM);
+}
 
 // Lazy process lineage for inherited descriptor tables. We intentionally keep
 // this LRU map bounded instead of walking/copying all descriptors at fork.

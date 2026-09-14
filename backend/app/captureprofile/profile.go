@@ -465,8 +465,13 @@ func hasHeader(headers map[string]string, wanted string) bool {
 }
 
 func hostSuffixMatch(host, suffix string) bool {
-	host = NormalizeHost(host)
-	suffix = NormalizeHost(suffix)
+	return hostSuffixMatchNormalized(NormalizeHost(host), NormalizeHost(suffix))
+}
+
+// hostSuffixMatchNormalized is the capture hot-path variant. Registry profiles
+// and prepared observations are normalized before matching, so re-running URL,
+// case and whitespace normalization for every candidate only burns CPU.
+func hostSuffixMatchNormalized(host, suffix string) bool {
 	if host == "" || suffix == "" {
 		return false
 	}
