@@ -22,10 +22,19 @@ jobs:
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
+      - name: Install protobuf compiler
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - name: Apply zero-allocation path patch
         run: python3 .github/scripts/one_shot_capture_zero_alloc.py
       - name: Format Go sources
         run: gofmt -w backend/app/captureprofile/profile.go backend/app/captureprofile/profile_test.go
+      - name: Generate Go protobuf bindings
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          mkdir -p backend/pb
+          protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto \
+            proto/tracker_common.proto proto/tracker_events.proto proto/tracker_registration.proto \
+            proto/tracker_system.proto proto/tracker_config.proto proto/tracker_shell.proto
       - name: Capture matcher tests and benchmark
         working-directory: backend
         run: |
