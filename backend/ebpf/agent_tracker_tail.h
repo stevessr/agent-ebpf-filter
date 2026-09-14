@@ -2,14 +2,14 @@ static __always_inline int sys_enter_common_path(u64 ptid, char *comm, char *pat
     u32 pid = (u32)(ptid >> 32);
     u32 tag_id = get_tag_id(pid, comm, path);
     if (tag_id == 0) return 0;
-    struct exit_meta meta = {};
+    struct exit_compact_meta meta = {};
     meta.type = TYPE_GENERIC_SYSCALL;
     meta.tag_id = tag_id;
     meta.extra1 = nr;
     meta.extra2 = extra2;
     meta.extra3 = extra3;
     meta.start_ns = bpf_ktime_get_ns();
-    store_exit_meta(ptid, &meta);
+    store_exit_compact_meta(ptid, &meta);
     return 1;
 }
 
@@ -17,14 +17,14 @@ static __always_inline int sys_enter_common_nopath(u64 ptid, char *comm, u32 nr,
     u32 pid = (u32)(ptid >> 32);
     u32 tag_id = get_tag_id(pid, comm, NULL);
     if (tag_id == 0) return 0;
-    struct exit_meta meta = {};
+    struct exit_compact_meta meta = {};
     meta.type = TYPE_GENERIC_SYSCALL;
     meta.tag_id = tag_id;
     meta.extra1 = nr;
     meta.extra2 = extra2;
     meta.extra3 = extra3;
     meta.start_ns = bpf_ktime_get_ns();
-    store_exit_meta(ptid, &meta);
+    store_exit_compact_meta(ptid, &meta);
     return 1;
 }
 
@@ -42,8 +42,8 @@ static __always_inline void discard_sys_exit_path(u64 pid_tgid, int path_mode) {
 
 static __always_inline void sys_exit_common(struct trace_event_raw_sys_exit *ctx, int path_mode) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    struct exit_meta meta = {};
-    if (!consume_exit_meta(pid_tgid, &meta)) return;
+    struct exit_compact_meta meta = {};
+    if (!consume_exit_compact_meta(pid_tgid, &meta)) return;
     struct event *e = reserve_event();
     if (!e) {
         // The enter-side path has no future consumer once exit_meta is consumed.
@@ -52,7 +52,7 @@ static __always_inline void sys_exit_common(struct trace_event_raw_sys_exit *ctx
         discard_sys_exit_path(pid_tgid, path_mode);
         return;
     }
-    fill_from_exit_meta(e, pid_tgid, &meta);
+    fill_from_exit_compact_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
     if (meta.start_ns != 0) {
         u64 now = bpf_ktime_get_ns();

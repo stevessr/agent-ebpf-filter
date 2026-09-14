@@ -24,7 +24,7 @@ import (
 const bootstrapFlag = "--ebpf-bootstrap"
 
 // mapNames defines the required pinned eBPF maps.
-var mapNames = []string{"agent_pids", "events", "collector_stats", "tracked_comms", "tracked_paths", "tracked_prefixes", "exit_ctx", "exit_single_path_buf", "exit_path_buf", "exit_single_path_ctx", "exit_path_ctx", "socket_fds", "socket_fd_parents"}
+var mapNames = []string{"agent_pids", "events", "collector_stats", "tracked_comms", "tracked_paths", "tracked_prefixes", "exit_ctx", "exit_compact_ctx", "exit_single_path_buf", "exit_path_buf", "exit_single_path_ctx", "exit_path_ctx", "socket_fds", "socket_fd_parents"}
 
 type tracepointAttachSpec struct {
 	category string
@@ -260,7 +260,7 @@ func pinMaps(objs *bpf.AgentTrackerObjects) error {
 		"agent_pids": objs.AgentPids, "events": objs.Events,
 		"collector_stats": objs.CollectorStats,
 		"tracked_comms":   objs.TrackedComms, "tracked_paths": objs.TrackedPaths,
-		"tracked_prefixes": objs.TrackedPrefixes, "exit_ctx": objs.ExitCtx,
+		"tracked_prefixes": objs.TrackedPrefixes, "exit_ctx": objs.ExitCtx, "exit_compact_ctx": objs.ExitCompactCtx,
 		"exit_single_path_buf": objs.ExitSinglePathBuf, "exit_path_buf": objs.ExitPathBuf, "exit_single_path_ctx": objs.ExitSinglePathCtx,
 		"exit_path_ctx": objs.ExitPathCtx, "socket_fds": objs.SocketFds, "socket_fd_parents": objs.SocketFdParents,
 	} {
