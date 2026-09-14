@@ -26,6 +26,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler clang llvm libbpf-dev libelf-dev
       - name: Apply generic capture patch
         run: |
+          python3 .github/scripts/one_shot_generic_api_capture_prepatch.py
           python3 .github/scripts/one_shot_generic_api_capture.py
           python3 .github/scripts/one_shot_generic_api_capture_fixups.py
       - name: Go fmt
