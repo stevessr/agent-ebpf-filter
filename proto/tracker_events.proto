@@ -88,6 +88,17 @@ message Event {
   uint64 kernel_audit_generation = 79;
   uint64 kernel_dropped_since_last = 80;
   uint64 kernel_reserve_failures_total = 81;
+  string capture_source = 82;
+  string api_profile = 83;
+  string api_vendor = 84;
+  string api_product = 85;
+  string api_operation = 86;
+  string http_method = 87;
+  string http_path = 88;
+  uint32 api_confidence = 89;
+  uint32 kernel_payload_prefix_len = 90;
+  uint32 kernel_capture_flags = 91;
+  int32 kernel_socket_fd = 92;
 }
 
 message ExecEvent {
@@ -206,6 +217,13 @@ message TLSEvent {
   string prompt_digest = 13;
   uint64 prompt_len = 14;
   string vendor = 15;
+  string capture_source = 16;
+  string app_protocol = 17;
+  string request_path = 18;
+  string api_profile = 19;
+  string api_product = 20;
+  string api_operation = 21;
+  uint32 api_confidence = 22;
 }
 
 message HTTPEvent {

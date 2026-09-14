@@ -24,7 +24,7 @@ import (
 const bootstrapFlag = "--ebpf-bootstrap"
 
 // mapNames defines the required pinned eBPF maps.
-var mapNames = []string{"agent_pids", "events", "collector_stats", "tracked_comms", "tracked_paths", "tracked_prefixes", "exit_ctx", "exit_path_buf", "exit_path_ctx"}
+var mapNames = []string{"agent_pids", "events", "collector_stats", "tracked_comms", "tracked_paths", "tracked_prefixes", "exit_ctx", "exit_path_buf", "exit_path_ctx", "socket_fds"}
 
 type tracepointAttachSpec struct {
 	category string
@@ -219,6 +219,7 @@ func pinMaps(objs *bpf.AgentTrackerObjects) error {
 		"tracked_comms":   objs.TrackedComms, "tracked_paths": objs.TrackedPaths,
 		"tracked_prefixes": objs.TrackedPrefixes, "exit_ctx": objs.ExitCtx,
 		"exit_path_buf": objs.ExitPathBuf, "exit_path_ctx": objs.ExitPathCtx,
+		"socket_fds": objs.SocketFds,
 	} {
 		if err := m.Pin(filepath.Join(ebpfPinMapsDir, name)); err != nil {
 			return fmt.Errorf("pin map %s: %w", name, err)
@@ -349,6 +350,7 @@ func toTrackerMapSet(maps map[string]*ebpf.Map) (trackerMapSet, error) {
 		TrackedComms:    maps["tracked_comms"],
 		TrackedPaths:    maps["tracked_paths"],
 		TrackedPrefixes: maps["tracked_prefixes"],
+		SocketFds:       maps["socket_fds"],
 	}, nil
 }
 

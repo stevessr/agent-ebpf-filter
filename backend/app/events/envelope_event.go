@@ -392,6 +392,13 @@ func buildTLSEnvelopePayload(event *pb.Event) *pb.TLSEvent {
 		PromptDigest:   platform.ParseStringField(event.GetExtraInfo(), "prompt_digest"),
 		PromptLen:      uint64(platform.ParseUintField(event.GetExtraInfo(), "prompt_len")),
 		Vendor:         platform.FirstNonEmpty(event.GetServiceName(), platform.ParseStringField(event.GetExtraInfo(), "vendor")),
+		CaptureSource:  event.GetCaptureSource(),
+		AppProtocol:    event.GetAppProtocol(),
+		RequestPath:    event.GetHttpPath(),
+		ApiProfile:     event.GetApiProfile(),
+		ApiProduct:     event.GetApiProduct(),
+		ApiOperation:   event.GetApiOperation(),
+		ApiConfidence:  event.GetApiConfidence(),
 	}
 }
 

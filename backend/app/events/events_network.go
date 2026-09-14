@@ -1,6 +1,7 @@
 package events
 
 import (
+	"agent-ebpf-filter/app/captureprofile"
 	"fmt"
 	"net"
 	"strconv"
@@ -79,6 +80,8 @@ func KernelEventTypeName(eventType uint32) string {
 		return "tcp_state_change"
 	case 34:
 		return "dns_query"
+	case 43:
+		return "socket_http"
 	default:
 		return "unknown"
 	}
@@ -88,7 +91,7 @@ func IsNetworkEventType(eventType string) bool {
 	switch eventType {
 	case "network_connect", "network_bind", "network_sendto", "network_recvfrom",
 		"accept", "accept4", "socket",
-		"tcp_connect", "tcp_close", "tcp_state_change", "dns_query":
+		"tcp_connect", "tcp_close", "tcp_state_change", "dns_query", "socket_http":
 		return true
 	default:
 		return false
@@ -311,6 +314,33 @@ func BuildKernelEventFromRaw(event *BpfEvent) *pb.Event {
 		out.NetFamily = "AF_INET"
 		out.NetEndpoint = fmt.Sprintf("dns:%d", event.NetPort)
 		out.Domain = SanitizeUTF8(event.Path[:])
+	case "socket_http":
+		method, requestPath, ok := captureprofile.ParseHTTP1RequestLine(extraPath)
+		out.CaptureSource = "kernel_socket_prefix"
+		out.AppProtocol = "http1"
+		out.KernelSocketFd = int32(event.Extra1)
+		out.KernelPayloadPrefixLen = event.Extra2
+		out.KernelCaptureFlags = 1
+		out.Bytes = event.Extra3
+		if ok {
+			out.HttpMethod = method
+			out.HttpPath = requestPath
+			// Drop the raw request line immediately so query parameters never
+			// leave the kernel-event normalization boundary.
+			out.ExtraPath = method + " " + requestPath
+			if match, matched := captureprofile.Default.Match(captureprofile.Observation{
+				Source: "kernel_socket_prefix", Protocol: "http1", Direction: "outgoing",
+				Method: method, Path: requestPath,
+			}); matched {
+				out.ApiProfile = match.ProfileID
+				out.ApiVendor = match.Vendor
+				out.ApiProduct = match.Product
+				out.ApiOperation = match.Operation
+				out.ApiConfidence = match.Confidence
+				out.ServiceName = match.Vendor
+			}
+		}
+		out.ExtraInfo = fmt.Sprintf("fd=%d capture=request-line prefix_len=%d requested=%d", int32(event.Extra1), event.Extra2, event.Extra3)
 	default:
 		if event.Retval != 0 {
 			out.ExtraInfo = fmt.Sprintf("retval=%d", event.Retval)

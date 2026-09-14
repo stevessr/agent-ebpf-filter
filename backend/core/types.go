@@ -215,6 +215,7 @@ type TrackerMapSet struct {
 	TrackedPrefixes *ebpf.Map
 	Events          *ebpf.Map
 	CollectorStats  *ebpf.Map
+	SocketFds       *ebpf.Map
 }
 
 // ShellControlMessage is sent over the WebSocket to resize the PTY.

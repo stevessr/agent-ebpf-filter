@@ -260,8 +260,16 @@ func convertTLSToProtoEvent(source TLSPlaintextEvent) *pb.Event {
 		HttpHost:       host,
 		NetEndpoint:    host,
 		NetDirection:   source.Direction,
-		AppProtocol:    "tls_plaintext",
+		AppProtocol:    source.AppProtocol,
 		ServiceName:    source.Vendor,
+		CaptureSource:  source.CaptureSource,
+		ApiProfile:     source.APIProfile,
+		ApiVendor:      source.Vendor,
+		ApiProduct:     source.APIProduct,
+		ApiOperation:   source.APIOperation,
+		HttpMethod:     source.Method,
+		HttpPath:       source.RequestPath,
+		ApiConfidence:  source.APIConfidence,
 	}
 }
 
@@ -310,6 +318,7 @@ func DispatchTLSAgentEvent(event *TLSPlaintextEvent, loopState *AgentLoopState, 
 		return
 	}
 	enrichTLSEventWithAgentContext(event)
+	annotateTLSAPIFingerprint(event)
 	annotateTLSAgentMessage(event)
 
 	if loopState != nil {

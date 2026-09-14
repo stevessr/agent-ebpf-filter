@@ -135,6 +135,16 @@ type TLSPlaintextEvent struct {
 	Vendor       string `json:"vendor,omitempty"`
 	LoopAlert    bool   `json:"loop_alert,omitempty"`
 
+	// Generalized API-capture metadata. These fields are derived from
+	// sanitized protocol metadata and are shared across TLS libraries.
+	CaptureSource string `json:"capture_source,omitempty"`
+	AppProtocol   string `json:"app_protocol,omitempty"`
+	RequestPath   string `json:"request_path,omitempty"`
+	APIProfile    string `json:"api_profile,omitempty"`
+	APIProduct    string `json:"api_product,omitempty"`
+	APIOperation  string `json:"api_operation,omitempty"`
+	APIConfidence uint32 `json:"api_confidence,omitempty"`
+
 	// AgentSight-compatible fields (from sslsniff reference)
 	UID         uint32  `json:"uid,omitempty"`
 	TID         uint32  `json:"tid,omitempty"`

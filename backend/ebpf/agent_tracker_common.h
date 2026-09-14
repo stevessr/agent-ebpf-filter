@@ -63,6 +63,9 @@ struct task_struct {
 #define TYPE_TCP_CLOSE 32
 #define TYPE_TCP_STATE_CHANGE 33
 #define TYPE_DNS_QUERY 34
+#define TYPE_SOCKET_HTTP 43
+
+#define SOCKET_CAPTURE_HTTP1_REQUEST_LINE (1U << 0)
 
 struct trace_entry {
     short unsigned int type;
@@ -260,6 +263,29 @@ struct {
     __type(key, u64);
     __type(value, struct exit_meta);
 } exit_ctx SEC(".maps");
+
+struct socket_fd_key {
+    u32 tgid;
+    s32 fd;
+};
+
+struct socket_fd_meta {
+    u32 family;
+    u32 sock_type;
+    u32 protocol;
+    u32 remote_port;
+    char remote_addr[16];
+};
+
+// LRU bounds stale descriptors when a process exits or uses close paths that
+// are not observed. Keys include TGID so fd reuse in another process cannot
+// inherit provenance.
+struct {
+    __uint(type, BPF_MAP_TYPE_LRU_HASH);
+    __uint(max_entries, 16384);
+    __type(key, struct socket_fd_key);
+    __type(value, struct socket_fd_meta);
+} socket_fds SEC(".maps");
 
 // Exit path context map: stores path data for sys_exit (split due to 512-byte stack limit)
 struct exit_path_data {
@@ -498,6 +524,86 @@ static __always_inline void fill_network_meta(struct exit_meta *meta, const void
 
 static __always_inline void store_exit_meta(u64 pid_tgid, struct exit_meta *meta) {
     bpf_map_update_elem(&exit_ctx, &pid_tgid, meta, BPF_ANY);
+}
+
+static __always_inline struct socket_fd_meta *lookup_socket_fd(u32 tgid, s32 fd) {
+    struct socket_fd_key key = {.tgid = tgid, .fd = fd};
+    return bpf_map_lookup_elem(&socket_fds, &key);
+}
+
+static __always_inline void remember_socket_fd(u32 tgid, s32 fd, u32 family, u32 sock_type, u32 protocol) {
+    if (fd < 0) return;
+    struct socket_fd_key key = {.tgid = tgid, .fd = fd};
+    struct socket_fd_meta value = {
+        .family = family,
+        .sock_type = sock_type,
+        .protocol = protocol,
+    };
+    bpf_map_update_elem(&socket_fds, &key, &value, BPF_ANY);
+}
+
+static __always_inline void update_socket_fd_remote(u32 tgid, s32 fd, struct exit_meta *meta) {
+    if (fd < 0 || !meta) return;
+    struct socket_fd_key key = {.tgid = tgid, .fd = fd};
+    struct socket_fd_meta value = {};
+    struct socket_fd_meta *existing = bpf_map_lookup_elem(&socket_fds, &key);
+    if (existing) __builtin_memcpy(&value, existing, sizeof(value));
+    value.family = meta->net_family;
+    value.remote_port = meta->net_port;
+    __builtin_memcpy(value.remote_addr, meta->net_addr, sizeof(value.remote_addr));
+    bpf_map_update_elem(&socket_fds, &key, &value, BPF_ANY);
+}
+
+static __always_inline void forget_socket_fd(u32 tgid, s32 fd) {
+    struct socket_fd_key key = {.tgid = tgid, .fd = fd};
+    bpf_map_delete_elem(&socket_fds, &key);
+}
+
+static __always_inline void fill_network_meta_from_socket(struct exit_meta *meta, struct socket_fd_meta *socket, u32 bytes) {
+    if (!meta || !socket) return;
+    meta->net_family = socket->family;
+    meta->net_direction = NET_DIR_OUTGOING;
+    meta->net_bytes = bytes;
+    meta->net_port = socket->remote_port;
+    __builtin_memcpy(meta->net_addr, socket->remote_addr, sizeof(meta->net_addr));
+}
+
+static __always_inline int looks_like_http1_method(const char *head, u32 len) {
+    if (!head || len < 4) return 0;
+    if (head[0] == 'G' && head[1] == 'E' && head[2] == 'T' && head[3] == ' ') return 1;
+    if (head[0] == 'P' && head[1] == 'O' && head[2] == 'S' && head[3] == 'T' && len >= 5 && head[4] == ' ') return 1;
+    if (head[0] == 'P' && head[1] == 'U' && head[2] == 'T' && head[3] == ' ') return 1;
+    if (head[0] == 'H' && head[1] == 'E' && head[2] == 'A' && head[3] == 'D' && len >= 5 && head[4] == ' ') return 1;
+    if (head[0] == 'P' && head[1] == 'A' && head[2] == 'T' && head[3] == 'C' && len >= 6 && head[4] == 'H' && head[5] == ' ') return 1;
+    if (head[0] == 'D' && head[1] == 'E' && head[2] == 'L' && head[3] == 'E' && len >= 7 && head[4] == 'T' && head[5] == 'E' && head[6] == ' ') return 1;
+    if (head[0] == 'O' && head[1] == 'P' && head[2] == 'T' && head[3] == 'I' && len >= 8 && head[4] == 'O' && head[5] == 'N' && head[6] == 'S' && head[7] == ' ') return 1;
+    if (head[0] == 'C' && head[1] == 'O' && head[2] == 'N' && head[3] == 'N' && len >= 8 && head[4] == 'E' && head[5] == 'C' && head[6] == 'T' && head[7] == ' ') return 1;
+    return 0;
+}
+
+// Copy only the HTTP/1 request line, never headers/body. This keeps the kernel
+// sampler useful for request-path discovery while avoiding Authorization/Cookie
+// material. Query strings are removed in userspace before persistence.
+static __always_inline u32 capture_http1_request_line(char *dst, const void *user_buf, u32 len) {
+    if (!dst || !user_buf || len < 4) return 0;
+    char head[8] = {};
+    u32 head_len = len < sizeof(head) ? len : sizeof(head);
+    if (bpf_probe_read_user(head, head_len, user_buf) < 0) return 0;
+    if (!looks_like_http1_method(head, head_len)) return 0;
+
+    u32 capture_len = len;
+    if (capture_len > MAX_PATH_LEN - 1) capture_len = MAX_PATH_LEN - 1;
+    if (bpf_probe_read_user(dst, capture_len, user_buf) < 0) return 0;
+#pragma clang loop unroll(disable)
+    for (int i = 0; i < MAX_PATH_LEN - 1; i++) {
+        if ((u32)i >= capture_len) break;
+        if (dst[i] == '\r' || dst[i] == '\n') {
+            dst[i] = '\0';
+            return (u32)i;
+        }
+    }
+    dst[capture_len] = '\0';
+    return capture_len;
 }
 
 // Convenience inline for sys_exit handlers that only need pid_tgid correlation
@@ -875,6 +981,7 @@ int tracepoint__syscalls__sys_enter_connect(struct trace_event_raw_sys_enter *ct
     struct exit_meta meta = {};
     meta.type = TYPE_CONNECT;
     meta.tag_id = tag_id;
+    meta.extra1 = (u32)ctx->args[0]; // fd for socket provenance
     fill_network_meta(&meta, (const void *)ctx->args[1], NET_DIR_OUTGOING, 0);
 
     store_exit_meta(pid_tgid, &meta);
@@ -893,6 +1000,10 @@ int tracepoint__syscalls__sys_exit_connect(struct trace_event_raw_sys_exit *ctx)
     u64 pid_tgid = bpf_get_current_pid_tgid();
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return 0;
+
+    if (ctx->ret == 0) {
+        update_socket_fd_remote((u32)(pid_tgid >> 32), (s32)meta.extra1, &meta);
+    }
 
     struct event *e = reserve_event();
     if (!e) return 0;
