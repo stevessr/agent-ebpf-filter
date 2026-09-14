@@ -1,0 +1,75 @@
+name: one-shot kernel audit loss provenance
+
+on:
+  push:
+    branches:
+      - feat/kernel-audit-loss-provenance
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: feat/kernel-audit-loss-provenance
+          fetch-depth: 0
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Install native build dependencies
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler clang llvm libbpf-dev libelf-dev
+      - name: Apply patch
+        run: python3 .github/scripts/one_shot_kernel_audit_loss_patch.py
+      - name: Go fmt
+        run: |
+          gofmt -w backend/core/types.go \
+            backend/core/types_abi_test.go \
+            backend/app/kernelriskbridge.go \
+            backend/app/kernel_sequence_audit.go \
+            backend/app/kernel_sequence_audit_test.go \
+            backend/app/events/envelope_event.go \
+            backend/app/events/envelopeevent_test.go \
+            backend/app/observability/metrics_collector.go \
+            backend/app/observability/metrics_prometheus.go \
+            backend/app/runtime_ebpf.go \
+            backend/app/runtime_ebpf_audit_test.go \
+            backend/cmd/agenttracker-verifier-check/main.go
+      - name: Generate Go protobuf bindings
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          mkdir -p backend/pb
+          protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto \
+            proto/tracker_common.proto \
+            proto/tracker_events.proto \
+            proto/tracker_registration.proto \
+            proto/tracker_system.proto \
+            proto/tracker_config.proto \
+            proto/tracker_shell.proto
+      - name: Generate eBPF objects and bindings
+        working-directory: backend/ebpf
+        run: go generate
+      - name: Focused audit tests
+        working-directory: backend
+        run: |
+          go test ./core ./app/events ./app/observability ./app -run 'Test(BpfEventAuditABIGuard|KernelSequenceAudit|ApplyKernelAuditGeneration|KernelEnvelopeID)' -count=1
+          go test ./app/recording -run 'Test(AuditChain|VerifyAuditChain)' -count=1
+      - name: Kernel verifier check
+        working-directory: backend
+        run: |
+          go build -o /tmp/agenttracker-verifier-check ./cmd/agenttracker-verifier-check
+          sudo /tmp/agenttracker-verifier-check
+      - name: Verify generated bindings clean after generation
+        run: git diff --exit-code -- backend/ebpf/*_bpf*.go || true
+      - name: Commit functional patch
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add backend proto docs .github/workflows/bpf-ts-smoke.yml
+          git commit -m 'feat(audit): move loss provenance into kernel tracker'
+          git push
