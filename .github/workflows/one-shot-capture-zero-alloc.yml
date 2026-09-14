@@ -1,0 +1,45 @@
+name: one-shot capture zero alloc
+
+on:
+  push:
+    branches:
+      - perf/capture-profile-index-fast-http1
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: perf/capture-profile-index-fast-http1
+          fetch-depth: 0
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Apply zero-allocation path patch
+        run: python3 .github/scripts/one_shot_capture_zero_alloc.py
+      - name: Format Go sources
+        run: gofmt -w backend/app/captureprofile/profile.go backend/app/captureprofile/profile_test.go
+      - name: Capture matcher tests and benchmark
+        working-directory: backend
+        run: |
+          go test ./app/captureprofile -count=1
+          go test ./app/captureprofile -run '^$' -bench 'BenchmarkRegistryMatch(Compact|Indexed|Linear)512' -benchmem -count=3
+      - name: Production fingerprint tests
+        working-directory: backend
+        run: |
+          go test ./app/events -run 'Test(Kernel|BuildKernel|HTTP|Socket)' -count=1
+          go test ./app/tls -run 'Test.*(API|Fingerprint|HTTP|GRPC)' -count=1
+      - name: Commit product changes
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add backend/app/captureprofile/profile.go backend/app/captureprofile/profile_test.go
+          git commit -m 'perf(capture): remove path-parser allocation from hot match'
+          git push
