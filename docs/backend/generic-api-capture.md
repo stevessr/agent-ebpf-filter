@@ -152,3 +152,15 @@ This removes a 512-byte hash-map update plus lookup/delete from each event and
 also avoids copying unrelated per-CPU scratch `extra4` bytes into static events.
 Dynamic file paths and recognized HTTP start-lines continue to use the existing
 bounded context maps.
+
+### Split dynamic path contexts
+
+Dynamic path correlation is now shape-aware. Single-path filesystem syscalls
+use a dedicated 256-byte `exit_single_path_ctx`, while dual-path operations and
+recognized HTTP metadata retain the 512-byte `exit_path_ctx`. The pair map is
+reduced to 1024 entries while the single-path map has 2048 entries, keeping the
+combined preallocated value budget approximately equal to the previous 2048 x
+512-byte map but halving update/lookup bandwidth for the dominant single-path
+case. `connect()` no longer stages its fixed label in either map, and untracked
+connects return before `exit_ctx` correlation. Both path maps are explicitly
+cleaned when ring-buffer reservation fails after exit metadata is consumed.

@@ -28,12 +28,30 @@ static __always_inline int sys_enter_common_nopath(u64 ptid, char *comm, u32 nr,
     return 1;
 }
 
-static __always_inline void sys_exit_common(struct trace_event_raw_sys_exit *ctx, int has_path) {
+#define EXIT_PATH_NONE   0
+#define EXIT_PATH_SINGLE 1
+#define EXIT_PATH_PAIR   2
+
+static __always_inline void discard_sys_exit_path(u64 pid_tgid, int path_mode) {
+    if (path_mode == EXIT_PATH_SINGLE) {
+        bpf_map_delete_elem(&exit_single_path_ctx, &pid_tgid);
+    } else if (path_mode == EXIT_PATH_PAIR) {
+        bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
+    }
+}
+
+static __always_inline void sys_exit_common(struct trace_event_raw_sys_exit *ctx, int path_mode) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return;
     struct event *e = reserve_event();
-    if (!e) return;
+    if (!e) {
+        // The enter-side path has no future consumer once exit_meta is consumed.
+        // Always clear it on ring-buffer pressure instead of leaving a stale
+        // per-thread entry until the next syscall happens to overwrite it.
+        discard_sys_exit_path(pid_tgid, path_mode);
+        return;
+    }
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
     if (meta.start_ns != 0) {
@@ -42,7 +60,13 @@ static __always_inline void sys_exit_common(struct trace_event_raw_sys_exit *ctx
             e->duration_ns = now - meta.start_ns;
         }
     }
-    if (has_path) {
+    if (path_mode == EXIT_PATH_SINGLE) {
+        struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_ctx, &pid_tgid);
+        if (pd) {
+            __builtin_memcpy(e->path, pd->path, MAX_PATH_LEN);
+            bpf_map_delete_elem(&exit_single_path_ctx, &pid_tgid);
+        }
+    } else if (path_mode == EXIT_PATH_PAIR) {
         struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_ctx, &pid_tgid);
         if (pd) {
             __builtin_memcpy(e->path, pd->path, MAX_PATH_LEN);
@@ -68,12 +92,12 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
     if (!pd) return 0; \
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); \
     if (!sys_enter_common_path(ptid, comm, pd->path, nr, 0, 0)) return 0; \
-    bpf_map_update_elem(&exit_path_ctx, &ptid, pd, BPF_ANY); \
+    bpf_map_update_elem(&exit_single_path_ctx, &ptid, pd->path, BPF_ANY); \
     return 0; \
 } \
 SEC("tracepoint/syscalls/sys_exit_" #name) \
 int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) { \
-    sys_exit_common(ctx, 1); \
+    sys_exit_common(ctx, EXIT_PATH_SINGLE); \
     return 0; \
 }
 
@@ -95,7 +119,7 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
 } \
 SEC("tracepoint/syscalls/sys_exit_" #name) \
 int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) { \
-    sys_exit_common(ctx, 1); \
+    sys_exit_common(ctx, EXIT_PATH_PAIR); \
     return 0; \
 }
 
@@ -111,12 +135,12 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
     if (!pd) return 0; \
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[1]); \
     if (!sys_enter_common_path(ptid, comm, pd->path, nr, 0, 0)) return 0; \
-    bpf_map_update_elem(&exit_path_ctx, &ptid, pd, BPF_ANY); \
+    bpf_map_update_elem(&exit_single_path_ctx, &ptid, pd->path, BPF_ANY); \
     return 0; \
 } \
 SEC("tracepoint/syscalls/sys_exit_" #name) \
 int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) { \
-    sys_exit_common(ctx, 1); \
+    sys_exit_common(ctx, EXIT_PATH_SINGLE); \
     return 0; \
 }
 
@@ -138,7 +162,7 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
 } \
 SEC("tracepoint/syscalls/sys_exit_" #name) \
 int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) { \
-    sys_exit_common(ctx, 1); \
+    sys_exit_common(ctx, EXIT_PATH_PAIR); \
     return 0; \
 }
 
@@ -160,7 +184,7 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
 } \
 SEC("tracepoint/syscalls/sys_exit_" #name) \
 int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) { \
-    sys_exit_common(ctx, 1); \
+    sys_exit_common(ctx, EXIT_PATH_PAIR); \
     return 0; \
 }
 
@@ -176,12 +200,12 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
     if (!pd) return 0; \
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[4]); \
     if (!sys_enter_common_path(ptid, comm, pd->path, nr, 0, 0)) return 0; \
-    bpf_map_update_elem(&exit_path_ctx, &ptid, pd, BPF_ANY); \
+    bpf_map_update_elem(&exit_single_path_ctx, &ptid, pd->path, BPF_ANY); \
     return 0; \
 } \
 SEC("tracepoint/syscalls/sys_exit_" #name) \
 int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) { \
-    sys_exit_common(ctx, 1); \
+    sys_exit_common(ctx, EXIT_PATH_SINGLE); \
     return 0; \
 }
 
@@ -197,7 +221,7 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
 } \
 SEC("tracepoint/syscalls/sys_exit_" #name) \
 int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) { \
-    sys_exit_common(ctx, 0); \
+    sys_exit_common(ctx, EXIT_PATH_NONE); \
     return 0; \
 }
 
@@ -213,7 +237,7 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
 } \
 SEC("tracepoint/syscalls/sys_exit_" #name) \
 int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) { \
-    sys_exit_common(ctx, 0); \
+    sys_exit_common(ctx, EXIT_PATH_NONE); \
     return 0; \
 }
 
