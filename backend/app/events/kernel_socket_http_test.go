@@ -25,7 +25,7 @@ func TestBuildKernelSocketHTTPEventSanitizesAndClassifiesPath(t *testing.T) {
 	raw.Extra3 = 4096
 	raw.NetFamily = 2
 	raw.NetDirection = 1
-	raw.KernelCaptureFlags = kernelCaptureHTTPRequest | kernelCaptureOutgoing
+	raw.KernelCaptureFlags = kernelCaptureHTTPRequest | kernelCaptureOutgoing | kernelCaptureScatterGather
 	copy(raw.Comm[:], "agent")
 	copy(raw.Path[:], "socket http")
 	copy(raw.Extra4[:], "POST /v1/responses?api_key=top-secret HTTP/1.1")
@@ -43,7 +43,7 @@ func TestBuildKernelSocketHTTPEventSanitizesAndClassifiesPath(t *testing.T) {
 	if event.GetApiProfile() != "openai-compatible.responses" || event.GetApiVendor() != "openai-compatible" {
 		t.Fatalf("profile = %q vendor=%q", event.GetApiProfile(), event.GetApiVendor())
 	}
-	if event.GetKernelSocketFd() != 9 || event.GetKernelPayloadPrefixLen() != 53 || event.GetKernelCaptureFlags() != kernelCaptureHTTPRequest|kernelCaptureOutgoing {
+	if event.GetKernelSocketFd() != 9 || event.GetKernelPayloadPrefixLen() != 53 || event.GetKernelCaptureFlags() != kernelCaptureHTTPRequest|kernelCaptureOutgoing|kernelCaptureScatterGather {
 		t.Fatalf("kernel capture metadata missing: %+v", event)
 	}
 }

@@ -183,7 +183,9 @@ type AgentTrackerProgramSpecs struct {
 	TracepointSyscallsSysEnterRead            *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_read"`
 	TracepointSyscallsSysEnterReadlink        *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_readlink"`
 	TracepointSyscallsSysEnterReadlinkat      *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_readlinkat"`
+	TracepointSyscallsSysEnterReadv           *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_readv"`
 	TracepointSyscallsSysEnterRecvfrom        *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_recvfrom"`
+	TracepointSyscallsSysEnterRecvmsg         *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_recvmsg"`
 	TracepointSyscallsSysEnterRemovexattr     *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_removexattr"`
 	TracepointSyscallsSysEnterRename          *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_rename"`
 	TracepointSyscallsSysEnterRenameat        *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_renameat"`
@@ -191,6 +193,7 @@ type AgentTrackerProgramSpecs struct {
 	TracepointSyscallsSysEnterRequestKey      *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_request_key"`
 	TracepointSyscallsSysEnterRmdir           *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_rmdir"`
 	TracepointSyscallsSysEnterSeccomp         *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_seccomp"`
+	TracepointSyscallsSysEnterSendmsg         *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_sendmsg"`
 	TracepointSyscallsSysEnterSendto          *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_sendto"`
 	TracepointSyscallsSysEnterSetdomainname   *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_setdomainname"`
 	TracepointSyscallsSysEnterSethostname     *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_sethostname"`
@@ -213,6 +216,7 @@ type AgentTrackerProgramSpecs struct {
 	TracepointSyscallsSysEnterUtimensat       *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_utimensat"`
 	TracepointSyscallsSysEnterWait4           *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_wait4"`
 	TracepointSyscallsSysEnterWrite           *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_write"`
+	TracepointSyscallsSysEnterWritev          *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_writev"`
 	TracepointSyscallsSysExitAccept           *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_accept"`
 	TracepointSyscallsSysExitAccept4          *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_accept4"`
 	TracepointSyscallsSysExitAccess           *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_access"`
@@ -281,7 +285,9 @@ type AgentTrackerProgramSpecs struct {
 	TracepointSyscallsSysExitRead             *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_read"`
 	TracepointSyscallsSysExitReadlink         *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_readlink"`
 	TracepointSyscallsSysExitReadlinkat       *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_readlinkat"`
+	TracepointSyscallsSysExitReadv            *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_readv"`
 	TracepointSyscallsSysExitRecvfrom         *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_recvfrom"`
+	TracepointSyscallsSysExitRecvmsg          *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_recvmsg"`
 	TracepointSyscallsSysExitRemovexattr      *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_removexattr"`
 	TracepointSyscallsSysExitRename           *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_rename"`
 	TracepointSyscallsSysExitRenameat         *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_renameat"`
@@ -289,6 +295,7 @@ type AgentTrackerProgramSpecs struct {
 	TracepointSyscallsSysExitRequestKey       *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_request_key"`
 	TracepointSyscallsSysExitRmdir            *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_rmdir"`
 	TracepointSyscallsSysExitSeccomp          *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_seccomp"`
+	TracepointSyscallsSysExitSendmsg          *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_sendmsg"`
 	TracepointSyscallsSysExitSendto           *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_sendto"`
 	TracepointSyscallsSysExitSetdomainname    *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_setdomainname"`
 	TracepointSyscallsSysExitSethostname      *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_sethostname"`
@@ -311,6 +318,7 @@ type AgentTrackerProgramSpecs struct {
 	TracepointSyscallsSysExitUtimensat        *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_utimensat"`
 	TracepointSyscallsSysExitWait4            *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_wait4"`
 	TracepointSyscallsSysExitWrite            *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_write"`
+	TracepointSyscallsSysExitWritev           *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_writev"`
 	TracepointTcpTcpClose                     *ebpf.ProgramSpec `ebpf:"tracepoint__tcp__tcp_close"`
 	TracepointTcpTcpConnect                   *ebpf.ProgramSpec `ebpf:"tracepoint__tcp__tcp_connect"`
 }
@@ -469,7 +477,9 @@ type AgentTrackerPrograms struct {
 	TracepointSyscallsSysEnterRead            *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_read"`
 	TracepointSyscallsSysEnterReadlink        *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_readlink"`
 	TracepointSyscallsSysEnterReadlinkat      *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_readlinkat"`
+	TracepointSyscallsSysEnterReadv           *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_readv"`
 	TracepointSyscallsSysEnterRecvfrom        *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_recvfrom"`
+	TracepointSyscallsSysEnterRecvmsg         *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_recvmsg"`
 	TracepointSyscallsSysEnterRemovexattr     *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_removexattr"`
 	TracepointSyscallsSysEnterRename          *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_rename"`
 	TracepointSyscallsSysEnterRenameat        *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_renameat"`
@@ -477,6 +487,7 @@ type AgentTrackerPrograms struct {
 	TracepointSyscallsSysEnterRequestKey      *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_request_key"`
 	TracepointSyscallsSysEnterRmdir           *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_rmdir"`
 	TracepointSyscallsSysEnterSeccomp         *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_seccomp"`
+	TracepointSyscallsSysEnterSendmsg         *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_sendmsg"`
 	TracepointSyscallsSysEnterSendto          *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_sendto"`
 	TracepointSyscallsSysEnterSetdomainname   *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_setdomainname"`
 	TracepointSyscallsSysEnterSethostname     *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_sethostname"`
@@ -499,6 +510,7 @@ type AgentTrackerPrograms struct {
 	TracepointSyscallsSysEnterUtimensat       *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_utimensat"`
 	TracepointSyscallsSysEnterWait4           *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_wait4"`
 	TracepointSyscallsSysEnterWrite           *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_write"`
+	TracepointSyscallsSysEnterWritev          *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_writev"`
 	TracepointSyscallsSysExitAccept           *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_accept"`
 	TracepointSyscallsSysExitAccept4          *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_accept4"`
 	TracepointSyscallsSysExitAccess           *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_access"`
@@ -567,7 +579,9 @@ type AgentTrackerPrograms struct {
 	TracepointSyscallsSysExitRead             *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_read"`
 	TracepointSyscallsSysExitReadlink         *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_readlink"`
 	TracepointSyscallsSysExitReadlinkat       *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_readlinkat"`
+	TracepointSyscallsSysExitReadv            *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_readv"`
 	TracepointSyscallsSysExitRecvfrom         *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_recvfrom"`
+	TracepointSyscallsSysExitRecvmsg          *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_recvmsg"`
 	TracepointSyscallsSysExitRemovexattr      *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_removexattr"`
 	TracepointSyscallsSysExitRename           *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_rename"`
 	TracepointSyscallsSysExitRenameat         *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_renameat"`
@@ -575,6 +589,7 @@ type AgentTrackerPrograms struct {
 	TracepointSyscallsSysExitRequestKey       *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_request_key"`
 	TracepointSyscallsSysExitRmdir            *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_rmdir"`
 	TracepointSyscallsSysExitSeccomp          *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_seccomp"`
+	TracepointSyscallsSysExitSendmsg          *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_sendmsg"`
 	TracepointSyscallsSysExitSendto           *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_sendto"`
 	TracepointSyscallsSysExitSetdomainname    *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_setdomainname"`
 	TracepointSyscallsSysExitSethostname      *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_sethostname"`
@@ -597,6 +612,7 @@ type AgentTrackerPrograms struct {
 	TracepointSyscallsSysExitUtimensat        *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_utimensat"`
 	TracepointSyscallsSysExitWait4            *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_wait4"`
 	TracepointSyscallsSysExitWrite            *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_write"`
+	TracepointSyscallsSysExitWritev           *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_writev"`
 	TracepointTcpTcpClose                     *ebpf.Program `ebpf:"tracepoint__tcp__tcp_close"`
 	TracepointTcpTcpConnect                   *ebpf.Program `ebpf:"tracepoint__tcp__tcp_connect"`
 }
@@ -675,7 +691,9 @@ func (p *AgentTrackerPrograms) Close() error {
 		p.TracepointSyscallsSysEnterRead,
 		p.TracepointSyscallsSysEnterReadlink,
 		p.TracepointSyscallsSysEnterReadlinkat,
+		p.TracepointSyscallsSysEnterReadv,
 		p.TracepointSyscallsSysEnterRecvfrom,
+		p.TracepointSyscallsSysEnterRecvmsg,
 		p.TracepointSyscallsSysEnterRemovexattr,
 		p.TracepointSyscallsSysEnterRename,
 		p.TracepointSyscallsSysEnterRenameat,
@@ -683,6 +701,7 @@ func (p *AgentTrackerPrograms) Close() error {
 		p.TracepointSyscallsSysEnterRequestKey,
 		p.TracepointSyscallsSysEnterRmdir,
 		p.TracepointSyscallsSysEnterSeccomp,
+		p.TracepointSyscallsSysEnterSendmsg,
 		p.TracepointSyscallsSysEnterSendto,
 		p.TracepointSyscallsSysEnterSetdomainname,
 		p.TracepointSyscallsSysEnterSethostname,
@@ -705,6 +724,7 @@ func (p *AgentTrackerPrograms) Close() error {
 		p.TracepointSyscallsSysEnterUtimensat,
 		p.TracepointSyscallsSysEnterWait4,
 		p.TracepointSyscallsSysEnterWrite,
+		p.TracepointSyscallsSysEnterWritev,
 		p.TracepointSyscallsSysExitAccept,
 		p.TracepointSyscallsSysExitAccept4,
 		p.TracepointSyscallsSysExitAccess,
@@ -773,7 +793,9 @@ func (p *AgentTrackerPrograms) Close() error {
 		p.TracepointSyscallsSysExitRead,
 		p.TracepointSyscallsSysExitReadlink,
 		p.TracepointSyscallsSysExitReadlinkat,
+		p.TracepointSyscallsSysExitReadv,
 		p.TracepointSyscallsSysExitRecvfrom,
+		p.TracepointSyscallsSysExitRecvmsg,
 		p.TracepointSyscallsSysExitRemovexattr,
 		p.TracepointSyscallsSysExitRename,
 		p.TracepointSyscallsSysExitRenameat,
@@ -781,6 +803,7 @@ func (p *AgentTrackerPrograms) Close() error {
 		p.TracepointSyscallsSysExitRequestKey,
 		p.TracepointSyscallsSysExitRmdir,
 		p.TracepointSyscallsSysExitSeccomp,
+		p.TracepointSyscallsSysExitSendmsg,
 		p.TracepointSyscallsSysExitSendto,
 		p.TracepointSyscallsSysExitSetdomainname,
 		p.TracepointSyscallsSysExitSethostname,
@@ -803,6 +826,7 @@ func (p *AgentTrackerPrograms) Close() error {
 		p.TracepointSyscallsSysExitUtimensat,
 		p.TracepointSyscallsSysExitWait4,
 		p.TracepointSyscallsSysExitWrite,
+		p.TracepointSyscallsSysExitWritev,
 		p.TracepointTcpTcpClose,
 		p.TracepointTcpTcpConnect,
 	)

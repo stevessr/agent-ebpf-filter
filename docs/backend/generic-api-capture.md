@@ -62,3 +62,10 @@ Profiles can additionally restrict `sources` and `directions`, for example `kern
 ## gRPC
 
 HTTP/2 plaintext events with an `application/grpc` content type are normalized to `grpc`. The canonical `/package.Service/Method` route is split into service and method without decoding protobuf bodies. If no explicit vendor profile matches, the event still receives a generic `grpc:<service>` profile, service as the product, method as the operation, and a moderate metadata-only confidence score.
+
+
+## Scatter/gather syscall coverage
+
+The plaintext kernel sampler also covers native 64-bit `writev`, `readv`, `sendmsg`, and `recvmsg`. To keep both verifier cost and privacy exposure bounded, only the first iovec is inspected and only enough bytes for an HTTP/1 start-line candidate are copied into the per-CPU scratch buffer. The body, subsequent iovecs, authorization headers, cookies, and arbitrary message control data are not captured.
+
+`kernel_capture_flags` includes `SCATTER_GATHER`, so downstream analysis can distinguish this best-effort prefix from a contiguous `read`/`write` sample. `sendmsg` uses `msg_name` when present and otherwise reuses connected-fd provenance; `recvmsg` can refresh the peer endpoint after return. compat32 user tasks are intentionally not decoded as 64-bit `iovec/msghdr`; they retain ordinary syscall telemetry rather than risking pointer-layout misinterpretation.
