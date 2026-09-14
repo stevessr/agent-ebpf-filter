@@ -28,7 +28,7 @@ jobs:
       - name: Apply capture matcher performance patch
         run: |
           python3 .github/scripts/one_shot_capture_profile_perf.py
-          python3 .github/scripts/one_shot_capture_profile_perf_fix.py
+          python3 .github/scripts/one_shot_capture_profile_perf_fix2.py
       - name: Format Go sources
         run: |
           gofmt -w backend/app/captureprofile/profile.go backend/app/captureprofile/profile_index.go backend/app/captureprofile/profile_test.go backend/app/captureprofile/profile_bench_test.go backend/app/captureprofile_control.go backend/app/tls/api_fingerprint.go backend/app/events/events_network.go backend/core/types.go
