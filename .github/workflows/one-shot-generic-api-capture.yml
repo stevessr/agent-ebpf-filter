@@ -25,7 +25,9 @@ jobs:
       - name: Install native build dependencies
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler clang llvm libbpf-dev libelf-dev
       - name: Apply privacy and provenance hardening
-        run: python3 .github/scripts/one_shot_generic_api_capture_hardening.py
+        run: |
+          python3 .github/scripts/one_shot_generic_api_capture_hardening.py
+          python3 .github/scripts/one_shot_generic_api_capture_verifier_fix.py
       - name: Go fmt
         run: gofmt -w backend/app/runtime_ebpf.go backend/app/tls/api_fingerprint.go
       - name: Generate Go protobuf bindings
