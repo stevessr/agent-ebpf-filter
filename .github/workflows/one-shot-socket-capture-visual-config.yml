@@ -22,11 +22,7 @@ jobs:
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
-      - uses: actions/setup-node@v5.0.0
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+      - uses: oven-sh/setup-bun@v2.2.0
       - name: Install protobuf compiler
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - name: Apply socket visual config patch
@@ -52,13 +48,13 @@ jobs:
           go test ./app -run 'TestCaptureProfile' -count=1
       - name: Frontend install
         working-directory: frontend
-        run: npm ci
+        run: bun install --frozen-lockfile
       - name: Frontend typecheck
         working-directory: frontend
-        run: npm run typecheck
+        run: bunx vue-tsc -b --pretty false
       - name: Frontend build
         working-directory: frontend
-        run: npm run build
+        run: bun run build
       - name: Commit product changes
         run: |
           git config user.name github-actions[bot]
