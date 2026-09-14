@@ -140,3 +140,15 @@ after the bounded HTTP/1 classifier recognizes a real start-line; ordinary TLS,
 binary, file, UDP, and non-HTTP stream writes keep their static label entirely
 in the exit program. Failed ring-buffer reservations explicitly discard any
 dynamic HTTP context, preventing stale per-thread entries.
+
+### Static syscall-label fast path
+
+Fixed syscall labels no longer use `exit_path_buf`/`exit_path_ctx` as a transport
+between enter and exit programs. Simple operations such as `ioctl`, permission
+changes, process wait/clone labels, basic file-operation labels, `socket()`,
+`bind()`, and `recvfrom()` keep only the compact `exit_meta` correlation record;
+their constant label is copied directly into the ring-buffer event on sys_exit.
+This removes a 512-byte hash-map update plus lookup/delete from each event and
+also avoids copying unrelated per-CPU scratch `extra4` bytes into static events.
+Dynamic file paths and recognized HTTP start-lines continue to use the existing
+bounded context maps.
