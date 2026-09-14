@@ -1,0 +1,68 @@
+name: one-shot socket capture visual config
+
+on:
+  push:
+    branches:
+      - feat/generic-api-capture-kernel-provenance
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: feat/generic-api-capture-kernel-provenance
+          fetch-depth: 0
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - uses: actions/setup-node@v5.0.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install protobuf compiler
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - name: Apply socket visual config patch
+        run: python3 .github/scripts/one_shot_socket_capture_visual_config.py
+      - name: Go fmt
+        run: |
+          gofmt -w backend/app/captureprofile_control.go backend/app/captureprofile_control_test.go backend/app/jobs_background.go backend/app/routes.go
+      - name: Generate Go protobuf bindings
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          mkdir -p backend/pb
+          protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto \
+            proto/tracker_common.proto \
+            proto/tracker_events.proto \
+            proto/tracker_registration.proto \
+            proto/tracker_system.proto \
+            proto/tracker_config.proto \
+            proto/tracker_shell.proto
+      - name: Backend capture profile tests
+        working-directory: backend
+        run: |
+          go test ./app/captureprofile -count=1
+          go test ./app -run 'TestCaptureProfile' -count=1
+      - name: Frontend install
+        working-directory: frontend
+        run: npm ci
+      - name: Frontend typecheck
+        working-directory: frontend
+        run: npm run typecheck
+      - name: Frontend build
+        working-directory: frontend
+        run: npm run build
+      - name: Commit product changes
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add backend/app/captureprofile_control.go backend/app/captureprofile_control_test.go backend/app/jobs_background.go backend/app/routes.go frontend/src/views/network/SocketCaptureProfiles.vue frontend/src/views/network/NetworkFlow.vue docs/backend/generic-api-capture.md
+          git commit -m 'feat(capture): add socket-view visual profile control plane'
+          git push
