@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/captureprofile"
 	"agent-ebpf-filter/app/recording"
 	"agent-ebpf-filter/app/research"
 	"bytes"
@@ -162,6 +163,7 @@ func startKernelEventReader(ctx context.Context, rd kernelEventReader, jobs *run
 func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) *runtimeBackgroundJobs {
 	jobs := &runtimeBackgroundJobs{}
 	initRedactionEngine()
+	startAPICaptureProfileWatcher(ctx, jobs)
 	jobs.Go(func() { runEventBroadcaster(ctx) })
 	jobs.Go(func() { runSemanticAlertStateGC(ctx, semanticAlertsState, semanticStateGCInterval) })
 	jobs.Go(func() { runToolBaselineGC(ctx, toolBaseline, toolBaselineEvictionInterval) })
@@ -271,6 +273,27 @@ func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) 
 		})
 	}
 	return jobs
+}
+
+func startAPICaptureProfileWatcher(ctx context.Context, jobs *runtimeBackgroundJobs) {
+	if ctx == nil || jobs == nil {
+		return
+	}
+	path := captureProfileOverlayPath()
+	if err := ensureCaptureProfileOverlayFile(path); err != nil {
+		log.Printf("[WARN] API capture profile control plane unavailable: %v", err)
+		return
+	}
+	if err := captureprofile.ReloadDefaultJSON(path); err != nil {
+		log.Printf("[WARN] initial API capture profile load failed: %v", err)
+	} else {
+		log.Printf("[INFO] API capture profiles loaded from %s", path)
+	}
+	jobs.Go(func() {
+		captureprofile.WatchDefaultJSON(ctx, path, 2*time.Second, func(err error) {
+			log.Printf("[WARN] API capture profile reload rejected; keeping last known-good rules: %v", err)
+		})
+	})
 }
 
 func runSemanticAlertStateGC(ctx context.Context, state *events.SemanticAlertState, interval time.Duration) {

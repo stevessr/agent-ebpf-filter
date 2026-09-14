@@ -7,8 +7,8 @@ import (
 
 func TestBpfEventAuditABIGuard(t *testing.T) {
 	var event BpfEvent
-	if got := unsafe.Sizeof(event); got != 680 {
-		t.Fatalf("BpfEvent size = %d, want 680", got)
+	if got := unsafe.Sizeof(event); got != 688 {
+		t.Fatalf("BpfEvent size = %d, want 688", got)
 	}
 	if got := unsafe.Offsetof(event.KernelAuditGeneration); got != 656 {
 		t.Fatalf("KernelAuditGeneration offset = %d, want 656", got)

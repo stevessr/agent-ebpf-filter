@@ -9,9 +9,11 @@ import {
   NodeIndexOutlined,
   WifiOutlined,
   AlertOutlined,
+  SettingOutlined,
 } from "@ant-design/icons-vue";
 import type { NetworkFlow } from "../../composables/network/useNetworkEnrichment";
 import TrafficGraph from "../../components/network/TrafficGraph.vue";
+import SocketCaptureProfiles from "./SocketCaptureProfiles.vue";
 import { useInterfaceMonitor } from "../../composables/monitor/useInterfaceMonitor";
 import { useFlowFilters } from "./useFlowFilters";
 
@@ -588,6 +590,14 @@ const startResize = (e: MouseEvent) => {
           </div>
         </a-tab-pane>
 
+        <!-- ── Capture profile tab ───────────────────────────── -->
+        <a-tab-pane key="capture">
+          <template #tab>
+            <span><SettingOutlined /> Capture Profiles</span>
+          </template>
+          <SocketCaptureProfiles :flows="flowList" :selected-flow="selectedFlow" />
+        </a-tab-pane>
+
         <!-- ── Interfaces tab ────────────────────────────────── -->
         <a-tab-pane key="interfaces">
           <template #tab>
@@ -816,6 +826,14 @@ const startResize = (e: MouseEvent) => {
             </a-space>
           </a-descriptions-item>
         </a-descriptions>
+        <div style="margin-top: 12px; display: flex; justify-content: flex-end">
+          <a-button
+            type="primary"
+            @click="activeTab = 'capture'; showFlowDetail = false"
+          >
+            Create capture profile from this socket
+          </a-button>
+        </div>
       </template>
     </a-modal>
 

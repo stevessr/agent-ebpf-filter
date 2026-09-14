@@ -24,7 +24,7 @@ import (
 const bootstrapFlag = "--ebpf-bootstrap"
 
 // mapNames defines the required pinned eBPF maps.
-var mapNames = []string{"agent_pids", "events", "collector_stats", "tracked_comms", "tracked_paths", "tracked_prefixes", "exit_ctx", "exit_path_buf", "exit_path_ctx"}
+var mapNames = []string{"agent_pids", "events", "collector_stats", "tracked_comms", "tracked_paths", "tracked_prefixes", "exit_ctx", "exit_path_buf", "exit_path_ctx", "socket_fds", "socket_fd_parents"}
 
 type tracepointAttachSpec struct {
 	category string
@@ -116,6 +116,10 @@ func doBootstrap() (map[string]*ebpf.Map, error) {
 			_ = os.MkdirAll(ebpfPinLinksDir, 0755)
 			generation, err := rotateKernelAuditGeneration(objs.CollectorStats)
 			if err != nil {
+				platform.CloseMapHandles(replacements)
+				return nil, err
+			}
+			if err := clearSocketFDProvenance(objs.SocketFds, objs.SocketFdParents); err != nil {
 				platform.CloseMapHandles(replacements)
 				return nil, err
 			}
@@ -212,6 +216,45 @@ func rotateKernelAuditGeneration(stats *ebpf.Map) (uint64, error) {
 	return generation, nil
 }
 
+func clearSocketFDProvenance(socketFds *ebpf.Map, parentMap ...*ebpf.Map) error {
+	if socketFds == nil {
+		return errors.New("socket_fds map is nil")
+	}
+	iter := socketFds.Iterate()
+	keys := make([]bpf.AgentTrackerSocketFdKey, 0, 64)
+	var key bpf.AgentTrackerSocketFdKey
+	var value bpf.AgentTrackerSocketFdMeta
+	for iter.Next(&key, &value) {
+		keys = append(keys, key)
+	}
+	if err := iter.Err(); err != nil {
+		return fmt.Errorf("iterate socket_fds before generation rotation: %w", err)
+	}
+	for i := range keys {
+		if err := socketFds.Delete(&keys[i]); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+			return fmt.Errorf("clear socket_fds provenance: %w", err)
+		}
+	}
+	if len(parentMap) > 0 && parentMap[0] != nil {
+		parents := parentMap[0]
+		iter := parents.Iterate()
+		keys := make([]uint32, 0, 64)
+		var child, parent uint32
+		for iter.Next(&child, &parent) {
+			keys = append(keys, child)
+		}
+		if err := iter.Err(); err != nil {
+			return fmt.Errorf("iterate socket_fd_parents before generation rotation: %w", err)
+		}
+		for _, child := range keys {
+			if err := parents.Delete(&child); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+				return fmt.Errorf("clear socket_fd_parents provenance: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
 func pinMaps(objs *bpf.AgentTrackerObjects) error {
 	for name, m := range map[string]*ebpf.Map{
 		"agent_pids": objs.AgentPids, "events": objs.Events,
@@ -219,6 +262,7 @@ func pinMaps(objs *bpf.AgentTrackerObjects) error {
 		"tracked_comms":   objs.TrackedComms, "tracked_paths": objs.TrackedPaths,
 		"tracked_prefixes": objs.TrackedPrefixes, "exit_ctx": objs.ExitCtx,
 		"exit_path_buf": objs.ExitPathBuf, "exit_path_ctx": objs.ExitPathCtx,
+		"socket_fds": objs.SocketFds, "socket_fd_parents": objs.SocketFdParents,
 	} {
 		if err := m.Pin(filepath.Join(ebpfPinMapsDir, name)); err != nil {
 			return fmt.Errorf("pin map %s: %w", name, err)
@@ -349,6 +393,7 @@ func toTrackerMapSet(maps map[string]*ebpf.Map) (trackerMapSet, error) {
 		TrackedComms:    maps["tracked_comms"],
 		TrackedPaths:    maps["tracked_paths"],
 		TrackedPrefixes: maps["tracked_prefixes"],
+		SocketFds:       maps["socket_fds"],
 	}, nil
 }
 

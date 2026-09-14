@@ -1,6 +1,7 @@
 package events
 
 import (
+	"agent-ebpf-filter/app/captureprofile"
 	"fmt"
 	"net"
 	"strconv"
@@ -10,6 +11,17 @@ import (
 )
 
 // ── Pure helper functions (no external deps needed) ────────────────────
+
+const (
+	kernelCaptureHTTPRequest uint32 = 1 << iota
+	kernelCaptureHTTPResponse
+	kernelCaptureIncoming
+	kernelCaptureOutgoing
+	kernelCaptureFDDuplicated
+	kernelCaptureFDInherited
+	kernelCaptureAccepted
+	kernelCaptureScatterGather
+)
 
 func KernelEventTypeName(eventType uint32) string {
 	switch eventType {
@@ -79,6 +91,8 @@ func KernelEventTypeName(eventType uint32) string {
 		return "tcp_state_change"
 	case 34:
 		return "dns_query"
+	case 43:
+		return "socket_http"
 	default:
 		return "unknown"
 	}
@@ -88,7 +102,7 @@ func IsNetworkEventType(eventType string) bool {
 	switch eventType {
 	case "network_connect", "network_bind", "network_sendto", "network_recvfrom",
 		"accept", "accept4", "socket",
-		"tcp_connect", "tcp_close", "tcp_state_change", "dns_query":
+		"tcp_connect", "tcp_close", "tcp_state_change", "dns_query", "socket_http":
 		return true
 	default:
 		return false
@@ -311,6 +325,44 @@ func BuildKernelEventFromRaw(event *BpfEvent) *pb.Event {
 		out.NetFamily = "AF_INET"
 		out.NetEndpoint = fmt.Sprintf("dns:%d", event.NetPort)
 		out.Domain = SanitizeUTF8(event.Path[:])
+	case "socket_http":
+		startLine, ok := captureprofile.ParseHTTP1StartLine(extraPath)
+		out.CaptureSource = "kernel_socket_prefix"
+		out.AppProtocol = "http1"
+		out.KernelSocketFd = int32(event.Extra1)
+		out.KernelPayloadPrefixLen = event.Extra2
+		out.KernelCaptureFlags = event.KernelCaptureFlags
+		out.Bytes = event.Extra3
+		direction := "outgoing"
+		if event.KernelCaptureFlags&kernelCaptureIncoming != 0 {
+			direction = "incoming"
+		}
+		if ok && startLine.Kind == "request" {
+			out.HttpMethod = startLine.Method
+			out.HttpPath = startLine.Path
+			out.ExtraPath = startLine.Method + " " + startLine.Path
+			if match, matched := captureprofile.Default.Match(captureprofile.Observation{
+				Source: "kernel_socket_prefix", Protocol: "http1", Direction: direction,
+				Method: startLine.Method, Path: startLine.Path,
+			}); matched {
+				out.ApiProfile = match.ProfileID
+				out.ApiVendor = match.Vendor
+				out.ApiProduct = match.Product
+				out.ApiOperation = match.Operation
+				out.ApiConfidence = match.Confidence
+				out.ServiceName = match.Vendor
+			}
+		} else if ok && startLine.Kind == "response" {
+			out.HttpStatus = startLine.Status
+			out.ExtraPath = fmt.Sprintf("HTTP status %d", startLine.Status)
+		}
+		kind := "start-line"
+		if event.KernelCaptureFlags&kernelCaptureHTTPRequest != 0 {
+			kind = "request-line"
+		} else if event.KernelCaptureFlags&kernelCaptureHTTPResponse != 0 {
+			kind = "response-line"
+		}
+		out.ExtraInfo = fmt.Sprintf("fd=%d capture=%s direction=%s prefix_len=%d bytes=%d flags=0x%x", int32(event.Extra1), kind, direction, event.Extra2, event.Extra3, event.KernelCaptureFlags)
 	default:
 		if event.Retval != 0 {
 			out.ExtraInfo = fmt.Sprintf("retval=%d", event.Retval)
