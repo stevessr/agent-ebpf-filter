@@ -73,6 +73,6 @@ jobs:
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add backend proto docs .github/workflows/bpf-ts-smoke.yml
+          git add backend proto docs
           git commit -m 'feat(audit): move loss provenance into kernel tracker'
           git push
