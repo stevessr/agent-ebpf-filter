@@ -96,3 +96,93 @@ func TestMergeProfilesCustomOverridesBuiltinID(t *testing.T) {
 		t.Fatalf("overlay override failed: ok=%v match=%+v", ok, match)
 	}
 }
+
+func TestRegistryIndexedSelectorsAndMatchAll(t *testing.T) {
+	registry := NewRegistry([]Profile{
+		{ID: "generic", Vendor: "generic", Protocols: []string{"http1"}, Methods: []string{"POST"}, PathPrefixes: []string{"/v1"}, MinScore: 35},
+		{ID: "scoped", Vendor: "scoped", Sources: []string{"kernel_socket_prefix"}, Protocols: []string{"http1"}, Directions: []string{"outgoing"}, Methods: []string{"POST"}, Transports: []string{"tcp"}, Families: []string{"ipv4"}, RemotePorts: []uint32{8443}, RemoteCIDRs: []string{"10.0.0.0/8"}, Processes: []string{"curl"}, PathPrefixes: []string{"/v1"}, MinScore: 70},
+	})
+	observation := Observation{Source: "kernel_socket_prefix", Protocol: "http1", Direction: "outgoing", Method: "POST", Transport: "tcp", RemoteIP: "10.1.2.3", RemotePort: 8443, Process: "curl", Path: "/v1/jobs"}
+	match, ok := registry.Match(observation)
+	if !ok || match.ProfileID != "scoped" {
+		t.Fatalf("indexed scoped match failed: ok=%v match=%+v", ok, match)
+	}
+	matches := registry.MatchAll(observation)
+	if len(matches) != 2 || matches[0].ProfileID != "scoped" || matches[1].ProfileID != "generic" {
+		t.Fatalf("unexpected MatchAll: %+v", matches)
+	}
+	stats := registry.Stats()
+	if stats.Profiles != 2 || stats.DispatchBuckets == 0 || stats.Generation == 0 {
+		t.Fatalf("unexpected registry stats: %+v", stats)
+	}
+}
+
+func TestRegistryRejectsInvalidNetworkSelectors(t *testing.T) {
+	registry := NewRegistry(nil)
+	if err := registry.Replace([]Profile{{ID: "bad-port", Vendor: "x", RemotePorts: []uint32{70000}}}); err == nil {
+		t.Fatal("expected invalid remote port to be rejected")
+	}
+	if err := registry.Replace([]Profile{{ID: "bad-cidr", Vendor: "x", RemoteCIDRs: []string{"not-a-cidr"}}}); err == nil {
+		t.Fatal("expected invalid CIDR to be rejected")
+	}
+}
+
+func TestRegistryMatchCompactEquivalent(t *testing.T) {
+	registry := NewRegistry([]Profile{{
+		ID: "compact", Vendor: "acme", Product: "jobs", Operation: "create",
+		Sources: []string{"kernel_socket_prefix"}, Protocols: []string{"http1"}, Methods: []string{"POST"},
+		HostSuffixes: []string{"api.example.test"}, PathPrefixes: []string{"/v1/jobs"}, MinScore: 90,
+	}})
+	observation := Observation{Source: "kernel_socket_prefix", Protocol: "http1", Method: "POST", Host: "api.example.test", Path: "/v1/jobs/42"}
+	detailed, ok := registry.Match(observation)
+	if !ok || len(detailed.MatchedBy) == 0 {
+		t.Fatalf("detailed match missing diagnostics: ok=%v match=%+v", ok, detailed)
+	}
+	compact, ok := registry.MatchCompact(observation)
+	if !ok {
+		t.Fatal("compact match failed")
+	}
+	if compact.ProfileID != detailed.ProfileID || compact.Score != detailed.Score || compact.Confidence != detailed.Confidence || compact.Vendor != detailed.Vendor || compact.Product != detailed.Product || compact.Operation != detailed.Operation {
+		t.Fatalf("compact mismatch: detailed=%+v compact=%+v", detailed, compact)
+	}
+	if compact.MatchedBy != nil {
+		t.Fatalf("compact match should omit diagnostics: %+v", compact.MatchedBy)
+	}
+}
+
+func TestRequestPathFastPathAndAbsoluteURL(t *testing.T) {
+	cases := map[string]string{
+		"/v1/jobs/42":                                 "/v1/jobs/42",
+		"/v1/jobs/42?token=secret#fragment":           "/v1/jobs/42",
+		"v1/jobs/42?token=secret":                     "v1/jobs/42",
+		"https://api.example.test/v1/jobs/42?token=x": "/v1/jobs/42",
+		"//api.example.test/v1/jobs/42?token=x":       "/v1/jobs/42",
+	}
+	for input, want := range cases {
+		if got := RequestPath(input); got != want {
+			t.Fatalf("RequestPath(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
+func TestRegistryMatchCompactZeroAllocsForPreparedPath(t *testing.T) {
+	registry := NewRegistry([]Profile{{
+		ID: "zero-alloc", Vendor: "acme", Product: "jobs", Operation: "create",
+		Sources: []string{"kernel_socket_prefix"}, Protocols: []string{"http1"},
+		Directions: []string{"outgoing"}, Methods: []string{"POST"}, Transports: []string{"tcp"},
+		HostSuffixes: []string{"target.example.test"}, PathPrefixes: []string{"/v1/jobs"}, MinScore: 90,
+	}})
+	observation := Observation{
+		Source: "kernel_socket_prefix", Protocol: "http1", Direction: "outgoing", Method: "POST",
+		Transport: "tcp", Host: "target.example.test", Path: "/v1/jobs/42",
+	}
+	allocs := testing.AllocsPerRun(1000, func() {
+		match, ok := registry.MatchCompact(observation)
+		if !ok || match.ProfileID != "zero-alloc" {
+			panic("compact target profile did not match")
+		}
+	})
+	if allocs != 0 {
+		t.Fatalf("MatchCompact hot path allocations = %.2f, want 0", allocs)
+	}
+}

@@ -100,3 +100,24 @@ aggregated socket table does not persist request paths. Path selectors are still
 evaluated against real L7 capture events. This keeps the visual configuration
 honest instead of fabricating path visibility that the flow aggregator does not
 have.
+
+
+## Indexed matcher and socket-scope selectors
+
+The profile registry compiles immutable rules into dispatch buckets keyed by the
+high-frequency exact selectors `source`, `protocol`, `direction`, `method`, and
+`transport`. A lookup probes at most 32 exact/wildcard bucket combinations and
+then runs host/path/header/CIDR checks only for those candidates. Profile reload
+still uses atomic snapshot publication, so capture readers take no mutex.
+
+Profiles may additionally constrain `transports`, `families`, `remote_ports`,
+`remote_cidrs`, and `processes`. Kernel socket-prefix events feed family,
+endpoint port/IP, process name, and the socket type carried in the existing
+append-only ABI word; TLS plaintext events feed process and TCP transport. A
+selector whose metadata is unavailable fails closed for that profile rather
+than silently matching a broader scope.
+
+HTTP/1 socket start-line classification now performs one bounded 8-byte userspace
+probe to distinguish request/response/non-HTTP before copying a start-line. This
+replaces the previous request probe followed by a second response probe on the
+same syscall while preserving the same query/fragment truncation boundary.

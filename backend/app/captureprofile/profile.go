@@ -27,6 +27,11 @@ type Observation struct {
 	Path        string
 	Headers     map[string]string
 	ContentType string
+	Transport   string
+	Family      string
+	RemoteIP    string
+	RemotePort  uint32
+	Process     string
 }
 
 // Profile describes one API fingerprint. Profiles are data rather than code so
@@ -47,6 +52,11 @@ type Profile struct {
 	PathContains    []string `json:"path_contains,omitempty"`
 	RequiredHeaders []string `json:"required_headers,omitempty"`
 	ContentTypes    []string `json:"content_types,omitempty"`
+	Transports      []string `json:"transports,omitempty"`
+	Families        []string `json:"families,omitempty"`
+	RemotePorts     []uint32 `json:"remote_ports,omitempty"`
+	RemoteCIDRs     []string `json:"remote_cidrs,omitempty"`
+	Processes       []string `json:"processes,omitempty"`
 	MinScore        int      `json:"min_score,omitempty"`
 }
 
@@ -61,14 +71,17 @@ type Match struct {
 }
 
 type profileSnapshot struct {
-	profiles []Profile
+	profiles   []Profile
+	index      *profileDispatchIndex
+	generation uint64
 }
 
 // Registry uses immutable snapshots so capture hot paths only perform an atomic
 // load. Replace validates/copies rules before publishing them, enabling future
 // hot-reload endpoints without putting locks in packet processing.
 type Registry struct {
-	snapshot atomic.Pointer[profileSnapshot]
+	snapshot   atomic.Pointer[profileSnapshot]
+	generation atomic.Uint64
 }
 
 func NewRegistry(profiles []Profile) *Registry {
@@ -100,7 +113,13 @@ func (r *Registry) Replace(profiles []Profile) error {
 		validated = append(validated, profile)
 	}
 	sort.SliceStable(validated, func(i, j int) bool { return validated[i].ID < validated[j].ID })
-	r.snapshot.Store(&profileSnapshot{profiles: validated})
+	index, err := compileProfileDispatch(validated)
+	if err != nil {
+		return err
+	}
+	generation := r.generation.Add(1)
+	index.stats.Generation = generation
+	r.snapshot.Store(&profileSnapshot{profiles: validated, index: index, generation: generation})
 	return nil
 }
 
@@ -119,23 +138,24 @@ func (r *Registry) Match(observation Observation) (Match, bool) {
 		return Match{}, false
 	}
 	snapshot := r.snapshot.Load()
-	if snapshot == nil {
+	if snapshot == nil || snapshot.index == nil {
 		return Match{}, false
 	}
-	observation = normalizeObservation(observation)
-	best := Match{}
-	matched := false
-	for _, profile := range snapshot.profiles {
-		candidate, ok := matchProfile(profile, observation)
-		if !ok {
-			continue
-		}
-		if !matched || candidate.Score > best.Score || (candidate.Score == best.Score && candidate.ProfileID < best.ProfileID) {
-			best = candidate
-			matched = true
-		}
+	return matchIndexedSnapshot(snapshot, observation, true)
+}
+
+// MatchCompact runs the same matcher as Match but omits diagnostic MatchedBy
+// materialization. Production capture paths use this to avoid per-event
+// diagnostic slice allocation; control-plane preview keeps using Match.
+func (r *Registry) MatchCompact(observation Observation) (Match, bool) {
+	if r == nil {
+		return Match{}, false
 	}
-	return best, matched
+	snapshot := r.snapshot.Load()
+	if snapshot == nil || snapshot.index == nil {
+		return Match{}, false
+	}
+	return matchIndexedSnapshot(snapshot, observation, false)
 }
 
 func ParseJSON(data []byte) ([]Profile, error) {
@@ -173,6 +193,11 @@ func normalizeProfile(profile Profile) Profile {
 	profile.PathContains = normalizePathList(profile.PathContains)
 	profile.RequiredHeaders = normalizeList(profile.RequiredHeaders)
 	profile.ContentTypes = normalizeList(profile.ContentTypes)
+	profile.Transports = normalizeList(profile.Transports)
+	profile.Families = normalizeList(profile.Families)
+	profile.RemotePorts = normalizeUint32List(profile.RemotePorts)
+	profile.RemoteCIDRs = normalizeList(profile.RemoteCIDRs)
+	profile.Processes = normalizeList(profile.Processes)
 	return profile
 }
 
@@ -184,6 +209,10 @@ func normalizeObservation(observation Observation) Observation {
 	observation.Host = NormalizeHost(observation.Host)
 	observation.Path = RequestPath(observation.Path)
 	observation.ContentType = strings.ToLower(strings.TrimSpace(observation.ContentType))
+	observation.Transport = strings.ToLower(strings.TrimSpace(observation.Transport))
+	observation.Family = strings.ToLower(strings.TrimSpace(observation.Family))
+	observation.RemoteIP = strings.TrimSpace(observation.RemoteIP)
+	observation.Process = strings.ToLower(strings.TrimSpace(observation.Process))
 	return observation
 }
 
@@ -332,6 +361,19 @@ func RequestPath(raw string) string {
 	if raw == "" {
 		return ""
 	}
+
+	// Capture parsers normally hand us a path that has already been separated
+	// from its authority. Avoid net/url.Parse on this overwhelmingly common hot
+	// path: it allocates even for simple strings such as "/v1/jobs/42". Only
+	// absolute URLs and authority-form references need URL parsing.
+	needsURLParse := strings.HasPrefix(raw, "//") || strings.Contains(raw, "://")
+	if !needsURLParse {
+		if index := strings.IndexAny(raw, "?#"); index >= 0 {
+			raw = raw[:index]
+		}
+		return raw
+	}
+
 	if parsed, err := url.Parse(raw); err == nil {
 		if parsed.Path != "" {
 			return parsed.EscapedPath()
@@ -435,36 +477,83 @@ func hostSuffixMatch(host, suffix string) bool {
 }
 
 func normalizeList(items []string) []string {
+	if len(items) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(items))
 	out := make([]string, 0, len(items))
 	for _, item := range items {
 		item = strings.ToLower(strings.TrimSpace(item))
-		if item != "" {
-			out = append(out, item)
+		if item == "" {
+			continue
 		}
+		if _, ok := seen[item]; ok {
+			continue
+		}
+		seen[item] = struct{}{}
+		out = append(out, item)
 	}
+	sort.Strings(out)
 	return out
 }
 
 func normalizeUpperList(items []string) []string {
+	if len(items) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(items))
 	out := make([]string, 0, len(items))
 	for _, item := range items {
 		item = strings.ToUpper(strings.TrimSpace(item))
-		if item != "" {
-			out = append(out, item)
+		if item == "" {
+			continue
 		}
+		if _, ok := seen[item]; ok {
+			continue
+		}
+		seen[item] = struct{}{}
+		out = append(out, item)
 	}
+	sort.Strings(out)
 	return out
 }
 
 func normalizePathList(items []string) []string {
+	if len(items) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(items))
 	out := make([]string, 0, len(items))
 	for _, item := range items {
 		item = RequestPath(item)
-		if item != "" {
-			out = append(out, item)
+		if item == "" {
+			continue
 		}
+		if _, ok := seen[item]; ok {
+			continue
+		}
+		seen[item] = struct{}{}
+		out = append(out, item)
 	}
+	sort.Strings(out)
 	return out
+}
+
+func normalizeUint32List(items []uint32) []uint32 {
+	if len(items) == 0 {
+		return nil
+	}
+	out := append([]uint32(nil), items...)
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	writeAt := 0
+	for _, value := range out {
+		if writeAt != 0 && out[writeAt-1] == value {
+			continue
+		}
+		out[writeAt] = value
+		writeAt++
+	}
+	return out[:writeAt]
 }
 
 func containsFold(items []string, value string) bool {
