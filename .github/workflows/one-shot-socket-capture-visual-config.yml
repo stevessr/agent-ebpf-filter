@@ -26,7 +26,9 @@ jobs:
       - name: Install native build dependencies
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler clang llvm libbpf-dev libelf-dev
       - name: Apply socket visual config patch
-        run: python3 .github/scripts/one_shot_socket_capture_visual_config.py
+        run: |
+          python3 .github/scripts/one_shot_socket_capture_visual_config.py
+          python3 .github/scripts/one_shot_socket_capture_visual_config_fix.py
       - name: Go fmt
         run: |
           gofmt -w backend/app/captureprofile_control.go backend/app/captureprofile_control_test.go backend/app/jobs_background.go backend/app/routes.go
