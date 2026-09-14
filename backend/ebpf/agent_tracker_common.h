@@ -425,7 +425,16 @@ static __always_inline void submit_event(struct event *e) {
     bpf_ringbuf_submit(e, 0);
 }
 
-// Per-CPU buffer for exit_path_data (avoids 512-byte stack allocation)
+// Per-CPU scratch follows the same payload split as the exit correlation maps.
+// Ordinary filesystem path capture touches only 256 bytes; dual paths and
+// recognized HTTP start-lines retain the 512-byte pair scratch.
+struct {
+    __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+    __uint(max_entries, 1);
+    __type(key, u32);
+    __type(value, struct exit_single_path_data);
+} exit_single_path_buf SEC(".maps");
+
 struct {
     __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
     __uint(max_entries, 1);
@@ -1010,7 +1019,7 @@ int tracepoint__syscalls__sys_enter_execve(struct trace_event_raw_sys_enter *ctx
     bpf_get_current_comm(&comm, sizeof(comm));
 
     u32 zero = 0;
-    struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
+    struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_buf, &zero);
     if (!pd) return 0;
     const char *filename = (const char *)ctx->args[0];
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, filename);
@@ -1023,7 +1032,7 @@ int tracepoint__syscalls__sys_enter_execve(struct trace_event_raw_sys_enter *ctx
     meta.tag_id = tag_id;
 
     store_exit_meta(pid_tgid, &meta);
-    bpf_map_update_elem(&exit_single_path_ctx, &pid_tgid, pd->path, BPF_ANY);
+    bpf_map_update_elem(&exit_single_path_ctx, &pid_tgid, pd, BPF_ANY);
     return 0;
 }
 
@@ -1062,7 +1071,7 @@ int tracepoint__syscalls__sys_enter_openat(struct trace_event_raw_sys_enter *ctx
     bpf_get_current_comm(&comm, sizeof(comm));
 
     u32 zero = 0;
-    struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
+    struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_buf, &zero);
     if (!pd) return 0;
     const char *filename = (const char *)ctx->args[1];
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, filename);
@@ -1076,7 +1085,7 @@ int tracepoint__syscalls__sys_enter_openat(struct trace_event_raw_sys_enter *ctx
     meta.extra1 = (u32)ctx->args[2]; // flags
 
     store_exit_meta(pid_tgid, &meta);
-    bpf_map_update_elem(&exit_single_path_ctx, &pid_tgid, pd->path, BPF_ANY);
+    bpf_map_update_elem(&exit_single_path_ctx, &pid_tgid, pd, BPF_ANY);
     return 0;
 }
 
@@ -1158,7 +1167,7 @@ int tracepoint__syscalls__sys_enter_mkdirat(struct trace_event_raw_sys_enter *ct
     bpf_get_current_comm(&comm, sizeof(comm));
 
     u32 zero = 0;
-    struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
+    struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_buf, &zero);
     if (!pd) return 0;
     const char *filename = (const char *)ctx->args[1];
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, filename);
@@ -1172,7 +1181,7 @@ int tracepoint__syscalls__sys_enter_mkdirat(struct trace_event_raw_sys_enter *ct
     meta.extra1 = (u32)ctx->args[2]; // mode
 
     store_exit_meta(pid_tgid, &meta);
-    bpf_map_update_elem(&exit_single_path_ctx, &pid_tgid, pd->path, BPF_ANY);
+    bpf_map_update_elem(&exit_single_path_ctx, &pid_tgid, pd, BPF_ANY);
     return 0;
 }
 
@@ -1211,7 +1220,7 @@ int tracepoint__syscalls__sys_enter_unlinkat(struct trace_event_raw_sys_enter *c
     bpf_get_current_comm(&comm, sizeof(comm));
 
     u32 zero = 0;
-    struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
+    struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_buf, &zero);
     if (!pd) return 0;
     const char *filename = (const char *)ctx->args[1];
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, filename);
@@ -1225,7 +1234,7 @@ int tracepoint__syscalls__sys_enter_unlinkat(struct trace_event_raw_sys_enter *c
     meta.extra1 = (u32)ctx->args[2]; // flags
 
     store_exit_meta(pid_tgid, &meta);
-    bpf_map_update_elem(&exit_single_path_ctx, &pid_tgid, pd->path, BPF_ANY);
+    bpf_map_update_elem(&exit_single_path_ctx, &pid_tgid, pd, BPF_ANY);
     return 0;
 }
 

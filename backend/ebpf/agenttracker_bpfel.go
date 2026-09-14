@@ -340,6 +340,7 @@ type AgentTrackerMapSpecs struct {
 	ExitCtx           *ebpf.MapSpec `ebpf:"exit_ctx"`
 	ExitPathBuf       *ebpf.MapSpec `ebpf:"exit_path_buf"`
 	ExitPathCtx       *ebpf.MapSpec `ebpf:"exit_path_ctx"`
+	ExitSinglePathBuf *ebpf.MapSpec `ebpf:"exit_single_path_buf"`
 	ExitSinglePathCtx *ebpf.MapSpec `ebpf:"exit_single_path_ctx"`
 	SocketFdParents   *ebpf.MapSpec `ebpf:"socket_fd_parents"`
 	SocketFds         *ebpf.MapSpec `ebpf:"socket_fds"`
@@ -380,6 +381,7 @@ type AgentTrackerMaps struct {
 	ExitCtx           *ebpf.Map `ebpf:"exit_ctx"`
 	ExitPathBuf       *ebpf.Map `ebpf:"exit_path_buf"`
 	ExitPathCtx       *ebpf.Map `ebpf:"exit_path_ctx"`
+	ExitSinglePathBuf *ebpf.Map `ebpf:"exit_single_path_buf"`
 	ExitSinglePathCtx *ebpf.Map `ebpf:"exit_single_path_ctx"`
 	SocketFdParents   *ebpf.Map `ebpf:"socket_fd_parents"`
 	SocketFds         *ebpf.Map `ebpf:"socket_fds"`
@@ -396,6 +398,7 @@ func (m *AgentTrackerMaps) Close() error {
 		m.ExitCtx,
 		m.ExitPathBuf,
 		m.ExitPathCtx,
+		m.ExitSinglePathBuf,
 		m.ExitSinglePathCtx,
 		m.SocketFdParents,
 		m.SocketFds,
