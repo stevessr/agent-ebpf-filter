@@ -160,6 +160,7 @@ int tracepoint__syscalls__sys_enter_bind(struct trace_event_raw_sys_enter *ctx) 
     char comm[TASK_COMM_LEN];
     bpf_get_current_comm(&comm, sizeof(comm));
     u32 tag_id = get_tag_id(pid, comm, NULL);
+    if (tag_id == 0) return 0;
     struct exit_meta meta = {.type = TYPE_BIND, .tag_id = tag_id};
     fill_network_meta(&meta, (const void *)ctx->args[1], NET_DIR_LISTEN, 0);
     store_exit_meta(pid_tgid, &meta);
@@ -236,6 +237,7 @@ int tracepoint__syscalls__sys_enter_recvfrom(struct trace_event_raw_sys_enter *c
     char comm[TASK_COMM_LEN];
     bpf_get_current_comm(&comm, sizeof(comm));
     u32 tag_id = get_tag_id(pid, comm, NULL);
+    if (tag_id == 0) return 0;
     struct exit_meta meta = {.type = TYPE_RECVFROM, .tag_id = tag_id, .extra3 = (u32)ctx->args[2], .addr_ptr = ctx->args[4]};
     store_exit_meta(pid_tgid, &meta);
     return 0;

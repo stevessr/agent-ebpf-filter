@@ -184,3 +184,10 @@ also eligible because they only carry scalar fd metadata. Network endpoint,
 accepted-peer, payload-pointer, and L7 capture paths continue to use the full
 context. This cuts hash-map value bandwidth by about 64% for the compact class
 without changing event ABI or enter/exit semantics.
+
+### Untracked network fast reject
+
+`bind()` and `recvfrom()` now return immediately after a zero `get_tag_id()`
+result, matching the rest of the network capture handlers. Untracked processes
+therefore avoid enter/exit correlation map traffic and can no longer create
+tag-zero network events through these two tracepoints.
