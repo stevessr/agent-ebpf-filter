@@ -51,11 +51,9 @@ func annotateTLSAPIFingerprint(event *TLSPlaintextEvent) {
 	event.APIProduct = match.Product
 	event.APIOperation = match.Operation
 	event.APIConfidence = match.Confidence
-	if event.Vendor == "" || strings.HasSuffix(match.Vendor, "-compatible") == false {
-		// A host-specific fingerprint is stronger than the historical substring
-		// vendor inference. Path-only compatible profiles only fill an empty value.
-		if event.Vendor == "" || !strings.HasSuffix(match.Vendor, "-compatible") {
-			event.Vendor = match.Vendor
-		}
+	// A host-specific fingerprint is stronger than the historical substring
+	// vendor inference. Path-only compatible profiles only fill an empty value.
+	if event.Vendor == "" || !strings.HasSuffix(match.Vendor, "-compatible") {
+		event.Vendor = match.Vendor
 	}
 }

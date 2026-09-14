@@ -119,6 +119,10 @@ func doBootstrap() (map[string]*ebpf.Map, error) {
 				platform.CloseMapHandles(replacements)
 				return nil, err
 			}
+			if err := clearSocketFDProvenance(objs.SocketFds); err != nil {
+				platform.CloseMapHandles(replacements)
+				return nil, err
+			}
 			if err := pinLinks(&objs); err != nil {
 				platform.CloseMapHandles(replacements)
 				return nil, err
@@ -210,6 +214,28 @@ func rotateKernelAuditGeneration(stats *ebpf.Map) (uint64, error) {
 		return 0, fmt.Errorf("write kernel audit generation: %w", err)
 	}
 	return generation, nil
+}
+
+func clearSocketFDProvenance(socketFds *ebpf.Map) error {
+	if socketFds == nil {
+		return errors.New("socket_fds map is nil")
+	}
+	iter := socketFds.Iterate()
+	keys := make([]bpf.AgentTrackerSocketFdKey, 0, 64)
+	var key bpf.AgentTrackerSocketFdKey
+	var value bpf.AgentTrackerSocketFdMeta
+	for iter.Next(&key, &value) {
+		keys = append(keys, key)
+	}
+	if err := iter.Err(); err != nil {
+		return fmt.Errorf("iterate socket_fds before generation rotation: %w", err)
+	}
+	for i := range keys {
+		if err := socketFds.Delete(&keys[i]); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+			return fmt.Errorf("clear socket_fds provenance: %w", err)
+		}
+	}
+	return nil
 }
 
 func pinMaps(objs *bpf.AgentTrackerObjects) error {

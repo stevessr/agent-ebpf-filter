@@ -38,7 +38,11 @@ int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) 
     struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_ctx, &pid_tgid); \
     if (pd) { \
         __builtin_memcpy(e->path, pd->path, MAX_PATH_LEN); \
-        __builtin_memcpy(e->extra4, pd->extra4, MAX_PATH_LEN); \
+        if (meta.type == TYPE_SOCKET_HTTP && meta.extra2 > 0) { \
+            bpf_probe_read_kernel_str(e->extra4, MAX_PATH_LEN, pd->extra4); \
+        } else { \
+            __builtin_memcpy(e->extra4, pd->extra4, MAX_PATH_LEN); \
+        } \
         bpf_map_delete_elem(&exit_path_ctx, &pid_tgid); \
     } \
     submit_event(e); \
@@ -133,10 +137,15 @@ int tracepoint__syscalls__sys_enter_sendto(struct trace_event_raw_sys_enter *ctx
     char comm[TASK_COMM_LEN];
     bpf_get_current_comm(&comm, sizeof(comm));
     u32 tag_id = get_tag_id(pid, comm, NULL);
+    if (tag_id == 0) return 0;
     struct exit_meta meta = {.type = TYPE_SENDTO, .tag_id = tag_id};
     fill_network_meta(&meta, (const void *)ctx->args[4], NET_DIR_OUTGOING, (u32)ctx->args[2]);
     meta.extra1 = (u32)ctx->args[0];
     meta.extra3 = (u32)ctx->args[2];
+    if (meta.net_family == 0) {
+        struct socket_fd_meta *socket = lookup_socket_fd(pid, (s32)ctx->args[0]);
+        if (socket) fill_network_meta_from_socket(&meta, socket, (u32)ctx->args[2]);
+    }
     u32 zero = 0;
     struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
     if (pd) {
@@ -182,7 +191,7 @@ int tracepoint__syscalls__sys_enter_close(struct trace_event_raw_sys_enter *ctx)
     bpf_get_current_comm(&comm, sizeof(comm));
     u32 tag_id = get_tag_id(tgid, comm, NULL);
     if (tag_id == 0) return 0;
-    struct exit_meta meta = {.type = TYPE_GENERIC_SYSCALL, .tag_id = tag_id, .extra1 = 3, .extra2 = (u32)ctx->args[0]};
+    struct exit_meta meta = {.type = TYPE_SOCKET, .tag_id = tag_id, .extra2 = (u32)ctx->args[0]};
     store_exit_meta(pid_tgid, &meta);
     return 0;
 }
@@ -193,11 +202,6 @@ int tracepoint__syscalls__sys_exit_close(struct trace_event_raw_sys_exit *ctx) {
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return 0;
     if (ctx->ret == 0) forget_socket_fd((u32)(pid_tgid >> 32), (s32)meta.extra2);
-    struct event *e = reserve_event();
-    if (!e) return 0;
-    fill_from_exit_meta(e, pid_tgid, &meta);
-    e->retval = ctx->ret;
-    submit_event(e);
     return 0;
 }
 

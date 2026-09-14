@@ -581,9 +581,11 @@ static __always_inline int looks_like_http1_method(const char *head, u32 len) {
     return 0;
 }
 
-// Copy only the HTTP/1 request line, never headers/body. This keeps the kernel
-// sampler useful for request-path discovery while avoiding Authorization/Cookie
-// material. Query strings are removed in userspace before persistence.
+// Copy only the HTTP/1 request target/request line, never headers/body. The
+// scratch sample is NUL-terminated at query/fragment/line-end. sys_exit then
+// uses bpf_probe_read_kernel_str(), so bytes after that delimiter never cross
+// into the ringbuf event. This avoids verifier state explosion from clearing a
+// dynamic 255-byte tail one byte at a time.
 static __always_inline u32 capture_http1_request_line(char *dst, const void *user_buf, u32 len) {
     if (!dst || !user_buf || len < 4) return 0;
     char head[8] = {};
@@ -597,7 +599,8 @@ static __always_inline u32 capture_http1_request_line(char *dst, const void *use
 #pragma clang loop unroll(disable)
     for (int i = 0; i < MAX_PATH_LEN - 1; i++) {
         if ((u32)i >= capture_len) break;
-        if (dst[i] == '\r' || dst[i] == '\n') {
+        char c = dst[i];
+        if (c == '?' || c == '#' || c == '\r' || c == '\n') {
             dst[i] = '\0';
             return (u32)i;
         }
