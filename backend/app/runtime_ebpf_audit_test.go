@@ -13,11 +13,11 @@ func TestApplyKernelAuditGenerationResetsOnlyContinuityState(t *testing.T) {
 	}
 	applyKernelAuditGeneration(values, 99)
 	for i, value := range values {
-		if value.EventSequence != 0 || value.PendingDroppedEvents != 0 || value.AuditGeneration != 99 {
-			t.Fatalf("slot %d continuity state = %+v", i, value)
+		if value.PendingDroppedEvents != 0 || value.AuditGeneration != 99 {
+			t.Fatalf("slot %d generation state = %+v", i, value)
 		}
 	}
-	if values[0].RingbufEventsTotal != 10 || values[0].RingbufReserveFailedTotal != 3 || values[1].RingbufEventsTotal != 20 || values[1].RingbufReserveFailedTotal != 4 {
+	if values[0].RingbufEventsTotal != 10 || values[0].RingbufReserveFailedTotal != 3 || values[0].EventSequence != 11 || values[1].RingbufEventsTotal != 20 || values[1].RingbufReserveFailedTotal != 4 || values[1].EventSequence != 22 {
 		t.Fatalf("cumulative counters were not preserved: %+v", values)
 	}
 }

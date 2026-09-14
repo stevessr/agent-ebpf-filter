@@ -675,12 +675,14 @@ func loadCollectorStatsSnapshot() (bpfCollectorStats, bool, bool) {
 		total.RingbufReserveFailedTotal += value.RingbufReserveFailedTotal
 		total.EventSequence += value.EventSequence
 		total.PendingDroppedEvents += value.PendingDroppedEvents
-		if value.AuditGeneration != 0 {
-			if total.AuditGeneration == 0 {
-				total.AuditGeneration = value.AuditGeneration
-			} else if total.AuditGeneration != value.AuditGeneration {
-				generationConsistent = false
-			}
+		if value.AuditGeneration == 0 {
+			generationConsistent = false
+			continue
+		}
+		if total.AuditGeneration == 0 {
+			total.AuditGeneration = value.AuditGeneration
+		} else if total.AuditGeneration != value.AuditGeneration {
+			generationConsistent = false
 		}
 	}
 	return total, true, generationConsistent

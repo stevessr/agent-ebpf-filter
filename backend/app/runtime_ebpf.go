@@ -177,9 +177,9 @@ func newKernelAuditGeneration() (uint64, error) {
 
 func applyKernelAuditGeneration(values []bpf.AgentTrackerCollectorStats, generation uint64) {
 	for i := range values {
-		// Keep cumulative successful/reserve-failure counters across a compatible
-		// program reload, but start sequence continuity in an explicit new epoch.
-		values[i].EventSequence = 0
+		// Keep cumulative successful/reserve-failure/attempt counters across a
+		// compatible reload. The generation itself is the continuity epoch, so
+		// the CPU-local attempt sequence can remain monotonic across reloads.
 		values[i].PendingDroppedEvents = 0
 		values[i].AuditGeneration = generation
 	}
@@ -194,8 +194,11 @@ func rotateKernelAuditGeneration(stats *ebpf.Map) (uint64, error) {
 		return 0, err
 	}
 	cpuCount, err := ebpf.PossibleCPU()
-	if err != nil || cpuCount <= 0 {
+	if err != nil {
 		return 0, fmt.Errorf("discover possible CPUs for audit generation: %w", err)
+	}
+	if cpuCount <= 0 {
+		return 0, errors.New("discover possible CPUs for audit generation: no CPUs reported")
 	}
 	values := make([]bpf.AgentTrackerCollectorStats, cpuCount)
 	key := uint32(0)
