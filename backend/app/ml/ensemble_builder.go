@@ -4,11 +4,14 @@ import (
 	"log"
 	"math"
 	"math/rand"
+	"sort"
 	"strings"
 	"time"
 )
 
 // ---- moved from backend/zz_merged_backend.go section ensemble_builder.go ----
+
+const ensembleTrainingSeed int64 = 0x4147454e54
 
 // ── Ensemble Builder ────────────────────────────────────────────────
 
@@ -20,11 +23,16 @@ func BuildEnsembleFromStore(store *TrainingDataStore) *EnsembleModel {
 		return nil
 	}
 
-	models := make([]Model, 0, 3)
-	modelNames := make([]string, 0, 3)
+	// Keep the newest tail completely unseen by the base learners. The previous
+	// implementation trained on all labeled samples and then called the last 20%
+	// a validation set, which leaked validation examples into every model.
+	trainSet, validationSet := splitEnsembleCalibrationHoldout(labeled)
+
+	models := make([]Model, 0, 5)
+	modelNames := make([]string, 0, 5)
 
 	// 1. Logistic Regression with class weights for imbalance
-	Xs, Ys := extractFeaturesLabels(labeled)
+	Xs, Ys := extractFeaturesLabels(trainSet)
 	lr := NewLogisticModel(0.01, "l2", 500)
 	lr.NumClasses = 4
 	lr.ClassWeights = computeClassWeights(Ys, 4)
@@ -38,7 +46,7 @@ func BuildEnsembleFromStore(store *TrainingDataStore) *EnsembleModel {
 	nb.Vars = make([][FeatureDim]float64, 4)
 	nb.Priors = make([]float64, 4)
 	counts := make([]int, 4)
-	for _, s := range labeled {
+	for _, s := range trainSet {
 		if s.Label < 0 || int(s.Label) >= 4 {
 			continue
 		}
@@ -49,14 +57,14 @@ func BuildEnsembleFromStore(store *TrainingDataStore) *EnsembleModel {
 		}
 	}
 	for c := 0; c < 4; c++ {
-		nb.Priors[c] = float64(counts[c]) / float64(len(labeled))
+		nb.Priors[c] = float64(counts[c]) / float64(len(trainSet))
 		if counts[c] > 0 {
 			for d := 0; d < FeatureDim; d++ {
 				nb.Means[c][d] /= float64(counts[c])
 			}
 		}
 	}
-	for _, s := range labeled {
+	for _, s := range trainSet {
 		if s.Label < 0 || int(s.Label) >= 4 {
 			continue
 		}
@@ -77,8 +85,8 @@ func BuildEnsembleFromStore(store *TrainingDataStore) *EnsembleModel {
 	modelNames = append(modelNames, "naive_bayes")
 
 	// 3. KNN (fast "training" — just stores samples)
-	if len(labeled) >= 10 {
-		k := int(math.Sqrt(float64(len(labeled))))
+	if len(trainSet) >= 10 {
+		k := int(math.Sqrt(float64(len(trainSet))))
 		if k < 3 {
 			k = 3
 		}
@@ -87,9 +95,9 @@ func BuildEnsembleFromStore(store *TrainingDataStore) *EnsembleModel {
 		}
 		knn := NewKNNModel(k, "euclidean", "distance")
 		knn.NumClasses = 4
-		knn.Samples = make([][FeatureDim]float64, len(labeled))
-		knn.Labels = make([]int32, len(labeled))
-		for i, s := range labeled {
+		knn.Samples = make([][FeatureDim]float64, len(trainSet))
+		knn.Labels = make([]int32, len(trainSet))
+		for i, s := range trainSet {
 			knn.Samples[i] = s.Features
 			knn.Labels[i] = s.Label
 		}
@@ -104,7 +112,7 @@ func BuildEnsembleFromStore(store *TrainingDataStore) *EnsembleModel {
 	centroid.Centroids = make([][FeatureDim]float64, 4)
 	centroid.Priors = make([]float64, 4)
 	centroidCounts := make([]int, 4)
-	for _, s := range labeled {
+	for _, s := range trainSet {
 		if s.Label < 0 || int(s.Label) >= 4 {
 			continue
 		}
@@ -137,11 +145,13 @@ func BuildEnsembleFromStore(store *TrainingDataStore) *EnsembleModel {
 		modelNames = append(modelNames, "nearest_centroid")
 	}
 
-	// 5. Lightweight Random Forest (5 trees, depth 6) for fast inference
-	if len(labeled) >= 20 {
-		samples := ToTrainSamples(labeled)
+	// 5. Lightweight Random Forest (5 trees, depth 6) for fast inference.
+	// A fixed local seed makes retraining reproducible without touching the
+	// process-global PRNG or changing the online inference path.
+	if len(trainSet) >= 20 {
+		samples := ToTrainSamples(trainSet)
 		lightRF := NewDecisionForest(5, 6, 4)
-		rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+		rng := rand.New(rand.NewSource(ensembleTrainingSeed))
 		fCount := int(math.Sqrt(float64(FeatureDim)))
 		if fCount < 1 {
 			fCount = 1
@@ -159,30 +169,18 @@ func BuildEnsembleFromStore(store *TrainingDataStore) *EnsembleModel {
 		modelNames = append(modelNames, "light_rf")
 	}
 
-	// Assign weights based on individual hold-out accuracy
+	// Assign weights from a genuinely unseen hold-out. Accuracy alone is a poor
+	// security objective, so weight calibration combines balanced accuracy,
+	// BLOCK/ALERT recall, benign false-positive rate, and confidence reliability.
 	weights := make([]float64, len(models))
 	for i := range weights {
 		weights[i] = 1.0
 	}
-	if len(labeled) >= 30 {
-		// Split small validation set for weight calibration
-		splitIdx := len(labeled) * 4 / 5
+	if len(validationSet) > 0 {
 		for i, model := range models {
-			correct := 0
-			total := 0
-			for j := splitIdx; j < len(labeled); j++ {
-				pred := model.Predict(labeled[j].Features)
-				if pred.Action == labeled[j].Label {
-					correct++
-				}
-				total++
-			}
-			if total > 0 {
-				acc := float64(correct) / float64(total)
-				weights[i] = math.Max(acc, 0.25)
-			}
+			weights[i] = calibratedEnsembleWeight(evaluateRiskModel(model, validationSet))
 		}
-		// Normalize
+
 		totalW := 0.0
 		for _, w := range weights {
 			totalW += w
@@ -194,8 +192,35 @@ func BuildEnsembleFromStore(store *TrainingDataStore) *EnsembleModel {
 		}
 	}
 
-	log.Printf("[ML] Ensemble built: %s, weights=%.2f", strings.Join(modelNames, "+"), weights)
+	log.Printf("[ML] Ensemble built: %s, train=%d, calibration=%d, weights=%.2f", strings.Join(modelNames, "+"), len(trainSet), len(validationSet), weights)
 	return NewEnsembleModel(models, "soft", weights)
+}
+
+func splitEnsembleCalibrationHoldout(labeled []TrainingSample) (trainSet, validationSet []TrainingSample) {
+	ordered := chronologicalTrainingSamples(labeled)
+	if len(ordered) < 30 {
+		return ordered, nil
+	}
+	splitIdx := len(ordered) * 4 / 5
+	if splitIdx < 10 || splitIdx >= len(ordered) {
+		return ordered, nil
+	}
+	return ordered[:splitIdx], ordered[splitIdx:]
+}
+
+func chronologicalTrainingSamples(samples []TrainingSample) []TrainingSample {
+	ordered := append([]TrainingSample(nil), samples...)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		left := ordered[i].Timestamp
+		right := ordered[j].Timestamp
+		if left.IsZero() != right.IsZero() {
+			// Unknown timestamps stay on the training side rather than entering the
+			// newest validation window and pretending to be recent observations.
+			return left.IsZero()
+		}
+		return left.Before(right)
+	})
+	return ordered
 }
 
 func extractFeaturesLabels(labeled []TrainingSample) ([][FeatureDim]float64, []int32) {
@@ -211,11 +236,16 @@ func extractFeaturesLabels(labeled []TrainingSample) ([][FeatureDim]float64, []i
 // ── Model Auto-Benchmark ────────────────────────────────────────────
 
 type ModelBenchmark struct {
-	ModelType       string  `json:"modelType"`
-	Accuracy        float64 `json:"accuracy"`
-	TrainDuration   float64 `json:"trainDurationSeconds"`
-	InferenceTimeUs float64 `json:"inferenceTimeUs"`
-	MemoryBytes     int64   `json:"memoryBytes,omitempty"`
+	ModelType               string  `json:"modelType"`
+	Accuracy                float64 `json:"accuracy"`
+	BalancedAccuracy        float64 `json:"balancedAccuracy"`
+	HighRiskRecall          float64 `json:"highRiskRecall"`
+	BenignFalsePositiveRate float64 `json:"benignFalsePositiveRate"`
+	ConfidenceBrier         float64 `json:"confidenceBrier"`
+	ECE                     float64 `json:"expectedCalibrationError"`
+	TrainDuration           float64 `json:"trainDurationSeconds"`
+	InferenceTimeUs         float64 `json:"inferenceTimeUs"`
+	MemoryBytes             int64   `json:"memoryBytes,omitempty"`
 }
 
 // BenchmarkAllModels trains and evaluates all registered model types.
@@ -224,11 +254,13 @@ func BenchmarkAllModels(store *TrainingDataStore) []ModelBenchmark {
 	if len(labeled) < 20 {
 		return nil
 	}
+	labeled = chronologicalTrainingSamples(labeled)
 
 	allTypes := AllModelTypes()
 	results := make([]ModelBenchmark, 0, len(allTypes))
 
-	// Use 80/20 split for benchmarking
+	// Use a chronological 80/20 split so benchmark quality is closer to the
+	// online setting and does not benefit from future samples.
 	splitIdx := len(labeled) * 4 / 5
 	trainSet := labeled[:splitIdx]
 	testSet := labeled[splitIdx:]
@@ -266,12 +298,10 @@ func benchmarkModelType(mt ModelType, trainSet, testSet []TrainingSample) ModelB
 		return bench
 	}
 
-	// Measure inference speed
+	// Measure inference speed independently from metric calculation.
 	testFeatures := make([][FeatureDim]float64, len(testSet))
-	testLabels := make([]int32, len(testSet))
 	for i, s := range testSet {
 		testFeatures[i] = s.Features
-		testLabels[i] = s.Label
 	}
 
 	// Warm up
@@ -279,20 +309,22 @@ func benchmarkModelType(mt ModelType, trainSet, testSet []TrainingSample) ModelB
 		model.Predict(testFeatures[i])
 	}
 
-	// Timed inference
 	infStart := time.Now()
-	correct := 0
-	for i, feat := range testFeatures {
-		pred := model.Predict(feat)
-		if pred.Action == testLabels[i] {
-			correct++
-		}
+	for _, feat := range testFeatures {
+		model.Predict(feat)
 	}
 	infElapsed := time.Since(infStart)
 	if len(testFeatures) > 0 {
 		bench.InferenceTimeUs = float64(infElapsed.Microseconds()) / float64(len(testFeatures))
-		bench.Accuracy = float64(correct) / float64(len(testFeatures))
 	}
+
+	metrics := evaluateRiskModel(model, testSet)
+	bench.Accuracy = metrics.Accuracy
+	bench.BalancedAccuracy = metrics.BalancedAccuracy
+	bench.HighRiskRecall = metrics.HighRiskRecall
+	bench.BenignFalsePositiveRate = metrics.BenignFalsePositiveRate
+	bench.ConfidenceBrier = metrics.ConfidenceBrier
+	bench.ECE = metrics.ECE
 
 	return bench
 }
