@@ -80,6 +80,10 @@ type MLModelTuneCandidate struct {
 	ModelType            string              `json:"modelType"`
 	Label                string              `json:"label"`
 	Base                 string              `json:"base"`
+	Family               string              `json:"family"`
+	FamilyLabel          string              `json:"familyLabel"`
+	FeatureClass         string              `json:"featureClass"`
+	FeatureProfiles      []string            `json:"featureProfiles,omitempty"`
 	Recommended          bool                `json:"recommended,omitempty"`
 	HyperParams          map[string]int      `json:"hyperParams"`
 	TrainAccuracy        float64             `json:"trainAccuracy"`
