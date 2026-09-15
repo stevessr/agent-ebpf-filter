@@ -26,26 +26,26 @@ var threatVectors = []ThreatVector{
 
 // AttackImpactMetrics makes false negatives on destructive/high-impact samples
 // substantially more visible than ordinary classification errors. This mirrors
-// the security-oriented idea of evaluating an overall attack score together
-// with per-vector scores instead of optimizing only aggregate accuracy.
+// a security-oriented design where a global risk objective is evaluated beside
+// attack-vector-specific objectives instead of optimizing aggregate accuracy.
 type AttackImpactMetrics struct {
-	AttackSamples         int     `json:"attackSamples"`
-	HighImpactSamples     int     `json:"highImpactSamples"`
-	IntrusionSamples      int     `json:"intrusionSamples"`
-	DestructionSamples    int     `json:"destructionSamples"`
-	ExfiltrationSamples   int     `json:"exfiltrationSamples"`
-	PersistenceSamples    int     `json:"persistenceSamples"`
-	AttackRecall          float64 `json:"attackRecall"`
-	HighImpactRecall      float64 `json:"highImpactRecall"`
-	IntrusionRecall       float64 `json:"intrusionRecall"`
-	DestructionRecall     float64 `json:"destructionRecall"`
-	ExfiltrationRecall    float64 `json:"exfiltrationRecall"`
-	PersistenceRecall     float64 `json:"persistenceRecall"`
-	CatastrophicMissRate  float64 `json:"catastrophicMissRate"`
-	BenignFalsePositive   float64 `json:"benignFalsePositiveRate"`
-	RiskWeightedRecall    float64 `json:"riskWeightedRecall"`
-	SecurityUtility       float64 `json:"securityUtility"`
-	ThreatVectorCoverage  float64 `json:"threatVectorCoverage"`
+	AttackSamples        int     `json:"attackSamples"`
+	HighImpactSamples    int     `json:"highImpactSamples"`
+	IntrusionSamples     int     `json:"intrusionSamples"`
+	DestructionSamples   int     `json:"destructionSamples"`
+	ExfiltrationSamples  int     `json:"exfiltrationSamples"`
+	PersistenceSamples   int     `json:"persistenceSamples"`
+	AttackRecall         float64 `json:"attackRecall"`
+	HighImpactRecall     float64 `json:"highImpactRecall"`
+	IntrusionRecall      float64 `json:"intrusionRecall"`
+	DestructionRecall    float64 `json:"destructionRecall"`
+	ExfiltrationRecall   float64 `json:"exfiltrationRecall"`
+	PersistenceRecall    float64 `json:"persistenceRecall"`
+	CatastrophicMissRate float64 `json:"catastrophicMissRate"`
+	BenignFalsePositive  float64 `json:"benignFalsePositiveRate"`
+	RiskWeightedRecall   float64 `json:"riskWeightedRecall"`
+	SecurityUtility      float64 `json:"securityUtility"`
+	ThreatVectorCoverage float64 `json:"threatVectorCoverage"`
 }
 
 type attackMetricAccumulator struct {
@@ -61,8 +61,8 @@ func (a attackMetricAccumulator) recall() float64 {
 }
 
 // EvaluateAttackImpactMetrics evaluates labeled samples with asymmetric costs:
-// missing an attack is worse than over-alerting, and missing a destructive or
-// high-impact BLOCK sample is the most expensive error.
+// missing an attack is worse than over-alerting, and missing destructive or
+// credential/privilege behavior is the most expensive error.
 func EvaluateAttackImpactMetrics(samples []TrainingSample, model Model) AttackImpactMetrics {
 	if model == nil {
 		return AttackImpactMetrics{}
@@ -104,9 +104,16 @@ func evaluateAttackImpactMetrics(samples []TrainingSample, predict func([Feature
 		if !isAttack {
 			benignTotal++
 			maxCost += 2.0
-			if predicted == 1 || predicted == 3 {
+			switch predicted {
+			case 1: // BLOCK on benign traffic is the most expensive false positive.
 				benignFalsePositive++
 				cost += 2.0
+			case 3: // ALERT is less disruptive, but still a false positive.
+				benignFalsePositive++
+				cost += 1.0
+			case 2: // REWRITE changes behavior; account for it without equating it to BLOCK.
+				benignFalsePositive++
+				cost += 0.6
 			}
 			continue
 		}
@@ -136,11 +143,17 @@ func evaluateAttackImpactMetrics(samples []TrainingSample, predict func([Feature
 		if isHighImpactSample(sample) {
 			high.total++
 			out.HighImpactSamples++
-			if detected {
+			// For high-impact behavior, BLOCK/ALERT is considered a strong
+			// defensive response. REWRITE is useful but should not earn full
+			// high-impact recall.
+			if predicted == 1 || predicted == 3 {
 				high.detected++
 			}
 			if predicted == 0 {
 				catastrophicMisses++
+			}
+			if predicted == 2 {
+				cost += severity * 0.35
 			}
 		}
 	}
@@ -171,35 +184,45 @@ func evaluateAttackImpactMetrics(samples []TrainingSample, predict func([Feature
 	return out
 }
 
+// REWRITE is included because the ground truth says the original command is
+// unsafe enough to require intervention, even if it does not require blocking.
 func isAttackLabel(label int32) bool {
-	return label == 1 || label == 3
+	return label == 1 || label == 2 || label == 3
 }
 
 func isDefensiveAction(action int32) bool {
-	return action == 1 || action == 3
+	return action == 1 || action == 2 || action == 3
 }
 
 func isHighImpactSample(sample TrainingSample) bool {
-	if sample.Label == 1 {
-		return true
-	}
 	category := strings.ToUpper(strings.TrimSpace(sample.Category))
+	lower := sampleCommandText(sample)
+
 	switch category {
 	case "SENSITIVE", "FILE_DELETE", "PROCESS_KILL":
 		return true
+	case "FILE_PERMISSION":
+		if containsAny(lower, "chmod ", "chown ", "setcap ", "/etc/sudoers", "authorized_keys") {
+			return true
+		}
+	case "NETWORK":
+		if containsAny(lower, "nc -e", "/dev/tcp/", "curl -d @", "curl --data @", "wget --post-file", "dnscat", "iodine") {
+			return true
+		}
 	}
-	lower := sampleCommandText(sample)
+
 	return containsAny(lower,
 		"/etc/shadow", "~/.ssh", ".ssh/", "~/.aws", ".aws/credentials",
 		"rm -rf", "shred ", "mkfs", "wipefs", "dd if=", "iptables -f",
 		"ufw disable", "firewall-cmd --remove", "nc -e", "/dev/tcp/",
+		"systemctl enable", "crontab", "authorized_keys",
 	)
 }
 
 // sampleImpactWeight is deliberately asymmetric. A missed destructive or
 // credential/privilege sample costs far more than a routine false positive.
 func sampleImpactWeight(sample TrainingSample) float64 {
-	weight := 6.0
+	weight := 5.0
 	category := strings.ToUpper(strings.TrimSpace(sample.Category))
 	switch category {
 	case "FILE_DELETE", "PROCESS_KILL":
@@ -209,15 +232,20 @@ func sampleImpactWeight(sample TrainingSample) float64 {
 	case "FILE_PERMISSION":
 		weight = 9
 	case "NETWORK":
-		weight = 9
-	case "PROCESS_EXEC", "FILE_WRITE":
 		weight = 8
-	case "CONTAINER", "DATABASE":
+	case "PROCESS_EXEC", "FILE_WRITE":
 		weight = 7
+	case "CONTAINER", "DATABASE":
+		weight = 6
+	case "PACKAGE_MANAGER", "COMPRESSION":
+		weight = 5.5
 	}
 	if isHighImpactSample(sample) {
 		weight = math.Max(weight, 12)
 	}
+	// An anomaly score is contextual evidence, not a label. It may increase the
+	// consequence weight modestly but cannot create a threat vector by itself.
+	weight *= 1.0 + 0.20*clampUnit(sample.AnomalyScore)
 	return weight
 }
 
@@ -232,25 +260,42 @@ func threatVectorsForSample(sample TrainingSample) []ThreatVector {
 		add(ThreatIntrusion)
 	case "FILE_DELETE", "PROCESS_KILL":
 		add(ThreatDestruction)
-	case "NETWORK":
-		add(ThreatExfiltration)
 	case "PROCESS_EXEC", "PACKAGE_MANAGER", "CONTAINER":
 		add(ThreatPersistence)
 	case "FILE_WRITE":
 		add(ThreatDestruction)
 		add(ThreatPersistence)
-	}
-
-	if containsAny(lower, "sudo ", "su ", "pkexec", "/etc/shadow", "~/.ssh", ".ssh/", "authorized_keys", "nsenter", "setcap ") {
-		add(ThreatIntrusion)
-	}
-	if containsAny(lower, "rm -rf", "shred ", "wipefs", "mkfs", "> /dev/", "kill -9", "pkill ", "truncate -s 0") {
-		add(ThreatDestruction)
-	}
-	if containsAny(lower, "curl -d @", "curl --data @", "wget --post-file", "nc <", "dnscat", "iodine", "scp ", "rsync ") {
+	case "DATABASE":
 		add(ThreatExfiltration)
 	}
-	if containsAny(lower, "crontab", "/etc/cron", "systemctl enable", "systemctl --user enable", "authorized_keys", ".config/autostart", "rc.local") {
+
+	// NETWORK alone is intentionally not equated with exfiltration. Specific
+	// evidence determines whether network behavior is intrusion, exfiltration,
+	// persistence/C2, or simply remains global-only.
+	if containsAny(lower,
+		"sudo ", "su ", "pkexec", "/etc/shadow", "~/.ssh", ".ssh/",
+		"nsenter", "setcap ", "nmap ", "masscan", "nc -z", "nc -e", "/dev/tcp/",
+		"iptables -f", "ufw disable", "firewall-cmd --remove",
+	) {
+		add(ThreatIntrusion)
+	}
+	if containsAny(lower,
+		"rm -rf", "shred ", "wipefs", "mkfs", "> /dev/", "kill -9",
+		"pkill ", "truncate -s 0", "dd if=",
+	) {
+		add(ThreatDestruction)
+	}
+	if containsAny(lower,
+		"curl -d @", "curl --data @", "wget --post-file", "nc <", "dnscat",
+		"iodine", "scp ", "rsync ", "rclone ",
+	) {
+		add(ThreatExfiltration)
+	}
+	if containsAny(lower,
+		"crontab", "/etc/cron", "systemctl enable", "systemctl --user enable",
+		"authorized_keys", ".config/autostart", "rc.local", "nc -e", "/dev/tcp/",
+		"dnscat", "iodine",
+	) {
 		add(ThreatPersistence)
 	}
 
