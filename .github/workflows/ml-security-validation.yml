@@ -1,0 +1,68 @@
+name: ML security validation
+
+on:
+  push:
+    paths:
+      - "backend/app/ml/**"
+      - "backend/app/autotunemodel.go"
+      - "backend/app/risk_scoring.go"
+      - "backend/app/risk_scoring_attack_test.go"
+      - "backend/docs/ML_ATTACK_IMPACT_AUTOML.md"
+      - "frontend/src/components/config/ml/**"
+      - "frontend/src/composables/config/**"
+      - "frontend/src/types/config/**"
+      - "frontend/src/data/mlModelTaxonomy.ts"
+      - "frontend/package.json"
+      - "frontend/bun.lock"
+      - ".github/workflows/ml-security-validation.yml"
+  pull_request:
+    paths:
+      - "backend/app/ml/**"
+      - "backend/app/autotunemodel.go"
+      - "backend/app/risk_scoring.go"
+      - "backend/app/risk_scoring_attack_test.go"
+      - "backend/docs/ML_ATTACK_IMPACT_AUTOML.md"
+      - "frontend/src/components/config/ml/**"
+      - "frontend/src/composables/config/**"
+      - "frontend/src/types/config/**"
+      - "frontend/src/data/mlModelTaxonomy.ts"
+      - "frontend/package.json"
+      - "frontend/bun.lock"
+      - ".github/workflows/ml-security-validation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  backend-ml-security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Run ML attack-impact tests
+        run: go test ./app/ml -run 'Test.*(Attack|Security|Wilson|ModelSecurity)' -count=1
+      - name: Compile app risk scoring tests
+        run: go test ./app -run 'TestAttack(VectorScores|RiskClass)' -count=1
+
+  frontend-typecheck:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+      - name: Typecheck and build frontend
+        run: bun run build
