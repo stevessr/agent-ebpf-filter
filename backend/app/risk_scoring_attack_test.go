@@ -47,6 +47,20 @@ func TestAttackVectorScoresDoNotInventVectorFromAnomalyOnly(t *testing.T) {
 	}
 }
 
+func TestAttackVectorScoresDoNotEquateGenericNetworkWithExfiltration(t *testing.T) {
+	classification := &pb.BehaviorClassification{
+		PrimaryCategory: "NETWORK",
+		Confidence:      "high",
+	}
+	scores := computeAttackVectorScores(classification, 0.20, ml.Prediction{}, NetworkAuditResult{}, nil)
+	if scores.Exfiltration != 0 || scores.Intrusion != 0 || scores.Persistence != 0 {
+		t.Fatalf("generic network context must stay vector-neutral without concrete findings: %+v", scores)
+	}
+	if scores.Class == "ATTACK" || scores.Class == "LIKELY_ATTACK" {
+		t.Fatalf("ordinary network classification alone must not create an attack decision: %+v", scores)
+	}
+}
+
 func TestAttackRiskClassBoundaries(t *testing.T) {
 	cases := []struct {
 		score float64
