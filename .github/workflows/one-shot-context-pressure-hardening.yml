@@ -1,0 +1,87 @@
+name: one-shot context pressure hardening
+
+on:
+  push:
+    branches:
+      - perf/context-pressure-observability
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: perf/context-pressure-observability
+          fetch-depth: 0
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Install native build dependencies
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler clang llvm libbpf-dev libelf-dev
+      - name: Apply context pressure hardening
+        run: python3 .github/scripts/one_shot_context_pressure_hardening.py
+      - name: Format Go sources
+        run: |
+          gofmt -w backend/app/observability/metrics_collector.go backend/app/observability/metrics_collector_test.go \
+            backend/app/observability/metrics_prometheus.go
+      - name: Assert all-or-nothing correlation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          c = Path('backend/ebpf/agent_tracker_common.h').read_text()
+          t = Path('backend/ebpf/agent_tracker_tail.h').read_text()
+          s = Path('backend/ebpf/agent_tracker_syscalls.h').read_text()
+          if 'return store_exit_compact_meta(ptid, &meta);' not in t:
+              raise SystemExit('generic enter does not propagate compact store failure')
+          if 'bpf_map_delete_elem(&exit_compact_ctx, &ptid)' not in t:
+              raise SystemExit('generic path store failure does not clean compact context')
+          if c.count('if (!store_exit_single_path(pid_tgid, pd))') != 4:
+              raise SystemExit('explicit single-path syscalls are not all-or-nothing')
+          if 'if (!store_exit_meta(pid_tgid, &meta))' not in s or 'discard_dynamic_exit_path(pid_tgid)' not in s:
+              raise SystemExit('dynamic HTTP full-context failure cleanup missing')
+          m = Path('backend/app/observability/metrics_collector.go').read_text()
+          if 'statsAvailable := false' not in m or 'available := statsAvailable' not in m:
+              raise SystemExit('pressure stats read failure can masquerade as available')
+          if 'contextMapsAvailable && bpfStats.RingbufReserveFailedTotal == 0' not in m:
+              raise SystemExit('capture health does not require context telemetry availability')
+          PY
+      - name: Generate Go protobuf bindings
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          mkdir -p backend/pb
+          protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto \
+            proto/tracker_common.proto proto/tracker_events.proto proto/tracker_registration.proto \
+            proto/tracker_system.proto proto/tracker_config.proto proto/tracker_shell.proto
+      - name: Generate repository eBPF objects and bindings
+        working-directory: backend/ebpf
+        run: go generate
+      - name: Regression tests
+        working-directory: backend
+        run: |
+          go test ./app/observability -count=1
+          go test ./app -run '^TestTracepointNameFromTag$' -count=1
+          go test ./app/captureprofile -count=1
+          go test ./app/events -run 'Test(Kernel|BuildKernel|HTTP|Socket|Audit)' -count=1
+          go test ./app/tls -run 'Test.*(API|Fingerprint|HTTP|GRPC)' -count=1
+      - name: Verify main tracker with host kernel verifier
+        working-directory: backend
+        run: |
+          go build -o /tmp/agenttracker-verifier-check ./cmd/agenttracker-verifier-check
+          sudo /tmp/agenttracker-verifier-check
+      - name: Verify generated binding drift
+        run: git diff --exit-code -- backend/ebpf/agenttracker_bpfel.go backend/ebpf/agenttracker_bpfeb.go
+      - name: Commit hardening
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add backend/ebpf/agent_tracker_common.h backend/ebpf/agent_tracker_tail.h backend/ebpf/agent_tracker_syscalls.h \
+            backend/app/observability/metrics_collector.go backend/app/observability/metrics_collector_test.go \
+            backend/app/observability/metrics_prometheus.go docs/backend/generic-api-capture.md
+          git commit -m 'perf(ebpf): harden correlation pressure handling'
+          git push
