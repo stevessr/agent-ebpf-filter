@@ -24,7 +24,7 @@ import (
 const bootstrapFlag = "--ebpf-bootstrap"
 
 // mapNames defines the required pinned eBPF maps.
-var mapNames = []string{"agent_pids", "events", "collector_stats", "tracked_comms", "tracked_paths", "tracked_prefixes", "exit_ctx", "exit_compact_ctx", "exit_single_path_buf", "exit_path_buf", "exit_single_path_ctx", "exit_path_ctx", "socket_fds", "socket_fd_parents"}
+var mapNames = []string{"agent_pids", "events", "collector_stats", "context_pressure_stats", "tracked_comms", "tracked_paths", "tracked_prefixes", "exit_ctx", "exit_compact_ctx", "exit_single_path_buf", "exit_path_buf", "exit_single_path_ctx", "exit_path_ctx", "socket_fds", "socket_fd_parents"}
 
 type tracepointAttachSpec struct {
 	category string
@@ -258,8 +258,8 @@ func clearSocketFDProvenance(socketFds *ebpf.Map, parentMap ...*ebpf.Map) error 
 func pinMaps(objs *bpf.AgentTrackerObjects) error {
 	for name, m := range map[string]*ebpf.Map{
 		"agent_pids": objs.AgentPids, "events": objs.Events,
-		"collector_stats": objs.CollectorStats,
-		"tracked_comms":   objs.TrackedComms, "tracked_paths": objs.TrackedPaths,
+		"collector_stats": objs.CollectorStats, "context_pressure_stats": objs.ContextPressureStats,
+		"tracked_comms": objs.TrackedComms, "tracked_paths": objs.TrackedPaths,
 		"tracked_prefixes": objs.TrackedPrefixes, "exit_ctx": objs.ExitCtx, "exit_compact_ctx": objs.ExitCompactCtx,
 		"exit_single_path_buf": objs.ExitSinglePathBuf, "exit_path_buf": objs.ExitPathBuf, "exit_single_path_ctx": objs.ExitSinglePathCtx,
 		"exit_path_ctx": objs.ExitPathCtx, "socket_fds": objs.SocketFds, "socket_fd_parents": objs.SocketFdParents,
@@ -387,13 +387,21 @@ func toTrackerMapSet(maps map[string]*ebpf.Map) (trackerMapSet, error) {
 		return trackerMapSet{}, fmt.Errorf("missing pinned maps: %v", missing)
 	}
 	return trackerMapSet{
-		AgentPids:       maps["agent_pids"],
-		Events:          maps["events"],
-		CollectorStats:  maps["collector_stats"],
-		TrackedComms:    maps["tracked_comms"],
-		TrackedPaths:    maps["tracked_paths"],
-		TrackedPrefixes: maps["tracked_prefixes"],
-		SocketFds:       maps["socket_fds"],
+		AgentPids:            maps["agent_pids"],
+		Events:               maps["events"],
+		CollectorStats:       maps["collector_stats"],
+		ContextPressureStats: maps["context_pressure_stats"],
+		TrackedComms:         maps["tracked_comms"],
+		TrackedPaths:         maps["tracked_paths"],
+		TrackedPrefixes:      maps["tracked_prefixes"],
+		ExitCtx:              maps["exit_ctx"],
+		ExitCompactCtx:       maps["exit_compact_ctx"],
+		ExitSinglePathBuf:    maps["exit_single_path_buf"],
+		ExitPathBuf:          maps["exit_path_buf"],
+		ExitSinglePathCtx:    maps["exit_single_path_ctx"],
+		ExitPathCtx:          maps["exit_path_ctx"],
+		SocketFds:            maps["socket_fds"],
+		SocketFdParents:      maps["socket_fd_parents"],
 	}, nil
 }
 
@@ -577,7 +585,12 @@ func closeTrackerMapSet(set *trackerMapSet) {
 	if set == nil {
 		return
 	}
-	for _, mp := range []*(*ebpf.Map){&set.AgentPids, &set.Events, &set.CollectorStats, &set.TrackedComms, &set.TrackedPaths, &set.TrackedPrefixes} {
+	for _, mp := range []*(*ebpf.Map){
+		&set.AgentPids, &set.Events, &set.CollectorStats, &set.ContextPressureStats,
+		&set.TrackedComms, &set.TrackedPaths, &set.TrackedPrefixes,
+		&set.ExitCtx, &set.ExitCompactCtx, &set.ExitSinglePathBuf, &set.ExitPathBuf,
+		&set.ExitSinglePathCtx, &set.ExitPathCtx, &set.SocketFds, &set.SocketFdParents,
+	} {
 		if *mp != nil {
 			_ = (*mp).Close()
 			*mp = nil

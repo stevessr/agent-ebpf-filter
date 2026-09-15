@@ -38,6 +38,27 @@ func HandlePrometheusMetrics(c *gin.Context) {
 	} else {
 		writePrometheusSample(&b, "agent_ebpf_kernel_audit_generation_consistent", nil, 0)
 	}
+	writePrometheusHeader(&b, "agent_ebpf_context_map_entries", "gauge", "Current entries in transient eBPF correlation/provenance maps.")
+	writePrometheusHeader(&b, "agent_ebpf_context_map_capacity", "gauge", "Maximum entries configured for transient eBPF correlation/provenance maps.")
+	writePrometheusHeader(&b, "agent_ebpf_context_map_utilization_ratio", "gauge", "Current transient eBPF map entry utilization ratio.")
+	writePrometheusHeader(&b, "agent_ebpf_context_map_payload_bytes", "gauge", "Current key+value payload bytes represented by transient eBPF map entries; excludes kernel hash overhead.")
+	writePrometheusHeader(&b, "agent_ebpf_context_map_capacity_payload_bytes", "gauge", "Configured key+value payload budget for transient eBPF maps; excludes kernel hash overhead.")
+	writePrometheusHeader(&b, "agent_ebpf_context_map_update_failures_total", "counter", "Kernel correlation/provenance map update failures, recorded only on the failure path.")
+	contextMapNames := make([]string, 0, len(health.ContextMapPressure))
+	for name := range health.ContextMapPressure {
+		contextMapNames = append(contextMapNames, name)
+	}
+	sort.Strings(contextMapNames)
+	for _, name := range contextMapNames {
+		pressure := health.ContextMapPressure[name]
+		labels := map[string]string{"map": name}
+		writePrometheusSample(&b, "agent_ebpf_context_map_entries", labels, float64(pressure.Entries))
+		writePrometheusSample(&b, "agent_ebpf_context_map_capacity", labels, float64(pressure.Capacity))
+		writePrometheusSample(&b, "agent_ebpf_context_map_utilization_ratio", labels, pressure.Utilization)
+		writePrometheusSample(&b, "agent_ebpf_context_map_payload_bytes", labels, float64(pressure.PayloadBytes))
+		writePrometheusSample(&b, "agent_ebpf_context_map_capacity_payload_bytes", labels, float64(pressure.CapacityPayloadBytes))
+		writePrometheusSample(&b, "agent_ebpf_context_map_update_failures_total", labels, float64(pressure.UpdateFailuresTotal))
+	}
 	writePrometheusHeader(&b, "agent_ebpf_backend_queue_len", "gauge", "Current backend event queue length.")
 	writePrometheusSample(&b, "agent_ebpf_backend_queue_len", nil, float64(health.BackendQueueLen))
 	writePrometheusHeader(&b, "agent_ebpf_ws_clients", "gauge", "Current number of event WebSocket clients across legacy and envelope streams.")

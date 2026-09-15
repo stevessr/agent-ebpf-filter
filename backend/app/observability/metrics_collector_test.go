@@ -105,3 +105,17 @@ func TestCollectorPersistBatchMetrics(t *testing.T) {
 		t.Fatalf("persist batch metrics mismatch: %+v", snapshot)
 	}
 }
+
+func TestAggregateContextPressureStats(t *testing.T) {
+	got := aggregateContextPressureStats([]kernelContextPressureStats{
+		{ExitFullUpdateFailures: 1, ExitCompactUpdateFailures: 2, SinglePathUpdateFailures: 3, PairPathUpdateFailures: 4, SocketFDUpdateFailures: 5, SocketParentUpdateFailures: 6},
+		{ExitFullUpdateFailures: 10, ExitCompactUpdateFailures: 20, SinglePathUpdateFailures: 30, PairPathUpdateFailures: 40, SocketFDUpdateFailures: 50, SocketParentUpdateFailures: 60},
+	})
+	if got.ExitFullUpdateFailures != 11 || got.ExitCompactUpdateFailures != 22 || got.SinglePathUpdateFailures != 33 || got.PairPathUpdateFailures != 44 || got.SocketFDUpdateFailures != 55 || got.SocketParentUpdateFailures != 66 {
+		t.Fatalf("unexpected context pressure aggregate: %+v", got)
+	}
+	failures := contextFailureByMap(got)
+	if failures["exit_ctx"] != 11 || failures["exit_compact_ctx"] != 22 || failures["exit_single_path_ctx"] != 33 || failures["exit_path_ctx"] != 44 || failures["socket_fds"] != 55 || failures["socket_fd_parents"] != 66 {
+		t.Fatalf("unexpected context failure map: %+v", failures)
+	}
+}

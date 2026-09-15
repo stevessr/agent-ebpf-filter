@@ -201,7 +201,7 @@ int tracepoint__syscalls__sys_enter_sendto(struct trace_event_raw_sys_enter *ctx
                 meta.capture_flags |= SOCKET_CAPTURE_OUTGOING;
                 if (start_kind == HTTP1_START_REQUEST) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE;
                 else if (start_kind == HTTP1_START_RESPONSE) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE;
-                bpf_map_update_elem(&exit_path_ctx, &pid_tgid, pd, BPF_ANY);
+                store_exit_path_pair(pid_tgid, pd);
             }
         }
     }
@@ -438,7 +438,7 @@ int tracepoint__syscalls__sys_enter_write(struct trace_event_raw_sys_enter *ctx)
                 meta.capture_flags |= SOCKET_CAPTURE_OUTGOING;
                 if (start_kind == HTTP1_START_REQUEST) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE;
                 else if (start_kind == HTTP1_START_RESPONSE) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE;
-                bpf_map_update_elem(&exit_path_ctx, &pid_tgid, pd, BPF_ANY);
+                store_exit_path_pair(pid_tgid, pd);
             }
         }
     }
@@ -504,7 +504,7 @@ int tracepoint__syscalls__sys_enter_writev(struct trace_event_raw_sys_enter *ctx
                 meta.capture_flags |= SOCKET_CAPTURE_OUTGOING;
                 if (start_kind == HTTP1_START_REQUEST) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE;
                 else if (start_kind == HTTP1_START_RESPONSE) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE;
-                bpf_map_update_elem(&exit_path_ctx, &pid_tgid, pd, BPF_ANY);
+                store_exit_path_pair(pid_tgid, pd);
             }
         }
     }
@@ -646,7 +646,7 @@ int tracepoint__syscalls__sys_enter_sendmsg(struct trace_event_raw_sys_enter *ct
                 meta.capture_flags |= SOCKET_CAPTURE_OUTGOING;
                 if (start_kind == HTTP1_START_REQUEST) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE;
                 else if (start_kind == HTTP1_START_RESPONSE) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE;
-                bpf_map_update_elem(&exit_path_ctx, &pid_tgid, pd, BPF_ANY);
+                store_exit_path_pair(pid_tgid, pd);
             }
         }
     }

@@ -211,14 +211,21 @@ type FilePreviewResponse struct {
 
 // TrackerMapSet holds references to the pinned eBPF maps.
 type TrackerMapSet struct {
-	AgentPids       *ebpf.Map
-	TrackedComms    *ebpf.Map
-	TrackedPaths    *ebpf.Map
-	TrackedPrefixes *ebpf.Map
-	Events          *ebpf.Map
-	CollectorStats  *ebpf.Map
-	SocketFds       *ebpf.Map
-	SocketFdParents *ebpf.Map
+	AgentPids            *ebpf.Map
+	TrackedComms         *ebpf.Map
+	TrackedPaths         *ebpf.Map
+	TrackedPrefixes      *ebpf.Map
+	Events               *ebpf.Map
+	CollectorStats       *ebpf.Map
+	ContextPressureStats *ebpf.Map
+	ExitCtx              *ebpf.Map
+	ExitCompactCtx       *ebpf.Map
+	ExitSinglePathBuf    *ebpf.Map
+	ExitPathBuf          *ebpf.Map
+	ExitSinglePathCtx    *ebpf.Map
+	ExitPathCtx          *ebpf.Map
+	SocketFds            *ebpf.Map
+	SocketFdParents      *ebpf.Map
 }
 
 // ShellControlMessage is sent over the WebSocket to resize the PTY.

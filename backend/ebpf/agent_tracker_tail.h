@@ -92,7 +92,7 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
     if (!pd) return 0; \
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); \
     if (!sys_enter_common_path(ptid, comm, pd->path, nr, 0, 0)) return 0; \
-    bpf_map_update_elem(&exit_single_path_ctx, &ptid, pd, BPF_ANY); \
+    store_exit_single_path(ptid, pd); \
     return 0; \
 } \
 SEC("tracepoint/syscalls/sys_exit_" #name) \
@@ -114,7 +114,7 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); \
     bpf_probe_read_user_str(pd->extra4, MAX_PATH_LEN, (const char *)ctx->args[1]); \
     if (!sys_enter_common_path(ptid, comm, pd->path, nr, 0, 0)) return 0; \
-    bpf_map_update_elem(&exit_path_ctx, &ptid, pd, BPF_ANY); \
+    store_exit_path_pair(ptid, pd); \
     return 0; \
 } \
 SEC("tracepoint/syscalls/sys_exit_" #name) \
@@ -135,7 +135,7 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
     if (!pd) return 0; \
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[1]); \
     if (!sys_enter_common_path(ptid, comm, pd->path, nr, 0, 0)) return 0; \
-    bpf_map_update_elem(&exit_single_path_ctx, &ptid, pd, BPF_ANY); \
+    store_exit_single_path(ptid, pd); \
     return 0; \
 } \
 SEC("tracepoint/syscalls/sys_exit_" #name) \
@@ -157,7 +157,7 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[1]); \
     bpf_probe_read_user_str(pd->extra4, MAX_PATH_LEN, (const char *)ctx->args[3]); \
     if (!sys_enter_common_path(ptid, comm, pd->path, nr, 0, 0)) return 0; \
-    bpf_map_update_elem(&exit_path_ctx, &ptid, pd, BPF_ANY); \
+    store_exit_path_pair(ptid, pd); \
     return 0; \
 } \
 SEC("tracepoint/syscalls/sys_exit_" #name) \
@@ -179,7 +179,7 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); \
     bpf_probe_read_user_str(pd->extra4, MAX_PATH_LEN, (const char *)ctx->args[2]); \
     if (!sys_enter_common_path(ptid, comm, pd->path, nr, 0, 0)) return 0; \
-    bpf_map_update_elem(&exit_path_ctx, &ptid, pd, BPF_ANY); \
+    store_exit_path_pair(ptid, pd); \
     return 0; \
 } \
 SEC("tracepoint/syscalls/sys_exit_" #name) \
@@ -200,7 +200,7 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
     if (!pd) return 0; \
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[4]); \
     if (!sys_enter_common_path(ptid, comm, pd->path, nr, 0, 0)) return 0; \
-    bpf_map_update_elem(&exit_single_path_ctx, &ptid, pd, BPF_ANY); \
+    store_exit_single_path(ptid, pd); \
     return 0; \
 } \
 SEC("tracepoint/syscalls/sys_exit_" #name) \

@@ -228,6 +228,46 @@ struct {
     __type(value, struct collector_stats);
 } collector_stats SEC(".maps");
 
+// Failure-only accounting for correlation/provenance maps. Successful updates
+// pay only the existing map update plus a return-code branch; the per-CPU
+// stats lookup happens exclusively on an actual failure.
+struct context_pressure_stats {
+    u64 exit_full_update_failures;
+    u64 exit_compact_update_failures;
+    u64 single_path_update_failures;
+    u64 pair_path_update_failures;
+    u64 socket_fd_update_failures;
+    u64 socket_parent_update_failures;
+};
+
+_Static_assert(sizeof(struct context_pressure_stats) == 48, "context pressure stats ABI changed");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+    __uint(max_entries, 1);
+    __type(key, u32);
+    __type(value, struct context_pressure_stats);
+} context_pressure_stats SEC(".maps");
+
+#define CONTEXT_PRESSURE_EXIT_FULL     1
+#define CONTEXT_PRESSURE_EXIT_COMPACT  2
+#define CONTEXT_PRESSURE_SINGLE_PATH   3
+#define CONTEXT_PRESSURE_PAIR_PATH     4
+#define CONTEXT_PRESSURE_SOCKET_FD     5
+#define CONTEXT_PRESSURE_SOCKET_PARENT 6
+
+static __always_inline void record_context_update_failure(u32 kind) {
+    u32 key = 0;
+    struct context_pressure_stats *stats = bpf_map_lookup_elem(&context_pressure_stats, &key);
+    if (!stats) return;
+    if (kind == CONTEXT_PRESSURE_EXIT_FULL) stats->exit_full_update_failures++;
+    else if (kind == CONTEXT_PRESSURE_EXIT_COMPACT) stats->exit_compact_update_failures++;
+    else if (kind == CONTEXT_PRESSURE_SINGLE_PATH) stats->single_path_update_failures++;
+    else if (kind == CONTEXT_PRESSURE_PAIR_PATH) stats->pair_path_update_failures++;
+    else if (kind == CONTEXT_PRESSURE_SOCKET_FD) stats->socket_fd_update_failures++;
+    else if (kind == CONTEXT_PRESSURE_SOCKET_PARENT) stats->socket_parent_update_failures++;
+}
+
 // Map to store registered agent PIDs
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
@@ -373,6 +413,19 @@ struct {
     __type(key, u64);
     __type(value, struct exit_path_data);
 } exit_path_ctx SEC(".maps");
+
+
+static __always_inline int store_exit_single_path(u64 pid_tgid, struct exit_single_path_data *data) {
+    long rc = bpf_map_update_elem(&exit_single_path_ctx, &pid_tgid, data, BPF_ANY);
+    if (rc < 0) record_context_update_failure(CONTEXT_PRESSURE_SINGLE_PATH);
+    return rc == 0;
+}
+
+static __always_inline int store_exit_path_pair(u64 pid_tgid, struct exit_path_data *data) {
+    long rc = bpf_map_update_elem(&exit_path_ctx, &pid_tgid, data, BPF_ANY);
+    if (rc < 0) record_context_update_failure(CONTEXT_PRESSURE_PAIR_PATH);
+    return rc == 0;
+}
 
 static __always_inline void account_ringbuf_reserve_failed(struct collector_stats *stats) {
     if (stats) {
@@ -607,12 +660,16 @@ static __always_inline void fill_network_meta(struct exit_meta *meta, const void
     }
 }
 
-static __always_inline void store_exit_meta(u64 pid_tgid, struct exit_meta *meta) {
-    bpf_map_update_elem(&exit_ctx, &pid_tgid, meta, BPF_ANY);
+static __always_inline int store_exit_meta(u64 pid_tgid, struct exit_meta *meta) {
+    long rc = bpf_map_update_elem(&exit_ctx, &pid_tgid, meta, BPF_ANY);
+    if (rc < 0) record_context_update_failure(CONTEXT_PRESSURE_EXIT_FULL);
+    return rc == 0;
 }
 
-static __always_inline void store_exit_compact_meta(u64 pid_tgid, struct exit_compact_meta *meta) {
-    bpf_map_update_elem(&exit_compact_ctx, &pid_tgid, meta, BPF_ANY);
+static __always_inline int store_exit_compact_meta(u64 pid_tgid, struct exit_compact_meta *meta) {
+    long rc = bpf_map_update_elem(&exit_compact_ctx, &pid_tgid, meta, BPF_ANY);
+    if (rc < 0) record_context_update_failure(CONTEXT_PRESSURE_EXIT_COMPACT);
+    return rc == 0;
 }
 
 static __always_inline struct socket_fd_meta *lookup_socket_fd_direct(u32 tgid, s32 fd) {
@@ -644,7 +701,7 @@ static __always_inline struct socket_fd_meta *lookup_socket_fd(u32 tgid, s32 fd)
     __builtin_memcpy(&value, inherited, sizeof(value));
     value.provenance_flags |= SOCKET_CAPTURE_FD_INHERITED;
     struct socket_fd_key child_key = {.tgid = tgid, .fd = fd};
-    bpf_map_update_elem(&socket_fds, &child_key, &value, BPF_ANY);
+    if (bpf_map_update_elem(&socket_fds, &child_key, &value, BPF_ANY) < 0) record_context_update_failure(CONTEXT_PRESSURE_SOCKET_FD);
     return bpf_map_lookup_elem(&socket_fds, &child_key);
 }
 
@@ -656,7 +713,7 @@ static __always_inline void remember_socket_fd(u32 tgid, s32 fd, u32 family, u32
         .sock_type = sock_type,
         .protocol = protocol,
     };
-    bpf_map_update_elem(&socket_fds, &key, &value, BPF_ANY);
+    if (bpf_map_update_elem(&socket_fds, &key, &value, BPF_ANY) < 0) record_context_update_failure(CONTEXT_PRESSURE_SOCKET_FD);
 }
 
 static __always_inline void duplicate_socket_fd(u32 tgid, s32 oldfd, s32 newfd, u32 flags) {
@@ -671,7 +728,7 @@ static __always_inline void duplicate_socket_fd(u32 tgid, s32 oldfd, s32 newfd, 
     struct socket_fd_meta value = {};
     __builtin_memcpy(&value, source, sizeof(value));
     value.provenance_flags |= flags | SOCKET_CAPTURE_FD_DUPLICATED;
-    bpf_map_update_elem(&socket_fds, &new_key, &value, BPF_ANY);
+    if (bpf_map_update_elem(&socket_fds, &new_key, &value, BPF_ANY) < 0) record_context_update_failure(CONTEXT_PRESSURE_SOCKET_FD);
 }
 
 static __always_inline void update_socket_fd_remote(u32 tgid, s32 fd, struct exit_meta *meta) {
@@ -683,7 +740,7 @@ static __always_inline void update_socket_fd_remote(u32 tgid, s32 fd, struct exi
     value.family = meta->net_family;
     value.remote_port = meta->net_port;
     __builtin_memcpy(value.remote_addr, meta->net_addr, sizeof(value.remote_addr));
-    bpf_map_update_elem(&socket_fds, &key, &value, BPF_ANY);
+    if (bpf_map_update_elem(&socket_fds, &key, &value, BPF_ANY) < 0) record_context_update_failure(CONTEXT_PRESSURE_SOCKET_FD);
 }
 
 static __always_inline void forget_socket_fd(u32 tgid, s32 fd) {
@@ -834,7 +891,7 @@ int tracepoint__sched__sched_process_fork(struct trace_event_raw_sched_process_f
     bpf_map_update_elem(&agent_pids, &child_pid, tag, BPF_ANY);
     u32 parent_tgid = (u32)(bpf_get_current_pid_tgid() >> 32);
     if (parent_tgid != 0 && child_pid != parent_tgid) {
-        bpf_map_update_elem(&socket_fd_parents, &child_pid, &parent_tgid, BPF_ANY);
+        if (bpf_map_update_elem(&socket_fd_parents, &child_pid, &parent_tgid, BPF_ANY) < 0) record_context_update_failure(CONTEXT_PRESSURE_SOCKET_PARENT);
     }
 
     struct event *e = reserve_event();
@@ -1079,7 +1136,7 @@ int tracepoint__syscalls__sys_enter_execve(struct trace_event_raw_sys_enter *ctx
     meta.tag_id = tag_id;
 
     store_exit_compact_meta(pid_tgid, &meta);
-    bpf_map_update_elem(&exit_single_path_ctx, &pid_tgid, pd, BPF_ANY);
+    store_exit_single_path(pid_tgid, pd);
     return 0;
 }
 
@@ -1132,7 +1189,7 @@ int tracepoint__syscalls__sys_enter_openat(struct trace_event_raw_sys_enter *ctx
     meta.extra1 = (u32)ctx->args[2]; // flags
 
     store_exit_compact_meta(pid_tgid, &meta);
-    bpf_map_update_elem(&exit_single_path_ctx, &pid_tgid, pd, BPF_ANY);
+    store_exit_single_path(pid_tgid, pd);
     return 0;
 }
 
@@ -1228,7 +1285,7 @@ int tracepoint__syscalls__sys_enter_mkdirat(struct trace_event_raw_sys_enter *ct
     meta.extra1 = (u32)ctx->args[2]; // mode
 
     store_exit_compact_meta(pid_tgid, &meta);
-    bpf_map_update_elem(&exit_single_path_ctx, &pid_tgid, pd, BPF_ANY);
+    store_exit_single_path(pid_tgid, pd);
     return 0;
 }
 
@@ -1281,7 +1338,7 @@ int tracepoint__syscalls__sys_enter_unlinkat(struct trace_event_raw_sys_enter *c
     meta.extra1 = (u32)ctx->args[2]; // flags
 
     store_exit_compact_meta(pid_tgid, &meta);
-    bpf_map_update_elem(&exit_single_path_ctx, &pid_tgid, pd, BPF_ANY);
+    store_exit_single_path(pid_tgid, pd);
     return 0;
 }
 

@@ -16,6 +16,21 @@ func (observabilityTrackerMapSet) GetCollectorStats() *ebpf.Map {
 	return trackerMaps.CollectorStats
 }
 
+func (observabilityTrackerMapSet) GetContextPressureStats() *ebpf.Map {
+	return trackerMaps.ContextPressureStats
+}
+
+func (observabilityTrackerMapSet) GetContextMaps() map[string]*ebpf.Map {
+	return map[string]*ebpf.Map{
+		"exit_ctx":             trackerMaps.ExitCtx,
+		"exit_compact_ctx":     trackerMaps.ExitCompactCtx,
+		"exit_single_path_ctx": trackerMaps.ExitSinglePathCtx,
+		"exit_path_ctx":        trackerMaps.ExitPathCtx,
+		"socket_fds":           trackerMaps.SocketFds,
+		"socket_fd_parents":    trackerMaps.SocketFdParents,
+	}
+}
+
 // ── Init observability subpackage (optional) ──────────────────────────────
 
 // initObservability is called during app initialization to inject global
