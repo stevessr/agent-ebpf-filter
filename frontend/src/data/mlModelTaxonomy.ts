@@ -1,4 +1,9 @@
-import type { MLBuiltinModelCatalogItem } from "../types/config";
+export interface MLTaxonomyModelItem {
+  value: string;
+  base: string;
+  category?: string;
+  tags?: string[];
+}
 
 export type MLModelFamily =
   | "tree"
@@ -46,10 +51,10 @@ const featureLabels: Record<MLFeatureClass, string> = {
   synthetic_sequence: "生成增强序列",
 };
 
-const taxonomyTag = (item: MLBuiltinModelCatalogItem, prefix: string) =>
+const taxonomyTag = (item: MLTaxonomyModelItem, prefix: string) =>
   item.tags?.find((tag) => tag.startsWith(prefix))?.slice(prefix.length);
 
-export const modelFamily = (item: MLBuiltinModelCatalogItem): MLModelFamily => {
+export const modelFamily = (item: MLTaxonomyModelItem): MLModelFamily => {
   const tagged = taxonomyTag(item, "family:") as MLModelFamily | undefined;
   if (tagged && familyLabels[tagged]) return tagged;
 
@@ -69,11 +74,11 @@ export const modelFamily = (item: MLBuiltinModelCatalogItem): MLModelFamily => {
   return "other";
 };
 
-export const modelFamilyLabel = (item: MLBuiltinModelCatalogItem) =>
+export const modelFamilyLabel = (item: MLTaxonomyModelItem) =>
   familyLabels[modelFamily(item)];
 
 export const modelFeatureClass = (
-  item: MLBuiltinModelCatalogItem,
+  item: MLTaxonomyModelItem,
 ): MLFeatureClass => {
   const tagged = taxonomyTag(item, "feature:") as MLFeatureClass | undefined;
   if (tagged && featureLabels[tagged]) return tagged;
@@ -103,10 +108,10 @@ export const modelFeatureClass = (
   return "tabular_128";
 };
 
-export const modelFeatureClassLabel = (item: MLBuiltinModelCatalogItem) =>
+export const modelFeatureClassLabel = (item: MLTaxonomyModelItem) =>
   featureLabels[modelFeatureClass(item)];
 
-export const modelFeatureProfiles = (item: MLBuiltinModelCatalogItem) => {
+export const modelFeatureProfiles = (item: MLTaxonomyModelItem) => {
   const profiles = (item.tags || [])
     .filter((tag) => tag.startsWith("feature-profile:"))
     .map((tag) => tag.slice("feature-profile:".length));
