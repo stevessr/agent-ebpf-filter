@@ -81,9 +81,9 @@ func autotuneTuneModelsPost(c *gin.Context) {
 		return
 	}
 
-	modelTypes := normalizeModelTuneTypes(req.ModelTypes)
+	modelTypes := normalizeModelTuneRequestTypes(req)
 	if len(modelTypes) == 0 {
-		c.JSON(400, gin.H{"error": "no valid model types selected"})
+		c.JSON(400, gin.H{"error": "no model types matched the requested model family / feature filters"})
 		return
 	}
 
@@ -111,9 +111,77 @@ func autotuneTuneModelsPost(c *gin.Context) {
 	})
 }
 
-func normalizeModelTuneTypes(raw []string) []ModelType {
+func normalizeModelTuneRequestTypes(req ml.MLModelTuneRequest) []ModelType {
+	explicit := normalizeModelTuneTypesNoFallback(req.ModelTypes)
+	families := normalizeTaxonomyFilters(req.Families)
+	features := normalizeTaxonomyFilters(req.FeatureProfiles)
+	hasTaxonomyFilter := len(families) > 0 || len(features) > 0
+
+	if !hasTaxonomyFilter {
+		if len(explicit) > 0 {
+			return explicit
+		}
+		return normalizeModelTuneTypes(nil)
+	}
+
+	matched := ml.ModelTypesByTaxonomy(families, features)
+	if len(explicit) == 0 {
+		return matched
+	}
+
+	allowed := make(map[ModelType]struct{}, len(matched))
+	for _, modelType := range matched {
+		allowed[modelType] = struct{}{}
+	}
+	filtered := make([]ModelType, 0, len(explicit))
+	for _, modelType := range explicit {
+		if _, ok := allowed[modelType]; ok {
+			filtered = append(filtered, modelType)
+		}
+	}
+	return filtered
+}
+
+func normalizeTaxonomyFilters(raw []string) []string {
+	seen := make(map[string]struct{}, len(raw))
+	out := make([]string, 0, len(raw))
+	for _, value := range raw {
+		value = strings.ToLower(strings.TrimSpace(value))
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
+}
+
+func normalizeModelTuneTypesNoFallback(raw []string) []ModelType {
 	seen := make(map[ModelType]bool)
 	out := make([]ModelType, 0, len(raw))
+	for _, value := range raw {
+		modelType := ModelType(strings.TrimSpace(value))
+		if modelType == "" || seen[modelType] {
+			continue
+		}
+		if _, ok := ml.ModelRegistry[modelType]; !ok {
+			continue
+		}
+		seen[modelType] = true
+		out = append(out, modelType)
+	}
+	return out
+}
+
+func normalizeModelTuneTypes(raw []string) []ModelType {
+	out := normalizeModelTuneTypesNoFallback(raw)
+	seen := make(map[ModelType]bool, len(out)+1)
+	for _, modelType := range out {
+		seen[modelType] = true
+	}
 	add := func(t ModelType) {
 		if t == "" || seen[t] {
 			return
@@ -123,9 +191,6 @@ func normalizeModelTuneTypes(raw []string) []ModelType {
 		}
 		seen[t] = true
 		out = append(out, t)
-	}
-	for _, value := range raw {
-		add(ModelType(strings.TrimSpace(value)))
 	}
 	if len(out) == 0 {
 		for _, item := range ml.BuiltinModelCatalog() {
