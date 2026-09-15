@@ -1,6 +1,10 @@
 import { computed } from "vue";
 import type { Ref } from "vue";
-import { mlModelCategoryColor } from "../../../data/mlModelCatalog";
+import {
+  modelFamilyColor,
+  modelFamilyLabel,
+  modelFeatureClassLabel,
+} from "../../../data/mlModelTaxonomy";
 
 interface BuiltinModelItem {
   value: string;
@@ -16,6 +20,10 @@ export interface ModelTuneCandidate {
   modelType: string;
   label?: string;
   base?: string;
+  family?: string;
+  familyLabel?: string;
+  featureClass?: string;
+  featureProfiles?: string[];
   recommended?: boolean;
   validationAccuracy?: number;
   trainAccuracy?: number;
@@ -42,11 +50,18 @@ export function useModelTypeDisplay(
   const modelTypeLabel = computed(
     () => selectedBuiltinModel.value?.label || modelType.value,
   );
+  const modelFamily = computed(() =>
+    selectedBuiltinModel.value
+      ? modelFamilyLabel(selectedBuiltinModel.value)
+      : "其他模型",
+  );
+  const modelFeature = computed(() =>
+    selectedBuiltinModel.value
+      ? modelFeatureClassLabel(selectedBuiltinModel.value)
+      : "128维表格上下文",
+  );
   const modelTypeTagColor = computed(() =>
-    mlModelCategoryColor(
-      selectedBuiltinModel.value?.category,
-      modelBaseType.value,
-    ),
+    selectedBuiltinModel.value ? modelFamilyColor(selectedBuiltinModel.value) : "default",
   );
   const modelTypeDescription = computed(
     () => selectedBuiltinModel.value?.description || "本地模型配置",
@@ -58,7 +73,7 @@ export function useModelTypeDisplay(
   const modelCatalogGroups = computed(() => {
     const groups = new Map<string, BuiltinModelItem[]>();
     for (const item of builtinModelCatalog.value) {
-      const key = item.category || "其他模型";
+      const key = modelFamilyLabel(item);
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)?.push(item);
     }
@@ -90,6 +105,8 @@ export function useModelTypeDisplay(
 
   const modelTuneColumns = [
     { title: "模型", dataIndex: "label", key: "label" },
+    { title: "模型家族", dataIndex: "familyLabel", key: "familyLabel" },
+    { title: "特征分类", dataIndex: "featureClass", key: "featureClass" },
     { title: "基础算法", dataIndex: "base", key: "base" },
     {
       title: "验证准确率",
@@ -108,6 +125,8 @@ export function useModelTypeDisplay(
 
   return {
     modelTypeLabel,
+    modelFamily,
+    modelFeature,
     modelTypeTagColor,
     modelTypeDescription,
     modelBaseLabel,

@@ -48,15 +48,20 @@ func runModelAutoTuneWithCancel(store *ml.TrainingDataStore, req ml.MLModelTuneR
 			return nil, errors.New("cancelled")
 		}
 		label, base, recommended := modelTuneCatalogInfo(modelType)
+		taxonomy := ml.ModelTaxonomy(modelType)
 		cfg := baseCfg
 		cfg.ModelType = modelType
 		cfg.ValidationSplitRatio = validationRatio
 		effectiveCfg := ml.ApplyBuiltinModelPreset(cfg)
 		candidate := ml.MLModelTuneCandidate{
-			ModelType:   string(modelType),
-			Label:       label,
-			Base:        base,
-			Recommended: recommended,
+			ModelType:       string(modelType),
+			Label:           label,
+			Base:            base,
+			Family:          taxonomy.Family,
+			FamilyLabel:     taxonomy.FamilyLabel,
+			FeatureClass:    taxonomy.FeatureClass,
+			FeatureProfiles: append([]string(nil), taxonomy.FeatureProfiles...),
+			Recommended:     recommended,
 			HyperParams: map[string]int{
 				"numTrees":       effectiveCfg.NumTrees,
 				"maxDepth":       effectiveCfg.MaxDepth,
@@ -143,7 +148,7 @@ func runModelAutoTuneWithCancel(store *ml.TrainingDataStore, req ml.MLModelTuneR
 			bestModel = model
 			bestScore = candidate.Score
 		}
-		ml.GlobalTrainer.Logf("模型调优: %s 验证准确率 %.1f%% 推理 %.0f/s", label, candidate.ValidationAccuracy*100, candidate.InferenceThroughput)
+		ml.GlobalTrainer.Logf("模型调优: %s [%s/%s] 验证准确率 %.1f%% 推理 %.0f/s", label, taxonomy.Family, taxonomy.FeatureClass, candidate.ValidationAccuracy*100, candidate.InferenceThroughput)
 		if progressCb != nil {
 			progressCb(i+1, len(modelTypes), fmt.Sprintf("完成 %s (%d/%d)", label, i+1, len(modelTypes)))
 		}
