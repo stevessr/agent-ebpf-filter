@@ -1,7 +1,7 @@
 import { computed } from "vue";
 import type { Ref } from "vue";
-import { mlModelCategoryColor } from "../../../data/mlModelCatalog";
 import {
+  modelFamilyColor,
   modelFamilyLabel,
   modelFeatureClassLabel,
 } from "../../../data/mlModelTaxonomy";
@@ -57,7 +57,7 @@ export function useModelTypeDisplay(
       : "128维表格上下文",
   );
   const modelTypeTagColor = computed(() =>
-    mlModelCategoryColor(modelFamily.value, modelBaseType.value),
+    selectedBuiltinModel.value ? modelFamilyColor(selectedBuiltinModel.value) : "default",
   );
   const modelTypeDescription = computed(
     () => selectedBuiltinModel.value?.description || "本地模型配置",
