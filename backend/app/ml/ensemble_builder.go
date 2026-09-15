@@ -4,6 +4,7 @@ import (
 	"log"
 	"math"
 	"math/rand"
+	"sort"
 	"strings"
 	"time"
 )
@@ -196,14 +197,30 @@ func BuildEnsembleFromStore(store *TrainingDataStore) *EnsembleModel {
 }
 
 func splitEnsembleCalibrationHoldout(labeled []TrainingSample) (trainSet, validationSet []TrainingSample) {
-	if len(labeled) < 30 {
-		return labeled, nil
+	ordered := chronologicalTrainingSamples(labeled)
+	if len(ordered) < 30 {
+		return ordered, nil
 	}
-	splitIdx := len(labeled) * 4 / 5
-	if splitIdx < 10 || splitIdx >= len(labeled) {
-		return labeled, nil
+	splitIdx := len(ordered) * 4 / 5
+	if splitIdx < 10 || splitIdx >= len(ordered) {
+		return ordered, nil
 	}
-	return labeled[:splitIdx], labeled[splitIdx:]
+	return ordered[:splitIdx], ordered[splitIdx:]
+}
+
+func chronologicalTrainingSamples(samples []TrainingSample) []TrainingSample {
+	ordered := append([]TrainingSample(nil), samples...)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		left := ordered[i].Timestamp
+		right := ordered[j].Timestamp
+		if left.IsZero() != right.IsZero() {
+			// Unknown timestamps stay on the training side rather than entering the
+			// newest validation window and pretending to be recent observations.
+			return left.IsZero()
+		}
+		return left.Before(right)
+	})
+	return ordered
 }
 
 func extractFeaturesLabels(labeled []TrainingSample) ([][FeatureDim]float64, []int32) {
@@ -237,6 +254,7 @@ func BenchmarkAllModels(store *TrainingDataStore) []ModelBenchmark {
 	if len(labeled) < 20 {
 		return nil
 	}
+	labeled = chronologicalTrainingSamples(labeled)
 
 	allTypes := AllModelTypes()
 	results := make([]ModelBenchmark, 0, len(allTypes))
