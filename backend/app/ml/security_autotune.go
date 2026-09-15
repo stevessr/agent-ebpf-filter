@@ -66,34 +66,22 @@ func SecurityAutoTuneMetricComparable(metric string, attack AttackImpactMetrics)
 }
 
 // SecurityAutoTuneMetricScore returns a higher-is-better ranking score for every
-// supported objective. Rate objectives that are naturally lower-is-better are
-// inverted here so all callers can keep one maximization path.
+// supported objective. Recall/error-rate objectives use a 95% Wilson confidence
+// bound so a tiny validation slice cannot outrank a well-supported model merely
+// because it happened to score 1/1. The raw user-facing value is exposed by
+// SecurityAutoTuneMetricValue and SecurityAutoTuneMetricEvidence.
 func SecurityAutoTuneMetricScore(metric string, validationAccuracy, throughput float64, classification AutoTuneClassificationMetrics, attack AttackImpactMetrics) float64 {
 	if !SecurityAutoTuneMetricComparable(metric, attack) {
 		return math.Inf(-1)
 	}
 
 	switch metric {
-	case "attackRecall":
-		return attack.AttackRecall
-	case "highImpactRecall":
-		return attack.HighImpactRecall
-	case "intrusionRecall":
-		return attack.IntrusionRecall
-	case "destructionRecall":
-		return attack.DestructionRecall
-	case "exfiltrationRecall":
-		return attack.ExfiltrationRecall
-	case "persistenceRecall":
-		return attack.PersistenceRecall
+	case "attackRecall", "highImpactRecall", "intrusionRecall", "destructionRecall", "exfiltrationRecall", "persistenceRecall", "catastrophicMissRate", "benignFalsePositiveRate":
+		return SecurityAutoTuneMetricEvidence(metric, attack).ConservativeScore
 	case "riskWeightedRecall":
 		return attack.RiskWeightedRecall
 	case "securityUtility":
 		return attack.SecurityUtility
-	case "catastrophicMissRate":
-		return 1.0 - attack.CatastrophicMissRate
-	case "benignFalsePositiveRate":
-		return 1.0 - attack.BenignFalsePositive
 	case "threatVectorCoverage":
 		return attack.ThreatVectorCoverage
 	default:
@@ -102,7 +90,7 @@ func SecurityAutoTuneMetricScore(metric string, validationAccuracy, throughput f
 }
 
 // SecurityAutoTuneMetricValue returns the human-facing raw metric value. This
-// differs from the ranking score for lower-is-better objectives such as miss/FPR.
+// differs from the ranking score for confidence-bounded recall/error objectives.
 func SecurityAutoTuneMetricValue(metric string, validationAccuracy, throughput float64, classification AutoTuneClassificationMetrics, attack AttackImpactMetrics) float64 {
 	switch metric {
 	case "attackRecall":
