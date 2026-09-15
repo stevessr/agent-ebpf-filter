@@ -113,6 +113,13 @@ func autotuneTuneModelsPost(c *gin.Context) {
 
 func normalizeModelTuneRequestTypes(req ml.MLModelTuneRequest) []ModelType {
 	explicit := normalizeModelTuneTypesNoFallback(req.ModelTypes)
+	hasExplicit := false
+	for _, value := range req.ModelTypes {
+		if strings.TrimSpace(value) != "" {
+			hasExplicit = true
+			break
+		}
+	}
 	families := normalizeTaxonomyFilters(req.Families)
 	features := normalizeTaxonomyFilters(req.FeatureProfiles)
 	hasTaxonomyFilter := len(families) > 0 || len(features) > 0
@@ -125,8 +132,11 @@ func normalizeModelTuneRequestTypes(req ml.MLModelTuneRequest) []ModelType {
 	}
 
 	matched := ml.ModelTypesByTaxonomy(families, features)
-	if len(explicit) == 0 {
+	if !hasExplicit {
 		return matched
+	}
+	if len(explicit) == 0 {
+		return nil
 	}
 
 	allowed := make(map[ModelType]struct{}, len(matched))
