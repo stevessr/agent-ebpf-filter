@@ -1,0 +1,88 @@
+name: Backend event hot path
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - "backend/app/types.go"
+      - "backend/app/jobs_background.go"
+      - "backend/app/kernel_event*.go"
+      - "backend/app/kernel_filter_snapshot*.go"
+      - "backend/app/ws_*.go"
+      - "backend/app/broadcast_queue*.go"
+      - "backend/app/collectormetricsbridge.go"
+      - "backend/app/observability/**"
+      - "backend/app/events/**"
+      - "backend/internal/boundedring/**"
+      - "backend/core/**"
+      - "backend/go.mod"
+      - "backend/go.sum"
+      - "proto/**"
+      - ".github/workflows/backend-hotpath.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-hotpath-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Install native build dependencies
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler clang llvm libbpf-dev libelf-dev
+
+      - name: Generate Go protobuf bindings
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          mkdir -p backend/pb
+          protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto \
+            proto/tracker_common.proto \
+            proto/tracker_events.proto \
+            proto/tracker_registration.proto \
+            proto/tracker_system.proto \
+            proto/tracker_config.proto \
+            proto/tracker_shell.proto
+
+      - name: Generate eBPF objects and bindings
+        working-directory: backend/ebpf
+        run: go generate
+
+      - name: Run backend tests
+        working-directory: backend
+        run: go test ./... -count=1
+
+      - name: Run app hot-path race tests
+        working-directory: backend
+        run: go test -race ./app -run 'Test(DisabledFilterSnapshotsConcurrentReadersAndWriters|ProtoClientHubSnapshotConcurrentBroadcastAndMembership)' -count=1
+
+      - name: Run metrics hot-path race tests
+        working-directory: backend
+        run: go test -race ./app/observability -run 'TestFlushAppHotPathMetricsConcurrentProducers' -count=1
+
+      - name: Run bounded ring allocation benchmarks
+        working-directory: backend
+        run: go test ./internal/boundedring -run '^$' -bench 'BenchmarkRingSteadyStateAddBatch' -benchmem -benchtime=200ms -count=1
+
+      - name: Run kernel filter allocation benchmarks
+        working-directory: backend
+        run: go test ./app -run '^$' -bench 'BenchmarkKernel(CommFilter|EventTypeFilter)' -benchmem -benchtime=200ms -count=1
+
+      - name: Run websocket hub allocation benchmarks
+        working-directory: backend
+        run: go test ./app -run '^$' -bench 'BenchmarkProtoClientHubBroadcast' -benchmem -benchtime=200ms -count=1
+
+      - name: Run collector metrics hot-path benchmarks
+        working-directory: backend
+        run: go test ./app/observability -run '^$' -bench 'BenchmarkCollectorHotPathMetrics' -benchmem -benchtime=200ms -count=1
