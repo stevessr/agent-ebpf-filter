@@ -121,4 +121,4 @@ These scores are evidence for policy. High-confidence deterministic enforcement 
 
 ## Validation
 
-`.github/workflows/ml-security-validation.yml` runs targeted backend attack-impact tests plus frontend typecheck/build for ML-related changes. This is separate from the repository-integrity workflow so a green gitlink check cannot be mistaken for ML validation.
+`.github/workflows/ml-security.yml` generates the required protobuf/eBPF bindings, runs the full backend `app/ml` test suite and attack-risk app tests, and runs frontend typecheck/build for ML-related changes. This is separate from the repository-integrity workflow so a green gitlink check cannot be mistaken for ML validation.
