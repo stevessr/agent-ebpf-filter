@@ -40,6 +40,7 @@ func buildMLStatusJSON() []byte {
 		"modelType":            string(mlRuntime.ModelType),
 		"availableModelTypes":  ml.AllModelTypeStrings(),
 		"builtinModels":        ml.BuiltinModelCatalog(),
+		"modelTaxonomy":        ml.BuiltinModelTaxonomy(),
 		"modelLoaded":          status.GetModelLoaded(),
 		"numTrees":             status.GetNumTrees(),
 		"numSamples":           status.GetNumSamples(),
