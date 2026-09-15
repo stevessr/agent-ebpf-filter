@@ -33,6 +33,37 @@ func TestBuiltinModelTaxonomyCoversAllRegisteredModelTypes(t *testing.T) {
 	}
 }
 
+func TestFeatureSourceCatalogCoversFeatureVectorWithoutGaps(t *testing.T) {
+	catalog := FeatureSourceCatalog()
+	if len(catalog) != 6 {
+		t.Fatalf("expected six feature source groups, got %d", len(catalog))
+	}
+
+	next := 0
+	total := 0
+	seen := make(map[string]bool, len(catalog))
+	for _, group := range catalog {
+		if group.ID == "" || group.Label == "" || group.Description == "" {
+			t.Fatalf("incomplete feature group: %+v", group)
+		}
+		if seen[group.ID] {
+			t.Fatalf("duplicate feature group %s", group.ID)
+		}
+		seen[group.ID] = true
+		if group.Start != next {
+			t.Fatalf("feature gap/overlap before %s: start=%d want=%d", group.ID, group.Start, next)
+		}
+		if group.End < group.Start || group.Dimensions != group.End-group.Start+1 {
+			t.Fatalf("invalid feature range: %+v", group)
+		}
+		total += group.Dimensions
+		next = group.End + 1
+	}
+	if total != FeatureDim || next != FeatureDim {
+		t.Fatalf("feature taxonomy spans %d dimensions, expected %d", total, FeatureDim)
+	}
+}
+
 func TestModelTaxonomySeparatesClassifierFamilyFromFeatureRepresentation(t *testing.T) {
 	rfMamba := ModelTaxonomy(ModelRandomForestMamba)
 	if rfMamba.Family != string(ModelFamilyTree) {
