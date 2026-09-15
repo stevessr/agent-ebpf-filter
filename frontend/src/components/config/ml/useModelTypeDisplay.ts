@@ -1,6 +1,10 @@
 import { computed } from "vue";
 import type { Ref } from "vue";
 import { mlModelCategoryColor } from "../../../data/mlModelCatalog";
+import {
+  modelFamilyLabel,
+  modelFeatureClassLabel,
+} from "../../../data/mlModelTaxonomy";
 
 interface BuiltinModelItem {
   value: string;
@@ -42,11 +46,18 @@ export function useModelTypeDisplay(
   const modelTypeLabel = computed(
     () => selectedBuiltinModel.value?.label || modelType.value,
   );
+  const modelFamily = computed(() =>
+    selectedBuiltinModel.value
+      ? modelFamilyLabel(selectedBuiltinModel.value)
+      : "其他模型",
+  );
+  const modelFeature = computed(() =>
+    selectedBuiltinModel.value
+      ? modelFeatureClassLabel(selectedBuiltinModel.value)
+      : "128维表格上下文",
+  );
   const modelTypeTagColor = computed(() =>
-    mlModelCategoryColor(
-      selectedBuiltinModel.value?.category,
-      modelBaseType.value,
-    ),
+    mlModelCategoryColor(modelFamily.value, modelBaseType.value),
   );
   const modelTypeDescription = computed(
     () => selectedBuiltinModel.value?.description || "本地模型配置",
@@ -58,7 +69,7 @@ export function useModelTypeDisplay(
   const modelCatalogGroups = computed(() => {
     const groups = new Map<string, BuiltinModelItem[]>();
     for (const item of builtinModelCatalog.value) {
-      const key = item.category || "其他模型";
+      const key = modelFamilyLabel(item);
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)?.push(item);
     }
@@ -108,6 +119,8 @@ export function useModelTypeDisplay(
 
   return {
     modelTypeLabel,
+    modelFamily,
+    modelFeature,
     modelTypeTagColor,
     modelTypeDescription,
     modelBaseLabel,
