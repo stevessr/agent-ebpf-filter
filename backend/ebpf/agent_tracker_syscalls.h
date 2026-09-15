@@ -163,7 +163,10 @@ int tracepoint__syscalls__sys_enter_bind(struct trace_event_raw_sys_enter *ctx) 
     if (tag_id == 0) return 0;
     struct exit_meta meta = {.type = TYPE_BIND, .tag_id = tag_id};
     fill_network_meta(&meta, (const void *)ctx->args[1], NET_DIR_LISTEN, 0);
-    store_exit_meta(pid_tgid, &meta);
+    if (!store_exit_meta(pid_tgid, &meta)) {
+        if (meta.type == TYPE_SOCKET_HTTP) discard_dynamic_exit_path(pid_tgid);
+        return 0;
+    }
     return 0;
 }
 DEFINE_STATIC_EXIT_HANDLER(bind, "socket bind")
@@ -201,11 +204,14 @@ int tracepoint__syscalls__sys_enter_sendto(struct trace_event_raw_sys_enter *ctx
                 meta.capture_flags |= SOCKET_CAPTURE_OUTGOING;
                 if (start_kind == HTTP1_START_REQUEST) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE;
                 else if (start_kind == HTTP1_START_RESPONSE) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE;
-                bpf_map_update_elem(&exit_path_ctx, &pid_tgid, pd, BPF_ANY);
+                store_exit_path_pair(pid_tgid, pd);
             }
         }
     }
-    store_exit_meta(pid_tgid, &meta);
+    if (!store_exit_meta(pid_tgid, &meta)) {
+        if (meta.type == TYPE_SOCKET_HTTP) discard_dynamic_exit_path(pid_tgid);
+        return 0;
+    }
     return 0;
 }
 
@@ -239,7 +245,10 @@ int tracepoint__syscalls__sys_enter_recvfrom(struct trace_event_raw_sys_enter *c
     u32 tag_id = get_tag_id(pid, comm, NULL);
     if (tag_id == 0) return 0;
     struct exit_meta meta = {.type = TYPE_RECVFROM, .tag_id = tag_id, .extra3 = (u32)ctx->args[2], .addr_ptr = ctx->args[4]};
-    store_exit_meta(pid_tgid, &meta);
+    if (!store_exit_meta(pid_tgid, &meta)) {
+        if (meta.type == TYPE_SOCKET_HTTP) discard_dynamic_exit_path(pid_tgid);
+        return 0;
+    }
     return 0;
 }
 DEFINE_STATIC_EXIT_HANDLER(recvfrom, "socket recvfrom")
@@ -304,7 +313,7 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
     u32 tag_id = get_tag_id(tgid, comm, NULL); \
     if (tag_id == 0) return 0; \
     struct exit_meta meta = {.type = type_enum, .tag_id = tag_id, .extra1 = (u32)ctx->args[0], .addr_ptr = ctx->args[1]}; \
-    store_exit_meta(pid_tgid, &meta); \
+    if (!store_exit_meta(pid_tgid, &meta)) { if (meta.type == TYPE_SOCKET_HTTP) discard_dynamic_exit_path(pid_tgid); return 0; } \
     return 0; \
 } \
 SEC("tracepoint/syscalls/sys_exit_" #name) \
@@ -365,7 +374,10 @@ int tracepoint__syscalls__sys_enter_read(struct trace_event_raw_sys_enter *ctx) 
         meta.extra2 = 1; // socket marker until a start-line length replaces it
         fill_network_meta_from_socket_direction(&meta, socket, (u32)ctx->args[2], NET_DIR_INCOMING);
     }
-    store_exit_meta(pid_tgid, &meta);
+    if (!store_exit_meta(pid_tgid, &meta)) {
+        if (meta.type == TYPE_SOCKET_HTTP) discard_dynamic_exit_path(pid_tgid);
+        return 0;
+    }
     return 0;
 }
 
@@ -438,11 +450,14 @@ int tracepoint__syscalls__sys_enter_write(struct trace_event_raw_sys_enter *ctx)
                 meta.capture_flags |= SOCKET_CAPTURE_OUTGOING;
                 if (start_kind == HTTP1_START_REQUEST) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE;
                 else if (start_kind == HTTP1_START_RESPONSE) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE;
-                bpf_map_update_elem(&exit_path_ctx, &pid_tgid, pd, BPF_ANY);
+                store_exit_path_pair(pid_tgid, pd);
             }
         }
     }
-    store_exit_meta(pid_tgid, &meta);
+    if (!store_exit_meta(pid_tgid, &meta)) {
+        if (meta.type == TYPE_SOCKET_HTTP) discard_dynamic_exit_path(pid_tgid);
+        return 0;
+    }
     return 0;
 }
 
@@ -504,11 +519,14 @@ int tracepoint__syscalls__sys_enter_writev(struct trace_event_raw_sys_enter *ctx
                 meta.capture_flags |= SOCKET_CAPTURE_OUTGOING;
                 if (start_kind == HTTP1_START_REQUEST) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE;
                 else if (start_kind == HTTP1_START_RESPONSE) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE;
-                bpf_map_update_elem(&exit_path_ctx, &pid_tgid, pd, BPF_ANY);
+                store_exit_path_pair(pid_tgid, pd);
             }
         }
     }
-    store_exit_meta(pid_tgid, &meta);
+    if (!store_exit_meta(pid_tgid, &meta)) {
+        if (meta.type == TYPE_SOCKET_HTTP) discard_dynamic_exit_path(pid_tgid);
+        return 0;
+    }
     return 0;
 }
 
@@ -555,7 +573,10 @@ int tracepoint__syscalls__sys_enter_readv(struct trace_event_raw_sys_enter *ctx)
         fill_network_meta_from_socket_direction(&meta, socket, 0, NET_DIR_INCOMING);
         meta.capture_flags |= SOCKET_CAPTURE_SCATTER_GATHER;
     }
-    store_exit_meta(pid_tgid, &meta);
+    if (!store_exit_meta(pid_tgid, &meta)) {
+        if (meta.type == TYPE_SOCKET_HTTP) discard_dynamic_exit_path(pid_tgid);
+        return 0;
+    }
     return 0;
 }
 
@@ -646,11 +667,14 @@ int tracepoint__syscalls__sys_enter_sendmsg(struct trace_event_raw_sys_enter *ct
                 meta.capture_flags |= SOCKET_CAPTURE_OUTGOING;
                 if (start_kind == HTTP1_START_REQUEST) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE;
                 else if (start_kind == HTTP1_START_RESPONSE) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE;
-                bpf_map_update_elem(&exit_path_ctx, &pid_tgid, pd, BPF_ANY);
+                store_exit_path_pair(pid_tgid, pd);
             }
         }
     }
-    store_exit_meta(pid_tgid, &meta);
+    if (!store_exit_meta(pid_tgid, &meta)) {
+        if (meta.type == TYPE_SOCKET_HTTP) discard_dynamic_exit_path(pid_tgid);
+        return 0;
+    }
     return 0;
 }
 
@@ -695,7 +719,10 @@ int tracepoint__syscalls__sys_enter_recvmsg(struct trace_event_raw_sys_enter *ct
         fill_network_meta_from_socket_direction(&meta, socket, 0, NET_DIR_INCOMING);
         meta.capture_flags |= SOCKET_CAPTURE_SCATTER_GATHER;
     }
-    store_exit_meta(pid_tgid, &meta);
+    if (!store_exit_meta(pid_tgid, &meta)) {
+        if (meta.type == TYPE_SOCKET_HTTP) discard_dynamic_exit_path(pid_tgid);
+        return 0;
+    }
     return 0;
 }
 

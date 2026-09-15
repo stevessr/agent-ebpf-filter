@@ -22,6 +22,26 @@ type bpfCollectorStats struct {
 	AuditGeneration           uint64
 }
 
+type kernelContextPressureStats struct {
+	ExitFullUpdateFailures     uint64
+	ExitCompactUpdateFailures  uint64
+	SinglePathUpdateFailures   uint64
+	PairPathUpdateFailures     uint64
+	SocketFDUpdateFailures     uint64
+	SocketParentUpdateFailures uint64
+}
+
+type ContextMapPressure struct {
+	Entries              uint32  `json:"entries"`
+	Capacity             uint32  `json:"capacity"`
+	KeySize              uint32  `json:"keySize"`
+	ValueSize            uint32  `json:"valueSize"`
+	PayloadBytes         uint64  `json:"payloadBytes"`
+	CapacityPayloadBytes uint64  `json:"capacityPayloadBytes"`
+	Utilization          float64 `json:"utilization"`
+	UpdateFailuresTotal  uint64  `json:"updateFailuresTotal"`
+}
+
 type collectorPIDKey struct {
 	PID  uint32
 	Comm string
@@ -61,81 +81,84 @@ type CollectorMetricsSnapshot struct {
 }
 
 type CollectorHealthResponse struct {
-	CollectorMapAvailable            bool              `json:"collectorMapAvailable"`
-	RingbufEventsTotal               uint64            `json:"ringbufEventsTotal"`
-	RingbufDroppedTotal              uint64            `json:"ringbufDroppedTotal"`
-	RingbufReserveFailedTotal        uint64            `json:"ringbufReserveFailedTotal"`
-	RingbufZeroCopyDecodeTotal       uint64            `json:"ringbufZeroCopyDecodeTotal"`
-	RingbufCopyDecodeTotal           uint64            `json:"ringbufCopyDecodeTotal"`
-	KernelSequencedEventsTotal       uint64            `json:"kernelSequencedEventsTotal"`
-	KernelSequenceAttemptsTotal      uint64            `json:"kernelSequenceAttemptsTotal"`
-	KernelPendingDroppedEvents       uint64            `json:"kernelPendingDroppedEvents"`
-	KernelAuditGeneration            uint64            `json:"kernelAuditGeneration"`
-	KernelAuditGenerationConsistent  bool              `json:"kernelAuditGenerationConsistent"`
-	KernelReportedReserveGapEvents   uint64            `json:"kernelReportedReserveGapEventsTotal"`
-	KernelReportedReserveDropped     uint64            `json:"kernelReportedReserveDroppedEventsTotal"`
-	KernelSequenceUnexplainedMissing uint64            `json:"kernelSequenceUnexplainedMissingEventsTotal"`
-	KernelCaptureDelaySamples        uint64            `json:"kernelCaptureDelaySamples"`
-	KernelCaptureDelayLastNs         uint64            `json:"kernelCaptureDelayLastNs"`
-	KernelCaptureDelayMaxNs          uint64            `json:"kernelCaptureDelayMaxNs"`
-	KernelCaptureClockUnknown        uint64            `json:"kernelCaptureClockUnknownTotal"`
-	EventsByTypeTotal                map[string]uint64 `json:"eventsByTypeTotal"`
-	EventsByPidTotal                 map[string]uint64 `json:"eventsByPidTotal,omitempty"`
-	AgentSightCountersTotal          map[string]uint64 `json:"agentSightCountersTotal,omitempty"`
-	SemanticStateEntriesByKind       map[string]int    `json:"semanticStateEntriesByKind"`
-	SemanticStateEntries             int               `json:"semanticStateEntries"`
-	SemanticStateMaxEntries          int               `json:"semanticStateMaxEntries"`
-	SemanticStateExpiredEvictions    uint64            `json:"semanticStateExpiredEvictionsTotal"`
-	SemanticStateCapacityEvictions   uint64            `json:"semanticStateCapacityEvictionsTotal"`
-	SemanticStateTruncatedValues     uint64            `json:"semanticStateTruncatedValuesTotal"`
-	SemanticStateIgnoredMetadata     uint64            `json:"semanticStateIgnoredOversizedMetadataTotal"`
-	SemanticStateLastSweepAt         string            `json:"semanticStateLastSweepAt,omitempty"`
-	ToolBaselineTools                int               `json:"toolBaselineTools"`
-	ToolBaselineSamples              int               `json:"toolBaselineSamples"`
-	ToolBaselineMaxTools             int               `json:"toolBaselineMaxTools"`
-	ToolBaselineMaxSamples           int               `json:"toolBaselineMaxSamples"`
-	ToolBaselineMaxSamplesPerTool    int               `json:"toolBaselineMaxSamplesPerTool"`
-	ToolBaselineObservations         uint64            `json:"toolBaselineObservationsTotal"`
-	ToolBaselineDrifts               uint64            `json:"toolBaselineDriftsTotal"`
-	ToolBaselineExpiredEvictions     uint64            `json:"toolBaselineExpiredEvictionsTotal"`
-	ToolBaselineCapacityEvictions    uint64            `json:"toolBaselineCapacityEvictionsTotal"`
-	ToolBaselineTruncatedValues      uint64            `json:"toolBaselineTruncatedValuesTotal"`
-	ToolBaselineLastSweepAt          string            `json:"toolBaselineLastSweepAt,omitempty"`
-	BackendQueueLen                  int               `json:"backendQueueLen"`
-	WsClients                        int               `json:"wsClients"`
-	PersistAppendLatencyNs           uint64            `json:"persistAppendLatencyNs"`
-	CapturedArchivedTotal            uint64            `json:"capturedArchivedTotal"`
-	CapturedPersistedTotal           uint64            `json:"capturedPersistedTotal"`
-	CapturedPersistErrorsTotal       uint64            `json:"capturedPersistErrorsTotal"`
-	PersistWriterActive              bool              `json:"persistWriterActive"`
-	PersistWriterStopping            bool              `json:"persistWriterStopping"`
-	PersistQueueLen                  int               `json:"persistQueueLen"`
-	PersistQueueCap                  int               `json:"persistQueueCap"`
-	PersistPending                   uint64            `json:"persistPending"`
-	PersistGenerationEnqueued        uint64            `json:"persistGenerationEnqueued"`
-	PersistGenerationPersisted       uint64            `json:"persistGenerationPersisted"`
-	PersistGenerationFailed          uint64            `json:"persistGenerationFailed"`
-	PersistGenerationDropped         uint64            `json:"persistGenerationDropped"`
-	PersistWriterLastFlushedAt       string            `json:"persistWriterLastFlushedAt,omitempty"`
-	PersistWriterLastError           string            `json:"persistWriterLastError,omitempty"`
-	BroadcastQueuedTotal             uint64            `json:"broadcastQueuedTotal"`
-	BroadcastDroppedTotal            uint64            `json:"broadcastDroppedTotal"`
-	BroadcastLastDropReason          string            `json:"broadcastLastDropReason,omitempty"`
-	BroadcastReceivedTotal           uint64            `json:"broadcastReceivedTotal"`
-	BroadcastFlushesTotal            uint64            `json:"broadcastFlushesTotal"`
-	BroadcastEventsFlushedTotal      uint64            `json:"broadcastEventsFlushedTotal"`
-	BroadcastEnvelopesFlushedTotal   uint64            `json:"broadcastEnvelopesFlushedTotal"`
-	BroadcastMarshalErrorsTotal      uint64            `json:"broadcastMarshalErrorsTotal"`
-	BroadcastWriteErrorsTotal        uint64            `json:"broadcastWriteErrorsTotal"`
-	BroadcastLastFlushLatencyNs      uint64            `json:"broadcastLastFlushLatencyNs"`
-	KernelRiskEvaluationsTotal       uint64            `json:"kernelRiskEvaluationsTotal"`
-	KernelRiskAlertsTotal            uint64            `json:"kernelRiskAlertsTotal"`
-	KernelRiskBlocksTotal            uint64            `json:"kernelRiskBlocksTotal"`
-	KernelRiskLastEvalLatencyNs      uint64            `json:"kernelRiskLastEvalLatencyNs"`
-	KernelRiskFeedbackApplied        uint64            `json:"kernelRiskFeedbackApplied"`
-	KernelRiskFeedbackDropped        uint64            `json:"kernelRiskFeedbackDropped"`
-	KernelRiskFeedbackLastError      string            `json:"kernelRiskFeedbackLastError,omitempty"`
-	CaptureHealthy                   bool              `json:"captureHealthy"`
+	CollectorMapAvailable            bool                          `json:"collectorMapAvailable"`
+	RingbufEventsTotal               uint64                        `json:"ringbufEventsTotal"`
+	RingbufDroppedTotal              uint64                        `json:"ringbufDroppedTotal"`
+	RingbufReserveFailedTotal        uint64                        `json:"ringbufReserveFailedTotal"`
+	RingbufZeroCopyDecodeTotal       uint64                        `json:"ringbufZeroCopyDecodeTotal"`
+	RingbufCopyDecodeTotal           uint64                        `json:"ringbufCopyDecodeTotal"`
+	KernelSequencedEventsTotal       uint64                        `json:"kernelSequencedEventsTotal"`
+	KernelSequenceAttemptsTotal      uint64                        `json:"kernelSequenceAttemptsTotal"`
+	KernelPendingDroppedEvents       uint64                        `json:"kernelPendingDroppedEvents"`
+	KernelAuditGeneration            uint64                        `json:"kernelAuditGeneration"`
+	KernelAuditGenerationConsistent  bool                          `json:"kernelAuditGenerationConsistent"`
+	KernelReportedReserveGapEvents   uint64                        `json:"kernelReportedReserveGapEventsTotal"`
+	KernelReportedReserveDropped     uint64                        `json:"kernelReportedReserveDroppedEventsTotal"`
+	KernelSequenceUnexplainedMissing uint64                        `json:"kernelSequenceUnexplainedMissingEventsTotal"`
+	KernelCaptureDelaySamples        uint64                        `json:"kernelCaptureDelaySamples"`
+	KernelCaptureDelayLastNs         uint64                        `json:"kernelCaptureDelayLastNs"`
+	KernelCaptureDelayMaxNs          uint64                        `json:"kernelCaptureDelayMaxNs"`
+	KernelCaptureClockUnknown        uint64                        `json:"kernelCaptureClockUnknownTotal"`
+	ContextMapsAvailable             bool                          `json:"contextMapsAvailable"`
+	ContextMapPressure               map[string]ContextMapPressure `json:"contextMapPressure,omitempty"`
+	ContextMapUpdateFailuresTotal    uint64                        `json:"contextMapUpdateFailuresTotal"`
+	EventsByTypeTotal                map[string]uint64             `json:"eventsByTypeTotal"`
+	EventsByPidTotal                 map[string]uint64             `json:"eventsByPidTotal,omitempty"`
+	AgentSightCountersTotal          map[string]uint64             `json:"agentSightCountersTotal,omitempty"`
+	SemanticStateEntriesByKind       map[string]int                `json:"semanticStateEntriesByKind"`
+	SemanticStateEntries             int                           `json:"semanticStateEntries"`
+	SemanticStateMaxEntries          int                           `json:"semanticStateMaxEntries"`
+	SemanticStateExpiredEvictions    uint64                        `json:"semanticStateExpiredEvictionsTotal"`
+	SemanticStateCapacityEvictions   uint64                        `json:"semanticStateCapacityEvictionsTotal"`
+	SemanticStateTruncatedValues     uint64                        `json:"semanticStateTruncatedValuesTotal"`
+	SemanticStateIgnoredMetadata     uint64                        `json:"semanticStateIgnoredOversizedMetadataTotal"`
+	SemanticStateLastSweepAt         string                        `json:"semanticStateLastSweepAt,omitempty"`
+	ToolBaselineTools                int                           `json:"toolBaselineTools"`
+	ToolBaselineSamples              int                           `json:"toolBaselineSamples"`
+	ToolBaselineMaxTools             int                           `json:"toolBaselineMaxTools"`
+	ToolBaselineMaxSamples           int                           `json:"toolBaselineMaxSamples"`
+	ToolBaselineMaxSamplesPerTool    int                           `json:"toolBaselineMaxSamplesPerTool"`
+	ToolBaselineObservations         uint64                        `json:"toolBaselineObservationsTotal"`
+	ToolBaselineDrifts               uint64                        `json:"toolBaselineDriftsTotal"`
+	ToolBaselineExpiredEvictions     uint64                        `json:"toolBaselineExpiredEvictionsTotal"`
+	ToolBaselineCapacityEvictions    uint64                        `json:"toolBaselineCapacityEvictionsTotal"`
+	ToolBaselineTruncatedValues      uint64                        `json:"toolBaselineTruncatedValuesTotal"`
+	ToolBaselineLastSweepAt          string                        `json:"toolBaselineLastSweepAt,omitempty"`
+	BackendQueueLen                  int                           `json:"backendQueueLen"`
+	WsClients                        int                           `json:"wsClients"`
+	PersistAppendLatencyNs           uint64                        `json:"persistAppendLatencyNs"`
+	CapturedArchivedTotal            uint64                        `json:"capturedArchivedTotal"`
+	CapturedPersistedTotal           uint64                        `json:"capturedPersistedTotal"`
+	CapturedPersistErrorsTotal       uint64                        `json:"capturedPersistErrorsTotal"`
+	PersistWriterActive              bool                          `json:"persistWriterActive"`
+	PersistWriterStopping            bool                          `json:"persistWriterStopping"`
+	PersistQueueLen                  int                           `json:"persistQueueLen"`
+	PersistQueueCap                  int                           `json:"persistQueueCap"`
+	PersistPending                   uint64                        `json:"persistPending"`
+	PersistGenerationEnqueued        uint64                        `json:"persistGenerationEnqueued"`
+	PersistGenerationPersisted       uint64                        `json:"persistGenerationPersisted"`
+	PersistGenerationFailed          uint64                        `json:"persistGenerationFailed"`
+	PersistGenerationDropped         uint64                        `json:"persistGenerationDropped"`
+	PersistWriterLastFlushedAt       string                        `json:"persistWriterLastFlushedAt,omitempty"`
+	PersistWriterLastError           string                        `json:"persistWriterLastError,omitempty"`
+	BroadcastQueuedTotal             uint64                        `json:"broadcastQueuedTotal"`
+	BroadcastDroppedTotal            uint64                        `json:"broadcastDroppedTotal"`
+	BroadcastLastDropReason          string                        `json:"broadcastLastDropReason,omitempty"`
+	BroadcastReceivedTotal           uint64                        `json:"broadcastReceivedTotal"`
+	BroadcastFlushesTotal            uint64                        `json:"broadcastFlushesTotal"`
+	BroadcastEventsFlushedTotal      uint64                        `json:"broadcastEventsFlushedTotal"`
+	BroadcastEnvelopesFlushedTotal   uint64                        `json:"broadcastEnvelopesFlushedTotal"`
+	BroadcastMarshalErrorsTotal      uint64                        `json:"broadcastMarshalErrorsTotal"`
+	BroadcastWriteErrorsTotal        uint64                        `json:"broadcastWriteErrorsTotal"`
+	BroadcastLastFlushLatencyNs      uint64                        `json:"broadcastLastFlushLatencyNs"`
+	KernelRiskEvaluationsTotal       uint64                        `json:"kernelRiskEvaluationsTotal"`
+	KernelRiskAlertsTotal            uint64                        `json:"kernelRiskAlertsTotal"`
+	KernelRiskBlocksTotal            uint64                        `json:"kernelRiskBlocksTotal"`
+	KernelRiskLastEvalLatencyNs      uint64                        `json:"kernelRiskLastEvalLatencyNs"`
+	KernelRiskFeedbackApplied        uint64                        `json:"kernelRiskFeedbackApplied"`
+	KernelRiskFeedbackDropped        uint64                        `json:"kernelRiskFeedbackDropped"`
+	KernelRiskFeedbackLastError      string                        `json:"kernelRiskFeedbackLastError,omitempty"`
+	CaptureHealthy                   bool                          `json:"captureHealthy"`
 }
 
 type collectorMetricsState struct {
@@ -509,6 +532,7 @@ func GetCollectorHealthSnapshot() CollectorHealthResponse {
 
 func (s *collectorMetricsState) snapshot() CollectorHealthResponse {
 	bpfStats, mapAvailable, generationConsistent := loadCollectorStatsSnapshot()
+	contextPressure, contextMapsAvailable, contextUpdateFailures := loadContextMapPressureSnapshot()
 	raw := s.rawSnapshot()
 
 	eventsByType := make(map[string]uint64, len(raw.EventsByTypeTotal))
@@ -588,6 +612,9 @@ func (s *collectorMetricsState) snapshot() CollectorHealthResponse {
 		KernelCaptureDelayLastNs:         raw.KernelCaptureDelayLastNs,
 		KernelCaptureDelayMaxNs:          raw.KernelCaptureDelayMaxNs,
 		KernelCaptureClockUnknown:        raw.KernelCaptureClockUnknown,
+		ContextMapsAvailable:             contextMapsAvailable,
+		ContextMapPressure:               contextPressure,
+		ContextMapUpdateFailuresTotal:    contextUpdateFailures,
 		EventsByTypeTotal:                eventsByType,
 		EventsByPidTotal:                 eventsByPID,
 		AgentSightCountersTotal:          agentSightCounters,
@@ -644,8 +671,125 @@ func (s *collectorMetricsState) snapshot() CollectorHealthResponse {
 		KernelRiskFeedbackApplied:        raw.KernelRiskFeedbackApplied,
 		KernelRiskFeedbackDropped:        raw.KernelRiskFeedbackDropped,
 		KernelRiskFeedbackLastError:      raw.KernelRiskFeedbackLastError,
-		CaptureHealthy:                   !mapAvailable || (bpfStats.RingbufReserveFailedTotal == 0 && generationConsistent && raw.AgentSightCountersTotal["kernel_sequence_unexplained_missing_events"] == 0 && raw.AgentSightCountersTotal["kernel_sequence_out_of_order"] == 0),
+		CaptureHealthy:                   !mapAvailable || (contextMapsAvailable && bpfStats.RingbufReserveFailedTotal == 0 && generationConsistent && raw.AgentSightCountersTotal["kernel_sequence_unexplained_missing_events"] == 0 && raw.AgentSightCountersTotal["kernel_sequence_out_of_order"] == 0 && contextUpdateFailures == 0),
 	}
+}
+
+func contextFailureByMap(stats kernelContextPressureStats) map[string]uint64 {
+	return map[string]uint64{
+		"exit_ctx":             stats.ExitFullUpdateFailures,
+		"exit_compact_ctx":     stats.ExitCompactUpdateFailures,
+		"exit_single_path_ctx": stats.SinglePathUpdateFailures,
+		"exit_path_ctx":        stats.PairPathUpdateFailures,
+		"socket_fds":           stats.SocketFDUpdateFailures,
+		"socket_fd_parents":    stats.SocketParentUpdateFailures,
+	}
+}
+
+func aggregateContextPressureStats(values []kernelContextPressureStats) kernelContextPressureStats {
+	var total kernelContextPressureStats
+	for _, value := range values {
+		total.ExitFullUpdateFailures += value.ExitFullUpdateFailures
+		total.ExitCompactUpdateFailures += value.ExitCompactUpdateFailures
+		total.SinglePathUpdateFailures += value.SinglePathUpdateFailures
+		total.PairPathUpdateFailures += value.PairPathUpdateFailures
+		total.SocketFDUpdateFailures += value.SocketFDUpdateFailures
+		total.SocketParentUpdateFailures += value.SocketParentUpdateFailures
+	}
+	return total
+}
+
+func countBPFMapEntries(m *ebpf.Map) (uint32, error) {
+	if m == nil {
+		return 0, nil
+	}
+	var count uint32
+	var key []byte
+	for {
+		next, err := m.NextKeyBytes(key)
+		if err != nil {
+			return count, err
+		}
+		if next == nil {
+			return count, nil
+		}
+		count++
+		if count >= m.MaxEntries() {
+			// Concurrent deletion can make hash iteration revisit keys. Clamp at
+			// capacity so health polling cannot spin indefinitely on a hot map.
+			return count, nil
+		}
+		key = next
+	}
+}
+
+func buildContextMapPressure(m *ebpf.Map, failures uint64) (ContextMapPressure, error) {
+	if m == nil {
+		return ContextMapPressure{UpdateFailuresTotal: failures}, nil
+	}
+	entries, err := countBPFMapEntries(m)
+	if err != nil {
+		return ContextMapPressure{}, err
+	}
+	capacity := m.MaxEntries()
+	keySize := m.KeySize()
+	valueSize := m.ValueSize()
+	entryPayload := uint64(keySize) + uint64(valueSize)
+	pressure := ContextMapPressure{
+		Entries:              entries,
+		Capacity:             capacity,
+		KeySize:              keySize,
+		ValueSize:            valueSize,
+		PayloadBytes:         uint64(entries) * entryPayload,
+		CapacityPayloadBytes: uint64(capacity) * entryPayload,
+		UpdateFailuresTotal:  failures,
+	}
+	if capacity != 0 {
+		pressure.Utilization = float64(entries) / float64(capacity)
+	}
+	return pressure, nil
+}
+
+func loadContextMapPressureSnapshot() (map[string]ContextMapPressure, bool, uint64) {
+	if deps.TrackerMaps == nil {
+		return map[string]ContextMapPressure{}, false, 0
+	}
+	maps := deps.TrackerMaps.GetContextMaps()
+	if len(maps) == 0 {
+		return map[string]ContextMapPressure{}, false, 0
+	}
+
+	var totalStats kernelContextPressureStats
+	statsAvailable := false
+	if statsMap := deps.TrackerMaps.GetContextPressureStats(); statsMap != nil {
+		cpuCount, err := ebpf.PossibleCPU()
+		if err == nil && cpuCount > 0 {
+			values := make([]kernelContextPressureStats, cpuCount)
+			key := uint32(0)
+			if err := statsMap.Lookup(&key, &values); err == nil {
+				totalStats = aggregateContextPressureStats(values)
+				statsAvailable = true
+			}
+		}
+	}
+	failures := contextFailureByMap(totalStats)
+	out := make(map[string]ContextMapPressure, len(maps))
+	available := statsAvailable
+	var totalFailures uint64
+	for name, m := range maps {
+		if m == nil {
+			available = false
+			continue
+		}
+		pressure, err := buildContextMapPressure(m, failures[name])
+		if err != nil {
+			available = false
+			continue
+		}
+		out[name] = pressure
+		totalFailures += pressure.UpdateFailuresTotal
+	}
+	return out, available, totalFailures
 }
 
 func loadCollectorStatsSnapshot() (bpfCollectorStats, bool, bool) {

@@ -191,3 +191,23 @@ without changing event ABI or enter/exit semantics.
 result, matching the rest of the network capture handlers. Untracked processes
 therefore avoid enter/exit correlation map traffic and can no longer create
 tag-zero network events through these two tracepoints.
+
+### Correlation-map pressure observability
+
+Transient enter/exit and socket-provenance maps now expose on-demand pressure
+through collector health and Prometheus. The backend enumerates pinned maps only
+when health/metrics are queried, so syscall hot paths do not pay an occupancy
+counter update. Kernel-side per-CPU `context_pressure_stats` increments only when
+a map update actually fails. Metrics include current entries, configured
+capacity, key/value payload budget, utilization ratio, and cumulative update
+failures for `exit_ctx`, `exit_compact_ctx`, single/pair path contexts,
+`socket_fds`, and `socket_fd_parents`. Any observed update failure marks capture
+health unhealthy because enter/exit or provenance correlation may be incomplete.
+
+
+Pressure snapshots are deliberately approximate while hot hash/LRU maps mutate;
+iteration is bounded by each map's configured capacity. If the per-CPU failure
+map cannot be read, the pressure snapshot is reported unavailable rather than
+silently treating failures as zero. Path correlation is also all-or-nothing:
+if compact/full correlation or its companion path update fails, the sibling
+state is not left behind for a later pid/tgid reuse.

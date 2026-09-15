@@ -9,8 +9,7 @@ static __always_inline int sys_enter_common_path(u64 ptid, char *comm, char *pat
     meta.extra2 = extra2;
     meta.extra3 = extra3;
     meta.start_ns = bpf_ktime_get_ns();
-    store_exit_compact_meta(ptid, &meta);
-    return 1;
+    return store_exit_compact_meta(ptid, &meta);
 }
 
 static __always_inline int sys_enter_common_nopath(u64 ptid, char *comm, u32 nr, u32 extra2, u32 extra3) {
@@ -24,8 +23,7 @@ static __always_inline int sys_enter_common_nopath(u64 ptid, char *comm, u32 nr,
     meta.extra2 = extra2;
     meta.extra3 = extra3;
     meta.start_ns = bpf_ktime_get_ns();
-    store_exit_compact_meta(ptid, &meta);
-    return 1;
+    return store_exit_compact_meta(ptid, &meta);
 }
 
 #define EXIT_PATH_NONE   0
@@ -92,7 +90,7 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
     if (!pd) return 0; \
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); \
     if (!sys_enter_common_path(ptid, comm, pd->path, nr, 0, 0)) return 0; \
-    bpf_map_update_elem(&exit_single_path_ctx, &ptid, pd, BPF_ANY); \
+    if (!store_exit_single_path(ptid, pd)) { bpf_map_delete_elem(&exit_compact_ctx, &ptid); return 0; } \
     return 0; \
 } \
 SEC("tracepoint/syscalls/sys_exit_" #name) \
@@ -114,7 +112,7 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); \
     bpf_probe_read_user_str(pd->extra4, MAX_PATH_LEN, (const char *)ctx->args[1]); \
     if (!sys_enter_common_path(ptid, comm, pd->path, nr, 0, 0)) return 0; \
-    bpf_map_update_elem(&exit_path_ctx, &ptid, pd, BPF_ANY); \
+    if (!store_exit_path_pair(ptid, pd)) { bpf_map_delete_elem(&exit_compact_ctx, &ptid); return 0; } \
     return 0; \
 } \
 SEC("tracepoint/syscalls/sys_exit_" #name) \
@@ -135,7 +133,7 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
     if (!pd) return 0; \
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[1]); \
     if (!sys_enter_common_path(ptid, comm, pd->path, nr, 0, 0)) return 0; \
-    bpf_map_update_elem(&exit_single_path_ctx, &ptid, pd, BPF_ANY); \
+    if (!store_exit_single_path(ptid, pd)) { bpf_map_delete_elem(&exit_compact_ctx, &ptid); return 0; } \
     return 0; \
 } \
 SEC("tracepoint/syscalls/sys_exit_" #name) \
@@ -157,7 +155,7 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[1]); \
     bpf_probe_read_user_str(pd->extra4, MAX_PATH_LEN, (const char *)ctx->args[3]); \
     if (!sys_enter_common_path(ptid, comm, pd->path, nr, 0, 0)) return 0; \
-    bpf_map_update_elem(&exit_path_ctx, &ptid, pd, BPF_ANY); \
+    if (!store_exit_path_pair(ptid, pd)) { bpf_map_delete_elem(&exit_compact_ctx, &ptid); return 0; } \
     return 0; \
 } \
 SEC("tracepoint/syscalls/sys_exit_" #name) \
@@ -179,7 +177,7 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); \
     bpf_probe_read_user_str(pd->extra4, MAX_PATH_LEN, (const char *)ctx->args[2]); \
     if (!sys_enter_common_path(ptid, comm, pd->path, nr, 0, 0)) return 0; \
-    bpf_map_update_elem(&exit_path_ctx, &ptid, pd, BPF_ANY); \
+    if (!store_exit_path_pair(ptid, pd)) { bpf_map_delete_elem(&exit_compact_ctx, &ptid); return 0; } \
     return 0; \
 } \
 SEC("tracepoint/syscalls/sys_exit_" #name) \
@@ -200,7 +198,7 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
     if (!pd) return 0; \
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[4]); \
     if (!sys_enter_common_path(ptid, comm, pd->path, nr, 0, 0)) return 0; \
-    bpf_map_update_elem(&exit_single_path_ctx, &ptid, pd, BPF_ANY); \
+    if (!store_exit_single_path(ptid, pd)) { bpf_map_delete_elem(&exit_compact_ctx, &ptid); return 0; } \
     return 0; \
 } \
 SEC("tracepoint/syscalls/sys_exit_" #name) \

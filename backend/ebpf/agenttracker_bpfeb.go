@@ -22,6 +22,16 @@ type AgentTrackerCollectorStats struct {
 	AuditGeneration           uint64
 }
 
+type AgentTrackerContextPressureStats struct {
+	_                          structs.HostLayout
+	ExitFullUpdateFailures     uint64
+	ExitCompactUpdateFailures  uint64
+	SinglePathUpdateFailures   uint64
+	PairPathUpdateFailures     uint64
+	SocketFdUpdateFailures     uint64
+	SocketParentUpdateFailures uint64
+}
+
 type AgentTrackerExitCompactMeta struct {
 	_       structs.HostLayout
 	Type    uint32
@@ -344,20 +354,21 @@ type AgentTrackerProgramSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type AgentTrackerMapSpecs struct {
-	AgentPids         *ebpf.MapSpec `ebpf:"agent_pids"`
-	CollectorStats    *ebpf.MapSpec `ebpf:"collector_stats"`
-	Events            *ebpf.MapSpec `ebpf:"events"`
-	ExitCompactCtx    *ebpf.MapSpec `ebpf:"exit_compact_ctx"`
-	ExitCtx           *ebpf.MapSpec `ebpf:"exit_ctx"`
-	ExitPathBuf       *ebpf.MapSpec `ebpf:"exit_path_buf"`
-	ExitPathCtx       *ebpf.MapSpec `ebpf:"exit_path_ctx"`
-	ExitSinglePathBuf *ebpf.MapSpec `ebpf:"exit_single_path_buf"`
-	ExitSinglePathCtx *ebpf.MapSpec `ebpf:"exit_single_path_ctx"`
-	SocketFdParents   *ebpf.MapSpec `ebpf:"socket_fd_parents"`
-	SocketFds         *ebpf.MapSpec `ebpf:"socket_fds"`
-	TrackedComms      *ebpf.MapSpec `ebpf:"tracked_comms"`
-	TrackedPaths      *ebpf.MapSpec `ebpf:"tracked_paths"`
-	TrackedPrefixes   *ebpf.MapSpec `ebpf:"tracked_prefixes"`
+	AgentPids            *ebpf.MapSpec `ebpf:"agent_pids"`
+	CollectorStats       *ebpf.MapSpec `ebpf:"collector_stats"`
+	ContextPressureStats *ebpf.MapSpec `ebpf:"context_pressure_stats"`
+	Events               *ebpf.MapSpec `ebpf:"events"`
+	ExitCompactCtx       *ebpf.MapSpec `ebpf:"exit_compact_ctx"`
+	ExitCtx              *ebpf.MapSpec `ebpf:"exit_ctx"`
+	ExitPathBuf          *ebpf.MapSpec `ebpf:"exit_path_buf"`
+	ExitPathCtx          *ebpf.MapSpec `ebpf:"exit_path_ctx"`
+	ExitSinglePathBuf    *ebpf.MapSpec `ebpf:"exit_single_path_buf"`
+	ExitSinglePathCtx    *ebpf.MapSpec `ebpf:"exit_single_path_ctx"`
+	SocketFdParents      *ebpf.MapSpec `ebpf:"socket_fd_parents"`
+	SocketFds            *ebpf.MapSpec `ebpf:"socket_fds"`
+	TrackedComms         *ebpf.MapSpec `ebpf:"tracked_comms"`
+	TrackedPaths         *ebpf.MapSpec `ebpf:"tracked_paths"`
+	TrackedPrefixes      *ebpf.MapSpec `ebpf:"tracked_prefixes"`
 }
 
 // AgentTrackerVariableSpecs contains global variables before they are loaded into the kernel.
@@ -386,26 +397,28 @@ func (o *AgentTrackerObjects) Close() error {
 //
 // It can be passed to LoadAgentTrackerObjects or ebpf.CollectionSpec.LoadAndAssign.
 type AgentTrackerMaps struct {
-	AgentPids         *ebpf.Map `ebpf:"agent_pids"`
-	CollectorStats    *ebpf.Map `ebpf:"collector_stats"`
-	Events            *ebpf.Map `ebpf:"events"`
-	ExitCompactCtx    *ebpf.Map `ebpf:"exit_compact_ctx"`
-	ExitCtx           *ebpf.Map `ebpf:"exit_ctx"`
-	ExitPathBuf       *ebpf.Map `ebpf:"exit_path_buf"`
-	ExitPathCtx       *ebpf.Map `ebpf:"exit_path_ctx"`
-	ExitSinglePathBuf *ebpf.Map `ebpf:"exit_single_path_buf"`
-	ExitSinglePathCtx *ebpf.Map `ebpf:"exit_single_path_ctx"`
-	SocketFdParents   *ebpf.Map `ebpf:"socket_fd_parents"`
-	SocketFds         *ebpf.Map `ebpf:"socket_fds"`
-	TrackedComms      *ebpf.Map `ebpf:"tracked_comms"`
-	TrackedPaths      *ebpf.Map `ebpf:"tracked_paths"`
-	TrackedPrefixes   *ebpf.Map `ebpf:"tracked_prefixes"`
+	AgentPids            *ebpf.Map `ebpf:"agent_pids"`
+	CollectorStats       *ebpf.Map `ebpf:"collector_stats"`
+	ContextPressureStats *ebpf.Map `ebpf:"context_pressure_stats"`
+	Events               *ebpf.Map `ebpf:"events"`
+	ExitCompactCtx       *ebpf.Map `ebpf:"exit_compact_ctx"`
+	ExitCtx              *ebpf.Map `ebpf:"exit_ctx"`
+	ExitPathBuf          *ebpf.Map `ebpf:"exit_path_buf"`
+	ExitPathCtx          *ebpf.Map `ebpf:"exit_path_ctx"`
+	ExitSinglePathBuf    *ebpf.Map `ebpf:"exit_single_path_buf"`
+	ExitSinglePathCtx    *ebpf.Map `ebpf:"exit_single_path_ctx"`
+	SocketFdParents      *ebpf.Map `ebpf:"socket_fd_parents"`
+	SocketFds            *ebpf.Map `ebpf:"socket_fds"`
+	TrackedComms         *ebpf.Map `ebpf:"tracked_comms"`
+	TrackedPaths         *ebpf.Map `ebpf:"tracked_paths"`
+	TrackedPrefixes      *ebpf.Map `ebpf:"tracked_prefixes"`
 }
 
 func (m *AgentTrackerMaps) Close() error {
 	return _AgentTrackerClose(
 		m.AgentPids,
 		m.CollectorStats,
+		m.ContextPressureStats,
 		m.Events,
 		m.ExitCompactCtx,
 		m.ExitCtx,
