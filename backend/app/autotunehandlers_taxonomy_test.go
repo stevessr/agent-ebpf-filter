@@ -18,7 +18,7 @@ func TestNormalizeModelTuneRequestTypesFiltersByFamilyAndFeature(t *testing.T) {
 		if meta.Family != "tree" {
 			t.Fatalf("unexpected family for %s: %+v", modelType, meta)
 		}
-		matched := meta.FeatureClass == "sequence"
+		matched := false
 		for _, profile := range meta.FeatureProfiles {
 			if profile == "sequence" {
 				matched = true
@@ -38,6 +38,16 @@ func TestNormalizeModelTuneRequestTypesIntersectsExplicitModels(t *testing.T) {
 	})
 	if len(got) != 1 || string(got[0]) != "logistic_mamba" {
 		t.Fatalf("expected only logistic_mamba after family intersection, got %v", got)
+	}
+}
+
+func TestNormalizeModelTuneRequestTypesInvalidExplicitListDoesNotExpandFamily(t *testing.T) {
+	got := normalizeModelTuneRequestTypes(ml.MLModelTuneRequest{
+		ModelTypes: []string{"not_a_model"},
+		Families:   []string{"tree"},
+	})
+	if len(got) != 0 {
+		t.Fatalf("invalid explicit list must stay empty after taxonomy filtering, got %v", got)
 	}
 }
 
