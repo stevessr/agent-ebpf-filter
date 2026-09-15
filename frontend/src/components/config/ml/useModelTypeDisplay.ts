@@ -20,6 +20,10 @@ export interface ModelTuneCandidate {
   modelType: string;
   label?: string;
   base?: string;
+  family?: string;
+  familyLabel?: string;
+  featureClass?: string;
+  featureProfiles?: string[];
   recommended?: boolean;
   validationAccuracy?: number;
   trainAccuracy?: number;
@@ -101,6 +105,8 @@ export function useModelTypeDisplay(
 
   const modelTuneColumns = [
     { title: "模型", dataIndex: "label", key: "label" },
+    { title: "模型家族", dataIndex: "familyLabel", key: "familyLabel" },
+    { title: "特征分类", dataIndex: "featureClass", key: "featureClass" },
     { title: "基础算法", dataIndex: "base", key: "base" },
     {
       title: "验证准确率",
