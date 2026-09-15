@@ -3,6 +3,7 @@ package ml
 import (
 	"math"
 	"testing"
+	"time"
 )
 
 type riskMetricTestModel struct {
@@ -73,9 +74,9 @@ func TestCalibratedEnsembleWeightShrinksSmallValidationSets(t *testing.T) {
 	base := riskEvaluation{
 		Accuracy:                0.95,
 		BalancedAccuracy:        0.90,
-		HighRiskSamples:         5,
+		HighRiskSamples:         2,
 		HighRiskRecall:          1.0,
-		BenignSamples:           5,
+		BenignSamples:           2,
 		BenignFalsePositiveRate: 0.0,
 		ConfidenceBrier:         0.05,
 		ECE:                     0.05,
@@ -85,6 +86,8 @@ func TestCalibratedEnsembleWeightShrinksSmallValidationSets(t *testing.T) {
 	small.Samples = 4
 	large := base
 	large.Samples = 200
+	large.HighRiskSamples = 100
+	large.BenignSamples = 100
 
 	smallWeight := calibratedEnsembleWeight(small)
 	largeWeight := calibratedEnsembleWeight(large)
@@ -93,23 +96,40 @@ func TestCalibratedEnsembleWeightShrinksSmallValidationSets(t *testing.T) {
 	}
 }
 
-func TestSplitEnsembleCalibrationHoldoutIsChronologicalAndDisjoint(t *testing.T) {
+func TestSplitEnsembleCalibrationHoldoutSortsRingBufferChronologically(t *testing.T) {
 	samples := make([]TrainingSample, 30)
+	base := time.Unix(1_700_000_000, 0)
 	for i := range samples {
-		samples[i].Features[0] = float64(i)
+		// Simulate a wrapped ring: physical slots are the reverse of event time.
+		age := len(samples) - 1 - i
+		samples[i].Features[0] = float64(age)
+		samples[i].Timestamp = base.Add(time.Duration(age) * time.Minute)
 	}
 
 	trainSet, validationSet := splitEnsembleCalibrationHoldout(samples)
 	if len(trainSet) != 24 || len(validationSet) != 6 {
 		t.Fatalf("unexpected split sizes train=%d validation=%d", len(trainSet), len(validationSet))
 	}
-	if trainSet[len(trainSet)-1].Features[0] != 23 || validationSet[0].Features[0] != 24 {
-		t.Fatalf("holdout must preserve chronological ordering")
+	if trainSet[0].Features[0] != 0 || trainSet[len(trainSet)-1].Features[0] != 23 || validationSet[0].Features[0] != 24 || validationSet[len(validationSet)-1].Features[0] != 29 {
+		t.Fatalf("holdout must be chronological: train=%v..%v validation=%v..%v", trainSet[0].Features[0], trainSet[len(trainSet)-1].Features[0], validationSet[0].Features[0], validationSet[len(validationSet)-1].Features[0])
 	}
 
 	smallTrain, smallValidation := splitEnsembleCalibrationHoldout(samples[:29])
 	if len(smallTrain) != 29 || len(smallValidation) != 0 {
 		t.Fatalf("small datasets should keep all samples for training")
+	}
+}
+
+func TestChronologicalTrainingSamplesKeepsUnknownTimestampsOutOfNewestWindow(t *testing.T) {
+	base := time.Unix(1_700_000_000, 0)
+	samples := []TrainingSample{
+		{Timestamp: base.Add(time.Minute)},
+		{},
+		{Timestamp: base},
+	}
+	ordered := chronologicalTrainingSamples(samples)
+	if !ordered[0].Timestamp.IsZero() || !ordered[1].Timestamp.Equal(base) || !ordered[2].Timestamp.Equal(base.Add(time.Minute)) {
+		t.Fatalf("unexpected chronological order: %v %v %v", ordered[0].Timestamp, ordered[1].Timestamp, ordered[2].Timestamp)
 	}
 }
 
