@@ -23,22 +23,23 @@ type MLAutoTuneRequest struct {
 
 // MLAutoTuneCell records the result of evaluating one grid cell.
 type MLAutoTuneCell struct {
-	XIndex               int     `json:"xIndex"`
-	YIndex               int     `json:"yIndex"`
-	XValue               int     `json:"xValue"`
-	YValue               int     `json:"yValue"`
-	NumTrees             int     `json:"numTrees"`
-	MaxDepth             int     `json:"maxDepth"`
-	MinSamplesLeaf       int     `json:"minSamplesLeaf"`
-	TrainAccuracy        float64 `json:"trainAccuracy"`
-	ValidationAccuracy   float64 `json:"validationAccuracy"`
-	AllowRecall          float64 `json:"allowRecall"`
-	BalancedAccuracy     float64 `json:"balancedAccuracy"`
-	InferenceThroughput  float64 `json:"inferenceThroughput"`
-	InferenceMsPerSample float64 `json:"inferenceMsPerSample"`
-	TrainDuration        float64 `json:"trainDuration"`
-	EvalDuration         float64 `json:"evalDuration"`
-	Score                float64 `json:"score"`
+	XIndex               int                 `json:"xIndex"`
+	YIndex               int                 `json:"yIndex"`
+	XValue               int                 `json:"xValue"`
+	YValue               int                 `json:"yValue"`
+	NumTrees             int                 `json:"numTrees"`
+	MaxDepth             int                 `json:"maxDepth"`
+	MinSamplesLeaf       int                 `json:"minSamplesLeaf"`
+	TrainAccuracy        float64             `json:"trainAccuracy"`
+	ValidationAccuracy   float64             `json:"validationAccuracy"`
+	AllowRecall          float64             `json:"allowRecall"`
+	BalancedAccuracy     float64             `json:"balancedAccuracy"`
+	AttackMetrics        AttackImpactMetrics `json:"attackMetrics"`
+	InferenceThroughput  float64             `json:"inferenceThroughput"`
+	InferenceMsPerSample float64             `json:"inferenceMsPerSample"`
+	TrainDuration        float64             `json:"trainDuration"`
+	EvalDuration         float64             `json:"evalDuration"`
+	Score                float64             `json:"score"`
 }
 
 // MLAutoTuneResponse is the full result of an auto-tune grid search.
@@ -94,6 +95,7 @@ type MLModelTuneCandidate struct {
 	ValidationAccuracy   float64             `json:"validationAccuracy"`
 	AllowRecall          float64             `json:"allowRecall"`
 	BalancedAccuracy     float64             `json:"balancedAccuracy"`
+	AttackMetrics        AttackImpactMetrics `json:"attackMetrics"`
 	InferenceThroughput  float64             `json:"inferenceThroughput"`
 	InferenceMsPerSample float64             `json:"inferenceMsPerSample"`
 	TrainDuration        float64             `json:"trainDuration"`
