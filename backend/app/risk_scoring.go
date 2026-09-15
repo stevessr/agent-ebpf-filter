@@ -43,9 +43,6 @@ func computeAttackVectorScores(classification *pb.BehaviorClassification, anomal
 		case "FILE_PERMISSION":
 			out.Intrusion = 52
 			out.Persistence = 34
-		case "NETWORK":
-			out.Exfiltration = 38
-			out.Intrusion = 16
 		case "PROCESS_EXEC":
 			out.Intrusion = 30
 			out.Persistence = 40
@@ -55,13 +52,11 @@ func computeAttackVectorScores(classification *pb.BehaviorClassification, anomal
 		case "CONTAINER":
 			out.Intrusion = 24
 			out.Persistence = 42
-		case "DATABASE":
-			out.Exfiltration = 24
-			out.Destruction = 24
 		case "PACKAGE_MANAGER":
 			out.Persistence = 30
-		case "COMPRESSION":
-			out.Exfiltration = 24
+		// NETWORK, DATABASE and COMPRESSION are context, not attack vectors by
+		// themselves. Concrete network-audit findings or other evidence below
+		// must establish intrusion/exfiltration/persistence intent.
 		}
 
 		switch classification.Confidence {
