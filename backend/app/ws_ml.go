@@ -39,7 +39,7 @@ func buildMLStatusJSON() []byte {
 		"cRuntime":             buildMLCRuntimeStatus(mlRuntime.Engine, ml.GlobalTrainingStore),
 		"modelType":            string(mlRuntime.ModelType),
 		"availableModelTypes":  ml.AllModelTypeStrings(),
-		"builtinModels":        ml.BuiltinModelCatalog(),
+		"builtinModels":        ml.ClassifiedBuiltinModelCatalog(),
 		"modelTaxonomy":        ml.BuiltinModelTaxonomy(),
 		"modelLoaded":          status.GetModelLoaded(),
 		"numTrees":             status.GetNumTrees(),
