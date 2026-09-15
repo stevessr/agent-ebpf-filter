@@ -17,8 +17,14 @@ interface BuiltinModelItem {
 }
 
 interface AttackImpactMetrics {
+  scoredSamples?: number;
+  benignSamples?: number;
   attackSamples?: number;
   highImpactSamples?: number;
+  intrusionSamples?: number;
+  destructionSamples?: number;
+  exfiltrationSamples?: number;
+  persistenceSamples?: number;
   attackRecall?: number;
   highImpactRecall?: number;
   intrusionRecall?: number;
@@ -56,6 +62,16 @@ export interface ModelTuneCandidate {
 
 const percent = (value?: number) =>
   Number.isFinite(value) ? `${((value || 0) * 100).toFixed(1)}%` : "—";
+
+const vectorSummary = (metrics?: AttackImpactMetrics) => {
+  if (!metrics) return "—";
+  return [
+    `I ${percent(metrics.intrusionRecall)}(${metrics.intrusionSamples ?? 0})`,
+    `D ${percent(metrics.destructionRecall)}(${metrics.destructionSamples ?? 0})`,
+    `E ${percent(metrics.exfiltrationRecall)}(${metrics.exfiltrationSamples ?? 0})`,
+    `P ${percent(metrics.persistenceRecall)}(${metrics.persistenceSamples ?? 0})`,
+  ].join(" / ");
+};
 
 /**
  * Computed display properties for the ML model type selector.
@@ -139,19 +155,25 @@ export function useModelTypeDisplay(
       title: "高影响召回",
       key: "highImpactRecall",
       customRender: ({ record }: { record: ModelTuneCandidate }) =>
-        percent(record.attackMetrics?.highImpactRecall),
+        `${percent(record.attackMetrics?.highImpactRecall)} (${record.attackMetrics?.highImpactSamples ?? 0})`,
     },
     {
-      title: "破坏召回",
-      key: "destructionRecall",
+      title: "攻击向量 I/D/E/P",
+      key: "attackVectors",
       customRender: ({ record }: { record: ModelTuneCandidate }) =>
-        percent(record.attackMetrics?.destructionRecall),
+        vectorSummary(record.attackMetrics),
     },
     {
       title: "灾难漏报",
       key: "catastrophicMissRate",
       customRender: ({ record }: { record: ModelTuneCandidate }) =>
         percent(record.attackMetrics?.catastrophicMissRate),
+    },
+    {
+      title: "正常误报",
+      key: "benignFalsePositiveRate",
+      customRender: ({ record }: { record: ModelTuneCandidate }) =>
+        percent(record.attackMetrics?.benignFalsePositiveRate),
     },
     {
       title: "验证准确率",
