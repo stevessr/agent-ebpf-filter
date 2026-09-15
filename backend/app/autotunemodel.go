@@ -19,9 +19,11 @@ func runModelAutoTuneWithCancel(store *ml.TrainingDataStore, req ml.MLModelTuneR
 	if len(labeled) < 2 {
 		return nil, errors.New("need at least 2 labeled samples for model tuning")
 	}
-	metric := ml.NormalizeAutoTuneMetric(req.Metric)
+	metric := ml.NormalizeSecurityAutoTuneMetric(req.Metric)
 	if metric == "" {
-		metric = "validationAccuracy"
+		// Cross-model AutoML is security-first by default. Callers can still
+		// explicitly request validationAccuracy, balancedAccuracy or throughput.
+		metric = "securityUtility"
 	}
 	validationRatio := req.ValidationSplitRatio
 	if validationRatio <= 0 || validationRatio >= 0.5 {
@@ -40,7 +42,7 @@ func runModelAutoTuneWithCancel(store *ml.TrainingDataStore, req ml.MLModelTuneR
 	baseCfg := currentMLConfig()
 
 	if progressCb != nil {
-		progressCb(0, len(modelTypes), "开始跨模型自动调优")
+		progressCb(0, len(modelTypes), "开始跨模型安全导向自动调优")
 	}
 
 	for i, modelType := range modelTypes {
@@ -88,20 +90,29 @@ func runModelAutoTuneWithCancel(store *ml.TrainingDataStore, req ml.MLModelTuneR
 		candidate.TrainAccuracy = result.TrainAccuracy
 		candidate.ValidationAccuracy = result.ValidationAccuracy
 		candidate.ValidationCount = result.ValidationSamples
+		validationSamples := ml.GlobalTrainer.LastValidationSamples()
 		if candidate.ValidationCount == 0 {
-			candidate.ValidationCount = len(ml.GlobalTrainer.LastValidationSamples())
+			candidate.ValidationCount = len(validationSamples)
 		}
-		validationMetrics := ml.EvaluateAutoTuneTrainingSampleMetrics(ml.GlobalTrainer.LastValidationSamples(), model)
+		validationMetrics := ml.EvaluateAutoTuneTrainingSampleMetrics(validationSamples, model)
 		candidate.AllowRecall = validationMetrics.AllowRecall
 		candidate.BalancedAccuracy = validationMetrics.BalancedAccuracy
+		candidate.AttackMetrics = ml.EvaluateAttackImpactMetrics(validationSamples, model)
 
 		if req.TuneParams {
+			paramMetric := metric
+			// The inner grid tuner currently owns only conventional objectives.
+			// For a security-first outer objective use balanced accuracy internally,
+			// then re-rank the fully trained model by attack impact below.
+			if ml.NormalizeAutoTuneMetric(paramMetric) == "" {
+				paramMetric = "balancedAccuracy"
+			}
 			paramReq := ml.MLAutoTuneRequest{
 				XAxis:                req.XAxis,
 				YAxis:                req.YAxis,
 				GridSize:             req.GridSize,
 				Granularity:          req.Granularity,
-				Metric:               metric,
+				Metric:               paramMetric,
 				ValidationSplitRatio: validationRatio,
 				MinX:                 req.MinX,
 				MaxX:                 req.MaxX,
@@ -124,9 +135,11 @@ func runModelAutoTuneWithCancel(store *ml.TrainingDataStore, req ml.MLModelTuneR
 					candidate.TrainAccuracy = result.TrainAccuracy
 					candidate.ValidationAccuracy = result.ValidationAccuracy
 					candidate.ValidationCount = result.ValidationSamples
-					validationMetrics = ml.EvaluateAutoTuneTrainingSampleMetrics(ml.GlobalTrainer.LastValidationSamples(), model)
+					validationSamples = ml.GlobalTrainer.LastValidationSamples()
+					validationMetrics = ml.EvaluateAutoTuneTrainingSampleMetrics(validationSamples, model)
 					candidate.AllowRecall = validationMetrics.AllowRecall
 					candidate.BalancedAccuracy = validationMetrics.BalancedAccuracy
+					candidate.AttackMetrics = ml.EvaluateAttackImpactMetrics(validationSamples, model)
 				} else {
 					candidate.Error = result.Error
 				}
@@ -137,10 +150,17 @@ func runModelAutoTuneWithCancel(store *ml.TrainingDataStore, req ml.MLModelTuneR
 		candidate.EvalDuration = evalDuration
 		candidate.InferenceThroughput = throughput
 		candidate.InferenceMsPerSample = latencyMs
-		candidate.Score = ml.AutoTuneMetricScore(metric, candidate.ValidationAccuracy, candidate.InferenceThroughput, ml.AutoTuneClassificationMetrics{
+		classificationMetrics := ml.AutoTuneClassificationMetrics{
 			AllowRecall:      candidate.AllowRecall,
 			BalancedAccuracy: candidate.BalancedAccuracy,
-		})
+		}
+		candidate.Score = ml.SecurityAutoTuneMetricScore(
+			metric,
+			candidate.ValidationAccuracy,
+			candidate.InferenceThroughput,
+			classificationMetrics,
+			candidate.AttackMetrics,
+		)
 		candidates = append(candidates, candidate)
 		if candidate.Error == "" && candidate.Score > bestScore {
 			copyCandidate := candidate
@@ -148,7 +168,18 @@ func runModelAutoTuneWithCancel(store *ml.TrainingDataStore, req ml.MLModelTuneR
 			bestModel = model
 			bestScore = candidate.Score
 		}
-		ml.GlobalTrainer.Logf("模型调优: %s [%s/%s] 验证准确率 %.1f%% 推理 %.0f/s", label, taxonomy.Family, taxonomy.FeatureClass, candidate.ValidationAccuracy*100, candidate.InferenceThroughput)
+		ml.GlobalTrainer.Logf(
+			"模型调优: %s [%s/%s] security=%.1f%% high-impact=%.1f%% destruction=%.1f%% catastrophic-miss=%.1f%% accuracy=%.1f%% 推理 %.0f/s",
+			label,
+			taxonomy.Family,
+			taxonomy.FeatureClass,
+			candidate.AttackMetrics.SecurityUtility*100,
+			candidate.AttackMetrics.HighImpactRecall*100,
+			candidate.AttackMetrics.DestructionRecall*100,
+			candidate.AttackMetrics.CatastrophicMissRate*100,
+			candidate.ValidationAccuracy*100,
+			candidate.InferenceThroughput,
+		)
 		if progressCb != nil {
 			progressCb(i+1, len(modelTypes), fmt.Sprintf("完成 %s (%d/%d)", label, i+1, len(modelTypes)))
 		}
