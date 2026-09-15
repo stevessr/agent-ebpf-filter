@@ -58,8 +58,13 @@ func SecurityAutoTuneMetricComparable(metric string, attack AttackImpactMetrics)
 		return attack.PersistenceSamples > 0
 	case "benignFalsePositiveRate":
 		return attack.BenignSamples > 0
-	case "securityUtility", "threatVectorCoverage":
-		return attack.ScoredSamples > 0
+	case "securityUtility":
+		// Full evaluators populate ScoredSamples, while callers that compare
+		// already-computed metric snapshots may only carry attack/benign support.
+		// Both are valid evidence for a utility value.
+		return attack.ScoredSamples > 0 || attack.AttackSamples > 0 || attack.BenignSamples > 0
+	case "threatVectorCoverage":
+		return attack.IntrusionSamples+attack.DestructionSamples+attack.ExfiltrationSamples+attack.PersistenceSamples > 0
 	default:
 		return true
 	}
