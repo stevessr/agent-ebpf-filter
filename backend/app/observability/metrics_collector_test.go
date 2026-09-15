@@ -119,3 +119,13 @@ func TestAggregateContextPressureStats(t *testing.T) {
 		t.Fatalf("unexpected context failure map: %+v", failures)
 	}
 }
+
+func TestContextMapPressureUnavailableWithoutTrackerMaps(t *testing.T) {
+	oldDeps := deps
+	deps.TrackerMaps = nil
+	t.Cleanup(func() { deps = oldDeps })
+	pressure, available, failures := loadContextMapPressureSnapshot()
+	if available || failures != 0 || len(pressure) != 0 {
+		t.Fatalf("unexpected pressure snapshot without tracker maps: available=%v failures=%d pressure=%+v", available, failures, pressure)
+	}
+}

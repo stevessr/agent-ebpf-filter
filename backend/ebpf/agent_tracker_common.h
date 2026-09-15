@@ -1135,8 +1135,11 @@ int tracepoint__syscalls__sys_enter_execve(struct trace_event_raw_sys_enter *ctx
     meta.type = TYPE_EXECVE;
     meta.tag_id = tag_id;
 
-    store_exit_compact_meta(pid_tgid, &meta);
-    store_exit_single_path(pid_tgid, pd);
+    if (!store_exit_compact_meta(pid_tgid, &meta)) return 0;
+    if (!store_exit_single_path(pid_tgid, pd)) {
+        bpf_map_delete_elem(&exit_compact_ctx, &pid_tgid);
+        return 0;
+    }
     return 0;
 }
 
@@ -1188,8 +1191,11 @@ int tracepoint__syscalls__sys_enter_openat(struct trace_event_raw_sys_enter *ctx
     meta.tag_id = tag_id;
     meta.extra1 = (u32)ctx->args[2]; // flags
 
-    store_exit_compact_meta(pid_tgid, &meta);
-    store_exit_single_path(pid_tgid, pd);
+    if (!store_exit_compact_meta(pid_tgid, &meta)) return 0;
+    if (!store_exit_single_path(pid_tgid, pd)) {
+        bpf_map_delete_elem(&exit_compact_ctx, &pid_tgid);
+        return 0;
+    }
     return 0;
 }
 
@@ -1284,8 +1290,11 @@ int tracepoint__syscalls__sys_enter_mkdirat(struct trace_event_raw_sys_enter *ct
     meta.tag_id = tag_id;
     meta.extra1 = (u32)ctx->args[2]; // mode
 
-    store_exit_compact_meta(pid_tgid, &meta);
-    store_exit_single_path(pid_tgid, pd);
+    if (!store_exit_compact_meta(pid_tgid, &meta)) return 0;
+    if (!store_exit_single_path(pid_tgid, pd)) {
+        bpf_map_delete_elem(&exit_compact_ctx, &pid_tgid);
+        return 0;
+    }
     return 0;
 }
 
@@ -1337,8 +1346,11 @@ int tracepoint__syscalls__sys_enter_unlinkat(struct trace_event_raw_sys_enter *c
     meta.tag_id = tag_id;
     meta.extra1 = (u32)ctx->args[2]; // flags
 
-    store_exit_compact_meta(pid_tgid, &meta);
-    store_exit_single_path(pid_tgid, pd);
+    if (!store_exit_compact_meta(pid_tgid, &meta)) return 0;
+    if (!store_exit_single_path(pid_tgid, pd)) {
+        bpf_map_delete_elem(&exit_compact_ctx, &pid_tgid);
+        return 0;
+    }
     return 0;
 }
 

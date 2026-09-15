@@ -671,7 +671,7 @@ func (s *collectorMetricsState) snapshot() CollectorHealthResponse {
 		KernelRiskFeedbackApplied:        raw.KernelRiskFeedbackApplied,
 		KernelRiskFeedbackDropped:        raw.KernelRiskFeedbackDropped,
 		KernelRiskFeedbackLastError:      raw.KernelRiskFeedbackLastError,
-		CaptureHealthy:                   !mapAvailable || (bpfStats.RingbufReserveFailedTotal == 0 && generationConsistent && raw.AgentSightCountersTotal["kernel_sequence_unexplained_missing_events"] == 0 && raw.AgentSightCountersTotal["kernel_sequence_out_of_order"] == 0 && contextUpdateFailures == 0),
+		CaptureHealthy:                   !mapAvailable || (contextMapsAvailable && bpfStats.RingbufReserveFailedTotal == 0 && generationConsistent && raw.AgentSightCountersTotal["kernel_sequence_unexplained_missing_events"] == 0 && raw.AgentSightCountersTotal["kernel_sequence_out_of_order"] == 0 && contextUpdateFailures == 0),
 	}
 }
 
@@ -760,6 +760,7 @@ func loadContextMapPressureSnapshot() (map[string]ContextMapPressure, bool, uint
 	}
 
 	var totalStats kernelContextPressureStats
+	statsAvailable := false
 	if statsMap := deps.TrackerMaps.GetContextPressureStats(); statsMap != nil {
 		cpuCount, err := ebpf.PossibleCPU()
 		if err == nil && cpuCount > 0 {
@@ -767,12 +768,13 @@ func loadContextMapPressureSnapshot() (map[string]ContextMapPressure, bool, uint
 			key := uint32(0)
 			if err := statsMap.Lookup(&key, &values); err == nil {
 				totalStats = aggregateContextPressureStats(values)
+				statsAvailable = true
 			}
 		}
 	}
 	failures := contextFailureByMap(totalStats)
 	out := make(map[string]ContextMapPressure, len(maps))
-	available := true
+	available := statsAvailable
 	var totalFailures uint64
 	for name, m := range maps {
 		if m == nil {

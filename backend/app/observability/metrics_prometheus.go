@@ -38,6 +38,12 @@ func HandlePrometheusMetrics(c *gin.Context) {
 	} else {
 		writePrometheusSample(&b, "agent_ebpf_kernel_audit_generation_consistent", nil, 0)
 	}
+	writePrometheusHeader(&b, "agent_ebpf_context_maps_available", "gauge", "Whether transient eBPF map occupancy and update-failure telemetry are fully readable.")
+	if health.ContextMapsAvailable {
+		writePrometheusSample(&b, "agent_ebpf_context_maps_available", nil, 1)
+	} else {
+		writePrometheusSample(&b, "agent_ebpf_context_maps_available", nil, 0)
+	}
 	writePrometheusHeader(&b, "agent_ebpf_context_map_entries", "gauge", "Current entries in transient eBPF correlation/provenance maps.")
 	writePrometheusHeader(&b, "agent_ebpf_context_map_capacity", "gauge", "Maximum entries configured for transient eBPF correlation/provenance maps.")
 	writePrometheusHeader(&b, "agent_ebpf_context_map_utilization_ratio", "gauge", "Current transient eBPF map entry utilization ratio.")

@@ -203,3 +203,11 @@ capacity, key/value payload budget, utilization ratio, and cumulative update
 failures for `exit_ctx`, `exit_compact_ctx`, single/pair path contexts,
 `socket_fds`, and `socket_fd_parents`. Any observed update failure marks capture
 health unhealthy because enter/exit or provenance correlation may be incomplete.
+
+
+Pressure snapshots are deliberately approximate while hot hash/LRU maps mutate;
+iteration is bounded by each map's configured capacity. If the per-CPU failure
+map cannot be read, the pressure snapshot is reported unavailable rather than
+silently treating failures as zero. Path correlation is also all-or-nothing:
+if compact/full correlation or its companion path update fails, the sibling
+state is not left behind for a later pid/tgid reuse.
