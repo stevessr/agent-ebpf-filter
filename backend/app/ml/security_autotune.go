@@ -1,6 +1,9 @@
 package ml
 
-import "strings"
+import (
+	"math"
+	"strings"
+)
 
 // NormalizeSecurityAutoTuneMetric extends the legacy accuracy/speed objectives
 // with attack-impact objectives. Existing metric names remain valid.
@@ -25,56 +28,106 @@ func NormalizeSecurityAutoTuneMetric(metric string) string {
 		return "riskWeightedRecall"
 	case "securityutility", "security_utility", "securityscore", "security_score", "impactutility", "impact_utility":
 		return "securityUtility"
+	case "catastrophicmissrate", "catastrophic_miss_rate", "catastrophicmiss", "catastrophic_miss":
+		return "catastrophicMissRate"
+	case "benignfalsepositiverate", "benign_false_positive_rate", "benignfpr", "benign_fpr":
+		return "benignFalsePositiveRate"
+	case "threatvectorcoverage", "threat_vector_coverage", "vectorcoverage", "vector_coverage":
+		return "threatVectorCoverage"
 	default:
 		return ""
 	}
 }
 
-// SecurityAutoTuneMetricScore returns a higher-is-better score for every
-// supported objective. Sparse validation sets fall back to broader metrics so a
-// missing attack vector does not make model selection arbitrary.
+// SecurityAutoTuneMetricComparable reports whether a validation slice actually
+// contains the positive population required by a security-specific objective.
+// Explicit vector objectives never silently fall back to generic accuracy.
+func SecurityAutoTuneMetricComparable(metric string, attack AttackImpactMetrics) bool {
+	switch metric {
+	case "attackRecall", "riskWeightedRecall":
+		return attack.AttackSamples > 0
+	case "highImpactRecall", "catastrophicMissRate":
+		return attack.HighImpactSamples > 0
+	case "intrusionRecall":
+		return attack.IntrusionSamples > 0
+	case "destructionRecall":
+		return attack.DestructionSamples > 0
+	case "exfiltrationRecall":
+		return attack.ExfiltrationSamples > 0
+	case "persistenceRecall":
+		return attack.PersistenceSamples > 0
+	case "benignFalsePositiveRate":
+		return attack.BenignSamples > 0
+	case "securityUtility", "threatVectorCoverage":
+		return attack.ScoredSamples > 0
+	default:
+		return true
+	}
+}
+
+// SecurityAutoTuneMetricScore returns a higher-is-better ranking score for every
+// supported objective. Rate objectives that are naturally lower-is-better are
+// inverted here so all callers can keep one maximization path.
 func SecurityAutoTuneMetricScore(metric string, validationAccuracy, throughput float64, classification AutoTuneClassificationMetrics, attack AttackImpactMetrics) float64 {
+	if !SecurityAutoTuneMetricComparable(metric, attack) {
+		return math.Inf(-1)
+	}
+
 	switch metric {
 	case "attackRecall":
-		if attack.AttackSamples > 0 {
-			return attack.AttackRecall
-		}
+		return attack.AttackRecall
 	case "highImpactRecall":
-		if attack.HighImpactSamples > 0 {
-			return attack.HighImpactRecall
-		}
-		if attack.AttackSamples > 0 {
-			return attack.AttackRecall
-		}
+		return attack.HighImpactRecall
 	case "intrusionRecall":
-		if attack.IntrusionSamples > 0 {
-			return attack.IntrusionRecall
-		}
+		return attack.IntrusionRecall
 	case "destructionRecall":
-		if attack.DestructionSamples > 0 {
-			return attack.DestructionRecall
-		}
+		return attack.DestructionRecall
 	case "exfiltrationRecall":
-		if attack.ExfiltrationSamples > 0 {
-			return attack.ExfiltrationRecall
-		}
+		return attack.ExfiltrationRecall
 	case "persistenceRecall":
-		if attack.PersistenceSamples > 0 {
-			return attack.PersistenceRecall
-		}
+		return attack.PersistenceRecall
 	case "riskWeightedRecall":
-		if attack.AttackSamples > 0 {
-			return attack.RiskWeightedRecall
-		}
+		return attack.RiskWeightedRecall
 	case "securityUtility":
-		if attack.AttackSamples > 0 || attack.BenignFalsePositive > 0 {
-			return attack.SecurityUtility
-		}
-		// A fully benign validation slice can still rank models by how well they
-		// preserve legitimate behavior.
-		if classification.AllowRecall > 0 {
-			return classification.AllowRecall
-		}
+		return attack.SecurityUtility
+	case "catastrophicMissRate":
+		return 1.0 - attack.CatastrophicMissRate
+	case "benignFalsePositiveRate":
+		return 1.0 - attack.BenignFalsePositive
+	case "threatVectorCoverage":
+		return attack.ThreatVectorCoverage
+	default:
+		return AutoTuneMetricScore(metric, validationAccuracy, throughput, classification)
 	}
-	return AutoTuneMetricScore(metric, validationAccuracy, throughput, classification)
+}
+
+// SecurityAutoTuneMetricValue returns the human-facing raw metric value. This
+// differs from the ranking score for lower-is-better objectives such as miss/FPR.
+func SecurityAutoTuneMetricValue(metric string, validationAccuracy, throughput float64, classification AutoTuneClassificationMetrics, attack AttackImpactMetrics) float64 {
+	switch metric {
+	case "attackRecall":
+		return attack.AttackRecall
+	case "highImpactRecall":
+		return attack.HighImpactRecall
+	case "intrusionRecall":
+		return attack.IntrusionRecall
+	case "destructionRecall":
+		return attack.DestructionRecall
+	case "exfiltrationRecall":
+		return attack.ExfiltrationRecall
+	case "persistenceRecall":
+		return attack.PersistenceRecall
+	case "riskWeightedRecall":
+		return attack.RiskWeightedRecall
+	case "securityUtility":
+		return attack.SecurityUtility
+	case "catastrophicMissRate":
+		return attack.CatastrophicMissRate
+	case "benignFalsePositiveRate":
+		return attack.BenignFalsePositive
+	case "threatVectorCoverage":
+		return attack.ThreatVectorCoverage
+	default:
+		return AutoTuneMetricScore(metric, validationAccuracy, throughput, classification)
+	}
 }
