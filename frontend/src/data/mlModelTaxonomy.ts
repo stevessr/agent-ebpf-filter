@@ -42,6 +42,21 @@ const familyLabels: Record<MLModelFamily, string> = {
   other: "其他模型",
 };
 
+const familyColors: Record<MLModelFamily, string> = {
+  tree: "green",
+  linear: "cyan",
+  online_linear: "orange",
+  distance: "blue",
+  probabilistic: "gold",
+  boosting: "magenta",
+  ensemble: "purple",
+  graph: "geekblue",
+  attention: "purple",
+  sequence: "volcano",
+  generative: "red",
+  other: "default",
+};
+
 const featureLabels: Record<MLFeatureClass, string> = {
   tabular_128: "128维表格上下文",
   attention_context: "注意力上下文",
@@ -76,6 +91,9 @@ export const modelFamily = (item: MLTaxonomyModelItem): MLModelFamily => {
 
 export const modelFamilyLabel = (item: MLTaxonomyModelItem) =>
   familyLabels[modelFamily(item)];
+
+export const modelFamilyColor = (item: MLTaxonomyModelItem) =>
+  familyColors[modelFamily(item)];
 
 export const modelFeatureClass = (
   item: MLTaxonomyModelItem,
