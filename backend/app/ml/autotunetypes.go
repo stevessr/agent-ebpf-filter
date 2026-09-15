@@ -58,9 +58,13 @@ type MLAutoTuneResponse struct {
 	Best            *MLAutoTuneCell            `json:"best,omitempty"`
 }
 
-// MLModelTuneRequest describes a cross-model auto-tune request.
+// MLModelTuneRequest describes a cross-model auto-tune request. ModelTypes can
+// be supplied explicitly, or Families/FeatureProfiles can select candidates by
+// taxonomy. When both are present, taxonomy filters narrow the explicit list.
 type MLModelTuneRequest struct {
 	ModelTypes           []string `json:"modelTypes"`
+	Families             []string `json:"families,omitempty"`
+	FeatureProfiles      []string `json:"featureProfiles,omitempty"`
 	Metric               string   `json:"metric"`
 	ValidationSplitRatio float64  `json:"validationSplitRatio"`
 	TuneParams           bool     `json:"tuneParams"`
