@@ -19,9 +19,11 @@ func runModelAutoTuneWithCancel(store *ml.TrainingDataStore, req ml.MLModelTuneR
 	if len(labeled) < 2 {
 		return nil, errors.New("need at least 2 labeled samples for model tuning")
 	}
-	metric := ml.NormalizeAutoTuneMetric(req.Metric)
+	metric := ml.NormalizeSecurityAutoTuneMetric(req.Metric)
 	if metric == "" {
-		metric = "validationAccuracy"
+		// Cross-model AutoML is security-first by default. Callers can still
+		// explicitly request validationAccuracy, balancedAccuracy or throughput.
+		metric = "securityUtility"
 	}
 	validationRatio := req.ValidationSplitRatio
 	if validationRatio <= 0 || validationRatio >= 0.5 {
@@ -38,9 +40,11 @@ func runModelAutoTuneWithCancel(store *ml.TrainingDataStore, req ml.MLModelTuneR
 	bestScore := math.Inf(-1)
 	benchmarkSamples := ml.SelectBenchmarkSamples(labeled, 64)
 	baseCfg := currentMLConfig()
+	successfulCandidates := 0
+	comparableCandidates := 0
 
 	if progressCb != nil {
-		progressCb(0, len(modelTypes), "开始跨模型自动调优")
+		progressCb(0, len(modelTypes), "开始跨模型安全导向自动调优")
 	}
 
 	for i, modelType := range modelTypes {
@@ -68,6 +72,7 @@ func runModelAutoTuneWithCancel(store *ml.TrainingDataStore, req ml.MLModelTuneR
 				"minSamplesLeaf": effectiveCfg.MinSamplesLeaf,
 			},
 			SampleCount: len(labeled),
+			Score:       -1,
 		}
 		if progressCb != nil {
 			progressCb(i, len(modelTypes), fmt.Sprintf("训练 %s", label))
@@ -84,16 +89,19 @@ func runModelAutoTuneWithCancel(store *ml.TrainingDataStore, req ml.MLModelTuneR
 			}
 			continue
 		}
+		successfulCandidates++
 
 		candidate.TrainAccuracy = result.TrainAccuracy
 		candidate.ValidationAccuracy = result.ValidationAccuracy
 		candidate.ValidationCount = result.ValidationSamples
+		validationSamples := ml.GlobalTrainer.LastValidationSamples()
 		if candidate.ValidationCount == 0 {
-			candidate.ValidationCount = len(ml.GlobalTrainer.LastValidationSamples())
+			candidate.ValidationCount = len(validationSamples)
 		}
-		validationMetrics := ml.EvaluateAutoTuneTrainingSampleMetrics(ml.GlobalTrainer.LastValidationSamples(), model)
+		validationMetrics := ml.EvaluateAutoTuneTrainingSampleMetrics(validationSamples, model)
 		candidate.AllowRecall = validationMetrics.AllowRecall
 		candidate.BalancedAccuracy = validationMetrics.BalancedAccuracy
+		candidate.AttackMetrics = ml.EvaluateAttackImpactMetrics(validationSamples, model)
 
 		if req.TuneParams {
 			paramReq := ml.MLAutoTuneRequest{
@@ -109,26 +117,30 @@ func runModelAutoTuneWithCancel(store *ml.TrainingDataStore, req ml.MLModelTuneR
 				MaxY:                 req.MaxY,
 			}
 			paramResp, err := ml.GlobalTrainer.AutoTuneWithConfig(store, cfg, paramReq, nil)
-			if err == nil && paramResp != nil && paramResp.Best != nil {
+			if err == nil && paramResp != nil {
 				candidate.ParamTune = paramResp
-				cfg.NumTrees = paramResp.Best.NumTrees
-				cfg.MaxDepth = paramResp.Best.MaxDepth
-				cfg.MinSamplesLeaf = paramResp.Best.MinSamplesLeaf
-				candidate.HyperParams["numTrees"] = cfg.NumTrees
-				candidate.HyperParams["maxDepth"] = cfg.MaxDepth
-				candidate.HyperParams["minSamplesLeaf"] = cfg.MinSamplesLeaf
-				trainStart = time.Now()
-				model, result = ml.GlobalTrainer.TrainWithConfig(store, cfg)
-				candidate.TrainDuration += time.Since(trainStart).Seconds()
-				if result.Error == "" {
-					candidate.TrainAccuracy = result.TrainAccuracy
-					candidate.ValidationAccuracy = result.ValidationAccuracy
-					candidate.ValidationCount = result.ValidationSamples
-					validationMetrics = ml.EvaluateAutoTuneTrainingSampleMetrics(ml.GlobalTrainer.LastValidationSamples(), model)
-					candidate.AllowRecall = validationMetrics.AllowRecall
-					candidate.BalancedAccuracy = validationMetrics.BalancedAccuracy
-				} else {
-					candidate.Error = result.Error
+				if paramResp.Best != nil {
+					cfg.NumTrees = paramResp.Best.NumTrees
+					cfg.MaxDepth = paramResp.Best.MaxDepth
+					cfg.MinSamplesLeaf = paramResp.Best.MinSamplesLeaf
+					candidate.HyperParams["numTrees"] = cfg.NumTrees
+					candidate.HyperParams["maxDepth"] = cfg.MaxDepth
+					candidate.HyperParams["minSamplesLeaf"] = cfg.MinSamplesLeaf
+					trainStart = time.Now()
+					model, result = ml.GlobalTrainer.TrainWithConfig(store, cfg)
+					candidate.TrainDuration += time.Since(trainStart).Seconds()
+					if result.Error == "" {
+						candidate.TrainAccuracy = result.TrainAccuracy
+						candidate.ValidationAccuracy = result.ValidationAccuracy
+						candidate.ValidationCount = result.ValidationSamples
+						validationSamples = ml.GlobalTrainer.LastValidationSamples()
+						validationMetrics = ml.EvaluateAutoTuneTrainingSampleMetrics(validationSamples, model)
+						candidate.AllowRecall = validationMetrics.AllowRecall
+						candidate.BalancedAccuracy = validationMetrics.BalancedAccuracy
+						candidate.AttackMetrics = ml.EvaluateAttackImpactMetrics(validationSamples, model)
+					} else {
+						candidate.Error = result.Error
+					}
 				}
 			}
 		}
@@ -137,18 +149,50 @@ func runModelAutoTuneWithCancel(store *ml.TrainingDataStore, req ml.MLModelTuneR
 		candidate.EvalDuration = evalDuration
 		candidate.InferenceThroughput = throughput
 		candidate.InferenceMsPerSample = latencyMs
-		candidate.Score = ml.AutoTuneMetricScore(metric, candidate.ValidationAccuracy, candidate.InferenceThroughput, ml.AutoTuneClassificationMetrics{
+		classificationMetrics := ml.AutoTuneClassificationMetrics{
 			AllowRecall:      candidate.AllowRecall,
 			BalancedAccuracy: candidate.BalancedAccuracy,
-		})
+		}
+		comparable := ml.SecurityAutoTuneMetricComparable(metric, candidate.AttackMetrics)
+		if comparable {
+			candidate.Score = ml.SecurityAutoTuneMetricScore(
+				metric,
+				candidate.ValidationAccuracy,
+				candidate.InferenceThroughput,
+				classificationMetrics,
+				candidate.AttackMetrics,
+			)
+			comparableCandidates++
+		}
 		candidates = append(candidates, candidate)
-		if candidate.Error == "" && candidate.Score > bestScore {
+		if candidate.Error == "" && comparable && candidate.Score > bestScore {
 			copyCandidate := candidate
 			best = &copyCandidate
 			bestModel = model
 			bestScore = candidate.Score
 		}
-		ml.GlobalTrainer.Logf("模型调优: %s [%s/%s] 验证准确率 %.1f%% 推理 %.0f/s", label, taxonomy.Family, taxonomy.FeatureClass, candidate.ValidationAccuracy*100, candidate.InferenceThroughput)
+		if comparable {
+			evidence := ml.SecurityAutoTuneMetricEvidence(metric, candidate.AttackMetrics)
+			observed := ml.SecurityAutoTuneMetricValue(metric, candidate.ValidationAccuracy, candidate.InferenceThroughput, classificationMetrics, candidate.AttackMetrics)
+			ml.GlobalTrainer.Logf(
+				"模型调优: %s [%s/%s] objective=%s observed=%.1f%% conservative=%.1f%% support=%d security=%.1f%% high-impact=%.1f%% destruction=%.1f%% catastrophic-miss=%.1f%% accuracy=%.1f%% 推理 %.0f/s",
+				label,
+				taxonomy.Family,
+				taxonomy.FeatureClass,
+				metric,
+				observed*100,
+				evidence.ConservativeScore*100,
+				evidence.Support,
+				candidate.AttackMetrics.SecurityUtility*100,
+				candidate.AttackMetrics.HighImpactRecall*100,
+				candidate.AttackMetrics.DestructionRecall*100,
+				candidate.AttackMetrics.CatastrophicMissRate*100,
+				candidate.ValidationAccuracy*100,
+				candidate.InferenceThroughput,
+			)
+		} else {
+			ml.GlobalTrainer.Logf("模型调优: %s [%s/%s] 指标 %s 在验证集无覆盖", label, taxonomy.Family, taxonomy.FeatureClass, metric)
+		}
 		if progressCb != nil {
 			progressCb(i+1, len(modelTypes), fmt.Sprintf("完成 %s (%d/%d)", label, i+1, len(modelTypes)))
 		}
@@ -157,8 +201,29 @@ func runModelAutoTuneWithCancel(store *ml.TrainingDataStore, req ml.MLModelTuneR
 	if isCanceled != nil && isCanceled() {
 		return nil, errors.New("cancelled")
 	}
+	for _, summary := range ml.SummarizeModelTuneSecurity(candidates) {
+		ml.GlobalTrainer.Logf(
+			"安全画像: %s models=%d/%d security=%.1f%% attack=%.1f%% high-impact=%.1f%% I/D/E/P=%.1f/%.1f/%.1f/%.1f%% catastrophic-miss=%.1f%% best=%s",
+			summary.Key,
+			summary.SuccessfulModels,
+			summary.ModelCount,
+			summary.MeanSecurityUtility*100,
+			summary.AttackRecall*100,
+			summary.HighImpactRecall*100,
+			summary.IntrusionRecall*100,
+			summary.DestructionRecall*100,
+			summary.ExfiltrationRecall*100,
+			summary.PersistenceRecall*100,
+			summary.CatastrophicMissRate*100,
+			summary.BestModelLabel,
+		)
+	}
 	if best == nil {
-		return &ml.MLModelTuneResponse{Metric: metric, SampleCount: len(labeled), TotalDuration: time.Since(start).Seconds(), Candidates: candidates}, errors.New("no model candidate trained successfully")
+		result := &ml.MLModelTuneResponse{Metric: metric, SampleCount: len(labeled), TotalDuration: time.Since(start).Seconds(), Candidates: candidates}
+		if successfulCandidates > 0 && comparableCandidates == 0 {
+			return result, fmt.Errorf("metric %s has no validation coverage across trained candidates", metric)
+		}
+		return result, errors.New("no model candidate trained successfully")
 	}
 	if req.ApplyBest {
 		if err := applyModelTuneBest(*best, bestModel, validationRatio); err != nil {
