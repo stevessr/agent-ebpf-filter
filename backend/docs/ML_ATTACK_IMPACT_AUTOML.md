@@ -31,9 +31,11 @@ The external compatibility score remains `0..100`, where larger values mean high
 
 Deterministic evidence such as reverse-shell, data-exfiltration, DNS-tunnel, and firewall-manipulation findings can strongly raise a relevant vector. Anomaly evidence cannot invent an attack vector by itself; it only strengthens identified vectors or acts as a global prior.
 
+Generic `NETWORK` activity is intentionally vector-neutral. Network context becomes intrusion, exfiltration, or persistence only when concrete evidence such as reverse-shell, explicit upload, DNS tunneling, suspicious targets, scanning, or firewall manipulation is present.
+
 ## AutoML security metrics
 
-Cross-model AutoML records conventional accuracy metrics and the following attack-impact metrics:
+Both cross-model selection and every parameter-grid cell record conventional accuracy metrics and the following attack-impact metrics:
 
 | Metric | Meaning |
 | --- | --- |
@@ -51,17 +53,37 @@ Cross-model AutoML records conventional accuracy metrics and the following attac
 
 ### Asymmetric cost policy
 
-A missed destructive/credential attack costs substantially more than a benign false positive. Benign actions also have different disruption costs:
+The evaluation policy is explicit and versioned (`attack-impact-v2`). Current normalized costs/credits are:
 
-- false BLOCK: highest benign cost
-- false ALERT: lower cost
-- false REWRITE: lower again, but not free
+| Decision | Meaning | Value |
+| --- | --- | ---: |
+| false `BLOCK` on benign | highest benign disruption cost | 2.50 |
+| false `ALERT` on benign | lower interruption cost | 1.25 |
+| false `REWRITE` on benign | semantic-change cost | 0.50 |
+| `BLOCK` on attack | full containment credit | 1.00 |
+| `ALERT` on attack | strong detection, weaker containment | 0.88 |
+| `REWRITE` on attack | partial mitigation credit | 0.55 |
+| catastrophic high-impact `ALLOW` | extra multiplicative security-utility penalty | 0.65 |
 
 For high-impact attacks, a prediction of ALLOW is counted as a catastrophic miss. REWRITE may be useful but does not earn full high-impact recall, because a destructive operation that is merely rewritten still requires careful review.
 
+## Confidence-aware ranking
+
+Raw percentages are retained for display, but AutoML does **not** rank binomial security rates purely by the observed percentage.
+
+Recall objectives use a 95% Wilson lower confidence bound. Error-rate objectives (`catastrophicMissRate` and `benignFalsePositiveRate`) use the complementary 95% Wilson upper bound. This prevents tiny slices from looking artificially perfect.
+
+For example, an observed `1/1 = 100%` destruction recall has a much weaker conservative ranking score than `95/100 = 95%`. Logs therefore expose three values together:
+
+- observed metric,
+- conservative ranking score,
+- validation support count.
+
+`securityUtility` and `riskWeightedRecall` are weighted continuous objectives rather than Bernoulli rates, so their ranking values are not transformed by Wilson bounds.
+
 ## AutoML objective
 
-Cross-model selection defaults to `securityUtility` when no explicit metric is provided. Callers may explicitly choose:
+Cross-model selection and parameter-grid tuning default to `securityUtility` when no explicit metric is provided. Callers may explicitly choose:
 
 - `securityUtility`
 - `riskWeightedRecall`
@@ -71,14 +93,32 @@ Cross-model selection defaults to `securityUtility` when no explicit metric is p
 - `destructionRecall`
 - `exfiltrationRecall`
 - `persistenceRecall`
+- `catastrophicMissRate`
+- `benignFalsePositiveRate`
 - legacy objectives such as balanced accuracy or throughput
 
-Sparse validation slices fall back to broader metrics when a requested attack vector has no samples. This avoids selecting a model on a meaningless zero score.
+If a requested attack-vector objective has no validation support, that candidate/cell is marked non-comparable for the objective. The selector does not silently substitute generic accuracy, because that would make the experiment answer a different question from the one requested.
+
+## Family × feature security profile
+
+Cross-model runs also aggregate candidates by `model family × feature class`. The summary is support-weighted rather than a simple mean:
+
+- attack recall is weighted by attack samples,
+- each I/D/E/P recall is weighted by samples for that vector,
+- catastrophic miss rate is weighted by high-impact samples,
+- benign false-positive rate is weighted by benign samples,
+- security utility is weighted by all scored validation samples.
+
+This prevents a family with a single perfect vector example from overpowering a family evaluated on a substantially larger slice. The training log prints each group's security utility, global attack recall, high-impact recall, I/D/E/P recalls, catastrophic miss rate, and strongest member model.
+
+## Parameter-grid behavior
+
+The inner parameter grid is now security-first as well. Every cell computes `AttackImpactMetrics`, receives the same requested security objective as the outer cross-model run, and can become best only when that objective has validation coverage. Optional per-model parameter tuning therefore no longer optimizes balanced accuracy first and re-ranks only at the outer layer.
 
 ## Policy boundary
 
 These scores are evidence for policy. High-confidence deterministic enforcement remains independent and can override ML output. The risk model is intended to improve detection of evasive or previously unseen behavior and to choose safer model families/features, not to weaken existing BPF LSM, command-policy, or network-audit enforcement.
 
-## Current limitation
+## Validation
 
-The cross-model selector is security-first. When optional per-model parameter-grid tuning is enabled, the inner grid currently uses balanced accuracy for security-only outer objectives, then the resulting trained candidate is re-evaluated with the full attack-impact metrics. A future refinement can make every parameter-grid cell carry the same attack-impact metrics and optimize `securityUtility` directly.
+`.github/workflows/ml-security-validation.yml` runs targeted backend attack-impact tests plus frontend typecheck/build for ML-related changes. This is separate from the repository-integrity workflow so a green gitlink check cannot be mistaken for ML validation.
