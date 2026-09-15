@@ -2,8 +2,8 @@
 import { computed } from "vue";
 import type { MLBuiltinModelCatalogItem } from "../../../types/config";
 import type { useConfigML } from "../../../composables/config/useConfigML";
-import { mlModelCategoryColor } from "../../../data/mlModelCatalog";
 import {
+  modelFamilyColor,
   modelFamilyLabel,
   modelFeatureClass,
   modelFeatureClassLabel,
@@ -69,7 +69,7 @@ const selectedFeatureProfiles = computed(() =>
     : ["tabular"],
 );
 const modelTypeTagColor = computed(() =>
-  mlModelCategoryColor(selectedFamilyLabel.value, modelBaseType.value),
+  selectedBuiltinModel.value ? modelFamilyColor(selectedBuiltinModel.value) : "default",
 );
 
 const selectModelFamily = (family: string) => {
@@ -205,11 +205,7 @@ const visibleTags = (item: MLBuiltinModelCatalogItem) =>
                   <div v-for="item in group.models" :key="item.value">
                     <a-space wrap size="small">
                       <a-tag
-                        :color="
-                          item.value === modelType
-                            ? 'processing'
-                            : mlModelCategoryColor(group.family, item.base)
-                        "
+                        :color="item.value === modelType ? 'processing' : modelFamilyColor(item)"
                       >
                         {{ item.label }}
                       </a-tag>
