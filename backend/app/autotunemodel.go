@@ -172,11 +172,17 @@ func runModelAutoTuneWithCancel(store *ml.TrainingDataStore, req ml.MLModelTuneR
 			bestScore = candidate.Score
 		}
 		if comparable {
+			evidence := ml.SecurityAutoTuneMetricEvidence(metric, candidate.AttackMetrics)
+			observed := ml.SecurityAutoTuneMetricValue(metric, candidate.ValidationAccuracy, candidate.InferenceThroughput, classificationMetrics, candidate.AttackMetrics)
 			ml.GlobalTrainer.Logf(
-				"模型调优: %s [%s/%s] security=%.1f%% high-impact=%.1f%% destruction=%.1f%% catastrophic-miss=%.1f%% accuracy=%.1f%% 推理 %.0f/s",
+				"模型调优: %s [%s/%s] objective=%s observed=%.1f%% conservative=%.1f%% support=%d security=%.1f%% high-impact=%.1f%% destruction=%.1f%% catastrophic-miss=%.1f%% accuracy=%.1f%% 推理 %.0f/s",
 				label,
 				taxonomy.Family,
 				taxonomy.FeatureClass,
+				metric,
+				observed*100,
+				evidence.ConservativeScore*100,
+				evidence.Support,
 				candidate.AttackMetrics.SecurityUtility*100,
 				candidate.AttackMetrics.HighImpactRecall*100,
 				candidate.AttackMetrics.DestructionRecall*100,
@@ -194,6 +200,23 @@ func runModelAutoTuneWithCancel(store *ml.TrainingDataStore, req ml.MLModelTuneR
 
 	if isCanceled != nil && isCanceled() {
 		return nil, errors.New("cancelled")
+	}
+	for _, summary := range ml.SummarizeModelTuneSecurity(candidates) {
+		ml.GlobalTrainer.Logf(
+			"安全画像: %s models=%d/%d security=%.1f%% attack=%.1f%% high-impact=%.1f%% I/D/E/P=%.1f/%.1f/%.1f/%.1f%% catastrophic-miss=%.1f%% best=%s",
+			summary.Key,
+			summary.SuccessfulModels,
+			summary.ModelCount,
+			summary.MeanSecurityUtility*100,
+			summary.AttackRecall*100,
+			summary.HighImpactRecall*100,
+			summary.IntrusionRecall*100,
+			summary.DestructionRecall*100,
+			summary.ExfiltrationRecall*100,
+			summary.PersistenceRecall*100,
+			summary.CatastrophicMissRate*100,
+			summary.BestModelLabel,
+		)
 	}
 	if best == nil {
 		result := &ml.MLModelTuneResponse{Metric: metric, SampleCount: len(labeled), TotalDuration: time.Since(start).Seconds(), Candidates: candidates}
