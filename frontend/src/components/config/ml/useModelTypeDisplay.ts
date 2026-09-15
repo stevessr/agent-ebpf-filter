@@ -16,6 +16,22 @@ interface BuiltinModelItem {
   tags?: string[];
 }
 
+interface AttackImpactMetrics {
+  attackSamples?: number;
+  highImpactSamples?: number;
+  attackRecall?: number;
+  highImpactRecall?: number;
+  intrusionRecall?: number;
+  destructionRecall?: number;
+  exfiltrationRecall?: number;
+  persistenceRecall?: number;
+  catastrophicMissRate?: number;
+  benignFalsePositiveRate?: number;
+  riskWeightedRecall?: number;
+  securityUtility?: number;
+  threatVectorCoverage?: number;
+}
+
 export interface ModelTuneCandidate {
   modelType: string;
   label?: string;
@@ -28,6 +44,7 @@ export interface ModelTuneCandidate {
   validationAccuracy?: number;
   trainAccuracy?: number;
   inferenceThroughput?: number;
+  attackMetrics?: AttackImpactMetrics;
   hyperParams?: {
     numTrees?: number;
     maxDepth?: number;
@@ -36,6 +53,9 @@ export interface ModelTuneCandidate {
   error?: string;
   applied?: boolean;
 }
+
+const percent = (value?: number) =>
+  Number.isFinite(value) ? `${((value || 0) * 100).toFixed(1)}%` : "—";
 
 /**
  * Computed display properties for the ML model type selector.
@@ -61,7 +81,9 @@ export function useModelTypeDisplay(
       : "128维表格上下文",
   );
   const modelTypeTagColor = computed(() =>
-    selectedBuiltinModel.value ? modelFamilyColor(selectedBuiltinModel.value) : "default",
+    selectedBuiltinModel.value
+      ? modelFamilyColor(selectedBuiltinModel.value)
+      : "default",
   );
   const modelTypeDescription = computed(
     () => selectedBuiltinModel.value?.description || "本地模型配置",
@@ -107,13 +129,35 @@ export function useModelTypeDisplay(
     { title: "模型", dataIndex: "label", key: "label" },
     { title: "模型家族", dataIndex: "familyLabel", key: "familyLabel" },
     { title: "特征分类", dataIndex: "featureClass", key: "featureClass" },
-    { title: "基础算法", dataIndex: "base", key: "base" },
+    {
+      title: "安全效用",
+      key: "securityUtility",
+      customRender: ({ record }: { record: ModelTuneCandidate }) =>
+        percent(record.attackMetrics?.securityUtility),
+    },
+    {
+      title: "高影响召回",
+      key: "highImpactRecall",
+      customRender: ({ record }: { record: ModelTuneCandidate }) =>
+        percent(record.attackMetrics?.highImpactRecall),
+    },
+    {
+      title: "破坏召回",
+      key: "destructionRecall",
+      customRender: ({ record }: { record: ModelTuneCandidate }) =>
+        percent(record.attackMetrics?.destructionRecall),
+    },
+    {
+      title: "灾难漏报",
+      key: "catastrophicMissRate",
+      customRender: ({ record }: { record: ModelTuneCandidate }) =>
+        percent(record.attackMetrics?.catastrophicMissRate),
+    },
     {
       title: "验证准确率",
       dataIndex: "validationAccuracy",
       key: "validationAccuracy",
     },
-    { title: "训练准确率", dataIndex: "trainAccuracy", key: "trainAccuracy" },
     {
       title: "推理速度",
       dataIndex: "inferenceThroughput",
