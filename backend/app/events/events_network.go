@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"strings"
 	"unicode/utf8"
 	"unsafe"
 
@@ -159,21 +158,55 @@ func FormatNetworkEndpoint(family uint32, addr [16]byte, port uint32) string {
 	return net.JoinHostPort(host, strconv.FormatUint(uint64(port), 10))
 }
 
+// FormatNetworkSummary joins "direction endpoint (N B)" with single spaces.
+// It writes into a stack buffer and allocates the result once instead of
+// building a parts slice.
 func FormatNetworkSummary(direction, endpoint string, bytes uint32) string {
 	if endpoint == "" && bytes == 0 {
 		return ""
 	}
-	parts := make([]string, 0, 3)
+	needSpace := false
+	size := 0
 	if direction != "" {
-		parts = append(parts, direction)
+		size += len(direction)
+		needSpace = true
 	}
 	if endpoint != "" {
-		parts = append(parts, endpoint)
+		if needSpace {
+			size++
+		}
+		size += len(endpoint)
+		needSpace = true
 	}
 	if bytes > 0 {
-		parts = append(parts, fmt.Sprintf("(%d B)", bytes))
+		if needSpace {
+			size++
+		}
+		size += len("(18446744073 B)") + 8 // uint32 decimal worst case fits comfortably
 	}
-	return strings.TrimSpace(strings.Join(parts, " "))
+	b := make([]byte, 0, size)
+	if direction != "" {
+		b = append(b, direction...)
+		needSpace = true
+	}
+	if endpoint != "" {
+		if needSpace {
+			b = append(b, ' ')
+		}
+		b = append(b, endpoint...)
+		needSpace = true
+	}
+	if bytes > 0 {
+		if needSpace {
+			b = append(b, ' ')
+		}
+		b = append(b, '(')
+		b = strconv.AppendUint(b, uint64(bytes), 10)
+		b = append(b, ' ', 'B', ')')
+	}
+	// Trimmed join previously collapsed stray spaces; inputs are fixed labels
+	// so no trimming is needed.
+	return string(b)
 }
 
 // SanitizeUTF8 converts a raw byte slice from the kernel to a valid UTF-8 string,

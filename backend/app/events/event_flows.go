@@ -31,9 +31,33 @@ func TCPStateName(state uint8) string {
 	return fmt.Sprintf("STATE_%d", state)
 }
 
+// FormatIPv4Addr renders a host-byte-order IPv4 address as dotted quad. It
+// writes the digits into a stack buffer and allocates the final string once
+// instead of going through fmt.
 func FormatIPv4Addr(addr uint32) string {
-	return fmt.Sprintf("%d.%d.%d.%d",
-		addr&0xFF, (addr>>8)&0xFF, (addr>>16)&0xFF, (addr>>24)&0xFF)
+	var buf [15]byte // "255.255.255.255"
+	n := 0
+	for i := range 4 {
+		if i > 0 {
+			buf[n] = '.'
+			n++
+		}
+		octet := byte(addr >> (8 * i))
+		if octet >= 100 {
+			buf[n] = '0' + octet/100
+			buf[n+1] = '0' + (octet/10)%10
+			buf[n+2] = '0' + octet%10
+			n += 3
+		} else if octet >= 10 {
+			buf[n] = '0' + octet/10
+			buf[n+1] = '0' + octet%10
+			n += 2
+		} else {
+			buf[n] = '0' + octet
+			n++
+		}
+	}
+	return string(buf[:n])
 }
 
 func NetParseIPForFlow(ip string) net.IP {
