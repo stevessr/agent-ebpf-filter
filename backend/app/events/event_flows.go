@@ -71,7 +71,7 @@ func RecordUDPFlowFromEvent(event *BpfEvent, out *pb.Event) {
 	if out == nil {
 		return
 	}
-	remoteIP := NetworkIP(event.NetFamily, event.NetAddr)
+	remoteIP := NetworkIP(event.NetFamily, event.NetAddr[:])
 	if remoteIP == nil {
 		return
 	}
@@ -105,7 +105,7 @@ func PopulateEventFlowFields(out *pb.Event, srcIP, dstIP string, srcPort, dstPor
 	out.DstPort = dstPort
 	out.Transport = transport
 	out.ServiceName = network.LookupServiceByPort(dstPort)
-	out.IpScope = string(network.ClassifyIPScope(NetParseIPForFlow(dstIP)))
+	out.IpScope = string(classifyFlowIPScope(dstIP))
 	if domain, ok := Deps.Network.LookupDNS(dstIP); ok {
 		out.DnsName = domain
 		if out.Domain == "" {
@@ -145,4 +145,56 @@ func ApplyProtocolMetadataToEvent(out *pb.Event, entry *ProtoDetectionEntry) {
 			out.DnsName = entry.HTTPHost
 		}
 	}
+}
+
+// classifyFlowIPScope classifies dstIP for the flow record without
+// net.ParseIP: dotted quads decode straight from the string, "local" maps to
+// loopback, and anything else (IPv6 or unparseable) falls back to the net
+// path so the recorded scope never diverges from ClassifyIPScope.
+func classifyFlowIPScope(dstIP string) network.IPScope {
+	if dstIP == "local" {
+		return network.ScopeLoopback
+	}
+	var octets [4]byte
+	if ipv4OctetsFromString(dstIP, &octets) {
+		return network.ClassifyIPv4ScopeBytes(octets[0], octets[1], octets[2], octets[3])
+	}
+	return network.ClassifyIPScope(NetParseIPForFlow(dstIP))
+}
+
+// ipv4OctetsFromString decodes a strict a.b.c.d (each 0-255, no leading
+// zeros) into out. It reports false for anything else, including IPv6.
+func ipv4OctetsFromString(s string, out *[4]byte) bool {
+	fields := 0
+	octet := 0
+	digits := 0
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c >= '0' && c <= '9':
+			if digits == 1 && octet == 0 {
+				return false // leading zero
+			}
+			octet = octet*10 + int(c-'0')
+			digits++
+			if digits > 3 || octet > 255 {
+				return false
+			}
+		case c == '.':
+			if digits == 0 || fields == 3 {
+				return false
+			}
+			out[fields] = byte(octet)
+			fields++
+			octet = 0
+			digits = 0
+		default:
+			return false
+		}
+	}
+	if digits == 0 || fields != 3 {
+		return false
+	}
+	out[3] = byte(octet)
+	return true
 }

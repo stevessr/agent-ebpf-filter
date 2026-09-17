@@ -135,18 +135,52 @@ func NetworkFamilyLabel(family uint32) string {
 	}
 }
 
-func NetworkIP(family uint32, addr [16]byte) net.IP {
+// NetworkIP returns a view over addr for the given address family; it never
+// copies. Callers must not retain or mutate the result beyond the lifetime of
+// addr — on the hot path addr is the ring-buffer sample itself.
+func NetworkIP(family uint32, addr []byte) net.IP {
 	switch family {
 	case 2:
+		if len(addr) < 4 {
+			return nil
+		}
 		return net.IP(addr[:4]).To4()
 	case 10:
-		return net.IP(addr[:]).To16()
+		if len(addr) < 16 {
+			return nil
+		}
+		return net.IP(addr[:16]).To16()
 	default:
 		return nil
 	}
 }
 
-func FormatNetworkEndpoint(family uint32, addr [16]byte, port uint32) string {
+// binaryHostOrder reads the first four bytes of a network address buffer as a
+// little-endian uint32 the same way FormatIPv4Addr consumes host-order IPv4
+// values carried in the Extra2/Extra3 fields.
+func binaryHostOrder(addr [16]byte) uint32 {
+	return uint32(addr[0]) | uint32(addr[1])<<8 | uint32(addr[2])<<16 | uint32(addr[3])<<24
+}
+
+// FormatNetworkEndpoint renders "host" or "host:port" for the family's
+// address. IPv6 hosts keep net.JoinHostPort's bracketing; IPv4 hosts never
+// contain a colon so the port is appended with one final allocation.
+func FormatNetworkEndpoint(family uint32, addr []byte, port uint32) string {
+	if family == 2 && len(addr) >= 4 {
+		// Fast path: dotted quad straight from the sample buffer plus the
+		// port, one allocation, no net.IP intermediate.
+		host := FormatIPv4Addr(uint32(addr[0]) | uint32(addr[1])<<8 | uint32(addr[2])<<16 | uint32(addr[3])<<24)
+		if port == 0 {
+			return host
+		}
+		var portBuf [5]byte
+		portDigits := strconv.AppendUint(portBuf[:0], uint64(port), 10)
+		endpoint := make([]byte, 0, len(host)+1+len(portDigits))
+		endpoint = append(endpoint, host...)
+		endpoint = append(endpoint, ':')
+		endpoint = append(endpoint, portDigits...)
+		return string(endpoint)
+	}
 	ip := NetworkIP(family, addr)
 	if ip == nil {
 		return ""
@@ -155,7 +189,16 @@ func FormatNetworkEndpoint(family uint32, addr [16]byte, port uint32) string {
 	if port == 0 {
 		return host
 	}
-	return net.JoinHostPort(host, strconv.FormatUint(uint64(port), 10))
+	if len(ip) == 16 {
+		return net.JoinHostPort(host, strconv.FormatUint(uint64(port), 10))
+	}
+	var portBuf [5]byte
+	portDigits := strconv.AppendUint(portBuf[:0], uint64(port), 10)
+	endpoint := make([]byte, 0, len(host)+1+len(portDigits))
+	endpoint = append(endpoint, host...)
+	endpoint = append(endpoint, ':')
+	endpoint = append(endpoint, portDigits...)
+	return string(endpoint)
 }
 
 // FormatNetworkSummary joins "direction endpoint (N B)" with single spaces.
@@ -474,7 +517,7 @@ func BuildKernelEventFromRaw(event *BpfEvent) *pb.Event {
 
 	if typeName == "accept" || typeName == "accept4" || IsNetworkEventType(typeName) {
 		direction := NetworkDirectionLabel(event.NetDirection)
-		endpoint := FormatNetworkEndpoint(event.NetFamily, event.NetAddr, event.NetPort)
+		endpoint := FormatNetworkEndpoint(event.NetFamily, event.NetAddr[:], event.NetPort)
 		family := NetworkFamilyLabel(event.NetFamily)
 		summary := FormatNetworkSummary(direction, endpoint, event.NetBytes)
 		if summary != "" {
@@ -499,13 +542,17 @@ func BuildKernelEventFromRaw(event *BpfEvent) *pb.Event {
 		case "network_connect":
 			srcIP = "local"
 			srcPort = 0
-			if addr := NetworkIP(event.NetFamily, event.NetAddr); addr != nil {
+			// NetFamily 2 carries the IPv4 destination in NetAddr[:4] in
+			// host byte order; reuse the stack formatter instead of a second
+			// net.IP.String allocation. Other families keep the net path.
+			if event.NetFamily == 2 {
+				dstIP = FormatIPv4Addr(binaryHostOrder(event.NetAddr))
+			} else if addr := NetworkIP(event.NetFamily, event.NetAddr[:]); addr != nil {
 				if s := addr.String(); s != "" && s != "<nil>" {
 					dstIP = s
 				}
 			}
 		}
-
 		if srcIP != "0.0.0.0" && dstIP != "0.0.0.0" && dstPort > 0 {
 			Deps.ApplyBestEffortProcessContextToEvent(out)
 			flowState := ""
