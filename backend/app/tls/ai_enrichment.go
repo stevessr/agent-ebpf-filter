@@ -37,7 +37,7 @@ var tlsProcessEnrichmentCache = struct {
 
 func detectAIToolFromComm(comm string) *aiToolMetadata {
 	lower := strings.ToLower(strings.TrimSpace(comm))
-	if lower == "zcode" {
+	if lower == "zcode" || lower == "zcode.appimage" {
 		return &aiToolMetadata{ToolName: "ZCode", ToolVendor: "Z.ai", ToolType: "ai_assistant"}
 	}
 	if lower == "zg" || lower == "zvec-grep" {
