@@ -7,6 +7,14 @@ on:
       - master
     paths:
       - "backend/app/tls/**"
+      - "backend/app/zcodehooks*.go"
+      - "backend/app/commdefaultstracked*.go"
+      - "backend/app/handlers/native_hook.go"
+      - "backend/app/events/context_event.go"
+      - "backend/core/types.go"
+      - "frontend/src/components/hooks/**"
+      - "frontend/src/data/hookCatalog.ts"
+      - "frontend/src/data/hooks/**"
       - "backend/app/handlers/agentsight*.go"
       - "backend/app/platform/**"
       - "backend/ebpf/**"
@@ -26,6 +34,14 @@ on:
       - master
     paths:
       - "backend/app/tls/**"
+      - "backend/app/zcodehooks*.go"
+      - "backend/app/commdefaultstracked*.go"
+      - "backend/app/handlers/native_hook.go"
+      - "backend/app/events/context_event.go"
+      - "backend/core/types.go"
+      - "frontend/src/components/hooks/**"
+      - "frontend/src/data/hookCatalog.ts"
+      - "frontend/src/data/hooks/**"
       - "backend/app/handlers/agentsight*.go"
       - "backend/app/platform/**"
       - "backend/ebpf/**"
@@ -80,6 +96,43 @@ jobs:
       - name: AgentSight backend tests
         working-directory: backend
         run: go test ./app/handlers -count=1
+      - name: ZCode native-hook integration tests
+        working-directory: backend
+        run: |
+          go test ./app -run 'Test(InstallZCodeNativeHookLifecycle|ZCodePayloadShapeFeedsPathAndContext|BuildNativeHookExtraInfoHashesZCodeStopMessage|DefaultTrackedCommandsOnlyAgentCLIEnabled)
+  frontend-agentsight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: oven-sh/setup-bun@v2.2.0
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: AgentSight utility tests
+        run: bun run test:agentsight
+      - name: Typecheck and build
+        run: bun run build
+ -count=1
+          go test ./app/ml -run 'TestIsAgentCLIIncludesNewHarnesses
+  frontend-agentsight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: oven-sh/setup-bun@v2.2.0
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: AgentSight utility tests
+        run: bun run test:agentsight
+      - name: Typecheck and build
+        run: bun run build
+ -count=1
 
   frontend-agentsight:
     runs-on: ubuntu-24.04
