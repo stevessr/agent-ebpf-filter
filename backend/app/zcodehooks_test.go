@@ -158,10 +158,11 @@ func TestZCodePayloadShapeFeedsPathAndContext(t *testing.T) {
 func TestBuildNativeHookExtraInfoHashesZCodeStopMessage(t *testing.T) {
 	payload := map[string]interface{}{
 		"session_id":             "session-zcode",
+		"permission_mode":        "default",
 		"last_assistant_message": "sensitive final answer",
 	}
 	extra := buildNativeHookExtraInfo(payload, "Stop", "")
-	if !strings.Contains(extra, "response_digest=sha256:") || !strings.Contains(extra, "response_len=") {
+	if !strings.Contains(extra, "response_digest=sha256:") || !strings.Contains(extra, "response_len=") || !strings.Contains(extra, "permission_mode=default") {
 		t.Fatalf("missing safe response metadata: %q", extra)
 	}
 	if strings.Contains(extra, "sensitive final answer") {
