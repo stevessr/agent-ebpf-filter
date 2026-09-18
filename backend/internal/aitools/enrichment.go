@@ -20,7 +20,7 @@ func DetectAIToolFromComm(comm string) *AIToolMetadata {
 	lower := strings.ToLower(comm)
 
 	switch {
-	case lower == "zcode":
+	case lower == "zcode" || lower == "zcode.appimage":
 		return &AIToolMetadata{
 			ToolName:   "ZCode",
 			ToolVendor: "Z.ai",
