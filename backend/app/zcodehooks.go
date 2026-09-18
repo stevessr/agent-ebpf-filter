@@ -180,13 +180,13 @@ func uninstallZCodeNativeHook(h HookDef) error {
 				}
 			}
 			hooks["events"] = events
-			if err := restoreZCodeHooksEnabledState(h, hooks); err != nil {
-				return err
-			}
-			cfg["hooks"] = hooks
-			if err := writeJSONObjectFile(h.NativeConfigPath, cfg); err != nil {
-				return err
-			}
+		}
+		if err := restoreZCodeHooksEnabledState(h, hooks); err != nil {
+			return err
+		}
+		cfg["hooks"] = hooks
+		if err := writeJSONObjectFile(h.NativeConfigPath, cfg); err != nil {
+			return err
 		}
 	}
 	_ = os.Remove(hookRelayScriptPath(h))
