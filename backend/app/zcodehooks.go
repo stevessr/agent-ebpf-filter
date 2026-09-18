@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"agent-ebpf-filter/app/platform"
@@ -56,6 +57,50 @@ func filterZCodeHookEntries(entries []interface{}) []interface{} {
 	return filtered
 }
 
+func zcodeHookStatePath(h HookDef) string {
+	return filepath.Join(filepath.Dir(h.NativeConfigPath), hookMarker+"-zcode-state.json")
+}
+
+func captureZCodeHooksEnabledState(h HookDef, hooks map[string]interface{}) error {
+	statePath := zcodeHookStatePath(h)
+	if _, err := os.Stat(statePath); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	state := map[string]interface{}{"had_enabled": false}
+	if previous, ok := hooks["enabled"]; ok {
+		state["had_enabled"] = true
+		state["enabled"] = previous
+	}
+	return writeJSONObjectFile(statePath, state)
+}
+
+func restoreZCodeHooksEnabledState(h HookDef, hooks map[string]interface{}) error {
+	statePath := zcodeHookStatePath(h)
+	state, err := readJSONObjectFile(statePath)
+	if err != nil {
+		return err
+	}
+	if len(state) == 0 {
+		return nil
+	}
+
+	// Only restore when the current value is still the value installed by us.
+	// If the user changed hooks.enabled while the integration was installed,
+	// preserve that explicit choice.
+	if current, ok := hooks["enabled"].(bool); ok && current {
+		if hadEnabled, _ := state["had_enabled"].(bool); hadEnabled {
+			hooks["enabled"] = state["enabled"]
+		} else {
+			delete(hooks, "enabled")
+		}
+	}
+	_ = os.Remove(statePath)
+	return nil
+}
+
 func isZCodeHooksEnabled(path string) bool {
 	cfg, err := readJSONObjectFile(path)
 	if err != nil {
@@ -81,6 +126,9 @@ func installZCodeNativeHook(h HookDef) error {
 	hooks, _ := cfg["hooks"].(map[string]interface{})
 	if hooks == nil {
 		hooks = make(map[string]interface{})
+	}
+	if err := captureZCodeHooksEnabledState(h, hooks); err != nil {
+		return err
 	}
 	hooks["enabled"] = true
 
@@ -132,6 +180,9 @@ func uninstallZCodeNativeHook(h HookDef) error {
 				}
 			}
 			hooks["events"] = events
+			if err := restoreZCodeHooksEnabledState(h, hooks); err != nil {
+				return err
+			}
 			cfg["hooks"] = hooks
 			if err := writeJSONObjectFile(h.NativeConfigPath, cfg); err != nil {
 				return err
