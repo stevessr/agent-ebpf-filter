@@ -32,3 +32,30 @@ func TestDetectAIToolFromCmdlineDoesNotMatchUnrelatedZgText(t *testing.T) {
 		t.Fatalf("unrelated command was classified as zvec-grep: %+v", meta)
 	}
 }
+
+
+func TestDetectAIToolRecognizesZCodeRuntime(t *testing.T) {
+	for _, comm := range []string{"zcode", "ZCode"} {
+		meta := detectAIToolFromComm(comm)
+		if meta == nil {
+			t.Fatalf("comm %q was not recognized", comm)
+		}
+		if meta.ToolName != "ZCode" || meta.ToolVendor != "Z.ai" || meta.ToolType != "ai_assistant" {
+			t.Fatalf("comm %q metadata = %+v", comm, meta)
+		}
+		if meta.APIProvider != "" {
+			t.Fatalf("ZCode runtime must not assume a model provider: %+v", meta)
+		}
+	}
+
+	for _, cmdline := range []string{
+		"zcode --verbose",
+		"/usr/bin/zcode --project /workspace",
+		"/home/user/Applications/ZCode.AppImage --no-sandbox",
+	} {
+		meta := detectAIToolFromCmdline(cmdline)
+		if meta == nil || meta.ToolName != "ZCode" {
+			t.Fatalf("cmdline %q metadata = %+v", cmdline, meta)
+		}
+	}
+}
