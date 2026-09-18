@@ -25,7 +25,7 @@ func IsPackageManager(comm string) bool {
 // IsAgentCLI returns true if comm is a known AI agent CLI.
 func IsAgentCLI(comm string) bool {
 	switch strings.ToLower(strings.TrimSpace(comm)) {
-	case "claude", "gemini", "codex", "dsh", "pi", "omp", "kiro-cli", "gh", "cursor", "zg", "zcode":
+	case "claude", "gemini", "codex", "dsh", "pi", "omp", "kiro-cli", "gh", "cursor", "zg", "zcode", "zcode.appimage":
 		return true
 	}
 	return false
