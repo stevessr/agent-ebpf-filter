@@ -22,7 +22,7 @@ func TestDefaultTrackedCommandsOnlyAgentCLIEnabled(t *testing.T) {
 		}
 	}
 
-	for _, comm := range []string{"claude", "gemini", "codex", "dsh", "pi", "omp", "kiro-cli", "gh", "cursor", "zg", "zcode", "ZCode"} {
+	for _, comm := range []string{"claude", "gemini", "codex", "dsh", "pi", "omp", "kiro-cli", "gh", "cursor", "zg", "zcode", "ZCode", "ZCode.AppImage"} {
 		if _, ok := agentCLICommands[comm]; !ok {
 			t.Fatalf("expected default Agent CLI command %q to be enabled", comm)
 		}
