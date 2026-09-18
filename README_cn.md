@@ -33,7 +33,7 @@ Agent eBPF Filter 结合 **eBPF 内核追踪**、**Go 后端**、**Vue.js 仪表
 
 ### 🎯 **语义关联**
 - 通过 Python/Node.js 适配器进行 PID 注册
-- 原生 Hook 支持：Claude Code、Gemini CLI、Codex、Pi、Oh My Pi、GitHub Copilot、Kiro CLI、Augment、Antigravity CLI
+- 原生 Hook 支持：Claude Code、Gemini CLI、Codex、Pi、Oh My Pi、GitHub Copilot、Kiro CLI、Augment、Antigravity CLI、ZCode
 - Wrapper 命令拦截支持 Cursor 和 DeepSeek Harness（`dsh`）
 - 上下文追踪：`agent_run_id`、`tool_call_id`、`trace_id`、`cwd`、`argv_digest`
 
@@ -167,6 +167,7 @@ tracker.start();
 - Kiro CLI
 - Augment/Auggie CLI
 - Antigravity CLI (`agy`)
+- ZCode（原生生命周期 Hook + OS 级沙盒归因）
 - Cursor（通过 wrapper 别名）
 
 ### 阻断网络目标（内核级）
