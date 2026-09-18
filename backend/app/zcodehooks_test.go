@@ -54,6 +54,9 @@ func TestInstallZCodeNativeHookLifecycle(t *testing.T) {
 	if !isNativeHookInstalled(h) {
 		t.Fatal("installed ZCode hook was not detected")
 	}
+	if err := installZCodeNativeHook(h); err != nil {
+		t.Fatalf("idempotent reinstall ZCode hook: %v", err)
+	}
 
 	cfg, err := readJSONObjectFile(configPath)
 	if err != nil {
@@ -127,6 +130,13 @@ func TestInstallZCodeNativeHookLifecycle(t *testing.T) {
 	}
 	if cfg["theme"] != "dark" {
 		t.Fatalf("uninstall modified unrelated ZCode config: %#v", cfg)
+	}
+	hooks, _ = cfg["hooks"].(map[string]interface{})
+	if enabled, ok := hooks["enabled"].(bool); !ok || enabled {
+		t.Fatalf("uninstall did not restore original hooks.enabled=false: %#v", hooks)
+	}
+	if _, err := os.Stat(zcodeHookStatePath(h)); !os.IsNotExist(err) {
+		t.Fatalf("ZCode hook state should be removed, stat err=%v", err)
 	}
 	if _, err := os.Stat(relayPath); !os.IsNotExist(err) {
 		t.Fatalf("ZCode relay should be removed, stat err=%v", err)
