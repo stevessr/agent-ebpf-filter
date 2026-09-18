@@ -162,7 +162,7 @@ Examples:
 - `pi`
 - `omp`
 
-The built-in Agent CLI set also includes Claude, Gemini, Codex, Kiro, Copilot, Augment, Antigravity, and Cursor command names. This is useful when an agent shells out to well-known tools.
+The built-in Agent CLI set also includes Claude, Gemini, Codex, Kiro, Copilot, Augment, Antigravity, ZCode, and Cursor command names. This is useful when an agent shells out to well-known tools.
 
 ### Track exact paths
 
