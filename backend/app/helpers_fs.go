@@ -385,6 +385,8 @@ func refreshHooksPaths() {
 				availableHooks[i].NativeConfigPath = filepath.Join(home, ".augment", "settings.json")
 			case "antigravity":
 				availableHooks[i].NativeConfigPath = filepath.Join(home, ".gemini", "antigravity-cli", "plugins", hookMarker, "hooks.json")
+			case "zcode":
+				availableHooks[i].NativeConfigPath = filepath.Join(home, ".zcode", "cli", "config.json")
 			}
 		}
 	}
