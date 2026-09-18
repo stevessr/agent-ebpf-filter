@@ -33,7 +33,6 @@ func TestDetectAIToolFromCmdlineDoesNotMatchUnrelatedZgText(t *testing.T) {
 	}
 }
 
-
 func TestDetectAIToolRecognizesZCodeRuntime(t *testing.T) {
 	for _, comm := range []string{"zcode", "ZCode"} {
 		meta := detectAIToolFromComm(comm)
