@@ -34,7 +34,7 @@ func TestDetectAIToolFromCmdlineDoesNotMatchUnrelatedZgText(t *testing.T) {
 }
 
 func TestDetectAIToolRecognizesZCodeRuntime(t *testing.T) {
-	for _, comm := range []string{"zcode", "ZCode"} {
+	for _, comm := range []string{"zcode", "ZCode", "ZCode.AppImage"} {
 		meta := detectAIToolFromComm(comm)
 		if meta == nil {
 			t.Fatalf("comm %q was not recognized", comm)
