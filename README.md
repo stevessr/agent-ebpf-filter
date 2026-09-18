@@ -33,7 +33,7 @@ Agent eBPF Filter combines **eBPF kernel tracing**, **Go backend**, **Vue.js das
 
 ### 🎯 **Semantic Correlation**
 - PID registration via Python/Node.js adapters
-- Native hooks for Claude Code, Gemini CLI, Codex, Pi, Oh My Pi, GitHub Copilot, Kiro CLI, Augment, and Antigravity CLI
+- Native hooks for Claude Code, Gemini CLI, Codex, Pi, Oh My Pi, GitHub Copilot, Kiro CLI, Augment, Antigravity CLI, and ZCode
 - Wrapper-based command interception for Cursor and DeepSeek Harness (`dsh`)
 - Context tracking: `agent_run_id`, `tool_call_id`, `trace_id`, `cwd`, `argv_digest`
 
@@ -167,6 +167,7 @@ From the **Hooks** page, install native or wrapper integrations for:
 - Kiro CLI
 - Augment/Auggie CLI
 - Antigravity CLI (`agy`)
+- ZCode (native lifecycle hooks + OS-level sandbox attribution)
 - Cursor (via wrapper alias)
 
 ### Block Network Destinations (Kernel-Level)
