@@ -225,7 +225,7 @@ func extractHookResponseText(payload map[string]interface{}, hookEvent string) s
 	if payload == nil {
 		return ""
 	}
-	if response := payloadNestedString(payload, "response", "prompt_response", "promptResponse", "final_response", "finalResponse", "output"); response != "" {
+	if response := payloadNestedString(payload, "response", "prompt_response", "promptResponse", "final_response", "finalResponse", "last_assistant_message", "lastAssistantMessage", "output"); response != "" {
 		return response
 	}
 	lowerEvent := strings.ToLower(strings.TrimSpace(hookEvent))
