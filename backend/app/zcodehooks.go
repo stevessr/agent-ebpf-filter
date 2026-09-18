@@ -56,6 +56,19 @@ func filterZCodeHookEntries(entries []interface{}) []interface{} {
 	return filtered
 }
 
+func isZCodeHooksEnabled(path string) bool {
+	cfg, err := readJSONObjectFile(path)
+	if err != nil {
+		return false
+	}
+	hooks, _ := cfg["hooks"].(map[string]interface{})
+	if hooks == nil {
+		return false
+	}
+	enabled, _ := hooks["enabled"].(bool)
+	return enabled
+}
+
 func installZCodeNativeHook(h HookDef) error {
 	cfg, err := readJSONObjectFile(h.NativeConfigPath)
 	if err != nil {
