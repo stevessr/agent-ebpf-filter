@@ -62,6 +62,11 @@ func HandleNativeHookEvent(c *gin.Context) {
 	}
 	extraInfo := buildNativeHookExtraInfo(payload, hookEvent, toolName)
 
+	if events.PayloadUint32(payload, "pid", "process_id", "processId", "agent_pid", "agentPid") == 0 {
+		if parentPID := strings.TrimSpace(c.GetHeader("X-Agent-Hook-Parent-PID")); parentPID != "" {
+			payload["pid"] = parentPID
+		}
+	}
 	pid, ctx := Deps.BuildProcessContextFromHookPayload(payload, toolName, path)
 	if pid != 0 {
 		Deps.ProcessContexts.Set(pid, ctx)
@@ -131,6 +136,9 @@ func nativeHookProviderTag(sourceCLI, userAgent, hookEvent string) string {
 	}
 	if sourceCLI == "antigravity" || sourceCLI == "agy" || strings.Contains(userAgent, "antigravity") || strings.Contains(userAgent, "agy") {
 		return "Antigravity CLI"
+	}
+	if sourceCLI == "zcode" || strings.Contains(userAgent, "zcode") {
+		return "ZCode"
 	}
 	if hookEvent == "BeforeTool" {
 		return "Gemini CLI"
