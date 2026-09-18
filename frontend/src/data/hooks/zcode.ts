@@ -10,7 +10,7 @@ export const zcodeHook: HookCliDoc = {
     },
     {
       label: "ZCode safety confirmation documentation",
-      url: "https://zcode.z.ai/en/docs/safety-confirmation",
+      url: "https://zcode.z.ai/en/docs/safety-confirm",
     },
   ],
   commonFields: [
