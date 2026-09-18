@@ -200,6 +200,9 @@ func buildNativeHookExtraInfo(payload map[string]interface{}, hookEvent, toolNam
 	if sessionID := events.PayloadString(payload, "session_id", "sessionId"); sessionID != "" {
 		parts = append(parts, "session_id="+sanitizeExtraInfoValue(sessionID))
 	}
+	if permissionMode := events.PayloadString(payload, "permission_mode", "permissionMode"); permissionMode != "" {
+		parts = append(parts, "permission_mode="+sanitizeExtraInfoValue(permissionMode))
+	}
 	return strings.Join(parts, " ")
 }
 
