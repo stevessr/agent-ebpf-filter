@@ -199,7 +199,7 @@ func BuildProcessContextFromHookPayload(payload map[string]interface{}, toolName
 			toolName, _ = toolCall["name"].(string)
 		}
 	}
-	toolCallID := PayloadString(payload, "tool_call_id", "toolCallId")
+	toolCallID := PayloadString(payload, "tool_call_id", "toolCallId", "tool_use_id", "toolUseId")
 	if toolCallID == "" {
 		if toolCall, _ := payload["toolCall"].(map[string]interface{}); toolCall != nil {
 			toolCallID = PayloadString(toolCall, "id", "callId", "toolCallId")
