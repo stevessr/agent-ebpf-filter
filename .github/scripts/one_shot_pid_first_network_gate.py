@@ -15,13 +15,20 @@ def patch_handler(text: str, name: str, pid_expr: str) -> str:
         raise SystemExit(f'missing end of sys_enter handler {name}')
     end += 3
     block = text[start:end]
-    old = f'''    char comm[TASK_COMM_LEN];
+    block = replace_once(
+        block,
+        '''    char comm[TASK_COMM_LEN];
     bpf_get_current_comm(&comm, sizeof(comm));
-    u32 tag_id = get_tag_id({pid_expr}, comm, NULL);
-'''
-    new = f'''    u32 tag_id = get_enter_tag_id_nopath({pid_expr});
-'''
-    block = replace_once(block, old, new, f'{name} PID-first match')
+''',
+        '',
+        f'{name} unconditional comm read',
+    )
+    block = replace_once(
+        block,
+        f'    u32 tag_id = get_tag_id({pid_expr}, comm, NULL);',
+        f'    u32 tag_id = get_enter_tag_id_nopath({pid_expr});',
+        f'{name} PID-first tag lookup',
+    )
     return text[:start] + block + text[end:]
 
 sys_path = Path('backend/ebpf/agent_tracker_syscalls.h')
