@@ -255,3 +255,18 @@ and descriptor syscalls: socket, connect, bind, sendto/recvfrom, sendmsg/recvmsg
 read/readv, write/writev, and close. These enter programs only need comm for
 selector fallback, while their eventual sys_exit event reconstructs comm
 independently. Immediate TCP tracepoint emitters remain outside this optimization.
+
+
+### L7 sampling fast gates
+
+HTTP/1 sampling now separates an 8-byte protocol classifier from the bounded
+start-line copy. Socket read/write/send paths classify the user buffer before
+acquiring the per-CPU path scratch map, so ordinary file reads, non-stream
+socket traffic, and non-HTTP stream traffic avoid the scratch lookup and the
+up-to-255-byte copy entirely. Only a positive HTTP/1 request/response signature
+enters the metadata-copy path. Query/fragment stripping and all existing privacy
+boundaries are unchanged.
+
+The remaining macro-generated simple, dup, and accept enter handlers also use
+the same PID-first selector helper, eliminating their unconditional comm helper
+for registered Agent PIDs.
