@@ -7,41 +7,12 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
 
 common_path = Path('backend/ebpf/agent_tracker_common.h')
 common = common_path.read_text()
-old = '''// Classify and copy an HTTP/1 start-line with a single 8-byte probe. The old
-// request-then-response path probed non-HTTP buffers twice. This helper keeps
-// identical privacy semantics while halving the head probes on the hot path.
-static __always_inline u32 capture_http1_start_line(char *dst, const void *user_buf, u32 len, u32 *kind) {
-    if (kind) *kind = HTTP1_START_NONE;
-    if (!dst || !user_buf || len < 4 || !kind) return 0;
-    char head[8] = {};
-    u32 head_len = len < sizeof(head) ? len : sizeof(head);
-    if (bpf_probe_read_user(head, head_len, user_buf) < 0) return 0;
-
-    int request = looks_like_http1_method(head, head_len);
-    int response = !request && looks_like_http1_response(head, head_len);
-    if (!request && !response) return 0;
-    *kind = request ? HTTP1_START_REQUEST : HTTP1_START_RESPONSE;
-
-    u32 capture_len = len;
-    if (capture_len > MAX_PATH_LEN - 1) capture_len = MAX_PATH_LEN - 1;
-    if (bpf_probe_read_user(dst, capture_len, user_buf) < 0) {
-        *kind = HTTP1_START_NONE;
-        return 0;
-    }
-#pragma clang loop unroll(disable)
-    for (int i = 0; i < MAX_PATH_LEN - 1; i++) {
-        if ((u32)i >= capture_len) break;
-        char c = dst[i];
-        if (c == '\r' || c == '\n' || (request && (c == '?' || c == '#'))) {
-            dst[i] = '\0';
-            return (u32)i;
-        }
-    }
-    dst[capture_len] = '\0';
-    return capture_len;
-}
-'''
-new = '''// Probe only the bounded HTTP/1 signature first. Callers use this as a cheap
+start_marker = '// Classify and copy an HTTP/1 start-line with a single 8-byte probe.'
+start = common.find(start_marker)
+end = common.find('\n\n// Compact correlation', start)
+if start < 0 or end < 0:
+    raise SystemExit('missing HTTP/1 capture helper boundaries')
+new = r'''// Probe only the bounded HTTP/1 signature first. Callers use this as a cheap
 // eligibility gate before touching per-CPU path scratch or copying up to 255
 // bytes from userspace.
 static __always_inline u32 classify_http1_start_line(const void *user_buf, u32 len) {
@@ -54,9 +25,8 @@ static __always_inline u32 classify_http1_start_line(const void *user_buf, u32 l
     return HTTP1_START_NONE;
 }
 
-// Copy only after classify_http1_start_line() has already established that the
-// payload is an HTTP/1 start-line. Query/fragment data is still stripped before
-// the sample can cross into ring-buffer telemetry.
+// Copy only after classify_http1_start_line() has established that the payload
+// is an HTTP/1 start-line. Query/fragment data is stripped before telemetry.
 static __always_inline u32 capture_http1_start_line_kind(char *dst, const void *user_buf, u32 len, u32 kind) {
     if (!dst || !user_buf || len < 4 || kind == HTTP1_START_NONE) return 0;
     int request = kind == HTTP1_START_REQUEST;
@@ -66,8 +36,8 @@ static __always_inline u32 capture_http1_start_line_kind(char *dst, const void *
 #pragma clang loop unroll(disable)
     for (int i = 0; i < MAX_PATH_LEN - 1; i++) {
         if ((u32)i >= capture_len) break;
-        char c = dst[i];
-        if (c == '\r' || c == '\n' || (request && (c == '?' || c == '#'))) {
+        char ch = dst[i];
+        if (ch == '\r' || ch == '\n' || (request && (ch == '?' || ch == '#'))) {
             dst[i] = '\0';
             return (u32)i;
         }
@@ -76,15 +46,14 @@ static __always_inline u32 capture_http1_start_line_kind(char *dst, const void *
     return capture_len;
 }
 
-// Compatibility wrapper for call sites that do not need to separate eligibility
-// from copying. Hot paths should classify before acquiring scratch.
+// Compatibility wrapper for call sites that do not separate eligibility from
+// copying. Hot paths classify before acquiring scratch.
 static __always_inline u32 capture_http1_start_line(char *dst, const void *user_buf, u32 len, u32 *kind) {
     if (!kind) return 0;
     *kind = classify_http1_start_line(user_buf, len);
     return capture_http1_start_line_kind(dst, user_buf, len, *kind);
-}
-'''
-common = replace_once(common, old, new, 'split HTTP/1 classifier/copy helpers')
+}'''
+common = common[:start] + new + common[end:]
 common_path.write_text(common)
 
 sys_path = Path('backend/ebpf/agent_tracker_syscalls.h')
