@@ -248,3 +248,10 @@ Only a PID miss pays the comm helper and tracked_comms lookup, and path-bearing
 syscalls proceed to tracking_mode/path inspection only after both selectors
 miss. Immediate tracepoint emitters such as TCP flow events are intentionally
 unchanged because they need comm for the event emitted in that same program.
+
+
+The same PID-first selector path is applied to correlation-only explicit network
+and descriptor syscalls: socket, connect, bind, sendto/recvfrom, sendmsg/recvmsg,
+read/readv, write/writev, and close. These enter programs only need comm for
+selector fallback, while their eventual sys_exit event reconstructs comm
+independently. Immediate TCP tracepoint emitters remain outside this optimization.
