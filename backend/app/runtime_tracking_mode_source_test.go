@@ -188,3 +188,67 @@ func TestPIDFirstNetworkEnterSourceContract(t *testing.T) {
 		assertLazy(syscalls, name)
 	}
 }
+
+func TestL7ScratchLookupAfterProtocolGateSourceContract(t *testing.T) {
+	commonBytes, err := os.ReadFile("../ebpf/agent_tracker_common.h")
+	if err != nil {
+		t.Fatal(err)
+	}
+	syscallBytes, err := os.ReadFile("../ebpf/agent_tracker_syscalls.h")
+	if err != nil {
+		t.Fatal(err)
+	}
+	common := string(commonBytes)
+	syscalls := string(syscallBytes)
+
+	if !strings.Contains(common, "static __always_inline u32 classify_http1_start_line") ||
+		!strings.Contains(common, "static __always_inline u32 capture_http1_start_line_kind") {
+		t.Fatal("HTTP/1 classifier/copy split is missing")
+	}
+
+	assertGate := func(name, marker string) {
+		t.Helper()
+		block := sourceBlock(t, syscalls, marker, "\n}\n")
+		classify := strings.Index(block, "classify_http1_start_line")
+		scratch := strings.Index(block, "bpf_map_lookup_elem(&exit_path_buf")
+		if classify < 0 || scratch < 0 {
+			t.Fatalf("%s is missing classifier or scratch lookup", name)
+		}
+		if classify > scratch {
+			t.Fatalf("%s acquires L7 scratch before protocol classification", name)
+		}
+	}
+
+	for _, name := range []string{"sendto", "write", "writev", "sendmsg"} {
+		assertGate(name, "int tracepoint__syscalls__sys_enter_"+name+"(struct trace_event_raw_sys_enter *ctx) {")
+	}
+	for _, name := range []string{"read", "readv", "recvmsg"} {
+		assertGate(name, "int tracepoint__syscalls__sys_exit_"+name+"(struct trace_event_raw_sys_exit *ctx) {")
+	}
+}
+
+func TestRemainingMacroEnterPathsArePIDFirst(t *testing.T) {
+	syscallBytes, err := os.ReadFile("../ebpf/agent_tracker_syscalls.h")
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := string(syscallBytes)
+	for _, macro := range []string{"DEFINE_SIMPLE_ENTER_HANDLER", "DEFINE_DUP_HANDLER", "DEFINE_ACCEPT_HANDLER"} {
+		start := strings.Index(src, "#define "+macro)
+		if start < 0 {
+			t.Fatalf("missing macro %s", macro)
+		}
+		rest := src[start:]
+		end := strings.Index(rest, "\n\n")
+		if end < 0 {
+			end = len(rest)
+		}
+		block := rest[:end]
+		if !strings.Contains(block, "get_enter_tag_id_nopath") {
+			t.Fatalf("%s bypasses PID-first selector", macro)
+		}
+		if strings.Contains(block, "bpf_get_current_comm") {
+			t.Fatalf("%s still performs unconditional enter-side comm read", macro)
+		}
+	}
+}
