@@ -229,3 +229,10 @@ configuration mutations. Fresh bootstrap also performs best-effort backup of
 legacy tracked maps before replacing an older pin layout, restores rules before
 attach, then publishes the matching mode bits, preventing both config loss and
 reload-time false rejects when a new required map is introduced.
+
+
+Path/prefix registry mutations are serialized with mode publication. The backend
+snapshots an existing selector before mutation and rolls it back if mode
+publication fails. If rollback or precise re-synchronization cannot be trusted,
+the mode map is forced to both path classes enabled, preserving capture
+correctness at the cost of extra path work rather than allowing a false reject.

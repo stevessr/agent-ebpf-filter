@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
@@ -136,6 +137,84 @@ func syncTrackingModeFlags(set *trackerMapSet) error {
 		return errors.New("tracker map set is nil")
 	}
 	return syncTrackingModeMap(set.TrackingMode, set.TrackedPaths, set.TrackedPrefixes)
+}
+
+var trackingModeMutationMu sync.Mutex
+
+func forceTrackingModePathAny(mode *ebpf.Map) error {
+	if mode == nil {
+		return errors.New("tracking mode map is nil")
+	}
+	flags := trackingModePathExact | trackingModePathPrefix
+	key := uint32(0)
+	if err := mode.Update(&key, &flags, ebpf.UpdateAny); err != nil {
+		return fmt.Errorf("force fail-open tracking mode: %w", err)
+	}
+	return nil
+}
+
+func rollbackTrackedSelector(set *trackerMapSet, target *ebpf.Map, key any, hadPrevious bool, previous uint32, syncErr error) error {
+	var rollbackErr error
+	if hadPrevious {
+		rollbackErr = target.Put(key, previous)
+	} else if err := target.Delete(key); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+		rollbackErr = err
+	}
+	// A sync failure must never leave the kernel in a false-negative state.
+	// If exact reconstruction fails for any reason, force both path classes on;
+	// extra path work is preferable to suppressing a configured rule.
+	failOpenErr := forceTrackingModePathAny(set.TrackingMode)
+	if rollbackErr != nil || failOpenErr != nil {
+		return errors.Join(
+			fmt.Errorf("sync path tracking mode: %w", syncErr),
+			fmt.Errorf("rollback tracked selector: %w", rollbackErr),
+			failOpenErr,
+		)
+	}
+	return fmt.Errorf("sync path tracking mode: %w", syncErr)
+}
+
+func putTrackedSelector(set *trackerMapSet, target *ebpf.Map, key, value any) error {
+	if set == nil || target == nil {
+		return errors.New("tracked selector maps are incomplete")
+	}
+	trackingModeMutationMu.Lock()
+	defer trackingModeMutationMu.Unlock()
+
+	var previous uint32
+	hadPrevious := false
+	if err := target.Lookup(key, &previous); err == nil {
+		hadPrevious = true
+	} else if !errors.Is(err, ebpf.ErrKeyNotExist) {
+		return fmt.Errorf("snapshot tracked selector: %w", err)
+	}
+	if err := target.Put(key, value); err != nil {
+		return err
+	}
+	if err := syncTrackingModeFlags(set); err != nil {
+		return rollbackTrackedSelector(set, target, key, hadPrevious, previous, err)
+	}
+	return nil
+}
+
+func deleteTrackedSelector(set *trackerMapSet, target *ebpf.Map, key any) error {
+	if set == nil || target == nil {
+		return errors.New("tracked selector maps are incomplete")
+	}
+	trackingModeMutationMu.Lock()
+	defer trackingModeMutationMu.Unlock()
+
+	var previous uint32
+	if err := target.Lookup(key, &previous); err != nil {
+		return err
+	}
+	if err := target.Delete(key); err != nil {
+		return err
+	}
+	if err := syncTrackingModeFlags(set); err != nil {
+		return rollbackTrackedSelector(set, target, key, true, previous, err)
+	}
+	return nil
 }
 
 // ── mode detection ────────────────────────────────────────────────────────────
