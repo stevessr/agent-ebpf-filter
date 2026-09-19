@@ -270,3 +270,18 @@ boundaries are unchanged.
 The remaining macro-generated simple, dup, and accept enter handlers also use
 the same PID-first selector helper, eliminating their unconditional comm helper
 for registered Agent PIDs.
+
+
+### Compact I/O correlation context
+
+High-frequency read/write/readv/writev enter/exit correlation uses a dedicated
+64-byte exit_io_ctx instead of the 88-byte full network exit_ctx. The compact
+I/O value retains fd, L7 capture state, user-buffer pointer, remote endpoint,
+capture provenance, and socket type, while direction/byte count are reconstructed
+at exit from the syscall and return value.
+
+The full and I/O hash maps split the previous 10,240-entry budget into 6,144
+full-network entries plus 4,096 I/O entries. Total entry count is unchanged,
+while aggregate preallocated value payload decreases and each I/O map update /
+lookup moves about 27% fewer value bytes. exit_io_ctx has independent failure
+and occupancy telemetry in collector health/Prometheus output.

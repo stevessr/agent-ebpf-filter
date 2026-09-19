@@ -23,6 +23,7 @@ func (observabilityTrackerMapSet) GetContextPressureStats() *ebpf.Map {
 func (observabilityTrackerMapSet) GetContextMaps() map[string]*ebpf.Map {
 	return map[string]*ebpf.Map{
 		"exit_ctx":             trackerMaps.ExitCtx,
+		"exit_io_ctx":          trackerMaps.ExitIoCtx,
 		"exit_compact_ctx":     trackerMaps.ExitCompactCtx,
 		"exit_single_path_ctx": trackerMaps.ExitSinglePathCtx,
 		"exit_path_ctx":        trackerMaps.ExitPathCtx,

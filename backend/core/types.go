@@ -220,6 +220,7 @@ type TrackerMapSet struct {
 	CollectorStats       *ebpf.Map
 	ContextPressureStats *ebpf.Map
 	ExitCtx              *ebpf.Map
+	ExitIoCtx            *ebpf.Map
 	ExitCompactCtx       *ebpf.Map
 	ExitSinglePathBuf    *ebpf.Map
 	ExitPathBuf          *ebpf.Map

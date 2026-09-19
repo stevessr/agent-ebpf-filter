@@ -238,9 +238,10 @@ struct context_pressure_stats {
     u64 pair_path_update_failures;
     u64 socket_fd_update_failures;
     u64 socket_parent_update_failures;
+    u64 exit_io_update_failures;
 };
 
-_Static_assert(sizeof(struct context_pressure_stats) == 48, "context pressure stats ABI changed");
+_Static_assert(sizeof(struct context_pressure_stats) == 56, "context pressure stats ABI changed");
 
 struct {
     __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
@@ -255,6 +256,7 @@ struct {
 #define CONTEXT_PRESSURE_PAIR_PATH     4
 #define CONTEXT_PRESSURE_SOCKET_FD     5
 #define CONTEXT_PRESSURE_SOCKET_PARENT 6
+#define CONTEXT_PRESSURE_EXIT_IO       7
 
 static __always_inline void record_context_update_failure(u32 kind) {
     u32 key = 0;
@@ -266,6 +268,7 @@ static __always_inline void record_context_update_failure(u32 kind) {
     else if (kind == CONTEXT_PRESSURE_PAIR_PATH) stats->pair_path_update_failures++;
     else if (kind == CONTEXT_PRESSURE_SOCKET_FD) stats->socket_fd_update_failures++;
     else if (kind == CONTEXT_PRESSURE_SOCKET_PARENT) stats->socket_parent_update_failures++;
+    else if (kind == CONTEXT_PRESSURE_EXIT_IO) stats->exit_io_update_failures++;
 }
 
 // Map to store registered agent PIDs
@@ -312,12 +315,39 @@ struct exit_meta {
     u32 socket_reserved;
 };
 
+_Static_assert(sizeof(struct exit_meta) == 88, "full exit context ABI changed");
+
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(max_entries, 10240);
+    __uint(max_entries, 6144);
     __type(key, u64);
     __type(value, struct exit_meta);
 } exit_ctx SEC(".maps");
+
+// High-frequency read/write correlation needs socket provenance and L7 capture
+// state, but not timing/direction/byte fields from the full 88-byte context.
+struct exit_io_meta {
+    u32 type;
+    u32 tag_id;
+    u32 extra1;
+    u32 extra2;
+    u64 extra3;
+    u64 addr_ptr;
+    u32 net_family;
+    u32 net_port;
+    char net_addr[16];
+    u32 capture_flags;
+    u32 socket_type;
+};
+
+_Static_assert(sizeof(struct exit_io_meta) == 64, "I/O exit context ABI changed");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 4096);
+    __type(key, u64);
+    __type(value, struct exit_io_meta);
+} exit_io_ctx SEC(".maps");
 
 // Most filesystem/process/descriptor correlation needs only scalar metadata.
 // Keep it out of the network-capable 88-byte exit_meta map to reduce hash-map
@@ -739,6 +769,12 @@ static __always_inline int store_exit_meta(u64 pid_tgid, struct exit_meta *meta)
     return rc == 0;
 }
 
+static __always_inline int store_exit_io_meta(u64 pid_tgid, struct exit_io_meta *meta) {
+    long rc = bpf_map_update_elem(&exit_io_ctx, &pid_tgid, meta, BPF_ANY);
+    if (rc < 0) record_context_update_failure(CONTEXT_PRESSURE_EXIT_IO);
+    return rc == 0;
+}
+
 static __always_inline int store_exit_compact_meta(u64 pid_tgid, struct exit_compact_meta *meta) {
     long rc = bpf_map_update_elem(&exit_compact_ctx, &pid_tgid, meta, BPF_ANY);
     if (rc < 0) record_context_update_failure(CONTEXT_PRESSURE_EXIT_COMPACT);
@@ -836,6 +872,15 @@ static __always_inline void fill_network_meta_from_socket(struct exit_meta *meta
     fill_network_meta_from_socket_direction(meta, socket, bytes, NET_DIR_OUTGOING);
 }
 
+static __always_inline void fill_io_meta_from_socket(struct exit_io_meta *meta, struct socket_fd_meta *socket) {
+    if (!meta || !socket) return;
+    meta->net_family = socket->family;
+    meta->net_port = socket->remote_port;
+    meta->capture_flags |= socket->provenance_flags;
+    meta->socket_type = socket->sock_type;
+    __builtin_memcpy(meta->net_addr, socket->remote_addr, sizeof(meta->net_addr));
+}
+
 static __always_inline int looks_like_http1_method(const char *head, u32 len) {
     if (!head || len < 4) return 0;
     if (head[0] == 'G' && head[1] == 'E' && head[2] == 'T' && head[3] == ' ') return 1;
@@ -926,6 +971,35 @@ static __always_inline void fill_from_exit_compact_meta(struct event *e, u64 pid
     e->extra1 = meta->extra1;
     e->extra2 = meta->extra2;
     e->extra3 = meta->extra3;
+}
+
+static __always_inline u32 consume_exit_io_meta(u64 pid_tgid, struct exit_io_meta *meta) {
+    struct exit_io_meta *m = bpf_map_lookup_elem(&exit_io_ctx, &pid_tgid);
+    if (!m) return 0;
+    __builtin_memcpy(meta, m, sizeof(*meta));
+    bpf_map_delete_elem(&exit_io_ctx, &pid_tgid);
+    return meta->tag_id;
+}
+
+static __always_inline void fill_from_exit_io_meta(struct event *e, u64 pid_tgid,
+                                                   struct exit_io_meta *meta,
+                                                   u32 direction, u32 net_bytes) {
+    char comm[TASK_COMM_LEN];
+    bpf_get_current_comm(&comm, sizeof(comm));
+    fill_base_info(e, (u32)(pid_tgid >> 32), meta->tag_id, comm);
+    e->type = meta->type;
+    e->retval = 0;
+    e->duration_ns = 0;
+    e->extra1 = meta->extra1;
+    e->extra2 = meta->extra2;
+    e->extra3 = meta->extra3;
+    e->net_family = meta->net_family;
+    e->net_direction = meta->socket_type ? direction : 0;
+    e->net_bytes = net_bytes;
+    e->net_port = meta->net_port;
+    e->kernel_capture_flags = meta->capture_flags;
+    e->kernel_capture_reserved = meta->socket_type;
+    __builtin_memcpy(e->net_addr, meta->net_addr, sizeof(meta->net_addr));
 }
 
 // Convenience inline for sys_exit handlers that only need pid_tgid correlation
