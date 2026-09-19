@@ -552,11 +552,43 @@ static __always_inline u32 tracking_path_mode(void) {
     return flags ? *flags : TRACKING_MODE_PATH_ANY;
 }
 
-static __always_inline u32 get_pid_comm_tag_id(u32 pid, char *comm) {
+static __always_inline u32 get_pid_tag_id(u32 pid) {
     u32 *tag = bpf_map_lookup_elem(&agent_pids, &pid);
-    if (tag) return *tag;
-    tag = bpf_map_lookup_elem(&tracked_comms, comm);
     return tag ? *tag : 0;
+}
+
+static __always_inline u32 get_comm_tag_id(char *comm) {
+    if (!comm) return 0;
+    u32 *tag = bpf_map_lookup_elem(&tracked_comms, comm);
+    return tag ? *tag : 0;
+}
+
+static __always_inline u32 get_pid_comm_tag_id(u32 pid, char *comm) {
+    u32 tag_id = get_pid_tag_id(pid);
+    return tag_id ? tag_id : get_comm_tag_id(comm);
+}
+
+// Registered Agent PIDs are the dominant hot path, so avoid reading comm on a
+// PID hit. Exit-side event construction reads comm independently.
+static __always_inline u32 get_enter_tag_id_nopath(u32 pid) {
+    u32 tag_id = get_pid_tag_id(pid);
+    if (tag_id) return tag_id;
+    char comm[TASK_COMM_LEN];
+    bpf_get_current_comm(&comm, sizeof(comm));
+    return get_comm_tag_id(comm);
+}
+
+// Same PID-first fast path for path-bearing syscalls. tracking_mode is only
+// consulted after both PID and comm miss.
+static __always_inline u32 get_enter_tag_id_pre_path(u32 pid, u32 *path_flags) {
+    u32 tag_id = get_pid_tag_id(pid);
+    if (tag_id) return tag_id;
+    char comm[TASK_COMM_LEN];
+    bpf_get_current_comm(&comm, sizeof(comm));
+    tag_id = get_comm_tag_id(comm);
+    if (tag_id) return tag_id;
+    if (path_flags) *path_flags = tracking_path_mode();
+    return 0;
 }
 
 static __always_inline u32 get_path_tag_id(char *path, u32 path_flags) {
@@ -1160,11 +1192,8 @@ SEC("tracepoint/syscalls/sys_enter_execve")
 int tracepoint__syscalls__sys_enter_execve(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = pid_tgid >> 32;
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
-
     u32 path_flags = 0;
-    u32 tag_id = get_tag_id_pre_path(pid, comm, &path_flags);
+    u32 tag_id = get_enter_tag_id_pre_path(pid, &path_flags);
     if (tag_id == 0 && !(path_flags & TRACKING_MODE_PATH_ANY)) return 0;
 
     u32 zero = 0;
@@ -1219,11 +1248,8 @@ SEC("tracepoint/syscalls/sys_enter_openat")
 int tracepoint__syscalls__sys_enter_openat(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = pid_tgid >> 32;
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
-
     u32 path_flags = 0;
-    u32 tag_id = get_tag_id_pre_path(pid, comm, &path_flags);
+    u32 tag_id = get_enter_tag_id_pre_path(pid, &path_flags);
     if (tag_id == 0 && !(path_flags & TRACKING_MODE_PATH_ANY)) return 0;
 
     u32 zero = 0;
@@ -1322,11 +1348,8 @@ SEC("tracepoint/syscalls/sys_enter_mkdirat")
 int tracepoint__syscalls__sys_enter_mkdirat(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = pid_tgid >> 32;
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
-
     u32 path_flags = 0;
-    u32 tag_id = get_tag_id_pre_path(pid, comm, &path_flags);
+    u32 tag_id = get_enter_tag_id_pre_path(pid, &path_flags);
     if (tag_id == 0 && !(path_flags & TRACKING_MODE_PATH_ANY)) return 0;
 
     u32 zero = 0;
@@ -1382,11 +1405,8 @@ SEC("tracepoint/syscalls/sys_enter_unlinkat")
 int tracepoint__syscalls__sys_enter_unlinkat(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = pid_tgid >> 32;
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
-
     u32 path_flags = 0;
-    u32 tag_id = get_tag_id_pre_path(pid, comm, &path_flags);
+    u32 tag_id = get_enter_tag_id_pre_path(pid, &path_flags);
     if (tag_id == 0 && !(path_flags & TRACKING_MODE_PATH_ANY)) return 0;
 
     u32 zero = 0;

@@ -70,3 +70,88 @@ func TestPathRuleFastRejectSourceContract(t *testing.T) {
 		assertGateBeforeUserPathProbe(t, rest[:end], macro)
 	}
 }
+
+func assertPIDLookupBeforeCommRead(t *testing.T, block, name string) {
+	t.Helper()
+	pid := strings.Index(block, "get_pid_tag_id(pid)")
+	comm := strings.Index(block, "bpf_get_current_comm")
+	if pid < 0 {
+		t.Fatalf("%s is missing PID-first lookup", name)
+	}
+	if comm < 0 {
+		t.Fatalf("%s is missing lazy comm fallback", name)
+	}
+	if pid > comm {
+		t.Fatalf("%s reads comm before checking tracked PID", name)
+	}
+}
+
+func TestPIDFirstEnterTrackingSourceContract(t *testing.T) {
+	commonBytes, err := os.ReadFile("../ebpf/agent_tracker_common.h")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tailBytes, err := os.ReadFile("../ebpf/agent_tracker_tail.h")
+	if err != nil {
+		t.Fatal(err)
+	}
+	common := string(commonBytes)
+	tail := string(tailBytes)
+
+	for _, helper := range []string{"get_enter_tag_id_nopath", "get_enter_tag_id_pre_path"} {
+		marker := "static __always_inline u32 " + helper
+		block := sourceBlock(t, common, marker, "\n}\n")
+		assertPIDLookupBeforeCommRead(t, block, helper)
+	}
+
+	for _, name := range []string{"execve", "openat", "mkdirat", "unlinkat"} {
+		marker := "int tracepoint__syscalls__sys_enter_" + name + "(struct trace_event_raw_sys_enter *ctx) {"
+		block := sourceBlock(t, common, marker, "\n}\n")
+		if !strings.Contains(block, "get_enter_tag_id_pre_path") {
+			t.Fatalf("%s bypasses PID-first path matcher", name)
+		}
+		if strings.Contains(block, "bpf_get_current_comm") {
+			t.Fatalf("%s performs an unconditional enter-side comm read", name)
+		}
+	}
+
+	for _, macro := range []string{"SYS_PATH0", "SYS_PATH01", "SYS_PATH1", "SYS_PATH13", "SYS_PATH02", "SYS_PATH4"} {
+		marker := "#define " + macro + "(name, nr)"
+		start := strings.Index(tail, marker)
+		if start < 0 {
+			t.Fatalf("missing macro %s", macro)
+		}
+		rest := tail[start:]
+		end := strings.Index(rest, "\n// ── Macro:")
+		if end < 0 {
+			end = len(rest)
+		}
+		block := rest[:end]
+		if !strings.Contains(block, "get_enter_tag_id_pre_path") {
+			t.Fatalf("%s bypasses PID-first path matcher", macro)
+		}
+		if strings.Contains(block, "bpf_get_current_comm") {
+			t.Fatalf("%s performs an unconditional enter-side comm read", macro)
+		}
+	}
+
+	for _, macro := range []string{"SYS_NUM", "SYS_NUM2"} {
+		marker := "#define " + macro + "(name, nr"
+		start := strings.Index(tail, marker)
+		if start < 0 {
+			t.Fatalf("missing macro %s", macro)
+		}
+		rest := tail[start:]
+		end := strings.Index(rest, "\n// ")
+		if end < 0 {
+			end = len(rest)
+		}
+		block := rest[:end]
+		if !strings.Contains(block, "sys_enter_common_nopath") {
+			t.Fatalf("%s bypasses lazy no-path matcher", macro)
+		}
+		if strings.Contains(block, "bpf_get_current_comm") {
+			t.Fatalf("%s performs an unconditional enter-side comm read", macro)
+		}
+	}
+}
