@@ -251,6 +251,11 @@ func buildMCPServer() *mcp.Server {
 			if err := trackerMaps.TrackedPaths.Put(k, tid); err != nil {
 				return nil, nil, fmt.Errorf("failed to add tracked path: %w", err)
 			}
+			if err := syncTrackingModeFlags(&trackerMaps); err != nil {
+				_ = trackerMaps.TrackedPaths.Delete(k)
+				_ = syncTrackingModeFlags(&trackerMaps)
+				return nil, nil, fmt.Errorf("sync path tracking mode: %w", err)
+			}
 			return nil, map[string]any{"success": true, "path": args.Path, "tag": args.Tag}, nil
 		})
 

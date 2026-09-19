@@ -56,11 +56,17 @@ func (a *handlerTrackerMapsAdapter) TrackedPathsIterate() *ebpf.MapIterator {
 }
 
 func (a *handlerTrackerMapsAdapter) TrackedPathsPut(key, value any) error {
-	return a.set.TrackedPaths.Put(key, value)
+	if err := a.set.TrackedPaths.Put(key, value); err != nil {
+		return err
+	}
+	return syncTrackingModeFlags(a.set)
 }
 
 func (a *handlerTrackerMapsAdapter) TrackedPathsDelete(key any) error {
-	return a.set.TrackedPaths.Delete(key)
+	if err := a.set.TrackedPaths.Delete(key); err != nil {
+		return err
+	}
+	return syncTrackingModeFlags(a.set)
 }
 
 func (a *handlerTrackerMapsAdapter) TrackedPrefixesIterate() *ebpf.MapIterator {
@@ -68,11 +74,17 @@ func (a *handlerTrackerMapsAdapter) TrackedPrefixesIterate() *ebpf.MapIterator {
 }
 
 func (a *handlerTrackerMapsAdapter) TrackedPrefixesPut(key, value any) error {
-	return a.set.TrackedPrefixes.Put(key, value)
+	if err := a.set.TrackedPrefixes.Put(key, value); err != nil {
+		return err
+	}
+	return syncTrackingModeFlags(a.set)
 }
 
 func (a *handlerTrackerMapsAdapter) TrackedPrefixesDelete(key any) error {
-	return a.set.TrackedPrefixes.Delete(key)
+	if err := a.set.TrackedPrefixes.Delete(key); err != nil {
+		return err
+	}
+	return syncTrackingModeFlags(a.set)
 }
 
 func (a *handlerTrackerMapsAdapter) CollectorStats() *ebpf.Map {
