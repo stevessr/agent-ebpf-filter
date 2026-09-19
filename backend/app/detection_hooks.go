@@ -54,6 +54,9 @@ func isNativeHookInstalled(h HookDef) bool {
 	if !hasNativeHookMarker(h.NativeConfigPath) {
 		return false
 	}
+	if h.ID == "zcode" && !isZCodeHooksEnabled(h.NativeConfigPath) {
+		return false
+	}
 	if h.NativeFeatureConfigPath != "" && !isCodexHooksFeatureEnabled(h.NativeFeatureConfigPath) {
 		return false
 	}

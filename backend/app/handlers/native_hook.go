@@ -62,6 +62,11 @@ func HandleNativeHookEvent(c *gin.Context) {
 	}
 	extraInfo := buildNativeHookExtraInfo(payload, hookEvent, toolName)
 
+	if events.PayloadUint32(payload, "pid", "process_id", "processId", "agent_pid", "agentPid") == 0 {
+		if parentPID := strings.TrimSpace(c.GetHeader("X-Agent-Hook-Parent-PID")); parentPID != "" {
+			payload["pid"] = parentPID
+		}
+	}
 	pid, ctx := Deps.BuildProcessContextFromHookPayload(payload, toolName, path)
 	if pid != 0 {
 		Deps.ProcessContexts.Set(pid, ctx)
@@ -132,6 +137,9 @@ func nativeHookProviderTag(sourceCLI, userAgent, hookEvent string) string {
 	if sourceCLI == "antigravity" || sourceCLI == "agy" || strings.Contains(userAgent, "antigravity") || strings.Contains(userAgent, "agy") {
 		return "Antigravity CLI"
 	}
+	if sourceCLI == "zcode" || strings.Contains(userAgent, "zcode") {
+		return "ZCode"
+	}
 	if hookEvent == "BeforeTool" {
 		return "Gemini CLI"
 	}
@@ -192,6 +200,9 @@ func buildNativeHookExtraInfo(payload map[string]interface{}, hookEvent, toolNam
 	if sessionID := events.PayloadString(payload, "session_id", "sessionId"); sessionID != "" {
 		parts = append(parts, "session_id="+sanitizeExtraInfoValue(sessionID))
 	}
+	if permissionMode := events.PayloadString(payload, "permission_mode", "permissionMode"); permissionMode != "" {
+		parts = append(parts, "permission_mode="+sanitizeExtraInfoValue(permissionMode))
+	}
 	return strings.Join(parts, " ")
 }
 
@@ -217,7 +228,7 @@ func extractHookResponseText(payload map[string]interface{}, hookEvent string) s
 	if payload == nil {
 		return ""
 	}
-	if response := payloadNestedString(payload, "response", "prompt_response", "promptResponse", "final_response", "finalResponse", "output"); response != "" {
+	if response := payloadNestedString(payload, "response", "prompt_response", "promptResponse", "final_response", "finalResponse", "last_assistant_message", "lastAssistantMessage", "output"); response != "" {
 		return response
 	}
 	lowerEvent := strings.ToLower(strings.TrimSpace(hookEvent))

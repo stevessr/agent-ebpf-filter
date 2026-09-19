@@ -36,7 +36,10 @@ var tlsProcessEnrichmentCache = struct {
 }{items: make(map[uint32]tlsProcessEnrichmentCacheEntry)}
 
 func detectAIToolFromComm(comm string) *aiToolMetadata {
-	lower := strings.ToLower(comm)
+	lower := strings.ToLower(strings.TrimSpace(comm))
+	if lower == "zcode" || lower == "zcode.appimage" {
+		return &aiToolMetadata{ToolName: "ZCode", ToolVendor: "Z.ai", ToolType: "ai_assistant"}
+	}
 	if lower == "zg" || lower == "zvec-grep" {
 		return &aiToolMetadata{ToolName: "zvec-grep", ToolVendor: "zvec-ai", ToolType: "search_service"}
 	}
@@ -52,6 +55,11 @@ func detectAIToolFromComm(comm string) *aiToolMetadata {
 func detectAIToolFromCmdline(cmdline string) *aiToolMetadata {
 	lower := strings.ToLower(strings.ReplaceAll(cmdline, "\x00", " "))
 	trimmed := strings.TrimSpace(lower)
+	if trimmed == "zcode" || strings.HasPrefix(trimmed, "zcode ") ||
+		strings.Contains(lower, "/zcode ") || strings.HasSuffix(trimmed, "/zcode") ||
+		strings.Contains(lower, "/zcode.appimage ") || strings.HasSuffix(trimmed, "/zcode.appimage") {
+		return &aiToolMetadata{ToolName: "ZCode", ToolVendor: "Z.ai", ToolType: "ai_assistant"}
+	}
 	if strings.Contains(lower, "@zvec/zvec-grep") || strings.Contains(lower, "/zvec-grep/") ||
 		trimmed == "zg" || strings.HasPrefix(trimmed, "zg ") || strings.Contains(lower, "/zg ") || strings.HasSuffix(trimmed, "/zg") {
 		return &aiToolMetadata{ToolName: "zvec-grep", ToolVendor: "zvec-ai", ToolType: "search_service"}
