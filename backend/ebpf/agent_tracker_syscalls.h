@@ -120,9 +120,7 @@ SEC("tracepoint/syscalls/sys_enter_socket")
 int tracepoint__syscalls__sys_enter_socket(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
-    u32 tag_id = get_tag_id(tgid, comm, NULL);
+    u32 tag_id = get_enter_tag_id_nopath(tgid);
     if (tag_id == 0) return 0;
     struct exit_compact_meta meta = {
         .type = TYPE_SOCKET,
@@ -157,9 +155,7 @@ SEC("tracepoint/syscalls/sys_enter_bind")
 int tracepoint__syscalls__sys_enter_bind(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = pid_tgid >> 32;
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
-    u32 tag_id = get_tag_id(pid, comm, NULL);
+    u32 tag_id = get_enter_tag_id_nopath(pid);
     if (tag_id == 0) return 0;
     struct exit_meta meta = {.type = TYPE_BIND, .tag_id = tag_id};
     fill_network_meta(&meta, (const void *)ctx->args[1], NET_DIR_LISTEN, 0);
@@ -176,9 +172,7 @@ SEC("tracepoint/syscalls/sys_enter_sendto")
 int tracepoint__syscalls__sys_enter_sendto(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = pid_tgid >> 32;
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
-    u32 tag_id = get_tag_id(pid, comm, NULL);
+    u32 tag_id = get_enter_tag_id_nopath(pid);
     if (tag_id == 0) return 0;
     struct exit_meta meta = {.type = TYPE_SENDTO, .tag_id = tag_id};
     fill_network_meta(&meta, (const void *)ctx->args[4], NET_DIR_OUTGOING, (u32)ctx->args[2]);
@@ -240,9 +234,7 @@ SEC("tracepoint/syscalls/sys_enter_recvfrom")
 int tracepoint__syscalls__sys_enter_recvfrom(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = pid_tgid >> 32;
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
-    u32 tag_id = get_tag_id(pid, comm, NULL);
+    u32 tag_id = get_enter_tag_id_nopath(pid);
     if (tag_id == 0) return 0;
     struct exit_meta meta = {.type = TYPE_RECVFROM, .tag_id = tag_id, .extra3 = (u32)ctx->args[2], .addr_ptr = ctx->args[4]};
     if (!store_exit_meta(pid_tgid, &meta)) {
@@ -257,9 +249,7 @@ SEC("tracepoint/syscalls/sys_enter_close")
 int tracepoint__syscalls__sys_enter_close(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
-    u32 tag_id = get_tag_id(tgid, comm, NULL);
+    u32 tag_id = get_enter_tag_id_nopath(tgid);
     if (tag_id == 0) return 0;
     struct exit_compact_meta meta = {.type = TYPE_SOCKET, .tag_id = tag_id, .extra2 = (u32)ctx->args[0]};
     store_exit_compact_meta(pid_tgid, &meta);
@@ -363,9 +353,7 @@ SEC("tracepoint/syscalls/sys_enter_read")
 int tracepoint__syscalls__sys_enter_read(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = (u32)(pid_tgid >> 32);
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
-    u32 tag_id = get_tag_id(tgid, comm, NULL);
+    u32 tag_id = get_enter_tag_id_nopath(tgid);
     if (tag_id == 0) return 0;
     s32 fd = (s32)ctx->args[0];
     struct exit_meta meta = {.type = TYPE_READ, .tag_id = tag_id, .extra1 = (u32)fd, .extra3 = (u32)ctx->args[2], .addr_ptr = ctx->args[1]};
@@ -427,9 +415,7 @@ SEC("tracepoint/syscalls/sys_enter_write")
 int tracepoint__syscalls__sys_enter_write(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
-    u32 tag_id = get_tag_id(tgid, comm, NULL);
+    u32 tag_id = get_enter_tag_id_nopath(tgid);
     if (tag_id == 0) return 0;
 
     s32 fd = (s32)ctx->args[0];
@@ -491,9 +477,7 @@ SEC("tracepoint/syscalls/sys_enter_writev")
 int tracepoint__syscalls__sys_enter_writev(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = (u32)(pid_tgid >> 32);
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
-    u32 tag_id = get_tag_id(tgid, comm, NULL);
+    u32 tag_id = get_enter_tag_id_nopath(tgid);
     if (tag_id == 0) return 0;
 
     s32 fd = (s32)ctx->args[0];
@@ -561,9 +545,7 @@ SEC("tracepoint/syscalls/sys_enter_readv")
 int tracepoint__syscalls__sys_enter_readv(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = (u32)(pid_tgid >> 32);
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
-    u32 tag_id = get_tag_id(tgid, comm, NULL);
+    u32 tag_id = get_enter_tag_id_nopath(tgid);
     if (tag_id == 0) return 0;
     s32 fd = (s32)ctx->args[0];
     struct exit_meta meta = {.type = TYPE_READ, .tag_id = tag_id, .extra1 = (u32)fd, .addr_ptr = ctx->args[1], .capture_reserved = (u32)ctx->args[2]};
@@ -633,9 +615,7 @@ SEC("tracepoint/syscalls/sys_enter_sendmsg")
 int tracepoint__syscalls__sys_enter_sendmsg(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = (u32)(pid_tgid >> 32);
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
-    u32 tag_id = get_tag_id(tgid, comm, NULL);
+    u32 tag_id = get_enter_tag_id_nopath(tgid);
     if (tag_id == 0) return 0;
     s32 fd = (s32)ctx->args[0];
     struct capture_msghdr64 msg = {};
@@ -707,9 +687,7 @@ SEC("tracepoint/syscalls/sys_enter_recvmsg")
 int tracepoint__syscalls__sys_enter_recvmsg(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = (u32)(pid_tgid >> 32);
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
-    u32 tag_id = get_tag_id(tgid, comm, NULL);
+    u32 tag_id = get_enter_tag_id_nopath(tgid);
     if (tag_id == 0) return 0;
     s32 fd = (s32)ctx->args[0];
     struct exit_meta meta = {.type = TYPE_RECVFROM, .tag_id = tag_id, .extra1 = (u32)fd, .extra2 = 0, .addr_ptr = ctx->args[1]};

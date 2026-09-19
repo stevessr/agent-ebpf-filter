@@ -1305,10 +1305,8 @@ SEC("tracepoint/syscalls/sys_enter_connect")
 int tracepoint__syscalls__sys_enter_connect(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = pid_tgid >> 32;
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
 
-    u32 tag_id = get_tag_id(pid, comm, NULL);
+    u32 tag_id = get_enter_tag_id_nopath(pid);
     if (tag_id == 0) return 0;
 
     struct exit_meta meta = {};

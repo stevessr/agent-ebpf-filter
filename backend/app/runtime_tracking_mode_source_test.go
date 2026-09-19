@@ -155,3 +155,36 @@ func TestPIDFirstEnterTrackingSourceContract(t *testing.T) {
 		}
 	}
 }
+
+func TestPIDFirstNetworkEnterSourceContract(t *testing.T) {
+	commonBytes, err := os.ReadFile("../ebpf/agent_tracker_common.h")
+	if err != nil {
+		t.Fatal(err)
+	}
+	syscallBytes, err := os.ReadFile("../ebpf/agent_tracker_syscalls.h")
+	if err != nil {
+		t.Fatal(err)
+	}
+	common := string(commonBytes)
+	syscalls := string(syscallBytes)
+
+	assertLazy := func(src, name string) {
+		t.Helper()
+		marker := "int tracepoint__syscalls__sys_enter_" + name + "(struct trace_event_raw_sys_enter *ctx) {"
+		block := sourceBlock(t, src, marker, "\n}\n")
+		if !strings.Contains(block, "get_enter_tag_id_nopath") {
+			t.Fatalf("%s bypasses PID-first no-path matcher", name)
+		}
+		if strings.Contains(block, "bpf_get_current_comm") {
+			t.Fatalf("%s performs an unconditional enter-side comm read", name)
+		}
+	}
+
+	assertLazy(common, "connect")
+	for _, name := range []string{
+		"socket", "bind", "sendto", "recvfrom", "close",
+		"read", "write", "writev", "readv", "sendmsg", "recvmsg",
+	} {
+		assertLazy(syscalls, name)
+	}
+}
