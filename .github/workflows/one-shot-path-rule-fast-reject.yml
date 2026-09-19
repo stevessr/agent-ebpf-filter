@@ -67,10 +67,11 @@ jobs:
           for needle in ('"tracking_mode"', 'syncTrackingModeMap(objs.TrackingMode', 'extractTrackedDataBestEffort()', 'restoreTrackedDataToMaps(', 'syncTrackingModeFlags(&loaded)'):
               if needle not in r:
                   raise SystemExit(f'runtime missing {needle}')
-          attach = r.find('if err := pinLinks(&objs)')
-          restore = r.find('restoreTrackedDataToMaps(')
+          fresh = r.find('_ = os.RemoveAll(ebpfPinRoot)')
+          restore = r.find('restoreTrackedDataToMaps(', fresh)
           sync = r.find('syncTrackingModeMap(objs.TrackingMode', restore)
-          if restore < 0 or sync < restore or attach < sync:
+          attach = r.find('if err := pinLinks(&objs)', sync)
+          if fresh < 0 or restore < fresh or sync < restore or attach < sync:
               raise SystemExit('fresh bootstrap attach happens before restore/mode sync')
           for method in ('TrackedPathsPut','TrackedPathsDelete','TrackedPrefixesPut','TrackedPrefixesDelete'):
               pos = h.find(f' {method}(')
