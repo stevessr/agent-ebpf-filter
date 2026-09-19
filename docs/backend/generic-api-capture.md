@@ -236,3 +236,15 @@ snapshots an existing selector before mutation and rolls it back if mode
 publication fails. If rollback or precise re-synchronization cannot be trusted,
 the mode map is forced to both path classes enabled, preserving capture
 correctness at the cost of extra path work rather than allowing a false reject.
+
+
+### PID-first enter-side selector lookup
+
+Correlation-only syscall enter programs now check the registered Agent PID map
+before reading the current command name. For a PID hit, path and scalar syscall
+macros skip the enter-side bpf_get_current_comm helper entirely; event
+construction on sys_exit still reads and reports the current comm as before.
+Only a PID miss pays the comm helper and tracked_comms lookup, and path-bearing
+syscalls proceed to tracking_mode/path inspection only after both selectors
+miss. Immediate tracepoint emitters such as TCP flow events are intentionally
+unchanged because they need comm for the event emitted in that same program.
