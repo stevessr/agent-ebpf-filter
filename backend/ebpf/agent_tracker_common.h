@@ -530,30 +530,71 @@ struct {
     __type(value, u32);
 } tracked_prefixes SEC(".maps");
 
-static __always_inline u32 get_tag_id(u32 pid, char *comm, char *path) {
+
+#define TRACKING_MODE_PATH_EXACT  (1U << 0)
+#define TRACKING_MODE_PATH_PREFIX (1U << 1)
+#define TRACKING_MODE_PATH_ANY    (TRACKING_MODE_PATH_EXACT | TRACKING_MODE_PATH_PREFIX)
+
+// Userspace maintains these bits from the actual tracked path maps. The array
+// lookup is performed only after PID/comm misses on path-bearing syscalls. If
+// lookup ever fails, fail open to full path matching so optimization can never
+// suppress configured path tracking.
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(max_entries, 1);
+    __type(key, u32);
+    __type(value, u32);
+} tracking_mode SEC(".maps");
+
+static __always_inline u32 tracking_path_mode(void) {
+    u32 key = 0;
+    u32 *flags = bpf_map_lookup_elem(&tracking_mode, &key);
+    return flags ? *flags : TRACKING_MODE_PATH_ANY;
+}
+
+static __always_inline u32 get_pid_comm_tag_id(u32 pid, char *comm) {
     u32 *tag = bpf_map_lookup_elem(&agent_pids, &pid);
     if (tag) return *tag;
     tag = bpf_map_lookup_elem(&tracked_comms, comm);
-    if (tag) return *tag;
-    if (path) {
+    return tag ? *tag : 0;
+}
+
+static __always_inline u32 get_path_tag_id(char *path, u32 path_flags) {
+    if (!path) return 0;
+    u32 *tag = 0;
+    if (path_flags & TRACKING_MODE_PATH_EXACT) {
         tag = bpf_map_lookup_elem(&tracked_paths, path);
         if (tag) return *tag;
-
-        // LPM trie prefix match
-        u32 path_len = 0;
-        #pragma unroll
-        for (path_len = 0; path_len < LPM_PATH_LEN; path_len++) {
-            if (path[path_len] == '\0') break;
-        }
-        if (path_len > 0) {
-            struct lpm_key lpmk = {};
-            lpmk.prefix_len = path_len * 8;
-            __builtin_memcpy(lpmk.data, path, LPM_PATH_LEN);
-            tag = bpf_map_lookup_elem(&tracked_prefixes, &lpmk);
-            if (tag) return *tag;
-        }
     }
+    if (!(path_flags & TRACKING_MODE_PATH_PREFIX)) return 0;
+
+    u32 path_len = 0;
+#pragma unroll
+    for (path_len = 0; path_len < LPM_PATH_LEN; path_len++) {
+        if (path[path_len] == '\0') break;
+    }
+    if (path_len == 0) return 0;
+
+    struct lpm_key lpmk = {};
+    lpmk.prefix_len = path_len * 8;
+    __builtin_memcpy(lpmk.data, path, LPM_PATH_LEN);
+    tag = bpf_map_lookup_elem(&tracked_prefixes, &lpmk);
+    return tag ? *tag : 0;
+}
+
+// Resolve the cheap PID/comm selectors before any userspace path read. The
+// caller only reads a path after a miss when path rules actually exist.
+static __always_inline u32 get_tag_id_pre_path(u32 pid, char *comm, u32 *path_flags) {
+    u32 tag_id = get_pid_comm_tag_id(pid, comm);
+    if (tag_id) return tag_id;
+    if (path_flags) *path_flags = tracking_path_mode();
     return 0;
+}
+
+static __always_inline u32 get_tag_id(u32 pid, char *comm, char *path) {
+    u32 tag_id = get_pid_comm_tag_id(pid, comm);
+    if (tag_id || !path) return tag_id;
+    return get_path_tag_id(path, tracking_path_mode());
 }
 
 static __always_inline void read_tracepoint_data_loc_str(char *dst, u32 size, const void *ctx, u32 data_loc) {
@@ -1122,13 +1163,17 @@ int tracepoint__syscalls__sys_enter_execve(struct trace_event_raw_sys_enter *ctx
     char comm[TASK_COMM_LEN];
     bpf_get_current_comm(&comm, sizeof(comm));
 
+    u32 path_flags = 0;
+    u32 tag_id = get_tag_id_pre_path(pid, comm, &path_flags);
+    if (tag_id == 0 && !(path_flags & TRACKING_MODE_PATH_ANY)) return 0;
+
     u32 zero = 0;
     struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_buf, &zero);
     if (!pd) return 0;
     const char *filename = (const char *)ctx->args[0];
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, filename);
 
-    u32 tag_id = get_tag_id(pid, comm, pd->path);
+    if (tag_id == 0) tag_id = get_path_tag_id(pd->path, path_flags);
     if (tag_id == 0) return 0;
 
     struct exit_compact_meta meta = {};
@@ -1177,13 +1222,17 @@ int tracepoint__syscalls__sys_enter_openat(struct trace_event_raw_sys_enter *ctx
     char comm[TASK_COMM_LEN];
     bpf_get_current_comm(&comm, sizeof(comm));
 
+    u32 path_flags = 0;
+    u32 tag_id = get_tag_id_pre_path(pid, comm, &path_flags);
+    if (tag_id == 0 && !(path_flags & TRACKING_MODE_PATH_ANY)) return 0;
+
     u32 zero = 0;
     struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_buf, &zero);
     if (!pd) return 0;
     const char *filename = (const char *)ctx->args[1];
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, filename);
 
-    u32 tag_id = get_tag_id(pid, comm, pd->path);
+    if (tag_id == 0) tag_id = get_path_tag_id(pd->path, path_flags);
     if (tag_id == 0) return 0;
 
     struct exit_compact_meta meta = {};
@@ -1276,13 +1325,17 @@ int tracepoint__syscalls__sys_enter_mkdirat(struct trace_event_raw_sys_enter *ct
     char comm[TASK_COMM_LEN];
     bpf_get_current_comm(&comm, sizeof(comm));
 
+    u32 path_flags = 0;
+    u32 tag_id = get_tag_id_pre_path(pid, comm, &path_flags);
+    if (tag_id == 0 && !(path_flags & TRACKING_MODE_PATH_ANY)) return 0;
+
     u32 zero = 0;
     struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_buf, &zero);
     if (!pd) return 0;
     const char *filename = (const char *)ctx->args[1];
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, filename);
 
-    u32 tag_id = get_tag_id(pid, comm, pd->path);
+    if (tag_id == 0) tag_id = get_path_tag_id(pd->path, path_flags);
     if (tag_id == 0) return 0;
 
     struct exit_compact_meta meta = {};
@@ -1332,13 +1385,17 @@ int tracepoint__syscalls__sys_enter_unlinkat(struct trace_event_raw_sys_enter *c
     char comm[TASK_COMM_LEN];
     bpf_get_current_comm(&comm, sizeof(comm));
 
+    u32 path_flags = 0;
+    u32 tag_id = get_tag_id_pre_path(pid, comm, &path_flags);
+    if (tag_id == 0 && !(path_flags & TRACKING_MODE_PATH_ANY)) return 0;
+
     u32 zero = 0;
     struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_buf, &zero);
     if (!pd) return 0;
     const char *filename = (const char *)ctx->args[1];
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, filename);
 
-    u32 tag_id = get_tag_id(pid, comm, pd->path);
+    if (tag_id == 0) tag_id = get_path_tag_id(pd->path, path_flags);
     if (tag_id == 0) return 0;
 
     struct exit_compact_meta meta = {};

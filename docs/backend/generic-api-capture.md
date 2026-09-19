@@ -211,3 +211,28 @@ map cannot be read, the pressure snapshot is reported unavailable rather than
 silently treating failures as zero. Path correlation is also all-or-nothing:
 if compact/full correlation or its companion path update fails, the sibling
 state is not left behind for a later pid/tgid reuse.
+
+### Path-rule fast reject
+
+Path-bearing syscall tracepoints now split cheap PID/comm matching from expensive
+user-path inspection. A tiny pinned `tracking_mode` ARRAY records whether exact
+or prefix path rules currently exist. After PID/comm misses, if neither class is
+configured the program returns before per-CPU path scratch lookup,
+`bpf_probe_read_user_str`, exact-path hash lookup, or LPM prefix matching.
+Tracked PID/comm events still snapshot and report their path, and configured
+path rules retain exact/prefix semantics. Mode lookup failure is fail-open to
+full path matching.
+
+The backend derives mode bits from the real tracked path maps, synchronizes them
+before tracepoint links are attached, and refreshes them after official path
+configuration mutations. Fresh bootstrap also performs best-effort backup of
+legacy tracked maps before replacing an older pin layout, restores rules before
+attach, then publishes the matching mode bits, preventing both config loss and
+reload-time false rejects when a new required map is introduced.
+
+
+Path/prefix registry mutations are serialized with mode publication. The backend
+snapshots an existing selector before mutation and rolls it back if mode
+publication fails. If rollback or precise re-synchronization cannot be trusted,
+the mode map is forced to both path classes enabled, preserving capture
+correctness at the cost of extra path work rather than allowing a false reject.

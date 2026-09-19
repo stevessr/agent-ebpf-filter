@@ -215,6 +215,7 @@ type TrackerMapSet struct {
 	TrackedComms         *ebpf.Map
 	TrackedPaths         *ebpf.Map
 	TrackedPrefixes      *ebpf.Map
+	TrackingMode         *ebpf.Map
 	Events               *ebpf.Map
 	CollectorStats       *ebpf.Map
 	ContextPressureStats *ebpf.Map

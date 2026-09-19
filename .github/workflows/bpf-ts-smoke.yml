@@ -9,6 +9,16 @@ on:
       - "tools/bpf-ts/**"
       - "backend/app/bpfts/**"
       - "backend/app/tls/**"
+      - "backend/app/runtime_ebpf.go"
+      - "backend/app/runtime_tracking_mode_test.go"
+      - "backend/app/runtime_tracking_mode_source_test.go"
+      - "backend/app/handlersbridge.go"
+      - "backend/app/server_mcp.go"
+      - "backend/app/runtime_ebpf.go"
+      - "backend/app/runtime_tracking_mode_test.go"
+      - "backend/app/runtime_tracking_mode_source_test.go"
+      - "backend/app/handlersbridge.go"
+      - "backend/app/server_mcp.go"
       - "backend/cmd/bpfts-manifest-check/**"
       - "backend/cmd/bpfts-attach-check/**"
       - "backend/ebpf/**"
@@ -74,7 +84,7 @@ jobs:
         run: git diff --exit-code -- backend/ebpf/*_bpf*.go
       - name: Kernel audit provenance tests
         working-directory: backend
-        run: go test ./core ./app/events ./app/observability ./app -run 'Test(BpfEventAuditABIGuard|KernelSequenceAudit|ApplyKernelAuditGeneration|KernelEnvelopeID)' -count=1
+        run: go test ./core ./app/events ./app/observability ./app -run 'Test(BpfEventAuditABIGuard|KernelSequenceAudit|ApplyKernelAuditGeneration|KernelEnvelopeID|TrackingModeFlags|PathRuleFastRejectSourceContract)' -count=1
       - name: Verify main agent tracker with kernel verifier
         working-directory: backend
         run: |

@@ -369,6 +369,7 @@ type AgentTrackerMapSpecs struct {
 	TrackedComms         *ebpf.MapSpec `ebpf:"tracked_comms"`
 	TrackedPaths         *ebpf.MapSpec `ebpf:"tracked_paths"`
 	TrackedPrefixes      *ebpf.MapSpec `ebpf:"tracked_prefixes"`
+	TrackingMode         *ebpf.MapSpec `ebpf:"tracking_mode"`
 }
 
 // AgentTrackerVariableSpecs contains global variables before they are loaded into the kernel.
@@ -412,6 +413,7 @@ type AgentTrackerMaps struct {
 	TrackedComms         *ebpf.Map `ebpf:"tracked_comms"`
 	TrackedPaths         *ebpf.Map `ebpf:"tracked_paths"`
 	TrackedPrefixes      *ebpf.Map `ebpf:"tracked_prefixes"`
+	TrackingMode         *ebpf.Map `ebpf:"tracking_mode"`
 }
 
 func (m *AgentTrackerMaps) Close() error {
@@ -431,6 +433,7 @@ func (m *AgentTrackerMaps) Close() error {
 		m.TrackedComms,
 		m.TrackedPaths,
 		m.TrackedPrefixes,
+		m.TrackingMode,
 	)
 }
 
