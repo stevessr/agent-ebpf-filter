@@ -84,7 +84,7 @@ jobs:
         run: git diff --exit-code -- backend/ebpf/*_bpf*.go
       - name: Kernel audit provenance tests
         working-directory: backend
-        run: go test ./core ./app/events ./app/observability ./app -run 'Test(BpfEventAuditABIGuard|KernelSequenceAudit|ApplyKernelAuditGeneration|KernelEnvelopeID|TrackingModeFlags|PathRuleFastRejectSourceContract|PIDFirstEnterTrackingSourceContract|PIDFirstNetworkEnterSourceContract)' -count=1
+        run: go test ./core ./app/events ./app/observability ./app -run 'Test(BpfEventAuditABIGuard|KernelSequenceAudit|ApplyKernelAuditGeneration|KernelEnvelopeID|TrackingModeFlags|PathRuleFastRejectSourceContract|PIDFirstEnterTrackingSourceContract|PIDFirstNetworkEnterSourceContract|L7ScratchLookupAfterProtocolGateSourceContract|RemainingMacroEnterPathsArePIDFirst)' -count=1
       - name: Verify main agent tracker with kernel verifier
         working-directory: backend
         run: |
