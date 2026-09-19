@@ -1,0 +1,106 @@
+name: one-shot compact IO correlation
+
+on:
+  push:
+    branches:
+      - perf/compact-io-correlation
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: perf/compact-io-correlation
+          fetch-depth: 0
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Install native build dependencies
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler clang llvm libbpf-dev libelf-dev
+      - name: Apply compact IO correlation
+        run: python3 .github/scripts/one_shot_compact_io_correlation.py
+      - name: Format Go changes
+        run: |
+          gofmt -w backend/core/types.go backend/app/runtime_ebpf.go \
+            backend/app/observabilitybridge.go backend/app/observability/metrics_collector.go \
+            backend/app/observability/metrics_collector_test.go backend/app/runtime_io_correlation_source_test.go
+      - name: Assert compact IO map contract
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          c = Path('backend/ebpf/agent_tracker_common.h').read_text()
+          s = Path('backend/ebpf/agent_tracker_syscalls.h').read_text()
+          r = Path('backend/app/runtime_ebpf.go').read_text()
+          b = Path('backend/app/observabilitybridge.go').read_text()
+          for needle in (
+              '_Static_assert(sizeof(struct exit_meta) == 88',
+              '_Static_assert(sizeof(struct exit_io_meta) == 64',
+              '__uint(max_entries, 6144);',
+              '} exit_io_ctx SEC(".maps");',
+              'CONTEXT_PRESSURE_EXIT_IO',
+              'exit_io_update_failures',
+          ):
+              if needle not in c:
+                  raise SystemExit(f'missing kernel IO contract: {needle}')
+          for name in ('read','write','readv','writev'):
+              for side in ('enter','exit'):
+                  marker=f'int tracepoint__syscalls__sys_{side}_{name}('
+                  start=s.find(marker); end=s.find('\n}\n',start)
+                  block=s[start:end]
+                  if start < 0 or 'struct exit_io_meta' not in block:
+                      raise SystemExit(f'{side} {name} does not use IO context')
+                  if side == 'enter' and ('store_exit_io_meta' not in block or 'store_exit_meta(' in block):
+                      raise SystemExit(f'enter {name} still writes full context')
+                  if side == 'exit' and ('consume_exit_io_meta' not in block or 'fill_from_exit_io_meta' not in block):
+                      raise SystemExit(f'exit {name} does not consume/fill IO context')
+          for needle in ('"exit_io_ctx"', 'objs.ExitIoCtx', 'ExitIoCtx:'):
+              if needle not in r:
+                  raise SystemExit(f'runtime missing IO map lifecycle: {needle}')
+          if '"exit_io_ctx":' not in b:
+              raise SystemExit('observability bridge missing exit_io_ctx')
+          PY
+      - name: Generate Go protobuf bindings
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          mkdir -p backend/pb
+          protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto \
+            proto/tracker_common.proto proto/tracker_events.proto proto/tracker_registration.proto \
+            proto/tracker_system.proto proto/tracker_config.proto proto/tracker_shell.proto
+      - name: Generate repository eBPF objects and bindings
+        working-directory: backend/ebpf
+        run: go generate
+      - name: Focused regression tests
+        working-directory: backend
+        run: |
+          go test ./app -run 'Test(CompactIOCorrelationSourceContract|TrackingModeFlags|PathRuleFastRejectSourceContract|PIDFirstEnterTrackingSourceContract|PIDFirstNetworkEnterSourceContract|L7ScratchLookupAfterProtocolGateSourceContract|RemainingMacroEnterPathsArePIDFirst)' -count=1
+          go test ./app/observability -run 'Test(AggregateContextPressureStats|ContextMapPressure)' -count=1
+          go test ./app/events -run 'Test(Kernel|BuildKernel|HTTP|Socket|Audit)' -count=1
+          go test ./app/tls -run 'Test.*(API|Fingerprint|HTTP|GRPC)' -count=1
+      - name: Verify generated IO bindings
+        run: |
+          grep -q 'ExitIoCtx.*ebpf:"exit_io_ctx"' backend/ebpf/agenttracker_bpfel.go
+          grep -q 'ExitIoCtx.*ebpf:"exit_io_ctx"' backend/ebpf/agenttracker_bpfeb.go
+          grep -q 'type AgentTrackerExitIoMeta struct' backend/ebpf/agenttracker_bpfel.go
+      - name: Verify main tracker with host kernel verifier
+        working-directory: backend
+        run: |
+          go build -o /tmp/agenttracker-verifier-check ./cmd/agenttracker-verifier-check
+          sudo /tmp/agenttracker-verifier-check
+      - name: Commit product changes
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add backend/core/types.go backend/app/runtime_ebpf.go backend/app/observabilitybridge.go \
+            backend/app/observability/metrics_collector.go backend/app/observability/metrics_collector_test.go \
+            backend/app/runtime_io_correlation_source_test.go backend/ebpf/agent_tracker_common.h \
+            backend/ebpf/agent_tracker_syscalls.h backend/ebpf/agenttracker_bpfel.go \
+            backend/ebpf/agenttracker_bpfeb.go docs/backend/generic-api-capture.md
+          git commit -m 'perf(ebpf): compact read write correlation context'
+          git push
