@@ -30,6 +30,7 @@ type AgentTrackerContextPressureStats struct {
 	PairPathUpdateFailures     uint64
 	SocketFdUpdateFailures     uint64
 	SocketParentUpdateFailures uint64
+	ExitIoUpdateFailures       uint64
 }
 
 type AgentTrackerExitCompactMeta struct {
@@ -40,6 +41,21 @@ type AgentTrackerExitCompactMeta struct {
 	Extra2  uint32
 	Extra3  uint64
 	StartNs uint64
+}
+
+type AgentTrackerExitIoMeta struct {
+	_            structs.HostLayout
+	Type         uint32
+	TagId        uint32
+	Extra1       uint32
+	Extra2       uint32
+	Extra3       uint64
+	AddrPtr      uint64
+	NetFamily    uint32
+	NetPort      uint32
+	NetAddr      [16]int8
+	CaptureFlags uint32
+	SocketType   uint32
 }
 
 type AgentTrackerExitMeta struct {
@@ -360,6 +376,7 @@ type AgentTrackerMapSpecs struct {
 	Events               *ebpf.MapSpec `ebpf:"events"`
 	ExitCompactCtx       *ebpf.MapSpec `ebpf:"exit_compact_ctx"`
 	ExitCtx              *ebpf.MapSpec `ebpf:"exit_ctx"`
+	ExitIoCtx            *ebpf.MapSpec `ebpf:"exit_io_ctx"`
 	ExitPathBuf          *ebpf.MapSpec `ebpf:"exit_path_buf"`
 	ExitPathCtx          *ebpf.MapSpec `ebpf:"exit_path_ctx"`
 	ExitSinglePathBuf    *ebpf.MapSpec `ebpf:"exit_single_path_buf"`
@@ -404,6 +421,7 @@ type AgentTrackerMaps struct {
 	Events               *ebpf.Map `ebpf:"events"`
 	ExitCompactCtx       *ebpf.Map `ebpf:"exit_compact_ctx"`
 	ExitCtx              *ebpf.Map `ebpf:"exit_ctx"`
+	ExitIoCtx            *ebpf.Map `ebpf:"exit_io_ctx"`
 	ExitPathBuf          *ebpf.Map `ebpf:"exit_path_buf"`
 	ExitPathCtx          *ebpf.Map `ebpf:"exit_path_ctx"`
 	ExitSinglePathBuf    *ebpf.Map `ebpf:"exit_single_path_buf"`
@@ -424,6 +442,7 @@ func (m *AgentTrackerMaps) Close() error {
 		m.Events,
 		m.ExitCompactCtx,
 		m.ExitCtx,
+		m.ExitIoCtx,
 		m.ExitPathBuf,
 		m.ExitPathCtx,
 		m.ExitSinglePathBuf,
