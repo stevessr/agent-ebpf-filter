@@ -7,6 +7,8 @@ import { augmentHook } from "./hooks/augment";
 import { antigravityHook } from "./hooks/antigravity";
 import { copilotHook } from "./hooks/copilot";
 import { dshHook } from "./hooks/dsh";
+import { zcodeHook } from "./hooks/zcode";
+import { mcodeHook } from "./hooks/mcode";
 import { piHook } from "./hooks/pi";
 import { ompHook } from "./hooks/omp";
 
@@ -21,6 +23,8 @@ export const hookCatalog: Record<string, HookCliDoc> = {
 	antigravity: antigravityHook,
 	copilot: copilotHook,
 	dsh: dshHook,
+	zcode: zcodeHook,
+	mcode: mcodeHook,
 	pi: piHook,
 	omp: ompHook,
 };
