@@ -138,7 +138,7 @@ func TestHookConfigRawSupportsTypeScriptAndValidatesDocuments(t *testing.T) {
 
 func TestDshHookConfigurationUsesWrapperAlias(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	shellConfig := filepath.Join(t.TempDir(), ".bashrc")
+	shellConfig := filepath.Join(t.TempDir(), ".config", "fish", "config.fish")
 	oldAvailableHooks := Deps.AvailableHooks
 	oldGetShellConfigPath := Deps.GetShellConfigPath
 	Deps.AvailableHooks = func() []core.HookDef {
