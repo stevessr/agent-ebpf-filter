@@ -121,6 +121,16 @@ var AvailableHooks = []HookDef{
 		TargetCmd:   "dsh",
 	},
 	{
+		ID: "zcode", Name: "ZCode", HookType: HookTypeWrapper,
+		Description: "Optional shell wrapper for the zcode CLI; desktop tasks remain observable through tracked processes without injecting undocumented hooks.",
+		TargetCmd: "zcode",
+	},
+	{
+		ID: "mcode", Name: "MiniMax Code", HookType: HookTypeWrapper,
+		Description: "Optional shell wrapper for the mcode CLI; keeps MiniMax Code's own configuration and ACP integration unchanged.",
+		TargetCmd: "mcode",
+	},
+	{
 		ID: "pi", Name: "Pi", HookType: HookTypeNative,
 		Description:  "Installs a TypeScript extension in Pi's user extension directory for session and tool-call telemetry",
 		TargetCmd:    "pi",
