@@ -166,6 +166,16 @@ export AGENT_API_KEY="$(jq -r .accessToken ~/.config/agent-ebpf-filter/runtime.j
 - **不想修改 Agent 代码**：通过 Configuration 页面添加命令名称
 - **Shell 密集型工作流**：命令名称匹配是低开销的 exact match
 
+## ZCode / MiniMax Code（mcode）兼容
+
+- `zcode` 和 `mcode` 默认作为 `Agent CLI` 追踪；不需要修改第三方安装目录。现有 PID/PPID lineage 会关联可观察的子进程，但 **不会从进程名推断或伪造 run/task/tool_call ID**。
+- TLS 自动发现会识别直接启动的 `zcode` / `mcode`，以及可辨识的 MiniMax Code npm / installer Node 启动路径和 ZCode CLI 路径。桌面客户端若使用独立或改名的子进程，可在 Configuration 中追加明确的 tracked command，或用 PID 注册关联。
+- Hooks 页面提供 **可选 wrapper-only** shell alias。MiniMax Code 的 `mcode`（TUI / `exec` / ACP）和 ZCode CLI 可从交互式 shell 通过 `agent-wrapper` 启动；桌面 GUI、直接启动的二进制文件及已运行的进程不会因 alias 自动经过 wrapper。此集成不会向 ZCode 或 MiniMax Code 写入未经确认的 native hook 配置，也不接管它们的模型/登录配置。
+- MiniMax API Fingerprint 在取得 Host + HTTP 方法 + 路径时识别 `api.minimax.io` / `api.minimaxi.com` 的 Messages、Chat Completions（含旧 `text/chatcompletion_v2`）和 Responses 接口。**API vendor 与调用方 harness 是两个独立维度**：`mcode` 可使用其他 provider，其他 Agent 也可调用 MiniMax。仅有通用兼容路径或 TLS SNI 时不能断言来源 CLI，更不能推断具体模型、token 用量或完整 URL。
+- 本项目的 TLS 明文采集仍受运行时开关与权限控制，默认关闭。纯 socket/eBPF 捕获不能解密 HTTPS；启用兼容配置不会自动开启 MITM 或读取 prompt / API key。
+
+若需要精确的会话/任务级归属，应使用明确的 PID 注册及相应 adapter，或仅在上游正式提供受支持的 hook/ACP telemetry 接口时添加协议适配；不要解析第三方私有会话数据库并将其当作稳定协议。
+
 ## zvec-grep 兼容
 
 [`zvec-ai/zvec-grep`](https://github.com/zvec-ai/zvec-grep) 的 `zg` CLI 和
