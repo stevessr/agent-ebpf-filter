@@ -12,6 +12,7 @@ import (
 	"os"
 	"sync"
 	"time"
+	"unicode/utf8"
 	"unsafe"
 
 	"agent-ebpf-filter/app/events"
@@ -51,42 +52,44 @@ func (jobs *runtimeBackgroundJobs) Wait(ctx context.Context) error {
 	}
 }
 
-// ---- moved from backend/zz_merged_backend.go section jobs_background.go ----
-
 var nativeLittleEndian = func() bool {
 	var value uint16 = 1
 	return *(*byte)(unsafe.Pointer(&value)) == 1
 }()
 
-// Pointers to filtering functions set at init time.
-var (
-	isCommDisabledFunc      func(comm string) bool
-	isEventTypeDisabledFunc func(et uint32) bool
-)
-
-// isCommDisabled checks whether a command name has been disabled via config.
-// Must only be called after startKernelEventReader has wired it.
-func isCommDisabled(comm string) bool {
-	if isCommDisabledFunc != nil {
-		return isCommDisabledFunc(comm)
+// commDisabled reports whether the raw kernel comm buffer names a command the
+// operator disabled. Clean buffers (the overwhelmingly common case) are looked
+// up through a transient string view, so the check does not allocate.
+func commDisabled(raw []byte) bool {
+	comm := events.TrimNUL(raw)
+	if len(comm) == 0 {
+		return false
 	}
-	return false
+	disabledCommsMu.RLock()
+	defer disabledCommsMu.RUnlock()
+	if len(disabledComms) == 0 {
+		return false
+	}
+	if bytes.IndexByte(comm, 0) < 0 && utf8.Valid(comm) {
+		_, ok := disabledComms[string(comm)]
+		return ok
+	}
+	_, ok := disabledComms[sanitizeUTF8(raw)]
+	return ok
 }
 
-// isEventTypeDisabled checks whether an event type has been disabled via config.
-// Must only be called after startKernelEventReader has wired it.
-func isEventTypeDisabled(et uint32) bool {
-	if isEventTypeDisabledFunc != nil {
-		return isEventTypeDisabledFunc(et)
-	}
-	return false
+func eventTypeDisabled(eventType uint32) bool {
+	disabledEventTypesMu.RLock()
+	defer disabledEventTypesMu.RUnlock()
+	_, ok := disabledEventTypes[eventType]
+	return ok
 }
 
 // decodeBPFEventRecord returns a view over the ring-buffer sample when the host
 // layout matches the generated little-endian BPF object. The pointer must not be
-// retained after the caller finishes processing this record because RawSample is
-// backed by the ringbuf reader's mmap window. On non-native endian or unaligned
-// samples it falls back to the old binary.Read copy path.
+// retained after the caller finishes processing this record because the sample
+// buffer is reused for the next ReadInto call. On non-native endian or
+// unaligned samples it falls back to the old binary.Read copy path.
 func decodeBPFEventRecord(raw []byte) (*bpfEvent, bool, error) {
 	if len(raw) < bpfEventSampleSize {
 		return nil, false, fmt.Errorf("short eBPF event sample: got %d bytes, want at least %d", len(raw), bpfEventSampleSize)
@@ -106,8 +109,11 @@ func decodeBPFEventRecord(raw []byte) (*bpfEvent, bool, error) {
 	return event, false, nil
 }
 
+// kernelEventReader is the subset of *ringbuf.Reader the event loop needs.
+// ReadInto lets the loop own one sample buffer for its whole lifetime instead
+// of allocating a fresh one per record.
 type kernelEventReader interface {
-	Read() (ringbuf.Record, error)
+	ReadInto(*ringbuf.Record) error
 	Close() error
 }
 
@@ -115,24 +121,11 @@ func startKernelEventReader(ctx context.Context, rd kernelEventReader, jobs *run
 	if ctx == nil || rd == nil || jobs == nil {
 		return
 	}
-	// Wire config filter functions from the app-level globals.
-	isCommDisabledFunc = func(comm string) bool {
-		disabledCommsMu.RLock()
-		defer disabledCommsMu.RUnlock()
-		_, ok := disabledComms[comm]
-		return ok
-	}
-	isEventTypeDisabledFunc = func(et uint32) bool {
-		disabledEventTypesMu.RLock()
-		defer disabledEventTypesMu.RUnlock()
-		_, ok := disabledEventTypes[et]
-		return ok
-	}
 	jobs.Go(func() {
 		selfPid := uint32(os.Getpid())
+		record := ringbuf.Record{RawSample: make([]byte, bpfEventSampleSize)}
 		for {
-			record, err := rd.Read()
-			if err != nil {
+			if err := rd.ReadInto(&record); err != nil {
 				return
 			}
 			event, zeroCopy, err := decodeBPFEventRecord(record.RawSample)
@@ -144,11 +137,7 @@ func startKernelEventReader(ctx context.Context, rd kernelEventReader, jobs *run
 			if event.PID == selfPid {
 				continue
 			}
-			comm := sanitizeUTF8(event.Comm[:])
-			if isCommDisabledFunc(comm) {
-				continue
-			}
-			if isEventTypeDisabledFunc(event.Type) {
+			if commDisabled(event.Comm[:]) || eventTypeDisabled(event.Type) {
 				continue
 			}
 			enqueueBroadcastEvent(broadcast, buildKernelEventFromRaw(event), "kernel_event_reader")

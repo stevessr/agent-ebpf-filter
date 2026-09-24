@@ -1,12 +1,15 @@
 package events
 
 import (
-	"agent-ebpf-filter/app/captureprofile"
+	"bytes"
 	"fmt"
 	"net"
 	"strconv"
 	"strings"
+	"unicode/utf8"
+	"unsafe"
 
+	"agent-ebpf-filter/app/captureprofile"
 	"agent-ebpf-filter/pb"
 )
 
@@ -178,10 +181,48 @@ func FormatNetworkSummary(direction, endpoint string, bytes uint32) string {
 // eBPF tracepoints write paths into fixed-size buffers; trailing NUL padding is
 // trimmed first, then any embedded NUL bytes (from uninitialised buffer regions
 // or multi-field packing) are removed before the UTF‑8 safety pass.
+//
+// The bounds are computed on the byte view so only the populated prefix is
+// ever copied out of the ring-buffer sample; valid input costs exactly one
+// allocation of its own length.
 func SanitizeUTF8(b []byte) string {
-	cleaned := strings.TrimRight(string(b), "\x00")
-	cleaned = strings.ReplaceAll(cleaned, "\x00", "")
-	return strings.ToValidUTF8(cleaned, "�")
+	b = bytes.TrimRight(b, "\x00")
+	if len(b) == 0 {
+		return ""
+	}
+	if bytes.IndexByte(b, 0) < 0 {
+		if utf8.Valid(b) {
+			return string(b)
+		}
+		return ownedString(bytes.ToValidUTF8(b, utf8ReplacementBytes))
+	}
+	cleaned := make([]byte, 0, len(b))
+	for _, c := range b {
+		if c != 0 {
+			cleaned = append(cleaned, c)
+		}
+	}
+	if !utf8.Valid(cleaned) {
+		cleaned = bytes.ToValidUTF8(cleaned, utf8ReplacementBytes)
+	}
+	return ownedString(cleaned)
+}
+
+var utf8ReplacementBytes = []byte("�")
+
+// ownedString views a freshly allocated, never-again-mutated byte slice as a
+// string without copying it. Callers must not retain b.
+func ownedString(b []byte) string {
+	if len(b) == 0 {
+		return ""
+	}
+	return unsafe.String(&b[0], len(b))
+}
+
+// TrimNUL returns the populated prefix of a fixed-size kernel buffer as a view
+// into b (no copy). The result is only valid while b is.
+func TrimNUL(b []byte) []byte {
+	return bytes.TrimRight(b, "\x00")
 }
 
 // ── Event builder ─────────────────────────────────────────────────────
@@ -324,7 +365,7 @@ func BuildKernelEventFromRaw(event *BpfEvent) *pb.Event {
 		out.NetDirection = "outgoing"
 		out.NetFamily = "AF_INET"
 		out.NetEndpoint = fmt.Sprintf("dns:%d", event.NetPort)
-		out.Domain = SanitizeUTF8(event.Path[:])
+		out.Domain = path
 	case "socket_http":
 		startLine, ok := captureprofile.ParseHTTP1StartLine(extraPath)
 		out.CaptureSource = "kernel_socket_prefix"
@@ -437,9 +478,10 @@ func BuildKernelEventFromRaw(event *BpfEvent) *pb.Event {
 			PopulateEventFlowFields(out, srcIP, dstIP, srcPort, dstPort, "TCP")
 			Deps.RecordNetworkFlowContextFromEvent(srcIP, dstIP, srcPort, dstPort, out, flowState)
 			Deps.BandwidthTrackerRecordBytes(srcIP, dstIP, dstPort, "TCP", out.NetDirection, uint64(out.NetBytes), out.Comm, out.Pid)
-			// Protocol detection from captured payload
-			if extraPath := SanitizeUTF8(event.Extra4[:]); len(extraPath) > 4 {
-				entry := Deps.DetectAndRecordProtocol(dstIP, dstPort, []byte(extraPath))
+			// Protocol detection reads the captured payload in place; the raw
+			// bytes matter because TLS/DNS headers legitimately contain NULs.
+			if payload := TrimNUL(event.Extra4[:]); len(payload) > 4 {
+				entry := Deps.DetectAndRecordProtocol(dstIP, dstPort, payload)
 				Deps.FlowAggregatorApplyProtocolMetadata(srcIP, dstIP, srcPort, dstPort, "TCP", entry)
 				ApplyProtocolMetadataToEvent(out, entry)
 				if entry != nil && entry.SNI != "" {
@@ -471,7 +513,7 @@ func BuildKernelEventFromRaw(event *BpfEvent) *pb.Event {
 			Deps.TCPTrackerRecordStateChange(srcIP, dstIP, srcPort, dstPort, oldState, newState, out.Pid, out.Comm)
 		}
 		if (typeName == "network_sendto" || typeName == "network_recvfrom") && dstPort > 0 {
-			RecordUDPFlowFromEvent(*event, out)
+			RecordUDPFlowFromEvent(event, out)
 		}
 	}
 

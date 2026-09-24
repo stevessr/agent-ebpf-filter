@@ -3,7 +3,6 @@ package events
 import (
 	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
-	"fmt"
 	"net"
 	"path/filepath"
 	"strconv"
@@ -28,9 +27,42 @@ func (d kernelRiskDecision) reasonText() string {
 	return strings.Join(d.Reasons, ",")
 }
 
+const kernelRiskInfoPrefix = "kernel_risk score="
+
+// annotateExtraInfo appends the "kernel_risk score=.. decision=.. reasons=.."
+// summary to extraInfo in a single allocation. It mirrors what
+// fmt.Sprintf("%.0f") would print for the score.
+func (d kernelRiskDecision) annotateExtraInfo(extraInfo string) string {
+	decision := Deps.StringsTrimDefault(d.Decision, "OBSERVE")
+	size := len(extraInfo) + 1 + len(kernelRiskInfoPrefix) + 4 + len(" decision=") + len(decision) + len(" reasons=")
+	for _, reason := range d.Reasons {
+		size += len(reason) + 1
+	}
+	var b strings.Builder
+	b.Grow(size)
+	if extraInfo != "" {
+		b.WriteString(extraInfo)
+		b.WriteByte(' ')
+	}
+	b.WriteString(kernelRiskInfoPrefix)
+	var scoreBuf [24]byte
+	b.Write(strconv.AppendFloat(scoreBuf[:0], d.Score, 'f', 0, 64))
+	b.WriteString(" decision=")
+	b.WriteString(decision)
+	b.WriteString(" reasons=")
+	for i, reason := range d.Reasons {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		b.WriteString(reason)
+	}
+	return b.String()
+}
+
 // applyKernelRiskDecision runs a low-latency user-space risk pass while the
 // eBPF ring-buffer sample is still being consumed. The event pointer is a
-// zero-copy view over the mmap-backed sample in the fast path; do not retain it.
+// zero-copy view over the reader's reused sample buffer in the fast path; do
+// not retain it past this call.
 func ApplyKernelRiskDecision(raw *BpfEvent, event *pb.Event) {
 	if raw == nil || event == nil {
 		return
@@ -49,13 +81,8 @@ func ApplyKernelRiskDecision(raw *BpfEvent, event *pb.Event) {
 	if event.Decision == "" && decision.Decision != "" {
 		event.Decision = decision.Decision
 	}
-	if reason := decision.reasonText(); reason != "" {
-		riskInfo := fmt.Sprintf("kernel_risk score=%.0f decision=%s reasons=%s", decision.Score, Deps.StringsTrimDefault(decision.Decision, "OBSERVE"), reason)
-		if event.ExtraInfo == "" {
-			event.ExtraInfo = riskInfo
-		} else if !strings.Contains(event.ExtraInfo, "kernel_risk score=") {
-			event.ExtraInfo = event.ExtraInfo + " " + riskInfo
-		}
+	if len(decision.Reasons) > 0 && !strings.Contains(event.ExtraInfo, kernelRiskInfoPrefix) {
+		event.ExtraInfo = decision.annotateExtraInfo(event.ExtraInfo)
 	}
 	queueKernelRiskFeedback(event, decision)
 }
@@ -84,9 +111,10 @@ func evaluateKernelRiskDecision(raw *BpfEvent, event *pb.Event) kernelRiskDecisi
 	typeName := event.GetType()
 	comm := strings.ToLower(event.GetComm())
 	path := strings.ToLower(platform.FirstNonEmpty(event.GetPath(), event.GetExtraPath()))
-	tag := strings.ToLower(event.GetTag())
 
-	if strings.Contains(tag, "agent") || strings.Contains(tag, "wrapper") {
+	// Tags are short labels like "AI Agent"; a case-insensitive scan avoids
+	// lower-casing a fresh string for every event.
+	if tag := event.GetTag(); containsFoldASCII(tag, "agent") || containsFoldASCII(tag, "wrapper") {
 		add(8, "agent_context")
 	}
 
@@ -253,4 +281,32 @@ func isPrivateKernelRiskIP(ip net.IP) bool {
 		return false
 	}
 	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast()
+}
+
+// containsFoldASCII reports whether s contains lowerSub ignoring ASCII case;
+// lowerSub must already be lower-case ASCII. Unlike strings.ToLower it never
+// allocates.
+func containsFoldASCII(s, lowerSub string) bool {
+	if len(lowerSub) == 0 {
+		return true
+	}
+	if len(lowerSub) > len(s) {
+		return false
+	}
+	for i := 0; i+len(lowerSub) <= len(s); i++ {
+		j := 0
+		for ; j < len(lowerSub); j++ {
+			c := s[i+j]
+			if 'A' <= c && c <= 'Z' {
+				c += 'a' - 'A'
+			}
+			if c != lowerSub[j] {
+				break
+			}
+		}
+		if j == len(lowerSub) {
+			return true
+		}
+	}
+	return false
 }

@@ -1,7 +1,6 @@
 package events
 
 import (
-	"bytes"
 	"fmt"
 	"net"
 
@@ -43,7 +42,7 @@ func NetParseIPForFlow(ip string) net.IP {
 	return net.ParseIP(ip)
 }
 
-func RecordUDPFlowFromEvent(event BpfEvent, out *pb.Event) {
+func RecordUDPFlowFromEvent(event *BpfEvent, out *pb.Event) {
 	if out == nil {
 		return
 	}
@@ -62,7 +61,7 @@ func RecordUDPFlowFromEvent(event BpfEvent, out *pb.Event) {
 	}
 	Deps.RecordNetworkFlowContextFromEvent(srcIP, dstIP, srcPort, dstPort, out, "")
 	PopulateEventFlowFields(out, srcIP, dstIP, srcPort, dstPort, "UDP")
-	if payload := bytes.TrimRight(event.Extra4[:], "\x00"); len(payload) > 4 {
+	if payload := TrimNUL(event.Extra4[:]); len(payload) > 4 {
 		entry := Deps.DetectAndRecordProtocol(remote, dstPort, payload)
 		Deps.FlowAggregatorApplyProtocolMetadata(srcIP, dstIP, srcPort, dstPort, "UDP", entry)
 		ApplyProtocolMetadataToEvent(out, entry)

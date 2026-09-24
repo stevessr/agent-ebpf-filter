@@ -8,7 +8,7 @@
 
 ```mermaid
 flowchart TD
-    Start["startKernelEventReader(rd)"] --> Read["rd.Read()"]
+    Start["startKernelEventReader(rd)"] --> Read["rd.ReadInto(&record)  (复用同一块 sample 缓冲)"]
     Read --> Decode["decodeBPFEventRecord(record.RawSample)"]
     Decode --> SelfFilter["self PID 过滤"]
     SelfFilter --> DisabledFilter["disabled comm / event type 过滤"]
@@ -18,12 +18,25 @@ flowchart TD
 
 ## 解码策略
 
+读取循环持有一个 `ringbuf.Record`，通过 `ReadInto` 复用其 `RawSample` 缓冲：内核 ring
+到用户态只有一次必要拷贝，之后每条事件不再分配新的 sample 切片。
+
 `decodeBPFEventRecord()`：
 
 - 如果 RawSample 长度不足，返回错误；
-- 如果 native little-endian 且内存对齐，则直接构造 `*bpfEvent` view；
+- 如果 native little-endian 且内存对齐，则直接构造 `*bpfEvent` view（指针在下一次 `ReadInto` 前有效）；
 - 否则 `binary.Read` 到新结构体；
 - 记录 zero-copy / copy 指标。
+
+### 字符串与 payload 视图
+
+- `events.SanitizeUTF8()` 先在字节视图上裁掉 NUL 填充，再只拷贝有效前缀：一条 `openat`
+  事件从复制 256 字节路径缓冲降为按实际长度分配一次；含嵌入 NUL 或非法 UTF-8 的输入走
+  慢路径，语义与旧实现逐字节一致（见 `sanitize_test.go`）。
+- `events.TrimNUL()` 返回原缓冲的切片视图，协议探测 (`DetectAndRecordProtocol`) 直接读取
+  原始 payload，不再经过 string→[]byte 往返，TLS/DNS 头里的 NUL 字节也得以保留。
+- 禁用 comm 的过滤 (`commDisabled`) 用 `map[string(bytes)]` 的临时视图查表，整条过滤链路
+  在常见情况下零分配。
 
 ## Process context
 
@@ -41,13 +54,20 @@ flowchart TD
 
 事件进入 broadcast channel 后，后端会：
 
-- 广播给 `/ws`；
+- 每 50 ms 或每 50 条打包成一个 `EventBatch` 广播给 `/ws`（无订阅者时跳过序列化）；
 - 构造 EventEnvelope；
 - 写入 CapturedEventArchive；
 - 按配置写 JSONL；
 - 推送 `/ws/envelopes`；
 - 更新 Execution Graph / AgentSight / OTLP 派生数据；
 - 触发可选 kernel risk feedback。
+
+### WebSocket 扇出 (`internal/wsfanout`)
+
+`/ws`、`/ws/envelopes` 共用 `wsfanout.Hub`。一次 `Broadcast` 只序列化一份 protobuf，
+并包装成 `websocket.PreparedMessage`：帧头与 payload 只编码一次，随后对每个连接用向量
+写直接发送，不再按连接逐个拷贝到写缓冲。每个连接有独立的有界队列和 writer goroutine，
+慢客户端在队列满时被断开，不会阻塞事件摄取。该包不依赖 `app`，可独立测试。
 
 ## EventArchive
 
