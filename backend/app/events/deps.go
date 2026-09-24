@@ -2,6 +2,7 @@ package events
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"agent-ebpf-filter/core"
@@ -85,6 +86,23 @@ type CollectorMetricsStore interface {
 	RecordKernelRiskFeedback(success bool, err error)
 }
 
+// NoopCollectorMetrics discards kernel-risk metrics; it is the default so
+// the risk pass can run in tests without the observability store.
+type NoopCollectorMetrics struct{}
+
+func (NoopCollectorMetrics) RecordKernelRiskDecision(string, time.Duration) {}
+func (NoopCollectorMetrics) RecordKernelRiskFeedback(bool, error)           {}
+
+// KernelRiskEnforcer applies kernel-risk feedback actions. The app package
+// implements it over the cgroup and LSM sandboxes.
+type KernelRiskEnforcer interface {
+	BlockIP(ip string) error
+	BlockPort(port uint16) error
+	BlockFileName(name string) error
+	BlockExecPath(path string) error
+	BlockExecName(name string) error
+}
+
 // ── Dependency injection ───────────────────────────────────────────────
 
 // Deps holds all dependencies injected by the parent app package at init
@@ -94,7 +112,9 @@ var Deps struct {
 	GetTagName                           func(id uint32) string
 	SyscallName                          func(nr uint32) string
 	ApplyBestEffortProcessContextToEvent func(event *pb.Event)
-	ApplyKernelRiskDecision              func(raw *BpfEvent, event *pb.Event)
+	// KernelRisk is the kernel-risk pass run on every decoded kernel event.
+	// It defaults to ApplyKernelRiskDecision; tests may replace it.
+	KernelRisk func(raw *BpfEvent, event *pb.Event)
 
 	// Network is where decoded network events report TCP state, bandwidth,
 	// flow context, protocol detection and DNS correlation.
@@ -111,14 +131,9 @@ var Deps struct {
 	// question without copying the full RuntimeSettings.
 	KernelRiskFeedbackGate func() (policyManagement bool, feedback KernelRiskFeedbackSettings)
 	CollectorMetrics       CollectorMetricsStore
-	StringsTrimDefault     func(value, fallback string) string
 
-	// Kernel-risk feedback enforcement closures
-	BlockIP          func(ipStr string) error
-	BlockPort        func(port uint16) error
-	BlockLsmFileName func(name string) error
-	BlockLsmExecPath func(path string) error
-	BlockLsmExecName func(name string) error
+	// Enforcer applies kernel-risk feedback actions.
+	Enforcer KernelRiskEnforcer
 
 	// Process context / cgroup attribution (used by context_event.go)
 	ProcessContexts         *ProcessContextStore
@@ -131,4 +146,19 @@ var Deps struct {
 
 	// Event schema version (used by alerts_semantic.go)
 	EventSchemaVersion string
+}
+
+func init() {
+	Deps.KernelRisk = ApplyKernelRiskDecision
+	Deps.CollectorMetrics = NoopCollectorMetrics{}
+	Deps.Network = NoopNetworkSink{}
+}
+
+// trimDefault returns value without surrounding whitespace, or fallback when
+// nothing is left.
+func trimDefault(value, fallback string) string {
+	if trimmed := strings.TrimSpace(value); trimmed != "" {
+		return trimmed
+	}
+	return fallback
 }

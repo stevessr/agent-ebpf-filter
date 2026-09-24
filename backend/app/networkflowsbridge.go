@@ -91,6 +91,16 @@ func (appNetworkSink) LookupDNS(ip string) (string, bool) {
 	return currentDNSCorrelation().LookupIP(ip)
 }
 
+// sandboxEnforcer applies kernel-risk feedback through the cgroup and LSM
+// sandboxes.
+type sandboxEnforcer struct{}
+
+func (sandboxEnforcer) BlockIP(ip string) error         { return blockIP(ip) }
+func (sandboxEnforcer) BlockPort(port uint16) error     { return blockPort(port) }
+func (sandboxEnforcer) BlockFileName(name string) error { return blockLsmFileName(name) }
+func (sandboxEnforcer) BlockExecPath(path string) error { return blockLsmExecPath(path) }
+func (sandboxEnforcer) BlockExecName(name string) error { return blockLsmExecName(name) }
+
 // ── Bridge functions (called by remaining app-package code) ─────────────
 
 // sanitizeUTF8 bridges to events.SanitizeUTF8. Both callers
@@ -117,7 +127,7 @@ func init() {
 	events.Deps.GetTagName = getTagName
 	events.Deps.SyscallName = syscallName
 	events.Deps.ApplyBestEffortProcessContextToEvent = applyBestEffortProcessContextToEvent
-	events.Deps.ApplyKernelRiskDecision = func(raw *events.BpfEvent, event *pb.Event) {
+	events.Deps.KernelRisk = func(raw *events.BpfEvent, event *pb.Event) {
 		applyKernelRiskDecision((*bpfEvent)(raw), event)
 	}
 	events.Deps.Network = appNetworkSink{}
@@ -135,14 +145,7 @@ func init() {
 
 	// Collector metrics (kernel risk)
 	events.Deps.CollectorMetrics = collectorMetricsStore
-	events.Deps.StringsTrimDefault = stringsTrimDefault
-
-	// Kernel-risk feedback enforcement
-	events.Deps.BlockIP = blockIP
-	events.Deps.BlockPort = blockPort
-	events.Deps.BlockLsmFileName = blockLsmFileName
-	events.Deps.BlockLsmExecPath = blockLsmExecPath
-	events.Deps.BlockLsmExecName = blockLsmExecName
+	events.Deps.Enforcer = sandboxEnforcer{}
 
 	// Process context / cgroup attribution (context_event.go)
 	events.Deps.ProcessContexts = trackedProcessContexts

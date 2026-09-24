@@ -1,14 +1,16 @@
 package events
 
 import (
-	"agent-ebpf-filter/app/platform"
-	"agent-ebpf-filter/pb"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
+
+	"agent-ebpf-filter/app/platform"
+	"agent-ebpf-filter/pb"
 
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"

@@ -7,15 +7,6 @@ import (
 )
 
 func TestAnnotateExtraInfoMatchesSprintfFormat(t *testing.T) {
-	saved := Deps.StringsTrimDefault
-	Deps.StringsTrimDefault = func(value, fallback string) string {
-		if strings.TrimSpace(value) == "" {
-			return fallback
-		}
-		return strings.TrimSpace(value)
-	}
-	t.Cleanup(func() { Deps.StringsTrimDefault = saved })
-
 	cases := []struct {
 		decision kernelRiskDecision
 		extra    string
@@ -28,7 +19,7 @@ func TestAnnotateExtraInfoMatchesSprintfFormat(t *testing.T) {
 		{kernelRiskDecision{Decision: "ALERT", Score: 0.4, Reasons: []string{"tiny"}}, ""},
 	}
 	for _, tc := range cases {
-		want := fmt.Sprintf("kernel_risk score=%.0f decision=%s reasons=%s", tc.decision.Score, Deps.StringsTrimDefault(tc.decision.Decision, "OBSERVE"), tc.decision.reasonText())
+		want := fmt.Sprintf("kernel_risk score=%.0f decision=%s reasons=%s", tc.decision.Score, trimDefault(tc.decision.Decision, "OBSERVE"), tc.decision.reasonText())
 		if tc.extra != "" {
 			want = tc.extra + " " + want
 		}
@@ -39,9 +30,6 @@ func TestAnnotateExtraInfoMatchesSprintfFormat(t *testing.T) {
 }
 
 func TestAnnotateExtraInfoAllocatesOnce(t *testing.T) {
-	saved := Deps.StringsTrimDefault
-	Deps.StringsTrimDefault = func(value, fallback string) string { return value }
-	t.Cleanup(func() { Deps.StringsTrimDefault = saved })
 	decision := kernelRiskDecision{Decision: "ALERT", Score: 72, Reasons: []string{"agent_context", "destructive_file_mutation"}}
 	if allocs := testing.AllocsPerRun(200, func() { decision.annotateExtraInfo("fd=1 count=4096") }); allocs > 1 {
 		t.Fatalf("annotateExtraInfo allocated %.1f times, want at most 1", allocs)

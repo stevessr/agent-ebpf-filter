@@ -33,7 +33,7 @@ const kernelRiskInfoPrefix = "kernel_risk score="
 // summary to extraInfo in a single allocation. It mirrors what
 // fmt.Sprintf("%.0f") would print for the score.
 func (d kernelRiskDecision) annotateExtraInfo(extraInfo string) string {
-	decision := Deps.StringsTrimDefault(d.Decision, "OBSERVE")
+	decision := trimDefault(d.Decision, "OBSERVE")
 	size := len(extraInfo) + 1 + len(kernelRiskInfoPrefix) + 4 + len(" decision=") + len(decision) + len(" reasons=")
 	for _, reason := range d.Reasons {
 		size += len(reason) + 1

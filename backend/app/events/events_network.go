@@ -517,6 +517,6 @@ func BuildKernelEventFromRaw(event *BpfEvent) *pb.Event {
 		}
 	}
 
-	Deps.ApplyKernelRiskDecision(event, out)
+	Deps.KernelRisk(event, out)
 	return out
 }

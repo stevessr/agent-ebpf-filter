@@ -20,7 +20,7 @@ func withBenchmarkDeps(b *testing.B) {
 	Deps.GetTagName = func(uint32) string { return "agent" }
 	Deps.SyscallName = func(uint32) string { return "" }
 	Deps.ApplyBestEffortProcessContextToEvent = func(*pb.Event) {}
-	Deps.ApplyKernelRiskDecision = func(*BpfEvent, *pb.Event) {}
+	Deps.KernelRisk = func(*BpfEvent, *pb.Event) {}
 	Deps.Network = NoopNetworkSink{}
 }
 
