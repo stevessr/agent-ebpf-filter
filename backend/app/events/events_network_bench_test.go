@@ -74,3 +74,23 @@ func BenchmarkBuildKernelEventConnect(b *testing.B) {
 		_ = BuildKernelEventFromRaw(event)
 	}
 }
+
+func BenchmarkBuildKernelEventSendto(b *testing.B) {
+	withBenchmarkDeps(b)
+	event := benchmarkKernelEventFixture(uint32(pb.EventType_NETWORK_SENDTO), "")
+	event.NetFamily = 2
+	event.NetDirection = 1
+	event.NetBytes = 29
+	event.NetPort = 53
+	copy(event.NetAddr[:], []byte{8, 8, 8, 8})
+	copy(event.Extra4[:], []byte{
+		0x12, 0x34, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x07, 'e', 'x', 'a', 'm', 'p', 'l', 'e',
+		0x03, 'c', 'o', 'm', 0x00,
+		0x00, 0x01, 0x00, 0x01,
+	})
+	b.ReportAllocs()
+	for b.Loop() {
+		_ = BuildKernelEventFromRaw(event)
+	}
+}

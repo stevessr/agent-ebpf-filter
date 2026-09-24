@@ -169,17 +169,14 @@ func FormatNetworkEndpoint(family uint32, addr []byte, port uint32) string {
 	if family == 2 && len(addr) >= 4 {
 		// Fast path: dotted quad straight from the sample buffer plus the
 		// port, one allocation, no net.IP intermediate.
-		host := FormatIPv4Addr(uint32(addr[0]) | uint32(addr[1])<<8 | uint32(addr[2])<<16 | uint32(addr[3])<<24)
+		var buf [15 + 1 + 5]byte // "255.255.255.255" + ':' + port
+		b := appendIPv4Addr(buf[:0], uint32(addr[0])|uint32(addr[1])<<8|uint32(addr[2])<<16|uint32(addr[3])<<24)
 		if port == 0 {
-			return host
+			return ownedString(b)
 		}
-		var portBuf [5]byte
-		portDigits := strconv.AppendUint(portBuf[:0], uint64(port), 10)
-		endpoint := make([]byte, 0, len(host)+1+len(portDigits))
-		endpoint = append(endpoint, host...)
-		endpoint = append(endpoint, ':')
-		endpoint = append(endpoint, portDigits...)
-		return string(endpoint)
+		b = append(b, ':')
+		b = strconv.AppendUint(b, uint64(port), 10)
+		return ownedString(b)
 	}
 	ip := NetworkIP(family, addr)
 	if ip == nil {
@@ -249,7 +246,7 @@ func FormatNetworkSummary(direction, endpoint string, bytes uint32) string {
 	}
 	// Trimmed join previously collapsed stray spaces; inputs are fixed labels
 	// so no trimming is needed.
-	return string(b)
+	return ownedString(b)
 }
 
 // SanitizeUTF8 converts a raw byte slice from the kernel to a valid UTF-8 string,
@@ -479,7 +476,7 @@ func BuildKernelEventFromRaw(event *BpfEvent) *pb.Event {
 			out.SockType = "SOCK_RAW"
 		}
 		remoteIP := ""
-		if addr := NetworkIP(event.NetFamily, event.NetAddr); addr != nil {
+		if addr := NetworkIP(event.NetFamily, event.NetAddr[:]); addr != nil {
 			remoteIP = addr.String()
 		}
 		if ok && startLine.Kind == "request" {
@@ -531,27 +528,34 @@ func BuildKernelEventFromRaw(event *BpfEvent) *pb.Event {
 
 	// Record TCP state and flow for network events
 	if IsNetworkEventType(typeName) {
-		srcIP := FormatIPv4Addr(event.Extra2)
-		dstIP := FormatIPv4Addr(uint32(event.Extra3))
 		srcPort := event.NetBytes
 		dstPort := event.NetPort
-
+		srcIP, dstIP := "", ""
 		switch typeName {
 		case "network_sendto", "network_recvfrom":
+			// The endpoint pair is unusable; RecordUDPFlowFromEvent
+			// populates the UDP flow fields with its own addresses.
 			srcIP, dstIP = "0.0.0.0", "0.0.0.0"
 		case "network_connect":
-			srcIP = "local"
-			srcPort = 0
-			// NetFamily 2 carries the IPv4 destination in NetAddr[:4] in
-			// host byte order; reuse the stack formatter instead of a second
-			// net.IP.String allocation. Other families keep the net path.
 			if event.NetFamily == 2 {
+				// NetFamily 2 carries the IPv4 destination in NetAddr[:4] in
+				// host byte order; reuse the stack formatter instead of a
+				// second net.IP.String allocation. Other families keep the
+				// net path.
 				dstIP = FormatIPv4Addr(binaryHostOrder(event.NetAddr))
-			} else if addr := NetworkIP(event.NetFamily, event.NetAddr[:]); addr != nil {
-				if s := addr.String(); s != "" && s != "<nil>" {
-					dstIP = s
+			} else {
+				dstIP = FormatIPv4Addr(uint32(event.Extra3))
+				if addr := NetworkIP(event.NetFamily, event.NetAddr[:]); addr != nil {
+					if s := addr.String(); s != "" && s != "<nil>" {
+						dstIP = s
+					}
 				}
 			}
+			srcIP = "local"
+			srcPort = 0
+		default:
+			srcIP = FormatIPv4Addr(event.Extra2)
+			dstIP = FormatIPv4Addr(uint32(event.Extra3))
 		}
 		if srcIP != "0.0.0.0" && dstIP != "0.0.0.0" && dstPort > 0 {
 			Deps.ApplyBestEffortProcessContextToEvent(out)

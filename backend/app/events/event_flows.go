@@ -36,28 +36,28 @@ func TCPStateName(state uint8) string {
 // instead of going through fmt.
 func FormatIPv4Addr(addr uint32) string {
 	var buf [15]byte // "255.255.255.255"
-	n := 0
+	return string(appendIPv4Addr(buf[:0], addr))
+}
+
+// appendIPv4Addr appends the dotted-quad form of a host-byte-order IPv4
+// address to b, letting hot-path callers assemble host:port strings with a
+// single allocation.
+func appendIPv4Addr(b []byte, addr uint32) []byte {
 	for i := range 4 {
 		if i > 0 {
-			buf[n] = '.'
-			n++
+			b = append(b, '.')
 		}
 		octet := byte(addr >> (8 * i))
-		if octet >= 100 {
-			buf[n] = '0' + octet/100
-			buf[n+1] = '0' + (octet/10)%10
-			buf[n+2] = '0' + octet%10
-			n += 3
-		} else if octet >= 10 {
-			buf[n] = '0' + octet/10
-			buf[n+1] = '0' + octet%10
-			n += 2
-		} else {
-			buf[n] = '0' + octet
-			n++
+		switch {
+		case octet >= 100:
+			b = append(b, '0'+octet/100, '0'+(octet/10)%10, '0'+octet%10)
+		case octet >= 10:
+			b = append(b, '0'+octet/10, '0'+octet%10)
+		default:
+			b = append(b, '0'+octet)
 		}
 	}
-	return string(buf[:n])
+	return b
 }
 
 func NetParseIPForFlow(ip string) net.IP {
@@ -71,12 +71,17 @@ func RecordUDPFlowFromEvent(event *BpfEvent, out *pb.Event) {
 	if out == nil {
 		return
 	}
-	remoteIP := NetworkIP(event.NetFamily, event.NetAddr[:])
-	if remoteIP == nil {
-		return
+	remote := ""
+	if event.NetFamily == 2 {
+		// Reuse the stack dotted-quad formatter instead of a second
+		// net.IP.String allocation.
+		remote = FormatIPv4Addr(binaryHostOrder(event.NetAddr))
+	} else if addr := NetworkIP(event.NetFamily, event.NetAddr[:]); addr != nil {
+		if s := addr.String(); s != "" && s != "<nil>" {
+			remote = s
+		}
 	}
-	remote := remoteIP.String()
-	if remote == "" || remote == "<nil>" {
+	if remote == "" {
 		return
 	}
 	srcIP, dstIP := "local", remote
