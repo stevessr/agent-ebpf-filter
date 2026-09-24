@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"agent-ebpf-filter/app/events"
 	"sync"
 
 	"agent-ebpf-filter/internal/boundedring"
@@ -33,7 +34,7 @@ type AgentSightExportEvent struct {
 
 type AgentSightEventQuery struct {
 	Limit      int
-	Filters    any // recentEventFilters from ws_api.go
+	Filters    events.RecentEventFilters
 	Search     string
 	IncludeTLS bool
 	Sources    []string

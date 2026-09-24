@@ -150,46 +150,14 @@ func runEventBroadcaster(ctx context.Context) {
 	}
 }
 
-type recentEventFilters struct {
-	Type           string
-	EventType      string
-	Source         string
-	PID            uint32
-	Comm           string
-	TraceID        string
-	SpanID         string
-	RedactionState string
-	Since          time.Time
-	Until          time.Time
-}
+type recentEventFilters = events.RecentEventFilters
 
-func recentEventFiltersFromRequest(c *gin.Context) recentEventFilters {
-	filters := recentEventFilters{
-		Type:           strings.TrimSpace(c.Query("type")),
-		EventType:      strings.TrimSpace(c.Query("event_type")),
-		Source:         strings.TrimSpace(c.Query("source")),
-		Comm:           strings.TrimSpace(c.Query("comm")),
-		TraceID:        strings.TrimSpace(c.Query("trace_id")),
-		SpanID:         strings.TrimSpace(c.Query("span_id")),
-		RedactionState: strings.TrimSpace(c.Query("redaction_state")),
-	}
-	if filters.EventType == "" {
-		filters.EventType = strings.TrimSpace(c.Query("eventType"))
-	}
-	if raw := strings.TrimSpace(c.Query("pid")); raw != "" {
-		if parsed, err := strconv.ParseUint(raw, 10, 32); err == nil {
-			filters.PID = uint32(parsed)
-		}
-	}
-	filters.Since = parseRecentEventTime(c.Query("since"))
-	filters.Until = parseRecentEventTime(c.Query("until"))
-	return filters
-}
+var recentEventFiltersFromRequest = events.RecentEventFiltersFromRequest
 
 var parseRecentEventTime = events.ParseRecentEventTime
 
 func filterRecentEventRecords(records []CapturedEventRecord, filters recentEventFilters) []CapturedEventRecord {
-	if filters == (recentEventFilters{}) {
+	if filters.IsZero() {
 		return records
 	}
 	filtered := make([]CapturedEventRecord, 0, len(records))

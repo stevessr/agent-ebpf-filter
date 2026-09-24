@@ -12,6 +12,7 @@ import (
 	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
 
+	"github.com/gin-gonic/gin"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
@@ -620,4 +621,45 @@ func tgidOrPid(event *pb.Event) uint32 {
 		return tgid
 	}
 	return event.GetPid()
+}
+
+// RecentEventFilters narrows a recent-events query. Zero fields are ignored.
+type RecentEventFilters struct {
+	Type           string
+	EventType      string
+	Source         string
+	PID            uint32
+	Comm           string
+	TraceID        string
+	SpanID         string
+	RedactionState string
+	Since          time.Time
+	Until          time.Time
+}
+
+// IsZero reports whether the filter matches everything.
+func (f RecentEventFilters) IsZero() bool { return f == RecentEventFilters{} }
+
+// RecentEventFiltersFromRequest reads the filter fields from query parameters.
+func RecentEventFiltersFromRequest(c *gin.Context) RecentEventFilters {
+	filters := RecentEventFilters{
+		Type:           strings.TrimSpace(c.Query("type")),
+		EventType:      strings.TrimSpace(c.Query("event_type")),
+		Source:         strings.TrimSpace(c.Query("source")),
+		Comm:           strings.TrimSpace(c.Query("comm")),
+		TraceID:        strings.TrimSpace(c.Query("trace_id")),
+		SpanID:         strings.TrimSpace(c.Query("span_id")),
+		RedactionState: strings.TrimSpace(c.Query("redaction_state")),
+	}
+	if filters.EventType == "" {
+		filters.EventType = strings.TrimSpace(c.Query("eventType"))
+	}
+	if raw := strings.TrimSpace(c.Query("pid")); raw != "" {
+		if parsed, err := strconv.ParseUint(raw, 10, 32); err == nil {
+			filters.PID = uint32(parsed)
+		}
+	}
+	filters.Since = ParseRecentEventTime(c.Query("since"))
+	filters.Until = ParseRecentEventTime(c.Query("until"))
+	return filters
 }

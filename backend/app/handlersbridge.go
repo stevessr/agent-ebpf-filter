@@ -557,25 +557,6 @@ func init() {
 	// LSM enforcer
 	handlers.Deps.LsmEnforcer = &lsmEnforcerAdapter{}
 
-	// AgentSight data pipeline
-	handlers.Deps.RecentEventFiltersFromRequest = func(c any) any {
-		return recentEventFiltersFromRequest(c.(*gin.Context))
-	}
-	handlers.Deps.FilterRecentEventRecords = func(records []CapturedEventRecord, filters any) []CapturedEventRecord {
-		if filters == nil {
-			return records
-		}
-		typed, ok := filters.(recentEventFilters)
-		if !ok {
-			return records
-		}
-		return filterRecentEventRecords(records, typed)
-	}
-	handlers.Deps.NormalizeCapturedEventRecord = normalizeCapturedEventRecord
-	handlers.Deps.EventEnvelopeToJSONValue = eventEnvelopeToJSONValue
-	handlers.Deps.EnvelopeEventTypeName = envelopeEventTypeName
-	handlers.Deps.ParseRecentEventTime = parseRecentEventTime
-
 	initMLHandlersDeps()
 }
 

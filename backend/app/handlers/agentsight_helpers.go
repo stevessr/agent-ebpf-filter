@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"agent-ebpf-filter/app/events"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -72,7 +73,7 @@ func parseAgentSightTimeAny(value any) time.Time {
 	}
 	switch typed := value.(type) {
 	case string:
-		return Deps.ParseRecentEventTime(typed)
+		return events.ParseRecentEventTime(typed)
 	case float64:
 		return agentSightTimeFromMillis(parseAgentSightTimestamp(typed, 0))
 	case int64:

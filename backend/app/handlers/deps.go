@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"os/exec"
-	"time"
 
 	"agent-ebpf-filter/app/events"
 	"agent-ebpf-filter/app/observability"
@@ -186,14 +185,6 @@ var Deps struct {
 
 	// Native hook handler
 	BuildProcessContextFromHookPayload func(payload map[string]any, toolName, path string) (uint32, ProcessContext)
-
-	// AgentSight data pipeline helpers (wired from app-level functions)
-	RecentEventFiltersFromRequest func(c any) any // *gin.Context -> recentEventFilters
-	FilterRecentEventRecords      func(records []CapturedEventRecord, filters any) []CapturedEventRecord
-	NormalizeCapturedEventRecord  func(record CapturedEventRecord) CapturedEventRecord
-	EventEnvelopeToJSONValue      func(envelope *pb.EventEnvelope) map[string]any
-	EnvelopeEventTypeName         func(envelope *pb.EventEnvelope, event *pb.Event) string
-	ParseRecentEventTime          func(raw string) time.Time
 
 	// Plugins backs the plugin registry / eBPF builder handlers.
 	Plugins PluginService
