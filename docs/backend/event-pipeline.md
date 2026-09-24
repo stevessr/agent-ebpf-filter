@@ -140,6 +140,8 @@ JSON 编码、文件写入或逐条 `Flush()`。
 - 使用 256 KiB 用户态缓冲区，按 128 条或 250 ms 批量刷盘；
 - 单条记录复用录制管线的约 4 MiB JSONL 上限；单条编码失败只记失败并继续处理，
   文件写入/刷盘失败则终止当前 writer generation；
+- JSONL 行只包含 `receivedAt` 与 `event`；`recording.MarshalRecord()` 不再为每条记录构造
+  （或 `proto.Clone`）随后被丢弃的 envelope，envelope 在尾读时重新推导；
 - 配置替换、禁用、清空日志和后端停机会先停止接收，并在 5 秒期限内排空已接受记录；
 - 相同日志配置不会重启 writer；切换路径先准备新文件，再排空旧 generation，配置保存
   失败时回滚原 writer；
