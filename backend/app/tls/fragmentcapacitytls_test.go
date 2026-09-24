@@ -27,6 +27,7 @@ func TestFragmentAssemblerReassemblesExpandedCaptureWindow(t *testing.T) {
 			Direction:    tlsDirectionRecv,
 			Function:     tlsFuncSSLRead,
 		}
+		fragment.Data = make([]byte, tlsFragmentSize)
 		for i := range fragment.Data {
 			fragment.Data[i] = byte((index + i) & 0xff)
 		}
@@ -73,8 +74,8 @@ func TestFragmentAssemblerRejectsFragmentCountBeyondCaptureWindow(t *testing.T) 
 		LibType:      tlsLibOpenSSL,
 		Direction:    tlsDirectionRecv,
 		Function:     tlsFuncSSLRead,
+		Data:         []byte("x"),
 	}
-	fragment.Data[0] = 'x'
 
 	if completed, ok := assembler.Add(fragment); ok || completed != nil {
 		t.Fatalf("oversized fragment count accepted: ok=%v completed=%v", ok, completed != nil)

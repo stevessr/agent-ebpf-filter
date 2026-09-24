@@ -28,7 +28,7 @@ func newTestTLSFragmentAt(index, count int, totalLen int, data string, timestamp
 	frag.LibType = tlsLibOpenSSL
 	frag.Direction = tlsDirectionSend
 	copy(frag.Comm[:], []byte("curl"))
-	copy(frag.Data[:], []byte(data))
+	frag.Data = []byte(data)
 	return frag
 }
 
@@ -209,9 +209,16 @@ func TestFragmentAssemblerDropsPendingWhenCountOrLengthMismatchAppearsForSameKey
 	}
 }
 
+// tlsFragment is a decoded view rather than a byte-for-byte mirror of the BPF
+// struct, so the wire contract lives in two constants that must track the
+// generated layout: where the data array starts and how large it is.
 func TestTLSFragmentLayoutMatchesGeneratedBPFStruct(t *testing.T) {
-	if got, want := unsafe.Sizeof(tlsFragment{}), unsafe.Sizeof(bpf.AgentTlsCaptureTlsFragment{}); got != want {
-		t.Fatalf("unexpected tlsFragment size: got %d want %d", got, want)
+	var generated bpf.AgentTlsCaptureTlsFragment
+	if got, want := unsafe.Offsetof(generated.Data), uintptr(tlsFragmentMetadataSize); got != want {
+		t.Fatalf("unexpected data offset: got %d want %d", got, want)
+	}
+	if got, want := len(generated.Data), tlsFragmentSize; got != want {
+		t.Fatalf("unexpected data array size: got %d want %d", got, want)
 	}
 }
 

@@ -45,17 +45,21 @@ func newFakeBpfTSShadowReader() *fakeBpfTSShadowReader {
 	}
 }
 
-func (reader *fakeBpfTSShadowReader) Read() (ringbuf.Record, error) {
+func (reader *fakeBpfTSShadowReader) ReadInto(record *ringbuf.Record) error {
 	select {
-	case record := <-reader.records:
-		return record, nil
+	case next := <-reader.records:
+		// Mirror ringbuf.Reader: the caller's sample buffer is reused when it
+		// has enough capacity, so retained views must have been copied.
+		record.RawSample = append(record.RawSample[:0], next.RawSample...)
+		record.Remaining = next.Remaining
+		return nil
 	case err := <-reader.errors:
 		if err == nil {
 			err = errors.New("synthetic reader failure")
 		}
-		return ringbuf.Record{}, err
+		return err
 	case <-reader.closed:
-		return ringbuf.Record{}, errors.New("reader closed")
+		return errors.New("reader closed")
 	}
 }
 

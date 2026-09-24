@@ -173,9 +173,9 @@ func (bridge *BpfTSOpenSSLBridgeRuntime) Start(config BpfTSOpenSSLBridgeConfig) 
 
 func (bridge *BpfTSOpenSSLBridgeRuntime) readLoop(reader bpfTSTLSShadowRingReader) {
 	defer bridge.wg.Done()
+	record := ringbuf.Record{RawSample: make([]byte, 0, bpfTSOpenSSLEventSize)}
 	for {
-		record, err := reader.Read()
-		if err != nil {
+		if err := reader.ReadInto(&record); err != nil {
 			bridge.mu.RLock()
 			active := bridge.active && bridge.reader == reader
 			bridge.mu.RUnlock()

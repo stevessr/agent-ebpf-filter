@@ -48,8 +48,11 @@ type bpfTSTLSShadowLoadedRuntime interface {
 
 type bpfTSTLSShadowLoader func(string, bpfts.Manifest, bpfts.LoadOptions) (bpfTSTLSShadowLoadedRuntime, error)
 
+// bpfTSTLSShadowRingReader is the subset of *ringbuf.Reader the read loops
+// need. ReadInto lets each loop reuse one sample buffer instead of allocating
+// per record.
 type bpfTSTLSShadowRingReader interface {
-	Read() (ringbuf.Record, error)
+	ReadInto(*ringbuf.Record) error
 	Close() error
 }
 
@@ -222,9 +225,9 @@ func (shadow *BpfTSTLSShadowRuntime) Start(config BpfTSTLSShadowConfig) error {
 
 func (shadow *BpfTSTLSShadowRuntime) readRing(name string, reader bpfTSTLSShadowRingReader, counters *bpfTSTLSShadowCounters) {
 	defer shadow.wg.Done()
+	var record ringbuf.Record
 	for {
-		record, err := reader.Read()
-		if err != nil {
+		if err := reader.ReadInto(&record); err != nil {
 			shadow.mu.RLock()
 			active := shadow.active && shadow.readers != nil && shadow.readers[name] == reader
 			shadow.mu.RUnlock()
