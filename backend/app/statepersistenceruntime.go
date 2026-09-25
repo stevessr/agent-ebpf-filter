@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"agent-ebpf-filter/app/ml"
@@ -19,12 +20,19 @@ import (
 	"agent-ebpf-filter/pb"
 )
 
+type runtimeHotSettings struct {
+	loopDetection      LoopDetectionSettings
+	researchProcessing ResearchProcessingSettings
+	signalProcessing   SignalProcessingSettings
+}
+
 type runtimeState struct {
-	mu        sync.RWMutex
-	settings  RuntimeSettings
-	logWriter *runtimeEventLogWriter
-	logPath   string
-	logRoot   string
+	mu          sync.RWMutex
+	settings    RuntimeSettings
+	hotSettings atomic.Pointer[runtimeHotSettings]
+	logWriter   *runtimeEventLogWriter
+	logPath     string
+	logRoot     string
 }
 
 func newRuntimeState() *runtimeState {
@@ -252,6 +260,7 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 	if err := s.applyLoggingLocked(); err != nil {
 		return RuntimeSettings{}, err
 	}
+	s.publishHotSettingsLocked()
 	otelExporterStore.ApplySettings(s.settings)
 	return s.settings, nil
 }
@@ -262,23 +271,54 @@ func (s *runtimeState) Snapshot() RuntimeSettings {
 	return s.settings
 }
 
-// The accessors below serve per-event gates. They copy one sub-struct under
-// the read lock instead of the whole RuntimeSettings, and callers must not
-// mutate the slices they share with the live settings.
+// publishHotSettingsLocked publishes the immutable sub-settings read on every
+// captured event. Configuration changes are rare, while these accessors can be
+// called several times per event, so an atomic snapshot avoids repeated
+// runtimeState read-lock traffic on the ingestion path.
+func (s *runtimeState) publishHotSettingsLocked() {
+	if s == nil {
+		return
+	}
+	s.hotSettings.Store(&runtimeHotSettings{
+		loopDetection:      s.settings.LoopDetection,
+		researchProcessing: s.settings.ResearchProcessing,
+		signalProcessing:   s.settings.SignalProcessing,
+	})
+}
+
+// The accessors below serve per-event gates. Production runtime updates publish
+// immutable snapshots, so reads are lock-free. The locked fallback keeps
+// narrow tests and library callers that construct runtimeState literals working.
+// Callers must not mutate slices shared with the live settings.
 
 func (s *runtimeState) SignalProcessingSettings() SignalProcessingSettings {
+	if s != nil {
+		if hot := s.hotSettings.Load(); hot != nil {
+			return hot.signalProcessing
+		}
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.settings.SignalProcessing
 }
 
 func (s *runtimeState) ResearchProcessingSettings() ResearchProcessingSettings {
+	if s != nil {
+		if hot := s.hotSettings.Load(); hot != nil {
+			return hot.researchProcessing
+		}
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.settings.ResearchProcessing
 }
 
 func (s *runtimeState) LoopDetectionSettings() LoopDetectionSettings {
+	if s != nil {
+		if hot := s.hotSettings.Load(); hot != nil {
+			return hot.loopDetection
+		}
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.settings.LoopDetection
@@ -371,6 +411,7 @@ func (s *runtimeState) Replace(settings RuntimeSettings) (RuntimeSettings, error
 	if err := s.applyAndSaveSettingsLocked(previous); err != nil {
 		return RuntimeSettings{}, err
 	}
+	s.publishHotSettingsLocked()
 	ml.UpdateMLRuntimeConfig(s.settings.MLConfig, s.settings.MLConfig.Enabled && clusterManagerStore.IsMaster())
 	otelExporterStore.ApplySettings(s.settings)
 	return s.settings, nil
