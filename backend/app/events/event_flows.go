@@ -67,21 +67,8 @@ func NetParseIPForFlow(ip string) net.IP {
 	return net.ParseIP(ip)
 }
 
-func RecordUDPFlowFromEvent(event *BpfEvent, out *pb.Event) {
-	if out == nil {
-		return
-	}
-	remote := ""
-	if event.NetFamily == 2 {
-		// Reuse the stack dotted-quad formatter instead of a second
-		// net.IP.String allocation.
-		remote = FormatIPv4Addr(binaryHostOrder(event.NetAddr))
-	} else if addr := NetworkIP(event.NetFamily, event.NetAddr[:]); addr != nil {
-		if s := addr.String(); s != "" && s != "<nil>" {
-			remote = s
-		}
-	}
-	if remote == "" {
+func RecordUDPFlowFromEvent(event *BpfEvent, out *pb.Event, remote string) {
+	if out == nil || remote == "" {
 		return
 	}
 	srcIP, dstIP := "local", remote

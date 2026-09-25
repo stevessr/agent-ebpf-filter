@@ -162,91 +162,69 @@ func binaryHostOrder(addr [16]byte) uint32 {
 	return uint32(addr[0]) | uint32(addr[1])<<8 | uint32(addr[2])<<16 | uint32(addr[3])<<24
 }
 
-// FormatNetworkEndpoint renders "host" or "host:port" for the family's
-// address. IPv6 hosts keep net.JoinHostPort's bracketing; IPv4 hosts never
-// contain a colon so the port is appended with one final allocation.
-func FormatNetworkEndpoint(family uint32, addr []byte, port uint32) string {
+// formatNetworkPathAndEndpoint builds the human-readable network summary and
+// the "host:port" endpoint with one allocation: the endpoint and the remote
+// host are substring views of the summary buffer, so the trio costs a single
+// string. IPv6 hosts keep net.JoinHostPort's bracketing; IPv4 hosts never
+// contain a colon.
+func formatNetworkPathAndEndpoint(direction string, family uint32, addr []byte, port, nbytes uint32) (summary, endpoint, remote string) {
+	// Worst case: "listening " + "[45-char IPv6]:65535" + " " + "(4294967295 B)".
+	var buf [80]byte
+	b := buf[:0]
+	if direction != "" {
+		b = append(b, direction...)
+	}
 	if family == 2 && len(addr) >= 4 {
-		// Fast path: dotted quad straight from the sample buffer plus the
-		// port, one allocation, no net.IP intermediate.
-		var buf [15 + 1 + 5]byte // "255.255.255.255" + ':' + port
-		b := appendIPv4Addr(buf[:0], uint32(addr[0])|uint32(addr[1])<<8|uint32(addr[2])<<16|uint32(addr[3])<<24)
-		if port == 0 {
-			return ownedString(b)
+		// Fast path: dotted quad straight from the sample buffer, no net.IP
+		// intermediate.
+		if len(b) > 0 {
+			b = append(b, ' ')
 		}
-		b = append(b, ':')
-		b = strconv.AppendUint(b, uint64(port), 10)
-		return ownedString(b)
+		remoteStart := len(b)
+		b = appendIPv4Addr(b, uint32(addr[0])|uint32(addr[1])<<8|uint32(addr[2])<<16|uint32(addr[3])<<24)
+		remoteEnd := len(b)
+		if port != 0 {
+			b = append(b, ':')
+			b = strconv.AppendUint(b, uint64(port), 10)
+		}
+		summary = ownedString(b)
+		return summary, summary[remoteStart:], summary[remoteStart:remoteEnd]
 	}
 	ip := NetworkIP(family, addr)
 	if ip == nil {
-		return ""
+		// No endpoint: the summary is just the direction and byte count.
+		if nbytes > 0 {
+			if len(b) > 0 {
+				b = append(b, ' ')
+			}
+			b = append(b, '(')
+			b = strconv.AppendUint(b, uint64(nbytes), 10)
+			b = append(b, ' ', 'B', ')')
+		}
+		if len(b) == 0 {
+			return "", "", ""
+		}
+		return ownedString(b), "", ""
 	}
 	host := ip.String()
-	if port == 0 {
-		return host
+	if len(b) > 0 {
+		b = append(b, ' ')
 	}
+	remoteStart := len(b)
 	if len(ip) == 16 {
-		return net.JoinHostPort(host, strconv.FormatUint(uint64(port), 10))
+		b = append(b, '[')
 	}
-	var portBuf [5]byte
-	portDigits := strconv.AppendUint(portBuf[:0], uint64(port), 10)
-	endpoint := make([]byte, 0, len(host)+1+len(portDigits))
-	endpoint = append(endpoint, host...)
-	endpoint = append(endpoint, ':')
-	endpoint = append(endpoint, portDigits...)
-	return string(endpoint)
-}
-
-// FormatNetworkSummary joins "direction endpoint (N B)" with single spaces.
-// It writes into a stack buffer and allocates the result once instead of
-// building a parts slice.
-func FormatNetworkSummary(direction, endpoint string, bytes uint32) string {
-	if endpoint == "" && bytes == 0 {
-		return ""
+	b = append(b, host...)
+	remoteEnd := len(b)
+	if len(ip) == 16 {
+		b = append(b, ']')
 	}
-	needSpace := false
-	size := 0
-	if direction != "" {
-		size += len(direction)
-		needSpace = true
+	if port != 0 {
+		b = append(b, ':')
+		b = strconv.AppendUint(b, uint64(port), 10)
 	}
-	if endpoint != "" {
-		if needSpace {
-			size++
-		}
-		size += len(endpoint)
-		needSpace = true
-	}
-	if bytes > 0 {
-		if needSpace {
-			size++
-		}
-		size += len("(18446744073 B)") + 8 // uint32 decimal worst case fits comfortably
-	}
-	b := make([]byte, 0, size)
-	if direction != "" {
-		b = append(b, direction...)
-		needSpace = true
-	}
-	if endpoint != "" {
-		if needSpace {
-			b = append(b, ' ')
-		}
-		b = append(b, endpoint...)
-		needSpace = true
-	}
-	if bytes > 0 {
-		if needSpace {
-			b = append(b, ' ')
-		}
-		b = append(b, '(')
-		b = strconv.AppendUint(b, uint64(bytes), 10)
-		b = append(b, ' ', 'B', ')')
-	}
-	// Trimmed join previously collapsed stray spaces; inputs are fixed labels
-	// so no trimming is needed.
-	return ownedString(b)
+	summary = ownedString(b)
+	return summary, summary[remoteStart:], summary[remoteStart:remoteEnd]
 }
 
 // SanitizeUTF8 converts a raw byte slice from the kernel to a valid UTF-8 string,
@@ -512,16 +490,16 @@ func BuildKernelEventFromRaw(event *BpfEvent) *pb.Event {
 		}
 	}
 
+	var netSummary, netEndpoint, netRemote string
 	if typeName == "accept" || typeName == "accept4" || IsNetworkEventType(typeName) {
 		direction := NetworkDirectionLabel(event.NetDirection)
-		endpoint := FormatNetworkEndpoint(event.NetFamily, event.NetAddr[:], event.NetPort)
+		netSummary, netEndpoint, netRemote = formatNetworkPathAndEndpoint(direction, event.NetFamily, event.NetAddr[:], event.NetPort, event.NetBytes)
 		family := NetworkFamilyLabel(event.NetFamily)
-		summary := FormatNetworkSummary(direction, endpoint, event.NetBytes)
-		if summary != "" {
-			out.Path = summary
+		if netSummary != "" {
+			out.Path = netSummary
 		}
 		out.NetDirection = direction
-		out.NetEndpoint = endpoint
+		out.NetEndpoint = netEndpoint
 		out.NetBytes = event.NetBytes
 		out.NetFamily = family
 	}
@@ -610,7 +588,7 @@ func BuildKernelEventFromRaw(event *BpfEvent) *pb.Event {
 			Deps.Network.RecordTCPStateChange(srcIP, dstIP, srcPort, dstPort, oldState, newState, out.Pid, out.Comm)
 		}
 		if (typeName == "network_sendto" || typeName == "network_recvfrom") && dstPort > 0 {
-			RecordUDPFlowFromEvent(event, out)
+			RecordUDPFlowFromEvent(event, out, netRemote)
 		}
 	}
 
