@@ -71,7 +71,7 @@ func HandleNativeHookEvent(c *gin.Context) {
 		hookEvent,
 	)
 
-	Deps.BroadcastCh <- &pb.Event{
+	event := &pb.Event{
 		Pid:            pid,
 		Type:           "native_hook",
 		EventType:      pb.EventType_NATIVE_HOOK,
@@ -94,6 +94,17 @@ func HandleNativeHookEvent(c *gin.Context) {
 		ContainerId:    ctx.ContainerID,
 		ArgvDigest:     ctx.ArgvDigest,
 		Cwd:            ctx.Cwd,
+	}
+	// Hook callbacks must never inherit backend backpressure. A full broadcast
+	// queue should drop observability data (and record the drop through the
+	// shared bridge) rather than stall the agent CLI waiting on this HTTP call.
+	if Deps.SendTLSBridge != nil {
+		Deps.SendTLSBridge(Deps.BroadcastCh, event)
+	} else {
+		select {
+		case Deps.BroadcastCh <- event:
+		default:
+		}
 	}
 	c.JSON(200, gin.H{"status": "ok"})
 }
