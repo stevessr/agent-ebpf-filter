@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/cilium/ebpf"
@@ -168,21 +169,21 @@ type collectorMetricsState struct {
 	eventsByPIDTotal               map[collectorPIDKey]uint64
 	agentSightCountersTotal        map[string]uint64
 	persistAppendLatencyNs         uint64
-	capturedArchivedTotal          uint64
+	capturedArchivedTotal          atomic.Uint64
 	capturedPersistedTotal         uint64
 	capturedPersistErrorsTotal     uint64
-	broadcastQueuedTotal           uint64
-	broadcastDroppedTotal          uint64
+	broadcastQueuedTotal           atomic.Uint64
+	broadcastDroppedTotal          atomic.Uint64
 	broadcastLastDropReason        string
-	broadcastReceivedTotal         uint64
+	broadcastReceivedTotal         atomic.Uint64
 	broadcastFlushesTotal          uint64
 	broadcastEventsFlushedTotal    uint64
 	broadcastEnvelopesFlushedTotal uint64
 	broadcastMarshalErrorsTotal    uint64
 	broadcastWriteErrorsTotal      uint64
 	broadcastLastFlushLatencyNs    uint64
-	ringbufZeroCopyDecodeTotal     uint64
-	ringbufCopyDecodeTotal         uint64
+	ringbufZeroCopyDecodeTotal     atomic.Uint64
+	ringbufCopyDecodeTotal         atomic.Uint64
 	kernelCaptureDelaySamples      uint64
 	kernelCaptureDelayLastNs       uint64
 	kernelCaptureDelayMaxNs        uint64
@@ -283,9 +284,7 @@ func RecordCapturedArchive() {
 }
 
 func (s *collectorMetricsState) recordCapturedArchive() {
-	s.mu.Lock()
-	s.capturedArchivedTotal++
-	s.mu.Unlock()
+	s.capturedArchivedTotal.Add(1)
 }
 
 func (s *collectorMetricsState) RecordCapturedArchive() {
@@ -332,13 +331,16 @@ func RecordBroadcastEnqueue(accepted bool, reason string) {
 }
 
 func (s *collectorMetricsState) recordBroadcastEnqueue(accepted bool, reason string) {
-	s.mu.Lock()
 	if accepted {
-		s.broadcastQueuedTotal++
-	} else {
-		s.broadcastDroppedTotal++
-		s.broadcastLastDropReason = StringsTrimDefault(reason, "unknown")
+		s.broadcastQueuedTotal.Add(1)
+		return
 	}
+	s.broadcastDroppedTotal.Add(1)
+	// The drop reason is diagnostic text and changes only on the exceptional
+	// path. Keep it behind the mutex without forcing successful enqueues to
+	// contend with the map-backed event metrics.
+	s.mu.Lock()
+	s.broadcastLastDropReason = StringsTrimDefault(reason, "unknown")
 	s.mu.Unlock()
 }
 
@@ -351,9 +353,7 @@ func RecordBroadcastReceived() {
 }
 
 func (s *collectorMetricsState) recordBroadcastReceived() {
-	s.mu.Lock()
-	s.broadcastReceivedTotal++
-	s.mu.Unlock()
+	s.broadcastReceivedTotal.Add(1)
 }
 
 func (s *collectorMetricsState) RecordBroadcastReceived() {
@@ -396,13 +396,11 @@ func RecordRingbufDecode(zeroCopy bool) {
 }
 
 func (s *collectorMetricsState) recordRingbufDecode(zeroCopy bool) {
-	s.mu.Lock()
 	if zeroCopy {
-		s.ringbufZeroCopyDecodeTotal++
-	} else {
-		s.ringbufCopyDecodeTotal++
+		s.ringbufZeroCopyDecodeTotal.Add(1)
+		return
 	}
-	s.mu.Unlock()
+	s.ringbufCopyDecodeTotal.Add(1)
 }
 
 func (s *collectorMetricsState) RecordRingbufDecode(zeroCopy bool) {
@@ -494,21 +492,21 @@ func (s *collectorMetricsState) rawSnapshot() CollectorMetricsSnapshot {
 		EventsByPIDTotal:               eventsByPID,
 		AgentSightCountersTotal:        agentSightCounters,
 		PersistAppendLatencyNs:         s.persistAppendLatencyNs,
-		CapturedArchivedTotal:          s.capturedArchivedTotal,
+		CapturedArchivedTotal:          s.capturedArchivedTotal.Load(),
 		CapturedPersistedTotal:         s.capturedPersistedTotal,
 		CapturedPersistErrorsTotal:     s.capturedPersistErrorsTotal,
-		BroadcastQueuedTotal:           s.broadcastQueuedTotal,
-		BroadcastDroppedTotal:          s.broadcastDroppedTotal,
+		BroadcastQueuedTotal:           s.broadcastQueuedTotal.Load(),
+		BroadcastDroppedTotal:          s.broadcastDroppedTotal.Load(),
 		BroadcastLastDropReason:        s.broadcastLastDropReason,
-		BroadcastReceivedTotal:         s.broadcastReceivedTotal,
+		BroadcastReceivedTotal:         s.broadcastReceivedTotal.Load(),
 		BroadcastFlushesTotal:          s.broadcastFlushesTotal,
 		BroadcastEventsFlushedTotal:    s.broadcastEventsFlushedTotal,
 		BroadcastEnvelopesFlushedTotal: s.broadcastEnvelopesFlushedTotal,
 		BroadcastMarshalErrorsTotal:    s.broadcastMarshalErrorsTotal,
 		BroadcastWriteErrorsTotal:      s.broadcastWriteErrorsTotal,
 		BroadcastLastFlushLatencyNs:    s.broadcastLastFlushLatencyNs,
-		RingbufZeroCopyDecodeTotal:     s.ringbufZeroCopyDecodeTotal,
-		RingbufCopyDecodeTotal:         s.ringbufCopyDecodeTotal,
+		RingbufZeroCopyDecodeTotal:     s.ringbufZeroCopyDecodeTotal.Load(),
+		RingbufCopyDecodeTotal:         s.ringbufCopyDecodeTotal.Load(),
 		KernelCaptureDelaySamples:      s.kernelCaptureDelaySamples,
 		KernelCaptureDelayLastNs:       s.kernelCaptureDelayLastNs,
 		KernelCaptureDelayMaxNs:        s.kernelCaptureDelayMaxNs,
