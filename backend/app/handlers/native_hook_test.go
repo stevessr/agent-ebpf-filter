@@ -28,7 +28,6 @@ func TestNativeHookProviderTagRecognizesHarnesses(t *testing.T) {
 	}
 }
 
-
 func TestEmitNativeHookEventDoesNotBlockWhenQueueFull(t *testing.T) {
 	oldDeps := Deps
 	t.Cleanup(func() { Deps = oldDeps })
