@@ -2,8 +2,8 @@ package tls
 
 import (
 	"bytes"
+	"encoding/hex"
 	"errors"
-	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -98,7 +98,8 @@ func (m *TLSProbeManager) ReadLoop() error {
 		}
 
 		totalFrags := m.readLoopStats.totalFrags.Add(1)
-		m.readLoopStats.lastFragmentNS.Store(time.Now().UnixNano())
+		nowNS := time.Now().UnixNano()
+		m.readLoopStats.lastFragmentNS.Store(nowNS)
 		if totalFrags <= 5 {
 			log.Printf("[tls] ReadLoop: GOT fragment #%d raw_len=%d", totalFrags, len(rec.RawSample))
 		}
@@ -115,7 +116,7 @@ func (m *TLSProbeManager) ReadLoop() error {
 		if observedPID <= 0 {
 			observedPID = int(fragment.PID)
 		}
-		m.markTLSCaptureObserved(observedPID, time.Now().UnixNano())
+		m.markTLSCaptureObserved(observedPID, nowNS)
 
 		completed, ok := assembler.Add(fragment)
 		if !ok || completed == nil {
@@ -158,7 +159,7 @@ func completedToPlaintextEvent(f CompletedTLSFragment) TLSPlaintextEvent {
 
 	if isTLSHTTP2Preface(f.Payload) {
 		evType = "http2_preface"
-		hexDump = fmt.Sprintf("%x", f.Payload[:min(len(f.Payload), 512)])
+		hexDump = hex.EncodeToString(f.Payload[:min(len(f.Payload), 512)])
 	} else if isTLSHTTP2Frame(f.Payload) {
 		evType = "http2_frame"
 		if len(f.Payload) >= tlsHTTP2FrameHeaderSize && f.Payload[3] == 0x0 {
@@ -170,11 +171,11 @@ func completedToPlaintextEvent(f CompletedTLSFragment) TLSPlaintextEvent {
 		} else {
 			contentType = "application/http2"
 		}
-		hexDump = fmt.Sprintf("%x", f.Payload[:min(len(f.Payload), 512)])
+		hexDump = hex.EncodeToString(f.Payload[:min(len(f.Payload), 512)])
 	}
 
 	if hexDump == "" && len(f.Payload) > 0 {
-		hexDump = fmt.Sprintf("%x", f.Payload[:min(len(f.Payload), 512)])
+		hexDump = hex.EncodeToString(f.Payload[:min(len(f.Payload), 512)])
 	}
 
 	return TLSPlaintextEvent{
@@ -255,7 +256,7 @@ func looksLikeReadable(data []byte) bool {
 			printable++
 		}
 	}
-	return float64(printable)/float64(len(data)) > 0.7
+	return printable*10 > len(data)*7
 }
 
 func libTypeName(lib uint8) string {
