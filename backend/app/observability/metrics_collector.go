@@ -184,10 +184,10 @@ type collectorMetricsState struct {
 	broadcastLastFlushLatencyNs    uint64
 	ringbufZeroCopyDecodeTotal     atomic.Uint64
 	ringbufCopyDecodeTotal         atomic.Uint64
-	kernelCaptureDelaySamples      uint64
-	kernelCaptureDelayLastNs       uint64
-	kernelCaptureDelayMaxNs        uint64
-	kernelCaptureClockUnknown      uint64
+	kernelCaptureDelaySamples      atomic.Uint64
+	kernelCaptureDelayLastNs       atomic.Uint64
+	kernelCaptureDelayMaxNs        atomic.Uint64
+	kernelCaptureClockUnknown      atomic.Uint64
 	kernelRiskEvaluationsTotal     uint64
 	kernelRiskAlertsTotal          uint64
 	kernelRiskBlocksTotal          uint64
@@ -412,16 +412,17 @@ func RecordKernelCaptureTiming(delayNS uint64, clock string) {
 }
 
 func (s *collectorMetricsState) recordKernelCaptureTiming(delayNS uint64, clock string) {
-	s.mu.Lock()
-	s.kernelCaptureDelaySamples++
-	s.kernelCaptureDelayLastNs = delayNS
-	if delayNS > s.kernelCaptureDelayMaxNs {
-		s.kernelCaptureDelayMaxNs = delayNS
+	s.kernelCaptureDelaySamples.Add(1)
+	s.kernelCaptureDelayLastNs.Store(delayNS)
+	for {
+		current := s.kernelCaptureDelayMaxNs.Load()
+		if delayNS <= current || s.kernelCaptureDelayMaxNs.CompareAndSwap(current, delayNS) {
+			break
+		}
 	}
 	if strings.TrimSpace(clock) != "monotonic" {
-		s.kernelCaptureClockUnknown++
+		s.kernelCaptureClockUnknown.Add(1)
 	}
-	s.mu.Unlock()
 }
 
 func (s *collectorMetricsState) RecordKernelCaptureTiming(delayNS uint64, clock string) {
@@ -507,10 +508,10 @@ func (s *collectorMetricsState) rawSnapshot() CollectorMetricsSnapshot {
 		BroadcastLastFlushLatencyNs:    s.broadcastLastFlushLatencyNs,
 		RingbufZeroCopyDecodeTotal:     s.ringbufZeroCopyDecodeTotal.Load(),
 		RingbufCopyDecodeTotal:         s.ringbufCopyDecodeTotal.Load(),
-		KernelCaptureDelaySamples:      s.kernelCaptureDelaySamples,
-		KernelCaptureDelayLastNs:       s.kernelCaptureDelayLastNs,
-		KernelCaptureDelayMaxNs:        s.kernelCaptureDelayMaxNs,
-		KernelCaptureClockUnknown:      s.kernelCaptureClockUnknown,
+		KernelCaptureDelaySamples:      s.kernelCaptureDelaySamples.Load(),
+		KernelCaptureDelayLastNs:       s.kernelCaptureDelayLastNs.Load(),
+		KernelCaptureDelayMaxNs:        s.kernelCaptureDelayMaxNs.Load(),
+		KernelCaptureClockUnknown:      s.kernelCaptureClockUnknown.Load(),
 		KernelRiskEvaluationsTotal:     s.kernelRiskEvaluationsTotal,
 		KernelRiskAlertsTotal:          s.kernelRiskAlertsTotal,
 		KernelRiskBlocksTotal:          s.kernelRiskBlocksTotal,
