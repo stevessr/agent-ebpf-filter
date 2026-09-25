@@ -106,6 +106,7 @@ func TestCollectorHotPathCountersAreConcurrentSafe(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(workers)
 	for worker := 0; worker < workers; worker++ {
+		worker := worker
 		go func() {
 			defer wg.Done()
 			for i := 0; i < iterations; i++ {
@@ -113,6 +114,7 @@ func TestCollectorHotPathCountersAreConcurrentSafe(t *testing.T) {
 				state.RecordBroadcastEnqueue(true, "")
 				state.RecordBroadcastReceived()
 				state.RecordRingbufDecode(true)
+				state.RecordKernelCaptureTiming(uint64(worker*iterations+i), "monotonic")
 			}
 		}()
 	}
@@ -123,7 +125,10 @@ func TestCollectorHotPathCountersAreConcurrentSafe(t *testing.T) {
 	if snapshot.CapturedArchivedTotal != want ||
 		snapshot.BroadcastQueuedTotal != want ||
 		snapshot.BroadcastReceivedTotal != want ||
-		snapshot.RingbufZeroCopyDecodeTotal != want {
+		snapshot.RingbufZeroCopyDecodeTotal != want ||
+		snapshot.KernelCaptureDelaySamples != want ||
+		snapshot.KernelCaptureDelayMaxNs != want-1 ||
+		snapshot.KernelCaptureClockUnknown != 0 {
 		t.Fatalf("concurrent hot-path counters mismatch: got=%+v want=%d", snapshot, want)
 	}
 }
