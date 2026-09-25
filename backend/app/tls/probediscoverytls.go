@@ -251,7 +251,7 @@ func isAgentTLSProcess(baseName, cmdline string) bool {
 
 	for _, direct := range []string{
 		"claude", "codex", "opencode", "aider", "goose", "cursor", "amp",
-		"gemini", "dsh", "omp", "cline", "windsurf",
+		"gemini", "dsh", "omp", "cline", "windsurf", "zcode", "mcode",
 	} {
 		if base == direct || strings.HasPrefix(base, direct+"-") {
 			return true
@@ -265,6 +265,8 @@ func isAgentTLSProcess(baseName, cmdline string) bool {
 		"cursor", "github-copilot", "copilot", "gemini", "continue",
 		"cline", "windsurf", "qwen-code", "kimi-cli", "roo-code",
 		" dsh ", " omp ",
+		"@minimax-ai/code", ".minimax-code/bin/mcode", "minimax-code/dist/cli.js",
+		".zcode/cli/",
 	} {
 		if strings.Contains(cmd, marker) {
 			return true

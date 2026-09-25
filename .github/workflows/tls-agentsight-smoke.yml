@@ -77,6 +77,11 @@ jobs:
       - name: TLS package tests
         working-directory: backend
         run: go test ./app/tls -count=1
+      - name: API fingerprint and default harness tests
+        working-directory: backend
+        run: |
+          go test ./app/captureprofile -count=1
+          go test ./app -run '^TestDefaultTrackedCommandsOnlyAgentCLIEnabled$' -count=1
       - name: AgentSight backend tests
         working-directory: backend
         run: go test ./app/handlers -count=1
