@@ -31,12 +31,12 @@ const (
 type ComplianceStandard string
 
 const (
-	ComplianceGDPR      ComplianceStandard = "GDPR"
-	ComplianceCCPA      ComplianceStandard = "CCPA"
-	ComplianceHIPAA     ComplianceStandard = "HIPAA"
-	CompliancePCIDSS    ComplianceStandard = "PCI-DSS"
-	ComplianceSOC2      ComplianceStandard = "SOC2"
-	ComplianceISO27001  ComplianceStandard = "ISO27001"
+	ComplianceGDPR     ComplianceStandard = "GDPR"
+	ComplianceCCPA     ComplianceStandard = "CCPA"
+	ComplianceHIPAA    ComplianceStandard = "HIPAA"
+	CompliancePCIDSS   ComplianceStandard = "PCI-DSS"
+	ComplianceSOC2     ComplianceStandard = "SOC2"
+	ComplianceISO27001 ComplianceStandard = "ISO27001"
 )
 
 // ── Generalization precision levels ──────────────────────────────────────────

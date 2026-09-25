@@ -131,11 +131,11 @@ func main() {
 }
 
 type ModelResult struct {
-	Model      string
-	Accuracy   float64
-	Precision  float64
-	Recall     float64
-	F1Score    float64
+	Model     string
+	Accuracy  float64
+	Precision float64
+	Recall    float64
+	F1Score   float64
 }
 
 type OverallResult struct {
@@ -145,11 +145,11 @@ type OverallResult struct {
 }
 
 type Improvement struct {
-	Dataset        string
-	Baseline       float64
-	WithAttention  float64
-	Improvement    float64
-	Status         string
+	Dataset       string
+	Baseline      float64
+	WithAttention float64
+	Improvement   float64
+	Status        string
 }
 
 func printResults(results []ModelResult) {

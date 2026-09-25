@@ -181,7 +181,6 @@ func handleSignalProgramLogDownload(c *gin.Context) {
 	})
 }
 
-
 // HandleStatus serves GET /signals/status.
 func HandleStatus(c *gin.Context) { handleSignalProcessingStatus(c) }
 

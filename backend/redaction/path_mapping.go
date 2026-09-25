@@ -11,11 +11,11 @@ import (
 // Outgoing: real paths → sanitized paths (before sending)
 // Incoming: sanitized paths → real paths (when receiving)
 type PathMapper struct {
-	mu              sync.RWMutex
-	rules           []PathMappingRule
-	reverseMap      map[string]string // sanitized → real (for exact matches)
-	enabled         bool
-	caseSensitive   bool
+	mu            sync.RWMutex
+	rules         []PathMappingRule
+	reverseMap    map[string]string // sanitized → real (for exact matches)
+	enabled       bool
+	caseSensitive bool
 }
 
 // PathMappingRule defines a path transformation rule.
@@ -324,8 +324,8 @@ func wildcardToRegex(pattern string) (*regexp.Regexp, error) {
 	escaped := regexp.QuoteMeta(pattern)
 
 	// Replace escaped wildcards with regex equivalents
-	escaped = strings.ReplaceAll(escaped, "\\*\\*", ".*")     // ** → .*
-	escaped = strings.ReplaceAll(escaped, "\\*", "[^/]*")     // * → [^/]*
+	escaped = strings.ReplaceAll(escaped, "\\*\\*", ".*") // ** → .*
+	escaped = strings.ReplaceAll(escaped, "\\*", "[^/]*") // * → [^/]*
 
 	// Anchor to start and end
 	regexPattern := "^" + escaped + "$"

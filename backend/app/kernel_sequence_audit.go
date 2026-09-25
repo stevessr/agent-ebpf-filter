@@ -26,9 +26,9 @@ type kernelSequenceCursor struct {
 }
 
 type kernelSequenceResult struct {
-	Observation              kernelSequenceObservation
-	Missing                  uint64
-	ReserveFailuresDelta     uint64
+	Observation               kernelSequenceObservation
+	Missing                   uint64
+	ReserveFailuresDelta      uint64
 	ReserveFailuresDeltaKnown bool
 }
 

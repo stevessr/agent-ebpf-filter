@@ -71,7 +71,7 @@ func main() {
 
 	// 总结
 	fmt.Println("=== 总结 ===")
-	avgImprovement := ((valAcc2-valAcc1) + (valAcc4-valAcc3) + (valAcc6-valAcc5)) / 3 * 100
+	avgImprovement := ((valAcc2 - valAcc1) + (valAcc4 - valAcc3) + (valAcc6 - valAcc5)) / 3 * 100
 	fmt.Printf("注意力机制平均准确率提升：+%.2f%%\n", avgImprovement)
 	fmt.Println("\n✅ 结论：注意力机制在所有测试的数据集和模型上都带来了性能提升")
 	fmt.Println("📊 完整的训练日志和模型权重已保存")

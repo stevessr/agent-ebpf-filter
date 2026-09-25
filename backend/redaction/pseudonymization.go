@@ -14,11 +14,11 @@ import (
 // Unlike anonymization, pseudonymization allows re-identification through a secure mapping.
 type PseudonymEngine struct {
 	mu           sync.RWMutex
-	hmacKey      []byte                       // Secret key for HMAC-SHA256
-	mapping      map[string]string            // original → pseudonym
-	reverseMap   map[string]string            // pseudonym → original
+	hmacKey      []byte            // Secret key for HMAC-SHA256
+	mapping      map[string]string // original → pseudonym
+	reverseMap   map[string]string // pseudonym → original
 	enabled      bool
-	preserveCase bool                         // Preserve original case in pseudonyms
+	preserveCase bool // Preserve original case in pseudonyms
 }
 
 // PseudonymConfig configures the pseudonymization engine.
