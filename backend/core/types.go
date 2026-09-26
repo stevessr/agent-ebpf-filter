@@ -116,9 +116,10 @@ var AvailableHooks = []HookDef{
 		ConfigFormat:    ConfigFormatJSON,
 	},
 	{
-		ID: "dsh", Name: "DeepSeek Harness", HookType: HookTypeWrapper,
-		Description: "Tracks dsh through the agent-wrapper command shim; dsh profiles and plugins remain managed by dsh.",
-		TargetCmd:   "dsh",
+		ID: "dsh", Name: "DeepSeek Harness", HookType: HookTypeNative,
+		Description:  "Installs a Cordis plugin via the DSH_HOME home patch for metadata-only session and tool lifecycle telemetry across profiles.",
+		ConfigFormat: ConfigFormatTypeScript,
+		TargetCmd:    "dsh",
 	},
 	{
 		ID: "pi", Name: "Pi", HookType: HookTypeNative,

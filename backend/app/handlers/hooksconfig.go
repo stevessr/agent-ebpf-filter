@@ -79,7 +79,15 @@ func HandleConfigHooksInstall(c *gin.Context) {
 			}
 		}
 	} else {
-		if target.HookType == core.HookTypeNative {
+		if target.ID == "dsh" && target.HookType == core.HookTypeNative && !req.UseWrapper {
+			if err := Deps.UninstallNativeHook(target); err != nil {
+				c.JSON(500, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(200, gin.H{"status": "ok"})
+			return
+		}
+		if target.HookType == core.HookTypeNative && !(target.ID == "dsh" && req.UseWrapper) {
 			_ = Deps.UninstallNativeHook(target)
 		}
 		p := Deps.GetShellConfigPath()

@@ -371,6 +371,9 @@ func refreshHooksPaths() {
 			case "codex":
 				availableHooks[i].NativeConfigPath = filepath.Join(home, ".codex", "hooks.json")
 				availableHooks[i].NativeFeatureConfigPath = filepath.Join(home, ".codex", "config.toml")
+			case "dsh":
+				availableHooks[i].NativeConfigPath = filepath.Join(resolveDshHome(home), "plugins", hookMarker+"-dsh.mjs")
+				availableHooks[i].NativeFeatureConfigPath = filepath.Join(resolveDshHome(home), "cordis.patch.yml")
 			case "pi":
 				availableHooks[i].NativeConfigPath = filepath.Join(resolvePiAgentDir(home), "extensions", hookMarker+"-pi.ts")
 			case "omp":

@@ -192,7 +192,7 @@ adapter 或 `/register` API 注册其 PID；仅凭 `zg` 命令识别不会伪造
 ### 何时使用 Native Hooks
 
 - **监控 AI CLI 行为**：Claude Code、Gemini CLI、Codex、Pi、Oh My Pi 等
-- **DeepSeek Harness**：使用 wrapper-only 的 `dsh` 命令拦截，不写入未定义的 generic hook 文件
+- **DeepSeek Harness**：使用原生 Cordis 插件，通过 home-level patch 观测会话与工具生命周期
 - **需要工具调用语义**：native hook 提供 tool_name、target_path 等 Agent 层信息
 
 ### 推荐组合
