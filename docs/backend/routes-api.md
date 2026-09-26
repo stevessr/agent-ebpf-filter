@@ -554,3 +554,17 @@ attach target、指令数、map 数量及估算内存，只实例化选定程序
 | `POST` | `/api/v1/agents/register` | 注册 Agent PID |
 | `POST` | `/api/v1/agents/unregister` | 注销 Agent PID |
 | `GET` | `/api/v1/config/export` | 导出配置 |
+
+## BTF / LSM 内核诊断
+
+`GET /system/kernel-capabilities`（沿用 `authMiddleware()`）提供只读诊断，
+不要求启用策略管理，不执行命令、不修改系统配置。配置页的 **BTF / LSM** 标签支持手动刷新。
+
+- `release` / `releaseError`：后端当前内核版本或读取错误。
+- `btfReadable` / `btfError`：使用当前 cilium/ebpf 解析 `/sys/kernel/btf/vmlinux` 的结果。
+- `lsms` / `lsmError`：`/sys/kernel/security/lsm` 中的活动 LSM；读取失败表示未知，不代表未编译支持。
+- `bpfLsmEnabled`：仅在活动列表包含精确名称 `bpf` 时为 true；有 `lsmError` 时不可据此判定支持情况。
+- `installedKernels` / `kernelsError`：`/lib/modules` 下的目录名，仅作为模块目录清单，不保证对应镜像可启动。
+
+BTF 解析成功不保证内核程序能通过 verifier。BPF LSM 已启用不代表应用执行器已加载，
+后者请查看 `/sandbox/lsm/status`。接口不探测非当前内核的功能，不修改 bootloader 或 LSM 启动顺序。
