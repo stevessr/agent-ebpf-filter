@@ -4,7 +4,7 @@ go 1.26.2
 
 require (
 	github.com/NVIDIA/go-nvml v0.13.0-1
-	github.com/cilium/ebpf v0.21.0
+	github.com/cilium/ebpf v0.22.0
 	github.com/creack/pty/v2 v2.0.1
 	github.com/getkin/kin-openapi v0.140.0
 	github.com/gin-gonic/gin v1.12.0
@@ -19,7 +19,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.43.0
 	go.opentelemetry.io/otel/trace v1.43.0
 	golang.org/x/net v0.52.0
-	golang.org/x/sys v0.42.0
+	golang.org/x/sys v0.43.0
 	google.golang.org/protobuf v1.36.11
 )
 
