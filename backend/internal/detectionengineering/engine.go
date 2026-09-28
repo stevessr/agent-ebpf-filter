@@ -239,19 +239,33 @@ func Replay(rule Rule, events []Event, labels map[string]string) Report {
 		left := 0
 		active := false
 		for right, item := range group {
-			for j := range counts {
-				if item.mask&(1<<uint(j)) != 0 {
-					counts[j]++
-				}
-			}
 			cutoff := item.event.Timestamp - rule.WindowMS
-			for left <= right && group[left].event.Timestamp < cutoff {
+			// Expire previous evidence BEFORE adding the current event. Otherwise
+			// an all-signals current event can hide a gap between distinct episodes.
+			for left < right && group[left].event.Timestamp < cutoff {
 				for j := range counts {
 					if group[left].mask&(1<<uint(j)) != 0 {
 						counts[j]--
 					}
 				}
 				left++
+			}
+			if active {
+				live, dimensions := 0, map[string]bool{}
+				for j, count := range counts {
+					if count > 0 {
+						live++
+						dimensions[rule.Signals[j].Field] = true
+					}
+				}
+				if live < rule.MinSignals || len(dimensions) < 2 {
+					active = false
+				}
+			}
+			for j := range counts {
+				if item.mask&(1<<uint(j)) != 0 {
+					counts[j]++
+				}
 			}
 			var selected []int
 			dimensions := make(map[string]bool)
