@@ -19,6 +19,7 @@ func TestLintRejectsBrittleOrSingleDimensionRules(t *testing.T) {
 	}{
 		{"path", func(r *Rule) { r.Signals[1].Value = "/tmp/only-this-host" }},
 		{"ip", func(r *Rule) { r.Signals[1].Value = "203.0.113.9" }},
+		{"host", func(r *Rule) { r.Signals[1].Value = "api.github.com" }},
 		{"unknown field", func(r *Rule) { r.Signals[1].Field = "secretPayload" }},
 		{"single dimension", func(r *Rule) { r.Signals[1].Field = "eventType" }},
 		{"duplicate", func(r *Rule) { r.Signals[1] = r.Signals[0] }},
