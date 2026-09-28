@@ -176,11 +176,11 @@ type indexedEvent struct {
 // Labels: scope -> authoring_attack | holdout_attack | benign.
 func Replay(rule Rule, events []Event, labels map[string]string) Report {
 	report := Report{
-		SchemaVersion: SchemaVersion,
-		RuleID: rule.ID,
-		Issues: make([]Issue, 0),
+		SchemaVersion:  SchemaVersion,
+		RuleID:         rule.ID,
+		Issues:         make([]Issue, 0),
 		ObservedScopes: make([]string, 0),
-		Findings: make([]Finding, 0),
+		Findings:       make([]Finding, 0),
 	}
 	report.Issues = append(report.Issues, Lint(rule)...)
 	if len(events) > MaxEvents {
@@ -305,7 +305,7 @@ func Replay(rule Rule, events []Event, labels map[string]string) Report {
 			}
 			report.Findings = append(report.Findings, Finding{
 				Scope: scope, FirstTimestamp: group[left].event.Timestamp,
-				LastTimestamp: item.event.Timestamp,
+				LastTimestamp:  item.event.Timestamp,
 				MatchedSignals: selected, EvidenceEventIDs: evidence,
 			})
 		}
@@ -315,13 +315,19 @@ func Replay(rule Rule, events []Event, labels map[string]string) Report {
 		switch labels[scope] {
 		case "authoring_attack":
 			report.Metrics.AuthoringAttacks++
-			if detected[scope] { report.Metrics.AuthoringDetected++ }
+			if detected[scope] {
+				report.Metrics.AuthoringDetected++
+			}
 		case "holdout_attack":
 			report.Metrics.HoldoutAttacks++
-			if detected[scope] { report.Metrics.HoldoutDetected++ }
+			if detected[scope] {
+				report.Metrics.HoldoutDetected++
+			}
 		case "benign":
 			report.Metrics.BenignScopes++
-			if detected[scope] { report.Metrics.BenignFlagged++ }
+			if detected[scope] {
+				report.Metrics.BenignFlagged++
+			}
 		default:
 			report.UnlabeledScopes++
 		}
