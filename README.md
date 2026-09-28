@@ -247,6 +247,7 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory, orga
 **Start here:**
 - New developers: [What is Agent eBPF Filter?](docs/guide/what-is-agent-ebpf-filter.md)
 - Security review: [Security Model](docs/security/model.md)
+- Validation-first detection engineering: [NVIDIA-inspired offline replay](docs/security/nvidia-validation-first-detection.md)
 - Integration: [External API](docs/integrations/external-api.md)
 - Deployment: [Kubernetes Guide](docs/operations/kubernetes.md)
 
