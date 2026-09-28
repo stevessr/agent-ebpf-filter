@@ -33,6 +33,7 @@ jobs:
           cache-dependency-path: backend/go.sum
       - name: Verify formatting
         run: |
+          gofmt -d backend/internal/detectionengineering/*.go backend/app/research/detection_replay.go
           files="$(gofmt -l backend/internal/detectionengineering/*.go backend/app/research/detection_replay.go)"
           test -z "$files" || { printf 'Unformatted files:\n%s\n' "$files"; exit 1; }
       - name: Unit and research regression tests
