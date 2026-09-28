@@ -106,6 +106,14 @@ registerRoutes()
 | `POST` | `/network/export-pcap` | PCAP 导出 (FeatureNetworkExport；生成唯一的 `0600` PCAP 与 JSONL sidecar) |
 | `GET` | `/network/geoip` | GeoIP 查询 (IP -> 国家/ASN) |
 
+## Research 检测工程重放
+
+| 方法 | 路径 | 用途 |
+|------|------|------|
+| `POST` | `/research/sessions/:id/detections/replay` | 在已持久化 Research Session 上进行候选检测规则 lint、同 Trace/PID 时间窗口关联及带人工标签的攻击/正常样本回放；仅只读分析，不自动修改策略 |
+
+受 `authMiddleware()` 保护；请求上限 64 KiB、20,000 事件、1,000 个标注范围、8 个信号。具体规则格式、指标定义和人工审批边界见 [NVIDIA-inspired validation-first detection](../security/nvidia-validation-first-detection.md)。
+
 ## 沙箱路由 (`/sandbox`)
 
 ### Cgroup 沙箱 (`/sandbox/cgroup`)
