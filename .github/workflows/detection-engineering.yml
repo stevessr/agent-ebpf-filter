@@ -1,0 +1,40 @@
+name: Detection engineering replay
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "backend/internal/detectionengineering/**"
+      - "backend/app/research/**"
+      - "backend/go.mod"
+      - "backend/go.sum"
+      - ".github/workflows/detection-engineering.yml"
+  pull_request:
+    branches: [master]
+    paths:
+      - "backend/internal/detectionengineering/**"
+      - "backend/app/research/**"
+      - "backend/go.mod"
+      - "backend/go.sum"
+      - ".github/workflows/detection-engineering.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Verify formatting
+        run: |
+          files="$(gofmt -l backend/internal/detectionengineering/*.go backend/app/research/detection_replay.go)"
+          test -z "$files" || { printf 'Unformatted files:\n%s\n' "$files"; exit 1; }
+      - name: Unit and research regression tests
+        working-directory: backend
+        run: go test ./internal/detectionengineering ./app/research -count=1
