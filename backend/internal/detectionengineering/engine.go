@@ -18,52 +18,9 @@ const (
 	MaxLabels     = 1000
 )
 
-var ruleIDPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$`)
-var signalValuePattern = regexp.MustCompile(`^[a-zA-Z0-9_.-]{1,64}// Package detectionengineering provides bounded, read-only detection linting and
-// telemetry replay. It deliberately has no kernel, policy-write or LLM imports.
-package detectionengineering
-
-import (
-	"fmt"
-	"net"
-	"regexp"
-	"sort"
-	"strings"
-)
-
-const (
-	SchemaVersion = "detection-replay.v1"
-	MaxEvents     = 20000
-	MaxSignals    = 8
-	MaxFindings   = 256
-	MaxLabels     = 1000
-)
-
-var ruleIDPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$`)
-)
-var hostLikePattern = regexp.MustCompile(`(?i)^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|dev|edu|gov|ai|cn|uk|local)// Package detectionengineering provides bounded, read-only detection linting and
-// telemetry replay. It deliberately has no kernel, policy-write or LLM imports.
-package detectionengineering
-
-import (
-	"fmt"
-	"net"
-	"regexp"
-	"sort"
-	"strings"
-)
-
-const (
-	SchemaVersion = "detection-replay.v1"
-	MaxEvents     = 20000
-	MaxSignals    = 8
-	MaxFindings   = 256
-	MaxLabels     = 1000
-)
-
-var ruleIDPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$`)
-)
-
+var ruleIDPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}\z`)
+var signalValuePattern = regexp.MustCompile(`^[a-zA-Z0-9_.-]{1,64}\z`)
+var hostLikePattern = regexp.MustCompile(`(?i)^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|dev|edu|gov|ai|cn|uk|local)\z`)
 var supportedFields = map[string]bool{
 	"eventType": true,
 	"source":    true,
