@@ -36,6 +36,22 @@ jobs:
           gofmt -d backend/internal/detectionengineering/*.go backend/app/research/detection_replay.go
           files="$(gofmt -l backend/internal/detectionengineering/*.go backend/app/research/detection_replay.go)"
           test -z "$files" || { printf 'Unformatted files:\n%s\n' "$files"; exit 1; }
+      - name: Install native build dependencies
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler clang llvm libbpf-dev libelf-dev
+      - name: Generate Go protobuf bindings
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          mkdir -p backend/pb
+          protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto \
+            proto/tracker_common.proto \
+            proto/tracker_events.proto \
+            proto/tracker_registration.proto \
+            proto/tracker_system.proto \
+            proto/tracker_config.proto \
+            proto/tracker_shell.proto
+      - name: Generate eBPF objects and bindings
+        working-directory: backend/ebpf
+        run: go generate
       - name: Unit and research regression tests
         working-directory: backend
         run: go test ./internal/detectionengineering ./app/research -count=1
