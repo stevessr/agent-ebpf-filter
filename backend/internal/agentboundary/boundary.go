@@ -225,6 +225,15 @@ func CheckLineage(chain []Policy) Report {
 	return r
 }
 
+// CheckDirectDelegation validates one child relative to an already admitted
+// direct parent. Its parentID may be nonempty when the parent is a subagent;
+// the caller must independently prove the ancestor chain.
+func CheckDirectDelegation(parent, child Policy) Report {
+	localParent := parent
+	localParent.ParentID = ""
+	return CheckLineage([]Policy{localParent, child})
+}
+
 // CheckUpdate checks both lineage and an exact-grant change of the final
 // actor. New authority is reviewable even if within the operator's maximum.
 func CheckUpdate(chain []Policy, previous *Policy) Report {
