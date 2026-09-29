@@ -45,6 +45,7 @@ type WatchdogReport struct {
 
 type SafetyCase struct {
 	Lineage []Policy `json:"lineage"`
+	Delegates []Policy `json:"delegates,omitempty"`
 	Previous *Policy `json:"previous,omitempty"`
 	Watchdog WatchdogRequest `json:"watchdog"`
 }
@@ -180,7 +181,7 @@ func EvaluateCase(input SafetyCase) SafetyReport {
 		}}
 	}
 	p := input.Lineage[len(input.Lineage)-1]
-	w := EvaluateWatchdog(p, input.Lineage, input.Watchdog)
+	w := EvaluateWatchdog(p, input.Delegates, input.Watchdog)
 	if b.Status != "within_boundary" {
 		finding(&w, "boundary_not_verified", "", true)
 	}
