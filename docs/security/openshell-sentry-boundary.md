@@ -46,6 +46,7 @@ Example:
       ]
     }
   ],
+  "failureMode": "fail_closed",
   "watchdog": {
     "agentId":"worker", "nowMs":5000,
     "heartbeatTimeoutMs":1000, "denialWindowMs":600,
@@ -75,6 +76,15 @@ a binary/profile; empty subject is explicit unconstrained access within the
 finite model. Exact tuples prevent accidental cross-product of host, operation
 and binary, and do not equate CONNECT with REST permission. Paths are lexical
 only, not symlink-canonicalized, and there is no DNS/runtime authority proof.
+
+Policy admission is modeled separately by a **non-mutating** transition plan:
+`fail_closed` recommends quarantine after invalid updates, while explicitly
+requested `retain_last_valid` is eligible only if the previous revision
+**independently passes the same operator-to-parent boundary check**.
+Unverified or absent previous policies always fall back to fail-closed.
+Fresh grants or lifetime extensions inside the maximum boundary require
+human review; passing subset validation alone never deploys a policy.
+The `transition.applied` equivalent is `enforcementApplied: false`.
 
 The result is `within_boundary`, `exceeds_boundary` or `unsupported`, with
 bounded counterexamples. **Only `within_boundary` establishes subset within
