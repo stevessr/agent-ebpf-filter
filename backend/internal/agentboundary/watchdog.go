@@ -44,18 +44,18 @@ type WatchdogReport struct {
 }
 
 type SafetyCase struct {
-	Lineage   []Policy        `json:"lineage"`
-	Delegates []Policy        `json:"delegates,omitempty"`
-	Previous  *Policy         `json:"previous,omitempty"`
-	FailureMode string `json:"failureMode,omitempty"`
-	Watchdog  WatchdogRequest `json:"watchdog"`
+	Lineage     []Policy        `json:"lineage"`
+	Delegates   []Policy        `json:"delegates,omitempty"`
+	Previous    *Policy         `json:"previous,omitempty"`
+	FailureMode string          `json:"failureMode,omitempty"`
+	Watchdog    WatchdogRequest `json:"watchdog"`
 }
 
 type SafetyReport struct {
-	Boundary Report         `json:"boundary"`
-	Watchdog WatchdogReport `json:"watchdog"`
+	Boundary   Report         `json:"boundary"`
+	Watchdog   WatchdogReport `json:"watchdog"`
 	Transition TransitionPlan `json:"transition"`
-	Applied  bool           `json:"applied"`
+	Applied    bool           `json:"applied"`
 }
 
 func finding(out *WatchdogReport, code, id string, quarantine bool) {
