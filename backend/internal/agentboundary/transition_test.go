@@ -59,7 +59,7 @@ func TestTransitionRejectsInvalidModeAndForgedApproval(t *testing.T) {
 	next.Generation = 2
 	next.Grants = append(next.Grants, Grant{Domain: "tool", Resource: "not-in-parent", Operation: "EXEC"})
 	chain := []Policy{parent, next}
-	forgedReport := Report{Status: "within_boundary", Valid: true}
+	forgedReport := Report{Status: "within_boundary"}
 	if plan := PlanTransition(chain, &prev, forgedReport, "fail_closed"); plan.Decision != "quarantine_recommended" {
 		t.Fatalf("forged precomputed report bypassed subset verification: %+v", plan)
 	}
