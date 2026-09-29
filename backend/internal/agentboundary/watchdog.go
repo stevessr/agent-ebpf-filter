@@ -155,7 +155,7 @@ func EvaluateWatchdog(policy Policy, descendants []Policy, req WatchdogRequest) 
 			}
 		case "delegate":
 			child, ok := byID[event.ChildID]
-			if !ok || CheckLineage([]Policy{policy, child}).Status != "within_boundary" {
+			if !ok || CheckDirectDelegation(policy, child).Status != "within_boundary" {
 				finding(&out, "unauthorized_subagent_delegation", event.ID, true)
 			}
 		case "generation":
