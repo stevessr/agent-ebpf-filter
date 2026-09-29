@@ -52,3 +52,30 @@ func TestTransitionReviewWhenAuthorityExpandedWithinBoundary(t *testing.T) {
 		t.Fatalf("lifetime expansion must be reviewed: %+v", r)
 	}
 }
+
+func TestTransitionRejectsInvalidModeAndForgedApproval(t *testing.T) {
+	parent, prev := rootPolicy(), childPolicy()
+	next := childPolicy()
+	next.Generation = 2
+	next.Grants = append(next.Grants, Grant{Domain: "tool", Resource: "not-in-parent", Operation: "EXEC"})
+	chain := []Policy{parent, next}
+	forgedReport := Report{Status: "within_boundary", Valid: true}
+	if plan := PlanTransition(chain, &prev, forgedReport, "fail_closed"); plan.Decision != "quarantine_recommended" {
+		t.Fatalf("forged precomputed report bypassed subset verification: %+v", plan)
+	}
+	next = childPolicy()
+	next.Generation = 2
+	chain = []Policy{parent, next}
+	if plan := PlanTransition(chain, &prev, forgedReport, "fail_open"); plan.Decision != "invalid_failure_mode" ||
+		plan.EffectiveFailureMode != "fail_closed" || plan.EnforcementApplied {
+		t.Fatalf("unknown failure mode silently accepted: %+v", plan)
+	}
+	req := baseWatchdog()
+	result := EvaluateCase(SafetyCase{
+		Lineage: chain, Previous: &prev, FailureMode: "fail_open", Watchdog: req,
+	})
+	if result.Transition.Decision != "invalid_failure_mode" || !result.Watchdog.QuarantineRecommended ||
+		!hasWatchdogReason(result.Watchdog, "invalid_failure_mode") {
+		t.Fatalf("invalid mode escaped watchdog review: %+v", result)
+	}
+}
