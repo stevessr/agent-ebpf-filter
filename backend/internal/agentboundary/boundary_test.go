@@ -214,3 +214,20 @@ func TestSubagentCanDelegateOnlyItsOwnAuthority(t *testing.T) {
 		t.Fatalf("subagent borrowed ancestor-only authority: %+v", r)
 	}
 }
+
+func TestWatchdogAcceptsVerifiedNestedDelegation(t *testing.T) {
+	parent := childPolicy()
+	child := Policy{
+		ID: "subworker", ParentID: parent.ID, UID: parent.UID,
+		Generation: 1, ExpiresAtMS: 30000, Grants: []Grant{parent.Grants[0]},
+	}
+	req := baseWatchdog()
+	req.Observations = append(req.Observations, Observation{
+		ID: "delegate1", AgentID: "worker", Sequence: 4,
+		TimestampMS: 4800, Kind: "delegate", ChildID: "subworker",
+	})
+	result := EvaluateWatchdog(parent, []Policy{child}, req)
+	if result.Verdict != "observe" || result.QuarantineRecommended {
+		t.Fatalf("verified nested delegate should be observed: %+v", result)
+	}
+}
