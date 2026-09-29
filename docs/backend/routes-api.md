@@ -114,6 +114,14 @@ registerRoutes()
 
 受 `authMiddleware()` 保护；请求上限 64 KiB、20,000 事件、1,000 个标注范围、8 个信号。具体规则格式、指标定义和人工审批边界见 [NVIDIA-inspired validation-first detection](../security/nvidia-validation-first-detection.md)。
 
+## Policy Boundary 与 Sentry-inspired Watchdog 模拟
+
+| 方法 | 路径 | 用途 |
+|------|------|------|
+| `POST` | `/research/safety/evaluate` | 对策略父子授权、代际更新和外部提供的监控元数据执行只读离线验证；返回反例及建议隔离信号，不执行内核隔离 |
+
+该路由继承 `/research` 组认证，严格拒绝未知 JSON 字段及多份 JSON；单次请求限 64 KiB。它不具备物理隔离、硬件证明或实际策略部署功能。详见 [OpenShell / Sentry-inspired 边界设计](../security/openshell-sentry-boundary.md)。
+
 ## 沙箱路由 (`/sandbox`)
 
 ### Cgroup 沙箱 (`/sandbox/cgroup`)

@@ -187,6 +187,7 @@ func registerResearchRoutes(router gin.IRouter, tlsStore *TLSCaptureStore) {
 	router.POST("/tasks/:taskId/cancel", handleResearchTaskCancel)
 	router.GET("/sessions/:id/events", handleResearchSessionEvents)
 	router.POST("/sessions/:id/detections/replay", handleResearchDetectionReplay)
+	router.POST("/safety/evaluate", handleResearchSafetyEvaluate)
 	router.GET("/sessions/:id/results", handleResearchSessionResults)
 	router.GET("/sessions/:id/training", handleResearchSessionTraining)
 	router.POST("/sessions/:id/training/import", handleResearchSessionTrainingImport)
