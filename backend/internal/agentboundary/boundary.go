@@ -186,7 +186,13 @@ func CheckLineage(chain []Policy) Report {
 		unsupported(&r, "", "lineage must have 1-16 policies")
 		return r
 	}
+	seenActors := make(map[string]struct{}, len(chain))
 	for i, p := range chain {
+		if _, exists := seenActors[p.ID]; exists {
+			unsupported(&r, p.ID, "duplicate actor identity in ancestry")
+			return r
+		}
+		seenActors[p.ID] = struct{}{}
 		if reason := validatePolicy(p); reason != "" {
 			unsupported(&r, p.ID, reason)
 			return r
