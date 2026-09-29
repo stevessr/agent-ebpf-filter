@@ -50,6 +50,7 @@ type Report struct {
 	Coverage         []string         `json:"coverage"`
 	Counterexamples  []Counterexample `json:"counterexamples"`
 	NewGrants        []Grant          `json:"newGrants,omitempty"`
+	ReviewReasons    []string         `json:"reviewReasons,omitempty"`
 	RequiresApproval bool             `json:"requiresApproval"`
 	Applied          bool             `json:"applied"`
 }
@@ -255,6 +256,11 @@ func CheckUpdate(chain []Policy, previous *Policy) Report {
 	sort.Slice(r.NewGrants, func(i, j int) bool { return grantKey(r.NewGrants[i]) < grantKey(r.NewGrants[j]) })
 	if len(r.NewGrants) > 0 {
 		r.RequiresApproval = true
+		r.ReviewReasons = append(r.ReviewReasons, "new_access_grants")
+	}
+	if previous.ExpiresAtMS != 0 && (candidate.ExpiresAtMS == 0 || candidate.ExpiresAtMS > previous.ExpiresAtMS) {
+		r.RequiresApproval = true
+		r.ReviewReasons = append(r.ReviewReasons, "authority_lifetime_expanded")
 	}
 	return r
 }
