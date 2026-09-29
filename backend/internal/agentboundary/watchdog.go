@@ -204,6 +204,9 @@ func EvaluateCase(input SafetyCase) SafetyReport {
 	if b.Status != "within_boundary" {
 		finding(&w, "boundary_not_verified", "", true)
 	}
+	if plan.Decision == "invalid_failure_mode" {
+		finding(&w, "invalid_failure_mode", "", true)
+	}
 	if b.RequiresApproval {
 		finding(&w, "policy_change_requires_approval", "", false)
 	}
