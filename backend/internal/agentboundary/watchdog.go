@@ -1,9 +1,5 @@
 package agentboundary
 
-import (
-	"sort"
-)
-
 const MaxObservations = 4096
 
 // Observation is expected to originate from a separate trusted collector.
@@ -90,28 +86,39 @@ func EvaluateWatchdog(policy Policy, descendants []Policy, req WatchdogRequest) 
 		finding(&out, "unsupported_watchdog_request", "", true)
 		return out
 	}
-	byID := make(map[string]Policy, len(descendants))
-	for _, child := range descendants {
-		if child.ParentID == policy.ID {
-			byID[child.ID] = child
-		}
+	if len(descendants) > MaxGrants {
+		finding(&out, "too_many_declared_delegates", "", true)
+		return out
 	}
-	observed := append([]Observation(nil), req.Observations...)
-	sort.SliceStable(observed, func(i, j int) bool {
-		if observed[i].Sequence != observed[j].Sequence {
-			return observed[i].Sequence < observed[j].Sequence
+	byID := make(map[string]Policy, len(descendants))
+	declared := make(map[string]bool, len(descendants))
+	for _, child := range descendants {
+		if declared[child.ID] {
+			finding(&out, "duplicate_delegate_identity", "", true)
+			delete(byID, child.ID)
+			continue
 		}
-		return observed[i].TimestampMS < observed[j].TimestampMS
-	})
-	seen := make(map[string]struct{}, len(observed))
+		declared[child.ID] = true
+		if child.ParentID != policy.ID {
+			finding(&out, "invalid_declared_delegate", "", true)
+			continue
+		}
+		if CheckDirectDelegation(policy, child).Status != "within_boundary" {
+			finding(&out, "invalid_declared_delegate", "", true)
+			continue
+		}
+		byID[child.ID] = child
+	}
+	// Preserve collector order: sorting by sequence would conceal replay or
+	// reordering. Production collectors must authenticate this ordering.
+	seen := make(map[string]struct{}, len(req.Observations))
 	lastHeartbeat := int64(0)
 	lastSequence := uint64(0)
 	lastTimestamp := int64(0)
 	denials := make([]int64, 0, req.DenialThreshold)
-	for _, event := range observed {
+	for _, event := range req.Observations {
 		if event.ID == "" || len(event.ID) > 128 || event.AgentID != req.AgentID ||
-			event.TimestampMS <= 0 || event.TimestampMS > req.NowMS || event.Sequence == 0 ||
-			event.Sequence <= lastSequence || event.TimestampMS < lastTimestamp {
+			event.TimestampMS <= 0 || event.TimestampMS > req.NowMS || event.Sequence == 0 {
 			finding(&out, "invalid_or_replayed_telemetry", event.ID, true)
 			continue
 		}
@@ -120,6 +127,10 @@ func EvaluateWatchdog(policy Policy, descendants []Policy, req WatchdogRequest) 
 			continue
 		}
 		seen[event.ID] = struct{}{}
+		if event.Sequence <= lastSequence || event.TimestampMS < lastTimestamp {
+			finding(&out, "invalid_or_replayed_telemetry", event.ID, true)
+			continue
+		}
 		lastSequence, lastTimestamp = event.Sequence, event.TimestampMS
 		out.ObservedCount++
 		if policy.ExpiresAtMS != 0 && event.TimestampMS >= policy.ExpiresAtMS {
