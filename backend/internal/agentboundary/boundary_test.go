@@ -242,3 +242,37 @@ func TestAncestryRejectsReusedActorID(t *testing.T) {
 		t.Fatalf("reused actor identity in lineage: %+v", r)
 	}
 }
+
+func TestWatchdogRejectsUnsortedCollectorSequence(t *testing.T) {
+	p := childPolicy()
+	req := baseWatchdog()
+	// An attacker reversing events must not be exonerated by a pre-evaluation sort.
+	req.Observations[0], req.Observations[1] = req.Observations[1], req.Observations[0]
+	result := EvaluateWatchdog(p, nil, req)
+	if !result.QuarantineRecommended || !hasWatchdogReason(result, "invalid_or_replayed_telemetry") {
+		t.Fatalf("input reordering hid a telemetry replay: %+v", result)
+	}
+}
+
+func TestWatchdogRejectsDuplicateAndInvalidDelegateDefinitions(t *testing.T) {
+	parent := childPolicy()
+	child := Policy{
+		ID: "subworker", ParentID: parent.ID, UID: parent.UID,
+		Generation: 1, ExpiresAtMS: 30000, Grants: []Grant{parent.Grants[0]},
+	}
+	req := baseWatchdog()
+	req.Observations = append(req.Observations, Observation{
+		ID: "delegation", AgentID: "worker", Sequence: 4,
+		TimestampMS: 4800, Kind: "delegate", ChildID: child.ID,
+	})
+	if result := EvaluateWatchdog(parent, []Policy{child, child}, req); !result.QuarantineRecommended ||
+		!hasWatchdogReason(result, "duplicate_delegate_identity") ||
+		!hasWatchdogReason(result, "unauthorized_subagent_delegation") {
+		t.Fatalf("duplicate child identity should never last-write-win: %+v", result)
+	}
+	child.ParentID = "wrong"
+	if result := EvaluateWatchdog(parent, []Policy{child}, req); !result.QuarantineRecommended ||
+		!hasWatchdogReason(result, "invalid_declared_delegate") {
+		t.Fatalf("forged descendant declaration passed: %+v", result)
+	}
+}
