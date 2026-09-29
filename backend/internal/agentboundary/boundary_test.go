@@ -231,3 +231,14 @@ func TestWatchdogAcceptsVerifiedNestedDelegation(t *testing.T) {
 		t.Fatalf("verified nested delegate should be observed: %+v", result)
 	}
 }
+
+func TestAncestryRejectsReusedActorID(t *testing.T) {
+	parent, child := rootPolicy(), childPolicy()
+	cycled := childPolicy()
+	cycled.ID = parent.ID
+	cycled.ParentID = child.ID
+	cycled.Generation = 2
+	if r := CheckLineage([]Policy{parent, child, cycled}); r.Status != "unsupported" {
+		t.Fatalf("reused actor identity in lineage: %+v", r)
+	}
+}
