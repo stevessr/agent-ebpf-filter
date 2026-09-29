@@ -9,8 +9,8 @@ type TransitionPlan struct {
 	Decision               string `json:"decision"`
 	ActiveGeneration       uint64 `json:"activeGeneration"`
 	CandidateGeneration    uint64 `json:"candidateGeneration"`
-	PreviousPolicyRetained bool `json:"previousPolicyRetained"`
-	EnforcementApplied     bool `json:"enforcementApplied"`
+	PreviousPolicyRetained bool   `json:"previousPolicyRetained"`
+	EnforcementApplied     bool   `json:"enforcementApplied"`
 }
 
 // PlanTransition is a non-mutating analogue of OpenShell policy admission.
@@ -18,10 +18,10 @@ type TransitionPlan struct {
 // root-to-parent subset check, not merely because it was supplied as JSON.
 func PlanTransition(chain []Policy, previous *Policy, report Report, mode string) TransitionPlan {
 	out := TransitionPlan{
-		SchemaVersion: "agent-policy-transition.v1",
+		SchemaVersion:        "agent-policy-transition.v1",
 		RequestedFailureMode: mode,
 		EffectiveFailureMode: "fail_closed",
-		Decision: "quarantine_recommended",
+		Decision:             "quarantine_recommended",
 	}
 	if len(chain) == 0 {
 		return out
