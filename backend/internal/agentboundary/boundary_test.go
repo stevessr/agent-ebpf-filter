@@ -198,3 +198,19 @@ func TestCaseCannotPromoteOrEnforce(t *testing.T) {
 		t.Fatalf("review-only endpoint must not mutate OS state: %+v", report)
 	}
 }
+
+func TestSubagentCanDelegateOnlyItsOwnAuthority(t *testing.T) {
+	parent := childPolicy()
+	sub := Policy{
+		ID:"subworker", ParentID:parent.ID, UID:parent.UID,
+		Generation:1, ExpiresAtMS:30000,
+		Grants:[]Grant{parent.Grants[0]},
+	}
+	if r:=CheckDirectDelegation(parent,sub); r.Status!="within_boundary" {
+		t.Fatalf("valid subagent delegation rejected: %+v",r)
+	}
+	sub.Grants=append(sub.Grants,rootPolicy().Grants[1])
+	if r:=CheckDirectDelegation(parent,sub); r.Status!="exceeds_boundary" {
+		t.Fatalf("subagent borrowed ancestor-only authority: %+v",r)
+	}
+}
