@@ -9,51 +9,51 @@ const MaxObservations = 4096
 // Observation is expected to originate from a separate trusted collector.
 // The API that uses this engine is a simulation, not such a trusted collector.
 type Observation struct {
-	ID string `json:"id"`
-	AgentID string `json:"agentId"`
-	TimestampMS int64 `json:"timestampMs"`
-	Sequence uint64 `json:"sequence"`
-	Kind string `json:"kind"` // heartbeat, policy_denial, model_access, credential_use, delegate, generation, supervisor_disconnected
-	Grant *Grant `json:"grant,omitempty"`
-	ChildID string `json:"childId,omitempty"`
+	ID                 string `json:"id"`
+	AgentID            string `json:"agentId"`
+	TimestampMS        int64  `json:"timestampMs"`
+	Sequence           uint64 `json:"sequence"`
+	Kind               string `json:"kind"` // heartbeat, policy_denial, model_access, credential_use, delegate, generation, supervisor_disconnected
+	Grant              *Grant `json:"grant,omitempty"`
+	ChildID            string `json:"childId,omitempty"`
 	ObservedGeneration uint64 `json:"observedGeneration,omitempty"`
 }
 
 type WatchdogRequest struct {
-	AgentID string `json:"agentId"`
-	NowMS int64 `json:"nowMs"`
-	HeartbeatTimeoutMS int64 `json:"heartbeatTimeoutMs"`
-	DenialWindowMS int64 `json:"denialWindowMs"`
-	DenialThreshold int `json:"denialThreshold"`
-	Observations []Observation `json:"observations"`
+	AgentID            string        `json:"agentId"`
+	NowMS              int64         `json:"nowMs"`
+	HeartbeatTimeoutMS int64         `json:"heartbeatTimeoutMs"`
+	DenialWindowMS     int64         `json:"denialWindowMs"`
+	DenialThreshold    int           `json:"denialThreshold"`
+	Observations       []Observation `json:"observations"`
 }
 
 type WatchdogFinding struct {
-	Code string `json:"code"`
+	Code    string `json:"code"`
 	EventID string `json:"eventId,omitempty"`
 }
 
 type WatchdogReport struct {
-	SchemaVersion string `json:"schemaVersion"`
-	Verdict string `json:"verdict"` // observe | review | quarantine_recommended
-	Findings []WatchdogFinding `json:"findings"`
-	ObservedCount int `json:"observedCount"`
-	QuarantineRecommended bool `json:"quarantineRecommended"`
-	EnforcementApplied bool `json:"enforcementApplied"`
-	IndependentHardwareAttestation bool `json:"independentHardwareAttestation"`
+	SchemaVersion                  string            `json:"schemaVersion"`
+	Verdict                        string            `json:"verdict"` // observe | review | quarantine_recommended
+	Findings                       []WatchdogFinding `json:"findings"`
+	ObservedCount                  int               `json:"observedCount"`
+	QuarantineRecommended          bool              `json:"quarantineRecommended"`
+	EnforcementApplied             bool              `json:"enforcementApplied"`
+	IndependentHardwareAttestation bool              `json:"independentHardwareAttestation"`
 }
 
 type SafetyCase struct {
-	Lineage []Policy `json:"lineage"`
-	Delegates []Policy `json:"delegates,omitempty"`
-	Previous *Policy `json:"previous,omitempty"`
-	Watchdog WatchdogRequest `json:"watchdog"`
+	Lineage   []Policy        `json:"lineage"`
+	Delegates []Policy        `json:"delegates,omitempty"`
+	Previous  *Policy         `json:"previous,omitempty"`
+	Watchdog  WatchdogRequest `json:"watchdog"`
 }
 
 type SafetyReport struct {
-	Boundary Report `json:"boundary"`
+	Boundary Report         `json:"boundary"`
 	Watchdog WatchdogReport `json:"watchdog"`
-	Applied bool `json:"applied"`
+	Applied  bool           `json:"applied"`
 }
 
 func finding(out *WatchdogReport, code, id string, quarantine bool) {
@@ -74,8 +74,8 @@ func finding(out *WatchdogReport, code, id string, quarantine bool) {
 func EvaluateWatchdog(policy Policy, descendants []Policy, req WatchdogRequest) WatchdogReport {
 	out := WatchdogReport{
 		SchemaVersion: "agent-watchdog.v1",
-		Verdict: "observe",
-		Findings: make([]WatchdogFinding, 0),
+		Verdict:       "observe",
+		Findings:      make([]WatchdogFinding, 0),
 	}
 	if reason := validatePolicy(policy); reason != "" {
 		finding(&out, "invalid_effective_policy", "", true)
@@ -125,14 +125,19 @@ func EvaluateWatchdog(policy Policy, descendants []Policy, req WatchdogRequest) 
 		}
 		switch event.Kind {
 		case "heartbeat":
-			if event.Grant != nil || event.ChildID != "" { finding(&out, "ambiguous_heartbeat", event.ID, true) }
+			if event.Grant != nil || event.ChildID != "" {
+				finding(&out, "ambiguous_heartbeat", event.ID, true)
+			}
 			lastHeartbeat = event.TimestampMS
 		case "policy_denial":
 			denials = append(denials, event.TimestampMS)
 			cutoff := event.TimestampMS - req.DenialWindowMS
 			n := 0
 			for _, ts := range denials {
-				if ts >= cutoff { denials[n] = ts; n++ }
+				if ts >= cutoff {
+					denials[n] = ts
+					n++
+				}
 			}
 			denials = denials[:n]
 			if len(denials) == req.DenialThreshold {
@@ -175,9 +180,9 @@ func EvaluateWatchdog(policy Policy, descendants []Policy, req WatchdogRequest) 
 func EvaluateCase(input SafetyCase) SafetyReport {
 	b := CheckUpdate(input.Lineage, input.Previous)
 	if len(input.Lineage) == 0 {
-		return SafetyReport{Boundary:b, Watchdog:WatchdogReport{
-			SchemaVersion:"agent-watchdog.v1", Verdict:"quarantine_recommended",
-			QuarantineRecommended:true, Findings:[]WatchdogFinding{{Code:"missing_effective_policy"}},
+		return SafetyReport{Boundary: b, Watchdog: WatchdogReport{
+			SchemaVersion: "agent-watchdog.v1", Verdict: "quarantine_recommended",
+			QuarantineRecommended: true, Findings: []WatchdogFinding{{Code: "missing_effective_policy"}},
 		}}
 	}
 	p := input.Lineage[len(input.Lineage)-1]
@@ -188,5 +193,5 @@ func EvaluateCase(input SafetyCase) SafetyReport {
 	if b.RequiresApproval {
 		finding(&w, "policy_change_requires_approval", "", false)
 	}
-	return SafetyReport{Boundary:b, Watchdog:w}
+	return SafetyReport{Boundary: b, Watchdog: w}
 }
