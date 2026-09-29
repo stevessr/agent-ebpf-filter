@@ -47,12 +47,14 @@ type SafetyCase struct {
 	Lineage   []Policy        `json:"lineage"`
 	Delegates []Policy        `json:"delegates,omitempty"`
 	Previous  *Policy         `json:"previous,omitempty"`
+	FailureMode string `json:"failureMode,omitempty"`
 	Watchdog  WatchdogRequest `json:"watchdog"`
 }
 
 type SafetyReport struct {
 	Boundary Report         `json:"boundary"`
 	Watchdog WatchdogReport `json:"watchdog"`
+	Transition TransitionPlan `json:"transition"`
 	Applied  bool           `json:"applied"`
 }
 
@@ -179,8 +181,9 @@ func EvaluateWatchdog(policy Policy, descendants []Policy, req WatchdogRequest) 
 // live in an independent trust domain and obtain authenticated approval.
 func EvaluateCase(input SafetyCase) SafetyReport {
 	b := CheckUpdate(input.Lineage, input.Previous)
+	plan := PlanTransition(input.Lineage, input.Previous, b, input.FailureMode)
 	if len(input.Lineage) == 0 {
-		return SafetyReport{Boundary: b, Watchdog: WatchdogReport{
+		return SafetyReport{Boundary: b, Transition: plan, Watchdog: WatchdogReport{
 			SchemaVersion: "agent-watchdog.v1", Verdict: "quarantine_recommended",
 			QuarantineRecommended: true, Findings: []WatchdogFinding{{Code: "missing_effective_policy"}},
 		}}
@@ -193,5 +196,5 @@ func EvaluateCase(input SafetyCase) SafetyReport {
 	if b.RequiresApproval {
 		finding(&w, "policy_change_requires_approval", "", false)
 	}
-	return SafetyReport{Boundary: b, Watchdog: w}
+	return SafetyReport{Boundary: b, Watchdog: w, Transition: plan}
 }
