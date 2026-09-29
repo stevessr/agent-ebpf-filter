@@ -30,8 +30,8 @@ jobs:
         run: go test ./internal/agentboundary -count=1
       - name: Export gofmt output
         run: |
-          gofmt -w backend/internal/agentboundary/*.go backend/app/research/safety_boundary.go
-          for file in backend/internal/agentboundary/*.go backend/app/research/safety_boundary.go; do
+          gofmt -w backend/internal/agentboundary/*.go backend/app/research/safety_boundary*.go
+          for file in backend/internal/agentboundary/*.go backend/app/research/safety_boundary*.go; do
             printf 'AGENT_FORMATTED %s %s\n' "$file" "$(base64 -w 0 "$file")"
           done
 
