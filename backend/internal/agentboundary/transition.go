@@ -23,10 +23,16 @@ func PlanTransition(chain []Policy, previous *Policy, report Report, mode string
 		EffectiveFailureMode: "fail_closed",
 		Decision:             "quarantine_recommended",
 	}
+	// Never let a caller-supplied report substitute for a fresh subset check.
+	report = CheckUpdate(chain, previous)
 	if len(chain) == 0 {
 		return out
 	}
 	out.CandidateGeneration = chain[len(chain)-1].Generation
+	if mode != "" && mode != "fail_closed" && mode != "retain_last_valid" {
+		out.Decision = "invalid_failure_mode"
+		return out
+	}
 	previousValid := false
 	if previous != nil {
 		replacement := append([]Policy(nil), chain...)
