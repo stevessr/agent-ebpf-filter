@@ -30,7 +30,7 @@ func TestSafetyReviewStrictRequestBounds(t *testing.T) {
 			t.Errorf("unknown/trailing request should be rejected: %d %s", response.Code, response.Body.String())
 		}
 	}
-	if response := runSafetyReviewRequest(strings.Repeat("x", int(researchControlRequestMaxBytes)+1)); response.Code != http.StatusRequestEntityTooLarge {
+	if response := runSafetyReviewRequest(`{"lineage":[],"padding":"` + strings.Repeat("x", int(researchControlRequestMaxBytes)+1) + `"}`); response.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("oversized request not rejected: %d %s", response.Code, response.Body.String())
 	}
 	response := runSafetyReviewRequest(valid)
