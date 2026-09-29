@@ -21,15 +21,15 @@ func handleResearchSafetyEvaluate(c *gin.Context) {
 	if err := decoder.Decode(&req); err != nil {
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
-			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error":"safety case too large"})
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "safety case too large"})
 		} else {
-			c.JSON(http.StatusBadRequest, gin.H{"error":"invalid safety case"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid safety case"})
 		}
 		return
 	}
 	var extra any
 	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
-		c.JSON(http.StatusBadRequest, gin.H{"error":"unexpected trailing JSON"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "unexpected trailing JSON"})
 		return
 	}
 	c.JSON(http.StatusOK, agentboundary.EvaluateCase(req))
