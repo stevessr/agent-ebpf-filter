@@ -394,7 +394,7 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 					_ = tlsAttachScheduler.Submit(wrapperTLSAttachRequest{
 						PID:        req.Pid,
 						Comm:       req.Comm,
-						BinaryPath: req.BinaryPath,
+						BinaryPath: wrapperTLSAttachBinaryPath(req.Comm, req.BinaryPath),
 					})
 				}
 
