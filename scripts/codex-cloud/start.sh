@@ -26,7 +26,7 @@ stop_one() {
 case "$mode" in
   frontend) start_one frontend "$CODEX_ROOT/frontend" "http://127.0.0.1:$port/" bun run dev --host 0.0.0.0 --port "$port" --strictPort ;;
   docs) start_one docs "$CODEX_ROOT" "http://127.0.0.1:$docs_port/" bun run docs:dev --host 0.0.0.0 --port "$docs_port" --strictPort ;;
-  all) "$0" frontend; "$0" docs ;;
+  all) bash "$0" frontend; bash "$0" docs ;;
   status)
     for label in frontend docs; do if [[ -f "$state/$label.pid" ]]; then pid="$(cat "$state/$label.pid")"; if kill -0 "$pid" 2>/dev/null; then echo "$label running PID $pid"; else echo "$label stale PID $pid"; fi; else echo "$label stopped"; fi; done ;;
   stop) stop_one frontend; stop_one docs; echo 'Stopped recorded development server PIDs.' ;;
