@@ -6,7 +6,7 @@ import (
 )
 
 func TestFormatDshWrapperAuditUsesOnlyLauncherMetadata(t *testing.T) {
-	got := formatDshWrapperAudit("dsh", []string{"headless", "private prompt --dump-config"})
+	got := formatDshWrapperAudit("dsh", []string{"headless", "private prompt --dump-config"}, "")
 	if got != "dsh_mode:profile dsh_profile:headless" {
 		t.Fatalf("audit = %q", got)
 	}
@@ -16,7 +16,7 @@ func TestFormatDshWrapperAuditUsesOnlyLauncherMetadata(t *testing.T) {
 }
 
 func TestFormatDshWrapperAuditRedactsPluginPayload(t *testing.T) {
-	got := formatDshWrapperAudit("dsh", []string{"plugin", "--profile", "tui", "add", "@scope/private-package"})
+	got := formatDshWrapperAudit("dsh", []string{"plugin", "--profile", "tui", "add", "@scope/private-package"}, "")
 	if got != "dsh_mode:plugin dsh_profile:tui dsh_operation:add" {
 		t.Fatalf("audit = %q", got)
 	}
@@ -26,17 +26,26 @@ func TestFormatDshWrapperAuditRedactsPluginPayload(t *testing.T) {
 }
 
 func TestFormatDshWrapperAuditRejectsUnsafeProfileToken(t *testing.T) {
-	got := formatDshWrapperAudit("dsh", []string{"profile with spaces", "task"})
+	got := formatDshWrapperAudit("dsh", []string{"profile with spaces", "task"}, "")
 	if got != "dsh_mode:profile" {
 		t.Fatalf("audit = %q", got)
 	}
 }
 
-func TestDshWrapperTLSAttachDefersUntilExec(t *testing.T) {
-	if got := wrapperTLSAttachBinaryPath("dsh", "/usr/local/bin/dsh"); got != "" {
-		t.Fatalf("dsh TLS binary path = %q, want deferred discovery", got)
+func TestDshWrapperTLSAttachUsesInspectorInsteadOfUprobe(t *testing.T) {
+	if shouldScheduleWrapperTLSAttach("dsh", "") {
+		t.Fatal("dsh launcher must not schedule eBPF TLS attach")
 	}
-	if got := wrapperTLSAttachBinaryPath("git", "/usr/bin/git"); got != "/usr/bin/git" {
-		t.Fatalf("non-dsh TLS binary path = %q", got)
+	if shouldScheduleWrapperTLSAttach("git", "dsh.exec") {
+		t.Fatal("dsh subprocess-provider exec must not schedule eBPF TLS attach")
+	}
+	if !shouldScheduleWrapperTLSAttach("git", "") {
+		t.Fatal("ordinary wrapped commands should retain TLS attach behavior")
+	}
+}
+
+func TestFormatDshWrapperAuditRecognizesProviderExec(t *testing.T) {
+	if got := formatDshWrapperAudit("git", []string{"status"}, "dsh.exec"); got != "dsh_mode:exec" {
+		t.Fatalf("audit = %q", got)
 	}
 }
