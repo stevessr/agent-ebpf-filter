@@ -137,7 +137,7 @@ dsh 的 wrapper 集成以其公开 CLI 语义为边界，而不是尝试解析 A
 - `--dump-config` / `--dump-default-config` / `--dump-config-schema` 标记为配置检查；
 - dsh 本身仍负责 profile 初始化、插件写锁、兼容性检查和生命周期；wrapper 不直接修改这些状态。
 
-dsh 是 Node.js CLI，因此 WrapperRequest 的 probe `binary_path` 会尽量解析为当前 `node` 运行时，执行目标仍然是原始 `dsh` 命令。这样可以提高后续 TLS/probe 自动发现的准确性，而不改变 dsh 的启动行为。
+dsh 是 Node.js CLI，但 WrapperRequest 到达后端时同一 PID 还处于 `agent-wrapper` 阶段。为避免在 `exec(dsh)` 之前抢跑，dsh 的 TLS attach 会故意清空 scheduler 的预解析路径，复用现有 500ms 延迟后读取 `/proc/<pid>/exe` 的逻辑；此时 PID 已切换到真实 Node runtime，也能基于实际进程 maps 查找已加载 TLS 库。
 
 ## 配置示例
 
