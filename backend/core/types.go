@@ -117,7 +117,7 @@ var AvailableHooks = []HookDef{
 	},
 	{
 		ID: "dsh", Name: "DeepSeek Harness", HookType: HookTypeWrapper,
-		Description: "Tracks dsh through the agent-wrapper command shim; dsh profiles and plugins remain managed by dsh.",
+		Description: "Tracks dsh through an argument-transparent agent-wrapper shim with source-aware launcher metadata; profiles and plugins remain managed by dsh.",
 		TargetCmd:   "dsh",
 	},
 	{
