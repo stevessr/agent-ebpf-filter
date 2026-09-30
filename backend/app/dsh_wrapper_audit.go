@@ -38,3 +38,13 @@ func safeDshAuditToken(value string) string {
 	}
 	return value
 }
+
+// wrapperTLSAttachBinaryPath deliberately defers dsh probe discovery until
+// after the wrapper process has exec'd the Node-based launcher. The existing
+// scheduler waits before reading /proc/<pid>/exe when this value is empty.
+func wrapperTLSAttachBinaryPath(comm, binaryPath string) string {
+	if dshcli.IsCommand(comm) {
+		return ""
+	}
+	return binaryPath
+}
