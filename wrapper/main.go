@@ -62,20 +62,22 @@ func main() {
 		launchUser   = flag.String("user", "", "run command as specified user")
 		launchCwd    = flag.String("cwd", "", "working directory for command")
 		observerMode = flag.Bool("observer", false, "auto-open observe page for this command")
+		dshExec      = flag.Bool("dsh-exec", false, "mark a DeepSeek Harness subprocess-provider exec")
+		verbatim     = flag.Bool("verbatim", false, "preserve command arguments exactly")
 	)
 	flag.Parse()
 
 	// Remaining positional args are the command + its arguments
 	posArgs := flag.Args()
 	if len(posArgs) < 1 {
-		fmt.Println("Usage: agent-wrapper [--user <user>] [--cwd <path>] [--observer] <command> [args...]")
+		fmt.Println("Usage: agent-wrapper [--user <user>] [--cwd <path>] [--observer] [--dsh-exec] [--verbatim] <command> [args...]")
 		os.Exit(1)
 	}
 
 	cmdName := posArgs[0]
 	rawArgs := posArgs[1:]
 
-	cmdArgs := prepareCommandArgs(cmdName, rawArgs)
+	cmdArgs := prepareCommandArgs(cmdName, rawArgs, *verbatim || *dshExec)
 
 	cwd, _ := os.Getwd()
 
@@ -98,6 +100,10 @@ func main() {
 		// Don't block forever on a stuck backend
 		conn.SetDeadline(time.Now().Add(2 * time.Second))
 
+		toolName := firstEnv("AGENT_EBPF_TOOL_NAME", "AGENT_TOOL_NAME")
+		if *dshExec && toolName == "" {
+			toolName = "dsh.exec"
+		}
 		req := &pb.WrapperRequest{
 			Pid:            uint32(os.Getpid()),
 			Comm:           cmdName,
@@ -108,7 +114,7 @@ func main() {
 			ConversationId: firstEnv("AGENT_EBPF_CONVERSATION_ID", "AGENT_CONVERSATION_ID"),
 			TurnId:         firstEnv("AGENT_EBPF_TURN_ID", "AGENT_TURN_ID"),
 			ToolCallId:     firstEnv("AGENT_EBPF_TOOL_CALL_ID", "AGENT_TOOL_CALL_ID"),
-			ToolName:       firstEnv("AGENT_EBPF_TOOL_NAME", "AGENT_TOOL_NAME"),
+			ToolName:       toolName,
 			TraceId:        firstEnv("AGENT_EBPF_TRACE_ID", "TRACE_ID"),
 			SpanId:         firstEnv("AGENT_EBPF_SPAN_ID", "SPAN_ID"),
 			RootAgentPid:   parseEnvUint32("AGENT_EBPF_ROOT_AGENT_PID", "ROOT_AGENT_PID"),
@@ -215,11 +221,11 @@ func isDshCommand(name string) bool {
 	return filepath.Base(strings.TrimSpace(name)) == "dsh"
 }
 
-func prepareCommandArgs(name string, rawArgs []string) []string {
-	if isDshCommand(name) {
+func prepareCommandArgs(name string, rawArgs []string, verbatim bool) []string {
+	if verbatim || isDshCommand(name) {
 		// dsh treats the first unknown launcher token as the start of app args and
-		// forwards the complete suffix verbatim. Preserve empty and whitespace-
-		// significant arguments so the wrapper remains transparent.
+		// the subprocess-provider plugin must preserve every child argv boundary.
+		// Preserve empty and whitespace-significant arguments in both paths.
 		return append([]string(nil), rawArgs...)
 	}
 	cmdArgs := make([]string, 0, len(rawArgs))
