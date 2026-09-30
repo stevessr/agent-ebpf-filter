@@ -105,6 +105,7 @@ const (
 const (
 	HookTypeNative         = core.HookTypeNative
 	HookTypeWrapper        = core.HookTypeWrapper
+	HookTypePlugin         = core.HookTypePlugin
 	ConfigFormatJSON       = core.ConfigFormatJSON
 	ConfigFormatTOML       = core.ConfigFormatTOML
 	ConfigFormatTypeScript = core.ConfigFormatTypeScript
