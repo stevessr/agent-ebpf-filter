@@ -76,12 +76,26 @@ const wrapperOverride = computed({
           /></template>
           {{ hook.installed ? "Installed" : "Not Installed" }}
         </a-tag>
-        <a-tag :color="hook.hook_type === 'native' ? 'blue' : 'orange'">
+        <a-tag
+          :color="
+            hook.hook_type === 'native'
+              ? 'blue'
+              : hook.hook_type === 'plugin'
+                ? 'purple'
+                : 'orange'
+          "
+        >
           <template #icon>
             <ThunderboltOutlined v-if="hook.hook_type === 'native'" />
             <SwapOutlined v-else />
           </template>
-          {{ hook.hook_type === "native" ? "Native Hook" : "Wrapper Hook" }}
+          {{
+            hook.hook_type === "native"
+              ? "Native Hook"
+              : hook.hook_type === "plugin"
+                ? "Harness Plugin"
+                : "Wrapper Hook"
+          }}
         </a-tag>
       </div>
     </div>

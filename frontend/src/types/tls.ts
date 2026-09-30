@@ -34,6 +34,7 @@ export interface TLSPlaintextEvent {
   prompt_len?: number;
   vendor?: string;
   capture_source?: string;
+  capture_request_id?: string;
   app_protocol?: string;
   request_path?: string;
   api_profile?: string;

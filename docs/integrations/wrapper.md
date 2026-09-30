@@ -23,10 +23,10 @@ sequenceDiagram
     participant Exec as syscall.Exec
     
     User->>Wrapper: agent-wrapper git push origin main
-    Wrapper->>Wrapper: trim whitespace args
+    Wrapper->>Wrapper: prepare argv (dsh suffix is preserved verbatim)
     Wrapper->>Env: read AGENT_RUN_ID, TRACE_ID, etc.
     Env-->>Wrapper: context metadata
-    Wrapper->>Wrapper: compute argv_digest = sha256(args)
+    Wrapper->>Wrapper: compute argv_digest = sha256(NUL-separated exact argv)
     
     Wrapper->>UDS: dial Unix socket (500ms timeout)
     UDS-->>Wrapper: connected
@@ -117,12 +117,31 @@ func extractMetadata() *WrapperMetadata {
 并计算 `ArgvDigest`：
 
 ```go
-func computeArgvDigest(args []string) string {
-    joined := strings.Join(args, " ")
-    hash := sha256.Sum256([]byte(joined))
+func computeArgvDigest(comm string, args []string) string {
+    parts := append([]string{comm}, args...)
+    hash := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
     return hex.EncodeToString(hash[:])
 }
 ```
+
+摘要对 wrapper 最终 argv 使用 NUL 分隔以保留参数边界。dsh 的参数准备阶段不做 trim 或删空参数，因此空参数和前后空白仍可区分；其他 wrapped command 继续保留现有的 legacy normalization。
+
+## DeepSeek Harness（dsh）语义
+
+dsh 的 launcher 本身仍按公开 CLI 语义审计：Agent eBPF 只解析 launcher 拥有的 profile/patch/dump 前缀，首个未知 token 起的 app 参数保持原样。
+
+真正的 Harness-owned exec 不再依赖 shell alias，而由 `@agent-ebpf/dsh-subprocess` profile bundle 替换 canonical `id: subprocess` provider。该 provider 继承官方 `@deepseek-ai/dsh-subprocess-local` 并同时覆盖：
+
+- `spawn()`：普通命令、后台任务、Hook command、MCP/LSP stdio child；
+- `spawnTerminal()`：PTY/交互式终端命令。
+
+provider 只把原始 argv 包成 `agent-wrapper --dsh-exec --verbatim -- <argv...>`，其余 cwd、stdio、signal、grace、output collection 等字段原样交还官方 local provider，因此策略入口位于真正创建子进程之前，而不是靠命令名猜测。
+
+`dsh plugin`、profile 初始化、包管理锁、兼容性豁免和 Cordis patch 生命周期仍由 dsh 自己负责。插件侧 exec 事件使用 `tool_name=dsh.exec` 与 `dsh_mode:exec` 归因。
+
+### dsh 网络明文
+
+dsh launcher 和 `dsh.exec` 子进程不会进入 Agent eBPF 的 TLS uProbe attach。Web profile 使用官方 `@deepseek-ai/dsh-experimental-inspector`：后端连接 loopback CDP endpoint（默认从 9230 开始探测），启用 `Network` domain，读取 request/response headers、body、status、timing 与 SSE 数据。进入现有 Network capture store 前统一经过 URL/header/body 脱敏，并标记 `capture_source=dsh_inspector`。
 
 ## 配置示例
 
