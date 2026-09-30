@@ -72,7 +72,6 @@ func firstArgBytes(args []string) int {
 	return len(args[0])
 }
 
-
 func TestPrepareCommandArgsPreservesDshAppArgumentsVerbatim(t *testing.T) {
 	raw := []string{"headless", "  keep spacing  ", ""}
 	got := prepareCommandArgs("dsh", raw)
