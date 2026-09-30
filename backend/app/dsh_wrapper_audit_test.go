@@ -31,3 +31,12 @@ func TestFormatDshWrapperAuditRejectsUnsafeProfileToken(t *testing.T) {
 		t.Fatalf("audit = %q", got)
 	}
 }
+
+func TestDshWrapperTLSAttachDefersUntilExec(t *testing.T) {
+	if got := wrapperTLSAttachBinaryPath("dsh", "/usr/local/bin/dsh"); got != "" {
+		t.Fatalf("dsh TLS binary path = %q, want deferred discovery", got)
+	}
+	if got := wrapperTLSAttachBinaryPath("git", "/usr/bin/git"); got != "/usr/bin/git" {
+		t.Fatalf("non-dsh TLS binary path = %q", got)
+	}
+}
