@@ -1,7 +1,5 @@
 package tls
 
-// ---- moved from backend/zz_merged_backend.go section analyzers_agentsight.go ----
-
 type AgentSightAnalyzer interface {
 	Name() string
 }

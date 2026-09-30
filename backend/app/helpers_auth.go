@@ -13,8 +13,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// ---- moved from backend/zz_merged_backend.go section helpers_auth.go ----
-
 func authMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !releaseAuthEnforced() || clusterRequestAuthAllowed(c) {

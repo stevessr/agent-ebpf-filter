@@ -4,8 +4,6 @@ import (
 	"agent-ebpf-filter/core"
 )
 
-// ---- moved from backend/zz_merged_backend.go section statetypesruntime.go ----
-
 // ── Type aliases to core package ─────────────────────────────────────────────
 
 type RuntimeSettings = core.RuntimeSettings

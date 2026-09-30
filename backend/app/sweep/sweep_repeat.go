@@ -10,8 +10,6 @@ import (
 	"sync"
 )
 
-// ---- moved from backend/zz_merged_backend.go section sweep_repeat.go ----
-
 func selectTopRepeatConfigs(profile sweepProfile, results []sweepResult, topN int, store *ml.TrainingDataStore, benchmarkSamples []ml.TrainingSample) []stabilityTask {
 	if topN < 1 {
 		topN = 1

@@ -13,8 +13,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from backend/zz_merged_backend.go section types_cluster.go ----
-
 const (
 	clusterTargetLocal                 = "local"
 	clusterTargetHeader                = "X-Cluster-Target"

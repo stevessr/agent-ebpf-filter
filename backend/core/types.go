@@ -121,16 +121,6 @@ var AvailableHooks = []HookDef{
 		TargetCmd:   "dsh",
 	},
 	{
-		ID: "zcode", Name: "ZCode", HookType: HookTypeWrapper,
-		Description: "Optional shell wrapper for the zcode CLI; desktop tasks remain observable through tracked processes without injecting undocumented hooks.",
-		TargetCmd: "zcode",
-	},
-	{
-		ID: "mcode", Name: "MiniMax Code", HookType: HookTypeWrapper,
-		Description: "Optional shell wrapper for the mcode CLI; keeps MiniMax Code's own configuration and ACP integration unchanged.",
-		TargetCmd: "mcode",
-	},
-	{
 		ID: "pi", Name: "Pi", HookType: HookTypeNative,
 		Description:  "Installs a TypeScript extension in Pi's user extension directory for session and tool-call telemetry",
 		TargetCmd:    "pi",
@@ -171,6 +161,19 @@ var AvailableHooks = []HookDef{
 		NativeHookEvent: "PreToolUse",
 		NativeMatcher:   "*",
 		ConfigFormat:    ConfigFormatJSON,
+	},
+	{
+		ID: "zcode", Name: "ZCode", HookType: HookTypeNative,
+		Description:     "Uses ZCode native lifecycle hooks for runtime telemetry while OS-level cgroup/BPF-LSM policies provide sandbox enforcement",
+		TargetCmd:       "zcode",
+		NativeHookEvent: "PreToolUse",
+		NativeMatcher:   "*",
+		ConfigFormat:    ConfigFormatJSON,
+	},
+	{
+		ID: "mcode", Name: "MiniMax Code", HookType: HookTypeWrapper,
+		Description: "Optional shell wrapper for the mcode CLI; keeps MiniMax Code's own configuration, providers, and ACP integration unchanged.",
+		TargetCmd:   "mcode",
 	},
 	{
 		ID: "cursor", Name: "Cursor", HookType: HookTypeWrapper,

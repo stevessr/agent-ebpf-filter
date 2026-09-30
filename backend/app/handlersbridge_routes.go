@@ -86,12 +86,13 @@ func handleMLSampleAnomalyPut(c *gin.Context)     { handlers.HandleMLSampleAnoma
 func handleMLSamplesPost(c *gin.Context)          { handlers.HandleMLSamplesPost(c) }
 func handleMLTunePost(c *gin.Context)             { autotuneTunePost(c) }
 func handleMLTuneModelsPost(c *gin.Context)       { autotuneTuneModelsPost(c) }
-func handleMLBacktestPost(c *gin.Context)         { handlers.HandleMLBacktestPost(c) }
 
-// Command safety bridges — delegate to fat-bridge Deps closures
-func handleMLAssessPost(c *gin.Context)          { handlers.Deps.MLAssessCommandSafety(c) }
-func handleMLExistingCommandsGet(c *gin.Context) { handlers.Deps.MLExistingCommandsGetFn(c) }
-func handleMLImportExistingPost(c *gin.Context)  { handlers.Deps.MLImportExistingFn(c) }
+// Command safety endpoints are implemented in app (command_safety.go);
+// /ml/backtest is an alias of /ml/assess.
+func handleMLBacktestPost(c *gin.Context)        { cmdsafetyAssessPost(c) }
+func handleMLAssessPost(c *gin.Context)          { cmdsafetyAssessPost(c) }
+func handleMLExistingCommandsGet(c *gin.Context) { cmdsafetyExistingCommandsGet(c) }
+func handleMLImportExistingPost(c *gin.Context)  { cmdsafetyImportExistingPost(c) }
 func handleConfigExportGet(c *gin.Context)       { handlers.HandleConfigExportGet(c) }
 func handleConfigImportPost(c *gin.Context)      { handlers.HandleConfigImportPost(c) }
 func handleConfigRuntimeGet(c *gin.Context)      { handlers.HandleConfigRuntimeGet(c) }

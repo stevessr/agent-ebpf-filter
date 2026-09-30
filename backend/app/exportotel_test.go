@@ -18,8 +18,6 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section exportotel_test.go ----
-
 type captureSpanExporter struct {
 	mu    sync.Mutex
 	names []string

@@ -19,8 +19,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// ---- moved from app/handlersstatssystem.go ----
-
 const (
 	systemStatsMaxProcesses        = 8192
 	systemStatsMaxNameBytes        = 512

@@ -12,8 +12,6 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
-// ---- moved from backend/zz_merged_backend.go section hooks.go ----
-
 func ensureHookRelayScript(h HookDef) (string, error) {
 	scriptDir := hookRelayScriptDir(h)
 	if err := platform.MkdirAllAsRealUser(scriptDir, 0o755); err != nil {
@@ -30,6 +28,9 @@ func ensureHookRelayScript(h HookDef) (string, error) {
 }
 
 func buildHookRelayScript(h HookDef) string {
+	if h.ID == "zcode" {
+		return buildZCodeHookRelayScript(h)
+	}
 	if h.ID == "antigravity" {
 		return buildAntigravityHookRelayScript(h)
 	}
@@ -173,6 +174,9 @@ func installNativeHook(h HookDef) error {
 	if h.ID == "antigravity" {
 		return installAntigravityNativeHook(h)
 	}
+	if h.ID == "zcode" {
+		return installZCodeNativeHook(h)
+	}
 
 	cleanupLegacyCodexHookConfig(h)
 
@@ -281,6 +285,9 @@ func uninstallNativeHook(h HookDef) error {
 	}
 	if h.ID == "antigravity" {
 		return uninstallAntigravityNativeHook(h)
+	}
+	if h.ID == "zcode" {
+		return uninstallZCodeNativeHook(h)
 	}
 
 	b, err := os.ReadFile(h.NativeConfigPath)

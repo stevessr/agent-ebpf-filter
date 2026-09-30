@@ -108,7 +108,6 @@ func TestUpdateMLRuntimeConfigPreservesPublishedModel(t *testing.T) {
 	}
 }
 
-
 func BenchmarkSnapshotMLRuntime(b *testing.B) {
 	previous := SnapshotMLRuntime()
 	b.Cleanup(func() { ReplaceMLRuntime(previous) })

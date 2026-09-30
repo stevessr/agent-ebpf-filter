@@ -20,7 +20,7 @@ func HandlePrometheusMetrics(c *gin.Context) {
 	writePrometheusSample(&b, "agent_ebpf_ringbuf_dropped_total", nil, float64(health.RingbufDroppedTotal))
 	writePrometheusHeader(&b, "agent_ebpf_ringbuf_reserve_failed_total", "counter", "Total ring buffer reserve failures.")
 	writePrometheusSample(&b, "agent_ebpf_ringbuf_reserve_failed_total", nil, float64(health.RingbufReserveFailedTotal))
-	writePrometheusHeader(&b, "agent_ebpf_ringbuf_zero_copy_decode_total", "counter", "Total eBPF ring buffer samples decoded through the zero-copy mmap-backed path.")
+	writePrometheusHeader(&b, "agent_ebpf_ringbuf_zero_copy_decode_total", "counter", "Total eBPF ring buffer samples decoded in place (no per-event struct copy).")
 	writePrometheusSample(&b, "agent_ebpf_ringbuf_zero_copy_decode_total", nil, float64(health.RingbufZeroCopyDecodeTotal))
 	writePrometheusHeader(&b, "agent_ebpf_ringbuf_copy_decode_total", "counter", "Total eBPF ring buffer samples decoded through the endian/alignment-safe copy fallback path.")
 	writePrometheusSample(&b, "agent_ebpf_ringbuf_copy_decode_total", nil, float64(health.RingbufCopyDecodeTotal))

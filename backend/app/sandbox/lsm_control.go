@@ -10,8 +10,6 @@ import (
 	"github.com/cilium/ebpf"
 )
 
-// ---- moved from backend/zz_merged_backend.go section lsmenforcercontrol.go ----
-
 // ── BPF LSM policy map operations ─────────────────────────────────────
 
 func lsmPathKeyFromString(path string) (lsmPathKey, error) {

@@ -51,6 +51,17 @@ make dev
 * `make dev-backend`
 * `make dev-frontend`
 
+**🖥️ 不开浏览器也能看事件：终端监视器**
+
+```bash
+make tui                                            # 自动读取 backend/.port 与 runtime.json 里的 token
+make tui TUI_ARGS="-backend http://host:8080 -token $TOKEN"
+```
+
+`tools/agent-tui` 订阅与 Web 仪表盘完全相同的 protobuf `/ws` 事件流，提供实时表格、
+吞吐 / 风险统计与过滤（`/` 输入 `comm:node type:openat risk:>=40`，`Space` 暂停，
+`Enter` 查看事件全部字段，`?` 查看按键）。
+
 ---
 
 ##  3. 组件编译与构建
@@ -100,6 +111,7 @@ make wrapper   # 仅编译 Agent 包装器
 | **Markdown / 架构文档** | `bun run docs:build` |
 | **Go 后端核心业务** | `cd backend && go test ./...` |
 | **Wrapper 智能体包装器** | `cd wrapper && go test ./...` |
+| **终端监视器 TUI** | `make tui-test` |
 | **Vue / TypeScript 前端** | `cd frontend && bun run build` |
 | **Proto 协议文件** | `make proto`，随后联合编译 backend/frontend 验证 |
 | **主 eBPF Tracker 采集器** | `cd backend/ebpf && go generate` <br>

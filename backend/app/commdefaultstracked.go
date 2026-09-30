@@ -1,7 +1,5 @@
 package app
 
-// ---- moved from backend/zz_merged_backend.go section commdefaultstracked.go ----
-
 const defaultEnabledTrackedCommandTag = "Agent CLI"
 
 var defaultTrackedCommands = map[string]string{
@@ -17,8 +15,9 @@ var defaultTrackedCommands = map[string]string{
 	"docker": "Container CLI", "podman": "Container CLI", "kubectl": "Container CLI",
 	"claude": "Agent CLI", "gemini": "Agent CLI", "codex": "Agent CLI",
 	"dsh": "Agent CLI", "pi": "Agent CLI", "omp": "Agent CLI",
-	"zcode": "Agent CLI", "mcode": "Agent CLI", "minimax-code": "Agent CLI",
 	"kiro-cli": "Agent CLI", "gh": "Agent CLI", "cursor": "Agent CLI", "zg": "Agent CLI",
+	"zcode": "Agent CLI", "ZCode": "Agent CLI", "ZCode.AppImage": "Agent CLI",
+	"mcode": "Agent CLI", "minimax-code": "Agent CLI",
 	"go": "Build Tool", "cargo": "Build Tool", "rustc": "Build Tool",
 	"gcc": "Build Tool", "g++": "Build Tool", "clang": "Build Tool",
 	"make": "Build Tool", "cmake": "Build Tool", "ninja": "Build Tool",

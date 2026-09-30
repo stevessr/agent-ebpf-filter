@@ -13,8 +13,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section osenforcementobjects_test.go ----
-
 func TestCgroupSandboxObjectSections(t *testing.T) {
 	spec, err := bpf.LoadAgentCgroupSandbox()
 	if err != nil {

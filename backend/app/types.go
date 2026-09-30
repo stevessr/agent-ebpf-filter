@@ -10,8 +10,6 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
-// ---- moved from backend/zz_merged_backend.go section types.go ----
-
 // ── Type aliases to core package ─────────────────────────────────────────────
 
 type bpfEvent = core.BpfEvent

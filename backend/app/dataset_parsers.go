@@ -17,8 +17,6 @@ import (
 	"agent-ebpf-filter/internal/behavior"
 )
 
-// ---- moved from backend/zz_merged_backend.go section dataset_parsers.go ----
-
 const (
 	remoteDatasetAbsoluteRecordLimit = 100_000
 	remoteDatasetMaxRecordBytes      = 4 << 20

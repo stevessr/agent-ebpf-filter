@@ -10,6 +10,7 @@ import (
 	"agent-ebpf-filter/pb"
 
 	"agent-ebpf-filter/app/events"
+	"agent-ebpf-filter/internal/wsfanout"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -25,8 +26,8 @@ type AppContext struct {
 
 	// ── Event system ────────────────────────────────────────────────
 	Broadcast         chan *pb.Event
-	EventClientHub    *protoClientHub
-	EnvelopeClientHub *protoClientHub
+	EventClientHub    *wsfanout.Hub
+	EnvelopeClientHub *wsfanout.Hub
 	Upgrader          websocket.Upgrader
 
 	// ── Runtime config ──────────────────────────────────────────────
@@ -128,8 +129,8 @@ func ContextMiddleware(ac *AppContext) gin.HandlerFunc {
 func newAppContext() *AppContext {
 	return &AppContext{
 		Network:           network.NewManager(),
-		EventClientHub:    newProtoClientHub(),
-		EnvelopeClientHub: newProtoClientHub(),
+		EventClientHub:    wsfanout.New(wsfanout.Options{}),
+		EnvelopeClientHub: wsfanout.New(wsfanout.Options{}),
 		TagMap: map[uint32]string{
 			0: "Unknown", 1: "AI Agent", 2: "Git", 3: "Build Tool",
 			4: "System Pkg", 5: "Runtime", 6: "System Tool",

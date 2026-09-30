@@ -14,14 +14,18 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"agent-ebpf-filter/app/platform"
+	"agent-ebpf-filter/internal/wsfanout"
 	"agent-ebpf-filter/pb"
 )
-
-// ---- moved from backend/zz_merged_backend.go section ws_api.go ----
 
 const (
 	passiveProtoWSReadLimit = 1024
 	passiveProtoWSPongWait  = 75 * time.Second
+
+	// broadcastBatchSize and broadcastFlushInterval bound the latency added by
+	// batching events into one websocket frame.
+	broadcastBatchSize     = 50
+	broadcastFlushInterval = 50 * time.Millisecond
 )
 
 func serveEventsWS(c *gin.Context) {
@@ -34,7 +38,7 @@ func serveEventEnvelopesWS(c *gin.Context) {
 	servePassiveProtoWS(c, ac.EnvelopeClientHub)
 }
 
-func servePassiveProtoWS(c *gin.Context, hub *protoClientHub) {
+func servePassiveProtoWS(c *gin.Context, hub *wsfanout.Hub) {
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		c.Status(http.StatusBadRequest)
@@ -45,20 +49,13 @@ func servePassiveProtoWS(c *gin.Context, hub *protoClientHub) {
 	conn.SetPongHandler(func(string) error {
 		return conn.SetReadDeadline(time.Now().Add(passiveProtoWSPongWait))
 	})
-	clientID, clientState := hub.addClient(conn)
-
-	defer func() {
-		hub.removeClient(clientID, clientState)
-	}()
+	client := hub.Add(conn)
+	defer hub.Remove(client)
 	for {
 		if _, _, err := conn.ReadMessage(); err != nil {
 			return
 		}
 	}
-}
-
-func broadcastProtoMessage(hub *protoClientHub, data []byte) int {
-	return hub.Broadcast(data)
 }
 
 func runEventBroadcaster(ctx context.Context) {
@@ -71,10 +68,26 @@ func runEventBroadcaster(ctx context.Context) {
 	}
 	defer appContext.EventClientHub.Close()
 	defer appContext.EnvelopeClientHub.Close()
-	eventBatch := make([]*pb.Event, 0, 50)
-	envelopeBatch := make([]*pb.EventEnvelope, 0, 50)
-	batchTicker := time.NewTicker(50 * time.Millisecond)
+	eventBatch := make([]*pb.Event, 0, broadcastBatchSize)
+	envelopeBatch := make([]*pb.EventEnvelope, 0, broadcastBatchSize)
+	batchTicker := time.NewTicker(broadcastFlushInterval)
 	defer batchTicker.Stop()
+
+	// publish marshals one batch and hands the single encoded payload to the
+	// hub, which shares it across every subscriber. When nobody is subscribed
+	// the batch is dropped without paying for the marshal at all.
+	publish := func(hub *wsfanout.Hub, msg proto.Message, marshalErrors, writeErrors *int) {
+		if hub.Len() == 0 {
+			return
+		}
+		data, err := proto.Marshal(msg)
+		if err != nil {
+			*marshalErrors++
+			log.Printf("[ERROR] failed to marshal %T: %v", msg, err)
+			return
+		}
+		*writeErrors += hub.Broadcast(wsfanout.NewBinaryMessage(data))
+	}
 
 	flushBatch := func() {
 		eventCount := len(eventBatch)
@@ -86,30 +99,14 @@ func runEventBroadcaster(ctx context.Context) {
 		marshalErrors := 0
 		writeErrors := 0
 		if eventCount > 0 {
-			events := make([]*pb.Event, len(eventBatch))
-			copy(events, eventBatch)
+			publish(appContext.EventClientHub, &pb.EventBatch{Events: eventBatch}, &marshalErrors, &writeErrors)
+			clear(eventBatch)
 			eventBatch = eventBatch[:0]
-			msg := &pb.EventBatch{Events: events}
-			data, err := proto.Marshal(msg)
-			if err != nil {
-				marshalErrors++
-				log.Printf("[ERROR] failed to marshal EventBatch: %v", err)
-			} else {
-				writeErrors += broadcastProtoMessage(appContext.EventClientHub, data)
-			}
 		}
 		if envelopeCount > 0 {
-			envelopes := make([]*pb.EventEnvelope, len(envelopeBatch))
-			copy(envelopes, envelopeBatch)
+			publish(appContext.EnvelopeClientHub, &pb.EventEnvelopeBatch{Envelopes: envelopeBatch}, &marshalErrors, &writeErrors)
+			clear(envelopeBatch)
 			envelopeBatch = envelopeBatch[:0]
-			msg := &pb.EventEnvelopeBatch{Envelopes: envelopes}
-			data, err := proto.Marshal(msg)
-			if err != nil {
-				marshalErrors++
-				log.Printf("[ERROR] failed to marshal EventEnvelopeBatch: %v", err)
-			} else {
-				writeErrors += broadcastProtoMessage(appContext.EnvelopeClientHub, data)
-			}
 		}
 		collectorMetricsStore.RecordBroadcastFlush(eventCount, envelopeCount, marshalErrors, writeErrors, time.Since(started))
 	}
@@ -135,12 +132,16 @@ func runEventBroadcaster(ctx context.Context) {
 			}
 			collectorMetricsStore.RecordBroadcastReceived()
 			event = enrichEventContext(event)
+			// Semantic alerts must see the event before recordCapturedEvent
+			// redacts it in place; the broadcaster owns the event outright
+			// once it leaves the queue (see enqueueBroadcastEvent).
+			alerts := buildSemanticAlerts(event)
 			appendRecord(recordCapturedEvent(event))
-			for _, alert := range buildSemanticAlerts(event) {
+			for _, alert := range alerts {
 				alert = enrichEventContext(alert)
 				appendRecord(recordCapturedEvent(alert))
 			}
-			if len(eventBatch) >= 50 || len(envelopeBatch) >= 50 {
+			if len(eventBatch) >= broadcastBatchSize || len(envelopeBatch) >= broadcastBatchSize {
 				flushBatch()
 			}
 		case <-batchTicker.C:
@@ -149,46 +150,14 @@ func runEventBroadcaster(ctx context.Context) {
 	}
 }
 
-type recentEventFilters struct {
-	Type           string
-	EventType      string
-	Source         string
-	PID            uint32
-	Comm           string
-	TraceID        string
-	SpanID         string
-	RedactionState string
-	Since          time.Time
-	Until          time.Time
-}
+type recentEventFilters = events.RecentEventFilters
 
-func recentEventFiltersFromRequest(c *gin.Context) recentEventFilters {
-	filters := recentEventFilters{
-		Type:           strings.TrimSpace(c.Query("type")),
-		EventType:      strings.TrimSpace(c.Query("event_type")),
-		Source:         strings.TrimSpace(c.Query("source")),
-		Comm:           strings.TrimSpace(c.Query("comm")),
-		TraceID:        strings.TrimSpace(c.Query("trace_id")),
-		SpanID:         strings.TrimSpace(c.Query("span_id")),
-		RedactionState: strings.TrimSpace(c.Query("redaction_state")),
-	}
-	if filters.EventType == "" {
-		filters.EventType = strings.TrimSpace(c.Query("eventType"))
-	}
-	if raw := strings.TrimSpace(c.Query("pid")); raw != "" {
-		if parsed, err := strconv.ParseUint(raw, 10, 32); err == nil {
-			filters.PID = uint32(parsed)
-		}
-	}
-	filters.Since = parseRecentEventTime(c.Query("since"))
-	filters.Until = parseRecentEventTime(c.Query("until"))
-	return filters
-}
+var recentEventFiltersFromRequest = events.RecentEventFiltersFromRequest
 
 var parseRecentEventTime = events.ParseRecentEventTime
 
 func filterRecentEventRecords(records []CapturedEventRecord, filters recentEventFilters) []CapturedEventRecord {
-	if filters == (recentEventFilters{}) {
+	if filters.IsZero() {
 		return records
 	}
 	filtered := make([]CapturedEventRecord, 0, len(records))

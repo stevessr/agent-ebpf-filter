@@ -10,8 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section apiexternal_test.go ----
-
 func TestExternalAPIRoutesExposeHealthAndOpenAPI(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()

@@ -6,11 +6,11 @@ import "sync/atomic"
 // TLS transport records. Counters are process-local and intentionally avoid
 // connection identifiers or plaintext-derived values.
 type TLSCaptureTimingStats struct {
-	Samples        uint64 `json:"samples"`
-	LastDelayNS    uint64 `json:"lastDelayNs"`
-	MaxDelayNS     uint64 `json:"maxDelayNs"`
-	UnknownClock   uint64 `json:"unknownClock"`
-	ReplaySamples  uint64 `json:"replaySamples"`
+	Samples          uint64 `json:"samples"`
+	LastDelayNS      uint64 `json:"lastDelayNs"`
+	MaxDelayNS       uint64 `json:"maxDelayNs"`
+	UnknownClock     uint64 `json:"unknownClock"`
+	ReplaySamples    uint64 `json:"replaySamples"`
 	MonotonicSamples uint64 `json:"monotonicSamples"`
 }
 

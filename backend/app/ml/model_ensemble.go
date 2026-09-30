@@ -11,8 +11,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend.go section model_ensemble.go ----
-
 // ── Model Type Registration ────────────────────────────────────────
 
 func init() {

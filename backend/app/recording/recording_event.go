@@ -1,8 +1,6 @@
 package recording
 
 import (
-	"agent-ebpf-filter/app/events"
-	"agent-ebpf-filter/app/platform"
 	"bufio"
 	"context"
 	"encoding/json"
@@ -13,10 +11,10 @@ import (
 	"sync"
 	"time"
 
+	"agent-ebpf-filter/app/platform"
+
 	"golang.org/x/sys/unix"
 )
-
-// ---- moved from backend/zz_merged_backend.go section recording_event.go ----
 
 type Status struct {
 	Active            bool   `json:"active"`
@@ -426,16 +424,25 @@ func (s *State) runGeneration(
 	}
 }
 
+// MarshalRecord encodes one JSONL line. Only ReceivedAt and Event are
+// persisted; the envelope is derived again on read, so it is deliberately
+// not built (or cloned) here.
 func MarshalRecord(record CapturedEventRecord) ([]byte, error) {
 	if record.Event == nil {
 		return nil, errors.New("event recording record has no event")
 	}
-	record = events.NormalizeCapturedEventRecord(record)
-	return marshalNormalizedRecord(record)
+	payload, err := json.Marshal(&record)
+	if err != nil {
+		return nil, err
+	}
+	if len(payload) > eventRecordingMaxRecordBytes {
+		return nil, fmt.Errorf("%w: %d bytes (limit %d)", errEventRecordingRecordTooLarge, len(payload), eventRecordingMaxRecordBytes)
+	}
+	return payload, nil
 }
 
 func marshalNormalizedRecord(record CapturedEventRecord) ([]byte, error) {
-	payload, err := json.Marshal(record)
+	payload, err := json.Marshal(&record)
 	if err != nil {
 		return nil, err
 	}

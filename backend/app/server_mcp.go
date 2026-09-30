@@ -15,8 +15,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// ---- moved from backend/zz_merged_backend.go section server_mcp.go ----
-
 type MCPTailEventsInput struct {
 	Limit int `json:"limit,omitempty" jsonschema:"maximum number of events to return"`
 }

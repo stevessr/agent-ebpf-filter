@@ -8,6 +8,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+
+	"agent-ebpf-filter/internal/wsfanout"
 )
 
 func TestParseEventLimitQueryIsBounded(t *testing.T) {
@@ -39,7 +41,7 @@ func TestParseEventLimitQueryIsBounded(t *testing.T) {
 }
 
 func TestPassiveProtoWSRejectsOversizedInboundFrame(t *testing.T) {
-	hub := newProtoClientHub()
+	hub := wsfanout.New(wsfanout.Options{})
 	t.Cleanup(hub.Close)
 	router := gin.New()
 	router.GET("/events", func(c *gin.Context) {
@@ -64,10 +66,10 @@ func TestPassiveProtoWSRejectsOversizedInboundFrame(t *testing.T) {
 	}
 
 	deadline := time.Now().Add(2 * time.Second)
-	for hub.ClientCount() != 0 && time.Now().Before(deadline) {
+	for hub.Len() != 0 && time.Now().Before(deadline) {
 		time.Sleep(time.Millisecond)
 	}
-	if hub.ClientCount() != 0 {
+	if hub.Len() != 0 {
 		t.Fatal("oversized-frame client remained registered")
 	}
 }

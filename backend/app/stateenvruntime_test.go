@@ -4,8 +4,6 @@ import (
 	"testing"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section stateenvruntime_test.go ----
-
 func TestSeedRuntimeSettingsFromEnvAppliesLLMAndBehavior(t *testing.T) {
 	t.Setenv("AGENT_ACCESS_TOKEN", "dev-token")
 	t.Setenv("AGENT_RUNTIME_SHELL_SESSIONS_ENABLED", "true")

@@ -12,6 +12,7 @@ import (
 	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/app/shell"
 	"agent-ebpf-filter/app/tls"
+	"agent-ebpf-filter/app/types"
 	"agent-ebpf-filter/app/wsstream"
 	"agent-ebpf-filter/core"
 	"agent-ebpf-filter/internal/geoip"
@@ -361,7 +362,6 @@ func (a *shellManagerAdapter) ClearClosed() { a.mgr.ClearClosed() }
 func init() {
 	// Tracker maps
 	handlers.Deps.TrackerMaps = &handlerTrackerMapsAdapter{set: &trackerMaps}
-	handlers.Deps.GetTagID = getTagID
 
 	// Process context
 	handlers.Deps.ProcessContexts = trackedProcessContexts
@@ -385,136 +385,7 @@ func init() {
 		}
 	}
 
-	handlers.Deps.PluginValidateID = validatePluginID
-	handlers.Deps.PluginSource = func(id string) (string, bool) { s, err := PluginSource(id); return s, err == nil }
-	handlers.Deps.PluginLoadEBPF = func(ctx context.Context, id string) (any, error) {
-		manifest, ok := pluginRegistry.Get(id)
-		if !ok {
-			return nil, fmt.Errorf("plugin %q not found", id)
-		}
-		if manifest.Kind != PluginKindEBPF {
-			return nil, errors.New("not an eBPF plugin")
-		}
-		if err := LoadEBPFPluginContext(ctx, &manifest); err != nil {
-			return nil, err
-		}
-		updated, _ := pluginRegistry.Get(id)
-		return updated, nil
-	}
-	handlers.Deps.PluginUnloadEBPF = UnloadEBPFPlugin
-	handlers.Deps.CompileUserBPF = func(ctx context.Context, id, source string) (string, []byte, error) {
-		if ctx == nil {
-			ctx = context.Background()
-		}
-		if err := ctx.Err(); err != nil {
-			return "", nil, err
-		}
-		if err := validateUserBPFSource(source); err != nil {
-			return "", nil, err
-		}
-		manifest, exists := pluginRegistry.Get(id)
-		if !exists {
-			manifest = PluginManifest{
-				ID:         id,
-				Name:       id,
-				Kind:       PluginKindEBPF,
-				AttachKind: PluginAttachNone,
-			}
-		} else if manifest.Kind != PluginKindEBPF {
-			return "", nil, errors.New("not an eBPF plugin")
-		} else if manifest.Enabled {
-			return "", nil, errors.New("disable the eBPF plugin before recompiling it")
-		}
-		if err := pluginRegistry.UpsertWithSourceContext(ctx, &manifest, source); err != nil {
-			return "", nil, fmt.Errorf("prepare plugin source: %w", err)
-		}
-		objectPath, diagnostics, err := CompileUserBPFContext(ctx, id, source)
-		if err != nil {
-			return objectPath, diagnostics, err
-		}
-		object, err := readPluginFile(id, "program.o", maxUserBPFObjectBytes)
-		if err != nil {
-			return objectPath, diagnostics, fmt.Errorf("read compiled plugin object: %w", err)
-		}
-		if err := pluginRegistry.RecordCompile(id, sha256Hex([]byte(source)), sha256Hex(object)); err != nil {
-			return objectPath, diagnostics, fmt.Errorf("record compiled plugin: %w", err)
-		}
-		return objectPath, diagnostics, nil
-	}
-	handlers.Deps.BPFTemplates = func() []any {
-		templates := bpfTemplates()
-		result := make([]any, len(templates))
-		for i, t := range templates {
-			result[i] = t
-		}
-		return result
-	}
-	handlers.Deps.PluginList = func() []any {
-		list := pluginRegistry.List()
-		result := make([]any, len(list))
-		for i, v := range list {
-			result[i] = v
-		}
-		return result
-	}
-	handlers.Deps.PluginGet = func(id string) (any, bool) { return pluginRegistry.Get(id) }
-	handlers.Deps.PluginUpsert = func(manifest any) (any, error) {
-		req, ok := manifest.(*handlers.PluginUpsertRequest)
-		if !ok {
-			return nil, fmt.Errorf("expected *handlers.PluginUpsertRequest, got %T", manifest)
-		}
-		kind := PluginKind(strings.TrimSpace(req.Kind))
-		if kind == "" {
-			kind = PluginKindEBPF
-		}
-		m := &PluginManifest{
-			ID:             strings.TrimSpace(req.ID),
-			Name:           sanitizePluginName(req.Name),
-			Description:    strings.TrimSpace(req.Description),
-			Author:         strings.TrimSpace(req.Author),
-			Version:        strings.TrimSpace(req.Version),
-			Kind:           kind,
-			Enabled:        req.Enabled,
-			AttachKind:     PluginAttachKind(strings.TrimSpace(req.AttachKind)),
-			AttachTarget:   strings.TrimSpace(req.AttachTarget),
-			ProgramName:    strings.TrimSpace(req.ProgramName),
-			WebhookURL:     strings.TrimSpace(req.WebhookURL),
-			WebhookEvents:  append([]string(nil), req.WebhookEvents...),
-			CommandComm:    strings.TrimSpace(req.CommandComm),
-			CommandArgs:    append([]string(nil), req.CommandArgs...),
-			CommandRule:    strings.TrimSpace(req.CommandRule),
-			CommandRewrite: append([]string(nil), req.CommandRewrite...),
-		}
-		var err error
-		if kind == PluginKindEBPF && strings.TrimSpace(req.Source) != "" {
-			err = pluginRegistry.UpsertWithSource(m, req.Source)
-		} else {
-			err = pluginRegistry.Upsert(m)
-		}
-		if err != nil {
-			return nil, err
-		}
-		stored, _ := pluginRegistry.Get(m.ID)
-		return stored, nil
-	}
-	handlers.Deps.PluginDelete = func(id string) error { return pluginRegistry.Delete(id) }
-	handlers.Deps.PluginSetEnabled = func(ctx context.Context, id string, enabled bool) (any, error) {
-		manifest, err := pluginRegistry.SetEnabled(id, enabled)
-		if err != nil {
-			return nil, err
-		}
-		if manifest.Kind == PluginKindEBPF {
-			if enabled {
-				if err := LoadEBPFPluginContext(ctx, &manifest); err != nil {
-					return manifest, err
-				}
-			} else {
-				UnloadEBPFPlugin(id)
-			}
-		}
-		stored, _ := pluginRegistry.Get(id)
-		return stored, nil
-	}
+	handlers.Deps.Plugins = pluginService{}
 
 	// System / platform handlers
 	handlers.Deps.GetRealHomeDir = platform.GetRealHomeDir
@@ -655,89 +526,7 @@ func init() {
 	}
 
 	// Config handlers
-	handlers.Deps.GetTagName = getTagName
-	handlers.Deps.ConfigTagNames = func() []string {
-		tagsMu.RLock()
-		defer tagsMu.RUnlock()
-		t := []string{}
-		for _, n := range tagMap {
-			t = append(t, n)
-		}
-		return t
-	}
-	handlers.Deps.IsCommDisabled = func(comm string) bool {
-		disabledCommsMu.RLock()
-		defer disabledCommsMu.RUnlock()
-		_, ok := disabledComms[comm]
-		return ok
-	}
-	handlers.Deps.AddDisabledComm = func(comm string) {
-		disabledCommsMu.Lock()
-		disabledComms[comm] = struct{}{}
-		disabledCommsMu.Unlock()
-	}
-	handlers.Deps.RemoveDisabledComm = func(comm string) {
-		disabledCommsMu.Lock()
-		delete(disabledComms, comm)
-		disabledCommsMu.Unlock()
-	}
-	handlers.Deps.DeleteDisabledComm = func(comm string) {
-		disabledCommsMu.Lock()
-		delete(disabledComms, comm)
-		disabledCommsMu.Unlock()
-	}
-	handlers.Deps.DisabledEventTypes = func() []uint32 {
-		disabledEventTypesMu.RLock()
-		defer disabledEventTypesMu.RUnlock()
-		disabled := make([]uint32, 0, len(disabledEventTypes))
-		for et := range disabledEventTypes {
-			disabled = append(disabled, et)
-		}
-		return disabled
-	}
-	handlers.Deps.AddDisabledEventType = func(et uint32) {
-		disabledEventTypesMu.Lock()
-		disabledEventTypes[et] = struct{}{}
-		disabledEventTypesMu.Unlock()
-	}
-	handlers.Deps.RemoveDisabledEventType = func(et uint32) {
-		disabledEventTypesMu.Lock()
-		delete(disabledEventTypes, et)
-		disabledEventTypesMu.Unlock()
-	}
-	handlers.Deps.ConfigRules = func() []*pb.WrapperRule {
-		rulesMu.RLock()
-		defer rulesMu.RUnlock()
-		result := make([]*pb.WrapperRule, 0, len(wrapperRules))
-		for _, r := range wrapperRules {
-			result = append(result, &pb.WrapperRule{
-				Comm:         r.Comm,
-				Action:       r.Action,
-				RewrittenCmd: r.RewrittenCmd,
-				Regex:        r.Regex,
-				Replacement:  r.Replacement,
-				Priority:     int32(r.Priority),
-			})
-		}
-		return result
-	}
-	handlers.Deps.UpsertConfigRule = func(comm, action, rewrittenCmd, regex, replacement string, priority int32) {
-		rulesMu.Lock()
-		wrapperRules[comm] = WrapperRule{
-			Comm:         comm,
-			Action:       action,
-			RewrittenCmd: []string{rewrittenCmd},
-			Regex:        regex,
-			Replacement:  replacement,
-			Priority:     int(priority),
-		}
-		rulesMu.Unlock()
-	}
-	handlers.Deps.DeleteConfigRule = func(comm string) {
-		rulesMu.Lock()
-		delete(wrapperRules, comm)
-		rulesMu.Unlock()
-	}
+	handlers.Deps.Config = trackingConfigStore{}
 
 	// Network enrichment handlers
 	handlers.Deps.NetworkFlowAggregator = handlerNetworkFlowView{}
@@ -768,61 +557,13 @@ func init() {
 	// LSM enforcer
 	handlers.Deps.LsmEnforcer = &lsmEnforcerAdapter{}
 
-	// AgentSight data pipeline
-	handlers.Deps.RecentEventFiltersFromRequest = func(c any) any {
-		return recentEventFiltersFromRequest(c.(*gin.Context))
-	}
-	handlers.Deps.FilterRecentEventRecords = func(records []CapturedEventRecord, filters any) []CapturedEventRecord {
-		if filters == nil {
-			return records
-		}
-		typed, ok := filters.(recentEventFilters)
-		if !ok {
-			return records
-		}
-		return filterRecentEventRecords(records, typed)
-	}
-	handlers.Deps.NormalizeCapturedEventRecord = normalizeCapturedEventRecord
-	handlers.Deps.EventEnvelopeToJSONValue = eventEnvelopeToJSONValue
-	handlers.Deps.EnvelopeEventTypeName = envelopeEventTypeName
-	handlers.Deps.ParseRecentEventTime = parseRecentEventTime
-
 	initMLHandlersDeps()
 }
 
 // ── ML handler wiring ──────────────────────────────────────────────
 
 func initMLHandlersDeps() {
-	handlers.Deps.MLStatus = mlStatus
-	handlers.Deps.BuildMLStatusJSON = buildMLStatusJSON
-	handlers.Deps.MLEnabled = func() bool { return ml.SnapshotMLRuntime().Enabled }
-	handlers.Deps.MLConfig = func() core.MLConfig { return ml.SnapshotMLRuntime().Config }
-	handlers.Deps.CurrentMLConfig = currentMLConfig
-	handlers.Deps.MLIsRunning = ml.GlobalTrainer.IsRunning
-	handlers.Deps.MLLogTotal = ml.GlobalTrainer.LogTotal
-	handlers.Deps.MLGetLogsResponse = mlGetLogsResponse
-	handlers.Deps.MLCancelTraining = cancelMLAutoTuneTasks
-	handlers.Deps.MLGetHistoryResponse = mlGetHistoryResponse
-	handlers.Deps.MLTrain = mlTrain
-	handlers.Deps.MLFeedbackResult = mlFeedbackResult
-	handlers.Deps.MLSamplesResponse = mlSamplesResponse
-	handlers.Deps.MLSampleLabelResult = mlSampleLabelResult
-	handlers.Deps.MLRemoveSampleResult = mlRemoveSampleResult
-	handlers.Deps.MLSampleAnomalyResult = mlSampleAnomalyResult
-	handlers.Deps.MLAddSample = mlAddSample
-	handlers.Deps.MLExistingCommands = func() []string {
-		candidates, _, _ := existingCommandCandidates(200)
-		cmds := make([]string, 0, len(candidates))
-		for _, c := range candidates {
-			if c.Comm != "" {
-				cmds = append(cmds, c.Comm)
-			}
-		}
-		return cmds
-	}
-	handlers.Deps.MLAssessCommandSafety = func(c *gin.Context) { cmdsafetyAssessPost(c) }
-	handlers.Deps.MLExistingCommandsGetFn = func(c *gin.Context) { cmdsafetyExistingCommandsGet(c) }
-	handlers.Deps.MLImportExistingFn = func(c *gin.Context) { cmdsafetyImportExistingPost(c) }
+	handlers.Deps.ML = mlService{}
 
 	// Hooks config wiring
 	handlers.Deps.AvailableHooks = func() []core.HookDef { return availableHooks }
@@ -831,4 +572,254 @@ func initMLHandlersDeps() {
 	handlers.Deps.UninstallNativeHook = uninstallNativeHook
 	handlers.Deps.GetShellConfigPath = getShellConfigPath
 	handlers.Deps.EnsureKiroManagedAgentExists = ensureKiroManagedAgentExists
+}
+
+// trackingConfigStore exposes the app's tracking configuration (tag registry,
+// disabled comms / event types, wrapper rules) to the handlers package.
+type trackingConfigStore struct{}
+
+func (trackingConfigStore) TagID(name string) uint32 { return getTagID(name) }
+func (trackingConfigStore) TagName(id uint32) string { return getTagName(id) }
+
+func (trackingConfigStore) TagNames() []string {
+	tagsMu.RLock()
+	defer tagsMu.RUnlock()
+	names := make([]string, 0, len(tagMap))
+	for _, name := range tagMap {
+		names = append(names, name)
+	}
+	return names
+}
+
+func (trackingConfigStore) IsCommDisabled(comm string) bool {
+	disabledCommsMu.RLock()
+	defer disabledCommsMu.RUnlock()
+	_, ok := disabledComms[comm]
+	return ok
+}
+
+func (trackingConfigStore) AddDisabledComm(comm string) {
+	disabledCommsMu.Lock()
+	disabledComms[comm] = struct{}{}
+	disabledCommsMu.Unlock()
+}
+
+func (trackingConfigStore) RemoveDisabledComm(comm string) {
+	disabledCommsMu.Lock()
+	delete(disabledComms, comm)
+	disabledCommsMu.Unlock()
+}
+
+func (trackingConfigStore) DisabledEventTypes() []uint32 {
+	disabledEventTypesMu.RLock()
+	defer disabledEventTypesMu.RUnlock()
+	disabled := make([]uint32, 0, len(disabledEventTypes))
+	for eventType := range disabledEventTypes {
+		disabled = append(disabled, eventType)
+	}
+	return disabled
+}
+
+func (trackingConfigStore) AddDisabledEventType(eventType uint32) {
+	disabledEventTypesMu.Lock()
+	disabledEventTypes[eventType] = struct{}{}
+	disabledEventTypesMu.Unlock()
+}
+
+func (trackingConfigStore) RemoveDisabledEventType(eventType uint32) {
+	disabledEventTypesMu.Lock()
+	delete(disabledEventTypes, eventType)
+	disabledEventTypesMu.Unlock()
+}
+
+func (trackingConfigStore) Rules() []*pb.WrapperRule {
+	rulesMu.RLock()
+	defer rulesMu.RUnlock()
+	result := make([]*pb.WrapperRule, 0, len(wrapperRules))
+	for _, r := range wrapperRules {
+		result = append(result, &pb.WrapperRule{
+			Comm:         r.Comm,
+			Action:       r.Action,
+			RewrittenCmd: r.RewrittenCmd,
+			Regex:        r.Regex,
+			Replacement:  r.Replacement,
+			Priority:     int32(r.Priority),
+		})
+	}
+	return result
+}
+
+func (trackingConfigStore) UpsertRule(comm, action, rewrittenCmd, regex, replacement string, priority int32) {
+	rulesMu.Lock()
+	wrapperRules[comm] = WrapperRule{
+		Comm:         comm,
+		Action:       action,
+		RewrittenCmd: []string{rewrittenCmd},
+		Regex:        regex,
+		Replacement:  replacement,
+		Priority:     int(priority),
+	}
+	rulesMu.Unlock()
+}
+
+func (trackingConfigStore) DeleteRule(comm string) {
+	rulesMu.Lock()
+	delete(wrapperRules, comm)
+	rulesMu.Unlock()
+}
+
+// pluginService exposes the plugin registry and eBPF builder to the handlers
+// package.
+type pluginService struct{}
+
+func (pluginService) ValidateID(id string) error { return validatePluginID(id) }
+
+func (pluginService) List() []types.PluginManifest { return pluginRegistry.List() }
+
+func (pluginService) Get(id string) (types.PluginManifest, bool) { return pluginRegistry.Get(id) }
+
+func (pluginService) Source(id string) (string, bool) {
+	source, err := PluginSource(id)
+	return source, err == nil
+}
+
+func (pluginService) Upsert(req *handlers.PluginUpsertRequest) (types.PluginManifest, error) {
+	kind := PluginKind(strings.TrimSpace(req.Kind))
+	if kind == "" {
+		kind = PluginKindEBPF
+	}
+	m := &PluginManifest{
+		ID:             strings.TrimSpace(req.ID),
+		Name:           sanitizePluginName(req.Name),
+		Description:    strings.TrimSpace(req.Description),
+		Author:         strings.TrimSpace(req.Author),
+		Version:        strings.TrimSpace(req.Version),
+		Kind:           kind,
+		Enabled:        req.Enabled,
+		AttachKind:     PluginAttachKind(strings.TrimSpace(req.AttachKind)),
+		AttachTarget:   strings.TrimSpace(req.AttachTarget),
+		ProgramName:    strings.TrimSpace(req.ProgramName),
+		WebhookURL:     strings.TrimSpace(req.WebhookURL),
+		WebhookEvents:  append([]string(nil), req.WebhookEvents...),
+		CommandComm:    strings.TrimSpace(req.CommandComm),
+		CommandArgs:    append([]string(nil), req.CommandArgs...),
+		CommandRule:    strings.TrimSpace(req.CommandRule),
+		CommandRewrite: append([]string(nil), req.CommandRewrite...),
+	}
+	var err error
+	if kind == PluginKindEBPF && strings.TrimSpace(req.Source) != "" {
+		err = pluginRegistry.UpsertWithSource(m, req.Source)
+	} else {
+		err = pluginRegistry.Upsert(m)
+	}
+	if err != nil {
+		return types.PluginManifest{}, err
+	}
+	stored, _ := pluginRegistry.Get(m.ID)
+	return stored, nil
+}
+
+func (pluginService) Delete(id string) error { return pluginRegistry.Delete(id) }
+
+func (pluginService) SetEnabled(ctx context.Context, id string, enabled bool) (types.PluginManifest, error) {
+	manifest, err := pluginRegistry.SetEnabled(id, enabled)
+	if err != nil {
+		return types.PluginManifest{}, err
+	}
+	if manifest.Kind == PluginKindEBPF {
+		if enabled {
+			if err := LoadEBPFPluginContext(ctx, &manifest); err != nil {
+				return manifest, err
+			}
+		} else {
+			UnloadEBPFPlugin(id)
+		}
+	}
+	stored, _ := pluginRegistry.Get(id)
+	return stored, nil
+}
+
+func (pluginService) LoadEBPF(ctx context.Context, id string) (types.PluginManifest, error) {
+	manifest, ok := pluginRegistry.Get(id)
+	if !ok {
+		return types.PluginManifest{}, fmt.Errorf("plugin %q not found", id)
+	}
+	if manifest.Kind != PluginKindEBPF {
+		return types.PluginManifest{}, errors.New("not an eBPF plugin")
+	}
+	if err := LoadEBPFPluginContext(ctx, &manifest); err != nil {
+		return types.PluginManifest{}, err
+	}
+	updated, _ := pluginRegistry.Get(id)
+	return updated, nil
+}
+
+func (pluginService) UnloadEBPF(id string) { UnloadEBPFPlugin(id) }
+
+func (pluginService) BPFTemplates() []types.BPFTemplate { return bpfTemplates() }
+
+func (pluginService) CompileUserBPF(ctx context.Context, id, source string) (string, []byte, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return "", nil, err
+	}
+	if err := validateUserBPFSource(source); err != nil {
+		return "", nil, err
+	}
+	manifest, exists := pluginRegistry.Get(id)
+	if !exists {
+		manifest = PluginManifest{
+			ID:         id,
+			Name:       id,
+			Kind:       PluginKindEBPF,
+			AttachKind: PluginAttachNone,
+		}
+	} else if manifest.Kind != PluginKindEBPF {
+		return "", nil, errors.New("not an eBPF plugin")
+	} else if manifest.Enabled {
+		return "", nil, errors.New("disable the eBPF plugin before recompiling it")
+	}
+	if err := pluginRegistry.UpsertWithSourceContext(ctx, &manifest, source); err != nil {
+		return "", nil, fmt.Errorf("prepare plugin source: %w", err)
+	}
+	objectPath, diagnostics, err := CompileUserBPFContext(ctx, id, source)
+	if err != nil {
+		return objectPath, diagnostics, err
+	}
+	object, err := readPluginFile(id, "program.o", maxUserBPFObjectBytes)
+	if err != nil {
+		return objectPath, diagnostics, fmt.Errorf("read compiled plugin object: %w", err)
+	}
+	if err := pluginRegistry.RecordCompile(id, sha256Hex([]byte(source)), sha256Hex(object)); err != nil {
+		return objectPath, diagnostics, fmt.Errorf("record compiled plugin: %w", err)
+	}
+	return objectPath, diagnostics, nil
+}
+
+// mlService exposes the ML engine to the handlers package.
+type mlService struct{}
+
+func (mlService) Status() *pb.MLStatus { return mlStatus() }
+func (mlService) StatusJSON() []byte   { return buildMLStatusJSON() }
+func (mlService) Enabled() bool        { return ml.SnapshotMLRuntime().Enabled }
+func (mlService) IsTraining() bool     { return ml.GlobalTrainer.IsRunning() }
+func (mlService) CancelTraining()      { cancelMLAutoTuneTasks() }
+func (mlService) Logs() gin.H          { return mlGetLogsResponse() }
+func (mlService) History() gin.H       { return mlGetHistoryResponse() }
+func (mlService) Train(numTrees, maxDepth, minSamplesLeaf int) gin.H {
+	return mlTrain(numTrees, maxDepth, minSamplesLeaf)
+}
+func (mlService) Feedback(comm, userAction string) gin.H { return mlFeedbackResult(comm, userAction) }
+func (mlService) Samples() gin.H                         { return mlSamplesResponse() }
+func (mlService) LabelSample(index int, label string) gin.H {
+	return mlSampleLabelResult(index, label)
+}
+func (mlService) RemoveSample(index int) gin.H { return mlRemoveSampleResult(index) }
+func (mlService) SetSampleAnomaly(index int, score float64) gin.H {
+	return mlSampleAnomalyResult(index, score)
+}
+func (mlService) AddSample(commandLine, comm string, args []string, label string) gin.H {
+	return mlAddSample(commandLine, comm, args, label)
 }

@@ -4,8 +4,6 @@ import (
 	"strings"
 )
 
-// ---- moved from backend/zz_merged_backend.go section audit_network.go ----
-
 type NetworkAuditFinding struct {
 	Type        string `json:"type"`
 	Severity    string `json:"severity"`

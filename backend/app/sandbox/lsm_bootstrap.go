@@ -14,8 +14,6 @@ import (
 	"github.com/cilium/ebpf/link"
 )
 
-// ---- moved from backend/zz_merged_backend.go section lsmenforcerbootstrap.go ----
-
 func ensureLsmEnforcerLoaded() error {
 	lsmEnforcerMu.Lock()
 	defer lsmEnforcerMu.Unlock()

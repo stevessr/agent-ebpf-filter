@@ -8,8 +8,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend.go section detection_protocol.go ----
-
 type HTTPRequestInfo = protocoldetect.HTTPRequestInfo
 type AppProtocol = protocoldetect.AppProtocol
 

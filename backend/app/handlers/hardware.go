@@ -20,8 +20,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// ---- moved from app/handlershardwaresystem.go ----
-
 func HandleSensors(c *gin.Context) {
 	temps, _ := host.SensorsTemperatures()
 	snap := &pb.SensorsSnapshot{Fans: []string{}}

@@ -9,8 +9,6 @@ import (
 	"github.com/cilium/ebpf/link"
 )
 
-// ---- moved from backend/zz_merged_backend.go section lsmenforcertypes.go ----
-
 // ── BPF LSM enforcement map and link management ────────────────────────
 //
 // Status handlers bridge through a runtime snapshot and still call:

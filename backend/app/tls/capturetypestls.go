@@ -6,8 +6,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// ---- moved from backend/zz_merged_backend.go section capturetypestls.go ----
-
 // Compact perf samples make the on-wire size metadata+DataLen rather than the
 // full Go/BPF struct, so increasing the scratch fragment does not penalize small
 // TLS calls. 1984 keeps a full compact sample at 2044 bytes and doubles the
@@ -57,7 +55,10 @@ type tlsFragment struct {
 	Flags        uint8
 	Function     uint8
 	Comm         [16]byte
-	Data         [tlsFragmentSize]byte
+	// Data views the DataLen payload bytes inside the perf sample they were
+	// decoded from. It is only valid until the reader reuses that sample; the
+	// assembler makes the single owned copy that outlives it.
+	Data []byte
 }
 
 type CompletedTLSFragment struct {

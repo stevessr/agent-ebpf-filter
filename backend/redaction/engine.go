@@ -26,14 +26,14 @@ type compiledRule struct {
 type RedactionEngine struct {
 	policy RedactionPolicy
 
-	mu           sync.RWMutex
-	rules        []RedactionRule
-	compiled     []compiledRule
-	ruleCache    map[string]string
-	batchCache    map[string]interface{}
-	stats        RedactionStats
-	placeholder  string
-	excludeSet   map[FieldCategory]struct{}
+	mu          sync.RWMutex
+	rules       []RedactionRule
+	compiled    []compiledRule
+	ruleCache   map[string]string
+	batchCache  map[string]interface{}
+	stats       RedactionStats
+	placeholder string
+	excludeSet  map[FieldCategory]struct{}
 }
 
 // NewRedactionEngine constructs an engine and precomputes policy state.

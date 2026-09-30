@@ -17,8 +17,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend.go section remotedatasetshelpers.go ----
-
 const remoteDatasetRedirectLimit = 5
 
 type remoteDatasetResolver interface {

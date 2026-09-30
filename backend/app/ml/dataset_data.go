@@ -10,8 +10,6 @@ import (
 	"agent-ebpf-filter/internal/behavior"
 )
 
-// ---- moved from backend/zz_merged_backend.go section dataset_data.go ----
-
 const (
 	trainingStoreMagic              = "AEF2"
 	trainingStoreMaxSamples         = 100000

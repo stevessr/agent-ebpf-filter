@@ -15,8 +15,6 @@ import (
 	"github.com/cilium/ebpf"
 )
 
-// ---- moved from backend/zz_merged_backend.go section cgroupsandboxops.go ----
-
 // ── Management operations ─────────────────────────────────────────────
 
 func BlockCgroup(cgroupID uint64) error {

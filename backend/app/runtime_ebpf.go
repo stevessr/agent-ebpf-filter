@@ -20,8 +20,6 @@ import (
 	"github.com/cilium/ebpf/rlimit"
 )
 
-// ---- moved from backend/zz_merged_backend.go section runtime_ebpf.go ----
-
 const bootstrapFlag = "--ebpf-bootstrap"
 
 // mapNames defines the required pinned eBPF maps.

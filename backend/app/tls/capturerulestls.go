@@ -6,8 +6,6 @@ import (
 	"sync"
 )
 
-// ---- moved from backend/zz_merged_backend.go section capturerulestls.go ----
-
 type TLSCaptureRule struct {
 	ID          string   `json:"id"`
 	Name        string   `json:"name"`

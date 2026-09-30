@@ -14,8 +14,6 @@ import (
 	gnet "github.com/shirou/gopsutil/v3/net"
 )
 
-// ---- moved from app/enrichment_handlers.go ----
-
 // HandleNetworkFlows returns aggregated network flow view.
 func HandleNetworkFlows(c *gin.Context) {
 	query := netcore.FlowQuery{

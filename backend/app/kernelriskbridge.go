@@ -12,8 +12,10 @@ import (
 
 // ── Kernel risk wrappers (migrated to app/events/) ─────────────────────────
 
-type kernelRiskDecision = events.KernelRiskDecision
-type kernelRiskFeedbackAction = events.KernelRiskFeedbackAction
+type (
+	kernelRiskDecision       = events.KernelRiskDecision
+	kernelRiskFeedbackAction = events.KernelRiskFeedbackAction
+)
 
 type kernelRiskFeedbackState struct {
 	mu          sync.Mutex

@@ -13,8 +13,6 @@ import (
 	"agent-ebpf-filter/pb"
 )
 
-// ---- moved from backend/zz_merged_backend.go section integration_ml.go ----
-
 // DefaultMLConfig re-exports the core default configuration.
 // The canonical MLConfig type lives in the core package.
 var DefaultMLConfig = core.DefaultMLConfig

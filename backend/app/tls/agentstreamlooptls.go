@@ -11,8 +11,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend.go section agentstreamlooptls.go ----
-
 func digestPromptText(text string) string {
 	trimmed := strings.TrimSpace(text)
 	if trimmed == "" {

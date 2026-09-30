@@ -1,20 +1,21 @@
 package events
 
 import (
-	"agent-ebpf-filter/app/platform"
-	"agent-ebpf-filter/pb"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
+	"agent-ebpf-filter/app/platform"
+	"agent-ebpf-filter/pb"
+
+	"github.com/gin-gonic/gin"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
-
-// ---- moved from backend/zz_merged_backend.go section envelope_event.go ----
 
 const eventEnvelopeSchemaVersion = "envelope.v1"
 
@@ -125,12 +126,16 @@ func firstNonNilEvent(candidates ...*pb.Event) *pb.Event {
 	return nil
 }
 
+// buildEventEnvelope derives the envelope for record.Event. The envelope's
+// LegacyEvent shares record.Event rather than cloning it: a captured record
+// already owns a private copy of the event, both views are only ever
+// serialised together, and redaction (redactCapturedEventRecord) is applied
+// to the shared object exactly once.
 func buildEventEnvelope(record CapturedEventRecord) *pb.EventEnvelope {
 	event := record.Event
 	if event == nil {
 		return nil
 	}
-	event = CloneProtoEvent(event)
 	timestamp := record.ReceivedAt.UTC()
 	if timestamp.IsZero() {
 		timestamp = time.Now().UTC()
@@ -179,34 +184,59 @@ func buildEventEnvelope(record CapturedEventRecord) *pb.EventEnvelope {
 	}
 	envelope.EventId = buildEventEnvelopeID(record, event)
 
-	switch {
-	case event.GetType() == "wrapper_intercept":
+	setEnvelopePayload(envelope, event)
+	return envelope
+}
+
+// setEnvelopePayload picks the typed payload for event. The candidates are
+// tried in priority order and each is built at most once.
+func setEnvelopePayload(envelope *pb.EventEnvelope, event *pb.Event) {
+	switch eventType := event.GetType(); {
+	case eventType == "wrapper_intercept":
 		envelope.Payload = &pb.EventEnvelope_WrapperEvent{WrapperEvent: buildWrapperEnvelopePayload(event)}
-	case event.GetType() == "native_hook":
+		return
+	case eventType == "native_hook":
 		envelope.Payload = &pb.EventEnvelope_HookEvent{HookEvent: buildHookEnvelopePayload(event)}
-	case strings.HasPrefix(event.GetType(), "mcp"):
+		return
+	case strings.HasPrefix(eventType, "mcp"):
 		envelope.Payload = &pb.EventEnvelope_McpEvent{McpEvent: buildMCPEnvelopePayload(event)}
-	case buildProcessEnvelopePayload(event) != nil:
-		envelope.Payload = &pb.EventEnvelope_ProcessEvent{ProcessEvent: buildProcessEnvelopePayload(event)}
-	case buildTLSEnvelopePayload(event) != nil:
-		envelope.Payload = &pb.EventEnvelope_TlsEvent{TlsEvent: buildTLSEnvelopePayload(event)}
-	case buildOTelSpanEnvelopePayload(event) != nil:
-		envelope.Payload = &pb.EventEnvelope_OtelSpanEvent{OtelSpanEvent: buildOTelSpanEnvelopePayload(event)}
-	case buildStdioEnvelopePayload(event) != nil:
-		envelope.Payload = &pb.EventEnvelope_StdioEvent{StdioEvent: buildStdioEnvelopePayload(event)}
-	case buildSystemMetricEnvelopePayload(event) != nil:
-		envelope.Payload = &pb.EventEnvelope_SystemMetricEvent{SystemMetricEvent: buildSystemMetricEnvelopePayload(event)}
-	case buildNetworkEnvelopePayload(event) != nil:
-		envelope.Payload = &pb.EventEnvelope_NetworkEvent{NetworkEvent: buildNetworkEnvelopePayload(event)}
-	case event.GetType() == "execve":
+		return
+	}
+	if payload := buildProcessEnvelopePayload(event); payload != nil {
+		envelope.Payload = &pb.EventEnvelope_ProcessEvent{ProcessEvent: payload}
+		return
+	}
+	if payload := buildTLSEnvelopePayload(event); payload != nil {
+		envelope.Payload = &pb.EventEnvelope_TlsEvent{TlsEvent: payload}
+		return
+	}
+	if payload := buildOTelSpanEnvelopePayload(event); payload != nil {
+		envelope.Payload = &pb.EventEnvelope_OtelSpanEvent{OtelSpanEvent: payload}
+		return
+	}
+	if payload := buildStdioEnvelopePayload(event); payload != nil {
+		envelope.Payload = &pb.EventEnvelope_StdioEvent{StdioEvent: payload}
+		return
+	}
+	if payload := buildSystemMetricEnvelopePayload(event); payload != nil {
+		envelope.Payload = &pb.EventEnvelope_SystemMetricEvent{SystemMetricEvent: payload}
+		return
+	}
+	if payload := buildNetworkEnvelopePayload(event); payload != nil {
+		envelope.Payload = &pb.EventEnvelope_NetworkEvent{NetworkEvent: payload}
+		return
+	}
+	if event.GetType() == "execve" {
 		envelope.Payload = &pb.EventEnvelope_ExecEvent{ExecEvent: buildExecEnvelopePayload(event)}
-	case buildFileEnvelopePayload(event) != nil:
-		envelope.Payload = &pb.EventEnvelope_FileEvent{FileEvent: buildFileEnvelopePayload(event)}
-	case event.GetType() == "semantic_alert" || strings.TrimSpace(event.GetDecision()) != "":
+		return
+	}
+	if payload := buildFileEnvelopePayload(event); payload != nil {
+		envelope.Payload = &pb.EventEnvelope_FileEvent{FileEvent: payload}
+		return
+	}
+	if event.GetType() == "semantic_alert" || strings.TrimSpace(event.GetDecision()) != "" {
 		envelope.Payload = &pb.EventEnvelope_PolicyEvent{PolicyEvent: buildPolicyEnvelopePayload(event)}
 	}
-
-	return envelope
 }
 
 func DetermineEnvelopeSource(event *pb.Event) string {
@@ -255,12 +285,19 @@ func buildEventEnvelopeID(record CapturedEventRecord, event *pb.Event) string {
 	if timestamp.IsZero() {
 		timestamp = time.Unix(0, 0).UTC()
 	}
-	parts := []string{
-		strconvFormatInt(timestamp.UnixNano()),
-		DetermineEnvelopeSource(event),
-		event.GetType(),
-		strconvFormatUint32(event.GetPid()),
-		strconvFormatUint32(event.GetPpid()),
+	// The hashed material is the NUL-joined field list; it is assembled in a
+	// stack scratch buffer so typical events hash without allocating.
+	var scratch [512]byte
+	buf := strconv.AppendInt(scratch[:0], timestamp.UnixNano(), 10)
+	buf = append(buf, 0)
+	buf = append(buf, DetermineEnvelopeSource(event)...)
+	buf = append(buf, 0)
+	buf = append(buf, event.GetType()...)
+	buf = append(buf, 0)
+	buf = strconv.AppendUint(buf, uint64(event.GetPid()), 10)
+	buf = append(buf, 0)
+	buf = strconv.AppendUint(buf, uint64(event.GetPpid()), 10)
+	for _, part := range [...]string{
 		event.GetComm(),
 		event.GetPath(),
 		event.GetNetEndpoint(),
@@ -268,9 +305,15 @@ func buildEventEnvelopeID(record CapturedEventRecord, event *pb.Event) string {
 		event.GetToolCallId(),
 		event.GetDecision(),
 		event.GetExtraInfo(),
+	} {
+		buf = append(buf, 0)
+		buf = append(buf, part...)
 	}
-	sum := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
-	return "evt_" + hex.EncodeToString(sum[:12])
+	sum := sha256.Sum256(buf)
+	var id [4 + 24]byte
+	copy(id[:], "evt_")
+	hex.Encode(id[4:], sum[:12])
+	return string(id[:])
 }
 
 func buildExecEnvelopePayload(event *pb.Event) *pb.ExecEvent {
@@ -433,28 +476,36 @@ func buildProcessEnvelopePayload(event *pb.Event) *pb.ProcessEvent {
 	if event == nil {
 		return nil
 	}
+	// Decide before allocating: most events are not process lifecycle events.
+	var phase string
+	switch event.GetType() {
+	case "process_fork":
+		phase = "fork"
+	case "clone":
+		phase = "clone"
+	case "process_exec":
+		phase = "exec"
+	case "process_exit", "exit":
+		phase = "exit"
+	case "wait4":
+		phase = "wait4"
+	default:
+		return nil
+	}
 	payload := &pb.ProcessEvent{
+		Phase:     phase,
 		ParentPid: event.GetPpid(),
 		ExtraInfo: event.GetExtraInfo(),
 	}
-	switch event.GetType() {
-	case "process_fork":
-		payload.Phase = "fork"
+	switch phase {
+	case "fork", "clone":
 		payload.ChildPid = platform.ParseUintField(event.GetExtraInfo(), "child_pid")
-	case "clone":
-		payload.Phase = "clone"
-		payload.ChildPid = platform.ParseUintField(event.GetExtraInfo(), "child_pid")
-	case "process_exec":
-		payload.Phase = "exec"
+	case "exec":
 		payload.OldPid = platform.ParseUintField(event.GetExtraInfo(), "old_pid")
-	case "process_exit", "exit":
-		payload.Phase = "exit"
+	case "exit":
 		payload.ExitStatus = int32(platform.ParseUintField(event.GetExtraInfo(), "status"))
 	case "wait4":
-		payload.Phase = "wait4"
 		payload.TargetPid = platform.ParseUintField(event.GetExtraInfo(), "target_pid")
-	default:
-		return nil
 	}
 	return payload
 }
@@ -558,11 +609,11 @@ func EnvelopeToJSONValue(envelope *pb.EventEnvelope) map[string]any {
 }
 
 func strconvFormatUint32(value uint32) string {
-	return fmt.Sprintf("%d", value)
+	return strconv.FormatUint(uint64(value), 10)
 }
 
 func strconvFormatInt(value int64) string {
-	return fmt.Sprintf("%d", value)
+	return strconv.FormatInt(value, 10)
 }
 
 func tgidOrPid(event *pb.Event) uint32 {
@@ -570,4 +621,45 @@ func tgidOrPid(event *pb.Event) uint32 {
 		return tgid
 	}
 	return event.GetPid()
+}
+
+// RecentEventFilters narrows a recent-events query. Zero fields are ignored.
+type RecentEventFilters struct {
+	Type           string
+	EventType      string
+	Source         string
+	PID            uint32
+	Comm           string
+	TraceID        string
+	SpanID         string
+	RedactionState string
+	Since          time.Time
+	Until          time.Time
+}
+
+// IsZero reports whether the filter matches everything.
+func (f RecentEventFilters) IsZero() bool { return f == RecentEventFilters{} }
+
+// RecentEventFiltersFromRequest reads the filter fields from query parameters.
+func RecentEventFiltersFromRequest(c *gin.Context) RecentEventFilters {
+	filters := RecentEventFilters{
+		Type:           strings.TrimSpace(c.Query("type")),
+		EventType:      strings.TrimSpace(c.Query("event_type")),
+		Source:         strings.TrimSpace(c.Query("source")),
+		Comm:           strings.TrimSpace(c.Query("comm")),
+		TraceID:        strings.TrimSpace(c.Query("trace_id")),
+		SpanID:         strings.TrimSpace(c.Query("span_id")),
+		RedactionState: strings.TrimSpace(c.Query("redaction_state")),
+	}
+	if filters.EventType == "" {
+		filters.EventType = strings.TrimSpace(c.Query("eventType"))
+	}
+	if raw := strings.TrimSpace(c.Query("pid")); raw != "" {
+		if parsed, err := strconv.ParseUint(raw, 10, 32); err == nil {
+			filters.PID = uint32(parsed)
+		}
+	}
+	filters.Since = ParseRecentEventTime(c.Query("since"))
+	filters.Until = ParseRecentEventTime(c.Query("until"))
+	return filters
 }

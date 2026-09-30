@@ -188,6 +188,12 @@ func queueKernelRiskFeedback(event *pb.Event, decision kernelRiskDecision) {
 	if !kernelRiskFeedbackWorkerStarted() {
 		return
 	}
+	if gate := Deps.KernelRiskFeedbackGate; gate != nil {
+		policyManagement, feedback := gate()
+		if !policyManagement || !feedback.Enabled || decision.Score < kernelRiskFeedbackMinScore(feedback) {
+			return
+		}
+	}
 	settings := Deps.RuntimeSettingsSnapshot()
 	actions := kernelRiskFeedbackActions(settings, event, decision)
 	for _, action := range actions {
@@ -204,9 +210,7 @@ func kernelRiskFeedbackActions(settings RuntimeSettings, event *pb.Event, decisi
 		return nil
 	}
 	feedback := settings.KernelRiskFeedback
-	if feedback.MinRiskScore <= 0 {
-		feedback.MinRiskScore = 85
-	}
+	feedback.MinRiskScore = kernelRiskFeedbackMinScore(feedback)
 	if decision.Score < feedback.MinRiskScore {
 		return nil
 	}
@@ -221,7 +225,7 @@ func kernelRiskFeedbackActions(settings RuntimeSettings, event *pb.Event, decisi
 			Kind:     kind,
 			Target:   target,
 			Score:    decision.Score,
-			Decision: Deps.StringsTrimDefault(decision.Decision, "OBSERVE"),
+			Decision: trimDefault(decision.Decision, "OBSERVE"),
 			Reason:   reason,
 		})
 	}
@@ -261,21 +265,25 @@ func KernelRiskFeedbackActions(settings RuntimeSettings, event *pb.Event, decisi
 }
 
 func applyKernelRiskFeedbackAction(action kernelRiskFeedbackAction) error {
+	enforcer := Deps.Enforcer
+	if enforcer == nil {
+		return errors.New("kernel-risk feedback enforcer is not configured")
+	}
 	switch action.Kind {
 	case kernelRiskFeedbackKindNetworkIP:
-		return Deps.BlockIP(action.Target)
+		return enforcer.BlockIP(action.Target)
 	case kernelRiskFeedbackKindNetworkPort:
 		port, err := strconv.ParseUint(action.Target, 10, 16)
 		if err != nil || port == 0 {
 			return fmt.Errorf("invalid kernel-risk feedback port %q", action.Target)
 		}
-		return Deps.BlockPort(uint16(port))
+		return enforcer.BlockPort(uint16(port))
 	case kernelRiskFeedbackKindLSMFileName:
-		return Deps.BlockLsmFileName(action.Target)
+		return enforcer.BlockFileName(action.Target)
 	case kernelRiskFeedbackKindLSMExecPath:
-		return Deps.BlockLsmExecPath(action.Target)
+		return enforcer.BlockExecPath(action.Target)
 	case kernelRiskFeedbackKindLSMExecName:
-		return Deps.BlockLsmExecName(action.Target)
+		return enforcer.BlockExecName(action.Target)
 	default:
 		return fmt.Errorf("unknown kernel-risk feedback action kind %q", action.Kind)
 	}
@@ -307,4 +315,11 @@ func safeKernelRiskBasename(path string) string {
 	default:
 		return name
 	}
+}
+
+func kernelRiskFeedbackMinScore(feedback KernelRiskFeedbackSettings) float64 {
+	if feedback.MinRiskScore <= 0 {
+		return 85
+	}
+	return feedback.MinRiskScore
 }

@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 )
 
-// ---- moved from backend/zz_merged_backend.go section decision_forest.go ----
-
 // DecisionNode stores one node in a decision tree.
 // Flat array layout (pre-order) for cache-friendly inference.
 type DecisionNode struct {

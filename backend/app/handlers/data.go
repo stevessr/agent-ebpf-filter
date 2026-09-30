@@ -4,8 +4,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from app/handlers_data.go ----
-
 func HandleClearEvents(c *gin.Context) {
 	Deps.EventArchiveClear()
 	Deps.AgentSightEventsClear()

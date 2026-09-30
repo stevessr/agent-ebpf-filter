@@ -255,8 +255,8 @@ func TestGeneralizeBatch_Path(t *testing.T) {
 
 func TestGeneralizer_Disabled(t *testing.T) {
 	g := NewGeneralizer(GeneralizationConfig{
-		IPPrecision:   IPPrecisionNone,
-		Enabled:       false,
+		IPPrecision: IPPrecisionNone,
+		Enabled:     false,
 	})
 
 	ip := "192.168.1.100"

@@ -19,8 +19,6 @@ import (
 	"agent-ebpf-filter/pb"
 )
 
-// ---- moved from backend/zz_merged_backend.go section statepersistenceruntime.go ----
-
 type runtimeState struct {
 	mu        sync.RWMutex
 	settings  RuntimeSettings
@@ -264,6 +262,34 @@ func (s *runtimeState) Snapshot() RuntimeSettings {
 	return s.settings
 }
 
+// The accessors below serve per-event gates. They copy one sub-struct under
+// the read lock instead of the whole RuntimeSettings, and callers must not
+// mutate the slices they share with the live settings.
+
+func (s *runtimeState) SignalProcessingSettings() SignalProcessingSettings {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.settings.SignalProcessing
+}
+
+func (s *runtimeState) ResearchProcessingSettings() ResearchProcessingSettings {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.settings.ResearchProcessing
+}
+
+func (s *runtimeState) LoopDetectionSettings() LoopDetectionSettings {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.settings.LoopDetection
+}
+
+func (s *runtimeState) KernelRiskFeedbackGate() (policyManagement bool, feedback KernelRiskFeedbackSettings) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.settings.PolicyManagementEnabled, s.settings.KernelRiskFeedback
+}
+
 func (s *runtimeState) ExpectedToken() string {
 	s.mu.RLock()
 	token := strings.TrimSpace(s.settings.AccessToken)
@@ -502,6 +528,9 @@ func (s *runtimeState) eventLogRoot() string {
 	return platform.RuntimeSettingsDir()
 }
 
+// recordCapturedEvent takes ownership of event: it is redacted in place and
+// retained by the archive, the persistence queue and the websocket batch.
+// Callers must not read or modify it afterwards.
 func recordCapturedEvent(event *pb.Event) CapturedEventRecord {
 	if event == nil {
 		return CapturedEventRecord{}
@@ -509,10 +538,9 @@ func recordCapturedEvent(event *pb.Event) CapturedEventRecord {
 
 	collectorMetricsStore.RecordEvent(event)
 
-	eventCopy := cloneProtoEvent(event)
 	record := normalizeCapturedEventRecord(CapturedEventRecord{
 		ReceivedAt: time.Now().UTC(),
-		Event:      eventCopy,
+		Event:      event,
 	})
 	record = redactCapturedEventRecord(record, globalRedactionEngine)
 	capturedEventArchive.Add(record)

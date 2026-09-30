@@ -9,8 +9,6 @@ import (
 	"strings"
 )
 
-// ---- moved from backend/zz_merged_backend.go section sweeprenderreport.go ----
-
 func writeCSV(path string, results []sweepResult) error {
 	f, err := os.Create(path)
 	if err != nil {

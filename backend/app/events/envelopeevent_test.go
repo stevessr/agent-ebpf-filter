@@ -6,8 +6,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section envelopeevent_test.go ----
-
 func TestNormalizeCapturedEventRecordBuildsWrapperEnvelope(t *testing.T) {
 	record := NormalizeCapturedEventRecord(CapturedEventRecord{
 		ReceivedAt: time.Unix(1710000000, 123).UTC(),

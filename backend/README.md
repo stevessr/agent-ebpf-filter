@@ -353,6 +353,7 @@ Supported hook targets:
 - Kiro CLI
 - Augment / Auggie CLI
 - Antigravity CLI (`agy`)
+- ZCode (native lifecycle hooks, `~/.zcode/cli/config.json`)
 - Cursor (wrapper alias mode)
 
 Native hook configs are resolved relative to the real user home directory:
@@ -374,6 +375,7 @@ codex_hooks = true
 
 Kiro native-hook install creates a managed agent cloned from `kiro_default` and temporarily points `chat.defaultAgent` in `~/.kiro/settings/cli.json` to that managed agent. On uninstall, the previous default agent is restored.
 Antigravity CLI native-hook install creates an `agent-ebpf-hook-active` plugin directory with `plugin.json` and `hooks.json`; its relay script returns Antigravity-compatible JSON stdout while forwarding telemetry to the backend.
+ZCode native-hook install preserves the user's `~/.zcode/cli/config.json`, enables `hooks.enabled`, and injects async telemetry handlers under `hooks.events`; enforcement remains in the runtime-gated cgroup/BPF-LSM sandbox rather than hook stdout.
 
 Wrapper aliases are written to:
 

@@ -8,8 +8,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section probemanagertls_test.go ----
-
 func TestFindFirstExistingPath(t *testing.T) {
 	tmpDir := t.TempDir()
 	existing := filepath.Join(tmpDir, "libssl.so")
