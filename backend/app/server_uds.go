@@ -358,6 +358,11 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 					_ = trackerMaps.TrackedComms.Put(k, getTagID("Wrapper"))
 				}
 
+				wrapperExtraInfo := fmt.Sprintf("net_audit:%s risk:%.0f", netAudit.RiskLevel, netAudit.RiskScore)
+				if dshAudit := formatDshWrapperAudit(req.Comm, req.Args); dshAudit != "" {
+					wrapperExtraInfo += " " + dshAudit
+				}
+
 				enqueueBroadcastEvent(broadcast, &pb.Event{
 					Pid:            req.Pid,
 					Comm:           req.Comm,
@@ -366,7 +371,7 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 					Tag:            "Wrapper",
 					Path:           boundedWrapperTrainingString(strings.TrimSpace(req.Comm+" "+argsText), udsMaxTrainingCommandBytes),
 					Behavior:       classification,
-					ExtraInfo:      fmt.Sprintf("net_audit:%s risk:%.0f", netAudit.RiskLevel, netAudit.RiskScore),
+					ExtraInfo:      wrapperExtraInfo,
 					SchemaVersion:  eventSchemaVersion,
 					RootAgentPid:   processCtx.RootAgentPid,
 					AgentRunId:     processCtx.AgentRunID,
