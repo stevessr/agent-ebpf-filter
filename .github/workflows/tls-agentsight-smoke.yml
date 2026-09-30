@@ -8,8 +8,10 @@ on:
     paths:
       - "backend/app/tls/**"
       - "backend/app/zcodehooks*.go"
-      - "backend/app/dsh_wrapper_audit*.go"
+      - "backend/app/dsh*.go"
+      - "backend/app/dshinspector/**"
       - "backend/app/server_uds.go"
+      - "integrations/dsh-subprocess/**"
       - "backend/internal/dshcli/**"
       - "backend/internal/behavior/**"
       - "wrapper/**"
@@ -40,8 +42,10 @@ on:
     paths:
       - "backend/app/tls/**"
       - "backend/app/zcodehooks*.go"
-      - "backend/app/dsh_wrapper_audit*.go"
+      - "backend/app/dsh*.go"
+      - "backend/app/dshinspector/**"
       - "backend/app/server_uds.go"
+      - "integrations/dsh-subprocess/**"
       - "backend/internal/dshcli/**"
       - "backend/internal/behavior/**"
       - "wrapper/**"
@@ -116,14 +120,18 @@ jobs:
         run: |
           go test ./app -run 'Test(InstallZCodeNativeHookLifecycle|ZCodeSessionStartMatcherIncludesResume|FilterZCodeHookEntriesPreservesUnmanagedHooksInManagedMatcher|ZCodeCanonicalPayloadShapeFeedsPathAndContext|BuildNativeHookExtraInfoTracksZCodeCanonicalMetadataSafely|BuildNativeHookExtraInfoHashesZCodeFailure|ZCodePayloadShapeFeedsPathAndContext|BuildNativeHookExtraInfoHashesZCodeStopMessage|DefaultTrackedCommandsOnlyAgentCLIEnabled)' -count=1
           go test ./app/ml -run 'TestIsAgentCLIIncludesNewHarnesses$' -count=1
-      - name: DeepSeek Harness wrapper integration tests
+      - name: DeepSeek Harness plugin and Inspector integration tests
         working-directory: backend
         run: |
-          files="$(gofmt -l internal/dshcli/*.go internal/behavior/classifier.go internal/behavior/classifier_dsh_test.go app/dsh_wrapper_audit*.go ../wrapper/main*.go)"
+          files="$(gofmt -l internal/dshcli/*.go internal/behavior/classifier.go internal/behavior/classifier_dsh_test.go app/dsh_wrapper_audit*.go app/dsh_plugin*.go app/dsh_inspector_routes.go app/dshinspector/*.go app/tls/capturesinkdsh*.go ../wrapper/main*.go)"
           test -z "$files" || { printf 'Unformatted dsh integration files:\n%s\n' "$files"; exit 1; }
           go test ./internal/dshcli ./internal/behavior -count=1
-          go test ./app -run '^TestFormatDshWrapperAudit' -count=1
+          go test ./app/dshinspector -count=1
+          go test ./app/tls -run '^TestDshInspectorSink' -count=1
+          go test ./app -run 'Test(Dsh|FormatDsh)' -count=1
+          go test ./app/handlers -run 'TestDshHookConfigurationUsesPluginLifecycle|TestHookConfigRawSupportsTypeScriptAndValidatesDocuments' -count=1
           (cd ../wrapper && go test ./... -count=1)
+          (cd ../integrations/dsh-subprocess && node --test tests/*.test.mjs)
 
   frontend-agentsight:
     runs-on: ubuntu-24.04
