@@ -139,7 +139,7 @@ func registerAuthenticatedAPIRoutes(r *gin.Engine, ac *AppContext, features *Fea
 		registerConfigRoutes(api.Group("/config"), features)
 		registerSystemRoutes(api.Group("/system"), features)
 		registerTLSCaptureFeatureRoutes(api, features, tlsController, tlsStore, tlsRules, tlsBroadcaster)
-		registerDshInspectorRoutes(api, ac)
+		registerDshInspectorRoutes(api, ac, tlsStore)
 		if features.CompiledIn(FeatureAgentSight) {
 			registerAgentSightRoutes(api, tlsStore)
 		}
