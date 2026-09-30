@@ -7,8 +7,7 @@ This is an **unprivileged build/test environment**, separate from `.devcontainer
 Repository: `stevessr/agent-ebpf-filter` (default branch `master`). Use Linux x86_64 or arm64, with package-manager network access. Set **Install script** to:
 
 ```bash
-bash scripts/codex-cloud/install.sh
-bash scripts/codex-cloud/validate.sh full
+bash scripts/codex-cloud/install.sh && bash scripts/codex-cloud/validate.sh full
 ```
 
 Set **Start skill** to the text in `.agents/skills/codex-cloud-start/SKILL.md`, or use that repository skill where supported. There are no required production secrets or environment variables. Publish the environment only after the install and `bash scripts/codex-cloud/validate.sh full` succeed, and review `reports/codex-cloud/latest.md`.
@@ -37,6 +36,6 @@ Caches under `~/.cache/agent-ebpf-codex` hold Go module/build data, Bun, uv and 
 
 Install needs apt on Debian/Ubuntu with root or passwordless sudo, unless native build tools/headers are already available; external downloads require access to system apt mirrors, `go.dev`, `nodejs.org`, `bun.sh`, `proxy.golang.org`, `sum.golang.org`, npm/Bun registry, PyPI, and GitHub/astral-sh Python release assets used by uv. Optional Git submodules are **not** fetched by default: use `CODEX_FETCH_SUBMODULES=1` for the large documentation references. No real credentials are used or written.
 
-Live kernel verifier/attach, tracepoints, BPF LSM and cgroup smoke tests are explicitly **NOT RUN** in the rootless cloud environment; run those separately on an authorized eBPF/BTF-capable Linux machine. The frontend can boot alone, but live API screens require a separately running backend. Any install, test, or compile failure remains a failure in `reports/codex-cloud/latest.md` and its logs. Reports, caches and generated build outputs must not be committed.
+Live kernel verifier/attach, tracepoints, BPF LSM and cgroup smoke tests are explicitly **NOT RUN** in the rootless cloud environment; run those separately on an authorized eBPF/BTF-capable Linux machine. The frontend can boot alone, but live API screens require a separately running backend. Installation failures are recorded in `reports/codex-cloud/install-status.md` and the Cloud Install log; full verification results remain in `reports/codex-cloud/latest.md` and its logs. Reports, caches and generated build outputs must not be committed.
 
 The Cloud environment itself is selected, tested, and published in the Codex Cloud UI; committing these files does not publish a cloud environment automatically.
