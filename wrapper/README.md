@@ -46,7 +46,7 @@ It also generates a `wrapper_intercept` event for the dashboard.
 - The backend path to the wrapper can be overridden with `AGENT_WRAPPER_PATH`.
 - If present, the wrapper forwards runtime context from environment variables such as `AGENT_EBPF_AGENT_RUN_ID`, `AGENT_EBPF_TASK_ID`, `AGENT_EBPF_TOOL_CALL_ID`, `AGENT_EBPF_TRACE_ID`, `AGENT_EBPF_SPAN_ID`, `AGENT_EBPF_ROOT_AGENT_PID`, and `AGENT_EBPF_CWD`.
 - `argv_digest` hashes the exact command/argument boundaries with NUL separators; whitespace-significant and empty dsh app arguments therefore remain distinguishable without copying them into semantic audit labels.
-- For `dsh`, probe metadata resolves the Node.js runtime while execution still targets the original `dsh` command.
+- For `dsh`, the backend intentionally defers TLS probe discovery until after `exec`; it then resolves `/proc/<pid>/exe` so the Node runtime and its loaded TLS libraries are observed at the correct lifecycle point.
 - The socket is expected to be owned by root or the original invoking user; arbitrary local users should no longer be able to connect.
 - Invalid `--cwd`, unknown users, or failed group/GID/UID transitions abort the launch instead of executing with the caller's current privileges.
 - A wrapper process running as root must receive an explicit `--user` value; use `--user root` only when root execution is intentional.
