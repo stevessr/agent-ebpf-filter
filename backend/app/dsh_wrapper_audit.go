@@ -10,7 +10,10 @@ import (
 // formatDshWrapperAudit adds only launcher-level dsh metadata. App arguments,
 // prompts, package names, patch paths, and other free-form values stay out of
 // ExtraInfo and remain covered only by the argv digest/redaction pipeline.
-func formatDshWrapperAudit(comm string, args []string) string {
+func formatDshWrapperAudit(comm string, args []string, toolName string) string {
+	if toolName == "dsh.exec" {
+		return "dsh_mode:exec"
+	}
 	if !dshcli.IsCommand(comm) {
 		return ""
 	}
@@ -39,12 +42,10 @@ func safeDshAuditToken(value string) string {
 	return value
 }
 
-// wrapperTLSAttachBinaryPath deliberately defers dsh probe discovery until
-// after the wrapper process has exec'd the Node-based launcher. The existing
-// scheduler waits before reading /proc/<pid>/exe when this value is empty.
-func wrapperTLSAttachBinaryPath(comm, binaryPath string) string {
-	if dshcli.IsCommand(comm) {
-		return ""
-	}
-	return binaryPath
+// shouldScheduleWrapperTLSAttach excludes DeepSeek Harness from eBPF TLS
+// uprobes. dsh exposes plaintext network activity through its Inspector/CDP
+// debugging API, so both the launcher and subprocess-provider execs use that
+// userspace source instead of probing Node or descendant TLS libraries.
+func shouldScheduleWrapperTLSAttach(comm, toolName string) bool {
+	return !dshcli.IsCommand(comm) && toolName != "dsh.exec"
 }
