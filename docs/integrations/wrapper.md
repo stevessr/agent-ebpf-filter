@@ -119,12 +119,12 @@ func extractMetadata() *WrapperMetadata {
 ```go
 func computeArgvDigest(comm string, args []string) string {
     parts := append([]string{comm}, args...)
-    hash := sha256.Sum256([]byte(strings.Join(parts, "\\x00")))
+    hash := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
     return hex.EncodeToString(hash[:])
 }
 ```
 
-这里的摘要保留参数边界；空参数和前后空白不会先被归一化。对于 dsh，这一点尤其重要，因为其 launcher 把首个未知 token 起的参数后缀原样交给 profile app。
+摘要对 wrapper 最终 argv 使用 NUL 分隔以保留参数边界。dsh 的参数准备阶段不做 trim 或删空参数，因此空参数和前后空白仍可区分；其他 wrapped command 继续保留现有的 legacy normalization。
 
 ## DeepSeek Harness（dsh）语义
 
