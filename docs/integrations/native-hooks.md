@@ -1,6 +1,6 @@
 # Native Hooks
 
-Native hook 与 wrapper 集成连接 Claude Code、Gemini CLI、Codex、DeepSeek Harness (`dsh`)、Pi、Oh My Pi、GitHub Copilot、Kiro、Augment、Antigravity、ZCode 等 AI CLI，把工具调用语义补充到 eBPF 事实之上；其中 dsh 仅使用 wrapper alias。
+Native hook 与 wrapper 集成连接 Claude Code、Gemini CLI、Codex、DeepSeek Harness (`dsh`)、Pi、Oh My Pi、GitHub Copilot、Kiro、Augment、Antigravity、ZCode、MiniMax Code 等 AI CLI，把工具调用语义补充到 eBPF 事实之上；其中 dsh 与 MiniMax Code 仅使用 wrapper alias。
 
 ---
 
@@ -8,7 +8,7 @@ Native hook 与 wrapper 集成连接 Claude Code、Gemini CLI、Codex、DeepSeek
 
 ```mermaid
 flowchart TD
-    CLI["AI CLI (Claude/Gemini/Codex/ZCode/dsh/Pi/OMP/...)"] --> Hook["native hook / wrapper integration"]
+    CLI["AI CLI (Claude/Gemini/Codex/ZCode/mcode/dsh/Pi/OMP/...)"] --> Hook["native hook / wrapper integration"]
     Hook --> Relay["generated relay script"]
     Relay --> Curl["curl POST /hooks/event"]
     Curl --> Auth["hookIngressAuthMiddleware()"]
@@ -37,7 +37,8 @@ flowchart TD
 | **Augment / Auggie CLI** | `~/.augment/settings.json` | Native hook |
 | **Antigravity CLI (`agy`)** | `~/.gemini/antigravity-cli/plugins/agent-ebpf-hook-active/` | Native plugin |
 | **ZCode** | `~/.zcode/cli/config.json` | Native lifecycle hooks |
-| **Cursor** | `~/.bashrc` / `~/.zshrc` | Wrapper alias |
+| **MiniMax Code (`mcode`)** | 不写入未确认的 native hook 配置 | 可选 CLI wrapper alias；TUI / `exec` / `acp` 由进程追踪覆盖 |
+| **Cursor** | `~/.bashrc` / `~/.zshrc` / `~/.config/fish/config.fish` | Wrapper alias |
 ---
 
 ## 安装与卸载
@@ -55,7 +56,7 @@ flowchart TD
 1. 对 JSON/TOML CLI 在配置目录的 `hooks/` 子目录下生成 relay script，并注入 hook 入口
 2. 对 Pi/Oh My Pi 在各自的 `extensions/` 目录生成带 marker 的 TypeScript extension，同时生成共享 relay script
 3. 为每个 hook 生成唯一的 per-hook secret
-4. dsh 不伪造通用 native 配置文件；选择 dsh 时写入 wrapper alias，经 `agent-wrapper` 进行命令跟踪与策略处理
+4. dsh 与 MiniMax Code 不伪造未确认的 native 配置文件；选择对应集成时写入 wrapper alias，经 `agent-wrapper` 进行命令跟踪与策略处理
 
 ### 各 CLI 特殊行为
 
@@ -71,6 +72,8 @@ codex_hooks = true
 
 **DeepSeek Harness (`dsh`)**：使用 wrapper-only 集成。`dsh` 的 profile、bundle、plugin 和 Cordis patch 仍由 dsh 管理；本项目不写入未经官方定义的 `.dsh/hooks.json`。
 
+**MiniMax Code (`mcode`)**：使用 wrapper-only 集成，不修改其登录、provider、模型或会话数据。公开源码确认 `mcode` 同时承载 TUI、headless `exec` 与 `acp`，并在启动后将进程标题设置为 `minimax-code`；因此两种进程身份都纳入 tracked-command / PID lineage。公开仓库不含桌面应用源码，本项目不据此虚构桌面 native hook。
+
 **Pi**：生成 `~/.pi/agent/extensions/agent-ebpf-hook-active-pi.ts`。extension 监听 `session_start`、`tool_call`、`tool_result`，通过带 per-hook secret 的 relay 上报。
 
 **Oh My Pi (`omp`)**：生成 active agent directory 下的 `extensions/agent-ebpf-hook-active-omp.ts`。默认目录为 `~/.omp/agent`；设置 `OMP_PROFILE=<name>`（或在未设置 OMP_PROFILE 时使用 legacy `PI_PROFILE`）时使用 `~/.omp/profiles/<name>/agent`。OMP 的 `hooks/pre` / `hooks/post` 是 shell-script capability，本集成使用官方 TypeScript extension module capability。
@@ -83,7 +86,7 @@ codex_hooks = true
 
 ZCode 的强制控制仍走本项目已有的 OS 级边界：eBPF 事实事件负责进程/文件/网络审计，cgroup eBPF 负责网络阻断，BPF LSM 负责文件与执行阻断，危险策略写入仍受 runtime gate 与认证保护。Hook 仅用于补充工具调用语义和 PID/session 关联，不被描述为完整容器或 namespace 沙盒。
 
-**Cursor**：使用 wrapper alias 方式，写入 `~/.bashrc` 或 `~/.zshrc`。
+**Cursor**：使用 wrapper alias 方式，按当前 shell 写入 `~/.bashrc`、`~/.zshrc` 或 `~/.config/fish/config.fish`。
 
 ---
 
