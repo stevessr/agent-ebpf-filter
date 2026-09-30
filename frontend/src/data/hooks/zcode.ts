@@ -46,7 +46,7 @@ export const zcodeHook: HookCliDoc = {
     {
       name: "SessionStart",
       description: "New session initialization",
-      matcher: "startup|clear|compact",
+      matcher: "startup|resume|clear|compact",
       fields: [
         { name: "source", type: "string", description: "Session start source: startup | resume | clear | compact" },
         { name: "agent_type", type: "string", description: "Optional active agent type" },

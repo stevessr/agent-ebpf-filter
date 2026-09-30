@@ -99,7 +99,7 @@ jobs:
       - name: ZCode native-hook integration tests
         working-directory: backend
         run: |
-          go test ./app -run 'Test(InstallZCodeNativeHookLifecycle|ZCodePayloadShapeFeedsPathAndContext|BuildNativeHookExtraInfoHashesZCodeStopMessage|DefaultTrackedCommandsOnlyAgentCLIEnabled)$' -count=1
+          go test ./app -run 'Test(InstallZCodeNativeHookLifecycle|ZCodeSessionStartMatcherIncludesResume|FilterZCodeHookEntriesPreservesUnmanagedHooksInManagedMatcher|ZCodeCanonicalPayloadShapeFeedsPathAndContext|BuildNativeHookExtraInfoTracksZCodeCanonicalMetadataSafely|BuildNativeHookExtraInfoHashesZCodeFailure|ZCodePayloadShapeFeedsPathAndContext|BuildNativeHookExtraInfoHashesZCodeStopMessage|DefaultTrackedCommandsOnlyAgentCLIEnabled)' -count=1
           go test ./app/ml -run 'TestIsAgentCLIIncludesNewHarnesses$' -count=1
 
   frontend-agentsight:
