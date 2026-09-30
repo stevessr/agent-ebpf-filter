@@ -91,10 +91,14 @@ onMounted(() => {
               config files; Pi uses <code>~/.pi/agent/extensions/</code>; Oh My Pi
               uses <code>~/.omp/agent/extensions/</code> (or its active profile).
               <br />
-              <b>Wrapper Hook</b>: Adds a shell alias so the CLI is
-              transparently routed through <code>agent-wrapper</code>. This is the
-              supported dsh mode because dsh profiles and plugins do not expose a
-              generic hook config file here. Wrapper mode requires a shell reload.
+              <b>Harness Plugin</b>: Replaces a Harness-owned capability at its
+              native plugin seam. DeepSeek Harness installs an Agent eBPF
+              <code>subprocess</code> provider into profiles so all Harness-owned
+              process and PTY exec calls cross policy without a shell alias.
+              <br />
+              <b>Wrapper Hook</b>: Adds a shell alias so CLIs without a deeper
+              integration seam can be routed through <code>agent-wrapper</code>.
+              Wrapper mode requires a shell reload.
             </div>
           </template>
         </a-alert>
