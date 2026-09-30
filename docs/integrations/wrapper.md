@@ -23,10 +23,10 @@ sequenceDiagram
     participant Exec as syscall.Exec
     
     User->>Wrapper: agent-wrapper git push origin main
-    Wrapper->>Wrapper: trim whitespace args
+    Wrapper->>Wrapper: prepare argv (dsh suffix is preserved verbatim)
     Wrapper->>Env: read AGENT_RUN_ID, TRACE_ID, etc.
     Env-->>Wrapper: context metadata
-    Wrapper->>Wrapper: compute argv_digest = sha256(args)
+    Wrapper->>Wrapper: compute argv_digest = sha256(NUL-separated exact argv)
     
     Wrapper->>UDS: dial Unix socket (500ms timeout)
     UDS-->>Wrapper: connected
@@ -117,12 +117,27 @@ func extractMetadata() *WrapperMetadata {
 并计算 `ArgvDigest`：
 
 ```go
-func computeArgvDigest(args []string) string {
-    joined := strings.Join(args, " ")
-    hash := sha256.Sum256([]byte(joined))
+func computeArgvDigest(comm string, args []string) string {
+    parts := append([]string{comm}, args...)
+    hash := sha256.Sum256([]byte(strings.Join(parts, "\\x00")))
     return hex.EncodeToString(hash[:])
 }
 ```
+
+这里的摘要保留参数边界；空参数和前后空白不会先被归一化。对于 dsh，这一点尤其重要，因为其 launcher 把首个未知 token 起的参数后缀原样交给 profile app。
+
+## DeepSeek Harness（dsh）语义
+
+dsh 的 wrapper 集成以其公开 CLI 语义为边界，而不是尝试解析 Agent prompt：
+
+- `dsh <name>` 与 `dsh --profile <name>` 仅记录 profile 级元数据；
+- `--patch`、`--from-default-profile` 的值不写入语义审计标签；
+- 遇到首个 launcher 不认识的 token 后立即停止语义解析，完整后缀仍原样交给 dsh；
+- `dsh plugin --profile <name> ...` 只记录受限的操作名（如 `add`、`remove`、`allow-version`），不记录包名；
+- `--dump-config` / `--dump-default-config` / `--dump-config-schema` 标记为配置检查；
+- dsh 本身仍负责 profile 初始化、插件写锁、兼容性检查和生命周期；wrapper 不直接修改这些状态。
+
+dsh 是 Node.js CLI，因此 WrapperRequest 的 probe `binary_path` 会尽量解析为当前 `node` 运行时，执行目标仍然是原始 `dsh` 命令。这样可以提高后续 TLS/probe 自动发现的准确性，而不改变 dsh 的启动行为。
 
 ## 配置示例
 
