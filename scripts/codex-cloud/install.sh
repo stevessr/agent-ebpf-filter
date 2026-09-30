@@ -86,5 +86,5 @@ if [[ "${CODEX_FETCH_SUBMODULES:-0}" == 1 ]]; then (cd "$CODEX_ROOT" && git subm
 (cd "$CODEX_ROOT" && make SKIP_PREDEV=1 proto)
 (cd "$CODEX_ROOT/backend/ebpf" && go generate && go generate gen_tls.go && go generate gen_cgroup.go && go generate gen_lsm.go)
 # Catch a failed or silently inconsistent install before treating a snapshot as ready.
-"$CODEX_ROOT/scripts/codex-cloud/validate.sh" doctor
+bash "$CODEX_ROOT/scripts/codex-cloud/validate.sh" doctor
 printf '\n[codex-cloud] Installation complete. Run: bash scripts/codex-cloud/validate.sh full\n'
