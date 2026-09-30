@@ -60,12 +60,22 @@ func HandleConfigHooksInstall(c *gin.Context) {
 	}
 
 	if req.Install {
-		if effectiveType == core.HookTypeNative {
+		switch effectiveType {
+		case core.HookTypeNative:
 			if err := Deps.InstallNativeHook(target); err != nil {
 				c.JSON(500, gin.H{"error": err.Error()})
 				return
 			}
-		} else {
+		case core.HookTypePlugin:
+			if Deps.InstallPluginHook == nil {
+				c.JSON(500, gin.H{"error": "plugin hook installer is unavailable"})
+				return
+			}
+			if err := Deps.InstallPluginHook(target); err != nil {
+				c.JSON(500, gin.H{"error": err.Error()})
+				return
+			}
+		default:
 			p := Deps.GetShellConfigPath()
 			b, _ := os.ReadFile(p)
 			content := string(b)
@@ -83,8 +93,16 @@ func HandleConfigHooksInstall(c *gin.Context) {
 			}
 		}
 	} else {
-		if target.HookType == core.HookTypeNative {
+		switch target.HookType {
+		case core.HookTypeNative:
 			_ = Deps.UninstallNativeHook(target)
+		case core.HookTypePlugin:
+			if Deps.UninstallPluginHook != nil {
+				if err := Deps.UninstallPluginHook(target); err != nil {
+					c.JSON(500, gin.H{"error": err.Error()})
+					return
+				}
+			}
 		}
 		p := Deps.GetShellConfigPath()
 		b, _ := os.ReadFile(p)
