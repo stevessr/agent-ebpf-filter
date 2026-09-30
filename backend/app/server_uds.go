@@ -359,7 +359,7 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 				}
 
 				wrapperExtraInfo := fmt.Sprintf("net_audit:%s risk:%.0f", netAudit.RiskLevel, netAudit.RiskScore)
-				if dshAudit := formatDshWrapperAudit(req.Comm, req.Args); dshAudit != "" {
+				if dshAudit := formatDshWrapperAudit(req.Comm, req.Args, req.ToolName); dshAudit != "" {
 					wrapperExtraInfo += " " + dshAudit
 				}
 
@@ -390,11 +390,11 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 				}, "uds_wrapper_intercept")
 
 				// ── Async TLS attach for wrapper-registered PIDs ──
-				if tlsCaptureController != nil && runtimeSettingsStore.Snapshot().TlsCaptureEnabled && req.Pid > 0 && resolvedAction != pb.WrapperResponse_BLOCK {
+				if tlsCaptureController != nil && runtimeSettingsStore.Snapshot().TlsCaptureEnabled && req.Pid > 0 && resolvedAction != pb.WrapperResponse_BLOCK && shouldScheduleWrapperTLSAttach(req.Comm, req.ToolName) {
 					_ = tlsAttachScheduler.Submit(wrapperTLSAttachRequest{
 						PID:        req.Pid,
 						Comm:       req.Comm,
-						BinaryPath: wrapperTLSAttachBinaryPath(req.Comm, req.BinaryPath),
+						BinaryPath: req.BinaryPath,
 					})
 				}
 
