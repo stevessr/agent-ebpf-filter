@@ -1,6 +1,6 @@
 # Native Hooks
 
-Native hook 与 wrapper 集成连接 Claude Code、Gemini CLI、Codex、DeepSeek Harness (`dsh`)、Pi、Oh My Pi、GitHub Copilot、Kiro、Augment、Antigravity、ZCode 等 AI CLI，把工具调用语义补充到 eBPF 事实之上；其中 dsh 仅使用 wrapper alias。
+Native hook 与 wrapper 集成连接 Claude Code、Gemini CLI、Codex、DeepSeek Harness (`dsh`)、Pi、Oh My Pi、GitHub Copilot、Kiro、Augment、Antigravity、ZCode 等 AI CLI，把工具调用语义补充到 eBPF 事实之上；其中 dsh 仅使用 wrapper alias，并通过本地 UDS 进入策略/审计链路，不经过 native-hook relay。
 
 ---
 
@@ -8,17 +8,23 @@ Native hook 与 wrapper 集成连接 Claude Code、Gemini CLI、Codex、DeepSeek
 
 ```mermaid
 flowchart TD
-    CLI["AI CLI (Claude/Gemini/Codex/ZCode/dsh/Pi/OMP/...)"] --> Hook["native hook / wrapper integration"]
-    Hook --> Relay["generated relay script"]
-    Relay --> Curl["curl POST /hooks/event"]
+    CLI["AI CLI (Claude/Gemini/Codex/ZCode/dsh/Pi/OMP/...)"] --> Mode{"integration mode"}
+    Mode -->|native hook| Relay["generated relay / extension"]
+    Relay --> Curl["POST /hooks/event"]
     Curl --> Auth["hookIngressAuthMiddleware()"]
     Auth --> Handler["handleNativeHookEvent()"]
-    Handler --> Normalize["normalize payload"]
-    Normalize --> Event["native_hook pb.Event"]
-    Event --> Sinks["EventEnvelope / Dashboard<br/>AgentSight / OTLP"]
+    Handler --> NativeEvent["native_hook pb.Event"]
+
+    Mode -->|dsh wrapper| Wrapper["agent-wrapper dsh ..."]
+    Wrapper --> UDS["/tmp/agent-ebpf.sock"]
+    UDS --> Policy["wrapper policy + ML"]
+    Policy --> WrapperEvent["wrapper_intercept pb.Event"]
+
+    NativeEvent --> Sinks["EventEnvelope / Dashboard<br/>AgentSight / OTLP"]
+    WrapperEvent --> Sinks
 ```
 
-当 AI CLI 执行工具调用时，原生 CLI hook 或 dsh 的 wrapper alias 触发 relay script；relay script 通过 `curl` 将事件 POST 到后端 `/hooks/event`。后端解析、归一化后广播到所有事件消费者。
+原生 hook/extension 通过 `/hooks/event` 上报；dsh 是不同路径：shell alias 先进入 `agent-wrapper`，WrapperRequest 通过受限 UDS 交给后端策略引擎，再产生 `wrapper_intercept`。因此 dsh 不依赖 `curl`、relay script 或虚构的 native hook 配置。
 
 ---
 
@@ -55,7 +61,7 @@ flowchart TD
 1. 对 JSON/TOML CLI 在配置目录的 `hooks/` 子目录下生成 relay script，并注入 hook 入口
 2. 对 Pi/Oh My Pi 在各自的 `extensions/` 目录生成带 marker 的 TypeScript extension，同时生成共享 relay script
 3. 为每个 hook 生成唯一的 per-hook secret
-4. dsh 不伪造通用 native 配置文件；选择 dsh 时写入 wrapper alias，经 `agent-wrapper` 进行命令跟踪与策略处理
+4. dsh 不伪造通用 native 配置文件；选择 dsh 时写入 wrapper alias，经 `agent-wrapper` + UDS 进行命令跟踪、策略处理与审计
 
 ### 各 CLI 特殊行为
 
@@ -69,7 +75,7 @@ codex_hooks = true
 **Kiro CLI**：创建一个 managed agent（从 `kiro_default` 克隆），写入 `~/.kiro/agents/agent-ebpf-hook.json`，并将 `~/.kiro/settings/cli.json` 中的 `chat.defaultAgent` 指向该 agent。卸载时恢复原默认 agent。
 
 
-**DeepSeek Harness (`dsh`)**：使用 wrapper-only 集成。`dsh` 的 profile、bundle、plugin 和 Cordis patch 仍由 dsh 管理；本项目不写入未经官方定义的 `.dsh/hooks.json`。
+**DeepSeek Harness (`dsh`)**：使用 wrapper-only 集成。实现按 dsh 启动器源码的边界处理：launcher 仅解析自己拥有的 profile/patch/dump 参数，首个未知 token 起的 app 参数保持原样；Agent eBPF 不继续解析该后缀。审计只补充经过约束的 `dsh_mode`、`dsh_profile`、`dsh_operation`，不会把 prompt、包名或 patch 路径复制到这些标签。`dsh plugin` 归类为包管理行为，`allow-version` 兼容性豁免额外归类为敏感操作。`dsh` 的 profile、bundle、plugin、版本豁免和 Cordis patch 仍由 dsh 管理；本项目不写入未经官方定义的 `.dsh/hooks.json`。
 
 **Pi**：生成 `~/.pi/agent/extensions/agent-ebpf-hook-active-pi.ts`。extension 监听 `session_start`、`tool_call`、`tool_result`，通过带 per-hook secret 的 relay 上报。
 
@@ -140,7 +146,7 @@ curl -X POST \
 
 | 字段 | 说明 |
 | --- | --- |
-| `cli` | CLI 标识（claude / gemini / codex / zcode / dsh / pi / omp 等） |
+| `cli` | Native hook CLI 标识（claude / gemini / codex / zcode / pi / omp 等；dsh 走 wrapper 事件，不进入该表） |
 | `event_name` | 事件名称 |
 | `hook_name` | Hook 配置名称 |
 | `tool_name` | 工具名称（如有） |
