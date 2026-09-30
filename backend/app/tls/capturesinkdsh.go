@@ -3,7 +3,7 @@ package tls
 import (
 	"net/http"
 	"net/url"
-	"strings"
+	"time"
 
 	"agent-ebpf-filter/app/dshinspector"
 )
@@ -18,6 +18,10 @@ func NewDshInspectorSink(store *TLSCaptureStore, broadcaster *TLSBroadcaster) Ds
 }
 
 func (s DshInspectorSink) Handle(event dshinspector.Event) {
+	timestamp := event.Timestamp
+	if timestamp.IsZero() {
+		timestamp = time.Now().UTC()
+	}
 	rawBody := []byte(event.Body)
 	body, truncated := formatTLSPlaintextBody(rawBody, event.ContentType)
 	body = sanitizeTLSBody(body, event.ContentType)
@@ -49,7 +53,7 @@ func (s DshInspectorSink) Handle(event dshinspector.Event) {
 
 	tlsEvent := TLSPlaintextEvent{
 		Type:             event.Type,
-		Timestamp:        event.Timestamp,
+		Timestamp:        timestamp,
 		Comm:             "dsh",
 		Direction:        direction,
 		Lib:              "dsh-inspector",
@@ -85,12 +89,6 @@ func (s DshInspectorSink) Handle(event dshinspector.Event) {
 		tlsEvent.BodySize = len(event.Error)
 		tlsEvent.DataType = "inspector_error"
 	}
-	if strings.TrimSpace(tlsEvent.Timestamp.String()) == "" {
-		// Timestamp is supplied by the Inspector manager; keep this defensive
-		// branch unreachable in normal operation rather than inventing clock data.
-		return
-	}
-
 	DispatchTLSAgentEvent(&tlsEvent, tlsAgentLoopDetector, deps.Broadcast)
 	if s.Store != nil {
 		s.Store.Add(tlsEvent)
