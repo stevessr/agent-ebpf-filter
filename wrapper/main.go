@@ -90,13 +90,6 @@ func main() {
 			binPath = native
 		}
 	}
-	// DeepSeek Harness is a Node.js CLI. Keep execution pointed at dsh itself,
-	// but identify the actual Node runtime for TLS/probe discovery metadata.
-	if isDshCommand(cmdName) && binPath != "" {
-		if nodePath, err := exec.LookPath("node"); err == nil {
-			binPath = nodePath
-		}
-	}
 
 	conn, err := net.DialTimeout("unix", udsPath, 500*time.Millisecond)
 	if err == nil {
