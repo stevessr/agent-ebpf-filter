@@ -8,7 +8,7 @@ tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 need() { command -v "$1" >/dev/null 2>&1 || { echo "Missing required command: $1" >&2; exit 1; }; }
 fetch() { curl -fL --retry 3 --retry-delay 2 --connect-timeout 15 -o "$2" "$1"; }
 install_system() {
-  local packages=(build-essential ca-certificates curl git make clang llvm lld libbpf-dev libelf-dev libclang-dev libcap-dev zlib1g-dev pkg-config protobuf-compiler python3 python3-venv python3-pip xz-utils unzip jq libssl-dev linux-libc-dev)
+  local packages=(build-essential ca-certificates curl git make clang clang-format llvm lld shellcheck libbpf-dev libelf-dev libclang-dev libcap-dev zlib1g-dev pkg-config protobuf-compiler python3 python3-venv python3-pip xz-utils unzip jq libssl-dev linux-libc-dev)
   local prefix=()
   if [[ "$(id -u)" -eq 0 ]]; then :
   elif command -v sudo >/dev/null && sudo -n true 2>/dev/null; then prefix=(sudo -n)
