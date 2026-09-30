@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
+on_install_error() {
+  local rc="$1" step="$2"
+  mkdir -p "$CODEX_ROOT/reports/codex-cloud"
+  printf '# Codex Cloud installation\n\n- Status: **FAILED** (exit %s)\n- Failed command: `%s`\n- Full diagnostics: Codex Cloud Install logs\n- Full verification: **NOT RUN** until the installation is repaired\n' "$rc" "$step" > "$CODEX_ROOT/reports/codex-cloud/install-status.md"
+  printf '[codex-cloud] Install failed (exit %s): %s\n' "$rc" "$step" >&2
+}
+trap 'on_install_error "$?" "$BASH_COMMAND"' ERR
 [[ "$(uname -s)" == Linux ]] || { echo 'Linux is required for the eBPF toolchain.' >&2; exit 1; }
 case "$(uname -m)" in x86_64) go_arch=amd64; node_arch=x64 ;; aarch64) go_arch=arm64; node_arch=arm64 ;; *) echo 'Unsupported architecture.' >&2; exit 1 ;; esac
 mkdir -p "$CODEX_TOOLS_HOME" "$CODEX_CACHE_HOME" "$GOMODCACHE" "$GOCACHE" "$BUN_INSTALL_CACHE_DIR" "$UV_CACHE_DIR" "$UV_PYTHON_INSTALL_DIR" "$CODEX_ROOT/reports/codex-cloud"
@@ -87,4 +94,5 @@ if [[ "${CODEX_FETCH_SUBMODULES:-0}" == 1 ]]; then (cd "$CODEX_ROOT" && git subm
 (cd "$CODEX_ROOT/backend/ebpf" && go generate && go generate gen_tls.go && go generate gen_cgroup.go && go generate gen_lsm.go)
 # Catch a failed or silently inconsistent install before treating a snapshot as ready.
 bash "$CODEX_ROOT/scripts/codex-cloud/validate.sh" doctor
+printf '# Codex Cloud installation\n\n- Status: **PASSED** (install and doctor)\n- Full verification: run `bash scripts/codex-cloud/validate.sh full` before publishing\n' > "$CODEX_ROOT/reports/codex-cloud/install-status.md"
 printf '\n[codex-cloud] Installation complete. Run: bash scripts/codex-cloud/validate.sh full\n'
