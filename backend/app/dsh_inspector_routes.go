@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
 	"time"
 
@@ -25,7 +27,7 @@ func registerDshInspectorRoutes(router gin.IRouter, ac *AppContext) {
 		var req struct {
 			Port int `json:"port"`
 		}
-		if err := c.ShouldBindJSON(&req); err != nil && err.Error() != "EOF" {
+		if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
