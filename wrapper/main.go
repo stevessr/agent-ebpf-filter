@@ -75,14 +75,7 @@ func main() {
 	cmdName := posArgs[0]
 	rawArgs := posArgs[1:]
 
-	// Simple information cleaning: trim whitespace and remove empty args
-	cmdArgs := []string{}
-	for _, arg := range rawArgs {
-		trimmed := strings.TrimSpace(arg)
-		if trimmed != "" {
-			cmdArgs = append(cmdArgs, trimmed)
-		}
-	}
+	cmdArgs := prepareCommandArgs(cmdName, rawArgs)
 
 	cwd, _ := os.Getwd()
 
@@ -95,6 +88,13 @@ func main() {
 	if isCodexSH(cmdName, binPath) {
 		if native, err := resolveCodexNativeBinary(binPath); err == nil {
 			binPath = native
+		}
+	}
+	// DeepSeek Harness is a Node.js CLI. Keep execution pointed at dsh itself,
+	// but identify the actual Node runtime for TLS/probe discovery metadata.
+	if isDshCommand(cmdName) {
+		if nodePath, err := exec.LookPath("node"); err == nil {
+			binPath = nodePath
 		}
 	}
 
@@ -208,20 +208,34 @@ func parseEnvFloat64(keys ...string) float64 {
 }
 
 func buildArgvDigest(comm string, args []string) string {
-	parts := make([]string, 0, len(args)+1)
-	if trimmed := strings.TrimSpace(comm); trimmed != "" {
-		parts = append(parts, trimmed)
-	}
-	for _, arg := range args {
-		if trimmed := strings.TrimSpace(arg); trimmed != "" {
-			parts = append(parts, trimmed)
-		}
-	}
-	if len(parts) == 0 {
+	if comm == "" && len(args) == 0 {
 		return ""
 	}
+	parts := make([]string, 0, len(args)+1)
+	parts = append(parts, comm)
+	parts = append(parts, args...)
 	sum := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
 	return hex.EncodeToString(sum[:])
+}
+
+func isDshCommand(name string) bool {
+	return filepath.Base(strings.TrimSpace(name)) == "dsh"
+}
+
+func prepareCommandArgs(name string, rawArgs []string) []string {
+	if isDshCommand(name) {
+		// dsh treats the first unknown launcher token as the start of app args and
+		// forwards the complete suffix verbatim. Preserve empty and whitespace-
+		// significant arguments so the wrapper remains transparent.
+		return append([]string(nil), rawArgs...)
+	}
+	cmdArgs := make([]string, 0, len(rawArgs))
+	for _, arg := range rawArgs {
+		if trimmed := strings.TrimSpace(arg); trimmed != "" {
+			cmdArgs = append(cmdArgs, trimmed)
+		}
+	}
+	return cmdArgs
 }
 
 func firstNonEmpty(values ...string) string {
