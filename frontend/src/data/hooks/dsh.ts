@@ -10,10 +10,10 @@ export const dshHook: HookCliDoc = {
     },
   ],
   notes: [
-    "dsh is supported through the agent-wrapper command shim; this integration does not invent a generic dsh hook configuration file.",
-    "The wrapper preserves dsh's launcher/app argument boundary and keeps profile app arguments verbatim.",
-    "Audit labels include only bounded launcher metadata (profile, plugin operation, or config-dump mode); prompts, package names, and patch paths are not copied into those labels.",
-    "Manage dsh profiles, bundles, compatibility exemptions, and plugins with dsh itself.",
+    "Agent eBPF installs a DeepSeek Harness bundle that replaces the canonical ctx.subprocess provider, so both spawn() and spawnTerminal() cross the policy boundary.",
+    "The subprocess provider preserves exact argv, cwd, stdio, cancellation, output and PTY semantics from dsh-subprocess-local; dsh plugin/launcher operations remain owned by dsh.",
+    "DeepSeek Harness network plaintext is collected from the official experimental Inspector/CDP Network API on loopback, not from eBPF TLS uprobes.",
+    "Inspector payloads are sanitized by the existing URL/header/body redaction pipeline before entering the Network capture store.",
   ],
   events: [],
 };
