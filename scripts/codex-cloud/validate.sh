@@ -11,7 +11,7 @@ failures=0
 {
   printf '# Codex Cloud environment verification\n\n'
   printf -- '- Timestamp (UTC): %s\n' "$(date -u +%FT%TZ)"
-  printf -- '- Git commit: %s\n' "$(git -C "$CODEX_ROOT" rev-parse HEAD 2>/dev/null || printf 'unavailable')"
+  printf -- '- Git commit: %s\n' "$(git -C "$CODEX_ROOT" rev-parse --verify HEAD 2>/dev/null || printf 'unavailable')"
   printf -- '- Mode: %s\n' "$mode"
   printf -- '- Host kernel: %s\n' "$(uname -r)"
   printf '\n## Tool versions\n\n'
