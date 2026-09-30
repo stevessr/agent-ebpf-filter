@@ -128,16 +128,20 @@ func computeArgvDigest(comm string, args []string) string {
 
 ## DeepSeek Harness（dsh）语义
 
-dsh 的 wrapper 集成以其公开 CLI 语义为边界，而不是尝试解析 Agent prompt：
+dsh 的 launcher 本身仍按公开 CLI 语义审计：Agent eBPF 只解析 launcher 拥有的 profile/patch/dump 前缀，首个未知 token 起的 app 参数保持原样。
 
-- `dsh <name>` 与 `dsh --profile <name>` 仅记录 profile 级元数据；
-- `--patch`、`--from-default-profile` 的值不写入语义审计标签；
-- 遇到首个 launcher 不认识的 token 后立即停止语义解析，完整后缀仍原样交给 dsh；
-- `dsh plugin --profile <name> ...` 只记录受限的操作名（如 `add`、`remove`、`allow-version`），不记录包名；
-- `--dump-config` / `--dump-default-config` / `--dump-config-schema` 标记为配置检查；
-- dsh 本身仍负责 profile 初始化、插件写锁、兼容性检查和生命周期；wrapper 不直接修改这些状态。
+真正的 Harness-owned exec 不再依赖 shell alias，而由 `@agent-ebpf/dsh-subprocess` profile bundle 替换 canonical `id: subprocess` provider。该 provider 继承官方 `@deepseek-ai/dsh-subprocess-local` 并同时覆盖：
 
-dsh 是 Node.js CLI，但 WrapperRequest 到达后端时同一 PID 还处于 `agent-wrapper` 阶段。为避免在 `exec(dsh)` 之前抢跑，dsh 的 TLS attach 会故意清空 scheduler 的预解析路径，复用现有 500ms 延迟后读取 `/proc/<pid>/exe` 的逻辑；此时 PID 已切换到真实 Node runtime，也能基于实际进程 maps 查找已加载 TLS 库。
+- `spawn()`：普通命令、后台任务、Hook command、MCP/LSP stdio child；
+- `spawnTerminal()`：PTY/交互式终端命令。
+
+provider 只把原始 argv 包成 `agent-wrapper --dsh-exec --verbatim -- <argv...>`，其余 cwd、stdio、signal、grace、output collection 等字段原样交还官方 local provider，因此策略入口位于真正创建子进程之前，而不是靠命令名猜测。
+
+`dsh plugin`、profile 初始化、包管理锁、兼容性豁免和 Cordis patch 生命周期仍由 dsh 自己负责。插件侧 exec 事件使用 `tool_name=dsh.exec` 与 `dsh_mode:exec` 归因。
+
+### dsh 网络明文
+
+dsh launcher 和 `dsh.exec` 子进程不会进入 Agent eBPF 的 TLS uProbe attach。Web profile 使用官方 `@deepseek-ai/dsh-experimental-inspector`：后端连接 loopback CDP endpoint（默认从 9230 开始探测），启用 `Network` domain，读取 request/response headers、body、status、timing 与 SSE 数据。进入现有 Network capture store 前统一经过 URL/header/body 脱敏，并标记 `capture_source=dsh_inspector`。
 
 ## 配置示例
 
