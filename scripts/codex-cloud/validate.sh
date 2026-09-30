@@ -37,7 +37,7 @@ run declared-versions bash -c '[[ "$(go version | awk "{print \$3}")" == "go$COD
 run native-toolchain bash -c 'command -v protoc-gen-go && pkg-config --exists libbpf libelf && clang -target bpf -c -x c /dev/null -o "$CODEX_CACHE_HOME/clang-bpf-check.o" && test -x "$CODEX_ROOT/adapters/python/.venv/bin/python"'
 run lockfiles bash -c 'for p in bun.lock frontend/bun.lock tools/bpf-ts/bun.lock adapters/python/uv.lock backend/go.sum; do test -s "$CODEX_ROOT/$p" || exit 1; done; cd "$CODEX_ROOT/adapters/python" && uv lock --check'
 if [[ "$mode" == full ]]; then
-  run shell-syntax bash -c 'find "$CODEX_ROOT/scripts/codex-cloud" -name "*.sh" -print0 | xargs -0 -r bash -n'
+  run shell-syntax bash -c 'find "$CODEX_ROOT/scripts/codex-cloud" -name "*.sh" -print0 | xargs -0 -r -n1 bash -n'
   run gofmt bash -c 'cd "$CODEX_ROOT"; files="$(git ls-files -- "*.go" | xargs -r gofmt -l)"; if [[ -n "$files" ]]; then printf "%s\n" "$files"; exit 1; fi'
   run protobuf bash -c 'cd "$CODEX_ROOT" && make SKIP_PREDEV=1 proto'
   run ebpf-generate bash -c 'cd "$CODEX_ROOT/backend/ebpf" && go generate && go generate gen_tls.go && go generate gen_cgroup.go && go generate gen_lsm.go'
