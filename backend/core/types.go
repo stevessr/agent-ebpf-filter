@@ -116,8 +116,8 @@ var AvailableHooks = []HookDef{
 		ConfigFormat:    ConfigFormatJSON,
 	},
 	{
-		ID: "dsh", Name: "DeepSeek Harness", HookType: HookTypeWrapper,
-		Description: "Tracks dsh through an argument-transparent agent-wrapper shim with source-aware launcher metadata; profiles and plugins remain managed by dsh.",
+		ID: "dsh", Name: "DeepSeek Harness", HookType: HookTypePlugin,
+		Description: "Installs an Agent eBPF subprocess provider into every DeepSeek Harness profile so spawn and terminal execs cross the policy boundary; network plaintext uses the Harness Inspector/CDP API instead of eBPF TLS uprobes.",
 		TargetCmd:   "dsh",
 	},
 	{
