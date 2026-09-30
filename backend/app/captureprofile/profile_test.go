@@ -24,28 +24,34 @@ func TestBuiltinPathOnlyCompatibilityMatch(t *testing.T) {
 
 func TestBuiltinMiniMaxAPIsAreProviderScoped(t *testing.T) {
 	tests := []struct {
-		name, host, path, want string
+		name, host, path string
 	}{
-		{"global anthropic", "api.minimax.io", "/anthropic/v1/messages?api_key=secret", "minimax.messages"},
-		{"cn anthropic", "api.minimaxi.com", "/anthropic/v1/messages", "minimax.messages"},
-		{"global chat", "api.minimax.io", "/v1/chat/completions", "minimax.chat-completions"},
-		{"cn legacy chat", "api.minimaxi.com", "/v1/text/chatcompletion_v2", "minimax.chat-completions"},
-		{"global responses", "api.minimax.io", "/v1/responses", "minimax.responses"},
-		{"cn responses", "api.minimaxi.com", "/v1/responses", "minimax.responses"},
+		{"global anthropic", "api.minimax.io", "/anthropic/v1/messages?api_key=secret"},
+		{"cn anthropic", "api.minimaxi.com", "/anthropic/v1/messages"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, protocol := range []string{"http1", "http2"} {
 				match, ok := Default.MatchCompact(Observation{Protocol: protocol, Method: "POST", Host: tc.host, Path: tc.path})
-				if !ok || match.ProfileID != tc.want || match.Vendor != "minimax" || match.Confidence < 90 {
+				if !ok || match.ProfileID != "minimax.messages" || match.Vendor != "minimax" || match.Confidence < 90 {
 					t.Fatalf("%s %s %s: ok=%v match=%+v", protocol, tc.host, tc.path, ok, match)
 				}
 			}
 		})
 	}
-	// Compatible routes alone do not establish that a request is to MiniMax.
+
+	// The open-source MiniMax Code builtin provider does not establish these
+	// bare-host routes. Do not infer MiniMax merely from a compatible API shape.
+	for _, path := range []string{"/v1/messages", "/v1/chat/completions", "/v1/responses"} {
+		match, ok := Default.Match(Observation{Protocol: "http2", Method: "POST", Host: "api.minimax.io", Path: path})
+		if ok && match.Vendor == "minimax" {
+			t.Fatalf("unsupported MiniMax route %q incorrectly attributed: %+v", path, match)
+		}
+	}
+
+	// Compatible routes on unrelated hosts also do not establish MiniMax.
 	for _, host := range []string{"private.example", "notapi.minimax.io.attacker.example"} {
-		match, ok := Default.Match(Observation{Protocol: "http2", Method: "POST", Host: host, Path: "/v1/responses"})
+		match, ok := Default.Match(Observation{Protocol: "http2", Method: "POST", Host: host, Path: "/anthropic/v1/messages"})
 		if ok && match.Vendor == "minimax" {
 			t.Fatalf("non-MiniMax host %q incorrectly attributed: %+v", host, match)
 		}

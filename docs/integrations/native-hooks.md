@@ -70,7 +70,9 @@ codex_hooks = true
 **Kiro CLI**：创建一个 managed agent（从 `kiro_default` 克隆），写入 `~/.kiro/agents/agent-ebpf-hook.json`，并将 `~/.kiro/settings/cli.json` 中的 `chat.defaultAgent` 指向该 agent。卸载时恢复原默认 agent。
 
 
-**ZCode / MiniMax Code**：本项目只安装可选的 shell wrapper alias，不修改其私有会话文件、登录状态或模型配置；GUI / headless / ACP 由 PID lineage 独立追踪。仅通过 wrapper 不保证有工具调用语义，若需要 run/task/tool_call 关联应进行显式 PID 注册。\n\n**DeepSeek Harness (`dsh`)**：使用 wrapper-only 集成。`dsh` 的 profile、bundle、plugin 和 Cordis patch 仍由 dsh 管理；本项目不写入未经官方定义的 `.dsh/hooks.json`。
+**ZCode / MiniMax Code**：本项目只安装可选的 shell wrapper alias，不修改其私有会话文件、登录状态或模型配置。MiniMax Code 的公开 CLI 由 `mcode` 启动，并在运行后把进程标题设置为 `minimax-code`；两者都由 tracked-command / PID lineage 覆盖。公开源码包含 TUI、headless `exec` 与 `acp`，但不包含桌面应用源码，因此不为桌面端虚构 native hook。仅通过 wrapper 不保证有工具调用语义，若需要 run/task/tool_call 关联应进行显式 PID 注册。
+
+**DeepSeek Harness (`dsh`)**：使用 wrapper-only 集成。`dsh` 的 profile、bundle、plugin 和 Cordis patch 仍由 dsh 管理；本项目不写入未经官方定义的 `.dsh/hooks.json`。
 
 **Pi**：生成 `~/.pi/agent/extensions/agent-ebpf-hook-active-pi.ts`。extension 监听 `session_start`、`tool_call`、`tool_result`，通过带 per-hook secret 的 relay 上报。
 

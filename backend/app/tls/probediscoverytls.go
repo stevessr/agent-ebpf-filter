@@ -249,6 +249,13 @@ func isAgentTLSProcess(baseName, cmdline string) bool {
 	base := strings.ToLower(strings.TrimSpace(baseName))
 	cmd := strings.ToLower(cmdline)
 
+	// MiniMax Code's public CLI sets process.title to "minimax-code" after
+	// startup. Match the exact runtime title separately so unrelated binaries
+	// such as "minimax-code-demo" are not admitted by the prefix rule below.
+	if base == "minimax-code" {
+		return true
+	}
+
 	for _, direct := range []string{
 		"claude", "codex", "opencode", "aider", "goose", "cursor", "amp",
 		"gemini", "dsh", "omp", "cline", "windsurf", "zcode", "mcode",
