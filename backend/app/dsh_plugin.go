@@ -15,7 +15,10 @@ import (
 	"agent-ebpf-filter/app/platform"
 )
 
-const dshSubprocessPluginPackage = "@agent-ebpf/dsh-subprocess"
+const (
+	dshSubprocessPluginPackage = "@agent-ebpf/dsh-subprocess"
+	dshInspectorPluginPackage  = "@deepseek-ai/dsh-experimental-inspector"
+)
 
 var shippedDshProfiles = []string{"acp", "web", "headless", "sdk", "sdk-minimal"}
 
@@ -114,6 +117,37 @@ func runDshPluginCommand(profile string, args ...string) error {
 	return nil
 }
 
+
+type dshIntegrationState struct {
+	InspectorInstalledByAgent bool `json:"inspector_installed_by_agent,omitempty"`
+}
+
+func dshIntegrationStatePath() string {
+	return filepath.Join(platform.GetRealHomeDir(), ".config", "agent-ebpf-filter", "dsh-integration.json")
+}
+
+func readDshIntegrationState() dshIntegrationState {
+	var state dshIntegrationState
+	raw, err := os.ReadFile(dshIntegrationStatePath())
+	if err == nil {
+		_ = json.Unmarshal(raw, &state)
+	}
+	return state
+}
+
+func writeDshIntegrationState(state dshIntegrationState) error {
+	path := dshIntegrationStatePath()
+	if err := platform.MkdirAllAsRealUser(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	raw, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return err
+	}
+	raw = append(raw, '\n')
+	return platform.WriteFileAsRealUser(path, raw, 0o600)
+}
+
 func installDshSubprocessPlugin() error {
 	packagePath, err := resolveDshSubprocessPluginPath()
 	if err != nil {
@@ -123,6 +157,17 @@ func installDshSubprocessPlugin() error {
 	for _, profile := range dshInstallProfiles() {
 		if err := runDshPluginCommand(profile, "add", packagePath); err != nil {
 			errs = append(errs, err)
+		}
+	}
+	if len(errs) == 0 && !dshProfileHasPackage("web", dshInspectorPluginPackage) {
+		if err := runDshPluginCommand("web", "add", dshInspectorPluginPackage); err != nil {
+			errs = append(errs, fmt.Errorf("install dsh Inspector: %w", err))
+		} else {
+			state := readDshIntegrationState()
+			state.InspectorInstalledByAgent = true
+			if err := writeDshIntegrationState(state); err != nil {
+				errs = append(errs, fmt.Errorf("record dsh Inspector ownership: %w", err))
+			}
 		}
 	}
 	return errors.Join(errs...)
@@ -138,10 +183,21 @@ func uninstallDshSubprocessPlugin() error {
 			errs = append(errs, err)
 		}
 	}
+	state := readDshIntegrationState()
+	if state.InspectorInstalledByAgent && dshProfileHasPackage("web", dshInspectorPluginPackage) {
+		if err := runDshPluginCommand("web", "remove", dshInspectorPluginPackage); err != nil {
+			errs = append(errs, fmt.Errorf("remove Agent-installed dsh Inspector: %w", err))
+		} else {
+			state.InspectorInstalledByAgent = false
+			if err := writeDshIntegrationState(state); err != nil {
+				errs = append(errs, fmt.Errorf("update dsh Inspector ownership: %w", err))
+			}
+		}
+	}
 	return errors.Join(errs...)
 }
 
-func dshProfileHasPlugin(profile string) bool {
+func dshProfileHasPackage(profile, packageName string) bool {
 	raw, err := os.ReadFile(filepath.Join(dshHomeDir(), "profiles", profile, "package.json"))
 	if err != nil {
 		return false
@@ -155,11 +211,15 @@ func dshProfileHasPlugin(profile string) bool {
 		return false
 	}
 	for _, dependencies := range []map[string]string{manifest.Dependencies, manifest.DevDependencies, manifest.PeerDependencies} {
-		if _, ok := dependencies[dshSubprocessPluginPackage]; ok {
+		if _, ok := dependencies[packageName]; ok {
 			return true
 		}
 	}
 	return false
+}
+
+func dshProfileHasPlugin(profile string) bool {
+	return dshProfileHasPackage(profile, dshSubprocessPluginPackage)
 }
 
 func isDshSubprocessPluginInstalled() bool {
