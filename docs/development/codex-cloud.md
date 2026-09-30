@@ -8,6 +8,7 @@ Repository: `stevessr/agent-ebpf-filter` (default branch `master`). Use Linux x8
 
 ```bash
 bash scripts/codex-cloud/install.sh
+bash scripts/codex-cloud/validate.sh full
 ```
 
 Set **Start skill** to the text in `.agents/skills/codex-cloud-start/SKILL.md`, or use that repository skill where supported. There are no required production secrets or environment variables. Publish the environment only after the install and `bash scripts/codex-cloud/validate.sh full` succeed, and review `reports/codex-cloud/latest.md`.
