@@ -9,6 +9,7 @@ import { copilotHook } from "./hooks/copilot";
 import { dshHook } from "./hooks/dsh";
 import { piHook } from "./hooks/pi";
 import { ompHook } from "./hooks/omp";
+import { zcodeHook } from "./hooks/zcode";
 
 export type { HookCliDoc, HookEventDoc, HookFieldDoc, HookSourceDoc } from "./hooks/types";
 
@@ -23,6 +24,7 @@ export const hookCatalog: Record<string, HookCliDoc> = {
 	dsh: dshHook,
 	pi: piHook,
 	omp: ompHook,
+	zcode: zcodeHook,
 };
 
 export const getHookCliDoc = (hookId?: string | null) => {

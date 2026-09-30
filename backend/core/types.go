@@ -163,6 +163,14 @@ var AvailableHooks = []HookDef{
 		ConfigFormat:    ConfigFormatJSON,
 	},
 	{
+		ID: "zcode", Name: "ZCode", HookType: HookTypeNative,
+		Description:     "Uses ZCode native lifecycle hooks for runtime telemetry while OS-level cgroup/BPF-LSM policies provide sandbox enforcement",
+		TargetCmd:       "zcode",
+		NativeHookEvent: "PreToolUse",
+		NativeMatcher:   "*",
+		ConfigFormat:    ConfigFormatJSON,
+	},
+	{
 		ID: "cursor", Name: "Cursor", HookType: HookTypeWrapper,
 		Description: "Intercepts cursor execution via shell alias wrapper",
 		TargetCmd:   "cursor",
