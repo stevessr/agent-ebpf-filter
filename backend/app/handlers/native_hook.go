@@ -200,8 +200,36 @@ func buildNativeHookExtraInfo(payload map[string]interface{}, hookEvent, toolNam
 	if sessionID := events.PayloadString(payload, "session_id", "sessionId"); sessionID != "" {
 		parts = append(parts, "session_id="+sanitizeExtraInfoValue(sessionID))
 	}
-	if permissionMode := events.PayloadString(payload, "permission_mode", "permissionMode"); permissionMode != "" {
+	if permissionMode := events.PayloadString(payload, "permission_mode", "permissionMode", "mode"); permissionMode != "" {
 		parts = append(parts, "permission_mode="+sanitizeExtraInfoValue(permissionMode))
+	}
+	if source := events.PayloadString(payload, "source"); source != "" {
+		parts = append(parts, "source="+sanitizeExtraInfoValue(source))
+	}
+	if model := events.PayloadString(payload, "model"); model != "" {
+		parts = append(parts, "model="+sanitizeExtraInfoValue(model))
+	}
+	if riskLevel := events.PayloadString(payload, "risk_level", "riskLevel"); riskLevel != "" {
+		parts = append(parts, "risk_level="+sanitizeExtraInfoValue(riskLevel))
+	}
+	if sideEffectScope := events.PayloadString(payload, "side_effect_scope", "sideEffectScope"); sideEffectScope != "" {
+		parts = append(parts, "side_effect_scope="+sanitizeExtraInfoValue(sideEffectScope))
+	}
+	if requestID := events.PayloadString(payload, "request_id", "requestId"); requestID != "" {
+		parts = append(parts, "request_id="+sanitizeExtraInfoValue(requestID))
+	}
+	if strings.EqualFold(strings.TrimSpace(hookEvent), "PostToolUseFailure") {
+		if errorText := payloadNestedString(payload, "error"); errorText != "" {
+			parts = append(parts,
+				"error_digest="+digestHookText(errorText),
+				fmt.Sprintf("error_len=%d", len([]rune(errorText))),
+			)
+		}
+		if errorDetails, _ := payload["error_details"].(map[string]interface{}); errorDetails != nil {
+			if errorType := events.PayloadString(errorDetails, "type"); errorType != "" {
+				parts = append(parts, "error_type="+sanitizeExtraInfoValue(errorType))
+			}
+		}
 	}
 	return strings.Join(parts, " ")
 }
@@ -228,7 +256,7 @@ func extractHookResponseText(payload map[string]interface{}, hookEvent string) s
 	if payload == nil {
 		return ""
 	}
-	if response := payloadNestedString(payload, "response", "prompt_response", "promptResponse", "final_response", "finalResponse", "last_assistant_message", "lastAssistantMessage", "output"); response != "" {
+	if response := payloadNestedString(payload, "response", "prompt_response", "promptResponse", "final_response", "finalResponse", "last_assistant_message", "lastAssistantMessage", "response_preview", "responsePreview", "response_text", "responseText", "tool_result_preview", "toolResultPreview", "output"); response != "" {
 		return response
 	}
 	lowerEvent := strings.ToLower(strings.TrimSpace(hookEvent))

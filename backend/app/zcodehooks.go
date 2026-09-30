@@ -22,7 +22,7 @@ var zcodeHookEvents = []string{
 func zcodeEventMatcher(event string) string {
 	switch event {
 	case "SessionStart":
-		return "startup|clear|compact"
+		return "startup|resume|clear|compact"
 	case "PreToolUse", "PermissionRequest", "PostToolUse", "PostToolUseFailure":
 		return "*"
 	default:
@@ -38,21 +38,40 @@ func filterZCodeHookEntries(entries []interface{}) []interface{} {
 			filtered = append(filtered, entry)
 			continue
 		}
-		hooks, _ := em["hooks"].([]interface{})
-		ours := false
+		hooks, ok := em["hooks"].([]interface{})
+		if !ok {
+			filtered = append(filtered, entry)
+			continue
+		}
+
+		keptHooks := make([]interface{}, 0, len(hooks))
+		removedManaged := false
 		for _, hook := range hooks {
 			hm, ok := hook.(map[string]interface{})
 			if !ok {
+				keptHooks = append(keptHooks, hook)
 				continue
 			}
-			if cmd, _ := hm["command"].(string); strings.Contains(cmd, hookMarker) {
-				ours = true
-				break
+			if cmd, _ := hm["command"].(string); strings.Contains(cmd, hookMarker+"-zcode.sh") {
+				removedManaged = true
+				continue
 			}
+			keptHooks = append(keptHooks, hook)
 		}
-		if !ours {
+		if !removedManaged {
 			filtered = append(filtered, entry)
+			continue
 		}
+		if len(keptHooks) == 0 {
+			continue
+		}
+
+		preserved := make(map[string]interface{}, len(em))
+		for key, value := range em {
+			preserved[key] = value
+		}
+		preserved["hooks"] = keptHooks
+		filtered = append(filtered, preserved)
 	}
 	return filtered
 }

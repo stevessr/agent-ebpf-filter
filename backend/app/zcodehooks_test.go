@@ -143,6 +143,111 @@ func TestInstallZCodeNativeHookLifecycle(t *testing.T) {
 	}
 }
 
+func TestZCodeSessionStartMatcherIncludesResume(t *testing.T) {
+	matcher := zcodeEventMatcher("SessionStart")
+	for _, source := range []string{"startup", "resume", "clear", "compact"} {
+		if !strings.Contains(matcher, source) {
+			t.Fatalf("SessionStart matcher %q does not include %q", matcher, source)
+		}
+	}
+}
+
+func TestFilterZCodeHookEntriesPreservesUnmanagedHooksInManagedMatcher(t *testing.T) {
+	entries := []interface{}{
+		map[string]interface{}{
+			"matcher": "*",
+			"hooks": []interface{}{
+				map[string]interface{}{"type": "command", "command": "/tmp/agent-ebpf-hook-active-zcode.sh PreToolUse"},
+				map[string]interface{}{"type": "command", "command": "echo keep-me"},
+			},
+		},
+	}
+	filtered := filterZCodeHookEntries(entries)
+	if len(filtered) != 1 {
+		t.Fatalf("mixed matcher should survive after removing managed hook: %#v", filtered)
+	}
+	entry, _ := filtered[0].(map[string]interface{})
+	hooks, _ := entry["hooks"].([]interface{})
+	if len(hooks) != 1 {
+		t.Fatalf("expected exactly one unmanaged hook to remain: %#v", entry)
+	}
+	hook, _ := hooks[0].(map[string]interface{})
+	if got, _ := hook["command"].(string); got != "echo keep-me" {
+		t.Fatalf("unexpected preserved hook command: %q", got)
+	}
+}
+
+func TestZCodeCanonicalPayloadShapeFeedsPathAndContext(t *testing.T) {
+	payload := map[string]interface{}{
+		"sessionId":     "session-zcode-canonical",
+		"cwd":           "/workspace/project",
+		"hookEventName": "PreToolUse",
+		"toolName":      "Write",
+		"toolCallId":    "tool-zcode-84",
+		"turnId":        "turn-zcode-3",
+		"traceId":       "trace-zcode-3",
+		"toolInput": map[string]interface{}{
+			"file_path": "src/current.go",
+		},
+	}
+	input, _ := payload["toolInput"].(map[string]interface{})
+	path := extractNativeHookPath(input)
+	if path != "src/current.go" {
+		t.Fatalf("unexpected canonical path: %q", path)
+	}
+	_, ctx := buildProcessContextFromHookPayload(payload, "Write", path)
+	if ctx.ToolName != "Write" || ctx.ToolCallID != "tool-zcode-84" || ctx.Cwd != "/workspace/project" {
+		t.Fatalf("unexpected canonical ZCode context: %#v", ctx)
+	}
+	if ctx.ConversationID != "session-zcode-canonical" || ctx.TurnID != "turn-zcode-3" || ctx.TraceID != "trace-zcode-3" {
+		t.Fatalf("ZCode session/turn/trace correlation was not preserved: %#v", ctx)
+	}
+}
+
+func TestBuildNativeHookExtraInfoTracksZCodeCanonicalMetadataSafely(t *testing.T) {
+	payload := map[string]interface{}{
+		"sessionId":       "session-zcode",
+		"mode":            "build",
+		"riskLevel":       "high",
+		"sideEffectScope": "system",
+		"requestId":       "request-zcode",
+		"toolResultPreview": "sensitive tool result",
+	}
+	extra := buildNativeHookExtraInfo(payload, "PostToolUse", "Bash")
+	for _, want := range []string{
+		"session_id=session-zcode",
+		"permission_mode=build",
+		"risk_level=high",
+		"side_effect_scope=system",
+		"request_id=request-zcode",
+		"response_digest=sha256:",
+		"response_len=",
+	} {
+		if !strings.Contains(extra, want) {
+			t.Fatalf("missing %q from ZCode metadata: %q", want, extra)
+		}
+	}
+	if strings.Contains(extra, "sensitive tool result") {
+		t.Fatalf("raw ZCode tool result leaked into metadata: %q", extra)
+	}
+}
+
+func TestBuildNativeHookExtraInfoHashesZCodeFailure(t *testing.T) {
+	payload := map[string]interface{}{
+		"error": "sensitive failure detail",
+		"error_details": map[string]interface{}{"type": "ToolExecutionFailed"},
+	}
+	extra := buildNativeHookExtraInfo(payload, "PostToolUseFailure", "Bash")
+	for _, want := range []string{"error_digest=sha256:", "error_len=", "error_type=ToolExecutionFailed"} {
+		if !strings.Contains(extra, want) {
+			t.Fatalf("missing %q from ZCode failure metadata: %q", want, extra)
+		}
+	}
+	if strings.Contains(extra, "sensitive failure detail") {
+		t.Fatalf("raw ZCode failure leaked into metadata: %q", extra)
+	}
+}
+
 func TestZCodePayloadShapeFeedsPathAndContext(t *testing.T) {
 	payload := map[string]interface{}{
 		"session_id":      "session-zcode",

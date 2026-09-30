@@ -79,7 +79,7 @@ codex_hooks = true
 
 **Antigravity CLI**：在 `~/.gemini/antigravity-cli/plugins/agent-ebpf-hook-active/` 下创建 `plugin.json` 和 `hooks.json`，relay script 返回 Antigravity 要求的 JSON stdout（`decision: allow`）。
 
-**ZCode**：使用官方用户级 `~/.zcode/cli/config.json`，并按 ZCode 的嵌套结构写入 `hooks.enabled=true` 与 `hooks.events.*`。当前安装器为 `SessionStart`、`UserPromptSubmit`、`PreToolUse`、`PermissionRequest`、`PostToolUse`、`PostToolUseFailure`、`Stop` 安装异步 command hook。Relay 的 stdout 保持为空，因此只做旁路遥测，不修改或绕过 ZCode 自身的权限决策。ZCode 在 session 启动时快照 hook 配置，安装、卸载或修改后需新建 session 才能稳定生效。
+**ZCode**：使用官方用户级 `~/.zcode/cli/config.json`，并按 ZCode 的嵌套结构写入 `hooks.enabled=true` 与 `hooks.events.*`。当前安装器为 `SessionStart`、`UserPromptSubmit`、`PreToolUse`、`PermissionRequest`、`PostToolUse`、`PostToolUseFailure`、`Stop` 安装异步 command hook；`SessionStart` 覆盖源码定义的 `startup | resume | clear | compact` 四种 source。ZCode 开源实现以 camelCase 为内部主契约，同时为兼容集成补充 `session_id`、`hook_event_name`、`tool_name`、`tool_input`、`tool_use_id` 等 snake_case alias，本项目同时兼容两套字段。Relay 的 stdout 保持为空，因此只做旁路遥测，不修改或绕过 ZCode 自身的权限决策。ZCode 在 session 启动时快照 hook 配置，安装、卸载或修改后需新建 session 才能稳定生效。
 
 ZCode 的强制控制仍走本项目已有的 OS 级边界：eBPF 事实事件负责进程/文件/网络审计，cgroup eBPF 负责网络阻断，BPF LSM 负责文件与执行阻断，危险策略写入仍受 runtime gate 与认证保护。Hook 仅用于补充工具调用语义和 PID/session 关联，不被描述为完整容器或 namespace 沙盒。
 

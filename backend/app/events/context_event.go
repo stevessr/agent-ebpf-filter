@@ -218,7 +218,10 @@ func BuildProcessContextFromHookPayload(payload map[string]interface{}, toolName
 		RootAgentPid:   PayloadUint32(payload, "root_agent_pid", "rootAgentPid"),
 		AgentRunID:     PayloadString(payload, "agent_run_id", "agentRunId"),
 		TaskID:         PayloadString(payload, "task_id", "taskId"),
-		ConversationID: PayloadString(payload, "conversation_id", "conversationId"),
+		ConversationID: platform.FirstNonEmpty(
+			PayloadString(payload, "conversation_id", "conversationId"),
+			PayloadString(payload, "session_id", "sessionId"),
+		),
 		TurnID:         PayloadString(payload, "turn_id", "turnId"),
 		ToolCallID:     toolCallID,
 		ToolName:       platform.FirstNonEmpty(PayloadString(payload, "tool_name", "toolName"), toolName),
