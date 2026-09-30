@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/dshinspector"
 	"agent-ebpf-filter/app/recording"
 	"agent-ebpf-filter/app/research"
 	"agent-ebpf-filter/app/signalruntime"
@@ -140,8 +141,12 @@ func Main() error {
 	tlsRuntime.Controller.SetEnabledCheck(func() bool {
 		return runtimeSettingsStore.Snapshot().TlsCaptureEnabled
 	})
-	tlsCaptureController = tlsRuntime.Controller // expose for UDS wrapper-triggered TLS attach
+	tlsCaptureController = tlsRuntime.Controller // expose for non-dsh wrapper-triggered TLS attach
 	defer tlsRuntime.Controller.Close()
+
+	dshCaptureSink := tls.NewDshInspectorSink(tlsRuntime.Store, tlsRuntime.Broadcaster)
+	AppCtx.DshInspector = dshinspector.NewManager(dshCaptureSink.Handle)
+	defer AppCtx.DshInspector.Close()
 
 	rd, err := ringbuf.NewReader(trackerMaps.Events)
 	if err != nil {
