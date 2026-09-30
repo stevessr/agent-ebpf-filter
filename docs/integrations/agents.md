@@ -166,6 +166,17 @@ export AGENT_API_KEY="$(jq -r .accessToken ~/.config/agent-ebpf-filter/runtime.j
 - **不想修改 Agent 代码**：通过 Configuration 页面添加命令名称
 - **Shell 密集型工作流**：命令名称匹配是低开销的 exact match
 
+## MiniMax Code（mcode）兼容
+
+- MiniMax Code 启动器 `mcode`，以及其公开源码在启动后设置的运行时进程标题 `minimax-code` 默认作为 `Agent CLI` 追踪；现有 PID/PPID lineage 会关联可观察的子进程，但 **不会从进程名推断或伪造 run/task/tool_call ID**。
+- TLS 自动发现会识别直接启动的 `mcode`、运行中的 `minimax-code`，以及源码可证明的 `@minimax-ai/code` npm 路径、`~/.minimax-code/bin/mcode` installer 启动器和源码构建 `dist/cli.js`。MiniMax Code 桌面应用源码不在公开仓库中，因此这里不假定其私有进程名或 native hook。
+- Hooks 页面提供 **可选 wrapper-only** shell alias。公开 CLI 的 TUI、`exec` 与 `acp` 都从 `mcode` 入口启动；直接启动、桌面 GUI 与已经运行的进程不会因 alias 自动经过 wrapper。
+- MiniMax Code 公开源码中的内置 `minimax_api` 固定使用 `anthropic-messages`：Global 默认基址为 `https://api.minimax.io/anthropic`，中国区为 `https://api.minimaxi.com/anthropic`。因此 provider fingerprint 只在对应 Host + `POST /anthropic/v1/messages` 时标记 `minimax`。
+- MiniMax Code 同时支持用户自定义 BYOK provider 的 `openai-completions`、`openai-responses` 与 `anthropic-messages` 格式；这些兼容格式本身不能证明网络对端是 MiniMax。**API vendor 与调用方 harness 是两个独立维度**。
+- TLS 明文采集仍受运行时开关与权限控制，默认关闭。纯 socket/eBPF 捕获不能解密 HTTPS；兼容配置不会自动开启 MITM 或读取 prompt / API key。
+
+若需要精确的会话/任务级归属，应使用明确的 PID 注册/adapter；只有上游正式提供受支持的 hook 或 telemetry 接口时才应增加相应协议适配，不把第三方私有会话数据库当成稳定接口。
+
 ## zvec-grep 兼容
 
 [`zvec-ai/zvec-grep`](https://github.com/zvec-ai/zvec-grep) 的 `zg` CLI 和
