@@ -2,8 +2,8 @@
 #![no_main]
 
 use agent_ebpf_types::{
-    event_type, CollectorStats, ContextPressureStats, Event, ExitCompactMeta, ExitIoMeta, ExitMeta,
-    ExitPathData, ExitSinglePathData, SocketFdKey, SocketFdMeta,
+    CollectorStats, ContextPressureStats, Event, ExitCompactMeta, ExitIoMeta, ExitMeta,
+    ExitPathData, ExitSinglePathData, SocketFdKey, SocketFdMeta, event_type,
 };
 use aya_ebpf::{
     helpers::{
@@ -50,8 +50,7 @@ static SOCKET_FDS: LruHashMap<SocketFdKey, SocketFdMeta> = LruHashMap::with_max_
 static SOCKET_FD_PARENTS: LruHashMap<u32, u32> = LruHashMap::with_max_entries(8192, 0);
 
 #[map(name = "exit_single_path_ctx")]
-static EXIT_SINGLE_PATH_CTX: HashMap<u64, ExitSinglePathData> =
-    HashMap::with_max_entries(2048, 0);
+static EXIT_SINGLE_PATH_CTX: HashMap<u64, ExitSinglePathData> = HashMap::with_max_entries(2048, 0);
 
 #[map(name = "exit_path_ctx")]
 static EXIT_PATH_CTX: HashMap<u64, ExitPathData> = HashMap::with_max_entries(1024, 0);
@@ -67,33 +66,24 @@ fn emit_execve() {
     let pid_tgid = bpf_get_current_pid_tgid();
     let uid_gid = bpf_get_current_uid_gid();
 
-    let stats = unsafe {
-        COLLECTOR_STATS
-            .get_ptr_mut(0)
-            .map(|stats| &mut *stats)
+    let stats = unsafe { COLLECTOR_STATS.get_ptr_mut(0).map(|stats| &mut *stats) };
+
+    let (sequence, audit_generation, pending_dropped, reserve_failures) = if let Some(stats) = stats
+    {
+        stats.event_sequence = stats.event_sequence.wrapping_add(1);
+        (
+            stats.event_sequence,
+            stats.audit_generation,
+            stats.pending_dropped_events,
+            stats.ringbuf_reserve_failed_total,
+        )
+    } else {
+        (0, 0, 0, 0)
     };
 
-    let (sequence, audit_generation, pending_dropped, reserve_failures) =
-        if let Some(stats) = stats {
-            stats.event_sequence = stats.event_sequence.wrapping_add(1);
-            (
-                stats.event_sequence,
-                stats.audit_generation,
-                stats.pending_dropped_events,
-                stats.ringbuf_reserve_failed_total,
-            )
-        } else {
-            (0, 0, 0, 0)
-        };
-
     let Some(mut slot) = EVENTS.reserve::<Event>(0) else {
-        if let Some(stats) = unsafe {
-            COLLECTOR_STATS
-                .get_ptr_mut(0)
-                .map(|stats| &mut *stats)
-        } {
-            stats.ringbuf_reserve_failed_total =
-                stats.ringbuf_reserve_failed_total.wrapping_add(1);
+        if let Some(stats) = unsafe { COLLECTOR_STATS.get_ptr_mut(0).map(|stats| &mut *stats) } {
+            stats.ringbuf_reserve_failed_total = stats.ringbuf_reserve_failed_total.wrapping_add(1);
             stats.pending_dropped_events = stats.pending_dropped_events.wrapping_add(1);
         }
         return;
@@ -119,11 +109,7 @@ fn emit_execve() {
     event.kernel_dropped_since_last = pending_dropped;
     event.kernel_reserve_failures_total = reserve_failures;
 
-    if let Some(stats) = unsafe {
-        COLLECTOR_STATS
-            .get_ptr_mut(0)
-            .map(|stats| &mut *stats)
-    } {
+    if let Some(stats) = unsafe { COLLECTOR_STATS.get_ptr_mut(0).map(|stats| &mut *stats) } {
         stats.ringbuf_events_total = stats.ringbuf_events_total.wrapping_add(1);
         stats.pending_dropped_events = 0;
     }
