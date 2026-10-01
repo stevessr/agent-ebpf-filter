@@ -5,7 +5,8 @@ edition = "2024"
 publish = false
 
 [dependencies]
-aya-ebpf = "0.1"
+agent-ebpf-types = { path = "../../crates/agent-ebpf-types" }
+aya-ebpf = "0.2.1"
 
 [[bin]]
 name = "agent-ebpf"
