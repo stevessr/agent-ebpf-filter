@@ -59,7 +59,7 @@ export $(DEV_ENV_EXPORTS)
 
 .DEFAULT_GOAL := all
 
-.PHONY: all backend frontend wrapper clean proto proto-check help predev predev-check predev-go predev-python predev-frontend predev-tui dev dev-env dev-env-tui dev-env-cli dev-env-build dev-env-print dev-env-doctor tui tui-build tui-test run deps ebpf-bootstrap ebpf-tls ebpf-cgroup ebpf-lsm os-enforcement-preflight os-enforcement-check os-enforcement-smoke os-enforcement-smoke-start cuda ml-sweep ml-presentation runtime-benchmark test lint lint-backend lint-frontend githooks build install uninstall docker dev-image dev-image-repository dev-image-tag exec
+.PHONY: all backend frontend frontend-legacy webui wrapper clean proto proto-check help predev predev-check predev-go predev-python predev-frontend predev-webui predev-tui dev dev-env dev-env-tui dev-env-cli dev-env-build dev-env-print dev-env-doctor tui tui-build tui-test run deps ebpf-bootstrap ebpf-tls ebpf-cgroup ebpf-lsm os-enforcement-preflight os-enforcement-check os-enforcement-smoke os-enforcement-smoke-start cuda ml-sweep ml-presentation runtime-benchmark test lint lint-backend lint-frontend githooks build install uninstall docker dev-image dev-image-repository dev-image-tag exec
 
 
 docker: ## Pull the privileged devcontainer image from GHCR
@@ -202,8 +202,8 @@ backend-bare:
 	cd backend && go build $(GO_BUILD_TAGS_ARG) -o agent-ebpf-filter
 
 frontend-bare:
-	@echo "Building frontend..."
-	cd frontend && bun install && VITE_AGENT_BUILD_FEATURES="$(AGENT_FRONTEND_BUILD_FEATURES)" bun run build
+	@echo "Building GPUI Web frontend..."
+	cd webui && trunk build --release
 
 wrapper-bare:
 	@echo "Building wrapper..."
@@ -220,7 +220,7 @@ cuda: ## Build CUDA acceleration library
 
 
 predev: ## Install development dependencies in parallel
-	@$(MAKE) --no-print-directory -j4 predev-go predev-python predev-frontend predev-tui
+	@$(MAKE) --no-print-directory -j5 predev-go predev-python predev-frontend predev-webui predev-tui
 	@$(MAKE) --no-print-directory predev-check
 	@$(MAKE) --no-print-directory githooks
 	@echo "Development dependencies are ready."
@@ -259,6 +259,8 @@ tui-test: ## Run the monitor TUI unit tests
 predev-check: ## Verify development dependencies without installing anything
 	@command -v protoc-gen-go >/dev/null || (echo "Missing protoc-gen-go. Run 'make predev' first." && exit 1)
 	@command -v node >/dev/null || (echo "Missing node. Install the official Node.js runtime or rebuild/pull the devcontainer image." && exit 1)
+	@command -v trunk >/dev/null || (echo "Missing trunk. Run 'make predev-webui' first." && exit 1)
+	@rustup run nightly rustc --version >/dev/null || (echo "Missing nightly Rust toolchain. Run 'make predev-webui' first." && exit 1)
 	@test -x adapters/python/.venv/bin/python || (echo "Missing adapters/python/.venv. Run 'make predev' first." && exit 1)
 	@test -x frontend/node_modules/.bin/pbjs || (echo "Missing frontend/node_modules. Run 'make predev' first." && exit 1)
 
@@ -277,9 +279,14 @@ predev-python:
 
 predev-frontend:
 	@if [ ! -d "frontend/node_modules" ]; then \
-		echo "Installing frontend deps..."; \
+		echo "Installing legacy frontend/protobuf tooling deps..."; \
 		cd frontend && bun install; \
 	fi
+
+predev-webui:
+	@command -v rustup >/dev/null || (echo "Missing rustup for GPUI Web build." && exit 1)
+	@command -v trunk >/dev/null || cargo install trunk --locked
+	@rustup toolchain install nightly --profile minimal --component rust-src --component rustfmt --component clippy --target wasm32-unknown-unknown >/dev/null
 
 predev-tui:
 	@cd $(DEV_ENV_TUI_DIR) && GOPATH="$(GOPATH)" go mod download
@@ -317,8 +324,14 @@ wrapper: ## Build CLI wrapper
 	@echo "Building wrapper..."
 	cd wrapper && go build -o ../agent-wrapper
 
-frontend: ## Build Vue3 frontend
-	@echo "Building frontend..."
+frontend: predev-webui ## Build GPUI Rust/WASM frontend
+	@echo "Building GPUI Web frontend..."
+	cd webui && trunk build --release
+
+webui: frontend ## Alias for the GPUI Web frontend
+
+frontend-legacy: ## Build the legacy Vue frontend during migration
+	@echo "Building legacy Vue frontend..."
 	cd frontend && bun install && VITE_AGENT_BUILD_FEATURES="$(AGENT_FRONTEND_BUILD_FEATURES)" bun run build
 
 ebpf-bootstrap: ## Pre-build the backend binary (bootstrap happens automatically on first run)
@@ -398,9 +411,9 @@ lint-backend: ## Format Go backend, wrapper, and tooling source code
 	@cd tools/dev-env-tui && $(GO) fmt ./...
 	@cd $(AGENT_TUI_DIR) && $(GO) fmt ./...
 
-lint-frontend: ## Format Vue/TypeScript frontend source code with Prettier
-	@echo "Formatting frontend code..."
-	@cd frontend && bunx --bun prettier --write $(FRONTEND_FORMAT_GLOBS)
+lint-frontend: ## Format GPUI Rust frontend source code
+	@echo "Formatting GPUI Web frontend..."
+	@cd webui && cargo +nightly fmt --all
 
 githooks: ## Install git hooks (auto-format, commit lint, pre-push checks)
 	@mkdir -p .githooks
@@ -410,9 +423,9 @@ githooks: ## Install git hooks (auto-format, commit lint, pre-push checks)
 	@echo "  commit-msg  — validate conventional commit format"
 	@echo "  pre-push    — lint, vet, and build check"
 
-dev-frontend: ## Run only the frontend development server
-	@echo "Starting frontend dev environment..."
-	@./scripts/dev-frontend.sh
+dev-frontend: predev-webui ## Run only the GPUI Web development server
+	@echo "Starting GPUI Web development environment..."
+	@cd webui && trunk serve
 
 
 run: all ebpf-bootstrap ## Build and run in production mode
@@ -422,13 +435,14 @@ run: all ebpf-bootstrap ## Build and run in production mode
 run-backend: backend ## Build and run only the backend
 	@./backend/agent-ebpf-filter
 
-run-frontend: ## Run only the frontend development server
-	cd frontend && bun run dev
+run-frontend: predev-webui ## Run only the GPUI Web development server
+	cd webui && trunk serve
 
 clean: ## Clean build artifacts
 	@rm -f backend/agent-ebpf-filter; \
 	 rm -f agent-wrapper; \
 	 rm -f backend/.port; \
+	 rm -rf webui/dist; \
 	 rm -rf frontend/dist; \
 	 rm -rf adapters/python/.venv; \
 	 rm -f backend/ebpf/agenttracker_bpfel.go backend/ebpf/agenttracker_bpfeb.go; \
