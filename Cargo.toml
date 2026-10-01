@@ -7,7 +7,7 @@ members = [
   "rust/crates/agent-wrapper",
   "rust/crates/agent-backend",
 ]
-exclude = ["rust/ebpf/agent-ebpf"]
+exclude = ["rust/ebpf/agent-ebpf", "webui"]
 
 [workspace.package]
 edition = "2024"
