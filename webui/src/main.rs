@@ -3,14 +3,14 @@ use std::{borrow::Cow, cell::RefCell, collections::VecDeque};
 use futures_util::StreamExt;
 use gloo_net::{
     http::Request,
-    websocket::{futures::WebSocket, Message},
+    websocket::{futures::WebSocket, Message as WsMessage},
 };
 use gpui::{
     div, px, rgb, size, App, ApplicationHandle, Bounds, Context, ElementId, IntoElement, Render,
     SharedString, Task, Window, WindowBounds, WindowOptions,
 };
 use gpui::prelude::*;
-use prost::Message as ProstMessage;
+use prost::Message;
 
 use agent_proto::pb::{Event, EventBatch, EventHistoryResponse};
 
@@ -302,7 +302,7 @@ impl Dashboard {
 
             while let Some(message) = socket.next().await {
                 match message {
-                    Ok(Message::Bytes(bytes)) => {
+                    Ok(WsMessage::Bytes(bytes)) => {
                         if let Ok(batch) = EventBatch::decode(bytes.as_slice()) {
                             let _ = this.update(cx, |this, cx| {
                                 this.push_events(batch.events);
@@ -310,7 +310,7 @@ impl Dashboard {
                             });
                         }
                     }
-                    Ok(Message::Text(_)) => {}
+                    Ok(WsMessage::Text(_)) => {}
                     Err(error) => {
                         let _ = this.update(cx, |this, cx| {
                             this.stream_status = StreamStatus::Failed;
