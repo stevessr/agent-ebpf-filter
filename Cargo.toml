@@ -18,7 +18,7 @@ repository = "https://github.com/stevessr/agent-ebpf-filter"
 
 [workspace.dependencies]
 anyhow = "1.0"
-axum = "0.8"
+axum = { version = "0.8", features = ["ws"] }
 clap = { version = "4.5", features = ["derive"] }
 dashmap = "6.1"
 hex = "0.4"
