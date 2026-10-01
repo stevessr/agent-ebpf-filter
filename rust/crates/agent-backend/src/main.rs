@@ -1,28 +1,79 @@
 #![forbid(unsafe_code)]
 
+use std::{
+    collections::VecDeque,
+    os::unix::fs::PermissionsExt,
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex},
+    time::{SystemTime, UNIX_EPOCH},
+};
+
 use agent_common::{ProcessContext, UDS_PATH, read_frame, write_frame};
-use agent_proto::pb::{WrapperRequest, WrapperResponse, wrapper_response};
+use agent_proto::pb::{
+    CapturedEventRecord, Event, EventBatch, EventHistoryResponse, WrapperRequest, WrapperResponse,
+    wrapper_response,
+};
 use anyhow::{Context, Result};
 use axum::{
     Json, Router,
-    extract::State,
-    http::StatusCode,
+    extract::{
+        State,
+        ws::{Message as WsMessage, WebSocket, WebSocketUpgrade},
+    },
+    http::{StatusCode, header},
+    response::{IntoResponse, Response},
     routing::{get, post},
 };
 use dashmap::DashMap;
 use prost::Message;
 use serde::{Deserialize, Serialize};
-use std::{
-    os::unix::fs::PermissionsExt,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
-use tokio::{net::UnixListener, task};
+use tokio::{net::UnixListener, sync::broadcast, task};
 use tower_http::services::{ServeDir, ServeFile};
 
-#[derive(Clone, Default)]
+const MAX_RECENT_EVENTS: usize = 1_500;
+const EVENT_BROADCAST_CAPACITY: usize = 1_024;
+
+#[derive(Clone)]
 struct AppState {
     processes: Arc<DashMap<u32, ProcessContext>>,
+    recent_events: Arc<Mutex<VecDeque<CapturedEventRecord>>>,
+    event_tx: broadcast::Sender<Event>,
+}
+
+impl AppState {
+    fn new() -> Self {
+        let (event_tx, _) = broadcast::channel(EVENT_BROADCAST_CAPACITY);
+        Self {
+            processes: Arc::new(DashMap::new()),
+            recent_events: Arc::new(Mutex::new(VecDeque::with_capacity(MAX_RECENT_EVENTS))),
+            event_tx,
+        }
+    }
+
+    fn publish_event(&self, event: Event) {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis()
+            .min(i64::MAX as u128) as i64;
+
+        {
+            let mut recent = self
+                .recent_events
+                .lock()
+                .expect("recent event mutex poisoned");
+            recent.push_back(CapturedEventRecord {
+                event: Some(event.clone()),
+                timestamp,
+                envelope: None,
+            });
+            while recent.len() > MAX_RECENT_EVENTS {
+                recent.pop_front();
+            }
+        }
+
+        let _ = self.event_tx.send(event);
+    }
 }
 
 #[derive(Deserialize)]
@@ -35,14 +86,21 @@ struct HealthResponse {
     status: &'static str,
     backend: &'static str,
     registered_processes: usize,
+    retained_events: usize,
     policy_engine: &'static str,
 }
 
 async fn health(State(state): State<AppState>) -> Json<HealthResponse> {
+    let retained_events = state
+        .recent_events
+        .lock()
+        .expect("recent event mutex poisoned")
+        .len();
     Json(HealthResponse {
         status: "ok",
         backend: "rust",
         registered_processes: state.processes.len(),
+        retained_events,
         policy_engine: "migration-bootstrap",
     })
 }
@@ -61,6 +119,49 @@ async fn unregister(
 ) -> (StatusCode, Json<serde_json::Value>) {
     state.processes.remove(&req.pid);
     (StatusCode::OK, Json(serde_json::json!({"success": true})))
+}
+
+async fn recent_events(State(state): State<AppState>) -> Response {
+    let records = state
+        .recent_events
+        .lock()
+        .expect("recent event mutex poisoned")
+        .iter()
+        .cloned()
+        .collect();
+
+    let response = EventHistoryResponse {
+        events: records,
+        source: "rust-memory".into(),
+    };
+    (
+        [(header::CONTENT_TYPE, "application/x-protobuf")],
+        response.encode_to_vec(),
+    )
+        .into_response()
+}
+
+async fn events_ws(State(state): State<AppState>, ws: WebSocketUpgrade) -> Response {
+    ws.on_upgrade(move |socket| stream_events(socket, state))
+}
+
+async fn stream_events(mut socket: WebSocket, state: AppState) {
+    let mut rx = state.event_tx.subscribe();
+    loop {
+        match rx.recv().await {
+            Ok(event) => {
+                let payload = EventBatch {
+                    events: vec![event],
+                }
+                .encode_to_vec();
+                if socket.send(WsMessage::Binary(payload.into())).await.is_err() {
+                    break;
+                }
+            }
+            Err(broadcast::error::RecvError::Lagged(_)) => continue,
+            Err(broadcast::error::RecvError::Closed) => break,
+        }
+    }
 }
 
 async fn run_uds(state: AppState) -> Result<()> {
@@ -86,21 +187,49 @@ async fn run_uds(state: AppState) -> Result<()> {
                 ProcessContext {
                     pid: req.pid,
                     root_agent_pid: req.root_agent_pid,
-                    agent_run_id: req.agent_run_id,
-                    task_id: req.task_id,
-                    conversation_id: req.conversation_id,
-                    turn_id: req.turn_id,
-                    tool_call_id: req.tool_call_id,
-                    tool_name: req.tool_name,
-                    trace_id: req.trace_id,
-                    span_id: req.span_id,
-                    decision: req.decision,
+                    agent_run_id: req.agent_run_id.clone(),
+                    task_id: req.task_id.clone(),
+                    conversation_id: req.conversation_id.clone(),
+                    turn_id: req.turn_id.clone(),
+                    tool_call_id: req.tool_call_id.clone(),
+                    tool_name: req.tool_name.clone(),
+                    trace_id: req.trace_id.clone(),
+                    span_id: req.span_id.clone(),
+                    decision: req.decision.clone(),
                     risk_score: req.risk_score,
-                    container_id: req.container_id,
-                    cwd: req.cwd,
-                    argv_digest: req.argv_digest,
+                    container_id: req.container_id.clone(),
+                    cwd: req.cwd.clone(),
+                    argv_digest: req.argv_digest.clone(),
                 },
             );
+
+            let effective_decision = if req.decision.is_empty() {
+                "ALERT".to_owned()
+            } else {
+                req.decision.clone()
+            };
+            state.publish_event(Event {
+                pid: req.pid,
+                tgid: req.pid,
+                r#type: "wrapper_intercept".into(),
+                comm: req.comm.clone(),
+                path: req.binary_path.clone(),
+                agent_run_id: req.agent_run_id.clone(),
+                conversation_id: req.conversation_id.clone(),
+                turn_id: req.turn_id.clone(),
+                tool_call_id: req.tool_call_id.clone(),
+                tool_name: req.tool_name.clone(),
+                trace_id: req.trace_id.clone(),
+                span_id: req.span_id.clone(),
+                root_agent_pid: req.root_agent_pid,
+                decision: effective_decision,
+                risk_score: req.risk_score,
+                container_id: req.container_id.clone(),
+                argv_digest: req.argv_digest.clone(),
+                task_id: req.task_id.clone(),
+                cwd: req.cwd.clone(),
+                ..Default::default()
+            });
 
             let response = WrapperResponse {
                 action: wrapper_response::Action::Alert as i32,
@@ -126,7 +255,7 @@ async fn main() -> Result<()> {
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
-    let state = AppState::default();
+    let state = AppState::new();
     let uds_state = state.clone();
     let _uds_task = tokio::spawn(async move {
         if let Err(error) = run_uds(uds_state).await {
@@ -148,6 +277,8 @@ async fn main() -> Result<()> {
         .route("/api/v1/health", get(health))
         .route("/register", post(register))
         .route("/unregister", post(unregister))
+        .route("/events/recent", get(recent_events))
+        .route("/ws", get(events_ws))
         .with_state(state);
 
     if let Some(static_dir) = static_dir {
