@@ -1,4 +1,16 @@
-# Frontend
+# Legacy Vue frontend
+
+This Vue 3 + TypeScript + Vite dashboard is retained on the `rust-variant` branch only as a temporary migration fallback.
+
+The active frontend is now `../webui/`, implemented in Rust with GPUI Web and compiled to WebAssembly. `make frontend`, `make dev-frontend`, production static serving, and installation all target the GPUI dashboard.
+
+Do not add new UI features here. Port missing behavior to GPUI instead. The legacy tree can be removed once parity tests cover its remaining controls and views.
+
+## Legacy-only build
+
+```bash
+make frontend-legacy
+```
 
 Vue 3 + TypeScript + Vite dashboard for the Agent eBPF Filter backend.
 
