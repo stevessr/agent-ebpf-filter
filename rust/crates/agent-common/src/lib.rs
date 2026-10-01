@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::io::{Read, Write};
@@ -11,20 +11,34 @@ pub const MAX_UDS_PAYLOAD: usize = 4 << 20;
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ProcessContext {
     pub pid: u32,
-    #[serde(default)] pub root_agent_pid: u32,
-    #[serde(default)] pub agent_run_id: String,
-    #[serde(default)] pub task_id: String,
-    #[serde(default)] pub conversation_id: String,
-    #[serde(default)] pub turn_id: String,
-    #[serde(default)] pub tool_call_id: String,
-    #[serde(default)] pub tool_name: String,
-    #[serde(default)] pub trace_id: String,
-    #[serde(default)] pub span_id: String,
-    #[serde(default)] pub decision: String,
-    #[serde(default)] pub risk_score: f64,
-    #[serde(default)] pub container_id: String,
-    #[serde(default)] pub cwd: String,
-    #[serde(default)] pub argv_digest: String,
+    #[serde(default)]
+    pub root_agent_pid: u32,
+    #[serde(default)]
+    pub agent_run_id: String,
+    #[serde(default)]
+    pub task_id: String,
+    #[serde(default)]
+    pub conversation_id: String,
+    #[serde(default)]
+    pub turn_id: String,
+    #[serde(default)]
+    pub tool_call_id: String,
+    #[serde(default)]
+    pub tool_name: String,
+    #[serde(default)]
+    pub trace_id: String,
+    #[serde(default)]
+    pub span_id: String,
+    #[serde(default)]
+    pub decision: String,
+    #[serde(default)]
+    pub risk_score: f64,
+    #[serde(default)]
+    pub container_id: String,
+    #[serde(default)]
+    pub cwd: String,
+    #[serde(default)]
+    pub argv_digest: String,
 }
 
 pub fn first_env(keys: &[&str]) -> String {
@@ -44,7 +58,11 @@ pub fn env_f64(keys: &[&str]) -> f64 {
 }
 
 pub fn argv_digest<'a>(parts: impl IntoIterator<Item = &'a str>) -> String {
-    let normalized: Vec<_> = parts.into_iter().map(str::trim).filter(|p| !p.is_empty()).collect();
+    let normalized: Vec<_> = parts
+        .into_iter()
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .collect();
     if normalized.is_empty() {
         return String::new();
     }
@@ -57,7 +75,9 @@ pub fn write_frame(mut writer: impl Write, payload: &[u8]) -> Result<()> {
     if payload.is_empty() || payload.len() > MAX_UDS_PAYLOAD {
         bail!("invalid UDS payload size: {}", payload.len());
     }
-    writer.write_all(&(payload.len() as u32).to_be_bytes()).context("write UDS header")?;
+    writer
+        .write_all(&(payload.len() as u32).to_be_bytes())
+        .context("write UDS header")?;
     writer.write_all(payload).context("write UDS payload")?;
     Ok(())
 }
@@ -70,7 +90,9 @@ pub fn read_frame(mut reader: impl Read) -> Result<Vec<u8>> {
         bail!("invalid UDS payload size: {size}");
     }
     let mut payload = vec![0_u8; size];
-    reader.read_exact(&mut payload).context("read UDS payload")?;
+    reader
+        .read_exact(&mut payload)
+        .context("read UDS payload")?;
     Ok(payload)
 }
 
