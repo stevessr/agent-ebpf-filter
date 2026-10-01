@@ -1,22 +1,18 @@
 #![forbid(unsafe_code)]
 
-use agent_common::{read_frame, write_frame, ProcessContext, UDS_PATH};
-use agent_proto::pb::{wrapper_response, WrapperRequest, WrapperResponse};
+use agent_common::{ProcessContext, UDS_PATH, read_frame, write_frame};
+use agent_proto::pb::{WrapperRequest, WrapperResponse, wrapper_response};
 use anyhow::{Context, Result};
 use axum::{
+    Json, Router,
     extract::State,
     http::StatusCode,
     routing::{get, post},
-    Json, Router,
 };
 use dashmap::DashMap;
 use prost::Message;
 use serde::Deserialize;
-use std::{
-    os::unix::fs::PermissionsExt,
-    path::Path,
-    sync::Arc,
-};
+use std::{os::unix::fs::PermissionsExt, path::Path, sync::Arc};
 use tokio::{net::UnixListener, task};
 
 #[derive(Clone, Default)]
@@ -90,7 +86,9 @@ async fn run_uds(state: AppState) -> Result<()> {
 
             let response = WrapperResponse {
                 action: wrapper_response::Action::Alert as i32,
-                message: "Rust backend bootstrap: policy engine is not ported yet; execution continues".into(),
+                message:
+                    "Rust backend bootstrap: policy engine is not ported yet; execution continues"
+                        .into(),
                 rewritten_args: Vec::new(),
                 classification: None,
                 ml_score: 0.0,
