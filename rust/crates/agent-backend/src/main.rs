@@ -12,7 +12,11 @@ use axum::{
 use dashmap::DashMap;
 use prost::Message;
 use serde::{Deserialize, Serialize};
-use std::{os::unix::fs::PermissionsExt, path::{Path, PathBuf}, sync::Arc};
+use std::{
+    os::unix::fs::PermissionsExt,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 use tokio::{net::UnixListener, task};
 use tower_http::services::{ServeDir, ServeFile};
 
@@ -148,9 +152,8 @@ async fn main() -> Result<()> {
 
     if let Some(static_dir) = static_dir {
         let index = static_dir.join("index.html");
-        app = app.fallback_service(
-            ServeDir::new(static_dir).not_found_service(ServeFile::new(index)),
-        );
+        app = app
+            .fallback_service(ServeDir::new(static_dir).not_found_service(ServeFile::new(index)));
     }
 
     let addr = std::env::var("AGENT_BACKEND_ADDR").unwrap_or_else(|_| "127.0.0.1:8080".into());
