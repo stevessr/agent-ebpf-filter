@@ -10,16 +10,17 @@ if [ -f "$DEV_ENV_FILE" ]; then
     set +a
 fi
 
-if ! command -v bun >/dev/null 2>&1; then
-    echo "--- [Dev] Missing required command: bun ---" >&2
-    echo "--- [Dev] Install Bun, run 'make predev', then retry 'make dev'. ---" >&2
+if ! command -v rustup >/dev/null 2>&1; then
+    echo "--- [Dev] Missing required command: rustup ---" >&2
+    echo "--- [Dev] Install Rust via rustup, then run 'make predev-webui'. ---" >&2
     exit 127
 fi
 
-if [ ! -d "$ROOT/frontend/node_modules" ]; then
-    echo "--- [Dev] Installing frontend dependencies ---"
-    (cd "$ROOT/frontend" && bun install)
+if ! command -v trunk >/dev/null 2>&1; then
+    echo "--- [Dev] Missing required command: trunk ---" >&2
+    echo "--- [Dev] Run 'make predev-webui' first. ---" >&2
+    exit 127
 fi
 
-cd "$ROOT/frontend"
-exec bun run dev
+cd "$ROOT/webui"
+exec trunk serve
