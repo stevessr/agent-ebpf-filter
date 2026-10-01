@@ -66,6 +66,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: rust-src,rustfmt
+      - name: Install bpf-linker
+        uses: taiki-e/install-action@v2
+        with:
+          tool: bpf-linker
       - name: Format
         working-directory: rust/ebpf/agent-ebpf
         run: cargo +nightly fmt --all --check
