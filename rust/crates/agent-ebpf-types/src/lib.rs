@@ -206,7 +206,9 @@ pub struct ExitSinglePathData {
 }
 
 impl ExitSinglePathData {
-    pub const ZERO: Self = Self { path: [0; MAX_PATH_LEN] };
+    pub const ZERO: Self = Self {
+        path: [0; MAX_PATH_LEN],
+    };
 }
 
 #[repr(C)]
