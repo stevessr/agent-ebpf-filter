@@ -1,0 +1,19 @@
+[package]
+name = "agent-backend"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+agent-common = { path = "../agent-common" }
+agent-proto = { path = "../agent-proto" }
+anyhow.workspace = true
+axum.workspace = true
+dashmap.workspace = true
+prost.workspace = true
+serde.workspace = true
+serde_json = "1.0"
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
