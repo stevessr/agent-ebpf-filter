@@ -6,6 +6,7 @@ members = [
   "rust/crates/agent-adapter",
   "rust/crates/agent-wrapper",
   "rust/crates/agent-backend",
+  "rust/crates/agent-ebpf-types",
 ]
 exclude = ["rust/ebpf/agent-ebpf", "webui"]
 
