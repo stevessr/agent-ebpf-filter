@@ -24,3 +24,29 @@ jobs:
         run: cargo test --workspace
       - name: Build
         run: cargo build --workspace
+
+
+  webui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: wasm32-unknown-unknown
+          components: rust-src,rustfmt,clippy
+      - name: Install protobuf compiler
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - name: Install Trunk
+        run: cargo install trunk --locked
+      - name: Format
+        working-directory: webui
+        run: cargo +nightly fmt --all --check
+      - name: Build GPUI Web
+        working-directory: webui
+        run: trunk build --release
+      - name: Verify deployable assets
+        run: |
+          test -f webui/dist/index.html
+          find webui/dist -maxdepth 1 -type f -name '*.wasm' -print -quit | grep -q .
+          find webui/dist -maxdepth 1 -type f -name '*.js' -print -quit | grep -q .
