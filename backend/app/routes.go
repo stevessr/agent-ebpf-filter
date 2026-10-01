@@ -6,6 +6,7 @@ import (
 	codexhandlers "agent-ebpf-filter/codex/capture/handlers"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -185,11 +186,31 @@ func registerCompatibilityRoutes(r *gin.Engine, ac *AppContext, features *Featur
 }
 
 func registerStaticRoutes(r *gin.Engine) {
-	staticDir := "../frontend/dist"
-	if _, err := os.Stat(staticDir); err != nil {
-		staticDir = "./frontend/dist"
+	candidates := []string{
+		"../webui/dist",
+		"./webui/dist",
+		"../frontend/dist",
+		"./frontend/dist",
 	}
-	r.StaticFile("/", filepath.Join(staticDir, "index.html"))
-	r.Static("/assets", filepath.Join(staticDir, "assets"))
-	r.NoRoute(func(c *gin.Context) { c.File(filepath.Join(staticDir, "index.html")) })
+	staticDir := candidates[len(candidates)-1]
+	for _, candidate := range candidates {
+		if info, err := os.Stat(filepath.Join(candidate, "index.html")); err == nil && !info.IsDir() {
+			staticDir = candidate
+			break
+		}
+	}
+
+	indexFile := filepath.Join(staticDir, "index.html")
+	r.StaticFile("/", indexFile)
+	r.NoRoute(func(c *gin.Context) {
+		requestPath := filepath.Clean(strings.TrimPrefix(c.Request.URL.Path, "/"))
+		if requestPath != "." && requestPath != "" && requestPath != ".." && !strings.HasPrefix(requestPath, "../") {
+			candidate := filepath.Join(staticDir, requestPath)
+			if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+				c.File(candidate)
+				return
+			}
+		}
+		c.File(indexFile)
+	})
 }
