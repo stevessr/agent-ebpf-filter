@@ -3,13 +3,13 @@ use std::{borrow::Cow, cell::RefCell, collections::VecDeque};
 use futures_util::StreamExt;
 use gloo_net::{
     http::Request,
-    websocket::{futures::WebSocket, Message as WsMessage},
-};
-use gpui::{
-    div, px, rgb, size, App, ApplicationHandle, Bounds, Context, ElementId, IntoElement, Render,
-    SharedString, Task, Window, WindowBounds, WindowOptions,
+    websocket::{Message as WsMessage, futures::WebSocket},
 };
 use gpui::prelude::*;
+use gpui::{
+    App, ApplicationHandle, Bounds, Context, ElementId, IntoElement, Render, SharedString, Task,
+    Window, WindowBounds, WindowOptions, div, px, rgb, size,
+};
 use prost::Message;
 
 use agent_proto::pb::{Event, EventBatch, EventHistoryResponse};
@@ -270,7 +270,8 @@ impl Dashboard {
                     }
                     Err(error) => {
                         this.status_message =
-                            format!("History unavailable ({error}); live stream still enabled").into();
+                            format!("History unavailable ({error}); live stream still enabled")
+                                .into();
                     }
                 }
                 cx.notify();
@@ -352,18 +353,8 @@ impl Dashboard {
             .bg(rgb(SURFACE))
             .border_1()
             .border_color(rgb(BORDER))
-            .child(
-                div()
-                    .text_sm()
-                    .text_color(rgb(MUTED))
-                    .child(title),
-            )
-            .child(
-                div()
-                    .text_xl()
-                    .text_color(rgb(accent))
-                    .child(value.into()),
-            )
+            .child(div().text_sm().text_color(rgb(MUTED)).child(title))
+            .child(div().text_xl().text_color(rgb(accent)).child(value.into()))
     }
 
     fn event_row(&self, event: &EventRow, index: usize) -> impl IntoElement {
@@ -463,12 +454,7 @@ impl Dashboard {
             );
 
         if selected.is_empty() {
-            table = table.child(
-                div()
-                    .p_4()
-                    .text_color(rgb(MUTED))
-                    .child(empty),
-            );
+            table = table.child(div().p_4().text_color(rgb(MUTED)).child(empty));
         } else {
             for (index, event) in selected.into_iter().enumerate() {
                 table = table.child(self.event_row(event, index));
@@ -503,7 +489,11 @@ impl Dashboard {
                     .flex()
                     .flex_row()
                     .gap_3()
-                    .child(self.metric_card("Buffered events", self.events.len().to_string(), ACCENT))
+                    .child(self.metric_card(
+                        "Buffered events",
+                        self.events.len().to_string(),
+                        ACCENT,
+                    ))
                     .child(self.metric_card("Network events", network.to_string(), GREEN))
                     .child(self.metric_card("Risk >= 60", risky.to_string(), YELLOW))
                     .child(self.metric_card("Blocked", blocked.to_string(), RED)),
@@ -528,10 +518,14 @@ impl Dashboard {
                     .text_color(rgb(TEXT))
                     .child("Network activity"),
             )
-            .child(self.event_table(
-                self.events.iter().filter(|event| !event.endpoint.is_empty()),
-                "No network events in the retained window.",
-            ))
+            .child(
+                self.event_table(
+                    self.events
+                        .iter()
+                        .filter(|event| !event.endpoint.is_empty()),
+                    "No network events in the retained window.",
+                ),
+            )
     }
 
     fn page_execution_graph(&self) -> impl IntoElement {
@@ -713,12 +707,7 @@ impl Dashboard {
             .flex()
             .flex_col()
             .gap_3()
-            .child(
-                div()
-                    .text_lg()
-                    .text_color(rgb(TEXT))
-                    .child(title),
-            )
+            .child(div().text_lg().text_color(rgb(TEXT)).child(title))
             .child(
                 div()
                     .p_4()
@@ -822,7 +811,9 @@ impl Render for Dashboard {
                     .py_2()
                     .rounded_md()
                     .cursor_pointer()
-                    .when(selected, |item| item.bg(rgb(SURFACE_ALT)).text_color(rgb(TEXT)))
+                    .when(selected, |item| {
+                        item.bg(rgb(SURFACE_ALT)).text_color(rgb(TEXT))
+                    })
                     .when(!selected, |item| item.text_color(rgb(MUTED)))
                     .on_click(cx.listener(move |this, _event, _window, cx| {
                         this.select_page(page, cx);
@@ -842,16 +833,11 @@ impl Render for Dashboard {
                     .rounded_full()
                     .bg(rgb(self.stream_status.color())),
             )
-            .child(
-                div()
-                    .text_sm()
-                    .text_color(rgb(MUTED))
-                    .child(format!(
-                        "{} · {} events",
-                        self.stream_status.label(),
-                        self.events.len()
-                    )),
-            );
+            .child(div().text_sm().text_color(rgb(MUTED)).child(format!(
+                "{} · {} events",
+                self.stream_status.label(),
+                self.events.len()
+            )));
 
         div()
             .size_full()
@@ -945,7 +931,10 @@ fn requested_backend() -> gpui_platform::WebBackendPreference {
     let search = web_sys::window()
         .and_then(|window| window.location().search().ok())
         .unwrap_or_default();
-    if search.split('&').any(|part| part.contains("backend=webgpu")) {
+    if search
+        .split('&')
+        .any(|part| part.contains("backend=webgpu"))
+    {
         gpui_platform::WebBackendPreference::WebGpu
     } else if search.split('&').any(|part| part.contains("backend=webgl")) {
         gpui_platform::WebBackendPreference::WebGl
