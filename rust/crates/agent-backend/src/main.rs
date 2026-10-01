@@ -154,7 +154,11 @@ async fn stream_events(mut socket: WebSocket, state: AppState) {
                     events: vec![event],
                 }
                 .encode_to_vec();
-                if socket.send(WsMessage::Binary(payload.into())).await.is_err() {
+                if socket
+                    .send(WsMessage::Binary(payload.into()))
+                    .await
+                    .is_err()
+                {
                     break;
                 }
             }
