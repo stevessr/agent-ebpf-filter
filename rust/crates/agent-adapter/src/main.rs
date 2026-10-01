@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use agent_common::{argv_digest, env_f64, env_u32, first_env, ProcessContext};
+use agent_common::{ProcessContext, argv_digest, env_f64, env_u32, first_env};
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use reqwest::Client;
@@ -8,7 +8,11 @@ use reqwest::Client;
 #[derive(Parser)]
 #[command(name = "agent-adapter")]
 struct Cli {
-    #[arg(long, env = "AGENT_BACKEND_URL", default_value = "http://127.0.0.1:8080")]
+    #[arg(
+        long,
+        env = "AGENT_BACKEND_URL",
+        default_value = "http://127.0.0.1:8080"
+    )]
     backend: String,
     #[command(subcommand)]
     command: Command,
@@ -39,7 +43,11 @@ fn context_from_env() -> ProcessContext {
         risk_score: env_f64(&["AGENT_EBPF_RISK_SCORE", "AGENT_RISK_SCORE"]),
         container_id: first_env(&["AGENT_EBPF_CONTAINER_ID", "CONTAINER_ID"]),
         cwd: first_env(&["AGENT_EBPF_CWD", "PWD"]),
-        argv_digest: argv_digest([tool_name.as_str(), tool_call_id.as_str(), agent_run_id.as_str()]),
+        argv_digest: argv_digest([
+            tool_name.as_str(),
+            tool_call_id.as_str(),
+            agent_run_id.as_str(),
+        ]),
     }
 }
 
@@ -57,7 +65,11 @@ async fn main() -> Result<()> {
                 request = request.header("X-API-KEY", &token).bearer_auth(&token);
             }
             let response = request.send().await.context("register PID")?;
-            anyhow::ensure!(response.status().is_success(), "register failed: {}", response.status());
+            anyhow::ensure!(
+                response.status().is_success(),
+                "register failed: {}",
+                response.status()
+            );
         }
         Command::Unregister => {
             let mut request = client
@@ -67,7 +79,11 @@ async fn main() -> Result<()> {
                 request = request.header("X-API-KEY", &token).bearer_auth(&token);
             }
             let response = request.send().await.context("unregister PID")?;
-            anyhow::ensure!(response.status().is_success(), "unregister failed: {}", response.status());
+            anyhow::ensure!(
+                response.status().is_success(),
+                "unregister failed: {}",
+                response.status()
+            );
         }
     }
     Ok(())
