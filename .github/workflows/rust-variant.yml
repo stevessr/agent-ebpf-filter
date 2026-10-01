@@ -1,5 +1,9 @@
 name: Rust variant
 
+concurrency:
+  group: rust-variant-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: [rust-variant]
