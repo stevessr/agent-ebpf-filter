@@ -2,6 +2,7 @@ package observability
 
 import (
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -94,6 +95,41 @@ func TestCollectorPipelineMetricsSnapshot(t *testing.T) {
 	}
 	if health.WsClients != 5 {
 		t.Fatalf("websocket client count = %d, want 5", health.WsClients)
+	}
+}
+
+func TestCollectorHotPathCountersAreConcurrentSafe(t *testing.T) {
+	state := newCollectorMetricsState()
+	const workers = 8
+	const iterations = 2000
+
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for worker := 0; worker < workers; worker++ {
+		worker := worker
+		go func() {
+			defer wg.Done()
+			for i := 0; i < iterations; i++ {
+				state.RecordCapturedArchive()
+				state.RecordBroadcastEnqueue(true, "")
+				state.RecordBroadcastReceived()
+				state.RecordRingbufDecode(true)
+				state.RecordKernelCaptureTiming(uint64(worker*iterations+i), "monotonic")
+			}
+		}()
+	}
+	wg.Wait()
+
+	want := uint64(workers * iterations)
+	snapshot := state.Snapshot()
+	if snapshot.CapturedArchivedTotal != want ||
+		snapshot.BroadcastQueuedTotal != want ||
+		snapshot.BroadcastReceivedTotal != want ||
+		snapshot.RingbufZeroCopyDecodeTotal != want ||
+		snapshot.KernelCaptureDelaySamples != want ||
+		snapshot.KernelCaptureDelayMaxNs != want-1 ||
+		snapshot.KernelCaptureClockUnknown != 0 {
+		t.Fatalf("concurrent hot-path counters mismatch: got=%+v want=%d", snapshot, want)
 	}
 }
 
