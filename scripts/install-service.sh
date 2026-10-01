@@ -26,7 +26,7 @@ usage() {
 Usage: $0 [install|uninstall] [--method auto|systemd|rc.local] [--dry-run] [--no-enable] [--no-start]
 
 Environment overrides:
-  INSTALL_PREFIX        install tree for backend + frontend (default: /opt/agent-ebpf-filter)
+  INSTALL_PREFIX        install tree for backend + GPUI webui (default: /opt/agent-ebpf-filter)
   INSTALL_BINDIR        public binary directory (default: /usr/local/bin)
   INSTALL_SYSCONFDIR    environment file directory (default: /etc/agent-ebpf-filter)
   INSTALL_SERVICE_NAME  service name (default: agent-ebpf-filter)
@@ -235,21 +235,21 @@ require_dir() {
 require_install_artifacts() {
   require_file "$ROOT_DIR/backend/agent-ebpf-filter"
   require_file "$ROOT_DIR/agent-wrapper"
-  require_dir "$ROOT_DIR/frontend/dist"
+  require_dir "$ROOT_DIR/webui/dist"
 }
 
 install_payload() {
-  log "Installing backend/frontend to $PREFIX and binaries to $BINDIR"
-  run mkdir -p "$PREFIX/backend" "$PREFIX/frontend" "$BINDIR"
+  log "Installing backend/GPUI webui to $PREFIX and binaries to $BINDIR"
+  run mkdir -p "$PREFIX/backend" "$PREFIX/webui" "$BINDIR"
   run install -m 0755 "$ROOT_DIR/backend/agent-ebpf-filter" "$PREFIX/backend/agent-ebpf-filter"
   run install -m 0755 "$ROOT_DIR/agent-wrapper" "$PREFIX/agent-wrapper"
   run install -m 0644 "$ROOT_DIR/README.md" "$PREFIX/README.md"
   run install -m 0644 "$ROOT_DIR/AGENTS.md" "$PREFIX/AGENTS.md"
   run install -m 0755 "$ROOT_DIR/backend/agent-ebpf-filter" "$BINDIR/agent-ebpf-filter"
   run install -m 0755 "$ROOT_DIR/agent-wrapper" "$BINDIR/agent-wrapper"
-  run rm -rf "$PREFIX/frontend/dist"
-  run mkdir -p "$PREFIX/frontend"
-  run cp -a "$ROOT_DIR/frontend/dist" "$PREFIX/frontend/dist"
+  run rm -rf "$PREFIX/webui/dist"
+  run mkdir -p "$PREFIX/webui"
+  run cp -a "$ROOT_DIR/webui/dist" "$PREFIX/webui/dist"
 }
 
 write_env_file() {
