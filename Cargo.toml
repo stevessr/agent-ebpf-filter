@@ -1,0 +1,32 @@
+[workspace]
+resolver = "2"
+members = [
+  "rust/crates/agent-proto",
+  "rust/crates/agent-common",
+  "rust/crates/agent-adapter",
+  "rust/crates/agent-wrapper",
+  "rust/crates/agent-backend",
+]
+exclude = ["rust/ebpf/agent-ebpf"]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.85"
+license = "GPL-3.0"
+repository = "https://github.com/stevessr/agent-ebpf-filter"
+
+[workspace.dependencies]
+anyhow = "1.0"
+axum = "0.8"
+clap = { version = "4.5", features = ["derive"] }
+dashmap = "6.1"
+hex = "0.4"
+nix = { version = "0.30", features = ["process", "signal", "user"] }
+prost = "0.13"
+prost-build = "0.13"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1.0", features = ["derive"] }
+sha2 = "0.10"
+tokio = { version = "1.0", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
