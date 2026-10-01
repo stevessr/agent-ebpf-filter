@@ -1,0 +1,26 @@
+[workspace]
+members = ["."]
+resolver = "2"
+
+[package]
+name = "agent-webui"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "GPL-3.0"
+
+[[bin]]
+name = "agent-webui"
+path = "src/main.rs"
+
+[dependencies]
+agent-proto = { path = "../rust/crates/agent-proto" }
+anyhow = "1.0"
+futures-util = "0.3"
+gloo-net = { version = "0.6", features = ["http", "websocket"] }
+gpui = { git = "https://github.com/zed-industries/zed", rev = "17d3378bb9724867ab875dd865e7d22147d684fa", default-features = false }
+gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "17d3378bb9724867ab875dd865e7d22147d684fa", default-features = false }
+prost = "0.13"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = ["console", "History", "Location", "Storage", "Window"] }
