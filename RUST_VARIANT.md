@@ -21,7 +21,7 @@ This branch is the long-lived Rust rewrite of Agent eBPF Filter. The compatibili
 | PID adapter | Python / Node | `agent-adapter` | first compatible CLI implementation |
 | HTTP/UDS backend | Go/Gin | `agent-backend` (Axum/Tokio) | bootstrap server only |
 | eBPF tracepoints/maps | C/libbpf | Aya eBPF | bootstrap program only |
-| Web dashboard | Vue/TypeScript | Rust/WASM | pending |
+| Web dashboard | Vue/TypeScript | GPUI Web + Rust/WASM | live migration: shell, routing, history + live protobuf stream |
 | TUI/dev-env tools | Go | Rust | pending |
 | ML/plugins/exporters | Go/Python | Rust | pending |
 | kernel-ml DKMS module | C kernel module | Rust-for-Linux where viable | pending/kernel dependent |
@@ -34,6 +34,17 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace
 cargo build --workspace
 ```
+
+The GPUI Web dashboard is an independent nightly/WASM workspace because upstream GPUI Web currently requires `wasm32-unknown-unknown`, atomics/shared memory and `build-std`:
+
+```bash
+make predev-webui
+make frontend
+# development:
+make dev-frontend
+```
+
+Production assets are emitted to `webui/dist`. The backend and installer prefer this directory; `frontend/` is only a migration fallback.
 
 The Aya eBPF crate is kept outside the default workspace because it uses a different target/toolchain:
 
