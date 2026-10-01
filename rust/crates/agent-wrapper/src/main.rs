@@ -1,8 +1,8 @@
-use agent_common::{argv_digest, env_f64, env_u32, first_env, read_frame, write_frame, UDS_PATH};
-use agent_proto::pb::{wrapper_response, WrapperRequest, WrapperResponse};
+use agent_common::{UDS_PATH, argv_digest, env_f64, env_u32, first_env, read_frame, write_frame};
+use agent_proto::pb::{WrapperRequest, WrapperResponse, wrapper_response};
 use anyhow::{Context, Result};
 use clap::Parser;
-use nix::unistd::{initgroups, setgid, setuid, User};
+use nix::unistd::{User, initgroups, setgid, setuid};
 use prost::Message;
 use std::{
     ffi::CString,
@@ -81,7 +81,9 @@ fn main() -> Result<()> {
         decision: first_env(&["AGENT_EBPF_DECISION", "AGENT_DECISION"]).to_uppercase(),
         risk_score: env_f64(&["AGENT_EBPF_RISK_SCORE", "AGENT_RISK_SCORE"]),
         container_id: first_env(&["AGENT_EBPF_CONTAINER_ID", "CONTAINER_ID"]),
-        argv_digest: argv_digest(std::iter::once(command.as_str()).chain(args.iter().map(String::as_str))),
+        argv_digest: argv_digest(
+            std::iter::once(command.as_str()).chain(args.iter().map(String::as_str)),
+        ),
         task_id: first_env(&["AGENT_EBPF_TASK_ID", "AGENT_TASK_ID"]),
         cwd: cwd.to_string_lossy().into_owned(),
         binary_path,
@@ -89,7 +91,9 @@ fn main() -> Result<()> {
     };
 
     if let Ok(response) = exchange(&request) {
-        match wrapper_response::Action::try_from(response.action).unwrap_or(wrapper_response::Action::Allow) {
+        match wrapper_response::Action::try_from(response.action)
+            .unwrap_or(wrapper_response::Action::Allow)
+        {
             wrapper_response::Action::Block => {
                 eprintln!("Execution blocked: {}", response.message);
                 std::process::exit(1);
@@ -104,8 +108,8 @@ fn main() -> Result<()> {
     }
 
     if let Some(user_name) = cli.user.as_deref() {
-        let user = User::from_name(user_name)?
-            .with_context(|| format!("unknown user {user_name}"))?;
+        let user =
+            User::from_name(user_name)?.with_context(|| format!("unknown user {user_name}"))?;
         let c_user = CString::new(user.name.clone())?;
         initgroups(&c_user, user.gid)?;
         setgid(user.gid)?;
