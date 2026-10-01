@@ -56,3 +56,19 @@ jobs:
           test -f webui/dist/index.html
           find webui/dist -maxdepth 1 -type f -name '*.wasm' -print -quit | grep -q .
           find webui/dist -maxdepth 1 -type f -name '*.js' -print -quit | grep -q .
+
+
+  ebpf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src,rustfmt
+      - name: Format
+        working-directory: rust/ebpf/agent-ebpf
+        run: cargo +nightly fmt --all --check
+      - name: Build Aya collector
+        working-directory: rust/ebpf/agent-ebpf
+        run: cargo +nightly build --release --target bpfel-unknown-none -Z build-std=core
