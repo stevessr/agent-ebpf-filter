@@ -61,29 +61,32 @@ async fn run_uds(state: AppState) -> Result<()> {
     loop {
         let (stream, _) = listener.accept().await?;
         let state = state.clone();
-        task::spawn_blocking(move || -> Result<()> {
+        let _connection_task = task::spawn_blocking(move || -> Result<()> {
             let stream = stream.into_std()?;
             stream.set_nonblocking(false)?;
             let frame = read_frame(&stream)?;
             let req = WrapperRequest::decode(frame.as_slice()).context("decode wrapper request")?;
 
-            state.processes.insert(req.pid, ProcessContext {
-                pid: req.pid,
-                root_agent_pid: req.root_agent_pid,
-                agent_run_id: req.agent_run_id,
-                task_id: req.task_id,
-                conversation_id: req.conversation_id,
-                turn_id: req.turn_id,
-                tool_call_id: req.tool_call_id,
-                tool_name: req.tool_name,
-                trace_id: req.trace_id,
-                span_id: req.span_id,
-                decision: req.decision,
-                risk_score: req.risk_score,
-                container_id: req.container_id,
-                cwd: req.cwd,
-                argv_digest: req.argv_digest,
-            });
+            state.processes.insert(
+                req.pid,
+                ProcessContext {
+                    pid: req.pid,
+                    root_agent_pid: req.root_agent_pid,
+                    agent_run_id: req.agent_run_id,
+                    task_id: req.task_id,
+                    conversation_id: req.conversation_id,
+                    turn_id: req.turn_id,
+                    tool_call_id: req.tool_call_id,
+                    tool_name: req.tool_name,
+                    trace_id: req.trace_id,
+                    span_id: req.span_id,
+                    decision: req.decision,
+                    risk_score: req.risk_score,
+                    container_id: req.container_id,
+                    cwd: req.cwd,
+                    argv_digest: req.argv_digest,
+                },
+            );
 
             let response = WrapperResponse {
                 action: wrapper_response::Action::Alert as i32,
@@ -109,7 +112,7 @@ async fn main() -> Result<()> {
 
     let state = AppState::default();
     let uds_state = state.clone();
-    tokio::spawn(async move {
+    let _uds_task = tokio::spawn(async move {
         if let Err(error) = run_uds(uds_state).await {
             tracing::error!(%error, "wrapper UDS server stopped");
         }
