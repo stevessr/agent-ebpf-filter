@@ -11,9 +11,10 @@ use axum::{
 };
 use dashmap::DashMap;
 use prost::Message;
-use serde::Deserialize;
-use std::{os::unix::fs::PermissionsExt, path::Path, sync::Arc};
+use serde::{Deserialize, Serialize};
+use std::{os::unix::fs::PermissionsExt, path::{Path, PathBuf}, sync::Arc};
 use tokio::{net::UnixListener, task};
+use tower_http::services::{ServeDir, ServeFile};
 
 #[derive(Clone, Default)]
 struct AppState {
@@ -25,8 +26,21 @@ struct Unregister {
     pid: u32,
 }
 
-async fn health() -> &'static str {
-    "ok"
+#[derive(Serialize)]
+struct HealthResponse {
+    status: &'static str,
+    backend: &'static str,
+    registered_processes: usize,
+    policy_engine: &'static str,
+}
+
+async fn health(State(state): State<AppState>) -> Json<HealthResponse> {
+    Json(HealthResponse {
+        status: "ok",
+        backend: "rust",
+        registered_processes: state.processes.len(),
+        policy_engine: "migration-bootstrap",
+    })
 }
 
 async fn register(
@@ -116,11 +130,28 @@ async fn main() -> Result<()> {
         }
     });
 
-    let app = Router::new()
+    let static_dir = [
+        PathBuf::from("webui/dist"),
+        PathBuf::from("../webui/dist"),
+        PathBuf::from("frontend/dist"),
+        PathBuf::from("../frontend/dist"),
+    ]
+    .into_iter()
+    .find(|path| path.join("index.html").is_file());
+
+    let mut app = Router::new()
         .route("/health", get(health))
+        .route("/api/v1/health", get(health))
         .route("/register", post(register))
         .route("/unregister", post(unregister))
         .with_state(state);
+
+    if let Some(static_dir) = static_dir {
+        let index = static_dir.join("index.html");
+        app = app.fallback_service(
+            ServeDir::new(static_dir).not_found_service(ServeFile::new(index)),
+        );
+    }
 
     let addr = std::env::var("AGENT_BACKEND_ADDR").unwrap_or_else(|_| "127.0.0.1:8080".into());
     let listener = tokio::net::TcpListener::bind(&addr).await?;
