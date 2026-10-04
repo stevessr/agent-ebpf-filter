@@ -20,8 +20,6 @@ jobs:
     defaults:
       run:
         working-directory: desktop/renew
-    env:
-      GOWORK: "off"
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-go@v6
