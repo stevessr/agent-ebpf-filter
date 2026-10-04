@@ -15,40 +15,77 @@ import (
 
 const websocketWriteTimeout = 30 * time.Second
 
+const maxResponsesWSRewriteHistory = 256
+
 type responsesWSRewriteState struct {
-	mu       sync.RWMutex
-	mappings map[string]*modelRewrite
+	mu               sync.RWMutex
+	streamMappings   map[string]*modelRewrite
+	responseMappings map[string]*modelRewrite
+	responseOrder    []string
 }
 
 func newResponsesWSRewriteState() *responsesWSRewriteState {
-	return &responsesWSRewriteState{mappings: make(map[string]*modelRewrite)}
-}
-
-func (s *responsesWSRewriteState) set(streamID string, mapping *modelRewrite) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if mapping == nil {
-		delete(s.mappings, streamID)
-		return
+	return &responsesWSRewriteState{
+		streamMappings:   make(map[string]*modelRewrite),
+		responseMappings: make(map[string]*modelRewrite),
 	}
-	copy := *mapping
-	s.mappings[streamID] = &copy
 }
 
-func (s *responsesWSRewriteState) get(streamID string) *modelRewrite {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	mapping := s.mappings[streamID]
+func cloneModelRewrite(mapping *modelRewrite) *modelRewrite {
 	if mapping == nil {
 		return nil
 	}
 	copy := *mapping
+	copy.clientJSON = append([]byte(nil), mapping.clientJSON...)
+	copy.upstreamJSON = append([]byte(nil), mapping.upstreamJSON...)
 	return &copy
 }
 
-func (s *responsesWSRewriteState) clear(streamID string) {
+func (s *responsesWSRewriteState) setStream(streamID string, mapping *modelRewrite) {
 	s.mu.Lock()
-	delete(s.mappings, streamID)
+	defer s.mu.Unlock()
+	if mapping == nil {
+		delete(s.streamMappings, streamID)
+		return
+	}
+	s.streamMappings[streamID] = cloneModelRewrite(mapping)
+}
+
+func (s *responsesWSRewriteState) stream(streamID string) *modelRewrite {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return cloneModelRewrite(s.streamMappings[streamID])
+}
+
+func (s *responsesWSRewriteState) rememberResponse(responseID string, mapping *modelRewrite) {
+	if responseID == "" || mapping == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, exists := s.responseMappings[responseID]; !exists {
+		s.responseOrder = append(s.responseOrder, responseID)
+	}
+	s.responseMappings[responseID] = cloneModelRewrite(mapping)
+	for len(s.responseOrder) > maxResponsesWSRewriteHistory {
+		oldest := s.responseOrder[0]
+		s.responseOrder = s.responseOrder[1:]
+		delete(s.responseMappings, oldest)
+	}
+}
+
+func (s *responsesWSRewriteState) response(responseID string) *modelRewrite {
+	if responseID == "" {
+		return nil
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return cloneModelRewrite(s.responseMappings[responseID])
+}
+
+func (s *responsesWSRewriteState) clearStream(streamID string) {
+	s.mu.Lock()
+	delete(s.streamMappings, streamID)
 	s.mu.Unlock()
 }
 
@@ -168,18 +205,23 @@ func (h *Handler) copyResponsesWSClientToUpstream(
 		}
 		if messageType == websocket.TextMessage {
 			var envelope struct {
-				Type     string `json:"type"`
-				StreamID string `json:"stream_id"`
+				Type               string `json:"type"`
+				StreamID           string `json:"stream_id"`
+				PreviousResponseID string `json:"previous_response_id"`
 			}
 			if json.Unmarshal(payload, &envelope) == nil && envelope.Type == "response.create" {
 				rewritten, mapping, _ := h.rewrite.RewriteRequest(host, path, "application/json", payload)
 				payload = rewritten
-				if mapping != nil {
-					state.set(envelope.StreamID, mapping)
+				if mapping == nil {
+					mapping = state.response(envelope.PreviousResponseID)
 				}
+				state.setStream(envelope.StreamID, mapping)
 			} else {
 				rewritten, _, _ := h.rewrite.RewriteRequest(host, path, "application/json", payload)
 				payload = rewritten
+				if envelope.Type == "response.cancel" {
+					state.clearStream(envelope.StreamID)
+				}
 			}
 		}
 		_ = dst.SetWriteDeadline(time.Now().Add(websocketWriteTimeout))
@@ -207,14 +249,26 @@ func (h *Handler) copyResponsesWSUpstreamToClient(
 		}
 		if messageType == websocket.TextMessage {
 			var envelope struct {
-				Type     string `json:"type"`
-				StreamID string `json:"stream_id"`
+				Type       string `json:"type"`
+				StreamID   string `json:"stream_id"`
+				ResponseID string `json:"response_id"`
+				Response   struct {
+					ID string `json:"id"`
+				} `json:"response"`
 			}
 			_ = json.Unmarshal(payload, &envelope)
-			rewritten, _ := h.rewrite.RewriteResponse(host, path, "application/json", payload, state.get(envelope.StreamID))
+			mapping := state.stream(envelope.StreamID)
+			responseID := envelope.ResponseID
+			if responseID == "" {
+				responseID = envelope.Response.ID
+			}
+			if mapping != nil && responseID != "" {
+				state.rememberResponse(responseID, mapping)
+			}
+			rewritten, _ := h.rewrite.RewriteResponse(host, path, "application/json", payload, mapping)
 			payload = rewritten
 			if responsesTerminalEvent(envelope.Type) {
-				state.clear(envelope.StreamID)
+				state.clearStream(envelope.StreamID)
 			}
 		}
 		_ = dst.SetWriteDeadline(time.Now().Add(websocketWriteTimeout))
