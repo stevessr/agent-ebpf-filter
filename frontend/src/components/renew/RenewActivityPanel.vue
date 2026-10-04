@@ -17,6 +17,7 @@ defineProps<{
 
 const emit = defineEmits<{
   openEvents: [];
+  openEvent: [eventId: string];
 }>();
 </script>
 
@@ -37,7 +38,7 @@ const emit = defineEmits<{
         v-for="event in events"
         :key="event.key"
         class="renew-activity"
-        @click="emit('openEvents')"
+        @click="event.eventId && emit('openEvent', event.eventId)"
       >
         <span
           class="renew-activity__status"
