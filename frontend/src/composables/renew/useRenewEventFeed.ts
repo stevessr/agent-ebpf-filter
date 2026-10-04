@@ -233,7 +233,7 @@ export function useRenewEventFeed(
     selectedEventID.value = normalized;
     try {
       const response = await axios.get(
-        `/events/${encodeURIComponent(normalized)}`,
+        `/events/detail/${encodeURIComponent(normalized)}`,
       );
       if (selectedEventID.value === normalized) {
         selectedEventDetail.value = response.data;
