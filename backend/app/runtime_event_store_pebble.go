@@ -1,7 +1,6 @@
 package app
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -397,11 +396,11 @@ func (s *runtimeEventStore) run() {
 			s.noteFailed(1, err, time.Since(started))
 			return nil
 		}
-		if err := batch.Set(recordKey, payload, nil); err != nil {
+		if err := batch.Set(recordKey, payload, pebble.NoSync); err != nil {
 			s.noteFailed(1, err, time.Since(started))
 			return err
 		}
-		if err := batch.Set(eventStoreIDKey(eventID), recordKey, nil); err != nil {
+		if err := batch.Set(eventStoreIDKey(eventID), recordKey, pebble.NoSync); err != nil {
 			s.noteFailed(1, err, time.Since(started))
 			return err
 		}
@@ -580,15 +579,12 @@ func (s *runtimeEventStore) Clear(ctx context.Context) error {
 	}
 	batch := s.db.NewBatch()
 	defer batch.Close()
-	if err := batch.DeleteRange(eventStoreRecordPrefix, eventStoreRecordUpper, nil); err != nil {
+	if err := batch.DeleteRange(eventStoreRecordPrefix, eventStoreRecordUpper, pebble.NoSync); err != nil {
 		return err
 	}
-	if err := batch.DeleteRange(eventStoreIDPrefix, eventStoreIDUpper, nil); err != nil {
+	if err := batch.DeleteRange(eventStoreIDPrefix, eventStoreIDUpper, pebble.NoSync); err != nil {
 		return err
 	}
 	return batch.Commit(pebble.Sync)
 }
 
-func eventStoreContainsIDKey(key []byte) bool {
-	return len(key) > 1 && bytes.Equal(key[:1], eventStoreIDPrefix)
-}
