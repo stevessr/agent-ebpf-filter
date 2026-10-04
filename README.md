@@ -72,7 +72,7 @@ Agent eBPF Filter combines **eBPF kernel tracing**, **Go backend**, **Vue.js das
 ### Prerequisites
 
 - **Linux** with eBPF and BTF support
-- **Go 1.26.2+**
+- **Go 1.27.1+**
 - **Bun** (frontend build tool)
 - **clang/LLVM** (eBPF compilation)
 - **protoc** (Protocol Buffers compiler)
