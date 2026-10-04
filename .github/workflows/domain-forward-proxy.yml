@@ -1,0 +1,72 @@
+name: Domain forward proxy
+
+on:
+  pull_request:
+    paths:
+      - "backend/internal/domainforwardproxy/**"
+      - "backend/codex/capture/handlers/**"
+      - "backend/app/forwardproxydomain*.go"
+      - "backend/app/types.go"
+      - "backend/core/network_types.go"
+      - "frontend/src/components/config/RuntimeTab/RuntimeNetworkExportSection.vue"
+      - "frontend/src/composables/config/runtimeSettings.ts"
+      - "frontend/src/types/config/domain-forward.ts"
+      - ".github/workflows/domain-forward-proxy.yml"
+  push:
+    branches:
+      - master
+    paths:
+      - "backend/internal/domainforwardproxy/**"
+      - "backend/codex/capture/handlers/**"
+      - "backend/app/forwardproxydomain*.go"
+      - "backend/app/types.go"
+      - "backend/core/network_types.go"
+      - "frontend/src/components/config/RuntimeTab/RuntimeNetworkExportSection.vue"
+      - "frontend/src/composables/config/runtimeSettings.ts"
+      - "frontend/src/types/config/domain-forward.ts"
+      - ".github/workflows/domain-forward-proxy.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Proxy and capture unit tests
+        working-directory: backend
+        run: |
+          go test ./internal/domainforwardproxy -count=1
+          go test ./codex/capture/handlers -count=1
+          go test ./app -run 'TestDomainForwardProxy|TestNormalizeDomainForwardProxy' -count=1
+      - name: Rewrite kernel benchmark smoke
+        working-directory: backend
+        run: go test ./internal/domainforwardproxy -run '^$' -bench '^BenchmarkRewriteKernelModel(NoMatch|Match)$' -benchtime=100x
+      - name: Verify Go formatting
+        run: |
+          files="$(gofmt -l             backend/internal/domainforwardproxy/*.go             backend/codex/capture/handlers/*.go             backend/app/forwardproxydomain.go             backend/app/forwardproxydomain_test.go             backend/core/network_types.go)"
+          test -z "$files" || {
+            echo "$files"
+            gofmt -d backend/internal/domainforwardproxy/*.go
+            exit 1
+          }
+
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: oven-sh/setup-bun@v2
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+      - name: Typecheck and build
+        run: bun run build
