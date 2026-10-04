@@ -42,14 +42,18 @@ type BodyRewriteSettings struct {
 }
 
 type modelRewrite struct {
-	Client   string
-	Upstream string
+	Client       string
+	Upstream     string
+	clientJSON   []byte
+	upstreamJSON []byte
 }
 
 type compiledModelRewrite struct {
-	host string
-	from string
-	to   string
+	host     string
+	from     string
+	to       string
+	fromJSON []byte
+	toJSON   []byte
 }
 
 // RewriteKernel is the in-process inference/rewrite hot path. It deliberately
@@ -59,6 +63,7 @@ type RewriteKernel struct {
 	enabled      bool
 	maxBodyBytes int64
 	modelRules   []compiledModelRewrite
+	modelByFrom  map[string][]int
 	bodyRules    []BodyRewriteRule
 }
 
@@ -73,6 +78,7 @@ func NewRewriteKernel(settings BodyRewriteSettings) *RewriteKernel {
 	kernel := &RewriteKernel{
 		enabled:      settings.Enabled,
 		maxBodyBytes: maxBytes,
+		modelByFrom:  make(map[string][]int),
 	}
 	for _, rule := range settings.ModelRules {
 		from := strings.TrimSpace(rule.From)
@@ -80,11 +86,17 @@ func NewRewriteKernel(settings BodyRewriteSettings) *RewriteKernel {
 		if from == "" || to == "" || from == to {
 			continue
 		}
+		fromJSON, _ := json.Marshal(from)
+		toJSON, _ := json.Marshal(to)
+		index := len(kernel.modelRules)
 		kernel.modelRules = append(kernel.modelRules, compiledModelRewrite{
-			host: NormalizeDomainPattern(rule.Host),
-			from: from,
-			to:   to,
+			host:     NormalizeDomainPattern(rule.Host),
+			from:     from,
+			to:       to,
+			fromJSON: fromJSON,
+			toJSON:   toJSON,
 		})
+		kernel.modelByFrom[from] = append(kernel.modelByFrom[from], index)
 	}
 	for _, rule := range settings.Rules {
 		rule.Direction = normalizeRewriteDirection(rule.Direction)
@@ -113,17 +125,27 @@ func (k *RewriteKernel) RewriteRequest(host, path, contentType string, body []by
 	changed := false
 	var mapping *modelRewrite
 	out := body
-	if bytes.Contains(out, []byte(`"model"`)) {
-		for _, rule := range k.modelRules {
-			if !rewriteHostMatches(rule.host, host) {
-				continue
-			}
-			rewritten, ok := rewriteTopLevelJSONStringField(out, "model", rule.from, rule.to)
-			if ok {
-				out = rewritten
-				mapping = &modelRewrite{Client: rule.from, Upstream: rule.to}
-				changed = true
-				break
+	if len(k.modelRules) > 0 && bytes.Contains(out, []byte(`"model"`)) {
+		_, valueStart, valueEnd, ok := topLevelJSONStringField(out, "model")
+		if ok {
+			var requestedModel string
+			if json.Unmarshal(out[valueStart:valueEnd], &requestedModel) == nil {
+				for _, index := range k.modelByFrom[requestedModel] {
+					rule := k.modelRules[index]
+					if !rewriteHostMatches(rule.host, host) {
+						continue
+					}
+					rewritten := spliceJSONValue(out, valueStart, valueEnd, rule.toJSON)
+					out = rewritten
+					mapping = &modelRewrite{
+						Client:       rule.from,
+						Upstream:     rule.to,
+						clientJSON:   rule.fromJSON,
+						upstreamJSON: rule.toJSON,
+					}
+					changed = true
+					break
+				}
 			}
 		}
 	}
@@ -221,21 +243,24 @@ func isTextualPayload(contentType string, body []byte) bool {
 // This avoids unmarshalling large prompt/tool payloads on the common model-map
 // hot path while refusing to touch nested user/tool data with the same key.
 func rewriteTopLevelJSONStringField(body []byte, field, from, to string) ([]byte, bool) {
-	keyStart, valueStart, valueEnd, ok := topLevelJSONStringField(body, field)
+	_, valueStart, valueEnd, ok := topLevelJSONStringField(body, field)
 	if !ok {
 		return body, false
 	}
-	_ = keyStart
 	var current string
 	if err := json.Unmarshal(body[valueStart:valueEnd], &current); err != nil || current != from {
 		return body, false
 	}
 	replacement, _ := json.Marshal(to)
+	return spliceJSONValue(body, valueStart, valueEnd, replacement), true
+}
+
+func spliceJSONValue(body []byte, valueStart, valueEnd int, replacement []byte) []byte {
 	out := make([]byte, 0, len(body)-((valueEnd-valueStart)-len(replacement)))
 	out = append(out, body[:valueStart]...)
 	out = append(out, replacement...)
 	out = append(out, body[valueEnd:]...)
-	return out, true
+	return out
 }
 
 func topLevelJSONStringField(body []byte, field string) (keyStart, valueStart, valueEnd int, ok bool) {
@@ -285,7 +310,12 @@ func topLevelJSONStringField(body []byte, field string) (keyStart, valueStart, v
 			if end <= j {
 				return 0, 0, 0, false
 			}
-			return keyStart, j, end, true
+			valueStart = j
+			valueEnd = end
+			ok = true
+			i = end - 1
+			expectingKey = false
+			continue
 		}
 		switch c {
 		case '{', '[':
@@ -305,6 +335,9 @@ func topLevelJSONStringField(body []byte, field string) (keyStart, valueStart, v
 				expectingKey = false
 			}
 		}
+	}
+	if ok {
+		return keyStart, valueStart, valueEnd, true
 	}
 	return 0, 0, 0, false
 }
