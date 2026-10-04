@@ -12,6 +12,8 @@ on:
       - "backend/go.sum"
       - ".github/workflows/renew-storage.yml"
   push:
+    branches:
+      - master
     paths:
       - "backend/app/runtime_event_store_pebble.go"
       - "backend/app/runtime_event_store_pebble_test.go"
