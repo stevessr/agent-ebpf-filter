@@ -1,9 +1,6 @@
 package main
 
-import (
-	"os"
-	"testing"
-)
+import "testing"
 
 func TestResolveBackendURL(t *testing.T) {
 	t.Setenv("AGENT_BACKEND_URL", "")
@@ -56,6 +53,3 @@ func TestJoinRenewURL(t *testing.T) {
 	}
 }
 
-func TestMain(m *testing.M) {
-	os.Exit(m.Run())
-}
