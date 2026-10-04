@@ -126,11 +126,18 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if h.rewrite == nil || !h.settings.Rewrite.Enabled || !responseBodyIsRewriteable(response) {
 				return nil
 			}
+			contentType := response.Header.Get("Content-Type")
+			if strings.Contains(strings.ToLower(contentType), "text/event-stream") {
+				response.Body = newSSERewriteBody(response.Body, h.rewrite, host, r.URL.Path, contentType, modelMapping)
+				response.ContentLength = -1
+				response.Header.Del("Content-Length")
+				return nil
+			}
 			body, bounded, err := readResponseBodyBounded(response, h.rewrite.MaxBodyBytes())
 			if err != nil || !bounded {
 				return err
 			}
-			rewritten, changed := h.rewrite.RewriteResponse(host, r.URL.Path, response.Header.Get("Content-Type"), body, modelMapping)
+			rewritten, changed := h.rewrite.RewriteResponse(host, r.URL.Path, contentType, body, modelMapping)
 			if changed {
 				setResponseBody(response, rewritten)
 			} else {
@@ -159,12 +166,7 @@ func responseBodyIsRewriteable(response *http.Response) bool {
 		return false
 	}
 	encoding := strings.ToLower(strings.TrimSpace(response.Header.Get("Content-Encoding")))
-	if encoding != "" && encoding != "identity" {
-		return false
-	}
-	// Do not buffer an unbounded SSE stream. Responses WebSocket frames are
-	// handled by websocket.go and ordinary JSON responses remain rewriteable.
-	return !strings.Contains(strings.ToLower(response.Header.Get("Content-Type")), "text/event-stream")
+	return encoding == "" || encoding == "identity"
 }
 
 func readRequestBodyBounded(r *http.Request, limit int64) ([]byte, bool, error) {
