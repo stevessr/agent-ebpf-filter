@@ -80,7 +80,7 @@ http://127.0.0.1:8080/renew
 - 后端未启动时的提示页；
 - MyGo 的 Linux / Windows / macOS 打包。
 
-MyGo 要求 Go 1.27.1+，所以它被隔离在 `desktop/renew/go.mod`，不会提高主后端当前工具链要求。
+MyGo 要求 Go 1.27.1+，所以它被隔离在 `desktop/renew/go.mod`，不会提高主后端当前工具链要求。由于仓库根 `go.work` 有意只管理主工程模块，桌面命令使用 `GOWORK=off` 保持隔离。
 
 运行和打包：
 
@@ -93,8 +93,8 @@ make renew-desktop-build
 
 ```bash
 cd desktop/renew
-go tool mygo dev
-go tool mygo build -platform linux/amd64
+GOWORK=off go tool mygo dev
+GOWORK=off go tool mygo build -platform linux/amd64
 ```
 
 Linux 运行时使用系统 WebKitGTK 4.1。桌面壳的详细说明见 `desktop/renew/README.md`。
