@@ -16,8 +16,8 @@ Start Agent eBPF Filter first, then:
 
 ```bash
 cd desktop/renew
-go tool mygo doctor
-go tool mygo dev
+GOWORK=off go tool mygo doctor
+GOWORK=off go tool mygo dev
 ```
 
 The shell defaults to `http://127.0.0.1:8080`.
@@ -25,7 +25,7 @@ The shell defaults to `http://127.0.0.1:8080`.
 Override it when the backend uses another address:
 
 ```bash
-AGENT_BACKEND_URL=http://127.0.0.1:9090 go tool mygo dev
+AGENT_BACKEND_URL=http://127.0.0.1:9090 GOWORK=off go tool mygo dev
 # or, for a directly built executable:
 ./agent-ebpf-renew --backend http://127.0.0.1:9090
 ```
@@ -36,13 +36,13 @@ AGENT_BACKEND_URL=http://127.0.0.1:9090 go tool mygo dev
 cd desktop/renew
 
 # Current platform
-go tool mygo build
+GOWORK=off go tool mygo build
 
 # Linux desktop packages
-go tool mygo build -platform linux/amd64
+GOWORK=off go tool mygo build -platform linux/amd64
 
 # Cross-platform packages when needed
-go tool mygo build -platform linux/amd64,linux/arm64,windows/amd64,darwin/universal
+GOWORK=off go tool mygo build -platform linux/amd64,linux/arm64,windows/amd64,darwin/universal
 ```
 
 MyGo's Linux build emits the application executable, desktop entry/install archive and a Debian package. The runtime uses the system WebKitGTK webview.
