@@ -1,7 +1,6 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRouter } from "vue-router";
 
-import { useDashboard } from "../dashboard/useDashboard";
 import { useMonitorData } from "../monitor/useMonitorData";
 import {
   describeEvent,
@@ -9,14 +8,19 @@ import {
   eventTime,
   eventTone,
 } from "./eventPresentation";
+import { useRenewEventFeed } from "./useRenewEventFeed";
 import { useRenewEventSummary } from "./useRenewEventSummary";
+import { useRenewMonitoringControls } from "./useRenewMonitoringControls";
 
 export function useRenewDashboard() {
   const router = useRouter();
   const search = ref("");
   const onlyAgents = ref(true);
+  const isPaused = ref(false);
 
-  const { events, isConnected, isPaused } = useDashboard();
+  const monitoring = useRenewMonitoringControls();
+  const feed = useRenewEventFeed(isPaused);
+
   const {
     processes,
     systemStats,
@@ -25,16 +29,20 @@ export function useRenewDashboard() {
     fetchTrackedComms,
     setup,
     teardown,
-  } = useMonitorData();
+  } = useMonitorData(monitoring.statsIntervalMs);
 
-  const eventSummary = useRenewEventSummary(events, search, onlyAgents);
+  const eventSummary = useRenewEventSummary(
+    feed.events,
+    search,
+    onlyAgents,
+  );
 
   const topProcesses = computed(() =>
     [...processes.value].sort((a, b) => b.cpu - a.cpu).slice(0, 5),
   );
 
   const connectionLabel = computed(() =>
-    isConnected.value ? "实时采集中" : "等待采集端",
+    feed.isConnected.value ? "实时采集中" : "等待采集端",
   );
 
   const formatRate = (bytes: number) => `${formatBytesWithUnit(bytes)}/s`;
@@ -43,18 +51,28 @@ export function useRenewDashboard() {
     void router.push({ name, params });
   };
 
+  const refreshMonitoring = async () => {
+    await Promise.allSettled([
+      monitoring.fetchState(),
+      monitoring.fetchCollectorHealth(),
+    ]);
+  };
+
   onMounted(() => {
     setup();
+    feed.start();
     void fetchTrackedComms();
+    void refreshMonitoring();
   });
 
   onUnmounted(() => {
+    feed.stop();
     teardown();
   });
 
   return {
-    events,
-    isConnected,
+    events: feed.events,
+    isConnected: feed.isConnected,
     isPaused,
     processes,
     systemStats,
@@ -70,6 +88,13 @@ export function useRenewDashboard() {
     eventTone,
     eventLabel,
     go,
+    detailLoading: feed.detailLoading,
+    selectedEventDetail: feed.selectedEventDetail,
+    selectedEventID: feed.selectedEventID,
+    loadEventDetail: feed.loadEventDetail,
+    closeEventDetail: feed.closeEventDetail,
+    refreshMonitoring,
+    monitoring,
     ...eventSummary,
   };
 }
