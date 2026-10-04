@@ -93,6 +93,7 @@ type RuntimeSettingsStore interface {
 	Snapshot() RuntimeSettings
 	RecentEvents(limit int) ([]CapturedEventRecord, string, error)
 	RecentEventsContext(context.Context, int) ([]CapturedEventRecord, string, error)
+	EventByIDContext(context.Context, string) (CapturedEventRecord, error)
 	TruncateEventLog() error
 }
 
