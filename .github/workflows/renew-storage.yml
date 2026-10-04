@@ -1,0 +1,52 @@
+name: Renew storage
+
+on:
+  pull_request:
+    paths:
+      - "backend/app/runtime_event_store_pebble.go"
+      - "backend/app/statepersistenceruntime.go"
+      - "backend/app/ws_api.go"
+      - "backend/app/handlers/**"
+      - "backend/go.mod"
+      - "backend/go.sum"
+      - ".github/workflows/renew-storage.yml"
+  push:
+    paths:
+      - "backend/app/runtime_event_store_pebble.go"
+      - "backend/app/statepersistenceruntime.go"
+      - "backend/app/ws_api.go"
+      - "backend/app/handlers/**"
+      - "backend/go.mod"
+      - "backend/go.sum"
+      - ".github/workflows/renew-storage.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  storage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.27.1"
+          cache: true
+          cache-dependency-path: backend/go.sum
+      - name: Resolve backend module
+        run: |
+          go mod tidy
+          echo "----- BEGIN BACKEND GO.MOD -----"
+          cat go.mod
+          echo "----- END BACKEND GO.MOD -----"
+          echo "----- BEGIN BACKEND GO.SUM -----"
+          cat go.sum
+          echo "----- END BACKEND GO.SUM -----"
+      - name: Test event database and API package
+        run: go test ./app/... ./core/...
+      - name: Verify module lockfile is committed
+        run: git diff --exit-code -- go.mod go.sum
