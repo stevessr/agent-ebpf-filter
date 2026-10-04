@@ -53,7 +53,9 @@ func registerShellSessionRoutes(r gin.IRouter, ac *AppContext, features *Feature
 
 func registerEventRoutes(r gin.IRouter, ac *AppContext) {
 	r.GET("/events/recent", authMiddleware(), handleRecentEvents)
+	r.GET("/events/summaries", authMiddleware(), handleRecentEventSummaries)
 	r.GET("/events/graph", authMiddleware(), handleExecutionGraph)
+	r.GET("/events/:id", authMiddleware(), handleEventByID)
 	r.GET("/events/recording", authMiddleware(), handleEventRecordingStatus)
 	r.POST("/events/recording/start", authMiddleware(), handleStartEventRecording)
 	r.POST("/events/recording/stop", authMiddleware(), handleStopEventRecording)
