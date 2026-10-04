@@ -1,6 +1,7 @@
 package domainforwardproxy
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -145,6 +146,28 @@ func BenchmarkRewriteKernelModelMatch(b *testing.B) {
 	kernel := NewRewriteKernel(BodyRewriteSettings{
 		Enabled: true,
 		ModelRules: []ModelRewriteRule{{From: "client-model", To: "fast-model"}},
+	})
+	body := []byte(`{"model":"client-model","input":[{"role":"user","content":[{"type":"input_text","text":"hello"}]}]}`)
+	b.ReportAllocs()
+	b.SetBytes(int64(len(body)))
+	for i := 0; i < b.N; i++ {
+		_, _, _ = kernel.RewriteRequest("api.openai.com", "/v1/responses", "application/json", body)
+	}
+}
+
+
+func BenchmarkRewriteKernelModelMatch200Rules(b *testing.B) {
+	rules := make([]ModelRewriteRule, 0, 200)
+	for i := 0; i < 199; i++ {
+		rules = append(rules, ModelRewriteRule{
+			From: fmt.Sprintf("client-model-%03d", i),
+			To:   fmt.Sprintf("upstream-model-%03d", i),
+		})
+	}
+	rules = append(rules, ModelRewriteRule{From: "client-model", To: "fast-model"})
+	kernel := NewRewriteKernel(BodyRewriteSettings{
+		Enabled:    true,
+		ModelRules: rules,
 	})
 	body := []byte(`{"model":"client-model","input":[{"role":"user","content":[{"type":"input_text","text":"hello"}]}]}`)
 	b.ReportAllocs()
