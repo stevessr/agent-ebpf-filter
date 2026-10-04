@@ -3,6 +3,7 @@ package app
 import (
 	"agent-ebpf-filter/app/events"
 	"context"
+	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -39,6 +40,11 @@ func serveEventEnvelopesWS(c *gin.Context) {
 	servePassiveProtoWS(c, ac.EnvelopeClientHub)
 }
 
+func serveEventSummariesWS(c *gin.Context) {
+	ac := Ctx(c)
+	servePassiveProtoWS(c, ac.SummaryClientHub)
+}
+
 func servePassiveProtoWS(c *gin.Context, hub *wsfanout.Hub) {
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
@@ -69,8 +75,10 @@ func runEventBroadcaster(ctx context.Context) {
 	}
 	defer appContext.EventClientHub.Close()
 	defer appContext.EnvelopeClientHub.Close()
+	defer appContext.SummaryClientHub.Close()
 	eventBatch := make([]*pb.Event, 0, broadcastBatchSize)
 	envelopeBatch := make([]*pb.EventEnvelope, 0, broadcastBatchSize)
+	summaryBatch := make([]renewEventSummary, 0, broadcastBatchSize)
 	batchTicker := time.NewTicker(broadcastFlushInterval)
 	defer batchTicker.Stop()
 
@@ -109,6 +117,19 @@ func runEventBroadcaster(ctx context.Context) {
 			clear(envelopeBatch)
 			envelopeBatch = envelopeBatch[:0]
 		}
+		if len(summaryBatch) > 0 {
+			if appContext.SummaryClientHub.Len() > 0 {
+				data, err := json.Marshal(gin.H{"events": summaryBatch})
+				if err != nil {
+					marshalErrors++
+					log.Printf("[ERROR] failed to marshal Renew summaries: %v", err)
+				} else {
+					writeErrors += appContext.SummaryClientHub.Broadcast(wsfanout.NewTextMessage(data))
+				}
+			}
+			clear(summaryBatch)
+			summaryBatch = summaryBatch[:0]
+		}
 		collectorMetricsStore.RecordBroadcastFlush(eventCount, envelopeCount, marshalErrors, writeErrors, time.Since(started))
 	}
 
@@ -118,6 +139,9 @@ func runEventBroadcaster(ctx context.Context) {
 		}
 		if record.Envelope != nil {
 			envelopeBatch = append(envelopeBatch, record.Envelope)
+		}
+		if summary, ok := buildRenewEventSummary(record); ok {
+			summaryBatch = append(summaryBatch, summary)
 		}
 	}
 
@@ -142,7 +166,7 @@ func runEventBroadcaster(ctx context.Context) {
 				alert = enrichEventContext(alert)
 				appendRecord(recordCapturedEvent(alert))
 			}
-			if len(eventBatch) >= broadcastBatchSize || len(envelopeBatch) >= broadcastBatchSize {
+			if len(eventBatch) >= broadcastBatchSize || len(envelopeBatch) >= broadcastBatchSize || len(summaryBatch) >= broadcastBatchSize {
 				flushBatch()
 			}
 		case <-batchTicker.C:
