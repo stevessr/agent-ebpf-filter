@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -257,6 +258,124 @@ func parseEventLimitQuery(raw string, defaultLimit int) int {
 		return maxRecentEventLimit
 	}
 	return parsed
+}
+
+type renewEventSummary struct {
+	Key             string  `json:"key"`
+	EventID         string  `json:"eventId"`
+	PID             uint32  `json:"pid"`
+	PPID            uint32  `json:"ppid"`
+	UID             uint32  `json:"uid"`
+	Type            string  `json:"type"`
+	EventType       int32   `json:"eventType"`
+	Tag             string  `json:"tag"`
+	Comm            string  `json:"comm"`
+	Path            string  `json:"path"`
+	ExtraPath       string  `json:"extraPath,omitempty"`
+	NetDirection    string  `json:"netDirection,omitempty"`
+	NetEndpoint     string  `json:"netEndpoint,omitempty"`
+	NetBytes        uint64  `json:"netBytes,omitempty"`
+	Domain          string  `json:"domain,omitempty"`
+	Decision        string  `json:"decision,omitempty"`
+	RiskScore       float64 `json:"riskScore,omitempty"`
+	AgentRunID      string  `json:"agentRunId,omitempty"`
+	ConversationID  string  `json:"conversationId,omitempty"`
+	TurnID          string  `json:"turnId,omitempty"`
+	ToolCallID      string  `json:"toolCallId,omitempty"`
+	ToolName        string  `json:"toolName,omitempty"`
+	TraceID         string  `json:"traceId,omitempty"`
+	SpanID          string  `json:"spanId,omitempty"`
+	Time            string  `json:"time"`
+	ReceivedAtMS    int64   `json:"receivedAtMs"`
+}
+
+func buildRenewEventSummary(record CapturedEventRecord) (renewEventSummary, bool) {
+	record = normalizeCapturedEventRecord(record)
+	if record.Event == nil || record.Envelope == nil {
+		return renewEventSummary{}, false
+	}
+	event := record.Event
+	envelope := record.Envelope
+	eventID := strings.TrimSpace(envelope.GetEventId())
+	if eventID == "" {
+		return renewEventSummary{}, false
+	}
+	return renewEventSummary{
+		Key:            eventID,
+		EventID:        eventID,
+		PID:            event.GetPid(),
+		PPID:           event.GetPpid(),
+		UID:            event.GetUid(),
+		Type:           event.GetType(),
+		EventType:      int32(event.GetEventType()),
+		Tag:            event.GetTag(),
+		Comm:           event.GetComm(),
+		Path:           event.GetPath(),
+		ExtraPath:      event.GetExtraPath(),
+		NetDirection:   event.GetNetDirection(),
+		NetEndpoint:    event.GetNetEndpoint(),
+		NetBytes:       event.GetNetBytes(),
+		Domain:         event.GetDomain(),
+		Decision:       platform.FirstNonEmpty(event.GetDecision(), envelope.GetPolicyDecision()),
+		RiskScore:      max(event.GetRiskScore(), envelope.GetRiskScore()),
+		AgentRunID:     platform.FirstNonEmpty(event.GetAgentRunId(), envelope.GetAgentRunId()),
+		ConversationID: platform.FirstNonEmpty(event.GetConversationId(), envelope.GetConversationId()),
+		TurnID:         platform.FirstNonEmpty(event.GetTurnId(), envelope.GetTurnId()),
+		ToolCallID:     platform.FirstNonEmpty(event.GetToolCallId(), envelope.GetToolCallId()),
+		ToolName:       platform.FirstNonEmpty(event.GetToolName(), envelope.GetToolName()),
+		TraceID:        platform.FirstNonEmpty(event.GetTraceId(), envelope.GetTraceId()),
+		SpanID:         platform.FirstNonEmpty(event.GetSpanId(), envelope.GetSpanId()),
+		Time:           record.ReceivedAt.UTC().Format(time.RFC3339Nano),
+		ReceivedAtMS:   record.ReceivedAt.UnixMilli(),
+	}, true
+}
+
+func handleRecentEventSummaries(c *gin.Context) {
+	limit := parseEventLimitQuery(c.Query("limit"), 100)
+	filters := recentEventFiltersFromRequest(c)
+	records, source, err := runtimeSettingsStore.RecentEventsContext(c.Request.Context(), limit)
+	if err != nil {
+		if c.Request.Context().Err() != nil {
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	records = filterRecentEventRecords(records, filters)
+	summaries := make([]renewEventSummary, 0, len(records))
+	for _, record := range records {
+		if summary, ok := buildRenewEventSummary(record); ok {
+			summaries = append(summaries, summary)
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"source": source, "events": summaries})
+}
+
+func handleEventByID(c *gin.Context) {
+	eventID := strings.TrimSpace(c.Param("id"))
+	if eventID == "" || len(eventID) > 256 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid event id"})
+		return
+	}
+	record, err := runtimeSettingsStore.EventByIDContext(c.Request.Context(), eventID)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "event not found"})
+			return
+		}
+		if c.Request.Context().Err() != nil {
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	record = normalizeCapturedEventRecord(record)
+	values := buildCapturedEventJSONRecords([]CapturedEventRecord{record})
+	if len(values) == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "event not found"})
+		return
+	}
+	c.JSON(http.StatusOK, values[0])
 }
 
 func handleRecentEvents(c *gin.Context) {
