@@ -149,6 +149,7 @@ type ConfigStore interface {
 	RemoveDisabledComm(comm string)
 
 	DisabledEventTypes() []uint32
+	ReplaceDisabledEventTypes(eventTypes []uint32)
 	AddDisabledEventType(eventType uint32)
 	RemoveDisabledEventType(eventType uint32)
 
