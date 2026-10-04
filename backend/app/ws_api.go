@@ -338,7 +338,7 @@ func buildRenewEventSummary(record CapturedEventRecord) (renewEventSummary, bool
 		ExtraPath:      event.GetExtraPath(),
 		NetDirection:   event.GetNetDirection(),
 		NetEndpoint:    event.GetNetEndpoint(),
-		NetBytes:       event.GetNetBytes(),
+		NetBytes:       uint64(event.GetNetBytes()),
 		Domain:         event.GetDomain(),
 		Decision:       platform.FirstNonEmpty(event.GetDecision(), envelope.GetPolicyDecision()),
 		RiskScore:      max(event.GetRiskScore(), envelope.GetRiskScore()),
