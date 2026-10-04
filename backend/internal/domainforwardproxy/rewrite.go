@@ -127,7 +127,7 @@ func (k *RewriteKernel) RewriteRequest(host, path, contentType string, body []by
 			}
 		}
 	}
-	if isTextualPayload(contentType, out) {
+	if len(k.bodyRules) > 0 && isTextualPayload(contentType, out) {
 		if rewritten, ok := k.applyLiteralRules("request", host, path, contentType, out); ok {
 			out = rewritten
 			changed = true
@@ -148,7 +148,7 @@ func (k *RewriteKernel) RewriteResponse(host, path, contentType string, body []b
 			changed = true
 		}
 	}
-	if isTextualPayload(contentType, out) {
+	if len(k.bodyRules) > 0 && isTextualPayload(contentType, out) {
 		if rewritten, ok := k.applyLiteralRules("response", host, path, contentType, out); ok {
 			out = rewritten
 			changed = true
