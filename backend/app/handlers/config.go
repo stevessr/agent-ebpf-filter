@@ -75,6 +75,33 @@ func HandleConfigEventTypesGet(c *gin.Context) {
 	c.JSON(200, gin.H{"disabled_event_types": disabled})
 }
 
+func HandleConfigEventTypesPut(c *gin.Context) {
+	var request struct {
+		DisabledEventTypes []uint32 `json:"disabled_event_types"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(400, gin.H{"error": "invalid event type configuration"})
+		return
+	}
+	seen := make(map[uint32]struct{}, len(request.DisabledEventTypes))
+	disabled := make([]uint32, 0, len(request.DisabledEventTypes))
+	for _, eventType := range request.DisabledEventTypes {
+		// EventType currently occupies a compact 0..43 enum. Leave headroom for
+		// compatible additions while rejecting obviously accidental values.
+		if eventType > 255 {
+			c.JSON(400, gin.H{"error": "event type out of supported range"})
+			return
+		}
+		if _, exists := seen[eventType]; exists {
+			continue
+		}
+		seen[eventType] = struct{}{}
+		disabled = append(disabled, eventType)
+	}
+	Deps.Config.ReplaceDisabledEventTypes(disabled)
+	c.JSON(200, gin.H{"status": "ok", "disabled_event_types": disabled})
+}
+
 func HandleConfigEventTypeDisable(c *gin.Context) {
 	typeID, err := strconv.Atoi(c.Param("type"))
 	if err != nil {
