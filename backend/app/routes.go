@@ -33,6 +33,7 @@ func registerWebSocketRoutes(r gin.IRouter, ac *AppContext, features *FeatureReg
 		r.GET("/ws/ml-status", authMiddleware(), serveMLStatusWS)
 	}
 	r.GET("/ws/envelopes", authMiddleware(), serveEventEnvelopesWS)
+	r.GET("/ws/event-summaries", authMiddleware(), serveEventSummariesWS)
 	r.GET("/ws/events/graph", authMiddleware(), serveExecutionGraphWS)
 	if features.CompiledIn(FeatureTLSCapture) {
 		r.GET("/ws/tls-capture", authMiddleware(), tlsCaptureEnabledMiddleware(), func(c *gin.Context) { tlsBroadcaster.Serve(c) })
