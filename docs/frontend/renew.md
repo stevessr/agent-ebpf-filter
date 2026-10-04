@@ -33,6 +33,72 @@ Renew 是 Agent eBPF Filter 的轻量前端变种，面向把服务常驻在个�
 
 Renew 不新增数据库状态，也不会改变事件模型。
 
+## 模块结构
+
+Renew 不把业务继续堆进单个 view：
+
+```text
+frontend/src/
+  views/renew/
+    Renew.vue                 # 只做页面组装
+    renew.css                 # Renew 视觉系统
+  components/renew/
+    RenewSidebar.vue
+    RenewHeader.vue
+    RenewMetrics.vue
+    RenewToolbar.vue
+    RenewActivityPanel.vue
+    RenewAttentionPanel.vue
+    RenewAgentSessions.vue
+    RenewSystemSnapshot.vue
+  composables/renew/
+    useRenewDashboard.ts      # 生命周期与页面编排
+    useRenewEventSummary.ts   # 聚合统计 / Agent 会话 / 网络目标
+    eventPresentation.ts      # syscall -> 日常语言、风险/标签规则
+    types.ts                  # Renew view model
+```
+
+其中 `eventPresentation.ts` 保持纯函数，便于通过 Bun 单元测试验证，不依赖页面或 WebSocket。
+
+## MyGo 桌面版
+
+桌面壳位于 `desktop/renew/`，使用 MyGo 0.2.6，并作为**独立 Go module** 维护。
+
+它不复制 Vue 产物、不另起 API 代理，而是直接让系统 WebView 加载后端真实地址，例如：
+
+```text
+http://127.0.0.1:8080/renew
+```
+
+因此 REST、protobuf、WebSocket、认证 localStorage 都继续使用与 Web 版完全一致的同源路径。
+
+桌面壳只负责：
+
+- 单实例；
+- 原生窗口和窗口状态记忆；
+- `AGENT_BACKEND_URL` / `--backend` 后端地址选择；
+- 后端未启动时的提示页；
+- MyGo 的 Linux / Windows / macOS 打包。
+
+MyGo 要求 Go 1.27.1+，所以它被隔离在 `desktop/renew/go.mod`，不会提高主后端当前工具链要求。
+
+运行和打包：
+
+```bash
+make renew-desktop-dev
+make renew-desktop-build
+```
+
+或直接：
+
+```bash
+cd desktop/renew
+go tool mygo dev
+go tool mygo build -platform linux/amd64
+```
+
+Linux 运行时使用系统 WebKitGTK 4.1。桌面壳的详细说明见 `desktop/renew/README.md`。
+
 ## 与专业工作台的边界
 
 Renew 适合：
