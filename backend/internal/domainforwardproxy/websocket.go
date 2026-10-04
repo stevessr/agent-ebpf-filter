@@ -4,8 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	"errors"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -66,7 +64,6 @@ func (h *Handler) serveResponsesWebSocket(
 	w http.ResponseWriter,
 	r *http.Request,
 	target *url.URL,
-	route DomainForwardRoute,
 	host string,
 ) {
 	upstreamURL := websocketTargetURL(target, r.URL)
@@ -125,16 +122,26 @@ func (h *Handler) serveResponsesWebSocket(
 	}
 	defer client.Close()
 
+	readLimit := h.rewrite.MaxBodyBytes()
+	if readLimit < 8<<20 {
+		readLimit = 8 << 20
+	}
+	if readLimit > 64<<20 {
+		readLimit = 64 << 20
+	}
+	client.SetReadLimit(readLimit)
+	upstream.SetReadLimit(readLimit)
+
 	state := newResponsesWSRewriteState()
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
 	errs := make(chan error, 2)
 	go func() {
-		errs <- h.copyResponsesWSClientToUpstream(ctx, upstream, client, state, route, host, r.URL.Path)
+		errs <- h.copyResponsesWSClientToUpstream(ctx, upstream, client, state, host, r.URL.Path)
 	}()
 	go func() {
-		errs <- h.copyResponsesWSUpstreamToClient(ctx, client, upstream, state, route, host, r.URL.Path)
+		errs <- h.copyResponsesWSUpstreamToClient(ctx, client, upstream, state, host, r.URL.Path)
 	}()
 
 	<-errs
@@ -147,7 +154,6 @@ func (h *Handler) copyResponsesWSClientToUpstream(
 	ctx context.Context,
 	dst, src *websocket.Conn,
 	state *responsesWSRewriteState,
-	route DomainForwardRoute,
 	host, path string,
 ) error {
 	for {
@@ -187,7 +193,6 @@ func (h *Handler) copyResponsesWSUpstreamToClient(
 	ctx context.Context,
 	dst, src *websocket.Conn,
 	state *responsesWSRewriteState,
-	route DomainForwardRoute,
 	host, path string,
 ) error {
 	for {
@@ -255,14 +260,3 @@ func nonEmptyString(value string) []string {
 	return []string{value}
 }
 
-// drainAndClose is kept small so future handshake diagnostics can consume a
-// bounded upstream error body without exposing provider details to clients.
-func drainAndClose(body io.ReadCloser) {
-	if body == nil {
-		return
-	}
-	_, _ = io.Copy(io.Discard, io.LimitReader(body, 4096))
-	_ = body.Close()
-}
-
-var _ = errors.Is
