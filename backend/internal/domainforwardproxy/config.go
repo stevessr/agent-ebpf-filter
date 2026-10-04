@@ -8,15 +8,18 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
 )
 
 type domainForwardCertStore struct {
-	defaultCert *tls.Certificate
-	exact       map[string]*tls.Certificate
-	wildcards   []domainForwardCertEntry
+	defaultCert      *tls.Certificate
+	exact            map[string]*tls.Certificate
+	wildcards        []domainForwardCertEntry
+	mitm             *mitmCertificateAuthority
+	interceptEnabled bool
 }
 
 type domainForwardCertEntry struct {
@@ -25,7 +28,10 @@ type domainForwardCertEntry struct {
 }
 
 func NewTLSConfig(settings DomainForwardProxySettings) (*tls.Config, []string, error) {
-	store := &domainForwardCertStore{exact: make(map[string]*tls.Certificate)}
+	store := &domainForwardCertStore{
+		exact:            make(map[string]*tls.Certificate),
+		interceptEnabled: settings.TLSInterceptEnabled,
+	}
 	warnings := make([]string, 0)
 	if strings.TrimSpace(settings.CertFile) != "" || strings.TrimSpace(settings.KeyFile) != "" {
 		cert, err := tls.LoadX509KeyPair(settings.CertFile, settings.KeyFile)
@@ -58,8 +64,14 @@ func NewTLSConfig(settings DomainForwardProxySettings) (*tls.Config, []string, e
 	sort.SliceStable(store.wildcards, func(i, j int) bool {
 		return len(store.wildcards[i].pattern) > len(store.wildcards[j].pattern)
 	})
-	if store.defaultCert == nil && len(store.exact) == 0 && len(store.wildcards) == 0 {
-		return nil, warnings, errors.New("https forwarding requires a default cert/key or route-level cert/key")
+
+	mitm, err := loadMITMCertificateAuthority(settings)
+	if err != nil {
+		return nil, warnings, err
+	}
+	store.mitm = mitm
+	if store.defaultCert == nil && len(store.exact) == 0 && len(store.wildcards) == 0 && store.mitm == nil {
+		return nil, warnings, errors.New("https forwarding requires a default cert/key, route-level cert/key, or allowlisted TLS interception CA")
 	}
 	return &tls.Config{
 		MinVersion:     tls.VersionTLS12,
@@ -82,6 +94,12 @@ func (s *domainForwardCertStore) GetCertificate(hello *tls.ClientHelloInfo) (*tl
 				return entry.cert, nil
 			}
 		}
+		if s.mitm != nil && s.mitm.allowed(host) {
+			return s.mitm.certificateForHost(host)
+		}
+	}
+	if s.interceptEnabled {
+		return nil, fmt.Errorf("TLS interception is not allowlisted for %q", host)
 	}
 	if s.defaultCert != nil {
 		return s.defaultCert, nil
@@ -143,10 +161,34 @@ func NormalizeSettings(settings *DomainForwardProxySettings) {
 	settings.CertFile = strings.TrimSpace(settings.CertFile)
 	settings.KeyFile = strings.TrimSpace(settings.KeyFile)
 	settings.DNSResolver = normalizeDNSResolver(settings.DNSResolver)
+	settings.TLSInterceptCACertFile = strings.TrimSpace(settings.TLSInterceptCACertFile)
+	settings.TLSInterceptCAKeyFile = strings.TrimSpace(settings.TLSInterceptCAKeyFile)
+	settings.TLSInterceptAllowlist = strings.Join(splitDomainAllowlist(settings.TLSInterceptAllowlist), ",")
+	if settings.TLSInterceptLeafTTLSeconds <= 0 {
+		settings.TLSInterceptLeafTTLSeconds = 12 * 60 * 60
+	} else if settings.TLSInterceptLeafTTLSeconds > 7*24*60*60 {
+		settings.TLSInterceptLeafTTLSeconds = 7 * 24 * 60 * 60
+	}
 	if settings.DialTimeoutSeconds <= 0 {
 		settings.DialTimeoutSeconds = 10
 	} else if settings.DialTimeoutSeconds > 120 {
 		settings.DialTimeoutSeconds = 120
+	}
+	if settings.Rewrite.MaxBodyBytes <= 0 {
+		settings.Rewrite.MaxBodyBytes = defaultRewriteBodyBytes
+	} else if settings.Rewrite.MaxBodyBytes > maxRewriteBodyBytes {
+		settings.Rewrite.MaxBodyBytes = maxRewriteBodyBytes
+	}
+	for i := range settings.Rewrite.ModelRules {
+		settings.Rewrite.ModelRules[i].Host = NormalizeDomainPattern(settings.Rewrite.ModelRules[i].Host)
+		settings.Rewrite.ModelRules[i].From = strings.TrimSpace(settings.Rewrite.ModelRules[i].From)
+		settings.Rewrite.ModelRules[i].To = strings.TrimSpace(settings.Rewrite.ModelRules[i].To)
+	}
+	for i := range settings.Rewrite.Rules {
+		settings.Rewrite.Rules[i].Direction = normalizeRewriteDirection(settings.Rewrite.Rules[i].Direction)
+		settings.Rewrite.Rules[i].Host = NormalizeDomainPattern(settings.Rewrite.Rules[i].Host)
+		settings.Rewrite.Rules[i].PathPrefix = strings.TrimSpace(settings.Rewrite.Rules[i].PathPrefix)
+		settings.Rewrite.Rules[i].ContentType = strings.ToLower(strings.TrimSpace(settings.Rewrite.Rules[i].ContentType))
 	}
 	seen := make(map[string]struct{}, len(settings.Routes))
 	routes := make([]DomainForwardRoute, 0, len(settings.Routes))
@@ -236,7 +278,14 @@ func SettingsEqual(a, b DomainForwardProxySettings) bool {
 	if a.Enabled != b.Enabled || a.HTTPPort != b.HTTPPort || a.HTTPSPort != b.HTTPSPort ||
 		a.DefaultScheme != b.DefaultScheme || a.AllowAnyHost != b.AllowAnyHost ||
 		a.DNSResolver != b.DNSResolver || a.DialTimeoutSeconds != b.DialTimeoutSeconds ||
-		a.CertFile != b.CertFile || a.KeyFile != b.KeyFile || len(a.Routes) != len(b.Routes) {
+		a.CertFile != b.CertFile || a.KeyFile != b.KeyFile ||
+		a.TLSInterceptEnabled != b.TLSInterceptEnabled ||
+		a.TLSInterceptAllowlist != b.TLSInterceptAllowlist ||
+		a.TLSInterceptCACertFile != b.TLSInterceptCACertFile ||
+		a.TLSInterceptCAKeyFile != b.TLSInterceptCAKeyFile ||
+		a.TLSInterceptLeafTTLSeconds != b.TLSInterceptLeafTTLSeconds ||
+		!reflect.DeepEqual(a.Rewrite, b.Rewrite) ||
+		len(a.Routes) != len(b.Routes) {
 		return false
 	}
 	for i := range a.Routes {
