@@ -620,6 +620,16 @@ func (trackingConfigStore) DisabledEventTypes() []uint32 {
 	return disabled
 }
 
+func (trackingConfigStore) ReplaceDisabledEventTypes(eventTypes []uint32) {
+	next := make(map[uint32]struct{}, len(eventTypes))
+	for _, eventType := range eventTypes {
+		next[eventType] = struct{}{}
+	}
+	disabledEventTypesMu.Lock()
+	disabledEventTypes = next
+	disabledEventTypesMu.Unlock()
+}
+
 func (trackingConfigStore) AddDisabledEventType(eventType uint32) {
 	disabledEventTypesMu.Lock()
 	disabledEventTypes[eventType] = struct{}{}
