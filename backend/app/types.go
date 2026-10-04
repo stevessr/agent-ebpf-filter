@@ -32,6 +32,9 @@ type SignalRule = core.SignalRule
 type SelectedProgramSignalLog = core.SelectedProgramSignalLog
 type SignalProcessingSettings = core.SignalProcessingSettings
 type DomainForwardRoute = core.DomainForwardRoute
+type DomainBodyRewriteRule = core.DomainBodyRewriteRule
+type DomainModelRewriteRule = core.DomainModelRewriteRule
+type DomainBodyRewriteSettings = core.DomainBodyRewriteSettings
 type DomainForwardProxySettings = core.DomainForwardProxySettings
 
 // ── Global variables ─────────────────────────────────────────────────────────
