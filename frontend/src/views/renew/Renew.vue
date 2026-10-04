@@ -28,6 +28,7 @@ const {
   onlyAgents,
   recentEvents,
   attentionEvents,
+  attentionCount,
   blockedCount,
   agentEventCount,
   activeAgents,
@@ -152,10 +153,10 @@ const {
 
         <article class="renew-metric" :class="`renew-metric--${alertTone}`">
           <div class="renew-metric__label">需要关注</div>
-          <div class="renew-metric__value">{{ attentionEvents.length }}</div>
+          <div class="renew-metric__value">{{ attentionCount }}</div>
           <div class="renew-metric__meta">
             已阻断 {{ blockedCount }} ·
-            {{ attentionEvents.length ? "建议查看" : "暂时正常" }}
+            {{ attentionCount ? "建议查看" : "暂时正常" }}
           </div>
         </article>
       </section>
