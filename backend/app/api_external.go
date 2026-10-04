@@ -27,7 +27,7 @@ func registerExternalAPIRoutes(rg *gin.RouterGroup, args ...any) {
 	rg.GET("/events/recent", handleRecentEvents)
 	rg.GET("/events/summaries", handleRecentEventSummaries)
 	rg.GET("/events/graph", handleExecutionGraph)
-	rg.GET("/events/:id", handleEventByID)
+	rg.GET("/events/detail/:id", handleEventByID)
 	research.RegisterRoutes(rg.Group("/research"), tlsStore)
 	if features.CompiledIn(FeatureAgentSight) {
 		rg.GET("/agentsight/runners", handleAgentSightRunners(tlsStore))
