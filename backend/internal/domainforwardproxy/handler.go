@@ -120,6 +120,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			out.Header.Set("X-Forwarded-Host", r.Host)
 			out.Header.Set("X-Forwarded-Proto", requestForwardedProto(r))
 			out.Header.Set("X-Agent-Forward-Route", route.Host)
+			if h.rewrite != nil && h.settings.Rewrite.Enabled {
+				// Ask upstreams for identity encoding so response body rules do
+				// not silently stop applying when the client advertised gzip.
+				out.Header.Del("Accept-Encoding")
+			}
 		},
 		Transport: h.transport,
 		ModifyResponse: func(response *http.Response) error {
