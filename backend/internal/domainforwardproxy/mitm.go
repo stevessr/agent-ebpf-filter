@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -126,7 +127,7 @@ func (ca *mitmCertificateAuthority) certificateForHost(host string) (*tls.Certif
 	}
 	template := &x509.Certificate{
 		SerialNumber: serial,
-		Subject:      ca.cert.Subject,
+		Subject:      pkix.Name{CommonName: host},
 		DNSNames:     []string{host},
 		NotBefore:    now.Add(-5 * time.Minute),
 		NotAfter:     notAfter,
