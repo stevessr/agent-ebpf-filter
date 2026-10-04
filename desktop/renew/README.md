@@ -6,9 +6,7 @@ It uses [MyGo](https://github.com/egoist/mygo) and loads the **real Agent eBPF F
 
 ## Why a separate module?
 
-MyGo 0.2.6 requires Go 1.27.1+. The main Agent eBPF Filter backend keeps its existing Go toolchain, while `desktop/renew` can evolve and package independently.
-
-No MyGo dependency enters the privileged backend module.
+MyGo 0.2.6 requires Go 1.27.1+. The repository workspace now standardizes on Go 1.27.1, while `desktop/renew` remains its own module so MyGo dependencies do not enter the privileged backend module.
 
 ## Run
 
@@ -16,8 +14,8 @@ Start Agent eBPF Filter first, then:
 
 ```bash
 cd desktop/renew
-GOWORK=off go tool mygo doctor
-GOWORK=off go tool mygo dev
+go tool mygo doctor
+go tool mygo dev
 ```
 
 The shell defaults to `http://127.0.0.1:8080`.
@@ -36,7 +34,7 @@ AGENT_BACKEND_URL=http://127.0.0.1:9090 GOWORK=off go tool mygo dev
 cd desktop/renew
 
 # Current platform
-GOWORK=off go tool mygo build
+go tool mygo build
 
 # Linux desktop packages
 GOWORK=off go tool mygo build -platform linux/amd64
