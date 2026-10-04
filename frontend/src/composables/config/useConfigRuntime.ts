@@ -55,7 +55,7 @@ import type {
 export function useConfigRuntime() {
   const featureManifest = useFeatureManifest();
   const runtimeSettings = ref<RuntimeSettings>({
-    logPersistenceEnabled: false,
+    logPersistenceEnabled: true,
     logFilePath: "",
     accessToken: "",
     maxEventCount: 1500,
