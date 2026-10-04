@@ -84,7 +84,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if isResponsesWebSocketRequest(r) {
-		h.serveResponsesWebSocket(w, r, target, route, host)
+		h.serveResponsesWebSocket(w, r, target, host)
 		return
 	}
 
