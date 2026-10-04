@@ -1,7 +1,6 @@
 import { onUnmounted, ref, type Ref } from "vue";
 import axios from "axios";
 
-import { pb } from "../../pb/tracker_pb.js";
 import { buildWebSocketUrl } from "../../utils/requestContext";
 import {
   eventTypeLabelMap,
@@ -19,54 +18,6 @@ const numberValue = (value: unknown) => {
   const numeric = Number(value ?? 0);
   return Number.isFinite(numeric) ? numeric : 0;
 };
-
-function envelopeTimestampMs(envelope: any) {
-  const ingest = numberValue(envelope.ingestTimestampNs);
-  const capture = numberValue(envelope.captureTimestampNs);
-  const timestamp = numberValue(envelope.timestampNs);
-  const ns = ingest || capture || timestamp;
-  return ns > 0 ? Math.floor(ns / 1_000_000) : Date.now();
-}
-
-function summaryFromEnvelope(envelope: any): AgentEvent | null {
-  const eventID = text(envelope.eventId).trim();
-  if (!eventID) return null;
-  const legacy = envelope.legacyEvent || {};
-  const eventType = numberValue(envelope.eventType ?? legacy.eventType);
-  const receivedAtMs = envelopeTimestampMs(envelope);
-  return {
-    key: eventID,
-    eventId: eventID,
-    pid: numberValue(envelope.pid || legacy.pid),
-    ppid: numberValue(envelope.ppid || legacy.ppid),
-    uid: numberValue(envelope.uid || legacy.uid),
-    type:
-      text(legacy.type) ||
-      eventTypeLabelMap[eventType] ||
-      text(envelope.eventType) ||
-      "event",
-    eventType,
-    tag: text(legacy.tag) || "Unknown",
-    comm: text(envelope.comm || legacy.comm),
-    path: text(legacy.path),
-    extraPath: text(legacy.extraPath),
-    netDirection: text(legacy.netDirection),
-    netEndpoint: text(legacy.netEndpoint),
-    netBytes: numberValue(legacy.netBytes),
-    domain: text(legacy.domain),
-    decision: text(envelope.policyDecision || legacy.decision),
-    riskScore: numberValue(envelope.riskScore || legacy.riskScore),
-    agentRunId: text(envelope.agentRunId || legacy.agentRunId),
-    conversationId: text(envelope.conversationId || legacy.conversationId),
-    turnId: text(envelope.turnId || legacy.turnId),
-    toolCallId: text(envelope.toolCallId || legacy.toolCallId),
-    toolName: text(envelope.toolName || legacy.toolName),
-    traceId: text(envelope.traceId || legacy.traceId),
-    spanId: text(envelope.spanId || legacy.spanId),
-    time: new Date(receivedAtMs).toISOString(),
-    receivedAtMs,
-  };
-}
 
 function normalizeSummary(value: any): AgentEvent | null {
   const eventID = text(value?.eventId || value?.key).trim();
@@ -167,9 +118,8 @@ export function useRenewEventFeed(
       ws.onclose = null;
       ws.close();
     }
-    const socket = new WebSocket(buildWebSocketUrl("/ws/envelopes"));
+    const socket = new WebSocket(buildWebSocketUrl("/ws/event-summaries"));
     ws = socket;
-    socket.binaryType = "arraybuffer";
 
     socket.onopen = () => {
       if (ws !== socket) return;
@@ -178,16 +128,14 @@ export function useRenewEventFeed(
     socket.onmessage = (message) => {
       if (ws !== socket || isPaused.value) return;
       try {
-        const batch = pb.EventEnvelopeBatch.decode(
-          new Uint8Array(message.data),
-        );
-        for (const envelope of batch.envelopes || []) {
-          const summary = summaryFromEnvelope(envelope);
+        const batch = JSON.parse(String(message.data));
+        for (const value of Array.isArray(batch?.events) ? batch.events : []) {
+          const summary = normalizeSummary(value);
           if (summary) buffer.push(summary);
         }
         scheduleFlush();
       } catch (error) {
-        console.error("Renew: failed to decode compact envelope stream", error);
+        console.error("Renew: failed to decode summary stream", error);
       }
     };
     socket.onclose = () => {
