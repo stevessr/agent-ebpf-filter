@@ -20,7 +20,7 @@ func registerConfigRoutes(rg *gin.RouterGroup, features *FeatureRegistry) {
 	rg.POST("/comms/:comm/disable", policyMiddleware, handleConfigCommsDisable)
 	rg.DELETE("/comms/:comm/disable", policyMiddleware, handleConfigCommsEnable)
 	rg.GET("/event-types", handleConfigEventTypesGet)
-	rg.PUT("/event-types", policyMiddleware, handleConfigEventTypesPut)
+	rg.PUT("/event-types", handleConfigEventTypesPut)
 	rg.POST("/event-types/:type/disable", policyMiddleware, handleConfigEventTypeDisable)
 	rg.DELETE("/event-types/:type/disable", policyMiddleware, handleConfigEventTypeEnable)
 	rg.GET("/paths", handleConfigPathsGet)
