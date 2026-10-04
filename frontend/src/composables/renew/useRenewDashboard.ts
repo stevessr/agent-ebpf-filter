@@ -121,6 +121,10 @@ export function useRenewDashboard() {
       .slice(0, 16);
   });
 
+  const attentionCount = computed(
+    () => events.value.filter(isAttentionEvent).length,
+  );
+
   const attentionEvents = computed(() =>
     events.value.filter(isAttentionEvent).slice(0, 8),
   );
@@ -208,7 +212,7 @@ export function useRenewDashboard() {
 
   const alertTone = computed(() => {
     if (blockedCount.value > 0) return "danger";
-    if (attentionEvents.value.length > 0) return "warning";
+    if (attentionCount.value > 0) return "warning";
     return "normal";
   });
 
@@ -244,7 +248,8 @@ export function useRenewDashboard() {
   };
 
   const eventLabel = (event: AgentEvent) => {
-    if (normalizedDecision(event)) return normalizedDecision(event);
+    const decision = normalizedDecision(event);
+    if (decision && decision !== "ALLOW") return decision;
     if ((event.riskScore ?? 0) >= 60) return `风险 ${event.riskScore}`;
     return event.tag && event.tag !== "Unknown" ? event.tag : event.type;
   };
@@ -264,6 +269,7 @@ export function useRenewDashboard() {
     onlyAgents,
     recentEvents,
     attentionEvents,
+    attentionCount,
     blockedCount,
     agentEventCount,
     activeAgents,
