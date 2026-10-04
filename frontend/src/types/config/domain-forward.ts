@@ -4,6 +4,31 @@ export interface DomainForwardRoute {
   certFile?: string;
   keyFile?: string;
 }
+
+export interface DomainBodyRewriteRule {
+  id?: string;
+  enabled: boolean;
+  direction: "request" | "response" | "both";
+  host?: string;
+  pathPrefix?: string;
+  contentType?: string;
+  find: string;
+  replace: string;
+}
+
+export interface DomainModelRewriteRule {
+  host?: string;
+  from: string;
+  to: string;
+}
+
+export interface DomainBodyRewriteSettings {
+  enabled: boolean;
+  maxBodyBytes: number;
+  rules: DomainBodyRewriteRule[];
+  modelRules: DomainModelRewriteRule[];
+}
+
 export interface DomainForwardProxySettings {
   enabled: boolean;
   httpPort: number;
@@ -14,8 +39,15 @@ export interface DomainForwardProxySettings {
   dialTimeoutSeconds: number;
   certFile?: string;
   keyFile?: string;
+  tlsInterceptEnabled: boolean;
+  tlsInterceptAllowlist?: string;
+  tlsInterceptCaCertFile?: string;
+  tlsInterceptCaKeyFile?: string;
+  tlsInterceptLeafTtlSeconds?: number;
+  rewrite: DomainBodyRewriteSettings;
   routes: DomainForwardRoute[];
 }
+
 export interface DomainForwardProxyStatus {
   enabled: boolean;
   httpRunning: boolean;
@@ -27,6 +59,8 @@ export interface DomainForwardProxyStatus {
   routeCount: number;
   allowAnyHost: boolean;
   dnsResolver?: string;
+  tlsInterceptEnabled?: boolean;
+  rewriteEnabled?: boolean;
   errors?: string[];
   updatedAt: string;
 }
