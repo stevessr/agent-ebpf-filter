@@ -44,6 +44,7 @@ Agent eBPF Filter combines **eBPF kernel tracing**, **Go backend**, **Vue.js das
 - **ML-based risk scoring:** Optional machine learning classification
 
 ### 📊 **Rich Web Dashboard**
+- **Renew:** Low-noise daily monitoring UI with an optional MyGo desktop shell
 - **Dashboard:** Real-time event stream with strace-style summaries
 - **Network:** Flow attribution with DNS/SNI/HTTP enrichment
 - **Execution Graph:** Process topology with behavior tracking
@@ -71,7 +72,7 @@ Agent eBPF Filter combines **eBPF kernel tracing**, **Go backend**, **Vue.js das
 ### Prerequisites
 
 - **Linux** with eBPF and BTF support
-- **Go 1.26.2+**
+- **Go 1.27.1+**
 - **Bun** (frontend build tool)
 - **clang/LLVM** (eBPF compilation)
 - **protoc** (Protocol Buffers compiler)

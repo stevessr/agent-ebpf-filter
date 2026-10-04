@@ -9,7 +9,8 @@
     "test:agentsight": "bun test tests/agentsight-stdio*.test.ts tests/dashboard-insights.test.ts",
     "test:dashboard-insights": "bun test tests/dashboard-insights.test.ts",
     "preview": "vite preview",
-    "prepare-agentsight-sample": "node scripts/prepare-agentsight-sample.mjs"
+    "prepare-agentsight-sample": "node scripts/prepare-agentsight-sample.mjs",
+    "test:renew": "bun test tests/renew*.test.ts"
   },
   "dependencies": {
     "@ant-design/icons-vue": "^7.0.1",
