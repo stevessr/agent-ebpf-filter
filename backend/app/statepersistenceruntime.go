@@ -219,6 +219,8 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 	}
 
 	if data, err := os.ReadFile(platform.RuntimeSettingsPath()); err == nil {
+		var rawSettings map[string]json.RawMessage
+		_ = json.Unmarshal(data, &rawSettings)
 		if err := json.Unmarshal(data, &settings); err != nil {
 			log.Printf("[WARN] failed to parse runtime settings: %v", err)
 			settings = RuntimeSettings{
@@ -245,6 +247,11 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 				},
 				SignalProcessing: defaultSignalProcessingSettings(),
 			}
+		} else if _, explicitlyConfigured := rawSettings["logPersistenceEnabled"]; !explicitlyConfigured {
+			// Persistence became the safe default for Renew. Preserve an explicit
+			// false from existing installations, but enable it when upgrading a
+			// runtime file that predates this field.
+			settings.LogPersistenceEnabled = true
 		}
 	}
 	if settings.LoopDetection == (LoopDetectionSettings{}) {
