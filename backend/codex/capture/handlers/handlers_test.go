@@ -97,3 +97,45 @@ func TestCodexCaptureResponseShape(t *testing.T) {
 		t.Fatalf("payload = %s", payload)
 	}
 }
+
+
+func TestBuildCodexCaptureResponsesWebsocketArrayInput(t *testing.T) {
+	event := BuildEvent(CaptureRequest{
+		Phase:       "websocket_request",
+		Direction:   "send",
+		URL:         "wss://api.openai.com/v1/responses",
+		Host:        "api.openai.com",
+		ContentType: "application/json",
+		Body: `{"type":"response.create","stream_id":"lane-1","previous_response_id":"resp_prev","model":"gpt-5.6","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"upstream context"}]}]}`,
+		PID: 9,
+	})
+	if event.Type != "websocket_request" || event.Direction != "send" {
+		t.Fatalf("direction/type = %q/%q", event.Direction, event.Type)
+	}
+	if event.ProtocolEvent != "response.create" || event.StreamID != "lane-1" || event.PreviousResponseID != "resp_prev" {
+		t.Fatalf("responses metadata missing: %#v", event)
+	}
+	if event.MessageRole != "user" || event.PromptLen != len("upstream context") || event.PromptDigest == "" {
+		t.Fatalf("responses input context missing: %#v", event)
+	}
+}
+
+func TestBuildCodexCaptureResponsesWebsocketResponseDelta(t *testing.T) {
+	event := BuildEvent(CaptureRequest{
+		Phase:       "websocket_response",
+		Direction:   "recv",
+		URL:         "wss://api.openai.com/v1/responses",
+		ContentType: "application/json",
+		Body:        `{"type":"response.output_text.delta","stream_id":"lane-1","delta":"hello"}`,
+		PID:         10,
+	})
+	if event.Type != "websocket_response" || event.Direction != "recv" {
+		t.Fatalf("direction/type = %q/%q", event.Direction, event.Type)
+	}
+	if event.ProtocolEvent != "response.output_text.delta" || event.StreamID != "lane-1" {
+		t.Fatalf("responses metadata missing: %#v", event)
+	}
+	if event.MessageRole != "assistant" || event.PromptLen != len("hello") || event.PromptDigest == "" {
+		t.Fatalf("responses output context missing: %#v", event)
+	}
+}
