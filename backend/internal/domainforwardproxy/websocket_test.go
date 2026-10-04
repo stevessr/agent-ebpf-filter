@@ -22,7 +22,7 @@ func TestResponsesWebSocketModelRewriteRoundTrip(t *testing.T) {
 
 		messageType, payload, err := conn.ReadMessage()
 		if err != nil {
-			t.Errorf("upstream read: %v", err)
+			t.Errorf("upstream first read: %v", err)
 			return
 		}
 		text := string(payload)
@@ -32,7 +32,24 @@ func TestResponsesWebSocketModelRewriteRoundTrip(t *testing.T) {
 		}
 		response := []byte(`{"type":"response.completed","stream_id":"lane-1","response":{"id":"resp_1","model":"fast-model","output":[]}}`)
 		if err := conn.WriteMessage(messageType, response); err != nil {
-			t.Errorf("upstream write: %v", err)
+			t.Errorf("upstream first write: %v", err)
+			return
+		}
+
+		messageType, payload, err = conn.ReadMessage()
+		if err != nil {
+			t.Errorf("upstream continuation read: %v", err)
+			return
+		}
+		text = string(payload)
+		if strings.Contains(text, `"model"`) ||
+			!strings.Contains(text, `"previous_response_id":"resp_1"`) {
+			t.Errorf("unexpected continuation request: %s", text)
+			return
+		}
+		response = []byte(`{"type":"response.completed","stream_id":"lane-1","response":{"id":"resp_2","model":"fast-model","output":[]}}`)
+		if err := conn.WriteMessage(messageType, response); err != nil {
+			t.Errorf("upstream continuation write: %v", err)
 		}
 	}))
 	defer upstream.Close()
@@ -83,6 +100,20 @@ func TestResponsesWebSocketModelRewriteRoundTrip(t *testing.T) {
 	}
 	if !strings.Contains(text, `"stream_id":"lane-1"`) {
 		t.Fatalf("stream_id was not preserved: %s", text)
+	}
+
+	continuation := []byte(`{"type":"response.create","stream_id":"lane-1","previous_response_id":"resp_1","input":[{"role":"user","content":[{"type":"input_text","text":"continue"}]}]}`)
+	if err := client.WriteMessage(websocket.TextMessage, continuation); err != nil {
+		t.Fatalf("client continuation write: %v", err)
+	}
+	_, payload, err = client.ReadMessage()
+	if err != nil {
+		t.Fatalf("client continuation read: %v", err)
+	}
+	text = string(payload)
+	if !strings.Contains(text, `"model":"client-model"`) ||
+		!strings.Contains(text, `"id":"resp_2"`) {
+		t.Fatalf("continuation did not inherit model mapping: %s", text)
 	}
 }
 
