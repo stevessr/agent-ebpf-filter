@@ -20,11 +20,12 @@ import (
 )
 
 type runtimeState struct {
-	mu        sync.RWMutex
-	settings  RuntimeSettings
-	logWriter *runtimeEventLogWriter
-	logPath   string
-	logRoot   string
+	mu         sync.RWMutex
+	settings   RuntimeSettings
+	logWriter  *runtimeEventLogWriter // legacy JSONL compatibility
+	eventStore *runtimeEventStore
+	logPath    string
+	logRoot    string
 }
 
 func newRuntimeState() *runtimeState {
@@ -71,19 +72,27 @@ func (s *runtimeState) closeLogWriterLocked() {
 }
 
 func (s *runtimeState) stopLogWriterLocked(ctx context.Context) error {
-	writer := s.logWriter
-	if writer == nil {
-		return nil
+	var stopErr error
+	if store := s.eventStore; store != nil {
+		if err := store.StopContext(ctx); err != nil {
+			stopErr = errors.Join(stopErr, err)
+		}
+		if s.eventStore == store {
+			s.eventStore = nil
+		}
 	}
-	err := writer.StopContext(ctx)
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return err
+	if writer := s.logWriter; writer != nil {
+		if err := writer.StopContext(ctx); err != nil {
+			stopErr = errors.Join(stopErr, err)
+		}
+		if s.logWriter == writer {
+			s.logWriter = nil
+		}
 	}
-	if s.logWriter == writer {
-		s.logWriter = nil
+	if s.eventStore == nil && s.logWriter == nil {
 		s.logPath = ""
 	}
-	return err
+	return stopErr
 }
 
 func (s *runtimeState) applyLoggingLocked() error {
@@ -95,7 +104,7 @@ func (s *runtimeState) applyLoggingLocked() error {
 			return err
 		}
 		if err != nil {
-			log.Printf("[WARN] disabled runtime event log after writer failure: %v", err)
+			log.Printf("[WARN] disabled runtime event persistence after writer failure: %v", err)
 		}
 		return nil
 	}
@@ -103,6 +112,35 @@ func (s *runtimeState) applyLoggingLocked() error {
 	if err != nil {
 		return err
 	}
+	if isPebbleEventStorePath(resolvedPath) {
+		if s.eventStore != nil && s.logPath == resolvedPath && s.eventStore.Status().Active {
+			s.settings.LogFilePath = resolvedPath
+			return nil
+		}
+		store, resolvedPath, err := openRuntimeEventStoreWithin(s.eventLogRoot(), resolvedPath)
+		if err != nil {
+			return err
+		}
+		ctx, cancel := runtimeEventLogStopContext()
+		stopErr := s.stopLogWriterLocked(ctx)
+		cancel()
+		if errors.Is(stopErr, context.Canceled) || errors.Is(stopErr, context.DeadlineExceeded) {
+			stopCtx, stopCancel := runtimeEventLogStopContext()
+			_ = store.StopContext(stopCtx)
+			stopCancel()
+			return stopErr
+		}
+		if stopErr != nil {
+			log.Printf("[WARN] previous runtime event persistence stopped after failure: %v", stopErr)
+		}
+		s.settings.LogFilePath = resolvedPath
+		s.eventStore = store
+		s.logPath = resolvedPath
+		return nil
+	}
+
+	// Existing explicit .jsonl paths stay supported for compatibility and
+	// migration. New installs default to the Pebble-backed event database.
 	if s.logWriter != nil && s.logPath == resolvedPath && s.logWriter.Status().Active {
 		s.settings.LogFilePath = resolvedPath
 		return nil
@@ -125,7 +163,7 @@ func (s *runtimeState) applyLoggingLocked() error {
 		return stopErr
 	}
 	if stopErr != nil {
-		log.Printf("[WARN] previous runtime event log writer stopped after failure: %v", stopErr)
+		log.Printf("[WARN] previous runtime event persistence stopped after failure: %v", stopErr)
 	}
 	s.settings.LogFilePath = resolvedPath
 	s.logWriter = writer
@@ -156,7 +194,7 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 	defer s.mu.Unlock()
 
 	settings := RuntimeSettings{
-		LogPersistenceEnabled: false,
+		LogPersistenceEnabled: true,
 		LogFilePath:           platform.DefaultEventLogPath(),
 		MaxEventCount:         1500,
 		MaxEventAge:           "0",
@@ -184,7 +222,7 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 		if err := json.Unmarshal(data, &settings); err != nil {
 			log.Printf("[WARN] failed to parse runtime settings: %v", err)
 			settings = RuntimeSettings{
-				LogPersistenceEnabled: false,
+				LogPersistenceEnabled: true,
 				LogFilePath:           platform.DefaultEventLogPath(),
 				MaxEventCount:         1500,
 				MaxEventAge:           "0",
@@ -380,6 +418,12 @@ func (s *runtimeState) TruncateEventLog() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.eventStore != nil {
+		ctx, cancel := runtimeEventLogStopContext()
+		defer cancel()
+		return s.eventStore.Clear(ctx)
+	}
+
 	ctx, cancel := runtimeEventLogStopContext()
 	if err := s.stopLogWriterLocked(ctx); errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		cancel()
@@ -432,18 +476,26 @@ func (s *runtimeState) RecentEventsContext(ctx context.Context, limit int) ([]Ca
 	s.mu.RLock()
 	settings := s.settings
 	writer := s.logWriter
+	store := s.eventStore
 	s.mu.RUnlock()
 
 	if settings.LogPersistenceEnabled {
+		if store != nil {
+			if records, err := store.Recent(ctx, limit); err == nil {
+				return records, "pebble", nil
+			} else if ctx.Err() != nil {
+				return nil, "", ctx.Err()
+			} else {
+				log.Printf("[WARN] failed to read persisted event database %s: %v", settings.LogFilePath, err)
+			}
+		}
 		logPath := strings.TrimSpace(settings.LogFilePath)
-		if logPath != "" {
-			if writer != nil {
-				if err := writer.FlushContext(ctx); err != nil {
-					if ctx.Err() != nil {
-						return nil, "", ctx.Err()
-					}
-					log.Printf("[WARN] failed to flush persisted event log %s before reading: %v", logPath, err)
+		if logPath != "" && writer != nil {
+			if err := writer.FlushContext(ctx); err != nil {
+				if ctx.Err() != nil {
+					return nil, "", ctx.Err()
 				}
+				log.Printf("[WARN] failed to flush persisted event log %s before reading: %v", logPath, err)
 			}
 			if records, err := tailCapturedEventsFileAtRootContext(ctx, s.eventLogRoot(), expandRuntimeEventLogPath(logPath), limit); err == nil {
 				return records, "file", nil
@@ -462,6 +514,31 @@ func (s *runtimeState) RecentEventsContext(ctx context.Context, limit int) ([]Ca
 	return records, "memory", nil
 }
 
+func (s *runtimeState) EventByIDContext(ctx context.Context, eventID string) (CapturedEventRecord, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	eventID = strings.TrimSpace(eventID)
+	if eventID == "" {
+		return CapturedEventRecord{}, os.ErrNotExist
+	}
+	s.mu.RLock()
+	store := s.eventStore
+	s.mu.RUnlock()
+	if store != nil {
+		if record, err := store.GetByID(ctx, eventID); err == nil {
+			return record, nil
+		}
+	}
+	for _, record := range capturedEventArchive.Snapshot(capturedEventArchive.Count()) {
+		record = normalizeCapturedEventRecord(record)
+		if record.Envelope != nil && record.Envelope.GetEventId() == eventID {
+			return record, nil
+		}
+	}
+	return CapturedEventRecord{}, os.ErrNotExist
+}
+
 func (s *runtimeState) AppendEvent(record CapturedEventRecord) error {
 	_, err := s.enqueueEvent(record)
 	return err
@@ -473,10 +550,16 @@ func (s *runtimeState) enqueueEvent(record CapturedEventRecord) (bool, error) {
 	}
 	s.mu.RLock()
 	writer := s.logWriter
+	store := s.eventStore
 	enabled := s.settings.LogPersistenceEnabled
-	if writer == nil || !enabled {
+	if !enabled || (writer == nil && store == nil) {
 		s.mu.RUnlock()
 		return false, nil
+	}
+	if store != nil {
+		accepted, err := store.Enqueue(record)
+		s.mu.RUnlock()
+		return accepted, err
 	}
 	accepted, err := writer.Enqueue(record)
 	s.mu.RUnlock()
@@ -489,7 +572,11 @@ func (s *runtimeState) FlushEventLogContext(ctx context.Context) error {
 	}
 	s.mu.RLock()
 	writer := s.logWriter
+	store := s.eventStore
 	s.mu.RUnlock()
+	if store != nil {
+		return store.FlushContext(ctx)
+	}
 	if writer == nil {
 		return nil
 	}
@@ -502,7 +589,11 @@ func (s *runtimeState) EventLogStatus() runtimeEventLogStatus {
 	}
 	s.mu.RLock()
 	writer := s.logWriter
+	store := s.eventStore
 	s.mu.RUnlock()
+	if store != nil {
+		return store.Status()
+	}
 	if writer == nil {
 		return runtimeEventLogStatus{}
 	}
