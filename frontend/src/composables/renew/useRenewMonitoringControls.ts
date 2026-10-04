@@ -1,6 +1,6 @@
 import { computed, ref } from "vue";
 import axios from "axios";
-import type { RuntimeConfigResponse, RuntimeSettings } from "../../types/config";
+import type { CollectorHealthResponse, RuntimeConfigResponse, RuntimeSettings } from "../../types/config";
 import {
   RENEW_KERNEL_MONITOR_EVENT_TYPES,
   RENEW_MONITORING_MODULES,
@@ -35,6 +35,7 @@ export function useRenewMonitoringControls() {
   const disabledEventTypes = ref<Set<number>>(new Set());
   const runtimeSettings = ref<RuntimeSettings | null>(null);
   const statsIntervalMs = ref(initialStatsInterval());
+  const collectorHealth = ref<Partial<CollectorHealthResponse> | null>(null);
   const loading = ref(false);
   const applying = ref(false);
   const error = ref("");
@@ -97,6 +98,17 @@ export function useRenewMonitoringControls() {
     return "custom";
   });
 
+  const fetchCollectorHealth = async () => {
+    try {
+      const response = await axios.get<CollectorHealthResponse>(
+        "/system/collector-health",
+      );
+      collectorHealth.value = response.data;
+    } catch (_) {
+      collectorHealth.value = null;
+    }
+  };
+
   const fetchState = async () => {
     loading.value = true;
     error.value = "";
@@ -109,6 +121,7 @@ export function useRenewMonitoringControls() {
         eventTypesResponse.data.disabled_event_types || [],
       );
       runtimeSettings.value = runtimeResponse.data.runtime;
+      void fetchCollectorHealth();
     } catch (cause: any) {
       error.value =
         cause?.response?.data?.error ||
@@ -277,6 +290,7 @@ export function useRenewMonitoringControls() {
     disabledEventTypes,
     runtimeSettings,
     statsIntervalMs,
+    collectorHealth,
     loading,
     applying,
     error,
@@ -285,6 +299,7 @@ export function useRenewMonitoringControls() {
     monitoringWeight,
     overhead,
     fetchState,
+    fetchCollectorHealth,
     runtimeEnabled,
     setModuleEnabled,
     setRuntimeEnabled,
