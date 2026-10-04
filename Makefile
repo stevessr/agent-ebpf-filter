@@ -32,7 +32,7 @@ DEV_IMAGE_REPOSITORY ?= ghcr.io/$(DEV_IMAGE_OWNER_REPO)/devcontainer
 DEV_IMAGE ?= $(DEV_IMAGE_REPOSITORY):$(DEV_IMAGE_TAG)
 DEV_CONTAINER ?= agent-ebpf-filiter-dev
 DEV_WORKSPACE ?= /workspaces/agent-ebpf-filiter
-DEVCONTAINER_GO_VERSION ?= 1.26.2
+DEVCONTAINER_GO_VERSION ?= 1.27.1
 DEVCONTAINER_USER_UID ?= 1001
 DEVCONTAINER_USER_GID ?= 1001
 DEV_CONTAINER_USERNS ?= $(shell $(CONTAINER_CLI) --version 2>/dev/null | grep -qi podman && printf 'keep-id:uid=$(DEVCONTAINER_USER_UID),gid=$(DEVCONTAINER_USER_GID)')
@@ -258,10 +258,10 @@ tui-test: ## Run the monitor TUI unit tests
 	@cd $(AGENT_TUI_DIR) && GOPATH="$(GOPATH)" go test -race -count=1 ./...
 
 renew-desktop-dev: ## Run the MyGo Renew desktop shell (requires Go 1.27.1+)
-	@cd $(RENEW_DESKTOP_DIR) && GOWORK=off go tool mygo dev
+	@cd $(RENEW_DESKTOP_DIR) && go tool mygo dev
 
 renew-desktop-build: ## Package the MyGo Renew desktop shell for the current platform
-	@cd $(RENEW_DESKTOP_DIR) && GOWORK=off go tool mygo build
+	@cd $(RENEW_DESKTOP_DIR) && go tool mygo build
 
 predev-check: ## Verify development dependencies without installing anything
 	@command -v protoc-gen-go >/dev/null || (echo "Missing protoc-gen-go. Run 'make predev' first." && exit 1)
