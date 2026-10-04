@@ -258,10 +258,10 @@ tui-test: ## Run the monitor TUI unit tests
 	@cd $(AGENT_TUI_DIR) && GOPATH="$(GOPATH)" go test -race -count=1 ./...
 
 renew-desktop-dev: ## Run the MyGo Renew desktop shell (requires Go 1.27.1+)
-	@cd $(RENEW_DESKTOP_DIR) && go tool mygo dev
+	@cd $(RENEW_DESKTOP_DIR) && GOWORK=off go tool mygo dev
 
 renew-desktop-build: ## Package the MyGo Renew desktop shell for the current platform
-	@cd $(RENEW_DESKTOP_DIR) && go tool mygo build
+	@cd $(RENEW_DESKTOP_DIR) && GOWORK=off go tool mygo build
 
 predev-check: ## Verify development dependencies without installing anything
 	@command -v protoc-gen-go >/dev/null || (echo "Missing protoc-gen-go. Run 'make predev' first." && exit 1)
