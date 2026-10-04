@@ -90,6 +90,26 @@ func TestHandlerRewritesRequestAndResponseBodies(t *testing.T) {
 	}
 }
 
+
+
+func TestRewriteKernelUsesLastDuplicateModelLikeEncodingJSON(t *testing.T) {
+	kernel := NewRewriteKernel(BodyRewriteSettings{
+		Enabled: true,
+		ModelRules: []ModelRewriteRule{
+			{From: "first", To: "first-upstream"},
+			{From: "second", To: "second-upstream"},
+		},
+	})
+	input := []byte(`{"model":"first","input":"hello","model":"second"}`)
+	got, mapping, changed := kernel.RewriteRequest("api.openai.com", "/v1/responses", "application/json", input)
+	if !changed || mapping == nil || mapping.Client != "second" || mapping.Upstream != "second-upstream" {
+		t.Fatalf("mapping = %#v changed=%v body=%s", mapping, changed, got)
+	}
+	if string(got) != `{"model":"first","input":"hello","model":"second-upstream"}` {
+		t.Fatalf("unexpected rewrite: %s", got)
+	}
+}
+
 func TestRewriteHostWildcard(t *testing.T) {
 	kernel := NewRewriteKernel(BodyRewriteSettings{
 		Enabled: true,
