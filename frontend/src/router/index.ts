@@ -18,7 +18,7 @@ const routes = [
     redirect: "/dashboard",
   },
   {
-    path: "/renew",
+    path: "/renew/:section?",
     name: "Renew",
     meta: { uiVariant: "renew" },
     component: () => import("../views/renew/Renew.vue"),
@@ -126,6 +126,11 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) return savedPosition;
+    if (to.name === "Renew" && to.params.section !== from.params.section)
+      return { top: 0 };
+  },
 });
 
 router.beforeEach((to) => {

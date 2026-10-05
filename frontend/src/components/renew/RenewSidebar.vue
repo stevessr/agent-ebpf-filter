@@ -11,12 +11,16 @@ import {
 } from "@ant-design/icons-vue";
 
 defineProps<{
-  activeSection: "overview" | "monitoring";
+  activeSection:
+    "overview" | "monitoring" | "events" | "network" | "processes" | "rules";
 }>();
 
 const emit = defineEmits<{
   navigate: [name: string, params?: Record<string, string>];
-  section: [section: "overview" | "monitoring"];
+  section: [
+    section:
+      "overview" | "monitoring" | "events" | "network" | "processes" | "rules",
+  ];
 }>();
 </script>
 
@@ -47,27 +51,34 @@ const emit = defineEmits<{
         <RadarChartOutlined />
         <span>监控中心</span>
       </button>
-      <button class="renew-nav__item" @click="emit('navigate', 'Dashboard')">
+      <button
+        class="renew-nav__item"
+        :class="{ 'renew-nav__item--active': activeSection === 'events' }"
+        @click="emit('section', 'events')"
+      >
         <AppstoreOutlined />
         <span>事件</span>
       </button>
       <button
         class="renew-nav__item"
-        @click="emit('navigate', 'NetworkFlow', { tab: 'overview' })"
+        :class="{ 'renew-nav__item--active': activeSection === 'network' }"
+        @click="emit('section', 'network')"
       >
         <GlobalOutlined />
         <span>网络</span>
       </button>
       <button
         class="renew-nav__item"
-        @click="emit('navigate', 'Monitor', { tab: 'processes' })"
+        :class="{ 'renew-nav__item--active': activeSection === 'processes' }"
+        @click="emit('section', 'processes')"
       >
         <NodeIndexOutlined />
         <span>进程</span>
       </button>
       <button
         class="renew-nav__item"
-        @click="emit('navigate', 'Config', { tab: 'security' })"
+        :class="{ 'renew-nav__item--active': activeSection === 'rules' }"
+        @click="emit('section', 'rules')"
       >
         <SafetyCertificateOutlined />
         <span>规则</span>
@@ -75,10 +86,7 @@ const emit = defineEmits<{
     </nav>
 
     <div class="renew-sidebar__footer">
-      <button
-        class="renew-nav__item"
-        @click="emit('navigate', 'Config', { tab: 'runtime' })"
-      >
+      <button class="renew-nav__item" @click="emit('section', 'monitoring')">
         <SettingOutlined />
         <span>设置</span>
       </button>

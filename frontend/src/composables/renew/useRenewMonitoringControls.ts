@@ -1,6 +1,10 @@
 import { computed, ref } from "vue";
 import axios from "axios";
-import type { CollectorHealthResponse, RuntimeConfigResponse, RuntimeSettings } from "../../types/config";
+import type {
+  CollectorHealthResponse,
+  RuntimeConfigResponse,
+  RuntimeSettings,
+} from "../../types/config";
 import {
   RENEW_KERNEL_MONITOR_EVENT_TYPES,
   RENEW_MONITORING_MODULES,
@@ -21,7 +25,9 @@ const normalizeStatsInterval = (value: unknown) => {
 
 const initialStatsInterval = () => {
   if (typeof window === "undefined") return 5_000;
-  return normalizeStatsInterval(window.localStorage.getItem(STATS_INTERVAL_KEY));
+  return normalizeStatsInterval(
+    window.localStorage.getItem(STATS_INTERVAL_KEY),
+  );
 };
 
 export type RenewRuntimeToggleKey =
@@ -37,12 +43,15 @@ export function useRenewMonitoringControls() {
   const statsIntervalMs = ref(initialStatsInterval());
   const collectorHealth = ref<Partial<CollectorHealthResponse> | null>(null);
   const loading = ref(false);
+  const ready = ref(false);
   const applying = ref(false);
   const error = ref("");
 
   const enabledModuleKeys = computed(() =>
-    RENEW_MONITORING_MODULES.filter((module) =>
-      module.eventTypes.every((type) => !disabledEventTypes.value.has(type)),
+    RENEW_MONITORING_MODULES.filter(
+      (module) =>
+        ready.value &&
+        module.eventTypes.every((type) => !disabledEventTypes.value.has(type)),
     ).map((module) => module.key),
   );
 
@@ -74,29 +83,31 @@ export function useRenewMonitoringControls() {
     }),
   );
 
-  const overhead = computed(() => monitoringWeightLabel(monitoringWeight.value));
+  const overhead = computed(() =>
+    monitoringWeightLabel(monitoringWeight.value),
+  );
 
-  const activeProfileKey = computed<RenewMonitoringProfileKey | "custom">(() => {
-    const enabled = new Set(enabledModuleKeys.value);
-    for (const profile of RENEW_MONITORING_PROFILES) {
-      if (
-        enabled.size !== profile.modules.length ||
-        profile.modules.some((key) => !enabled.has(key))
-      ) {
-        continue;
+  const activeProfileKey = computed<RenewMonitoringProfileKey | "custom">(
+    () => {
+      const enabled = new Set(enabledModuleKeys.value);
+      for (const profile of RENEW_MONITORING_PROFILES) {
+        if (
+          enabled.size !== profile.modules.length ||
+          profile.modules.some((key) => !enabled.has(key))
+        ) {
+          continue;
+        }
+        if (statsIntervalMs.value !== profile.statsIntervalMs) continue;
+        if (runtimeEnabled("loopDetection") !== profile.loopDetection) continue;
+        if (runtimeEnabled("signalProcessing") !== profile.signalProcessing)
+          continue;
+        if (runtimeEnabled("researchProcessing") !== profile.researchProcessing)
+          continue;
+        return profile.key;
       }
-      if (statsIntervalMs.value !== profile.statsIntervalMs) continue;
-      if (runtimeEnabled("loopDetection") !== profile.loopDetection) continue;
-      if (runtimeEnabled("signalProcessing") !== profile.signalProcessing)
-        continue;
-      if (
-        runtimeEnabled("researchProcessing") !== profile.researchProcessing
-      )
-        continue;
-      return profile.key;
-    }
-    return "custom";
-  });
+      return "custom";
+    },
+  );
 
   const fetchCollectorHealth = async () => {
     try {
@@ -110,6 +121,7 @@ export function useRenewMonitoringControls() {
   };
 
   const fetchState = async () => {
+    if (applying.value || loading.value) return;
     loading.value = true;
     error.value = "";
     try {
@@ -121,12 +133,12 @@ export function useRenewMonitoringControls() {
         eventTypesResponse.data.disabled_event_types || [],
       );
       runtimeSettings.value = runtimeResponse.data.runtime;
+      ready.value = Boolean(runtimeSettings.value);
       void fetchCollectorHealth();
     } catch (cause: any) {
+      ready.value = false;
       error.value =
-        cause?.response?.data?.error ||
-        cause?.message ||
-        "无法加载监控配置";
+        cause?.response?.data?.error || cause?.message || "无法加载监控配置";
     } finally {
       loading.value = false;
     }
@@ -147,7 +159,7 @@ export function useRenewMonitoringControls() {
     const module = RENEW_MONITORING_MODULES.find(
       (candidate) => candidate.key === moduleKey,
     );
-    if (!module) return;
+    if (!module || !ready.value || applying.value || loading.value) return;
 
     applying.value = true;
     error.value = "";
@@ -160,9 +172,7 @@ export function useRenewMonitoringControls() {
       await putDisabledEventTypes(disabled);
     } catch (cause: any) {
       error.value =
-        cause?.response?.data?.error ||
-        cause?.message ||
-        "更新监控模块失败";
+        cause?.response?.data?.error || cause?.message || "更新监控模块失败";
       throw cause;
     } finally {
       applying.value = false;
@@ -199,7 +209,13 @@ export function useRenewMonitoringControls() {
     key: RenewRuntimeToggleKey,
     enabled: boolean,
   ) => {
-    if (!runtimeSettings.value) return;
+    if (
+      !ready.value ||
+      !runtimeSettings.value ||
+      applying.value ||
+      loading.value
+    )
+      return;
     applying.value = true;
     error.value = "";
     try {
@@ -208,6 +224,11 @@ export function useRenewMonitoringControls() {
         runtimePatch(key, enabled),
       );
       runtimeSettings.value = response.data.runtime;
+      disabledEventTypes.value = new Set(
+        response.data.runtime.disabledEventTypes || [
+          ...disabledEventTypes.value,
+        ],
+      );
     } catch (cause: any) {
       error.value =
         cause?.response?.data?.error ||
@@ -230,6 +251,7 @@ export function useRenewMonitoringControls() {
   };
 
   const applyProfile = async (key: RenewMonitoringProfileKey) => {
+    if (!ready.value || applying.value || loading.value) return;
     const profile = profileByKey(key);
     applying.value = true;
     error.value = "";
@@ -263,35 +285,22 @@ export function useRenewMonitoringControls() {
           }
         : null;
 
-      const previousDisabled = new Set(disabledEventTypes.value);
-      await putDisabledEventTypes(disabled);
-      try {
-        if (runtimePayload) {
-          const response = await axios.put<RuntimeConfigResponse>(
-            "/config/runtime",
-            runtimePayload,
-          );
-          runtimeSettings.value = response.data.runtime;
-        }
-      } catch (cause) {
-        // Keep a profile switch atomic from the user's perspective. If the
-        // runtime gate update fails, restore the event filter configuration
-        // instead of leaving a half-applied monitoring profile.
-        try {
-          await putDisabledEventTypes(previousDisabled);
-        } catch (_) {
-          // Preserve the original failure below; fetchState can reconcile the
-          // UI with the backend if even the rollback request fails.
-          void fetchState();
-        }
-        throw cause;
-      }
+      // One authenticated backend update: no half-applied profile or rollback race.
+      const response = await axios.put<RuntimeConfigResponse>(
+        "/config/runtime",
+        {
+          ...runtimePayload,
+          disabledEventTypes: [...disabled].sort((a, b) => a - b),
+        },
+      );
+      runtimeSettings.value = response.data.runtime;
+      disabledEventTypes.value = new Set(
+        response.data.runtime.disabledEventTypes || [...disabled],
+      );
       setStatsInterval(profile.statsIntervalMs);
     } catch (cause: any) {
       error.value =
-        cause?.response?.data?.error ||
-        cause?.message ||
-        "应用监控档位失败";
+        cause?.response?.data?.error || cause?.message || "应用监控档位失败";
       throw cause;
     } finally {
       applying.value = false;
@@ -306,6 +315,7 @@ export function useRenewMonitoringControls() {
     statsIntervalMs,
     collectorHealth,
     loading,
+    ready,
     applying,
     error,
     enabledModuleKeys,

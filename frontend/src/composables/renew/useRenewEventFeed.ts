@@ -32,6 +32,7 @@ function normalizeSummary(value: any): AgentEvent | null {
     eventId: eventID,
     pid: numberValue(value?.pid),
     ppid: numberValue(value?.ppid),
+    rootAgentPid: numberValue(value?.rootAgentPid),
     uid: numberValue(value?.uid),
     type: text(value?.type) || "event",
     eventType: numberValue(value?.eventType),
