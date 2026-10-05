@@ -132,7 +132,7 @@ var groups = []envGroup{
 		Desc:  "runtime toggles, OTLP/TLS/domain-forwarding, sandbox, cluster",
 		Vars: []envVar{
 			{Key: "AGENT_RUNTIME_LOG_PERSISTENCE_ENABLED", Label: "Persist event log", Hint: boolHint()},
-			{Key: "AGENT_RUNTIME_LOG_FILE_PATH", Label: "Event log path", Hint: "Default: ~/.config/agent-ebpf-filter/events.jsonl."},
+			{Key: "AGENT_RUNTIME_LOG_FILE_PATH", Label: "Event store path", Hint: "Default: ~/.config/agent-ebpf-filter/events.pebble; .jsonl selects legacy mode."},
 			{Key: "AGENT_RUNTIME_MAX_EVENT_COUNT", Label: "Retention count", Hint: "Recent event retention count."},
 			{Key: "AGENT_RUNTIME_MAX_EVENT_AGE", Label: "Retention max age", Hint: "Duration like 0, 5m, 24h. 0 disables age eviction."},
 			{Key: "AGENT_RUNTIME_SHELL_SESSIONS_ENABLED", Label: "Shell sessions", Hint: boolHint()},
