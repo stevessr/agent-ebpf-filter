@@ -622,23 +622,40 @@ func (trackingConfigStore) DisabledEventTypes() []uint32 {
 
 func (trackingConfigStore) ReplaceDisabledEventTypes(eventTypes []uint32) {
 	next := make(map[uint32]struct{}, len(eventTypes))
+	var words [4]uint64
 	for _, eventType := range eventTypes {
 		next[eventType] = struct{}{}
+		if eventType <= 255 {
+			words[eventType>>6] |= uint64(1) << (eventType & 63)
+		}
 	}
 	disabledEventTypesMu.Lock()
 	disabledEventTypes = next
+	for index := range words {
+		disabledEventTypeBits[index].Store(words[index])
+	}
 	disabledEventTypesMu.Unlock()
 }
 
 func (trackingConfigStore) AddDisabledEventType(eventType uint32) {
 	disabledEventTypesMu.Lock()
 	disabledEventTypes[eventType] = struct{}{}
+	if eventType <= 255 {
+		index := eventType >> 6
+		bit := uint64(1) << (eventType & 63)
+		disabledEventTypeBits[index].Store(disabledEventTypeBits[index].Load() | bit)
+	}
 	disabledEventTypesMu.Unlock()
 }
 
 func (trackingConfigStore) RemoveDisabledEventType(eventType uint32) {
 	disabledEventTypesMu.Lock()
 	delete(disabledEventTypes, eventType)
+	if eventType <= 255 {
+		index := eventType >> 6
+		bit := uint64(1) << (eventType & 63)
+		disabledEventTypeBits[index].Store(disabledEventTypeBits[index].Load() &^ bit)
+	}
 	disabledEventTypesMu.Unlock()
 }
 
