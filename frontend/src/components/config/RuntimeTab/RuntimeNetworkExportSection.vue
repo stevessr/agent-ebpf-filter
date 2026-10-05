@@ -653,41 +653,43 @@ const updateDomainForwardRouteField = (
               </a-button>
             </template>
             <a-row :gutter="[12, 12]">
-              <a-col :xs="24" :md="12">
-                <a-input
-                  :value="domainForwardRouteValue(index, 'host')"
-                  placeholder="主机，例如 example.com 或 *.lab.test"
-                  @update:value="
-                    updateDomainForwardRouteField(index, 'host', $event)
+              <a-col :span="24">
+                <div
+                  style="
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+                    gap: 12px;
                   "
-                />
-              </a-col>
-              <a-col :xs="24" :md="12">
-                <a-input
-                  :value="domainForwardRouteValue(index, 'upstream')"
-                  placeholder="上游地址，例如 https://{host}"
-                  @update:value="
-                    updateDomainForwardRouteField(index, 'upstream', $event)
-                  "
-                />
-              </a-col>
-              <a-col :xs="24" :md="12">
-                <a-input
-                  :value="domainForwardRouteValue(index, 'certFile')"
-                  placeholder="路由证书路径（可选）"
-                  @update:value="
-                    updateDomainForwardRouteField(index, 'certFile', $event)
-                  "
-                />
-              </a-col>
-              <a-col :xs="24" :md="12">
-                <a-input
-                  :value="domainForwardRouteValue(index, 'keyFile')"
-                  placeholder="路由私钥路径（可选）"
-                  @update:value="
-                    updateDomainForwardRouteField(index, 'keyFile', $event)
-                  "
-                />
+                >
+                  <a-input
+                    :value="domainForwardRouteValue(index, 'host')"
+                    placeholder="主机，例如 example.com 或 *.lab.test"
+                    @update:value="
+                      updateDomainForwardRouteField(index, 'host', $event)
+                    "
+                  />
+                  <a-input
+                    :value="domainForwardRouteValue(index, 'upstream')"
+                    placeholder="上游地址，例如 https://{host}"
+                    @update:value="
+                      updateDomainForwardRouteField(index, 'upstream', $event)
+                    "
+                  />
+                  <a-input
+                    :value="domainForwardRouteValue(index, 'certFile')"
+                    placeholder="路由证书路径（可选）"
+                    @update:value="
+                      updateDomainForwardRouteField(index, 'certFile', $event)
+                    "
+                  />
+                  <a-input
+                    :value="domainForwardRouteValue(index, 'keyFile')"
+                    placeholder="路由私钥路径（可选）"
+                    @update:value="
+                      updateDomainForwardRouteField(index, 'keyFile', $event)
+                    "
+                  />
+                </div>
               </a-col>
             </a-row>
           </a-card>
