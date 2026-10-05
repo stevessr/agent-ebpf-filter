@@ -591,11 +591,11 @@ func TestOSFrontendSecuritySurfaceWiresSandboxEndpoints(t *testing.T) {
 	}
 	component := readSourceFiles(t, componentPaths...)
 	for _, want := range []string{
-		"OS-Level cgroup Network Interception",
+		"操作系统级 cgroup 网络拦截",
 		"TCP/UDP connected sockets",
 		"UDP sendto/sendmsg",
 		"IPv4-mapped IPv6 socket",
-		"OS-Level BPF LSM File / Exec Interception",
+		"操作系统级 BPF LSM 文件 / 执行拦截",
 		"1.2.3.4, ::ffff:1.2.3.4, or ::1",
 		"cgroupSandboxStatus.stats.checked",
 		"cgroupSandboxStatus.stats.blocked",
