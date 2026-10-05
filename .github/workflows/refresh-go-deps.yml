@@ -1,0 +1,74 @@
+name: Refresh Go dependencies
+
+on:
+  push:
+    branches:
+      - chore/upgrade-go-deps-2026-10
+    paths:
+      - ".github/workflows/refresh-go-deps.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: "1.27.1"
+          cache-dependency-path: |
+            backend/go.sum
+            wrapper/go.sum
+            desktop/renew/go.sum
+            tools/agent-tui/go.sum
+            tools/dev-env-tui/go.sum
+      - name: Upgrade backend dependencies
+        working-directory: backend
+        env:
+          GOWORK: "off"
+        run: |
+          go get -u ./...
+          go mod tidy
+      - name: Upgrade wrapper dependencies
+        working-directory: wrapper
+        env:
+          GOWORK: "off"
+        run: |
+          go get -u ./...
+          go mod tidy
+      - name: Upgrade Renew desktop dependencies
+        working-directory: desktop/renew
+        env:
+          GOWORK: "off"
+        run: |
+          go get -u github.com/egoist/mygo
+          go mod tidy
+      - name: Upgrade Agent TUI dependencies
+        working-directory: tools/agent-tui
+        env:
+          GOWORK: "off"
+        run: |
+          go get -u ./...
+          go mod tidy
+      - name: Upgrade dev-env TUI dependencies
+        working-directory: tools/dev-env-tui
+        env:
+          GOWORK: "off"
+        run: |
+          go get -u ./...
+          go mod tidy
+      - name: Commit dependency refresh
+        shell: bash
+        run: |
+          if git diff --quiet -- '**/go.mod' '**/go.sum' go.work go.work.sum; then
+            echo "No Go dependency updates available."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/go.mod backend/go.sum             wrapper/go.mod wrapper/go.sum             desktop/renew/go.mod desktop/renew/go.sum             tools/agent-tui/go.mod tools/agent-tui/go.sum             tools/dev-env-tui/go.mod tools/dev-env-tui/go.sum             go.work go.work.sum 2>/dev/null || true
+          git commit -m "chore(go): upgrade module dependencies"
+          git push
