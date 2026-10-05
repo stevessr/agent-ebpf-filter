@@ -31,6 +31,7 @@ type runtimeEventStoreItem struct {
 
 type runtimeEventStore struct {
 	mu             sync.Mutex
+	pruneMu        sync.Mutex
 	db             *pebble.DB
 	path           string
 	queue          chan runtimeEventStoreItem
@@ -48,6 +49,9 @@ type runtimeEventStore struct {
 	lastError      string
 	terminalErr    error
 	stopRequested  bool
+	retentionMaxRecords int
+	retentionMaxAge time.Duration
+	nextRetentionSweep uint64
 	auditChain     *recording.AuditChain
 }
 
@@ -92,8 +96,9 @@ func openRuntimeEventStoreWithin(rootPath, rawPath string) (*runtimeEventStore, 
 		queue:      make(chan runtimeEventStoreItem, runtimeEventLogQueueSize+1),
 		stopCh:     make(chan struct{}),
 		done:       make(chan struct{}),
-		accepting:  true,
-		auditChain: auditChain,
+		accepting:           true,
+		nextRetentionSweep: 1024,
+		auditChain:          auditChain,
 	}
 	go store.run()
 	return store, resolved, nil
@@ -319,11 +324,20 @@ func (s *runtimeEventStore) notePersisted(count uint64, duration time.Duration) 
 	if count == 0 {
 		return
 	}
+	scheduleRetention := false
 	s.mu.Lock()
 	s.persistedTotal += count
 	s.lastFlushedAt = time.Now().UTC()
+	if (s.retentionMaxRecords > 0 || s.retentionMaxAge > 0) &&
+		s.persistedTotal >= s.nextRetentionSweep {
+		s.nextRetentionSweep = s.persistedTotal + 1024
+		scheduleRetention = true
+	}
 	s.mu.Unlock()
 	collectorMetricsStore.RecordCapturedPersistBatch(count, 0, duration)
+	if scheduleRetention {
+		go s.pruneConfiguredRetention()
+	}
 }
 
 func (s *runtimeEventStore) noteFailed(count uint64, err error, duration time.Duration) {
@@ -450,9 +464,11 @@ func (s *runtimeEventStore) run() {
 			terminalErr = errors.Join(terminalErr, err)
 		}
 		_ = batch.Close()
+		s.pruneMu.Lock()
 		if err := s.db.Close(); err != nil {
 			terminalErr = errors.Join(terminalErr, err)
 		}
+		s.pruneMu.Unlock()
 		s.finish(terminalErr)
 	}()
 
@@ -572,6 +588,183 @@ func (s *runtimeEventStore) GetByID(ctx context.Context, eventID string) (Captur
 		return CapturedEventRecord{}, err
 	}
 	return decodeEventStoreRecord(payloadCopy)
+}
+
+
+func eventStoreRecordTimestamp(key []byte) (time.Time, bool) {
+	if len(key) < 9 || key[0] != eventStoreRecordPrefix[0] {
+		return time.Time{}, false
+	}
+	ns := int64(binary.BigEndian.Uint64(key[1:9]))
+	if ns <= 0 {
+		return time.Time{}, false
+	}
+	return time.Unix(0, ns).UTC(), true
+}
+
+func (s *runtimeEventStore) SetRetention(maxRecords int, maxAge time.Duration) {
+	if s == nil {
+		return
+	}
+	if maxRecords < 0 {
+		maxRecords = 0
+	}
+	if maxAge < 0 {
+		maxAge = 0
+	}
+	s.mu.Lock()
+	s.retentionMaxRecords = maxRecords
+	s.retentionMaxAge = maxAge
+	s.nextRetentionSweep = s.persistedTotal
+	s.mu.Unlock()
+}
+
+func (s *runtimeEventStore) configuredRetention() (int, time.Duration) {
+	if s == nil {
+		return 0, 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.retentionMaxRecords, s.retentionMaxAge
+}
+
+func (s *runtimeEventStore) pruneConfiguredRetention() {
+	maxRecords, maxAge := s.configuredRetention()
+	if maxRecords <= 0 && maxAge <= 0 {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if _, err := s.Prune(ctx, maxRecords, maxAge); err != nil &&
+		!errors.Is(err, context.Canceled) &&
+		!errors.Is(err, context.DeadlineExceeded) &&
+		!errors.Is(err, errRuntimeEventLogStopped) {
+		s.mu.Lock()
+		s.lastError = "event database retention: " + err.Error()
+		s.mu.Unlock()
+	}
+}
+
+func (s *runtimeEventStore) Prune(ctx context.Context, maxRecords int, maxAge time.Duration) (int, error) {
+	if s == nil || s.db == nil {
+		return 0, nil
+	}
+	if maxRecords <= 0 && maxAge <= 0 {
+		return 0, nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := s.FlushContext(ctx); err != nil {
+		return 0, err
+	}
+
+	s.pruneMu.Lock()
+	defer s.pruneMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+
+	var oldestKept []byte
+	if maxRecords > 0 {
+		iter, err := s.db.NewIter(&pebble.IterOptions{
+			LowerBound: eventStoreRecordPrefix,
+			UpperBound: eventStoreRecordUpper,
+		})
+		if err != nil {
+			return 0, err
+		}
+		count := 0
+		for valid := iter.Last(); valid; valid = iter.Prev() {
+			if err := ctx.Err(); err != nil {
+				_ = iter.Close()
+				return 0, err
+			}
+			count++
+			if count == maxRecords {
+				oldestKept = append([]byte(nil), iter.Key()...)
+				break
+			}
+		}
+		if err := iter.Error(); err != nil {
+			_ = iter.Close()
+			return 0, err
+		}
+		if err := iter.Close(); err != nil {
+			return 0, err
+		}
+	}
+
+	cutoff := time.Time{}
+	if maxAge > 0 {
+		cutoff = time.Now().UTC().Add(-maxAge)
+	}
+
+	iter, err := s.db.NewIter(&pebble.IterOptions{
+		LowerBound: eventStoreRecordPrefix,
+		UpperBound: eventStoreRecordUpper,
+	})
+	if err != nil {
+		return 0, err
+	}
+	defer iter.Close()
+
+	batch := s.db.NewBatch()
+	defer batch.Close()
+	deleted := 0
+	pending := 0
+	commit := func() error {
+		if pending == 0 {
+			return nil
+		}
+		if err := batch.Commit(pebble.Sync); err != nil {
+			return err
+		}
+		_ = batch.Close()
+		batch = s.db.NewBatch()
+		pending = 0
+		return nil
+	}
+
+	for valid := iter.First(); valid; valid = iter.Next() {
+		if err := ctx.Err(); err != nil {
+			return deleted, err
+		}
+		key := append([]byte(nil), iter.Key()...)
+		deleteForCount := len(oldestKept) > 0 && strings.Compare(string(key), string(oldestKept)) < 0
+		deleteForAge := false
+		if !cutoff.IsZero() {
+			if receivedAt, ok := eventStoreRecordTimestamp(key); ok {
+				deleteForAge = receivedAt.Before(cutoff)
+			}
+		}
+		if !deleteForCount && !deleteForAge {
+			continue
+		}
+		if len(key) <= 9 {
+			continue
+		}
+		if err := batch.Delete(key, pebble.NoSync); err != nil {
+			return deleted, err
+		}
+		if err := batch.Delete(eventStoreIDKey(string(key[9:])), pebble.NoSync); err != nil {
+			return deleted, err
+		}
+		deleted++
+		pending++
+		if pending >= 1024 {
+			if err := commit(); err != nil {
+				return deleted, err
+			}
+		}
+	}
+	if err := iter.Error(); err != nil {
+		return deleted, err
+	}
+	if err := commit(); err != nil {
+		return deleted, err
+	}
+	return deleted, nil
 }
 
 func (s *runtimeEventStore) Clear(ctx context.Context) error {
