@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"net"
 	"os"
 	"strings"
 	"sync"
@@ -94,11 +95,26 @@ func (ca *mitmCertificateAuthority) allowed(host string) bool {
 		return false
 	}
 	for _, pattern := range ca.allowlist {
-		if rewriteHostMatches(pattern, host) {
+		if tlsInterceptHostMatches(pattern, host) {
 			return true
 		}
 	}
 	return false
+}
+
+func tlsInterceptHostMatches(pattern, host string) bool {
+	pattern = NormalizeDomainPattern(pattern)
+	host = NormalizeForwardHost(host)
+	if pattern == "" || host == "" {
+		return false
+	}
+	if strings.HasPrefix(pattern, "*.") {
+		suffix := strings.TrimPrefix(pattern, "*.")
+		// TLS interception wildcards are intentionally stricter than routing
+		// wildcards: *.example.com never authorizes the apex example.com.
+		return host != suffix && strings.HasSuffix(host, "."+suffix)
+	}
+	return host == pattern
 }
 
 func (ca *mitmCertificateAuthority) certificateForHost(host string) (*tls.Certificate, error) {
@@ -128,11 +144,15 @@ func (ca *mitmCertificateAuthority) certificateForHost(host string) (*tls.Certif
 	template := &x509.Certificate{
 		SerialNumber: serial,
 		Subject:      pkix.Name{CommonName: host},
-		DNSNames:     []string{host},
 		NotBefore:    now.Add(-5 * time.Minute),
 		NotAfter:     notAfter,
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		template.IPAddresses = []net.IP{ip}
+	} else {
+		template.DNSNames = []string{host}
 	}
 	der, err := x509.CreateCertificate(rand.Reader, template, ca.cert, &leafKey.PublicKey, ca.signer)
 	if err != nil {
