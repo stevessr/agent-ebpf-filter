@@ -15,6 +15,7 @@ import RenewMonitoringPanel from "../../components/renew/RenewMonitoringPanel.vu
 import RenewSidebar from "../../components/renew/RenewSidebar.vue";
 import RenewSystemSnapshot from "../../components/renew/RenewSystemSnapshot.vue";
 import RenewToolbar from "../../components/renew/RenewToolbar.vue";
+import RenewVisualOverview from "../../components/renew/RenewVisualOverview.vue";
 import type { RenewMonitoringProfileKey } from "../../composables/renew/monitoringPresets";
 import type { RenewRuntimeToggleKey } from "../../composables/renew/useRenewMonitoringControls";
 import { useRenewDashboard } from "../../composables/renew/useRenewDashboard";
@@ -165,6 +166,8 @@ const handleToggleRuntime = (key: RenewRuntimeToggleKey, enabled: boolean) => {
           :alert-tone="alertTone"
           :format-bytes="formatBytesWithUnit"
         />
+
+        <RenewVisualOverview :events="events" :connected="isConnected" />
 
         <RenewToolbar
           :search="search"
