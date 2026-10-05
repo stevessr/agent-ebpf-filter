@@ -63,6 +63,9 @@ const {
   activeProfileKey,
   statsIntervalMs,
   collectorHealth,
+  persistedEventLogPath,
+  persistedEventLogAlive,
+  runtimeSettings,
   applying,
   loading,
   error,
@@ -175,6 +178,9 @@ const handleToggleRuntime = (
         :active-profile-key="activeProfileKey"
         :stats-interval-ms="statsIntervalMs"
         :collector-health="collectorHealth"
+        :runtime-settings="runtimeSettings"
+        :persisted-event-log-path="persistedEventLogPath"
+        :persisted-event-log-alive="persistedEventLogAlive"
         :applying="applying"
         :loading="loading"
         :error="error"
