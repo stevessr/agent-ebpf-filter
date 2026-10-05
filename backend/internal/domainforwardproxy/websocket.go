@@ -1,6 +1,7 @@
 package domainforwardproxy
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
@@ -18,25 +19,28 @@ const websocketWriteTimeout = 30 * time.Second
 const maxResponsesWSRewriteHistory = 256
 
 type responsesWSPendingSteer struct {
+	id       string
 	mapping  *modelRewrite
 	streamID string
 }
 
 type responsesWSRewriteState struct {
-	mu               sync.RWMutex
-	streamMappings   map[string][]*modelRewrite
-	responseMappings map[string]*modelRewrite
-	responseStreams  map[string]string
-	responseOrder    []string
-	pendingSteers    map[string][]responsesWSPendingSteer
+	mu                  sync.RWMutex
+	streamMappings      map[string][]*modelRewrite
+	responseMappings    map[string]*modelRewrite
+	responseStreams     map[string]string
+	responseOrder       []string
+	pendingSteers       map[string][]responsesWSPendingSteer
+	heldTerminalStreams map[string]string
 }
 
 func newResponsesWSRewriteState() *responsesWSRewriteState {
 	return &responsesWSRewriteState{
-		streamMappings:   make(map[string][]*modelRewrite),
-		responseMappings: make(map[string]*modelRewrite),
-		responseStreams:  make(map[string]string),
-		pendingSteers:    make(map[string][]responsesWSPendingSteer),
+		streamMappings:      make(map[string][]*modelRewrite),
+		responseMappings:    make(map[string]*modelRewrite),
+		responseStreams:     make(map[string]string),
+		pendingSteers:       make(map[string][]responsesWSPendingSteer),
+		heldTerminalStreams: make(map[string]string),
 	}
 }
 
@@ -56,18 +60,18 @@ func (s *responsesWSRewriteState) enqueueStream(streamID string, mapping *modelR
 	s.streamMappings[streamID] = append(s.streamMappings[streamID], cloneModelRewrite(mapping))
 }
 
-func (s *responsesWSRewriteState) stream(streamID string) *modelRewrite {
+func (s *responsesWSRewriteState) stream(streamID string) (*modelRewrite, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	queue := s.streamMappings[streamID]
 	if len(queue) == 0 {
-		return nil
+		return nil, false
 	}
-	return cloneModelRewrite(queue[0])
+	return cloneModelRewrite(queue[0]), true
 }
 
 func (s *responsesWSRewriteState) rememberResponse(responseID, streamID string, mapping *modelRewrite) {
-	if responseID == "" || mapping == nil {
+	if responseID == "" {
 		return
 	}
 	s.mu.Lock()
@@ -77,22 +81,42 @@ func (s *responsesWSRewriteState) rememberResponse(responseID, streamID string, 
 	}
 	s.responseMappings[responseID] = cloneModelRewrite(mapping)
 	s.responseStreams[responseID] = streamID
+	s.pruneResponseHistoryLocked()
+}
+
+func (s *responsesWSRewriteState) pruneResponseHistoryLocked() {
 	for len(s.responseOrder) > maxResponsesWSRewriteHistory {
-		oldest := s.responseOrder[0]
-		s.responseOrder = s.responseOrder[1:]
+		evictIndex := -1
+		for i, responseID := range s.responseOrder {
+			if len(s.pendingSteers[responseID]) > 0 {
+				continue
+			}
+			if _, held := s.heldTerminalStreams[responseID]; held {
+				continue
+			}
+			evictIndex = i
+			break
+		}
+		if evictIndex < 0 {
+			return
+		}
+		oldest := s.responseOrder[evictIndex]
+		copy(s.responseOrder[evictIndex:], s.responseOrder[evictIndex+1:])
+		s.responseOrder[len(s.responseOrder)-1] = ""
+		s.responseOrder = s.responseOrder[:len(s.responseOrder)-1]
 		delete(s.responseMappings, oldest)
 		delete(s.responseStreams, oldest)
-		delete(s.pendingSteers, oldest)
 	}
 }
 
-func (s *responsesWSRewriteState) response(responseID string) *modelRewrite {
+func (s *responsesWSRewriteState) response(responseID string) (*modelRewrite, bool) {
 	if responseID == "" {
-		return nil
+		return nil, false
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return cloneModelRewrite(s.responseMappings[responseID])
+	mapping, ok := s.responseMappings[responseID]
+	return cloneModelRewrite(mapping), ok
 }
 
 func (s *responsesWSRewriteState) streamForResponse(responseID string) string {
@@ -105,7 +129,7 @@ func (s *responsesWSRewriteState) streamForResponse(responseID string) string {
 }
 
 func (s *responsesWSRewriteState) enqueueSteer(previousResponseID string, mapping *modelRewrite) {
-	if previousResponseID == "" || mapping == nil {
+	if previousResponseID == "" {
 		return
 	}
 	s.mu.Lock()
@@ -126,6 +150,79 @@ func (s *responsesWSRewriteState) hasPendingSteer(previousResponseID string) boo
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.pendingSteers[previousResponseID]) > 0
+}
+
+func (s *responsesWSRewriteState) acknowledgeSteer(previousResponseID, steerID string) bool {
+	if previousResponseID == "" || steerID == "" {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	queue := s.pendingSteers[previousResponseID]
+	for i := range queue {
+		if queue[i].id != "" {
+			continue
+		}
+		queue[i].id = steerID
+		s.pendingSteers[previousResponseID] = queue
+		return true
+	}
+	return false
+}
+
+func (s *responsesWSRewriteState) holdTerminalResponse(responseID, streamID string) {
+	if responseID == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.heldTerminalStreams[responseID] = streamID
+}
+
+func (s *responsesWSRewriteState) releaseHeldTerminalResponse(responseID string) (string, bool) {
+	if responseID == "" {
+		return "", false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.pendingSteers[responseID]) > 0 {
+		return "", false
+	}
+	streamID, ok := s.heldTerminalStreams[responseID]
+	if ok {
+		delete(s.heldTerminalStreams, responseID)
+		s.pruneResponseHistoryLocked()
+	}
+	return streamID, ok
+}
+
+// bindPendingSteerContinuation attaches an explicit response.create to steering
+// input already owned by the server. A pending steer keeps the parent lane
+// mapping queued, so appending another stream mapping here would leave stale
+// state after the successor completes.
+func (s *responsesWSRewriteState) bindPendingSteerContinuation(
+	previousResponseID, streamID string,
+	mapping *modelRewrite,
+) bool {
+	if previousResponseID == "" {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	queue := s.pendingSteers[previousResponseID]
+	if len(queue) == 0 {
+		return false
+	}
+	expectedStreamID := s.responseStreams[previousResponseID]
+	if streamID != expectedStreamID {
+		return false
+	}
+	for i := range queue {
+		queue[i].mapping = cloneModelRewrite(mapping)
+		queue[i].streamID = streamID
+	}
+	s.pendingSteers[previousResponseID] = queue
+	return true
 }
 
 func (s *responsesWSRewriteState) takePendingSteer(previousResponseID string) (responsesWSPendingSteer, bool) {
@@ -165,12 +262,55 @@ func (s *responsesWSRewriteState) takePendingSteerBatch(previousResponseID strin
 	}
 	entry := queue[0]
 	delete(s.pendingSteers, previousResponseID)
+	delete(s.heldTerminalStreams, previousResponseID)
 	entry.mapping = cloneModelRewrite(entry.mapping)
+	s.pruneResponseHistoryLocked()
 	return entry, true
 }
 
-func (s *responsesWSRewriteState) dropPendingSteer(previousResponseID string) (responsesWSPendingSteer, bool) {
-	return s.takePendingSteer(previousResponseID)
+func (s *responsesWSRewriteState) dropPendingSteer(
+	previousResponseID, steerID string,
+) (responsesWSPendingSteer, bool) {
+	if previousResponseID == "" {
+		return responsesWSPendingSteer{}, false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	queue := s.pendingSteers[previousResponseID]
+	if len(queue) == 0 {
+		return responsesWSPendingSteer{}, false
+	}
+	index := -1
+	if steerID != "" {
+		for i := range queue {
+			if queue[i].id == steerID {
+				index = i
+				break
+			}
+		}
+	} else {
+		for i := range queue {
+			if queue[i].id == "" {
+				index = i
+				break
+			}
+		}
+	}
+	if index < 0 {
+		return responsesWSPendingSteer{}, false
+	}
+	entry := queue[index]
+	copy(queue[index:], queue[index+1:])
+	queue[len(queue)-1] = responsesWSPendingSteer{}
+	queue = queue[:len(queue)-1]
+	if len(queue) == 0 {
+		delete(s.pendingSteers, previousResponseID)
+	} else {
+		s.pendingSteers[previousResponseID] = queue
+	}
+	entry.mapping = cloneModelRewrite(entry.mapping)
+	s.pruneResponseHistoryLocked()
+	return entry, true
 }
 
 func (s *responsesWSRewriteState) popStream(streamID string) {
@@ -301,23 +441,36 @@ func (h *Handler) copyResponsesWSClientToUpstream(
 		}
 		if messageType == websocket.TextMessage {
 			var envelope struct {
-				Type               string `json:"type"`
-				StreamID           string `json:"stream_id"`
-				PreviousResponseID string `json:"previous_response_id"`
+				Type               string          `json:"type"`
+				StreamID           string          `json:"stream_id"`
+				PreviousResponseID string          `json:"previous_response_id"`
+				Model              json.RawMessage `json:"model"`
 			}
 			if json.Unmarshal(payload, &envelope) == nil {
 				switch envelope.Type {
 				case "response.create":
 					rewritten, mapping, _ := h.rewrite.RewriteRequest(host, path, "application/json", payload)
 					payload = rewritten
-					if mapping == nil {
-						mapping = state.response(envelope.PreviousResponseID)
+					explicitModel := len(strings.TrimSpace(string(envelope.Model))) > 0 &&
+						string(bytes.TrimSpace(envelope.Model)) != "null"
+					if mapping == nil && !explicitModel {
+						if inherited, known := state.response(envelope.PreviousResponseID); known {
+							mapping = inherited
+						}
 					}
-					state.enqueueStream(envelope.StreamID, mapping)
+					if !state.bindPendingSteerContinuation(
+						envelope.PreviousResponseID,
+						envelope.StreamID,
+						mapping,
+					) {
+						state.enqueueStream(envelope.StreamID, mapping)
+					}
 				case "response.steer":
 					rewritten, _, _ := h.rewrite.RewriteRequest(host, path, "application/json", payload)
 					payload = rewritten
-					state.enqueueSteer(envelope.PreviousResponseID, state.response(envelope.PreviousResponseID))
+					if mapping, known := state.response(envelope.PreviousResponseID); known {
+						state.enqueueSteer(envelope.PreviousResponseID, mapping)
+					}
 				default:
 					rewritten, _, _ := h.rewrite.RewriteRequest(host, path, "application/json", payload)
 					payload = rewritten
@@ -364,9 +517,11 @@ func (h *Handler) copyResponsesWSUpstreamToClient(
 					} `json:"incomplete_details"`
 				} `json:"response"`
 				Steer struct {
+					ID                 string `json:"id"`
 					PreviousResponseID string `json:"previous_response_id"`
 				} `json:"steer"`
 				Error struct {
+					Code  string `json:"code"`
 					Param string `json:"param"`
 				} `json:"error"`
 			}
@@ -380,32 +535,57 @@ func (h *Handler) copyResponsesWSUpstreamToClient(
 				previousResponseID = envelope.Response.PreviousResponseID
 			}
 
-			mapping := state.stream(envelope.StreamID)
+			mapping, mappingBound := state.stream(envelope.StreamID)
 			if envelope.Type == "response.created" && previousResponseID != "" {
 				if steer, ok := state.takePendingSteerBatch(previousResponseID); ok {
 					mapping = steer.mapping
+					mappingBound = true
 				}
 			}
-			if mapping == nil && responseID != "" {
-				mapping = state.response(responseID)
+			if !mappingBound && responseID != "" {
+				if knownMapping, known := state.response(responseID); known {
+					mapping = knownMapping
+					mappingBound = true
+				}
 			}
-			if mapping == nil && previousResponseID != "" {
-				mapping = state.response(previousResponseID)
+			if !mappingBound && previousResponseID != "" {
+				if inherited, known := state.response(previousResponseID); known {
+					mapping = inherited
+					mappingBound = true
+				}
 			}
-			if mapping != nil && responseID != "" {
+			if mappingBound && responseID != "" {
 				state.rememberResponse(responseID, envelope.StreamID, mapping)
 			}
 			rewritten, _ := h.rewrite.RewriteResponse(host, path, "application/json", payload, mapping)
 			payload = rewritten
 
+			if envelope.Type == "response.steer.accepted" {
+				state.acknowledgeSteer(envelope.Steer.PreviousResponseID, envelope.Steer.ID)
+			}
 			if envelope.Type == "response.steer.failed" {
-				if failed, ok := state.dropPendingSteer(envelope.Steer.PreviousResponseID); ok {
-					state.popStream(failed.streamID)
+				if _, ok := state.dropPendingSteer(
+					envelope.Steer.PreviousResponseID,
+					envelope.Steer.ID,
+				); ok {
+					if streamID, release := state.releaseHeldTerminalResponse(
+						envelope.Steer.PreviousResponseID,
+					); release {
+						state.popStream(streamID)
+					}
 				}
 			}
-			if responsesTerminalEvent(envelope.Type, envelope.StreamID, envelope.Error.Param) &&
-				!state.hasPendingSteer(responseID) {
-				state.popStream(envelope.StreamID)
+			if responsesTerminalEvent(
+				envelope.Type,
+				envelope.StreamID,
+				envelope.Error.Param,
+				envelope.Error.Code,
+			) {
+				if state.hasPendingSteer(responseID) {
+					state.holdTerminalResponse(responseID, envelope.StreamID)
+				} else {
+					state.popStream(envelope.StreamID)
+				}
 			}
 		}
 		_ = dst.SetWriteDeadline(time.Now().Add(websocketWriteTimeout))
@@ -435,18 +615,36 @@ func websocketTargetURL(target, incoming *url.URL) *url.URL {
 	return &out
 }
 
-func responsesTerminalEvent(eventType, streamID, errorParam string) bool {
+func responsesTerminalEvent(eventType, streamID, errorParam, errorCode string) bool {
 	switch eventType {
 	case "response.completed", "response.failed", "response.incomplete":
 		return true
 	case "error":
-		// A valid named-lane request error carries stream_id. Default-lane
-		// request errors do not. Errors rejecting stream_id itself cannot be
-		// associated with a lane, so do not pop the implicit default queue.
-		return streamID != "" || errorParam != "stream_id"
+		return responsesErrorTerminatesLane(streamID, errorParam, errorCode)
 	default:
 		return false
 	}
+}
+
+func responsesErrorTerminatesLane(streamID, errorParam, errorCode string) bool {
+	if streamID != "" {
+		return true
+	}
+	switch errorCode {
+	case "invalid_stream_id",
+		"websocket_stream_limit_reached",
+		"websocket_connection_limit_reached":
+		return false
+	case "previous_response_not_found":
+		return true
+	}
+	if errorParam == "stream_id" {
+		return false
+	}
+	// A parameter-specific error without a named stream belongs to the default
+	// lane request. An unscoped unknown error is kept connection-level so it
+	// cannot silently consume the default lane's queued model mapping.
+	return errorParam != ""
 }
 
 func nonEmptyString(value string) []string {

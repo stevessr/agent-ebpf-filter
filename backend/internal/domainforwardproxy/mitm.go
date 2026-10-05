@@ -26,7 +26,7 @@ type mitmCertificateAuthority struct {
 	signer    crypto.Signer
 	leafTTL   time.Duration
 	allowlist []string
-	mu        sync.Mutex
+	mu        sync.RWMutex
 	cache     map[string]cachedMITMCertificate
 }
 
@@ -64,6 +64,9 @@ func loadMITMCertificateAuthority(settings DomainForwardProxySettings) (*mitmCer
 	}
 	if !cert.IsCA {
 		return nil, errors.New("TLS interception certificate is not a CA")
+	}
+	if cert.KeyUsage != 0 && cert.KeyUsage&x509.KeyUsageCertSign == 0 {
+		return nil, errors.New("TLS interception CA certificate cannot sign certificates")
 	}
 	now := time.Now()
 	if now.Before(cert.NotBefore) {
@@ -132,10 +135,24 @@ func (ca *mitmCertificateAuthority) certificateForHost(host string) (*tls.Certif
 		return nil, fmt.Errorf("TLS interception is not allowlisted for %q", host)
 	}
 	now := time.Now()
+	ca.mu.RLock()
+	if cached, ok := ca.cache[host]; ok && now.Before(cached.expiresAt.Add(-time.Minute)) {
+		ca.mu.RUnlock()
+		return cached.cert, nil
+	}
+	ca.mu.RUnlock()
+
 	ca.mu.Lock()
 	defer ca.mu.Unlock()
+	now = time.Now()
 	if cached, ok := ca.cache[host]; ok && now.Before(cached.expiresAt.Add(-time.Minute)) {
 		return cached.cert, nil
+	}
+	if !now.Before(ca.cert.NotAfter) {
+		return nil, fmt.Errorf(
+			"TLS interception CA certificate expired at %s",
+			ca.cert.NotAfter.UTC().Format(time.RFC3339),
+		)
 	}
 	leafKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -167,10 +184,14 @@ func (ca *mitmCertificateAuthority) certificateForHost(host string) (*tls.Certif
 	if err != nil {
 		return nil, fmt.Errorf("sign TLS interception certificate: %w", err)
 	}
+	leaf, err := x509.ParseCertificate(der)
+	if err != nil {
+		return nil, fmt.Errorf("parse signed TLS interception certificate: %w", err)
+	}
 	cert := &tls.Certificate{
 		Certificate: [][]byte{der, ca.cert.Raw},
 		PrivateKey:  leafKey,
-		Leaf:        template,
+		Leaf:        leaf,
 	}
 	expiresAt := notAfter
 	ca.pruneCacheLocked(now)
