@@ -440,7 +440,9 @@ export function presentRenewEventDetail(
   const type = firstText(event, ["type", "Type"]) || "event";
   const category = categoryForType(type);
   const decision = firstText(event, ["decision", "Decision"]);
-  const rawRisk = findValue(event, "risk_score", "riskScore", "RiskScore");\n  const riskAvailable = hasValue(rawRisk);\n  const risk = clampRisk(rawRisk);
+  const rawRisk = findValue(event, "risk_score", "riskScore", "RiskScore");
+  const riskAvailable = hasValue(rawRisk);
+  const risk = clampRisk(rawRisk);
   const retval = numberValue(findValue(event, "retval", "Retval"));
   const status = toneAndOutcome(decision, risk, retval, type.toLowerCase());
   const process = firstText(event, ["comm", "Comm"]) || "未知进程";
