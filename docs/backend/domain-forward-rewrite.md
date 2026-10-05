@@ -81,6 +81,36 @@ rewrite does not leak a request/response stream. Response validators/digests are
 removed only when payload bytes actually change; inspection-only passthrough keeps
 the original validators.
 
+## HTTP semantic safety
+
+Body rewrite is conservative around HTTP semantics that cannot be regenerated
+losslessly by the proxy.
+
+Requests are passed through without body mutation when they carry a
+`Content-Range`, HTTP Message Signature fields, AWS SigV4 payload signing,
+Google content hashes, or Azure SharedKey-style authorization. Declared
+signature trailers are treated as signed even before their values arrive at
+end-of-body.
+
+When a request body is actually changed, stale body integrity fields are
+removed from both headers and trailers:
+
+- `Content-MD5`;
+- `Digest`;
+- `Content-Digest`;
+- `Repr-Digest`.
+
+Inspection-only request paths restore the original content length / transfer
+encoding / trailer framing instead of silently converting a chunked or
+trailer-bearing request into a fixed-length body. When a changed request still
+has non-integrity trailers, the proxy leaves final framing selection to
+`net/http` so HTTP/1.1 and HTTP/2+ can use their native trailer mechanisms.
+
+Responses with status `206 Partial Content`, a `Content-Range`, or
+`multipart/byteranges` are not body-rewritten. A rewritten full response
+drops stale validators/digests from headers and trailers, while an unchanged
+response preserves them.
+
 ## Fast model aliases
 
 A model alias changes only the top-level JSON `model` field. Nested values
@@ -104,7 +134,16 @@ named `model` inside user/tool content are not rewritten.
 
 For Responses streaming/WebSocket traffic, the mapping is retained by
 `stream_id`. A continuation carrying `previous_response_id` inherits the
-known mapping so the provider-facing model name does not leak back to the client.
+known mapping only when it does not provide an explicit `model`; an explicit
+model is authoritative.
+
+Steering state follows the current WebSocket continuation model. Accepted
+`response.steer` submissions are tracked by `steer.id`. If the parent
+response terminates while steering input is still queued, the lane mapping is
+held until the queued input is either committed into a successor or definitively
+fails. A `response.steer.pending` flow resumed by explicit
+`response.create` reuses that held lane rather than appending duplicate stream
+state.
 
 ## Native inference fast path
 
