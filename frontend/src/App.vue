@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import zhCN from "ant-design-vue/es/locale/zh_CN";
 import { useRoute } from "vue-router";
 import AppSideNav from "./components/layout/AppSideNav.vue";
 import AppWorkbenchTabs from "./components/layout/AppWorkbenchTabs.vue";
@@ -23,8 +24,9 @@ const {
 </script>
 
 <template>
-  <router-view v-if="isStandaloneVariant" />
-  <a-layout v-else class="app-layout">
+  <a-config-provider :locale="zhCN">
+    <router-view v-if="isStandaloneVariant" />
+    <a-layout v-else class="app-layout">
     <AppSideNav
       v-model:collapsed="collapsed"
       :nav-groups="navGroups"
@@ -47,10 +49,11 @@ const {
       </a-layout-content>
 
       <a-layout-footer class="app-footer">
-        Agent eBPF Tracker ©2026 Created by Stevessr
+        Agent eBPF Tracker ©2026 · Stevessr
       </a-layout-footer>
     </a-layout>
   </a-layout>
+  </a-config-provider>
 </template>
 
 <style scoped>
