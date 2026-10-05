@@ -545,6 +545,38 @@ func (s *runtimeState) RecentEventsContext(ctx context.Context, limit int) ([]Ca
 	return records, "memory", nil
 }
 
+func (s *runtimeState) EventPageContext(ctx context.Context, limit int, cursor string) ([]CapturedEventRecord, string, string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(ctx, runtimeEventLogRecentTimeout)
+	defer cancel()
+	if limit <= 0 {
+		limit = 50
+	} else if limit > runtimeEventLogMaxRecords {
+		limit = runtimeEventLogMaxRecords
+	}
+
+	s.mu.RLock()
+	settings := s.settings
+	store := s.eventStore
+	s.mu.RUnlock()
+
+	if settings.LogPersistenceEnabled && store != nil {
+		records, nextCursor, err := store.Page(ctx, limit, cursor)
+		if err != nil {
+			return nil, "", "", err
+		}
+		return records, "pebble", nextCursor, nil
+	}
+	if strings.TrimSpace(cursor) != "" {
+		return nil, "", "", errInvalidEventStoreCursor
+	}
+
+	records, source, err := s.RecentEventsContext(ctx, limit)
+	return records, source, "", err
+}
+
 func (s *runtimeState) EventByIDContext(ctx context.Context, eventID string) (CapturedEventRecord, error) {
 	if ctx == nil {
 		ctx = context.Background()
