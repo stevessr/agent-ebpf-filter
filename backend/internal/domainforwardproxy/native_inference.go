@@ -104,7 +104,7 @@ func LoadNativeInferenceKernel(settings NativeInferenceSettings) (*NativeInferen
 		if label.Replacement == "" {
 			return nil, fmt.Errorf("native rewrite inference label %q has empty replacement", label.Name)
 		}
-		if strings.ContainsAny(label.Replacement, "\"\\\r\n\t") {
+		if !jsonSafeInferenceReplacement(label.Replacement) {
 			return nil, fmt.Errorf("native rewrite inference label %q replacement must be a JSON-safe token", label.Name)
 		}
 	}
@@ -312,6 +312,15 @@ func (k *NativeInferenceKernel) classify(token []byte) (string, bool) {
 		return "", false
 	}
 	return k.replacements[best], true
+}
+
+func jsonSafeInferenceReplacement(value string) bool {
+	for _, r := range value {
+		if r < 0x20 || r == '"' || r == '\\' {
+			return false
+		}
+	}
+	return true
 }
 
 func hashFeature(feature []byte, seed uint64) uint64 {
