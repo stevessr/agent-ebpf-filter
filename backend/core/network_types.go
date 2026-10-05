@@ -33,11 +33,23 @@ type DomainModelRewriteRule struct {
 	To   string `json:"to"`
 }
 
+type DomainNativeInferenceSettings struct {
+	Enabled       bool   `json:"enabled"`
+	ModelFile     string `json:"modelFile,omitempty"`
+	Direction     string `json:"direction,omitempty"`
+	Host          string `json:"host,omitempty"`
+	PathPrefix    string `json:"pathPrefix,omitempty"`
+	ContentType   string `json:"contentType,omitempty"`
+	MinTokenBytes int    `json:"minTokenBytes,omitempty"`
+	MaxTokenBytes int    `json:"maxTokenBytes,omitempty"`
+}
+
 type DomainBodyRewriteSettings struct {
-	Enabled      bool                     `json:"enabled"`
-	MaxBodyBytes int64                    `json:"maxBodyBytes"`
-	Rules        []DomainBodyRewriteRule  `json:"rules,omitempty"`
-	ModelRules   []DomainModelRewriteRule `json:"modelRules,omitempty"`
+	Enabled      bool                          `json:"enabled"`
+	MaxBodyBytes int64                         `json:"maxBodyBytes"`
+	Rules        []DomainBodyRewriteRule       `json:"rules,omitempty"`
+	ModelRules   []DomainModelRewriteRule      `json:"modelRules,omitempty"`
+	Inference    DomainNativeInferenceSettings `json:"inference,omitempty"`
 }
 
 // DomainForwardProxySettings controls the optional public HTTP/HTTPS reverse proxy.
