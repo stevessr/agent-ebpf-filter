@@ -20,6 +20,14 @@ import {
   AppstoreOutlined,
   ReloadOutlined,
 } from "@ant-design/icons-vue";
+const securityActionLabels: Record<string, string> = {
+  BLOCK: "阻断",
+  REWRITE: "重写",
+  ALERT: "告警",
+  ALLOW: "允许",
+};
+const securityActionLabel = (value: string) => securityActionLabels[value] || value;
+
 import {
   quickRulePresets,
   externalRuleSources,
@@ -146,7 +154,7 @@ const {
                 />
                 <span style="margin-left: 4px">{{ preset.comm }}</span>
                 <span style="margin-left: 4px; opacity: 0.72">{{
-                  preset.action
+                  securityActionLabel(preset.action)
                 }}</span>
               </a-button>
             </a-tooltip>
@@ -248,7 +256,7 @@ const {
                 <template v-if="column.key === 'action'">
                   <a-tag
                     :color="record.action === 'BLOCK' ? 'red' : 'orange'"
-                    >{{ record.action }}</a-tag
+                    >{{ securityActionLabel(record.action) }}</a-tag
                   >
                 </template>
               </template>
@@ -435,7 +443,7 @@ const {
                         : AlertOutlined
                   "
                 />
-                {{ text }}
+                {{ securityActionLabel(text) }}
               </a-tag>
             </template>
           </a-table-column>
