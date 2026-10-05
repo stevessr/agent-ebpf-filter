@@ -74,6 +74,16 @@ const addBodyRewriteRule = () => {
 const removeBodyRewriteRule = (index: number) => {
   runtimeSettings.value.domainForwardProxy.rewrite.rules.splice(index, 1);
 };
+
+const updateDomainForwardRouteField = (
+  id: string,
+  field: "host" | "upstream" | "certFile" | "keyFile",
+  value: string,
+) => {
+  const target = domainForwardRoutes.value.find((item) => item.id === id);
+  if (!target) return;
+  target[field] = value;
+};
 </script>
 
 <template>
@@ -638,26 +648,38 @@ const removeBodyRewriteRule = (index: number) => {
             <a-row :gutter="[12, 12]">
               <a-col :xs="24" :md="12">
                 <a-input
-                  v-model:value="route.host"
+                  :value="route.host"
                   placeholder="主机，例如 example.com 或 *.lab.test"
+                  @update:value="
+                    updateDomainForwardRouteField(route.id, 'host', $event)
+                  "
                 />
               </a-col>
               <a-col :xs="24" :md="12">
                 <a-input
-                  v-model:value="route.upstream"
+                  :value="route.upstream"
                   placeholder="上游地址，例如 https://{host}"
+                  @update:value="
+                    updateDomainForwardRouteField(route.id, 'upstream', $event)
+                  "
                 />
               </a-col>
               <a-col :xs="24" :md="12">
                 <a-input
-                  v-model:value="route.certFile"
+                  :value="route.certFile"
                   placeholder="路由证书路径（可选）"
+                  @update:value="
+                    updateDomainForwardRouteField(route.id, 'certFile', $event)
+                  "
                 />
               </a-col>
               <a-col :xs="24" :md="12">
                 <a-input
-                  v-model:value="route.keyFile"
+                  :value="route.keyFile"
                   placeholder="路由私钥路径（可选）"
+                  @update:value="
+                    updateDomainForwardRouteField(route.id, 'keyFile', $event)
+                  "
                 />
               </a-col>
             </a-row>
