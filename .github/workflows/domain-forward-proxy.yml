@@ -63,33 +63,19 @@ jobs:
           go test ./app -run 'TestDomainForwardProxy|TestNormalizeDomainForwardProxy' -count=1
       - name: Rewrite kernel benchmark smoke
         working-directory: backend
-        run: go test ./internal/domainforwardproxy -run '^$' -bench '^BenchmarkRewriteKernelModel(NoMatch|Match|Match200Rules)
+        run: |
+          go test ./internal/domainforwardproxy \
+            -run '^$' \
+            -bench '^BenchmarkRewriteKernelModel(NoMatch|Match|Match200Rules)$' \
+            -benchtime=100x
       - name: Verify Go formatting
         run: |
-          files="$(gofmt -l             backend/internal/domainforwardproxy/*.go             backend/codex/capture/handlers/*.go             backend/app/forwardproxydomain.go             backend/app/forwardproxydomain_test.go             backend/core/network_types.go)"
-          test -z "$files" || {
-            echo "$files"
-            gofmt -d backend/internal/domainforwardproxy/*.go
-            exit 1
-          }
-
-  frontend:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: frontend
-    steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: oven-sh/setup-bun@v2
-      - name: Install frontend dependencies
-        run: bun install --frozen-lockfile
-      - name: Typecheck and build
-        run: bun run build
- -benchtime=100x
-      - name: Verify Go formatting
-        run: |
-          files="$(gofmt -l             backend/internal/domainforwardproxy/*.go             backend/codex/capture/handlers/*.go             backend/app/forwardproxydomain.go             backend/app/forwardproxydomain_test.go             backend/core/network_types.go)"
+          files="$(gofmt -l \
+            backend/internal/domainforwardproxy/*.go \
+            backend/codex/capture/handlers/*.go \
+            backend/app/forwardproxydomain.go \
+            backend/app/forwardproxydomain_test.go \
+            backend/core/network_types.go)"
           test -z "$files" || {
             echo "$files"
             gofmt -d backend/internal/domainforwardproxy/*.go
