@@ -86,7 +86,7 @@ const {
 <template>
   <a-row :gutter="[24, 24]">
     <a-col :span="24">
-      <a-card title="Wrapper Security Policies" size="small">
+      <a-card title="命令安全策略" size="small">
         <template #extra><SafetyCertificateOutlined /></template>
         <a-alert
           type="info"
@@ -232,9 +232,9 @@ const {
             <a-table
               :dataSource="fetchedExternalRules"
               :columns="[
-                { title: 'Command', dataIndex: 'comm', key: 'comm' },
-                { title: 'Action', dataIndex: 'action', key: 'action' },
-                { title: 'Priority', dataIndex: 'priority', key: 'priority' },
+                { title: '命令', dataIndex: 'comm', key: 'comm' },
+                { title: '动作', dataIndex: 'action', key: 'action' },
+                { title: '优先级', dataIndex: 'priority', key: 'priority' },
               ]"
               size="small"
               :pagination="false"
@@ -280,23 +280,23 @@ const {
             <a-col :xs="24" :md="5">
               <a-input
                 v-model:value="newRuleComm"
-                placeholder="Command (e.g. rm)"
+                placeholder="命令（例如 rm）"
               />
             </a-col>
             <a-col :xs="24" :md="4">
               <a-select v-model:value="newRuleAction" style="width: 100%">
-                <a-select-option value="BLOCK">Block Execution</a-select-option>
+                <a-select-option value="BLOCK">阻断执行</a-select-option>
                 <a-select-option value="REWRITE"
-                  >Rewrite Command</a-select-option
+                  >重写命令</a-select-option
                 >
-                <a-select-option value="ALERT">Alert Only</a-select-option>
+                <a-select-option value="ALERT">仅告警</a-select-option>
               </a-select>
             </a-col>
             <a-col :xs="24" :md="3">
               <a-input-number
                 v-model:value="newRulePriority"
                 :min="0"
-                placeholder="Priority"
+                placeholder="优先级"
                 style="width: 100%"
               />
             </a-col>
@@ -304,26 +304,25 @@ const {
               <a-col :xs="24" :md="4">
                 <a-input
                   v-model:value="newRuleRegex"
-                  placeholder="Regex (Optional)"
+                  placeholder="正则表达式（可选）"
                 />
               </a-col>
               <a-col :xs="24" :md="4">
                 <a-input
                   v-model:value="newRuleReplacement"
-                  placeholder="Replacement"
+                  placeholder="替换内容"
                 />
               </a-col>
               <a-col :xs="24" :md="4" v-if="!newRuleRegex">
                 <a-input
                   v-model:value="newRuleRewritten"
-                  placeholder="Fixed cmd"
+                  placeholder="固定命令"
                 />
               </a-col>
             </template>
             <a-col v-else :xs="24" :md="12">
               <span style="color: #6b7280; font-size: 12px"
-                >Intercepts and blocks or warns when the command is called via
-                agent-wrapper</span
+                >当命令通过 agent-wrapper 调用时进行拦截，并按策略阻断或告警</span
               >
             </a-col>
             <a-col
@@ -348,14 +347,14 @@ const {
                     color: #003a8c;
                   "
                 >
-                  Regex Live Preview:
+                  正则实时预览：
                 </div>
                 <a-row :gutter="8" align="middle">
                   <a-col :span="11">
                     <a-input
                       v-model:value="previewTestInput"
                       size="small"
-                      placeholder="Type example command arguments to test..."
+                      placeholder="输入示例命令参数进行测试…"
                     />
                   </a-col>
                   <a-col :span="2" style="text-align: center">
@@ -372,7 +371,7 @@ const {
                         font-family: monospace;
                       "
                     >
-                      {{ regexPreviewResult || "(Result will appear here)" }}
+                      {{ regexPreviewResult || "（结果将在这里显示）" }}
                     </div>
                   </a-col>
                 </a-row>
@@ -380,7 +379,7 @@ const {
             </a-col>
             <a-col :xs="24" :md="24" style="text-align: right; margin-top: 8px">
               <a-button type="primary" @click="saveRule"
-                ><PlusOutlined /> Add Policy</a-button
+                ><PlusOutlined /> 添加策略</a-button
               >
             </a-col>
           </a-row>
@@ -398,7 +397,7 @@ const {
           :pagination="false"
         >
           <a-table-column
-            title="Priority"
+            title="优先级"
             dataIndex="priority"
             key="priority"
             width="80px"
@@ -408,7 +407,7 @@ const {
             >
           </a-table-column>
           <a-table-column
-            title="Intercepted Command"
+            title="拦截命令"
             dataIndex="comm"
             key="comm"
           >
@@ -416,7 +415,7 @@ const {
               ><code>{{ text }}</code></template
             >
           </a-table-column>
-          <a-table-column title="Action" dataIndex="action" key="action">
+          <a-table-column title="动作" dataIndex="action" key="action">
             <template #default="{ text }">
               <a-tag
                 :color="
@@ -440,28 +439,28 @@ const {
               </a-tag>
             </template>
           </a-table-column>
-          <a-table-column title="Logic" key="logic">
+          <a-table-column title="匹配逻辑" key="logic">
             <template #default="{ record }">
               <div v-if="record.action === 'REWRITE'">
                 <div v-if="record.regex">
-                  <a-tag color="cyan">Regex</a-tag>
+                  <a-tag color="cyan">正则</a-tag>
                   <code>{{ record.regex }}</code>
                   <div style="margin-top: 4px">
                     <ArrowRightOutlined /> <code>{{ record.replacement }}</code>
                   </div>
                 </div>
                 <div v-else-if="record.rewritten_cmd">
-                  <a-tag color="blue">Fixed</a-tag>
+                  <a-tag color="blue">固定</a-tag>
                   <code>{{ record.rewritten_cmd.join(" ") }}</code>
                 </div>
               </div>
               <span v-else>-</span>
             </template>
           </a-table-column>
-          <a-table-column title="Remove" key="action" width="100px">
+          <a-table-column title="移除" key="action" width="100px">
             <template #default="{ record }">
               <a-button type="link" danger @click="deleteRule(record.comm)"
-                >Delete</a-button
+                >删除</a-button
               >
             </template>
           </a-table-column>
@@ -475,20 +474,20 @@ const {
 
     <!-- eBPF Syscall Interception -->
     <a-col :span="24">
-      <a-card title="eBPF Syscall Interception" size="small">
+      <a-card title="eBPF 系统调用监控" size="small">
         <template #extra>
           <a-tag color="green"
             >{{
               syscallGroups.reduce((c, g) => c + g.syscalls.length, 0)
             }}
-            syscalls monitored</a-tag
+            个系统调用已监控</a-tag
           >
         </template>
         <a-alert
           type="info"
           show-icon
           style="margin-bottom: 16px"
-          message="Toggle individual syscall monitoring. Disabled syscalls are silently dropped in the kernel event pipeline — no events will be generated for them."
+          message="可单独开关各类系统调用监控。关闭后的系统调用会在内核事件管线中直接丢弃，不再生成对应事件。"
         />
         <a-row :gutter="[16, 16]">
           <a-col
