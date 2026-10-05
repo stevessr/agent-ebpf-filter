@@ -128,7 +128,18 @@ function normalizeTLSLikeData(
     raw_available: readAny(payload, ["raw_available", "rawAvailable"], false),
     prompt_digest: readAny(payload, ["prompt_digest", "promptDigest"], ""),
     prompt_len: readAny(payload, ["prompt_len", "promptLen"], 0),
+    context_digest: readAny(payload, ["context_digest", "contextDigest"], ""),
+    context_len: readAny(payload, ["context_len", "contextLen"], 0),
+    context_items: readAny(payload, ["context_items", "contextItems"], 0),
     message_role: readAny(payload, ["message_role", "messageRole"], ""),
+    protocol_event: readAny(payload, ["protocol_event", "protocolEvent"], ""),
+    stream_id: readAny(payload, ["stream_id", "streamId"], ""),
+    response_id: readAny(payload, ["response_id", "responseId"], ""),
+    previous_response_id: readAny(
+      payload,
+      ["previous_response_id", "previousResponseId"],
+      "",
+    ),
     vendor: readAny(payload, ["vendor"], ""),
   };
 }
