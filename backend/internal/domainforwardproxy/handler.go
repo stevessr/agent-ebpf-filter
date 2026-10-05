@@ -328,6 +328,13 @@ func setRequestBody(r *http.Request, body []byte) {
 
 func restoreResponseBody(response *http.Response, body []byte) {
 	response.Body = io.NopCloser(bytes.NewReader(body))
+	if len(response.Trailer) > 0 {
+		// Preserve trailer-capable framing. HTTP/1.1 needs chunked transfer,
+		// while HTTP/2+ carries trailers in the protocol without chunking.
+		response.ContentLength = -1
+		response.Header.Del("Content-Length")
+		return
+	}
 	response.ContentLength = int64(len(body))
 	response.TransferEncoding = nil
 	response.Header.Set("Content-Length", strconv.Itoa(len(body)))
@@ -335,8 +342,17 @@ func restoreResponseBody(response *http.Response, body []byte) {
 }
 
 func setResponseBody(response *http.Response, body []byte) {
-	restoreResponseBody(response, body)
 	invalidateResponseBodyIntegrity(response)
+	response.Body = io.NopCloser(bytes.NewReader(body))
+	response.TransferEncoding = nil
+	response.Header.Del("Transfer-Encoding")
+	if len(response.Trailer) > 0 {
+		response.ContentLength = -1
+		response.Header.Del("Content-Length")
+		return
+	}
+	response.ContentLength = int64(len(body))
+	response.Header.Set("Content-Length", strconv.Itoa(len(body)))
 }
 
 func invalidateRequestBodyIntegrity(request *http.Request) {
