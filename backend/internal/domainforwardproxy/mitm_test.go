@@ -51,6 +51,34 @@ func TestTLSInterceptionStrictAllowlist(t *testing.T) {
 	}
 }
 
+func TestTLSInterceptionPreservesStaticFallback(t *testing.T) {
+	certFile, keyFile := writeTestCA(t)
+	config, _, err := NewTLSConfig(DomainForwardProxySettings{
+		CertFile:                  certFile,
+		KeyFile:                   keyFile,
+		TLSInterceptEnabled:       true,
+		TLSInterceptAllowlist:     "api.openai.com",
+		TLSInterceptCACertFile:    certFile,
+		TLSInterceptCAKeyFile:     keyFile,
+		TLSInterceptLeafTTLSeconds: 3600,
+	})
+	if err != nil {
+		t.Fatalf("NewTLSConfig: %v", err)
+	}
+
+	certificate, err := config.GetCertificate(&tls.ClientHelloInfo{ServerName: "static-only.example"})
+	if err != nil {
+		t.Fatalf("static fallback rejected outside interception allowlist: %v", err)
+	}
+	leaf, err := x509.ParseCertificate(certificate.Certificate[0])
+	if err != nil {
+		t.Fatalf("parse fallback certificate: %v", err)
+	}
+	if !leaf.IsCA {
+		t.Fatal("outside-allowlist host unexpectedly received a dynamically issued MITM leaf")
+	}
+}
+
 func writeTestCA(t *testing.T) (string, string) {
 	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
