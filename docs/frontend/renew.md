@@ -31,7 +31,7 @@ Renew 是 Agent eBPF Filter 的轻量前端变种，面向把服务常驻在个�
 | 待处理 | `decision`、`riskScore`、`semantic_alert`、`agentsight_alert` |
 | 已配置跟踪进程 | `/system/tracked-comms` |
 
-Renew 不新增数据库状态，也不会改变事件模型。
+Renew 不改变事件模型；日常界面只消费紧凑摘要，完整事件历史由后端持久化层统一管理并按需读取。
 
 ## 模块结构
 
@@ -69,7 +69,7 @@ Renew 默认启用本地事件持久化。完整事件由后端写入：
 ~/.config/agent-ebpf-filter/events.pebble
 ```
 
-这里使用 **Pebble**（纯 Go 的 LSM KV 数据库），而不是在 Renew 前端长期保存完整事件对象。选择 Pebble 的原因是它提供与 RocksDB 同类的 LSM/批量写入模型，同时不引入 RocksDB Go bindings 常见的 cgo 与系统原生库依赖，更适合当前 Go 1.27.1、Linux 桌面包和 CI 部署方式。
+这里使用 **Pebble**（纯 Go 的 LSM KV 数据库），而不是在 Renew 前端长期保存完整事件对象。RocksDB 技术上完全可用，但常见 Go bindings 会引入 cgo、原生 RocksDB 及压缩库的构建/分发负担；Pebble 提供同类 LSM、批量写入与顺序迭代能力，同时保持纯 Go，更适合当前 Go 1.27.1、Linux 桌面包和 CI 部署方式。若未来出现必须依赖 RocksDB 特性的场景，可再把存储层抽象为可替换 backend，而不是现在为桌面常驻场景承担额外原生依赖。
 
 数据路径为：
 
@@ -94,7 +94,7 @@ Renew 浏览器/桌面前端只保留一个有界摘要窗口；完整详情只�
 
 ## MyGo 桌面版
 
-桌面壳位于 `desktop/renew/`，使用 MyGo 0.2.6，并作为**独立 Go module** 维护。
+桌面壳位于 `desktop/renew/`，使用 MyGo 0.2.7，并作为**独立 Go module** 维护。
 
 它不复制 Vue 产物、不另起 API 代理，而是直接让系统 WebView 加载后端真实地址，例如：
 
