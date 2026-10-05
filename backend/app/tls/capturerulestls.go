@@ -205,9 +205,6 @@ func normalizeTLSExecutablePath(path string) string {
 	if path == "" {
 		return ""
 	}
-	if path == "*" {
-		return path
-	}
 	if strings.HasSuffix(path, "/**") {
 		base := strings.TrimSuffix(path, "/**")
 		base = filepath.Clean(base)
@@ -223,9 +220,6 @@ func tlsExecutablePathMatches(candidate, allowed string) bool {
 	allowed = normalizeTLSExecutablePath(allowed)
 	if allowed == "" {
 		return false
-	}
-	if allowed == "*" {
-		return true
 	}
 	if strings.HasSuffix(allowed, "/**") {
 		prefix := strings.TrimSuffix(allowed, "/**")
