@@ -19,12 +19,12 @@ import (
 )
 
 type mitmCertificateAuthority struct {
-	cert       *x509.Certificate
-	signer     crypto.Signer
-	leafTTL    time.Duration
-	allowlist  []string
-	mu         sync.Mutex
-	cache      map[string]cachedMITMCertificate
+	cert      *x509.Certificate
+	signer    crypto.Signer
+	leafTTL   time.Duration
+	allowlist []string
+	mu        sync.Mutex
+	cache     map[string]cachedMITMCertificate
 }
 
 type cachedMITMCertificate struct {
