@@ -9,6 +9,7 @@ export interface RuntimeSettings {
   logFilePath: string;
   eventStoreMaxRecords: number;
   eventStoreMaxAge: string;
+  disabledEventTypes?: number[];
   accessToken: string;
   maxEventCount: number;
   maxEventAge: string;
