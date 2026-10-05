@@ -88,7 +88,7 @@ backend normalize + redact
 
 Renew 浏览器/桌面前端只保留一个有界摘要窗口；完整详情只在用户点开单条事件时从后端读取，并在详情关闭后释放。
 
-默认持久化历史上限为 100,000 条完整事件；`maxEventAge` 仍可再提供时间上限。后端内存 hot archive 独立限制为最多 1,500 条，因此扩大磁盘历史不会同比扩大常驻内存。
+默认 Pebble 历史策略为 250,000 条完整事件或 168h，先达到的限制触发最旧记录淘汰；它由 `eventStoreMaxRecords` / `eventStoreMaxAge` 独立控制。后端内存 hot archive 默认 1,500 条，由 `maxEventCount` / `maxEventAge` 单独控制，因此扩大磁盘历史不会同比扩大常驻内存。
 
 显式配置的旧 `.jsonl` 路径仍保持兼容；新安装默认使用 Pebble。
 
