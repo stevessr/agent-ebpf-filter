@@ -112,6 +112,7 @@ func TestHandlerRewritesGzipResponseAndInvalidatesValidators(t *testing.T) {
 				"Content-Encoding": []string{"gzip"},
 				"ETag":             []string{`"upstream"`},
 				"Content-MD5":      []string{"deadbeef"},
+				"Content-Digest":   []string{"sha-256=:deadbeef:"},
 			},
 			Body:          io.NopCloser(bytes.NewReader(raw)),
 			ContentLength: int64(len(raw)),
@@ -134,6 +135,9 @@ func TestHandlerRewritesGzipResponseAndInvalidatesValidators(t *testing.T) {
 	}
 	if got := rec.Header().Get("Content-MD5"); got != "" {
 		t.Fatalf("Content-MD5 survived rewritten response: %q", got)
+	}
+	if got := rec.Header().Get("Content-Digest"); got != "" {
+		t.Fatalf("Content-Digest survived rewritten response: %q", got)
 	}
 }
 
