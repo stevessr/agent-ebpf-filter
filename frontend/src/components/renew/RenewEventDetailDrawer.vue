@@ -68,13 +68,19 @@ const riskWidth = computed(() =>
               <strong>{{ presentation.riskLabel }}</strong>
             </div>
             <div class="renew-detail-risk__score">
-              <strong>{{ presentation.riskScore.toFixed(0) }}</strong>
-              <span>/ 100</span>
+              <strong>{{
+                presentation.riskAvailable
+                  ? presentation.riskScore.toFixed(0)
+                  : "—"
+              }}</strong>
+              <span>{{ presentation.riskAvailable ? "/ 100" : "未评分" }}</span>
             </div>
             <div class="renew-detail-risk__track" aria-hidden="true">
               <span
                 :class="`is-${presentation.tone}`"
-                :style="{ width: riskWidth + '%' }"
+                :style="{
+                  width: (presentation.riskAvailable ? riskWidth : 0) + '%',
+                }"
               />
             </div>
           </div>
