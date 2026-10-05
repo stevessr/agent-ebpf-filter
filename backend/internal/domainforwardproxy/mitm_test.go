@@ -19,7 +19,7 @@ func TestTLSInterceptionStrictAllowlist(t *testing.T) {
 	certFile, keyFile := writeTestCA(t)
 	config, warnings, err := NewTLSConfig(DomainForwardProxySettings{
 		TLSInterceptEnabled:        true,
-		TLSInterceptAllowlist:      "api.openai.com, *.example.test",
+		TLSInterceptAllowlist:      "api.openai.com, *.example.test, 127.0.0.1",
 		TLSInterceptCACertFile:     certFile,
 		TLSInterceptCAKeyFile:      keyFile,
 		TLSInterceptLeafTTLSeconds: 3600,
@@ -31,7 +31,7 @@ func TestTLSInterceptionStrictAllowlist(t *testing.T) {
 		t.Fatalf("warnings = %v", warnings)
 	}
 
-	for _, host := range []string{"api.openai.com", "worker.example.test"} {
+	for _, host := range []string{"api.openai.com", "worker.example.test", "127.0.0.1"} {
 		certificate, err := config.GetCertificate(&tls.ClientHelloInfo{ServerName: host})
 		if err != nil {
 			t.Fatalf("GetCertificate(%s): %v", host, err)
@@ -44,8 +44,10 @@ func TestTLSInterceptionStrictAllowlist(t *testing.T) {
 			t.Fatalf("leaf does not cover %s: %v", host, err)
 		}
 	}
-	if _, err := config.GetCertificate(&tls.ClientHelloInfo{ServerName: "not-allowed.test"}); err == nil {
-		t.Fatal("non-allowlisted host unexpectedly received a certificate")
+	for _, host := range []string{"example.test", "not-allowed.test"} {
+		if _, err := config.GetCertificate(&tls.ClientHelloInfo{ServerName: host}); err == nil {
+			t.Fatalf("non-allowlisted host %s unexpectedly received a certificate", host)
+		}
 	}
 }
 
