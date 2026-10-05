@@ -348,6 +348,115 @@ const removeBodyRewriteRule = (index: number) => {
                 />
               </div>
 
+              <a-card title="Native inference fast path" size="small">
+                <div style="display: flex; flex-direction: column; gap: 10px">
+                  <div
+                    style="
+                      display: flex;
+                      align-items: center;
+                      gap: 12px;
+                      flex-wrap: wrap;
+                    "
+                  >
+                    <a-switch
+                      v-model:checked="
+                        runtimeSettings.domainForwardProxy.rewrite.inference
+                          .enabled
+                      "
+                    />
+                    <span>Enable int8 feature-hash inference before literal rules</span>
+                    <a-tag
+                      v-if="domainForwardStatus.inferenceEnabled"
+                      :color="
+                        domainForwardStatus.inferenceReady ? 'green' : 'orange'
+                      "
+                    >
+                      {{
+                        domainForwardStatus.inferenceReady
+                          ? "model ready"
+                          : "model unavailable"
+                      }}
+                    </a-tag>
+                  </div>
+                  <a-input
+                    v-model:value="
+                      runtimeSettings.domainForwardProxy.rewrite.inference
+                        .modelFile
+                    "
+                    placeholder="Native model JSON path"
+                  />
+                  <a-row :gutter="[8, 8]">
+                    <a-col :xs="24" :md="6">
+                      <a-select
+                        v-model:value="
+                          runtimeSettings.domainForwardProxy.rewrite.inference
+                            .direction
+                        "
+                        :options="rewriteDirectionOptions"
+                        style="width: 100%"
+                      />
+                    </a-col>
+                    <a-col :xs="24" :md="6">
+                      <a-input
+                        v-model:value="
+                          runtimeSettings.domainForwardProxy.rewrite.inference
+                            .host
+                        "
+                        placeholder="Host scope"
+                      />
+                    </a-col>
+                    <a-col :xs="24" :md="6">
+                      <a-input
+                        v-model:value="
+                          runtimeSettings.domainForwardProxy.rewrite.inference
+                            .pathPrefix
+                        "
+                        placeholder="Path prefix"
+                      />
+                    </a-col>
+                    <a-col :xs="24" :md="6">
+                      <a-input
+                        v-model:value="
+                          runtimeSettings.domainForwardProxy.rewrite.inference
+                            .contentType
+                        "
+                        placeholder="Content-Type"
+                      />
+                    </a-col>
+                    <a-col :xs="24" :md="6">
+                      <a-input-number
+                        v-model:value="
+                          runtimeSettings.domainForwardProxy.rewrite.inference
+                            .minTokenBytes
+                        "
+                        :min="1"
+                        :max="4096"
+                        style="width: 100%"
+                        placeholder="Min token bytes"
+                      />
+                    </a-col>
+                    <a-col :xs="24" :md="6">
+                      <a-input-number
+                        v-model:value="
+                          runtimeSettings.domainForwardProxy.rewrite.inference
+                            .maxTokenBytes
+                        "
+                        :min="1"
+                        :max="4096"
+                        style="width: 100%"
+                        placeholder="Max token bytes"
+                      />
+                    </a-col>
+                  </a-row>
+                  <a-alert
+                    type="info"
+                    show-icon
+                    message="Local quantized inference"
+                    description="The model is loaded locally as int8 label weights. The proxy hashes 1-3 byte n-grams and uses integer accumulation only; JSON keys are skipped and only string values are eligible for replacement."
+                  />
+                </div>
+              </a-card>
+
               <div
                 style="
                   display: flex;
