@@ -79,7 +79,7 @@ const runtimeModules: Array<{
   {
     key: "persistence",
     title: "本地事件持久化",
-    description: "默认开启；完整事件写入后端本地数据库，Renew 只保留摘要。",
+    description: "默认开启；完整事件写入后端 Pebble 数据库（默认 25 万条 / 168h），Renew 只保留摘要。",
     cost: "medium",
     manual: true,
   },
