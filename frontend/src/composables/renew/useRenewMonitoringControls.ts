@@ -36,6 +36,8 @@ export function useRenewMonitoringControls() {
   const runtimeSettings = ref<RuntimeSettings | null>(null);
   const statsIntervalMs = ref(initialStatsInterval());
   const collectorHealth = ref<Partial<CollectorHealthResponse> | null>(null);
+  const persistedEventLogPath = ref("");
+  const persistedEventLogAlive = ref(false);
   const loading = ref(false);
   const applying = ref(false);
   const error = ref("");
@@ -109,18 +111,23 @@ export function useRenewMonitoringControls() {
     }
   };
 
+  const applyRuntimeResponse = (payload: RuntimeConfigResponse) => {
+    runtimeSettings.value = payload.runtime;
+    disabledEventTypes.value = new Set(
+      payload.runtime.disabledEventTypes || [],
+    );
+    persistedEventLogPath.value = payload.persistedEventLogPath || "";
+    persistedEventLogAlive.value = Boolean(payload.persistedEventLogAlive);
+  };
+
   const fetchState = async () => {
     loading.value = true;
     error.value = "";
     try {
-      const [eventTypesResponse, runtimeResponse] = await Promise.all([
-        axios.get("/config/event-types"),
-        axios.get<RuntimeConfigResponse>("/config/runtime"),
-      ]);
-      disabledEventTypes.value = new Set(
-        eventTypesResponse.data.disabled_event_types || [],
+      const runtimeResponse = await axios.get<RuntimeConfigResponse>(
+        "/config/runtime",
       );
-      runtimeSettings.value = runtimeResponse.data.runtime;
+      applyRuntimeResponse(runtimeResponse.data);
       void fetchCollectorHealth();
     } catch (cause: any) {
       error.value =
@@ -137,7 +144,7 @@ export function useRenewMonitoringControls() {
     const response = await axios.put<RuntimeConfigResponse>("/config/runtime", {
       disabledEventTypes: next,
     });
-    runtimeSettings.value = response.data.runtime;
+    applyRuntimeResponse(response.data);
     disabledEventTypes.value = new Set(
       response.data.runtime.disabledEventTypes || next,
     );
@@ -207,7 +214,7 @@ export function useRenewMonitoringControls() {
         "/config/runtime",
         runtimePatch(key, enabled),
       );
-      runtimeSettings.value = response.data.runtime;
+      applyRuntimeResponse(response.data);
     } catch (cause: any) {
       error.value =
         cause?.response?.data?.error ||
@@ -271,7 +278,7 @@ export function useRenewMonitoringControls() {
             "/config/runtime",
             runtimePayload,
           );
-          runtimeSettings.value = response.data.runtime;
+          applyRuntimeResponse(response.data);
         }
       } catch (cause) {
         // Keep a profile switch atomic from the user's perspective. If the
@@ -305,6 +312,8 @@ export function useRenewMonitoringControls() {
     runtimeSettings,
     statsIntervalMs,
     collectorHealth,
+    persistedEventLogPath,
+    persistedEventLogAlive,
     loading,
     applying,
     error,
