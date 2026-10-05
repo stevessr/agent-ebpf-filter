@@ -213,6 +213,9 @@ func (m *TLSProbeManager) DiscoverGoProcesses() {
 		if !ok {
 			continue
 		}
+		if !m.executablePathAllowed(displayPath, attachPath) {
+			continue
+		}
 
 		if _, err := parseGoTLSTargets(attachPath); err != nil {
 			continue
@@ -302,6 +305,9 @@ func (m *TLSProbeManager) DiscoverNodeProcesses() {
 		if !ok {
 			continue
 		}
+		if !m.executablePathAllowed(displayPath, attachPath) {
+			continue
+		}
 
 		baseName := filepath.Base(displayPath)
 		if !isAgentTLSProcess(baseName, normalizedProcCmdline(pid)) {
@@ -340,6 +346,7 @@ func (m *TLSProbeManager) DiscoverNodeProcesses() {
 func (m *TLSProbeManager) StartGoDiscoveryLoop(interval time.Duration) {
 	m.startGoDiscoveryLoop(interval, func() {
 		m.pruneDeadProcessAttachments()
+		m.reconcileExecutablePathScope()
 		m.DiscoverGoProcesses()
 		m.DiscoverNodeProcesses()
 	})
