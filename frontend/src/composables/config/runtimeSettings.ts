@@ -20,8 +20,12 @@ export interface EditableHeaderRow {
   value: string;
 }
 
-export interface EditableDomainForwardRoute extends DomainForwardRoute {
+export interface EditableDomainForwardRoute
+  extends Omit<DomainForwardRoute, "upstream" | "certFile" | "keyFile"> {
   id: string;
+  upstream: string;
+  certFile: string;
+  keyFile: string;
 }
 
 let editableRowSequence = 0;
