@@ -34,7 +34,6 @@ func annotateResponsesMetadata(event *Event, rawBody ...string) {
 	}
 }
 
-
 func annotateResponsesContextMetadata(event *Event, rawBody, contentType string) {
 	if event == nil || event.Direction != "send" {
 		return
