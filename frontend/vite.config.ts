@@ -49,7 +49,7 @@ export default defineConfig({
       "/cluster": backendUrl,
       "/data": backendUrl,
       // Proxy API calls but let frontend handle UI routes
-      "^/config/(tags|comms|paths|prefixes|rules|runtime|access-token|export|import|hooks|ml|event-types).*":
+      "^/config/(tags|comms|paths|prefixes|rules|runtime|access-token|export|import|hooks|ml|event-types|redaction-policy).*":
         {
           target: backendUrl,
           bypass: bypassHtmlToIndex,

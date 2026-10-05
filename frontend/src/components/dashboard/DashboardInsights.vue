@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useDashboardSnapshot } from "../../composables/dashboard/useDashboardSnapshot";
 
 import type { AgentEvent } from "../../composables/dashboard/dashboardConstants";
 import { buildDashboardInsights } from "../../composables/dashboard/dashboardInsights";
@@ -8,7 +9,8 @@ const props = defineProps<{
   events: AgentEvent[];
 }>();
 
-const insights = computed(() => buildDashboardInsights(props.events));
+const snapshot = useDashboardSnapshot(() => props.events);
+const insights = computed(() => buildDashboardInsights(snapshot.events.value));
 
 const formatCoverage = (coverage: number | null) =>
   coverage === null ? "—" : `${coverage.toFixed(1)}%`;

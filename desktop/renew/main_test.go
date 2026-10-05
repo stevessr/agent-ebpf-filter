@@ -52,4 +52,3 @@ func TestJoinRenewURL(t *testing.T) {
 		t.Fatalf("joinRenewURL() = %q", got)
 	}
 }
-

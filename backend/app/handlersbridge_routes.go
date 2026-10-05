@@ -115,6 +115,7 @@ func registerSystemRoutes(rg *gin.RouterGroup, registries ...*FeatureRegistry) {
 		handlers.RegisterSystemRunRoute(rg, compiledOutFeatureMiddleware(FeatureSystemRun))
 	}
 	rg.GET("/features", handleSystemFeatures)
+	rg.GET("/kernel-capabilities", handleKernelCapabilities)
 	rg.GET("/bootstrap-health", handleBootstrapHealth)
 	rg.GET("/collector-health", handleCollectorHealth)
 	rg.GET("/otel-health", handleOTelHealth)
