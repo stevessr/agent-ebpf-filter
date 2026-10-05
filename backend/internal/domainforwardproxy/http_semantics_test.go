@@ -444,7 +444,6 @@ func TestResponseBodyRewriteabilityRejectsNoContentStatuses(t *testing.T) {
 	}
 }
 
-
 func TestRestoreResponseBodyPreservesTrailerFraming(t *testing.T) {
 	resp := &http.Response{
 		Header:           http.Header{"Content-Type": []string{"application/json"}},
@@ -510,7 +509,6 @@ func TestSetResponseBodyLeavesTrailerFramingToServer(t *testing.T) {
 		t.Fatalf("body = %q", got)
 	}
 }
-
 
 func TestSignedURLRequestBodyBypassesRewrite(t *testing.T) {
 	cases := []string{
