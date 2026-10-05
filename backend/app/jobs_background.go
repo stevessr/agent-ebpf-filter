@@ -79,10 +79,12 @@ func commDisabled(raw []byte) bool {
 }
 
 func eventTypeDisabled(eventType uint32) bool {
-	disabledEventTypesMu.RLock()
-	defer disabledEventTypesMu.RUnlock()
-	_, ok := disabledEventTypes[eventType]
-	return ok
+	if eventType > 255 {
+		return false
+	}
+	word := eventType >> 6
+	bit := uint64(1) << (eventType & 63)
+	return disabledEventTypeBits[word].Load()&bit != 0
 }
 
 // decodeBPFEventRecord returns a view over the ring-buffer sample when the host
