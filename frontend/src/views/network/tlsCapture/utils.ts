@@ -7,6 +7,7 @@ import { TLS_IGNORE_RULES_STORAGE_KEY } from "./constants";
 
 export type TLSRuleListField =
   | "comms"
+  | "paths"
   | "hosts"
   | "methods"
   | "libraries"
