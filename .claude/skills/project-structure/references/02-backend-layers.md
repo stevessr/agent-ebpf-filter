@@ -148,7 +148,7 @@ backend/
 存储位置：
 
 - runtime config：`~/.config/agent-ebpf-filter/runtime.json`
-- optional events JSONL：`~/.config/agent-ebpf-filter/events.jsonl`
+- default event database：`~/.config/agent-ebpf-filter/events.pebble`（显式 `.jsonl` 路径保留 legacy writer）
 
 ## Event / Envelope / Execution Graph
 
