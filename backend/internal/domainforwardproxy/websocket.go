@@ -19,14 +19,14 @@ const maxResponsesWSRewriteHistory = 256
 
 type responsesWSRewriteState struct {
 	mu               sync.RWMutex
-	streamMappings   map[string]*modelRewrite
+	streamMappings   map[string][]*modelRewrite
 	responseMappings map[string]*modelRewrite
 	responseOrder    []string
 }
 
 func newResponsesWSRewriteState() *responsesWSRewriteState {
 	return &responsesWSRewriteState{
-		streamMappings:   make(map[string]*modelRewrite),
+		streamMappings:   make(map[string][]*modelRewrite),
 		responseMappings: make(map[string]*modelRewrite),
 	}
 }
@@ -41,20 +41,20 @@ func cloneModelRewrite(mapping *modelRewrite) *modelRewrite {
 	return &copy
 }
 
-func (s *responsesWSRewriteState) setStream(streamID string, mapping *modelRewrite) {
+func (s *responsesWSRewriteState) enqueueStream(streamID string, mapping *modelRewrite) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if mapping == nil {
-		delete(s.streamMappings, streamID)
-		return
-	}
-	s.streamMappings[streamID] = cloneModelRewrite(mapping)
+	s.streamMappings[streamID] = append(s.streamMappings[streamID], cloneModelRewrite(mapping))
 }
 
 func (s *responsesWSRewriteState) stream(streamID string) *modelRewrite {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return cloneModelRewrite(s.streamMappings[streamID])
+	queue := s.streamMappings[streamID]
+	if len(queue) == 0 {
+		return nil
+	}
+	return cloneModelRewrite(queue[0])
 }
 
 func (s *responsesWSRewriteState) rememberResponse(responseID string, mapping *modelRewrite) {
@@ -83,10 +83,16 @@ func (s *responsesWSRewriteState) response(responseID string) *modelRewrite {
 	return cloneModelRewrite(s.responseMappings[responseID])
 }
 
-func (s *responsesWSRewriteState) clearStream(streamID string) {
+func (s *responsesWSRewriteState) popStream(streamID string) {
 	s.mu.Lock()
-	delete(s.streamMappings, streamID)
-	s.mu.Unlock()
+	defer s.mu.Unlock()
+	queue := s.streamMappings[streamID]
+	if len(queue) <= 1 {
+		delete(s.streamMappings, streamID)
+		return
+	}
+	queue[0] = nil
+	s.streamMappings[streamID] = queue[1:]
 }
 
 func isResponsesWebSocketRequest(r *http.Request) bool {
@@ -215,13 +221,10 @@ func (h *Handler) copyResponsesWSClientToUpstream(
 				if mapping == nil {
 					mapping = state.response(envelope.PreviousResponseID)
 				}
-				state.setStream(envelope.StreamID, mapping)
+				state.enqueueStream(envelope.StreamID, mapping)
 			} else {
 				rewritten, _, _ := h.rewrite.RewriteRequest(host, path, "application/json", payload)
 				payload = rewritten
-				if envelope.Type == "response.cancel" {
-					state.clearStream(envelope.StreamID)
-				}
 			}
 		}
 		_ = dst.SetWriteDeadline(time.Now().Add(websocketWriteTimeout))
@@ -268,7 +271,7 @@ func (h *Handler) copyResponsesWSUpstreamToClient(
 			rewritten, _ := h.rewrite.RewriteResponse(host, path, "application/json", payload, mapping)
 			payload = rewritten
 			if responsesTerminalEvent(envelope.Type) {
-				state.clearStream(envelope.StreamID)
+				state.popStream(envelope.StreamID)
 			}
 		}
 		_ = dst.SetWriteDeadline(time.Now().Add(websocketWriteTimeout))
