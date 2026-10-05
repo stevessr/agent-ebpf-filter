@@ -7,10 +7,17 @@ on:
       - "backend/codex/capture/handlers/**"
       - "backend/app/forwardproxydomain*.go"
       - "backend/app/types.go"
+      - "backend/app/tls/capturesinkcodex.go"
+      - "backend/app/tls/capturetypestls.go"
+      - "backend/app/tls/agentstreamlooptls.go"
+      - "backend/app/handlers/agentsight_conversion.go"
       - "backend/core/network_types.go"
       - "frontend/src/components/config/RuntimeTab/RuntimeNetworkExportSection.vue"
       - "frontend/src/composables/config/runtimeSettings.ts"
       - "frontend/src/types/config/domain-forward.ts"
+      - "frontend/src/utils/agentsight/normalization.ts"
+      - "frontend/src/composables/monitor/useProcessObserver.ts"
+      - "frontend/src/components/agentsight/AgentSightEventDetails.vue"
       - ".github/workflows/domain-forward-proxy.yml"
 
 permissions:
@@ -57,15 +64,22 @@ jobs:
             -benchtime=100x
       - name: Verify Go formatting
         run: |
-          files="$(gofmt -l \
-            backend/internal/domainforwardproxy/*.go \
-            backend/codex/capture/handlers/*.go \
-            backend/app/forwardproxydomain.go \
-            backend/app/forwardproxydomain_test.go \
-            backend/core/network_types.go)"
+          targets=(
+            backend/internal/domainforwardproxy/*.go
+            backend/codex/capture/handlers/*.go
+            backend/app/forwardproxydomain.go
+            backend/app/forwardproxydomain_test.go
+            backend/app/types.go
+            backend/app/tls/capturesinkcodex.go
+            backend/app/tls/capturetypestls.go
+            backend/app/tls/agentstreamlooptls.go
+            backend/app/handlers/agentsight_conversion.go
+            backend/core/network_types.go
+          )
+          files="$(gofmt -l "${targets[@]}")"
           test -z "$files" || {
             echo "$files"
-            gofmt -d backend/internal/domainforwardproxy/*.go
+            gofmt -d "${targets[@]}"
             exit 1
           }
 
