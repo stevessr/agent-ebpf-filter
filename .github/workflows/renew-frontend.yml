@@ -6,6 +6,9 @@ on:
       - "frontend/src/views/renew/**"
       - "frontend/src/components/renew/**"
       - "frontend/src/composables/renew/**"
+      - "frontend/src/composables/config/useConfigRuntime.ts"
+      - "frontend/src/types/config/runtime.ts"
+      - "frontend/src/components/config/RuntimeTab/**"
       - "frontend/tests/renew*.test.ts"
       - "frontend/package.json"
       - "frontend/bun.lock"
@@ -15,6 +18,9 @@ on:
       - "frontend/src/views/renew/**"
       - "frontend/src/components/renew/**"
       - "frontend/src/composables/renew/**"
+      - "frontend/src/composables/config/useConfigRuntime.ts"
+      - "frontend/src/types/config/runtime.ts"
+      - "frontend/src/components/config/RuntimeTab/**"
       - "frontend/tests/renew*.test.ts"
       - "frontend/package.json"
       - "frontend/bun.lock"
@@ -22,6 +28,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: renew-frontend-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   frontend:

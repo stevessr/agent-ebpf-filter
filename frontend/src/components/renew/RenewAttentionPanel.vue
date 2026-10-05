@@ -15,6 +15,7 @@ defineProps<{
 
 const emit = defineEmits<{
   openEvents: [];
+  openEvent: [eventId: string];
 }>();
 </script>
 
@@ -33,7 +34,7 @@ const emit = defineEmits<{
         v-for="event in events"
         :key="event.key"
         class="renew-attention-item"
-        @click="emit('openEvents')"
+        @click="event.eventId && emit('openEvent', event.eventId)"
       >
         <div>
           <strong>{{ eventLabel(event) }}</strong>

@@ -5,12 +5,18 @@ import {
   DashboardOutlined,
   GlobalOutlined,
   NodeIndexOutlined,
+  RadarChartOutlined,
   SafetyCertificateOutlined,
   SettingOutlined,
 } from "@ant-design/icons-vue";
 
+defineProps<{
+  activeSection: "overview" | "monitoring";
+}>();
+
 const emit = defineEmits<{
   navigate: [name: string, params?: Record<string, string>];
+  section: [section: "overview" | "monitoring"];
 }>();
 </script>
 
@@ -25,9 +31,21 @@ const emit = defineEmits<{
     </div>
 
     <nav class="renew-nav" aria-label="Renew navigation">
-      <button class="renew-nav__item renew-nav__item--active">
+      <button
+        class="renew-nav__item"
+        :class="{ 'renew-nav__item--active': activeSection === 'overview' }"
+        @click="emit('section', 'overview')"
+      >
         <DashboardOutlined />
         <span>概览</span>
+      </button>
+      <button
+        class="renew-nav__item"
+        :class="{ 'renew-nav__item--active': activeSection === 'monitoring' }"
+        @click="emit('section', 'monitoring')"
+      >
+        <RadarChartOutlined />
+        <span>监控中心</span>
       </button>
       <button class="renew-nav__item" @click="emit('navigate', 'Dashboard')">
         <AppstoreOutlined />

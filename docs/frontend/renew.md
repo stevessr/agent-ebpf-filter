@@ -31,7 +31,7 @@ Renew 是 Agent eBPF Filter 的轻量前端变种，面向把服务常驻在个�
 | 待处理 | `decision`、`riskScore`、`semantic_alert`、`agentsight_alert` |
 | 已配置跟踪进程 | `/system/tracked-comms` |
 
-Renew 不新增数据库状态，也不会改变事件模型。
+Renew 不改变事件模型；日常界面只消费紧凑摘要，完整事件历史由后端持久化层统一管理并按需读取。
 
 ## 模块结构
 
@@ -60,9 +60,50 @@ frontend/src/
 
 其中 `eventPresentation.ts` 保持纯函数，便于通过 Bun 单元测试验证，不依赖页面或 WebSocket。
 
+
+## 监控中心与默认开销
+
+监控中心把常驻观测拆成可独立开关的进程行为、文件变更、基础网络、高频文件访问、网络细节与 generic syscall 组，并把循环检测、行为信号、研究分析、TLS 明文捕获和本地持久化作为独立运行时开关。Lite / 日常 / 深度三个档位只是一键组合，单个模块仍可继续细调。
+
+新安装采用“日常”对应的事件采集基线：进程、文件变更与基础网络保持开启；高频 `open/read/ioctl`、详细 send/recv/socket 与 generic syscall 默认关闭。已有安装如果运行时配置中还没有 `disabledEventTypes` 字段，则保留历史全采集行为，避免升级时静默缩小观测范围。之后通过 Renew 或旧 `/config/event-types` API 修改的禁用列表都会持久化到 `runtime.json`，重启后继续生效。
+
+这个交互只借鉴终端安全软件“模块化防护中心、默认合理开启、需要时再打开高成本能力”的产品思路，不复制第三方代码、规则或界面资源。
+
+## 持久化与前端内存模型
+
+Renew 默认启用本地事件持久化。完整事件由后端写入：
+
+```text
+~/.config/agent-ebpf-filter/events.pebble
+```
+
+这里使用 **Pebble**（纯 Go 的 LSM KV 数据库），而不是在 Renew 前端长期保存完整事件对象。RocksDB 技术上完全可用，但常见 Go bindings 会引入 cgo、原生 RocksDB 及压缩库的构建/分发负担；Pebble 提供同类 LSM、批量写入与顺序迭代能力，同时保持纯 Go，更适合当前 Go 1.27.1、Linux 桌面包和 CI 部署方式。若未来出现必须依赖 RocksDB 特性的场景，可再把存储层抽象为可替换 backend，而不是现在为桌面常驻场景承担额外原生依赖。
+
+数据路径为：
+
+```text
+eBPF / hooks / wrapper
+        │
+        ▼
+backend normalize + redact
+        ├──► Pebble：完整事件、ID 索引、审计链
+        ├──► /events/summaries：紧凑历史摘要（Pebble 游标分页）
+        ├──► /ws/event-summaries：紧凑实时摘要
+        └──► /events/detail/:id：用户点开时读取一条完整事件
+                         │
+                         ▼
+                       Renew
+```
+
+Renew 浏览器/桌面前端只保留一个有界摘要窗口；用户需要更早记录时通过后端返回的不透明 `nextCursor` 逐页加载。完整详情只在用户点开单条事件时从后端读取，并在详情关闭后释放，因此磁盘历史增长不会把完整事件复制进 WebView/浏览器内存。
+
+默认 Pebble 历史策略为 250,000 条完整事件或 168h，先达到的限制触发最旧记录淘汰；它由 `eventStoreMaxRecords` / `eventStoreMaxAge` 独立控制。后端内存 hot archive 默认 1,500 条，由 `maxEventCount` / `maxEventAge` 单独控制，因此扩大磁盘历史不会同比扩大常驻内存。
+
+显式配置的旧 `.jsonl` 路径仍保持兼容；新安装默认使用 Pebble。
+
 ## MyGo 桌面版
 
-桌面壳位于 `desktop/renew/`，使用 MyGo 0.2.6，并作为**独立 Go module** 维护。
+桌面壳位于 `desktop/renew/`，使用 MyGo 0.2.7，并作为**独立 Go module** 维护。
 
 它不复制 Vue 产物、不另起 API 代理，而是直接让系统 WebView 加载后端真实地址，例如：
 

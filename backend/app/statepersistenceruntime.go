@@ -20,15 +20,32 @@ import (
 )
 
 type runtimeState struct {
-	mu        sync.RWMutex
-	settings  RuntimeSettings
-	logWriter *runtimeEventLogWriter
-	logPath   string
-	logRoot   string
+	mu         sync.RWMutex
+	settings   RuntimeSettings
+	logWriter  *runtimeEventLogWriter // legacy JSONL compatibility
+	eventStore *runtimeEventStore
+	logPath    string
+	logRoot    string
 }
 
 func newRuntimeState() *runtimeState {
 	return &runtimeState{}
+}
+
+func defaultRenewDailyDisabledEventTypes() []uint32 {
+	return []uint32{
+		uint32(pb.EventType_OPENAT),
+		uint32(pb.EventType_IOCTL),
+		uint32(pb.EventType_READ),
+		uint32(pb.EventType_OPEN),
+		uint32(pb.EventType_NETWORK_SENDTO),
+		uint32(pb.EventType_NETWORK_RECVFROM),
+		uint32(pb.EventType_SOCKET),
+		uint32(pb.EventType_ACCEPT),
+		uint32(pb.EventType_ACCEPT4),
+		uint32(pb.EventType_TCP_STATE_CHANGE),
+		uint32(pb.EventType_GENERIC_SYSCALL),
+	}
 }
 
 func generateAccessToken() (string, error) {
@@ -71,19 +88,27 @@ func (s *runtimeState) closeLogWriterLocked() {
 }
 
 func (s *runtimeState) stopLogWriterLocked(ctx context.Context) error {
-	writer := s.logWriter
-	if writer == nil {
-		return nil
+	var stopErr error
+	if store := s.eventStore; store != nil {
+		if err := store.StopContext(ctx); err != nil {
+			stopErr = errors.Join(stopErr, err)
+		}
+		if s.eventStore == store {
+			s.eventStore = nil
+		}
 	}
-	err := writer.StopContext(ctx)
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return err
+	if writer := s.logWriter; writer != nil {
+		if err := writer.StopContext(ctx); err != nil {
+			stopErr = errors.Join(stopErr, err)
+		}
+		if s.logWriter == writer {
+			s.logWriter = nil
+		}
 	}
-	if s.logWriter == writer {
-		s.logWriter = nil
+	if s.eventStore == nil && s.logWriter == nil {
 		s.logPath = ""
 	}
-	return err
+	return stopErr
 }
 
 func (s *runtimeState) applyLoggingLocked() error {
@@ -95,7 +120,7 @@ func (s *runtimeState) applyLoggingLocked() error {
 			return err
 		}
 		if err != nil {
-			log.Printf("[WARN] disabled runtime event log after writer failure: %v", err)
+			log.Printf("[WARN] disabled runtime event persistence after writer failure: %v", err)
 		}
 		return nil
 	}
@@ -103,6 +128,39 @@ func (s *runtimeState) applyLoggingLocked() error {
 	if err != nil {
 		return err
 	}
+	if isPebbleEventStorePath(resolvedPath) {
+		if s.eventStore != nil && s.logPath == resolvedPath && s.eventStore.Status().Active {
+			s.settings.LogFilePath = resolvedPath
+			maxAge, _ := time.ParseDuration(s.settings.EventStoreMaxAge)
+			s.eventStore.SetRetention(s.settings.EventStoreMaxRecords, maxAge)
+			return nil
+		}
+		store, resolvedPath, err := openRuntimeEventStoreWithin(s.eventLogRoot(), resolvedPath)
+		if err != nil {
+			return err
+		}
+		maxAge, _ := time.ParseDuration(s.settings.EventStoreMaxAge)
+		store.SetRetention(s.settings.EventStoreMaxRecords, maxAge)
+		ctx, cancel := runtimeEventLogStopContext()
+		stopErr := s.stopLogWriterLocked(ctx)
+		cancel()
+		if errors.Is(stopErr, context.Canceled) || errors.Is(stopErr, context.DeadlineExceeded) {
+			stopCtx, stopCancel := runtimeEventLogStopContext()
+			_ = store.StopContext(stopCtx)
+			stopCancel()
+			return stopErr
+		}
+		if stopErr != nil {
+			log.Printf("[WARN] previous runtime event persistence stopped after failure: %v", stopErr)
+		}
+		s.settings.LogFilePath = resolvedPath
+		s.eventStore = store
+		s.logPath = resolvedPath
+		return nil
+	}
+
+	// Existing explicit .jsonl paths stay supported for compatibility and
+	// migration. New installs default to the Pebble-backed event database.
 	if s.logWriter != nil && s.logPath == resolvedPath && s.logWriter.Status().Active {
 		s.settings.LogFilePath = resolvedPath
 		return nil
@@ -125,7 +183,7 @@ func (s *runtimeState) applyLoggingLocked() error {
 		return stopErr
 	}
 	if stopErr != nil {
-		log.Printf("[WARN] previous runtime event log writer stopped after failure: %v", stopErr)
+		log.Printf("[WARN] previous runtime event persistence stopped after failure: %v", stopErr)
 	}
 	s.settings.LogFilePath = resolvedPath
 	s.logWriter = writer
@@ -156,8 +214,11 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 	defer s.mu.Unlock()
 
 	settings := RuntimeSettings{
-		LogPersistenceEnabled: false,
+		LogPersistenceEnabled: true,
 		LogFilePath:           platform.DefaultEventLogPath(),
+		EventStoreMaxRecords: defaultEventStoreMaxRecords,
+		EventStoreMaxAge:     defaultEventStoreMaxAge,
+		DisabledEventTypes:   defaultRenewDailyDisabledEventTypes(),
 		MaxEventCount:         1500,
 		MaxEventAge:           "0",
 		LoopDetection: LoopDetectionSettings{
@@ -181,11 +242,16 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 	}
 
 	if data, err := os.ReadFile(platform.RuntimeSettingsPath()); err == nil {
+		var rawSettings map[string]json.RawMessage
+		_ = json.Unmarshal(data, &rawSettings)
 		if err := json.Unmarshal(data, &settings); err != nil {
 			log.Printf("[WARN] failed to parse runtime settings: %v", err)
 			settings = RuntimeSettings{
-				LogPersistenceEnabled: false,
+				LogPersistenceEnabled: true,
 				LogFilePath:           platform.DefaultEventLogPath(),
+				EventStoreMaxRecords:  defaultEventStoreMaxRecords,
+				EventStoreMaxAge:      defaultEventStoreMaxAge,
+				DisabledEventTypes:    defaultRenewDailyDisabledEventTypes(),
 				MaxEventCount:         1500,
 				MaxEventAge:           "0",
 				LoopDetection: LoopDetectionSettings{
@@ -206,6 +272,19 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 					ExportFormats:         research.ExportFormatsDefault,
 				},
 				SignalProcessing: defaultSignalProcessingSettings(),
+			}
+		} else {
+			if _, explicitlyConfigured := rawSettings["logPersistenceEnabled"]; !explicitlyConfigured {
+				// Persistence became the safe default for Renew. Preserve an explicit
+				// false from existing installations, but enable it when upgrading a
+				// runtime file that predates this field.
+				settings.LogPersistenceEnabled = true
+			}
+			if _, explicitlyConfigured := rawSettings["disabledEventTypes"]; !explicitlyConfigured {
+				// Existing installations predate Renew's monitoring profiles and
+				// historically collected all event types. Preserve that behavior.
+				// Fresh installations use the Daily profile defaults above.
+				settings.DisabledEventTypes = nil
 			}
 		}
 	}
@@ -252,6 +331,7 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 	if err := s.applyLoggingLocked(); err != nil {
 		return RuntimeSettings{}, err
 	}
+	trackingConfigStore{}.ReplaceDisabledEventTypes(s.settings.DisabledEventTypes)
 	otelExporterStore.ApplySettings(s.settings)
 	return s.settings, nil
 }
@@ -371,6 +451,7 @@ func (s *runtimeState) Replace(settings RuntimeSettings) (RuntimeSettings, error
 	if err := s.applyAndSaveSettingsLocked(previous); err != nil {
 		return RuntimeSettings{}, err
 	}
+	trackingConfigStore{}.ReplaceDisabledEventTypes(s.settings.DisabledEventTypes)
 	ml.UpdateMLRuntimeConfig(s.settings.MLConfig, s.settings.MLConfig.Enabled && clusterManagerStore.IsMaster())
 	otelExporterStore.ApplySettings(s.settings)
 	return s.settings, nil
@@ -379,6 +460,12 @@ func (s *runtimeState) Replace(settings RuntimeSettings) (RuntimeSettings, error
 func (s *runtimeState) TruncateEventLog() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if s.eventStore != nil {
+		ctx, cancel := runtimeEventLogStopContext()
+		defer cancel()
+		return s.eventStore.Clear(ctx)
+	}
 
 	ctx, cancel := runtimeEventLogStopContext()
 	if err := s.stopLogWriterLocked(ctx); errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
@@ -402,12 +489,30 @@ func (s *runtimeState) TruncateEventLog() error {
 	return s.applyLoggingLocked()
 }
 
-func applyRetentionConfig(settings RuntimeSettings) {
-	if settings.MaxEventCount > 0 {
-		capturedEventArchive.SetMax(settings.MaxEventCount)
+func positiveDuration(raw string) time.Duration {
+	d, err := time.ParseDuration(strings.TrimSpace(raw))
+	if err != nil || d <= 0 {
+		return 0
 	}
-	if d, err := time.ParseDuration(settings.MaxEventAge); err == nil && d > 0 {
-		capturedEventArchive.EvictOlderThan(time.Now().UTC().Add(-d))
+	return d
+}
+
+func applyRetentionConfig(settings RuntimeSettings) {
+	capturedEventArchive.SetMax(settings.MaxEventCount)
+	hotMaxAge := positiveDuration(settings.MaxEventAge)
+	if hotMaxAge > 0 {
+		capturedEventArchive.EvictOlderThan(time.Now().UTC().Add(-hotMaxAge))
+	}
+
+	runtimeSettingsStore.mu.RLock()
+	store := runtimeSettingsStore.eventStore
+	runtimeSettingsStore.mu.RUnlock()
+	if store != nil {
+		store.SetRetention(
+			settings.EventStoreMaxRecords,
+			positiveDuration(settings.EventStoreMaxAge),
+		)
+		go store.pruneConfiguredRetention()
 	}
 }
 
@@ -432,18 +537,26 @@ func (s *runtimeState) RecentEventsContext(ctx context.Context, limit int) ([]Ca
 	s.mu.RLock()
 	settings := s.settings
 	writer := s.logWriter
+	store := s.eventStore
 	s.mu.RUnlock()
 
 	if settings.LogPersistenceEnabled {
+		if store != nil {
+			if records, err := store.Recent(ctx, limit); err == nil {
+				return records, "pebble", nil
+			} else if ctx.Err() != nil {
+				return nil, "", ctx.Err()
+			} else {
+				log.Printf("[WARN] failed to read persisted event database %s: %v", settings.LogFilePath, err)
+			}
+		}
 		logPath := strings.TrimSpace(settings.LogFilePath)
-		if logPath != "" {
-			if writer != nil {
-				if err := writer.FlushContext(ctx); err != nil {
-					if ctx.Err() != nil {
-						return nil, "", ctx.Err()
-					}
-					log.Printf("[WARN] failed to flush persisted event log %s before reading: %v", logPath, err)
+		if logPath != "" && writer != nil {
+			if err := writer.FlushContext(ctx); err != nil {
+				if ctx.Err() != nil {
+					return nil, "", ctx.Err()
 				}
+				log.Printf("[WARN] failed to flush persisted event log %s before reading: %v", logPath, err)
 			}
 			if records, err := tailCapturedEventsFileAtRootContext(ctx, s.eventLogRoot(), expandRuntimeEventLogPath(logPath), limit); err == nil {
 				return records, "file", nil
@@ -462,6 +575,67 @@ func (s *runtimeState) RecentEventsContext(ctx context.Context, limit int) ([]Ca
 	return records, "memory", nil
 }
 
+func (s *runtimeState) EventPageContext(ctx context.Context, limit int, cursor string) ([]CapturedEventRecord, string, string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(ctx, runtimeEventLogRecentTimeout)
+	defer cancel()
+	if limit <= 0 {
+		limit = 50
+	} else if limit > runtimeEventLogMaxRecords {
+		limit = runtimeEventLogMaxRecords
+	}
+
+	s.mu.RLock()
+	settings := s.settings
+	store := s.eventStore
+	s.mu.RUnlock()
+
+	if settings.LogPersistenceEnabled && store != nil {
+		records, nextCursor, err := store.Page(ctx, limit, cursor)
+		if err != nil {
+			return nil, "", "", err
+		}
+		return records, "pebble", nextCursor, nil
+	}
+	if strings.TrimSpace(cursor) != "" {
+		return nil, "", "", errInvalidEventStoreCursor
+	}
+
+	records, source, err := s.RecentEventsContext(ctx, limit)
+	return records, source, "", err
+}
+
+func (s *runtimeState) EventByIDContext(ctx context.Context, eventID string) (CapturedEventRecord, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	eventID = strings.TrimSpace(eventID)
+	if eventID == "" {
+		return CapturedEventRecord{}, os.ErrNotExist
+	}
+	s.mu.RLock()
+	store := s.eventStore
+	s.mu.RUnlock()
+	if store != nil {
+		record, err := store.GetByID(ctx, eventID)
+		if err == nil {
+			return record, nil
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return CapturedEventRecord{}, err
+		}
+	}
+	for _, record := range capturedEventArchive.Snapshot(capturedEventArchive.Count()) {
+		record = normalizeCapturedEventRecord(record)
+		if record.Envelope != nil && record.Envelope.GetEventId() == eventID {
+			return record, nil
+		}
+	}
+	return CapturedEventRecord{}, os.ErrNotExist
+}
+
 func (s *runtimeState) AppendEvent(record CapturedEventRecord) error {
 	_, err := s.enqueueEvent(record)
 	return err
@@ -473,10 +647,16 @@ func (s *runtimeState) enqueueEvent(record CapturedEventRecord) (bool, error) {
 	}
 	s.mu.RLock()
 	writer := s.logWriter
+	store := s.eventStore
 	enabled := s.settings.LogPersistenceEnabled
-	if writer == nil || !enabled {
+	if !enabled || (writer == nil && store == nil) {
 		s.mu.RUnlock()
 		return false, nil
+	}
+	if store != nil {
+		accepted, err := store.Enqueue(record)
+		s.mu.RUnlock()
+		return accepted, err
 	}
 	accepted, err := writer.Enqueue(record)
 	s.mu.RUnlock()
@@ -489,7 +669,11 @@ func (s *runtimeState) FlushEventLogContext(ctx context.Context) error {
 	}
 	s.mu.RLock()
 	writer := s.logWriter
+	store := s.eventStore
 	s.mu.RUnlock()
+	if store != nil {
+		return store.FlushContext(ctx)
+	}
 	if writer == nil {
 		return nil
 	}
@@ -502,7 +686,11 @@ func (s *runtimeState) EventLogStatus() runtimeEventLogStatus {
 	}
 	s.mu.RLock()
 	writer := s.logWriter
+	store := s.eventStore
 	s.mu.RUnlock()
+	if store != nil {
+		return store.Status()
+	}
 	if writer == nil {
 		return runtimeEventLogStatus{}
 	}

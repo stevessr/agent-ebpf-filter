@@ -10,8 +10,10 @@
 
 | 字段 | 作用 |
 | --- | --- |
-| `LogPersistenceEnabled` | 是否写 JSONL |
-| `LogFilePath` | 持久化文件路径；必须是 `~/.config/agent-ebpf-filter/` 下的直接子文件，以 `0600` 安全打开 |
+| `LogPersistenceEnabled` | 是否持久化完整事件；新安装默认开启 |
+| `LogFilePath` | 本地事件库路径；默认 `events.pebble`，显式 `.jsonl` 路径保留兼容模式 |
+| `EventStoreMaxRecords` | Pebble 独立保留条数，默认 250000，与内存窗口分离 |
+| `EventStoreMaxAge` | Pebble 独立保留时长，默认 `168h`；`0` 关闭按时间裁剪 |
 | `AccessToken` | runtime access token |
 | `MaxEventCount` | archive 最大事件数 |
 | `MaxEventAge` | archive 最大保留时间 |
@@ -77,19 +79,24 @@ Research Processing 的事件历史使用按需增长的有界环形缓冲。达
 
 ### 事件日志持久化语义
 
-启用 `LogPersistenceEnabled` 后，捕获线程只向 4096 项有界队列执行非阻塞提交；
-单消费者 writer 使用 256 KiB 缓冲区，按 128 条或 250 ms 批量刷盘。队列满、单条
-JSON 编码失败和文件 I/O 失败都会进入健康指标，但不会让内核事件读取线程等待磁盘。
+`LogPersistenceEnabled` 对新安装默认开启。默认 `LogFilePath` 为
+`~/.config/agent-ebpf-filter/events.pebble`，由纯 Go 的 Pebble LSM 数据库保存完整事件；
+显式配置 `.jsonl` 路径时仍走原有 JSONL writer，便于旧环境继续使用和迁移。
 
-`LogFilePath` 仍只允许 runtime settings 目录下的直接子普通文件，并拒绝符号链接、
-硬链接和特殊文件。配置更新采用 prepare/drain/swap：相同路径保持当前 writer，
-路径变更排空旧 generation，持久化配置写入失败时回滚原配置。禁用、清空和停机也会在
-有界期限内排空已接受记录。
+Pebble 写入仍采用 4096 项有界非阻塞队列，单消费者按批提交并执行同步 commit。
+数据库保留策略与内存 `MaxEventCount/MaxEventAge` 分离：默认最多 250000 条且最多 168h，
+任一条件达到即异步裁剪最老记录，并同步删除 event ID 二级索引。
+主采集路径不会等待数据库 I/O；队列满、编码失败或数据库写入失败都会进入健康指标。
+记录同时建立按接收时间排序的主键和 event ID 索引，因此近期历史可以倒序扫描，
+单条详情可按 event ID 直接读取，不再为了查看一条记录扫描整份日志。
 
-读取近期事件会先等待 flush barrier，然后从文件尾部反向读取；单行、扫描行数、
-扫描字节数、返回条数和取消信号都有明确边界。writer 的 generation 计数会在重启或
-路径切换后重置，而 `capturedPersistedTotal` / `capturedPersistErrorsTotal` 是进程级
-累计计数。
+Renew 前端只长期保留轻量摘要，不保存完整事件 payload。点击事件时才通过后端
+`/events/detail/:id` 读取完整记录，关闭详情后即可释放前端对象。专业工作台的
+既有数据流保持兼容，后端数据库是完整内容的持久化事实来源。
+
+事件库目录限制在 runtime settings 目录的直接子路径，目录使用 `0700` 权限并拒绝
+符号链接路径穿透；旧 JSONL 文件继续使用单链接普通文件校验和 `0600` 权限。
+禁用、清空、路径切换与停机都会在有界期限内排空已接受记录。
 
 ## Feature manifest
 
