@@ -7,6 +7,7 @@ import (
 	"agent-ebpf-filter/core"
 	"errors"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -16,6 +17,26 @@ const (
 	defaultEventStoreMaxAge     = "168h"
 	maxEventStoreMaxRecords     = 10_000_000
 )
+
+func normalizeDisabledEventTypes(values []uint32) ([]uint32, error) {
+	if values == nil {
+		return nil, nil
+	}
+	seen := make(map[uint32]struct{}, len(values))
+	normalized := make([]uint32, 0, len(values))
+	for _, eventType := range values {
+		if eventType > 255 {
+			return nil, errors.New("disabled event type out of supported range")
+		}
+		if _, exists := seen[eventType]; exists {
+			continue
+		}
+		seen[eventType] = struct{}{}
+		normalized = append(normalized, eventType)
+	}
+	sort.Slice(normalized, func(i, j int) bool { return normalized[i] < normalized[j] })
+	return normalized, nil
+}
 
 func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 	if settings == nil {
@@ -38,6 +59,11 @@ func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 	if strings.TrimSpace(settings.EventStoreMaxAge) == "" {
 		settings.EventStoreMaxAge = defaultEventStoreMaxAge
 	}
+	disabledEventTypes, err := normalizeDisabledEventTypes(settings.DisabledEventTypes)
+	if err != nil {
+		return err
+	}
+	settings.DisabledEventTypes = disabledEventTypes
 	storeAge, err := time.ParseDuration(settings.EventStoreMaxAge)
 	if err != nil || storeAge < 0 {
 		return errors.New("event store max age must be a non-negative Go duration such as 168h or 0")
