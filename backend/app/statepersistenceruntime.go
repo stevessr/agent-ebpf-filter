@@ -200,7 +200,9 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 	settings := RuntimeSettings{
 		LogPersistenceEnabled: true,
 		LogFilePath:           platform.DefaultEventLogPath(),
-		MaxEventCount:         100000,
+		EventStoreMaxRecords: defaultEventStoreMaxRecords,
+		EventStoreMaxAge:     defaultEventStoreMaxAge,
+		MaxEventCount:         1500,
 		MaxEventAge:           "0",
 		LoopDetection: LoopDetectionSettings{
 			WindowSeconds:      30,
@@ -230,7 +232,7 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 			settings = RuntimeSettings{
 				LogPersistenceEnabled: true,
 				LogFilePath:           platform.DefaultEventLogPath(),
-				MaxEventCount:         100000,
+				MaxEventCount:         1500,
 				MaxEventAge:           "0",
 				LoopDetection: LoopDetectionSettings{
 					WindowSeconds:      30,
@@ -457,10 +459,8 @@ func (s *runtimeState) TruncateEventLog() error {
 	return s.applyLoggingLocked()
 }
 
-const runtimeHotArchiveMaxRecords = 1500
-
-func runtimeRetentionAge(settings RuntimeSettings) time.Duration {
-	d, err := time.ParseDuration(strings.TrimSpace(settings.MaxEventAge))
+func positiveDuration(raw string) time.Duration {
+	d, err := time.ParseDuration(strings.TrimSpace(raw))
 	if err != nil || d <= 0 {
 		return 0
 	}
@@ -468,21 +468,20 @@ func runtimeRetentionAge(settings RuntimeSettings) time.Duration {
 }
 
 func applyRetentionConfig(settings RuntimeSettings) {
-	hotMax := settings.MaxEventCount
-	if hotMax <= 0 || hotMax > runtimeHotArchiveMaxRecords {
-		hotMax = runtimeHotArchiveMaxRecords
-	}
-	capturedEventArchive.SetMax(hotMax)
-	maxAge := runtimeRetentionAge(settings)
-	if maxAge > 0 {
-		capturedEventArchive.EvictOlderThan(time.Now().UTC().Add(-maxAge))
+	capturedEventArchive.SetMax(settings.MaxEventCount)
+	hotMaxAge := positiveDuration(settings.MaxEventAge)
+	if hotMaxAge > 0 {
+		capturedEventArchive.EvictOlderThan(time.Now().UTC().Add(-hotMaxAge))
 	}
 
 	runtimeSettingsStore.mu.RLock()
 	store := runtimeSettingsStore.eventStore
 	runtimeSettingsStore.mu.RUnlock()
 	if store != nil {
-		store.SetRetention(settings.MaxEventCount, maxAge)
+		store.SetRetention(
+			settings.EventStoreMaxRecords,
+			positiveDuration(settings.EventStoreMaxAge),
+		)
 		go store.pruneConfiguredRetention()
 	}
 }
