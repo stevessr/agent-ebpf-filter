@@ -22,36 +22,68 @@ jobs:
           go-version-file: backend/go.mod
           cache: false
 
-      - name: Refresh backend dependencies
+      - name: Refresh backend direct dependencies
         working-directory: backend
+        env:
+          GOTOOLCHAIN: local
         run: |
-          go get -u all
-          go mod tidy
+          go get -u \
+            github.com/NVIDIA/go-nvml \
+            github.com/cilium/ebpf \
+            github.com/cockroachdb/pebble/v2 \
+            github.com/creack/pty/v2 \
+            github.com/getkin/kin-openapi \
+            github.com/gin-gonic/gin \
+            github.com/gorilla/websocket \
+            github.com/modelcontextprotocol/go-sdk \
+            github.com/pelletier/go-toml/v2 \
+            github.com/shirou/gopsutil/v3 \
+            github.com/ulikunitz/xz \
+            github.com/vladimirvivien/go4vl \
+            go.opentelemetry.io/otel \
+            go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp \
+            go.opentelemetry.io/otel/sdk \
+            go.opentelemetry.io/otel/trace \
+            golang.org/x/net \
+            golang.org/x/sys \
+            google.golang.org/protobuf
+          go mod download
 
-      - name: Refresh wrapper dependencies
+      - name: Refresh wrapper direct dependencies
         working-directory: wrapper
+        env:
+          GOTOOLCHAIN: local
         run: |
-          go get -u all
-          go mod tidy
+          go get -u google.golang.org/protobuf
+          go mod download
 
-      - name: Refresh Renew desktop dependencies
+      - name: Refresh Renew desktop direct dependencies
         working-directory: desktop/renew
+        env:
+          GOTOOLCHAIN: local
         run: |
-          go get -u all
           go get -u github.com/egoist/mygo
-          go mod tidy
+          go mod download
 
-      - name: Refresh agent TUI dependencies
+      - name: Refresh agent TUI direct dependencies
         working-directory: tools/agent-tui
+        env:
+          GOTOOLCHAIN: local
         run: |
-          go get -u all
-          go mod tidy
+          go get -u \
+            github.com/gdamore/tcell/v2 \
+            github.com/gorilla/websocket \
+            github.com/rivo/tview \
+            google.golang.org/protobuf
+          go mod download
 
-      - name: Refresh dev environment TUI dependencies
+      - name: Refresh dev environment TUI direct dependencies
         working-directory: tools/dev-env-tui
+        env:
+          GOTOOLCHAIN: local
         run: |
-          go get -u all
-          go mod tidy
+          go get -u github.com/gdamore/tcell/v2 github.com/rivo/tview
+          go mod download
 
       - name: Commit dependency refresh
         shell: bash
