@@ -24,6 +24,18 @@ type Handler struct {
 
 var errNoForwardingRoute = errors.New("no forwarding route")
 
+type replayReadCloser struct {
+	io.Reader
+	closer io.Closer
+}
+
+func (r *replayReadCloser) Close() error {
+	if r == nil || r.closer == nil {
+		return nil
+	}
+	return r.closer.Close()
+}
+
 func NewHandler(settings DomainForwardProxySettings) *Handler {
 	return NewHandlerWithTransport(settings, nil)
 }
@@ -183,7 +195,11 @@ func readRequestBodyBounded(r *http.Request, limit int64) ([]byte, bool, error) 
 		return nil, false, err
 	}
 	if int64(len(prefix)) > limit {
-		r.Body = io.NopCloser(io.MultiReader(bytes.NewReader(prefix), r.Body))
+		original := r.Body
+		r.Body = &replayReadCloser{
+			Reader: io.MultiReader(bytes.NewReader(prefix), original),
+			closer: original,
+		}
 		return nil, false, nil
 	}
 	_ = r.Body.Close()
@@ -199,7 +215,11 @@ func readResponseBodyBounded(response *http.Response, limit int64) ([]byte, bool
 		return nil, false, err
 	}
 	if int64(len(prefix)) > limit {
-		response.Body = io.NopCloser(io.MultiReader(bytes.NewReader(prefix), response.Body))
+		original := response.Body
+		response.Body = &replayReadCloser{
+			Reader: io.MultiReader(bytes.NewReader(prefix), original),
+			closer: original,
+		}
 		return nil, false, nil
 	}
 	_ = response.Body.Close()
