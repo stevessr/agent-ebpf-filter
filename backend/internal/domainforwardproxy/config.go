@@ -98,11 +98,15 @@ func (s *domainForwardCertStore) GetCertificate(hello *tls.ClientHelloInfo) (*tl
 			return s.mitm.certificateForHost(host)
 		}
 	}
-	if s.interceptEnabled {
-		return nil, fmt.Errorf("TLS interception is not allowlisted for %q", host)
-	}
+	// The interception allowlist governs dynamic leaf issuance only. Preserve
+	// explicitly configured static fallback certificates for hosts that are not
+	// eligible for MITM so enabling interception does not break existing HTTPS
+	// forwarding.
 	if s.defaultCert != nil {
 		return s.defaultCert, nil
+	}
+	if s.interceptEnabled {
+		return nil, fmt.Errorf("TLS interception is not allowlisted for %q", host)
 	}
 	return nil, fmt.Errorf("no certificate configured for %q", host)
 }
