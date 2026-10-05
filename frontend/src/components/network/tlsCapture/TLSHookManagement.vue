@@ -170,6 +170,15 @@ const onIgnoreRuleValuesChange = (
                         />
                       </label>
                       <label class="tls-rule-field">
+                        <span>Executable paths</span>
+                        <a-input
+                          size="small"
+                          placeholder="/usr/bin/codex, /opt/agents/**"
+                          :value="joinTLSRuleValues(item.paths)"
+                          @change="onRuleValuesChange(item, 'paths', $event)"
+                        />
+                      </label>
+                      <label class="tls-rule-field">
                         <span>Hosts</span>
                         <a-input
                           size="small"
@@ -322,17 +331,13 @@ const onIgnoreRuleValuesChange = (
                   :options="executableLibraryOptions"
                 />
               </template>
-              <template
-                v-if="
-                  manualHookType === 'executable' || manualHookType === 'go'
-                "
-              >
+              <template>
                 <span class="tls-manual-label">PID</span>
                 <a-input-number
                   v-model:value="manualHookPid"
                   size="small"
                   :min="0"
-                  placeholder="0 = all"
+                  placeholder="shared libs require PID"
                   style="width: 120px"
                 />
               </template>
