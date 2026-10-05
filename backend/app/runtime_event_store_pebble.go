@@ -50,9 +50,10 @@ type runtimeEventStore struct {
 	lastError      string
 	terminalErr    error
 	stopRequested  bool
-	retentionMaxRecords int
-	retentionMaxAge time.Duration
-	nextRetentionSweep uint64
+	retentionMaxRecords   int
+	retentionMaxAge       time.Duration
+	nextRetentionSweep    uint64
+	retentionSweepRunning bool
 	auditChain     *recording.AuditChain
 }
 
@@ -329,8 +330,10 @@ func (s *runtimeEventStore) notePersisted(count uint64, duration time.Duration) 
 	s.mu.Lock()
 	s.persistedTotal += count
 	s.lastFlushedAt = time.Now().UTC()
-	if (s.retentionMaxRecords > 0 || s.retentionMaxAge > 0) &&
+	if !s.retentionSweepRunning &&
+		(s.retentionMaxRecords > 0 || s.retentionMaxAge > 0) &&
 		s.persistedTotal >= s.nextRetentionSweep {
+		s.retentionSweepRunning = true
 		s.nextRetentionSweep = s.persistedTotal + 1024
 		scheduleRetention = true
 	}
@@ -613,11 +616,19 @@ func (s *runtimeEventStore) SetRetention(maxRecords int, maxAge time.Duration) {
 	if maxAge < 0 {
 		maxAge = 0
 	}
+	schedule := false
 	s.mu.Lock()
 	s.retentionMaxRecords = maxRecords
 	s.retentionMaxAge = maxAge
 	s.nextRetentionSweep = s.persistedTotal
+	if !s.retentionSweepRunning && (maxRecords > 0 || maxAge > 0) {
+		s.retentionSweepRunning = true
+		schedule = true
+	}
 	s.mu.Unlock()
+	if schedule {
+		go s.pruneConfiguredRetention()
+	}
 }
 
 func (s *runtimeEventStore) configuredRetention() (int, time.Duration) {
@@ -630,6 +641,12 @@ func (s *runtimeEventStore) configuredRetention() (int, time.Duration) {
 }
 
 func (s *runtimeEventStore) pruneConfiguredRetention() {
+	defer func() {
+		s.mu.Lock()
+		s.retentionSweepRunning = false
+		s.nextRetentionSweep = s.persistedTotal + 1024
+		s.mu.Unlock()
+	}()
 	maxRecords, maxAge := s.configuredRetention()
 	if maxRecords <= 0 && maxAge <= 0 {
 		return
@@ -748,8 +765,20 @@ func (s *runtimeEventStore) Prune(ctx context.Context, maxRecords int, maxAge ti
 		if err := batch.Delete(key, pebble.NoSync); err != nil {
 			return deleted, err
 		}
-		if err := batch.Delete(eventStoreIDKey(string(key[9:])), pebble.NoSync); err != nil {
-			return deleted, err
+		idKey := eventStoreIDKey(string(key[9:]))
+		indexedKey, closer, lookupErr := s.db.Get(idKey)
+		if lookupErr == nil {
+			pointsToDeletedRecord := bytes.Equal(indexedKey, key)
+			if closeErr := closer.Close(); closeErr != nil {
+				return deleted, closeErr
+			}
+			if pointsToDeletedRecord {
+				if err := batch.Delete(idKey, pebble.NoSync); err != nil {
+					return deleted, err
+				}
+			}
+		} else if !errors.Is(lookupErr, pebble.ErrNotFound) {
+			return deleted, lookupErr
 		}
 		deleted++
 		pending++
@@ -778,8 +807,10 @@ func (s *runtimeEventStore) Clear(ctx context.Context) error {
 	if err := s.FlushContext(ctx); err != nil {
 		return err
 	}
+	s.pruneMu.Lock()
+	defer s.pruneMu.Unlock()
 	batch := s.db.NewBatch()
-	defer batch.Close()
+	defer func() { _ = batch.Close() }()
 	if err := batch.DeleteRange(eventStoreRecordPrefix, eventStoreRecordUpper, pebble.NoSync); err != nil {
 		return err
 	}
