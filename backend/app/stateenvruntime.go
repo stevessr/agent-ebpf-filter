@@ -30,7 +30,7 @@ func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 		settings.AccessToken = token
 	}
 	if settings.MaxEventCount <= 0 {
-		settings.MaxEventCount = 1500
+		settings.MaxEventCount = 100000
 	}
 	if strings.TrimSpace(settings.MaxEventAge) == "" {
 		settings.MaxEventAge = "0"
