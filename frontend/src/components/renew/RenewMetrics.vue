@@ -18,7 +18,7 @@ defineProps<{
 </script>
 
 <template>
-  <section class="renew-metrics" aria-label="System overview">
+  <section class="renew-metrics" aria-label="系统概览">
     <article class="renew-metric">
       <div class="renew-metric__label">采集状态</div>
       <div class="renew-metric__value">
