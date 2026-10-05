@@ -64,6 +64,11 @@ func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 		return err
 	}
 	settings.DisabledEventTypes = disabledEventTypes
+	ignoredPaths, err := normalizeIgnoredEventPaths(settings.IgnoredPaths)
+	if err != nil {
+		return err
+	}
+	settings.IgnoredPaths = ignoredPaths
 	storeAge, err := time.ParseDuration(settings.EventStoreMaxAge)
 	if err != nil || storeAge < 0 {
 		return errors.New("event store max age must be a non-negative Go duration such as 168h or 0")
