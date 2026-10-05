@@ -12,7 +12,23 @@ import (
 const ignoredPathBypassRiskScore = 60
 
 func defaultIgnoredEventPaths() []string {
-	return []string{"/proc"}
+	return []string{
+		"/proc",
+		"/sys/bus",
+		"/sys/class",
+		"/sys/devices",
+		"/sys/fs/cgroup",
+		"/sys/kernel/mm",
+		"/dev/null",
+		"/dev/random",
+		"/dev/urandom",
+		"/dev/zero",
+		"/etc/ld.so.cache",
+		"/etc/localtime",
+		"/usr/lib/locale",
+		"/usr/share/locale",
+		"/usr/share/zoneinfo",
+	}
 }
 
 func normalizeIgnoredEventPaths(values []string) ([]string, error) {
@@ -60,6 +76,26 @@ func pathMatchesIgnoredPrefix(path string, ignored []string) bool {
 	return false
 }
 
+func eventPathNoiseEligible(event *pb.Event) bool {
+	if event == nil {
+		return false
+	}
+	switch event.GetEventType() {
+	case pb.EventType_OPENAT, pb.EventType_OPEN, pb.EventType_READ:
+		return true
+	}
+
+	switch strings.ToLower(strings.TrimSpace(event.GetType())) {
+	case "openat", "open", "read",
+		"stat", "lstat", "fstat", "newfstatat", "statx",
+		"access", "faccessat", "faccessat2",
+		"readlink", "readlinkat", "getdents", "getdents64":
+		return true
+	default:
+		return false
+	}
+}
+
 func eventBypassesIgnoredPaths(event *pb.Event) bool {
 	if event == nil {
 		return false
@@ -81,10 +117,15 @@ func eventBypassesIgnoredPaths(event *pb.Event) bool {
 	}
 }
 
-// shouldIgnoreEventPath only suppresses routine telemetry. Semantic analysis
-// runs before this gate, and alert/block/high-risk events always bypass it.
+// shouldIgnoreEventPath only suppresses low-risk read/open/metadata telemetry.
+// Mutating, executable, permission-changing and ioctl events are never eligible.
+// Semantic analysis runs before this gate, and alert/block/high-risk events
+// always bypass it.
 func shouldIgnoreEventPath(event *pb.Event) bool {
-	if event == nil || eventBypassesIgnoredPaths(event) || runtimeSettingsStore == nil {
+	if event == nil ||
+		!eventPathNoiseEligible(event) ||
+		eventBypassesIgnoredPaths(event) ||
+		runtimeSettingsStore == nil {
 		return false
 	}
 
