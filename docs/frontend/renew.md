@@ -79,6 +79,7 @@ eBPF / hooks / wrapper
         ▼
 backend normalize + redact
         ├──► Pebble：完整事件、ID 索引、审计链
+        ├──► /events/summaries：紧凑历史摘要（Pebble 游标分页）
         ├──► /ws/event-summaries：紧凑实时摘要
         └──► /events/detail/:id：用户点开时读取一条完整事件
                          │
@@ -86,7 +87,7 @@ backend normalize + redact
                        Renew
 ```
 
-Renew 浏览器/桌面前端只保留一个有界摘要窗口；完整详情只在用户点开单条事件时从后端读取，并在详情关闭后释放。
+Renew 浏览器/桌面前端只保留一个有界摘要窗口；用户需要更早记录时通过后端返回的不透明 `nextCursor` 逐页加载。完整详情只在用户点开单条事件时从后端读取，并在详情关闭后释放，因此磁盘历史增长不会把完整事件复制进 WebView/浏览器内存。
 
 默认 Pebble 历史策略为 250,000 条完整事件或 168h，先达到的限制触发最旧记录淘汰；它由 `eventStoreMaxRecords` / `eventStoreMaxAge` 独立控制。后端内存 hot archive 默认 1,500 条，由 `maxEventCount` / `maxEventAge` 单独控制，因此扩大磁盘历史不会同比扩大常驻内存。
 
