@@ -32,6 +32,11 @@ func annotateResponsesMetadata(event *Event, rawBody ...string) {
 			event.PreviousResponseID, _ = response["previous_response_id"].(string)
 		}
 	}
+	if event.PreviousResponseID == "" {
+		if steer, ok := payload["steer"].(map[string]any); ok {
+			event.PreviousResponseID, _ = steer["previous_response_id"].(string)
+		}
+	}
 }
 
 func annotateResponsesContextMetadata(event *Event, rawBody, contentType string) {
