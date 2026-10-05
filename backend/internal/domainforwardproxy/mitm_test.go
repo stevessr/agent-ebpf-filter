@@ -161,6 +161,36 @@ func TestTLSInterceptionLeafCacheIsBounded(t *testing.T) {
 	}
 }
 
+func TestTLSInterceptionLeafMetadataIsParsed(t *testing.T) {
+	certFile, keyFile := writeTestCA(t)
+	ca, err := loadMITMCertificateAuthority(DomainForwardProxySettings{
+		TLSInterceptEnabled:        true,
+		TLSInterceptAllowlist:      "api.openai.com",
+		TLSInterceptCACertFile:     certFile,
+		TLSInterceptCAKeyFile:      keyFile,
+		TLSInterceptLeafTTLSeconds: 3600,
+	})
+	if err != nil {
+		t.Fatalf("loadMITMCertificateAuthority: %v", err)
+	}
+	cert, err := ca.certificateForHost("api.openai.com")
+	if err != nil {
+		t.Fatalf("certificateForHost: %v", err)
+	}
+	if cert.Leaf == nil {
+		t.Fatal("generated certificate is missing parsed Leaf metadata")
+	}
+	if len(cert.Leaf.Raw) == 0 || cert.Leaf.PublicKey == nil {
+		t.Fatalf("generated Leaf is an incomplete template: %#v", cert.Leaf)
+	}
+	if err := cert.Leaf.VerifyHostname("api.openai.com"); err != nil {
+		t.Fatalf("parsed Leaf does not verify hostname: %v", err)
+	}
+	if got, want := string(cert.Leaf.Raw), string(cert.Certificate[0]); got != want {
+		t.Fatal("tls.Certificate.Leaf does not match the signed leaf bytes")
+	}
+}
+
 func TestTLSInterceptionCachedLeafConcurrentReuse(t *testing.T) {
 	certFile, keyFile := writeTestCA(t)
 	ca, err := loadMITMCertificateAuthority(DomainForwardProxySettings{
