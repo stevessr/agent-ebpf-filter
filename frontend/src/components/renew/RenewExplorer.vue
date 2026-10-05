@@ -221,7 +221,7 @@ watch(sessions, (values) => {
           <thead>
             <tr>
               <th>进程</th>
-              <th>Harness</th>
+              <th>Agent 工具</th>
               <th>PID / PPID</th>
               <th>CPU</th>
               <th>内存</th>
