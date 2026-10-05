@@ -51,6 +51,9 @@ func (s CodexCaptureSink) HandleCaptureEvent(event codexhandlers.Event) {
 		MessageRole:    event.MessageRole,
 		PromptDigest:   event.PromptDigest,
 		PromptLen:      event.PromptLen,
+		ContextDigest:  event.ContextDigest,
+		ContextLen:     event.ContextLen,
+		ContextItems:   event.ContextItems,
 		Vendor:         event.Vendor,
 	}
 
