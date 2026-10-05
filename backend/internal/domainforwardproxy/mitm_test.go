@@ -12,6 +12,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
@@ -117,6 +118,47 @@ func TestTLSInterceptionLeafCacheIsBounded(t *testing.T) {
 	}
 	if _, ok := ca.cache["new.example.test"]; !ok {
 		t.Fatal("newly issued certificate missing from bounded cache")
+	}
+}
+
+func TestTLSInterceptionCachedLeafConcurrentReuse(t *testing.T) {
+	certFile, keyFile := writeTestCA(t)
+	ca, err := loadMITMCertificateAuthority(DomainForwardProxySettings{
+		TLSInterceptEnabled:        true,
+		TLSInterceptAllowlist:      "api.openai.com",
+		TLSInterceptCACertFile:     certFile,
+		TLSInterceptCAKeyFile:      keyFile,
+		TLSInterceptLeafTTLSeconds: 3600,
+	})
+	if err != nil {
+		t.Fatalf("loadMITMCertificateAuthority: %v", err)
+	}
+	want, err := ca.certificateForHost("api.openai.com")
+	if err != nil {
+		t.Fatalf("seed certificate: %v", err)
+	}
+
+	const readers = 32
+	var wg sync.WaitGroup
+	errs := make(chan error, readers)
+	for i := 0; i < readers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			got, err := ca.certificateForHost("api.openai.com")
+			if err != nil {
+				errs <- err
+				return
+			}
+			if got != want {
+				errs <- fmt.Errorf("cached certificate pointer changed")
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatal(err)
 	}
 }
 
