@@ -105,8 +105,8 @@ func TestBuildCodexCaptureResponsesWebsocketArrayInput(t *testing.T) {
 		URL:         "wss://api.openai.com/v1/responses",
 		Host:        "api.openai.com",
 		ContentType: "application/json",
-		Body: `{"type":"response.create","stream_id":"lane-1","previous_response_id":"resp_prev","model":"gpt-5.6","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"upstream context"}]}]}`,
-		PID: 9,
+		Body:        `{"type":"response.create","stream_id":"lane-1","previous_response_id":"resp_prev","model":"gpt-5.6","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"upstream context"}]}]}`,
+		PID:         9,
 	})
 	if event.Type != "websocket_request" || event.Direction != "send" {
 		t.Fatalf("direction/type = %q/%q", event.Direction, event.Type)
@@ -150,8 +150,8 @@ func TestBuildCodexCaptureResponsesContextIncludesAllInputItems(t *testing.T) {
 			URL:         "https://api.openai.com/v1/responses",
 			Host:        "api.openai.com",
 			ContentType: "application/json",
-			Body: `{"model":"gpt-5.6","input":[{"type":"message","role":"system","content":[{"type":"input_text","text":"` + system + `"}]},{"type":"function_call_output","call_id":"call_1","output":"tool-result"},{"type":"message","role":"user","content":[{"type":"input_text","text":"latest-user"}]}]}`,
-			PID: 11,
+			Body:        `{"model":"gpt-5.6","input":[{"type":"message","role":"system","content":[{"type":"input_text","text":"` + system + `"}]},{"type":"function_call_output","call_id":"call_1","output":"tool-result"},{"type":"message","role":"user","content":[{"type":"input_text","text":"latest-user"}]}]}`,
+			PID:         11,
 		})
 	}
 
