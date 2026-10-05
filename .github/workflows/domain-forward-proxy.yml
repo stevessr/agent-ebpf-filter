@@ -18,6 +18,9 @@ on:
       - "frontend/src/utils/agentsight/normalization.ts"
       - "frontend/src/composables/monitor/useProcessObserver.ts"
       - "frontend/src/components/agentsight/AgentSightEventDetails.vue"
+      - "frontend/src/components/monitor/observer/AgentContextPanel.vue"
+      - "frontend/src/components/monitor/observer/agentContextParsing.ts"
+      - "frontend/tests/agent-context-parsing.test.ts"
       - ".github/workflows/domain-forward-proxy.yml"
 
 permissions:
@@ -94,5 +97,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile
+      - name: Agent context parser tests
+        run: bun test tests/agent-context-parsing.test.ts
       - name: Typecheck and build
         run: bun run build
