@@ -159,7 +159,7 @@ flowchart TD
 ### 5.1 技术栈
 
 - Go module：`backend/go.mod`
-- Go 版本：`1.26.2`
+- Go 版本：`1.27.1`
 - HTTP：`github.com/gin-gonic/gin`
 - WebSocket：`github.com/gorilla/websocket`
 - eBPF：`github.com/cilium/ebpf`

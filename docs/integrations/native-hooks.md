@@ -8,7 +8,7 @@ Native hook 与 wrapper 集成连接 Claude Code、Gemini CLI、Codex、DeepSeek
 
 ```mermaid
 flowchart TD
-    CLI["AI CLI (Claude/Gemini/Codex/dsh/Pi/OMP/...)"] --> Hook["native hook / wrapper integration"]
+    CLI["AI CLI (Claude/Gemini/Codex/ZCode/mcode/dsh/Pi/OMP/...)"] --> Hook["native hook / wrapper integration"]
     Hook --> Relay["generated relay script"]
     Relay --> Curl["curl POST /hooks/event"]
     Curl --> Auth["hookIngressAuthMiddleware()"]
@@ -36,7 +36,9 @@ flowchart TD
 | **Kiro CLI** | `~/.kiro/agents/agent-ebpf-hook.json` | Managed agent |
 | **Augment / Auggie CLI** | `~/.augment/settings.json` | Native hook |
 | **Antigravity CLI (`agy`)** | `~/.gemini/antigravity-cli/plugins/agent-ebpf-hook-active/` | Native plugin |
-| **Cursor** | `~/.bashrc` / `~/.zshrc` | Wrapper alias |
+| **ZCode** | `~/.zcode/cli/config.json` | Native lifecycle hooks |
+| **MiniMax Code (`mcode`)** | 不写入未确认的 native hook 配置 | 可选 CLI wrapper alias；TUI / `exec` / `acp` 由进程追踪覆盖 |
+| **Cursor** | `~/.bashrc` / `~/.zshrc` / `~/.config/fish/config.fish` | Wrapper alias |
 ---
 
 ## 安装与卸载
@@ -70,6 +72,8 @@ codex_hooks = true
 
 **DeepSeek Harness (`dsh`)**：使用原生 Cordis 插件（默认 `~/.dsh/plugins/agent-ebpf-hook-active-dsh.mjs`），通过 `$DSH_HOME/cordis.patch.yml` 在所有 profile 加载。安装后重启 dsh；后端与 dsh 的 `DSH_HOME` 必须一致。只上报会话/工具元数据，不发送参数或结果正文，不执行审批或阻断。卸载仅移除托管配置及文件，保留旧 wrapper alias。详见 [API 参考](../backend/routes-api.md#deepseek-harness-原生插件)。
 
+**MiniMax Code (`mcode`)**：使用 wrapper-only 集成，不修改其登录、provider、模型或会话数据。公开源码确认 `mcode` 同时承载 TUI、headless `exec` 与 `acp`，并在启动后将进程标题设置为 `minimax-code`；因此两种进程身份都纳入 tracked-command / PID lineage。公开仓库不含桌面应用源码，本项目不据此虚构桌面 native hook。
+
 **Pi**：生成 `~/.pi/agent/extensions/agent-ebpf-hook-active-pi.ts`。extension 监听 `session_start`、`tool_call`、`tool_result`，通过带 per-hook secret 的 relay 上报。
 
 **Oh My Pi (`omp`)**：生成 active agent directory 下的 `extensions/agent-ebpf-hook-active-omp.ts`。默认目录为 `~/.omp/agent`；设置 `OMP_PROFILE=<name>`（或在未设置 OMP_PROFILE 时使用 legacy `PI_PROFILE`）时使用 `~/.omp/profiles/<name>/agent`。OMP 的 `hooks/pre` / `hooks/post` 是 shell-script capability，本集成使用官方 TypeScript extension module capability。
@@ -78,7 +82,11 @@ codex_hooks = true
 
 **Antigravity CLI**：在 `~/.gemini/antigravity-cli/plugins/agent-ebpf-hook-active/` 下创建 `plugin.json` 和 `hooks.json`，relay script 返回 Antigravity 要求的 JSON stdout（`decision: allow`）。
 
-**Cursor**：使用 wrapper alias 方式，写入 `~/.bashrc` 或 `~/.zshrc`。
+**ZCode**：使用官方用户级 `~/.zcode/cli/config.json`，并按 ZCode 的嵌套结构写入 `hooks.enabled=true` 与 `hooks.events.*`。当前安装器为 `SessionStart`、`UserPromptSubmit`、`PreToolUse`、`PermissionRequest`、`PostToolUse`、`PostToolUseFailure`、`Stop` 安装异步 command hook；`SessionStart` 覆盖源码定义的 `startup | resume | clear | compact` 四种 source。ZCode 开源实现以 camelCase 为内部主契约，同时为兼容集成补充 `session_id`、`hook_event_name`、`tool_name`、`tool_input`、`tool_use_id` 等 snake_case alias，本项目同时兼容两套字段。Relay 的 stdout 保持为空，因此只做旁路遥测，不修改或绕过 ZCode 自身的权限决策。ZCode 在 session 启动时快照 hook 配置，安装、卸载或修改后需新建 session 才能稳定生效。
+
+ZCode 的强制控制仍走本项目已有的 OS 级边界：eBPF 事实事件负责进程/文件/网络审计，cgroup eBPF 负责网络阻断，BPF LSM 负责文件与执行阻断，危险策略写入仍受 runtime gate 与认证保护。Hook 仅用于补充工具调用语义和 PID/session 关联，不被描述为完整容器或 namespace 沙盒。
+
+**Cursor**：使用 wrapper alias 方式，按当前 shell 写入 `~/.bashrc`、`~/.zshrc` 或 `~/.config/fish/config.fish`。
 
 ---
 
@@ -135,7 +143,7 @@ curl -X POST \
 
 | 字段 | 说明 |
 | --- | --- |
-| `cli` | CLI 标识（claude / gemini / codex / dsh / pi / omp 等） |
+| `cli` | CLI 标识（claude / gemini / codex / zcode / dsh / pi / omp 等） |
 | `event_name` | 事件名称 |
 | `hook_name` | Hook 配置名称 |
 | `tool_name` | 工具名称（如有） |
@@ -160,6 +168,10 @@ Pi/Oh My Pi extension 当前上报 `session_start`、`tool_call` 和 `tool_resul
 
 - 确认后端 tracked commands / paths 是否覆盖了 CLI 执行的操作
 - 检查 PID registration 是否生效
+
+### ZCode hooks 不工作
+
+确认 `~/.zcode/cli/config.json` 中 `hooks.enabled` 为 `true`，并在安装/修改后新建 ZCode session。ZCode 对每个 session 在启动时快照 hook 配置，运行中的旧 session 不保证热加载。
 
 ### Codex hooks 不工作
 

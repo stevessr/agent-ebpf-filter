@@ -18,6 +18,12 @@ const routes = [
     redirect: "/dashboard",
   },
   {
+    path: "/renew",
+    name: "Renew",
+    meta: { uiVariant: "renew" },
+    component: () => import("../views/renew/Renew.vue"),
+  },
+  {
     path: "/dashboard/:tab?",
     name: "Dashboard",
     component: () => import("../views/dashboard/Dashboard.vue"),

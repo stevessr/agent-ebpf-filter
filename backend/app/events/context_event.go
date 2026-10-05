@@ -197,7 +197,7 @@ func BuildProcessContextFromHookPayload(payload map[string]interface{}, toolName
 			toolName, _ = toolCall["name"].(string)
 		}
 	}
-	toolCallID := PayloadString(payload, "tool_call_id", "toolCallId")
+	toolCallID := PayloadString(payload, "tool_call_id", "toolCallId", "tool_use_id", "toolUseId")
 	if toolCallID == "" {
 		if toolCall, _ := payload["toolCall"].(map[string]interface{}); toolCall != nil {
 			toolCallID = PayloadString(toolCall, "id", "callId", "toolCallId")
@@ -213,20 +213,23 @@ func BuildProcessContextFromHookPayload(payload map[string]interface{}, toolName
 	}
 	pid := PayloadUint32(payload, "pid", "process_id", "processId", "agent_pid", "agentPid")
 	ctx := ProcessContext{
-		RootAgentPid:   PayloadUint32(payload, "root_agent_pid", "rootAgentPid"),
-		AgentRunID:     PayloadString(payload, "agent_run_id", "agentRunId"),
-		TaskID:         PayloadString(payload, "task_id", "taskId"),
-		ConversationID: PayloadString(payload, "conversation_id", "conversationId"),
-		TurnID:         PayloadString(payload, "turn_id", "turnId"),
-		ToolCallID:     toolCallID,
-		ToolName:       platform.FirstNonEmpty(PayloadString(payload, "tool_name", "toolName"), toolName),
-		TraceID:        PayloadString(payload, "trace_id", "traceId"),
-		SpanID:         PayloadString(payload, "span_id", "spanId"),
-		Decision:       PayloadString(payload, "decision"),
-		ContainerID:    PayloadString(payload, "container_id", "containerId"),
-		ArgvDigest:     PayloadString(payload, "argv_digest", "argvDigest"),
-		Cwd:            cwd,
-		RiskScore:      PayloadFloat64(payload, "risk_score", "riskScore"),
+		RootAgentPid: PayloadUint32(payload, "root_agent_pid", "rootAgentPid"),
+		AgentRunID:   PayloadString(payload, "agent_run_id", "agentRunId"),
+		TaskID:       PayloadString(payload, "task_id", "taskId"),
+		ConversationID: platform.FirstNonEmpty(
+			PayloadString(payload, "conversation_id", "conversationId"),
+			PayloadString(payload, "session_id", "sessionId"),
+		),
+		TurnID:      PayloadString(payload, "turn_id", "turnId"),
+		ToolCallID:  toolCallID,
+		ToolName:    platform.FirstNonEmpty(PayloadString(payload, "tool_name", "toolName"), toolName),
+		TraceID:     PayloadString(payload, "trace_id", "traceId"),
+		SpanID:      PayloadString(payload, "span_id", "spanId"),
+		Decision:    PayloadString(payload, "decision"),
+		ContainerID: PayloadString(payload, "container_id", "containerId"),
+		ArgvDigest:  PayloadString(payload, "argv_digest", "argvDigest"),
+		Cwd:         cwd,
+		RiskScore:   PayloadFloat64(payload, "risk_score", "riskScore"),
 	}
 	if ctx.ArgvDigest == "" {
 		ctx.ArgvDigest = BuildArgvDigest(ctx.ToolName, path, ctx.TaskID)

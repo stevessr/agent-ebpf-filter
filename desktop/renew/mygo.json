@@ -1,0 +1,12 @@
+{
+  "name": "Renew",
+  "identifier": "io.github.stevessr.agent-ebpf-filter.renew",
+  "version": "0.1.0",
+  "main": ".",
+  "out": "build",
+  "linux": {
+    "comment": "Daily desktop monitor for Agent eBPF Filter",
+    "categories": ["System", "Utility"],
+    "command": "agent-ebpf-renew"
+  }
+}

@@ -33,7 +33,7 @@ Agent eBPF Filter combines **eBPF kernel tracing**, **Go backend**, **Vue.js das
 
 ### 🎯 **Semantic Correlation**
 - PID registration via Python/Node.js adapters
-- Native hooks for Claude Code, Gemini CLI, Codex, Pi, Oh My Pi, GitHub Copilot, Kiro CLI, Augment, and Antigravity CLI
+- Native hooks for Claude Code, Gemini CLI, Codex, Pi, Oh My Pi, GitHub Copilot, Kiro CLI, Augment, Antigravity CLI, and ZCode
 - Wrapper-based command interception for Cursor and DeepSeek Harness (`dsh`)
 - Context tracking: `agent_run_id`, `tool_call_id`, `trace_id`, `cwd`, `argv_digest`
 
@@ -44,6 +44,7 @@ Agent eBPF Filter combines **eBPF kernel tracing**, **Go backend**, **Vue.js das
 - **ML-based risk scoring:** Optional machine learning classification
 
 ### 📊 **Rich Web Dashboard**
+- **Renew:** Low-noise daily monitoring UI with an optional MyGo desktop shell
 - **Dashboard:** Real-time event stream with strace-style summaries
 - **Network:** Flow attribution with DNS/SNI/HTTP enrichment
 - **Execution Graph:** Process topology with behavior tracking
@@ -71,7 +72,7 @@ Agent eBPF Filter combines **eBPF kernel tracing**, **Go backend**, **Vue.js das
 ### Prerequisites
 
 - **Linux** with eBPF and BTF support
-- **Go 1.26.2+**
+- **Go 1.27.1+**
 - **Bun** (frontend build tool)
 - **clang/LLVM** (eBPF compilation)
 - **protoc** (Protocol Buffers compiler)
@@ -167,6 +168,7 @@ From the **Hooks** page, install native or wrapper integrations for:
 - Kiro CLI
 - Augment/Auggie CLI
 - Antigravity CLI (`agy`)
+- ZCode (native lifecycle hooks + OS-level sandbox attribution)
 - Cursor (via wrapper alias)
 
 ### Block Network Destinations (Kernel-Level)
@@ -247,6 +249,7 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory, orga
 **Start here:**
 - New developers: [What is Agent eBPF Filter?](docs/guide/what-is-agent-ebpf-filter.md)
 - Security review: [Security Model](docs/security/model.md)
+- Validation-first detection engineering: [NVIDIA-inspired offline replay](docs/security/nvidia-validation-first-detection.md)
 - Integration: [External API](docs/integrations/external-api.md)
 - Deployment: [Kubernetes Guide](docs/operations/kubernetes.md)
 

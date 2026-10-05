@@ -1,6 +1,6 @@
 module agent-ebpf-filter
 
-go 1.26.2
+go 1.27.1
 
 require (
 	github.com/NVIDIA/go-nvml v0.13.0-1

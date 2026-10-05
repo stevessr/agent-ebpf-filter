@@ -24,11 +24,14 @@ import (
 
 func getShellConfigPath() string {
 	home := platform.GetRealHomeDir()
-	shell := os.Getenv("SHELL")
-	if strings.Contains(shell, "zsh") {
+	switch filepath.Base(os.Getenv("SHELL")) {
+	case "fish":
+		return filepath.Join(home, ".config", "fish", "config.fish")
+	case "zsh":
 		return filepath.Join(home, ".zshrc")
+	default:
+		return filepath.Join(home, ".bashrc")
 	}
-	return filepath.Join(home, ".bashrc")
 }
 
 func isTextLikeMime(mimeType string) bool {
@@ -386,6 +389,8 @@ func refreshHooksPaths() {
 				availableHooks[i].NativeConfigPath = filepath.Join(home, ".augment", "settings.json")
 			case "antigravity":
 				availableHooks[i].NativeConfigPath = filepath.Join(home, ".gemini", "antigravity-cli", "plugins", hookMarker, "hooks.json")
+			case "zcode":
+				availableHooks[i].NativeConfigPath = filepath.Join(home, ".zcode", "cli", "config.json")
 			}
 		}
 	}

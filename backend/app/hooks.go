@@ -28,6 +28,9 @@ func ensureHookRelayScript(h HookDef) (string, error) {
 }
 
 func buildHookRelayScript(h HookDef) string {
+	if h.ID == "zcode" {
+		return buildZCodeHookRelayScript(h)
+	}
 	if h.ID == "antigravity" {
 		return buildAntigravityHookRelayScript(h)
 	}
@@ -174,6 +177,9 @@ func installNativeHook(h HookDef) error {
 	if h.ID == "antigravity" {
 		return installAntigravityNativeHook(h)
 	}
+	if h.ID == "zcode" {
+		return installZCodeNativeHook(h)
+	}
 
 	cleanupLegacyCodexHookConfig(h)
 
@@ -285,6 +291,9 @@ func uninstallNativeHook(h HookDef) error {
 	}
 	if h.ID == "antigravity" {
 		return uninstallAntigravityNativeHook(h)
+	}
+	if h.ID == "zcode" {
+		return uninstallZCodeNativeHook(h)
 	}
 
 	b, err := os.ReadFile(h.NativeConfigPath)
