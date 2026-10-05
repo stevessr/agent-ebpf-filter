@@ -1,6 +1,7 @@
 package domainforwardproxy
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -270,6 +271,62 @@ func TestResponsesWebSocketSteeringBatchState(t *testing.T) {
 	}
 	if state.hasPendingSteer("resp_parent") {
 		t.Fatal("automatic successor left stale queued steering state")
+	}
+}
+
+func TestResponsesWebSocketNoAliasSteerDoesNotConsumeQueuedAlias(t *testing.T) {
+	state := newResponsesWSRewriteState()
+	queued := &modelRewrite{Client: "client-b", Upstream: "fast-b"}
+
+	state.enqueueStream("main", nil)
+	state.rememberResponse("resp_plain", "main", nil)
+	if mapping, known := state.response("resp_plain"); !known || mapping != nil {
+		t.Fatalf("plain response lookup = %#v known=%v, want explicit nil mapping", mapping, known)
+	}
+	state.enqueueSteer("resp_plain", nil)
+	state.enqueueStream("main", queued)
+	state.holdTerminalResponse("resp_plain", "main")
+
+	steer, ok := state.takePendingSteerBatch("resp_plain")
+	if !ok {
+		t.Fatal("pending no-alias steer was not retained")
+	}
+	if steer.mapping != nil {
+		t.Fatalf("no-alias steer mapping = %#v, want nil", steer.mapping)
+	}
+	if mapping, bound := state.stream("main"); !bound || mapping != nil {
+		t.Fatalf("successor lane mapping = %#v bound=%v, want explicit nil", mapping, bound)
+	}
+
+	state.popStream("main")
+	mapping, bound := state.stream("main")
+	if !bound || mapping == nil || mapping.Client != "client-b" {
+		t.Fatalf("queued aliased request was consumed by steer successor: %#v bound=%v", mapping, bound)
+	}
+}
+
+func TestResponsesWebSocketHistoryKeepsPinnedResponseThenPrunes(t *testing.T) {
+	state := newResponsesWSRewriteState()
+	state.rememberResponse("pinned", "main", nil)
+	state.enqueueSteer("pinned", nil)
+	state.holdTerminalResponse("pinned", "main")
+
+	for i := 0; i < maxResponsesWSRewriteHistory+8; i++ {
+		id := fmt.Sprintf("resp_%03d", i)
+		state.rememberResponse(id, "other", nil)
+	}
+	if _, known := state.response("pinned"); !known {
+		t.Fatal("pinned response was evicted from rewrite history")
+	}
+	if len(state.responseOrder) <= maxResponsesWSRewriteHistory {
+		t.Fatalf("history did not temporarily retain pinned response: len=%d", len(state.responseOrder))
+	}
+
+	if _, ok := state.takePendingSteerBatch("pinned"); !ok {
+		t.Fatal("failed to release pinned steering state")
+	}
+	if got := len(state.responseOrder); got > maxResponsesWSRewriteHistory {
+		t.Fatalf("history remained above limit after unpin: len=%d", got)
 	}
 }
 
