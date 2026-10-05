@@ -127,3 +127,87 @@ func TestResponsesWebSocketTargetURL(t *testing.T) {
 		t.Fatalf("unexpected websocket target: %s", got.String())
 	}
 }
+
+func TestResponsesWebSocketQueuesModelMappingsPerLane(t *testing.T) {
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Errorf("upstream upgrade: %v", err)
+			return
+		}
+		defer conn.Close()
+
+		for _, want := range []string{`"model":"fast-a"`, `"model":"fast-b"`} {
+			_, payload, err := conn.ReadMessage()
+			if err != nil {
+				t.Errorf("upstream read: %v", err)
+				return
+			}
+			if !strings.Contains(string(payload), want) {
+				t.Errorf("upstream payload %s does not contain %s", payload, want)
+				return
+			}
+		}
+
+		for _, response := range []string{
+			`{"type":"response.completed","stream_id":"main","response":{"id":"resp_a","model":"fast-a","output":[]}}`,
+			`{"type":"response.completed","stream_id":"main","response":{"id":"resp_b","model":"fast-b","output":[]}}`,
+		} {
+			if err := conn.WriteMessage(websocket.TextMessage, []byte(response)); err != nil {
+				t.Errorf("upstream write: %v", err)
+				return
+			}
+		}
+	}))
+	defer upstream.Close()
+
+	proxy := httptest.NewUnstartedServer(nil)
+	proxyHost := NormalizeForwardHost(proxy.Listener.Addr().String())
+	handler := NewHandler(DomainForwardProxySettings{
+		DefaultScheme: "http",
+		Routes: []DomainForwardRoute{{
+			Host:     proxyHost,
+			Upstream: upstream.URL,
+		}},
+		Rewrite: BodyRewriteSettings{
+			Enabled: true,
+			ModelRules: []ModelRewriteRule{
+				{Host: proxyHost, From: "client-a", To: "fast-a"},
+				{Host: proxyHost, From: "client-b", To: "fast-b"},
+			},
+		},
+	})
+	proxy.Config.Handler = handler
+	proxy.Start()
+	defer proxy.Close()
+
+	proxyURL, err := url.Parse(proxy.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, _, err := websocket.DefaultDialer.Dial("ws://"+proxyURL.Host+"/v1/responses", nil)
+	if err != nil {
+		t.Fatalf("dial proxy websocket: %v", err)
+	}
+	defer client.Close()
+
+	for _, request := range []string{
+		`{"type":"response.create","stream_id":"main","model":"client-a","input":"one"}`,
+		`{"type":"response.create","stream_id":"main","model":"client-b","input":"two"}`,
+	} {
+		if err := client.WriteMessage(websocket.TextMessage, []byte(request)); err != nil {
+			t.Fatalf("client write: %v", err)
+		}
+	}
+
+	for _, want := range []string{`"model":"client-a"`, `"model":"client-b"`} {
+		_, payload, err := client.ReadMessage()
+		if err != nil {
+			t.Fatalf("client read: %v", err)
+		}
+		if !strings.Contains(string(payload), want) {
+			t.Fatalf("client payload %s does not contain %s", payload, want)
+		}
+	}
+}
