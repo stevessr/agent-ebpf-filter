@@ -73,6 +73,8 @@ export function useRenewDashboard() {
   return {
     events: feed.events,
     isConnected: feed.isConnected,
+    historyLoading: feed.historyLoading,
+    hasOlder: feed.hasOlder,
     isPaused,
     processes,
     systemStats,
@@ -92,6 +94,7 @@ export function useRenewDashboard() {
     selectedEventDetail: feed.selectedEventDetail,
     selectedEventID: feed.selectedEventID,
     loadEventDetail: feed.loadEventDetail,
+    loadOlder: feed.loadOlder,
     closeEventDetail: feed.closeEventDetail,
     refreshMonitoring,
     monitoring,
