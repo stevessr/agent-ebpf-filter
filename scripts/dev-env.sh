@@ -439,7 +439,7 @@ hint_for() {
     AGENT_LLM_TEMPERATURE) printf '0..2; use 0 for deterministic policy/compiler output.' ;;
     AGENT_LLM_MAX_TOKENS) printf 'Backend clamps request sizes. Leave unset to keep Runtime Config.' ;;
     OPENAI_BASE_URL) printf 'Fallback consumed when AGENT_LLM_BASE_URL is unset.' ;;
-    AGENT_RUNTIME_LOG_FILE_PATH) printf 'Default: ~/.config/agent-ebpf-filter/events.jsonl.' ;;
+    AGENT_RUNTIME_LOG_FILE_PATH) printf 'Default: ~/.config/agent-ebpf-filter/events.pebble; use .jsonl for legacy file mode.' ;;
     AGENT_RUNTIME_MAX_EVENT_AGE) printf 'Duration like 0, 5m, 24h. 0 disables age eviction.' ;;
     AGENT_RUNTIME_OTLP_ENDPOINT) printf 'Example: http://127.0.0.1:4318/v1/traces.' ;;
     AGENT_RUNTIME_DOMAIN_DEFAULT_SCHEME) printf 'http or https. Default runtime value is https.' ;;
