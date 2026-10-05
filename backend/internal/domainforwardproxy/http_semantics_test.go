@@ -197,7 +197,6 @@ func TestRequestBodyRewriteabilityProtectsSignedAndRangedBodies(t *testing.T) {
 	}
 }
 
-
 func TestRewrittenResponseInvalidatesTrailerDigests(t *testing.T) {
 	handler := NewHandlerWithTransport(DomainForwardProxySettings{
 		DefaultScheme: "https",
@@ -248,7 +247,6 @@ func TestRewrittenResponseInvalidatesTrailerDigests(t *testing.T) {
 		}
 	}
 }
-
 
 func TestRestoreRequestBodyPreservesOriginalFraming(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "https://example.test/", strings.NewReader("old"))
@@ -317,7 +315,6 @@ func TestSetRequestBodyUsesContentLengthWithoutTrailers(t *testing.T) {
 		t.Fatalf("Content-Length = %q, want 9", got)
 	}
 }
-
 
 func TestRequestBodyRewriteabilityProtectsDeclaredSignatureTrailer(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "https://example.test/", strings.NewReader("body"))
