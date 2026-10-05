@@ -154,6 +154,14 @@ sequenceDiagram
 
 ## eBPF 初始化
 
+若加载时报 `symbol "memset": unsatisfied program reference`，说明编译器将清零操作
+转换成了 BPF 无法解析的外部 libc 调用。Tracker 的路径清零使用固定偏移的 volatile
+word stores 避免这种优化；路径拷贝使用
+[`__builtin_memcpy_inline`](https://clang.llvm.org/docs/LanguageExtensions.html#guaranteed-inlined-copy)
+保证不生成外部 `memcpy` 调用。更新源码后，在 `backend/ebpf` 运行 `go generate`，再运行
+`go test . -run TestAgentTrackerHasNoUnresolvedCalls`（无需 root），最后重新构建后端。
+该测试检查生成对象的函数引用，不代替内核 verifier / 实机启动验证。
+
 ```mermaid
 graph TB
     Load[ensureTrackerMapsLoaded] --> Check{maps pinned?}
