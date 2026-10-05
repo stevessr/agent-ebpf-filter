@@ -60,6 +60,38 @@ frontend/src/
 
 其中 `eventPresentation.ts` 保持纯函数，便于通过 Bun 单元测试验证，不依赖页面或 WebSocket。
 
+
+## 持久化与前端内存模型
+
+Renew 默认启用本地事件持久化。完整事件由后端写入：
+
+```text
+~/.config/agent-ebpf-filter/events.pebble
+```
+
+这里使用 **Pebble**（纯 Go 的 LSM KV 数据库），而不是在 Renew 前端长期保存完整事件对象。选择 Pebble 的原因是它提供与 RocksDB 同类的 LSM/批量写入模型，同时不引入 RocksDB Go bindings 常见的 cgo 与系统原生库依赖，更适合当前 Go 1.27.1、Linux 桌面包和 CI 部署方式。
+
+数据路径为：
+
+```text
+eBPF / hooks / wrapper
+        │
+        ▼
+backend normalize + redact
+        ├──► Pebble：完整事件、ID 索引、审计链
+        ├──► /ws/event-summaries：紧凑实时摘要
+        └──► /events/detail/:id：用户点开时读取一条完整事件
+                         │
+                         ▼
+                       Renew
+```
+
+Renew 浏览器/桌面前端只保留一个有界摘要窗口；完整详情只在用户点开单条事件时从后端读取，并在详情关闭后释放。
+
+默认持久化历史上限为 100,000 条完整事件；`maxEventAge` 仍可再提供时间上限。后端内存 hot archive 独立限制为最多 1,500 条，因此扩大磁盘历史不会同比扩大常驻内存。
+
+显式配置的旧 `.jsonl` 路径仍保持兼容；新安装默认使用 Pebble。
+
 ## MyGo 桌面版
 
 桌面壳位于 `desktop/renew/`，使用 MyGo 0.2.6，并作为**独立 Go module** 维护。
