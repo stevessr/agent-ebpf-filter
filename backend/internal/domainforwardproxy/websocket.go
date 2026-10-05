@@ -193,6 +193,10 @@ func (s *responsesWSRewriteState) bindPendingSteerContinuation(
 	if len(queue) == 0 {
 		return false
 	}
+	expectedStreamID := s.responseStreams[previousResponseID]
+	if streamID != expectedStreamID {
+		return false
+	}
 	for i := range queue {
 		queue[i].mapping = cloneModelRewrite(mapping)
 		queue[i].streamID = streamID
