@@ -7,6 +7,8 @@ import type { SignalProcessingSettings } from "./signals";
 export interface RuntimeSettings {
   logPersistenceEnabled: boolean;
   logFilePath: string;
+  eventStoreMaxRecords: number;
+  eventStoreMaxAge: string;
   accessToken: string;
   maxEventCount: number;
   maxEventAge: string;
