@@ -249,6 +249,30 @@ func TestResponsesWebSocketSteeringPreservesModelMapping(t *testing.T) {
 	}
 }
 
+func TestResponsesWebSocketSteeringBatchState(t *testing.T) {
+	state := newResponsesWSRewriteState()
+	mapping := &modelRewrite{
+		Client:       "client-model",
+		Upstream:     "fast-model",
+		clientJSON:   []byte(`"client-model"`),
+		upstreamJSON: []byte(`"fast-model"`),
+	}
+	state.rememberResponse("resp_parent", "main", mapping)
+	state.enqueueSteer("resp_parent", mapping)
+	state.enqueueSteer("resp_parent", mapping)
+
+	if !state.hasPendingSteer("resp_parent") {
+		t.Fatal("expected pending steering state")
+	}
+	got, ok := state.takePendingSteerBatch("resp_parent")
+	if !ok || got.mapping == nil || got.mapping.Client != "client-model" || got.streamID != "main" {
+		t.Fatalf("unexpected transferred steering state: %#v", got)
+	}
+	if state.hasPendingSteer("resp_parent") {
+		t.Fatal("automatic successor left stale queued steering state")
+	}
+}
+
 func TestResponsesWebSocketTargetURL(t *testing.T) {
 	target, _ := url.Parse("https://provider.example/base?tenant=one")
 	incoming, _ := url.Parse("https://client.example/v1/responses?trace=two")
