@@ -27,32 +27,32 @@ const {
   <a-config-provider :locale="zhCN">
     <router-view v-if="isStandaloneVariant" />
     <a-layout v-else class="app-layout">
-    <AppSideNav
-      v-model:collapsed="collapsed"
-      :nav-groups="navGroups"
-      :selected-keys="selectedMenuKeys"
-      :open-keys="openKeys"
-      @update:open-keys="updateOpenKeys"
-      @select="handleMenuSelect"
-    />
-
-    <a-layout class="app-layout__main">
-      <AppWorkbenchTabs
-        :tabs="openedTabs"
-        :active-key="activeTabKey"
-        @change="handleTabChange"
-        @edit="handleTabEdit"
+      <AppSideNav
+        v-model:collapsed="collapsed"
+        :nav-groups="navGroups"
+        :selected-keys="selectedMenuKeys"
+        :open-keys="openKeys"
+        @update:open-keys="updateOpenKeys"
+        @select="handleMenuSelect"
       />
 
-      <a-layout-content class="app-content">
-        <router-view />
-      </a-layout-content>
+      <a-layout class="app-layout__main">
+        <AppWorkbenchTabs
+          :tabs="openedTabs"
+          :active-key="activeTabKey"
+          @change="handleTabChange"
+          @edit="handleTabEdit"
+        />
 
-      <a-layout-footer class="app-footer">
-        Agent eBPF Tracker ©2026 · Stevessr
-      </a-layout-footer>
+        <a-layout-content class="app-content">
+          <router-view />
+        </a-layout-content>
+
+        <a-layout-footer class="app-footer">
+          Agent eBPF Tracker ©2026 · Stevessr
+        </a-layout-footer>
+      </a-layout>
     </a-layout>
-  </a-layout>
   </a-config-provider>
 </template>
 
