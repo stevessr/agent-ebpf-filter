@@ -207,8 +207,12 @@ func buildMCPServer() *mcp.Server {
 			logPath := settings.LogFilePath
 			logAlive := false
 			if settings.LogPersistenceEnabled && logPath != "" {
-				if info, err := os.Stat(logPath); err == nil && !info.IsDir() {
-					logAlive = true
+				if info, err := os.Stat(logPath); err == nil {
+					if isPebbleEventStorePath(logPath) {
+						logAlive = info.IsDir()
+					} else {
+						logAlive = !info.IsDir()
+					}
 				}
 			}
 			return nil, MCPConfigSnapshotOutput{
