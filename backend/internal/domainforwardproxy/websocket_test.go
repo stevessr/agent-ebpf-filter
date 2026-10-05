@@ -211,3 +211,28 @@ func TestResponsesWebSocketQueuesModelMappingsPerLane(t *testing.T) {
 		}
 	}
 }
+
+func TestResponsesWebSocketTerminalEvents(t *testing.T) {
+	cases := []struct {
+		name       string
+		eventType  string
+		streamID   string
+		errorParam string
+		want       bool
+	}{
+		{name: "completed", eventType: "response.completed", streamID: "main", want: true},
+		{name: "failed", eventType: "response.failed", streamID: "main", want: true},
+		{name: "incomplete", eventType: "response.incomplete", streamID: "main", want: true},
+		{name: "named lane error", eventType: "error", streamID: "main", want: true},
+		{name: "default lane request error", eventType: "error", want: true},
+		{name: "invalid stream id is unbound", eventType: "error", errorParam: "stream_id", want: false},
+		{name: "delta", eventType: "response.output_text.delta", streamID: "main", want: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := responsesTerminalEvent(tc.eventType, tc.streamID, tc.errorParam); got != tc.want {
+				t.Fatalf("responsesTerminalEvent(%q, %q, %q) = %v, want %v", tc.eventType, tc.streamID, tc.errorParam, got, tc.want)
+			}
+		})
+	}
+}
