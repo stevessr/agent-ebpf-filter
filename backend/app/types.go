@@ -34,6 +34,7 @@ type SignalProcessingSettings = core.SignalProcessingSettings
 type DomainForwardRoute = core.DomainForwardRoute
 type DomainBodyRewriteRule = core.DomainBodyRewriteRule
 type DomainModelRewriteRule = core.DomainModelRewriteRule
+type DomainNativeInferenceSettings = core.DomainNativeInferenceSettings
 type DomainBodyRewriteSettings = core.DomainBodyRewriteSettings
 type DomainForwardProxySettings = core.DomainForwardProxySettings
 
