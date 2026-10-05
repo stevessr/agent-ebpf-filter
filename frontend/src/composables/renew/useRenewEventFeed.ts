@@ -8,7 +8,7 @@ import {
 } from "../dashboard/dashboardConstants";
 
 const HISTORY_LIMIT = 240;
-const MAX_SUMMARIES = 800;
+const MAX_SUMMARIES = 1200;
 const FLUSH_WINDOW_MS = 100;
 
 const text = (value: unknown) =>
@@ -62,6 +62,9 @@ export function useRenewEventFeed(
 ) {
   const events = ref<AgentEvent[]>([]);
   const isConnected = ref(false);
+  const historyLoading = ref(false);
+  const hasOlder = ref(false);
+  const nextCursor = ref("");
   const detailLoading = ref(false);
   const selectedEventDetail = ref<Record<string, unknown> | null>(null);
   const selectedEventID = ref("");
@@ -94,7 +97,14 @@ export function useRenewEventFeed(
     flushTimer = window.setTimeout(flush, FLUSH_WINDOW_MS);
   };
 
+  const applyHistoryCursor = (payload: any) => {
+    nextCursor.value = text(payload?.nextCursor).trim();
+    hasOlder.value = Boolean(nextCursor.value);
+  };
+
   const loadHistory = async () => {
+    if (historyLoading.value) return;
+    historyLoading.value = true;
     try {
       const response = await axios.get("/events/summaries", {
         params: { limit: HISTORY_LIMIT },
@@ -105,8 +115,33 @@ export function useRenewEventFeed(
             .filter((event: AgentEvent | null): event is AgentEvent => event !== null)
         : [];
       mergeSummaries(summaries);
+      applyHistoryCursor(response.data);
     } catch (error) {
       console.error("Renew: failed to load compact event summaries", error);
+    } finally {
+      historyLoading.value = false;
+    }
+  };
+
+  const loadOlder = async () => {
+    const cursor = nextCursor.value;
+    if (historyLoading.value || !cursor) return;
+    historyLoading.value = true;
+    try {
+      const response = await axios.get("/events/summaries", {
+        params: { limit: HISTORY_LIMIT, cursor },
+      });
+      const summaries = Array.isArray(response.data?.events)
+        ? response.data.events
+            .map(normalizeSummary)
+            .filter((event: AgentEvent | null): event is AgentEvent => event !== null)
+        : [];
+      mergeSummaries(summaries);
+      applyHistoryCursor(response.data);
+    } catch (error) {
+      console.error("Renew: failed to load older event summaries", error);
+    } finally {
+      historyLoading.value = false;
     }
   };
 
@@ -212,12 +247,15 @@ export function useRenewEventFeed(
   return {
     events,
     isConnected,
+    historyLoading,
+    hasOlder,
     detailLoading,
     selectedEventDetail,
     selectedEventID,
     start,
     stop,
     loadHistory,
+    loadOlder,
     loadEventDetail,
     closeEventDetail,
   };
