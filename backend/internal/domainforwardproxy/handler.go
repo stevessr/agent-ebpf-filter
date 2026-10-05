@@ -126,7 +126,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						return
 					}
 					setRequestBody(r, encoded)
-					invalidateRequestBodyIntegrity(r.Header)
+					invalidateRequestBodyIntegrity(r)
 				} else {
 					setRequestBody(r, rawBody)
 				}
@@ -299,21 +299,28 @@ func restoreResponseBody(response *http.Response, body []byte) {
 
 func setResponseBody(response *http.Response, body []byte) {
 	restoreResponseBody(response, body)
-	invalidateResponseBodyIntegrity(response.Header)
+	invalidateResponseBodyIntegrity(response)
 }
 
-func invalidateRequestBodyIntegrity(header http.Header) {
+func invalidateRequestBodyIntegrity(request *http.Request) {
+	if request == nil {
+		return
+	}
 	for _, name := range []string{
 		"Content-MD5",
 		"Digest",
 		"Content-Digest",
 		"Repr-Digest",
 	} {
-		deleteHeaderFold(header, name)
+		deleteHeaderFold(request.Header, name)
+		deleteHeaderFold(request.Trailer, name)
 	}
 }
 
-func invalidateResponseBodyIntegrity(header http.Header) {
+func invalidateResponseBodyIntegrity(response *http.Response) {
+	if response == nil {
+		return
+	}
 	for _, name := range []string{
 		"ETag",
 		"Content-MD5",
@@ -321,7 +328,8 @@ func invalidateResponseBodyIntegrity(header http.Header) {
 		"Content-Digest",
 		"Repr-Digest",
 	} {
-		deleteHeaderFold(header, name)
+		deleteHeaderFold(response.Header, name)
+		deleteHeaderFold(response.Trailer, name)
 	}
 }
 
