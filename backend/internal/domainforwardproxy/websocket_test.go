@@ -646,20 +646,33 @@ func TestResponsesWebSocketTerminalEvents(t *testing.T) {
 		eventType  string
 		streamID   string
 		errorParam string
+		errorCode  string
 		want       bool
 	}{
 		{name: "completed", eventType: "response.completed", streamID: "main", want: true},
 		{name: "failed", eventType: "response.failed", streamID: "main", want: true},
 		{name: "incomplete", eventType: "response.incomplete", streamID: "main", want: true},
 		{name: "named lane error", eventType: "error", streamID: "main", want: true},
-		{name: "default lane request error", eventType: "error", want: true},
-		{name: "invalid stream id is unbound", eventType: "error", errorParam: "stream_id", want: false},
+		{name: "default lane previous response error", eventType: "error", errorCode: "previous_response_not_found", want: true},
+		{name: "default lane parameter error", eventType: "error", errorParam: "model", want: true},
+		{name: "invalid stream id is unbound", eventType: "error", errorParam: "stream_id", errorCode: "invalid_stream_id", want: false},
+		{name: "stream limit is connection scoped", eventType: "error", errorCode: "websocket_stream_limit_reached", want: false},
+		{name: "connection limit is connection scoped", eventType: "error", errorCode: "websocket_connection_limit_reached", want: false},
+		{name: "unknown unscoped error stays off default lane", eventType: "error", want: false},
 		{name: "delta", eventType: "response.output_text.delta", streamID: "main", want: false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := responsesTerminalEvent(tc.eventType, tc.streamID, tc.errorParam); got != tc.want {
-				t.Fatalf("responsesTerminalEvent(%q, %q, %q) = %v, want %v", tc.eventType, tc.streamID, tc.errorParam, got, tc.want)
+			if got := responsesTerminalEvent(tc.eventType, tc.streamID, tc.errorParam, tc.errorCode); got != tc.want {
+				t.Fatalf(
+					"responsesTerminalEvent(%q, %q, %q, %q) = %v, want %v",
+					tc.eventType,
+					tc.streamID,
+					tc.errorParam,
+					tc.errorCode,
+					got,
+					tc.want,
+				)
 			}
 		})
 	}
