@@ -32,6 +32,22 @@ func newRuntimeState() *runtimeState {
 	return &runtimeState{}
 }
 
+func defaultRenewDailyDisabledEventTypes() []uint32 {
+	return []uint32{
+		uint32(pb.EventType_OPENAT),
+		uint32(pb.EventType_IOCTL),
+		uint32(pb.EventType_READ),
+		uint32(pb.EventType_OPEN),
+		uint32(pb.EventType_NETWORK_SENDTO),
+		uint32(pb.EventType_NETWORK_RECVFROM),
+		uint32(pb.EventType_SOCKET),
+		uint32(pb.EventType_ACCEPT),
+		uint32(pb.EventType_ACCEPT4),
+		uint32(pb.EventType_TCP_STATE_CHANGE),
+		uint32(pb.EventType_GENERIC_SYSCALL),
+	}
+}
+
 func generateAccessToken() (string, error) {
 	tokenBytes := make([]byte, 24)
 	if _, err := cryptorand.Read(tokenBytes); err != nil {
@@ -202,6 +218,7 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 		LogFilePath:           platform.DefaultEventLogPath(),
 		EventStoreMaxRecords: defaultEventStoreMaxRecords,
 		EventStoreMaxAge:     defaultEventStoreMaxAge,
+		DisabledEventTypes:   defaultRenewDailyDisabledEventTypes(),
 		MaxEventCount:         1500,
 		MaxEventAge:           "0",
 		LoopDetection: LoopDetectionSettings{
@@ -232,6 +249,9 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 			settings = RuntimeSettings{
 				LogPersistenceEnabled: true,
 				LogFilePath:           platform.DefaultEventLogPath(),
+				EventStoreMaxRecords:  defaultEventStoreMaxRecords,
+				EventStoreMaxAge:      defaultEventStoreMaxAge,
+				DisabledEventTypes:    defaultRenewDailyDisabledEventTypes(),
 				MaxEventCount:         1500,
 				MaxEventAge:           "0",
 				LoopDetection: LoopDetectionSettings{
@@ -253,11 +273,19 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 				},
 				SignalProcessing: defaultSignalProcessingSettings(),
 			}
-		} else if _, explicitlyConfigured := rawSettings["logPersistenceEnabled"]; !explicitlyConfigured {
-			// Persistence became the safe default for Renew. Preserve an explicit
-			// false from existing installations, but enable it when upgrading a
-			// runtime file that predates this field.
-			settings.LogPersistenceEnabled = true
+		} else {
+			if _, explicitlyConfigured := rawSettings["logPersistenceEnabled"]; !explicitlyConfigured {
+				// Persistence became the safe default for Renew. Preserve an explicit
+				// false from existing installations, but enable it when upgrading a
+				// runtime file that predates this field.
+				settings.LogPersistenceEnabled = true
+			}
+			if _, explicitlyConfigured := rawSettings["disabledEventTypes"]; !explicitlyConfigured {
+				// Existing installations predate Renew's monitoring profiles and
+				// historically collected all event types. Preserve that behavior.
+				// Fresh installations use the Daily profile defaults above.
+				settings.DisabledEventTypes = nil
+			}
 		}
 	}
 	if settings.LoopDetection == (LoopDetectionSettings{}) {
@@ -303,6 +331,7 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 	if err := s.applyLoggingLocked(); err != nil {
 		return RuntimeSettings{}, err
 	}
+	trackingConfigStore{}.ReplaceDisabledEventTypes(s.settings.DisabledEventTypes)
 	otelExporterStore.ApplySettings(s.settings)
 	return s.settings, nil
 }
@@ -422,6 +451,7 @@ func (s *runtimeState) Replace(settings RuntimeSettings) (RuntimeSettings, error
 	if err := s.applyAndSaveSettingsLocked(previous); err != nil {
 		return RuntimeSettings{}, err
 	}
+	trackingConfigStore{}.ReplaceDisabledEventTypes(s.settings.DisabledEventTypes)
 	ml.UpdateMLRuntimeConfig(s.settings.MLConfig, s.settings.MLConfig.Enabled && clusterManagerStore.IsMaster())
 	otelExporterStore.ApplySettings(s.settings)
 	return s.settings, nil
