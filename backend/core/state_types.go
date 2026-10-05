@@ -18,6 +18,7 @@ type RuntimeSettings struct {
 	EventStoreMaxRecords    int                        `json:"eventStoreMaxRecords"`
 	EventStoreMaxAge        string                     `json:"eventStoreMaxAge"`
 	DisabledEventTypes     []uint32                   `json:"disabledEventTypes,omitempty"`
+	IgnoredPaths            []string                   `json:"ignoredPaths,omitempty"`
 	AccessToken             string                     `json:"accessToken"`
 	MaxEventCount           int                        `json:"maxEventCount"`
 	MaxEventAge             string                     `json:"maxEventAge"`
