@@ -65,6 +65,9 @@ func loadMITMCertificateAuthority(settings DomainForwardProxySettings) (*mitmCer
 	if !cert.IsCA {
 		return nil, errors.New("TLS interception certificate is not a CA")
 	}
+	if cert.KeyUsage != 0 && cert.KeyUsage&x509.KeyUsageCertSign == 0 {
+		return nil, errors.New("TLS interception CA certificate cannot sign certificates")
+	}
 	now := time.Now()
 	if now.Before(cert.NotBefore) {
 		return nil, fmt.Errorf("TLS interception CA certificate is not valid before %s", cert.NotBefore.UTC().Format(time.RFC3339))
@@ -141,8 +144,15 @@ func (ca *mitmCertificateAuthority) certificateForHost(host string) (*tls.Certif
 
 	ca.mu.Lock()
 	defer ca.mu.Unlock()
+	now = time.Now()
 	if cached, ok := ca.cache[host]; ok && now.Before(cached.expiresAt.Add(-time.Minute)) {
 		return cached.cert, nil
+	}
+	if !now.Before(ca.cert.NotAfter) {
+		return nil, fmt.Errorf(
+			"TLS interception CA certificate expired at %s",
+			ca.cert.NotAfter.UTC().Format(time.RFC3339),
+		)
 	}
 	leafKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
