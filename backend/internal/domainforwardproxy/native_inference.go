@@ -21,6 +21,10 @@ const (
 type NativeInferenceSettings struct {
 	Enabled       bool   `json:"enabled"`
 	ModelFile     string `json:"modelFile,omitempty"`
+	Direction     string `json:"direction,omitempty"`
+	Host          string `json:"host,omitempty"`
+	PathPrefix    string `json:"pathPrefix,omitempty"`
+	ContentType   string `json:"contentType,omitempty"`
 	MinTokenBytes int    `json:"minTokenBytes,omitempty"`
 	MaxTokenBytes int    `json:"maxTokenBytes,omitempty"`
 }
@@ -41,11 +45,15 @@ type nativeInferenceLabel struct {
 }
 
 type NativeInferenceKernel struct {
-	dimension int
-	seed      uint64
-	minToken  int
-	maxToken  int
-	labels    []nativeInferenceLabel
+	dimension   int
+	seed        uint64
+	direction   string
+	host        string
+	pathPrefix  string
+	contentType string
+	minToken    int
+	maxToken    int
+	labels      []nativeInferenceLabel
 }
 
 func LoadNativeInferenceKernel(settings NativeInferenceSettings) (*NativeInferenceKernel, error) {
@@ -88,6 +96,9 @@ func LoadNativeInferenceKernel(settings NativeInferenceSettings) (*NativeInferen
 		if label.Replacement == "" {
 			return nil, fmt.Errorf("native rewrite inference label %q has empty replacement", label.Name)
 		}
+		if strings.ContainsAny(label.Replacement, "\"\\\r\n\t") {
+			return nil, fmt.Errorf("native rewrite inference label %q replacement must be a JSON-safe token", label.Name)
+		}
 	}
 	minToken := settings.MinTokenBytes
 	if minToken <= 0 {
@@ -104,12 +115,35 @@ func LoadNativeInferenceKernel(settings NativeInferenceSettings) (*NativeInferen
 		return nil, errors.New("native rewrite inference minTokenBytes exceeds maxTokenBytes")
 	}
 	return &NativeInferenceKernel{
-		dimension: model.Dimension,
-		seed:      model.Seed,
-		minToken:  minToken,
-		maxToken:  maxToken,
-		labels:    model.Labels,
+		dimension:   model.Dimension,
+		seed:        model.Seed,
+		direction:   normalizeRewriteDirection(settings.Direction),
+		host:        NormalizeDomainPattern(settings.Host),
+		pathPrefix:  strings.TrimSpace(settings.PathPrefix),
+		contentType: strings.ToLower(strings.TrimSpace(settings.ContentType)),
+		minToken:    minToken,
+		maxToken:    maxToken,
+		labels:      model.Labels,
 	}, nil
+}
+
+func (k *NativeInferenceKernel) Matches(direction, host, path, contentType string) bool {
+	if k == nil {
+		return false
+	}
+	if k.direction != "both" && k.direction != direction {
+		return false
+	}
+	if !rewriteHostMatches(k.host, host) {
+		return false
+	}
+	if k.pathPrefix != "" && !strings.HasPrefix(path, k.pathPrefix) {
+		return false
+	}
+	if k.contentType != "" && !strings.Contains(strings.ToLower(contentType), k.contentType) {
+		return false
+	}
+	return true
 }
 
 func (k *NativeInferenceKernel) Rewrite(contentType string, body []byte) ([]byte, bool) {
@@ -218,7 +252,7 @@ func (k *NativeInferenceKernel) classify(token []byte) ([]byte, bool) {
 	if k == nil || len(token) == 0 || len(k.labels) == 0 {
 		return nil, false
 	}
-	scores := make([]int32, len(k.labels))
+	var scores [maxInferenceLabels]int32
 	for i := range k.labels {
 		scores[i] = k.labels[i].Bias
 	}
@@ -235,7 +269,8 @@ func (k *NativeInferenceKernel) classify(token []byte) ([]byte, bool) {
 	}
 	best := -1
 	bestScore := int32(-1 << 31)
-	for i, score := range scores {
+	for i := range k.labels {
+		score := scores[i]
 		if score < k.labels[i].Threshold {
 			continue
 		}
