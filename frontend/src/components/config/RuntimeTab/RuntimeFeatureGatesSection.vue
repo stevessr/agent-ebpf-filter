@@ -72,34 +72,6 @@ const { mergedFeatures, isCompiledIn, featureStatusLabel, featureStatusColor } =
         </a-tag>
         <a-tag color="blue">{{ persistedEventLogPath || "No event store path" }}</a-tag>
       </div>
-      <div style="display: flex; gap: 12px; flex-wrap: wrap">
-        <div>
-          <div style="margin-bottom: 6px; font-weight: 600">
-            Event DB max records
-          </div>
-          <a-input-number
-            v-model:value="runtimeSettings.eventStoreMaxRecords"
-            :min="1000"
-            :max="10000000"
-            :step="10000"
-            style="width: 180px"
-          />
-        </div>
-        <div>
-          <div style="margin-bottom: 6px; font-weight: 600">
-            Event DB max age
-          </div>
-          <a-input
-            v-model:value="runtimeSettings.eventStoreMaxAge"
-            placeholder="168h (0 disables age limit)"
-            style="width: 220px"
-          />
-        </div>
-      </div>
-      <a-typography-text type="secondary">
-        Pebble retention is independent from the shorter in-memory event window.
-        Defaults: 250,000 records and 168h; whichever limit is reached first is pruned.
-      </a-typography-text>
       <a-divider style="margin: 4px 0" />
       <div style="display: flex; align-items: center; gap: 12px">
         <a-switch
