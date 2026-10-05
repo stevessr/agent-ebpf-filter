@@ -17,17 +17,26 @@ const websocketWriteTimeout = 30 * time.Second
 
 const maxResponsesWSRewriteHistory = 256
 
+type responsesWSPendingSteer struct {
+	mapping  *modelRewrite
+	streamID string
+}
+
 type responsesWSRewriteState struct {
 	mu               sync.RWMutex
 	streamMappings   map[string][]*modelRewrite
 	responseMappings map[string]*modelRewrite
+	responseStreams  map[string]string
 	responseOrder    []string
+	pendingSteers    map[string][]responsesWSPendingSteer
 }
 
 func newResponsesWSRewriteState() *responsesWSRewriteState {
 	return &responsesWSRewriteState{
 		streamMappings:   make(map[string][]*modelRewrite),
 		responseMappings: make(map[string]*modelRewrite),
+		responseStreams:  make(map[string]string),
+		pendingSteers:    make(map[string][]responsesWSPendingSteer),
 	}
 }
 
@@ -57,7 +66,7 @@ func (s *responsesWSRewriteState) stream(streamID string) *modelRewrite {
 	return cloneModelRewrite(queue[0])
 }
 
-func (s *responsesWSRewriteState) rememberResponse(responseID string, mapping *modelRewrite) {
+func (s *responsesWSRewriteState) rememberResponse(responseID, streamID string, mapping *modelRewrite) {
 	if responseID == "" || mapping == nil {
 		return
 	}
@@ -67,10 +76,13 @@ func (s *responsesWSRewriteState) rememberResponse(responseID string, mapping *m
 		s.responseOrder = append(s.responseOrder, responseID)
 	}
 	s.responseMappings[responseID] = cloneModelRewrite(mapping)
+	s.responseStreams[responseID] = streamID
 	for len(s.responseOrder) > maxResponsesWSRewriteHistory {
 		oldest := s.responseOrder[0]
 		s.responseOrder = s.responseOrder[1:]
 		delete(s.responseMappings, oldest)
+		delete(s.responseStreams, oldest)
+		delete(s.pendingSteers, oldest)
 	}
 }
 
@@ -81,6 +93,64 @@ func (s *responsesWSRewriteState) response(responseID string) *modelRewrite {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return cloneModelRewrite(s.responseMappings[responseID])
+}
+
+func (s *responsesWSRewriteState) streamForResponse(responseID string) string {
+	if responseID == "" {
+		return ""
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.responseStreams[responseID]
+}
+
+func (s *responsesWSRewriteState) enqueueSteer(previousResponseID string, mapping *modelRewrite) {
+	if previousResponseID == "" || mapping == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pendingSteers[previousResponseID] = append(
+		s.pendingSteers[previousResponseID],
+		responsesWSPendingSteer{
+			mapping:  cloneModelRewrite(mapping),
+			streamID: s.responseStreams[previousResponseID],
+		},
+	)
+}
+
+func (s *responsesWSRewriteState) hasPendingSteer(previousResponseID string) bool {
+	if previousResponseID == "" {
+		return false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.pendingSteers[previousResponseID]) > 0
+}
+
+func (s *responsesWSRewriteState) takePendingSteer(previousResponseID string) (responsesWSPendingSteer, bool) {
+	if previousResponseID == "" {
+		return responsesWSPendingSteer{}, false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	queue := s.pendingSteers[previousResponseID]
+	if len(queue) == 0 {
+		return responsesWSPendingSteer{}, false
+	}
+	entry := queue[0]
+	if len(queue) == 1 {
+		delete(s.pendingSteers, previousResponseID)
+	} else {
+		queue[0] = responsesWSPendingSteer{}
+		s.pendingSteers[previousResponseID] = queue[1:]
+	}
+	entry.mapping = cloneModelRewrite(entry.mapping)
+	return entry, true
+}
+
+func (s *responsesWSRewriteState) dropPendingSteer(previousResponseID string) (responsesWSPendingSteer, bool) {
+	return s.takePendingSteer(previousResponseID)
 }
 
 func (s *responsesWSRewriteState) popStream(streamID string) {
@@ -215,13 +285,23 @@ func (h *Handler) copyResponsesWSClientToUpstream(
 				StreamID           string `json:"stream_id"`
 				PreviousResponseID string `json:"previous_response_id"`
 			}
-			if json.Unmarshal(payload, &envelope) == nil && envelope.Type == "response.create" {
-				rewritten, mapping, _ := h.rewrite.RewriteRequest(host, path, "application/json", payload)
-				payload = rewritten
-				if mapping == nil {
-					mapping = state.response(envelope.PreviousResponseID)
+			if json.Unmarshal(payload, &envelope) == nil {
+				switch envelope.Type {
+				case "response.create":
+					rewritten, mapping, _ := h.rewrite.RewriteRequest(host, path, "application/json", payload)
+					payload = rewritten
+					if mapping == nil {
+						mapping = state.response(envelope.PreviousResponseID)
+					}
+					state.enqueueStream(envelope.StreamID, mapping)
+				case "response.steer":
+					rewritten, _, _ := h.rewrite.RewriteRequest(host, path, "application/json", payload)
+					payload = rewritten
+					state.enqueueSteer(envelope.PreviousResponseID, state.response(envelope.PreviousResponseID))
+				default:
+					rewritten, _, _ := h.rewrite.RewriteRequest(host, path, "application/json", payload)
+					payload = rewritten
 				}
-				state.enqueueStream(envelope.StreamID, mapping)
 			} else {
 				rewritten, _, _ := h.rewrite.RewriteRequest(host, path, "application/json", payload)
 				payload = rewritten
@@ -252,28 +332,59 @@ func (h *Handler) copyResponsesWSUpstreamToClient(
 		}
 		if messageType == websocket.TextMessage {
 			var envelope struct {
-				Type       string `json:"type"`
-				StreamID   string `json:"stream_id"`
-				ResponseID string `json:"response_id"`
-				Response   struct {
-					ID string `json:"id"`
+				Type               string `json:"type"`
+				StreamID           string `json:"stream_id"`
+				ResponseID         string `json:"response_id"`
+				PreviousResponseID string `json:"previous_response_id"`
+				Response           struct {
+					ID                 string `json:"id"`
+					PreviousResponseID string `json:"previous_response_id"`
+					IncompleteDetails  struct {
+						Reason string `json:"reason"`
+					} `json:"incomplete_details"`
 				} `json:"response"`
+				Steer struct {
+					PreviousResponseID string `json:"previous_response_id"`
+				} `json:"steer"`
 				Error struct {
 					Param string `json:"param"`
 				} `json:"error"`
 			}
 			_ = json.Unmarshal(payload, &envelope)
-			mapping := state.stream(envelope.StreamID)
 			responseID := envelope.ResponseID
 			if responseID == "" {
 				responseID = envelope.Response.ID
 			}
+			previousResponseID := envelope.PreviousResponseID
+			if previousResponseID == "" {
+				previousResponseID = envelope.Response.PreviousResponseID
+			}
+
+			mapping := state.stream(envelope.StreamID)
+			if envelope.Type == "response.created" && previousResponseID != "" {
+				if steer, ok := state.takePendingSteer(previousResponseID); ok {
+					mapping = steer.mapping
+				}
+			}
+			if mapping == nil && responseID != "" {
+				mapping = state.response(responseID)
+			}
+			if mapping == nil && previousResponseID != "" {
+				mapping = state.response(previousResponseID)
+			}
 			if mapping != nil && responseID != "" {
-				state.rememberResponse(responseID, mapping)
+				state.rememberResponse(responseID, envelope.StreamID, mapping)
 			}
 			rewritten, _ := h.rewrite.RewriteResponse(host, path, "application/json", payload, mapping)
 			payload = rewritten
-			if responsesTerminalEvent(envelope.Type, envelope.StreamID, envelope.Error.Param) {
+
+			if envelope.Type == "response.steer.failed" {
+				if failed, ok := state.dropPendingSteer(envelope.Steer.PreviousResponseID); ok {
+					state.popStream(failed.streamID)
+				}
+			}
+			if responsesTerminalEvent(envelope.Type, envelope.StreamID, envelope.Error.Param) &&
+				!state.hasPendingSteer(responseID) {
 				state.popStream(envelope.StreamID)
 			}
 		}
