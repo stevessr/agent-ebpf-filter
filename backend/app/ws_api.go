@@ -161,7 +161,9 @@ func runEventBroadcaster(ctx context.Context) {
 			// redacts it in place; the broadcaster owns the event outright
 			// once it leaves the queue (see enqueueBroadcastEvent).
 			alerts := buildSemanticAlerts(event)
-			appendRecord(recordCapturedEvent(event))
+			if !shouldIgnoreEventPath(event) {
+				appendRecord(recordCapturedEvent(event))
+			}
 			for _, alert := range alerts {
 				alert = enrichEventContext(alert)
 				appendRecord(recordCapturedEvent(alert))
