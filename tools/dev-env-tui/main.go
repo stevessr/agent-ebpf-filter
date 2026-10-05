@@ -133,6 +133,8 @@ var groups = []envGroup{
 		Vars: []envVar{
 			{Key: "AGENT_RUNTIME_LOG_PERSISTENCE_ENABLED", Label: "Persist event log", Hint: boolHint()},
 			{Key: "AGENT_RUNTIME_LOG_FILE_PATH", Label: "Event store path", Hint: "Default: ~/.config/agent-ebpf-filter/events.pebble; .jsonl selects legacy mode."},
+			{Key: "AGENT_RUNTIME_EVENT_STORE_MAX_RECORDS", Label: "Event DB max records", Hint: "Default: 250000."},
+			{Key: "AGENT_RUNTIME_EVENT_STORE_MAX_AGE", Label: "Event DB max age", Hint: "Default: 168h; 0 disables age pruning."},
 			{Key: "AGENT_RUNTIME_MAX_EVENT_COUNT", Label: "Retention count", Hint: "Recent event retention count."},
 			{Key: "AGENT_RUNTIME_MAX_EVENT_AGE", Label: "Retention max age", Hint: "Duration like 0, 5m, 24h. 0 disables age eviction."},
 			{Key: "AGENT_RUNTIME_SHELL_SESSIONS_ENABLED", Label: "Shell sessions", Hint: boolHint()},
