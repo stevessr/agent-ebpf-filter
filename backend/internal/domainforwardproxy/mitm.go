@@ -184,10 +184,14 @@ func (ca *mitmCertificateAuthority) certificateForHost(host string) (*tls.Certif
 	if err != nil {
 		return nil, fmt.Errorf("sign TLS interception certificate: %w", err)
 	}
+	leaf, err := x509.ParseCertificate(der)
+	if err != nil {
+		return nil, fmt.Errorf("parse signed TLS interception certificate: %w", err)
+	}
 	cert := &tls.Certificate{
 		Certificate: [][]byte{der, ca.cert.Raw},
 		PrivateKey:  leafKey,
-		Leaf:        template,
+		Leaf:        leaf,
 	}
 	expiresAt := notAfter
 	ca.pruneCacheLocked(now)
