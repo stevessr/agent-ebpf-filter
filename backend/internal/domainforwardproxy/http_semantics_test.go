@@ -326,7 +326,6 @@ func TestRequestBodyRewriteabilityProtectsDeclaredSignatureTrailer(t *testing.T)
 	}
 }
 
-
 func TestHeadResponsePreservesRepresentationLength(t *testing.T) {
 	handler := NewHandlerWithTransport(DomainForwardProxySettings{
 		DefaultScheme: "https",
@@ -442,5 +441,72 @@ func TestResponseBodyRewriteabilityRejectsNoContentStatuses(t *testing.T) {
 				t.Fatalf("status %d unexpectedly marked rewriteable", status)
 			}
 		})
+	}
+}
+
+
+func TestRestoreResponseBodyPreservesTrailerFraming(t *testing.T) {
+	resp := &http.Response{
+		Header:           http.Header{"Content-Type": []string{"application/json"}},
+		Trailer:          http.Header{"X-Trace": []string{"done"}},
+		Body:             io.NopCloser(strings.NewReader("old")),
+		ContentLength:    -1,
+		TransferEncoding: []string{"chunked"},
+	}
+
+	restoreResponseBody(resp, []byte("same"))
+
+	if resp.ContentLength != -1 {
+		t.Fatalf("ContentLength = %d, want -1", resp.ContentLength)
+	}
+	if len(resp.TransferEncoding) != 1 || resp.TransferEncoding[0] != "chunked" {
+		t.Fatalf("TransferEncoding = %v, want original chunked framing", resp.TransferEncoding)
+	}
+	if got := resp.Header.Get("Content-Length"); got != "" {
+		t.Fatalf("Content-Length unexpectedly introduced: %q", got)
+	}
+	if got := resp.Trailer.Get("X-Trace"); got != "done" {
+		t.Fatalf("response trailer changed: %q", got)
+	}
+}
+
+func TestSetResponseBodyLeavesTrailerFramingToServer(t *testing.T) {
+	resp := &http.Response{
+		Header: http.Header{
+			"Content-Type":   []string{"application/json"},
+			"Content-Length": []string{"3"},
+		},
+		Trailer: http.Header{
+			"X-Trace":        []string{"done"},
+			"Content-Digest": []string{"sha-256=:old:"},
+		},
+		Body:             io.NopCloser(strings.NewReader("old")),
+		ContentLength:    3,
+		TransferEncoding: []string{"chunked"},
+	}
+
+	setResponseBody(resp, []byte("rewritten"))
+
+	if resp.ContentLength != -1 {
+		t.Fatalf("ContentLength = %d, want -1", resp.ContentLength)
+	}
+	if len(resp.TransferEncoding) != 0 {
+		t.Fatalf("TransferEncoding = %v, want server-selected framing", resp.TransferEncoding)
+	}
+	if got := resp.Header.Get("Content-Length"); got != "" {
+		t.Fatalf("Content-Length survived trailer-bearing rewrite: %q", got)
+	}
+	if got := resp.Trailer.Get("Content-Digest"); got != "" {
+		t.Fatalf("Content-Digest trailer survived rewrite: %q", got)
+	}
+	if got := resp.Trailer.Get("X-Trace"); got != "done" {
+		t.Fatalf("non-integrity trailer was not preserved: %q", got)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(body); got != "rewritten" {
+		t.Fatalf("body = %q", got)
 	}
 }
