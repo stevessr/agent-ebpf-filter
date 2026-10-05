@@ -63,7 +63,6 @@ func TestSSERewriteBodyAppliesLiteralRulePerLine(t *testing.T) {
 	}
 }
 
-
 func TestSSERewriteBodyReassemblesMultiLineDataEvent(t *testing.T) {
 	kernel := NewRewriteKernel(BodyRewriteSettings{Enabled: true})
 	source := io.NopCloser(strings.NewReader(
