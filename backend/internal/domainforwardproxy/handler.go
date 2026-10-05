@@ -227,7 +227,7 @@ func requestBodyIsSigned(header http.Header) bool {
 		"X-Amz-Content-Sha256",
 		"X-Goog-Content-Sha256",
 	} {
-		if strings.TrimSpace(header.Get(name)) != "" {
+		if headerHasFieldFold(header, name) {
 			return true
 		}
 	}
@@ -362,6 +362,15 @@ func invalidateResponseBodyIntegrity(response *http.Response) {
 		deleteHeaderFold(response.Header, name)
 		deleteHeaderFold(response.Trailer, name)
 	}
+}
+
+func headerHasFieldFold(header http.Header, name string) bool {
+	for key := range header {
+		if strings.EqualFold(key, name) {
+			return true
+		}
+	}
+	return false
 }
 
 func deleteHeaderFold(header http.Header, name string) {
