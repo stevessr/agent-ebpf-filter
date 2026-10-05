@@ -149,6 +149,26 @@ func (s *responsesWSRewriteState) takePendingSteer(previousResponseID string) (r
 	return entry, true
 }
 
+// takePendingSteerBatch transfers all steering submissions queued against one
+// response into the single automatic successor response. The service may
+// accept more than one response.steer before it creates that successor; leaving
+// extra entries behind would make a later continuation inherit stale state.
+func (s *responsesWSRewriteState) takePendingSteerBatch(previousResponseID string) (responsesWSPendingSteer, bool) {
+	if previousResponseID == "" {
+		return responsesWSPendingSteer{}, false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	queue := s.pendingSteers[previousResponseID]
+	if len(queue) == 0 {
+		return responsesWSPendingSteer{}, false
+	}
+	entry := queue[0]
+	delete(s.pendingSteers, previousResponseID)
+	entry.mapping = cloneModelRewrite(entry.mapping)
+	return entry, true
+}
+
 func (s *responsesWSRewriteState) dropPendingSteer(previousResponseID string) (responsesWSPendingSteer, bool) {
 	return s.takePendingSteer(previousResponseID)
 }
@@ -362,7 +382,7 @@ func (h *Handler) copyResponsesWSUpstreamToClient(
 
 			mapping := state.stream(envelope.StreamID)
 			if envelope.Type == "response.created" && previousResponseID != "" {
-				if steer, ok := state.takePendingSteer(previousResponseID); ok {
+				if steer, ok := state.takePendingSteerBatch(previousResponseID); ok {
 					mapping = steer.mapping
 				}
 			}
