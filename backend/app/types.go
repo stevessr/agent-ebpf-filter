@@ -5,6 +5,7 @@ import (
 	"log"
 	"os/user"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -52,6 +53,7 @@ var (
 
 	disabledEventTypesMu sync.RWMutex
 	disabledEventTypes   = make(map[uint32]struct{})
+	disabledEventTypeBits [4]atomic.Uint64
 
 	nvmlInitialized bool
 
