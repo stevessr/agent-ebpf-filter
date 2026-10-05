@@ -207,9 +207,9 @@ func BuildEvent(req CaptureRequest) Event {
 		Vendor:         "codex",
 	}
 	annotateSSEEvent(&event)
-	annotateResponsesMetadata(&event)
+	annotateResponsesMetadata(&event, body)
 	annotateResponsesContextMetadata(&event, body, contentType)
-	annotateAgentMessage(&event)
+	annotateAgentMessageFromBody(&event, body, contentType)
 	return event
 }
 
@@ -424,10 +424,18 @@ func looksLikeJSON(contentType string, body []byte) bool {
 }
 
 func annotateAgentMessage(event *Event) {
-	if event == nil || event.Body == "" {
+	if event == nil {
 		return
 	}
-	digest, role, vendor, length := extractAgentMessageMeta(event.Body, event.ContentType, event.Host, event.URL, event.Direction)
+	annotateAgentMessageFromBody(event, event.Body, event.ContentType)
+}
+
+func annotateAgentMessageFromBody(event *Event, rawBody, contentType string) {
+	if event == nil || strings.TrimSpace(rawBody) == "" {
+		return
+	}
+	metadataBody := sanitizeBody(rawBody, contentType)
+	digest, role, vendor, length := extractAgentMessageMeta(metadataBody, contentType, event.Host, event.URL, event.Direction)
 	if digest == "" {
 		return
 	}
