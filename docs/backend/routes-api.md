@@ -414,7 +414,7 @@ AgentSight 事件上传端点（`POST /agentsight/events`及兼容路由）单�
 | 方法 | 路径 | 用途 |
 |------|------|------|
 | `GET` | `/agentsight/runners` | Runner 列表与状态 |
-| `GET` | `/agentsight/events` | 合并事件导出 (支持 format/jsonl/array) |
+| `GET` | `/events/summaries` | Renew 等轻量客户端使用的紧凑事件摘要；完整 payload 保留在后端持久化层 |\n| `GET` | `/events/detail/:id` | 按稳定 event ID 按需读取单条完整事件 |\n| `GET` | `/agentsight/events` | 合并事件导出 (支持 format/jsonl/array) |
 | `POST` | `/agentsight/events` | 上传 AgentSight 事件 |
 | `GET` | `/agentsight/events.jsonl` | JSONL 格式导出 |
 | `GET` | `/agentsight/events/stats` | 事件统计 (按 source/type/runner/comm) |
