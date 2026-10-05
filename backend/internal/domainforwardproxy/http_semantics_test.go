@@ -1,0 +1,188 @@
+package domainforwardproxy
+
+import (
+	"bytes"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+)
+
+func TestRewrittenRequestInvalidatesBodyDigests(t *testing.T) {
+	handler := NewHandlerWithTransport(DomainForwardProxySettings{
+		DefaultScheme: "https",
+		Routes: []DomainForwardRoute{{
+			Host:     "api.openai.com",
+			Upstream: "https://upstream.test",
+		}},
+		Rewrite: BodyRewriteSettings{
+			Enabled: true,
+			Rules: []BodyRewriteRule{{
+				Enabled:   true,
+				Direction: "request",
+				Find:      "before",
+				Replace:   "after",
+			}},
+		},
+	}, testRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := string(body); got != `{"value":"after"}` {
+			t.Fatalf("rewritten body = %q", got)
+		}
+		for _, name := range []string{"Content-MD5", "Digest", "Content-Digest", "Repr-Digest"} {
+			if got := req.Header.Get(name); got != "" {
+				t.Fatalf("%s survived request rewrite: %q", name, got)
+			}
+		}
+		return &http.Response{
+			StatusCode:    http.StatusOK,
+			Status:        "200 OK",
+			Header:        make(http.Header),
+			Body:          io.NopCloser(strings.NewReader("ok")),
+			ContentLength: 2,
+			Request:       req,
+		}, nil
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "https://api.openai.com/v1/responses", strings.NewReader(`{"value":"before"}`))
+	req.Host = "api.openai.com"
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-MD5", "legacy")
+	req.Header.Set("Digest", "sha-256=legacy")
+	req.Header.Set("Content-Digest", "sha-256=:legacy:")
+	req.Header.Set("Repr-Digest", "sha-256=:legacy:")
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSignedRequestBodyBypassesRewrite(t *testing.T) {
+	handler := NewHandlerWithTransport(DomainForwardProxySettings{
+		DefaultScheme: "https",
+		Routes: []DomainForwardRoute{{
+			Host:     "api.openai.com",
+			Upstream: "https://upstream.test",
+		}},
+		Rewrite: BodyRewriteSettings{
+			Enabled: true,
+			Rules: []BodyRewriteRule{{
+				Enabled:   true,
+				Direction: "request",
+				Find:      "before",
+				Replace:   "after",
+			}},
+		},
+	}, testRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := string(body); got != `{"value":"before"}` {
+			t.Fatalf("signed request was rewritten: %q", got)
+		}
+		if got := req.Header.Get("Signature-Input"); got == "" {
+			t.Fatal("Signature-Input was removed from bypassed signed request")
+		}
+		return &http.Response{
+			StatusCode:    http.StatusOK,
+			Status:        "200 OK",
+			Header:        make(http.Header),
+			Body:          io.NopCloser(strings.NewReader("ok")),
+			ContentLength: 2,
+			Request:       req,
+		}, nil
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "https://api.openai.com/v1/responses", strings.NewReader(`{"value":"before"}`))
+	req.Host = "api.openai.com"
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Signature-Input", `sig1=("@method" "content-digest")`)
+	req.Header.Set("Signature", "sig1=:deadbeef:")
+	req.Header.Set("Content-Digest", "sha-256=:deadbeef:")
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestPartialResponseBypassesRewrite(t *testing.T) {
+	original := []byte(`{"value":"secret"}`)
+	handler := NewHandlerWithTransport(DomainForwardProxySettings{
+		DefaultScheme: "https",
+		Routes: []DomainForwardRoute{{
+			Host:     "api.openai.com",
+			Upstream: "https://upstream.test",
+		}},
+		Rewrite: BodyRewriteSettings{
+			Enabled: true,
+			Rules: []BodyRewriteRule{{
+				Enabled:   true,
+				Direction: "response",
+				Find:      "secret",
+				Replace:   "public",
+			}},
+		},
+	}, testRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusPartialContent,
+			Status:     "206 Partial Content",
+			Header: http.Header{
+				"Content-Type":  []string{"application/json"},
+				"Content-Range": []string{"bytes 0-17/100"},
+				"ETag":          []string{`"range-source"`},
+			},
+			Body:          io.NopCloser(bytes.NewReader(original)),
+			ContentLength: int64(len(original)),
+			Request:       req,
+		}, nil
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "https://api.openai.com/v1/responses", nil)
+	req.Host = "api.openai.com"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusPartialContent {
+		t.Fatalf("status=%d, want 206", rec.Code)
+	}
+	if !bytes.Equal(rec.Body.Bytes(), original) {
+		t.Fatalf("partial response was rewritten: %q", rec.Body.Bytes())
+	}
+	if got := rec.Header().Get("Content-Range"); got != "bytes 0-17/100" {
+		t.Fatalf("Content-Range changed: %q", got)
+	}
+	if got := rec.Header().Get("ETag"); got != `"range-source"` {
+		t.Fatalf("ETag changed on bypassed partial response: %q", got)
+	}
+}
+
+func TestRequestBodyRewriteabilityProtectsSignedAndRangedBodies(t *testing.T) {
+	tests := []struct {
+		name   string
+		header http.Header
+	}{
+		{name: "signature", header: http.Header{"Signature": []string{"sig1=:abc:"}}},
+		{name: "signature-input", header: http.Header{"Signature-Input": []string{`sig1=("@method")`}}},
+		{name: "aws-hash", header: http.Header{"X-Amz-Content-Sha256": []string{"abc"}}},
+		{name: "aws-auth", header: http.Header{"Authorization": []string{"AWS4-HMAC-SHA256 Credential=abc"}}},
+		{name: "content-range", header: http.Header{"Content-Range": []string{"bytes 0-3/4"}}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "https://example.test/", strings.NewReader("body"))
+			req.Header = tc.header
+			if requestBodyIsRewriteable(req) {
+				t.Fatal("protected request body unexpectedly marked rewriteable")
+			}
+		})
+	}
+}
