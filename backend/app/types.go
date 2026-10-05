@@ -55,8 +55,8 @@ var (
 	disabledCommsMu sync.RWMutex
 	disabledComms   = make(map[string]struct{})
 
-	disabledEventTypesMu sync.RWMutex
-	disabledEventTypes   = make(map[uint32]struct{})
+	disabledEventTypesMu  sync.RWMutex
+	disabledEventTypes    = make(map[uint32]struct{})
 	disabledEventTypeBits [4]atomic.Uint64
 
 	nvmlInitialized bool
