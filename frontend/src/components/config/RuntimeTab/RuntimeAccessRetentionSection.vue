@@ -88,36 +88,70 @@ const { mergedFeatures, isCompiledIn, featureStatusLabel, featureStatusColor } =
     </div>
   </a-card>
   <a-card title="Event Retention" size="small">
-    <div style="display: flex; flex-direction: column; gap: 14px">
-      <div
-        style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap"
-      >
-        <span>Persistent history max events:</span>
-        <a-input-number
-          v-model:value="runtimeSettings.maxEventCount"
-          :min="100"
-          :max="2000000"
-          :step="1000"
-          style="width: 160px"
-        />
+    <div style="display: flex; flex-direction: column; gap: 16px">
+      <div>
+        <div style="font-weight: 600; margin-bottom: 8px">
+          Persistent Pebble history
+        </div>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap">
+          <label style="display: grid; gap: 6px">
+            <span>Max records</span>
+            <a-input-number
+              v-model:value="runtimeSettings.eventStoreMaxRecords"
+              :min="1000"
+              :max="10000000"
+              :step="10000"
+              style="width: 180px"
+            />
+          </label>
+          <label style="display: grid; gap: 6px">
+            <span>Max age</span>
+            <a-input
+              v-model:value="runtimeSettings.eventStoreMaxAge"
+              placeholder="168h"
+              style="width: 220px"
+            />
+          </label>
+        </div>
         <a-typography-text type="secondary">
-          Complete events are retained in the backend database; the in-memory hot
-          archive is capped at 1,500 records.
+          Defaults to 250,000 records / 168h. The first reached limit prunes
+          the oldest database records; use 0 only for the age limit to disable
+          age-based pruning.
         </a-typography-text>
       </div>
-      <div
-        style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap"
-      >
-        <span>Persistent history max age:</span>
-        <a-input
-          v-model:value="runtimeSettings.maxEventAge"
-          placeholder="e.g. 24h, 168h, 0 = no limit"
-          style="width: 220px"
-        />
-        <a-typography-text type="secondary"
-          >Go duration format (24h, 30m, 168h)</a-typography-text
-        >
+
+      <a-divider style="margin: 0" />
+
+      <div>
+        <div style="font-weight: 600; margin-bottom: 8px">
+          In-memory hot archive
+        </div>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap">
+          <label style="display: grid; gap: 6px">
+            <span>Max records</span>
+            <a-input-number
+              v-model:value="runtimeSettings.maxEventCount"
+              :min="100"
+              :max="2000000"
+              :step="1000"
+              style="width: 180px"
+            />
+          </label>
+          <label style="display: grid; gap: 6px">
+            <span>Max age</span>
+            <a-input
+              v-model:value="runtimeSettings.maxEventAge"
+              placeholder="0, 24h, 168h"
+              style="width: 220px"
+            />
+          </label>
+        </div>
+        <a-typography-text type="secondary">
+          This short hot window backs in-process fallbacks and analysis. It is
+          independent from the longer Pebble database history.
+        </a-typography-text>
       </div>
+
       <a-button type="primary" @click="saveRuntime">
         <ReloadOutlined /> Save Retention
       </a-button>
