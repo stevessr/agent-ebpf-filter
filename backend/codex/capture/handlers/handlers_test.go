@@ -117,6 +117,9 @@ func TestBuildCodexCaptureResponsesWebsocketArrayInput(t *testing.T) {
 	if event.MessageRole != "user" || event.PromptLen != len("upstream context") || event.PromptDigest == "" {
 		t.Fatalf("responses input context missing: %#v", event)
 	}
+	if event.ContextDigest == "" || event.ContextItems != 1 || event.ContextLen <= event.PromptLen {
+		t.Fatalf("complete upstream context metadata missing: %#v", event)
+	}
 }
 
 func TestBuildCodexCaptureResponsesWebsocketResponseDelta(t *testing.T) {
@@ -136,5 +139,34 @@ func TestBuildCodexCaptureResponsesWebsocketResponseDelta(t *testing.T) {
 	}
 	if event.MessageRole != "assistant" || event.PromptLen != len("hello") || event.PromptDigest == "" {
 		t.Fatalf("responses output context missing: %#v", event)
+	}
+}
+
+func TestBuildCodexCaptureResponsesContextIncludesAllInputItems(t *testing.T) {
+	build := func(system string) Event {
+		return BuildEvent(CaptureRequest{
+			Phase:       "request",
+			Direction:   "send",
+			URL:         "https://api.openai.com/v1/responses",
+			Host:        "api.openai.com",
+			ContentType: "application/json",
+			Body: `{"model":"gpt-5.6","input":[{"type":"message","role":"system","content":[{"type":"input_text","text":"` + system + `"}]},{"type":"function_call_output","call_id":"call_1","output":"tool-result"},{"type":"message","role":"user","content":[{"type":"input_text","text":"latest-user"}]}]}`,
+			PID: 11,
+		})
+	}
+
+	first := build("system-one")
+	second := build("system-two")
+	if first.PromptDigest == "" || first.PromptDigest != second.PromptDigest {
+		t.Fatalf("latest prompt digest should stay stable: %q vs %q", first.PromptDigest, second.PromptDigest)
+	}
+	if first.ContextDigest == "" || second.ContextDigest == "" || first.ContextDigest == second.ContextDigest {
+		t.Fatalf("full context digest did not include earlier input items: %q vs %q", first.ContextDigest, second.ContextDigest)
+	}
+	if first.ContextItems != 3 || second.ContextItems != 3 {
+		t.Fatalf("context item counts = %d/%d, want 3/3", first.ContextItems, second.ContextItems)
+	}
+	if first.ContextLen <= first.PromptLen {
+		t.Fatalf("context len=%d prompt len=%d; full context was not retained", first.ContextLen, first.PromptLen)
 	}
 }
