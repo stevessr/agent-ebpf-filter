@@ -86,8 +86,7 @@ func (r *sseRewriteBody) readEvent() ([]byte, error, bool) {
 	event := make([]byte, 0, 1024)
 	lineLen := 0
 	for {
-		fragment, err := r.reader.ReadSlice('
-')
+		fragment, err := r.reader.ReadSlice('\n')
 		if len(fragment) > 0 {
 			event = append(event, fragment...)
 			lineLen += len(fragment)
@@ -116,8 +115,7 @@ func (r *sseRewriteBody) readEvent() ([]byte, error, bool) {
 }
 
 func (r *sseRewriteBody) readPassthroughChunk() ([]byte, error) {
-	fragment, err := r.reader.ReadSlice('
-')
+	fragment, err := r.reader.ReadSlice('\n')
 	if len(fragment) == 0 {
 		return nil, err
 	}
@@ -147,9 +145,7 @@ func isSSEBlankLineLength(event []byte, lineLen int) bool {
 }
 
 func isSSEBlankLine(line []byte) bool {
-	return bytes.Equal(line, []byte("
-")) || bytes.Equal(line, []byte("
-"))
+	return bytes.Equal(line, []byte("\n")) || bytes.Equal(line, []byte("\r\n"))
 }
 
 func (r *sseRewriteBody) rewriteEvent(event []byte) []byte {
@@ -157,8 +153,7 @@ func (r *sseRewriteBody) rewriteEvent(event []byte) []byte {
 		return event
 	}
 
-	lines := bytes.SplitAfter(event, []byte("
-"))
+	lines := bytes.SplitAfter(event, []byte("\n"))
 	dataValues := make([][]byte, 0, 1)
 	firstData := -1
 	for i, line := range lines {
@@ -175,8 +170,7 @@ func (r *sseRewriteBody) rewriteEvent(event []byte) []byte {
 		return event
 	}
 
-	payload := bytes.Join(dataValues, []byte("
-"))
+	payload := bytes.Join(dataValues, []byte("\n"))
 	if len(payload) == 0 || bytes.Equal(bytes.TrimSpace(payload), []byte("[DONE]")) {
 		return event
 	}
@@ -198,8 +192,7 @@ func (r *sseRewriteBody) rewriteEvent(event []byte) []byte {
 
 	lineEnding := sseLineEnding(lines[firstData])
 	if len(lineEnding) == 0 {
-		lineEnding = []byte("
-")
+		lineEnding = []byte("\n")
 	}
 	replacement := renderSSEDataLines(rewritten, lineEnding)
 
@@ -235,11 +228,9 @@ func sseDataValue(line []byte) ([]byte, bool) {
 
 func trimSSELineEnding(line []byte) []byte {
 	switch {
-	case bytes.HasSuffix(line, []byte("
-")):
+	case bytes.HasSuffix(line, []byte("\r\n")):
 		return line[:len(line)-2]
-	case bytes.HasSuffix(line, []byte("
-")):
+	case bytes.HasSuffix(line, []byte("\n")):
 		return line[:len(line)-1]
 	default:
 		return line
@@ -248,22 +239,17 @@ func trimSSELineEnding(line []byte) []byte {
 
 func sseLineEnding(line []byte) []byte {
 	switch {
-	case bytes.HasSuffix(line, []byte("
-")):
-		return []byte("
-")
-	case bytes.HasSuffix(line, []byte("
-")):
-		return []byte("
-")
+	case bytes.HasSuffix(line, []byte("\r\n")):
+		return []byte("\r\n")
+	case bytes.HasSuffix(line, []byte("\n")):
+		return []byte("\n")
 	default:
 		return nil
 	}
 }
 
 func renderSSEDataLines(payload, lineEnding []byte) []byte {
-	segments := bytes.Split(payload, []byte("
-"))
+	segments := bytes.Split(payload, []byte("\n"))
 	out := make([]byte, 0, len(payload)+len(segments)*(6+len(lineEnding)))
 	for _, segment := range segments {
 		out = append(out, "data: "...)
