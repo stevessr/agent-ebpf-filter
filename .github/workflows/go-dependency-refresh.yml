@@ -29,14 +29,6 @@ jobs:
       - name: Install native build dependencies
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler clang llvm libbpf-dev libelf-dev
 
-      - name: Resolve split genproto compatibility
-        working-directory: backend
-        env:
-          GOTOOLCHAIN: local
-        run: |
-          go get github.com/cockroachdb/errors@v1.14.0
-          go mod download
-
       - name: Generate protobuf bindings
         run: |
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
@@ -52,6 +44,14 @@ jobs:
       - name: Generate eBPF bindings
         working-directory: backend/ebpf
         run: go generate
+
+      - name: Tidy upgraded Go modules
+        run: |
+          (cd backend && go mod tidy)
+          (cd wrapper && go mod tidy)
+          (cd desktop/renew && go mod tidy)
+          (cd tools/agent-tui && go mod tidy)
+          (cd tools/dev-env-tui && go mod tidy)
 
       - name: Diagnose genproto module graph
         working-directory: backend
@@ -91,11 +91,15 @@ jobs:
         if: success()
         shell: bash
         run: |
-          if git diff --quiet -- backend/go.mod backend/go.sum; then
+          if git diff --quiet -- '**/go.mod' '**/go.sum'; then
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add backend/go.mod backend/go.sum
-          git commit -m "fix(go): align CockroachDB dependency graph"
+          git add backend/go.mod backend/go.sum \
+            wrapper/go.mod wrapper/go.sum \
+            desktop/renew/go.mod desktop/renew/go.sum \
+            tools/agent-tui/go.mod tools/agent-tui/go.sum \
+            tools/dev-env-tui/go.mod tools/dev-env-tui/go.sum
+          git commit -m "chore(go): tidy upgraded dependency graph"
           git push
