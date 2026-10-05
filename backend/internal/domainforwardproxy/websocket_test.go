@@ -117,6 +117,138 @@ func TestResponsesWebSocketModelRewriteRoundTrip(t *testing.T) {
 	}
 }
 
+func TestResponsesWebSocketSteeringPreservesModelMapping(t *testing.T) {
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Errorf("upstream upgrade: %v", err)
+			return
+		}
+		defer conn.Close()
+
+		messageType, payload, err := conn.ReadMessage()
+		if err != nil {
+			t.Errorf("upstream create read: %v", err)
+			return
+		}
+		if !strings.Contains(string(payload), `"model":"fast-model"`) {
+			t.Errorf("create model was not redirected: %s", payload)
+			return
+		}
+		created := `{"type":"response.created","stream_id":"main","response":{"id":"resp_1","model":"fast-model","previous_response_id":null,"output":[]}}`
+		if err := conn.WriteMessage(messageType, []byte(created)); err != nil {
+			t.Errorf("upstream created write: %v", err)
+			return
+		}
+
+		messageType, payload, err = conn.ReadMessage()
+		if err != nil {
+			t.Errorf("upstream steer read: %v", err)
+			return
+		}
+		if !strings.Contains(string(payload), `"type":"response.steer"`) ||
+			!strings.Contains(string(payload), `"previous_response_id":"resp_1"`) {
+			t.Errorf("unexpected steer payload: %s", payload)
+			return
+		}
+
+		accepted := `{"type":"response.steer.accepted","stream_id":"main","sequence_number":3,"steer":{"id":"steer_1","previous_response_id":"resp_1"}}`
+		if err := conn.WriteMessage(messageType, []byte(accepted)); err != nil {
+			t.Errorf("upstream steer accepted write: %v", err)
+			return
+		}
+		incomplete := `{"type":"response.incomplete","stream_id":"main","response":{"id":"resp_1","model":"fast-model","previous_response_id":null,"incomplete_details":{"reason":"steered"},"output":[]}}`
+		if err := conn.WriteMessage(messageType, []byte(incomplete)); err != nil {
+			t.Errorf("upstream incomplete write: %v", err)
+			return
+		}
+		successor := `{"type":"response.created","stream_id":"main","response":{"id":"resp_2","model":"fast-model","previous_response_id":"resp_1","output":[]}}`
+		if err := conn.WriteMessage(messageType, []byte(successor)); err != nil {
+			t.Errorf("upstream successor write: %v", err)
+			return
+		}
+		completed := `{"type":"response.completed","stream_id":"main","response":{"id":"resp_2","model":"fast-model","previous_response_id":"resp_1","output":[]}}`
+		if err := conn.WriteMessage(messageType, []byte(completed)); err != nil {
+			t.Errorf("upstream successor completed write: %v", err)
+		}
+	}))
+	defer upstream.Close()
+
+	proxy := httptest.NewUnstartedServer(nil)
+	proxyHost := NormalizeForwardHost(proxy.Listener.Addr().String())
+	handler := NewHandler(DomainForwardProxySettings{
+		DefaultScheme: "http",
+		Routes: []DomainForwardRoute{{
+			Host:     proxyHost,
+			Upstream: upstream.URL,
+		}},
+		Rewrite: BodyRewriteSettings{
+			Enabled: true,
+			ModelRules: []ModelRewriteRule{{
+				Host: proxyHost,
+				From: "client-model",
+				To:   "fast-model",
+			}},
+		},
+	})
+	proxy.Config.Handler = handler
+	proxy.Start()
+	defer proxy.Close()
+
+	proxyURL, err := url.Parse(proxy.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, _, err := websocket.DefaultDialer.Dial("ws://"+proxyURL.Host+"/v1/responses", nil)
+	if err != nil {
+		t.Fatalf("dial proxy websocket: %v", err)
+	}
+	defer client.Close()
+
+	create := `{"type":"response.create","stream_id":"main","model":"client-model","input":"draft"}`
+	if err := client.WriteMessage(websocket.TextMessage, []byte(create)); err != nil {
+		t.Fatalf("client create write: %v", err)
+	}
+	_, payload, err := client.ReadMessage()
+	if err != nil {
+		t.Fatalf("client created read: %v", err)
+	}
+	if !strings.Contains(string(payload), `"model":"client-model"`) {
+		t.Fatalf("initial response model was not restored: %s", payload)
+	}
+
+	steer := `{"type":"response.steer","previous_response_id":"resp_1","input":"keep it shorter"}`
+	if err := client.WriteMessage(websocket.TextMessage, []byte(steer)); err != nil {
+		t.Fatalf("client steer write: %v", err)
+	}
+
+	for _, eventType := range []string{"response.steer.accepted", "response.incomplete"} {
+		_, payload, err = client.ReadMessage()
+		if err != nil {
+			t.Fatalf("client %s read: %v", eventType, err)
+		}
+		if !strings.Contains(string(payload), `"type":"`+eventType+`"`) {
+			t.Fatalf("unexpected %s payload: %s", eventType, payload)
+		}
+	}
+	_, payload, err = client.ReadMessage()
+	if err != nil {
+		t.Fatalf("client successor created read: %v", err)
+	}
+	if !strings.Contains(string(payload), `"id":"resp_2"`) ||
+		!strings.Contains(string(payload), `"model":"client-model"`) {
+		t.Fatalf("steered successor lost client model mapping: %s", payload)
+	}
+	_, payload, err = client.ReadMessage()
+	if err != nil {
+		t.Fatalf("client successor completed read: %v", err)
+	}
+	if !strings.Contains(string(payload), `"model":"client-model"`) {
+		t.Fatalf("steered successor completion lost client model mapping: %s", payload)
+	}
+}
+
 func TestResponsesWebSocketTargetURL(t *testing.T) {
 	target, _ := url.Parse("https://provider.example/base?tenant=one")
 	incoming, _ := url.Parse("https://client.example/v1/responses?trace=two")
