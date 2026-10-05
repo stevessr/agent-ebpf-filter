@@ -250,6 +250,18 @@ func agentSightTLSData(event tls.TLSPlaintextEvent, timestamp time.Time) map[str
 	if event.SSEDataCount != 0 {
 		data["sse_data_count"] = event.SSEDataCount
 	}
+	if event.ProtocolEvent != "" {
+		data["protocol_event"] = event.ProtocolEvent
+	}
+	if event.StreamID != "" {
+		data["stream_id"] = event.StreamID
+	}
+	if event.ResponseID != "" {
+		data["response_id"] = event.ResponseID
+	}
+	if event.PreviousResponseID != "" {
+		data["previous_response_id"] = event.PreviousResponseID
+	}
 	if event.RootAgentPID != 0 {
 		data["root_agent_pid"] = event.RootAgentPID
 	}
