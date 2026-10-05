@@ -521,6 +521,7 @@ func (h *Handler) copyResponsesWSUpstreamToClient(
 					PreviousResponseID string `json:"previous_response_id"`
 				} `json:"steer"`
 				Error struct {
+					Code  string `json:"code"`
 					Param string `json:"param"`
 				} `json:"error"`
 			}
@@ -574,7 +575,12 @@ func (h *Handler) copyResponsesWSUpstreamToClient(
 					}
 				}
 			}
-			if responsesTerminalEvent(envelope.Type, envelope.StreamID, envelope.Error.Param) {
+			if responsesTerminalEvent(
+				envelope.Type,
+				envelope.StreamID,
+				envelope.Error.Param,
+				envelope.Error.Code,
+			) {
 				if state.hasPendingSteer(responseID) {
 					state.holdTerminalResponse(responseID, envelope.StreamID)
 				} else {
@@ -609,18 +615,36 @@ func websocketTargetURL(target, incoming *url.URL) *url.URL {
 	return &out
 }
 
-func responsesTerminalEvent(eventType, streamID, errorParam string) bool {
+func responsesTerminalEvent(eventType, streamID, errorParam, errorCode string) bool {
 	switch eventType {
 	case "response.completed", "response.failed", "response.incomplete":
 		return true
 	case "error":
-		// A valid named-lane request error carries stream_id. Default-lane
-		// request errors do not. Errors rejecting stream_id itself cannot be
-		// associated with a lane, so do not pop the implicit default queue.
-		return streamID != "" || errorParam != "stream_id"
+		return responsesErrorTerminatesLane(streamID, errorParam, errorCode)
 	default:
 		return false
 	}
+}
+
+func responsesErrorTerminatesLane(streamID, errorParam, errorCode string) bool {
+	if streamID != "" {
+		return true
+	}
+	switch errorCode {
+	case "invalid_stream_id",
+		"websocket_stream_limit_reached",
+		"websocket_connection_limit_reached":
+		return false
+	case "previous_response_not_found":
+		return true
+	}
+	if errorParam == "stream_id" {
+		return false
+	}
+	// A parameter-specific error without a named stream belongs to the default
+	// lane request. An unscoped unknown error is kept connection-level so it
+	// cannot silently consume the default lane's queued model mapping.
+	return errorParam != ""
 }
 
 func nonEmptyString(value string) []string {
