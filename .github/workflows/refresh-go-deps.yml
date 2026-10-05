@@ -6,6 +6,7 @@ on:
       - chore/upgrade-go-deps-2026-10
     paths:
       - ".github/workflows/refresh-go-deps.yml"
+      - "backend/app/osenforcementobjects_test.go"
 
 permissions:
   contents: write
