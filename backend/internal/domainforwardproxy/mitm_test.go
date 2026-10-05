@@ -99,14 +99,24 @@ func TestTLSInterceptionLeafCacheIsBounded(t *testing.T) {
 		t.Fatalf("loadMITMCertificateAuthority: %v", err)
 	}
 
-	for i := 0; i < maxMITMLeafCacheEntries+64; i++ {
-		host := fmt.Sprintf("worker-%04d.example.test", i)
-		if _, err := ca.certificateForHost(host); err != nil {
-			t.Fatalf("certificateForHost(%s): %v", host, err)
+	now := time.Now()
+	for i := 0; i < maxMITMLeafCacheEntries; i++ {
+		host := fmt.Sprintf("cached-%04d.example.test", i)
+		ca.cache[host] = cachedMITMCertificate{
+			expiresAt: now.Add(time.Duration(i+1) * time.Second),
 		}
+	}
+	if _, err := ca.certificateForHost("new.example.test"); err != nil {
+		t.Fatalf("certificateForHost(new.example.test): %v", err)
 	}
 	if got := len(ca.cache); got != maxMITMLeafCacheEntries {
 		t.Fatalf("cache size = %d, want %d", got, maxMITMLeafCacheEntries)
+	}
+	if _, ok := ca.cache["cached-0000.example.test"]; ok {
+		t.Fatal("oldest cache entry was not evicted")
+	}
+	if _, ok := ca.cache["new.example.test"]; !ok {
+		t.Fatal("newly issued certificate missing from bounded cache")
 	}
 }
 
