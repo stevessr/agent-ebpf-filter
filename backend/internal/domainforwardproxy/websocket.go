@@ -71,7 +71,7 @@ func (s *responsesWSRewriteState) stream(streamID string) (*modelRewrite, bool) 
 }
 
 func (s *responsesWSRewriteState) rememberResponse(responseID, streamID string, mapping *modelRewrite) {
-	if responseID == "" || mapping == nil {
+	if responseID == "" {
 		return
 	}
 	s.mu.Lock()
@@ -81,23 +81,42 @@ func (s *responsesWSRewriteState) rememberResponse(responseID, streamID string, 
 	}
 	s.responseMappings[responseID] = cloneModelRewrite(mapping)
 	s.responseStreams[responseID] = streamID
+	s.pruneResponseHistoryLocked()
+}
+
+func (s *responsesWSRewriteState) pruneResponseHistoryLocked() {
 	for len(s.responseOrder) > maxResponsesWSRewriteHistory {
-		oldest := s.responseOrder[0]
-		s.responseOrder = s.responseOrder[1:]
+		evictIndex := -1
+		for i, responseID := range s.responseOrder {
+			if len(s.pendingSteers[responseID]) > 0 {
+				continue
+			}
+			if _, held := s.heldTerminalStreams[responseID]; held {
+				continue
+			}
+			evictIndex = i
+			break
+		}
+		if evictIndex < 0 {
+			return
+		}
+		oldest := s.responseOrder[evictIndex]
+		copy(s.responseOrder[evictIndex:], s.responseOrder[evictIndex+1:])
+		s.responseOrder[len(s.responseOrder)-1] = ""
+		s.responseOrder = s.responseOrder[:len(s.responseOrder)-1]
 		delete(s.responseMappings, oldest)
 		delete(s.responseStreams, oldest)
-		delete(s.pendingSteers, oldest)
-		delete(s.heldTerminalStreams, oldest)
 	}
 }
 
-func (s *responsesWSRewriteState) response(responseID string) *modelRewrite {
+func (s *responsesWSRewriteState) response(responseID string) (*modelRewrite, bool) {
 	if responseID == "" {
-		return nil
+		return nil, false
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return cloneModelRewrite(s.responseMappings[responseID])
+	mapping, ok := s.responseMappings[responseID]
+	return cloneModelRewrite(mapping), ok
 }
 
 func (s *responsesWSRewriteState) streamForResponse(responseID string) string {
@@ -110,7 +129,7 @@ func (s *responsesWSRewriteState) streamForResponse(responseID string) string {
 }
 
 func (s *responsesWSRewriteState) enqueueSteer(previousResponseID string, mapping *modelRewrite) {
-	if previousResponseID == "" || mapping == nil {
+	if previousResponseID == "" {
 		return
 	}
 	s.mu.Lock()
@@ -432,7 +451,9 @@ func (h *Handler) copyResponsesWSClientToUpstream(
 					explicitModel := len(strings.TrimSpace(string(envelope.Model))) > 0 &&
 						string(bytes.TrimSpace(envelope.Model)) != "null"
 					if mapping == nil && !explicitModel {
-						mapping = state.response(envelope.PreviousResponseID)
+						if inherited, known := state.response(envelope.PreviousResponseID); known {
+							mapping = inherited
+						}
 					}
 					if !state.bindPendingSteerContinuation(
 						envelope.PreviousResponseID,
@@ -444,7 +465,9 @@ func (h *Handler) copyResponsesWSClientToUpstream(
 				case "response.steer":
 					rewritten, _, _ := h.rewrite.RewriteRequest(host, path, "application/json", payload)
 					payload = rewritten
-					state.enqueueSteer(envelope.PreviousResponseID, state.response(envelope.PreviousResponseID))
+					if mapping, known := state.response(envelope.PreviousResponseID); known {
+						state.enqueueSteer(envelope.PreviousResponseID, mapping)
+					}
 				default:
 					rewritten, _, _ := h.rewrite.RewriteRequest(host, path, "application/json", payload)
 					payload = rewritten
@@ -516,15 +539,18 @@ func (h *Handler) copyResponsesWSUpstreamToClient(
 				}
 			}
 			if !mappingBound && responseID != "" {
-				if known := state.response(responseID); known != nil {
-					mapping = known
+				if knownMapping, known := state.response(responseID); known {
+					mapping = knownMapping
 					mappingBound = true
 				}
 			}
 			if !mappingBound && previousResponseID != "" {
-				mapping = state.response(previousResponseID)
+				if inherited, known := state.response(previousResponseID); known {
+					mapping = inherited
+					mappingBound = true
+				}
 			}
-			if mapping != nil && responseID != "" {
+			if mappingBound && responseID != "" {
 				state.rememberResponse(responseID, envelope.StreamID, mapping)
 			}
 			rewritten, _ := h.rewrite.RewriteResponse(host, path, "application/json", payload, mapping)
