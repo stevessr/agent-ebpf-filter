@@ -20,6 +20,13 @@ import {
   AppstoreOutlined,
   ReloadOutlined,
 } from "@ant-design/icons-vue";
+import {
+  quickRulePresets,
+  externalRuleSources,
+  syscallGroups,
+  type useConfigSecurity,
+} from "../../composables/config/useConfigSecurity";
+
 const securityActionLabels: Record<string, string> = {
   BLOCK: "阻断",
   REWRITE: "重写",
@@ -27,13 +34,6 @@ const securityActionLabels: Record<string, string> = {
   ALLOW: "允许",
 };
 const securityActionLabel = (value: string) => securityActionLabels[value] || value;
-
-import {
-  quickRulePresets,
-  externalRuleSources,
-  syscallGroups,
-  type useConfigSecurity,
-} from "../../composables/config/useConfigSecurity";
 
 const props = defineProps<{
   security: ReturnType<typeof useConfigSecurity>;
