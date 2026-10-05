@@ -64,6 +64,9 @@ func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 		return err
 	}
 	settings.DisabledEventTypes = disabledEventTypes
+	if settings.IgnoredPaths == nil {
+		settings.IgnoredPaths = defaultIgnoredEventPaths()
+	}
 	ignoredPaths, err := normalizeIgnoredEventPaths(settings.IgnoredPaths)
 	if err != nil {
 		return err
