@@ -247,3 +247,79 @@ func TestRuntimeEventStorePruneKeepsNewestRecordsAndIndexes(t *testing.T) {
 		}
 	}
 }
+
+
+func TestRuntimeEventStoreCursorPaging(t *testing.T) {
+	root := t.TempDir()
+	store, _, err := openRuntimeEventStoreWithin(root, filepath.Join(root, "events.pebble"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	t.Cleanup(func() {
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer stopCancel()
+		if err := store.StopContext(stopCtx); err != nil {
+			t.Errorf("StopContext() error = %v", err)
+		}
+	})
+
+	base := time.Date(2026, 10, 5, 2, 0, 0, 0, time.UTC)
+	for i := 0; i < 5; i++ {
+		record := normalizeCapturedEventRecord(CapturedEventRecord{
+			ReceivedAt: base.Add(time.Duration(i) * time.Second),
+			Event: &pb.Event{
+				Pid:       uint32(7000 + i),
+				Type:      "execve",
+				EventType: pb.EventType_EXECVE,
+				Comm:      "agent",
+				Path:      "/tmp/paged",
+			},
+		})
+		accepted, err := store.Enqueue(record)
+		if err != nil || !accepted {
+			t.Fatalf("Enqueue(%d) = %t, %v", i, accepted, err)
+		}
+	}
+	if err := store.FlushContext(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	first, cursor, err := store.Page(ctx, 2, "")
+	if err != nil {
+		t.Fatalf("Page(first) error = %v", err)
+	}
+	if got := replayRecordPIDs(first); len(got) != 2 || got[0] != 7003 || got[1] != 7004 {
+		t.Fatalf("first page PIDs = %v, want [7003 7004]", got)
+	}
+	if cursor == "" {
+		t.Fatal("first page cursor is empty")
+	}
+
+	second, cursor, err := store.Page(ctx, 2, cursor)
+	if err != nil {
+		t.Fatalf("Page(second) error = %v", err)
+	}
+	if got := replayRecordPIDs(second); len(got) != 2 || got[0] != 7001 || got[1] != 7002 {
+		t.Fatalf("second page PIDs = %v, want [7001 7002]", got)
+	}
+	if cursor == "" {
+		t.Fatal("second page cursor is empty")
+	}
+
+	third, cursor, err := store.Page(ctx, 2, cursor)
+	if err != nil {
+		t.Fatalf("Page(third) error = %v", err)
+	}
+	if got := replayRecordPIDs(third); len(got) != 1 || got[0] != 7000 {
+		t.Fatalf("third page PIDs = %v, want [7000]", got)
+	}
+	if cursor != "" {
+		t.Fatalf("third page cursor = %q, want empty", cursor)
+	}
+
+	if _, _, err := store.Page(ctx, 2, "not-a-valid-cursor!"); err == nil {
+		t.Fatal("Page() accepted an invalid cursor")
+	}
+}
