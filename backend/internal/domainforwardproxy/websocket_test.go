@@ -332,6 +332,28 @@ func TestResponsesWebSocketSteerFailureBeforeTerminalKeepsLane(t *testing.T) {
 	}
 }
 
+func TestResponsesWebSocketPendingContinuationRejectsWrongLane(t *testing.T) {
+	state := newResponsesWSRewriteState()
+	parent := &modelRewrite{Client: "client-model", Upstream: "fast-model"}
+	state.enqueueStream("parent-lane", parent)
+	state.rememberResponse("resp_parent", "parent-lane", parent)
+	state.enqueueSteer("resp_parent", parent)
+
+	if state.bindPendingSteerContinuation("resp_parent", "wrong-lane", nil) {
+		t.Fatal("wrong-lane continuation unexpectedly rebound pending steering state")
+	}
+	pending := state.pendingSteers["resp_parent"]
+	if len(pending) != 1 {
+		t.Fatalf("pending steer count = %d, want 1", len(pending))
+	}
+	if pending[0].streamID != "parent-lane" {
+		t.Fatalf("pending steer lane changed to %q", pending[0].streamID)
+	}
+	if pending[0].mapping == nil || pending[0].mapping.Client != "client-model" {
+		t.Fatalf("pending steer mapping changed: %#v", pending[0].mapping)
+	}
+}
+
 func TestResponsesWebSocketPendingContinuationReusesQueuedLane(t *testing.T) {
 	state := newResponsesWSRewriteState()
 	parent := &modelRewrite{
