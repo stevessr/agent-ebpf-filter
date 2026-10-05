@@ -59,6 +59,8 @@ func BuildExternalOpenAPISpec() *openapi3.T {
 
 	addOperation(paths, "/health", http.MethodGet, "Service health, collector counters, feature gates, and eBPF bootstrap status.")
 	addOperation(paths, "/events/recent", http.MethodGet, "Recent captured events. Query: limit, type, event_type, source, pid, comm, trace_id, span_id, since, until, redaction_state.")
+	addOperation(paths, "/events/summaries", http.MethodGet, "Compact recent event summaries for low-overhead monitoring clients. Full payloads remain in backend persistence.")
+	addOperation(paths, "/events/detail/{id}", http.MethodGet, "Fetch one full persisted event by stable event id.")
 	addOperation(paths, "/events/graph", http.MethodGet, "Aggregated bounded execution graph. Query: agent_run_id, tool_call_id, trace_id, pid, path, domain, risk_min, since, until. Responses expose truncation and omitted event/node/edge counters.")
 	addOperation(paths, "/research/sessions", http.MethodGet, "List persisted research sessions and summaries.")
 	addOperation(paths, "/research/sessions", http.MethodPost, "Create a research session with optional source filters, time range, tags, and description.")
