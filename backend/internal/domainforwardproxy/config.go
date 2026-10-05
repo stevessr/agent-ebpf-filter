@@ -179,6 +179,22 @@ func NormalizeSettings(settings *DomainForwardProxySettings) {
 	} else if settings.Rewrite.MaxBodyBytes > maxRewriteBodyBytes {
 		settings.Rewrite.MaxBodyBytes = maxRewriteBodyBytes
 	}
+	settings.Rewrite.Inference.ModelFile = strings.TrimSpace(settings.Rewrite.Inference.ModelFile)
+	settings.Rewrite.Inference.Direction = normalizeRewriteDirection(settings.Rewrite.Inference.Direction)
+	settings.Rewrite.Inference.Host = NormalizeDomainPattern(settings.Rewrite.Inference.Host)
+	settings.Rewrite.Inference.PathPrefix = strings.TrimSpace(settings.Rewrite.Inference.PathPrefix)
+	settings.Rewrite.Inference.ContentType = strings.ToLower(strings.TrimSpace(settings.Rewrite.Inference.ContentType))
+	if settings.Rewrite.Inference.MinTokenBytes <= 0 {
+		settings.Rewrite.Inference.MinTokenBytes = 3
+	}
+	if settings.Rewrite.Inference.MaxTokenBytes <= 0 {
+		settings.Rewrite.Inference.MaxTokenBytes = defaultInferenceMaxToken
+	} else if settings.Rewrite.Inference.MaxTokenBytes > maxInferenceTokenBytes {
+		settings.Rewrite.Inference.MaxTokenBytes = maxInferenceTokenBytes
+	}
+	if settings.Rewrite.Inference.MinTokenBytes > settings.Rewrite.Inference.MaxTokenBytes {
+		settings.Rewrite.Inference.MinTokenBytes = settings.Rewrite.Inference.MaxTokenBytes
+	}
 	for i := range settings.Rewrite.ModelRules {
 		settings.Rewrite.ModelRules[i].Host = NormalizeDomainPattern(settings.Rewrite.ModelRules[i].Host)
 		settings.Rewrite.ModelRules[i].From = strings.TrimSpace(settings.Rewrite.ModelRules[i].From)
