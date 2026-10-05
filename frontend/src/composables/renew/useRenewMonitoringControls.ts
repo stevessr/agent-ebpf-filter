@@ -1,10 +1,6 @@
 import { computed, ref } from "vue";
 import axios from "axios";
-import type {
-  CollectorHealthResponse,
-  RuntimeConfigResponse,
-  RuntimeSettings,
-} from "../../types/config";
+import type { CollectorHealthResponse, RuntimeConfigResponse, RuntimeSettings } from "../../types/config";
 import {
   RENEW_KERNEL_MONITOR_EVENT_TYPES,
   RENEW_MONITORING_MODULES,
@@ -25,9 +21,7 @@ const normalizeStatsInterval = (value: unknown) => {
 
 const initialStatsInterval = () => {
   if (typeof window === "undefined") return 5_000;
-  return normalizeStatsInterval(
-    window.localStorage.getItem(STATS_INTERVAL_KEY),
-  );
+  return normalizeStatsInterval(window.localStorage.getItem(STATS_INTERVAL_KEY));
 };
 
 export type RenewRuntimeToggleKey =
@@ -42,6 +36,8 @@ export function useRenewMonitoringControls() {
   const runtimeSettings = ref<RuntimeSettings | null>(null);
   const statsIntervalMs = ref(initialStatsInterval());
   const collectorHealth = ref<Partial<CollectorHealthResponse> | null>(null);
+  const persistedEventLogPath = ref("");
+  const persistedEventLogAlive = ref(false);
   const loading = ref(false);
   const ready = ref(false);
   const applying = ref(false);
@@ -83,31 +79,29 @@ export function useRenewMonitoringControls() {
     }),
   );
 
-  const overhead = computed(() =>
-    monitoringWeightLabel(monitoringWeight.value),
-  );
+  const overhead = computed(() => monitoringWeightLabel(monitoringWeight.value));
 
-  const activeProfileKey = computed<RenewMonitoringProfileKey | "custom">(
-    () => {
-      const enabled = new Set(enabledModuleKeys.value);
-      for (const profile of RENEW_MONITORING_PROFILES) {
-        if (
-          enabled.size !== profile.modules.length ||
-          profile.modules.some((key) => !enabled.has(key))
-        ) {
-          continue;
-        }
-        if (statsIntervalMs.value !== profile.statsIntervalMs) continue;
-        if (runtimeEnabled("loopDetection") !== profile.loopDetection) continue;
-        if (runtimeEnabled("signalProcessing") !== profile.signalProcessing)
-          continue;
-        if (runtimeEnabled("researchProcessing") !== profile.researchProcessing)
-          continue;
-        return profile.key;
+  const activeProfileKey = computed<RenewMonitoringProfileKey | "custom">(() => {
+    const enabled = new Set(enabledModuleKeys.value);
+    for (const profile of RENEW_MONITORING_PROFILES) {
+      if (
+        enabled.size !== profile.modules.length ||
+        profile.modules.some((key) => !enabled.has(key))
+      ) {
+        continue;
       }
-      return "custom";
-    },
-  );
+      if (statsIntervalMs.value !== profile.statsIntervalMs) continue;
+      if (runtimeEnabled("loopDetection") !== profile.loopDetection) continue;
+      if (runtimeEnabled("signalProcessing") !== profile.signalProcessing)
+        continue;
+      if (
+        runtimeEnabled("researchProcessing") !== profile.researchProcessing
+      )
+        continue;
+      return profile.key;
+    }
+    return "custom";
+  });
 
   const fetchCollectorHealth = async () => {
     try {
@@ -120,25 +114,32 @@ export function useRenewMonitoringControls() {
     }
   };
 
+  const applyRuntimeResponse = (payload: RuntimeConfigResponse) => {
+    runtimeSettings.value = payload.runtime;
+    disabledEventTypes.value = new Set(
+      payload.runtime.disabledEventTypes || [],
+    );
+    persistedEventLogPath.value = payload.persistedEventLogPath || "";
+    persistedEventLogAlive.value = Boolean(payload.persistedEventLogAlive);
+    ready.value = Boolean(payload.runtime);
+  };
+
   const fetchState = async () => {
     if (applying.value || loading.value) return;
     loading.value = true;
     error.value = "";
     try {
-      const [eventTypesResponse, runtimeResponse] = await Promise.all([
-        axios.get("/config/event-types"),
-        axios.get<RuntimeConfigResponse>("/config/runtime"),
-      ]);
-      disabledEventTypes.value = new Set(
-        eventTypesResponse.data.disabled_event_types || [],
+      const runtimeResponse = await axios.get<RuntimeConfigResponse>(
+        "/config/runtime",
       );
-      runtimeSettings.value = runtimeResponse.data.runtime;
-      ready.value = Boolean(runtimeSettings.value);
+      applyRuntimeResponse(runtimeResponse.data);
       void fetchCollectorHealth();
     } catch (cause: any) {
       ready.value = false;
       error.value =
-        cause?.response?.data?.error || cause?.message || "无法加载监控配置";
+        cause?.response?.data?.error ||
+        cause?.message ||
+        "无法加载监控配置";
     } finally {
       loading.value = false;
     }
@@ -149,7 +150,7 @@ export function useRenewMonitoringControls() {
     const response = await axios.put<RuntimeConfigResponse>("/config/runtime", {
       disabledEventTypes: next,
     });
-    runtimeSettings.value = response.data.runtime;
+    applyRuntimeResponse(response.data);
     disabledEventTypes.value = new Set(
       response.data.runtime.disabledEventTypes || next,
     );
@@ -172,7 +173,9 @@ export function useRenewMonitoringControls() {
       await putDisabledEventTypes(disabled);
     } catch (cause: any) {
       error.value =
-        cause?.response?.data?.error || cause?.message || "更新监控模块失败";
+        cause?.response?.data?.error ||
+        cause?.message ||
+        "更新监控模块失败";
       throw cause;
     } finally {
       applying.value = false;
@@ -223,12 +226,7 @@ export function useRenewMonitoringControls() {
         "/config/runtime",
         runtimePatch(key, enabled),
       );
-      runtimeSettings.value = response.data.runtime;
-      disabledEventTypes.value = new Set(
-        response.data.runtime.disabledEventTypes || [
-          ...disabledEventTypes.value,
-        ],
-      );
+      applyRuntimeResponse(response.data);
     } catch (cause: any) {
       error.value =
         cause?.response?.data?.error ||
@@ -285,22 +283,20 @@ export function useRenewMonitoringControls() {
           }
         : null;
 
-      // One authenticated backend update: no half-applied profile or rollback race.
       const response = await axios.put<RuntimeConfigResponse>(
         "/config/runtime",
         {
-          ...runtimePayload,
+          ...(runtimePayload || {}),
           disabledEventTypes: [...disabled].sort((a, b) => a - b),
         },
       );
-      runtimeSettings.value = response.data.runtime;
-      disabledEventTypes.value = new Set(
-        response.data.runtime.disabledEventTypes || [...disabled],
-      );
+      applyRuntimeResponse(response.data);
       setStatsInterval(profile.statsIntervalMs);
     } catch (cause: any) {
       error.value =
-        cause?.response?.data?.error || cause?.message || "应用监控档位失败";
+        cause?.response?.data?.error ||
+        cause?.message ||
+        "应用监控档位失败";
       throw cause;
     } finally {
       applying.value = false;
@@ -314,6 +310,8 @@ export function useRenewMonitoringControls() {
     runtimeSettings,
     statsIntervalMs,
     collectorHealth,
+    persistedEventLogPath,
+    persistedEventLogAlive,
     loading,
     ready,
     applying,

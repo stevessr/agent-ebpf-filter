@@ -69,6 +69,17 @@ frontend/src/
 
 这个交互只借鉴终端安全软件“模块化防护中心、默认合理开启、需要时再打开高成本能力”的产品思路，不复制第三方代码、规则或界面资源。
 
+
+### 默认路径降噪
+
+日常监控还会在**语义分析之后、归档 / Pebble / WebSocket 之前**应用路径降噪。运行时 `ignoredPaths` 仍默认包含 `["/proc"]`，保持已有行为；匹配使用路径边界，因此不会把 `/procfs` 误判为 `/proc` 子路径。
+
+除此之外，后端还内置一组只针对**读取/打开/元数据查询**的系统噪声候选，包括 `/sys/bus`、`/sys/class`、`/sys/devices`、`/sys/fs/cgroup`、`/sys/kernel/mm`，`/dev/null`、`/dev/random`、`/dev/urandom`、`/dev/zero`，以及动态链接缓存、时区和 locale 数据目录。该内置集合不会过滤 WRITE、IOCTL、权限变更、重命名、删除、执行等事件，因此系统配置或控制类动作仍会进入历史与实时流。
+
+该规则只用于降噪，不改变内核采集和安全判断顺序。原始事件仍先进入语义分析；带 `BLOCK` / `DENY` / `ALERT` 决策、`riskScore >= 60`、`semantic_alert` 或 `agentsight_alert` 的事件始终绕过路径忽略并正常进入历史与实时流。
+
+`ignoredPaths` 由 `/config/runtime` 和 `runtime.json` 持久化管理。用户可追加其他绝对路径前缀，也可以显式设置 `"ignoredPaths": []` 同时关闭默认 `/proc` 与内置系统噪声过滤；空数组会被保留到配置文件中，因此重启后不会重新启用这些默认规则。
+
 ## 持久化与前端内存模型
 
 Renew 默认启用本地事件持久化。完整事件由后端写入：
