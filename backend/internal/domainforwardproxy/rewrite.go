@@ -388,26 +388,136 @@ func isJSONSpace(c byte) bool {
 
 // rewriteResponsesModel handles both ordinary response objects and streaming
 // Responses events where the response object is nested under "response".
+// The nested path stays byte-oriented so large response.completed payloads do
+// not require decoding and re-encoding the full event.
 func rewriteResponsesModel(body []byte, from, to string) ([]byte, bool) {
 	if rewritten, ok := rewriteTopLevelJSONStringField(body, "model", from, to); ok {
 		return rewritten, true
 	}
-	var envelope map[string]json.RawMessage
-	if json.Unmarshal(body, &envelope) != nil {
+	valueStart, valueEnd, ok := topLevelJSONObjectField(body, "response")
+	if !ok {
 		return body, false
 	}
-	raw := envelope["response"]
-	if len(raw) == 0 || !bytes.Contains(raw, []byte(`"model"`)) {
+	raw := body[valueStart:valueEnd]
+	if !bytes.Contains(raw, []byte(`"model"`)) {
 		return body, false
 	}
 	rewritten, ok := rewriteTopLevelJSONStringField(raw, "model", from, to)
 	if !ok {
 		return body, false
 	}
-	envelope["response"] = rewritten
-	out, err := json.Marshal(envelope)
-	if err != nil {
-		return body, false
+	return spliceJSONValue(body, valueStart, valueEnd, rewritten), true
+}
+
+func topLevelJSONObjectField(body []byte, field string) (valueStart, valueEnd int, ok bool) {
+	depth := 0
+	inString := false
+	escaped := false
+	expectingKey := false
+	keyStart := 0
+	for i := 0; i < len(body); i++ {
+		c := body[i]
+		if inString {
+			if escaped {
+				escaped = false
+				continue
+			}
+			if c == '\\' {
+				escaped = true
+				continue
+			}
+			if c != '"' {
+				continue
+			}
+			inString = false
+			if depth != 1 || !expectingKey {
+				continue
+			}
+			rawKey := body[keyStart : i+1]
+			var key string
+			if json.Unmarshal(rawKey, &key) != nil || key != field {
+				expectingKey = false
+				continue
+			}
+			j := i + 1
+			for j < len(body) && isJSONSpace(body[j]) {
+				j++
+			}
+			if j >= len(body) || body[j] != ':' {
+				return 0, 0, false
+			}
+			j++
+			for j < len(body) && isJSONSpace(body[j]) {
+				j++
+			}
+			if j >= len(body) || body[j] != '{' {
+				expectingKey = false
+				continue
+			}
+			end := scanJSONObjectEnd(body, j)
+			if end <= j {
+				return 0, 0, false
+			}
+			valueStart = j
+			valueEnd = end
+			ok = true
+			i = end - 1
+			expectingKey = false
+			continue
+		}
+		switch c {
+		case '{', '[':
+			depth++
+			expectingKey = depth == 1 && c == '{'
+		case '}', ']':
+			depth--
+			expectingKey = false
+		case ',':
+			expectingKey = depth == 1
+		case '"':
+			inString = true
+			escaped = false
+			keyStart = i
+		default:
+			if depth == 1 && !isJSONSpace(c) && c != ':' {
+				expectingKey = false
+			}
+		}
 	}
-	return out, true
+	return valueStart, valueEnd, ok
+}
+
+func scanJSONObjectEnd(body []byte, start int) int {
+	depth := 0
+	inString := false
+	escaped := false
+	for i := start; i < len(body); i++ {
+		c := body[i]
+		if inString {
+			if escaped {
+				escaped = false
+				continue
+			}
+			if c == '\\' {
+				escaped = true
+				continue
+			}
+			if c == '"' {
+				inString = false
+			}
+			continue
+		}
+		switch c {
+		case '"':
+			inString = true
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return i + 1
+			}
+		}
+	}
+	return -1
 }
