@@ -211,7 +211,8 @@ func requestBodyIsRewriteable(r *http.Request) bool {
 	}
 	if strings.TrimSpace(r.Header.Get("Content-Range")) != "" ||
 		requestBodyIsSigned(r.Header) ||
-		requestBodyIsSigned(r.Trailer) {
+		requestBodyIsSigned(r.Trailer) ||
+		requestURLIsSigned(r) {
 		return false
 	}
 	return bodyEncodingRewriteable(r.Header.Get("Content-Encoding"))
@@ -245,6 +246,34 @@ func requestBodyIsSigned(header http.Header) bool {
 	return false
 }
 
+func requestURLIsSigned(request *http.Request) bool {
+	if request == nil || request.URL == nil {
+		return false
+	}
+	query := request.URL.Query()
+	switch {
+	case queryHasFold(query, "X-Amz-Signature") && queryHasFold(query, "X-Amz-Algorithm"):
+		return true
+	case queryHasFold(query, "X-Goog-Signature") && queryHasFold(query, "X-Goog-Algorithm"):
+		return true
+	case queryHasFold(query, "sig") && queryHasFold(query, "sv"):
+		return true
+	case queryHasFold(query, "Signature") && queryHasFold(query, "Key-Pair-Id"):
+		return true
+	default:
+		return false
+	}
+}
+
+func queryHasFold(query url.Values, name string) bool {
+	for key := range query {
+		if strings.EqualFold(key, name) {
+			return true
+		}
+	}
+	return false
+}
+
 func responseBodyIsRewriteable(request *http.Request, response *http.Response) bool {
 	if response == nil || response.Body == nil || response.Body == http.NoBody {
 		return false
@@ -257,6 +286,8 @@ func responseBodyIsRewriteable(request *http.Request, response *http.Response) b
 		response.StatusCode == http.StatusNotModified ||
 		response.StatusCode == http.StatusPartialContent ||
 		strings.TrimSpace(response.Header.Get("Content-Range")) != "" ||
+		messageSignatureFieldsPresent(response.Header) ||
+		messageSignatureFieldsPresent(response.Trailer) ||
 		strings.Contains(strings.ToLower(response.Header.Get("Content-Type")), "multipart/byteranges") {
 		return false
 	}
@@ -384,6 +415,11 @@ func invalidateResponseBodyIntegrity(response *http.Response) {
 		deleteHeaderFold(response.Header, name)
 		deleteHeaderFold(response.Trailer, name)
 	}
+}
+
+func messageSignatureFieldsPresent(header http.Header) bool {
+	return headerHasFieldFold(header, "Signature") ||
+		headerHasFieldFold(header, "Signature-Input")
 }
 
 func headerHasFieldFold(header http.Header, name string) bool {
