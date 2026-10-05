@@ -130,10 +130,13 @@ type TLSPlaintextEvent struct {
 	TraceID        string `json:"trace_id,omitempty"`
 	SpanID         string `json:"span_id,omitempty"`
 
-	MessageRole  string `json:"message_role,omitempty"`
-	PromptDigest string `json:"prompt_digest,omitempty"`
-	PromptLen    int    `json:"prompt_len,omitempty"`
-	Vendor       string `json:"vendor,omitempty"`
+	MessageRole   string `json:"message_role,omitempty"`
+	PromptDigest  string `json:"prompt_digest,omitempty"`
+	PromptLen     int    `json:"prompt_len,omitempty"`
+	ContextDigest string `json:"context_digest,omitempty"`
+	ContextLen    int    `json:"context_len,omitempty"`
+	ContextItems  int    `json:"context_items,omitempty"`
+	Vendor        string `json:"vendor,omitempty"`
 	LoopAlert    bool   `json:"loop_alert,omitempty"`
 
 	// Generalized API-capture metadata. These fields are derived from
