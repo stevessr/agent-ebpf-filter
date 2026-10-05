@@ -1,0 +1,71 @@
+name: Refresh Go dependencies
+
+on:
+  push:
+    branches:
+      - chore/go-deps-refresh
+    paths:
+      - ".github/workflows/go-dependency-refresh.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache: false
+
+      - name: Refresh backend dependencies
+        working-directory: backend
+        run: |
+          go get -u all
+          go mod tidy
+
+      - name: Refresh wrapper dependencies
+        working-directory: wrapper
+        run: |
+          go get -u all
+          go mod tidy
+
+      - name: Refresh Renew desktop dependencies
+        working-directory: desktop/renew
+        run: |
+          go get -u all
+          go get -u github.com/egoist/mygo
+          go mod tidy
+
+      - name: Refresh agent TUI dependencies
+        working-directory: tools/agent-tui
+        run: |
+          go get -u all
+          go mod tidy
+
+      - name: Refresh dev environment TUI dependencies
+        working-directory: tools/dev-env-tui
+        run: |
+          go get -u all
+          go mod tidy
+
+      - name: Commit dependency refresh
+        shell: bash
+        run: |
+          if git diff --quiet -- '**/go.mod' '**/go.sum'; then
+            echo "No Go dependency updates available."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/go.mod backend/go.sum \
+            wrapper/go.mod wrapper/go.sum \
+            desktop/renew/go.mod desktop/renew/go.sum \
+            tools/agent-tui/go.mod tools/agent-tui/go.sum \
+            tools/dev-env-tui/go.mod tools/dev-env-tui/go.sum
+          git commit -m "chore(go): refresh dependencies"
+          git push
