@@ -44,7 +44,7 @@ const ALL_NAV_GROUPS: NavMenuGroup[] = [
       },
       {
         key: "dashboard",
-        title: "Dashboard",
+        title: "仪表盘",
         icon: DashboardOutlined,
         defaultRoute: { name: "Dashboard" },
         affix: true,
@@ -52,7 +52,7 @@ const ALL_NAV_GROUPS: NavMenuGroup[] = [
       },
       {
         key: "monitor",
-        title: "Monitor",
+        title: "系统监控",
         icon: BarChartOutlined,
         defaultRoute: {
           name: "Monitor",
@@ -61,31 +61,31 @@ const ALL_NAV_GROUPS: NavMenuGroup[] = [
       },
       {
         key: "network",
-        title: "Network",
+        title: "网络",
         icon: GlobalOutlined,
         defaultRoute: { name: "Network" },
       },
       {
         key: "network-flow",
-        title: "Traffic",
+        title: "流量分析",
         icon: DeploymentUnitOutlined,
         defaultRoute: { name: "NetworkFlow", params: { tab: "overview" } },
       },
       {
         key: "execution-graph",
-        title: "Tracing",
+        title: "执行追踪",
         icon: ClusterOutlined,
         defaultRoute: { name: "ExecutionGraph", params: { tab: "topology" } },
       },
       {
         key: "research",
-        title: "Research",
+        title: "研究分析",
         icon: ExperimentOutlined,
         defaultRoute: { name: "Research" },
       },
       {
         key: "tls-capture",
-        title: "Hook SSL",
+        title: "TLS/SSL 捕获",
         icon: SafetyCertificateOutlined,
         defaultRoute: { name: "TLSCapture" },
         feature: "tls_capture",
@@ -105,20 +105,20 @@ const ALL_NAV_GROUPS: NavMenuGroup[] = [
     children: [
       {
         key: "explorer",
-        title: "Explorer",
+        title: "资源浏览",
         icon: FolderOpenOutlined,
         defaultRoute: { name: "Explorer" },
       },
       {
         key: "executor",
-        title: "Executor",
+        title: "命令执行",
         icon: PlaySquareOutlined,
         defaultRoute: { name: "Executor", params: { tab: "shell" } },
         feature: "shell_sessions",
       },
       {
         key: "hooks",
-        title: "Hooks",
+        title: "钩子管理",
         icon: LinkOutlined,
         defaultRoute: { name: "Hooks" },
         feature: "hooks",
@@ -132,7 +132,7 @@ const ALL_NAV_GROUPS: NavMenuGroup[] = [
     children: [
       {
         key: "ml",
-        title: "ML",
+        title: "机器学习",
         icon: ThunderboltOutlined,
         defaultRoute: { name: "ML", params: { subtab: "status" } },
         feature: "ml",
@@ -153,13 +153,13 @@ const ALL_NAV_GROUPS: NavMenuGroup[] = [
     children: [
       {
         key: "config",
-        title: "Configuration",
+        title: "系统配置",
         icon: SettingOutlined,
         defaultRoute: { name: "Config", params: { tab: "registry" } },
       },
       {
         key: "signals",
-        title: "Signals",
+        title: "行为信号",
         icon: ThunderboltOutlined,
         defaultRoute: { name: "Signals" },
       },
