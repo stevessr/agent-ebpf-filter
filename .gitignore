@@ -61,3 +61,8 @@ docs/delivery
 tools/dev-env-tui/agent-ebpf-filter-dev-env-tui
 *.test
 promo/out/Promo.mp4
+desktop/renew/.mygo/
+desktop/renew/build/
+desktop/renew/resources/linux-*/
+
+desktop/renew/mygo.ts

@@ -105,7 +105,7 @@ Renew 浏览器/桌面前端只保留一个有界摘要窗口；用户需要更�
 
 桌面壳位于 `desktop/renew/`，使用 MyGo 0.2.7，并作为**独立 Go module** 维护。
 
-它不复制 Vue 产物、不另起 API 代理，而是直接让系统 WebView 加载后端真实地址，例如：
+Linux 打包版携带后端和 Vue 产物；启动时复用已有后端，或通过系统授权启动随包后端。WebView 加载后端真实地址，例如：
 
 ```text
 http://127.0.0.1:8080/renew
@@ -118,7 +118,8 @@ http://127.0.0.1:8080/renew
 - 单实例；
 - 原生窗口和窗口状态记忆；
 - `AGENT_BACKEND_URL` / `--backend` 后端地址选择；
-- 后端未启动时的提示页；
+- 自动启动后端、等待就绪，授权取消或启动失败时显示提示页；
+- 通过私有 Unix socket 传递 API token 和管理后端生命周期；
 - MyGo 的 Linux / Windows / macOS 打包。
 
 MyGo 要求 Go 1.27.1+。仓库现已统一到 Go 1.27.1，并将 `desktop/renew` 纳入根 `go.work`；桌面端仍保持独立 `go.mod`，避免 MyGo 依赖进入特权后端 module。
@@ -126,11 +127,13 @@ MyGo 要求 Go 1.27.1+。仓库现已统一到 Go 1.27.1，并将 `desktop/renew
 运行和打包：
 
 ```bash
-make renew-desktop-dev
-make renew-desktop-build
+make renew-desktop-dev    # 后端构建 + Vite /renew WebUI + 桌面窗口
+make renew-desktop-build  # 随包后端 + frontend/dist + Linux 桌面包
 ```
 
-或直接：
+开发目标自动启动 Vite，并将 API/WebSocket 代理到实际后端地址。Linux 检测到 Zenity/KDialog 时自动使用随包 askpass 弹密码窗口；否则使用系统 PolicyKit 授权代理。也可设置 `SUDO_ASKPASS` 自定义 `sudo -A` 提示程序。打包版保留 release 认证，开发版显式使用 dev 模式。桌面退出或崩溃只关闭本次启动的后端，不会停止复用的系统服务。
+
+也可直接操作 MyGo（`dev` 不负责构建仓库依赖）：
 
 ```bash
 cd desktop/renew

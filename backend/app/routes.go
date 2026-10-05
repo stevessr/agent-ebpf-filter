@@ -188,9 +188,12 @@ func registerCompatibilityRoutes(r *gin.Engine, ac *AppContext, features *Featur
 }
 
 func registerStaticRoutes(r *gin.Engine) {
-	staticDir := "../frontend/dist"
-	if _, err := os.Stat(staticDir); err != nil {
-		staticDir = "./frontend/dist"
+	staticDir := os.Getenv("AGENT_FRONTEND_DIST")
+	if staticDir == "" {
+		staticDir = "../frontend/dist"
+		if _, err := os.Stat(staticDir); err != nil {
+			staticDir = "./frontend/dist"
+		}
 	}
 	r.StaticFile("/", filepath.Join(staticDir, "index.html"))
 	r.Static("/assets", filepath.Join(staticDir, "assets"))
