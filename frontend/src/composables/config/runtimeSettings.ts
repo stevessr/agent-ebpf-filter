@@ -38,6 +38,27 @@ export const defaultDomainForwardProxy = (): DomainForwardProxySettings => ({
   dialTimeoutSeconds: 10,
   certFile: "",
   keyFile: "",
+  tlsInterceptEnabled: false,
+  tlsInterceptAllowlist: "",
+  tlsInterceptCaCertFile: "",
+  tlsInterceptCaKeyFile: "",
+  tlsInterceptLeafTtlSeconds: 43200,
+  rewrite: {
+    enabled: false,
+    maxBodyBytes: 4 * 1024 * 1024,
+    rules: [],
+    modelRules: [],
+    inference: {
+      enabled: false,
+      modelFile: "",
+      direction: "both",
+      host: "",
+      pathPrefix: "",
+      contentType: "application/json",
+      minTokenBytes: 3,
+      maxTokenBytes: 256,
+    },
+  },
   routes: [],
 });
 
@@ -278,6 +299,7 @@ export const normalizeDomainForwardProxy = (
 ): DomainForwardProxySettings => {
   const defaults = defaultDomainForwardProxy();
   const scheme = value?.defaultScheme === "http" ? "http" : "https";
+  const rewrite = value?.rewrite || defaults.rewrite;
   return {
     ...defaults,
     ...value,
@@ -287,6 +309,43 @@ export const normalizeDomainForwardProxy = (
     dialTimeoutSeconds: Number(
       value?.dialTimeoutSeconds || defaults.dialTimeoutSeconds,
     ),
+    tlsInterceptEnabled:
+      value?.tlsInterceptEnabled ?? defaults.tlsInterceptEnabled,
+    tlsInterceptLeafTtlSeconds: Number(
+      value?.tlsInterceptLeafTtlSeconds ||
+        defaults.tlsInterceptLeafTtlSeconds,
+    ),
+    rewrite: {
+      ...defaults.rewrite,
+      ...rewrite,
+      enabled: rewrite.enabled ?? defaults.rewrite.enabled,
+      maxBodyBytes: Number(
+        rewrite.maxBodyBytes || defaults.rewrite.maxBodyBytes,
+      ),
+      rules: Array.isArray(rewrite.rules) ? rewrite.rules : [],
+      modelRules: Array.isArray(rewrite.modelRules)
+        ? rewrite.modelRules
+        : [],
+      inference: {
+        ...defaults.rewrite.inference,
+        ...(rewrite.inference || {}),
+        enabled:
+          rewrite.inference?.enabled ?? defaults.rewrite.inference.enabled,
+        direction:
+          rewrite.inference?.direction === "request" ||
+          rewrite.inference?.direction === "response"
+            ? rewrite.inference.direction
+            : "both",
+        minTokenBytes: Number(
+          rewrite.inference?.minTokenBytes ||
+            defaults.rewrite.inference.minTokenBytes,
+        ),
+        maxTokenBytes: Number(
+          rewrite.inference?.maxTokenBytes ||
+            defaults.rewrite.inference.maxTokenBytes,
+        ),
+      },
+    },
     routes: Array.isArray(value?.routes) ? value.routes : [],
   };
 };

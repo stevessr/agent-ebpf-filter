@@ -39,6 +39,41 @@ const {
 
 const { mergedFeatures, isCompiledIn, featureStatusLabel, featureStatusColor } =
   featureManifest;
+
+const rewriteDirectionOptions = [
+  { value: "both", label: "Both" },
+  { value: "request", label: "Request" },
+  { value: "response", label: "Response" },
+];
+
+const addModelRewriteRule = () => {
+  runtimeSettings.value.domainForwardProxy.rewrite.modelRules.push({
+    host: "",
+    from: "",
+    to: "",
+  });
+};
+
+const removeModelRewriteRule = (index: number) => {
+  runtimeSettings.value.domainForwardProxy.rewrite.modelRules.splice(index, 1);
+};
+
+const addBodyRewriteRule = () => {
+  runtimeSettings.value.domainForwardProxy.rewrite.rules.push({
+    id: `rewrite-${Date.now()}`,
+    enabled: true,
+    direction: "both",
+    host: "",
+    pathPrefix: "",
+    contentType: "application/json",
+    find: "",
+    replace: "",
+  });
+};
+
+const removeBodyRewriteRule = (index: number) => {
+  runtimeSettings.value.domainForwardProxy.rewrite.rules.splice(index, 1);
+};
 </script>
 
 <template>
@@ -236,10 +271,307 @@ const { mergedFeatures, isCompiledIn, featureStatusLabel, featureStatusColor } =
             v-model:value="runtimeSettings.domainForwardProxy.keyFile"
             placeholder="Default TLS private key path for :443 (PEM)"
           />
+
+          <a-card title="Allowlisted TLS inspection" size="small">
+            <div style="display: flex; flex-direction: column; gap: 10px">
+              <div style="display: flex; align-items: center; gap: 12px">
+                <a-switch
+                  v-model:checked="
+                    runtimeSettings.domainForwardProxy.tlsInterceptEnabled
+                  "
+                />
+                <span>Issue per-SNI leaf certificates only for allowlisted hosts</span>
+              </div>
+              <a-textarea
+                v-model:value="
+                  runtimeSettings.domainForwardProxy.tlsInterceptAllowlist
+                "
+                :rows="3"
+                placeholder="api.openai.com, *.example.internal"
+              />
+              <a-input
+                v-model:value="
+                  runtimeSettings.domainForwardProxy.tlsInterceptCaCertFile
+                "
+                placeholder="Local CA certificate path (PEM)"
+              />
+              <a-input
+                v-model:value="
+                  runtimeSettings.domainForwardProxy.tlsInterceptCaKeyFile
+                "
+                placeholder="Local CA private key path (PEM)"
+              />
+              <div>
+                <div style="margin-bottom: 6px; font-weight: 600">
+                  Leaf certificate TTL (seconds)
+                </div>
+                <a-input-number
+                  v-model:value="
+                    runtimeSettings.domainForwardProxy
+                      .tlsInterceptLeafTtlSeconds
+                  "
+                  :min="300"
+                  :max="604800"
+                  style="width: 180px"
+                />
+              </div>
+              <a-alert
+                type="warning"
+                show-icon
+                message="Strict allowlist"
+                description="Dynamic certificates are issued only for exact or *.suffix entries above. Clients must explicitly trust this local CA. A host outside the allowlist is not dynamically decrypted."
+              />
+            </div>
+          </a-card>
+
+          <a-card title="Request / response rewrite kernel" size="small">
+            <div style="display: flex; flex-direction: column; gap: 12px">
+              <div style="display: flex; align-items: center; gap: 12px">
+                <a-switch
+                  v-model:checked="
+                    runtimeSettings.domainForwardProxy.rewrite.enabled
+                  "
+                />
+                <span>Enable bounded low-latency body rewriting</span>
+              </div>
+              <div>
+                <div style="margin-bottom: 6px; font-weight: 600">
+                  Maximum buffered body bytes
+                </div>
+                <a-input-number
+                  v-model:value="
+                    runtimeSettings.domainForwardProxy.rewrite.maxBodyBytes
+                  "
+                  :min="1024"
+                  :max="67108864"
+                  style="width: 220px"
+                />
+              </div>
+
+              <a-card title="Native inference fast path" size="small">
+                <div style="display: flex; flex-direction: column; gap: 10px">
+                  <div
+                    style="
+                      display: flex;
+                      align-items: center;
+                      gap: 12px;
+                      flex-wrap: wrap;
+                    "
+                  >
+                    <a-switch
+                      v-model:checked="
+                        runtimeSettings.domainForwardProxy.rewrite.inference
+                          .enabled
+                      "
+                    />
+                    <span>Enable int8 feature-hash inference before literal rules</span>
+                    <a-tag
+                      v-if="domainForwardStatus.inferenceEnabled"
+                      :color="
+                        domainForwardStatus.inferenceReady ? 'green' : 'orange'
+                      "
+                    >
+                      {{
+                        domainForwardStatus.inferenceReady
+                          ? "model ready"
+                          : "model unavailable"
+                      }}
+                    </a-tag>
+                  </div>
+                  <a-input
+                    v-model:value="
+                      runtimeSettings.domainForwardProxy.rewrite.inference
+                        .modelFile
+                    "
+                    placeholder="Native model JSON path"
+                  />
+                  <a-row :gutter="[8, 8]">
+                    <a-col :xs="24" :md="6">
+                      <a-select
+                        v-model:value="
+                          runtimeSettings.domainForwardProxy.rewrite.inference
+                            .direction
+                        "
+                        :options="rewriteDirectionOptions"
+                        style="width: 100%"
+                      />
+                    </a-col>
+                    <a-col :xs="24" :md="6">
+                      <a-input
+                        v-model:value="
+                          runtimeSettings.domainForwardProxy.rewrite.inference
+                            .host
+                        "
+                        placeholder="Host scope"
+                      />
+                    </a-col>
+                    <a-col :xs="24" :md="6">
+                      <a-input
+                        v-model:value="
+                          runtimeSettings.domainForwardProxy.rewrite.inference
+                            .pathPrefix
+                        "
+                        placeholder="Path prefix"
+                      />
+                    </a-col>
+                    <a-col :xs="24" :md="6">
+                      <a-input
+                        v-model:value="
+                          runtimeSettings.domainForwardProxy.rewrite.inference
+                            .contentType
+                        "
+                        placeholder="Content-Type"
+                      />
+                    </a-col>
+                    <a-col :xs="24" :md="6">
+                      <a-input-number
+                        v-model:value="
+                          runtimeSettings.domainForwardProxy.rewrite.inference
+                            .minTokenBytes
+                        "
+                        :min="1"
+                        :max="4096"
+                        style="width: 100%"
+                        placeholder="Min token bytes"
+                      />
+                    </a-col>
+                    <a-col :xs="24" :md="6">
+                      <a-input-number
+                        v-model:value="
+                          runtimeSettings.domainForwardProxy.rewrite.inference
+                            .maxTokenBytes
+                        "
+                        :min="1"
+                        :max="4096"
+                        style="width: 100%"
+                        placeholder="Max token bytes"
+                      />
+                    </a-col>
+                  </a-row>
+                  <a-alert
+                    type="info"
+                    show-icon
+                    message="Local quantized inference"
+                    description="The model is loaded locally as int8 label weights. The proxy hashes 1-3 byte n-grams and uses integer accumulation only; JSON keys are skipped and only string values are eligible for replacement."
+                  />
+                </div>
+              </a-card>
+
+              <div
+                style="
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
+                  gap: 8px;
+                "
+              >
+                <div>
+                  <div style="font-weight: 600">Fast model aliases</div>
+                  <div style="font-size: 12px; color: #6b7280">
+                    Rewrites only the top-level model field and restores the
+                    client-visible model on responses / Responses WebSocket
+                    streams.
+                  </div>
+                </div>
+                <a-button size="small" @click="addModelRewriteRule">
+                  <PlusOutlined /> Add
+                </a-button>
+              </div>
+              <div
+                v-for="(rule, index) in runtimeSettings.domainForwardProxy
+                  .rewrite.modelRules"
+                :key="`model-rewrite-${index}`"
+                style="
+                  display: grid;
+                  grid-template-columns: 1fr 1fr 1fr auto;
+                  gap: 8px;
+                  align-items: center;
+                "
+              >
+                <a-input v-model:value="rule.host" placeholder="Host (optional)" />
+                <a-input v-model:value="rule.from" placeholder="Client model" />
+                <a-input v-model:value="rule.to" placeholder="Upstream model" />
+                <a-button danger @click="removeModelRewriteRule(index)">
+                  <DeleteOutlined />
+                </a-button>
+              </div>
+
+              <div
+                style="
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
+                  gap: 8px;
+                  margin-top: 4px;
+                "
+              >
+                <div>
+                  <div style="font-weight: 600">Literal body rules</div>
+                  <div style="font-size: 12px; color: #6b7280">
+                    Text/JSON only. SSE stays streaming; Responses WebSocket
+                    text frames use the same rules.
+                  </div>
+                </div>
+                <a-button size="small" @click="addBodyRewriteRule">
+                  <PlusOutlined /> Add
+                </a-button>
+              </div>
+              <a-card
+                v-for="(rule, index) in runtimeSettings.domainForwardProxy
+                  .rewrite.rules"
+                :key="rule.id || `body-rewrite-${index}`"
+                size="small"
+              >
+                <template #extra>
+                  <a-button
+                    size="small"
+                    danger
+                    @click="removeBodyRewriteRule(index)"
+                  >
+                    <DeleteOutlined />
+                  </a-button>
+                </template>
+                <a-row :gutter="[8, 8]">
+                  <a-col :xs="24" :md="4">
+                    <a-switch v-model:checked="rule.enabled" />
+                  </a-col>
+                  <a-col :xs="24" :md="6">
+                    <a-select
+                      v-model:value="rule.direction"
+                      :options="rewriteDirectionOptions"
+                      style="width: 100%"
+                    />
+                  </a-col>
+                  <a-col :xs="24" :md="7">
+                    <a-input v-model:value="rule.host" placeholder="Host (optional)" />
+                  </a-col>
+                  <a-col :xs="24" :md="7">
+                    <a-input
+                      v-model:value="rule.pathPrefix"
+                      placeholder="Path prefix (optional)"
+                    />
+                  </a-col>
+                  <a-col :xs="24" :md="8">
+                    <a-input
+                      v-model:value="rule.contentType"
+                      placeholder="Content-Type filter"
+                    />
+                  </a-col>
+                  <a-col :xs="24" :md="8">
+                    <a-input v-model:value="rule.find" placeholder="Find" />
+                  </a-col>
+                  <a-col :xs="24" :md="8">
+                    <a-input v-model:value="rule.replace" placeholder="Replace" />
+                  </a-col>
+                </a-row>
+              </a-card>
+            </div>
+          </a-card>
+
           <a-alert
             type="warning"
             show-icon
-            message="Binding 80/443 requires root or CAP_NET_BIND_SERVICE. HTTPS forwarding requires certificate files."
+            message="Binding 80/443 requires root or CAP_NET_BIND_SERVICE. HTTPS forwarding requires a static certificate or an enabled allowlisted local CA."
             description="If test domains resolve back to this box, set a DNS resolver override or explicit upstreams to avoid forwarding loops."
           />
           <div

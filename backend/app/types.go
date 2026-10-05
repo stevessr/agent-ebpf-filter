@@ -33,6 +33,10 @@ type SignalRule = core.SignalRule
 type SelectedProgramSignalLog = core.SelectedProgramSignalLog
 type SignalProcessingSettings = core.SignalProcessingSettings
 type DomainForwardRoute = core.DomainForwardRoute
+type DomainBodyRewriteRule = core.DomainBodyRewriteRule
+type DomainModelRewriteRule = core.DomainModelRewriteRule
+type DomainNativeInferenceSettings = core.DomainNativeInferenceSettings
+type DomainBodyRewriteSettings = core.DomainBodyRewriteSettings
 type DomainForwardProxySettings = core.DomainForwardProxySettings
 
 // ── Global variables ─────────────────────────────────────────────────────────
@@ -51,8 +55,8 @@ var (
 	disabledCommsMu sync.RWMutex
 	disabledComms   = make(map[string]struct{})
 
-	disabledEventTypesMu sync.RWMutex
-	disabledEventTypes   = make(map[uint32]struct{})
+	disabledEventTypesMu  sync.RWMutex
+	disabledEventTypes    = make(map[uint32]struct{})
 	disabledEventTypeBits [4]atomic.Uint64
 
 	nvmlInitialized bool
