@@ -1,4 +1,4 @@
-name: Refresh Go dependencies
+name: Verify Go dependency refresh
 
 on:
   push:
@@ -8,134 +8,65 @@ on:
       - ".github/workflows/go-dependency-refresh.yml"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  refresh:
-    if: github.actor != 'github-actions[bot]'
+  verify:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: backend/go.mod
-          cache: false
+          cache-dependency-path: |
+            backend/go.sum
+            wrapper/go.sum
+            desktop/renew/go.sum
+            tools/agent-tui/go.sum
+            tools/dev-env-tui/go.sum
 
-      - name: Refresh backend direct dependencies
+      - name: Install native build dependencies
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler clang llvm libbpf-dev libelf-dev
+
+      - name: Generate protobuf bindings
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
+          mkdir -p backend/pb
+          protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto \
+            proto/tracker_common.proto \
+            proto/tracker_events.proto \
+            proto/tracker_registration.proto \
+            proto/tracker_system.proto \
+            proto/tracker_config.proto \
+            proto/tracker_shell.proto
+
+      - name: Generate eBPF bindings
+        working-directory: backend/ebpf
+        run: go generate
+
+      - name: Test backend
         working-directory: backend
-        env:
-          GOTOOLCHAIN: local
-        run: |
-          set -u
-          upgrade_dep() {
-            dep="$1"
-            cp go.mod go.mod.before
-            cp go.sum go.sum.before
-            if go get "$dep@latest"; then
-              echo "UPGRADED $dep"
-            else
-              echo "SKIPPED $dep (dependency graph conflict)"
-              mv go.mod.before go.mod
-              mv go.sum.before go.sum
-              return 0
-            fi
-            rm -f go.mod.before go.sum.before
-          }
-          for dep in \
-            github.com/NVIDIA/go-nvml \
-            github.com/cilium/ebpf \
-            github.com/cockroachdb/pebble/v2 \
-            github.com/creack/pty/v2 \
-            github.com/getkin/kin-openapi \
-            github.com/gin-gonic/gin \
-            github.com/gorilla/websocket \
-            github.com/modelcontextprotocol/go-sdk \
-            github.com/pelletier/go-toml/v2 \
-            github.com/shirou/gopsutil/v3 \
-            github.com/ulikunitz/xz \
-            github.com/vladimirvivien/go4vl \
-            go.opentelemetry.io/otel \
-            go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp \
-            go.opentelemetry.io/otel/sdk \
-            go.opentelemetry.io/otel/trace \
-            golang.org/x/net \
-            golang.org/x/sys \
-            google.golang.org/protobuf
-          do
-            upgrade_dep "$dep"
-          done
-          go mod download
+        run: go test ./... -count=1
 
-      - name: Refresh wrapper direct dependencies
+      - name: Test wrapper
         working-directory: wrapper
-        env:
-          GOTOOLCHAIN: local
-        run: |
-          go get google.golang.org/protobuf@latest
-          go mod download
+        run: go test ./... -count=1
 
-      - name: Refresh Renew desktop direct dependencies
+      - name: Test Renew desktop
         working-directory: desktop/renew
-        env:
-          GOTOOLCHAIN: local
         run: |
-          go get github.com/egoist/mygo@latest
-          go mod download
+          go test ./... -count=1
+          go build ./...
 
-      - name: Refresh agent TUI direct dependencies
+      - name: Test agent TUI
         working-directory: tools/agent-tui
-        env:
-          GOTOOLCHAIN: local
         run: |
-          set -u
-          for dep in github.com/gdamore/tcell/v2 github.com/gorilla/websocket github.com/rivo/tview google.golang.org/protobuf; do
-            cp go.mod go.mod.before
-            cp go.sum go.sum.before
-            if go get "$dep@latest"; then
-              echo "UPGRADED $dep"
-              rm -f go.mod.before go.sum.before
-            else
-              echo "SKIPPED $dep (dependency graph conflict)"
-              mv go.mod.before go.mod
-              mv go.sum.before go.sum
-            fi
-          done
-          go mod download
+          go test ./... -count=1
+          go build ./...
 
-      - name: Refresh dev environment TUI direct dependencies
+      - name: Test dev environment TUI
         working-directory: tools/dev-env-tui
-        env:
-          GOTOOLCHAIN: local
         run: |
-          set -u
-          for dep in github.com/gdamore/tcell/v2 github.com/rivo/tview; do
-            cp go.mod go.mod.before
-            cp go.sum go.sum.before
-            if go get "$dep@latest"; then
-              echo "UPGRADED $dep"
-              rm -f go.mod.before go.sum.before
-            else
-              echo "SKIPPED $dep (dependency graph conflict)"
-              mv go.mod.before go.mod
-              mv go.sum.before go.sum
-            fi
-          done
-          go mod download
-
-      - name: Commit dependency refresh
-        shell: bash
-        run: |
-          if git diff --quiet -- '**/go.mod' '**/go.sum'; then
-            echo "No Go dependency updates available."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add backend/go.mod backend/go.sum \
-            wrapper/go.mod wrapper/go.sum \
-            desktop/renew/go.mod desktop/renew/go.sum \
-            tools/agent-tui/go.mod tools/agent-tui/go.sum \
-            tools/dev-env-tui/go.mod tools/dev-env-tui/go.sum
-          git commit -m "chore(go): refresh dependencies"
-          git push
+          go test ./... -count=1
+          go build ./...
