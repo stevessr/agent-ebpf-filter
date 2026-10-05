@@ -477,6 +477,42 @@ export const buildGroups = (
   while (i < events.length) {
     const ev = events[i];
 
+    // Responses WebSocket client events are already complete JSON messages.
+    // Treat them as first-class request context instead of raw fallback so
+    // response.create / response.steer / response.inject stay visible when
+    // the default UI hides raw blocks.
+    if (ev.type === "websocket_request") {
+      const raw = getRawText(ev);
+      const json = tryParseJSON(raw);
+      const blocks: ContentBlock[] = [];
+
+      if (json) {
+        blocks.push({
+          type: "request_body",
+          mergedText: formatJSON(json),
+        });
+      } else if (raw) {
+        blocks.push({
+          type: "request_body",
+          mergedText: raw,
+        });
+      }
+
+      groups.push({
+        id: nextId(),
+        events: [ev],
+        startTime: ev.timestamp,
+        endTime: ev.timestamp,
+        totalSize: ev.body_size || ev.captured_len,
+        messageRole: ev.message_role,
+        messageId: ev.response_id || ev.previous_response_id,
+        contentBlocks: blocks,
+        rawMerged: raw,
+      });
+      i++;
+      continue;
+    }
+
     // HTTP request — parse body, extract tool_results from messages array
     if (ev.type === "http_request") {
       const raw = getRawText(ev);
@@ -678,7 +714,10 @@ export const buildGroups = (
     }
 
     // Try to extract structured content from raw text
-    const rawBody = batch.map(getRawText).filter(Boolean).join("\n");
+    // TLS hooks can split one HTTP/JSON write at arbitrary byte offsets.
+    // Joining fragments with "\n" corrupts JSON strings when the split lands
+    // inside a quoted token; concatenate the original bytes losslessly.
+    const rawBody = batch.map(getRawText).filter(Boolean).join("");
     const blocks: ContentBlock[] = [];
 
     // Upstream raw data: comprehensive JSON extraction
