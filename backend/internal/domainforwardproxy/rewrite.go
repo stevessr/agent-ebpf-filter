@@ -176,6 +176,17 @@ func (k *RewriteKernel) RewriteRequest(host, path, contentType string, body []by
 }
 
 func (k *RewriteKernel) RewriteResponse(host, path, contentType string, body []byte, mapping *modelRewrite) ([]byte, bool) {
+	return k.rewriteResponseWithContentTypes(host, path, contentType, contentType, body, mapping)
+}
+
+// rewriteResponseWithContentTypes lets streaming containers such as SSE expose
+// the payload's real media type to model/inference logic while still applying
+// literal rules against the outer response Content-Type.
+func (k *RewriteKernel) rewriteResponseWithContentTypes(
+	host, path, payloadContentType, ruleContentType string,
+	body []byte,
+	mapping *modelRewrite,
+) ([]byte, bool) {
 	if k == nil || !k.enabled || len(body) == 0 {
 		return body, false
 	}
@@ -187,14 +198,14 @@ func (k *RewriteKernel) RewriteResponse(host, path, contentType string, body []b
 			changed = true
 		}
 	}
-	if k.inference != nil && k.inference.Matches("response", host, path, contentType) {
-		if rewritten, ok := k.inference.Rewrite(contentType, out); ok {
+	if k.inference != nil && k.inference.Matches("response", host, path, payloadContentType) {
+		if rewritten, ok := k.inference.Rewrite(payloadContentType, out); ok {
 			out = rewritten
 			changed = true
 		}
 	}
-	if len(k.bodyRules) > 0 && isTextualPayload(contentType, out) {
-		if rewritten, ok := k.applyLiteralRules("response", host, path, contentType, out); ok {
+	if len(k.bodyRules) > 0 && isTextualPayload(ruleContentType, out) {
+		if rewritten, ok := k.applyLiteralRules("response", host, path, ruleContentType, out); ok {
 			out = rewritten
 			changed = true
 		}
