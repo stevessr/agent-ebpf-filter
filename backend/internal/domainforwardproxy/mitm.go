@@ -26,7 +26,7 @@ type mitmCertificateAuthority struct {
 	signer    crypto.Signer
 	leafTTL   time.Duration
 	allowlist []string
-	mu        sync.Mutex
+	mu        sync.RWMutex
 	cache     map[string]cachedMITMCertificate
 }
 
@@ -132,6 +132,13 @@ func (ca *mitmCertificateAuthority) certificateForHost(host string) (*tls.Certif
 		return nil, fmt.Errorf("TLS interception is not allowlisted for %q", host)
 	}
 	now := time.Now()
+	ca.mu.RLock()
+	if cached, ok := ca.cache[host]; ok && now.Before(cached.expiresAt.Add(-time.Minute)) {
+		ca.mu.RUnlock()
+		return cached.cert, nil
+	}
+	ca.mu.RUnlock()
+
 	ca.mu.Lock()
 	defer ca.mu.Unlock()
 	if cached, ok := ca.cache[host]; ok && now.Before(cached.expiresAt.Add(-time.Minute)) {
