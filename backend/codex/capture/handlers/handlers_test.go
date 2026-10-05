@@ -98,7 +98,6 @@ func TestCodexCaptureResponseShape(t *testing.T) {
 	}
 }
 
-
 func TestBuildCodexCaptureResponsesWebsocketArrayInput(t *testing.T) {
 	event := BuildEvent(CaptureRequest{
 		Phase:       "websocket_request",
