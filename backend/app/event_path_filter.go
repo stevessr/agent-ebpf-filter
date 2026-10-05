@@ -12,8 +12,14 @@ import (
 const ignoredPathBypassRiskScore = 60
 
 func defaultIgnoredEventPaths() []string {
+	return []string{"/proc"}
+}
+
+// routineSystemNoisePaths are built-in read-only noise candidates. They are
+// active whenever ignoredPaths is non-empty, and disabled together with the
+// user-configurable defaults when ignoredPaths is explicitly set to [].
+func routineSystemNoisePaths() []string {
 	return []string{
-		"/proc",
 		"/sys/bus",
 		"/sys/class",
 		"/sys/devices",
@@ -117,22 +123,31 @@ func eventBypassesIgnoredPaths(event *pb.Event) bool {
 	}
 }
 
-// shouldIgnoreEventPath only suppresses low-risk read/open/metadata telemetry.
-// Mutating, executable, permission-changing and ioctl events are never eligible.
-// Semantic analysis runs before this gate, and alert/block/high-risk events
-// always bypass it.
+// shouldIgnoreEventPath preserves configured ignored-path compatibility while
+// applying the extra built-in system-noise paths only to low-risk read/open/
+// metadata telemetry. Semantic analysis runs before this gate, and alert/block/
+// high-risk events always bypass it.
 func shouldIgnoreEventPath(event *pb.Event) bool {
-	if event == nil ||
-		!eventPathNoiseEligible(event) ||
-		eventBypassesIgnoredPaths(event) ||
-		runtimeSettingsStore == nil {
+	if event == nil || eventBypassesIgnoredPaths(event) || runtimeSettingsStore == nil {
 		return false
 	}
 
 	runtimeSettingsStore.mu.RLock()
 	ignored := runtimeSettingsStore.settings.IgnoredPaths
-	matched := pathMatchesIgnoredPrefix(event.GetPath(), ignored) ||
+	if len(ignored) == 0 {
+		runtimeSettingsStore.mu.RUnlock()
+		return false
+	}
+	configuredMatch := pathMatchesIgnoredPrefix(event.GetPath(), ignored) ||
 		pathMatchesIgnoredPrefix(event.GetExtraPath(), ignored)
 	runtimeSettingsStore.mu.RUnlock()
-	return matched
+	if configuredMatch {
+		return true
+	}
+	if !eventPathNoiseEligible(event) {
+		return false
+	}
+	systemNoise := routineSystemNoisePaths()
+	return pathMatchesIgnoredPrefix(event.GetPath(), systemNoise) ||
+		pathMatchesIgnoredPrefix(event.GetExtraPath(), systemNoise)
 }
