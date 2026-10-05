@@ -124,6 +124,7 @@ func Main() error {
 	AppCtx.TrackerMaps = trackerMaps
 	initObservability()
 	settings := AppCtx.RuntimeSettings.Snapshot()
+	applyRetentionConfig(settings)
 	features := newFeatureRegistry()
 	AppCtx.FeatureRegistry = features
 	if features.CompiledIn(FeatureDomainForward) {
