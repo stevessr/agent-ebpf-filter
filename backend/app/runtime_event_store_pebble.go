@@ -577,7 +577,8 @@ func encodeEventStoreCursor(key []byte) string {
 }
 
 // Page returns one reverse-chronological window from the persistent event
-// database. Records inside a page are returned oldest -> newest to preserve
+// database. Cursor paging keeps disk retention independent from Renew's bounded
+// in-memory summary window. Records inside a page are returned oldest -> newest to preserve
 // the ordering contract used by existing history consumers. nextCursor is an
 // opaque key for the next older page and must not be interpreted by clients.
 func (s *runtimeEventStore) Page(ctx context.Context, limit int, cursor string) ([]CapturedEventRecord, string, error) {

@@ -7,6 +7,7 @@ import {
   type AgentEvent,
 } from "../dashboard/dashboardConstants";
 
+// Renew keeps only compact summaries in the WebView; full records stay backend-owned.
 const HISTORY_LIMIT = 240;
 const MAX_SUMMARIES = 1200;
 const FLUSH_WINDOW_MS = 100;
