@@ -11,7 +11,7 @@ import (
 
 func TestRewriteKernelModelMappingPreservesNestedModel(t *testing.T) {
 	kernel := NewRewriteKernel(BodyRewriteSettings{
-		Enabled: true,
+		Enabled:    true,
 		ModelRules: []ModelRewriteRule{{
 			Host: "api.openai.com",
 			From: "client-model",
@@ -92,7 +92,6 @@ func TestHandlerRewritesRequestAndResponseBodies(t *testing.T) {
 }
 
 
-
 func TestRewriteKernelUsesLastDuplicateModelLikeEncodingJSON(t *testing.T) {
 	kernel := NewRewriteKernel(BodyRewriteSettings{
 		Enabled: true,
@@ -154,7 +153,6 @@ func BenchmarkRewriteKernelModelMatch(b *testing.B) {
 		_, _, _ = kernel.RewriteRequest("api.openai.com", "/v1/responses", "application/json", body)
 	}
 }
-
 
 func BenchmarkRewriteKernelModelMatch200Rules(b *testing.B) {
 	rules := make([]ModelRewriteRule, 0, 200)
