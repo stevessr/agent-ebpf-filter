@@ -317,3 +317,14 @@ func TestSetRequestBodyUsesContentLengthWithoutTrailers(t *testing.T) {
 		t.Fatalf("Content-Length = %q, want 9", got)
 	}
 }
+
+
+func TestRequestBodyRewriteabilityProtectsDeclaredSignatureTrailer(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "https://example.test/", strings.NewReader("body"))
+	req.Trailer = http.Header{
+		"Signature-Input": nil,
+	}
+	if requestBodyIsRewriteable(req) {
+		t.Fatal("declared Signature-Input trailer was not treated as signed before body read")
+	}
+}
