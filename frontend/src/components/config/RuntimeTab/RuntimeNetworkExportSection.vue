@@ -75,12 +75,19 @@ const removeBodyRewriteRule = (index: number) => {
   runtimeSettings.value.domainForwardProxy.rewrite.rules.splice(index, 1);
 };
 
+type DomainForwardRouteField = "host" | "upstream" | "certFile" | "keyFile";
+
+const domainForwardRouteValue = (
+  index: number,
+  field: DomainForwardRouteField,
+) => domainForwardRoutes.value[index]?.[field] || "";
+
 const updateDomainForwardRouteField = (
-  id: string,
-  field: "host" | "upstream" | "certFile" | "keyFile",
+  index: number,
+  field: DomainForwardRouteField,
   value: string,
 ) => {
-  const target = domainForwardRoutes.value.find((item) => item.id === id);
+  const target = domainForwardRoutes.value[index];
   if (!target) return;
   target[field] = value;
 };
@@ -648,37 +655,37 @@ const updateDomainForwardRouteField = (
             <a-row :gutter="[12, 12]">
               <a-col :xs="24" :md="12">
                 <a-input
-                  :value="route.host"
+                  :value="domainForwardRouteValue(index, 'host')"
                   placeholder="主机，例如 example.com 或 *.lab.test"
                   @update:value="
-                    updateDomainForwardRouteField(route.id, 'host', $event)
+                    updateDomainForwardRouteField(index, 'host', $event)
                   "
                 />
               </a-col>
               <a-col :xs="24" :md="12">
                 <a-input
-                  :value="route.upstream"
+                  :value="domainForwardRouteValue(index, 'upstream')"
                   placeholder="上游地址，例如 https://{host}"
                   @update:value="
-                    updateDomainForwardRouteField(route.id, 'upstream', $event)
+                    updateDomainForwardRouteField(index, 'upstream', $event)
                   "
                 />
               </a-col>
               <a-col :xs="24" :md="12">
                 <a-input
-                  :value="route.certFile"
+                  :value="domainForwardRouteValue(index, 'certFile')"
                   placeholder="路由证书路径（可选）"
                   @update:value="
-                    updateDomainForwardRouteField(route.id, 'certFile', $event)
+                    updateDomainForwardRouteField(index, 'certFile', $event)
                   "
                 />
               </a-col>
               <a-col :xs="24" :md="12">
                 <a-input
-                  :value="route.keyFile"
+                  :value="domainForwardRouteValue(index, 'keyFile')"
                   placeholder="路由私钥路径（可选）"
                   @update:value="
-                    updateDomainForwardRouteField(route.id, 'keyFile', $event)
+                    updateDomainForwardRouteField(index, 'keyFile', $event)
                   "
                 />
               </a-col>
