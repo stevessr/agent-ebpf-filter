@@ -53,7 +53,15 @@ type NativeInferenceKernel struct {
 	contentType string
 	minToken    int
 	maxToken    int
-	labels      []nativeInferenceLabel
+
+	// Hot-path layout is bucket-major instead of label-major. Each n-gram
+	// touches one contiguous labelCount-wide span, which keeps the classifier
+	// cache-friendly as the label set grows while preserving model format v1.
+	labelCount   int
+	biases       [maxInferenceLabels]int32
+	thresholds   [maxInferenceLabels]int32
+	replacements [maxInferenceLabels]string
+	weights      []int8
 }
 
 func LoadNativeInferenceKernel(settings NativeInferenceSettings) (*NativeInferenceKernel, error) {
@@ -114,7 +122,7 @@ func LoadNativeInferenceKernel(settings NativeInferenceSettings) (*NativeInferen
 	if minToken > maxToken {
 		return nil, errors.New("native rewrite inference minTokenBytes exceeds maxTokenBytes")
 	}
-	return &NativeInferenceKernel{
+	kernel := &NativeInferenceKernel{
 		dimension:   model.Dimension,
 		seed:        model.Seed,
 		direction:   normalizeRewriteDirection(settings.Direction),
@@ -123,8 +131,19 @@ func LoadNativeInferenceKernel(settings NativeInferenceSettings) (*NativeInferen
 		contentType: strings.ToLower(strings.TrimSpace(settings.ContentType)),
 		minToken:    minToken,
 		maxToken:    maxToken,
-		labels:      model.Labels,
-	}, nil
+		labelCount:  len(model.Labels),
+		weights:     make([]int8, model.Dimension*len(model.Labels)),
+	}
+	for labelIndex := range model.Labels {
+		label := &model.Labels[labelIndex]
+		kernel.biases[labelIndex] = label.Bias
+		kernel.thresholds[labelIndex] = label.Threshold
+		kernel.replacements[labelIndex] = label.Replacement
+		for bucket, weight := range label.Weights {
+			kernel.weights[bucket*kernel.labelCount+labelIndex] = weight
+		}
+	}
+	return kernel, nil
 }
 
 func (k *NativeInferenceKernel) Matches(direction, host, path, contentType string) bool {
@@ -259,29 +278,29 @@ func (k *NativeInferenceKernel) rewriteRange(body []byte, start, end int) ([]byt
 }
 
 func (k *NativeInferenceKernel) classify(token []byte) (string, bool) {
-	if k == nil || len(token) == 0 || len(k.labels) == 0 {
+	if k == nil || len(token) == 0 || k.labelCount == 0 {
 		return "", false
 	}
 	var scores [maxInferenceLabels]int32
-	for i := range k.labels {
-		scores[i] = k.labels[i].Bias
-	}
+	copy(scores[:k.labelCount], k.biases[:k.labelCount])
 	for n := 1; n <= 3; n++ {
 		if len(token) < n {
 			break
 		}
 		for i := 0; i+n <= len(token); i++ {
 			bucket := int(hashFeature(token[i:i+n], k.seed) % uint64(k.dimension))
-			for labelIndex := range k.labels {
-				scores[labelIndex] += int32(k.labels[labelIndex].Weights[bucket])
+			base := bucket * k.labelCount
+			bucketWeights := k.weights[base : base+k.labelCount]
+			for labelIndex, weight := range bucketWeights {
+				scores[labelIndex] += int32(weight)
 			}
 		}
 	}
 	best := -1
 	bestScore := int32(-1 << 31)
-	for i := range k.labels {
+	for i := 0; i < k.labelCount; i++ {
 		score := scores[i]
-		if score < k.labels[i].Threshold {
+		if score < k.thresholds[i] {
 			continue
 		}
 		if best < 0 || score > bestScore {
@@ -292,7 +311,7 @@ func (k *NativeInferenceKernel) classify(token []byte) (string, bool) {
 	if best < 0 {
 		return "", false
 	}
-	return k.labels[best].Replacement, true
+	return k.replacements[best], true
 }
 
 func hashFeature(feature []byte, seed uint64) uint64 {
