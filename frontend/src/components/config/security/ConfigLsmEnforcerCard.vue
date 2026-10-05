@@ -246,13 +246,13 @@ const {
                     :disabled="!lsmEnforcerStatus.available"
                     :loading="lsmEnforcerLoading"
                     @click="blockLsmExecName"
-                    >Block</a-button
+                    >阻断</a-button
                   >
                   <a-button
                     :disabled="!lsmEnforcerStatus.available"
                     :loading="lsmEnforcerLoading"
                     @click="unblockLsmExecName()"
-                    >Unblock</a-button
+                    >放行</a-button
                   >
                 </a-input-group>
               </div>
@@ -271,13 +271,13 @@ const {
                     :disabled="!lsmEnforcerStatus.available"
                     :loading="lsmEnforcerLoading"
                     @click="blockLsmFileName"
-                    >Block</a-button
+                    >阻断</a-button
                   >
                   <a-button
                     :disabled="!lsmEnforcerStatus.available"
                     :loading="lsmEnforcerLoading"
                     @click="unblockLsmFileName()"
-                    >Unblock</a-button
+                    >放行</a-button
                   >
                 </a-input-group>
               </div>
