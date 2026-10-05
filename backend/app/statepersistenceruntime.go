@@ -219,6 +219,7 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 		EventStoreMaxRecords: defaultEventStoreMaxRecords,
 		EventStoreMaxAge:     defaultEventStoreMaxAge,
 		DisabledEventTypes:   defaultRenewDailyDisabledEventTypes(),
+		IgnoredPaths:          defaultIgnoredEventPaths(),
 		MaxEventCount:         1500,
 		MaxEventAge:           "0",
 		LoopDetection: LoopDetectionSettings{
@@ -252,7 +253,8 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 				EventStoreMaxRecords:  defaultEventStoreMaxRecords,
 				EventStoreMaxAge:      defaultEventStoreMaxAge,
 				DisabledEventTypes:    defaultRenewDailyDisabledEventTypes(),
-				MaxEventCount:         1500,
+				IgnoredPaths:           defaultIgnoredEventPaths(),
+				MaxEventCount:          1500,
 				MaxEventAge:           "0",
 				LoopDetection: LoopDetectionSettings{
 					WindowSeconds:      30,
