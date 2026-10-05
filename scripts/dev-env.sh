@@ -440,6 +440,8 @@ hint_for() {
     AGENT_LLM_MAX_TOKENS) printf 'Backend clamps request sizes. Leave unset to keep Runtime Config.' ;;
     OPENAI_BASE_URL) printf 'Fallback consumed when AGENT_LLM_BASE_URL is unset.' ;;
     AGENT_RUNTIME_LOG_FILE_PATH) printf 'Default: ~/.config/agent-ebpf-filter/events.pebble; use .jsonl for legacy file mode.' ;;
+    AGENT_RUNTIME_EVENT_STORE_MAX_RECORDS) printf 'Pebble retention count. Default: 250000.' ;;
+    AGENT_RUNTIME_EVENT_STORE_MAX_AGE) printf 'Pebble retention age. Default: 168h; 0 disables age pruning.' ;;
     AGENT_RUNTIME_MAX_EVENT_AGE) printf 'Duration like 0, 5m, 24h. 0 disables age eviction.' ;;
     AGENT_RUNTIME_OTLP_ENDPOINT) printf 'Example: http://127.0.0.1:4318/v1/traces.' ;;
     AGENT_RUNTIME_DOMAIN_DEFAULT_SCHEME) printf 'http or https. Default runtime value is https.' ;;
