@@ -1,6 +1,7 @@
 package domainforwardproxy
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
@@ -126,6 +127,31 @@ func (s *responsesWSRewriteState) hasPendingSteer(previousResponseID string) boo
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.pendingSteers[previousResponseID]) > 0
+}
+
+// bindPendingSteerContinuation attaches an explicit response.create to steering
+// input already owned by the server. A pending steer keeps the parent lane
+// mapping queued, so appending another stream mapping here would leave stale
+// state after the successor completes.
+func (s *responsesWSRewriteState) bindPendingSteerContinuation(
+	previousResponseID, streamID string,
+	mapping *modelRewrite,
+) bool {
+	if previousResponseID == "" {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	queue := s.pendingSteers[previousResponseID]
+	if len(queue) == 0 {
+		return false
+	}
+	for i := range queue {
+		queue[i].mapping = cloneModelRewrite(mapping)
+		queue[i].streamID = streamID
+	}
+	s.pendingSteers[previousResponseID] = queue
+	return true
 }
 
 func (s *responsesWSRewriteState) takePendingSteer(previousResponseID string) (responsesWSPendingSteer, bool) {
@@ -301,19 +327,28 @@ func (h *Handler) copyResponsesWSClientToUpstream(
 		}
 		if messageType == websocket.TextMessage {
 			var envelope struct {
-				Type               string `json:"type"`
-				StreamID           string `json:"stream_id"`
-				PreviousResponseID string `json:"previous_response_id"`
+				Type               string          `json:"type"`
+				StreamID           string          `json:"stream_id"`
+				PreviousResponseID string          `json:"previous_response_id"`
+				Model              json.RawMessage `json:"model"`
 			}
 			if json.Unmarshal(payload, &envelope) == nil {
 				switch envelope.Type {
 				case "response.create":
 					rewritten, mapping, _ := h.rewrite.RewriteRequest(host, path, "application/json", payload)
 					payload = rewritten
-					if mapping == nil {
+					explicitModel := len(strings.TrimSpace(string(envelope.Model))) > 0 &&
+						string(bytes.TrimSpace(envelope.Model)) != "null"
+					if mapping == nil && !explicitModel {
 						mapping = state.response(envelope.PreviousResponseID)
 					}
-					state.enqueueStream(envelope.StreamID, mapping)
+					if !state.bindPendingSteerContinuation(
+						envelope.PreviousResponseID,
+						envelope.StreamID,
+						mapping,
+					) {
+						state.enqueueStream(envelope.StreamID, mapping)
+					}
 				case "response.steer":
 					rewritten, _, _ := h.rewrite.RewriteRequest(host, path, "application/json", payload)
 					payload = rewritten
