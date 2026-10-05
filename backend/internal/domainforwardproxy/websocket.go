@@ -60,14 +60,14 @@ func (s *responsesWSRewriteState) enqueueStream(streamID string, mapping *modelR
 	s.streamMappings[streamID] = append(s.streamMappings[streamID], cloneModelRewrite(mapping))
 }
 
-func (s *responsesWSRewriteState) stream(streamID string) *modelRewrite {
+func (s *responsesWSRewriteState) stream(streamID string) (*modelRewrite, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	queue := s.streamMappings[streamID]
 	if len(queue) == 0 {
-		return nil
+		return nil, false
 	}
-	return cloneModelRewrite(queue[0])
+	return cloneModelRewrite(queue[0]), true
 }
 
 func (s *responsesWSRewriteState) rememberResponse(responseID, streamID string, mapping *modelRewrite) {
@@ -504,16 +504,20 @@ func (h *Handler) copyResponsesWSUpstreamToClient(
 				previousResponseID = envelope.Response.PreviousResponseID
 			}
 
-			mapping := state.stream(envelope.StreamID)
+			mapping, mappingBound := state.stream(envelope.StreamID)
 			if envelope.Type == "response.created" && previousResponseID != "" {
 				if steer, ok := state.takePendingSteerBatch(previousResponseID); ok {
 					mapping = steer.mapping
+					mappingBound = true
 				}
 			}
-			if mapping == nil && responseID != "" {
-				mapping = state.response(responseID)
+			if !mappingBound && responseID != "" {
+				if known := state.response(responseID); known != nil {
+					mapping = known
+					mappingBound = true
+				}
 			}
-			if mapping == nil && previousResponseID != "" {
+			if !mappingBound && previousResponseID != "" {
 				mapping = state.response(previousResponseID)
 			}
 			if mapping != nil && responseID != "" {
