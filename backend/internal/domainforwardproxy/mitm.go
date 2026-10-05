@@ -19,6 +19,8 @@ import (
 	"time"
 )
 
+const maxMITMLeafCacheEntries = 1024
+
 type mitmCertificateAuthority struct {
 	cert      *x509.Certificate
 	signer    crypto.Signer
@@ -62,6 +64,13 @@ func loadMITMCertificateAuthority(settings DomainForwardProxySettings) (*mitmCer
 	}
 	if !cert.IsCA {
 		return nil, errors.New("TLS interception certificate is not a CA")
+	}
+	now := time.Now()
+	if now.Before(cert.NotBefore) {
+		return nil, fmt.Errorf("TLS interception CA certificate is not valid before %s", cert.NotBefore.UTC().Format(time.RFC3339))
+	}
+	if !now.Before(cert.NotAfter) {
+		return nil, fmt.Errorf("TLS interception CA certificate expired at %s", cert.NotAfter.UTC().Format(time.RFC3339))
 	}
 	signer, err := parsePrivateSigner(keyPEM)
 	if err != nil {
@@ -164,8 +173,34 @@ func (ca *mitmCertificateAuthority) certificateForHost(host string) (*tls.Certif
 		Leaf:        template,
 	}
 	expiresAt := notAfter
+	ca.pruneCacheLocked(now)
 	ca.cache[host] = cachedMITMCertificate{cert: cert, expiresAt: expiresAt}
 	return cert, nil
+}
+
+func (ca *mitmCertificateAuthority) pruneCacheLocked(now time.Time) {
+	if ca == nil || len(ca.cache) == 0 {
+		return
+	}
+	for host, cached := range ca.cache {
+		if !now.Before(cached.expiresAt) {
+			delete(ca.cache, host)
+		}
+	}
+	for len(ca.cache) >= maxMITMLeafCacheEntries {
+		var oldestHost string
+		var oldestExpiry time.Time
+		for host, cached := range ca.cache {
+			if oldestHost == "" || cached.expiresAt.Before(oldestExpiry) {
+				oldestHost = host
+				oldestExpiry = cached.expiresAt
+			}
+		}
+		if oldestHost == "" {
+			break
+		}
+		delete(ca.cache, oldestHost)
+	}
 }
 
 func splitDomainAllowlist(raw string) []string {

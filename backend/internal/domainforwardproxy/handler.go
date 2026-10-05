@@ -102,18 +102,33 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var modelMapping *modelRewrite
 	if h.rewrite != nil && h.settings.Rewrite.Enabled && requestBodyIsRewriteable(r) {
-		body, bounded, err := readRequestBodyBounded(r, h.rewrite.MaxBodyBytes())
+		rawBody, bounded, err := readRequestBodyBounded(r, h.rewrite.MaxBodyBytes())
 		if err != nil {
 			http.Error(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
 		if bounded {
-			rewritten, mapping, changed := h.rewrite.RewriteRequest(host, r.URL.Path, r.Header.Get("Content-Type"), body)
-			modelMapping = mapping
-			if changed {
-				setRequestBody(r, rewritten)
+			encoding := r.Header.Get("Content-Encoding")
+			body, decodedBounded, err := decodeBodyForRewrite(encoding, rawBody, h.rewrite.MaxBodyBytes())
+			if err != nil {
+				http.Error(w, "invalid request body encoding", http.StatusBadRequest)
+				return
+			}
+			if !decodedBounded {
+				setRequestBody(r, rawBody)
 			} else {
-				setRequestBody(r, body)
+				rewritten, mapping, changed := h.rewrite.RewriteRequest(host, r.URL.Path, r.Header.Get("Content-Type"), body)
+				modelMapping = mapping
+				if changed {
+					encoded, err := encodeBodyAfterRewrite(encoding, rewritten)
+					if err != nil {
+						http.Error(w, "failed to encode rewritten request body", http.StatusBadRequest)
+						return
+					}
+					setRequestBody(r, encoded)
+				} else {
+					setRequestBody(r, rawBody)
+				}
 			}
 		}
 	}
@@ -144,22 +159,41 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return nil
 			}
 			contentType := response.Header.Get("Content-Type")
+			encoding := response.Header.Get("Content-Encoding")
 			if strings.Contains(strings.ToLower(contentType), "text/event-stream") {
+				// Keep SSE fully streaming. Compressed SSE is deliberately left
+				// untouched; the production transport normally negotiates or
+				// auto-decompresses gzip before ModifyResponse.
+				if normalizeContentEncoding(encoding) != "" {
+					return nil
+				}
 				response.Body = newSSERewriteBody(response.Body, h.rewrite, host, r.URL.Path, contentType, modelMapping)
 				response.ContentLength = -1
 				response.Header.Del("Content-Length")
 				return nil
 			}
-			body, bounded, err := readResponseBodyBounded(response, h.rewrite.MaxBodyBytes())
+			rawBody, bounded, err := readResponseBodyBounded(response, h.rewrite.MaxBodyBytes())
 			if err != nil || !bounded {
 				return err
 			}
-			rewritten, changed := h.rewrite.RewriteResponse(host, r.URL.Path, contentType, body, modelMapping)
-			if changed {
-				setResponseBody(response, rewritten)
-			} else {
-				setResponseBody(response, body)
+			body, decodedBounded, err := decodeBodyForRewrite(encoding, rawBody, h.rewrite.MaxBodyBytes())
+			if err != nil {
+				return err
 			}
+			if !decodedBounded {
+				restoreResponseBody(response, rawBody)
+				return nil
+			}
+			rewritten, changed := h.rewrite.RewriteResponse(host, r.URL.Path, contentType, body, modelMapping)
+			if !changed {
+				restoreResponseBody(response, rawBody)
+				return nil
+			}
+			encoded, err := encodeBodyAfterRewrite(encoding, rewritten)
+			if err != nil {
+				return err
+			}
+			setResponseBody(response, encoded)
 			return nil
 		},
 		ErrorHandler: func(w http.ResponseWriter, req *http.Request, err error) {
@@ -174,16 +208,14 @@ func requestBodyIsRewriteable(r *http.Request) bool {
 	if r == nil || r.Body == nil || r.Body == http.NoBody {
 		return false
 	}
-	encoding := strings.ToLower(strings.TrimSpace(r.Header.Get("Content-Encoding")))
-	return encoding == "" || encoding == "identity"
+	return bodyEncodingRewriteable(r.Header.Get("Content-Encoding"))
 }
 
 func responseBodyIsRewriteable(response *http.Response) bool {
 	if response == nil || response.Body == nil {
 		return false
 	}
-	encoding := strings.ToLower(strings.TrimSpace(response.Header.Get("Content-Encoding")))
-	return encoding == "" || encoding == "identity"
+	return bodyEncodingRewriteable(response.Header.Get("Content-Encoding"))
 }
 
 func readRequestBodyBounded(r *http.Request, limit int64) ([]byte, bool, error) {
@@ -236,13 +268,32 @@ func setRequestBody(r *http.Request, body []byte) {
 	r.Header.Del("Transfer-Encoding")
 }
 
-func setResponseBody(response *http.Response, body []byte) {
+func restoreResponseBody(response *http.Response, body []byte) {
 	response.Body = io.NopCloser(bytes.NewReader(body))
 	response.ContentLength = int64(len(body))
 	response.Header.Set("Content-Length", strconv.Itoa(len(body)))
 	response.Header.Del("Transfer-Encoding")
-	response.Header.Del("ETag")
-	response.Header.Del("Content-MD5")
+}
+
+func setResponseBody(response *http.Response, body []byte) {
+	restoreResponseBody(response, body)
+	for _, name := range []string{
+		"ETag",
+		"Content-MD5",
+		"Digest",
+		"Content-Digest",
+		"Repr-Digest",
+	} {
+		deleteHeaderFold(response.Header, name)
+	}
+}
+
+func deleteHeaderFold(header http.Header, name string) {
+	for key := range header {
+		if strings.EqualFold(key, name) {
+			delete(header, key)
+		}
+	}
 }
 
 func (h *Handler) TargetForHost(host string) (*url.URL, DomainForwardRoute, error) {

@@ -14,11 +14,13 @@ Dynamic TLS interception is **off by default**. Enabling it requires all of:
 - a non-empty `tlsInterceptAllowlist`;
 - client trust in that CA.
 
-The allowlist accepts exact hosts and `*.suffix` patterns. Dynamic leaf
-certificates are only signed for allowlisted SNI names and are cached for their
-bounded lifetime. A host outside that dynamic allowlist does not receive a generated
-certificate. Explicit route certificates remain separate, because configuring a
-route certificate is already an explicit administrator action.
+The allowlist accepts exact hosts and strict `*.suffix` patterns. A wildcard
+authorizes subdomains only; it does not authorize the apex host. Dynamic leaf
+certificates are only signed for allowlisted SNI names, the configured CA must be
+currently valid, and generated leaves are cached in a bounded 1024-host cache with
+oldest-expiry eviction. A host outside that dynamic allowlist does not receive a
+generated certificate. Explicit route/default certificates remain available as
+administrator-configured fallback material outside the dynamic MITM allowlist.
 
 Example:
 
@@ -61,13 +63,23 @@ For an eligible response it applies:
 2. native local inference rewrite;
 3. bounded literal rules.
 
-Responses with `text/event-stream` are processed incrementally rather than
-buffering the complete stream. Responses WebSocket text frames use the same rewrite
-kernel.
+Responses with `text/event-stream` are processed one SSE event at a time rather
+than buffering the complete stream. Multi-line `data:` fields are reassembled using
+SSE semantics before model restoration/inference and are rendered back as data
+fields afterwards. Oversized events are streamed through unchanged. Responses
+WebSocket text frames use the same rewrite kernel.
+
+Identity and gzip HTTP request/response bodies are eligible for bounded rewrite.
+Both the encoded body and the decompressed payload are subject to the configured
+rewrite limit; a gzip expansion beyond the limit is passed through unchanged.
+Compressed SSE is intentionally left untouched so the proxy never turns an
+unbounded event stream into whole-response buffering.
 
 The body buffer defaults to 4 MiB and is capped at 64 MiB. An over-limit body is
 passed through unchanged. Its original `io.Closer` is retained, so bypassing
-rewrite does not leak a request/response stream.
+rewrite does not leak a request/response stream. Response validators/digests are
+removed only when payload bytes actually change; inspection-only passthrough keeps
+the original validators.
 
 ## Fast model aliases
 
@@ -153,10 +165,13 @@ model aliases and literal rules continue to work.
 
 A CI smoke benchmark on an AMD EPYC runner measured approximately:
 
-- model no-match: ~241 ns/op, 0 allocations;
-- model match: ~1.08 µs/op;
-- 200 model rules with a match: ~1.64 µs/op;
-- native inference on a small Responses JSON body: ~3.94 µs/op.
+- model no-match: ~116 ns/op, 0 allocations;
+- model match: ~585 ns/op;
+- 200 model rules with a match: ~1.53 µs/op;
+- native inference: ~2.17 µs/op for 1 label, ~2.19 µs/op for 8 labels, and
+  ~3.35 µs/op for 32 labels;
+- nested Responses model restoration over a ~28 KiB completed event:
+  ~125 µs/op (~230 MB/s).
 
 These values are regression signals, not hardware-independent latency guarantees.
 
