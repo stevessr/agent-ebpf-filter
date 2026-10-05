@@ -286,6 +286,15 @@ func agentSightTLSData(event tls.TLSPlaintextEvent, timestamp time.Time) map[str
 	if event.PromptLen != 0 {
 		data["prompt_len"] = event.PromptLen
 	}
+	if event.ContextDigest != "" {
+		data["context_digest"] = event.ContextDigest
+	}
+	if event.ContextLen != 0 {
+		data["context_len"] = event.ContextLen
+	}
+	if event.ContextItems != 0 {
+		data["context_items"] = event.ContextItems
+	}
 	if event.Vendor != "" {
 		data["vendor"] = event.Vendor
 	}
