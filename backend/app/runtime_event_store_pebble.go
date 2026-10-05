@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -547,6 +548,9 @@ func (s *runtimeEventStore) GetByID(ctx context.Context, eventID string) (Captur
 	}
 	recordKey, closer, err := s.db.Get(eventStoreIDKey(eventID))
 	if err != nil {
+		if errors.Is(err, pebble.ErrNotFound) {
+			return CapturedEventRecord{}, os.ErrNotExist
+		}
 		return CapturedEventRecord{}, err
 	}
 	keyCopy := append([]byte(nil), recordKey...)
@@ -555,6 +559,9 @@ func (s *runtimeEventStore) GetByID(ctx context.Context, eventID string) (Captur
 	}
 	payload, closer, err := s.db.Get(keyCopy)
 	if err != nil {
+		if errors.Is(err, pebble.ErrNotFound) {
+			return CapturedEventRecord{}, os.ErrNotExist
+		}
 		return CapturedEventRecord{}, err
 	}
 	payloadCopy := append([]byte(nil), payload...)
