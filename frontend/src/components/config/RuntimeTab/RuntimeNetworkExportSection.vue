@@ -77,6 +77,16 @@ const removeBodyRewriteRule = (index: number) => {
 
 type DomainForwardRouteField = "host" | "upstream" | "certFile" | "keyFile";
 
+const domainForwardRouteFields: Array<{
+  key: DomainForwardRouteField;
+  placeholder: string;
+}> = [
+  { key: "host", placeholder: "主机，例如 example.com 或 *.lab.test" },
+  { key: "upstream", placeholder: "上游地址，例如 https://{host}" },
+  { key: "certFile", placeholder: "路由证书路径（可选）" },
+  { key: "keyFile", placeholder: "路由私钥路径（可选）" },
+];
+
 const domainForwardRouteValue = (
   index: number,
   field: DomainForwardRouteField,
@@ -662,31 +672,12 @@ const updateDomainForwardRouteField = (
                   "
                 >
                   <a-input
-                    :value="domainForwardRouteValue(index, 'host')"
-                    placeholder="主机，例如 example.com 或 *.lab.test"
+                    v-for="field in domainForwardRouteFields"
+                    :key="field.key"
+                    :value="domainForwardRouteValue(index, field.key)"
+                    :placeholder="field.placeholder"
                     @update:value="
-                      updateDomainForwardRouteField(index, 'host', $event)
-                    "
-                  />
-                  <a-input
-                    :value="domainForwardRouteValue(index, 'upstream')"
-                    placeholder="上游地址，例如 https://{host}"
-                    @update:value="
-                      updateDomainForwardRouteField(index, 'upstream', $event)
-                    "
-                  />
-                  <a-input
-                    :value="domainForwardRouteValue(index, 'certFile')"
-                    placeholder="路由证书路径（可选）"
-                    @update:value="
-                      updateDomainForwardRouteField(index, 'certFile', $event)
-                    "
-                  />
-                  <a-input
-                    :value="domainForwardRouteValue(index, 'keyFile')"
-                    placeholder="路由私钥路径（可选）"
-                    @update:value="
-                      updateDomainForwardRouteField(index, 'keyFile', $event)
+                      updateDomainForwardRouteField(index, field.key, $event)
                     "
                   />
                 </div>
