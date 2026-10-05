@@ -48,6 +48,16 @@ export const defaultDomainForwardProxy = (): DomainForwardProxySettings => ({
     maxBodyBytes: 4 * 1024 * 1024,
     rules: [],
     modelRules: [],
+    inference: {
+      enabled: false,
+      modelFile: "",
+      direction: "both",
+      host: "",
+      pathPrefix: "",
+      contentType: "application/json",
+      minTokenBytes: 3,
+      maxTokenBytes: 256,
+    },
   },
   routes: [],
 });
@@ -316,6 +326,25 @@ export const normalizeDomainForwardProxy = (
       modelRules: Array.isArray(rewrite.modelRules)
         ? rewrite.modelRules
         : [],
+      inference: {
+        ...defaults.rewrite.inference,
+        ...(rewrite.inference || {}),
+        enabled:
+          rewrite.inference?.enabled ?? defaults.rewrite.inference.enabled,
+        direction:
+          rewrite.inference?.direction === "request" ||
+          rewrite.inference?.direction === "response"
+            ? rewrite.inference.direction
+            : "both",
+        minTokenBytes: Number(
+          rewrite.inference?.minTokenBytes ||
+            defaults.rewrite.inference.minTokenBytes,
+        ),
+        maxTokenBytes: Number(
+          rewrite.inference?.maxTokenBytes ||
+            defaults.rewrite.inference.maxTokenBytes,
+        ),
+      },
     },
     routes: Array.isArray(value?.routes) ? value.routes : [],
   };
