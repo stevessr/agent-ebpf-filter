@@ -233,3 +233,79 @@ func TestRuntimeEventStorePrunesByAge(t *testing.T) {
 	}
 }
 
+
+
+func TestRuntimeEventStorePruneKeepsNewestRecordsAndIndexes(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "events.pebble")
+	store, _, err := openRuntimeEventStoreWithin(root, path)
+	if err != nil {
+		t.Fatalf("openRuntimeEventStoreWithin() error = %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	t.Cleanup(func() {
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer stopCancel()
+		if err := store.StopContext(stopCtx); err != nil {
+			t.Errorf("StopContext() error = %v", err)
+		}
+	})
+
+	base := time.Now().UTC().Add(-time.Hour)
+	ids := make([]string, 0, 5)
+	for i := 0; i < 5; i++ {
+		record := normalizeCapturedEventRecord(CapturedEventRecord{
+			ReceivedAt: base.Add(time.Duration(i) * time.Minute),
+			Event: &pb.Event{
+				Pid:       uint32(5000 + i),
+				Type:      "execve",
+				EventType: pb.EventType_EXECVE,
+				Comm:      "agent",
+				Path:      "/tmp/tool",
+				Tag:       "AI Agent",
+			},
+		})
+		ids = append(ids, record.Envelope.GetEventId())
+		accepted, err := store.Enqueue(record)
+		if err != nil || !accepted {
+			t.Fatalf("Enqueue(%d) = %t, %v", i, accepted, err)
+		}
+	}
+	if err := store.FlushContext(ctx); err != nil {
+		t.Fatalf("FlushContext() error = %v", err)
+	}
+
+	deleted, err := store.Prune(ctx, 3, 0)
+	if err != nil {
+		t.Fatalf("Prune() error = %v", err)
+	}
+	if deleted != 2 {
+		t.Fatalf("Prune() deleted = %d, want 2", deleted)
+	}
+
+	recent, err := store.Recent(ctx, 10)
+	if err != nil {
+		t.Fatalf("Recent() error = %v", err)
+	}
+	if len(recent) != 3 {
+		t.Fatalf("Recent() len = %d, want 3", len(recent))
+	}
+	for i, record := range recent {
+		wantID := ids[i+2]
+		if got := record.Envelope.GetEventId(); got != wantID {
+			t.Fatalf("Recent()[%d] id = %q, want %q", i, got, wantID)
+		}
+	}
+
+	for _, prunedID := range ids[:2] {
+		if _, err := store.GetByID(ctx, prunedID); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("GetByID(pruned %q) error = %v, want os.ErrNotExist", prunedID, err)
+		}
+	}
+	for _, keptID := range ids[2:] {
+		if _, err := store.GetByID(ctx, keptID); err != nil {
+			t.Fatalf("GetByID(kept %q) error = %v", keptID, err)
+		}
+	}
+}
