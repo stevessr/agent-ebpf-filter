@@ -16,9 +16,12 @@ Dynamic TLS interception is **off by default**. Enabling it requires all of:
 
 The allowlist accepts exact hosts and strict `*.suffix` patterns. A wildcard
 authorizes subdomains only; it does not authorize the apex host. Dynamic leaf
-certificates are only signed for allowlisted SNI names, the configured CA must be
-currently valid, and generated leaves are cached in a bounded 1024-host cache with
-oldest-expiry eviction. A host outside that dynamic allowlist does not receive a
+certificates are only signed for allowlisted SNI names. The configured CA must be
+currently valid and, when KeyUsage is present, must include certificate-signing
+permission. CA expiry is rechecked before every cache-miss signature so a long-running
+proxy cannot mint leaves after the CA expires. Signed leaves are parsed back into
+complete x509 metadata before entering TLS, and generated leaves are cached in a
+bounded 1024-host cache with concurrent read hits and oldest-expiry eviction. A host outside that dynamic allowlist does not receive a
 generated certificate. Explicit route/default certificates remain available as
 administrator-configured fallback material outside the dynamic MITM allowlist.
 
@@ -88,9 +91,9 @@ losslessly by the proxy.
 
 Requests are passed through without body mutation when they carry a
 `Content-Range`, HTTP Message Signature fields, AWS SigV4 payload signing,
-Google content hashes, or Azure SharedKey-style authorization. Declared
-signature trailers are treated as signed even before their values arrive at
-end-of-body.
+Google content hashes, Azure SharedKey-style authorization, or recognizable
+AWS/GCS/Azure/CloudFront signed-URL query parameters. Declared signature
+trailers are treated as signed even before their values arrive at end-of-body.
 
 When a request body is actually changed, stale body integrity fields are
 removed from both headers and trailers:
@@ -106,10 +109,16 @@ trailer-bearing request into a fixed-length body. When a changed request still
 has non-integrity trailers, the proxy leaves final framing selection to
 `net/http` so HTTP/1.1 and HTTP/2+ can use their native trailer mechanisms.
 
-Responses with status `206 Partial Content`, a `Content-Range`, or
-`multipart/byteranges` are not body-rewritten. A rewritten full response
-drops stale validators/digests from headers and trailers, while an unchanged
-response preserves them.
+HEAD responses and bodyless status classes (1xx, 204, 304) are never
+body-rewritten, preserving representation metadata such as HEAD/304
+`Content-Length` and validators. Responses with status `206 Partial Content`,
+a `Content-Range`, `multipart/byteranges`, or HTTP Message Signature fields
+in headers/trailers are also passed through unchanged.
+
+A rewritten full response drops stale validators/digests from headers and
+trailers while preserving unrelated trailers. Trailer-bearing responses remain
+trailer-capable instead of being forced to a fixed `Content-Length`; unchanged
+responses preserve their original trailer framing.
 
 ## Fast model aliases
 
@@ -142,8 +151,18 @@ Steering state follows the current WebSocket continuation model. Accepted
 response terminates while steering input is still queued, the lane mapping is
 held until the queued input is either committed into a successor or definitively
 fails. A `response.steer.pending` flow resumed by explicit
-`response.create` reuses that held lane rather than appending duplicate stream
-state.
+`response.create` must use the parent response's original lane and reuses that
+held lane rather than appending duplicate stream state.
+
+Response history distinguishes an explicit "no alias" mapping from a missing
+mapping, so an unaliased steer successor cannot accidentally consume the next
+queued request's alias. Pinned steering/terminal responses are protected while
+the history remains bounded at 256 entries by evicting older unpinned responses.
+
+Server `error` events are routed conservatively: named-lane/request errors can
+release that lane, while connection-level errors such as
+`websocket_connection_limit_reached` do not consume the default lane's queued
+model state.
 
 ## Native inference fast path
 
