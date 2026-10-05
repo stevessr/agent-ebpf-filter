@@ -258,6 +258,9 @@ func (h *Handler) copyResponsesWSUpstreamToClient(
 				Response   struct {
 					ID string `json:"id"`
 				} `json:"response"`
+				Error struct {
+					Param string `json:"param"`
+				} `json:"error"`
 			}
 			_ = json.Unmarshal(payload, &envelope)
 			mapping := state.stream(envelope.StreamID)
@@ -270,7 +273,7 @@ func (h *Handler) copyResponsesWSUpstreamToClient(
 			}
 			rewritten, _ := h.rewrite.RewriteResponse(host, path, "application/json", payload, mapping)
 			payload = rewritten
-			if responsesTerminalEvent(envelope.Type) {
+			if responsesTerminalEvent(envelope.Type, envelope.StreamID, envelope.Error.Param) {
 				state.popStream(envelope.StreamID)
 			}
 		}
@@ -301,10 +304,15 @@ func websocketTargetURL(target, incoming *url.URL) *url.URL {
 	return &out
 }
 
-func responsesTerminalEvent(eventType string) bool {
+func responsesTerminalEvent(eventType, streamID, errorParam string) bool {
 	switch eventType {
 	case "response.completed", "response.failed", "response.incomplete":
 		return true
+	case "error":
+		// A valid named-lane request error carries stream_id. Default-lane
+		// request errors do not. Errors rejecting stream_id itself cannot be
+		// associated with a lane, so do not pop the implicit default queue.
+		return streamID != "" || errorParam != "stream_id"
 	default:
 		return false
 	}
