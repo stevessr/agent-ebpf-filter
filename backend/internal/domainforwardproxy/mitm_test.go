@@ -54,8 +54,8 @@ func TestTLSInterceptionStrictAllowlist(t *testing.T) {
 func TestTLSInterceptionPreservesStaticFallback(t *testing.T) {
 	certFile, keyFile := writeTestCA(t)
 	config, _, err := NewTLSConfig(DomainForwardProxySettings{
-		CertFile:                  certFile,
-		KeyFile:                   keyFile,
+		CertFile:                   certFile,
+		KeyFile:                    keyFile,
 		TLSInterceptEnabled:        true,
 		TLSInterceptAllowlist:      "api.openai.com",
 		TLSInterceptCACertFile:     certFile,
