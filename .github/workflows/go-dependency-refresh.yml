@@ -45,6 +45,14 @@ jobs:
         working-directory: backend/ebpf
         run: go generate
 
+      - name: Diagnose genproto module graph
+        working-directory: backend
+        run: |
+          echo "== genproto graph edges =="
+          go mod graph | grep 'google.golang.org/genproto' || true
+          echo "== why monolithic genproto =="
+          go mod why -m google.golang.org/genproto || true
+
       - name: Test backend
         working-directory: backend
         run: go test ./... -count=1
