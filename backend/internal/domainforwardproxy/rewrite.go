@@ -35,10 +35,11 @@ type ModelRewriteRule struct {
 }
 
 type BodyRewriteSettings struct {
-	Enabled      bool               `json:"enabled"`
-	MaxBodyBytes int64              `json:"maxBodyBytes"`
-	Rules        []BodyRewriteRule  `json:"rules,omitempty"`
-	ModelRules   []ModelRewriteRule `json:"modelRules,omitempty"`
+	Enabled      bool                    `json:"enabled"`
+	MaxBodyBytes int64                   `json:"maxBodyBytes"`
+	Rules        []BodyRewriteRule       `json:"rules,omitempty"`
+	ModelRules   []ModelRewriteRule      `json:"modelRules,omitempty"`
+	Inference    NativeInferenceSettings `json:"inference,omitempty"`
 }
 
 type modelRewrite struct {
@@ -65,6 +66,8 @@ type RewriteKernel struct {
 	modelRules   []compiledModelRewrite
 	modelByFrom  map[string][]int
 	bodyRules    []BodyRewriteRule
+	inference    *NativeInferenceKernel
+	inferenceErr error
 }
 
 func NewRewriteKernel(settings BodyRewriteSettings) *RewriteKernel {
@@ -98,6 +101,7 @@ func NewRewriteKernel(settings BodyRewriteSettings) *RewriteKernel {
 		})
 		kernel.modelByFrom[from] = append(kernel.modelByFrom[from], index)
 	}
+	kernel.inference, kernel.inferenceErr = LoadNativeInferenceKernel(settings.Inference)
 	for _, rule := range settings.Rules {
 		rule.Direction = normalizeRewriteDirection(rule.Direction)
 		rule.Host = NormalizeDomainPattern(rule.Host)
@@ -109,6 +113,13 @@ func NewRewriteKernel(settings BodyRewriteSettings) *RewriteKernel {
 		kernel.bodyRules = append(kernel.bodyRules, rule)
 	}
 	return kernel
+}
+
+func (k *RewriteKernel) InferenceError() error {
+	if k == nil {
+		return nil
+	}
+	return k.inferenceErr
 }
 
 func (k *RewriteKernel) MaxBodyBytes() int64 {
@@ -149,6 +160,12 @@ func (k *RewriteKernel) RewriteRequest(host, path, contentType string, body []by
 			}
 		}
 	}
+	if k.inference != nil && k.inference.Matches("request", host, path, contentType) {
+		if rewritten, ok := k.inference.Rewrite(contentType, out); ok {
+			out = rewritten
+			changed = true
+		}
+	}
 	if len(k.bodyRules) > 0 && isTextualPayload(contentType, out) {
 		if rewritten, ok := k.applyLiteralRules("request", host, path, contentType, out); ok {
 			out = rewritten
@@ -166,6 +183,12 @@ func (k *RewriteKernel) RewriteResponse(host, path, contentType string, body []b
 	out := body
 	if mapping != nil && mapping.Client != "" && mapping.Upstream != "" && bytes.Contains(out, []byte(`"model"`)) {
 		if rewritten, ok := rewriteResponsesModel(out, mapping.Upstream, mapping.Client); ok {
+			out = rewritten
+			changed = true
+		}
+	}
+	if k.inference != nil && k.inference.Matches("response", host, path, contentType) {
+		if rewritten, ok := k.inference.Rewrite(contentType, out); ok {
 			out = rewritten
 			changed = true
 		}
