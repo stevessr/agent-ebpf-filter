@@ -132,8 +132,8 @@ const { mergedFeatures, isCompiledIn, featureStatusLabel, featureStatusColor } =
             <a-input-number
               v-model:value="runtimeSettings.maxEventCount"
               :min="100"
-              :max="2000000"
-              :step="1000"
+              :max="50000"
+              :step="500"
               style="width: 180px"
             />
           </label>
