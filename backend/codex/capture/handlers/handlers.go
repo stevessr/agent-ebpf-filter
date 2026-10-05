@@ -99,6 +99,9 @@ type Event struct {
 	MessageRole        string `json:"message_role,omitempty"`
 	PromptDigest       string `json:"prompt_digest,omitempty"`
 	PromptLen          int    `json:"prompt_len,omitempty"`
+	ContextDigest      string `json:"context_digest,omitempty"`
+	ContextLen         int    `json:"context_len,omitempty"`
+	ContextItems       int    `json:"context_items,omitempty"`
 	Vendor             string `json:"vendor,omitempty"`
 	ProtocolEvent      string `json:"protocol_event,omitempty"`
 	StreamID           string `json:"stream_id,omitempty"`
@@ -205,6 +208,7 @@ func BuildEvent(req CaptureRequest) Event {
 	}
 	annotateSSEEvent(&event)
 	annotateResponsesMetadata(&event)
+	annotateResponsesContextMetadata(&event, body, contentType)
 	annotateAgentMessage(&event)
 	return event
 }
