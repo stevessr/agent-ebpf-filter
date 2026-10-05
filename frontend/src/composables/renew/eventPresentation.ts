@@ -97,9 +97,35 @@ export const eventTone = (event: AgentEvent): RenewTone => {
   return "normal";
 };
 
+const decisionLabels: Record<string, string> = {
+  BLOCK: "已阻断",
+  DENY: "已拒绝",
+  ALERT: "需关注",
+  REWRITE: "已重写",
+};
+
+const eventTypeLabels: Record<string, string> = {
+  read: "文件读取",
+  write: "文件写入",
+  open: "打开文件",
+  openat: "打开文件",
+  unlink: "删除文件",
+  rename: "重命名文件",
+  execve: "程序启动",
+  process_exec: "程序启动",
+  network_connect: "网络连接",
+  tcp_connect: "TCP 连接",
+  dns_query: "DNS 查询",
+  wrapper_intercept: "工具调用",
+  native_hook: "Agent 事件",
+  semantic_alert: "语义告警",
+  agentsight_alert: "AgentSight 告警",
+};
+
 export const eventLabel = (event: AgentEvent) => {
   const decision = normalizedDecision(event);
-  if (decision && decision !== "ALLOW") return decision;
+  if (decision && decision !== "ALLOW") return decisionLabels[decision] || decision;
   if ((event.riskScore ?? 0) >= 60) return `风险 ${event.riskScore}`;
-  return event.tag && event.tag !== "Unknown" ? event.tag : event.type;
+  if (event.tag && event.tag !== "Unknown") return event.tag;
+  return eventTypeLabels[event.type] || event.type;
 };

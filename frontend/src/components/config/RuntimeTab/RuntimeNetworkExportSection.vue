@@ -74,6 +74,33 @@ const addBodyRewriteRule = () => {
 const removeBodyRewriteRule = (index: number) => {
   runtimeSettings.value.domainForwardProxy.rewrite.rules.splice(index, 1);
 };
+
+type DomainForwardRouteField = "host" | "upstream" | "certFile" | "keyFile";
+
+const domainForwardRouteFields: Array<{
+  key: DomainForwardRouteField;
+  placeholder: string;
+}> = [
+  { key: "host", placeholder: "主机，例如 example.com 或 *.lab.test" },
+  { key: "upstream", placeholder: "上游地址，例如 https://{host}" },
+  { key: "certFile", placeholder: "路由证书路径（可选）" },
+  { key: "keyFile", placeholder: "路由私钥路径（可选）" },
+];
+
+const domainForwardRouteValue = (
+  index: number,
+  field: DomainForwardRouteField,
+) => domainForwardRoutes.value[index]?.[field] || "";
+
+const updateDomainForwardRouteField = (
+  index: number,
+  field: DomainForwardRouteField,
+  value: string,
+) => {
+  const target = domainForwardRoutes.value[index];
+  if (!target) return;
+  target[field] = value;
+};
 </script>
 
 <template>
@@ -624,7 +651,7 @@ const removeBodyRewriteRule = (index: number) => {
             v-for="(route, index) in domainForwardRoutes"
             :key="route.id"
             size="small"
-            :title="`Route #${index + 1}`"
+            :title="`路由 #${index + 1}`"
           >
             <template #extra>
               <a-button
@@ -632,45 +659,39 @@ const removeBodyRewriteRule = (index: number) => {
                 danger
                 @click="removeDomainForwardRoute(route.id)"
               >
-                <DeleteOutlined /> Remove
+                <DeleteOutlined /> 删除
               </a-button>
             </template>
             <a-row :gutter="[12, 12]">
-              <a-col :xs="24" :md="12">
-                <a-input
-                  v-model:value="route.host"
-                  placeholder="Host, e.g. example.com or *.lab.test"
-                />
-              </a-col>
-              <a-col :xs="24" :md="12">
-                <a-input
-                  v-model:value="route.upstream"
-                  placeholder="Upstream, e.g. https://{host}"
-                />
-              </a-col>
-              <a-col :xs="24" :md="12">
-                <a-input
-                  v-model:value="route.certFile"
-                  placeholder="Route certificate path (optional)"
-                />
-              </a-col>
-              <a-col :xs="24" :md="12">
-                <a-input
-                  v-model:value="route.keyFile"
-                  placeholder="Route private key path (optional)"
-                />
+              <a-col :span="24">
+                <div
+                  style="
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+                    gap: 12px;
+                  "
+                >
+                  <a-input
+                    v-for="field in domainForwardRouteFields"
+                    :key="field.key"
+                    :value="domainForwardRouteValue(index, field.key)"
+                    :placeholder="field.placeholder"
+                    @update:value="
+                      updateDomainForwardRouteField(index, field.key, $event)
+                    "
+                  />
+                </div>
               </a-col>
             </a-row>
           </a-card>
           <a-typography-text type="secondary">
-            Empty upstreams or <code>allowAnyHost</code> forward to
-            <code>&lt;scheme&gt;://&lt;request-host&gt;</code>. Wildcards
-            support <code>*.example.com</code>; <code>{host}</code> expands to
-            the normalized request host.
+            上游地址留空或启用 <code>allowAnyHost</code> 时，会转发到
+            <code>&lt;scheme&gt;://&lt;request-host&gt;</code>。通配符支持
+            <code>*.example.com</code>；<code>{host}</code> 会展开为规范化后的请求主机。
           </a-typography-text>
           <div style="display: flex; gap: 8px; flex-wrap: wrap">
             <a-tag :color="domainForwardStatus.enabled ? 'blue' : 'default'">
-              {{ domainForwardStatus.enabled ? "enabled" : "disabled" }}
+              {{ domainForwardStatus.enabled ? "已启用" : "已停用" }}
             </a-tag>
             <a-tag color="blue"
               >routes: {{ domainForwardStatus.routeCount }}</a-tag

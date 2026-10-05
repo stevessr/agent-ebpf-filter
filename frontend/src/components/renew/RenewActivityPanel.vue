@@ -57,7 +57,7 @@ const emit = defineEmits<{
             PID {{ event.pid }}
             <template v-if="event.toolName"> · {{ event.toolName }}</template>
             <template v-if="event.riskScore">
-              · risk {{ event.riskScore }}</template
+              · 风险 {{ event.riskScore }}</template
             >
           </span>
         </span>

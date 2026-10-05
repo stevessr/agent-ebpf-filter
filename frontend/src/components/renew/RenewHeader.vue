@@ -18,7 +18,7 @@ const emit = defineEmits<{
 <template>
   <header class="renew-header">
     <div>
-      <div class="renew-eyebrow">DAILY MONITORING</div>
+      <div class="renew-eyebrow">日常监控</div>
       <h1>今天的 Agent 活动</h1>
       <p>把内核事件整理成日常可读的状态、异常和最近动作。</p>
     </div>

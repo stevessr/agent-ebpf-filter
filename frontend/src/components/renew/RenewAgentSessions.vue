@@ -11,7 +11,7 @@ defineProps<{
     <div class="renew-panel__header">
       <div>
         <h2>Agent 会话</h2>
-        <p>按 run / conversation / 根进程归并。</p>
+        <p>按运行、会话或根进程归并。</p>
       </div>
     </div>
 

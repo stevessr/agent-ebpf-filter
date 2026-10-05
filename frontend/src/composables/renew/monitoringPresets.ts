@@ -29,7 +29,7 @@ export const RENEW_MONITORING_MODULES: RenewMonitoringModule[] = [
     key: "process",
     title: "进程行为",
     description: "程序启动、派生、退出与进程生命周期。日常监控建议常开。",
-    coverage: "执行 / fork / clone / exit / wait",
+    coverage: "执行与生命周期：fork / clone / exit / wait", 
     cost: "low",
     weight: 1,
     eventTypes: [
@@ -46,7 +46,7 @@ export const RENEW_MONITORING_MODULES: RenewMonitoringModule[] = [
     key: "file-changes",
     title: "文件改动",
     description: "关注创建、写入、删除、改名、权限与链接变化，噪声通常低于文件访问监控。",
-    coverage: "write / unlink / rename / chmod / chown / link",
+    coverage: "文件改动：write / unlink / rename / chmod / chown / link", 
     cost: "low",
     weight: 1,
     eventTypes: [
@@ -65,7 +65,7 @@ export const RENEW_MONITORING_MODULES: RenewMonitoringModule[] = [
     key: "network",
     title: "基础联网",
     description: "记录连接、监听与 DNS 行为，适合发现 Agent 的外联目标。",
-    coverage: "connect / bind / TCP lifecycle / DNS",
+    coverage: "联网与域名：connect / bind / TCP 生命周期 / DNS", 
     cost: "low",
     weight: 1,
     eventTypes: [
@@ -80,7 +80,7 @@ export const RENEW_MONITORING_MODULES: RenewMonitoringModule[] = [
     key: "file-access",
     title: "文件访问",
     description: "记录 open/read/ioctl 等高频访问。排查敏感文件读取时再开启更合适。",
-    coverage: "open / openat / read / ioctl",
+    coverage: "文件访问：open / openat / read / ioctl", 
     cost: "high",
     weight: 3,
     eventTypes: [
@@ -94,7 +94,7 @@ export const RENEW_MONITORING_MODULES: RenewMonitoringModule[] = [
     key: "network-detail",
     title: "网络细节",
     description: "记录 send/recv/socket/accept 与 TCP 状态细节，适合短时网络调查。",
-    coverage: "sendto / recvfrom / socket / accept / TCP state",
+    coverage: "网络细节：sendto / recvfrom / socket / accept / TCP 状态", 
     cost: "high",
     weight: 3,
     eventTypes: [
@@ -110,7 +110,7 @@ export const RENEW_MONITORING_MODULES: RenewMonitoringModule[] = [
     key: "deep-syscall",
     title: "深度系统调用",
     description: "补充通用 syscall 轨迹，用于专业诊断；日常常驻通常不需要。",
-    coverage: "generic syscall",
+    coverage: "通用系统调用（generic syscall）", 
     cost: "high",
     weight: 4,
     eventTypes: [pb.EventType.GENERIC_SYSCALL],

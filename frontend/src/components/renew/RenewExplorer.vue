@@ -82,6 +82,14 @@ const processRows = computed(() =>
 const selected = computed(() =>
   props.processes.find((p) => p.pid === selectedPid.value),
 );
+const hasFilters = computed(() =>
+  Boolean(query.value.trim() || type.value || session.value),
+);
+const clearFilters = () => {
+  query.value = "";
+  type.value = "";
+  session.value = "";
+};
 const destinations = computed(() => {
   const result = new Map<
     string,
@@ -138,13 +146,13 @@ watch(sessions, (values) => {
   <div class="renew-explorer">
     <header class="renew-monitoring__header">
       <div>
-        <div class="renew-eyebrow">RENEW / {{ section.toUpperCase() }}</div>
+        <div class="renew-eyebrow">RENEW · {{ title }}</div>
         <h1>{{ title }}</h1>
         <p>
           {{
             section === "processes"
-              ? "实时进程快照；子进程按当前父链归属 harness。点击查看命令行。"
-              : "紧凑事件摘要；点击按需读取完整详情。可按 harness、会话与类型分别查看。"
+              ? "实时进程快照；子进程按当前父链归属 Agent 工具。点击查看命令行。"
+              : "紧凑事件摘要；点击按需读取完整详情。可按 Agent 工具、会话与类型分别查看。"
           }}
         </p>
       </div>
@@ -167,21 +175,25 @@ watch(sessions, (values) => {
           <option value="">全部会话</option>
           <option v-for="s in sessions" :key="s">{{ s }}</option>
         </select>
-        <span>{{ rows.length }} 条已加载摘要</span> </template
+        <span>{{ rows.length }} 条已加载摘要</span>
+        <button v-if="hasFilters" class="renew-link" @click="clearFilters">
+          清除筛选
+        </button>
+      </template
       ><span v-else>{{ processRows.length }} 个进程</span>
     </div>
     <section v-if="section === 'network'" class="renew-panel">
       <div class="renew-panel__header">
         <div>
           <h2>访问目标</h2>
-          <p>按 harness 分组；计数与字节仅统计已加载摘要，不是全机流量。</p>
+          <p>按 Agent 工具分组；计数与字节仅统计已加载摘要，不是全机流量。</p>
         </div>
       </div>
       <div class="renew-table-wrap">
         <table class="renew-table">
           <thead>
             <tr>
-              <th>Harness</th>
+              <th>Agent 工具</th>
               <th>目标</th>
               <th>进程 PID</th>
               <th>事件</th>
@@ -209,7 +221,7 @@ watch(sessions, (values) => {
           <thead>
             <tr>
               <th>进程</th>
-              <th>Harness</th>
+              <th>Agent 工具</th>
               <th>PID / PPID</th>
               <th>CPU</th>
               <th>内存</th>
@@ -253,7 +265,7 @@ watch(sessions, (values) => {
       <div class="renew-panel__header">
         <div>
           <h2>{{ section === "network" ? "网络活动" : "事件流" }}</h2>
-          <p>Harness 与会话分别标记，未可靠识别的记录不会猜测归属。</p>
+          <p>Agent 工具与会话分别标记，未可靠识别的记录不会猜测归属。</p>
         </div>
       </div>
       <div class="renew-activity-list">

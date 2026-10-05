@@ -19,29 +19,29 @@
     "@shikijs/langs": "4.0.2",
     "@shikijs/themes": "4.0.2",
     "@wterm/dom": "0.1.9",
-    "acorn": "^8.16.0",
+    "acorn": "^8.19.0",
     "ant-design-vue": "^4.2.6",
-    "apexcharts": "^5.10.6",
-    "axios": "^1.15.1",
+    "apexcharts": "^5.16.0",
+    "axios": "^1.20.0",
     "d3": "^7.9.0",
     "markdown-it": "14.1.1",
     "monaco-editor": "^0.55.1",
-    "protobufjs": "^8.0.1",
-    "smol-toml": "^1.6.1",
+    "protobufjs": "^8.8.0",
+    "smol-toml": "^1.9.0",
     "toml": "^4.1.1",
-    "vue": "^3.5.32",
+    "vue": "^3.5.43",
     "vue-router": "4",
     "vue3-apexcharts": "^1.11.1"
   },
   "devDependencies": {
     "@types/acorn": "^6.0.4",
     "@types/d3": "^7.4.3",
-    "@types/node": "^24.12.2",
-    "@vitejs/plugin-vue": "^6.0.6",
+    "@types/node": "^24.19.1",
+    "@vitejs/plugin-vue": "^6.0.9",
     "@vue/tsconfig": "^0.9.1",
     "protobufjs-cli": "^2.0.1",
     "typescript": "5.9.3",
     "vite": "^8.0.9",
-    "vue-tsc": "^3.2.7"
+    "vue-tsc": "^3.3.12"
   }
 }

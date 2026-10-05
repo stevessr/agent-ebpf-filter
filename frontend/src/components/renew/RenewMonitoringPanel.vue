@@ -203,7 +203,7 @@ const persistQueueUsage = computed(() => {
   <div class="renew-monitoring">
     <header class="renew-monitoring__header">
       <div>
-        <div class="renew-eyebrow">MONITORING CENTER</div>
+        <div class="renew-eyebrow">监控中心</div>
         <h1>监控中心</h1>
         <p>
           将日常防护与深度调查分开：常驻只保留高价值监控，需要时再打开高频采集和研究能力。
@@ -262,7 +262,7 @@ const persistQueueUsage = computed(() => {
           {{ healthy ? "正常" : "有丢弃" }}
         </strong>
         <small>
-          dropped {{ stat("ringbufDroppedTotal") }} · reserve
+          丢弃 {{ stat("ringbufDroppedTotal") }} · 预留失败
           {{ stat("ringbufReserveFailedTotal") }}
         </small>
       </div>
@@ -452,7 +452,7 @@ const persistQueueUsage = computed(() => {
 
         <div class="renew-storage-card__status">
           <div>
-            <span class="renew-monitoring__label">Pebble writer</span>
+            <span class="renew-monitoring__label">Pebble 写入器</span>
             <strong :class="`is-${persistenceTone}`">{{ persistenceStateText }}</strong>
           </div>
           <div>

@@ -30,11 +30,11 @@ const emit = defineEmits<{
       <div class="renew-brand__mark">R</div>
       <div>
         <strong>Renew</strong>
-        <span>Agent Monitor</span>
+        <span>日常监控</span>
       </div>
     </div>
 
-    <nav class="renew-nav" aria-label="Renew navigation">
+    <nav class="renew-nav" aria-label="Renew 导航">
       <button
         class="renew-nav__item"
         :class="{ 'renew-nav__item--active': activeSection === 'overview' }"

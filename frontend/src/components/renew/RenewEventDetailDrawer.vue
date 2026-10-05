@@ -32,7 +32,7 @@ const riskWidth = computed(() =>
     @close="emit('close')"
   >
     <div class="renew-detail-meta">
-      <span>Event ID</span>
+      <span>事件 ID</span>
       <code>{{ eventId || "—" }}</code>
     </div>
 
@@ -111,7 +111,7 @@ const riskWidth = computed(() =>
             <div class="renew-detail-section__heading">
               <h3>结构化负载</h3>
               <p>
-                Envelope 中的结构化 JSON 已展开为可读字段；重复的 legacy event 不再重复展示。
+                事件封装（Envelope）中的结构化 JSON 已展开为可读字段；兼容层中的 legacy 事件不再重复展示。
               </p>
             </div>
             <dl class="renew-detail-fields renew-detail-fields--payload">
