@@ -277,8 +277,23 @@ func restoreResponseBody(response *http.Response, body []byte) {
 
 func setResponseBody(response *http.Response, body []byte) {
 	restoreResponseBody(response, body)
-	response.Header.Del("ETag")
-	response.Header.Del("Content-MD5")
+	for _, name := range []string{
+		"ETag",
+		"Content-MD5",
+		"Digest",
+		"Content-Digest",
+		"Repr-Digest",
+	} {
+		deleteHeaderFold(response.Header, name)
+	}
+}
+
+func deleteHeaderFold(header http.Header, name string) {
+	for key := range header {
+		if strings.EqualFold(key, name) {
+			delete(header, key)
+		}
+	}
 }
 
 func (h *Handler) TargetForHost(host string) (*url.URL, DomainForwardRoute, error) {
