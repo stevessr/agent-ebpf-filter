@@ -325,3 +325,122 @@ func TestRequestBodyRewriteabilityProtectsDeclaredSignatureTrailer(t *testing.T)
 		t.Fatal("declared Signature-Input trailer was not treated as signed before body read")
 	}
 }
+
+
+func TestHeadResponsePreservesRepresentationLength(t *testing.T) {
+	handler := NewHandlerWithTransport(DomainForwardProxySettings{
+		DefaultScheme: "https",
+		Routes: []DomainForwardRoute{{
+			Host:     "api.openai.com",
+			Upstream: "https://upstream.test",
+		}},
+		Rewrite: BodyRewriteSettings{
+			Enabled: true,
+			Rules: []BodyRewriteRule{{
+				Enabled:   true,
+				Direction: "response",
+				Find:      "secret",
+				Replace:   "public",
+			}},
+		},
+	}, testRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Status:     "200 OK",
+			Header: http.Header{
+				"Content-Type":   []string{"application/json"},
+				"Content-Length": []string{"1234"},
+				"ETag":           []string{`"head-repr"`},
+			},
+			Body:          http.NoBody,
+			ContentLength: 1234,
+			Request:       req,
+		}, nil
+	}))
+
+	req := httptest.NewRequest(http.MethodHead, "https://api.openai.com/v1/responses", nil)
+	req.Host = "api.openai.com"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("Content-Length"); got != "1234" {
+		t.Fatalf("HEAD Content-Length = %q, want 1234", got)
+	}
+	if got := rec.Header().Get("ETag"); got != `"head-repr"` {
+		t.Fatalf("HEAD ETag changed: %q", got)
+	}
+	if rec.Body.Len() != 0 {
+		t.Fatalf("HEAD response unexpectedly gained a body: %q", rec.Body.String())
+	}
+}
+
+func TestNotModifiedResponsePreservesValidatorAndLength(t *testing.T) {
+	handler := NewHandlerWithTransport(DomainForwardProxySettings{
+		DefaultScheme: "https",
+		Routes: []DomainForwardRoute{{
+			Host:     "api.openai.com",
+			Upstream: "https://upstream.test",
+		}},
+		Rewrite: BodyRewriteSettings{
+			Enabled: true,
+			Rules: []BodyRewriteRule{{
+				Enabled:   true,
+				Direction: "response",
+				Find:      "secret",
+				Replace:   "public",
+			}},
+		},
+	}, testRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusNotModified,
+			Status:     "304 Not Modified",
+			Header: http.Header{
+				"Content-Length": []string{"1234"},
+				"ETag":           []string{`"cached"`},
+			},
+			Body:          http.NoBody,
+			ContentLength: 0,
+			Request:       req,
+		}, nil
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "https://api.openai.com/v1/responses", nil)
+	req.Host = "api.openai.com"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotModified {
+		t.Fatalf("status=%d, want 304", rec.Code)
+	}
+	if got := rec.Header().Get("Content-Length"); got != "1234" {
+		t.Fatalf("304 Content-Length = %q, want 1234", got)
+	}
+	if got := rec.Header().Get("ETag"); got != `"cached"` {
+		t.Fatalf("304 ETag changed: %q", got)
+	}
+}
+
+func TestResponseBodyRewriteabilityRejectsNoContentStatuses(t *testing.T) {
+	for _, status := range []int{
+		http.StatusContinue,
+		http.StatusSwitchingProtocols,
+		http.StatusNoContent,
+		http.StatusNotModified,
+		http.StatusPartialContent,
+	} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "https://example.test/", nil)
+			resp := &http.Response{
+				StatusCode: status,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"value":"secret"}`)),
+			}
+			if responseBodyIsRewriteable(req, resp) {
+				t.Fatalf("status %d unexpectedly marked rewriteable", status)
+			}
+		})
+	}
+}
