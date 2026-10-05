@@ -8,7 +8,7 @@ on:
       - ".github/workflows/go-dependency-refresh.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   verify:
@@ -28,6 +28,14 @@ jobs:
 
       - name: Install native build dependencies
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler clang llvm libbpf-dev libelf-dev
+
+      - name: Resolve split genproto compatibility
+        working-directory: backend
+        env:
+          GOTOOLCHAIN: local
+        run: |
+          go get github.com/cockroachdb/errors@v1.14.0
+          go mod download
 
       - name: Generate protobuf bindings
         run: |
@@ -78,3 +86,16 @@ jobs:
         run: |
           go test ./... -count=1
           go build ./...
+
+      - name: Commit compatible dependency graph
+        if: success()
+        shell: bash
+        run: |
+          if git diff --quiet -- backend/go.mod backend/go.sum; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/go.mod backend/go.sum
+          git commit -m "fix(go): align CockroachDB dependency graph"
+          git push
