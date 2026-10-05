@@ -10,6 +10,7 @@ export interface RuntimeSettings {
   eventStoreMaxRecords: number;
   eventStoreMaxAge: string;
   disabledEventTypes?: number[];
+  ignoredPaths?: string[];
   accessToken: string;
   maxEventCount: number;
   maxEventAge: string;
