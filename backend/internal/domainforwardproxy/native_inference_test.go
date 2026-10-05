@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func writeNativeInferenceFixture(t *testing.T, replacement string) string {
+func writeNativeInferenceFixture(t testing.TB, replacement string) string {
 	t.Helper()
 	model := nativeInferenceModelFile{
 		Version:   nativeInferenceModelVersion,
@@ -110,6 +110,20 @@ func TestRewriteKernelAppliesNativeInference(t *testing.T) {
 }
 
 func BenchmarkNativeInferenceJSON(b *testing.B) {
-	modelFile := writeNativeInferenceFixture(&testing.T{}, "<MASK>")
-	_ = modelFile
+	modelFile := writeNativeInferenceFixture(b, "<MASK>")
+	kernel, err := LoadNativeInferenceKernel(NativeInferenceSettings{
+		Enabled:       true,
+		ModelFile:     modelFile,
+		MinTokenBytes: 3,
+		MaxTokenBytes: 256,
+	})
+	if err != nil {
+		b.Fatal(err)
+	}
+	body := []byte(`{"model":"gpt-5.6","input":[{"role":"user","content":[{"type":"input_text","text":"secret@example.com"}]}]}`)
+	b.ReportAllocs()
+	b.SetBytes(int64(len(body)))
+	for i := 0; i < b.N; i++ {
+		_, _ = kernel.Rewrite("application/json", body)
+	}
 }
