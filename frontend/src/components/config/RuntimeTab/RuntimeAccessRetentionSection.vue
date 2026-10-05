@@ -92,19 +92,23 @@ const { mergedFeatures, isCompiledIn, featureStatusLabel, featureStatusColor } =
       <div
         style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap"
       >
-        <span>Max in-memory events:</span>
+        <span>Persistent history max events:</span>
         <a-input-number
           v-model:value="runtimeSettings.maxEventCount"
           :min="100"
-          :max="10000"
-          :step="100"
+          :max="2000000"
+          :step="1000"
           style="width: 160px"
         />
+        <a-typography-text type="secondary">
+          Complete events are retained in the backend database; the in-memory hot
+          archive is capped at 1,500 records.
+        </a-typography-text>
       </div>
       <div
         style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap"
       >
-        <span>Max event age:</span>
+        <span>Persistent history max age:</span>
         <a-input
           v-model:value="runtimeSettings.maxEventAge"
           placeholder="e.g. 24h, 168h, 0 = no limit"
