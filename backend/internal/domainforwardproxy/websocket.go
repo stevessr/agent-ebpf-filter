@@ -118,7 +118,7 @@ func (h *Handler) serveResponsesWebSocket(
 	}
 
 	dialer := websocket.Dialer{
-		HandshakeTimeout: 10 * time.Second,
+		HandshakeTimeout:  10 * time.Second,
 		EnableCompression: true,
 		Subprotocols:      subprotocols,
 	}
@@ -313,4 +313,3 @@ func nonEmptyString(value string) []string {
 	}
 	return []string{value}
 }
-
