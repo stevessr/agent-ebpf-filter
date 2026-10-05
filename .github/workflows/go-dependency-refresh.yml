@@ -27,7 +27,22 @@ jobs:
         env:
           GOTOOLCHAIN: local
         run: |
-          go get -u \
+          set -u
+          upgrade_dep() {
+            dep="$1"
+            cp go.mod go.mod.before
+            cp go.sum go.sum.before
+            if go get "$dep@latest"; then
+              echo "UPGRADED $dep"
+            else
+              echo "SKIPPED $dep (dependency graph conflict)"
+              mv go.mod.before go.mod
+              mv go.sum.before go.sum
+              return 0
+            fi
+            rm -f go.mod.before go.sum.before
+          }
+          for dep in \
             github.com/NVIDIA/go-nvml \
             github.com/cilium/ebpf \
             github.com/cockroachdb/pebble/v2 \
@@ -47,6 +62,9 @@ jobs:
             golang.org/x/net \
             golang.org/x/sys \
             google.golang.org/protobuf
+          do
+            upgrade_dep "$dep"
+          done
           go mod download
 
       - name: Refresh wrapper direct dependencies
@@ -54,7 +72,7 @@ jobs:
         env:
           GOTOOLCHAIN: local
         run: |
-          go get -u google.golang.org/protobuf
+          go get google.golang.org/protobuf@latest
           go mod download
 
       - name: Refresh Renew desktop direct dependencies
@@ -62,7 +80,7 @@ jobs:
         env:
           GOTOOLCHAIN: local
         run: |
-          go get -u github.com/egoist/mygo
+          go get github.com/egoist/mygo@latest
           go mod download
 
       - name: Refresh agent TUI direct dependencies
@@ -70,11 +88,19 @@ jobs:
         env:
           GOTOOLCHAIN: local
         run: |
-          go get -u \
-            github.com/gdamore/tcell/v2 \
-            github.com/gorilla/websocket \
-            github.com/rivo/tview \
-            google.golang.org/protobuf
+          set -u
+          for dep in github.com/gdamore/tcell/v2 github.com/gorilla/websocket github.com/rivo/tview google.golang.org/protobuf; do
+            cp go.mod go.mod.before
+            cp go.sum go.sum.before
+            if go get "$dep@latest"; then
+              echo "UPGRADED $dep"
+              rm -f go.mod.before go.sum.before
+            else
+              echo "SKIPPED $dep (dependency graph conflict)"
+              mv go.mod.before go.mod
+              mv go.sum.before go.sum
+            fi
+          done
           go mod download
 
       - name: Refresh dev environment TUI direct dependencies
@@ -82,7 +108,19 @@ jobs:
         env:
           GOTOOLCHAIN: local
         run: |
-          go get -u github.com/gdamore/tcell/v2 github.com/rivo/tview
+          set -u
+          for dep in github.com/gdamore/tcell/v2 github.com/rivo/tview; do
+            cp go.mod go.mod.before
+            cp go.sum go.sum.before
+            if go get "$dep@latest"; then
+              echo "UPGRADED $dep"
+              rm -f go.mod.before go.sum.before
+            else
+              echo "SKIPPED $dep (dependency graph conflict)"
+              mv go.mod.before go.mod
+              mv go.sum.before go.sum
+            fi
+          done
           go mod download
 
       - name: Commit dependency refresh
