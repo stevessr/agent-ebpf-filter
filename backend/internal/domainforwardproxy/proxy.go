@@ -52,6 +52,8 @@ type Status struct {
 	DNSResolver         string    `json:"dnsResolver,omitempty"`
 	TLSInterceptEnabled bool      `json:"tlsInterceptEnabled"`
 	RewriteEnabled      bool      `json:"rewriteEnabled"`
+	InferenceEnabled    bool      `json:"inferenceEnabled"`
+	InferenceReady      bool      `json:"inferenceReady"`
 	Errors              []string  `json:"errors,omitempty"`
 	UpdatedAt           time.Time `json:"updatedAt"`
 }
@@ -129,6 +131,13 @@ func (m *Runtime) Apply(settings DomainForwardProxySettings) error {
 		return nil
 	}
 
+	if settings.Rewrite.Inference.Enabled {
+		if _, err := LoadNativeInferenceKernel(settings.Rewrite.Inference); err != nil {
+			m.status.Errors = append(m.status.Errors, fmt.Sprintf("rewrite inference: %v", err))
+		} else {
+			m.status.InferenceReady = true
+		}
+	}
 	handler := NewHandler(settings)
 	if settings.HTTPPort > 0 {
 		if err := m.startHTTPServerLocked(settings, handler); err != nil {
@@ -233,6 +242,7 @@ func BuildStatus(settings DomainForwardProxySettings) Status {
 		DNSResolver:         settings.DNSResolver,
 		TLSInterceptEnabled: settings.TLSInterceptEnabled,
 		RewriteEnabled:      settings.Rewrite.Enabled,
+		InferenceEnabled:    settings.Rewrite.Inference.Enabled,
 		UpdatedAt:           time.Now().UTC(),
 	}
 }
