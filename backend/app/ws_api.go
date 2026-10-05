@@ -356,10 +356,15 @@ func buildRenewEventSummary(record CapturedEventRecord) (renewEventSummary, bool
 
 func handleRecentEventSummaries(c *gin.Context) {
 	limit := parseEventLimitQuery(c.Query("limit"), 100)
+	cursor := strings.TrimSpace(c.Query("cursor"))
 	filters := recentEventFiltersFromRequest(c)
-	records, source, err := runtimeSettingsStore.RecentEventsContext(c.Request.Context(), limit)
+	records, source, nextCursor, err := runtimeSettingsStore.EventPageContext(c.Request.Context(), limit, cursor)
 	if err != nil {
 		if c.Request.Context().Err() != nil {
+			return
+		}
+		if errors.Is(err, errInvalidEventStoreCursor) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid event history cursor"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -372,7 +377,12 @@ func handleRecentEventSummaries(c *gin.Context) {
 			summaries = append(summaries, summary)
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{"source": source, "events": summaries})
+	c.JSON(http.StatusOK, gin.H{
+		"source": source,
+		"events": summaries,
+		"nextCursor": nextCursor,
+		"hasMore": nextCursor != "",
+	})
 }
 
 func handleEventByID(c *gin.Context) {
