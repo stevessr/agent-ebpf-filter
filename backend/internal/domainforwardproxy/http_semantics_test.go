@@ -37,6 +37,9 @@ func TestRewrittenRequestInvalidatesBodyDigests(t *testing.T) {
 			if got := req.Header.Get(name); got != "" {
 				t.Fatalf("%s survived request rewrite: %q", name, got)
 			}
+			if got := req.Trailer.Get(name); got != "" {
+				t.Fatalf("%s trailer survived request rewrite: %q", name, got)
+			}
 		}
 		return &http.Response{
 			StatusCode:    http.StatusOK,
@@ -55,6 +58,10 @@ func TestRewrittenRequestInvalidatesBodyDigests(t *testing.T) {
 	req.Header.Set("Digest", "sha-256=legacy")
 	req.Header.Set("Content-Digest", "sha-256=:legacy:")
 	req.Header.Set("Repr-Digest", "sha-256=:legacy:")
+	req.Trailer = http.Header{
+		"Content-Digest": []string{"sha-256=:trailer-legacy:"},
+		"Repr-Digest":    []string{"sha-256=:trailer-legacy:"},
+	}
 
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -184,5 +191,57 @@ func TestRequestBodyRewriteabilityProtectsSignedAndRangedBodies(t *testing.T) {
 				t.Fatal("protected request body unexpectedly marked rewriteable")
 			}
 		})
+	}
+}
+
+
+func TestRewrittenResponseInvalidatesTrailerDigests(t *testing.T) {
+	handler := NewHandlerWithTransport(DomainForwardProxySettings{
+		DefaultScheme: "https",
+		Routes: []DomainForwardRoute{{
+			Host:     "api.openai.com",
+			Upstream: "https://upstream.test",
+		}},
+		Rewrite: BodyRewriteSettings{
+			Enabled: true,
+			Rules: []BodyRewriteRule{{
+				Enabled:   true,
+				Direction: "response",
+				Find:      "secret",
+				Replace:   "public",
+			}},
+		},
+	}, testRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		body := []byte(`{"value":"secret"}`)
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Status:     "200 OK",
+			Header: http.Header{
+				"Content-Type": []string{"application/json"},
+			},
+			Trailer: http.Header{
+				"Content-Digest": []string{"sha-256=:trailer-legacy:"},
+				"Repr-Digest":    []string{"sha-256=:trailer-legacy:"},
+			},
+			Body:          io.NopCloser(bytes.NewReader(body)),
+			ContentLength: int64(len(body)),
+			Request:       req,
+		}, nil
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "https://api.openai.com/v1/responses", nil)
+	req.Host = "api.openai.com"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Body.String(); got != `{"value":"public"}` {
+		t.Fatalf("rewritten response = %q", got)
+	}
+	for _, name := range []string{"Content-Digest", "Repr-Digest"} {
+		if got := rec.Result().Trailer.Get(name); got != "" {
+			t.Fatalf("%s trailer survived response rewrite: %q", name, got)
+		}
 	}
 }
