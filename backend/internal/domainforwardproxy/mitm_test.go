@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -51,6 +52,64 @@ func TestTLSInterceptionStrictAllowlist(t *testing.T) {
 	}
 }
 
+func TestTLSInterceptionRejectsInvalidCALifetime(t *testing.T) {
+	cases := []struct {
+		name      string
+		notBefore time.Time
+		notAfter  time.Time
+	}{
+		{
+			name:      "not-yet-valid",
+			notBefore: time.Now().Add(time.Hour),
+			notAfter:  time.Now().Add(2 * time.Hour),
+		},
+		{
+			name:      "expired",
+			notBefore: time.Now().Add(-2 * time.Hour),
+			notAfter:  time.Now().Add(-time.Hour),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			certFile, keyFile := writeTestCAWithValidity(t, tc.notBefore, tc.notAfter)
+			_, _, err := NewTLSConfig(DomainForwardProxySettings{
+				TLSInterceptEnabled:        true,
+				TLSInterceptAllowlist:      "*.example.test",
+				TLSInterceptCACertFile:     certFile,
+				TLSInterceptCAKeyFile:      keyFile,
+				TLSInterceptLeafTTLSeconds: 3600,
+			})
+			if err == nil {
+				t.Fatal("expected invalid CA lifetime to be rejected")
+			}
+		})
+	}
+}
+
+func TestTLSInterceptionLeafCacheIsBounded(t *testing.T) {
+	certFile, keyFile := writeTestCA(t)
+	ca, err := loadMITMCertificateAuthority(DomainForwardProxySettings{
+		TLSInterceptEnabled:        true,
+		TLSInterceptAllowlist:      "*.example.test",
+		TLSInterceptCACertFile:     certFile,
+		TLSInterceptCAKeyFile:      keyFile,
+		TLSInterceptLeafTTLSeconds: 3600,
+	})
+	if err != nil {
+		t.Fatalf("loadMITMCertificateAuthority: %v", err)
+	}
+
+	for i := 0; i < maxMITMLeafCacheEntries+64; i++ {
+		host := fmt.Sprintf("worker-%04d.example.test", i)
+		if _, err := ca.certificateForHost(host); err != nil {
+			t.Fatalf("certificateForHost(%s): %v", host, err)
+		}
+	}
+	if got := len(ca.cache); got != maxMITMLeafCacheEntries {
+		t.Fatalf("cache size = %d, want %d", got, maxMITMLeafCacheEntries)
+	}
+}
+
 func TestTLSInterceptionPreservesStaticFallback(t *testing.T) {
 	certFile, keyFile := writeTestCA(t)
 	config, _, err := NewTLSConfig(DomainForwardProxySettings{
@@ -81,16 +140,21 @@ func TestTLSInterceptionPreservesStaticFallback(t *testing.T) {
 
 func writeTestCA(t *testing.T) (string, string) {
 	t.Helper()
+	now := time.Now()
+	return writeTestCAWithValidity(t, now.Add(-time.Hour), now.Add(24*time.Hour))
+}
+
+func writeTestCAWithValidity(t *testing.T, notBefore, notAfter time.Time) (string, string) {
+	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
-	now := time.Now()
 	template := &x509.Certificate{
 		SerialNumber:          big.NewInt(1),
 		Subject:               pkix.Name{CommonName: "agent-ebpf-filter test CA"},
-		NotBefore:             now.Add(-time.Hour),
-		NotAfter:              now.Add(24 * time.Hour),
+		NotBefore:             notBefore,
+		NotAfter:              notAfter,
 		IsCA:                  true,
 		BasicConstraintsValid: true,
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
