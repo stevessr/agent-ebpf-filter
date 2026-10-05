@@ -22,11 +22,23 @@ export interface DomainModelRewriteRule {
   to: string;
 }
 
+export interface DomainNativeInferenceSettings {
+  enabled: boolean;
+  modelFile?: string;
+  direction: "request" | "response" | "both";
+  host?: string;
+  pathPrefix?: string;
+  contentType?: string;
+  minTokenBytes?: number;
+  maxTokenBytes?: number;
+}
+
 export interface DomainBodyRewriteSettings {
   enabled: boolean;
   maxBodyBytes: number;
   rules: DomainBodyRewriteRule[];
   modelRules: DomainModelRewriteRule[];
+  inference: DomainNativeInferenceSettings;
 }
 
 export interface DomainForwardProxySettings {
@@ -61,6 +73,8 @@ export interface DomainForwardProxyStatus {
   dnsResolver?: string;
   tlsInterceptEnabled?: boolean;
   rewriteEnabled?: boolean;
+  inferenceEnabled?: boolean;
+  inferenceReady?: boolean;
   errors?: string[];
   updatedAt: string;
 }
