@@ -318,15 +318,18 @@ func TestResponsesWebSocketHistoryKeepsPinnedResponseThenPrunes(t *testing.T) {
 	if _, known := state.response("pinned"); !known {
 		t.Fatal("pinned response was evicted from rewrite history")
 	}
-	if len(state.responseOrder) <= maxResponsesWSRewriteHistory {
-		t.Fatalf("history did not temporarily retain pinned response: len=%d", len(state.responseOrder))
+	if got := len(state.responseOrder); got != maxResponsesWSRewriteHistory {
+		t.Fatalf("bounded history len=%d, want %d", got, maxResponsesWSRewriteHistory)
+	}
+	if _, known := state.response("resp_000"); known {
+		t.Fatal("oldest unpinned response was not evicted")
 	}
 
 	if _, ok := state.takePendingSteerBatch("pinned"); !ok {
 		t.Fatal("failed to release pinned steering state")
 	}
 	if got := len(state.responseOrder); got > maxResponsesWSRewriteHistory {
-		t.Fatalf("history remained above limit after unpin: len=%d", got)
+		t.Fatalf("history exceeded limit after unpin: len=%d", got)
 	}
 }
 
