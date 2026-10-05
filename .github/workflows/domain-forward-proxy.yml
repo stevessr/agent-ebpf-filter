@@ -63,7 +63,45 @@ jobs:
         run: |
           go test ./internal/domainforwardproxy \
             -run '^$' \
-            -bench '^Benchmark(RewriteKernelModel(NoMatch|Match|Match200Rules)|NativeInferenceJSON)$' \
+            -bench '^Benchmark(RewriteKernelModel(NoMatch|Match|Match200Rules)|RewriteKernelResponseModel|NativeInferenceJSON) \
+            -benchtime=100x
+      - name: Verify Go formatting
+        run: |
+          targets=(
+            backend/internal/domainforwardproxy/*.go
+            backend/codex/capture/handlers/*.go
+            backend/app/forwardproxydomain.go
+            backend/app/forwardproxydomain_test.go
+            backend/app/types.go
+            backend/app/tls/capturesinkcodex.go
+            backend/app/tls/capturetypestls.go
+            backend/app/tls/agentstreamlooptls.go
+            backend/app/handlers/agentsight_conversion.go
+            backend/core/network_types.go
+          )
+          files="$(gofmt -l "${targets[@]}")"
+          test -z "$files" || {
+            echo "$files"
+            gofmt -d "${targets[@]}"
+            exit 1
+          }
+
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: oven-sh/setup-bun@v2
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+      - name: Agent context parser tests
+        run: bun test tests/agent-context-parsing.test.ts
+      - name: Typecheck and build
+        run: bun run build
+ \
             -benchtime=100x
       - name: Verify Go formatting
         run: |
