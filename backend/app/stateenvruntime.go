@@ -8,6 +8,13 @@ import (
 	"errors"
 	"path/filepath"
 	"strings"
+	"time"
+)
+
+const (
+	defaultEventStoreMaxRecords = 250_000
+	defaultEventStoreMaxAge     = "168h"
+	maxEventStoreMaxRecords     = 10_000_000
 )
 
 func normalizeRuntimeSettings(settings *RuntimeSettings) error {
@@ -22,6 +29,19 @@ func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 		return err
 	}
 	settings.LogFilePath = logPath
+	if settings.EventStoreMaxRecords <= 0 {
+		settings.EventStoreMaxRecords = defaultEventStoreMaxRecords
+	}
+	if settings.EventStoreMaxRecords > maxEventStoreMaxRecords {
+		settings.EventStoreMaxRecords = maxEventStoreMaxRecords
+	}
+	if strings.TrimSpace(settings.EventStoreMaxAge) == "" {
+		settings.EventStoreMaxAge = defaultEventStoreMaxAge
+	}
+	storeAge, err := time.ParseDuration(settings.EventStoreMaxAge)
+	if err != nil || storeAge < 0 {
+		return errors.New("event store max age must be a non-negative Go duration such as 168h or 0")
+	}
 	if strings.TrimSpace(settings.AccessToken) == "" {
 		token, err := generateAccessToken()
 		if err != nil {
@@ -136,6 +156,8 @@ func seedRuntimeSettingsFromEnv(settings *RuntimeSettings) {
 	seedRuntimeAccessTokenFromEnv(settings)
 	platform.ApplyBoolEnv(&settings.LogPersistenceEnabled, "AGENT_RUNTIME_LOG_PERSISTENCE_ENABLED")
 	platform.ApplyStringEnv(&settings.LogFilePath, "AGENT_RUNTIME_LOG_FILE_PATH")
+	platform.ApplyIntEnv(&settings.EventStoreMaxRecords, "AGENT_RUNTIME_EVENT_STORE_MAX_RECORDS")
+	platform.ApplyStringEnv(&settings.EventStoreMaxAge, "AGENT_RUNTIME_EVENT_STORE_MAX_AGE")
 	platform.ApplyIntEnv(&settings.MaxEventCount, "AGENT_RUNTIME_MAX_EVENT_COUNT")
 	platform.ApplyStringEnv(&settings.MaxEventAge, "AGENT_RUNTIME_MAX_EVENT_AGE")
 	platform.ApplyBoolEnv(&settings.ShellSessionsEnabled, "AGENT_RUNTIME_SHELL_SESSIONS_ENABLED")
