@@ -107,3 +107,129 @@ func TestRuntimeEventStoreRoundTripByID(t *testing.T) {
 		t.Fatalf("GetByID() after Clear error = %v, want os.ErrNotExist", err)
 	}
 }
+
+func TestRuntimeEventStorePrunesByCountAndRemovesIDIndex(t *testing.T) {
+	root := t.TempDir()
+	store, _, err := openRuntimeEventStoreWithin(root, filepath.Join(root, "events.pebble"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cleanupCancel()
+		_ = store.StopContext(cleanupCtx)
+	})
+
+	base := time.Now().UTC().Add(-time.Minute)
+	ids := make([]string, 0, 5)
+	for i := 0; i < 5; i++ {
+		record := normalizeCapturedEventRecord(CapturedEventRecord{
+			ReceivedAt: base.Add(time.Duration(i) * time.Second),
+			Event: &pb.Event{
+				Pid:       uint32(100 + i),
+				Type:      "read",
+				EventType: pb.EventType_READ,
+				Comm:      "codex",
+				Path:      "/tmp/prune-count",
+			},
+		})
+		ids = append(ids, record.Envelope.GetEventId())
+		if accepted, err := store.Enqueue(record); err != nil || !accepted {
+			t.Fatalf("Enqueue(%d) = %t, %v", i, accepted, err)
+		}
+	}
+	if err := store.FlushContext(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	deleted, err := store.Prune(ctx, 2, 0)
+	if err != nil {
+		t.Fatalf("Prune() error = %v", err)
+	}
+	if deleted != 3 {
+		t.Fatalf("Prune() deleted = %d, want 3", deleted)
+	}
+	recent, err := store.Recent(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(recent) != 2 || recent[0].Event.GetPid() != 103 || recent[1].Event.GetPid() != 104 {
+		t.Fatalf("remaining PIDs = %v, want [103 104]", replayRecordPIDs(recent))
+	}
+	for _, eventID := range ids[:3] {
+		if _, err := store.GetByID(ctx, eventID); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("GetByID(%q) after prune error = %v, want os.ErrNotExist", eventID, err)
+		}
+	}
+	if _, err := store.GetByID(ctx, ids[4]); err != nil {
+		t.Fatalf("newest GetByID() error = %v", err)
+	}
+}
+
+func TestRuntimeEventStorePrunesByAge(t *testing.T) {
+	root := t.TempDir()
+	store, _, err := openRuntimeEventStoreWithin(root, filepath.Join(root, "events.pebble"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cleanupCancel()
+		_ = store.StopContext(cleanupCtx)
+	})
+
+	now := time.Now().UTC()
+	fixtures := []struct {
+		pid uint32
+		at  time.Time
+	}{
+		{pid: 201, at: now.Add(-3 * time.Hour)},
+		{pid: 202, at: now.Add(-2 * time.Hour)},
+		{pid: 203, at: now.Add(-10 * time.Minute)},
+	}
+	ids := make([]string, 0, len(fixtures))
+	for _, fixture := range fixtures {
+		record := normalizeCapturedEventRecord(CapturedEventRecord{
+			ReceivedAt: fixture.at,
+			Event: &pb.Event{
+				Pid:       fixture.pid,
+				Type:      "write",
+				EventType: pb.EventType_WRITE,
+				Comm:      "codex",
+				Path:      "/tmp/prune-age",
+			},
+		})
+		ids = append(ids, record.Envelope.GetEventId())
+		if accepted, err := store.Enqueue(record); err != nil || !accepted {
+			t.Fatalf("Enqueue(%d) = %t, %v", fixture.pid, accepted, err)
+		}
+	}
+	if err := store.FlushContext(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	deleted, err := store.Prune(ctx, 0, time.Hour)
+	if err != nil {
+		t.Fatalf("Prune() error = %v", err)
+	}
+	if deleted != 2 {
+		t.Fatalf("Prune() deleted = %d, want 2", deleted)
+	}
+	recent, err := store.Recent(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(recent) != 1 || recent[0].Event.GetPid() != 203 {
+		t.Fatalf("remaining PIDs = %v, want [203]", replayRecordPIDs(recent))
+	}
+	for _, eventID := range ids[:2] {
+		if _, err := store.GetByID(ctx, eventID); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("old GetByID(%q) error = %v, want os.ErrNotExist", eventID, err)
+		}
+	}
+}
+
