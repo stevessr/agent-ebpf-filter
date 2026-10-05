@@ -510,3 +510,80 @@ func TestSetResponseBodyLeavesTrailerFramingToServer(t *testing.T) {
 		t.Fatalf("body = %q", got)
 	}
 }
+
+
+func TestSignedURLRequestBodyBypassesRewrite(t *testing.T) {
+	cases := []string{
+		"https://api.openai.com/v1/responses?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=deadbeef",
+		"https://api.openai.com/v1/responses?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Signature=deadbeef",
+		"https://api.openai.com/v1/responses?sv=2026-01-01&sig=deadbeef",
+		"https://api.openai.com/v1/responses?Key-Pair-Id=K123&Signature=deadbeef",
+	}
+	for _, rawURL := range cases {
+		t.Run(rawURL, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, rawURL, strings.NewReader(`{"value":"before"}`))
+			req.Host = "api.openai.com"
+			if requestBodyIsRewriteable(req) {
+				t.Fatalf("signed URL unexpectedly marked rewriteable: %s", rawURL)
+			}
+		})
+	}
+}
+
+func TestSignedResponseBodyBypassesRewrite(t *testing.T) {
+	handler := NewHandlerWithTransport(DomainForwardProxySettings{
+		DefaultScheme: "https",
+		Routes: []DomainForwardRoute{{
+			Host:     "api.openai.com",
+			Upstream: "https://upstream.test",
+		}},
+		Rewrite: BodyRewriteSettings{
+			Enabled: true,
+			Rules: []BodyRewriteRule{{
+				Enabled:   true,
+				Direction: "response",
+				Find:      "secret",
+				Replace:   "public",
+			}},
+		},
+	}, testRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		body := []byte(`{"value":"secret"}`)
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Status:     "200 OK",
+			Header: http.Header{
+				"Content-Type":    []string{"application/json"},
+				"Signature-Input": []string{`sig1=("content-digest");keyid="test"`},
+				"Signature":       []string{"sig1=:deadbeef:"},
+			},
+			Body:          io.NopCloser(bytes.NewReader(body)),
+			ContentLength: int64(len(body)),
+			Request:       req,
+		}, nil
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "https://api.openai.com/v1/responses", nil)
+	req.Host = "api.openai.com"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if got := rec.Body.String(); got != `{"value":"secret"}` {
+		t.Fatalf("signed response was rewritten: %q", got)
+	}
+	if got := rec.Header().Get("Signature"); got != "sig1=:deadbeef:" {
+		t.Fatalf("response signature changed: %q", got)
+	}
+}
+
+func TestDeclaredSignedResponseTrailerBypassesRewrite(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "https://example.test/", nil)
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Trailer:    http.Header{"Signature": nil},
+		Body:       io.NopCloser(strings.NewReader(`{"value":"secret"}`)),
+	}
+	if responseBodyIsRewriteable(req, resp) {
+		t.Fatal("response with declared Signature trailer unexpectedly marked rewriteable")
+	}
+}
