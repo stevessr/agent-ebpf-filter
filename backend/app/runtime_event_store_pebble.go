@@ -20,10 +20,11 @@ import (
 )
 
 var (
-	eventStoreRecordPrefix = []byte{'e'}
-	eventStoreRecordUpper  = []byte{'f'}
-	eventStoreIDPrefix     = []byte{'i'}
-	eventStoreIDUpper      = []byte{'j'}
+	eventStoreRecordPrefix      = []byte{'e'}
+	eventStoreRecordUpper       = []byte{'f'}
+	eventStoreIDPrefix          = []byte{'i'}
+	eventStoreIDUpper           = []byte{'j'}
+	errInvalidEventStoreCursor  = errors.New("invalid event database cursor")
 )
 
 type runtimeEventStoreItem struct {
@@ -560,7 +561,7 @@ func decodeEventStoreCursor(raw string) ([]byte, error) {
 	}
 	key, err := base64.RawURLEncoding.DecodeString(raw)
 	if err != nil {
-		return nil, errors.New("invalid event database cursor")
+		return nil, errInvalidEventStoreCursor
 	}
 	if len(key) < 9 || key[0] != eventStoreRecordPrefix[0] {
 		return nil, errors.New("invalid event database cursor")
