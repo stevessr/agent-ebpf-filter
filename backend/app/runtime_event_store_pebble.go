@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -550,6 +551,98 @@ func (s *runtimeEventStore) Recent(ctx context.Context, limit int) ([]CapturedEv
 		records[left], records[right] = records[right], records[left]
 	}
 	return records, nil
+}
+
+func decodeEventStoreCursor(raw string) ([]byte, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	key, err := base64.RawURLEncoding.DecodeString(raw)
+	if err != nil {
+		return nil, errors.New("invalid event database cursor")
+	}
+	if len(key) < 9 || key[0] != eventStoreRecordPrefix[0] {
+		return nil, errors.New("invalid event database cursor")
+	}
+	return key, nil
+}
+
+func encodeEventStoreCursor(key []byte) string {
+	if len(key) == 0 {
+		return ""
+	}
+	return base64.RawURLEncoding.EncodeToString(key)
+}
+
+// Page returns one reverse-chronological window from the persistent event
+// database. Records inside a page are returned oldest -> newest to preserve
+// the ordering contract used by existing history consumers. nextCursor is an
+// opaque key for the next older page and must not be interpreted by clients.
+func (s *runtimeEventStore) Page(ctx context.Context, limit int, cursor string) ([]CapturedEventRecord, string, error) {
+	if s == nil || s.db == nil {
+		return nil, "", errors.New("event database is not open")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if limit <= 0 {
+		limit = 50
+	} else if limit > runtimeEventLogMaxRecords {
+		limit = runtimeEventLogMaxRecords
+	}
+	if err := s.FlushContext(ctx); err != nil {
+		return nil, "", err
+	}
+	cursorKey, err := decodeEventStoreCursor(cursor)
+	if err != nil {
+		return nil, "", err
+	}
+
+	iter, err := s.db.NewIter(&pebble.IterOptions{
+		LowerBound: eventStoreRecordPrefix,
+		UpperBound: eventStoreRecordUpper,
+	})
+	if err != nil {
+		return nil, "", err
+	}
+	defer iter.Close()
+
+	valid := false
+	if len(cursorKey) == 0 {
+		valid = iter.Last()
+	} else {
+		valid = iter.SeekLT(cursorKey)
+	}
+
+	records := make([]CapturedEventRecord, 0, limit)
+	var lastKey []byte
+	for valid && len(records) < limit {
+		if err := ctx.Err(); err != nil {
+			return nil, "", err
+		}
+		payload := append([]byte(nil), iter.Value()...)
+		record, err := decodeEventStoreRecord(payload)
+		if err != nil {
+			return nil, "", fmt.Errorf("decode event database record: %w", err)
+		}
+		records = append(records, record)
+		lastKey = append(lastKey[:0], iter.Key()...)
+		valid = iter.Prev()
+	}
+	if err := iter.Error(); err != nil {
+		return nil, "", err
+	}
+
+	nextCursor := ""
+	if valid && len(lastKey) > 0 {
+		nextCursor = encodeEventStoreCursor(lastKey)
+	}
+
+	for left, right := 0, len(records)-1; left < right; left, right = left+1, right-1 {
+		records[left], records[right] = records[right], records[left]
+	}
+	return records, nextCursor, nil
 }
 
 func (s *runtimeEventStore) GetByID(ctx context.Context, eventID string) (CapturedEventRecord, error) {
