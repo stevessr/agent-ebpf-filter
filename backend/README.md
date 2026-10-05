@@ -315,7 +315,7 @@ The MCP server exposes event-tail and configuration-snapshot tools over SSE and 
 
 Persistent event logs, when enabled from the Configuration page, are appended as JSONL at:
 
-- `~/.config/agent-ebpf-filter/events.jsonl`
+- `~/.config/agent-ebpf-filter/events.pebble` (default local event database; explicit `.jsonl` paths keep legacy file mode)
 
 The collector health endpoint reports ringbuf event totals, reserve-fail / drop counts, zero-copy vs copy decode counters, kernel-risk evaluation counters/latency, kernel-risk feedback applied/dropped counters and last feedback error, backend queue length, event-stream WS client count, recent persisted-log append latency, and simple per-event-type counters so the frontend can warn when capture may be incomplete.
 The OTLP health endpoint reports whether export is enabled / ready, the configured endpoint + service name, exporter queue length, active synthetic run / task / tool spans, total exported spans, dropped exporter events, and the last export error / timestamp.
