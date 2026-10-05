@@ -187,13 +187,11 @@ func (k *NativeInferenceKernel) rewriteJSONStrings(body []byte) ([]byte, bool) {
 		}
 		out = rewritten
 		changed = true
-		offset = innerStart
-		for offset < len(out) && out[offset] != '"' {
-			offset++
+		_, newEnd, _, parsed := nextJSONString(out, start)
+		if !parsed {
+			break
 		}
-		if offset < len(out) {
-			offset++
-		}
+		offset = newEnd
 	}
 	return out, changed
 }
