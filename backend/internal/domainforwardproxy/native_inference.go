@@ -11,11 +11,11 @@ import (
 
 const (
 	nativeInferenceModelVersion = 1
-	defaultInferenceDimension    = 256
-	defaultInferenceMaxToken     = 256
-	maxInferenceDimension        = 4096
-	maxInferenceLabels           = 32
-	maxInferenceTokenBytes       = 4096
+	defaultInferenceDimension   = 256
+	defaultInferenceMaxToken    = 256
+	maxInferenceDimension       = 4096
+	maxInferenceLabels          = 32
+	maxInferenceTokenBytes      = 4096
 )
 
 type NativeInferenceSettings struct {
