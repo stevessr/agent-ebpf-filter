@@ -183,9 +183,10 @@ Pebble-backed local database at:
 - `~/.config/agent-ebpf-filter/events.pebble`
 
 The backend batches event writes and maintains an event-ID index for on-demand
-detail reads. The persisted history defaults to 100,000 complete events and can
-also be bounded by `maxEventAge`. The in-memory hot archive is capped
-independently at 1,500 events.
+detail reads. The persisted history defaults to 250,000 complete events and 168 hours;
+the first reached limit prunes the oldest records. It is controlled by
+`eventStoreMaxRecords` / `eventStoreMaxAge`. The in-memory hot archive defaults
+independently to 1,500 events through `maxEventCount` / `maxEventAge`.
 
 Explicit `.jsonl` runtime paths remain supported as a legacy compatibility
 mode. Renew uses `/ws/event-summaries` for its live view and
