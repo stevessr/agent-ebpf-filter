@@ -104,6 +104,10 @@ type TLSPlaintextEvent struct {
 	SSEEvent       string            `json:"sse_event,omitempty"`
 	SSEDataDigest  string            `json:"sse_data_digest,omitempty"`
 	SSEDataCount   int               `json:"sse_data_count,omitempty"`
+	ProtocolEvent      string            `json:"protocol_event,omitempty"`
+	StreamID           string            `json:"stream_id,omitempty"`
+	ResponseID         string            `json:"response_id,omitempty"`
+	PreviousResponseID string            `json:"previous_response_id,omitempty"`
 
 	// Probe timing is intentionally explicit for auditability. ProbeTimestampNS
 	// is the raw clock value emitted by the eBPF program. Live capture uses
