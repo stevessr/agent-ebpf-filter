@@ -53,6 +53,15 @@ jobs:
           (cd tools/agent-tui && go mod tidy)
           (cd tools/dev-env-tui && go mod tidy)
 
+      - name: Align split genproto modules
+        working-directory: backend
+        env:
+          GOTOOLCHAIN: local
+        run: |
+          go get google.golang.org/genproto@latest
+          go get go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp@v1.47.0
+          go mod tidy
+
       - name: Diagnose genproto module graph
         working-directory: backend
         run: |
