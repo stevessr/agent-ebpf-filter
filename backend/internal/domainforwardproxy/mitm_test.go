@@ -56,10 +56,10 @@ func TestTLSInterceptionPreservesStaticFallback(t *testing.T) {
 	config, _, err := NewTLSConfig(DomainForwardProxySettings{
 		CertFile:                  certFile,
 		KeyFile:                   keyFile,
-		TLSInterceptEnabled:       true,
-		TLSInterceptAllowlist:     "api.openai.com",
-		TLSInterceptCACertFile:    certFile,
-		TLSInterceptCAKeyFile:     keyFile,
+		TLSInterceptEnabled:        true,
+		TLSInterceptAllowlist:      "api.openai.com",
+		TLSInterceptCACertFile:     certFile,
+		TLSInterceptCAKeyFile:      keyFile,
 		TLSInterceptLeafTTLSeconds: 3600,
 	})
 	if err != nil {
