@@ -19,6 +19,7 @@ const websocketWriteTimeout = 30 * time.Second
 const maxResponsesWSRewriteHistory = 256
 
 type responsesWSPendingSteer struct {
+	id       string
 	mapping  *modelRewrite
 	streamID string
 }
@@ -28,16 +29,18 @@ type responsesWSRewriteState struct {
 	streamMappings   map[string][]*modelRewrite
 	responseMappings map[string]*modelRewrite
 	responseStreams  map[string]string
-	responseOrder    []string
-	pendingSteers    map[string][]responsesWSPendingSteer
+	responseOrder        []string
+	pendingSteers        map[string][]responsesWSPendingSteer
+	heldTerminalStreams map[string]string
 }
 
 func newResponsesWSRewriteState() *responsesWSRewriteState {
 	return &responsesWSRewriteState{
 		streamMappings:   make(map[string][]*modelRewrite),
 		responseMappings: make(map[string]*modelRewrite),
-		responseStreams:  make(map[string]string),
-		pendingSteers:    make(map[string][]responsesWSPendingSteer),
+		responseStreams:      make(map[string]string),
+		pendingSteers:        make(map[string][]responsesWSPendingSteer),
+		heldTerminalStreams: make(map[string]string),
 	}
 }
 
@@ -84,6 +87,7 @@ func (s *responsesWSRewriteState) rememberResponse(responseID, streamID string, 
 		delete(s.responseMappings, oldest)
 		delete(s.responseStreams, oldest)
 		delete(s.pendingSteers, oldest)
+		delete(s.heldTerminalStreams, oldest)
 	}
 }
 
@@ -127,6 +131,49 @@ func (s *responsesWSRewriteState) hasPendingSteer(previousResponseID string) boo
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.pendingSteers[previousResponseID]) > 0
+}
+
+func (s *responsesWSRewriteState) acknowledgeSteer(previousResponseID, steerID string) bool {
+	if previousResponseID == "" || steerID == "" {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	queue := s.pendingSteers[previousResponseID]
+	for i := range queue {
+		if queue[i].id != "" {
+			continue
+		}
+		queue[i].id = steerID
+		s.pendingSteers[previousResponseID] = queue
+		return true
+	}
+	return false
+}
+
+func (s *responsesWSRewriteState) holdTerminalResponse(responseID, streamID string) {
+	if responseID == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.heldTerminalStreams[responseID] = streamID
+}
+
+func (s *responsesWSRewriteState) releaseHeldTerminalResponse(responseID string) (string, bool) {
+	if responseID == "" {
+		return "", false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.pendingSteers[responseID]) > 0 {
+		return "", false
+	}
+	streamID, ok := s.heldTerminalStreams[responseID]
+	if ok {
+		delete(s.heldTerminalStreams, responseID)
+	}
+	return streamID, ok
 }
 
 // bindPendingSteerContinuation attaches an explicit response.create to steering
@@ -191,12 +238,53 @@ func (s *responsesWSRewriteState) takePendingSteerBatch(previousResponseID strin
 	}
 	entry := queue[0]
 	delete(s.pendingSteers, previousResponseID)
+	delete(s.heldTerminalStreams, previousResponseID)
 	entry.mapping = cloneModelRewrite(entry.mapping)
 	return entry, true
 }
 
-func (s *responsesWSRewriteState) dropPendingSteer(previousResponseID string) (responsesWSPendingSteer, bool) {
-	return s.takePendingSteer(previousResponseID)
+func (s *responsesWSRewriteState) dropPendingSteer(
+	previousResponseID, steerID string,
+) (responsesWSPendingSteer, bool) {
+	if previousResponseID == "" {
+		return responsesWSPendingSteer{}, false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	queue := s.pendingSteers[previousResponseID]
+	if len(queue) == 0 {
+		return responsesWSPendingSteer{}, false
+	}
+	index := -1
+	if steerID != "" {
+		for i := range queue {
+			if queue[i].id == steerID {
+				index = i
+				break
+			}
+		}
+	} else {
+		for i := range queue {
+			if queue[i].id == "" {
+				index = i
+				break
+			}
+		}
+	}
+	if index < 0 {
+		return responsesWSPendingSteer{}, false
+	}
+	entry := queue[index]
+	copy(queue[index:], queue[index+1:])
+	queue[len(queue)-1] = responsesWSPendingSteer{}
+	queue = queue[:len(queue)-1]
+	if len(queue) == 0 {
+		delete(s.pendingSteers, previousResponseID)
+	} else {
+		s.pendingSteers[previousResponseID] = queue
+	}
+	entry.mapping = cloneModelRewrite(entry.mapping)
+	return entry, true
 }
 
 func (s *responsesWSRewriteState) popStream(streamID string) {
@@ -399,6 +487,7 @@ func (h *Handler) copyResponsesWSUpstreamToClient(
 					} `json:"incomplete_details"`
 				} `json:"response"`
 				Steer struct {
+					ID                 string `json:"id"`
 					PreviousResponseID string `json:"previous_response_id"`
 				} `json:"steer"`
 				Error struct {
@@ -433,14 +522,27 @@ func (h *Handler) copyResponsesWSUpstreamToClient(
 			rewritten, _ := h.rewrite.RewriteResponse(host, path, "application/json", payload, mapping)
 			payload = rewritten
 
+			if envelope.Type == "response.steer.accepted" {
+				state.acknowledgeSteer(envelope.Steer.PreviousResponseID, envelope.Steer.ID)
+			}
 			if envelope.Type == "response.steer.failed" {
-				if failed, ok := state.dropPendingSteer(envelope.Steer.PreviousResponseID); ok {
-					state.popStream(failed.streamID)
+				if _, ok := state.dropPendingSteer(
+					envelope.Steer.PreviousResponseID,
+					envelope.Steer.ID,
+				); ok {
+					if streamID, release := state.releaseHeldTerminalResponse(
+						envelope.Steer.PreviousResponseID,
+					); release {
+						state.popStream(streamID)
+					}
 				}
 			}
-			if responsesTerminalEvent(envelope.Type, envelope.StreamID, envelope.Error.Param) &&
-				!state.hasPendingSteer(responseID) {
-				state.popStream(envelope.StreamID)
+			if responsesTerminalEvent(envelope.Type, envelope.StreamID, envelope.Error.Param) {
+				if state.hasPendingSteer(responseID) {
+					state.holdTerminalResponse(responseID, envelope.StreamID)
+				} else {
+					state.popStream(envelope.StreamID)
+				}
 			}
 		}
 		_ = dst.SetWriteDeadline(time.Now().Add(websocketWriteTimeout))
