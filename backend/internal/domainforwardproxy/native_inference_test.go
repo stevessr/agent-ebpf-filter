@@ -2,6 +2,7 @@ package domainforwardproxy
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,17 +10,25 @@ import (
 )
 
 func writeNativeInferenceFixture(t testing.TB, replacement string) string {
+	return writeNativeInferenceFixtureLabels(t, replacement, 1)
+}
+
+func writeNativeInferenceFixtureLabels(t testing.TB, replacement string, labelCount int) string {
 	t.Helper()
+	labels := make([]nativeInferenceLabel, labelCount)
+	for i := range labels {
+		labels[i] = nativeInferenceLabel{
+			Name:        fmt.Sprintf("sensitive-%d", i),
+			Threshold:   1,
+			Replacement: replacement,
+			Weights:     []int8{1, 1, 1, 1, 1, 1, 1, 1},
+		}
+	}
 	model := nativeInferenceModelFile{
 		Version:   nativeInferenceModelVersion,
 		Dimension: 8,
 		Seed:      7,
-		Labels: []nativeInferenceLabel{{
-			Name:        "sensitive",
-			Threshold:   1,
-			Replacement: replacement,
-			Weights:     []int8{1, 1, 1, 1, 1, 1, 1, 1},
-		}},
+		Labels:    labels,
 	}
 	payload, err := json.Marshal(model)
 	if err != nil {
@@ -110,20 +119,24 @@ func TestRewriteKernelAppliesNativeInference(t *testing.T) {
 }
 
 func BenchmarkNativeInferenceJSON(b *testing.B) {
-	modelFile := writeNativeInferenceFixture(b, "<MASK>")
-	kernel, err := LoadNativeInferenceKernel(NativeInferenceSettings{
-		Enabled:       true,
-		ModelFile:     modelFile,
-		MinTokenBytes: 3,
-		MaxTokenBytes: 256,
-	})
-	if err != nil {
-		b.Fatal(err)
-	}
 	body := []byte(`{"model":"gpt-5.6","input":[{"role":"user","content":[{"type":"input_text","text":"secret@example.com"}]}]}`)
-	b.ReportAllocs()
-	b.SetBytes(int64(len(body)))
-	for i := 0; i < b.N; i++ {
-		_, _ = kernel.Rewrite("application/json", body)
+	for _, labelCount := range []int{1, 8, 32} {
+		b.Run(fmt.Sprintf("labels_%d", labelCount), func(b *testing.B) {
+			modelFile := writeNativeInferenceFixtureLabels(b, "<MASK>", labelCount)
+			kernel, err := LoadNativeInferenceKernel(NativeInferenceSettings{
+				Enabled:       true,
+				ModelFile:     modelFile,
+				MinTokenBytes: 3,
+				MaxTokenBytes: 256,
+			})
+			if err != nil {
+				b.Fatal(err)
+			}
+			b.ReportAllocs()
+			b.SetBytes(int64(len(body)))
+			for i := 0; i < b.N; i++ {
+				_, _ = kernel.Rewrite("application/json", body)
+			}
+		})
 	}
 }
