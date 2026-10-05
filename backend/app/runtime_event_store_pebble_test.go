@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -19,13 +21,6 @@ func TestRuntimeEventStoreRoundTripByID(t *testing.T) {
 	if resolved != path {
 		t.Fatalf("resolved path = %q, want %q", resolved, path)
 	}
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := store.StopContext(ctx); err != nil {
-			t.Errorf("StopContext() error = %v", err)
-		}
-	})
 
 	record := normalizeCapturedEventRecord(CapturedEventRecord{
 		ReceivedAt: time.Date(2026, 10, 5, 1, 30, 0, 123, time.UTC),
@@ -74,14 +69,41 @@ func TestRuntimeEventStoreRoundTripByID(t *testing.T) {
 		t.Fatalf("GetByID() event = %+v", got.Event)
 	}
 
-	if err := store.Clear(ctx); err != nil {
+	if err := store.StopContext(ctx); err != nil {
+		t.Fatalf("StopContext() before reopen error = %v", err)
+	}
+
+	reopened, _, err := openRuntimeEventStoreWithin(root, path)
+	if err != nil {
+		t.Fatalf("reopen event store error = %v", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cleanupCancel()
+		if err := reopened.StopContext(cleanupCtx); err != nil {
+			t.Errorf("reopened StopContext() error = %v", err)
+		}
+	})
+
+	got, err = reopened.GetByID(ctx, eventID)
+	if err != nil {
+		t.Fatalf("GetByID() after reopen error = %v", err)
+	}
+	if got.Event.GetPid() != 4242 || got.Envelope.GetEventId() != eventID {
+		t.Fatalf("GetByID() after reopen = %+v", got)
+	}
+
+	if err := reopened.Clear(ctx); err != nil {
 		t.Fatalf("Clear() error = %v", err)
 	}
-	recent, err = store.Recent(ctx, 10)
+	recent, err = reopened.Recent(ctx, 10)
 	if err != nil {
 		t.Fatalf("Recent() after Clear error = %v", err)
 	}
 	if len(recent) != 0 {
 		t.Fatalf("Recent() after Clear len = %d, want 0", len(recent))
+	}
+	if _, err := reopened.GetByID(ctx, eventID); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("GetByID() after Clear error = %v, want os.ErrNotExist", err)
 	}
 }
