@@ -58,9 +58,12 @@ jobs:
         env:
           GOTOOLCHAIN: local
         run: |
-          go get google.golang.org/genproto@latest
           go get go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp@v1.47.0
           go mod tidy
+          # CockroachDB still declares the pre-split root module. Keep a post-split
+          # root version as an indirect MVS floor so api/rpc come only from submodules.
+          go mod edit -require=google.golang.org/genproto@v0.0.0-20260928230214-8a89bd6388cc
+          go mod download google.golang.org/genproto
 
       - name: Diagnose genproto module graph
         working-directory: backend
