@@ -273,6 +273,137 @@ func TestResponsesWebSocketSteeringBatchState(t *testing.T) {
 	}
 }
 
+func TestResponsesWebSocketPendingContinuationReusesQueuedLane(t *testing.T) {
+	state := newResponsesWSRewriteState()
+	parent := &modelRewrite{
+		Client:       "client-model",
+		Upstream:     "fast-model",
+		clientJSON:   []byte(`"client-model"`),
+		upstreamJSON: []byte(`"fast-model"`),
+	}
+	override := &modelRewrite{
+		Client:       "other-client",
+		Upstream:     "other-fast",
+		clientJSON:   []byte(`"other-client"`),
+		upstreamJSON: []byte(`"other-fast"`),
+	}
+	state.enqueueStream("main", parent)
+	state.rememberResponse("resp_parent", "main", parent)
+	state.enqueueSteer("resp_parent", parent)
+
+	if !state.bindPendingSteerContinuation("resp_parent", "main", override) {
+		t.Fatal("expected explicit continuation to bind queued steering state")
+	}
+	if got := len(state.streamMappings["main"]); got != 1 {
+		t.Fatalf("explicit pending continuation duplicated lane queue: len=%d", got)
+	}
+	pending, ok := state.takePendingSteerBatch("resp_parent")
+	if !ok || pending.mapping == nil || pending.mapping.Client != "other-client" {
+		t.Fatalf("pending continuation did not adopt explicit model mapping: %#v", pending)
+	}
+	state.popStream("main")
+	if got := len(state.streamMappings["main"]); got != 0 {
+		t.Fatalf("successor completion left stale lane mapping: len=%d", got)
+	}
+}
+
+func TestResponsesWebSocketExplicitContinuationModelDoesNotInheritAlias(t *testing.T) {
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Errorf("upstream upgrade: %v", err)
+			return
+		}
+		defer conn.Close()
+
+		messageType, payload, err := conn.ReadMessage()
+		if err != nil {
+			t.Errorf("initial create read: %v", err)
+			return
+		}
+		if !strings.Contains(string(payload), `"model":"fast-model"`) {
+			t.Errorf("initial alias missing: %s", payload)
+			return
+		}
+		if err := conn.WriteMessage(messageType, []byte(
+			`{"type":"response.completed","stream_id":"main","response":{"id":"resp_1","model":"fast-model","output":[]}}`,
+		)); err != nil {
+			t.Errorf("initial response write: %v", err)
+			return
+		}
+
+		messageType, payload, err = conn.ReadMessage()
+		if err != nil {
+			t.Errorf("explicit continuation read: %v", err)
+			return
+		}
+		if !strings.Contains(string(payload), `"model":"plain-model"`) {
+			t.Errorf("explicit continuation model changed unexpectedly: %s", payload)
+			return
+		}
+		if err := conn.WriteMessage(messageType, []byte(
+			`{"type":"response.completed","stream_id":"main","response":{"id":"resp_2","previous_response_id":"resp_1","model":"plain-model","output":[]}}`,
+		)); err != nil {
+			t.Errorf("continuation response write: %v", err)
+		}
+	}))
+	defer upstream.Close()
+
+	proxy := httptest.NewUnstartedServer(nil)
+	proxyHost := NormalizeForwardHost(proxy.Listener.Addr().String())
+	handler := NewHandler(DomainForwardProxySettings{
+		DefaultScheme: "http",
+		Routes: []DomainForwardRoute{{
+			Host:     proxyHost,
+			Upstream: upstream.URL,
+		}},
+		Rewrite: BodyRewriteSettings{
+			Enabled: true,
+			ModelRules: []ModelRewriteRule{{
+				Host: proxyHost,
+				From: "client-model",
+				To:   "fast-model",
+			}},
+		},
+	})
+	proxy.Config.Handler = handler
+	proxy.Start()
+	defer proxy.Close()
+
+	proxyURL, err := url.Parse(proxy.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, _, err := websocket.DefaultDialer.Dial("ws://"+proxyURL.Host+"/v1/responses", nil)
+	if err != nil {
+		t.Fatalf("dial proxy websocket: %v", err)
+	}
+	defer client.Close()
+
+	if err := client.WriteMessage(websocket.TextMessage, []byte(
+		`{"type":"response.create","stream_id":"main","model":"client-model","input":"one"}`,
+	)); err != nil {
+		t.Fatalf("initial create write: %v", err)
+	}
+	if _, _, err := client.ReadMessage(); err != nil {
+		t.Fatalf("initial response read: %v", err)
+	}
+
+	if err := client.WriteMessage(websocket.TextMessage, []byte(
+		`{"type":"response.create","stream_id":"main","previous_response_id":"resp_1","model":"plain-model","input":"two"}`,
+	)); err != nil {
+		t.Fatalf("continuation write: %v", err)
+	}
+	_, payload, err := client.ReadMessage()
+	if err != nil {
+		t.Fatalf("continuation response read: %v", err)
+	}
+	if !strings.Contains(string(payload), `"model":"plain-model"`) {
+		t.Fatalf("explicit continuation incorrectly inherited parent alias: %s", payload)
+	}
+}
+
 func TestResponsesWebSocketTargetURL(t *testing.T) {
 	target, _ := url.Parse("https://provider.example/base?tenant=one")
 	incoming, _ := url.Parse("https://client.example/v1/responses?trace=two")
