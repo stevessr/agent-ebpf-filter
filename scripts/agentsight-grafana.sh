@@ -5,6 +5,10 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="${ROOT_DIR}/docs/agentsight-grafana-compose.yml"
 EVENT_LOG="${AGENTSIGHT_EVENT_LOG:-${HOME}/.config/agent-ebpf-filter/events.jsonl}"
 
+if [[ -z "${AGENTSIGHT_EVENT_LOG:-}" ]]; then
+  printf 'Note: the backend now defaults to events.pebble. Promtail requires a JSONL file; configure AGENT_RUNTIME_LOG_FILE_PATH=%s when using this legacy log-tail stack.\n' "${EVENT_LOG}" >&2
+fi
+
 mkdir -p "$(dirname "${EVENT_LOG}")"
 touch "${EVENT_LOG}"
 

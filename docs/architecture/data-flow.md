@@ -40,7 +40,7 @@ sequenceDiagram
     Broadcast->>Archive: 压入内存环形缓冲区 (In-Memory Ring)
     Broadcast->>WS: 每 50 ms / 50 条打包成 EventBatch，序列化一次
     WS->>Vue: wsfanout 共享 PreparedMessage 帧向所有订阅者向量写
-    Archive->>Archive: (可选) 异步触发落盘 JSONL 固化
+    Archive->>Archive: 默认异步写入 Pebble LSM；显式 .jsonl 路径保留兼容 writer
 
 ```
 
@@ -250,7 +250,7 @@ graph TB
     end
 
     subgraph Tgt_Block ["【多元消费端】交付与集成矩阵 (Export Targets)"]
-        JSONL["📄 结构化日志落盘<br/>(~/.config/.../events.jsonl)"]:::tgtCls
+        LocalDB["💾 本地事件数据库<br/>(~/.config/.../events.pebble)"]:::tgtCls
         Recording["📼 帧级快照录制件<br/>(Replay Engine 离线回放)"]:::tgtCls
         PCAP["🦈 标准二进制网络报文<br/>(PCAP Wireshark 格式)"]:::tgtCls
         AgentSight["🔬 AgentSight 精准交付物<br/>(JSON / CSV 复盘包)"]:::tgtCls
@@ -260,7 +260,7 @@ graph TB
     end
 
     %% 流向绑定
-    Archive -->|全量事件持久化开关开启| JSONL
+    Archive -->|默认完整事件持久化| LocalDB
     Archive -->|离线安全审计会话捕获| Recording
     Flows -->|全网流量沙箱取证抽头| PCAP
     Graph -->|工作台全局拓扑数据快照| AgentSight
@@ -275,7 +275,7 @@ graph TB
 
 | 导出通道名称               | 数据源头 (From)               | 物理流向目标 (To)                          | 核心应用场景与生产价值                                                                 |
 | -------------------------- | ----------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------- |
-| **JSONL Persistence**      | `CapturedEventArchive` 内存环 | `~/.config/agent-ebpf-filter/events.jsonl` | 本地安全合规审计，长期无损历史事件冷增量固化。                                         |
+| **Pebble Event Store**     | `CapturedEventArchive` / 实时事件流 | `~/.config/agent-ebpf-filter/events.pebble` | 默认本地完整事件持久化、按 event ID 查询；显式 `.jsonl` 路径保留兼容模式。              |
 | **Event Recording**        | 事件流快照 / 拓扑图帧         | 文件系统流化件或浏览器 Memory              | 针对高危黑客攻防、恶意脚本破坏过程的“帧级”重现与复盘。                                 |
 | **Network Export**         | L4/L7 异步 Flow 存储字典      | 结构化 JSONL 或标准二进制 `.pcap` 报文     | 用于网络侧流量特征二次深度挖掘与标准 WireShark 工具链取证。                            |
 | **AgentSight Export**      | `EventEnvelope` 统一上下文    | 标准多维 JSON / 结构化 CSV 格式            | 提供跨团队安全分析报告的高效转换，方便报表化交付。                                     |

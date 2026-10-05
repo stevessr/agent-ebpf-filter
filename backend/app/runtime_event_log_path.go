@@ -33,7 +33,7 @@ func resolveRuntimeEventLogPathWithin(rootPath, raw string) (string, error) {
 	}
 	path := strings.TrimSpace(raw)
 	if path == "" {
-		path = filepath.Join(rootPath, "events.jsonl")
+		path = filepath.Join(rootPath, "events.pebble")
 	} else if !filepath.IsAbs(path) {
 		path = filepath.Join(rootPath, path)
 	}
@@ -42,7 +42,7 @@ func resolveRuntimeEventLogPathWithin(rootPath, raw string) (string, error) {
 		return "", fmt.Errorf("resolve runtime log path: %w", err)
 	}
 	if filepath.Dir(path) != rootPath || filepath.Base(path) == "." {
-		return "", fmt.Errorf("runtime log path must be a file directly under %s", rootPath)
+		return "", fmt.Errorf("runtime event store path must be directly under %s", rootPath)
 	}
 	return path, nil
 }

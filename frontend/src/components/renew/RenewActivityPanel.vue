@@ -13,10 +13,14 @@ defineProps<{
   eventTime: (event: AgentEvent) => string;
   eventTone: (event: AgentEvent) => RenewTone;
   eventLabel: (event: AgentEvent) => string;
+  hasOlder: boolean;
+  historyLoading: boolean;
 }>();
 
 const emit = defineEmits<{
   openEvents: [];
+  openEvent: [eventId: string];
+  loadOlder: [];
 }>();
 </script>
 
@@ -37,7 +41,7 @@ const emit = defineEmits<{
         v-for="event in events"
         :key="event.key"
         class="renew-activity"
-        @click="emit('openEvents')"
+        @click="event.eventId && emit('openEvent', event.eventId)"
       >
         <span
           class="renew-activity__status"
@@ -70,6 +74,17 @@ const emit = defineEmits<{
       <CheckCircleFilled />
       <strong>还没有匹配的 Agent 活动</strong>
       <span>启动已接入的 Agent 后，这里会自动出现行为摘要。</span>
+    </div>
+
+    <div v-if="hasOlder" class="renew-panel__pager">
+      <button
+        class="renew-link"
+        :disabled="historyLoading"
+        @click="emit('loadOlder')"
+      >
+        {{ historyLoading ? "正在读取后端历史…" : "加载更早记录" }}
+      </button>
+      <span>只加载紧凑摘要；完整内容仍按单条详情读取。</span>
     </div>
   </section>
 </template>

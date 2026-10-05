@@ -93,6 +93,7 @@ type RuntimeSettingsStore interface {
 	Snapshot() RuntimeSettings
 	RecentEvents(limit int) ([]CapturedEventRecord, string, error)
 	RecentEventsContext(context.Context, int) ([]CapturedEventRecord, string, error)
+	EventByIDContext(context.Context, string) (CapturedEventRecord, error)
 	TruncateEventLog() error
 }
 
@@ -149,6 +150,7 @@ type ConfigStore interface {
 	RemoveDisabledComm(comm string)
 
 	DisabledEventTypes() []uint32
+	ReplaceDisabledEventTypes(eventTypes []uint32)
 	AddDisabledEventType(eventType uint32)
 	RemoveDisabledEventType(eventType uint32)
 

@@ -2,6 +2,7 @@ import { pb } from "../../pb/tracker_pb.js";
 
 export interface AgentEvent {
   key: string;
+  eventId?: string;
   pid: number;
   ppid: number;
   uid: number;

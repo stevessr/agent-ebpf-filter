@@ -109,7 +109,7 @@ func RuntimeSettingsDir() string {
 	return filepath.Join(GetRealHomeDir(), ".config", "agent-ebpf-filter")
 }
 func RuntimeSettingsPath() string { return filepath.Join(RuntimeSettingsDir(), "runtime.json") }
-func DefaultEventLogPath() string { return filepath.Join(RuntimeSettingsDir(), "events.jsonl") }
+func DefaultEventLogPath() string { return filepath.Join(RuntimeSettingsDir(), "events.pebble") }
 
 func FirstNonEmpty(values ...string) string {
 	for _, v := range values {

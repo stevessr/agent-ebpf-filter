@@ -175,13 +175,33 @@ Current behavior:
 `GET /system/domain-forward/status` reports the optional 80/443 forwarding listener state, bound addresses, route count, DNS resolver override, and startup errors.
 `POST /shell-sessions/:id/input` can inject raw bytes into an existing PTY session, which the tmux quick manager uses to send `Ctrl-b` shortcuts.
 
+## Persistent event database
+
+Runtime event persistence is enabled by default. New installations use the
+Pebble-backed local database at:
+
+- `~/.config/agent-ebpf-filter/events.pebble`
+
+The backend batches event writes and maintains an event-ID index for on-demand
+detail reads. The persisted history defaults to 250,000 complete events and 168 hours;
+the first reached limit prunes the oldest records. It is controlled by
+`eventStoreMaxRecords` / `eventStoreMaxAge`. The in-memory hot archive defaults
+independently to 1,500 events through `maxEventCount` / `maxEventAge`.
+
+Explicit `.jsonl` runtime paths remain supported as a legacy compatibility
+mode. Renew uses `/ws/event-summaries` for its live view and
+`/events/detail/:id` for full details, so the desktop/browser UI does not need
+to retain the complete persisted payload set.
+
 ## HTTP endpoints
 
 ### Release-mode authenticated routes
 
 The runtime access token protects:
 
-- `GET /events/recent?type=&limit=` — historical events (used for initial WS load); `limit=all`/`0` returns the full retained window, and each record includes a normalized `Envelope`
+- `GET /events/recent?type=&limit=` — full historical events read from the backend retention store; `limit=all`/`0` returns the bounded retained window, and each record includes a normalized `Envelope`
+- `GET /events/summaries?limit=` — compact Renew history summaries without shipping full event payloads to the desktop UI
+- `GET /events/detail/:id` — fetch one full persisted event on demand by event ID
 - `GET /events/graph?...` — aggregated execution graph API for the current event retention window
 - `GET /agentsight/events?format=json|array|jsonl` / `POST /agentsight/events` / `GET /agentsight/events.jsonl` — AgentSight-compatible export/import that merges retained `EventEnvelope` records, uploaded AgentSight traces, and TLS capture history into `{timestamp,source,pid,comm,data}` JSON/JSONL
 - `GET /agentsight/runners` / `GET /agentsight/events/stats` / `GET /agentsight/events/runners/:id/stats` / `POST /agentsight/events/query` / `GET /agentsight/stream/merged` / `GET /agentsight/stream/runner/:id` — AgentSight logical runner status, storage stats, advanced query, and SSE stream compatibility; `/api/events`, `/api/runners`, and `/api/stream/*` mirror the original AgentSight frontend sync/upload/SSE surface
@@ -315,7 +335,7 @@ The MCP server exposes event-tail and configuration-snapshot tools over SSE and 
 
 Persistent event logs, when enabled from the Configuration page, are appended as JSONL at:
 
-- `~/.config/agent-ebpf-filter/events.jsonl`
+- `~/.config/agent-ebpf-filter/events.pebble` (default local event database; explicit `.jsonl` paths keep legacy file mode)
 
 The collector health endpoint reports ringbuf event totals, reserve-fail / drop counts, zero-copy vs copy decode counters, kernel-risk evaluation counters/latency, kernel-risk feedback applied/dropped counters and last feedback error, backend queue length, event-stream WS client count, recent persisted-log append latency, and simple per-event-type counters so the frontend can warn when capture may be incomplete.
 The OTLP health endpoint reports whether export is enabled / ready, the configured endpoint + service name, exporter queue length, active synthetic run / task / tool spans, total exported spans, dropped exporter events, and the last export error / timestamp.

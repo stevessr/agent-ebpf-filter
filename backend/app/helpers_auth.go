@@ -133,8 +133,12 @@ func buildRuntimeConfigResponseFromSettings(settings core.RuntimeSettings) core.
 	logPath := strings.TrimSpace(settings.LogFilePath)
 	logAlive := false
 	if settings.LogPersistenceEnabled && logPath != "" {
-		if info, err := os.Stat(logPath); err == nil && !info.IsDir() {
-			logAlive = true
+		if info, err := os.Stat(logPath); err == nil {
+			if isPebbleEventStorePath(logPath) {
+				logAlive = info.IsDir()
+			} else {
+				logAlive = !info.IsDir()
+			}
 		}
 	}
 	settings.MLConfig.LlmAPIKey = ""

@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -36,6 +37,9 @@ func (*runtimeSettingsTestStore) RecentEvents(int) ([]CapturedEventRecord, strin
 }
 func (s *runtimeSettingsTestStore) RecentEventsContext(_ context.Context, limit int) ([]CapturedEventRecord, string, error) {
 	return s.RecentEvents(limit)
+}
+func (*runtimeSettingsTestStore) EventByIDContext(context.Context, string) (CapturedEventRecord, error) {
+	return CapturedEventRecord{}, os.ErrNotExist
 }
 func (*runtimeSettingsTestStore) TruncateEventLog() error { return nil }
 

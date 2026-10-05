@@ -45,6 +45,37 @@ type AgentTlsCaptureTlsFragment struct {
 	_            [4]byte
 }
 
+// Names of all BPF objects in the ELF.
+//
+// Used for safe lookups in a Collection or CollectionSpec.
+const (
+	AgentTlsCaptureMapRetprobeBuf                    = "retprobe_buf"
+	AgentTlsCaptureMapTlsEvents                      = "tls_events"
+	AgentTlsCaptureMapTlsProbeHits                   = "tls_probe_hits"
+	AgentTlsCaptureMapTlsScratch                     = "tls_scratch"
+	AgentTlsCaptureProgUprobeCryptoTlsConnRead       = "uprobe_crypto_tls_conn_read"
+	AgentTlsCaptureProgUprobeCryptoTlsConnWrite      = "uprobe_crypto_tls_conn_write"
+	AgentTlsCaptureProgUprobeGnutlsRecordRecv        = "uprobe_gnutls_record_recv"
+	AgentTlsCaptureProgUprobeGnutlsRecordSend        = "uprobe_gnutls_record_send"
+	AgentTlsCaptureProgUprobePrRead                  = "uprobe_pr_read"
+	AgentTlsCaptureProgUprobePrWrite                 = "uprobe_pr_write"
+	AgentTlsCaptureProgUprobeRustlsConsumeFirstChunk = "uprobe_rustls_consume_first_chunk"
+	AgentTlsCaptureProgUprobeRustlsEncryptOutgoing   = "uprobe_rustls_encrypt_outgoing"
+	AgentTlsCaptureProgUprobeSslRead                 = "uprobe_ssl_read"
+	AgentTlsCaptureProgUprobeSslReadEx               = "uprobe_ssl_read_ex"
+	AgentTlsCaptureProgUprobeSslWrite                = "uprobe_ssl_write"
+	AgentTlsCaptureProgUprobeSslWriteEx              = "uprobe_ssl_write_ex"
+	AgentTlsCaptureProgUprobeSslWriteEx2             = "uprobe_ssl_write_ex2"
+	AgentTlsCaptureProgUretprobeCryptoTlsConnRead    = "uretprobe_crypto_tls_conn_read"
+	AgentTlsCaptureProgUretprobeGnutlsRecordRecv     = "uretprobe_gnutls_record_recv"
+	AgentTlsCaptureProgUretprobePrRead               = "uretprobe_pr_read"
+	AgentTlsCaptureProgUretprobeSslRead              = "uretprobe_ssl_read"
+	AgentTlsCaptureProgUretprobeSslReadEx            = "uretprobe_ssl_read_ex"
+	AgentTlsCaptureProgUretprobeSslWriteEx           = "uretprobe_ssl_write_ex"
+	AgentTlsCaptureProgUretprobeSslWriteEx2          = "uretprobe_ssl_write_ex2"
+	AgentTlsCaptureVarTlsFragmentTypeAnchor          = "tls_fragment_type_anchor"
+)
+
 // LoadAgentTlsCapture returns the embedded CollectionSpec for AgentTlsCapture.
 func LoadAgentTlsCapture() (*ebpf.CollectionSpec, error) {
 	reader := bytes.NewReader(_AgentTlsCaptureBytes)
@@ -65,7 +96,7 @@ func LoadAgentTlsCapture() (*ebpf.CollectionSpec, error) {
 //	*AgentTlsCaptureMaps
 //
 // See ebpf.CollectionSpec.LoadAndAssign documentation for details.
-func LoadAgentTlsCaptureObjects(obj interface{}, opts *ebpf.CollectionOptions) error {
+func LoadAgentTlsCaptureObjects(obj any, opts *ebpf.CollectionOptions) error {
 	spec, err := LoadAgentTlsCapture()
 	if err != nil {
 		return err

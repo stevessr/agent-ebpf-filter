@@ -62,6 +62,7 @@ func handleConfigCommsDelete(c *gin.Context)      { handlers.HandleConfigCommsDe
 func handleConfigCommsDisable(c *gin.Context)     { handlers.HandleConfigCommsDisable(c) }
 func handleConfigCommsEnable(c *gin.Context)      { handlers.HandleConfigCommsEnable(c) }
 func handleConfigEventTypesGet(c *gin.Context)    { handlers.HandleConfigEventTypesGet(c) }
+func handleConfigEventTypesPut(c *gin.Context)    { handlers.HandleConfigEventTypesPut(c) }
 func handleConfigEventTypeDisable(c *gin.Context) { handlers.HandleConfigEventTypeDisable(c) }
 func handleConfigEventTypeEnable(c *gin.Context)  { handlers.HandleConfigEventTypeEnable(c) }
 func handleConfigPathsGet(c *gin.Context)         { handlers.HandleConfigPathsGet(c) }

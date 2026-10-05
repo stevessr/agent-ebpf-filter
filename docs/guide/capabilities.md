@@ -164,7 +164,7 @@ flowchart TB
 
 ## 📤 5. 导出能力 (Integration & Data Persistence)
 
-* **📄 结构化日志落盘 (JSONL Persistence)**：支持按需将全量或过滤后的事件实时固化写入用户目录 `~/.config/agent-ebpf-filter/events.jsonl`。
+* **💾 本地事件持久化 (Pebble LSM)**：默认将完整事件写入 `~/.config/agent-ebpf-filter/events.pebble`，前端只保留紧凑摘要并按 event ID 按需读取详情；显式配置 `.jsonl` 路径时保留旧版文本日志模式。
 * **📼 录制与回放 (Recording & Replay)**：支持对高危历史行为或执行拓扑图谱进行“帧级快照录制”，便于离线审计与红蓝对抗回放。
 * **📊 开放多格式导出**：
 * **AgentSight 侧**：支持一键导出标准的 JSON、JSONL 或 CSV 表格。

@@ -33,6 +33,7 @@ func registerWebSocketRoutes(r gin.IRouter, ac *AppContext, features *FeatureReg
 		r.GET("/ws/ml-status", authMiddleware(), serveMLStatusWS)
 	}
 	r.GET("/ws/envelopes", authMiddleware(), serveEventEnvelopesWS)
+	r.GET("/ws/event-summaries", authMiddleware(), serveEventSummariesWS)
 	r.GET("/ws/events/graph", authMiddleware(), serveExecutionGraphWS)
 	if features.CompiledIn(FeatureTLSCapture) {
 		r.GET("/ws/tls-capture", authMiddleware(), tlsCaptureEnabledMiddleware(), func(c *gin.Context) { tlsBroadcaster.Serve(c) })
@@ -53,7 +54,9 @@ func registerShellSessionRoutes(r gin.IRouter, ac *AppContext, features *Feature
 
 func registerEventRoutes(r gin.IRouter, ac *AppContext) {
 	r.GET("/events/recent", authMiddleware(), handleRecentEvents)
+	r.GET("/events/summaries", authMiddleware(), handleRecentEventSummaries)
 	r.GET("/events/graph", authMiddleware(), handleExecutionGraph)
+	r.GET("/events/detail/:id", authMiddleware(), handleEventByID)
 	r.GET("/events/recording", authMiddleware(), handleEventRecordingStatus)
 	r.POST("/events/recording/start", authMiddleware(), handleStartEventRecording)
 	r.POST("/events/recording/stop", authMiddleware(), handleStopEventRecording)

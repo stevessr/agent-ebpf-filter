@@ -5,6 +5,7 @@ go 1.27.1
 require (
 	github.com/NVIDIA/go-nvml v0.13.0-1
 	github.com/cilium/ebpf v0.22.0
+	github.com/cockroachdb/pebble/v2 v2.1.7
 	github.com/creack/pty/v2 v2.0.1
 	github.com/getkin/kin-openapi v0.140.0
 	github.com/gin-gonic/gin v1.12.0
