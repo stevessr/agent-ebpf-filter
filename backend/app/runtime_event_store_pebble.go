@@ -53,7 +53,7 @@ type runtimeEventStore struct {
 
 func isPebbleEventStorePath(path string) bool {
 	value := strings.ToLower(strings.TrimSpace(path))
-	return strings.HasSuffix(value, ".pebble") || strings.HasSuffix(value, ".db")
+	return strings.HasSuffix(value, ".pebble")
 }
 
 func openRuntimeEventStoreWithin(rootPath, rawPath string) (*runtimeEventStore, string, error) {
