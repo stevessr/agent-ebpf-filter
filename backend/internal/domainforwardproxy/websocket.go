@@ -25,21 +25,21 @@ type responsesWSPendingSteer struct {
 }
 
 type responsesWSRewriteState struct {
-	mu               sync.RWMutex
-	streamMappings   map[string][]*modelRewrite
-	responseMappings map[string]*modelRewrite
-	responseStreams  map[string]string
-	responseOrder        []string
-	pendingSteers        map[string][]responsesWSPendingSteer
+	mu                  sync.RWMutex
+	streamMappings      map[string][]*modelRewrite
+	responseMappings    map[string]*modelRewrite
+	responseStreams     map[string]string
+	responseOrder       []string
+	pendingSteers       map[string][]responsesWSPendingSteer
 	heldTerminalStreams map[string]string
 }
 
 func newResponsesWSRewriteState() *responsesWSRewriteState {
 	return &responsesWSRewriteState{
-		streamMappings:   make(map[string][]*modelRewrite),
-		responseMappings: make(map[string]*modelRewrite),
-		responseStreams:      make(map[string]string),
-		pendingSteers:        make(map[string][]responsesWSPendingSteer),
+		streamMappings:      make(map[string][]*modelRewrite),
+		responseMappings:    make(map[string]*modelRewrite),
+		responseStreams:     make(map[string]string),
+		pendingSteers:       make(map[string][]responsesWSPendingSteer),
 		heldTerminalStreams: make(map[string]string),
 	}
 }
