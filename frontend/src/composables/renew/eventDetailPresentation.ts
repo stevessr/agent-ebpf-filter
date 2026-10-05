@@ -22,6 +22,7 @@ export interface RenewEventDetailPresentation {
   tone: RenewTone;
   outcome: string;
   riskScore: number;
+  riskAvailable: boolean;
   riskLabel: string;
   timestamp: string;
   eventType: string;
@@ -426,6 +427,7 @@ export function presentRenewEventDetail(
       tone: "warning",
       outcome: "不可用",
       riskScore: 0,
+      riskAvailable: false,
       riskLabel: "—",
       timestamp: "—",
       eventType: "—",
@@ -557,7 +559,8 @@ export function presentRenewEventDetail(
     tone: status.tone,
     outcome: status.outcome,
     riskScore: risk,
-    riskLabel: riskLabel(risk),
+    riskAvailable,
+    riskLabel: riskAvailable ? riskLabel(risk) : "未评分",
     timestamp,
     eventType: type,
     processLabel: `${process}${pid ? ` · PID ${pid}` : ""}`,
