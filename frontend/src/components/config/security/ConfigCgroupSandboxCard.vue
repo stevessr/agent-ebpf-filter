@@ -41,9 +41,9 @@ const unblockCgroupPortFromTag = async (port: number) => {
 </script>
 
 <template>
-<!-- OS-level cgroup interception -->
+<!-- 操作系统级 cgroup 网络拦截 -->
     <a-col :span="24">
-      <a-card title="OS-Level cgroup Network Interception" size="small">
+      <a-card title="操作系统级 cgroup 网络拦截" size="small">
         <template #extra>
           <a-space>
             <a-tag
@@ -55,8 +55,8 @@ const unblockCgroupPortFromTag = async (port: number) => {
             >
               {{
                 cgroupSandboxStatus.available && cgroupSandboxStatus.attached
-                  ? "kernel blocking active"
-                  : "not active"
+                  ? "内核拦截已启用"
+                  : "未启用"
               }}
             </a-tag>
             <a-button
@@ -64,7 +64,7 @@ const unblockCgroupPortFromTag = async (port: number) => {
               :loading="cgroupSandboxLoading"
               @click="fetchCgroupSandboxStatus"
             >
-              <ReloadOutlined /> Refresh
+              <ReloadOutlined /> 刷新
             </a-button>
           </a-space>
         </template>
@@ -78,12 +78,12 @@ const unblockCgroupPortFromTag = async (port: number) => {
         <a-row :gutter="[16, 16]">
           <a-col :xs="24" :lg="10">
             <a-descriptions size="small" bordered :column="1">
-              <a-descriptions-item label="Attach path">
+              <a-descriptions-item label="挂载路径">
                 <code>{{
-                  cgroupSandboxStatus.cgroupPath || "not attached"
+                  cgroupSandboxStatus.cgroupPath || "未挂载"
                 }}</code>
               </a-descriptions-item>
-              <a-descriptions-item label="Maps">
+              <a-descriptions-item label="eBPF 映射">
                 <a-space wrap>
                   <a-tag
                     :color="
@@ -123,17 +123,17 @@ const unblockCgroupPortFromTag = async (port: number) => {
                   >
                 </a-space>
               </a-descriptions-item>
-              <a-descriptions-item label="Pinned links">
+              <a-descriptions-item label="固定链接">
                 <span
                   v-if="!cgroupSandboxStatus.linkPins.length"
                   style="color: #6b7280"
-                  >process-held or unavailable</span
+                  >由进程持有或不可用</span
                 >
                 <div v-for="pin in cgroupSandboxStatus.linkPins" :key="pin">
                   <code>{{ pin }}</code>
                 </div>
               </a-descriptions-item>
-              <a-descriptions-item label="Active blocks">
+              <a-descriptions-item label="生效中的拦截">
                 <a-space wrap>
                   <a-tag
                     v-for="id in cgroupSandboxStatus.blockedCgroups"
@@ -170,18 +170,18 @@ const unblockCgroupPortFromTag = async (port: number) => {
                     "
                     style="color: #6b7280"
                   >
-                    No active cgroup/connect or sendmsg blocks
+                    当前没有生效的 cgroup/connect 或 sendmsg 拦截
                   </span>
                 </a-space>
               </a-descriptions-item>
-              <a-descriptions-item label="Error">
+              <a-descriptions-item label="错误">
                 <span
                   v-if="
                     !cgroupSandboxStatus.error &&
                     !cgroupSandboxStatus.statsError
                   "
                   style="color: #52c41a"
-                  >OK</span
+                  >正常</span
                 >
                 <span v-else style="color: #cf1322">{{
                   cgroupSandboxStatus.error || cgroupSandboxStatus.statsError
@@ -191,23 +191,23 @@ const unblockCgroupPortFromTag = async (port: number) => {
           </a-col>
 
           <a-col :xs="24" :lg="6">
-            <a-card size="small" title="Kernel decision counters">
+            <a-card size="small" title="内核决策计数">
               <a-row :gutter="[8, 8]">
                 <a-col :span="8">
                   <a-statistic
-                    title="Checked"
+                    title="已检查"
                     :value="cgroupSandboxStatus.stats.checked"
                   />
                 </a-col>
                 <a-col :span="8">
                   <a-statistic
-                    title="Blocked"
+                    title="已阻断"
                     :value="cgroupSandboxStatus.stats.blocked"
                   />
                 </a-col>
                 <a-col :span="8">
                   <a-statistic
-                    title="Allowed"
+                    title="已允许"
                     :value="cgroupSandboxStatus.stats.allowed"
                   />
                 </a-col>
@@ -219,32 +219,32 @@ const unblockCgroupPortFromTag = async (port: number) => {
             <div style="display: grid; gap: 12px">
               <div>
                 <div style="font-weight: 600; margin-bottom: 6px">
-                  Block / unblock cgroup outbound
+                  阻断 / 放行 cgroup 出站
                 </div>
                 <a-input-group compact>
                   <a-input
                     v-model:value="cgroupTargetID"
                     style="width: calc(100% - 160px)"
-                    placeholder="cgroup id from events"
+                    placeholder="来自事件的 cgroup ID"
                   />
                   <a-button
                     danger
                     :disabled="!cgroupSandboxStatus.available"
                     :loading="cgroupSandboxLoading"
                     @click="blockCgroupID"
-                    >Block</a-button
+                    >阻断</a-button
                   >
                   <a-button
                     :disabled="!cgroupSandboxStatus.available"
                     :loading="cgroupSandboxLoading"
                     @click="unblockCgroupID"
-                    >Unblock</a-button
+                    >放行</a-button
                   >
                 </a-input-group>
               </div>
               <div>
                 <div style="font-weight: 600; margin-bottom: 6px">
-                  Block / unblock PID's cgroup
+                  阻断 / 放行 PID 所属 cgroup
                 </div>
                 <a-input-group compact>
                   <a-input-number
@@ -270,7 +270,7 @@ const unblockCgroupPortFromTag = async (port: number) => {
               </div>
               <div>
                 <div style="font-weight: 600; margin-bottom: 6px">
-                  Block / unblock IP globally
+                  全局阻断 / 放行 IP
                 </div>
                 <a-input-group compact>
                   <a-input
@@ -295,7 +295,7 @@ const unblockCgroupPortFromTag = async (port: number) => {
               </div>
               <div>
                 <div style="font-weight: 600; margin-bottom: 6px">
-                  Block / unblock destination port globally
+                  全局阻断 / 放行目标端口
                 </div>
                 <a-input-group compact>
                   <a-input-number
