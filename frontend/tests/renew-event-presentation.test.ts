@@ -49,7 +49,7 @@ describe("Renew event presentation", () => {
   test("only elevates actionable decisions and risk", () => {
     expect(isAttentionEvent(event({ decision: "ALLOW" }))).toBe(false);
     expect(eventTone(event({ decision: "ALLOW" }))).toBe("normal");
-    expect(eventLabel(event({ decision: "ALLOW" }))).toBe("read");
+    expect(eventLabel(event({ decision: "ALLOW" }))).toBe("文件读取");
 
     expect(isAttentionEvent(event({ riskScore: 65 }))).toBe(true);
     expect(eventTone(event({ riskScore: 65 }))).toBe("warning");
@@ -57,6 +57,6 @@ describe("Renew event presentation", () => {
 
     expect(isAttentionEvent(event({ decision: "BLOCK" }))).toBe(true);
     expect(eventTone(event({ decision: "BLOCK" }))).toBe("danger");
-    expect(eventLabel(event({ decision: "BLOCK" }))).toBe("BLOCK");
+    expect(eventLabel(event({ decision: "BLOCK" }))).toBe("已阻断");
   });
 });
