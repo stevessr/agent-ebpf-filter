@@ -261,17 +261,29 @@ export function useRenewMonitoringControls() {
           }
         : null;
 
-      const requests: Promise<unknown>[] = [putDisabledEventTypes(disabled)];
-      if (runtimePayload) {
-        requests.push(
-          axios
-            .put<RuntimeConfigResponse>("/config/runtime", runtimePayload)
-            .then((response) => {
-              runtimeSettings.value = response.data.runtime;
-            }),
-        );
+      const previousDisabled = new Set(disabledEventTypes.value);
+      await putDisabledEventTypes(disabled);
+      try {
+        if (runtimePayload) {
+          const response = await axios.put<RuntimeConfigResponse>(
+            "/config/runtime",
+            runtimePayload,
+          );
+          runtimeSettings.value = response.data.runtime;
+        }
+      } catch (cause) {
+        // Keep a profile switch atomic from the user's perspective. If the
+        // runtime gate update fails, restore the event filter configuration
+        // instead of leaving a half-applied monitoring profile.
+        try {
+          await putDisabledEventTypes(previousDisabled);
+        } catch (_) {
+          // Preserve the original failure below; fetchState can reconcile the
+          // UI with the backend if even the rollback request fails.
+          void fetchState();
+        }
+        throw cause;
       }
-      await Promise.all(requests);
       setStatsInterval(profile.statsIntervalMs);
     } catch (cause: any) {
       error.value =
