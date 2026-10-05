@@ -133,11 +133,13 @@ export function useRenewMonitoringControls() {
   };
 
   const putDisabledEventTypes = async (disabled: Set<number>) => {
-    const response = await axios.put("/config/event-types", {
-      disabled_event_types: [...disabled].sort((a, b) => a - b),
+    const next = [...disabled].sort((a, b) => a - b);
+    const response = await axios.put<RuntimeConfigResponse>("/config/runtime", {
+      disabledEventTypes: next,
     });
+    runtimeSettings.value = response.data.runtime;
     disabledEventTypes.value = new Set(
-      response.data.disabled_event_types || [...disabled],
+      response.data.runtime.disabledEventTypes || next,
     );
   };
 
