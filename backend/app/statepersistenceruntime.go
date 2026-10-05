@@ -533,8 +533,12 @@ func (s *runtimeState) EventByIDContext(ctx context.Context, eventID string) (Ca
 	store := s.eventStore
 	s.mu.RUnlock()
 	if store != nil {
-		if record, err := store.GetByID(ctx, eventID); err == nil {
+		record, err := store.GetByID(ctx, eventID)
+		if err == nil {
 			return record, nil
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return CapturedEventRecord{}, err
 		}
 	}
 	for _, record := range capturedEventArchive.Snapshot(capturedEventArchive.Count()) {
