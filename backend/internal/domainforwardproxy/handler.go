@@ -115,7 +115,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if !decodedBounded {
-				setRequestBody(r, rawBody)
+				restoreRequestBody(r, rawBody)
 			} else {
 				rewritten, mapping, changed := h.rewrite.RewriteRequest(host, r.URL.Path, r.Header.Get("Content-Type"), body)
 				modelMapping = mapping
@@ -125,10 +125,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						http.Error(w, "failed to encode rewritten request body", http.StatusBadRequest)
 						return
 					}
-					setRequestBody(r, encoded)
 					invalidateRequestBodyIntegrity(r)
+					setRequestBody(r, encoded)
 				} else {
-					setRequestBody(r, rawBody)
+					restoreRequestBody(r, rawBody)
 				}
 			}
 		}
@@ -209,7 +209,9 @@ func requestBodyIsRewriteable(r *http.Request) bool {
 	if r == nil || r.Body == nil || r.Body == http.NoBody {
 		return false
 	}
-	if strings.TrimSpace(r.Header.Get("Content-Range")) != "" || requestBodyIsSigned(r.Header) {
+	if strings.TrimSpace(r.Header.Get("Content-Range")) != "" ||
+		requestBodyIsSigned(r.Header) ||
+		requestBodyIsSigned(r.Trailer) {
 		return false
 	}
 	return bodyEncodingRewriteable(r.Header.Get("Content-Encoding"))
@@ -219,13 +221,28 @@ func requestBodyIsSigned(header http.Header) bool {
 	if header == nil {
 		return false
 	}
-	for _, name := range []string{"Signature", "Signature-Input", "X-Amz-Content-Sha256"} {
+	for _, name := range []string{
+		"Signature",
+		"Signature-Input",
+		"X-Amz-Content-Sha256",
+		"X-Goog-Content-Sha256",
+	} {
 		if strings.TrimSpace(header.Get(name)) != "" {
 			return true
 		}
 	}
-	authorization := strings.TrimSpace(header.Get("Authorization"))
-	return strings.HasPrefix(strings.ToUpper(authorization), "AWS4-HMAC-SHA256 ")
+	authorization := strings.ToUpper(strings.TrimSpace(header.Get("Authorization")))
+	for _, scheme := range []string{
+		"AWS4-HMAC-SHA256 ",
+		"SIGNATURE ",
+		"SHAREDKEY ",
+		"SHAREDKEYLITE ",
+	} {
+		if strings.HasPrefix(authorization, scheme) {
+			return true
+		}
+	}
+	return false
 }
 
 func responseBodyIsRewriteable(response *http.Response) bool {
@@ -280,19 +297,33 @@ func readResponseBodyBounded(response *http.Response, limit int64) ([]byte, bool
 	return prefix, true, nil
 }
 
-func setRequestBody(r *http.Request, body []byte) {
+func restoreRequestBody(r *http.Request, body []byte) {
 	r.Body = io.NopCloser(bytes.NewReader(body))
-	r.ContentLength = int64(len(body))
 	r.GetBody = func() (io.ReadCloser, error) {
 		return io.NopCloser(bytes.NewReader(body)), nil
 	}
-	r.Header.Set("Content-Length", strconv.Itoa(len(body)))
+}
+
+func setRequestBody(r *http.Request, body []byte) {
+	restoreRequestBody(r, body)
+	r.TransferEncoding = nil
 	r.Header.Del("Transfer-Encoding")
+	if len(r.Trailer) > 0 {
+		// Trailers need end-of-body framing. Leave the final transfer framing
+		// to net/http so HTTP/1.1 can use chunked encoding while HTTP/2+ keeps
+		// protocol-native trailers.
+		r.ContentLength = -1
+		r.Header.Del("Content-Length")
+		return
+	}
+	r.ContentLength = int64(len(body))
+	r.Header.Set("Content-Length", strconv.Itoa(len(body)))
 }
 
 func restoreResponseBody(response *http.Response, body []byte) {
 	response.Body = io.NopCloser(bytes.NewReader(body))
 	response.ContentLength = int64(len(body))
+	response.TransferEncoding = nil
 	response.Header.Set("Content-Length", strconv.Itoa(len(body)))
 	response.Header.Del("Transfer-Encoding")
 }
