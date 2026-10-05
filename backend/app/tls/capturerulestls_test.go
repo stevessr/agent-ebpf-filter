@@ -61,6 +61,20 @@ func TestTLSExecutablePathScopeIsFailClosed(t *testing.T) {
 	}
 }
 
+func TestTLSExecutablePathScopeRejectsRootWidePrefix(t *testing.T) {
+	rules := NewTLSCaptureRuleStore()
+	rules.Replace([]TLSCaptureRule{{
+		ID:      "root",
+		Name:    "Root",
+		Enabled: true,
+		Scope:   "custom",
+		Paths:   []string{"/**"},
+	}})
+	if rules.AllowsExecutablePath("/usr/bin/curl") {
+		t.Fatal("/** must not enable host-wide TLS auto-attach")
+	}
+}
+
 func TestTLSExecutablePathScopeIgnoresDisabledRules(t *testing.T) {
 	rules := NewTLSCaptureRuleStore()
 	rules.Replace([]TLSCaptureRule{{
