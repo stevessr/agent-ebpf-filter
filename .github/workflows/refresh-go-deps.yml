@@ -25,8 +25,8 @@ jobs:
             desktop/renew/go.sum
             tools/agent-tui/go.sum
             tools/dev-env-tui/go.sum
-      - name: Install protobuf compiler
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - name: Install native build dependencies
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler clang llvm libbpf-dev libelf-dev
       - name: Generate Go protobuf bindings
         run: |
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
@@ -73,6 +73,36 @@ jobs:
         run: |
           go get -u ./...
           go mod tidy
+      - name: Generate eBPF objects and bindings
+        working-directory: backend/ebpf
+        run: go generate
+      - name: Test backend
+        working-directory: backend
+        env:
+          GOWORK: "off"
+        run: go test ./...
+      - name: Test wrapper
+        working-directory: wrapper
+        env:
+          GOWORK: "off"
+        run: go test ./...
+      - name: Test Renew desktop
+        working-directory: desktop/renew
+        env:
+          GOWORK: "off"
+        run: |
+          go test ./...
+          go build ./...
+      - name: Test Agent TUI
+        working-directory: tools/agent-tui
+        env:
+          GOWORK: "off"
+        run: go test ./...
+      - name: Test dev-env TUI
+        working-directory: tools/dev-env-tui
+        env:
+          GOWORK: "off"
+        run: go test ./...
       - name: Commit dependency refresh
         shell: bash
         run: |
