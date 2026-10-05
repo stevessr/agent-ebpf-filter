@@ -59,7 +59,7 @@ jobs:
         run: go generate
       - name: Test Renew event database
         working-directory: backend
-        run: go test ./app -run 'Test(RuntimeEventStoreRoundTripByID|RuntimeEventStorePruneKeepsNewestRecordsAndIndexes|EventTypeDisabledBitset)' -count=1
+        run: go test ./app -run 'Test(RuntimeEventStore|EventTypeDisabledBitset)' -count=1
       - name: Verify module lockfile
         working-directory: backend
         run: go mod verify
