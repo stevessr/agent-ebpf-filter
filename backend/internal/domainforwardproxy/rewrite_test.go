@@ -38,6 +38,25 @@ func TestRewriteKernelModelMappingPreservesNestedModel(t *testing.T) {
 	}
 }
 
+func TestRewriteResponsesModelPreservesEnvelopeBytes(t *testing.T) {
+	mapping := &modelRewrite{
+		Client:       "client-model",
+		Upstream:     "fast-model",
+		clientJSON:   []byte(`"client-model"`),
+		upstreamJSON: []byte(`"fast-model"`),
+	}
+	kernel := NewRewriteKernel(BodyRewriteSettings{Enabled: true})
+	input := []byte(`{"z":1,"response": { "id":"resp_1", "model":"fast-model", "output":[{"model":"nested-user-data","text":"hello"}] },"a":2}`)
+	got, changed := kernel.RewriteResponse("api.openai.com", "/v1/responses", "application/json", input, mapping)
+	if !changed {
+		t.Fatal("expected nested response model rewrite")
+	}
+	want := `{"z":1,"response": { "id":"resp_1", "model":"client-model", "output":[{"model":"nested-user-data","text":"hello"}] },"a":2}`
+	if string(got) != want {
+		t.Fatalf("nested rewrite changed unrelated envelope bytes:\n got: %s\nwant: %s", got, want)
+	}
+}
+
 func TestHandlerRewritesRequestAndResponseBodies(t *testing.T) {
 	settings := DomainForwardProxySettings{
 		DefaultScheme: "https",
@@ -171,5 +190,22 @@ func BenchmarkRewriteKernelModelMatch200Rules(b *testing.B) {
 	b.SetBytes(int64(len(body)))
 	for i := 0; i < b.N; i++ {
 		_, _, _ = kernel.RewriteRequest("api.openai.com", "/v1/responses", "application/json", body)
+	}
+}
+
+func BenchmarkRewriteKernelResponseModel(b *testing.B) {
+	kernel := NewRewriteKernel(BodyRewriteSettings{Enabled: true})
+	mapping := &modelRewrite{
+		Client:       "client-model",
+		Upstream:     "fast-model",
+		clientJSON:   []byte(`"client-model"`),
+		upstreamJSON: []byte(`"fast-model"`),
+	}
+	payload := strings.Repeat("output-", 4096)
+	body := []byte(`{"type":"response.completed","response":{"id":"resp_1","model":"fast-model","output":[{"type":"message","content":"` + payload + `"}]}}`)
+	b.ReportAllocs()
+	b.SetBytes(int64(len(body)))
+	for i := 0; i < b.N; i++ {
+		_, _ = kernel.RewriteResponse("api.openai.com", "/v1/responses", "application/json", body, mapping)
 	}
 }
