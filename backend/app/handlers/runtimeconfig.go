@@ -56,6 +56,7 @@ type RuntimeSettingsPatch struct {
 	EventStoreMaxRecords    *int                             `json:"eventStoreMaxRecords,omitempty"`
 	EventStoreMaxAge        *string                          `json:"eventStoreMaxAge,omitempty"`
 	DisabledEventTypes     *[]uint32                        `json:"disabledEventTypes,omitempty"`
+	IgnoredPaths            *[]string                        `json:"ignoredPaths,omitempty"`
 	AccessToken             *string                          `json:"accessToken,omitempty"`
 	MaxEventCount           *int                             `json:"maxEventCount,omitempty"`
 	MaxEventAge             *string                          `json:"maxEventAge,omitempty"`
@@ -134,6 +135,9 @@ func HandleConfigRuntimePut(c *gin.Context) {
 	}
 	if req.DisabledEventTypes != nil {
 		settings.DisabledEventTypes = append([]uint32(nil), (*req.DisabledEventTypes)...)
+	}
+	if req.IgnoredPaths != nil {
+		settings.IgnoredPaths = append([]string(nil), (*req.IgnoredPaths)...)
 	}
 	if req.AccessToken != nil {
 		settings.AccessToken = strings.TrimSpace(*req.AccessToken)
