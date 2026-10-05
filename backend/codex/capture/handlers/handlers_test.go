@@ -170,3 +170,31 @@ func TestBuildCodexCaptureResponsesContextIncludesAllInputItems(t *testing.T) {
 		t.Fatalf("context len=%d prompt len=%d; full context was not retained", first.ContextLen, first.PromptLen)
 	}
 }
+
+func TestBuildCodexCaptureLargeResponsesContextUsesFullBody(t *testing.T) {
+	largeSystem := strings.Repeat("context-", 3000)
+	body := `{"type":"response.create","stream_id":"lane-big","model":"gpt-5.6","input":[{"type":"message","role":"system","content":[{"type":"input_text","text":"` +
+		largeSystem +
+		`"}]},{"type":"message","role":"user","content":[{"type":"input_text","text":"latest-user"}]}]}`
+	event := BuildEvent(CaptureRequest{
+		Phase:       "websocket_request",
+		Direction:   "send",
+		URL:         "wss://api.openai.com/v1/responses",
+		Host:        "api.openai.com",
+		ContentType: "application/json",
+		Body:        body,
+		PID:         12,
+	})
+	if !event.Truncated || len(event.Body) > maxBodySize {
+		t.Fatalf("display body truncation not enforced: truncated=%v len=%d", event.Truncated, len(event.Body))
+	}
+	if event.ProtocolEvent != "response.create" || event.StreamID != "lane-big" {
+		t.Fatalf("protocol metadata lost after display truncation: %#v", event)
+	}
+	if event.MessageRole != "user" || event.PromptLen != len("latest-user") || event.PromptDigest == "" {
+		t.Fatalf("latest prompt metadata came from truncated display body: %#v", event)
+	}
+	if event.ContextDigest == "" || event.ContextItems != 2 || event.ContextLen <= maxBodySize {
+		t.Fatalf("full upstream context metadata missing: %#v", event)
+	}
+}
