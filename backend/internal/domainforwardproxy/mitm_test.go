@@ -12,8 +12,8 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
-	"sync"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
