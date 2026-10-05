@@ -16,6 +16,8 @@ import type {
 import type { RenewRuntimeToggleKey } from "../../composables/renew/useRenewMonitoringControls";
 import type { CollectorHealthResponse } from "../../types/config";
 
+import RenewSwitch from "./RenewSwitch.vue";
+
 const props = defineProps<{
   modules: RenewMonitoringModule[];
   profiles: RenewMonitoringProfile[];
@@ -24,6 +26,7 @@ const props = defineProps<{
   statsIntervalMs: number;
   applying: boolean;
   loading: boolean;
+  ready: boolean;
   error: string;
   overhead: { label: string; tone: RenewMonitoringCost };
   runtimeEnabled: (key: RenewRuntimeToggleKey) => boolean;
@@ -79,7 +82,8 @@ const runtimeModules: Array<{
   {
     key: "persistence",
     title: "本地事件持久化",
-    description: "默认开启；完整事件写入后端 Pebble 数据库（默认 25 万条 / 168h），Renew 只保留摘要。",
+    description:
+      "默认开启；完整事件写入后端 Pebble 数据库（默认 25 万条 / 168h），Renew 只保留摘要。",
     cost: "medium",
     manual: true,
   },
@@ -88,6 +92,7 @@ const runtimeModules: Array<{
 const isModuleEnabled = (key: string) => props.enabledModuleKeys.includes(key);
 
 const healthy = () =>
+  Boolean(props.collectorHealth) &&
   props.collectorHealth?.captureHealthy !== false &&
   Number(props.collectorHealth?.ringbufDroppedTotal || 0) === 0;
 
@@ -105,7 +110,11 @@ const stat = (key: keyof CollectorHealthResponse) =>
           按需启用监控层级。日常保留高价值信号，需要排查时再打开高频采集与研究处理。
         </p>
       </div>
-      <button class="renew-icon-button" title="刷新状态" @click="emit('refresh')">
+      <button
+        class="renew-icon-button"
+        title="刷新状态"
+        @click="emit('refresh')"
+      >
         <ReloadOutlined />
       </button>
     </header>
@@ -113,12 +122,14 @@ const stat = (key: keyof CollectorHealthResponse) =>
     <section class="renew-monitoring__summary">
       <div>
         <span class="renew-monitoring__label">预计附加开销</span>
-        <strong :class="`is-${overhead.tone}`">{{ overhead.label }}</strong>
+        <strong :class="`is-${overhead.tone}`">{{
+          ready ? overhead.label : "未加载"
+        }}</strong>
       </div>
       <div>
         <span class="renew-monitoring__label">采集健康</span>
         <strong :class="healthy() ? 'is-low' : 'is-high'">
-          {{ healthy() ? "正常" : "有丢弃" }}
+          {{ !collectorHealth ? "未获取" : healthy() ? "正常" : "有丢弃" }}
         </strong>
       </div>
       <div>
@@ -153,7 +164,7 @@ const stat = (key: keyof CollectorHealthResponse) =>
           :key="profile.key"
           class="renew-profile"
           :class="{ 'renew-profile--active': activeProfileKey === profile.key }"
-          :disabled="applying"
+          :disabled="applying || loading || !ready"
           @click="emit('applyProfile', profile.key)"
         >
           <span class="renew-profile__top">
@@ -163,7 +174,10 @@ const stat = (key: keyof CollectorHealthResponse) =>
           <span>{{ profile.description }}</span>
         </button>
       </div>
-      <div v-if="activeProfileKey === 'custom'" class="renew-monitoring__custom">
+      <div
+        v-if="activeProfileKey === 'custom'"
+        class="renew-monitoring__custom"
+      >
         当前为自定义组合。
       </div>
     </section>
@@ -173,7 +187,8 @@ const stat = (key: keyof CollectorHealthResponse) =>
         <div>
           <h2>实时行为监控</h2>
           <p>
-            关闭事件组会减少后端解码后的分析、归档与推送开销；核心 eBPF 探针仍保持挂载，避免切换时重载内核程序。
+            关闭事件组会减少后端解码后的分析、归档与推送开销；核心 eBPF
+            探针仍保持挂载，避免切换时重载内核程序。
           </p>
         </div>
         <SafetyCertificateOutlined />
@@ -184,16 +199,21 @@ const stat = (key: keyof CollectorHealthResponse) =>
           v-for="module in modules"
           :key="module.key"
           class="renew-monitor-card"
-          :class="{ 'renew-monitor-card--enabled': isModuleEnabled(module.key) }"
+          :class="{
+            'renew-monitor-card--enabled': isModuleEnabled(module.key),
+          }"
         >
           <div class="renew-monitor-card__top">
             <div>
               <strong>{{ module.title }}</strong>
-              <span :class="`is-${module.cost}`">{{ costText[module.cost] }}</span>
+              <span :class="`is-${module.cost}`">{{
+                costText[module.cost]
+              }}</span>
             </div>
-            <a-switch
+            <RenewSwitch
               :checked="isModuleEnabled(module.key)"
-              :disabled="applying || loading"
+              :label="module.title"
+              :disabled="applying || loading || !ready"
               @update:checked="emit('toggleModule', module.key, $event)"
             />
           </div>
@@ -226,9 +246,10 @@ const stat = (key: keyof CollectorHealthResponse) =>
             </div>
             <p>{{ item.description }}</p>
           </div>
-          <a-switch
+          <RenewSwitch
             :checked="runtimeEnabled(item.key)"
-            :disabled="applying || loading"
+            :label="item.title"
+            :disabled="applying || loading || !ready"
             @update:checked="emit('toggleRuntime', item.key, $event)"
           />
         </article>
@@ -250,7 +271,7 @@ const stat = (key: keyof CollectorHealthResponse) =>
           { label: '10 秒 · 轻量', value: 10000 },
           { label: '30 秒 · 极省', value: 30000 },
         ]"
-        :disabled="applying"
+        :disabled="applying || loading || !ready"
         @update:value="emit('updateStatsInterval', Number($event))"
       />
     </section>

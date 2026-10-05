@@ -20,11 +20,11 @@ import (
 )
 
 var (
-	eventStoreRecordPrefix      = []byte{'e'}
-	eventStoreRecordUpper       = []byte{'f'}
-	eventStoreIDPrefix          = []byte{'i'}
-	eventStoreIDUpper           = []byte{'j'}
-	errInvalidEventStoreCursor  = errors.New("invalid event database cursor")
+	eventStoreRecordPrefix     = []byte{'e'}
+	eventStoreRecordUpper      = []byte{'f'}
+	eventStoreIDPrefix         = []byte{'i'}
+	eventStoreIDUpper          = []byte{'j'}
+	errInvalidEventStoreCursor = errors.New("invalid event database cursor")
 )
 
 type runtimeEventStoreItem struct {
@@ -33,30 +33,30 @@ type runtimeEventStoreItem struct {
 }
 
 type runtimeEventStore struct {
-	mu             sync.Mutex
-	pruneMu        sync.Mutex
-	db             *pebble.DB
-	path           string
-	queue          chan runtimeEventStoreItem
-	stopCh         chan struct{}
-	done           chan struct{}
-	accepting      bool
-	stopping       bool
-	queuedRecords  int
-	flushWaiters   int
-	enqueuedTotal  uint64
-	persistedTotal uint64
-	failedTotal    uint64
-	droppedTotal   uint64
-	lastFlushedAt  time.Time
-	lastError      string
-	terminalErr    error
-	stopRequested  bool
+	mu                    sync.Mutex
+	pruneMu               sync.Mutex
+	db                    *pebble.DB
+	path                  string
+	queue                 chan runtimeEventStoreItem
+	stopCh                chan struct{}
+	done                  chan struct{}
+	accepting             bool
+	stopping              bool
+	queuedRecords         int
+	flushWaiters          int
+	enqueuedTotal         uint64
+	persistedTotal        uint64
+	failedTotal           uint64
+	droppedTotal          uint64
+	lastFlushedAt         time.Time
+	lastError             string
+	terminalErr           error
+	stopRequested         bool
 	retentionMaxRecords   int
 	retentionMaxAge       time.Duration
 	nextRetentionSweep    uint64
 	retentionSweepRunning bool
-	auditChain     *recording.AuditChain
+	auditChain            *recording.AuditChain
 }
 
 func isPebbleEventStorePath(path string) bool {
@@ -95,14 +95,14 @@ func openRuntimeEventStoreWithin(rootPath, rawPath string) (*runtimeEventStore, 
 		return nil, "", fmt.Errorf("initialize event database audit chain: %w", err)
 	}
 	store := &runtimeEventStore{
-		db:         db,
-		path:       resolved,
-		queue:      make(chan runtimeEventStoreItem, runtimeEventLogQueueSize+1),
-		stopCh:     make(chan struct{}),
-		done:       make(chan struct{}),
-		accepting:           true,
+		db:                 db,
+		path:               resolved,
+		queue:              make(chan runtimeEventStoreItem, runtimeEventLogQueueSize+1),
+		stopCh:             make(chan struct{}),
+		done:               make(chan struct{}),
+		accepting:          true,
 		nextRetentionSweep: 1024,
-		auditChain:          auditChain,
+		auditChain:         auditChain,
 	}
 	go store.run()
 	return store, resolved, nil
@@ -689,7 +689,6 @@ func (s *runtimeEventStore) GetByID(ctx context.Context, eventID string) (Captur
 	return decodeEventStoreRecord(payloadCopy)
 }
 
-
 func eventStoreRecordTimestamp(key []byte) (time.Time, bool) {
 	if len(key) < 9 || key[0] != eventStoreRecordPrefix[0] {
 		return time.Time{}, false
@@ -914,4 +913,3 @@ func (s *runtimeEventStore) Clear(ctx context.Context) error {
 	}
 	return batch.Commit(pebble.Sync)
 }
-

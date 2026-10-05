@@ -1,3 +1,4 @@
+import { HARNESS_LABELS, eventHarness, sessionKey } from "./harness";
 import { computed, type Ref } from "vue";
 
 import type { AgentEvent } from "../dashboard/useDashboard";
@@ -18,7 +19,7 @@ export function useRenewEventSummary(
   search: Ref<string>,
   onlyAgents: Ref<boolean>,
 ) {
-  const recentEvents = computed(() => {
+  const filteredEvents = computed(() => {
     const query = search.value.trim().toLowerCase();
     return events.value
       .filter((event) => !onlyAgents.value || isAgentEvent(event))
@@ -35,9 +36,10 @@ export function useRenewEventSummary(
         ]
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(query));
-      })
-      .slice(0, 16);
+      });
   });
+
+  const recentEvents = computed(() => filteredEvents.value.slice(0, 16));
 
   const attentionCount = computed(
     () => events.value.filter(isAttentionEvent).length,
@@ -64,14 +66,10 @@ export function useRenewEventSummary(
 
     for (const event of events.value) {
       if (!isAgentEvent(event)) continue;
-      const key =
-        event.agentRunId ||
-        event.conversationId ||
-        `${event.comm}:${event.rootAgentPid || event.pid}`;
+      const key = sessionKey(event);
       const previous = runs.get(key);
       const receivedAt = event.receivedAtMs || Date.now();
-      const label =
-        event.tag && event.tag !== "Unknown" ? event.tag : event.comm || "Agent";
+      const label = `${HARNESS_LABELS[eventHarness(event)]} · ${event.agentRunId || event.conversationId || `PID ${event.rootAgentPid || event.pid}`}`;
 
       if (!previous) {
         runs.set(key, {
@@ -118,6 +116,7 @@ export function useRenewEventSummary(
 
   return {
     recentEvents,
+    filteredEvents,
     attentionCount,
     attentionEvents,
     blockedCount,

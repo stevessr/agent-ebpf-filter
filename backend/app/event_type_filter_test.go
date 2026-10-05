@@ -37,7 +37,6 @@ func TestEventTypeDisabledBitset(t *testing.T) {
 	}
 }
 
-
 func TestDefaultRenewDailyDisabledEventTypes(t *testing.T) {
 	disabled := make(map[uint32]struct{})
 	for _, eventType := range defaultRenewDailyDisabledEventTypes() {

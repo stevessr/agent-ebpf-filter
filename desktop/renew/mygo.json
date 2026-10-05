@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "main": ".",
   "out": "build",
+  "buildCommand": "../../scripts/renew-desktop.sh prepare",
   "linux": {
     "comment": "Daily desktop monitor for Agent eBPF Filter",
     "categories": ["System", "Utility"],

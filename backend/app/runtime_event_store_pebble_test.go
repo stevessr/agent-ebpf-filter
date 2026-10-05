@@ -248,7 +248,6 @@ func TestRuntimeEventStorePruneKeepsNewestRecordsAndIndexes(t *testing.T) {
 	}
 }
 
-
 func TestRuntimeEventStoreCursorPaging(t *testing.T) {
 	root := t.TempDir()
 	store, _, err := openRuntimeEventStoreWithin(root, filepath.Join(root, "events.pebble"))

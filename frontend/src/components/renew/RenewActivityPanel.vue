@@ -1,10 +1,8 @@
 <script setup lang="ts">
-import {
-  ArrowRightOutlined,
-  CheckCircleFilled,
-} from "@ant-design/icons-vue";
+import { ArrowRightOutlined, CheckCircleFilled } from "@ant-design/icons-vue";
 
 import type { AgentEvent } from "../../composables/dashboard/useDashboard";
+import { HARNESS_LABELS, eventHarness } from "../../composables/renew/harness";
 import type { RenewTone } from "../../composables/renew/types";
 
 defineProps<{
@@ -50,7 +48,7 @@ const emit = defineEmits<{
         <span class="renew-activity__body">
           <span class="renew-activity__top">
             <strong>{{
-              event.tag && event.tag !== "Unknown" ? event.tag : event.comm
+              `${HARNESS_LABELS[eventHarness(event)]} · ${event.comm || event.tag}`
             }}</strong>
             <span>{{ eventTime(event) }}</span>
           </span>
@@ -58,13 +56,12 @@ const emit = defineEmits<{
           <span class="renew-activity__meta">
             PID {{ event.pid }}
             <template v-if="event.toolName"> · {{ event.toolName }}</template>
-            <template v-if="event.riskScore"> · risk {{ event.riskScore }}</template>
+            <template v-if="event.riskScore">
+              · risk {{ event.riskScore }}</template
+            >
           </span>
         </span>
-        <span
-          class="renew-activity__badge"
-          :class="`is-${eventTone(event)}`"
-        >
+        <span class="renew-activity__badge" :class="`is-${eventTone(event)}`">
           {{ eventLabel(event) }}
         </span>
       </button>

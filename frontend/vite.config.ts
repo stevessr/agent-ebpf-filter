@@ -15,8 +15,10 @@ try {
   // Use default
 }
 
-const backendUrl = `http://localhost:${backendPort}`;
-const backendWsUrl = `ws://localhost:${backendPort}`;
+const backendUrl =
+  process.env.VITE_AGENT_BACKEND_URL?.replace(/\/$/, "") ||
+  `http://127.0.0.1:${backendPort}`;
+const backendWsUrl = backendUrl.replace(/^http/, "ws");
 const bypassHtmlToIndex = (req: { headers: { accept?: string } }) => {
   if (req.headers.accept?.includes("text/html")) {
     return "/index.html";

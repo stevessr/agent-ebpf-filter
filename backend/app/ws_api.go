@@ -285,32 +285,33 @@ func parseEventLimitQuery(raw string, defaultLimit int) int {
 }
 
 type renewEventSummary struct {
-	Key             string  `json:"key"`
-	EventID         string  `json:"eventId"`
-	PID             uint32  `json:"pid"`
-	PPID            uint32  `json:"ppid"`
-	UID             uint32  `json:"uid"`
-	Type            string  `json:"type"`
-	EventType       int32   `json:"eventType"`
-	Tag             string  `json:"tag"`
-	Comm            string  `json:"comm"`
-	Path            string  `json:"path"`
-	ExtraPath       string  `json:"extraPath,omitempty"`
-	NetDirection    string  `json:"netDirection,omitempty"`
-	NetEndpoint     string  `json:"netEndpoint,omitempty"`
-	NetBytes        uint64  `json:"netBytes,omitempty"`
-	Domain          string  `json:"domain,omitempty"`
-	Decision        string  `json:"decision,omitempty"`
-	RiskScore       float64 `json:"riskScore,omitempty"`
-	AgentRunID      string  `json:"agentRunId,omitempty"`
-	ConversationID  string  `json:"conversationId,omitempty"`
-	TurnID          string  `json:"turnId,omitempty"`
-	ToolCallID      string  `json:"toolCallId,omitempty"`
-	ToolName        string  `json:"toolName,omitempty"`
-	TraceID         string  `json:"traceId,omitempty"`
-	SpanID          string  `json:"spanId,omitempty"`
-	Time            string  `json:"time"`
-	ReceivedAtMS    int64   `json:"receivedAtMs"`
+	RootAgentPID   uint32  `json:"rootAgentPid,omitempty"`
+	Key            string  `json:"key"`
+	EventID        string  `json:"eventId"`
+	PID            uint32  `json:"pid"`
+	PPID           uint32  `json:"ppid"`
+	UID            uint32  `json:"uid"`
+	Type           string  `json:"type"`
+	EventType      int32   `json:"eventType"`
+	Tag            string  `json:"tag"`
+	Comm           string  `json:"comm"`
+	Path           string  `json:"path"`
+	ExtraPath      string  `json:"extraPath,omitempty"`
+	NetDirection   string  `json:"netDirection,omitempty"`
+	NetEndpoint    string  `json:"netEndpoint,omitempty"`
+	NetBytes       uint64  `json:"netBytes,omitempty"`
+	Domain         string  `json:"domain,omitempty"`
+	Decision       string  `json:"decision,omitempty"`
+	RiskScore      float64 `json:"riskScore,omitempty"`
+	AgentRunID     string  `json:"agentRunId,omitempty"`
+	ConversationID string  `json:"conversationId,omitempty"`
+	TurnID         string  `json:"turnId,omitempty"`
+	ToolCallID     string  `json:"toolCallId,omitempty"`
+	ToolName       string  `json:"toolName,omitempty"`
+	TraceID        string  `json:"traceId,omitempty"`
+	SpanID         string  `json:"spanId,omitempty"`
+	Time           string  `json:"time"`
+	ReceivedAtMS   int64   `json:"receivedAtMs"`
 }
 
 func buildRenewEventSummary(record CapturedEventRecord) (renewEventSummary, bool) {
@@ -342,6 +343,7 @@ func buildRenewEventSummary(record CapturedEventRecord) (renewEventSummary, bool
 		Domain:         event.GetDomain(),
 		Decision:       platform.FirstNonEmpty(event.GetDecision(), envelope.GetPolicyDecision()),
 		RiskScore:      max(event.GetRiskScore(), envelope.GetRiskScore()),
+		RootAgentPID:   event.GetRootAgentPid(),
 		AgentRunID:     platform.FirstNonEmpty(event.GetAgentRunId(), envelope.GetAgentRunId()),
 		ConversationID: platform.FirstNonEmpty(event.GetConversationId(), envelope.GetConversationId()),
 		TurnID:         platform.FirstNonEmpty(event.GetTurnId(), envelope.GetTurnId()),
@@ -378,10 +380,10 @@ func handleRecentEventSummaries(c *gin.Context) {
 		}
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"source": source,
-		"events": summaries,
+		"source":     source,
+		"events":     summaries,
 		"nextCursor": nextCursor,
-		"hasMore": nextCursor != "",
+		"hasMore":    nextCursor != "",
 	})
 }
 

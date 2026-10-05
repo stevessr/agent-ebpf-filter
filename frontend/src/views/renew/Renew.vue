@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { HARNESS_LABELS } from "../../composables/renew/harness";
+import RenewExplorer from "../../components/renew/RenewExplorer.vue";
+import RenewRules from "../../components/renew/RenewRules.vue";
 
 import RenewActivityPanel from "../../components/renew/RenewActivityPanel.vue";
 import RenewAgentSessions from "../../components/renew/RenewAgentSessions.vue";
@@ -16,10 +20,33 @@ import type { RenewRuntimeToggleKey } from "../../composables/renew/useRenewMoni
 import { useRenewDashboard } from "../../composables/renew/useRenewDashboard";
 import "./renew.css";
 
-const activeSection = ref<"overview" | "monitoring">("overview");
+type Section =
+  "overview" | "monitoring" | "events" | "network" | "processes" | "rules";
+const route = useRoute();
+const router = useRouter();
+const activeSection = computed<Section>(() => {
+  const section = String(route.params.section || "overview");
+  return [
+    "overview",
+    "monitoring",
+    "events",
+    "network",
+    "processes",
+    "rules",
+  ].includes(section)
+    ? (section as Section)
+    : "overview";
+});
+const openSection = (section: Section) =>
+  void router.push({
+    name: "Renew",
+    params: { section: section === "overview" ? undefined : section },
+    query: route.query,
+  });
 
 const {
   events,
+  harness,
   isConnected,
   historyLoading,
   hasOlder,
@@ -65,6 +92,7 @@ const {
   collectorHealth,
   applying,
   loading,
+  ready,
   error,
   overhead,
   runtimeEnabled,
@@ -82,10 +110,7 @@ const handleToggleModule = (key: string, enabled: boolean) => {
   void setModuleEnabled(key, enabled).catch(() => {});
 };
 
-const handleToggleRuntime = (
-  key: RenewRuntimeToggleKey,
-  enabled: boolean,
-) => {
+const handleToggleRuntime = (key: RenewRuntimeToggleKey, enabled: boolean) => {
   void setRuntimeEnabled(key, enabled).catch(() => {});
 };
 </script>
@@ -94,11 +119,27 @@ const handleToggleRuntime = (
   <div class="renew-shell">
     <RenewSidebar
       :active-section="activeSection"
-      @section="activeSection = $event"
+      @section="openSection"
       @navigate="go"
     />
 
     <main class="renew-main">
+      <div class="renew-harness-bar">
+        <label
+          >Harness
+          <select v-model="harness" aria-label="Harness 筛选">
+            <option value="all">全部 harness</option>
+            <option
+              v-for="(label, key) in HARNESS_LABELS"
+              :key="key"
+              :value="key"
+            >
+              {{ label }}
+            </option>
+          </select></label
+        >
+        <span>按工具身份区分，不按模型供应商猜测；系统资源为全机指标。</span>
+      </div>
       <template v-if="activeSection === 'overview'">
         <RenewHeader
           :is-connected="isConnected"
@@ -143,7 +184,7 @@ const handleToggleRuntime = (
             :history-loading="historyLoading"
             @load-older="loadOlder"
             @open-event="loadEventDetail"
-            @open-events="go('Dashboard')"
+            @open-events="openSection('events')"
           />
 
           <RenewAttentionPanel
@@ -152,7 +193,7 @@ const handleToggleRuntime = (
             :event-time="eventTime"
             :event-label="eventLabel"
             @open-event="loadEventDetail"
-            @open-events="go('Dashboard')"
+            @open-events="openSection('events')"
           />
 
           <RenewAgentSessions :sessions="activeAgents" />
@@ -161,31 +202,53 @@ const handleToggleRuntime = (
             :processes="topProcesses"
             :destinations="topDestinations"
             :tracked-process-count="trackedProcesses.length"
-            @open-processes="go('Monitor', { tab: 'processes' })"
-            @open-network="go('NetworkFlow', { tab: 'overview' })"
+            @open-processes="openSection('processes')"
+            @open-network="openSection('network')"
           />
         </div>
       </template>
 
-      <RenewMonitoringPanel
-        v-else
-        :modules="modules"
-        :profiles="profiles"
-        :enabled-module-keys="enabledModuleKeys"
-        :active-profile-key="activeProfileKey"
-        :stats-interval-ms="statsIntervalMs"
-        :collector-health="collectorHealth"
-        :applying="applying"
-        :loading="loading"
-        :error="error"
-        :overhead="overhead"
-        :runtime-enabled="runtimeEnabled"
-        @apply-profile="handleApplyProfile"
-        @toggle-module="handleToggleModule"
-        @toggle-runtime="handleToggleRuntime"
-        @update-stats-interval="setStatsInterval"
-        @refresh="refreshMonitoring"
+      <RenewExplorer
+        v-else-if="
+          activeSection === 'events' ||
+          activeSection === 'network' ||
+          activeSection === 'processes'
+        "
+        :section="activeSection"
+        :events="events"
+        :processes="processes"
+        :connected="isConnected"
+        :has-older="hasOlder"
+        :history-loading="historyLoading"
+        @open-event="loadEventDetail"
+        @load-older="loadOlder"
       />
+      <RenewRules v-else-if="activeSection === 'rules'" />
+      <template v-else>
+        <p class="renew-scope-note">
+          共享配置：监控开关对后端所有 harness
+          生效，上方筛选只影响事件与进程展示。
+        </p>
+        <RenewMonitoringPanel
+          :modules="modules"
+          :profiles="profiles"
+          :enabled-module-keys="enabledModuleKeys"
+          :active-profile-key="activeProfileKey"
+          :stats-interval-ms="statsIntervalMs"
+          :collector-health="collectorHealth"
+          :applying="applying"
+          :loading="loading"
+          :ready="ready"
+          :error="error"
+          :overhead="overhead"
+          :runtime-enabled="runtimeEnabled"
+          @apply-profile="handleApplyProfile"
+          @toggle-module="handleToggleModule"
+          @toggle-runtime="handleToggleRuntime"
+          @update-stats-interval="setStatsInterval"
+          @refresh="refreshMonitoring"
+        />
+      </template>
     </main>
 
     <RenewEventDetailDrawer

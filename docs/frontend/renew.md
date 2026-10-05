@@ -2,7 +2,7 @@
 
 Renew 是 Agent eBPF Filter 的轻量前端变种，面向把服务常驻在个人 Linux 工作站上的日常使用场景。
 
-它不会替代原来的专业工作台，也不会引入新的后端协议。Renew 直接复用现有的事件 WebSocket、系统指标 WebSocket、鉴权和请求上下文；当用户需要查看 syscall、完整网络流、执行图或策略细节时，再跳转回原工作台。
+它不会替代原来的专业工作台，也不会引入新的后端协议。Renew 直接复用现有的事件 WebSocket、系统指标 WebSocket、鉴权和请求上下文；日常事件、网络目标、进程和 Wrapper 规则都有 Renew 内页面；完整网络流、执行图和高级策略诊断仍可通过“打开专业工作台”进入原界面。
 
 ## 入口
 
@@ -25,7 +25,7 @@ Renew 是 Agent eBPF Filter 的轻量前端变种，面向把服务常驻在个�
 
 | Renew 区域 | 现有数据源 |
 | --- | --- |
-| 实时活动 | `/ws`，通过 `useDashboard()` |
+| 实时活动 | `/events/summaries` + `/ws/event-summaries`，通过 `useRenewEventFeed()` |
 | CPU / 内存 / 进程 / 网络吞吐 | `/ws/system`，通过 `useMonitorData()` |
 | Agent 会话摘要 | 当前事件缓冲区中的 `agentRunId` / `conversationId` / `rootAgentPid` |
 | 待处理 | `decision`、`riskScore`、`semantic_alert`、`agentsight_alert` |
@@ -105,7 +105,7 @@ Renew 浏览器/桌面前端只保留一个有界摘要窗口；用户需要更�
 
 桌面壳位于 `desktop/renew/`，使用 MyGo 0.2.7，并作为**独立 Go module** 维护。
 
-它不复制 Vue 产物、不另起 API 代理，而是直接让系统 WebView 加载后端真实地址，例如：
+Linux 打包版携带后端和 Vue 产物；启动时复用已有后端，或通过系统授权启动随包后端。WebView 加载后端真实地址，例如：
 
 ```text
 http://127.0.0.1:8080/renew
@@ -118,7 +118,8 @@ http://127.0.0.1:8080/renew
 - 单实例；
 - 原生窗口和窗口状态记忆；
 - `AGENT_BACKEND_URL` / `--backend` 后端地址选择；
-- 后端未启动时的提示页；
+- 自动启动后端、等待就绪，授权取消或启动失败时显示提示页；
+- 通过私有 Unix socket 传递 API token 和管理后端生命周期；
 - MyGo 的 Linux / Windows / macOS 打包。
 
 MyGo 要求 Go 1.27.1+。仓库现已统一到 Go 1.27.1，并将 `desktop/renew` 纳入根 `go.work`；桌面端仍保持独立 `go.mod`，避免 MyGo 依赖进入特权后端 module。
@@ -126,11 +127,13 @@ MyGo 要求 Go 1.27.1+。仓库现已统一到 Go 1.27.1，并将 `desktop/renew
 运行和打包：
 
 ```bash
-make renew-desktop-dev
-make renew-desktop-build
+make renew-desktop-dev    # 后端构建 + Vite /renew WebUI + 桌面窗口
+make renew-desktop-build  # 随包后端 + frontend/dist + Linux 桌面包
 ```
 
-或直接：
+开发目标自动启动 Vite，并将 API/WebSocket 代理到实际后端地址。Linux 检测到 Zenity/KDialog 时自动使用随包 askpass 弹密码窗口；否则使用系统 PolicyKit 授权代理。也可设置 `SUDO_ASKPASS` 自定义 `sudo -A` 提示程序。打包版保留 release 认证，开发版显式使用 dev 模式。桌面退出或崩溃只关闭本次启动的后端，不会停止复用的系统服务。
+
+也可直接操作 MyGo（`dev` 不负责构建仓库依赖）：
 
 ```bash
 cd desktop/renew
@@ -176,3 +179,28 @@ bun run build
 3. 触发带 `riskScore >= 60` 或 `BLOCK` 的事件，确认进入“需要关注”。
 4. 点击事件、网络、进程、规则入口，确认能返回专业工作台对应页面。
 5. 暂停事件流后确认系统指标仍可继续刷新。
+
+## Renew 内页面与 harness 区分
+
+- `/renew/events`：事件类型、会话和搜索筛选，按需详情抽屉与历史游标加载。
+- `/renew/network`：按 harness 聚合访问目标、PID、事件数与摘要字节；仅统计当前有界摘要窗口，不代表完整流量或连接总数。
+- `/renew/processes`：实时系统快照、命令行详情；从可识别的可执行程序或解释器脚本、当前父链识别子进程归属。
+- `/renew/rules`：现有 Wrapper 规则的添加、编辑、确认删除，支持 ALLOW/BLOCK/ALERT/REWRITE、正则和优先级。
+- `/renew/monitoring`：后端确认的开关状态；未加载配置时禁用操作。写入失败保留上次确认状态并显示错误；档位切换以单次 PUT 更新。TLS 不随档位自动开启。
+
+所有页面共享顶部 harness 筛选，选择写入 `?harness=codex` 等 URL 查询参数，切页、刷新、深链接均保留。支持仓库内已集成的 Codex、Claude Code、Gemini CLI、DeepSeek Harness、Pi、Oh My Pi、Copilot、Kiro、Augment、Antigravity、ZCode、MiniMax Code，以及 Cursor/OpenCode。未知工具保留“未识别”。不从模型 API 域名、访问路径或通用 node/bun 进程猜测工具归属。
+
+事件先按明确的 tag/进程名识别；通用子进程事件只在显式 run/conversation + root PID 上下文无歧义时继承已知 harness。历史事件不会用当前系统进程 PID 反推身份。会话聚合包含 harness、run 与 conversation，避免同名 ID 跨工具混在一起。进程父链归属只针对当前快照，不能当作历史事件的身份凭据。
+
+**作用域边界**：harness 是展示筛选，不是安全隔离。监控开关与 Wrapper 规则仍是后端共享配置；规则按命令名生效，且只有经 wrapper 执行的命令受 Wrapper 策略约束。CPU、内存、系统吞吐始终为全机指标。真正的进程隔离/OS 策略仍使用专业工作台的 cgroup/BPF LSM 功能。
+
+本地确定性验证（不需要 root，不修改真实后端或规则）：
+
+```bash
+cd frontend
+bun run test:renew
+bun run build
+bash scripts/test-renew-browser.sh  # Bun + 系统 Chromium；合成 API / protobuf WS 数据
+```
+
+浏览器 smoke 使用独立 loopback fixture，验证 UI→API 写入、重载持久化、拒绝回退、Renew 导航、harness 筛选、进程父链归属、详情及规则 CRUD；它不替代真实 eBPF/打包桌面运行验收。已安装的旧桌面包需要重新执行 `make renew-desktop-build` 才能包含这些新页面。

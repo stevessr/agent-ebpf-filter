@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import {
-  AlertOutlined,
-  CheckCircleFilled,
-} from "@ant-design/icons-vue";
+import { AlertOutlined, CheckCircleFilled } from "@ant-design/icons-vue";
 
+import { HARNESS_LABELS, eventHarness } from "../../composables/renew/harness";
 import type { AgentEvent } from "../../composables/dashboard/useDashboard";
 
 defineProps<{
@@ -40,7 +38,10 @@ const emit = defineEmits<{
           <strong>{{ eventLabel(event) }}</strong>
           <span>{{ eventTime(event) }}</span>
         </div>
-        <p>{{ describeEvent(event) }}</p>
+        <p>
+          {{ HARNESS_LABELS[eventHarness(event)] }} · PID {{ event.pid }} ·
+          {{ describeEvent(event) }}
+        </p>
       </button>
     </div>
 

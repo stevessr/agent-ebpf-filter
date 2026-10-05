@@ -257,11 +257,11 @@ tui-build: ## Build the standalone monitor TUI binary into bin/agent-tui
 tui-test: ## Run the monitor TUI unit tests
 	@cd $(AGENT_TUI_DIR) && GOPATH="$(GOPATH)" go test -race -count=1 ./...
 
-renew-desktop-dev: ## Run the MyGo Renew desktop shell (requires Go 1.27.1+)
-	@cd $(RENEW_DESKTOP_DIR) && go tool mygo dev
+renew-desktop-dev: ## Build/start the backend, Renew WebUI and MyGo desktop window
+	@RENEW_DESKTOP_DIR="$(RENEW_DESKTOP_DIR)" ./scripts/renew-desktop.sh dev
 
 renew-desktop-build: ## Package the MyGo Renew desktop shell for the current platform
-	@cd $(RENEW_DESKTOP_DIR) && go tool mygo build
+	@RENEW_DESKTOP_DIR="$(RENEW_DESKTOP_DIR)" ./scripts/renew-desktop.sh build
 
 predev-check: ## Verify development dependencies without installing anything
 	@command -v protoc-gen-go >/dev/null || (echo "Missing protoc-gen-go. Run 'make predev' first." && exit 1)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"html"
@@ -8,7 +9,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"strings"
+	"sync"
+	"syscall"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -17,6 +21,7 @@ import (
 const defaultBackendURL = "http://127.0.0.1:8080"
 
 var mainWindow *mygo.Window
+var windowMu sync.Mutex
 
 func main() {
 	backendFlag := flag.String("backend", "", "Agent eBPF Filter backend URL")
@@ -26,25 +31,64 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	renewURL := joinRenewURL(backend)
-
+	uiOrigin := backend
+	if devUI := strings.TrimSpace(os.Getenv("AGENT_RENEW_UI_URL")); devUI != "" {
+		if _, err := localBackendPort(devUI); err != nil {
+			log.Fatal("Renew development UI must be a local HTTP origin")
+		}
+		uiOrigin = devUI
+	}
 	if !mygo.App.RequestSingleInstanceLock() {
 		return
 	}
 	mygo.App.OnSecondInstance(func(_ []string, _ string) {
-		if mainWindow == nil {
+		windowMu.Lock()
+		window := mainWindow
+		windowMu.Unlock()
+		if window == nil {
 			return
 		}
-		mainWindow.Restore()
-		mainWindow.Focus()
+		window.Restore()
+		window.Focus()
 	})
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	resources, err := mygo.App.Path(mygo.PathResources)
+	if err != nil {
+		log.Fatal(err)
+	}
+	renewURL := joinRenewURL(uiOrigin)
+	mygo.App.OnQuit(stop)
 
 	mygo.App.WhenReady(func() {
-		openMainWindow(renewURL, backend)
+		loading := mygo.NewWindow(mygo.WindowOptions{Title: "Renew · 启动后端", Width: 1180, Height: 760})
+		loading.Page().LoadHTML(strings.Replace(unavailablePage(backend), "Agent eBPF Filter 后端未就绪", "正在启动 Agent eBPF Filter 后端…", 1), "")
+		windowMu.Lock()
+		mainWindow = loading
+		windowMu.Unlock()
+		go func() {
+			startupCtx, cancelStartup := context.WithTimeout(ctx, 5*time.Minute)
+			session, startupErr := ensureBackend(startupCtx, backend, resources)
+			cancelStartup()
+			defer session.Close()
+			if ctx.Err() != nil {
+				return
+			}
+			preload := tokenPreload(uiOrigin, existingLocalToken(backend))
+			if session != nil {
+				preload = tokenPreload(uiOrigin, session.token)
+			}
+			window := openMainWindow(renewURL, backend, preload, startupErr)
+			windowMu.Lock()
+			mainWindow = window
+			windowMu.Unlock()
+			loading.Close()
+			<-ctx.Done()
+		}()
 	})
 
 	if err := mygo.App.Run(); err != nil {
-		log.Fatal(err)
+		log.Printf("[renew] %v", err) // Return normally so the backend session closes.
 	}
 }
 
@@ -83,7 +127,7 @@ func joinRenewURL(backend string) string {
 	return parsed.String()
 }
 
-func openMainWindow(renewURL, backend string) {
+func openMainWindow(renewURL, backend, preload string, startupErr error) *mygo.Window {
 	options := mygo.WindowOptions{
 		Title:           "Renew",
 		URL:             renewURL,
@@ -94,16 +138,22 @@ func openMainWindow(renewURL, backend string) {
 		StateKey:        "main",
 		AutoHideMenuBar: true,
 		BackgroundColor: "#f6f7f9",
+		Page:            mygo.PageOptions{PreloadScript: preload},
 	}
 
-	if backendAvailable(renewURL) {
-		mainWindow = mygo.NewWindow(options)
-		return
+	if startupErr == nil && backendAvailable(renewURL) {
+		return mygo.NewWindow(options)
 	}
 
 	options.URL = ""
-	mainWindow = mygo.NewWindow(options)
-	mainWindow.Page().LoadHTML(unavailablePage(backend), "")
+	window := mygo.NewWindow(options)
+	page := unavailablePage(backend)
+	if startupErr != nil {
+		log.Printf("[renew] %v", startupErr)
+		page = strings.Replace(page, "</main>", "<p>"+html.EscapeString(startupErr.Error())+"</p></main>", 1)
+	}
+	window.Page().LoadHTML(page, "")
+	return window
 }
 
 func backendAvailable(target string) bool {
@@ -138,7 +188,7 @@ code { padding: 3px 6px; border-radius: 6px; background: #f2f3f5; color: #42464f
 <main>
   <mark>R</mark>
   <h1>Agent eBPF Filter 后端未就绪</h1>
-  <p>Renew 桌面版是轻量窗口，不复制或内嵌特权后端。请先启动系统服务，再重新打开 Renew。</p>
+  <p>Renew 已尝试启动随包后端。请完成系统授权；若已取消授权，可重新打开 Renew 再试。也可以连接已运行的系统服务。</p>
   <p>当前后端：<code>` + safeBackend + `</code></p>
   <p>也可以通过 <code>AGENT_BACKEND_URL</code> 或 <code>--backend</code> 指向其他本地实例。</p>
 </main>

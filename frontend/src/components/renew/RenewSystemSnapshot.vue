@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import { HARNESS_LABELS, type Harness } from "../../composables/renew/harness";
 import type { ProcessInfo } from "../../composables/monitor/useMonitorData";
 import type { RenewDestinationSummary } from "../../composables/renew/types";
 
 defineProps<{
-  processes: ProcessInfo[];
+  processes: (ProcessInfo & { harness: Harness })[];
   destinations: RenewDestinationSummary[];
   trackedProcessCount: number;
 }>();
@@ -32,7 +33,9 @@ const emit = defineEmits<{
           class="renew-row"
           @click="emit('openProcesses')"
         >
-          <span>{{ process.name }}</span>
+          <span
+            >{{ process.name }} · {{ HARNESS_LABELS[process.harness] }}</span
+          >
           <strong>{{ process.cpu.toFixed(1) }}%</strong>
         </button>
         <span v-if="!processes.length" class="renew-muted">等待系统指标…</span>
@@ -49,7 +52,9 @@ const emit = defineEmits<{
           <span>{{ item.endpoint }}</span>
           <strong>{{ item.count }}</strong>
         </button>
-        <span v-if="!destinations.length" class="renew-muted">暂无网络事件</span>
+        <span v-if="!destinations.length" class="renew-muted"
+          >暂无网络事件</span
+        >
       </div>
     </div>
 
