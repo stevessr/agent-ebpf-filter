@@ -1,6 +1,8 @@
 package app
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"agent-ebpf-filter/pb"
@@ -32,6 +34,16 @@ func TestNormalizeIgnoredEventPaths(t *testing.T) {
 		if _, err := normalizeIgnoredEventPaths([]string{value}); err == nil {
 			t.Fatalf("normalizeIgnoredEventPaths(%q) succeeded, want error", value)
 		}
+	}
+}
+
+func TestEmptyIgnoredPathsRemainExplicitInRuntimeJSON(t *testing.T) {
+	data, err := json.Marshal(RuntimeSettings{IgnoredPaths: []string{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"ignoredPaths":[]`) {
+		t.Fatalf("runtime JSON = %s, want explicit empty ignoredPaths", data)
 	}
 }
 
