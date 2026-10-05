@@ -22,7 +22,7 @@ defineProps<{
     <article class="renew-metric">
       <div class="renew-metric__label">采集状态</div>
       <div class="renew-metric__value">
-        {{ isConnected ? "Online" : "Offline" }}
+        {{ isConnected ? "运行中" : "离线" }}
       </div>
       <div class="renew-metric__meta">
         当前缓冲区 {{ eventCount }} 条 · Agent {{ agentEventCount }} 条
