@@ -167,11 +167,11 @@ func (k *NativeInferenceKernel) rewriteText(body []byte) ([]byte, bool) {
 }
 
 func (k *NativeInferenceKernel) rewriteJSONStrings(body []byte) ([]byte, bool) {
-	out := body
-	changed := false
+	var out []byte
+	last := 0
 	offset := 0
-	for offset < len(out) {
-		start, end, isKey, ok := nextJSONString(out, offset)
+	for offset < len(body) {
+		start, end, isKey, ok := nextJSONString(body, offset)
 		if !ok {
 			break
 		}
@@ -179,21 +179,39 @@ func (k *NativeInferenceKernel) rewriteJSONStrings(body []byte) ([]byte, bool) {
 		if isKey || end-start <= 2 {
 			continue
 		}
-		innerStart := start + 1
+
+		cursor := start + 1
 		innerEnd := end - 1
-		rewritten, localChanged := k.rewriteRange(out, innerStart, innerEnd)
-		if !localChanged {
-			continue
+		for cursor < innerEnd {
+			for cursor < innerEnd && !isInferenceTokenByte(body[cursor]) {
+				cursor++
+			}
+			tokenStart := cursor
+			for cursor < innerEnd && isInferenceTokenByte(body[cursor]) {
+				cursor++
+			}
+			tokenEnd := cursor
+			tokenLen := tokenEnd - tokenStart
+			if tokenLen < k.minToken || tokenLen > k.maxToken {
+				continue
+			}
+			replacement, matched := k.classify(body[tokenStart:tokenEnd])
+			if !matched {
+				continue
+			}
+			if out == nil {
+				out = make([]byte, 0, len(body)+32)
+			}
+			out = append(out, body[last:tokenStart]...)
+			out = append(out, replacement...)
+			last = tokenEnd
 		}
-		out = rewritten
-		changed = true
-		_, newEnd, _, parsed := nextJSONString(out, start)
-		if !parsed {
-			break
-		}
-		offset = newEnd
 	}
-	return out, changed
+	if out == nil {
+		return body, false
+	}
+	out = append(out, body[last:]...)
+	return out, true
 }
 
 func (k *NativeInferenceKernel) rewriteRange(body []byte, start, end int) ([]byte, bool) {
@@ -207,8 +225,8 @@ func (k *NativeInferenceKernel) rewriteRange(body []byte, start, end int) ([]byt
 		return body, false
 	}
 	var out []byte
+	last := 0
 	cursor := start
-	changed := false
 	for cursor < end {
 		for cursor < end && !isInferenceTokenByte(body[cursor]) {
 			cursor++
@@ -222,33 +240,27 @@ func (k *NativeInferenceKernel) rewriteRange(body []byte, start, end int) ([]byt
 		if tokenLen < k.minToken || tokenLen > k.maxToken {
 			continue
 		}
-		replacement, ok := k.classify(body[tokenStart:tokenEnd])
-		if !ok {
+		replacement, matched := k.classify(body[tokenStart:tokenEnd])
+		if !matched {
 			continue
 		}
 		if out == nil {
 			out = make([]byte, 0, len(body)+32)
-			out = append(out, body[:tokenStart]...)
-		} else {
-			out = append(out, body[start:tokenStart]...)
 		}
+		out = append(out, body[last:tokenStart]...)
 		out = append(out, replacement...)
-		body = body[tokenEnd:]
-		end -= tokenEnd
-		start = 0
-		cursor = 0
-		changed = true
+		last = tokenEnd
 	}
-	if !changed {
+	if out == nil {
 		return body, false
 	}
-	out = append(out, body...)
+	out = append(out, body[last:]...)
 	return out, true
 }
 
-func (k *NativeInferenceKernel) classify(token []byte) ([]byte, bool) {
+func (k *NativeInferenceKernel) classify(token []byte) (string, bool) {
 	if k == nil || len(token) == 0 || len(k.labels) == 0 {
-		return nil, false
+		return "", false
 	}
 	var scores [maxInferenceLabels]int32
 	for i := range k.labels {
@@ -278,9 +290,9 @@ func (k *NativeInferenceKernel) classify(token []byte) ([]byte, bool) {
 		}
 	}
 	if best < 0 {
-		return nil, false
+		return "", false
 	}
-	return []byte(k.labels[best].Replacement), true
+	return k.labels[best].Replacement, true
 }
 
 func hashFeature(feature []byte, seed uint64) uint64 {
