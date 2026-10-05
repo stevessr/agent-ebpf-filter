@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -710,7 +711,7 @@ func (s *runtimeEventStore) Prune(ctx context.Context, maxRecords int, maxAge ti
 	defer iter.Close()
 
 	batch := s.db.NewBatch()
-	defer batch.Close()
+	defer func() { _ = batch.Close() }()
 	deleted := 0
 	pending := 0
 	commit := func() error {
@@ -731,7 +732,7 @@ func (s *runtimeEventStore) Prune(ctx context.Context, maxRecords int, maxAge ti
 			return deleted, err
 		}
 		key := append([]byte(nil), iter.Key()...)
-		deleteForCount := len(oldestKept) > 0 && strings.Compare(string(key), string(oldestKept)) < 0
+		deleteForCount := len(oldestKept) > 0 && bytes.Compare(key, oldestKept) < 0
 		deleteForAge := false
 		if !cutoff.IsZero() {
 			if receivedAt, ok := eventStoreRecordTimestamp(key); ok {
