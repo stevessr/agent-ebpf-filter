@@ -196,7 +196,7 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 	settings := RuntimeSettings{
 		LogPersistenceEnabled: true,
 		LogFilePath:           platform.DefaultEventLogPath(),
-		MaxEventCount:         1500,
+		MaxEventCount:         100000,
 		MaxEventAge:           "0",
 		LoopDetection: LoopDetectionSettings{
 			WindowSeconds:      30,
@@ -226,7 +226,7 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 			settings = RuntimeSettings{
 				LogPersistenceEnabled: true,
 				LogFilePath:           platform.DefaultEventLogPath(),
-				MaxEventCount:         1500,
+				MaxEventCount:         100000,
 				MaxEventAge:           "0",
 				LoopDetection: LoopDetectionSettings{
 					WindowSeconds:      30,
@@ -453,12 +453,33 @@ func (s *runtimeState) TruncateEventLog() error {
 	return s.applyLoggingLocked()
 }
 
-func applyRetentionConfig(settings RuntimeSettings) {
-	if settings.MaxEventCount > 0 {
-		capturedEventArchive.SetMax(settings.MaxEventCount)
+const runtimeHotArchiveMaxRecords = 1500
+
+func runtimeRetentionAge(settings RuntimeSettings) time.Duration {
+	d, err := time.ParseDuration(strings.TrimSpace(settings.MaxEventAge))
+	if err != nil || d <= 0 {
+		return 0
 	}
-	if d, err := time.ParseDuration(settings.MaxEventAge); err == nil && d > 0 {
-		capturedEventArchive.EvictOlderThan(time.Now().UTC().Add(-d))
+	return d
+}
+
+func applyRetentionConfig(settings RuntimeSettings) {
+	hotMax := settings.MaxEventCount
+	if hotMax <= 0 || hotMax > runtimeHotArchiveMaxRecords {
+		hotMax = runtimeHotArchiveMaxRecords
+	}
+	capturedEventArchive.SetMax(hotMax)
+	maxAge := runtimeRetentionAge(settings)
+	if maxAge > 0 {
+		capturedEventArchive.EvictOlderThan(time.Now().UTC().Add(-maxAge))
+	}
+
+	runtimeSettingsStore.mu.RLock()
+	store := runtimeSettingsStore.eventStore
+	runtimeSettingsStore.mu.RUnlock()
+	if store != nil {
+		store.SetRetention(settings.MaxEventCount, maxAge)
+		go store.pruneConfiguredRetention()
 	}
 }
 
