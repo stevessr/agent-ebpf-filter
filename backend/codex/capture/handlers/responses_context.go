@@ -27,6 +27,95 @@ func annotateResponsesMetadata(event *Event) {
 	}
 }
 
+
+func annotateResponsesContextMetadata(event *Event, rawBody, contentType string) {
+	if event == nil || event.Direction != "send" {
+		return
+	}
+	trimmed := strings.TrimSpace(rawBody)
+	if trimmed == "" || !looksLikeAgentJSON(contentType, trimmed) {
+		return
+	}
+	var payload map[string]any
+	if json.Unmarshal([]byte(trimmed), &payload) != nil {
+		return
+	}
+
+	input := payload["input"]
+	if input == nil {
+		if response, ok := payload["response"].(map[string]any); ok {
+			input = response["input"]
+		}
+	}
+	contextText, itemCount := flattenResponsesContext(input)
+	if contextText == "" {
+		return
+	}
+	contextText = sanitizeInlineSecrets(contextText)
+	event.ContextDigest = digestPromptText(contextText)
+	event.ContextLen = len(contextText)
+	event.ContextItems = itemCount
+}
+
+func flattenResponsesContext(value any) (string, int) {
+	var parts []string
+	items := 0
+
+	appendPart := func(role, text string) {
+		text = strings.TrimSpace(text)
+		if text == "" {
+			return
+		}
+		role = strings.TrimSpace(role)
+		if role == "" {
+			role = "item"
+		}
+		parts = append(parts, role+"\x1f"+text)
+		items++
+	}
+
+	switch typed := value.(type) {
+	case string:
+		appendPart("user", typed)
+	case []any:
+		for _, raw := range typed {
+			switch item := raw.(type) {
+			case string:
+				appendPart("user", item)
+			case map[string]any:
+				role, _ := item["role"].(string)
+				text := stringifyAgentContent(item["content"])
+				if text == "" {
+					text = stringifyAgentContent(item["parts"])
+				}
+				if text == "" {
+					text = stringifyResponsesOutputItem(item)
+				}
+				if role == "" {
+					if itemType, _ := item["type"].(string); itemType != "" {
+						role = itemType
+					}
+				}
+				appendPart(role, text)
+			}
+		}
+	case map[string]any:
+		role, _ := typed["role"].(string)
+		text := stringifyAgentContent(typed["content"])
+		if text == "" {
+			text = stringifyAgentContent(typed["parts"])
+		}
+		if text == "" {
+			text = stringifyResponsesOutputItem(typed)
+		}
+		if role == "" {
+			role, _ = typed["type"].(string)
+		}
+		appendPart(role, text)
+	}
+	return strings.Join(parts, "\x1e"), items
+}
+
 func extractResponsesAgentText(payload map[string]any, direction string) (string, string) {
 	if payload == nil {
 		return "", ""
