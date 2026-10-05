@@ -91,6 +91,17 @@ func TestNativeInferenceRejectsUnsafeReplacement(t *testing.T) {
 	}
 }
 
+func TestNativeInferenceRejectsUnsafeControlReplacement(t *testing.T) {
+	modelFile := writeNativeInferenceFixture(t, "bad\u0001token")
+	_, err := LoadNativeInferenceKernel(NativeInferenceSettings{
+		Enabled:   true,
+		ModelFile: modelFile,
+	})
+	if err == nil || !strings.Contains(err.Error(), "JSON-safe token") {
+		t.Fatalf("expected control-character validation error, got %v", err)
+	}
+}
+
 func TestRewriteKernelAppliesNativeInference(t *testing.T) {
 	modelFile := writeNativeInferenceFixture(t, "<MASK>")
 	kernel := NewRewriteKernel(BodyRewriteSettings{
