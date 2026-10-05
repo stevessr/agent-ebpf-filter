@@ -180,7 +180,10 @@ func TestRequestBodyRewriteabilityProtectsSignedAndRangedBodies(t *testing.T) {
 		{name: "signature", header: http.Header{"Signature": []string{"sig1=:abc:"}}},
 		{name: "signature-input", header: http.Header{"Signature-Input": []string{`sig1=("@method")`}}},
 		{name: "aws-hash", header: http.Header{"X-Amz-Content-Sha256": []string{"abc"}}},
+		{name: "google-hash", header: http.Header{"X-Goog-Content-Sha256": []string{"abc"}}},
 		{name: "aws-auth", header: http.Header{"Authorization": []string{"AWS4-HMAC-SHA256 Credential=abc"}}},
+		{name: "signature-auth", header: http.Header{"Authorization": []string{"Signature keyId=\"abc\""}}},
+		{name: "azure-shared-key", header: http.Header{"Authorization": []string{"SharedKey account:signature"}}},
 		{name: "content-range", header: http.Header{"Content-Range": []string{"bytes 0-3/4"}}},
 	}
 	for _, tc := range tests {
@@ -243,5 +246,74 @@ func TestRewrittenResponseInvalidatesTrailerDigests(t *testing.T) {
 		if got := rec.Result().Trailer.Get(name); got != "" {
 			t.Fatalf("%s trailer survived response rewrite: %q", name, got)
 		}
+	}
+}
+
+
+func TestRestoreRequestBodyPreservesOriginalFraming(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "https://example.test/", strings.NewReader("old"))
+	req.ContentLength = -1
+	req.TransferEncoding = []string{"chunked"}
+	req.Header.Del("Content-Length")
+	req.Trailer = http.Header{"X-Trace": []string{"done"}}
+
+	restoreRequestBody(req, []byte("same"))
+
+	if req.ContentLength != -1 {
+		t.Fatalf("ContentLength = %d, want -1", req.ContentLength)
+	}
+	if len(req.TransferEncoding) != 1 || req.TransferEncoding[0] != "chunked" {
+		t.Fatalf("TransferEncoding = %v, want original chunked framing", req.TransferEncoding)
+	}
+	if got := req.Header.Get("Content-Length"); got != "" {
+		t.Fatalf("Content-Length unexpectedly introduced: %q", got)
+	}
+	if got := req.Trailer.Get("X-Trace"); got != "done" {
+		t.Fatalf("trailer changed while restoring request: %q", got)
+	}
+}
+
+func TestSetRequestBodyLeavesTrailerFramingToTransport(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "https://example.test/", strings.NewReader("old"))
+	req.TransferEncoding = []string{"chunked"}
+	req.Trailer = http.Header{"X-Trace": []string{"done"}}
+
+	setRequestBody(req, []byte("rewritten"))
+
+	if req.ContentLength != -1 {
+		t.Fatalf("ContentLength = %d, want unknown length for trailer-bearing body", req.ContentLength)
+	}
+	if len(req.TransferEncoding) != 0 {
+		t.Fatalf("TransferEncoding = %v, want transport-selected framing", req.TransferEncoding)
+	}
+	if got := req.Header.Get("Content-Length"); got != "" {
+		t.Fatalf("Content-Length survived trailer-bearing rewrite: %q", got)
+	}
+	if got := req.Trailer.Get("X-Trace"); got != "done" {
+		t.Fatalf("non-integrity trailer was not preserved: %q", got)
+	}
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(body); got != "rewritten" {
+		t.Fatalf("body = %q", got)
+	}
+}
+
+func TestSetRequestBodyUsesContentLengthWithoutTrailers(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "https://example.test/", strings.NewReader("old"))
+	req.TransferEncoding = []string{"chunked"}
+
+	setRequestBody(req, []byte("rewritten"))
+
+	if req.ContentLength != int64(len("rewritten")) {
+		t.Fatalf("ContentLength = %d", req.ContentLength)
+	}
+	if len(req.TransferEncoding) != 0 {
+		t.Fatalf("TransferEncoding = %v, want cleared", req.TransferEncoding)
+	}
+	if got := req.Header.Get("Content-Length"); got != "9" {
+		t.Fatalf("Content-Length = %q, want 9", got)
 	}
 }
