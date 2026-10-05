@@ -198,3 +198,52 @@ func TestBuildCodexCaptureLargeResponsesContextUsesFullBody(t *testing.T) {
 		t.Fatalf("full upstream context metadata missing: %#v", event)
 	}
 }
+
+func TestBuildCodexCaptureResponsesSteerAndInjectMetadata(t *testing.T) {
+	steer := BuildEvent(CaptureRequest{
+		Phase:       "websocket_request",
+		Direction:   "send",
+		URL:         "wss://api.openai.com/v1/responses",
+		Host:        "api.openai.com",
+		ContentType: "application/json",
+		Body:        `{"type":"response.steer","previous_response_id":"resp_1","input":"make it shorter"}`,
+		PID:         13,
+	})
+	if steer.ProtocolEvent != "response.steer" || steer.PreviousResponseID != "resp_1" {
+		t.Fatalf("steer protocol metadata missing: %#v", steer)
+	}
+	if steer.MessageRole != "user" || steer.PromptDigest == "" || steer.ContextDigest == "" || steer.ContextItems != 1 {
+		t.Fatalf("steer input context missing: %#v", steer)
+	}
+
+	accepted := BuildEvent(CaptureRequest{
+		Phase:       "websocket_response",
+		Direction:   "recv",
+		URL:         "wss://api.openai.com/v1/responses",
+		Host:        "api.openai.com",
+		ContentType: "application/json",
+		Body:        `{"type":"response.steer.accepted","stream_id":"main","steer":{"id":"steer_1","previous_response_id":"resp_1"}}`,
+		PID:         13,
+	})
+	if accepted.ProtocolEvent != "response.steer.accepted" ||
+		accepted.StreamID != "main" ||
+		accepted.PreviousResponseID != "resp_1" {
+		t.Fatalf("steer acknowledgement metadata missing: %#v", accepted)
+	}
+
+	inject := BuildEvent(CaptureRequest{
+		Phase:       "websocket_request",
+		Direction:   "send",
+		URL:         "wss://api.openai.com/v1/responses",
+		Host:        "api.openai.com",
+		ContentType: "application/json",
+		Body:        `{"type":"response.inject","response_id":"resp_2","input":[{"type":"function_call_output","call_id":"call_1","output":"{\"ok\":true}"}]}`,
+		PID:         13,
+	})
+	if inject.ProtocolEvent != "response.inject" || inject.ResponseID != "resp_2" {
+		t.Fatalf("inject protocol metadata missing: %#v", inject)
+	}
+	if inject.ContextDigest == "" || inject.ContextItems != 1 {
+		t.Fatalf("inject context metadata missing: %#v", inject)
+	}
+}
