@@ -5,12 +5,19 @@ import (
 	"strings"
 )
 
-func annotateResponsesMetadata(event *Event) {
-	if event == nil || strings.TrimSpace(event.Body) == "" {
+func annotateResponsesMetadata(event *Event, rawBody ...string) {
+	if event == nil {
+		return
+	}
+	body := event.Body
+	if len(rawBody) > 0 {
+		body = rawBody[0]
+	}
+	if strings.TrimSpace(body) == "" {
 		return
 	}
 	var payload map[string]any
-	if json.Unmarshal([]byte(event.Body), &payload) != nil {
+	if json.Unmarshal([]byte(body), &payload) != nil {
 		return
 	}
 	event.ProtocolEvent, _ = payload["type"].(string)
@@ -36,8 +43,9 @@ func annotateResponsesContextMetadata(event *Event, rawBody, contentType string)
 	if trimmed == "" || !looksLikeAgentJSON(contentType, trimmed) {
 		return
 	}
+	metadataBody := sanitizeBody(trimmed, contentType)
 	var payload map[string]any
-	if json.Unmarshal([]byte(trimmed), &payload) != nil {
+	if json.Unmarshal([]byte(metadataBody), &payload) != nil {
 		return
 	}
 
