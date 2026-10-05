@@ -273,6 +273,65 @@ func TestResponsesWebSocketSteeringBatchState(t *testing.T) {
 	}
 }
 
+func TestResponsesWebSocketSteerFailureTracksAcceptedID(t *testing.T) {
+	state := newResponsesWSRewriteState()
+	mapping := &modelRewrite{
+		Client:       "client-model",
+		Upstream:     "fast-model",
+		clientJSON:   []byte(`"client-model"`),
+		upstreamJSON: []byte(`"fast-model"`),
+	}
+	state.enqueueStream("main", mapping)
+	state.rememberResponse("resp_parent", "main", mapping)
+	state.enqueueSteer("resp_parent", mapping)
+	state.enqueueSteer("resp_parent", mapping)
+
+	if !state.acknowledgeSteer("resp_parent", "steer_1") {
+		t.Fatal("first steering acknowledgement was not tracked")
+	}
+	if failed, ok := state.dropPendingSteer("resp_parent", ""); !ok || failed.id != "" {
+		t.Fatalf("pre-accept failure did not remove unassigned steer: %#v ok=%v", failed, ok)
+	}
+	if !state.hasPendingSteer("resp_parent") {
+		t.Fatal("accepted steer was removed by an unrelated pre-accept failure")
+	}
+	state.holdTerminalResponse("resp_parent", "main")
+	if _, ok := state.releaseHeldTerminalResponse("resp_parent"); ok {
+		t.Fatal("terminal lane released while accepted steer is still pending")
+	}
+	if failed, ok := state.dropPendingSteer("resp_parent", "steer_1"); !ok || failed.id != "steer_1" {
+		t.Fatalf("accepted failure did not match steer id: %#v ok=%v", failed, ok)
+	}
+	streamID, ok := state.releaseHeldTerminalResponse("resp_parent")
+	if !ok || streamID != "main" {
+		t.Fatalf("terminal lane was not released after last steer failed: stream=%q ok=%v", streamID, ok)
+	}
+	state.popStream(streamID)
+	if got := len(state.streamMappings["main"]); got != 0 {
+		t.Fatalf("released terminal lane left stale mapping: len=%d", got)
+	}
+}
+
+func TestResponsesWebSocketSteerFailureBeforeTerminalKeepsLane(t *testing.T) {
+	state := newResponsesWSRewriteState()
+	mapping := &modelRewrite{Client: "client-model", Upstream: "fast-model"}
+	state.enqueueStream("main", mapping)
+	state.rememberResponse("resp_parent", "main", mapping)
+	state.enqueueSteer("resp_parent", mapping)
+	if !state.acknowledgeSteer("resp_parent", "steer_1") {
+		t.Fatal("steering acknowledgement was not tracked")
+	}
+	if _, ok := state.dropPendingSteer("resp_parent", "steer_1"); !ok {
+		t.Fatal("accepted steer failure was not removed")
+	}
+	if _, ok := state.releaseHeldTerminalResponse("resp_parent"); ok {
+		t.Fatal("active parent lane was released before a terminal response event")
+	}
+	if got := len(state.streamMappings["main"]); got != 1 {
+		t.Fatalf("active parent lane mapping changed after steer failure: len=%d", got)
+	}
+}
+
 func TestResponsesWebSocketPendingContinuationReusesQueuedLane(t *testing.T) {
 	state := newResponsesWSRewriteState()
 	parent := &modelRewrite{
