@@ -156,7 +156,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		},
 		Transport: h.transport,
 		ModifyResponse: func(response *http.Response) error {
-			if h.rewrite == nil || !h.settings.Rewrite.Enabled || !responseBodyIsRewriteable(response) {
+			if h.rewrite == nil || !h.settings.Rewrite.Enabled || !responseBodyIsRewriteable(r, response) {
 				return nil
 			}
 			contentType := response.Header.Get("Content-Type")
@@ -245,11 +245,17 @@ func requestBodyIsSigned(header http.Header) bool {
 	return false
 }
 
-func responseBodyIsRewriteable(response *http.Response) bool {
-	if response == nil || response.Body == nil {
+func responseBodyIsRewriteable(request *http.Request, response *http.Response) bool {
+	if response == nil || response.Body == nil || response.Body == http.NoBody {
 		return false
 	}
-	if response.StatusCode == http.StatusPartialContent ||
+	if request != nil && request.Method == http.MethodHead {
+		return false
+	}
+	if response.StatusCode >= 100 && response.StatusCode < 200 ||
+		response.StatusCode == http.StatusNoContent ||
+		response.StatusCode == http.StatusNotModified ||
+		response.StatusCode == http.StatusPartialContent ||
 		strings.TrimSpace(response.Header.Get("Content-Range")) != "" ||
 		strings.Contains(strings.ToLower(response.Header.Get("Content-Type")), "multipart/byteranges") {
 		return false
