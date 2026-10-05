@@ -191,6 +191,7 @@ func (s *responsesWSRewriteState) releaseHeldTerminalResponse(responseID string)
 	streamID, ok := s.heldTerminalStreams[responseID]
 	if ok {
 		delete(s.heldTerminalStreams, responseID)
+		s.pruneResponseHistoryLocked()
 	}
 	return streamID, ok
 }
@@ -263,6 +264,7 @@ func (s *responsesWSRewriteState) takePendingSteerBatch(previousResponseID strin
 	delete(s.pendingSteers, previousResponseID)
 	delete(s.heldTerminalStreams, previousResponseID)
 	entry.mapping = cloneModelRewrite(entry.mapping)
+	s.pruneResponseHistoryLocked()
 	return entry, true
 }
 
@@ -307,6 +309,7 @@ func (s *responsesWSRewriteState) dropPendingSteer(
 		s.pendingSteers[previousResponseID] = queue
 	}
 	entry.mapping = cloneModelRewrite(entry.mapping)
+	s.pruneResponseHistoryLocked()
 	return entry, true
 }
 
