@@ -130,9 +130,9 @@ const handleToggleRuntime = (key: RenewRuntimeToggleKey, enabled: boolean) => {
     <main class="renew-main">
       <div class="renew-harness-bar">
         <label
-          >Harness
-          <select v-model="harness" aria-label="Harness 筛选">
-            <option value="all">全部 harness</option>
+          >Agent 工具
+          <select v-model="harness" aria-label="Agent 工具筛选">
+            <option value="all">全部工具</option>
             <option
               v-for="(label, key) in HARNESS_LABELS"
               :key="key"
@@ -142,7 +142,7 @@ const handleToggleRuntime = (key: RenewRuntimeToggleKey, enabled: boolean) => {
             </option>
           </select></label
         >
-        <span>按工具身份区分，不按模型供应商猜测；系统资源为全机指标。</span>
+        <span>按接入工具身份区分，不根据模型供应商猜测归属；系统资源仍显示全机指标。</span>
       </div>
       <template v-if="activeSection === 'overview'">
         <RenewHeader
@@ -232,8 +232,7 @@ const handleToggleRuntime = (key: RenewRuntimeToggleKey, enabled: boolean) => {
       <RenewRules v-else-if="activeSection === 'rules'" />
       <template v-else>
         <p class="renew-scope-note">
-          共享配置：监控开关对后端所有 harness
-          生效，上方筛选只影响事件与进程展示。
+          共享配置：监控开关对后端所有 Agent 工具生效；上方筛选只影响事件与进程展示。
         </p>
         <RenewMonitoringPanel
           :modules="modules"
