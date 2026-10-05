@@ -119,7 +119,7 @@ const unblockCgroupPortFromTag = async (port: number) => {
                     :color="
                       cgroupSandboxStatus.maps.stats ? 'green' : 'default'
                     "
-                    >stats</a-tag
+                    >统计</a-tag
                   >
                 </a-space>
               </a-descriptions-item>
@@ -258,13 +258,13 @@ const unblockCgroupPortFromTag = async (port: number) => {
                     :disabled="!cgroupSandboxStatus.available"
                     :loading="cgroupSandboxLoading"
                     @click="blockCgroupPID"
-                    >Block</a-button
+                    >阻断</a-button
                   >
                   <a-button
                     :disabled="!cgroupSandboxStatus.available"
                     :loading="cgroupSandboxLoading"
                     @click="unblockCgroupPID"
-                    >Unblock</a-button
+                    >放行</a-button
                   >
                 </a-input-group>
               </div>
@@ -283,13 +283,13 @@ const unblockCgroupPortFromTag = async (port: number) => {
                     :disabled="!cgroupSandboxStatus.available"
                     :loading="cgroupSandboxLoading"
                     @click="blockCgroupIP"
-                    >Block</a-button
+                    >阻断</a-button
                   >
                   <a-button
                     :disabled="!cgroupSandboxStatus.available"
                     :loading="cgroupSandboxLoading"
                     @click="unblockCgroupIP"
-                    >Unblock</a-button
+                    >放行</a-button
                   >
                 </a-input-group>
               </div>
@@ -309,13 +309,13 @@ const unblockCgroupPortFromTag = async (port: number) => {
                     :disabled="!cgroupSandboxStatus.available"
                     :loading="cgroupSandboxLoading"
                     @click="blockCgroupPort"
-                    >Block</a-button
+                    >阻断</a-button
                   >
                   <a-button
                     :disabled="!cgroupSandboxStatus.available"
                     :loading="cgroupSandboxLoading"
                     @click="unblockCgroupPort"
-                    >Unblock</a-button
+                    >放行</a-button
                   >
                 </a-input-group>
               </div>
