@@ -376,6 +376,8 @@ func handleRecentEventSummaries(c *gin.Context) {
 }
 
 func handleEventByID(c *gin.Context) {
+	c.Header("Cache-Control", "no-store, private")
+	c.Header("Pragma", "no-cache")
 	eventID := strings.TrimSpace(c.Param("id"))
 	if eventID == "" || len(eventID) > 256 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid event id"})
