@@ -337,7 +337,7 @@ const onIgnoreRuleValuesChange = (
                   v-model:value="manualHookPid"
                   size="small"
                   :min="0"
-                  placeholder="shared libs require PID"
+                  placeholder="PID for shared libs"
                   style="width: 120px"
                 />
               </template>
