@@ -55,7 +55,7 @@ type RuntimeSettingsPatch struct {
 	LogFilePath             *string                          `json:"logFilePath,omitempty"`
 	EventStoreMaxRecords    *int                             `json:"eventStoreMaxRecords,omitempty"`
 	EventStoreMaxAge        *string                          `json:"eventStoreMaxAge,omitempty"`
-	DisabledEventTypes     *[]uint32                        `json:"disabledEventTypes,omitempty"`
+	DisabledEventTypes      *[]uint32                        `json:"disabledEventTypes,omitempty"`
 	AccessToken             *string                          `json:"accessToken,omitempty"`
 	MaxEventCount           *int                             `json:"maxEventCount,omitempty"`
 	MaxEventAge             *string                          `json:"maxEventAge,omitempty"`

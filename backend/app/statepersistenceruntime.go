@@ -216,9 +216,9 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 	settings := RuntimeSettings{
 		LogPersistenceEnabled: true,
 		LogFilePath:           platform.DefaultEventLogPath(),
-		EventStoreMaxRecords: defaultEventStoreMaxRecords,
-		EventStoreMaxAge:     defaultEventStoreMaxAge,
-		DisabledEventTypes:   defaultRenewDailyDisabledEventTypes(),
+		EventStoreMaxRecords:  defaultEventStoreMaxRecords,
+		EventStoreMaxAge:      defaultEventStoreMaxAge,
+		DisabledEventTypes:    defaultRenewDailyDisabledEventTypes(),
 		MaxEventCount:         1500,
 		MaxEventAge:           "0",
 		LoopDetection: LoopDetectionSettings{
