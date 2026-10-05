@@ -126,6 +126,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						return
 					}
 					setRequestBody(r, encoded)
+					invalidateRequestBodyIntegrity(r.Header)
 				} else {
 					setRequestBody(r, rawBody)
 				}
@@ -208,11 +209,32 @@ func requestBodyIsRewriteable(r *http.Request) bool {
 	if r == nil || r.Body == nil || r.Body == http.NoBody {
 		return false
 	}
+	if strings.TrimSpace(r.Header.Get("Content-Range")) != "" || requestBodyIsSigned(r.Header) {
+		return false
+	}
 	return bodyEncodingRewriteable(r.Header.Get("Content-Encoding"))
+}
+
+func requestBodyIsSigned(header http.Header) bool {
+	if header == nil {
+		return false
+	}
+	for _, name := range []string{"Signature", "Signature-Input", "X-Amz-Content-Sha256"} {
+		if strings.TrimSpace(header.Get(name)) != "" {
+			return true
+		}
+	}
+	authorization := strings.TrimSpace(header.Get("Authorization"))
+	return strings.HasPrefix(strings.ToUpper(authorization), "AWS4-HMAC-SHA256 ")
 }
 
 func responseBodyIsRewriteable(response *http.Response) bool {
 	if response == nil || response.Body == nil {
+		return false
+	}
+	if response.StatusCode == http.StatusPartialContent ||
+		strings.TrimSpace(response.Header.Get("Content-Range")) != "" ||
+		strings.Contains(strings.ToLower(response.Header.Get("Content-Type")), "multipart/byteranges") {
 		return false
 	}
 	return bodyEncodingRewriteable(response.Header.Get("Content-Encoding"))
@@ -277,6 +299,21 @@ func restoreResponseBody(response *http.Response, body []byte) {
 
 func setResponseBody(response *http.Response, body []byte) {
 	restoreResponseBody(response, body)
+	invalidateResponseBodyIntegrity(response.Header)
+}
+
+func invalidateRequestBodyIntegrity(header http.Header) {
+	for _, name := range []string{
+		"Content-MD5",
+		"Digest",
+		"Content-Digest",
+		"Repr-Digest",
+	} {
+		deleteHeaderFold(header, name)
+	}
+}
+
+func invalidateResponseBodyIntegrity(header http.Header) {
 	for _, name := range []string{
 		"ETag",
 		"Content-MD5",
@@ -284,7 +321,7 @@ func setResponseBody(response *http.Response, body []byte) {
 		"Content-Digest",
 		"Repr-Digest",
 	} {
-		deleteHeaderFold(response.Header, name)
+		deleteHeaderFold(header, name)
 	}
 }
 
