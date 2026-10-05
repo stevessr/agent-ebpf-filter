@@ -11,7 +11,7 @@ import (
 
 func TestRewriteKernelModelMappingPreservesNestedModel(t *testing.T) {
 	kernel := NewRewriteKernel(BodyRewriteSettings{
-		Enabled:    true,
+		Enabled: true,
 		ModelRules: []ModelRewriteRule{{
 			Host: "api.openai.com",
 			From: "client-model",
@@ -91,7 +91,6 @@ func TestHandlerRewritesRequestAndResponseBodies(t *testing.T) {
 	}
 }
 
-
 func TestRewriteKernelUsesLastDuplicateModelLikeEncodingJSON(t *testing.T) {
 	kernel := NewRewriteKernel(BodyRewriteSettings{
 		Enabled: true,
@@ -130,7 +129,7 @@ func TestRewriteHostWildcard(t *testing.T) {
 
 func BenchmarkRewriteKernelModelNoMatch(b *testing.B) {
 	kernel := NewRewriteKernel(BodyRewriteSettings{
-		Enabled: true,
+		Enabled:    true,
 		ModelRules: []ModelRewriteRule{{From: "client-model", To: "fast-model"}},
 	})
 	body := []byte(`{"input":[{"role":"user","content":[{"type":"input_text","text":"hello"}]}]}`)
@@ -143,7 +142,7 @@ func BenchmarkRewriteKernelModelNoMatch(b *testing.B) {
 
 func BenchmarkRewriteKernelModelMatch(b *testing.B) {
 	kernel := NewRewriteKernel(BodyRewriteSettings{
-		Enabled: true,
+		Enabled:    true,
 		ModelRules: []ModelRewriteRule{{From: "client-model", To: "fast-model"}},
 	})
 	body := []byte(`{"model":"client-model","input":[{"role":"user","content":[{"type":"input_text","text":"hello"}]}]}`)
