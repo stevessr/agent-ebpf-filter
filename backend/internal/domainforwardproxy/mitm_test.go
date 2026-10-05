@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"strings"
 	"testing"
 	"time"
 )
@@ -84,6 +85,45 @@ func TestTLSInterceptionRejectsInvalidCALifetime(t *testing.T) {
 				t.Fatal("expected invalid CA lifetime to be rejected")
 			}
 		})
+	}
+}
+
+func TestTLSInterceptionRejectsCAWithoutCertSign(t *testing.T) {
+	now := time.Now()
+	certFile, keyFile := writeTestCAWithUsage(
+		t,
+		now.Add(-time.Hour),
+		now.Add(24*time.Hour),
+		x509.KeyUsageDigitalSignature,
+	)
+	_, _, err := NewTLSConfig(DomainForwardProxySettings{
+		TLSInterceptEnabled:        true,
+		TLSInterceptAllowlist:      "api.openai.com",
+		TLSInterceptCACertFile:     certFile,
+		TLSInterceptCAKeyFile:      keyFile,
+		TLSInterceptLeafTTLSeconds: 3600,
+	})
+	if err == nil || !strings.Contains(err.Error(), "cannot sign certificates") {
+		t.Fatalf("expected CertSign validation error, got %v", err)
+	}
+}
+
+func TestTLSInterceptionRejectsLeafSigningAfterCAExpires(t *testing.T) {
+	certFile, keyFile := writeTestCA(t)
+	ca, err := loadMITMCertificateAuthority(DomainForwardProxySettings{
+		TLSInterceptEnabled:        true,
+		TLSInterceptAllowlist:      "api.openai.com",
+		TLSInterceptCACertFile:     certFile,
+		TLSInterceptCAKeyFile:      keyFile,
+		TLSInterceptLeafTTLSeconds: 3600,
+	})
+	if err != nil {
+		t.Fatalf("loadMITMCertificateAuthority: %v", err)
+	}
+	ca.cert.NotAfter = time.Now().Add(-time.Second)
+	if _, err := ca.certificateForHost("api.openai.com"); err == nil ||
+		!strings.Contains(err.Error(), "expired") {
+		t.Fatalf("expected runtime CA expiry error, got %v", err)
 	}
 }
 
@@ -198,6 +238,20 @@ func writeTestCA(t *testing.T) (string, string) {
 
 func writeTestCAWithValidity(t *testing.T, notBefore, notAfter time.Time) (string, string) {
 	t.Helper()
+	return writeTestCAWithUsage(
+		t,
+		notBefore,
+		notAfter,
+		x509.KeyUsageCertSign|x509.KeyUsageDigitalSignature,
+	)
+}
+
+func writeTestCAWithUsage(
+	t *testing.T,
+	notBefore, notAfter time.Time,
+	keyUsage x509.KeyUsage,
+) (string, string) {
+	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
@@ -209,7 +263,7 @@ func writeTestCAWithValidity(t *testing.T, notBefore, notAfter time.Time) (strin
 		NotAfter:              notAfter,
 		IsCA:                  true,
 		BasicConstraintsValid: true,
-		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
+		KeyUsage:              keyUsage,
 	}
 	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
 	if err != nil {
