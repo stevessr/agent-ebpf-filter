@@ -12,6 +12,8 @@
 | --- | --- |
 | `LogPersistenceEnabled` | 是否持久化完整事件；新安装默认开启 |
 | `LogFilePath` | 本地事件库路径；默认 `events.pebble`，显式 `.jsonl` 路径保留兼容模式 |
+| `EventStoreMaxRecords` | Pebble 独立保留条数，默认 250000，与内存窗口分离 |
+| `EventStoreMaxAge` | Pebble 独立保留时长，默认 `168h`；`0` 关闭按时间裁剪 |
 | `AccessToken` | runtime access token |
 | `MaxEventCount` | archive 最大事件数 |
 | `MaxEventAge` | archive 最大保留时间 |
@@ -82,6 +84,8 @@ Research Processing 的事件历史使用按需增长的有界环形缓冲。达
 显式配置 `.jsonl` 路径时仍走原有 JSONL writer，便于旧环境继续使用和迁移。
 
 Pebble 写入仍采用 4096 项有界非阻塞队列，单消费者按批提交并执行同步 commit。
+数据库保留策略与内存 `MaxEventCount/MaxEventAge` 分离：默认最多 250000 条且最多 168h，
+任一条件达到即异步裁剪最老记录，并同步删除 event ID 二级索引。
 主采集路径不会等待数据库 I/O；队列满、编码失败或数据库写入失败都会进入健康指标。
 记录同时建立按接收时间排序的主键和 event ID 索引，因此近期历史可以倒序扫描，
 单条详情可按 event ID 直接读取，不再为了查看一条记录扫描整份日志。
