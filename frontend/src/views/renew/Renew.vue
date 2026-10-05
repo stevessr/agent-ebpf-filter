@@ -21,6 +21,8 @@ const activeSection = ref<"overview" | "monitoring">("overview");
 const {
   events,
   isConnected,
+  historyLoading,
+  hasOlder,
   isPaused,
   processes,
   systemStats,
@@ -48,6 +50,7 @@ const {
   selectedEventDetail,
   selectedEventID,
   loadEventDetail,
+  loadOlder,
   closeEventDetail,
   refreshMonitoring,
   monitoring,
@@ -136,6 +139,9 @@ const handleToggleRuntime = (
             :event-time="eventTime"
             :event-tone="eventTone"
             :event-label="eventLabel"
+            :has-older="hasOlder"
+            :history-loading="historyLoading"
+            @load-older="loadOlder"
             @open-event="loadEventDetail"
             @open-events="go('Dashboard')"
           />
