@@ -74,6 +74,33 @@ describe("Renew full event visualization", () => {
     ).toBe(true);
   });
 
+  test("keeps missing risk scores distinct from an explicit zero score", () => {
+    const unscored = presentRenewEventDetail({
+      Timestamp: 1791165600000,
+      Event: {
+        type: "read",
+        comm: "codex",
+        pid: 12,
+        path: "/tmp/a",
+      },
+    });
+    const zeroRisk = presentRenewEventDetail({
+      Timestamp: 1791165600000,
+      Event: {
+        type: "read",
+        comm: "codex",
+        pid: 12,
+        path: "/tmp/a",
+        risk_score: 0,
+      },
+    });
+
+    expect(unscored?.riskAvailable).toBe(false);
+    expect(unscored?.riskLabel).toBe("未评分");
+    expect(zeroRisk?.riskAvailable).toBe(true);
+    expect(zeroRisk?.riskLabel).toBe("未发现风险");
+  });
+
   test("renders backend detail errors as a visual error state", () => {
     const presentation = presentRenewEventDetail({
       error: "event not found",
