@@ -115,12 +115,16 @@ func (s *runtimeState) applyLoggingLocked() error {
 	if isPebbleEventStorePath(resolvedPath) {
 		if s.eventStore != nil && s.logPath == resolvedPath && s.eventStore.Status().Active {
 			s.settings.LogFilePath = resolvedPath
+			maxAge, _ := time.ParseDuration(s.settings.EventStoreMaxAge)
+			s.eventStore.SetRetention(s.settings.EventStoreMaxRecords, maxAge)
 			return nil
 		}
 		store, resolvedPath, err := openRuntimeEventStoreWithin(s.eventLogRoot(), resolvedPath)
 		if err != nil {
 			return err
 		}
+		maxAge, _ := time.ParseDuration(s.settings.EventStoreMaxAge)
+		store.SetRetention(s.settings.EventStoreMaxRecords, maxAge)
 		ctx, cancel := runtimeEventLogStopContext()
 		stopErr := s.stopLogWriterLocked(ctx)
 		cancel()
