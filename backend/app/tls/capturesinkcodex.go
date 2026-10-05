@@ -59,7 +59,6 @@ func (s CodexCaptureSink) HandleCaptureEvent(event codexhandlers.Event) {
 		ContextLen:         event.ContextLen,
 		ContextItems:       event.ContextItems,
 		Vendor:             event.Vendor,
-
 	}
 
 	DispatchTLSAgentEvent(&tlsEvent, tlsAgentLoopDetector, deps.Broadcast)
