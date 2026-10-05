@@ -46,6 +46,17 @@ func isCodexHooksFeatureEnabled(cfgPath string) bool {
 // isNativeHookInstalled checks whether the agent-ebpf hook is present in the config
 // and whether any required feature flags are enabled.
 func isNativeHookInstalled(h HookDef) bool {
+	if h.ID == "dsh" {
+		data, err := os.ReadFile(h.NativeFeatureConfigPath)
+		if err != nil || !hasNativeHookMarker(h.NativeConfigPath) {
+			return false
+		}
+		if _, err := dshPatch(string(data), h, true); err != nil {
+			return false
+		}
+		block, err := dshPatch("", h, true)
+		return err == nil && strings.Contains(string(data), block)
+	}
 	if h.ID == "kiro" {
 		return hasNativeHookMarker(h.NativeConfigPath) && isKiroManagedAgentSelected()
 	}

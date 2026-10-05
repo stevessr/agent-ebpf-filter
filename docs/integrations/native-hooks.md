@@ -1,6 +1,6 @@
 # Native Hooks
 
-Native hook 与 wrapper 集成连接 Claude Code、Gemini CLI、Codex、DeepSeek Harness (`dsh`)、Pi、Oh My Pi、GitHub Copilot、Kiro、Augment、Antigravity、ZCode、MiniMax Code 等 AI CLI，把工具调用语义补充到 eBPF 事实之上；其中 dsh 与 MiniMax Code 仅使用 wrapper alias。
+Native hook 与 wrapper 集成连接 Claude Code、Gemini CLI、Codex、DeepSeek Harness (`dsh`)、Pi、Oh My Pi、GitHub Copilot、Kiro、Augment、Antigravity 等 AI CLI，把工具调用语义补充到 eBPF 事实之上；其中 dsh 使用原生 Cordis 插件。
 
 ---
 
@@ -18,7 +18,7 @@ flowchart TD
     Event --> Sinks["EventEnvelope / Dashboard<br/>AgentSight / OTLP"]
 ```
 
-当 AI CLI 执行工具调用时，原生 CLI hook 或 dsh 的 wrapper alias 触发 relay script；relay script 通过 `curl` 将事件 POST 到后端 `/hooks/event`。后端解析、归一化后广播到所有事件消费者。
+当 AI CLI 执行工具调用时，原生 CLI hook 或 dsh Cordis 插件触发 relay script；relay script 通过 `curl` 将事件 POST 到后端 `/hooks/event`。后端解析、归一化后广播到所有事件消费者。
 
 ---
 
@@ -29,7 +29,7 @@ flowchart TD
 | **Claude Code** | `~/.claude/settings.json` | Native hook |
 | **Gemini CLI** | `~/.gemini/settings.json` | Native hook |
 | **Codex** | `~/.codex/hooks.json` | Native hook |
-| **DeepSeek Harness (`dsh`)** | 无通用 native hook 文件 | Wrapper alias / `agent-wrapper` |
+| **DeepSeek Harness (`dsh`)** | `$DSH_HOME/cordis.patch.yml` + 托管 `.mjs` 插件 | `session/created`、`session/event` |
 | **Pi** | `~/.pi/agent/extensions/agent-ebpf-hook-active-pi.ts` | TypeScript extension |
 | **Oh My Pi (`omp`)** | `~/.omp/agent/extensions/agent-ebpf-hook-active-omp.ts`（profile 由 `OMP_PROFILE` 决定） | TypeScript extension |
 | **GitHub Copilot CLI** | `~/.copilot/config.json` | Native hook |
@@ -56,7 +56,7 @@ flowchart TD
 1. 对 JSON/TOML CLI 在配置目录的 `hooks/` 子目录下生成 relay script，并注入 hook 入口
 2. 对 Pi/Oh My Pi 在各自的 `extensions/` 目录生成带 marker 的 TypeScript extension，同时生成共享 relay script
 3. 为每个 hook 生成唯一的 per-hook secret
-4. dsh 与 MiniMax Code 不伪造未确认的 native 配置文件；选择对应集成时写入 wrapper alias，经 `agent-wrapper` 进行命令跟踪与策略处理
+4. dsh 生成 Cordis 插件，并在 home-level patch 中追加托管 insert 块，保留已有用户配置
 
 ### 各 CLI 特殊行为
 
@@ -70,7 +70,7 @@ codex_hooks = true
 **Kiro CLI**：创建一个 managed agent（从 `kiro_default` 克隆），写入 `~/.kiro/agents/agent-ebpf-hook.json`，并将 `~/.kiro/settings/cli.json` 中的 `chat.defaultAgent` 指向该 agent。卸载时恢复原默认 agent。
 
 
-**DeepSeek Harness (`dsh`)**：使用 wrapper-only 集成。`dsh` 的 profile、bundle、plugin 和 Cordis patch 仍由 dsh 管理；本项目不写入未经官方定义的 `.dsh/hooks.json`。
+**DeepSeek Harness (`dsh`)**：使用原生 Cordis 插件（默认 `~/.dsh/plugins/agent-ebpf-hook-active-dsh.mjs`），通过 `$DSH_HOME/cordis.patch.yml` 在所有 profile 加载。安装后重启 dsh；后端与 dsh 的 `DSH_HOME` 必须一致。只上报会话/工具元数据，不发送参数或结果正文，不执行审批或阻断。卸载仅移除托管配置及文件，保留旧 wrapper alias。详见 [API 参考](../backend/routes-api.md#deepseek-harness-原生插件)。
 
 **MiniMax Code (`mcode`)**：使用 wrapper-only 集成，不修改其登录、provider、模型或会话数据。公开源码确认 `mcode` 同时承载 TUI、headless `exec` 与 `acp`，并在启动后将进程标题设置为 `minimax-code`；因此两种进程身份都纳入 tracked-command / PID lineage。公开仓库不含桌面应用源码，本项目不据此虚构桌面 native hook。
 

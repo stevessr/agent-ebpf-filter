@@ -165,6 +165,9 @@ curl -fsS -X POST '%s' \
 // installNativeHook injects a hook into the agent CLI's settings (JSON or TOML)
 // that POSTs every tool call to our backend for inspection.
 func installNativeHook(h HookDef) error {
+	if h.ID == "dsh" {
+		return installDshNativeHook(h)
+	}
 	if h.ID == "pi" || h.ID == "omp" {
 		return installTypeScriptNativeHook(h)
 	}
@@ -277,6 +280,9 @@ func installNativeHook(h HookDef) error {
 
 // uninstallNativeHook removes the agent-ebpf hook from settings.
 func uninstallNativeHook(h HookDef) error {
+	if h.ID == "dsh" {
+		return uninstallDshNativeHook(h)
+	}
 	if h.ID == "pi" || h.ID == "omp" {
 		return uninstallTypeScriptNativeHook(h)
 	}

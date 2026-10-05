@@ -206,11 +206,11 @@ func TestZCodeCanonicalPayloadShapeFeedsPathAndContext(t *testing.T) {
 
 func TestBuildNativeHookExtraInfoTracksZCodeCanonicalMetadataSafely(t *testing.T) {
 	payload := map[string]interface{}{
-		"sessionId":       "session-zcode",
-		"mode":            "build",
-		"riskLevel":       "high",
-		"sideEffectScope": "system",
-		"requestId":       "request-zcode",
+		"sessionId":         "session-zcode",
+		"mode":              "build",
+		"riskLevel":         "high",
+		"sideEffectScope":   "system",
+		"requestId":         "request-zcode",
 		"toolResultPreview": "sensitive tool result",
 	}
 	extra := buildNativeHookExtraInfo(payload, "PostToolUse", "Bash")
@@ -234,7 +234,7 @@ func TestBuildNativeHookExtraInfoTracksZCodeCanonicalMetadataSafely(t *testing.T
 
 func TestBuildNativeHookExtraInfoHashesZCodeFailure(t *testing.T) {
 	payload := map[string]interface{}{
-		"error": "sensitive failure detail",
+		"error":         "sensitive failure detail",
 		"error_details": map[string]interface{}{"type": "ToolExecutionFailed"},
 	}
 	extra := buildNativeHookExtraInfo(payload, "PostToolUseFailure", "Bash")
