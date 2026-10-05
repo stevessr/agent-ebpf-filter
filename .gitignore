@@ -60,3 +60,4 @@ artifacts/final-submission
 docs/delivery
 tools/dev-env-tui/agent-ebpf-filter-dev-env-tui
 *.test
+promo/out/Promo.mp4
