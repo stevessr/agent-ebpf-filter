@@ -48,6 +48,48 @@ export function useRenewDashboard() {
   const monitoring = useRenewMonitoringControls();
   const feed = useRenewEventFeed(isPaused);
 
+  // Deep-link sync between the selected event detail and ?event=, mirroring the
+  // harness sync above: read*() reads route.query.X, a watch on route.query.X
+  // writes into state, and openEvent/closeEventDetail write the query back.
+  const readEventID = (): string => String(route.query.event ?? "").trim();
+  const syncEventFromQuery = () => {
+    const value = readEventID();
+    if (!value) {
+      // 空白/非法的 ?event= 只清空抽屉，不抛错
+      if (feed.selectedEventID.value) feed.closeEventDetail();
+      return;
+    }
+    // 同一个事件已在 URL 与状态中：不重复加载
+    if (feed.selectedEventID.value === value) return;
+    void feed.loadEventDetail(value);
+  };
+  // 冷加载/分享链接/F5：挂载时若 ?event= 存在则直接载入该事件详情
+  syncEventFromQuery();
+  watch(() => route.query.event, syncEventFromQuery);
+
+  const openEvent = (eventId: string) => {
+    const normalized = eventId.trim();
+    if (!normalized) return;
+    // 已选中且 URL 一致时不重复拉取
+    if (
+      feed.selectedEventID.value === normalized &&
+      readEventID() === normalized
+    ) {
+      return;
+    }
+    void feed.loadEventDetail(normalized);
+    void router.replace({
+      query: { ...route.query, event: normalized },
+    });
+  };
+
+  const closeEventDetail = () => {
+    feed.closeEventDetail();
+    void router.replace({
+      query: { ...route.query, event: undefined },
+    });
+  };
+
   const {
     processes: allProcesses,
     systemStats,
@@ -135,8 +177,9 @@ export function useRenewDashboard() {
     selectedEventDetail: feed.selectedEventDetail,
     selectedEventID: feed.selectedEventID,
     loadEventDetail: feed.loadEventDetail,
+    openEvent,
     loadOlder: feed.loadOlder,
-    closeEventDetail: feed.closeEventDetail,
+    closeEventDetail,
     refreshMonitoring,
     monitoring,
     ...eventSummary,

@@ -1,5 +1,6 @@
 import { onMounted, ref } from "vue";
 import axios from "axios";
+import { backendError, renewToast } from "./notify";
 import type { WrapperRule } from "../../types/config/registry";
 
 export function useRenewRules() {
@@ -15,8 +16,6 @@ export function useRenewRules() {
   const rewrite = ref("[]");
   const editing = ref("");
   const pendingDelete = ref("");
-  const message = (cause: any) =>
-    cause?.response?.data?.error || cause?.message || "规则请求失败";
   async function load() {
     busy.value = true;
     error.value = "";
@@ -24,7 +23,7 @@ export function useRenewRules() {
       rules.value = (await axios.get("/config/rules")).data;
       ready.value = true;
     } catch (cause) {
-      error.value = message(cause);
+      error.value = backendError(cause, "规则请求失败");
       ready.value = false;
     } finally {
       busy.value = false;
@@ -72,10 +71,11 @@ export function useRenewRules() {
         priority: priority.value,
         rewritten_cmd: args,
       });
+      renewToast.success(`规则已保存：${comm.value.trim()}`);
       reset();
       await load();
     } catch (cause) {
-      error.value = message(cause);
+      error.value = backendError(cause, "规则请求失败");
     } finally {
       busy.value = false;
     }
@@ -88,10 +88,11 @@ export function useRenewRules() {
       await axios.delete(
         `/config/rules/${encodeURIComponent(pendingDelete.value)}`,
       );
+      renewToast.success(`规则已删除：${pendingDelete.value}`);
       pendingDelete.value = "";
       await load();
     } catch (cause) {
-      error.value = message(cause);
+      error.value = backendError(cause, "规则请求失败");
     } finally {
       busy.value = false;
     }

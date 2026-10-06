@@ -1,6 +1,11 @@
 import { computed, ref } from "vue";
 import axios from "axios";
-import type { CollectorHealthResponse, RuntimeConfigResponse, RuntimeSettings } from "../../types/config";
+import { backendError, renewToast } from "./notify";
+import type {
+  CollectorHealthResponse,
+  RuntimeConfigResponse,
+  RuntimeSettings,
+} from "../../types/config";
 import {
   RENEW_KERNEL_MONITOR_EVENT_TYPES,
   RENEW_MONITORING_MODULES,
@@ -21,7 +26,9 @@ const normalizeStatsInterval = (value: unknown) => {
 
 const initialStatsInterval = () => {
   if (typeof window === "undefined") return 5_000;
-  return normalizeStatsInterval(window.localStorage.getItem(STATS_INTERVAL_KEY));
+  return normalizeStatsInterval(
+    window.localStorage.getItem(STATS_INTERVAL_KEY),
+  );
 };
 
 export type RenewRuntimeToggleKey =
@@ -79,29 +86,31 @@ export function useRenewMonitoringControls() {
     }),
   );
 
-  const overhead = computed(() => monitoringWeightLabel(monitoringWeight.value));
+  const overhead = computed(() =>
+    monitoringWeightLabel(monitoringWeight.value),
+  );
 
-  const activeProfileKey = computed<RenewMonitoringProfileKey | "custom">(() => {
-    const enabled = new Set(enabledModuleKeys.value);
-    for (const profile of RENEW_MONITORING_PROFILES) {
-      if (
-        enabled.size !== profile.modules.length ||
-        profile.modules.some((key) => !enabled.has(key))
-      ) {
-        continue;
+  const activeProfileKey = computed<RenewMonitoringProfileKey | "custom">(
+    () => {
+      const enabled = new Set(enabledModuleKeys.value);
+      for (const profile of RENEW_MONITORING_PROFILES) {
+        if (
+          enabled.size !== profile.modules.length ||
+          profile.modules.some((key) => !enabled.has(key))
+        ) {
+          continue;
+        }
+        if (statsIntervalMs.value !== profile.statsIntervalMs) continue;
+        if (runtimeEnabled("loopDetection") !== profile.loopDetection) continue;
+        if (runtimeEnabled("signalProcessing") !== profile.signalProcessing)
+          continue;
+        if (runtimeEnabled("researchProcessing") !== profile.researchProcessing)
+          continue;
+        return profile.key;
       }
-      if (statsIntervalMs.value !== profile.statsIntervalMs) continue;
-      if (runtimeEnabled("loopDetection") !== profile.loopDetection) continue;
-      if (runtimeEnabled("signalProcessing") !== profile.signalProcessing)
-        continue;
-      if (
-        runtimeEnabled("researchProcessing") !== profile.researchProcessing
-      )
-        continue;
-      return profile.key;
-    }
-    return "custom";
-  });
+      return "custom";
+    },
+  );
 
   const fetchCollectorHealth = async () => {
     try {
@@ -129,17 +138,13 @@ export function useRenewMonitoringControls() {
     loading.value = true;
     error.value = "";
     try {
-      const runtimeResponse = await axios.get<RuntimeConfigResponse>(
-        "/config/runtime",
-      );
+      const runtimeResponse =
+        await axios.get<RuntimeConfigResponse>("/config/runtime");
       applyRuntimeResponse(runtimeResponse.data);
       void fetchCollectorHealth();
-    } catch (cause: any) {
+    } catch (cause) {
       ready.value = false;
-      error.value =
-        cause?.response?.data?.error ||
-        cause?.message ||
-        "无法加载监控配置";
+      error.value = backendError(cause, "无法加载监控配置");
     } finally {
       loading.value = false;
     }
@@ -171,11 +176,13 @@ export function useRenewMonitoringControls() {
         else disabled.add(eventType);
       }
       await putDisabledEventTypes(disabled);
-    } catch (cause: any) {
-      error.value =
-        cause?.response?.data?.error ||
-        cause?.message ||
-        "更新监控模块失败";
+      renewToast.success(
+        enabled
+          ? `已启用监控模块：${moduleKey}`
+          : `已停用监控模块：${moduleKey}`,
+      );
+    } catch (cause) {
+      error.value = backendError(cause, "更新监控模块失败");
       throw cause;
     } finally {
       applying.value = false;
@@ -227,11 +234,11 @@ export function useRenewMonitoringControls() {
         runtimePatch(key, enabled),
       );
       applyRuntimeResponse(response.data);
-    } catch (cause: any) {
-      error.value =
-        cause?.response?.data?.error ||
-        cause?.message ||
-        "更新运行时监控配置失败";
+      renewToast.success(
+        enabled ? `已启用运行时开关：${key}` : `已停用运行时开关：${key}`,
+      );
+    } catch (cause) {
+      error.value = backendError(cause, "更新运行时监控配置失败");
       throw cause;
     } finally {
       applying.value = false;
@@ -292,11 +299,9 @@ export function useRenewMonitoringControls() {
       );
       applyRuntimeResponse(response.data);
       setStatsInterval(profile.statsIntervalMs);
-    } catch (cause: any) {
-      error.value =
-        cause?.response?.data?.error ||
-        cause?.message ||
-        "应用监控档位失败";
+      renewToast.success(`已应用监控档位：${key}`);
+    } catch (cause) {
+      error.value = backendError(cause, "应用监控档位失败");
       throw cause;
     } finally {
       applying.value = false;

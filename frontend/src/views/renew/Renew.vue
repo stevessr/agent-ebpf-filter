@@ -86,7 +86,7 @@ const {
   detailLoading,
   selectedEventDetail,
   selectedEventID,
-  loadEventDetail,
+  openEvent,
   loadOlder,
   closeEventDetail,
   refreshMonitoring,
@@ -201,7 +201,7 @@ const handleToggleRuntime = (key: RenewRuntimeToggleKey, enabled: boolean) => {
               :has-older="hasOlder"
               :history-loading="historyLoading"
               @load-older="loadOlder"
-              @open-event="loadEventDetail"
+              @open-event="openEvent"
               @open-events="openSection('events')"
             />
 
@@ -210,7 +210,7 @@ const handleToggleRuntime = (key: RenewRuntimeToggleKey, enabled: boolean) => {
               :describe-event="describeEvent"
               :event-time="eventTime"
               :event-label="eventLabel"
-              @open-event="loadEventDetail"
+              @open-event="openEvent"
               @open-events="openSection('events')"
             />
 
@@ -238,7 +238,7 @@ const handleToggleRuntime = (key: RenewRuntimeToggleKey, enabled: boolean) => {
           :connected="isConnected"
           :has-older="hasOlder"
           :history-loading="historyLoading"
-          @open-event="loadEventDetail"
+          @open-event="openEvent"
           @load-older="loadOlder"
         />
         <RenewRules v-else-if="activeSection === 'rules'" />

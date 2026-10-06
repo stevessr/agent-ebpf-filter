@@ -13,6 +13,10 @@ import {
   eventTime,
   eventLabel,
 } from "../../composables/renew/eventPresentation";
+import {
+  passesExplorerTriage,
+  type DecisionFilter,
+} from "../../composables/renew/explorerTriage";
 
 const props = defineProps<{
   section: "events" | "network" | "processes";
@@ -26,6 +30,8 @@ const emit = defineEmits<{ openEvent: [id: string]; loadOlder: [] }>();
 const query = ref("");
 const type = ref("");
 const session = ref("");
+const decision = ref<DecisionFilter>("");
+const attentionOnly = ref(false);
 const limit = ref(50);
 const selectedPid = ref<number | null>(null);
 const title = computed(
@@ -50,6 +56,7 @@ const sessions = computed(() => [...new Set(baseEvents.value.map(sessionKey))]);
 const rows = computed(() =>
   baseEvents.value.filter(
     (e) =>
+      passesExplorerTriage(e, decision.value, attentionOnly.value) &&
       (!type.value || e.type === type.value) &&
       (!session.value || sessionKey(e) === session.value) &&
       (!query.value.trim() ||
@@ -83,12 +90,23 @@ const selected = computed(() =>
   props.processes.find((p) => p.pid === selectedPid.value),
 );
 const hasFilters = computed(() =>
-  Boolean(query.value.trim() || type.value || session.value),
+  Boolean(
+    query.value.trim() ||
+    type.value ||
+    session.value ||
+    decision.value ||
+    attentionOnly.value,
+  ),
 );
 const clearFilters = () => {
   query.value = "";
   type.value = "";
   session.value = "";
+  decision.value = "";
+  attentionOnly.value = false;
+};
+const drillToDestination = (endpoint: string) => {
+  query.value = endpoint;
 };
 const destinations = computed(() => {
   const result = new Map<
@@ -128,11 +146,13 @@ watch(
     query.value = "";
     type.value = "";
     session.value = "";
+    decision.value = "";
+    attentionOnly.value = false;
     limit.value = 50;
     selectedPid.value = null;
   },
 );
-watch([query, type, session], () => {
+watch([query, type, session, decision, attentionOnly], () => {
   limit.value = 50;
 });
 watch(types, (values) => {
@@ -175,11 +195,25 @@ watch(sessions, (values) => {
           <option value="">全部会话</option>
           <option v-for="s in sessions" :key="s">{{ s }}</option>
         </select>
+        <select v-model="decision" aria-label="决策筛选">
+          <option value="">全部决策</option>
+          <option value="blocked">仅已阻断</option>
+          <option value="alert">仅告警</option>
+          <option value="allowed">仅允许</option>
+        </select>
+        <button
+          type="button"
+          class="renew-link"
+          :aria-pressed="attentionOnly"
+          aria-label="只看待关注"
+          @click="attentionOnly = !attentionOnly"
+        >
+          只看待关注
+        </button>
         <span>{{ rows.length }} 条已加载摘要</span>
         <button v-if="hasFilters" class="renew-link" @click="clearFilters">
           清除筛选
-        </button>
-      </template
+        </button> </template
       ><span v-else>{{ processRows.length }} 个进程</span>
     </div>
     <section v-if="section === 'network'" class="renew-panel">
@@ -203,7 +237,16 @@ watch(sessions, (values) => {
           <tbody>
             <tr v-for="d in destinations.slice(0, limit)" :key="d.key">
               <td>{{ HARNESS_LABELS[d.harness] }}</td>
-              <td>{{ d.endpoint }}</td>
+              <td>
+                <button
+                  type="button"
+                  class="renew-link"
+                  :aria-label="`查看目标 ${d.endpoint} 的底层事件`"
+                  @click="drillToDestination(d.endpoint)"
+                >
+                  {{ d.endpoint }}
+                </button>
+              </td>
               <td>{{ [...d.pids].join(", ") }}</td>
               <td>{{ d.count }}</td>
               <td>{{ d.bytes.toLocaleString() }}</td>
@@ -292,7 +335,10 @@ watch(sessions, (values) => {
           ><span class="renew-chip">{{ eventLabel(e) }}</span>
         </button>
       </div>
-      <p v-if="!rows.length" class="renew-empty">当前筛选没有匹配事件</p>
+      <p v-if="!rows.length && hasFilters" class="renew-empty">
+        当前筛选没有匹配事件
+      </p>
+      <p v-else-if="!rows.length" class="renew-empty">暂无已加载事件</p>
     </section>
     <div class="renew-panel__pager">
       <button

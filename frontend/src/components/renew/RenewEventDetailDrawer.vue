@@ -1,7 +1,11 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, watch } from "vue";
 
 import { presentRenewEventDetail } from "../../composables/renew/eventDetailPresentation";
+import {
+  deriveRenewEnforcementTargets,
+  useRenewEnforcement,
+} from "../../composables/renew/useRenewEnforcement";
 
 const props = defineProps<{
   open: boolean;
@@ -21,6 +25,61 @@ const prettyDetail = computed(() =>
 const riskWidth = computed(() =>
   Math.max(0, Math.min(100, presentation.value?.riskScore || 0)),
 );
+
+// ── 处置动作（内核 cgroup / BPF LSM 阻断）──
+const {
+  blockedIPs,
+  blockedPorts,
+  blockedExecPaths,
+  available,
+  busy,
+  error,
+  policyManagementEnabled,
+  fetchStatus,
+  toggleIP,
+  togglePort,
+  toggleExecPath,
+} = useRenewEnforcement();
+
+// 每次打开抽屉刷新一次后端真实状态，阻断/解除判断以后端为准
+watch(
+  () => props.open,
+  (open) => {
+    if (open) void fetchStatus();
+  },
+);
+
+const targets = computed(() =>
+  deriveRenewEnforcementTargets(
+    props.detail,
+    presentation.value?.category ?? "",
+  ),
+);
+
+const ipBlocked = computed(
+  () =>
+    targets.value.ip !== null && blockedIPs.value.includes(targets.value.ip),
+);
+const portBlocked = computed(
+  () =>
+    targets.value.port !== null &&
+    blockedPorts.value.includes(targets.value.port),
+);
+const execPathBlocked = computed(
+  () =>
+    targets.value.execPath !== null &&
+    blockedExecPaths.value.includes(targets.value.execPath),
+);
+const hasTargets = computed(
+  () => targets.value.ip !== null || targets.value.execPath !== null,
+);
+
+const enforcementStatusText = computed(() => {
+  if (busy.value) return "正在执行处置动作…";
+  if (error.value) return error.value;
+  if (!available.value) return "cgroup 沙箱不可用：阻断动作可能不生效";
+  return "";
+});
 </script>
 
 <template>
@@ -102,6 +161,62 @@ const riskWidth = computed(() =>
                 <dd :class="{ 'is-mono': field.mono }">{{ field.value }}</dd>
               </div>
             </dl>
+          </section>
+
+          <section
+            v-if="hasTargets"
+            class="renew-detail-section renew-detail-enforcement"
+          >
+            <div class="renew-detail-section__heading">
+              <h3>处置动作</h3>
+              <p>基于事件目标对内核 cgroup / BPF LSM 下发阻断或解除阻断。</p>
+            </div>
+            <div class="renew-detail-enforcement__actions">
+              <button
+                v-if="targets.ip"
+                type="button"
+                class="renew-detail-enforcement__button"
+                :class="{ 'is-blocked': ipBlocked }"
+                :disabled="busy || !policyManagementEnabled"
+                :aria-label="`${ipBlocked ? '解除阻断' : '阻断'} IP ${targets.ip}`"
+                @click="toggleIP(targets.ip!)"
+              >
+                {{ ipBlocked ? "解除阻断" : "阻断" }} IP {{ targets.ip }}
+              </button>
+              <button
+                v-if="targets.port !== null"
+                type="button"
+                class="renew-detail-enforcement__button"
+                :class="{ 'is-blocked': portBlocked }"
+                :disabled="busy || !policyManagementEnabled"
+                :aria-label="`${portBlocked ? '解除阻断' : '阻断'}端口 ${targets.port}`"
+                @click="togglePort(targets.port!)"
+              >
+                {{ portBlocked ? "解除阻断" : "阻断" }} 端口 {{ targets.port }}
+              </button>
+              <button
+                v-if="targets.execPath"
+                type="button"
+                class="renew-detail-enforcement__button"
+                :class="{ 'is-blocked': execPathBlocked }"
+                :disabled="busy || !policyManagementEnabled"
+                :aria-label="`${execPathBlocked ? '解除阻断' : '阻断'}执行 ${targets.execPath}`"
+                @click="toggleExecPath(targets.execPath!)"
+              >
+                {{ execPathBlocked ? "解除阻断" : "阻断" }} 执行
+                {{ targets.execPath }}
+              </button>
+            </div>
+            <p class="renew-detail-enforcement__status" aria-live="polite">
+              {{ enforcementStatusText }}
+            </p>
+            <p
+              v-if="!policyManagementEnabled"
+              class="renew-detail-enforcement__note"
+            >
+              策略管理未启用：需在 配置 → 运行时 中开启 policy_management
+              后才能执行阻断。
+            </p>
           </section>
 
           <section
@@ -410,6 +525,53 @@ const riskWidth = computed(() =>
 
 .renew-detail-retention-note {
   margin: 0 2px;
+}
+
+.renew-detail-enforcement__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.renew-detail-enforcement__button {
+  border: 1px solid var(--renew-border);
+  border-radius: 10px;
+  padding: 6px 12px;
+  background: var(--renew-panel-subtle);
+  color: var(--renew-text-strong);
+  font-size: 10px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.renew-detail-enforcement__button:hover:not(:disabled) {
+  border-color: var(--renew-danger-border);
+}
+
+.renew-detail-enforcement__button.is-blocked {
+  border-color: var(--renew-danger-border);
+  background: var(--renew-danger-soft);
+  color: var(--renew-danger-strong);
+}
+
+.renew-detail-enforcement__button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.renew-detail-enforcement__status {
+  margin: 10px 0 0;
+  min-height: 1.4em;
+  color: var(--renew-faint);
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.renew-detail-enforcement__note {
+  margin: 6px 0 0;
+  color: var(--renew-warning-strong);
+  font-size: 9px;
+  line-height: 1.55;
 }
 
 @media (max-width: 620px) {
