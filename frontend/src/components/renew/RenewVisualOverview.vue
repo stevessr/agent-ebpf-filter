@@ -79,7 +79,9 @@ const status = computed(() => {
         <div class="renew-visual-card__title">
           <div>
             <strong>最近 60 分钟</strong>
-            <span>{{ recentCount }} 条活动 · {{ recentAttention }} 条需关注</span>
+            <span
+              >{{ recentCount }} 条活动 · {{ recentAttention }} 条需关注</span
+            >
           </div>
           <span>每 5 分钟</span>
         </div>
@@ -142,7 +144,9 @@ const status = computed(() => {
             <div class="renew-category-chart__track">
               <span
                 :class="`is-${item.key}`"
-                :style="{ width: Math.max(item.count ? 3 : 0, item.share) + '%' }"
+                :style="{
+                  width: Math.max(item.count ? 3 : 0, item.share) + '%',
+                }"
               />
             </div>
             <strong>{{ item.count }}</strong>
@@ -179,7 +183,8 @@ const status = computed(() => {
     </div>
 
     <p class="renew-visual-overview__note">
-      图表统计当前浏览器已加载的紧凑摘要窗口；完整历史仍保存在后端事件库中，按需加载，不会把全部 JSON 常驻在 WebUI 内存。
+      图表统计当前浏览器已加载的紧凑摘要窗口；完整历史仍保存在后端事件库中，按需加载，不会把全部
+      JSON 常驻在 WebUI 内存。
     </p>
   </section>
 </template>
@@ -195,63 +200,66 @@ const status = computed(() => {
 
 .renew-visual-status {
   min-width: min(300px, 42vw);
-  border: 1px solid #dfe7e2;
+  border: 1px solid var(--renew-success-border);
   border-radius: 12px;
   padding: 9px 12px;
   display: grid;
   gap: 2px;
-  background: #f8fbf9;
+  background: var(--renew-success-wash);
 }
 
 .renew-visual-status strong {
-  color: #2f744d;
+  color: var(--renew-success-strong);
   font-size: 11px;
 }
 
 .renew-visual-status span {
-  color: #758078;
+  color: var(--renew-muted);
   font-size: 9px;
 }
 
 .renew-visual-status.is-warning {
-  border-color: #eee0c5;
-  background: #fffaf1;
+  border-color: var(--renew-warning-border);
+  background: var(--renew-warning-soft);
 }
 
 .renew-visual-status.is-warning strong {
-  color: #9f6b16;
+  color: var(--renew-warning-strong);
 }
 
 .renew-visual-status.is-danger {
-  border-color: #f0d2d2;
-  background: #fff7f7;
+  border-color: var(--renew-danger-border);
+  background: var(--renew-danger-soft);
 }
 
 .renew-visual-status.is-danger strong {
-  color: #b83d3d;
+  color: var(--renew-danger-strong);
 }
 
 .renew-visual-status.is-offline {
-  border-color: #e3e5e9;
-  background: #f8f9fa;
+  border-color: var(--renew-border);
+  background: var(--renew-inset);
 }
 
 .renew-visual-status.is-offline strong {
-  color: #69717d;
+  color: var(--renew-muted);
 }
 
 .renew-visual-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(250px, 0.8fr) minmax(230px, 0.7fr);
+  grid-template-columns: minmax(0, 1.35fr) minmax(250px, 0.8fr) minmax(
+      230px,
+      0.7fr
+    );
   gap: 12px;
 }
 
 .renew-visual-card {
   min-width: 0;
-  border: 1px solid #eceef2;
+  border: 1px solid var(--renew-border-soft);
   border-radius: 12px;
   padding: 14px;
-  background: #fbfbfc;
+  background: var(--renew-panel-subtle);
 }
 
 .renew-visual-card__title {
@@ -268,12 +276,12 @@ const status = computed(() => {
 }
 
 .renew-visual-card__title strong {
-  color: #343941;
+  color: var(--renew-text-strong);
   font-size: 11px;
 }
 
 .renew-visual-card__title span {
-  color: #90959e;
+  color: var(--renew-faint);
   font-size: 9px;
 }
 
@@ -300,7 +308,7 @@ const status = computed(() => {
   height: 100%;
   display: flex;
   align-items: flex-end;
-  border-bottom: 1px solid #e9ebef;
+  border-bottom: 1px solid var(--renew-border-soft);
 }
 
 .renew-activity-chart__bar {
@@ -309,23 +317,23 @@ const status = computed(() => {
   min-height: 3px;
   overflow: hidden;
   border-radius: 4px 4px 1px 1px;
-  background: #aeb6c1;
+  background: var(--renew-faint);
   transition: height 0.2s ease;
 }
 
 .renew-activity-chart__bar.has-attention {
-  background: #aeb6c1;
+  background: var(--renew-faint);
 }
 
 .renew-activity-chart__attention {
   position: absolute;
   inset: auto 0 0;
-  background: #d59a35;
+  background: var(--renew-warning-mid);
 }
 
 .renew-activity-chart__column > span {
   overflow: hidden;
-  color: #999ea7;
+  color: var(--renew-faint);
   font-size: 7px;
   text-overflow: clip;
   white-space: nowrap;
@@ -346,12 +354,12 @@ const status = computed(() => {
 
 .renew-category-chart__row > span,
 .renew-category-chart__row strong {
-  color: #6f7681;
+  color: var(--renew-muted);
   font-size: 9px;
 }
 
 .renew-category-chart__row strong {
-  color: #41464f;
+  color: var(--renew-text-strong);
   text-align: right;
 }
 
@@ -359,35 +367,35 @@ const status = computed(() => {
   height: 6px;
   overflow: hidden;
   border-radius: 999px;
-  background: #eceef1;
+  background: var(--renew-track);
 }
 
 .renew-category-chart__track span {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: #8e99a7;
+  background: var(--renew-chart-bar);
   transition: width 0.2s ease;
 }
 
 .renew-category-chart__track .is-network {
-  background: #758ca0;
+  background: var(--renew-chart-net);
 }
 
 .renew-category-chart__track .is-process {
-  background: #8d879f;
+  background: var(--renew-chart-proc);
 }
 
 .renew-category-chart__track .is-agent {
-  background: #8b9b8f;
+  background: var(--renew-success-mid);
 }
 
 .renew-category-chart__track .is-alert {
-  background: #c98a4c;
+  background: var(--renew-warning-mid);
 }
 
 .renew-category-chart__track .is-other {
-  background: #b1b4ba;
+  background: var(--renew-faint);
 }
 
 .renew-safety-chart {
@@ -399,7 +407,7 @@ const status = computed(() => {
   overflow: hidden;
   border-radius: 999px;
   display: flex;
-  background: #eceef1;
+  background: var(--renew-track);
 }
 
 .renew-safety-chart__bar span {
@@ -409,17 +417,17 @@ const status = computed(() => {
 
 .renew-safety-chart__bar .is-normal,
 .renew-safety-chart__dot.is-normal {
-  background: #7ca68b;
+  background: var(--renew-success-mid);
 }
 
 .renew-safety-chart__bar .is-warning,
 .renew-safety-chart__dot.is-warning {
-  background: #d3a24c;
+  background: var(--renew-warning-mid);
 }
 
 .renew-safety-chart__bar .is-danger,
 .renew-safety-chart__dot.is-danger {
-  background: #cf6262;
+  background: var(--renew-danger-mid);
 }
 
 .renew-safety-chart__legend {
@@ -433,12 +441,12 @@ const status = computed(() => {
   grid-template-columns: 8px minmax(0, 1fr) auto;
   gap: 7px;
   align-items: center;
-  color: #747a84;
+  color: var(--renew-muted);
   font-size: 9px;
 }
 
 .renew-safety-chart__legend strong {
-  color: #3e434b;
+  color: var(--renew-text-strong);
 }
 
 .renew-safety-chart__dot {
@@ -449,7 +457,7 @@ const status = computed(() => {
 
 .renew-visual-overview__note {
   margin: 12px 0 0;
-  color: #969ba4;
+  color: var(--renew-faint);
   font-size: 9px;
   line-height: 1.6;
 }

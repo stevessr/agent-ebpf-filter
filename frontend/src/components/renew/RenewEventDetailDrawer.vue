@@ -111,7 +111,8 @@ const riskWidth = computed(() =>
             <div class="renew-detail-section__heading">
               <h3>结构化负载</h3>
               <p>
-                事件封装（Envelope）中的结构化 JSON 已展开为可读字段；兼容层中的 legacy 事件不再重复展示。
+                事件封装（Envelope）中的结构化 JSON 已展开为可读字段；兼容层中的
+                legacy 事件不再重复展示。
               </p>
             </div>
             <dl class="renew-detail-fields renew-detail-fields--payload">
@@ -135,7 +136,8 @@ const riskWidth = computed(() =>
         </details>
 
         <p class="renew-detail-retention-note">
-          完整事件按需从后端本地事件库读取；关闭详情后 Renew 不再保留这份完整负载。
+          完整事件按需从后端本地事件库读取；关闭详情后 Renew
+          不再保留这份完整负载。
         </p>
       </div>
 
@@ -151,32 +153,32 @@ const riskWidth = computed(() =>
 }
 
 .renew-detail-error {
-  border: 1px solid #efd6d6;
+  border: 1px solid var(--renew-danger-border);
   border-radius: 12px;
   padding: 14px;
-  background: #fff7f7;
-  color: #ad3f3f;
+  background: var(--renew-danger-soft);
+  color: var(--renew-danger-strong);
   font-size: 12px;
 }
 
 .renew-detail-hero {
-  border: 1px solid #e2e6ea;
+  border: 1px solid var(--renew-border);
   border-radius: 16px;
   padding: 18px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 150px;
   gap: 18px;
-  background: #fbfcfc;
+  background: var(--renew-panel-subtle);
 }
 
 .renew-detail-hero.is-warning {
-  border-color: #eadcbd;
-  background: #fffcf5;
+  border-color: var(--renew-warning-border);
+  background: var(--renew-warning-wash);
 }
 
 .renew-detail-hero.is-danger {
-  border-color: #ebcaca;
-  background: #fff8f8;
+  border-color: var(--renew-danger-border);
+  background: var(--renew-danger-soft);
 }
 
 .renew-detail-hero__main {
@@ -192,30 +194,30 @@ const riskWidth = computed(() =>
 .renew-detail-hero__chips span {
   border-radius: 999px;
   padding: 3px 8px;
-  background: #edf0f3;
-  color: #69717d;
+  background: var(--renew-track);
+  color: var(--renew-muted);
   font-size: 9px;
   font-weight: 700;
 }
 
 .renew-detail-hero__chips span.is-normal {
-  background: #eaf4ed;
-  color: #3f7d56;
+  background: var(--renew-success-soft);
+  color: var(--renew-success-strong);
 }
 
 .renew-detail-hero__chips span.is-warning {
-  background: #fff1da;
-  color: #9c6b18;
+  background: var(--renew-warning-soft);
+  color: var(--renew-warning-strong);
 }
 
 .renew-detail-hero__chips span.is-danger {
-  background: #fdeaea;
-  color: #b83f3f;
+  background: var(--renew-danger-soft);
+  color: var(--renew-danger-strong);
 }
 
 .renew-detail-hero h2 {
   margin: 11px 0 5px;
-  color: #242930;
+  color: var(--renew-text);
   font-size: 21px;
   letter-spacing: -0.02em;
 }
@@ -223,7 +225,7 @@ const riskWidth = computed(() =>
 .renew-detail-hero p {
   margin: 0;
   overflow-wrap: anywhere;
-  color: #535b66;
+  color: var(--renew-muted);
   font-size: 12px;
   line-height: 1.6;
 }
@@ -233,13 +235,13 @@ const riskWidth = computed(() =>
   display: flex;
   flex-wrap: wrap;
   gap: 6px 14px;
-  color: #8b919a;
+  color: var(--renew-faint);
   font-size: 9px;
 }
 
 .renew-detail-risk {
   align-self: stretch;
-  border-left: 1px solid #e7e9ec;
+  border-left: 1px solid var(--renew-border);
   padding-left: 18px;
   display: grid;
   align-content: center;
@@ -251,12 +253,12 @@ const riskWidth = computed(() =>
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  color: #8b919a;
+  color: var(--renew-faint);
   font-size: 9px;
 }
 
 .renew-detail-risk > div:first-child strong {
-  color: #555c66;
+  color: var(--renew-muted);
   font-size: 10px;
 }
 
@@ -267,13 +269,13 @@ const riskWidth = computed(() =>
 }
 
 .renew-detail-risk__score strong {
-  color: #2f343b;
+  color: var(--renew-text-strong);
   font-size: 30px;
   line-height: 1;
 }
 
 .renew-detail-risk__score span {
-  color: #9a9fa6;
+  color: var(--renew-faint);
   font-size: 9px;
 }
 
@@ -281,7 +283,7 @@ const riskWidth = computed(() =>
   height: 6px;
   overflow: hidden;
   border-radius: 999px;
-  background: #eaecf0;
+  background: var(--renew-track);
 }
 
 .renew-detail-risk__track > span {
@@ -289,22 +291,22 @@ const riskWidth = computed(() =>
   min-width: 0;
   height: 100%;
   border-radius: inherit;
-  background: #7fa68c;
+  background: var(--renew-success-mid);
 }
 
 .renew-detail-risk__track > span.is-warning {
-  background: #d4a249;
+  background: var(--renew-warning-mid);
 }
 
 .renew-detail-risk__track > span.is-danger {
-  background: #ce6262;
+  background: var(--renew-danger-mid);
 }
 
 .renew-detail-section {
-  border: 1px solid #eceef1;
+  border: 1px solid var(--renew-track);
   border-radius: 13px;
   padding: 15px;
-  background: #fff;
+  background: var(--renew-panel);
 }
 
 .renew-detail-section__heading {
@@ -313,13 +315,13 @@ const riskWidth = computed(() =>
 
 .renew-detail-section__heading h3 {
   margin: 0;
-  color: #353a42;
+  color: var(--renew-text-strong);
   font-size: 12px;
 }
 
 .renew-detail-section__heading p {
   margin: 4px 0 0;
-  color: #9297a0;
+  color: var(--renew-faint);
   font-size: 9px;
   line-height: 1.55;
 }
@@ -330,9 +332,9 @@ const riskWidth = computed(() =>
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1px;
   overflow: hidden;
-  border: 1px solid #eef0f2;
+  border: 1px solid var(--renew-track);
   border-radius: 10px;
-  background: #eef0f2;
+  background: var(--renew-track);
 }
 
 .renew-detail-fields > div {
@@ -340,11 +342,11 @@ const riskWidth = computed(() =>
   padding: 9px 10px;
   display: grid;
   gap: 4px;
-  background: #fafbfc;
+  background: var(--renew-panel-subtle);
 }
 
 .renew-detail-fields dt {
-  color: #949aa3;
+  color: var(--renew-faint);
   font-size: 8px;
 }
 
@@ -352,7 +354,7 @@ const riskWidth = computed(() =>
   min-width: 0;
   margin: 0;
   overflow-wrap: anywhere;
-  color: #40464f;
+  color: var(--renew-text-strong);
   font-size: 10px;
   line-height: 1.5;
 }
@@ -367,14 +369,14 @@ const riskWidth = computed(() =>
 }
 
 .renew-detail-raw {
-  border: 1px dashed #dfe2e6;
+  border: 1px dashed var(--renew-border);
   border-radius: 12px;
   padding: 11px 13px;
-  background: #fafbfc;
+  background: var(--renew-panel-subtle);
 }
 
 .renew-detail-raw summary {
-  color: #626a75;
+  color: var(--renew-muted);
   font-size: 10px;
   font-weight: 700;
   cursor: pointer;
@@ -382,7 +384,7 @@ const riskWidth = computed(() =>
 
 .renew-detail-raw > p,
 .renew-detail-retention-note {
-  color: #969ba3;
+  color: var(--renew-faint);
   font-size: 9px;
   line-height: 1.6;
 }
@@ -395,11 +397,11 @@ const riskWidth = computed(() =>
   max-height: 360px;
   margin: 10px 0 0;
   overflow: auto;
-  border: 1px solid #e8eaed;
+  border: 1px solid var(--renew-border);
   border-radius: 9px;
   padding: 11px;
-  background: #f4f5f7;
-  color: #424850;
+  background: var(--renew-code-bg);
+  color: var(--renew-text-strong);
   font-size: 9px;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -416,7 +418,7 @@ const riskWidth = computed(() =>
   }
 
   .renew-detail-risk {
-    border-top: 1px solid #e7e9ec;
+    border-top: 1px solid var(--renew-border);
     border-left: 0;
     padding-top: 13px;
     padding-left: 0;
