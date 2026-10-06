@@ -33,7 +33,6 @@ func TestCustomTLSCaptureRuleMatchesCommonFields(t *testing.T) {
 	}
 }
 
-
 func TestTLSExecutablePathScopeIsFailClosed(t *testing.T) {
 	rules := NewTLSCaptureRuleStore()
 	if rules.AllowsExecutablePath("/usr/bin/curl") {
