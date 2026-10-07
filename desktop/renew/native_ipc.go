@@ -52,11 +52,13 @@ func (a *renewApp) consumeNativeIPC(ctx context.Context, session *backendSession
 		a.systemErr = ""
 	})
 
+	var frameBuf []byte
 	for ctx.Err() == nil {
-		kind, payload, err := readNativeFrame(session.reader)
+		kind, payload, nextBuf, err := readNativeFrameInto(session.reader, frameBuf)
 		if err != nil {
 			return err
 		}
+		frameBuf = nextBuf
 		switch kind {
 		case nativeFrameEventEnvelope:
 			summary, err := decodeEventEnvelopeSummary(payload)
@@ -81,19 +83,28 @@ func (a *renewApp) consumeNativeIPC(ctx context.Context, session *backendSession
 }
 
 func readNativeFrame(r io.Reader) (byte, []byte, error) {
+	kind, payload, _, err := readNativeFrameInto(r, nil)
+	return kind, payload, err
+}
+
+func readNativeFrameInto(r io.Reader, frame []byte) (byte, []byte, []byte, error) {
 	var header [4]byte
 	if _, err := io.ReadFull(r, header[:]); err != nil {
-		return 0, nil, err
+		return 0, nil, frame, err
 	}
 	size := int(binary.BigEndian.Uint32(header[:]))
 	if size < 2 || size > nativeMaxFrameSize {
-		return 0, nil, fmt.Errorf("invalid native IPC frame size %d", size)
+		return 0, nil, frame, fmt.Errorf("invalid native IPC frame size %d", size)
 	}
-	frame := make([]byte, size)
+	if cap(frame) < size {
+		frame = make([]byte, size)
+	} else {
+		frame = frame[:size]
+	}
 	if _, err := io.ReadFull(r, frame); err != nil {
-		return 0, nil, err
+		return 0, nil, frame, err
 	}
-	return frame[0], frame[1:], nil
+	return frame[0], frame[1:], frame, nil
 }
 
 func decodeEventEnvelopeSummary(data []byte) (eventSummary, error) {
