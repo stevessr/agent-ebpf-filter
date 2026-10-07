@@ -152,7 +152,7 @@ make renew-desktop-dev    # backend + go tool mygo dev
 make renew-desktop-build  # bundled backend + native Linux desktop package
 ```
 
-本地已有后端仍会复用；没有后端时继续沿用系统授权启动随包后端，并用用户私有 Unix socket 传递 API token 及绑定后端生命周期。远端/自定义后端可使用 `AGENT_BACKEND_URL` 和 `AGENT_API_TOKEN`。桌面退出只关闭本次由桌面启动的后端，不影响复用的系统服务。
+本地已有后端仍会复用；没有后端时继续沿用系统授权启动随包后端，并用用户私有 Unix socket 传递 API token 及绑定后端生命周期。远端/自定义后端可使用 `AGENT_BACKEND_URL` 和 `AGENT_API_KEY`。桌面退出只关闭本次由桌面启动的后端，不影响复用的系统服务。
 
 MyGo 原生 UI 由 Go 直接构建并在 GPU 上绘制，因此 Renew 桌面本身不再需要 WebKitGTK 渲染页面。浏览器版 `/renew` 仍完全保留，适合需要完整 Renew 页面和高级工作台跳转的场景。
 
