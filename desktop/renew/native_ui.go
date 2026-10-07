@@ -29,6 +29,8 @@ type renewApp struct {
 	system             systemSnapshot
 	systemConnected    bool
 	systemErr          string
+	eventStreamConnected bool
+	eventStreamErr       string
 	historyCursor      string
 	historyInitialized bool
 	historyLoading     bool
@@ -36,12 +38,14 @@ type renewApp struct {
 	eventTable          ui.ListState
 	networkTable        ui.ListState
 	processTable        ui.ListState
+	sessionTable        ui.ListState
 	rulesTable          ui.ListState
 	commTable           ui.ListState
 	pathTable           ui.ListState
 	prefixTable         ui.ListState
 	eventSelected       int
 	processSelected     int
+	sessionSelected     int
 	ruleSelected        int
 	commSelected        int
 	pathSelected        int
@@ -100,6 +104,7 @@ func newRenewApp(backend string) *renewApp {
 		page:               "概览",
 		eventSelected:      -1,
 		processSelected:    -1,
+		sessionSelected:    -1,
 		ruleSelected:       -1,
 		commSelected:       -1,
 		pathSelected:       -1,
@@ -112,6 +117,7 @@ func newRenewApp(backend string) *renewApp {
 	}
 	a.eventTable.Selected = &a.eventSelected
 	a.processTable.Selected = &a.processSelected
+	a.sessionTable.Selected = &a.sessionSelected
 	a.rulesTable.Selected = &a.ruleSelected
 	a.commTable.Selected = &a.commSelected
 	a.pathTable.Selected = &a.pathSelected
@@ -121,6 +127,7 @@ func newRenewApp(backend string) *renewApp {
 
 func (a *renewApp) runPolling(ctx context.Context) {
 	go a.runSystemStats(ctx)
+	go a.runEventSummaryStream(ctx)
 	a.refresh(ctx)
 	a.refreshConfiguration(ctx)
 	ticker := time.NewTicker(2 * time.Second)
@@ -227,6 +234,8 @@ func (a *renewApp) view(c *ui.Context) {
 				switch a.page {
 				case "事件":
 					a.eventsView(c)
+				case "会话":
+					a.sessionsView(c)
 				case "网络":
 					a.networkView(c)
 				case "进程":
@@ -261,7 +270,7 @@ func (a *renewApp) sidebar(c *ui.Context) {
 			})
 		})
 		ui.Column(c).Gap(6).Children(func() {
-			for _, page := range []string{"概览", "事件", "网络", "进程", "监控", "规则", "跟踪", "系统"} {
+			for _, page := range []string{"概览", "事件", "会话", "网络", "进程", "监控", "规则", "跟踪", "系统"} {
 				button := ui.Button(c, page).Width(184)
 				if page == a.page {
 					button = ui.PrimaryButton(c, page).Width(184)
@@ -314,7 +323,7 @@ func (a *renewApp) header(c *ui.Context) {
 
 func pageUsesEventSearch(page string) bool {
 	switch page {
-	case "概览", "事件", "网络", "进程":
+	case "概览", "事件", "会话", "网络", "进程":
 		return true
 	default:
 		return false
