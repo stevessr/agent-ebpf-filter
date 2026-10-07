@@ -11,9 +11,9 @@ import (
 
 func TestAggregateNetworkUsesBoundedSummaryFields(t *testing.T) {
 	rows := aggregateNetwork([]eventSummary{
-		{PID: 10, Comm: "codex", Type: "NETWORK_CONNECT", Domain: "example.com", NetBytes: 12, RiskScore: 20, ReceivedAtMS: 10},
-		{PID: 11, Comm: "curl", Type: "DNS_QUERY", Domain: "example.com", NetBytes: 8, RiskScore: 70, ReceivedAtMS: 20},
-		{PID: 12, Comm: "bash", Type: "WRITE", Path: "/tmp/x", ReceivedAtMS: 30},
+		{PID: 10, Comm: "codex", Type: "NETWORK_CONNECT", Target: "example.com", Network: true, NetBytes: 12, RiskScore: 20, ReceivedAtMS: 10},
+		{PID: 11, Comm: "curl", Type: "DNS_QUERY", Target: "example.com", Network: true, NetBytes: 8, RiskScore: 70, ReceivedAtMS: 20},
+		{PID: 12, Comm: "bash", Type: "WRITE", Target: "/tmp/x", ReceivedAtMS: 30},
 	})
 	if len(rows) != 1 {
 		t.Fatalf("got %d rows, want 1", len(rows))
@@ -70,8 +70,8 @@ func TestMergeEventSummariesCachesSearchTextAndMaintainsWindow(t *testing.T) {
 		{EventID: "e1", ReceivedAtMS: 10, Comm: "node"},
 	}
 	got := mergeEventSummaries(existing, []eventSummary{
-		{EventID: "e4", ReceivedAtMS: 40, Comm: "curl", Path: "/tmp/a"},
-		{EventID: "e2", ReceivedAtMS: 35, Comm: "python", Path: "/tmp/b"},
+		{EventID: "e4", ReceivedAtMS: 40, Comm: "curl", Target: "/tmp/a"},
+		{EventID: "e2", ReceivedAtMS: 35, Comm: "python", Target: "/tmp/b"},
 	}, 4)
 	if len(got) != 4 {
 		t.Fatalf("len=%d, want 4", len(got))
