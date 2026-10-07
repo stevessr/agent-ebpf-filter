@@ -74,6 +74,36 @@ func (a *renewApp) monitoringView(c *ui.Context) {
 			})
 		})
 	}
+
+	card(c, "行为分析与运行时", func() {
+		ui.Text(c, "这些开关会实际启停对应后端路径；更改以后端返回的运行时配置为准。").FontSize(11).TextColor(t.TextMuted)
+		for _, item := range []struct {
+			Key, Title, Description string
+		}{
+			{"loopDetection", "行为循环检测", "识别重复执行、反复读写与资源浪费循环。"},
+			{"signalProcessing", "信号处理", "启用信号规则、TTL 衰减与选中程序日志处理。"},
+			{"researchProcessing", "研究处理", "维护研究视图、时间线与会话派生数据；深度排查时开启。"},
+			{"tlsCapture", "TLS 明文捕获", "高敏感、高开销能力；仅在明确需要时开启。"},
+			{"persistence", "本地事件持久化", "将完整事件保留在后端日志/事件库，桌面仍只按需读取。"},
+			{"policyManagement", "策略管理", "允许本机 UI 下发跟踪配置与 cgroup/BPF LSM 阻断动作。"},
+		} {
+			item := item
+			ui.Row(c).Padding(7, 0).Gap(14).AlignItems(ui.Center).Children(func() {
+				ui.Column(c).Grow(1).Gap(2).Children(func() {
+					ui.Text(c, item.Title).Bold()
+					ui.Text(c, item.Description).FontSize(11).TextColor(t.TextMuted)
+				})
+				enabled := a.runtimeToggleEnabled(item.Key)
+				next := enabled
+				if ui.Switch(c, &next).Label(item.Title).Changed() && a.runtimeReady && !a.configBusy {
+					a.setRuntimeToggle(item.Key, next)
+				}
+			})
+		}
+		if a.runtimeCfg.PersistedEventLogPath != "" {
+			ui.Text(c, "事件库："+a.runtimeCfg.PersistedEventLogPath).Font("monospace").FontSize(10).TextColor(t.TextMuted)
+		}
+	})
 	if !a.configReady {
 		ui.Text(c, "配置尚未成功加载，写操作已禁用。").FontSize(12).TextColor(t.TextMuted)
 	} else if a.configBusy {
@@ -233,7 +263,32 @@ func (a *renewApp) applyMonitoringProfile(name string) {
 			}
 		}
 	}
-	a.writeEventTypes(next)
+	loop, signal, research := false, false, false
+	switch name {
+	case "日常":
+		loop, signal = true, true
+	case "深度":
+		loop, signal, research = true, true, true
+	}
+	if a.client == nil || a.configBusy {
+		return
+	}
+	a.configBusy = true
+	a.configErr = ""
+	values := disabledSlice(next)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+		defer cancel()
+		cfg, err := a.client.applyMonitoringProfile(ctx, values, loop, signal, research)
+		a.update(func() {
+			a.configBusy = false
+			if err != nil {
+				a.configErr = err.Error()
+				return
+			}
+			a.applyRuntimeConfig(cfg)
+		})
+	}()
 }
 
 func (a *renewApp) writeEventTypes(next map[int]bool) {
@@ -244,17 +299,16 @@ func (a *renewApp) writeEventTypes(next map[int]bool) {
 	a.configErr = ""
 	values := disabledSlice(next)
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 		defer cancel()
-		cfg, err := a.client.putEventTypeConfig(ctx, values)
+		cfg, err := a.client.putRuntimeConfig(ctx, map[string]any{"disabledEventTypes": values})
 		a.update(func() {
 			a.configBusy = false
 			if err != nil {
 				a.configErr = err.Error()
 				return
 			}
-			a.configReady = true
-			a.disabledEventTypes = disabledSet(cfg.DisabledEventTypes)
+			a.applyRuntimeConfig(cfg)
 		})
 	}()
 }
@@ -267,18 +321,65 @@ func (a *renewApp) refreshEventTypeConfig(parent context.Context) {
 		a.configBusy = true
 		a.configErr = ""
 	})
-	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 6*time.Second)
 	defer cancel()
-	cfg, err := a.client.eventTypeConfig(ctx)
+	cfg, err := a.client.runtimeConfig(ctx)
 	a.update(func() {
 		a.configBusy = false
 		if err != nil {
 			a.configErr = err.Error()
 			return
 		}
-		a.configReady = true
-		a.disabledEventTypes = disabledSet(cfg.DisabledEventTypes)
+		a.applyRuntimeConfig(cfg)
 	})
+}
+
+func (a *renewApp) applyRuntimeConfig(cfg runtimeConfigResponse) {
+	a.runtimeCfg = cfg
+	a.runtimeReady = true
+	a.configReady = true
+	a.configErr = ""
+	a.disabledEventTypes = disabledSet(cfg.Runtime.DisabledEventTypes)
+}
+
+func (a *renewApp) runtimeToggleEnabled(key string) bool {
+	switch key {
+	case "loopDetection":
+		return a.runtimeCfg.Runtime.LoopDetection.Enabled
+	case "signalProcessing":
+		return a.runtimeCfg.Runtime.SignalProcessing.Enabled
+	case "researchProcessing":
+		return a.runtimeCfg.Runtime.ResearchProcessing.Enabled
+	case "tlsCapture":
+		return a.runtimeCfg.Runtime.TLSCaptureEnabled
+	case "persistence":
+		return a.runtimeCfg.Runtime.LogPersistenceEnabled
+	case "policyManagement":
+		return a.runtimeCfg.Runtime.PolicyManagementEnabled
+	default:
+		return false
+	}
+}
+
+func (a *renewApp) setRuntimeToggle(key string, enabled bool) {
+	if a.client == nil || a.configBusy || !a.runtimeReady {
+		return
+	}
+	a.configBusy = true
+	a.configErr = ""
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+		defer cancel()
+		cfg, err := a.client.runtimePatchWithNestedToggle(ctx, key, enabled)
+		a.update(func() {
+			a.configBusy = false
+			if err != nil {
+				a.configErr = err.Error()
+				return
+			}
+			a.applyRuntimeConfig(cfg)
+		})
+	}()
 }
 
 func (a *renewApp) refreshRules(parent context.Context) {
