@@ -161,8 +161,9 @@ func (a *nativeApp) eventsPage(c *ui.Context, data appData) {
 				ui.Text(c, "正在读取…").TextColor(c.Theme().TextMuted)
 				return
 			}
-			detail := data.Detail
-			ui.TextArea(c, &detail).ReadOnly(true).Grow(1).Label("事件 JSON")
+			ui.Scroll(c).Grow(1).Children(func() {
+				ui.Text(c, data.Detail).Font("monospace").FontSize(12).NoWrap().Selectable().Padding(10)
+			})
 		})
 	})
 }
