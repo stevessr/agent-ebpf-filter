@@ -39,6 +39,10 @@ func (a *renewApp) overview(c *ui.Context) {
 		statCard(c, "最近活动", fmt.Sprint(len(a.events)), "当前紧凑摘要窗口")
 		statCard(c, "需关注", fmt.Sprint(attention), "风险分 ≥ 60 / ALERT")
 		statCard(c, "高风险", fmt.Sprint(danger), "BLOCK / DENY / 高风险")
+		if a.systemConnected {
+			statCard(c, "CPU", fmt.Sprintf("%.1f%%", a.system.CPUTotal), fmt.Sprintf("%d 个实时进程", len(a.system.Processes)))
+			statCard(c, "内存", fmt.Sprintf("%.1f%%", a.system.MemPercent), fmt.Sprintf("%s / %s", formatBytes(int64(a.system.MemUsed)), formatBytes(int64(a.system.MemTotal))))
+		}
 	})
 
 	card(c, "最近活动", func() {
@@ -208,10 +212,63 @@ func (a *renewApp) networkView(c *ui.Context) {
 
 func (a *renewApp) processesView(c *ui.Context) {
 	t := c.Theme()
-	rows := aggregateProcesses(a.filteredEvents())
 	ui.Text(c, "进程").FontSize(28).Bold()
-	ui.Text(c, "当前先展示事件窗口中真实出现过的进程活动；系统 protobuf 快照保持独立协议，不用 JSON 旁路伪造。").TextColor(t.TextMuted)
-	card(c, fmt.Sprintf("活动进程 · %d", len(rows)), func() {
+
+	if a.systemConnected && len(a.system.Processes) > 0 {
+		rows := a.filteredSystemProcesses()
+		ui.Text(c, "来自 /ws/system 的 protobuf 实时进程快照，按 CPU 使用率排序；搜索同时匹配 PID、用户与命令行。").TextColor(t.TextMuted)
+		card(c, fmt.Sprintf("实时进程 · %d", len(rows)), func() {
+			if len(rows) == 0 {
+				ui.Text(c, "当前搜索没有匹配进程").TextColor(t.TextMuted)
+				return
+			}
+			cols := []ui.TableColumn{
+				{Title: "PID", Width: 82, Fixed: true},
+				{Title: "PPID", Width: 82, Align: ui.End},
+				{Title: "进程", MinWidth: 170},
+				{Title: "CPU", Width: 80, Align: ui.End},
+				{Title: "内存", Width: 80, Align: ui.End},
+				{Title: "用户", Width: 120},
+			}
+			a.processTable.Key = func(row int) any { return rows[row].PID }
+			table := ui.Table(c, &a.processTable, cols, len(rows), func(row, col int) {
+				p := rows[row]
+				switch col {
+				case 0:
+					ui.Text(c, strconv.Itoa(p.PID)).Font("monospace")
+				case 1:
+					ui.Text(c, strconv.Itoa(p.PPID)).Font("monospace")
+				case 2:
+					ui.Text(c, displayOr(p.Name, "未知进程")).SingleLine()
+				case 3:
+					ui.Textf(c, "%.1f%%", p.CPU)
+				case 4:
+					ui.Textf(c, "%.1f%%", p.MemPercent)
+				case 5:
+					ui.Text(c, displayOr(p.User, "-")).SingleLine()
+				}
+			}).Height(410).Label("实时进程")
+			if table.Submitted() && a.processSelected >= 0 && a.processSelected < len(rows) {
+				// Keep the selection visible below; submit is an accessibility-
+				// friendly equivalent of opening the row detail.
+			}
+			if a.processSelected >= 0 && a.processSelected < len(rows) {
+				p := rows[a.processSelected]
+				ui.Column(c).Gap(5).Children(func() {
+					ui.Textf(c, "%s · PID %d / PPID %d", displayOr(p.Name, "未知进程"), p.PID, p.PPID).Bold()
+					ui.Text(c, displayOr(p.Cmdline, "后端未提供命令行")).Font("monospace").FontSize(10).TextColor(t.TextMuted).MaxLines(4)
+				})
+			}
+		})
+		return
+	}
+
+	rows := aggregateProcesses(a.filteredEvents())
+	ui.Text(c, "系统 protobuf 流当前不可用，降级展示已加载事件窗口中真实出现过的进程活动。").TextColor(t.TextMuted)
+	if a.systemErr != "" {
+		ui.Text(c, a.systemErr).FontSize(10).TextColor(t.TextMuted)
+	}
+	card(c, fmt.Sprintf("事件活动进程 · %d", len(rows)), func() {
 		if len(rows) == 0 {
 			ui.Text(c, "当前摘要窗口没有进程活动").TextColor(t.TextMuted)
 			return
@@ -248,27 +305,54 @@ func (a *renewApp) processesView(c *ui.Context) {
 		}).Height(480).Label("活动进程")
 	})
 }
-
 func (a *renewApp) systemView(c *ui.Context) {
 	t := c.Theme()
 	ui.Text(c, "系统").FontSize(28).Bold()
-	card(c, "采集器", func() {
+
+	ui.Row(c).Gap(12).Wrap().Children(func() {
 		state := "异常"
 		if a.health.CaptureHealthy {
 			state = "正常"
 		}
-		ui.Text(c, state).FontSize(22).Bold()
-		ui.Textf(c, "Ringbuf 丢弃总数：%d", a.health.RingbufDroppedTotal).TextColor(t.TextMuted)
-		if !a.lastSync.IsZero() {
-			ui.Text(c, "最后同步："+a.lastSync.Format("15:04:05")).FontSize(12).TextColor(t.TextMuted)
+		statCard(c, "采集器", state, fmt.Sprintf("Ringbuf 丢弃 %d", a.health.RingbufDroppedTotal))
+		if a.systemConnected {
+			statCard(c, "CPU", fmt.Sprintf("%.1f%%", a.system.CPUTotal), fmt.Sprintf("%d 个进程", len(a.system.Processes)))
+			statCard(c, "内存", fmt.Sprintf("%.1f%%", a.system.MemPercent), fmt.Sprintf("%s / %s", formatBytes(int64(a.system.MemUsed)), formatBytes(int64(a.system.MemTotal))))
+			statCard(c, "系统流", "实时", "protobuf /ws/system")
+		} else {
+			statCard(c, "系统流", "重连中", "protobuf /ws/system")
 		}
 	})
-	card(c, "连接", func() {
+
+	card(c, "I/O 快照", func() {
+		if !a.systemConnected {
+			ui.Text(c, "等待系统 protobuf 流…").TextColor(t.TextMuted)
+			if a.systemErr != "" {
+				ui.Text(c, a.systemErr).FontSize(10).TextColor(t.TextMuted)
+			}
+			return
+		}
+		ui.Row(c).Gap(20).Wrap().Children(func() {
+			ui.Text(c, "磁盘读 "+formatBytes(int64(a.system.DiskRead))).Font("monospace")
+			ui.Text(c, "磁盘写 "+formatBytes(int64(a.system.DiskWrite))).Font("monospace")
+			ui.Text(c, "网络收 "+formatBytes(int64(a.system.NetRecv))).Font("monospace")
+			ui.Text(c, "网络发 "+formatBytes(int64(a.system.NetSent))).Font("monospace")
+		})
+		if !a.system.FetchedAt.IsZero() {
+			ui.Text(c, "系统快照："+a.system.FetchedAt.Format("15:04:05")).FontSize(10).TextColor(t.TextMuted)
+		}
+	})
+
+	card(c, "后端与队列", func() {
 		ui.Text(c, a.backend).Font("monospace")
-		ui.Text(c, "桌面端为纯 Go/MyGo Native UI；专业工作台仍可单独在浏览器打开。").TextColor(t.TextMuted)
+		ui.Textf(c, "后端队列：%d", a.health.BackendQueueLen).TextColor(t.TextMuted)
+		ui.Textf(c, "持久化队列：%d / %d · pending %d", a.health.PersistQueueLen, a.health.PersistQueueCap, a.health.PersistPending).TextColor(t.TextMuted)
+		if !a.lastSync.IsZero() {
+			ui.Text(c, "摘要同步："+a.lastSync.Format("15:04:05")).FontSize(10).TextColor(t.TextMuted)
+		}
+		ui.Text(c, "桌面端为纯 Go/MyGo Native UI；系统实时数据直接解码后端 protobuf。").FontSize(11).TextColor(t.TextMuted)
 	})
 }
-
 func (a *renewApp) eventRow(c *ui.Context, e eventSummary) {
 	t := c.Theme()
 	ui.Row(c).Padding(9, 0).Gap(12).AlignItems(ui.Start).Children(func() {
