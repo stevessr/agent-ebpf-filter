@@ -14,8 +14,9 @@ import (
 const (
 	nativeIPCVersion = 1
 
-	nativeFrameEventEnvelope byte = 1
+	nativeFrameEventEnvelope byte = 1 // v1 compatibility
 	nativeFrameSystemStats   byte = 2
+	nativeFrameEventSummary  byte = 3 // v2 compact desktop summary
 
 	nativeMaxFrameSize = 4 << 20
 )
@@ -66,6 +67,12 @@ func (a *renewApp) consumeNativeIPC(ctx context.Context, session *backendSession
 				continue
 			}
 			a.queueEventSummary(summary)
+		case nativeFrameEventSummary:
+			summary, err := decodeDesktopEventSummary(payload)
+			if err != nil {
+				continue
+			}
+			a.queueEventSummary(summary)
 		case nativeFrameSystemStats:
 			snapshot, err := decodeSystemStats(payload)
 			if err != nil {
@@ -107,6 +114,91 @@ func readNativeFrameInto(r io.Reader, frame []byte) (byte, []byte, []byte, error
 	return frame[0], frame[1:], frame, nil
 }
 
+func decodeDesktopEventSummary(data []byte) (eventSummary, error) {
+	var out eventSummary
+	for len(data) > 0 {
+		num, typ, n := protowire.ConsumeTag(data)
+		if n < 0 {
+			return out, protowire.ParseError(n)
+		}
+		data = data[n:]
+
+		switch num {
+		case 1, 7, 8, 9, 10, 13, 15, 16, 17:
+			value, consumed := protowire.ConsumeBytes(data)
+			if consumed < 0 {
+				return out, protowire.ParseError(consumed)
+			}
+			text := string(value)
+			switch num {
+			case 1:
+				out.EventID = text
+			case 7:
+				out.Type = text
+			case 8:
+				out.Tag = text
+			case 9:
+				out.Comm = text
+			case 10:
+				out.Target = text
+			case 13:
+				out.Decision = text
+			case 15:
+				out.AgentRunID = text
+			case 16:
+				out.ConversationID = text
+			case 17:
+				out.ToolName = text
+			}
+			data = data[consumed:]
+		case 2, 3, 4, 5, 6, 11, 12, 18:
+			value, consumed := protowire.ConsumeVarint(data)
+			if consumed < 0 {
+				return out, protowire.ParseError(consumed)
+			}
+			switch num {
+			case 2:
+				out.ReceivedAtMS = int64(value)
+			case 3:
+				out.PID = int(value)
+			case 4:
+				out.PPID = int(value)
+			case 5:
+				out.RootAgentPID = int(value)
+			case 6:
+				out.EventType = int(value)
+			case 11:
+				out.Network = value != 0
+			case 12:
+				out.NetBytes = int64(value)
+			case 18:
+				out.HasAgentContext = value != 0
+			}
+			data = data[consumed:]
+		case 14:
+			value, consumed := protowire.ConsumeFixed64(data)
+			if consumed < 0 {
+				return out, protowire.ParseError(consumed)
+			}
+			out.RiskScore = math.Float64frombits(value)
+			data = data[consumed:]
+		default:
+			consumed := protowire.ConsumeFieldValue(num, typ, data)
+			if consumed < 0 {
+				return out, protowire.ParseError(consumed)
+			}
+			data = data[consumed:]
+		}
+	}
+	if strings.TrimSpace(out.EventID) == "" {
+		return out, fmt.Errorf("desktop event summary missing event id")
+	}
+	if out.ReceivedAtMS == 0 {
+		out.ReceivedAtMS = time.Now().UnixMilli()
+	}
+	return out, nil
+}
+
 func decodeEventEnvelopeSummary(data []byte) (eventSummary, error) {
 	var out eventSummary
 	var (
@@ -114,15 +206,11 @@ func decodeEventEnvelopeSummary(data []byte) (eventSummary, error) {
 		timestampNS    uint64
 		agentRunID     string
 		conversationID string
-		turnID         string
 		toolCallID     string
 		toolName       string
-		traceID        string
-		spanID         string
 		decision       string
 		pid            uint64
 		ppid           uint64
-		uid            uint64
 		comm           string
 		eventType      uint64
 		eventTypeSeen  bool
@@ -138,7 +226,7 @@ func decodeEventEnvelopeSummary(data []byte) (eventSummary, error) {
 		data = data[n:]
 
 		switch num {
-		case 2, 5, 7, 8, 9, 10, 11, 12, 18, 23:
+		case 2, 5, 7, 9, 10, 18, 23:
 			value, consumed := protowire.ConsumeBytes(data)
 			if consumed < 0 {
 				return out, protowire.ParseError(consumed)
@@ -151,23 +239,17 @@ func decodeEventEnvelopeSummary(data []byte) (eventSummary, error) {
 				agentRunID = text
 			case 7:
 				conversationID = text
-			case 8:
-				turnID = text
 			case 9:
 				toolCallID = text
 			case 10:
 				toolName = text
-			case 11:
-				traceID = text
-			case 12:
-				spanID = text
 			case 18:
 				comm = text
 			case 23:
 				decision = text
 			}
 			data = data[consumed:]
-		case 3, 13, 15, 16, 25:
+		case 3, 13, 15, 25:
 			value, consumed := protowire.ConsumeVarint(data)
 			if consumed < 0 {
 				return out, protowire.ParseError(consumed)
@@ -179,8 +261,6 @@ func decodeEventEnvelopeSummary(data []byte) (eventSummary, error) {
 				pid = value
 			case 15:
 				ppid = value
-			case 16:
-				uid = value
 			case 25:
 				eventType = value
 				eventTypeSeen = true
@@ -228,9 +308,6 @@ func decodeEventEnvelopeSummary(data []byte) (eventSummary, error) {
 	if ppid != 0 {
 		out.PPID = int(ppid)
 	}
-	if uid != 0 {
-		out.UID = int(uid)
-	}
 	if comm != "" {
 		out.Comm = comm
 	}
@@ -249,20 +326,14 @@ func decodeEventEnvelopeSummary(data []byte) (eventSummary, error) {
 	if conversationID != "" {
 		out.ConversationID = conversationID
 	}
-	if turnID != "" {
-		out.TurnID = turnID
-	}
-	if toolCallID != "" {
-		out.ToolCallID = toolCallID
-	}
 	if toolName != "" {
 		out.ToolName = toolName
+		if out.Target == "" {
+			out.Target = toolName
+		}
 	}
-	if traceID != "" {
-		out.TraceID = traceID
-	}
-	if spanID != "" {
-		out.SpanID = spanID
+	if agentRunID != "" || conversationID != "" || toolCallID != "" {
+		out.HasAgentContext = true
 	}
 	return out, nil
 }
@@ -271,6 +342,7 @@ func decodeLegacyEventSummary(data []byte, out *eventSummary) error {
 	if out == nil {
 		return fmt.Errorf("nil event summary")
 	}
+	var path, endpoint, domain, extraPath, toolCallID string
 	for len(data) > 0 {
 		num, typ, n := protowire.ConsumeTag(data)
 		if n < 0 {
@@ -279,7 +351,7 @@ func decodeLegacyEventSummary(data []byte, out *eventSummary) error {
 		data = data[n:]
 
 		switch num {
-		case 1, 2, 3, 10, 22, 28:
+		case 1, 2, 10, 22, 28:
 			value, consumed := protowire.ConsumeVarint(data)
 			if consumed < 0 {
 				return protowire.ParseError(consumed)
@@ -289,17 +361,18 @@ func decodeLegacyEventSummary(data []byte, out *eventSummary) error {
 				out.PID = int(value)
 			case 2:
 				out.PPID = int(value)
-			case 3:
-				out.UID = int(value)
 			case 10:
 				out.NetBytes = int64(value)
 			case 22:
 				out.EventType = int(value)
 			case 28:
 				out.RootAgentPID = int(value)
+				if value != 0 {
+					out.HasAgentContext = true
+				}
 			}
 			data = data[consumed:]
-		case 4, 5, 6, 7, 8, 9, 14, 17, 29, 30, 31, 32, 33, 34, 35, 36:
+		case 4, 5, 6, 7, 9, 14, 17, 29, 30, 32, 33, 36:
 			value, consumed := protowire.ConsumeBytes(data)
 			if consumed < 0 {
 				return protowire.ParseError(consumed)
@@ -310,32 +383,33 @@ func decodeLegacyEventSummary(data []byte, out *eventSummary) error {
 				out.Type = text
 			case 5:
 				out.Tag = text
+				if strings.TrimSpace(text) != "" && !strings.EqualFold(text, "Unknown") {
+					out.HasAgentContext = true
+				}
 			case 6:
 				out.Comm = text
 			case 7:
-				out.Path = text
-			case 8:
-				out.NetDirection = text
+				path = text
 			case 9:
-				out.NetEndpoint = text
+				endpoint = text
 			case 14:
-				out.ExtraPath = text
+				extraPath = text
 			case 17:
-				out.Domain = text
+				domain = text
 			case 29:
 				out.AgentRunID = text
+				if text != "" {
+					out.HasAgentContext = true
+				}
 			case 30:
 				out.ConversationID = text
-			case 31:
-				out.TurnID = text
+				if text != "" {
+					out.HasAgentContext = true
+				}
 			case 32:
-				out.ToolCallID = text
+				toolCallID = text
 			case 33:
 				out.ToolName = text
-			case 34:
-				out.TraceID = text
-			case 35:
-				out.SpanID = text
 			case 36:
 				out.Decision = text
 			}
@@ -355,5 +429,24 @@ func decodeLegacyEventSummary(data []byte, out *eventSummary) error {
 			data = data[consumed:]
 		}
 	}
+	for _, value := range []string{path, endpoint, domain, extraPath, out.ToolName} {
+		if strings.TrimSpace(value) != "" {
+			out.Target = value
+			break
+		}
+	}
+	out.Network = strings.TrimSpace(endpoint) != "" || strings.TrimSpace(domain) != ""
+	if !out.Network {
+		lowerType := strings.ToLower(out.Type)
+		out.Network = strings.Contains(lowerType, "network") ||
+			strings.Contains(lowerType, "connect") ||
+			strings.Contains(lowerType, "socket") ||
+			strings.Contains(lowerType, "tcp") ||
+			strings.Contains(lowerType, "dns")
+	}
+	if toolCallID != "" {
+		out.HasAgentContext = true
+	}
 	return nil
 }
+
