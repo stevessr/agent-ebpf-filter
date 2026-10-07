@@ -42,19 +42,39 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 		ticker := time.NewTicker(eventUIFlushInterval)
 		defer ticker.Stop()
 
-		batch := make([]eventSummary, 0, eventUIBatchMax)
+		batchPool := make(chan []eventSummary, 2)
+		nextBatch := func() []eventSummary {
+			select {
+			case buf := <-batchPool:
+				return buf[:0]
+			default:
+				return make([]eventSummary, 0, eventUIBatchMax)
+			}
+		}
+		recycleBatch := func(buf []eventSummary) {
+			for i := range buf {
+				buf[i] = eventSummary{}
+			}
+			select {
+			case batchPool <- buf[:0]:
+			default:
+			}
+		}
+
+		batch := nextBatch()
 		pausedWrite := 0
 		flush := func() {
 			if len(batch) == 0 || a.eventUIPaused.Load() {
 				return
 			}
-			pending := append([]eventSummary(nil), batch...)
-			batch = batch[:0]
+			pending := batch
+			batch = nextBatch()
 			pausedWrite = 0
 			a.update(func() {
 				if a.mergeEventWindow(pending, 1200) {
 					a.lastSync = time.Now()
 				}
+				recycleBatch(pending)
 			})
 		}
 
