@@ -25,21 +25,14 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 		defer ticker.Stop()
 
 		batch := make([]eventSummary, 0, eventUIBatchMax)
+		pausedWrite := 0
 		flush := func() {
-			if len(batch) == 0 {
-				return
-			}
-			if a.eventUIPaused.Load() {
-				if len(batch) > 1200 {
-					dropped := len(batch) - 1200
-					copy(batch, batch[dropped:])
-					batch = batch[:1200]
-					a.eventUIDropped.Add(uint64(dropped))
-				}
+			if len(batch) == 0 || a.eventUIPaused.Load() {
 				return
 			}
 			pending := append([]eventSummary(nil), batch...)
 			batch = batch[:0]
+			pausedWrite = 0
 			a.update(func() {
 				a.events = mergeEventSummaries(a.events, pending, 1200)
 				a.eventsVersion++
@@ -53,6 +46,19 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 				flush()
 				return
 			case e := <-a.eventUIQueue:
+				if a.eventUIPaused.Load() {
+					if len(batch) < 1200 {
+						batch = append(batch, e)
+					} else {
+						batch[pausedWrite] = e
+						pausedWrite++
+						if pausedWrite == len(batch) {
+							pausedWrite = 0
+						}
+						a.eventUIDropped.Add(1)
+					}
+					continue
+				}
 				batch = append(batch, e)
 				if len(batch) >= eventUIBatchMax {
 					flush()
