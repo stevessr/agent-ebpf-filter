@@ -2,31 +2,32 @@
 
 Renew Desktop is the native desktop monitor for Agent eBPF Filter. Its interface is written entirely in Go with MyGo's `ui` package and is drawn by MyGo itself. It does **not** start a WebView, Vite, HTML, JavaScript, or the Vue Renew frontend.
 
-The desktop process stays unprivileged. On Linux it reuses an already running backend or requests system authorization to start the bundled eBPF backend. Only the backend child gains privileges.
+The desktop process stays unprivileged. On Linux it reuses an already running backend or re-executes the **same Renew executable** in an internal backend mode and requests system authorization for that child. The backend is linked as a Go library; there is no packaged backend sidecar. Only the internal backend child gains privileges.
 
 ## Architecture
 
 ```text
-eBPF / wrapper / hooks
-        │
-        ▼
-Agent eBPF Filter privileged backend
+single ELF: renew
   │
-  ├══ private Unix socket ═════════════════════════════╗
-  │   token handshake → Native IPC v1                 ║
-  │   • EventEnvelope protobuf (per event, unbatched) ║
-  │   • SystemStats protobuf                          ║
-  │   • bounded async writer; backend hot path never  ║
-  │     waits for the desktop renderer                ║
-  │                                                   ▼
-  │                                      Renew Desktop / MyGo
-  │                                      native Go UI
-  │
-  └─ REST / WebSocket compatibility plane
-      • on-demand detail/configuration operations
-      • browser Renew
-      • remote/custom backends
-      • automatic fallback if local native IPC is lost
+  ├─ normal mode ───────────────▶ MyGo native desktop (ordinary user)
+  │                                  │
+  │                                  ├─ existing backend? reuse it
+  │                                  │
+  │                                  └─ otherwise re-exec self:
+  │                                      renew --internal-backend ...
+  │                                               │
+  │                                         pkexec / sudo -A
+  │                                               │
+  │                                               ▼
+  └────────────────────────────▶ embedded Agent eBPF backend (privileged child)
+                                      │
+                                      ├─ eBPF / wrapper / hooks
+                                      │
+                                      ├══ private Unix socket ══▶ desktop
+                                      │   EventEnvelope + SystemStats protobuf
+                                      │
+                                      └─ REST / WebSocket compatibility plane
+                                          remote/custom/browser clients
 ```
 
 The native client now covers the low-noise daily-monitoring workflow: Overview, Events, Agent Sessions, Network, Processes, Monitoring, Wrapper Rules, Tracking, and System. Events and configuration surfaces use MyGo-native tables/forms/selects/tabs/switches; the browser runtime is not embedded.
@@ -51,7 +52,7 @@ From the repository root:
 make renew-desktop-dev
 ```
 
-Development builds the backend and starts `go tool mygo dev`. There is no Vite process.
+Development generates the backend protobuf/eBPF bindings and starts `go tool mygo dev`. The backend code is linked into the dev Renew binary; there is no second backend executable and no Vite process.
 
 Connect to an existing backend:
 
@@ -76,9 +77,11 @@ cd desktop/renew
 go tool mygo build
 ```
 
-The build hook compiles the CPU backend and stages it under the platform-specific MyGo resources directory. It no longer builds or bundles `frontend/dist`.
+The build hook generates the backend protobuf/eBPF bindings, then MyGo links the backend library directly into Renew. The Linux output `build/linux-amd64/renew` is the complete UI + backend executable. No `agent-ebpf-filter` helper ELF, askpass script, or `frontend/dist` bundle is shipped beside it. The CI workflow also publishes that executable by itself as the `renew-linux-amd64-single-binary` artifact.
 
 On Linux the native MyGo UI uses GTK for the window and MyGo's own renderer. WebKitGTK is not required by Renew Desktop.
+
+MyGo v0.2.7 deliberately packages Go applications with `CGO_ENABLED=0`. The embedded backend therefore uses pure-Go hardware fallbacks: core eBPF monitoring, policy enforcement, event capture, system/process statistics, and generic DRM fdinfo GPU telemetry remain available, while NVML-only NVIDIA detail fields and V4L2 camera capture are omitted from the single-file build. The standalone backend keeps those integrations when built with CGO enabled.
 
 ## Runtime ownership
 
@@ -87,12 +90,12 @@ The desktop keeps:
 - single-instance handling;
 - native window lifecycle and saved window size;
 - `AGENT_BACKEND_URL` / `--backend` selection;
-- authorized startup and lifecycle supervision of its bundled backend;
+- same-executable backend dispatch, authorization and lifecycle supervision;
 - private Unix-socket token handoff and Native IPC v1 data stream;
 - native monitoring state, protobuf decoding and presentation;
 - MyGo packaging.
 
-The backend keeps:
+The embedded backend library keeps:
 
 - eBPF and privileged operations;
 - event persistence;
@@ -100,7 +103,7 @@ The backend keeps:
 - native desktop IPC plus REST / WebSocket compatibility protocols;
 - filtering, normalization and risk decisions.
 
-Closing or crashing Renew closes the lifetime socket and gracefully stops **only** the backend instance it started. A reused system backend is left running.
+Closing or crashing Renew closes the lifetime socket and gracefully stops **only** the privileged internal-backend child it started. A reused system backend is left running. On systems without a PolicyKit authentication agent, the same Renew executable can also act as `SUDO_ASKPASS` and delegate the password UI to an installed `zenity` or `kdialog`; no helper script is packaged.
 
 ## Validation
 
@@ -108,5 +111,6 @@ Closing or crashing Renew closes the lifetime socket and gracefully stops **only
 cd desktop/renew
 go test ./...
 go build ./...
-go tool mygo build -platform linux/amd64
+../../scripts/renew-desktop.sh prepare
+go tool mygo build -skip-build-command -platform linux/amd64
 ```

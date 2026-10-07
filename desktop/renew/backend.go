@@ -17,6 +17,8 @@ import (
 	"time"
 )
 
+var renewExecutable = os.Executable
+
 type backendSession struct {
 	dir              string
 	listener         net.Listener
@@ -97,7 +99,7 @@ func localBackendPort(origin string) (string, error) {
 
 // The desktop remains unprivileged. The backend itself requests pkexec (or
 // sudo -A when SUDO_ASKPASS is configured); only that child gains privileges.
-func ensureBackend(ctx context.Context, origin, resources string) (*backendSession, error) {
+func ensureBackend(ctx context.Context, origin string) (*backendSession, error) {
 	if backendAPIAvailable(ctx, origin) {
 		return nil, nil
 	}
@@ -108,12 +110,14 @@ func ensureBackend(ctx context.Context, origin, resources string) (*backendSessi
 	if err != nil {
 		return nil, err
 	}
-	binary := os.Getenv("AGENT_RENEW_BACKEND_BIN")
-	if binary == "" {
-		binary = filepath.Join(resources, "backend", "agent-ebpf-filter")
+	binary, err := renewExecutable()
+	if err != nil {
+		return nil, fmt.Errorf("resolve Renew executable: %w", err)
 	}
-	if info, err := os.Stat(binary); err != nil || info.IsDir() {
-		return nil, fmt.Errorf("bundled backend missing; build with make renew-desktop-build (or use make renew-desktop-dev)")
+	if !filepath.IsAbs(binary) {
+		if binary, err = filepath.Abs(binary); err != nil {
+			return nil, fmt.Errorf("resolve Renew executable path: %w", err)
+		}
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -135,7 +139,7 @@ func ensureBackend(ctx context.Context, origin, resources string) (*backendSessi
 			session.Close()
 		}
 	}()
-	args := []string{"--desktop-lifetime-socket", filepath.Join(dir, "lifetime.sock"), "--real-home", home, "--desktop-port", port}
+	args := []string{internalBackendFlag, "--desktop-lifetime-socket", filepath.Join(dir, "lifetime.sock"), "--real-home", home, "--desktop-port", port}
 	if os.Getenv("AGENT_RENEW_DEV") == "true" {
 		args = append(args, "--desktop-dev")
 	}
@@ -153,13 +157,10 @@ func ensureBackend(ctx context.Context, origin, resources string) (*backendSessi
 	configureBackendLauncher(cmd)
 	cmd.Dir = dir // never write .port/logs into a read-only installed bundle.
 	cmd.Env = os.Environ()
-	// Some desktops run polkitd but no graphical authentication agent.
-	// Prefer the bundled GUI askpass when a supported dialog tool exists.
-	if os.Getenv("SUDO_ASKPASS") == "" {
-		if helper := graphicalAskpass(resources); helper != "" {
-			cmd.Env = append(cmd.Env, "SUDO_ASKPASS="+helper)
-		}
-	}
+	// If PolicyKit is unavailable or the user has configured sudo as the
+	// elevation path, the same Renew binary can act as SUDO_ASKPASS. No helper
+	// script or sidecar executable is shipped.
+	configureBackendAskpass(cmd, binary)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout, cmd.Stderr = logFile, logFile
 	if err := cmd.Start(); err != nil {
@@ -231,22 +232,6 @@ func ensureBackend(ctx context.Context, origin, resources string) (*backendSessi
 		case <-ticker.C:
 		}
 	}
-}
-
-func graphicalAskpass(resources string) string {
-	helper := filepath.Join(resources, "renew-askpass.sh")
-	if info, err := os.Stat(helper); err != nil || info.Mode()&0111 == 0 {
-		return ""
-	}
-	if _, err := exec.LookPath("sudo"); err != nil {
-		return ""
-	}
-	for _, dialog := range []string{"zenity", "kdialog"} {
-		if _, err := exec.LookPath(dialog); err == nil {
-			return helper
-		}
-	}
-	return ""
 }
 
 func tokenPreload(origin, token string) string {

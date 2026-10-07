@@ -23,8 +23,7 @@ func TestReuseBackendWithoutLaunching(t *testing.T) {
 		_, _ = w.Write([]byte(`{"error":"Unauthorized"}`))
 	}))
 	defer server.Close()
-	t.Setenv("AGENT_RENEW_BACKEND_BIN", "/missing/backend")
-	session, err := ensureBackend(context.Background(), server.URL, "unused")
+	session, err := ensureBackend(context.Background(), server.URL)
 	if err != nil || session != nil {
 		t.Fatalf("existing authenticated backend not reused: %v", err)
 	}
@@ -50,20 +49,19 @@ func TestBundledBackendStartupAndCleanup(t *testing.T) {
 		t.Skip("python3 needed for fake backend")
 	}
 	t.Setenv("HOME", t.TempDir())
-	t.Setenv("AGENT_RENEW_BACKEND_BIN", "")
-	t.Setenv("AGENT_RENEW_FRONTEND_DIST", "")
 	t.Setenv("AGENT_RENEW_DEV", "")
-	resources := t.TempDir()
-	if err := os.Mkdir(filepath.Join(resources, "backend"), 0755); err != nil {
-		t.Fatal(err)
-	}
-	binary := filepath.Join(resources, "backend", "agent-ebpf-filter")
-	// Fixture models the private token handshake, API readiness and EOF shutdown;
-	// it does not claim to exercise pkexec or the real kernel.
+	binary := filepath.Join(t.TempDir(), "renew-fixture")
+	oldExecutable := renewExecutable
+	renewExecutable = func() (string, error) { return binary, nil }
+	defer func() { renewExecutable = oldExecutable }()
+	// Fixture models the same-binary internal backend dispatch, private token
+	// handshake, API readiness and EOF shutdown. It does not exercise pkexec
+	// or the real kernel.
 	source := `#!/usr/bin/env python3
 import argparse, socket, json, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 p = argparse.ArgumentParser()
+p.add_argument('--internal-backend', action='store_true')
 p.add_argument('--desktop-lifetime-socket'); p.add_argument('--real-home')
 p.add_argument('--desktop-port', type=int); p.add_argument('--frontend-dir')
 a = p.parse_args()
@@ -89,7 +87,7 @@ s.shutdown(); s.server_close(); c.close()
 	_ = listener.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	session, err := ensureBackend(ctx, origin, resources)
+	session, err := ensureBackend(ctx, origin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,36 +107,42 @@ s.shutdown(); s.server_close(); c.close()
 
 func TestBackendAuthorizationFailure(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	binary := filepath.Join(t.TempDir(), "denied")
+	binary := filepath.Join(t.TempDir(), "denied-renew")
 	if err := os.WriteFile(binary, []byte("#!/bin/sh\nexit 126\n"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("AGENT_RENEW_BACKEND_BIN", binary)
+	oldExecutable := renewExecutable
+	renewExecutable = func() (string, error) { return binary, nil }
+	defer func() { renewExecutable = oldExecutable }()
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	session, err := ensureBackend(ctx, "http://127.0.0.1:1", t.TempDir())
+	session, err := ensureBackend(ctx, "http://127.0.0.1:1")
 	if session != nil || err == nil || !strings.Contains(err.Error(), "authorization/startup failed") {
 		t.Fatalf("missing authorization failure: %v", err)
 	}
 }
 
-func TestGraphicalAskpassSelection(t *testing.T) {
-	resources := t.TempDir()
+func TestSelfAskpassSelection(t *testing.T) {
 	tools := t.TempDir()
 	t.Setenv("PATH", tools)
+	t.Setenv("SUDO_ASKPASS", "")
 	for _, name := range []string{"sudo", "zenity"} {
 		if err := os.WriteFile(filepath.Join(tools, name), []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if graphicalAskpass(resources) != "" {
-		t.Fatal("selected missing bundled helper")
+
+	cmd := exec.Command("/bin/true")
+	cmd.Env = []string{"PATH=" + tools}
+	binary := "/opt/renew/renew"
+	configureBackendAskpass(cmd, binary)
+
+	joined := strings.Join(cmd.Env, "\n")
+	if !strings.Contains(joined, "SUDO_ASKPASS="+binary) {
+		t.Fatalf("self askpass path missing from env: %s", joined)
 	}
-	helper := filepath.Join(resources, "renew-askpass.sh")
-	if err := os.WriteFile(helper, []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
-		t.Fatal(err)
-	}
-	if graphicalAskpass(resources) != helper {
-		t.Fatal("GUI askpass not selected without a polkit agent")
+	if !strings.Contains(joined, askpassModeEnv+"=1") {
+		t.Fatalf("self askpass mode missing from env: %s", joined)
 	}
 }

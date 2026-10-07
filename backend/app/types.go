@@ -2,13 +2,10 @@ package app
 
 import (
 	"agent-ebpf-filter/core"
-	"log"
 	"os/user"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
 // ── Type aliases to core package ─────────────────────────────────────────────
@@ -69,14 +66,6 @@ var (
 	sudoUser          *user.User
 	sudoUserHomeCache string
 )
-
-func init() {
-	if ret := nvml.Init(); ret == nvml.SUCCESS {
-		nvmlInitialized = true
-	} else {
-		log.Printf("NVML Init failed: %v", nvml.ErrorString(ret))
-	}
-}
 
 // availableHooks is a local copy of core.AvailableHooks for path resolution.
 var availableHooks = core.AvailableHooks

@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestResolveBackendURL(t *testing.T) {
 	t.Setenv("AGENT_BACKEND_URL", "")
@@ -50,5 +53,29 @@ func TestJoinRenewURL(t *testing.T) {
 	got := joinRenewURL("http://127.0.0.1:8080/base/")
 	if got != "http://127.0.0.1:8080/base/renew" {
 		t.Fatalf("joinRenewURL() = %q", got)
+	}
+}
+
+func TestInternalBackendArgs(t *testing.T) {
+	mode, args := internalBackendArgs([]string{"--backend", "http://127.0.0.1:8080"})
+	if mode || len(args) != 2 {
+		t.Fatalf("ordinary desktop args changed: mode=%v args=%v", mode, args)
+	}
+
+	mode, args = internalBackendArgs([]string{
+		internalBackendFlag,
+		"--desktop-lifetime-socket", "/tmp/renew.sock",
+		"--desktop-port", "8080",
+	})
+	if !mode {
+		t.Fatal("internal backend mode not detected")
+	}
+	for _, arg := range args {
+		if arg == internalBackendFlag {
+			t.Fatalf("dispatch flag leaked into backend FlagSet: %v", args)
+		}
+	}
+	if got := strings.Join(args, " "); got != "--desktop-lifetime-socket /tmp/renew.sock --desktop-port 8080" {
+		t.Fatalf("backend args = %q", got)
 	}
 }

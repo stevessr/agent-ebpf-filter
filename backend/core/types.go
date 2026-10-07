@@ -3,10 +3,8 @@
 package core
 
 import (
-	"log"
 	"time"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/cilium/ebpf"
 )
 
@@ -251,14 +249,3 @@ type ShellControlMessage struct {
 	Rows int    `json:"rows,omitempty"`
 }
 
-// ── NVML initialization ──────────────────────────────────────────────────────
-
-var NvmlInitialized bool
-
-func init() {
-	if ret := nvml.Init(); ret == nvml.SUCCESS {
-		NvmlInitialized = true
-	} else {
-		log.Printf("NVML Init failed: %v", nvml.ErrorString(ret))
-	}
-}
