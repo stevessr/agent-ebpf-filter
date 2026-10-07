@@ -143,7 +143,7 @@ Renew 浏览器/桌面前端只保留一个有界摘要窗口；用户需要更�
 
 桌面模块拆为 `main.go`（生命周期）、`backend.go`（可选 Linux 后端启动/提权边界）、`client.go`（REST/WebSocket）、`model.go`（有界状态和重连）与 `view.go`（MyGo native UI）。特权后端仍不依赖 MyGo；桌面模块只实现 `/ws/system` 当前界面所需字段的窄 protobuf wire decoder，并以 `proto/tracker_system.proto` 为协议源，因此无需依赖构建时生成且不入库的 `backend/pb`。
 
-原生页面覆盖常驻使用所需的概览、事件、进程与网络目标聚合。规则、Research、Execution Graph、TLS capture 等高级能力继续由浏览器工作台承担；桌面端的“打开 Web 工作台”只调用系统默认浏览器，不嵌入 Web 内容。
+原生页面覆盖常驻使用所需的概览、事件、进程、网络目标聚合、监控中心与 Wrapper 规则。监控中心直接复用 `/config/runtime`，提供轻量 / 日常 / 深度档位、内核事件组和运行时处理开关；规则页直接复用 `/config/rules`，支持 ALLOW / ALERT / BLOCK / REWRITE、正则、优先级与确认删除。系统级 BPF LSM 策略编排、Research、Execution Graph、TLS 深度分析等专业能力继续由浏览器工作台承担；桌面端的“打开 Web 工作台”只调用系统默认浏览器，不嵌入 Web 内容。
 
 Linux 打包版只携带原生 MyGo 可执行文件和 eBPF 后端，不再携带 `frontend/dist`。开发流程也不再依赖 Bun/Vite：
 
