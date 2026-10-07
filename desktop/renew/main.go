@@ -94,7 +94,7 @@ func runNativeClient(ctx context.Context, app *nativeApp, backend, resources str
 		return
 	}
 
-	token := strings.TrimSpace(os.Getenv("AGENT_API_TOKEN"))
+	token := resolveClientTokenFromEnvironment()
 	if session != nil && session.token != "" {
 		token = session.token
 	} else if token == "" {
@@ -109,6 +109,16 @@ func runNativeClient(ctx context.Context, app *nativeApp, backend, resources str
 	app.setClient(client)
 	app.setStartup("后端已连接", "")
 	app.run(ctx, client)
+}
+
+
+func resolveClientTokenFromEnvironment() string {
+	for _, key := range []string{"AGENT_API_KEY", "AGENT_ACCESS_TOKEN", "AGENT_EBPF_ACCESS_TOKEN"} {
+		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func resolveBackendURL(explicit string) (string, error) {
