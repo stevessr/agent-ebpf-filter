@@ -1,7 +1,6 @@
 package main
 
 import (
-	"agent-ebpf-filter/embedded"
 	"context"
 	"flag"
 	"fmt"
@@ -28,8 +27,8 @@ var mainWindow *mygo.Window
 var windowMu sync.Mutex
 
 func main() {
-	if backendMode, args := internalBackendArgs(os.Args[1:]); backendMode {
-		if err := embedded.Run(args); err != nil {
+	if handled, err := runInternalBackendIfRequested(os.Args[1:]); handled {
+		if err != nil {
 			log.Fatal(err)
 		}
 		return
