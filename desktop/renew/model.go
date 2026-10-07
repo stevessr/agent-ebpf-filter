@@ -60,9 +60,10 @@ type nativeApp struct {
 
 	mu     sync.RWMutex
 	data   appData
-	client     *apiClient
-	window     *mygo.Window
-	systemConn *websocket.Conn
+	client           *apiClient
+	window           *mygo.Window
+	systemConn       *websocket.Conn
+	systemGeneration uint64
 
 	// View-only state is read and written on MyGo's main thread.
 	page              string
@@ -239,6 +240,7 @@ func (a *nativeApp) consumeSummaryStream(ctx context.Context, conn *websocket.Co
 
 func (a *nativeApp) runSystemStream(ctx context.Context, client *apiClient) {
 	for ctx.Err() == nil {
+		generation := a.currentSystemGeneration()
 		query := make(url.Values)
 		query.Set("interval", fmt.Sprint(a.systemIntervalMS()))
 		conn, _, err := client.dialWebSocket(ctx, "/ws/system", query)
@@ -262,11 +264,21 @@ func (a *nativeApp) runSystemStream(ctx context.Context, client *apiClient) {
 		if ctx.Err() != nil {
 			return
 		}
+		if a.currentSystemGeneration() != generation {
+			continue
+		}
 		a.streamFailure("系统指标流", err, false)
 		if !sleepContext(ctx, reconnectDelay) {
 			return
 		}
 	}
+}
+
+func (a *nativeApp) currentSystemGeneration() uint64 {
+	a.mu.RLock()
+	generation := a.systemGeneration
+	a.mu.RUnlock()
+	return generation
 }
 
 func (a *nativeApp) systemIntervalMS() int {
@@ -294,9 +306,10 @@ func (a *nativeApp) clearSystemConn(conn *websocket.Conn) {
 }
 
 func (a *nativeApp) restartSystemStream() {
-	a.mu.RLock()
+	a.mu.Lock()
+	a.systemGeneration++
 	conn := a.systemConn
-	a.mu.RUnlock()
+	a.mu.Unlock()
 	if conn != nil {
 		_ = conn.Close()
 	}
