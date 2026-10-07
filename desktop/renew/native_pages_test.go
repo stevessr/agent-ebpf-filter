@@ -2,13 +2,93 @@ package main
 
 import (
 	"encoding/json"
-	"strings"
 	"math"
 	"reflect"
+	"strings"
 	"testing"
 
 	"google.golang.org/protobuf/encoding/protowire"
 )
+
+
+func TestOverviewHeadlinePriorities(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(*renewApp)
+		level string
+	}{
+		{"starting", func(a *renewApp) {}, "warning"},
+		{"backend offline", func(a *renewApp) { a.starting = false }, "danger"},
+		{"capture unhealthy", func(a *renewApp) {
+			a.starting = false
+			a.connected = true
+		}, "danger"},
+		{"danger event", func(a *renewApp) {
+			a.starting = false
+			a.connected = true
+			a.health.CaptureHealthy = true
+			a.eventStreamConnected = true
+			a.events = []eventSummary{{EventID: "danger", RiskScore: 90}}
+		}, "danger"},
+		{"attention event", func(a *renewApp) {
+			a.starting = false
+			a.connected = true
+			a.health.CaptureHealthy = true
+			a.eventStreamConnected = true
+			a.events = []eventSummary{{EventID: "attention", RiskScore: 65}}
+		}, "warning"},
+		{"fallback stream", func(a *renewApp) {
+			a.starting = false
+			a.connected = true
+			a.health.CaptureHealthy = true
+		}, "warning"},
+		{"healthy", func(a *renewApp) {
+			a.starting = false
+			a.connected = true
+			a.health.CaptureHealthy = true
+			a.eventStreamConnected = true
+		}, "success"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := newRenewApp("http://127.0.0.1:8080")
+			tt.setup(a)
+			_, _, level := a.overviewHeadline()
+			if level != tt.level {
+				t.Fatalf("level=%q, want %q", level, tt.level)
+			}
+		})
+	}
+}
+
+func TestMonitoringProfileActive(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.configReady = true
+	daily := map[string]bool{"process": true, "file-changes": true, "network": true}
+	for _, module := range monitoringModules {
+		if daily[module.Key] {
+			continue
+		}
+		for _, eventType := range module.EventTypes {
+			a.disabledEventTypes[eventType] = true
+		}
+	}
+	if !a.monitoringProfileActive("日常") {
+		t.Fatal("daily profile should be detected as active")
+	}
+	if a.monitoringProfileActive("轻量") || a.monitoringProfileActive("深度") {
+		t.Fatal("only the daily profile should be active")
+	}
+}
+
+func TestPageMetadata(t *testing.T) {
+	if !pageUsesEventSearch("网络") || pageUsesEventSearch("规则") {
+		t.Fatal("unexpected search availability")
+	}
+	if got := pageSubtitle("系统"); !strings.Contains(got, "队列") {
+		t.Fatalf("system subtitle=%q", got)
+	}
+}
 
 func TestAggregateNetworkUsesBoundedSummaryFields(t *testing.T) {
 	rows := aggregateNetwork([]eventSummary{
