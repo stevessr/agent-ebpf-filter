@@ -85,4 +85,4 @@ func (a *renewApp) eventUIDroppedCount() uint64 {
 	return a.eventUIDropped.Load()
 }
 
-var _ atomic.Uint64
+type eventDropCounter = atomic.Uint64
