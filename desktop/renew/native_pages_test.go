@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"math"
 	"reflect"
 	"testing"
@@ -58,6 +59,56 @@ func TestMergeEventSummariesDeduplicatesAndSorts(t *testing.T) {
 	}
 	if got[0].EventID != "same" || got[0].Comm != "fresh" || got[1].EventID != "new" {
 		t.Fatalf("unexpected merge order: %#v", got)
+	}
+}
+
+
+func TestMergeEventSummariesCachesSearchTextAndMaintainsWindow(t *testing.T) {
+	existing := []eventSummary{
+		{EventID: "e3", ReceivedAtMS: 30, Comm: "codex"},
+		{EventID: "e2", ReceivedAtMS: 20, Comm: "bash"},
+		{EventID: "e1", ReceivedAtMS: 10, Comm: "node"},
+	}
+	got := mergeEventSummaries(existing, []eventSummary{
+		{EventID: "e4", ReceivedAtMS: 40, Comm: "curl", Path: "/tmp/a"},
+		{EventID: "e2", ReceivedAtMS: 35, Comm: "python", Path: "/tmp/b"},
+	}, 4)
+	if len(got) != 4 {
+		t.Fatalf("len=%d, want 4", len(got))
+	}
+	want := []string{"e4", "e2", "e3", "e1"}
+	for i, id := range want {
+		if got[i].EventID != id {
+			t.Fatalf("row %d id=%q, want %q; got=%#v", i, got[i].EventID, id, got)
+		}
+		if got[i].SearchText == "" {
+			t.Fatalf("row %d did not cache search text: %#v", i, got[i])
+		}
+	}
+	if !strings.Contains(got[1].SearchText, "python") || strings.Contains(got[1].SearchText, "bash") {
+		t.Fatalf("replacement search text is stale: %q", got[1].SearchText)
+	}
+}
+
+func TestFilteredEventsCacheInvalidatesOnEventVersion(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.events = mergeEventSummaries(nil, []eventSummary{
+		{EventID: "1", ReceivedAtMS: 10, Comm: "codex"},
+	}, 1200)
+	a.eventsVersion = 1
+	first := a.filteredEvents()
+	second := a.filteredEvents()
+	if len(first) != 1 || len(second) != 1 || &first[0] != &second[0] {
+		t.Fatal("filtered event cache was not reused")
+	}
+
+	a.events = mergeEventSummaries(a.events, []eventSummary{
+		{EventID: "2", ReceivedAtMS: 20, Comm: "bash"},
+	}, 1200)
+	a.eventsVersion++
+	third := a.filteredEvents()
+	if len(third) != 2 || third[0].EventID != "2" {
+		t.Fatalf("cache did not invalidate after event version change: %#v", third)
 	}
 }
 
