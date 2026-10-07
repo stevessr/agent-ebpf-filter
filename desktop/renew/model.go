@@ -51,6 +51,8 @@ type appData struct {
 	SelectedEventID string
 	Detail          string
 	DetailLoading   bool
+	Monitoring      monitoringState
+	Rules           rulesState
 }
 
 type nativeApp struct {
@@ -58,22 +60,39 @@ type nativeApp struct {
 
 	mu     sync.RWMutex
 	data   appData
-	client *apiClient
-	window *mygo.Window
+	client     *apiClient
+	window     *mygo.Window
+	systemConn *websocket.Conn
 
 	// View-only state is read and written on MyGo's main thread.
-	page          string
-	query         string
-	onlyAttention bool
-	onlyAgents    bool
+	page              string
+	query             string
+	onlyAttention     bool
+	onlyAgents        bool
+	ruleComm          string
+	ruleAction        string
+	ruleRegex         string
+	ruleReplacement   string
+	rulePriority      string
+	ruleRewrite       string
+	ruleEditing       string
+	pendingRuleDelete string
 }
 
 func newNativeApp(backend string) *nativeApp {
 	return &nativeApp{
 		backend: backend,
 		page:    "overview",
+		ruleAction:  "ALERT",
+		rulePriority: "0",
+		ruleRewrite: "[]",
 		data: appData{
 			StartupStatus: "准备启动…",
+			Monitoring: monitoringState{
+				Runtime:            map[string]any{},
+				DisabledEventTypes: map[uint32]bool{},
+				StatsIntervalMS:    5_000,
+			},
 		},
 	}
 }
@@ -106,6 +125,7 @@ func (a *nativeApp) snapshot() appData {
 	out := a.data
 	out.Events = append([]eventSummary(nil), a.data.Events...)
 	out.System.Processes = append([]processSnapshot(nil), a.data.System.Processes...)
+	out.Rules.Items = append([]wrapperRule(nil), a.data.Rules.Items...)
 	return out
 }
 
@@ -124,6 +144,7 @@ func (a *nativeApp) setClient(client *apiClient) {
 
 func (a *nativeApp) run(ctx context.Context, client *apiClient) {
 	a.refreshSummaries(ctx, client)
+	a.refreshConfig()
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
@@ -150,6 +171,7 @@ func (a *nativeApp) refresh() {
 		defer cancel()
 		a.refreshSummaries(ctx, client)
 	}()
+	a.refreshConfig()
 }
 
 func (a *nativeApp) refreshSummaries(ctx context.Context, client *apiClient) {
@@ -216,9 +238,9 @@ func (a *nativeApp) consumeSummaryStream(ctx context.Context, conn *websocket.Co
 }
 
 func (a *nativeApp) runSystemStream(ctx context.Context, client *apiClient) {
-	query := make(url.Values)
-	query.Set("interval", "2000")
 	for ctx.Err() == nil {
+		query := make(url.Values)
+		query.Set("interval", fmt.Sprint(a.systemIntervalMS()))
 		conn, _, err := client.dialWebSocket(ctx, "/ws/system", query)
 		if err != nil {
 			a.streamFailure("系统指标流", err, false)
@@ -227,6 +249,7 @@ func (a *nativeApp) runSystemStream(ctx context.Context, client *apiClient) {
 			}
 			continue
 		}
+		a.setSystemConn(conn)
 		a.update(func(data *appData) {
 			data.SystemConnected = true
 			data.LastStreamError = ""
@@ -234,6 +257,7 @@ func (a *nativeApp) runSystemStream(ctx context.Context, client *apiClient) {
 		stopClose := closeWebSocketOnContext(ctx, conn)
 		err = a.consumeSystemStream(ctx, conn)
 		close(stopClose)
+		a.clearSystemConn(conn)
 		_ = conn.Close()
 		if ctx.Err() != nil {
 			return
@@ -242,6 +266,39 @@ func (a *nativeApp) runSystemStream(ctx context.Context, client *apiClient) {
 		if !sleepContext(ctx, reconnectDelay) {
 			return
 		}
+	}
+}
+
+func (a *nativeApp) systemIntervalMS() int {
+	a.mu.RLock()
+	interval := a.data.Monitoring.StatsIntervalMS
+	a.mu.RUnlock()
+	if interval != 2_000 && interval != 5_000 && interval != 10_000 && interval != 30_000 {
+		return 5_000
+	}
+	return interval
+}
+
+func (a *nativeApp) setSystemConn(conn *websocket.Conn) {
+	a.mu.Lock()
+	a.systemConn = conn
+	a.mu.Unlock()
+}
+
+func (a *nativeApp) clearSystemConn(conn *websocket.Conn) {
+	a.mu.Lock()
+	if a.systemConn == conn {
+		a.systemConn = nil
+	}
+	a.mu.Unlock()
+}
+
+func (a *nativeApp) restartSystemStream() {
+	a.mu.RLock()
+	conn := a.systemConn
+	a.mu.RUnlock()
+	if conn != nil {
+		_ = conn.Close()
 	}
 }
 
