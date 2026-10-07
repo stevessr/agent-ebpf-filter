@@ -142,7 +142,7 @@ func (a *renewApp) monitoringView(c *ui.Context) {
 func (a *renewApp) rulesView(c *ui.Context) {
 	t := c.Theme()
 	ui.Text(c, "Wrapper 规则").FontSize(28).Bold()
-	ui.Text(c, "规则是后端共享配置，按命令名匹配；仅经 agent-wrapper 执行的命令受此策略约束。").TextColor(t.TextMuted)
+	ui.Text(c, "为经 agent-wrapper 执行的命令设置允许、告警、阻断或重写策略；高影响动作会在列表中明确标色。").TextColor(t.TextMuted)
 
 	if a.rulesErr != "" {
 		ui.Text(c, a.rulesErr).TextColor(t.TextMuted)
@@ -158,7 +158,10 @@ func (a *renewApp) rulesView(c *ui.Context) {
 				ui.TextInput(c, &a.ruleComm).Placeholder("例如 curl").Label("命令名")
 			})
 			ui.Field(c, "动作", func() {
-				ui.Select(c, &a.ruleAction, []string{"ALLOW", "BLOCK", "ALERT", "REWRITE"}).Label("动作")
+				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+					ui.Select(c, &a.ruleAction, []string{"ALLOW", "BLOCK", "ALERT", "REWRITE"}).Label("动作")
+					ruleActionPill(c, a.ruleAction)
+				})
 			})
 			ui.Field(c, "优先级", func() {
 				ui.TextInput(c, &a.rulePriority).Placeholder("0").Label("优先级")
@@ -210,7 +213,7 @@ func (a *renewApp) rulesView(c *ui.Context) {
 			case 0:
 				ui.Text(c, r.Comm).SingleLine()
 			case 1:
-				ui.Text(c, r.Action).SingleLine()
+				ruleActionPill(c, r.Action)
 			case 2:
 				ui.Text(c, strconv.Itoa(r.Priority))
 			case 3:
@@ -234,8 +237,11 @@ func (a *renewApp) rulesView(c *ui.Context) {
 	})
 
 	if a.pendingDelete != "" {
-		card(c, "确认删除", func() {
-			ui.Text(c, "确定删除 "+a.pendingDelete+" 的规则？此操作影响所有 Agent 工具的对应命令。")
+		ui.Column(c).Padding(16).Gap(10).Radius(12).Background(t.Danger.Alpha(0.05)).Border(1, t.Danger.Alpha(0.38)).Children(func() {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				statusPill(c, "删除规则", t.Danger)
+				ui.Text(c, "确定删除 "+a.pendingDelete+"？此操作影响所有 Agent 工具的对应命令。").Grow(1)
+			})
 			ui.Row(c).Gap(8).Children(func() {
 				if ui.PrimaryButton(c, "确认删除").Clicked() && !a.rulesBusy {
 					a.deleteRule(a.pendingDelete)
@@ -245,6 +251,22 @@ func (a *renewApp) rulesView(c *ui.Context) {
 				}
 			})
 		})
+	}
+}
+
+func ruleActionPill(c *ui.Context, action string) *ui.Element {
+	t := c.Theme()
+	switch strings.ToUpper(strings.TrimSpace(action)) {
+	case "BLOCK":
+		return statusPill(c, "BLOCK", t.Danger)
+	case "ALERT":
+		return statusPill(c, "ALERT", t.Warning)
+	case "ALLOW":
+		return statusPill(c, "ALLOW", t.Success)
+	case "REWRITE":
+		return statusPill(c, "REWRITE", t.Accent)
+	default:
+		return ui.Badge(c, displayOr(action, "未知"))
 	}
 }
 
