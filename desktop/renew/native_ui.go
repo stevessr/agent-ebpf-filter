@@ -27,6 +27,7 @@ type renewApp struct {
 	eventsVersion      uint64
 	eventUIQueue       chan eventSummary
 	eventUIDropped     eventDropCounter
+	eventUIPaused      eventPauseFlag
 	filterCacheValid   bool
 	filterCacheVersion uint64
 	filterCacheKey     string
@@ -345,6 +346,7 @@ func (a *renewApp) header(c *ui.Context) {
 		}
 		if ui.Button(c, label).Clicked() {
 			a.paused = !a.paused
+			a.eventUIPaused.Store(a.paused)
 			if !a.paused {
 				go a.refresh(context.Background())
 			}
