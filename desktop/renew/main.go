@@ -1,6 +1,7 @@
 package main
 
 import (
+	"agent-ebpf-filter/embedded"
 	"context"
 	"flag"
 	"fmt"
@@ -17,12 +18,33 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-const defaultBackendURL = "http://127.0.0.1:8080"
+const (
+	defaultBackendURL   = "http://127.0.0.1:8080"
+	internalBackendFlag = "--internal-backend"
+	askpassModeEnv      = "AGENT_RENEW_ASKPASS"
+)
 
 var mainWindow *mygo.Window
 var windowMu sync.Mutex
 
 func main() {
+	if backendMode, args := internalBackendArgs(os.Args[1:]); backendMode {
+		if err := embedded.Run(args); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+	if os.Getenv(askpassModeEnv) == "1" {
+		if err := runAskpass(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+	runDesktop()
+}
+
+func runDesktop() {
 	backendFlag := flag.String("backend", "", "Agent eBPF Filter backend URL")
 	flag.Parse()
 
@@ -72,18 +94,22 @@ func main() {
 	}
 }
 
-func (a *renewApp) bootstrap(ctx context.Context) {
-	resources, err := mygo.App.Path(mygo.PathResources)
-	if err != nil {
-		a.update(func() {
-			a.starting = false
-			a.lastErr = err.Error()
-		})
-		return
+func internalBackendArgs(args []string) (bool, []string) {
+	for i, arg := range args {
+		if arg != internalBackendFlag {
+			continue
+		}
+		out := make([]string, 0, len(args)-1)
+		out = append(out, args[:i]...)
+		out = append(out, args[i+1:]...)
+		return true, out
 	}
+	return false, args
+}
 
+func (a *renewApp) bootstrap(ctx context.Context) {
 	startupCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-	session, startupErr := ensureBackend(startupCtx, a.backend, resources)
+	session, startupErr := ensureBackend(startupCtx, a.backend)
 	cancel()
 	if session != nil {
 		defer session.Close()
