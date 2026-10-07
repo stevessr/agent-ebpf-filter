@@ -348,6 +348,7 @@ func (a *renewApp) systemView(c *ui.Context) {
 		ui.Text(c, a.backend).Font("monospace")
 		ui.Textf(c, "后端队列：%d", a.health.BackendQueueLen).TextColor(t.TextMuted)
 		ui.Textf(c, "持久化队列：%d / %d · pending %d", a.health.PersistQueueLen, a.health.PersistQueueCap, a.health.PersistPending).TextColor(t.TextMuted)
+		ui.Textf(c, "桌面事件合并队列：%d / %d · 丢弃 %d", len(a.eventUIQueue), eventUIQueueSize, a.eventUIDroppedCount()).TextColor(t.TextMuted)
 		if !a.lastSync.IsZero() {
 			ui.Text(c, "摘要同步："+a.lastSync.Format("15:04:05")).FontSize(10).TextColor(t.TextMuted)
 		}
