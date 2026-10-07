@@ -377,37 +377,23 @@ func (a *renewApp) sidebar(c *ui.Context) {
 func (a *renewApp) header(c *ui.Context) {
 	t := c.Theme()
 	ui.Row(c).MinHeight(64).Padding(9, 18).Gap(12).AlignItems(ui.Center).Background(t.Surface).Children(func() {
-		ui.Column(c).Gap(3).MinWidth(180).Children(func() {
+		ui.Column(c).Gap(3).MinWidth(160).Children(func() {
 			ui.Text(c, a.page).FontSize(18).Bold()
 			ui.Text(c, pageSubtitle(a.page)).FontSize(10).TextColor(t.TextMuted).SingleLine()
 		})
 
-		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-			switch {
-			case a.starting:
-				statusPill(c, "启动中", t.Warning)
-			case !a.connected:
-				statusPill(c, "后端离线", t.Danger)
-			default:
-				statusPill(c, "后端在线", t.Success)
-			}
-			if a.connected {
-				if a.eventStreamConnected {
-					statusPill(c, "事件流实时", t.Success)
-				} else {
-					statusPill(c, "事件流回退", t.Warning)
-				}
-				if a.systemConnected {
-					statusPill(c, "系统流实时", t.Success)
-				} else {
-					statusPill(c, "系统流重连", t.Warning)
-				}
-			}
-		})
+		pipelineLabel, pipelineLevel := a.pipelineStatus()
+		pipelineTone := t.Success
+		if pipelineLevel == "danger" {
+			pipelineTone = t.Danger
+		} else if pipelineLevel == "warning" {
+			pipelineTone = t.Warning
+		}
+		statusPill(c, pipelineLabel, pipelineTone)
 
 		ui.Spacer(c)
 		if pageUsesEventSearch(a.page) {
-			ui.SearchField(c, &a.search).Label("搜索当前视图").Width(270)
+			ui.SearchField(c, &a.search).Label("搜索当前视图").Width(240)
 		}
 		ui.Toolbar(c, func() {
 			label := "暂停"
@@ -429,6 +415,23 @@ func (a *renewApp) header(c *ui.Context) {
 			}
 		}).Label("页面操作")
 	})
+}
+
+func (a *renewApp) pipelineStatus() (label, level string) {
+	switch {
+	case a.starting:
+		return "启动中", "warning"
+	case !a.connected:
+		return "后端离线", "danger"
+	case !a.health.CaptureHealthy:
+		return "采集异常", "danger"
+	case !a.eventStreamConnected:
+		return "事件流回退", "warning"
+	case !a.systemConnected:
+		return "系统流重连", "warning"
+	default:
+		return "全链路实时", "success"
+	}
 }
 
 func pageSubtitle(page string) string {
