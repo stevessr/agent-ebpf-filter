@@ -176,18 +176,38 @@ func (a *renewApp) loadOlderEvents() {
 	}()
 }
 
+func (a *renewApp) releaseEventDetailPayload() {
+	a.eventDetailLoading = false
+	a.eventDetailID = ""
+	a.eventDetail = nil
+	a.eventDetailText = ""
+	a.eventDetailErr = ""
+	a.eventDetailTab = 0
+}
+
+func (a *renewApp) closeEventDetail() {
+	a.eventDetailOpen = false
+	a.releaseEventDetailPayload()
+}
+
+func (a *renewApp) ensureEventDetailText() {
+	if a.eventDetailText != "" || a.eventDetail == nil {
+		return
+	}
+	if data, err := json.MarshalIndent(a.eventDetail, "", "  "); err == nil {
+		a.eventDetailText = string(data)
+	}
+}
+
 func (a *renewApp) openEventDetail(eventID string) {
 	if a.client == nil || strings.TrimSpace(eventID) == "" {
 		return
 	}
 	id := strings.TrimSpace(eventID)
+	a.releaseEventDetailPayload()
 	a.eventDetailID = id
 	a.eventDetailOpen = true
 	a.eventDetailLoading = true
-	a.eventDetailErr = ""
-	a.eventDetail = nil
-	a.eventDetailText = ""
-	a.eventDetailTab = 0
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 		defer cancel()
@@ -198,7 +218,7 @@ func (a *renewApp) openEventDetail(eventID string) {
 			enforcement, enforcementErr = a.client.enforcementStatus(ctx)
 		}
 		a.update(func() {
-			if a.eventDetailID != id {
+			if !a.eventDetailOpen || a.eventDetailID != id {
 				return
 			}
 			a.eventDetailLoading = false
@@ -207,9 +227,6 @@ func (a *renewApp) openEventDetail(eventID string) {
 				return
 			}
 			a.eventDetail = detail
-			if data, marshalErr := json.MarshalIndent(detail, "", "  "); marshalErr == nil {
-				a.eventDetailText = string(data)
-			}
 			if enforcementErr == nil {
 				a.enforcement = enforcement
 			} else {
@@ -378,7 +395,7 @@ func (a *renewApp) eventDetailModal(c *ui.Context) {
 					ui.Text(c, a.eventDetailID).Font("monospace").FontSize(10).TextColor(t.TextMuted)
 				})
 				if ui.Button(c, "关闭").Clicked() {
-					a.eventDetailOpen = false
+					a.closeEventDetail()
 				}
 			})
 			if a.eventDetailLoading {
@@ -394,6 +411,7 @@ func (a *renewApp) eventDetailModal(c *ui.Context) {
 			}
 			ui.Tabs(c, &a.eventDetailTab, "可视化详情", "原始 JSON")
 			if a.eventDetailTab == 1 {
+				a.ensureEventDetailText()
 				ui.Scroll(c).Height(520).Children(func() {
 					ui.Text(c, a.eventDetailText).Font("monospace").FontSize(10)
 				})
