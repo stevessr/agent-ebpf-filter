@@ -18,10 +18,11 @@ import (
 )
 
 const (
-	desktopNativeIPCVersion = 1
+	desktopNativeIPCVersion = 2
 
-	desktopFrameEventEnvelope byte = 1
+	desktopFrameEventEnvelope byte = 1 // v1 compatibility
 	desktopFrameSystemStats   byte = 2
+	desktopFrameEventSummary  byte = 3
 
 	desktopNativeQueueSize   = 1024
 	desktopNativeWriteTimeout = 750 * time.Millisecond
