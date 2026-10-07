@@ -37,7 +37,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang llvm libbpf-dev libelf-dev protobuf-compiler
       - name: Generate Go protobuf bindings
-        working-directory: ../..
+        working-directory: ${{ github.workspace }}
         run: |
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
           mkdir -p backend/pb
