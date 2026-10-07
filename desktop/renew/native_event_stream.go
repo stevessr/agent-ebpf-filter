@@ -76,12 +76,7 @@ func (a *renewApp) consumeEventSummaryStream(ctx context.Context) error {
 		if len(batch.Events) == 0 {
 			continue
 		}
-		a.update(func() {
-			if a.paused {
-				return
-			}
-			a.events = mergeEventSummaries(a.events, batch.Events, 1200)
-		})
+		a.queueEventSummaries(batch.Events)
 	}
 	return ctx.Err()
 }
