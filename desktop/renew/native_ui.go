@@ -125,9 +125,13 @@ func newRenewApp(backend string) *renewApp {
 	return a
 }
 
-func (a *renewApp) runPolling(ctx context.Context) {
-	go a.runSystemStats(ctx)
-	go a.runEventSummaryStream(ctx)
+func (a *renewApp) runPolling(ctx context.Context, session *backendSession) {
+	if session != nil && session.reader != nil && session.nativeIPCVersion >= nativeIPCVersion {
+		go a.runNativeIPC(ctx, session)
+	} else {
+		go a.runSystemStats(ctx)
+		go a.runEventSummaryStream(ctx)
+	}
 	a.refresh(ctx)
 	a.refreshConfiguration(ctx)
 	ticker := time.NewTicker(2 * time.Second)
@@ -150,7 +154,14 @@ func (a *renewApp) refresh(parent context.Context) {
 	}
 	ctx, cancel := context.WithTimeout(parent, 4*time.Second)
 	defer cancel()
-	snapshot, err := a.client.snapshot(ctx, 320)
+	fullSnapshot := !a.historyInitialized || !a.eventStreamConnected
+	var snapshot apiSnapshot
+	var err error
+	if fullSnapshot {
+		snapshot, err = a.client.snapshot(ctx, 320)
+	} else {
+		snapshot, err = a.client.statusSnapshot(ctx)
+	}
 	if err != nil {
 		a.update(func() {
 			a.connected = false
@@ -161,10 +172,12 @@ func (a *renewApp) refresh(parent context.Context) {
 	a.update(func() {
 		a.connected = true
 		a.lastErr = ""
-		a.events = mergeEventSummaries(a.events, snapshot.Events, 1200)
-		if !a.historyInitialized {
-			a.historyCursor = snapshot.NextCursor
-			a.historyInitialized = true
+		if fullSnapshot {
+			a.events = mergeEventSummaries(a.events, snapshot.Events, 1200)
+			if !a.historyInitialized {
+				a.historyCursor = snapshot.NextCursor
+				a.historyInitialized = true
+			}
 		}
 		a.health = snapshot.Health
 		a.trackedComms = snapshot.TrackedComms

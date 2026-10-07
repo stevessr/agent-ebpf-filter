@@ -84,6 +84,41 @@ func Write(w io.Writer, payload []byte) error {
 	return writeFull(w, payload)
 }
 
+// WriteTyped sends a frame whose first payload byte is a small message kind.
+// It is intended for multiplexed local control/data channels. Socket writers
+// use writev for header + kind + protobuf payload, avoiding a concatenation
+// allocation on every realtime event.
+func WriteTyped(w io.Writer, kind byte, payload []byte) error {
+	size := 1 + len(payload)
+	if size <= 1 || size > MaxPayloadSize {
+		return fmt.Errorf("%w: %d (max %d)", ErrInvalidPayloadSize, size, MaxPayloadSize)
+	}
+
+	var header [HeaderSize]byte
+	var kindBuf [1]byte
+	kindBuf[0] = kind
+	binary.BigEndian.PutUint32(header[:], uint32(size))
+
+	if conn, ok := w.(net.Conn); ok {
+		buffers := net.Buffers{header[:], kindBuf[:], payload}
+		n, err := buffers.WriteTo(conn)
+		if err != nil {
+			return err
+		}
+		if n != int64(HeaderSize+size) {
+			return io.ErrShortWrite
+		}
+		return nil
+	}
+	if err := writeFull(w, header[:]); err != nil {
+		return err
+	}
+	if err := writeFull(w, kindBuf[:]); err != nil {
+		return err
+	}
+	return writeFull(w, payload)
+}
+
 func writeFull(w io.Writer, payload []byte) error {
 	for len(payload) > 0 {
 		n, err := w.Write(payload)

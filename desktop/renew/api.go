@@ -241,6 +241,22 @@ func (c *apiClient) snapshot(ctx context.Context, limit int) (apiSnapshot, error
 	}, nil
 }
 
+func (c *apiClient) statusSnapshot(ctx context.Context) (apiSnapshot, error) {
+	var health collectorHealth
+	if err := c.getJSON(ctx, "/system/collector-health", &health); err != nil {
+		return apiSnapshot{}, err
+	}
+	var tracked []string
+	if err := c.getJSON(ctx, "/system/tracked-comms", &tracked); err != nil {
+		tracked = nil
+	}
+	return apiSnapshot{
+		Health:       health,
+		TrackedComms: tracked,
+		FetchedAt:    time.Now(),
+	}, nil
+}
+
 func (c *apiClient) eventDetail(ctx context.Context, eventID string) (map[string]any, error) {
 	var detail map[string]any
 	err := c.getJSON(ctx, "/events/detail/"+url.PathEscape(strings.TrimSpace(eventID)), &detail)

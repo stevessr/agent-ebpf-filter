@@ -731,6 +731,9 @@ func recordCapturedEvent(event *pb.Event) CapturedEventRecord {
 		Event:      event,
 	})
 	record = redactCapturedEventRecord(record, globalRedactionEngine)
+	if session := activeDesktopSession.Load(); session != nil && record.Envelope != nil {
+		session.publishProto(desktopFrameEventEnvelope, record.Envelope)
+	}
 	capturedEventArchive.Add(record)
 	collectorMetricsStore.RecordCapturedArchive()
 	appendStart := time.Now()

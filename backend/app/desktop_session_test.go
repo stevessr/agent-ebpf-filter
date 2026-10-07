@@ -1,6 +1,8 @@
 package app
 
 import (
+	"agent-ebpf-filter/pb"
+	"agent-ebpf-filter/udsframe"
 	"context"
 	"encoding/json"
 	"net"
@@ -12,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestDesktopFlagsSurviveElevation(t *testing.T) {
@@ -70,7 +73,8 @@ func TestDesktopLifetimeEOFAndToken(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- session.publishToken("test-only-token") }()
 	var message struct {
-		Token string `json:"token"`
+		Token            string `json:"token"`
+		NativeIPCVersion int    `json:"nativeIpcVersion"`
 	}
 	if err := json.NewDecoder(conn).Decode(&message); err != nil {
 		t.Fatal(err)
@@ -80,6 +84,26 @@ func TestDesktopLifetimeEOFAndToken(t *testing.T) {
 	}
 	if message.Token != "test-only-token" {
 		t.Fatal("token channel failed")
+	}
+	if message.NativeIPCVersion != desktopNativeIPCVersion {
+		t.Fatalf("native IPC version = %d, want %d", message.NativeIPCVersion, desktopNativeIPCVersion)
+	}
+	if !session.publishProto(desktopFrameEventEnvelope, &pb.EventEnvelope{EventId: "evt_native_test"}) {
+		t.Fatal("native frame was not queued")
+	}
+	frame, err := udsframe.Read(conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(frame) < 2 || frame[0] != desktopFrameEventEnvelope {
+		t.Fatalf("unexpected native frame: %v", frame)
+	}
+	var envelope pb.EventEnvelope
+	if err := proto.Unmarshal(frame[1:], &envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.GetEventId() != "evt_native_test" {
+		t.Fatalf("native event id = %q", envelope.GetEventId())
 	}
 	_ = conn.Close()
 	select {
