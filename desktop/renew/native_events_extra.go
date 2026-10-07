@@ -44,18 +44,6 @@ func mergeEventSummaries(existing, incoming []eventSummary, limit int) []eventSu
 	return out
 }
 
-func eventSessionKey(event eventSummary) string {
-	contextID := strings.Trim(strings.Join([]string{event.AgentRunID, event.ConversationID}, ":"), ":")
-	root := event.RootAgentPID
-	if root <= 0 {
-		root = event.PID
-	}
-	if contextID != "" {
-		return contextID + " · PID " + strconv.Itoa(root)
-	}
-	return "PID " + strconv.Itoa(root)
-}
-
 func matchesEventDecision(event eventSummary, filter string) bool {
 	decision := strings.ToUpper(strings.TrimSpace(event.Decision))
 	switch filter {
