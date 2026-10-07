@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"runtime"
@@ -34,18 +35,38 @@ func ServeSystemStatsWS(c *gin.Context) {
 	defer conn.Close()
 	conn.SetReadLimit(wsstream.ControlReadLimit)
 	iv := wsstream.IntervalMilliseconds(c.Query("interval"), 2*time.Second, wsstream.MinStreamInterval, wsstream.MaxStreamInterval)
-	ticker := time.NewTicker(iv)
-	defer ticker.Stop()
-	done := make(chan struct{})
+	ctx, cancel := context.WithCancel(c.Request.Context())
+	defer cancel()
 	go func() {
-		defer close(done)
 		for {
 			if _, _, err := conn.ReadMessage(); err != nil {
+				cancel()
 				return
 			}
 		}
 	}()
+	_ = StreamSystemStats(ctx, iv, func(stats *pb.SystemStats) error {
+		data, err := proto.Marshal(stats)
+		if err != nil {
+			return err
+		}
+		return wsstream.WriteMessage(conn, websocket.BinaryMessage, data)
+	})
+}
 
+// StreamSystemStats owns the platform sampler while the transport is supplied
+// by the caller. Browser clients keep WebSocket delivery; Renew Desktop uses
+// the same snapshots over its private native UDS channel.
+func StreamSystemStats(ctx context.Context, interval time.Duration, emit func(*pb.SystemStats) error) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if interval <= 0 {
+		interval = 2 * time.Second
+	}
+	if emit == nil {
+		return fmt.Errorf("system stats emitter is nil")
+	}
 	coreTypes := Deps.GetCoreTypes()
 	lastFaults, err := Deps.ReadVMFaultCounters()
 	if err != nil {
@@ -68,10 +89,8 @@ func ServeSystemStatsWS(c *gin.Context) {
 	for {
 		var now time.Time
 		select {
-		case <-done:
-			return
-		case <-c.Request.Context().Done():
-			return
+		case <-ctx.Done():
+			return nil
 		case now = <-ticker.C:
 		}
 		gm, gs := Deps.GetGPUMetrics()
@@ -191,8 +210,8 @@ func ServeSystemStatsWS(c *gin.Context) {
 				break
 			}
 			select {
-			case <-c.Request.Context().Done():
-				return
+			case <-ctx.Done():
+				return nil
 			default:
 			}
 			n, _ := p.Name()
@@ -241,14 +260,11 @@ func ServeSystemStatsWS(c *gin.Context) {
 				delete(procCPUSamples, pid)
 			}
 		}
-		data, err := proto.Marshal(stats)
-		if err != nil {
-			return
-		}
-		if err := wsstream.WriteMessage(conn, websocket.BinaryMessage, data); err != nil {
-			return
+		if err := emit(stats); err != nil {
+			return err
 		}
 	}
+
 }
 
 func emitSystemMetricEvent(pid, ppid int32, comm string, cpuPercent float64, memoryPercent float32, memoryBytes uint64, alert string) {
