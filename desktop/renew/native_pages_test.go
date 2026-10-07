@@ -125,7 +125,7 @@ func TestDecodeSystemStatsProtobuf(t *testing.T) {
 	}
 
 	var data []byte
-	for field, value := range []struct {
+	for _, field := range []struct {
 		n protowire.Number
 		b []byte
 	}{{1, process}, {3, cpu}, {4, memory}, {5, ioInfo}} {
