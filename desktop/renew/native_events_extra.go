@@ -33,6 +33,7 @@ func mergeEventSummaries(existing, incoming []eventSummary, limit int) []eventSu
 		if id == "" {
 			continue
 		}
+		event.EventID = id
 		event.SearchText = buildEventSearchText(event)
 		replacements[id] = event
 	}
@@ -53,7 +54,7 @@ func mergeEventSummaries(existing, incoming []eventSummary, limit int) []eventSu
 	i, j := 0, 0
 	for len(out) < limit && (i < len(fresh) || j < len(existing)) {
 		for j < len(existing) {
-			if _, replaced := replacements[existing[j].EventID]; replaced {
+			if _, replaced := replacements[strings.TrimSpace(existing[j].EventID)]; replaced {
 				j++
 				continue
 			}
