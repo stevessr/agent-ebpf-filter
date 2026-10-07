@@ -155,7 +155,7 @@ type ConfigStore interface {
 	RemoveDisabledEventType(eventType uint32)
 
 	Rules() []*pb.WrapperRule
-	UpsertRule(comm, action, rewrittenCmd, regex, replacement string, priority int32)
+	UpsertRule(comm, action string, rewrittenCmd []string, regex, replacement string, priority int32)
 	DeleteRule(comm string)
 }
 

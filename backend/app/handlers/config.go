@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"encoding/json"
 	"strconv"
 
 	"agent-ebpf-filter/pb"
@@ -283,20 +284,40 @@ func HandleConfigRulesGet(c *gin.Context) {
 	Deps.WriteProtoOrJSON(c, 200, list, rules)
 }
 
+type rewrittenCommand []string
+
+func (r *rewrittenCommand) UnmarshalJSON(data []byte) error {
+	var values []string
+	if err := json.Unmarshal(data, &values); err == nil {
+		*r = values
+		return nil
+	}
+	var single string
+	if err := json.Unmarshal(data, &single); err != nil {
+		return err
+	}
+	if single == "" {
+		*r = nil
+	} else {
+		*r = []string{single}
+	}
+	return nil
+}
+
 func HandleConfigRulesPost(c *gin.Context) {
 	var r struct {
-		Comm         string `json:"comm"`
-		Action       string `json:"action"`
-		RewrittenCmd string `json:"rewritten_cmd"`
-		Regex        string `json:"regex"`
-		Replacement  string `json:"replacement"`
-		Priority     int32  `json:"priority"`
+		Comm         string           `json:"comm"`
+		Action       string           `json:"action"`
+		RewrittenCmd rewrittenCommand `json:"rewritten_cmd"`
+		Regex        string           `json:"regex"`
+		Replacement  string           `json:"replacement"`
+		Priority     int32            `json:"priority"`
 	}
 	if err := c.ShouldBindJSON(&r); err != nil {
 		c.JSON(400, gin.H{"error": "invalid rule"})
 		return
 	}
-	Deps.Config.UpsertRule(r.Comm, r.Action, r.RewrittenCmd, r.Regex, r.Replacement, r.Priority)
+	Deps.Config.UpsertRule(r.Comm, r.Action, []string(r.RewrittenCmd), r.Regex, r.Replacement, r.Priority)
 	c.JSON(200, gin.H{"status": "ok"})
 }
 

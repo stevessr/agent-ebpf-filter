@@ -132,45 +132,26 @@ Renew 浏览器/桌面前端只保留一个有界摘要窗口；用户需要更�
 
 ## MyGo 桌面版
 
-桌面壳位于 `desktop/renew/`，使用 MyGo 0.2.7，并作为**独立 Go module** 维护。
+桌面端位于 `desktop/renew/`，现已迁移为 **MyGo Native UI**：界面直接使用 Go 的 `github.com/egoist/mygo/ui` 编写，由 MyGo 自身渲染，不再通过系统 WebView 加载 `/renew`，也不再把 Vite / Vue / `frontend/dist` 作为桌面运行时或打包依赖。
 
-Linux 打包版携带后端和 Vue 产物；启动时复用已有后端，或通过系统授权启动随包后端。WebView 加载后端真实地址，例如：
+桌面端继续复用现有后端协议与安全边界：
 
-```text
-http://127.0.0.1:8080/renew
-```
+- `/events/summaries`：紧凑事件历史，用于概览与事件页；
+- `/system/collector-health`：采集健康与 ringbuf 丢弃计数；
+- `/system/tracked-comms`：显式跟踪进程；
+- 现有 token 认证：本地随包后端通过私有 Unix socket 将 token 交给普通用户桌面进程；远程实例可显式使用 `AGENT_API_TOKEN`；
+- 自动启动后端仍仅支持 Linux 本地 HTTP origin，GUI 进程本身保持非特权。
 
-因此 REST、protobuf、WebSocket、认证 localStorage 都继续使用与 Web 版完全一致的同源路径。
-
-桌面壳只负责：
-
-- 单实例；
-- 原生窗口和窗口状态记忆；
-- `AGENT_BACKEND_URL` / `--backend` 后端地址选择；
-- 自动启动后端、等待就绪，授权取消或启动失败时显示提示页；
-- 通过私有 Unix socket 传递 API token 和管理后端生命周期；
-- MyGo 的 Linux / Windows / macOS 打包。
-
-MyGo 要求 Go 1.27.1+。仓库现已统一到 Go 1.27.1，并将 `desktop/renew` 纳入根 `go.work`；桌面端仍保持独立 `go.mod`，避免 MyGo 依赖进入特权后端 module。
+当前原生页先覆盖日常监控主路径：采集状态、最近活动、风险计数、搜索、事件摘要和系统连接状态。浏览器版 `/renew` 继续作为独立客户端存在，用于尚未迁移的 Network / Processes / Rules / Monitoring 等完整操作面；后续这些页面会逐步用 MyGo widget 原生化，而不是重新嵌回 WebView。
 
 运行和打包：
 
 ```bash
-make renew-desktop-dev    # 后端构建 + Vite /renew WebUI + 桌面窗口
-make renew-desktop-build  # 随包后端 + frontend/dist + Linux 桌面包
+make renew-desktop-dev    # backend + go tool mygo dev，无 Vite
+make renew-desktop-build  # backend + MyGo native package，无 frontend/dist
 ```
 
-开发目标自动启动 Vite，并将 API/WebSocket 代理到实际后端地址。Linux 检测到 Zenity/KDialog 时自动使用随包 askpass 弹密码窗口；否则使用系统 PolicyKit 授权代理。也可设置 `SUDO_ASKPASS` 自定义 `sudo -A` 提示程序。打包版保留 release 认证，开发版显式使用 dev 模式。桌面退出或崩溃只关闭本次启动的后端，不会停止复用的系统服务。
-
-也可直接操作 MyGo（`dev` 不负责构建仓库依赖）：
-
-```bash
-cd desktop/renew
-go tool mygo dev
-go tool mygo build -platform linux/amd64
-```
-
-Linux 运行时使用系统 WebKitGTK 4.1。桌面壳的详细说明见 `desktop/renew/README.md`。
+Linux 原生桌面端不再依赖 WebKitGTK。
 
 ## 与专业工作台的边界
 
