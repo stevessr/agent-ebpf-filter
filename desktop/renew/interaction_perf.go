@@ -7,8 +7,9 @@ import (
 )
 
 const (
-	eventUIFlushInterval = 16 * time.Millisecond
-	eventUIBatchMax       = 96
+	eventUIFlushInterval  = 16 * time.Millisecond
+	eventUIFrameCapacity  = 512
+	eventUIPauseCapacity  = 1200
 	eventUIQueueSize      = 2048
 )
 
@@ -48,7 +49,7 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 			case buf := <-batchPool:
 				return buf[:0]
 			default:
-				return make([]eventSummary, 0, eventUIBatchMax)
+				return make([]eventSummary, 0, eventUIFrameCapacity)
 			}
 		}
 		recycleBatch := func(buf []eventSummary) {
@@ -62,15 +63,31 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 		}
 
 		batch := nextBatch()
-		pausedWrite := 0
+		overwriteAt := 0
+		appendLatest := func(e eventSummary, capacity int) {
+			if len(batch) < capacity {
+				batch = append(batch, e)
+				return
+			}
+			batch[overwriteAt] = e
+			overwriteAt++
+			if overwriteAt == len(batch) {
+				overwriteAt = 0
+			}
+			a.eventUIDropped.Add(1)
+		}
 		flush := func() {
 			if len(batch) == 0 || a.eventUIPaused.Load() {
 				return
 			}
+			if !a.eventUICommitPending.CompareAndSwap(false, true) {
+				return
+			}
 			pending := batch
 			batch = nextBatch()
-			pausedWrite = 0
+			overwriteAt = 0
 			a.update(func() {
+				defer a.eventUICommitPending.Store(false)
 				if a.mergeEventWindow(pending, 1200) {
 					a.lastSync = time.Now()
 				}
@@ -84,24 +101,15 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 				flush()
 				return
 			case e := <-a.eventUIQueue:
-				if a.eventUIPaused.Load() {
-					if len(batch) < 1200 {
-						batch = append(batch, e)
-					} else {
-						batch[pausedWrite] = e
-						pausedWrite++
-						if pausedWrite == len(batch) {
-							pausedWrite = 0
-						}
-						a.eventUIDropped.Add(1)
-					}
-					continue
+				capacity := eventUIFrameCapacity
+				if a.eventUIPaused.Load() || len(batch) > eventUIFrameCapacity {
+					capacity = eventUIPauseCapacity
 				}
-				batch = append(batch, e)
-				if len(batch) >= eventUIBatchMax {
-					flush()
-				}
+				appendLatest(e, capacity)
 			case <-ticker.C:
+				// The ticker is the only normal flush point. Event floods can
+				// fill/overwrite the bounded frame batch, but never schedule
+				// multiple Window.Update callbacks inside one frame interval.
 				flush()
 			}
 		}
@@ -142,3 +150,4 @@ func (a *renewApp) eventUIDroppedCount() uint64 {
 type eventDropCounter = atomic.Uint64
 type eventPauseFlag = atomic.Bool
 type eventBatcherFlag = atomic.Bool
+type eventCommitFlag = atomic.Bool

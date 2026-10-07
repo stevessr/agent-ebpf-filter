@@ -30,6 +30,7 @@ type renewApp struct {
 	eventUIDropped     eventDropCounter
 	eventUIPaused      eventPauseFlag
 	eventUIBatcherStarted eventBatcherFlag
+	eventUICommitPending eventCommitFlag
 	filterCacheValid   bool
 	filterCacheVersion uint64
 	filterCacheKey     string
