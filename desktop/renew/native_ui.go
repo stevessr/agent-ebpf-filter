@@ -24,6 +24,7 @@ type renewApp struct {
 	paused bool
 
 	events             []eventSummary
+	eventMergeScratch  []eventSummary
 	eventsVersion      uint64
 	eventUIQueue       chan eventSummary
 	eventUIDropped     eventDropCounter
@@ -403,6 +404,13 @@ func (a *renewApp) filteredEvents() []eventSummary {
 	key := a.eventFilterCacheKey()
 	if a.filterCacheValid && a.filterCacheVersion == a.eventsVersion && a.filterCacheKey == key {
 		return a.filterCacheRows
+	}
+	if q == "" && a.eventTypeFilter == "" && a.eventSessionFilter == "" && a.eventDecisionFilter == "" && !a.eventAttentionOnly {
+		a.filterCacheValid = true
+		a.filterCacheVersion = a.eventsVersion
+		a.filterCacheKey = key
+		a.filterCacheRows = a.events
+		return a.events
 	}
 
 	out := make([]eventSummary, 0, min(len(a.events), 256))
