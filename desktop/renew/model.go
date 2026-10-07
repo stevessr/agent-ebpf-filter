@@ -10,10 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"agent-ebpf-filter/pb"
 	"github.com/egoist/mygo"
 	"github.com/gorilla/websocket"
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -256,32 +254,9 @@ func (a *nativeApp) consumeSystemStream(ctx context.Context, conn *websocket.Con
 		if messageType != websocket.BinaryMessage {
 			continue
 		}
-		stats := &pb.SystemStats{}
-		if err := proto.Unmarshal(payload, stats); err != nil {
+		snapshot, err := decodeSystemStats(payload)
+		if err != nil {
 			return fmt.Errorf("decode system stats: %w", err)
-		}
-		snapshot := systemSnapshot{}
-		if stats.Cpu != nil {
-			snapshot.CPUPercent = stats.Cpu.Total
-		}
-		if stats.Memory != nil {
-			snapshot.MemPercent = stats.Memory.Percent
-			snapshot.MemUsed = stats.Memory.Used
-			snapshot.MemTotal = stats.Memory.Total
-		}
-		if stats.Io != nil {
-			snapshot.NetRecv = stats.Io.TotalNetRecvBytes
-			snapshot.NetSent = stats.Io.TotalNetSentBytes
-		}
-		snapshot.Processes = make([]processSnapshot, 0, len(stats.Processes))
-		for _, process := range stats.Processes {
-			if process == nil {
-				continue
-			}
-			snapshot.Processes = append(snapshot.Processes, processSnapshot{
-				PID: process.Pid, PPID: process.Ppid, Name: process.Name, CPU: process.Cpu,
-				Memory: process.Mem, User: process.User, Command: process.Cmdline,
-			})
 		}
 		sort.Slice(snapshot.Processes, func(i, j int) bool {
 			if snapshot.Processes[i].CPU == snapshot.Processes[j].CPU {
