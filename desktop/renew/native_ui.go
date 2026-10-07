@@ -23,20 +23,56 @@ type renewApp struct {
 	search string
 	paused bool
 
-	events       []eventSummary
-	health       collectorHealth
-	trackedComms []string
+	events             []eventSummary
+	health             collectorHealth
+	trackedComms       []string
+	historyCursor      string
+	historyInitialized bool
+	historyLoading     bool
 
-	eventTable   ui.ListState
-	networkTable ui.ListState
-	processTable ui.ListState
-	rulesTable   ui.ListState
-	ruleSelected int
+	eventTable          ui.ListState
+	networkTable        ui.ListState
+	processTable        ui.ListState
+	rulesTable          ui.ListState
+	commTable           ui.ListState
+	pathTable           ui.ListState
+	prefixTable         ui.ListState
+	eventSelected       int
+	ruleSelected        int
+	commSelected        int
+	pathSelected        int
+	prefixSelected      int
+	eventTypeFilter     string
+	eventSessionFilter  string
+	eventDecisionFilter string
+	eventAttentionOnly  bool
+	eventVisibleLimit   int
+	eventDetailOpen     bool
+	eventDetailLoading  bool
+	eventDetailID       string
+	eventDetail         map[string]any
+	eventDetailText     string
+	eventDetailErr      string
+	eventDetailTab      int
+	enforcement         enforcementSnapshot
+	enforcementBusy     bool
+	enforcementErr      string
 
 	configReady        bool
 	configBusy         bool
 	configErr          string
 	disabledEventTypes map[int]bool
+	runtimeCfg         runtimeConfigResponse
+	runtimeReady       bool
+
+	registryReady bool
+	registryBusy  bool
+	registryErr   string
+	registryTab   int
+	registry      registrySnapshot
+	newTag        string
+	trackName     string
+	trackTag      string
 
 	rulesReady    bool
 	rulesBusy     bool
@@ -58,13 +94,22 @@ func newRenewApp(backend string) *renewApp {
 		backend:            backend,
 		starting:           true,
 		page:               "概览",
+		eventSelected:      -1,
 		ruleSelected:       -1,
+		commSelected:       -1,
+		pathSelected:       -1,
+		prefixSelected:     -1,
+		eventVisibleLimit:  50,
 		disabledEventTypes: make(map[int]bool),
 		ruleAction:         "ALERT",
 		rulePriority:       "0",
 		ruleRewrite:        "[]",
 	}
+	a.eventTable.Selected = &a.eventSelected
 	a.rulesTable.Selected = &a.ruleSelected
+	a.commTable.Selected = &a.commSelected
+	a.pathTable.Selected = &a.pathSelected
+	a.prefixTable.Selected = &a.prefixSelected
 	return a
 }
 
@@ -102,7 +147,11 @@ func (a *renewApp) refresh(parent context.Context) {
 	a.update(func() {
 		a.connected = true
 		a.lastErr = ""
-		a.events = snapshot.Events
+		a.events = mergeEventSummaries(a.events, snapshot.Events, 1200)
+		if !a.historyInitialized {
+			a.historyCursor = snapshot.NextCursor
+			a.historyInitialized = true
+		}
 		a.health = snapshot.Health
 		a.trackedComms = snapshot.TrackedComms
 		a.lastSync = snapshot.FetchedAt
@@ -116,16 +165,20 @@ func (a *renewApp) refreshConfiguration(parent context.Context) {
 	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
 
-	eventTypes, eventErr := a.client.eventTypeConfig(ctx)
+	runtimeCfg, runtimeErr := a.client.runtimeConfig(ctx)
 	rules, rulesErr := a.client.rules(ctx)
+	registry, registryErr := a.client.registry(ctx)
 	a.update(func() {
-		if eventErr != nil {
+		if runtimeErr != nil {
 			a.configReady = false
-			a.configErr = eventErr.Error()
+			a.runtimeReady = false
+			a.configErr = runtimeErr.Error()
 		} else {
+			a.runtimeCfg = runtimeCfg
+			a.runtimeReady = true
 			a.configReady = true
 			a.configErr = ""
-			a.disabledEventTypes = disabledSet(eventTypes.DisabledEventTypes)
+			a.disabledEventTypes = disabledSet(runtimeCfg.Runtime.DisabledEventTypes)
 		}
 		if rulesErr != nil {
 			a.rulesReady = false
@@ -137,6 +190,14 @@ func (a *renewApp) refreshConfiguration(parent context.Context) {
 			if a.ruleSelected >= len(a.filteredRules()) {
 				a.ruleSelected = -1
 			}
+		}
+		if registryErr != nil {
+			a.registryReady = false
+			a.registryErr = registryErr.Error()
+		} else {
+			a.registryReady = true
+			a.registryErr = ""
+			a.registry = registry
 		}
 	})
 }
@@ -167,6 +228,8 @@ func (a *renewApp) view(c *ui.Context) {
 					a.monitoringView(c)
 				case "规则":
 					a.rulesView(c)
+				case "跟踪":
+					a.trackingView(c)
 				case "系统":
 					a.systemView(c)
 				default:
@@ -190,7 +253,7 @@ func (a *renewApp) sidebar(c *ui.Context) {
 			})
 		})
 		ui.Column(c).Gap(6).Children(func() {
-			for _, page := range []string{"概览", "事件", "网络", "进程", "监控", "规则", "系统"} {
+			for _, page := range []string{"概览", "事件", "网络", "进程", "监控", "规则", "跟踪", "系统"} {
 				button := ui.Button(c, page).Width(184)
 				if page == a.page {
 					button = ui.PrimaryButton(c, page).Width(184)
@@ -234,7 +297,7 @@ func (a *renewApp) header(c *ui.Context) {
 		}
 		if ui.Button(c, "刷新").Clicked() {
 			go a.refresh(context.Background())
-			if a.page == "监控" || a.page == "规则" {
+			if a.page == "监控" || a.page == "规则" || a.page == "跟踪" {
 				go a.refreshConfiguration(context.Background())
 			}
 		}
