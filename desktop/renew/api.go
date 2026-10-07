@@ -36,6 +36,41 @@ type eventSummary struct {
 	SearchText       string  `json:"-"`
 }
 
+func (e *eventSummary) UnmarshalJSON(data []byte) error {
+	type compactEventSummary eventSummary
+	var wire struct {
+		compactEventSummary
+		Path         string `json:"path"`
+		ExtraPath    string `json:"extraPath"`
+		NetEndpoint  string `json:"netEndpoint"`
+		Domain       string `json:"domain"`
+		ToolCallID   string `json:"toolCallId"`
+	}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	*e = eventSummary(wire.compactEventSummary)
+	if strings.TrimSpace(e.Target) == "" {
+		for _, value := range []string{wire.Path, wire.NetEndpoint, wire.Domain, wire.ExtraPath, e.ToolName} {
+			if strings.TrimSpace(value) != "" {
+				e.Target = value
+				break
+			}
+		}
+	}
+	if !e.Network {
+		e.Network = strings.TrimSpace(wire.NetEndpoint) != "" || strings.TrimSpace(wire.Domain) != "" || isNetworkEvent(*e)
+	}
+	if !e.HasAgentContext {
+		e.HasAgentContext = e.AgentRunID != "" ||
+			e.ConversationID != "" ||
+			wire.ToolCallID != "" ||
+			e.RootAgentPID > 0 ||
+			(strings.TrimSpace(e.Tag) != "" && !strings.EqualFold(e.Tag, "Unknown"))
+	}
+	return nil
+}
+
 type eventSummaryResponse struct {
 	Events     []eventSummary `json:"events"`
 	NextCursor string         `json:"nextCursor"`
