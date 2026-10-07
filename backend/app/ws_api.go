@@ -297,6 +297,9 @@ type renewEventSummary struct {
 	EventType      int32   `json:"eventType"`
 	Tag            string  `json:"tag"`
 	Comm           string  `json:"comm"`
+	Target         string  `json:"target,omitempty"`
+	Network        bool    `json:"network,omitempty"`
+	HasAgentContext bool   `json:"hasAgentContext,omitempty"`
 	Path           string  `json:"path"`
 	ExtraPath      string  `json:"extraPath,omitempty"`
 	NetDirection   string  `json:"netDirection,omitempty"`
@@ -434,6 +437,7 @@ func buildRenewEventSummary(record CapturedEventRecord) (renewEventSummary, bool
 	if eventID == "" {
 		return renewEventSummary{}, false
 	}
+	compact, _ := buildRenewDesktopEventSummary(record)
 	return renewEventSummary{
 		Key:            eventID,
 		EventID:        eventID,
@@ -444,6 +448,9 @@ func buildRenewEventSummary(record CapturedEventRecord) (renewEventSummary, bool
 		EventType:      int32(event.GetEventType()),
 		Tag:            event.GetTag(),
 		Comm:           event.GetComm(),
+		Target:         compact.Target,
+		Network:        compact.Network,
+		HasAgentContext: compact.HasAgentContext,
 		Path:           event.GetPath(),
 		ExtraPath:      event.GetExtraPath(),
 		NetDirection:   event.GetNetDirection(),
