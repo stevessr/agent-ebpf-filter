@@ -61,6 +61,10 @@ func Main() error {
 	if err != nil {
 		return err
 	}
+	if desktopSession != nil {
+		activeDesktopSession.Store(desktopSession)
+		defer activeDesktopSession.CompareAndSwap(desktopSession, nil)
+	}
 	defer desktopSession.Close()
 	defer func() {
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
