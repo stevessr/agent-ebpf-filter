@@ -169,7 +169,7 @@ func (c *apiClient) summaries(ctx context.Context, limit int) ([]eventSummary, e
 
 func (c *apiClient) eventDetail(ctx context.Context, eventID string) (string, error) {
 	var detail json.RawMessage
-	if err := c.getJSON(ctx, "/events/detail/"+url.PathEscape(eventID), nil, &detail); err != nil {
+	if err := c.getJSON(ctx, "/events/detail/"+eventID, nil, &detail); err != nil {
 		return "", err
 	}
 	pretty, err := json.MarshalIndent(detail, "", "  ")
@@ -220,7 +220,7 @@ func (c *apiClient) saveRule(ctx context.Context, rule wrapperRule) error {
 }
 
 func (c *apiClient) deleteRule(ctx context.Context, comm string) error {
-	return c.doJSON(ctx, http.MethodDelete, "/config/rules/"+url.PathEscape(comm), nil, nil, nil)
+	return c.doJSON(ctx, http.MethodDelete, "/config/rules/"+comm, nil, nil, nil)
 }
 
 func (c *apiClient) dialWebSocket(ctx context.Context, path string, query url.Values) (*websocket.Conn, *http.Response, error) {
