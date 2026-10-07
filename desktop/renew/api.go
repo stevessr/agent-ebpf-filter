@@ -40,6 +40,7 @@ type eventSummary struct {
 	TraceID        string  `json:"traceId"`
 	SpanID         string  `json:"spanId"`
 	ReceivedAtMS   int64   `json:"receivedAtMs"`
+	SearchText     string  `json:"-"`
 }
 
 type eventSummaryResponse struct {
@@ -512,6 +513,13 @@ func eventRisk(e eventSummary) string {
 }
 
 func eventSearchText(e eventSummary) string {
+	if e.SearchText != "" {
+		return e.SearchText
+	}
+	return buildEventSearchText(e)
+}
+
+func buildEventSearchText(e eventSummary) string {
 	return strings.ToLower(strings.Join([]string{
 		e.EventID, e.Type, e.Tag, e.Comm, e.Path, e.ExtraPath, e.NetEndpoint,
 		e.Domain, e.Decision, e.AgentRunID, e.ConversationID, e.TurnID,
