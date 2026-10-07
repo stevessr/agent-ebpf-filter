@@ -113,6 +113,9 @@ func (a *renewApp) overviewHeadline() (headline, detail, level string) {
 	if !a.connected {
 		return "后端不可用", "当前无法确认系统是否正常；请检查后端连接或重新启动本机监控。", "danger"
 	}
+	if a.lastSync.IsZero() {
+		return "正在同步运行状态", "后端已经连接，Renew 正在等待第一份采集器与事件摘要快照。", "warning"
+	}
 	if !a.health.CaptureHealthy {
 		return "采集链路异常", fmt.Sprintf("eBPF 采集健康检查未通过；Ringbuf 累计丢弃 %d。", a.health.RingbufDroppedTotal), "danger"
 	}
