@@ -39,6 +39,20 @@ func configureBackendAskpass(cmd *exec.Cmd, binary string) {
 	)
 }
 
+func isAskpassInvocation() bool {
+	if os.Getenv(askpassModeEnv) == "1" {
+		return true
+	}
+	if os.Geteuid() == 0 {
+		return false
+	}
+	parent, err := os.ReadFile(fmt.Sprintf("/proc/%d/comm", os.Getppid()))
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(string(parent)) == "sudo"
+}
+
 func runAskpass() error {
 	prompt := "请输入登录密码以启动 eBPF 后端："
 	if len(os.Args) > 1 && strings.TrimSpace(os.Args[len(os.Args)-1]) != "" {
