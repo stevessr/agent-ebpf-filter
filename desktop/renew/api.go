@@ -271,6 +271,70 @@ func (c *apiClient) putRuntimeConfig(ctx context.Context, patch map[string]any) 
 	return cfg, err
 }
 
+func (c *apiClient) runtimePatchWithNestedToggle(ctx context.Context, key string, enabled bool) (runtimeConfigResponse, error) {
+	var current map[string]any
+	if err := c.getJSON(ctx, "/config/runtime", &current); err != nil {
+		return runtimeConfigResponse{}, err
+	}
+	runtimeMap, _ := current["runtime"].(map[string]any)
+	if runtimeMap == nil {
+		return runtimeConfigResponse{}, fmt.Errorf("/config/runtime: missing runtime payload")
+	}
+
+	patch := map[string]any{}
+	switch key {
+	case "loopDetection", "signalProcessing", "researchProcessing":
+		nested, _ := runtimeMap[key].(map[string]any)
+		if nested == nil {
+			nested = map[string]any{}
+		}
+		next := make(map[string]any, len(nested)+1)
+		for field, value := range nested {
+			next[field] = value
+		}
+		next["enabled"] = enabled
+		patch[key] = next
+	case "tlsCapture":
+		patch["tlsCaptureEnabled"] = enabled
+	case "persistence":
+		patch["logPersistenceEnabled"] = enabled
+	case "policyManagement":
+		patch["policyManagementEnabled"] = enabled
+	default:
+		return runtimeConfigResponse{}, fmt.Errorf("unsupported runtime toggle %q", key)
+	}
+	return c.putRuntimeConfig(ctx, patch)
+}
+
+func (c *apiClient) applyMonitoringProfile(ctx context.Context, disabled []int, loop, signal, research bool) (runtimeConfigResponse, error) {
+	var current map[string]any
+	if err := c.getJSON(ctx, "/config/runtime", &current); err != nil {
+		return runtimeConfigResponse{}, err
+	}
+	runtimeMap, _ := current["runtime"].(map[string]any)
+	if runtimeMap == nil {
+		return runtimeConfigResponse{}, fmt.Errorf("/config/runtime: missing runtime payload")
+	}
+	patch := map[string]any{"disabledEventTypes": disabled}
+	for key, enabled := range map[string]bool{
+		"loopDetection":      loop,
+		"signalProcessing":   signal,
+		"researchProcessing": research,
+	} {
+		nested, _ := runtimeMap[key].(map[string]any)
+		if nested == nil {
+			nested = map[string]any{}
+		}
+		next := make(map[string]any, len(nested)+1)
+		for field, value := range nested {
+			next[field] = value
+		}
+		next["enabled"] = enabled
+		patch[key] = next
+	}
+	return c.putRuntimeConfig(ctx, patch)
+}
+
 func (c *apiClient) rules(ctx context.Context) ([]wrapperRule, error) {
 	var raw json.RawMessage
 	if err := c.getJSON(ctx, "/config/rules", &raw); err != nil {
@@ -348,20 +412,14 @@ func (c *apiClient) setCommDisabled(ctx context.Context, comm string, disabled b
 	return c.requestJSON(ctx, method, "/config/comms/"+url.PathEscape(strings.TrimSpace(comm))+"/disable", nil, nil)
 }
 
-func escapedPathSegments(value string) string {
-	parts := strings.Split(strings.TrimPrefix(strings.TrimSpace(value), "/"), "/")
-	for i := range parts {
-		parts[i] = url.PathEscape(parts[i])
-	}
-	return strings.Join(parts, "/")
-}
-
 func (c *apiClient) addPath(ctx context.Context, path, tag string) error {
 	return c.requestJSON(ctx, http.MethodPost, "/config/paths", map[string]any{"path": strings.TrimSpace(path), "tag": strings.TrimSpace(tag)}, nil)
 }
 
 func (c *apiClient) deletePath(ctx context.Context, path string) error {
-	return c.requestJSON(ctx, http.MethodDelete, "/config/paths/"+escapedPathSegments(path), nil, nil)
+	// The backend wildcard route intentionally receives an extra slash for
+	// absolute paths (the browser Renew client uses the same shape).
+	return c.requestJSON(ctx, http.MethodDelete, "/config/paths/"+strings.TrimSpace(path), nil, nil)
 }
 
 func (c *apiClient) addPrefix(ctx context.Context, prefix, tag string) error {
