@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -232,22 +231,6 @@ func graphicalAskpass(resources string) string {
 		}
 	}
 	return ""
-}
-
-func tokenPreload(origin, token string) string {
-	if token == "" {
-		return ""
-	}
-	u, err := url.Parse(origin)
-	if err != nil {
-		return ""
-	}
-	if _, err := localBackendPort(origin); err != nil {
-		return ""
-	}
-	encodedOrigin, _ := json.Marshal(u.Scheme + "://" + u.Host)
-	encodedToken, _ := json.Marshal(token)
-	return "if (location.origin === " + string(encodedOrigin) + ") localStorage.setItem('agent-ebpf.apiToken', " + string(encodedToken) + ");"
 }
 
 func existingLocalToken(origin string) string {
