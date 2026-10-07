@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -303,67 +304,181 @@ func (a *renewApp) view(c *ui.Context) {
 
 func (a *renewApp) sidebar(c *ui.Context) {
 	t := c.Theme()
-	ui.Column(c).Width(214).Shrink(0).Padding(18, 14).Gap(14).Background(t.Surface).Children(func() {
-		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+	_, attention, danger := a.riskCounts()
+
+	ui.Column(c).Width(224).Shrink(0).Background(t.Surface).Children(func() {
+		ui.Row(c).Padding(18, 16, 12, 16).Gap(10).AlignItems(ui.Center).Children(func() {
 			ui.Box(c).Size(34, 34).Radius(10).Background(t.Accent).Center().Children(func() {
-				ui.Text(c, "R").Bold().TextColor(t.Background)
+				ui.Text(c, "R").Bold().TextColor(t.AccentText)
 			})
 			ui.Column(c).Gap(1).Children(func() {
 				ui.Text(c, "Renew").FontSize(16).Bold()
 				ui.Text(c, "Agent 日常监控").FontSize(11).TextColor(t.TextMuted)
 			})
 		})
-		ui.Column(c).Gap(6).Children(func() {
-			for _, page := range []string{"概览", "事件", "会话", "网络", "进程", "监控", "规则", "跟踪", "系统"} {
-				button := ui.Button(c, page).Width(184)
-				if page == a.page {
-					button = ui.PrimaryButton(c, page).Width(184)
+
+		ui.Sidebar(c, &a.page, func() {
+			ui.SidebarSection(c, "监控", nil, func() {
+				ui.SidebarItem(c, "概览", nil, "概览")
+				events := ui.SidebarItem(c, "事件", nil, "事件")
+				switch {
+				case danger > 0:
+					events.Children(func() {
+						statusPill(c, fmt.Sprint(danger), t.Danger)
+					})
+				case attention > 0:
+					events.Children(func() {
+						statusPill(c, fmt.Sprint(attention), t.Warning)
+					})
 				}
-				if button.Clicked() {
-					a.page = page
+				ui.SidebarItem(c, "会话", nil, "会话")
+				ui.SidebarItem(c, "网络", nil, "网络")
+				ui.SidebarItem(c, "进程", nil, "进程")
+			})
+			ui.SidebarSection(c, "管理", nil, func() {
+				ui.SidebarItem(c, "监控", nil, "采集与能力")
+				ui.SidebarItem(c, "规则", nil, "Wrapper 规则")
+				ui.SidebarItem(c, "跟踪", nil, "跟踪范围")
+			})
+			ui.SidebarSection(c, "诊断", nil, func() {
+				system := ui.SidebarItem(c, "系统", nil, "系统")
+				if !a.health.CaptureHealthy && !a.starting {
+					system.Children(func() {
+						statusPill(c, "异常", t.Danger)
+					})
+				} else if !a.systemConnected && a.connected {
+					system.Children(func() {
+						statusPill(c, "降级", t.Warning)
+					})
 				}
+			})
+		}).Grow(1).Width(224)
+
+		ui.Divider(c)
+		ui.Column(c).Padding(12, 16, 16, 16).Gap(6).Children(func() {
+			status, tone := "未连接", t.Danger
+			switch {
+			case a.starting:
+				status, tone = "正在启动", t.Warning
+			case a.connected:
+				status, tone = "后端已连接", t.Success
 			}
-		})
-		ui.Box(c).Grow(1)
-		ui.Column(c).Gap(4).Children(func() {
-			status := "未连接"
-			if a.starting {
-				status = "正在启动"
-			} else if a.connected {
-				status = "后端已连接"
-			}
-			ui.Text(c, status).FontSize(12).Bold()
-			ui.Text(c, a.backend).FontSize(10).TextColor(t.TextMuted).MaxLines(2)
+			ui.Row(c).Gap(7).AlignItems(ui.Center).Children(func() {
+				statusPill(c, status, tone)
+				if a.paused {
+					statusPill(c, "已暂停", t.Warning)
+				}
+			})
+			ui.Text(c, a.backend).Font("monospace").FontSize(10).TextColor(t.TextMuted).MaxLines(2)
 		})
 	})
 }
 
 func (a *renewApp) header(c *ui.Context) {
 	t := c.Theme()
-	ui.Row(c).Height(58).Padding(10, 20).Gap(12).AlignItems(ui.Center).Background(t.Surface).Children(func() {
-		ui.Text(c, a.page).FontSize(18).Bold()
-		ui.Box(c).Grow(1)
+	ui.Row(c).MinHeight(64).Padding(9, 18).Gap(12).AlignItems(ui.Center).Background(t.Surface).Children(func() {
+		ui.Column(c).Gap(3).MinWidth(180).Children(func() {
+			ui.Text(c, a.page).FontSize(18).Bold()
+			ui.Text(c, pageSubtitle(a.page)).FontSize(10).TextColor(t.TextMuted).SingleLine()
+		})
+
+		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+			switch {
+			case a.starting:
+				statusPill(c, "启动中", t.Warning)
+			case !a.connected:
+				statusPill(c, "后端离线", t.Danger)
+			default:
+				statusPill(c, "后端在线", t.Success)
+			}
+			if a.connected {
+				if a.eventStreamConnected {
+					statusPill(c, "事件流实时", t.Success)
+				} else {
+					statusPill(c, "事件流回退", t.Warning)
+				}
+				if a.systemConnected {
+					statusPill(c, "系统流实时", t.Success)
+				} else {
+					statusPill(c, "系统流重连", t.Warning)
+				}
+			}
+		})
+
+		ui.Spacer(c)
 		if pageUsesEventSearch(a.page) {
-			ui.SearchField(c, &a.search).Label("搜索当前摘要").Width(280)
+			ui.SearchField(c, &a.search).Label("搜索当前视图").Width(270)
 		}
-		label := "暂停"
-		if a.paused {
-			label = "继续"
-		}
-		if ui.Button(c, label).Clicked() {
-			a.paused = !a.paused
-			a.eventUIPaused.Store(a.paused)
-			if !a.paused {
+		ui.Toolbar(c, func() {
+			label := "暂停"
+			if a.paused {
+				label = "继续"
+			}
+			if ui.Button(c, label).Tooltip("暂停或继续桌面事件合并").Clicked() {
+				a.paused = !a.paused
+				a.eventUIPaused.Store(a.paused)
+				if !a.paused {
+					go a.refresh(context.Background())
+				}
+			}
+			if ui.Button(c, "刷新").Tooltip("立即同步当前后端状态").Clicked() {
 				go a.refresh(context.Background())
+				if a.page == "监控" || a.page == "规则" || a.page == "跟踪" {
+					go a.refreshConfiguration(context.Background())
+				}
 			}
-		}
-		if ui.Button(c, "刷新").Clicked() {
-			go a.refresh(context.Background())
-			if a.page == "监控" || a.page == "规则" || a.page == "跟踪" {
-				go a.refreshConfiguration(context.Background())
-			}
-		}
+		}).Label("页面操作")
 	})
+}
+
+func pageSubtitle(page string) string {
+	switch page {
+	case "事件":
+		return "实时事件、风险筛选与按需详情"
+	case "会话":
+		return "按 Agent 上下文聚合运行会话"
+	case "网络":
+		return "外联目标与摘要窗口聚合"
+	case "进程":
+		return "实时进程与 Agent 活动"
+	case "监控":
+		return "采集范围、运行时能力与开销"
+	case "规则":
+		return "agent-wrapper 策略与重写"
+	case "跟踪":
+		return "命令、路径与标签范围"
+	case "系统":
+		return "采集器、系统流与队列诊断"
+	default:
+		return "健康、风险与最近活动"
+	}
+}
+
+func statusPill(c *ui.Context, text string, tone ui.Color) *ui.Element {
+	return ui.Badge(c, text).Background(tone.Alpha(0.13)).TextColor(tone)
+}
+
+func riskTextColor(t *ui.Theme, risk string) ui.Color {
+	switch risk {
+	case "高风险":
+		return t.Danger
+	case "需关注":
+		return t.Warning
+	default:
+		return t.TextMuted
+	}
+}
+
+func riskPill(c *ui.Context, risk string) *ui.Element {
+	t := c.Theme()
+	switch risk {
+	case "高风险":
+		return statusPill(c, risk, t.Danger)
+	case "需关注":
+		return statusPill(c, risk, t.Warning)
+	default:
+		return statusPill(c, risk, t.Success)
+	}
 }
 
 func pageUsesEventSearch(page string) bool {
