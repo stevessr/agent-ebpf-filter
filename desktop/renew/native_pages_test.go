@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"strings"
 	"math"
 	"reflect"
@@ -133,6 +134,61 @@ func TestMergeEventWindowAlternatesBackingBuffers(t *testing.T) {
 	}
 	if &a.events[0] != first {
 		t.Fatal("third merge did not reuse the first backing buffer")
+	}
+}
+
+
+func TestEventSummaryUnmarshalProjectsLegacyFields(t *testing.T) {
+	var got eventSummary
+	err := json.Unmarshal([]byte(`{
+		"eventId":"legacy-1",
+		"pid":42,
+		"ppid":7,
+		"type":"NETWORK_CONNECT",
+		"tag":"AI Agent",
+		"comm":"codex",
+		"netEndpoint":"203.0.113.10:443",
+		"netBytes":123,
+		"toolCallId":"tool-1",
+		"decision":"ALLOW",
+		"receivedAtMs":99
+	}`), &got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Target != "203.0.113.10:443" || !got.Network || !got.HasAgentContext {
+		t.Fatalf("legacy projection mismatch: %+v", got)
+	}
+	if got.EventID != "legacy-1" || got.PID != 42 || got.NetBytes != 123 {
+		t.Fatalf("compact fields mismatch: %+v", got)
+	}
+}
+
+func TestEventDetailPayloadReleasedOnClose(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.eventDetailOpen = true
+	a.eventDetailID = "evt-1"
+	a.eventDetail = map[string]any{"event": map[string]any{"path": "/tmp/x"}}
+	a.eventDetailText = "{full-json}"
+	a.eventDetailErr = "old"
+	a.eventDetailLoading = true
+	a.eventDetailTab = 1
+
+	a.closeEventDetail()
+	if a.eventDetailOpen || a.eventDetailLoading || a.eventDetailID != "" || a.eventDetail != nil || a.eventDetailText != "" || a.eventDetailErr != "" || a.eventDetailTab != 0 {
+		t.Fatalf("detail payload was retained after close: %+v", a)
+	}
+}
+
+func TestEventDetailJSONIsLazy(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.eventDetail = map[string]any{"event": map[string]any{"path": "/tmp/x"}}
+	if a.eventDetailText != "" {
+		t.Fatal("detail JSON should start empty")
+	}
+	a.ensureEventDetailText()
+	if !strings.Contains(a.eventDetailText, "/tmp/x") {
+		t.Fatalf("detail JSON was not materialized on demand: %q", a.eventDetailText)
 	}
 }
 
