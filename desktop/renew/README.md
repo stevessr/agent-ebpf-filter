@@ -22,7 +22,9 @@ Renew Desktop
   └─ MyGo native UI (Go only, GPU drawn)
 ```
 
-The native client currently provides the low-noise daily-monitoring core: backend/capture health, recent compact event summaries, risk/attention counts, search, tracked commands, and a system status page. Full event payloads remain backend-owned and are not copied into desktop memory.
+The native client now covers the low-noise daily-monitoring workflow: Overview, Events, Network, Processes, Monitoring, Wrapper Rules, and System. Events and rule sets use MyGo-native tables/forms/switches; network and process views aggregate only the current bounded event-summary window, so they do not pretend to be full traffic or process-history accounting. Full event payloads remain backend-owned and are not copied into desktop memory.
+
+Monitoring switches write the existing `/config/event-types` contract and only change UI state after backend confirmation. Wrapper Rules use the existing `/config/rules` API for ALLOW/BLOCK/ALERT/REWRITE operations. The system-statistics WebSocket remains protobuf-native; the desktop does not add a JSON side channel just for rendering.
 
 The browser `/renew` frontend remains available as an independent client and as the route to features not yet migrated to native widgets. It is no longer a desktop runtime or packaging dependency.
 
