@@ -4,10 +4,16 @@ on:
   pull_request:
     paths:
       - "desktop/renew/**"
+      - "scripts/renew-desktop.sh"
+      - "proto/tracker_system.proto"
+      - "backend/pb/**"
       - ".github/workflows/renew-desktop.yml"
   push:
     paths:
       - "desktop/renew/**"
+      - "scripts/renew-desktop.sh"
+      - "proto/tracker_system.proto"
+      - "backend/pb/**"
       - ".github/workflows/renew-desktop.yml"
 
 permissions:
