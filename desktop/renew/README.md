@@ -1,14 +1,36 @@
-# Renew Desktop (MyGo)
+# Renew Desktop (MyGo Native UI)
 
-Renew Desktop opens the `/renew` WebUI and starts its bundled Linux backend when no existing backend is ready. The window remains unprivileged; only the backend requests elevation.
+Renew Desktop is the native desktop monitor for Agent eBPF Filter. Its interface is written entirely in Go with MyGo's `ui` package and is drawn by MyGo itself. It does **not** start a WebView, Vite, HTML, JavaScript, or the Vue Renew frontend.
 
-It uses [MyGo](https://github.com/egoist/mygo) and loads the **real Agent eBPF Filter backend origin** (for example `http://127.0.0.1:8080/renew`) instead of embedding a second copy of the frontend. This keeps REST, protobuf requests, WebSockets, auth storage and routing on the same origin as the normal web app.
+The desktop process stays unprivileged. On Linux it reuses an already running backend or requests system authorization to start the bundled eBPF backend. Only the backend child gains privileges.
+
+## Architecture
+
+```text
+eBPF / wrapper / hooks
+        │
+        ▼
+Agent eBPF Filter backend
+  ├─ /events/summaries
+  ├─ /system/collector-health
+  ├─ /system/tracked-comms
+  └─ other existing REST / WS APIs
+        ▲
+        │ HTTP + existing token auth
+        │
+Renew Desktop
+  └─ MyGo native UI (Go only, GPU drawn)
+```
+
+The native client currently provides the low-noise daily-monitoring core: backend/capture health, recent compact event summaries, risk/attention counts, search, tracked commands, and a system status page. Full event payloads remain backend-owned and are not copied into desktop memory.
+
+The browser `/renew` frontend remains available as an independent client and as the route to features not yet migrated to native widgets. It is no longer a desktop runtime or packaging dependency.
 
 ## Why a separate module?
 
-MyGo 0.2.7 requires Go 1.27.1+. The repository workspace now standardizes on Go 1.27.1, while `desktop/renew` remains its own module so MyGo dependencies do not enter the privileged backend module.
+MyGo requires Go 1.27+. The repository workspace uses Go 1.27.1, while `desktop/renew` remains its own module so desktop dependencies never enter the privileged backend module.
 
-## Run
+## Develop
 
 From the repository root:
 
@@ -16,62 +38,62 @@ From the repository root:
 make renew-desktop-dev
 ```
 
-This builds the backend, starts Vite, then opens **`/renew`** in MyGo. Vite proxies REST and WebSockets to the selected backend (`backend/.port`, `AGENT_BACKEND_PORT`, or 8080). The desktop reuses a ready backend; otherwise it starts the newly built backend and waits for readiness. Closing the development session stops its Vite/MyGo processes and its owned backend. The backend is rebuilt on each invocation; Vue changes use Vite HMR.
+Development builds the backend and starts `go tool mygo dev`. There is no Vite process.
+
+Connect to an existing backend:
 
 ```bash
-# Connect to an existing/custom backend; no duplicate local backend is started.
 AGENT_BACKEND_URL=http://127.0.0.1:9090 make renew-desktop-dev
-# Choose another Vite port if 5173 is already occupied.
-RENEW_FRONTEND_PORT=5174 make renew-desktop-dev
 ```
 
-The packaged Linux app needs no running service: open it, complete the system authorization dialog, and it loads the bundled Renew WebUI from the backend's real origin. Linux automatically uses the bundled sudo askpass helper when Zenity or KDialog is available; otherwise it uses `pkexec` with the desktop PolicyKit agent. It does not wait for an invisible terminal password prompt. To override the graphical askpass helper:
+For a protected remote/custom backend, provide its existing token explicitly:
 
 ```bash
-SUDO_ASKPASS=/absolute/path/to/askpass ./desktop/renew/build/linux-amd64/renew
+AGENT_BACKEND_URL=https://host.example AGENT_API_TOKEN=... make renew-desktop-dev
 ```
 
-Renew never reads or stores the sudo password. Cancellation/startup failures appear in the window; backend logs are in `~/.config/agent-ebpf-filter/logs/renew-backend.log`. Packaged startup enforces release-mode authentication; only `make renew-desktop-dev` explicitly selects development auth behavior. The backend sends its API token through a user-private Unix socket, not command arguments or logs, and the window initializes the existing origin-scoped API token storage.
-
-Closing/crashing the app closes that socket and gracefully stops **only the backend it started**. An already running service is reused and left running. Remote/custom origins are connect-only; automatic eBPF backend startup requires a local Linux HTTP origin.
-
-Direct `go tool mygo dev` is still available for shell-only work against an existing backend. It does not build repository dependencies for you.
+Automatic eBPF backend startup is Linux-only and only for a local HTTP origin. Windows and macOS builds can connect to a separately running backend.
 
 ## Build packages
 
 ```bash
 make renew-desktop-build
-# Equivalent: cd desktop/renew && go tool mygo build
+# Equivalent:
+cd desktop/renew
+go tool mygo build
 ```
 
-The MyGo build hook builds the CPU backend and current frontend, stages them under `resources/linux-<arch>/backend` and `resources/linux-<arch>/frontend/dist`, and includes both in the executable/install archive/Debian package. Runtime asset paths are absolute and independent of the launch working directory. Generated build/resource directories are ignored by Git.
+The build hook compiles the CPU backend and stages it under the platform-specific MyGo resources directory. It no longer builds or bundles `frontend/dist`.
 
-The bundled eBPF backend is Linux-only. Windows/macOS shells can connect to a separately running Linux backend; they are not standalone eBPF packages.
+On Linux the native MyGo UI uses GTK for the window and MyGo's own renderer. WebKitGTK is not required by Renew Desktop.
 
-MyGo's Linux build emits the application executable, desktop entry/install archive and a Debian package. The runtime uses the system WebKitGTK webview.
+## Runtime ownership
 
-On Linux, install GTK 3 and WebKitGTK 4.1 runtime packages. A tray is intentionally not required for the first desktop variant, so AppIndicator is not a dependency.
+The desktop keeps:
 
-## Architecture
+- single-instance handling;
+- native window lifecycle and saved window size;
+- `AGENT_BACKEND_URL` / `--backend` selection;
+- authorized startup and lifecycle supervision of its bundled backend;
+- private Unix-socket token handoff;
+- native monitoring state and presentation;
+- MyGo packaging.
 
-```text
-agent-ebpf-filter (privileged service)
-  ├─ /ws, /ws/system, REST/protobuf APIs
-  └─ /renew + frontend assets
-             ▲
-             │ real http(s) origin
-             │
-Renew Desktop (MyGo)
-  └─ native window + system webview
+The backend keeps:
+
+- eBPF and privileged operations;
+- event persistence;
+- authentication;
+- REST / WebSocket protocol ownership;
+- filtering, normalization and risk decisions.
+
+Closing or crashing Renew closes the lifetime socket and gracefully stops **only** the backend instance it started. A reused system backend is left running.
+
+## Validation
+
+```bash
+cd desktop/renew
+go test ./...
+go build ./...
+go tool mygo build -platform linux/amd64
 ```
-
-The desktop shell owns:
-
-- native window lifecycle;
-- persisted window size/state;
-- single-instance behavior;
-- backend URL selection and supervised, authorized backend startup;
-- a useful offline/unavailable screen;
-- platform packaging.
-
-All monitoring logic remains in `frontend/src/components/renew` and `frontend/src/composables/renew`.
