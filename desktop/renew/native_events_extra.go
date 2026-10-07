@@ -58,7 +58,7 @@ func mergeEventSummariesInto(dst, existing, incoming []eventSummary, limit int) 
 	if cap(dst) >= capacity {
 		out = dst[:0]
 	} else {
-		out = make([]eventSummary, 0, capacity)
+		out = make([]eventSummary, 0, limit)
 	}
 	i, j := 0, 0
 	for len(out) < limit && (i < len(fresh) || j < len(existing)) {
