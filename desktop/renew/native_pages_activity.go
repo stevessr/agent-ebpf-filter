@@ -78,9 +78,10 @@ func (a *renewApp) eventsView(c *ui.Context) {
 	ui.Text(c, "事件").FontSize(28).Bold()
 	ui.Text(c, "紧凑摘要支持本地筛选与后端历史分页；完整事件只在打开详情时按 ID 读取。").TextColor(t.TextMuted)
 
+	eventTypes, eventSessions := a.eventFilterOptions()
 	ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
-		ui.Select(c, &a.eventTypeFilter, uniqueEventTypes(a.events)).Label("事件类型").Width(170)
-		ui.Select(c, &a.eventSessionFilter, uniqueEventSessions(a.events)).Label("会话").Width(210)
+		ui.Select(c, &a.eventTypeFilter, eventTypes).Label("事件类型").Width(170)
+		ui.Select(c, &a.eventSessionFilter, eventSessions).Label("会话").Width(210)
 		ui.Select(c, &a.eventDecisionFilter, []string{"", "已阻断", "告警", "已允许"}).Label("决策").Width(130)
 		ui.Checkbox(c, &a.eventAttentionOnly, "只看待关注")
 		if ui.Button(c, "清除筛选").Clicked() {
