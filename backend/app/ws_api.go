@@ -341,7 +341,10 @@ type renewDesktopEventSummary struct {
 }
 
 func buildRenewDesktopEventSummary(record CapturedEventRecord) (renewDesktopEventSummary, bool) {
-	record = normalizeCapturedEventRecord(record)
+	return buildRenewDesktopEventSummaryNormalized(normalizeCapturedEventRecord(record))
+}
+
+func buildRenewDesktopEventSummaryNormalized(record CapturedEventRecord) (renewDesktopEventSummary, bool) {
 	if record.Event == nil || record.Envelope == nil {
 		return renewDesktopEventSummary{}, false
 	}
@@ -437,7 +440,7 @@ func buildRenewEventSummary(record CapturedEventRecord) (renewEventSummary, bool
 	if eventID == "" {
 		return renewEventSummary{}, false
 	}
-	compact, _ := buildRenewDesktopEventSummary(record)
+	compact, _ := buildRenewDesktopEventSummaryNormalized(record)
 	return renewEventSummary{
 		Key:            eventID,
 		EventID:        eventID,
