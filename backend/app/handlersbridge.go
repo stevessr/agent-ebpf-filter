@@ -676,12 +676,12 @@ func (trackingConfigStore) Rules() []*pb.WrapperRule {
 	return result
 }
 
-func (trackingConfigStore) UpsertRule(comm, action, rewrittenCmd, regex, replacement string, priority int32) {
+func (trackingConfigStore) UpsertRule(comm, action string, rewrittenCmd []string, regex, replacement string, priority int32) {
 	rulesMu.Lock()
 	wrapperRules[comm] = WrapperRule{
 		Comm:         comm,
 		Action:       action,
-		RewrittenCmd: []string{rewrittenCmd},
+		RewrittenCmd: append([]string(nil), rewrittenCmd...),
 		Regex:        regex,
 		Replacement:  replacement,
 		Priority:     int(priority),
