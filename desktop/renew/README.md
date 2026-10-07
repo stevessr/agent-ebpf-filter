@@ -32,8 +32,10 @@ The native client covers the always-on monitoring path:
 - Events: compact summaries, Agent/attention filters, search, full event JSON loaded only when selected.
 - Processes: live process snapshot from `/ws/system`, sorted by CPU.
 - Network: endpoint/domain aggregation from the bounded event-summary window.
+- Monitoring: Lite / Daily / Deep profiles, kernel event groups, runtime processing, persistence and TLS capture toggles through `/config/runtime`.
+- Wrapper rules: list, add/edit and confirm-delete ALLOW / ALERT / BLOCK / REWRITE rules through `/config/rules`.
 
-Advanced policy, Research, Execution Graph, TLS capture and other workbench features remain in the browser UI. **Open Web Workbench** launches `/renew` in the default browser; it is not embedded in the desktop process.
+System-level BPF LSM policy authoring, Research, Execution Graph, detailed TLS analysis and other specialist workbench features remain in the browser UI. **Open Web Workbench** launches `/renew` in the default browser; it is not embedded in the desktop process.
 
 ## Authentication and privilege boundary
 
