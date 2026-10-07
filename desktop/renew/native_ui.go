@@ -24,6 +24,16 @@ type renewApp struct {
 	paused bool
 
 	events             []eventSummary
+	eventsVersion      uint64
+	eventUIQueue       chan eventSummary
+	eventUIDropped     eventDropCounter
+	filterCacheValid   bool
+	filterCacheVersion uint64
+	filterCacheKey     string
+	filterCacheRows    []eventSummary
+	riskCacheValid     bool
+	riskCacheVersion   uint64
+	riskCacheCounts    [3]int
 	health             collectorHealth
 	trackedComms       []string
 	system             systemSnapshot
@@ -126,6 +136,7 @@ func newRenewApp(backend string) *renewApp {
 }
 
 func (a *renewApp) runPolling(ctx context.Context, session *backendSession) {
+	a.startEventUIBatcher(ctx)
 	if session != nil && session.reader != nil && session.nativeIPCVersion >= nativeIPCVersion {
 		go a.runNativeIPC(ctx, session)
 	} else {
@@ -174,6 +185,7 @@ func (a *renewApp) refresh(parent context.Context) {
 		a.lastErr = ""
 		if fullSnapshot {
 			a.events = mergeEventSummaries(a.events, snapshot.Events, 1200)
+			a.eventsVersion++
 			if !a.historyInitialized {
 				a.historyCursor = snapshot.NextCursor
 				a.historyInitialized = true
@@ -364,7 +376,15 @@ func (a *renewApp) errorView(c *ui.Context) {
 
 func (a *renewApp) filteredEvents() []eventSummary {
 	q := strings.ToLower(strings.TrimSpace(a.search))
-	out := make([]eventSummary, 0, len(a.events))
+	key := q + "\x00" + a.eventTypeFilter + "\x00" + a.eventSessionFilter + "\x00" + a.eventDecisionFilter
+	if a.eventAttentionOnly {
+		key += "\x001"
+	}
+	if a.filterCacheValid && a.filterCacheVersion == a.eventsVersion && a.filterCacheKey == key {
+		return a.filterCacheRows
+	}
+
+	out := make([]eventSummary, 0, min(len(a.events), 256))
 	for _, event := range a.events {
 		if q != "" && !strings.Contains(eventSearchText(event), q) {
 			continue
@@ -383,10 +403,17 @@ func (a *renewApp) filteredEvents() []eventSummary {
 		}
 		out = append(out, event)
 	}
+	a.filterCacheValid = true
+	a.filterCacheVersion = a.eventsVersion
+	a.filterCacheKey = key
+	a.filterCacheRows = out
 	return out
 }
 
 func (a *renewApp) riskCounts() (normal, attention, danger int) {
+	if a.riskCacheValid && a.riskCacheVersion == a.eventsVersion {
+		return a.riskCacheCounts[0], a.riskCacheCounts[1], a.riskCacheCounts[2]
+	}
 	for _, event := range a.events {
 		switch eventRisk(event) {
 		case "高风险":
@@ -397,6 +424,9 @@ func (a *renewApp) riskCounts() (normal, attention, danger int) {
 			normal++
 		}
 	}
+	a.riskCacheValid = true
+	a.riskCacheVersion = a.eventsVersion
+	a.riskCacheCounts = [3]int{normal, attention, danger}
 	return
 }
 
