@@ -13,10 +13,14 @@ const (
 )
 
 func (a *renewApp) startEventUIBatcher(ctx context.Context) {
+	if !a.eventUIBatcherStarted.CompareAndSwap(false, true) {
+		return
+	}
 	if a.eventUIQueue == nil {
 		a.eventUIQueue = make(chan eventSummary, eventUIQueueSize)
 	}
 	go func() {
+		defer a.eventUIBatcherStarted.Store(false)
 		ticker := time.NewTicker(eventUIFlushInterval)
 		defer ticker.Stop()
 
@@ -93,3 +97,4 @@ func (a *renewApp) eventUIDroppedCount() uint64 {
 
 type eventDropCounter = atomic.Uint64
 type eventPauseFlag = atomic.Bool
+type eventBatcherFlag = atomic.Bool
