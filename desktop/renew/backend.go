@@ -133,11 +133,6 @@ func ensureBackend(ctx context.Context, origin, resources string) (*backendSessi
 		}
 	}()
 	args := []string{"--desktop-lifetime-socket", filepath.Join(dir, "lifetime.sock"), "--real-home", home, "--desktop-port", port}
-	frontend := os.Getenv("AGENT_RENEW_FRONTEND_DIST")
-	if frontend == "" {
-		frontend = filepath.Join(resources, "frontend", "dist")
-	}
-	args = append(args, "--frontend-dir", frontend)
 	if os.Getenv("AGENT_RENEW_DEV") == "true" {
 		args = append(args, "--desktop-dev")
 	}
