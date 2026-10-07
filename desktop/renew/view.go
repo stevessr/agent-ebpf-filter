@@ -439,7 +439,7 @@ func (a *nativeApp) rulesPage(c *ui.Context, data appData) {
 				formTitle = "编辑规则"
 			}
 			sectionTitle(c, formTitle, "")
-			ui.TextInput(c, &a.ruleComm).Placeholder("例如 curl").Label("命令")
+			ui.TextInput(c, &a.ruleComm).Placeholder("例如 curl").Label("命令").Disabled(a.ruleEditing != "")
 			ui.Select(c, &a.ruleAction, []string{"ALLOW", "ALERT", "BLOCK", "REWRITE"}).Label("动作")
 			ui.TextInput(c, &a.rulePriority).Placeholder("0").Label("优先级")
 			ui.TextInput(c, &a.ruleRegex).Placeholder("可选：参数正则").Label("参数正则")
