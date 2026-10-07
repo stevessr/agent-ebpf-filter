@@ -106,7 +106,7 @@ func HandleConfigImportPost(c *gin.Context) {
 		_ = Deps.TrackerMaps.TrackedPathsPut(k, Deps.Config.TagID(tag))
 	}
 	for _, rule := range cfg.Rules {
-		Deps.Config.UpsertRule(rule.Comm, rule.Action, "", rule.Regex, rule.Replacement, int32(rule.Priority))
+		Deps.Config.UpsertRule(rule.Comm, rule.Action, rule.RewrittenCmd, rule.Regex, rule.Replacement, int32(rule.Priority))
 	}
 	c.JSON(200, gin.H{"status": "ok"})
 }
