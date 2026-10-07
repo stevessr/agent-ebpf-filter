@@ -141,7 +141,7 @@ Renew 浏览器/桌面前端只保留一个有界摘要窗口；用户需要更�
 - `/ws/system`：protobuf CPU、内存、进程与系统吞吐；
 - 现有 API token 鉴权：Go 客户端直接设置请求头，不再借助 WebView `localStorage`。
 
-桌面模块拆为 `main.go`（生命周期）、`backend.go`（可选 Linux 后端启动/提权边界）、`client.go`（REST/WebSocket）、`model.go`（有界状态和重连）与 `view.go`（MyGo native UI）。特权后端仍不依赖 MyGo；桌面模块只通过本地 module replacement 复用已生成的 `backend/pb` wire type。
+桌面模块拆为 `main.go`（生命周期）、`backend.go`（可选 Linux 后端启动/提权边界）、`client.go`（REST/WebSocket）、`model.go`（有界状态和重连）与 `view.go`（MyGo native UI）。特权后端仍不依赖 MyGo；桌面模块只实现 `/ws/system` 当前界面所需字段的窄 protobuf wire decoder，并以 `proto/tracker_system.proto` 为协议源，因此无需依赖构建时生成且不入库的 `backend/pb`。
 
 原生页面覆盖常驻使用所需的概览、事件、进程与网络目标聚合。规则、Research、Execution Graph、TLS capture 等高级能力继续由浏览器工作台承担；桌面端的“打开 Web 工作台”只调用系统默认浏览器，不嵌入 Web 内容。
 
