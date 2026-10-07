@@ -381,10 +381,7 @@ func (a *renewApp) eventRow(c *ui.Context, e eventSummary) {
 func aggregateNetwork(events []eventSummary) []networkAggregate {
 	byTarget := make(map[string]*networkAggregate)
 	for _, e := range events {
-		target := strings.TrimSpace(e.Domain)
-		if target == "" {
-			target = strings.TrimSpace(e.NetEndpoint)
-		}
+		target := strings.TrimSpace(e.Target)
 		if target == "" || !isNetworkEvent(e) {
 			continue
 		}
@@ -462,11 +459,11 @@ func aggregateProcesses(events []eventSummary) []processAggregate {
 }
 
 func isNetworkEvent(e eventSummary) bool {
-	if strings.TrimSpace(e.NetEndpoint) != "" || strings.TrimSpace(e.Domain) != "" {
+	if e.Network {
 		return true
 	}
 	t := strings.ToLower(e.Type)
-	return strings.Contains(t, "network") || strings.Contains(t, "tcp") || strings.Contains(t, "dns") || strings.Contains(t, "socket")
+	return strings.Contains(t, "network") || strings.Contains(t, "connect") || strings.Contains(t, "tcp") || strings.Contains(t, "dns") || strings.Contains(t, "socket")
 }
 
 func formatBytes(v int64) string {
