@@ -12,6 +12,24 @@ const (
 	eventUIQueueSize      = 2048
 )
 
+func (a *renewApp) mergeEventWindow(incoming []eventSummary, limit int) bool {
+	old := a.events
+	next := mergeEventSummariesInto(a.eventMergeScratch, old, incoming, limit)
+	if len(old) == len(next) {
+		if len(old) == 0 || &old[0] == &next[0] {
+			return false
+		}
+	}
+	a.events = next
+	if cap(old) > 0 {
+		a.eventMergeScratch = old[:0]
+	} else {
+		a.eventMergeScratch = nil
+	}
+	a.eventsVersion++
+	return true
+}
+
 func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 	if !a.eventUIBatcherStarted.CompareAndSwap(false, true) {
 		return
@@ -34,9 +52,9 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 			batch = batch[:0]
 			pausedWrite = 0
 			a.update(func() {
-				a.events = mergeEventSummaries(a.events, pending, 1200)
-				a.eventsVersion++
-				a.lastSync = time.Now()
+				if a.mergeEventWindow(pending, 1200) {
+					a.lastSync = time.Now()
+				}
 			})
 		}
 
