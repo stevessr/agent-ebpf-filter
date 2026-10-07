@@ -59,8 +59,8 @@ func TestDecodeEventEnvelopeSummary(t *testing.T) {
 	if got.EventID != "evt_native_1" || got.PID != 42 || got.PPID != 7 {
 		t.Fatalf("identity mismatch: %+v", got)
 	}
-	if got.Type != "execve" || got.Tag != "AI Agent" || got.Path != "/usr/bin/git" {
-		t.Fatalf("legacy event fields missing: %+v", got)
+	if got.Type != "execve" || got.Tag != "AI Agent" || got.Target != "/usr/bin/git" {
+		t.Fatalf("legacy compact fields missing: %+v", got)
 	}
 	if got.Decision != "ALERT" || math.Abs(got.RiskScore-0.9) > 1e-9 {
 		t.Fatalf("envelope policy fields did not win: %+v", got)
@@ -70,6 +70,46 @@ func TestDecodeEventEnvelopeSummary(t *testing.T) {
 	}
 	if got.ReceivedAtMS != capturedAt.UnixMilli() {
 		t.Fatalf("timestamp = %d, want %d", got.ReceivedAtMS, capturedAt.UnixMilli())
+	}
+}
+
+
+func TestDecodeDesktopEventSummary(t *testing.T) {
+	var data []byte
+	data = appendProtoString(data, 1, "evt_compact_1")
+	data = appendProtoVarint(data, 2, 123456)
+	data = appendProtoVarint(data, 3, 42)
+	data = appendProtoVarint(data, 4, 7)
+	data = appendProtoVarint(data, 5, 41)
+	data = appendProtoVarint(data, 6, 8)
+	data = appendProtoString(data, 7, "NETWORK_CONNECT")
+	data = appendProtoString(data, 8, "AI Agent")
+	data = appendProtoString(data, 9, "codex")
+	data = appendProtoString(data, 10, "example.com:443")
+	data = appendProtoVarint(data, 11, 1)
+	data = appendProtoVarint(data, 12, 4096)
+	data = appendProtoString(data, 13, "ALERT")
+	data = appendProtoDouble(data, 14, 72)
+	data = appendProtoString(data, 15, "run-1")
+	data = appendProtoString(data, 16, "conv-1")
+	data = appendProtoString(data, 17, "shell")
+	data = appendProtoVarint(data, 18, 1)
+
+	got, err := decodeDesktopEventSummary(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.EventID != "evt_compact_1" || got.PID != 42 || got.PPID != 7 || got.RootAgentPID != 41 {
+		t.Fatalf("identity mismatch: %+v", got)
+	}
+	if !got.Network || got.Target != "example.com:443" || got.NetBytes != 4096 {
+		t.Fatalf("network projection mismatch: %+v", got)
+	}
+	if got.AgentRunID != "run-1" || got.ConversationID != "conv-1" || !got.HasAgentContext {
+		t.Fatalf("agent context mismatch: %+v", got)
+	}
+	if got.Decision != "ALERT" || got.RiskScore != 72 {
+		t.Fatalf("risk mismatch: %+v", got)
 	}
 }
 

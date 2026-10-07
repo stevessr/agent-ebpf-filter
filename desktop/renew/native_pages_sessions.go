@@ -45,9 +45,9 @@ func eventHarnessLabel(event eventSummary) string {
 }
 
 func isAgentSummary(event eventSummary) bool {
-	return event.AgentRunID != "" ||
+	return event.HasAgentContext ||
+		event.AgentRunID != "" ||
 		event.ConversationID != "" ||
-		event.ToolCallID != "" ||
 		event.RootAgentPID > 0 ||
 		(strings.TrimSpace(event.Tag) != "" && !strings.EqualFold(event.Tag, "Unknown"))
 }

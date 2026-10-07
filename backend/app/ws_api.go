@@ -297,6 +297,9 @@ type renewEventSummary struct {
 	EventType      int32   `json:"eventType"`
 	Tag            string  `json:"tag"`
 	Comm           string  `json:"comm"`
+	Target         string  `json:"target,omitempty"`
+	Network        bool    `json:"network,omitempty"`
+	HasAgentContext bool   `json:"hasAgentContext,omitempty"`
 	Path           string  `json:"path"`
 	ExtraPath      string  `json:"extraPath,omitempty"`
 	NetDirection   string  `json:"netDirection,omitempty"`
@@ -316,6 +319,116 @@ type renewEventSummary struct {
 	ReceivedAtMS   int64   `json:"receivedAtMs"`
 }
 
+type renewDesktopEventSummary struct {
+	EventID          string  `json:"eventId"`
+	ReceivedAtMS     int64   `json:"receivedAtMs"`
+	PID              uint32  `json:"pid"`
+	PPID             uint32  `json:"ppid"`
+	RootAgentPID     uint32  `json:"rootAgentPid,omitempty"`
+	EventType        int32   `json:"eventType"`
+	Type             string  `json:"type"`
+	Tag              string  `json:"tag,omitempty"`
+	Comm             string  `json:"comm,omitempty"`
+	Target           string  `json:"target,omitempty"`
+	Network          bool    `json:"network,omitempty"`
+	NetBytes         uint64  `json:"netBytes,omitempty"`
+	Decision         string  `json:"decision,omitempty"`
+	RiskScore        float64 `json:"riskScore,omitempty"`
+	AgentRunID       string  `json:"agentRunId,omitempty"`
+	ConversationID   string  `json:"conversationId,omitempty"`
+	ToolName         string  `json:"toolName,omitempty"`
+	HasAgentContext  bool    `json:"hasAgentContext,omitempty"`
+}
+
+func buildRenewDesktopEventSummary(record CapturedEventRecord) (renewDesktopEventSummary, bool) {
+	return buildRenewDesktopEventSummaryNormalized(normalizeCapturedEventRecord(record))
+}
+
+func buildRenewDesktopEventSummaryNormalized(record CapturedEventRecord) (renewDesktopEventSummary, bool) {
+	if record.Event == nil || record.Envelope == nil {
+		return renewDesktopEventSummary{}, false
+	}
+	event := record.Event
+	envelope := record.Envelope
+	eventID := strings.TrimSpace(envelope.GetEventId())
+	if eventID == "" {
+		return renewDesktopEventSummary{}, false
+	}
+
+	agentRunID := platform.FirstNonEmpty(event.GetAgentRunId(), envelope.GetAgentRunId())
+	conversationID := platform.FirstNonEmpty(event.GetConversationId(), envelope.GetConversationId())
+	toolCallID := platform.FirstNonEmpty(event.GetToolCallId(), envelope.GetToolCallId())
+	toolName := platform.FirstNonEmpty(event.GetToolName(), envelope.GetToolName())
+	tag := event.GetTag()
+	rootAgentPID := event.GetRootAgentPid()
+	target := platform.FirstNonEmpty(
+		event.GetPath(),
+		event.GetNetEndpoint(),
+		event.GetDomain(),
+		event.GetExtraPath(),
+		toolName,
+	)
+	eventType := event.GetType()
+	network := strings.TrimSpace(event.GetNetEndpoint()) != "" || strings.TrimSpace(event.GetDomain()) != ""
+	if !network {
+		lowerType := strings.ToLower(eventType)
+		network = strings.Contains(lowerType, "network") ||
+			strings.Contains(lowerType, "connect") ||
+			strings.Contains(lowerType, "socket") ||
+			strings.Contains(lowerType, "tcp") ||
+			strings.Contains(lowerType, "dns")
+	}
+	hasAgentContext := agentRunID != "" ||
+		conversationID != "" ||
+		toolCallID != "" ||
+		rootAgentPID > 0 ||
+		(strings.TrimSpace(tag) != "" && !strings.EqualFold(tag, "Unknown"))
+
+	return renewDesktopEventSummary{
+		EventID:         eventID,
+		ReceivedAtMS:    record.ReceivedAt.UnixMilli(),
+		PID:             event.GetPid(),
+		PPID:            event.GetPpid(),
+		RootAgentPID:    rootAgentPID,
+		EventType:       int32(event.GetEventType()),
+		Type:            eventType,
+		Tag:             tag,
+		Comm:            event.GetComm(),
+		Target:          target,
+		Network:         network,
+		NetBytes:        uint64(event.GetNetBytes()),
+		Decision:        platform.FirstNonEmpty(event.GetDecision(), envelope.GetPolicyDecision()),
+		RiskScore:       max(event.GetRiskScore(), envelope.GetRiskScore()),
+		AgentRunID:      agentRunID,
+		ConversationID:  conversationID,
+		ToolName:        toolName,
+		HasAgentContext: hasAgentContext,
+	}, true
+}
+
+func desktopEventSummaryProto(summary renewDesktopEventSummary) *pb.DesktopEventSummary {
+	return &pb.DesktopEventSummary{
+		EventId:          summary.EventID,
+		ReceivedAtMs:     summary.ReceivedAtMS,
+		Pid:              summary.PID,
+		Ppid:             summary.PPID,
+		RootAgentPid:     summary.RootAgentPID,
+		EventType:        summary.EventType,
+		Type:             summary.Type,
+		Tag:              summary.Tag,
+		Comm:             summary.Comm,
+		Target:           summary.Target,
+		Network:          summary.Network,
+		NetBytes:         summary.NetBytes,
+		Decision:         summary.Decision,
+		RiskScore:        summary.RiskScore,
+		AgentRunId:       summary.AgentRunID,
+		ConversationId:   summary.ConversationID,
+		ToolName:         summary.ToolName,
+		HasAgentContext:  summary.HasAgentContext,
+	}
+}
+
 func buildRenewEventSummary(record CapturedEventRecord) (renewEventSummary, bool) {
 	record = normalizeCapturedEventRecord(record)
 	if record.Event == nil || record.Envelope == nil {
@@ -327,6 +440,7 @@ func buildRenewEventSummary(record CapturedEventRecord) (renewEventSummary, bool
 	if eventID == "" {
 		return renewEventSummary{}, false
 	}
+	compact, _ := buildRenewDesktopEventSummaryNormalized(record)
 	return renewEventSummary{
 		Key:            eventID,
 		EventID:        eventID,
@@ -337,6 +451,9 @@ func buildRenewEventSummary(record CapturedEventRecord) (renewEventSummary, bool
 		EventType:      int32(event.GetEventType()),
 		Tag:            event.GetTag(),
 		Comm:           event.GetComm(),
+		Target:         compact.Target,
+		Network:        compact.Network,
+		HasAgentContext: compact.HasAgentContext,
 		Path:           event.GetPath(),
 		ExtraPath:      event.GetExtraPath(),
 		NetDirection:   event.GetNetDirection(),
@@ -375,6 +492,23 @@ func handleRecentEventSummaries(c *gin.Context) {
 		return
 	}
 	records = filterRecentEventRecords(records, filters)
+	if strings.EqualFold(strings.TrimSpace(c.Query("compact")), "1") ||
+		strings.EqualFold(strings.TrimSpace(c.Query("compact")), "true") {
+		summaries := make([]renewDesktopEventSummary, 0, len(records))
+		for _, record := range records {
+			if summary, ok := buildRenewDesktopEventSummary(record); ok {
+				summaries = append(summaries, summary)
+			}
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"source":     source,
+			"events":     summaries,
+			"nextCursor": nextCursor,
+			"hasMore":    nextCursor != "",
+		})
+		return
+	}
+
 	summaries := make([]renewEventSummary, 0, len(records))
 	for _, record := range records {
 		if summary, ok := buildRenewEventSummary(record); ok {

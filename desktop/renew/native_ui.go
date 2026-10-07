@@ -292,7 +292,11 @@ func (a *renewApp) view(c *ui.Context) {
 					a.overview(c)
 				}
 			})
+			detailWasOpen := a.eventDetailOpen
 			a.eventDetailModal(c)
+			if detailWasOpen && !a.eventDetailOpen {
+				a.releaseEventDetailPayload()
+			}
 		})
 	})
 }

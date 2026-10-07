@@ -88,28 +88,70 @@ func TestDesktopLifetimeEOFAndToken(t *testing.T) {
 	if message.NativeIPCVersion != desktopNativeIPCVersion {
 		t.Fatalf("native IPC version = %d, want %d", message.NativeIPCVersion, desktopNativeIPCVersion)
 	}
-	if !session.publishProto(desktopFrameEventEnvelope, &pb.EventEnvelope{EventId: "evt_native_test"}) {
+	if !session.publishProto(desktopFrameEventSummary, &pb.DesktopEventSummary{EventId: "evt_native_test", Target: "/tmp/x"}) {
 		t.Fatal("native frame was not queued")
 	}
 	frame, err := udsframe.Read(conn)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(frame) < 2 || frame[0] != desktopFrameEventEnvelope {
+	if len(frame) < 2 || frame[0] != desktopFrameEventSummary {
 		t.Fatalf("unexpected native frame: %v", frame)
 	}
-	var envelope pb.EventEnvelope
-	if err := proto.Unmarshal(frame[1:], &envelope); err != nil {
+	var summary pb.DesktopEventSummary
+	if err := proto.Unmarshal(frame[1:], &summary); err != nil {
 		t.Fatal(err)
 	}
-	if envelope.GetEventId() != "evt_native_test" {
-		t.Fatalf("native event id = %q", envelope.GetEventId())
+	if summary.GetEventId() != "evt_native_test" || summary.GetTarget() != "/tmp/x" {
+		t.Fatalf("native compact summary = %+v", summary)
 	}
 	_ = conn.Close()
 	select {
 	case <-ctx.Done():
 	case <-time.After(time.Second):
 		t.Fatal("backend did not stop after desktop EOF")
+	}
+}
+
+
+func TestBuildRenewDesktopEventSummaryIsCompact(t *testing.T) {
+	at := time.UnixMilli(123456).UTC()
+	record := CapturedEventRecord{
+		ReceivedAt: at,
+		Event: &pb.Event{
+			Pid: 42,
+			Ppid: 7,
+			RootAgentPid: 41,
+			Type: "NETWORK_CONNECT",
+			Tag: "AI Agent",
+			Comm: "codex",
+			Path: "",
+			NetEndpoint: "203.0.113.10:443",
+			NetBytes: 4096,
+			ToolCallId: "tool-1",
+			TraceId: "trace-should-not-be-in-compact-summary",
+		},
+		Envelope: &pb.EventEnvelope{
+			EventId: "evt-compact",
+			AgentRunId: "run-1",
+			ConversationId: "conv-1",
+			PolicyDecision: "ALERT",
+			RiskScore: 72,
+		},
+	}
+	summary, ok := buildRenewDesktopEventSummary(record)
+	if !ok {
+		t.Fatal("compact summary was not built")
+	}
+	if summary.EventID != "evt-compact" || summary.Target != "203.0.113.10:443" || !summary.Network {
+		t.Fatalf("compact summary identity/target mismatch: %+v", summary)
+	}
+	if !summary.HasAgentContext || summary.AgentRunID != "run-1" || summary.ConversationID != "conv-1" {
+		t.Fatalf("compact agent context mismatch: %+v", summary)
+	}
+	protoSummary := desktopEventSummaryProto(summary)
+	if protoSummary.GetEventId() != "evt-compact" || protoSummary.GetTarget() != "203.0.113.10:443" {
+		t.Fatalf("compact protobuf mismatch: %+v", protoSummary)
 	}
 }
 

@@ -189,9 +189,7 @@ the first reached limit prunes the oldest records. It is controlled by
 independently to 1,500 events through `maxEventCount` / `maxEventAge`.
 
 Explicit `.jsonl` runtime paths remain supported as a legacy compatibility
-mode. Renew uses `/ws/event-summaries` for its live view and
-`/events/detail/:id` for full details, so the desktop/browser UI does not need
-to retain the complete persisted payload set.
+mode. Browser/remote Renew uses `/ws/event-summaries` for its live view. A locally launched native Renew uses Native IPC v2 `DesktopEventSummary` frames instead, and requests `/events/summaries?compact=1` for history. `/events/detail/:id` is the only desktop path that retrieves a complete event, so the desktop does not retain full persisted payloads in its bounded activity window.
 
 ## HTTP endpoints
 
@@ -200,7 +198,7 @@ to retain the complete persisted payload set.
 The runtime access token protects:
 
 - `GET /events/recent?type=&limit=` — full historical events read from the backend retention store; `limit=all`/`0` returns the bounded retained window, and each record includes a normalized `Envelope`
-- `GET /events/summaries?limit=` — compact Renew history summaries without shipping full event payloads to the desktop UI
+- `GET /events/summaries?limit=&compact=1` — compact Renew history summaries; `compact=1` projects only the fields required by the native event/session/network/process views, while the default response remains backward-compatible
 - `GET /events/detail/:id` — fetch one full persisted event on demand by event ID
 - `GET /events/graph?...` — aggregated execution graph API for the current event retention window
 - `GET /agentsight/events?format=json|array|jsonl` / `POST /agentsight/events` / `GET /agentsight/events.jsonl` — AgentSight-compatible export/import that merges retained `EventEnvelope` records, uploaded AgentSight traces, and TLS capture history into `{timestamp,source,pid,comm,data}` JSON/JSONL
