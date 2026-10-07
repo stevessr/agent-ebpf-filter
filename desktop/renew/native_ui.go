@@ -42,6 +42,10 @@ type renewApp struct {
 	processCacheVersion uint64
 	processCacheKey    string
 	processCacheRows   []processAggregate
+	optionCacheValid   bool
+	optionCacheVersion uint64
+	eventTypeOptions   []string
+	eventSessionOptions []string
 	health             collectorHealth
 	trackedComms       []string
 	system             systemSnapshot
@@ -468,6 +472,17 @@ func (a *renewApp) filteredProcessAggregateRows() []processAggregate {
 	a.processCacheKey = key
 	a.processCacheRows = rows
 	return rows
+}
+
+func (a *renewApp) eventFilterOptions() ([]string, []string) {
+	if a.optionCacheValid && a.optionCacheVersion == a.eventsVersion {
+		return a.eventTypeOptions, a.eventSessionOptions
+	}
+	a.eventTypeOptions = uniqueEventTypes(a.events)
+	a.eventSessionOptions = uniqueEventSessions(a.events)
+	a.optionCacheValid = true
+	a.optionCacheVersion = a.eventsVersion
+	return a.eventTypeOptions, a.eventSessionOptions
 }
 
 func card(c *ui.Context, title string, body func()) *ui.Element {
