@@ -199,8 +199,7 @@ func (a *renewApp) refresh(parent context.Context) {
 		a.connected = true
 		a.lastErr = ""
 		if fullSnapshot {
-			a.events = mergeEventSummaries(a.events, snapshot.Events, 1200)
-			a.eventsVersion++
+			a.mergeEventWindow(snapshot.Events, 1200)
 			if !a.historyInitialized {
 				a.historyCursor = snapshot.NextCursor
 				a.historyInitialized = true
