@@ -1,6 +1,8 @@
 package app
 
 import (
+	"agent-ebpf-filter/pb"
+	"agent-ebpf-filter/udsframe"
 	"context"
 	"encoding/json"
 	"flag"
@@ -9,7 +11,29 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"google.golang.org/protobuf/proto"
 )
+
+const (
+	desktopNativeIPCVersion = 1
+
+	desktopFrameEventEnvelope byte = 1
+	desktopFrameSystemStats   byte = 2
+
+	desktopNativeQueueSize   = 1024
+	desktopNativeWriteTimeout = 750 * time.Millisecond
+)
+
+type desktopProtoFrame struct {
+	kind    byte
+	message proto.Message
+}
+
+var activeDesktopSession atomic.Pointer[desktopSession]
 
 // These explicit arguments survive sudo/pkexec's environment sanitization.
 // Only the desktop-launched backend uses them; normal service startup is unchanged.
@@ -65,26 +89,95 @@ func ConfigureDesktopFlags(args []string) error {
 
 // EOF from the ordinary-user desktop cancels the privileged backend without
 // requiring another password prompt to kill a root PID. Crashes also close the
-// connection. No reused/system backend receives this lifetime socket.
+// connection. The same private socket carries the native low-latency desktop
+// stream after the initial token handshake; no reused/system backend receives it.
 type desktopSession struct {
-	conn   net.Conn
-	cancel context.CancelFunc
+	conn      net.Conn
+	ctx       context.Context
+	cancel    context.CancelFunc
+	frames    chan desktopProtoFrame
+	startOnce sync.Once
+	closeOnce sync.Once
 }
 
 func (s *desktopSession) Close() {
-	if s != nil {
+	if s == nil {
+		return
+	}
+	s.closeOnce.Do(func() {
 		s.cancel()
 		_ = s.conn.Close()
-	}
+	})
 }
 
 func (s *desktopSession) publishToken(token string) error {
 	if s == nil {
 		return nil
 	}
-	return json.NewEncoder(s.conn).Encode(struct {
-		Token string `json:"token"`
-	}{token})
+	err := json.NewEncoder(s.conn).Encode(struct {
+		Token            string `json:"token"`
+		NativeIPCVersion int    `json:"nativeIpcVersion"`
+	}{
+		Token:            token,
+		NativeIPCVersion: desktopNativeIPCVersion,
+	})
+	if err != nil {
+		return err
+	}
+	s.startWriter()
+	return nil
+}
+
+func (s *desktopSession) startWriter() {
+	if s == nil {
+		return
+	}
+	s.startOnce.Do(func() {
+		go func() {
+			for {
+				select {
+				case <-s.ctx.Done():
+					return
+				case frame := <-s.frames:
+					if frame.message == nil {
+						continue
+					}
+					payload, err := proto.Marshal(frame.message)
+					if err != nil {
+						continue
+					}
+					if err := s.conn.SetWriteDeadline(time.Now().Add(desktopNativeWriteTimeout)); err != nil {
+						s.cancel()
+						return
+					}
+					if err := udsframe.WriteTyped(s.conn, frame.kind, payload); err != nil {
+						s.cancel()
+						return
+					}
+				}
+			}
+		}()
+	})
+}
+
+// publishProto is deliberately non-blocking. The privileged event path must
+// never wait for a slow or frozen desktop renderer. Serialization is also kept
+// off the producer goroutine and happens in the session writer.
+func (s *desktopSession) publishProto(kind byte, message proto.Message) bool {
+	if s == nil || message == nil {
+		return false
+	}
+	select {
+	case <-s.ctx.Done():
+		return false
+	default:
+	}
+	select {
+	case s.frames <- desktopProtoFrame{kind: kind, message: message}:
+		return true
+	default:
+		return false
+	}
 }
 
 func desktopSessionContext(parent context.Context) (context.Context, *desktopSession, error) {
@@ -97,9 +190,15 @@ func desktopSessionContext(parent context.Context) (context.Context, *desktopSes
 		return nil, nil, fmt.Errorf("connect desktop lifetime socket: %w", err)
 	}
 	ctx, cancel := context.WithCancel(parent)
+	session := &desktopSession{
+		conn:   conn,
+		ctx:    ctx,
+		cancel: cancel,
+		frames: make(chan desktopProtoFrame, desktopNativeQueueSize),
+	}
 	go func() {
 		_, _ = io.Copy(io.Discard, conn)
 		cancel()
 	}()
-	return ctx, &desktopSession{conn: conn, cancel: cancel}, nil
+	return ctx, session, nil
 }
