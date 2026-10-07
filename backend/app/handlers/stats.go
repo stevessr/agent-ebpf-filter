@@ -67,6 +67,8 @@ func StreamSystemStats(ctx context.Context, interval time.Duration, emit func(*p
 	if emit == nil {
 		return fmt.Errorf("system stats emitter is nil")
 	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 	coreTypes := Deps.GetCoreTypes()
 	lastFaults, err := Deps.ReadVMFaultCounters()
 	if err != nil {
