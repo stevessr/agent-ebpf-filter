@@ -22,7 +22,7 @@ Renew desktop (ordinary user)
   └─ backend.go              optional Linux backend launcher/lifetime
 ```
 
-The privileged backend module does **not** depend on MyGo. The desktop module imports only the backend's generated protobuf package through a local module replacement so `/ws/system` stays on the existing wire format.
+The privileged backend module does **not** depend on MyGo. The desktop client keeps a narrow protobuf wire decoder for the `/ws/system` fields it renders, keyed to `proto/tracker_system.proto`, so it stays on the existing wire format without importing the backend's generated `pb` build output.
 
 ## Native pages
 
