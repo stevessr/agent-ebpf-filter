@@ -14,10 +14,37 @@ DESKTOP_DIR="${RENEW_DESKTOP_DIR:-$ROOT/desktop/renew}"
 [[ "$DESKTOP_DIR" = /* ]] || DESKTOP_DIR="$ROOT/$DESKTOP_DIR"
 command -v go >/dev/null || { echo "Missing go; run make predev." >&2; exit 127; }
 
+prepare_backend_proto() {
+    if [[ -f "$ROOT/backend/pb/tracker_system.pb.go" ]]; then
+        return
+    fi
+    command -v protoc >/dev/null || {
+        echo "Missing protoc; install protobuf-compiler before building the bundled backend." >&2
+        exit 127
+    }
+    command -v protoc-gen-go >/dev/null || {
+        echo "Missing protoc-gen-go; run 'make predev-go' first." >&2
+        exit 127
+    }
+    mkdir -p "$ROOT/backend/pb"
+    protoc --go_out="$ROOT/backend/pb" --go_opt=paths=source_relative -I "$ROOT/proto" \
+        "$ROOT/proto/tracker_common.proto" \
+        "$ROOT/proto/tracker_events.proto" \
+        "$ROOT/proto/tracker_registration.proto" \
+        "$ROOT/proto/tracker_system.proto" \
+        "$ROOT/proto/tracker_config.proto" \
+        "$ROOT/proto/tracker_shell.proto"
+}
+
+build_backend() {
+    prepare_backend_proto
+    make --no-print-directory backend-bare CUDA_GO_TAGS=
+}
+
 case "${1:-dev}" in
     prepare)
         [[ "$(go env GOOS)" = linux ]] || { echo "Bundled eBPF backend requires a Linux build." >&2; exit 1; }
-        make --no-print-directory backend-bare CUDA_GO_TAGS=
+        build_backend
         resources="$DESKTOP_DIR/resources/linux-$(go env GOARCH)"
         mkdir -p "$resources/backend"
         cp backend/agent-ebpf-filter "$resources/backend/agent-ebpf-filter"
@@ -28,7 +55,7 @@ case "${1:-dev}" in
         exec go tool mygo build
         ;;
     dev)
-        make --no-print-directory backend-bare
+        build_backend
         backend_port="${AGENT_BACKEND_PORT:-}"
         if [[ -z "$backend_port" && -f backend/.port ]]; then
             read -r backend_port < backend/.port || true
