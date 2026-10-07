@@ -130,47 +130,31 @@ Renew 浏览器/桌面前端只保留一个有界摘要窗口；用户需要更�
 
 显式配置的旧 `.jsonl` 路径仍保持兼容；新安装默认使用 Pebble。
 
-## MyGo 桌面版
+## MyGo 原生桌面版
 
-桌面壳位于 `desktop/renew/`，使用 MyGo 0.2.7，并作为**独立 Go module** 维护。
+桌面客户端位于 `desktop/renew/`，作为独立 Go module 维护，并使用 MyGo 0.2.9 的 native `ui`。桌面窗口不再加载 `/renew` WebView，也不再启动或打包 Vue/Vite 页面；浏览器版 Renew 保持原路由与能力，二者只共享后端协议。
 
-Linux 打包版携带后端和 Vue 产物；启动时复用已有后端，或通过系统授权启动随包后端。WebView 加载后端真实地址，例如：
+原生桌面直接消费：
 
-```text
-http://127.0.0.1:8080/renew
-```
+- `/events/summaries` + `/ws/event-summaries`：有界紧凑事件窗口和实时活动；
+- `/events/detail/:id`：用户点选后按需读取单条完整事件；
+- `/ws/system`：protobuf CPU、内存、进程与系统吞吐；
+- 现有 API token 鉴权：Go 客户端直接设置请求头，不再借助 WebView `localStorage`。
 
-因此 REST、protobuf、WebSocket、认证 localStorage 都继续使用与 Web 版完全一致的同源路径。
+桌面模块拆为 `main.go`（生命周期）、`backend.go`（可选 Linux 后端启动/提权边界）、`client.go`（REST/WebSocket）、`model.go`（有界状态和重连）与 `view.go`（MyGo native UI）。特权后端仍不依赖 MyGo；桌面模块只通过本地 module replacement 复用已生成的 `backend/pb` wire type。
 
-桌面壳只负责：
+原生页面覆盖常驻使用所需的概览、事件、进程与网络目标聚合。规则、Research、Execution Graph、TLS capture 等高级能力继续由浏览器工作台承担；桌面端的“打开 Web 工作台”只调用系统默认浏览器，不嵌入 Web 内容。
 
-- 单实例；
-- 原生窗口和窗口状态记忆；
-- `AGENT_BACKEND_URL` / `--backend` 后端地址选择；
-- 自动启动后端、等待就绪，授权取消或启动失败时显示提示页；
-- 通过私有 Unix socket 传递 API token 和管理后端生命周期；
-- MyGo 的 Linux / Windows / macOS 打包。
-
-MyGo 要求 Go 1.27.1+。仓库现已统一到 Go 1.27.1，并将 `desktop/renew` 纳入根 `go.work`；桌面端仍保持独立 `go.mod`，避免 MyGo 依赖进入特权后端 module。
-
-运行和打包：
+Linux 打包版只携带原生 MyGo 可执行文件和 eBPF 后端，不再携带 `frontend/dist`。开发流程也不再依赖 Bun/Vite：
 
 ```bash
-make renew-desktop-dev    # 后端构建 + Vite /renew WebUI + 桌面窗口
-make renew-desktop-build  # 随包后端 + frontend/dist + Linux 桌面包
+make renew-desktop-dev    # backend + go tool mygo dev
+make renew-desktop-build  # bundled backend + native Linux desktop package
 ```
 
-开发目标自动启动 Vite，并将 API/WebSocket 代理到实际后端地址。Linux 检测到 Zenity/KDialog 时自动使用随包 askpass 弹密码窗口；否则使用系统 PolicyKit 授权代理。也可设置 `SUDO_ASKPASS` 自定义 `sudo -A` 提示程序。打包版保留 release 认证，开发版显式使用 dev 模式。桌面退出或崩溃只关闭本次启动的后端，不会停止复用的系统服务。
+本地已有后端仍会复用；没有后端时继续沿用系统授权启动随包后端，并用用户私有 Unix socket 传递 API token 及绑定后端生命周期。远端/自定义后端可使用 `AGENT_BACKEND_URL` 和 `AGENT_API_TOKEN`。桌面退出只关闭本次由桌面启动的后端，不影响复用的系统服务。
 
-也可直接操作 MyGo（`dev` 不负责构建仓库依赖）：
-
-```bash
-cd desktop/renew
-go tool mygo dev
-go tool mygo build -platform linux/amd64
-```
-
-Linux 运行时使用系统 WebKitGTK 4.1。桌面壳的详细说明见 `desktop/renew/README.md`。
+MyGo 原生 UI 由 Go 直接构建并在 GPU 上绘制，因此 Renew 桌面本身不再需要 WebKitGTK 渲染页面。浏览器版 `/renew` 仍完全保留，适合需要完整 Renew 页面和高级工作台跳转的场景。
 
 ## 与专业工作台的边界
 
