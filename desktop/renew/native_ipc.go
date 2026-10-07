@@ -63,15 +63,7 @@ func (a *renewApp) consumeNativeIPC(ctx context.Context, session *backendSession
 			if err != nil {
 				continue
 			}
-			a.update(func() {
-				a.eventStreamConnected = true
-				a.eventStreamErr = ""
-				if a.paused {
-					return
-				}
-				a.events = mergeEventSummaries(a.events, []eventSummary{summary}, 1200)
-				a.lastSync = time.Now()
-			})
+			a.queueEventSummary(summary)
 		case nativeFrameSystemStats:
 			snapshot, err := decodeSystemStats(payload)
 			if err != nil {
