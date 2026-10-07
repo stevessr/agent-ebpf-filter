@@ -34,7 +34,7 @@ func main() {
 		}
 		return
 	}
-	if os.Getenv(askpassModeEnv) == "1" {
+	if isAskpassInvocation() {
 		if err := runAskpass(); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
