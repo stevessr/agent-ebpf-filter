@@ -112,6 +112,30 @@ func TestFilteredEventsCacheInvalidatesOnEventVersion(t *testing.T) {
 	}
 }
 
+
+func TestMergeEventWindowAlternatesBackingBuffers(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	if !a.mergeEventWindow([]eventSummary{{EventID: "1", ReceivedAtMS: 10}}, 1200) {
+		t.Fatal("initial merge reported no change")
+	}
+	first := &a.events[0]
+
+	if !a.mergeEventWindow([]eventSummary{{EventID: "2", ReceivedAtMS: 20}}, 1200) {
+		t.Fatal("second merge reported no change")
+	}
+	second := &a.events[0]
+	if first == second {
+		t.Fatal("second merge unexpectedly overwrote the active event window")
+	}
+
+	if !a.mergeEventWindow([]eventSummary{{EventID: "3", ReceivedAtMS: 30}}, 1200) {
+		t.Fatal("third merge reported no change")
+	}
+	if &a.events[0] != first {
+		t.Fatal("third merge did not reuse the first backing buffer")
+	}
+}
+
 func TestEventDecisionFilters(t *testing.T) {
 	if !matchesEventDecision(eventSummary{Decision: "deny"}, "已阻断") {
 		t.Fatal("deny must match blocked")
