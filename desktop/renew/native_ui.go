@@ -28,6 +28,7 @@ type renewApp struct {
 	eventUIQueue       chan eventSummary
 	eventUIDropped     eventDropCounter
 	eventUIPaused      eventPauseFlag
+	eventUIBatcherStarted eventBatcherFlag
 	filterCacheValid   bool
 	filterCacheVersion uint64
 	filterCacheKey     string
@@ -165,7 +166,7 @@ func (a *renewApp) runPolling(ctx context.Context, session *backendSession) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if !a.paused {
+			if !a.eventUIPaused.Load() {
 				a.refresh(ctx)
 			}
 		}
