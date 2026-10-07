@@ -2,7 +2,17 @@
 
 package main
 
-import "os/exec"
+import (
+	"fmt"
+	"os/exec"
+)
 
 func configureBackendLauncher(cmd *exec.Cmd) {}
-func cancelBackendLauncher(cmd *exec.Cmd)    { _ = cmd.Process.Kill() }
+
+func configureBackendAskpass(cmd *exec.Cmd, binary string) {}
+
+func runAskpass() error {
+	return fmt.Errorf("Renew self-elevation is only supported on Linux")
+}
+
+func cancelBackendLauncher(cmd *exec.Cmd) { _ = cmd.Process.Kill() }
