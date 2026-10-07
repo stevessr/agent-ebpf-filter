@@ -41,6 +41,7 @@ type renewApp struct {
 	pathTable           ui.ListState
 	prefixTable         ui.ListState
 	eventSelected       int
+	processSelected     int
 	ruleSelected        int
 	commSelected        int
 	pathSelected        int
@@ -98,6 +99,7 @@ func newRenewApp(backend string) *renewApp {
 		starting:           true,
 		page:               "概览",
 		eventSelected:      -1,
+		processSelected:    -1,
 		ruleSelected:       -1,
 		commSelected:       -1,
 		pathSelected:       -1,
@@ -109,6 +111,7 @@ func newRenewApp(backend string) *renewApp {
 		ruleRewrite:        "[]",
 	}
 	a.eventTable.Selected = &a.eventSelected
+	a.processTable.Selected = &a.processSelected
 	a.rulesTable.Selected = &a.ruleSelected
 	a.commTable.Selected = &a.commSelected
 	a.pathTable.Selected = &a.pathSelected
