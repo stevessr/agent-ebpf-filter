@@ -22,9 +22,13 @@ Renew Desktop
   └─ MyGo native UI (Go only, GPU drawn)
 ```
 
-The native client now covers the low-noise daily-monitoring workflow: Overview, Events, Network, Processes, Monitoring, Wrapper Rules, and System. Events and rule sets use MyGo-native tables/forms/switches; network and process views aggregate only the current bounded event-summary window, so they do not pretend to be full traffic or process-history accounting. Full event payloads remain backend-owned and are not copied into desktop memory.
+The native client now covers the low-noise daily-monitoring workflow: Overview, Events, Network, Processes, Monitoring, Wrapper Rules, Tracking, and System. Events and configuration surfaces use MyGo-native tables/forms/selects/tabs/switches; the browser runtime is not embedded.
 
-Monitoring switches write the existing `/config/event-types` contract and only change UI state after backend confirmation. Wrapper Rules use the existing `/config/rules` API for ALLOW/BLOCK/ALERT/REWRITE operations. The system-statistics WebSocket remains protobuf-native; the desktop does not add a JSON side channel just for rendering.
+The Events page keeps compact summaries bounded in desktop memory, supports type/session/decision/attention filtering, expands history through the backend cursor API, and fetches a full record only when its detail modal is opened. Event detail can show the raw JSON on demand and, when `policy_management` is enabled, uses the existing cgroup/BPF LSM APIs to block or unblock literal destination IPs, ports, and absolute executable paths. Hostnames are never submitted as IP enforcement targets.
+
+Monitoring uses the existing `/config/runtime` PATCH contract and only changes UI state after backend confirmation. Nested loop/signal/research settings are read first and written back intact so toggling `enabled` does not reset their thresholds or queue parameters. The native page also controls TLS capture, persistence, and the explicit policy-management gate. Wrapper Rules use `/config/rules` for ALLOW/BLOCK/ALERT/REWRITE operations, while Tracking manages tags, commands, exact paths, and path prefixes through the existing config APIs.
+
+System telemetry stays protobuf-native. Renew connects directly to `/ws/system`, decodes the existing `SystemStats` wire format in Go, and renders live CPU, memory, I/O, and process data. There is no JSON compatibility side channel. If that stream is unavailable, the Processes page falls back to activity derived from the bounded event-summary window.
 
 The browser `/renew` frontend remains available as an independent client and as the route to features not yet migrated to native widgets. It is no longer a desktop runtime or packaging dependency.
 
