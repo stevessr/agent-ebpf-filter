@@ -53,6 +53,12 @@ jobs:
         run: go test ./...
       - name: Compile desktop single binary
         run: go build ./...
+      - name: Compile pure-Go embedded backend path
+        env:
+          CGO_ENABLED: "0"
+          GOOS: linux
+          GOARCH: amd64
+        run: go build ./...
       - name: Package Linux desktop app
         run: go tool mygo build -skip-build-command -platform linux/amd64
       - name: Verify self-elevating single-binary layout
