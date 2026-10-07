@@ -19,6 +19,8 @@ type eventSummary struct {
 	PID            int     `json:"pid"`
 	PPID           int     `json:"ppid"`
 	RootAgentPID   int     `json:"rootAgentPid"`
+	UID            int     `json:"uid"`
+	EventType      int     `json:"eventType"`
 	Type           string  `json:"type"`
 	Tag            string  `json:"tag"`
 	Comm           string  `json:"comm"`
@@ -32,8 +34,11 @@ type eventSummary struct {
 	RiskScore      float64 `json:"riskScore"`
 	AgentRunID     string  `json:"agentRunId"`
 	ConversationID string  `json:"conversationId"`
+	TurnID         string  `json:"turnId"`
 	ToolCallID     string  `json:"toolCallId"`
 	ToolName       string  `json:"toolName"`
+	TraceID        string  `json:"traceId"`
+	SpanID         string  `json:"spanId"`
 	ReceivedAtMS   int64   `json:"receivedAtMs"`
 }
 
@@ -45,10 +50,35 @@ type eventSummaryResponse struct {
 type collectorHealth struct {
 	CaptureHealthy      bool  `json:"captureHealthy"`
 	RingbufDroppedTotal int64 `json:"ringbufDroppedTotal"`
+	BackendQueueLen     int64 `json:"backendQueueLen"`
+	PersistQueueLen     int64 `json:"persistQueueLen"`
+	PersistQueueCap     int64 `json:"persistQueueCap"`
+	PersistPending      int64 `json:"persistPending"`
 }
 
 type eventTypeConfig struct {
 	DisabledEventTypes []int `json:"disabled_event_types"`
+}
+
+type runtimeToggle struct {
+	Enabled bool `json:"enabled"`
+}
+
+type runtimeSettings struct {
+	LogPersistenceEnabled   bool          `json:"logPersistenceEnabled"`
+	LogFilePath             string        `json:"logFilePath"`
+	DisabledEventTypes      []int         `json:"disabledEventTypes"`
+	PolicyManagementEnabled bool          `json:"policyManagementEnabled"`
+	TLSCaptureEnabled       bool          `json:"tlsCaptureEnabled"`
+	LoopDetection           runtimeToggle `json:"loopDetection"`
+	SignalProcessing        runtimeToggle `json:"signalProcessing"`
+	ResearchProcessing      runtimeToggle `json:"researchProcessing"`
+}
+
+type runtimeConfigResponse struct {
+	Runtime                runtimeSettings `json:"runtime"`
+	PersistedEventLogPath  string          `json:"persistedEventLogPath"`
+	PersistedEventLogAlive bool            `json:"persistedEventLogAlive"`
 }
 
 type wrapperRule struct {
@@ -60,8 +90,52 @@ type wrapperRule struct {
 	Priority     int      `json:"priority,omitempty"`
 }
 
+type trackedComm struct {
+	Comm     string `json:"comm"`
+	Tag      string `json:"tag"`
+	Disabled bool   `json:"disabled"`
+}
+
+type trackedPath struct {
+	Path string `json:"path"`
+	Tag  string `json:"tag"`
+}
+
+type trackedPrefix struct {
+	Prefix string `json:"prefix"`
+	Tag    string `json:"tag"`
+}
+
+type registrySnapshot struct {
+	Tags     []string
+	Comms    []trackedComm
+	Paths    []trackedPath
+	Prefixes []trackedPrefix
+}
+
+type cgroupSandboxStatus struct {
+	Available    bool     `json:"available"`
+	Attached     bool     `json:"attached"`
+	BlockedIPs   []string `json:"blockedIPs"`
+	BlockedPorts []int    `json:"blockedPorts"`
+	Error        string   `json:"error"`
+}
+
+type lsmSandboxStatus struct {
+	Available        bool     `json:"available"`
+	Attached         bool     `json:"attached"`
+	BlockedExecPaths []string `json:"blockedExecPaths"`
+	Error            string   `json:"error"`
+}
+
+type enforcementSnapshot struct {
+	Cgroup cgroupSandboxStatus
+	LSM    lsmSandboxStatus
+}
+
 type apiSnapshot struct {
 	Events       []eventSummary
+	NextCursor   string
 	Health       collectorHealth
 	TrackedComms []string
 	FetchedAt    time.Time
@@ -77,7 +151,7 @@ func newAPIClient(origin, token string) *apiClient {
 	return &apiClient{
 		origin: strings.TrimRight(origin, "/"),
 		token:  strings.TrimSpace(token),
-		http:   &http.Client{Timeout: 3 * time.Second},
+		http:   &http.Client{Timeout: 4 * time.Second},
 	}
 }
 
@@ -131,12 +205,23 @@ func (c *apiClient) getJSON(ctx context.Context, path string, out any) error {
 	return c.requestJSON(ctx, http.MethodGet, path, nil, out)
 }
 
-func (c *apiClient) snapshot(ctx context.Context, limit int) (apiSnapshot, error) {
+func (c *apiClient) eventSummaries(ctx context.Context, limit int, cursor string) (eventSummaryResponse, error) {
 	if limit <= 0 {
 		limit = 240
 	}
-	var events eventSummaryResponse
-	if err := c.getJSON(ctx, "/events/summaries?limit="+strconv.Itoa(limit), &events); err != nil {
+	values := url.Values{}
+	values.Set("limit", strconv.Itoa(limit))
+	if strings.TrimSpace(cursor) != "" {
+		values.Set("cursor", cursor)
+	}
+	var response eventSummaryResponse
+	err := c.getJSON(ctx, "/events/summaries?"+values.Encode(), &response)
+	return response, err
+}
+
+func (c *apiClient) snapshot(ctx context.Context, limit int) (apiSnapshot, error) {
+	events, err := c.eventSummaries(ctx, limit, "")
+	if err != nil {
 		return apiSnapshot{}, err
 	}
 	var health collectorHealth
@@ -149,10 +234,17 @@ func (c *apiClient) snapshot(ctx context.Context, limit int) (apiSnapshot, error
 	}
 	return apiSnapshot{
 		Events:       events.Events,
+		NextCursor:   events.NextCursor,
 		Health:       health,
 		TrackedComms: tracked,
 		FetchedAt:    time.Now(),
 	}, nil
+}
+
+func (c *apiClient) eventDetail(ctx context.Context, eventID string) (map[string]any, error) {
+	var detail map[string]any
+	err := c.getJSON(ctx, "/events/detail/"+url.PathEscape(strings.TrimSpace(eventID)), &detail)
+	return detail, err
 }
 
 func (c *apiClient) eventTypeConfig(ctx context.Context) (eventTypeConfig, error) {
@@ -164,6 +256,18 @@ func (c *apiClient) eventTypeConfig(ctx context.Context) (eventTypeConfig, error
 func (c *apiClient) putEventTypeConfig(ctx context.Context, disabled []int) (eventTypeConfig, error) {
 	var cfg eventTypeConfig
 	err := c.requestJSON(ctx, http.MethodPut, "/config/event-types", eventTypeConfig{DisabledEventTypes: disabled}, &cfg)
+	return cfg, err
+}
+
+func (c *apiClient) runtimeConfig(ctx context.Context) (runtimeConfigResponse, error) {
+	var cfg runtimeConfigResponse
+	err := c.getJSON(ctx, "/config/runtime", &cfg)
+	return cfg, err
+}
+
+func (c *apiClient) putRuntimeConfig(ctx context.Context, patch map[string]any) (runtimeConfigResponse, error) {
+	var cfg runtimeConfigResponse
+	err := c.requestJSON(ctx, http.MethodPut, "/config/runtime", patch, &cfg)
 	return cfg, err
 }
 
@@ -201,6 +305,87 @@ func (c *apiClient) saveRule(ctx context.Context, rule wrapperRule) error {
 
 func (c *apiClient) deleteRule(ctx context.Context, comm string) error {
 	return c.requestJSON(ctx, http.MethodDelete, "/config/rules/"+url.PathEscape(comm), nil, nil)
+}
+
+func (c *apiClient) registry(ctx context.Context) (registrySnapshot, error) {
+	var out registrySnapshot
+	if err := c.getJSON(ctx, "/config/tags", &out.Tags); err != nil {
+		return out, err
+	}
+	if err := c.getJSON(ctx, "/config/comms", &out.Comms); err != nil {
+		return out, err
+	}
+	if err := c.getJSON(ctx, "/config/paths", &out.Paths); err != nil {
+		return out, err
+	}
+	if err := c.getJSON(ctx, "/config/prefixes", &out.Prefixes); err != nil {
+		return out, err
+	}
+	sort.Strings(out.Tags)
+	sort.Slice(out.Comms, func(i, j int) bool { return out.Comms[i].Comm < out.Comms[j].Comm })
+	sort.Slice(out.Paths, func(i, j int) bool { return out.Paths[i].Path < out.Paths[j].Path })
+	sort.Slice(out.Prefixes, func(i, j int) bool { return out.Prefixes[i].Prefix < out.Prefixes[j].Prefix })
+	return out, nil
+}
+
+func (c *apiClient) addTag(ctx context.Context, name string) error {
+	return c.requestJSON(ctx, http.MethodPost, "/config/tags", map[string]any{"name": strings.TrimSpace(name)}, nil)
+}
+
+func (c *apiClient) addComm(ctx context.Context, comm, tag string) error {
+	return c.requestJSON(ctx, http.MethodPost, "/config/comms", map[string]any{"comm": strings.TrimSpace(comm), "tag": strings.TrimSpace(tag)}, nil)
+}
+
+func (c *apiClient) deleteComm(ctx context.Context, comm string) error {
+	return c.requestJSON(ctx, http.MethodDelete, "/config/comms/"+url.PathEscape(strings.TrimSpace(comm)), nil, nil)
+}
+
+func (c *apiClient) setCommDisabled(ctx context.Context, comm string, disabled bool) error {
+	method := http.MethodPost
+	if !disabled {
+		method = http.MethodDelete
+	}
+	return c.requestJSON(ctx, method, "/config/comms/"+url.PathEscape(strings.TrimSpace(comm))+"/disable", nil, nil)
+}
+
+func escapedPathSegments(value string) string {
+	parts := strings.Split(strings.TrimPrefix(strings.TrimSpace(value), "/"), "/")
+	for i := range parts {
+		parts[i] = url.PathEscape(parts[i])
+	}
+	return strings.Join(parts, "/")
+}
+
+func (c *apiClient) addPath(ctx context.Context, path, tag string) error {
+	return c.requestJSON(ctx, http.MethodPost, "/config/paths", map[string]any{"path": strings.TrimSpace(path), "tag": strings.TrimSpace(tag)}, nil)
+}
+
+func (c *apiClient) deletePath(ctx context.Context, path string) error {
+	return c.requestJSON(ctx, http.MethodDelete, "/config/paths/"+escapedPathSegments(path), nil, nil)
+}
+
+func (c *apiClient) addPrefix(ctx context.Context, prefix, tag string) error {
+	return c.requestJSON(ctx, http.MethodPost, "/config/prefixes", map[string]any{"prefix": strings.TrimSpace(prefix), "tag": strings.TrimSpace(tag)}, nil)
+}
+
+func (c *apiClient) deletePrefix(ctx context.Context, prefix string) error {
+	values := url.Values{}
+	values.Set("prefix", strings.TrimSpace(prefix))
+	return c.requestJSON(ctx, http.MethodDelete, "/config/prefixes?"+values.Encode(), nil, nil)
+}
+
+func (c *apiClient) enforcementStatus(ctx context.Context) (enforcementSnapshot, error) {
+	var out enforcementSnapshot
+	cgroupErr := c.getJSON(ctx, "/sandbox/cgroup/status", &out.Cgroup)
+	lsmErr := c.getJSON(ctx, "/sandbox/lsm/status", &out.LSM)
+	if cgroupErr != nil && lsmErr != nil {
+		return out, fmt.Errorf("sandbox status: cgroup: %v; lsm: %v", cgroupErr, lsmErr)
+	}
+	return out, nil
+}
+
+func (c *apiClient) enforcementAction(ctx context.Context, path string, payload map[string]any) error {
+	return c.requestJSON(ctx, http.MethodPost, path, payload, nil)
 }
 
 func eventTarget(e eventSummary) string {
@@ -255,7 +440,8 @@ func eventRisk(e eventSummary) string {
 func eventSearchText(e eventSummary) string {
 	return strings.ToLower(strings.Join([]string{
 		e.EventID, e.Type, e.Tag, e.Comm, e.Path, e.ExtraPath, e.NetEndpoint,
-		e.Domain, e.Decision, e.AgentRunID, e.ConversationID, e.ToolName,
+		e.Domain, e.Decision, e.AgentRunID, e.ConversationID, e.TurnID,
+		e.ToolCallID, e.ToolName, e.TraceID, e.SpanID, strconv.Itoa(e.PID),
 		url.QueryEscape(e.EventID),
 	}, " "))
 }
