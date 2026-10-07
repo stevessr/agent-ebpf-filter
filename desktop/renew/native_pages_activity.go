@@ -119,7 +119,7 @@ func (a *renewApp) eventsView(c *ui.Context) {
 			{Title: "分数", Width: 64, Align: ui.End},
 		}
 		a.eventTable.Key = func(row int) any { return visible[row].EventID }
-		table := ui.Table(c, &a.eventTable, cols, len(visible), func(row, col int) {
+		ui.Table(c, &a.eventTable, cols, len(visible), func(row, col int) {
 			e := visible[row]
 			switch col {
 			case 0:
@@ -140,14 +140,11 @@ func (a *renewApp) eventsView(c *ui.Context) {
 				}
 			}
 		}).Height(440).Label("事件摘要")
-		if table.Submitted() && a.eventSelected >= 0 && a.eventSelected < len(visible) {
-			a.openEventDetail(visible[a.eventSelected].EventID)
-		}
 		if a.eventSelected >= 0 && a.eventSelected < len(visible) {
 			selected := visible[a.eventSelected]
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, selected.EventID).Font("monospace").FontSize(10).TextColor(t.TextMuted).Grow(1)
-				if ui.PrimaryButton(c, "查看完整详情").Clicked() {
+				if ui.PrimaryButton(c, "详细").Clicked() {
 					a.openEventDetail(selected.EventID)
 				}
 			})
