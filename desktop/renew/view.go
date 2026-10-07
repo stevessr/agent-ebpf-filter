@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -38,6 +40,10 @@ func (a *nativeApp) view(c *ui.Context) {
 				a.processesPage(c, data)
 			case "network":
 				a.networkPage(c, data)
+			case "monitoring":
+				a.monitoringPage(c, data)
+			case "rules":
+				a.rulesPage(c, data)
 			default:
 				a.overviewPage(c, data)
 			}
@@ -64,6 +70,14 @@ func (a *nativeApp) sidebar(c *ui.Context, data appData) {
 				ui.SidebarItem(c, "processes", nil, "进程")
 				ui.SidebarItem(c, "network", nil, "网络")
 			})
+			ui.SidebarSection(c, "日常管理", nil, func() {
+				ui.SidebarItem(c, "monitoring", nil, "监控中心")
+				ui.SidebarItem(c, "rules", nil, "Wrapper 规则").Children(func() {
+					if len(data.Rules.Items) > 0 {
+						ui.Badge(c, fmt.Sprint(len(data.Rules.Items)))
+					}
+				})
+			})
 		}).Grow(1).Changed() {
 			c.Invalidate()
 		}
@@ -74,7 +88,13 @@ func (a *nativeApp) sidebar(c *ui.Context, data appData) {
 
 func (a *nativeApp) header(c *ui.Context, data appData) {
 	t := c.Theme()
-	title := map[string]string{"overview": "概览", "events": "事件", "processes": "进程", "network": "网络"}[a.page]
+	title := map[string]string{
+		"overview": "概览", "events": "事件", "processes": "进程", "network": "网络",
+		"monitoring": "监控中心", "rules": "Wrapper 规则",
+	}[a.page]
+	if title == "" {
+		title = "Renew"
+	}
 	ui.Row(c).Gap(10).Children(func() {
 		ui.Column(c).Grow(1).Gap(2).Children(func() {
 			ui.Text(c, title).FontSize(24).Bold()
@@ -132,7 +152,7 @@ func (a *nativeApp) overviewPage(c *ui.Context, data appData) {
 			sectionTitle(c, "系统", "来自后端 /ws/system")
 			ui.Text(c, fmt.Sprintf("内存 %s / %s", formatBytes(data.System.MemUsed), formatBytes(data.System.MemTotal))).FontSize(12)
 			ui.Text(c, fmt.Sprintf("网络接收 %s/s · 发送 %s/s", formatBytes(data.System.NetRecv), formatBytes(data.System.NetSent))).FontSize(12)
-			ui.Text(c, fmt.Sprintf("进程 %d", len(data.System.Processes))).FontSize(12)
+			ui.Text(c, fmt.Sprintf("进程 %d · 采样 %s", len(data.System.Processes), formatInterval(data.Monitoring.StatsIntervalMS))).FontSize(12)
 		})
 	})
 }
@@ -227,6 +247,294 @@ func (a *nativeApp) networkPage(c *ui.Context, data appData) {
 			emptyText(c, "当前摘要窗口没有网络目标。")
 		}
 	})
+}
+
+func (a *nativeApp) monitoringPage(c *ui.Context, data appData) {
+	state := data.Monitoring
+	if state.Error != "" {
+		statusPanel(c, "监控配置", state.Error, true)
+	} else if state.Notice != "" {
+		statusPanel(c, "监控配置", state.Notice, false)
+	}
+	if !state.Ready {
+		if state.Busy {
+			emptyText(c, "正在读取 /config/runtime…")
+		} else {
+			emptyText(c, "监控配置尚未加载。")
+		}
+		return
+	}
+
+	ui.Scroll(c).Grow(1).Children(func() {
+		ui.Column(c).Gap(18).Children(func() {
+			sectionTitle(c, "监控档位", "一次更新事件组与行为处理；TLS 不随档位自动开启")
+			ui.Row(c).Gap(10).Children(func() {
+				active := activeMonitoringProfile(state)
+				for _, profile := range nativeMonitoringProfiles {
+					profile := profile
+					ui.Column(c).Grow(1).MinWidth(180).Padding(12).Gap(6).Radius(9).Background(c.Theme().Surface).Border(1, c.Theme().Border).Children(func() {
+						ui.Row(c).Gap(6).Children(func() {
+							ui.Text(c, profile.Title).Bold().Grow(1)
+							if active == profile.Key {
+								ui.Badge(c, "当前")
+							}
+						})
+						ui.Text(c, profile.Description).FontSize(11).TextColor(c.Theme().TextMuted)
+						if ui.Button(c, "应用").Disabled(state.Busy || active == profile.Key).Clicked() {
+							a.applyMonitoringProfile(profile.Key)
+						}
+					})
+				}
+			})
+
+			sectionTitle(c, "内核事件组", "只改变 Renew 管理的事件类型，不覆盖其他用户自定义禁用项")
+			for _, module := range nativeMonitoringModules {
+				module := module
+				enabled := moduleEnabled(state.DisabledEventTypes, module)
+				monitoringToggleRow(c, module.Title, module.Description, module.Cost, enabled, state.Busy, func() {
+					a.setMonitoringModule(module.Key, !enabled)
+				})
+			}
+
+			sectionTitle(c, "运行时处理", "独立于内核采集；高成本能力需要时再开")
+			runtimeToggleRow(c, "循环检测", "识别重复上下文与资源浪费循环。", runtimeNestedEnabled(state.Runtime, "loopDetection"), state.Busy, func(enabled bool) {
+				a.setRuntimeMonitoringToggle("loopDetection", enabled)
+			})
+			runtimeToggleRow(c, "行为信号", "维护轻量行为信号状态与规则。", runtimeNestedEnabled(state.Runtime, "signalProcessing"), state.Busy, func(enabled bool) {
+				a.setRuntimeMonitoringToggle("signalProcessing", enabled)
+			})
+			runtimeToggleRow(c, "研究处理", "维护研究/AgentSight 聚合，日常常驻可关闭。", runtimeNestedEnabled(state.Runtime, "researchProcessing"), state.Busy, func(enabled bool) {
+				a.setRuntimeMonitoringToggle("researchProcessing", enabled)
+			})
+			runtimeToggleRow(c, "本地事件持久化", "完整事件保存在后端事件库，桌面仍只保留有界摘要。", runtimeBool(state.Runtime, "logPersistenceEnabled"), state.Busy, func(enabled bool) {
+				a.setRuntimeMonitoringToggle("logPersistenceEnabled", enabled)
+			})
+			runtimeToggleRow(c, "TLS 明文捕获", "高成本深度诊断能力；不会随轻量/日常/深度档位自动开启。", runtimeBool(state.Runtime, "tlsCaptureEnabled"), state.Busy, func(enabled bool) {
+				a.setRuntimeMonitoringToggle("tlsCaptureEnabled", enabled)
+			})
+
+			sectionTitle(c, "状态", "")
+			ui.Column(c).Padding(12).Gap(5).Radius(9).Background(c.Theme().Surface).Border(1, c.Theme().Border).Children(func() {
+				ui.Text(c, "系统采样："+formatInterval(state.StatsIntervalMS)).FontSize(12)
+				persistence := "未启用 / 未确认"
+				if state.PersistedEventLogAlive {
+					persistence = "正常"
+				}
+				ui.Text(c, "事件存储："+persistence).FontSize(12)
+				if state.PersistedEventLogPath != "" {
+					ui.Text(c, state.PersistedEventLogPath).Font("monospace").FontSize(11).TextColor(c.Theme().TextMuted).Selectable()
+				}
+				policy := "关闭"
+				if runtimeBool(state.Runtime, "policyManagementEnabled") {
+					policy = "开启"
+				}
+				ui.Text(c, "策略管理 gate："+policy).FontSize(12)
+			})
+		})
+	})
+}
+
+func monitoringToggleRow(c *ui.Context, title, description, cost string, enabled, busy bool, toggle func()) {
+	t := c.Theme()
+	ui.Row(c).Gap(12).Padding(10, 12).Radius(8).Background(t.Surface).Border(1, t.Border).Children(func() {
+		ui.Column(c).Grow(1).Gap(2).Children(func() {
+			ui.Row(c).Gap(7).Children(func() {
+				ui.Text(c, title).Bold()
+				badge := ui.Badge(c, cost+"开销")
+				if cost == "高" {
+					badge.Background(t.Warning).TextColor(t.AccentText)
+				}
+			})
+			ui.Text(c, description).FontSize(11).TextColor(t.TextMuted)
+		})
+		status := "已停用"
+		action := "启用"
+		if enabled {
+			status = "已启用"
+			action = "停用"
+		}
+		ui.Text(c, status).Width(64).FontSize(11).TextColor(t.TextMuted).TextAlign(ui.End)
+		if ui.Button(c, action).Width(68).Disabled(busy).Clicked() {
+			toggle()
+		}
+	})
+}
+
+func runtimeToggleRow(c *ui.Context, title, description string, enabled, busy bool, set func(bool)) {
+	t := c.Theme()
+	ui.Row(c).Gap(12).Padding(10, 12).Radius(8).Background(t.Surface).Border(1, t.Border).Children(func() {
+		ui.Column(c).Grow(1).Gap(2).Children(func() {
+			ui.Text(c, title).Bold()
+			ui.Text(c, description).FontSize(11).TextColor(t.TextMuted)
+		})
+		status := "关闭"
+		action := "开启"
+		if enabled {
+			status = "开启"
+			action = "关闭"
+		}
+		ui.Text(c, status).Width(48).FontSize(11).TextColor(t.TextMuted).TextAlign(ui.End)
+		if ui.Button(c, action).Width(68).Disabled(busy).Clicked() {
+			set(!enabled)
+		}
+	})
+}
+
+func (a *nativeApp) rulesPage(c *ui.Context, data appData) {
+	state := data.Rules
+	canManage := data.Monitoring.Ready && runtimeBool(data.Monitoring.Runtime, "policyManagementEnabled")
+	if state.Error != "" {
+		statusPanel(c, "Wrapper 规则", state.Error, true)
+	} else if state.Notice != "" {
+		statusPanel(c, "Wrapper 规则", state.Notice, false)
+	}
+	if !canManage {
+		statusPanel(c, "策略管理 gate 未开启", "可以查看规则，但新增、修改与删除会被后端拒绝；请在 Web 工作台启用 policy management。", false)
+	}
+
+	ui.Row(c).Grow(1).AlignItems(ui.Stretch).Gap(16).Children(func() {
+		ui.Column(c).Grow(2).MinWidth(420).Gap(9).Children(func() {
+			sectionTitle(c, "现有规则", fmt.Sprintf("%d 条", len(state.Items)))
+			if !state.Ready && state.Busy {
+				emptyText(c, "正在读取 /config/rules…")
+				return
+			}
+			ui.List(c, nil, len(state.Items), func(i int) {
+				rule := state.Items[i]
+				ui.Row(c).Gap(10).Padding(9, 10).Children(func() {
+					ui.Column(c).Grow(1).Gap(2).Children(func() {
+						ui.Row(c).Gap(7).Children(func() {
+							ui.Text(c, rule.Comm).Bold()
+							ui.Badge(c, strings.ToUpper(rule.Action))
+							ui.Text(c, fmt.Sprintf("P%d", rule.Priority)).FontSize(11).TextColor(c.Theme().TextMuted)
+						})
+						ui.Text(c, ruleScope(rule)).FontSize(11).TextColor(c.Theme().TextMuted).SingleLine()
+					})
+					if ui.Button(c, "编辑").Disabled(state.Busy).Clicked() {
+						a.editRule(rule)
+					}
+					deleteLabel := "删除"
+					if a.pendingRuleDelete == rule.Comm {
+						deleteLabel = "确认删除"
+					}
+					if ui.Button(c, deleteLabel).Disabled(state.Busy || !canManage).Clicked() {
+						if a.pendingRuleDelete == rule.Comm {
+							a.pendingRuleDelete = ""
+							a.deleteWrapperRule(rule.Comm)
+						} else {
+							a.pendingRuleDelete = rule.Comm
+						}
+					}
+				})
+			}).Grow(1).Children(func() {
+				if state.Ready && len(state.Items) == 0 {
+					emptyText(c, "还没有 agent-wrapper 规则。")
+				}
+			})
+		})
+
+		ui.Column(c).Grow(1).MinWidth(310).Gap(10).Padding(12).Radius(9).Background(c.Theme().Surface).Border(1, c.Theme().Border).Children(func() {
+			formTitle := "新增规则"
+			if a.ruleEditing != "" {
+				formTitle = "编辑规则"
+			}
+			sectionTitle(c, formTitle, "")
+			ui.TextInput(c, &a.ruleComm).Placeholder("例如 curl").Label("命令")
+			ui.Select(c, &a.ruleAction, []string{"ALLOW", "ALERT", "BLOCK", "REWRITE"}).Label("动作")
+			ui.TextInput(c, &a.rulePriority).Placeholder("0").Label("优先级")
+			ui.TextInput(c, &a.ruleRegex).Placeholder("可选：参数正则").Label("参数正则")
+			if a.ruleAction == "REWRITE" {
+				if a.ruleRegex != "" {
+					ui.TextInput(c, &a.ruleReplacement).Placeholder("正则替换内容").Label("替换")
+				} else {
+					ui.TextArea(c, &a.ruleRewrite).Placeholder("[\"echo\",\"hello\"]").Label("固定重写 argv").Height(90)
+				}
+			}
+			ui.Text(c, "Wrapper 规则只约束经 agent-wrapper 执行的命令，不等同于系统级 BPF LSM 策略。").FontSize(11).TextColor(c.Theme().TextMuted)
+			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				if ui.Button(c, "清空").Disabled(state.Busy).Clicked() {
+					a.resetRuleForm()
+				}
+				if ui.PrimaryButton(c, "保存").Disabled(state.Busy || !state.Ready || !canManage || strings.TrimSpace(a.ruleComm) == "").Clicked() {
+					rule, err := a.ruleFromForm()
+					if err != nil {
+						a.update(func(data *appData) { data.Rules.Error = err.Error() })
+					} else {
+						a.saveWrapperRule(rule)
+					}
+				}
+			})
+		})
+	})
+}
+
+func (a *nativeApp) editRule(rule wrapperRule) {
+	a.ruleEditing = rule.Comm
+	a.ruleComm = rule.Comm
+	a.ruleAction = strings.ToUpper(rule.Action)
+	a.ruleRegex = rule.Regex
+	a.ruleReplacement = rule.Replacement
+	a.rulePriority = strconv.Itoa(rule.Priority)
+	payload, _ := json.Marshal(rule.RewrittenCmd)
+	a.ruleRewrite = string(payload)
+	a.pendingRuleDelete = ""
+}
+
+func (a *nativeApp) resetRuleForm() {
+	a.ruleEditing = ""
+	a.ruleComm = ""
+	a.ruleAction = "ALERT"
+	a.ruleRegex = ""
+	a.ruleReplacement = ""
+	a.rulePriority = "0"
+	a.ruleRewrite = "[]"
+	a.pendingRuleDelete = ""
+}
+
+func (a *nativeApp) ruleFromForm() (wrapperRule, error) {
+	comm := strings.TrimSpace(a.ruleComm)
+	if comm == "" {
+		return wrapperRule{}, fmt.Errorf("命令名不能为空")
+	}
+	priority := 0
+	if raw := strings.TrimSpace(a.rulePriority); raw != "" {
+		value, err := strconv.Atoi(raw)
+		if err != nil {
+			return wrapperRule{}, fmt.Errorf("优先级必须是整数")
+		}
+		priority = value
+	}
+	action := strings.ToUpper(strings.TrimSpace(a.ruleAction))
+	switch action {
+	case "ALLOW", "ALERT", "BLOCK", "REWRITE":
+	default:
+		return wrapperRule{}, fmt.Errorf("不支持的规则动作：%s", action)
+	}
+	rule := wrapperRule{
+		Comm: comm, Action: action, Regex: strings.TrimSpace(a.ruleRegex),
+		Replacement: a.ruleReplacement, Priority: priority,
+	}
+	if action == "REWRITE" && rule.Regex == "" {
+		args, err := parseRewriteArgs(a.ruleRewrite)
+		if err != nil {
+			return wrapperRule{}, err
+		}
+		rule.RewrittenCmd = args
+	}
+	return rule, nil
+}
+
+func ruleScope(rule wrapperRule) string {
+	if rule.Regex != "" {
+		if rule.Replacement != "" {
+			return rule.Regex + " → " + rule.Replacement
+		}
+		return "regex: " + rule.Regex
+	}
+	if len(rule.RewrittenCmd) > 0 {
+		return strings.Join(rule.RewrittenCmd, " ")
+	}
+	return "全部参数"
 }
 
 func eventList(c *ui.Context, events []eventSummary, onSelect func(string)) {
@@ -476,6 +784,21 @@ func shortBackend(backend string) string {
 	backend = strings.TrimPrefix(backend, "http://")
 	backend = strings.TrimPrefix(backend, "https://")
 	return backend
+}
+
+func formatInterval(ms int) string {
+	switch ms {
+	case 2_000:
+		return "2 秒"
+	case 5_000:
+		return "5 秒"
+	case 10_000:
+		return "10 秒"
+	case 30_000:
+		return "30 秒"
+	default:
+		return fmt.Sprintf("%.1f 秒", float64(ms)/1000)
+	}
 }
 
 func formatBytes(bytes uint64) string {
