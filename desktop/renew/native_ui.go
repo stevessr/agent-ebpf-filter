@@ -34,6 +34,14 @@ type renewApp struct {
 	riskCacheValid     bool
 	riskCacheVersion   uint64
 	riskCacheCounts    [3]int
+	networkCacheValid  bool
+	networkCacheVersion uint64
+	networkCacheKey    string
+	networkCacheRows   []networkAggregate
+	processCacheValid  bool
+	processCacheVersion uint64
+	processCacheKey    string
+	processCacheRows   []processAggregate
 	health             collectorHealth
 	trackedComms       []string
 	system             systemSnapshot
@@ -374,12 +382,18 @@ func (a *renewApp) errorView(c *ui.Context) {
 	})
 }
 
-func (a *renewApp) filteredEvents() []eventSummary {
+func (a *renewApp) eventFilterCacheKey() string {
 	q := strings.ToLower(strings.TrimSpace(a.search))
 	key := q + "\x00" + a.eventTypeFilter + "\x00" + a.eventSessionFilter + "\x00" + a.eventDecisionFilter
 	if a.eventAttentionOnly {
 		key += "\x001"
 	}
+	return key
+}
+
+func (a *renewApp) filteredEvents() []eventSummary {
+	q := strings.ToLower(strings.TrimSpace(a.search))
+	key := a.eventFilterCacheKey()
 	if a.filterCacheValid && a.filterCacheVersion == a.eventsVersion && a.filterCacheKey == key {
 		return a.filterCacheRows
 	}
@@ -428,6 +442,32 @@ func (a *renewApp) riskCounts() (normal, attention, danger int) {
 	a.riskCacheVersion = a.eventsVersion
 	a.riskCacheCounts = [3]int{normal, attention, danger}
 	return
+}
+
+func (a *renewApp) filteredNetworkRows() []networkAggregate {
+	key := a.eventFilterCacheKey()
+	if a.networkCacheValid && a.networkCacheVersion == a.eventsVersion && a.networkCacheKey == key {
+		return a.networkCacheRows
+	}
+	rows := aggregateNetwork(a.filteredEvents())
+	a.networkCacheValid = true
+	a.networkCacheVersion = a.eventsVersion
+	a.networkCacheKey = key
+	a.networkCacheRows = rows
+	return rows
+}
+
+func (a *renewApp) filteredProcessAggregateRows() []processAggregate {
+	key := a.eventFilterCacheKey()
+	if a.processCacheValid && a.processCacheVersion == a.eventsVersion && a.processCacheKey == key {
+		return a.processCacheRows
+	}
+	rows := aggregateProcesses(a.filteredEvents())
+	a.processCacheValid = true
+	a.processCacheVersion = a.eventsVersion
+	a.processCacheKey = key
+	a.processCacheRows = rows
+	return rows
 }
 
 func card(c *ui.Context, title string, body func()) *ui.Element {
