@@ -1,0 +1,34 @@
+name: Refresh Renew module sums
+
+on:
+  push:
+    branches:
+      - feat/renew-mygo-ui-polish
+    paths:
+      - ".github/workflows/renew-mygo-refresh.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: feat/renew-mygo-ui-polish
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.27.1"
+          cache-dependency-path: desktop/renew/go.sum
+      - name: Refresh module metadata
+        working-directory: desktop/renew
+        run: go mod tidy
+      - name: Commit refreshed sums and remove helper
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/renew-mygo-refresh.yml
+          git add desktop/renew/go.mod desktop/renew/go.sum
+          git commit -m "chore(renew): refresh MyGo module sums"
+          git push origin HEAD:feat/renew-mygo-ui-polish
