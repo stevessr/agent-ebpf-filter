@@ -26,6 +26,9 @@ type renewApp struct {
 	events             []eventSummary
 	health             collectorHealth
 	trackedComms       []string
+	system             systemSnapshot
+	systemConnected    bool
+	systemErr          string
 	historyCursor      string
 	historyInitialized bool
 	historyLoading     bool
@@ -114,6 +117,7 @@ func newRenewApp(backend string) *renewApp {
 }
 
 func (a *renewApp) runPolling(ctx context.Context) {
+	go a.runSystemStats(ctx)
 	a.refresh(ctx)
 	a.refreshConfiguration(ctx)
 	ticker := time.NewTicker(2 * time.Second)
