@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -61,6 +62,21 @@ type summaryBatch struct {
 	Events []eventSummary `json:"events"`
 }
 
+type runtimeConfigResponse struct {
+	Runtime                map[string]any `json:"runtime"`
+	PersistedEventLogPath  string         `json:"persistedEventLogPath"`
+	PersistedEventLogAlive bool           `json:"persistedEventLogAlive"`
+}
+
+type wrapperRule struct {
+	Comm         string   `json:"comm"`
+	Action       string   `json:"action"`
+	RewrittenCmd []string `json:"rewritten_cmd,omitempty"`
+	Regex        string   `json:"regex,omitempty"`
+	Replacement  string   `json:"replacement,omitempty"`
+	Priority     int      `json:"priority,omitempty"`
+}
+
 func newAPIClient(origin, token string) (*apiClient, error) {
 	base, err := url.Parse(strings.TrimRight(origin, "/"))
 	if err != nil || base.Host == "" {
@@ -77,7 +93,11 @@ func newAPIClient(origin, token string) (*apiClient, error) {
 func (c *apiClient) endpoint(path string, query url.Values) string {
 	u := *c.base
 	u.Path = strings.TrimRight(u.Path, "/") + "/" + strings.TrimLeft(path, "/")
-	u.RawQuery = query.Encode()
+	if query != nil {
+		u.RawQuery = query.Encode()
+	} else {
+		u.RawQuery = ""
+	}
 	u.Fragment = ""
 	return u.String()
 }
@@ -91,8 +111,16 @@ func (c *apiClient) authHeaders() http.Header {
 	return h
 }
 
-func (c *apiClient) getJSON(ctx context.Context, path string, query url.Values, out any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.endpoint(path, query), nil)
+func (c *apiClient) doJSON(ctx context.Context, method, path string, query url.Values, body, out any) error {
+	var reader io.Reader
+	if body != nil {
+		payload, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+		reader = bytes.NewReader(payload)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, c.endpoint(path, query), reader)
 	if err != nil {
 		return err
 	}
@@ -101,16 +129,32 @@ func (c *apiClient) getJSON(ctx context.Context, path string, query url.Values, 
 			req.Header.Add(key, value)
 		}
 	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	req.Header.Set("Accept", "application/json")
+
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		return fmt.Errorf("backend returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
+		payload, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		message := strings.TrimSpace(string(payload))
+		if message == "" {
+			message = http.StatusText(resp.StatusCode)
+		}
+		return fmt.Errorf("backend returned %s: %s", resp.Status, message)
+	}
+	if out == nil || resp.StatusCode == http.StatusNoContent {
+		return nil
 	}
 	return json.NewDecoder(resp.Body).Decode(out)
+}
+
+func (c *apiClient) getJSON(ctx context.Context, path string, query url.Values, out any) error {
+	return c.doJSON(ctx, http.MethodGet, path, query, nil, out)
 }
 
 func (c *apiClient) summaries(ctx context.Context, limit int) ([]eventSummary, error) {
@@ -135,6 +179,50 @@ func (c *apiClient) eventDetail(ctx context.Context, eventID string) (string, er
 	return string(pretty), nil
 }
 
+func (c *apiClient) runtimeConfig(ctx context.Context) (runtimeConfigResponse, error) {
+	var response runtimeConfigResponse
+	err := c.getJSON(ctx, "/config/runtime", nil, &response)
+	return response, err
+}
+
+func (c *apiClient) patchRuntime(ctx context.Context, patch map[string]any) (runtimeConfigResponse, error) {
+	var response runtimeConfigResponse
+	err := c.doJSON(ctx, http.MethodPut, "/config/runtime", nil, patch, &response)
+	return response, err
+}
+
+func (c *apiClient) rules(ctx context.Context) ([]wrapperRule, error) {
+	var raw json.RawMessage
+	if err := c.getJSON(ctx, "/config/rules", nil, &raw); err != nil {
+		return nil, err
+	}
+
+	var list []wrapperRule
+	if err := json.Unmarshal(raw, &list); err == nil {
+		return list, nil
+	}
+	var keyed map[string]wrapperRule
+	if err := json.Unmarshal(raw, &keyed); err != nil {
+		return nil, fmt.Errorf("decode wrapper rules: %w", err)
+	}
+	list = make([]wrapperRule, 0, len(keyed))
+	for key, rule := range keyed {
+		if strings.TrimSpace(rule.Comm) == "" {
+			rule.Comm = key
+		}
+		list = append(list, rule)
+	}
+	return list, nil
+}
+
+func (c *apiClient) saveRule(ctx context.Context, rule wrapperRule) error {
+	return c.doJSON(ctx, http.MethodPost, "/config/rules", nil, rule, nil)
+}
+
+func (c *apiClient) deleteRule(ctx context.Context, comm string) error {
+	return c.doJSON(ctx, http.MethodDelete, "/config/rules/"+url.PathEscape(comm), nil, nil, nil)
+}
+
 func (c *apiClient) dialWebSocket(ctx context.Context, path string, query url.Values) (*websocket.Conn, *http.Response, error) {
 	u := *c.base
 	if u.Scheme == "https" {
@@ -143,7 +231,11 @@ func (c *apiClient) dialWebSocket(ctx context.Context, path string, query url.Va
 		u.Scheme = "ws"
 	}
 	u.Path = strings.TrimRight(u.Path, "/") + "/" + strings.TrimLeft(path, "/")
-	u.RawQuery = query.Encode()
+	if query != nil {
+		u.RawQuery = query.Encode()
+	} else {
+		u.RawQuery = ""
+	}
 	u.Fragment = ""
 	return c.dial.DialContext(ctx, u.String(), c.authHeaders())
 }
