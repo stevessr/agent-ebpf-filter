@@ -72,10 +72,36 @@ func (a *renewApp) overview(c *ui.Context) {
 func (a *renewApp) eventsView(c *ui.Context) {
 	t := c.Theme()
 	ui.Text(c, "事件").FontSize(28).Bold()
-	ui.Text(c, "当前仅保留紧凑摘要；完整事件仍由后端持久化。").TextColor(t.TextMuted)
+	ui.Text(c, "紧凑摘要支持本地筛选与后端历史分页；完整事件只在打开详情时按 ID 读取。").TextColor(t.TextMuted)
+
+	ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
+		ui.Select(c, &a.eventTypeFilter, uniqueEventTypes(a.events)).Label("事件类型").Width(170)
+		ui.Select(c, &a.eventSessionFilter, uniqueEventSessions(a.events)).Label("会话").Width(210)
+		ui.Select(c, &a.eventDecisionFilter, []string{"", "已阻断", "告警", "已允许"}).Label("决策").Width(130)
+		ui.Checkbox(c, &a.eventAttentionOnly, "只看待关注")
+		if ui.Button(c, "清除筛选").Clicked() {
+			a.search = ""
+			a.eventTypeFilter = ""
+			a.eventSessionFilter = ""
+			a.eventDecisionFilter = ""
+			a.eventAttentionOnly = false
+			a.eventVisibleLimit = 50
+			a.eventSelected = -1
+		}
+	})
+
 	rows := a.filteredEvents()
-	card(c, fmt.Sprintf("活动 · %d", len(rows)), func() {
-		if len(rows) == 0 {
+	limit := a.eventVisibleLimit
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > len(rows) {
+		limit = len(rows)
+	}
+	visible := rows[:limit]
+
+	card(c, fmt.Sprintf("活动 · %d / 已加载 %d", len(rows), len(a.events)), func() {
+		if len(visible) == 0 {
 			ui.Text(c, "没有匹配事件").TextColor(t.TextMuted)
 			return
 		}
@@ -87,9 +113,9 @@ func (a *renewApp) eventsView(c *ui.Context) {
 			{Title: "风险", Width: 86},
 			{Title: "分数", Width: 64, Align: ui.End},
 		}
-		a.eventTable.Key = func(row int) any { return rows[row].EventID }
-		ui.Table(c, &a.eventTable, cols, len(rows), func(row, col int) {
-			e := rows[row]
+		a.eventTable.Key = func(row int) any { return visible[row].EventID }
+		table := ui.Table(c, &a.eventTable, cols, len(visible), func(row, col int) {
+			e := visible[row]
 			switch col {
 			case 0:
 				ui.Text(c, eventTime(e)).Font("monospace").SingleLine()
@@ -108,10 +134,39 @@ func (a *renewApp) eventsView(c *ui.Context) {
 					ui.Text(c, "-")
 				}
 			}
-		}).Height(480).Label("事件摘要")
+		}).Height(440).Label("事件摘要")
+		if table.Submitted() && a.eventSelected >= 0 && a.eventSelected < len(visible) {
+			a.openEventDetail(visible[a.eventSelected].EventID)
+		}
+		if a.eventSelected >= 0 && a.eventSelected < len(visible) {
+			selected := visible[a.eventSelected]
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, selected.EventID).Font("monospace").FontSize(10).TextColor(t.TextMuted).Grow(1)
+				if ui.PrimaryButton(c, "查看完整详情").Clicked() {
+					a.openEventDetail(selected.EventID)
+				}
+			})
+		}
 	})
-}
 
+	ui.Row(c).Gap(10).Wrap().Children(func() {
+		if len(rows) > limit && ui.Button(c, "展开更多（+50）").Clicked() {
+			a.eventVisibleLimit += 50
+		}
+		if strings.TrimSpace(a.historyCursor) != "" {
+			label := "加载更早记录"
+			if a.historyLoading {
+				label = "正在读取…"
+			}
+			if ui.Button(c, label).Clicked() && !a.historyLoading {
+				a.loadOlderEvents()
+			}
+		}
+	})
+	if strings.TrimSpace(a.historyCursor) == "" && a.historyInitialized {
+		ui.Text(c, "已到当前后端历史窗口的末尾。").FontSize(10).TextColor(t.TextMuted)
+	}
+}
 func (a *renewApp) networkView(c *ui.Context) {
 	t := c.Theme()
 	rows := aggregateNetwork(a.filteredEvents())
