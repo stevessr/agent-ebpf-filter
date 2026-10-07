@@ -272,7 +272,7 @@ func ruleActionPill(c *ui.Context, action string) *ui.Element {
 
 func (a *renewApp) monitoringProfileActive(name string) bool {
 	keys, ok := monitoringProfiles[name]
-	if !ok || !a.configReady {
+	if !ok || !a.configReady || !a.runtimeReady {
 		return false
 	}
 	enabled := make(map[string]bool, len(keys))
@@ -284,7 +284,17 @@ func (a *renewApp) monitoringProfileActive(name string) bool {
 			return false
 		}
 	}
-	return true
+
+	wantLoop, wantSignal, wantResearch := false, false, false
+	switch name {
+	case "日常":
+		wantLoop, wantSignal = true, true
+	case "深度":
+		wantLoop, wantSignal, wantResearch = true, true, true
+	}
+	return a.runtimeCfg.Runtime.LoopDetection.Enabled == wantLoop &&
+		a.runtimeCfg.Runtime.SignalProcessing.Enabled == wantSignal &&
+		a.runtimeCfg.Runtime.ResearchProcessing.Enabled == wantResearch
 }
 
 func (a *renewApp) monitoringModuleEnabled(module monitoringModule) bool {
