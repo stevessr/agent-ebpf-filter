@@ -115,7 +115,7 @@ func aggregateAgentSessions(events []eventSummary) []agentSessionSummary {
 func (a *renewApp) sessionsView(c *ui.Context) {
 	t := c.Theme()
 	ui.Text(c, "Agent 会话").FontSize(28).Bold()
-	ui.Text(c, "按运行、会话或根进程归并；与浏览器 Renew 一样，只把具有 Agent 上下文的摘要纳入会话。").TextColor(t.TextMuted)
+	ui.Text(c, "把事件按 Agent 运行上下文归并，优先发现哪一个会话正在产生需要关注的行为。").TextColor(t.TextMuted)
 
 	rows := aggregateAgentSessions(a.events)
 	q := strings.ToLower(strings.TrimSpace(a.search))
@@ -129,9 +129,28 @@ func (a *renewApp) sessionsView(c *ui.Context) {
 		rows = filtered
 	}
 
+	totalAlerts := 0
+	for _, row := range rows {
+		totalAlerts += row.Alerts
+	}
+	ui.Row(c).Gap(12).Wrap().Children(func() {
+		statCard(c, "活动会话", strconv.Itoa(len(rows)), "当前摘要窗口")
+		statCard(c, "会话告警", strconv.Itoa(totalAlerts), "需关注或高风险活动")
+		stream := "回退同步"
+		if a.eventStreamConnected {
+			stream = "实时"
+		}
+		statCard(c, "事件流", stream, fmt.Sprintf("内存摘要 %d / 1200", len(a.events)))
+	})
+
 	card(c, fmt.Sprintf("活动会话 · %d", len(rows)), func() {
 		if len(rows) == 0 {
-			ui.Text(c, "暂无可归并的 Agent 会话").TextColor(t.TextMuted)
+			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, "暂无可归并的 Agent 会话；确认目标命令已经加入跟踪范围。").TextColor(t.TextMuted).Grow(1)
+				if ui.Button(c, "打开跟踪范围").Clicked() {
+					a.page = "跟踪"
+				}
+			})
 			return
 		}
 		cols := []ui.TableColumn{
@@ -150,7 +169,11 @@ func (a *renewApp) sessionsView(c *ui.Context) {
 			case 1:
 				ui.Text(c, strconv.Itoa(session.Events))
 			case 2:
-				ui.Text(c, strconv.Itoa(session.Alerts))
+				if session.Alerts > 0 {
+					statusPill(c, strconv.Itoa(session.Alerts), t.Warning)
+				} else {
+					ui.Text(c, "0").TextColor(t.TextMuted)
+				}
 			case 3:
 				ui.Text(c, displayOr(session.LastAction, "-")).SingleLine()
 			case 4:
@@ -172,13 +195,15 @@ func (a *renewApp) sessionsView(c *ui.Context) {
 		}
 	})
 
-	card(c, "实时状态", func() {
-		state := "轮询兜底"
-		if a.eventStreamConnected {
-			state = "WebSocket 实时"
-		}
-		ui.Text(c, state).Bold()
-		ui.Text(c, fmt.Sprintf("当前内存中保留 %d 条紧凑摘要，最多 1200 条。", len(a.events))).TextColor(t.TextMuted)
+	card(c, "数据来源", func() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			if a.eventStreamConnected {
+				statusPill(c, "实时事件流", t.Success)
+			} else {
+				statusPill(c, "兼容回退", t.Warning)
+			}
+			ui.Text(c, fmt.Sprintf("内存中保留 %d 条紧凑摘要，最多 1200 条。", len(a.events))).TextColor(t.TextMuted)
+		})
 		if a.eventStreamErr != "" && !a.eventStreamConnected {
 			ui.Text(c, a.eventStreamErr).FontSize(10).TextColor(t.TextMuted)
 		}
