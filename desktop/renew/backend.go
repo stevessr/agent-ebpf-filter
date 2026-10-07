@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -17,14 +18,16 @@ import (
 )
 
 type backendSession struct {
-	dir      string
-	listener net.Listener
-	conn     net.Conn
-	mu       sync.Mutex
-	closed   bool
-	token    string
-	cmd      *exec.Cmd
-	done     chan struct{}
+	dir              string
+	listener         net.Listener
+	conn             net.Conn
+	reader           *bufio.Reader
+	mu               sync.Mutex
+	closed           bool
+	token            string
+	nativeIPCVersion int
+	cmd              *exec.Cmd
+	done             chan struct{}
 }
 
 func (s *backendSession) Close() {
@@ -181,13 +184,25 @@ func ensureBackend(ctx context.Context, origin, resources string) (*backendSessi
 		}
 		session.conn = conn
 		session.mu.Unlock()
+		reader := bufio.NewReaderSize(conn, 64<<10)
 		var message struct {
-			Token string `json:"token"`
+			Token            string `json:"token"`
+			NativeIPCVersion int    `json:"nativeIpcVersion"`
 		}
 		_ = conn.SetReadDeadline(time.Now().Add(2 * time.Minute))
-		err = json.NewDecoder(conn).Decode(&message)
+		line, readErr := reader.ReadBytes('\n')
+		if readErr != nil {
+			err = readErr
+		} else {
+			err = json.Unmarshal(line, &message)
+		}
 		if err == nil {
+			_ = conn.SetReadDeadline(time.Time{})
+			session.mu.Lock()
+			session.reader = reader
 			session.token = message.Token
+			session.nativeIPCVersion = message.NativeIPCVersion
+			session.mu.Unlock()
 		}
 		handshake <- err
 	}()
