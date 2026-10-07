@@ -45,7 +45,7 @@ For an already-running local backend, Renew reads the existing runtime access to
 
 ```bash
 AGENT_BACKEND_URL=https://host.example:8443 \
-AGENT_API_TOKEN='...' \
+AGENT_API_KEY='...' \
 ./renew
 ```
 
@@ -76,7 +76,7 @@ make renew-desktop-build
 
 The Linux package bundles the eBPF backend and the native MyGo executable. It no longer bundles `frontend/dist`, Bun/Vite output, or WebKit content. The packaged Linux app still needs the desktop libraries used by MyGo itself, but not WebKitGTK for rendering Renew.
 
-The standalone backend bundle is intentionally Linux-only because eBPF collection is Linux-only. Native MyGo clients on other platforms can point at a separately running Linux backend with `AGENT_BACKEND_URL` and `AGENT_API_TOKEN`.
+The standalone backend bundle is intentionally Linux-only because eBPF collection is Linux-only. Native MyGo clients on other platforms can point at a separately running Linux backend with `AGENT_BACKEND_URL` and `AGENT_API_KEY`.
 
 ## Validation
 
