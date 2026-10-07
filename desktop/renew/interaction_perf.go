@@ -80,10 +80,14 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 			if len(batch) == 0 || a.eventUIPaused.Load() {
 				return
 			}
+			if !a.eventUICommitPending.CompareAndSwap(false, true) {
+				return
+			}
 			pending := batch
 			batch = nextBatch()
 			overwriteAt = 0
 			a.update(func() {
+				defer a.eventUICommitPending.Store(false)
 				if a.mergeEventWindow(pending, 1200) {
 					a.lastSync = time.Now()
 				}
@@ -146,3 +150,4 @@ func (a *renewApp) eventUIDroppedCount() uint64 {
 type eventDropCounter = atomic.Uint64
 type eventPauseFlag = atomic.Bool
 type eventBatcherFlag = atomic.Bool
+type eventCommitFlag = atomic.Bool
