@@ -81,6 +81,29 @@ func TestMonitoringProfileActive(t *testing.T) {
 	}
 }
 
+func TestPipelineStatus(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	if label, level := a.pipelineStatus(); label != "启动中" || level != "warning" {
+		t.Fatalf("starting status=(%q,%q)", label, level)
+	}
+	a.starting = false
+	a.connected = true
+	a.health.CaptureHealthy = true
+	a.eventStreamConnected = true
+	a.systemConnected = true
+	if label, level := a.pipelineStatus(); label != "全链路实时" || level != "success" {
+		t.Fatalf("healthy status=(%q,%q)", label, level)
+	}
+	a.systemConnected = false
+	if label, level := a.pipelineStatus(); label != "系统流重连" || level != "warning" {
+		t.Fatalf("system fallback status=(%q,%q)", label, level)
+	}
+	a.eventStreamConnected = false
+	if label, level := a.pipelineStatus(); label != "事件流回退" || level != "warning" {
+		t.Fatalf("event fallback status=(%q,%q)", label, level)
+	}
+}
+
 func TestPageMetadata(t *testing.T) {
 	if !pageUsesEventSearch("网络") || pageUsesEventSearch("规则") {
 		t.Fatal("unexpected search availability")
