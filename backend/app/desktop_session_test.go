@@ -88,22 +88,22 @@ func TestDesktopLifetimeEOFAndToken(t *testing.T) {
 	if message.NativeIPCVersion != desktopNativeIPCVersion {
 		t.Fatalf("native IPC version = %d, want %d", message.NativeIPCVersion, desktopNativeIPCVersion)
 	}
-	if !session.publishProto(desktopFrameEventEnvelope, &pb.EventEnvelope{EventId: "evt_native_test"}) {
+	if !session.publishProto(desktopFrameEventSummary, &pb.DesktopEventSummary{EventId: "evt_native_test", Target: "/tmp/x"}) {
 		t.Fatal("native frame was not queued")
 	}
 	frame, err := udsframe.Read(conn)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(frame) < 2 || frame[0] != desktopFrameEventEnvelope {
+	if len(frame) < 2 || frame[0] != desktopFrameEventSummary {
 		t.Fatalf("unexpected native frame: %v", frame)
 	}
-	var envelope pb.EventEnvelope
-	if err := proto.Unmarshal(frame[1:], &envelope); err != nil {
+	var summary pb.DesktopEventSummary
+	if err := proto.Unmarshal(frame[1:], &summary); err != nil {
 		t.Fatal(err)
 	}
-	if envelope.GetEventId() != "evt_native_test" {
-		t.Fatalf("native event id = %q", envelope.GetEventId())
+	if summary.GetEventId() != "evt_native_test" || summary.GetTarget() != "/tmp/x" {
+		t.Fatalf("native compact summary = %+v", summary)
 	}
 	_ = conn.Close()
 	select {
