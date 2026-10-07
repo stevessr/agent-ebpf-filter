@@ -11,7 +11,6 @@ import (
 	"google.golang.org/protobuf/encoding/protowire"
 )
 
-
 func TestOverviewHeadlinePriorities(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -20,9 +19,14 @@ func TestOverviewHeadlinePriorities(t *testing.T) {
 	}{
 		{"starting", func(a *renewApp) {}, "warning"},
 		{"backend offline", func(a *renewApp) { a.starting = false }, "danger"},
+		{"initial sync", func(a *renewApp) {
+			a.starting = false
+			a.connected = true
+		}, "warning"},
 		{"capture unhealthy", func(a *renewApp) {
 			a.starting = false
 			a.connected = true
+			a.lastSync = time.Unix(1, 0)
 		}, "danger"},
 		{"danger event", func(a *renewApp) {
 			a.starting = false
