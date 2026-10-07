@@ -169,8 +169,7 @@ func (a *renewApp) loadOlderEvents() {
 				a.lastErr = err.Error()
 				return
 			}
-			a.events = mergeEventSummaries(a.events, response.Events, 1200)
-			a.eventsVersion++
+			a.mergeEventWindow(response.Events, 1200)
 			a.historyCursor = response.NextCursor
 			a.eventVisibleLimit += 50
 		})
