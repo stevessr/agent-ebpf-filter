@@ -423,6 +423,8 @@ func (a *renewApp) pipelineStatus() (label, level string) {
 		return "启动中", "warning"
 	case !a.connected:
 		return "后端离线", "danger"
+	case a.lastSync.IsZero():
+		return "正在同步", "warning"
 	case !a.health.CaptureHealthy:
 		return "采集异常", "danger"
 	case !a.eventStreamConnected:
