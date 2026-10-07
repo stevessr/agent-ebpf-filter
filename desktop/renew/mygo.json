@@ -1,13 +1,13 @@
 {
   "name": "Renew",
-  "identifier": "io.github.stevessr.agent-ebpf-filter.renew",
+  "id": "dev.agent-ebpf-filter.renew",
   "version": "0.1.0",
-  "main": ".",
-  "out": "build",
   "buildCommand": "../../scripts/renew-desktop.sh prepare",
-  "linux": {
-    "comment": "Daily desktop monitor for Agent eBPF Filter",
-    "categories": ["System", "Utility"],
-    "command": "agent-ebpf-renew"
+  "window": {
+    "title": "Renew",
+    "width": 1180,
+    "height": 760,
+    "minWidth": 900,
+    "minHeight": 620
   }
 }
