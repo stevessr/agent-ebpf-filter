@@ -15,32 +15,25 @@ import (
 )
 
 type eventSummary struct {
-	EventID        string  `json:"eventId"`
-	PID            int     `json:"pid"`
-	PPID           int     `json:"ppid"`
-	RootAgentPID   int     `json:"rootAgentPid"`
-	UID            int     `json:"uid"`
-	EventType      int     `json:"eventType"`
-	Type           string  `json:"type"`
-	Tag            string  `json:"tag"`
-	Comm           string  `json:"comm"`
-	Path           string  `json:"path"`
-	ExtraPath      string  `json:"extraPath"`
-	NetDirection   string  `json:"netDirection"`
-	NetEndpoint    string  `json:"netEndpoint"`
-	NetBytes       int64   `json:"netBytes"`
-	Domain         string  `json:"domain"`
-	Decision       string  `json:"decision"`
-	RiskScore      float64 `json:"riskScore"`
-	AgentRunID     string  `json:"agentRunId"`
-	ConversationID string  `json:"conversationId"`
-	TurnID         string  `json:"turnId"`
-	ToolCallID     string  `json:"toolCallId"`
-	ToolName       string  `json:"toolName"`
-	TraceID        string  `json:"traceId"`
-	SpanID         string  `json:"spanId"`
-	ReceivedAtMS   int64   `json:"receivedAtMs"`
-	SearchText     string  `json:"-"`
+	EventID          string  `json:"eventId"`
+	PID              int     `json:"pid"`
+	PPID             int     `json:"ppid"`
+	RootAgentPID     int     `json:"rootAgentPid"`
+	EventType        int     `json:"eventType"`
+	Type             string  `json:"type"`
+	Tag              string  `json:"tag"`
+	Comm             string  `json:"comm"`
+	Target           string  `json:"target"`
+	Network          bool    `json:"network"`
+	NetBytes         int64   `json:"netBytes"`
+	Decision         string  `json:"decision"`
+	RiskScore        float64 `json:"riskScore"`
+	AgentRunID       string  `json:"agentRunId"`
+	ConversationID   string  `json:"conversationId"`
+	ToolName         string  `json:"toolName"`
+	HasAgentContext  bool    `json:"hasAgentContext"`
+	ReceivedAtMS     int64   `json:"receivedAtMs"`
+	SearchText       string  `json:"-"`
 }
 
 type eventSummaryResponse struct {
@@ -212,6 +205,7 @@ func (c *apiClient) eventSummaries(ctx context.Context, limit int, cursor string
 	}
 	values := url.Values{}
 	values.Set("limit", strconv.Itoa(limit))
+	values.Set("compact", "1")
 	if strings.TrimSpace(cursor) != "" {
 		values.Set("cursor", cursor)
 	}
@@ -464,10 +458,11 @@ func (c *apiClient) enforcementAction(ctx context.Context, path string, payload 
 }
 
 func eventTarget(e eventSummary) string {
-	for _, value := range []string{e.Path, e.NetEndpoint, e.Domain, e.ExtraPath, e.ToolName} {
-		if strings.TrimSpace(value) != "" {
-			return value
-		}
+	if strings.TrimSpace(e.Target) != "" {
+		return e.Target
+	}
+	if strings.TrimSpace(e.ToolName) != "" {
+		return e.ToolName
 	}
 	return "-"
 }
@@ -521,9 +516,8 @@ func eventSearchText(e eventSummary) string {
 
 func buildEventSearchText(e eventSummary) string {
 	return strings.ToLower(strings.Join([]string{
-		e.EventID, e.Type, e.Tag, e.Comm, e.Path, e.ExtraPath, e.NetEndpoint,
-		e.Domain, e.Decision, e.AgentRunID, e.ConversationID, e.TurnID,
-		e.ToolCallID, e.ToolName, e.TraceID, e.SpanID, strconv.Itoa(e.PID),
+		e.EventID, e.Type, e.Tag, e.Comm, e.Target, e.Decision,
+		e.AgentRunID, e.ConversationID, e.ToolName, strconv.Itoa(e.PID),
 		url.QueryEscape(e.EventID),
 	}, " "))
 }
