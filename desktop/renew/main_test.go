@@ -46,6 +46,25 @@ func TestResolveBackendURLRejectsUnsupportedScheme(t *testing.T) {
 	}
 }
 
+
+func TestResolveClientTokenFromEnvironment(t *testing.T) {
+	for _, key := range []string{"AGENT_API_KEY", "AGENT_ACCESS_TOKEN", "AGENT_EBPF_ACCESS_TOKEN"} {
+		t.Setenv(key, "")
+	}
+	t.Setenv("AGENT_EBPF_ACCESS_TOKEN", "fallback")
+	if got := resolveClientTokenFromEnvironment(); got != "fallback" {
+		t.Fatalf("resolveClientTokenFromEnvironment() = %q, want fallback", got)
+	}
+	t.Setenv("AGENT_ACCESS_TOKEN", "alias")
+	if got := resolveClientTokenFromEnvironment(); got != "alias" {
+		t.Fatalf("resolveClientTokenFromEnvironment() = %q, want alias", got)
+	}
+	t.Setenv("AGENT_API_KEY", "primary")
+	if got := resolveClientTokenFromEnvironment(); got != "primary" {
+		t.Fatalf("resolveClientTokenFromEnvironment() = %q, want primary", got)
+	}
+}
+
 func TestJoinRenewURL(t *testing.T) {
 	got := joinRenewURL("http://127.0.0.1:8080/base/")
 	if got != "http://127.0.0.1:8080/base/renew" {
