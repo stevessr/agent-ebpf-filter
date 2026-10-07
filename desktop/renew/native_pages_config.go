@@ -330,6 +330,7 @@ func (a *renewApp) saveRule() {
 			return
 		}
 	}
+	oldComm := a.editingRule
 	a.rulesBusy = true
 	a.rulesErr = ""
 	go func() {
@@ -341,6 +342,15 @@ func (a *renewApp) saveRule() {
 				a.rulesErr = err.Error()
 			})
 			return
+		}
+		if oldComm != "" && oldComm != rule.Comm {
+			if err := a.client.deleteRule(ctx, oldComm); err != nil {
+				a.update(func() {
+					a.rulesBusy = false
+					a.rulesErr = "新规则已保存，但删除旧规则失败：" + err.Error()
+				})
+				return
+			}
 		}
 		rules, loadErr := a.client.rules(ctx)
 		a.update(func() {
