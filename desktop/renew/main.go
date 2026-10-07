@@ -112,7 +112,7 @@ func (a *renewApp) bootstrap(ctx context.Context) {
 		a.connected = true
 		a.lastErr = ""
 	})
-	a.runPolling(ctx)
+	a.runPolling(ctx, session)
 }
 
 func (a *renewApp) update(fn func()) {
