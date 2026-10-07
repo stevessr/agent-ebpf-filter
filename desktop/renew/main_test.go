@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestResolveBackendURL(t *testing.T) {
 	t.Setenv("AGENT_BACKEND_URL", "")
@@ -52,7 +55,6 @@ func TestJoinRenewURL(t *testing.T) {
 		t.Fatalf("joinRenewURL() = %q", got)
 	}
 }
-
 
 func TestInternalBackendArgs(t *testing.T) {
 	mode, args := internalBackendArgs([]string{"--backend", "http://127.0.0.1:8080"})
