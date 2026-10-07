@@ -73,6 +73,9 @@ func TestOverviewHeadlinePriorities(t *testing.T) {
 func TestMonitoringProfileActive(t *testing.T) {
 	a := newRenewApp("http://127.0.0.1:8080")
 	a.configReady = true
+	a.runtimeReady = true
+	a.runtimeCfg.Runtime.LoopDetection.Enabled = true
+	a.runtimeCfg.Runtime.SignalProcessing.Enabled = true
 	daily := map[string]bool{"process": true, "file-changes": true, "network": true}
 	for _, module := range monitoringModules {
 		if daily[module.Key] {
@@ -87,6 +90,10 @@ func TestMonitoringProfileActive(t *testing.T) {
 	}
 	if a.monitoringProfileActive("轻量") || a.monitoringProfileActive("深度") {
 		t.Fatal("only the daily profile should be active")
+	}
+	a.runtimeCfg.Runtime.SignalProcessing.Enabled = false
+	if a.monitoringProfileActive("日常") {
+		t.Fatal("daily profile must include the expected runtime toggles")
 	}
 }
 
