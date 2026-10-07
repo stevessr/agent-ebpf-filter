@@ -11,9 +11,11 @@ eBPF / wrapper / hooks
         │
         ▼
 Agent eBPF Filter backend
-  ├─ /events/summaries
-  ├─ /system/collector-health
-  ├─ /system/tracked-comms
+  ├─ /events/summaries + /events/detail/:id
+  ├─ /ws/event-summaries
+  ├─ /ws/system (protobuf)
+  ├─ /config/runtime + tracking/rule APIs
+  ├─ /sandbox/cgroup + /sandbox/lsm
   └─ other existing REST / WS APIs
         ▲
         │ HTTP + existing token auth
@@ -22,9 +24,9 @@ Renew Desktop
   └─ MyGo native UI (Go only, GPU drawn)
 ```
 
-The native client now covers the low-noise daily-monitoring workflow: Overview, Events, Network, Processes, Monitoring, Wrapper Rules, Tracking, and System. Events and configuration surfaces use MyGo-native tables/forms/selects/tabs/switches; the browser runtime is not embedded.
+The native client now covers the low-noise daily-monitoring workflow: Overview, Events, Agent Sessions, Network, Processes, Monitoring, Wrapper Rules, Tracking, and System. Events and configuration surfaces use MyGo-native tables/forms/selects/tabs/switches; the browser runtime is not embedded.
 
-The Events page keeps compact summaries bounded in desktop memory, supports type/session/decision/attention filtering, expands history through the backend cursor API, and fetches a full record only when its detail modal is opened. Event detail can show the raw JSON on demand and, when `policy_management` is enabled, uses the existing cgroup/BPF LSM APIs to block or unblock literal destination IPs, ports, and absolute executable paths. Hostnames are never submitted as IP enforcement targets.
+The Events page keeps compact summaries bounded in desktop memory, consumes the existing `/ws/event-summaries` JSON stream for immediate updates, supports type/session/decision/attention filtering, expands history through the backend cursor API, and fetches a full record only when its detail modal is opened. The Agent Sessions page follows the browser Renew grouping rule: only summaries with Agent context participate, and sessions are isolated by harness plus run/conversation/root-process context. Event detail can show the raw JSON on demand and, when `policy_management` is enabled, uses the existing cgroup/BPF LSM APIs to block or unblock literal destination IPs, ports, and absolute executable paths. Hostnames are never submitted as IP enforcement targets.
 
 Monitoring uses the existing `/config/runtime` PATCH contract and only changes UI state after backend confirmation. Nested loop/signal/research settings are read first and written back intact so toggling `enabled` does not reset their thresholds or queue parameters. The native page also controls TLS capture, persistence, and the explicit policy-management gate. Wrapper Rules use `/config/rules` for ALLOW/BLOCK/ALERT/REWRITE operations, while Tracking manages tags, commands, exact paths, and path prefixes through the existing config APIs.
 
