@@ -78,9 +78,10 @@ func (a *renewApp) eventsView(c *ui.Context) {
 	ui.Text(c, "事件").FontSize(28).Bold()
 	ui.Text(c, "紧凑摘要支持本地筛选与后端历史分页；完整事件只在打开详情时按 ID 读取。").TextColor(t.TextMuted)
 
+	eventTypes, eventSessions := a.eventFilterOptions()
 	ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
-		ui.Select(c, &a.eventTypeFilter, uniqueEventTypes(a.events)).Label("事件类型").Width(170)
-		ui.Select(c, &a.eventSessionFilter, uniqueEventSessions(a.events)).Label("会话").Width(210)
+		ui.Select(c, &a.eventTypeFilter, eventTypes).Label("事件类型").Width(170)
+		ui.Select(c, &a.eventSessionFilter, eventSessions).Label("会话").Width(210)
 		ui.Select(c, &a.eventDecisionFilter, []string{"", "已阻断", "告警", "已允许"}).Label("决策").Width(130)
 		ui.Checkbox(c, &a.eventAttentionOnly, "只看待关注")
 		if ui.Button(c, "清除筛选").Clicked() {
@@ -173,7 +174,7 @@ func (a *renewApp) eventsView(c *ui.Context) {
 }
 func (a *renewApp) networkView(c *ui.Context) {
 	t := c.Theme()
-	rows := aggregateNetwork(a.filteredEvents())
+	rows := a.filteredNetworkRows()
 	ui.Text(c, "网络").FontSize(28).Bold()
 	ui.Text(c, "按当前有界事件摘要窗口聚合外联目标；事件数和字节数不是完整连接/流量统计。").TextColor(t.TextMuted)
 	card(c, fmt.Sprintf("访问目标 · %d", len(rows)), func() {
@@ -263,7 +264,7 @@ func (a *renewApp) processesView(c *ui.Context) {
 		return
 	}
 
-	rows := aggregateProcesses(a.filteredEvents())
+	rows := a.filteredProcessAggregateRows()
 	ui.Text(c, "系统 protobuf 流当前不可用，降级展示已加载事件窗口中真实出现过的进程活动。").TextColor(t.TextMuted)
 	if a.systemErr != "" {
 		ui.Text(c, a.systemErr).FontSize(10).TextColor(t.TextMuted)
@@ -347,6 +348,7 @@ func (a *renewApp) systemView(c *ui.Context) {
 		ui.Text(c, a.backend).Font("monospace")
 		ui.Textf(c, "后端队列：%d", a.health.BackendQueueLen).TextColor(t.TextMuted)
 		ui.Textf(c, "持久化队列：%d / %d · pending %d", a.health.PersistQueueLen, a.health.PersistQueueCap, a.health.PersistPending).TextColor(t.TextMuted)
+		ui.Textf(c, "桌面事件合并队列：%d / %d · 丢弃 %d", len(a.eventUIQueue), eventUIQueueSize, a.eventUIDroppedCount()).TextColor(t.TextMuted)
 		if !a.lastSync.IsZero() {
 			ui.Text(c, "摘要同步："+a.lastSync.Format("15:04:05")).FontSize(10).TextColor(t.TextMuted)
 		}

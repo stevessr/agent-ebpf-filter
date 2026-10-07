@@ -90,3 +90,40 @@ func TestReadNativeFrame(t *testing.T) {
 		t.Fatalf("frame kind=%d payload=%v", kind, got)
 	}
 }
+
+
+func TestReadNativeFrameIntoReusesBuffer(t *testing.T) {
+	var stream bytes.Buffer
+	writeFrame := func(kind byte, payload []byte) {
+		var header [4]byte
+		binary.BigEndian.PutUint32(header[:], uint32(len(payload)+1))
+		stream.Write(header[:])
+		stream.WriteByte(kind)
+		stream.Write(payload)
+	}
+	writeFrame(nativeFrameEventEnvelope, []byte{1, 2, 3, 4})
+	writeFrame(nativeFrameSystemStats, []byte{5, 6})
+
+	kind, first, buf, err := readNativeFrameInto(&stream, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if kind != nativeFrameEventEnvelope || !bytes.Equal(first, []byte{1, 2, 3, 4}) {
+		t.Fatalf("first frame kind=%d payload=%v", kind, first)
+	}
+	if cap(buf) < 5 {
+		t.Fatalf("unexpected buffer capacity %d", cap(buf))
+	}
+	firstPtr := &buf[0]
+
+	kind, second, reused, err := readNativeFrameInto(&stream, buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if kind != nativeFrameSystemStats || !bytes.Equal(second, []byte{5, 6}) {
+		t.Fatalf("second frame kind=%d payload=%v", kind, second)
+	}
+	if &reused[0] != firstPtr {
+		t.Fatal("frame buffer was not reused")
+	}
+}

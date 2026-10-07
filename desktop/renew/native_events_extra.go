@@ -14,34 +14,99 @@ import (
 )
 
 func mergeEventSummaries(existing, incoming []eventSummary, limit int) []eventSummary {
+	return mergeEventSummariesInto(nil, existing, incoming, limit)
+}
+
+func mergeEventSummariesInto(dst, existing, incoming []eventSummary, limit int) []eventSummary {
 	if limit <= 0 {
 		limit = 1200
 	}
-	byID := make(map[string]eventSummary, len(existing)+len(incoming))
-	for _, event := range existing {
-		if strings.TrimSpace(event.EventID) != "" {
-			byID[event.EventID] = event
+	if len(incoming) == 0 {
+		if len(existing) > limit {
+			return existing[:limit]
 		}
+		return existing
 	}
+
+	// Incoming batches are normally tiny compared with the retained window.
+	// Deduplicate and sort only that batch, then linearly merge it with the
+	// already-sorted window instead of rebuilding and sorting all ~1200 rows.
+	replacements := make(map[string]eventSummary, len(incoming))
 	for _, event := range incoming {
-		if strings.TrimSpace(event.EventID) != "" {
-			byID[event.EventID] = event
+		id := strings.TrimSpace(event.EventID)
+		if id == "" {
+			continue
 		}
+		event.EventID = id
+		event.SearchText = buildEventSearchText(event)
+		replacements[id] = event
 	}
-	out := make([]eventSummary, 0, len(byID))
-	for _, event := range byID {
-		out = append(out, event)
+	if len(replacements) == 0 {
+		return existing
 	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].ReceivedAtMS != out[j].ReceivedAtMS {
-			return out[i].ReceivedAtMS > out[j].ReceivedAtMS
+	fresh := make([]eventSummary, 0, len(replacements))
+	for _, event := range replacements {
+		fresh = append(fresh, event)
+	}
+	sort.Slice(fresh, func(i, j int) bool { return eventSummaryBefore(fresh[i], fresh[j]) })
+
+	capacity := len(existing) + len(fresh)
+	if capacity > limit {
+		capacity = limit
+	}
+	var out []eventSummary
+	if cap(dst) >= capacity {
+		out = dst[:0]
+	} else {
+		out = make([]eventSummary, 0, limit)
+	}
+	i, j := 0, 0
+	for len(out) < limit && (i < len(fresh) || j < len(existing)) {
+		for j < len(existing) {
+			if _, replaced := replacements[strings.TrimSpace(existing[j].EventID)]; replaced {
+				j++
+				continue
+			}
+			break
 		}
-		return out[i].EventID > out[j].EventID
-	})
-	if len(out) > limit {
-		out = out[:limit]
+		if i >= len(fresh) {
+			if j >= len(existing) {
+				break
+			}
+			event := existing[j]
+			if event.SearchText == "" {
+				event.SearchText = buildEventSearchText(event)
+			}
+			out = append(out, event)
+			j++
+			continue
+		}
+		if j >= len(existing) {
+			out = append(out, fresh[i])
+			i++
+			continue
+		}
+
+		existingEvent := existing[j]
+		if existingEvent.SearchText == "" {
+			existingEvent.SearchText = buildEventSearchText(existingEvent)
+		}
+		if eventSummaryBefore(fresh[i], existingEvent) {
+			out = append(out, fresh[i])
+			i++
+		} else {
+			out = append(out, existingEvent)
+			j++
+		}
 	}
 	return out
+}
+
+func eventSummaryBefore(a, b eventSummary) bool {
+	if a.ReceivedAtMS != b.ReceivedAtMS {
+		return a.ReceivedAtMS > b.ReceivedAtMS
+	}
+	return a.EventID > b.EventID
 }
 
 func matchesEventDecision(event eventSummary, filter string) bool {
@@ -104,7 +169,7 @@ func (a *renewApp) loadOlderEvents() {
 				a.lastErr = err.Error()
 				return
 			}
-			a.events = mergeEventSummaries(a.events, response.Events, 1200)
+			a.mergeEventWindow(response.Events, 1200)
 			a.historyCursor = response.NextCursor
 			a.eventVisibleLimit += 50
 		})

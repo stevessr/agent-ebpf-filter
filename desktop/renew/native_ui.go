@@ -24,6 +24,31 @@ type renewApp struct {
 	paused bool
 
 	events             []eventSummary
+	eventMergeScratch  []eventSummary
+	eventsVersion      uint64
+	eventUIQueue       chan eventSummary
+	eventUIDropped     eventDropCounter
+	eventUIPaused      eventPauseFlag
+	eventUIBatcherStarted eventBatcherFlag
+	filterCacheValid   bool
+	filterCacheVersion uint64
+	filterCacheKey     string
+	filterCacheRows    []eventSummary
+	riskCacheValid     bool
+	riskCacheVersion   uint64
+	riskCacheCounts    [3]int
+	networkCacheValid  bool
+	networkCacheVersion uint64
+	networkCacheKey    string
+	networkCacheRows   []networkAggregate
+	processCacheValid  bool
+	processCacheVersion uint64
+	processCacheKey    string
+	processCacheRows   []processAggregate
+	optionCacheValid   bool
+	optionCacheVersion uint64
+	eventTypeOptions   []string
+	eventSessionOptions []string
 	health             collectorHealth
 	trackedComms       []string
 	system             systemSnapshot
@@ -126,6 +151,7 @@ func newRenewApp(backend string) *renewApp {
 }
 
 func (a *renewApp) runPolling(ctx context.Context, session *backendSession) {
+	a.startEventUIBatcher(ctx)
 	if session != nil && session.reader != nil && session.nativeIPCVersion >= nativeIPCVersion {
 		go a.runNativeIPC(ctx, session)
 	} else {
@@ -141,7 +167,7 @@ func (a *renewApp) runPolling(ctx context.Context, session *backendSession) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if !a.paused {
+			if !a.eventUIPaused.Load() {
 				a.refresh(ctx)
 			}
 		}
@@ -173,7 +199,7 @@ func (a *renewApp) refresh(parent context.Context) {
 		a.connected = true
 		a.lastErr = ""
 		if fullSnapshot {
-			a.events = mergeEventSummaries(a.events, snapshot.Events, 1200)
+			a.mergeEventWindow(snapshot.Events, 1200)
 			if !a.historyInitialized {
 				a.historyCursor = snapshot.NextCursor
 				a.historyInitialized = true
@@ -321,6 +347,7 @@ func (a *renewApp) header(c *ui.Context) {
 		}
 		if ui.Button(c, label).Clicked() {
 			a.paused = !a.paused
+			a.eventUIPaused.Store(a.paused)
 			if !a.paused {
 				go a.refresh(context.Background())
 			}
@@ -362,9 +389,30 @@ func (a *renewApp) errorView(c *ui.Context) {
 	})
 }
 
+func (a *renewApp) eventFilterCacheKey() string {
+	q := strings.ToLower(strings.TrimSpace(a.search))
+	key := q + "\x00" + a.eventTypeFilter + "\x00" + a.eventSessionFilter + "\x00" + a.eventDecisionFilter
+	if a.eventAttentionOnly {
+		key += "\x001"
+	}
+	return key
+}
+
 func (a *renewApp) filteredEvents() []eventSummary {
 	q := strings.ToLower(strings.TrimSpace(a.search))
-	out := make([]eventSummary, 0, len(a.events))
+	key := a.eventFilterCacheKey()
+	if a.filterCacheValid && a.filterCacheVersion == a.eventsVersion && a.filterCacheKey == key {
+		return a.filterCacheRows
+	}
+	if q == "" && a.eventTypeFilter == "" && a.eventSessionFilter == "" && a.eventDecisionFilter == "" && !a.eventAttentionOnly {
+		a.filterCacheValid = true
+		a.filterCacheVersion = a.eventsVersion
+		a.filterCacheKey = key
+		a.filterCacheRows = a.events
+		return a.events
+	}
+
+	out := make([]eventSummary, 0, min(len(a.events), 256))
 	for _, event := range a.events {
 		if q != "" && !strings.Contains(eventSearchText(event), q) {
 			continue
@@ -383,10 +431,17 @@ func (a *renewApp) filteredEvents() []eventSummary {
 		}
 		out = append(out, event)
 	}
+	a.filterCacheValid = true
+	a.filterCacheVersion = a.eventsVersion
+	a.filterCacheKey = key
+	a.filterCacheRows = out
 	return out
 }
 
 func (a *renewApp) riskCounts() (normal, attention, danger int) {
+	if a.riskCacheValid && a.riskCacheVersion == a.eventsVersion {
+		return a.riskCacheCounts[0], a.riskCacheCounts[1], a.riskCacheCounts[2]
+	}
 	for _, event := range a.events {
 		switch eventRisk(event) {
 		case "高风险":
@@ -397,7 +452,47 @@ func (a *renewApp) riskCounts() (normal, attention, danger int) {
 			normal++
 		}
 	}
+	a.riskCacheValid = true
+	a.riskCacheVersion = a.eventsVersion
+	a.riskCacheCounts = [3]int{normal, attention, danger}
 	return
+}
+
+func (a *renewApp) filteredNetworkRows() []networkAggregate {
+	key := a.eventFilterCacheKey()
+	if a.networkCacheValid && a.networkCacheVersion == a.eventsVersion && a.networkCacheKey == key {
+		return a.networkCacheRows
+	}
+	rows := aggregateNetwork(a.filteredEvents())
+	a.networkCacheValid = true
+	a.networkCacheVersion = a.eventsVersion
+	a.networkCacheKey = key
+	a.networkCacheRows = rows
+	return rows
+}
+
+func (a *renewApp) filteredProcessAggregateRows() []processAggregate {
+	key := a.eventFilterCacheKey()
+	if a.processCacheValid && a.processCacheVersion == a.eventsVersion && a.processCacheKey == key {
+		return a.processCacheRows
+	}
+	rows := aggregateProcesses(a.filteredEvents())
+	a.processCacheValid = true
+	a.processCacheVersion = a.eventsVersion
+	a.processCacheKey = key
+	a.processCacheRows = rows
+	return rows
+}
+
+func (a *renewApp) eventFilterOptions() ([]string, []string) {
+	if a.optionCacheValid && a.optionCacheVersion == a.eventsVersion {
+		return a.eventTypeOptions, a.eventSessionOptions
+	}
+	a.eventTypeOptions = uniqueEventTypes(a.events)
+	a.eventSessionOptions = uniqueEventSessions(a.events)
+	a.optionCacheValid = true
+	a.optionCacheVersion = a.eventsVersion
+	return a.eventTypeOptions, a.eventSessionOptions
 }
 
 func card(c *ui.Context, title string, body func()) *ui.Element {
