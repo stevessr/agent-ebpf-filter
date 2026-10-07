@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"google.golang.org/protobuf/encoding/protowire"
 )
@@ -26,6 +27,7 @@ func TestOverviewHeadlinePriorities(t *testing.T) {
 		{"danger event", func(a *renewApp) {
 			a.starting = false
 			a.connected = true
+			a.lastSync = time.Unix(1, 0)
 			a.health.CaptureHealthy = true
 			a.eventStreamConnected = true
 			a.events = []eventSummary{{EventID: "danger", RiskScore: 90}}
@@ -33,6 +35,7 @@ func TestOverviewHeadlinePriorities(t *testing.T) {
 		{"attention event", func(a *renewApp) {
 			a.starting = false
 			a.connected = true
+			a.lastSync = time.Unix(1, 0)
 			a.health.CaptureHealthy = true
 			a.eventStreamConnected = true
 			a.events = []eventSummary{{EventID: "attention", RiskScore: 65}}
@@ -40,11 +43,13 @@ func TestOverviewHeadlinePriorities(t *testing.T) {
 		{"fallback stream", func(a *renewApp) {
 			a.starting = false
 			a.connected = true
+			a.lastSync = time.Unix(1, 0)
 			a.health.CaptureHealthy = true
 		}, "warning"},
 		{"healthy", func(a *renewApp) {
 			a.starting = false
 			a.connected = true
+			a.lastSync = time.Unix(1, 0)
 			a.health.CaptureHealthy = true
 			a.eventStreamConnected = true
 		}, "success"},
@@ -88,6 +93,7 @@ func TestPipelineStatus(t *testing.T) {
 	}
 	a.starting = false
 	a.connected = true
+	a.lastSync = time.Unix(1, 0)
 	a.health.CaptureHealthy = true
 	a.eventStreamConnected = true
 	a.systemConnected = true
