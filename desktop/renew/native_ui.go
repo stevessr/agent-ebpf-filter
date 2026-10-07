@@ -236,6 +236,7 @@ func (a *renewApp) view(c *ui.Context) {
 					a.overview(c)
 				}
 			})
+			a.eventDetailModal(c)
 		})
 	})
 }
@@ -334,14 +335,24 @@ func (a *renewApp) errorView(c *ui.Context) {
 
 func (a *renewApp) filteredEvents() []eventSummary {
 	q := strings.ToLower(strings.TrimSpace(a.search))
-	if q == "" {
-		return a.events
-	}
 	out := make([]eventSummary, 0, len(a.events))
 	for _, event := range a.events {
-		if strings.Contains(eventSearchText(event), q) {
-			out = append(out, event)
+		if q != "" && !strings.Contains(eventSearchText(event), q) {
+			continue
 		}
+		if a.eventTypeFilter != "" && event.Type != a.eventTypeFilter {
+			continue
+		}
+		if a.eventSessionFilter != "" && eventSessionKey(event) != a.eventSessionFilter {
+			continue
+		}
+		if !matchesEventDecision(event, a.eventDecisionFilter) {
+			continue
+		}
+		if a.eventAttentionOnly && eventRisk(event) == "正常" {
+			continue
+		}
+		out = append(out, event)
 	}
 	return out
 }
