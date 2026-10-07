@@ -1,7 +1,6 @@
 package app
 
 import (
-	"agent-ebpf-filter/pb"
 	"agent-ebpf-filter/udsframe"
 	"context"
 	"encoding/json"
