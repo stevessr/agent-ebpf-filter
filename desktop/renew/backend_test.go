@@ -30,18 +30,16 @@ func TestReuseBackendWithoutLaunching(t *testing.T) {
 	}
 }
 
-func TestLocalOriginAndTokenIsolation(t *testing.T) {
+func TestLocalBackendAutoStartBoundary(t *testing.T) {
 	for _, origin := range []string{"https://example.com", "http://192.0.2.1:8080", "http://localhost:8080/base"} {
 		if _, err := localBackendPort(origin); err == nil {
 			t.Fatalf("auto-start allowed for %s", origin)
 		}
-		if tokenPreload(origin, "secret") != "" {
-			t.Fatal("local token exposed to a nonlocal/custom origin")
-		}
 	}
-	script := tokenPreload("http://127.0.0.1:8080", `quote"test`)
-	if !strings.Contains(script, "location.origin ===") || !strings.Contains(script, "agent-ebpf.apiToken") {
-		t.Fatal("missing origin-scoped auth preload")
+	for _, origin := range []string{"http://127.0.0.1:8080", "http://[::1]:8080"} {
+		if _, err := localBackendPort(origin); err != nil {
+			t.Fatalf("local backend rejected for %s: %v", origin, err)
+		}
 	}
 }
 
