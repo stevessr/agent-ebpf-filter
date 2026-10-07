@@ -113,6 +113,48 @@ func TestDesktopLifetimeEOFAndToken(t *testing.T) {
 	}
 }
 
+
+func TestBuildRenewDesktopEventSummaryIsCompact(t *testing.T) {
+	at := time.UnixMilli(123456).UTC()
+	record := CapturedEventRecord{
+		ReceivedAt: at,
+		Event: &pb.Event{
+			Pid: 42,
+			Ppid: 7,
+			RootAgentPid: 41,
+			Type: "NETWORK_CONNECT",
+			Tag: "AI Agent",
+			Comm: "codex",
+			Path: "",
+			NetEndpoint: "203.0.113.10:443",
+			NetBytes: 4096,
+			ToolCallId: "tool-1",
+			TraceId: "trace-should-not-be-in-compact-summary",
+		},
+		Envelope: &pb.EventEnvelope{
+			EventId: "evt-compact",
+			AgentRunId: "run-1",
+			ConversationId: "conv-1",
+			PolicyDecision: "ALERT",
+			RiskScore: 72,
+		},
+	}
+	summary, ok := buildRenewDesktopEventSummary(record)
+	if !ok {
+		t.Fatal("compact summary was not built")
+	}
+	if summary.EventID != "evt-compact" || summary.Target != "203.0.113.10:443" || !summary.Network {
+		t.Fatalf("compact summary identity/target mismatch: %+v", summary)
+	}
+	if !summary.HasAgentContext || summary.AgentRunID != "run-1" || summary.ConversationID != "conv-1" {
+		t.Fatalf("compact agent context mismatch: %+v", summary)
+	}
+	protoSummary := desktopEventSummaryProto(summary)
+	if protoSummary.GetEventId() != "evt-compact" || protoSummary.GetTarget() != "203.0.113.10:443" {
+		t.Fatalf("compact protobuf mismatch: %+v", protoSummary)
+	}
+}
+
 func TestDesktopStaticAssets(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.Mkdir(filepath.Join(dir, "assets"), 0755); err != nil {
