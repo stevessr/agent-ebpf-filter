@@ -50,9 +50,9 @@ jobs:
         with:
           name: renew-linux-amd64
           path: |
-            desktop/renew/build/linux-amd64/renew
-            desktop/renew/build/linux-amd64/renew.desktop
-            desktop/renew/build/linux-amd64/renew_0.1.0_amd64.deb
-            desktop/renew/build/linux-amd64/renew-0.1.0-linux-amd64.tar.gz
-            desktop/renew/build/linux-amd64/install.sh
+            desktop/renew/dist/linux-amd64/renew
+            desktop/renew/dist/linux-amd64/renew.desktop
+            desktop/renew/dist/linux-amd64/renew_0.1.0_amd64.deb
+            desktop/renew/dist/linux-amd64/renew-0.1.0-linux-amd64.tar.gz
+            desktop/renew/dist/linux-amd64/install.sh
           if-no-files-found: error
