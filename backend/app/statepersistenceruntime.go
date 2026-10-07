@@ -732,7 +732,7 @@ func recordCapturedEvent(event *pb.Event) CapturedEventRecord {
 	})
 	record = redactCapturedEventRecord(record, globalRedactionEngine)
 	if session := activeDesktopSession.Load(); session != nil {
-		if summary, ok := buildRenewDesktopEventSummary(record); ok {
+		if summary, ok := buildRenewDesktopEventSummaryNormalized(record); ok {
 			session.publishProto(desktopFrameEventSummary, desktopEventSummaryProto(summary))
 		}
 	}
