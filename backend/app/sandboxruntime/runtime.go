@@ -219,7 +219,10 @@ func (m *Manager) ListActive(limit int) ([]Detection, error) {
 func detectSnapshot(pid int, commRaw string, cmdlineRaw []byte, cgroupRaw string) Detection {
 	comm := strings.TrimSpace(commRaw)
 	args := splitCmdline(cmdlineRaw)
-	command := strings.Join(args, " ")
+	command := ""
+	if len(args) > 0 {
+		command = filepath.Base(args[0])
+	}
 	cgroupPath := selectCgroupPath(cgroupRaw)
 
 	d := Detection{
@@ -230,7 +233,7 @@ func detectSnapshot(pid int, commRaw string, cmdlineRaw []byte, cgroupRaw string
 		HostBoundary: true,
 	}
 
-	processText := strings.ToLower(strings.TrimSpace(comm + " " + command))
+	processText := strings.ToLower(strings.TrimSpace(comm + " " + strings.Join(args, " ")))
 	cgroupText := strings.ToLower(cgroupPath)
 	bestScore := 0.0
 	var best runtimeRule
@@ -358,6 +361,9 @@ func containerIDFromArgs(args []string) string {
 			}
 		}
 	}
+	if id := positionalRuntimeID(args); id != "" {
+		return id
+	}
 	for i := len(args) - 1; i >= 0; i-- {
 		token := strings.TrimSpace(args[i])
 		if token == "" || strings.HasPrefix(token, "-") {
@@ -365,6 +371,32 @@ func containerIDFromArgs(args []string) string {
 		}
 		if plainHexID.MatchString(token) {
 			return strings.ToLower(token)
+		}
+	}
+	return ""
+}
+
+func positionalRuntimeID(args []string) string {
+	if len(args) < 2 {
+		return ""
+	}
+	binary := filepath.Base(args[0])
+	switch binary {
+	case "runsc", "runc", "crun", "youki":
+	default:
+		return ""
+	}
+
+	for i, arg := range args {
+		switch arg {
+		case "boot", "create", "run", "start", "state", "events", "wait", "delete", "pause", "resume", "checkpoint", "restore":
+			if i+1 < len(args) {
+				return normalizeContainerID(args[len(args)-1])
+			}
+		case "kill":
+			if len(args)-1 > i+1 {
+				return normalizeContainerID(args[len(args)-2])
+			}
 		}
 	}
 	return ""
