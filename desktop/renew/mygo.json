@@ -6,7 +6,7 @@
   "out": "build",
   "buildCommand": "../../scripts/renew-desktop.sh prepare",
   "linux": {
-    "comment": "Daily desktop monitor for Agent eBPF Filter",
+    "comment": "明镜高悬：基于 eBPF 的 Agent 行为观测与安全监控",
     "categories": ["System", "Utility"],
     "command": "agent-ebpf-renew"
   }

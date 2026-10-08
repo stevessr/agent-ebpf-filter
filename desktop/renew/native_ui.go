@@ -310,12 +310,12 @@ func (a *renewApp) sidebar(c *ui.Context) {
 
 	ui.Column(c).Width(224).Shrink(0).Background(t.Surface).Children(func() {
 		ui.Row(c).Padding(18, 16, 12, 16).Gap(10).AlignItems(ui.Center).Children(func() {
-			ui.Box(c).Size(34, 34).Radius(10).Background(t.Accent).Center().Children(func() {
-				ui.Text(c, "R").Bold().TextColor(t.AccentText)
+			ui.Box(c).Size(36, 36).Radius(11).Background(t.Accent).Center().Children(func() {
+				ui.Text(c, "镜").FontSize(18).Bold().TextColor(t.AccentText)
 			})
-			ui.Column(c).Gap(1).Children(func() {
-				ui.Text(c, "Renew").FontSize(16).Bold()
-				ui.Text(c, "Agent 日常监控").FontSize(11).TextColor(t.TextMuted)
+			ui.Column(c).Gap(2).Children(func() {
+				ui.Text(c, desktopBrandName).FontSize(17).Bold()
+				ui.Text(c, "Agent 行为观测与防护").FontSize(10).TextColor(t.TextMuted)
 			})
 		})
 
@@ -520,8 +520,8 @@ func pageUsesEventSearch(page string) bool {
 
 func (a *renewApp) startingView(c *ui.Context) {
 	t := c.Theme()
-	card(c, "正在启动 Agent eBPF Filter", func() {
-		ui.Text(c, "Renew 正在复用现有后端，或通过系统授权启动随包后端。桌面 UI 本身保持普通用户权限。").TextColor(t.TextMuted)
+	card(c, "明镜高悬 · 正在连接监控后端", func() {
+		ui.Text(c, "正在复用现有后端，或通过系统授权启动内置后端。桌面界面始终以普通用户权限运行。").TextColor(t.TextMuted)
 		ui.Spinner(c)
 	})
 }
