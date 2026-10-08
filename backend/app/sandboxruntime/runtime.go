@@ -116,7 +116,9 @@ var runtimeRules = []runtimeRule{
 		kind:           "oci",
 		binaries:       []string{"runc", "crun", "youki", "containerd-shim-runc-v2"},
 		processMarkers: []string{"containerd-shim-runc-v2", "runc", "crun", "youki"},
-		cgroupMarkers:  []string{"docker", "containerd", "libpod", "kubepods"},
+		// A generic Kubernetes/containerd/Docker cgroup is not proof of OCI:
+		// those orchestrators can launch runsc, Kata, or Firecracker instead.
+		cgroupMarkers:  nil,
 		guestVisible:   true,
 		enforcementNote: "OCI namespace containers share the host kernel, so eBPF tracing and cgroup/BPF-LSM controls remain the primary integration.",
 	},
@@ -233,7 +235,7 @@ func detectSnapshot(pid int, commRaw string, cmdlineRaw []byte, cgroupRaw string
 		HostBoundary: true,
 	}
 
-	processText := strings.ToLower(strings.TrimSpace(comm + " " + strings.Join(args, " ")))
+	processText := strings.ToLower(strings.TrimSpace(comm + " " + command))
 	cgroupText := strings.ToLower(cgroupPath)
 	bestScore := 0.0
 	var best runtimeRule
@@ -294,7 +296,7 @@ func markerMatch(text, marker string) bool {
 			return true
 		}
 	}
-	return strings.Contains(text, marker)
+	return false
 }
 
 func splitCmdline(raw []byte) []string {
@@ -347,6 +349,19 @@ func extractContainerID(args []string, cgroupPath string) string {
 }
 
 func containerIDFromArgs(args []string) string {
+	if len(args) == 0 {
+		return ""
+	}
+	// Only trust identifier switches on known runtime invocations. Passing a
+	// random application's --id must not poison Agent context attribution.
+	switch filepath.Base(args[0]) {
+	case "runsc", "runc", "crun", "youki",
+		"containerd-shim-runc-v2", "containerd-shim-kata-v2",
+		"kata-runtime", "firecracker", "jailer",
+		"containerd-shim-aws-firecracker":
+	default:
+		return ""
+	}
 	for i, arg := range args {
 		switch arg {
 		case "-id", "--id", "--container-id", "--container_id":
@@ -409,7 +424,14 @@ func normalizeContainerID(value string) string {
 	if plainHexID.MatchString(value) {
 		return strings.ToLower(value)
 	}
-	if value != "" && !strings.ContainsAny(value, "/\\ \t\r\n") && len(value) <= 128 {
+	if len(value) > 0 && len(value) <= 128 && !strings.HasPrefix(value, "-") {
+		for _, r := range value {
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') ||
+				(r >= '0' && r <= '9') || r == '.' || r == '_' || r == '-' || r == ':' {
+				continue
+			}
+			return ""
+		}
 		return value
 	}
 	return ""
