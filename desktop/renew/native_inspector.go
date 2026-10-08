@@ -124,10 +124,27 @@ func summaryClipboardText(e eventSummary) string {
 		e.EventID, eventTime(e), e.Type, e.Comm, e.PID, eventTarget(e), e.Decision, e.RiskScore)
 }
 
+// inspectorStandalone keeps incident triage accessible on smaller displays.
+// It uses the exact same real data and actions as the wide-screen rail.
+func (a *renewApp) inspectorStandalone(c *ui.Context) {
+	t := c.Theme()
+	ui.Text(c, "风险研判工作台").FontSize(24).Bold()
+	ui.Text(c, "固定、筛选和查看真实事件；完整记录仍按需从后端读取。").TextColor(t.TextMuted)
+	a.inspector(c)
+}
+
 func (a *renewApp) inspector(c *ui.Context) {
 	t := c.Theme()
 	_, attention, danger := a.riskCounts()
-	ui.Column(c).Width(302).Shrink(0).Background(t.Surface).Border(1, t.Border).Children(func() {
+	width := float32(302)
+	if a.page == "研判" {
+		width = 560
+	}
+	panel := ui.Column(c).Width(width).Shrink(0).Background(t.Surface).Border(1, t.Border)
+	if a.page == "研判" {
+		panel.Height(690)
+	}
+	panel.Children(func() {
 		ui.Row(c).Padding(14, 13).Gap(7).AlignItems(ui.Center).Children(func() {
 			ui.Column(c).Grow(1).Gap(3).Children(func() {
 				ui.Text(c, "事件研判").FontSize(14).Bold()
