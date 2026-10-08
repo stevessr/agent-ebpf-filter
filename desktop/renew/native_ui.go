@@ -70,6 +70,7 @@ type renewApp struct {
 
 	eventTable          ui.ListState
 	networkTable        ui.ListState
+	networkSelected     int
 	processTable        ui.ListState
 	sessionTable        ui.ListState
 	rulesTable          ui.ListState
@@ -160,6 +161,7 @@ func newRenewApp(backend string) *renewApp {
 		navigationOpen:       true,
 		inspectorOpen:      true,
 		eventSelected:      -1,
+		networkSelected:    -1,
 		processSelected:    -1,
 		sessionSelected:    -1,
 		ruleSelected:       -1,
@@ -174,6 +176,7 @@ func newRenewApp(backend string) *renewApp {
 		pathAccessMode: "阻止写入",
 	}
 	a.eventTable.Selected = &a.eventSelected
+	a.networkTable.Selected = &a.networkSelected
 	a.processTable.Selected = &a.processSelected
 	a.sessionTable.Selected = &a.sessionSelected
 	a.rulesTable.Selected = &a.ruleSelected
