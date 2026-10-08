@@ -26,12 +26,12 @@ func TestOverviewHeadlinePriorities(t *testing.T) {
 		{"capture unhealthy", func(a *renewApp) {
 			a.starting = false
 			a.connected = true
-			a.lastSync = time.Unix(1, 0)
+			a.healthReady = true
 		}, "danger"},
 		{"danger event", func(a *renewApp) {
 			a.starting = false
 			a.connected = true
-			a.lastSync = time.Unix(1, 0)
+			a.healthReady = true
 			a.health.CaptureHealthy = true
 			a.eventStreamConnected = true
 			a.events = []eventSummary{{EventID: "danger", RiskScore: 90}}
@@ -39,7 +39,7 @@ func TestOverviewHeadlinePriorities(t *testing.T) {
 		{"attention event", func(a *renewApp) {
 			a.starting = false
 			a.connected = true
-			a.lastSync = time.Unix(1, 0)
+			a.healthReady = true
 			a.health.CaptureHealthy = true
 			a.eventStreamConnected = true
 			a.events = []eventSummary{{EventID: "attention", RiskScore: 65}}
@@ -47,20 +47,20 @@ func TestOverviewHeadlinePriorities(t *testing.T) {
 		{"fallback stream", func(a *renewApp) {
 			a.starting = false
 			a.connected = true
-			a.lastSync = time.Unix(1, 0)
+			a.healthReady = true
 			a.health.CaptureHealthy = true
 		}, "warning"},
 		{"system fallback", func(a *renewApp) {
 			a.starting = false
 			a.connected = true
-			a.lastSync = time.Unix(1, 0)
+			a.healthReady = true
 			a.health.CaptureHealthy = true
 			a.eventStreamConnected = true
 		}, "warning"},
 		{"healthy", func(a *renewApp) {
 			a.starting = false
 			a.connected = true
-			a.lastSync = time.Unix(1, 0)
+			a.healthReady = true
 			a.health.CaptureHealthy = true
 			a.eventStreamConnected = true
 			a.systemConnected = true
@@ -85,7 +85,13 @@ func TestCollectorStatusDoesNotReportFalseFailureBeforeFirstSync(t *testing.T) {
 	if label, level := a.collectorStatus(); label != "同步中" || level != "warning" {
 		t.Fatalf("initial collector status=(%q,%q)", label, level)
 	}
+	// Event traffic may update lastSync before the first health snapshot.
+	// It must not make the zero-value health struct look unhealthy.
 	a.lastSync = time.Unix(1, 0)
+	if label, level := a.collectorStatus(); label != "同步中" || level != "warning" {
+		t.Fatalf("event-only collector status=(%q,%q)", label, level)
+	}
+	a.healthReady = true
 	if label, level := a.collectorStatus(); label != "异常" || level != "danger" {
 		t.Fatalf("unhealthy collector status=(%q,%q)", label, level)
 	}
@@ -99,7 +105,7 @@ func TestOverviewActionTargetsRiskAndDiagnostics(t *testing.T) {
 	a := newRenewApp("http://127.0.0.1:8080")
 	a.starting = false
 	a.connected = true
-	a.lastSync = time.Unix(1, 0)
+	a.healthReady = true
 
 	if label, page, attention := a.overviewAction(); label != "打开系统诊断" || page != "系统" || attention {
 		t.Fatalf("capture action=(%q,%q,%v)", label, page, attention)
@@ -159,7 +165,7 @@ func TestPipelineStatus(t *testing.T) {
 	}
 	a.starting = false
 	a.connected = true
-	a.lastSync = time.Unix(1, 0)
+	a.healthReady = true
 	a.health.CaptureHealthy = true
 	a.eventStreamConnected = true
 	a.systemConnected = true
