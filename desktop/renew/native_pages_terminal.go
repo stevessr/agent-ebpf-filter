@@ -408,9 +408,9 @@ func (a *renewApp) terminalNodeView(c *ui.Context, tab *renewTerminalTab, n *ren
 	}
 	var box *ui.Element
 	if n.vertical {
-		box = ui.Column(c.Key(n.id))
+		box = ui.Column(c)
 	} else {
-		box = ui.Row(c.Key(n.id))
+		box = ui.Row(c)
 	}
 	box.MinWidth(0).MinHeight(0).AlignItems(ui.Stretch)
 	bounds := box.Bounds()
@@ -441,7 +441,7 @@ func (a *renewApp) terminalNodeView(c *ui.Context, tab *renewTerminalTab, n *ren
 
 func (a *renewApp) terminalPaneView(c *ui.Context, tab *renewTerminalTab, pane *renewTerminalPane) *ui.Element {
 	t := c.Theme()
-	col := ui.Column(c.Key(pane.id)).MinWidth(0).MinHeight(0).Radius(10).Clip().
+	col := ui.Column(c).MinWidth(0).MinHeight(0).Radius(10).Clip().
 		Background(t.Surface).Border(1, t.Border)
 	col.Children(func() {
 		header := ui.Row(c).Height(34).Padding(0, 10).Gap(8).AlignItems(ui.Center)
