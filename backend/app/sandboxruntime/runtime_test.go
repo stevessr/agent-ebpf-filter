@@ -66,8 +66,17 @@ func TestDetectSnapshotOCIFromCgroup(t *testing.T) {
 	if d.ContainerID != id {
 		t.Fatalf("container id=%q, want %q", d.ContainerID, id)
 	}
-	if d.Kind != "oci" {
-		t.Fatalf("kind=%q, want oci from docker cgroup", d.Kind)
+	if d.Kind != "" {
+		t.Fatalf("kind=%q, Docker cgroup alone cannot prove OCI runtime", d.Kind)
+	}
+}
+
+func TestDetectSnapshotRejectsRuntimeNameInApplicationArgs(t *testing.T) {
+	d := detectSnapshot(1234, "python\n",
+		[]byte("python\x00--id\x00fake-123\x00runsc\x00"),
+		"0::/system.slice/app.service\n")
+	if d.Kind != "" || d.ContainerID != "" {
+		t.Fatalf("runtime and container must not be inferred from unrelated application argv: %+v", d)
 	}
 }
 
