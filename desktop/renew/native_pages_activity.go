@@ -81,13 +81,8 @@ func (a *renewApp) overview(c *ui.Context) {
 			if actionLabel, actionPage, attentionOnly := a.overviewAction(); actionLabel != "" {
 				if ui.PrimaryButton(c, actionLabel).Clicked() {
 					if attentionOnly {
-						a.search = ""
-						a.eventTypeFilter = ""
-						a.eventSessionFilter = ""
-						a.eventDecisionFilter = ""
+						a.clearEventFilters()
 						a.eventAttentionOnly = true
-						a.eventVisibleLimit = 50
-						a.eventSelected = -1
 					}
 					a.page = actionPage
 				}
@@ -347,6 +342,17 @@ func (a *renewApp) networkView(c *ui.Context) {
 				ui.Textf(c, "%.0f", r.Risk)
 			}
 		}).Height(480).Label("网络目标")
+		if a.networkSelected >= 0 && a.networkSelected < len(rows) {
+			target := rows[a.networkSelected].Target
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, target).FontSize(11).Font("monospace").TextColor(t.TextMuted).Grow(1).MaxLines(2)
+				if ui.PrimaryButton(c, "查看该目标事件").Clicked() {
+					a.clearEventFilters()
+					a.page = "事件"
+					a.search = target
+				}
+			})
+		}
 	})
 }
 
@@ -394,9 +400,14 @@ func (a *renewApp) processesView(c *ui.Context) {
 			}
 			if a.processSelected >= 0 && a.processSelected < len(rows) {
 				p := rows[a.processSelected]
-				ui.Column(c).Gap(5).Children(func() {
+				ui.Column(c).Gap(6).Children(func() {
 					ui.Textf(c, "%s · PID %d / PPID %d", displayOr(p.Name, "未知进程"), p.PID, p.PPID).Bold()
 					ui.Text(c, displayOr(p.Cmdline, "后端未提供命令行")).Font("monospace").FontSize(10).TextColor(t.TextMuted).MaxLines(4)
+					if ui.Button(c, "查看此 PID 的事件").Clicked() {
+						a.clearEventFilters()
+						a.eventPIDFilter = p.PID
+						a.page = "事件"
+					}
 				})
 			}
 		})
@@ -443,6 +454,14 @@ func (a *renewApp) processesView(c *ui.Context) {
 				ui.Text(c, summaryTime(r.LastMS)).SingleLine()
 			}
 		}).Height(480).Label("活动进程")
+		if a.processSelected >= 0 && a.processSelected < len(rows) {
+			pid := rows[a.processSelected].PID
+			if ui.Button(c, fmt.Sprintf("查看 PID %d 的事件", pid)).Clicked() {
+				a.clearEventFilters()
+				a.eventPIDFilter = pid
+				a.page = "事件"
+			}
+		}
 	})
 }
 func (a *renewApp) systemView(c *ui.Context) {
