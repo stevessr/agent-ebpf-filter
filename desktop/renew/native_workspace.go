@@ -54,7 +54,9 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 	width, _ := c.Size()
 	ui.Row(c).Fill().AlignItems(ui.Stretch).Background(t.Background).Children(func() {
 		a.activityRail(c)
-		a.sidebar(c)
+		if a.navigationOpen {
+			a.sidebar(c)
+		}
 		ui.Column(c).Grow(1).MinWidth(0).Background(t.Background).Children(func() {
 			a.header(c)
 			ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Stretch).Children(func() {
@@ -139,8 +141,13 @@ func (a *renewApp) activityRail(c *ui.Context) {
 			}
 		}
 		ui.Spacer(c)
-		if ui.Button(c, "☰").Tooltip("跟踪范围").Width(40).Clicked() {
-			a.page = "跟踪"
+		navLabel := "≡"
+		navTip := "收起导航"
+		if !a.navigationOpen {
+			navLabel, navTip = "»", "展开导航"
+		}
+		if ui.Button(c, navLabel).Tooltip(navTip).Width(40).Clicked() {
+			a.navigationOpen = !a.navigationOpen
 		}
 	})
 }
@@ -232,11 +239,8 @@ func (a *renewApp) header(c *ui.Context) {
 					go a.refresh(context.Background())
 				}
 			}
-			if ui.Button(c, "刷新").Tooltip("同步最新状态").Clicked() {
-				go a.refresh(context.Background())
-				if a.page == "监控" || a.page == "规则" || a.page == "跟踪" {
-					go a.refreshConfiguration(context.Background())
-				}
+			if ui.Button(c, "刷新").Tooltip("重新读取当前页面的数据").Clicked() {
+				a.refreshActiveView()
 			}
 		})
 		ui.Divider(c)
@@ -244,6 +248,14 @@ func (a *renewApp) header(c *ui.Context) {
 			ui.Text(c, "工作区").FontSize(11).TextColor(t.TextMuted)
 			ui.Text(c, "›").TextColor(t.TextMuted)
 			ui.Badge(c, a.page).Background(t.Accent.Alpha(0.16)).TextColor(t.Accent)
+			if a.eventPIDFilter > 0 && pageUsesEventSearch(a.page) {
+				statusPill(c, fmt.Sprintf("PID %d", a.eventPIDFilter), t.Accent)
+				if ui.Button(c, "清除 PID").Clicked() {
+					a.eventPIDFilter = 0
+					a.eventSelected = -1
+					a.inspectorSelectedID = ""
+				}
+			}
 			ui.Spacer(c)
 			if pageHasInspector(a.page) {
 				width, _ := c.Size()
@@ -261,3 +273,22 @@ func (a *renewApp) header(c *ui.Context) {
 	})
 }
 
+
+func (a *renewApp) refreshActiveView() {
+	// Keep the continuously streamed metrics subscription intact: opening a
+	// second system WebSocket here would duplicate the collector workload.
+	go a.refresh(context.Background())
+	switch a.page {
+	case "监控":
+		go a.refreshConfiguration(context.Background())
+	case "规则":
+		go a.refreshRules(context.Background())
+	case "跟踪":
+		go a.refreshRegistry(context.Background())
+	case "eBPF 模块":
+		go a.refreshEBPFModules(context.Background())
+	case "路径权限":
+		go a.refreshPathAccess()
+		go a.refreshConfiguration(context.Background())
+	}
+}
