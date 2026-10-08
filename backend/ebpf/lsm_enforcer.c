@@ -8,6 +8,11 @@
 #define LSM_PATH_LEN 256
 #define LSM_NAME_LEN 64
 #define EACCES 13
+// The original pinned map value 1 still means deny execute.
+#define DENY_EXEC 1
+#define DENY_READ 2
+#define DENY_WRITE 4
+
 
 struct lsm_path_key {
 	char path[LSM_PATH_LEN];
@@ -75,6 +80,22 @@ static __always_inline int lsm_file_name_is_blocked(const unsigned char *name)
 	return blocked && *blocked;
 }
 
+// bpf_d_path reads the resolved absolute file path. When a path exceeds
+// 255 bytes, fail open rather than accidentally matching a truncated key.
+static __always_inline int check_path_access(struct file *file, __u32 access, struct lsm_enforcer_stats *stats)
+{
+	if (!file || !access) return 0;
+	struct lsm_path_key key = {};
+	long n = bpf_d_path(&file->f_path, key.path, sizeof(key.path));
+	if (n <= 1 || n > sizeof(key.path)) return 0;
+	__u32 *policy = bpf_map_lookup_elem(&lsm_blocked_exec_paths, &key);
+	if (policy && (*policy & access)) {
+		if (stats) stats->file_blocked++;
+		return -EACCES;
+	}
+	return 0;
+}
+
 static __always_inline int check_file_blocked(const unsigned char *name, struct lsm_enforcer_stats *stats)
 {
 	if (lsm_file_name_is_blocked(name)) {
@@ -109,7 +130,7 @@ int BPF_PROG(lsm_enforce_bprm_check, struct linux_binprm *bprm, int ret)
 	}
 
 	__u32 *blocked = bpf_map_lookup_elem(&lsm_blocked_exec_paths, &key);
-	if (blocked && *blocked) {
+	if (blocked && (*blocked & DENY_EXEC)) {
 		if (stats) {
 			stats->exec_blocked++;
 		}
@@ -140,80 +161,60 @@ int BPF_PROG(lsm_enforce_bprm_check, struct linux_binprm *bprm, int ret)
 SEC("lsm/file_open")
 int BPF_PROG(lsm_enforce_file_open, struct file *file, int ret)
 {
-	if (ret != 0) {
-		return ret;
-	}
-
+	if (ret != 0 || !file) return ret;
 	struct lsm_enforcer_stats *stats = get_lsm_stats();
-	if (stats) {
-		stats->file_checked++;
-	}
-
+	if (stats) stats->file_checked++;
 	const unsigned char *name = BPF_CORE_READ(file, f_path.dentry, d_name.name);
-	return check_file_blocked(name, stats);
+	int blocked = check_file_blocked(name, stats);
+	if (blocked) return blocked;
+	__u32 mode = BPF_CORE_READ(file, f_mode);
+	__u32 access = ((mode & 1) ? DENY_READ : 0) | ((mode & 2) ? DENY_WRITE : 0);
+	return check_path_access(file, access, stats);
 }
 
 SEC("lsm/file_permission")
 int BPF_PROG(lsm_enforce_file_permission, struct file *file, int mask, int ret)
 {
-	if (ret != 0) {
-		return ret;
-	}
-
+	if (ret != 0 || !file) return ret;
 	struct lsm_enforcer_stats *stats = get_lsm_stats();
-	if (stats) {
-		stats->file_checked++;
-	}
-
+	if (stats) stats->file_checked++;
 	const unsigned char *name = BPF_CORE_READ(file, f_path.dentry, d_name.name);
-	return check_file_blocked(name, stats);
+	int blocked = check_file_blocked(name, stats);
+	if (blocked) return blocked;
+	// MAY_READ = 4, MAY_WRITE = 2 (kernel fs.h).
+	__u32 access = ((mask & 4) ? DENY_READ : 0) | ((mask & 2) ? DENY_WRITE : 0);
+	return check_path_access(file, access, stats);
 }
 
 SEC("lsm/mmap_file")
 int BPF_PROG(lsm_enforce_mmap_file, struct file *file, unsigned long reqprot,
 	     unsigned long prot, unsigned long flags, int ret)
 {
-	if (ret != 0) {
-		return ret;
-	}
-
-	if (!file) {
-		return 0;
-	}
-
+	if (ret != 0 || !file) return ret;
 	struct lsm_enforcer_stats *stats = get_lsm_stats();
-	if (stats) {
-		stats->file_checked++;
-	}
-
+	if (stats) stats->file_checked++;
 	const unsigned char *name = BPF_CORE_READ(file, f_path.dentry, d_name.name);
-	return check_file_blocked(name, stats);
+	int blocked = check_file_blocked(name, stats);
+	if (blocked) return blocked;
+	// PROT_READ = 1, PROT_WRITE = 2.
+	__u32 access = ((prot & 1) ? DENY_READ : 0) | ((prot & 2) ? DENY_WRITE : 0);
+	return check_path_access(file, access, stats);
 }
 
 SEC("lsm/file_mprotect")
 int BPF_PROG(lsm_enforce_file_mprotect, struct vm_area_struct *vma, unsigned long reqprot,
 	     unsigned long prot, int ret)
 {
-	if (ret != 0) {
-		return ret;
-	}
-
-	if (!vma) {
-		return 0;
-	}
-
+	if (ret != 0 || !vma) return ret;
 	struct file *file = BPF_CORE_READ(vma, vm_file);
-	if (!file) {
-		return 0;
-	}
-
+	if (!file) return 0;
 	struct lsm_enforcer_stats *stats = get_lsm_stats();
-	if (stats) {
-		stats->file_checked++;
-	}
-
+	if (stats) stats->file_checked++;
 	const unsigned char *name = BPF_CORE_READ(file, f_path.dentry, d_name.name);
-	return check_file_blocked(name, stats);
+	int blocked = check_file_blocked(name, stats);
+	if (blocked) return blocked;
+	__u32 access = ((prot & 1) ? DENY_READ : 0) | ((prot & 2) ? DENY_WRITE : 0);
+	return check_path_access(file, access, stats);
 }
 
 SEC("lsm/inode_setattr")
