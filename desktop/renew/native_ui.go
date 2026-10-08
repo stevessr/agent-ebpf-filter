@@ -84,6 +84,7 @@ type renewApp struct {
 	pathSelected        int
 	prefixSelected      int
 	eventPIDFilter      int
+	eventRiskFilter     string
 	eventTypeFilter     string
 	eventSessionFilter  string
 	eventDecisionFilter string
@@ -414,7 +415,7 @@ func (a *renewApp) errorView(c *ui.Context) {
 
 func (a *renewApp) eventFilterCacheKey() string {
 	q := strings.ToLower(strings.TrimSpace(a.search))
-	key := q + "\x00" + a.eventTypeFilter + "\x00" + a.eventSessionFilter + "\x00" + a.eventDecisionFilter + "\x00" + fmt.Sprint(a.eventPIDFilter)
+	key := q + "\x00" + a.eventTypeFilter + "\x00" + a.eventSessionFilter + "\x00" + a.eventDecisionFilter + "\x00" + fmt.Sprint(a.eventPIDFilter) + "\x00" + a.eventRiskFilter
 	if a.eventAttentionOnly {
 		key += "\x001"
 	}
@@ -427,7 +428,7 @@ func (a *renewApp) filteredEvents() []eventSummary {
 	if a.filterCacheValid && a.filterCacheVersion == a.eventsVersion && a.filterCacheKey == key {
 		return a.filterCacheRows
 	}
-	if q == "" && a.eventPIDFilter == 0 && a.eventTypeFilter == "" && a.eventSessionFilter == "" && a.eventDecisionFilter == "" && !a.eventAttentionOnly {
+	if q == "" && a.eventPIDFilter == 0 && a.eventRiskFilter == "" && a.eventTypeFilter == "" && a.eventSessionFilter == "" && a.eventDecisionFilter == "" && !a.eventAttentionOnly {
 		a.filterCacheValid = true
 		a.filterCacheVersion = a.eventsVersion
 		a.filterCacheKey = key
@@ -438,6 +439,9 @@ func (a *renewApp) filteredEvents() []eventSummary {
 	out := make([]eventSummary, 0, min(len(a.events), 256))
 	for _, event := range a.events {
 		if q != "" && !strings.Contains(eventSearchText(event), q) {
+			continue
+		}
+		if a.eventRiskFilter != "" && eventRisk(event) != a.eventRiskFilter {
 			continue
 		}
 		if a.eventPIDFilter > 0 && event.PID != a.eventPIDFilter {
