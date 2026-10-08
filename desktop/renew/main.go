@@ -176,15 +176,4 @@ func resolveBackendURL(explicit string) (string, error) {
 	return strings.TrimRight(parsed.String(), "/"), nil
 }
 
-// Kept as a compatibility helper for links from the native desktop to the
-// full browser workbench.
-func joinRenewURL(backend string) string {
-	parsed, err := url.Parse(backend)
-	if err != nil {
-		return backend + "/renew"
-	}
-	parsed.Path = strings.TrimRight(parsed.Path, "/") + "/renew"
-	parsed.RawQuery = ""
-	parsed.Fragment = ""
-	return parsed.String()
-}
+

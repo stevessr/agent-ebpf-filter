@@ -160,16 +160,16 @@ func TestDesktopStaticAssets(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(dir, "assets"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("renew-bundle"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("frontend-bundle"), 0644); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("AGENT_FRONTEND_DIST", dir)
 	router := gin.New()
 	registerStaticRoutes(router)
 	response := httptest.NewRecorder()
-	router.ServeHTTP(response, httptest.NewRequest("GET", "/renew", nil))
-	if response.Code != 200 || response.Body.String() != "renew-bundle" {
-		t.Fatalf("bundled Renew route failed: %d", response.Code)
+	router.ServeHTTP(response, httptest.NewRequest("GET", "/dashboard", nil))
+	if response.Code != 200 || response.Body.String() != "frontend-bundle" {
+		t.Fatalf("bundled dashboard fallback failed: %d", response.Code)
 	}
 }
 

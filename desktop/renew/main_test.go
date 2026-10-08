@@ -49,12 +49,7 @@ func TestResolveBackendURLRejectsUnsupportedScheme(t *testing.T) {
 	}
 }
 
-func TestJoinRenewURL(t *testing.T) {
-	got := joinRenewURL("http://127.0.0.1:8080/base/")
-	if got != "http://127.0.0.1:8080/base/renew" {
-		t.Fatalf("joinRenewURL() = %q", got)
-	}
-}
+
 
 func TestInternalBackendArgs(t *testing.T) {
 	mode, args := internalBackendArgs([]string{"--backend", "http://127.0.0.1:8080"})
