@@ -44,6 +44,8 @@ jobs:
       - name: Prepare embedded backend sources
         working-directory: ${{ github.workspace }}
         run: ./scripts/renew-desktop.sh prepare
+      - name: Check module and checksum consistency
+        run: go mod tidy -diff
       - name: Download desktop dependencies
         run: go mod download
       - name: Download backend dependencies
@@ -51,6 +53,8 @@ jobs:
         run: go mod download
       - name: Test desktop single binary
         run: go test ./...
+      - name: Vet MyGo native UI element lifetimes
+        run: go tool mygo vet .
       - name: Compile desktop single binary
         run: go build ./...
       - name: Compile pure-Go embedded backend path
