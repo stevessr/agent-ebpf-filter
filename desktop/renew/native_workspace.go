@@ -323,11 +323,16 @@ func (a *renewApp) workspaceFooter(c *ui.Context) {
 	t := c.Theme()
 	_, attention, danger := a.riskCounts()
 	ui.Row(c).MinHeight(29).Padding(5, 12).Gap(12).AlignItems(ui.Center).Background(t.Surface).Children(func() {
-		if a.paused {
+		switch {
+		case a.starting:
+			statusPill(c, "启动中", t.Warning)
+		case !a.connected:
+			statusPill(c, "后端离线", t.Danger)
+		case a.paused:
 			statusPill(c, "界面已暂停", t.Warning)
-		} else if a.eventStreamConnected {
+		case a.eventStreamConnected:
 			statusPill(c, "事件流实时", t.Success)
-		} else {
+		default:
 			statusPill(c, "事件流回退", t.Warning)
 		}
 		ui.Text(c, fmt.Sprintf("摘要 %d", len(a.events))).FontSize(10).Font("monospace").TextColor(t.TextMuted)
