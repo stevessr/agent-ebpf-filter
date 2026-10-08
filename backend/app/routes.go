@@ -83,6 +83,10 @@ func registerNetworkRoutes(r gin.IRouter, ac *AppContext, features *FeatureRegis
 }
 
 func registerSandboxRoutes(r gin.IRouter, _ *AppContext, features *FeatureRegistry) {
+	r.GET("/sandbox/runtime/status", authMiddleware(), handleSandboxRuntimeStatus)
+	r.GET("/sandbox/runtime/detect", authMiddleware(), handleSandboxRuntimeDetect)
+	r.GET("/sandbox/runtime/active", authMiddleware(), handleSandboxRuntimeActive)
+
 	if features.CompiledIn(FeatureSandboxCgroup) {
 		r.GET("/sandbox/cgroup/status", authMiddleware(), handleCgroupSandboxStatus)
 		if features.CompiledIn(FeaturePolicyManagement) {
