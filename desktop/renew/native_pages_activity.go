@@ -58,8 +58,7 @@ func (a *renewApp) overview(c *ui.Context) {
 		})
 	})
 
-	ui.Text(c, "此刻的系统态势").FontSize(19).Bold()
-	ui.Text(c, "先了解采集链路与当前风险，再深入调查；未发现异常不代表不存在未观测到的风险。").FontSize(11).TextColor(t.TextMuted)
+	ui.Text(c, "运行态势基于采集健康与当前摘要窗口；未发现异常不代表没有未观测到的风险。").FontSize(11).TextColor(t.TextMuted)
 
 	headline, detail, level := a.overviewHeadline()
 	tone := t.Success
@@ -106,24 +105,6 @@ func (a *renewApp) overview(c *ui.Context) {
 			statCard(c, "CPU", fmt.Sprintf("%.1f%%", a.system.CPUTotal), fmt.Sprintf("%d 个实时进程", len(a.system.Processes)))
 			statCard(c, "内存", fmt.Sprintf("%.1f%%", a.system.MemPercent), fmt.Sprintf("%s / %s", formatBytes(int64(a.system.MemUsed)), formatBytes(int64(a.system.MemTotal))))
 		}
-	})
-
-	card(c, "常用操作", func() {
-		ui.Row(c).Gap(8).Wrap().Children(func() {
-			if ui.Button(c, "浏览事件记录").Clicked() {
-				a.page = "事件"
-			}
-			if ui.Button(c, "定位 Agent 会话").Clicked() {
-				a.page = "会话"
-			}
-			if ui.Button(c, "检查网络外联").Clicked() {
-				a.page = "网络"
-			}
-			if ui.Button(c, "调整采集与能力").Clicked() {
-				a.page = "监控"
-			}
-		})
-		ui.Text(c, "所有状态均以当前采集和摘要为依据；策略修改须经后端权限检查。").FontSize(11).TextColor(t.TextMuted)
 	})
 
 	card(c, "最近活动", func() {
