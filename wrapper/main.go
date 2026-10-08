@@ -253,7 +253,9 @@ func parseEnvFloat64(keys ...string) float64 {
 }
 
 func buildArgvDigest(comm string, args []string) string {
-	if comm == "" && len(args) == 0 { return "" }
+	if comm == "" && len(args) == 0 {
+		return ""
+	}
 	parts := make([]string, 0, len(args)+1)
 	parts = append(parts, comm)
 	parts = append(parts, args...)
@@ -272,7 +274,9 @@ func prepareCommandArgs(name string, rawArgs []string, verbatim bool) []string {
 	}
 	out := make([]string, 0, len(rawArgs))
 	for _, raw := range rawArgs {
-		if trimmed := strings.TrimSpace(raw); trimmed != "" { out = append(out, trimmed) }
+		if trimmed := strings.TrimSpace(raw); trimmed != "" {
+			out = append(out, trimmed)
+		}
 	}
 	return out
 }

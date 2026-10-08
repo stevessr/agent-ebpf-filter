@@ -90,8 +90,13 @@ onMounted(() => {
               CLI's own integration surface. Claude/Gemini/Codex use their native
               config files; Pi uses <code>~/.pi/agent/extensions/</code>; Oh My Pi
               uses <code>~/.omp/agent/extensions/</code> (or its active profile).
-              DeepSeek Harness uses a Cordis plugin registered in
+              DeepSeek Harness native monitoring uses a Cordis plugin registered in
               <code>$DSH_HOME/cordis.patch.yml</code> (default <code>~/.dsh</code>), across profiles.
+              <br />
+              <b>Harness subprocess provider</b> (optional): The separate
+              <code>dsh-exec</code> hook intercepts Harness-owned processes and
+              PTY execution without altering the native session/tool lifecycle hook.
+              Inspector network capture is connected separately using its authenticated API.
               <br />
               <b>Wrapper Hook</b>: Adds a shell alias so the CLI is
               transparently routed through <code>agent-wrapper</code>. Wrapper mode requires a shell reload.
