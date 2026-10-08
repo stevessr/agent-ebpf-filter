@@ -591,6 +591,18 @@ func initMLHandlersDeps() {
 	handlers.Deps.IsHookInstalled = isHookInstalled
 	handlers.Deps.InstallNativeHook = installNativeHook
 	handlers.Deps.UninstallNativeHook = uninstallNativeHook
+	handlers.Deps.InstallPluginHook = func(h core.HookDef) error {
+		if h.ID != "dsh" {
+			return fmt.Errorf("plugin hook installer is not implemented for %s", h.ID)
+		}
+		return installDshSubprocessPlugin()
+	}
+	handlers.Deps.UninstallPluginHook = func(h core.HookDef) error {
+		if h.ID != "dsh" {
+			return fmt.Errorf("plugin hook uninstaller is not implemented for %s", h.ID)
+		}
+		return uninstallDshSubprocessPlugin()
+	}
 	handlers.Deps.GetShellConfigPath = getShellConfigPath
 	handlers.Deps.EnsureKiroManagedAgentExists = ensureKiroManagedAgentExists
 }
