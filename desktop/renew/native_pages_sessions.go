@@ -186,9 +186,8 @@ func (a *renewApp) sessionsView(c *ui.Context) {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, selected.Label).FontSize(11).TextColor(t.TextMuted).Grow(1)
 				if ui.PrimaryButton(c, "查看此会话事件").Clicked() {
+					a.clearEventFilters()
 					a.eventSessionFilter = selected.Key
-					a.eventVisibleLimit = 50
-					a.eventSelected = -1
 					a.page = "事件"
 				}
 			})
