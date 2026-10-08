@@ -342,11 +342,17 @@ func (a *renewApp) sidebar(c *ui.Context) {
 			})
 			ui.SidebarSection(c, "诊断", nil, func() {
 				system := ui.SidebarItem(c, "系统", nil, "系统")
-				if !a.health.CaptureHealthy && !a.starting {
+				_, collectorLevel := a.collectorStatus()
+				switch {
+				case collectorLevel == "danger":
 					system.Children(func() {
 						statusPill(c, "异常", t.Danger)
 					})
-				} else if !a.systemConnected && a.connected {
+				case collectorLevel == "warning":
+					system.Children(func() {
+						statusPill(c, "同步", t.Warning)
+					})
+				case a.connected && (!a.eventStreamConnected || !a.systemConnected):
 					system.Children(func() {
 						statusPill(c, "降级", t.Warning)
 					})
@@ -415,6 +421,21 @@ func (a *renewApp) header(c *ui.Context) {
 			}
 		}).Label("页面操作")
 	})
+}
+
+func (a *renewApp) collectorStatus() (label, level string) {
+	switch {
+	case a.starting:
+		return "同步中", "warning"
+	case !a.connected:
+		return "离线", "danger"
+	case a.lastSync.IsZero():
+		return "同步中", "warning"
+	case !a.health.CaptureHealthy:
+		return "异常", "danger"
+	default:
+		return "正常", "success"
+	}
 }
 
 func (a *renewApp) pipelineStatus() (label, level string) {
