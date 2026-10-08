@@ -72,7 +72,11 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 						}
 					})
 				})
-				if showWorkspaceInspector(width, a.inspectorOpen, a.page) {
+				inspectorWidth := width
+				if !a.navigationOpen {
+					inspectorWidth += 198
+				}
+				if showWorkspaceInspector(inspectorWidth, a.inspectorOpen, a.page) {
 					a.inspector(c)
 				}
 			})
@@ -90,6 +94,8 @@ func (a *renewApp) workspacePage(c *ui.Context) {
 	switch a.page {
 	case "事件":
 		a.eventsView(c)
+	case "研判":
+		a.inspectorStandalone(c)
 	case "会话":
 		a.sessionsView(c)
 	case "网络":
@@ -125,11 +131,12 @@ func (a *renewApp) activityRail(c *ui.Context) {
 		for _, item := range []struct{ label, glyph string }{
 			{"概览", "⌂"},
 			{"事件", "☷"},
+			{"研判", "◇"},
 			{"会话", "◎"},
 			{"网络", "⇄"},
 			{"进程", "▣"},
 			{"监控", "◈"},
-			{"规则", "◇"},
+			{"规则", "▤"},
 			{"系统", "⚙"},
 		} {
 			marker := item.glyph
@@ -164,6 +171,7 @@ func (a *renewApp) sidebar(c *ui.Context) {
 		ui.Sidebar(c, &a.page, func() {
 			ui.SidebarSection(c, "监控工作台", nil, func() {
 				ui.SidebarItem(c, "概览", nil, "态势总览")
+				ui.SidebarItem(c, "研判", nil, "风险研判工作台")
 				events := ui.SidebarItem(c, "事件", nil, "事件流")
 				switch {
 				case danger > 0:
@@ -259,7 +267,11 @@ func (a *renewApp) header(c *ui.Context) {
 			ui.Spacer(c)
 			if pageHasInspector(a.page) {
 				width, _ := c.Size()
-				if width >= 1320 {
+				availableWidth := width
+				if !a.navigationOpen {
+					availableWidth += 198
+				}
+				if availableWidth >= 1320 {
 					label := "打开研判栏"
 					if a.inspectorOpen {
 						label = "收起研判栏"
@@ -267,6 +279,8 @@ func (a *renewApp) header(c *ui.Context) {
 					if ui.Button(c, label).Tooltip("宽窗口显示右侧事件上下文").Clicked() {
 						a.inspectorOpen = !a.inspectorOpen
 					}
+				} else if ui.Button(c, "打开研判页").Tooltip("在当前宽度以独立页面浏览研判信息").Clicked() {
+					a.page = "研判"
 				}
 			}
 		})
