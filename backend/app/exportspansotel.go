@@ -11,8 +11,6 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
-// ---- moved from backend/zz_merged_backend.go section exportspansotel.go ----
-
 type otelSpanHierarchy struct {
 	run  *activeOTelSpan
 	task *activeOTelSpan

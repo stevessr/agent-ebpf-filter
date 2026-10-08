@@ -13,8 +13,6 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
-// ---- moved from backend/zz_merged_backend.go section export_otel.go ----
-
 type OTelHealthResponse struct {
 	Enabled          bool   `json:"enabled"`
 	Ready            bool   `json:"ready"`

@@ -34,8 +34,9 @@ func RedactPath(path string, level redaction.RedactionLevel) string {
 
 // normalizeHomePath replaces concrete home directories with ~.
 // Examples:
-//   /home/user/file.txt -> ~/file.txt
-//   /Users/alice/.ssh/id_rsa -> ~/.ssh/id_rsa
+//
+//	/home/user/file.txt -> ~/file.txt
+//	/Users/alice/.ssh/id_rsa -> ~/.ssh/id_rsa
 func normalizeHomePath(path string) string {
 	path = strings.TrimSpace(path)
 	if path == "" {

@@ -6,8 +6,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// ---- moved from backend/zz_merged_backend.go section capturetypestls.go ----
-
 // Compact perf samples make the on-wire size metadata+DataLen rather than the
 // full Go/BPF struct, so increasing the scratch fragment does not penalize small
 // TLS calls. 1984 keeps a full compact sample at 2044 bytes and doubles the
@@ -40,6 +38,8 @@ const tlsFuncSSLWriteEx2 = 11
 const tlsFuncRustlsEncryptOutgoing = 12   // rustls RecordLayer::encrypt_outgoing (SEND plaintext)
 const tlsFuncRustlsConsumeFirstChunk = 13 // rustls Reader::consume + consume_first_chunk (RECV plaintext)
 
+const maxSignedNanoseconds = uint64(^uint64(0) >> 1)
+
 type tlsFragment struct {
 	TimestampNS  uint64
 	ConnectionID uint64
@@ -55,7 +55,10 @@ type tlsFragment struct {
 	Flags        uint8
 	Function     uint8
 	Comm         [16]byte
-	Data         [tlsFragmentSize]byte
+	// Data views the DataLen payload bytes inside the perf sample they were
+	// decoded from. It is only valid until the reader reuses that sample; the
+	// assembler makes the single owned copy that outlives it.
+	Data []byte
 }
 
 type CompletedTLSFragment struct {
@@ -76,31 +79,43 @@ type CompletedTLSFragment struct {
 }
 
 type TLSPlaintextEvent struct {
-	Type           string            `json:"type"`
-	Timestamp      time.Time         `json:"timestamp"`
-	PID            uint32            `json:"pid"`
-	TGID           uint32            `json:"tgid"`
-	Comm           string            `json:"comm"`
-	Direction      string            `json:"direction"`
-	Lib            string            `json:"lib"`
-	Function       string            `json:"function,omitempty"`
-	CapturedLen    int               `json:"captured_len"`
-	OriginalLen    int               `json:"original_len"`
-	Method         string            `json:"method,omitempty"`
-	URL            string            `json:"url,omitempty"`
-	Host           string            `json:"host,omitempty"`
-	StatusCode     int               `json:"status,omitempty"`
-	Headers        map[string]string `json:"headers,omitempty"`
-	Body           string            `json:"body,omitempty"`
-	BodySize       int               `json:"body_size"`
-	ContentType    string            `json:"content_type,omitempty"`
-	RawHexDump     string            `json:"raw_hex_dump,omitempty"`
-	RawAvailable   bool              `json:"raw_available"`
-	Truncated      bool              `json:"truncated"`
-	RedactionState string            `json:"redaction_state,omitempty"`
-	SSEEvent       string            `json:"sse_event,omitempty"`
-	SSEDataDigest  string            `json:"sse_data_digest,omitempty"`
-	SSEDataCount   int               `json:"sse_data_count,omitempty"`
+	Type               string            `json:"type"`
+	Timestamp          time.Time         `json:"timestamp"`
+	PID                uint32            `json:"pid"`
+	TGID               uint32            `json:"tgid"`
+	Comm               string            `json:"comm"`
+	Direction          string            `json:"direction"`
+	Lib                string            `json:"lib"`
+	Function           string            `json:"function,omitempty"`
+	CapturedLen        int               `json:"captured_len"`
+	OriginalLen        int               `json:"original_len"`
+	Method             string            `json:"method,omitempty"`
+	URL                string            `json:"url,omitempty"`
+	Host               string            `json:"host,omitempty"`
+	StatusCode         int               `json:"status,omitempty"`
+	Headers            map[string]string `json:"headers,omitempty"`
+	Body               string            `json:"body,omitempty"`
+	BodySize           int               `json:"body_size"`
+	ContentType        string            `json:"content_type,omitempty"`
+	RawHexDump         string            `json:"raw_hex_dump,omitempty"`
+	RawAvailable       bool              `json:"raw_available"`
+	Truncated          bool              `json:"truncated"`
+	RedactionState     string            `json:"redaction_state,omitempty"`
+	SSEEvent           string            `json:"sse_event,omitempty"`
+	SSEDataDigest      string            `json:"sse_data_digest,omitempty"`
+	SSEDataCount       int               `json:"sse_data_count,omitempty"`
+	ProtocolEvent      string            `json:"protocol_event,omitempty"`
+	StreamID           string            `json:"stream_id,omitempty"`
+	ResponseID         string            `json:"response_id,omitempty"`
+	PreviousResponseID string            `json:"previous_response_id,omitempty"`
+
+	// Probe timing is intentionally explicit for auditability. ProbeTimestampNS
+	// is the raw clock value emitted by the eBPF program. Live capture uses
+	// CLOCK_MONOTONIC (bpf_ktime_get_ns); replay fixtures may use Unix ns.
+	ProbeTimestampNS uint64    `json:"probe_timestamp_ns,omitempty"`
+	ProbeClock       string    `json:"probe_clock,omitempty"`
+	IngestTimestamp  time.Time `json:"ingest_timestamp,omitempty"`
+	CaptureDelayNS   uint64    `json:"capture_delay_ns,omitempty"`
 
 	// HTTP/2 metadata is safe protocol metadata. ConnectionID deliberately
 	// remains internal because it is derived from a userspace pointer.
@@ -119,11 +134,24 @@ type TLSPlaintextEvent struct {
 	TraceID        string `json:"trace_id,omitempty"`
 	SpanID         string `json:"span_id,omitempty"`
 
-	MessageRole  string `json:"message_role,omitempty"`
-	PromptDigest string `json:"prompt_digest,omitempty"`
-	PromptLen    int    `json:"prompt_len,omitempty"`
-	Vendor       string `json:"vendor,omitempty"`
-	LoopAlert    bool   `json:"loop_alert,omitempty"`
+	MessageRole   string `json:"message_role,omitempty"`
+	PromptDigest  string `json:"prompt_digest,omitempty"`
+	PromptLen     int    `json:"prompt_len,omitempty"`
+	ContextDigest string `json:"context_digest,omitempty"`
+	ContextLen    int    `json:"context_len,omitempty"`
+	ContextItems  int    `json:"context_items,omitempty"`
+	Vendor        string `json:"vendor,omitempty"`
+	LoopAlert     bool   `json:"loop_alert,omitempty"`
+
+	// Generalized API-capture metadata. These fields are derived from
+	// sanitized protocol metadata and are shared across TLS libraries.
+	CaptureSource string `json:"capture_source,omitempty"`
+	AppProtocol   string `json:"app_protocol,omitempty"`
+	RequestPath   string `json:"request_path,omitempty"`
+	APIProfile    string `json:"api_profile,omitempty"`
+	APIProduct    string `json:"api_product,omitempty"`
+	APIOperation  string `json:"api_operation,omitempty"`
+	APIConfidence uint32 `json:"api_confidence,omitempty"`
 
 	// AgentSight-compatible fields (from sslsniff reference)
 	UID         uint32  `json:"uid,omitempty"`
@@ -151,29 +179,63 @@ type TLSCaptureStats struct {
 	LastFragmentNS uint64             `json:"lastFragmentNs,omitempty"`
 }
 
-// bpfKtimeToWallClock converts bpf_ktime_get_ns() (CLOCK_MONOTONIC-like
-// nanoseconds since boot) into a wall-clock timestamp while preserving when the
-// probe actually fired. Returning time.Now() here would shift every event to
-// userspace assembly time and destroy ordering/latency information.
-func bpfKtimeToWallClock(monoNS uint64) time.Time {
-	now := time.Now().UTC()
-	if monoNS == 0 {
-		return now
+type bpfKtimeObservation struct {
+	Captured time.Time
+	Ingested time.Time
+	DelayNS  uint64
+	Clock    string
+}
+
+// observeBPFKtime maps the raw timestamp emitted by the TLS probe to wall clock
+// and also returns kernel→userspace delay. Using one CLOCK_MONOTONIC snapshot
+// keeps ordering and latency measurement independent of wall-clock adjustments.
+// Offline/replay fixtures that contain plausible Unix ns remain supported.
+func observeBPFKtime(rawNS uint64) bpfKtimeObservation {
+	ingested := time.Now().UTC()
+	observation := bpfKtimeObservation{
+		Captured: ingested,
+		Ingested: ingested,
+		Clock:    "unknown",
+	}
+	if rawNS == 0 {
+		return observation
+	}
+
+	if rawNS >= tlsPlausibleUnixNSThreshold && rawNS <= maxSignedNanoseconds {
+		captured := time.Unix(0, int64(rawNS)).UTC()
+		if !captured.After(ingested.Add(time.Minute)) {
+			observation.Captured = captured
+			observation.Clock = "unix_replay"
+			if !captured.After(ingested) {
+				observation.DelayNS = uint64(ingested.Sub(captured))
+			}
+			return observation
+		}
 	}
 
 	var currentMono unix.Timespec
 	if err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &currentMono); err != nil {
-		return now
+		return observation
 	}
 	if currentMono.Sec < 0 || currentMono.Nsec < 0 {
-		return now
+		return observation
 	}
 	currentMonoNS := uint64(currentMono.Sec)*uint64(time.Second) + uint64(currentMono.Nsec)
-	if monoNS > currentMonoNS {
-		// A future monotonic timestamp cannot be mapped reliably; avoid emitting
-		// a future wall-clock event because it would poison timeline ordering.
-		return now
+	if rawNS > currentMonoNS {
+		return observation
 	}
 
-	return now.Add(-time.Duration(currentMonoNS - monoNS))
+	delta := currentMonoNS - rawNS
+	observation.DelayNS = delta
+	observation.Clock = "monotonic"
+	if delta <= maxSignedNanoseconds {
+		observation.Captured = ingested.Add(-time.Duration(delta))
+	}
+	return observation
+}
+
+// bpfKtimeToWallClock remains the compatibility entry point used by parsers and
+// tests while observeBPFKtime exposes the full audit timing tuple.
+func bpfKtimeToWallClock(monoNS uint64) time.Time {
+	return observeBPFKtime(monoNS).Captured
 }

@@ -24,28 +24,32 @@ sequenceDiagram
     eBPF->>Maps: 检索过滤条件 (tracked_comms / paths / pids)
     Maps-->>eBPF: 返回命中状态 (Match Result)
     eBPF->>Ringbuf: 异步提交事件报文 (Zero-copy Reserve)
-    Ringbuf->>Reader: 通知 RawSample 事件就绪
-    Reader->>Decoder: 投递原始切片 decode(RawSample)
+    Ringbuf->>Reader: ReadInto(&record) 复用同一块 sample 缓冲
+    Reader->>Decoder: 投递原始切片 decode(record.RawSample)
 
     alt 满足 Native Little-Endian 且 内存对齐 (Aligned)
-        Decoder->>Decoder: 内存指针对齐变换：mmap-backed view (零拷贝)
+        Decoder->>Decoder: 指针变换：直接把 sample 视为 *bpfEvent (零拷贝)
     else 异常场景或非对齐架构退化
         Decoder->>Decoder: binary.Read 深度复制缓冲 (Copy Path)
     end
 
-    Decoder->>Builder: 规整后的 raw bpfEvent 结构体
-    Builder->>Builder: 动态富化进程上下文 (Enrich Process Context)
-    Builder->>Broadcast: 分发归一化的 pb.EventEnvelope
+    Decoder->>Builder: raw bpfEvent 视图（仅在下一次 ReadInto 前有效）
+    Builder->>Builder: 只拷贝字符串有效前缀 + 内核风险评分
+    Builder->>Broadcast: 入队 *pb.Event（所有权移交 broadcaster）
+    Broadcast->>Broadcast: 语义告警 → 原地归一化/脱敏（不再 clone）
     Broadcast->>Archive: 压入内存环形缓冲区 (In-Memory Ring)
-    Broadcast->>WS: 多路复用实时分发
-    WS->>Vue: WebSocket 高频数据推送
-    Archive->>Archive: (可选) 异步触发落盘 JSONL 固化
+    Broadcast->>WS: 每 50 ms / 50 条打包成 EventBatch，序列化一次
+    WS->>Vue: wsfanout 共享 PreparedMessage 帧向所有订阅者向量写
+    Archive->>Archive: 默认异步写入 Pebble LSM；显式 .jsonl 路径保留兼容 writer
 
 ```
 
 ### 🔬 核心底控：Ringbuf 零拷贝解码机制
 
-后端在 `decodeBPFEventRecord()` 热路径中实施了极致的性能压榨。在常见的 `x86_64`（小端、天然内存对齐）Linux 环境下，系统直接通过 `unsafe.Pointer` 进行指针对齐变换，消除应用层二次拷贝成本：
+后端在 `decodeBPFEventRecord()` 热路径中实施了极致的性能压榨。读取循环持有一个
+`ringbuf.Record` 并通过 `ReadInto` 复用其 `RawSample`，内核 ring 到用户态只发生一次必要
+拷贝；在常见的 `x86_64`（小端、天然内存对齐）Linux 环境下，系统直接通过 `unsafe.Pointer`
+把这块缓冲视为 `*bpfEvent`，消除应用层二次拷贝成本：
 
 ```go
 func decodeBPFEventRecord(sample []byte) (*bpfEvent, error) {
@@ -72,12 +76,20 @@ func decodeBPFEventRecord(sample []byte) (*bpfEvent, error) {
 
 ```
 
+字符串字段（comm / path / extra4）由 `events.SanitizeUTF8()` 先在字节视图上用 `IndexByte`
+定界，只把有效前缀拷贝成 Go 字符串；协议探测通过 `events.TrimNUL()` 直接读原始 payload 视图。
+`*bpfEvent` 视图只在下一次 `ReadInto` 前有效，任何需要保留的数据都必须在
+`buildKernelEventFromRaw()` 内完成拷贝。
+
 #### 📌 关键源码入口
 
 - **内核探针端**：`backend/ebpf/agent_tracker.c`、`backend/ebpf/agent_tracker_common.h`
 - **常驻消费端**：`backend/app/jobs_background.go`
+- **事件构建 / 风险评分**：`backend/app/events/events_network.go`、`backend/app/events/kernel_risk.go`
 - **上下文聚合**：`backend/app/events/context_event.go`、`backend/app/events/graph_execution.go`
+- **WebSocket 扇出**：`backend/internal/wsfanout/hub.go`、`backend/app/ws_api.go`
 - **协议描述符**：`proto/tracker_events.proto`
+- **终端监视器**：`tools/agent-tui`（订阅同一条 `/ws` 与 `/ws/tls-capture` 流）
 
 ## 🛡️ 2. Wrapper 命令策略流 (同步安全阻断)
 
@@ -238,7 +250,7 @@ graph TB
     end
 
     subgraph Tgt_Block ["【多元消费端】交付与集成矩阵 (Export Targets)"]
-        JSONL["📄 结构化日志落盘<br/>(~/.config/.../events.jsonl)"]:::tgtCls
+        LocalDB["💾 本地事件数据库<br/>(~/.config/.../events.pebble)"]:::tgtCls
         Recording["📼 帧级快照录制件<br/>(Replay Engine 离线回放)"]:::tgtCls
         PCAP["🦈 标准二进制网络报文<br/>(PCAP Wireshark 格式)"]:::tgtCls
         AgentSight["🔬 AgentSight 精准交付物<br/>(JSON / CSV 复盘包)"]:::tgtCls
@@ -248,7 +260,7 @@ graph TB
     end
 
     %% 流向绑定
-    Archive -->|全量事件持久化开关开启| JSONL
+    Archive -->|默认完整事件持久化| LocalDB
     Archive -->|离线安全审计会话捕获| Recording
     Flows -->|全网流量沙箱取证抽头| PCAP
     Graph -->|工作台全局拓扑数据快照| AgentSight
@@ -263,7 +275,7 @@ graph TB
 
 | 导出通道名称               | 数据源头 (From)               | 物理流向目标 (To)                          | 核心应用场景与生产价值                                                                 |
 | -------------------------- | ----------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------- |
-| **JSONL Persistence**      | `CapturedEventArchive` 内存环 | `~/.config/agent-ebpf-filter/events.jsonl` | 本地安全合规审计，长期无损历史事件冷增量固化。                                         |
+| **Pebble Event Store**     | `CapturedEventArchive` / 实时事件流 | `~/.config/agent-ebpf-filter/events.pebble` | 默认本地完整事件持久化、按 event ID 查询；显式 `.jsonl` 路径保留兼容模式。              |
 | **Event Recording**        | 事件流快照 / 拓扑图帧         | 文件系统流化件或浏览器 Memory              | 针对高危黑客攻防、恶意脚本破坏过程的“帧级”重现与复盘。                                 |
 | **Network Export**         | L4/L7 异步 Flow 存储字典      | 结构化 JSONL 或标准二进制 `.pcap` 报文     | 用于网络侧流量特征二次深度挖掘与标准 WireShark 工具链取证。                            |
 | **AgentSight Export**      | `EventEnvelope` 统一上下文    | 标准多维 JSON / 结构化 CSV 格式            | 提供跨团队安全分析报告的高效转换，方便报表化交付。                                     |

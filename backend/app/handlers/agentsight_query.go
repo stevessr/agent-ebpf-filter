@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"agent-ebpf-filter/app/events"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -125,9 +126,8 @@ func agentSightQueryFromRequest(c *gin.Context) AgentSightEventQuery {
 	return query
 }
 
-// recentEventFiltersFromRequest delegates to the app-level function via Deps.
-func recentEventFiltersFromRequest(c *gin.Context) any {
-	return Deps.RecentEventFiltersFromRequest(c)
+func recentEventFiltersFromRequest(c *gin.Context) events.RecentEventFilters {
+	return events.RecentEventFiltersFromRequest(c)
 }
 
 func agentSightQueryFromJSONRequest(c *gin.Context) (AgentSightEventQuery, error) {
@@ -170,24 +170,26 @@ func agentSightQueryFromJSONRequest(c *gin.Context) (AgentSightEventQuery, error
 		}
 	}
 	query.Search = platform.FirstNonEmpty(body.Filter, body.Search, body.Query, query.Search)
-	query.Filters = setRecentEventFilterSource(body.Source, query.Filters)
+	// Body fields override the matching query parameters when present.
+	filters := &query.Filters
+	filters.Source = platform.FirstNonEmpty(body.Source, filters.Source)
 	query.Sources = append(query.Sources, normalizeAgentSightTerms(body.Sources)...)
-	query.Filters = setRecentEventFilterType(body.Type, query.Filters)
-	query.Filters = setRecentEventFilterEventType(platform.FirstNonEmpty(body.EventType, body.EventTypeCamel), query.Filters)
+	filters.Type = platform.FirstNonEmpty(body.Type, filters.Type)
+	filters.EventType = platform.FirstNonEmpty(body.EventType, body.EventTypeCamel, filters.EventType)
 	query.EventTypes = append(query.EventTypes, normalizeAgentSightTerms(body.EventTypes)...)
 	if body.PID != 0 {
-		query.Filters = setRecentEventFilterPID(body.PID, query.Filters)
+		filters.PID = body.PID
 	}
 	query.PIDs = append(query.PIDs, body.PIDs...)
-	query.Filters = setRecentEventFilterComm(body.Comm, query.Filters)
-	query.Filters = setRecentEventFilterTraceID(platform.FirstNonEmpty(body.TraceID, body.TraceIDCamel), query.Filters)
-	query.Filters = setRecentEventFilterSpanID(platform.FirstNonEmpty(body.SpanID, body.SpanIDCamel), query.Filters)
-	query.Filters = setRecentEventFilterRedactionState(body.RedactionState, query.Filters)
+	filters.Comm = platform.FirstNonEmpty(body.Comm, filters.Comm)
+	filters.TraceID = platform.FirstNonEmpty(body.TraceID, body.TraceIDCamel, filters.TraceID)
+	filters.SpanID = platform.FirstNonEmpty(body.SpanID, body.SpanIDCamel, filters.SpanID)
+	filters.RedactionState = platform.FirstNonEmpty(body.RedactionState, filters.RedactionState)
 	if parsed := parseAgentSightTimeAny(body.Since); !parsed.IsZero() {
-		query.Filters = setRecentEventFilterSince(parsed, query.Filters)
+		filters.Since = parsed
 	}
 	if parsed := parseAgentSightTimeAny(body.Until); !parsed.IsZero() {
-		query.Filters = setRecentEventFilterUntil(parsed, query.Filters)
+		filters.Until = parsed
 	}
 	if body.IncludeTLS != nil {
 		query.IncludeTLS = *body.IncludeTLS
@@ -415,46 +417,46 @@ func agentSightExportEventMatches(event AgentSightExportEvent, query AgentSightE
 	if len(query.Sources) > 0 && !agentSightStringInList(event.Source, query.Sources) {
 		return false
 	}
-	// Filters.Source, Filters.Type, etc. are accessed via type assertion from the `any` field
-	if filterStr := recentEventFilterField(query.Filters, "source"); filterStr != "" && !strings.EqualFold(event.Source, filterStr) {
+	filters := query.Filters
+	if filters.Source != "" && !strings.EqualFold(event.Source, filters.Source) {
 		return false
 	}
 	if len(query.PIDs) > 0 && !agentSightUint32InList(event.PID, query.PIDs) {
 		return false
 	}
-	if filterPID := recentEventFilterUint32(query.Filters, "pid"); filterPID != 0 && event.PID != filterPID {
+	if filters.PID != 0 && event.PID != filters.PID {
 		return false
 	}
-	if filterComm := recentEventFilterField(query.Filters, "comm"); filterComm != "" && !strings.Contains(strings.ToLower(event.Comm), strings.ToLower(filterComm)) {
+	if filters.Comm != "" && !strings.Contains(strings.ToLower(event.Comm), strings.ToLower(filters.Comm)) {
 		return false
 	}
-	if filterTrace := recentEventFilterField(query.Filters, "trace_id"); filterTrace != "" && event.TraceID != filterTrace {
+	if filters.TraceID != "" && event.TraceID != filters.TraceID {
 		return false
 	}
-	if filterSpan := recentEventFilterField(query.Filters, "span_id"); filterSpan != "" && event.SpanID != filterSpan {
+	if filters.SpanID != "" && event.SpanID != filters.SpanID {
 		return false
 	}
-	if filterType := recentEventFilterField(query.Filters, "type"); filterType != "" && !strings.EqualFold(stringFromMap(event.Data, "type"), filterType) {
+	if filters.Type != "" && !strings.EqualFold(stringFromMap(event.Data, "type"), filters.Type) {
 		return false
 	}
 	eventType := platform.FirstNonEmpty(stringFromMap(event.Data, "event_type"), stringFromMap(event.Data, "eventType"), stringFromMap(event.Data, "type"))
 	if len(query.EventTypes) > 0 && !agentSightStringInList(eventType, query.EventTypes) {
 		return false
 	}
-	if filterET := recentEventFilterField(query.Filters, "event_type"); filterET != "" && !strings.EqualFold(eventType, filterET) {
+	if filters.EventType != "" && !strings.EqualFold(eventType, filters.EventType) {
 		return false
 	}
-	if filterRedaction := recentEventFilterField(query.Filters, "redaction_state"); filterRedaction != "" {
+	if filters.RedactionState != "" {
 		redaction := platform.FirstNonEmpty(stringFromMap(event.Data, "redaction_state"), stringFromMap(event.Data, "redactionState"))
-		if !strings.EqualFold(redaction, filterRedaction) {
+		if !strings.EqualFold(redaction, filters.RedactionState) {
 			return false
 		}
 	}
 	eventTime := time.UnixMilli(event.Timestamp)
-	if filterSince := recentEventFilterTime(query.Filters, "since"); !filterSince.IsZero() && eventTime.Before(filterSince) {
+	if !filters.Since.IsZero() && eventTime.Before(filters.Since) {
 		return false
 	}
-	if filterUntil := recentEventFilterTime(query.Filters, "until"); !filterUntil.IsZero() && eventTime.After(filterUntil) {
+	if !filters.Until.IsZero() && eventTime.After(filters.Until) {
 		return false
 	}
 	if strings.TrimSpace(query.Search) != "" {
@@ -464,145 +466,6 @@ func agentSightExportEventMatches(event AgentSightExportEvent, query AgentSightE
 		}
 	}
 	return true
-}
-
-// recentEventFilterField extracts a string field from the opaque filter type.
-func recentEventFilterField(filters any, field string) string {
-	if m, ok := filters.(map[string]any); ok {
-		if v, ok := m[field]; ok {
-			if s, ok := v.(string); ok {
-				return s
-			}
-		}
-	}
-	return ""
-}
-
-func recentEventFilterUint32(filters any, field string) uint32 {
-	if m, ok := filters.(map[string]any); ok {
-		if v, ok := m[field]; ok {
-			switch t := v.(type) {
-			case uint32:
-				return t
-			case int:
-				return uint32(t)
-			}
-		}
-	}
-	return 0
-}
-
-func recentEventFilterTime(filters any, field string) time.Time {
-	if m, ok := filters.(map[string]any); ok {
-		if v, ok := m[field]; ok {
-			if t, ok := v.(time.Time); ok {
-				return t
-			}
-		}
-	}
-	return time.Time{}
-}
-
-// Filter builder helpers for JSON request parsing
-func setRecentEventFilterSource(source string, filters any) any {
-	if source == "" {
-		return filters
-	}
-	if m, ok := filters.(map[string]any); ok {
-		m["source"] = source
-		return m
-	}
-	return map[string]any{"source": source}
-}
-
-func setRecentEventFilterType(typ string, filters any) any {
-	if typ == "" {
-		return filters
-	}
-	if m, ok := filters.(map[string]any); ok {
-		m["type"] = typ
-		return m
-	}
-	return map[string]any{"type": typ}
-}
-
-func setRecentEventFilterEventType(et string, filters any) any {
-	if et == "" {
-		return filters
-	}
-	if m, ok := filters.(map[string]any); ok {
-		m["event_type"] = et
-		return m
-	}
-	return map[string]any{"event_type": et}
-}
-
-func setRecentEventFilterPID(pid uint32, filters any) any {
-	if m, ok := filters.(map[string]any); ok {
-		m["pid"] = pid
-		return m
-	}
-	return map[string]any{"pid": pid}
-}
-
-func setRecentEventFilterComm(comm string, filters any) any {
-	if comm == "" {
-		return filters
-	}
-	if m, ok := filters.(map[string]any); ok {
-		m["comm"] = comm
-		return m
-	}
-	return map[string]any{"comm": comm}
-}
-
-func setRecentEventFilterTraceID(traceID string, filters any) any {
-	if traceID == "" {
-		return filters
-	}
-	if m, ok := filters.(map[string]any); ok {
-		m["trace_id"] = traceID
-		return m
-	}
-	return map[string]any{"trace_id": traceID}
-}
-
-func setRecentEventFilterSpanID(spanID string, filters any) any {
-	if spanID == "" {
-		return filters
-	}
-	if m, ok := filters.(map[string]any); ok {
-		m["span_id"] = spanID
-		return m
-	}
-	return map[string]any{"span_id": spanID}
-}
-
-func setRecentEventFilterRedactionState(state string, filters any) any {
-	if state == "" {
-		return filters
-	}
-	if m, ok := filters.(map[string]any); ok {
-		m["redaction_state"] = state
-		return m
-	}
-	return map[string]any{"redaction_state": state}
-}
-
-func setRecentEventFilterSince(since time.Time, filters any) any {
-	if m, ok := filters.(map[string]any); ok {
-		m["since"] = since
-		return m
-	}
-	return map[string]any{"since": since}
-}
-
-func setRecentEventFilterUntil(until time.Time, filters any) any {
-	if m, ok := filters.(map[string]any); ok {
-		m["until"] = until
-		return m
-	}
-	return map[string]any{"until": until}
 }
 
 // ── Runner ID assignment ─────────────────────────────────────────────

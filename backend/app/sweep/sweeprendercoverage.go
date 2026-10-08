@@ -5,8 +5,6 @@ import (
 	"os"
 )
 
-// ---- moved from backend/zz_merged_backend.go section sweeprendercoverage.go ----
-
 type sweepCoverage struct {
 	Summary  map[string]any         `json:"summary"`
 	Datasets []map[string]any       `json:"datasets"`

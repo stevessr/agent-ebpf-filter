@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"agent-ebpf-filter/app/events"
 	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/app/tls"
 	"agent-ebpf-filter/pb"
@@ -119,7 +120,7 @@ func agentSightEventFromDecodedPayload(decoded any, index int) (AgentSightExport
 }
 
 func agentSightEventFromCapturedRecord(record CapturedEventRecord) AgentSightExportEvent {
-	record = Deps.NormalizeCapturedEventRecord(record)
+	record = events.NormalizeCapturedEventRecord(record)
 	envelope := record.Envelope
 	event := record.Event
 
@@ -133,7 +134,7 @@ func agentSightEventFromCapturedRecord(record CapturedEventRecord) AgentSightExp
 
 	// Envelope conversion already serializes legacy_event. Reuse that decoded
 	// map instead of independently serializing the same *pb.Event a second time.
-	envelopeMap := Deps.EventEnvelopeToJSONValue(envelope)
+	envelopeMap := events.EnvelopeToJSONValue(envelope)
 	eventMap := mapFromAny(envelopeMap["legacy_event"])
 	if eventMap == nil {
 		eventMap = mapFromAny(envelopeMap["legacyEvent"])
@@ -152,7 +153,7 @@ func agentSightEventFromCapturedRecord(record CapturedEventRecord) AgentSightExp
 		}
 	}
 
-	eventType := Deps.EnvelopeEventTypeName(envelope, event)
+	eventType := events.EnvelopeEventTypeName(envelope, event)
 	if eventType == "" {
 		eventType = platform.FirstNonEmpty(stringFromMap(data, "event_type"), stringFromMap(data, "eventType"), stringFromMap(data, "type"))
 	}
@@ -249,6 +250,18 @@ func agentSightTLSData(event tls.TLSPlaintextEvent, timestamp time.Time) map[str
 	if event.SSEDataCount != 0 {
 		data["sse_data_count"] = event.SSEDataCount
 	}
+	if event.ProtocolEvent != "" {
+		data["protocol_event"] = event.ProtocolEvent
+	}
+	if event.StreamID != "" {
+		data["stream_id"] = event.StreamID
+	}
+	if event.ResponseID != "" {
+		data["response_id"] = event.ResponseID
+	}
+	if event.PreviousResponseID != "" {
+		data["previous_response_id"] = event.PreviousResponseID
+	}
 	if event.RootAgentPID != 0 {
 		data["root_agent_pid"] = event.RootAgentPID
 	}
@@ -284,6 +297,15 @@ func agentSightTLSData(event tls.TLSPlaintextEvent, timestamp time.Time) map[str
 	}
 	if event.PromptLen != 0 {
 		data["prompt_len"] = event.PromptLen
+	}
+	if event.ContextDigest != "" {
+		data["context_digest"] = event.ContextDigest
+	}
+	if event.ContextLen != 0 {
+		data["context_len"] = event.ContextLen
+	}
+	if event.ContextItems != 0 {
+		data["context_items"] = event.ContextItems
 	}
 	if event.Vendor != "" {
 		data["vendor"] = event.Vendor

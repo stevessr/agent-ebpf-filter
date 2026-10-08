@@ -6,8 +6,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend.go section trainer_linear.go ----
-
 // ── Linear SVM ─────────────────────────────────────────────────────
 
 func (t *ModelTrainer) trainSVM(store *TrainingDataStore, cfg MLConfig) (Model, TrainResult) {

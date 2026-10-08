@@ -7,8 +7,6 @@ import (
 	"strings"
 )
 
-// ---- moved from backend/zz_merged_backend.go section ws_ml.go ----
-
 // buildMLStatusJSON builds the complete ML status payload as JSON bytes.
 // Shared by the HTTP handler and the WebSocket handler.
 func buildMLStatusJSON() []byte {

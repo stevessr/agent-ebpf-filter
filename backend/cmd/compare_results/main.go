@@ -12,13 +12,13 @@ import (
 )
 
 type resultRow struct {
-	Script       string
-	Model        string
-	Accuracy     string
-	TrainTime    string
-	Inference    string
-	RawOutput    string
-	ExitError    error
+	Script    string
+	Model     string
+	Accuracy  string
+	TrainTime string
+	Inference string
+	RawOutput string
+	ExitError error
 }
 
 func main() {
@@ -69,7 +69,7 @@ func runScript(root, rel string) resultRow {
 	row := resultRow{
 		Script:    rel,
 		Model:     inferModelName(rel, out),
-		Accuracy:   pickMetric(out, `(?m)^(?:validation_accuracy|baseline_validation_accuracy|attention_validation_accuracy)=([0-9.]+%)`, `(?m)^(?:validation_accuracy|baseline_validation_accuracy|attention_validation_accuracy)=([0-9.]+%)`),
+		Accuracy:  pickMetric(out, `(?m)^(?:validation_accuracy|baseline_validation_accuracy|attention_validation_accuracy)=([0-9.]+%)`, `(?m)^(?:validation_accuracy|baseline_validation_accuracy|attention_validation_accuracy)=([0-9.]+%)`),
 		TrainTime: pickMetric(out, `(?m)^(?:training_time|baseline_training_time|attention_training_time)=([0-9a-zA-Z.µs]+)`, `(?m)^(?:training_time|baseline_training_time|attention_training_time)=([0-9a-zA-Z.µs]+)`),
 		Inference: pickInference(out),
 		RawOutput: out,

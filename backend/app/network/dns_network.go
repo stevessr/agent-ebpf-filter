@@ -7,8 +7,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend.go section dns_network.go ----
-
 type dnsCache = netcore.DNSCache
 
 type dnsCacheSnapshotEntry = netcore.DNSCacheSnapshotEntry

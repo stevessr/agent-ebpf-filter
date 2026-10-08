@@ -5,8 +5,6 @@ import (
 	"sort"
 )
 
-// ---- moved from backend/zz_merged_backend.go section trainer_tree.go ----
-
 // buildTree recursively builds a decision tree using Gini impurity
 func buildTree(samples []TrainSample, depth, maxDepth, minSamplesLeaf, featureSampleCount int, rng *rand.Rand) []DecisionNode {
 	if depth >= maxDepth || len(samples) < minSamplesLeaf*2 {

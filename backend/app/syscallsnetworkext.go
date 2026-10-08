@@ -1,7 +1,5 @@
 package app
 
-// ---- moved from backend/zz_merged_backend.go section syscallsnetworkext.go ----
-
 func syscallNameExtended(nr uint32) string {
 	switch {
 	case nr <= 200:

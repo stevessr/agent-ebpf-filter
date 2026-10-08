@@ -3,7 +3,6 @@ package app
 import (
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -86,10 +85,10 @@ func TestAuthMiddleware(t *testing.T) {
 			}
 			defer gin.SetMode(gin.TestMode)
 
-			if tt.disableAuth != "" {
-				os.Setenv("DISABLE_AUTH", tt.disableAuth)
-				defer os.Unsetenv("DISABLE_AUTH")
-			}
+			// Always pin the variable: a developer's .env.dev exports
+			// DISABLE_AUTH=true into make's environment, which would otherwise
+			// leak into the release-mode cases.
+			t.Setenv("DISABLE_AUTH", tt.disableAuth)
 
 			router := gin.New()
 			router.Use(authMiddleware())
@@ -121,6 +120,7 @@ func TestAuthMiddleware(t *testing.T) {
 func TestAuthMiddleware_EmptyToken(t *testing.T) {
 	gin.SetMode(gin.ReleaseMode)
 	defer gin.SetMode(gin.TestMode)
+	t.Setenv("DISABLE_AUTH", "")
 
 	mockStore := &runtimeState{}
 	mockStore.settings.AccessToken = ""

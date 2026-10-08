@@ -95,7 +95,7 @@ func TestHandlerCompileRegistersDraftAndArtifactDigest(t *testing.T) {
 	t.Cleanup(func() { pluginRegistry = oldRegistry })
 	clang := writeFakeClang(t, fakeClangOutputScript(`printf 'compiled-object' > "$out"`))
 	t.Setenv("PATH", filepath.Dir(clang))
-	objectPath, _, err := handlers.Deps.CompileUserBPF(context.Background(), "draft-plugin", validTestBPFSource)
+	objectPath, _, err := handlers.Deps.Plugins.CompileUserBPF(context.Background(), "draft-plugin", validTestBPFSource)
 	if err != nil {
 		t.Fatalf("handler compile error = %v", err)
 	}

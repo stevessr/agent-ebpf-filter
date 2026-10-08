@@ -1,6 +1,8 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/captureprofile"
+	"agent-ebpf-filter/app/handlers"
 	"agent-ebpf-filter/app/recording"
 	"agent-ebpf-filter/app/research"
 	"bytes"
@@ -11,9 +13,11 @@ import (
 	"os"
 	"sync"
 	"time"
+	"unicode/utf8"
 	"unsafe"
 
 	"agent-ebpf-filter/app/events"
+	"agent-ebpf-filter/pb"
 
 	"github.com/cilium/ebpf/ringbuf"
 )
@@ -50,42 +54,46 @@ func (jobs *runtimeBackgroundJobs) Wait(ctx context.Context) error {
 	}
 }
 
-// ---- moved from backend/zz_merged_backend.go section jobs_background.go ----
-
 var nativeLittleEndian = func() bool {
 	var value uint16 = 1
 	return *(*byte)(unsafe.Pointer(&value)) == 1
 }()
 
-// Pointers to filtering functions set at init time.
-var (
-	isCommDisabledFunc      func(comm string) bool
-	isEventTypeDisabledFunc func(et uint32) bool
-)
-
-// isCommDisabled checks whether a command name has been disabled via config.
-// Must only be called after startKernelEventReader has wired it.
-func isCommDisabled(comm string) bool {
-	if isCommDisabledFunc != nil {
-		return isCommDisabledFunc(comm)
+// commDisabled reports whether the raw kernel comm buffer names a command the
+// operator disabled. Clean buffers (the overwhelmingly common case) are looked
+// up through a transient string view, so the check does not allocate.
+func commDisabled(raw []byte) bool {
+	comm := events.TrimNUL(raw)
+	if len(comm) == 0 {
+		return false
 	}
-	return false
+	disabledCommsMu.RLock()
+	defer disabledCommsMu.RUnlock()
+	if len(disabledComms) == 0 {
+		return false
+	}
+	if bytes.IndexByte(comm, 0) < 0 && utf8.Valid(comm) {
+		_, ok := disabledComms[string(comm)]
+		return ok
+	}
+	_, ok := disabledComms[sanitizeUTF8(raw)]
+	return ok
 }
 
-// isEventTypeDisabled checks whether an event type has been disabled via config.
-// Must only be called after startKernelEventReader has wired it.
-func isEventTypeDisabled(et uint32) bool {
-	if isEventTypeDisabledFunc != nil {
-		return isEventTypeDisabledFunc(et)
+func eventTypeDisabled(eventType uint32) bool {
+	if eventType > 255 {
+		return false
 	}
-	return false
+	word := eventType >> 6
+	bit := uint64(1) << (eventType & 63)
+	return disabledEventTypeBits[word].Load()&bit != 0
 }
 
 // decodeBPFEventRecord returns a view over the ring-buffer sample when the host
 // layout matches the generated little-endian BPF object. The pointer must not be
-// retained after the caller finishes processing this record because RawSample is
-// backed by the ringbuf reader's mmap window. On non-native endian or unaligned
-// samples it falls back to the old binary.Read copy path.
+// retained after the caller finishes processing this record because the sample
+// buffer is reused for the next ReadInto call. On non-native endian or
+// unaligned samples it falls back to the old binary.Read copy path.
 func decodeBPFEventRecord(raw []byte) (*bpfEvent, bool, error) {
 	if len(raw) < bpfEventSampleSize {
 		return nil, false, fmt.Errorf("short eBPF event sample: got %d bytes, want at least %d", len(raw), bpfEventSampleSize)
@@ -105,8 +113,11 @@ func decodeBPFEventRecord(raw []byte) (*bpfEvent, bool, error) {
 	return event, false, nil
 }
 
+// kernelEventReader is the subset of *ringbuf.Reader the event loop needs.
+// ReadInto lets the loop own one sample buffer for its whole lifetime instead
+// of allocating a fresh one per record.
 type kernelEventReader interface {
-	Read() (ringbuf.Record, error)
+	ReadInto(*ringbuf.Record) error
 	Close() error
 }
 
@@ -114,24 +125,11 @@ func startKernelEventReader(ctx context.Context, rd kernelEventReader, jobs *run
 	if ctx == nil || rd == nil || jobs == nil {
 		return
 	}
-	// Wire config filter functions from the app-level globals.
-	isCommDisabledFunc = func(comm string) bool {
-		disabledCommsMu.RLock()
-		defer disabledCommsMu.RUnlock()
-		_, ok := disabledComms[comm]
-		return ok
-	}
-	isEventTypeDisabledFunc = func(et uint32) bool {
-		disabledEventTypesMu.RLock()
-		defer disabledEventTypesMu.RUnlock()
-		_, ok := disabledEventTypes[et]
-		return ok
-	}
 	jobs.Go(func() {
 		selfPid := uint32(os.Getpid())
+		record := ringbuf.Record{RawSample: make([]byte, bpfEventSampleSize)}
 		for {
-			record, err := rd.Read()
-			if err != nil {
+			if err := rd.ReadInto(&record); err != nil {
 				return
 			}
 			event, zeroCopy, err := decodeBPFEventRecord(record.RawSample)
@@ -143,11 +141,7 @@ func startKernelEventReader(ctx context.Context, rd kernelEventReader, jobs *run
 			if event.PID == selfPid {
 				continue
 			}
-			comm := sanitizeUTF8(event.Comm[:])
-			if isCommDisabledFunc(comm) {
-				continue
-			}
-			if isEventTypeDisabledFunc(event.Type) {
+			if commDisabled(event.Comm[:]) || eventTypeDisabled(event.Type) {
 				continue
 			}
 			enqueueBroadcastEvent(broadcast, buildKernelEventFromRaw(event), "kernel_event_reader")
@@ -162,7 +156,19 @@ func startKernelEventReader(ctx context.Context, rd kernelEventReader, jobs *run
 func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) *runtimeBackgroundJobs {
 	jobs := &runtimeBackgroundJobs{}
 	initRedactionEngine()
+	startAPICaptureProfileWatcher(ctx, jobs)
 	jobs.Go(func() { runEventBroadcaster(ctx) })
+	if session := activeDesktopSession.Load(); session != nil {
+		jobs.Go(func() {
+			err := handlers.StreamSystemStats(ctx, 2*time.Second, func(stats *pb.SystemStats) error {
+				session.publishProto(desktopFrameSystemStats, stats)
+				return nil
+			})
+			if err != nil && ctx.Err() == nil {
+				log.Printf("[WARN] native desktop system stream stopped: %v", err)
+			}
+		})
+	}
 	jobs.Go(func() { runSemanticAlertStateGC(ctx, semanticAlertsState, semanticStateGCInterval) })
 	jobs.Go(func() { runToolBaselineGC(ctx, toolBaseline, toolBaselineEvictionInterval) })
 	startKernelRiskFeedbackWorker(ctx)
@@ -271,6 +277,27 @@ func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) 
 		})
 	}
 	return jobs
+}
+
+func startAPICaptureProfileWatcher(ctx context.Context, jobs *runtimeBackgroundJobs) {
+	if ctx == nil || jobs == nil {
+		return
+	}
+	path := captureProfileOverlayPath()
+	if err := ensureCaptureProfileOverlayFile(path); err != nil {
+		log.Printf("[WARN] API capture profile control plane unavailable: %v", err)
+		return
+	}
+	if err := captureprofile.ReloadDefaultJSON(path); err != nil {
+		log.Printf("[WARN] initial API capture profile load failed: %v", err)
+	} else {
+		log.Printf("[INFO] API capture profiles loaded from %s", path)
+	}
+	jobs.Go(func() {
+		captureprofile.WatchDefaultJSON(ctx, path, 2*time.Second, func(err error) {
+			log.Printf("[WARN] API capture profile reload rejected; keeping last known-good rules: %v", err)
+		})
+	})
 }
 
 func runSemanticAlertStateGC(ctx context.Context, state *events.SemanticAlertState, interval time.Duration) {

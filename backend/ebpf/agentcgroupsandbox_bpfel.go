@@ -25,6 +25,21 @@ type AgentCgroupSandboxIp6BlockKey struct {
 	Addr [4]uint32
 }
 
+// Names of all BPF objects in the ELF.
+//
+// Used for safe lookups in a Collection or CollectionSpec.
+const (
+	AgentCgroupSandboxMapCgroupBlocklist        = "cgroup_blocklist"
+	AgentCgroupSandboxMapCgroupSandboxStats     = "cgroup_sandbox_stats"
+	AgentCgroupSandboxMapIp6Blocklist           = "ip6_blocklist"
+	AgentCgroupSandboxMapIpBlocklist            = "ip_blocklist"
+	AgentCgroupSandboxMapPortBlocklist          = "port_blocklist"
+	AgentCgroupSandboxProgCgroupSandboxConnect4 = "cgroup_sandbox_connect4"
+	AgentCgroupSandboxProgCgroupSandboxConnect6 = "cgroup_sandbox_connect6"
+	AgentCgroupSandboxProgCgroupSandboxSendmsg4 = "cgroup_sandbox_sendmsg4"
+	AgentCgroupSandboxProgCgroupSandboxSendmsg6 = "cgroup_sandbox_sendmsg6"
+)
+
 // LoadAgentCgroupSandbox returns the embedded CollectionSpec for AgentCgroupSandbox.
 func LoadAgentCgroupSandbox() (*ebpf.CollectionSpec, error) {
 	reader := bytes.NewReader(_AgentCgroupSandboxBytes)
@@ -45,7 +60,7 @@ func LoadAgentCgroupSandbox() (*ebpf.CollectionSpec, error) {
 //	*AgentCgroupSandboxMaps
 //
 // See ebpf.CollectionSpec.LoadAndAssign documentation for details.
-func LoadAgentCgroupSandboxObjects(obj interface{}, opts *ebpf.CollectionOptions) error {
+func LoadAgentCgroupSandboxObjects(obj any, opts *ebpf.CollectionOptions) error {
 	spec, err := LoadAgentCgroupSandbox()
 	if err != nil {
 		return err

@@ -2,39 +2,39 @@ package redaction
 
 // ComplianceMapping indicates which regulations a redaction level satisfies.
 type ComplianceMapping struct {
-	Level       RedactionLevel
-	Standards   []ComplianceStandard
-	Description string
+	Level        RedactionLevel
+	Standards    []ComplianceStandard
+	Description  string
 	Requirements string
 }
 
 // ComplianceMatrix defines compliance coverage for each redaction level.
 var ComplianceMatrix = []ComplianceMapping{
 	{
-		Level:       RedactionLevelNone,
-		Standards:   []ComplianceStandard{},
-		Description: "No redaction - raw data",
+		Level:        RedactionLevelNone,
+		Standards:    []ComplianceStandard{},
+		Description:  "No redaction - raw data",
 		Requirements: "Not suitable for any compliance requirement. Use only in fully trusted environments.",
 	},
 	{
-		Level:       RedactionLevelBasic,
-		Standards:   []ComplianceStandard{CompliancePCIDSS},
-		Description: "Basic masking of obvious secrets (passwords, credit cards)",
+		Level:        RedactionLevelBasic,
+		Standards:    []ComplianceStandard{CompliancePCIDSS},
+		Description:  "Basic masking of obvious secrets (passwords, credit cards)",
 		Requirements: "Meets PCI-DSS requirement to mask PANs (Primary Account Numbers) when displaying cardholder data.",
 	},
 	{
-		Level:       RedactionLevelStandard,
+		Level: RedactionLevelStandard,
 		Standards: []ComplianceStandard{
 			ComplianceGDPR,
 			ComplianceCCPA,
 			CompliancePCIDSS,
 			ComplianceSOC2,
 		},
-		Description: "Comprehensive PII and credential masking (recommended for production)",
+		Description:  "Comprehensive PII and credential masking (recommended for production)",
 		Requirements: "Meets GDPR Article 32 (security of processing), CCPA data minimization, PCI-DSS data protection, and SOC2 CC6.7 (data classification and protection).",
 	},
 	{
-		Level:       RedactionLevelStrict,
+		Level: RedactionLevelStrict,
 		Standards: []ComplianceStandard{
 			ComplianceGDPR,
 			ComplianceCCPA,
@@ -43,7 +43,7 @@ var ComplianceMatrix = []ComplianceMapping{
 			ComplianceSOC2,
 			ComplianceISO27001,
 		},
-		Description: "Maximum redaction with anonymization and generalization",
+		Description:  "Maximum redaction with anonymization and generalization",
 		Requirements: "Meets all above plus HIPAA §164.514 (de-identification of protected health information) and ISO/IEC 27001 A.8.2.3 (handling of assets). Suitable for highly regulated environments.",
 	},
 }
@@ -109,9 +109,9 @@ func GenerateComplianceReport(currentLevel RedactionLevel, requiredStandards []C
 	mapping := GetCompliance(currentLevel)
 
 	report := ComplianceReport{
-		CurrentLevel:   currentLevel,
-		MetStandards:   []ComplianceStandard{},
-		UnmetStandards: []ComplianceStandard{},
+		CurrentLevel:    currentLevel,
+		MetStandards:    []ComplianceStandard{},
+		UnmetStandards:  []ComplianceStandard{},
 		Recommendations: []string{},
 	}
 
@@ -163,11 +163,11 @@ func GenerateComplianceReport(currentLevel RedactionLevel, requiredStandards []C
 
 // ComplianceInfo provides detailed information about a compliance standard.
 type ComplianceInfo struct {
-	Standard    ComplianceStandard
-	FullName    string
-	Description string
+	Standard        ComplianceStandard
+	FullName        string
+	Description     string
 	KeyRequirements []string
-	MinimumLevel RedactionLevel
+	MinimumLevel    RedactionLevel
 }
 
 // GetComplianceInfo returns detailed information about a compliance standard.

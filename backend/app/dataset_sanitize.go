@@ -5,8 +5,6 @@ import (
 	"strings"
 )
 
-// ---- moved from backend/zz_merged_backend.go section dataset_sanitize.go ----
-
 var (
 	sensitiveValueRegexps = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)\b(password|passwd|pwd|token|secret|apikey|api-key|access[_-]?key|authorization|cookie)[\s:=]+[^\s"'` + "`" + `]+`),

@@ -3,10 +3,8 @@
 package core
 
 import (
-	"log"
 	"time"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/cilium/ebpf"
 )
 
@@ -32,7 +30,24 @@ type BpfEvent struct {
 	Extra2                                 uint32
 	Extra3                                 uint64
 	Extra4                                 [256]byte
+	KernelTimestampNs                      uint64
+	KernelSequence                         uint64
+	KernelCPU                              uint32
+	AuditFlags                             uint32
+	KernelAuditGeneration                  uint64
+	KernelDroppedSinceLast                 uint64
+	KernelReserveFailuresTotal             uint64
+	KernelCaptureFlags                     uint32
+	KernelSocketType                       uint32 // reuses append-only capture ABI word; 1=stream, 2=datagram, 3=raw
 }
+
+const (
+	BpfAuditFlagKernelTimestamp uint32 = 1 << iota
+	BpfAuditFlagCPUSequence
+	BpfAuditFlagReserveGap
+	BpfAuditFlagGeneration
+	BpfAuditFlagReserveTotal
+)
 
 // ── Wrapper rules ────────────────────────────────────────────────────────────
 
@@ -99,9 +114,10 @@ var AvailableHooks = []HookDef{
 		ConfigFormat:    ConfigFormatJSON,
 	},
 	{
-		ID: "dsh", Name: "DeepSeek Harness", HookType: HookTypeWrapper,
-		Description: "Tracks dsh through the agent-wrapper command shim; dsh profiles and plugins remain managed by dsh.",
-		TargetCmd:   "dsh",
+		ID: "dsh", Name: "DeepSeek Harness", HookType: HookTypeNative,
+		Description:  "Installs a Cordis plugin via the DSH_HOME home patch for metadata-only session and tool lifecycle telemetry across profiles.",
+		ConfigFormat: ConfigFormatTypeScript,
+		TargetCmd:    "dsh",
 	},
 	{
 		ID: "pi", Name: "Pi", HookType: HookTypeNative,
@@ -144,6 +160,19 @@ var AvailableHooks = []HookDef{
 		NativeHookEvent: "PreToolUse",
 		NativeMatcher:   "*",
 		ConfigFormat:    ConfigFormatJSON,
+	},
+	{
+		ID: "zcode", Name: "ZCode", HookType: HookTypeNative,
+		Description:     "Uses ZCode native lifecycle hooks for runtime telemetry while OS-level cgroup/BPF-LSM policies provide sandbox enforcement",
+		TargetCmd:       "zcode",
+		NativeHookEvent: "PreToolUse",
+		NativeMatcher:   "*",
+		ConfigFormat:    ConfigFormatJSON,
+	},
+	{
+		ID: "mcode", Name: "MiniMax Code", HookType: HookTypeWrapper,
+		Description: "Optional shell wrapper for the mcode CLI; keeps MiniMax Code's own configuration, providers, and ACP integration unchanged.",
+		TargetCmd:   "mcode",
 	},
 	{
 		ID: "cursor", Name: "Cursor", HookType: HookTypeWrapper,
@@ -194,12 +223,23 @@ type FilePreviewResponse struct {
 
 // TrackerMapSet holds references to the pinned eBPF maps.
 type TrackerMapSet struct {
-	AgentPids       *ebpf.Map
-	TrackedComms    *ebpf.Map
-	TrackedPaths    *ebpf.Map
-	TrackedPrefixes *ebpf.Map
-	Events          *ebpf.Map
-	CollectorStats  *ebpf.Map
+	AgentPids            *ebpf.Map
+	TrackedComms         *ebpf.Map
+	TrackedPaths         *ebpf.Map
+	TrackedPrefixes      *ebpf.Map
+	TrackingMode         *ebpf.Map
+	Events               *ebpf.Map
+	CollectorStats       *ebpf.Map
+	ContextPressureStats *ebpf.Map
+	ExitCtx              *ebpf.Map
+	ExitIoCtx            *ebpf.Map
+	ExitCompactCtx       *ebpf.Map
+	ExitSinglePathBuf    *ebpf.Map
+	ExitPathBuf          *ebpf.Map
+	ExitSinglePathCtx    *ebpf.Map
+	ExitPathCtx          *ebpf.Map
+	SocketFds            *ebpf.Map
+	SocketFdParents      *ebpf.Map
 }
 
 // ShellControlMessage is sent over the WebSocket to resize the PTY.
@@ -209,14 +249,3 @@ type ShellControlMessage struct {
 	Rows int    `json:"rows,omitempty"`
 }
 
-// ── NVML initialization ──────────────────────────────────────────────────────
-
-var NvmlInitialized bool
-
-func init() {
-	if ret := nvml.Init(); ret == nvml.SUCCESS {
-		NvmlInitialized = true
-	} else {
-		log.Printf("NVML Init failed: %v", nvml.ErrorString(ret))
-	}
-}

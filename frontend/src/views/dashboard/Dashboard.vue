@@ -1,7 +1,11 @@
 <script setup lang="ts">
+import { ref } from "vue";
+import DashboardTriage from "../../components/dashboard/DashboardTriage.vue";
+const showDetailedInsights = ref(false);
 import {
   CopyOutlined,
   EyeOutlined,
+  FilterOutlined,
   FolderOpenOutlined,
   InfoCircleOutlined,
 } from "@ant-design/icons-vue";
@@ -10,12 +14,15 @@ import FilePreviewDrawer from "../../components/explorer/FilePreviewDrawer.vue";
 import DashboardToolbar from "../../components/dashboard/DashboardToolbar.vue";
 import DashboardEventModal from "../../components/dashboard/DashboardEventModal.vue";
 import DashboardFilterPanel from "../../components/dashboard/DashboardFilterPanel.vue";
+import DashboardInsights from "../../components/dashboard/DashboardInsights.vue";
 import { useDashboard } from "../../composables/dashboard/useDashboard";
 
 import RedactionBadge from "../../components/common/RedactionBadge.vue";
 
 const {
   events,
+  evictedRecords,
+  showRawEvents,
   isConnected,
   isPaused,
   showDetails,
@@ -103,6 +110,18 @@ const copyPath = async (path: string) => {
       <a-tab-pane v-for="tab in categoryTabs" :key="tab.key" :tab="tab.label" />
     </a-tabs>
 
+    <DashboardTriage
+      v-if="activeTab === 'all' && !showRawEvents"
+      :events="events" :is-connected="isConnected" :is-paused="isPaused"
+      :capacity="maxEvents" :evicted-records="evictedRecords"
+      @inspect="openDetails" @raw="showRawEvents = true" @pause="isPaused = !isPaused"
+    />
+    <a-space v-if="activeTab === 'all'" style="margin: 12px 0" wrap>
+      <a-button v-if="showRawEvents" @click="showRawEvents = false">返回自动整理</a-button>
+      <a-button @click="showDetailedInsights = !showDetailedInsights">{{ showDetailedInsights ? '收起关联分析' : '展开会话 / 工具关联分析' }}</a-button>
+    </a-space>
+    <DashboardInsights v-if="activeTab === 'all' && showDetailedInsights" :events="events" />
+
     <!-- Filter panel shown only in "条件过滤" tab -->
     <DashboardFilterPanel
       v-if="activeTab === 'filter'"
@@ -144,6 +163,7 @@ const copyPath = async (path: string) => {
     />
 
     <DashboardToolbar
+      v-if="activeTab !== 'all' || showRawEvents"
       :is-connected="isConnected"
       :events-length="events.length"
       :is-paused="isPaused"
@@ -220,7 +240,7 @@ const copyPath = async (path: string) => {
       >
     </div>
 
-    <div ref="tableWrapperRef" class="dashboard-table-wrap">
+    <div v-if="activeTab !== 'all' || showRawEvents" ref="tableWrapperRef" class="dashboard-table-wrap">
       <a-table
         class="excel-table"
         :dataSource="displayedEvents"

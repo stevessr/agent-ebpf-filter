@@ -7,10 +7,36 @@ import (
 	"agent-ebpf-filter/core"
 	"errors"
 	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 )
 
-// ---- moved from backend/zz_merged_backend.go section stateenvruntime.go ----
+const (
+	defaultEventStoreMaxRecords = 250_000
+	defaultEventStoreMaxAge     = "168h"
+	maxEventStoreMaxRecords     = 10_000_000
+)
+
+func normalizeDisabledEventTypes(values []uint32) ([]uint32, error) {
+	if values == nil {
+		return nil, nil
+	}
+	seen := make(map[uint32]struct{}, len(values))
+	normalized := make([]uint32, 0, len(values))
+	for _, eventType := range values {
+		if eventType > 255 {
+			return nil, errors.New("disabled event type out of supported range")
+		}
+		if _, exists := seen[eventType]; exists {
+			continue
+		}
+		seen[eventType] = struct{}{}
+		normalized = append(normalized, eventType)
+	}
+	sort.Slice(normalized, func(i, j int) bool { return normalized[i] < normalized[j] })
+	return normalized, nil
+}
 
 func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 	if settings == nil {
@@ -24,6 +50,32 @@ func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 		return err
 	}
 	settings.LogFilePath = logPath
+	if settings.EventStoreMaxRecords <= 0 {
+		settings.EventStoreMaxRecords = defaultEventStoreMaxRecords
+	}
+	if settings.EventStoreMaxRecords > maxEventStoreMaxRecords {
+		settings.EventStoreMaxRecords = maxEventStoreMaxRecords
+	}
+	if strings.TrimSpace(settings.EventStoreMaxAge) == "" {
+		settings.EventStoreMaxAge = defaultEventStoreMaxAge
+	}
+	disabledEventTypes, err := normalizeDisabledEventTypes(settings.DisabledEventTypes)
+	if err != nil {
+		return err
+	}
+	settings.DisabledEventTypes = disabledEventTypes
+	if settings.IgnoredPaths == nil {
+		settings.IgnoredPaths = defaultIgnoredEventPaths()
+	}
+	ignoredPaths, err := normalizeIgnoredEventPaths(settings.IgnoredPaths)
+	if err != nil {
+		return err
+	}
+	settings.IgnoredPaths = ignoredPaths
+	storeAge, err := time.ParseDuration(settings.EventStoreMaxAge)
+	if err != nil || storeAge < 0 {
+		return errors.New("event store max age must be a non-negative Go duration such as 168h or 0")
+	}
 	if strings.TrimSpace(settings.AccessToken) == "" {
 		token, err := generateAccessToken()
 		if err != nil {
@@ -138,6 +190,8 @@ func seedRuntimeSettingsFromEnv(settings *RuntimeSettings) {
 	seedRuntimeAccessTokenFromEnv(settings)
 	platform.ApplyBoolEnv(&settings.LogPersistenceEnabled, "AGENT_RUNTIME_LOG_PERSISTENCE_ENABLED")
 	platform.ApplyStringEnv(&settings.LogFilePath, "AGENT_RUNTIME_LOG_FILE_PATH")
+	platform.ApplyIntEnv(&settings.EventStoreMaxRecords, "AGENT_RUNTIME_EVENT_STORE_MAX_RECORDS")
+	platform.ApplyStringEnv(&settings.EventStoreMaxAge, "AGENT_RUNTIME_EVENT_STORE_MAX_AGE")
 	platform.ApplyIntEnv(&settings.MaxEventCount, "AGENT_RUNTIME_MAX_EVENT_COUNT")
 	platform.ApplyStringEnv(&settings.MaxEventAge, "AGENT_RUNTIME_MAX_EVENT_AGE")
 	platform.ApplyBoolEnv(&settings.ShellSessionsEnabled, "AGENT_RUNTIME_SHELL_SESSIONS_ENABLED")

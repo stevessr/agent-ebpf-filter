@@ -7,8 +7,6 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
-// ---- moved from backend/zz_merged_backend.go section spanhelpersotel.go ----
-
 type otelSpanEvictions struct {
 	tools []*activeOTelSpan
 	tasks []*activeOTelSpan

@@ -52,6 +52,7 @@ enum EventType {
   OTEL_SPAN = 40;
   AGENTSIGHT_ALERT = 41;
   OBSERVE_NAVIGATE = 42;
+  SOCKET_HTTP = 43;
 }
 
 enum BehaviorCategory {

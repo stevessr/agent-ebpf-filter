@@ -145,30 +145,22 @@ func (c *TLSCaptureController) AttachDefaults() error {
 	if err != nil {
 		return err
 	}
-	err = manager.AttachStaticLibs()
+	// Default TLS capture is path-scoped. Do not install process-global
+	// libssl/GnuTLS/NSS uprobes: auto-discovery will attach PID-scoped probes
+	// only after an executable matches an enabled rule path.
 	c.startGoDiscovery(manager)
-	if err != nil && c.store != nil {
-		for _, library := range c.store.LibraryStatuses() {
-			if library.Attached {
-				c.setLastError(err)
-				return nil
-			}
-		}
-		c.setLastError(err)
-		return err
-	}
 	c.setLastError(nil)
 	return nil
 }
 
-func (c *TLSCaptureController) AttachLibrary(path, library string) error {
+func (c *TLSCaptureController) AttachLibrary(path, library string, pid int) error {
 	c.transitionMu.Lock()
 	defer c.transitionMu.Unlock()
 	manager, err := c.EnsureStarted()
 	if err != nil {
 		return err
 	}
-	if err := manager.AttachLibrary(path, library); err != nil {
+	if err := manager.AttachLibrary(path, library, pid); err != nil {
 		c.setLastError(err)
 		return err
 	}
@@ -403,6 +395,8 @@ func (c *TLSCaptureController) Status() map[string]any {
 		"readStarted":             readStarted,
 		"goDiscoveryStarted":      discoveryStarted,
 		"autoDiscoveryIntervalMs": tlsAutoDiscoveryInterval.Milliseconds(),
+		"pathScoped":              true,
+		"capturePaths":            c.rules.ExecutablePaths(),
 		"error":                   lastError,
 		"broadcast":               broadcaster.Status(),
 		"bpfTsShadow":             shadowStatus,

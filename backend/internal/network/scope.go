@@ -19,6 +19,66 @@ func ClassifyIPScope(ip net.IP) IPScope {
 	return classifyIPv6Scope(ip.To16())
 }
 
+// ClassifyIPv4ScopeBytes classifies a dotted-quad IPv4 address directly from
+// its four octets, mirroring classifyIPv4Scope without any net.IP or parse
+// allocation. Hot paths use it to avoid net.ParseIP entirely.
+func ClassifyIPv4ScopeBytes(b0, b1, b2, b3 byte) IPScope {
+	if b0 == 0 {
+		if b1 == 0 && b2 == 0 && b3 == 0 {
+			return ScopeUnspecified
+		}
+		return ScopeReserved
+	}
+	if b0 == 10 {
+		return ScopePrivate
+	}
+	if b0 == 100 && b1 >= 64 && b1 <= 127 {
+		return ScopeCGNAT
+	}
+	if b0 == 127 {
+		return ScopeLoopback
+	}
+	if b0 == 169 && b1 == 254 {
+		return ScopeLinkLocal
+	}
+	if b0 == 172 && b1 >= 16 && b1 <= 31 {
+		return ScopePrivate
+	}
+	if b0 == 192 && b1 == 0 {
+		if b2 == 0 {
+			return ScopeReserved
+		}
+		if b2 == 2 {
+			return ScopeDocumentation
+		}
+	}
+	if b0 == 192 && b1 == 88 && b2 == 99 {
+		return ScopeReserved
+	}
+	if b0 == 192 && b1 == 168 {
+		return ScopePrivate
+	}
+	if b0 == 198 && (b1 == 18 || b1 == 19) {
+		return ScopeBenchmarking
+	}
+	if b0 == 198 && b1 == 51 && b2 == 100 {
+		return ScopeDocumentation
+	}
+	if b0 == 203 && b1 == 0 && b2 == 113 {
+		return ScopeDocumentation
+	}
+	if b0 >= 224 && b0 <= 239 {
+		return ScopeMulticast
+	}
+	if b0 == 255 && b1 == 255 && b2 == 255 && b3 == 255 {
+		return ScopeBroadcast
+	}
+	if b0 >= 240 {
+		return ScopeReserved
+	}
+	return ScopePublic
+}
+
 func classifyIPv4Scope(ip net.IP) IPScope {
 	if ip == nil || len(ip) < 4 {
 		return ScopeUnknown

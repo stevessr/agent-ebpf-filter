@@ -3,6 +3,7 @@ package events
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -10,8 +11,6 @@ import (
 	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
 )
-
-// ---- moved from app/alertscheckssemantic.go ----
 
 // Codex-specific workflow semantic checks
 
@@ -166,12 +165,18 @@ func semanticAlertContextKeyBounded(event *pb.Event) (string, bool) {
 		return agentRunID, truncated
 	}
 	if event.GetRootAgentPid() > 0 {
-		return fmt.Sprintf("pid:%d", event.GetRootAgentPid()), false
+		return pidContextKey(event.GetRootAgentPid()), false
 	}
 	if event.GetPid() > 0 {
-		return fmt.Sprintf("pid:%d", event.GetPid()), false
+		return pidContextKey(event.GetPid()), false
 	}
 	return "", false
+}
+
+func pidContextKey(pid uint32) string {
+	var scratch [16]byte
+	key := append(scratch[:0], "pid:"...)
+	return string(strconv.AppendUint(key, uint64(pid), 10))
 }
 
 func extraInfoFieldBounded(extraInfo, key string, maxValueBytes int) (string, bool) {
@@ -241,6 +246,12 @@ func semanticFieldSeparatorWidth(value string) (int, bool) {
 }
 
 func isLowValueFileIOEvent(event *pb.Event) bool {
+	return isLowValueFileIOEventWith(event, isSecretLikePath(event.GetPath()))
+}
+
+// isLowValueFileIOEventWith is isLowValueFileIOEvent with the secret-path
+// verdict for event.Path already known.
+func isLowValueFileIOEventWith(event *pb.Event, pathIsSecret bool) bool {
 	if event == nil {
 		return false
 	}
@@ -248,11 +259,7 @@ func isLowValueFileIOEvent(event *pb.Event) bool {
 	case "read", "write":
 		return true
 	case "openat", "open":
-		path := strings.TrimSpace(event.GetPath())
-		if path == "" || isSecretLikePath(path) {
-			return false
-		}
-		return true
+		return strings.TrimSpace(event.GetPath()) != "" && !pathIsSecret
 	default:
 		return false
 	}

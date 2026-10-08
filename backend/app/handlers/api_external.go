@@ -11,8 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from app/api_external.go ----
-
 // HandleExternalAPIHealth returns service health, collector counters, feature
 // gates, and eBPF bootstrap status.
 func HandleExternalAPIHealth(c *gin.Context) {
@@ -61,6 +59,8 @@ func BuildExternalOpenAPISpec() *openapi3.T {
 
 	addOperation(paths, "/health", http.MethodGet, "Service health, collector counters, feature gates, and eBPF bootstrap status.")
 	addOperation(paths, "/events/recent", http.MethodGet, "Recent captured events. Query: limit, type, event_type, source, pid, comm, trace_id, span_id, since, until, redaction_state.")
+	addOperation(paths, "/events/summaries", http.MethodGet, "Compact recent event summaries for low-overhead monitoring clients. Full payloads remain in backend persistence.")
+	addOperation(paths, "/events/detail/{id}", http.MethodGet, "Fetch one full persisted event by stable event id.")
 	addOperation(paths, "/events/graph", http.MethodGet, "Aggregated bounded execution graph. Query: agent_run_id, tool_call_id, trace_id, pid, path, domain, risk_min, since, until. Responses expose truncation and omitted event/node/edge counters.")
 	addOperation(paths, "/research/sessions", http.MethodGet, "List persisted research sessions and summaries.")
 	addOperation(paths, "/research/sessions", http.MethodPost, "Create a research session with optional source filters, time range, tags, and description.")
@@ -89,6 +89,9 @@ func BuildExternalOpenAPISpec() *openapi3.T {
 	addOperation(paths, "/network/dns-cache", http.MethodGet, "DNS correlation cache.")
 	addOperation(paths, "/network/interfaces", http.MethodGet, "Per-interface RX/TX counters, packets, errors, and drops.")
 	addOperation(paths, "/network/export/jsonl", http.MethodGet, "Metadata-only flow JSONL export.")
+	addOperation(paths, "/sandbox/runtime/status", http.MethodGet, "Host-side sandbox runtime integration status for gVisor, Kata, Firecracker, namespace sandboxes, and OCI runtimes.")
+	addOperation(paths, "/sandbox/runtime/detect", http.MethodGet, "Best-effort sandbox/container attribution for a host-visible PID. Query: pid.")
+	addOperation(paths, "/sandbox/runtime/active", http.MethodGet, "Bounded list of host-visible sandbox runtime processes. Query: limit.")
 	addOperation(paths, "/sandbox/cgroup/status", http.MethodGet, "cgroup/connect + sendmsg enforcement status, maps, counters, and active blocks.")
 	addOperation(paths, "/sandbox/lsm/status", http.MethodGet, "BPF LSM enforcement status, maps, counters, and active blocks.")
 	addOperation(paths, "/policies/network/block-ip", http.MethodPost, "Block an IPv4/IPv6 destination through the cgroup sandbox. Body: {\"ip\":\"203.0.113.10\"}.")

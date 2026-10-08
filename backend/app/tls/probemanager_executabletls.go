@@ -155,23 +155,13 @@ func (m *TLSProbeManager) attachLoadedLibraryForPIDLocked(target ProbeTarget, pa
 		status.Path = target.name + " (deleted mapping)"
 	}
 	if pid <= 0 {
-		return m.attachLibraryPathLocked(target, path, status)
+		return fmt.Errorf("pid is required for shared TLS library probes; global library uprobes are disabled")
 	}
 	if m.closed || m.objs == nil {
 		return fmt.Errorf("TLS probe manager is closed")
 	}
 	if m.attachedStatic == nil {
 		m.attachedStatic = make(map[string]bool)
-	}
-
-	globalAttachKey := target.name + "\x00" + path
-	if m.attachedStatic[globalAttachKey] {
-		status.Attached = true
-		if m.store != nil {
-			m.store.SetLibraryStatus(status)
-		}
-		log.Printf("[tls] PID %d reuses global %s probes for %s", pid, target.name, path)
-		return nil
 	}
 
 	attachKey := fmt.Sprintf("pid\x00%d\x00%s\x00%s", pid, target.name, path)
@@ -334,6 +324,13 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 
 	if hasRustlsStrings(attachPath) {
 		log.Printf("[tls] AttachExecutable: %s contains rustls strings but offset detection failed", attachPath)
+	}
+
+	// Dynamically linked TLS symbols live in a shared library that is common to
+	// many executables. Without a PID, attaching there would become host-wide.
+	if pid <= 0 {
+		result.Error = "pid is required for dynamically linked TLS executables; global shared-library uprobes are disabled"
+		return result
 	}
 
 	loadedLibs := findLoadedSSLLibraries(pid)

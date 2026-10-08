@@ -5,8 +5,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from app/handlers_registration.go ----
-
 func HandleRegister(c *gin.Context) {
 	if Deps.TrackerMaps == nil {
 		c.JSON(500, gin.H{"error": "agent pid map not initialized"})
@@ -17,29 +15,34 @@ func HandleRegister(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "invalid pid"})
 		return
 	}
+	if req.ContainerID == "" && Deps.SandboxRuntime != nil {
+		if detected, err := Deps.SandboxRuntime.DetectPID(int(req.PID)); err == nil && detected.ContainerID != "" {
+			req.ContainerID = detected.ContainerID
+		}
+	}
 	tag := req.Tag
 	if tag == "" {
 		tag = "AI Agent"
 	}
-	if err := Deps.TrackerMaps.AgentPidsPut(req.PID, Deps.GetTagID(tag)); err != nil {
+	if err := Deps.TrackerMaps.AgentPidsPut(req.PID, Deps.Config.TagID(tag)); err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
 	Deps.ProcessContexts.Set(req.PID, events.ProcessContext{
-		RootAgentPid: req.RootAgentPID,
-		AgentRunID:   req.AgentRunID,
-		TaskID:       req.TaskID,
+		RootAgentPid:   req.RootAgentPID,
+		AgentRunID:     req.AgentRunID,
+		TaskID:         req.TaskID,
 		ConversationID: req.ConversationID,
-		TurnID:       req.TurnID,
-		ToolCallID:   req.ToolCallID,
-		ToolName:     req.ToolName,
-		TraceID:      req.TraceID,
-		SpanID:       req.SpanID,
-		Decision:     req.Decision,
-		ContainerID:  req.ContainerID,
-		ArgvDigest:   req.ArgvDigest,
-		Cwd:          req.Cwd,
-		RiskScore:    req.RiskScore,
+		TurnID:         req.TurnID,
+		ToolCallID:     req.ToolCallID,
+		ToolName:       req.ToolName,
+		TraceID:        req.TraceID,
+		SpanID:         req.SpanID,
+		Decision:       req.Decision,
+		ContainerID:    req.ContainerID,
+		ArgvDigest:     req.ArgvDigest,
+		Cwd:            req.Cwd,
+		RiskScore:      req.RiskScore,
 	})
 	c.JSON(200, gin.H{"status": "ok"})
 }

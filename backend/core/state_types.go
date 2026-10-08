@@ -15,6 +15,10 @@ import (
 type RuntimeSettings struct {
 	LogPersistenceEnabled   bool                       `json:"logPersistenceEnabled"`
 	LogFilePath             string                     `json:"logFilePath"`
+	EventStoreMaxRecords    int                        `json:"eventStoreMaxRecords"`
+	EventStoreMaxAge        string                     `json:"eventStoreMaxAge"`
+	DisabledEventTypes      []uint32                   `json:"disabledEventTypes,omitempty"`
+	IgnoredPaths            []string                   `json:"ignoredPaths"`
 	AccessToken             string                     `json:"accessToken"`
 	MaxEventCount           int                        `json:"maxEventCount"`
 	MaxEventAge             string                     `json:"maxEventAge"`
@@ -142,9 +146,14 @@ type RuntimeConfigResponse struct {
 
 // CapturedEventRecord wraps a decoded protobuf event with its receive timestamp.
 type CapturedEventRecord struct {
-	ReceivedAt time.Time         `json:"receivedAt"`
-	Event      *pb.Event         `json:"event"`
-	Envelope   *pb.EventEnvelope `json:"-"`
+	ReceivedAt        time.Time         `json:"receivedAt"`
+	Event             *pb.Event         `json:"event"`
+	Envelope          *pb.EventEnvelope `json:"-"`
+	AuditChainVersion string            `json:"auditChainVersion,omitempty"`
+	AuditChainID      string            `json:"auditChainId,omitempty"`
+	AuditSequence     uint64            `json:"auditSequence,omitempty"`
+	AuditPrevHash     string            `json:"auditPrevHash,omitempty"`
+	AuditHash         string            `json:"auditHash,omitempty"`
 }
 
 // EventArchive is a bounded, thread-safe ring of recent events.

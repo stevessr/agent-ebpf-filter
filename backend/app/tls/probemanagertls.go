@@ -100,21 +100,26 @@ type TLSProbeManager struct {
 }
 
 type ReadLoopStats struct {
-	TotalFrags     int64
-	DroppedFrags   int64
-	CompletedFrags int64
-	HTTPEvents     int64
-	RawEvents      int64
-	LastFragmentNS int64
+	TotalFrags       int64
+	DroppedFrags     int64
+	PerfLostSamples  int64
+	DecodeErrors     int64
+	AssemblerDropped int64
+	CompletedFrags   int64
+	HTTPEvents       int64
+	RawEvents        int64
+	LastFragmentNS   int64
 }
 
 type readLoopAtomicStats struct {
-	totalFrags     atomic.Int64
-	droppedFrags   atomic.Int64
-	completedFrags atomic.Int64
-	httpEvents     atomic.Int64
-	rawEvents      atomic.Int64
-	lastFragmentNS atomic.Int64
+	totalFrags      atomic.Int64
+	droppedFrags    atomic.Int64
+	perfLostSamples atomic.Int64
+	decodeErrors    atomic.Int64
+	completedFrags  atomic.Int64
+	httpEvents      atomic.Int64
+	rawEvents       atomic.Int64
+	lastFragmentNS  atomic.Int64
 }
 
 func (s *readLoopAtomicStats) Snapshot() ReadLoopStats {
@@ -122,12 +127,14 @@ func (s *readLoopAtomicStats) Snapshot() ReadLoopStats {
 		return ReadLoopStats{}
 	}
 	return ReadLoopStats{
-		TotalFrags:     s.totalFrags.Load(),
-		DroppedFrags:   s.droppedFrags.Load(),
-		CompletedFrags: s.completedFrags.Load(),
-		HTTPEvents:     s.httpEvents.Load(),
-		RawEvents:      s.rawEvents.Load(),
-		LastFragmentNS: s.lastFragmentNS.Load(),
+		TotalFrags:      s.totalFrags.Load(),
+		DroppedFrags:    s.droppedFrags.Load(),
+		PerfLostSamples: s.perfLostSamples.Load(),
+		DecodeErrors:    s.decodeErrors.Load(),
+		CompletedFrags:  s.completedFrags.Load(),
+		HTTPEvents:      s.httpEvents.Load(),
+		RawEvents:       s.rawEvents.Load(),
+		LastFragmentNS:  s.lastFragmentNS.Load(),
 	}
 }
 
@@ -170,46 +177,31 @@ func NewTLSProbeManager(store *TLSCaptureStore, broadcaster *TLSBroadcaster, rul
 }
 
 func (m *TLSProbeManager) AttachStaticLibs() error {
-	if m == nil {
-		return nil
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.closed || m.objs == nil {
-		return fmt.Errorf("TLS probe manager is closed")
-	}
-	var errs []error
-	for _, target := range staticTLSLibraries {
-		path, ok := findFirstExistingPath(target.paths...)
-		status := TLSLibraryStatus{Name: target.name, Path: path}
-		if !ok {
-			status.Available = false
-			status.Attached = false
-			status.Error = "library not found"
-			m.store.SetLibraryStatus(status)
-			continue
-		}
-		if err := m.attachLibraryPathLocked(target, path, status); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	return errors.Join(errs...)
+	return errors.New("global TLS library uprobes are disabled; configure executable path rules or use a PID-scoped library hook")
 }
 
-func (m *TLSProbeManager) AttachLibrary(path, library string) error {
+func (m *TLSProbeManager) AttachLibrary(path, library string, pid int) error {
 	if m == nil {
 		return nil
+	}
+	if pid <= 0 {
+		return fmt.Errorf("pid is required for shared TLS library hooks; global library uprobes are disabled")
 	}
 	target, err := resolveManualTLSProbeTarget(path, library)
 	if err != nil {
 		return err
 	}
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return fmt.Errorf("TLS library path is required")
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.closed || m.objs == nil {
 		return fmt.Errorf("TLS probe manager is closed")
 	}
-	return m.attachLibraryPathLocked(target, strings.TrimSpace(path), TLSLibraryStatus{Name: target.name, Path: strings.TrimSpace(path), Available: true})
+	status := TLSLibraryStatus{Name: target.name, Path: tlsLibraryDisplayPath(path), Available: true}
+	return m.attachLoadedLibraryForPIDLocked(target, path, pid, status)
 }
 
 func (m *TLSProbeManager) attachLibraryPathLocked(target ProbeTarget, path string, status TLSLibraryStatus) error {

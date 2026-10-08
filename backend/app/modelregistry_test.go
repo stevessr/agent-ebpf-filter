@@ -10,8 +10,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section modelregistry_test.go ----
-
 // ── Helpers ────────────────────────────────────────────────────────
 
 func seedRand() *rand.Rand { return rand.New(rand.NewSource(42)) }

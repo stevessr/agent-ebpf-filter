@@ -1,7 +1,5 @@
 package network
 
-// ---- moved from backend/zz_merged_backend.go section syscalls_network.go ----
-
 func syscallName(nr uint32) string {
 	if name := syscallNameHigh(nr); name != "" {
 		return name

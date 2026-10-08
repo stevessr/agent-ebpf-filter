@@ -2,8 +2,6 @@ package sweep
 
 import "agent-ebpf-filter/app/ml"
 
-// ---- moved from backend/zz_merged_backend.go section sweep_types.go ----
-
 type sweepProfile struct {
 	Name       string
 	ModelType  ModelType

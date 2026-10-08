@@ -126,7 +126,7 @@ flowchart TD
     Event --> Sinks["Dashboard / AgentSight / OTLP / persistence"]
 ```
 
-支持方向包括 Claude Code、Gemini、Codex、DeepSeek Harness（`dsh`，wrapper-only）、Pi、Oh My Pi、Copilot、Kiro、Cursor 等 AI CLI 或 wrapper alias。
+支持方向包括 Claude Code、Gemini、Codex、DeepSeek Harness（`dsh`，原生 Cordis 插件）、Pi、Oh My Pi、Copilot、Kiro、Cursor 等 AI CLI 或 wrapper alias。
 
 关键文件：
 
@@ -159,7 +159,7 @@ flowchart TD
 ### 5.1 技术栈
 
 - Go module：`backend/go.mod`
-- Go 版本：`1.26.2`
+- Go 版本：`1.27.1`
 - HTTP：`github.com/gin-gonic/gin`
 - WebSocket：`github.com/gorilla/websocket`
 - eBPF：`github.com/cilium/ebpf`

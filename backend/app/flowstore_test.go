@@ -6,8 +6,6 @@ import (
 	"testing"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section flowstore_test.go ----
-
 func TestFlowAggregatorKeysByFiveTupleAndKeepsAgentContext(t *testing.T) {
 	agg := newFlowAggregator()
 	ev := &pb.Event{

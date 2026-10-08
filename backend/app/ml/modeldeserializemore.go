@@ -8,8 +8,6 @@ import (
 	"os"
 )
 
-// ---- moved from backend/zz_merged_backend.go section modeldeserializemore.go ----
-
 type mlBinaryModelReader struct {
 	raw []byte
 	pos int

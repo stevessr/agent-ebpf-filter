@@ -20,10 +20,51 @@ func HandlePrometheusMetrics(c *gin.Context) {
 	writePrometheusSample(&b, "agent_ebpf_ringbuf_dropped_total", nil, float64(health.RingbufDroppedTotal))
 	writePrometheusHeader(&b, "agent_ebpf_ringbuf_reserve_failed_total", "counter", "Total ring buffer reserve failures.")
 	writePrometheusSample(&b, "agent_ebpf_ringbuf_reserve_failed_total", nil, float64(health.RingbufReserveFailedTotal))
-	writePrometheusHeader(&b, "agent_ebpf_ringbuf_zero_copy_decode_total", "counter", "Total eBPF ring buffer samples decoded through the zero-copy mmap-backed path.")
+	writePrometheusHeader(&b, "agent_ebpf_ringbuf_zero_copy_decode_total", "counter", "Total eBPF ring buffer samples decoded in place (no per-event struct copy).")
 	writePrometheusSample(&b, "agent_ebpf_ringbuf_zero_copy_decode_total", nil, float64(health.RingbufZeroCopyDecodeTotal))
 	writePrometheusHeader(&b, "agent_ebpf_ringbuf_copy_decode_total", "counter", "Total eBPF ring buffer samples decoded through the endian/alignment-safe copy fallback path.")
 	writePrometheusSample(&b, "agent_ebpf_ringbuf_copy_decode_total", nil, float64(health.RingbufCopyDecodeTotal))
+	writePrometheusHeader(&b, "agent_ebpf_kernel_sequence_attempts_total", "counter", "CPU-local kernel audit sequence attempts, including ringbuf reserve failures.")
+	writePrometheusSample(&b, "agent_ebpf_kernel_sequence_attempts_total", nil, float64(health.KernelSequenceAttemptsTotal))
+	writePrometheusHeader(&b, "agent_ebpf_kernel_pending_dropped_events", "gauge", "Kernel reserve failures not yet reported by a subsequent successful event.")
+	writePrometheusSample(&b, "agent_ebpf_kernel_pending_dropped_events", nil, float64(health.KernelPendingDroppedEvents))
+	writePrometheusHeader(&b, "agent_ebpf_kernel_reported_reserve_dropped_total", "counter", "Ringbuf reserve drops self-reported in event audit provenance.")
+	writePrometheusSample(&b, "agent_ebpf_kernel_reported_reserve_dropped_total", nil, float64(health.KernelReportedReserveDropped))
+	writePrometheusHeader(&b, "agent_ebpf_kernel_sequence_unexplained_missing_total", "counter", "Sequence holes not explained by kernel ringbuf reserve failures.")
+	writePrometheusSample(&b, "agent_ebpf_kernel_sequence_unexplained_missing_total", nil, float64(health.KernelSequenceUnexplainedMissing))
+	writePrometheusHeader(&b, "agent_ebpf_kernel_audit_generation_consistent", "gauge", "Whether all per-CPU collector slots report the same audit generation.")
+	if health.KernelAuditGenerationConsistent {
+		writePrometheusSample(&b, "agent_ebpf_kernel_audit_generation_consistent", nil, 1)
+	} else {
+		writePrometheusSample(&b, "agent_ebpf_kernel_audit_generation_consistent", nil, 0)
+	}
+	writePrometheusHeader(&b, "agent_ebpf_context_maps_available", "gauge", "Whether transient eBPF map occupancy and update-failure telemetry are fully readable.")
+	if health.ContextMapsAvailable {
+		writePrometheusSample(&b, "agent_ebpf_context_maps_available", nil, 1)
+	} else {
+		writePrometheusSample(&b, "agent_ebpf_context_maps_available", nil, 0)
+	}
+	writePrometheusHeader(&b, "agent_ebpf_context_map_entries", "gauge", "Current entries in transient eBPF correlation/provenance maps.")
+	writePrometheusHeader(&b, "agent_ebpf_context_map_capacity", "gauge", "Maximum entries configured for transient eBPF correlation/provenance maps.")
+	writePrometheusHeader(&b, "agent_ebpf_context_map_utilization_ratio", "gauge", "Current transient eBPF map entry utilization ratio.")
+	writePrometheusHeader(&b, "agent_ebpf_context_map_payload_bytes", "gauge", "Current key+value payload bytes represented by transient eBPF map entries; excludes kernel hash overhead.")
+	writePrometheusHeader(&b, "agent_ebpf_context_map_capacity_payload_bytes", "gauge", "Configured key+value payload budget for transient eBPF maps; excludes kernel hash overhead.")
+	writePrometheusHeader(&b, "agent_ebpf_context_map_update_failures_total", "counter", "Kernel correlation/provenance map update failures, recorded only on the failure path.")
+	contextMapNames := make([]string, 0, len(health.ContextMapPressure))
+	for name := range health.ContextMapPressure {
+		contextMapNames = append(contextMapNames, name)
+	}
+	sort.Strings(contextMapNames)
+	for _, name := range contextMapNames {
+		pressure := health.ContextMapPressure[name]
+		labels := map[string]string{"map": name}
+		writePrometheusSample(&b, "agent_ebpf_context_map_entries", labels, float64(pressure.Entries))
+		writePrometheusSample(&b, "agent_ebpf_context_map_capacity", labels, float64(pressure.Capacity))
+		writePrometheusSample(&b, "agent_ebpf_context_map_utilization_ratio", labels, pressure.Utilization)
+		writePrometheusSample(&b, "agent_ebpf_context_map_payload_bytes", labels, float64(pressure.PayloadBytes))
+		writePrometheusSample(&b, "agent_ebpf_context_map_capacity_payload_bytes", labels, float64(pressure.CapacityPayloadBytes))
+		writePrometheusSample(&b, "agent_ebpf_context_map_update_failures_total", labels, float64(pressure.UpdateFailuresTotal))
+	}
 	writePrometheusHeader(&b, "agent_ebpf_backend_queue_len", "gauge", "Current backend event queue length.")
 	writePrometheusSample(&b, "agent_ebpf_backend_queue_len", nil, float64(health.BackendQueueLen))
 	writePrometheusHeader(&b, "agent_ebpf_ws_clients", "gauge", "Current number of event WebSocket clients across legacy and envelope streams.")
@@ -70,7 +111,7 @@ func HandlePrometheusMetrics(c *gin.Context) {
 	writePrometheusSample(&b, "agent_ebpf_broadcast_write_errors_total", nil, float64(health.BroadcastWriteErrorsTotal))
 	writePrometheusHeader(&b, "agent_ebpf_broadcast_last_flush_latency_seconds", "gauge", "Latest non-empty WebSocket broadcast batch flush latency in seconds.")
 	writePrometheusSample(&b, "agent_ebpf_broadcast_last_flush_latency_seconds", nil, float64(health.BroadcastLastFlushLatencyNs)/1e9)
-	writePrometheusHeader(&b, "agent_ebpf_capture_healthy", "gauge", "Whether capture currently reports no ring buffer drops.")
+	writePrometheusHeader(&b, "agent_ebpf_capture_healthy", "gauge", "Whether capture reports no kernel reserve loss, unexplained sequence loss, out-of-order samples, or generation divergence.")
 	if health.CaptureHealthy {
 		writePrometheusSample(&b, "agent_ebpf_capture_healthy", nil, 1)
 	} else {

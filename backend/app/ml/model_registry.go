@@ -5,8 +5,6 @@ import (
 	"fmt"
 )
 
-// ---- moved from backend/zz_merged_backend.go section model_registry.go ----
-
 // AllModelTypes returns all registered local built-in model IDs in UI order.
 func AllModelTypes() []ModelType {
 	return []ModelType{

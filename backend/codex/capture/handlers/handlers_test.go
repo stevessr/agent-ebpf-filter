@@ -97,3 +97,153 @@ func TestCodexCaptureResponseShape(t *testing.T) {
 		t.Fatalf("payload = %s", payload)
 	}
 }
+
+func TestBuildCodexCaptureResponsesWebsocketArrayInput(t *testing.T) {
+	event := BuildEvent(CaptureRequest{
+		Phase:       "websocket_request",
+		Direction:   "send",
+		URL:         "wss://api.openai.com/v1/responses",
+		Host:        "api.openai.com",
+		ContentType: "application/json",
+		Body:        `{"type":"response.create","stream_id":"lane-1","previous_response_id":"resp_prev","model":"gpt-5.6","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"upstream context"}]}]}`,
+		PID:         9,
+	})
+	if event.Type != "websocket_request" || event.Direction != "send" {
+		t.Fatalf("direction/type = %q/%q", event.Direction, event.Type)
+	}
+	if event.ProtocolEvent != "response.create" || event.StreamID != "lane-1" || event.PreviousResponseID != "resp_prev" {
+		t.Fatalf("responses metadata missing: %#v", event)
+	}
+	if event.MessageRole != "user" || event.PromptLen != len("upstream context") || event.PromptDigest == "" {
+		t.Fatalf("responses input context missing: %#v", event)
+	}
+	if event.ContextDigest == "" || event.ContextItems != 1 || event.ContextLen <= event.PromptLen {
+		t.Fatalf("complete upstream context metadata missing: %#v", event)
+	}
+}
+
+func TestBuildCodexCaptureResponsesWebsocketResponseDelta(t *testing.T) {
+	event := BuildEvent(CaptureRequest{
+		Phase:       "websocket_response",
+		Direction:   "recv",
+		URL:         "wss://api.openai.com/v1/responses",
+		ContentType: "application/json",
+		Body:        `{"type":"response.output_text.delta","stream_id":"lane-1","delta":"hello"}`,
+		PID:         10,
+	})
+	if event.Type != "websocket_response" || event.Direction != "recv" {
+		t.Fatalf("direction/type = %q/%q", event.Direction, event.Type)
+	}
+	if event.ProtocolEvent != "response.output_text.delta" || event.StreamID != "lane-1" {
+		t.Fatalf("responses metadata missing: %#v", event)
+	}
+	if event.MessageRole != "assistant" || event.PromptLen != len("hello") || event.PromptDigest == "" {
+		t.Fatalf("responses output context missing: %#v", event)
+	}
+}
+
+func TestBuildCodexCaptureResponsesContextIncludesAllInputItems(t *testing.T) {
+	build := func(system string) Event {
+		return BuildEvent(CaptureRequest{
+			Phase:       "request",
+			Direction:   "send",
+			URL:         "https://api.openai.com/v1/responses",
+			Host:        "api.openai.com",
+			ContentType: "application/json",
+			Body:        `{"model":"gpt-5.6","input":[{"type":"message","role":"system","content":[{"type":"input_text","text":"` + system + `"}]},{"type":"function_call_output","call_id":"call_1","output":"tool-result"},{"type":"message","role":"user","content":[{"type":"input_text","text":"latest-user"}]}]}`,
+			PID:         11,
+		})
+	}
+
+	first := build("system-one")
+	second := build("system-two")
+	if first.PromptDigest == "" || first.PromptDigest != second.PromptDigest {
+		t.Fatalf("latest prompt digest should stay stable: %q vs %q", first.PromptDigest, second.PromptDigest)
+	}
+	if first.ContextDigest == "" || second.ContextDigest == "" || first.ContextDigest == second.ContextDigest {
+		t.Fatalf("full context digest did not include earlier input items: %q vs %q", first.ContextDigest, second.ContextDigest)
+	}
+	if first.ContextItems != 3 || second.ContextItems != 3 {
+		t.Fatalf("context item counts = %d/%d, want 3/3", first.ContextItems, second.ContextItems)
+	}
+	if first.ContextLen <= first.PromptLen {
+		t.Fatalf("context len=%d prompt len=%d; full context was not retained", first.ContextLen, first.PromptLen)
+	}
+}
+
+func TestBuildCodexCaptureLargeResponsesContextUsesFullBody(t *testing.T) {
+	largeSystem := strings.Repeat("context-", 3000)
+	body := `{"type":"response.create","stream_id":"lane-big","model":"gpt-5.6","input":[{"type":"message","role":"system","content":[{"type":"input_text","text":"` +
+		largeSystem +
+		`"}]},{"type":"message","role":"user","content":[{"type":"input_text","text":"latest-user"}]}]}`
+	event := BuildEvent(CaptureRequest{
+		Phase:       "websocket_request",
+		Direction:   "send",
+		URL:         "wss://api.openai.com/v1/responses",
+		Host:        "api.openai.com",
+		ContentType: "application/json",
+		Body:        body,
+		PID:         12,
+	})
+	if !event.Truncated || len(event.Body) > maxBodySize {
+		t.Fatalf("display body truncation not enforced: truncated=%v len=%d", event.Truncated, len(event.Body))
+	}
+	if event.ProtocolEvent != "response.create" || event.StreamID != "lane-big" {
+		t.Fatalf("protocol metadata lost after display truncation: %#v", event)
+	}
+	if event.MessageRole != "user" || event.PromptLen != len("latest-user") || event.PromptDigest == "" {
+		t.Fatalf("latest prompt metadata came from truncated display body: %#v", event)
+	}
+	if event.ContextDigest == "" || event.ContextItems != 2 || event.ContextLen <= maxBodySize {
+		t.Fatalf("full upstream context metadata missing: %#v", event)
+	}
+}
+
+func TestBuildCodexCaptureResponsesSteerAndInjectMetadata(t *testing.T) {
+	steer := BuildEvent(CaptureRequest{
+		Phase:       "websocket_request",
+		Direction:   "send",
+		URL:         "wss://api.openai.com/v1/responses",
+		Host:        "api.openai.com",
+		ContentType: "application/json",
+		Body:        `{"type":"response.steer","previous_response_id":"resp_1","input":"make it shorter"}`,
+		PID:         13,
+	})
+	if steer.ProtocolEvent != "response.steer" || steer.PreviousResponseID != "resp_1" {
+		t.Fatalf("steer protocol metadata missing: %#v", steer)
+	}
+	if steer.MessageRole != "user" || steer.PromptDigest == "" || steer.ContextDigest == "" || steer.ContextItems != 1 {
+		t.Fatalf("steer input context missing: %#v", steer)
+	}
+
+	accepted := BuildEvent(CaptureRequest{
+		Phase:       "websocket_response",
+		Direction:   "recv",
+		URL:         "wss://api.openai.com/v1/responses",
+		Host:        "api.openai.com",
+		ContentType: "application/json",
+		Body:        `{"type":"response.steer.accepted","stream_id":"main","steer":{"id":"steer_1","previous_response_id":"resp_1"}}`,
+		PID:         13,
+	})
+	if accepted.ProtocolEvent != "response.steer.accepted" ||
+		accepted.StreamID != "main" ||
+		accepted.PreviousResponseID != "resp_1" {
+		t.Fatalf("steer acknowledgement metadata missing: %#v", accepted)
+	}
+
+	inject := BuildEvent(CaptureRequest{
+		Phase:       "websocket_request",
+		Direction:   "send",
+		URL:         "wss://api.openai.com/v1/responses",
+		Host:        "api.openai.com",
+		ContentType: "application/json",
+		Body:        `{"type":"response.inject","response_id":"resp_2","input":[{"type":"function_call_output","call_id":"call_1","output":"{\"ok\":true}"}]}`,
+		PID:         13,
+	})
+	if inject.ProtocolEvent != "response.inject" || inject.ResponseID != "resp_2" {
+		t.Fatalf("inject protocol metadata missing: %#v", inject)
+	}
+	if inject.ContextDigest == "" || inject.ContextItems != 1 {
+		t.Fatalf("inject context metadata missing: %#v", inject)
+	}
+}

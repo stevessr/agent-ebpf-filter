@@ -20,6 +20,18 @@ func DetectAIToolFromComm(comm string) *AIToolMetadata {
 	lower := strings.ToLower(comm)
 
 	switch {
+	case lower == "zcode" || lower == "zcode.appimage":
+		return &AIToolMetadata{
+			ToolName:   "ZCode",
+			ToolVendor: "Z.ai",
+			ToolType:   "ai_assistant",
+		}
+	case lower == "zg" || lower == "zvec-grep":
+		return &AIToolMetadata{
+			ToolName:   "zvec-grep",
+			ToolVendor: "zvec-ai",
+			ToolType:   "search_service",
+		}
 	case strings.Contains(lower, "cursor"):
 		return &AIToolMetadata{
 			ToolName:    "Cursor",
@@ -40,8 +52,22 @@ func DetectAIToolFromComm(comm string) *AIToolMetadata {
 
 // DetectAIToolFromPath 从二进制路径推断 AI 工具
 func DetectAIToolFromPath(binPath string) *AIToolMetadata {
-	lower := strings.ToLower(binPath)
+	lower := strings.ToLower(strings.TrimSpace(binPath))
 
+	if lower == "zcode" || strings.HasSuffix(lower, "/zcode") || strings.HasSuffix(lower, "/zcode.appimage") {
+		return &AIToolMetadata{
+			ToolName:   "ZCode",
+			ToolVendor: "Z.ai",
+			ToolType:   "ai_assistant",
+		}
+	}
+	if strings.Contains(lower, "@zvec/zvec-grep") || strings.Contains(lower, "/zvec-grep/") || lower == "zg" || strings.HasSuffix(lower, "/zg") {
+		return &AIToolMetadata{
+			ToolName:   "zvec-grep",
+			ToolVendor: "zvec-ai",
+			ToolType:   "search_service",
+		}
+	}
 	if strings.Contains(lower, "@cometix/claude-code") {
 		return &AIToolMetadata{
 			ToolName:    "Claude Code",
@@ -148,18 +174,18 @@ func EnrichTLSEventWithAIMetadata(event map[string]interface{}, pid uint32, comm
 // Example: 集成到现有的 TLS 事件处理
 type TLSPlaintextEventEnriched struct {
 	// 原有字段
-	Type      string
-	PID       uint32
-	Comm      string
-	URL       string
-	Host      string
+	Type string
+	PID  uint32
+	Comm string
+	URL  string
+	Host string
 
 	// AI 元数据字段
-	AIToolName     string `json:"ai_tool_name,omitempty"`
-	AIToolVendor   string `json:"ai_tool_vendor,omitempty"`
-	AIToolType     string `json:"ai_tool_type,omitempty"`
-	AIAPIProvider  string `json:"ai_api_provider,omitempty"`
-	AIRunner       string `json:"ai_runner,omitempty"`
+	AIToolName    string `json:"ai_tool_name,omitempty"`
+	AIToolVendor  string `json:"ai_tool_vendor,omitempty"`
+	AIToolType    string `json:"ai_tool_type,omitempty"`
+	AIAPIProvider string `json:"ai_api_provider,omitempty"`
+	AIRunner      string `json:"ai_runner,omitempty"`
 }
 
 func main() {

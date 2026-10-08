@@ -54,11 +54,20 @@ func redactEvent(event *pb.Event, engine *redaction.RedactionEngine) {
 
 // redactEnvelopeEvent applies redaction to an EventEnvelope including its payload.
 func redactEnvelopeEvent(envelope *pb.EventEnvelope, engine *redaction.RedactionEngine) {
+	redactEnvelopeEventExcept(envelope, engine, nil)
+}
+
+// redactEnvelopeEventExcept is redactEnvelopeEvent for envelopes whose
+// LegacyEvent may alias an event that was already redacted; that object is
+// skipped so redaction never runs twice on the same fields.
+func redactEnvelopeEventExcept(envelope *pb.EventEnvelope, engine *redaction.RedactionEngine, alreadyRedacted *pb.Event) {
 	if envelope == nil || engine == nil {
 		return
 	}
 
-	redactEvent(envelope.LegacyEvent, engine)
+	if envelope.LegacyEvent != alreadyRedacted {
+		redactEvent(envelope.LegacyEvent, engine)
+	}
 	envelope.Comm = engine.ApplyRules(envelope.Comm, redaction.FieldCategoryIdentifier)
 	envelope.Cwd = redactPathWithRules(envelope.Cwd, engine)
 
@@ -130,7 +139,7 @@ func redactEnvelopeEvent(envelope *pb.EventEnvelope, engine *redaction.Redaction
 
 func redactCapturedEventRecord(record CapturedEventRecord, engine *redaction.RedactionEngine) CapturedEventRecord {
 	redactEvent(record.Event, engine)
-	redactEnvelopeEvent(record.Envelope, engine)
+	redactEnvelopeEventExcept(record.Envelope, engine, record.Event)
 	return record
 }
 

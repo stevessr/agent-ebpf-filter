@@ -18,6 +18,7 @@ import ConfigSystemHealthTab from "../../components/config/ConfigSystemHealthTab
 import ConfigDocsTab from "../../components/config/ConfigDocsTab.vue";
 import ConfigClusterTab from "../../components/config/ConfigClusterTab.vue";
 import ConfigVisualFilterTab from "../../components/config/ConfigVisualFilterTab.vue";
+import ConfigKernelTab from "../../components/config/ConfigKernelTab.vue";
 import ConfigRedactionTab from "../../components/config/ConfigRedactionTab.vue";
 import { useConfigRegistry } from "../../composables/config/useConfigRegistry";
 import { useConfigSecurity } from "../../composables/config/useConfigSecurity";
@@ -54,6 +55,7 @@ const configTabKeys = new Set([
   "security",
   "visual-filter",
   "redaction",
+  "kernel",
   "runtime",
   "system",
   "docs",
@@ -141,6 +143,10 @@ onMounted(() => {
           ><span><LockOutlined /> Redaction</span></template
         >
         <ConfigRedactionTab />
+      </a-tab-pane>
+
+      <a-tab-pane key="kernel" tab="BTF / LSM">
+        <ConfigKernelTab />
       </a-tab-pane>
 
       <a-tab-pane key="runtime">

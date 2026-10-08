@@ -89,6 +89,58 @@ describe("Content-Length stdio framing", () => {
   });
 });
 
+describe("newline-delimited MCP stdio framing", () => {
+  test("decodes the MCP transport used by zvec-grep", () => {
+    const raw =
+      [
+        {
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/call",
+          params: {
+            name: "zvec_grep_search",
+            arguments: { root: "/workspace/project", query: "event flow" },
+          },
+        },
+        {
+          jsonrpc: "2.0",
+          id: 1,
+          result: { content: [{ type: "text", text: "ok" }] },
+        },
+      ]
+        .map((message) => JSON.stringify(message))
+        .join("\n") + "\n";
+
+    const decoded = decodeStdioMessage({ data: raw, direction: "write" });
+    expect(decoded.framing).toBe("newline");
+    expect(decoded.framed).toBe(true);
+    expect(decoded.protocol).toBe("mcp");
+    expect(decoded.frameCount).toBe(2);
+    expect(decoded.parsedMessages[0].params.name).toBe("zvec_grep_search");
+    expect(decoded.parsedMessages[1].result.content[0].text).toBe("ok");
+  });
+
+  test("does not classify ordinary multiline output as MCP", () => {
+    const decoded = decodeStdioMessage({ data: "zg: indexing\ncomplete\n" });
+    expect(decoded.framing).toBe("unframed");
+    expect(decoded.protocol).toBe("text");
+    expect(decoded.frameCount).toBe(0);
+  });
+
+  test("classifies a standalone zvec-grep tool response as MCP", () => {
+    const decoded = decodeStdioMessage({
+      data:
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: 4,
+          result: { content: [{ type: "text", text: "freshness: fresh" }] },
+        }) + "\n",
+    });
+    expect(decoded.protocol).toBe("mcp");
+    expect(decoded.kind).toBe("response");
+  });
+});
+
 describe("stateful stdio stream reassembly", () => {
   test("reassembles a frame split across capture events", () => {
     const decoder = new AgentSightStdioStreamDecoder();
@@ -111,6 +163,36 @@ describe("stateful stdio stream reassembly", () => {
     expect(second.protocol).toBe("lsp");
     expect(second.method).toBe("textDocument/completion");
     expect(second.id).toBe("11");
+    expect(second.pendingBytes).toBe(0);
+    expect(decoder.pendingStreamCount()).toBe(0);
+  });
+
+  test("reassembles a newline-delimited zvec-grep MCP request", () => {
+    const decoder = new AgentSightStdioStreamDecoder();
+    const raw =
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: 12,
+        method: "tools/call",
+        params: {
+          name: "zvec_grep_rg",
+          arguments: { root: "/workspace/project", command: "rg -n event" },
+        },
+      }) + "\n";
+    // Exercise a capture split before the full `"jsonrpc"` key arrives.
+    const split = 3;
+
+    const first = decoder.decode(stdioEvent({ data: raw.slice(0, split) }, 10));
+    expect(first.framing).toBe("newline");
+    expect(first.incompleteFrame).toBe(true);
+    expect(first.pendingBytes).toBeGreaterThan(0);
+
+    const second = decoder.decode(stdioEvent({ data: raw.slice(split) }, 20));
+    expect(second.reassembled).toBe(true);
+    expect(second.framing).toBe("newline");
+    expect(second.protocol).toBe("mcp");
+    expect(second.method).toBe("tools/call");
+    expect(second.toolName).toBe("zvec_grep_rg");
     expect(second.pendingBytes).toBe(0);
     expect(decoder.pendingStreamCount()).toBe(0);
   });
@@ -159,12 +241,16 @@ describe("stateful stdio stream reassembly", () => {
     decoder.decode(stdioEvent({ fd: 2, data: b.slice(0, bSplit) }, 11));
     expect(decoder.pendingStreamCount()).toBe(2);
 
-    const bDone = decoder.decode(stdioEvent({ fd: 2, data: b.slice(bSplit) }, 12));
+    const bDone = decoder.decode(
+      stdioEvent({ fd: 2, data: b.slice(bSplit) }, 12),
+    );
     expect(bDone.id).toBe("b");
     expect(bDone.method).toBe("textDocument/hover");
     expect(decoder.pendingStreamCount()).toBe(1);
 
-    const aDone = decoder.decode(stdioEvent({ fd: 1, data: a.slice(aSplit) }, 13));
+    const aDone = decoder.decode(
+      stdioEvent({ fd: 1, data: a.slice(aSplit) }, 13),
+    );
     expect(aDone.id).toBe("a");
     expect(aDone.method).toBe("workspace/symbol");
     expect(decoder.pendingStreamCount()).toBe(0);
@@ -172,7 +258,11 @@ describe("stateful stdio stream reassembly", () => {
 
   test("drops pending state after a collector truncation gap", () => {
     const decoder = new AgentSightStdioStreamDecoder();
-    const raw = frame({ jsonrpc: "2.0", id: 4, method: "workspace/configuration" });
+    const raw = frame({
+      jsonrpc: "2.0",
+      id: 4,
+      method: "workspace/configuration",
+    });
     const split = Math.floor(raw.length / 2);
 
     decoder.decode(stdioEvent({ data: raw.slice(0, split) }, 10));

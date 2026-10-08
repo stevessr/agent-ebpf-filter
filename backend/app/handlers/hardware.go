@@ -15,12 +15,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/shirou/gopsutil/v3/host"
-	"github.com/vladimirvivien/go4vl/device"
-	"github.com/vladimirvivien/go4vl/v4l2"
 	"google.golang.org/protobuf/proto"
 )
-
-// ---- moved from app/handlershardwaresystem.go ----
 
 func HandleSensors(c *gin.Context) {
 	temps, _ := host.SensorsTemperatures()
@@ -35,18 +31,7 @@ func HandleSensors(c *gin.Context) {
 }
 
 func HandleCameras(c *gin.Context) {
-	matches, _ := filepath.Glob("/dev/video*")
-	captureDevices := []string{}
-	for _, dev := range matches {
-		cam, err := device.Open(dev, device.WithIOType(v4l2.IOTypeMMAP))
-		if err == nil {
-			if caps := cam.Capability(); caps.IsVideoCaptureSupported() {
-				captureDevices = append(captureDevices, dev)
-			}
-			cam.Close()
-		}
-	}
-	c.JSON(200, captureDevices)
+	c.JSON(200, listCameraDevices())
 }
 
 var cameraDevicePattern = regexp.MustCompile(`^/dev/video[0-9]+$`)
