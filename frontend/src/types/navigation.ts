@@ -6,7 +6,6 @@ import type {
 } from "vue-router";
 
 export type WorkbenchKey =
-  | "renew"
   | "dashboard"
   | "monitor"
   | "network"

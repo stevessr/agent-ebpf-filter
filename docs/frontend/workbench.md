@@ -151,7 +151,7 @@ graph LR
 
 | 页面 | 目标 |
 | --- | --- |
-| Renew | 面向日常常驻监控的轻量前端：系统状态、Agent 活动摘要、异常队列、快速深挖入口；见 [Renew 日常监控前端](renew.md) |
+| 明镜高悬桌面端 | MyGo 原生轻量监控，不再属于浏览器工作台；见 [明镜高悬桌面端](renew.md) |
 | Dashboard | 事件流、过滤、详情、strace-style summaries，以及 Activity Insights（Agent Runs、工具/MCP、文件/安装/Git、网络轨迹、语义层↔内核层关联覆盖率） |
 | Monitor | CPU、内存、GPU、IO、faults、sensors、systemd、tracing |
 | Network | 网络事件、flow table、traffic graph、enrichment |
@@ -247,7 +247,7 @@ sequenceDiagram
 
 - [路由与功能页](routes-and-pages.md)
 - [组件与 Composables](components-composables.md)
-- [Renew 日常监控前端](renew.md)
+- [明镜高悬 MyGo 桌面端](renew.md)
 - [Dashboard Activity Insights](dashboard-activity-insights.md)
 - [构建与 Feature Flags](build-feature-flags.md)
 - [事件管线](../backend/event-pipeline.md)

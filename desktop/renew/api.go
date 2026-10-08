@@ -6,12 +6,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 type eventSummary struct {
@@ -171,9 +174,10 @@ type apiSnapshot struct {
 }
 
 type apiClient struct {
-	origin string
-	token  string
-	http   *http.Client
+	origin     string
+	token      string
+	http       *http.Client
+	unixSocket string
 }
 
 func newAPIClient(origin, token string) *apiClient {
@@ -182,6 +186,30 @@ func newAPIClient(origin, token string) *apiClient {
 		token:  strings.TrimSpace(token),
 		http:   &http.Client{Timeout: 4 * time.Second},
 	}
+}
+
+func newUnixAPIClient(socket, token string) *apiClient {
+	client := newAPIClient("http://desktop.internal", token)
+	client.unixSocket = socket
+	client.http.Transport = &http.Transport{
+		Proxy: nil,
+		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			return (&net.Dialer{}).DialContext(ctx, "unix", socket)
+		},
+	}
+	return client
+}
+
+func (c *apiClient) websocketDialer() websocket.Dialer {
+	dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
+	if c.unixSocket != "" {
+		socket := c.unixSocket
+		dialer.Proxy = nil
+		dialer.NetDialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
+			return (&net.Dialer{}).DialContext(ctx, "unix", socket)
+		}
+	}
+	return dialer
 }
 
 func (c *apiClient) requestJSON(ctx context.Context, method, path string, body, out any) error {

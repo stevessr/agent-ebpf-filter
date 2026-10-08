@@ -30,8 +30,8 @@ single ELF: renew
                                       ├══ private Unix socket ══▶ desktop
                                       │   DesktopEventSummary + SystemStats protobuf
                                       │
-                                      └─ REST / WebSocket compatibility plane
-                                          remote/custom/browser clients
+                                      └─ authenticated REST API on a second private
+                                          Unix socket (no TCP port listener)
 ```
 
 The native client now covers the low-noise daily-monitoring workflow: Overview, Events, Agent Sessions, Network, Processes, Monitoring, Wrapper Rules, Tracking, and System. Events and configuration surfaces use MyGo-native tables/forms/selects/tabs/switches; the browser runtime is not embedded.
@@ -48,7 +48,7 @@ These controls target **registered custom eBPF programs only**, and detach their
 
 System telemetry uses the same native socket for a locally launched backend. The system sampler is transport-independent and shared by both clients: browser clients receive its protobuf snapshots over `/ws/system`, while Renew receives the identical `SystemStats` payload directly over Native IPC. This avoids a duplicated sampler while keeping the local desktop off the generic web transport. Remote/custom backends still use the WebSocket implementation, and a lost local IPC channel automatically falls back to it.
 
-The browser `/renew` frontend remains available as an independent client and as the route to features not yet migrated to native widgets. It is no longer a desktop runtime or packaging dependency.
+The browser `/renew` frontend has been removed. The main browser workbench remains independent; the native desktop UI does not ship a browser, a WebView, or a TCP HTTP listener. The privately started backend serves authenticated configuration and history requests over a second Unix socket in the desktop-owned 0700 session directory.
 
 ## Why a separate module?
 
@@ -124,3 +124,11 @@ go build ./...
 ../../scripts/renew-desktop.sh prepare
 go tool mygo build -skip-build-command -platform linux/amd64
 ```
+
+## Tracking scope and filesystem noise
+
+The tracking panel can filter by tag and activation status. Commands may be disabled; exact file and recursive directory rules remain enabled until deleted. The file picker uses MyGo's native dialog. **文件夹内文件** enumerates and registers existing immediate regular files as exact paths (a snapshot; new files need registering again); **文件** registers one exact file; **文件夹及其子文件** stores a persistent recursive prefix. Mutations still require the existing policy-management gate.
+
+New runtime configs ignore `/proc` and `/tmp` by default. The extra built-in `/usr/bin` rule suppresses only low-risk read/write operations (not executable launches, renames, or policy alerts); the explicit empty `ignoredPaths: []` opt-out remains effective. Already saved custom ignored paths are not overwritten.
+
+In bundled mode the privileged child listens only on an authenticated private Unix domain API socket, plus the separate lifetime/event-stream socket. It does **not** open TCP port 8080 or write a backend port file. When the user explicitly connects to a pre-existing local/remote backend, the desktop reuses that independently managed endpoint without changing how that service listens.

@@ -17,12 +17,7 @@ const routes = [
     path: "/",
     redirect: "/dashboard",
   },
-  {
-    path: "/renew/:section?",
-    name: "Renew",
-    meta: { uiVariant: "renew" },
-    component: () => import("../views/renew/Renew.vue"),
-  },
+/**** The former Renew web client is now a dedicated MyGo desktop app. ****/
   {
     path: "/dashboard/:tab?",
     name: "Dashboard",
@@ -126,10 +121,8 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
-  scrollBehavior(to, from, savedPosition) {
+  scrollBehavior(_to, _from, savedPosition) {
     if (savedPosition) return savedPosition;
-    if (to.name === "Renew" && to.params.section !== from.params.section)
-      return { top: 0 };
   },
 });
 

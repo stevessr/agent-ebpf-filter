@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strconv"
@@ -421,15 +422,48 @@ func (a *renewApp) systemView(c *ui.Context) {
 	t := c.Theme()
 	ui.Text(c, "系统").FontSize(28).Bold()
 
+	_, attention, danger := a.riskCounts()
+	if !a.connected || (a.healthReady && !a.health.CaptureHealthy) ||
+		!a.eventStreamConnected || !a.systemConnected || danger > 0 || attention > 0 {
+		card(c, "异常与快速处置", func() {
+			if !a.connected {
+				statusPill(c, "后端离线", t.Danger)
+				ui.Text(c, "后端未连接，当前无法确认采集状态。").TextColor(t.TextMuted)
+			} else if a.healthReady && !a.health.CaptureHealthy {
+				statusPill(c, "采集异常", t.Danger)
+				ui.Text(c, "采集器报告异常，可检查监控模块与数据采集配置。").TextColor(t.TextMuted)
+			} else if !a.eventStreamConnected || !a.systemConnected {
+				statusPill(c, "连接降级", t.Warning)
+				ui.Text(c, "事件流或系统流正在恢复；可以立即重新同步。").TextColor(t.TextMuted)
+			}
+			if danger > 0 || attention > 0 {
+				ui.Textf(c, "当前事件窗口：%d 条高风险、%d 条需关注", danger, attention)
+			}
+			ui.Row(c).Gap(8).Wrap().Children(func() {
+				if ui.PrimaryButton(c, "定位异常事件").Clicked() {
+					a.eventAttentionOnly = true
+					a.eventTypeFilter, a.eventSessionFilter, a.eventDecisionFilter, a.search = "", "", "", ""
+					a.page = "事件"
+				}
+				if ui.Button(c, "采集设置").Clicked() { a.page = "监控" }
+				if ui.Button(c, "跟踪范围").Clicked() { a.page = "跟踪" }
+				if ui.Button(c, "立即重连").Clicked() {
+					go a.refresh(context.Background())
+					go a.refreshConfiguration(context.Background())
+				}
+			})
+		})
+	}
+
 	ui.Row(c).Gap(12).Wrap().Children(func() {
 		collectorLabel, _ := a.collectorStatus()
 		statCard(c, "采集器", collectorLabel, fmt.Sprintf("Ringbuf 丢弃 %d", a.health.RingbufDroppedTotal))
 		if a.systemConnected {
 			statCard(c, "CPU", fmt.Sprintf("%.1f%%", a.system.CPUTotal), fmt.Sprintf("%d 个进程", len(a.system.Processes)))
 			statCard(c, "内存", fmt.Sprintf("%.1f%%", a.system.MemPercent), fmt.Sprintf("%s / %s", formatBytes(int64(a.system.MemUsed)), formatBytes(int64(a.system.MemTotal))))
-			statCard(c, "系统流", "实时", "protobuf /ws/system")
+			statCard(c, "系统流", "实时", "protobuf / Native IPC")
 		} else if a.connected {
-			statCard(c, "系统流", "重连中", "protobuf /ws/system")
+			statCard(c, "系统流", "重连中", "Native IPC / WebSocket")
 		} else {
 			statCard(c, "系统流", "不可用", "后端离线")
 		}

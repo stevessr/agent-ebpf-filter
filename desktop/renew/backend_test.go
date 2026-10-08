@@ -59,11 +59,12 @@ func TestBundledBackendStartupAndCleanup(t *testing.T) {
 	// or the real kernel.
 	source := `#!/usr/bin/env python3
 import argparse, socket, json, threading
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
+from socketserver import UnixStreamServer
 p = argparse.ArgumentParser()
 p.add_argument('--internal-backend', action='store_true')
 p.add_argument('--desktop-lifetime-socket'); p.add_argument('--real-home')
-p.add_argument('--desktop-port', type=int); p.add_argument('--frontend-dir')
+p.add_argument('--desktop-api-socket'); p.add_argument('--frontend-dir')
 a = p.parse_args()
 c = socket.socket(socket.AF_UNIX); c.connect(a.desktop_lifetime_socket)
 c.sendall(json.dumps({'token':'fixture-token'}).encode()+b'\n')
@@ -71,7 +72,7 @@ class Handler(BaseHTTPRequestHandler):
  def do_GET(self):
   self.send_response(200); self.send_header('Content-Type','application/json'); self.end_headers(); self.wfile.write(b'[]')
  def log_message(self, *args): pass
-s = ThreadingHTTPServer(('127.0.0.1', a.desktop_port), Handler)
+s = UnixStreamServer(a.desktop_api_socket, Handler)
 threading.Thread(target=s.serve_forever, daemon=True).start()
 c.recv(1)
 s.shutdown(); s.server_close(); c.close()
@@ -95,10 +96,13 @@ s.shutdown(); s.server_close(); c.close()
 	if session.token != "fixture-token" {
 		t.Fatal("private auth handshake failed")
 	}
+	if session.apiSocket == "" || session.clientAddress() == "" {
+		t.Fatal("expected owner-private Unix API socket")
+	}
 	dir := session.dir
 	session.Close()
-	if backendAPIAvailable(ctx, origin) {
-		t.Fatal("owned backend still running after desktop close")
+	if backendUnixAPIAvailable(ctx, filepath.Join(dir, "api.sock"), "fixture-token") {
+		t.Fatal("owned Unix backend still running after desktop close")
 	}
 	if _, err := os.Stat(dir); !os.IsNotExist(err) {
 		t.Fatal("session directory was not cleaned")
@@ -144,5 +148,27 @@ func TestSelfAskpassSelection(t *testing.T) {
 	}
 	if !strings.Contains(joined, askpassModeEnv+"=1") {
 		t.Fatalf("self askpass mode missing from env: %s", joined)
+	}
+}
+
+func TestUnixClientDoesNotRequireTCP(t *testing.T) {
+	dir := t.TempDir()
+	socket := filepath.Join(dir, "api.sock")
+	listener, err := net.Listen("unix", socket)
+	if err != nil { t.Fatal(err) }
+	defer listener.Close()
+	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/events/summaries" || r.Header.Get("X-API-KEY") != "local-only" {
+			t.Errorf("unexpected Unix API request: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"events":[]}`))
+	})}
+	go server.Serve(listener)
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if !backendUnixAPIAvailable(ctx, socket, "local-only") {
+		t.Fatal("authenticated API over Unix socket did not respond")
 	}
 }

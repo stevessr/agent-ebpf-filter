@@ -41,6 +41,7 @@ func ConfigureDesktopFlags(args []string) error {
 	flags := flag.NewFlagSet("agent-ebpf-filter", flag.ContinueOnError)
 	flags.Bool("ebpf-bootstrap", false, "bootstrap eBPF maps and links") // Existing mode; Main reads os.Args.
 	socket := flags.String("desktop-lifetime-socket", "", "desktop lifetime Unix socket")
+	apiSocket := flags.String("desktop-api-socket", "", "private Unix socket for desktop API; never opens TCP")
 	frontend := flags.String("frontend-dir", "", "absolute frontend asset directory")
 	home := flags.String("real-home", "", "unprivileged user's home directory")
 	port := flags.Int("desktop-port", 0, "desktop backend port")
@@ -51,8 +52,19 @@ func ConfigureDesktopFlags(args []string) error {
 	if flags.NArg() != 0 {
 		return fmt.Errorf("unexpected backend arguments")
 	}
+	if *apiSocket != "" {
+		if *socket == "" || !filepath.IsAbs(*apiSocket) ||
+			filepath.Clean(filepath.Dir(*apiSocket)) != filepath.Clean(filepath.Dir(*socket)) ||
+			filepath.Clean(*apiSocket) == filepath.Clean(*socket) {
+			return fmt.Errorf("desktop API socket must be distinct and in the lifetime socket directory")
+		}
+		if *port != 0 {
+			return fmt.Errorf("desktop API socket and TCP port cannot both be configured")
+		}
+	}
 	for key, value := range map[string]string{
 		"AGENT_DESKTOP_LIFETIME_SOCKET": *socket,
+		"AGENT_DESKTOP_API_SOCKET":      *apiSocket,
 		"AGENT_FRONTEND_DIST":           *frontend,
 		"AGENT_REAL_HOME":               *home,
 	} {

@@ -1,13 +1,8 @@
 <script setup lang="ts">
-import { computed } from "vue";
 import zhCN from "ant-design-vue/es/locale/zh_CN";
-import { useRoute } from "vue-router";
 import AppSideNav from "./components/layout/AppSideNav.vue";
 import AppWorkbenchTabs from "./components/layout/AppWorkbenchTabs.vue";
 import { useWorkbenchNavigation } from "./composables/navigation/useWorkbenchNavigation";
-
-const route = useRoute();
-const isStandaloneVariant = computed(() => route.meta.uiVariant === "renew");
 
 const {
   navGroups,
@@ -25,8 +20,7 @@ const {
 
 <template>
   <a-config-provider :locale="zhCN">
-    <router-view v-if="isStandaloneVariant" />
-    <a-layout v-else class="app-layout">
+    <a-layout class="app-layout">
       <AppSideNav
         v-model:collapsed="collapsed"
         :nav-groups="navGroups"

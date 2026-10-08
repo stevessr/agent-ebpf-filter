@@ -12,7 +12,7 @@ import (
 const ignoredPathBypassRiskScore = 60
 
 func defaultIgnoredEventPaths() []string {
-	return []string{"/proc"}
+	return []string{"/proc", "/tmp"}
 }
 
 // routineSystemNoisePaths are built-in read-only noise candidates. They are
@@ -102,6 +102,25 @@ func eventPathNoiseEligible(event *pb.Event) bool {
 	}
 }
 
+// /usr/bin is a frequent read/write noise source. Never suppress exec,
+// file mutation, policy decisions, or other event types solely by this rule.
+func isUsrBinReadWriteNoise(event *pb.Event) bool {
+	if event == nil {
+		return false
+	}
+	switch event.GetEventType() {
+	case pb.EventType_READ, pb.EventType_WRITE:
+		return pathMatchesIgnoredPrefix(event.GetPath(), []string{"/usr/bin"}) ||
+			pathMatchesIgnoredPrefix(event.GetExtraPath(), []string{"/usr/bin"})
+	}
+	switch strings.ToLower(strings.TrimSpace(event.GetType())) {
+	case "read", "write", "pread64", "pwrite64", "readv", "writev":
+		return pathMatchesIgnoredPrefix(event.GetPath(), []string{"/usr/bin"}) ||
+			pathMatchesIgnoredPrefix(event.GetExtraPath(), []string{"/usr/bin"})
+	}
+	return false
+}
+
 func eventBypassesIgnoredPaths(event *pb.Event) bool {
 	if event == nil {
 		return false
@@ -141,7 +160,7 @@ func shouldIgnoreEventPath(event *pb.Event) bool {
 	configuredMatch := pathMatchesIgnoredPrefix(event.GetPath(), ignored) ||
 		pathMatchesIgnoredPrefix(event.GetExtraPath(), ignored)
 	runtimeSettingsStore.mu.RUnlock()
-	if configuredMatch {
+	if configuredMatch || isUsrBinReadWriteNoise(event) {
 		return true
 	}
 	if !eventPathNoiseEligible(event) {
