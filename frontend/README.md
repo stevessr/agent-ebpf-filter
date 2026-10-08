@@ -2,6 +2,13 @@
 
 Vue 3 + TypeScript + Vite dashboard for the Agent eBPF Filter backend.
 
+## IDE workbench
+
+The dark workbench supports draggable functional-page tabs, nested horizontal/vertical splits, pointer/keyboard resizing and browser-local layout persistence. See [Web workbench guide](../docs/guide/web-workbench.md).
+
+- `bun run test:workbench` — layout and route regressions
+- `bun run test:workbench-browser` — interactions in a dedicated Chromium session (requires agent-browser and a running frontend)
+
 ## Stack
 
 - Vue 3

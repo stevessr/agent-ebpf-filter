@@ -31,6 +31,7 @@ export default defineConfig({
           items: [
             { text: '项目是什么', link: '/guide/what-is-agent-ebpf-filter' },
             { text: '快速开始', link: '/guide/quick-start' },
+            { text: 'IDE Web 工作台', link: '/guide/web-workbench' },
             { text: '功能总览', link: '/guide/capabilities' },
             { text: '图表与示例索引', link: '/guide/diagrams-and-examples' },
             { text: '阅读路线', link: '/guide/reading-paths' }
