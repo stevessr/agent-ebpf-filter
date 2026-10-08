@@ -101,6 +101,9 @@ plus `POST /api/events/query` accept the same import/query payloads. The plain
 | `GET` | `/api/v1/network/dns-cache` | DNS correlation cache. |
 | `GET` | `/api/v1/network/interfaces` | Interface RX/TX counters and drops/errors. |
 | `GET` | `/api/v1/network/export/jsonl` | Metadata-only flow JSONL export. |
+| `GET` | `/api/v1/sandbox/runtime/status` | Host-side gVisor/Kata/Firecracker/namespace/OCI runtime integration status. |
+| `GET` | `/api/v1/sandbox/runtime/detect?pid=<host-pid>` | Best-effort runtime, cgroup, and container attribution for one host-visible PID. |
+| `GET` | `/api/v1/sandbox/runtime/active?limit=128` | Bounded list of host-visible sandbox runtime processes. |
 | `GET` | `/api/v1/sandbox/cgroup/status` | cgroup/connect + sendmsg BPF status and active blocks. |
 | `GET` | `/api/v1/sandbox/lsm/status` | BPF LSM status and active blocks. |
 
