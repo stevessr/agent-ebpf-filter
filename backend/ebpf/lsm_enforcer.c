@@ -86,7 +86,7 @@ static __always_inline int check_path_access(struct file *file, __u32 access, st
 {
 	if (!file || !access) return 0;
 	struct lsm_path_key key = {};
-	long n = bpf_d_path(&file->f_path, key.path, sizeof(key.path));
+	long n = bpf_d_path((struct path *)&file->f_path, key.path, sizeof(key.path));
 	if (n <= 1 || n > sizeof(key.path)) return 0;
 	__u32 *policy = bpf_map_lookup_elem(&lsm_blocked_exec_paths, &key);
 	if (policy && (*policy & access)) {
