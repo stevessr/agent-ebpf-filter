@@ -1,0 +1,324 @@
+package main
+
+import (
+	"fmt"
+	"strconv"
+	"strings"
+
+	"github.com/egoist/mygo/ui"
+)
+
+// Inspector always uses the already-retained compact summaries. The pinned
+// identity is stable when the live stream reorders rows, and never silently
+// changes to another event if the pinned summary ages out.
+func (a *renewApp) inspectorEvent() (eventSummary, bool) {
+	if a.inspectorPinnedID != "" {
+		for _, event := range a.events {
+			if event.EventID == a.inspectorPinnedID {
+				return event, true
+			}
+		}
+		return eventSummary{}, false
+	}
+
+	rows := a.events
+	if a.page == "事件" || a.page == "概览" {
+		rows = a.filteredEvents()
+	}
+	if len(rows) == 0 {
+		return eventSummary{}, false
+	}
+	if a.inspectorSelectedID != "" {
+		for _, event := range rows {
+			if event.EventID == a.inspectorSelectedID {
+				return event, true
+			}
+		}
+	}
+	if a.page == "事件" && a.eventSelected >= 0 && a.eventSelected < len(rows) &&
+		a.eventSelected < a.eventVisibleLimit {
+		return rows[a.eventSelected], true
+	}
+	for _, event := range rows {
+		if eventRisk(event) != "正常" {
+			return event, true
+		}
+	}
+	return rows[0], true
+}
+
+func (a *renewApp) inspectorAlerts(limit int) []eventSummary {
+	if limit <= 0 {
+		return nil
+	}
+	out := make([]eventSummary, 0, min(limit, 6))
+	for _, event := range a.events {
+		if eventRisk(event) == "正常" {
+			continue
+		}
+		out = append(out, event)
+		if len(out) == limit {
+			break
+		}
+	}
+	return out
+}
+
+func (a *renewApp) clearEventFilters() {
+	a.search = ""
+	a.eventTypeFilter = ""
+	a.eventSessionFilter = ""
+	a.eventDecisionFilter = ""
+	a.eventPIDFilter = 0
+	a.eventAttentionOnly = false
+	a.eventVisibleLimit = 50
+	a.eventSelected = -1
+	a.inspectorSelectedID = ""
+}
+
+func (a *renewApp) focusSummary(id string) {
+	a.clearEventFilters()
+	a.page = "事件"
+	a.inspectorSelectedID = id
+	for i, event := range a.events {
+		if event.EventID == id {
+			a.eventSelected = i
+			if a.eventVisibleLimit <= i {
+				a.eventVisibleLimit = i + 1
+			}
+			break
+		}
+	}
+}
+
+// openEventFilter is a read-only navigation action. It never changes backend
+// capture scope or privileged enforcement policy.
+func (a *renewApp) openEventFilter(event eventSummary, kind string) {
+	a.clearEventFilters()
+	a.page = "事件"
+	switch kind {
+	case "pid":
+		a.eventPIDFilter = event.PID
+	case "type":
+		a.eventTypeFilter = event.Type
+	case "session":
+		a.eventSessionFilter = eventSessionKey(event)
+	case "attention":
+		a.eventAttentionOnly = true
+	case "decision":
+		switch strings.ToUpper(strings.TrimSpace(event.Decision)) {
+		case "BLOCK", "DENY":
+			a.eventDecisionFilter = "已阻断"
+		case "ALERT":
+			a.eventDecisionFilter = "告警"
+		case "ALLOW":
+			a.eventDecisionFilter = "已允许"
+		}
+	}
+}
+
+func summaryClipboardText(e eventSummary) string {
+	// The summary is already privacy-redacted upstream; do not fetch or copy
+	// full event content as a side-effect of the UI.
+	return fmt.Sprintf("Event ID: %s\nTime: %s\nType: %s\nProcess: %s (PID %d)\nTarget: %s\nDecision: %s\nRisk score: %.0f",
+		e.EventID, eventTime(e), e.Type, e.Comm, e.PID, eventTarget(e), e.Decision, e.RiskScore)
+}
+
+func (a *renewApp) inspector(c *ui.Context) {
+	t := c.Theme()
+	_, attention, danger := a.riskCounts()
+	ui.Column(c).Width(302).Shrink(0).Background(t.Surface).Border(1, t.Border).Children(func() {
+		ui.Row(c).Padding(14, 13).Gap(7).AlignItems(ui.Center).Children(func() {
+			ui.Column(c).Grow(1).Gap(3).Children(func() {
+				ui.Text(c, "事件研判").FontSize(14).Bold()
+				ui.Text(c, "本地摘要 · 按需加载原始详情").FontSize(10).TextColor(t.TextMuted)
+			})
+			if ui.Button(c, "×").Tooltip("关闭侧栏").Clicked() {
+				a.inspectorOpen = false
+			}
+		})
+		ui.Tabs(c, &a.inspectorTab, "事件研判", "运行诊断")
+		ui.Divider(c)
+		if a.inspectorTab == 1 {
+			a.inspectorDiagnostics(c)
+		} else {
+			ui.Scroll(c).Grow(1).Padding(12).Gap(12).Children(func() {
+				ui.Row(c).Gap(8).Children(func() {
+					ui.Column(c).Grow(1).Padding(12).Gap(4).Radius(9).Background(t.Background).Children(func() {
+						ui.Text(c, "需关注").FontSize(11).TextColor(t.TextMuted)
+						ui.Text(c, strconv.Itoa(attention)).FontSize(22).Bold().TextColor(t.Warning)
+					})
+					ui.Column(c).Grow(1).Padding(12).Gap(4).Radius(9).Background(t.Background).Children(func() {
+						ui.Text(c, "高风险").FontSize(11).TextColor(t.TextMuted)
+						ui.Text(c, strconv.Itoa(danger)).FontSize(22).Bold().TextColor(t.Danger)
+					})
+				})
+				ui.Text(c, "统计来自当前最多 1200 条摘要，并非历史总量").FontSize(10).TextColor(t.TextMuted)
+				if ui.Button(c, "查看所有需关注事件").Clicked() {
+					a.clearEventFilters()
+					a.eventAttentionOnly = true
+					a.page = "事件"
+				}
+				ui.Divider(c)
+				ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
+					ui.Text(c, "事件上下文").Bold().FontSize(12).Grow(1)
+					if a.inspectorPinnedID != "" {
+						statusPill(c, "已固定", t.Accent)
+					}
+				})
+				event, ok := a.inspectorEvent()
+				if !ok {
+					if a.inspectorPinnedID != "" {
+						ui.Text(c, "固定的事件已离开内存摘要窗口；解除固定后可继续自动跟随。").FontSize(11).TextColor(t.Warning)
+						if ui.Button(c, "解除固定").Clicked() {
+							a.inspectorPinnedID = ""
+						}
+					} else {
+						ui.Text(c, "当前没有匹配的事件；检查筛选条件或等待采集。").FontSize(11).TextColor(t.TextMuted)
+					}
+				} else {
+					a.inspectorEventCard(c, event)
+				}
+				ui.Divider(c)
+				ui.Text(c, "最近需关注事件").FontSize(12).Bold()
+				alerts := a.inspectorAlerts(5)
+				if len(alerts) == 0 {
+					ui.Text(c, "当前摘要窗口暂无待关注事件。").FontSize(11).TextColor(t.TextMuted)
+				}
+				for _, alert := range alerts {
+					item := alert
+					ui.Column(c).Padding(8).Gap(4).Radius(8).Background(t.Background).Children(func() {
+						ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+							riskPill(c, eventRisk(item))
+							ui.Text(c, eventTime(item)).FontSize(10).TextColor(t.TextMuted)
+						})
+						ui.Text(c, eventAction(item)+" · "+displayOr(item.Comm, "未知")).FontSize(11).MaxLines(2)
+						if ui.Button(c, "查看此事件").Clicked() {
+							a.inspectorSelectedID = item.EventID
+							a.eventSelected = -1
+						}
+					})
+				}
+			})
+		}
+		ui.Divider(c)
+		ui.Row(c).Padding(11).Gap(8).Wrap().Children(func() {
+			if ui.Button(c, "事件列表").Clicked() { a.page = "事件" }
+			if ui.Button(c, "系统诊断").Clicked() { a.page = "系统" }
+		})
+	})
+}
+
+func (a *renewApp) inspectorEventCard(c *ui.Context, event eventSummary) {
+	t := c.Theme()
+	ui.Column(c).Padding(12).Gap(8).Radius(10).Background(t.Background).Border(1, t.Border).Children(func() {
+		ui.Row(c).Gap(7).AlignItems(ui.Center).Children(func() {
+			riskPill(c, eventRisk(event))
+			ui.Text(c, eventTime(event)).Font("monospace").FontSize(10).TextColor(t.TextMuted)
+			ui.Spacer(c)
+			label := "固定"
+			if a.inspectorPinnedID == event.EventID {
+				label = "解除固定"
+			}
+			if ui.Button(c, label).Tooltip("固定此事件，不随实时事件更新而跳转").Clicked() {
+				if a.inspectorPinnedID == event.EventID {
+					a.inspectorPinnedID = ""
+				} else {
+					a.inspectorPinnedID = event.EventID
+				}
+			}
+		})
+		ui.Text(c, eventAction(event)).FontSize(14).Bold()
+		ui.Text(c, displayOr(event.Comm, "未知进程")+" · PID "+strconv.Itoa(event.PID)).FontSize(11).TextColor(t.TextMuted)
+		if target := strings.TrimSpace(eventTarget(event)); target != "" && target != "-" {
+			ui.Text(c, target).Font("monospace").FontSize(11).MaxLines(4)
+		}
+		if event.Decision != "" {
+			ui.Text(c, "策略决策: "+event.Decision).FontSize(11).TextColor(t.TextMuted)
+		}
+		if event.HasAgentContext || event.AgentRunID != "" || event.ConversationID != "" {
+			ui.Text(c, eventSessionKey(event)).FontSize(11).TextColor(t.TextMuted).MaxLines(2)
+		}
+		if event.EventID != "" {
+			if ui.PrimaryButton(c, "查看完整事件详情").Clicked() {
+				a.openEventDetail(event.EventID)
+			}
+			ui.Row(c).Gap(6).Wrap().Children(func() {
+				if ui.Button(c, "复制摘要").Clicked() {
+					c.WriteClipboard(summaryClipboardText(event))
+				}
+				if ui.Button(c, "定位").Clicked() {
+					a.focusSummary(event.EventID)
+				}
+			})
+		}
+		ui.Divider(c)
+		ui.Text(c, "关联检索").FontSize(11).Bold()
+		ui.Row(c).Wrap().Gap(6).Children(func() {
+			if event.PID > 0 && ui.Button(c, "同 PID").Clicked() {
+				a.openEventFilter(event, "pid")
+			}
+			if event.Type != "" && ui.Button(c, "同类型").Clicked() {
+				a.openEventFilter(event, "type")
+			}
+			if isAgentSummary(event) && ui.Button(c, "同会话").Clicked() {
+				a.openEventFilter(event, "session")
+			}
+		})
+	})
+}
+
+// Diagnostics always reflects backend-reported health, never a synthetic
+// "healthy" status inferred from a lack of events.
+func (a *renewApp) inspectorDiagnostics(c *ui.Context) {
+	t := c.Theme()
+	ui.Scroll(c).Grow(1).Padding(12).Gap(12).Children(func() {
+		label, level := a.pipelineStatus()
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, "采集链路").FontSize(12).Bold().Grow(1)
+			statusPill(c, label, workspaceStatusTone(t, level))
+		})
+		card(c, "采集状态", func() {
+			if !a.healthReady {
+				ui.Text(c, "尚未完成首次健康检查").TextColor(t.Warning)
+			} else {
+				ui.Text(c, fmt.Sprintf("Ringbuf 丢弃 %d", a.health.RingbufDroppedTotal)).Font("monospace").FontSize(11)
+				ui.Text(c, fmt.Sprintf("后端队列 %d", a.health.BackendQueueLen)).Font("monospace").FontSize(11)
+				ui.Text(c, fmt.Sprintf("持久化队列 %d / %d", a.health.PersistQueueLen, a.health.PersistQueueCap)).Font("monospace").FontSize(11)
+			}
+			if !a.lastSync.IsZero() {
+				ui.Text(c, "最近同步 "+a.lastSync.Format("15:04:05")).FontSize(10).TextColor(t.TextMuted)
+			}
+		})
+		card(c, "传输状态", func() {
+			if a.eventStreamConnected {
+				statusPill(c, "事件流已连接", t.Success)
+			} else {
+				statusPill(c, "事件流回退/重连中", t.Warning)
+				if a.eventStreamErr != "" {
+					ui.Text(c, a.eventStreamErr).FontSize(10).MaxLines(4).TextColor(t.TextMuted)
+				}
+			}
+			if a.systemConnected {
+				statusPill(c, "系统流已连接", t.Success)
+			} else {
+				statusPill(c, "系统流未连接", t.Warning)
+				if a.systemErr != "" {
+					ui.Text(c, a.systemErr).FontSize(10).MaxLines(4).TextColor(t.TextMuted)
+				}
+			}
+		})
+		if a.systemConnected {
+			card(c, "系统负载", func() {
+				ui.Text(c, fmt.Sprintf("CPU  %.1f%%", a.system.CPUTotal)).Bold()
+				ui.Text(c, fmt.Sprintf("内存  %.1f%%", a.system.MemPercent)).Bold()
+				ui.Text(c, fmt.Sprintf("实时进程  %d", len(a.system.Processes))).FontSize(11).TextColor(t.TextMuted)
+			})
+		}
+		ui.Text(c, "没有告警不代表所有活动都被采集。").FontSize(11).TextColor(t.TextMuted)
+		ui.Row(c).Gap(7).Wrap().Children(func() {
+			if ui.Button(c, "采集设置").Clicked() { a.page = "监控" }
+			if ui.Button(c, "eBPF 模块").Clicked() { a.page = "eBPF 模块" }
+		})
+	})
+}
