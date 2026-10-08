@@ -110,7 +110,7 @@ func (a *renewApp) overview(c *ui.Context) {
 
 	card(c, "常用操作", func() {
 		ui.Row(c).Gap(8).Wrap().Children(func() {
-			if ui.Button(c, "查看风险事件").Clicked() {
+			if ui.Button(c, "浏览事件记录").Clicked() {
 				a.page = "事件"
 			}
 			if ui.Button(c, "定位 Agent 会话").Clicked() {
