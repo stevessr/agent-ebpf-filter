@@ -1,0 +1,23 @@
+name: ML taxonomy regression
+on:
+  pull_request:
+    paths: ['backend/app/ml/**', 'backend/app/autotune*', 'backend/app/ws_ml.go', 'frontend/src/**/ml/**', 'frontend/src/data/mlModelTaxonomy.ts', '.github/workflows/ml-taxonomy.yml']
+  push:
+    branches: [master]
+    paths: ['backend/app/ml/**', 'backend/app/autotune*', 'frontend/src/**/ml/**', '.github/workflows/ml-taxonomy.yml']
+jobs:
+  taxonomy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.work
+          cache: false
+      - name: ML taxonomy model and feature tests
+        run: cd backend && go test ./app/ml -run 'Test.*Taxonomy|Test.*Feature' -count=1
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.3
+      - name: Frontend typecheck and build
+        run: cd frontend && bun install --frozen-lockfile && bun run build
