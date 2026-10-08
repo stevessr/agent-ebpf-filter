@@ -50,20 +50,27 @@ func (a *renewApp) overview(c *ui.Context) {
 				})
 				ui.Text(c, detail).TextColor(t.TextMuted)
 			})
-			if level != "success" && a.connected {
-				if ui.PrimaryButton(c, "查看相关事件").Clicked() {
-					a.eventAttentionOnly = true
-					a.eventVisibleLimit = 50
-					a.eventSelected = -1
-					a.page = "事件"
+			if actionLabel, actionPage, attentionOnly := a.overviewAction(); actionLabel != "" {
+				if ui.PrimaryButton(c, actionLabel).Clicked() {
+					if attentionOnly {
+						a.search = ""
+						a.eventTypeFilter = ""
+						a.eventSessionFilter = ""
+						a.eventDecisionFilter = ""
+						a.eventAttentionOnly = true
+						a.eventVisibleLimit = 50
+						a.eventSelected = -1
+					}
+					a.page = actionPage
 				}
 			}
 		})
 	})
 
 	_, attention, danger := a.riskCounts()
+	collectorLabel, _ := a.collectorStatus()
 	ui.Row(c).Gap(12).Wrap().Children(func() {
-		statCard(c, "采集状态", map[bool]string{true: "正常", false: "异常"}[a.health.CaptureHealthy], fmt.Sprintf("Ringbuf 丢弃 %d", a.health.RingbufDroppedTotal))
+		statCard(c, "采集状态", collectorLabel, fmt.Sprintf("Ringbuf 丢弃 %d", a.health.RingbufDroppedTotal))
 		statCard(c, "最近活动", fmt.Sprint(len(a.events)), "当前紧凑摘要窗口")
 		statCard(c, "需关注", fmt.Sprint(attention), "风险分 ≥ 60 / ALERT")
 		statCard(c, "高风险", fmt.Sprint(danger), "BLOCK / DENY / 高风险")
@@ -129,7 +136,27 @@ func (a *renewApp) overviewHeadline() (headline, detail, level string) {
 	if !a.eventStreamConnected {
 		return "监控在线，但事件流处于回退模式", "后端可用，Renew 正通过兼容路径同步摘要；实时性可能略低于 Native IPC。", "warning"
 	}
-	return "当前运行正常", "采集链路与实时事件流在线，当前摘要窗口没有需要关注的活动。", "success"
+	if !a.systemConnected {
+		return "监控在线，但系统流正在重连", "事件采集仍在工作；CPU、内存和实时进程信息暂时不可用或正在恢复。", "warning"
+	}
+	return "当前运行正常", "采集链路、事件流和系统流在线，当前摘要窗口没有需要关注的活动。", "success"
+}
+
+func (a *renewApp) overviewAction() (label, page string, attentionOnly bool) {
+	if a.starting || !a.connected || a.lastSync.IsZero() {
+		return "", "", false
+	}
+	if !a.health.CaptureHealthy {
+		return "打开系统诊断", "系统", false
+	}
+	_, attention, danger := a.riskCounts()
+	if danger > 0 || attention > 0 {
+		return "查看相关事件", "事件", true
+	}
+	if !a.eventStreamConnected || !a.systemConnected {
+		return "打开系统诊断", "系统", false
+	}
+	return "", "", false
 }
 
 func (a *renewApp) eventsView(c *ui.Context) {
@@ -368,11 +395,8 @@ func (a *renewApp) systemView(c *ui.Context) {
 	ui.Text(c, "系统").FontSize(28).Bold()
 
 	ui.Row(c).Gap(12).Wrap().Children(func() {
-		state := "异常"
-		if a.health.CaptureHealthy {
-			state = "正常"
-		}
-		statCard(c, "采集器", state, fmt.Sprintf("Ringbuf 丢弃 %d", a.health.RingbufDroppedTotal))
+		collectorLabel, _ := a.collectorStatus()
+		statCard(c, "采集器", collectorLabel, fmt.Sprintf("Ringbuf 丢弃 %d", a.health.RingbufDroppedTotal))
 		if a.systemConnected {
 			statCard(c, "CPU", fmt.Sprintf("%.1f%%", a.system.CPUTotal), fmt.Sprintf("%d 个进程", len(a.system.Processes)))
 			statCard(c, "内存", fmt.Sprintf("%.1f%%", a.system.MemPercent), fmt.Sprintf("%s / %s", formatBytes(int64(a.system.MemUsed)), formatBytes(int64(a.system.MemTotal))))
