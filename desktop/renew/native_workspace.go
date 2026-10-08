@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -36,8 +35,17 @@ var renewDesktopTheme = func() *ui.Theme {
 
 // The right rail is helpful on large displays, but must never squeeze event
 // tables and configuration forms on a laptop-sized window.
+func pageHasInspector(page string) bool {
+	switch page {
+	case "概览", "事件", "会话", "网络", "进程", "系统":
+		return true
+	default:
+		return false
+	}
+}
+
 func showWorkspaceInspector(width float32, expanded bool, page string) bool {
-	return expanded && width >= 1320 && (page == "概览" || page == "事件")
+	return expanded && width >= 1320 && pageHasInspector(page)
 }
 
 func (a *renewApp) workspaceView(c *ui.Context) {
@@ -237,7 +245,7 @@ func (a *renewApp) header(c *ui.Context) {
 			ui.Text(c, "›").TextColor(t.TextMuted)
 			ui.Badge(c, a.page).Background(t.Accent.Alpha(0.16)).TextColor(t.Accent)
 			ui.Spacer(c)
-			if a.page == "概览" || a.page == "事件" {
+			if pageHasInspector(a.page) {
 				width, _ := c.Size()
 				if width >= 1320 {
 					label := "打开研判栏"
@@ -253,126 +261,3 @@ func (a *renewApp) header(c *ui.Context) {
 	})
 }
 
-// inspectorEvent prefers the selected event on the Events page. It never
-// requests full payloads, so simply opening the inspector costs no API calls.
-func (a *renewApp) inspectorEvent() (eventSummary, bool) {
-	rows := a.events
-	if a.page == "事件" || a.page == "概览" {
-		rows = a.filteredEvents()
-	}
-	if len(rows) == 0 {
-		return eventSummary{}, false
-	}
-	if a.page == "事件" && a.eventSelected >= 0 && a.eventSelected < len(rows) &&
-		a.eventSelected < a.eventVisibleLimit {
-		return rows[a.eventSelected], true
-	}
-	for _, event := range rows {
-		if eventRisk(event) != "正常" {
-			return event, true
-		}
-	}
-	return rows[0], true
-}
-
-func (a *renewApp) focusSummary(id string) {
-	a.page = "事件"
-	a.search = ""
-	a.eventTypeFilter = ""
-	a.eventSessionFilter = ""
-	a.eventDecisionFilter = ""
-	a.eventAttentionOnly = false
-	a.eventSelected = -1
-	for i, event := range a.events {
-		if event.EventID == id {
-			a.eventSelected = i
-			if a.eventVisibleLimit <= i {
-				a.eventVisibleLimit = i + 1
-			}
-			break
-		}
-	}
-}
-
-func (a *renewApp) inspector(c *ui.Context) {
-	t := c.Theme()
-	_, attention, danger := a.riskCounts()
-	ui.Column(c).Width(302).Shrink(0).Background(t.Surface).Border(1, t.Border).Children(func() {
-		ui.Row(c).Padding(15, 14).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Column(c).Grow(1).Gap(4).Children(func() {
-				ui.Text(c, "事件研判").FontSize(14).Bold()
-				ui.Text(c, "基于已采集摘要 · 非 AI 推断").FontSize(10).TextColor(t.TextMuted)
-			})
-			if ui.Button(c, "×").Tooltip("关闭侧栏").Clicked() {
-				a.inspectorOpen = false
-			}
-		})
-		ui.Divider(c)
-		ui.Scroll(c).Grow(1).Padding(14).Gap(13).Children(func() {
-			ui.Row(c).Gap(8).Children(func() {
-				ui.Column(c).Grow(1).Padding(12).Gap(5).Radius(9).Background(t.Background).Children(func() {
-					ui.Text(c, "需关注").FontSize(11).TextColor(t.TextMuted)
-					ui.Text(c, fmt.Sprint(attention)).FontSize(22).Bold().TextColor(t.Warning)
-				})
-				ui.Column(c).Grow(1).Padding(12).Gap(5).Radius(9).Background(t.Background).Children(func() {
-					ui.Text(c, "高风险").FontSize(11).TextColor(t.TextMuted)
-					ui.Text(c, fmt.Sprint(danger)).FontSize(22).Bold().TextColor(t.Danger)
-				})
-			})
-			ui.Text(c, "统计范围：当前桌面事件摘要窗口").FontSize(10).TextColor(t.TextMuted)
-			ui.Divider(c)
-			ui.Text(c, "当前事件").Bold().FontSize(12)
-			selected, ok := a.inspectorEvent()
-			if !ok {
-				ui.Text(c, "暂无与当前搜索匹配的事件。").TextColor(t.TextMuted).FontSize(12)
-			} else {
-				ui.Column(c).Padding(12).Gap(9).Radius(10).Background(t.Background).Border(1, t.Border).Children(func() {
-					ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
-						riskPill(c, eventRisk(selected))
-						ui.Text(c, eventTime(selected)).FontSize(10).Font("monospace").TextColor(t.TextMuted)
-					})
-					ui.Text(c, eventAction(selected)).FontSize(14).Bold()
-					ui.Text(c, displayOr(selected.Comm, "未知进程")+"  ·  PID "+fmt.Sprint(selected.PID)).FontSize(11).TextColor(t.TextMuted)
-					target := strings.TrimSpace(eventTarget(selected))
-					if target != "" {
-						ui.Text(c, target).Font("monospace").FontSize(11).MaxLines(3)
-					}
-					if selected.Decision != "" {
-						ui.Text(c, "决策  "+selected.Decision).FontSize(11).TextColor(t.TextMuted)
-					}
-					if selected.EventID != "" {
-						if ui.PrimaryButton(c, "按需加载完整详情").Clicked() {
-							a.openEventDetail(selected.EventID)
-						}
-						if ui.Button(c, "定位到事件表").Clicked() {
-							a.focusSummary(selected.EventID)
-						}
-					}
-				})
-			}
-			ui.Divider(c)
-			ui.Row(c).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "运行状态").FontSize(12).Bold().Grow(1)
-				collector, level := a.collectorStatus()
-				statusPill(c, collector, workspaceStatusTone(t, level))
-			})
-			ui.Column(c).Padding(12).Gap(8).Radius(10).Background(t.Background).Children(func() {
-				label, level := a.pipelineStatus()
-				ui.Text(c, label).TextColor(workspaceStatusTone(t, level)).Bold().FontSize(12)
-				if a.lastSync.IsZero() {
-					ui.Text(c, "等待后端首次同步").FontSize(11).TextColor(t.TextMuted)
-				} else {
-					ui.Text(c, "最近同步  "+a.lastSync.Format("15:04:05")).FontSize(11).TextColor(t.TextMuted)
-				}
-				ui.Text(c, fmt.Sprintf("Ringbuf 丢弃  %d", a.health.RingbufDroppedTotal)).Font("monospace").FontSize(11).TextColor(t.TextMuted)
-				ui.Text(c, fmt.Sprintf("后端队列  %d", a.health.BackendQueueLen)).Font("monospace").FontSize(11).TextColor(t.TextMuted)
-			})
-			ui.Text(c, "提醒：未发现高风险不代表所有行为都已被采集。").FontSize(11).TextColor(t.TextMuted)
-		})
-		ui.Divider(c)
-		ui.Row(c).Padding(12).Gap(8).Children(func() {
-			if ui.Button(c, "所有事件").Clicked() { a.page = "事件" }
-			if ui.Button(c, "采集设置").Clicked() { a.page = "监控" }
-		})
-	})
-}
