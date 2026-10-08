@@ -36,12 +36,7 @@ var harnessLabels = map[string]string{
 }
 
 func eventHarnessLabel(event eventSummary) string {
-	for _, identity := range []string{event.Tag, event.Comm} {
-		if label := harnessLabels[strings.ToLower(strings.TrimSpace(identity))]; label != "" {
-			return label
-		}
-	}
-	return "未识别"
+	return harnessLabelFor(event.Tag, event.Comm)
 }
 
 func isAgentSummary(event eventSummary) bool {
@@ -165,7 +160,7 @@ func (a *renewApp) sessionsView(c *ui.Context) {
 			session := rows[row]
 			switch col {
 			case 0:
-				ui.Text(c, session.Label).SingleLine()
+				harnessIdentity(c, session.Label, strings.SplitN(session.Label, " · ", 2)[0])
 			case 1:
 				ui.Text(c, strconv.Itoa(session.Events))
 			case 2:
@@ -184,7 +179,7 @@ func (a *renewApp) sessionsView(c *ui.Context) {
 		if a.sessionSelected >= 0 && a.sessionSelected < len(rows) {
 			selected := rows[a.sessionSelected]
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, selected.Label).FontSize(11).TextColor(t.TextMuted).Grow(1)
+				harnessIdentity(c, selected.Label, strings.SplitN(selected.Label, " · ", 2)[0])
 				if ui.PrimaryButton(c, "查看此会话事件").Clicked() {
 					a.clearEventFilters()
 					a.eventSessionFilter = selected.Key

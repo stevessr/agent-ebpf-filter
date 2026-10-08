@@ -242,7 +242,7 @@ func (a *renewApp) eventsView(c *ui.Context) {
 			case 1:
 				ui.Text(c, eventAction(e)).SingleLine()
 			case 2:
-				ui.Text(c, displayOr(e.Comm, "-")).SingleLine()
+				harnessIdentity(c, displayOr(e.Comm, "-"), e.Tag, e.Comm)
 			case 3:
 				ui.Text(c, eventTarget(e)).SingleLine()
 			case 4:
@@ -385,7 +385,7 @@ func (a *renewApp) processesView(c *ui.Context) {
 				case 1:
 					ui.Text(c, strconv.Itoa(p.PPID)).Font("monospace")
 				case 2:
-					ui.Text(c, displayOr(p.Name, "未知进程")).SingleLine()
+					harnessIdentity(c, displayOr(p.Name, "未知进程"), p.Name)
 				case 3:
 					ui.Textf(c, "%.1f%%", p.CPU)
 				case 4:
@@ -445,7 +445,7 @@ func (a *renewApp) processesView(c *ui.Context) {
 					ui.Text(c, "-")
 				}
 			case 2:
-				ui.Text(c, displayOr(r.Comm, "未知进程")).SingleLine()
+				harnessIdentity(c, displayOr(r.Comm, "未知进程"), r.Comm)
 			case 3:
 				ui.Text(c, strconv.Itoa(r.Events))
 			case 4:
@@ -557,7 +557,12 @@ func (a *renewApp) eventRow(c *ui.Context, e eventSummary) {
 			ui.Row(c).Gap(8).Children(func() {
 				ui.Text(c, eventAction(e)).Bold()
 				if e.Comm != "" {
-					ui.Badge(c, e.Comm)
+					ui.Row(c).Gap(5).AlignItems(ui.Center).Children(func() {
+						if label := eventHarnessLabel(e); label != "未识别" {
+							drawHarnessIcon(c, label)
+						}
+						ui.Badge(c, e.Comm)
+					})
 				}
 				risk := eventRisk(e)
 				if risk != "正常" {

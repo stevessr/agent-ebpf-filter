@@ -222,7 +222,12 @@ func (a *renewApp) inspector(c *ui.Context) {
 							riskPill(c, eventRisk(item))
 							ui.Text(c, eventTime(item)).FontSize(10).TextColor(t.TextMuted)
 						})
-						ui.Text(c, eventAction(item)+" · "+displayOr(item.Comm, "未知")).FontSize(11).MaxLines(2)
+						ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+							if label := eventHarnessLabel(item); label != "未识别" {
+								drawHarnessIcon(c, label)
+							}
+							ui.Text(c, eventAction(item)+" · "+displayOr(item.Comm, "未知")).FontSize(11).MaxLines(2)
+						})
 						if ui.Button(c, "查看此事件").Clicked() {
 							a.inspectorSelectedID = item.EventID
 							a.eventSelected = -1
@@ -265,7 +270,12 @@ func (a *renewApp) inspectorEventCard(c *ui.Context, event eventSummary) {
 			}
 		}
 		ui.Text(c, eventAction(event)).FontSize(14).Bold()
-		ui.Text(c, displayOr(event.Comm, "未知进程")+" · PID "+strconv.Itoa(event.PID)).FontSize(11).TextColor(t.TextMuted)
+		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+			if label := eventHarnessLabel(event); label != "未识别" {
+				drawHarnessIcon(c, label)
+			}
+			ui.Text(c, displayOr(event.Comm, "未知进程")+" · PID "+strconv.Itoa(event.PID)).FontSize(11).TextColor(t.TextMuted)
+		})
 		if target := strings.TrimSpace(eventTarget(event)); target != "" && target != "-" {
 			ui.Text(c, target).Font("monospace").FontSize(11).MaxLines(4)
 		}
