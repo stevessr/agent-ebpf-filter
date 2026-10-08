@@ -172,3 +172,26 @@ func TestDesktopStaticAssets(t *testing.T) {
 		t.Fatalf("bundled Renew route failed: %d", response.Code)
 	}
 }
+
+func TestDesktopUnixAPIFlagsRequirePrivateSibling(t *testing.T) {
+	dir := t.TempDir()
+	life := filepath.Join(dir, "life.sock")
+	api := filepath.Join(dir, "api.sock")
+	t.Setenv("AGENT_DESKTOP_API_SOCKET", "")
+	if err := ConfigureDesktopFlags([]string{"--desktop-lifetime-socket", life, "--desktop-api-socket", api}); err != nil {
+		t.Fatal(err)
+	}
+	if got := os.Getenv("AGENT_DESKTOP_API_SOCKET"); got != api {
+		t.Fatalf("api socket = %q, want %q", got, api)
+	}
+	for _, args := range [][]string{
+		{"--desktop-api-socket", api},
+		{"--desktop-lifetime-socket", life, "--desktop-api-socket", "/tmp/wrong.sock"},
+		{"--desktop-lifetime-socket", life, "--desktop-api-socket", life},
+		{"--desktop-lifetime-socket", life, "--desktop-api-socket", api, "--desktop-port", "9000"},
+	} {
+		if err := ConfigureDesktopFlags(args); err == nil {
+			t.Fatalf("accepted invalid args: %v", args)
+		}
+	}
+}
