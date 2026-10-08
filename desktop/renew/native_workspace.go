@@ -256,12 +256,17 @@ func (a *renewApp) header(c *ui.Context) {
 			ui.Text(c, "工作区").FontSize(11).TextColor(t.TextMuted)
 			ui.Text(c, "›").TextColor(t.TextMuted)
 			ui.Badge(c, a.page).Background(t.Accent.Alpha(0.16)).TextColor(t.Accent)
-			if a.eventPIDFilter > 0 && pageUsesEventSearch(a.page) {
-				statusPill(c, fmt.Sprintf("PID %d", a.eventPIDFilter), t.Accent)
-				if ui.Button(c, "清除 PID").Clicked() {
-					a.eventPIDFilter = 0
-					a.eventSelected = -1
-					a.inspectorSelectedID = ""
+			if a.page == "概览" || a.page == "事件" || a.page == "网络" || a.page == "进程" {
+				if a.eventPIDFilter > 0 {
+					statusPill(c, fmt.Sprintf("PID %d", a.eventPIDFilter), t.Accent)
+				}
+				if a.eventRiskFilter != "" {
+					statusPill(c, a.eventRiskFilter, workspaceStatusTone(t, map[string]string{"高风险": "danger", "需关注": "warning"}[a.eventRiskFilter]))
+				}
+				if a.hasEventConstraints() {
+					if ui.Button(c, "重置事件筛选").Tooltip("清除 PID、类型、会话、决策与风险约束").Clicked() {
+						a.clearEventFilters()
+					}
 				}
 			}
 			ui.Spacer(c)
@@ -305,4 +310,10 @@ func (a *renewApp) refreshActiveView() {
 		go a.refreshPathAccess()
 		go a.refreshConfiguration(context.Background())
 	}
+}
+
+func (a *renewApp) hasEventConstraints() bool {
+	return a.eventPIDFilter > 0 || a.eventRiskFilter != "" ||
+		a.eventTypeFilter != "" || a.eventSessionFilter != "" ||
+		a.eventDecisionFilter != "" || a.eventAttentionOnly
 }
