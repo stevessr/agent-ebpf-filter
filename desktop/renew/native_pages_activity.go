@@ -31,11 +31,46 @@ type processAggregate struct {
 func (a *renewApp) overview(c *ui.Context) {
 	t := c.Theme()
 	ui.Text(c, "现在正常吗？").FontSize(28).Bold()
-	ui.Text(c, "原生 Go UI 直接读取 Agent eBPF Filter 后端，不启动 WebView。").TextColor(t.TextMuted)
+	ui.Text(c, "先回答健康与风险，再进入事件、网络和规则等专业视图。").TextColor(t.TextMuted)
+
+	headline, detail, level := a.overviewHeadline()
+	tone := t.Success
+	switch level {
+	case "danger":
+		tone = t.Danger
+	case "warning":
+		tone = t.Warning
+	}
+	ui.Column(c).Padding(18).Gap(12).Radius(12).Background(tone.Alpha(0.055)).Border(1, tone.Alpha(0.38)).Children(func() {
+		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
+			ui.Column(c).Grow(1).Gap(4).Children(func() {
+				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, headline).FontSize(20).Bold()
+					statusPill(c, map[string]string{"success": "正常", "warning": "关注", "danger": "异常"}[level], tone)
+				})
+				ui.Text(c, detail).TextColor(t.TextMuted)
+			})
+			if actionLabel, actionPage, attentionOnly := a.overviewAction(); actionLabel != "" {
+				if ui.PrimaryButton(c, actionLabel).Clicked() {
+					if attentionOnly {
+						a.search = ""
+						a.eventTypeFilter = ""
+						a.eventSessionFilter = ""
+						a.eventDecisionFilter = ""
+						a.eventAttentionOnly = true
+						a.eventVisibleLimit = 50
+						a.eventSelected = -1
+					}
+					a.page = actionPage
+				}
+			}
+		})
+	})
 
 	_, attention, danger := a.riskCounts()
+	collectorLabel, _ := a.collectorStatus()
 	ui.Row(c).Gap(12).Wrap().Children(func() {
-		statCard(c, "采集状态", map[bool]string{true: "正常", false: "异常"}[a.health.CaptureHealthy], fmt.Sprintf("Ringbuf 丢弃 %d", a.health.RingbufDroppedTotal))
+		statCard(c, "采集状态", collectorLabel, fmt.Sprintf("Ringbuf 丢弃 %d", a.health.RingbufDroppedTotal))
 		statCard(c, "最近活动", fmt.Sprint(len(a.events)), "当前紧凑摘要窗口")
 		statCard(c, "需关注", fmt.Sprint(attention), "风险分 ≥ 60 / ALERT")
 		statCard(c, "高风险", fmt.Sprint(danger), "BLOCK / DENY / 高风险")
@@ -48,7 +83,7 @@ func (a *renewApp) overview(c *ui.Context) {
 	card(c, "最近活动", func() {
 		filtered := a.filteredEvents()
 		if len(filtered) == 0 {
-			ui.Text(c, "暂无匹配活动").TextColor(t.TextMuted)
+			ui.Text(c, "暂无匹配活动。若刚启动，等待事件流进入；若有筛选条件，可在顶栏清空搜索。").TextColor(t.TextMuted)
 			return
 		}
 		limit := min(len(filtered), 12)
@@ -56,13 +91,18 @@ func (a *renewApp) overview(c *ui.Context) {
 			a.eventRow(c, event)
 		}
 		if len(filtered) > limit {
-			ui.Textf(c, "还有 %d 条，可在“事件”页查看", len(filtered)-limit).FontSize(11).TextColor(t.TextMuted)
+			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+				ui.Textf(c, "还有 %d 条活动", len(filtered)-limit).FontSize(11).TextColor(t.TextMuted).Grow(1)
+				if ui.Button(c, "打开事件页").Clicked() {
+					a.page = "事件"
+				}
+			})
 		}
 	})
 
 	card(c, "已跟踪进程", func() {
 		if len(a.trackedComms) == 0 {
-			ui.Text(c, "后端未返回显式跟踪列表").TextColor(t.TextMuted)
+			ui.Text(c, "后端未返回显式跟踪列表；可在“跟踪范围”中添加命令、路径或标签。").TextColor(t.TextMuted)
 			return
 		}
 		ui.Row(c).Gap(8).Wrap().Children(func() {
@@ -71,6 +111,52 @@ func (a *renewApp) overview(c *ui.Context) {
 			}
 		})
 	})
+}
+
+func (a *renewApp) overviewHeadline() (headline, detail, level string) {
+	if a.starting {
+		return "正在建立监控", "Renew 正在连接已有后端，或请求系统授权启动本机后端。", "warning"
+	}
+	if !a.connected {
+		return "后端不可用", "当前无法确认系统是否正常；请检查后端连接或重新启动本机监控。", "danger"
+	}
+	if !a.healthReady {
+		return "正在同步运行状态", "后端已经连接，Renew 正在等待第一份采集器健康状态与事件摘要快照。", "warning"
+	}
+	if !a.health.CaptureHealthy {
+		return "采集链路异常", fmt.Sprintf("eBPF 采集健康检查未通过；Ringbuf 累计丢弃 %d。", a.health.RingbufDroppedTotal), "danger"
+	}
+	_, attention, danger := a.riskCounts()
+	if danger > 0 {
+		return "发现高风险活动", fmt.Sprintf("当前摘要窗口中有 %d 条高风险事件，建议优先查看阻断、拒绝和高分事件。", danger), "danger"
+	}
+	if attention > 0 {
+		return "有活动需要关注", fmt.Sprintf("当前摘要窗口中有 %d 条需关注事件；采集链路本身运行正常。", attention), "warning"
+	}
+	if !a.eventStreamConnected {
+		return "监控在线，但事件流处于回退模式", "后端可用，Renew 正通过兼容路径同步摘要；实时性可能略低于 Native IPC。", "warning"
+	}
+	if !a.systemConnected {
+		return "监控在线，但系统流正在重连", "事件采集仍在工作；CPU、内存和实时进程信息暂时不可用或正在恢复。", "warning"
+	}
+	return "当前运行正常", "采集链路、事件流和系统流在线，当前摘要窗口没有需要关注的活动。", "success"
+}
+
+func (a *renewApp) overviewAction() (label, page string, attentionOnly bool) {
+	if a.starting || !a.connected || !a.healthReady {
+		return "", "", false
+	}
+	if !a.health.CaptureHealthy {
+		return "打开系统诊断", "系统", false
+	}
+	_, attention, danger := a.riskCounts()
+	if danger > 0 || attention > 0 {
+		return "查看相关事件", "事件", true
+	}
+	if !a.eventStreamConnected || !a.systemConnected {
+		return "打开系统诊断", "系统", false
+	}
+	return "", "", false
 }
 
 func (a *renewApp) eventsView(c *ui.Context) {
@@ -131,7 +217,8 @@ func (a *renewApp) eventsView(c *ui.Context) {
 			case 3:
 				ui.Text(c, eventTarget(e)).SingleLine()
 			case 4:
-				ui.Text(c, eventRisk(e)).SingleLine()
+				risk := eventRisk(e)
+				ui.Text(c, risk).TextColor(riskTextColor(t, risk)).SingleLine()
 			case 5:
 				if e.RiskScore > 0 {
 					ui.Textf(c, "%.0f", e.RiskScore)
@@ -308,23 +395,26 @@ func (a *renewApp) systemView(c *ui.Context) {
 	ui.Text(c, "系统").FontSize(28).Bold()
 
 	ui.Row(c).Gap(12).Wrap().Children(func() {
-		state := "异常"
-		if a.health.CaptureHealthy {
-			state = "正常"
-		}
-		statCard(c, "采集器", state, fmt.Sprintf("Ringbuf 丢弃 %d", a.health.RingbufDroppedTotal))
+		collectorLabel, _ := a.collectorStatus()
+		statCard(c, "采集器", collectorLabel, fmt.Sprintf("Ringbuf 丢弃 %d", a.health.RingbufDroppedTotal))
 		if a.systemConnected {
 			statCard(c, "CPU", fmt.Sprintf("%.1f%%", a.system.CPUTotal), fmt.Sprintf("%d 个进程", len(a.system.Processes)))
 			statCard(c, "内存", fmt.Sprintf("%.1f%%", a.system.MemPercent), fmt.Sprintf("%s / %s", formatBytes(int64(a.system.MemUsed)), formatBytes(int64(a.system.MemTotal))))
 			statCard(c, "系统流", "实时", "protobuf /ws/system")
-		} else {
+		} else if a.connected {
 			statCard(c, "系统流", "重连中", "protobuf /ws/system")
+		} else {
+			statCard(c, "系统流", "不可用", "后端离线")
 		}
 	})
 
 	card(c, "I/O 快照", func() {
 		if !a.systemConnected {
-			ui.Text(c, "等待系统 protobuf 流…").TextColor(t.TextMuted)
+			if a.connected {
+				ui.Text(c, "等待系统 protobuf 流…").TextColor(t.TextMuted)
+			} else {
+				ui.Text(c, "后端离线，系统快照暂不可用。").TextColor(t.TextMuted)
+			}
 			if a.systemErr != "" {
 				ui.Text(c, a.systemErr).FontSize(10).TextColor(t.TextMuted)
 			}
@@ -364,7 +454,7 @@ func (a *renewApp) eventRow(c *ui.Context, e eventSummary) {
 				}
 				risk := eventRisk(e)
 				if risk != "正常" {
-					ui.Badge(c, risk)
+					riskPill(c, risk)
 				}
 			})
 			ui.Text(c, eventTarget(e)).FontSize(12).TextColor(t.TextMuted).MaxLines(1)

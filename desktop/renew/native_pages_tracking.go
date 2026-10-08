@@ -12,18 +12,27 @@ import (
 func (a *renewApp) trackingView(c *ui.Context) {
 	t := c.Theme()
 	ui.Text(c, "跟踪对象").FontSize(28).Bold()
-	ui.Text(c, "管理 eBPF 跟踪命令、精确路径与路径前缀。写操作受 policy_management 运行时门控。").TextColor(t.TextMuted)
+	ui.Text(c, "决定哪些 Agent 命令和工作目录进入 eBPF 观测范围；标签用于把事件归到可读的 Agent 上下文。").TextColor(t.TextMuted)
 
 	if a.registryErr != "" {
 		ui.Text(c, a.registryErr).TextColor(t.TextMuted)
 	}
 	if !a.runtimeCfg.Runtime.PolicyManagementEnabled {
-		card(c, "策略管理当前关闭", func() {
-			ui.Text(c, "读取仍然可用；新增、禁用和删除操作不会执行。可在“监控”页显式开启策略管理。").TextColor(t.TextMuted)
+		ui.Column(c).Padding(16).Gap(10).Radius(12).Background(t.Warning.Alpha(0.055)).Border(1, t.Warning.Alpha(0.38)).Children(func() {
+			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+				statusPill(c, "只读", t.Warning)
+				ui.Column(c).Grow(1).Gap(3).Children(func() {
+					ui.Text(c, "策略管理当前关闭").Bold()
+					ui.Text(c, "现有跟踪范围仍可查看；新增、禁用和删除需要显式开启高权限策略管理。").TextColor(t.TextMuted)
+				})
+				if ui.Button(c, "前往采集与能力").Clicked() {
+					a.page = "监控"
+				}
+			})
 		})
 	}
 
-	card(c, "标签", func() {
+	card(c, fmt.Sprintf("标签 · %d", len(a.registry.Tags)), func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.TextInput(c, &a.newTag).Placeholder("例如 AI Agent").Label("新标签").Width(260)
 			if ui.PrimaryButton(c, "创建标签").Clicked() && a.canMutateRegistry() {
@@ -48,7 +57,7 @@ func (a *renewApp) trackingView(c *ui.Context) {
 		}
 	})
 
-	card(c, "跟踪注册表", func() {
+	card(c, "跟踪注册表 · "+registryCounts(a.registry), func() {
 		ui.Tabs(c, &a.registryTab, "命令", "精确路径", "路径前缀")
 		if len(a.registry.Tags) > 0 {
 			if a.trackTag == "" || !containsString(a.registry.Tags, a.trackTag) {
@@ -140,9 +149,9 @@ func (a *renewApp) trackedCommsTable(c *ui.Context) {
 			ui.Text(c, displayOr(item.Tag, "-")).SingleLine()
 		case 2:
 			if item.Disabled {
-				ui.Text(c, "已禁用")
+				statusPill(c, "已禁用", t.Warning)
 			} else {
-				ui.Text(c, "跟踪中")
+				statusPill(c, "跟踪中", t.Success)
 			}
 		}
 	}).Height(300).Label("跟踪命令")

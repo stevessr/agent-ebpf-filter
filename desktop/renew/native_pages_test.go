@@ -2,13 +2,194 @@ package main
 
 import (
 	"encoding/json"
-	"strings"
 	"math"
 	"reflect"
+	"strings"
 	"testing"
+	"time"
 
 	"google.golang.org/protobuf/encoding/protowire"
 )
+
+func TestOverviewHeadlinePriorities(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(*renewApp)
+		level string
+	}{
+		{"starting", func(a *renewApp) {}, "warning"},
+		{"backend offline", func(a *renewApp) { a.starting = false }, "danger"},
+		{"initial sync", func(a *renewApp) {
+			a.starting = false
+			a.connected = true
+		}, "warning"},
+		{"capture unhealthy", func(a *renewApp) {
+			a.starting = false
+			a.connected = true
+			a.healthReady = true
+		}, "danger"},
+		{"danger event", func(a *renewApp) {
+			a.starting = false
+			a.connected = true
+			a.healthReady = true
+			a.health.CaptureHealthy = true
+			a.eventStreamConnected = true
+			a.events = []eventSummary{{EventID: "danger", RiskScore: 90}}
+		}, "danger"},
+		{"attention event", func(a *renewApp) {
+			a.starting = false
+			a.connected = true
+			a.healthReady = true
+			a.health.CaptureHealthy = true
+			a.eventStreamConnected = true
+			a.events = []eventSummary{{EventID: "attention", RiskScore: 65}}
+		}, "warning"},
+		{"fallback stream", func(a *renewApp) {
+			a.starting = false
+			a.connected = true
+			a.healthReady = true
+			a.health.CaptureHealthy = true
+		}, "warning"},
+		{"system fallback", func(a *renewApp) {
+			a.starting = false
+			a.connected = true
+			a.healthReady = true
+			a.health.CaptureHealthy = true
+			a.eventStreamConnected = true
+		}, "warning"},
+		{"healthy", func(a *renewApp) {
+			a.starting = false
+			a.connected = true
+			a.healthReady = true
+			a.health.CaptureHealthy = true
+			a.eventStreamConnected = true
+			a.systemConnected = true
+		}, "success"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := newRenewApp("http://127.0.0.1:8080")
+			tt.setup(a)
+			_, _, level := a.overviewHeadline()
+			if level != tt.level {
+				t.Fatalf("level=%q, want %q", level, tt.level)
+			}
+		})
+	}
+}
+
+func TestCollectorStatusDoesNotReportFalseFailureBeforeFirstSync(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.starting = false
+	a.connected = true
+	if label, level := a.collectorStatus(); label != "同步中" || level != "warning" {
+		t.Fatalf("initial collector status=(%q,%q)", label, level)
+	}
+	// Event traffic may update lastSync before the first health snapshot.
+	// It must not make the zero-value health struct look unhealthy.
+	a.lastSync = time.Unix(1, 0)
+	if label, level := a.collectorStatus(); label != "同步中" || level != "warning" {
+		t.Fatalf("event-only collector status=(%q,%q)", label, level)
+	}
+	a.healthReady = true
+	if label, level := a.collectorStatus(); label != "异常" || level != "danger" {
+		t.Fatalf("unhealthy collector status=(%q,%q)", label, level)
+	}
+	a.health.CaptureHealthy = true
+	if label, level := a.collectorStatus(); label != "正常" || level != "success" {
+		t.Fatalf("healthy collector status=(%q,%q)", label, level)
+	}
+}
+
+func TestOverviewActionTargetsRiskAndDiagnostics(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.starting = false
+	a.connected = true
+	a.healthReady = true
+
+	if label, page, attention := a.overviewAction(); label != "打开系统诊断" || page != "系统" || attention {
+		t.Fatalf("capture action=(%q,%q,%v)", label, page, attention)
+	}
+
+	a.health.CaptureHealthy = true
+	a.events = []eventSummary{{EventID: "risk", RiskScore: 90}}
+	a.eventsVersion = 1
+	if label, page, attention := a.overviewAction(); label != "查看相关事件" || page != "事件" || !attention {
+		t.Fatalf("risk action=(%q,%q,%v)", label, page, attention)
+	}
+
+	a.events = nil
+	a.eventsVersion++
+	a.eventStreamConnected = true
+	if label, page, attention := a.overviewAction(); label != "打开系统诊断" || page != "系统" || attention {
+		t.Fatalf("system-stream action=(%q,%q,%v)", label, page, attention)
+	}
+
+	a.systemConnected = true
+	if label, page, attention := a.overviewAction(); label != "" || page != "" || attention {
+		t.Fatalf("healthy action=(%q,%q,%v)", label, page, attention)
+	}
+}
+
+func TestMonitoringProfileActive(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.configReady = true
+	a.runtimeReady = true
+	a.runtimeCfg.Runtime.LoopDetection.Enabled = true
+	a.runtimeCfg.Runtime.SignalProcessing.Enabled = true
+	daily := map[string]bool{"process": true, "file-changes": true, "network": true}
+	for _, module := range monitoringModules {
+		if daily[module.Key] {
+			continue
+		}
+		for _, eventType := range module.EventTypes {
+			a.disabledEventTypes[eventType] = true
+		}
+	}
+	if !a.monitoringProfileActive("日常") {
+		t.Fatal("daily profile should be detected as active")
+	}
+	if a.monitoringProfileActive("轻量") || a.monitoringProfileActive("深度") {
+		t.Fatal("only the daily profile should be active")
+	}
+	a.runtimeCfg.Runtime.SignalProcessing.Enabled = false
+	if a.monitoringProfileActive("日常") {
+		t.Fatal("daily profile must include the expected runtime toggles")
+	}
+}
+
+func TestPipelineStatus(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	if label, level := a.pipelineStatus(); label != "启动中" || level != "warning" {
+		t.Fatalf("starting status=(%q,%q)", label, level)
+	}
+	a.starting = false
+	a.connected = true
+	a.healthReady = true
+	a.health.CaptureHealthy = true
+	a.eventStreamConnected = true
+	a.systemConnected = true
+	if label, level := a.pipelineStatus(); label != "全链路实时" || level != "success" {
+		t.Fatalf("healthy status=(%q,%q)", label, level)
+	}
+	a.systemConnected = false
+	if label, level := a.pipelineStatus(); label != "系统流重连" || level != "warning" {
+		t.Fatalf("system fallback status=(%q,%q)", label, level)
+	}
+	a.eventStreamConnected = false
+	if label, level := a.pipelineStatus(); label != "事件流回退" || level != "warning" {
+		t.Fatalf("event fallback status=(%q,%q)", label, level)
+	}
+}
+
+func TestPageMetadata(t *testing.T) {
+	if !pageUsesEventSearch("网络") || pageUsesEventSearch("规则") {
+		t.Fatal("unexpected search availability")
+	}
+	if got := pageSubtitle("系统"); !strings.Contains(got, "队列") {
+		t.Fatalf("system subtitle=%q", got)
+	}
+}
 
 func TestAggregateNetworkUsesBoundedSummaryFields(t *testing.T) {
 	rows := aggregateNetwork([]eventSummary{
