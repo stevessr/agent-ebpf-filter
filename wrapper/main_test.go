@@ -117,3 +117,21 @@ func TestPrepareCommandArgsVerbatimModePreservesAnyCommand(t *testing.T) {
 		t.Fatal("verbatim argv must be copied")
 	}
 }
+
+func TestDshPolicyProviderFailsClosedWhenBackendIsUnavailable(t *testing.T) {
+	cases := []struct{
+		sandbox string
+		dshExec bool
+		require bool
+	}{
+		{sandbox:"off", dshExec:false, require:false},
+		{sandbox:"readonly", dshExec:false, require:true},
+		{sandbox:"workspace", dshExec:false, require:true},
+		{sandbox:"off", dshExec:true, require:true},
+	}
+	for _, tc := range cases {
+		if got := requiresBackendPolicy(tc.sandbox, tc.dshExec); got != tc.require {
+			t.Errorf("requiresBackendPolicy(%q, %v) = %v, want %v", tc.sandbox, tc.dshExec, got, tc.require)
+		}
+	}
+}

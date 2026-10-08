@@ -126,7 +126,8 @@ func main() {
 		conn.SetDeadline(time.Now().Add(2 * time.Second))
 
 		toolName := firstEnv("AGENT_EBPF_TOOL_NAME", "AGENT_TOOL_NAME")
-		if *dshExec && toolName == "" {
+		if *dshExec {
+			// Never allow supplied environment labels to hide provider-owned execs.
 			toolName = "dsh.exec"
 		}
 		req := &pb.WrapperRequest{
@@ -154,11 +155,11 @@ func main() {
 
 		resp, exchangeErr := exchangeWrapperDecision(conn, req)
 		if exchangeErr != nil {
-			if opts.Mode != "off" {
+			if requiresBackendPolicy(opts.Mode, *dshExec) {
 				log.Fatalf("Sandbox launch refused: backend policy decision unavailable: %v", exchangeErr)
 			}
 		} else {
-			if opts.Mode != "off" && (resp == nil ||
+			if requiresBackendPolicy(opts.Mode, *dshExec) && (resp == nil ||
 				(resp.Action != pb.WrapperResponse_ALLOW &&
 					resp.Action != pb.WrapperResponse_BLOCK &&
 					resp.Action != pb.WrapperResponse_ALERT &&
@@ -167,8 +168,8 @@ func main() {
 			}
 			handleDecision(resp, &cmdName, &cmdArgs)
 		}
-	} else if opts.Mode != "off" {
-		log.Fatalf("Sandbox launch refused: backend socket is unavailable: %v", err)
+	} else if requiresBackendPolicy(opts.Mode, *dshExec) {
+		log.Fatalf("Policy-enforced launch refused: backend socket is unavailable: %v", err)
 	}
 
 	if err := prepareAndExecute(
@@ -250,6 +251,13 @@ func parseEnvFloat64(keys ...string) float64 {
 		}
 	}
 	return 0
+}
+
+// A Harness provider run must not execute unreviewed children when the
+// backend socket or policy response is unavailable. Observe-only wrappers
+// retain their existing best-effort behavior.
+func requiresBackendPolicy(sandboxMode string, dshExec bool) bool {
+	return sandboxMode != "off" || dshExec
 }
 
 func buildArgvDigest(comm string, args []string) string {
