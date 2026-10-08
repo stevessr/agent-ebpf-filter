@@ -31,6 +31,8 @@
       "gemini-cli"
     ],
     "assets": [
+      "geminicli-color.svg",
+      "geminicli.svg",
       "gemini-color.svg",
       "gemini.svg"
     ]
