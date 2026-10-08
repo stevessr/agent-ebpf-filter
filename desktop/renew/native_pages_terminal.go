@@ -164,6 +164,9 @@ func (a *renewApp) newTerminalPane(dir string) (*renewTerminalPane, error) {
 		Scrollback: terminalScrollbackBytes,
 		Font:       terminal.Font{Family: "monospace", Size: 13},
 		OnExit: func(code int) {
+			if a.terminalClosing.Load() {
+				return
+			}
 			a.update(func() {
 				pane.exited = true
 				pane.exitCode = code
@@ -287,6 +290,7 @@ func (a *renewApp) closeTerminalTab(index int) {
 }
 
 func (a *renewApp) closeTerminals() {
+	a.terminalClosing.Store(true)
 	for _, tab := range a.terminalTabs {
 		tab.root.closeAll()
 	}
