@@ -64,9 +64,7 @@ SEC("tracepoint/syscalls/sys_enter_" #name) \
 int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx) { \
     u64 pid_tgid = bpf_get_current_pid_tgid(); \
     u32 pid = pid_tgid >> 32; \
-    char comm[TASK_COMM_LEN]; \
-    bpf_get_current_comm(&comm, sizeof(comm)); \
-    u32 tag_id = get_tag_id(pid, comm, NULL); \
+    u32 tag_id = get_enter_tag_id_nopath(pid); \
     if (tag_id == 0) return 0; \
     struct exit_compact_meta meta = {.type = type_enum, .tag_id = tag_id}; \
     store_exit_compact_meta(pid_tgid, &meta); \
@@ -120,9 +118,7 @@ SEC("tracepoint/syscalls/sys_enter_socket")
 int tracepoint__syscalls__sys_enter_socket(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
-    u32 tag_id = get_tag_id(tgid, comm, NULL);
+    u32 tag_id = get_enter_tag_id_nopath(tgid);
     if (tag_id == 0) return 0;
     struct exit_compact_meta meta = {
         .type = TYPE_SOCKET,
@@ -157,9 +153,7 @@ SEC("tracepoint/syscalls/sys_enter_bind")
 int tracepoint__syscalls__sys_enter_bind(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = pid_tgid >> 32;
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
-    u32 tag_id = get_tag_id(pid, comm, NULL);
+    u32 tag_id = get_enter_tag_id_nopath(pid);
     if (tag_id == 0) return 0;
     struct exit_meta meta = {.type = TYPE_BIND, .tag_id = tag_id};
     fill_network_meta(&meta, (const void *)ctx->args[1], NET_DIR_LISTEN, 0);
@@ -176,9 +170,7 @@ SEC("tracepoint/syscalls/sys_enter_sendto")
 int tracepoint__syscalls__sys_enter_sendto(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = pid_tgid >> 32;
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
-    u32 tag_id = get_tag_id(pid, comm, NULL);
+    u32 tag_id = get_enter_tag_id_nopath(pid);
     if (tag_id == 0) return 0;
     struct exit_meta meta = {.type = TYPE_SENDTO, .tag_id = tag_id};
     fill_network_meta(&meta, (const void *)ctx->args[4], NET_DIR_OUTGOING, (u32)ctx->args[2]);
@@ -192,19 +184,21 @@ int tracepoint__syscalls__sys_enter_sendto(struct trace_event_raw_sys_enter *ctx
         meta.socket_type = socket->sock_type;
     }
     if (!socket || socket_http1_capture_eligible(socket)) {
-        u32 zero = 0;
-        struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
-        if (pd) {
-            u32 data_len = (u32)ctx->args[2];
-            u32 start_kind = HTTP1_START_NONE;
-            u32 captured = capture_http1_start_line(pd->extra4, (const void *)ctx->args[1], data_len, &start_kind);
-            if (captured > 0) {
-                meta.type = TYPE_SOCKET_HTTP;
-                meta.extra2 = captured;
-                meta.capture_flags |= SOCKET_CAPTURE_OUTGOING;
-                if (start_kind == HTTP1_START_REQUEST) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE;
-                else if (start_kind == HTTP1_START_RESPONSE) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE;
-                store_exit_path_pair(pid_tgid, pd);
+        u32 data_len = (u32)ctx->args[2];
+        u32 start_kind = classify_http1_start_line((const void *)ctx->args[1], data_len);
+        if (start_kind != HTTP1_START_NONE) {
+            u32 zero = 0;
+            struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
+            if (pd) {
+                u32 captured = capture_http1_start_line_kind(pd->extra4, (const void *)ctx->args[1], data_len, start_kind);
+                if (captured > 0) {
+                    meta.type = TYPE_SOCKET_HTTP;
+                    meta.extra2 = captured;
+                    meta.capture_flags |= SOCKET_CAPTURE_OUTGOING;
+                    if (start_kind == HTTP1_START_REQUEST) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE;
+                    else if (start_kind == HTTP1_START_RESPONSE) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE;
+                    store_exit_path_pair(pid_tgid, pd);
+                }
             }
         }
     }
@@ -240,9 +234,7 @@ SEC("tracepoint/syscalls/sys_enter_recvfrom")
 int tracepoint__syscalls__sys_enter_recvfrom(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = pid_tgid >> 32;
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
-    u32 tag_id = get_tag_id(pid, comm, NULL);
+    u32 tag_id = get_enter_tag_id_nopath(pid);
     if (tag_id == 0) return 0;
     struct exit_meta meta = {.type = TYPE_RECVFROM, .tag_id = tag_id, .extra3 = (u32)ctx->args[2], .addr_ptr = ctx->args[4]};
     if (!store_exit_meta(pid_tgid, &meta)) {
@@ -257,9 +249,7 @@ SEC("tracepoint/syscalls/sys_enter_close")
 int tracepoint__syscalls__sys_enter_close(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
-    u32 tag_id = get_tag_id(tgid, comm, NULL);
+    u32 tag_id = get_enter_tag_id_nopath(tgid);
     if (tag_id == 0) return 0;
     struct exit_compact_meta meta = {.type = TYPE_SOCKET, .tag_id = tag_id, .extra2 = (u32)ctx->args[0]};
     store_exit_compact_meta(pid_tgid, &meta);
@@ -282,9 +272,7 @@ SEC("tracepoint/syscalls/sys_enter_" #name) \
 int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx) { \
     u64 pid_tgid = bpf_get_current_pid_tgid(); \
     u32 tgid = (u32)(pid_tgid >> 32); \
-    char comm[TASK_COMM_LEN]; \
-    bpf_get_current_comm(&comm, sizeof(comm)); \
-    u32 tag_id = get_tag_id(tgid, comm, NULL); \
+    u32 tag_id = get_enter_tag_id_nopath(tgid); \
     if (tag_id == 0) return 0; \
     struct exit_compact_meta meta = {.type = TYPE_SOCKET, .tag_id = tag_id, .extra1 = (u32)ctx->args[0]}; \
     store_exit_compact_meta(pid_tgid, &meta); \
@@ -308,9 +296,7 @@ SEC("tracepoint/syscalls/sys_enter_" #name) \
 int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx) { \
     u64 pid_tgid = bpf_get_current_pid_tgid(); \
     u32 tgid = (u32)(pid_tgid >> 32); \
-    char comm[TASK_COMM_LEN]; \
-    bpf_get_current_comm(&comm, sizeof(comm)); \
-    u32 tag_id = get_tag_id(tgid, comm, NULL); \
+    u32 tag_id = get_enter_tag_id_nopath(tgid); \
     if (tag_id == 0) return 0; \
     struct exit_meta meta = {.type = type_enum, .tag_id = tag_id, .extra1 = (u32)ctx->args[0], .addr_ptr = ctx->args[1]}; \
     if (!store_exit_meta(pid_tgid, &meta)) { if (meta.type == TYPE_SOCKET_HTTP) discard_dynamic_exit_path(pid_tgid); return 0; } \
@@ -363,18 +349,16 @@ SEC("tracepoint/syscalls/sys_enter_read")
 int tracepoint__syscalls__sys_enter_read(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = (u32)(pid_tgid >> 32);
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
-    u32 tag_id = get_tag_id(tgid, comm, NULL);
+    u32 tag_id = get_enter_tag_id_nopath(tgid);
     if (tag_id == 0) return 0;
     s32 fd = (s32)ctx->args[0];
-    struct exit_meta meta = {.type = TYPE_READ, .tag_id = tag_id, .extra1 = (u32)fd, .extra3 = (u32)ctx->args[2], .addr_ptr = ctx->args[1]};
+    struct exit_io_meta meta = {.type = TYPE_READ, .tag_id = tag_id, .extra1 = (u32)fd, .extra3 = (u32)ctx->args[2], .addr_ptr = ctx->args[1]};
     struct socket_fd_meta *socket = lookup_socket_fd(tgid, fd);
     if (socket) {
         meta.extra2 = 1; // socket marker until a start-line length replaces it
-        fill_network_meta_from_socket_direction(&meta, socket, (u32)ctx->args[2], NET_DIR_INCOMING);
+        fill_io_meta_from_socket(&meta, socket);
     }
-    if (!store_exit_meta(pid_tgid, &meta)) {
+    if (!store_exit_io_meta(pid_tgid, &meta)) {
         if (meta.type == TYPE_SOCKET_HTTP) discard_dynamic_exit_path(pid_tgid);
         return 0;
     }
@@ -384,32 +368,36 @@ int tracepoint__syscalls__sys_enter_read(struct trace_event_raw_sys_enter *ctx) 
 SEC("tracepoint/syscalls/sys_exit_read")
 int tracepoint__syscalls__sys_exit_read(struct trace_event_raw_sys_exit *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    struct exit_meta meta = {};
-    if (!consume_exit_meta(pid_tgid, &meta)) return 0;
-    u32 zero = 0;
-    struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
+    struct exit_io_meta meta = {};
+    if (!consume_exit_io_meta(pid_tgid, &meta)) return 0;
+    struct exit_path_data *pd = 0;
     u32 captured = 0;
-    if (ctx->ret > 0 && meta.extra2 == 1 && (meta.socket_type & SOCK_TYPE_MASK) == SOCK_STREAM && pd && meta.addr_ptr != 0) {
+    if (ctx->ret > 0 && meta.extra2 == 1 && (meta.socket_type & SOCK_TYPE_MASK) == SOCK_STREAM && meta.addr_ptr != 0) {
         u32 actual = (u32)ctx->ret;
-        u32 start_kind = HTTP1_START_NONE;
-        captured = capture_http1_start_line(pd->extra4, (const void *)meta.addr_ptr, actual, &start_kind);
-        if (captured > 0) {
-            meta.capture_flags |= SOCKET_CAPTURE_INCOMING;
-            if (start_kind == HTTP1_START_REQUEST) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE;
-            else if (start_kind == HTTP1_START_RESPONSE) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE;
-        }
-        if (captured > 0) {
-            meta.type = TYPE_SOCKET_HTTP;
-            meta.extra2 = captured;
+        u32 start_kind = classify_http1_start_line((const void *)meta.addr_ptr, actual);
+        if (start_kind != HTTP1_START_NONE) {
+            u32 zero = 0;
+            pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
+            if (pd) {
+                captured = capture_http1_start_line_kind(pd->extra4, (const void *)meta.addr_ptr, actual, start_kind);
+                if (captured > 0) {
+                    meta.capture_flags |= SOCKET_CAPTURE_INCOMING;
+                    if (start_kind == HTTP1_START_REQUEST) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE;
+                    else if (start_kind == HTTP1_START_RESPONSE) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE;
+                    meta.type = TYPE_SOCKET_HTTP;
+                    meta.extra2 = captured;
+                }
+            }
         }
     }
+    u32 net_bytes = meta.socket_type ? (u32)meta.extra3 : 0;
     if (ctx->ret > 0) {
         meta.extra3 = (u32)ctx->ret;
-        meta.net_bytes = (u32)ctx->ret;
+        net_bytes = (u32)ctx->ret;
     }
     struct event *e = reserve_event();
     if (!e) return 0;
-    fill_from_exit_meta(e, pid_tgid, &meta);
+    fill_from_exit_io_meta(e, pid_tgid, &meta, NET_DIR_INCOMING, net_bytes);
     e->retval = ctx->ret;
     if (pd && captured > 0) {
         __builtin_memcpy(e->path, "socket http", 12);
@@ -427,34 +415,34 @@ SEC("tracepoint/syscalls/sys_enter_write")
 int tracepoint__syscalls__sys_enter_write(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
-    u32 tag_id = get_tag_id(tgid, comm, NULL);
+    u32 tag_id = get_enter_tag_id_nopath(tgid);
     if (tag_id == 0) return 0;
 
     s32 fd = (s32)ctx->args[0];
     u32 requested = (u32)ctx->args[2];
     struct socket_fd_meta *socket = lookup_socket_fd(tgid, fd);
-    struct exit_meta meta = {.type = TYPE_WRITE, .tag_id = tag_id, .extra1 = (u32)fd, .extra3 = requested};
-    if (socket) fill_network_meta_from_socket(&meta, socket, requested);
+    struct exit_io_meta meta = {.type = TYPE_WRITE, .tag_id = tag_id, .extra1 = (u32)fd, .extra3 = requested};
+    if (socket) fill_io_meta_from_socket(&meta, socket);
 
     if (socket_http1_capture_eligible(socket)) {
-        u32 zero = 0;
-        struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
-        if (pd) {
-            u32 start_kind = HTTP1_START_NONE;
-            u32 captured = capture_http1_start_line(pd->extra4, (const void *)ctx->args[1], requested, &start_kind);
-            if (captured > 0) {
-                meta.type = TYPE_SOCKET_HTTP;
-                meta.extra2 = captured;
-                meta.capture_flags |= SOCKET_CAPTURE_OUTGOING;
-                if (start_kind == HTTP1_START_REQUEST) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE;
-                else if (start_kind == HTTP1_START_RESPONSE) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE;
-                store_exit_path_pair(pid_tgid, pd);
+        u32 start_kind = classify_http1_start_line((const void *)ctx->args[1], requested);
+        if (start_kind != HTTP1_START_NONE) {
+            u32 zero = 0;
+            struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
+            if (pd) {
+                u32 captured = capture_http1_start_line_kind(pd->extra4, (const void *)ctx->args[1], requested, start_kind);
+                if (captured > 0) {
+                    meta.type = TYPE_SOCKET_HTTP;
+                    meta.extra2 = captured;
+                    meta.capture_flags |= SOCKET_CAPTURE_OUTGOING;
+                    if (start_kind == HTTP1_START_REQUEST) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE;
+                    else if (start_kind == HTTP1_START_RESPONSE) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE;
+                    store_exit_path_pair(pid_tgid, pd);
+                }
             }
         }
     }
-    if (!store_exit_meta(pid_tgid, &meta)) {
+    if (!store_exit_io_meta(pid_tgid, &meta)) {
         if (meta.type == TYPE_SOCKET_HTTP) discard_dynamic_exit_path(pid_tgid);
         return 0;
     }
@@ -464,14 +452,14 @@ int tracepoint__syscalls__sys_enter_write(struct trace_event_raw_sys_enter *ctx)
 SEC("tracepoint/syscalls/sys_exit_write")
 int tracepoint__syscalls__sys_exit_write(struct trace_event_raw_sys_exit *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    struct exit_meta meta = {};
-    if (!consume_exit_meta(pid_tgid, &meta)) return 0;
+    struct exit_io_meta meta = {};
+    if (!consume_exit_io_meta(pid_tgid, &meta)) return 0;
     struct event *e = reserve_event();
     if (!e) {
         if (meta.type == TYPE_SOCKET_HTTP) discard_dynamic_exit_path(pid_tgid);
         return 0;
     }
-    fill_from_exit_meta(e, pid_tgid, &meta);
+    fill_from_exit_io_meta(e, pid_tgid, &meta, NET_DIR_OUTGOING, meta.socket_type ? (u32)meta.extra3 : 0);
     e->retval = ctx->ret;
     if (meta.type == TYPE_SOCKET_HTTP && meta.extra2 > 0) {
         fill_dynamic_http_exit(e, pid_tgid);
@@ -491,39 +479,39 @@ SEC("tracepoint/syscalls/sys_enter_writev")
 int tracepoint__syscalls__sys_enter_writev(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = (u32)(pid_tgid >> 32);
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
-    u32 tag_id = get_tag_id(tgid, comm, NULL);
+    u32 tag_id = get_enter_tag_id_nopath(tgid);
     if (tag_id == 0) return 0;
 
     s32 fd = (s32)ctx->args[0];
     struct capture_iovec64 iov = {};
     int have_iov = capture_first_iovec((const void *)ctx->args[1], ctx->args[2], &iov);
     u32 first_len = have_iov ? capture_iov_len(iov.len) : 0;
-    struct exit_meta meta = {.type = TYPE_WRITE, .tag_id = tag_id, .extra1 = (u32)fd, .extra3 = first_len};
+    struct exit_io_meta meta = {.type = TYPE_WRITE, .tag_id = tag_id, .extra1 = (u32)fd, .extra3 = first_len};
     struct socket_fd_meta *socket = lookup_socket_fd(tgid, fd);
     if (socket) {
-        fill_network_meta_from_socket(&meta, socket, first_len);
+        fill_io_meta_from_socket(&meta, socket);
         meta.capture_flags |= SOCKET_CAPTURE_SCATTER_GATHER;
     }
 
     if (socket_http1_capture_eligible(socket) && have_iov) {
-        u32 zero = 0;
-        struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
-        if (pd) {
-            u32 start_kind = HTTP1_START_NONE;
-            u32 captured = capture_http1_start_line(pd->extra4, (const void *)iov.base, first_len, &start_kind);
-            if (captured > 0) {
-                meta.type = TYPE_SOCKET_HTTP;
-                meta.extra2 = captured;
-                meta.capture_flags |= SOCKET_CAPTURE_OUTGOING;
-                if (start_kind == HTTP1_START_REQUEST) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE;
-                else if (start_kind == HTTP1_START_RESPONSE) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE;
-                store_exit_path_pair(pid_tgid, pd);
+        u32 start_kind = classify_http1_start_line((const void *)iov.base, first_len);
+        if (start_kind != HTTP1_START_NONE) {
+            u32 zero = 0;
+            struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
+            if (pd) {
+                u32 captured = capture_http1_start_line_kind(pd->extra4, (const void *)iov.base, first_len, start_kind);
+                if (captured > 0) {
+                    meta.type = TYPE_SOCKET_HTTP;
+                    meta.extra2 = captured;
+                    meta.capture_flags |= SOCKET_CAPTURE_OUTGOING;
+                    if (start_kind == HTTP1_START_REQUEST) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE;
+                    else if (start_kind == HTTP1_START_RESPONSE) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE;
+                    store_exit_path_pair(pid_tgid, pd);
+                }
             }
         }
     }
-    if (!store_exit_meta(pid_tgid, &meta)) {
+    if (!store_exit_io_meta(pid_tgid, &meta)) {
         if (meta.type == TYPE_SOCKET_HTTP) discard_dynamic_exit_path(pid_tgid);
         return 0;
     }
@@ -533,18 +521,19 @@ int tracepoint__syscalls__sys_enter_writev(struct trace_event_raw_sys_enter *ctx
 SEC("tracepoint/syscalls/sys_exit_writev")
 int tracepoint__syscalls__sys_exit_writev(struct trace_event_raw_sys_exit *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    struct exit_meta meta = {};
-    if (!consume_exit_meta(pid_tgid, &meta)) return 0;
+    struct exit_io_meta meta = {};
+    if (!consume_exit_io_meta(pid_tgid, &meta)) return 0;
+    u32 net_bytes = meta.socket_type ? (u32)meta.extra3 : 0;
     if (ctx->ret > 0) {
         meta.extra3 = (u32)ctx->ret;
-        meta.net_bytes = (u32)ctx->ret;
+        net_bytes = (u32)ctx->ret;
     }
     struct event *e = reserve_event();
     if (!e) {
         if (meta.type == TYPE_SOCKET_HTTP) discard_dynamic_exit_path(pid_tgid);
         return 0;
     }
-    fill_from_exit_meta(e, pid_tgid, &meta);
+    fill_from_exit_io_meta(e, pid_tgid, &meta, NET_DIR_OUTGOING, net_bytes);
     e->retval = ctx->ret;
     if (meta.type == TYPE_SOCKET_HTTP && meta.extra2 > 0) {
         fill_dynamic_http_exit(e, pid_tgid);
@@ -561,19 +550,17 @@ SEC("tracepoint/syscalls/sys_enter_readv")
 int tracepoint__syscalls__sys_enter_readv(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = (u32)(pid_tgid >> 32);
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
-    u32 tag_id = get_tag_id(tgid, comm, NULL);
+    u32 tag_id = get_enter_tag_id_nopath(tgid);
     if (tag_id == 0) return 0;
     s32 fd = (s32)ctx->args[0];
-    struct exit_meta meta = {.type = TYPE_READ, .tag_id = tag_id, .extra1 = (u32)fd, .addr_ptr = ctx->args[1], .capture_reserved = (u32)ctx->args[2]};
+    struct exit_io_meta meta = {.type = TYPE_READ, .tag_id = tag_id, .extra1 = (u32)fd, .extra3 = (u32)ctx->args[2], .addr_ptr = ctx->args[1]};
     struct socket_fd_meta *socket = lookup_socket_fd(tgid, fd);
     if (socket) {
         meta.extra2 = 1;
-        fill_network_meta_from_socket_direction(&meta, socket, 0, NET_DIR_INCOMING);
+        fill_io_meta_from_socket(&meta, socket);
         meta.capture_flags |= SOCKET_CAPTURE_SCATTER_GATHER;
     }
-    if (!store_exit_meta(pid_tgid, &meta)) {
+    if (!store_exit_io_meta(pid_tgid, &meta)) {
         if (meta.type == TYPE_SOCKET_HTTP) discard_dynamic_exit_path(pid_tgid);
         return 0;
     }
@@ -583,36 +570,42 @@ int tracepoint__syscalls__sys_enter_readv(struct trace_event_raw_sys_enter *ctx)
 SEC("tracepoint/syscalls/sys_exit_readv")
 int tracepoint__syscalls__sys_exit_readv(struct trace_event_raw_sys_exit *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    struct exit_meta meta = {};
-    if (!consume_exit_meta(pid_tgid, &meta)) return 0;
-    u32 zero = 0;
-    struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
+    struct exit_io_meta meta = {};
+    if (!consume_exit_io_meta(pid_tgid, &meta)) return 0;
+    struct exit_path_data *pd = 0;
     u32 captured = 0;
-    if (ctx->ret > 0 && meta.extra2 == 1 && (meta.socket_type & SOCK_TYPE_MASK) == SOCK_STREAM && pd && meta.addr_ptr != 0 && meta.capture_reserved > 0) {
+    if (ctx->ret > 0 && meta.extra2 == 1 && (meta.socket_type & SOCK_TYPE_MASK) == SOCK_STREAM && meta.addr_ptr != 0 && meta.extra3 > 0) {
         struct capture_iovec64 iov = {};
-        if (capture_first_iovec((const void *)meta.addr_ptr, meta.capture_reserved, &iov)) {
+        if (capture_first_iovec((const void *)meta.addr_ptr, meta.extra3, &iov)) {
             u32 available = capture_iov_len(iov.len);
             if ((u64)ctx->ret < available) available = (u32)ctx->ret;
-            u32 start_kind = HTTP1_START_NONE;
-            captured = capture_http1_start_line(pd->extra4, (const void *)iov.base, available, &start_kind);
-            if (captured > 0) {
-                meta.capture_flags |= SOCKET_CAPTURE_INCOMING;
-                if (start_kind == HTTP1_START_REQUEST) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE;
-                else if (start_kind == HTTP1_START_RESPONSE) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE;
-            }
-            if (captured > 0) {
-                meta.type = TYPE_SOCKET_HTTP;
-                meta.extra2 = captured;
+            u32 start_kind = classify_http1_start_line((const void *)iov.base, available);
+            if (start_kind != HTTP1_START_NONE) {
+                u32 zero = 0;
+                pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
+                if (pd) {
+                    captured = capture_http1_start_line_kind(pd->extra4, (const void *)iov.base, available, start_kind);
+                    if (captured > 0) {
+                        meta.capture_flags |= SOCKET_CAPTURE_INCOMING;
+                        if (start_kind == HTTP1_START_REQUEST) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE;
+                        else if (start_kind == HTTP1_START_RESPONSE) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE;
+                        meta.type = TYPE_SOCKET_HTTP;
+                        meta.extra2 = captured;
+                    }
+                }
             }
         }
     }
+    u32 net_bytes = 0;
     if (ctx->ret > 0) {
         meta.extra3 = (u32)ctx->ret;
-        meta.net_bytes = (u32)ctx->ret;
+        net_bytes = (u32)ctx->ret;
+    } else {
+        meta.extra3 = 0;
     }
     struct event *e = reserve_event();
     if (!e) return 0;
-    fill_from_exit_meta(e, pid_tgid, &meta);
+    fill_from_exit_io_meta(e, pid_tgid, &meta, NET_DIR_INCOMING, net_bytes);
     e->retval = ctx->ret;
     if (pd && captured > 0) {
         __builtin_memcpy(e->path, "socket http", 12);
@@ -633,9 +626,7 @@ SEC("tracepoint/syscalls/sys_enter_sendmsg")
 int tracepoint__syscalls__sys_enter_sendmsg(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = (u32)(pid_tgid >> 32);
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
-    u32 tag_id = get_tag_id(tgid, comm, NULL);
+    u32 tag_id = get_enter_tag_id_nopath(tgid);
     if (tag_id == 0) return 0;
     s32 fd = (s32)ctx->args[0];
     struct capture_msghdr64 msg = {};
@@ -656,18 +647,20 @@ int tracepoint__syscalls__sys_enter_sendmsg(struct trace_event_raw_sys_enter *ct
     if (socket) meta.capture_flags |= SOCKET_CAPTURE_SCATTER_GATHER;
 
     if (socket_http1_capture_eligible(socket) && have_iov) {
-        u32 zero = 0;
-        struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
-        if (pd) {
-            u32 start_kind = HTTP1_START_NONE;
-            u32 captured = capture_http1_start_line(pd->extra4, (const void *)iov.base, first_len, &start_kind);
-            if (captured > 0) {
-                meta.type = TYPE_SOCKET_HTTP;
-                meta.extra2 = captured;
-                meta.capture_flags |= SOCKET_CAPTURE_OUTGOING;
-                if (start_kind == HTTP1_START_REQUEST) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE;
-                else if (start_kind == HTTP1_START_RESPONSE) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE;
-                store_exit_path_pair(pid_tgid, pd);
+        u32 start_kind = classify_http1_start_line((const void *)iov.base, first_len);
+        if (start_kind != HTTP1_START_NONE) {
+            u32 zero = 0;
+            struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
+            if (pd) {
+                u32 captured = capture_http1_start_line_kind(pd->extra4, (const void *)iov.base, first_len, start_kind);
+                if (captured > 0) {
+                    meta.type = TYPE_SOCKET_HTTP;
+                    meta.extra2 = captured;
+                    meta.capture_flags |= SOCKET_CAPTURE_OUTGOING;
+                    if (start_kind == HTTP1_START_REQUEST) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE;
+                    else if (start_kind == HTTP1_START_RESPONSE) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE;
+                    store_exit_path_pair(pid_tgid, pd);
+                }
             }
         }
     }
@@ -707,9 +700,7 @@ SEC("tracepoint/syscalls/sys_enter_recvmsg")
 int tracepoint__syscalls__sys_enter_recvmsg(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = (u32)(pid_tgid >> 32);
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
-    u32 tag_id = get_tag_id(tgid, comm, NULL);
+    u32 tag_id = get_enter_tag_id_nopath(tgid);
     if (tag_id == 0) return 0;
     s32 fd = (s32)ctx->args[0];
     struct exit_meta meta = {.type = TYPE_RECVFROM, .tag_id = tag_id, .extra1 = (u32)fd, .extra2 = 0, .addr_ptr = ctx->args[1]};
@@ -732,8 +723,7 @@ int tracepoint__syscalls__sys_exit_recvmsg(struct trace_event_raw_sys_exit *ctx)
     u32 tgid = (u32)(pid_tgid >> 32);
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return 0;
-    u32 zero = 0;
-    struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
+    struct exit_path_data *pd = 0;
     u32 captured = 0;
     if (ctx->ret > 0 && meta.extra2 == 1 && (meta.socket_type & SOCK_TYPE_MASK) == SOCK_STREAM && meta.addr_ptr != 0) {
         struct capture_msghdr64 msg = {};
@@ -749,19 +739,21 @@ int tracepoint__syscalls__sys_exit_recvmsg(struct trace_event_raw_sys_exit *ctx)
                     update_socket_fd_remote(tgid, (s32)meta.extra1, &peer);
                 }
             }
-            if (pd) {
-                u32 available = capture_iov_len(iov.len);
-                if ((u64)ctx->ret < available) available = (u32)ctx->ret;
-                u32 start_kind = HTTP1_START_NONE;
-                captured = capture_http1_start_line(pd->extra4, (const void *)iov.base, available, &start_kind);
-                if (captured > 0) {
-                    meta.capture_flags |= SOCKET_CAPTURE_INCOMING;
-                    if (start_kind == HTTP1_START_REQUEST) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE;
-                    else if (start_kind == HTTP1_START_RESPONSE) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE;
-                }
-                if (captured > 0) {
-                    meta.type = TYPE_SOCKET_HTTP;
-                    meta.extra2 = captured;
+            u32 available = capture_iov_len(iov.len);
+            if ((u64)ctx->ret < available) available = (u32)ctx->ret;
+            u32 start_kind = classify_http1_start_line((const void *)iov.base, available);
+            if (start_kind != HTTP1_START_NONE) {
+                u32 zero = 0;
+                pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
+                if (pd) {
+                    captured = capture_http1_start_line_kind(pd->extra4, (const void *)iov.base, available, start_kind);
+                    if (captured > 0) {
+                        meta.capture_flags |= SOCKET_CAPTURE_INCOMING;
+                        if (start_kind == HTTP1_START_REQUEST) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_REQUEST_LINE;
+                        else if (start_kind == HTTP1_START_RESPONSE) meta.capture_flags |= SOCKET_CAPTURE_HTTP1_RESPONSE_LINE;
+                        meta.type = TYPE_SOCKET_HTTP;
+                        meta.extra2 = captured;
+                    }
                 }
             }
         }

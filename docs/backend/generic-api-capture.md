@@ -211,3 +211,77 @@ map cannot be read, the pressure snapshot is reported unavailable rather than
 silently treating failures as zero. Path correlation is also all-or-nothing:
 if compact/full correlation or its companion path update fails, the sibling
 state is not left behind for a later pid/tgid reuse.
+
+### Path-rule fast reject
+
+Path-bearing syscall tracepoints now split cheap PID/comm matching from expensive
+user-path inspection. A tiny pinned `tracking_mode` ARRAY records whether exact
+or prefix path rules currently exist. After PID/comm misses, if neither class is
+configured the program returns before per-CPU path scratch lookup,
+`bpf_probe_read_user_str`, exact-path hash lookup, or LPM prefix matching.
+Tracked PID/comm events still snapshot and report their path, and configured
+path rules retain exact/prefix semantics. Mode lookup failure is fail-open to
+full path matching.
+
+The backend derives mode bits from the real tracked path maps, synchronizes them
+before tracepoint links are attached, and refreshes them after official path
+configuration mutations. Fresh bootstrap also performs best-effort backup of
+legacy tracked maps before replacing an older pin layout, restores rules before
+attach, then publishes the matching mode bits, preventing both config loss and
+reload-time false rejects when a new required map is introduced.
+
+
+Path/prefix registry mutations are serialized with mode publication. The backend
+snapshots an existing selector before mutation and rolls it back if mode
+publication fails. If rollback or precise re-synchronization cannot be trusted,
+the mode map is forced to both path classes enabled, preserving capture
+correctness at the cost of extra path work rather than allowing a false reject.
+
+
+### PID-first enter-side selector lookup
+
+Correlation-only syscall enter programs now check the registered Agent PID map
+before reading the current command name. For a PID hit, path and scalar syscall
+macros skip the enter-side bpf_get_current_comm helper entirely; event
+construction on sys_exit still reads and reports the current comm as before.
+Only a PID miss pays the comm helper and tracked_comms lookup, and path-bearing
+syscalls proceed to tracking_mode/path inspection only after both selectors
+miss. Immediate tracepoint emitters such as TCP flow events are intentionally
+unchanged because they need comm for the event emitted in that same program.
+
+
+The same PID-first selector path is applied to correlation-only explicit network
+and descriptor syscalls: socket, connect, bind, sendto/recvfrom, sendmsg/recvmsg,
+read/readv, write/writev, and close. These enter programs only need comm for
+selector fallback, while their eventual sys_exit event reconstructs comm
+independently. Immediate TCP tracepoint emitters remain outside this optimization.
+
+
+### L7 sampling fast gates
+
+HTTP/1 sampling now separates an 8-byte protocol classifier from the bounded
+start-line copy. Socket read/write/send paths classify the user buffer before
+acquiring the per-CPU path scratch map, so ordinary file reads, non-stream
+socket traffic, and non-HTTP stream traffic avoid the scratch lookup and the
+up-to-255-byte copy entirely. Only a positive HTTP/1 request/response signature
+enters the metadata-copy path. Query/fragment stripping and all existing privacy
+boundaries are unchanged.
+
+The remaining macro-generated simple, dup, and accept enter handlers also use
+the same PID-first selector helper, eliminating their unconditional comm helper
+for registered Agent PIDs.
+
+
+### Compact I/O correlation context
+
+High-frequency read/write/readv/writev enter/exit correlation uses a dedicated
+64-byte exit_io_ctx instead of the 88-byte full network exit_ctx. The compact
+I/O value retains fd, L7 capture state, user-buffer pointer, remote endpoint,
+capture provenance, and socket type, while direction/byte count are reconstructed
+at exit from the syscall and return value.
+
+The full and I/O hash maps split the previous 10,240-entry budget into 6,144
+full-network entries plus 4,096 I/O entries. Total entry count is unchanged,
+while aggregate preallocated value payload decreases and each I/O map update /
+lookup moves about 27% fewer value bytes. exit_io_ctx has independent failure
+and occupancy telemetry in collector health/Prometheus output.

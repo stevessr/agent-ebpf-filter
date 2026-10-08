@@ -8,12 +8,12 @@ import (
 
 func TestBuildKernelSocketHTTPEventSanitizesAndClassifiesPath(t *testing.T) {
 	oldGetTagName := Deps.GetTagName
-	oldApplyRisk := Deps.ApplyKernelRiskDecision
+	oldApplyRisk := Deps.KernelRisk
 	Deps.GetTagName = func(uint32) string { return "test" }
-	Deps.ApplyKernelRiskDecision = func(*BpfEvent, *pb.Event) {}
+	Deps.KernelRisk = func(*BpfEvent, *pb.Event) {}
 	defer func() {
 		Deps.GetTagName = oldGetTagName
-		Deps.ApplyKernelRiskDecision = oldApplyRisk
+		Deps.KernelRisk = oldApplyRisk
 	}()
 
 	var raw BpfEvent
@@ -50,12 +50,12 @@ func TestBuildKernelSocketHTTPEventSanitizesAndClassifiesPath(t *testing.T) {
 
 func TestBuildKernelSocketHTTPResponseEvent(t *testing.T) {
 	oldGetTagName := Deps.GetTagName
-	oldApplyRisk := Deps.ApplyKernelRiskDecision
+	oldApplyRisk := Deps.KernelRisk
 	Deps.GetTagName = func(uint32) string { return "test" }
-	Deps.ApplyKernelRiskDecision = func(*BpfEvent, *pb.Event) {}
+	Deps.KernelRisk = func(*BpfEvent, *pb.Event) {}
 	defer func() {
 		Deps.GetTagName = oldGetTagName
-		Deps.ApplyKernelRiskDecision = oldApplyRisk
+		Deps.KernelRisk = oldApplyRisk
 	}()
 
 	var raw BpfEvent

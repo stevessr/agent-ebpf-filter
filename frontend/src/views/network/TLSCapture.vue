@@ -288,9 +288,14 @@ const attachHookPath = async (path: string, label: string) => {
         ? { resolved: response.data.resolved }
         : null;
     } else {
+      if (!manualHookPid.value || manualHookPid.value <= 0) {
+        message.warning("A PID is required for shared TLS library hooks");
+        return;
+      }
       await axios.post("/tls-capture/library", {
         path,
         library: manualHookType.value,
+        pid: manualHookPid.value,
       });
     }
     message.success(`Hook attached for ${label}`);
@@ -369,6 +374,7 @@ const addRule = () => {
       enabled: true,
       scope: "custom",
       comms: [],
+      paths: [],
       hosts: [],
       methods: [],
       libraries: [],
@@ -577,7 +583,7 @@ onUnmounted(() => {
         show-icon
         class="tls-rules-hint"
         message="Hook SSL uses eBPF uprobes on common TLS libraries"
-        description="OpenSSL/libssl, GnuTLS, NSS/NSPR, and Go crypto/tls symbols are attached when TLS capture is enabled. Independent Hook SSL rules decide which plaintext events are retained; by default only agent CLI tagged processes are shown."
+        description="TLS plaintext probes are fail-closed by executable path. Add an executable path (exact path or /directory/**) to an enabled rule; auto-discovery then attaches PID-scoped OpenSSL/GnuTLS/NSS/Go/rustls probes only to matching processes. Other rule fields filter retained plaintext after capture."
       />
 
       <TLSCaptureRuntimeStatus

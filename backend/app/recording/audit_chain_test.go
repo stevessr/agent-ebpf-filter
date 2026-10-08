@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"agent-ebpf-filter/pb"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestAuditChainDetectsTamperAndDeletion(t *testing.T) {
@@ -49,8 +50,7 @@ func pbCloneEventForAuditTest(in *pb.Event) *pb.Event {
 	if in == nil {
 		return nil
 	}
-	out := *in
-	return &out
+	return proto.Clone(in).(*pb.Event)
 }
 
 func TestVerifyAuditChainAllowsLegacyRecordsButMarksThem(t *testing.T) {

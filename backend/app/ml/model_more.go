@@ -6,8 +6,6 @@ import (
 	"math/rand"
 )
 
-// ---- moved from backend/zz_merged_backend.go section model_more.go ----
-
 // ── Model Type Registration ────────────────────────────────────────
 
 func init() {

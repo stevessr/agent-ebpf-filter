@@ -3,14 +3,13 @@ package app
 import (
 	"agent-ebpf-filter/internal/domainforwardproxy"
 	"crypto/tls"
+	"encoding/json"
 	"log"
 	"net/http"
 	"net/url"
 
 	"github.com/gin-gonic/gin"
 )
-
-// ---- moved from backend/zz_merged_backend.go section forwardproxydomain.go ----
 
 type DomainForwardProxyStatus = domainforwardproxy.Status
 
@@ -54,52 +53,25 @@ func handleDomainForwardProxyStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, domainForwardProxyService.Status())
 }
 
+// The app/core and internal proxy packages intentionally expose the same JSON
+// schema. Round-tripping here keeps the boundary explicit while avoiding a
+// second hand-maintained field list whenever proxy capabilities grow.
 func toInternalDomainForwardProxySettings(settings DomainForwardProxySettings) domainforwardproxy.DomainForwardProxySettings {
-	routes := make([]domainforwardproxy.DomainForwardRoute, 0, len(settings.Routes))
-	for _, route := range settings.Routes {
-		routes = append(routes, domainforwardproxy.DomainForwardRoute{
-			Host:     route.Host,
-			Upstream: route.Upstream,
-			CertFile: route.CertFile,
-			KeyFile:  route.KeyFile,
-		})
+	var internal domainforwardproxy.DomainForwardProxySettings
+	payload, err := json.Marshal(settings)
+	if err == nil {
+		_ = json.Unmarshal(payload, &internal)
 	}
-	return domainforwardproxy.DomainForwardProxySettings{
-		Enabled:            settings.Enabled,
-		HTTPPort:           settings.HTTPPort,
-		HTTPSPort:          settings.HTTPSPort,
-		DefaultScheme:      settings.DefaultScheme,
-		AllowAnyHost:       settings.AllowAnyHost,
-		DNSResolver:        settings.DNSResolver,
-		DialTimeoutSeconds: settings.DialTimeoutSeconds,
-		CertFile:           settings.CertFile,
-		KeyFile:            settings.KeyFile,
-		Routes:             routes,
-	}
+	return internal
 }
 
 func fromInternalDomainForwardProxySettings(settings domainforwardproxy.DomainForwardProxySettings) DomainForwardProxySettings {
-	routes := make([]DomainForwardRoute, 0, len(settings.Routes))
-	for _, route := range settings.Routes {
-		routes = append(routes, DomainForwardRoute{
-			Host:     route.Host,
-			Upstream: route.Upstream,
-			CertFile: route.CertFile,
-			KeyFile:  route.KeyFile,
-		})
+	var external DomainForwardProxySettings
+	payload, err := json.Marshal(settings)
+	if err == nil {
+		_ = json.Unmarshal(payload, &external)
 	}
-	return DomainForwardProxySettings{
-		Enabled:            settings.Enabled,
-		HTTPPort:           settings.HTTPPort,
-		HTTPSPort:          settings.HTTPSPort,
-		DefaultScheme:      settings.DefaultScheme,
-		AllowAnyHost:       settings.AllowAnyHost,
-		DNSResolver:        settings.DNSResolver,
-		DialTimeoutSeconds: settings.DialTimeoutSeconds,
-		CertFile:           settings.CertFile,
-		KeyFile:            settings.KeyFile,
-		Routes:             routes,
-	}
+	return external
 }
 
 func fromInternalDomainForwardRoute(route domainforwardproxy.DomainForwardRoute) DomainForwardRoute {

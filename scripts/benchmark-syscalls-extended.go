@@ -13,13 +13,13 @@ import (
 
 // BenchmarkResult stores timing results for a single operation
 type BenchmarkResult struct {
-	Name       string  `json:"name"`
-	AvgTimeUs  float64 `json:"avg_time_us"`
-	MinTimeUs  float64 `json:"min_time_us"`
-	MaxTimeUs  float64 `json:"max_time_us"`
-	StdDevUs   float64 `json:"stddev_us"`
-	Iterations int     `json:"iterations"`
-	Concurrency int    `json:"concurrency,omitempty"`
+	Name        string  `json:"name"`
+	AvgTimeUs   float64 `json:"avg_time_us"`
+	MinTimeUs   float64 `json:"min_time_us"`
+	MaxTimeUs   float64 `json:"max_time_us"`
+	StdDevUs    float64 `json:"stddev_us"`
+	Iterations  int     `json:"iterations"`
+	Concurrency int     `json:"concurrency,omitempty"`
 }
 
 // BenchmarkReport contains all benchmark results

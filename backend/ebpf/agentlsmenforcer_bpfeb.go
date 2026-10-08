@@ -31,6 +31,31 @@ type AgentLsmEnforcerLsmPathKey struct {
 	Path [256]int8
 }
 
+// Names of all BPF objects in the ELF.
+//
+// Used for safe lookups in a Collection or CollectionSpec.
+const (
+	AgentLsmEnforcerMapLsmBlockedExecNames        = "lsm_blocked_exec_names"
+	AgentLsmEnforcerMapLsmBlockedExecPaths        = "lsm_blocked_exec_paths"
+	AgentLsmEnforcerMapLsmBlockedFileNames        = "lsm_blocked_file_names"
+	AgentLsmEnforcerMapLsmEnforcerStatsMap        = "lsm_enforcer_stats_map"
+	AgentLsmEnforcerProgLsmEnforceBprmCheck       = "lsm_enforce_bprm_check"
+	AgentLsmEnforcerProgLsmEnforceFileMprotect    = "lsm_enforce_file_mprotect"
+	AgentLsmEnforcerProgLsmEnforceFileOpen        = "lsm_enforce_file_open"
+	AgentLsmEnforcerProgLsmEnforceFilePermission  = "lsm_enforce_file_permission"
+	AgentLsmEnforcerProgLsmEnforceInodeCreate     = "lsm_enforce_inode_create"
+	AgentLsmEnforcerProgLsmEnforceInodeLink       = "lsm_enforce_inode_link"
+	AgentLsmEnforcerProgLsmEnforceInodeMkdir      = "lsm_enforce_inode_mkdir"
+	AgentLsmEnforcerProgLsmEnforceInodeMknod      = "lsm_enforce_inode_mknod"
+	AgentLsmEnforcerProgLsmEnforceInodeRename     = "lsm_enforce_inode_rename"
+	AgentLsmEnforcerProgLsmEnforceInodeRmdir      = "lsm_enforce_inode_rmdir"
+	AgentLsmEnforcerProgLsmEnforceInodeSetattr    = "lsm_enforce_inode_setattr"
+	AgentLsmEnforcerProgLsmEnforceInodeSymlink    = "lsm_enforce_inode_symlink"
+	AgentLsmEnforcerProgLsmEnforceInodeUnlink     = "lsm_enforce_inode_unlink"
+	AgentLsmEnforcerProgLsmEnforceMmapFile        = "lsm_enforce_mmap_file"
+	AgentLsmEnforcerVarLsmEnforcerStatsTypeAnchor = "lsm_enforcer_stats_type_anchor"
+)
+
 // LoadAgentLsmEnforcer returns the embedded CollectionSpec for AgentLsmEnforcer.
 func LoadAgentLsmEnforcer() (*ebpf.CollectionSpec, error) {
 	reader := bytes.NewReader(_AgentLsmEnforcerBytes)
@@ -51,7 +76,7 @@ func LoadAgentLsmEnforcer() (*ebpf.CollectionSpec, error) {
 //	*AgentLsmEnforcerMaps
 //
 // See ebpf.CollectionSpec.LoadAndAssign documentation for details.
-func LoadAgentLsmEnforcerObjects(obj interface{}, opts *ebpf.CollectionOptions) error {
+func LoadAgentLsmEnforcerObjects(obj any, opts *ebpf.CollectionOptions) error {
 	spec, err := LoadAgentLsmEnforcer()
 	if err != nil {
 		return err

@@ -1,6 +1,7 @@
 package tls
 
 import (
+	"bytes"
 	"sync"
 	"time"
 )
@@ -105,6 +106,9 @@ func validTLSFragmentShape(fragment tlsFragment) bool {
 	if fragment.FragCount > tlsMaxFragments || fragment.DataLen == 0 || fragment.DataLen > tlsFragmentSize {
 		return false
 	}
+	if fragment.DataLen == 0 || fragment.DataLen > tlsFragmentSize || int(fragment.DataLen) > len(fragment.Data) {
+		return false
+	}
 	if fragment.TotalLen > uint32(tlsFragmentSize*tlsMaxFragments) {
 		return false
 	}
@@ -118,6 +122,7 @@ func (a *FragmentAssembler) Add(fragment tlsFragment) (*CompletedTLSFragment, bo
 		a.mu.Unlock()
 		return nil, false
 	}
+	data := fragment.Data[:fragment.DataLen]
 
 	arrival := time.Now()
 	firstSeen := fragmentFirstSeen(fragment.TimestampNS, arrival)
@@ -125,6 +130,31 @@ func (a *FragmentAssembler) Add(fragment tlsFragment) (*CompletedTLSFragment, bo
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
+
+	// A single-fragment payload (the common case) needs no pending state: copy
+	// the sample bytes once, straight into the completed payload.
+	if fragment.FragCount == 1 && a.pending[key] == nil {
+		if fragment.TotalLen != fragment.DataLen {
+			a.dropped++
+			return nil, false
+		}
+		return &CompletedTLSFragment{
+			TimestampNS:  fragment.TimestampNS,
+			ConnectionID: fragment.ConnectionID,
+			PID:          fragment.PID,
+			TGID:         fragment.TGID,
+			DataLen:      fragment.DataLen,
+			TotalLen:     fragment.TotalLen,
+			OriginalLen:  fragment.OriginalLen,
+			FragCount:    1,
+			LibType:      fragment.LibType,
+			Direction:    fragment.Direction,
+			Flags:        fragment.Flags,
+			Function:     fragment.Function,
+			Comm:         sanitizeTLSComm(fragment.Comm),
+			Payload:      bytes.Clone(data),
+		}, true
+	}
 
 	pending := a.pending[key]
 	if pending == nil {

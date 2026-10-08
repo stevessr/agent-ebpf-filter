@@ -29,6 +29,7 @@ type kernelContextPressureStats struct {
 	PairPathUpdateFailures     uint64
 	SocketFDUpdateFailures     uint64
 	SocketParentUpdateFailures uint64
+	ExitIOUpdateFailures       uint64
 }
 
 type ContextMapPressure struct {
@@ -683,6 +684,7 @@ func contextFailureByMap(stats kernelContextPressureStats) map[string]uint64 {
 		"exit_path_ctx":        stats.PairPathUpdateFailures,
 		"socket_fds":           stats.SocketFDUpdateFailures,
 		"socket_fd_parents":    stats.SocketParentUpdateFailures,
+		"exit_io_ctx":          stats.ExitIOUpdateFailures,
 	}
 }
 
@@ -695,6 +697,7 @@ func aggregateContextPressureStats(values []kernelContextPressureStats) kernelCo
 		total.PairPathUpdateFailures += value.PairPathUpdateFailures
 		total.SocketFDUpdateFailures += value.SocketFDUpdateFailures
 		total.SocketParentUpdateFailures += value.SocketParentUpdateFailures
+		total.ExitIOUpdateFailures += value.ExitIOUpdateFailures
 	}
 	return total
 }

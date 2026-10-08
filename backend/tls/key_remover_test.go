@@ -9,9 +9,9 @@ func TestRemoveSensitiveData_PrivateKey(t *testing.T) {
 	kr := NewKeyRemover()
 
 	testCases := []struct {
-		name     string
-		input    string
-		contains string
+		name        string
+		input       string
+		contains    string
 		notContains string
 	}{
 		{
@@ -19,7 +19,7 @@ func TestRemoveSensitiveData_PrivateKey(t *testing.T) {
 			input: `-----BEGIN RSA PRIVATE KEY-----
 MIIEpAIBAAKCAQEA1234567890abcdefghijklmnopqrstuvwxyz
 -----END RSA PRIVATE KEY-----`,
-			contains: "[PRIVATE_KEY_REMOVED]",
+			contains:    "[PRIVATE_KEY_REMOVED]",
 			notContains: "MIIEpAIBAAKCAQEA",
 		},
 		{
@@ -27,7 +27,7 @@ MIIEpAIBAAKCAQEA1234567890abcdefghijklmnopqrstuvwxyz
 			input: `-----BEGIN PRIVATE KEY-----
 MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC
 -----END PRIVATE KEY-----`,
-			contains: "[PRIVATE_KEY_REMOVED]",
+			contains:    "[PRIVATE_KEY_REMOVED]",
 			notContains: "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC",
 		},
 		{
@@ -35,7 +35,7 @@ MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC
 			input: `-----BEGIN OPENSSH PRIVATE KEY-----
 b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAABFwAAAAdzc2gtcn
 -----END OPENSSH PRIVATE KEY-----`,
-			contains: "[SSH_PRIVATE_KEY_REMOVED]",
+			contains:    "[SSH_PRIVATE_KEY_REMOVED]",
 			notContains: "b3BlbnNzaC1rZXktdjEAAAAABG5vbmU",
 		},
 	}

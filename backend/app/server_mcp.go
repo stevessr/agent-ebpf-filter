@@ -15,8 +15,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// ---- moved from backend/zz_merged_backend.go section server_mcp.go ----
-
 type MCPTailEventsInput struct {
 	Limit int `json:"limit,omitempty" jsonschema:"maximum number of events to return"`
 }
@@ -209,8 +207,12 @@ func buildMCPServer() *mcp.Server {
 			logPath := settings.LogFilePath
 			logAlive := false
 			if settings.LogPersistenceEnabled && logPath != "" {
-				if info, err := os.Stat(logPath); err == nil && !info.IsDir() {
-					logAlive = true
+				if info, err := os.Stat(logPath); err == nil {
+					if isPebbleEventStorePath(logPath) {
+						logAlive = info.IsDir()
+					} else {
+						logAlive = !info.IsDir()
+					}
 				}
 			}
 			return nil, MCPConfigSnapshotOutput{
@@ -248,7 +250,7 @@ func buildMCPServer() *mcp.Server {
 			tid := getTagID(args.Tag)
 			var k [256]byte
 			copy(k[:], args.Path)
-			if err := trackerMaps.TrackedPaths.Put(k, tid); err != nil {
+			if err := putTrackedSelector(&trackerMaps, trackerMaps.TrackedPaths, k, tid); err != nil {
 				return nil, nil, fmt.Errorf("failed to add tracked path: %w", err)
 			}
 			return nil, map[string]any{"success": true, "path": args.Path, "tag": args.Tag}, nil

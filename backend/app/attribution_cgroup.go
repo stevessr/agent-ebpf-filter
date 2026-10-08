@@ -8,8 +8,6 @@ import (
 	"agent-ebpf-filter/app/events"
 )
 
-// ---- moved from backend/zz_merged_backend.go section attribution_cgroup.go ----
-
 // cgroupAttribution maps cgroup IDs to agent execution context.
 // This enables attribution of all child processes and flows within a cgroup
 // to the originating agent run and tool call.

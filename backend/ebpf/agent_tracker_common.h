@@ -238,9 +238,10 @@ struct context_pressure_stats {
     u64 pair_path_update_failures;
     u64 socket_fd_update_failures;
     u64 socket_parent_update_failures;
+    u64 exit_io_update_failures;
 };
 
-_Static_assert(sizeof(struct context_pressure_stats) == 48, "context pressure stats ABI changed");
+_Static_assert(sizeof(struct context_pressure_stats) == 56, "context pressure stats ABI changed");
 
 struct {
     __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
@@ -255,6 +256,7 @@ struct {
 #define CONTEXT_PRESSURE_PAIR_PATH     4
 #define CONTEXT_PRESSURE_SOCKET_FD     5
 #define CONTEXT_PRESSURE_SOCKET_PARENT 6
+#define CONTEXT_PRESSURE_EXIT_IO       7
 
 static __always_inline void record_context_update_failure(u32 kind) {
     u32 key = 0;
@@ -266,6 +268,7 @@ static __always_inline void record_context_update_failure(u32 kind) {
     else if (kind == CONTEXT_PRESSURE_PAIR_PATH) stats->pair_path_update_failures++;
     else if (kind == CONTEXT_PRESSURE_SOCKET_FD) stats->socket_fd_update_failures++;
     else if (kind == CONTEXT_PRESSURE_SOCKET_PARENT) stats->socket_parent_update_failures++;
+    else if (kind == CONTEXT_PRESSURE_EXIT_IO) stats->exit_io_update_failures++;
 }
 
 // Map to store registered agent PIDs
@@ -312,12 +315,39 @@ struct exit_meta {
     u32 socket_reserved;
 };
 
+_Static_assert(sizeof(struct exit_meta) == 88, "full exit context ABI changed");
+
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(max_entries, 10240);
+    __uint(max_entries, 6144);
     __type(key, u64);
     __type(value, struct exit_meta);
 } exit_ctx SEC(".maps");
+
+// High-frequency read/write correlation needs socket provenance and L7 capture
+// state, but not timing/direction/byte fields from the full 88-byte context.
+struct exit_io_meta {
+    u32 type;
+    u32 tag_id;
+    u32 extra1;
+    u32 extra2;
+    u64 extra3;
+    u64 addr_ptr;
+    u32 net_family;
+    u32 net_port;
+    char net_addr[16];
+    u32 capture_flags;
+    u32 socket_type;
+};
+
+_Static_assert(sizeof(struct exit_io_meta) == 64, "I/O exit context ABI changed");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 4096);
+    __type(key, u64);
+    __type(value, struct exit_io_meta);
+} exit_io_ctx SEC(".maps");
 
 // Most filesystem/process/descriptor correlation needs only scalar metadata.
 // Keep it out of the network-capable 88-byte exit_meta map to reduce hash-map
@@ -530,30 +560,103 @@ struct {
     __type(value, u32);
 } tracked_prefixes SEC(".maps");
 
-static __always_inline u32 get_tag_id(u32 pid, char *comm, char *path) {
+
+#define TRACKING_MODE_PATH_EXACT  (1U << 0)
+#define TRACKING_MODE_PATH_PREFIX (1U << 1)
+#define TRACKING_MODE_PATH_ANY    (TRACKING_MODE_PATH_EXACT | TRACKING_MODE_PATH_PREFIX)
+
+// Userspace maintains these bits from the actual tracked path maps. The array
+// lookup is performed only after PID/comm misses on path-bearing syscalls. If
+// lookup ever fails, fail open to full path matching so optimization can never
+// suppress configured path tracking.
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(max_entries, 1);
+    __type(key, u32);
+    __type(value, u32);
+} tracking_mode SEC(".maps");
+
+static __always_inline u32 tracking_path_mode(void) {
+    u32 key = 0;
+    u32 *flags = bpf_map_lookup_elem(&tracking_mode, &key);
+    return flags ? *flags : TRACKING_MODE_PATH_ANY;
+}
+
+static __always_inline u32 get_pid_tag_id(u32 pid) {
     u32 *tag = bpf_map_lookup_elem(&agent_pids, &pid);
-    if (tag) return *tag;
-    tag = bpf_map_lookup_elem(&tracked_comms, comm);
-    if (tag) return *tag;
-    if (path) {
+    return tag ? *tag : 0;
+}
+
+static __always_inline u32 get_comm_tag_id(char *comm) {
+    if (!comm) return 0;
+    u32 *tag = bpf_map_lookup_elem(&tracked_comms, comm);
+    return tag ? *tag : 0;
+}
+
+static __always_inline u32 get_pid_comm_tag_id(u32 pid, char *comm) {
+    u32 tag_id = get_pid_tag_id(pid);
+    return tag_id ? tag_id : get_comm_tag_id(comm);
+}
+
+// Registered Agent PIDs are the dominant hot path, so avoid reading comm on a
+// PID hit. Exit-side event construction reads comm independently.
+static __always_inline u32 get_enter_tag_id_nopath(u32 pid) {
+    u32 tag_id = get_pid_tag_id(pid);
+    if (tag_id) return tag_id;
+    char comm[TASK_COMM_LEN];
+    bpf_get_current_comm(&comm, sizeof(comm));
+    return get_comm_tag_id(comm);
+}
+
+// Same PID-first fast path for path-bearing syscalls. tracking_mode is only
+// consulted after both PID and comm miss.
+static __always_inline u32 get_enter_tag_id_pre_path(u32 pid, u32 *path_flags) {
+    u32 tag_id = get_pid_tag_id(pid);
+    if (tag_id) return tag_id;
+    char comm[TASK_COMM_LEN];
+    bpf_get_current_comm(&comm, sizeof(comm));
+    tag_id = get_comm_tag_id(comm);
+    if (tag_id) return tag_id;
+    if (path_flags) *path_flags = tracking_path_mode();
+    return 0;
+}
+
+static __always_inline u32 get_path_tag_id(char *path, u32 path_flags) {
+    if (!path) return 0;
+    u32 *tag = 0;
+    if (path_flags & TRACKING_MODE_PATH_EXACT) {
         tag = bpf_map_lookup_elem(&tracked_paths, path);
         if (tag) return *tag;
-
-        // LPM trie prefix match
-        u32 path_len = 0;
-        #pragma unroll
-        for (path_len = 0; path_len < LPM_PATH_LEN; path_len++) {
-            if (path[path_len] == '\0') break;
-        }
-        if (path_len > 0) {
-            struct lpm_key lpmk = {};
-            lpmk.prefix_len = path_len * 8;
-            __builtin_memcpy(lpmk.data, path, LPM_PATH_LEN);
-            tag = bpf_map_lookup_elem(&tracked_prefixes, &lpmk);
-            if (tag) return *tag;
-        }
     }
+    if (!(path_flags & TRACKING_MODE_PATH_PREFIX)) return 0;
+
+    u32 path_len = 0;
+#pragma unroll
+    for (path_len = 0; path_len < LPM_PATH_LEN; path_len++) {
+        if (path[path_len] == '\0') break;
+    }
+    if (path_len == 0) return 0;
+
+    struct lpm_key lpmk = {};
+    lpmk.prefix_len = path_len * 8;
+    __builtin_memcpy(lpmk.data, path, LPM_PATH_LEN);
+    tag = bpf_map_lookup_elem(&tracked_prefixes, &lpmk);
+    return tag ? *tag : 0;
+}
+
+// Resolve the cheap PID/comm selectors before any userspace path read. The
+// caller only reads a path after a miss when path rules actually exist.
+static __always_inline u32 get_tag_id_pre_path(u32 pid, char *comm, u32 *path_flags) {
+    u32 tag_id = get_pid_comm_tag_id(pid, comm);
+    if (tag_id) return tag_id;
+    if (path_flags) *path_flags = tracking_path_mode();
     return 0;
+}
+
+static __always_inline u32 get_tag_id(u32 pid, char *comm, char *path) {
+    u32 tag_id = get_pid_comm_tag_id(pid, comm);
+    if (tag_id || !path) return tag_id;
+    return get_path_tag_id(path, tracking_path_mode());
 }
 
 static __always_inline void read_tracepoint_data_loc_str(char *dst, u32 size, const void *ctx, u32 data_loc) {
@@ -563,6 +666,23 @@ static __always_inline void read_tracepoint_data_loc_str(char *dst, u32 size, co
     }
     const char *src = (const char *)ctx + offset;
     bpf_probe_read_kernel_str(dst, size, src);
+}
+
+// Keep path clearing as fixed-offset stores: Clang can merge ordinary zeroing
+// loops with adjacent scalar stores into a libc memset call, which BPF cannot
+// resolve. Volatile word stores prevent that folding without a byte-wise loop.
+_Static_assert(MAX_PATH_LEN % sizeof(u32) == 0, "path clearing requires whole words");
+_Static_assert(__builtin_offsetof(struct event, path) % sizeof(u32) == 0, "path must be word aligned");
+_Static_assert(__builtin_offsetof(struct event, extra4) % sizeof(u32) == 0, "extra4 must be word aligned");
+
+static __always_inline void clear_event_paths(struct event *e) {
+    volatile u32 *path = (volatile u32 *)e->path;
+    volatile u32 *extra4 = (volatile u32 *)e->extra4;
+#pragma unroll
+    for (int i = 0; i < MAX_PATH_LEN / sizeof(u32); i++) {
+        path[i] = 0;
+        extra4[i] = 0;
+    }
 }
 
 static __always_inline void fill_base_info(struct event *e, u32 pid, u32 tag_id, char *comm) {
@@ -577,8 +697,7 @@ static __always_inline void fill_base_info(struct event *e, u32 pid, u32 tag_id,
     e->extra3 = 0;
     e->duration_ns = 0;
     for (int i = 0; i < 16; i++) e->net_addr[i] = 0;
-    for (int i = 0; i < MAX_PATH_LEN; i++) e->path[i] = 0;
-    for (int i = 0; i < MAX_PATH_LEN; i++) e->extra4[i] = 0;
+    clear_event_paths(e);
     bpf_probe_read_kernel(&e->comm, sizeof(e->comm), comm);
 
     u64 uid_gid = bpf_get_current_uid_gid();
@@ -663,6 +782,12 @@ static __always_inline void fill_network_meta(struct exit_meta *meta, const void
 static __always_inline int store_exit_meta(u64 pid_tgid, struct exit_meta *meta) {
     long rc = bpf_map_update_elem(&exit_ctx, &pid_tgid, meta, BPF_ANY);
     if (rc < 0) record_context_update_failure(CONTEXT_PRESSURE_EXIT_FULL);
+    return rc == 0;
+}
+
+static __always_inline int store_exit_io_meta(u64 pid_tgid, struct exit_io_meta *meta) {
+    long rc = bpf_map_update_elem(&exit_io_ctx, &pid_tgid, meta, BPF_ANY);
+    if (rc < 0) record_context_update_failure(CONTEXT_PRESSURE_EXIT_IO);
     return rc == 0;
 }
 
@@ -763,6 +888,15 @@ static __always_inline void fill_network_meta_from_socket(struct exit_meta *meta
     fill_network_meta_from_socket_direction(meta, socket, bytes, NET_DIR_OUTGOING);
 }
 
+static __always_inline void fill_io_meta_from_socket(struct exit_io_meta *meta, struct socket_fd_meta *socket) {
+    if (!meta || !socket) return;
+    meta->net_family = socket->family;
+    meta->net_port = socket->remote_port;
+    meta->capture_flags |= socket->provenance_flags;
+    meta->socket_type = socket->sock_type;
+    __builtin_memcpy(meta->net_addr, socket->remote_addr, sizeof(meta->net_addr));
+}
+
 static __always_inline int looks_like_http1_method(const char *head, u32 len) {
     if (!head || len < 4) return 0;
     if (head[0] == 'G' && head[1] == 'E' && head[2] == 'T' && head[3] == ' ') return 1;
@@ -791,38 +925,46 @@ static __always_inline int looks_like_http1_response(const char *head, u32 len) 
            head[4] == '/' && head[5] == '1' && head[6] == '.';
 }
 
-// Classify and copy an HTTP/1 start-line with a single 8-byte probe. The old
-// request-then-response path probed non-HTTP buffers twice. This helper keeps
-// identical privacy semantics while halving the head probes on the hot path.
-static __always_inline u32 capture_http1_start_line(char *dst, const void *user_buf, u32 len, u32 *kind) {
-    if (kind) *kind = HTTP1_START_NONE;
-    if (!dst || !user_buf || len < 4 || !kind) return 0;
+// Probe only the bounded HTTP/1 signature first. Callers use this as a cheap
+// eligibility gate before touching per-CPU path scratch or copying up to 255
+// bytes from userspace.
+static __always_inline u32 classify_http1_start_line(const void *user_buf, u32 len) {
+    if (!user_buf || len < 4) return HTTP1_START_NONE;
     char head[8] = {};
     u32 head_len = len < sizeof(head) ? len : sizeof(head);
-    if (bpf_probe_read_user(head, head_len, user_buf) < 0) return 0;
+    if (bpf_probe_read_user(head, head_len, user_buf) < 0) return HTTP1_START_NONE;
+    if (looks_like_http1_method(head, head_len)) return HTTP1_START_REQUEST;
+    if (looks_like_http1_response(head, head_len)) return HTTP1_START_RESPONSE;
+    return HTTP1_START_NONE;
+}
 
-    int request = looks_like_http1_method(head, head_len);
-    int response = !request && looks_like_http1_response(head, head_len);
-    if (!request && !response) return 0;
-    *kind = request ? HTTP1_START_REQUEST : HTTP1_START_RESPONSE;
-
+// Copy only after classify_http1_start_line() has established that the payload
+// is an HTTP/1 start-line. Query/fragment data is stripped before telemetry.
+static __always_inline u32 capture_http1_start_line_kind(char *dst, const void *user_buf, u32 len, u32 kind) {
+    if (!dst || !user_buf || len < 4 || kind == HTTP1_START_NONE) return 0;
+    int request = kind == HTTP1_START_REQUEST;
     u32 capture_len = len;
     if (capture_len > MAX_PATH_LEN - 1) capture_len = MAX_PATH_LEN - 1;
-    if (bpf_probe_read_user(dst, capture_len, user_buf) < 0) {
-        *kind = HTTP1_START_NONE;
-        return 0;
-    }
+    if (bpf_probe_read_user(dst, capture_len, user_buf) < 0) return 0;
 #pragma clang loop unroll(disable)
     for (int i = 0; i < MAX_PATH_LEN - 1; i++) {
         if ((u32)i >= capture_len) break;
-        char c = dst[i];
-        if (c == '\r' || c == '\n' || (request && (c == '?' || c == '#'))) {
+        char ch = dst[i];
+        if (ch == '\r' || ch == '\n' || (request && (ch == '?' || ch == '#'))) {
             dst[i] = '\0';
             return (u32)i;
         }
     }
     dst[capture_len] = '\0';
     return capture_len;
+}
+
+// Compatibility wrapper for call sites that do not separate eligibility from
+// copying. Hot paths classify before acquiring scratch.
+static __always_inline u32 capture_http1_start_line(char *dst, const void *user_buf, u32 len, u32 *kind) {
+    if (!kind) return 0;
+    *kind = classify_http1_start_line(user_buf, len);
+    return capture_http1_start_line_kind(dst, user_buf, len, *kind);
 }
 
 // Compact correlation for generic filesystem/process/fd syscalls. These events
@@ -845,6 +987,35 @@ static __always_inline void fill_from_exit_compact_meta(struct event *e, u64 pid
     e->extra1 = meta->extra1;
     e->extra2 = meta->extra2;
     e->extra3 = meta->extra3;
+}
+
+static __always_inline u32 consume_exit_io_meta(u64 pid_tgid, struct exit_io_meta *meta) {
+    struct exit_io_meta *m = bpf_map_lookup_elem(&exit_io_ctx, &pid_tgid);
+    if (!m) return 0;
+    __builtin_memcpy(meta, m, sizeof(*meta));
+    bpf_map_delete_elem(&exit_io_ctx, &pid_tgid);
+    return meta->tag_id;
+}
+
+static __always_inline void fill_from_exit_io_meta(struct event *e, u64 pid_tgid,
+                                                   struct exit_io_meta *meta,
+                                                   u32 direction, u32 net_bytes) {
+    char comm[TASK_COMM_LEN];
+    bpf_get_current_comm(&comm, sizeof(comm));
+    fill_base_info(e, (u32)(pid_tgid >> 32), meta->tag_id, comm);
+    e->type = meta->type;
+    e->retval = 0;
+    e->duration_ns = 0;
+    e->extra1 = meta->extra1;
+    e->extra2 = meta->extra2;
+    e->extra3 = meta->extra3;
+    e->net_family = meta->net_family;
+    e->net_direction = meta->socket_type ? direction : 0;
+    e->net_bytes = net_bytes;
+    e->net_port = meta->net_port;
+    e->kernel_capture_flags = meta->capture_flags;
+    e->kernel_capture_reserved = meta->socket_type;
+    __builtin_memcpy(e->net_addr, meta->net_addr, sizeof(meta->net_addr));
 }
 
 // Convenience inline for sys_exit handlers that only need pid_tgid correlation
@@ -1119,8 +1290,9 @@ SEC("tracepoint/syscalls/sys_enter_execve")
 int tracepoint__syscalls__sys_enter_execve(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = pid_tgid >> 32;
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
+    u32 path_flags = 0;
+    u32 tag_id = get_enter_tag_id_pre_path(pid, &path_flags);
+    if (tag_id == 0 && !(path_flags & TRACKING_MODE_PATH_ANY)) return 0;
 
     u32 zero = 0;
     struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_buf, &zero);
@@ -1128,7 +1300,7 @@ int tracepoint__syscalls__sys_enter_execve(struct trace_event_raw_sys_enter *ctx
     const char *filename = (const char *)ctx->args[0];
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, filename);
 
-    u32 tag_id = get_tag_id(pid, comm, pd->path);
+    if (tag_id == 0) tag_id = get_path_tag_id(pd->path, path_flags);
     if (tag_id == 0) return 0;
 
     struct exit_compact_meta meta = {};
@@ -1159,7 +1331,7 @@ int tracepoint__syscalls__sys_exit_execve(struct trace_event_raw_sys_exit *ctx) 
 
     struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_ctx, &pid_tgid);
     if (pd) {
-        __builtin_memcpy(e->path, pd->path, MAX_PATH_LEN);
+        __builtin_memcpy_inline(e->path, pd->path, MAX_PATH_LEN);
         bpf_map_delete_elem(&exit_single_path_ctx, &pid_tgid);
     }
 
@@ -1174,8 +1346,9 @@ SEC("tracepoint/syscalls/sys_enter_openat")
 int tracepoint__syscalls__sys_enter_openat(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = pid_tgid >> 32;
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
+    u32 path_flags = 0;
+    u32 tag_id = get_enter_tag_id_pre_path(pid, &path_flags);
+    if (tag_id == 0 && !(path_flags & TRACKING_MODE_PATH_ANY)) return 0;
 
     u32 zero = 0;
     struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_buf, &zero);
@@ -1183,7 +1356,7 @@ int tracepoint__syscalls__sys_enter_openat(struct trace_event_raw_sys_enter *ctx
     const char *filename = (const char *)ctx->args[1];
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, filename);
 
-    u32 tag_id = get_tag_id(pid, comm, pd->path);
+    if (tag_id == 0) tag_id = get_path_tag_id(pd->path, path_flags);
     if (tag_id == 0) return 0;
 
     struct exit_compact_meta meta = {};
@@ -1215,7 +1388,7 @@ int tracepoint__syscalls__sys_exit_openat(struct trace_event_raw_sys_exit *ctx) 
 
     struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_ctx, &pid_tgid);
     if (pd) {
-        __builtin_memcpy(e->path, pd->path, MAX_PATH_LEN);
+        __builtin_memcpy_inline(e->path, pd->path, MAX_PATH_LEN);
         bpf_map_delete_elem(&exit_single_path_ctx, &pid_tgid);
     }
 
@@ -1230,10 +1403,8 @@ SEC("tracepoint/syscalls/sys_enter_connect")
 int tracepoint__syscalls__sys_enter_connect(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = pid_tgid >> 32;
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
 
-    u32 tag_id = get_tag_id(pid, comm, NULL);
+    u32 tag_id = get_enter_tag_id_nopath(pid);
     if (tag_id == 0) return 0;
 
     struct exit_meta meta = {};
@@ -1273,8 +1444,9 @@ SEC("tracepoint/syscalls/sys_enter_mkdirat")
 int tracepoint__syscalls__sys_enter_mkdirat(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = pid_tgid >> 32;
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
+    u32 path_flags = 0;
+    u32 tag_id = get_enter_tag_id_pre_path(pid, &path_flags);
+    if (tag_id == 0 && !(path_flags & TRACKING_MODE_PATH_ANY)) return 0;
 
     u32 zero = 0;
     struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_buf, &zero);
@@ -1282,7 +1454,7 @@ int tracepoint__syscalls__sys_enter_mkdirat(struct trace_event_raw_sys_enter *ct
     const char *filename = (const char *)ctx->args[1];
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, filename);
 
-    u32 tag_id = get_tag_id(pid, comm, pd->path);
+    if (tag_id == 0) tag_id = get_path_tag_id(pd->path, path_flags);
     if (tag_id == 0) return 0;
 
     struct exit_compact_meta meta = {};
@@ -1314,7 +1486,7 @@ int tracepoint__syscalls__sys_exit_mkdirat(struct trace_event_raw_sys_exit *ctx)
 
     struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_ctx, &pid_tgid);
     if (pd) {
-        __builtin_memcpy(e->path, pd->path, MAX_PATH_LEN);
+        __builtin_memcpy_inline(e->path, pd->path, MAX_PATH_LEN);
         bpf_map_delete_elem(&exit_single_path_ctx, &pid_tgid);
     }
 
@@ -1329,8 +1501,9 @@ SEC("tracepoint/syscalls/sys_enter_unlinkat")
 int tracepoint__syscalls__sys_enter_unlinkat(struct trace_event_raw_sys_enter *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = pid_tgid >> 32;
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
+    u32 path_flags = 0;
+    u32 tag_id = get_enter_tag_id_pre_path(pid, &path_flags);
+    if (tag_id == 0 && !(path_flags & TRACKING_MODE_PATH_ANY)) return 0;
 
     u32 zero = 0;
     struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_buf, &zero);
@@ -1338,7 +1511,7 @@ int tracepoint__syscalls__sys_enter_unlinkat(struct trace_event_raw_sys_enter *c
     const char *filename = (const char *)ctx->args[1];
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, filename);
 
-    u32 tag_id = get_tag_id(pid, comm, pd->path);
+    if (tag_id == 0) tag_id = get_path_tag_id(pd->path, path_flags);
     if (tag_id == 0) return 0;
 
     struct exit_compact_meta meta = {};
@@ -1370,7 +1543,7 @@ int tracepoint__syscalls__sys_exit_unlinkat(struct trace_event_raw_sys_exit *ctx
 
     struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_ctx, &pid_tgid);
     if (pd) {
-        __builtin_memcpy(e->path, pd->path, MAX_PATH_LEN);
+        __builtin_memcpy_inline(e->path, pd->path, MAX_PATH_LEN);
         bpf_map_delete_elem(&exit_single_path_ctx, &pid_tgid);
     }
 

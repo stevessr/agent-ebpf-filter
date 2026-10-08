@@ -5,8 +5,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend.go section autotunetypes.go ----
-
 // MLAutoTuneRequest describes a grid-search auto-tune request.
 type MLAutoTuneRequest struct {
 	XAxis                string  `json:"xAxis"`

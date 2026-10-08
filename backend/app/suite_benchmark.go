@@ -12,8 +12,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend.go section suite_benchmark.go ----
-
 // ── Benchmark types ───────────────────────────────────────────────────
 
 type benchmarkCase = core.BenchmarkCase

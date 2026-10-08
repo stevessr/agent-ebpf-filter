@@ -36,8 +36,12 @@ const streamGroups = computed(() => {
   const sorted = [...props.events].sort(
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
   );
-  // Case-insensitive direction match (backend uses lowercase "send"/"recv")
-  const isSend = (e: ObserverTLSEvent) => e.direction?.toLowerCase() === "send";
+  // Normalize all capture backends to the upstream side. Codex emits send,
+  // while some TLS/native hooks can surface request/outbound/write aliases.
+  const isSend = (e: ObserverTLSEvent) =>
+    ["send", "request", "out", "outbound", "write"].includes(
+      String(e.direction || "").toLowerCase(),
+    );
   return {
     send: buildGroups(sorted.filter(isSend), "send"),
     recv: buildGroups(

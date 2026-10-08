@@ -9,8 +9,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend.go section ensemble_builder.go ----
-
 const ensembleTrainingSeed int64 = 0x4147454e54
 
 // ── Ensemble Builder ────────────────────────────────────────────────

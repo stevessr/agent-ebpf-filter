@@ -13,9 +13,9 @@ func main() {
 	// 测试 1: 文件存在性检查
 	fmt.Println("📋 Test 1: 文件存在性检查")
 	files := map[string]string{
-		"模型 JSON":     "../models/iris_ebpf_model.json",
-		"C 源代码":      "ml_model_ebpf.c",
-		"eBPF 字节码":   "ml_model_ebpf.o",
+		"模型 JSON":  "../models/iris_ebpf_model.json",
+		"C 源代码":    "ml_model_ebpf.c",
+		"eBPF 字节码": "ml_model_ebpf.o",
 	}
 
 	allExist := true
@@ -160,10 +160,10 @@ func main() {
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) &&
 		(s == substr ||
-		 len(s) > len(substr) &&
-		 (s[:len(substr)] == substr ||
-		  s[len(s)-len(substr):] == substr ||
-		  findSubstring(s, substr)))
+			len(s) > len(substr) &&
+				(s[:len(substr)] == substr ||
+					s[len(s)-len(substr):] == substr ||
+					findSubstring(s, substr)))
 }
 
 func findSubstring(s, substr string) bool {

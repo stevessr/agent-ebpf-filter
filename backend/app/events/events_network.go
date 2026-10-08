@@ -1,12 +1,14 @@
 package events
 
 import (
-	"agent-ebpf-filter/app/captureprofile"
+	"bytes"
 	"fmt"
 	"net"
 	"strconv"
-	"strings"
+	"unicode/utf8"
+	"unsafe"
 
+	"agent-ebpf-filter/app/captureprofile"
 	"agent-ebpf-filter/pb"
 )
 
@@ -133,44 +135,96 @@ func NetworkFamilyLabel(family uint32) string {
 	}
 }
 
-func NetworkIP(family uint32, addr [16]byte) net.IP {
+// NetworkIP returns a view over addr for the given address family; it never
+// copies. Callers must not retain or mutate the result beyond the lifetime of
+// addr — on the hot path addr is the ring-buffer sample itself.
+func NetworkIP(family uint32, addr []byte) net.IP {
 	switch family {
 	case 2:
+		if len(addr) < 4 {
+			return nil
+		}
 		return net.IP(addr[:4]).To4()
 	case 10:
-		return net.IP(addr[:]).To16()
+		if len(addr) < 16 {
+			return nil
+		}
+		return net.IP(addr[:16]).To16()
 	default:
 		return nil
 	}
 }
 
-func FormatNetworkEndpoint(family uint32, addr [16]byte, port uint32) string {
-	ip := NetworkIP(family, addr)
-	if ip == nil {
-		return ""
-	}
-	host := ip.String()
-	if port == 0 {
-		return host
-	}
-	return net.JoinHostPort(host, strconv.FormatUint(uint64(port), 10))
+// binaryHostOrder reads the first four bytes of a network address buffer as a
+// little-endian uint32 the same way FormatIPv4Addr consumes host-order IPv4
+// values carried in the Extra2/Extra3 fields.
+func binaryHostOrder(addr [16]byte) uint32 {
+	return uint32(addr[0]) | uint32(addr[1])<<8 | uint32(addr[2])<<16 | uint32(addr[3])<<24
 }
 
-func FormatNetworkSummary(direction, endpoint string, bytes uint32) string {
-	if endpoint == "" && bytes == 0 {
-		return ""
-	}
-	parts := make([]string, 0, 3)
+// formatNetworkPathAndEndpoint builds the human-readable network summary and
+// the "host:port" endpoint with one allocation: the endpoint and the remote
+// host are substring views of the summary buffer, so the trio costs a single
+// string. IPv6 hosts keep net.JoinHostPort's bracketing; IPv4 hosts never
+// contain a colon.
+func formatNetworkPathAndEndpoint(direction string, family uint32, addr []byte, port, nbytes uint32) (summary, endpoint, remote string) {
+	// Worst case: "listening " + "[45-char IPv6]:65535" + " " + "(4294967295 B)".
+	var buf [80]byte
+	b := buf[:0]
 	if direction != "" {
-		parts = append(parts, direction)
+		b = append(b, direction...)
 	}
-	if endpoint != "" {
-		parts = append(parts, endpoint)
+	if family == 2 && len(addr) >= 4 {
+		// Fast path: dotted quad straight from the sample buffer, no net.IP
+		// intermediate.
+		if len(b) > 0 {
+			b = append(b, ' ')
+		}
+		remoteStart := len(b)
+		b = appendIPv4Addr(b, uint32(addr[0])|uint32(addr[1])<<8|uint32(addr[2])<<16|uint32(addr[3])<<24)
+		remoteEnd := len(b)
+		if port != 0 {
+			b = append(b, ':')
+			b = strconv.AppendUint(b, uint64(port), 10)
+		}
+		summary = ownedString(b)
+		return summary, summary[remoteStart:], summary[remoteStart:remoteEnd]
 	}
-	if bytes > 0 {
-		parts = append(parts, fmt.Sprintf("(%d B)", bytes))
+	ip := NetworkIP(family, addr)
+	if ip == nil {
+		// No endpoint: the summary is just the direction and byte count.
+		if nbytes > 0 {
+			if len(b) > 0 {
+				b = append(b, ' ')
+			}
+			b = append(b, '(')
+			b = strconv.AppendUint(b, uint64(nbytes), 10)
+			b = append(b, ' ', 'B', ')')
+		}
+		if len(b) == 0 {
+			return "", "", ""
+		}
+		return ownedString(b), "", ""
 	}
-	return strings.TrimSpace(strings.Join(parts, " "))
+	host := ip.String()
+	if len(b) > 0 {
+		b = append(b, ' ')
+	}
+	remoteStart := len(b)
+	if len(ip) == 16 {
+		b = append(b, '[')
+	}
+	b = append(b, host...)
+	remoteEnd := len(b)
+	if len(ip) == 16 {
+		b = append(b, ']')
+	}
+	if port != 0 {
+		b = append(b, ':')
+		b = strconv.AppendUint(b, uint64(port), 10)
+	}
+	summary = ownedString(b)
+	return summary, summary[remoteStart:], summary[remoteStart:remoteEnd]
 }
 
 // SanitizeUTF8 converts a raw byte slice from the kernel to a valid UTF-8 string,
@@ -178,10 +232,61 @@ func FormatNetworkSummary(direction, endpoint string, bytes uint32) string {
 // eBPF tracepoints write paths into fixed-size buffers; trailing NUL padding is
 // trimmed first, then any embedded NUL bytes (from uninitialised buffer regions
 // or multi-field packing) are removed before the UTF‑8 safety pass.
+//
+// The bounds are computed on the byte view so only the populated prefix is
+// ever copied out of the ring-buffer sample; valid input costs exactly one
+// allocation of its own length.
 func SanitizeUTF8(b []byte) string {
-	cleaned := strings.TrimRight(string(b), "\x00")
-	cleaned = strings.ReplaceAll(cleaned, "\x00", "")
-	return strings.ToValidUTF8(cleaned, "�")
+	b = TrimNUL(b)
+	if len(b) == 0 {
+		return ""
+	}
+	if bytes.IndexByte(b, 0) < 0 {
+		if utf8.Valid(b) {
+			return string(b)
+		}
+		return ownedString(bytes.ToValidUTF8(b, utf8ReplacementBytes))
+	}
+	cleaned := make([]byte, 0, len(b))
+	for _, c := range b {
+		if c != 0 {
+			cleaned = append(cleaned, c)
+		}
+	}
+	if !utf8.Valid(cleaned) {
+		cleaned = bytes.ToValidUTF8(cleaned, utf8ReplacementBytes)
+	}
+	return ownedString(cleaned)
+}
+
+var utf8ReplacementBytes = []byte("�")
+
+// ownedString views a freshly allocated, never-again-mutated byte slice as a
+// string without copying it. Callers must not retain b.
+func ownedString(b []byte) string {
+	if len(b) == 0 {
+		return ""
+	}
+	return unsafe.String(&b[0], len(b))
+}
+
+// zeroPad is compared against buffer tails so a NUL-terminated string can be
+// bounded with one SIMD search plus one memequal instead of a byte-by-byte
+// backwards scan through the padding.
+var zeroPad [1024]byte
+
+// TrimNUL returns the populated prefix of a fixed-size kernel buffer as a view
+// into b (no copy), exactly like bytes.TrimRight(b, "\x00"). The result is
+// only valid while b is.
+func TrimNUL(b []byte) []byte {
+	i := bytes.IndexByte(b, 0)
+	if i < 0 {
+		return b
+	}
+	if tail := b[i+1:]; len(tail) <= len(zeroPad) && bytes.Equal(tail, zeroPad[:len(tail)]) {
+		return b[:i]
+	}
+	return bytes.TrimRight(b, "\x00")
 }
 
 // ── Event builder ─────────────────────────────────────────────────────
@@ -324,7 +429,7 @@ func BuildKernelEventFromRaw(event *BpfEvent) *pb.Event {
 		out.NetDirection = "outgoing"
 		out.NetFamily = "AF_INET"
 		out.NetEndpoint = fmt.Sprintf("dns:%d", event.NetPort)
-		out.Domain = SanitizeUTF8(event.Path[:])
+		out.Domain = path
 	case "socket_http":
 		startLine, ok := captureprofile.ParseHTTP1StartLine(extraPath)
 		out.CaptureSource = "kernel_socket_prefix"
@@ -349,7 +454,7 @@ func BuildKernelEventFromRaw(event *BpfEvent) *pb.Event {
 			out.SockType = "SOCK_RAW"
 		}
 		remoteIP := ""
-		if addr := NetworkIP(event.NetFamily, event.NetAddr); addr != nil {
+		if addr := NetworkIP(event.NetFamily, event.NetAddr[:]); addr != nil {
 			remoteIP = addr.String()
 		}
 		if ok && startLine.Kind == "request" {
@@ -385,40 +490,51 @@ func BuildKernelEventFromRaw(event *BpfEvent) *pb.Event {
 		}
 	}
 
+	var netSummary, netEndpoint, netRemote string
 	if typeName == "accept" || typeName == "accept4" || IsNetworkEventType(typeName) {
 		direction := NetworkDirectionLabel(event.NetDirection)
-		endpoint := FormatNetworkEndpoint(event.NetFamily, event.NetAddr, event.NetPort)
+		netSummary, netEndpoint, netRemote = formatNetworkPathAndEndpoint(direction, event.NetFamily, event.NetAddr[:], event.NetPort, event.NetBytes)
 		family := NetworkFamilyLabel(event.NetFamily)
-		summary := FormatNetworkSummary(direction, endpoint, event.NetBytes)
-		if summary != "" {
-			out.Path = summary
+		if netSummary != "" {
+			out.Path = netSummary
 		}
 		out.NetDirection = direction
-		out.NetEndpoint = endpoint
+		out.NetEndpoint = netEndpoint
 		out.NetBytes = event.NetBytes
 		out.NetFamily = family
 	}
 
 	// Record TCP state and flow for network events
 	if IsNetworkEventType(typeName) {
-		srcIP := FormatIPv4Addr(event.Extra2)
-		dstIP := FormatIPv4Addr(uint32(event.Extra3))
 		srcPort := event.NetBytes
 		dstPort := event.NetPort
-
+		srcIP, dstIP := "", ""
 		switch typeName {
 		case "network_sendto", "network_recvfrom":
+			// The endpoint pair is unusable; RecordUDPFlowFromEvent
+			// populates the UDP flow fields with its own addresses.
 			srcIP, dstIP = "0.0.0.0", "0.0.0.0"
 		case "network_connect":
-			srcIP = "local"
-			srcPort = 0
-			if addr := NetworkIP(event.NetFamily, event.NetAddr); addr != nil {
-				if s := addr.String(); s != "" && s != "<nil>" {
-					dstIP = s
+			if event.NetFamily == 2 {
+				// NetFamily 2 carries the IPv4 destination in NetAddr[:4] in
+				// host byte order; reuse the stack formatter instead of a
+				// second net.IP.String allocation. Other families keep the
+				// net path.
+				dstIP = FormatIPv4Addr(binaryHostOrder(event.NetAddr))
+			} else {
+				dstIP = FormatIPv4Addr(uint32(event.Extra3))
+				if addr := NetworkIP(event.NetFamily, event.NetAddr[:]); addr != nil {
+					if s := addr.String(); s != "" && s != "<nil>" {
+						dstIP = s
+					}
 				}
 			}
+			srcIP = "local"
+			srcPort = 0
+		default:
+			srcIP = FormatIPv4Addr(event.Extra2)
+			dstIP = FormatIPv4Addr(uint32(event.Extra3))
 		}
-
 		if srcIP != "0.0.0.0" && dstIP != "0.0.0.0" && dstPort > 0 {
 			Deps.ApplyBestEffortProcessContextToEvent(out)
 			flowState := ""
@@ -435,12 +551,13 @@ func BuildKernelEventFromRaw(event *BpfEvent) *pb.Event {
 				flowState = TCPStateName(uint8(event.DurationNs & 0xFFFFFFFF))
 			}
 			PopulateEventFlowFields(out, srcIP, dstIP, srcPort, dstPort, "TCP")
-			Deps.RecordNetworkFlowContextFromEvent(srcIP, dstIP, srcPort, dstPort, out, flowState)
-			Deps.BandwidthTrackerRecordBytes(srcIP, dstIP, dstPort, "TCP", out.NetDirection, uint64(out.NetBytes), out.Comm, out.Pid)
-			// Protocol detection from captured payload
-			if extraPath := SanitizeUTF8(event.Extra4[:]); len(extraPath) > 4 {
-				entry := Deps.DetectAndRecordProtocol(dstIP, dstPort, []byte(extraPath))
-				Deps.FlowAggregatorApplyProtocolMetadata(srcIP, dstIP, srcPort, dstPort, "TCP", entry)
+			Deps.Network.RecordFlowContext(srcIP, dstIP, srcPort, dstPort, out, flowState)
+			Deps.Network.RecordBandwidthBytes(srcIP, dstIP, dstPort, "TCP", out.NetDirection, uint64(out.NetBytes), out.Comm, out.Pid)
+			// Protocol detection reads the captured payload in place; the raw
+			// bytes matter because TLS/DNS headers legitimately contain NULs.
+			if payload := TrimNUL(event.Extra4[:]); len(payload) > 4 {
+				entry := Deps.Network.DetectAndRecordProtocol(dstIP, dstPort, payload)
+				Deps.Network.ApplyFlowProtocolMetadata(srcIP, dstIP, srcPort, dstPort, "TCP", entry)
 				ApplyProtocolMetadataToEvent(out, entry)
 				if entry != nil && entry.SNI != "" {
 					out.Domain = entry.SNI
@@ -456,25 +573,25 @@ func BuildKernelEventFromRaw(event *BpfEvent) *pb.Event {
 		switch typeName {
 		case "network_connect":
 			if srcIP != "0.0.0.0" && dstIP != "0.0.0.0" && dstPort > 0 {
-				Deps.TCPTrackerRecordConnect(srcIP, dstIP, srcPort, dstPort, out.Pid, out.Comm)
+				Deps.Network.RecordTCPConnect(srcIP, dstIP, srcPort, dstPort, out.Pid, out.Comm)
 				if event.Retval == 0 {
-					Deps.TCPTrackerRecordStateChange(srcIP, dstIP, srcPort, dstPort, uint8(TCPStateSynSent), uint8(TCPStateEstablished), out.Pid, out.Comm)
+					Deps.Network.RecordTCPStateChange(srcIP, dstIP, srcPort, dstPort, uint8(TCPStateSynSent), uint8(TCPStateEstablished), out.Pid, out.Comm)
 				}
 			}
 		case "tcp_connect":
-			Deps.TCPTrackerRecordConnect(srcIP, dstIP, srcPort, dstPort, out.Pid, out.Comm)
+			Deps.Network.RecordTCPConnect(srcIP, dstIP, srcPort, dstPort, out.Pid, out.Comm)
 		case "tcp_close":
-			Deps.TCPTrackerRecordClose(srcIP, dstIP, srcPort, dstPort)
+			Deps.Network.RecordTCPClose(srcIP, dstIP, srcPort, dstPort)
 		case "tcp_state_change":
 			oldState := uint8(event.DurationNs >> 32)
 			newState := uint8(event.DurationNs & 0xFFFFFFFF)
-			Deps.TCPTrackerRecordStateChange(srcIP, dstIP, srcPort, dstPort, oldState, newState, out.Pid, out.Comm)
+			Deps.Network.RecordTCPStateChange(srcIP, dstIP, srcPort, dstPort, oldState, newState, out.Pid, out.Comm)
 		}
 		if (typeName == "network_sendto" || typeName == "network_recvfrom") && dstPort > 0 {
-			RecordUDPFlowFromEvent(*event, out)
+			RecordUDPFlowFromEvent(event, out, netRemote)
 		}
 	}
 
-	Deps.ApplyKernelRiskDecision(event, out)
+	Deps.KernelRisk(event, out)
 	return out
 }

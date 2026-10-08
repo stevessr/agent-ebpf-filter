@@ -8,8 +8,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend.go section autotunemodel.go ----
-
 func runModelAutoTune(store *ml.TrainingDataStore, req ml.MLModelTuneRequest, modelTypes []ModelType, progressCb func(completed, total int, message string)) (*ml.MLModelTuneResponse, error) {
 	return runModelAutoTuneWithCancel(store, req, modelTypes, progressCb, nil)
 }

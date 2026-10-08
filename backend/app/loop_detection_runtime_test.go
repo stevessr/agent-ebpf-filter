@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"errors"
 	"strconv"
 	"strings"
 	"testing"
@@ -11,33 +10,23 @@ import (
 	"agent-ebpf-filter/pb"
 )
 
+// The stopping-generation semantics themselves are covered in
+// internal/workerqueue; here we only check the worker wires them up.
 func TestLoopDetectionWorkerShutdownTimeoutKeepsGeneration(t *testing.T) {
 	worker := newLoopDetectionWorker()
-	oldDone := make(chan struct{})
-	worker.mu.Lock()
-	worker.started = true
-	worker.queue = make(chan loopDetectionWorkItem, 1)
-	worker.cancel = func() {}
-	worker.done = oldDone
-	worker.mu.Unlock()
-
-	shutdownCtx, cancel := context.WithCancel(context.Background())
-	cancel()
-	if err := worker.Shutdown(shutdownCtx); !errors.Is(err, context.Canceled) {
-		t.Fatalf("Shutdown() error = %v, want context cancellation", err)
-	}
-	worker.mu.RLock()
-	started, queue, done := worker.started, worker.queue, worker.done
-	worker.mu.RUnlock()
-	if !started || queue != nil || done != oldDone {
-		t.Fatalf("timed-out shutdown state = started:%v queue:%v done:%p, want active generation with nil queue and done %p", started, queue, done, oldDone)
-	}
 	worker.Start(context.Background(), 4)
-	worker.mu.RLock()
-	started, queue, done = worker.started, worker.queue, worker.done
-	worker.mu.RUnlock()
-	if !started || queue != nil || done != oldDone {
-		t.Fatalf("Start() replaced a stopping generation: started:%v queue:%v done:%p", started, queue, done)
+	expired, cancel := context.WithCancel(context.Background())
+	cancel()
+	// The consumer exits promptly, so a pre-cancelled context may or may not
+	// observe it first; either way a second, patient shutdown must succeed.
+	_ = worker.Shutdown(expired)
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), time.Second)
+	defer waitCancel()
+	if err := worker.Shutdown(waitCtx); err != nil {
+		t.Fatalf("Shutdown() error = %v", err)
+	}
+	if status := worker.Status(); status.QueueCap != 0 {
+		t.Fatalf("queue still allocated after shutdown: %+v", status)
 	}
 }
 
@@ -74,11 +63,8 @@ func TestLoopDetectionWorkerShutdownAndRestart(t *testing.T) {
 	if err := worker.Shutdown(waitCtx); err != nil {
 		t.Fatalf("Shutdown() error = %v", err)
 	}
-	worker.mu.RLock()
-	started, queue := worker.started, worker.queue
-	worker.mu.RUnlock()
-	if started || queue != nil {
-		t.Fatalf("worker after shutdown = started:%v queue:%v", started, queue)
+	if stats := worker.queue.Stats(); stats.Started || stats.Cap != 0 {
+		t.Fatalf("worker after shutdown = %+v", stats)
 	}
 	if worker.EnqueueReset() {
 		t.Fatal("stopped worker accepted new work")

@@ -58,19 +58,19 @@ const { mergedFeatures, isCompiledIn, featureStatusLabel, featureStatusColor } =
     <div style="display: flex; flex-direction: column; gap: 14px">
       <div style="display: flex; align-items: center; gap: 12px">
         <a-switch v-model:checked="runtimeSettings.logPersistenceEnabled" />
-        <span>Persist captured logs to file</span>
+        <span>Persist captured events locally</span>
       </div>
       <a-input
         v-model:value="runtimeSettings.logFilePath"
-        placeholder="Log file path (defaults to ~/.config/agent-ebpf-filter/events.jsonl)"
+        placeholder="Event store path (defaults to ~/.config/agent-ebpf-filter/events.pebble; .jsonl keeps legacy mode)"
       />
       <div
         style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center"
       >
         <a-tag :color="persistedEventLogAlive ? 'green' : 'red'">
-          {{ persistedEventLogAlive ? "Log file ready" : "Log file inactive" }}
+          {{ persistedEventLogAlive ? "Event store ready" : "Event store inactive" }}
         </a-tag>
-        <a-tag color="blue">{{ persistedEventLogPath || "No log path" }}</a-tag>
+        <a-tag color="blue">{{ persistedEventLogPath || "No event store path" }}</a-tag>
       </div>
       <a-divider style="margin: 4px 0" />
       <div style="display: flex; align-items: center; gap: 12px">

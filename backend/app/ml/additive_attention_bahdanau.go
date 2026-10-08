@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 )
 
-// ---- moved from backend/zz_merged_backend.go section ml__attention_additive attention (bahdanau).go ----
-
 // AdditiveAttention implements Bahdanau attention over a single feature vector input.
 // The layer projects the input with W_f, applies tanh, scores with v^T, softmaxes
 // the score, and returns the weighted context. For a single input vector this

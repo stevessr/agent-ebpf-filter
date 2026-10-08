@@ -9,8 +9,6 @@ import (
 	"strings"
 )
 
-// ---- moved from backend/zz_merged_backend.go section modelnearestcentroid.go ----
-
 func init() {
 	RegisterModel(ModelNearestCentroid, func() Model { return NewNearestCentroid("euclidean", false) })
 }

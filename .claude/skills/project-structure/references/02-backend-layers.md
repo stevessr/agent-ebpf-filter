@@ -5,7 +5,7 @@
 ## 技术栈
 
 - Go module：`backend/go.mod`
-- Go 版本：`1.26.2`
+- Go 版本：`1.27.1`
 - HTTP 框架：`github.com/gin-gonic/gin`
 - WebSocket：`github.com/gorilla/websocket`
 - eBPF：`github.com/cilium/ebpf`
@@ -148,7 +148,7 @@ backend/
 存储位置：
 
 - runtime config：`~/.config/agent-ebpf-filter/runtime.json`
-- optional events JSONL：`~/.config/agent-ebpf-filter/events.jsonl`
+- default event database：`~/.config/agent-ebpf-filter/events.pebble`（显式 `.jsonl` 路径保留 legacy writer）
 
 ## Event / Envelope / Execution Graph
 

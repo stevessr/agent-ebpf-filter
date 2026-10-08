@@ -4,8 +4,6 @@ import (
 	netcore "agent-ebpf-filter/internal/network"
 )
 
-// ---- moved from backend/zz_merged_backend.go section dns_network.go ----
-
 type dnsCache = netcore.DNSCache
 
 type dnsCacheSnapshotEntry = netcore.DNSCacheSnapshotEntry
@@ -36,10 +34,6 @@ func correlateDNSResponse(srcIP string, rawData []byte) {
 
 func lookupService(port uint16) string {
 	return netcore.LookupService(port)
-}
-
-func lookupServiceByPort(port uint32) string {
-	return netcore.LookupServiceByPort(port)
 }
 
 func isSuspiciousPortService(serviceName string) bool {

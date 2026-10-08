@@ -8,7 +8,7 @@
 
 ```mermaid
 flowchart TD
-    Start["startKernelEventReader(rd)"] --> Read["rd.Read()"]
+    Start["startKernelEventReader(rd)"] --> Read["rd.ReadInto(&record)  (复用同一块 sample 缓冲)"]
     Read --> Decode["decodeBPFEventRecord(record.RawSample)"]
     Decode --> SelfFilter["self PID 过滤"]
     SelfFilter --> DisabledFilter["disabled comm / event type 过滤"]
@@ -18,12 +18,25 @@ flowchart TD
 
 ## 解码策略
 
+读取循环持有一个 `ringbuf.Record`，通过 `ReadInto` 复用其 `RawSample` 缓冲：内核 ring
+到用户态只有一次必要拷贝，之后每条事件不再分配新的 sample 切片。
+
 `decodeBPFEventRecord()`：
 
 - 如果 RawSample 长度不足，返回错误；
-- 如果 native little-endian 且内存对齐，则直接构造 `*bpfEvent` view；
+- 如果 native little-endian 且内存对齐，则直接构造 `*bpfEvent` view（指针在下一次 `ReadInto` 前有效）；
 - 否则 `binary.Read` 到新结构体；
 - 记录 zero-copy / copy 指标。
+
+### 字符串与 payload 视图
+
+- `events.SanitizeUTF8()` 先在字节视图上裁掉 NUL 填充，再只拷贝有效前缀：一条 `openat`
+  事件从复制 256 字节路径缓冲降为按实际长度分配一次；含嵌入 NUL 或非法 UTF-8 的输入走
+  慢路径，语义与旧实现逐字节一致（见 `sanitize_test.go`）。
+- `events.TrimNUL()` 返回原缓冲的切片视图，协议探测 (`DetectAndRecordProtocol`) 直接读取
+  原始 payload，不再经过 string→[]byte 往返，TLS/DNS 头里的 NUL 字节也得以保留。
+- 禁用 comm 的过滤 (`commDisabled`) 用 `map[string(bytes)]` 的临时视图查表，整条过滤链路
+  在常见情况下零分配。
 
 ## Process context
 
@@ -41,13 +54,26 @@ flowchart TD
 
 事件进入 broadcast channel 后，后端会：
 
-- 广播给 `/ws`；
+- 每 50 ms 或每 50 条打包成一个 `EventBatch` 广播给 `/ws`（无订阅者时跳过序列化）；
 - 构造 EventEnvelope；
 - 写入 CapturedEventArchive；
 - 按配置写 JSONL；
 - 推送 `/ws/envelopes`；
 - 更新 Execution Graph / AgentSight / OTLP 派生数据；
 - 触发可选 kernel risk feedback。
+
+### WebSocket 扇出 (`internal/wsfanout`)
+
+`/ws`、`/ws/envelopes` 与 `/ws/tls-capture` 共用 `wsfanout.Hub`。一次 `Broadcast` 只序列化
+一份 payload（protobuf 或 TLS 事件的 JSON），并包装成 `websocket.PreparedMessage`：帧头与
+payload 只编码一次，随后对每个连接用向量写直接发送，不再按连接逐个编码、拷贝。每个连接有
+独立的有界队列和 writer goroutine，慢客户端在队列满时被断开，不会阻塞事件摄取；断开原���
+通过 `Options.OnDrop` 回调上报（`queue_full` / `write_deadline_failure` / `write_failure`），
+`TLSBroadcaster.Status()` 的计数即由此维护。无订阅者时两条路径都直接跳过序列化。该包不
+依赖 `app`，可独立测试。
+
+TLS 广播在 16 个订阅者下的开销：43.4 µs / 33 次分配 → 14.2 µs / 3 次分配（编码成本不再随
+订阅者数量线性增长）。
 
 ## EventArchive
 
@@ -103,9 +129,12 @@ collector health 和 Prometheus 暴露 tools/samples 占用、观察数、drift 
 
 ## 异步 JSONL 持久化
 
-`recordCapturedEvent()` 在完成 clone、schema 归一化和脱敏后，先写入内存
-`EventArchive`，再把同一条记录非阻塞地提交给持久化 writer。事件捕获热路径不再执行
-JSON 编码、文件写入或逐条 `Flush()`。
+事件一旦通过 `enqueueBroadcastEvent()` 进入队列，所有权就移交给 broadcaster：生产者必须
+每次构造新事件，入队后不得再读写。broadcaster 先用未脱敏的事件推导语义告警，再由
+`recordCapturedEvent()` 原地完成 schema 归一化和脱敏（不再 `proto.Clone`），写入内存
+`EventArchive`，并把同一条记录非阻塞地提交给持久化 writer。envelope 的 `LegacyEvent`
+与记录共享同一个事件对象，脱敏只执行一次。事件捕获热路径不再执行 JSON 编码、文件
+写入或逐条 `Flush()`。
 
 持久化 writer 的边界如下：
 
@@ -114,6 +143,8 @@ JSON 编码、文件写入或逐条 `Flush()`。
 - 使用 256 KiB 用户态缓冲区，按 128 条或 250 ms 批量刷盘；
 - 单条记录复用录制管线的约 4 MiB JSONL 上限；单条编码失败只记失败并继续处理，
   文件写入/刷盘失败则终止当前 writer generation；
+- JSONL 行只包含 `receivedAt` 与 `event`；`recording.MarshalRecord()` 不再为每条记录构造
+  （或 `proto.Clone`）随后被丢弃的 envelope，envelope 在尾读时重新推导；
 - 配置替换、禁用、清空日志和后端停机会先停止接收，并在 5 秒期限内排空已接受记录；
 - 相同日志配置不会重启 writer；切换路径先准备新文件，再排空旧 generation，配置保存
   失败时回滚原 writer；

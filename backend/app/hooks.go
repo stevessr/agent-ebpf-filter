@@ -12,8 +12,6 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
-// ---- moved from backend/zz_merged_backend.go section hooks.go ----
-
 func ensureHookRelayScript(h HookDef) (string, error) {
 	scriptDir := hookRelayScriptDir(h)
 	if err := platform.MkdirAllAsRealUser(scriptDir, 0o755); err != nil {
@@ -30,6 +28,9 @@ func ensureHookRelayScript(h HookDef) (string, error) {
 }
 
 func buildHookRelayScript(h HookDef) string {
+	if h.ID == "zcode" {
+		return buildZCodeHookRelayScript(h)
+	}
 	if h.ID == "antigravity" {
 		return buildAntigravityHookRelayScript(h)
 	}
@@ -164,6 +165,9 @@ curl -fsS -X POST '%s' \
 // installNativeHook injects a hook into the agent CLI's settings (JSON or TOML)
 // that POSTs every tool call to our backend for inspection.
 func installNativeHook(h HookDef) error {
+	if h.ID == "dsh" {
+		return installDshNativeHook(h)
+	}
 	if h.ID == "pi" || h.ID == "omp" {
 		return installTypeScriptNativeHook(h)
 	}
@@ -172,6 +176,9 @@ func installNativeHook(h HookDef) error {
 	}
 	if h.ID == "antigravity" {
 		return installAntigravityNativeHook(h)
+	}
+	if h.ID == "zcode" {
+		return installZCodeNativeHook(h)
 	}
 
 	cleanupLegacyCodexHookConfig(h)
@@ -273,6 +280,9 @@ func installNativeHook(h HookDef) error {
 
 // uninstallNativeHook removes the agent-ebpf hook from settings.
 func uninstallNativeHook(h HookDef) error {
+	if h.ID == "dsh" {
+		return uninstallDshNativeHook(h)
+	}
 	if h.ID == "pi" || h.ID == "omp" {
 		return uninstallTypeScriptNativeHook(h)
 	}
@@ -281,6 +291,9 @@ func uninstallNativeHook(h HookDef) error {
 	}
 	if h.ID == "antigravity" {
 		return uninstallAntigravityNativeHook(h)
+	}
+	if h.ID == "zcode" {
+		return uninstallZCodeNativeHook(h)
 	}
 
 	b, err := os.ReadFile(h.NativeConfigPath)

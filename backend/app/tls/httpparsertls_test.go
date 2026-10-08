@@ -8,8 +8,6 @@ import (
 	"unicode/utf8"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section httpparsertls_test.go ----
-
 func testCompletedTLSFragment(payload string, direction uint8) CompletedTLSFragment {
 	return CompletedTLSFragment{
 		TimestampNS: uint64(time.Date(2026, time.May, 10, 12, 0, 0, 0, time.UTC).UnixNano()),

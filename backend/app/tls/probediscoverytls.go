@@ -213,6 +213,9 @@ func (m *TLSProbeManager) DiscoverGoProcesses() {
 		if !ok {
 			continue
 		}
+		if !m.executablePathAllowed(displayPath, attachPath) {
+			continue
+		}
 
 		if _, err := parseGoTLSTargets(attachPath); err != nil {
 			continue
@@ -249,9 +252,16 @@ func isAgentTLSProcess(baseName, cmdline string) bool {
 	base := strings.ToLower(strings.TrimSpace(baseName))
 	cmd := strings.ToLower(cmdline)
 
+	// MiniMax Code's public CLI sets process.title to "minimax-code" after
+	// startup. Match the exact runtime title separately so unrelated binaries
+	// such as "minimax-code-demo" are not admitted by the prefix rule below.
+	if base == "minimax-code" {
+		return true
+	}
+
 	for _, direct := range []string{
 		"claude", "codex", "opencode", "aider", "goose", "cursor", "amp",
-		"gemini", "dsh", "omp", "cline", "windsurf",
+		"gemini", "dsh", "omp", "cline", "windsurf", "zcode", "mcode",
 	} {
 		if base == direct || strings.HasPrefix(base, direct+"-") {
 			return true
@@ -265,6 +275,8 @@ func isAgentTLSProcess(baseName, cmdline string) bool {
 		"cursor", "github-copilot", "copilot", "gemini", "continue",
 		"cline", "windsurf", "qwen-code", "kimi-cli", "roo-code",
 		" dsh ", " omp ",
+		"@minimax-ai/code", ".minimax-code/bin/mcode", "minimax-code/dist/cli.js",
+		".zcode/cli/",
 	} {
 		if strings.Contains(cmd, marker) {
 			return true
@@ -273,9 +285,10 @@ func isAgentTLSProcess(baseName, cmdline string) bool {
 	return false
 }
 
-// DiscoverNodeProcesses keeps the historical name for API compatibility but
-// now discovers agent runtimes broadly and lets AttachExecutable choose Go,
-// static OpenSSL/BoringSSL, rustls, or an actually loaded shared library.
+// DiscoverNodeProcesses keeps the historical name for API compatibility. The
+// executable-path allowlist is now the admission boundary, so every matching
+// process is eligible and AttachExecutable chooses Go, static OpenSSL/BoringSSL,
+// rustls, or an actually loaded shared library.
 func (m *TLSProbeManager) DiscoverNodeProcesses() {
 	if m == nil {
 		return
@@ -293,13 +306,13 @@ func (m *TLSProbeManager) DiscoverNodeProcesses() {
 		if !ok {
 			continue
 		}
-
-		baseName := filepath.Base(displayPath)
-		if !isAgentTLSProcess(baseName, normalizedProcCmdline(pid)) {
+		if !m.executablePathAllowed(displayPath, attachPath) {
 			continue
 		}
+
+		baseName := filepath.Base(displayPath)
 		now := time.Now()
-		if !m.autoAttachAllowed("agent", pid, attachPath, now) {
+		if !m.autoAttachAllowed("path", pid, attachPath, now) {
 			continue
 		}
 		if !m.shouldAttachStaticSSL(attachPath, pid) {
@@ -311,13 +324,13 @@ func (m *TLSProbeManager) DiscoverNodeProcesses() {
 		if result.Error != "" {
 			m.forgetStaticSSLAttach(attachPath, pid)
 			attachErr := fmt.Errorf("%s", result.Error)
-			m.recordAutoAttachFailure("agent", pid, attachPath, attachErr, now)
+			m.recordAutoAttachFailure("path", pid, attachPath, attachErr, now)
 			if m.store != nil {
 				m.store.SetLibraryStatus(TLSLibraryStatus{Name: "auto:" + baseName, Path: displayPath, Attached: false, Available: true, Error: result.Error})
 			}
 			continue
 		}
-		m.recordAutoAttachSuccess("agent", pid, attachPath)
+		m.recordAutoAttachSuccess("path", pid, attachPath)
 		if m.store != nil {
 			library := result.Library
 			if library == "" {
@@ -331,6 +344,7 @@ func (m *TLSProbeManager) DiscoverNodeProcesses() {
 func (m *TLSProbeManager) StartGoDiscoveryLoop(interval time.Duration) {
 	m.startGoDiscoveryLoop(interval, func() {
 		m.pruneDeadProcessAttachments()
+		m.reconcileExecutablePathScope()
 		m.DiscoverGoProcesses()
 		m.DiscoverNodeProcesses()
 	})

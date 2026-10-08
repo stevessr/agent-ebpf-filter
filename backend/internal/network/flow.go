@@ -3,7 +3,6 @@ package network
 import (
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"net"
 	"sort"
 	"strconv"
@@ -76,8 +75,48 @@ func MakeFlowKey(srcIP, dstIP string, srcPort, dstPort uint32, protocol string) 
 	}
 }
 
+// appendUint renders v as decimal digits and appends the bytes to buf.
+func appendUint(buf []byte, v uint32) []byte {
+	if v == 0 {
+		return append(buf, '0')
+	}
+	var digits [10]byte
+	m := 0
+	for v > 0 {
+		digits[m] = '0' + byte(v%10)
+		v /= 10
+		m++
+	}
+	for i := m - 1; i >= 0; i-- {
+		buf = append(buf, digits[i])
+	}
+	return buf
+}
+
+// ID renders the flow key as "PROTO:src:port->dst:port". Protocol is already
+// an uppercase transport constant, so the string is assembled with one
+// allocation instead of strings.ToUpper plus fmt.
 func (k FlowKey) ID() string {
-	return fmt.Sprintf("%s:%s:%d->%s:%d", strings.ToUpper(k.Protocol), k.SrcIP, k.SrcPort, k.DstIP, k.DstPort)
+	// Worst case: upper(IPv6) + port + separators, twice, plus the protocol.
+	const upper = 3 + 1 + 45 + 1 + 5 + 2 + 45 + 1 + 5
+	var buf [upper]byte
+	b := buf[:0]
+	for i := range len(k.Protocol) {
+		c := k.Protocol[i]
+		if c >= 'a' && c <= 'z' {
+			c -= 'a' - 'A'
+		}
+		b = append(b, c)
+	}
+	b = append(b, ':')
+	b = append(b, k.SrcIP...)
+	b = append(b, ':')
+	b = appendUint(b, k.SrcPort)
+	b = append(b, '-', '>')
+	b = append(b, k.DstIP...)
+	b = append(b, ':')
+	b = appendUint(b, k.DstPort)
+	return string(b)
 }
 
 type FlowEventContext struct {

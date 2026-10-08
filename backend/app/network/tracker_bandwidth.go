@@ -11,8 +11,6 @@ import (
 	"agent-ebpf-filter/internal/boundedring"
 )
 
-// ---- moved from backend/zz_merged_backend.go section tracker_bandwidth.go ----
-
 // ── Connection bandwidth tracking (per-flow byte/packet accounting) ──
 
 type flowBytes struct {

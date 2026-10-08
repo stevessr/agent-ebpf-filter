@@ -7,8 +7,6 @@ import (
 	"strings"
 )
 
-// ---- moved from backend/zz_merged_backend.go section sweeprendercharts.go ----
-
 type barItem struct {
 	Label string
 	Value float64

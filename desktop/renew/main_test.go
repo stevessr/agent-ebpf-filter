@@ -1,0 +1,76 @@
+package main
+
+import (
+	"strings"
+	"testing"
+)
+
+func TestResolveBackendURL(t *testing.T) {
+	t.Setenv("AGENT_BACKEND_URL", "")
+
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "default", want: defaultBackendURL},
+		{name: "host and port", input: "127.0.0.1:9090", want: "http://127.0.0.1:9090"},
+		{name: "trim slash", input: "https://localhost:8443/", want: "https://localhost:8443"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := resolveBackendURL(tt.input)
+			if err != nil {
+				t.Fatalf("resolveBackendURL() error = %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("resolveBackendURL() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestResolveBackendURLFromEnvironment(t *testing.T) {
+	t.Setenv("AGENT_BACKEND_URL", "127.0.0.1:7777")
+	got, err := resolveBackendURL("")
+	if err != nil {
+		t.Fatalf("resolveBackendURL() error = %v", err)
+	}
+	if got != "http://127.0.0.1:7777" {
+		t.Fatalf("resolveBackendURL() = %q", got)
+	}
+}
+
+func TestResolveBackendURLRejectsUnsupportedScheme(t *testing.T) {
+	t.Setenv("AGENT_BACKEND_URL", "")
+	if _, err := resolveBackendURL("file:///tmp/renew"); err == nil {
+		t.Fatal("resolveBackendURL() expected an error")
+	}
+}
+
+
+
+func TestInternalBackendArgs(t *testing.T) {
+	mode, args := internalBackendArgs([]string{"--backend", "http://127.0.0.1:8080"})
+	if mode || len(args) != 2 {
+		t.Fatalf("ordinary desktop args changed: mode=%v args=%v", mode, args)
+	}
+
+	mode, args = internalBackendArgs([]string{
+		internalBackendFlag,
+		"--desktop-lifetime-socket", "/tmp/renew.sock",
+		"--desktop-port", "8080",
+	})
+	if !mode {
+		t.Fatal("internal backend mode not detected")
+	}
+	for _, arg := range args {
+		if arg == internalBackendFlag {
+			t.Fatalf("dispatch flag leaked into backend FlagSet: %v", args)
+		}
+	}
+	if got := strings.Join(args, " "); got != "--desktop-lifetime-socket /tmp/renew.sock --desktop-port 8080" {
+		t.Fatalf("backend args = %q", got)
+	}
+}

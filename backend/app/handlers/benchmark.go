@@ -4,8 +4,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from app/handlers_benchmark.go ----
-
 func HandleRunBenchmark(c *gin.Context) {
 	run, stats := Deps.RunBenchmark()
 	c.JSON(200, gin.H{

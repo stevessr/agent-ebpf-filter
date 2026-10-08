@@ -72,8 +72,11 @@ func (m *TLSProbeManager) ReadLoop() error {
 		m.mu.Unlock()
 	}()
 
+	// One perf.Record is reused for the whole loop so the kernel→user copy is
+	// the only per-fragment copy; decoded fragments view into rec.RawSample.
+	var rec perf.Record
 	for {
-		rec, err := reader.Read()
+		err := reader.ReadInto(&rec)
 		if err != nil {
 			if errors.Is(err, perf.ErrClosed) {
 				stats := m.readLoopStats.Snapshot()

@@ -653,6 +653,11 @@ func BuiltinProfiles() []Profile {
 		{ID: "azure-openai.deployments", Vendor: "azure-openai", Product: "azure-openai", Operation: "deployment.request", Protocols: []string{"http1", "http2"}, HostSuffixes: []string{"openai.azure.com"}, PathContains: []string{"/openai/deployments/"}, MinScore: 90},
 		{ID: "cohere.chat", Vendor: "cohere", Product: "chat", Operation: "chat", Protocols: []string{"http1", "http2"}, Methods: []string{"POST"}, HostSuffixes: []string{"api.cohere.com"}, PathPrefixes: []string{"/v2/chat", "/v1/chat"}, MinScore: 90},
 		{ID: "google-gemini.generate", Vendor: "google", Product: "gemini", Operation: "generateContent", Protocols: []string{"http1", "http2"}, Methods: []string{"POST"}, HostSuffixes: []string{"generativelanguage.googleapis.com"}, PathContains: []string{":generateContent", ":streamGenerateContent"}, MinScore: 90},
+		// MiniMax Code's builtin minimax_api provider is anthropic-messages and
+		// uses https://api.minimax.io/anthropic (global) or
+		// https://api.minimaxi.com/anthropic (CN). Attribute the provider only
+		// when the source-backed host + wire path are both present.
+		{ID: "minimax.messages", Vendor: "minimax", Product: "messages", Operation: "messages.create", Protocols: []string{"http1", "http2"}, Methods: []string{"POST"}, HostSuffixes: []string{"api.minimax.io", "api.minimaxi.com"}, PathPrefixes: []string{"/anthropic/v1/messages"}, MinScore: 90},
 		{ID: "mistral.chat", Vendor: "mistral", Product: "chat", Operation: "chat.completions", Protocols: []string{"http1", "http2"}, Methods: []string{"POST"}, HostSuffixes: []string{"api.mistral.ai"}, PathPrefixes: []string{"/v1/chat/completions"}, MinScore: 90},
 		{ID: "ollama.chat", Vendor: "ollama", Product: "ollama", Operation: "chat", Protocols: []string{"http1", "http2"}, Methods: []string{"POST"}, PathPrefixes: []string{"/api/chat"}, MinScore: 35},
 		{ID: "ollama.generate", Vendor: "ollama", Product: "ollama", Operation: "generate", Protocols: []string{"http1", "http2"}, Methods: []string{"POST"}, PathPrefixes: []string{"/api/generate"}, MinScore: 35},

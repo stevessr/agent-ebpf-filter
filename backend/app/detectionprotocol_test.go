@@ -4,8 +4,6 @@ import (
 	"testing"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section detectionprotocol_test.go ----
-
 func TestExtractDNSQueries(t *testing.T) {
 	query := []byte{
 		0x12, 0x34, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,

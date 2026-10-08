@@ -12,8 +12,6 @@ import (
 	"agent-ebpf-filter/internal/boundedring"
 )
 
-// ---- moved from backend/zz_merged_backend.go section features.go ----
-
 // Feature vector design (128 dimensions) inspired by:
 type RecentWrapperEvent struct {
 	Comm         string

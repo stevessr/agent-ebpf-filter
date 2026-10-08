@@ -25,12 +25,6 @@ func newCollectorMetricsState() *collectorMetricsState {
 	return observability.NewCollectorMetricsState()
 }
 
-// stringsTrimDefault is used by kernel_risk.go and kernel_risk_feedback.go
-// in the app package. It is defined in observability/ but needed here.
-func stringsTrimDefault(value, fallback string) string {
-	return observability.StringsTrimDefault(value, fallback)
-}
-
 // ── collectorMetricsStore bridge ─────────────────────────────────────────
 //
 // collectorMetricsStore retains the same variable name so all 20+ callers

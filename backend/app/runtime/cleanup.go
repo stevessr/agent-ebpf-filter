@@ -6,8 +6,6 @@ import (
 	ps "github.com/shirou/gopsutil/v3/process"
 )
 
-// ---- moved from backend/zz_merged_backend.go section cleanup_process.go ----
-
 // KillPreviousBackendProcesses kills any stale backend processes (agent-ebpf-filter or main) owned by this user.
 func KillPreviousBackendProcesses() {
 	procsList, _ := ps.Processes()

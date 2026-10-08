@@ -43,6 +43,6 @@ func decodeTLSFragmentSample(raw []byte) (tlsFragment, error) {
 	if len(raw) < wireLen {
 		return tlsFragment{}, fmt.Errorf("truncated TLS perf sample: got %d want >= %d", len(raw), wireLen)
 	}
-	copy(fragment.Data[:fragment.DataLen], raw[tlsFragmentMetadataSize:wireLen])
+	fragment.Data = raw[tlsFragmentMetadataSize:wireLen:wireLen]
 	return fragment, nil
 }

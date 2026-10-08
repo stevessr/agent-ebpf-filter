@@ -42,14 +42,50 @@ const agentPlaintextMeta = computed(() => {
     data.prompt_digest || data.promptDigest || "",
   ).trim();
   const role = String(data.message_role || data.messageRole || "").trim();
+  const contextDigest = String(
+    data.context_digest || data.contextDigest || "",
+  ).trim();
+  const contextLen = Number(data.context_len ?? data.contextLen ?? 0);
+  const contextItems = Number(data.context_items ?? data.contextItems ?? 0);
+  const protocolEvent = String(
+    data.protocol_event || data.protocolEvent || "",
+  ).trim();
+  const streamId = String(data.stream_id || data.streamId || "").trim();
+  const responseId = String(data.response_id || data.responseId || "").trim();
+  const previousResponseId = String(
+    data.previous_response_id || data.previousResponseId || "",
+  ).trim();
   const redaction = String(
     data.redaction_state ||
       data.redactionState ||
       props.event?.redactionState ||
       "",
   ).trim();
-  if (!vendor && !promptDigest && !role && !redaction) return null;
-  return { vendor, promptDigest, role, redaction };
+  if (
+    !vendor &&
+    !promptDigest &&
+    !contextDigest &&
+    !role &&
+    !protocolEvent &&
+    !streamId &&
+    !responseId &&
+    !previousResponseId &&
+    !redaction
+  )
+    return null;
+  return {
+    vendor,
+    promptDigest,
+    contextDigest,
+    contextLen,
+    contextItems,
+    role,
+    protocolEvent,
+    streamId,
+    responseId,
+    previousResponseId,
+    redaction,
+  };
 });
 
 const http2Meta = computed(() => {
@@ -239,6 +275,38 @@ const copy = async (text: string, label: string) => {
           <a-descriptions-item label="Prompt digest">
             <a-typography-text code>{{
               agentPlaintextMeta.promptDigest || "—"
+            }}</a-typography-text>
+          </a-descriptions-item>
+          <a-descriptions-item label="Context digest">
+            <a-typography-text code>{{
+              agentPlaintextMeta.contextDigest || "—"
+            }}</a-typography-text>
+          </a-descriptions-item>
+          <a-descriptions-item label="Context size">
+            <span v-if="agentPlaintextMeta.contextDigest">
+              {{ agentPlaintextMeta.contextItems || 0 }} items ·
+              {{ agentPlaintextMeta.contextLen || 0 }} chars
+            </span>
+            <span v-else>—</span>
+          </a-descriptions-item>
+          <a-descriptions-item label="Protocol event">
+            <a-typography-text code>{{
+              agentPlaintextMeta.protocolEvent || "—"
+            }}</a-typography-text>
+          </a-descriptions-item>
+          <a-descriptions-item label="Stream ID">
+            <a-typography-text code>{{
+              agentPlaintextMeta.streamId || "—"
+            }}</a-typography-text>
+          </a-descriptions-item>
+          <a-descriptions-item label="Response ID">
+            <a-typography-text code>{{
+              agentPlaintextMeta.responseId || "—"
+            }}</a-typography-text>
+          </a-descriptions-item>
+          <a-descriptions-item label="Previous response" :span="2">
+            <a-typography-text code>{{
+              agentPlaintextMeta.previousResponseId || "—"
             }}</a-typography-text>
           </a-descriptions-item>
           <a-descriptions-item label="Redaction">

@@ -9,8 +9,6 @@ import (
 	"github.com/cilium/ebpf/link"
 )
 
-// ---- moved from backend/zz_merged_backend.go section lsmenforcertypes.go ----
-
 // ── BPF LSM enforcement map and link management ────────────────────────
 //
 // Status handlers bridge through a runtime snapshot and still call:
@@ -32,6 +30,7 @@ type lsmEnforcerRuntime struct {
 	Links             []link.Link
 	LinkPins          []string
 	LastError         string
+	PathAccessSupported bool
 }
 
 type lsmPathKey struct {
@@ -61,6 +60,7 @@ type LsmEnforcerSnapshot struct {
 	LinkCount         int
 	LinkPins          []string
 	LastError         string
+	PathAccessSupported bool
 }
 
 func CurrentLsmEnforcerSnapshot() LsmEnforcerSnapshot {
@@ -74,6 +74,7 @@ func CurrentLsmEnforcerSnapshot() LsmEnforcerSnapshot {
 		LinkCount:         len(lsmEnforcer.Links),
 		LinkPins:          append([]string(nil), lsmEnforcer.LinkPins...),
 		LastError:         lsmEnforcer.LastError,
+		PathAccessSupported: lsmEnforcer.PathAccessSupported,
 	}
 }
 

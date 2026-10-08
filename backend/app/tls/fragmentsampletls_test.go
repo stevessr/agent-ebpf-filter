@@ -64,6 +64,7 @@ func TestDecodeTLSFragmentSampleSupportsFullExpandedCompactPayload(t *testing.T)
 	fragment := newTestTLSFragment(0, 1, tlsFragmentSize, "")
 	fragment.DataLen = uint32(tlsFragmentSize)
 	fragment.TotalLen = uint32(tlsFragmentSize)
+	fragment.Data = make([]byte, tlsFragmentSize)
 	for i := range fragment.Data {
 		fragment.Data[i] = byte(i)
 	}
