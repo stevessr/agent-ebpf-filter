@@ -15,6 +15,7 @@ on:
       - "backend/app/runtime_io_correlation_source_test.go"
       - "backend/app/handlersbridge.go"
       - "backend/app/sandboxruntime/**"
+      - "wrapper/**"
       - "backend/app/handlers/sandbox_runtime.go"
       - "backend/app/handlers/sandbox_runtime_test.go"
       - "backend/app/server_mcp.go"
@@ -38,6 +39,7 @@ on:
       - "backend/app/runtime_io_correlation_source_test.go"
       - "backend/app/handlersbridge.go"
       - "backend/app/sandboxruntime/**"
+      - "wrapper/**"
       - "backend/app/handlers/sandbox_runtime.go"
       - "backend/app/handlers/sandbox_runtime_test.go"
       - "backend/app/server_mcp.go"
@@ -71,7 +73,7 @@ jobs:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
       - name: Install BPF build dependencies
-        run: sudo apt-get update && sudo apt-get install -y clang llvm libbpf-dev libelf-dev linux-libc-dev-arm64-cross protobuf-compiler
+        run: sudo apt-get update && sudo apt-get install -y clang llvm libbpf-dev libelf-dev linux-libc-dev-arm64-cross protobuf-compiler bubblewrap
       - name: Generate Go protobuf bindings
         working-directory: .
         run: |
@@ -96,6 +98,12 @@ jobs:
       - name: Sandbox runtime attribution tests
         working-directory: backend
         run: go test ./app/sandboxruntime ./app/handlers -run 'Test(SandboxRuntime|DetectSnapshot|Manager)' -count=1
+      - name: Wrapper sandbox unit and security tests
+        working-directory: wrapper
+        run: |
+          go test ./... -count=1
+          files="$(gofmt -l main.go sandbox.go sandbox_test.go launch_security.go launch_security_test.go main_test.go)"
+          test -z "$files" || { gofmt -d main.go sandbox.go sandbox_test.go; exit 1; }
       - name: Verify main agent tracker with kernel verifier
         working-directory: backend
         run: |
