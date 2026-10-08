@@ -16,7 +16,7 @@ import (
 const defaultActiveLimit = 128
 
 var (
-	hexContainerID = regexp.MustCompile(`(?i)(?:^|/)(?:docker-|cri-containerd-)?([a-f0-9]{12,64})(?:\\.scope)?(?:$|/)`)
+	hexContainerID = regexp.MustCompile(`(?i)(?:^|/)(?:docker-|cri-containerd-)?([a-f0-9]{12,64})(?:\.scope)?(?:$|/)`)
 	plainHexID     = regexp.MustCompile(`(?i)^[a-f0-9]{12,64}$`)
 )
 
