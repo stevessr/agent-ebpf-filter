@@ -21,22 +21,23 @@ type MLAutoTuneRequest struct {
 
 // MLAutoTuneCell records the result of evaluating one grid cell.
 type MLAutoTuneCell struct {
-	XIndex               int     `json:"xIndex"`
-	YIndex               int     `json:"yIndex"`
-	XValue               int     `json:"xValue"`
-	YValue               int     `json:"yValue"`
-	NumTrees             int     `json:"numTrees"`
-	MaxDepth             int     `json:"maxDepth"`
-	MinSamplesLeaf       int     `json:"minSamplesLeaf"`
-	TrainAccuracy        float64 `json:"trainAccuracy"`
-	ValidationAccuracy   float64 `json:"validationAccuracy"`
-	AllowRecall          float64 `json:"allowRecall"`
-	BalancedAccuracy     float64 `json:"balancedAccuracy"`
-	InferenceThroughput  float64 `json:"inferenceThroughput"`
-	InferenceMsPerSample float64 `json:"inferenceMsPerSample"`
-	TrainDuration        float64 `json:"trainDuration"`
-	EvalDuration         float64 `json:"evalDuration"`
-	Score                float64 `json:"score"`
+	XIndex               int                 `json:"xIndex"`
+	YIndex               int                 `json:"yIndex"`
+	XValue               int                 `json:"xValue"`
+	YValue               int                 `json:"yValue"`
+	NumTrees             int                 `json:"numTrees"`
+	MaxDepth             int                 `json:"maxDepth"`
+	MinSamplesLeaf       int                 `json:"minSamplesLeaf"`
+	TrainAccuracy        float64             `json:"trainAccuracy"`
+	ValidationAccuracy   float64             `json:"validationAccuracy"`
+	AllowRecall          float64             `json:"allowRecall"`
+	BalancedAccuracy     float64             `json:"balancedAccuracy"`
+	AttackMetrics        AttackImpactMetrics `json:"attackMetrics"`
+	InferenceThroughput  float64             `json:"inferenceThroughput"`
+	InferenceMsPerSample float64             `json:"inferenceMsPerSample"`
+	TrainDuration        float64             `json:"trainDuration"`
+	EvalDuration         float64             `json:"evalDuration"`
+	Score                float64             `json:"score"`
 }
 
 // MLAutoTuneResponse is the full result of an auto-tune grid search.
@@ -56,9 +57,13 @@ type MLAutoTuneResponse struct {
 	Best            *MLAutoTuneCell            `json:"best,omitempty"`
 }
 
-// MLModelTuneRequest describes a cross-model auto-tune request.
+// MLModelTuneRequest describes a cross-model auto-tune request. ModelTypes can
+// be supplied explicitly, or Families/FeatureProfiles can select candidates by
+// taxonomy. When both are present, taxonomy filters narrow the explicit list.
 type MLModelTuneRequest struct {
 	ModelTypes           []string `json:"modelTypes"`
+	Families             []string `json:"families,omitempty"`
+	FeatureProfiles      []string `json:"featureProfiles,omitempty"`
 	Metric               string   `json:"metric"`
 	ValidationSplitRatio float64  `json:"validationSplitRatio"`
 	TuneParams           bool     `json:"tuneParams"`
@@ -78,12 +83,17 @@ type MLModelTuneCandidate struct {
 	ModelType            string              `json:"modelType"`
 	Label                string              `json:"label"`
 	Base                 string              `json:"base"`
+	Family               string              `json:"family"`
+	FamilyLabel          string              `json:"familyLabel"`
+	FeatureClass         string              `json:"featureClass"`
+	FeatureProfiles      []string            `json:"featureProfiles,omitempty"`
 	Recommended          bool                `json:"recommended,omitempty"`
 	HyperParams          map[string]int      `json:"hyperParams"`
 	TrainAccuracy        float64             `json:"trainAccuracy"`
 	ValidationAccuracy   float64             `json:"validationAccuracy"`
 	AllowRecall          float64             `json:"allowRecall"`
 	BalancedAccuracy     float64             `json:"balancedAccuracy"`
+	AttackMetrics        AttackImpactMetrics `json:"attackMetrics"`
 	InferenceThroughput  float64             `json:"inferenceThroughput"`
 	InferenceMsPerSample float64             `json:"inferenceMsPerSample"`
 	TrainDuration        float64             `json:"trainDuration"`

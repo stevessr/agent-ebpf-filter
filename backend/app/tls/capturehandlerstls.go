@@ -192,7 +192,7 @@ func (b *TLSBroadcaster) publish(event TLSPlaintextEvent) {
 type tlsCaptureRuntime interface {
 	AttachDefaults() error
 	AttachBuiltinExecutables(pid int) ([]TLSBuiltinExecutableAttachStatus, error)
-	AttachLibrary(path, library string) error
+	AttachLibrary(path, library string, pid int) error
 	AttachExecutable(input string, pid int, libraryHint string) TLSExecutableAttachResult
 	AttachGoUprobes(path string, pid int) error
 	EnsureStarted() (*TLSProbeManager, error)
@@ -410,6 +410,7 @@ func handleTLSCaptureLibrary(runtime tlsCaptureRuntime) gin.HandlerFunc {
 	type request struct {
 		Path    string `json:"path"`
 		Library string `json:"library"`
+		PID     int    `json:"pid"`
 	}
 	return func(c *gin.Context) {
 		var req request
@@ -421,7 +422,11 @@ func handleTLSCaptureLibrary(runtime tlsCaptureRuntime) gin.HandlerFunc {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "TLS capture runtime is unavailable"})
 			return
 		}
-		if err := runtime.AttachLibrary(req.Path, req.Library); err != nil {
+		if req.PID <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "pid is required for shared TLS library hooks; global hooks are disabled"})
+			return
+		}
+		if err := runtime.AttachLibrary(req.Path, req.Library, req.PID); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "status": runtime.Status()})
 			return
 		}

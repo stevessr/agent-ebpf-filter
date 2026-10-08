@@ -44,6 +44,7 @@ Agent eBPF Filter combines **eBPF kernel tracing**, **Go backend**, **Vue.js das
 - **ML-based risk scoring:** Optional machine learning classification
 
 ### 📊 **Rich Web Dashboard**
+- **Renew:** Low-noise daily monitoring UI with an optional MyGo desktop shell
 - **Dashboard:** Real-time event stream with strace-style summaries
 - **Network:** Flow attribution with DNS/SNI/HTTP enrichment
 - **Execution Graph:** Process topology with behavior tracking
@@ -71,7 +72,7 @@ Agent eBPF Filter combines **eBPF kernel tracing**, **Go backend**, **Vue.js das
 ### Prerequisites
 
 - **Linux** with eBPF and BTF support
-- **Go 1.26.2+**
+- **Go 1.27.1+**
 - **Bun** (frontend build tool)
 - **clang/LLVM** (eBPF compilation)
 - **protoc** (Protocol Buffers compiler)
@@ -412,6 +413,8 @@ make runtime-benchmark
 - Hook configuration editing
 
 ### OS Sandbox Status & Enforcement
+
+The backend also includes host-side sandbox runtime attribution for gVisor (`runsc`), Kata Containers, Firecracker, Bubblewrap, nsjail, and OCI runtimes. `GET /sandbox/runtime/status`, `/sandbox/runtime/detect?pid=<host-pid>`, and `/sandbox/runtime/active` expose read-only diagnostics and reuse the existing `container_id` attribution path. gVisor guest syscalls are treated as a separate Sentry boundary rather than being misrepresented as ordinary host syscalls; see [sandbox runtime integration](docs/integrations/sandbox-runtimes.md).
 
 The system monitors and exposes the sandbox status via the API:
 - `GET /sandbox/cgroup/status` returns the kernel state, active blocks, and decision counters as `checked` / `blocked` / `allowed`.

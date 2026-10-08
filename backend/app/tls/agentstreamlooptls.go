@@ -226,6 +226,11 @@ func convertTLSToProtoEvent(source TLSPlaintextEvent) *pb.Event {
 		extras = append(extras, "prompt_digest="+source.PromptDigest)
 		extras = append(extras, fmt.Sprintf("prompt_len=%d", source.PromptLen))
 	}
+	if source.ContextDigest != "" {
+		extras = append(extras, "context_digest="+source.ContextDigest)
+		extras = append(extras, fmt.Sprintf("context_len=%d", source.ContextLen))
+		extras = append(extras, fmt.Sprintf("context_items=%d", source.ContextItems))
+	}
 	if source.StatusCode != 0 {
 		extras = append(extras, fmt.Sprintf("status=%d", source.StatusCode))
 	}
@@ -283,6 +288,13 @@ func convertTLSToOTelSpanEvent(source TLSPlaintextEvent) *pb.Event {
 		"provider=" + source.Vendor,
 		"prompt_digest=" + source.PromptDigest,
 		fmt.Sprintf("prompt_len=%d", source.PromptLen),
+	}
+	if source.ContextDigest != "" {
+		extra = append(extra,
+			"context_digest="+source.ContextDigest,
+			fmt.Sprintf("context_len=%d", source.ContextLen),
+			fmt.Sprintf("context_items=%d", source.ContextItems),
+		)
 	}
 	return &pb.Event{
 		Pid:            source.PID,

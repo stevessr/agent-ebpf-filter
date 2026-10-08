@@ -18,7 +18,7 @@ func TestHookConfigRawSupportsTypeScriptAndValidatesDocuments(t *testing.T) {
 	root := t.TempDir()
 	hooks := []core.HookDef{
 		{
-			ID:        "dsh",
+			ID:        "dsh-exec",
 			HookType:  core.HookTypePlugin,
 			TargetCmd: "dsh",
 		},
@@ -59,7 +59,7 @@ func TestHookConfigRawSupportsTypeScriptAndValidatesDocuments(t *testing.T) {
 	}
 	for _, item := range listed {
 		switch item["id"] {
-		case "dsh":
+		case "dsh-exec":
 			if _, ok := item["config_format"]; ok {
 				t.Fatalf("dsh plugin unexpectedly reported config format: %#v", item)
 			}
@@ -145,23 +145,23 @@ func TestDshHookConfigurationUsesPluginLifecycle(t *testing.T) {
 	oldUninstallPluginHook := Deps.UninstallPluginHook
 	Deps.AvailableHooks = func() []core.HookDef {
 		return []core.HookDef{{
-			ID:        "dsh",
+			ID:        "dsh-exec",
 			Name:      "DeepSeek Harness",
-			TargetCmd: "dsh",
+			TargetCmd: "dsh-exec",
 			HookType:  core.HookTypePlugin,
 		}}
 	}
 	Deps.GetShellConfigPath = func() string { return shellConfig }
 	installed, uninstalled := 0, 0
 	Deps.InstallPluginHook = func(h core.HookDef) error {
-		if h.ID != "dsh" {
+		if h.ID != "dsh-exec" {
 			t.Fatalf("unexpected plugin install target: %#v", h)
 		}
 		installed++
 		return nil
 	}
 	Deps.UninstallPluginHook = func(h core.HookDef) error {
-		if h.ID != "dsh" {
+		if h.ID != "dsh-exec" {
 			t.Fatalf("unexpected plugin uninstall target: %#v", h)
 		}
 		uninstalled++
@@ -184,7 +184,7 @@ func TestDshHookConfigurationUsesPluginLifecycle(t *testing.T) {
 		return w
 	}
 
-	if response := request(`{"id":"dsh","install":true}`); response.Code != 200 {
+	if response := request(`{"id":"dsh-exec","install":true}`); response.Code != 200 {
 		t.Fatalf("dsh install status = %d, body = %s", response.Code, response.Body.String())
 	}
 	if installed != 1 {
@@ -196,7 +196,7 @@ func TestDshHookConfigurationUsesPluginLifecycle(t *testing.T) {
 			t.Fatalf("plugin install must not create dsh wrapper alias: %s", content)
 		}
 	}
-	if response := request(`{"id":"dsh","install":false}`); response.Code != 200 {
+	if response := request(`{"id":"dsh-exec","install":false}`); response.Code != 200 {
 		t.Fatalf("dsh uninstall status = %d, body = %s", response.Code, response.Body.String())
 	}
 	if uninstalled != 1 {
@@ -205,10 +205,29 @@ func TestDshHookConfigurationUsesPluginLifecycle(t *testing.T) {
 
 	rawWriter := httptest.NewRecorder()
 	rawContext, _ := gin.CreateTestContext(rawWriter)
-	rawContext.Params = gin.Params{{Key: "id", Value: "dsh"}}
-	rawContext.Request = httptest.NewRequest("GET", "/config/hooks/dsh/raw", nil)
+	rawContext.Params = gin.Params{{Key: "id", Value: "dsh-exec"}}
+	rawContext.Request = httptest.NewRequest("GET", "/config/hooks/dsh-exec/raw", nil)
 	HandleConfigHooksRawGet(rawContext)
 	if rawWriter.Code != 404 {
 		t.Fatalf("dsh raw config status = %d, body = %s", rawWriter.Code, rawWriter.Body.String())
+	}
+}
+
+func TestDshNativeUninstallPreservesShell(t *testing.T) {
+	oldAvailable, oldUninstall, oldShell := Deps.AvailableHooks, Deps.UninstallNativeHook, Deps.GetShellConfigPath
+	t.Cleanup(func() {
+		Deps.AvailableHooks, Deps.UninstallNativeHook, Deps.GetShellConfigPath = oldAvailable, oldUninstall, oldShell
+	})
+	Deps.AvailableHooks = func() []core.HookDef { return []core.HookDef{{ID: "dsh", HookType: core.HookTypeNative}} }
+	called := false
+	Deps.UninstallNativeHook = func(h core.HookDef) error { called = true; return nil }
+	Deps.GetShellConfigPath = func() string { t.Fatal("native uninstall must not alter shell aliases"); return "" }
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("POST", "/config/hooks", bytes.NewBufferString(`{"id":"dsh","install":false}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	HandleConfigHooksInstall(c)
+	if w.Code != 200 || !called {
+		t.Fatalf("uninstall: %d, called=%v", w.Code, called)
 	}
 }

@@ -56,6 +56,10 @@ func HandleConfigHooksInstall(c *gin.Context) {
 
 	effectiveType := target.HookType
 	if req.UseWrapper {
+		if target.HookType == core.HookTypePlugin {
+			c.JSON(400, gin.H{"error": "plugin hooks do not support wrapper alias mode"})
+			return
+		}
 		effectiveType = core.HookTypeWrapper
 	}
 
@@ -68,7 +72,7 @@ func HandleConfigHooksInstall(c *gin.Context) {
 			}
 		case core.HookTypePlugin:
 			if Deps.InstallPluginHook == nil {
-				c.JSON(500, gin.H{"error": "plugin hook installer is unavailable"})
+				c.JSON(503, gin.H{"error": "plugin hook installer unavailable"})
 				return
 			}
 			if err := Deps.InstallPluginHook(target); err != nil {
@@ -93,16 +97,29 @@ func HandleConfigHooksInstall(c *gin.Context) {
 			}
 		}
 	} else {
-		switch target.HookType {
-		case core.HookTypeNative:
-			_ = Deps.UninstallNativeHook(target)
-		case core.HookTypePlugin:
-			if Deps.UninstallPluginHook != nil {
-				if err := Deps.UninstallPluginHook(target); err != nil {
-					c.JSON(500, gin.H{"error": err.Error()})
-					return
-				}
+		if target.HookType == core.HookTypePlugin {
+			if Deps.UninstallPluginHook == nil {
+				c.JSON(503, gin.H{"error": "plugin hook uninstaller unavailable"})
+				return
 			}
+			if err := Deps.UninstallPluginHook(target); err != nil {
+				c.JSON(500, gin.H{"error": err.Error()})
+				return
+			}
+			// Native dsh lifecycle telemetry and wrapper aliases are independent.
+			c.JSON(200, gin.H{"status": "ok"})
+			return
+		}
+		if target.ID == "dsh" && target.HookType == core.HookTypeNative && !req.UseWrapper {
+			if err := Deps.UninstallNativeHook(target); err != nil {
+				c.JSON(500, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(200, gin.H{"status": "ok"})
+			return
+		}
+		if target.HookType == core.HookTypeNative && !(target.ID == "dsh" && req.UseWrapper) {
+			_ = Deps.UninstallNativeHook(target)
 		}
 		p := Deps.GetShellConfigPath()
 		b, _ := os.ReadFile(p)

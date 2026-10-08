@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +18,27 @@ import (
 var listenTCP = net.Listen
 
 func listenBackend() (net.Listener, int, error) {
+	if socket := strings.TrimSpace(os.Getenv("AGENT_DESKTOP_API_SOCKET")); socket != "" {
+		lifetime := strings.TrimSpace(os.Getenv("AGENT_DESKTOP_LIFETIME_SOCKET"))
+		if lifetime == "" || !filepath.IsAbs(socket) ||
+			filepath.Dir(filepath.Clean(socket)) != filepath.Dir(filepath.Clean(lifetime)) ||
+			filepath.Clean(socket) == filepath.Clean(lifetime) ||
+			!strings.HasSuffix(socket, ".sock") {
+			return nil, 0, fmt.Errorf("desktop API socket requires a distinct private lifetime socket sibling")
+		}
+		listener, err := net.Listen("unix", socket)
+		if err != nil {
+			return nil, 0, fmt.Errorf("listen desktop Unix API: %w", err)
+		}
+		// Socket lives in a private 0700 user-owned session directory; the
+		// privileged child must allow that desktop owner to connect.
+		if err := os.Chmod(socket, 0666); err != nil {
+			_ = listener.Close()
+			_ = os.Remove(socket)
+			return nil, 0, fmt.Errorf("permit desktop Unix API: %w", err)
+		}
+		return listener, 0, nil // no TCP listener, port file, or cluster heartbeat
+	}
 	startPort, maxTries := 8080, 10
 	if rawPort := strings.TrimSpace(os.Getenv("AGENT_BACKEND_PORT")); rawPort != "" {
 		if configuredPort, err := strconv.Atoi(rawPort); err == nil && configuredPort > 0 {

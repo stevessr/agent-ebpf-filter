@@ -71,7 +71,7 @@ Agent eBPF Filter 结合 **eBPF 内核追踪**、**Go 后端**、**Vue.js 仪表
 ### 前置要求
 
 - **Linux**，支持 eBPF 和 BTF
-- **Go 1.26.2+**
+- **Go 1.27.1+**
 - **Bun**（前端构建工具）
 - **clang/LLVM**（eBPF 编译）
 - **protoc**（Protocol Buffers 编译器）

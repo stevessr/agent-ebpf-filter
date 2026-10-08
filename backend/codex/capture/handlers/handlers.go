@@ -96,10 +96,17 @@ type Event struct {
 	TraceID        string `json:"trace_id,omitempty"`
 	SpanID         string `json:"span_id,omitempty"`
 
-	MessageRole  string `json:"message_role,omitempty"`
-	PromptDigest string `json:"prompt_digest,omitempty"`
-	PromptLen    int    `json:"prompt_len,omitempty"`
-	Vendor       string `json:"vendor,omitempty"`
+	MessageRole        string `json:"message_role,omitempty"`
+	PromptDigest       string `json:"prompt_digest,omitempty"`
+	PromptLen          int    `json:"prompt_len,omitempty"`
+	ContextDigest      string `json:"context_digest,omitempty"`
+	ContextLen         int    `json:"context_len,omitempty"`
+	ContextItems       int    `json:"context_items,omitempty"`
+	Vendor             string `json:"vendor,omitempty"`
+	ProtocolEvent      string `json:"protocol_event,omitempty"`
+	StreamID           string `json:"stream_id,omitempty"`
+	ResponseID         string `json:"response_id,omitempty"`
+	PreviousResponseID string `json:"previous_response_id,omitempty"`
 }
 
 type CaptureSink interface {
@@ -153,12 +160,17 @@ func BuildEvent(req CaptureRequest) Event {
 		method = "WEBSOCKET"
 	}
 
+	direction := normalizeDirection(req.Direction, phase)
 	eventType := "http_request"
-	if req.Status != 0 || strings.Contains(phase, "response") {
+	if req.Status != 0 || strings.Contains(phase, "response") || direction == "recv" {
 		eventType = "http_response"
 	}
 	if strings.Contains(phase, "websocket") {
-		eventType = "websocket_request"
+		if direction == "recv" {
+			eventType = "websocket_response"
+		} else {
+			eventType = "websocket_request"
+		}
 	}
 
 	event := Event{
@@ -167,7 +179,7 @@ func BuildEvent(req CaptureRequest) Event {
 		PID:            req.PID,
 		TGID:           firstNonZero(req.TGID, req.PID),
 		Comm:           firstNonEmpty(req.Comm, "codex"),
-		Direction:      normalizeDirection(req.Direction, phase),
+		Direction:      direction,
 		Lib:            "codex-reqwest",
 		Function:       firstNonEmpty(phase, "send"),
 		CapturedLen:    len([]byte(body)),
@@ -195,7 +207,9 @@ func BuildEvent(req CaptureRequest) Event {
 		Vendor:         "codex",
 	}
 	annotateSSEEvent(&event)
-	annotateAgentMessage(&event)
+	annotateResponsesMetadata(&event, body)
+	annotateResponsesContextMetadata(&event, body, contentType)
+	annotateAgentMessageFromBody(&event, body, contentType)
 	return event
 }
 
@@ -410,10 +424,18 @@ func looksLikeJSON(contentType string, body []byte) bool {
 }
 
 func annotateAgentMessage(event *Event) {
-	if event == nil || event.Body == "" {
+	if event == nil {
 		return
 	}
-	digest, role, vendor, length := extractAgentMessageMeta(event.Body, event.ContentType, event.Host, event.URL, event.Direction)
+	annotateAgentMessageFromBody(event, event.Body, event.ContentType)
+}
+
+func annotateAgentMessageFromBody(event *Event, rawBody, contentType string) {
+	if event == nil || strings.TrimSpace(rawBody) == "" {
+		return
+	}
+	metadataBody := sanitizeBody(rawBody, contentType)
+	digest, role, vendor, length := extractAgentMessageMeta(metadataBody, contentType, event.Host, event.URL, event.Direction)
 	if digest == "" {
 		return
 	}
@@ -489,6 +511,9 @@ func looksLikeAgentJSON(contentType, body string) bool {
 func extractAgentPromptFromPayload(payload map[string]any, direction string) (string, string) {
 	if payload == nil {
 		return "", ""
+	}
+	if text, role := extractResponsesAgentText(payload, direction); text != "" {
+		return text, role
 	}
 
 	if messages, ok := payload["messages"].([]any); ok && len(messages) > 0 {

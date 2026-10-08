@@ -23,10 +23,10 @@ sequenceDiagram
     participant Exec as syscall.Exec
     
     User->>Wrapper: agent-wrapper git push origin main
-    Wrapper->>Wrapper: prepare argv (dsh suffix is preserved verbatim)
+    Wrapper->>Wrapper: trim whitespace args
     Wrapper->>Env: read AGENT_RUN_ID, TRACE_ID, etc.
     Env-->>Wrapper: context metadata
-    Wrapper->>Wrapper: compute argv_digest = sha256(NUL-separated exact argv)
+    Wrapper->>Wrapper: compute argv_digest = sha256(args)
     
     Wrapper->>UDS: dial Unix socket (500ms timeout)
     UDS-->>Wrapper: connected
@@ -117,31 +117,12 @@ func extractMetadata() *WrapperMetadata {
 并计算 `ArgvDigest`：
 
 ```go
-func computeArgvDigest(comm string, args []string) string {
-    parts := append([]string{comm}, args...)
-    hash := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
+func computeArgvDigest(args []string) string {
+    joined := strings.Join(args, " ")
+    hash := sha256.Sum256([]byte(joined))
     return hex.EncodeToString(hash[:])
 }
 ```
-
-摘要对 wrapper 最终 argv 使用 NUL 分隔以保留参数边界。dsh 的参数准备阶段不做 trim 或删空参数，因此空参数和前后空白仍可区分；其他 wrapped command 继续保留现有的 legacy normalization。
-
-## DeepSeek Harness（dsh）语义
-
-dsh 的 launcher 本身仍按公开 CLI 语义审计：Agent eBPF 只解析 launcher 拥有的 profile/patch/dump 前缀，首个未知 token 起的 app 参数保持原样。
-
-真正的 Harness-owned exec 不再依赖 shell alias，而由 `@agent-ebpf/dsh-subprocess` profile bundle 替换 canonical `id: subprocess` provider。该 provider 继承官方 `@deepseek-ai/dsh-subprocess-local` 并同时覆盖：
-
-- `spawn()`：普通命令、后台任务、Hook command、MCP/LSP stdio child；
-- `spawnTerminal()`：PTY/交互式终端命令。
-
-provider 只把原始 argv 包成 `agent-wrapper --dsh-exec --verbatim -- <argv...>`，其余 cwd、stdio、signal、grace、output collection 等字段原样交还官方 local provider，因此策略入口位于真正创建子进程之前，而不是靠命令名猜测。
-
-`dsh plugin`、profile 初始化、包管理锁、兼容性豁免和 Cordis patch 生命周期仍由 dsh 自己负责。插件侧 exec 事件使用 `tool_name=dsh.exec` 与 `dsh_mode:exec` 归因。
-
-### dsh 网络明文
-
-dsh launcher 和 `dsh.exec` 子进程不会进入 Agent eBPF 的 TLS uProbe attach。Web profile 使用官方 `@deepseek-ai/dsh-experimental-inspector`：后端连接 loopback CDP endpoint（默认从 9230 开始探测），启用 `Network` domain，读取 request/response headers、body、status、timing 与 SSE 数据。进入现有 Network capture store 前统一经过 URL/header/body 脱敏，并标记 `capture_source=dsh_inspector`。
 
 ## 配置示例
 
@@ -212,3 +193,9 @@ graph TB
 - [事件管线](../backend/event-pipeline.md)
 - [策略语义](../security/policy-semantics.md)
 - [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)
+
+### DeepSeek Harness subprocess provider
+
+保持既有的 `dsh` 原生 Cordis session/tool 生命周期监测不变；另以独立的 `dsh-exec` Hook 显式选择 subprocess provider。其 `spawn` 与 `spawnTerminal` 均交由官方 local provider 创建实际子进程，执行前经过 `agent-wrapper --dsh-exec --verbatim --` 策略检查。子进程原始 argv、空参数及空白参数不会被包装器裁剪；摘要使用命令及参数的 NUL 分隔编码。旧版普通 wrapper 命令保留现有入参归一化。
+
+Web profile 的 Inspector/CDP 用户态网络捕获须显式连接、限定回环地址，并在进入共享 TLS store 前进行机密字段脱敏，来源为 `dsh_inspector`；不会在所有系统进程上自动探测端口。元数据事件和子进程拦截属于两项独立能力，可分别安装、撤销。

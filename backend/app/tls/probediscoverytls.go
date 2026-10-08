@@ -213,6 +213,9 @@ func (m *TLSProbeManager) DiscoverGoProcesses() {
 		if !ok {
 			continue
 		}
+		if !m.executablePathAllowed(displayPath, attachPath) {
+			continue
+		}
 
 		if _, err := parseGoTLSTargets(attachPath); err != nil {
 			continue
@@ -282,9 +285,10 @@ func isAgentTLSProcess(baseName, cmdline string) bool {
 	return false
 }
 
-// DiscoverNodeProcesses keeps the historical name for API compatibility but
-// now discovers agent runtimes broadly and lets AttachExecutable choose Go,
-// static OpenSSL/BoringSSL, rustls, or an actually loaded shared library.
+// DiscoverNodeProcesses keeps the historical name for API compatibility. The
+// executable-path allowlist is now the admission boundary, so every matching
+// process is eligible and AttachExecutable chooses Go, static OpenSSL/BoringSSL,
+// rustls, or an actually loaded shared library.
 func (m *TLSProbeManager) DiscoverNodeProcesses() {
 	if m == nil {
 		return
@@ -302,13 +306,13 @@ func (m *TLSProbeManager) DiscoverNodeProcesses() {
 		if !ok {
 			continue
 		}
-
-		baseName := filepath.Base(displayPath)
-		if !isAgentTLSProcess(baseName, normalizedProcCmdline(pid)) {
+		if !m.executablePathAllowed(displayPath, attachPath) {
 			continue
 		}
+
+		baseName := filepath.Base(displayPath)
 		now := time.Now()
-		if !m.autoAttachAllowed("agent", pid, attachPath, now) {
+		if !m.autoAttachAllowed("path", pid, attachPath, now) {
 			continue
 		}
 		if !m.shouldAttachStaticSSL(attachPath, pid) {
@@ -320,13 +324,13 @@ func (m *TLSProbeManager) DiscoverNodeProcesses() {
 		if result.Error != "" {
 			m.forgetStaticSSLAttach(attachPath, pid)
 			attachErr := fmt.Errorf("%s", result.Error)
-			m.recordAutoAttachFailure("agent", pid, attachPath, attachErr, now)
+			m.recordAutoAttachFailure("path", pid, attachPath, attachErr, now)
 			if m.store != nil {
 				m.store.SetLibraryStatus(TLSLibraryStatus{Name: "auto:" + baseName, Path: displayPath, Attached: false, Available: true, Error: result.Error})
 			}
 			continue
 		}
-		m.recordAutoAttachSuccess("agent", pid, attachPath)
+		m.recordAutoAttachSuccess("path", pid, attachPath)
 		if m.store != nil {
 			library := result.Library
 			if library == "" {
@@ -340,6 +344,7 @@ func (m *TLSProbeManager) DiscoverNodeProcesses() {
 func (m *TLSProbeManager) StartGoDiscoveryLoop(interval time.Duration) {
 	m.startGoDiscoveryLoop(interval, func() {
 		m.pruneDeadProcessAttachments()
+		m.reconcileExecutablePathScope()
 		m.DiscoverGoProcesses()
 		m.DiscoverNodeProcesses()
 	})

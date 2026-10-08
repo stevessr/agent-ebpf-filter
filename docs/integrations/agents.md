@@ -203,7 +203,7 @@ adapter 或 `/register` API 注册其 PID；仅凭 `zg` 命令识别不会伪造
 ### 何时使用 Native Hooks
 
 - **监控 AI CLI 行为**：Claude Code、Gemini CLI、Codex、Pi、Oh My Pi 等
-- **DeepSeek Harness**：使用 wrapper-only 的 `dsh` 命令拦截，不写入未定义的 generic hook 文件
+- **DeepSeek Harness**：使用原生 Cordis 插件，通过 home-level patch 观测会话与工具生命周期
 - **需要工具调用语义**：native hook 提供 tool_name、target_path 等 Agent 层信息
 
 ### 推荐组合
@@ -224,3 +224,18 @@ flowchart LR
 - [事件管线](../backend/event-pipeline.md)
 - [协议与事件模型](../architecture/protocol-events.md)
 - [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)
+
+### 高流量事件观察
+
+Dashboard「全部」默认展示自动整理层：仅对当前前端缓冲窗口按进程、会话、
+事件类型、目标及结果归组，优先呈现策略阻断、告警和风险评分 ≥ 70 的活动，
+其次为负返回值调用。负返回值不等于安全威胁，零告警也不保证系统安全。
+
+- 摘要与可展开的会话关联分析最多每秒更新一次，不随每个 WebSocket 批次重算。
+- 分组最多显示前 50 组，每页 10 组；「最新样本」打开现有证据详情。
+- 「事件明细」保留原筛选和导出功能；摘要不受明细过滤器影响，也不删除原始缓冲记录。
+- 实时队列与历史加载期间的等待队列均受容量限制；溢出保留最新记录，页面显示累计移出数量。
+- 页面统计不是全量历史审计。暂停接收期间不缓存或补回实时事件；导出仅覆盖当前缓冲/筛选范围。
+
+实现分层：`dashboardTriage.ts` 负责纯函数归组，`dashboardBuffer.ts` 负责有界入队，
+`useDashboardSnapshot.ts` 管理摘要刷新节奏，`DashboardTriage.vue` 负责展示与证据入口。

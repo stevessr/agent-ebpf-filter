@@ -15,6 +15,10 @@ import (
 type RuntimeSettings struct {
 	LogPersistenceEnabled   bool                       `json:"logPersistenceEnabled"`
 	LogFilePath             string                     `json:"logFilePath"`
+	EventStoreMaxRecords    int                        `json:"eventStoreMaxRecords"`
+	EventStoreMaxAge        string                     `json:"eventStoreMaxAge"`
+	DisabledEventTypes      []uint32                   `json:"disabledEventTypes,omitempty"`
+	IgnoredPaths            []string                   `json:"ignoredPaths"`
 	AccessToken             string                     `json:"accessToken"`
 	MaxEventCount           int                        `json:"maxEventCount"`
 	MaxEventAge             string                     `json:"maxEventAge"`

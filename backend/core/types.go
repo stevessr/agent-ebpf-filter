@@ -3,10 +3,8 @@
 package core
 
 import (
-	"log"
 	"time"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/cilium/ebpf"
 )
 
@@ -116,9 +114,15 @@ var AvailableHooks = []HookDef{
 		ConfigFormat:    ConfigFormatJSON,
 	},
 	{
-		ID: "dsh", Name: "DeepSeek Harness", HookType: HookTypePlugin,
-		Description: "Installs an Agent eBPF subprocess provider into every DeepSeek Harness profile so spawn and terminal execs cross the policy boundary; network plaintext uses the Harness Inspector/CDP API instead of eBPF TLS uprobes.",
-		TargetCmd:   "dsh",
+		ID: "dsh", Name: "DeepSeek Harness", HookType: HookTypeNative,
+		Description:  "Installs a Cordis plugin via the DSH_HOME home patch for metadata-only session and tool lifecycle telemetry across profiles.",
+		ConfigFormat: ConfigFormatTypeScript,
+		TargetCmd:    "dsh",
+	},
+	{
+		ID: "dsh-exec", Name: "DeepSeek Harness · subprocess policy", HookType: HookTypePlugin,
+		Description: "Optional capability provider intercepting Harness-owned spawn/PTY commands. Independent from the native DSH Cordis lifecycle hook; uses Inspector API for plaintext capture.",
+		TargetCmd: "dsh",
 	},
 	{
 		ID: "pi", Name: "Pi", HookType: HookTypeNative,
@@ -250,14 +254,3 @@ type ShellControlMessage struct {
 	Rows int    `json:"rows,omitempty"`
 }
 
-// ── NVML initialization ──────────────────────────────────────────────────────
-
-var NvmlInitialized bool
-
-func init() {
-	if ret := nvml.Init(); ret == nvml.SUCCESS {
-		NvmlInitialized = true
-	} else {
-		log.Printf("NVML Init failed: %v", nvml.ErrorString(ret))
-	}
-}

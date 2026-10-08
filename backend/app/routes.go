@@ -33,6 +33,7 @@ func registerWebSocketRoutes(r gin.IRouter, ac *AppContext, features *FeatureReg
 		r.GET("/ws/ml-status", authMiddleware(), serveMLStatusWS)
 	}
 	r.GET("/ws/envelopes", authMiddleware(), serveEventEnvelopesWS)
+	r.GET("/ws/event-summaries", authMiddleware(), serveEventSummariesWS)
 	r.GET("/ws/events/graph", authMiddleware(), serveExecutionGraphWS)
 	if features.CompiledIn(FeatureTLSCapture) {
 		r.GET("/ws/tls-capture", authMiddleware(), tlsCaptureEnabledMiddleware(), func(c *gin.Context) { tlsBroadcaster.Serve(c) })
@@ -53,7 +54,9 @@ func registerShellSessionRoutes(r gin.IRouter, ac *AppContext, features *Feature
 
 func registerEventRoutes(r gin.IRouter, ac *AppContext) {
 	r.GET("/events/recent", authMiddleware(), handleRecentEvents)
+	r.GET("/events/summaries", authMiddleware(), handleRecentEventSummaries)
 	r.GET("/events/graph", authMiddleware(), handleExecutionGraph)
+	r.GET("/events/detail/:id", authMiddleware(), handleEventByID)
 	r.GET("/events/recording", authMiddleware(), handleEventRecordingStatus)
 	r.POST("/events/recording/start", authMiddleware(), handleStartEventRecording)
 	r.POST("/events/recording/stop", authMiddleware(), handleStopEventRecording)
@@ -80,6 +83,10 @@ func registerNetworkRoutes(r gin.IRouter, ac *AppContext, features *FeatureRegis
 }
 
 func registerSandboxRoutes(r gin.IRouter, _ *AppContext, features *FeatureRegistry) {
+	r.GET("/sandbox/runtime/status", authMiddleware(), handleSandboxRuntimeStatus)
+	r.GET("/sandbox/runtime/detect", authMiddleware(), handleSandboxRuntimeDetect)
+	r.GET("/sandbox/runtime/active", authMiddleware(), handleSandboxRuntimeActive)
+
 	if features.CompiledIn(FeatureSandboxCgroup) {
 		r.GET("/sandbox/cgroup/status", authMiddleware(), handleCgroupSandboxStatus)
 		if features.CompiledIn(FeaturePolicyManagement) {
@@ -106,6 +113,7 @@ func registerSandboxRoutes(r gin.IRouter, _ *AppContext, features *FeatureRegist
 		r.GET("/sandbox/lsm/status", authMiddleware(), handleLsmEnforcerStatus)
 		if features.CompiledIn(FeaturePolicyManagement) {
 			r.POST("/sandbox/lsm/block-exec-path", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmBlockExecPath)
+			r.PUT("/sandbox/lsm/path-access", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmSetPathAccess)
 			r.POST("/sandbox/lsm/unblock-exec-path", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmUnblockExecPath)
 			r.POST("/sandbox/lsm/block-exec-name", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmBlockExecName)
 			r.POST("/sandbox/lsm/unblock-exec-name", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmUnblockExecName)
@@ -113,6 +121,7 @@ func registerSandboxRoutes(r gin.IRouter, _ *AppContext, features *FeatureRegist
 			r.POST("/sandbox/lsm/unblock-file-name", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmUnblockFileName)
 		} else {
 			r.POST("/sandbox/lsm/block-exec-path", authMiddleware(), compiledOutFeatureMiddleware(FeaturePolicyManagement))
+			r.PUT("/sandbox/lsm/path-access", authMiddleware(), compiledOutFeatureMiddleware(FeaturePolicyManagement))
 			r.POST("/sandbox/lsm/unblock-exec-path", authMiddleware(), compiledOutFeatureMiddleware(FeaturePolicyManagement))
 			r.POST("/sandbox/lsm/block-exec-name", authMiddleware(), compiledOutFeatureMiddleware(FeaturePolicyManagement))
 			r.POST("/sandbox/lsm/unblock-exec-name", authMiddleware(), compiledOutFeatureMiddleware(FeaturePolicyManagement))
@@ -186,9 +195,12 @@ func registerCompatibilityRoutes(r *gin.Engine, ac *AppContext, features *Featur
 }
 
 func registerStaticRoutes(r *gin.Engine) {
-	staticDir := "../frontend/dist"
-	if _, err := os.Stat(staticDir); err != nil {
-		staticDir = "./frontend/dist"
+	staticDir := os.Getenv("AGENT_FRONTEND_DIST")
+	if staticDir == "" {
+		staticDir = "../frontend/dist"
+		if _, err := os.Stat(staticDir); err != nil {
+			staticDir = "./frontend/dist"
+		}
 	}
 	r.StaticFile("/", filepath.Join(staticDir, "index.html"))
 	r.Static("/assets", filepath.Join(staticDir, "assets"))

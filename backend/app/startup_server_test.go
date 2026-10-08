@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -195,4 +196,23 @@ func TestServeHTTPServerForcesCloseAfterShutdownTimeout(t *testing.T) {
 		t.Fatal("server did not force-close after shutdown timeout")
 	}
 	close(release)
+}
+
+func TestDesktopUnixServerDoesNotUseTCP(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("AGENT_DESKTOP_LIFETIME_SOCKET", filepath.Join(dir, "life.sock"))
+	socket := filepath.Join(dir, "api.sock")
+	t.Setenv("AGENT_DESKTOP_API_SOCKET", socket)
+	old := listenTCP
+	listenTCP = func(_, _ string) (net.Listener, error) { t.Fatal("TCP listener opened in desktop mode"); return nil, nil }
+	t.Cleanup(func() { listenTCP = old })
+	listener, port, err := listenBackend()
+	if err != nil { t.Fatal(err) }
+	defer listener.Close()
+	if port != 0 || listener.Addr().Network() != "unix" {
+		t.Fatalf("expected Unix-only listener, got %v, port %d", listener.Addr(), port)
+	}
+	conn, err := net.DialTimeout("unix", socket, time.Second)
+	if err != nil { t.Fatal(err) }
+	conn.Close()
 }

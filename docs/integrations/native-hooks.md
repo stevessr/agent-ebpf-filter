@@ -1,6 +1,6 @@
 # Native Hooks
 
-Native hook、Harness plugin 与 wrapper 集成连接 Claude Code、Gemini CLI、Codex、DeepSeek Harness (`dsh`)、Pi、Oh My Pi、GitHub Copilot、Kiro、Augment、Antigravity、ZCode、MiniMax Code 等 AI CLI。dsh 使用 profile 内的 subprocess provider plugin 管理 Harness-owned exec；MiniMax Code 仍使用可选 wrapper。
+Native hook 与 wrapper 集成连接 Claude Code、Gemini CLI、Codex、DeepSeek Harness (`dsh`)、Pi、Oh My Pi、GitHub Copilot、Kiro、Augment、Antigravity 等 AI CLI，把工具调用语义补充到 eBPF 事实之上；其中 dsh 使用原生 Cordis 插件。
 
 ---
 
@@ -8,25 +8,17 @@ Native hook、Harness plugin 与 wrapper 集成连接 Claude Code、Gemini CLI�
 
 ```mermaid
 flowchart TD
-    CLI["AI CLI (Claude/Gemini/Codex/ZCode/mcode/dsh/Pi/OMP/...)"] --> Mode{"integration mode"}
-    Mode -->|native hook| Relay["generated relay / extension"]
-    Relay --> Curl["POST /hooks/event"]
+    CLI["AI CLI (Claude/Gemini/Codex/ZCode/mcode/dsh/Pi/OMP/...)"] --> Hook["native hook / wrapper integration"]
+    Hook --> Relay["generated relay script"]
+    Relay --> Curl["curl POST /hooks/event"]
     Curl --> Auth["hookIngressAuthMiddleware()"]
     Auth --> Handler["handleNativeHookEvent()"]
-    Handler --> NativeEvent["native_hook pb.Event"]
-
-    Mode -->|dsh Harness plugin| DshPlugin["ctx.subprocess provider<br/>spawn + spawnTerminal"]
-    DshPlugin --> Wrapper["agent-wrapper --dsh-exec --verbatim"]
-    Mode -->|wrapper-only: mcode / cursor| Wrapper
-    Wrapper --> UDS["/tmp/agent-ebpf.sock"]
-    UDS --> Policy["wrapper policy + ML"]
-    Policy --> WrapperEvent["wrapper_intercept pb.Event"]
-
-    NativeEvent --> Sinks["EventEnvelope / Dashboard<br/>AgentSight / OTLP"]
-    WrapperEvent --> Sinks
+    Handler --> Normalize["normalize payload"]
+    Normalize --> Event["native_hook pb.Event"]
+    Event --> Sinks["EventEnvelope / Dashboard<br/>AgentSight / OTLP"]
 ```
 
-原生 hook/extension 通过 `/hooks/event` 上报。dsh 不写 shell alias：Agent eBPF bundle 替换其 canonical `id: subprocess` provider，并覆盖 `spawn()` 与 `spawnTerminal()`；每次 Harness-owned exec 在真正创建子进程前进入 `agent-wrapper --dsh-exec --verbatim`，再通过受限 UDS 进入策略引擎。MiniMax Code/Cursor 等 wrapper 集成仍走 shell alias。
+当 AI CLI 执行工具调用时，原生 CLI hook 或 dsh Cordis 插件触发 relay script；relay script 通过 `curl` 将事件 POST 到后端 `/hooks/event`。后端解析、归一化后广播到所有事件消费者。
 
 ---
 
@@ -37,7 +29,7 @@ flowchart TD
 | **Claude Code** | `~/.claude/settings.json` | Native hook |
 | **Gemini CLI** | `~/.gemini/settings.json` | Native hook |
 | **Codex** | `~/.codex/hooks.json` | Native hook |
-| **DeepSeek Harness (`dsh`)** | `$DSH_HOME/profiles/*` + `@agent-ebpf/dsh-subprocess` | Harness subprocess provider plugin；Web profile 网络明文走 Inspector/CDP |
+| **DeepSeek Harness (`dsh`)** | `$DSH_HOME/cordis.patch.yml` + 托管 `.mjs` 插件 | `session/created`、`session/event` |
 | **Pi** | `~/.pi/agent/extensions/agent-ebpf-hook-active-pi.ts` | TypeScript extension |
 | **Oh My Pi (`omp`)** | `~/.omp/agent/extensions/agent-ebpf-hook-active-omp.ts`（profile 由 `OMP_PROFILE` 决定） | TypeScript extension |
 | **GitHub Copilot CLI** | `~/.copilot/config.json` | Native hook |
@@ -64,7 +56,7 @@ flowchart TD
 1. 对 JSON/TOML CLI 在配置目录的 `hooks/` 子目录下生成 relay script，并注入 hook 入口
 2. 对 Pi/Oh My Pi 在各自的 `extensions/` 目录生成带 marker 的 TypeScript extension，同时生成共享 relay script
 3. 为每个 hook 生成唯一的 per-hook secret
-4. dsh 不伪造 native hook 文件：对 shipped 与已有 custom profiles 安装 `@agent-ebpf/dsh-subprocess`，由 profile bundle patch 替换 `id: subprocess`；MiniMax Code 仍使用 wrapper alias
+4. dsh 生成 Cordis 插件，并在 home-level patch 中追加托管 insert 块，保留已有用户配置
 
 ### 各 CLI 特殊行为
 
@@ -78,7 +70,7 @@ codex_hooks = true
 **Kiro CLI**：创建一个 managed agent（从 `kiro_default` 克隆），写入 `~/.kiro/agents/agent-ebpf-hook.json`，并将 `~/.kiro/settings/cli.json` 中的 `chat.defaultAgent` 指向该 agent。卸载时恢复原默认 agent。
 
 
-**DeepSeek Harness (`dsh`)**：使用 Harness plugin 集成。`@agent-ebpf/dsh-subprocess` 继承官方 `@deepseek-ai/dsh-subprocess-local`，只在执行边界包裹 argv，同时覆盖 `spawn()` 和 `spawnTerminal()`，因此 ordinary/background command、Hook command、MCP/LSP stdio child 与 PTY 都经过统一策略入口，并保留 cwd、stdio、signal、grace、输出收集等官方语义。安装器覆盖 shipped profiles `acp/web/headless/sdk/sdk-minimal` 与已有 custom profiles；profile 初始化、锁、依赖解析和兼容性仍由 `dsh plugin` 自己负责。Web profile 的 HTTP/SSE 明文来自官方 `@deepseek-ai/dsh-experimental-inspector` 的 loopback CDP `Network` API；Agent eBPF 对 dsh launcher 和 `dsh.exec` 子进程明确跳过 TLS uProbe attach。Inspector URL、headers、body 在进入 capture store 前复用现有脱敏管线。
+**DeepSeek Harness (`dsh`)**：使用原生 Cordis 插件（默认 `~/.dsh/plugins/agent-ebpf-hook-active-dsh.mjs`），通过 `$DSH_HOME/cordis.patch.yml` 在所有 profile 加载。安装后重启 dsh；后端与 dsh 的 `DSH_HOME` 必须一致。只上报会话/工具元数据，不发送参数或结果正文，不执行审批或阻断。卸载仅移除托管配置及文件，保留旧 wrapper alias。详见 [API 参考](../backend/routes-api.md#deepseek-harness-原生插件)。
 
 **MiniMax Code (`mcode`)**：使用 wrapper-only 集成，不修改其登录、provider、模型或会话数据。公开源码确认 `mcode` 同时承载 TUI、headless `exec` 与 `acp`，并在启动后将进程标题设置为 `minimax-code`；因此两种进程身份都纳入 tracked-command / PID lineage。公开仓库不含桌面应用源码，本项目不据此虚构桌面 native hook。
 
@@ -151,7 +143,7 @@ curl -X POST \
 
 | 字段 | 说明 |
 | --- | --- |
-| `cli` | Native hook CLI 标识（claude / gemini / codex / zcode / pi / omp 等；dsh exec 走 subprocess-provider wrapper event，mcode 走 wrapper event） |
+| `cli` | CLI 标识（claude / gemini / codex / zcode / dsh / pi / omp 等） |
 | `event_name` | 事件名称 |
 | `hook_name` | Hook 配置名称 |
 | `tool_name` | 工具名称（如有） |
@@ -204,3 +196,11 @@ Pi/Oh My Pi extension 当前上报 `session_start`、`tool_call` 和 `tool_resul
 - [事件管线](../backend/event-pipeline.md)
 - [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)
 - [代码入口索引](../reference/code-entrypoints.md)
+
+## DeepSeek Harness dual-hook capability
+
+`dsh` keeps the existing DSH_HOME Cordis patch integration for metadata-only session/tool observation. It remains the default native hook, and uninstall preserves shell aliases.
+
+`dsh-exec` is an **independent, opt-in** subprocess provider implemented in `integrations/dsh-subprocess`. It wraps Harness-owned `spawn` and `spawnTerminal` through `agent-wrapper --dsh-exec --verbatim --` and then delegates to the official local provider. Installing or uninstalling `dsh-exec` does not install/uninstall the `dsh` native Cordis monitor, and does not edit shell aliases. Both integrations can coexist.
+
+The API `/api/dsh/inspector/{status,events,connect,disconnect}` exposes optional user-triggered userspace Network capture over a loopback-only CDP endpoint. Captured URL, headers and body are sanitized before storage; the source tag stays `dsh_inspector`. No Inspector connection is opened automatically. To enforce commands, a working `agent-wrapper` backend Unix socket and actual compatible dsh profile plugin installation are required; an offline test cannot establish enforcement.

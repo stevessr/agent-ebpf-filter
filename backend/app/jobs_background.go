@@ -2,6 +2,7 @@ package app
 
 import (
 	"agent-ebpf-filter/app/captureprofile"
+	"agent-ebpf-filter/app/handlers"
 	"agent-ebpf-filter/app/recording"
 	"agent-ebpf-filter/app/research"
 	"bytes"
@@ -16,6 +17,7 @@ import (
 	"unsafe"
 
 	"agent-ebpf-filter/app/events"
+	"agent-ebpf-filter/pb"
 
 	"github.com/cilium/ebpf/ringbuf"
 )
@@ -79,10 +81,12 @@ func commDisabled(raw []byte) bool {
 }
 
 func eventTypeDisabled(eventType uint32) bool {
-	disabledEventTypesMu.RLock()
-	defer disabledEventTypesMu.RUnlock()
-	_, ok := disabledEventTypes[eventType]
-	return ok
+	if eventType > 255 {
+		return false
+	}
+	word := eventType >> 6
+	bit := uint64(1) << (eventType & 63)
+	return disabledEventTypeBits[word].Load()&bit != 0
 }
 
 // decodeBPFEventRecord returns a view over the ring-buffer sample when the host
@@ -154,6 +158,17 @@ func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) 
 	initRedactionEngine()
 	startAPICaptureProfileWatcher(ctx, jobs)
 	jobs.Go(func() { runEventBroadcaster(ctx) })
+	if session := activeDesktopSession.Load(); session != nil {
+		jobs.Go(func() {
+			err := handlers.StreamSystemStats(ctx, 2*time.Second, func(stats *pb.SystemStats) error {
+				session.publishProto(desktopFrameSystemStats, stats)
+				return nil
+			})
+			if err != nil && ctx.Err() == nil {
+				log.Printf("[WARN] native desktop system stream stopped: %v", err)
+			}
+		})
+	}
 	jobs.Go(func() { runSemanticAlertStateGC(ctx, semanticAlertsState, semanticStateGCInterval) })
 	jobs.Go(func() { runToolBaselineGC(ctx, toolBaseline, toolBaselineEvictionInterval) })
 	startKernelRiskFeedbackWorker(ctx)

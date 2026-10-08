@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-ebpf-filter.local/schemas/outcome-validation-evidence.v1.json",
+  "title": "Agent eBPF Filter outcome validation evidence",
+  "description": "Reference producer/audit schema for the nested features.validation object emitted by an authorized external validator. The backend also accepts documented dotted aliases and independently enforces authorization, scope, correlation and evidence-level policy; schema conformance alone never authorizes active testing.",
+  "type": "object",
+  "required": ["authorized", "validatorId", "authorizationId", "runId"],
+  "properties": {
+    "authorized": {
+      "const": true,
+      "description": "Explicit opt-in evidence authorization marker. This is an evidence-policy marker, not a cryptographic capability or permission to attack a target."
+    },
+    "validatorId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable identity of the validator used for independent-review checks."
+    },
+    "authorizationId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Identifier for the approved validation scope, change ticket, CI approval, or equivalent authorization record."
+    },
+    "runId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Unique or traceable ID for the disposable validation run."
+    },
+    "candidateId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Preferred explicit correlation to a security-evaluation sample ID."
+    },
+    "candidateEventId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional correlation to the original Research event ID."
+    },
+    "findingKey": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional stable root-cause key used to deduplicate actionable variants."
+    },
+    "reachable": {
+      "type": "boolean"
+    },
+    "reproduced": {
+      "type": "boolean"
+    },
+    "impactConfirmed": {
+      "type": "boolean"
+    },
+    "refuted": {
+      "type": "boolean"
+    },
+    "rejected": {
+      "type": "boolean"
+    }
+  },
+  "allOf": [
+    {
+      "anyOf": [
+        { "required": ["candidateId"] },
+        { "required": ["candidateEventId"] }
+      ]
+    },
+    {
+      "anyOf": [
+        { "required": ["reachable"] },
+        { "required": ["reproduced"] },
+        { "required": ["impactConfirmed"] },
+        { "required": ["refuted"] },
+        { "required": ["rejected"] }
+      ]
+    }
+  ],
+  "additionalProperties": true
+}

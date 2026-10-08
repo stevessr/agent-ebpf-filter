@@ -1,0 +1,20 @@
+name: Bounded ring batch regression
+on:
+  pull_request:
+    paths: ['backend/internal/boundedring/**', '.github/workflows/boundedring-regression.yml']
+  push:
+    branches: [master]
+    paths: ['backend/internal/boundedring/**', '.github/workflows/boundedring-regression.yml']
+jobs:
+  ring:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.work
+          cache: false
+      - name: Ring differential and race tests
+        run: cd backend && go test -race ./internal/boundedring -count=1
+      - name: Batch microbenchmarks
+        run: cd backend && go test ./internal/boundedring -run '^$' -bench BenchmarkRingSteadyStateAddBatch -benchtime=100ms

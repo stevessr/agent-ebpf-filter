@@ -30,6 +30,7 @@ type lsmEnforcerRuntime struct {
 	Links             []link.Link
 	LinkPins          []string
 	LastError         string
+	PathAccessSupported bool
 }
 
 type lsmPathKey struct {
@@ -59,6 +60,7 @@ type LsmEnforcerSnapshot struct {
 	LinkCount         int
 	LinkPins          []string
 	LastError         string
+	PathAccessSupported bool
 }
 
 func CurrentLsmEnforcerSnapshot() LsmEnforcerSnapshot {
@@ -72,6 +74,7 @@ func CurrentLsmEnforcerSnapshot() LsmEnforcerSnapshot {
 		LinkCount:         len(lsmEnforcer.Links),
 		LinkPins:          append([]string(nil), lsmEnforcer.LinkPins...),
 		LastError:         lsmEnforcer.LastError,
+		PathAccessSupported: lsmEnforcer.PathAccessSupported,
 	}
 }
 

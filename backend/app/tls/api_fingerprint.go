@@ -42,8 +42,7 @@ func annotateTLSAPIFingerprint(event *TLSPlaintextEvent) {
 	if protocol == "" {
 		return
 	}
-	// Inspector and other userspace capture sources must retain their
-	// origin; only kernel TLS plaintext without an explicit source defaults.
+	// Preserve the provenance of explicit Inspector/userspace capture sources.
 	if strings.TrimSpace(event.CaptureSource) == "" {
 		event.CaptureSource = "tls_plaintext"
 	}

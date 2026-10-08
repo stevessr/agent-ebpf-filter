@@ -413,6 +413,9 @@ func TestOSEnforcementStatusRoutesRequireAuth(t *testing.T) {
 	}
 	source := string(data)
 	for _, route := range []string{
+		"/sandbox/runtime/status",
+		"/sandbox/runtime/detect",
+		"/sandbox/runtime/active",
 		"/sandbox/cgroup/status",
 		"/sandbox/lsm/status",
 	} {

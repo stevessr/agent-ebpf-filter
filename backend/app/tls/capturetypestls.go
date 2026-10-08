@@ -79,31 +79,35 @@ type CompletedTLSFragment struct {
 }
 
 type TLSPlaintextEvent struct {
-	Type           string            `json:"type"`
-	Timestamp      time.Time         `json:"timestamp"`
-	PID            uint32            `json:"pid"`
-	TGID           uint32            `json:"tgid"`
-	Comm           string            `json:"comm"`
-	Direction      string            `json:"direction"`
-	Lib            string            `json:"lib"`
-	Function       string            `json:"function,omitempty"`
-	CapturedLen    int               `json:"captured_len"`
-	OriginalLen    int               `json:"original_len"`
-	Method         string            `json:"method,omitempty"`
-	URL            string            `json:"url,omitempty"`
-	Host           string            `json:"host,omitempty"`
-	StatusCode     int               `json:"status,omitempty"`
-	Headers        map[string]string `json:"headers,omitempty"`
-	Body           string            `json:"body,omitempty"`
-	BodySize       int               `json:"body_size"`
-	ContentType    string            `json:"content_type,omitempty"`
-	RawHexDump     string            `json:"raw_hex_dump,omitempty"`
-	RawAvailable   bool              `json:"raw_available"`
-	Truncated      bool              `json:"truncated"`
-	RedactionState string            `json:"redaction_state,omitempty"`
-	SSEEvent       string            `json:"sse_event,omitempty"`
-	SSEDataDigest  string            `json:"sse_data_digest,omitempty"`
-	SSEDataCount   int               `json:"sse_data_count,omitempty"`
+	Type               string            `json:"type"`
+	Timestamp          time.Time         `json:"timestamp"`
+	PID                uint32            `json:"pid"`
+	TGID               uint32            `json:"tgid"`
+	Comm               string            `json:"comm"`
+	Direction          string            `json:"direction"`
+	Lib                string            `json:"lib"`
+	Function           string            `json:"function,omitempty"`
+	CapturedLen        int               `json:"captured_len"`
+	OriginalLen        int               `json:"original_len"`
+	Method             string            `json:"method,omitempty"`
+	URL                string            `json:"url,omitempty"`
+	Host               string            `json:"host,omitempty"`
+	StatusCode         int               `json:"status,omitempty"`
+	Headers            map[string]string `json:"headers,omitempty"`
+	Body               string            `json:"body,omitempty"`
+	BodySize           int               `json:"body_size"`
+	ContentType        string            `json:"content_type,omitempty"`
+	RawHexDump         string            `json:"raw_hex_dump,omitempty"`
+	RawAvailable       bool              `json:"raw_available"`
+	Truncated          bool              `json:"truncated"`
+	RedactionState     string            `json:"redaction_state,omitempty"`
+	SSEEvent           string            `json:"sse_event,omitempty"`
+	SSEDataDigest      string            `json:"sse_data_digest,omitempty"`
+	SSEDataCount       int               `json:"sse_data_count,omitempty"`
+	ProtocolEvent      string            `json:"protocol_event,omitempty"`
+	StreamID           string            `json:"stream_id,omitempty"`
+	ResponseID         string            `json:"response_id,omitempty"`
+	PreviousResponseID string            `json:"previous_response_id,omitempty"`
 
 	// Probe timing is intentionally explicit for auditability. ProbeTimestampNS
 	// is the raw clock value emitted by the eBPF program. Live capture uses
@@ -130,11 +134,14 @@ type TLSPlaintextEvent struct {
 	TraceID        string `json:"trace_id,omitempty"`
 	SpanID         string `json:"span_id,omitempty"`
 
-	MessageRole  string `json:"message_role,omitempty"`
-	PromptDigest string `json:"prompt_digest,omitempty"`
-	PromptLen    int    `json:"prompt_len,omitempty"`
-	Vendor       string `json:"vendor,omitempty"`
-	LoopAlert    bool   `json:"loop_alert,omitempty"`
+	MessageRole   string `json:"message_role,omitempty"`
+	PromptDigest  string `json:"prompt_digest,omitempty"`
+	PromptLen     int    `json:"prompt_len,omitempty"`
+	ContextDigest string `json:"context_digest,omitempty"`
+	ContextLen    int    `json:"context_len,omitempty"`
+	ContextItems  int    `json:"context_items,omitempty"`
+	Vendor        string `json:"vendor,omitempty"`
+	LoopAlert     bool   `json:"loop_alert,omitempty"`
 
 	// Generalized API-capture metadata. These fields are derived from
 	// sanitized protocol metadata and are shared across TLS libraries.
