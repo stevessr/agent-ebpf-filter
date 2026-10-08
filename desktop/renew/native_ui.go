@@ -105,6 +105,8 @@ type renewApp struct {
 	registryBusy  bool
 	registryErr   string
 	registryTab   int
+	registryFilterTag    string
+	registryFilterStatus string
 	registry      registrySnapshot
 	newTag        string
 	trackName     string
