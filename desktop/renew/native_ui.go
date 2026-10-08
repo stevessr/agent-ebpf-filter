@@ -514,7 +514,7 @@ func pageSubtitle(page string) string {
 	}
 }
 
-func statusPill(c *ui.Context, text string, tone ui.Color) *ui.Element {
+func statusPill(c *ui.Context, text string, tone ui.Color) ui.Element {
 	return ui.Badge(c, text).Background(tone.Alpha(0.13)).TextColor(tone)
 }
 
@@ -529,7 +529,7 @@ func riskTextColor(t *ui.Theme, risk string) ui.Color {
 	}
 }
 
-func riskPill(c *ui.Context, risk string) *ui.Element {
+func riskPill(c *ui.Context, risk string) ui.Element {
 	t := c.Theme()
 	switch risk {
 	case "高风险":
@@ -675,7 +675,7 @@ func (a *renewApp) eventFilterOptions() ([]string, []string) {
 	return a.eventTypeOptions, a.eventSessionOptions
 }
 
-func card(c *ui.Context, title string, body func()) *ui.Element {
+func card(c *ui.Context, title string, body func()) ui.Element {
 	t := c.Theme()
 	return ui.Column(c).Padding(18).Gap(12).Radius(12).Background(t.Surface).Border(1, t.Border).Children(func() {
 		if title != "" {
