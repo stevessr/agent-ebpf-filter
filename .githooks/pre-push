@@ -15,15 +15,24 @@ echo "${CYAN}━━━ Pre-push: Verification Gate ━━━${NC}"
 
 REMOTE="$1"
 URL="$2"
-LOCAL_REF="$3"
-LOCAL_SHA="$4"
-REMOTE_REF="$5"
-REMOTE_SHA="$6"
 
-# Only check on branch pushes, not tag pushes or deletions
+# Only check on branch pushes, not tag pushes or deletions.
+# Push info arrives on stdin: <local-ref> SP <local-sha> SP <remote-ref> SP <remote-sha>
+# ($3+ are NOT populated by git-push; reading them there always saw empty values
+# and skipped the entire gate below).
+LOCAL_REF=""
+LOCAL_SHA=""
+while IFS=' ' read -r lr lsha rr rsha; do
+    [ -n "$lr" ] || continue
+    case "$lr" in
+        # only branch pushes; tags and deletions skip the gate
+        refs/heads/*) LOCAL_REF="$lr"; LOCAL_SHA="$lsha" ;;
+    esac
+done
 if [ -z "$LOCAL_SHA" ] || [ "$LOCAL_SHA" = "0000000000000000000000000000000000000000" ]; then
     exit 0
 fi
+echo "  ${YELLOW}Pushing $LOCAL_REF → $REMOTE ($URL)${NC}"
 
 # ── 1. Lint backend ──────────────────────────────────────────────────────
 echo "${YELLOW}  → Running Go fmt check...${NC}"
@@ -64,12 +73,11 @@ fi
 
 # ── 4. Go vet ─────────────────────────────────────────────────────────────
 echo "${YELLOW}  → Running go vet...${NC}"
-cd backend && go vet ./... 2>/dev/null && cd .. || {
-    cd ..
+if ! (cd backend && go vet ./... 2>/dev/null); then
     echo "${RED}  ✗ Go vet found issues. Fix before pushing.${NC}"
     echo "${RED}✗ Push rejected${NC}"
     exit 1
-}
+fi
 echo "${GREEN}    ✓ Go vet OK${NC}"
 
 # ── 5. Build check ────────────────────────────────────────────────────────

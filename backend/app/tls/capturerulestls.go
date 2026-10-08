@@ -1,12 +1,11 @@
 package tls
 
 import (
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
 )
-
-// ---- moved from backend/zz_merged_backend.go section capturerulestls.go ----
 
 type TLSCaptureRule struct {
 	ID          string   `json:"id"`
@@ -14,6 +13,7 @@ type TLSCaptureRule struct {
 	Enabled     bool     `json:"enabled"`
 	Scope       string   `json:"scope"`
 	Comms       []string `json:"comms,omitempty"`
+	Paths       []string `json:"paths,omitempty"`
 	Hosts       []string `json:"hosts,omitempty"`
 	Methods     []string `json:"methods,omitempty"`
 	Libraries   []string `json:"libraries,omitempty"`
@@ -90,6 +90,7 @@ func normalizeTLSCaptureRules(rules []TLSCaptureRule) []TLSCaptureRule {
 			rule.Scope = "custom"
 		}
 		rule.Comms = normalizeTLSRuleValues(rule.Comms, false)
+		rule.Paths = normalizeTLSExecutablePaths(rule.Paths)
 		rule.Hosts = normalizeTLSRuleValues(rule.Hosts, true)
 		rule.Methods = normalizeTLSRuleValues(rule.Methods, true)
 		rule.Libraries = normalizeTLSRuleValues(rule.Libraries, true)
@@ -139,6 +140,101 @@ func normalizeTLSRuleValues(values []string, lower bool) []string {
 		out = append(out, trimmed)
 	}
 	return out
+}
+
+// ExecutablePaths returns the enabled executable-path allowlist used before
+// any TLS uprobe is attached. Empty means auto-discovery is fail-closed.
+func (s *TLSCaptureRuleStore) ExecutablePaths() []string {
+	if s == nil {
+		return nil
+	}
+	rules := s.List()
+	out := make([]string, 0)
+	seen := make(map[string]struct{})
+	for _, rule := range rules {
+		if !rule.Enabled {
+			continue
+		}
+		for _, path := range rule.Paths {
+			if _, ok := seen[path]; ok {
+				continue
+			}
+			seen[path] = struct{}{}
+			out = append(out, path)
+		}
+	}
+	return out
+}
+
+// AllowsExecutablePath is intentionally stricter than the event-level rule
+// matcher: TLS probe attachment is denied unless an enabled rule explicitly
+// names the executable path (or a directory /** prefix). This keeps unrelated
+// processes out of the eBPF TLS plaintext path entirely.
+func (s *TLSCaptureRuleStore) AllowsExecutablePath(path string) bool {
+	candidate := normalizeTLSExecutablePath(path)
+	if candidate == "" {
+		return false
+	}
+	for _, allowed := range s.ExecutablePaths() {
+		if tlsExecutablePathMatches(candidate, allowed) {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeTLSExecutablePaths(values []string) []string {
+	out := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		normalized := normalizeTLSExecutablePath(value)
+		if normalized == "" {
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		out = append(out, normalized)
+	}
+	return out
+}
+
+func normalizeTLSExecutablePath(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return ""
+	}
+	if strings.HasSuffix(path, "/**") {
+		base := strings.TrimSuffix(path, "/**")
+		base = filepath.Clean(base)
+		if base == "." || base == string(filepath.Separator) {
+			return ""
+		}
+		return strings.TrimSuffix(base, string(filepath.Separator)) + "/**"
+	}
+	return filepath.Clean(path)
+}
+
+func tlsExecutablePathMatches(candidate, allowed string) bool {
+	allowed = normalizeTLSExecutablePath(allowed)
+	if allowed == "" {
+		return false
+	}
+	if strings.HasSuffix(allowed, "/**") {
+		prefix := strings.TrimSuffix(allowed, "/**")
+		return candidate == prefix || strings.HasPrefix(candidate, prefix+string(filepath.Separator))
+	}
+	if candidate == allowed {
+		return true
+	}
+	// Exact rules may be symlinks (for example /usr/local/bin/claude), while
+	// /proc/<pid>/exe reports the resolved target. Resolve only existing exact
+	// paths; wildcard directory rules remain lexical and predictable.
+	if resolved, err := filepath.EvalSymlinks(allowed); err == nil {
+		return normalizeTLSExecutablePath(resolved) == candidate
+	}
+	return false
 }
 
 func tlsCaptureRuleMatches(rule TLSCaptureRule, event TLSPlaintextEvent) bool {

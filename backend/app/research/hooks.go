@@ -18,6 +18,10 @@ var (
 	// SnapshotRuntimeSettingsHook returns the live runtime settings.
 	SnapshotRuntimeSettingsHook = func() core.RuntimeSettings { return core.RuntimeSettings{} }
 
+	// ResearchSettingsHook returns only the research-processing section for
+	// the per-event ingestion gate.
+	ResearchSettingsHook = func() core.ResearchProcessingSettings { return SnapshotRuntimeSettingsHook().ResearchProcessing }
+
 	// RecentCapturedEventsHook mirrors runtimeState.RecentEvents.
 	RecentCapturedEventsHook = func(limit int) ([]CapturedEventRecord, string, error) {
 		return nil, "", nil

@@ -1,8 +1,6 @@
 package recording
 
 import (
-	"agent-ebpf-filter/app/events"
-	"agent-ebpf-filter/app/platform"
 	"bufio"
 	"context"
 	"encoding/json"
@@ -13,26 +11,30 @@ import (
 	"sync"
 	"time"
 
+	"agent-ebpf-filter/app/platform"
+
 	"golang.org/x/sys/unix"
 )
 
-// ---- moved from backend/zz_merged_backend.go section recording_event.go ----
-
 type Status struct {
-	Active        bool   `json:"active"`
-	Stopping      bool   `json:"stopping"`
-	Path          string `json:"path,omitempty"`
-	DefaultPath   string `json:"defaultPath"`
-	StartedAt     string `json:"startedAt,omitempty"`
-	Count         int64  `json:"count"`
-	EnqueuedTotal uint64 `json:"enqueuedTotal"`
-	FailedTotal   uint64 `json:"failedTotal"`
-	DroppedTotal  uint64 `json:"droppedTotal"`
-	Pending       uint64 `json:"pending"`
-	QueueLen      int    `json:"queueLen"`
-	QueueCap      int    `json:"queueCap"`
-	LastFlushedAt string `json:"lastFlushedAt,omitempty"`
-	LastError     string `json:"lastError,omitempty"`
+	Active            bool   `json:"active"`
+	Stopping          bool   `json:"stopping"`
+	Path              string `json:"path,omitempty"`
+	DefaultPath       string `json:"defaultPath"`
+	StartedAt         string `json:"startedAt,omitempty"`
+	Count             int64  `json:"count"`
+	EnqueuedTotal     uint64 `json:"enqueuedTotal"`
+	FailedTotal       uint64 `json:"failedTotal"`
+	DroppedTotal      uint64 `json:"droppedTotal"`
+	Pending           uint64 `json:"pending"`
+	QueueLen          int    `json:"queueLen"`
+	QueueCap          int    `json:"queueCap"`
+	LastFlushedAt     string `json:"lastFlushedAt,omitempty"`
+	LastError         string `json:"lastError,omitempty"`
+	AuditChainVersion string `json:"auditChainVersion,omitempty"`
+	AuditChainID      string `json:"auditChainId,omitempty"`
+	AuditSequence     uint64 `json:"auditSequence,omitempty"`
+	AuditLastHash     string `json:"auditLastHash,omitempty"`
 }
 
 type State struct {
@@ -53,6 +55,7 @@ type State struct {
 	lastFlushAt time.Time
 	lastError   string
 	terminalErr error
+	auditChain  *AuditChain
 }
 
 var defaultStore = NewState()
@@ -164,6 +167,11 @@ func (s *State) startAtRootContext(ctx context.Context, root, path string, trunc
 		_ = file.Close()
 		return stopStatus, err
 	}
+	auditChain, err := NewAuditChain()
+	if err != nil {
+		_ = file.Close()
+		return Status{}, fmt.Errorf("initialize audit chain: %w", err)
+	}
 
 	queue := make(chan CapturedEventRecord, eventRecordingQueueSize)
 	stopCh := make(chan struct{})
@@ -184,10 +192,11 @@ func (s *State) startAtRootContext(ctx context.Context, root, path string, trunc
 	s.lastFlushAt = time.Time{}
 	s.lastError = ""
 	s.terminalErr = nil
+	s.auditChain = auditChain
 	status := s.statusLocked()
 	s.mu.Unlock()
 
-	go s.runGeneration(file, info.Size(), queue, stopCh, done)
+	go s.runGeneration(file, info.Size(), queue, stopCh, done, auditChain)
 	return status, nil
 }
 
@@ -289,6 +298,13 @@ func (s *State) statusLocked() Status {
 	if !s.lastFlushAt.IsZero() {
 		status.LastFlushedAt = s.lastFlushAt.UTC().Format(time.RFC3339Nano)
 	}
+	if s.auditChain != nil {
+		chain := s.auditChain.Status()
+		status.AuditChainVersion = chain.Version
+		status.AuditChainID = chain.ChainID
+		status.AuditSequence = chain.Sequence
+		status.AuditLastHash = chain.LastHash
+	}
 	return status
 }
 
@@ -298,6 +314,7 @@ func (s *State) runGeneration(
 	queue <-chan CapturedEventRecord,
 	stopCh <-chan struct{},
 	done chan struct{},
+	auditChain *AuditChain,
 ) {
 	writer := bufio.NewWriterSize(file, eventRecordingBufferBytes)
 	ticker := time.NewTicker(eventRecordingFlushInterval)
@@ -321,7 +338,7 @@ func (s *State) runGeneration(
 	}
 
 	process := func(record CapturedEventRecord) error {
-		payload, err := MarshalRecord(record)
+		payload, err := auditChain.MarshalRecord(record)
 		if err != nil {
 			s.noteRecordingFailure(1, err)
 			return nil
@@ -407,12 +424,25 @@ func (s *State) runGeneration(
 	}
 }
 
+// MarshalRecord encodes one JSONL line. Only ReceivedAt and Event are
+// persisted; the envelope is derived again on read, so it is deliberately
+// not built (or cloned) here.
 func MarshalRecord(record CapturedEventRecord) ([]byte, error) {
 	if record.Event == nil {
 		return nil, errors.New("event recording record has no event")
 	}
-	record = events.NormalizeCapturedEventRecord(record)
-	payload, err := json.Marshal(record)
+	payload, err := json.Marshal(&record)
+	if err != nil {
+		return nil, err
+	}
+	if len(payload) > eventRecordingMaxRecordBytes {
+		return nil, fmt.Errorf("%w: %d bytes (limit %d)", errEventRecordingRecordTooLarge, len(payload), eventRecordingMaxRecordBytes)
+	}
+	return payload, nil
+}
+
+func marshalNormalizedRecord(record CapturedEventRecord) ([]byte, error) {
+	payload, err := json.Marshal(&record)
 	if err != nil {
 		return nil, err
 	}

@@ -23,9 +23,9 @@ const {
 </script>
 
 <template>
-<!-- OS-level BPF LSM interception -->
+<!-- 操作系统级 BPF LSM 拦截 -->
     <a-col :span="24">
-      <a-card title="OS-Level BPF LSM File / Exec Interception" size="small">
+      <a-card title="操作系统级 BPF LSM 文件 / 执行拦截" size="small">
         <template #extra>
           <a-space>
             <a-tag
@@ -37,8 +37,8 @@ const {
             >
               {{
                 lsmEnforcerStatus.available && lsmEnforcerStatus.attached
-                  ? "BPF LSM active"
-                  : "not active"
+                  ? "BPF LSM 已启用"
+                  : "未启用"
               }}
             </a-tag>
             <a-button
@@ -46,7 +46,7 @@ const {
               :loading="lsmEnforcerLoading"
               @click="fetchLsmEnforcerStatus"
             >
-              <ReloadOutlined /> Refresh
+              <ReloadOutlined /> 刷新
             </a-button>
           </a-space>
         </template>
@@ -60,7 +60,7 @@ const {
         <a-row :gutter="[16, 16]">
           <a-col :xs="24" :lg="9">
             <a-descriptions size="small" bordered :column="1">
-              <a-descriptions-item label="Hooks">
+              <a-descriptions-item label="LSM 钩子">
                 <a-space wrap>
                   <a-tag
                     :color="lsmEnforcerStatus.attached ? 'green' : 'default'"
@@ -120,7 +120,7 @@ const {
                   >
                 </a-space>
               </a-descriptions-item>
-              <a-descriptions-item label="Maps">
+              <a-descriptions-item label="eBPF 映射">
                 <a-space wrap>
                   <a-tag
                     :color="
@@ -128,7 +128,7 @@ const {
                         ? 'green'
                         : 'default'
                     "
-                    >exec paths</a-tag
+                    >执行路径</a-tag
                   >
                   <a-tag
                     :color="
@@ -136,7 +136,7 @@ const {
                         ? 'green'
                         : 'default'
                     "
-                    >exec names</a-tag
+                    >可执行文件名</a-tag
                   >
                   <a-tag
                     :color="
@@ -144,31 +144,31 @@ const {
                         ? 'green'
                         : 'default'
                     "
-                    >file names</a-tag
+                    >文件名</a-tag
                   >
                   <a-tag
                     :color="lsmEnforcerStatus.maps.stats ? 'green' : 'default'"
-                    >stats</a-tag
+                    >统计</a-tag
                   >
                 </a-space>
               </a-descriptions-item>
-              <a-descriptions-item label="Pinned links">
+              <a-descriptions-item label="固定链接">
                 <span
                   v-if="!lsmEnforcerStatus.linkPins.length"
                   style="color: #6b7280"
-                  >process-held or unavailable</span
+                  >由进程持有或不可用</span
                 >
                 <div v-for="pin in lsmEnforcerStatus.linkPins" :key="pin">
                   <code>{{ pin }}</code>
                 </div>
               </a-descriptions-item>
-              <a-descriptions-item label="Error">
+              <a-descriptions-item label="错误">
                 <span
                   v-if="
                     !lsmEnforcerStatus.error && !lsmEnforcerStatus.statsError
                   "
                   style="color: #52c41a"
-                  >OK</span
+                  >正常</span
                 >
                 <span v-else style="color: #cf1322">{{
                   lsmEnforcerStatus.error || lsmEnforcerStatus.statsError
@@ -178,26 +178,26 @@ const {
           </a-col>
 
           <a-col :xs="24" :lg="6">
-            <a-card size="small" title="LSM decision counters">
+            <a-card size="small" title="LSM 决策计数">
               <a-row :gutter="[8, 8]">
                 <a-col :span="12"
                   ><a-statistic
-                    title="Exec checked"
+                    title="执行检查"
                     :value="lsmEnforcerStatus.stats.execChecked"
                 /></a-col>
                 <a-col :span="12"
                   ><a-statistic
-                    title="Exec blocked"
+                    title="执行阻断"
                     :value="lsmEnforcerStatus.stats.execBlocked"
                 /></a-col>
                 <a-col :span="12"
                   ><a-statistic
-                    title="File checked"
+                    title="文件检查"
                     :value="lsmEnforcerStatus.stats.fileChecked"
                 /></a-col>
                 <a-col :span="12"
                   ><a-statistic
-                    title="File blocked"
+                    title="文件阻断"
                     :value="lsmEnforcerStatus.stats.fileBlocked"
                 /></a-col>
               </a-row>
@@ -208,7 +208,7 @@ const {
             <div style="display: grid; gap: 12px">
               <div>
                 <div style="font-weight: 600; margin-bottom: 6px">
-                  Block / unblock executable path
+                  阻断 / 放行可执行文件路径
                 </div>
                 <a-input-group compact>
                   <a-input
@@ -221,19 +221,19 @@ const {
                     :disabled="!lsmEnforcerStatus.available"
                     :loading="lsmEnforcerLoading"
                     @click="blockLsmExecPath"
-                    >Block</a-button
+                    >阻断</a-button
                   >
                   <a-button
                     :disabled="!lsmEnforcerStatus.available"
                     :loading="lsmEnforcerLoading"
                     @click="unblockLsmExecPath()"
-                    >Unblock</a-button
+                    >放行</a-button
                   >
                 </a-input-group>
               </div>
               <div>
                 <div style="font-weight: 600; margin-bottom: 6px">
-                  Block / unblock executable basename
+                  阻断 / 放行可执行文件名
                 </div>
                 <a-input-group compact>
                   <a-input
@@ -246,19 +246,19 @@ const {
                     :disabled="!lsmEnforcerStatus.available"
                     :loading="lsmEnforcerLoading"
                     @click="blockLsmExecName"
-                    >Block</a-button
+                    >阻断</a-button
                   >
                   <a-button
                     :disabled="!lsmEnforcerStatus.available"
                     :loading="lsmEnforcerLoading"
                     @click="unblockLsmExecName()"
-                    >Unblock</a-button
+                    >放行</a-button
                   >
                 </a-input-group>
               </div>
               <div>
                 <div style="font-weight: 600; margin-bottom: 6px">
-                  Block / unblock file or directory basename
+                  阻断 / 放行文件或目录名
                 </div>
                 <a-input-group compact>
                   <a-input
@@ -271,19 +271,19 @@ const {
                     :disabled="!lsmEnforcerStatus.available"
                     :loading="lsmEnforcerLoading"
                     @click="blockLsmFileName"
-                    >Block</a-button
+                    >阻断</a-button
                   >
                   <a-button
                     :disabled="!lsmEnforcerStatus.available"
                     :loading="lsmEnforcerLoading"
                     @click="unblockLsmFileName()"
-                    >Unblock</a-button
+                    >放行</a-button
                   >
                 </a-input-group>
               </div>
               <div>
                 <div style="font-weight: 600; margin-bottom: 6px">
-                  Active BPF LSM blocks
+                  生效中的 BPF LSM 拦截
                 </div>
                 <a-space wrap>
                   <a-tag
@@ -321,7 +321,7 @@ const {
                     "
                     style="color: #6b7280"
                   >
-                    No active BPF LSM block entries
+                    当前没有生效的 BPF LSM 拦截项
                   </span>
                 </a-space>
               </div>

@@ -7,8 +7,6 @@ import (
 	"strings"
 )
 
-// ---- moved from backend/zz_merged_backend.go section ws_ml.go ----
-
 // buildMLStatusJSON builds the complete ML status payload as JSON bytes.
 // Shared by the HTTP handler and the WebSocket handler.
 func buildMLStatusJSON() []byte {
@@ -39,7 +37,9 @@ func buildMLStatusJSON() []byte {
 		"cRuntime":             buildMLCRuntimeStatus(mlRuntime.Engine, ml.GlobalTrainingStore),
 		"modelType":            string(mlRuntime.ModelType),
 		"availableModelTypes":  ml.AllModelTypeStrings(),
-		"builtinModels":        ml.BuiltinModelCatalog(),
+		"builtinModels":        ml.ClassifiedBuiltinModelCatalog(),
+		"modelTaxonomy":        ml.BuiltinModelTaxonomy(),
+		"featureTaxonomy":      ml.FeatureSourceCatalog(),
 		"modelLoaded":          status.GetModelLoaded(),
 		"numTrees":             status.GetNumTrees(),
 		"numSamples":           status.GetNumSamples(),

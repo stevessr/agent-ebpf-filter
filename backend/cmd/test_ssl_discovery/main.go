@@ -64,10 +64,10 @@ func main() {
 		cmdStr := string(cmdline)
 
 		isTarget := strings.Contains(cmdStr, "claude-code") ||
-		            strings.Contains(cmdStr, "codex") ||
-		            strings.Contains(cmdStr, "@cometix") ||
-		            strings.Contains(cmdStr, "@openai") ||
-		            baseName == "codex"
+			strings.Contains(cmdStr, "codex") ||
+			strings.Contains(cmdStr, "@cometix") ||
+			strings.Contains(cmdStr, "@openai") ||
+			baseName == "codex"
 
 		if !isTarget {
 			continue

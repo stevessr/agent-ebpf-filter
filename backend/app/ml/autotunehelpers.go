@@ -7,8 +7,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend.go section autotunehelpers.go ----
-
 func NormalizeAutoTuneAxis(axis string) string {
 	switch strings.ToLower(strings.TrimSpace(axis)) {
 	case "numtrees", "trees", "num_trees", "k", "learningrate", "learning_rate", "alpha", "nestimators", "n_estimators":

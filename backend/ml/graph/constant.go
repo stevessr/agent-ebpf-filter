@@ -8,9 +8,9 @@ const FeatureGroupCount = 16
 type ActivationFunc int
 
 const (
-	ActivationReLU     ActivationFunc = 0
+	ActivationReLU      ActivationFunc = 0
 	ActivationLeakyReLU ActivationFunc = 1
-	ActivationTanh     ActivationFunc = 2
-	ActivationSigmoid  ActivationFunc = 3
-	ActivationNone     ActivationFunc = 4
+	ActivationTanh      ActivationFunc = 2
+	ActivationSigmoid   ActivationFunc = 3
+	ActivationNone      ActivationFunc = 4
 )

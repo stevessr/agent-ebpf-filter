@@ -629,6 +629,7 @@ func findAllStringVAs(rodataData []byte, rodataVA uint64, s []byte) []uint64 {
 // Encoding (x86_64): [REX?] 0x8d <modrm: mod=00, rm=101> <disp32>
 //   - REX is optional (0x40..0x4f); present when using r8-r15 or 64-bit ops.
 //   - modrm low 3 bits (rm) == 101 and high 2 bits (mod) == 00 => RIP-relative.
+//
 // Effective target = (next_instr_vaddr) + sign-extended disp32.
 func findRIPRelLEARefs(textData []byte, textVA, targetVA uint64) []uint64 {
 	var refs []uint64

@@ -5,8 +5,6 @@ import (
 	"strings"
 )
 
-// ---- moved from backend/zz_merged_backend.go section contextutilsevent.go ----
-
 func PayloadString(payload map[string]interface{}, keys ...string) string {
 	for _, key := range keys {
 		if value, ok := payload[key]; ok {

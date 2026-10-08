@@ -10,8 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section apiexternal_test.go ----
-
 func TestExternalAPIRoutesExposeHealthAndOpenAPI(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -48,6 +46,11 @@ func TestExternalOpenAPISpecValidatesWithLowercaseMethods(t *testing.T) {
 	health := spec.Paths.Find("/health")
 	if health == nil || health.Get == nil {
 		t.Fatalf("OpenAPI spec missing GET /health: %+v", health)
+	}
+
+	runtimeStatus := spec.Paths.Find("/sandbox/runtime/status")
+	if runtimeStatus == nil || runtimeStatus.Get == nil {
+		t.Fatalf("OpenAPI spec missing GET /sandbox/runtime/status: %+v", runtimeStatus)
 	}
 
 	// /agentsight/events carries both GET and POST on the same path item.

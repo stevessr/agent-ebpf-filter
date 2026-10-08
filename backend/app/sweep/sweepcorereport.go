@@ -13,8 +13,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend.go section sweepcorereport.go ----
-
 func runMLSweepReport() error {
 	if parseBoolEnv(os.Getenv("ML_SWEEP_QUIET_LOGS")) {
 		origLogOutput := log.Writer()

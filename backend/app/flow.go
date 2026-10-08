@@ -12,15 +12,9 @@ import (
 	"agent-ebpf-filter/pb"
 )
 
-// ---- moved from backend/zz_merged_backend.go section flow.go ----
-
 type NetworkFlowSummary = netcore.NetworkFlowSummary
 
 type flowKey = netcore.FlowKey
-
-func makeFlowKey(srcIP, dstIP string, srcPort, dstPort uint32, protocol string) flowKey {
-	return netcore.MakeFlowKey(srcIP, dstIP, srcPort, dstPort, protocol)
-}
 
 type flowAggregator struct {
 	inner *netcore.FlowAggregator

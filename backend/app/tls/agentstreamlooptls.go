@@ -11,8 +11,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend.go section agentstreamlooptls.go ----
-
 func digestPromptText(text string) string {
 	trimmed := strings.TrimSpace(text)
 	if trimmed == "" {
@@ -228,6 +226,11 @@ func convertTLSToProtoEvent(source TLSPlaintextEvent) *pb.Event {
 		extras = append(extras, "prompt_digest="+source.PromptDigest)
 		extras = append(extras, fmt.Sprintf("prompt_len=%d", source.PromptLen))
 	}
+	if source.ContextDigest != "" {
+		extras = append(extras, "context_digest="+source.ContextDigest)
+		extras = append(extras, fmt.Sprintf("context_len=%d", source.ContextLen))
+		extras = append(extras, fmt.Sprintf("context_items=%d", source.ContextItems))
+	}
 	if source.StatusCode != 0 {
 		extras = append(extras, fmt.Sprintf("status=%d", source.StatusCode))
 	}
@@ -260,8 +263,16 @@ func convertTLSToProtoEvent(source TLSPlaintextEvent) *pb.Event {
 		HttpHost:       host,
 		NetEndpoint:    host,
 		NetDirection:   source.Direction,
-		AppProtocol:    "tls_plaintext",
+		AppProtocol:    source.AppProtocol,
 		ServiceName:    source.Vendor,
+		CaptureSource:  source.CaptureSource,
+		ApiProfile:     source.APIProfile,
+		ApiVendor:      source.Vendor,
+		ApiProduct:     source.APIProduct,
+		ApiOperation:   source.APIOperation,
+		HttpMethod:     source.Method,
+		HttpPath:       source.RequestPath,
+		ApiConfidence:  source.APIConfidence,
 	}
 }
 
@@ -277,6 +288,13 @@ func convertTLSToOTelSpanEvent(source TLSPlaintextEvent) *pb.Event {
 		"provider=" + source.Vendor,
 		"prompt_digest=" + source.PromptDigest,
 		fmt.Sprintf("prompt_len=%d", source.PromptLen),
+	}
+	if source.ContextDigest != "" {
+		extra = append(extra,
+			"context_digest="+source.ContextDigest,
+			fmt.Sprintf("context_len=%d", source.ContextLen),
+			fmt.Sprintf("context_items=%d", source.ContextItems),
+		)
 	}
 	return &pb.Event{
 		Pid:            source.PID,
@@ -310,6 +328,7 @@ func DispatchTLSAgentEvent(event *TLSPlaintextEvent, loopState *AgentLoopState, 
 		return
 	}
 	enrichTLSEventWithAgentContext(event)
+	annotateTLSAPIFingerprint(event)
 	annotateTLSAgentMessage(event)
 
 	if loopState != nil {

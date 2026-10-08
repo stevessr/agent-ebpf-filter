@@ -138,7 +138,7 @@ func TestHookConfigRawSupportsTypeScriptAndValidatesDocuments(t *testing.T) {
 
 func TestDshHookConfigurationUsesWrapperAlias(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	shellConfig := filepath.Join(t.TempDir(), ".bashrc")
+	shellConfig := filepath.Join(t.TempDir(), ".config", "fish", "config.fish")
 	oldAvailableHooks := Deps.AvailableHooks
 	oldGetShellConfigPath := Deps.GetShellConfigPath
 	Deps.AvailableHooks = func() []core.HookDef {
@@ -192,5 +192,24 @@ func TestDshHookConfigurationUsesWrapperAlias(t *testing.T) {
 	HandleConfigHooksRawGet(rawContext)
 	if rawWriter.Code != 404 {
 		t.Fatalf("dsh raw config status = %d, body = %s", rawWriter.Code, rawWriter.Body.String())
+	}
+}
+
+func TestDshNativeUninstallPreservesShell(t *testing.T) {
+	oldAvailable, oldUninstall, oldShell := Deps.AvailableHooks, Deps.UninstallNativeHook, Deps.GetShellConfigPath
+	t.Cleanup(func() {
+		Deps.AvailableHooks, Deps.UninstallNativeHook, Deps.GetShellConfigPath = oldAvailable, oldUninstall, oldShell
+	})
+	Deps.AvailableHooks = func() []core.HookDef { return []core.HookDef{{ID: "dsh", HookType: core.HookTypeNative}} }
+	called := false
+	Deps.UninstallNativeHook = func(h core.HookDef) error { called = true; return nil }
+	Deps.GetShellConfigPath = func() string { t.Fatal("native uninstall must not alter shell aliases"); return "" }
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("POST", "/config/hooks", bytes.NewBufferString(`{"id":"dsh","install":false}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	HandleConfigHooksInstall(c)
+	if w.Code != 200 || !called {
+		t.Fatalf("uninstall: %d, called=%v", w.Code, called)
 	}
 }

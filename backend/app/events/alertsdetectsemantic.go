@@ -3,12 +3,12 @@ package events
 import (
 	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
+	"bytes"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
-
-// ---- moved from app/alertsdetectsemantic.go ----
 
 // ── Core helper functions ─────────────────────────────────────────────
 
@@ -26,25 +26,81 @@ func toolNameLooksReadOnly(toolName string) bool {
 }
 
 func extractSecretTarget(event *pb.Event) (string, bool) {
-	for _, candidate := range []string{event.GetPath(), event.GetExtraPath()} {
-		if isSecretLikePath(candidate) {
-			return candidate, true
-		}
+	return extractSecretTargetWith(event, isSecretLikePath(event.GetPath()))
+}
+
+// extractSecretTargetWith is extractSecretTarget with the verdict for
+// event.Path already known, so one event never scans its path twice.
+func extractSecretTargetWith(event *pb.Event, pathIsSecret bool) (string, bool) {
+	if pathIsSecret {
+		return event.GetPath(), true
+	}
+	if extra := event.GetExtraPath(); extra != "" && isSecretLikePath(extra) {
+		return extra, true
 	}
 	return "", false
 }
 
+// isSecretLikePath reports whether path contains one of SecretPathHints,
+// ignoring ASCII case. The path is folded into a stack buffer and scanned
+// once: at each position only the hints starting with that byte are tried,
+// so the cost is one pass over the path rather than one search per hint.
 func isSecretLikePath(path string) bool {
-	lower := strings.ToLower(strings.TrimSpace(path))
-	if lower == "" {
+	path = strings.TrimSpace(path)
+	if path == "" {
 		return false
 	}
-	for _, hint := range SecretPathHints {
-		if strings.Contains(lower, hint) {
-			return true
+	index := secretPathHintIndex()
+	for i := 0; i < len(path); i++ {
+		c := path[i]
+		if 'A' <= c && c <= 'Z' {
+			c += 'a' - 'A'
+		}
+		for _, hint := range index[c] {
+			if hasPrefixFoldASCII(path[i:], hint) {
+				return true
+			}
 		}
 	}
 	return false
+}
+
+// hasPrefixFoldASCII reports whether s starts with lowerPrefix ignoring ASCII
+// case; lowerPrefix must already be lower-case.
+func hasPrefixFoldASCII(s, lowerPrefix string) bool {
+	if len(s) < len(lowerPrefix) {
+		return false
+	}
+	for i := 0; i < len(lowerPrefix); i++ {
+		c := s[i]
+		if 'A' <= c && c <= 'Z' {
+			c += 'a' - 'A'
+		}
+		if c != lowerPrefix[i] {
+			return false
+		}
+	}
+	return true
+}
+
+var (
+	secretPathHintsOnce  sync.Once
+	secretPathHintsTable [256][]string
+)
+
+// secretPathHintIndex groups SecretPathHints by first byte. It is built on
+// first use, so SecretPathHints must be finalised before any event is scanned.
+func secretPathHintIndex() *[256][]string {
+	secretPathHintsOnce.Do(func() {
+		for _, hint := range SecretPathHints {
+			hint = strings.ToLower(hint)
+			if hint == "" {
+				continue
+			}
+			secretPathHintsTable[hint[0]] = append(secretPathHintsTable[hint[0]], hint)
+		}
+	})
+	return &secretPathHintsTable
 }
 
 func extractNetworkTarget(event *pb.Event) (string, bool) {
@@ -162,24 +218,54 @@ func detectSuspiciousShellTransport(event *pb.Event) (string, string, bool) {
 	if event == nil {
 		return "", "", false
 	}
-	lower := strings.ToLower(strings.Join([]string{
-		event.GetComm(),
-		event.GetPath(),
-		event.GetExtraInfo(),
-	}, " "))
+	var scratch [384]byte
+	lower := lowerJoinedFields(scratch[:0], event.GetComm(), event.GetPath(), event.GetExtraInfo())
+	contains := func(pattern string) bool { return bytes.Contains(lower, []byte(pattern)) }
 	switch {
-	case (strings.Contains(lower, "curl") || strings.Contains(lower, "wget")) &&
-		(strings.Contains(lower, "| sh") || strings.Contains(lower, "| bash")):
+	case (contains("curl") || contains("wget")) &&
+		(contains("| sh") || contains("| bash")):
 		return platform.FirstNonEmpty(event.GetPath(), event.GetComm()), "observed a curl/wget pipeline into a shell", true
-	case strings.Contains(lower, "bash -i >& /dev/tcp") ||
-		strings.Contains(lower, "bash -i > /dev/tcp") ||
-		strings.Contains(lower, "nc -e") ||
-		strings.Contains(lower, "socat exec:") ||
-		strings.Contains(lower, "/dev/tcp/"):
+	case contains("bash -i >& /dev/tcp") ||
+		contains("bash -i > /dev/tcp") ||
+		contains("nc -e") ||
+		contains("socat exec:") ||
+		contains("/dev/tcp/"):
 		return platform.FirstNonEmpty(event.GetPath(), event.GetComm()), "observed a reverse-shell-like shell transport pattern", true
 	default:
 		return "", "", false
 	}
+}
+
+// lowerJoinedFields appends strings.ToLower(strings.Join(fields, " ")) to dst.
+// ASCII input is folded in place without allocating; anything else goes
+// through strings.ToLower so Unicode case mapping stays identical.
+func lowerJoinedFields(dst []byte, fields ...string) []byte {
+	for i, field := range fields {
+		if i > 0 {
+			dst = append(dst, ' ')
+		}
+		if isASCIIString(field) {
+			for j := 0; j < len(field); j++ {
+				c := field[j]
+				if 'A' <= c && c <= 'Z' {
+					c += 'a' - 'A'
+				}
+				dst = append(dst, c)
+			}
+			continue
+		}
+		dst = append(dst, strings.ToLower(field)...)
+	}
+	return dst
+}
+
+func isASCIIString(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= 0x80 {
+			return false
+		}
+	}
+	return true
 }
 
 func recentExecutableAfterChmod(event *pb.Event, now time.Time) (string, bool) {

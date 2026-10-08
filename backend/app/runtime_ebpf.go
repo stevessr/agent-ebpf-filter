@@ -3,6 +3,8 @@ package app
 import (
 	"agent-ebpf-filter/app/platform"
 	bpf "agent-ebpf-filter/ebpf"
+	"crypto/rand"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"log"
@@ -11,18 +13,17 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/rlimit"
 )
 
-// ---- moved from backend/zz_merged_backend.go section runtime_ebpf.go ----
-
 const bootstrapFlag = "--ebpf-bootstrap"
 
 // mapNames defines the required pinned eBPF maps.
-var mapNames = []string{"agent_pids", "events", "collector_stats", "tracked_comms", "tracked_paths", "tracked_prefixes", "exit_ctx", "exit_path_buf", "exit_path_ctx"}
+var mapNames = []string{"agent_pids", "events", "collector_stats", "context_pressure_stats", "tracked_comms", "tracked_paths", "tracked_prefixes", "tracking_mode", "exit_ctx", "exit_io_ctx", "exit_compact_ctx", "exit_single_path_buf", "exit_path_buf", "exit_single_path_ctx", "exit_path_ctx", "socket_fds", "socket_fd_parents"}
 
 type tracepointAttachSpec struct {
 	category string
@@ -79,6 +80,141 @@ func tracepointNameFromTag(tag string) (category, name string, ok bool) {
 	return parts[0], parts[1], true
 }
 
+const (
+	trackingModePathExact uint32 = 1 << iota
+	trackingModePathPrefix
+)
+
+func trackingModeFlags(hasExact, hasPrefix bool) uint32 {
+	var flags uint32
+	if hasExact {
+		flags |= trackingModePathExact
+	}
+	if hasPrefix {
+		flags |= trackingModePathPrefix
+	}
+	return flags
+}
+
+func mapHasEntries(m *ebpf.Map) (bool, error) {
+	if m == nil {
+		return false, errors.New("map is nil")
+	}
+	key, err := m.NextKeyBytes(nil)
+	if err != nil {
+		if errors.Is(err, ebpf.ErrKeyNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+	return len(key) != 0, nil
+}
+
+func syncTrackingModeMap(mode, paths, prefixes *ebpf.Map) error {
+	if mode == nil || paths == nil || prefixes == nil {
+		return errors.New("tracking mode maps are incomplete")
+	}
+	hasExact, err := mapHasEntries(paths)
+	if err != nil {
+		return fmt.Errorf("inspect exact path tracking map: %w", err)
+	}
+	hasPrefix, err := mapHasEntries(prefixes)
+	if err != nil {
+		return fmt.Errorf("inspect prefix path tracking map: %w", err)
+	}
+	flags := trackingModeFlags(hasExact, hasPrefix)
+	key := uint32(0)
+	if err := mode.Update(&key, &flags, ebpf.UpdateAny); err != nil {
+		return fmt.Errorf("update tracking mode flags: %w", err)
+	}
+	return nil
+}
+
+func syncTrackingModeFlags(set *trackerMapSet) error {
+	if set == nil {
+		return errors.New("tracker map set is nil")
+	}
+	return syncTrackingModeMap(set.TrackingMode, set.TrackedPaths, set.TrackedPrefixes)
+}
+
+var trackingModeMutationMu sync.Mutex
+
+func forceTrackingModePathAny(mode *ebpf.Map) error {
+	if mode == nil {
+		return errors.New("tracking mode map is nil")
+	}
+	flags := trackingModePathExact | trackingModePathPrefix
+	key := uint32(0)
+	if err := mode.Update(&key, &flags, ebpf.UpdateAny); err != nil {
+		return fmt.Errorf("force fail-open tracking mode: %w", err)
+	}
+	return nil
+}
+
+func rollbackTrackedSelector(set *trackerMapSet, target *ebpf.Map, key any, hadPrevious bool, previous uint32, syncErr error) error {
+	var rollbackErr error
+	if hadPrevious {
+		rollbackErr = target.Put(key, previous)
+	} else if err := target.Delete(key); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+		rollbackErr = err
+	}
+	// A sync failure must never leave the kernel in a false-negative state.
+	// If exact reconstruction fails for any reason, force both path classes on;
+	// extra path work is preferable to suppressing a configured rule.
+	failOpenErr := forceTrackingModePathAny(set.TrackingMode)
+	if rollbackErr != nil || failOpenErr != nil {
+		return errors.Join(
+			fmt.Errorf("sync path tracking mode: %w", syncErr),
+			fmt.Errorf("rollback tracked selector: %w", rollbackErr),
+			failOpenErr,
+		)
+	}
+	return fmt.Errorf("sync path tracking mode: %w", syncErr)
+}
+
+func putTrackedSelector(set *trackerMapSet, target *ebpf.Map, key, value any) error {
+	if set == nil || target == nil {
+		return errors.New("tracked selector maps are incomplete")
+	}
+	trackingModeMutationMu.Lock()
+	defer trackingModeMutationMu.Unlock()
+
+	var previous uint32
+	hadPrevious := false
+	if err := target.Lookup(key, &previous); err == nil {
+		hadPrevious = true
+	} else if !errors.Is(err, ebpf.ErrKeyNotExist) {
+		return fmt.Errorf("snapshot tracked selector: %w", err)
+	}
+	if err := target.Put(key, value); err != nil {
+		return err
+	}
+	if err := syncTrackingModeFlags(set); err != nil {
+		return rollbackTrackedSelector(set, target, key, hadPrevious, previous, err)
+	}
+	return nil
+}
+
+func deleteTrackedSelector(set *trackerMapSet, target *ebpf.Map, key any) error {
+	if set == nil || target == nil {
+		return errors.New("tracked selector maps are incomplete")
+	}
+	trackingModeMutationMu.Lock()
+	defer trackingModeMutationMu.Unlock()
+
+	var previous uint32
+	if err := target.Lookup(key, &previous); err != nil {
+		return err
+	}
+	if err := target.Delete(key); err != nil {
+		return err
+	}
+	if err := syncTrackingModeFlags(set); err != nil {
+		return rollbackTrackedSelector(set, target, key, true, previous, err)
+	}
+	return nil
+}
+
 // ── mode detection ────────────────────────────────────────────────────────────
 
 func isBootstrapMode() bool {
@@ -106,12 +242,26 @@ func bootstrapTrackerMaps() error {
 }
 
 func doBootstrap() (map[string]*ebpf.Map, error) {
+	var backup *trackedDataBackup
 	if replacements, err := loadPinnedMapHandles(); err == nil {
 		var objs bpf.AgentTrackerObjects
 		if err := bpf.LoadAgentTrackerObjects(&objs, &ebpf.CollectionOptions{MapReplacements: replacements}); err == nil {
 			defer objs.Close()
 			_ = os.RemoveAll(ebpfPinLinksDir)
 			_ = os.MkdirAll(ebpfPinLinksDir, 0755)
+			generation, err := rotateKernelAuditGeneration(objs.CollectorStats)
+			if err != nil {
+				platform.CloseMapHandles(replacements)
+				return nil, err
+			}
+			if err := clearSocketFDProvenance(objs.SocketFds, objs.SocketFdParents); err != nil {
+				platform.CloseMapHandles(replacements)
+				return nil, err
+			}
+			if err := syncTrackingModeMap(objs.TrackingMode, objs.TrackedPaths, objs.TrackedPrefixes); err != nil {
+				platform.CloseMapHandles(replacements)
+				return nil, err
+			}
 			if err := pinLinks(&objs); err != nil {
 				platform.CloseMapHandles(replacements)
 				return nil, err
@@ -120,13 +270,16 @@ func doBootstrap() (map[string]*ebpf.Map, error) {
 				platform.CloseMapHandles(replacements)
 				return nil, err
 			}
+			log.Printf("[INFO] kernel audit generation rotated: %016x", generation)
 			return replacements, nil
 		}
-		// Preserve tracked data before closing old map handles
-		backup := extractTrackedData(replacements)
+		backup = extractTrackedData(replacements)
 		platform.CloseMapHandles(replacements)
-		// Fall through to fresh bootstrap but restore backed-up data
-		defer restoreTrackedData(backup)
+	} else {
+		// Adding a required pinned map makes a previous installation fail the
+		// all-maps load. Preserve the three user-owned tracking maps before the
+		// fresh bootstrap removes the old pin tree.
+		backup = extractTrackedDataBestEffort()
 	}
 
 	_ = os.RemoveAll(ebpfPinRoot)
@@ -138,25 +291,127 @@ func doBootstrap() (map[string]*ebpf.Map, error) {
 		return nil, fmt.Errorf("load eBPF objects: %w", err)
 	}
 	defer objs.Close()
+	generation, err := rotateKernelAuditGeneration(objs.CollectorStats)
+	if err != nil {
+		return nil, err
+	}
 	if err := pinMaps(&objs); err != nil {
 		return nil, err
 	}
+	if err := restoreTrackedDataToMaps(backup, objs.TrackedComms, objs.TrackedPaths, objs.TrackedPrefixes); err != nil {
+		return nil, err
+	}
+	if err := syncTrackingModeMap(objs.TrackingMode, objs.TrackedPaths, objs.TrackedPrefixes); err != nil {
+		return nil, err
+	}
+	// Attach only after restored rules and mode flags agree. This avoids a
+	// reload window where path rules exist but the pre-path gate says none do.
 	if err := pinLinks(&objs); err != nil {
 		return nil, err
 	}
 	if err := ensurePinnedMapPermissions(); err != nil {
 		return nil, err
 	}
+	log.Printf("[INFO] kernel audit generation initialized: %016x", generation)
 	return loadPinnedMapHandles()
+}
+
+func newKernelAuditGeneration() (uint64, error) {
+	var seed [8]byte
+	if _, err := rand.Read(seed[:]); err != nil {
+		return 0, fmt.Errorf("generate kernel audit generation: %w", err)
+	}
+	generation := binary.LittleEndian.Uint64(seed[:])
+	if generation == 0 {
+		generation = 1
+	}
+	return generation, nil
+}
+
+func applyKernelAuditGeneration(values []bpf.AgentTrackerCollectorStats, generation uint64) {
+	for i := range values {
+		// Keep cumulative successful/reserve-failure/attempt counters across a
+		// compatible reload. The generation itself is the continuity epoch, so
+		// the CPU-local attempt sequence can remain monotonic across reloads.
+		values[i].PendingDroppedEvents = 0
+		values[i].AuditGeneration = generation
+	}
+}
+
+func rotateKernelAuditGeneration(stats *ebpf.Map) (uint64, error) {
+	if stats == nil {
+		return 0, errors.New("collector_stats map is nil")
+	}
+	generation, err := newKernelAuditGeneration()
+	if err != nil {
+		return 0, err
+	}
+	cpuCount, err := ebpf.PossibleCPU()
+	if err != nil {
+		return 0, fmt.Errorf("discover possible CPUs for audit generation: %w", err)
+	}
+	if cpuCount <= 0 {
+		return 0, errors.New("discover possible CPUs for audit generation: no CPUs reported")
+	}
+	values := make([]bpf.AgentTrackerCollectorStats, cpuCount)
+	key := uint32(0)
+	if err := stats.Lookup(&key, &values); err != nil {
+		return 0, fmt.Errorf("read collector_stats before audit generation rotation: %w", err)
+	}
+	applyKernelAuditGeneration(values, generation)
+	if err := stats.Update(&key, values, ebpf.UpdateAny); err != nil {
+		return 0, fmt.Errorf("write kernel audit generation: %w", err)
+	}
+	return generation, nil
+}
+
+func clearSocketFDProvenance(socketFds *ebpf.Map, parentMap ...*ebpf.Map) error {
+	if socketFds == nil {
+		return errors.New("socket_fds map is nil")
+	}
+	iter := socketFds.Iterate()
+	keys := make([]bpf.AgentTrackerSocketFdKey, 0, 64)
+	var key bpf.AgentTrackerSocketFdKey
+	var value bpf.AgentTrackerSocketFdMeta
+	for iter.Next(&key, &value) {
+		keys = append(keys, key)
+	}
+	if err := iter.Err(); err != nil {
+		return fmt.Errorf("iterate socket_fds before generation rotation: %w", err)
+	}
+	for i := range keys {
+		if err := socketFds.Delete(&keys[i]); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+			return fmt.Errorf("clear socket_fds provenance: %w", err)
+		}
+	}
+	if len(parentMap) > 0 && parentMap[0] != nil {
+		parents := parentMap[0]
+		iter := parents.Iterate()
+		keys := make([]uint32, 0, 64)
+		var child, parent uint32
+		for iter.Next(&child, &parent) {
+			keys = append(keys, child)
+		}
+		if err := iter.Err(); err != nil {
+			return fmt.Errorf("iterate socket_fd_parents before generation rotation: %w", err)
+		}
+		for _, child := range keys {
+			if err := parents.Delete(&child); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+				return fmt.Errorf("clear socket_fd_parents provenance: %w", err)
+			}
+		}
+	}
+	return nil
 }
 
 func pinMaps(objs *bpf.AgentTrackerObjects) error {
 	for name, m := range map[string]*ebpf.Map{
 		"agent_pids": objs.AgentPids, "events": objs.Events,
-		"collector_stats": objs.CollectorStats,
-		"tracked_comms":   objs.TrackedComms, "tracked_paths": objs.TrackedPaths,
-		"tracked_prefixes": objs.TrackedPrefixes, "exit_ctx": objs.ExitCtx,
-		"exit_path_buf": objs.ExitPathBuf, "exit_path_ctx": objs.ExitPathCtx,
+		"collector_stats": objs.CollectorStats, "context_pressure_stats": objs.ContextPressureStats,
+		"tracked_comms": objs.TrackedComms, "tracked_paths": objs.TrackedPaths,
+		"tracked_prefixes": objs.TrackedPrefixes, "tracking_mode": objs.TrackingMode, "exit_ctx": objs.ExitCtx, "exit_io_ctx": objs.ExitIoCtx, "exit_compact_ctx": objs.ExitCompactCtx,
+		"exit_single_path_buf": objs.ExitSinglePathBuf, "exit_path_buf": objs.ExitPathBuf, "exit_single_path_ctx": objs.ExitSinglePathCtx,
+		"exit_path_ctx": objs.ExitPathCtx, "socket_fds": objs.SocketFds, "socket_fd_parents": objs.SocketFdParents,
 	} {
 		if err := m.Pin(filepath.Join(ebpfPinMapsDir, name)); err != nil {
 			return fmt.Errorf("pin map %s: %w", name, err)
@@ -234,6 +489,10 @@ func ensureTrackerMapsLoaded() error {
 		platform.CloseMapHandles(maps)
 		return err
 	}
+	if err := syncTrackingModeFlags(&loaded); err != nil {
+		closeTrackerMapSet(&loaded)
+		return fmt.Errorf("sync path tracking mode: %w", err)
+	}
 
 	closeTrackerMapSet(&trackerMaps)
 	trackerMaps = loaded
@@ -281,12 +540,23 @@ func toTrackerMapSet(maps map[string]*ebpf.Map) (trackerMapSet, error) {
 		return trackerMapSet{}, fmt.Errorf("missing pinned maps: %v", missing)
 	}
 	return trackerMapSet{
-		AgentPids:       maps["agent_pids"],
-		Events:          maps["events"],
-		CollectorStats:  maps["collector_stats"],
-		TrackedComms:    maps["tracked_comms"],
-		TrackedPaths:    maps["tracked_paths"],
-		TrackedPrefixes: maps["tracked_prefixes"],
+		AgentPids:            maps["agent_pids"],
+		Events:               maps["events"],
+		CollectorStats:       maps["collector_stats"],
+		ContextPressureStats: maps["context_pressure_stats"],
+		TrackedComms:         maps["tracked_comms"],
+		TrackedPaths:         maps["tracked_paths"],
+		TrackedPrefixes:      maps["tracked_prefixes"],
+		TrackingMode:         maps["tracking_mode"],
+		ExitCtx:              maps["exit_ctx"],
+		ExitIoCtx:            maps["exit_io_ctx"],
+		ExitCompactCtx:       maps["exit_compact_ctx"],
+		ExitSinglePathBuf:    maps["exit_single_path_buf"],
+		ExitPathBuf:          maps["exit_path_buf"],
+		ExitSinglePathCtx:    maps["exit_single_path_ctx"],
+		ExitPathCtx:          maps["exit_path_ctx"],
+		SocketFds:            maps["socket_fds"],
+		SocketFdParents:      maps["socket_fd_parents"],
 	}, nil
 }
 
@@ -308,11 +578,17 @@ func ensurePinnedMapPermissions() error {
 func privilegedCommand(priv, exe string, args ...string) *exec.Cmd {
 	if filepath.Base(priv) == "sudo" {
 		sudoArgs := []string{"--preserve-env=AGENT_WRAPPER_PATH,DISPLAY,WAYLAND_DISPLAY,XAUTHORITY,USER,HOME,AGENT_REAL_HOME,GIN_MODE,DISABLE_AUTH", exe}
+		if os.Getenv("SUDO_ASKPASS") != "" {
+			sudoArgs = append([]string{"-A"}, sudoArgs...)
+		}
 		sudoArgs = append(sudoArgs, args...)
 		return exec.Command(priv, sudoArgs...)
 	}
 
 	cmdArgs := append([]string{exe}, args...)
+	if filepath.Base(priv) == "pkexec" && os.Getenv("AGENT_DESKTOP_LIFETIME_SOCKET") != "" {
+		cmdArgs = append([]string{"--disable-internal-agent"}, cmdArgs...)
+	}
 	cmd := exec.Command(priv, cmdArgs...)
 
 	// Manual environment inheritance for non-sudo escalators (like pkexec)
@@ -340,6 +616,11 @@ func privilegedCommand(priv, exe string, args ...string) *exec.Cmd {
 }
 
 func privilegeEscalationCmd() (string, error) {
+	if os.Getenv("SUDO_ASKPASS") != "" {
+		if p, err := exec.LookPath("sudo"); err == nil {
+			return p, nil
+		}
+	}
 	if os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != "" {
 		if p, err := exec.LookPath("pkexec"); err == nil {
 			return p, nil
@@ -414,41 +695,48 @@ func extractTrackedData(maps map[string]*ebpf.Map) *trackedDataBackup {
 	return b
 }
 
-func restoreTrackedData(backup *trackedDataBackup) {
+func restoreTrackedDataToMaps(backup *trackedDataBackup, comms, paths, prefixes *ebpf.Map) error {
 	if backup == nil {
-		return
+		return nil
 	}
+	if comms == nil || paths == nil || prefixes == nil {
+		return errors.New("tracked map restore target is incomplete")
+	}
+	for k, v := range backup.Comms {
+		if err := comms.Put(k, v); err != nil {
+			return fmt.Errorf("restore tracked comm: %w", err)
+		}
+	}
+	for k, v := range backup.Paths {
+		if err := paths.Put(k, v); err != nil {
+			return fmt.Errorf("restore tracked path: %w", err)
+		}
+	}
+	for _, entry := range backup.Prefixes {
+		k := struct {
+			PrefixLen uint32
+			Data      [64]byte
+		}{PrefixLen: entry.PrefixLen, Data: entry.Data}
+		if err := prefixes.Put(k, entry.Value); err != nil {
+			return fmt.Errorf("restore tracked prefix: %w", err)
+		}
+	}
+	return nil
+}
 
-	maps, err := loadPinnedMapHandles()
-	if err != nil {
-		return
+func extractTrackedDataBestEffort() *trackedDataBackup {
+	maps := make(map[string]*ebpf.Map, 3)
+	for _, name := range []string{"tracked_comms", "tracked_paths", "tracked_prefixes"} {
+		m, err := ebpf.LoadPinnedMap(filepath.Join(ebpfPinMapsDir, name), nil)
+		if err == nil {
+			maps[name] = m
+		}
+	}
+	if len(maps) == 0 {
+		return nil
 	}
 	defer platform.CloseMapHandles(maps)
-
-	if m, ok := maps["tracked_comms"]; ok && m != nil {
-		for k, v := range backup.Comms {
-			_ = m.Put(k, v)
-		}
-	}
-
-	if m, ok := maps["tracked_paths"]; ok && m != nil {
-		for k, v := range backup.Paths {
-			_ = m.Put(k, v)
-		}
-	}
-
-	if m, ok := maps["tracked_prefixes"]; ok && m != nil {
-		for _, entry := range backup.Prefixes {
-			k := struct {
-				PrefixLen uint32
-				Data      [64]byte
-			}{
-				PrefixLen: entry.PrefixLen,
-				Data:      entry.Data,
-			}
-			_ = m.Put(k, entry.Value)
-		}
-	}
+	return extractTrackedData(maps)
 }
 
 // ── shared helpers ────────────────────────────────────────────────────────────
@@ -470,7 +758,12 @@ func closeTrackerMapSet(set *trackerMapSet) {
 	if set == nil {
 		return
 	}
-	for _, mp := range []*(*ebpf.Map){&set.AgentPids, &set.Events, &set.CollectorStats, &set.TrackedComms, &set.TrackedPaths, &set.TrackedPrefixes} {
+	for _, mp := range []*(*ebpf.Map){
+		&set.AgentPids, &set.Events, &set.CollectorStats, &set.ContextPressureStats,
+		&set.TrackedComms, &set.TrackedPaths, &set.TrackedPrefixes, &set.TrackingMode,
+		&set.ExitCtx, &set.ExitIoCtx, &set.ExitCompactCtx, &set.ExitSinglePathBuf, &set.ExitPathBuf,
+		&set.ExitSinglePathCtx, &set.ExitPathCtx, &set.SocketFds, &set.SocketFdParents,
+	} {
 		if *mp != nil {
 			_ = (*mp).Close()
 			*mp = nil

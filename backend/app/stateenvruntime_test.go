@@ -4,10 +4,10 @@ import (
 	"testing"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section stateenvruntime_test.go ----
-
 func TestSeedRuntimeSettingsFromEnvAppliesLLMAndBehavior(t *testing.T) {
 	t.Setenv("AGENT_ACCESS_TOKEN", "dev-token")
+	t.Setenv("AGENT_RUNTIME_EVENT_STORE_MAX_RECORDS", "345678")
+	t.Setenv("AGENT_RUNTIME_EVENT_STORE_MAX_AGE", "240h")
 	t.Setenv("AGENT_RUNTIME_SHELL_SESSIONS_ENABLED", "true")
 	t.Setenv("AGENT_RUNTIME_SYSTEM_RUN_ENABLED", "true")
 	t.Setenv("AGENT_RUNTIME_POLICY_MANAGEMENT_ENABLED", "true")
@@ -60,6 +60,9 @@ func TestSeedRuntimeSettingsFromEnvAppliesLLMAndBehavior(t *testing.T) {
 
 	if settings.AccessToken != "dev-token" {
 		t.Fatalf("AccessToken = %q, want env token", settings.AccessToken)
+	}
+	if settings.EventStoreMaxRecords != 345678 || settings.EventStoreMaxAge != "240h" {
+		t.Fatalf("event store retention env seed mismatch: records=%d age=%q", settings.EventStoreMaxRecords, settings.EventStoreMaxAge)
 	}
 	if !settings.ShellSessionsEnabled || !settings.SystemRunEnabled || !settings.PolicyManagementEnabled || !settings.TlsCaptureEnabled {
 		t.Fatalf("runtime behavior booleans were not seeded: %+v", settings)

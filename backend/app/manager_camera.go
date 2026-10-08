@@ -1,3 +1,5 @@
+//go:build cgo
+
 package app
 
 import (
@@ -10,8 +12,6 @@ import (
 	"github.com/vladimirvivien/go4vl/device"
 	"github.com/vladimirvivien/go4vl/v4l2"
 )
-
-// ---- moved from backend/zz_merged_backend.go section manager_camera.go ----
 
 type CameraStream struct {
 	devName string

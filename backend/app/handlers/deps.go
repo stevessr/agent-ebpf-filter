@@ -3,11 +3,12 @@ package handlers
 import (
 	"context"
 	"os/exec"
-	"time"
 
 	"agent-ebpf-filter/app/events"
 	"agent-ebpf-filter/app/observability"
+	"agent-ebpf-filter/app/sandboxruntime"
 	"agent-ebpf-filter/app/tls"
+	"agent-ebpf-filter/app/types"
 	"agent-ebpf-filter/core"
 	"agent-ebpf-filter/internal/geoip"
 	netcore "agent-ebpf-filter/internal/network"
@@ -93,6 +94,7 @@ type RuntimeSettingsStore interface {
 	Snapshot() RuntimeSettings
 	RecentEvents(limit int) ([]CapturedEventRecord, string, error)
 	RecentEventsContext(context.Context, int) ([]CapturedEventRecord, string, error)
+	EventByIDContext(context.Context, string) (CapturedEventRecord, error)
 	TruncateEventLog() error
 }
 
@@ -100,6 +102,62 @@ type RuntimeSettingsStore interface {
 type ProcessContextStore interface {
 	Set(pid uint32, ctx ProcessContext)
 	Delete(pid uint32)
+}
+
+// PluginService is the plugin registry plus eBPF build/load lifecycle used
+// by the plugin handlers.
+type PluginService interface {
+	ValidateID(id string) error
+	List() []types.PluginManifest
+	Get(id string) (types.PluginManifest, bool)
+	Source(id string) (string, bool)
+	Upsert(req *PluginUpsertRequest) (types.PluginManifest, error)
+	Delete(id string) error
+	SetEnabled(ctx context.Context, id string, enabled bool) (types.PluginManifest, error)
+	LoadEBPF(ctx context.Context, id string) (types.PluginManifest, error)
+	UnloadEBPF(id string)
+	CompileUserBPF(ctx context.Context, id, source string) (objPath string, log []byte, err error)
+	BPFTemplates() []types.BPFTemplate
+}
+
+// MLService is the ML engine surface the ML handlers use. Response-shaped
+// methods return gin.H because the frontend contract is the JSON body itself.
+type MLService interface {
+	Status() *pb.MLStatus
+	StatusJSON() []byte
+	Enabled() bool
+	IsTraining() bool
+	CancelTraining()
+	Logs() gin.H
+	History() gin.H
+	Train(numTrees, maxDepth, minSamplesLeaf int) gin.H
+	Feedback(comm, userAction string) gin.H
+	Samples() gin.H
+	LabelSample(index int, label string) gin.H
+	RemoveSample(index int) gin.H
+	SetSampleAnomaly(index int, score float64) gin.H
+	AddSample(commandLine, comm string, args []string, label string) gin.H
+}
+
+// ConfigStore is the tracking configuration the config/export handlers edit:
+// the tag registry, disabled comms and event types, and wrapper rules.
+type ConfigStore interface {
+	TagID(name string) uint32
+	TagName(id uint32) string
+	TagNames() []string
+
+	IsCommDisabled(comm string) bool
+	AddDisabledComm(comm string)
+	RemoveDisabledComm(comm string)
+
+	DisabledEventTypes() []uint32
+	ReplaceDisabledEventTypes(eventTypes []uint32)
+	AddDisabledEventType(eventType uint32)
+	RemoveDisabledEventType(eventType uint32)
+
+	Rules() []*pb.WrapperRule
+	UpsertRule(comm, action string, rewrittenCmd []string, regex, replacement string, priority int32)
+	DeleteRule(comm string)
 }
 
 // Deps holds all dependencies injected by the app package at init time.
@@ -122,6 +180,9 @@ var Deps struct {
 		Add(events ...any)
 	}
 
+	// Sandbox runtime attribution (gVisor/Kata/Firecracker/OCI/etc.)
+	SandboxRuntime SandboxRuntimeOps
+
 	// Cgroup sandbox (wired via adapter)
 	CgroupSandbox CgroupSandboxOps
 
@@ -131,43 +192,11 @@ var Deps struct {
 	// Native hook handler
 	BuildProcessContextFromHookPayload func(payload map[string]any, toolName, path string) (uint32, ProcessContext)
 
-	// AgentSight data pipeline helpers (wired from app-level functions)
-	RecentEventFiltersFromRequest func(c any) any // *gin.Context -> recentEventFilters
-	FilterRecentEventRecords      func(records []CapturedEventRecord, filters any) []CapturedEventRecord
-	NormalizeCapturedEventRecord  func(record CapturedEventRecord) CapturedEventRecord
-	EventEnvelopeToJSONValue      func(envelope *pb.EventEnvelope) map[string]any
-	EnvelopeEventTypeName         func(envelope *pb.EventEnvelope, event *pb.Event) string
-	ParseRecentEventTime          func(raw string) time.Time
+	// Plugins backs the plugin registry / eBPF builder handlers.
+	Plugins PluginService
 
-	// Plugin handler closures
-	PluginList       func() []any
-	PluginGet        func(id string) (any, bool)
-	PluginUpsert     func(manifest any) (any, error)
-	PluginDelete     func(id string) error
-	PluginSetEnabled func(ctx context.Context, id string, enabled bool) (any, error)
-	PluginValidateID func(id string) error
-	PluginSource     func(id string) (string, bool)
-	PluginLoadEBPF   func(ctx context.Context, id string) (any, error)
-	PluginUnloadEBPF func(id string)
-	CompileUserBPF   func(ctx context.Context, id, source string) (objPath string, log []byte, err error)
-	BPFTemplates     func() []any
-
-	// Tags and rules (config handlers)
-	GetTagID                func(name string) uint32
-	GetTagName              func(id uint32) string
-	SetWrapperRule          func(comm string, rule any)
-	DeleteWrapperRule       func(comm string)
-	ConfigTagNames          func() []string
-	IsCommDisabled          func(comm string) bool
-	AddDisabledComm         func(comm string)
-	RemoveDisabledComm      func(comm string)
-	DeleteDisabledComm      func(comm string)
-	DisabledEventTypes      func() []uint32
-	AddDisabledEventType    func(et uint32)
-	RemoveDisabledEventType func(et uint32)
-	ConfigRules             func() []*pb.WrapperRule
-	UpsertConfigRule        func(comm, action, rewrittenCmd, regex, replacement string, priority int32)
-	DeleteConfigRule        func(comm string)
+	// Config is the tracking configuration edited by the config handlers.
+	Config ConfigStore
 
 	// WebSocket upgrader
 	Upgrader *websocket.Upgrader
@@ -236,28 +265,8 @@ var Deps struct {
 	RotateAccessToken                      func(settings RuntimeSettings) RuntimeSettings
 	ApplyMLConfigPatch                     func(dst *core.MLConfig, patch interface{})
 
-	// ML handler closures — all return gin.H or simple types to avoid type coupling
-	MLStatus                func() *pb.MLStatus
-	BuildMLStatusJSON       func() []byte
-	MLEnabled               func() bool
-	MLConfig                func() core.MLConfig
-	CurrentMLConfig         func() core.MLConfig
-	MLIsRunning             func() bool
-	MLLogTotal              func() int
-	MLGetLogsResponse       func() gin.H
-	MLCancelTraining        func()
-	MLGetHistoryResponse    func() gin.H
-	MLTrain                 func(numTrees, maxDepth, minLeaf int) gin.H
-	MLFeedbackResult        func(comm, action string) gin.H
-	MLSamplesResponse       func() gin.H
-	MLSampleLabelResult     func(index int, label string) gin.H
-	MLRemoveSampleResult    func(index int) gin.H
-	MLSampleAnomalyResult   func(index int, score float64) gin.H
-	MLAddSample             func(cmdLine, comm string, args []string, label string) gin.H
-	MLExistingCommands      func() []string
-	MLAssessCommandSafety   func(c *gin.Context)
-	MLExistingCommandsGetFn func(c *gin.Context)
-	MLImportExistingFn      func(c *gin.Context)
+	// ML backs the model status / training / sample handlers.
+	ML MLService
 
 	// Hooks config closures
 	AvailableHooks               func() []core.HookDef
@@ -311,10 +320,17 @@ type LsmEnforcerSnapshot struct {
 	LinkCount         int
 	LinkPins          []string
 	LastError         string
+	PathAccessSupported bool
 	ExecPathBlocklist any
 	ExecNameBlocklist any
 	FileNameBlocklist any
 	Stats             any
+}
+
+type LsmFileAccessRule struct {
+	Path string `json:"path"`
+	DenyRead bool `json:"denyRead"`
+	DenyWrite bool `json:"denyWrite"`
 }
 
 // LsmEnforcerOps is the interface for LSM enforcer operations.
@@ -325,6 +341,9 @@ type LsmEnforcerOps interface {
 	ListExecPaths(blocklist any) []string
 	ListExecNames(blocklist any) []string
 	ListFileNames(blocklist any) []string
+	ListFileAccessPaths(blocklist any) []LsmFileAccessRule
+	SetFileAccessPath(path string, denyR, denyW bool) error
+	NormalizeFileAccessPath(path string) (string, error)
 	NormalizePath(path string) (string, error)
 	NormalizeName(name string) (string, error)
 	BlockExecPath(path string) error
@@ -333,6 +352,14 @@ type LsmEnforcerOps interface {
 	UnblockExecName(name string) error
 	BlockFileName(name string) error
 	UnblockFileName(name string) error
+}
+
+// SandboxRuntimeOps is the host-side sandbox/runtime attribution surface.
+// It is read-only and deliberately separate from cgroup/LSM enforcement.
+type SandboxRuntimeOps interface {
+	Status() sandboxruntime.Status
+	DetectPID(pid int) (sandboxruntime.Detection, error)
+	ListActive(limit int) ([]sandboxruntime.Detection, error)
 }
 
 // CgroupSandboxOps is the interface for cgroup sandbox operations.

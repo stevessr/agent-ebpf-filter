@@ -64,14 +64,20 @@ func prepareSignalProgramLogWork(record CapturedEventRecord) (signalProgramLogWo
 	if record.Event == nil {
 		return signalProgramLogWorkItem{}, false
 	}
-	settings := SnapshotSettingsHook().SignalProcessing
-	NormalizeSettings(&settings)
-	if len(settings.SelectedPrograms) == 0 {
+	// Apply the same cap and trimming NormalizeSettings would, without
+	// normalising (and allocating) the rest of the settings per event.
+	selectedPrograms := SignalSettingsHook().SelectedPrograms
+	if len(selectedPrograms) > signalMaxSelectedPrograms {
+		selectedPrograms = selectedPrograms[:signalMaxSelectedPrograms]
+	}
+	if len(selectedPrograms) == 0 {
 		return signalProgramLogWorkItem{}, false
 	}
-	matches := make([]signalProgramLogMatch, 0, len(settings.SelectedPrograms))
-	for _, selected := range settings.SelectedPrograms {
-		if !selected.Enabled || strings.TrimSpace(selected.Program) == "" {
+	var matches []signalProgramLogMatch
+	for _, selected := range selectedPrograms {
+		selected.Program = strings.TrimSpace(selected.Program)
+		selected.Path = strings.TrimSpace(selected.Path)
+		if !selected.Enabled || selected.Program == "" {
 			continue
 		}
 		matched, reason := selectedProgramMatches(record.Event, selected.Program)

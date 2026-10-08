@@ -19,6 +19,8 @@ type VmFaultCounters = core.VmFaultCounters
 
 type TrackerMapSet interface {
 	GetCollectorStats() *ebpf.Map
+	GetContextPressureStats() *ebpf.Map
+	GetContextMaps() map[string]*ebpf.Map
 }
 
 type PersistQueueStatus struct {

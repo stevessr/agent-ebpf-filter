@@ -6,8 +6,6 @@ import (
 	"strconv"
 )
 
-// ---- moved from backend/zz_merged_backend.go section sweep_profiles.go ----
-
 func profileForDataset(profile sweepProfile, dataset sweepDataset) sweepProfile {
 	scoped := profile
 	scoped.Name = dataset.Name + "/" + profile.Name

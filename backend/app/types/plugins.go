@@ -35,3 +35,14 @@ type PluginManifest struct {
 	Loaded    bool   `json:"loaded,omitempty"`
 	LoadError string `json:"loadError,omitempty"`
 }
+
+// BPFTemplate is a starter snippet offered by the online eBPF builder.
+type BPFTemplate struct {
+	ID           string           `json:"id"`
+	Name         string           `json:"name"`
+	Description  string           `json:"description"`
+	AttachKind   PluginAttachKind `json:"attachKind"`
+	AttachTarget string           `json:"attachTarget"`
+	ProgramName  string           `json:"programName"`
+	Source       string           `json:"source"`
+}

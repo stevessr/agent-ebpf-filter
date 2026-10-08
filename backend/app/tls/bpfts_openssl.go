@@ -1,6 +1,7 @@
 package tls
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 )
@@ -27,7 +28,10 @@ type bpfTSOpenSSLEvent struct {
 	Function     uint8
 	Comm         [16]byte
 	CapturedLen  uint32
-	Sample       [bpfTSOpenSSLSampleSize]byte
+	// Payload views the captured prefix inside the ring-buffer sample. It is
+	// only valid until the next read; bpfTSOpenSSLToCompleted makes the one
+	// owned copy that leaves the read loop.
+	Payload []byte
 }
 
 func expectedBpfTSOpenSSLCapturedLen(length int32) int {
@@ -94,15 +98,12 @@ func decodeBpfTSOpenSSLEvent(raw []byte) (bpfTSOpenSSLEvent, error) {
 		)
 	}
 	event.CapturedLen = uint32(expectedCaptured)
-	copy(event.Sample[:expectedCaptured], raw[bpfTSOpenSSLMetadataSize:bpfTSOpenSSLMetadataSize+expectedCaptured])
+	event.Payload = raw[bpfTSOpenSSLMetadataSize : bpfTSOpenSSLMetadataSize+expectedCaptured : bpfTSOpenSSLMetadataSize+expectedCaptured]
 	return event, nil
 }
 
 func bpfTSOpenSSLToCompleted(event bpfTSOpenSSLEvent) CompletedTLSFragment {
-	capturedLen := int(event.CapturedLen)
-	if capturedLen <= 0 {
-		capturedLen = expectedBpfTSOpenSSLCapturedLen(event.Length)
-	}
+	capturedLen := len(event.Payload)
 	if capturedLen > bpfTSOpenSSLSampleSize {
 		capturedLen = bpfTSOpenSSLSampleSize
 	}
@@ -112,8 +113,10 @@ func bpfTSOpenSSLToCompleted(event bpfTSOpenSSLEvent) CompletedTLSFragment {
 		flags |= tlsFlagTruncated
 	}
 
-	payload := make([]byte, capturedLen)
-	copy(payload, event.Sample[:capturedLen])
+	payload := bytes.Clone(event.Payload[:capturedLen])
+	if payload == nil {
+		payload = []byte{}
+	}
 	return CompletedTLSFragment{
 		TimestampNS:  event.TimestampNS,
 		ConnectionID: event.ConnectionID,

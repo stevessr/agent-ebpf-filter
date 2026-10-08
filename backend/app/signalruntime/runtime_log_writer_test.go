@@ -3,7 +3,6 @@ package signalruntime
 import (
 	"agent-ebpf-filter/core"
 	"context"
-	"errors"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -74,10 +73,18 @@ func TestSignalProgramLogWriterPersistsAndDrainsAcceptedWork(t *testing.T) {
 
 func TestSignalProgramLogWriterQueueIsBoundedAndNonBlocking(t *testing.T) {
 	writer := newSignalProgramLogWriter()
-	writer.mu.Lock()
-	writer.started = true
-	writer.queue = make(chan signalProgramLogWorkItem, 1)
-	writer.mu.Unlock()
+	// A one-slot generation whose consumer never reads: the second enqueue
+	// deterministically hits the full-queue path.
+	var live <-chan signalProgramLogWorkItem
+	ready := make(chan struct{})
+	blockedCtx, unblock := context.WithCancel(context.Background())
+	defer unblock()
+	writer.queue.Start(blockedCtx, 1, func(ctx context.Context, items <-chan signalProgramLogWorkItem) {
+		live = items
+		close(ready)
+		<-ctx.Done()
+	})
+	<-ready
 
 	if accepted, active := writer.Enqueue(signalProgramLogWorkItem{}); !accepted || !active {
 		t.Fatalf("first Enqueue() = accepted:%v active:%v, want true/true", accepted, active)
@@ -90,9 +97,7 @@ func TestSignalProgramLogWriterQueueIsBoundedAndNonBlocking(t *testing.T) {
 		t.Fatalf("unexpected full queue status: %+v", status)
 	}
 
-	writer.mu.Lock()
-	writer.queue = nil
-	writer.mu.Unlock()
+	writer.queue.StopAccepting(live)
 	if accepted, active := writer.Enqueue(signalProgramLogWorkItem{}); accepted || !active {
 		t.Fatalf("stopping Enqueue() = accepted:%v active:%v, want false/true", accepted, active)
 	}
@@ -109,34 +114,21 @@ func TestSignalProgramLogWriterQueueIsBoundedAndNonBlocking(t *testing.T) {
 	}
 }
 
+// Stopping-generation semantics live in internal/workerqueue; this checks
+// the writer delegates to it and reports an idle status afterwards.
 func TestSignalProgramLogWriterShutdownTimeoutKeepsGeneration(t *testing.T) {
 	writer := newSignalProgramLogWriter()
-	oldDone := make(chan struct{})
-	writer.mu.Lock()
-	writer.started = true
-	writer.queue = make(chan signalProgramLogWorkItem, 1)
-	writer.cancel = func() {}
-	writer.done = oldDone
-	writer.mu.Unlock()
-
-	shutdownCtx, cancel := context.WithCancel(context.Background())
-	cancel()
-	if err := writer.Shutdown(shutdownCtx); !errors.Is(err, context.Canceled) {
-		t.Fatalf("Shutdown() error = %v, want context cancellation", err)
-	}
-	writer.mu.RLock()
-	started, queue, done := writer.started, writer.queue, writer.done
-	writer.mu.RUnlock()
-	if !started || queue != nil || done != oldDone {
-		t.Fatalf("timed-out shutdown state = started:%v queue:%v done:%p, want active generation with nil queue and done %p", started, queue, done, oldDone)
-	}
-
 	writer.Start(context.Background(), 4)
-	writer.mu.RLock()
-	started, queue, done = writer.started, writer.queue, writer.done
-	writer.mu.RUnlock()
-	if !started || queue != nil || done != oldDone {
-		t.Fatalf("Start() replaced a stopping generation: started:%v queue:%v done:%p", started, queue, done)
+	expired, cancel := context.WithCancel(context.Background())
+	cancel()
+	_ = writer.Shutdown(expired)
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), time.Second)
+	defer waitCancel()
+	if err := writer.Shutdown(waitCtx); err != nil {
+		t.Fatalf("Shutdown() error = %v", err)
+	}
+	if status := writer.Status(); status.Running || status.Accepting || status.QueueCap != 0 {
+		t.Fatalf("writer after shutdown = %+v", status)
 	}
 }
 

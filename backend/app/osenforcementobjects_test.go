@@ -13,8 +13,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section osenforcementobjects_test.go ----
-
 func TestCgroupSandboxObjectSections(t *testing.T) {
 	spec, err := bpf.LoadAgentCgroupSandbox()
 	if err != nil {
@@ -415,6 +413,9 @@ func TestOSEnforcementStatusRoutesRequireAuth(t *testing.T) {
 	}
 	source := string(data)
 	for _, route := range []string{
+		"/sandbox/runtime/status",
+		"/sandbox/runtime/detect",
+		"/sandbox/runtime/active",
 		"/sandbox/cgroup/status",
 		"/sandbox/lsm/status",
 	} {

@@ -67,6 +67,13 @@ export interface ObserverTLSEvent {
   vendor?: string;
   message_role?: string;
   prompt_digest?: string;
+  context_digest?: string;
+  context_len?: number;
+  context_items?: number;
+  protocol_event?: string;
+  stream_id?: string;
+  response_id?: string;
+  previous_response_id?: string;
   agent_run_id?: string;
   task_id?: string;
   tool_call_id?: string;
@@ -589,6 +596,14 @@ export function useProcessObserver() {
             vendor: ev.vendor || "",
             message_role: ev.message_role || ev.messageRole || "",
             prompt_digest: ev.prompt_digest || ev.promptDigest || "",
+            context_digest: ev.context_digest || ev.contextDigest || "",
+            context_len: ev.context_len || ev.contextLen || 0,
+            context_items: ev.context_items || ev.contextItems || 0,
+            protocol_event: ev.protocol_event || ev.protocolEvent || "",
+            stream_id: ev.stream_id || ev.streamId || "",
+            response_id: ev.response_id || ev.responseId || "",
+            previous_response_id:
+              ev.previous_response_id || ev.previousResponseId || "",
             agent_run_id: ev.agent_run_id || ev.agentRunId || "",
             task_id: ev.task_id || ev.taskId || "",
             tool_call_id: ev.tool_call_id || ev.toolCallId || "",
@@ -683,6 +698,14 @@ export function useProcessObserver() {
           vendor: ev.vendor || "",
           message_role: ev.message_role || ev.messageRole || "",
           prompt_digest: ev.prompt_digest || ev.promptDigest || "",
+          context_digest: ev.context_digest || ev.contextDigest || "",
+          context_len: ev.context_len || ev.contextLen || 0,
+          context_items: ev.context_items || ev.contextItems || 0,
+          protocol_event: ev.protocol_event || ev.protocolEvent || "",
+          stream_id: ev.stream_id || ev.streamId || "",
+          response_id: ev.response_id || ev.responseId || "",
+          previous_response_id:
+            ev.previous_response_id || ev.previousResponseId || "",
           agent_run_id: ev.agent_run_id || ev.agentRunId || "",
           task_id: ev.task_id || ev.taskId || "",
           tool_call_id: ev.tool_call_id || ev.toolCallId || "",

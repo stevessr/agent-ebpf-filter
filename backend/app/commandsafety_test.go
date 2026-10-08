@@ -8,8 +8,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section commandsafety_test.go ----
-
 func TestSplitCommandLinePreservesQuotedCommandArgument(t *testing.T) {
 	got := behavior.SplitCommandLine(`sudo bash -c "rm -rf /tmp/demo"`)
 	want := []string{"sudo", "bash", "-c", "rm -rf /tmp/demo"}

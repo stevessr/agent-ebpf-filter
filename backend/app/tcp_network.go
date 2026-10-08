@@ -5,8 +5,6 @@ import (
 	"time"
 )
 
-// ---- moved from backend/zz_merged_backend.go section tcp_network.go ----
-
 type TCPState = netcore.TCPState
 
 type tcpConnectionState = netcore.TCPConnectionState
@@ -71,8 +69,4 @@ func currentTCPConnections() []tcpConnectionState {
 		return manager.TCPSnapshot()
 	}
 	return tcpTracker.Snapshot()
-}
-
-func detectAppProtocol(port uint32, domain string) string {
-	return netcore.DetectAppProtocol(port, domain)
 }

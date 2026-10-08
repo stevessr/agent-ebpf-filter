@@ -43,8 +43,9 @@ Deployment, operations, and monitoring:
 1. **[Build & Run](docs/operations/build-and-run.md)** — Building and running the system
 2. **[Deployment Guide](docs/operations/deployment.md)** — System service installation
 3. **[Kubernetes](docs/operations/kubernetes.md)** — Deploy as DaemonSet
-4. **[External API](docs/integrations/external-api.md)** — API for automation
-5. **[OTLP Export](docs/integrations/otel-export.md)** — Observability integration
+4. **[Sandbox Runtimes](docs/integrations/sandbox-runtimes.md)** — gVisor, Kata, Firecracker and OCI attribution boundaries
+5. **[External API](docs/integrations/external-api.md)** — API for automation
+6. **[OTLP Export](docs/integrations/otel-export.md)** — Observability integration
 
 ### I'm an AI Coding Assistant
 
@@ -120,8 +121,9 @@ Working on this codebase with Claude Code or similar tools:
 ### Integrating with External Systems
 
 1. [External API](docs/integrations/external-api.md)
-2. [MCP, External API & OTLP](docs/integrations/mcp-external-otlp.md)
-3. [OTLP Export](docs/integrations/otel-export.md)
+2. [Sandbox Runtimes](docs/integrations/sandbox-runtimes.md)
+3. [MCP, External API & OTLP](docs/integrations/mcp-external-otlp.md)
+4. [OTLP Export](docs/integrations/otel-export.md)
 
 ---
 
@@ -133,6 +135,7 @@ Working on this codebase with Claude Code or similar tools:
 - [OS-Level Enforcement](docs/backend/ebpf-os-enforcement.md)
 - [Cgroup Network Blocking](docs/backend/cgroup-sandbox.md)
 - [BPF LSM File Blocking](docs/backend/lsm-enforcer.md)
+- [Sandbox Runtime Integration](docs/integrations/sandbox-runtimes.md)
 - [Kernel ML Module](docs/backend/kernel-ml-implementation.md)
 
 ### Security & Privacy

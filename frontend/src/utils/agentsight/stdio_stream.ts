@@ -1,5 +1,6 @@
 import {
   decodeContentLengthFrames,
+  decodeNewlineDelimitedFrames,
   decodeStdioMessage,
 } from "./stdio";
 import type { AgentSightEvent, DecodedStdioMessage } from "./types";
@@ -43,7 +44,9 @@ export function agentSightStdioStreamKey(event: AgentSightEvent) {
     typeof data.fd === "number" || typeof data.fd === "string"
       ? stdioKeyPart(data.fd)
       : "?";
-  const fdRole = stdioKeyPart(data.fd_role || data.fdRole || data.stream || "stdio");
+  const fdRole = stdioKeyPart(
+    data.fd_role || data.fdRole || data.stream || "stdio",
+  );
   const fdTarget = stdioKeyPart(data.fd_target || data.fdTarget);
   return `${event.pid}|${fd}|${direction}|${fdRole}|${fdTarget}`;
 }
@@ -202,6 +205,55 @@ export class AgentSightStdioStreamDecoder {
 
     const combinedText = utf8Decoder.decode(combined);
     const framing = decodeContentLengthFrames(combinedText);
+
+    // MCP's standard stdio transport (including zvec-grep's
+    // StdioServerTransport) is newline-delimited JSON, not Content-Length
+    // framed. Keep the same bounded/reassembly guarantees for that transport.
+    if (!framing.framed) {
+      const newlineFraming = decodeNewlineDelimitedFrames(combinedText);
+      if (newlineFraming.detected) {
+        const decoded = decodeStdioMessage({
+          ...data,
+          data: combinedText,
+          payload: combinedText,
+          len: combined.byteLength,
+          size: combined.byteLength,
+          truncated: false,
+        });
+        decoded.streamKey = key;
+        decoded.reassembled = previousBytes > 0;
+        if (decoded.reassembled) decoded.reassembledBytes = combined.byteLength;
+        if (newlineFraming.error) {
+          decoded.reassemblyReset = newlineFraming.error;
+          decoded.framingError = newlineFraming.error;
+          appendSummary(decoded, "reassembly reset");
+          return decoded;
+        }
+
+        if (newlineFraming.incomplete) {
+          const start = Math.min(
+            Math.max(0, newlineFraming.consumedBytes),
+            combined.byteLength,
+          );
+          const pending = combined.slice(start);
+          if (!this.storePending(key, pending, timestamp)) {
+            decoded.reassemblyReset =
+              "stdio pending frame exceeds bounded cache";
+            decoded.framingError = decoded.reassemblyReset;
+            decoded.pendingBytes = 0;
+            appendSummary(decoded, "reassembly overflow");
+            return decoded;
+          }
+          decoded.pendingBytes = pending.byteLength;
+        } else {
+          decoded.pendingBytes = 0;
+        }
+        if (decoded.reassembled) {
+          appendSummary(decoded, `reassembled ${combined.byteLength}B`);
+        }
+        return decoded;
+      }
+    }
 
     if (!framing.framed) {
       const decoded = decodeStdioMessage(data);

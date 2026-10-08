@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -20,33 +19,24 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// Stopping-generation semantics live in internal/workerqueue; this checks
+// the worker delegates to it and ends up with no queue after shutdown.
 func TestSignalProcessingWorkerShutdownTimeoutKeepsGeneration(t *testing.T) {
 	worker := newSignalProcessingWorker()
-	oldDone := make(chan struct{})
-	worker.mu.Lock()
-	worker.started = true
-	worker.queue = make(chan signalProcessingWorkItem, 1)
-	worker.cancel = func() {}
-	worker.done = oldDone
-	worker.mu.Unlock()
-
-	shutdownCtx, cancel := context.WithCancel(context.Background())
-	cancel()
-	if err := worker.Shutdown(shutdownCtx); !errors.Is(err, context.Canceled) {
-		t.Fatalf("Shutdown() error = %v, want context cancellation", err)
-	}
-	worker.mu.RLock()
-	started, queue, done := worker.started, worker.queue, worker.done
-	worker.mu.RUnlock()
-	if !started || queue != nil || done != oldDone {
-		t.Fatalf("timed-out shutdown state = started:%v queue:%v done:%p, want active generation with nil queue and done %p", started, queue, done, oldDone)
-	}
 	worker.Start(context.Background(), 4)
-	worker.mu.RLock()
-	started, queue, done = worker.started, worker.queue, worker.done
-	worker.mu.RUnlock()
-	if !started || queue != nil || done != oldDone {
-		t.Fatalf("Start() replaced a stopping generation: started:%v queue:%v done:%p", started, queue, done)
+	expired, cancel := context.WithCancel(context.Background())
+	cancel()
+	_ = worker.Shutdown(expired)
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), time.Second)
+	defer waitCancel()
+	if err := worker.Shutdown(waitCtx); err != nil {
+		t.Fatalf("Shutdown() error = %v", err)
+	}
+	if stats := worker.queue.Stats(); stats.Started || stats.Cap != 0 {
+		t.Fatalf("worker after shutdown = %+v", stats)
+	}
+	if worker.EnqueueExpire() {
+		t.Fatal("stopped worker accepted new work")
 	}
 }
 
@@ -207,11 +197,8 @@ func TestSignalProcessingWorkerShutdownAndRestart(t *testing.T) {
 	if err := worker.Shutdown(waitCtx); err != nil {
 		t.Fatalf("Shutdown() error = %v", err)
 	}
-	worker.mu.RLock()
-	started, queue := worker.started, worker.queue
-	worker.mu.RUnlock()
-	if started || queue != nil {
-		t.Fatalf("worker after shutdown = started:%v queue:%v", started, queue)
+	if stats := worker.queue.Stats(); stats.Started || stats.Cap != 0 {
+		t.Fatalf("worker after shutdown = %+v", stats)
 	}
 	if worker.EnqueueExpire() {
 		t.Fatal("stopped worker accepted new work")

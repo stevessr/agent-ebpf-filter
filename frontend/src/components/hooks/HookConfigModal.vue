@@ -65,7 +65,7 @@ const supportsTimeoutCommandHooks = computed(
   () => props.hook?.id === "augment",
 );
 const supportsVisualEditor = computed(
-	() => !["kiro", "antigravity", "pi", "omp"].includes(props.hook?.id || ""),
+	() => !["kiro", "antigravity", "pi", "omp", "zcode"].includes(props.hook?.id || ""),
 );
 
 const stripUnsupportedFields = (cfg: any): any => {

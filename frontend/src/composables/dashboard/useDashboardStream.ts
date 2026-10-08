@@ -1,4 +1,4 @@
-import { ref, type Ref } from "vue";
+import { ref, watch, type Ref } from "vue";
 import axios from "axios";
 import { message } from "ant-design-vue";
 
@@ -9,6 +9,7 @@ import {
   buildAgentEvent,
   normalizeHistoryRecord,
 } from "./dashboardHelpers";
+import { appendBounded } from "./dashboardBuffer";
 import type { AgentEvent } from "./dashboardConstants";
 
 export type DashboardStreamDeps = {
@@ -35,6 +36,18 @@ export function useDashboardStream(deps: DashboardStreamDeps) {
   let historyLoadToken = 0;
   const pendingLiveEvents: AgentEvent[] = [];
   const historyLoaded = ref(false);
+  const evictedRecords = ref(0);
+  const enqueue = (queue: AgentEvent[], records: AgentEvent[]) => {
+    evictedRecords.value += appendBounded(queue, records, deps.maxEvents.value);
+  };
+  watch(deps.maxEvents, (capacity) => {
+    evictedRecords.value += appendBounded(eventBuffer, [], capacity);
+    evictedRecords.value += appendBounded(pendingLiveEvents, [], capacity);
+    if (deps.events.value.length > capacity) {
+      evictedRecords.value += deps.events.value.length - capacity;
+      deps.events.value = deps.events.value.slice(0, capacity);
+    }
+  });
 
   // ── Event buffer management ──
 
@@ -46,6 +59,7 @@ export function useDashboardStream(deps: DashboardStreamDeps) {
     const bufferedEvents = [...eventBuffer];
     const newEvents = [...bufferedEvents.reverse(), ...deps.events.value];
     if (newEvents.length > deps.maxEvents.value) {
+      evictedRecords.value += newEvents.length - deps.maxEvents.value;
       newEvents.length = deps.maxEvents.value;
     }
     deps.events.value = newEvents;
@@ -81,7 +95,7 @@ export function useDashboardStream(deps: DashboardStreamDeps) {
     if (pendingLiveEvents.length === 0) {
       return;
     }
-    eventBuffer.push(...pendingLiveEvents);
+    enqueue(eventBuffer, pendingLiveEvents);
     clearPendingLiveEvents();
     flushEventBuffer();
   };
@@ -106,7 +120,7 @@ export function useDashboardStream(deps: DashboardStreamDeps) {
           return;
         }
 
-        eventBuffer.push(...chunk);
+        enqueue(eventBuffer, chunk);
         flushEventBuffer();
         index += chunk.length;
 
@@ -188,9 +202,9 @@ export function useDashboardStream(deps: DashboardStreamDeps) {
           buildAgentEvent(data as Record<string, unknown>, Date.now()),
         );
         if (!historyLoaded.value) {
-          pendingLiveEvents.push(...normalizedEvents);
+          enqueue(pendingLiveEvents, normalizedEvents);
         } else {
-          eventBuffer.push(...normalizedEvents);
+          enqueue(eventBuffer, normalizedEvents);
           scheduleEventBufferFlush();
         }
       } catch (e) {
@@ -324,6 +338,7 @@ export function useDashboardStream(deps: DashboardStreamDeps) {
   };
 
   const resetStreamState = () => {
+    evictedRecords.value = 0;
     eventBuffer.length = 0;
     clearHistoryLoadTimer();
     clearPendingLiveEvents();
@@ -352,6 +367,7 @@ export function useDashboardStream(deps: DashboardStreamDeps) {
   };
 
   return {
+    evictedRecords,
     historyLoaded,
     startStream,
     stopStream,

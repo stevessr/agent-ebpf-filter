@@ -33,6 +33,13 @@ export interface TLSPlaintextEvent {
   prompt_digest?: string;
   prompt_len?: number;
   vendor?: string;
+  capture_source?: string;
+  app_protocol?: string;
+  request_path?: string;
+  api_profile?: string;
+  api_product?: string;
+  api_operation?: string;
+  api_confidence?: number;
   uid?: number;
   tid?: number;
   is_handshake?: boolean;
@@ -56,6 +63,7 @@ export interface TLSCaptureRule {
   enabled: boolean;
   scope: string;
   comms?: string[];
+  paths?: string[];
   hosts?: string[];
   methods?: string[];
   libraries?: string[];
@@ -81,6 +89,8 @@ export interface TLSCaptureStatus {
   enabled?: boolean;
   available?: boolean;
   readStarted?: boolean;
+  pathScoped?: boolean;
+  capturePaths?: string[];
   error?: string;
   libraries?: TLSLibraryStatus[];
   broadcast?: TLSBroadcastStatus;

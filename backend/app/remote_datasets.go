@@ -14,8 +14,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from backend/zz_merged_backend.go section remote_datasets.go ----
-
 const remoteDatasetFetchLimitBytes = 20 << 20
 const remoteDatasetUploadLimitBytes = 100 << 20
 const remoteDatasetRequestBodyLimitBytes = 160 << 20

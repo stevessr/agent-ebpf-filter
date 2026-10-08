@@ -1,8 +1,5 @@
 import { safeJsonParse } from "./shared";
-import type {
-  AgentSightStdioProtocol,
-  DecodedStdioMessage,
-} from "./types";
+import type { AgentSightStdioProtocol, DecodedStdioMessage } from "./types";
 
 const utf8Encoder = new TextEncoder();
 const utf8Decoder = new TextDecoder("utf-8");
@@ -14,6 +11,17 @@ export interface ContentLengthDecodeResult {
   // Number of UTF-8 wire bytes that belong to complete frames (and optional
   // leading separators). Stateful stream decoding can retain only the suffix
   // beginning here instead of replaying already-emitted frames.
+  consumedBytes: number;
+  error?: string;
+}
+
+export interface NewlineDecodeResult {
+  // MCP's standard stdio transport is newline-delimited JSON rather than
+  // LSP-style Content-Length framing. Keep this separate so plain terminal
+  // text is not accidentally treated as a protocol stream.
+  detected: boolean;
+  payloads: string[];
+  incomplete: boolean;
   consumedBytes: number;
   error?: string;
 }
@@ -151,6 +159,109 @@ export function decodeContentLengthFrames(
   };
 }
 
+function isJsonRpcPayload(value: any) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  if (value.jsonrpc !== "2.0") return false;
+  return (
+    typeof value.method === "string" ||
+    value.result !== undefined ||
+    value.error !== undefined
+  );
+}
+
+function looksLikePartialJsonRpcLine(value: string) {
+  const sample = value.trimStart().toLowerCase();
+  if (!sample.startsWith("{")) return false;
+  return (
+    sample.includes('"jsonrpc"') ||
+    sample.includes('"method"') ||
+    sample.includes('"result"') ||
+    sample.includes('"error"') ||
+    (sample.startsWith('{"j') && !sample.includes("}"))
+  );
+}
+
+// The MCP stdio transport used by zvec-grep writes one JSON-RPC object per
+// line. It is common for a capture event to contain multiple lines or to end
+// in the middle of the next object, so decode the complete prefix and report
+// the byte offset of the suffix for the stateful decoder.
+export function decodeNewlineDelimitedFrames(
+  rawPayload: string,
+): NewlineDecodeResult {
+  const bytes = utf8Encoder.encode(rawPayload);
+  const payloads: string[] = [];
+  let lineStart = 0;
+  let detected = false;
+  let incomplete = false;
+  let error: string | undefined;
+
+  for (let index = 0; index < bytes.length; index++) {
+    if (bytes[index] !== 10) continue;
+
+    let lineEnd = index;
+    if (lineEnd > lineStart && bytes[lineEnd - 1] === 13) lineEnd--;
+    const line = utf8Decoder.decode(bytes.slice(lineStart, lineEnd));
+    const trimmed = line.trim();
+    lineStart = index + 1;
+    if (!trimmed) continue;
+
+    const parsed = safeJsonParse(trimmed);
+    if (!isJsonRpcPayload(parsed)) {
+      if (detected || looksLikePartialJsonRpcLine(trimmed)) {
+        error = "newline-delimited stdio frame is not valid JSON-RPC";
+        break;
+      }
+      // A normal terminal output line is not enough to classify the stream.
+      return {
+        detected: false,
+        payloads: [],
+        incomplete: false,
+        consumedBytes: 0,
+      };
+    }
+    detected = true;
+    payloads.push(trimmed);
+  }
+
+  if (error) {
+    return {
+      detected,
+      payloads,
+      incomplete: false,
+      consumedBytes: lineStart,
+      error,
+    };
+  }
+
+  const suffix = utf8Decoder.decode(bytes.slice(lineStart));
+  const trimmedSuffix = suffix.trim();
+  if (trimmedSuffix) {
+    const parsed = safeJsonParse(trimmedSuffix);
+    if (isJsonRpcPayload(parsed)) {
+      detected = true;
+      payloads.push(trimmedSuffix);
+      lineStart = bytes.length;
+    } else if (detected || looksLikePartialJsonRpcLine(trimmedSuffix)) {
+      detected = true;
+      incomplete = true;
+    } else if (payloads.length === 0) {
+      return {
+        detected: false,
+        payloads: [],
+        incomplete: false,
+        consumedBytes: 0,
+      };
+    }
+  }
+
+  return {
+    detected,
+    payloads,
+    incomplete,
+    consumedBytes: incomplete ? lineStart : bytes.length,
+  };
+}
+
 function extractToolName(parsedPayload: any) {
   const toolName = parsedPayload?.params?.name;
   return typeof toolName === "string" && toolName.length > 0
@@ -214,10 +325,10 @@ function isLspMessage(message: any) {
     const params = message.params;
     return Boolean(
       params &&
-        (params.processId !== undefined ||
-          params.rootUri !== undefined ||
-          params.rootPath !== undefined ||
-          params.workspaceFolders !== undefined),
+      (params.processId !== undefined ||
+        params.rootUri !== undefined ||
+        params.rootPath !== undefined ||
+        params.workspaceFolders !== undefined),
     );
   }
   return false;
@@ -243,7 +354,15 @@ function isMcpMessage(message: any) {
   if (method === "initialize") {
     return typeof message.params?.protocolVersion === "string";
   }
-  return typeof message.result?.protocolVersion === "string";
+  if (typeof message.result?.protocolVersion === "string") return true;
+  // A response can arrive in a separate capture event from its request. MCP
+  // tool results and tools/list responses still have stable result shapes, so
+  // classify them as MCP without requiring request/response coalescing.
+  return (
+    Array.isArray(message.result?.content) ||
+    Array.isArray(message.result?.tools) ||
+    message.result?.structuredContent !== undefined
+  );
 }
 
 function classifyStdioProtocol(
@@ -296,14 +415,27 @@ export function decodeStdioMessage(data: any): DecodedStdioMessage {
       : typeof data?.payload === "string"
         ? data.payload
         : "";
-  const framing = decodeContentLengthFrames(rawPayload);
-  const payloadTexts = framing.framed ? framing.payloads : [rawPayload];
+  const contentLengthFraming = decodeContentLengthFrames(rawPayload);
+  const newlineFraming = contentLengthFraming.framed
+    ? undefined
+    : decodeNewlineDelimitedFrames(rawPayload);
+  const framing = contentLengthFraming.framed
+    ? contentLengthFraming
+    : newlineFraming?.detected
+      ? newlineFraming
+      : undefined;
+  const isNewlineFramed = newlineFraming?.detected === true;
+  const payloadTexts = contentLengthFraming.framed
+    ? contentLengthFraming.payloads
+    : isNewlineFramed
+      ? newlineFraming!.payloads
+      : [rawPayload];
   const parsedMessages = payloadTexts
     .map((payload) => safeJsonParse(payload))
     .filter((value) => value !== null && typeof value === "object");
   const parsedPayload = parsedMessages[0] ?? null;
-  let framingError = framing.error;
-  if (framing.framed && framing.payloads.length > parsedMessages.length) {
+  let framingError = framing?.error;
+  if (framing && framing.payloads.length > parsedMessages.length) {
     framingError ||= "one or more framed payloads contain invalid JSON";
   }
 
@@ -339,7 +471,7 @@ export function decodeStdioMessage(data: any): DecodedStdioMessage {
   const toolName = extractToolName(parsedPayload);
   const preview = parsedPayload
     ? extractStdioPreview(parsedPayload, kind)
-    : framing.framed && framing.incomplete
+    : framing?.incomplete
       ? "incomplete framed message"
       : truncateText(rawPayload);
   const label = protocolLabel(protocol);
@@ -363,7 +495,7 @@ export function decodeStdioMessage(data: any): DecodedStdioMessage {
             ? id
               ? `${protocolPrefix}error #${id}`
               : `${protocolPrefix}stdio error`
-            : framing.framed && framing.incomplete
+            : framing?.incomplete
               ? `${protocolPrefix}partial frame`
               : kind === "text"
                 ? "stdio text"
@@ -379,9 +511,9 @@ export function decodeStdioMessage(data: any): DecodedStdioMessage {
   } else if (preview) {
     summary = `${directionLabel} ${role}${protocolSummary} · ${preview}`;
   }
-  if (framing.payloads.length > 1) {
+  if (framing && framing.payloads.length > 1) {
     summary += ` · ${framing.payloads.length} frames`;
-  } else if (framing.incomplete) {
+  } else if (framing?.incomplete) {
     summary += " · partial";
   }
   if (framingError) {
@@ -399,9 +531,14 @@ export function decodeStdioMessage(data: any): DecodedStdioMessage {
     parsedPayload,
     parsedMessages,
     protocol,
-    framed: framing.framed,
-    frameCount: framing.payloads.length,
-    incompleteFrame: framing.incomplete,
+    framed: Boolean(framing),
+    framing: contentLengthFraming.framed
+      ? "content-length"
+      : isNewlineFramed
+        ? "newline"
+        : "unframed",
+    frameCount: framing?.payloads.length ?? 0,
+    incompleteFrame: framing?.incomplete ?? false,
     framingError,
     kind,
     method,
@@ -418,7 +555,13 @@ export function formatStdioExpandedContent(decoded: DecodedStdioMessage) {
     `Direction: ${decoded.direction || "UNKNOWN"}`,
     `FD Role: ${decoded.fdRole || "unknown"}`,
     `Protocol: ${decoded.protocol}`,
-    `Framing: ${decoded.framed ? "Content-Length" : "unframed"}`,
+    `Framing: ${
+      decoded.framing === "content-length"
+        ? "Content-Length"
+        : decoded.framing === "newline"
+          ? "newline-delimited JSON"
+          : "unframed"
+    }`,
     `Frames: ${decoded.frameCount}`,
   ];
   if (decoded.fd !== null) sections.push(`FD: ${decoded.fd}`);
@@ -432,10 +575,13 @@ export function formatStdioExpandedContent(decoded: DecodedStdioMessage) {
   if (decoded.reassembled) {
     sections.push(`Reassembled: yes (${decoded.reassembledBytes || 0} bytes)`);
   }
-  if (decoded.pendingBytes) sections.push(`Pending bytes: ${decoded.pendingBytes}`);
-  if (decoded.reassemblyReset) sections.push(`Reassembly reset: ${decoded.reassemblyReset}`);
+  if (decoded.pendingBytes)
+    sections.push(`Pending bytes: ${decoded.pendingBytes}`);
+  if (decoded.reassemblyReset)
+    sections.push(`Reassembly reset: ${decoded.reassemblyReset}`);
   if (decoded.incompleteFrame) sections.push("Incomplete frame: yes");
-  if (decoded.framingError) sections.push(`Framing error: ${decoded.framingError}`);
+  if (decoded.framingError)
+    sections.push(`Framing error: ${decoded.framingError}`);
 
   const payload =
     decoded.parsedMessages.length > 1

@@ -25,18 +25,11 @@ func newCollectorMetricsState() *collectorMetricsState {
 	return observability.NewCollectorMetricsState()
 }
 
-// stringsTrimDefault is used by kernel_risk.go and kernel_risk_feedback.go
-// in the app package. It is defined in observability/ but needed here.
-func stringsTrimDefault(value, fallback string) string {
-	return observability.StringsTrimDefault(value, fallback)
-}
-
 // ── collectorMetricsStore bridge ─────────────────────────────────────────
 //
 // collectorMetricsStore retains the same variable name so all 20+ callers
-// in app/ continue to work without modification. Hot monotonic counters use
-// atomic accumulation in observability and are folded into the canonical state
-// before snapshots/exports; complex metrics keep their existing locked path.
+// in app/ continue to work without modification. Every method delegates to
+// the observability subpackage.
 
 type metricsStoreBridge struct{}
 
@@ -48,12 +41,16 @@ func (metricsStoreBridge) RecordAgentSightCounter(name string) {
 	observability.RecordAgentSightCounter(name)
 }
 
+func (metricsStoreBridge) RecordAgentSightCounterN(name string, delta uint64) {
+	observability.RecordAgentSightCounterN(name, delta)
+}
+
 func (metricsStoreBridge) SetPersistAppendLatency(duration time.Duration) {
 	observability.SetPersistAppendLatency(duration)
 }
 
 func (metricsStoreBridge) RecordCapturedArchive() {
-	observability.RecordHotCapturedArchive()
+	observability.RecordCapturedArchive()
 }
 
 func (metricsStoreBridge) RecordCapturedPersist(err error, duration time.Duration) {
@@ -65,11 +62,11 @@ func (metricsStoreBridge) RecordCapturedPersistBatch(persisted, failed uint64, d
 }
 
 func (metricsStoreBridge) RecordBroadcastEnqueue(accepted bool, reason string) {
-	observability.RecordHotBroadcastEnqueue(accepted, reason)
+	observability.RecordBroadcastEnqueue(accepted, reason)
 }
 
 func (metricsStoreBridge) RecordBroadcastReceived() {
-	observability.RecordHotBroadcastReceived()
+	observability.RecordBroadcastReceived()
 }
 
 func (metricsStoreBridge) RecordBroadcastFlush(events, envelopes, marshalErrors, writeErrors int, duration time.Duration) {
@@ -77,7 +74,11 @@ func (metricsStoreBridge) RecordBroadcastFlush(events, envelopes, marshalErrors,
 }
 
 func (metricsStoreBridge) RecordRingbufDecode(zeroCopy bool) {
-	observability.RecordHotRingbufDecode(zeroCopy)
+	observability.RecordRingbufDecode(zeroCopy)
+}
+
+func (metricsStoreBridge) RecordKernelCaptureTiming(delayNS uint64, clock string) {
+	observability.RecordKernelCaptureTiming(delayNS, clock)
 }
 
 func (metricsStoreBridge) RecordKernelRiskDecision(decision string, elapsed time.Duration) {
@@ -89,7 +90,6 @@ func (metricsStoreBridge) RecordKernelRiskFeedback(success bool, err error) {
 }
 
 func (metricsStoreBridge) Snapshot() CollectorHealthResponse {
-	observability.FlushAppHotPathMetrics()
 	return observability.GetCollectorHealthSnapshot()
 }
 
@@ -110,11 +110,9 @@ func getCoreTypes() []pb.CPUInfo_Core_Type {
 }
 
 func handlePrometheusMetrics(c *gin.Context) {
-	observability.FlushAppHotPathMetrics()
 	observability.HandlePrometheusMetrics(c)
 }
 
 func handleCollectorHealth(c *gin.Context) {
-	observability.FlushAppHotPathMetrics()
 	observability.HandleCollectorHealth(c)
 }
