@@ -276,6 +276,22 @@ func NormalizeFileAccessPath(path string) (string, error) {
 	return path, nil
 }
 
+// BPF d_path matches the resolved kernel path, not the lexical spelling.
+// Refuse symlinks (including symlinked parent directories), missing files,
+// and special files when enabling a deny. A rule can still be revoked after
+// its original file was deleted, because revocation never calls this helper.
+func validateProtectedFile(path string) error {
+	info, err := os.Stat(path)
+	if err != nil { return fmt.Errorf("target must exist before enabling a file restriction: %w", err) }
+	if !info.Mode().IsRegular() { return fmt.Errorf("only existing regular files can be protected") }
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil { return fmt.Errorf("resolve target file: %w", err) }
+	if filepath.Clean(resolved) != filepath.Clean(path) {
+		return fmt.Errorf("path uses a symbolic link; select the canonical path %q", resolved)
+	}
+	return nil
+}
+
 func mergedPathBits(old, mask uint32, enabled bool) uint32 {
 	if enabled { return old | mask }
 	return old &^ mask
@@ -310,6 +326,9 @@ func updateLsmPathBits(path string, mask uint32, enabled bool) error {
 func SetFileAccessPath(path string, denyR, denyW bool) error {
 	path, err := NormalizeFileAccessPath(path)
 	if err != nil { return err }
+	if denyR || denyW {
+		if err := validateProtectedFile(path); err != nil { return err }
+	}
 	// The file path feature must never appear to succeed when an upgraded
 	// kernel enforcer fell back to older pinned programs.
 	snap := CurrentLsmEnforcerSnapshot()

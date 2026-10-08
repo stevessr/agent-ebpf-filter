@@ -57,6 +57,20 @@ func activePathRule(rules []fileAccessRule, path string) (fileAccessRule, bool) 
 	return fileAccessRule{}, false
 }
 
+// Reading host authentication and privilege configuration files is likely
+// to disrupt login or system recovery. Require an explicit second gesture
+// in addition to the regular confirmation for these exact paths.
+func needsDangerousReadConfirmation(rule fileAccessRule) bool {
+	if !rule.DenyRead { return false }
+	switch rule.Path {
+	case "/etc/shadow", "/etc/passwd", "/etc/sudoers", "/etc/gshadow",
+		"/etc/pam.d/common-auth", "/etc/nsswitch.conf":
+		return true
+	default:
+		return false
+	}
+}
+
 func (a *renewApp) pathAccessView(c *ui.Context) {
 	t := c.Theme()
 	ui.Text(c, "路径访问与读写权限").FontSize(28).Bold()
@@ -118,6 +132,7 @@ func (a *renewApp) pathAccessView(c *ui.Context) {
 				} else {
 					a.pathAccessErr = ""
 					a.pathAccessPending = fileAccessRule{Path: path, DenyRead: read, DenyWrite: write}
+					a.pathAccessConfirmText = ""
 					a.pathAccessConfirm = true
 				}
 			}
@@ -134,6 +149,7 @@ func (a *renewApp) pathAccessView(c *ui.Context) {
 				statusPill(c, accessLabel(entry), t.Warning)
 				if ui.Button(c, "撤销…").Clicked() && !a.pathAccessBusy {
 					a.pathAccessPending = fileAccessRule{Path: entry.Path}
+					a.pathAccessConfirmText = ""
 					a.pathAccessConfirm = true
 				}
 			})
@@ -146,11 +162,23 @@ func (a *renewApp) pathAccessView(c *ui.Context) {
 		ui.Text(c, r.Path).Font("monospace")
 		ui.Text(c, "即将设置："+accessLabel(r))
 		ui.Text(c, "操作将作用于所有进程，可能导致系统工具或服务无法访问目标文件。").TextColor(t.Warning)
+		if r.DenyRead || r.DenyWrite {
+			ui.Text(c, "启用前要求目标是已存在的普通文件、路径不含符号链接。文件硬链接和未来的文件替换不受同一路径之外的规则覆盖。").FontSize(11).TextColor(t.TextMuted)
+		}
+		if needsDangerousReadConfirmation(r) {
+			ui.Text(c, "高风险：此文件涉及系统登录或提权，阻止读取可能导致系统无法正常使用。请输入「确认高风险」继续。").TextColor(t.Danger)
+			ui.TextInput(c, &a.pathAccessConfirmText).Placeholder("确认高风险").Label("风险确认")
+		}
 		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 			if ui.Button(c, "取消").Clicked() { a.pathAccessConfirm = false }
 			if ui.PrimaryButton(c, "确认写入内核策略").Clicked() {
-				a.pathAccessConfirm = false
-				a.applyPathAccess(r)
+				if needsDangerousReadConfirmation(r) && a.pathAccessConfirmText != "确认高风险" {
+					a.pathAccessErr = "请输入「确认高风险」以启用系统关键文件读取限制"
+				} else {
+					a.pathAccessConfirm = false
+					a.pathAccessConfirmText = ""
+					a.applyPathAccess(r)
+				}
 			}
 		})
 	})

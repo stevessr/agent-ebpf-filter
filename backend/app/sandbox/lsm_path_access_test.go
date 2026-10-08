@@ -18,6 +18,24 @@ func TestFileAccessPathValidation(t *testing.T) {
 		t.Fatalf("exact file: %q, %v", got, err)
 	}
 }
+func TestFileAccessRequiresCanonicalRegularExistingTarget(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "safe-key")
+	if err := os.WriteFile(file, []byte("fixture"), 0600); err != nil { t.Fatal(err) }
+	if err := validateProtectedFile(file); err != nil { t.Fatal(err) }
+	for _, target := range []string{dir, filepath.Join(dir, "missing")} {
+		if err := validateProtectedFile(target); err == nil { t.Errorf("accepted unsafe path %q", target) }
+	}
+	alias := filepath.Join(dir, "alias")
+	if err := os.Symlink(file, alias); err != nil { t.Fatal(err) }
+	if err := validateProtectedFile(alias); err == nil { t.Fatal("accepted symlinked target") }
+	linkedDir := filepath.Join(t.TempDir(), "linked")
+	if err := os.Symlink(dir, linkedDir); err != nil { t.Fatal(err) }
+	if err := validateProtectedFile(filepath.Join(linkedDir, "safe-key")); err == nil {
+		t.Fatal("accepted symlinked parent directory")
+	}
+}
+
 func TestPathPolicyBitsPreserveLegacyExec(t *testing.T) {
 	if got := mergedPathBits(denyExec, denyRead, true); got != denyExec|denyRead {
 		t.Fatalf("add read bit destroyed exec bit: %b", got)

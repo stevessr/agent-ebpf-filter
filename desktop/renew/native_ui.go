@@ -100,6 +100,7 @@ type renewApp struct {
 	pathAccessTarget string
 	pathAccessMode string
 	pathAccessConfirm bool
+	pathAccessConfirmText string
 	pathAccessPending fileAccessRule
 
 	configReady        bool
