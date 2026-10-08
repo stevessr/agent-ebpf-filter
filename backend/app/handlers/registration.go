@@ -15,6 +15,11 @@ func HandleRegister(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "invalid pid"})
 		return
 	}
+	if req.ContainerID == "" && Deps.SandboxRuntime != nil {
+		if detected, err := Deps.SandboxRuntime.DetectPID(int(req.PID)); err == nil && detected.ContainerID != "" {
+			req.ContainerID = detected.ContainerID
+		}
+	}
 	tag := req.Tag
 	if tag == "" {
 		tag = "AI Agent"

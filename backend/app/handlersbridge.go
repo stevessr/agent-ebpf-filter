@@ -10,6 +10,7 @@ import (
 	"agent-ebpf-filter/app/handlers"
 	"agent-ebpf-filter/app/ml"
 	"agent-ebpf-filter/app/platform"
+	"agent-ebpf-filter/app/sandboxruntime"
 	"agent-ebpf-filter/app/shell"
 	"agent-ebpf-filter/app/tls"
 	"agent-ebpf-filter/app/types"
@@ -550,6 +551,9 @@ func init() {
 	// Shell sessions
 	handlers.Deps.ShellSessions = &shellManagerAdapter{mgr: shellSessions}
 	handlers.Deps.MakeShellDeps = func() any { return makeShellDeps() }
+
+	// Sandbox runtime attribution (read-only host boundary discovery)
+	handlers.Deps.SandboxRuntime = sandboxruntime.NewManager()
 
 	// Cgroup sandbox
 	handlers.Deps.CgroupSandbox = &cgroupSandboxAdapter{}

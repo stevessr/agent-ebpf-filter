@@ -195,6 +195,11 @@ func handleLsmUnblockExecName(c *gin.Context) { handlers.HandleLsmUnblockExecNam
 func handleLsmBlockFileName(c *gin.Context)   { handlers.HandleLsmBlockFileName(c) }
 func handleLsmUnblockFileName(c *gin.Context) { handlers.HandleLsmUnblockFileName(c) }
 
+// Sandbox runtime bridges
+func handleSandboxRuntimeStatus(c *gin.Context) { handlers.HandleSandboxRuntimeStatus(c) }
+func handleSandboxRuntimeDetect(c *gin.Context) { handlers.HandleSandboxRuntimeDetect(c) }
+func handleSandboxRuntimeActive(c *gin.Context) { handlers.HandleSandboxRuntimeActive(c) }
+
 // Cgroup sandbox bridges
 func handleCgroupSandboxStatus(c *gin.Context)        { handlers.HandleCgroupSandboxStatus(c) }
 func handleCgroupSandboxBlockCgroup(c *gin.Context)   { handlers.HandleCgroupSandboxBlockCgroup(c) }

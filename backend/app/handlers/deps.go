@@ -6,6 +6,7 @@ import (
 
 	"agent-ebpf-filter/app/events"
 	"agent-ebpf-filter/app/observability"
+	"agent-ebpf-filter/app/sandboxruntime"
 	"agent-ebpf-filter/app/tls"
 	"agent-ebpf-filter/app/types"
 	"agent-ebpf-filter/core"
@@ -179,6 +180,9 @@ var Deps struct {
 		Add(events ...any)
 	}
 
+	// Sandbox runtime attribution (gVisor/Kata/Firecracker/OCI/etc.)
+	SandboxRuntime SandboxRuntimeOps
+
 	// Cgroup sandbox (wired via adapter)
 	CgroupSandbox CgroupSandboxOps
 
@@ -338,6 +342,14 @@ type LsmEnforcerOps interface {
 	UnblockExecName(name string) error
 	BlockFileName(name string) error
 	UnblockFileName(name string) error
+}
+
+// SandboxRuntimeOps is the host-side sandbox/runtime attribution surface.
+// It is read-only and deliberately separate from cgroup/LSM enforcement.
+type SandboxRuntimeOps interface {
+	Status() sandboxruntime.Status
+	DetectPID(pid int) (sandboxruntime.Detection, error)
+	ListActive(limit int) ([]sandboxruntime.Detection, error)
 }
 
 // CgroupSandboxOps is the interface for cgroup sandbox operations.

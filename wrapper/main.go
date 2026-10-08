@@ -59,16 +59,40 @@ func isCodexSH(cmdName, binPath string) bool {
 
 func main() {
 	var (
-		launchUser   = flag.String("user", "", "run command as specified user")
-		launchCwd    = flag.String("cwd", "", "working directory for command")
-		observerMode = flag.Bool("observer", false, "auto-open observe page for this command")
+		launchUser       = flag.String("user", "", "run command as specified user")
+		launchCwd        = flag.String("cwd", "", "working directory for command")
+		observerMode     = flag.Bool("observer", false, "auto-open observe page for this command")
+		sandboxMode      = flag.String("sandbox", "off", "opt-in Linux sandbox: off, readonly, workspace")
+		sandboxWorkspace = flag.String("sandbox-workspace", "", "absolute host workspace to mount into sandbox")
+		sandboxNetwork   = flag.Bool("sandbox-network", false, "allow network access from sandbox (default: isolated)")
+		readOnlyBinds    sandboxBinds
 	)
+	flag.Var(&readOnlyBinds, "sandbox-ro-bind", "explicit read-only host path exposed inside sandbox; repeatable")
 	flag.Parse()
+	opts := sandboxOptions{
+		Mode:      *sandboxMode,
+		Workspace: *sandboxWorkspace,
+		Network:   *sandboxNetwork,
+		ReadOnly:  []string(readOnlyBinds),
+	}
+	if err := opts.validate(); err != nil {
+		log.Fatalf("Invalid sandbox configuration: %v", err)
+	}
+	if opts.Mode != "off" {
+		opts.ContainerID = firstEnv("AGENT_EBPF_CONTAINER_ID", "CONTAINER_ID")
+		if opts.ContainerID == "" {
+			id, err := newSandboxContainerID()
+			if err != nil {
+				log.Fatalf("Cannot prepare sandbox: %v", err)
+			}
+			opts.ContainerID = id
+		}
+	}
 
 	// Remaining positional args are the command + its arguments
 	posArgs := flag.Args()
 	if len(posArgs) < 1 {
-		fmt.Println("Usage: agent-wrapper [--user <user>] [--cwd <path>] [--observer] <command> [args...]")
+		fmt.Println("Usage: agent-wrapper [--user <user>] [--cwd <path>] [--observer] [--sandbox=readonly|workspace] [--sandbox-workspace <absolute>] [--sandbox-network] [--sandbox-ro-bind <absolute>] <command> [args...]")
 		os.Exit(1)
 	}
 
@@ -121,7 +145,7 @@ func main() {
 			RootAgentPid:   parseEnvUint32("AGENT_EBPF_ROOT_AGENT_PID", "ROOT_AGENT_PID"),
 			Decision:       strings.ToUpper(firstEnv("AGENT_EBPF_DECISION", "AGENT_DECISION")),
 			RiskScore:      parseEnvFloat64("AGENT_EBPF_RISK_SCORE", "AGENT_RISK_SCORE"),
-			ContainerId:    firstEnv("AGENT_EBPF_CONTAINER_ID", "CONTAINER_ID"),
+			ContainerId:    firstNonEmpty(opts.ContainerID, firstEnv("AGENT_EBPF_CONTAINER_ID", "CONTAINER_ID")),
 			Cwd:            firstNonEmpty(*launchCwd, firstEnv("AGENT_EBPF_CWD", "PWD"), cwd),
 			BinaryPath:     binPath,
 			Observer:       *observerMode,
@@ -129,16 +153,37 @@ func main() {
 		req.ArgvDigest = buildArgvDigest(req.Comm, req.Args)
 
 		resp, exchangeErr := exchangeWrapperDecision(conn, req)
-		if exchangeErr == nil {
+		if exchangeErr != nil {
+			if opts.Mode != "off" {
+				log.Fatalf("Sandbox launch refused: backend policy decision unavailable: %v", exchangeErr)
+			}
+		} else {
+			if opts.Mode != "off" && (resp == nil ||
+				(resp.Action != pb.WrapperResponse_ALLOW &&
+					resp.Action != pb.WrapperResponse_BLOCK &&
+					resp.Action != pb.WrapperResponse_ALERT &&
+					resp.Action != pb.WrapperResponse_REWRITE)) {
+				log.Fatal("Sandbox launch refused: unknown backend policy decision")
+			}
 			handleDecision(resp, &cmdName, &cmdArgs)
 		}
+	} else if opts.Mode != "off" {
+		log.Fatalf("Sandbox launch refused: backend socket is unavailable: %v", err)
 	}
 
 	if err := prepareAndExecute(
 		*launchCwd,
 		*launchUser,
 		defaultLaunchSecurityOps(),
-		func() { execute(cmdName, cmdArgs) },
+		func() {
+			if opts.Mode == "off" {
+				execute(cmdName, cmdArgs)
+				return
+			}
+			if err := executeSandbox(opts, cmdName, cmdArgs); err != nil {
+				log.Fatalf("Sandbox launch refused: %v", err)
+			}
+		},
 	); err != nil {
 		log.Fatalf("Launch preparation failed: %v", err)
 	}
