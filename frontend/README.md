@@ -151,3 +151,9 @@ The active target is stored in `localStorage` and is applied to both HTTP reques
 - The frontend currently assumes local / trusted deployment.
 - There is no built-in API-key login UX for release-mode backend auth.
 - `src/pb/*` is generated; regenerate from the repo root with `make proto`.
+
+## Harness logos (Lobe Icons)
+
+The WebUI uses the MIT-licensed [Lobe Icons static SVG package](https://github.com/lobehub/lobe-icons) for AI CLI / harness marks. The Vue component `src/components/common/HarnessIcon.vue` is shared by the Hook cards, process tree, process picker, and dashboard triage. Canonical ID/alias mapping and preferred upstream asset filenames live in `src/utils/harnessIconCatalog.json`.
+
+`bun run dev` and `bun run build` copy only the available logos from the installed `@lobehub/icons-static-svg` package into ignored `public/brand-icons/`. The production site serves these files itself; there is **no runtime CDN dependency**. Unknown harnesses, or brands missing from the installed icon release, fall back to the generic icon in Hook cards or to text in other views. Add new mappings to the catalog rather than embedding icon URLs in views.

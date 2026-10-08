@@ -9,6 +9,7 @@ import {
   EditOutlined,
 } from "@ant-design/icons-vue";
 import type { HookDef } from "../../types/hooks";
+import HarnessIcon from "../common/HarnessIcon.vue";
 import { getHookCliDoc } from "../../data/hookCatalog";
 
 const props = defineProps<{
@@ -43,7 +44,9 @@ const wrapperOverride = computed({
         margin-bottom: 12px;
       "
     >
-      <div>
+      <div class="hook-identity">
+        <HarnessIcon :harness="hook.id" :command="hook.name" :size="28" fallback />
+        <div>
         <h3 style="margin: 0; font-size: 15px; font-weight: 600">
           {{ hook.name }}
         </h3>
@@ -60,6 +63,7 @@ const wrapperOverride = computed({
             style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px"
             >{{ hook.target_cmd }}</span
           >
+        </div>
         </div>
       </div>
       <div
@@ -165,3 +169,8 @@ const wrapperOverride = computed({
     </div>
   </a-card>
 </template>
+
+<style scoped>
+.hook-identity { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+.hook-identity > div { min-width: 0; }
+</style>

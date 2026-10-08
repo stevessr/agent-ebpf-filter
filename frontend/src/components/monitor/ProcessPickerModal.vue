@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import type { ProcessInfo } from "../../composables/monitor/useMonitorData";
+import HarnessIcon from "../common/HarnessIcon.vue";
 
 type ProcessRow = ProcessInfo & {
   key: number;
@@ -218,6 +219,7 @@ const confirmSelection = () => {
               size="small"
               style="padding: 0"
             >
+              <HarnessIcon :harness="record.name" :size="16" />
               {{ text || "process" }}
             </a-button>
           </template>

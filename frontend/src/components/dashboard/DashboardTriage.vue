@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import HarnessIcon from "../common/HarnessIcon.vue";
 import { useDashboardSnapshot } from "../../composables/dashboard/useDashboardSnapshot";
 import type { AgentEvent } from "../../composables/dashboard/dashboardConstants";
 import { buildDashboardTriage } from "../../composables/dashboard/dashboardTriage";
@@ -125,7 +126,7 @@ const columns = [
           ><small class="reason">{{ record.reason }}</small></template
         >
         <template v-else-if="column.key === 'activity'"
-          ><strong>{{ record.latest.comm || "未知进程" }}</strong
+          ><strong class="activity-comm"><HarnessIcon :harness="record.latest.comm" :size="16" />{{ record.latest.comm || "未知进程" }}</strong
           ><small class="reason"
             >PID {{ record.latest.pid }} · {{ record.latest.type }}</small
           ></template
@@ -157,6 +158,7 @@ const columns = [
 </template>
 
 <style scoped>
+.activity-comm { display: inline-flex; align-items: center; gap: 6px; }
 .triage {
   padding: 20px;
   border: 1px solid #e5e7eb;

@@ -6,6 +6,7 @@ import {
   AimOutlined,
 } from "@ant-design/icons-vue";
 import type { ProcessTreeNode } from "../../composables/monitor/useProcessObserver";
+import HarnessIcon from "../common/HarnessIcon.vue";
 
 const props = defineProps<{
   node: ProcessTreeNode;
@@ -97,6 +98,7 @@ const durationLabel = computed(() => {
         <CaretRightOutlined />
       </span>
       <code class="tree-pid">{{ node.pid }}</code>
+      <HarnessIcon :harness="node.name" :size="16" />
       <strong class="tree-name">{{ node.name }}</strong>
       <span v-if="node.ppid && node.ppid !== node.pid" class="tree-ppid">
         ppid {{ node.ppid }}

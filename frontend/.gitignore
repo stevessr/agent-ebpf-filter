@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Build-time copies from @lobehub/icons-static-svg
+public/brand-icons/

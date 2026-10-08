@@ -1,0 +1,157 @@
+{
+  "claude": {
+    "aliases": [
+      "claude",
+      "claude-code",
+      "claudecode"
+    ],
+    "assets": [
+      "claudecode-color.svg",
+      "claudecode.svg",
+      "claude-color.svg",
+      "claude.svg"
+    ]
+  },
+  "codex": {
+    "aliases": [
+      "codex",
+      "codex-code-mode",
+      "codex-code-mode-host"
+    ],
+    "assets": [
+      "codex-color.svg",
+      "codex.svg",
+      "openai-color.svg",
+      "openai.svg"
+    ]
+  },
+  "gemini": {
+    "aliases": [
+      "gemini",
+      "gemini-cli"
+    ],
+    "assets": [
+      "gemini-color.svg",
+      "gemini.svg"
+    ]
+  },
+  "dsh": {
+    "aliases": [
+      "dsh",
+      "dsh-exec",
+      "deepseek-harness"
+    ],
+    "assets": [
+      "deepseek-color.svg",
+      "deepseek.svg"
+    ]
+  },
+  "pi": {
+    "aliases": [
+      "pi",
+      "pi-coding-agent"
+    ],
+    "assets": [
+      "pi-color.svg",
+      "pi.svg"
+    ]
+  },
+  "omp": {
+    "aliases": [
+      "omp",
+      "oh-my-pi",
+      "ohmypi"
+    ],
+    "assets": [
+      "ohmypi-color.svg",
+      "ohmypi.svg",
+      "pi-color.svg",
+      "pi.svg"
+    ]
+  },
+  "copilot": {
+    "aliases": [
+      "copilot",
+      "copilot-cli",
+      "github-copilot",
+      "github-copilot-cli",
+      "githubcopilot"
+    ],
+    "assets": [
+      "githubcopilot-color.svg",
+      "githubcopilot.svg"
+    ]
+  },
+  "kiro": {
+    "aliases": [
+      "kiro",
+      "kiro-cli"
+    ],
+    "assets": [
+      "kiro-color.svg",
+      "kiro.svg"
+    ]
+  },
+  "augment": {
+    "aliases": [
+      "augment",
+      "auggie",
+      "augment-code",
+      "augment-cli"
+    ],
+    "assets": [
+      "augment-color.svg",
+      "augment.svg"
+    ]
+  },
+  "antigravity": {
+    "aliases": [
+      "antigravity",
+      "antigravity-cli",
+      "agy"
+    ],
+    "assets": [
+      "antigravity-color.svg",
+      "antigravity.svg"
+    ]
+  },
+  "zcode": {
+    "aliases": [
+      "zcode"
+    ],
+    "assets": [
+      "zcode-color.svg",
+      "zcode.svg"
+    ]
+  },
+  "mcode": {
+    "aliases": [
+      "mcode",
+      "minimax-code"
+    ],
+    "assets": [
+      "minimax-color.svg",
+      "minimax.svg"
+    ]
+  },
+  "cursor": {
+    "aliases": [
+      "cursor",
+      "cursor-agent"
+    ],
+    "assets": [
+      "cursor-color.svg",
+      "cursor.svg"
+    ]
+  },
+  "opencode": {
+    "aliases": [
+      "opencode",
+      "open-code"
+    ],
+    "assets": [
+      "opencode-color.svg",
+      "opencode.svg"
+    ]
+  }
+}
