@@ -19,6 +19,72 @@ Runtime flow:
 5. apply the decision,
 6. `exec()` the final command.
 
+## Optional lightweight sandbox (Linux)
+
+`agent-wrapper` can now execute an approved command inside a **Bubblewrap
+namespace/mount sandbox**, rather than directly on the host. This feature is
+explicitly opt-in. Existing wrapper invocations are unchanged.
+
+```bash
+# Read-only project tree; no network and a private /tmp.
+agent-wrapper --sandbox=readonly --cwd "$PWD" -- /usr/bin/python3 script.py
+
+# Permit writes only inside the chosen project workspace.
+agent-wrapper --sandbox=workspace --sandbox-workspace "$PWD" \
+  --cwd "$PWD" -- /usr/bin/python3 script.py
+
+# Deliberately grant outbound networking and one additional read-only path.
+agent-wrapper --sandbox=workspace --sandbox-network \
+  --sandbox-ro-bind /etc/ssl --cwd "$PWD" -- /usr/bin/python3 script.py
+```
+
+Requirements: install `bwrap` (Bubblewrap) on Linux. Unprivileged user
+namespaces must be supported. Sandboxed commands **must not run as host root**;
+if the wrapper is started as root, specify a non-root `--user` to drop to.
+If Bubblewrap, namespace creation, mounts or policy response fail, sandbox mode
+refuses to execute; there is **no unsandboxed fallback**. Without `--sandbox`,
+the existing backend-unavailable behavior is retained for compatibility.
+
+### Isolation profile
+
+- A fresh mount namespace with **no bind of host `/`**. Standard executables
+  and libraries under `/usr`, `/bin`, `/sbin`, `/lib`, `/lib64` are
+  read-only. A small set of standard files under `/etc` is read-only.
+- Workspace defaults to the effective command cwd. `readonly` mounts it
+  read-only; `workspace` makes only that tree writable, plus private `/tmp`.
+  A working directory outside the declared workspace is rejected.
+- PID, IPC, UTS and user namespace isolation, dropped capabilities, detached
+  terminal session and lifecycle-bound child processes. Network is isolated by
+  default. `--sandbox-network` **shares host networking** (not a filtered
+  network); existing host eBPF network policies remain a separate control.
+- A cleared environment: only a safe PATH/LANG, temporary HOME/cache paths,
+  runtime marker and a sandbox correlation ID are forwarded. Host API tokens,
+  `LD_PRELOAD`, SSH agents, and arbitrary environment values are **not**
+  forwarded. Do not pass secrets through command arguments.
+- `--sandbox-ro-bind /absolute/path` is repeatable for additional read-only
+  dependencies (for example a tool installation or certificates). It explicitly
+  expands visibility; exposing host `/` is refused.
+- The wrapper generates a unique `wrapper-bwrap-...` **logical** sandbox ID
+  (unless an upstream `AGENT_EBPF_CONTAINER_ID` was supplied) and forwards it
+  to the child, allowing registration and wrapper events to correlate. This is
+  not an OCI container ID.
+
+This is lightweight filesystem/namespace isolation, **not** a complete gVisor
+Sentry, VM, seccomp syscall allowlist, or untrusted-code security boundary.
+Access to files made visible by explicit binds is still governed by host file
+permissions; network access when granted can reach the host network. Existing
+Agent eBPF cgroup/BPF-LSM policies can be layered independently.
+
+### Examples and limits
+
+The profile intentionally hides home directories, credentials, and most of
+`/etc`. Network-capable AI CLIs requiring authentication or dynamic system
+libraries may need a more explicit deployment profile; an accidental missing
+resource must not cause an automatic wider mount or policy bypass. For a
+production sandbox with stronger syscall isolation, run the workload under
+gVisor/Kata and let Agent eBPF provide host-boundary monitoring; see
+[Sandbox runtime integration](../docs/integrations/sandbox-runtimes.md).
+
 ## Backend decisions
 
 - `ALLOW` — run command as-is

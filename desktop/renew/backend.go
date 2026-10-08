@@ -27,6 +27,7 @@ type backendSession struct {
 	mu               sync.Mutex
 	closed           bool
 	token            string
+	apiSocket        string
 	nativeIPCVersion int
 	cmd              *exec.Cmd
 	done             chan struct{}
@@ -106,7 +107,7 @@ func ensureBackend(ctx context.Context, origin string) (*backendSession, error) 
 	if runtime.GOOS != "linux" {
 		return nil, fmt.Errorf("automatic eBPF backend startup requires Linux")
 	}
-	port, err := localBackendPort(origin)
+	_, err := localBackendPort(origin)
 	if err != nil {
 		return nil, err
 	}
@@ -132,14 +133,14 @@ func ensureBackend(ctx context.Context, origin string) (*backendSession, error) 
 		_ = os.RemoveAll(dir)
 		return nil, err
 	}
-	session := &backendSession{dir: dir, listener: listener}
+	session := &backendSession{dir: dir, listener: listener, apiSocket: filepath.Join(dir, "api.sock")}
 	success := false
 	defer func() {
 		if !success {
 			session.Close()
 		}
 	}()
-	args := []string{internalBackendFlag, "--desktop-lifetime-socket", filepath.Join(dir, "lifetime.sock"), "--real-home", home, "--desktop-port", port}
+	args := []string{internalBackendFlag, "--desktop-lifetime-socket", filepath.Join(dir, "lifetime.sock"), "--real-home", home, "--desktop-api-socket", session.apiSocket}
 	if os.Getenv("AGENT_RENEW_DEV") == "true" {
 		args = append(args, "--desktop-dev")
 	}
@@ -220,7 +221,7 @@ func ensureBackend(ctx context.Context, origin string) (*backendSession, error) 
 	ticker := time.NewTicker(250 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		if backendAPIAvailable(ctx, origin) {
+		if backendUnixAPIAvailable(ctx, session.apiSocket, session.token) {
 			success = true
 			return session, nil
 		}
@@ -232,6 +233,14 @@ func ensureBackend(ctx context.Context, origin string) (*backendSession, error) 
 		case <-ticker.C:
 		}
 	}
+}
+
+// A backend started by this desktop exposes the same authenticated Gin API
+// on an owner-private Unix socket; it never opens an HTTP TCP listener.
+func backendUnixAPIAvailable(ctx context.Context, path, token string) bool {
+	client := newUnixAPIClient(path, token)
+	var events json.RawMessage
+	return client.getJSON(ctx, "/events/summaries?limit=1", &events) == nil
 }
 
 func tokenPreload(origin, token string) string {
@@ -269,4 +278,9 @@ func existingLocalToken(origin string) string {
 		return ""
 	}
 	return settings.AccessToken
+}
+
+func (s *backendSession) clientAddress() string {
+	if s == nil { return "" }
+	return s.apiSocket
 }

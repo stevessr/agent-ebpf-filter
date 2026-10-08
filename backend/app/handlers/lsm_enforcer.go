@@ -24,6 +24,7 @@ func HandleLsmEnforcerStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"available": snap.Available,
 		"attached":  snap.Attached,
+		"pathAccessSupported": snap.PathAccessSupported,
 		"linkCount": snap.LinkCount,
 		"linkPins":  snap.LinkPins,
 		"maps": gin.H{
@@ -33,6 +34,7 @@ func HandleLsmEnforcerStatus(c *gin.Context) {
 			"stats":             snap.Stats != nil,
 		},
 		"blockedExecPaths": Deps.LsmEnforcer.ListExecPaths(snap.ExecPathBlocklist),
+		"pathAccessRules": Deps.LsmEnforcer.ListFileAccessPaths(snap.ExecPathBlocklist),
 		"blockedExecNames": Deps.LsmEnforcer.ListExecNames(snap.ExecNameBlocklist),
 		"blockedFileNames": Deps.LsmEnforcer.ListFileNames(snap.FileNameBlocklist),
 		"stats":            stats,
@@ -165,4 +167,29 @@ func HandleLsmUnblockFileName(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "unblocked", "name": name})
+}
+
+// HandleLsmSetPathAccess sets an exact globally scoped BPF LSM read/write
+// policy. Both explicit booleans are mandatory; false/false revokes it.
+func HandleLsmSetPathAccess(c *gin.Context) {
+	var req struct {
+		Path string `json:"path"`
+		DenyRead *bool `json:"denyRead"`
+		DenyWrite *bool `json:"denyWrite"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.DenyRead == nil || req.DenyWrite == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "denyRead and denyWrite must both be supplied"})
+		return
+	}
+	path, err := Deps.LsmEnforcer.NormalizeFileAccessPath(req.Path)
+	if err != nil { c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()}); return }
+	if err := Deps.LsmEnforcer.SetFileAccessPath(path, *req.DenyRead, *req.DenyWrite); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"path": path, "denyRead": *req.DenyRead, "denyWrite": *req.DenyWrite})
 }

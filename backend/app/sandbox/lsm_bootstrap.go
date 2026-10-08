@@ -67,7 +67,9 @@ func bootstrapLsmEnforcer() error {
 		return err
 	}
 	replaceLsmEnforcerLinks(links)
-	return loadLsmEnforcerRuntimeMaps(pins)
+	if err := loadLsmEnforcerRuntimeMaps(pins); err != nil { return err }
+	lsmEnforcer.PathAccessSupported = true
+	return nil
 }
 
 func attachLsmEnforcerWithPinnedMaps() error {
@@ -91,7 +93,9 @@ func attachLsmEnforcerWithPinnedMaps() error {
 	links, pins, err := updatePinnedLsmEnforcerLinks(&objs)
 	if err == nil {
 		replaceLsmEnforcerLinks(links)
-		return loadLsmEnforcerRuntimeMaps(pins)
+		if err := loadLsmEnforcerRuntimeMaps(pins); err != nil { return err }
+		lsmEnforcer.PathAccessSupported = true
+		return nil
 	}
 	if !errors.Is(err, errLsmEnforcerPinnedLinksMissing) {
 		if len(links) >= expectedLsmEnforcerLinks {
@@ -100,6 +104,9 @@ func attachLsmEnforcerWithPinnedMaps() error {
 			if loadErr := loadLsmEnforcerRuntimeMaps(pins); loadErr != nil {
 				return loadErr
 			}
+			// The old pinned programs may not recognize the new file read/write
+			// bits, so refuse path rules rather than claiming enforcement.
+			lsmEnforcer.PathAccessSupported = false
 			lsmEnforcer.LastError = fmt.Sprintf("reused pinned links without program update: %v", err)
 			return nil
 		}
@@ -111,7 +118,9 @@ func attachLsmEnforcerWithPinnedMaps() error {
 		return err
 	}
 	replaceLsmEnforcerLinks(links)
-	return loadLsmEnforcerRuntimeMaps(pins)
+	if err := loadLsmEnforcerRuntimeMaps(pins); err != nil { return err }
+	lsmEnforcer.PathAccessSupported = true
+	return nil
 }
 
 func pinLsmEnforcerMaps(objs *bpf.AgentLsmEnforcerObjects) error {

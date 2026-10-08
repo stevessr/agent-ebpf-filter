@@ -189,11 +189,17 @@ func buildExternalOpenAPISpec() *openapi3.T   { return handlers.BuildExternalOpe
 // LSM enforcer bridges
 func handleLsmEnforcerStatus(c *gin.Context)  { handlers.HandleLsmEnforcerStatus(c) }
 func handleLsmBlockExecPath(c *gin.Context)   { handlers.HandleLsmBlockExecPath(c) }
+func handleLsmSetPathAccess(c *gin.Context) { handlers.HandleLsmSetPathAccess(c) }
 func handleLsmUnblockExecPath(c *gin.Context) { handlers.HandleLsmUnblockExecPath(c) }
 func handleLsmBlockExecName(c *gin.Context)   { handlers.HandleLsmBlockExecName(c) }
 func handleLsmUnblockExecName(c *gin.Context) { handlers.HandleLsmUnblockExecName(c) }
 func handleLsmBlockFileName(c *gin.Context)   { handlers.HandleLsmBlockFileName(c) }
 func handleLsmUnblockFileName(c *gin.Context) { handlers.HandleLsmUnblockFileName(c) }
+
+// Sandbox runtime bridges
+func handleSandboxRuntimeStatus(c *gin.Context) { handlers.HandleSandboxRuntimeStatus(c) }
+func handleSandboxRuntimeDetect(c *gin.Context) { handlers.HandleSandboxRuntimeDetect(c) }
+func handleSandboxRuntimeActive(c *gin.Context) { handlers.HandleSandboxRuntimeActive(c) }
 
 // Cgroup sandbox bridges
 func handleCgroupSandboxStatus(c *gin.Context)        { handlers.HandleCgroupSandboxStatus(c) }

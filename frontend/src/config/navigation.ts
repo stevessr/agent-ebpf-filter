@@ -37,12 +37,6 @@ const ALL_NAV_GROUPS: NavMenuGroup[] = [
     icon: EyeOutlined,
     children: [
       {
-        key: "renew",
-        title: "Renew",
-        icon: DashboardOutlined,
-        defaultRoute: { name: "Renew" },
-      },
-      {
         key: "dashboard",
         title: "仪表盘",
         icon: DashboardOutlined,
@@ -188,7 +182,6 @@ export const WORKBENCH_REGISTRY = NAV_GROUPS.reduce<
 );
 
 const routeNameMap: Record<string, WorkbenchKey> = {
-  Renew: "renew",
   Dashboard: "dashboard",
   Monitor: "monitor",
   Network: "network",
@@ -236,8 +229,6 @@ export const resolveWorkbenchKey = (
     isAvailableWorkbenchKey("ml")
   )
     return "ml";
-  if (path.startsWith("/renew") && isAvailableWorkbenchKey("renew"))
-    return "renew";
   if (path.startsWith("/dashboard") && isAvailableWorkbenchKey("dashboard"))
     return "dashboard";
   if (path.startsWith("/monitor") && isAvailableWorkbenchKey("monitor"))

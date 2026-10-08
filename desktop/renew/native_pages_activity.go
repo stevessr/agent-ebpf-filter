@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strconv"
@@ -30,8 +31,35 @@ type processAggregate struct {
 
 func (a *renewApp) overview(c *ui.Context) {
 	t := c.Theme()
-	ui.Text(c, "现在正常吗？").FontSize(28).Bold()
-	ui.Text(c, "先回答健康与风险，再进入事件、网络和规则等专业视图。").TextColor(t.TextMuted)
+	ui.Column(c).Padding(20).Gap(12).Radius(14).Background(t.Accent.Alpha(0.055)).Border(1, t.Accent.Alpha(0.26)).Children(func() {
+		ui.Row(c).Gap(12).Wrap().AlignItems(ui.Center).Children(func() {
+			ui.Box(c).Size(48, 48).Radius(14).Background(t.Accent).Center().Children(func() {
+				ui.Text(c, "镜").FontSize(24).Bold().TextColor(t.AccentText)
+			})
+			ui.Column(c).Grow(1).MinWidth(250).Gap(4).Children(func() {
+				ui.Text(c, desktopBrandName).FontSize(28).Bold()
+				ui.Text(c, desktopBrandSlogan).FontSize(14).TextColor(t.TextMuted)
+			})
+			status, level := a.pipelineStatus()
+			color := t.Success
+			switch level {
+			case "danger":
+				color = t.Danger
+			case "warning":
+				color = t.Warning
+			}
+			statusPill(c, status, color)
+		})
+		ui.Text(c, desktopBrandDescription).FontSize(12).TextColor(t.TextMuted)
+		ui.Row(c).Gap(8).Wrap().Children(func() {
+			ui.Badge(c, "eBPF 内核观测")
+			ui.Badge(c, "Agent 会话溯源")
+			ui.Badge(c, "网络外联洞察")
+			ui.Badge(c, "策略事件追踪")
+		})
+	})
+
+	ui.Text(c, "运行态势基于采集健康与当前摘要窗口；未发现异常不代表没有未观测到的风险。").FontSize(11).TextColor(t.TextMuted)
 
 	headline, detail, level := a.overviewHeadline()
 	tone := t.Success
@@ -115,13 +143,13 @@ func (a *renewApp) overview(c *ui.Context) {
 
 func (a *renewApp) overviewHeadline() (headline, detail, level string) {
 	if a.starting {
-		return "正在建立监控", "Renew 正在连接已有后端，或请求系统授权启动本机后端。", "warning"
+		return "正在建立监控", "明镜高悬正在连接已有后端，或请求系统授权启动本机后端。", "warning"
 	}
 	if !a.connected {
 		return "后端不可用", "当前无法确认系统是否正常；请检查后端连接或重新启动本机监控。", "danger"
 	}
 	if !a.healthReady {
-		return "正在同步运行状态", "后端已经连接，Renew 正在等待第一份采集器健康状态与事件摘要快照。", "warning"
+		return "正在同步运行状态", "后端已经连接，正在等待第一份采集器健康状态与事件摘要快照。", "warning"
 	}
 	if !a.health.CaptureHealthy {
 		return "采集链路异常", fmt.Sprintf("eBPF 采集健康检查未通过；Ringbuf 累计丢弃 %d。", a.health.RingbufDroppedTotal), "danger"
@@ -134,7 +162,7 @@ func (a *renewApp) overviewHeadline() (headline, detail, level string) {
 		return "有活动需要关注", fmt.Sprintf("当前摘要窗口中有 %d 条需关注事件；采集链路本身运行正常。", attention), "warning"
 	}
 	if !a.eventStreamConnected {
-		return "监控在线，但事件流处于回退模式", "后端可用，Renew 正通过兼容路径同步摘要；实时性可能略低于 Native IPC。", "warning"
+		return "监控在线，但事件流处于回退模式", "后端可用，当前正通过兼容路径同步摘要；实时性可能略低于 Native IPC。", "warning"
 	}
 	if !a.systemConnected {
 		return "监控在线，但系统流正在重连", "事件采集仍在工作；CPU、内存和实时进程信息暂时不可用或正在恢复。", "warning"
@@ -394,15 +422,48 @@ func (a *renewApp) systemView(c *ui.Context) {
 	t := c.Theme()
 	ui.Text(c, "系统").FontSize(28).Bold()
 
+	_, attention, danger := a.riskCounts()
+	if !a.connected || (a.healthReady && !a.health.CaptureHealthy) ||
+		!a.eventStreamConnected || !a.systemConnected || danger > 0 || attention > 0 {
+		card(c, "异常与快速处置", func() {
+			if !a.connected {
+				statusPill(c, "后端离线", t.Danger)
+				ui.Text(c, "后端未连接，当前无法确认采集状态。").TextColor(t.TextMuted)
+			} else if a.healthReady && !a.health.CaptureHealthy {
+				statusPill(c, "采集异常", t.Danger)
+				ui.Text(c, "采集器报告异常，可检查监控模块与数据采集配置。").TextColor(t.TextMuted)
+			} else if !a.eventStreamConnected || !a.systemConnected {
+				statusPill(c, "连接降级", t.Warning)
+				ui.Text(c, "事件流或系统流正在恢复；可以立即重新同步。").TextColor(t.TextMuted)
+			}
+			if danger > 0 || attention > 0 {
+				ui.Textf(c, "当前事件窗口：%d 条高风险、%d 条需关注", danger, attention)
+			}
+			ui.Row(c).Gap(8).Wrap().Children(func() {
+				if ui.PrimaryButton(c, "定位异常事件").Clicked() {
+					a.eventAttentionOnly = true
+					a.eventTypeFilter, a.eventSessionFilter, a.eventDecisionFilter, a.search = "", "", "", ""
+					a.page = "事件"
+				}
+				if ui.Button(c, "采集设置").Clicked() { a.page = "监控" }
+				if ui.Button(c, "跟踪范围").Clicked() { a.page = "跟踪" }
+				if ui.Button(c, "立即重连").Clicked() {
+					go a.refresh(context.Background())
+					go a.refreshConfiguration(context.Background())
+				}
+			})
+		})
+	}
+
 	ui.Row(c).Gap(12).Wrap().Children(func() {
 		collectorLabel, _ := a.collectorStatus()
 		statCard(c, "采集器", collectorLabel, fmt.Sprintf("Ringbuf 丢弃 %d", a.health.RingbufDroppedTotal))
 		if a.systemConnected {
 			statCard(c, "CPU", fmt.Sprintf("%.1f%%", a.system.CPUTotal), fmt.Sprintf("%d 个进程", len(a.system.Processes)))
 			statCard(c, "内存", fmt.Sprintf("%.1f%%", a.system.MemPercent), fmt.Sprintf("%s / %s", formatBytes(int64(a.system.MemUsed)), formatBytes(int64(a.system.MemTotal))))
-			statCard(c, "系统流", "实时", "protobuf /ws/system")
+			statCard(c, "系统流", "实时", "protobuf / Native IPC")
 		} else if a.connected {
-			statCard(c, "系统流", "重连中", "protobuf /ws/system")
+			statCard(c, "系统流", "重连中", "Native IPC / WebSocket")
 		} else {
 			statCard(c, "系统流", "不可用", "后端离线")
 		}

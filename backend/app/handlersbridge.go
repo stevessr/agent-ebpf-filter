@@ -10,6 +10,7 @@ import (
 	"agent-ebpf-filter/app/handlers"
 	"agent-ebpf-filter/app/ml"
 	"agent-ebpf-filter/app/platform"
+	"agent-ebpf-filter/app/sandboxruntime"
 	"agent-ebpf-filter/app/shell"
 	"agent-ebpf-filter/app/tls"
 	"agent-ebpf-filter/app/types"
@@ -170,6 +171,7 @@ func (a *lsmEnforcerAdapter) Snapshot() handlers.LsmEnforcerSnapshot {
 		LinkCount:         snap.LinkCount,
 		LinkPins:          snap.LinkPins,
 		LastError:         snap.LastError,
+		PathAccessSupported: snap.PathAccessSupported,
 		ExecPathBlocklist: snap.ExecPathBlocklist,
 		ExecNameBlocklist: snap.ExecNameBlocklist,
 		FileNameBlocklist: snap.FileNameBlocklist,
@@ -202,6 +204,22 @@ func (a *lsmEnforcerAdapter) ListExecNames(blocklist any) []string {
 
 func (a *lsmEnforcerAdapter) ListFileNames(blocklist any) []string {
 	return listLsmFileNames(blocklist.(*ebpf.Map))
+}
+
+func (a *lsmEnforcerAdapter) ListFileAccessPaths(m any) []handlers.LsmFileAccessRule {
+	if m == nil { return nil }
+	rows := listLsmFileAccessPaths(m.(*ebpf.Map))
+	out := make([]handlers.LsmFileAccessRule, 0, len(rows))
+	for _, row := range rows { out = append(out, handlers.LsmFileAccessRule{
+		Path: row.Path, DenyRead: row.DenyRead, DenyWrite: row.DenyWrite,
+	}) }
+	return out
+}
+func (a *lsmEnforcerAdapter) SetFileAccessPath(path string, read, write bool) error {
+	return setLsmFileAccessPath(path, read, write)
+}
+func (a *lsmEnforcerAdapter) NormalizeFileAccessPath(path string) (string, error) {
+	return normalizeLsmFileAccessPath(path)
 }
 
 func (a *lsmEnforcerAdapter) NormalizePath(path string) (string, error) {
@@ -550,6 +568,9 @@ func init() {
 	// Shell sessions
 	handlers.Deps.ShellSessions = &shellManagerAdapter{mgr: shellSessions}
 	handlers.Deps.MakeShellDeps = func() any { return makeShellDeps() }
+
+	// Sandbox runtime attribution (read-only host boundary discovery)
+	handlers.Deps.SandboxRuntime = sandboxruntime.NewManager()
 
 	// Cgroup sandbox
 	handlers.Deps.CgroupSandbox = &cgroupSandboxAdapter{}

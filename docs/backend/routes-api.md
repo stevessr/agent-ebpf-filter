@@ -124,6 +124,18 @@ registerRoutes()
 
 ## 沙箱路由 (`/sandbox`)
 
+### Sandbox runtime 归因 (`/sandbox/runtime`)
+
+这些只读接口不依赖 cgroup/LSM 编译特性，用于识别宿主可见的 gVisor、Kata、Firecracker、Bubblewrap、nsjail 与 OCI runtime。gVisor guest syscall 不会被误标成普通宿主 syscall；细粒度 guest telemetry 需要 gVisor 自身 trace/seccheck 通道。
+
+| 方法 | 路径 | 用途 |
+|------|------|------|
+| `GET` | `/sandbox/runtime/status` | 支持的 runtime、宿主发现能力与边界说明 |
+| `GET` | `/sandbox/runtime/detect?pid=<host-pid>` | 按宿主 PID 解析 runtime、cgroup、container ID |
+| `GET` | `/sandbox/runtime/active?limit=128` | 有界枚举宿主可见 runtime 进程 |
+
+详见 [Sandbox runtime integration](../integrations/sandbox-runtimes.md)。
+
 ### Cgroup 沙箱 (`/sandbox/cgroup`)
 
 需要 `FeatureSandboxCgroup` 编译特性。写操作额外需要 `FeaturePolicyManagement`。

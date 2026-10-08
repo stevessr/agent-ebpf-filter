@@ -10,8 +10,8 @@ import (
 
 func TestDefaultIgnoredEventPaths(t *testing.T) {
 	paths := defaultIgnoredEventPaths()
-	if len(paths) != 1 || paths[0] != "/proc" {
-		t.Fatalf("default ignored paths = %v, want [/proc]", paths)
+	if len(paths) != 2 || paths[0] != "/proc" || paths[1] != "/tmp" {
+		t.Fatalf("default ignored paths = %v, want [/proc /tmp]", paths)
 	}
 }
 

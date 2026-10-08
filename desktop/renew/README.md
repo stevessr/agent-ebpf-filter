@@ -1,6 +1,10 @@
-# Renew Desktop (MyGo Native UI)
+# 明镜高悬 · Agent eBPF Filter 桌面端（MyGo Native UI）
 
-Renew Desktop is the native desktop monitor for Agent eBPF Filter. Its interface is written entirely in Go with MyGo's `ui` package and is drawn by MyGo itself. It does **not** start a WebView, Vite, HTML, JavaScript, or the Vue Renew frontend.
+**察微知著 · 守护 Agent 边界** — 用 eBPF 观察 Agent 行为、关联会话、识别外联与策略事件。
+
+「明镜高悬」是面向用户的宣传品牌，内部开发代号仍为 `renew`。为保持现有安装、CLI、REST 及 CI 兼容，`desktop/renew`、可执行文件 `renew`、Linux 命令 `agent-ebpf-renew`、应用标识符及浏览器 `/renew` 路由均不更改；MyGo 运行时名称、窗口标题与原生 UI 使用中文品牌。
+
+明镜高悬是 Agent eBPF Filter 的原生桌面监控应用。界面完全使用 Go 和 MyGo `ui` 组件绘制，不依赖 WebView、Vite、HTML、JavaScript 或 Vue Renew 前端运行时。
 
 The desktop process stays unprivileged. On Linux it reuses an already running backend or re-executes the **same Renew executable** in an internal backend mode and requests system authorization for that child. The backend is linked as a Go library; there is no packaged backend sidecar. Only the internal backend child gains privileges.
 
@@ -26,8 +30,8 @@ single ELF: renew
                                       ├══ private Unix socket ══▶ desktop
                                       │   DesktopEventSummary + SystemStats protobuf
                                       │
-                                      └─ REST / WebSocket compatibility plane
-                                          remote/custom/browser clients
+                                      └─ authenticated REST API on a second private
+                                          Unix socket (no TCP port listener)
 ```
 
 The native client now covers the low-noise daily-monitoring workflow: Overview, Events, Agent Sessions, Network, Processes, Monitoring, Wrapper Rules, Tracking, and System. Events and configuration surfaces use MyGo-native tables/forms/selects/tabs/switches; the browser runtime is not embedded.
@@ -36,9 +40,15 @@ For a backend started by Renew, the Events page no longer uses the generic WebSo
 
 Monitoring uses the existing `/config/runtime` PATCH contract and only changes UI state after backend confirmation. Nested loop/signal/research settings are read first and written back intact so toggling `enabled` does not reset their thresholds or queue parameters. The native page also controls TLS capture, persistence, and the explicit policy-management gate. Wrapper Rules use `/config/rules` for ALLOW/BLOCK/ALERT/REWRITE operations, while Tracking manages tags, commands, exact paths, and path prefixes through the existing config APIs.
 
+### Manual eBPF module lifecycle
+
+The **eBPF 模块** page under Management lists registered `kind=ebpf` plugins from `GET /plugins`, including attach kind/target, runtime-loaded status and last load error. **加载** calls `POST /plugins/bpf/load`; **卸载** requires confirmation and calls `POST /plugins/bpf/unload`. After a mutation the client re-reads `GET /plugins` and only reports success after the requested runtime state is confirmed. Failures are displayed without optimistic UI changes. The existing backend authorization and policy checks remain authoritative; no shell-based `bpftool`, `rmmod`, or unprivileged load path is introduced.
+
+These controls target **registered custom eBPF programs only**, and detach their kernel links without deleting their plugin manifests. The `enabled` setting (startup behavior) is unchanged by manual load/unload. Built-in core tracing programs are not listed as plugin manifests, and Monitoring event-group switches still control event filtering rather than physically unloading core programs. New plugin registration/compilation remains in the browser workbench.
+
 System telemetry uses the same native socket for a locally launched backend. The system sampler is transport-independent and shared by both clients: browser clients receive its protobuf snapshots over `/ws/system`, while Renew receives the identical `SystemStats` payload directly over Native IPC. This avoids a duplicated sampler while keeping the local desktop off the generic web transport. Remote/custom backends still use the WebSocket implementation, and a lost local IPC channel automatically falls back to it.
 
-The browser `/renew` frontend remains available as an independent client and as the route to features not yet migrated to native widgets. It is no longer a desktop runtime or packaging dependency.
+The browser `/renew` frontend has been removed. The main browser workbench remains independent; the native desktop UI does not ship a browser, a WebView, or a TCP HTTP listener. The privately started backend serves authenticated configuration and history requests over a second Unix socket in the desktop-owned 0700 session directory.
 
 ## Why a separate module?
 
@@ -114,3 +124,11 @@ go build ./...
 ../../scripts/renew-desktop.sh prepare
 go tool mygo build -skip-build-command -platform linux/amd64
 ```
+
+## Tracking scope and filesystem noise
+
+The tracking panel can filter by tag and activation status. Commands may be disabled; exact file and recursive directory rules remain enabled until deleted. The file picker uses MyGo's native dialog. **文件夹内文件** enumerates and registers existing immediate regular files as exact paths (a snapshot; new files need registering again); **文件** registers one exact file; **文件夹及其子文件** stores a persistent recursive prefix. Mutations still require the existing policy-management gate.
+
+New runtime configs ignore `/proc` and `/tmp` by default. The extra built-in `/usr/bin` rule suppresses only low-risk read/write operations (not executable launches, renames, or policy alerts); the explicit empty `ignoredPaths: []` opt-out remains effective. Already saved custom ignored paths are not overwritten.
+
+In bundled mode the privileged child listens only on an authenticated private Unix domain API socket, plus the separate lifetime/event-stream socket. It does **not** open TCP port 8080 or write a backend port file. When the user explicitly connects to a pre-existing local/remote backend, the desktop reuses that independently managed endpoint without changing how that service listens.

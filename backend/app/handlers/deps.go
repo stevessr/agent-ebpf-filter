@@ -6,6 +6,7 @@ import (
 
 	"agent-ebpf-filter/app/events"
 	"agent-ebpf-filter/app/observability"
+	"agent-ebpf-filter/app/sandboxruntime"
 	"agent-ebpf-filter/app/tls"
 	"agent-ebpf-filter/app/types"
 	"agent-ebpf-filter/core"
@@ -179,6 +180,9 @@ var Deps struct {
 		Add(events ...any)
 	}
 
+	// Sandbox runtime attribution (gVisor/Kata/Firecracker/OCI/etc.)
+	SandboxRuntime SandboxRuntimeOps
+
 	// Cgroup sandbox (wired via adapter)
 	CgroupSandbox CgroupSandboxOps
 
@@ -316,10 +320,17 @@ type LsmEnforcerSnapshot struct {
 	LinkCount         int
 	LinkPins          []string
 	LastError         string
+	PathAccessSupported bool
 	ExecPathBlocklist any
 	ExecNameBlocklist any
 	FileNameBlocklist any
 	Stats             any
+}
+
+type LsmFileAccessRule struct {
+	Path string `json:"path"`
+	DenyRead bool `json:"denyRead"`
+	DenyWrite bool `json:"denyWrite"`
 }
 
 // LsmEnforcerOps is the interface for LSM enforcer operations.
@@ -330,6 +341,9 @@ type LsmEnforcerOps interface {
 	ListExecPaths(blocklist any) []string
 	ListExecNames(blocklist any) []string
 	ListFileNames(blocklist any) []string
+	ListFileAccessPaths(blocklist any) []LsmFileAccessRule
+	SetFileAccessPath(path string, denyR, denyW bool) error
+	NormalizeFileAccessPath(path string) (string, error)
 	NormalizePath(path string) (string, error)
 	NormalizeName(name string) (string, error)
 	BlockExecPath(path string) error
@@ -338,6 +352,14 @@ type LsmEnforcerOps interface {
 	UnblockExecName(name string) error
 	BlockFileName(name string) error
 	UnblockFileName(name string) error
+}
+
+// SandboxRuntimeOps is the host-side sandbox/runtime attribution surface.
+// It is read-only and deliberately separate from cgroup/LSM enforcement.
+type SandboxRuntimeOps interface {
+	Status() sandboxruntime.Status
+	DetectPID(pid int) (sandboxruntime.Detection, error)
+	ListActive(limit int) ([]sandboxruntime.Detection, error)
 }
 
 // CgroupSandboxOps is the interface for cgroup sandbox operations.

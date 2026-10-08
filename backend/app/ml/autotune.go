@@ -35,9 +35,11 @@ func (t *ModelTrainer) AutoTuneWithConfig(store *TrainingDataStore, cfg MLConfig
 
 	gridSize := normalizeAutoTuneGridSize(req.GridSize)
 	granularity := normalizeAutoTuneGranularity(req.Granularity)
-	metric := NormalizeAutoTuneMetric(req.Metric)
+	metric := NormalizeSecurityAutoTuneMetric(req.Metric)
 	if metric == "" {
-		metric = "validationAccuracy"
+		// Parameter tuning is security-first by default. Accuracy/speed remain
+		// available when explicitly requested by callers.
+		metric = "securityUtility"
 	}
 
 	effectiveCfg := ApplyBuiltinModelPreset(cfg)
@@ -94,7 +96,7 @@ func (t *ModelTrainer) AutoTuneWithConfig(store *TrainingDataStore, cfg MLConfig
 		mt = ModelRandomForest
 	}
 	t.Logf("══════ 自动调参开始 ══════")
-	t.Logf("模型类型: %s, 方阵: %dx%d, 轴: %s×%s", ModelName(requestedModelType), gridSize, gridSize, xAxis, yAxis)
+	t.Logf("模型类型: %s, 方阵: %dx%d, 轴: %s×%s, 指标: %s", ModelName(requestedModelType), gridSize, gridSize, xAxis, yAxis, metric)
 	if cuda.IsAvailable() {
 		t.Logf("CUDA 加速已启用: %s", cuda.DeviceInfo())
 	} else {
@@ -102,7 +104,7 @@ func (t *ModelTrainer) AutoTuneWithConfig(store *TrainingDataStore, cfg MLConfig
 	}
 
 	if progressCb != nil {
-		startMsg := "开始评估自动调参方阵"
+		startMsg := "开始评估安全导向自动调参方阵"
 		if cuda.IsAvailable() {
 			startMsg += fmt.Sprintf(" [CUDA: %s]", cuda.DeviceInfo())
 		}
@@ -319,15 +321,15 @@ func (t *ModelTrainer) AutoTuneWithConfig(store *TrainingDataStore, cfg MLConfig
 				}
 
 			case ModelNearestCentroid:
-				metric := "euclidean"
+				metricName := "euclidean"
 				switch {
 				case numTrees <= 24:
-					metric = "cosine"
+					metricName = "cosine"
 				case numTrees >= 36:
-					metric = "manhattan"
+					metricName = "manhattan"
 				}
 				balanced := maxDepth >= 8
-				model := NewNearestCentroid(metric, balanced)
+				model := NewNearestCentroid(metricName, balanced)
 				model.Classes = 4
 				model.Centroids = make([][FeatureDim]float64, model.Classes)
 				model.Priors = make([]float64, model.Classes)
@@ -409,14 +411,14 @@ func (t *ModelTrainer) AutoTuneWithConfig(store *TrainingDataStore, cfg MLConfig
 				evalDuration = time.Since(evalStart)
 				predictValidation = func(features [FeatureDim]float64) int32 {
 					bestClass := int32(0)
-					bestScore := math.Inf(-1)
+					bestLinearScore := math.Inf(-1)
 					for c := 0; c < 4; c++ {
 						score := W[c][FeatureDim]
 						for d := 0; d < FeatureDim; d++ {
 							score += W[c][d] * features[d]
 						}
-						if score > bestScore {
-							bestScore = score
+						if score > bestLinearScore {
+							bestLinearScore = score
 							bestClass = int32(c)
 						}
 					}
@@ -432,8 +434,12 @@ func (t *ModelTrainer) AutoTuneWithConfig(store *TrainingDataStore, cfg MLConfig
 			metrics := evaluateAutoTuneClassificationMetrics(validationSet, predictValidation)
 			allowRecall = metrics.AllowRecall
 			balancedAccuracy = metrics.BalancedAccuracy
-
-			score := AutoTuneMetricScore(metric, validationAccuracy, throughput, metrics)
+			attackMetrics := EvaluateAttackImpactTrainSamples(validationSet, predictValidation)
+			comparable := SecurityAutoTuneMetricComparable(metric, attackMetrics)
+			score := -1.0
+			if comparable {
+				score = SecurityAutoTuneMetricScore(metric, validationAccuracy, throughput, metrics, attackMetrics)
+			}
 
 			cell := MLAutoTuneCell{
 				XIndex:               xi,
@@ -447,6 +453,7 @@ func (t *ModelTrainer) AutoTuneWithConfig(store *TrainingDataStore, cfg MLConfig
 				ValidationAccuracy:   validationAccuracy,
 				AllowRecall:          allowRecall,
 				BalancedAccuracy:     balancedAccuracy,
+				AttackMetrics:        attackMetrics,
 				InferenceThroughput:  throughput,
 				InferenceMsPerSample: msPerSample,
 				TrainDuration:        cellDuration.Seconds(),
@@ -454,7 +461,7 @@ func (t *ModelTrainer) AutoTuneWithConfig(store *TrainingDataStore, cfg MLConfig
 				Score:                score,
 			}
 			cells = append(cells, cell)
-			if score > bestScore {
+			if comparable && score > bestScore {
 				copyCell := cell
 				best = &copyCell
 				bestScore = score
@@ -463,7 +470,19 @@ func (t *ModelTrainer) AutoTuneWithConfig(store *TrainingDataStore, cfg MLConfig
 			done++
 			t.setTrainingProgress(float64(done) / float64(totalCombos))
 			if done%3 == 0 || done == totalCombos {
-				t.Logf("%s 调优: %d/%d 格 (准确率 %.1f%%)", ModelName(requestedModelType), done, totalCombos, validationAccuracy*100)
+				if comparable {
+					t.Logf(
+						"%s 调优: %d/%d 格 security=%.1f%% high-impact=%.1f%% destruction=%.1f%% catastrophic-miss=%.1f%% accuracy=%.1f%%",
+						ModelName(requestedModelType), done, totalCombos,
+						attackMetrics.SecurityUtility*100,
+						attackMetrics.HighImpactRecall*100,
+						attackMetrics.DestructionRecall*100,
+						attackMetrics.CatastrophicMissRate*100,
+						validationAccuracy*100,
+					)
+				} else {
+					t.Logf("%s 调优: %d/%d 格 (指标 %s 在验证集无覆盖)", ModelName(requestedModelType), done, totalCombos, metric)
+				}
 			}
 			if progressCb != nil {
 				progressCb(done, totalCombos, fmt.Sprintf("%s 评估 %d/%d%s", ModelName(requestedModelType), done, totalCombos, cudaLog))
@@ -476,7 +495,11 @@ func (t *ModelTrainer) AutoTuneWithConfig(store *TrainingDataStore, cfg MLConfig
 	}
 
 	if progressCb != nil {
-		progressCb(totalCombos, totalCombos, "自动调参完成")
+		if best == nil {
+			progressCb(totalCombos, totalCombos, fmt.Sprintf("自动调参完成，但指标 %s 在验证集无有效样本", metric))
+		} else {
+			progressCb(totalCombos, totalCombos, "安全导向自动调参完成")
+		}
 	}
 
 	return &MLAutoTuneResponse{

@@ -190,7 +190,9 @@ func Main() error {
 	if err != nil {
 		return err
 	}
-	configureRuntimePort(ctx, runtimeJobs, actualPort)
+	if actualPort > 0 {
+		configureRuntimePort(ctx, runtimeJobs, actualPort)
+	}
 
 	if features.CompiledIn(FeatureML) {
 		runtimeJobs.Go(func() {

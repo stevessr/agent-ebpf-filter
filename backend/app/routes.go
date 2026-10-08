@@ -83,6 +83,10 @@ func registerNetworkRoutes(r gin.IRouter, ac *AppContext, features *FeatureRegis
 }
 
 func registerSandboxRoutes(r gin.IRouter, _ *AppContext, features *FeatureRegistry) {
+	r.GET("/sandbox/runtime/status", authMiddleware(), handleSandboxRuntimeStatus)
+	r.GET("/sandbox/runtime/detect", authMiddleware(), handleSandboxRuntimeDetect)
+	r.GET("/sandbox/runtime/active", authMiddleware(), handleSandboxRuntimeActive)
+
 	if features.CompiledIn(FeatureSandboxCgroup) {
 		r.GET("/sandbox/cgroup/status", authMiddleware(), handleCgroupSandboxStatus)
 		if features.CompiledIn(FeaturePolicyManagement) {
@@ -109,6 +113,7 @@ func registerSandboxRoutes(r gin.IRouter, _ *AppContext, features *FeatureRegist
 		r.GET("/sandbox/lsm/status", authMiddleware(), handleLsmEnforcerStatus)
 		if features.CompiledIn(FeaturePolicyManagement) {
 			r.POST("/sandbox/lsm/block-exec-path", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmBlockExecPath)
+			r.PUT("/sandbox/lsm/path-access", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmSetPathAccess)
 			r.POST("/sandbox/lsm/unblock-exec-path", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmUnblockExecPath)
 			r.POST("/sandbox/lsm/block-exec-name", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmBlockExecName)
 			r.POST("/sandbox/lsm/unblock-exec-name", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmUnblockExecName)
@@ -116,6 +121,7 @@ func registerSandboxRoutes(r gin.IRouter, _ *AppContext, features *FeatureRegist
 			r.POST("/sandbox/lsm/unblock-file-name", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmUnblockFileName)
 		} else {
 			r.POST("/sandbox/lsm/block-exec-path", authMiddleware(), compiledOutFeatureMiddleware(FeaturePolicyManagement))
+			r.PUT("/sandbox/lsm/path-access", authMiddleware(), compiledOutFeatureMiddleware(FeaturePolicyManagement))
 			r.POST("/sandbox/lsm/unblock-exec-path", authMiddleware(), compiledOutFeatureMiddleware(FeaturePolicyManagement))
 			r.POST("/sandbox/lsm/block-exec-name", authMiddleware(), compiledOutFeatureMiddleware(FeaturePolicyManagement))
 			r.POST("/sandbox/lsm/unblock-exec-name", authMiddleware(), compiledOutFeatureMiddleware(FeaturePolicyManagement))

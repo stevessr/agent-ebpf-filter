@@ -51,6 +51,7 @@ func runDesktop() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	mygo.App.SetName(desktopBrandName)
 	if !mygo.App.RequestSingleInstanceLock() {
 		return
 	}
@@ -72,7 +73,7 @@ func runDesktop() {
 
 	mygo.App.WhenReady(func() {
 		window := mygo.NewWindow(mygo.WindowOptions{
-			Title:     "Renew",
+			Title:     desktopWindowTitle,
 			Width:     1180,
 			Height:    760,
 			MinWidth:  900,
@@ -131,7 +132,11 @@ func (a *renewApp) bootstrap(ctx context.Context) {
 	if token == "" {
 		token = existingLocalToken(a.backend)
 	}
-	a.client = newAPIClient(a.backend, token)
+	if session != nil {
+		a.client = newUnixAPIClient(session.apiSocket, token)
+	} else {
+		a.client = newAPIClient(a.backend, token)
+	}
 	a.update(func() {
 		a.starting = false
 		a.connected = true
@@ -171,15 +176,4 @@ func resolveBackendURL(explicit string) (string, error) {
 	return strings.TrimRight(parsed.String(), "/"), nil
 }
 
-// Kept as a compatibility helper for links from the native desktop to the
-// full browser workbench.
-func joinRenewURL(backend string) string {
-	parsed, err := url.Parse(backend)
-	if err != nil {
-		return backend + "/renew"
-	}
-	parsed.Path = strings.TrimRight(parsed.Path, "/") + "/renew"
-	parsed.RawQuery = ""
-	parsed.Fragment = ""
-	return parsed.String()
-}
+

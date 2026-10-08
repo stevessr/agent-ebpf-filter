@@ -6,12 +6,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 type eventSummary struct {
@@ -150,7 +153,15 @@ type cgroupSandboxStatus struct {
 	Error        string   `json:"error"`
 }
 
+type fileAccessRule struct {
+	Path string `json:"path"`
+	DenyRead bool `json:"denyRead"`
+	DenyWrite bool `json:"denyWrite"`
+}
+
 type lsmSandboxStatus struct {
+	PathAccessRules []fileAccessRule `json:"pathAccessRules"`
+	PathAccessSupported bool `json:"pathAccessSupported"`
 	Available        bool     `json:"available"`
 	Attached         bool     `json:"attached"`
 	BlockedExecPaths []string `json:"blockedExecPaths"`
@@ -171,9 +182,10 @@ type apiSnapshot struct {
 }
 
 type apiClient struct {
-	origin string
-	token  string
-	http   *http.Client
+	origin     string
+	token      string
+	http       *http.Client
+	unixSocket string
 }
 
 func newAPIClient(origin, token string) *apiClient {
@@ -182,6 +194,30 @@ func newAPIClient(origin, token string) *apiClient {
 		token:  strings.TrimSpace(token),
 		http:   &http.Client{Timeout: 4 * time.Second},
 	}
+}
+
+func newUnixAPIClient(socket, token string) *apiClient {
+	client := newAPIClient("http://desktop.internal", token)
+	client.unixSocket = socket
+	client.http.Transport = &http.Transport{
+		Proxy: nil,
+		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			return (&net.Dialer{}).DialContext(ctx, "unix", socket)
+		},
+	}
+	return client
+}
+
+func (c *apiClient) websocketDialer() websocket.Dialer {
+	dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
+	if c.unixSocket != "" {
+		socket := c.unixSocket
+		dialer.Proxy = nil
+		dialer.NetDialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
+			return (&net.Dialer{}).DialContext(ctx, "unix", socket)
+		}
+	}
+	return dialer
 }
 
 func (c *apiClient) requestJSON(ctx context.Context, method, path string, body, out any) error {
@@ -486,6 +522,18 @@ func (c *apiClient) enforcementStatus(ctx context.Context) (enforcementSnapshot,
 		return out, fmt.Errorf("sandbox status: cgroup: %v; lsm: %v", cgroupErr, lsmErr)
 	}
 	return out, nil
+}
+
+func (c *apiClient) fileAccessStatus(ctx context.Context) (lsmSandboxStatus, error) {
+	var status lsmSandboxStatus
+	err := c.getJSON(ctx, "/sandbox/lsm/status", &status)
+	return status, err
+}
+
+func (c *apiClient) setFileAccess(ctx context.Context, path string, denyRead, denyWrite bool) error {
+	return c.requestJSON(ctx, http.MethodPut, "/sandbox/lsm/path-access", map[string]any{
+		"path": path, "denyRead": denyRead, "denyWrite": denyWrite,
+	}, nil)
 }
 
 func (c *apiClient) enforcementAction(ctx context.Context, path string, payload map[string]any) error {

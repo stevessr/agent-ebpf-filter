@@ -93,6 +93,15 @@ type renewApp struct {
 	enforcement         enforcementSnapshot
 	enforcementBusy     bool
 	enforcementErr      string
+	pathAccessLoaded bool
+	pathAccessBusy bool
+	pathAccessErr string
+	pathAccessState lsmSandboxStatus
+	pathAccessTarget string
+	pathAccessMode string
+	pathAccessConfirm bool
+	pathAccessConfirmText string
+	pathAccessPending fileAccessRule
 
 	configReady        bool
 	configBusy         bool
@@ -101,10 +110,21 @@ type renewApp struct {
 	runtimeCfg         runtimeConfigResponse
 	runtimeReady       bool
 
+	modulesReady         bool
+	modulesBusy          bool
+	modulesErr           string
+	modulesNotice        string
+	modulesPendingUnload string
+	modules              []ebpfModule
+
 	registryReady bool
 	registryBusy  bool
 	registryErr   string
 	registryTab   int
+	registryFilterTag    string
+	registryFilterStatus string
+	registryLastFilterTag string
+	registryLastFilterStatus string
 	registry      registrySnapshot
 	newTag        string
 	trackName     string
@@ -142,6 +162,7 @@ func newRenewApp(backend string) *renewApp {
 		ruleAction:         "ALERT",
 		rulePriority:       "0",
 		ruleRewrite:        "[]",
+		pathAccessMode: "阻止写入",
 	}
 	a.eventTable.Selected = &a.eventSelected
 	a.processTable.Selected = &a.processSelected
@@ -163,6 +184,7 @@ func (a *renewApp) runPolling(ctx context.Context, session *backendSession) {
 	}
 	a.refresh(ctx)
 	a.refreshConfiguration(ctx)
+	go a.refreshEBPFModules(ctx)
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -285,10 +307,14 @@ func (a *renewApp) view(c *ui.Context) {
 					a.processesView(c)
 				case "监控":
 					a.monitoringView(c)
+				case "eBPF 模块":
+					a.ebpfModulesView(c)
 				case "规则":
 					a.rulesView(c)
 				case "跟踪":
 					a.trackingView(c)
+				case "路径权限":
+					a.pathAccessView(c)
 				case "系统":
 					a.systemView(c)
 				default:
@@ -310,12 +336,12 @@ func (a *renewApp) sidebar(c *ui.Context) {
 
 	ui.Column(c).Width(224).Shrink(0).Background(t.Surface).Children(func() {
 		ui.Row(c).Padding(18, 16, 12, 16).Gap(10).AlignItems(ui.Center).Children(func() {
-			ui.Box(c).Size(34, 34).Radius(10).Background(t.Accent).Center().Children(func() {
-				ui.Text(c, "R").Bold().TextColor(t.AccentText)
+			ui.Box(c).Size(36, 36).Radius(11).Background(t.Accent).Center().Children(func() {
+				ui.Text(c, "镜").FontSize(18).Bold().TextColor(t.AccentText)
 			})
-			ui.Column(c).Gap(1).Children(func() {
-				ui.Text(c, "Renew").FontSize(16).Bold()
-				ui.Text(c, "Agent 日常监控").FontSize(11).TextColor(t.TextMuted)
+			ui.Column(c).Gap(2).Children(func() {
+				ui.Text(c, desktopBrandName).FontSize(17).Bold()
+				ui.Text(c, "Agent 行为观测与防护").FontSize(10).TextColor(t.TextMuted)
 			})
 		})
 
@@ -339,8 +365,10 @@ func (a *renewApp) sidebar(c *ui.Context) {
 			})
 			ui.SidebarSection(c, "管理", nil, func() {
 				ui.SidebarItem(c, "监控", nil, "采集与能力")
+				ui.SidebarItem(c, "eBPF 模块", nil, "内核程序挂载")
 				ui.SidebarItem(c, "规则", nil, "Wrapper 规则")
 				ui.SidebarItem(c, "跟踪", nil, "跟踪范围")
+				ui.SidebarItem(c, "路径权限", nil, "敏感文件读写保护")
 			})
 			ui.SidebarSection(c, "诊断", nil, func() {
 				system := ui.SidebarItem(c, "系统", nil, "系统")
@@ -471,10 +499,14 @@ func pageSubtitle(page string) string {
 		return "实时进程与 Agent 活动"
 	case "监控":
 		return "采集范围、运行时能力与开销"
+	case "eBPF 模块":
+		return "独立 eBPF 插件的手动加载与卸载"
 	case "规则":
 		return "agent-wrapper 策略与重写"
 	case "跟踪":
 		return "命令、路径与标签范围"
+	case "路径权限":
+		return "按完整路径精确限制读取和写入"
 	case "系统":
 		return "采集器、系统流与队列诊断"
 	default:
@@ -520,8 +552,8 @@ func pageUsesEventSearch(page string) bool {
 
 func (a *renewApp) startingView(c *ui.Context) {
 	t := c.Theme()
-	card(c, "正在启动 Agent eBPF Filter", func() {
-		ui.Text(c, "Renew 正在复用现有后端，或通过系统授权启动随包后端。桌面 UI 本身保持普通用户权限。").TextColor(t.TextMuted)
+	card(c, "明镜高悬 · 正在连接监控后端", func() {
+		ui.Text(c, "正在复用现有后端，或通过系统授权启动内置后端。桌面界面始终以普通用户权限运行。").TextColor(t.TextMuted)
 		ui.Spinner(c)
 	})
 }
