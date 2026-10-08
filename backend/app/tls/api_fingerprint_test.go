@@ -57,3 +57,18 @@ func TestAnnotateTLSAPIFingerprintMiniMaxProviderNotHarness(t *testing.T) {
 		t.Fatalf("MiniMax provider detection must be independent of calling harness: %+v", event)
 	}
 }
+
+func TestAnnotateTLSAPIFingerprintPreservesExplicitCaptureProvenance(t *testing.T) {
+	event := &TLSPlaintextEvent{
+		Type: "http_request", Direction: "send", Method: "POST",
+		Host: "api.example.test", URL: "https://api.example.test/v1/messages",
+		CaptureSource: "dsh_inspector",
+	}
+	annotateTLSAPIFingerprint(event)
+	if event.CaptureSource != "dsh_inspector" {
+		t.Fatalf("explicit source overwritten: %q", event.CaptureSource)
+	}
+	if event.AppProtocol != "http1" || event.RequestPath != "/v1/messages" {
+		t.Fatalf("protocol metadata lost: %+v", event)
+	}
+}
