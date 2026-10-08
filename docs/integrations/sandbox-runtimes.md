@@ -14,6 +14,11 @@ The host-side runtime detector recognizes:
 - nsjail
 - OCI runtimes such as runc, crun, youki and `containerd-shim-runc-v2`
 
+Runtime classification requires runtime-specific host-process evidence. A
+Docker/containerd/Kubernetes cgroup alone is **not** evidence that the workload
+uses runc: those orchestrators can also select gVisor or VM runtimes. Generic
+cgroups may still yield a `container_id` without asserting a runtime kind.
+
 It correlates `/proc/<pid>/comm`, `/proc/<pid>/cmdline` and
 `/proc/<pid>/cgroup`, then reuses the existing `container_id` process
 context. Registration also fills an empty `container_id` when a stable ID is
