@@ -380,7 +380,9 @@ func (s *session) handleEvent(method string, raw json.RawMessage) {
 				emit("")
 				return
 			}
-			var value struct{ PostData string `json:"postData"` }
+			var value struct {
+				PostData string `json:"postData"`
+			}
 			if json.Unmarshal(result, &value) != nil {
 				emit("")
 				return
@@ -412,7 +414,9 @@ func (s *session) handleEvent(method string, raw json.RawMessage) {
 		}
 		s.stateMu.Unlock()
 	case "Network.loadingFinished":
-		var params struct{ RequestID string `json:"requestId"` }
+		var params struct {
+			RequestID string `json:"requestId"`
+		}
 		if json.Unmarshal(raw, &params) != nil || params.RequestID == "" {
 			return
 		}

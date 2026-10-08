@@ -117,7 +117,6 @@ func runDshPluginCommand(profile string, args ...string) error {
 	return nil
 }
 
-
 type dshIntegrationState struct {
 	InspectorInstalledByAgent bool `json:"inspector_installed_by_agent,omitempty"`
 }

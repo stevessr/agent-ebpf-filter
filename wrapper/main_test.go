@@ -72,7 +72,6 @@ func firstArgBytes(args []string) int {
 	return len(args[0])
 }
 
-
 func TestPrepareCommandArgsPreservesDshAppArgumentsVerbatim(t *testing.T) {
 	raw := []string{"headless", "  keep spacing  ", ""}
 	got := prepareCommandArgs("dsh", raw, false)
@@ -105,7 +104,6 @@ func TestBuildArgvDigestPreservesExactArgumentBoundaries(t *testing.T) {
 	}
 }
 
-
 func TestPrepareCommandArgsVerbatimModePreservesAnyCommand(t *testing.T) {
 	raw := []string{"", "  keep  ", "--flag"}
 	got := prepareCommandArgs("python", raw, true)
@@ -119,15 +117,15 @@ func TestPrepareCommandArgsVerbatimModePreservesAnyCommand(t *testing.T) {
 }
 
 func TestDshPolicyProviderFailsClosedWhenBackendIsUnavailable(t *testing.T) {
-	cases := []struct{
+	cases := []struct {
 		sandbox string
 		dshExec bool
 		require bool
 	}{
-		{sandbox:"off", dshExec:false, require:false},
-		{sandbox:"readonly", dshExec:false, require:true},
-		{sandbox:"workspace", dshExec:false, require:true},
-		{sandbox:"off", dshExec:true, require:true},
+		{sandbox: "off", dshExec: false, require: false},
+		{sandbox: "readonly", dshExec: false, require: true},
+		{sandbox: "workspace", dshExec: false, require: true},
+		{sandbox: "off", dshExec: true, require: true},
 	}
 	for _, tc := range cases {
 		if got := requiresBackendPolicy(tc.sandbox, tc.dshExec); got != tc.require {
