@@ -320,10 +320,17 @@ type LsmEnforcerSnapshot struct {
 	LinkCount         int
 	LinkPins          []string
 	LastError         string
+	PathAccessSupported bool
 	ExecPathBlocklist any
 	ExecNameBlocklist any
 	FileNameBlocklist any
 	Stats             any
+}
+
+type LsmFileAccessRule struct {
+	Path string `json:"path"`
+	DenyRead bool `json:"denyRead"`
+	DenyWrite bool `json:"denyWrite"`
 }
 
 // LsmEnforcerOps is the interface for LSM enforcer operations.
@@ -334,6 +341,9 @@ type LsmEnforcerOps interface {
 	ListExecPaths(blocklist any) []string
 	ListExecNames(blocklist any) []string
 	ListFileNames(blocklist any) []string
+	ListFileAccessPaths(blocklist any) []LsmFileAccessRule
+	SetFileAccessPath(path string, denyR, denyW bool) error
+	NormalizeFileAccessPath(path string) (string, error)
 	NormalizePath(path string) (string, error)
 	NormalizeName(name string) (string, error)
 	BlockExecPath(path string) error

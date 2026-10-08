@@ -171,6 +171,7 @@ func (a *lsmEnforcerAdapter) Snapshot() handlers.LsmEnforcerSnapshot {
 		LinkCount:         snap.LinkCount,
 		LinkPins:          snap.LinkPins,
 		LastError:         snap.LastError,
+		PathAccessSupported: snap.PathAccessSupported,
 		ExecPathBlocklist: snap.ExecPathBlocklist,
 		ExecNameBlocklist: snap.ExecNameBlocklist,
 		FileNameBlocklist: snap.FileNameBlocklist,
@@ -203,6 +204,22 @@ func (a *lsmEnforcerAdapter) ListExecNames(blocklist any) []string {
 
 func (a *lsmEnforcerAdapter) ListFileNames(blocklist any) []string {
 	return listLsmFileNames(blocklist.(*ebpf.Map))
+}
+
+func (a *lsmEnforcerAdapter) ListFileAccessPaths(m any) []handlers.LsmFileAccessRule {
+	if m == nil { return nil }
+	rows := listLsmFileAccessPaths(m.(*ebpf.Map))
+	out := make([]handlers.LsmFileAccessRule, 0, len(rows))
+	for _, row := range rows { out = append(out, handlers.LsmFileAccessRule{
+		Path: row.Path, DenyRead: row.DenyRead, DenyWrite: row.DenyWrite,
+	}) }
+	return out
+}
+func (a *lsmEnforcerAdapter) SetFileAccessPath(path string, read, write bool) error {
+	return setLsmFileAccessPath(path, read, write)
+}
+func (a *lsmEnforcerAdapter) NormalizeFileAccessPath(path string) (string, error) {
+	return normalizeLsmFileAccessPath(path)
 }
 
 func (a *lsmEnforcerAdapter) NormalizePath(path string) (string, error) {

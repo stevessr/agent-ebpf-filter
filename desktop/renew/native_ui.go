@@ -93,6 +93,15 @@ type renewApp struct {
 	enforcement         enforcementSnapshot
 	enforcementBusy     bool
 	enforcementErr      string
+	pathAccessLoaded bool
+	pathAccessBusy bool
+	pathAccessErr string
+	pathAccessState lsmSandboxStatus
+	pathAccessTarget string
+	pathAccessMode string
+	pathAccessConfirm bool
+	pathAccessConfirmText string
+	pathAccessPending fileAccessRule
 
 	configReady        bool
 	configBusy         bool
@@ -153,6 +162,7 @@ func newRenewApp(backend string) *renewApp {
 		ruleAction:         "ALERT",
 		rulePriority:       "0",
 		ruleRewrite:        "[]",
+		pathAccessMode: "阻止写入",
 	}
 	a.eventTable.Selected = &a.eventSelected
 	a.processTable.Selected = &a.processSelected
@@ -303,6 +313,8 @@ func (a *renewApp) view(c *ui.Context) {
 					a.rulesView(c)
 				case "跟踪":
 					a.trackingView(c)
+				case "路径权限":
+					a.pathAccessView(c)
 				case "系统":
 					a.systemView(c)
 				default:
@@ -356,6 +368,7 @@ func (a *renewApp) sidebar(c *ui.Context) {
 				ui.SidebarItem(c, "eBPF 模块", nil, "内核程序挂载")
 				ui.SidebarItem(c, "规则", nil, "Wrapper 规则")
 				ui.SidebarItem(c, "跟踪", nil, "跟踪范围")
+				ui.SidebarItem(c, "路径权限", nil, "敏感文件读写保护")
 			})
 			ui.SidebarSection(c, "诊断", nil, func() {
 				system := ui.SidebarItem(c, "系统", nil, "系统")
@@ -492,6 +505,8 @@ func pageSubtitle(page string) string {
 		return "agent-wrapper 策略与重写"
 	case "跟踪":
 		return "命令、路径与标签范围"
+	case "路径权限":
+		return "按完整路径精确限制读取和写入"
 	case "系统":
 		return "采集器、系统流与队列诊断"
 	default:

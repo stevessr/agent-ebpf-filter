@@ -16,6 +16,7 @@ func (a *renewApp) trackingView(c *ui.Context) {
 	t := c.Theme()
 	ui.Text(c, "跟踪对象").FontSize(28).Bold()
 	ui.Text(c, "决定哪些 Agent 命令和工作目录进入 eBPF 观测范围；标签用于把事件归到可读的 Agent 上下文。").TextColor(t.TextMuted)
+	if ui.Button(c, "配置敏感文件读写权限").Clicked() { a.page = "路径权限" }
 
 	if a.registryErr != "" {
 		ui.Text(c, a.registryErr).TextColor(t.TextMuted)

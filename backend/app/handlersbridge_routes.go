@@ -189,6 +189,7 @@ func buildExternalOpenAPISpec() *openapi3.T   { return handlers.BuildExternalOpe
 // LSM enforcer bridges
 func handleLsmEnforcerStatus(c *gin.Context)  { handlers.HandleLsmEnforcerStatus(c) }
 func handleLsmBlockExecPath(c *gin.Context)   { handlers.HandleLsmBlockExecPath(c) }
+func handleLsmSetPathAccess(c *gin.Context) { handlers.HandleLsmSetPathAccess(c) }
 func handleLsmUnblockExecPath(c *gin.Context) { handlers.HandleLsmUnblockExecPath(c) }
 func handleLsmBlockExecName(c *gin.Context)   { handlers.HandleLsmBlockExecName(c) }
 func handleLsmUnblockExecName(c *gin.Context) { handlers.HandleLsmUnblockExecName(c) }
