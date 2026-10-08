@@ -14,6 +14,15 @@ func (a *renewApp) ebpfModulesView(c *ui.Context) {
 	ui.Text(c, "eBPF 模块").FontSize(28).Bold()
 	ui.Text(c, "按需加载或卸载已注册的自定义 eBPF 程序。操作会真正挂载或关闭对应内核 eBPF 链接，而不是只过滤事件。").TextColor(t.TextMuted)
 	ui.Text(c, "内置核心采集器不在此列表中；其事件组可在「监控」调整。手动操作仅影响当前后端运行期，不改变模块的开机启用设置。").FontSize(11).TextColor(t.TextMuted)
+	if a.runtimeReady && !a.runtimeCfg.Runtime.PolicyManagementEnabled {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
+			statusPill(c, "策略管理未启用", t.Warning)
+			ui.Text(c, "后端要求启用策略管理后才能加载或卸载 eBPF 插件。").FontSize(12).TextColor(t.TextMuted)
+			if ui.Button(c, "前往监控设置").Clicked() {
+				a.page = "监控"
+			}
+		})
+	}
 
 	ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 		if ui.Button(c, "刷新模块状态").Clicked() && !a.modulesBusy {
