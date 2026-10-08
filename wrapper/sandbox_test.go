@@ -11,8 +11,8 @@ import (
 
 func TestSandboxOptionsRejectUnsafeModes(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		opts sandboxOptions
+		name      string
+		opts      sandboxOptions
 		wantError bool
 	}{
 		{name: "legacy off", opts: sandboxOptions{Mode: "off"}},
