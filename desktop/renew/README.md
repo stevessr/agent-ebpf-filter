@@ -6,6 +6,12 @@
 
 明镜高悬是 Agent eBPF Filter 的原生桌面监控应用。界面完全使用 Go 和 MyGo `ui` 组件绘制，不依赖 WebView、Vite、HTML、JavaScript 或 Vue Renew 前端运行时。
 
+## Native workspace layout
+
+Renew defaults to a low-glare navy dark theme with an editor-inspired desktop shell, without embedding a web runtime. The 54-DIP activity rail provides quick navigation, the 198-DIP sidebar groups monitoring and policy controls, and the main region keeps the existing live monitoring views. A compact toolbar shows the active page, health of the capture pipeline, event search, pause, and refresh.
+
+At 1320 DIPs and wider, the Overview and Events views can display a collapsible event-inspector rail. It shows risk counts, current compact event fields and collector status. Its **Load full details** button is the only inspector action that requests a complete event payload from the backend; otherwise it uses the existing bounded summary window and its cached filters. On narrower windows the inspector is hidden automatically to preserve space for tables and configuration inputs. The shell lives in `native_workspace.go` independently of data pages and the native IPC implementation.
+
 The desktop process stays unprivileged. On Linux it reuses an already running backend or re-executes the **same Renew executable** in an internal backend mode and requests system authorization for that child. The backend is linked as a Go library; there is no packaged backend sidecar. Only the internal backend child gains privileges.
 
 ## Architecture
