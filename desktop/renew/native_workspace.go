@@ -80,6 +80,7 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 					a.inspector(c)
 				}
 			})
+			a.workspaceFooter(c)
 			// Keep the existing explicit detail API, modal and payload release.
 			wasOpen := a.eventDetailOpen
 			a.eventDetailModal(c)
@@ -316,4 +317,39 @@ func (a *renewApp) hasEventConstraints() bool {
 	return a.eventPIDFilter > 0 || a.eventRiskFilter != "" ||
 		a.eventTypeFilter != "" || a.eventSessionFilter != "" ||
 		a.eventDecisionFilter != "" || a.eventAttentionOnly
+}
+
+func (a *renewApp) workspaceFooter(c *ui.Context) {
+	t := c.Theme()
+	_, attention, danger := a.riskCounts()
+	ui.Row(c).MinHeight(29).Padding(5, 12).Gap(12).AlignItems(ui.Center).Background(t.Surface).Children(func() {
+		if a.paused {
+			statusPill(c, "界面已暂停", t.Warning)
+		} else if a.eventStreamConnected {
+			statusPill(c, "事件流实时", t.Success)
+		} else {
+			statusPill(c, "事件流回退", t.Warning)
+		}
+		ui.Text(c, fmt.Sprintf("摘要 %d", len(a.events))).FontSize(10).Font("monospace").TextColor(t.TextMuted)
+		if danger > 0 {
+			if ui.Button(c, fmt.Sprintf("高风险 %d", danger)).Tooltip("查看高风险事件").Clicked() {
+				a.clearEventFilters()
+				a.eventRiskFilter = "高风险"
+				a.page = "事件"
+			}
+		} else if attention > 0 {
+			if ui.Button(c, fmt.Sprintf("需关注 %d", attention)).Tooltip("查看需要关注的事件").Clicked() {
+				a.clearEventFilters()
+				a.eventRiskFilter = "需关注"
+				a.page = "事件"
+			}
+		}
+		ui.Spacer(c)
+		if !a.lastSync.IsZero() {
+			ui.Text(c, "同步 "+a.lastSync.Format("15:04:05")).FontSize(10).TextColor(t.TextMuted)
+		}
+		if ui.Button(c, fmt.Sprintf("丢弃 %d", a.health.RingbufDroppedTotal)).Tooltip("打开采集链路诊断").Clicked() {
+			a.page = "系统"
+		}
+	})
 }
