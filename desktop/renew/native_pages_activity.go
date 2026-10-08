@@ -199,15 +199,20 @@ func (a *renewApp) eventsView(c *ui.Context) {
 		ui.Select(c, &a.eventDecisionFilter, []string{"", "已阻断", "告警", "已允许"}).Label("决策").Width(130)
 		ui.Checkbox(c, &a.eventAttentionOnly, "只看待关注")
 		if ui.Button(c, "清除筛选").Clicked() {
-			a.search = ""
-			a.eventTypeFilter = ""
-			a.eventSessionFilter = ""
-			a.eventDecisionFilter = ""
-			a.eventAttentionOnly = false
-			a.eventVisibleLimit = 50
-			a.eventSelected = -1
+			a.clearEventFilters()
 		}
 	})
+
+	if a.eventPIDFilter > 0 {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			statusPill(c, fmt.Sprintf("PID = %d", a.eventPIDFilter), t.Accent)
+			if ui.Button(c, "清除 PID 筛选").Clicked() {
+				a.eventPIDFilter = 0
+				a.eventSelected = -1
+				a.inspectorSelectedID = ""
+			}
+		})
+	}
 
 	rows := a.filteredEvents()
 	limit := a.eventVisibleLimit
@@ -233,7 +238,7 @@ func (a *renewApp) eventsView(c *ui.Context) {
 			{Title: "分数", Width: 64, Align: ui.End},
 		}
 		a.eventTable.Key = func(row int) any { return visible[row].EventID }
-		ui.Table(c, &a.eventTable, cols, len(visible), func(row, col int) {
+		table := ui.Table(c, &a.eventTable, cols, len(visible), func(row, col int) {
 			e := visible[row]
 			switch col {
 			case 0:
@@ -255,12 +260,23 @@ func (a *renewApp) eventsView(c *ui.Context) {
 				}
 			}
 		}).Height(440).Label("事件摘要")
+		if table.Changed() && a.eventSelected >= 0 && a.eventSelected < len(visible) {
+			a.inspectorSelectedID = visible[a.eventSelected].EventID
+		}
+		if table.Submitted() && a.eventSelected >= 0 && a.eventSelected < len(visible) {
+			a.openEventDetail(visible[a.eventSelected].EventID)
+		}
 		if a.eventSelected >= 0 && a.eventSelected < len(visible) {
 			selected := visible[a.eventSelected]
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, selected.EventID).Font("monospace").FontSize(10).TextColor(t.TextMuted).Grow(1)
 				if ui.PrimaryButton(c, "详细").Clicked() {
 					a.openEventDetail(selected.EventID)
+				}
+				if ui.Button(c, "固定到研判栏").Clicked() {
+					a.inspectorPinnedID = selected.EventID
+					a.inspectorOpen = true
+					a.inspectorTab = 0
 				}
 			})
 		}
@@ -522,6 +538,9 @@ func (a *renewApp) eventRow(c *ui.Context, e eventSummary) {
 		})
 		if e.RiskScore > 0 {
 			ui.Textf(c, "%.0f", e.RiskScore).Width(36).Font("monospace").TextColor(t.TextMuted)
+		}
+		if e.EventID != "" && ui.Button(c, "定位").Tooltip("在事件表中选中这条摘要").Clicked() {
+			a.focusSummary(e.EventID)
 		}
 	})
 }
