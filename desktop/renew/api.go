@@ -161,6 +161,7 @@ type fileAccessRule struct {
 
 type lsmSandboxStatus struct {
 	PathAccessRules []fileAccessRule `json:"pathAccessRules"`
+	PathAccessSupported bool `json:"pathAccessSupported"`
 	Available        bool     `json:"available"`
 	Attached         bool     `json:"attached"`
 	BlockedExecPaths []string `json:"blockedExecPaths"`

@@ -24,6 +24,7 @@ func HandleLsmEnforcerStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"available": snap.Available,
 		"attached":  snap.Attached,
+		"pathAccessSupported": snap.PathAccessSupported,
 		"linkCount": snap.LinkCount,
 		"linkPins":  snap.LinkPins,
 		"maps": gin.H{

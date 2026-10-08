@@ -170,6 +170,7 @@ func (a *lsmEnforcerAdapter) Snapshot() handlers.LsmEnforcerSnapshot {
 		LinkCount:         snap.LinkCount,
 		LinkPins:          snap.LinkPins,
 		LastError:         snap.LastError,
+		PathAccessSupported: snap.PathAccessSupported,
 		ExecPathBlocklist: snap.ExecPathBlocklist,
 		ExecNameBlocklist: snap.ExecNameBlocklist,
 		FileNameBlocklist: snap.FileNameBlocklist,

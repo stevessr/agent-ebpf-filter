@@ -310,6 +310,15 @@ func updateLsmPathBits(path string, mask uint32, enabled bool) error {
 func SetFileAccessPath(path string, denyR, denyW bool) error {
 	path, err := NormalizeFileAccessPath(path)
 	if err != nil { return err }
+	// The file path feature must never appear to succeed when an upgraded
+	// kernel enforcer fell back to older pinned programs.
+	snap := CurrentLsmEnforcerSnapshot()
+	if !snap.PathAccessSupported {
+		if err := ensureLsmEnforcerLoaded(); err != nil { return err }
+		if !CurrentLsmEnforcerSnapshot().PathAccessSupported {
+			return fmt.Errorf("LSM file path access rules are not supported by the attached programs")
+		}
+	}
 	return mutatePathBits(path, func(old uint32) uint32 {
 		next := old &^ (denyRead | denyWrite)
 		if denyR { next |= denyRead }

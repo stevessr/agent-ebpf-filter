@@ -71,6 +71,9 @@ func (a *renewApp) pathAccessView(c *ui.Context) {
 		go a.refreshPathAccess()
 	}
 	if a.pathAccessErr != "" { ui.Text(c, a.pathAccessErr).TextColor(t.Danger) }
+	if a.pathAccessLoaded && !a.pathAccessState.PathAccessSupported {
+		ui.Text(c, "当前内核 LSM 尚未确认支持精确路径读写权限；在获得新程序挂载确认前不会启用该功能。").TextColor(t.Warning)
+	}
 	if a.pathAccessBusy { ui.Spinner(c) }
 	card(c, "常见敏感文件 · 建议项（全部默认关闭）", func() {
 		home, err := os.UserHomeDir()
@@ -110,6 +113,8 @@ func (a *renewApp) pathAccessView(c *ui.Context) {
 					a.pathAccessErr = "请输入长度小于 256 字节的绝对文件路径"
 				} else if !a.runtimeCfg.Runtime.PolicyManagementEnabled {
 					a.pathAccessErr = "请先在「采集与能力」开启策略管理"
+				} else if !a.pathAccessState.PathAccessSupported {
+					a.pathAccessErr = "当前内核程序未确认精确路径访问控制能力"
 				} else {
 					a.pathAccessErr = ""
 					a.pathAccessPending = fileAccessRule{Path: path, DenyRead: read, DenyWrite: write}
@@ -187,7 +192,8 @@ func (a *renewApp) refreshPathAccess() {
 }
 
 func (a *renewApp) applyPathAccess(rule fileAccessRule) {
-	if a.client == nil || a.pathAccessBusy || !a.runtimeCfg.Runtime.PolicyManagementEnabled { return }
+	if a.client == nil || a.pathAccessBusy ||
+		!a.runtimeCfg.Runtime.PolicyManagementEnabled || !a.pathAccessState.PathAccessSupported { return }
 	a.pathAccessBusy = true
 	a.pathAccessErr = ""
 	go func() {

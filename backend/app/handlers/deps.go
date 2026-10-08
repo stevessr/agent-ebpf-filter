@@ -316,6 +316,7 @@ type LsmEnforcerSnapshot struct {
 	LinkCount         int
 	LinkPins          []string
 	LastError         string
+	PathAccessSupported bool
 	ExecPathBlocklist any
 	ExecNameBlocklist any
 	FileNameBlocklist any
