@@ -36,6 +36,12 @@ For a backend started by Renew, the Events page no longer uses the generic WebSo
 
 Monitoring uses the existing `/config/runtime` PATCH contract and only changes UI state after backend confirmation. Nested loop/signal/research settings are read first and written back intact so toggling `enabled` does not reset their thresholds or queue parameters. The native page also controls TLS capture, persistence, and the explicit policy-management gate. Wrapper Rules use `/config/rules` for ALLOW/BLOCK/ALERT/REWRITE operations, while Tracking manages tags, commands, exact paths, and path prefixes through the existing config APIs.
 
+### Manual eBPF module lifecycle
+
+The **eBPF 模块** page under Management lists registered `kind=ebpf` plugins from `GET /plugins`, including attach kind/target, runtime-loaded status and last load error. **加载** calls `POST /plugins/bpf/load`; **卸载** requires confirmation and calls `POST /plugins/bpf/unload`. After a mutation the client re-reads `GET /plugins` and only reports success after the requested runtime state is confirmed. Failures are displayed without optimistic UI changes. The existing backend authorization and policy checks remain authoritative; no shell-based `bpftool`, `rmmod`, or unprivileged load path is introduced.
+
+These controls target **registered custom eBPF programs only**, and detach their kernel links without deleting their plugin manifests. The `enabled` setting (startup behavior) is unchanged by manual load/unload. Built-in core tracing programs are not listed as plugin manifests, and Monitoring event-group switches still control event filtering rather than physically unloading core programs. New plugin registration/compilation remains in the browser workbench.
+
 System telemetry uses the same native socket for a locally launched backend. The system sampler is transport-independent and shared by both clients: browser clients receive its protobuf snapshots over `/ws/system`, while Renew receives the identical `SystemStats` payload directly over Native IPC. This avoids a duplicated sampler while keeping the local desktop off the generic web transport. Remote/custom backends still use the WebSocket implementation, and a lost local IPC channel automatically falls back to it.
 
 The browser `/renew` frontend remains available as an independent client and as the route to features not yet migrated to native widgets. It is no longer a desktop runtime or packaging dependency.
