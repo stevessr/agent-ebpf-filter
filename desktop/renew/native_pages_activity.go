@@ -401,14 +401,20 @@ func (a *renewApp) systemView(c *ui.Context) {
 			statCard(c, "CPU", fmt.Sprintf("%.1f%%", a.system.CPUTotal), fmt.Sprintf("%d 个进程", len(a.system.Processes)))
 			statCard(c, "内存", fmt.Sprintf("%.1f%%", a.system.MemPercent), fmt.Sprintf("%s / %s", formatBytes(int64(a.system.MemUsed)), formatBytes(int64(a.system.MemTotal))))
 			statCard(c, "系统流", "实时", "protobuf /ws/system")
-		} else {
+		} else if a.connected {
 			statCard(c, "系统流", "重连中", "protobuf /ws/system")
+		} else {
+			statCard(c, "系统流", "不可用", "后端离线")
 		}
 	})
 
 	card(c, "I/O 快照", func() {
 		if !a.systemConnected {
-			ui.Text(c, "等待系统 protobuf 流…").TextColor(t.TextMuted)
+			if a.connected {
+				ui.Text(c, "等待系统 protobuf 流…").TextColor(t.TextMuted)
+			} else {
+				ui.Text(c, "后端离线，系统快照暂不可用。").TextColor(t.TextMuted)
+			}
 			if a.systemErr != "" {
 				ui.Text(c, a.systemErr).FontSize(10).TextColor(t.TextMuted)
 			}
