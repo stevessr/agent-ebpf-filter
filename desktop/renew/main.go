@@ -51,6 +51,7 @@ func runDesktop() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	mygo.App.SetName(desktopBrandName)
 	if !mygo.App.RequestSingleInstanceLock() {
 		return
 	}
@@ -72,7 +73,7 @@ func runDesktop() {
 
 	mygo.App.WhenReady(func() {
 		window := mygo.NewWindow(mygo.WindowOptions{
-			Title:     "Renew",
+			Title:     desktopWindowTitle,
 			Width:     1180,
 			Height:    760,
 			MinWidth:  900,

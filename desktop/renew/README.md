@@ -1,6 +1,10 @@
-# Renew Desktop (MyGo Native UI)
+# 明镜高悬 · Agent eBPF Filter 桌面端（MyGo Native UI）
 
-Renew Desktop is the native desktop monitor for Agent eBPF Filter. Its interface is written entirely in Go with MyGo's `ui` package and is drawn by MyGo itself. It does **not** start a WebView, Vite, HTML, JavaScript, or the Vue Renew frontend.
+**察微知著 · 守护 Agent 边界** — 用 eBPF 观察 Agent 行为、关联会话、识别外联与策略事件。
+
+「明镜高悬」是面向用户的宣传品牌，内部开发代号仍为 `renew`。为保持现有安装、CLI、REST 及 CI 兼容，`desktop/renew`、可执行文件 `renew`、Linux 命令 `agent-ebpf-renew`、应用标识符及浏览器 `/renew` 路由均不更改；MyGo 运行时名称、窗口标题与原生 UI 使用中文品牌。
+
+明镜高悬是 Agent eBPF Filter 的原生桌面监控应用。界面完全使用 Go 和 MyGo `ui` 组件绘制，不依赖 WebView、Vite、HTML、JavaScript 或 Vue Renew 前端运行时。
 
 The desktop process stays unprivileged. On Linux it reuses an already running backend or re-executes the **same Renew executable** in an internal backend mode and requests system authorization for that child. The backend is linked as a Go library; there is no packaged backend sidecar. Only the internal backend child gains privileges.
 
