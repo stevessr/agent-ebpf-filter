@@ -258,6 +258,12 @@ func (a *renewApp) inspectorEventCard(c *ui.Context, event eventSummary) {
 				}
 			}
 		})
+		if a.inspectorPinnedID == "" && a.inspectorSelectedID != "" {
+			if ui.Button(c, "恢复跟随最新风险").Tooltip("清除手动选择，自动查看最新待关注事件").Clicked() {
+				a.inspectorSelectedID = ""
+				a.eventSelected = -1
+			}
+		}
 		ui.Text(c, eventAction(event)).FontSize(14).Bold()
 		ui.Text(c, displayOr(event.Comm, "未知进程")+" · PID "+strconv.Itoa(event.PID)).FontSize(11).TextColor(t.TextMuted)
 		if target := strings.TrimSpace(eventTarget(event)); target != "" && target != "-" {
