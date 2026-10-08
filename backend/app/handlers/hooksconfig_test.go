@@ -18,8 +18,8 @@ func TestHookConfigRawSupportsTypeScriptAndValidatesDocuments(t *testing.T) {
 	root := t.TempDir()
 	hooks := []core.HookDef{
 		{
-			ID:        "dsh",
-			HookType:  core.HookTypeWrapper,
+			ID:        "dsh-exec",
+			HookType:  core.HookTypePlugin,
 			TargetCmd: "dsh",
 		},
 		{
@@ -59,9 +59,9 @@ func TestHookConfigRawSupportsTypeScriptAndValidatesDocuments(t *testing.T) {
 	}
 	for _, item := range listed {
 		switch item["id"] {
-		case "dsh":
+		case "dsh-exec":
 			if _, ok := item["config_format"]; ok {
-				t.Fatalf("dsh wrapper unexpectedly reported config format: %#v", item)
+				t.Fatalf("dsh plugin unexpectedly reported config format: %#v", item)
 			}
 		case "pi":
 			if item["config_format"] != string(core.ConfigFormatTypeScript) {
@@ -136,59 +136,77 @@ func TestHookConfigRawSupportsTypeScriptAndValidatesDocuments(t *testing.T) {
 	}
 }
 
-func TestDshHookConfigurationUsesWrapperAlias(t *testing.T) {
+func TestDshHookConfigurationUsesPluginLifecycle(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	shellConfig := filepath.Join(t.TempDir(), ".config", "fish", "config.fish")
 	oldAvailableHooks := Deps.AvailableHooks
 	oldGetShellConfigPath := Deps.GetShellConfigPath
+	oldInstallPluginHook := Deps.InstallPluginHook
+	oldUninstallPluginHook := Deps.UninstallPluginHook
 	Deps.AvailableHooks = func() []core.HookDef {
 		return []core.HookDef{{
-			ID:        "dsh",
+			ID:        "dsh-exec",
 			Name:      "DeepSeek Harness",
-			TargetCmd: "dsh",
-			HookType:  core.HookTypeWrapper,
+			TargetCmd: "dsh-exec",
+			HookType:  core.HookTypePlugin,
 		}}
 	}
 	Deps.GetShellConfigPath = func() string { return shellConfig }
+	installed, uninstalled := 0, 0
+	Deps.InstallPluginHook = func(h core.HookDef) error {
+		if h.ID != "dsh-exec" {
+			t.Fatalf("unexpected plugin install target: %#v", h)
+		}
+		installed++
+		return nil
+	}
+	Deps.UninstallPluginHook = func(h core.HookDef) error {
+		if h.ID != "dsh-exec" {
+			t.Fatalf("unexpected plugin uninstall target: %#v", h)
+		}
+		uninstalled++
+		return nil
+	}
 	t.Cleanup(func() {
 		Deps.AvailableHooks = oldAvailableHooks
 		Deps.GetShellConfigPath = oldGetShellConfigPath
+		Deps.InstallPluginHook = oldInstallPluginHook
+		Deps.UninstallPluginHook = oldUninstallPluginHook
 	})
 
 	request := func(body string) *httptest.ResponseRecorder {
 		t.Helper()
 		w := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest("POST", "/config/hooks", bytes.NewBufferString(body))
-		c.Request.Header.Set("Content-Type", "application/json")
-		HandleConfigHooksInstall(c)
+		ctx, _ := gin.CreateTestContext(w)
+		ctx.Request = httptest.NewRequest("POST", "/config/hooks", bytes.NewBufferString(body))
+		ctx.Request.Header.Set("Content-Type", "application/json")
+		HandleConfigHooksInstall(ctx)
 		return w
 	}
 
-	if response := request(`{"id":"dsh","install":true}`); response.Code != 200 {
+	if response := request(`{"id":"dsh-exec","install":true}`); response.Code != 200 {
 		t.Fatalf("dsh install status = %d, body = %s", response.Code, response.Body.String())
 	}
-	content, err := os.ReadFile(shellConfig)
-	if err != nil {
-		t.Fatalf("read dsh shell config: %v", err)
+	if installed != 1 {
+		t.Fatalf("plugin install calls = %d, want 1", installed)
 	}
-	if !bytes.Contains(content, []byte("alias dsh='agent-wrapper dsh' # agent-ebpf-hook")) {
-		t.Fatalf("dsh alias missing from shell config: %s", content)
+	if _, err := os.Stat(shellConfig); err == nil {
+		content, _ := os.ReadFile(shellConfig)
+		if bytes.Contains(content, []byte("alias dsh=")) {
+			t.Fatalf("plugin install must not create dsh wrapper alias: %s", content)
+		}
 	}
-	if response := request(`{"id":"dsh","install":false}`); response.Code != 200 {
+	if response := request(`{"id":"dsh-exec","install":false}`); response.Code != 200 {
 		t.Fatalf("dsh uninstall status = %d, body = %s", response.Code, response.Body.String())
 	}
-	content, err = os.ReadFile(shellConfig)
-	if err != nil {
-		t.Fatalf("read dsh shell config after uninstall: %v", err)
+	if uninstalled != 1 {
+		t.Fatalf("plugin uninstall calls = %d, want 1", uninstalled)
 	}
-	if bytes.Contains(content, []byte("alias dsh=")) {
-		t.Fatalf("dsh alias remained after uninstall: %s", content)
-	}
+
 	rawWriter := httptest.NewRecorder()
 	rawContext, _ := gin.CreateTestContext(rawWriter)
-	rawContext.Params = gin.Params{{Key: "id", Value: "dsh"}}
-	rawContext.Request = httptest.NewRequest("GET", "/config/hooks/dsh/raw", nil)
+	rawContext.Params = gin.Params{{Key: "id", Value: "dsh-exec"}}
+	rawContext.Request = httptest.NewRequest("GET", "/config/hooks/dsh-exec/raw", nil)
 	HandleConfigHooksRawGet(rawContext)
 	if rawWriter.Code != 404 {
 		t.Fatalf("dsh raw config status = %d, body = %s", rawWriter.Code, rawWriter.Body.String())

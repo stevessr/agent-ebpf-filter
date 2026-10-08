@@ -273,6 +273,8 @@ var Deps struct {
 	IsHookInstalled              func(core.HookDef) bool
 	InstallNativeHook            func(core.HookDef) error
 	UninstallNativeHook          func(core.HookDef) error
+	InstallPluginHook            func(core.HookDef) error
+	UninstallPluginHook          func(core.HookDef) error
 	GetShellConfigPath           func() string
 	EnsureKiroManagedAgentExists func() error
 

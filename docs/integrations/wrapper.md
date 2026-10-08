@@ -193,3 +193,9 @@ graph TB
 - [事件管线](../backend/event-pipeline.md)
 - [策略语义](../security/policy-semantics.md)
 - [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)
+
+### DeepSeek Harness subprocess provider
+
+保持既有的 `dsh` 原生 Cordis session/tool 生命周期监测不变；另以独立的 `dsh-exec` Hook 显式选择 subprocess provider。其 `spawn` 与 `spawnTerminal` 均交由官方 local provider 创建实际子进程，执行前经过 `agent-wrapper --dsh-exec --verbatim --` 策略检查。子进程原始 argv、空参数及空白参数不会被包装器裁剪；摘要使用命令及参数的 NUL 分隔编码。旧版普通 wrapper 命令保留现有入参归一化。
+
+Web profile 的 Inspector/CDP 用户态网络捕获须显式连接、限定回环地址，并在进入共享 TLS store 前进行机密字段脱敏，来源为 `dsh_inspector`；不会在所有系统进程上自动探测端口。元数据事件和子进程拦截属于两项独立能力，可分别安装、撤销。

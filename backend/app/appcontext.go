@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/dshinspector"
 	"agent-ebpf-filter/app/recording"
 	"sync"
 
@@ -22,7 +23,8 @@ import (
 // to each request by ContextMiddleware for handlers that need it.
 type AppContext struct {
 	// ── Subpackage managers ──────────────────────────────────────────
-	Network *network.Manager
+	Network      *network.Manager
+	DshInspector *dshinspector.Manager
 
 	// ── Event system ────────────────────────────────────────────────
 	Broadcast         chan *pb.Event

@@ -82,10 +82,17 @@ func isWrapperHookInstalled(cmd string) bool {
 }
 
 func isHookInstalled(h HookDef) bool {
-	if h.HookType == HookTypeNative {
+	switch h.HookType {
+	case HookTypeNative:
 		return isNativeHookInstalled(h)
+	case HookTypePlugin:
+		if h.ID == "dsh-exec" {
+			return isDshSubprocessPluginInstalled()
+		}
+		return false
+	default:
+		return isWrapperHookInstalled(h.TargetCmd)
 	}
-	return isWrapperHookInstalled(h.TargetCmd)
 }
 
 func ensureCodexHooksFeatureEnabled(cfgPath string) error {
