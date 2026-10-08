@@ -238,13 +238,15 @@ func (a *renewApp) header(c *ui.Context) {
 			ui.Badge(c, a.page).Background(t.Accent.Alpha(0.16)).TextColor(t.Accent)
 			ui.Spacer(c)
 			if a.page == "概览" || a.page == "事件" {
-				_, _ = c.Size()
-				label := "打开研判栏"
-				if a.inspectorOpen {
-					label = "收起研判栏"
-				}
-				if ui.Button(c, label).Tooltip("宽窗口显示右侧事件上下文").Clicked() {
-					a.inspectorOpen = !a.inspectorOpen
+				width, _ := c.Size()
+				if width >= 1320 {
+					label := "打开研判栏"
+					if a.inspectorOpen {
+						label = "收起研判栏"
+					}
+					if ui.Button(c, label).Tooltip("宽窗口显示右侧事件上下文").Clicked() {
+						a.inspectorOpen = !a.inspectorOpen
+					}
 				}
 			}
 		})
