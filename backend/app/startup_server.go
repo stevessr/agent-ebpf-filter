@@ -18,9 +18,13 @@ import (
 var listenTCP = net.Listen
 
 func listenBackend() (net.Listener, int, error) {
-	if socket := strings.TrimSpace(os.Getenv("AGENT_DESKTOP_API_SOCKET")); socket != "" && os.Getenv("AGENT_DESKTOP_LIFETIME_SOCKET") != "" {
-		if !strings.HasSuffix(socket, ".sock") || !strings.HasPrefix(socket, filepath.Dir(os.Getenv("AGENT_DESKTOP_LIFETIME_SOCKET"))+string(os.PathSeparator)) {
-			return nil, 0, fmt.Errorf("desktop API socket must be a sibling of the lifetime socket")
+	if socket := strings.TrimSpace(os.Getenv("AGENT_DESKTOP_API_SOCKET")); socket != "" {
+		lifetime := strings.TrimSpace(os.Getenv("AGENT_DESKTOP_LIFETIME_SOCKET"))
+		if lifetime == "" || !filepath.IsAbs(socket) ||
+			filepath.Dir(filepath.Clean(socket)) != filepath.Dir(filepath.Clean(lifetime)) ||
+			filepath.Clean(socket) == filepath.Clean(lifetime) ||
+			!strings.HasSuffix(socket, ".sock") {
+			return nil, 0, fmt.Errorf("desktop API socket requires a distinct private lifetime socket sibling")
 		}
 		listener, err := net.Listen("unix", socket)
 		if err != nil {
