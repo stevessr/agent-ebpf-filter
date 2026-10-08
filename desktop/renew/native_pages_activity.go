@@ -31,13 +31,13 @@ type processAggregate struct {
 
 func (a *renewApp) overview(c *ui.Context) {
 	t := c.Theme()
-	ui.Column(c).Padding(20).Gap(12).Radius(14).Background(t.Accent.Alpha(0.055)).Border(1, t.Accent.Alpha(0.26)).Children(func() {
+	ui.Column(c).Padding(18).Gap(10).Radius(12).Background(t.Surface).Border(1, t.Border).Children(func() {
 		ui.Row(c).Gap(12).Wrap().AlignItems(ui.Center).Children(func() {
-			ui.Box(c).Size(48, 48).Radius(14).Background(t.Accent).Center().Children(func() {
-				ui.Text(c, "镜").FontSize(24).Bold().TextColor(t.AccentText)
+			ui.Box(c).Size(40, 40).Radius(12).Background(t.Accent.Alpha(0.17)).Center().Children(func() {
+				ui.Text(c, "镜").FontSize(20).Bold().TextColor(t.Accent)
 			})
 			ui.Column(c).Grow(1).MinWidth(250).Gap(4).Children(func() {
-				ui.Text(c, desktopBrandName).FontSize(28).Bold()
+				ui.Text(c, "系统运行态势").FontSize(22).Bold()
 				ui.Text(c, desktopBrandSlogan).FontSize(14).TextColor(t.TextMuted)
 			})
 			status, level := a.pipelineStatus()
