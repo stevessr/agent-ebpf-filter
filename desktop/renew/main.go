@@ -74,9 +74,9 @@ func runDesktop() {
 	mygo.App.WhenReady(func() {
 		window := mygo.NewWindow(mygo.WindowOptions{
 			Title:     desktopWindowTitle,
-			Width:     1180,
-			Height:    760,
-			MinWidth:  900,
+			Width:     1480,
+			Height:    860,
+			MinWidth:  980,
 			MinHeight: 620,
 			StateKey:  "main",
 			Content:   ui.View(app.view),
