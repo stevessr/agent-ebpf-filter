@@ -267,6 +267,9 @@ func within(path, base string) bool {
 }
 
 func executeSandbox(opts sandboxOptions, name string, args []string) error {
+	if os.Geteuid() == 0 {
+		return fmt.Errorf("sandbox launch requires a non-root user; use --user to drop privileges first")
+	}
 	cwd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("get sandbox working directory: %w", err)
