@@ -15,10 +15,10 @@ import (
 // provides mount/namespace isolation; it is not a substitute for seccomp,
 // gVisor's Sentry, or host-side eBPF/LSM enforcement.
 type sandboxOptions struct {
-	Mode       string
-	Workspace  string
-	Network    bool
-	ReadOnly   []string
+	Mode        string
+	Workspace   string
+	Network     bool
+	ReadOnly    []string
 	ContainerID string
 }
 
