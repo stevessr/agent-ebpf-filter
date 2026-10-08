@@ -69,6 +69,14 @@ func (a *renewApp) trackingView(c *ui.Context) {
 			ui.Select(c, &a.registryFilterTag, tags).Label("按标签筛选").Width(180)
 			ui.Select(c, &a.registryFilterStatus, []string{"全部状态", "跟踪中", "已禁用"}).Label("按状态筛选").Width(150)
 		})
+		// A changed filter must never leave a stale selected index pointing
+		// at another rule that can be deleted or disabled by mistake.
+		if a.registryLastFilterTag != a.registryFilterTag ||
+			a.registryLastFilterStatus != a.registryFilterStatus {
+			a.commSelected, a.pathSelected, a.prefixSelected = -1, -1, -1
+			a.registryLastFilterTag = a.registryFilterTag
+			a.registryLastFilterStatus = a.registryFilterStatus
+		}
 		if a.registryTab == 1 {
 			ui.Text(c, "文件夹内文件：批量登记当前直接子文件，不包含子文件夹；新建文件需要重新登记。").FontSize(11).TextColor(t.TextMuted)
 		}
@@ -295,15 +303,19 @@ func (a *renewApp) trackedPathsTable(c *ui.Context) {
 	cols := []ui.TableColumn{
 		{Title: "文件路径", MinWidth: 340, Fixed: true},
 		{Title: "标签", Width: 180},
+		{Title: "状态", Width: 96},
 	}
 	ui.Table(c, &a.pathTable, cols, len(rows), func(row, col int) {
 		item := rows[row]
-		if col == 0 {
+		switch col {
+		case 0:
 			ui.Text(c, item.Path).Font("monospace").SingleLine()
-		} else {
+		case 1:
 			ui.Text(c, displayOr(item.Tag, "-")).SingleLine()
+		case 2:
+			statusPill(c, "跟踪中", t.Success)
 		}
-	}).Height(300).Label("精确跟踪路径")
+	}).Height(300).Label("文件跟踪")
 	if a.pathSelected >= 0 && a.pathSelected < len(rows) {
 		item := rows[a.pathSelected]
 		if ui.Button(c, "删除所选路径").Clicked() && a.canMutateRegistry() {
@@ -325,15 +337,19 @@ func (a *renewApp) trackedPrefixesTable(c *ui.Context) {
 	cols := []ui.TableColumn{
 		{Title: "文件夹（含子文件）", MinWidth: 340, Fixed: true},
 		{Title: "标签", Width: 180},
+		{Title: "状态", Width: 96},
 	}
 	ui.Table(c, &a.prefixTable, cols, len(rows), func(row, col int) {
 		item := rows[row]
-		if col == 0 {
+		switch col {
+		case 0:
 			ui.Text(c, item.Prefix).Font("monospace").SingleLine()
-		} else {
+		case 1:
 			ui.Text(c, displayOr(item.Tag, "-")).SingleLine()
+		case 2:
+			statusPill(c, "跟踪中", t.Success)
 		}
-	}).Height(300).Label("路径前缀")
+	}).Height(300).Label("递归文件夹跟踪")
 	if a.prefixSelected >= 0 && a.prefixSelected < len(rows) {
 		item := rows[a.prefixSelected]
 		if ui.Button(c, "删除所选前缀").Clicked() && a.canMutateRegistry() {
