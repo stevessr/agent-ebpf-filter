@@ -14,6 +14,7 @@ func TestWorkspaceInspectorResponsive(t *testing.T) {
 	}{
 		{1480, true, "概览", true},
 		{1480, true, "网络", true},
+		{1480, true, "研判", false},
 		{1480, true, "系统", true},
 		{1320, true, "事件", true},
 		{1319, true, "事件", false},
@@ -150,5 +151,42 @@ func TestInspectorAlertsAndClipboardSummaryAreBounded(t *testing.T) {
 	copyText := summaryClipboardText(a.events[1])
 	if !strings.Contains(copyText, "Event ID: b") || !strings.Contains(copyText, "Decision: BLOCK") {
 		t.Fatalf("summary copy does not contain expected compact fields: %q", copyText)
+	}
+}
+
+func TestRiskSeverityFilterMatchesClassification(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.events = []eventSummary{
+		{EventID: "high", RiskScore: 90},
+		{EventID: "warn", RiskScore: 65},
+		{EventID: "ok", RiskScore: 10},
+	}
+	a.openEventFilter(a.events[0], "risk")
+	if a.eventRiskFilter != "高风险" || len(a.filteredEvents()) != 1 || a.filteredEvents()[0].EventID != "high" {
+		t.Fatalf("high risk filter was not applied: %q, %+v", a.eventRiskFilter, a.filteredEvents())
+	}
+	a.eventRiskFilter = "需关注"
+	if got := a.filteredEvents(); len(got) != 1 || got[0].EventID != "warn" {
+		t.Fatalf("warning risk filter mismatch: %+v", got)
+	}
+	a.clearEventFilters()
+	if a.eventRiskFilter != "" || len(a.filteredEvents()) != 3 {
+		t.Fatal("clearing filters must restore all severity levels")
+	}
+}
+
+func TestNativeWorkspaceNavigationStates(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	if !a.navigationOpen || !a.inspectorOpen {
+		t.Fatal("new workspaces should expose navigation and inspector by default")
+	}
+	if !pageHasInspector("网络") || pageHasInspector("规则") || pageHasInspector("研判") {
+		t.Fatal("inspector should be available on observation views but not duplicate the standalone page")
+	}
+	if a.networkTable.Selected != &a.networkSelected {
+		t.Fatal("network table should allow target selection and drilldown")
+	}
+	if got := pageSubtitle("研判"); got == "" {
+		t.Fatal("standalone inspector should have its own metadata")
 	}
 }
