@@ -300,40 +300,40 @@ func (a *renewApp) view(c *ui.Context) {
 			if a.page == "终端" {
 				a.terminalView(c)
 			} else {
-			ui.Scroll(c).Grow(1).Padding(24).Gap(18).Children(func() {
-				if a.starting {
-					a.startingView(c)
-					return
-				}
-				if a.lastErr != "" && len(a.events) == 0 {
-					a.errorView(c)
-					return
-				}
-				switch a.page {
-				case "事件":
-					a.eventsView(c)
-				case "会话":
-					a.sessionsView(c)
-				case "网络":
-					a.networkView(c)
-				case "进程":
-					a.processesView(c)
-				case "监控":
-					a.monitoringView(c)
-				case "eBPF 模块":
-					a.ebpfModulesView(c)
-				case "规则":
-					a.rulesView(c)
-				case "跟踪":
-					a.trackingView(c)
-				case "路径权限":
-					a.pathAccessView(c)
-				case "系统":
-					a.systemView(c)
-				default:
-					a.overview(c)
-				}
-			})
+				ui.Scroll(c).Grow(1).Padding(24).Gap(18).Children(func() {
+					if a.starting {
+						a.startingView(c)
+						return
+					}
+					if a.lastErr != "" && len(a.events) == 0 {
+						a.errorView(c)
+						return
+					}
+					switch a.page {
+					case "事件":
+						a.eventsView(c)
+					case "会话":
+						a.sessionsView(c)
+					case "网络":
+						a.networkView(c)
+					case "进程":
+						a.processesView(c)
+					case "监控":
+						a.monitoringView(c)
+					case "eBPF 模块":
+						a.ebpfModulesView(c)
+					case "规则":
+						a.rulesView(c)
+					case "跟踪":
+						a.trackingView(c)
+					case "路径权限":
+						a.pathAccessView(c)
+					case "系统":
+						a.systemView(c)
+					default:
+						a.overview(c)
+					}
+				})
 			}
 			detailWasOpen := a.eventDetailOpen
 			a.eventDetailModal(c)
