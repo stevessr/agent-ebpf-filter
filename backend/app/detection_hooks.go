@@ -86,7 +86,7 @@ func isHookInstalled(h HookDef) bool {
 	case HookTypeNative:
 		return isNativeHookInstalled(h)
 	case HookTypePlugin:
-		if h.ID == "dsh" {
+		if h.ID == "dsh-exec" {
 			return isDshSubprocessPluginInstalled()
 		}
 		return false

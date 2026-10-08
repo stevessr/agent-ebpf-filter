@@ -120,6 +120,11 @@ var AvailableHooks = []HookDef{
 		TargetCmd:    "dsh",
 	},
 	{
+		ID: "dsh-exec", Name: "DeepSeek Harness · subprocess policy", HookType: HookTypePlugin,
+		Description: "Optional capability provider intercepting Harness-owned spawn/PTY commands. Independent from the native DSH Cordis lifecycle hook; uses Inspector API for plaintext capture.",
+		TargetCmd: "dsh",
+	},
+	{
 		ID: "pi", Name: "Pi", HookType: HookTypeNative,
 		Description:  "Installs a TypeScript extension in Pi's user extension directory for session and tool-call telemetry",
 		TargetCmd:    "pi",

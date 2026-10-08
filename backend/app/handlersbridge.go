@@ -592,13 +592,13 @@ func initMLHandlersDeps() {
 	handlers.Deps.InstallNativeHook = installNativeHook
 	handlers.Deps.UninstallNativeHook = uninstallNativeHook
 	handlers.Deps.InstallPluginHook = func(h core.HookDef) error {
-		if h.ID != "dsh" {
+		if h.ID != "dsh-exec" {
 			return fmt.Errorf("plugin hook installer is not implemented for %s", h.ID)
 		}
 		return installDshSubprocessPlugin()
 	}
 	handlers.Deps.UninstallPluginHook = func(h core.HookDef) error {
-		if h.ID != "dsh" {
+		if h.ID != "dsh-exec" {
 			return fmt.Errorf("plugin hook uninstaller is not implemented for %s", h.ID)
 		}
 		return uninstallDshSubprocessPlugin()
