@@ -132,7 +132,11 @@ func (a *renewApp) bootstrap(ctx context.Context) {
 	if token == "" {
 		token = existingLocalToken(a.backend)
 	}
-	a.client = newAPIClient(a.backend, token)
+	if session != nil {
+		a.client = newUnixAPIClient(session.apiSocket, token)
+	} else {
+		a.client = newAPIClient(a.backend, token)
+	}
 	a.update(func() {
 		a.starting = false
 		a.connected = true

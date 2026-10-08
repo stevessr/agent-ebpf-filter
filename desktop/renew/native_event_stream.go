@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gorilla/websocket"
 )
 
 func (a *renewApp) runEventSummaryStream(ctx context.Context) {
@@ -42,7 +41,7 @@ func (a *renewApp) consumeEventSummaryStream(ctx context.Context) error {
 		header.Set("X-API-KEY", a.client.token)
 		header.Set("Authorization", "Bearer "+a.client.token)
 	}
-	dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
+	dialer := a.client.websocketDialer()
 	conn, _, err := dialer.DialContext(ctx, endpoint, header)
 	if err != nil {
 		return fmt.Errorf("event summary websocket: %w", err)
