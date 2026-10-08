@@ -197,6 +197,7 @@ func (a *renewApp) eventsView(c *ui.Context) {
 		ui.Select(c, &a.eventTypeFilter, eventTypes).Label("事件类型").Width(170)
 		ui.Select(c, &a.eventSessionFilter, eventSessions).Label("会话").Width(210)
 		ui.Select(c, &a.eventDecisionFilter, []string{"", "已阻断", "告警", "已允许"}).Label("决策").Width(130)
+		ui.Select(c, &a.eventRiskFilter, []string{"", "高风险", "需关注", "正常"}).Label("风险等级").Width(130)
 		ui.Checkbox(c, &a.eventAttentionOnly, "只看待关注")
 		if ui.Button(c, "清除筛选").Clicked() {
 			a.clearEventFilters()
@@ -268,15 +269,25 @@ func (a *renewApp) eventsView(c *ui.Context) {
 		}
 		if a.eventSelected >= 0 && a.eventSelected < len(visible) {
 			selected := visible[a.eventSelected]
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
 				ui.Text(c, selected.EventID).Font("monospace").FontSize(10).TextColor(t.TextMuted).Grow(1)
 				if ui.PrimaryButton(c, "详细").Clicked() {
 					a.openEventDetail(selected.EventID)
+				}
+				if selected.PID > 0 && ui.Button(c, "同 PID").Clicked() {
+					a.openEventFilter(selected, "pid")
+				}
+				if isAgentSummary(selected) && ui.Button(c, "同会话").Clicked() {
+					a.openEventFilter(selected, "session")
 				}
 				if ui.Button(c, "固定到研判栏").Clicked() {
 					a.inspectorPinnedID = selected.EventID
 					a.inspectorOpen = true
 					a.inspectorTab = 0
+					width, _ := c.Size()
+					if width < 1320 {
+						a.page = "研判"
+					}
 				}
 			})
 		}
