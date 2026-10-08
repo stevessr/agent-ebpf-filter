@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -32,6 +33,7 @@ type renewApp struct {
 	terminalNextID int
 	terminalFocusRequest int
 	terminalError string
+	terminalClosing atomic.Bool
 
 	events             []eventSummary
 	eventMergeScratch  []eventSummary
