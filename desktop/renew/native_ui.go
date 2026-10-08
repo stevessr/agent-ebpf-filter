@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -24,6 +25,15 @@ type renewApp struct {
 	page   string
 	search string
 	paused bool
+
+	// The GoRex-inspired terminal lives entirely in the unprivileged UI.
+	terminalInitialized bool
+	terminalTabs []*renewTerminalTab
+	terminalActive int
+	terminalNextID int
+	terminalFocusRequest int
+	terminalError string
+	terminalClosing atomic.Bool
 
 	events             []eventSummary
 	eventMergeScratch  []eventSummary
@@ -287,40 +297,44 @@ func (a *renewApp) view(c *ui.Context) {
 		a.sidebar(c)
 		ui.Column(c).Grow(1).MinWidth(0).Background(t.Background).Children(func() {
 			a.header(c)
-			ui.Scroll(c).Grow(1).Padding(24).Gap(18).Children(func() {
-				if a.starting {
-					a.startingView(c)
-					return
-				}
-				if a.lastErr != "" && len(a.events) == 0 {
-					a.errorView(c)
-					return
-				}
-				switch a.page {
-				case "事件":
-					a.eventsView(c)
-				case "会话":
-					a.sessionsView(c)
-				case "网络":
-					a.networkView(c)
-				case "进程":
-					a.processesView(c)
-				case "监控":
-					a.monitoringView(c)
-				case "eBPF 模块":
-					a.ebpfModulesView(c)
-				case "规则":
-					a.rulesView(c)
-				case "跟踪":
-					a.trackingView(c)
-				case "路径权限":
-					a.pathAccessView(c)
-				case "系统":
-					a.systemView(c)
-				default:
-					a.overview(c)
-				}
-			})
+			if a.page == "终端" {
+				a.terminalView(c)
+			} else {
+				ui.Scroll(c).Grow(1).Padding(24).Gap(18).Children(func() {
+					if a.starting {
+						a.startingView(c)
+						return
+					}
+					if a.lastErr != "" && len(a.events) == 0 {
+						a.errorView(c)
+						return
+					}
+					switch a.page {
+					case "事件":
+						a.eventsView(c)
+					case "会话":
+						a.sessionsView(c)
+					case "网络":
+						a.networkView(c)
+					case "进程":
+						a.processesView(c)
+					case "监控":
+						a.monitoringView(c)
+					case "eBPF 模块":
+						a.ebpfModulesView(c)
+					case "规则":
+						a.rulesView(c)
+					case "跟踪":
+						a.trackingView(c)
+					case "路径权限":
+						a.pathAccessView(c)
+					case "系统":
+						a.systemView(c)
+					default:
+						a.overview(c)
+					}
+				})
+			}
 			detailWasOpen := a.eventDetailOpen
 			a.eventDetailModal(c)
 			if detailWasOpen && !a.eventDetailOpen {
@@ -369,6 +383,9 @@ func (a *renewApp) sidebar(c *ui.Context) {
 				ui.SidebarItem(c, "规则", nil, "Wrapper 规则")
 				ui.SidebarItem(c, "跟踪", nil, "跟踪范围")
 				ui.SidebarItem(c, "路径权限", nil, "敏感文件读写保护")
+			})
+			ui.SidebarSection(c, "工具", nil, func() {
+				ui.SidebarItem(c, "终端", nil, "本地 Shell 与分屏工作区")
 			})
 			ui.SidebarSection(c, "诊断", nil, func() {
 				system := ui.SidebarItem(c, "系统", nil, "系统")
@@ -509,6 +526,8 @@ func pageSubtitle(page string) string {
 		return "按完整路径精确限制读取和写入"
 	case "系统":
 		return "采集器、系统流与队列诊断"
+	case "终端":
+		return "本地普通用户 Shell · Ghostty VT · 多标签与分屏"
 	default:
 		return "健康、风险与最近活动"
 	}

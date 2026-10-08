@@ -92,6 +92,9 @@ func runDesktop() {
 	if err := mygo.App.Run(); err != nil {
 		log.Printf("[renew] %v", err)
 	}
+	// Closing Renew also hangs up any locally launched PTYs. Unlike the
+	// privileged backend child, these shells belong to the desktop user.
+	app.closeTerminals()
 }
 
 func internalBackendArgs(args []string) (bool, []string) {

@@ -80,6 +80,14 @@ jobs:
           printf '%s\n' "$probe_output"
           test "$probe_status" -ne 0
           printf '%s\n' "$probe_output" | grep -q -- 'invalid desktop backend port'
+      - name: Verify Ghostty runtime is packaged
+        run: |
+          # GoRex/MyGo terminals require the verified native libghostty-vt
+          # resource. The complete Linux package must work without fetching
+          # a native library at runtime.
+          find build/linux-amd64 -type f -name libghostty-vt.so -print
+          test -n "$(find build/linux-amd64 -type f -name libghostty-vt.so -print -quit)"
+          tar -tzf build/linux-amd64/renew-0.1.0-linux-amd64.tar.gz | grep -q 'libghostty-vt.so'
       - name: Upload standalone Renew executable
         uses: actions/upload-artifact@v4
         with:

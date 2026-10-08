@@ -40,6 +40,36 @@ For a backend started by Renew, the Events page no longer uses the generic WebSo
 
 Monitoring uses the existing `/config/runtime` PATCH contract and only changes UI state after backend confirmation. Nested loop/signal/research settings are read first and written back intact so toggling `enabled` does not reset their thresholds or queue parameters. The native page also controls TLS capture, persistence, and the explicit policy-management gate. Wrapper Rules use `/config/rules` for ALLOW/BLOCK/ALERT/REWRITE operations, while Tracking manages tags, commands, exact paths, and path prefixes through the existing config APIs.
 
+### Local terminal (GoRex-inspired)
+
+The **终端** entry in the desktop sidebar opens a real PTY backed by
+[MyGo's terminal plugin](https://github.com/egoist/mygo/tree/main/plugins/terminal),
+the same Ghostty/libghostty-vt component used by
+[GoRex](https://github.com/egoist/gorex). It uses MyGo's native renderer:
+there is no web terminal, WebView, HTTP terminal endpoint, or shell command
+execution via the backend.
+
+- Open tabs on demand; split the active pane left/right or top/bottom,
+  drag a separator to resize it, double-click to equalize it, or zoom it.
+- New tabs and panes inherit the active terminal's working directory when
+  the shell reports OSC 7, otherwise its initial directory. On first open,
+  Renew launches the current user's login shell in the home directory.
+- Each terminal has an 8 MiB scrollback budget, the Ghostty VT keyboard
+  and mouse/Unicode handling, full-screen application support, and
+  platform terminal copy/paste bindings (Ctrl+Shift+C/V on Linux).
+- The terminal page works even when the monitoring backend has not started
+  or has gone offline. Shells run under the **desktop user's UID**, never
+  with the eBPF collector's elevated credentials.
+- Closing a pane/tab hangs up that PTY. Closing Renew also closes all PTYs.
+  Unlike GoRex's separate session server, **this initial embedded workspace
+  intentionally does not keep processes alive across desktop restarts**.
+
+The terminal native library, `libghostty-vt.so` on Linux, is resolved by
+the terminal plugin. Use `go tool mygo dev` or a **complete MyGo package**
+(`.deb` / `.tar.gz`) so the verified native library is included.
+A copied executable without the native runtime is still usable for
+monitoring, but its terminal page shows a clear load error.
+
 ### Manual eBPF module lifecycle
 
 The **eBPF 模块** page under Management lists registered `kind=ebpf` plugins from `GET /plugins`, including attach kind/target, runtime-loaded status and last load error. **加载** calls `POST /plugins/bpf/load`; **卸载** requires confirmation and calls `POST /plugins/bpf/unload`. After a mutation the client re-reads `GET /plugins` and only reports success after the requested runtime state is confirmed. Failures are displayed without optimistic UI changes. The existing backend authorization and policy checks remain authoritative; no shell-based `bpftool`, `rmmod`, or unprivileged load path is introduced.
@@ -87,7 +117,7 @@ cd desktop/renew
 go tool mygo build
 ```
 
-The build hook generates the backend protobuf/eBPF bindings, then MyGo links the backend library directly into Renew. The Linux output `build/linux-amd64/renew` is the complete UI + backend executable. No `agent-ebpf-filter` helper ELF, askpass script, or `frontend/dist` bundle is shipped beside it. The CI workflow also publishes that executable by itself as the `renew-linux-amd64-single-binary` artifact.
+The build hook generates the backend protobuf/eBPF bindings, then MyGo links the backend library directly into Renew. The Linux output `build/linux-amd64/renew` remains the complete UI + backend executable. No `agent-ebpf-filter` helper ELF, askpass script, or `frontend/dist` bundle is shipped beside it. The terminal plugin additionally needs a verified `libghostty-vt.so` runtime, shipped with the full MyGo Linux packages; the legacy `renew-linux-amd64-single-binary` artifact contains only the executable and therefore may not provide a working terminal on a clean machine.
 
 On Linux the native MyGo UI uses GTK for the window and MyGo's own renderer. WebKitGTK is not required by Renew Desktop.
 
