@@ -71,3 +71,49 @@ func firstArgBytes(args []string) int {
 	}
 	return len(args[0])
 }
+
+
+func TestPrepareCommandArgsPreservesDshAppArgumentsVerbatim(t *testing.T) {
+	raw := []string{"headless", "  keep spacing  ", ""}
+	got := prepareCommandArgs("dsh", raw, false)
+	if len(got) != len(raw) || got[0] != "headless" || got[1] != "  keep spacing  " || got[2] != "" {
+		t.Fatalf("prepareCommandArgs(dsh) = %#v, want %#v", got, raw)
+	}
+	got[1] = "changed"
+	if raw[1] != "  keep spacing  " {
+		t.Fatal("prepareCommandArgs must return an independent argv slice")
+	}
+}
+
+func TestPrepareCommandArgsKeepsLegacySanitizationForOtherCommands(t *testing.T) {
+	got := prepareCommandArgs("git", []string{" push ", "", " origin "}, false)
+	want := []string{"push", "origin"}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("prepareCommandArgs(git) = %#v, want %#v", got, want)
+	}
+}
+
+func TestBuildArgvDigestPreservesExactArgumentBoundaries(t *testing.T) {
+	plain := buildArgvDigest("dsh", []string{"headless", "task"})
+	spaced := buildArgvDigest("dsh", []string{"headless", " task "})
+	withEmpty := buildArgvDigest("dsh", []string{"headless", "task", ""})
+	if plain == "" || spaced == "" || withEmpty == "" {
+		t.Fatal("expected non-empty digests")
+	}
+	if plain == spaced || plain == withEmpty || spaced == withEmpty {
+		t.Fatalf("exact argv variants collapsed to the same digest: plain=%s spaced=%s empty=%s", plain, spaced, withEmpty)
+	}
+}
+
+
+func TestPrepareCommandArgsVerbatimModePreservesAnyCommand(t *testing.T) {
+	raw := []string{"", "  keep  ", "--flag"}
+	got := prepareCommandArgs("python", raw, true)
+	if len(got) != len(raw) || got[0] != "" || got[1] != "  keep  " || got[2] != "--flag" {
+		t.Fatalf("prepareCommandArgs(verbatim) = %#v, want %#v", got, raw)
+	}
+	got[1] = "changed"
+	if raw[1] != "  keep  " {
+		t.Fatal("verbatim argv must be copied")
+	}
+}
