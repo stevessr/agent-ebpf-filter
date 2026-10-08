@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -24,6 +25,15 @@ type renewApp struct {
 	page   string
 	search string
 	paused bool
+
+	// Local native terminal lifecycle stays outside the privileged backend.
+	terminalInitialized bool
+	terminalTabs []*renewTerminalTab
+	terminalActive int
+	terminalNextID int
+	terminalFocusRequest int
+	terminalError string
+	terminalClosing atomic.Bool
 	navigationOpen bool
 	inspectorOpen bool
 	materialEnabled bool
@@ -358,12 +368,14 @@ func pageSubtitle(page string) string {
 		return "按完整路径精确限制读取和写入"
 	case "系统":
 		return "采集器、系统流与队列诊断"
+	case "终端":
+		return "普通用户 Shell · Ghostty VT · 多标签与分屏"
 	default:
 		return "健康、风险与最近活动"
 	}
 }
 
-func statusPill(c *ui.Context, text string, tone ui.Color) *ui.Element {
+func statusPill(c *ui.Context, text string, tone ui.Color) ui.Element {
 	return ui.Badge(c, text).Background(tone.Alpha(0.13)).TextColor(tone)
 }
 
@@ -378,7 +390,7 @@ func riskTextColor(t *ui.Theme, risk string) ui.Color {
 	}
 }
 
-func riskPill(c *ui.Context, risk string) *ui.Element {
+func riskPill(c *ui.Context, risk string) ui.Element {
 	t := c.Theme()
 	switch risk {
 	case "高风险":
@@ -530,7 +542,7 @@ func (a *renewApp) eventFilterOptions() ([]string, []string) {
 	return a.eventTypeOptions, a.eventSessionOptions
 }
 
-func card(c *ui.Context, title string, body func()) *ui.Element {
+func card(c *ui.Context, title string, body func()) ui.Element {
 	t := c.Theme()
 	return ui.Column(c).Padding(18).Gap(12).Radius(12).Background(t.Surface).Border(1, t.Border).Children(func() {
 		if title != "" {

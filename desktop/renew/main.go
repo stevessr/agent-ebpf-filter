@@ -95,6 +95,8 @@ func runDesktop() {
 	if err := mygo.App.Run(); err != nil {
 		log.Printf("[renew] %v", err)
 	}
+	// Every terminal PTY belongs to the desktop user; close on application exit.
+	app.closeTerminals()
 }
 
 func internalBackendArgs(args []string) (bool, []string) {

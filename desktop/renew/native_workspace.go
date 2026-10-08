@@ -96,7 +96,11 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 		}
 		ui.Column(c).Grow(1).MinWidth(0).Background(t.Background).Children(func() {
 			a.header(c)
-			ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Stretch).Children(func() {
+			if a.page == "终端" {
+				// Real PTY bounds without a parent Scroll; also usable offline.
+				a.terminalView(c)
+			} else {
+				ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Stretch).Children(func() {
 				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 					ui.Scroll(c).Grow(1).Padding(20).Gap(16).Children(func() {
 						switch {
@@ -119,7 +123,8 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 				if showWorkspaceInspector(inspectorWidth, a.inspectorOpen, a.page) {
 					a.inspector(c)
 				}
-			})
+				})
+			}
 			a.workspaceFooter(c)
 			// Keep the existing explicit detail API, modal and payload release.
 			wasOpen := a.eventDetailOpen
@@ -183,6 +188,7 @@ func (a *renewApp) activityRail(c *ui.Context) {
 			{"监控", "◈"},
 			{"规则", "▤"},
 			{"系统", "⚙"},
+			{"终端", "⌘"},
 		} {
 			marker := item.glyph
 			if a.page == item.label {
@@ -238,6 +244,9 @@ func (a *renewApp) sidebar(c *ui.Context) {
 				ui.SidebarItem(c, "规则", nil, "Wrapper 规则")
 				ui.SidebarItem(c, "跟踪", nil, "跟踪范围")
 				ui.SidebarItem(c, "路径权限", nil, "文件访问保护")
+			})
+			ui.SidebarSection(c, "工具", nil, func() {
+				ui.SidebarItem(c, "终端", nil, "本地 Shell · 多标签与分屏")
 			})
 			ui.SidebarSection(c, "运行诊断", nil, func() {
 				system := ui.SidebarItem(c, "系统", nil, "系统诊断")
