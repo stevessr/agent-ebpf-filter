@@ -330,6 +330,8 @@ func (a *renewApp) pipelineStatus() (label, level string) {
 
 func pageSubtitle(page string) string {
 	switch page {
+	case "研判":
+		return "事件研判、上下文筛选与运行诊断"
 	case "事件":
 		return "实时事件、风险筛选与按需详情"
 	case "会话":
