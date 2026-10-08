@@ -28,6 +28,18 @@ func TestDetectSnapshotGVisorRunsc(t *testing.T) {
 	}
 }
 
+func TestDetectSnapshotGVisorNamedContainer(t *testing.T) {
+	d := detectSnapshot(
+		99,
+		"runsc\n",
+		[]byte("runsc\x00--root\x00/run/runsc\x00boot\x00sandbox.dev-1\x00"),
+		"0::/system.slice/runsc.service\n",
+	)
+	if d.ContainerID != "sandbox.dev-1" {
+		t.Fatalf("container id=%q, want named gVisor id", d.ContainerID)
+	}
+}
+
 func TestDetectSnapshotKataFromShimID(t *testing.T) {
 	d := detectSnapshot(
 		77,
