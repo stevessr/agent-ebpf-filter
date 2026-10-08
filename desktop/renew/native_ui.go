@@ -15,10 +15,11 @@ type renewApp struct {
 	backend string
 	client  *apiClient
 
-	starting  bool
-	connected bool
-	lastErr   string
-	lastSync  time.Time
+	starting   bool
+	connected  bool
+	healthReady bool
+	lastErr    string
+	lastSync   time.Time
 
 	page   string
 	search string
@@ -208,6 +209,7 @@ func (a *renewApp) refresh(parent context.Context) {
 			}
 		}
 		a.health = snapshot.Health
+		a.healthReady = true
 		a.trackedComms = snapshot.TrackedComms
 		a.lastSync = snapshot.FetchedAt
 	})
@@ -429,7 +431,7 @@ func (a *renewApp) collectorStatus() (label, level string) {
 		return "同步中", "warning"
 	case !a.connected:
 		return "离线", "danger"
-	case a.lastSync.IsZero():
+	case !a.healthReady:
 		return "同步中", "warning"
 	case !a.health.CaptureHealthy:
 		return "异常", "danger"
@@ -444,7 +446,7 @@ func (a *renewApp) pipelineStatus() (label, level string) {
 		return "启动中", "warning"
 	case !a.connected:
 		return "后端离线", "danger"
-	case a.lastSync.IsZero():
+	case !a.healthReady:
 		return "正在同步", "warning"
 	case !a.health.CaptureHealthy:
 		return "采集异常", "danger"
