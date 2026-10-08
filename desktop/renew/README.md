@@ -8,9 +8,20 @@
 
 ## Native workspace layout
 
-Renew defaults to a low-glare navy dark theme with an editor-inspired desktop shell, without embedding a web runtime. The 54-DIP activity rail provides quick navigation, the 198-DIP sidebar groups monitoring and policy controls, and the main region keeps the existing live monitoring views. A compact toolbar shows the active page, health of the capture pipeline, event search, pause, and refresh.
+Renew renders an editor-inspired low-glare navy workspace **entirely with native MyGo widgets**. Its 54-DIP activity rail offers page shortcuts and toggles the 198-DIP navigation sidebar. The center retains live eBPF monitoring, sessions, network/process tables and existing privileged management controls. A page toolbar provides search, stream pause and context-aware refresh (rules, tracking, eBPF module state and path permissions re-fetch their own data).
 
-At 1320 DIPs and wider, the Overview and Events views can display a collapsible event-inspector rail. It shows risk counts, current compact event fields and collector status. Its **Load full details** button is the only inspector action that requests a complete event payload from the backend; otherwise it uses the existing bounded summary window and its cached filters. On narrower windows the inspector is hidden automatically to preserve space for tables and configuration inputs. The shell lives in `native_workspace.go` independently of data pages and the native IPC implementation.
+At 1320 DIPs and wider, Overview, Events, Sessions, Network, Processes and System can show the optional right incident-inspector rail. Collapsing the navigation makes more room for it. On narrower windows, **风险研判工作台** is available as a dedicated page, so the investigation features are still accessible.
+
+### Incident investigation
+
+- **事件研判** shows risk-severity totals for the bounded summary window, the selected event, and the most recent alert/block events. Click any risk counter to filter the Events page to exactly that severity.
+- **Fixed selection** pins an event by ID across live additions. If that summary ages out, the inspector announces it rather than silently replacing it. Event-table selections are also reconciled by ID when live inserts reorder rows.
+- Actions support copying the redacted compact summary, selecting the event in its table, viewing the complete detail on explicit request, and read-only correlation by exact PID, event type or Agent session.
+- **运行诊断** presents the backend's real capture health, ringbuffer loss, queue lengths, event/system transport status and actual CPU/memory telemetry. It never infers a clean capture from an empty alert list.
+- Events, Agent sessions, network targets and processes provide direct drill-down into related events; switching correlation scopes clears incompatible prior event filters.
+- All filters operate on the bounded 1200-summary in-memory window, with older-record pagination through the existing backend API. They do **not** change kernel capture rules or claim to search all history.
+
+No new privileged API or AI inference service is introduced. As before, only the explicit event Details action retrieves a complete event payload; closing its modal discards it from the desktop. The workspace shell (`native_workspace.go`) and inspector (`native_inspector.go`) remain independent of the native IPC data path and original per-page monitoring implementations.
 
 The desktop process stays unprivileged. On Linux it reuses an already running backend or re-executes the **same Renew executable** in an internal backend mode and requests system authorization for that child. The backend is linked as a Go library; there is no packaged backend sidecar. Only the internal backend child gains privileges.
 
