@@ -50,12 +50,20 @@ func TestOverviewHeadlinePriorities(t *testing.T) {
 			a.lastSync = time.Unix(1, 0)
 			a.health.CaptureHealthy = true
 		}, "warning"},
+		{"system fallback", func(a *renewApp) {
+			a.starting = false
+			a.connected = true
+			a.lastSync = time.Unix(1, 0)
+			a.health.CaptureHealthy = true
+			a.eventStreamConnected = true
+		}, "warning"},
 		{"healthy", func(a *renewApp) {
 			a.starting = false
 			a.connected = true
 			a.lastSync = time.Unix(1, 0)
 			a.health.CaptureHealthy = true
 			a.eventStreamConnected = true
+			a.systemConnected = true
 		}, "success"},
 	}
 	for _, tt := range tests {
@@ -67,6 +75,53 @@ func TestOverviewHeadlinePriorities(t *testing.T) {
 				t.Fatalf("level=%q, want %q", level, tt.level)
 			}
 		})
+	}
+}
+
+func TestCollectorStatusDoesNotReportFalseFailureBeforeFirstSync(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.starting = false
+	a.connected = true
+	if label, level := a.collectorStatus(); label != "同步中" || level != "warning" {
+		t.Fatalf("initial collector status=(%q,%q)", label, level)
+	}
+	a.lastSync = time.Unix(1, 0)
+	if label, level := a.collectorStatus(); label != "异常" || level != "danger" {
+		t.Fatalf("unhealthy collector status=(%q,%q)", label, level)
+	}
+	a.health.CaptureHealthy = true
+	if label, level := a.collectorStatus(); label != "正常" || level != "success" {
+		t.Fatalf("healthy collector status=(%q,%q)", label, level)
+	}
+}
+
+func TestOverviewActionTargetsRiskAndDiagnostics(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.starting = false
+	a.connected = true
+	a.lastSync = time.Unix(1, 0)
+
+	if label, page, attention := a.overviewAction(); label != "打开系统诊断" || page != "系统" || attention {
+		t.Fatalf("capture action=(%q,%q,%v)", label, page, attention)
+	}
+
+	a.health.CaptureHealthy = true
+	a.events = []eventSummary{{EventID: "risk", RiskScore: 90}}
+	a.eventsVersion = 1
+	if label, page, attention := a.overviewAction(); label != "查看相关事件" || page != "事件" || !attention {
+		t.Fatalf("risk action=(%q,%q,%v)", label, page, attention)
+	}
+
+	a.events = nil
+	a.eventsVersion++
+	a.eventStreamConnected = true
+	if label, page, attention := a.overviewAction(); label != "打开系统诊断" || page != "系统" || attention {
+		t.Fatalf("system-stream action=(%q,%q,%v)", label, page, attention)
+	}
+
+	a.systemConnected = true
+	if label, page, attention := a.overviewAction(); label != "" || page != "" || attention {
+		t.Fatalf("healthy action=(%q,%q,%v)", label, page, attention)
 	}
 }
 
