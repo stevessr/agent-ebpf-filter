@@ -39,3 +39,7 @@ Install needs apt on Debian/Ubuntu with root or passwordless sudo, unless native
 Live kernel verifier/attach, tracepoints, BPF LSM and cgroup smoke tests are explicitly **NOT RUN** in the rootless cloud environment; run those separately on an authorized eBPF/BTF-capable Linux machine. The frontend can boot alone, but live API screens require a separately running backend. Installation failures are recorded in `reports/codex-cloud/install-status.md` and the Cloud Install log; full verification results remain in `reports/codex-cloud/latest.md` and its logs. Reports, caches and generated build outputs must not be committed.
 
 The Cloud environment itself is selected, tested, and published in the Codex Cloud UI; committing these files does not publish a cloud environment automatically.
+
+### Native desktop validation
+
+The Codex Cloud install now restores `desktop/renew` Go modules as well as the backend and wrapper, and `validate.sh full` runs `go vet`, `go test`, and a Go build for the native MyGo desktop. Packaging with GTK/desktop-specific libraries and privileged BPF LSM runtime checks remain host-only, as documented above.

@@ -41,12 +41,12 @@ if [[ "$mode" == full ]]; then
   run gofmt bash -c 'cd "$CODEX_ROOT"; files="$(git ls-files -- "*.go" | xargs -r gofmt -l)"; if [[ -n "$files" ]]; then printf "%s\n" "$files"; exit 1; fi'
   run protobuf bash -c 'cd "$CODEX_ROOT" && make SKIP_PREDEV=1 proto'
   run ebpf-generate bash -c 'cd "$CODEX_ROOT/backend/ebpf" && go generate && go generate gen_tls.go && go generate gen_cgroup.go && go generate gen_lsm.go'
-  for dir in backend wrapper tools/agent-tui tools/dev-env-tui; do
+  for dir in backend desktop/renew wrapper tools/agent-tui tools/dev-env-tui; do
     id="${dir//\//-}"
     run "$id-vet" bash -c 'cd "$CODEX_ROOT/$1" && go vet ./...' _ "$dir"
     run "$id-test" bash -c 'cd "$CODEX_ROOT/$1" && go test -count=1 -timeout=120s ./...' _ "$dir"
   done
-  run go-build bash -c 'mkdir -p "$CODEX_ROOT/bin" && (cd "$CODEX_ROOT/backend" && go build -o "$CODEX_ROOT/bin/agent-ebpf-filter" .) && (cd "$CODEX_ROOT/wrapper" && go build -o "$CODEX_ROOT/bin/agent-wrapper" .)'
+  run go-build bash -c 'mkdir -p "$CODEX_ROOT/bin" && (cd "$CODEX_ROOT/backend" && go build -o "$CODEX_ROOT/bin/agent-ebpf-filter" .) && (cd "$CODEX_ROOT/wrapper" && go build -o "$CODEX_ROOT/bin/agent-wrapper" .) && (cd "$CODEX_ROOT/desktop/renew" && go build -o "$CODEX_ROOT/bin/agent-ebpf-renew" .)'
   run frontend-tests bash -c 'cd "$CODEX_ROOT/frontend" && bun run test:agentsight'
   run frontend-build bash -c 'cd "$CODEX_ROOT/frontend" && bun run build'
   run bpf-ts-check bash -c 'cd "$CODEX_ROOT/tools/bpf-ts" && bun run check'

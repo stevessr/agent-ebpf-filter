@@ -1,0 +1,27 @@
+name: Codex Cloud scripts
+on:
+  pull_request:
+    paths:
+      - 'scripts/codex-cloud/**'
+      - '.github/workflows/codex-cloud-scripts.yml'
+      - 'docs/development/codex-cloud.md'
+  push:
+    branches: [master]
+    paths:
+      - 'scripts/codex-cloud/**'
+      - '.github/workflows/codex-cloud-scripts.yml'
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Bash syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do
+            bash -n "$file"
+          done < <(find scripts/codex-cloud -name '*.sh' -type f -print0)
+      - name: Check manifest versions
+        shell: bash
+        run: bash scripts/codex-cloud/detect.sh

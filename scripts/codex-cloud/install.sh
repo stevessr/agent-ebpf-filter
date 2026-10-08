@@ -85,7 +85,7 @@ install_go; install_node; install_bun; install_uv
 [[ "$(bun --version)" == "$CODEX_BUN_VERSION" ]] || { echo 'Bun PATH mismatch.' >&2; exit 1; }
 uv python install "$CODEX_PY_VERSION"
 (cd "$CODEX_ROOT/adapters/python" && uv lock --check && uv sync --frozen --python "$CODEX_PY_VERSION")
-for dir in backend wrapper tools/agent-tui tools/dev-env-tui; do (cd "$CODEX_ROOT/$dir" && go mod download); done
+for dir in backend desktop/renew wrapper tools/agent-tui tools/dev-env-tui; do (cd "$CODEX_ROOT/$dir" && go mod download); done
 # Pin the generator to the version declared by backend/go.mod; do not run make predev-go (@latest).
 go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
 for dir in . frontend tools/bpf-ts; do (cd "$CODEX_ROOT/$dir" && bun install --frozen-lockfile); done
