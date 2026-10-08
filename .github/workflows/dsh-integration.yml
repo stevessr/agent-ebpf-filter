@@ -57,7 +57,11 @@ jobs:
             backend/app/dshinspector backend/app/handlers/hooksconfig.go
             backend/internal/dshcli wrapper/main.go wrapper/main_test.go)
           files="$(gofmt -l "${paths[@]}")"
-          test -z "$files" || { printf '%s\n' "$files"; exit 1; }
+          if [[ -n "$files" ]]; then
+            gofmt -d "${paths[@]}"
+            printf '%s\n' "$files"
+            exit 1
+          fi
       - name: Test DSH backend, Inspector, hooks, wrapper
         shell: bash
         run: |
