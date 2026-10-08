@@ -101,6 +101,13 @@ type renewApp struct {
 	runtimeCfg         runtimeConfigResponse
 	runtimeReady       bool
 
+	modulesReady         bool
+	modulesBusy          bool
+	modulesErr           string
+	modulesNotice        string
+	modulesPendingUnload string
+	modules              []ebpfModule
+
 	registryReady bool
 	registryBusy  bool
 	registryErr   string
@@ -163,6 +170,7 @@ func (a *renewApp) runPolling(ctx context.Context, session *backendSession) {
 	}
 	a.refresh(ctx)
 	a.refreshConfiguration(ctx)
+	go a.refreshEBPFModules(ctx)
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -285,6 +293,8 @@ func (a *renewApp) view(c *ui.Context) {
 					a.processesView(c)
 				case "监控":
 					a.monitoringView(c)
+				case "eBPF 模块":
+					a.ebpfModulesView(c)
 				case "规则":
 					a.rulesView(c)
 				case "跟踪":
@@ -339,6 +349,7 @@ func (a *renewApp) sidebar(c *ui.Context) {
 			})
 			ui.SidebarSection(c, "管理", nil, func() {
 				ui.SidebarItem(c, "监控", nil, "采集与能力")
+				ui.SidebarItem(c, "eBPF 模块", nil, "内核程序挂载")
 				ui.SidebarItem(c, "规则", nil, "Wrapper 规则")
 				ui.SidebarItem(c, "跟踪", nil, "跟踪范围")
 			})
@@ -471,6 +482,8 @@ func pageSubtitle(page string) string {
 		return "实时进程与 Agent 活动"
 	case "监控":
 		return "采集范围、运行时能力与开销"
+	case "eBPF 模块":
+		return "独立 eBPF 插件的手动加载与卸载"
 	case "规则":
 		return "agent-wrapper 策略与重写"
 	case "跟踪":
