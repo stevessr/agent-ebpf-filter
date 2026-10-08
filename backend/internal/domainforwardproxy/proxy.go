@@ -21,31 +21,41 @@ type DomainForwardRoute struct {
 }
 
 type DomainForwardProxySettings struct {
-	Enabled            bool                 `json:"enabled"`
-	HTTPPort           int                  `json:"httpPort"`
-	HTTPSPort          int                  `json:"httpsPort"`
-	DefaultScheme      string               `json:"defaultScheme"`
-	AllowAnyHost       bool                 `json:"allowAnyHost"`
-	DNSResolver        string               `json:"dnsResolver,omitempty"`
-	DialTimeoutSeconds int                  `json:"dialTimeoutSeconds"`
-	CertFile           string               `json:"certFile,omitempty"`
-	KeyFile            string               `json:"keyFile,omitempty"`
-	Routes             []DomainForwardRoute `json:"routes,omitempty"`
+	Enabled                    bool                 `json:"enabled"`
+	HTTPPort                   int                  `json:"httpPort"`
+	HTTPSPort                  int                  `json:"httpsPort"`
+	DefaultScheme              string               `json:"defaultScheme"`
+	AllowAnyHost               bool                 `json:"allowAnyHost"`
+	DNSResolver                string               `json:"dnsResolver,omitempty"`
+	DialTimeoutSeconds         int                  `json:"dialTimeoutSeconds"`
+	CertFile                   string               `json:"certFile,omitempty"`
+	KeyFile                    string               `json:"keyFile,omitempty"`
+	TLSInterceptEnabled        bool                 `json:"tlsInterceptEnabled"`
+	TLSInterceptAllowlist      string               `json:"tlsInterceptAllowlist,omitempty"`
+	TLSInterceptCACertFile     string               `json:"tlsInterceptCaCertFile,omitempty"`
+	TLSInterceptCAKeyFile      string               `json:"tlsInterceptCaKeyFile,omitempty"`
+	TLSInterceptLeafTTLSeconds int                  `json:"tlsInterceptLeafTtlSeconds,omitempty"`
+	Rewrite                    BodyRewriteSettings  `json:"rewrite,omitempty"`
+	Routes                     []DomainForwardRoute `json:"routes,omitempty"`
 }
 
 type Status struct {
-	Enabled      bool      `json:"enabled"`
-	HTTPRunning  bool      `json:"httpRunning"`
-	HTTPSRunning bool      `json:"httpsRunning"`
-	HTTPAddress  string    `json:"httpAddress,omitempty"`
-	HTTPSAddress string    `json:"httpsAddress,omitempty"`
-	HTTPPort     int       `json:"httpPort"`
-	HTTPSPort    int       `json:"httpsPort"`
-	RouteCount   int       `json:"routeCount"`
-	AllowAnyHost bool      `json:"allowAnyHost"`
-	DNSResolver  string    `json:"dnsResolver,omitempty"`
-	Errors       []string  `json:"errors,omitempty"`
-	UpdatedAt    time.Time `json:"updatedAt"`
+	Enabled             bool      `json:"enabled"`
+	HTTPRunning         bool      `json:"httpRunning"`
+	HTTPSRunning        bool      `json:"httpsRunning"`
+	HTTPAddress         string    `json:"httpAddress,omitempty"`
+	HTTPSAddress        string    `json:"httpsAddress,omitempty"`
+	HTTPPort            int       `json:"httpPort"`
+	HTTPSPort           int       `json:"httpsPort"`
+	RouteCount          int       `json:"routeCount"`
+	AllowAnyHost        bool      `json:"allowAnyHost"`
+	DNSResolver         string    `json:"dnsResolver,omitempty"`
+	TLSInterceptEnabled bool      `json:"tlsInterceptEnabled"`
+	RewriteEnabled      bool      `json:"rewriteEnabled"`
+	InferenceEnabled    bool      `json:"inferenceEnabled"`
+	InferenceReady      bool      `json:"inferenceReady"`
+	Errors              []string  `json:"errors,omitempty"`
+	UpdatedAt           time.Time `json:"updatedAt"`
 }
 
 type Runtime struct {
@@ -121,6 +131,13 @@ func (m *Runtime) Apply(settings DomainForwardProxySettings) error {
 		return nil
 	}
 
+	if settings.Rewrite.Inference.Enabled {
+		if _, err := LoadNativeInferenceKernel(settings.Rewrite.Inference); err != nil {
+			m.status.Errors = append(m.status.Errors, fmt.Sprintf("rewrite inference: %v", err))
+		} else {
+			m.status.InferenceReady = true
+		}
+	}
 	handler := NewHandler(settings)
 	if settings.HTTPPort > 0 {
 		if err := m.startHTTPServerLocked(settings, handler); err != nil {
@@ -217,12 +234,15 @@ func (m *Runtime) setRuntimeError(message string) {
 
 func BuildStatus(settings DomainForwardProxySettings) Status {
 	return Status{
-		Enabled:      settings.Enabled,
-		HTTPPort:     settings.HTTPPort,
-		HTTPSPort:    settings.HTTPSPort,
-		RouteCount:   len(settings.Routes),
-		AllowAnyHost: settings.AllowAnyHost,
-		DNSResolver:  settings.DNSResolver,
-		UpdatedAt:    time.Now().UTC(),
+		Enabled:             settings.Enabled,
+		HTTPPort:            settings.HTTPPort,
+		HTTPSPort:           settings.HTTPSPort,
+		RouteCount:          len(settings.Routes),
+		AllowAnyHost:        settings.AllowAnyHost,
+		DNSResolver:         settings.DNSResolver,
+		TLSInterceptEnabled: settings.TLSInterceptEnabled,
+		RewriteEnabled:      settings.Rewrite.Enabled,
+		InferenceEnabled:    settings.Rewrite.Inference.Enabled,
+		UpdatedAt:           time.Now().UTC(),
 	}
 }

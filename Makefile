@@ -2,6 +2,7 @@ DEV_ENV_FILE ?= .env.dev
 DEV_ENV_MAKEFILE ?= .env.dev.mk
 DEV_ENV_TUI_DIR ?= tools/dev-env-tui
 AGENT_TUI_DIR ?= tools/agent-tui
+RENEW_DESKTOP_DIR ?= desktop/renew
 -include $(DEV_ENV_MAKEFILE)
 
 # Get a writable Go workspace for helper binaries and the module cache.
@@ -31,7 +32,7 @@ DEV_IMAGE_REPOSITORY ?= ghcr.io/$(DEV_IMAGE_OWNER_REPO)/devcontainer
 DEV_IMAGE ?= $(DEV_IMAGE_REPOSITORY):$(DEV_IMAGE_TAG)
 DEV_CONTAINER ?= agent-ebpf-filiter-dev
 DEV_WORKSPACE ?= /workspaces/agent-ebpf-filiter
-DEVCONTAINER_GO_VERSION ?= 1.26.2
+DEVCONTAINER_GO_VERSION ?= 1.27.1
 DEVCONTAINER_USER_UID ?= 1001
 DEVCONTAINER_USER_GID ?= 1001
 DEV_CONTAINER_USERNS ?= $(shell $(CONTAINER_CLI) --version 2>/dev/null | grep -qi podman && printf 'keep-id:uid=$(DEVCONTAINER_USER_UID),gid=$(DEVCONTAINER_USER_GID)')
@@ -59,7 +60,7 @@ export $(DEV_ENV_EXPORTS)
 
 .DEFAULT_GOAL := all
 
-.PHONY: all backend frontend wrapper clean proto proto-check help predev predev-check predev-go predev-python predev-frontend predev-tui dev dev-env dev-env-tui dev-env-cli dev-env-build dev-env-print dev-env-doctor tui tui-build tui-test run deps ebpf-bootstrap ebpf-tls ebpf-cgroup ebpf-lsm os-enforcement-preflight os-enforcement-check os-enforcement-smoke os-enforcement-smoke-start cuda ml-sweep ml-presentation runtime-benchmark test lint lint-backend lint-frontend githooks build install uninstall docker dev-image dev-image-repository dev-image-tag exec
+.PHONY: all backend frontend wrapper clean proto proto-check help predev predev-check predev-go predev-python predev-frontend predev-tui dev dev-env dev-env-tui dev-env-cli dev-env-build dev-env-print dev-env-doctor tui tui-build tui-test renew-desktop-dev renew-desktop-build run deps ebpf-bootstrap ebpf-tls ebpf-cgroup ebpf-lsm os-enforcement-preflight os-enforcement-check os-enforcement-smoke os-enforcement-smoke-start cuda ml-sweep ml-presentation runtime-benchmark test lint lint-backend lint-frontend githooks build install uninstall docker dev-image dev-image-repository dev-image-tag exec
 
 
 docker: ## Pull the privileged devcontainer image from GHCR
@@ -255,6 +256,12 @@ tui-build: ## Build the standalone monitor TUI binary into bin/agent-tui
 
 tui-test: ## Run the monitor TUI unit tests
 	@cd $(AGENT_TUI_DIR) && GOPATH="$(GOPATH)" go test -race -count=1 ./...
+
+renew-desktop-dev: ## Build/start the backend and MyGo native Renew desktop UI
+	@RENEW_DESKTOP_DIR="$(RENEW_DESKTOP_DIR)" ./scripts/renew-desktop.sh dev
+
+renew-desktop-build: ## Package the MyGo native Renew desktop app for the current platform
+	@RENEW_DESKTOP_DIR="$(RENEW_DESKTOP_DIR)" ./scripts/renew-desktop.sh build
 
 predev-check: ## Verify development dependencies without installing anything
 	@command -v protoc-gen-go >/dev/null || (echo "Missing protoc-gen-go. Run 'make predev' first." && exit 1)

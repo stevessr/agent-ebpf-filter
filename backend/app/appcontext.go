@@ -28,6 +28,7 @@ type AppContext struct {
 	Broadcast         chan *pb.Event
 	EventClientHub    *wsfanout.Hub
 	EnvelopeClientHub *wsfanout.Hub
+	SummaryClientHub  *wsfanout.Hub
 	Upgrader          websocket.Upgrader
 
 	// ── Runtime config ──────────────────────────────────────────────
@@ -131,6 +132,7 @@ func newAppContext() *AppContext {
 		Network:           network.NewManager(),
 		EventClientHub:    wsfanout.New(wsfanout.Options{}),
 		EnvelopeClientHub: wsfanout.New(wsfanout.Options{}),
+		SummaryClientHub:  wsfanout.New(wsfanout.Options{}),
 		TagMap: map[uint32]string{
 			0: "Unknown", 1: "AI Agent", 2: "Git", 3: "Build Tool",
 			4: "System Pkg", 5: "Runtime", 6: "System Tool",

@@ -62,14 +62,14 @@ static __always_inline void sys_exit_common(struct trace_event_raw_sys_exit *ctx
     if (path_mode == EXIT_PATH_SINGLE) {
         struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_ctx, &pid_tgid);
         if (pd) {
-            __builtin_memcpy(e->path, pd->path, MAX_PATH_LEN);
+            __builtin_memcpy_inline(e->path, pd->path, MAX_PATH_LEN);
             bpf_map_delete_elem(&exit_single_path_ctx, &pid_tgid);
         }
     } else if (path_mode == EXIT_PATH_PAIR) {
         struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_ctx, &pid_tgid);
         if (pd) {
-            __builtin_memcpy(e->path, pd->path, MAX_PATH_LEN);
-            __builtin_memcpy(e->extra4, pd->extra4, MAX_PATH_LEN);
+            __builtin_memcpy_inline(e->path, pd->path, MAX_PATH_LEN);
+            __builtin_memcpy_inline(e->extra4, pd->extra4, MAX_PATH_LEN);
             bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
         }
     }

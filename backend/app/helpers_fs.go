@@ -24,11 +24,14 @@ import (
 
 func getShellConfigPath() string {
 	home := platform.GetRealHomeDir()
-	shell := os.Getenv("SHELL")
-	if strings.Contains(shell, "zsh") {
+	switch filepath.Base(os.Getenv("SHELL")) {
+	case "fish":
+		return filepath.Join(home, ".config", "fish", "config.fish")
+	case "zsh":
 		return filepath.Join(home, ".zshrc")
+	default:
+		return filepath.Join(home, ".bashrc")
 	}
-	return filepath.Join(home, ".bashrc")
 }
 
 func isTextLikeMime(mimeType string) bool {
@@ -371,6 +374,9 @@ func refreshHooksPaths() {
 			case "codex":
 				availableHooks[i].NativeConfigPath = filepath.Join(home, ".codex", "hooks.json")
 				availableHooks[i].NativeFeatureConfigPath = filepath.Join(home, ".codex", "config.toml")
+			case "dsh":
+				availableHooks[i].NativeConfigPath = filepath.Join(resolveDshHome(home), "plugins", hookMarker+"-dsh.mjs")
+				availableHooks[i].NativeFeatureConfigPath = filepath.Join(resolveDshHome(home), "cordis.patch.yml")
 			case "pi":
 				availableHooks[i].NativeConfigPath = filepath.Join(resolvePiAgentDir(home), "extensions", hookMarker+"-pi.ts")
 			case "omp":
@@ -383,6 +389,8 @@ func refreshHooksPaths() {
 				availableHooks[i].NativeConfigPath = filepath.Join(home, ".augment", "settings.json")
 			case "antigravity":
 				availableHooks[i].NativeConfigPath = filepath.Join(home, ".gemini", "antigravity-cli", "plugins", hookMarker, "hooks.json")
+			case "zcode":
+				availableHooks[i].NativeConfigPath = filepath.Join(home, ".zcode", "cli", "config.json")
 			}
 		}
 	}

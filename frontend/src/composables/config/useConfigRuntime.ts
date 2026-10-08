@@ -55,8 +55,10 @@ import type {
 export function useConfigRuntime() {
   const featureManifest = useFeatureManifest();
   const runtimeSettings = ref<RuntimeSettings>({
-    logPersistenceEnabled: false,
+    logPersistenceEnabled: true,
     logFilePath: "",
+    eventStoreMaxRecords: 250_000,
+    eventStoreMaxAge: "168h",
     accessToken: "",
     maxEventCount: 1500,
     maxEventAge: "0",
@@ -206,6 +208,8 @@ export function useConfigRuntime() {
     runtimeSettings.value = {
       logPersistenceEnabled: data.runtime.logPersistenceEnabled,
       logFilePath: data.runtime.logFilePath,
+      eventStoreMaxRecords: data.runtime.eventStoreMaxRecords ?? 250_000,
+      eventStoreMaxAge: data.runtime.eventStoreMaxAge ?? "168h",
       accessToken: data.runtime.accessToken,
       maxEventCount: data.runtime.maxEventCount ?? 1500,
       maxEventAge: data.runtime.maxEventAge ?? "0",
@@ -486,6 +490,8 @@ export function useConfigRuntime() {
       const res = await axios.put("/config/runtime", {
         logPersistenceEnabled: runtimeSettings.value.logPersistenceEnabled,
         logFilePath: runtimeSettings.value.logFilePath,
+        eventStoreMaxRecords: runtimeSettings.value.eventStoreMaxRecords,
+        eventStoreMaxAge: runtimeSettings.value.eventStoreMaxAge,
         maxEventCount: runtimeSettings.value.maxEventCount,
         maxEventAge: runtimeSettings.value.maxEventAge,
         shellSessionsEnabled: runtimeSettings.value.shellSessionsEnabled,

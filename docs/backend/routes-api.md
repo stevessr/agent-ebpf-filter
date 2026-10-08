@@ -106,7 +106,35 @@ registerRoutes()
 | `POST` | `/network/export-pcap` | PCAP 导出 (FeatureNetworkExport；生成唯一的 `0600` PCAP 与 JSONL sidecar) |
 | `GET` | `/network/geoip` | GeoIP 查询 (IP -> 国家/ASN) |
 
+## Research 检测工程重放
+
+| 方法 | 路径 | 用途 |
+|------|------|------|
+| `POST` | `/research/sessions/:id/detections/replay` | 在已持久化 Research Session 上进行候选检测规则 lint、同 Trace/PID 时间窗口关联及带人工标签的攻击/正常样本回放；仅只读分析，不自动修改策略 |
+
+受 `authMiddleware()` 保护；请求上限 64 KiB、20,000 事件、1,000 个标注范围、8 个信号。具体规则格式、指标定义和人工审批边界见 [NVIDIA-inspired validation-first detection](../security/nvidia-validation-first-detection.md)。
+
+## Policy Boundary 与 Sentry-inspired Watchdog 模拟
+
+| 方法 | 路径 | 用途 |
+|------|------|------|
+| `POST` | `/research/safety/evaluate` | 对策略父子授权、代际更新和外部提供的监控元数据执行只读离线验证；返回反例及建议隔离信号，不执行内核隔离 |
+
+该路由继承 `/research` 组认证，严格拒绝未知 JSON 字段及多份 JSON；单次请求限 64 KiB。它不具备物理隔离、硬件证明或实际策略部署功能。详见 [OpenShell / Sentry-inspired 边界设计](../security/openshell-sentry-boundary.md)。
+
 ## 沙箱路由 (`/sandbox`)
+
+### Sandbox runtime 归因 (`/sandbox/runtime`)
+
+这些只读接口不依赖 cgroup/LSM 编译特性，用于识别宿主可见的 gVisor、Kata、Firecracker、Bubblewrap、nsjail 与 OCI runtime。gVisor guest syscall 不会被误标成普通宿主 syscall；细粒度 guest telemetry 需要 gVisor 自身 trace/seccheck 通道。
+
+| 方法 | 路径 | 用途 |
+|------|------|------|
+| `GET` | `/sandbox/runtime/status` | 支持的 runtime、宿主发现能力与边界说明 |
+| `GET` | `/sandbox/runtime/detect?pid=<host-pid>` | 按宿主 PID 解析 runtime、cgroup、container ID |
+| `GET` | `/sandbox/runtime/active?limit=128` | 有界枚举宿主可见 runtime 进程 |
+
+详见 [Sandbox runtime integration](../integrations/sandbox-runtimes.md)。
 
 ### Cgroup 沙箱 (`/sandbox/cgroup`)
 
@@ -293,7 +321,7 @@ Research training API：`GET /research/sessions/:id/training` 和 `POST /researc
 | `GET` | `/config/hooks/:id/raw` | 读取原始配置 |
 | `POST` | `/config/hooks/:id/raw` | 写入原始配置 |
 
-`GET /config/hooks` 对原生集成返回 `config_format`（`json`、`toml` 或 `typescript`）。Pi 与 Oh My Pi 使用 raw TypeScript extension editor；DeepSeek Harness (`dsh`) 是 wrapper-only，不提供 raw native 配置文件。
+`GET /config/hooks` 对原生集成返回 `config_format`（`json`、`toml` 或 `typescript`）。Pi 与 Oh My Pi 使用 raw TypeScript extension editor；DeepSeek Harness (`dsh`) 使用同一源码编辑器查看原生 Cordis ESM 插件（`.mjs`，无需编译）。
 
 ### 系统路由 (`/system`)
 
@@ -398,6 +426,8 @@ AgentSight 事件上传端点（`POST /agentsight/events`及兼容路由）单�
 | 方法 | 路径 | 用途 |
 |------|------|------|
 | `GET` | `/agentsight/runners` | Runner 列表与状态 |
+| `GET` | `/events/summaries` | Renew 等轻量客户端使用的紧凑事件摘要；完整 payload 保留在后端持久化层 |
+| `GET` | `/events/detail/:id` | 按稳定 event ID 按需读取单条完整事件 |
 | `GET` | `/agentsight/events` | 合并事件导出 (支持 format/jsonl/array) |
 | `POST` | `/agentsight/events` | 上传 AgentSight 事件 |
 | `GET` | `/agentsight/events.jsonl` | JSONL 格式导出 |
@@ -554,3 +584,37 @@ attach target、指令数、map 数量及估算内存，只实例化选定程序
 | `POST` | `/api/v1/agents/register` | 注册 Agent PID |
 | `POST` | `/api/v1/agents/unregister` | 注销 Agent PID |
 | `GET` | `/api/v1/config/export` | 导出配置 |
+
+## BTF / LSM 内核诊断
+
+`GET /system/kernel-capabilities`（沿用 `authMiddleware()`）提供只读诊断，
+不要求启用策略管理，不执行命令、不修改系统配置。配置页的 **BTF / LSM** 标签支持手动刷新。
+
+- `release` / `releaseError`：后端当前内核版本或读取错误。
+- `btfReadable` / `btfError`：使用当前 cilium/ebpf 解析 `/sys/kernel/btf/vmlinux` 的结果。
+- `lsms` / `lsmError`：`/sys/kernel/security/lsm` 中的活动 LSM；读取失败表示未知，不代表未编译支持。
+- `bpfLsmEnabled`：仅在活动列表包含精确名称 `bpf` 时为 true；有 `lsmError` 时不可据此判定支持情况。
+- `installedKernels` / `kernelsError`：`/lib/modules` 下的目录名，仅作为模块目录清单，不保证对应镜像可启动。
+
+BTF 解析成功不保证内核程序能通过 verifier。BPF LSM 已启用不代表应用执行器已加载，
+后者请查看 `/sandbox/lsm/status`。接口不探测非当前内核的功能，不修改 bootloader 或 LSM 启动顺序。
+
+
+### DeepSeek Harness 原生插件
+
+在 Hooks 页面启用 DeepSeek Harness，安装器将写入：
+
+- `$DSH_HOME/plugins/agent-ebpf-hook-active-dsh.mjs`：Cordis 插件；
+- `$DSH_HOME/cordis.patch.yml`：追加带 BEGIN/END 标记的 `insert` 块，在所有 profile 注册该插件；
+- 插件目录内 `hooks/` 下的专用 relay：仅所有者可读写执行，使用现有 hook secret 认证。
+
+默认 `DSH_HOME=~/.dsh`，支持绝对路径与 `~/`。后端的 `DSH_HOME` 必须与目标 dsh 进程一致。
+安装后重启 dsh；禁用后也应重启以卸载已加载的插件。集成依据 Cordis 的具名 `apply(ctx)`、
+`session/created` 与 `session/event` API，适用于支持 home-level patch 的 Harness 版本。
+不修改 dsh 的 package.json、profile 列表或已有 shell alias，不运行包管理器。
+用户 YAML 注释与其他配置保留；无法安全追加的格式会报错，不会整体覆盖。
+卸载只移除托管 patch 块、插件和 relay；旧版 wrapper alias 需用户自行停用。
+
+上传会话 ID、PID、cwd、工具名、调用 ID、错误标记；不上传 prompt、工具参数、结果正文。
+relay 为 best-effort，最多 8 个并发进程，curl 最长 2 秒，不向 agent stdout 写入内容。
+这是生命周期观测，不是审批或阻断 hook；仍沿用现有 hook 安装门控、入口认证与脱敏链路。

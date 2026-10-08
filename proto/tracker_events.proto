@@ -349,6 +349,30 @@ message EventEnvelopeBatch {
   repeated EventEnvelope envelopes = 1;
 }
 
+// Compact desktop-only projection. It intentionally contains only fields
+// needed to render/filter the bounded Renew event window. Full payloads stay
+// in backend persistence and are fetched by event_id only when Details opens.
+message DesktopEventSummary {
+  string event_id = 1;
+  int64 received_at_ms = 2;
+  uint32 pid = 3;
+  uint32 ppid = 4;
+  uint32 root_agent_pid = 5;
+  int32 event_type = 6;
+  string type = 7;
+  string tag = 8;
+  string comm = 9;
+  string target = 10;
+  bool network = 11;
+  uint64 net_bytes = 12;
+  string decision = 13;
+  double risk_score = 14;
+  string agent_run_id = 15;
+  string conversation_id = 16;
+  string tool_name = 17;
+  bool has_agent_context = 18;
+}
+
 // Batch of events for WebSocket delivery efficiency
 message EventBatch {
   repeated Event events = 1;

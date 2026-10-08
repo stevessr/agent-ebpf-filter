@@ -20,6 +20,12 @@ func DetectAIToolFromComm(comm string) *AIToolMetadata {
 	lower := strings.ToLower(comm)
 
 	switch {
+	case lower == "zcode" || lower == "zcode.appimage":
+		return &AIToolMetadata{
+			ToolName:   "ZCode",
+			ToolVendor: "Z.ai",
+			ToolType:   "ai_assistant",
+		}
 	case lower == "zg" || lower == "zvec-grep":
 		return &AIToolMetadata{
 			ToolName:   "zvec-grep",
@@ -46,8 +52,15 @@ func DetectAIToolFromComm(comm string) *AIToolMetadata {
 
 // DetectAIToolFromPath 从二进制路径推断 AI 工具
 func DetectAIToolFromPath(binPath string) *AIToolMetadata {
-	lower := strings.ToLower(binPath)
+	lower := strings.ToLower(strings.TrimSpace(binPath))
 
+	if lower == "zcode" || strings.HasSuffix(lower, "/zcode") || strings.HasSuffix(lower, "/zcode.appimage") {
+		return &AIToolMetadata{
+			ToolName:   "ZCode",
+			ToolVendor: "Z.ai",
+			ToolType:   "ai_assistant",
+		}
+	}
 	if strings.Contains(lower, "@zvec/zvec-grep") || strings.Contains(lower, "/zvec-grep/") || lower == "zg" || strings.HasSuffix(lower, "/zg") {
 		return &AIToolMetadata{
 			ToolName:   "zvec-grep",

@@ -2,12 +2,13 @@ package main
 
 import (
 	"log"
+	"os"
 
-	"agent-ebpf-filter/app"
+	"agent-ebpf-filter/embedded"
 )
 
 func main() {
-	if err := app.Main(); err != nil {
+	if err := embedded.Run(os.Args[1:]); err != nil {
 		log.Fatal(err)
 	}
 }

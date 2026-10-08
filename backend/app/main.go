@@ -57,6 +57,15 @@ func Main() error {
 	defer AppCtx.Network.Close()
 	signalCtx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()
+	signalCtx, desktopSession, err := desktopSessionContext(signalCtx)
+	if err != nil {
+		return err
+	}
+	if desktopSession != nil {
+		activeDesktopSession.Store(desktopSession)
+		defer activeDesktopSession.CompareAndSwap(desktopSession, nil)
+	}
+	defer desktopSession.Close()
 	defer func() {
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer shutdownCancel()
@@ -105,6 +114,9 @@ func Main() error {
 	if _, err := AppCtx.RuntimeSettings.LoadOrCreate(); err != nil {
 		log.Printf("[WARN] failed to load runtime settings: %v", err)
 	}
+	if err := desktopSession.publishToken(runtimeSettingsStore.ExpectedToken()); err != nil {
+		return fmt.Errorf("initialize desktop session: %w", err)
+	}
 	defer func() {
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), runtimeEventLogStopTimeout)
 		defer shutdownCancel()
@@ -114,7 +126,9 @@ func Main() error {
 	}()
 	defer otelExporterStore.Close()
 
-	runtime.KillPreviousBackendProcesses()
+	if desktopSession == nil {
+		runtime.KillPreviousBackendProcesses()
+	}
 
 	initRedactionEngine()
 
@@ -124,6 +138,7 @@ func Main() error {
 	AppCtx.TrackerMaps = trackerMaps
 	initObservability()
 	settings := AppCtx.RuntimeSettings.Snapshot()
+	applyRetentionConfig(settings)
 	features := newFeatureRegistry()
 	AppCtx.FeatureRegistry = features
 	if features.CompiledIn(FeatureDomainForward) {
@@ -175,7 +190,9 @@ func Main() error {
 	if err != nil {
 		return err
 	}
-	configureRuntimePort(ctx, runtimeJobs, actualPort)
+	if actualPort > 0 {
+		configureRuntimePort(ctx, runtimeJobs, actualPort)
+	}
 
 	if features.CompiledIn(FeatureML) {
 		runtimeJobs.Go(func() {

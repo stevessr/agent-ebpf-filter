@@ -44,3 +44,16 @@ func TestAnnotateTLSAPIFingerprintGRPC(t *testing.T) {
 		t.Fatalf("grpc fingerprint = %+v", event)
 	}
 }
+
+func TestAnnotateTLSAPIFingerprintMiniMaxProviderNotHarness(t *testing.T) {
+	event := &TLSPlaintextEvent{
+		Type: "http2_headers", Direction: "send", Method: "POST",
+		Host: "api.minimax.io", URL: "/anthropic/v1/messages?api_key=secret",
+		Comm: "zcode",
+	}
+	annotateTLSAPIFingerprint(event)
+	if event.RequestPath != "/anthropic/v1/messages" || event.APIProfile != "minimax.messages" ||
+		event.Vendor != "minimax" || event.APIProduct != "messages" {
+		t.Fatalf("MiniMax provider detection must be independent of calling harness: %+v", event)
+	}
+}

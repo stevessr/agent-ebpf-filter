@@ -1,4 +1,4 @@
-import { ref, computed } from "vue";
+import { computed, isRef, ref, unref, watch, type Ref } from "vue";
 import axios from "axios";
 import { pb } from "../../pb/tracker_pb.js";
 import { buildWebSocketUrl } from "../../utils/requestContext";
@@ -151,7 +151,7 @@ function createEmptyHistory(): StatsHistory {
   };
 }
 
-export function useMonitorData() {
+export function useMonitorData(systemIntervalMs: number | Ref<number> = 2000) {
   const processes = ref<ProcessInfo[]>([]);
   const gpus = ref<GPUStatus[]>([]);
   const loading = ref(false);
@@ -201,6 +201,10 @@ export function useMonitorData() {
   let ws: WebSocket | null = null;
   let reconnectTimer: any = null;
   let shouldReconnect = true;
+  let started = false;
+
+  const resolvedSystemInterval = () =>
+    Math.min(60_000, Math.max(1_000, Number(unref(systemIntervalMs)) || 2_000));
 
   const cpuView = ref<"overall" | "cores">("cores");
 
@@ -344,8 +348,17 @@ export function useMonitorData() {
 
   const connectWebSocket = () => {
     if (!shouldReconnect) return;
-    if (ws) ws.close();
-    const socket = new WebSocket(buildWebSocketUrl(`/ws/system?interval=2000`));
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+    if (ws) {
+      ws.onclose = null;
+      ws.close();
+    }
+    const socket = new WebSocket(
+      buildWebSocketUrl(`/ws/system?interval=${resolvedSystemInterval()}`),
+    );
     ws = socket;
     socket.binaryType = "arraybuffer";
     socket.onopen = () => {
@@ -514,7 +527,9 @@ export function useMonitorData() {
       }
     };
     socket.onclose = () => {
-      if (shouldReconnect) reconnectTimer = setTimeout(connectWebSocket, 3000);
+      if (ws === socket) ws = null;
+      if (shouldReconnect)
+        reconnectTimer = setTimeout(connectWebSocket, 3000);
     };
   };
 
@@ -644,6 +659,8 @@ export function useMonitorData() {
 
   // Lifecycle
   const setup = () => {
+    started = true;
+    shouldReconnect = true;
     loading.value = true;
     axios
       .get("/config/tags")
@@ -655,10 +672,24 @@ export function useMonitorData() {
   };
 
   const teardown = () => {
+    started = false;
     shouldReconnect = false;
-    if (ws) ws.close();
-    if (reconnectTimer) clearTimeout(reconnectTimer);
+    if (ws) {
+      ws.onclose = null;
+      ws.close();
+      ws = null;
+    }
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
   };
+
+  if (isRef(systemIntervalMs)) {
+    watch(systemIntervalMs, () => {
+      if (started) connectWebSocket();
+    });
+  }
 
   return {
     // state

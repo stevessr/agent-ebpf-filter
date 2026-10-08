@@ -110,8 +110,8 @@ func processEvent(event *pb.Event) {
 ### API 响应
 `/events/recent` 和 `/events/archive` 返回的事件已脱敏。
 
-### JSONL 日志
-持久化到 `~/.config/agent-ebpf-filter/events.jsonl` 的事件记录已脱敏。
+### 本地事件持久化
+默认写入 `~/.config/agent-ebpf-filter/events.pebble` 的完整事件在进入持久化层前已经脱敏；显式使用 `.jsonl` legacy 路径时同样写入脱敏后的记录。
 
 ## 统计与监控
 

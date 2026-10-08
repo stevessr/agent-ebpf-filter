@@ -3,10 +3,8 @@
 package core
 
 import (
-	"log"
 	"time"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/cilium/ebpf"
 )
 
@@ -116,9 +114,10 @@ var AvailableHooks = []HookDef{
 		ConfigFormat:    ConfigFormatJSON,
 	},
 	{
-		ID: "dsh", Name: "DeepSeek Harness", HookType: HookTypeWrapper,
-		Description: "Tracks dsh through the agent-wrapper command shim; dsh profiles and plugins remain managed by dsh.",
-		TargetCmd:   "dsh",
+		ID: "dsh", Name: "DeepSeek Harness", HookType: HookTypeNative,
+		Description:  "Installs a Cordis plugin via the DSH_HOME home patch for metadata-only session and tool lifecycle telemetry across profiles.",
+		ConfigFormat: ConfigFormatTypeScript,
+		TargetCmd:    "dsh",
 	},
 	{
 		ID: "pi", Name: "Pi", HookType: HookTypeNative,
@@ -161,6 +160,19 @@ var AvailableHooks = []HookDef{
 		NativeHookEvent: "PreToolUse",
 		NativeMatcher:   "*",
 		ConfigFormat:    ConfigFormatJSON,
+	},
+	{
+		ID: "zcode", Name: "ZCode", HookType: HookTypeNative,
+		Description:     "Uses ZCode native lifecycle hooks for runtime telemetry while OS-level cgroup/BPF-LSM policies provide sandbox enforcement",
+		TargetCmd:       "zcode",
+		NativeHookEvent: "PreToolUse",
+		NativeMatcher:   "*",
+		ConfigFormat:    ConfigFormatJSON,
+	},
+	{
+		ID: "mcode", Name: "MiniMax Code", HookType: HookTypeWrapper,
+		Description: "Optional shell wrapper for the mcode CLI; keeps MiniMax Code's own configuration, providers, and ACP integration unchanged.",
+		TargetCmd:   "mcode",
 	},
 	{
 		ID: "cursor", Name: "Cursor", HookType: HookTypeWrapper,
@@ -237,14 +249,3 @@ type ShellControlMessage struct {
 	Rows int    `json:"rows,omitempty"`
 }
 
-// ── NVML initialization ──────────────────────────────────────────────────────
-
-var NvmlInitialized bool
-
-func init() {
-	if ret := nvml.Init(); ret == nvml.SUCCESS {
-		NvmlInitialized = true
-	} else {
-		log.Printf("NVML Init failed: %v", nvml.ErrorString(ret))
-	}
-}

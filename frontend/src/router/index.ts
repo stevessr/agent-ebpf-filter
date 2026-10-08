@@ -17,6 +17,7 @@ const routes = [
     path: "/",
     redirect: "/dashboard",
   },
+/**** The former Renew web client is now a dedicated MyGo desktop app. ****/
   {
     path: "/dashboard/:tab?",
     name: "Dashboard",
@@ -120,6 +121,9 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
+  scrollBehavior(_to, _from, savedPosition) {
+    if (savedPosition) return savedPosition;
+  },
 });
 
 router.beforeEach((to) => {

@@ -34,7 +34,7 @@
 ### 开发工具
 
 - **Bun** - JavaScript 运行时与包管理器
-- **Go** 1.26.2 - 后端编译器
+- **Go** 1.27.1 - 后端编译器
 - **Python** 3.13+ / **uv** - 脚本和 adapters
 - **clang** / **LLVM** - eBPF 编译器
 

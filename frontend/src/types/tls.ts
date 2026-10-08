@@ -63,6 +63,7 @@ export interface TLSCaptureRule {
   enabled: boolean;
   scope: string;
   comms?: string[];
+  paths?: string[];
   hosts?: string[];
   methods?: string[];
   libraries?: string[];
@@ -88,6 +89,8 @@ export interface TLSCaptureStatus {
   enabled?: boolean;
   available?: boolean;
   readStarted?: boolean;
+  pathScoped?: boolean;
+  capturePaths?: string[];
   error?: string;
   libraries?: TLSLibraryStatus[];
   broadcast?: TLSBroadcastStatus;

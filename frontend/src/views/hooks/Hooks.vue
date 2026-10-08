@@ -90,11 +90,11 @@ onMounted(() => {
               CLI's own integration surface. Claude/Gemini/Codex use their native
               config files; Pi uses <code>~/.pi/agent/extensions/</code>; Oh My Pi
               uses <code>~/.omp/agent/extensions/</code> (or its active profile).
+              DeepSeek Harness uses a Cordis plugin registered in
+              <code>$DSH_HOME/cordis.patch.yml</code> (default <code>~/.dsh</code>), across profiles.
               <br />
               <b>Wrapper Hook</b>: Adds a shell alias so the CLI is
-              transparently routed through <code>agent-wrapper</code>. This is the
-              supported dsh mode because dsh profiles and plugins do not expose a
-              generic hook config file here. Wrapper mode requires a shell reload.
+              transparently routed through <code>agent-wrapper</code>. Wrapper mode requires a shell reload.
             </div>
           </template>
         </a-alert>

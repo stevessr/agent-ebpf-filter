@@ -72,6 +72,10 @@ func HandleConfigHooksInstall(c *gin.Context) {
 			aliasLine := fmt.Sprintf("\nalias %s='agent-wrapper %s' # agent-ebpf-hook\n", target.TargetCmd, target.TargetCmd)
 			if !strings.Contains(content, fmt.Sprintf("alias %s=", target.TargetCmd)) {
 				newContent := content + aliasLine
+				if err := platform.MkdirAllAsRealUser(filepath.Dir(p), 0o755); err != nil {
+					c.JSON(500, gin.H{"error": err.Error()})
+					return
+				}
 				if err := platform.WriteFileAsRealUser(p, []byte(newContent), 0o644); err != nil {
 					c.JSON(500, gin.H{"error": err.Error()})
 					return
@@ -79,7 +83,15 @@ func HandleConfigHooksInstall(c *gin.Context) {
 			}
 		}
 	} else {
-		if target.HookType == core.HookTypeNative {
+		if target.ID == "dsh" && target.HookType == core.HookTypeNative && !req.UseWrapper {
+			if err := Deps.UninstallNativeHook(target); err != nil {
+				c.JSON(500, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(200, gin.H{"status": "ok"})
+			return
+		}
+		if target.HookType == core.HookTypeNative && !(target.ID == "dsh" && req.UseWrapper) {
 			_ = Deps.UninstallNativeHook(target)
 		}
 		p := Deps.GetShellConfigPath()

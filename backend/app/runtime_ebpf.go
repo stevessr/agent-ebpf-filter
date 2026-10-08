@@ -578,11 +578,17 @@ func ensurePinnedMapPermissions() error {
 func privilegedCommand(priv, exe string, args ...string) *exec.Cmd {
 	if filepath.Base(priv) == "sudo" {
 		sudoArgs := []string{"--preserve-env=AGENT_WRAPPER_PATH,DISPLAY,WAYLAND_DISPLAY,XAUTHORITY,USER,HOME,AGENT_REAL_HOME,GIN_MODE,DISABLE_AUTH", exe}
+		if os.Getenv("SUDO_ASKPASS") != "" {
+			sudoArgs = append([]string{"-A"}, sudoArgs...)
+		}
 		sudoArgs = append(sudoArgs, args...)
 		return exec.Command(priv, sudoArgs...)
 	}
 
 	cmdArgs := append([]string{exe}, args...)
+	if filepath.Base(priv) == "pkexec" && os.Getenv("AGENT_DESKTOP_LIFETIME_SOCKET") != "" {
+		cmdArgs = append([]string{"--disable-internal-agent"}, cmdArgs...)
+	}
 	cmd := exec.Command(priv, cmdArgs...)
 
 	// Manual environment inheritance for non-sudo escalators (like pkexec)
@@ -610,6 +616,11 @@ func privilegedCommand(priv, exe string, args ...string) *exec.Cmd {
 }
 
 func privilegeEscalationCmd() (string, error) {
+	if os.Getenv("SUDO_ASKPASS") != "" {
+		if p, err := exec.LookPath("sudo"); err == nil {
+			return p, nil
+		}
+	}
 	if os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != "" {
 		if p, err := exec.LookPath("pkexec"); err == nil {
 			return p, nil

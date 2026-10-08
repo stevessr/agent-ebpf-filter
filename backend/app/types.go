@@ -2,12 +2,10 @@ package app
 
 import (
 	"agent-ebpf-filter/core"
-	"log"
 	"os/user"
 	"sync"
+	"sync/atomic"
 	"time"
-
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
 // ── Type aliases to core package ─────────────────────────────────────────────
@@ -32,6 +30,10 @@ type SignalRule = core.SignalRule
 type SelectedProgramSignalLog = core.SelectedProgramSignalLog
 type SignalProcessingSettings = core.SignalProcessingSettings
 type DomainForwardRoute = core.DomainForwardRoute
+type DomainBodyRewriteRule = core.DomainBodyRewriteRule
+type DomainModelRewriteRule = core.DomainModelRewriteRule
+type DomainNativeInferenceSettings = core.DomainNativeInferenceSettings
+type DomainBodyRewriteSettings = core.DomainBodyRewriteSettings
 type DomainForwardProxySettings = core.DomainForwardProxySettings
 
 // ── Global variables ─────────────────────────────────────────────────────────
@@ -50,8 +52,9 @@ var (
 	disabledCommsMu sync.RWMutex
 	disabledComms   = make(map[string]struct{})
 
-	disabledEventTypesMu sync.RWMutex
-	disabledEventTypes   = make(map[uint32]struct{})
+	disabledEventTypesMu  sync.RWMutex
+	disabledEventTypes    = make(map[uint32]struct{})
+	disabledEventTypeBits [4]atomic.Uint64
 
 	nvmlInitialized bool
 
@@ -63,14 +66,6 @@ var (
 	sudoUser          *user.User
 	sudoUserHomeCache string
 )
-
-func init() {
-	if ret := nvml.Init(); ret == nvml.SUCCESS {
-		nvmlInitialized = true
-	} else {
-		log.Printf("NVML Init failed: %v", nvml.ErrorString(ret))
-	}
-}
 
 // availableHooks is a local copy of core.AvailableHooks for path resolution.
 var availableHooks = core.AvailableHooks

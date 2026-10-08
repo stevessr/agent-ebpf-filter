@@ -25,7 +25,9 @@ func registerExternalAPIRoutes(rg *gin.RouterGroup, args ...any) {
 	rg.GET("/openapi.json", handleExternalAPIOpenAPI)
 
 	rg.GET("/events/recent", handleRecentEvents)
+	rg.GET("/events/summaries", handleRecentEventSummaries)
 	rg.GET("/events/graph", handleExecutionGraph)
+	rg.GET("/events/detail/:id", handleEventByID)
 	research.RegisterRoutes(rg.Group("/research"), tlsStore)
 	if features.CompiledIn(FeatureAgentSight) {
 		rg.GET("/agentsight/runners", handleAgentSightRunners(tlsStore))
@@ -47,6 +49,10 @@ func registerExternalAPIRoutes(rg *gin.RouterGroup, args ...any) {
 	if features.CompiledIn(FeatureNetworkExport) {
 		rg.GET("/network/export/jsonl", handleNetworkFlowJSONLExport)
 	}
+
+	rg.GET("/sandbox/runtime/status", handleSandboxRuntimeStatus)
+	rg.GET("/sandbox/runtime/detect", handleSandboxRuntimeDetect)
+	rg.GET("/sandbox/runtime/active", handleSandboxRuntimeActive)
 
 	if features.CompiledIn(FeatureSandboxCgroup) {
 		rg.GET("/sandbox/cgroup/status", handleCgroupSandboxStatus)

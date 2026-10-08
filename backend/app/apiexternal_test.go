@@ -48,6 +48,11 @@ func TestExternalOpenAPISpecValidatesWithLowercaseMethods(t *testing.T) {
 		t.Fatalf("OpenAPI spec missing GET /health: %+v", health)
 	}
 
+	runtimeStatus := spec.Paths.Find("/sandbox/runtime/status")
+	if runtimeStatus == nil || runtimeStatus.Get == nil {
+		t.Fatalf("OpenAPI spec missing GET /sandbox/runtime/status: %+v", runtimeStatus)
+	}
+
 	// /agentsight/events carries both GET and POST on the same path item.
 	events := spec.Paths.Find("/agentsight/events")
 	if events == nil || events.Get == nil || events.Post == nil {

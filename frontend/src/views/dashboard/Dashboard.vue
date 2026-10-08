@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { ref } from "vue";
+import DashboardTriage from "../../components/dashboard/DashboardTriage.vue";
+const showDetailedInsights = ref(false);
 import {
   CopyOutlined,
   EyeOutlined,
@@ -18,6 +21,8 @@ import RedactionBadge from "../../components/common/RedactionBadge.vue";
 
 const {
   events,
+  evictedRecords,
+  showRawEvents,
   isConnected,
   isPaused,
   showDetails,
@@ -105,7 +110,17 @@ const copyPath = async (path: string) => {
       <a-tab-pane v-for="tab in categoryTabs" :key="tab.key" :tab="tab.label" />
     </a-tabs>
 
-    <DashboardInsights v-if="activeTab === 'all'" :events="events" />
+    <DashboardTriage
+      v-if="activeTab === 'all' && !showRawEvents"
+      :events="events" :is-connected="isConnected" :is-paused="isPaused"
+      :capacity="maxEvents" :evicted-records="evictedRecords"
+      @inspect="openDetails" @raw="showRawEvents = true" @pause="isPaused = !isPaused"
+    />
+    <a-space v-if="activeTab === 'all'" style="margin: 12px 0" wrap>
+      <a-button v-if="showRawEvents" @click="showRawEvents = false">返回自动整理</a-button>
+      <a-button @click="showDetailedInsights = !showDetailedInsights">{{ showDetailedInsights ? '收起关联分析' : '展开会话 / 工具关联分析' }}</a-button>
+    </a-space>
+    <DashboardInsights v-if="activeTab === 'all' && showDetailedInsights" :events="events" />
 
     <!-- Filter panel shown only in "条件过滤" tab -->
     <DashboardFilterPanel
@@ -148,6 +163,7 @@ const copyPath = async (path: string) => {
     />
 
     <DashboardToolbar
+      v-if="activeTab !== 'all' || showRawEvents"
       :is-connected="isConnected"
       :events-length="events.length"
       :is-paused="isPaused"
@@ -224,7 +240,7 @@ const copyPath = async (path: string) => {
       >
     </div>
 
-    <div ref="tableWrapperRef" class="dashboard-table-wrap">
+    <div v-if="activeTab !== 'all' || showRawEvents" ref="tableWrapperRef" class="dashboard-table-wrap">
       <a-table
         class="excel-table"
         :dataSource="displayedEvents"

@@ -1,4 +1,4 @@
-import { ref, computed, onMounted, onUnmounted, watch } from "vue";
+import { ref, shallowRef, computed, onMounted, onUnmounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import axios from "axios";
 import { message } from "ant-design-vue";
@@ -50,9 +50,10 @@ type ResizableColumnKey =
   | "action";
 
 export function useDashboard() {
-  const events = ref<AgentEvent[]>([]);
+  const events = shallowRef<AgentEvent[]>([]);
   const isConnected = ref(false);
   const isPaused = ref(false);
+  const showRawEvents = ref(false);
   const showDetails = ref(false);
   const selectedEvent = ref<AgentEvent | null>(null);
   const showPreview = ref(false);
@@ -95,6 +96,7 @@ export function useDashboard() {
 
   const {
     historyLoaded,
+    evictedRecords,
     startStream,
     stopStream,
     resetStreamState,
@@ -412,7 +414,9 @@ export function useDashboard() {
   };
 
   const displayedEvents = computed(() =>
-    mergeEventsWithinWindow(filteredEvents.value),
+    activeTab.value === "all" && !showRawEvents.value
+      ? []
+      : mergeEventsWithinWindow(filteredEvents.value),
   );
 
   // Stats use tabFilteredEvents (pre-sub-filter) to avoid zeroing out
@@ -819,11 +823,20 @@ export function useDashboard() {
     startStream();
     fetchTags();
     document.addEventListener("click", handleDocumentClick);
-    if (tableWrapperRef.value && typeof ResizeObserver !== "undefined") {
-      resizeObserver = new ResizeObserver(handleTableResize);
-      resizeObserver.observe(tableWrapperRef.value);
-    }
   });
+
+  watch(
+    tableWrapperRef,
+    (element) => {
+      resizeObserver?.disconnect();
+      resizeObserver = null;
+      if (element && typeof ResizeObserver !== "undefined") {
+        resizeObserver = new ResizeObserver(handleTableResize);
+        resizeObserver.observe(element);
+      }
+    },
+    { flush: "post" },
+  );
 
   onUnmounted(() => {
     document.removeEventListener("click", handleDocumentClick);
@@ -835,6 +848,8 @@ export function useDashboard() {
   });
 
   return {
+    showRawEvents,
+    evictedRecords,
     events,
     isConnected,
     isPaused,

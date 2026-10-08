@@ -668,6 +668,23 @@ static __always_inline void read_tracepoint_data_loc_str(char *dst, u32 size, co
     bpf_probe_read_kernel_str(dst, size, src);
 }
 
+// Keep path clearing as fixed-offset stores: Clang can merge ordinary zeroing
+// loops with adjacent scalar stores into a libc memset call, which BPF cannot
+// resolve. Volatile word stores prevent that folding without a byte-wise loop.
+_Static_assert(MAX_PATH_LEN % sizeof(u32) == 0, "path clearing requires whole words");
+_Static_assert(__builtin_offsetof(struct event, path) % sizeof(u32) == 0, "path must be word aligned");
+_Static_assert(__builtin_offsetof(struct event, extra4) % sizeof(u32) == 0, "extra4 must be word aligned");
+
+static __always_inline void clear_event_paths(struct event *e) {
+    volatile u32 *path = (volatile u32 *)e->path;
+    volatile u32 *extra4 = (volatile u32 *)e->extra4;
+#pragma unroll
+    for (int i = 0; i < MAX_PATH_LEN / sizeof(u32); i++) {
+        path[i] = 0;
+        extra4[i] = 0;
+    }
+}
+
 static __always_inline void fill_base_info(struct event *e, u32 pid, u32 tag_id, char *comm) {
     e->pid = pid;
     e->tag_id = tag_id;
@@ -680,8 +697,7 @@ static __always_inline void fill_base_info(struct event *e, u32 pid, u32 tag_id,
     e->extra3 = 0;
     e->duration_ns = 0;
     for (int i = 0; i < 16; i++) e->net_addr[i] = 0;
-    for (int i = 0; i < MAX_PATH_LEN; i++) e->path[i] = 0;
-    for (int i = 0; i < MAX_PATH_LEN; i++) e->extra4[i] = 0;
+    clear_event_paths(e);
     bpf_probe_read_kernel(&e->comm, sizeof(e->comm), comm);
 
     u64 uid_gid = bpf_get_current_uid_gid();
@@ -1315,7 +1331,7 @@ int tracepoint__syscalls__sys_exit_execve(struct trace_event_raw_sys_exit *ctx) 
 
     struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_ctx, &pid_tgid);
     if (pd) {
-        __builtin_memcpy(e->path, pd->path, MAX_PATH_LEN);
+        __builtin_memcpy_inline(e->path, pd->path, MAX_PATH_LEN);
         bpf_map_delete_elem(&exit_single_path_ctx, &pid_tgid);
     }
 
@@ -1372,7 +1388,7 @@ int tracepoint__syscalls__sys_exit_openat(struct trace_event_raw_sys_exit *ctx) 
 
     struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_ctx, &pid_tgid);
     if (pd) {
-        __builtin_memcpy(e->path, pd->path, MAX_PATH_LEN);
+        __builtin_memcpy_inline(e->path, pd->path, MAX_PATH_LEN);
         bpf_map_delete_elem(&exit_single_path_ctx, &pid_tgid);
     }
 
@@ -1470,7 +1486,7 @@ int tracepoint__syscalls__sys_exit_mkdirat(struct trace_event_raw_sys_exit *ctx)
 
     struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_ctx, &pid_tgid);
     if (pd) {
-        __builtin_memcpy(e->path, pd->path, MAX_PATH_LEN);
+        __builtin_memcpy_inline(e->path, pd->path, MAX_PATH_LEN);
         bpf_map_delete_elem(&exit_single_path_ctx, &pid_tgid);
     }
 
@@ -1527,7 +1543,7 @@ int tracepoint__syscalls__sys_exit_unlinkat(struct trace_event_raw_sys_exit *ctx
 
     struct exit_single_path_data *pd = bpf_map_lookup_elem(&exit_single_path_ctx, &pid_tgid);
     if (pd) {
-        __builtin_memcpy(e->path, pd->path, MAX_PATH_LEN);
+        __builtin_memcpy_inline(e->path, pd->path, MAX_PATH_LEN);
         bpf_map_delete_elem(&exit_single_path_ctx, &pid_tgid);
     }
 
