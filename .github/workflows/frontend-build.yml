@@ -23,12 +23,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: oven-sh/setup-bun@v2
-      # Temporary bootstrap to regenerate the integrity for a new npm-only asset package.
-      - name: Resolve new icon package integrity
-        run: |
-          bun install
-          grep -F '"@lobehub/icons-static-svg": [' bun.lock
       - name: Install dependencies
         run: bun install --frozen-lockfile
+      - name: Test harness icon mappings
+        run: bun test tests/harness-icons.test.ts
       - name: Typecheck and build
         run: bun run build
