@@ -190,3 +190,23 @@ func TestNativeWorkspaceNavigationStates(t *testing.T) {
 		t.Fatal("standalone inspector should have its own metadata")
 	}
 }
+
+func TestWorkspaceFilterIndicatorTracksVisibleConstraints(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	if a.hasEventConstraints() {
+		t.Fatal("fresh workspace must not appear filtered")
+	}
+	a.eventRiskFilter = "高风险"
+	if !a.hasEventConstraints() {
+		t.Fatal("risk filter must be visible in workspace")
+	}
+	a.clearEventFilters()
+	a.eventPIDFilter = 505
+	if !a.hasEventConstraints() {
+		t.Fatal("PID filter must be visible in workspace")
+	}
+	a.clearEventFilters()
+	if a.hasEventConstraints() {
+		t.Fatal("filter indicator must clear with the constraints")
+	}
+}
