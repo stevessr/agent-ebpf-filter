@@ -210,3 +210,21 @@ func TestWorkspaceFilterIndicatorTracksVisibleConstraints(t *testing.T) {
 		t.Fatal("filter indicator must clear with the constraints")
 	}
 }
+
+func TestWindowMaterialFallsBackOnLinuxAndWhenDisabled(t *testing.T) {
+	if got := windowMaterial("linux", true); got != "" {
+		t.Fatalf("Linux must stay opaque on X11/Wayland, got %q", got)
+	}
+	if got := windowMaterial("windows", false); got != "" {
+		t.Fatalf("disabled material must be opaque, got %q", got)
+	}
+	if got := windowMaterial("darwin", false); got != "" {
+		t.Fatalf("disabled macOS material must be opaque, got %q", got)
+	}
+	if got := windowMaterial("windows", true); got != "mica" {
+		t.Fatalf("Windows must use Mica, got %q", got)
+	}
+	if got := windowMaterial("darwin", true); got != "sidebar" {
+		t.Fatalf("macOS must use sidebar material, got %q", got)
+	}
+}

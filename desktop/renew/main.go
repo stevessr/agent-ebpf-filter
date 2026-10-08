@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -79,6 +80,8 @@ func runDesktop() {
 			MinWidth:  980,
 			MinHeight: 620,
 			StateKey:  "main",
+			// Mica on Windows, native sidebar material on macOS; Linux stays opaque.
+			Vibrancy:  windowMaterial(runtime.GOOS, app.materialEnabled),
 			Content:   ui.View(app.view),
 		})
 		app.win = window

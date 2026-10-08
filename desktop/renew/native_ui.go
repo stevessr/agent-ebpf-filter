@@ -26,6 +26,7 @@ type renewApp struct {
 	paused bool
 	navigationOpen bool
 	inspectorOpen bool
+	materialEnabled bool
 	inspectorTab int
 	inspectorPinnedID string
 	inspectorSelectedID string
@@ -160,6 +161,7 @@ func newRenewApp(backend string) *renewApp {
 		page:               "概览",
 		navigationOpen:       true,
 		inspectorOpen:      true,
+		materialEnabled:    true,
 		eventSelected:      -1,
 		networkSelected:    -1,
 		processSelected:    -1,

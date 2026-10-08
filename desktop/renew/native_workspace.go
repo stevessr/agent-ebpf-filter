@@ -3,6 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"runtime"
+	"time"
+
+	"github.com/egoist/mygo"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -33,6 +37,23 @@ var renewDesktopTheme = func() *ui.Theme {
 	return t
 }()
 
+// Keep platform materials opt-in to the supported native compositors. On
+// Wayland and X11 we always paint an opaque workspace, including when the
+// user has a desktop transparency setting enabled elsewhere.
+func windowMaterial(goos string, enabled bool) mygo.Vibrancy {
+	if !enabled {
+		return mygo.VibrancyNone
+	}
+	switch goos {
+	case "darwin":
+		return mygo.VibrancySidebar
+	case "windows":
+		return mygo.VibrancyMica
+	default:
+		return mygo.VibrancyNone
+	}
+}
+
 // The right rail is helpful on large displays, but must never squeeze event
 // tables and configuration forms on a laptop-sized window.
 func pageHasInspector(page string) bool {
@@ -52,10 +73,26 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 	c.SetTheme(renewDesktopTheme)
 	t := c.Theme()
 	width, _ := c.Size()
-	ui.Row(c).Fill().AlignItems(ui.Stretch).Background(t.Background).Children(func() {
+	vibrant := c.Vibrancy()
+	if vibrant {
+		c.Root().Background(ui.Transparent)
+	}
+	shell := ui.Row(c).Fill().AlignItems(ui.Stretch)
+	if !vibrant {
+		shell.Background(t.Background)
+	}
+	// MyGo 0.3 animations honor the OS reduced-motion setting.
+	navTarget := float32(0)
+	if a.navigationOpen {
+		navTarget = 1
+	}
+	navProgress := shell.Animate("renew-navigation", navTarget, 180*time.Millisecond)
+	shell.Children(func() {
 		a.activityRail(c)
-		if a.navigationOpen {
-			a.sidebar(c)
+		if navProgress > 0 {
+			ui.Row(c).Width(198 * navProgress).Shrink(0).Clip().Children(func() {
+				a.sidebar(c)
+			})
 		}
 		ui.Column(c).Grow(1).MinWidth(0).Background(t.Background).Children(func() {
 			a.header(c)
@@ -68,7 +105,10 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 						case a.lastErr != "" && len(a.events) == 0:
 							a.errorView(c)
 						default:
-							a.workspacePage(c)
+							ui.Column(c).Key("page-"+a.page).Gap(16).Transition(ui.ElementTransition{
+							Duration: 160 * time.Millisecond,
+							Enter: &ui.Motion{Y: 8},
+						}).Children(func() { a.workspacePage(c) })
 						}
 					})
 				})
@@ -124,7 +164,11 @@ func (a *renewApp) workspacePage(c *ui.Context) {
 // The full navigation and privileged configuration gates remain unchanged.
 func (a *renewApp) activityRail(c *ui.Context) {
 	t := c.Theme()
-	ui.Column(c).Width(54).Shrink(0).Background(t.Background).Gap(8).Padding(9, 6).Children(func() {
+	rail := ui.Column(c).Width(54).Shrink(0).Gap(8).Padding(9, 6)
+	if !c.Vibrancy() {
+		rail.Background(t.Background)
+	}
+	rail.Children(func() {
 		ui.Box(c).Size(40, 40).Radius(12).Background(t.Accent.Alpha(0.18)).Center().Children(func() {
 			ui.Text(c, "镜").Bold().FontSize(18).TextColor(t.Accent)
 		})
@@ -163,13 +207,17 @@ func (a *renewApp) activityRail(c *ui.Context) {
 func (a *renewApp) sidebar(c *ui.Context) {
 	t := c.Theme()
 	_, attention, danger := a.riskCounts()
-	ui.Column(c).Width(198).Shrink(0).Background(t.Surface).Border(1, t.Border).Children(func() {
+	side := ui.Column(c).Width(198).Shrink(0).Border(1, t.Border)
+	if !c.Vibrancy() {
+		side.Background(t.Surface)
+	}
+	side.Children(func() {
 		ui.Column(c).Padding(16, 14, 13, 14).Gap(4).Children(func() {
 			ui.Text(c, desktopBrandName).FontSize(17).Bold()
 			ui.Text(c, "AGENT eBPF  /  WORKSPACE").Font("monospace").FontSize(10).TextColor(t.TextMuted)
 		})
 		ui.Divider(c)
-		ui.Sidebar(c, &a.page, func() {
+		menu := ui.Sidebar(c, &a.page, func() {
 			ui.SidebarSection(c, "监控工作台", nil, func() {
 				ui.SidebarItem(c, "概览", nil, "态势总览")
 				ui.SidebarItem(c, "研判", nil, "风险研判工作台")
@@ -201,6 +249,9 @@ func (a *renewApp) sidebar(c *ui.Context) {
 				}
 			})
 		}).Grow(1).Width(196)
+		if c.Vibrancy() {
+			menu.Background(ui.Transparent)
+		}
 		ui.Divider(c)
 		ui.Column(c).Padding(12, 14).Gap(8).Children(func() {
 			label, level := a.pipelineStatus()
@@ -212,6 +263,9 @@ func (a *renewApp) sidebar(c *ui.Context) {
 				}
 			})
 			ui.Text(c, a.backend).Font("monospace").FontSize(10).TextColor(t.TextMuted).MaxLines(2)
+			if c.Vibrancy() {
+				ui.Text(c, "原生系统材质").FontSize(10).TextColor(t.TextMuted)
+			}
 		})
 	})
 }
@@ -240,17 +294,33 @@ func (a *renewApp) header(c *ui.Context) {
 			}
 			label, level := a.pipelineStatus()
 			statusPill(c, label, workspaceStatusTone(t, level))
-			if ui.Button(c, map[bool]string{true: "继续", false: "暂停"}[a.paused]).
-				Tooltip("暂停或恢复桌面事件合并").Clicked() {
-				a.paused = !a.paused
-				a.eventUIPaused.Store(a.paused)
-				if !a.paused {
-					go a.refresh(context.Background())
+			// The native toolbar moves actions to its overflow menu on narrow
+			// windows, retaining keyboard navigation and accessibility labels.
+			ui.Toolbar(c, func() {
+				if ui.Button(c, map[bool]string{true: "继续", false: "暂停"}[a.paused]).
+					Tooltip("暂停或恢复桌面事件合并").Clicked() {
+					a.paused = !a.paused
+					a.eventUIPaused.Store(a.paused)
+					if !a.paused {
+						go a.refresh(context.Background())
+					}
 				}
-			}
-			if ui.Button(c, "刷新").Tooltip("重新读取当前页面的数据").Clicked() {
-				a.refreshActiveView()
-			}
+				if ui.Button(c, "刷新").Tooltip("重新读取当前页面的数据").Clicked() {
+					a.refreshActiveView()
+				}
+				if windowMaterial(runtime.GOOS, true) != mygo.VibrancyNone {
+					caption := "纯色模式"
+					if !a.materialEnabled {
+						caption = "系统材质"
+					}
+					if ui.Button(c, caption).Tooltip("切换系统材质与不透明背景").Clicked() {
+						a.materialEnabled = !a.materialEnabled
+						if a.win != nil {
+							a.win.SetVibrancy(windowMaterial(runtime.GOOS, a.materialEnabled))
+						}
+					}
+				}
+			}).MinWidth(0).Label("监控操作")
 		})
 		ui.Divider(c)
 		ui.Row(c).MinHeight(38).Padding(6, 16).Gap(8).AlignItems(ui.Center).Children(func() {

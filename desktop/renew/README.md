@@ -149,3 +149,10 @@ The tracking panel can filter by tag and activation status. Commands may be disa
 New runtime configs ignore `/proc` and `/tmp` by default. The extra built-in `/usr/bin` rule suppresses only low-risk read/write operations (not executable launches, renames, or policy alerts); the explicit empty `ignoredPaths: []` opt-out remains effective. Already saved custom ignored paths are not overwritten.
 
 In bundled mode the privileged child listens only on an authenticated private Unix domain API socket, plus the separate lifetime/event-stream socket. It does **not** open TCP port 8080 or write a backend port file. When the user explicitly connects to a pre-existing local/remote backend, the desktop reuses that independently managed endpoint without changing how that service listens.
+
+## MyGo v0.3.4 appearance and responsive UI
+
+- The native Go desktop module pins **MyGo v0.3.4** (the Go CLI tool shares the module version); it does not add a WebView runtime.
+- Windows 11 supports a Mica material and macOS supports a sidebar material where the compositor offers native vibrancy. The toolbar provides a session-only **纯色模式 / 系统材质** switch; all content tables and event details keep opaque surfaces for readability. Unsupported Windows versions and Linux (Wayland/X11) retain the full opaque navy theme. Do not imply Linux compositor material support.
+- Navigation opens and closes with native, reduced-motion-aware animation. Page changes have a modest entrance transition; the toolbar automatically overflows actions at narrow sizes while preserving keyboard and screen-reader behavior.
+- Search, event pinning, explicit detail requests and privileged backend permissions are unchanged. No additional collection, telemetry or network call is introduced by these UI effects.
