@@ -70,6 +70,7 @@ func (a *renewApp) clearEventFilters() {
 	a.eventSessionFilter = ""
 	a.eventDecisionFilter = ""
 	a.eventPIDFilter = 0
+	a.eventRiskFilter = ""
 	a.eventAttentionOnly = false
 	a.eventVisibleLimit = 50
 	a.eventSelected = -1
@@ -105,6 +106,8 @@ func (a *renewApp) openEventFilter(event eventSummary, kind string) {
 		a.eventSessionFilter = eventSessionKey(event)
 	case "attention":
 		a.eventAttentionOnly = true
+	case "risk":
+		a.eventRiskFilter = eventRisk(event)
 	case "decision":
 		switch strings.ToUpper(strings.TrimSpace(event.Decision)) {
 		case "BLOCK", "DENY":
@@ -164,10 +167,20 @@ func (a *renewApp) inspector(c *ui.Context) {
 					ui.Column(c).Grow(1).Padding(12).Gap(4).Radius(9).Background(t.Background).Children(func() {
 						ui.Text(c, "需关注").FontSize(11).TextColor(t.TextMuted)
 						ui.Text(c, strconv.Itoa(attention)).FontSize(22).Bold().TextColor(t.Warning)
+						if ui.Button(c, "筛选").Tooltip("仅展示需关注等级").Clicked() {
+							a.clearEventFilters()
+							a.eventRiskFilter = "需关注"
+							a.page = "事件"
+						}
 					})
 					ui.Column(c).Grow(1).Padding(12).Gap(4).Radius(9).Background(t.Background).Children(func() {
 						ui.Text(c, "高风险").FontSize(11).TextColor(t.TextMuted)
 						ui.Text(c, strconv.Itoa(danger)).FontSize(22).Bold().TextColor(t.Danger)
+						if ui.Button(c, "筛选").Tooltip("仅展示高风险等级").Clicked() {
+							a.clearEventFilters()
+							a.eventRiskFilter = "高风险"
+							a.page = "事件"
+						}
 					})
 				})
 				ui.Text(c, "统计来自当前最多 1200 条摘要，并非历史总量").FontSize(10).TextColor(t.TextMuted)
