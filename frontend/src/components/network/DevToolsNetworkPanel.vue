@@ -55,8 +55,9 @@ const mergedTransactions = computed<MergedTransaction[]>(() => {
   const chronological = [...list].reverse();
 
   for (const event of chronological) {
-    const matchKey =
-      `${event.tgid || event.pid}|${(event.host || "").toLowerCase()}|${event.url || ""}`.toLowerCase();
+    const matchKey = event.capture_request_id
+      ? `capture:${event.capture_request_id}`
+      : `${event.tgid || event.pid}|${(event.host || "").toLowerCase()}|${event.url || ""}`.toLowerCase();
 
     if (isRequestEvent(event)) {
       const tx: MergedTransaction = {

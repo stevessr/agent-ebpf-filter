@@ -89,6 +89,7 @@ const (
 const (
 	HookTypeNative  = "native"
 	HookTypeWrapper = "wrapper"
+	HookTypePlugin  = "plugin"
 
 	ConfigFormatJSON       = "json"
 	ConfigFormatTOML       = "toml"
