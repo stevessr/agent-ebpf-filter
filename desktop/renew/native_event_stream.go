@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"strings"
 	"time"
-
 )
 
 func (a *renewApp) runEventSummaryStream(ctx context.Context) {

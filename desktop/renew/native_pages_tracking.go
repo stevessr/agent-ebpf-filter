@@ -6,10 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/egoist/mygo"
 	"time"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
 
