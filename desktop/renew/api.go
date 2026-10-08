@@ -153,7 +153,14 @@ type cgroupSandboxStatus struct {
 	Error        string   `json:"error"`
 }
 
+type fileAccessRule struct {
+	Path string `json:"path"`
+	DenyRead bool `json:"denyRead"`
+	DenyWrite bool `json:"denyWrite"`
+}
+
 type lsmSandboxStatus struct {
+	PathAccessRules []fileAccessRule `json:"pathAccessRules"`
 	Available        bool     `json:"available"`
 	Attached         bool     `json:"attached"`
 	BlockedExecPaths []string `json:"blockedExecPaths"`
@@ -514,6 +521,18 @@ func (c *apiClient) enforcementStatus(ctx context.Context) (enforcementSnapshot,
 		return out, fmt.Errorf("sandbox status: cgroup: %v; lsm: %v", cgroupErr, lsmErr)
 	}
 	return out, nil
+}
+
+func (c *apiClient) fileAccessStatus(ctx context.Context) (lsmSandboxStatus, error) {
+	var status lsmSandboxStatus
+	err := c.getJSON(ctx, "/sandbox/lsm/status", &status)
+	return status, err
+}
+
+func (c *apiClient) setFileAccess(ctx context.Context, path string, denyRead, denyWrite bool) error {
+	return c.requestJSON(ctx, http.MethodPut, "/sandbox/lsm/path-access", map[string]any{
+		"path": path, "denyRead": denyRead, "denyWrite": denyWrite,
+	}, nil)
 }
 
 func (c *apiClient) enforcementAction(ctx context.Context, path string, payload map[string]any) error {
