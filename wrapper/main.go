@@ -59,21 +59,21 @@ func isCodexSH(cmdName, binPath string) bool {
 
 func main() {
 	var (
-		launchUser   = flag.String("user", "", "run command as specified user")
-		launchCwd    = flag.String("cwd", "", "working directory for command")
-		observerMode = flag.Bool("observer", false, "auto-open observe page for this command")
-		sandboxMode = flag.String("sandbox", "off", "opt-in Linux sandbox: off, readonly, workspace")
+		launchUser       = flag.String("user", "", "run command as specified user")
+		launchCwd        = flag.String("cwd", "", "working directory for command")
+		observerMode     = flag.Bool("observer", false, "auto-open observe page for this command")
+		sandboxMode      = flag.String("sandbox", "off", "opt-in Linux sandbox: off, readonly, workspace")
 		sandboxWorkspace = flag.String("sandbox-workspace", "", "absolute host workspace to mount into sandbox")
-		sandboxNetwork = flag.Bool("sandbox-network", false, "allow network access from sandbox (default: isolated)")
-		readOnlyBinds sandboxBinds
+		sandboxNetwork   = flag.Bool("sandbox-network", false, "allow network access from sandbox (default: isolated)")
+		readOnlyBinds    sandboxBinds
 	)
 	flag.Var(&readOnlyBinds, "sandbox-ro-bind", "explicit read-only host path exposed inside sandbox; repeatable")
 	flag.Parse()
 	opts := sandboxOptions{
-		Mode: *sandboxMode,
+		Mode:      *sandboxMode,
 		Workspace: *sandboxWorkspace,
-		Network: *sandboxNetwork,
-		ReadOnly: []string(readOnlyBinds),
+		Network:   *sandboxNetwork,
+		ReadOnly:  []string(readOnlyBinds),
 	}
 	if err := opts.validate(); err != nil {
 		log.Fatalf("Invalid sandbox configuration: %v", err)
