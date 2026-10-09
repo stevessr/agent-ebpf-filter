@@ -434,7 +434,12 @@ func (a *renewApp) processesView(c *ui.Context) {
 				p := rows[a.processSelected]
 				ui.Column(c).Gap(6).Children(func() {
 					ui.Textf(c, "%s · PID %d / PPID %d", displayOr(p.Name, "未知进程"), p.PID, p.PPID).Bold()
-					ui.Text(c, displayOr(p.Cmdline, "后端未提供命令行")).Font("monospace").FontSize(10).TextColor(t.TextMuted).MaxLines(4)
+					if a.localMonitor {
+                        ui.Text(c,"进程可执行文件路径（不是完整命令行）").FontSize(10).TextColor(t.TextMuted)
+                        ui.Text(c,displayOr(p.ImagePath,"当前权限无法读取映像路径")).Font("monospace").FontSize(10).TextColor(t.TextMuted).MaxLines(4)
+                    } else {
+                        ui.Text(c, displayOr(p.Cmdline, "后端未提供命令行")).Font("monospace").FontSize(10).TextColor(t.TextMuted).MaxLines(4)
+                    }
 					if ui.Button(c, "查看此 PID 的事件").Clicked() {
 						a.clearEventFilters()
 						a.eventPIDFilter = p.PID
