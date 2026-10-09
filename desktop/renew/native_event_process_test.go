@@ -13,13 +13,20 @@ func TestProcessReferenceFromEventEvidence(t *testing.T) {
 		"Timestamp": float64(1791504653492),
 		"Event": map[string]any{
 			"pid": float64(391385), "ppid": float64(315919),
-			"comm": "MULTI_AGENT_FILE_CONTENTION",
+			"type": "semantic_alert", "comm": "MULTI_AGENT_FILE_CONTENTION",
+			"extraInfo": "source=write tool=editor comm=fish reason=contention",
 		},
 	}
 	ref := processReferenceFromEvent(detail)
-	if ref.PID != 391385 || ref.PPID != 315919 || ref.Comm != "MULTI_AGENT_FILE_CONTENTION" ||
+	if ref.PID != 391385 || ref.PPID != 315919 || ref.Comm != "fish" ||
 		ref.Occurred.UnixMilli() != 1791504653492 {
 		t.Fatalf("lost recorded process evidence: %+v", ref)
+	}
+	missingSource := processReferenceFromEvent(map[string]any{
+		"Event": map[string]any{"type": "semantic_alert", "comm": "MULTI_AGENT_FILE_CONTENTION", "pid": float64(7)},
+	})
+	if missingSource.Comm != "" || missingSource.PID != 7 {
+		t.Fatalf("alert rule code was misused as a process name: %+v", missingSource)
 	}
 	// Kernel monotonic timestamps cannot establish an absolute PID lifetime.
 	unverified := processReferenceFromEvent(map[string]any{
