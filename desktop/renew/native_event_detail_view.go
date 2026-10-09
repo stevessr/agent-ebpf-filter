@@ -272,7 +272,11 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 		return value
 	}
 	eventType := get("type")
+	semanticAlert := eventType == "semantic_alert"
 	m := eventDetailViewModel{Type: eventType, Action: eventDetailAction(detail, eventType), Decision: get("decision", "policyDecision")}
+	if semanticAlert {
+		m.Action = "语义风险告警"
+	}
 	if value, _, ok := eventDetailLookup(layers, "riskScore", "risk_score"); ok {
 		m.Risk = value
 	}
@@ -336,9 +340,21 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 			field("目标 PID", "targetPid"), field("退出状态", "exitStatus"), field("返回值", "retval"),
 			field("附加信息", "extraInfo"))
 	default:
-		// A typed payload gets its own domain view below. A generic card here
-		// would mistake unrelated legacy fields for part of that payload.
-		if eventDetailTypedPayload(detail).Kind == "" {
+		if semanticAlert {
+			m.Target = prefer("path", "targetPath", "netEndpoint", "domain")
+			// Historical versions could emit the synthetic label "file write" as
+			// a contention target. Preserve it in raw evidence, not as a file.
+			if get("comm") == "MULTI_AGENT_FILE_CONTENTION" && !strings.HasPrefix(m.Target, "/") {
+				m.Target = ""
+				m.EvidenceNote = "该合成语义告警没有可核实的文件路径，可能是旧版本基于操作描述生成的误报；请核对原始事件证据。"
+				section("语义告警", field("规则编号", "comm"), field("原始事件信息", "extraInfo"))
+			} else {
+				section("语义告警", field("规则编号", "comm"), field("关联目标", "path", "targetPath"),
+					field("原始事件信息", "extraInfo"))
+			}
+		} else if eventDetailTypedPayload(detail).Kind == "" {
+			// A typed payload gets its own domain view below. A generic card here
+			// would mistake unrelated legacy fields for part of that payload.
 			m.Target = prefer("path", "targetPath", "netEndpoint", "domain", "commandLine", "relatedEndpoint")
 			section("操作详情", field("路径", "path", "targetPath", "relatedPath"),
 				field("目标地址", "netEndpoint", "endpoint", "relatedEndpoint"),
@@ -364,12 +380,32 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 		field("关联策略路径", "relatedPath"), field("关联端点", "relatedEndpoint"),
 		field("行为分类", "primaryCategory"), field("分类置信度", "confidence"),
 		field("分类依据", "reasoning"))
-	section("执行主体", field("进程名称", "comm"),
-		field("PID", "pid"), field("PPID", "ppid"), field("TGID", "tgid"),
-		field("根 Agent PID", "rootAgentPid"), field("UID", "uid"), field("GID", "gid"),
-		field("命令行", "commandLine"), field("工作目录", "cwd"),
-		field("参数摘要", "argvDigest"), field("跟踪标签", "tag"),
-		field("容器 ID", "containerId"), field("Cgroup ID", "cgroupId"))
+	if semanticAlert {
+		fields := make([]eventDetailField, 0, 12)
+		if comm := semanticAlertSourceComm(get("extraInfo")); comm != "" {
+			fields = append(fields, eventDetailField{
+				Label: "源进程名称", Value: comm, Origin: "Event.extraInfo (comm)",
+			})
+		}
+		for _, item := range []spec{
+			field("来源 PID（事件时）", "pid"), field("来源 PPID（事件时）", "ppid"),
+			field("来源 TGID（事件时）", "tgid"), field("根 Agent PID", "rootAgentPid"),
+			field("UID", "uid"), field("GID", "gid"), field("工作目录", "cwd"),
+			field("跟踪标签", "tag"), field("容器 ID", "containerId"), field("Cgroup ID", "cgroupId"),
+		} {
+			appendDetailField(&fields, layers, item.label, item.keys...)
+		}
+		if len(fields) > 0 {
+			m.Sections = append(m.Sections, eventDetailSection{Title: "来源事件进程", Fields: fields})
+		}
+	} else {
+		section("执行主体", field("进程名称", "comm"),
+			field("PID", "pid"), field("PPID", "ppid"), field("TGID", "tgid"),
+			field("根 Agent PID", "rootAgentPid"), field("UID", "uid"), field("GID", "gid"),
+			field("命令行", "commandLine"), field("工作目录", "cwd"),
+			field("参数摘要", "argvDigest"), field("跟踪标签", "tag"),
+			field("容器 ID", "containerId"), field("Cgroup ID", "cgroupId"))
+	}
 	section("Agent 与调用链", field("运行 ID", "agentRunId"),
 		field("任务 ID", "taskId"), field("会话 ID", "conversationId"),
 		field("Turn ID", "turnId"), field("工具调用 ID", "toolCallId"),
@@ -391,7 +427,9 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 			m.EvidenceNote = "此类事件主要描述遥测指标或数据流，不要求存在文件路径或网络端点。"
 		default:
 			m.Target = "目标路径或端点未记录"
-			m.EvidenceNote = "当前记录没有可用的操作目标，不能反推出具体文件或地址。"
+			if m.EvidenceNote == "" {
+				m.EvidenceNote = "当前记录没有可用的操作目标，不能反推出具体文件或地址。"
+			}
 			if category == "file" && (eventType == "write" || eventType == "read") {
 				m.EvidenceNote += " Linux write/read 系统调用使用文件描述符而非文件名；只有存在文件描述符到路径的有效关联，才能定位实际文件。"
 			}
@@ -401,6 +439,20 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 		}
 	}
 	return m
+}
+
+// Semantic alerts are synthetic events: Event.comm holds the rule code,
+// while the originating process comm is recorded in structured extraInfo text.
+func semanticAlertSourceComm(extraInfo string) string {
+	beforeReason, _, ok := strings.Cut(extraInfo, " reason=")
+	if !ok {
+		return ""
+	}
+	index := strings.Index(beforeReason, " comm=")
+	if index < 0 {
+		return ""
+	}
+	return strings.TrimSpace(beforeReason[index+len(" comm="):])
 }
 
 // Compact cards use a vertical label/value stack; otherwise a 126-DIP label
