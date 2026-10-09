@@ -412,10 +412,12 @@ func eventDetailFieldRowAdaptive(c *ui.Context, field eventDetailField, width fl
 	if expanded {
 		visible = field.Value
 	}
-	var maxLines int = 3
-	if expanded { maxLines = 0 }
 	showValue := func() {
-		ui.Text(c, visible).Font("monospace").FontSize(11).MaxLines(maxLines)
+		if expanded {
+			ui.Text(c, field.Value).Font("monospace").FontSize(11)
+		} else {
+			ui.Text(c, visible).Font("monospace").FontSize(11).MaxLines(3)
+		}
 		ui.Text(c, field.Origin).FontSize(9).TextColor(t.TextMuted)
 	}
 	showActions := func() {
