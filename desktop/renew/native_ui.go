@@ -100,6 +100,11 @@ type renewApp struct {
 	pathSelected        int
 	prefixSelected      int
 	eventPIDFilter      int
+	eventRootPIDFilter  int
+	eventTargetFilter   string
+	eventFileEditsOnly  bool
+	eventDelegatedOnly  bool
+	eventReturnPage     string
 	eventRiskFilter     string
 	eventTypeFilter     string
 	eventSessionFilter  string
@@ -467,7 +472,7 @@ func (a *renewApp) errorView(c *ui.Context) {
 
 func (a *renewApp) eventFilterCacheKey() string {
 	q := strings.ToLower(strings.TrimSpace(a.search))
-	key := q + "\x00" + a.eventTypeFilter + "\x00" + a.eventSessionFilter + "\x00" + a.eventDecisionFilter + "\x00" + fmt.Sprint(a.eventPIDFilter) + "\x00" + a.eventRiskFilter
+	key := q + "\x00" + a.eventTypeFilter + "\x00" + a.eventSessionFilter + "\x00" + a.eventDecisionFilter + "\x00" + fmt.Sprint(a.eventPIDFilter) + "\x00" + fmt.Sprint(a.eventRootPIDFilter) + "\x00" + a.eventTargetFilter + "\x00" + fmt.Sprint(a.eventFileEditsOnly) + "\x00" + fmt.Sprint(a.eventDelegatedOnly) + "\x00" + a.eventRiskFilter
 	if a.eventAttentionOnly {
 		key += "\x001"
 	}
@@ -480,7 +485,7 @@ func (a *renewApp) filteredEvents() []eventSummary {
 	if a.filterCacheValid && a.filterCacheVersion == a.eventsVersion && a.filterCacheKey == key {
 		return a.filterCacheRows
 	}
-	if q == "" && a.eventPIDFilter == 0 && a.eventRiskFilter == "" && a.eventTypeFilter == "" && a.eventSessionFilter == "" && a.eventDecisionFilter == "" && !a.eventAttentionOnly {
+	if q == "" && a.eventPIDFilter == 0 && a.eventRootPIDFilter == 0 && a.eventTargetFilter == "" && !a.eventFileEditsOnly && !a.eventDelegatedOnly && a.eventRiskFilter == "" && a.eventTypeFilter == "" && a.eventSessionFilter == "" && a.eventDecisionFilter == "" && !a.eventAttentionOnly {
 		a.filterCacheValid = true
 		a.filterCacheVersion = a.eventsVersion
 		a.filterCacheKey = key
@@ -497,6 +502,9 @@ func (a *renewApp) filteredEvents() []eventSummary {
 			continue
 		}
 		if a.eventPIDFilter > 0 && event.PID != a.eventPIDFilter {
+			continue
+		}
+		if !matchesEventDrilldown(event, a.eventRootPIDFilter, a.eventTargetFilter, a.eventFileEditsOnly, a.eventDelegatedOnly) {
 			continue
 		}
 		if a.eventTypeFilter != "" && event.Type != a.eventTypeFilter {
