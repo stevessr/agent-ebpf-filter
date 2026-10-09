@@ -38,6 +38,16 @@ type eventDetailViewModel struct {
 type eventDetailLayer struct {
 	Path   string
 	Values map[string]any
+	Keys   []string
+}
+
+func newEventDetailLayer(path string, values map[string]any) eventDetailLayer {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return eventDetailLayer{Path: path, Values: values, Keys: keys}
 }
 
 func eventDetailKey(key string) string {
@@ -51,6 +61,10 @@ func eventDetailKey(key string) string {
 
 func eventDetailLookup(layers []eventDetailLayer, keys ...string) (string, string, bool) {
 	for _, layer := range layers {
+		keysInLayer := layer.Keys
+		if keysInLayer == nil {
+			keysInLayer = newEventDetailLayer(layer.Path, layer.Values).Keys
+		}
 		// Prefer an exact key before fuzzy aliases; map iteration order
 		// must never decide which provenance is displayed to the analyst.
 		for _, name := range keys {
@@ -59,11 +73,6 @@ func eventDetailLookup(layers []eventDetailLayer, keys ...string) (string, strin
 					return value, layer.Path + "." + name, true
 				}
 			}
-			keysInLayer := make([]string, 0, len(layer.Values))
-			for key := range layer.Values {
-				keysInLayer = append(keysInLayer, key)
-			}
-			sort.Strings(keysInLayer)
 			for _, key := range keysInLayer {
 				if eventDetailKey(key) == eventDetailKey(name) {
 					if value := detailScalarText(layer.Values[key]); value != "" {
@@ -172,9 +181,9 @@ func eventDetailLayers(detail map[string]any) []eventDetailLayer {
 				prefix = "event"
 			}
 		}
-		layers = append(layers, eventDetailLayer{prefix, event})
+		layers = append(layers, newEventDetailLayer(prefix, event))
 		if behavior, ok := mapValue(event, "behavior").(map[string]any); ok {
-			layers = append(layers, eventDetailLayer{prefix+".behavior", behavior})
+			layers = append(layers, newEventDetailLayer(prefix+".behavior", behavior))
 		}
 	}
 	envelope, _ := mapValue(detail, "Envelope", "envelope").(map[string]any)
@@ -187,10 +196,10 @@ func eventDetailLayers(detail map[string]any) []eventDetailLayer {
 			"systemMetricEvent", "otelSpanEvent", "agentSightAlertEvent",
 		} {
 			if nested, ok := mapValue(envelope, name).(map[string]any); ok {
-				layers = append(layers, eventDetailLayer{"Envelope." + name, nested})
+				layers = append(layers, newEventDetailLayer("Envelope." + name, nested))
 			}
 		}
-		layers = append(layers, eventDetailLayer{"Envelope", envelope})
+		layers = append(layers, newEventDetailLayer("Envelope", envelope))
 	}
 	return layers
 }
@@ -216,7 +225,7 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 	if value, _, ok := eventDetailLookup(layers, "riskScore", "risk_score"); ok {
 		m.Risk = value
 	}
-	if millis, _, ok := eventDetailLookup([]eventDetailLayer{{"$", detail}}, "Timestamp"); ok {
+	if millis, _, ok := eventDetailLookup([]eventDetailLayer{newEventDetailLayer("$", detail)}, "Timestamp"); ok {
 		if n, err := strconv.ParseInt(millis, 10, 64); err == nil && n > 0 {
 			m.When = time.UnixMilli(n).Local().Format("2006-01-02 15:04:05.000")
 		}
