@@ -345,6 +345,15 @@ func (a *renewApp) header(c *ui.Context, navigationWidth float32) {
 				if ui.Button(c, "刷新").Tooltip("重新读取当前页面的数据").Clicked() {
 					a.refreshActiveView()
 				}
+				if a.trayAvailable {
+					label := "关闭后退出"
+					if a.minimizeToTray {
+						label = "关闭后驻留托盘"
+					}
+					if ui.Button(c, label).Tooltip("切换关闭窗口时退出或驻留托盘。驻留期间继续监控；从托盘明确退出才结束。").Clicked() {
+						a.minimizeToTray = !a.minimizeToTray
+					}
+				}
 				if windowMaterial(runtime.GOOS, true) != mygo.VibrancyNone {
 					caption := "纯色模式"
 					if !a.materialEnabled {
