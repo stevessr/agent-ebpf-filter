@@ -596,9 +596,14 @@ func BuildSemanticAlerts(event *pb.Event) []*pb.Event {
 }
 
 func newSemanticAlertEvent(source *pb.Event, code, target, reason string, minimumRisk float64) *pb.Event {
+	// The semantic rule thresholds are probabilities (0..1), while protobuf
+	// Event.RiskScore and all dashboard severity bands use a 0..100 score.
+	// Comparing them directly kept weak source scores (for example 12) on
+	// high-confidence semantic ALERT events instead of the intended 96.
+	minRiskScore := minimumRisk * 100
 	risk := source.GetRiskScore()
-	if risk < minimumRisk {
-		risk = minimumRisk
+	if risk < minRiskScore {
+		risk = minRiskScore
 	}
 	return &pb.Event{
 		Pid:            source.GetPid(),
