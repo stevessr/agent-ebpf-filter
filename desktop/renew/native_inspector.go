@@ -87,6 +87,9 @@ func (a *renewApp) clearEventFilters() {
 	a.eventPIDFilter = 0
 	a.eventRootPIDFilter = 0
 	a.eventTargetFilter = ""
+	a.eventDomainAgent = ""
+	a.eventDomainTarget = ""
+	a.eventDomainKind = ""
 	a.eventFileEditsOnly = false
 	a.eventDelegatedOnly = false
 	a.eventRiskFilter = ""
