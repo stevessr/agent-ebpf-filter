@@ -215,6 +215,96 @@ func TestToolBaselineConcurrentNewBehaviorAlertsOnce(t *testing.T) {
 	}
 }
 
+func TestToolBaselineNovelBehaviorRequiresTemporalSupport(t *testing.T) {
+	t.Parallel()
+	store := newToolBaselineStore()
+	start := time.Date(2026, 10, 9, 10, 0, 0, 0, time.UTC)
+	for i, behavior := range []toolBaselineBehaviorKey{
+		{Comm: "git", EventType: "execve"},
+		{Comm: "rg", EventType: "openat"},
+		{Comm: "cat", EventType: "read"},
+	} {
+		store.observeAt("analysis", behavior.Comm, behavior.EventType, start.Add(time.Duration(i)*time.Second))
+	}
+	for i := 3; i < toolBaselineMinObservations; i++ {
+		store.observeAt("analysis", "git", "execve", start.Add(time.Duration(i)*time.Second))
+	}
+	first := start.Add(toolBaselineMinObservations * time.Second)
+	if reason, alert := store.observeAt("analysis", "jq", "read", first); alert {
+		t.Fatalf("one unseen benign read should not alert: %q", reason)
+	}
+	if reason, alert := store.observeAt("analysis", "jq", "read", first.Add(100*time.Millisecond)); alert {
+		t.Fatalf("burst duplicate should not confirm drift: %q", reason)
+	}
+	reason, alert := store.observeAt("analysis", "jq", "read", first.Add(toolBaselineConfirmationGap))
+	if !alert || !strings.Contains(reason, "repeated novel behavior") {
+		t.Fatalf("time-separated observations must confirm drift, got %v %q", alert, reason)
+	}
+	if reason, alert = store.observeAt("analysis", "jq", "read", first.Add(3*time.Second)); alert {
+		t.Fatalf("confirmed novelty should only alert once: %q", reason)
+	}
+	status := store.Status()
+	if status.DriftsTotal != 1 || status.ObservationsTotal != toolBaselineMinObservations+4 {
+		t.Fatalf("model baseline counters disagree: %+v", status)
+	}
+}
+
+func TestToolBaselineHighSignalNoveltyAndConcurrentBurst(t *testing.T) {
+	t.Parallel()
+	store := newToolBaselineStore()
+	start := time.Date(2026, 10, 9, 10, 0, 0, 0, time.UTC)
+	for i, b := range []toolBaselineBehaviorKey{
+		{Comm: "git", EventType: "execve"},
+		{Comm: "rg", EventType: "openat"},
+		{Comm: "cat", EventType: "read"},
+	} {
+		store.observeAt("review", b.Comm, b.EventType, start.Add(time.Duration(i)*time.Second))
+	}
+	for i := 3; i < toolBaselineMinObservations; i++ {
+		store.observeAt("review", "git", "execve", start.Add(time.Duration(i)*time.Second))
+	}
+	if reason, alert := store.observeAt("review", "curl", "execve", start.Add(20*time.Second)); !alert ||
+		!strings.Contains(reason, "high-signal") {
+		t.Fatalf("suspicious new transport should alert immediately: %v %q", alert, reason)
+	}
+	const workers = 24
+	var wg sync.WaitGroup
+	var burstDrifts atomic.Int32
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, drift := store.observeAt("review", "jq", "read", start.Add(21*time.Second)); drift {
+				burstDrifts.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+	if burstDrifts.Load() != 0 {
+		t.Fatalf("concurrent benign burst emitted %d false alerts", burstDrifts.Load())
+	}
+	if _, alert := store.observeAt("review", "jq", "read", start.Add(22*time.Second)); !alert {
+		t.Fatal("subsequent time-separated behavior should confirm novelty")
+	}
+}
+
+func TestToolBaselineRiskPriorIsNarrow(t *testing.T) {
+	t.Parallel()
+	for _, item := range []struct{ comm, event string; want bool }{
+		{"curl", "execve", true},
+		{"curl", "baseline_network", true},
+		{"socat", "network_connect", true},
+		{"fish", "write", false},
+		{"git", "execve", false},
+		{"node", "read", false},
+		{"cursor", "network_connect", false},
+	} {
+		if got := highSignalToolBaselineBehavior(item.comm, item.event); got != item.want {
+			t.Errorf("%s/%s high-signal=%v, want %v", item.comm, item.event, got, item.want)
+		}
+	}
+}
+
 func BenchmarkToolBaselineObserveKnownBehavior(b *testing.B) {
 	store := newToolBaselineStore()
 	for observation := 0; observation < toolBaselineMinObservations; observation++ {
