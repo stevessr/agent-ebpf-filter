@@ -55,6 +55,7 @@ func (a *renewApp) overview(c *ui.Context) {
 			ui.Badge(c, "eBPF 内核观测")
 			ui.Badge(c, "Agent 会话溯源")
 			ui.Badge(c, "网络外联洞察")
+			ui.Badge(c, "Agent 域名审计")
 			ui.Badge(c, "策略事件追踪")
 		})
 	})
@@ -91,6 +92,12 @@ func (a *renewApp) overview(c *ui.Context) {
 	})
 
 	_, attention, danger := a.riskCounts()
+	ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+		if ui.PrimaryButton(c, "查看 Agent 域名监控").Clicked() {
+			a.page = "域名"
+		}
+		ui.Text(c, "按 Agent 归属查看访问域名、IP-only 连接与风险目标").FontSize(11).TextColor(t.TextMuted)
+	})
 	collectorLabel, _ := a.collectorStatus()
 	ui.Row(c).Gap(12).Wrap().Children(func() {
 		statCard(c, "采集状态", collectorLabel, fmt.Sprintf("Ringbuf 丢弃 %d", a.health.RingbufDroppedTotal))
@@ -217,7 +224,7 @@ func (a *renewApp) eventsView(c *ui.Context) {
 	}
 
 	if a.eventPIDFilter > 0 || a.eventRootPIDFilter > 0 ||
-		a.eventTargetFilter != "" || a.eventFileEditsOnly || a.eventDelegatedOnly {
+		a.eventTargetFilter != "" || a.eventDomainTarget != "" || a.eventFileEditsOnly || a.eventDelegatedOnly {
 		ui.Row(c).Gap(6).Wrap().AlignItems(ui.Center).Children(func() {
 			if a.eventPIDFilter > 0 {
 				statusPill(c, fmt.Sprintf("执行 PID %d", a.eventPIDFilter), t.Accent)
@@ -227,6 +234,9 @@ func (a *renewApp) eventsView(c *ui.Context) {
 			}
 			if a.eventTargetFilter != "" {
 				statusPill(c, "精确目标："+a.eventTargetFilter, t.Accent)
+			}
+			if a.eventDomainTarget != "" {
+				statusPill(c, "Agent 域名："+a.eventDomainAgent+" · "+a.eventDomainTarget, t.Accent)
 			}
 			if a.eventFileEditsOnly {
 				statusPill(c, "仅文件修改", t.Accent)
@@ -238,6 +248,7 @@ func (a *renewApp) eventsView(c *ui.Context) {
 				a.eventPIDFilter = 0
 				a.eventRootPIDFilter = 0
 				a.eventTargetFilter = ""
+				a.eventDomainAgent, a.eventDomainTarget, a.eventDomainKind = "", "", ""
 				a.eventFileEditsOnly = false
 				a.eventDelegatedOnly = false
 				a.eventSelected = -1

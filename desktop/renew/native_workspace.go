@@ -63,6 +63,7 @@ var workspaceNavigationLabels = map[string][2]string{
 	"事件":       {"事件流", "eBPF 实时事件流"},
 	"会话":       {"Agent 会话", "Agent 会话与行为关联"},
 	"网络":       {"网络外联", "网络连接与外联目标"},
+	"域名":       {"Agent 域名监控", "Agent 域名与外联目的地监控"},
 	"进程":       {"进程活动", "进程活动与资源监测"},
 	"Agent 识别": {"捕获与监视范围", "Agent 识别与捕获监视范围"},
 	"监控":       {"采集设置", "实时采集与监控设置"},
@@ -172,6 +173,8 @@ func (a *renewApp) workspacePage(c *ui.Context) {
 		a.sessionsView(c)
 	case "网络":
 		a.networkView(c)
+	case "域名":
+		a.agentDomainsView(c)
 	case "进程":
 		a.processesView(c)
 	case "Agent 识别":
@@ -214,6 +217,7 @@ func (a *renewApp) activityRail(c *ui.Context) {
 			{"研判", "◇"},
 			{"会话", "◎"},
 			{"网络", "⇄"},
+			{"域名", "◎"},
 			{"进程", "▣"},
 			{"CCS", "♧"},
 			{"Agent 识别", "◉"},
@@ -276,6 +280,7 @@ func (a *renewApp) sidebar(c *ui.Context) {
 				}
 				ui.SidebarItem(c, "会话", nil, label("会话"))
 				ui.SidebarItem(c, "网络", nil, label("网络"))
+				ui.SidebarItem(c, "域名", nil, label("域名"))
 				ui.SidebarItem(c, "进程", nil, label("进程"))
 				ui.SidebarItem(c, "Agent 识别", nil, label("Agent 识别"))
 			})
@@ -344,6 +349,15 @@ func (a *renewApp) header(c *ui.Context, navigationWidth float32) {
 				}
 				if ui.Button(c, "刷新").Tooltip("重新读取当前页面的数据").Clicked() {
 					a.refreshActiveView()
+				}
+				if a.trayAvailable {
+					label := "关闭后退出"
+					if a.minimizeToTray {
+						label = "关闭后驻留托盘"
+					}
+					if ui.Button(c, label).Tooltip("切换关闭窗口时退出或驻留托盘。驻留期间继续监控；从托盘明确退出才结束。").Clicked() {
+						a.minimizeToTray = !a.minimizeToTray
+					}
 				}
 				if windowMaterial(runtime.GOOS, true) != mygo.VibrancyNone {
 					caption := "纯色模式"

@@ -155,6 +155,30 @@ func TestBuildRenewDesktopEventSummaryIsCompact(t *testing.T) {
 	}
 }
 
+func TestCompactDomainPrefersObservedHost(t *testing.T) {
+	record := CapturedEventRecord{
+		ReceivedAt: time.UnixMilli(123456).UTC(),
+		Event: &pb.Event{
+			Pid: 42, Type: "connect", Comm: "codex",
+			NetEndpoint: "203.0.113.10:443",
+			Sni: "api.openai.com",
+			DnsName: "shared.host.example",
+			RootAgentPid: 42,
+		},
+		Envelope: &pb.EventEnvelope{EventId: "evt-domain"},
+	}
+	summary, ok := buildRenewDesktopEventSummary(record)
+	if !ok || !summary.Network || summary.Domain != "api.openai.com" || summary.NetEndpoint != "203.0.113.10:443" {
+		t.Fatalf("compact domain metadata unavailable: %+v", summary)
+	}
+	if summary.Target != "api.openai.com" {
+		t.Fatalf("native IPC must prefer actual hostname evidence, got %q", summary.Target)
+	}
+	if desktopEventSummaryProto(summary).GetTarget() != "api.openai.com" {
+		t.Fatal("native event projection lost observed hostname")
+	}
+}
+
 func TestDesktopStaticAssets(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.Mkdir(filepath.Join(dir, "assets"), 0o755); err != nil {

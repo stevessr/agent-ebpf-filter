@@ -402,11 +402,10 @@ int tracepoint__syscalls__sys_exit_read(struct trace_event_raw_sys_exit *ctx) {
     if (pd && captured > 0) {
         __builtin_memcpy(e->path, "socket http", 12);
         bpf_probe_read_kernel_str(e->extra4, MAX_PATH_LEN, pd->extra4);
-    } else if (meta.extra2 == 1) {
-        __builtin_memcpy(e->path, "socket read", 12);
-    } else {
-        __builtin_memcpy(e->path, "file read", 10);
     }
+    // read(2) provides an fd, not a pathname. fill_base_info() already
+    // clears e->path; retain fd/return value/socket metadata without inventing
+    // a filesystem target.
     submit_event(e);
     return 0;
 }
@@ -463,11 +462,9 @@ int tracepoint__syscalls__sys_exit_write(struct trace_event_raw_sys_exit *ctx) {
     e->retval = ctx->ret;
     if (meta.type == TYPE_SOCKET_HTTP && meta.extra2 > 0) {
         fill_dynamic_http_exit(e, pid_tgid);
-    } else if (meta.socket_type != 0) {
-        __builtin_memcpy(e->path, "socket write", 13);
-    } else {
-        __builtin_memcpy(e->path, "file write", 11);
     }
+    // write(2) is fd-based: the pathname is not known from this tracepoint.
+    // Do not put a presentation label in e->path (see file contention rules).
     submit_event(e);
     return 0;
 }
@@ -537,11 +534,8 @@ int tracepoint__syscalls__sys_exit_writev(struct trace_event_raw_sys_exit *ctx) 
     e->retval = ctx->ret;
     if (meta.type == TYPE_SOCKET_HTTP && meta.extra2 > 0) {
         fill_dynamic_http_exit(e, pid_tgid);
-    } else if (meta.socket_type != 0) {
-        __builtin_memcpy(e->path, "socket writev", 14);
-    } else {
-        __builtin_memcpy(e->path, "file writev", 12);
     }
+    // writev(2) also only exposes an fd; leave e->path empty.
     submit_event(e);
     return 0;
 }
@@ -610,11 +604,8 @@ int tracepoint__syscalls__sys_exit_readv(struct trace_event_raw_sys_exit *ctx) {
     if (pd && captured > 0) {
         __builtin_memcpy(e->path, "socket http", 12);
         bpf_probe_read_kernel_str(e->extra4, MAX_PATH_LEN, pd->extra4);
-    } else if (meta.extra2 == 1) {
-        __builtin_memcpy(e->path, "socket readv", 13);
-    } else {
-        __builtin_memcpy(e->path, "file readv", 11);
     }
+    // readv(2) also only exposes an fd; leave e->path empty.
     submit_event(e);
     return 0;
 }
