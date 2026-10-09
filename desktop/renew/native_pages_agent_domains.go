@@ -36,12 +36,14 @@ func normalizedDestinationHost(raw string) (string, string) {
 			return "", ""
 		}
 		raw = u.Hostname()
-	} else if host, _, err := net.SplitHostPort(raw); err == nil {
+	} else if host, port, err := net.SplitHostPort(raw); err == nil {
+		number, err := strconv.Atoi(port)
+		if err != nil || number < 1 || number > 65535 {
+			return "", ""
+		}
 		raw = host
 	} else if idx := strings.LastIndex(raw, ":"); idx > 0 && !strings.Contains(raw[:idx], ":") {
-		if _, err := strconv.Atoi(raw[idx+1:]); err == nil {
-			raw = raw[:idx]
-		}
+		return "", "" // malformed host:port must not be silently normalized
 	}
 	raw = strings.ToLower(strings.TrimSuffix(strings.Trim(raw, "[]"), "."))
 	if ip := net.ParseIP(raw); ip != nil {
