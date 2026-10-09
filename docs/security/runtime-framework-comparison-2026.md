@@ -30,6 +30,6 @@ The project already has eBPF probes, protobuf events, process/Agent attribution 
 
 ## Regression and follow-up
 
-The new `TestSemanticMutationRequiresSuccessfulSyscallResult` and `TestSemanticContentionCooldownAndContainerIsolation` tests cover successful/failing syscall outcomes, null-byte writes, known container boundaries, deduplication and cooldown expiry. CI invokes Go tests through the repository's bpf-ts smoke workflow.
+The new `TestSemanticFileContentionRequiresSuccessfulSyscallResult` and `TestSemanticFileContentionCooldownAndContainerIsolation` tests cover successful/failing syscall outcomes, null-byte writes, known container boundaries, deduplication and cooldown expiry. CI invokes Go tests through the repository's bpf-ts smoke workflow.
 
 Next candidates for an independently reviewed PR: a schema-level **process exec ID with start time**, inode/mount namespace evidence for cross-container paths, **scoped, explicit actor+path exceptions** (never blanket process-name suppression), a machine-readable finding/evidence schema, and a shadow replay suite reporting precision, false-alerts per 10k normal events, and detection latency. Any exception management must retain auditing and rollback.
