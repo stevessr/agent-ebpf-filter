@@ -124,17 +124,54 @@ func TestRelatedCandidatesAvoidPIDReuseAndRankByEvidence(t *testing.T) {
 		{EventID: "near", PID: 42, ReceivedAtMS: 10_020_000},
 		{EventID: "run", PID: 42, AgentRunID: "run-a", ReceivedAtMS: 30_000_000},
 		{EventID: "session", PID: 42, ConversationID: "conversation-a", ReceivedAtMS: 30_000_000},
+		{EventID: "conflicting-run", PID: 42, AgentRunID: "run-b", ReceivedAtMS: 10_000_050},
 		{EventID: "anchor", PID: 42, ReceivedAtMS: 10_000_000},
 	}
-	got := eventDetailRelatedCandidates(in, selected, 4)
-	if len(got) != 3 || got[0].Event.EventID != "run" ||
-		got[1].Event.EventID != "session" || got[2].Event.EventID != "near" {
-		t.Fatalf("related ranking falsely includes PID reuse: %+v", got)
+	got := eventDetailRelatedCandidates(in, selected, 5)
+	if len(got) != 4 || got[0].Event.EventID != "other-pid" ||
+		got[1].Event.EventID != "run" || got[2].Event.EventID != "session" ||
+		got[3].Event.EventID != "near" {
+		t.Fatalf("related ranking lost explicit cross-PID context or included PID reuse: %+v", got)
 	}
 	if len(eventDetailRelatedCandidates(in, eventSummary{PID: 42}, 4)) != 0 {
 		t.Fatal("without time or run evidence, PID alone must not fabricate correlation")
 	}
 	if n := len(eventDetailRelatedCandidates(in, selected, 1)); n != 1 {
 		t.Fatalf("related result limit: %d", n)
+	}
+}
+
+func TestRelatedSummaryUsesExactPersistedTimestamp(t *testing.T) {
+	const receivedAt = int64(1_760_000_000_123)
+	detail := map[string]any{
+		"Event": map[string]any{"type": "write", "pid": float64(343846)},
+		"Timestamp": float64(receivedAt),
+		"Envelope": map[string]any{"agentRunId": "run-g"},
+	}
+	selected := eventDetailSelectedSummary(detail, "evt_1", nil)
+	if selected.ReceivedAtMS != receivedAt || selected.PID != 343846 || selected.AgentRunID != "run-g" {
+		t.Fatalf("timestamp or identity lost to numeric display conversion: %+v", selected)
+	}
+	near := []eventSummary{{EventID: "evt_2", PID: 343846, ReceivedAtMS: receivedAt + 1000}}
+	if found := eventDetailRelatedCandidates(near, selected, 4); len(found) != 1 {
+		t.Fatalf("detail must permit nearby event without cached anchor summary: %+v", found)
+	}
+}
+
+func TestRelatedSummaryCanUseExplicitRunWithoutPID(t *testing.T) {
+	detail := map[string]any{
+		"Event": map[string]any{"type": "native_hook"},
+		"Envelope": map[string]any{"agentRunId": "run-a"},
+	}
+	selected := eventDetailSelectedSummary(detail, "evt_3", nil)
+	if selected.PID != 0 || selected.AgentRunID != "run-a" {
+		t.Fatalf("unexpected selected correlation fields: %+v", selected)
+	}
+	got := eventDetailRelatedCandidates([]eventSummary{
+		{EventID: "evt_4", PID: 500, AgentRunID: "run-a"},
+		{EventID: "evt_5", PID: 500, AgentRunID: "run-b"},
+	}, selected, 3)
+	if len(got) != 1 || got[0].Event.EventID != "evt_4" {
+		t.Fatalf("run correlation should not require a local PID: %+v", got)
 	}
 }
