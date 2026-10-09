@@ -563,9 +563,9 @@ func eventTarget(e eventSummary) string {
 }
 
 func eventAction(e eventSummary) string {
-	if e.ToolName != "" {
-		return "调用工具 " + e.ToolName
-	}
+	// A tool call may execute a script which performs file syscalls. The
+	// syscall is still a file modification, even when ToolName is inherited
+	// from the Agent's shell-tool invocation.
 	t := strings.ToLower(e.Type)
 	switch {
 	case strings.Contains(t, "network"), strings.Contains(t, "connect"), strings.Contains(t, "socket"), strings.Contains(t, "tcp"), strings.Contains(t, "dns"):
@@ -577,6 +577,9 @@ func eventAction(e eventSummary) string {
 	case strings.Contains(t, "exec"), strings.Contains(t, "process"), strings.Contains(t, "clone"):
 		return "进程活动"
 	default:
+		if e.ToolName != "" {
+			return "调用工具 " + e.ToolName
+		}
 		if e.Type != "" {
 			return e.Type
 		}
