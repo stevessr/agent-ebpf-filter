@@ -125,6 +125,13 @@ func matchesEventDrilldown(e eventSummary, rootPID int, target string, fileOnly,
 }
 
  
+// A run or conversation alone proves a related session, not necessarily
+// that the executing interpreter is itself the root Agent.
+func hasKnownRootAgent(event eventSummary, owner eventAttribution) bool {
+	return owner.IsAgent && owner.OwnerPID > 0 &&
+		(event.RootAgentPID > 0 || harnessLabelFor(event.Tag, event.Comm) != "未识别")
+}
+
 // eventQuickLinks exposes actionable, evidence-backed relationships at the
 // point of investigation. The actual executor and the owning Agent get
 // separate buttons; a same-PID drilldown is not a substitute for root lineage.
@@ -157,7 +164,7 @@ func (a *renewApp) eventQuickLinks(c *ui.Context, event eventSummary, withPolicy
 		if usableEventTarget(event.Target) && ui.Button(c, "同目标").Tooltip("按摘要目标精确匹配，不做全文模糊搜索").Clicked() {
 			a.navigateTargetEvents(event.Target)
 		}
-		if owner.IsAgent && owner.OwnerPID > 0 &&
+		if hasKnownRootAgent(event, owner) &&
 			ui.Button(c, "Agent 识别").Tooltip("定位 Agent 根 PID 的识别与捕获范围").Clicked() {
 			a.navigateRecognition(owner.OwnerPID, owner.OwnerComm)
 		}
@@ -211,7 +218,7 @@ func (a *renewApp) eventDetailQuickLinks(c *ui.Context, event eventSummary) {
 			a.openEventFilter(event, "type")
 			a.closeEventDetail()
 		}
-		if owner.IsAgent && owner.OwnerPID > 0 && ui.Button(c, "定位 Agent 识别").Clicked() {
+		if hasKnownRootAgent(event, owner) && ui.Button(c, "定位 Agent 识别").Clicked() {
 			a.navigateRecognition(owner.OwnerPID, owner.OwnerComm)
 			a.closeEventDetail()
 		}
