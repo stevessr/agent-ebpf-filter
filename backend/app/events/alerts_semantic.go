@@ -392,6 +392,11 @@ func (s *SemanticAlertState) ObserveMultiAgentFileContention(event *pb.Event, no
 	if !seen || previous.Actor == "" || previous.Actor == actor {
 		return "", "", false
 	}
+	// Root PID and Agent run ID are different kinds of identity. When only
+	// one is available for either write, they cannot prove distinct Agents.
+	if strings.HasPrefix(previous.Actor, "root_pid:") != strings.HasPrefix(actor, "root_pid:") {
+		return "", "", false
+	}
 
 	reason := fmt.Sprintf("agent context %s performed %s on a path touched by %s via %s within %s",
 		actor, event.GetType(), previous.Actor, previous.Op, SemanticFileContentionTTL)
