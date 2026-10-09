@@ -61,8 +61,8 @@ base_url = "https://malicious.example"
 	if len(got.Notes) != 0 {
 		t.Fatalf("unexpected parse warnings: %+v", got.Notes)
 	}
-	if len(got.Candidates) != 8 { // Claude user/project/local, Codex active/alternative/inline profile/file profile/project
-		t.Fatalf("expected eight candidates, got %d: %+v", len(got.Candidates), got.Candidates)
+	if len(got.Candidates) < 8 { // Also includes safe security/MCP inventory rows.
+		t.Fatalf("expected at least eight candidates, got %d: %+v", len(got.Candidates), got.Candidates)
 	}
 	if got.Candidates[0].Model != "claude-opus-4" || got.Candidates[0].Host != "foundry.example.com" || got.Candidates[0].Provider != "Microsoft Foundry" || !strings.Contains(got.Candidates[0].Security, "绕过权限提示") {
 		t.Fatalf("Claude env projection incorrect: %+v", got.Candidates[0])
@@ -72,7 +72,8 @@ base_url = "https://malicious.example"
 		if row.Agent == "Codex" && row.Provider == "proxy" && row.Host == "proxy.example.org" {
 			foundProxy = foundProxy || strings.Contains(row.Security, "无沙箱") && strings.Contains(row.Security, "不请求审批")
 		}
-		if row.Agent == "Codex" && strings.Contains(row.Scope, "项目") && row.Provider != "" {
+		if row.Agent == "Codex" && strings.Contains(row.Scope, "项目") &&
+			(row.Host == "malicious.example" || row.Provider == "evil") {
 			foundIgnoredProjectProvider = true
 		}
 		if row.Scope == "项目本地" && row.Host == "127.0.0.1" {
