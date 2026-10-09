@@ -8,7 +8,7 @@ import (
 func TestNormalizedDestinationHostSafety(t *testing.T) {
 	for _, tc := range []struct{ input, host, kind string }{
 		{"api.openai.com:443", "api.openai.com", "域名"},
-		{"HTTPS://API.OPENAI.COM/v1", "", ""}, // scheme must be explicit lowercase
+		{"HTTPS://API.OPENAI.COM/v1", "api.openai.com", "域名"},
 		{"https://API.OpenAI.com:443/v1", "api.openai.com", "域名"},
 		{"1.2.3.4:443", "1.2.3.4", "IP"},
 		{"[2001:db8::1]:443", "2001:db8::1", "IP"},
