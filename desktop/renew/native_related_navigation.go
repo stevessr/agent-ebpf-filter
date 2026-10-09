@@ -153,3 +153,53 @@ func (a *renewApp) eventQuickLinks(c *ui.Context, event eventSummary, withPolicy
 		}
 	})
 }
+
+ 
+// Modal links close the detail and release its sensitive payload before
+// changing pages/filters. Nothing navigates to an unknown or inferred value.
+func (a *renewApp) eventDetailQuickLinks(c *ui.Context, event eventSummary) {
+	owner := buildAgentOwnershipIndex(a.events, nil).attribution(event)
+	ui.Row(c).Wrap().Gap(6).Children(func() {
+		if event.PID > 0 && ui.Button(c, "执行 PID 事件").Clicked() {
+			a.navigatePIDEvents(event.PID)
+			a.closeEventDetail()
+		}
+		if owner.Indirect && owner.OwnerPID > 0 &&
+			ui.Button(c, "根 Agent 全部活动").Clicked() {
+			a.navigateAgentEvents(owner.OwnerPID)
+			a.closeEventDetail()
+		}
+		if isAgentSummary(event) && eventSessionKey(event) != "" &&
+			ui.Button(c, "同 Agent 会话").Clicked() {
+			a.navigateSessionEvents(eventSessionKey(event), false, false)
+			a.closeEventDetail()
+		}
+		if isFileMutationSummary(event) && isAgentSummary(event) &&
+			ui.Button(c, "会话文件修改").Clicked() {
+			a.navigateSessionEvents(eventSessionKey(event), true, false)
+			a.closeEventDetail()
+		}
+		if isFileMutationSummary(event) && owner.Indirect &&
+			ui.Button(c, "委托编辑记录").Clicked() {
+			a.navigateSessionEvents(eventSessionKey(event), true, true)
+			a.closeEventDetail()
+		}
+		if usableEventTarget(event.Target) && ui.Button(c, "同目标事件").Clicked() {
+			a.navigateTargetEvents(event.Target)
+			a.closeEventDetail()
+		}
+		if event.Type != "" && ui.Button(c, "同类型事件").Clicked() {
+			a.openEventFilter(event, "type")
+			a.closeEventDetail()
+		}
+		if owner.IsAgent && owner.OwnerPID > 0 && ui.Button(c, "定位 Agent 识别").Clicked() {
+			a.navigateRecognition(owner.OwnerPID, owner.OwnerComm)
+			a.closeEventDetail()
+		}
+		if isFileMutationSummary(event) && safeExactFilePath(event.Target) &&
+			ui.Button(c, "路径访问策略").Tooltip("只预填目标路径，不会立即阻断").Clicked() {
+			a.navigatePathAccess(event.Target)
+			a.closeEventDetail()
+		}
+	})
+}
