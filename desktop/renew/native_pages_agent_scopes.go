@@ -431,8 +431,9 @@ func (a *renewApp) agentRecognitionView(c *ui.Context) {
 					ui.Button(c, "Agent 与子进程事件").Tooltip("包含记录了此根 Agent PID 的脚本行为").Clicked() {
 					a.navigateAgentEvents(selected.PID)
 				}
-				if selected.Comm != "" && ui.Button(c, "跟踪登记").Tooltip("在跟踪注册表中查找对应命令").Clicked() {
+				if selected.Comm != "" && ui.Button(c, "填入跟踪命令").Tooltip("打开命令跟踪编辑器并预填名称，不会自动修改规则").Clicked() {
 					a.registryTab = 0
+					a.trackName = selected.Comm
 					a.page = "跟踪"
 				}
 			})
