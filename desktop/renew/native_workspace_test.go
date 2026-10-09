@@ -186,6 +186,8 @@ func TestRiskSeverityFilterMatchesClassification(t *testing.T) {
 func TestWorkspaceCompactNavigationDoesNotLeaveBlankGutter(t *testing.T) {
 	a := newRenewApp("http://127.0.0.1:8080")
 	view := ui.NewTester(a.view, 1480, 860)
+	// The test checks layout states, not a wall-clock-dependent animation.
+	view.SetPreferences(ui.Preferences{ReduceMotion: true, TextScale: 1})
 
 	breadcrumb, ok := view.Find("工作区")
 	if !ok || breadcrumb.X < 54 || breadcrumb.X > 100 {
