@@ -186,7 +186,7 @@ func newRenewApp(backend string) *renewApp {
 		backend:            backend,
 		starting:           true,
 		page:               "概览",
-		navigationOpen:       true,
+		navigationOpen:       false,
 		inspectorOpen:      true,
 		materialEnabled:    true,
 		eventSelected:      -1,
