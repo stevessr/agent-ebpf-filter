@@ -27,6 +27,8 @@ type eventSummary struct {
 	Tag              string  `json:"tag"`
 	Comm             string  `json:"comm"`
 	Target           string  `json:"target"`
+	Domain           string  `json:"domain,omitempty"`
+	NetEndpoint      string  `json:"netEndpoint,omitempty"`
 	Network          bool    `json:"network"`
 	NetBytes         int64   `json:"netBytes"`
 	Decision         string  `json:"decision"`
@@ -45,8 +47,6 @@ func (e *eventSummary) UnmarshalJSON(data []byte) error {
 		compactEventSummary
 		Path         string `json:"path"`
 		ExtraPath    string `json:"extraPath"`
-		NetEndpoint  string `json:"netEndpoint"`
-		Domain       string `json:"domain"`
 		ToolCallID   string `json:"toolCallId"`
 	}
 	if err := json.Unmarshal(data, &wire); err != nil {
@@ -54,7 +54,7 @@ func (e *eventSummary) UnmarshalJSON(data []byte) error {
 	}
 	*e = eventSummary(wire.compactEventSummary)
 	if strings.TrimSpace(e.Target) == "" {
-		for _, value := range []string{wire.Path, wire.NetEndpoint, wire.Domain, wire.ExtraPath, e.ToolName} {
+		for _, value := range []string{wire.Path, e.NetEndpoint, e.Domain, wire.ExtraPath, e.ToolName} {
 			if strings.TrimSpace(value) != "" {
 				e.Target = value
 				break
@@ -62,7 +62,7 @@ func (e *eventSummary) UnmarshalJSON(data []byte) error {
 		}
 	}
 	if !e.Network {
-		e.Network = strings.TrimSpace(wire.NetEndpoint) != "" || strings.TrimSpace(wire.Domain) != "" || isNetworkEvent(*e)
+		e.Network = strings.TrimSpace(e.NetEndpoint) != "" || strings.TrimSpace(e.Domain) != "" || isNetworkEvent(*e)
 	}
 	if !e.HasAgentContext {
 		e.HasAgentContext = e.AgentRunID != "" ||
@@ -614,7 +614,7 @@ func eventSearchText(e eventSummary) string {
 
 func buildEventSearchText(e eventSummary) string {
 	return strings.ToLower(strings.Join([]string{
-		e.EventID, e.Type, e.Tag, e.Comm, e.Target, e.Decision,
+		e.EventID, e.Type, e.Tag, e.Comm, e.Target, e.Domain, e.NetEndpoint, e.Decision,
 		e.AgentRunID, e.ConversationID, e.ToolName, strconv.Itoa(e.PID),
 		url.QueryEscape(e.EventID),
 	}, " "))
