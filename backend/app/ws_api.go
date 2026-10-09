@@ -173,9 +173,10 @@ func runEventBroadcaster(ctx context.Context) {
 			}
 			for _, alert := range alerts {
 				alert = enrichEventContext(alert)
-				if captureAgentEvent(alert) && monitorAgentEvent(alert) {
-					appendRecord(recordCapturedEvent(alert))
-				}
+				// Derived alerts inherit the already-accepted source event scope.
+				// Rechecking their synthetic Security tag could discard a valid
+				// whitelist alert even when the originating Agent was monitored.
+				appendRecord(recordCapturedEvent(alert))
 			}
 			if len(eventBatch) >= broadcastBatchSize || len(envelopeBatch) >= broadcastBatchSize || len(summaryBatch) >= broadcastBatchSize {
 				flushBatch()
