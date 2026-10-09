@@ -281,8 +281,8 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 		section("进程行为", field("阶段", "phase"), field("执行文件", "path"),
 			field("命令行", "commandLine"), field("参数", "args"),
 			field("工作目录", "cwd"), field("父进程 PID", "parentPid"),
-			field("子进程 PID", "childPid"), field("目标 PID", "targetPid"),
-			field("退出状态", "exitStatus"), field("返回值", "retval"),
+			field("子进程 PID", "childPid"), field("旧 PID", "oldPid"),
+			field("目标 PID", "targetPid"), field("退出状态", "exitStatus"), field("返回值", "retval"),
 			field("附加信息", "extraInfo"))
 	default:
 		m.Target = prefer("path", "targetPath", "netEndpoint", "domain", "commandLine", "relatedEndpoint")
