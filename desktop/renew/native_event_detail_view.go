@@ -403,25 +403,60 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 	return m
 }
 
-func eventDetailFieldRow(c *ui.Context, field eventDetailField) {
+// Compact cards use a vertical label/value stack; otherwise a 126-DIP label
+// and clipboard button leave no readable value space on small windows.
+func eventDetailFieldRowAdaptive(c *ui.Context, field eventDetailField, width float32, expandedKey *string) {
 	t := c.Theme()
-	ui.Row(c).Gap(12).AlignItems(ui.Start).Children(func() {
-		ui.Text(c, field.Label).Width(126).Shrink(0).FontSize(11).TextColor(t.TextMuted)
-		ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-			ui.Text(c, eventDetailPreview(field.Value, 420)).Font("monospace").FontSize(11).MaxLines(4)
-			ui.Text(c, field.Origin).FontSize(9).TextColor(t.TextMuted)
-		})
+	expanded := expandedKey != nil && *expandedKey == field.Origin
+	visible := eventDetailPreview(field.Value, 280)
+	if expanded {
+		visible = field.Value
+	}
+	var maxLines int = 3
+	if expanded { maxLines = 0 }
+	showValue := func() {
+		ui.Text(c, visible).Font("monospace").FontSize(11).MaxLines(maxLines)
+		ui.Text(c, field.Origin).FontSize(9).TextColor(t.TextMuted)
+	}
+	showActions := func() {
+		if len([]rune(field.Value)) > 280 && expandedKey != nil {
+			label := "展开"
+			if expanded { label = "收起" }
+			if ui.Button(c, label).Clicked() {
+				if expanded { *expandedKey = "" } else { *expandedKey = field.Origin }
+			}
+		}
 		if ui.Button(c, "复制").Tooltip("复制"+field.Label+"的完整值").Clicked() {
 			c.WriteClipboard(field.Value)
 			c.Toast("已复制 "+field.Label)
 		}
+	}
+	if width < 440 {
+		ui.Column(c).Gap(4).Padding(0, 0, 5, 0).Children(func() {
+			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, field.Label).FontSize(11).TextColor(t.TextMuted).Grow(1).MinWidth(0)
+				showActions()
+			})
+			showValue()
+		})
+		return
+	}
+	ui.Row(c).Gap(10).AlignItems(ui.Start).Children(func() {
+		ui.Text(c, field.Label).Width(112).Shrink(0).FontSize(11).TextColor(t.TextMuted)
+		ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(showValue)
+		showActions()
 	})
 }
 
-func eventDetailSectionCard(c *ui.Context, section eventDetailSection, width float32) {
+// Existing small component tests retain the basic simple row entry point.
+func eventDetailFieldRow(c *ui.Context, field eventDetailField) {
+	eventDetailFieldRowAdaptive(c, field, 520, nil)
+}
+
+func eventDetailSectionCard(c *ui.Context, section eventDetailSection, width float32, expandedKey *string) {
 	card(c, section.Title, func() {
 		for _, field := range section.Fields {
-			eventDetailFieldRow(c, field)
+			eventDetailFieldRowAdaptive(c, field, width, expandedKey)
 		}
 	}).Width(width)
 }
@@ -481,7 +516,7 @@ func (a *renewApp) richEventDetail(c *ui.Context, detail map[string]any, width f
 				ui.Column(c).Width(leftWidth).Gap(12).Children(func() {
 					for index, section := range model.Sections {
 						if index%2 == col {
-							eventDetailSectionCard(c, section, leftWidth)
+							eventDetailSectionCard(c, section, leftWidth, &a.eventDetailExpandedField)
 						}
 					}
 				})
@@ -489,7 +524,7 @@ func (a *renewApp) richEventDetail(c *ui.Context, detail map[string]any, width f
 		})
 	} else {
 		for _, section := range model.Sections {
-			eventDetailSectionCard(c, section, width-12)
+			eventDetailSectionCard(c, section, width-12, &a.eventDetailExpandedField)
 		}
 	}
 	a.eventDetailRelated(c, detail)
@@ -558,45 +593,3 @@ func (a *renewApp) eventDetailRelated(c *ui.Context, detail map[string]any) {
 	})
 }
 
-func eventDetailTreeItems(detail map[string]any, query string) []eventDetailField {
-	var out []eventDetailField
-	query = strings.ToLower(strings.TrimSpace(query))
-	var walk func(string, any, int)
-	walk = func(path string, value any, depth int) {
-		if depth > 7 || len(out) >= 300 {
-			return
-		}
-		switch node := value.(type) {
-		case map[string]any:
-			keys := make([]string, 0, len(node))
-			for key := range node {
-				keys = append(keys, key)
-			}
-			sort.Strings(keys)
-			for _, key := range keys {
-				child := path + "." + key
-				if path == "$" {
-					child = key
-				}
-				walk(child, node[key], depth+1)
-			}
-		case []any:
-			for index, item := range node {
-				walk(fmt.Sprintf("%s[%d]", path, index), item, depth+1)
-				if len(out) >= 300 {
-					return
-				}
-			}
-		default:
-			if value == nil {
-				return
-			}
-			text := fmt.Sprint(value)
-			if query == "" || strings.Contains(strings.ToLower(path), query) || strings.Contains(strings.ToLower(text), query) {
-				out = append(out, eventDetailField{Label: path, Value: text})
-			}
-		}
-	}
-	walk("$", detail, 0)
-	return out
-}
