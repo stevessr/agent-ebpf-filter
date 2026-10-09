@@ -34,7 +34,7 @@ func (a *renewApp) refreshAgentConfigInspection() {
 func (a *renewApp) agentConfigPanel(c *ui.Context) {
 	t := c.Theme()
 	card(c, "Claude Code / Codex 配置识别（只读）", func() {
-		ui.Text(c, "从当前桌面用户的 Claude settings.json、Codex config.toml 读取模型、Provider 与 API 域名；可指定一个项目目录检查项目配置。不会读取 auth.json、凭据内容或执行 Hook/MCP 命令。").FontSize(11).TextColor(t.TextMuted)
+		ui.Text(c, "从当前桌面用户的 Claude settings.json、Codex config.toml 读取模型、Provider 与 API 域名；可指定一个项目目录检查项目配置。不会读取 auth.json 或执行 Hook/MCP 命令；设置文件可能包含凭据，但仅保留白名单安全字段。").FontSize(11).TextColor(t.TextMuted)
 		ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
 			ui.TextInput(c, &a.configProjectPath).Label("项目绝对路径（可选）").Width(340)
 			label := "读取本机配置"
