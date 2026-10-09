@@ -185,6 +185,12 @@ func (a *renewApp) releaseEventDetailPayload() {
 	a.enforcementErr = ""
 	a.eventDetailTab = 0
 	a.eventDetailFieldSearch = ""
+	a.eventDetailFieldOffset = 0
+	a.eventDetailSearchSnapshot = ""
+	a.eventDetailExpandedField = ""
+	a.eventDetailEnforcementReady = false
+	a.eventDetailPendingAction = ""
+	a.eventDetailGeneration++
 }
 
 func (a *renewApp) closeEventDetail() {
@@ -201,6 +207,12 @@ func (a *renewApp) ensureEventDetailText() {
 	}
 }
 
+// An event ID is not a request identity: the same event can be closed and
+// reopened before its first fetch completes. Keep a generation lease.
+func (a *renewApp) acceptsEventDetailResponse(id string, generation uint64) bool {
+	return a.eventDetailOpen && a.eventDetailID == id && a.eventDetailGeneration == generation
+}
+
 func (a *renewApp) openEventDetail(eventID string) {
 	if a.client == nil || strings.TrimSpace(eventID) == "" {
 		return
@@ -210,21 +222,26 @@ func (a *renewApp) openEventDetail(eventID string) {
 	a.eventDetailID = id
 	a.eventDetailOpen = true
 	a.eventDetailLoading = true
+	generation := a.eventDetailGeneration
+	client := a.client
+	policyEnabled := a.runtimeCfg.Runtime.PolicyManagementEnabled
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 		defer cancel()
-		detail, err := a.client.eventDetail(ctx, id)
+		detail, err := client.eventDetail(ctx, id)
 		var enforcement enforcementSnapshot
 		var enforcementErr error
-		// An unrelated file/CPU event needs only the detail request.
-		// Avoid a second backend round-trip unless there is a valid action.
-		targets := enforcementTargets(detail)
-		if err == nil && a.runtimeCfg.Runtime.PolicyManagementEnabled &&
-			(targets.IP != "" || targets.ExecPath != "") {
-			enforcement, enforcementErr = a.client.enforcementStatus(ctx)
+		enforcementQueried := false
+		// Never use a cached status to enable a privileged action.
+		if err == nil && policyEnabled {
+			targets := enforcementTargets(detail)
+			if targets.IP != "" || targets.ExecPath != "" {
+				enforcementQueried = true
+				enforcement, enforcementErr = client.enforcementStatus(ctx)
+			}
 		}
 		a.update(func() {
-			if !a.eventDetailOpen || a.eventDetailID != id {
+			if !a.acceptsEventDetailResponse(id, generation) {
 				return
 			}
 			a.eventDetailLoading = false
@@ -233,9 +250,11 @@ func (a *renewApp) openEventDetail(eventID string) {
 				return
 			}
 			a.eventDetail = detail
-			if enforcementErr == nil {
+			a.eventDetailEnforcementReady = enforcementQueried && enforcementErr == nil
+			if a.eventDetailEnforcementReady {
 				a.enforcement = enforcement
-			} else {
+			}
+			if enforcementErr != nil {
 				a.enforcementErr = enforcementErr.Error()
 			}
 		})
@@ -411,11 +430,14 @@ func containsInt(values []int, target int) bool {
 }
 
 func (a *renewApp) runEnforcement(path string, payload map[string]any) {
-	if a.client == nil || a.enforcementBusy || !a.runtimeCfg.Runtime.PolicyManagementEnabled {
+	if a.client == nil || a.enforcementBusy || !a.eventDetailOpen ||
+		!a.eventDetailEnforcementReady || !a.runtimeCfg.Runtime.PolicyManagementEnabled {
 		return
 	}
 	a.enforcementBusy = true
+	a.eventDetailEnforcementReady = false
 	a.enforcementErr = ""
+	generation := a.eventDetailGeneration
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 		defer cancel()
@@ -423,6 +445,11 @@ func (a *renewApp) runEnforcement(path string, payload map[string]any) {
 		snapshot, statusErr := a.client.enforcementStatus(ctx)
 		a.update(func() {
 			a.enforcementBusy = false
+			// Never apply a late policy snapshot to a newer investigation.
+			if generation != a.eventDetailGeneration || !a.eventDetailOpen {
+				a.eventDetailEnforcementReady = false
+				return
+			}
 			if err != nil {
 				a.enforcementErr = err.Error()
 				return
@@ -432,6 +459,7 @@ func (a *renewApp) runEnforcement(path string, payload map[string]any) {
 				return
 			}
 			a.enforcement = snapshot
+			a.eventDetailEnforcementReady = true
 		})
 	}()
 }
@@ -468,6 +496,9 @@ func (a *renewApp) eventDetailModal(c *ui.Context) {
 			}
 			if a.eventDetailErr != "" {
 				ui.Text(c, "完整记录读取失败：" + a.eventDetailErr).TextColor(t.Danger)
+				if ui.Button(c, "重新加载").Clicked() {
+					a.openEventDetail(a.eventDetailID)
+				}
 				return
 			}
 			record := detailRecord(a.eventDetail)
@@ -488,23 +519,58 @@ func (a *renewApp) eventDetailModal(c *ui.Context) {
 					ui.Text(c, a.eventDetailText).Font("monospace").FontSize(10)
 				})
 			case 2:
-				ui.TextInput(c, &a.eventDetailFieldSearch).Placeholder("筛选字段名、路径或值（仅当前事件）").Width(panelWidth - 12)
-				fields := eventDetailTreeItems(a.eventDetail, a.eventDetailFieldSearch)
-				ui.Text(c, fmt.Sprintf("匹配 %d 条叶子字段，最多展示 300 条；原始 JSON 保留完整结构。", len(fields))).FontSize(10).TextColor(t.TextMuted)
-				ui.Scroll(c).Height(scrollHeight - 56).Gap(7).Children(func() {
-					if len(fields) == 0 {
-						ui.Text(c, "没有匹配的字段。").TextColor(t.TextMuted)
+				ui.TextInput(c, &a.eventDetailFieldSearch).
+					Placeholder("搜索字段名、路径或值（仅当前事件）").
+					Width(panelWidth - 12)
+				if a.eventDetailSearchSnapshot != a.eventDetailFieldSearch {
+					a.eventDetailSearchSnapshot = a.eventDetailFieldSearch
+					a.eventDetailFieldOffset = 0
+					a.eventDetailExpandedField = ""
+				}
+				page := eventDetailTreePage(a.eventDetail, a.eventDetailFieldSearch, a.eventDetailFieldOffset, eventFieldPageSize)
+				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+					if len(page.Items) == 0 {
+						ui.Text(c, "没有匹配字段").FontSize(10).TextColor(t.TextMuted)
+					} else {
+						ui.Text(c, fmt.Sprintf("第 %d–%d 条字段", a.eventDetailFieldOffset+1, a.eventDetailFieldOffset+len(page.Items))).FontSize(10).TextColor(t.TextMuted)
 					}
-					for _, field := range fields {
-						ui.Column(c).Gap(2).Padding(8).Radius(6).Background(t.Surface).Children(func() {
-							ui.Text(c, field.Label).Font("monospace").FontSize(10).TextColor(t.TextMuted)
+					if page.ScanLimited {
+						ui.Text(c, "检索达到安全扫描上限，请缩小范围或查看原始 JSON").FontSize(10).TextColor(t.Warning)
+					}
+					if a.eventDetailFieldOffset > 0 && ui.Button(c, "上一页").Clicked() {
+						a.eventDetailFieldOffset = max(0, a.eventDetailFieldOffset-eventFieldPageSize)
+						a.eventDetailExpandedField = ""
+					}
+					if page.HasMore && !page.ScanLimited && ui.Button(c, "下一页").Clicked() {
+						a.eventDetailFieldOffset += eventFieldPageSize
+						a.eventDetailExpandedField = ""
+					}
+				})
+				ui.Scroll(c).Key(fmt.Sprintf("event-fields-page-%d", a.eventDetailFieldOffset)).
+					Height(max(float32(70), scrollHeight-82)).Gap(7).Children(func() {
+					for _, field := range page.Items {
+						field := field
+						ui.Column(c).Gap(3).Padding(8).Radius(6).Background(t.Surface).Children(func() {
 							ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-								ui.Text(c, eventDetailPreview(field.Value, 360)).Font("monospace").FontSize(11).MaxLines(3).Grow(1).MinWidth(0)
+								ui.Text(c, field.Label).Font("monospace").FontSize(10).TextColor(t.TextMuted).Grow(1).MinWidth(0)
+								if len([]rune(field.Value)) > 300 {
+									key := "tree:" + field.Label
+									label := "展开"
+									if a.eventDetailExpandedField == key { label = "收起" }
+									if ui.Button(c, label).Clicked() {
+										if a.eventDetailExpandedField == key { a.eventDetailExpandedField = "" } else { a.eventDetailExpandedField = key }
+									}
+								}
 								if ui.Button(c, "复制").Tooltip("复制该字段的完整值").Clicked() {
 									c.WriteClipboard(field.Value)
 									c.Toast("字段值已复制")
 								}
 							})
+							if a.eventDetailExpandedField == "tree:"+field.Label {
+								ui.Text(c, field.Value).Font("monospace").FontSize(11)
+							} else {
+								ui.Text(c, eventDetailPreview(field.Value, 300)).Font("monospace").FontSize(11).MaxLines(4)
+							}
 						})
 					}
 				})
@@ -538,59 +604,86 @@ func (a *renewApp) eventDetailModal(c *ui.Context) {
 
 // Enforcement actions remain explicitly gated and separate from observation.
 // Never translate a file write path into an executable block rule.
+// All privileged policy mutations require a fresh status and a separate
+// explicit confirmation. An IP or port rule can affect traffic beyond this
+// single event, and must never be a one-click operation in a detail panel.
+func (a *renewApp) eventDetailEnforcementChoice(
+	c *ui.Context, label, path, key string, value any, scope string,
+) {
+	actionID := path + "|" + fmt.Sprint(value)
+	if a.eventDetailPendingAction != actionID {
+		if ui.Button(c, "选择 · "+label).Clicked() {
+			a.eventDetailPendingAction = actionID
+		}
+		return
+	}
+	ui.Column(c).Gap(6).Padding(9).Radius(6).Background(c.Theme().Surface).Children(func() {
+		ui.Text(c, "待确认："+label).FontSize(12).Bold()
+		ui.Text(c, scope).FontSize(11).TextColor(c.Theme().Warning)
+		ui.Row(c).Gap(8).Children(func() {
+			if ui.Button(c, "确认修改策略").Clicked() {
+				a.eventDetailPendingAction = ""
+				a.runEnforcement(path, map[string]any{key: value})
+			}
+			if ui.Button(c, "取消").Clicked() {
+				a.eventDetailPendingAction = ""
+			}
+		})
+	})
+}
+
 func (a *renewApp) eventDetailEnforcement(c *ui.Context) {
 	t := c.Theme()
 	targets := enforcementTargets(a.eventDetail)
 	if targets.IP == "" && targets.ExecPath == "" {
 		return
 	}
-	card(c, "可选处置", func() {
+	card(c, "可选处置 · 手动确认", func() {
 		if !a.runtimeCfg.Runtime.PolicyManagementEnabled {
-			ui.Text(c, "策略管理未启用。处置须在“监控”页手动启用 policy_management。").FontSize(11).TextColor(t.TextMuted)
+			ui.Text(c, "策略管理未启用，可前往采集设置查看权限。").FontSize(11).TextColor(t.TextMuted)
+			return
+		}
+		if a.enforcementBusy {
+			ui.Text(c, "正在等待策略提交及内核状态确认…").FontSize(11).TextColor(t.TextMuted)
 			return
 		}
 		if a.enforcementErr != "" {
-			ui.Text(c, "无法确认当前阻断策略："+a.enforcementErr).FontSize(11).TextColor(t.Danger)
+			ui.Text(c, "无法确认策略状态："+a.enforcementErr).FontSize(11).TextColor(t.Danger)
 			return
 		}
-		ui.Text(c, "以下操作会更改内核阻断策略，请核对目标。").FontSize(11).TextColor(t.Warning)
-		ui.Row(c).Gap(8).Wrap().Children(func() {
+		if !a.eventDetailEnforcementReady {
+			ui.Text(c, "当前没有可验证的新鲜策略状态，已禁用修改操作。请重新加载事件详情。").FontSize(11).TextColor(t.Warning)
+			return
+		}
+		ui.Text(c, "策略会持续影响后续进程或网络活动；与这条历史事件的风险评分无直接等价关系。").FontSize(11).TextColor(t.TextMuted)
+		ui.Column(c).Gap(8).Children(func() {
 			if targets.IP != "" {
 				blocked := containsString(a.enforcement.Cgroup.BlockedIPs, targets.IP)
 				label, path := "阻断 IP "+targets.IP, "/sandbox/cgroup/block-ip"
 				if blocked {
 					label, path = "解除 IP "+targets.IP, "/sandbox/cgroup/unblock-ip"
 				}
-				if ui.Button(c, label).Clicked() {
-					a.runEnforcement(path, map[string]any{"ip": targets.IP})
-				}
+				a.eventDetailEnforcementChoice(c, label, path, "ip", targets.IP,
+					"此操作影响命中该 IP 的后续网络连接，不仅限于当前事件。")
 			}
 			if targets.Port > 0 {
 				blocked := containsInt(a.enforcement.Cgroup.BlockedPorts, targets.Port)
-				label, path := fmt.Sprintf("阻断端口 %d", targets.Port), "/sandbox/cgroup/block-port"
+				label, path := fmt.Sprintf("阻断端口 %d（所有目标 IP）", targets.Port), "/sandbox/cgroup/block-port"
 				if blocked {
-					label, path = fmt.Sprintf("解除端口 %d", targets.Port), "/sandbox/cgroup/unblock-port"
+					label, path = fmt.Sprintf("解除端口 %d（所有目标 IP）", targets.Port), "/sandbox/cgroup/unblock-port"
 				}
-				if ui.Button(c, label).Clicked() {
-					a.runEnforcement(path, map[string]any{"port": targets.Port})
-				}
+				a.eventDetailEnforcementChoice(c, label, path, "port", targets.Port,
+					"端口策略按端口匹配，不绑定事件中的目标 IP，可能影响多个服务。")
 			}
 			if targets.ExecPath != "" {
 				blocked := containsString(a.enforcement.LSM.BlockedExecPaths, targets.ExecPath)
-				label, path := "阻断执行 "+targets.ExecPath, "/sandbox/lsm/block-exec-path"
+				label, path := "阻止后续执行 "+targets.ExecPath, "/sandbox/lsm/block-exec-path"
 				if blocked {
-					label, path = "解除执行 "+targets.ExecPath, "/sandbox/lsm/unblock-exec-path"
+					label, path = "解除执行阻断 "+targets.ExecPath, "/sandbox/lsm/unblock-exec-path"
 				}
-				if ui.Button(c, label).Clicked() {
-					a.runEnforcement(path, map[string]any{"path": targets.ExecPath})
-				}
+				a.eventDetailEnforcementChoice(c, label, path, "path", targets.ExecPath,
+					"此 LSM 路径规则作用于后续执行请求，不会撤销已有进程或当前记录。")
 			}
 		})
-		if a.enforcementBusy {
-			ui.Text(c, "正在等待内核状态确认…").FontSize(11).TextColor(t.TextMuted)
-		}
-		if a.enforcementErr != "" {
-			ui.Text(c, a.enforcementErr).FontSize(11).TextColor(t.Danger)
-		}
 	})
 }
