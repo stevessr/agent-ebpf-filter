@@ -350,7 +350,10 @@ func semanticFileMutationPath(event *pb.Event) (string, bool, bool) {
 	// As with Tetragon's return-value selectors, a failed mutating syscall
 	// cannot establish a successful change to a shared resource.
 	// Zero is intentionally permitted for metadata syscalls: success == 0.
-	if event.GetRetval() < 0 {
+	// write(2), however, returns the positive byte count on success. A
+	// missing/zero count is insufficient to prove a file was modified; the
+	// requested byte count is not a substitute for an observed return value.
+	if event.GetRetval() < 0 || (event.GetType() == "write" && event.GetRetval() == 0) {
 		return "", false, false
 	}
 	for _, candidate := range []string{event.GetPath(), event.GetExtraPath()} {
