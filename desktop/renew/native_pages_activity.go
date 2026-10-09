@@ -407,9 +407,9 @@ func (a *renewApp) processesView(c *ui.Context) {
 				case 2:
 					harnessIdentity(c, displayOr(p.Name, "未知进程"), p.Name)
 				case 3:
-					ui.Textf(c, "%.1f%%", p.CPU)
+					if a.localMonitor && p.CPU < 0 { ui.Text(c, "-") } else { ui.Textf(c, "%.1f%%", p.CPU) }
 				case 4:
-					ui.Textf(c, "%.1f%%", p.MemPercent)
+					if a.localMonitor && p.MemPercent < 0 { ui.Text(c, "-") } else { ui.Textf(c, "%.1f%%", p.MemPercent) }
 				case 5:
 					ui.Text(c, displayOr(p.User, "-")).SingleLine()
 				}
