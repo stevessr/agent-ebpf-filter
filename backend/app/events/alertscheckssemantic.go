@@ -367,12 +367,32 @@ func semanticFileMutationPath(event *pb.Event) (string, bool, bool) {
 		normalized, truncated := normalizeSemanticPath(path, event.GetCwd())
 		// An unresolved relative filename is ambiguous across working
 		// directories. A truncated/redacted key is not a proven same file.
-		if truncated || !filepath.IsAbs(normalized) {
+		if truncated || !filepath.IsAbs(normalized) || semanticNonRegularCorrelationTarget(normalized) {
 			continue
 		}
 		return normalized, false, true
 	}
 	return "", false, false
+}
+
+// Pathnames for kernel pseudo-files and character devices are not evidence
+// that Agents are modifying a shared, regular file. This exclusion applies
+// ONLY to the cross-Agent file-contention heuristic; other detection rules
+// continue to receive the original events. Do not skip all of /dev: /dev/shm
+// contains normal shared-memory files that may genuinely be contended.
+func semanticNonRegularCorrelationTarget(path string) bool {
+	switch path {
+	case "/dev/null", "/dev/zero", "/dev/full", "/dev/random",
+		"/dev/urandom", "/dev/tty", "/dev/stdin", "/dev/stdout",
+		"/dev/stderr", "/proc", "/sys":
+		return true
+	}
+	for _, prefix := range []string{"/proc/", "/sys/", "/dev/fd/", "/dev/pts/"} {
+		if strings.HasPrefix(path, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func semanticFileTargetIsPlaceholder(path string) bool {
