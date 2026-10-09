@@ -197,7 +197,8 @@ func (a *renewApp) eventProcessInvestigation(c *ui.Context, detail map[string]an
 			}
 			layers := eventDetailLayers(detail)
 			for _, entry := range []struct{ label, key string }{
-				{"UID", "uid"}, {"TGID", "tgid"}, {"根 Agent PID", "rootAgentPid"},
+				{"UID", "uid"}, {"GID", "gid"}, {"TGID", "tgid"}, {"根 Agent PID", "rootAgentPid"},
+				{"命令行", "commandLine"}, {"工作目录", "cwd"},
 				{"容器 ID", "containerId"}, {"Cgroup ID", "cgroupId"},
 			} {
 				if value, origin, ok := eventDetailLookup(layers, entry.key); ok {
