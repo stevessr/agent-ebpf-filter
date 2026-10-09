@@ -13,8 +13,8 @@ func styleRenewWorkspaceTheme(dst, system *ui.Theme, highContrast bool) {
 		dst.Surface = ui.Hex("#151b27")
 		dst.SurfaceHover = ui.Hex("#202a3b")
 		dst.SurfacePressed = ui.Hex("#29364d")
-		dst.Text = ui.Hex("#e8edf5")
 		if !highContrast {
+			dst.Text = ui.Hex("#e8edf5")
 			dst.Border = ui.Hex("#2b3546")
 			dst.TextMuted = ui.Hex("#94a1b5")
 		}
@@ -23,8 +23,8 @@ func styleRenewWorkspaceTheme(dst, system *ui.Theme, highContrast bool) {
 		dst.Surface = ui.Hex("#ffffff")
 		dst.SurfaceHover = ui.Hex("#edf2fa")
 		dst.SurfacePressed = ui.Hex("#dde7f5")
-		dst.Text = ui.Hex("#1c2738")
 		if !highContrast {
+			dst.Text = ui.Hex("#1c2738")
 			dst.Border = ui.Hex("#d9e1ed")
 			dst.TextMuted = ui.Hex("#607187")
 		}
