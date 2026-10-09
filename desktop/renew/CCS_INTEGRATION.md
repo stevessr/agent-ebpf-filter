@@ -6,6 +6,7 @@ The native Renew desktop exposes **CCS** in the Tools sidebar and activity rail.
 
 - Reads only the current Provider's `app_type`, `name`, and `is_current` from the CCS `providers` table.
 - Reads only `app_type`, `listen_address`, `listen_port`, `enabled`, and `proxy_enabled` from CCS `proxy_config`.
+- Aggregates the last hour of CCS local-proxy request counts, failures, token usage and average latency (only scalar aggregates, no request bodies).
 - Shows corresponding Agent eBPF event-summary counts and opens a **local, bounded** Events-page filter using observed executable names.
 - Refreshes CCS metadata every 20 seconds, and on the page's **刷新 CCS** action. It does not change the independent event polling cadence.
 
@@ -17,7 +18,7 @@ AGENT_RENEW_CCS_DB="$HOME/.cc-switch/cc-switch.db" agent-ebpf-renew
 
 ## Data boundary
 
-The integration runs **only in the unprivileged Renew desktop process**; no CCS database access is added to the privileged eBPF backend. Queries use SQLite's read-only CLI flag and hard-coded allowlisted `SELECT` columns. They never select `settings_config`, tokens, provider endpoint URLs, proxy request bodies, prompts, MCP configurations, or CCS secrets. No API proxy calls are intercepted, and no backend capture/enforcement policy is changed.
+The integration runs **only in the unprivileged Renew desktop process**; no CCS database access is added to the privileged eBPF backend. Queries use SQLite's read-only CLI flag and hard-coded allowlisted `SELECT` columns. The aggregate query reads only numerical usage counters, not API authentication tokens. They never select `settings_config`, tokens, provider endpoint URLs, proxy request bodies, prompts, MCP configurations, or CCS secrets. No API proxy calls are intercepted, and no backend capture/enforcement policy is changed.
 
 ### Interpretation of the display
 
