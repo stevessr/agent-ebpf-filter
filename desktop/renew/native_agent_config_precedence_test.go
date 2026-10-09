@@ -3,6 +3,7 @@ package main
 import (
  "os"
  "path/filepath"
+ "strconv"
  "strings"
  "testing"
 )
@@ -20,7 +21,7 @@ func TestCodexPrecedenceHonorsUserProfileProjectAndUntrusted(t *testing.T) {
  }
  if strings.Contains(preview.Provider+preview.Source+preview.Security+preview.Host,"SECRET")||strings.Contains(preview.Provider+preview.Source+preview.Security+preview.Host,"ignored.test"){t.Fatal("config secret leaked")}
  if len(notes)==0||!strings.Contains(notes[0],"信任状态"){t.Fatalf("expected uncertain trust note: %v",notes)}
- writeConfigFixture(t,filepath.Join(dir,"config.toml"),"model = \"user-model\"\nmodel_provider = \"proxy\"\nprofile = \"work\"\n[model_providers.proxy]\nbase_url = \"https://proxy.test/v1\"\n[projects.\""+project+"\"]\ntrust_level = \"untrusted\"\n")
+ writeConfigFixture(t,filepath.Join(dir,"config.toml"),"model = \"user-model\"\nmodel_provider = \"proxy\"\nprofile = \"work\"\n[model_providers.proxy]\nbase_url = \"https://proxy.test/v1\"\n[projects."+strconv.Quote(project)+"]\ntrust_level = \"untrusted\"\n")
  preview,notes,ok=codexStaticConfigPreview(dir,project)
  if !ok||preview.Model!="profile-model"||strings.Contains(preview.Source,"受信任项目候选"){t.Fatalf("untrusted project should not override: %+v",preview)}
  if len(notes)==0||!strings.Contains(notes[0],"untrusted"){t.Fatalf("expected untrusted explanation: %v",notes)}
