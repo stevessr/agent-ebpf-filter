@@ -272,7 +272,7 @@ func (a *renewApp) sidebar(c *ui.Context) {
 				case attention > 0:
 					events.Children(func() { statusPill(c, fmt.Sprint(attention), t.Warning) })
 				}
-				ui.SidebarItem(c, "会话", nil, label("会话"))
+				if !a.localMonitor { ui.SidebarItem(c, "会话", nil, label("会话")) }
 				ui.SidebarItem(c, "网络", nil, label("网络"))
 				ui.SidebarItem(c, "进程", nil, label("进程"))
 				if !a.localMonitor { ui.SidebarItem(c, "Agent 识别", nil, label("Agent 识别")) }
