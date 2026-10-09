@@ -56,6 +56,54 @@ func TestEventDetailModelFileWriteEvidence(t *testing.T) {
 	}
 }
 
+func TestEventDetailSyntheticContentionDoesNotInventProcessOrTarget(t *testing.T) {
+	detail := map[string]any{
+		"Timestamp": float64(1791532051679),
+		"Event": map[string]any{
+			"type": "semantic_alert", "comm": "MULTI_AGENT_FILE_CONTENTION",
+			"path": "file write", "pid": float64(448183),
+			"ppid": float64(6495), "decision": "ALERT", "riskScore": float64(12),
+			"extraInfo": "source=write tool= comm=fish reason=agent context pid:448183 performed write",
+		},
+	}
+	model := eventDetailModel(detail)
+	if model.Action != "语义风险告警" || model.Target != "目标路径或端点未记录" {
+		t.Fatalf("synthetic event misrepresented as real operation: %+v", model)
+	}
+	if !strings.Contains(model.EvidenceNote, "误报") {
+		t.Fatalf("missing uncertain-evidence warning: %q", model.EvidenceNote)
+	}
+	if !eventDetailHasField(model, "语义告警", "规则编号", "MULTI_AGENT_FILE_CONTENTION") {
+		t.Fatal("the semantic rule code must be displayed as a rule")
+	}
+	if !eventDetailHasField(model, "来源事件进程", "源进程名称", "fish") ||
+		!eventDetailHasField(model, "来源事件进程", "来源 PID（事件时）", "448183") {
+		t.Fatalf("source evidence missing: %+v", model.Sections)
+	}
+	if eventDetailHasField(model, "执行主体", "进程名称", "MULTI_AGENT_FILE_CONTENTION") ||
+		eventDetailHasField(model, "语义告警", "关联目标", "file write") {
+		t.Fatalf("false process or file target displayed: %+v", model.Sections)
+	}
+}
+
+func TestEventDetailContentionWithRealPathKeepsTarget(t *testing.T) {
+	detail := map[string]any{
+		"Event": map[string]any{
+			"type": "semantic_alert", "comm": "MULTI_AGENT_FILE_CONTENTION",
+			"path": "/workspace/shared.txt",
+			"extraInfo": "source=write tool=editor comm=agent reason=cross agent contention",
+		},
+	}
+	model := eventDetailModel(detail)
+	if model.Target != "/workspace/shared.txt" ||
+		!eventDetailHasField(model, "语义告警", "关联目标", "/workspace/shared.txt") {
+		t.Fatalf("lost valid semantic alert target: %+v", model)
+	}
+	if comm := semanticAlertSourceComm("source=write tool= reason=no process"); comm != "" {
+		t.Fatalf("invented an origin comm: %q", comm)
+	}
+}
+
 func TestEventDetailModelEnvelopeNetworkAndMissingFields(t *testing.T) {
 	payload := map[string]any{
 		"Event": map[string]any{"type": "connect", "comm": "curl", "pid": float64(42)},
