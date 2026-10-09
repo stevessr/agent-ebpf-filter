@@ -100,6 +100,8 @@ type renewApp struct {
 	domainRiskOnly      bool
 	domainShowIPs       bool
 	domainLastFilter    string
+	domainSelectedKey   string
+	domainLastVersion   uint64
 	sessionTable        ui.ListState
 	rulesTable          ui.ListState
 	commTable           ui.ListState
