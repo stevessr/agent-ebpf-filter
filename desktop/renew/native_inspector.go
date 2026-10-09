@@ -350,9 +350,14 @@ func (a *renewApp) inspectorDiagnostics(c *ui.Context) {
 			if !a.healthReady {
 				ui.Text(c, "尚未完成首次健康检查").TextColor(t.Warning)
 			} else {
-				ui.Text(c, fmt.Sprintf("Ringbuf 丢弃 %d", a.health.RingbufDroppedTotal)).Font("monospace").FontSize(11)
-				ui.Text(c, fmt.Sprintf("后端队列 %d", a.health.BackendQueueLen)).Font("monospace").FontSize(11)
-				ui.Text(c, fmt.Sprintf("持久化队列 %d / %d", a.health.PersistQueueLen, a.health.PersistQueueCap)).Font("monospace").FontSize(11)
+				if a.localMonitor {
+					ui.Text(c, fmt.Sprintf("Windows 采样摘要溢出 %d", a.health.RingbufDroppedTotal)).Font("monospace").FontSize(11)
+					ui.Text(c, "2 秒进程 / TCP 状态快照（实验性，只读；非内核审计）").FontSize(11).TextColor(t.Warning)
+				} else {
+					ui.Text(c, fmt.Sprintf("Ringbuf 丢弃 %d", a.health.RingbufDroppedTotal)).Font("monospace").FontSize(11)
+					ui.Text(c, fmt.Sprintf("后端队列 %d", a.health.BackendQueueLen)).Font("monospace").FontSize(11)
+					ui.Text(c, fmt.Sprintf("持久化队列 %d / %d", a.health.PersistQueueLen, a.health.PersistQueueCap)).Font("monospace").FontSize(11)
+				}
 			}
 			if !a.lastSync.IsZero() {
 				ui.Text(c, "最近同步 "+a.lastSync.Format("15:04:05")).FontSize(10).TextColor(t.TextMuted)
@@ -360,7 +365,7 @@ func (a *renewApp) inspectorDiagnostics(c *ui.Context) {
 		})
 		card(c, "传输状态", func() {
 			if a.eventStreamConnected {
-				statusPill(c, "事件流已连接", t.Success)
+				if a.localMonitor { statusPill(c, "本机事件采样", t.Warning) } else { statusPill(c, "事件流已连接", t.Success) }
 			} else {
 				statusPill(c, "事件流回退/重连中", t.Warning)
 				if a.eventStreamErr != "" {
@@ -368,7 +373,7 @@ func (a *renewApp) inspectorDiagnostics(c *ui.Context) {
 				}
 			}
 			if a.systemConnected {
-				statusPill(c, "系统流已连接", t.Success)
+				if a.localMonitor { statusPill(c, "系统指标采样", t.Warning) } else { statusPill(c, "系统流已连接", t.Success) }
 			} else {
 				statusPill(c, "系统流未连接", t.Warning)
 				if a.systemErr != "" {
@@ -384,9 +389,9 @@ func (a *renewApp) inspectorDiagnostics(c *ui.Context) {
 			})
 		}
 		ui.Text(c, "没有告警不代表所有活动都被采集。").FontSize(11).TextColor(t.TextMuted)
-		ui.Row(c).Gap(7).Wrap().Children(func() {
+		if !a.localMonitor { ui.Row(c).Gap(7).Wrap().Children(func() {
 			if ui.Button(c, "采集设置").Clicked() { a.page = "监控" }
 			if ui.Button(c, "eBPF 模块").Clicked() { a.page = "eBPF 模块" }
-		})
+		}) }
 	})
 }
