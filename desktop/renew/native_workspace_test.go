@@ -35,6 +35,96 @@ func TestWorkspaceInspectorResponsive(t *testing.T) {
 	}
 }
 
+
+func TestWorkspaceNavigationDetailedLabels(t *testing.T) {
+	for _, tc := range []struct {
+		open, detailed bool
+		want float32
+	}{
+		{false, false, 0},
+		{false, true, 0},
+		{true, false, workspaceNavigationCompactWidth},
+		{true, true, workspaceNavigationDetailedWidth},
+	} {
+		if got := workspaceNavigationWidth(tc.open, tc.detailed); got != tc.want {
+			t.Errorf("navigation width for open=%t detailed=%t is %v, want %v", tc.open, tc.detailed, got, tc.want)
+		}
+	}
+	for _, id := range []string{"概览", "研判", "事件", "会话", "网络", "进程", "Agent 识别", "监控", "eBPF 模块", "规则", "跟踪", "路径权限", "终端", "系统"} {
+		short, detailed := workspaceNavigationLabel(id, false), workspaceNavigationLabel(id, true)
+		if short == "" || detailed == "" || short == detailed {
+			t.Errorf("navigation label for %q should be nonempty and distinct: %q / %q", id, short, detailed)
+		}
+	}
+	if got := workspaceNavigationLabel("未知页面", true); got != "未知页面" {
+		t.Fatalf("unknown routes must remain unchanged: %q", got)
+	}
+	if showWorkspaceInspector(1400, workspaceNavigationDetailedWidth, true, "进程") {
+		t.Fatal("detailed navigation must not squeeze in the incident inspector")
+	}
+	if !showWorkspaceInspector(1480, workspaceNavigationDetailedWidth, true, "进程") {
+		t.Fatal("wide windows should retain the incident inspector with detailed navigation")
+	}
+}
+
+func TestWorkspaceNavigationToggleInteractive(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.page = "进程"
+	view := ui.NewTester(a.view, 1480, 860)
+	view.SetPreferences(ui.Preferences{ReduceMotion: true, TextScale: 1})
+
+	assertBreadcrumb := func(minX, maxX float32) {
+		t.Helper()
+		r, ok := view.Find("工作区")
+		if !ok || r.X < minX || r.X > maxX {
+			t.Fatalf("main workspace must follow navigation width, breadcrumb=%+v found=%t (wanted X %.0f..%.0f)", r, ok, minX, maxX)
+		}
+	}
+	assertBreadcrumb(54, 100)
+	if view.HasText("功能导航") {
+		t.Fatal("collapsed navigation must not reserve an invisible gutter")
+	}
+	if err := view.Click("»"); err != nil {
+		t.Fatal(err)
+	}
+	if !a.navigationOpen || !view.HasText("功能导航") {
+		t.Fatal("rail toggle must open the sidebar")
+	}
+	assertBreadcrumb(248, 290)
+	if err := view.Click("详细 ›"); err != nil {
+		t.Fatal(err)
+	}
+	if !a.navigationDetailed || !view.HasText("进程活动与资源监测") || !view.HasText("Agent 识别与捕获监视范围") {
+		t.Fatal("detailed mode must expand and show full navigation names")
+	}
+	assertBreadcrumb(352, 390)
+	if _, found := view.Find("事件研判"); !found {
+		t.Fatal("wide window should retain right-hand incident inspector")
+	}
+	view.SetSize(1400, 860)
+	assertBreadcrumb(352, 390)
+	if _, found := view.Find("事件研判"); found {
+		t.Fatal("inspector must disappear when detailed sidebar leaves insufficient center space")
+	}
+	if err := view.Click("精简 ‹"); err != nil {
+		t.Fatal(err)
+	}
+	if a.navigationDetailed {
+		t.Fatal("sidebar should return to compact width")
+	}
+	assertBreadcrumb(248, 290)
+	if _, found := view.Find("事件研判"); !found {
+		t.Fatal("compact sidebar must release enough space for inspector")
+	}
+	if err := view.Click("≡"); err != nil {
+		t.Fatal(err)
+	}
+	if a.navigationOpen || view.HasText("功能导航") {
+		t.Fatal("collapsing sidebar must hide all of its content")
+	}
+	assertBreadcrumb(54, 100)
+}
+
 func TestInspectorUsesCompactEventsWithoutLoadingDetails(t *testing.T) {
 	a := newRenewApp("http://127.0.0.1:8080")
 	a.events = []eventSummary{

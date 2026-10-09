@@ -50,6 +50,51 @@ func showWorkspaceInspector(windowWidth, navigationWidth float32, expanded bool,
 		windowWidth-activityRailWidth-navigationWidth-inspectorWidth >= minimumCenterWidth
 }
 
+
+const (
+	workspaceNavigationCompactWidth  float32 = 198
+	workspaceNavigationDetailedWidth float32 = 302
+)
+
+// Page IDs remain stable; only the optional sidebar's visible names change.
+var workspaceNavigationLabels = map[string][2]string{
+	"概览":       {"态势总览", "系统态势与运行概览"},
+	"研判":       {"风险研判工作台", "风险事件研判工作台"},
+	"事件":       {"事件流", "eBPF 实时事件流"},
+	"会话":       {"Agent 会话", "Agent 会话与行为关联"},
+	"网络":       {"网络外联", "网络连接与外联目标"},
+	"进程":       {"进程活动", "进程活动与资源监测"},
+	"Agent 识别": {"捕获与监视范围", "Agent 识别与捕获监视范围"},
+	"监控":       {"采集设置", "实时采集与监控设置"},
+	"eBPF 模块":  {"内核模块", "eBPF 内核模块管理"},
+	"规则":       {"Wrapper 规则", "Wrapper 拦截与防护规则"},
+	"跟踪":       {"跟踪范围", "进程、命令与路径跟踪"},
+	"路径权限":   {"文件访问保护", "文件路径与访问权限"},
+	"终端":       {"本地 Shell · 多标签与分屏", "本地 Shell 终端与多窗格"},
+	"系统":       {"系统诊断", "采集链路与系统运行诊断"},
+}
+
+func workspaceNavigationWidth(open, detailed bool) float32 {
+	if !open {
+		return 0
+	}
+	if detailed {
+		return workspaceNavigationDetailedWidth
+	}
+	return workspaceNavigationCompactWidth
+}
+
+func workspaceNavigationLabel(page string, detailed bool) string {
+	labels, ok := workspaceNavigationLabels[page]
+	if !ok {
+		return page
+	}
+	if detailed {
+		return labels[1]
+	}
+	return labels[0]
+}
+
 func (a *renewApp) workspaceView(c *ui.Context) {
 	// MyGo's frame theme already tracks light/dark system appearance and changes.
 	// Copy its current colors before applying the Renew palette so that OS
@@ -67,20 +112,19 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 		shell.Background(t.Background)
 	}
 	// MyGo 0.3 animations honor the OS reduced-motion setting.
-	navTarget := float32(0)
-	if a.navigationOpen {
-		navTarget = 1
-	}
-	navProgress := shell.Animate("renew-navigation", navTarget, 180*time.Millisecond)
+	// Animate actual widths, not a percentage, so resizing and switching
+	// label density use the same inspector layout calculation.
+	navTarget := workspaceNavigationWidth(a.navigationOpen, a.navigationDetailed)
+	navWidth := shell.Animate("renew-navigation", navTarget, 180*time.Millisecond)
 	shell.Children(func() {
 		a.activityRail(c)
-		if navProgress > 0 {
-			ui.Row(c).Width(198 * navProgress).Shrink(0).AlignItems(ui.Stretch).Clip().Children(func() {
+		if navWidth > 0 {
+			ui.Row(c).Width(navWidth).Shrink(0).AlignItems(ui.Stretch).Clip().Children(func() {
 				a.sidebar(c)
 			})
 		}
 		ui.Column(c).Key("workspace-content").Grow(1).MinWidth(0).Background(t.Background).Children(func() {
-			a.header(c, 198*navProgress)
+			a.header(c, navWidth)
 			if a.page == "终端" {
 				// Real PTY bounds without a parent Scroll; also usable offline.
 				a.terminalView(c)
@@ -101,7 +145,7 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 						}
 					})
 				})
-				if showWorkspaceInspector(width, 198*navProgress, a.inspectorOpen, a.page) {
+				if showWorkspaceInspector(width, navWidth, a.inspectorOpen, a.page) {
 					a.inspector(c)
 				}
 				})
@@ -178,7 +222,7 @@ func (a *renewApp) activityRail(c *ui.Context) {
 			if a.page == item.label {
 				marker = "●"
 			}
-			if ui.Button(c, marker).Tooltip(item.label).Width(40).Clicked() {
+			if ui.Button(c, marker).Tooltip(workspaceNavigationLabel(item.label, true)).Width(40).Clicked() {
 				a.page = item.label
 			}
 		}
@@ -197,39 +241,52 @@ func (a *renewApp) activityRail(c *ui.Context) {
 func (a *renewApp) sidebar(c *ui.Context) {
 	t := c.Theme()
 	_, attention, danger := a.riskCounts()
-	side := ui.Column(c).Width(198).Shrink(0).Border(1, t.Border)
+	width := workspaceNavigationWidth(true, a.navigationDetailed)
+	label := func(page string) string { return workspaceNavigationLabel(page, a.navigationDetailed) }
+	side := ui.Column(c).Width(width).Shrink(0).Border(1, t.Border)
 	if !c.Vibrancy() {
 		side.Background(t.Surface)
 	}
 	side.Children(func() {
+		ui.Row(c).Padding(9, 10).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, "功能导航").FontSize(12).Bold().Grow(1)
+			switchLabel, tip := "详细 ›", "展开侧边栏，显示完整的功能名称"
+			if a.navigationDetailed {
+				switchLabel, tip = "精简 ‹", "收窄侧边栏，显示精简的功能名称"
+			}
+			if ui.Button(c, switchLabel).Tooltip(tip).Clicked() {
+				a.navigationDetailed = !a.navigationDetailed
+			}
+		})
+		ui.Divider(c)
 		menu := ui.Sidebar(c, &a.page, func() {
 			ui.SidebarSection(c, "监控工作台", nil, func() {
-				ui.SidebarItem(c, "概览", nil, "态势总览")
-				ui.SidebarItem(c, "研判", nil, "风险研判工作台")
-				events := ui.SidebarItem(c, "事件", nil, "事件流")
+				ui.SidebarItem(c, "概览", nil, label("概览"))
+				ui.SidebarItem(c, "研判", nil, label("研判"))
+				events := ui.SidebarItem(c, "事件", nil, label("事件"))
 				switch {
 				case danger > 0:
 					events.Children(func() { statusPill(c, fmt.Sprint(danger), t.Danger) })
 				case attention > 0:
 					events.Children(func() { statusPill(c, fmt.Sprint(attention), t.Warning) })
 				}
-				ui.SidebarItem(c, "会话", nil, "Agent 会话")
-				ui.SidebarItem(c, "网络", nil, "网络外联")
-				ui.SidebarItem(c, "进程", nil, "进程活动")
-				ui.SidebarItem(c, "Agent 识别", nil, "捕获与监视范围")
+				ui.SidebarItem(c, "会话", nil, label("会话"))
+				ui.SidebarItem(c, "网络", nil, label("网络"))
+				ui.SidebarItem(c, "进程", nil, label("进程"))
+				ui.SidebarItem(c, "Agent 识别", nil, label("Agent 识别"))
 			})
 			ui.SidebarSection(c, "防护与管理", nil, func() {
-				ui.SidebarItem(c, "监控", nil, "采集设置")
-				ui.SidebarItem(c, "eBPF 模块", nil, "内核模块")
-				ui.SidebarItem(c, "规则", nil, "Wrapper 规则")
-				ui.SidebarItem(c, "跟踪", nil, "跟踪范围")
-				ui.SidebarItem(c, "路径权限", nil, "文件访问保护")
+				ui.SidebarItem(c, "监控", nil, label("监控"))
+				ui.SidebarItem(c, "eBPF 模块", nil, label("eBPF 模块"))
+				ui.SidebarItem(c, "规则", nil, label("规则"))
+				ui.SidebarItem(c, "跟踪", nil, label("跟踪"))
+				ui.SidebarItem(c, "路径权限", nil, label("路径权限"))
 			})
 			ui.SidebarSection(c, "工具", nil, func() {
-				ui.SidebarItem(c, "终端", nil, "本地 Shell · 多标签与分屏")
+				ui.SidebarItem(c, "终端", nil, label("终端"))
 			})
 			ui.SidebarSection(c, "运行诊断", nil, func() {
-				system := ui.SidebarItem(c, "系统", nil, "系统诊断")
+				system := ui.SidebarItem(c, "系统", nil, label("系统"))
 				_, level := a.collectorStatus()
 				if level == "danger" {
 					system.Children(func() { statusPill(c, "异常", t.Danger) })
@@ -237,7 +294,7 @@ func (a *renewApp) sidebar(c *ui.Context) {
 					system.Children(func() { statusPill(c, "同步", t.Warning) })
 				}
 			})
-		}).Grow(1).Width(196)
+		}).Grow(1).Width(width - 2)
 		if c.Vibrancy() {
 			menu.Background(ui.Transparent)
 		}
