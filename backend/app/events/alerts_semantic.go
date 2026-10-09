@@ -398,6 +398,12 @@ func (s *SemanticAlertState) ObserveMultiAgentFileContention(event *pb.Event, no
 	s.noteTruncationsLocked(pathTruncated, actorTruncated)
 
 	previous, seen := s.recentFileMutations.Get(key)
+	// Event replays or asynchronous producers may arrive out of order. An
+	// older observation must not replace newer evidence or revive a cooldown
+	// window; neither can it establish an ordered interleaving.
+	if seen && now.Before(previous.SeenAt) {
+		return "", "", false
+	}
 	if seen && semanticStateExpired(now, previous.SeenAt, SemanticFileContentionTTL) {
 		s.expiredEvictionsTotal++
 		seen = false
