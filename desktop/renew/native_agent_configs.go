@@ -393,8 +393,10 @@ func inspectAgentConfigPaths(home, claudeDir, codexDir, project string) agentCon
 			out.Notes = append(out.Notes, "项目路径请使用绝对路径")
 		} else {
 			project = filepath.Clean(project)
-			addClaude(filepath.Join(project, ".claude", "settings.json"), "项目")
-			addClaude(filepath.Join(project, ".claude", "settings.local.json"), "项目本地")
+			if claudeRoot := projectConfigRoot(project); claudeRoot != "" {
+				addClaude(filepath.Join(claudeRoot, ".claude", "settings.json"), "项目")
+				addClaude(filepath.Join(claudeRoot, ".claude", "settings.local.json"), "项目本地")
+			}
 			for _, layer := range codexProjectLayers(project) {
 				addCodex(layer, "项目覆盖候选（信任状态未核实）", false)
 			}
