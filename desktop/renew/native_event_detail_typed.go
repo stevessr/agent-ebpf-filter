@@ -107,30 +107,16 @@ func eventDetailTypedSection(payload eventTypedPayload) eventDetailSection {
 	var title string
 	var specs []eventDetailFieldSpec
 	switch payload.Kind {
-	case "file":
-		title = "文件元数据"
-		specs = []eventDetailFieldSpec{
-			spec("操作", "operation"), spec("路径", "path"), spec("关联路径", "extraPath"),
-			spec("模式", "mode"), spec("字节数", "bytes"), spec("目标 UID", "uidArg"),
-			spec("目标 GID", "gidArg"), spec("返回值", "retval"), spec("备注", "extraInfo"),
-		}
 	case "network":
 		title = "网络扩展"
 		specs = []eventDetailFieldSpec{
-			spec("服务", "serviceName"), spec("协议", "appProtocol"), spec("DNS", "dnsName"),
-			spec("SNI", "sni"), spec("ALPN", "tlsAlpn"), spec("QUIC 状态", "quicState"),
+			spec("服务", "serviceName"), spec("ALPN", "tlsAlpn"),
+			spec("QUIC 状态", "quicState"),
 			spec("网络接口", "interfaceName"), spec("入站包数", "packetsIn"),
 			spec("出站包数", "packetsOut"), spec("首次出现 (ms)", "firstSeenMs"),
 			spec("最近出现 (ms)", "lastSeenMs"), spec("过期等级", "staleLevel"),
 			spec("历史流", "historic"), spec("地理国家", "geoCountry"),
 			spec("ASN", "geoAsn"), spec("IP 范围", "ipScope"),
-		}
-	case "process":
-		title = "进程扩展"
-		specs = []eventDetailFieldSpec{
-			spec("阶段", "phase"), spec("父 PID", "parentPid"), spec("子 PID", "childPid"),
-			spec("目标 PID", "targetPid"), spec("旧 PID", "oldPid"),
-			spec("退出码", "exitStatus"), spec("额外信息", "extraInfo"),
 		}
 	case "policy":
 		title = "策略裁决"
