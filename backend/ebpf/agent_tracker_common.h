@@ -1056,10 +1056,18 @@ int tracepoint__sched__sched_process_fork(struct trace_event_raw_sched_process_f
     u32 child_pid = (u32)ctx->child_pid;
     if (parent_pid == 0 || child_pid == 0) return 0;
 
-    u32 *tag = bpf_map_lookup_elem(&agent_pids, &parent_pid);
-    if (!tag) return 0;
+    // In addition to explicitly registered PIDs, inherit from a tracked
+    // Agent command. Otherwise "codex -> bash -> python" loses tracing at
+    // fork when Codex was selected by comm rather than PID registration.
+    u32 tag_id = get_pid_tag_id(parent_pid);
+    char parent_comm[TASK_COMM_LEN] = {};
+    if (!tag_id) {
+        read_tracepoint_data_loc_str(parent_comm, sizeof(parent_comm), ctx, ctx->parent_comm_loc);
+        tag_id = get_comm_tag_id(parent_comm);
+    }
+    if (!tag_id) return 0;
 
-    bpf_map_update_elem(&agent_pids, &child_pid, tag, BPF_ANY);
+    bpf_map_update_elem(&agent_pids, &child_pid, &tag_id, BPF_ANY);
     u32 parent_tgid = (u32)(bpf_get_current_pid_tgid() >> 32);
     if (parent_tgid != 0 && child_pid != parent_tgid) {
         if (bpf_map_update_elem(&socket_fd_parents, &child_pid, &parent_tgid, BPF_ANY) < 0) record_context_update_failure(CONTEXT_PRESSURE_SOCKET_PARENT);
@@ -1068,9 +1076,9 @@ int tracepoint__sched__sched_process_fork(struct trace_event_raw_sched_process_f
     struct event *e = reserve_event();
     if (!e) return 0;
 
-    char parent_comm[TASK_COMM_LEN] = {};
-    read_tracepoint_data_loc_str(parent_comm, sizeof(parent_comm), ctx, ctx->parent_comm_loc);
-    fill_base_info(e, parent_pid, *tag, parent_comm);
+    if (!parent_comm[0])
+        read_tracepoint_data_loc_str(parent_comm, sizeof(parent_comm), ctx, ctx->parent_comm_loc);
+    fill_base_info(e, parent_pid, tag_id, parent_comm);
     e->type = TYPE_PROCESS_FORK;
     e->retval = child_pid;
     e->extra1 = child_pid;
