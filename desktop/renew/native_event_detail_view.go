@@ -287,6 +287,10 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 	m := eventDetailViewModel{Type: eventType, Action: eventDetailAction(detail, eventType), Decision: get("decision", "policyDecision")}
 	if semanticAlert {
 		m.Action = "语义风险告警"
+		if get("comm") == "MULTI_AGENT_FILE_CONTENTION" {
+			m.Action = "跨 Agent 路径关联（待核实）"
+			m.EvidenceNote = "该检测仅表示短时间内两个 Agent 报告了相同路径的修改操作，不能证明同时写入、同一 inode 或恶意行为。"
+		}
 	}
 	if value, _, ok := eventDetailLookup(layers, "riskScore", "risk_score"); ok {
 		m.Risk = value
@@ -578,7 +582,10 @@ func (a *renewApp) richEventDetail(c *ui.Context, detail map[string]any, width f
 		})
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, eventDetailPreview(model.Target, 520)).Font("monospace").FontSize(12).Grow(1).MinWidth(0).MaxLines(3)
-			if model.EvidenceNote == "" && ui.Button(c, "复制目标").Clicked() {
+			// A caveat must not hide a valid target's copy action; only a
+			// missing or non-applicable target should disable it.
+			if model.Target != "" && model.Target != "目标路径或端点未记录" &&
+				!model.NoTargetExpected && ui.Button(c, "复制目标").Clicked() {
 				c.WriteClipboard(model.Target)
 				c.Toast("目标已复制")
 			}
