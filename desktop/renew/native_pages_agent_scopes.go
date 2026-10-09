@@ -311,6 +311,14 @@ func (a *renewApp) agentRecognitionView(c *ui.Context) {
 	t := c.Theme()
 	ui.Text(c, "Agent 识别与范围").FontSize(28).Bold()
 	ui.Text(c, "识别运行中的 Agent 命令和标签；独立控制事件捕获与后续分析监视。名单不会阻止 Agent 执行，也不卸载内核探针。").TextColor(t.TextMuted)
+	if a.agentReturnPage != "" && a.agentReturnPage != "Agent 识别" {
+		if ui.Button(c, "← 返回"+a.agentReturnPage).Clicked() {
+			a.page = a.agentReturnPage
+			a.agentReturnPage = ""
+			a.agentFocusPID = 0
+			a.agentSearch = ""
+		}
+	}
 
 	if a.agentScopesErr != "" { ui.Text(c, a.agentScopesErr).TextColor(t.Danger) }
 	if a.agentScopesNotice != "" { statusPill(c, a.agentScopesNotice, t.Success) }
@@ -352,10 +360,27 @@ func (a *renewApp) agentRecognitionView(c *ui.Context) {
 			a.agentSelected = -1
 			a.agentLastSearch = a.agentSearch
 		}
+		if a.agentFocusPID > 0 && strings.TrimSpace(a.agentSearch) != strconv.Itoa(a.agentFocusPID) {
+			// A manual search clears the exact PID navigation scope.
+			a.agentFocusPID = 0
+		}
+		if a.agentFocusPID > 0 {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				statusPill(c, fmt.Sprintf("精确定位 Agent PID %d", a.agentFocusPID), t.Accent)
+				if ui.Button(c, "清除定位").Clicked() {
+					a.agentFocusPID = 0
+					a.agentSearch = ""
+					a.agentSelected = -1
+				}
+			})
+		}
 		rows := aggregateAgentRecognitionWithProcesses(a.events, a.registry, live)
 		if query := strings.ToLower(strings.TrimSpace(a.agentSearch)); query != "" {
 			filtered := make([]agentRecognitionRow, 0, len(rows))
 			for _, row := range rows {
+				if a.agentFocusPID > 0 && row.PID != a.agentFocusPID {
+					continue
+				}
 				if strings.Contains(strings.ToLower(row.Comm+" "+row.Tag+" "+row.Label+" "+strconv.Itoa(row.PID)), query) {
 					filtered = append(filtered, row)
 				}
