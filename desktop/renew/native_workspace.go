@@ -52,26 +52,26 @@ func showWorkspaceInspector(windowWidth, navigationWidth float32, expanded bool,
 
 
 const (
-	workspaceNavigationCompactWidth float32 = 198
+	workspaceNavigationCompactWidth  float32 = 198
 	workspaceNavigationDetailedWidth float32 = 302
 )
 
-// Keep page IDs short and stable for routing. Only the visible labels change
-// when the user asks for more room in the native navigation.
+// Page IDs remain stable; only the optional sidebar's visible names change.
 var workspaceNavigationLabels = map[string][2]string{
-	"概览":     {"态势总览", "系统态势与运行概览"},
-	"研判":     {"风险研判", "风险事件研判工作台"},
-	"事件":     {"实时事件", "eBPF 实时事件流"},
-	"会话":     {"Agent 会话", "Agent 会话与行为关联"},
-	"网络":     {"网络外联", "网络连接与外联目标"},
-	"进程":     {"进程活动", "进程活动与资源监测"},
-	"监控":     {"采集设置", "实时采集与监控设置"},
-	"eBPF 模块": {"eBPF 模块", "eBPF 内核模块管理"},
-	"规则":     {"Wrapper 规则", "Wrapper 拦截与防护规则"},
-	"跟踪":     {"跟踪范围", "进程、命令与路径跟踪"},
-	"路径权限":   {"路径权限", "文件路径与访问权限"},
-	"终端":     {"本地终端", "本地 Shell 终端与多窗格"},
-	"系统":     {"系统诊断", "采集链路与系统运行诊断"},
+	"概览":       {"态势总览", "系统态势与运行概览"},
+	"研判":       {"风险研判工作台", "风险事件研判工作台"},
+	"事件":       {"事件流", "eBPF 实时事件流"},
+	"会话":       {"Agent 会话", "Agent 会话与行为关联"},
+	"网络":       {"网络外联", "网络连接与外联目标"},
+	"进程":       {"进程活动", "进程活动与资源监测"},
+	"Agent 识别": {"捕获与监视范围", "Agent 识别与捕获监视范围"},
+	"监控":       {"采集设置", "实时采集与监控设置"},
+	"eBPF 模块":  {"内核模块", "eBPF 内核模块管理"},
+	"规则":       {"Wrapper 规则", "Wrapper 拦截与防护规则"},
+	"跟踪":       {"跟踪范围", "进程、命令与路径跟踪"},
+	"路径权限":   {"文件访问保护", "文件路径与访问权限"},
+	"终端":       {"本地 Shell · 多标签与分屏", "本地 Shell 终端与多窗格"},
+	"系统":       {"系统诊断", "采集链路与系统运行诊断"},
 }
 
 func workspaceNavigationWidth(open, detailed bool) float32 {
@@ -112,16 +112,18 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 		shell.Background(t.Background)
 	}
 	// MyGo 0.3 animations honor the OS reduced-motion setting.
+	// Animate actual widths, not a percentage, so resizing and switching
+	// label density use the same inspector layout calculation.
 	navTarget := workspaceNavigationWidth(a.navigationOpen, a.navigationDetailed)
 	navWidth := shell.Animate("renew-navigation", navTarget, 180*time.Millisecond)
 	shell.Children(func() {
 		a.activityRail(c)
 		if navWidth > 0 {
-			ui.Row(c).Width(navWidth).Shrink(0).Clip().Children(func() {
+			ui.Row(c).Width(navWidth).Shrink(0).AlignItems(ui.Stretch).Clip().Children(func() {
 				a.sidebar(c)
 			})
 		}
-		ui.Column(c).Grow(1).MinWidth(0).Background(t.Background).Children(func() {
+		ui.Column(c).Key("workspace-content").Grow(1).MinWidth(0).Background(t.Background).Children(func() {
 			a.header(c, navWidth)
 			if a.page == "终端" {
 				// Real PTY bounds without a parent Scroll; also usable offline.
@@ -171,6 +173,8 @@ func (a *renewApp) workspacePage(c *ui.Context) {
 		a.networkView(c)
 	case "进程":
 		a.processesView(c)
+	case "Agent 识别":
+		a.agentRecognitionView(c)
 	case "监控":
 		a.monitoringView(c)
 	case "eBPF 模块":
@@ -208,6 +212,7 @@ func (a *renewApp) activityRail(c *ui.Context) {
 			{"会话", "◎"},
 			{"网络", "⇄"},
 			{"进程", "▣"},
+			{"Agent 识别", "◉"},
 			{"监控", "◈"},
 			{"规则", "▤"},
 			{"系统", "⚙"},
@@ -237,9 +242,7 @@ func (a *renewApp) sidebar(c *ui.Context) {
 	t := c.Theme()
 	_, attention, danger := a.riskCounts()
 	width := workspaceNavigationWidth(true, a.navigationDetailed)
-	label := func(page string) string {
-		return workspaceNavigationLabel(page, a.navigationDetailed)
-	}
+	label := func(page string) string { return workspaceNavigationLabel(page, a.navigationDetailed) }
 	side := ui.Column(c).Width(width).Shrink(0).Border(1, t.Border)
 	if !c.Vibrancy() {
 		side.Background(t.Surface)
@@ -270,6 +273,7 @@ func (a *renewApp) sidebar(c *ui.Context) {
 				ui.SidebarItem(c, "会话", nil, label("会话"))
 				ui.SidebarItem(c, "网络", nil, label("网络"))
 				ui.SidebarItem(c, "进程", nil, label("进程"))
+				ui.SidebarItem(c, "Agent 识别", nil, label("Agent 识别"))
 			})
 			ui.SidebarSection(c, "防护与管理", nil, func() {
 				ui.SidebarItem(c, "监控", nil, label("监控"))
@@ -294,6 +298,7 @@ func (a *renewApp) sidebar(c *ui.Context) {
 		if c.Vibrancy() {
 			menu.Background(ui.Transparent)
 		}
+
 	})
 }
 
@@ -392,6 +397,9 @@ func (a *renewApp) refreshActiveView() {
 	// second system WebSocket here would duplicate the collector workload.
 	go a.refresh(context.Background())
 	switch a.page {
+	case "Agent 识别":
+		go a.refreshAgentScopes(context.Background())
+		go a.refreshRegistry(context.Background())
 	case "监控":
 		go a.refreshConfiguration(context.Background())
 	case "规则":

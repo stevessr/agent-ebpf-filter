@@ -387,17 +387,39 @@ func TestEventDecisionFilters(t *testing.T) {
 
 func TestEnforcementTargetsRejectHostnameAndAcceptLiteralIP(t *testing.T) {
 	dns := enforcementTargets(map[string]any{
-		"event": map[string]any{"netEndpoint": "example.com:443", "path": "relative"},
+		"event": map[string]any{"type": "connect", "netEndpoint": "example.com:443", "path": "relative"},
 	})
 	if dns.IP != "" || dns.Port != 0 || dns.ExecPath != "" {
 		t.Fatalf("hostname must not become enforcement target: %+v", dns)
 	}
 
 	ip := enforcementTargets(map[string]any{
-		"event": map[string]any{"netEndpoint": "192.0.2.10:443", "path": "/usr/bin/curl"},
+		"event": map[string]any{"type": "connect", "netEndpoint": "192.0.2.10:443"},
 	})
-	if ip.IP != "192.0.2.10" || ip.Port != 443 || ip.ExecPath != "/usr/bin/curl" {
+	if ip.IP != "192.0.2.10" || ip.Port != 443 || ip.ExecPath != "" {
 		t.Fatalf("unexpected literal-IP target: %+v", ip)
+	}
+	exec := enforcementTargets(map[string]any{
+		"Event": map[string]any{"type": "execve", "path": "/usr/bin/curl", "netEndpoint": "192.0.2.10:443"},
+	})
+	if exec.IP != "" || exec.ExecPath != "/usr/bin/curl" {
+		t.Fatalf("non-network exec must not suggest IP block: %+v", exec)
+	}
+	typed := enforcementTargets(map[string]any{
+		"Event": map[string]any{"type": "unknown"},
+		"Envelope": map[string]any{"networkEvent": map[string]any{
+			"endpoint": "203.0.113.10:8443",
+		}},
+	})
+	if typed.IP != "203.0.113.10" || typed.Port != 8443 {
+		t.Fatalf("typed network payload should be eligible: %+v", typed)
+	}
+	// A write destination must never be offered as an exec block target.
+	write := enforcementTargets(map[string]any{
+		"Event": map[string]any{"type": "write", "path": "/home/user/document.txt"},
+	})
+	if write.ExecPath != "" {
+		t.Fatalf("file write path must not be a process execution target: %+v", write)
 	}
 }
 

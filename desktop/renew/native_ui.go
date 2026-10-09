@@ -113,6 +113,7 @@ type renewApp struct {
 	eventDetailText     string
 	eventDetailErr      string
 	eventDetailTab      int
+	eventDetailFieldSearch string
 	enforcement         enforcementSnapshot
 	enforcementBusy     bool
 	enforcementErr      string
@@ -139,6 +140,20 @@ type renewApp struct {
 	modulesNotice        string
 	modulesPendingUnload string
 	modules              []ebpfModule
+
+	agentScopes          agentScopePolicy
+	agentScopesReady     bool
+	agentScopesBusy      bool
+	agentScopesErr       string
+	agentScopesNotice    string
+	captureScopeMode     string
+	monitorScopeMode     string
+	captureScopeText     string
+	monitorScopeText     string
+	agentSearch          string
+	agentLastSearch      string
+	agentTable           ui.ListState
+	agentSelected        int
 
 	registryReady bool
 	registryBusy  bool
@@ -173,7 +188,7 @@ func newRenewApp(backend string) *renewApp {
 		backend:            backend,
 		starting:           true,
 		page:               "概览",
-		navigationOpen:       true,
+		navigationOpen:       false,
 		inspectorOpen:      true,
 		materialEnabled:    true,
 		eventSelected:      -1,
@@ -185,6 +200,9 @@ func newRenewApp(backend string) *renewApp {
 		pathSelected:       -1,
 		prefixSelected:     -1,
 		eventVisibleLimit:  50,
+		agentSelected:      -1,
+		captureScopeMode:   "黑名单",
+		monitorScopeMode:   "黑名单",
 		disabledEventTypes: make(map[int]bool),
 		ruleAction:         "ALERT",
 		rulePriority:       "0",
@@ -197,6 +215,7 @@ func newRenewApp(backend string) *renewApp {
 	a.sessionTable.Selected = &a.sessionSelected
 	a.rulesTable.Selected = &a.ruleSelected
 	a.commTable.Selected = &a.commSelected
+	a.agentTable.Selected = &a.agentSelected
 	a.pathTable.Selected = &a.pathSelected
 	a.prefixTable.Selected = &a.prefixSelected
 	return a
@@ -212,6 +231,7 @@ func (a *renewApp) runPolling(ctx context.Context, session *backendSession) {
 	}
 	a.refresh(ctx)
 	a.refreshConfiguration(ctx)
+	go a.refreshAgentScopes(ctx)
 	go a.refreshEBPFModules(ctx)
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
@@ -360,6 +380,8 @@ func pageSubtitle(page string) string {
 		return "外联目标与摘要窗口聚合"
 	case "进程":
 		return "实时进程与 Agent 活动"
+	case "Agent 识别":
+		return "进程识别、捕获名单与监视名单"
 	case "监控":
 		return "采集范围、运行时能力与开销"
 	case "eBPF 模块":
