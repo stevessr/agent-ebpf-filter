@@ -91,7 +91,7 @@ func (a *renewApp) clearEventFilters() {
 	a.eventDelegatedOnly = false
 	a.eventRiskFilter = ""
 	a.eventAttentionOnly = false
-	a.ccsEventAppFilter = ""
+	a.managementEventFilter = ""
 	a.eventVisibleLimit = 50
 	a.eventSelected = -1
 	a.inspectorSelectedID = ""
