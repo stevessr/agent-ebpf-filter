@@ -69,8 +69,9 @@ func (a *renewApp) agentConfigPanel(c *ui.Context) {
 			{Title: "Agent", Width: 124, Fixed: true},
 			{Title: "配置来源", MinWidth: 156},
 			{Title: "Provider", MinWidth: 150},
-			{Title: "模型", MinWidth: 158},
-			{Title: "候选主机", MinWidth: 200},
+			{Title: "模型", MinWidth: 132},
+			{Title: "配置安全模式", MinWidth: 190},
+			{Title: "候选主机", MinWidth: 185},
 			{Title: "观测事件", Width: 78, Align: ui.End},
 		}
 		ownership := buildAgentOwnershipIndex(a.events, nil)
@@ -90,8 +91,10 @@ func (a *renewApp) agentConfigPanel(c *ui.Context) {
 			case 3:
 				ui.Text(c, displayOr(item.Model, "未声明")).SingleLine()
 			case 4:
-				ui.Text(c, formatConfigCandidate(item)).SingleLine()
+				ui.Text(c, displayOr(item.Security, "未声明")).SingleLine()
 			case 5:
+				ui.Text(c, formatConfigCandidate(item)).SingleLine()
+			case 6:
 				ui.Text(c, fmt.Sprint(countObservedConfigHostWithIndex(item.Agent, item.Host, a.events, ownership)))
 			}
 		}).Height(260).Label("本机 Agent 配置候选")
