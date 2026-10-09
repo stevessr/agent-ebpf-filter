@@ -63,6 +63,7 @@ var workspaceNavigationLabels = map[string][2]string{
 	"事件":       {"事件流", "eBPF 实时事件流"},
 	"会话":       {"Agent 会话", "Agent 会话与行为关联"},
 	"网络":       {"网络外联", "网络连接与外联目标"},
+	"域名":       {"Agent 域名监控", "Agent 域名与外联目的地监控"},
 	"进程":       {"进程活动", "进程活动与资源监测"},
 	"Agent 识别": {"捕获与监视范围", "Agent 识别与捕获监视范围"},
 	"监控":       {"采集设置", "实时采集与监控设置"},
@@ -71,6 +72,7 @@ var workspaceNavigationLabels = map[string][2]string{
 	"跟踪":       {"跟踪范围", "进程、命令与路径跟踪"},
 	"路径权限":   {"文件访问保护", "文件路径与访问权限"},
 	"终端":       {"本地 Shell · 多标签与分屏", "本地 Shell 终端与多窗格"},
+	"CCS":        {"管理软件联动", "CC-Switch / AstrLink / CCR / Antigravity 本地视图"},
 	"系统":       {"系统诊断", "采集链路与系统运行诊断"},
 }
 
@@ -171,6 +173,8 @@ func (a *renewApp) workspacePage(c *ui.Context) {
 		a.sessionsView(c)
 	case "网络":
 		a.networkView(c)
+	case "域名":
+		a.agentDomainsView(c)
 	case "进程":
 		a.processesView(c)
 	case "Agent 识别":
@@ -187,6 +191,8 @@ func (a *renewApp) workspacePage(c *ui.Context) {
 		a.pathAccessView(c)
 	case "系统":
 		a.systemView(c)
+	case "CCS":
+		a.integrationsView(c)
 	default:
 		a.overview(c)
 	}
@@ -194,9 +200,6 @@ func (a *renewApp) workspacePage(c *ui.Context) {
 
 // Activity-bar shortcuts are a quick route into real monitoring pages.
 // The full navigation and privileged configuration gates remain unchanged.
-// The rail uses stable SVG icons. Selection is a persistent accent highlight
-// rather than replacing the current page's glyph with a dot. Keyboard focus
-// is still drawn independently by MyGo's accessible ButtonBase focus ring.
 func (a *renewApp) activityRail(c *ui.Context) {
 	t := c.Theme()
 	rail := ui.Column(c).Width(54).Shrink(0).Gap(8).Padding(9, 6)
@@ -293,6 +296,7 @@ func (a *renewApp) sidebar(c *ui.Context) {
 				}
 				navItem("会话")
 				navItem("网络")
+				navItem("域名")
 				navItem("进程")
 				navItem("Agent 识别")
 			})
@@ -305,6 +309,7 @@ func (a *renewApp) sidebar(c *ui.Context) {
 			})
 			ui.SidebarSection(c, "工具", nil, func() {
 				navItem("终端")
+				navItem("CCS")
 			})
 			ui.SidebarSection(c, "运行诊断", nil, func() {
 				system := navItem("系统")
@@ -366,6 +371,15 @@ func (a *renewApp) header(c *ui.Context, navigationWidth float32) {
 				}
 				if ui.Button(c, "刷新").Tooltip("重新读取当前页面的数据").Clicked() {
 					a.refreshActiveView()
+				}
+				if a.trayAvailable {
+					label := "关闭后退出"
+					if a.minimizeToTray {
+						label = "关闭后驻留托盘"
+					}
+					if ui.Button(c, label).Tooltip("切换关闭窗口时退出或驻留托盘。驻留期间继续监控；从托盘明确退出才结束。").Clicked() {
+						a.minimizeToTray = !a.minimizeToTray
+					}
 				}
 				if windowMaterial(runtime.GOOS, true) != mygo.VibrancyNone {
 					caption := "纯色模式"
@@ -435,6 +449,11 @@ func (a *renewApp) refreshActiveView() {
 		go a.refreshRegistry(context.Background())
 	case "eBPF 模块":
 		go a.refreshEBPFModules(context.Background())
+	case "CCS":
+		go a.refreshCCS(context.Background())
+		go a.refreshAstrLink(context.Background())
+		go a.refreshCCR(context.Background())
+		go a.refreshAntigravity(context.Background())
 	case "路径权限":
 		go a.refreshPathAccess()
 		go a.refreshConfiguration(context.Background())

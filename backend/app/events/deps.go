@@ -130,11 +130,15 @@ var Deps struct {
 	// Process context / cgroup attribution (used by context_event.go)
 	ProcessContexts         *ProcessContextStore
 	CgroupAttributionEnrich func(cgroupID uint64) (agentRunID, taskID, toolCallID string)
+	CgroupAttributionGet    func(cgroupID uint64) (CgroupAttributionEntry, bool)
 	CgroupAttributionSet    func(cgroupID uint64, entry CgroupAttributionEntry)
 
 	// Semantic alerts (used by alerts_semantic.go, alertsdetectsemantic.go)
 	SemanticAlertsState *SemanticAlertState
 	ToolBaselineObserve func(toolName, comm, eventType string) (string, bool)
+	// ToolBaselineAssess returns a risk floor alongside temporal evidence.
+	// If unset, older embedders can continue using ToolBaselineObserve.
+	ToolBaselineAssess func(toolName, comm, eventType string) (reason string, riskFloor float64, detected bool)
 
 	// Event schema version (used by alerts_semantic.go)
 	EventSchemaVersion string

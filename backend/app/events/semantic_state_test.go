@@ -114,6 +114,152 @@ func TestSemanticStateBoundsOversizedIdentifiersAndValues(t *testing.T) {
 	}
 }
 
+
+func TestSemanticFileContentionRequiresSuccessfulSyscallResult(t *testing.T) {
+	for _, kind := range []string{"write", "rename", "unlink", "chmod", "mkdir"} {
+		t.Run(kind, func(t *testing.T) {
+			failed := &pb.Event{Type: kind, Path: "/workspace/shared.txt", Retval: -13}
+			if got, _, ok := semanticFileMutationPath(failed); ok || got != "" {
+				t.Fatalf("failed %s was treated as a file mutation: %q", kind, got)
+			}
+			// Metadata syscalls succeed with 0; write succeeds only when
+			// the observed result says it actually wrote one or more bytes.
+			success := &pb.Event{Type: kind, Path: "/workspace/shared.txt", Retval: 0}
+			if kind == "write" {
+				if got, _, ok := semanticFileMutationPath(success); ok || got != "" {
+					t.Fatalf("zero-byte write misidentified as a mutation: %q", got)
+				}
+				success.Retval = 1
+			}
+			if got, _, ok := semanticFileMutationPath(success); !ok || got != success.Path {
+				t.Fatalf("successful operation lost: %q, %v", got, ok)
+			}
+		})
+	}
+}
+
+func TestSemanticFileContentionCooldownAndContainerIsolation(t *testing.T) {
+	start := time.Date(2026, 10, 9, 16, 0, 0, 0, time.UTC)
+	writer := func(id, container string) *pb.Event {
+		return &pb.Event{Type: "write", Path: "/workspace/shared.txt",
+			AgentRunId: id, ContainerId: container, Retval: 5}
+	}
+	t.Run("burst deduplicated within window", func(t *testing.T) {
+		s := NewSemanticAlertState()
+		first, second := writer("first", ""), writer("second", "")
+		if _, _, ok := s.ObserveMultiAgentFileContention(first, start); ok {
+			t.Fatal("first writer unexpectedly alerted")
+		}
+		path, reason, ok := s.ObserveMultiAgentFileContention(second, start.Add(time.Second))
+		if !ok || path != first.Path ||
+			!strings.Contains(reason, "identical inode and malicious intent are not established") {
+			t.Fatalf("insufficient reason or target: %q %q %v", path, reason, ok)
+		}
+		for i := 2; i <= 14; i++ {
+			e := first
+			if i%2 != 0 {
+				e = second
+			}
+			if _, _, ok := s.ObserveMultiAgentFileContention(e, start.Add(time.Duration(i)*time.Second)); ok {
+				t.Fatalf("alert storm at second %d despite cooldown", i)
+			}
+		}
+		if _, _, ok := s.ObserveMultiAgentFileContention(second, start.Add(17*time.Second)); !ok {
+			t.Fatal("new window should allow an alert after cooldown")
+		}
+		status := s.Status()
+		if status.FileCorrelationAlertsTotal != 2 || status.FileCorrelationDedupedTotal != 13 ||
+			status.FileCorrelationLateTotal != 0 {
+			t.Fatalf("unexpected bounded correlation metrics after burst: %+v", status)
+		}
+	})
+	t.Run("different containers are not proof of same file", func(t *testing.T) {
+		s := NewSemanticAlertState()
+		if _, _, ok := s.ObserveMultiAgentFileContention(writer("first", "container-a"), start); ok {
+			t.Fatal("first writer unexpectedly alerted")
+		}
+		if _, _, ok := s.ObserveMultiAgentFileContention(writer("second", "container-b"), start.Add(time.Second)); ok {
+			t.Fatal("same pathname in different known containers should not correlate")
+		}
+		if _, _, ok := s.ObserveMultiAgentFileContention(writer("third", "container-a"), start.Add(2*time.Second)); !ok {
+			t.Fatal("another container must not overwrite the first container's history")
+		}
+		if _, _, ok := s.ObserveMultiAgentFileContention(writer("unknown", ""), start.Add(3*time.Second)); ok {
+			t.Fatal("unknown container scope must not match a known container")
+		}
+	})
+	t.Run("failed write never creates state or overwrites previous evidence", func(t *testing.T) {
+		s := NewSemanticAlertState()
+		first, second := writer("first", ""), writer("second", "")
+		failed := writer("third", "")
+		failed.Retval = -1
+		if _, _, ok := s.ObserveMultiAgentFileContention(first, start); ok {
+			t.Fatal("first writer unexpectedly alerted")
+		}
+		if _, _, ok := s.ObserveMultiAgentFileContention(failed, start.Add(time.Second)); ok {
+			t.Fatal("failed operation unexpectedly alerted")
+		}
+		if _, _, ok := s.ObserveMultiAgentFileContention(second, start.Add(2*time.Second)); !ok {
+			t.Fatal("failed write replaced the real first actor")
+		}
+	})
+}
+
+func TestSemanticFileContentionRejectsPseudoFilesButPreservesSharedMemory(t *testing.T) {
+	for _, path := range []string{
+		"/dev/null", "/dev/stdout", "/dev/pts/0", "/dev/fd/1",
+		"/proc/self/fd/1", "/proc/42/mem", "/sys/kernel/debug/tracing",
+		"/tmp/../dev/null",
+	} {
+		t.Run(path, func(t *testing.T) {
+			event := &pb.Event{Type: "write", Path: path, Retval: 4}
+			resolved, _, ok := semanticFileMutationPath(event)
+			// /tmp/../dev/null resolves to /dev/null, too.
+			if ok || resolved != "" {
+				t.Fatalf("device/pseudo-file %q was treated as a regular shared file: %q", path, resolved)
+			}
+		})
+	}
+	for _, path := range []string{"/workspace/report.txt", "/dev/shm/agent-cache"} {
+		event := &pb.Event{Type: "write", Path: path, Retval: 4}
+		if got, _, ok := semanticFileMutationPath(event); !ok || got != path {
+			t.Fatalf("normal shared file %q was rejected: %q, %v", path, got, ok)
+		}
+	}
+}
+
+func TestSemanticFileContentionIgnoresOutOfOrderObservations(t *testing.T) {
+	s := NewSemanticAlertState()
+	start := time.Date(2026, 10, 9, 16, 0, 0, 0, time.UTC)
+	writer := func(run string) *pb.Event {
+		return &pb.Event{Type: "write", Path: "/workspace/shared.txt", AgentRunId: run, Retval: 4}
+	}
+	if _, _, ok := s.ObserveMultiAgentFileContention(writer("fresh"), start.Add(10*time.Second)); ok {
+		t.Fatal("first observation should not emit an alert")
+	}
+	if _, _, ok := s.ObserveMultiAgentFileContention(writer("stale"), start.Add(5*time.Second)); ok {
+		t.Fatal("out-of-order event should not manufacture a temporal correlation")
+	}
+	path, reason, ok := s.ObserveMultiAgentFileContention(writer("second"), start.Add(12*time.Second))
+	if !ok || path != "/workspace/shared.txt" {
+		t.Fatalf("new valid observation must correlate with the newest evidence: %q %q %v", path, reason, ok)
+	}
+	if strings.Contains(reason, "agent_run:stale") || !strings.Contains(reason, "agent_run:fresh") {
+		t.Fatalf("stale event replaced the evidence source: %q", reason)
+	}
+	if _, _, ok := s.ObserveMultiAgentFileContention(writer("late"), start.Add(11*time.Second)); ok {
+		t.Fatal("late replay must not bypass cooldown")
+	}
+	if _, _, ok := s.ObserveMultiAgentFileContention(writer("fresh"), start.Add(13*time.Second)); ok {
+		t.Fatal("normal follow-up should be deduplicated")
+	}
+	status := s.Status()
+	if status.FileCorrelationAlertsTotal != 1 || status.FileCorrelationLateTotal != 2 ||
+		status.FileCorrelationDedupedTotal != 1 {
+		t.Fatalf("late and dedup metrics disagree with observed events: %+v", status)
+	}
+}
+
 func TestNormalizeSemanticPathJoinsTrimmedRelativePath(t *testing.T) {
 	path, truncated := normalizeSemanticPath("  cache/result.json  ", "  /workspace/project  ")
 	if truncated || path != "/workspace/project/cache/result.json" {
@@ -139,6 +285,7 @@ func TestSemanticAlertStateEvictsExpiredEntriesAcrossKinds(t *testing.T) {
 		Type:       "write",
 		Path:       "/workspace/old.txt",
 		AgentRunId: "old-agent",
+		Retval:     1,
 	}, stale)
 
 	before := state.Status()

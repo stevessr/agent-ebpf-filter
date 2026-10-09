@@ -6,6 +6,32 @@ import (
 	"testing"
 )
 
+func TestSyntheticSemanticAlertUsesHundredPointRiskScale(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		sourceScore, expected float64
+	}{
+		{name: "low source", sourceScore: 12, expected: 96},
+		{name: "high source", sourceScore: 99, expected: 99},
+		{name: "zero source", sourceScore: 0, expected: 96},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			resetSemanticAlertState()
+			event := &pb.Event{
+				Pid: 123, Type: "openat", EventType: pb.EventType_OPENAT,
+				Path: "/home/demo/.ssh/id_rsa", RiskScore: tc.sourceScore,
+			}
+			alert := findSemanticAlertCode(buildSemanticAlerts(event), "SECRET_ACCESS")
+			if alert == nil {
+				t.Fatal("expected secret access alert")
+			}
+			if got := alert.GetRiskScore(); got != tc.expected {
+				t.Fatalf("synthetic score = %v, want %v (0-100 scale)", got, tc.expected)
+			}
+		})
+	}
+}
+
 func TestSemanticAlertsDetectAgenticResourceLoopFromSafeMetadata(t *testing.T) {
 	resetSemanticAlertState()
 
@@ -64,7 +90,7 @@ func TestSemanticAlertsDetectMultiAgentFileContention(t *testing.T) {
 	first := &pb.Event{
 		Pid:        201,
 		Tgid:       201,
-		Type:       "write",
+		Type:       "write", Retval: 1,
 		EventType:  pb.EventType_WRITE,
 		Path:       "/workspace/shared-plan.md",
 		AgentRunId: "run-a",
@@ -78,7 +104,7 @@ func TestSemanticAlertsDetectMultiAgentFileContention(t *testing.T) {
 	second := &pb.Event{
 		Pid:        301,
 		Tgid:       301,
-		Type:       "write",
+		Type:       "write", Retval: 1,
 		EventType:  pb.EventType_WRITE,
 		Path:       "/workspace/shared-plan.md",
 		AgentRunId: "run-b",
@@ -92,8 +118,119 @@ func TestSemanticAlertsDetectMultiAgentFileContention(t *testing.T) {
 	if alert.GetPath() != "/workspace/shared-plan.md" {
 		t.Fatalf("alert path = %q", alert.GetPath())
 	}
+	if alert.GetRiskScore() != 70 {
+		t.Fatalf("temporal pathname correlation alone should be medium priority (70), got %v", alert.GetRiskScore())
+	}
+	if !strings.Contains(alert.GetExtraInfo(), "temporal overlap, identical inode and malicious intent are not established") {
+		t.Fatalf("alert must state what the available evidence cannot prove: %q", alert.GetExtraInfo())
+	}
 	if !strings.Contains(alert.GetExtraInfo(), "run-a") || !strings.Contains(alert.GetExtraInfo(), "run-b") {
 		t.Fatalf("alert reason should include both agent contexts: %q", alert.GetExtraInfo())
+	}
+}
+
+func TestSemanticFileContentionIgnoresUnresolvedTargets(t *testing.T) {
+	for _, target := range []string{"", "write", "file write", "file_write", "file writev", "file readv", "socket 5", "pipe:[123]", "fd:3", "[REDACTED]", "/workspace/[REDACTED]", "<CUSTOM_REDACTED>", "relative.txt"} {
+		t.Run(target, func(t *testing.T) {
+			resetSemanticAlertState()
+			for _, run := range []string{"run-one", "run-two"} {
+				event := &pb.Event{
+					Pid: 200, Tgid: 200, Type: "write", Retval: 1, EventType: pb.EventType_WRITE,
+					AgentRunId: run, Comm: "fish", Path: target,
+				}
+				if alert := findSemanticAlertCode(buildSemanticAlerts(event), "MULTI_AGENT_FILE_CONTENTION"); alert != nil {
+					t.Fatalf("unresolved path %q must not trigger contention: %+v", target, alert)
+				}
+			}
+		})
+	}
+	// A relative filename must not be joined to an unverified/redacted
+	// cwd, as that collapses unrelated files to the same synthesized path.
+	resetSemanticAlertState()
+	for _, run := range []string{"run-one", "run-two"} {
+		event := &pb.Event{
+			Pid: 200, Type: "write", Retval: 1, EventType: pb.EventType_WRITE,
+			AgentRunId: run, Cwd: "/home/[REDACTED]", Path: "shared.txt",
+		}
+		if alert := findSemanticAlertCode(buildSemanticAlerts(event), "MULTI_AGENT_FILE_CONTENTION"); alert != nil {
+			t.Fatalf("redacted cwd became an alert target: %+v", alert)
+		}
+	}
+	// Even with an absolute cwd, an adapter's synthetic "file write" label
+	// must not turn into a plausible /workspace/file write pathname.
+	resetSemanticAlertState()
+	for _, run := range []string{"run-one", "run-two"} {
+		event := &pb.Event{
+			Pid: 200, Type: "write", Retval: 1, EventType: pb.EventType_WRITE,
+			AgentRunId: run, Cwd: "/workspace", Path: "file write",
+		}
+		if alert := findSemanticAlertCode(buildSemanticAlerts(event), "MULTI_AGENT_FILE_CONTENTION"); alert != nil {
+			t.Fatalf("synthetic file label became an alert target: %+v", alert)
+		}
+	}
+}
+
+func TestSemanticFileContentionRequiresDistinctAgentEvidence(t *testing.T) {
+	resetSemanticAlertState()
+	for _, pid := range []uint32{201, 301} {
+		event := &pb.Event{
+			Pid: pid, Tgid: pid, Type: "write", Retval: 1, EventType: pb.EventType_WRITE,
+			Path: "/workspace/shared.txt", Comm: "fish",
+		}
+		if alert := findSemanticAlertCode(buildSemanticAlerts(event), "MULTI_AGENT_FILE_CONTENTION"); alert != nil {
+			t.Fatalf("different bare PIDs are not proof of different agents: %+v", alert)
+		}
+	}
+	// Different tool calls/runs in a single known Agent process are not
+	// separate agents; the stable root PID takes precedence.
+	resetSemanticAlertState()
+	for _, run := range []string{"run-one", "run-two"} {
+		event := &pb.Event{
+			Pid: 201, RootAgentPid: 100, AgentRunId: run,
+			Type: "write", Retval: 1, EventType: pb.EventType_WRITE,
+			Path: "/workspace/shared.txt",
+		}
+		if alert := findSemanticAlertCode(buildSemanticAlerts(event), "MULTI_AGENT_FILE_CONTENTION"); alert != nil {
+			t.Fatalf("one agent root emitted a false cross-agent alert: %+v", alert)
+		}
+	}
+}
+
+func TestSemanticFileContentionRejectsIncomparableAgentIdentifiers(t *testing.T) {
+	resetSemanticAlertState()
+	first := &pb.Event{
+		Pid: 201, RootAgentPid: 101, AgentRunId: "run-a",
+		Type: "write", Retval: 1, EventType: pb.EventType_WRITE,
+		Path: "/workspace/shared.txt",
+	}
+	second := &pb.Event{
+		Pid: 301, AgentRunId: "run-b", Type: "write", Retval: 1,
+		EventType: pb.EventType_WRITE, Path: first.Path,
+	}
+	if alert := findSemanticAlertCode(buildSemanticAlerts(first), "MULTI_AGENT_FILE_CONTENTION"); alert != nil {
+		t.Fatalf("initial write should not alert: %+v", alert)
+	}
+	if alert := findSemanticAlertCode(buildSemanticAlerts(second), "MULTI_AGENT_FILE_CONTENTION"); alert != nil {
+		t.Fatalf("root PID and run ID are incomparable identity types: %+v", alert)
+	}
+}
+
+func TestSemanticFileContentionResolvesRealRelativePaths(t *testing.T) {
+	resetSemanticAlertState()
+	first := &pb.Event{
+		Pid: 201, RootAgentPid: 101, Type: "write", Retval: 1, EventType: pb.EventType_WRITE,
+		Path: "shared.txt", Cwd: "/workspace",
+	}
+	second := &pb.Event{
+		Pid: 301, RootAgentPid: 102, Type: "write", Retval: 1, EventType: pb.EventType_WRITE,
+		Path: "file write", ExtraPath: "/workspace/shared.txt", Cwd: "/other",
+	}
+	if alerts := buildSemanticAlerts(first); hasSemanticAlertCode(alerts, "MULTI_AGENT_FILE_CONTENTION") {
+		t.Fatalf("first tracked write should not alert: %+v", alerts)
+	}
+	alert := findSemanticAlertCode(buildSemanticAlerts(second), "MULTI_AGENT_FILE_CONTENTION")
+	if alert == nil || alert.GetPath() != "/workspace/shared.txt" {
+		t.Fatalf("expected a real, resolved path for distinct agent roots; got %+v", alert)
 	}
 }
 

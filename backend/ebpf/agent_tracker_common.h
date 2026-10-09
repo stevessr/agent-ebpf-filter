@@ -1050,16 +1050,42 @@ static __always_inline void fill_from_exit_meta(struct event *e, u64 pid_tgid, s
 // ============================================================
 // sched tracepoints: process fork / exec / exit
 // ============================================================
+// A generic tracked Shell/Runtime must not cause whole unrelated process
+// trees to be inherited. Only recognized Agent CLI comms may bootstrap the
+// PID-based fork propagation without prior explicit registration.
+// (Custom Agent integrations continue to register their root PID.)
+static __always_inline int is_known_agent_fork_comm(const char *comm) {
+    return __builtin_memcmp(comm, "codex", sizeof("codex")) == 0 ||
+           __builtin_memcmp(comm, "claude", sizeof("claude")) == 0 ||
+           __builtin_memcmp(comm, "gemini", sizeof("gemini")) == 0 ||
+           __builtin_memcmp(comm, "dsh", sizeof("dsh")) == 0 ||
+           __builtin_memcmp(comm, "pi", sizeof("pi")) == 0 ||
+           __builtin_memcmp(comm, "omp", sizeof("omp")) == 0 ||
+           __builtin_memcmp(comm, "cursor", sizeof("cursor")) == 0 ||
+           __builtin_memcmp(comm, "kiro-cli", sizeof("kiro-cli")) == 0 ||
+           __builtin_memcmp(comm, "opencode", sizeof("opencode")) == 0 ||
+           __builtin_memcmp(comm, "zcode", sizeof("zcode")) == 0 ||
+           __builtin_memcmp(comm, "mcode", sizeof("mcode")) == 0;
+}
 SEC("tracepoint/sched/sched_process_fork")
 int tracepoint__sched__sched_process_fork(struct trace_event_raw_sched_process_fork *ctx) {
     u32 parent_pid = (u32)ctx->parent_pid;
     u32 child_pid = (u32)ctx->child_pid;
     if (parent_pid == 0 || child_pid == 0) return 0;
 
-    u32 *tag = bpf_map_lookup_elem(&agent_pids, &parent_pid);
-    if (!tag) return 0;
+    // In addition to explicitly registered PIDs, inherit from a tracked
+    // Agent command. Otherwise "codex -> bash -> python" loses tracing at
+    // fork when Codex was selected by comm rather than PID registration.
+    u32 tag_id = get_pid_tag_id(parent_pid);
+    char parent_comm[TASK_COMM_LEN] = {};
+    if (!tag_id) {
+        read_tracepoint_data_loc_str(parent_comm, sizeof(parent_comm), ctx, ctx->parent_comm_loc);
+        if (!is_known_agent_fork_comm(parent_comm)) return 0;
+        tag_id = get_comm_tag_id(parent_comm);
+    }
+    if (!tag_id) return 0;
 
-    bpf_map_update_elem(&agent_pids, &child_pid, tag, BPF_ANY);
+    bpf_map_update_elem(&agent_pids, &child_pid, &tag_id, BPF_ANY);
     u32 parent_tgid = (u32)(bpf_get_current_pid_tgid() >> 32);
     if (parent_tgid != 0 && child_pid != parent_tgid) {
         if (bpf_map_update_elem(&socket_fd_parents, &child_pid, &parent_tgid, BPF_ANY) < 0) record_context_update_failure(CONTEXT_PRESSURE_SOCKET_PARENT);
@@ -1068,9 +1094,9 @@ int tracepoint__sched__sched_process_fork(struct trace_event_raw_sched_process_f
     struct event *e = reserve_event();
     if (!e) return 0;
 
-    char parent_comm[TASK_COMM_LEN] = {};
-    read_tracepoint_data_loc_str(parent_comm, sizeof(parent_comm), ctx, ctx->parent_comm_loc);
-    fill_base_info(e, parent_pid, *tag, parent_comm);
+    if (!parent_comm[0])
+        read_tracepoint_data_loc_str(parent_comm, sizeof(parent_comm), ctx, ctx->parent_comm_loc);
+    fill_base_info(e, parent_pid, tag_id, parent_comm);
     e->type = TYPE_PROCESS_FORK;
     e->retval = child_pid;
     e->extra1 = child_pid;

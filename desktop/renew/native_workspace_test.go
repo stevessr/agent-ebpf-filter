@@ -50,7 +50,7 @@ func TestWorkspaceNavigationDetailedLabels(t *testing.T) {
 			t.Errorf("navigation width for open=%t detailed=%t is %v, want %v", tc.open, tc.detailed, got, tc.want)
 		}
 	}
-	for _, id := range []string{"概览", "研判", "事件", "会话", "网络", "进程", "Agent 识别", "监控", "eBPF 模块", "规则", "跟踪", "路径权限", "终端", "系统"} {
+	for _, id := range []string{"概览", "研判", "事件", "会话", "网络", "域名", "进程", "Agent 识别", "监控", "eBPF 模块", "规则", "跟踪", "路径权限", "终端", "系统"} {
 		short, detailed := workspaceNavigationLabel(id, false), workspaceNavigationLabel(id, true)
 		if short == "" || detailed == "" || short == detailed {
 			t.Errorf("navigation label for %q should be nonempty and distinct: %q / %q", id, short, detailed)

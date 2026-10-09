@@ -55,6 +55,7 @@ func (a *renewApp) overview(c *ui.Context) {
 			ui.Badge(c, "eBPF 内核观测")
 			ui.Badge(c, "Agent 会话溯源")
 			ui.Badge(c, "网络外联洞察")
+			ui.Badge(c, "Agent 域名审计")
 			ui.Badge(c, "策略事件追踪")
 		})
 	})
@@ -91,6 +92,12 @@ func (a *renewApp) overview(c *ui.Context) {
 	})
 
 	_, attention, danger := a.riskCounts()
+	ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+		if ui.PrimaryButton(c, "查看 Agent 域名监控").Clicked() {
+			a.page = "域名"
+		}
+		ui.Text(c, "按 Agent 归属查看访问域名、IP-only 连接与风险目标").FontSize(11).TextColor(t.TextMuted)
+	})
 	collectorLabel, _ := a.collectorStatus()
 	ui.Row(c).Gap(12).Wrap().Children(func() {
 		statCard(c, "采集状态", collectorLabel, fmt.Sprintf("Ringbuf 丢弃 %d", a.health.RingbufDroppedTotal))
@@ -186,6 +193,14 @@ func (a *renewApp) eventsView(c *ui.Context) {
 	t := c.Theme()
 	ui.Text(c, "事件").FontSize(28).Bold()
 	ui.Text(c, "紧凑摘要支持本地筛选与后端历史分页；完整事件只在打开详情时按 ID 读取。").TextColor(t.TextMuted)
+	if a.eventReturnPage != "" && a.eventReturnPage != "事件" {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			if ui.Button(c, "← 返回"+a.eventReturnPage).Clicked() {
+				a.page = a.eventReturnPage
+				a.eventReturnPage = ""
+			}
+		})
+	}
 
 	eventTypes, eventSessions := a.eventFilterOptions()
 	ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
@@ -199,17 +214,50 @@ func (a *renewApp) eventsView(c *ui.Context) {
 		}
 	})
 
-	if a.eventPIDFilter > 0 {
+	if a.managementEventFilter != "" {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			statusPill(c, fmt.Sprintf("PID = %d", a.eventPIDFilter), t.Accent)
-			if ui.Button(c, "清除 PID 筛选").Clicked() {
+			statusPill(c, "管理器 · "+ccsAppLabel(a.managementEventFilter), t.Accent)
+			if ui.Button(c, "移除 CCS 筛选").Clicked() {
+				a.managementEventFilter = ""
+			}
+		})
+	}
+
+	if a.eventPIDFilter > 0 || a.eventRootPIDFilter > 0 ||
+		a.eventTargetFilter != "" || a.eventDomainTarget != "" || a.eventFileEditsOnly || a.eventDelegatedOnly {
+		ui.Row(c).Gap(6).Wrap().AlignItems(ui.Center).Children(func() {
+			if a.eventPIDFilter > 0 {
+				statusPill(c, fmt.Sprintf("执行 PID %d", a.eventPIDFilter), t.Accent)
+			}
+			if a.eventRootPIDFilter > 0 {
+				statusPill(c, fmt.Sprintf("根 Agent PID %d（含后代）", a.eventRootPIDFilter), t.Accent)
+			}
+			if a.eventTargetFilter != "" {
+				statusPill(c, "精确目标："+a.eventTargetFilter, t.Accent)
+			}
+			if a.eventDomainTarget != "" {
+				statusPill(c, "Agent 域名："+a.eventDomainAgent+" · "+a.eventDomainTarget, t.Accent)
+			}
+			if a.eventFileEditsOnly {
+				statusPill(c, "仅文件修改", t.Accent)
+			}
+			if a.eventDelegatedOnly {
+				statusPill(c, "仅委托编辑", t.Accent)
+			}
+			if ui.Button(c, "清除关联条件").Clicked() {
 				a.eventPIDFilter = 0
+				a.eventRootPIDFilter = 0
+				a.eventTargetFilter = ""
+				a.eventDomainAgent, a.eventDomainTarget, a.eventDomainKind = "", "", ""
+				a.eventFileEditsOnly = false
+				a.eventDelegatedOnly = false
 				a.eventSelected = -1
 				a.inspectorSelectedID = ""
 			}
 		})
 	}
 
+	owners := buildAgentOwnershipIndex(a.events, nil)
 	rows := a.filteredEvents()
 	limit := a.eventVisibleLimit
 	if limit <= 0 {
@@ -228,7 +276,7 @@ func (a *renewApp) eventsView(c *ui.Context) {
 		cols := []ui.TableColumn{
 			{Title: "时间", Width: 78, Fixed: true},
 			{Title: "动作", Width: 150},
-			{Title: "进程", Width: 120},
+			{Title: "归属 / 执行进程", Width: 195},
 			{Title: "目标", MinWidth: 220},
 			{Title: "风险", Width: 86},
 			{Title: "分数", Width: 64, Align: ui.End},
@@ -242,7 +290,15 @@ func (a *renewApp) eventsView(c *ui.Context) {
 			case 1:
 				ui.Text(c, eventAction(e)).SingleLine()
 			case 2:
-				harnessIdentity(c, displayOr(e.Comm, "-"), e.Tag, e.Comm)
+				attribution := owners.attribution(e)
+				if attribution.Indirect {
+					ui.Column(c).Gap(2).MinWidth(0).Children(func() {
+						harnessIdentity(c, attribution.OwnerLabel, attribution.OwnerTag, attribution.OwnerComm)
+						ui.Text(c, attributionExecutorLabel(attribution)).FontSize(10).TextColor(t.TextMuted).SingleLine()
+					})
+				} else {
+					harnessIdentity(c, displayOr(e.Comm, "-"), e.Tag, e.Comm)
+				}
 			case 3:
 				ui.Text(c, eventTarget(e)).SingleLine()
 			case 4:
@@ -269,12 +325,6 @@ func (a *renewApp) eventsView(c *ui.Context) {
 				if ui.PrimaryButton(c, "详细").Clicked() {
 					a.openEventDetail(selected.EventID)
 				}
-				if selected.PID > 0 && ui.Button(c, "同 PID").Clicked() {
-					a.openEventFilter(selected, "pid")
-				}
-				if isAgentSummary(selected) && ui.Button(c, "同会话").Clicked() {
-					a.openEventFilter(selected, "session")
-				}
 				if ui.Button(c, "固定到研判栏").Clicked() {
 					a.inspectorPinnedID = selected.EventID
 					a.inspectorOpen = true
@@ -285,6 +335,7 @@ func (a *renewApp) eventsView(c *ui.Context) {
 					}
 				}
 			})
+			a.eventQuickLinks(c, selected, false)
 		}
 	})
 
@@ -347,9 +398,7 @@ func (a *renewApp) networkView(c *ui.Context) {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, target).FontSize(11).Font("monospace").TextColor(t.TextMuted).Grow(1).MaxLines(2)
 				if ui.PrimaryButton(c, "查看该目标事件").Clicked() {
-					a.clearEventFilters()
-					a.page = "事件"
-					a.search = target
+					a.navigateTargetEvents(target)
 				}
 			})
 		}
@@ -403,11 +452,14 @@ func (a *renewApp) processesView(c *ui.Context) {
 				ui.Column(c).Gap(6).Children(func() {
 					ui.Textf(c, "%s · PID %d / PPID %d", displayOr(p.Name, "未知进程"), p.PID, p.PPID).Bold()
 					ui.Text(c, displayOr(p.Cmdline, "后端未提供命令行")).Font("monospace").FontSize(10).TextColor(t.TextMuted).MaxLines(4)
-					if ui.Button(c, "查看此 PID 的事件").Clicked() {
-						a.clearEventFilters()
-						a.eventPIDFilter = p.PID
-						a.page = "事件"
-					}
+					ui.Row(c).Wrap().Gap(6).Children(func() {
+						if ui.Button(c, "此 PID 事件").Clicked() {
+							a.navigatePIDEvents(p.PID)
+						}
+						if p.PPID > 0 && ui.Button(c, "父 PID 事件").Clicked() {
+							a.navigatePIDEvents(p.PPID)
+						}
+					})
 				})
 			}
 		})
@@ -456,11 +508,15 @@ func (a *renewApp) processesView(c *ui.Context) {
 		}).Height(480).Label("活动进程")
 		if a.processSelected >= 0 && a.processSelected < len(rows) {
 			pid := rows[a.processSelected].PID
-			if ui.Button(c, fmt.Sprintf("查看 PID %d 的事件", pid)).Clicked() {
-				a.clearEventFilters()
-				a.eventPIDFilter = pid
-				a.page = "事件"
-			}
+			ui.Row(c).Gap(6).Wrap().Children(func() {
+				if ui.Button(c, fmt.Sprintf("PID %d 事件", pid)).Clicked() {
+					a.navigatePIDEvents(pid)
+				}
+				if rows[a.processSelected].PPID > 0 &&
+					ui.Button(c, "父 PID 事件").Clicked() {
+					a.navigatePIDEvents(rows[a.processSelected].PPID)
+				}
+			})
 		}
 	})
 }
@@ -551,12 +607,21 @@ func (a *renewApp) systemView(c *ui.Context) {
 }
 func (a *renewApp) eventRow(c *ui.Context, e eventSummary) {
 	t := c.Theme()
+	owner := buildAgentOwnershipIndex(a.events, nil).attribution(e)
 	ui.Row(c).Padding(9, 0).Gap(12).AlignItems(ui.Start).Children(func() {
 		ui.Text(c, eventTime(e)).Width(66).Font("monospace").FontSize(11).TextColor(t.TextMuted)
 		ui.Column(c).Grow(1).MinWidth(0).Gap(3).Children(func() {
 			ui.Row(c).Gap(8).Children(func() {
 				ui.Text(c, eventAction(e)).Bold()
-				if e.Comm != "" {
+				if owner.Indirect {
+					ui.Row(c).Gap(5).AlignItems(ui.Center).Children(func() {
+						if label := harnessLabelFor(owner.OwnerTag, owner.OwnerComm); label != "未识别" {
+							drawHarnessIcon(c, label)
+						}
+						ui.Badge(c, owner.OwnerLabel)
+						ui.Text(c, attributionExecutorLabel(owner)).FontSize(10).TextColor(t.TextMuted)
+					})
+				} else if e.Comm != "" {
 					ui.Row(c).Gap(5).AlignItems(ui.Center).Children(func() {
 						if label := eventHarnessLabel(e); label != "未识别" {
 							drawHarnessIcon(c, label)

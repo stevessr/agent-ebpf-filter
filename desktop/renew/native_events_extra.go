@@ -184,6 +184,9 @@ func (a *renewApp) releaseEventDetailPayload() {
 	a.eventDetailErr = ""
 	a.enforcementErr = ""
 	a.eventDetailTab = 0
+	a.eventProcessTab = 0
+	a.eventProcessSelectedPID = 0
+	a.eventProcessExpanded = nil
 	a.eventDetailFieldSearch = ""
 	a.eventDetailFieldOffset = 0
 	a.eventDetailSearchSnapshot = ""
@@ -507,8 +510,10 @@ func (a *renewApp) eventDetailModal(c *ui.Context) {
 				return
 			}
 
-			ui.Tabs(c, &a.eventDetailTab, "可视化详情", "原始 JSON", "字段浏览")
+			ui.Tabs(c, &a.eventDetailTab, "可视化详情", "原始 JSON", "字段浏览", "进程关联")
 			switch a.eventDetailTab {
+			case 3:
+				a.eventProcessInvestigation(c, a.eventDetail, scrollHeight)
 			case 1:
 				a.ensureEventDetailText()
 				if ui.Button(c, "复制完整 JSON").Tooltip("原始事件可能包含敏感信息；仅主动复制时写入剪贴板").Clicked() {
@@ -575,23 +580,23 @@ func (a *renewApp) eventDetailModal(c *ui.Context) {
 					}
 				})
 			default:
-				model := eventDetailModel(a.eventDetail)
 				ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
-					pidText, _, ok := eventDetailLookup(eventDetailLayers(a.eventDetail), "pid")
-					if ok {
-						if pid, err := strconv.Atoi(pidText); err == nil && pid > 0 {
-							if ui.Button(c, fmt.Sprintf("查看 PID %d 的事件", pid)).Clicked() {
-								a.openEventFilter(eventSummary{PID: pid}, "pid")
-								a.closeEventDetail()
-							}
+					ref := processReferenceFromEvent(a.eventDetail)
+					if ref.PID > 0 {
+						if ui.Button(c, "查看进程树").Clicked() {
+							a.eventProcessSelectedPID = ref.PID
+							a.eventProcessTab = 0
+							a.eventDetailTab = 3
+						}
+						if ui.Button(c, "进程详细信息").Clicked() {
+							a.eventProcessSelectedPID = ref.PID
+							a.eventProcessTab = 1
+							a.eventDetailTab = 3
 						}
 					}
-					if model.Type != "" && ui.Button(c, "筛选同类操作").Clicked() {
-						a.openEventFilter(eventSummary{Type: model.Type}, "type")
-						a.closeEventDetail()
-					}
-					ui.Text(c, "详情来自当前记录，不会自动加载其它事件的完整负载。").FontSize(10).TextColor(t.TextMuted)
+					ui.Text(c, "关联操作只使用已捕获的事件证据。").FontSize(10).TextColor(t.TextMuted)
 				})
+				a.eventDetailQuickLinks(c, eventDetailSelectedSummary(a.eventDetail, a.eventDetailID, a.events))
 				ui.Scroll(c).Height(scrollHeight).Gap(12).Children(func() {
 					a.richEventDetail(c, a.eventDetail, panelWidth)
 					a.eventDetailEnforcement(c)
