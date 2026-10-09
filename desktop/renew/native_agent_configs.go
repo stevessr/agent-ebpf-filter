@@ -438,6 +438,23 @@ func inspectLocalAgentConfigs(project string) agentConfigInspection {
 	return out
 }
 
+// Build one bounded-window index per UI frame instead of rescanning every
+// eBPF summary for every configured MCP endpoint and model provider row.
+func observedConfigHostCounts(events []eventSummary, index agentOwnershipIndex) map[string]int {
+	counts := make(map[string]int)
+	for _, event := range events {
+		owner := index.attribution(event)
+		if !owner.IsAgent {
+			continue
+		}
+		host, kind := agentEventDestination(event)
+		if (kind == "域名" || kind == "IP") && host != "" {
+			counts[owner.OwnerLabel+"\\x00"+host]++
+		}
+	}
+	return counts
+}
+
 func countObservedConfigHost(agent, target string, events []eventSummary) int {
 	return countObservedConfigHostWithIndex(agent, target, events, buildAgentOwnershipIndex(events, nil))
 }
