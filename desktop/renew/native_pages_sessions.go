@@ -40,10 +40,20 @@ func eventHarnessLabel(event eventSummary) string {
 }
 
 func isAgentSummary(event eventSummary) bool {
+	// Legacy compact summaries set hasAgentContext for any tracked tag,
+	// including generic Shell/Runtime commands. Such events are not proof
+	// of Agent ownership unless a real root/run/conversation is present.
+	strong := event.AgentRunID != "" || event.ConversationID != "" || event.RootAgentPID > 0
+	if strong || harnessLabelFor(event.Tag, event.Comm) != "未识别" {
+		return true
+	}
+	switch strings.ToLower(strings.TrimSpace(event.Tag)) {
+	case "shell", "runtime", "git", "language pkg", "system pkg",
+		"container cli", "build tool", "system tool", "network tool",
+		"agent cli":
+		return false
+	}
 	return event.HasAgentContext ||
-		event.AgentRunID != "" ||
-		event.ConversationID != "" ||
-		event.RootAgentPID > 0 ||
 		(strings.TrimSpace(event.Tag) != "" && !strings.EqualFold(event.Tag, "Unknown"))
 }
 
