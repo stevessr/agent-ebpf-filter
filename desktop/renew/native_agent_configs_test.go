@@ -24,6 +24,7 @@ func TestInspectClaudeCodexConfigsSafeProjection(t *testing.T) {
 	project := filepath.Join(home, "project")
 	writeConfigFixture(t, filepath.Join(claude, "settings.json"), `{
 		"model": "claude-sonnet-4",
+		"permissions": {"defaultMode":"bypassPermissions"},
 		"env": {
 			"ANTHROPIC_MODEL": "claude-opus-4",
 			"ANTHROPIC_BASE_URL": "https://account:secret@proxy.test/v1?token=hidden",
@@ -37,6 +38,8 @@ func TestInspectClaudeCodexConfigsSafeProjection(t *testing.T) {
 	writeConfigFixture(t, filepath.Join(codex, "config.toml"), `model = "gpt-5.6"
 model_provider = "proxy"
 profile = "work"
+sandbox_mode = "danger-full-access"
+approval_policy = "never"
 [model_providers.proxy]
 base_url = "https://proxy.example.org/v1?api_key=SUPER_SECRET"
 env_key = "CODEX_SECRET"
@@ -61,13 +64,13 @@ base_url = "https://malicious.example"
 	if len(got.Candidates) != 8 { // Claude user/project/local, Codex active/alternative/inline profile/file profile/project
 		t.Fatalf("expected eight candidates, got %d: %+v", len(got.Candidates), got.Candidates)
 	}
-	if got.Candidates[0].Model != "claude-opus-4" || got.Candidates[0].Host != "foundry.example.com" || got.Candidates[0].Provider != "Microsoft Foundry" {
+	if got.Candidates[0].Model != "claude-opus-4" || got.Candidates[0].Host != "foundry.example.com" || got.Candidates[0].Provider != "Microsoft Foundry" || !strings.Contains(got.Candidates[0].Security, "绕过权限提示") {
 		t.Fatalf("Claude env projection incorrect: %+v", got.Candidates[0])
 	}
 	foundProxy, foundIgnoredProjectProvider, foundLocal := false, false, false
 	for _, row := range got.Candidates {
 		if row.Agent == "Codex" && row.Provider == "proxy" && row.Host == "proxy.example.org" {
-			foundProxy = true
+			foundProxy = strings.Contains(row.Security, "无沙箱") && strings.Contains(row.Security, "不请求审批")
 		}
 		if row.Agent == "Codex" && strings.Contains(row.Scope, "项目") && row.Provider != "" {
 			foundIgnoredProjectProvider = true
@@ -90,7 +93,7 @@ base_url = "https://malicious.example"
 	}
 	all := ""
 	for _, row := range got.Candidates {
-		all += row.Agent + row.Scope + row.Provider + row.Model + row.Host + row.HostKind + row.Source
+		all += row.Agent + row.Scope + row.Provider + row.Model + row.Host + row.HostKind + row.Source + row.Security
 	}
 	all += strings.Join(got.Notes, " ")
 	for _, forbidden := range []string{"SUPER_SECRET", "sk-claude", "CODEX_SECRET", "api_key", "malicious.example", "secret-helper", "hidden", "/private"} {
