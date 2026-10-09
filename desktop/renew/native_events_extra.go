@@ -183,6 +183,7 @@ func (a *renewApp) releaseEventDetailPayload() {
 	a.eventDetailText = ""
 	a.eventDetailErr = ""
 	a.eventDetailTab = 0
+	a.eventDetailFieldSearch = ""
 }
 
 func (a *renewApp) closeEventDetail() {
@@ -331,9 +332,14 @@ func enforcementTargets(detail map[string]any) eventEnforcementTargets {
 			}
 		}
 	}
-	path := mapText(record, "path", "Path")
-	if strings.HasPrefix(path, "/") {
-		target.ExecPath = path
+	// A file write's path is not evidence of an executable invocation.
+	// Only offer the LSM exec-path action when the event is an exec.
+	typ := strings.ToLower(mapText(record, "type", "Type"))
+	if strings.HasPrefix(typ, "exec") || typ == "process_exec" {
+		path := mapText(record, "path", "Path")
+		if strings.HasPrefix(path, "/") {
+			target.ExecPath = path
+		}
 	}
 	return target
 }
@@ -387,11 +393,14 @@ func (a *renewApp) eventDetailModal(c *ui.Context) {
 		return
 	}
 	t := c.Theme()
+	viewportWidth, viewportHeight := c.Size()
+	panelWidth := min(float32(980), max(float32(300), viewportWidth-48))
+	scrollHeight := min(float32(680), max(float32(240), viewportHeight-182))
 	ui.Modal(c, &a.eventDetailOpen, func() {
-		ui.Column(c).Width(760).Gap(12).Children(func() {
+		ui.Column(c).Width(panelWidth).Gap(12).Children(func() {
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-				ui.Column(c).Grow(1).Children(func() {
-					ui.Text(c, "事件详情").FontSize(20).Bold()
+				ui.Column(c).Grow(1).MinWidth(0).Gap(3).Children(func() {
+					ui.Text(c, "事件取证详情").FontSize(20).Bold()
 					ui.Text(c, a.eventDetailID).Font("monospace").FontSize(10).TextColor(t.TextMuted)
 				})
 				if ui.Button(c, "关闭").Clicked() {
@@ -401,125 +410,121 @@ func (a *renewApp) eventDetailModal(c *ui.Context) {
 			if a.eventDetailLoading {
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 					ui.Spinner(c)
-					ui.Text(c, "正在从后端读取完整事件…").TextColor(t.TextMuted)
+					ui.Text(c, "正在按需读取完整事件…").TextColor(t.TextMuted)
 				})
 				return
 			}
 			if a.eventDetailErr != "" {
-				ui.Text(c, a.eventDetailErr).TextColor(t.TextMuted)
+				ui.Text(c, "完整记录读取失败：" + a.eventDetailErr).TextColor(t.Danger)
 				return
 			}
-			ui.Tabs(c, &a.eventDetailTab, "可视化详情", "原始 JSON")
-			if a.eventDetailTab == 1 {
-				a.ensureEventDetailText()
-				ui.Scroll(c).Height(520).Children(func() {
-					ui.Text(c, a.eventDetailText).Font("monospace").FontSize(10)
-				})
-				return
-			}
-
 			record := detailRecord(a.eventDetail)
 			if record == nil {
 				ui.Text(c, "后端未返回可显示的事件内容").TextColor(t.TextMuted)
 				return
 			}
-			eventType := mapText(record, "type", "Type")
-			comm := mapText(record, "comm", "Comm")
-			pid := int(mapNumber(record, "pid", "Pid"))
-			decision := strings.ToUpper(mapText(record, "decision", "Decision"))
-			risk := mapNumber(record, "risk_score", "riskScore", "RiskScore")
-			target := mapText(record, "path", "Path")
-			if target == "" {
-				target = mapText(record, "net_endpoint", "netEndpoint", "NetEndpoint")
-			}
-			if target == "" {
-				target = mapText(record, "domain", "Domain")
-			}
-			ui.Scroll(c).Height(520).Gap(12).Children(func() {
-				card(c, eventAction(eventSummary{Type: eventType}), func() {
-					ui.Row(c).Gap(8).Wrap().Children(func() {
-						ui.Badge(c, displayOr(eventType, "event"))
-						if decision != "" {
-							ui.Badge(c, decision)
-						}
-						if risk > 0 {
-							ui.Badge(c, fmt.Sprintf("风险 %.0f", risk))
-						}
-					})
-					ui.Text(c, displayOr(target, "未提供明确目标")).Font("monospace").TextColor(t.TextMuted)
+
+			ui.Tabs(c, &a.eventDetailTab, "可视化详情", "原始 JSON", "字段浏览")
+			switch a.eventDetailTab {
+			case 1:
+				a.ensureEventDetailText()
+				ui.Scroll(c).Height(scrollHeight).Padding(10).Children(func() {
+					ui.Text(c, a.eventDetailText).Font("monospace").FontSize(10)
 				})
-				card(c, "主体", func() {
-					ui.Textf(c, "%s · PID %d", displayOr(comm, "未知进程"), pid)
-					for _, item := range [][2]string{
-						{"父 PID", mapText(record, "ppid", "Ppid")},
-						{"UID", mapText(record, "uid", "Uid")},
-						{"Tag", mapText(record, "tag", "Tag")},
-						{"Agent Run", mapText(record, "agent_run_id", "agentRunId", "AgentRunId")},
-						{"Conversation", mapText(record, "conversation_id", "conversationId", "ConversationId")},
-						{"Tool", mapText(record, "tool_name", "toolName", "ToolName")},
-						{"Trace", mapText(record, "trace_id", "traceId", "TraceId")},
-					} {
-						if item[1] != "" {
-							ui.Text(c, item[0]+"："+item[1]).FontSize(11).TextColor(t.TextMuted)
-						}
+			case 2:
+				ui.TextInput(c, &a.eventDetailFieldSearch).Placeholder("筛选字段名、路径或值（仅当前事件）").Width(panelWidth - 12)
+				fields := eventDetailTreeItems(a.eventDetail, a.eventDetailFieldSearch)
+				ui.Text(c, fmt.Sprintf("匹配 %d 条叶子字段，最多展示 300 条；原始 JSON 保留完整结构。", len(fields))).FontSize(10).TextColor(t.TextMuted)
+				ui.Scroll(c).Height(scrollHeight - 56).Gap(7).Children(func() {
+					if len(fields) == 0 {
+						ui.Text(c, "没有匹配的字段。").TextColor(t.TextMuted)
+					}
+					for _, field := range fields {
+						ui.Column(c).Gap(2).Padding(8).Radius(6).Background(t.Surface).Children(func() {
+							ui.Text(c, field.Label).Font("monospace").FontSize(10).TextColor(t.TextMuted)
+							ui.Text(c, field.Value).Font("monospace").FontSize(11)
+						})
 					}
 				})
-
-				targets := enforcementTargets(a.eventDetail)
-				if targets.IP != "" || targets.ExecPath != "" {
-					card(c, "处置动作", func() {
-						if !a.runtimeCfg.Runtime.PolicyManagementEnabled {
-							ui.Text(c, "策略管理未启用；先在“监控”页启用 policy_management 后才能执行阻断。").FontSize(11).TextColor(t.TextMuted)
-							return
-						}
-						ui.Row(c).Gap(8).Wrap().Children(func() {
-							if targets.IP != "" {
-								blocked := containsString(a.enforcement.Cgroup.BlockedIPs, targets.IP)
-								label := "阻断 IP " + targets.IP
-								path := "/sandbox/cgroup/block-ip"
-								if blocked {
-									label = "解除 IP " + targets.IP
-									path = "/sandbox/cgroup/unblock-ip"
-								}
-								if ui.Button(c, label).Clicked() {
-									a.runEnforcement(path, map[string]any{"ip": targets.IP})
-								}
+			default:
+				model := eventDetailModel(a.eventDetail)
+				ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
+					pidText, _, ok := eventDetailLookup(eventDetailLayers(a.eventDetail), "pid")
+					if ok {
+						if pid, err := strconv.Atoi(pidText); err == nil && pid > 0 {
+							if ui.Button(c, fmt.Sprintf("查看 PID %d 的事件", pid)).Clicked() {
+								a.openEventFilter(eventSummary{PID: pid}, "pid")
+								a.closeEventDetail()
 							}
-							if targets.Port > 0 {
-								blocked := containsInt(a.enforcement.Cgroup.BlockedPorts, targets.Port)
-								label := fmt.Sprintf("阻断端口 %d", targets.Port)
-								path := "/sandbox/cgroup/block-port"
-								if blocked {
-									label = fmt.Sprintf("解除端口 %d", targets.Port)
-									path = "/sandbox/cgroup/unblock-port"
-								}
-								if ui.Button(c, label).Clicked() {
-									a.runEnforcement(path, map[string]any{"port": targets.Port})
-								}
-							}
-							if targets.ExecPath != "" {
-								blocked := containsString(a.enforcement.LSM.BlockedExecPaths, targets.ExecPath)
-								label := "阻断执行 " + targets.ExecPath
-								path := "/sandbox/lsm/block-exec-path"
-								if blocked {
-									label = "解除执行 " + targets.ExecPath
-									path = "/sandbox/lsm/unblock-exec-path"
-								}
-								if ui.Button(c, label).Clicked() {
-									a.runEnforcement(path, map[string]any{"path": targets.ExecPath})
-								}
-							}
-						})
-						if a.enforcementBusy {
-							ui.Text(c, "正在等待内核状态确认…").FontSize(11).TextColor(t.TextMuted)
 						}
-						if a.enforcementErr != "" {
-							ui.Text(c, a.enforcementErr).FontSize(11).TextColor(t.TextMuted)
-						}
-					})
-				}
-				ui.Text(c, "完整负载仅在详情打开期间保存在桌面内存中。").FontSize(10).TextColor(t.TextMuted)
-			})
+					}
+					if model.Type != "" && ui.Button(c, "筛选同类操作").Clicked() {
+						a.openEventFilter(eventSummary{Type: model.Type}, "type")
+						a.closeEventDetail()
+					}
+					ui.Text(c, "详情来自当前记录，不会自动加载其它事件的完整负载。").FontSize(10).TextColor(t.TextMuted)
+				})
+				ui.Scroll(c).Height(scrollHeight).Gap(12).Children(func() {
+					a.richEventDetail(c, a.eventDetail, panelWidth)
+					a.eventDetailEnforcement(c)
+					ui.Text(c, "完整负载只在详情打开期间保存在桌面内存中；关闭时立即释放。").FontSize(10).TextColor(t.TextMuted)
+				})
+			}
 		})
+	})
+}
+
+// Enforcement actions remain explicitly gated and separate from observation.
+// Never translate a file write path into an executable block rule.
+func (a *renewApp) eventDetailEnforcement(c *ui.Context) {
+	t := c.Theme()
+	targets := enforcementTargets(a.eventDetail)
+	if targets.IP == "" && targets.ExecPath == "" {
+		return
+	}
+	card(c, "可选处置", func() {
+		if !a.runtimeCfg.Runtime.PolicyManagementEnabled {
+			ui.Text(c, "策略管理未启用。处置须在“监控”页手动启用 policy_management。").FontSize(11).TextColor(t.TextMuted)
+			return
+		}
+		ui.Text(c, "以下操作会更改内核阻断策略，请核对目标。").FontSize(11).TextColor(t.Warning)
+		ui.Row(c).Gap(8).Wrap().Children(func() {
+			if targets.IP != "" {
+				blocked := containsString(a.enforcement.Cgroup.BlockedIPs, targets.IP)
+				label, path := "阻断 IP "+targets.IP, "/sandbox/cgroup/block-ip"
+				if blocked {
+					label, path = "解除 IP "+targets.IP, "/sandbox/cgroup/unblock-ip"
+				}
+				if ui.Button(c, label).Clicked() {
+					a.runEnforcement(path, map[string]any{"ip": targets.IP})
+				}
+			}
+			if targets.Port > 0 {
+				blocked := containsInt(a.enforcement.Cgroup.BlockedPorts, targets.Port)
+				label, path := fmt.Sprintf("阻断端口 %d", targets.Port), "/sandbox/cgroup/block-port"
+				if blocked {
+					label, path = fmt.Sprintf("解除端口 %d", targets.Port), "/sandbox/cgroup/unblock-port"
+				}
+				if ui.Button(c, label).Clicked() {
+					a.runEnforcement(path, map[string]any{"port": targets.Port})
+				}
+			}
+			if targets.ExecPath != "" {
+				blocked := containsString(a.enforcement.LSM.BlockedExecPaths, targets.ExecPath)
+				label, path := "阻断执行 "+targets.ExecPath, "/sandbox/lsm/block-exec-path"
+				if blocked {
+					label, path = "解除执行 "+targets.ExecPath, "/sandbox/lsm/unblock-exec-path"
+				}
+				if ui.Button(c, label).Clicked() {
+					a.runEnforcement(path, map[string]any{"path": targets.ExecPath})
+				}
+			}
+		})
+		if a.enforcementBusy {
+			ui.Text(c, "正在等待内核状态确认…").FontSize(11).TextColor(t.TextMuted)
+		}
+		if a.enforcementErr != "" {
+			ui.Text(c, a.enforcementErr).FontSize(11).TextColor(t.Danger)
+		}
 	})
 }
