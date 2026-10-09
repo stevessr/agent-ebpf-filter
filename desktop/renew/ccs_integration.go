@@ -297,7 +297,7 @@ func (a *renewApp) ccsView(c *ui.Context) {
 				ui.Text(c, fmt.Sprintf("%d 条摘要", counts[app])).Grow(1)
 				if ui.Button(c, "查看关联事件").Clicked() {
 					a.clearEventFilters()
-					a.ccsEventAppFilter = app
+					a.managementEventFilter = app
 					a.eventReturnPage = "CCS"
 					a.page = "事件"
 				}
