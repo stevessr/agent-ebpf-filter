@@ -388,6 +388,15 @@ func inspectAgentConfigPaths(home, claudeDir, codexDir, project string) agentCon
 	additional := inspectAgentConfigExtensions(claudeDir, codexDir, project)
 	out.Candidates = append(out.Candidates, additional.Candidates...)
 	out.Notes = append(out.Notes, additional.Notes...)
+	if preview, ok := claudeStaticConfigPreview(claudeDir, project); ok {
+		out.Candidates = append(out.Candidates, preview)
+	}
+	if preview, notes, ok := codexStaticConfigPreview(codexDir, project); ok {
+		out.Candidates = append(out.Candidates, preview)
+		out.Notes = append(out.Notes, notes...)
+	} else {
+		out.Notes = append(out.Notes, notes...)
+	}
 	if len(out.Candidates) == 0 && len(out.Notes) == 0 {
 		out.Notes = append(out.Notes, "未找到可读取的用户级配置；可指定项目绝对路径补充检查")
 	}
