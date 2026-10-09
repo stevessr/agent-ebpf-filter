@@ -279,6 +279,16 @@ func codexSafetySummary(doc map[string]any, project bool) string {
 	return strings.Join(detail, " · ")
 }
 
+// Claude Code resolves project settings from the repository root rather
+// than every working subdirectory. Codex, in contrast, reads nested layers.
+func projectConfigRoot(project string) string {
+	layers := codexProjectLayers(project)
+	if len(layers) == 0 {
+		return ""
+	}
+	return filepath.Dir(filepath.Dir(layers[0]))
+}
+
 // The supplied directory is the session's intended working directory.
 // Traverse only within a detected VCS root (or the selected directory when
 // no root marker is visible); never scan neighboring projects or descendants.
@@ -355,8 +365,11 @@ func inspectAgentConfigExtensions(claudeDir, codexDir, project string) agentConf
 		addCodex(filepath.Join(codexDir, "config.toml"), "用户", false)
 	}
 	if project != "" && filepath.IsAbs(project) {
-		addClaude(filepath.Join(project, ".claude", "settings.json"), "项目")
-		addClaude(filepath.Join(project, ".claude", "settings.local.json"), "项目本地")
+		claudeRoot := projectConfigRoot(project)
+		if claudeRoot != "" {
+			addClaude(filepath.Join(claudeRoot, ".claude", "settings.json"), "项目")
+			addClaude(filepath.Join(claudeRoot, ".claude", "settings.local.json"), "项目本地")
+		}
 		for _, path := range codexProjectLayers(project) {
 			// The original inspector displays the selected project's main row.
 			// Additional layers here show security and MCP configurations.
@@ -368,7 +381,7 @@ func inspectAgentConfigExtensions(claudeDir, codexDir, project string) agentConf
 		}
 		// Only explicit project MCP configs; Claude's ~/.claude.json also
 		// contains session credentials and must not be opened for this audit.
-		rows, exists, err := readClaudeMCP(filepath.Join(project, ".mcp.json"), "项目")
+		rows, exists, err := readClaudeMCP(filepath.Join(projectConfigRoot(project), ".mcp.json"), "项目")
 		if err != nil {
 			out.Notes = append(out.Notes, "Claude Code · 项目 MCP：读取或解析失败")
 		} else if exists {
