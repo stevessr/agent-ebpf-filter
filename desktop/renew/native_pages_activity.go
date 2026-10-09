@@ -52,15 +52,19 @@ func (a *renewApp) overview(c *ui.Context) {
 		})
 		ui.Text(c, desktopBrandDescription).FontSize(12).TextColor(t.TextMuted)
 		ui.Row(c).Gap(8).Wrap().Children(func() {
-			ui.Badge(c, "eBPF 内核观测")
-			ui.Badge(c, "Agent 会话溯源")
+			ui.Badge(c, map[bool]string{true: "Windows API · 实验性采样", false: "eBPF 内核观测"}[a.localMonitor])
+			if !a.localMonitor { ui.Badge(c, "Agent 会话溯源") }
 			ui.Badge(c, "网络外联洞察")
-			ui.Badge(c, "Agent 域名审计")
-			ui.Badge(c, "策略事件追踪")
+			if !a.localMonitor { ui.Badge(c, "Agent 域名审计") }
+			if !a.localMonitor { ui.Badge(c, "策略事件追踪") }
 		})
 	})
 
-	ui.Text(c, "运行态势基于采集健康与当前摘要窗口；未发现异常不代表没有未观测到的风险。").FontSize(11).TextColor(t.TextMuted)
+	if a.localMonitor {
+		ui.Text(c, "Windows 实验性只读模式：每 2 秒采样进程、TCP 和 UDP 本地绑定；无法保证捕获短暂连接、文件访问、系统调用或安全策略执行。").FontSize(11).TextColor(t.Warning)
+	} else {
+		ui.Text(c, "运行态势基于采集健康与当前摘要窗口；未发现异常不代表没有未观测到的风险。").FontSize(11).TextColor(t.TextMuted)
+	}
 
 	headline, detail, level := a.overviewHeadline()
 	tone := t.Success
@@ -92,18 +96,25 @@ func (a *renewApp) overview(c *ui.Context) {
 	})
 
 	_, attention, danger := a.riskCounts()
-	ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-		if ui.PrimaryButton(c, "查看 Agent 域名监控").Clicked() {
-			a.page = "域名"
-		}
-		ui.Text(c, "按 Agent 归属查看访问域名、IP-only 连接与风险目标").FontSize(11).TextColor(t.TextMuted)
-	})
+	if !a.localMonitor {
+		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+			if ui.PrimaryButton(c, "查看 Agent 域名监控").Clicked() {
+				a.page = "域名"
+			}
+			ui.Text(c, "按 Agent 归属查看访问域名、IP-only 连接与风险目标").FontSize(11).TextColor(t.TextMuted)
+		})
+	}
 	collectorLabel, _ := a.collectorStatus()
 	ui.Row(c).Gap(12).Wrap().Children(func() {
-		statCard(c, "采集状态", collectorLabel, fmt.Sprintf("Ringbuf 丢弃 %d", a.health.RingbufDroppedTotal))
+		if a.localMonitor { statCard(c, "采集状态", collectorLabel, fmt.Sprintf("摘要溢出 %d", a.health.RingbufDroppedTotal)) } else { statCard(c, "采集状态", collectorLabel, fmt.Sprintf("Ringbuf 丢弃 %d", a.health.RingbufDroppedTotal)) }
 		statCard(c, "最近活动", fmt.Sprint(len(a.events)), "当前紧凑摘要窗口")
-		statCard(c, "需关注", fmt.Sprint(attention), "风险分 ≥ 60 / ALERT")
-		statCard(c, "高风险", fmt.Sprint(danger), "BLOCK / DENY / 高风险")
+		if a.localMonitor {
+			statCard(c, "TCP 连接", fmt.Sprint(len(a.windowsConnections)), "本次采样的已建立连接")
+			statCard(c, "UDP 绑定", fmt.Sprint(len(a.windowsUDPBindings)), "本机地址与进程绑定")
+		} else {
+			statCard(c, "需关注", fmt.Sprint(attention), "风险分 ≥ 60 / ALERT")
+			statCard(c, "高风险", fmt.Sprint(danger), "BLOCK / DENY / 高风险")
+		}
 		if a.systemConnected {
 			statCard(c, "CPU", fmt.Sprintf("%.1f%%", a.system.CPUTotal), fmt.Sprintf("%d 个实时进程", len(a.system.Processes)))
 			statCard(c, "内存", fmt.Sprintf("%.1f%%", a.system.MemPercent), fmt.Sprintf("%s / %s", formatBytes(int64(a.system.MemUsed)), formatBytes(int64(a.system.MemTotal))))
@@ -132,7 +143,11 @@ func (a *renewApp) overview(c *ui.Context) {
 
 	card(c, "已跟踪进程", func() {
 		if len(a.trackedComms) == 0 {
-			ui.Text(c, "后端未返回显式跟踪列表；可在“跟踪范围”中添加命令、路径或标签。").TextColor(t.TextMuted)
+			if a.localMonitor {
+				ui.Text(c, "Windows 本机采样目前覆盖进程清单，不提供后端 Agent 跟踪注册表。").TextColor(t.TextMuted)
+			} else {
+				ui.Text(c, "后端未返回显式跟踪列表；可在“跟踪范围”中添加命令、路径或标签。").TextColor(t.TextMuted)
+			}
 			return
 		}
 		ui.Row(c).Gap(8).Wrap().Children(func() {
@@ -144,8 +159,14 @@ func (a *renewApp) overview(c *ui.Context) {
 }
 
 func (a *renewApp) overviewHeadline() (headline, detail, level string) {
-	if a.starting {
-		return "正在建立监控", "明镜高悬正在连接已有后端，或请求系统授权启动本机后端。", "warning"
+	if a.localMonitor && a.connected && a.health.CaptureHealthy {
+		return "Windows 采样监控运行中", "已启用只读进程 / TCP / UDP 绑定 / CPU / 内存采样；不是 eBPF、ETW 或内核事件流，未观测到不等于安全。", "warning"
+	}
+	if a.localMonitor && !a.connected {
+        return "Windows 本机采样不可用", "无法确认采样覆盖情况；请查看系统诊断并尝试手动刷新。"+a.systemErr, "danger"
+    }
+    if a.starting {
+        return "正在建立监控", "明镜高悬正在连接已有后端，或请求系统授权启动本机后端。", "warning"
 	}
 	if !a.connected {
 		return "后端不可用", "当前无法确认系统是否正常；请检查后端连接或重新启动本机监控。", "danger"
@@ -192,7 +213,11 @@ func (a *renewApp) overviewAction() (label, page string, attentionOnly bool) {
 func (a *renewApp) eventsView(c *ui.Context) {
 	t := c.Theme()
 	ui.Text(c, "事件").FontSize(28).Bold()
-	ui.Text(c, "紧凑摘要支持本地筛选与后端历史分页；完整事件只在打开详情时按 ID 读取。").TextColor(t.TextMuted)
+	if a.localMonitor {
+		ui.Text(c, "本机进程、TCP 与 UDP 绑定状态差分产生的观察记录（约 2 秒采样）；不代表内核事件或准确发生时刻。").TextColor(t.Warning)
+	} else {
+		ui.Text(c, "紧凑摘要支持本地筛选与后端历史分页；完整事件只在打开详情时按 ID 读取。").TextColor(t.TextMuted)
+	}
 	if a.eventReturnPage != "" && a.eventReturnPage != "事件" {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			if ui.Button(c, "← 返回"+a.eventReturnPage).Clicked() {
@@ -205,10 +230,14 @@ func (a *renewApp) eventsView(c *ui.Context) {
 	eventTypes, eventSessions := a.eventFilterOptions()
 	ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
 		ui.Select(c, &a.eventTypeFilter, eventTypes).Label("事件类型").Width(170)
-		ui.Select(c, &a.eventSessionFilter, eventSessions).Label("会话").Width(210)
-		ui.Select(c, &a.eventDecisionFilter, []string{"", "已阻断", "告警", "已允许"}).Label("决策").Width(130)
-		ui.Select(c, &a.eventRiskFilter, []string{"", "高风险", "需关注", "正常"}).Label("风险等级").Width(130)
-		ui.Checkbox(c, &a.eventAttentionOnly, "只看待关注")
+		if a.localMonitor {
+			ui.Select(c, &a.eventRiskFilter, []string{"", "未评级"}).Label("风险等级").Width(130)
+		} else {
+			ui.Select(c, &a.eventSessionFilter, eventSessions).Label("会话").Width(210)
+			ui.Select(c, &a.eventDecisionFilter, []string{"", "已阻断", "告警", "已允许"}).Label("决策").Width(130)
+			ui.Select(c, &a.eventRiskFilter, []string{"", "高风险", "需关注", "正常", "未评级"}).Label("风险等级").Width(130)
+			ui.Checkbox(c, &a.eventAttentionOnly, "只看待关注")
+		}
 		if ui.Button(c, "清除筛选").Clicked() {
 			a.clearEventFilters()
 		}
@@ -358,6 +387,7 @@ func (a *renewApp) eventsView(c *ui.Context) {
 	}
 }
 func (a *renewApp) networkView(c *ui.Context) {
+	if a.localMonitor { a.windowsNetworkView(c); return }
 	t := c.Theme()
 	rows := a.filteredNetworkRows()
 	ui.Text(c, "网络").FontSize(28).Bold()
@@ -411,7 +441,11 @@ func (a *renewApp) processesView(c *ui.Context) {
 
 	if a.systemConnected && len(a.system.Processes) > 0 {
 		rows := a.filteredSystemProcesses()
-		ui.Text(c, "来自 /ws/system 的 protobuf 实时进程快照，按 CPU 使用率排序；搜索同时匹配 PID、用户与命令行。").TextColor(t.TextMuted)
+		if a.localMonitor {
+			ui.Text(c, "Windows Win32 进程清单每 2 秒采样；CPU 为相邻样本间的估算使用率，部分受保护进程的内存与 CPU 无法读取。").TextColor(t.Warning)
+		} else {
+			ui.Text(c, "来自 /ws/system 的 protobuf 实时进程快照，按 CPU 使用率排序；搜索同时匹配 PID、用户与命令行。").TextColor(t.TextMuted)
+		}
 		card(c, fmt.Sprintf("实时进程 · %d", len(rows)), func() {
 			if len(rows) == 0 {
 				ui.Text(c, "当前搜索没有匹配进程").TextColor(t.TextMuted)
@@ -436,9 +470,9 @@ func (a *renewApp) processesView(c *ui.Context) {
 				case 2:
 					harnessIdentity(c, displayOr(p.Name, "未知进程"), p.Name)
 				case 3:
-					ui.Textf(c, "%.1f%%", p.CPU)
+					if a.localMonitor && p.CPU < 0 { ui.Text(c, "-") } else { ui.Textf(c, "%.1f%%", p.CPU) }
 				case 4:
-					ui.Textf(c, "%.1f%%", p.MemPercent)
+					if a.localMonitor && p.MemPercent < 0 { ui.Text(c, "-") } else { ui.Textf(c, "%.1f%%", p.MemPercent) }
 				case 5:
 					ui.Text(c, displayOr(p.User, "-")).SingleLine()
 				}
@@ -451,7 +485,12 @@ func (a *renewApp) processesView(c *ui.Context) {
 				p := rows[a.processSelected]
 				ui.Column(c).Gap(6).Children(func() {
 					ui.Textf(c, "%s · PID %d / PPID %d", displayOr(p.Name, "未知进程"), p.PID, p.PPID).Bold()
-					ui.Text(c, displayOr(p.Cmdline, "后端未提供命令行")).Font("monospace").FontSize(10).TextColor(t.TextMuted).MaxLines(4)
+					if a.localMonitor {
+						ui.Text(c, "进程可执行文件路径（不是完整命令行）").FontSize(10).TextColor(t.TextMuted)
+						ui.Text(c, displayOr(p.ImagePath, "当前权限无法读取映像路径")).Font("monospace").FontSize(10).TextColor(t.TextMuted).MaxLines(4)
+					} else {
+						ui.Text(c, displayOr(p.Cmdline, "后端未提供命令行")).Font("monospace").FontSize(10).TextColor(t.TextMuted).MaxLines(4)
+					}
 					ui.Row(c).Wrap().Gap(6).Children(func() {
 						if ui.Button(c, "此 PID 事件").Clicked() {
 							a.navigatePIDEvents(p.PID)
@@ -529,8 +568,8 @@ func (a *renewApp) systemView(c *ui.Context) {
 		!a.eventStreamConnected || !a.systemConnected || danger > 0 || attention > 0 {
 		card(c, "异常与快速处置", func() {
 			if !a.connected {
-				statusPill(c, "后端离线", t.Danger)
-				ui.Text(c, "后端未连接，当前无法确认采集状态。").TextColor(t.TextMuted)
+				statusPill(c, map[bool]string{true:"本机采样中断",false:"后端离线"}[a.localMonitor], t.Danger)
+                ui.Text(c, map[bool]string{true:"Windows 原生采集失败；无法确认最新进程和连接状态。",false:"后端未连接，当前无法确认采集状态。"}[a.localMonitor]).TextColor(t.TextMuted)
 			} else if a.healthReady && !a.health.CaptureHealthy {
 				statusPill(c, "采集异常", t.Danger)
 				ui.Text(c, "采集器报告异常，可检查监控模块与数据采集配置。").TextColor(t.TextMuted)
@@ -542,36 +581,47 @@ func (a *renewApp) systemView(c *ui.Context) {
 				ui.Textf(c, "当前事件窗口：%d 条高风险、%d 条需关注", danger, attention)
 			}
 			ui.Row(c).Gap(8).Wrap().Children(func() {
-				if ui.PrimaryButton(c, "定位异常事件").Clicked() {
-					a.eventAttentionOnly = true
-					a.eventTypeFilter, a.eventSessionFilter, a.eventDecisionFilter, a.search = "", "", "", ""
-					a.page = "事件"
-				}
-				if ui.Button(c, "采集设置").Clicked() { a.page = "监控" }
-				if ui.Button(c, "跟踪范围").Clicked() { a.page = "跟踪" }
-				if ui.Button(c, "立即重连").Clicked() {
-					go a.refresh(context.Background())
-					go a.refreshConfiguration(context.Background())
-				}
+				if !a.localMonitor {
+                    if ui.PrimaryButton(c, "定位异常事件").Clicked() {
+                        a.eventAttentionOnly = true
+                        a.eventTypeFilter, a.eventSessionFilter, a.eventDecisionFilter, a.search = "", "", "", ""
+                        a.page = "事件"
+                    }
+                    if ui.Button(c, "采集设置").Clicked() { a.page = "监控" }
+                    if ui.Button(c, "跟踪范围").Clicked() { a.page = "跟踪" }
+                }
+                if ui.Button(c, map[bool]string{true:"立即采样",false:"立即重连"}[a.localMonitor]).Clicked() {
+                    if a.localMonitor {
+                        a.requestWindowsRefresh()
+                    } else {
+                        go a.refresh(context.Background())
+                        go a.refreshConfiguration(context.Background())
+                    }
+                }
 			})
 		})
 	}
 
 	ui.Row(c).Gap(12).Wrap().Children(func() {
 		collectorLabel, _ := a.collectorStatus()
-		statCard(c, "采集器", collectorLabel, fmt.Sprintf("Ringbuf 丢弃 %d", a.health.RingbufDroppedTotal))
+		if a.localMonitor { statCard(c, "采集器", collectorLabel, fmt.Sprintf("摘要溢出 %d", a.health.RingbufDroppedTotal)) } else { statCard(c, "采集器", collectorLabel, fmt.Sprintf("Ringbuf 丢弃 %d", a.health.RingbufDroppedTotal)) }
 		if a.systemConnected {
 			statCard(c, "CPU", fmt.Sprintf("%.1f%%", a.system.CPUTotal), fmt.Sprintf("%d 个进程", len(a.system.Processes)))
 			statCard(c, "内存", fmt.Sprintf("%.1f%%", a.system.MemPercent), fmt.Sprintf("%s / %s", formatBytes(int64(a.system.MemUsed)), formatBytes(int64(a.system.MemTotal))))
-			statCard(c, "系统流", "实时", "protobuf / Native IPC")
+			if a.localMonitor { statCard(c, "系统采样", "2 秒刷新", "Windows Native API") } else { statCard(c, "系统流", "实时", "protobuf / Native IPC") }
 		} else if a.connected {
 			statCard(c, "系统流", "重连中", "Native IPC / WebSocket")
 		} else {
-			statCard(c, "系统流", "不可用", "后端离线")
+			statCard(c, map[bool]string{true:"系统采样",false:"系统流"}[a.localMonitor], "不可用", map[bool]string{true:"Windows 采集失败",false:"后端离线"}[a.localMonitor])
 		}
 	})
 
-	card(c, "I/O 快照", func() {
+	if a.localMonitor {
+		card(c, "Windows 实验性采集范围", func() {
+			ui.Text(c, "Win32 Toolhelp：进程清单、PID / PPID；GetProcessTimes / PSAPI：可访问进程的 CPU 与工作集；IP Helper：IPv4/IPv6 已建立 TCP 连接和 UDP 本地绑定；GetSystemTimes / GlobalMemoryStatusEx：CPU 与内存。").TextColor(t.TextMuted)
+			ui.Text(c, "不采集磁盘 / 网卡字节、文件操作、UDP 远端流量、TLS 内容或内核阻断记录；此模式不要求管理员权限，也不会修改系统策略。").TextColor(t.Warning)
+		})
+	} else { card(c, "I/O 快照", func() {
 		if !a.systemConnected {
 			if a.connected {
 				ui.Text(c, "等待系统 protobuf 流…").TextColor(t.TextMuted)
@@ -594,15 +644,20 @@ func (a *renewApp) systemView(c *ui.Context) {
 		}
 	})
 
+	}
 	card(c, "后端与队列", func() {
 		ui.Text(c, a.backend).Font("monospace")
-		ui.Textf(c, "后端队列：%d", a.health.BackendQueueLen).TextColor(t.TextMuted)
-		ui.Textf(c, "持久化队列：%d / %d · pending %d", a.health.PersistQueueLen, a.health.PersistQueueCap, a.health.PersistPending).TextColor(t.TextMuted)
+		if !a.localMonitor { ui.Textf(c, "后端队列：%d", a.health.BackendQueueLen).TextColor(t.TextMuted) }
+		if !a.localMonitor { ui.Textf(c, "持久化队列：%d / %d · pending %d", a.health.PersistQueueLen, a.health.PersistQueueCap, a.health.PersistPending).TextColor(t.TextMuted) }
 		ui.Textf(c, "桌面事件合并队列：%d / %d · 丢弃 %d", len(a.eventUIQueue), eventUIQueueSize, a.eventUIDroppedCount()).TextColor(t.TextMuted)
 		if !a.lastSync.IsZero() {
 			ui.Text(c, "摘要同步："+a.lastSync.Format("15:04:05")).FontSize(10).TextColor(t.TextMuted)
 		}
-		ui.Text(c, "桌面端为纯 Go/MyGo Native UI；系统实时数据直接解码后端 protobuf。").FontSize(11).TextColor(t.TextMuted)
+		if a.localMonitor {
+			ui.Text(c, "本机 Win32/IP Helper 轮询；无内嵌 eBPF 后端、无 WebSocket、无策略写入。").FontSize(11).TextColor(t.TextMuted)
+		} else {
+			ui.Text(c, "桌面端为纯 Go/MyGo Native UI；系统实时数据直接解码后端 protobuf。").FontSize(11).TextColor(t.TextMuted)
+		}
 	})
 }
 func (a *renewApp) eventRow(c *ui.Context, e eventSummary) {

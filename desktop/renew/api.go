@@ -596,6 +596,7 @@ func eventTime(e eventSummary) string {
 
 func eventRisk(e eventSummary) string {
 	decision := strings.ToUpper(strings.TrimSpace(e.Decision))
+	if decision == "OBSERVED" { return "未评级" } // sampling alone is not evidence of safety
 	if decision == "BLOCK" || decision == "DENY" || e.RiskScore >= 80 {
 		return "高风险"
 	}

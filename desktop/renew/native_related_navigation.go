@@ -1,7 +1,7 @@
 package main
 
 import (
-	"path/filepath"
+	"path"
 	"strconv"
 	"strings"
 
@@ -78,12 +78,13 @@ func (a *renewApp) navigateRecognition(pid int, comm string) bool {
 func safeExactFilePath(target string) bool {
 	// A file description, masked/redacted field or URI must not silently
 	// become an exact LSM path policy draft.
-	return filepath.IsAbs(target) && filepath.Clean(target) == target &&
+	return path.IsAbs(target) && path.Clean(target) == target &&
 		strings.TrimSpace(target) == target && !strings.ContainsAny(target, "\x00\r\n")
 }
 
 func (a *renewApp) navigatePathAccess(target string) bool {
-	if !safeExactFilePath(target) {
+	// Windows native sampling has no Linux LSM or path-policy backend.
+	if a.localMonitor || !safeExactFilePath(target) {
 		return false
 	}
 	if a.page != "路径权限" {
@@ -175,7 +176,7 @@ func (a *renewApp) eventQuickLinks(c *ui.Context, event eventSummary, withPolicy
 			ui.Button(c, "Agent 识别").Tooltip("定位 Agent 根 PID 的识别与捕获范围").Clicked() {
 			a.navigateRecognition(owner.OwnerPID, owner.OwnerComm)
 		}
-		if withPolicy && isFileMutationSummary(event) && safeExactFilePath(event.Target) &&
+		if withPolicy && !a.localMonitor && isFileMutationSummary(event) && safeExactFilePath(event.Target) &&
 			ui.Button(c, "路径权限").Tooltip("仅填入文件路径，不会创建或启用阻断策略").Clicked() {
 			a.navigatePathAccess(event.Target)
 		}
@@ -229,7 +230,7 @@ func (a *renewApp) eventDetailQuickLinks(c *ui.Context, event eventSummary) {
 			a.navigateRecognition(owner.OwnerPID, owner.OwnerComm)
 			a.closeEventDetail()
 		}
-		if isFileMutationSummary(event) && safeExactFilePath(event.Target) &&
+		if !a.localMonitor && isFileMutationSummary(event) && safeExactFilePath(event.Target) &&
 			ui.Button(c, "路径访问策略").Tooltip("只预填目标路径，不会立即阻断").Clicked() {
 			a.navigatePathAccess(event.Target)
 			a.closeEventDetail()

@@ -164,6 +164,9 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 }
 
 func (a *renewApp) workspacePage(c *ui.Context) {
+	if a.localMonitor && !windowsLocalPage(a.page) {
+		a.page = "概览"
+	}
 	switch a.page {
 	case "事件":
 		a.eventsView(c)
@@ -212,6 +215,7 @@ func (a *renewApp) activityRail(c *ui.Context) {
 		})
 		ui.Divider(c)
 		for _, page := range workspaceRailPages {
+			if a.localMonitor && !windowsLocalPage(page) { continue }
 			active := a.page == page
 			name := workspaceNavigationLabel(page, true)
 			button := ui.ButtonBase(c.Key("rail-" + page)).
@@ -294,23 +298,25 @@ func (a *renewApp) sidebar(c *ui.Context) {
 				case attention > 0:
 					events.Children(func() { statusPill(c, fmt.Sprint(attention), t.Warning) })
 				}
-				navItem("会话")
+				if !a.localMonitor { navItem("会话") }
 				navItem("网络")
-				navItem("域名")
+				if !a.localMonitor { navItem("域名") }
 				navItem("进程")
-				navItem("Agent 识别")
+				if !a.localMonitor { navItem("Agent 识别") }
 			})
-			ui.SidebarSection(c, "防护与管理", nil, func() {
-				navItem("监控")
-				navItem("eBPF 模块")
-				navItem("规则")
-				navItem("跟踪")
-				navItem("路径权限")
-			})
-			ui.SidebarSection(c, "工具", nil, func() {
-				navItem("终端")
-				navItem("CCS")
-			})
+			if !a.localMonitor {
+				ui.SidebarSection(c, "防护与管理", nil, func() {
+					navItem("监控")
+					navItem("eBPF 模块")
+					navItem("规则")
+					navItem("跟踪")
+					navItem("路径权限")
+				})
+				ui.SidebarSection(c, "工具", nil, func() {
+					navItem("终端")
+					navItem("CCS")
+				})
+			}
 			ui.SidebarSection(c, "运行诊断", nil, func() {
 				system := navItem("系统")
 				_, level := a.collectorStatus()
@@ -434,6 +440,7 @@ func (a *renewApp) header(c *ui.Context, navigationWidth float32) {
 
 
 func (a *renewApp) refreshActiveView() {
+	if a.localMonitor { a.requestWindowsRefresh(); return }
 	// Keep the continuously streamed metrics subscription intact: opening a
 	// second system WebSocket here would duplicate the collector workload.
 	go a.refresh(context.Background())
@@ -477,6 +484,8 @@ func (a *renewApp) workspaceFooter(c *ui.Context) {
 			statusPill(c, "后端离线", t.Danger)
 		case a.paused:
 			statusPill(c, "界面已暂停", t.Warning)
+		case a.localMonitor && a.eventStreamConnected:
+			statusPill(c, "Windows 采样", t.Warning)
 		case a.eventStreamConnected:
 			statusPill(c, "事件流实时", t.Success)
 		default:
@@ -500,7 +509,9 @@ func (a *renewApp) workspaceFooter(c *ui.Context) {
 		if !a.lastSync.IsZero() {
 			ui.Text(c, "同步 "+a.lastSync.Format("15:04:05")).FontSize(10).TextColor(t.TextMuted)
 		}
-		if ui.Button(c, fmt.Sprintf("丢弃 %d", a.health.RingbufDroppedTotal)).Tooltip("打开采集链路诊断").Clicked() {
+		dropLabel := "Ringbuf 丢弃"
+		if a.localMonitor { dropLabel = "采样摘要溢出" }
+		if ui.Button(c, fmt.Sprintf("%s %d", dropLabel, a.health.RingbufDroppedTotal)).Tooltip("打开采集链路诊断").Clicked() {
 			a.page = "系统"
 		}
 	})

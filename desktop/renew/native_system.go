@@ -22,6 +22,7 @@ type systemProcess struct {
 	MemPercent float64
 	User       string
 	Cmdline    string
+	ImagePath string // Windows only: executable image path, never a fake command line
 	CreateTime int64
 }
 
@@ -343,7 +344,7 @@ func (a *renewApp) filteredSystemProcesses() []systemProcess {
 	rows := make([]systemProcess, 0, len(a.system.Processes))
 	for _, process := range a.system.Processes {
 		if q != "" && !strings.Contains(strings.ToLower(strings.Join([]string{
-			process.Name, process.User, process.Cmdline,
+			process.Name, process.User, process.Cmdline, process.ImagePath,
 			fmt.Sprint(process.PID), fmt.Sprint(process.PPID),
 		}, " ")), q) {
 			continue

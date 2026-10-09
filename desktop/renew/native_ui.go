@@ -15,6 +15,8 @@ type renewApp struct {
 	win     *mygo.Window
 	backend string
 	client  *apiClient
+	localMonitor bool // Windows experimental native polling; never a privileged eBPF backend
+	localRefresh chan struct{} // bounded manual refresh signal; only consumed in Windows local mode
 
 	starting   bool
 	connected  bool
@@ -81,6 +83,10 @@ type renewApp struct {
 	health             collectorHealth
 	trackedComms       []string
 	system             systemSnapshot
+	windowsConnections []windowsTCPSample // current established TCP sockets (Windows local only)
+	windowsUDPBindings []windowsUDPSample // current UDP local socket bindings
+	windowsNetworkTab int
+	windowsNetworkLastTab int
 	systemConnected    bool
 	systemErr          string
 	eventStreamConnected bool
@@ -389,6 +395,9 @@ func (a *renewApp) view(c *ui.Context) {
 }
 
 func (a *renewApp) collectorStatus() (label, level string) {
+	if a.localMonitor && a.healthReady && a.health.CaptureHealthy {
+		return "实验性采样", "warning"
+	}
 	switch {
 	case a.starting:
 		return "同步中", "warning"
@@ -404,6 +413,9 @@ func (a *renewApp) collectorStatus() (label, level string) {
 }
 
 func (a *renewApp) pipelineStatus() (label, level string) {
+	if a.localMonitor && a.connected && a.healthReady && a.health.CaptureHealthy {
+		return "Windows · 2 秒采样", "warning"
+	}
 	switch {
 	case a.starting:
 		return "启动中", "warning"
@@ -477,6 +489,8 @@ func riskTextColor(t *ui.Theme, risk string) ui.Color {
 func riskPill(c *ui.Context, risk string) ui.Element {
 	t := c.Theme()
 	switch risk {
+	case "未评级":
+		return statusPill(c, risk, t.TextMuted)
 	case "高风险":
 		return statusPill(c, risk, t.Danger)
 	case "需关注":
@@ -505,11 +519,15 @@ func (a *renewApp) startingView(c *ui.Context) {
 
 func (a *renewApp) errorView(c *ui.Context) {
 	t := c.Theme()
-	card(c, "后端未就绪", func() {
+	card(c, map[bool]string{true:"Windows 本机采样不可用",false:"后端未就绪"}[a.localMonitor], func() {
 		ui.Text(c, a.lastErr).TextColor(t.TextMuted)
-		ui.Text(c, "可通过 AGENT_BACKEND_URL / --backend 指向其他实例；远程受保护实例可通过 AGENT_API_TOKEN 提供 token。").FontSize(12).TextColor(t.TextMuted)
-		if ui.PrimaryButton(c, "重试").Clicked() {
-			go a.bootstrap(context.Background())
+		if a.localMonitor {
+            ui.Text(c, "本机进程与网络采样发生错误；下次恢复时会重新建立基线，不补造缺失期间的事件。").FontSize(12).TextColor(t.TextMuted)
+        } else {
+            ui.Text(c, "可通过 AGENT_BACKEND_URL / --backend 指向其他实例；远程受保护实例可通过 AGENT_API_TOKEN 提供 token。").FontSize(12).TextColor(t.TextMuted)
+        }
+		if ui.PrimaryButton(c, map[bool]string{true:"立即重新采样",false:"重试"}[a.localMonitor]).Clicked() {
+            if a.localMonitor { a.requestWindowsRefresh() } else { go a.bootstrap(context.Background()) }
 		}
 	})
 }
@@ -570,7 +588,7 @@ func (a *renewApp) filteredEvents() []eventSummary {
 		if !matchesEventDecision(event, a.eventDecisionFilter) {
 			continue
 		}
-		if a.eventAttentionOnly && eventRisk(event) == "正常" {
+		if a.eventAttentionOnly && eventRisk(event) != "高风险" && eventRisk(event) != "需关注" {
 			continue
 		}
 		out = append(out, event)
@@ -592,6 +610,8 @@ func (a *renewApp) riskCounts() (normal, attention, danger int) {
 			danger++
 		case "需关注":
 			attention++
+		case "未评级":
+			// Windows state observations have no detection verdict.
 		default:
 			normal++
 		}

@@ -6,6 +6,64 @@
 
 明镜高悬是 Agent eBPF Filter 的原生桌面监控应用。界面完全使用 Go 和 MyGo `ui` 组件绘制，不依赖 WebView、Vite、HTML、JavaScript 或 Vue Renew 前端运行时。
 
+## Windows experimental support (read-only local sampler)
+
+Windows 10/11 amd64 can now launch the native MyGo desktop **without a Linux
+backend or administrator elevation**. When neither `--backend` nor
+`AGENT_BACKEND_URL` is supplied, Renew uses a Windows-native collector in the
+desktop process. Providing either explicit backend setting retains the original
+authenticated remote Linux backend workflow.
+
+This is an **experimental monitoring rewrite**, not Windows eBPF:
+
+| Scope | Windows API | Semantics |
+| --- | --- | --- |
+| Process inventory | Toolhelp32Snapshot / Process32FirstW / Process32NextW | PID, parent PID, image name, accessible full executable path (not full command line) every ~2 seconds |
+| CPU / memory | GetSystemTimes, GlobalMemoryStatusEx, GetProcessTimes, GetProcessMemoryInfo | CPU deltas, physical memory and accessible process working sets |
+| TCP peers | IP Helper GetExtendedTcpTable (IPv4 + IPv6, owning PID) | Established connections only; IPv6 scope IDs retained; differences are **observations**, not connection-start kernel events |
+| UDP local bindings | IP Helper GetExtendedUdpTable (IPv4 + IPv6, owning PID) | Local UDP bound endpoints and owner PIDs; **not peers, datagrams, traffic, or DNS requests** |
+| Event window | Local bounded differential sampler | Up to 256 new summary records per poll, retained in the standard 1200-summary desktop window; overflows reported |
+| Detail | On-demand local sampled summary | Explicitly identifies Windows sampler source; no privileged rule actions |
+
+The initial inventory is used as a baseline, not emitted as a burst of
+fabricated process starts. After any collection error the next successful snapshot
+is again treated as a baseline, avoiding false events across unobservable gaps.
+IP Helper tables are fetched with bounded retries if rows change between size
+query and retrieval. Sampling allocations and event queues are bounded. Events are named `process_newly_observed`,
+`process_disappeared`, `network_tcp_observed` and `network_udp_binding_observed` to avoid pretending
+polling proves an exact startup, exit or connect timestamp. All records use
+`OBSERVED` as their decision and do not fabricate risk scores.
+
+**Not currently available:** Linux eBPF ring buffers, ETW session tracing,
+Sysmon/Event Log integration, per-file access, filesystem syscalls, UDP remote peers / QUIC
+flows, packet content/TLS decryption, actual Agent session attribution,
+long-term event storage, system I/O byte totals, WFP/WDAC enforcement, BPF
+LSM/cgroup policy actions, Agent tracking and embedded backend privileges.
+The interface hides Linux-only administrative pages in local Windows mode,
+and visibly marks collection coverage and gaps. Refresh triggers an actual bounded native sample. The Network page has separate live TCP/UDP tables, including the first inventory, rather than only event deltas. Short-lived processes and
+connections between polls can be missed. This mode is **not a security audit
+trail**.
+
+The Windows local collector neither opens an HTTP listener nor executes
+PowerShell/WMI subprocesses. It does not enable telemetry outside the local
+machine. A future Windows ETW + WFP backend must be designed and evaluated
+separately rather than treating this sampled prototype as feature parity.
+
+Build and test on Windows:
+
+```powershell
+cd desktop/renew
+go test ./...
+go build -o renew.exe .
+# Package native dependencies and the Windows installer:
+go tool mygo build -skip-build-command -platform windows/amd64
+.\build\windows-amd64\Renew.exe
+```
+
+The `Renew desktop` GitHub Actions workflow publishes a full native Windows app directory and installer in `renew-windows-amd64-experimental` (including the version-pinned `ghostty-vt.dll`). Its separate `renew-windows-amd64-raw-exe` is for diagnostics only and may lack runtime resources. Linux still uses
+its previous privileged embedded backend and private Unix IPC without
+modification.
+
 ## 日常安全软件：Agent 域名监控与托盘
 
 原生工作区新增 **Agent 域名监控**（左侧快捷栏/导航，首页一键进入）。它从后端既有的网络事件摘要提取 Host/SNI/Domain/DNS 线索与 IP-only 外联，基于采集到的 Agent root PID、run/会话上下文为 Codex、Claude Code、Gemini CLI 等 Agent 归属。子进程通过已记录的 root Agent 证据关联，**不会**将所有 shell / Node 访问自动认作某个 Agent。
