@@ -11,32 +11,6 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// One shared palette per window: avoid allocating a new Theme every frame.
-// Inspired by the reference image's low-contrast navy editor chrome.
-var renewDesktopTheme = func() *ui.Theme {
-	t := ui.DarkTheme()
-	t.Background = ui.Hex("#0d111b")
-	t.Surface = ui.Hex("#151b27")
-	t.SurfaceHover = ui.Hex("#202a3b")
-	t.SurfacePressed = ui.Hex("#29364d")
-	t.Border = ui.Hex("#2b3546")
-	t.Text = ui.Hex("#e8edf5")
-	t.TextMuted = ui.Hex("#94a1b5")
-	t.Accent = ui.Hex("#839bf5")
-	t.AccentHover = ui.Hex("#9bafff")
-	t.AccentPressed = ui.Hex("#6684e0")
-	t.AccentText = ui.Hex("#111827")
-	t.Warning = ui.Hex("#eebc66")
-	t.Danger = ui.Hex("#ff7a8f")
-	t.Success = ui.Hex("#64cfa9")
-	t.Selection = ui.RGBA(131, 155, 245, 0.28)
-	t.Focus = ui.RGBA(131, 155, 245, 0.55)
-	t.Radius = 8
-	t.Spacing = 4
-	t.FontSize = 13
-	return t
-}()
-
 // Keep platform materials opt-in to the supported native compositors. On
 // Wayland and X11 we always paint an opaque workspace, including when the
 // user has a desktop transparency setting enabled elsewhere.
@@ -77,7 +51,11 @@ func showWorkspaceInspector(windowWidth, navigationWidth float32, expanded bool,
 }
 
 func (a *renewApp) workspaceView(c *ui.Context) {
-	c.SetTheme(renewDesktopTheme)
+	// MyGo's frame theme already tracks light/dark system appearance and changes.
+	// Copy its current colors before applying the Renew palette so that OS
+	// accents, high contrast, font scaling, and native theme switches survive.
+	styleRenewWorkspaceTheme(&a.workspaceTheme, c.Theme(), c.Preferences().HighContrast)
+	c.SetTheme(&a.workspaceTheme)
 	t := c.Theme()
 	width, _ := c.Size()
 	vibrant := c.Vibrancy()
@@ -178,7 +156,7 @@ func (a *renewApp) activityRail(c *ui.Context) {
 	}
 	rail.Children(func() {
 		ui.Box(c).Size(40, 40).Radius(12).Background(t.Accent.Alpha(0.18)).Center().Children(func() {
-			ui.Text(c, "镜").Bold().FontSize(18).TextColor(t.Accent)
+			ui.Icon(c, renewMirrorSVG).Size(27, 27).TextColor(t.Accent).Label(desktopBrandName)
 		})
 		ui.Divider(c)
 		for _, item := range []struct{ label, glyph string }{
@@ -221,11 +199,6 @@ func (a *renewApp) sidebar(c *ui.Context) {
 		side.Background(t.Surface)
 	}
 	side.Children(func() {
-		ui.Column(c).Padding(16, 14, 13, 14).Gap(4).Children(func() {
-			ui.Text(c, desktopBrandName).FontSize(17).Bold()
-			ui.Text(c, "AGENT eBPF  /  WORKSPACE").Font("monospace").FontSize(10).TextColor(t.TextMuted)
-		})
-		ui.Divider(c)
 		menu := ui.Sidebar(c, &a.page, func() {
 			ui.SidebarSection(c, "监控工作台", nil, func() {
 				ui.SidebarItem(c, "概览", nil, "态势总览")
@@ -264,21 +237,7 @@ func (a *renewApp) sidebar(c *ui.Context) {
 		if c.Vibrancy() {
 			menu.Background(ui.Transparent)
 		}
-		ui.Divider(c)
-		ui.Column(c).Padding(12, 14).Gap(8).Children(func() {
-			label, level := a.pipelineStatus()
-			tone := workspaceStatusTone(t, level)
-			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-				statusPill(c, label, tone)
-				if a.paused {
-					statusPill(c, "界面暂停", t.Warning)
-				}
-			})
-			ui.Text(c, a.backend).Font("monospace").FontSize(10).TextColor(t.TextMuted).MaxLines(2)
-			if c.Vibrancy() {
-				ui.Text(c, "原生系统材质").FontSize(10).TextColor(t.TextMuted)
-			}
-		})
+
 	})
 }
 

@@ -3,6 +3,7 @@
   "identifier": "io.github.stevessr.agent-ebpf-filter.renew",
   "version": "0.1.0",
   "main": ".",
+  "icon": "resources/icon.png",
   "out": "build",
   "buildCommand": "../../scripts/renew-desktop.sh prepare",
   "linux": {

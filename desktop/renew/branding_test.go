@@ -27,6 +27,7 @@ func TestLegacyMyGoPackagingIdentityIsPreserved(t *testing.T) {
 	var manifest struct {
 		Name       string `json:"name"`
 		Identifier string `json:"identifier"`
+		Icon       string `json:"icon"`
 		Linux      struct {
 			Command string `json:"command"`
 			Comment string `json:"comment"`
@@ -42,5 +43,11 @@ func TestLegacyMyGoPackagingIdentityIsPreserved(t *testing.T) {
 	}
 	if !strings.Contains(manifest.Linux.Comment, desktopBrandName) {
 		t.Fatalf("desktop description omits public brand: %q", manifest.Linux.Comment)
+	}
+	if manifest.Icon != "resources/icon.png" {
+		t.Fatalf("missing packaged mirror icon: %q", manifest.Icon)
+	}
+	if _, err := os.Stat(manifest.Icon); err != nil {
+		t.Fatalf("missing packaged mirror icon file: %v", err)
 	}
 }

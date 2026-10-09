@@ -34,7 +34,7 @@ func (a *renewApp) overview(c *ui.Context) {
 	ui.Column(c).Padding(18).Gap(10).Radius(12).Background(t.Surface).Border(1, t.Border).Children(func() {
 		ui.Row(c).Gap(12).Wrap().AlignItems(ui.Center).Children(func() {
 			ui.Box(c).Size(40, 40).Radius(12).Background(t.Accent.Alpha(0.17)).Center().Children(func() {
-				ui.Text(c, "镜").FontSize(20).Bold().TextColor(t.Accent)
+				ui.Icon(c, renewMirrorSVG).Size(29, 29).TextColor(t.Accent).Label(desktopBrandName)
 			})
 			ui.Column(c).Grow(1).MinWidth(250).Gap(4).Children(func() {
 				ui.Text(c, "系统运行态势").FontSize(22).Bold()

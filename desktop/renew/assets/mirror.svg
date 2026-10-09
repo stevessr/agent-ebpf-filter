@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <title>明镜高悬 — 手镜</title>
+  <g fill="none" stroke="#171e31" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Oval glass and bezel: no font glyphs, so it scales to any desktop DPI. -->
+    <ellipse cx="32" cy="24" rx="17.5" ry="20" stroke-width="5"/>
+    <path d="M23 19c1.8-4.7 5.3-7 10-7.5" stroke-width="3"/>
+    <!-- Classic centered hand mirror, rather than a magnifying-glass handle. -->
+    <path d="M32 44.5v13" stroke-width="6"/>
+    <path d="M26 59h12" stroke-width="5"/>
+  </g>
+</svg>
