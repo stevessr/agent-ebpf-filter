@@ -55,7 +55,7 @@ func TestAncestorFallbackOnlyForFileAndExecEvents(t *testing.T) {
 func TestAncestorResolutionBounded(t *testing.T) {
 	store := NewProcessContextStore()
 	store.Set(10, ProcessContext{AgentRunID: "far-away"})
-	parents := map[uint32]uint32{}
+	parents := map[uint32]uint32{201: 200}
 	for pid := uint32(200); pid > 10; pid-- {
 		parents[pid] = pid - 1
 	}
@@ -156,5 +156,27 @@ func TestCgroupAttributionLegacyFallbackWithoutRoot(t *testing.T) {
 	ctx, ok := contextFromAgentCgroup(44)
 	if !ok || ctx.AgentRunID != "legacy-run" || ctx.RootAgentPid != 0 {
 		t.Fatalf("legacy attribution compatibility regression: %+v ok=%v", ctx, ok)
+	}
+}
+
+func TestAncestorFallbackRejectsStaleOrReusedPID(t *testing.T) {
+	store := NewProcessContextStore()
+	store.Set(100, ProcessContext{RootAgentPid: 100, AgentRunID: "agent-old"})
+	parentOf := func(pid uint32) (uint32, bool) {
+		if pid == 500 {
+			return 401, true // Current PID 500 belongs to a *different* parent.
+		}
+		if pid == 400 {
+			return 100, true
+		}
+		return 0, false
+	}
+	if ctx, ok := resolveAncestorAgentContext(500, 400, store, parentOf); ok {
+		t.Fatalf("historical PPID assigned to a recycled live process: %+v", ctx)
+	}
+	// An exited process has no live /proc identity. Its past ancestry must
+	// be recovered from recorded fork events, not guessed from old PPID.
+	if ctx, ok := resolveAncestorAgentContext(600, 100, store, parentOf); ok {
+		t.Fatalf("exited child inherited stale Agent root: %+v", ctx)
 	}
 }
