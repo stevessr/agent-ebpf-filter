@@ -108,14 +108,15 @@ func readClaudeCandidate(path, scope string) (agentConfigCandidate, bool, error)
 	if err := json.Unmarshal(data, &settings); err != nil {
 		return agentConfigCandidate{}, true, errors.New("JSON 格式不正确或字段类型不匹配")
 	}
+	filename := filepath.Base(path) // only fixed settings.json / settings.local.json
 	c := agentConfigCandidate{
 		Agent: "Claude Code", Scope: scope, Provider: "Anthropic / 未明确指定",
-		Model: configLabel(settings.Model), Source: "settings.json",
+		Model: configLabel(settings.Model), Source: filename,
 		Security: claudeConfigSecurity(settings.Permissions.DefaultMode, scope),
 	}
 	if model := configLabel(settings.Env["ANTHROPIC_MODEL"]); model != "" {
 		c.Model = model
-		c.Source = "settings.json · env"
+		c.Source = filename + " · env"
 	}
 	switch {
 	case enabledClaudeFlag(settings.Env["CLAUDE_CODE_USE_BEDROCK"]):
@@ -129,7 +130,7 @@ func readClaudeCandidate(path, scope string) (agentConfigCandidate, bool, error)
 		if value := settings.Env[variable]; value != "" {
 			c.Host, c.HostKind = safeConfiguredHost(value)
 			if c.Host != "" {
-				c.Source = "settings.json · " + variable
+				c.Source = filename + " · " + variable
 				break
 			}
 		}
