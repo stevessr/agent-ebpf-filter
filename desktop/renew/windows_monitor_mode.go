@@ -8,6 +8,15 @@ func localWindowsMonitoringEnabled(explicitBackend, envBackend string) bool {
 	return strings.TrimSpace(explicitBackend) == "" && strings.TrimSpace(envBackend) == ""
 }
 
+// The request channel is single-slot: repeated clicks are coalesced.
+func (a *renewApp) requestWindowsRefresh() {
+    if !a.localMonitor || a.localRefresh == nil { return }
+    select {
+    case a.localRefresh <- struct{}{}:
+    default:
+    }
+}
+
 func windowsLocalPage(page string) bool {
 	switch page {
 	case "概览", "研判", "事件", "网络", "进程", "系统":
