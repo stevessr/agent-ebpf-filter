@@ -68,3 +68,38 @@ func TestTerminalShortDirectory(t *testing.T) {
 		t.Fatalf("project directory = %q", got)
 	}
 }
+
+func TestTerminalCloseEarlierTabKeepsActiveIdentity(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.terminalTabs = []*renewTerminalTab{
+		{id: 1, root: &renewTerminalNode{pane: &renewTerminalPane{id: 11}}, focus: 11},
+		{id: 2, root: &renewTerminalNode{pane: &renewTerminalPane{id: 22}}, focus: 22},
+		{id: 3, root: &renewTerminalNode{pane: &renewTerminalPane{id: 33}}, focus: 33},
+	}
+	a.terminalActive = 1
+	a.closeTerminalTab(0)
+	if a.terminalActive != 0 || a.currentTerminalTab().id != 2 || a.terminalFocusRequest != 22 {
+		t.Fatalf("closing earlier tab changed active terminal: index=%d, focus=%d", a.terminalActive, a.terminalFocusRequest)
+	}
+	a.closeTerminalTab(0)
+	if a.terminalActive != 0 || a.currentTerminalTab().id != 3 {
+		t.Fatal("closing active tab should select adjacent surviving tab")
+	}
+	a.closeTerminalTab(0)
+	if len(a.terminalTabs) != 0 || a.terminalFocusRequest != 0 || a.terminalActive != 0 {
+		t.Fatal("closing the last tab must leave a clean focus state")
+	}
+}
+
+func TestCompactTerminalTabTitlePreservesUnicode(t *testing.T) {
+	if got := compactTerminalTabTitle("  "); got != "终端" {
+		t.Fatalf("empty title got %q", got)
+	}
+	if got := compactTerminalTabTitle("Terminal"); got != "Terminal" {
+		t.Fatalf("short title got %q", got)
+	}
+	got := compactTerminalTabTitle("这是一个超长的终端标签标题用来验证多字节字符不会被截断破坏")
+	if len([]rune(got)) != 22 || []rune(got)[21] != '…' {
+		t.Fatalf("unicode title not truncated to 22 runes: %q", got)
+	}
+}
