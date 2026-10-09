@@ -99,3 +99,32 @@ func TestWindowsUDPInventorySearch(t *testing.T) {
         t.Fatalf("empty query should show all UDP bindings: %#v",got)
     }
 }
+
+
+func TestWindowsUnratedObservationExcludedFromRiskTotalsAndAttention(t *testing.T) {
+    a:=newRenewApp(defaultBackendURL)
+    a.events=[]eventSummary{
+        {EventID:"sample",Type:"network_udp_binding_observed",Decision:"OBSERVED"},
+        {EventID:"alert",Type:"network_tcp_observed",Decision:"ALERT"},
+    }
+    normal,attention,danger:=a.riskCounts()
+    if normal!=0 || attention!=1 || danger!=0 {
+        t.Fatalf("unrated sample falsely counted as safe or alarming: %d %d %d",normal,attention,danger)
+    }
+    a.eventAttentionOnly=true
+    got:=a.filteredEvents()
+    if len(got)!=1 || got[0].EventID!="alert" {
+        t.Fatalf("attention filter included unreviewed sample: %#v",got)
+    }
+}
+
+func TestWindowsRefreshCoalescesUserRequests(t *testing.T) {
+    app:=newRenewApp(defaultBackendURL)
+    app.localMonitor=true
+    app.localRefresh=make(chan struct{},1)
+    for i:=0;i<100;i++ { app.requestWindowsRefresh() }
+    if len(app.localRefresh)!=1 { t.Fatalf("refresh queue must be bounded: %d",len(app.localRefresh)) }
+    <-app.localRefresh
+    app.requestWindowsRefresh()
+    if len(app.localRefresh)!=1 { t.Fatal("next refresh was lost") }
+}
