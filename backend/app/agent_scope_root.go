@@ -91,11 +91,9 @@ func (s *agentRootScopeStore) OwnerComm(event *pb.Event) string {
 		return ""
 	}
 	run := strings.TrimSpace(event.AgentRunId)
-	if entry.RunID != "" && run != "" && run != entry.RunID {
-		return ""
-	}
-	if entry.RunID == "" && run != "" {
-		// An unversioned root is insufficient to claim a named run.
+	if entry.RunID != run {
+		// A missing run token is also insufficient to connect an event
+		// to a specific named run after PID recycling.
 		return ""
 	}
 	return entry.Comm
