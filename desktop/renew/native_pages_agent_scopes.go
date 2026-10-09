@@ -97,6 +97,7 @@ func aggregateAgentRecognitionWithProcesses(events []eventSummary, registry regi
 	}
 	byKey := make(map[string]*agentRecognitionRow)
 	seen := make(map[string]bool)
+	owners := buildAgentOwnershipIndex(events, processes)
 
 	for _, p := range processes {
 		comm := strings.TrimSpace(p.Name)
@@ -116,28 +117,46 @@ func aggregateAgentRecognitionWithProcesses(events []eventSummary, registry regi
 	}
 
 	for _, event := range events {
+		owner := owners.attribution(event)
 		comm := strings.TrimSpace(event.Comm)
+		pid := event.PID
+		tag := event.Tag
+		source := "事件识别"
+		if owner.Indirect {
+			// Shell/interpreter activity belongs to the Agent that started
+			// the command; the executor is preserved in the event evidence.
+			pid = owner.OwnerPID
+			comm = strings.TrimSpace(owner.OwnerComm)
+			if comm == "" {
+				comm = fmt.Sprintf("Agent PID %d", pid)
+			}
+			tag = owner.OwnerTag
+			source = "子进程归因"
+		}
 		name := strings.ToLower(comm)
-		if name == "" { continue }
+		if name == "" || pid <= 0 { continue }
 		saved, registered := tracked[name]
-		if !registered && !isAgentSummary(event) && harnessLabelFor(event.Tag, comm) == "未识别" {
+		if !registered && !isAgentSummary(event) && harnessLabelFor(tag, comm) == "未识别" {
 			continue
 		}
-		key := agentRecognitionKey(comm, event.PID)
+		key := agentRecognitionKey(comm, pid)
 		row := byKey[key]
 		if row == nil {
 			row = &agentRecognitionRow{
-				Comm: comm, PID: event.PID, Tag: saved.Tag,
-				Source: "事件识别", Disabled: saved.Disabled,
+				Comm: comm, PID: pid, Tag: saved.Tag,
+				Source: source, Disabled: saved.Disabled,
 			}
 			byKey[key] = row
 		}
 		row.Events++
 		if event.ReceivedAtMS >= row.LastSeen {
 			row.LastSeen = event.ReceivedAtMS
-			if strings.TrimSpace(event.Tag) != "" { row.Tag = event.Tag }
+			if strings.TrimSpace(tag) != "" { row.Tag = tag }
 		}
 		row.Label = harnessLabelFor(row.Tag, row.Comm)
+		if owner.Indirect && owner.OwnerLabel != "" {
+			row.Label = owner.OwnerLabel
+		}
 		seen[name] = true
 	}
 
@@ -288,10 +307,39 @@ func (a *renewApp) agentScopeEditor(c *ui.Context, kind, heading, help string) {
 	})
 }
 
+// Manual text search is fuzzy, but links from a root Agent PID are exact.
+// Never show PID 1001 when the analyst jumped to PID 100.
+func filterAgentRecognitionRows(rows []agentRecognitionRow, query string, focusPID int) []agentRecognitionRow {
+	q := strings.ToLower(strings.TrimSpace(query))
+	if q == "" && focusPID <= 0 {
+		return rows
+	}
+	filtered := make([]agentRecognitionRow, 0, len(rows))
+	for _, row := range rows {
+		if focusPID > 0 && row.PID != focusPID {
+			continue
+		}
+		if q != "" &&
+			!strings.Contains(strings.ToLower(row.Comm+" "+row.Tag+" "+row.Label+" "+strconv.Itoa(row.PID)), q) {
+			continue
+		}
+		filtered = append(filtered, row)
+	}
+	return filtered
+}
+
 func (a *renewApp) agentRecognitionView(c *ui.Context) {
 	t := c.Theme()
 	ui.Text(c, "Agent 识别与范围").FontSize(28).Bold()
 	ui.Text(c, "识别运行中的 Agent 命令和标签；独立控制事件捕获与后续分析监视。名单不会阻止 Agent 执行，也不卸载内核探针。").TextColor(t.TextMuted)
+	if a.agentReturnPage != "" && a.agentReturnPage != "Agent 识别" {
+		if ui.Button(c, "← 返回"+a.agentReturnPage).Clicked() {
+			a.page = a.agentReturnPage
+			a.agentReturnPage = ""
+			a.agentFocusPID = 0
+			a.agentSearch = ""
+		}
+	}
 
 	if a.agentScopesErr != "" { ui.Text(c, a.agentScopesErr).TextColor(t.Danger) }
 	if a.agentScopesNotice != "" { statusPill(c, a.agentScopesNotice, t.Success) }
@@ -333,16 +381,24 @@ func (a *renewApp) agentRecognitionView(c *ui.Context) {
 			a.agentSelected = -1
 			a.agentLastSearch = a.agentSearch
 		}
-		rows := aggregateAgentRecognitionWithProcesses(a.events, a.registry, live)
-		if query := strings.ToLower(strings.TrimSpace(a.agentSearch)); query != "" {
-			filtered := make([]agentRecognitionRow, 0, len(rows))
-			for _, row := range rows {
-				if strings.Contains(strings.ToLower(row.Comm+" "+row.Tag+" "+row.Label+" "+strconv.Itoa(row.PID)), query) {
-					filtered = append(filtered, row)
-				}
-			}
-			rows = filtered
+		if a.agentFocusPID > 0 && strings.TrimSpace(a.agentSearch) != strconv.Itoa(a.agentFocusPID) {
+			// A manual search clears the exact PID navigation scope.
+			a.agentFocusPID = 0
 		}
+		if a.agentFocusPID > 0 {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				statusPill(c, fmt.Sprintf("精确定位 Agent PID %d", a.agentFocusPID), t.Accent)
+				if ui.Button(c, "清除定位").Clicked() {
+					a.agentFocusPID = 0
+					a.agentSearch = ""
+					a.agentSelected = -1
+				}
+			})
+		}
+		rows := filterAgentRecognitionRows(
+			aggregateAgentRecognitionWithProcesses(a.events, a.registry, live),
+			a.agentSearch, a.agentFocusPID,
+		)
 		if len(rows) == 0 {
 			ui.Text(c, "当前没有已识别 Agent；可以先登记命令、启动受支持的 Agent，或等待其事件。").TextColor(t.TextMuted)
 			if ui.Button(c, "打开跟踪").Clicked() { a.page = "跟踪" }
@@ -405,10 +461,17 @@ func (a *renewApp) agentRecognitionView(c *ui.Context) {
 				if ui.Button(c, "填入监视名单").Clicked() {
 					a.monitorScopeText = appendScopeEntry(a.monitorScopeText, selected.Comm)
 				}
-				if selected.PID > 0 && ui.Button(c, "查看事件").Clicked() {
-					a.clearEventFilters()
-					a.eventPIDFilter = selected.PID
-					a.page = "事件"
+				if selected.PID > 0 && ui.Button(c, "进程自身事件").Tooltip("仅匹配这个 PID 执行的事件").Clicked() {
+					a.navigatePIDEvents(selected.PID)
+				}
+				if selected.PID > 0 && selected.Events > 0 &&
+					ui.Button(c, "Agent 与子进程事件").Tooltip("包含记录了此根 Agent PID 的脚本行为").Clicked() {
+					a.navigateAgentEvents(selected.PID)
+				}
+				if selected.Comm != "" && ui.Button(c, "填入跟踪命令").Tooltip("打开命令跟踪编辑器并预填名称，不会自动修改规则").Clicked() {
+					a.registryTab = 0
+					a.trackName = selected.Comm
+					a.page = "跟踪"
 				}
 			})
 		}

@@ -34,6 +34,9 @@ type SemanticAlertStateStatus struct {
 	CapacityEvictionsTotal        uint64    `json:"capacityEvictionsTotal"`
 	TruncatedStateValuesTotal     uint64    `json:"truncatedStateValuesTotal"`
 	IgnoredOversizedMetadataTotal uint64    `json:"ignoredOversizedMetadataTotal"`
+	FileCorrelationAlertsTotal    uint64    `json:"fileCorrelationAlertsTotal"`
+	FileCorrelationDedupedTotal   uint64    `json:"fileCorrelationDedupedTotal"`
+	FileCorrelationLateTotal      uint64    `json:"fileCorrelationLateTotal"`
 	LastSweepAt                   time.Time `json:"lastSweepAt,omitempty"`
 }
 

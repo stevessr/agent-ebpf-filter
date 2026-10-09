@@ -41,6 +41,9 @@ type renewApp struct {
 	navigationDetailed bool
 	inspectorOpen bool
 	materialEnabled bool
+	tray *mygo.Tray
+	trayAvailable bool
+	minimizeToTray bool
 	// Mutable per-window theme, refreshed from MyGo's system theme every frame.
 	workspaceTheme ui.Theme
 	inspectorTab int
@@ -70,6 +73,9 @@ type renewApp struct {
 	processCacheVersion uint64
 	processCacheKey    string
 	processCacheRows   []processAggregate
+	domainCacheValid   bool
+	domainCacheVersion uint64
+	domainCacheRows    []agentDomainRow
 	optionCacheValid   bool
 	optionCacheVersion uint64
 	eventTypeOptions   []string
@@ -93,6 +99,21 @@ type renewApp struct {
 	networkTable        ui.ListState
 	networkSelected     int
 	processTable        ui.ListState
+	domainTable         ui.ListState
+	domainSelected      int
+	domainSearch        string
+	domainAgentFilter   string
+	domainRiskOnly      bool
+	domainShowIPs       bool
+	domainLastFilter    string
+	domainSelectedKey   string
+	domainLastVersion   uint64
+	configProjectPath string
+	configLoaded      bool
+	configLoading     bool
+	configGeneration  uint64
+	configInspection  agentConfigInspection
+	configTable       ui.ListState
 	sessionTable        ui.ListState
 	rulesTable          ui.ListState
 	commTable           ui.ListState
@@ -106,6 +127,14 @@ type renewApp struct {
 	pathSelected        int
 	prefixSelected      int
 	eventPIDFilter      int
+	eventRootPIDFilter  int
+	eventTargetFilter   string
+	eventDomainAgent    string
+	eventDomainTarget   string
+	eventDomainKind     string
+	eventFileEditsOnly  bool
+	eventDelegatedOnly  bool
+	eventReturnPage     string
 	eventRiskFilter     string
 	eventTypeFilter     string
 	eventSessionFilter  string
@@ -167,6 +196,9 @@ type renewApp struct {
 	monitorScopeText     string
 	agentSearch          string
 	agentLastSearch      string
+	agentFocusPID        int
+	agentReturnPage      string
+	pathAccessReturnPage string
 	agentTable           ui.ListState
 	agentSelected        int
 
@@ -182,6 +214,12 @@ type renewApp struct {
 	newTag        string
 	trackName     string
 	trackTag      string
+
+	ccs                   ccsSnapshot
+	astrlink              astrLinkSnapshot
+	ccr                   ccrSnapshot
+	antigravity           antigravitySnapshot
+	managementEventFilter string
 
 	rulesReady    bool
 	rulesBusy     bool
@@ -209,6 +247,8 @@ func newRenewApp(backend string) *renewApp {
 		eventSelected:      -1,
 		networkSelected:    -1,
 		processSelected:    -1,
+		domainSelected:     -1,
+		domainShowIPs:      true,
 		sessionSelected:    -1,
 		ruleSelected:       -1,
 		commSelected:       -1,
@@ -227,6 +267,7 @@ func newRenewApp(backend string) *renewApp {
 	a.eventTable.Selected = &a.eventSelected
 	a.networkTable.Selected = &a.networkSelected
 	a.processTable.Selected = &a.processSelected
+	a.domainTable.Selected = &a.domainSelected
 	a.sessionTable.Selected = &a.sessionSelected
 	a.rulesTable.Selected = &a.ruleSelected
 	a.commTable.Selected = &a.commSelected
@@ -238,6 +279,10 @@ func newRenewApp(backend string) *renewApp {
 
 func (a *renewApp) runPolling(ctx context.Context, session *backendSession) {
 	a.startEventUIBatcher(ctx)
+	go a.pollCCS(ctx)
+	go a.pollAstrLink(ctx)
+	go a.pollCCR(ctx)
+	go a.pollAntigravity(ctx)
 	if session != nil && session.reader != nil && session.nativeIPCVersion >= nativeIPCVersion {
 		go a.runNativeIPC(ctx, session)
 	} else {
@@ -399,6 +444,8 @@ func pageSubtitle(page string) string {
 		return "按 Agent 上下文聚合运行会话"
 	case "网络":
 		return "外联目标与摘要窗口聚合"
+	case "域名":
+		return "按 Agent 关联域名、IP 与安全事件"
 	case "进程":
 		return "实时进程与 Agent 活动"
 	case "Agent 识别":
@@ -415,6 +462,8 @@ func pageSubtitle(page string) string {
 		return "按完整路径精确限制读取和写入"
 	case "系统":
 		return "采集器、系统流与队列诊断"
+	case "CCS":
+		return "CC-Switch、AstrLink、CCR、Antigravity 与 eBPF 事件联动"
 	case "终端":
 		return "普通用户 Shell · Ghostty VT · 多标签与分屏"
 	default:
@@ -485,7 +534,7 @@ func (a *renewApp) errorView(c *ui.Context) {
 
 func (a *renewApp) eventFilterCacheKey() string {
 	q := strings.ToLower(strings.TrimSpace(a.search))
-	key := q + "\x00" + a.eventTypeFilter + "\x00" + a.eventSessionFilter + "\x00" + a.eventDecisionFilter + "\x00" + fmt.Sprint(a.eventPIDFilter) + "\x00" + a.eventRiskFilter
+	key := q + "\x00" + a.eventTypeFilter + "\x00" + a.eventSessionFilter + "\x00" + a.eventDecisionFilter + "\x00" + fmt.Sprint(a.eventPIDFilter) + "\x00" + fmt.Sprint(a.eventRootPIDFilter) + "\x00" + a.eventTargetFilter + "\x00" + a.eventDomainAgent + "\x00" + a.eventDomainTarget + "\x00" + a.eventDomainKind + "\x00" + fmt.Sprint(a.eventFileEditsOnly) + "\x00" + fmt.Sprint(a.eventDelegatedOnly) + "\x00" + a.eventRiskFilter + "\x00" + a.managementEventFilter
 	if a.eventAttentionOnly {
 		key += "\x001"
 	}
@@ -498,7 +547,7 @@ func (a *renewApp) filteredEvents() []eventSummary {
 	if a.filterCacheValid && a.filterCacheVersion == a.eventsVersion && a.filterCacheKey == key {
 		return a.filterCacheRows
 	}
-	if q == "" && a.eventPIDFilter == 0 && a.eventRiskFilter == "" && a.eventTypeFilter == "" && a.eventSessionFilter == "" && a.eventDecisionFilter == "" && !a.eventAttentionOnly {
+	if q == "" && a.eventPIDFilter == 0 && a.eventRootPIDFilter == 0 && a.eventTargetFilter == "" && a.eventDomainTarget == "" && !a.eventFileEditsOnly && !a.eventDelegatedOnly && a.eventRiskFilter == "" && a.eventTypeFilter == "" && a.eventSessionFilter == "" && a.eventDecisionFilter == "" && a.managementEventFilter == "" && !a.eventAttentionOnly {
 		a.filterCacheValid = true
 		a.filterCacheVersion = a.eventsVersion
 		a.filterCacheKey = key
@@ -507,14 +556,27 @@ func (a *renewApp) filteredEvents() []eventSummary {
 	}
 
 	out := make([]eventSummary, 0, min(len(a.events), 256))
+	var domainOwners agentOwnershipIndex
+	if a.eventDomainTarget != "" {
+		domainOwners = buildAgentOwnershipIndex(a.events, nil)
+	}
 	for _, event := range a.events {
+		if a.eventDomainTarget != "" && !matchesAgentDomainEvent(event, domainOwners, a.eventDomainAgent, a.eventDomainTarget, a.eventDomainKind) {
+			continue
+		}
 		if q != "" && !strings.Contains(eventSearchText(event), q) {
+			continue
+		}
+		if a.managementEventFilter != "" && managementAppForEvent(event) != a.managementEventFilter {
 			continue
 		}
 		if a.eventRiskFilter != "" && eventRisk(event) != a.eventRiskFilter {
 			continue
 		}
 		if a.eventPIDFilter > 0 && event.PID != a.eventPIDFilter {
+			continue
+		}
+		if !matchesEventDrilldown(event, a.eventRootPIDFilter, a.eventTargetFilter, a.eventFileEditsOnly, a.eventDelegatedOnly) {
 			continue
 		}
 		if a.eventTypeFilter != "" && event.Type != a.eventTypeFilter {

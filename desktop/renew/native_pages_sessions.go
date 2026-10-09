@@ -14,6 +14,8 @@ type agentSessionSummary struct {
 	Label      string
 	Events     int
 	Alerts     int
+	FileEdits  int
+	DelegatedEdits int
 	LastSeen   int64
 	LastAction string
 }
@@ -40,27 +42,42 @@ func eventHarnessLabel(event eventSummary) string {
 }
 
 func isAgentSummary(event eventSummary) bool {
+	// Legacy compact summaries set hasAgentContext for any tracked tag,
+	// including generic Shell/Runtime commands. Such events are not proof
+	// of Agent ownership unless a real root/run/conversation is present.
+	strong := event.AgentRunID != "" || event.ConversationID != "" || event.RootAgentPID > 0
+	if strong || harnessLabelFor(event.Tag, event.Comm) != "未识别" {
+		return true
+	}
+	switch strings.ToLower(strings.TrimSpace(event.Tag)) {
+	case "shell", "runtime", "git", "language pkg", "system pkg",
+		"container cli", "build tool", "system tool", "network tool",
+		"agent cli":
+		return false
+	}
 	return event.HasAgentContext ||
-		event.AgentRunID != "" ||
-		event.ConversationID != "" ||
-		event.RootAgentPID > 0 ||
 		(strings.TrimSpace(event.Tag) != "" && !strings.EqualFold(event.Tag, "Unknown"))
 }
 
+// A session key is based on recorded Agent identity, never on a child comm.
+// Switching from native tools to bash/python must not create another session.
 func eventSessionKey(event eventSummary) string {
-	contextID := strings.Join(nonEmptyStrings(event.AgentRunID, event.ConversationID), ":")
+	if run := strings.TrimSpace(event.AgentRunID); run != "" {
+		return "run:" + run
+	}
 	root := event.RootAgentPID
 	if root <= 0 {
 		root = event.PID
 	}
-	harness := eventHarnessLabel(event)
-	if contextID == "" {
-		return harness + " · PID " + strconv.Itoa(root)
+	if conversation := strings.TrimSpace(event.ConversationID); conversation != "" {
+		return "conversation:" + conversation + ":pid:" + strconv.Itoa(root)
 	}
-	if harness == "未识别" {
-		return harness + " · " + contextID + " · PID " + strconv.Itoa(root)
+	if root > 0 {
+		// A direct Agent event may not carry rootAgentPid yet; it must still
+		// share the same PID-keyed session with attributed descendants.
+		return "agent:pid:" + strconv.Itoa(root)
 	}
-	return harness + " · " + contextID
+	return ""
 }
 
 func nonEmptyStrings(values ...string) []string {
@@ -75,23 +92,36 @@ func nonEmptyStrings(values ...string) []string {
 
 func aggregateAgentSessions(events []eventSummary) []agentSessionSummary {
 	byKey := make(map[string]*agentSessionSummary)
+	owners := buildAgentOwnershipIndex(events, nil)
 	for _, event := range events {
 		if !isAgentSummary(event) {
 			continue
 		}
 		key := eventSessionKey(event)
+		owner := owners.attribution(event)
 		session := byKey[key]
 		if session == nil {
-			session = &agentSessionSummary{Key: key, Label: key}
+			session = &agentSessionSummary{Key: key, Label: eventSessionDisplayLabel(event, owner)}
 			byKey[key] = session
+		} else if session.Label == "" || (owner.OwnerComm != "" && strings.HasPrefix(session.Label, "Agent PID ")) {
+			session.Label = eventSessionDisplayLabel(event, owner)
 		}
 		session.Events++
+		if isFileMutationSummary(event) {
+			session.FileEdits++
+			if owner.Indirect {
+				session.DelegatedEdits++
+			}
+		}
 		if eventRisk(event) != "正常" || event.Type == "semantic_alert" || event.Type == "agentsight_alert" {
 			session.Alerts++
 		}
 		if event.ReceivedAtMS >= session.LastSeen {
 			session.LastSeen = event.ReceivedAtMS
 			action := eventAction(event)
+			if executor := attributionExecutorLabel(owner); executor != "" {
+				action += "（" + executor + "）"
+			}
 			target := eventTarget(event)
 			if target != "-" {
 				action += " · " + target
@@ -128,7 +158,14 @@ func (a *renewApp) sessionsView(c *ui.Context) {
 	for _, row := range rows {
 		totalAlerts += row.Alerts
 	}
+	totalEdits := 0
+	delegatedEdits := 0
+	for _, row := range rows {
+		totalEdits += row.FileEdits
+		delegatedEdits += row.DelegatedEdits
+	}
 	ui.Row(c).Gap(12).Wrap().Children(func() {
+		statCard(c, "文件修改", strconv.Itoa(totalEdits), fmt.Sprintf("其中 %d 次通过子进程执行", delegatedEdits))
 		statCard(c, "活动会话", strconv.Itoa(len(rows)), "当前摘要窗口")
 		statCard(c, "会话告警", strconv.Itoa(totalAlerts), "需关注或高风险活动")
 		stream := "回退同步"
@@ -150,9 +187,11 @@ func (a *renewApp) sessionsView(c *ui.Context) {
 		}
 		cols := []ui.TableColumn{
 			{Title: "会话", MinWidth: 280, Fixed: true},
-			{Title: "动作", Width: 80, Align: ui.End},
-			{Title: "告警", Width: 80, Align: ui.End},
-			{Title: "最近动作", MinWidth: 260},
+			{Title: "动作", Width: 70, Align: ui.End},
+			{Title: "文件修改", Width: 85, Align: ui.End},
+			{Title: "委托编辑", Width: 85, Align: ui.End},
+			{Title: "告警", Width: 70, Align: ui.End},
+			{Title: "最近动作", MinWidth: 220},
 			{Title: "最后活动", Width: 100},
 		}
 		a.sessionTable.Key = func(row int) any { return rows[row].Key }
@@ -164,14 +203,22 @@ func (a *renewApp) sessionsView(c *ui.Context) {
 			case 1:
 				ui.Text(c, strconv.Itoa(session.Events))
 			case 2:
+				ui.Text(c, strconv.Itoa(session.FileEdits))
+			case 3:
+				if session.DelegatedEdits > 0 {
+					ui.Text(c, strconv.Itoa(session.DelegatedEdits)).Bold().TextColor(t.Accent)
+				} else {
+					ui.Text(c, "0").TextColor(t.TextMuted)
+				}
+			case 4:
 				if session.Alerts > 0 {
 					statusPill(c, strconv.Itoa(session.Alerts), t.Warning)
 				} else {
 					ui.Text(c, "0").TextColor(t.TextMuted)
 				}
-			case 3:
+			case 5:
 				ui.Text(c, displayOr(session.LastAction, "-")).SingleLine()
-			case 4:
+			case 6:
 				ui.Text(c, summaryTime(session.LastSeen)).SingleLine()
 			}
 		}).Height(430).Label("Agent 会话")
@@ -180,10 +227,14 @@ func (a *renewApp) sessionsView(c *ui.Context) {
 			selected := rows[a.sessionSelected]
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				harnessIdentity(c, selected.Label, strings.SplitN(selected.Label, " · ", 2)[0])
-				if ui.PrimaryButton(c, "查看此会话事件").Clicked() {
-					a.clearEventFilters()
-					a.eventSessionFilter = selected.Key
-					a.page = "事件"
+				if ui.PrimaryButton(c, "全部事件").Tooltip("按稳定的 Agent 运行或根 PID 会话键跳转").Clicked() {
+					a.navigateSessionEvents(selected.Key, false, false)
+				}
+				if selected.FileEdits > 0 && ui.Button(c, "文件修改").Clicked() {
+					a.navigateSessionEvents(selected.Key, true, false)
+				}
+				if selected.DelegatedEdits > 0 && ui.Button(c, "委托编辑").Tooltip("只看该 Agent 的脚本和子进程文件修改").Clicked() {
+					a.navigateSessionEvents(selected.Key, true, true)
 				}
 			})
 		}

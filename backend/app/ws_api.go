@@ -340,6 +340,8 @@ type renewDesktopEventSummary struct {
 	Tag             string  `json:"tag,omitempty"`
 	Comm            string  `json:"comm,omitempty"`
 	Target          string  `json:"target,omitempty"`
+	Domain          string  `json:"domain,omitempty"`
+	NetEndpoint     string  `json:"netEndpoint,omitempty"`
 	Network         bool    `json:"network,omitempty"`
 	NetBytes        uint64  `json:"netBytes,omitempty"`
 	Decision        string  `json:"decision,omitempty"`
@@ -371,15 +373,9 @@ func buildRenewDesktopEventSummaryNormalized(record CapturedEventRecord) (renewD
 	toolName := platform.FirstNonEmpty(event.GetToolName(), envelope.GetToolName())
 	tag := event.GetTag()
 	rootAgentPID := event.GetRootAgentPid()
-	target := platform.FirstNonEmpty(
-		event.GetPath(),
-		event.GetNetEndpoint(),
-		event.GetDomain(),
-		event.GetExtraPath(),
-		toolName,
-	)
 	eventType := event.GetType()
-	network := strings.TrimSpace(event.GetNetEndpoint()) != "" || strings.TrimSpace(event.GetDomain()) != ""
+	network := strings.TrimSpace(event.GetNetEndpoint()) != "" || strings.TrimSpace(event.GetDomain()) != "" ||
+		strings.TrimSpace(event.GetSni()) != "" || strings.TrimSpace(event.GetHttpHost()) != "" || strings.TrimSpace(event.GetDnsName()) != ""
 	if !network {
 		lowerType := strings.ToLower(eventType)
 		network = strings.Contains(lowerType, "network") ||
@@ -387,6 +383,13 @@ func buildRenewDesktopEventSummaryNormalized(record CapturedEventRecord) (renewD
 			strings.Contains(lowerType, "socket") ||
 			strings.Contains(lowerType, "tcp") ||
 			strings.Contains(lowerType, "dns")
+	}
+	// Prefer observed names over IP endpoints for network events. The native
+	// protobuf stays compact: its existing Target field carries this clue.
+	// DNS correlation alone cannot prove which HTTP host was requested.
+	target := platform.FirstNonEmpty(event.GetPath(), event.GetNetEndpoint(), event.GetDomain(), event.GetExtraPath(), toolName)
+	if network {
+		target = platform.FirstNonEmpty(event.GetHttpHost(), event.GetSni(), event.GetDomain(), event.GetDnsName(), event.GetNetEndpoint(), event.GetPath(), event.GetExtraPath(), toolName)
 	}
 	hasAgentContext := agentRunID != "" ||
 		conversationID != "" ||
@@ -405,6 +408,8 @@ func buildRenewDesktopEventSummaryNormalized(record CapturedEventRecord) (renewD
 		Tag:             tag,
 		Comm:            event.GetComm(),
 		Target:          target,
+		Domain:          platform.FirstNonEmpty(event.GetHttpHost(), event.GetSni(), event.GetDomain(), event.GetDnsName()),
+		NetEndpoint:     event.GetNetEndpoint(),
 		Network:         network,
 		NetBytes:        uint64(event.GetNetBytes()),
 		Decision:        platform.FirstNonEmpty(event.GetDecision(), envelope.GetPolicyDecision()),

@@ -139,10 +139,12 @@ type SemanticAgenticLoopObservation struct {
 }
 
 type SemanticFileMutationObservation struct {
-	SeenAt time.Time
-	Actor  string
-	Op     string
-	Path   string
+	SeenAt      time.Time
+	LastAlertAt time.Time
+	Actor       string
+	Op          string
+	Path        string
+	ContainerID string
 }
 
 type SemanticAlertState struct {
@@ -156,6 +158,9 @@ type SemanticAlertState struct {
 	capacityEvictionsTotal        uint64
 	truncatedStateValuesTotal     uint64
 	ignoredOversizedMetadataTotal uint64
+	fileCorrelationAlertsTotal    uint64
+	fileCorrelationDedupedTotal   uint64
+	fileCorrelationLateTotal      uint64
 	lastSweepAt                   time.Time
 }
 
@@ -359,6 +364,9 @@ func (s *SemanticAlertState) observeAgenticResourceLoop(event *pb.Event, now tim
 	return "", "", false
 }
 
+// ObserveMultiAgentFileContention detects interleaved mutations of a
+// verified pathname by distinct Agent contexts. It does not prove that the
+// operations overlapped or that they refer to one inode across mount namespaces.
 func (s *SemanticAlertState) ObserveMultiAgentFileContention(event *pb.Event, now time.Time) (string, string, bool) {
 	if s == nil || event == nil {
 		return "", "", false
@@ -368,8 +376,23 @@ func (s *SemanticAlertState) ObserveMultiAgentFileContention(event *pb.Event, no
 		return "", "", false
 	}
 	actor, actorTruncated := semanticAgentIdentity(event)
-	if actor == "" {
+	if actor == "" || actorTruncated {
 		return "", "", false
+	}
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+	// Pathnames are scoped by mount/container context. We currently have no
+	// mount-namespace inode ID, so separate known containers instead of
+	// allowing an unrelated same-named path to evict another actor's evidence.
+	// Empty container IDs are a separate unknown scope, not a wildcard.
+	containerID := strings.TrimSpace(event.GetContainerId())
+	if len(containerID) > 128 || strings.ContainsRune(containerID, 0) {
+		return "", "", false
+	}
+	key := path
+	if containerID != "" {
+		key = "container:" + containerID + "\x00" + path
 	}
 
 	s.mu.Lock()
@@ -377,24 +400,55 @@ func (s *SemanticAlertState) ObserveMultiAgentFileContention(event *pb.Event, no
 	s.ensureMapsLocked()
 	s.noteTruncationsLocked(pathTruncated, actorTruncated)
 
-	previous, seen := s.recentFileMutations.Get(path)
-	current := SemanticFileMutationObservation{
-		SeenAt: now,
-		Actor:  actor,
-		Op:     event.GetType(),
-		Path:   path,
+	previous, seen := s.recentFileMutations.Get(key)
+	// Event replays or asynchronous producers may arrive out of order. An
+	// older observation must not replace newer evidence or revive a cooldown
+	// window; neither can it establish an ordered interleaving.
+	if seen && now.Before(previous.SeenAt) {
+		s.fileCorrelationLateTotal++
+		return "", "", false
 	}
-	s.noteCapacityEvictionLocked(s.recentFileMutations.Set(path, current))
 	if seen && semanticStateExpired(now, previous.SeenAt, SemanticFileContentionTTL) {
 		s.expiredEvictionsTotal++
 		seen = false
 	}
-	if !seen || previous.Actor == "" || previous.Actor == actor {
+	current := SemanticFileMutationObservation{
+		SeenAt:     now,
+		Actor:      actor,
+		Op:         event.GetType(),
+		Path:       path,
+		ContainerID: containerID,
+	}
+	if seen {
+		current.LastAlertAt = previous.LastAlertAt
+	}
+	// An Agent run ID and a root PID are different identity namespaces.
+	// They are not evidence that two agents are distinct from each other.
+	comparable := seen && previous.Actor != "" && previous.Actor != actor &&
+		(strings.HasPrefix(previous.Actor, "root_pid:") == strings.HasPrefix(actor, "root_pid:"))
+	// Different container IDs may describe different mount namespaces; a
+	// shared pathname alone does not establish a shared underlying file.
+	if comparable && previous.ContainerID != "" && current.ContainerID != "" &&
+		previous.ContainerID != current.ContainerID {
+		comparable = false
+	}
+	cooldown := seen && !previous.LastAlertAt.IsZero() &&
+		!semanticStateExpired(now, previous.LastAlertAt, SemanticFileContentionTTL)
+	if comparable {
+		if cooldown {
+			s.fileCorrelationDedupedTotal++
+		} else {
+			current.LastAlertAt = now
+			s.fileCorrelationAlertsTotal++
+		}
+	}
+	s.noteCapacityEvictionLocked(s.recentFileMutations.Set(key, current))
+	if !comparable || cooldown {
 		return "", "", false
 	}
 
-	reason := fmt.Sprintf("agent context %s performed %s on a path touched by %s via %s within %s",
-		actor, event.GetType(), previous.Actor, previous.Op, SemanticFileContentionTTL)
+	reason := fmt.Sprintf("two distinct agent contexts (%s and %s) modified the same reported pathname within %s (%s then %s); temporal overlap, identical inode and malicious intent are not established",
+		previous.Actor, actor, SemanticFileContentionTTL, previous.Op, event.GetType())
 	return path, reason, true
 }
 
@@ -451,6 +505,9 @@ func (s *SemanticAlertState) statusLocked() SemanticAlertStateStatus {
 		CapacityEvictionsTotal:        s.capacityEvictionsTotal,
 		TruncatedStateValuesTotal:     s.truncatedStateValuesTotal,
 		IgnoredOversizedMetadataTotal: s.ignoredOversizedMetadataTotal,
+		FileCorrelationAlertsTotal:    s.fileCorrelationAlertsTotal,
+		FileCorrelationDedupedTotal:   s.fileCorrelationDedupedTotal,
+		FileCorrelationLateTotal:      s.fileCorrelationLateTotal,
 		LastSweepAt:                   s.lastSweepAt,
 	}
 	status.Entries = status.RecentSecrets + status.RecentExecutables + status.ForkWindows + status.AgenticLoopWindows + status.RecentFileMutations
@@ -568,7 +625,9 @@ func BuildSemanticAlerts(event *pb.Event) []*pb.Event {
 	}
 
 	if target, reason, ok := Deps.SemanticAlertsState.ObserveMultiAgentFileContention(event, now); ok {
-		addAlert("MULTI_AGENT_FILE_CONTENTION", target, reason, 0.96)
+		// Interleaved writes alone are investigation evidence, not proof of
+		// simultaneous modification or malicious data races.
+		addAlert("MULTI_AGENT_FILE_CONTENTION", target, reason, 0.70)
 	}
 
 	// Codex-specific workflow semantic checks
@@ -586,9 +645,15 @@ func BuildSemanticAlerts(event *pb.Event) []*pb.Event {
 	}
 
 	// Per-tool baseline drift detection
-	if event.GetToolName() != "" && event.GetComm() != "" && Deps.ToolBaselineObserve != nil {
-		if reason, ok := Deps.ToolBaselineObserve(event.GetToolName(), event.GetComm(), event.GetType()); ok {
-			addAlert("TOOL_BEHAVIOR_DRIFT", platform.FirstNonEmpty(event.GetComm(), event.GetPath()), reason, 0.91)
+	if event.GetToolName() != "" && event.GetComm() != "" {
+		if Deps.ToolBaselineAssess != nil {
+			if reason, riskFloor, ok := Deps.ToolBaselineAssess(event.GetToolName(), event.GetComm(), event.GetType()); ok {
+				addAlert("TOOL_BEHAVIOR_DRIFT", platform.FirstNonEmpty(event.GetComm(), event.GetPath()), reason, riskFloor)
+			}
+		} else if Deps.ToolBaselineObserve != nil {
+			if reason, ok := Deps.ToolBaselineObserve(event.GetToolName(), event.GetComm(), event.GetType()); ok {
+				addAlert("TOOL_BEHAVIOR_DRIFT", platform.FirstNonEmpty(event.GetComm(), event.GetPath()), reason, 0.91)
+			}
 		}
 	}
 
@@ -596,9 +661,14 @@ func BuildSemanticAlerts(event *pb.Event) []*pb.Event {
 }
 
 func newSemanticAlertEvent(source *pb.Event, code, target, reason string, minimumRisk float64) *pb.Event {
+	// The semantic rule thresholds are probabilities (0..1), while protobuf
+	// Event.RiskScore and all dashboard severity bands use a 0..100 score.
+	// Comparing them directly kept weak source scores (for example 12) on
+	// high-confidence semantic ALERT events instead of the intended 96.
+	minRiskScore := minimumRisk * 100
 	risk := source.GetRiskScore()
-	if risk < minimumRisk {
-		risk = minimumRisk
+	if risk < minRiskScore {
+		risk = minRiskScore
 	}
 	return &pb.Event{
 		Pid:            source.GetPid(),

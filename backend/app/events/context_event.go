@@ -282,6 +282,32 @@ func ApplyProcessContextToEvent(event *pb.Event, ctx ProcessContext) {
 	}
 }
 
+// contextFromAgentCgroup retains the root PID when the backend has richer
+// cgroup evidence. The legacy three-field hook remains usable in tests and
+// alternate integrations that have not supplied the structured accessor.
+func contextFromAgentCgroup(cgroupID uint64) (ProcessContext, bool) {
+	if cgroupID == 0 {
+		return ProcessContext{}, false
+	}
+	if Deps.CgroupAttributionGet != nil {
+		if entry, ok := Deps.CgroupAttributionGet(cgroupID); ok && entry.AgentRunID != "" {
+			return ProcessContext{
+				RootAgentPid: entry.RootAgentPID,
+				AgentRunID: entry.AgentRunID,
+				TaskID: entry.TaskID,
+				ToolCallID: entry.ToolCallID,
+			}, true
+		}
+	}
+	if Deps.CgroupAttributionEnrich != nil {
+		run, task, tool := Deps.CgroupAttributionEnrich(cgroupID)
+		if run != "" {
+			return ProcessContext{AgentRunID: run, TaskID: task, ToolCallID: tool}, true
+		}
+	}
+	return ProcessContext{}, false
+}
+
 // EnrichEventContext applies process context and cgroup attribution to an
 // event. Tool-baseline observation runs later in BuildSemanticAlerts.
 func EnrichEventContext(event *pb.Event) *pb.Event {
@@ -308,19 +334,34 @@ func EnrichEventContext(event *pb.Event) *pb.Event {
 			ctx, ok = Deps.ProcessContexts.Get(event.Pid)
 		}
 	}
+	// A known Agent CLI selected by comm may not have a native registration.
+	// Its explicit fork event is trusted root evidence, unlike a generic
+	// shell/runtime tracked by command name.
+	if !ok && shouldSeedAgentRootAtFork(event) {
+		ctx = ProcessContext{RootAgentPid: event.Pid}
+		Deps.ProcessContexts.Set(event.Pid, ctx)
+		ok = true
+	}
+	// Tool calls may spawn multiple interpreter layers (Agent → bash →
+	// python → file write). Direct PPID inheritance misses descendants when
+	// the intermediate parent had no captured event. Recover from the live,
+	// bounded ancestry chain before considering the broader cgroup fallback.
+	if !ok && shouldResolveAgentAncestor(event) {
+		if inherited, found := resolveAncestorAgentContext(event.Pid, event.Ppid, Deps.ProcessContexts, procParentPID); found {
+			Deps.ProcessContexts.Set(event.Pid, inherited)
+			ctx, ok = Deps.ProcessContexts.Get(event.Pid)
+		}
+	}
 	// Try cgroup-based attribution if no direct PID context
 	if !ok && event.CgroupId != 0 {
-		if agentRunID, taskID, toolCallID := Deps.CgroupAttributionEnrich(event.CgroupId); agentRunID != "" {
-			ctx = ProcessContext{
-				AgentRunID: agentRunID,
-				TaskID:     taskID,
-				ToolCallID: toolCallID,
-			}
-			ok = true
-		}
+		ctx, ok = contextFromAgentCgroup(event.CgroupId)
 	}
 	if ok {
 		ApplyProcessContextToEvent(event, ctx)
+		// sched_process_fork already carries the child's PID. Seed its
+		// context immediately, before bash/python/node runs and exits.
+		// This does not overwrite a separately registered child context.
+		propagateAgentContextOnFork(event, ctx, Deps.ProcessContexts)
 		// Lazily bind cgroup to agent context for future child attribution
 		if event.CgroupId != 0 && ctx.AgentRunID != "" {
 			Deps.CgroupAttributionSet(event.CgroupId, CgroupAttributionEntry{
@@ -349,15 +390,13 @@ func ApplyBestEffortProcessContextToEvent(event *pb.Event) {
 			ok = true
 		}
 	}
-	if !ok && event.CgroupId != 0 {
-		if agentRunID, taskID, toolCallID := Deps.CgroupAttributionEnrich(event.CgroupId); agentRunID != "" {
-			ctx = ProcessContext{
-				AgentRunID: agentRunID,
-				TaskID:     taskID,
-				ToolCallID: toolCallID,
-			}
-			ok = true
+	if !ok && shouldResolveAgentAncestor(event) {
+		if inherited, found := resolveAncestorAgentContext(event.Pid, event.Ppid, Deps.ProcessContexts, procParentPID); found {
+			ctx, ok = inherited, true
 		}
+	}
+	if !ok && event.CgroupId != 0 {
+		ctx, ok = contextFromAgentCgroup(event.CgroupId)
 	}
 	if ok {
 		ApplyProcessContextToEvent(event, ctx)

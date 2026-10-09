@@ -64,6 +64,44 @@ The `Renew desktop` GitHub Actions workflow publishes a full native Windows app 
 its previous privileged embedded backend and private Unix IPC without
 modification.
 
+## 日常安全软件：Agent 域名监控与托盘
+
+原生工作区新增 **Agent 域名监控**（左侧快捷栏/导航，首页一键进入）。它从后端既有的网络事件摘要提取 Host/SNI/Domain/DNS 线索与 IP-only 外联，基于采集到的 Agent root PID、run/会话上下文为 Codex、Claude Code、Gemini CLI 等 Agent 归属。子进程通过已记录的 root Agent 证据关联，**不会**将所有 shell / Node 访问自动认作某个 Agent。
+
+- 按 Agent、域名或 IP 搜索；仅看风险；单独显示或隐藏 IP-only 外联；按风险优先级、最后时间排序；统计分组的事件数、会话数、风险事件及摘要字节数。
+- 点选一条记录后，可跳到原生事件页查看**精确的 Agent+目标+域名/IP 类型关联结果**，并返回监控页。不会因为 URL 包含相似字符串就混淆两个域名。
+- 原生本地 IPC 在已有 `Target` 字段优先输出网络域名线索，不增加每事件的完整 payload；历史/远程 compact REST 摘要额外保留 `domain` 和 `netEndpoint`。
+- 可用系统托盘时，在顶栏开启 **关闭后驻留托盘**（默认为关闭，避免不支持托盘的桌面失去主窗口）。托盘提供概览、域名、风险事件、明确退出四个入口；明确退出会按原来的生命周期结束仅由 Renew 启动的采集子进程。未安装状态通知宿主或托盘创建失败时保留正常退出行为。
+
+**证据和隐私边界：** 看板使用当前后端已加载的有界、上游脱敏的摘要，不代表完整网络流、每一次 HTTP/API 请求、Token 或费用。DNS 反向关联无法证明具体 HTTPS Host；DoH、ECH、缓存命中、未抓取的连接等可能导致只显示 IP。它不劫持流量、不新增 MITM/透明代理、不采集额外明文，也不会自动修改阻断规则。CC Switch 的逐请求用量账单基于自身代理接管/请求日志，并非 eBPF 连接摘要可以等价获得的数据。
+
+### Claude Code / Codex 配置解析（基于官方文档的本机只读审计）
+
+在 **Agent 域名监控 → Claude Code / Codex 配置识别** 中手动点击 **读取本机配置**，可选填指定会话工作目录的绝对路径。只读取配置文件，不连接 API、不探测域名、不执行 Hook/MCP/凭据命令、不修改内核策略。
+
+| Agent | 检查来源 | 官方语义与局限 |
+|---|---|---|
+| Claude Code | `$CLAUDE_CONFIG_DIR/settings.json`（默认 `~/.claude/settings.json`）；指定目录下的 `.claude/settings.json` 与 `.claude/settings.local.json` | 管理 > CLI > 本地 > 项目 > 用户；权限规则跨层合并，不能按普通标量取最高值 |
+| Claude Code MCP | 手动指定目录下的 `.mcp.json` | HTTP MCP 只展示主机名；stdio 命令不会被当成网址；为避免读取 OAuth 缓存**不读取** `~/.claude.json` |
+| Codex | `$CODEX_HOME/config.toml`（默认 `~/.codex/config.toml`），用户配置声明的 Profile 候选及独立 Profile 文件 | CLI > 受信任的多级项目配置 > 显式 Profile > 用户 > 系统 > 默认；**读取文件并不能获知真实 CLI --profile** |
+| Codex 项目覆盖 | 从被指定目录所在仓库根目录到该目录的各级 `.codex/config.toml`（若没有 `.git`，只读取指定目录） | **允许**模型、审批、沙箱、MCP 覆盖；**忽略**机器级 Provider、Profile 选择、鉴权、通知、遥测相关的项目字段。信任状态不明确时，只做假设受信任预览 |
+| 本机受管策略 | Linux 的 `/etc/codex/config.toml`、`/etc/codex/requirements.toml`、`/etc/claude-code/managed-settings.json`、`managed-settings.d/*.json` | 只读有界扫描，提取不含规则正文的约束摘要；**并不模拟**云端、MDM、企业配置合并或客户端的实际执行状态 |
+
+**可展示的配置候选：**
+
+- API：Claude Code 模型/环境模型名、Bedrock/Vertex/Foundry 开关和显式 API 主机名；Codex 模型、自定义 Provider / `base_url`、Profile 以及所声明的额外 API 端点。
+- 安全：Claude Code `permissions.defaultMode`、allow/ask/deny 规则数量、`sandbox.enabled`、`failIfUnavailable`、禁用沙箱逃逸等；Codex `default_permissions`（包括 `:workspace`）、`sandbox_mode`、`approval_policy`、`sandbox_workspace_write.network_access`、命名权限模板数量及不兼容/废弃设置提醒。
+- MCP：Claude Code 的 `mcpServers.*.url`，Codex 的 `mcp_servers.*.url`；明确区分 HTTP、已禁用和 stdio 声明。配置中的命令、参数、环境变量和 HTTP 头不作为域名证据。
+- 静态合并预览：按官方所述的常见**标量键**覆盖顺序给出模型/审批/沙箱候选，同时显示字段来源；**不声称是实际运行时生效配置**。对于复杂规则的合并（如 Claude 权限、Codex 受管 requirements），仅给出逐层证据而非臆造最终权限判定。
+
+**安全和结果边界：** 文件限 512 KiB，拒绝符号链接及特殊文件；从 JSON/TOML 中仅投影白名单字段，URL 只保留经过验证的主机名，不显示 URL path/query/user-info、MCP 请求头、环境密钥、模型鉴权令牌或 `auth.json`。错误摘要不包含原始配置和解析器原文。宿主进程的环境变量不能代表运行中的 Agent，也不会拿来当成其运行时配置。与 eBPF 事件的关联仅根据已识别 Agent 的**确切主机**匹配当前窗口；域名声明、连接事件以及成功请求是三件不同的事。真实结果请在 Claude Code `/status`、Codex `/status` 或 `/debug-config` 中核对。
+
+官方文档：
+
+- [Claude Code Settings](https://code.claude.com/docs/en/settings)、[Model configuration](https://code.claude.com/docs/en/model-config)
+- [Codex Config basics](https://developers.openai.com/codex/config-basic)、[Configuration Reference](https://developers.openai.com/codex/config-reference)
+- [Codex Managed configuration](https://learn.chatgpt.com/docs/enterprise/managed-configuration)
+
 ## Native workspace layout
 
 Renew renders an editor-inspired native workspace **entirely with MyGo widgets**. Its light and dark palettes follow the host OS appearance (including live changes through MyGo's system theme), while native accent colors, text scaling and high-contrast preferences remain available. A monochrome hand-mirror SVG is embedded and rendered as the activity-rail identity; collector health is shown in the main status indicators and System diagnostics, not in a redundant sidebar block. Its 54-DIP activity rail offers page shortcuts; the full navigation is collapsed by default so the center starts immediately after the icon rail. Users can open a 198-DIP compact navigation and then switch to a 302-DIP detailed navigation with full Chinese page labels. The sidebar's actual animated width feeds the incident inspector's responsive breakpoint; the page IDs, selection, keyboard navigation, and Agent identification controls are unchanged. The center retains live eBPF monitoring, sessions, network/process tables and existing privileged management controls. A page toolbar provides search, stream pause and context-aware refresh (rules, tracking, eBPF module state and path permissions re-fetch their own data).
@@ -77,6 +115,10 @@ When the center has at least 760 DIPs left after the icon rail, animated navigat
 - Actions support copying the redacted compact summary, selecting the event in its table, viewing the complete detail on explicit request, and read-only correlation by exact PID, event type or Agent session.
 - **运行诊断** presents the backend's real capture health, ringbuffer loss, queue lengths, event/system transport status and actual CPU/memory telemetry. It never infers a clean capture from an empty alert list.
 - Events, Agent sessions, network targets and processes provide direct drill-down into related events; switching correlation scopes clears incompatible prior event filters.
+- **Event → process drill-down** adds one-click **查看进程树** / **进程详细信息** in the forensic detail dialog. The process-correlation tab shows the event's persisted PID/PPID/identity fields separately from the current `/ws/system` protobuf snapshot, follows the live ancestor chain, expands descendant branches on demand, and opens per-node CPU/memory/user/command-line/start-time details without leaving the dialog. A bounded 120-row tree keeps large PID 1 subtrees usable; the target branch is prioritised. Exited PIDs show event-only evidence, and a newly started process reusing the PID is explicitly rejected rather than attributed to a historical event. This is read-only and does not add process-control privileges or imply a complete historical process tree.
+- **Agent-root file attribution:** When an Agent launches `fish`, `bash`, `python`, `pwsh`, `node` or another descendant to edit a file instead of using its native file-edit tool, kernel fork inheritance and bounded userspace process ancestry preserve the originating Agent PID/run where trace evidence exists. The native Events table, Overview feed, Agent Sessions, Agent Recognition and risk inspector credit the action to the Agent, while still showing the actual interpreter and syscall PID. Generic shells and runtimes are not treated as independent Agents merely because their command names are tracked. Recorded PID/run context is required for an indirect owner; missing or stale root evidence remains explicitly unidentified rather than being guessed from a filename or process name. Historical processes that exited before any usable fork/PID evidence cannot be retroactively recovered.
+- **File-edit attribution and scope:** Agent Sessions distinguish file-change events from delegated edits carried out by shell/script descendants. A file-write syscall remains a file operation even when it inherits the Agent's shell tool name; socket writes, ordinary file reads and read-only opens do not count as edits. Backend capture/monitor policies can match an observed, run-correlated root Agent name in addition to the executor command/tag, so `codex` whitelists and blacklists apply consistently to downstream `fish/bash/python/pwsh/node` activity. Only root events establish this cached identity; unknown, expired, or run-mismatched roots fall back to the original exact comm/tag policy. Structured cgroup context retains root Agent PID if provided, with legacy fallback preserved.
+- **Contextual quick navigation:** Strongly related identifiers now have explicit native shortcuts instead of requiring users to re-enter filters: from a selected event or full forensic detail, jump to executor PID, recorded parent PID, root Agent lineage, Agent run/session, precise file/network target, Agent recognition, or (for valid absolute file edits) a **draft-only** path permission screen. Session rows jump directly to all actions, file mutations, or delegated edits; process rows link to PID and PPID; recognition links to the root process and descendant events. A visible filter chip strip indicates whether the event view is scoped by actual PID, root PID, target, file edits, or delegated edits, with a clear-filter button and return-to-source action. Agent recognition links use an exact PID filter (not substring search). The path permission shortcut only fills the existing form; it never changes LSM enforcement without the existing explicit confirmation. Full-detail navigation closes the modal and releases its sensitive event payload; absent/masked/tool-name-fallback values do not generate false destination links.
 - All filters operate on the bounded 1200-summary in-memory window, with older-record pagination through the existing backend API. They do **not** change kernel capture rules or claim to search all history.
 
 No new privileged API or AI inference service is introduced. As before, only the explicit event Details action retrieves a complete event payload; closing its modal discards it from the desktop. The workspace shell (`native_workspace.go`) and inspector (`native_inspector.go`) remain independent of the native IPC data path and original per-page monitoring implementations.

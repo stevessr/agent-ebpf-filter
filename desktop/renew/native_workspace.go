@@ -63,6 +63,7 @@ var workspaceNavigationLabels = map[string][2]string{
 	"事件":       {"事件流", "eBPF 实时事件流"},
 	"会话":       {"Agent 会话", "Agent 会话与行为关联"},
 	"网络":       {"网络外联", "网络连接与外联目标"},
+	"域名":       {"Agent 域名监控", "Agent 域名与外联目的地监控"},
 	"进程":       {"进程活动", "进程活动与资源监测"},
 	"Agent 识别": {"捕获与监视范围", "Agent 识别与捕获监视范围"},
 	"监控":       {"采集设置", "实时采集与监控设置"},
@@ -71,6 +72,7 @@ var workspaceNavigationLabels = map[string][2]string{
 	"跟踪":       {"跟踪范围", "进程、命令与路径跟踪"},
 	"路径权限":   {"文件访问保护", "文件路径与访问权限"},
 	"终端":       {"本地 Shell · 多标签与分屏", "本地 Shell 终端与多窗格"},
+	"CCS":        {"管理软件联动", "CC-Switch / AstrLink / CCR / Antigravity 本地视图"},
 	"系统":       {"系统诊断", "采集链路与系统运行诊断"},
 }
 
@@ -162,7 +164,9 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 }
 
 func (a *renewApp) workspacePage(c *ui.Context) {
-	if a.localMonitor && !windowsLocalPage(a.page) { a.page = "概览" }
+	if a.localMonitor && !windowsLocalPage(a.page) {
+		a.page = "概览"
+	}
 	switch a.page {
 	case "事件":
 		a.eventsView(c)
@@ -172,6 +176,8 @@ func (a *renewApp) workspacePage(c *ui.Context) {
 		a.sessionsView(c)
 	case "网络":
 		a.networkView(c)
+	case "域名":
+		a.agentDomainsView(c)
 	case "进程":
 		a.processesView(c)
 	case "Agent 识别":
@@ -188,6 +194,8 @@ func (a *renewApp) workspacePage(c *ui.Context) {
 		a.pathAccessView(c)
 	case "系统":
 		a.systemView(c)
+	case "CCS":
+		a.integrationsView(c)
 	default:
 		a.overview(c)
 	}
@@ -206,26 +214,34 @@ func (a *renewApp) activityRail(c *ui.Context) {
 			ui.Icon(c, renewMirrorSVG).Size(27, 27).TextColor(t.Accent).Label(desktopBrandName)
 		})
 		ui.Divider(c)
-		for _, item := range []struct{ label, glyph string }{
-			{"概览", "⌂"},
-			{"事件", "☷"},
-			{"研判", "◇"},
-			{"会话", "◎"},
-			{"网络", "⇄"},
-			{"进程", "▣"},
-			{"Agent 识别", "◉"},
-			{"监控", "◈"},
-			{"规则", "▤"},
-			{"系统", "⚙"},
-			{"终端", "⌘"},
-		} {
-			if a.localMonitor && !windowsLocalPage(item.label) { continue }
-			marker := item.glyph
-			if a.page == item.label {
-				marker = "●"
+		for _, page := range workspaceRailPages {
+			if a.localMonitor && !windowsLocalPage(page) { continue }
+			active := a.page == page
+			name := workspaceNavigationLabel(page, true)
+			button := ui.ButtonBase(c.Key("rail-" + page)).
+				Width(40).Height(40).Padding(0).Radius(11).
+				AlignItems(ui.Center).Justify(ui.Center).
+				Label(name).Tooltip(name)
+			switch {
+			case active:
+				button.Background(t.Accent.Alpha(0.17)).TextColor(t.Accent)
+				if c.Preferences().HighContrast {
+					button.Border(2, t.Accent)
+				} else {
+					button.Border(1, t.Accent.Alpha(0.28))
+				}
+			case button.Pressed():
+				button.Background(t.SurfacePressed).TextColor(t.Text)
+			case button.Hovered():
+				button.Background(t.SurfaceHover).TextColor(t.Text)
+			default:
+				button.TextColor(t.TextMuted)
 			}
-			if ui.Button(c, marker).Tooltip(workspaceNavigationLabel(item.label, true)).Width(40).Clicked() {
-				a.page = item.label
+			button.Children(func() {
+				ui.Icon(c, workspaceNavigationIcon(page)).Size(20, 20)
+			})
+			if button.Clicked() {
+				a.page = page
 			}
 		}
 		ui.Spacer(c)
@@ -245,6 +261,16 @@ func (a *renewApp) sidebar(c *ui.Context) {
 	_, attention, danger := a.riskCounts()
 	width := workspaceNavigationWidth(true, a.navigationDetailed)
 	label := func(page string) string { return workspaceNavigationLabel(page, a.navigationDetailed) }
+	// Preserve MyGo's Sidebar tree semantics and keyboard arrow navigation.
+	// A chosen row stays accent-highlighted even when focus moves to content.
+	var selectedItem ui.Element
+	navItem := func(page string) ui.Element {
+		item := ui.SidebarItem(c, page, workspaceNavigationIcon(page), label(page))
+		if a.page == page {
+			selectedItem = item
+		}
+		return item
+	}
 	side := ui.Column(c).Width(width).Shrink(0).Border(1, t.Border)
 	if !c.Vibrancy() {
 		side.Background(t.Surface)
@@ -263,32 +289,36 @@ func (a *renewApp) sidebar(c *ui.Context) {
 		ui.Divider(c)
 		menu := ui.Sidebar(c, &a.page, func() {
 			ui.SidebarSection(c, "监控工作台", nil, func() {
-				ui.SidebarItem(c, "概览", nil, label("概览"))
-				ui.SidebarItem(c, "研判", nil, label("研判"))
-				events := ui.SidebarItem(c, "事件", nil, label("事件"))
+				navItem("概览")
+				navItem("研判")
+				events := navItem("事件")
 				switch {
 				case danger > 0:
 					events.Children(func() { statusPill(c, fmt.Sprint(danger), t.Danger) })
 				case attention > 0:
 					events.Children(func() { statusPill(c, fmt.Sprint(attention), t.Warning) })
 				}
-				if !a.localMonitor { ui.SidebarItem(c, "会话", nil, label("会话")) }
-				ui.SidebarItem(c, "网络", nil, label("网络"))
-				ui.SidebarItem(c, "进程", nil, label("进程"))
-				if !a.localMonitor { ui.SidebarItem(c, "Agent 识别", nil, label("Agent 识别")) }
+				if !a.localMonitor { navItem("会话") }
+				navItem("网络")
+				if !a.localMonitor { navItem("域名") }
+				navItem("进程")
+				if !a.localMonitor { navItem("Agent 识别") }
 			})
-			if !a.localMonitor { ui.SidebarSection(c, "防护与管理", nil, func() {
-				ui.SidebarItem(c, "监控", nil, label("监控"))
-				ui.SidebarItem(c, "eBPF 模块", nil, label("eBPF 模块"))
-				ui.SidebarItem(c, "规则", nil, label("规则"))
-				ui.SidebarItem(c, "跟踪", nil, label("跟踪"))
-				ui.SidebarItem(c, "路径权限", nil, label("路径权限"))
-			})
-			ui.SidebarSection(c, "工具", nil, func() {
-				ui.SidebarItem(c, "终端", nil, label("终端"))
-			}) }
+			if !a.localMonitor {
+				ui.SidebarSection(c, "防护与管理", nil, func() {
+					navItem("监控")
+					navItem("eBPF 模块")
+					navItem("规则")
+					navItem("跟踪")
+					navItem("路径权限")
+				})
+				ui.SidebarSection(c, "工具", nil, func() {
+					navItem("终端")
+					navItem("CCS")
+				})
+			}
 			ui.SidebarSection(c, "运行诊断", nil, func() {
-				system := ui.SidebarItem(c, "系统", nil, label("系统"))
+				system := navItem("系统")
 				_, level := a.collectorStatus()
 				if level == "danger" {
 					system.Children(func() { statusPill(c, "异常", t.Danger) })
@@ -299,6 +329,12 @@ func (a *renewApp) sidebar(c *ui.Context) {
 		}).Grow(1).Width(width - 2)
 		if c.Vibrancy() {
 			menu.Background(ui.Transparent)
+		}
+		if selectedItem.Valid() && !menu.Focused() {
+			selectedItem.Background(t.Accent.Alpha(0.15)).TextColor(t.Accent)
+			if c.Preferences().HighContrast {
+				selectedItem.Border(2, t.Accent)
+			}
 		}
 
 	})
@@ -341,6 +377,15 @@ func (a *renewApp) header(c *ui.Context, navigationWidth float32) {
 				}
 				if ui.Button(c, "刷新").Tooltip("重新读取当前页面的数据").Clicked() {
 					a.refreshActiveView()
+				}
+				if a.trayAvailable {
+					label := "关闭后退出"
+					if a.minimizeToTray {
+						label = "关闭后驻留托盘"
+					}
+					if ui.Button(c, label).Tooltip("切换关闭窗口时退出或驻留托盘。驻留期间继续监控；从托盘明确退出才结束。").Clicked() {
+						a.minimizeToTray = !a.minimizeToTray
+					}
 				}
 				if windowMaterial(runtime.GOOS, true) != mygo.VibrancyNone {
 					caption := "纯色模式"
@@ -411,6 +456,11 @@ func (a *renewApp) refreshActiveView() {
 		go a.refreshRegistry(context.Background())
 	case "eBPF 模块":
 		go a.refreshEBPFModules(context.Background())
+	case "CCS":
+		go a.refreshCCS(context.Background())
+		go a.refreshAstrLink(context.Background())
+		go a.refreshCCR(context.Background())
+		go a.refreshAntigravity(context.Background())
 	case "路径权限":
 		go a.refreshPathAccess()
 		go a.refreshConfiguration(context.Background())
