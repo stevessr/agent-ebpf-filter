@@ -128,3 +128,11 @@ func TestWindowsRefreshCoalescesUserRequests(t *testing.T) {
     app.requestWindowsRefresh()
     if len(app.localRefresh)!=1 { t.Fatal("next refresh was lost") }
 }
+
+
+func TestWindowsProcessImagePathTarget(t *testing.T) {
+    p:=windowsProcessSample{PID:42,Name:"codex.exe",ImagePath:`C:\\Tools\\codex.exe`}
+    if got:=windowsProcessTarget(p); got!=p.ImagePath { t.Fatalf("wrong process target: %q",got) }
+    p.ImagePath=""
+    if got:=windowsProcessTarget(p);got!="codex.exe" { t.Fatalf("missing short-name fallback: %q",got) }
+}
