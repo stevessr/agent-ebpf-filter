@@ -88,6 +88,24 @@ func (s *toolBaselineStore) Observe(toolName, comm, eventType string) (string, b
 	return s.observeAt(toolName, comm, eventType, time.Now().UTC())
 }
 
+// ObserveWithRisk preserves the detector's evidence strength. These are
+// heuristic 0-1 risk floors, not calibrated attack probabilities.
+func (s *toolBaselineStore) ObserveWithRisk(toolName, comm, eventType string) (string, float64, bool) {
+	reason, ok := s.Observe(toolName, comm, eventType)
+	if !ok {
+		return "", 0, false
+	}
+	return reason, toolBaselineRiskFloor(comm, eventType), true
+}
+
+func toolBaselineRiskFloor(comm, eventType string) float64 {
+	if highSignalToolBaselineBehavior(comm, eventType) {
+		return 0.91
+	}
+	// Temporal novelty alone signals investigation, not proof of attack.
+	return 0.60
+}
+
 func (s *toolBaselineStore) observeAt(toolName, comm, eventType string, now time.Time) (string, bool) {
 	if s == nil {
 		return "", false
