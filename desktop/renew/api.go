@@ -341,6 +341,18 @@ func (c *apiClient) putEventTypeConfig(ctx context.Context, disabled []int) (eve
 	return cfg, err
 }
 
+func (c *apiClient) agentScopePolicy(ctx context.Context) (agentScopePolicy, error) {
+	var policy agentScopePolicy
+	err := c.getJSON(ctx, "/config/agent-scopes", &policy)
+	return policy, err
+}
+
+func (c *apiClient) putAgentScopePolicy(ctx context.Context, policy agentScopePolicy) (agentScopePolicy, error) {
+	var updated agentScopePolicy
+	err := c.requestJSON(ctx, http.MethodPut, "/config/agent-scopes", policy, &updated)
+	return updated, err
+}
+
 func (c *apiClient) runtimeConfig(ctx context.Context) (runtimeConfigResponse, error) {
 	var cfg runtimeConfigResponse
 	err := c.getJSON(ctx, "/config/runtime", &cfg)
