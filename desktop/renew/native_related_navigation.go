@@ -127,6 +127,10 @@ func (a *renewApp) eventQuickLinks(c *ui.Context, event eventSummary, withPolicy
 		if event.PID > 0 && ui.Button(c, "执行 PID").Tooltip("精确过滤本次系统调用的实际进程").Clicked() {
 			a.navigatePIDEvents(event.PID)
 		}
+		if event.PPID > 0 && event.PPID != event.PID &&
+			ui.Button(c, "父 PID").Tooltip("查看直接父进程的事件，不等同于根 Agent").Clicked() {
+			a.navigatePIDEvents(event.PPID)
+		}
 		if owner.Indirect && owner.OwnerPID > 0 &&
 			ui.Button(c, "归属 Agent").Tooltip("查看此根 Agent 及其子进程的事件").Clicked() {
 			a.navigateAgentEvents(owner.OwnerPID)
@@ -165,6 +169,11 @@ func (a *renewApp) eventDetailQuickLinks(c *ui.Context, event eventSummary) {
 	ui.Row(c).Wrap().Gap(6).Children(func() {
 		if event.PID > 0 && ui.Button(c, "执行 PID 事件").Clicked() {
 			a.navigatePIDEvents(event.PID)
+			a.closeEventDetail()
+		}
+		if event.PPID > 0 && event.PPID != event.PID &&
+			ui.Button(c, "父 PID 事件").Tooltip("按真实记录的 PPID 跳转").Clicked() {
+			a.navigatePIDEvents(event.PPID)
 			a.closeEventDetail()
 		}
 		if owner.Indirect && owner.OwnerPID > 0 &&
