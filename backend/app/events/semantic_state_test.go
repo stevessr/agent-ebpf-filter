@@ -122,10 +122,17 @@ func TestSemanticMutationRequiresSuccessfulSyscallResult(t *testing.T) {
 			if got, _, ok := semanticFileMutationPath(failed); ok || got != "" {
 				t.Fatalf("failed %s was treated as a file mutation: %q", kind, got)
 			}
-			// Many metadata syscalls use 0 as their successful return value.
+			// Metadata syscalls succeed with 0; write succeeds only when
+			// the observed result says it actually wrote one or more bytes.
 			success := &pb.Event{Type: kind, Path: "/workspace/shared.txt", Retval: 0}
+			if kind == "write" {
+				if got, _, ok := semanticFileMutationPath(success); ok || got != "" {
+					t.Fatalf("zero-byte write misidentified as a mutation: %q", got)
+				}
+				success.Retval = 1
+			}
 			if got, _, ok := semanticFileMutationPath(success); !ok || got != success.Path {
-				t.Fatalf("successful metadata operation lost: %q, %v", got, ok)
+				t.Fatalf("successful operation lost: %q, %v", got, ok)
 			}
 		})
 	}
@@ -212,6 +219,7 @@ func TestSemanticAlertStateEvictsExpiredEntriesAcrossKinds(t *testing.T) {
 		Type:       "write",
 		Path:       "/workspace/old.txt",
 		AgentRunId: "old-agent",
+		Retval:     1,
 	}, stale)
 
 	before := state.Status()
