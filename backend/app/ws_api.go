@@ -164,19 +164,19 @@ func runEventBroadcaster(ctx context.Context) {
 			if !captureAgentEvent(event) {
 				continue
 			}
+			monitorAllowed := monitorAgentEvent(event)
 			var alerts []*pb.Event
-			if monitorAgentEvent(event) {
+			if monitorAllowed {
 				alerts = buildSemanticAlerts(event)
 			}
 			if !shouldIgnoreEventPath(event) {
-				appendRecord(recordCapturedEvent(event))
+				appendRecord(recordCapturedEventWithMonitoring(event, monitorAllowed))
 			}
 			for _, alert := range alerts {
 				alert = enrichEventContext(alert)
-				// Derived alerts inherit the already-accepted source event scope.
-				// Rechecking their synthetic Security tag could discard a valid
-				// whitelist alert even when the originating Agent was monitored.
-				appendRecord(recordCapturedEvent(alert))
+				// Derived alerts inherit the original Agent's captured and
+				// monitored scope even when using a synthetic Security tag.
+				appendRecord(recordCapturedEventWithMonitoring(alert, monitorAllowed))
 			}
 			if len(eventBatch) >= broadcastBatchSize || len(envelopeBatch) >= broadcastBatchSize || len(summaryBatch) >= broadcastBatchSize {
 				flushBatch()
