@@ -228,6 +228,16 @@ func (a *renewApp) saveAgentScope(kind string) {
 	}()
 }
 
+func agentScopeDraftDirty(applied agentScopeList, selectedMode, draftText string) bool {
+	if agentScopeModeValue(selectedMode) != applied.Mode { return true }
+	entries := agentScopeNames(draftText)
+	if len(entries) != len(applied.Entries) { return true }
+	for index, entry := range entries {
+		if entry != applied.Entries[index] { return true }
+	}
+	return false
+}
+
 func appendScopeEntry(text, name string) string {
 	name = strings.TrimSpace(name)
 	if name == "" { return text }
@@ -252,9 +262,15 @@ func (a *renewApp) agentScopeEditor(c *ui.Context, kind, heading, help string) {
 		ui.Text(c, help).FontSize(12).TextColor(t.TextMuted)
 		ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
 			ui.Select(c, mode, []string{"黑名单", "白名单"}).Label(heading+"模式").Width(145)
-			if *mode == "白名单" && len(agentScopeNames(*text)) == 0 {
-				statusPill(c, "保存空白名单将停止对应处理", t.Warning)
-			} else {
+			dirty := agentScopeDraftDirty(list, *mode, *text)
+			switch {
+			case *mode == "白名单" && len(agentScopeNames(*text)) == 0 && dirty:
+				statusPill(c, "保存后将停止对应处理", t.Warning)
+			case *mode == "白名单" && len(list.Entries) == 0 && !dirty:
+				statusPill(c, "当前空白名单 · 无匹配", t.Warning)
+			case dirty:
+				statusPill(c, "修改尚未保存", t.Warning)
+			default:
 				statusPill(c, fmt.Sprintf("已生效 %d 项", len(list.Entries)), t.Accent)
 			}
 		})
