@@ -151,6 +151,56 @@ func eventDetailCategory(detail map[string]any, eventType string) string {
 	return "other"
 }
 
+// Avoid legacy substring classification in the visible headline: an event
+// named "openai_request" is not evidence that a file was opened.
+func eventDetailAction(detail map[string]any, eventType string) string {
+	kind := eventDetailCategory(detail, eventType)
+	switch kind {
+	case "file":
+		typ := strings.ToLower(strings.TrimSpace(eventType))
+		for _, verb := range []string{"write", "rename", "unlink", "rmdir", "mkdir", "truncate", "chmod", "chown", "creat"} {
+			if typ == verb || strings.HasPrefix(typ, verb+"_") || strings.HasPrefix(typ, "file_"+verb) {
+				return "修改文件"
+			}
+		}
+		if typ == "read" || strings.HasPrefix(typ, "read") || strings.HasPrefix(typ, "open") {
+			return "读取文件"
+		}
+		return "文件活动"
+	case "network":
+		return "网络活动"
+	case "process":
+		return "进程活动"
+	case "policy":
+		return "策略裁决"
+	case "wrapper":
+		return "Agent 命令执行"
+	case "hook":
+		return "Agent Hook 回调"
+	case "mcp":
+		return "MCP 工具调用"
+	case "tls":
+		return "TLS / LLM 请求"
+	case "http":
+		return "HTTP 请求"
+	case "sse":
+		return "SSE 流事件"
+	case "stdio":
+		return "标准输入输出"
+	case "metric":
+		return "进程性能指标"
+	case "otel":
+		return "OTel Span"
+	case "alert":
+		return "AgentSight 风险告警"
+	default:
+		if eventType != "" {
+			return eventType
+		}
+		return "未分类事件"
+	}
+}
+
 func eventDetailPreview(value string, limit int) string {
 	if limit <= 0 {
 		return ""
@@ -221,7 +271,7 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 		return value
 	}
 	eventType := get("type")
-	m := eventDetailViewModel{Type: eventType, Action: eventAction(eventSummary{Type: eventType}), Decision: get("decision", "policyDecision")}
+	m := eventDetailViewModel{Type: eventType, Action: eventDetailAction(detail, eventType), Decision: get("decision", "policyDecision")}
 	if value, _, ok := eventDetailLookup(layers, "riskScore", "risk_score"); ok {
 		m.Risk = value
 	}
