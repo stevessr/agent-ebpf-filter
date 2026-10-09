@@ -71,7 +71,7 @@ var workspaceNavigationLabels = map[string][2]string{
 	"跟踪":       {"跟踪范围", "进程、命令与路径跟踪"},
 	"路径权限":   {"文件访问保护", "文件路径与访问权限"},
 	"终端":       {"本地 Shell · 多标签与分屏", "本地 Shell 终端与多窗格"},
-	"CCS":        {"CC-Switch 联动", "CC-Switch 配置与 Agent 事件关联"},
+	"CCS":        {"管理软件联动", "CC-Switch / AstrLink 的本地安全与代理视图"},
 	"系统":       {"系统诊断", "采集链路与系统运行诊断"},
 }
 
@@ -189,7 +189,7 @@ func (a *renewApp) workspacePage(c *ui.Context) {
 	case "系统":
 		a.systemView(c)
 	case "CCS":
-		a.ccsView(c)
+		a.integrationsView(c)
 	default:
 		a.overview(c)
 	}
@@ -415,6 +415,7 @@ func (a *renewApp) refreshActiveView() {
 		go a.refreshEBPFModules(context.Background())
 	case "CCS":
 		go a.refreshCCS(context.Background())
+		go a.refreshAstrLink(context.Background())
 	case "路径权限":
 		go a.refreshPathAccess()
 		go a.refreshConfiguration(context.Background())
