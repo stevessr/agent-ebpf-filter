@@ -67,7 +67,7 @@ func TestEventDetailSyntheticContentionDoesNotInventProcessOrTarget(t *testing.T
 		},
 	}
 	model := eventDetailModel(detail)
-	if model.Action != "语义风险告警" || model.Target != "目标路径或端点未记录" {
+	if model.Action != "跨 Agent 路径关联（待核实）" || model.Target != "目标路径或端点未记录" {
 		t.Fatalf("synthetic event misrepresented as real operation: %+v", model)
 	}
 	if !strings.Contains(model.EvidenceNote, "误报") {
@@ -103,6 +103,21 @@ func TestEventDetailContentionWithRealPathKeepsTarget(t *testing.T) {
 	if model.Target != "/workspace/shared.txt" ||
 		!eventDetailHasField(model, "语义告警", "关联目标", "/workspace/shared.txt") {
 		t.Fatalf("lost valid semantic alert target: %+v", model)
+	}
+	if model.Action != "跨 Agent 路径关联（待核实）" ||
+		!strings.Contains(model.EvidenceNote, "不能证明同时写入") {
+		t.Fatalf("the incident view must distinguish temporal correlation from proven race: %+v", model)
+	}
+	tester := ui.NewTester(func(c *ui.Context) {
+		a := &renewApp{}
+		a.richEventDetail(c, detail, 990)
+	}, 1100, 720)
+	tester.Frame()
+	if err := tester.Click("复制目标"); err != nil {
+		t.Fatalf("a real target must remain copyable despite uncertainty note: %v", err)
+	}
+	if got := tester.Clipboard(); got != "/workspace/shared.txt" {
+		t.Fatalf("copied target = %q, want verified path", got)
 	}
 	if comm := semanticAlertSourceComm("source=write tool= reason=no process"); comm != "" {
 		t.Fatalf("invented an origin comm: %q", comm)
