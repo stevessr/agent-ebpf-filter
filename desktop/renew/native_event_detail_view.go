@@ -32,6 +32,9 @@ type eventDetailViewModel struct {
 	Decision string
 	Risk     string
 	When     string
+	WhenLabel string
+	EvidenceNote string
+	NoTargetExpected bool
 	Sections []eventDetailSection
 }
 
@@ -118,15 +121,8 @@ func detailScalarText(raw any) string {
 }
 
 func eventDetailCategory(detail map[string]any, eventType string) string {
-	envelope, _ := mapValue(detail, "Envelope", "envelope").(map[string]any)
-	for _, item := range [][2]string{
-		{"fileEvent", "file"}, {"networkEvent", "network"},
-		{"execEvent", "process"}, {"processEvent", "process"},
-		{"tlsEvent", "network"}, {"httpEvent", "network"},
-	} {
-		if _, ok := mapValue(envelope, item[0]).(map[string]any); ok {
-			return item[1]
-		}
+	if typed := eventDetailTypedPayload(detail); typed.Kind != "" {
+		return typed.Kind
 	}
 	name := strings.ToLower(strings.TrimSpace(eventType))
 	switch {
@@ -154,6 +150,56 @@ func eventDetailCategory(detail map[string]any, eventType string) string {
 		}
 	}
 	return "other"
+}
+
+// Avoid legacy substring classification in the visible headline: an event
+// named "openai_request" is not evidence that a file was opened.
+func eventDetailAction(detail map[string]any, eventType string) string {
+	kind := eventDetailCategory(detail, eventType)
+	switch kind {
+	case "file":
+		typ := strings.ToLower(strings.TrimSpace(eventType))
+		for _, verb := range []string{"write", "rename", "unlink", "rmdir", "mkdir", "truncate", "chmod", "chown", "creat"} {
+			if typ == verb || strings.HasPrefix(typ, verb+"_") || strings.HasPrefix(typ, "file_"+verb) {
+				return "修改文件"
+			}
+		}
+		if typ == "read" || strings.HasPrefix(typ, "read") || strings.HasPrefix(typ, "open") {
+			return "读取文件"
+		}
+		return "文件活动"
+	case "network":
+		return "网络活动"
+	case "process":
+		return "进程活动"
+	case "policy":
+		return "策略裁决"
+	case "wrapper":
+		return "Agent 命令执行"
+	case "hook":
+		return "Agent Hook 回调"
+	case "mcp":
+		return "MCP 工具调用"
+	case "tls":
+		return "TLS / LLM 请求"
+	case "http":
+		return "HTTP 请求"
+	case "sse":
+		return "SSE 流事件"
+	case "stdio":
+		return "标准输入输出"
+	case "metric":
+		return "进程性能指标"
+	case "otel":
+		return "OTel Span"
+	case "alert":
+		return "AgentSight 风险告警"
+	default:
+		if eventType != "" {
+			return eventType
+		}
+		return "未分类事件"
+	}
 }
 
 func eventDetailPreview(value string, limit int) string {
@@ -193,10 +239,15 @@ func eventDetailLayers(detail map[string]any) []eventDetailLayer {
 			"fileEvent", "networkEvent", "execEvent", "processEvent",
 			"policyEvent", "wrapperEvent", "hookEvent", "mcpEvent",
 			"tlsEvent", "httpEvent", "sseEvent", "stdioEvent",
-			"systemMetricEvent", "otelSpanEvent", "agentSightAlertEvent",
+			"systemMetricEvent", "otelSpanEvent", "agentsightAlertEvent",
 		} {
 			if nested, ok := mapValue(envelope, name).(map[string]any); ok {
 				layers = append(layers, newEventDetailLayer("Envelope." + name, nested))
+				if eventDetailKey(name) == "wrapperevent" {
+					if behavior, ok := mapValue(nested, "behavior").(map[string]any); ok {
+						layers = append(layers, newEventDetailLayer("Envelope."+name+".behavior", behavior))
+					}
+				}
 			}
 		}
 		layers = append(layers, newEventDetailLayer("Envelope", envelope))
@@ -221,19 +272,21 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 		return value
 	}
 	eventType := get("type")
-	m := eventDetailViewModel{Type: eventType, Action: eventAction(eventSummary{Type: eventType}), Decision: get("decision", "policyDecision")}
+	m := eventDetailViewModel{Type: eventType, Action: eventDetailAction(detail, eventType), Decision: get("decision", "policyDecision")}
 	if value, _, ok := eventDetailLookup(layers, "riskScore", "risk_score"); ok {
 		m.Risk = value
 	}
 	if millis, _, ok := eventDetailLookup([]eventDetailLayer{newEventDetailLayer("$", detail)}, "Timestamp"); ok {
 		if n, err := strconv.ParseInt(millis, 10, 64); err == nil && n > 0 {
 			m.When = time.UnixMilli(n).Local().Format("2006-01-02 15:04:05.000")
+			m.WhenLabel = "后端记录时间"
 		}
 	}
 	if m.When == "" {
 		if nanos := get("timestampNs"); nanos != "" {
-			if n, err := strconv.ParseInt(nanos, 10, 64); err == nil && n > 0 {
+			if n, err := strconv.ParseInt(nanos, 10, 64); err == nil && isPlausibleUnixNanoseconds(n) {
 				m.When = time.Unix(0, n).Local().Format("2006-01-02 15:04:05.000")
+				m.WhenLabel = "事件时间（Unix ns）"
 			}
 		}
 	}
@@ -279,16 +332,33 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 		section("进程行为", field("阶段", "phase"), field("执行文件", "path"),
 			field("命令行", "commandLine"), field("参数", "args"),
 			field("工作目录", "cwd"), field("父进程 PID", "parentPid"),
-			field("子进程 PID", "childPid"), field("目标 PID", "targetPid"),
-			field("退出状态", "exitStatus"), field("返回值", "retval"),
+			field("子进程 PID", "childPid"), field("旧 PID", "oldPid"),
+			field("目标 PID", "targetPid"), field("退出状态", "exitStatus"), field("返回值", "retval"),
 			field("附加信息", "extraInfo"))
 	default:
-		m.Target = prefer("path", "targetPath", "netEndpoint", "domain", "commandLine", "relatedEndpoint")
-		section("操作详情", field("路径", "path", "targetPath", "relatedPath"),
-			field("目标地址", "netEndpoint", "endpoint", "relatedEndpoint"),
-			field("命令行", "commandLine"), field("原因", "reason"),
-			field("结果", "retval"), field("附加信息", "extraInfo"))
+		// A typed payload gets its own domain view below. A generic card here
+		// would mistake unrelated legacy fields for part of that payload.
+		if eventDetailTypedPayload(detail).Kind == "" {
+			m.Target = prefer("path", "targetPath", "netEndpoint", "domain", "commandLine", "relatedEndpoint")
+			section("操作详情", field("路径", "path", "targetPath", "relatedPath"),
+				field("目标地址", "netEndpoint", "endpoint", "relatedEndpoint"),
+				field("命令行", "commandLine"), field("原因", "reason"),
+				field("结果", "retval"), field("附加信息", "extraInfo"))
+		}
 	}
+	// Domain cards use only fields from the corresponding protobuf oneof.
+	// Legacy fields remain visible in the common sections, with their origin.
+	if typed := eventDetailTypedPayload(detail); typed.Kind != "" {
+		if typed.Kind != "file" && typed.Kind != "network" && typed.Kind != "process" {
+			if target := eventTypedTarget(typed); target != "" {
+				m.Target = target
+			}
+		}
+		if domain := eventDetailTypedSection(typed); len(domain.Fields) > 0 {
+			m.Sections = append(m.Sections, domain)
+		}
+	}
+
 	section("策略与分类", field("策略决定", "decision", "policyDecision"),
 		field("风险评分", "riskScore"), field("判定原因", "reason"),
 		field("关联策略路径", "relatedPath"), field("关联端点", "relatedEndpoint"),
@@ -313,7 +383,22 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 		field("脱敏等级", "redactionLevel"), field("已脱敏字段", "sanitizedFields"),
 		field("审计标志", "auditFlags"), field("丢弃计数", "kernelDroppedSinceLast"))
 	if m.Target == "" {
-		m.Target = "此事件没有提供明确的操作对象"
+		typedKind := eventDetailTypedPayload(detail).Kind
+		switch typedKind {
+		case "metric", "otel", "sse", "stdio":
+			m.Target = "无文件或网络操作对象"
+			m.NoTargetExpected = true
+			m.EvidenceNote = "此类事件主要描述遥测指标或数据流，不要求存在文件路径或网络端点。"
+		default:
+			m.Target = "目标路径或端点未记录"
+			m.EvidenceNote = "当前记录没有可用的操作目标，不能反推出具体文件或地址。"
+			if category == "file" && (eventType == "write" || eventType == "read") {
+				m.EvidenceNote += " Linux write/read 系统调用使用文件描述符而非文件名；只有存在文件描述符到路径的有效关联，才能定位实际文件。"
+			}
+			if redaction := get("redactionLevel"); redaction != "" {
+				m.EvidenceNote += " 记录的脱敏等级：" + redaction
+			}
+		}
 	}
 	return m
 }
@@ -372,16 +457,20 @@ func (a *renewApp) richEventDetail(c *ui.Context, detail map[string]any, width f
 		})
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, eventDetailPreview(model.Target, 520)).Font("monospace").FontSize(12).Grow(1).MinWidth(0).MaxLines(3)
-			if model.Target != "此事件没有提供明确的操作对象" && ui.Button(c, "复制目标").Clicked() {
+			if model.EvidenceNote == "" && ui.Button(c, "复制目标").Clicked() {
 				c.WriteClipboard(model.Target)
 				c.Toast("目标已复制")
 			}
 		})
-		if model.Target == "此事件没有提供明确的操作对象" {
-			ui.Text(c, "当前完整事件未携带该操作的目标路径或端点；这表示采集信息缺失，不能推断具体文件或地址。").FontSize(11).TextColor(t.Warning)
+		if model.EvidenceNote != "" {
+			tone := t.Warning
+			if model.NoTargetExpected {
+				tone = t.TextMuted
+			}
+			ui.Text(c, model.EvidenceNote).FontSize(11).TextColor(tone)
 		}
 		if model.When != "" {
-			ui.Text(c, "发生时间  "+model.When).FontSize(11).TextColor(t.TextMuted)
+			ui.Text(c, model.WhenLabel+"  "+model.When).FontSize(11).TextColor(t.TextMuted)
 		}
 		ui.Text(c, "字段来源与脱敏状态以记录为准；没有采集到的内容不进行推断。").FontSize(10).TextColor(t.TextMuted)
 	})
@@ -406,36 +495,63 @@ func (a *renewApp) richEventDetail(c *ui.Context, detail map[string]any, width f
 	a.eventDetailRelated(c, detail)
 }
 
-func (a *renewApp) eventDetailRelated(c *ui.Context, detail map[string]any) {
+// Model the current event independently from the UI, preserving JSON
+// timestamps and preferring persisted evidence over live summary fallbacks.
+func eventDetailSelectedSummary(detail map[string]any, eventID string, retained []eventSummary) eventSummary {
 	layers := eventDetailLayers(detail)
-	pidText, _, ok := eventDetailLookup(layers, "pid")
-	if !ok {
-		return
+	read := func(key string) string {
+		v, _, _ := eventDetailLookup(layers, key)
+		return v
 	}
-	pid, err := strconv.Atoi(pidText)
-	if err != nil || pid <= 0 {
-		return
+	selected := eventSummary{
+		EventID:        eventID,
+		AgentRunID:     read("agentRunId"),
+		ConversationID: read("conversationId"),
 	}
-	related := make([]eventSummary, 0, 4)
-	for _, item := range a.events {
-		if item.EventID != "" && item.EventID != a.eventDetailID && item.PID == pid {
-			related = append(related, item)
-			if len(related) == 4 {
-				break
-			}
+	if pid, err := strconv.Atoi(read("pid")); err == nil && pid > 0 {
+		selected.PID = pid
+	}
+	// fmt.Sprint of a JSON float64 can yield exponent notation, which is
+	// invalid for a decimal timestamp. Our scalar lookup preserves decimals.
+	if text, _, exists := eventDetailLookup(
+		[]eventDetailLayer{newEventDetailLayer("$", detail)}, "Timestamp",
+	); exists {
+		if ms, ok := eventDetailInt64(text); ok && ms > 0 {
+			selected.ReceivedAtMS = ms
 		}
 	}
+	for _, item := range retained {
+		if item.EventID != selected.EventID {
+			continue
+		}
+		if selected.PID == 0 { selected.PID = item.PID }
+		if selected.ReceivedAtMS == 0 { selected.ReceivedAtMS = item.ReceivedAtMS }
+		if selected.AgentRunID == "" { selected.AgentRunID = item.AgentRunID }
+		if selected.ConversationID == "" { selected.ConversationID = item.ConversationID }
+		break
+	}
+	return selected
+}
+
+func (a *renewApp) eventDetailRelated(c *ui.Context, detail map[string]any) {
+	selected := eventDetailSelectedSummary(detail, a.eventDetailID, a.events)
+	if selected.PID <= 0 && selected.AgentRunID == "" && selected.ConversationID == "" {
+		return
+	}
+	related := eventDetailRelatedCandidates(a.events, selected, 4)
 	if len(related) == 0 {
 		return
 	}
-	card(c, "同 PID 的缓存事件（不保证同一次进程运行）", func() {
-		for _, item := range related {
-			item := item
+	card(c, "邻近事件 · 当前缓存", func() {
+		ui.Text(c, "优先使用 Agent Run/会话标识关联跨进程活动；仅在两分钟窗口内匹配无冲突的同 PID 记录。这些事件不代表因果关系。").FontSize(10).TextColor(c.Theme().TextMuted)
+		for _, entry := range related {
+			entry := entry
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, summaryTime(item.ReceivedAtMS)+"  "+displayOr(item.Type, "event")).FontSize(11).Grow(1)
-				ui.Text(c, eventTarget(item)).MaxLines(1).FontSize(10).TextColor(c.Theme().TextMuted).Grow(1)
+				ui.Badge(c, entry.Relation)
+				ui.Text(c, summaryTime(entry.Event.ReceivedAtMS)+"  "+displayOr(entry.Event.Type, "event")).FontSize(11)
+				ui.Text(c, eventTarget(entry.Event)).MaxLines(1).FontSize(10).TextColor(c.Theme().TextMuted).Grow(1).MinWidth(0)
 				if ui.Button(c, "查看").Clicked() {
-					a.openEventDetail(item.EventID)
+					a.openEventDetail(entry.Event.EventID)
 				}
 			})
 		}
