@@ -786,9 +786,13 @@ func recordCapturedEvent(event *pb.Event) CapturedEventRecord {
 	}
 	recording.Default().Record(record)
 	otelExporterStore.Record(record)
-	queueLoopDetectionRecord(record)
-	research.QueueProcessingRecord(record)
-	queueSignalProcessingRecord(record)
-	persistSignalProgramLog(record)
+	// Capture and monitoring are independent: non-monitored events stay
+	// observable and persistable, but do not enter expensive analysis queues.
+	if monitorAgentEvent(event) {
+		queueLoopDetectionRecord(record)
+		research.QueueProcessingRecord(record)
+		queueSignalProcessingRecord(record)
+		persistSignalProgramLog(record)
+	}
 	return record
 }
