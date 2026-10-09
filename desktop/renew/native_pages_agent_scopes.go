@@ -30,6 +30,8 @@ type agentRecognitionRow struct {
 	LastSeen int64
 	Source   string
 	Disabled bool
+	CPU float64
+	MemPercent float64
 }
 
 func agentScopeModeLabel(mode string) string {
@@ -71,43 +73,92 @@ func scopeMatches(list agentScopeList, comm, tag string) bool {
 	return !found
 }
 
+func agentRecognitionKey(comm string, pid int) string {
+	name := strings.ToLower(strings.TrimSpace(comm))
+	if pid <= 0 {
+		return name + ":registered"
+	}
+	return name + ":" + strconv.Itoa(pid)
+}
+
+// Three independent sources make whitelist recovery possible even with no
+// captured events: known live processes, recent event context and saved comms.
+// Rows are keyed by (comm, PID) rather than collapsing concurrent sessions.
 func aggregateAgentRecognition(events []eventSummary, registry registrySnapshot) []agentRecognitionRow {
-	byComm := make(map[string]*agentRecognitionRow)
-	for _, tracked := range registry.Comms {
-		key := strings.ToLower(strings.TrimSpace(tracked.Comm))
-		if key == "" { continue }
-		label := harnessLabelFor(tracked.Tag, tracked.Comm)
-		byComm[key] = &agentRecognitionRow{
-			Comm: tracked.Comm, Tag: tracked.Tag, Label: label,
-			Source: "跟踪注册表", Disabled: tracked.Disabled,
+	return aggregateAgentRecognitionWithProcesses(events, registry, nil)
+}
+
+func aggregateAgentRecognitionWithProcesses(events []eventSummary, registry registrySnapshot, processes []systemProcess) []agentRecognitionRow {
+	tracked := make(map[string]trackedComm, len(registry.Comms))
+	for _, comm := range registry.Comms {
+		if name := strings.ToLower(strings.TrimSpace(comm.Comm)); name != "" {
+			tracked[name] = comm
 		}
 	}
+	byKey := make(map[string]*agentRecognitionRow)
+	seen := make(map[string]bool)
+
+	for _, p := range processes {
+		comm := strings.TrimSpace(p.Name)
+		name := strings.ToLower(comm)
+		if name == "" || p.PID <= 0 { continue }
+		saved, registered := tracked[name]
+		if !registered && harnessLabelFor(comm) == "未识别" {
+			continue // Never identify a generic process solely from a substring.
+		}
+		key := agentRecognitionKey(comm, p.PID)
+		byKey[key] = &agentRecognitionRow{
+			Comm: comm, Tag: saved.Tag, PID: p.PID,
+			Label: harnessLabelFor(saved.Tag, comm), Source: "实时进程",
+			Disabled: saved.Disabled, CPU: p.CPU, MemPercent: p.MemPercent,
+		}
+		seen[name] = true
+	}
+
 	for _, event := range events {
 		comm := strings.TrimSpace(event.Comm)
-		if comm == "" { continue }
-		key := strings.ToLower(comm)
-		row := byComm[key]
+		name := strings.ToLower(comm)
+		if name == "" { continue }
+		saved, registered := tracked[name]
+		if !registered && !isAgentSummary(event) && harnessLabelFor(event.Tag, comm) == "未识别" {
+			continue
+		}
+		key := agentRecognitionKey(comm, event.PID)
+		row := byKey[key]
 		if row == nil {
-			if !isAgentSummary(event) && harnessLabelFor(event.Tag, comm) == "未识别" {
-				continue // Ordinary processes are not silently called Agents.
+			row = &agentRecognitionRow{
+				Comm: comm, PID: event.PID, Tag: saved.Tag,
+				Source: "事件识别", Disabled: saved.Disabled,
 			}
-			row = &agentRecognitionRow{Comm: comm, Source: "事件识别"}
-			byComm[key] = row
+			byKey[key] = row
 		}
 		row.Events++
 		if event.ReceivedAtMS >= row.LastSeen {
 			row.LastSeen = event.ReceivedAtMS
-			row.PID = event.PID
 			if strings.TrimSpace(event.Tag) != "" { row.Tag = event.Tag }
 		}
-		if row.Source != "跟踪注册表" { row.Source = "事件识别" }
 		row.Label = harnessLabelFor(row.Tag, row.Comm)
+		seen[name] = true
 	}
-	out := make([]agentRecognitionRow, 0, len(byComm))
-	for _, row := range byComm { out = append(out, *row) }
+
+	for name, saved := range tracked {
+		if seen[name] { continue }
+		key := agentRecognitionKey(saved.Comm, 0)
+		byKey[key] = &agentRecognitionRow{
+			Comm: saved.Comm, Tag: saved.Tag,
+			Label: harnessLabelFor(saved.Tag, saved.Comm),
+			Source: "跟踪注册表", Disabled: saved.Disabled,
+		}
+	}
+
+	out := make([]agentRecognitionRow, 0, len(byKey))
+	for _, row := range byKey { out = append(out, *row) }
 	sort.Slice(out, func(i, j int) bool {
+		if out[i].PID > 0 && out[j].PID == 0 { return true }
+		if out[j].PID > 0 && out[i].PID == 0 { return false }
 		if out[i].LastSeen != out[j].LastSeen { return out[i].LastSeen > out[j].LastSeen }
-		return strings.ToLower(out[i].Comm) < strings.ToLower(out[j].Comm)
+		if out[i].Comm != out[j].Comm { return out[i].Comm < out[j].Comm }
+		return out[i].PID < out[j].PID
 	})
 	return out
 }
@@ -253,9 +304,9 @@ func (a *renewApp) agentRecognitionView(c *ui.Context) {
 			ui.Text(c, "等待后端确认名单…").TextColor(t.TextMuted)
 		})
 	}
-	card(c, "识别结果 · 实时摘要及跟踪注册表", func() {
+	card(c, "Agent 识别 · 实时进程、近期事件与跟踪登记", func() {
 		ui.SearchField(c, &a.agentSearch).Label("搜索 Agent、标签或 PID")
-		rows := aggregateAgentRecognition(a.events, a.registry)
+		rows := aggregateAgentRecognitionWithProcesses(a.events, a.registry, a.system.Processes)
 		if query := strings.ToLower(strings.TrimSpace(a.agentSearch)); query != "" {
 			filtered := make([]agentRecognitionRow, 0, len(rows))
 			for _, row := range rows {
@@ -279,7 +330,7 @@ func (a *renewApp) agentRecognitionView(c *ui.Context) {
 			{Title: "监视", Width: 80},
 			{Title: "来源", Width: 98},
 		}
-		a.agentTable.Key = func(index int) any { return strings.ToLower(rows[index].Comm) }
+		a.agentTable.Key = func(index int) any { return agentRecognitionKey(rows[index].Comm, rows[index].PID) }
 		ui.Table(c, &a.agentTable, cols, len(rows), func(index, column int) {
 			row := rows[index]
 			switch column {
@@ -311,6 +362,13 @@ func (a *renewApp) agentRecognitionView(c *ui.Context) {
 			selected := rows[a.agentSelected]
 			ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
 				ui.Text(c, selected.Comm+" · "+selected.Label).Bold()
+				if selected.PID > 0 {
+					ui.Textf(c, "PID %d", selected.PID).Font("monospace")
+				}
+				if selected.Source == "实时进程" {
+					ui.Textf(c, "CPU %.1f%% · 内存 %.1f%%", selected.CPU, selected.MemPercent).TextColor(t.TextMuted)
+				}
+				if selected.Disabled { statusPill(c, "已在跟踪注册表禁用", t.Warning) }
 				if selected.LastSeen > 0 {
 					ui.Text(c, "最近事件 "+summaryTime(selected.LastSeen)).TextColor(t.TextMuted)
 				}
@@ -327,7 +385,7 @@ func (a *renewApp) agentRecognitionView(c *ui.Context) {
 				}
 			})
 		}
-		ui.Text(c, "识别结果来自当前最多 1200 条事件摘要及已注册命令，并非完整主机进程扫描。名单更改不追溯删除历史。").FontSize(10).TextColor(t.TextMuted)
+		ui.Text(c, "识别结果来自实时系统进程快照、最多 1200 条事件摘要及已登记命令；仅展示可识别或已登记的 Agent，非全部进程。名单更改不追溯删除历史。").FontSize(10).TextColor(t.TextMuted)
 	})
 	if ui.Button(c, "重新读取识别与范围").Clicked() && !a.agentScopesBusy {
 		go a.refreshAgentScopes(context.Background())
