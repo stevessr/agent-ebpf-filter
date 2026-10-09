@@ -124,7 +124,7 @@ func TestSemanticAlertsDetectMultiAgentFileContention(t *testing.T) {
 }
 
 func TestSemanticFileContentionIgnoresUnresolvedTargets(t *testing.T) {
-	for _, target := range []string{"", "write", "file write", "file_write", "socket 5", "pipe:[123]", "fd:3", "relative.txt"} {
+	for _, target := range []string{"", "write", "file write", "file_write", "file writev", "file readv", "socket 5", "pipe:[123]", "fd:3", "[REDACTED]", "/workspace/[REDACTED]", "<CUSTOM_REDACTED>", "relative.txt"} {
 		t.Run(target, func(t *testing.T) {
 			resetSemanticAlertState()
 			for _, run := range []string{"run-one", "run-two"} {
@@ -137,6 +137,18 @@ func TestSemanticFileContentionIgnoresUnresolvedTargets(t *testing.T) {
 				}
 			}
 		})
+	}
+	// A relative filename must not be joined to an unverified/redacted
+	// cwd, as that collapses unrelated files to the same synthesized path.
+	resetSemanticAlertState()
+	for _, run := range []string{"run-one", "run-two"} {
+		event := &pb.Event{
+			Pid: 200, Type: "write", EventType: pb.EventType_WRITE,
+			AgentRunId: run, Cwd: "/home/[REDACTED]", Path: "shared.txt",
+		}
+		if alert := findSemanticAlertCode(buildSemanticAlerts(event), "MULTI_AGENT_FILE_CONTENTION"); alert != nil {
+			t.Fatalf("redacted cwd became an alert target: %+v", alert)
+		}
 	}
 	// Even with an absolute cwd, an adapter's synthetic "file write" label
 	// must not turn into a plausible /workspace/file write pathname.
