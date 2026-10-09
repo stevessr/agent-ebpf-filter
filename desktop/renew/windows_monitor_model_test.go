@@ -65,3 +65,37 @@ func TestWindowsSampledObservationIsUnrated(t *testing.T) {
 		t.Fatalf("polling must not claim a connection is safe: %q", got)
 	}
 }
+
+
+func TestWindowsObservationUDPBindingsAndPIDReuse(t *testing.T) {
+    before := windowsObservation{
+        Processes:map[int]windowsProcessSample{90:{PID:90,Name:"node.exe",Start:100}},
+        Connections:map[string]windowsTCPSample{"tcp":{PID:90,Local:"0.0.0.0:1",Remote:"1.1.1.1:443"}},
+        UDPBindings:map[string]windowsUDPSample{"udp":{PID:90,Local:"127.0.0.1:53"}},
+    }
+    after := windowsObservation{
+        Processes:map[int]windowsProcessSample{90:{PID:90,Name:"node.exe",Start:200}},
+        Connections:before.Connections, UDPBindings:before.UDPBindings,
+    }
+    events, dropped := windowsObservationEvents(before,after,true,time.Now())
+    if len(events)!=4 || dropped!=0 { t.Fatalf("PID reuse: %#v, dropped %d",events,dropped) }
+    if events[2].Type!="network_tcp_observed" || events[3].Type!="network_udp_binding_observed"{
+        t.Fatalf("missed reused PID network identity: %#v",events)
+    }
+    stable,_:=windowsObservationEvents(after,after,true,time.Now())
+    if len(stable)!=0 { t.Fatalf("unchanged sockets should not repeat: %#v",stable) }
+}
+
+func TestWindowsUDPInventorySearch(t *testing.T) {
+    entries:=[]windowsUDPSample{{PID:20,Local:"[::1]:5353"},{PID:21,Local:"0.0.0.0:53"}}
+    processes:=[]systemProcess{{PID:20,Name:"agent.exe"},{PID:21,Name:"dns.exe"}}
+    if got:=windowsFilteredUDPBindings(entries,processes,"AGENT");len(got)!=1 || got[0].PID!=20{
+        t.Fatalf("UDP process name filtering: %#v",got)
+    }
+    if got:=windowsFilteredUDPBindings(entries,processes,"0.0.0.0");len(got)!=1 || got[0].PID!=21{
+        t.Fatalf("UDP endpoint filtering: %#v",got)
+    }
+    if got:=windowsFilteredUDPBindings(entries,processes,"");len(got)!=2{
+        t.Fatalf("empty query should show all UDP bindings: %#v",got)
+    }
+}
