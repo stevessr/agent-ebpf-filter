@@ -168,5 +168,8 @@ func init() {
 	events.Deps.ToolBaselineObserve = func(toolName, comm, eventType string) (string, bool) {
 		return toolBaseline.Observe(toolName, comm, eventType)
 	}
+	events.Deps.ToolBaselineAssess = func(toolName, comm, eventType string) (string, float64, bool) {
+		return toolBaseline.ObserveWithRisk(toolName, comm, eventType)
+	}
 	events.Deps.EventSchemaVersion = eventSchemaVersion
 }
