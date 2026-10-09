@@ -16,6 +16,8 @@ type agentOwnershipIndex struct {
 type agentRootIdentity struct {
 	comm string
 	tag  string
+	seenAtMS int64
+	agentRunID string
 	// Live process names are only usable for events after process start. This
 	// prevents an unrelated process reusing the same PID from naming history.
 	startedAtMS int64
@@ -46,7 +48,7 @@ func buildAgentOwnershipIndex(events []eventSummary, processes []systemProcess) 
 			continue
 		}
 		if strings.TrimSpace(e.Comm) != "" {
-			index.roots[e.PID] = agentRootIdentity{comm: e.Comm, tag: e.Tag}
+			index.roots[e.PID] = agentRootIdentity{comm: e.Comm, tag: e.Tag, seenAtMS: e.ReceivedAtMS, agentRunID: e.AgentRunID}
 		}
 	}
 	// A verified current process can name its own PID; it cannot establish
@@ -74,7 +76,10 @@ func (index agentOwnershipIndex) attribution(e eventSummary) eventAttribution {
 	a.OwnerTag = e.Tag
 	if a.OwnerPID > 0 {
 		if root, ok := index.roots[a.OwnerPID]; ok &&
-			(!root.live || root.startedAtMS <= 0 || e.ReceivedAtMS <= 0 || root.startedAtMS <= e.ReceivedAtMS) {
+			(!root.live || root.startedAtMS <= 0 || e.ReceivedAtMS <= 0 || root.startedAtMS <= e.ReceivedAtMS) &&
+			(root.agentRunID == "" || e.AgentRunID == "" || root.agentRunID == e.AgentRunID) &&
+			(root.live || root.seenAtMS <= 0 || e.ReceivedAtMS <= 0 || root.seenAtMS <= e.ReceivedAtMS ||
+				(root.agentRunID != "" && root.agentRunID == e.AgentRunID)) {
 			a.OwnerComm = root.comm
 			if strings.TrimSpace(root.tag) != "" && !strings.EqualFold(root.tag, "Unknown") {
 				a.OwnerTag = root.tag
