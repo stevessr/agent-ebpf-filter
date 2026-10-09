@@ -48,15 +48,16 @@ func resolveAncestorAgentContext(pid, ppid uint32, store *ProcessContextStore, p
 	if store == nil || pid == 0 || parentOf == nil {
 		return ProcessContext{}, false
 	}
-	visited := map[uint32]struct{}{pid: {}}
-	parent := ppid
-	if parent == 0 {
-		var ok bool
-		parent, ok = parentOf(pid)
-		if !ok {
-			return ProcessContext{}, false
-		}
+	// Trust only the *currently observed* parent of this process. An old
+	// syscall's PPID alone must not connect a recycled PID to an unrelated
+	// Agent context. If the process already exited, there is no safe procfs
+	// fallback; previously captured fork evidence remains authoritative.
+	liveParent, alive := parentOf(pid)
+	if !alive || (ppid != 0 && ppid != liveParent) {
+		return ProcessContext{}, false
 	}
+	visited := map[uint32]struct{}{pid: {}}
+	parent := liveParent
 	for hops := 0; hops < maxAgentAncestorHops && parent > 1; hops++ {
 		if _, seen := visited[parent]; seen {
 			break
