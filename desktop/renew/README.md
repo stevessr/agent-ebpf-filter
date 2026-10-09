@@ -6,6 +6,17 @@
 
 明镜高悬是 Agent eBPF Filter 的原生桌面监控应用。界面完全使用 Go 和 MyGo `ui` 组件绘制，不依赖 WebView、Vite、HTML、JavaScript 或 Vue Renew 前端运行时。
 
+## 日常安全软件：Agent 域名监控与托盘
+
+原生工作区新增 **Agent 域名监控**（左侧快捷栏/导航，首页一键进入）。它从后端既有的网络事件摘要提取 Host/SNI/Domain/DNS 线索与 IP-only 外联，基于采集到的 Agent root PID、run/会话上下文为 Codex、Claude Code、Gemini CLI 等 Agent 归属。子进程通过已记录的 root Agent 证据关联，**不会**将所有 shell / Node 访问自动认作某个 Agent。
+
+- 按 Agent、域名或 IP 搜索；仅看风险；单独显示或隐藏 IP-only 外联；按风险优先级、最后时间排序；统计分组的事件数、会话数、风险事件及摘要字节数。
+- 点选一条记录后，可跳到原生事件页查看**精确的 Agent+目标+域名/IP 类型关联结果**，并返回监控页。不会因为 URL 包含相似字符串就混淆两个域名。
+- 原生本地 IPC 在已有 `Target` 字段优先输出网络域名线索，不增加每事件的完整 payload；历史/远程 compact REST 摘要额外保留 `domain` 和 `netEndpoint`。
+- 可用系统托盘时，在顶栏开启 **关闭后驻留托盘**（默认为关闭，避免不支持托盘的桌面失去主窗口）。托盘提供概览、域名、风险事件、明确退出四个入口；明确退出会按原来的生命周期结束仅由 Renew 启动的采集子进程。未安装状态通知宿主或托盘创建失败时保留正常退出行为。
+
+**证据和隐私边界：** 看板使用当前后端已加载的有界、上游脱敏的摘要，不代表完整网络流、每一次 HTTP/API 请求、Token 或费用。DNS 反向关联无法证明具体 HTTPS Host；DoH、ECH、缓存命中、未抓取的连接等可能导致只显示 IP。它不劫持流量、不新增 MITM/透明代理、不采集额外明文，也不会自动修改阻断规则。CC Switch 的逐请求用量账单基于自身代理接管/请求日志，并非 eBPF 连接摘要可以等价获得的数据。
+
 ## Native workspace layout
 
 Renew renders an editor-inspired native workspace **entirely with MyGo widgets**. Its light and dark palettes follow the host OS appearance (including live changes through MyGo's system theme), while native accent colors, text scaling and high-contrast preferences remain available. A monochrome hand-mirror SVG is embedded and rendered as the activity-rail identity; collector health is shown in the main status indicators and System diagnostics, not in a redundant sidebar block. Its 54-DIP activity rail offers page shortcuts; the full navigation is collapsed by default so the center starts immediately after the icon rail. Users can open a 198-DIP compact navigation and then switch to a 302-DIP detailed navigation with full Chinese page labels. The sidebar's actual animated width feeds the incident inspector's responsive breakpoint; the page IDs, selection, keyboard navigation, and Agent identification controls are unchanged. The center retains live eBPF monitoring, sessions, network/process tables and existing privileged management controls. A page toolbar provides search, stream pause and context-aware refresh (rules, tracking, eBPF module state and path permissions re-fetch their own data).
