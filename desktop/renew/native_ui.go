@@ -436,6 +436,8 @@ func riskTextColor(t *ui.Theme, risk string) ui.Color {
 func riskPill(c *ui.Context, risk string) ui.Element {
 	t := c.Theme()
 	switch risk {
+	case "未评级":
+		return statusPill(c, risk, t.TextMuted)
 	case "高风险":
 		return statusPill(c, risk, t.Danger)
 	case "需关注":
