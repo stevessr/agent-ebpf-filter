@@ -237,12 +237,17 @@ func codexSafetySummary(doc map[string]any, project bool) string {
 			}
 		}
 	}
+	if tomlString(doc, "default_permissions") != "" &&
+		(tomlString(doc, "sandbox_mode") != "" || doc["sandbox_workspace_write"] != nil) {
+		detail = append(detail, "权限模板与旧沙箱键同时声明（需核查）")
+	}
 	if profiles := tomlTable(doc["permissions"]); len(profiles) > 0 {
 		detail = append(detail, fmt.Sprintf("命名权限模板 %d", len(profiles)))
 	}
 	if project && (doc["model_provider"] != nil || doc["model_providers"] != nil ||
 		doc["openai_base_url"] != nil || doc["profile"] != nil || doc["profiles"] != nil ||
-		doc["chatgpt_base_url"] != nil || doc["otel"] != nil || doc["notify"] != nil) {
+		doc["chatgpt_base_url"] != nil || doc["otel"] != nil || doc["notify"] != nil ||
+		doc["apps_mcp_product_sku"] != nil || doc["experimental_realtime_ws_base_url"] != nil) {
 		detail = append(detail, "项目中含无效的机器级覆盖键（已忽略）")
 	}
 	if len(detail) == 0 {
@@ -356,8 +361,8 @@ func codexRequirementSummary(doc map[string]any) string {
 		{"allowed_approval_policies","允许审批策略"},
 		{"allowed_sandbox_modes","允许沙箱模式"},
 	} {
-		if n := configArrayCount(doc[item.key]); n > 0 {
-			parts = append(parts, fmt.Sprintf("%s %d 项",item.label,n))
+		if _, declared := doc[item.key]; declared {
+			parts = append(parts, fmt.Sprintf("%s %d 项",item.label,configArrayCount(doc[item.key])))
 		}
 	}
 	if n := len(tomlTable(doc["allowed_permission_profiles"])); n > 0 {
