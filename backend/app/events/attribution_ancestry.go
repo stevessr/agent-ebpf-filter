@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
 )
 
@@ -95,4 +96,21 @@ func shouldResolveAgentAncestor(event *pb.Event) bool {
 		return true
 	}
 	return false
+}
+
+ 
+// propagateAgentContextOnFork uses the kernel's explicit child PID evidence,
+// not a process-name guess. Carrying the context at fork time covers scripts
+// which exit before a later procfs ancestry fallback could inspect them.
+func propagateAgentContextOnFork(event *pb.Event, parent ProcessContext, store *ProcessContextStore) {
+	if event == nil || store == nil || event.Type != "process_fork" {
+		return
+	}
+	child := platform.ParseUintField(event.ExtraInfo, "child_pid")
+	if child <= 1 || child == event.Pid {
+		return
+	}
+	if _, registered := store.Get(child); !registered {
+		store.Set(child, parent)
+	}
 }
