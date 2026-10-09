@@ -217,6 +217,30 @@ func (a *renewApp) acceptsEventDetailResponse(id string, generation uint64) bool
 }
 
 func (a *renewApp) openEventDetail(eventID string) {
+	if a.localMonitor {
+		id := strings.TrimSpace(eventID)
+		if id == "" { return }
+		// Preserve the explicit-details gesture; no privileged backend, token
+		// or enforcement status exists in Windows local polling mode.
+		for _, summary := range a.events {
+			if summary.EventID != id { continue }
+			a.releaseEventDetailPayload()
+			a.eventDetailOpen = true
+			a.eventDetailID = id
+			a.eventDetail = map[string]any{
+				"source": "Windows Win32 / IP Helper API (2-second sampling)",
+				"coverage": "Snapshot observation only; not eBPF, ETW, syscall or enforcement evidence",
+				"event": map[string]any{
+					"eventId": summary.EventID, "pid": summary.PID, "ppid": summary.PPID,
+					"comm": summary.Comm, "type": summary.Type, "target": summary.Target,
+					"network": summary.Network, "decision": summary.Decision,
+					"riskScore": summary.RiskScore, "receivedAtMs": summary.ReceivedAtMS,
+				},
+			}
+			return
+		}
+		return
+	}
 	if a.client == nil || strings.TrimSpace(eventID) == "" {
 		return
 	}
