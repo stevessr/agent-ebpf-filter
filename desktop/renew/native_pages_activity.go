@@ -207,7 +207,7 @@ func (a *renewApp) eventsView(c *ui.Context) {
 		ui.Select(c, &a.eventTypeFilter, eventTypes).Label("事件类型").Width(170)
 		ui.Select(c, &a.eventSessionFilter, eventSessions).Label("会话").Width(210)
 		ui.Select(c, &a.eventDecisionFilter, []string{"", "已阻断", "告警", "已允许"}).Label("决策").Width(130)
-		ui.Select(c, &a.eventRiskFilter, []string{"", "高风险", "需关注", "正常"}).Label("风险等级").Width(130)
+		ui.Select(c, &a.eventRiskFilter, []string{"", "高风险", "需关注", "正常", "未评级"}).Label("风险等级").Width(130)
 		ui.Checkbox(c, &a.eventAttentionOnly, "只看待关注")
 		if ui.Button(c, "清除筛选").Clicked() {
 			a.clearEventFilters()
