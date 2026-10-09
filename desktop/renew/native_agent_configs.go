@@ -71,6 +71,21 @@ func safeConfiguredHost(raw string) (host, kind string) {
 }
 
 func safeConfigFile(path string) ([]byte, bool, error) {
+	// Reject directory symlink indirection too: a project-controlled .codex/
+	// or .claude/ could redirect the reader to unrelated account files.
+	for dir := filepath.Dir(filepath.Clean(path)); ; dir = filepath.Dir(dir) {
+		info, e := os.Lstat(dir)
+		if e == nil && info.Mode()&os.ModeSymlink != 0 {
+			return nil, false, errors.New("配置目录包含符号链接，已跳过")
+		}
+		if e != nil && !errors.Is(e, os.ErrNotExist) {
+			return nil, false, errors.New("无法安全检查配置目录")
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+	}
 	info, err := os.Lstat(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, false, nil
