@@ -147,7 +147,8 @@ func codexStaticConfigPreview(codexDir, project string) (agentConfigCandidate, [
 func claudeStaticConfigPreview(claudeDir, project string) (agentConfigCandidate, bool) {
 	if claudeDir == "" { return agentConfigCandidate{}, false }
 	paths := []struct{Path,Scope string}{{filepath.Join(claudeDir,"settings.json"),"用户"}}
-	if project != "" && filepath.IsAbs(project) {
+	if projectRoot := projectConfigRoot(project); projectRoot != "" {
+		project = projectRoot
 		paths = append(paths,
 			struct{Path,Scope string}{filepath.Join(project,".claude","settings.json"),"项目"},
 			struct{Path,Scope string}{filepath.Join(project,".claude","settings.local.json"),"本地"})
