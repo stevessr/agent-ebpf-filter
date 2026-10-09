@@ -186,6 +186,14 @@ func (a *renewApp) eventsView(c *ui.Context) {
 	t := c.Theme()
 	ui.Text(c, "事件").FontSize(28).Bold()
 	ui.Text(c, "紧凑摘要支持本地筛选与后端历史分页；完整事件只在打开详情时按 ID 读取。").TextColor(t.TextMuted)
+	if a.eventReturnPage != "" && a.eventReturnPage != "事件" {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			if ui.Button(c, "← 返回"+a.eventReturnPage).Clicked() {
+				a.page = a.eventReturnPage
+				a.eventReturnPage = ""
+			}
+		})
+	}
 
 	eventTypes, eventSessions := a.eventFilterOptions()
 	ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
@@ -199,11 +207,30 @@ func (a *renewApp) eventsView(c *ui.Context) {
 		}
 	})
 
-	if a.eventPIDFilter > 0 {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			statusPill(c, fmt.Sprintf("PID = %d", a.eventPIDFilter), t.Accent)
-			if ui.Button(c, "清除 PID 筛选").Clicked() {
+	if a.eventPIDFilter > 0 || a.eventRootPIDFilter > 0 ||
+		a.eventTargetFilter != "" || a.eventFileEditsOnly || a.eventDelegatedOnly {
+		ui.Row(c).Gap(6).Wrap().AlignItems(ui.Center).Children(func() {
+			if a.eventPIDFilter > 0 {
+				statusPill(c, fmt.Sprintf("执行 PID %d", a.eventPIDFilter), t.Accent)
+			}
+			if a.eventRootPIDFilter > 0 {
+				statusPill(c, fmt.Sprintf("根 Agent PID %d（含后代）", a.eventRootPIDFilter), t.Accent)
+			}
+			if a.eventTargetFilter != "" {
+				statusPill(c, "精确目标："+a.eventTargetFilter, t.Accent)
+			}
+			if a.eventFileEditsOnly {
+				statusPill(c, "仅文件修改", t.Accent)
+			}
+			if a.eventDelegatedOnly {
+				statusPill(c, "仅委托编辑", t.Accent)
+			}
+			if ui.Button(c, "清除关联条件").Clicked() {
 				a.eventPIDFilter = 0
+				a.eventRootPIDFilter = 0
+				a.eventTargetFilter = ""
+				a.eventFileEditsOnly = false
+				a.eventDelegatedOnly = false
 				a.eventSelected = -1
 				a.inspectorSelectedID = ""
 			}
@@ -278,12 +305,6 @@ func (a *renewApp) eventsView(c *ui.Context) {
 				if ui.PrimaryButton(c, "详细").Clicked() {
 					a.openEventDetail(selected.EventID)
 				}
-				if selected.PID > 0 && ui.Button(c, "同 PID").Clicked() {
-					a.openEventFilter(selected, "pid")
-				}
-				if isAgentSummary(selected) && ui.Button(c, "同会话").Clicked() {
-					a.openEventFilter(selected, "session")
-				}
 				if ui.Button(c, "固定到研判栏").Clicked() {
 					a.inspectorPinnedID = selected.EventID
 					a.inspectorOpen = true
@@ -294,6 +315,7 @@ func (a *renewApp) eventsView(c *ui.Context) {
 					}
 				}
 			})
+			a.eventQuickLinks(c, selected, false)
 		}
 	})
 
@@ -356,9 +378,7 @@ func (a *renewApp) networkView(c *ui.Context) {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, target).FontSize(11).Font("monospace").TextColor(t.TextMuted).Grow(1).MaxLines(2)
 				if ui.PrimaryButton(c, "查看该目标事件").Clicked() {
-					a.clearEventFilters()
-					a.page = "事件"
-					a.search = target
+					a.navigateTargetEvents(target)
 				}
 			})
 		}
