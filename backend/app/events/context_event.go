@@ -308,6 +308,14 @@ func EnrichEventContext(event *pb.Event) *pb.Event {
 			ctx, ok = Deps.ProcessContexts.Get(event.Pid)
 		}
 	}
+	// A known Agent CLI selected by comm may not have a native registration.
+	// Its explicit fork event is trusted root evidence, unlike a generic
+	// shell/runtime tracked by command name.
+	if !ok && shouldSeedAgentRootAtFork(event) {
+		ctx = ProcessContext{RootAgentPid: event.Pid}
+		Deps.ProcessContexts.Set(event.Pid, ctx)
+		ok = true
+	}
 	// Tool calls may spawn multiple interpreter layers (Agent → bash →
 	// python → file write). Direct PPID inheritance misses descendants when
 	// the intermediate parent had no captured event. Recover from the live,
