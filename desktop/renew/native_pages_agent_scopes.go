@@ -97,6 +97,7 @@ func aggregateAgentRecognitionWithProcesses(events []eventSummary, registry regi
 	}
 	byKey := make(map[string]*agentRecognitionRow)
 	seen := make(map[string]bool)
+	owners := buildAgentOwnershipIndex(events, processes)
 
 	for _, p := range processes {
 		comm := strings.TrimSpace(p.Name)
@@ -116,28 +117,46 @@ func aggregateAgentRecognitionWithProcesses(events []eventSummary, registry regi
 	}
 
 	for _, event := range events {
+		owner := owners.attribution(event)
 		comm := strings.TrimSpace(event.Comm)
+		pid := event.PID
+		tag := event.Tag
+		source := "事件识别"
+		if owner.Indirect {
+			// Shell/interpreter activity belongs to the Agent that started
+			// the command; the executor is preserved in the event evidence.
+			pid = owner.OwnerPID
+			comm = strings.TrimSpace(owner.OwnerComm)
+			if comm == "" {
+				comm = fmt.Sprintf("Agent PID %d", pid)
+			}
+			tag = owner.OwnerTag
+			source = "子进程归因"
+		}
 		name := strings.ToLower(comm)
-		if name == "" { continue }
+		if name == "" || pid <= 0 { continue }
 		saved, registered := tracked[name]
-		if !registered && !isAgentSummary(event) && harnessLabelFor(event.Tag, comm) == "未识别" {
+		if !registered && !isAgentSummary(event) && harnessLabelFor(tag, comm) == "未识别" {
 			continue
 		}
-		key := agentRecognitionKey(comm, event.PID)
+		key := agentRecognitionKey(comm, pid)
 		row := byKey[key]
 		if row == nil {
 			row = &agentRecognitionRow{
-				Comm: comm, PID: event.PID, Tag: saved.Tag,
-				Source: "事件识别", Disabled: saved.Disabled,
+				Comm: comm, PID: pid, Tag: saved.Tag,
+				Source: source, Disabled: saved.Disabled,
 			}
 			byKey[key] = row
 		}
 		row.Events++
 		if event.ReceivedAtMS >= row.LastSeen {
 			row.LastSeen = event.ReceivedAtMS
-			if strings.TrimSpace(event.Tag) != "" { row.Tag = event.Tag }
+			if strings.TrimSpace(tag) != "" { row.Tag = tag }
 		}
 		row.Label = harnessLabelFor(row.Tag, row.Comm)
+		if owner.Indirect && owner.OwnerLabel != "" {
+			row.Label = owner.OwnerLabel
+		}
 		seen[name] = true
 	}
 
