@@ -135,14 +135,18 @@ func captureAgentEvent(event *pb.Event) bool {
 	if event == nil {
 		return false
 	}
-	return agentScopeAllows(currentAgentScopePolicy().Capture, event.GetComm(), event.GetTag())
+	// The event has already passed EnrichEventContext. Remember trustworthy
+	// root identity before whitelist admission so subsequent script-driven
+	// edits can be matched by the originating Agent (e.g. codex -> python).
+	agentRootScopes.Observe(event)
+	return agentScopeAllowsWithRoot(currentAgentScopePolicy().Capture, event, agentRootScopes.OwnerComm(event))
 }
 
 func monitorAgentEvent(event *pb.Event) bool {
 	if event == nil {
 		return false
 	}
-	return agentScopeAllows(currentAgentScopePolicy().Monitor, event.GetComm(), event.GetTag())
+	return agentScopeAllowsWithRoot(currentAgentScopePolicy().Monitor, event, agentRootScopes.OwnerComm(event))
 }
 
 func persistAgentScopePolicy(cfg agentScopePolicy) error {
