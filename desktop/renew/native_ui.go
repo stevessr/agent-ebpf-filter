@@ -411,6 +411,8 @@ func pageSubtitle(page string) string {
 		return "按 Agent 上下文聚合运行会话"
 	case "网络":
 		return "外联目标与摘要窗口聚合"
+	case "域名":
+		return "按 Agent 关联域名、IP 与安全事件"
 	case "进程":
 		return "实时进程与 Agent 活动"
 	case "Agent 识别":
