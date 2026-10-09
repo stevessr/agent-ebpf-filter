@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
@@ -53,6 +54,12 @@ func safeConfiguredHost(raw string) (host, kind string) {
 		return "", ""
 	}
 	host = u.Hostname()
+	if u.Port() != "" {
+		// Reject malformed/out-of-range ports without retaining the URL.
+		if port, e := strconv.Atoi(u.Port()); e != nil || port < 1 || port > 65535 {
+			return "", ""
+		}
+	}
 	if strings.EqualFold(host, "localhost") {
 		return "localhost", "本地"
 	}
@@ -126,7 +133,19 @@ func readClaudeCandidate(path, scope string) (agentConfigCandidate, bool, error)
 	case enabledClaudeFlag(settings.Env["CLAUDE_CODE_USE_FOUNDRY"]):
 		c.Provider = "Microsoft Foundry"
 	}
-	for _, variable := range []string{"ANTHROPIC_BASE_URL", "ANTHROPIC_VERTEX_BASE_URL", "ANTHROPIC_FOUNDRY_BASE_URL"} {
+	// Select the URL relevant to the declared provider. The global
+	// ANTHROPIC_BASE_URL is valid for direct API / gateway routing but must
+	// not silently take precedence over an explicit Foundry/Vertex endpoint.
+	variables := []string{"ANTHROPIC_BASE_URL"}
+	switch c.Provider {
+	case "Microsoft Foundry":
+		variables = []string{"ANTHROPIC_FOUNDRY_BASE_URL", "ANTHROPIC_BASE_URL"}
+	case "Google Vertex AI":
+		variables = []string{"ANTHROPIC_VERTEX_BASE_URL", "ANTHROPIC_BASE_URL"}
+	case "AWS Bedrock":
+		variables = []string{"ANTHROPIC_AWS_BASE_URL", "ANTHROPIC_BASE_URL"}
+	}
+	for _, variable := range variables {
 		if value := settings.Env[variable]; value != "" {
 			c.Host, c.HostKind = safeConfiguredHost(value)
 			if c.Host != "" {
@@ -207,8 +226,9 @@ func codexCandidate(doc map[string]any, scope string, allowProvider bool) []agen
 	model := configLabel(tomlString(doc, "model"))
 	provider := configLabel(tomlString(doc, "model_provider"))
 	if !allowProvider {
-		// Codex rejects machine-local provider configuration from project files.
-		return []agentConfigCandidate{{Agent: "Codex", Scope: scope, Model: model, Source: "config.toml · 项目模型候选", Security: codexConfigSecurity(doc)}}
+		// Project layers CAN override sandbox, approval, MCP and model, but
+		// CANNOT override model_provider, model_providers, profile or API URLs.
+		return []agentConfigCandidate{{Agent: "Codex", Scope: scope, Model: model, Source: "config.toml · 项目层声明", Security: codexSafetySummary(doc, true)}}
 	}
 	if provider == "" {
 		// An independent profile file is a partial override layer; treating
@@ -231,7 +251,7 @@ func codexCandidate(doc map[string]any, scope string, allowProvider bool) []agen
 	result := []agentConfigCandidate{{
 		Agent: "Codex", Scope: scope, Provider: provider, Model: model,
 		Host: host, HostKind: kind, Source: "config.toml · 当前声明",
-		Security: codexConfigSecurity(doc),
+		Security: codexSafetySummary(doc, false),
 	}}
 	// Other configured providers are alternatives, not active endpoints.
 	names := make([]string, 0, len(providers))
@@ -276,7 +296,7 @@ func codexCandidate(doc map[string]any, scope string, allowProvider bool) []agen
 				Agent: "Codex", Scope: scope + " · profile " + selected,
 				Provider: name, Model: alternateModel, Host: host, HostKind: kind,
 				Source: "config.toml · 选中 Profile（可能被 CLI 覆盖）",
-				Security: codexConfigSecurity(profile),
+				Security: codexSafetySummary(profile, false),
 			})
 		}
 	}
@@ -360,9 +380,14 @@ func inspectAgentConfigPaths(home, claudeDir, codexDir, project string) agentCon
 			project = filepath.Clean(project)
 			addClaude(filepath.Join(project, ".claude", "settings.json"), "项目")
 			addClaude(filepath.Join(project, ".claude", "settings.local.json"), "项目本地")
-			addCodex(filepath.Join(project, ".codex", "config.toml"), "项目（仅模型，信任状态未核实）", false)
+			for _, layer := range codexProjectLayers(project) {
+				addCodex(layer, "项目覆盖候选（信任状态未核实）", false)
+			}
 		}
 	}
+	additional := inspectAgentConfigExtensions(claudeDir, codexDir, project)
+	out.Candidates = append(out.Candidates, additional.Candidates...)
+	out.Notes = append(out.Notes, additional.Notes...)
 	if len(out.Candidates) == 0 && len(out.Notes) == 0 {
 		out.Notes = append(out.Notes, "未找到可读取的用户级配置；可指定项目绝对路径补充检查")
 	}
@@ -377,6 +402,10 @@ func inspectLocalAgentConfigs(project string) agentConfigInspection {
 	claudeDir, claudeErr := configHomeOverride(home, "CLAUDE_CONFIG_DIR", ".claude")
 	codexDir, codexErr := configHomeOverride(home, "CODEX_HOME", ".codex")
 	out := inspectAgentConfigPaths(home, claudeDir, codexDir, project)
+	policy := inspectSystemAgentPolicy(claudeDir, codexDir)
+	out.Candidates = append(out.Candidates, policy.Candidates...)
+	out.Notes = append(out.Notes, policy.Notes...)
+	out.Notes = append(out.Notes, "配置覆盖顺序与权限规则合并为静态审计，未检测运行中 Agent 的 CLI、环境、工作区信任及云端/MDM 强制策略；请使用客户端 /status 或 /debug-config 核验。")
 	for _, message := range []string{claudeErr, codexErr} {
 		if message != "" {
 			out.Notes = append(out.Notes, message)
