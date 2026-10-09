@@ -449,7 +449,7 @@ func observedConfigHostCounts(events []eventSummary, index agentOwnershipIndex) 
 		}
 		host, kind := agentEventDestination(event)
 		if (kind == "域名" || kind == "IP") && host != "" {
-			counts[owner.OwnerLabel+"\\x00"+host]++
+			counts[owner.OwnerLabel+"\x00"+host]++
 		}
 	}
 	return counts
