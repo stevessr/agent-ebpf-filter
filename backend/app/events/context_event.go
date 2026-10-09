@@ -308,6 +308,16 @@ func EnrichEventContext(event *pb.Event) *pb.Event {
 			ctx, ok = Deps.ProcessContexts.Get(event.Pid)
 		}
 	}
+	// Tool calls may spawn multiple interpreter layers (Agent → bash →
+	// python → file write). Direct PPID inheritance misses descendants when
+	// the intermediate parent had no captured event. Recover from the live,
+	// bounded ancestry chain before considering the broader cgroup fallback.
+	if !ok && shouldResolveAgentAncestor(event) {
+		if inherited, found := resolveAncestorAgentContext(event.Pid, event.Ppid, Deps.ProcessContexts, procParentPID); found {
+			Deps.ProcessContexts.Set(event.Pid, inherited)
+			ctx, ok = Deps.ProcessContexts.Get(event.Pid)
+		}
+	}
 	// Try cgroup-based attribution if no direct PID context
 	if !ok && event.CgroupId != 0 {
 		if agentRunID, taskID, toolCallID := Deps.CgroupAttributionEnrich(event.CgroupId); agentRunID != "" {
@@ -347,6 +357,11 @@ func ApplyBestEffortProcessContextToEvent(event *pb.Event) {
 		if parentCtx, parentOK := Deps.ProcessContexts.Get(event.Ppid); parentOK {
 			ctx = parentCtx
 			ok = true
+		}
+	}
+	if !ok && shouldResolveAgentAncestor(event) {
+		if inherited, found := resolveAncestorAgentContext(event.Pid, event.Ppid, Deps.ProcessContexts, procParentPID); found {
+			ctx, ok = inherited, true
 		}
 	}
 	if !ok && event.CgroupId != 0 {
