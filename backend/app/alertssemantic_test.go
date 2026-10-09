@@ -97,6 +97,80 @@ func TestSemanticAlertsDetectMultiAgentFileContention(t *testing.T) {
 	}
 }
 
+func TestSemanticFileContentionIgnoresUnresolvedTargets(t *testing.T) {
+	for _, target := range []string{"", "write", "file write", "file_write", "socket 5", "pipe:[123]", "fd:3", "relative.txt"} {
+		t.Run(target, func(t *testing.T) {
+			resetSemanticAlertState()
+			for _, run := range []string{"run-one", "run-two"} {
+				event := &pb.Event{
+					Pid: 200, Tgid: 200, Type: "write", EventType: pb.EventType_WRITE,
+					AgentRunId: run, Comm: "fish", Path: target,
+				}
+				if alert := findSemanticAlertCode(buildSemanticAlerts(event), "MULTI_AGENT_FILE_CONTENTION"); alert != nil {
+					t.Fatalf("unresolved path %q must not trigger contention: %+v", target, alert)
+				}
+			}
+		})
+	}
+	// Even with an absolute cwd, an adapter's synthetic "file write" label
+	// must not turn into a plausible /workspace/file write pathname.
+	resetSemanticAlertState()
+	for _, run := range []string{"run-one", "run-two"} {
+		event := &pb.Event{
+			Pid: 200, Type: "write", EventType: pb.EventType_WRITE,
+			AgentRunId: run, Cwd: "/workspace", Path: "file write",
+		}
+		if alert := findSemanticAlertCode(buildSemanticAlerts(event), "MULTI_AGENT_FILE_CONTENTION"); alert != nil {
+			t.Fatalf("synthetic file label became an alert target: %+v", alert)
+		}
+	}
+}
+
+func TestSemanticFileContentionRequiresDistinctAgentEvidence(t *testing.T) {
+	resetSemanticAlertState()
+	for _, pid := range []uint32{201, 301} {
+		event := &pb.Event{
+			Pid: pid, Tgid: pid, Type: "write", EventType: pb.EventType_WRITE,
+			Path: "/workspace/shared.txt", Comm: "fish",
+		}
+		if alert := findSemanticAlertCode(buildSemanticAlerts(event), "MULTI_AGENT_FILE_CONTENTION"); alert != nil {
+			t.Fatalf("different bare PIDs are not proof of different agents: %+v", alert)
+		}
+	}
+	// Different tool calls/runs in a single known Agent process are not
+	// separate agents; the stable root PID takes precedence.
+	resetSemanticAlertState()
+	for _, run := range []string{"run-one", "run-two"} {
+		event := &pb.Event{
+			Pid: 201, RootAgentPid: 100, AgentRunId: run,
+			Type: "write", EventType: pb.EventType_WRITE,
+			Path: "/workspace/shared.txt",
+		}
+		if alert := findSemanticAlertCode(buildSemanticAlerts(event), "MULTI_AGENT_FILE_CONTENTION"); alert != nil {
+			t.Fatalf("one agent root emitted a false cross-agent alert: %+v", alert)
+		}
+	}
+}
+
+func TestSemanticFileContentionResolvesRealRelativePaths(t *testing.T) {
+	resetSemanticAlertState()
+	first := &pb.Event{
+		Pid: 201, RootAgentPid: 101, Type: "write", EventType: pb.EventType_WRITE,
+		Path: "shared.txt", Cwd: "/workspace",
+	}
+	second := &pb.Event{
+		Pid: 301, RootAgentPid: 102, Type: "write", EventType: pb.EventType_WRITE,
+		Path: "file write", ExtraPath: "/workspace/shared.txt", Cwd: "/other",
+	}
+	if alerts := buildSemanticAlerts(first); hasSemanticAlertCode(alerts, "MULTI_AGENT_FILE_CONTENTION") {
+		t.Fatalf("first tracked write should not alert: %+v", alerts)
+	}
+	alert := findSemanticAlertCode(buildSemanticAlerts(second), "MULTI_AGENT_FILE_CONTENTION")
+	if alert == nil || alert.GetPath() != "/workspace/shared.txt" {
+		t.Fatalf("expected a real, resolved path for distinct agent roots; got %+v", alert)
+	}
+}
+
 func TestSemanticAlertsDetectToolBaselineDriftBeforeRecording(t *testing.T) {
 	previousBaseline := toolBaseline
 	toolBaseline = newToolBaselineStore()
