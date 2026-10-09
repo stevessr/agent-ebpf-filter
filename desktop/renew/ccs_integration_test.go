@@ -66,9 +66,12 @@ func TestLoadCCSSnapshotQueriesOnlySafeMetadata(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "cc-switch.db")
 	sql := "CREATE TABLE providers (app_type TEXT, name TEXT, is_current INTEGER, settings_config TEXT);" +
 		"CREATE TABLE proxy_config (app_type TEXT, listen_address TEXT, listen_port INTEGER, enabled INTEGER, proxy_enabled INTEGER);" +
+		"CREATE TABLE proxy_request_logs (app_type TEXT, status_code INTEGER, input_tokens INTEGER, output_tokens INTEGER, latency_ms INTEGER, created_at INTEGER, data_source TEXT);" +
 		"INSERT INTO providers VALUES ('codex','Example',1,'SENSITIVE_API_KEY_MUST_NOT_LEAK');" +
 		"INSERT INTO providers VALUES ('gemini','Unused',0,'OTHER_SECRET');" +
-		"INSERT INTO proxy_config VALUES ('codex','127.0.0.1',15721,1,1);"
+		"INSERT INTO proxy_config VALUES ('codex','127.0.0.1',15721,1,1);" +
+		"INSERT INTO proxy_request_logs VALUES ('codex',200,400,120,300,CAST(strftime('%s','now') AS INTEGER),'proxy');" +
+		"INSERT INTO proxy_request_logs VALUES ('codex',503,100,0,700,CAST(strftime('%s','now') AS INTEGER),'proxy');"
 	if out, err := exec.Command(bin, path, sql).CombinedOutput(); err != nil {
 		t.Fatalf("seed db: %v: %s", err, out)
 	}
@@ -83,6 +86,9 @@ func TestLoadCCSSnapshotQueriesOnlySafeMetadata(t *testing.T) {
 	}
 	if len(snapshot.Proxies) != 1 || snapshot.Proxies[0].Port != 15721 {
 		t.Fatalf("proxy metadata mismatch: %+v", snapshot.Proxies)
+	}
+	if len(snapshot.Usage) != 1 || snapshot.Usage[0].Requests != 2 || snapshot.Usage[0].Failures != 1 || snapshot.Usage[0].InputTokens != 500 || snapshot.Usage[0].OutputTokens != 120 || snapshot.Usage[0].AvgLatencyMS != 500 {
+		t.Fatalf("usage aggregate mismatch: %+v (err=%q)", snapshot.Usage, snapshot.UsageErr)
 	}
 	if !snapshot.FetchedAt.After(time.Now().Add(-10 * time.Second)) {
 		t.Fatal("metadata refresh timestamp missing")
