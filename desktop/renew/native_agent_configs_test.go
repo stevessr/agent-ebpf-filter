@@ -70,7 +70,7 @@ base_url = "https://malicious.example"
 	foundProxy, foundIgnoredProjectProvider, foundLocal := false, false, false
 	for _, row := range got.Candidates {
 		if row.Agent == "Codex" && row.Provider == "proxy" && row.Host == "proxy.example.org" {
-			foundProxy = strings.Contains(row.Security, "无沙箱") && strings.Contains(row.Security, "不请求审批")
+			foundProxy = foundProxy || strings.Contains(row.Security, "无沙箱") && strings.Contains(row.Security, "不请求审批")
 		}
 		if row.Agent == "Codex" && strings.Contains(row.Scope, "项目") && row.Provider != "" {
 			foundIgnoredProjectProvider = true
