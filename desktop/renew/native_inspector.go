@@ -85,6 +85,10 @@ func (a *renewApp) clearEventFilters() {
 	a.eventSessionFilter = ""
 	a.eventDecisionFilter = ""
 	a.eventPIDFilter = 0
+	a.eventRootPIDFilter = 0
+	a.eventTargetFilter = ""
+	a.eventFileEditsOnly = false
+	a.eventDelegatedOnly = false
 	a.eventRiskFilter = ""
 	a.eventAttentionOnly = false
 	a.eventVisibleLimit = 50
@@ -110,11 +114,23 @@ func (a *renewApp) focusSummary(id string) {
 // openEventFilter is a read-only navigation action. It never changes backend
 // capture scope or privileged enforcement policy.
 func (a *renewApp) openEventFilter(event eventSummary, kind string) {
-	a.clearEventFilters()
-	a.page = "事件"
+	a.beginEventDrilldown()
 	switch kind {
 	case "pid":
 		a.eventPIDFilter = event.PID
+	case "root":
+		a.eventRootPIDFilter = event.RootAgentPID
+	case "target":
+		if usableEventTarget(event.Target) {
+			a.eventTargetFilter = event.Target
+		}
+	case "file-edits":
+		a.eventSessionFilter = eventSessionKey(event)
+		a.eventFileEditsOnly = true
+	case "delegated-edits":
+		a.eventSessionFilter = eventSessionKey(event)
+		a.eventFileEditsOnly = true
+		a.eventDelegatedOnly = true
 	case "type":
 		a.eventTypeFilter = event.Type
 	case "session":
@@ -335,17 +351,7 @@ func (a *renewApp) inspectorEventCard(c *ui.Context, event eventSummary) {
 		}
 		ui.Divider(c)
 		ui.Text(c, "关联检索").FontSize(11).Bold()
-		ui.Row(c).Wrap().Gap(6).Children(func() {
-			if event.PID > 0 && ui.Button(c, "同 PID").Clicked() {
-				a.openEventFilter(event, "pid")
-			}
-			if event.Type != "" && ui.Button(c, "同类型").Clicked() {
-				a.openEventFilter(event, "type")
-			}
-			if isAgentSummary(event) && ui.Button(c, "同会话").Clicked() {
-				a.openEventFilter(event, "session")
-			}
-		})
+		a.eventQuickLinks(c, event, true)
 	})
 }
 
