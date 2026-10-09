@@ -68,6 +68,9 @@ type renewApp struct {
 	processCacheVersion uint64
 	processCacheKey    string
 	processCacheRows   []processAggregate
+	domainCacheValid   bool
+	domainCacheVersion uint64
+	domainCacheRows    []agentDomainRow
 	optionCacheValid   bool
 	optionCacheVersion uint64
 	eventTypeOptions   []string
@@ -87,6 +90,13 @@ type renewApp struct {
 	networkTable        ui.ListState
 	networkSelected     int
 	processTable        ui.ListState
+	domainTable         ui.ListState
+	domainSelected      int
+	domainSearch        string
+	domainAgentFilter   string
+	domainRiskOnly      bool
+	domainShowIPs       bool
+	domainLastFilter    string
 	sessionTable        ui.ListState
 	rulesTable          ui.ListState
 	commTable           ui.ListState
@@ -102,6 +112,9 @@ type renewApp struct {
 	eventPIDFilter      int
 	eventRootPIDFilter  int
 	eventTargetFilter   string
+	eventDomainAgent    string
+	eventDomainTarget   string
+	eventDomainKind     string
 	eventFileEditsOnly  bool
 	eventDelegatedOnly  bool
 	eventReturnPage     string
@@ -211,6 +224,8 @@ func newRenewApp(backend string) *renewApp {
 		eventSelected:      -1,
 		networkSelected:    -1,
 		processSelected:    -1,
+		domainSelected:     -1,
+		domainShowIPs:      true,
 		sessionSelected:    -1,
 		ruleSelected:       -1,
 		commSelected:       -1,
@@ -229,6 +244,7 @@ func newRenewApp(backend string) *renewApp {
 	a.eventTable.Selected = &a.eventSelected
 	a.networkTable.Selected = &a.networkSelected
 	a.processTable.Selected = &a.processSelected
+	a.domainTable.Selected = &a.domainSelected
 	a.sessionTable.Selected = &a.sessionSelected
 	a.rulesTable.Selected = &a.ruleSelected
 	a.commTable.Selected = &a.commSelected
@@ -475,7 +491,7 @@ func (a *renewApp) errorView(c *ui.Context) {
 
 func (a *renewApp) eventFilterCacheKey() string {
 	q := strings.ToLower(strings.TrimSpace(a.search))
-	key := q + "\x00" + a.eventTypeFilter + "\x00" + a.eventSessionFilter + "\x00" + a.eventDecisionFilter + "\x00" + fmt.Sprint(a.eventPIDFilter) + "\x00" + fmt.Sprint(a.eventRootPIDFilter) + "\x00" + a.eventTargetFilter + "\x00" + fmt.Sprint(a.eventFileEditsOnly) + "\x00" + fmt.Sprint(a.eventDelegatedOnly) + "\x00" + a.eventRiskFilter
+	key := q + "\x00" + a.eventTypeFilter + "\x00" + a.eventSessionFilter + "\x00" + a.eventDecisionFilter + "\x00" + fmt.Sprint(a.eventPIDFilter) + "\x00" + fmt.Sprint(a.eventRootPIDFilter) + "\x00" + a.eventTargetFilter + "\x00" + a.eventDomainAgent + "\x00" + a.eventDomainTarget + "\x00" + a.eventDomainKind + "\x00" + fmt.Sprint(a.eventFileEditsOnly) + "\x00" + fmt.Sprint(a.eventDelegatedOnly) + "\x00" + a.eventRiskFilter
 	if a.eventAttentionOnly {
 		key += "\x001"
 	}
@@ -488,7 +504,7 @@ func (a *renewApp) filteredEvents() []eventSummary {
 	if a.filterCacheValid && a.filterCacheVersion == a.eventsVersion && a.filterCacheKey == key {
 		return a.filterCacheRows
 	}
-	if q == "" && a.eventPIDFilter == 0 && a.eventRootPIDFilter == 0 && a.eventTargetFilter == "" && !a.eventFileEditsOnly && !a.eventDelegatedOnly && a.eventRiskFilter == "" && a.eventTypeFilter == "" && a.eventSessionFilter == "" && a.eventDecisionFilter == "" && !a.eventAttentionOnly {
+	if q == "" && a.eventPIDFilter == 0 && a.eventRootPIDFilter == 0 && a.eventTargetFilter == "" && a.eventDomainTarget == "" && !a.eventFileEditsOnly && !a.eventDelegatedOnly && a.eventRiskFilter == "" && a.eventTypeFilter == "" && a.eventSessionFilter == "" && a.eventDecisionFilter == "" && !a.eventAttentionOnly {
 		a.filterCacheValid = true
 		a.filterCacheVersion = a.eventsVersion
 		a.filterCacheKey = key
@@ -497,7 +513,14 @@ func (a *renewApp) filteredEvents() []eventSummary {
 	}
 
 	out := make([]eventSummary, 0, min(len(a.events), 256))
+	var domainOwners agentOwnershipIndex
+	if a.eventDomainTarget != "" {
+		domainOwners = buildAgentOwnershipIndex(a.events, nil)
+	}
 	for _, event := range a.events {
+		if a.eventDomainTarget != "" && !matchesAgentDomainEvent(event, domainOwners, a.eventDomainAgent, a.eventDomainTarget, a.eventDomainKind) {
+			continue
+		}
 		if q != "" && !strings.Contains(eventSearchText(event), q) {
 			continue
 		}
