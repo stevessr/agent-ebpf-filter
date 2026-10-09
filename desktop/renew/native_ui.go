@@ -38,6 +38,8 @@ type renewApp struct {
 	navigationOpen bool
 	inspectorOpen bool
 	materialEnabled bool
+	// Mutable per-window theme, refreshed from MyGo's system theme every frame.
+	workspaceTheme ui.Theme
 	inspectorTab int
 	inspectorPinnedID string
 	inspectorSelectedID string
