@@ -12,6 +12,7 @@ type windowsProcessSample struct {
     PID int
     PPID int
     Name string
+    ImagePath string // executable image path, not a command line
     Start uint64 // FILETIME; zero when protected
     CPU uint64   // user + kernel, cumulative 100ns ticks
     WorkingSet uint64
@@ -65,7 +66,7 @@ func windowsObservationEvents(prev, next windowsObservation, hasBaseline bool, a
         before, exists := prev.Processes[pid]
         if !exists || windowsProcessIdentityChanged(before, p) {
             add(eventSummary{PID:p.PID, PPID:p.PPID, Comm:p.Name,
-                Type:"process_newly_observed", Target:p.Name})
+                Type:"process_newly_observed", Target:windowsProcessTarget(p)})
         }
     }
     ids = ids[:0]
@@ -76,7 +77,7 @@ func windowsObservationEvents(prev, next windowsObservation, hasBaseline bool, a
         after, exists := next.Processes[pid]
         if !exists || windowsProcessIdentityChanged(p, after) {
             add(eventSummary{PID:p.PID, PPID:p.PPID, Comm:p.Name,
-                Type:"process_disappeared", Target:p.Name})
+                Type:"process_disappeared", Target:windowsProcessTarget(p)})
         }
     }
     tcpKeys := make([]string, 0, len(next.Connections))
@@ -119,7 +120,12 @@ func windowsProcessIdentityChanged(before, after windowsProcessSample) bool {
     if before.Start != 0 && after.Start != 0 {
         return before.Start != after.Start
     }
-    return before.Name != after.Name || before.PPID != after.PPID
+    return before.Name != after.Name || (before.ImagePath != "" && after.ImagePath != "" && before.ImagePath != after.ImagePath) || before.PPID != after.PPID
+}
+
+func windowsProcessTarget(process windowsProcessSample) string {
+    if process.ImagePath != "" { return process.ImagePath }
+    return process.Name
 }
 
 func windowsCPUPercent(prev, next windowsObservation) float64 {
