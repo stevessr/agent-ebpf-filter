@@ -98,12 +98,12 @@ func TestWorkspaceNavigationToggleInteractive(t *testing.T) {
 		t.Fatal("detailed mode must expand and show full navigation names")
 	}
 	assertBreadcrumb(352, 390)
-	if !view.HasText("事件研判") {
+	if _, found := view.Find("事件研判"); !found {
 		t.Fatal("wide window should retain right-hand incident inspector")
 	}
 	view.SetSize(1400, 860)
 	assertBreadcrumb(352, 390)
-	if view.HasText("事件研判") {
+	if _, found := view.Find("事件研判"); found {
 		t.Fatal("inspector must disappear when detailed sidebar leaves insufficient center space")
 	}
 	if err := view.Click("精简 ‹"); err != nil {
@@ -113,7 +113,7 @@ func TestWorkspaceNavigationToggleInteractive(t *testing.T) {
 		t.Fatal("sidebar should return to compact width")
 	}
 	assertBreadcrumb(248, 290)
-	if !view.HasText("事件研判") {
+	if _, found := view.Find("事件研判"); !found {
 		t.Fatal("compact sidebar must release enough space for inspector")
 	}
 	if err := view.Click("≡"); err != nil {
