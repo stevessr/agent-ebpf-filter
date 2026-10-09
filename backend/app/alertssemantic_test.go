@@ -90,7 +90,7 @@ func TestSemanticAlertsDetectMultiAgentFileContention(t *testing.T) {
 	first := &pb.Event{
 		Pid:        201,
 		Tgid:       201,
-		Type:       "write",
+		Type:       "write", Retval: 1,
 		EventType:  pb.EventType_WRITE,
 		Path:       "/workspace/shared-plan.md",
 		AgentRunId: "run-a",
@@ -104,7 +104,7 @@ func TestSemanticAlertsDetectMultiAgentFileContention(t *testing.T) {
 	second := &pb.Event{
 		Pid:        301,
 		Tgid:       301,
-		Type:       "write",
+		Type:       "write", Retval: 1,
 		EventType:  pb.EventType_WRITE,
 		Path:       "/workspace/shared-plan.md",
 		AgentRunId: "run-b",
@@ -129,7 +129,7 @@ func TestSemanticFileContentionIgnoresUnresolvedTargets(t *testing.T) {
 			resetSemanticAlertState()
 			for _, run := range []string{"run-one", "run-two"} {
 				event := &pb.Event{
-					Pid: 200, Tgid: 200, Type: "write", EventType: pb.EventType_WRITE,
+					Pid: 200, Tgid: 200, Type: "write", Retval: 1, EventType: pb.EventType_WRITE,
 					AgentRunId: run, Comm: "fish", Path: target,
 				}
 				if alert := findSemanticAlertCode(buildSemanticAlerts(event), "MULTI_AGENT_FILE_CONTENTION"); alert != nil {
@@ -143,7 +143,7 @@ func TestSemanticFileContentionIgnoresUnresolvedTargets(t *testing.T) {
 	resetSemanticAlertState()
 	for _, run := range []string{"run-one", "run-two"} {
 		event := &pb.Event{
-			Pid: 200, Type: "write", EventType: pb.EventType_WRITE,
+			Pid: 200, Type: "write", Retval: 1, EventType: pb.EventType_WRITE,
 			AgentRunId: run, Cwd: "/home/[REDACTED]", Path: "shared.txt",
 		}
 		if alert := findSemanticAlertCode(buildSemanticAlerts(event), "MULTI_AGENT_FILE_CONTENTION"); alert != nil {
@@ -155,7 +155,7 @@ func TestSemanticFileContentionIgnoresUnresolvedTargets(t *testing.T) {
 	resetSemanticAlertState()
 	for _, run := range []string{"run-one", "run-two"} {
 		event := &pb.Event{
-			Pid: 200, Type: "write", EventType: pb.EventType_WRITE,
+			Pid: 200, Type: "write", Retval: 1, EventType: pb.EventType_WRITE,
 			AgentRunId: run, Cwd: "/workspace", Path: "file write",
 		}
 		if alert := findSemanticAlertCode(buildSemanticAlerts(event), "MULTI_AGENT_FILE_CONTENTION"); alert != nil {
@@ -168,7 +168,7 @@ func TestSemanticFileContentionRequiresDistinctAgentEvidence(t *testing.T) {
 	resetSemanticAlertState()
 	for _, pid := range []uint32{201, 301} {
 		event := &pb.Event{
-			Pid: pid, Tgid: pid, Type: "write", EventType: pb.EventType_WRITE,
+			Pid: pid, Tgid: pid, Type: "write", Retval: 1, EventType: pb.EventType_WRITE,
 			Path: "/workspace/shared.txt", Comm: "fish",
 		}
 		if alert := findSemanticAlertCode(buildSemanticAlerts(event), "MULTI_AGENT_FILE_CONTENTION"); alert != nil {
@@ -181,7 +181,7 @@ func TestSemanticFileContentionRequiresDistinctAgentEvidence(t *testing.T) {
 	for _, run := range []string{"run-one", "run-two"} {
 		event := &pb.Event{
 			Pid: 201, RootAgentPid: 100, AgentRunId: run,
-			Type: "write", EventType: pb.EventType_WRITE,
+			Type: "write", Retval: 1, EventType: pb.EventType_WRITE,
 			Path: "/workspace/shared.txt",
 		}
 		if alert := findSemanticAlertCode(buildSemanticAlerts(event), "MULTI_AGENT_FILE_CONTENTION"); alert != nil {
@@ -194,11 +194,11 @@ func TestSemanticFileContentionRejectsIncomparableAgentIdentifiers(t *testing.T)
 	resetSemanticAlertState()
 	first := &pb.Event{
 		Pid: 201, RootAgentPid: 101, AgentRunId: "run-a",
-		Type: "write", EventType: pb.EventType_WRITE,
+		Type: "write", Retval: 1, EventType: pb.EventType_WRITE,
 		Path: "/workspace/shared.txt",
 	}
 	second := &pb.Event{
-		Pid: 301, AgentRunId: "run-b", Type: "write",
+		Pid: 301, AgentRunId: "run-b", Type: "write", Retval: 1,
 		EventType: pb.EventType_WRITE, Path: first.Path,
 	}
 	if alert := findSemanticAlertCode(buildSemanticAlerts(first), "MULTI_AGENT_FILE_CONTENTION"); alert != nil {
@@ -212,11 +212,11 @@ func TestSemanticFileContentionRejectsIncomparableAgentIdentifiers(t *testing.T)
 func TestSemanticFileContentionResolvesRealRelativePaths(t *testing.T) {
 	resetSemanticAlertState()
 	first := &pb.Event{
-		Pid: 201, RootAgentPid: 101, Type: "write", EventType: pb.EventType_WRITE,
+		Pid: 201, RootAgentPid: 101, Type: "write", Retval: 1, EventType: pb.EventType_WRITE,
 		Path: "shared.txt", Cwd: "/workspace",
 	}
 	second := &pb.Event{
-		Pid: 301, RootAgentPid: 102, Type: "write", EventType: pb.EventType_WRITE,
+		Pid: 301, RootAgentPid: 102, Type: "write", Retval: 1, EventType: pb.EventType_WRITE,
 		Path: "file write", ExtraPath: "/workspace/shared.txt", Cwd: "/other",
 	}
 	if alerts := buildSemanticAlerts(first); hasSemanticAlertCode(alerts, "MULTI_AGENT_FILE_CONTENTION") {
