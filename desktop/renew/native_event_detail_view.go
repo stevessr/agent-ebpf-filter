@@ -32,6 +32,8 @@ type eventDetailViewModel struct {
 	Decision string
 	Risk     string
 	When     string
+	WhenLabel string
+	EvidenceNote string
 	Sections []eventDetailSection
 }
 
@@ -118,15 +120,8 @@ func detailScalarText(raw any) string {
 }
 
 func eventDetailCategory(detail map[string]any, eventType string) string {
-	envelope, _ := mapValue(detail, "Envelope", "envelope").(map[string]any)
-	for _, item := range [][2]string{
-		{"fileEvent", "file"}, {"networkEvent", "network"},
-		{"execEvent", "process"}, {"processEvent", "process"},
-		{"tlsEvent", "network"}, {"httpEvent", "network"},
-	} {
-		if _, ok := mapValue(envelope, item[0]).(map[string]any); ok {
-			return item[1]
-		}
+	if typed := eventDetailTypedPayload(detail); typed.Kind != "" {
+		return typed.Kind
 	}
 	name := strings.ToLower(strings.TrimSpace(eventType))
 	switch {
@@ -193,10 +188,15 @@ func eventDetailLayers(detail map[string]any) []eventDetailLayer {
 			"fileEvent", "networkEvent", "execEvent", "processEvent",
 			"policyEvent", "wrapperEvent", "hookEvent", "mcpEvent",
 			"tlsEvent", "httpEvent", "sseEvent", "stdioEvent",
-			"systemMetricEvent", "otelSpanEvent", "agentSightAlertEvent",
+			"systemMetricEvent", "otelSpanEvent", "agentsightAlertEvent",
 		} {
 			if nested, ok := mapValue(envelope, name).(map[string]any); ok {
 				layers = append(layers, newEventDetailLayer("Envelope." + name, nested))
+				if eventDetailKey(name) == "wrapperevent" {
+					if behavior, ok := mapValue(nested, "behavior").(map[string]any); ok {
+						layers = append(layers, newEventDetailLayer("Envelope."+name+".behavior", behavior))
+					}
+				}
 			}
 		}
 		layers = append(layers, newEventDetailLayer("Envelope", envelope))
@@ -228,12 +228,14 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 	if millis, _, ok := eventDetailLookup([]eventDetailLayer{newEventDetailLayer("$", detail)}, "Timestamp"); ok {
 		if n, err := strconv.ParseInt(millis, 10, 64); err == nil && n > 0 {
 			m.When = time.UnixMilli(n).Local().Format("2006-01-02 15:04:05.000")
+			m.WhenLabel = "后端记录时间"
 		}
 	}
 	if m.When == "" {
 		if nanos := get("timestampNs"); nanos != "" {
-			if n, err := strconv.ParseInt(nanos, 10, 64); err == nil && n > 0 {
+			if n, err := strconv.ParseInt(nanos, 10, 64); err == nil && isPlausibleUnixNanoseconds(n) {
 				m.When = time.Unix(0, n).Local().Format("2006-01-02 15:04:05.000")
+				m.WhenLabel = "事件时间（Unix ns）"
 			}
 		}
 	}
@@ -289,6 +291,19 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 			field("命令行", "commandLine"), field("原因", "reason"),
 			field("结果", "retval"), field("附加信息", "extraInfo"))
 	}
+	// Domain cards use only fields from the corresponding protobuf oneof.
+	// Legacy fields remain visible in the common sections, with their origin.
+	if typed := eventDetailTypedPayload(detail); typed.Kind != "" {
+		if typed.Kind != "file" && typed.Kind != "network" && typed.Kind != "process" {
+			if target := eventTypedTarget(typed); target != "" {
+				m.Target = target
+			}
+		}
+		if domain := eventDetailTypedSection(typed); len(domain.Fields) > 0 {
+			m.Sections = append(m.Sections, domain)
+		}
+	}
+
 	section("策略与分类", field("策略决定", "decision", "policyDecision"),
 		field("风险评分", "riskScore"), field("判定原因", "reason"),
 		field("关联策略路径", "relatedPath"), field("关联端点", "relatedEndpoint"),
@@ -313,7 +328,11 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 		field("脱敏等级", "redactionLevel"), field("已脱敏字段", "sanitizedFields"),
 		field("审计标志", "auditFlags"), field("丢弃计数", "kernelDroppedSinceLast"))
 	if m.Target == "" {
-		m.Target = "此事件没有提供明确的操作对象"
+		m.Target = "目标路径或端点未记录"
+		m.EvidenceNote = "该事件未包含可用的目标路径或端点；可能与探针采集范围、事件类型或脱敏有关，不能据此推断具体目标。"
+		if redaction := get("redactionLevel"); redaction != "" {
+			m.EvidenceNote += " 记录的脱敏等级：" + redaction
+		}
 	}
 	return m
 }
@@ -372,16 +391,16 @@ func (a *renewApp) richEventDetail(c *ui.Context, detail map[string]any, width f
 		})
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, eventDetailPreview(model.Target, 520)).Font("monospace").FontSize(12).Grow(1).MinWidth(0).MaxLines(3)
-			if model.Target != "此事件没有提供明确的操作对象" && ui.Button(c, "复制目标").Clicked() {
+			if model.EvidenceNote == "" && ui.Button(c, "复制目标").Clicked() {
 				c.WriteClipboard(model.Target)
 				c.Toast("目标已复制")
 			}
 		})
-		if model.Target == "此事件没有提供明确的操作对象" {
-			ui.Text(c, "当前完整事件未携带该操作的目标路径或端点；这表示采集信息缺失，不能推断具体文件或地址。").FontSize(11).TextColor(t.Warning)
+		if model.EvidenceNote != "" {
+			ui.Text(c, model.EvidenceNote).FontSize(11).TextColor(t.Warning)
 		}
 		if model.When != "" {
-			ui.Text(c, "发生时间  "+model.When).FontSize(11).TextColor(t.TextMuted)
+			ui.Text(c, model.WhenLabel+"  "+model.When).FontSize(11).TextColor(t.TextMuted)
 		}
 		ui.Text(c, "字段来源与脱敏状态以记录为准；没有采集到的内容不进行推断。").FontSize(10).TextColor(t.TextMuted)
 	})
