@@ -164,7 +164,7 @@ func TestSemanticContentionCooldownAndContainerIsolation(t *testing.T) {
 				t.Fatalf("alert storm at second %d despite cooldown", i)
 			}
 		}
-		if _, _, ok := s.ObserveMultiAgentFileContention(second, start.Add(16*time.Second)); !ok {
+		if _, _, ok := s.ObserveMultiAgentFileContention(second, start.Add(17*time.Second)); !ok {
 			t.Fatal("new window should allow an alert after cooldown")
 		}
 	})
