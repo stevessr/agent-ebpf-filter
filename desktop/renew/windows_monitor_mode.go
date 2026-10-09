@@ -10,7 +10,7 @@ func localWindowsMonitoringEnabled(explicitBackend, envBackend string) bool {
 
 func windowsLocalPage(page string) bool {
 	switch page {
-	case "概览", "研判", "事件", "会话", "网络", "进程", "系统":
+	case "概览", "研判", "事件", "网络", "进程", "系统":
 		return true
 	default:
 		return false
