@@ -76,6 +76,7 @@ type renewApp struct {
 	health             collectorHealth
 	trackedComms       []string
 	system             systemSnapshot
+	windowsConnections []windowsTCPSample // current established TCP sockets (Windows local only)
 	systemConnected    bool
 	systemErr          string
 	eventStreamConnected bool
