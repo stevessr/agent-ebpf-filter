@@ -65,3 +65,16 @@ func TestRegisteredAgentVisibleWithoutEventsOrProcess(t *testing.T) {
 		t.Fatalf("registered Agent missing: %#v", rows)
 	}
 }
+
+func TestAgentScopeDraftStatusIsNotOptimistic(t *testing.T) {
+	applied := agentScopeList{Mode: "blacklist", Entries: []string{"codex"}}
+	if agentScopeDraftDirty(applied, "黑名单", "codex") {
+		t.Fatal("same applied rule should not be marked unsaved")
+	}
+	if !agentScopeDraftDirty(applied, "白名单", "codex") {
+		t.Fatal("switching mode must remain a draft until saved")
+	}
+	if !agentScopeDraftDirty(applied, "黑名单", "claude") {
+		t.Fatal("editing entries must remain a draft until saved")
+	}
+}
