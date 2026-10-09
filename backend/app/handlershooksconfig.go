@@ -34,6 +34,8 @@ func registerConfigRoutes(rg *gin.RouterGroup, features *FeatureRegistry) {
 	rg.DELETE("/rules/:comm", policyMiddleware, handleConfigRulesDelete)
 	rg.GET("/runtime", handleConfigRuntimeGet)
 	rg.PUT("/runtime", handleConfigRuntimePut)
+	rg.GET("/agent-scopes", handleAgentScopesGet)
+	rg.PUT("/agent-scopes", policyMiddleware, handleAgentScopesPut)
 	rg.POST("/access-token", handleConfigAccessTokenPost)
 	rg.GET("/export", handleConfigExportGet)
 	rg.POST("/import", policyMiddleware, handleConfigImportPost)
