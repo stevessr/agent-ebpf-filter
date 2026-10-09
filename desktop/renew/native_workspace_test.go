@@ -413,3 +413,75 @@ func TestInspectorQueueChoiceBypassesLocalEventFilters(t *testing.T) {
 		t.Fatal("explicit locate must clear filters and select the target row")
 	}
 }
+
+func TestWorkspaceResponsiveNavigationOnLaptop(t *testing.T) {
+	for _, tc := range []struct {
+		window float32
+		open, detailed bool
+		wantWidth float32
+		wantDetailed bool
+	}{
+		{980, false, true, 0, false},
+		{980, true, true, workspaceNavigationCompactWidth, false},
+		{1100, true, true, workspaceNavigationCompactWidth, false},
+		{1239, true, true, workspaceNavigationCompactWidth, false},
+		{1240, true, true, workspaceNavigationDetailedWidth, true},
+		{1480, true, false, workspaceNavigationCompactWidth, false},
+		{1480, true, true, workspaceNavigationDetailedWidth, true},
+	} {
+		gotWidth, gotDetailed := workspaceResponsiveNavigationWidth(tc.window, tc.open, tc.detailed)
+		if gotWidth != tc.wantWidth || gotDetailed != tc.wantDetailed {
+			t.Errorf("responsive width(%.0f,%t,%t) = (%.0f,%t), want (%.0f,%t)",
+				tc.window, tc.open, tc.detailed, gotWidth, gotDetailed, tc.wantWidth, tc.wantDetailed)
+		}
+	}
+	if !workspaceCompactHeader(1100, workspaceNavigationCompactWidth) {
+		t.Fatal("expanded sidebar must move search out of the toolbar on laptops")
+	}
+	if workspaceCompactHeader(1480, workspaceNavigationDetailedWidth) {
+		t.Fatal("wide header should keep inline search")
+	}
+}
+
+func TestWorkspaceEventConstraintIndicatorIncludesDrilldowns(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.eventRootPIDFilter = 91
+	a.eventTargetFilter = "/tmp/report.txt"
+	a.eventDelegatedOnly = true
+	a.eventDomainKind = "dns"
+	if count := a.eventConstraintCount(); count != 4 || !a.hasEventConstraints() {
+		t.Fatalf("hidden drilldown constraints must appear in the workspace, count=%d", count)
+	}
+	a.clearEventFilters()
+	if got := a.eventConstraintCount(); got != 0 || a.hasEventConstraints() {
+		t.Fatalf("clearing filters must reset every visible drilldown, count=%d", got)
+	}
+	a.search = "curl"
+	if got := a.eventConstraintCount(); got != 1 || !a.hasEventConstraints() {
+		t.Fatalf("search is also an active event filter, count=%d", got)
+	}
+}
+
+func TestWorkspaceOfflineMonitoringRemainsNavigable(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.starting = false
+	a.connected = false
+	a.lastErr = "connection unavailable"
+	a.page = "事件"
+	view := ui.NewTester(a.view, 1100, 760)
+	view.SetPreferences(ui.Preferences{ReduceMotion: true, TextScale: 1})
+	if workspaceShowsBackendError(a.page, a.starting, a.lastErr, len(a.events)) {
+		t.Fatal("offline events should not be replaced by the overview error")
+	}
+	if !view.HasText("后端连接异常 · 当前内容可能不是最新") {
+		t.Fatal("offline pages need an explicit stale-data notice")
+	}
+	if !view.HasText("紧凑摘要支持本地筛选与后端历史分页；完整事件只在打开详情时按 ID 读取。") {
+		t.Fatal("event controls must remain accessible while disconnected")
+	}
+	a.page = "概览"
+	view.Frame()
+	if !view.HasText("后端未就绪") {
+		t.Fatal("empty overview should retain a full connection retry surface")
+	}
+}
