@@ -47,7 +47,8 @@ export namespace pb {
         SYSTEM_METRIC = 39,
         OTEL_SPAN = 40,
         AGENTSIGHT_ALERT = 41,
-        OBSERVE_NAVIGATE = 42
+        OBSERVE_NAVIGATE = 42,
+        SOCKET_HTTP = 43
     }
 
     /** BehaviorCategory enum. */
@@ -705,6 +706,81 @@ export namespace pb {
 
         /** Event sanitizedFields */
         sanitizedFields?: (string[]|null);
+
+        /** Event kernelTimestampNs */
+        kernelTimestampNs?: (number|Long|null);
+
+        /** Event kernelSequence */
+        kernelSequence?: (number|Long|null);
+
+        /** Event kernelCpu */
+        kernelCpu?: (number|null);
+
+        /** Event kernelClock */
+        kernelClock?: (string|null);
+
+        /** Event ingestTimestampNs */
+        ingestTimestampNs?: (number|Long|null);
+
+        /** Event captureDelayNs */
+        captureDelayNs?: (number|Long|null);
+
+        /** Event captureTimestampNs */
+        captureTimestampNs?: (number|Long|null);
+
+        /** Event auditFlags */
+        auditFlags?: (number|null);
+
+        /** Event kernelAuditGeneration */
+        kernelAuditGeneration?: (number|Long|null);
+
+        /** Event kernelDroppedSinceLast */
+        kernelDroppedSinceLast?: (number|Long|null);
+
+        /** Event kernelReserveFailuresTotal */
+        kernelReserveFailuresTotal?: (number|Long|null);
+
+        /** Event captureSource */
+        captureSource?: (string|null);
+
+        /** Event apiProfile */
+        apiProfile?: (string|null);
+
+        /** Event apiVendor */
+        apiVendor?: (string|null);
+
+        /** Event apiProduct */
+        apiProduct?: (string|null);
+
+        /** Event apiOperation */
+        apiOperation?: (string|null);
+
+        /** Event httpMethod */
+        httpMethod?: (string|null);
+
+        /** Event httpPath */
+        httpPath?: (string|null);
+
+        /** Event apiConfidence */
+        apiConfidence?: (number|null);
+
+        /** Event kernelPayloadPrefixLen */
+        kernelPayloadPrefixLen?: (number|null);
+
+        /** Event kernelCaptureFlags */
+        kernelCaptureFlags?: (number|null);
+
+        /** Event kernelSocketFd */
+        kernelSocketFd?: (number|null);
+
+        /** Event httpStatus */
+        httpStatus?: (number|null);
+
+        /** Event grpcService */
+        grpcService?: (string|null);
+
+        /** Event grpcMethod */
+        grpcMethod?: (string|null);
     }
 
     /** Represents an Event. */
@@ -925,6 +1001,81 @@ export namespace pb {
 
         /** Event sanitizedFields. */
         public sanitizedFields: string[];
+
+        /** Event kernelTimestampNs. */
+        public kernelTimestampNs: (number|Long);
+
+        /** Event kernelSequence. */
+        public kernelSequence: (number|Long);
+
+        /** Event kernelCpu. */
+        public kernelCpu: number;
+
+        /** Event kernelClock. */
+        public kernelClock: string;
+
+        /** Event ingestTimestampNs. */
+        public ingestTimestampNs: (number|Long);
+
+        /** Event captureDelayNs. */
+        public captureDelayNs: (number|Long);
+
+        /** Event captureTimestampNs. */
+        public captureTimestampNs: (number|Long);
+
+        /** Event auditFlags. */
+        public auditFlags: number;
+
+        /** Event kernelAuditGeneration. */
+        public kernelAuditGeneration: (number|Long);
+
+        /** Event kernelDroppedSinceLast. */
+        public kernelDroppedSinceLast: (number|Long);
+
+        /** Event kernelReserveFailuresTotal. */
+        public kernelReserveFailuresTotal: (number|Long);
+
+        /** Event captureSource. */
+        public captureSource: string;
+
+        /** Event apiProfile. */
+        public apiProfile: string;
+
+        /** Event apiVendor. */
+        public apiVendor: string;
+
+        /** Event apiProduct. */
+        public apiProduct: string;
+
+        /** Event apiOperation. */
+        public apiOperation: string;
+
+        /** Event httpMethod. */
+        public httpMethod: string;
+
+        /** Event httpPath. */
+        public httpPath: string;
+
+        /** Event apiConfidence. */
+        public apiConfidence: number;
+
+        /** Event kernelPayloadPrefixLen. */
+        public kernelPayloadPrefixLen: number;
+
+        /** Event kernelCaptureFlags. */
+        public kernelCaptureFlags: number;
+
+        /** Event kernelSocketFd. */
+        public kernelSocketFd: number;
+
+        /** Event httpStatus. */
+        public httpStatus: number;
+
+        /** Event grpcService. */
+        public grpcService: string;
+
+        /** Event grpcMethod. */
+        public grpcMethod: string;
 
         /**
          * Creates a new Event instance using the specified properties.
@@ -2235,6 +2386,27 @@ export namespace pb {
 
         /** TLSEvent vendor */
         vendor?: (string|null);
+
+        /** TLSEvent captureSource */
+        captureSource?: (string|null);
+
+        /** TLSEvent appProtocol */
+        appProtocol?: (string|null);
+
+        /** TLSEvent requestPath */
+        requestPath?: (string|null);
+
+        /** TLSEvent apiProfile */
+        apiProfile?: (string|null);
+
+        /** TLSEvent apiProduct */
+        apiProduct?: (string|null);
+
+        /** TLSEvent apiOperation */
+        apiOperation?: (string|null);
+
+        /** TLSEvent apiConfidence */
+        apiConfidence?: (number|null);
     }
 
     /** Represents a TLSEvent. */
@@ -2290,6 +2462,27 @@ export namespace pb {
 
         /** TLSEvent vendor. */
         public vendor: string;
+
+        /** TLSEvent captureSource. */
+        public captureSource: string;
+
+        /** TLSEvent appProtocol. */
+        public appProtocol: string;
+
+        /** TLSEvent requestPath. */
+        public requestPath: string;
+
+        /** TLSEvent apiProfile. */
+        public apiProfile: string;
+
+        /** TLSEvent apiProduct. */
+        public apiProduct: string;
+
+        /** TLSEvent apiOperation. */
+        public apiOperation: string;
+
+        /** TLSEvent apiConfidence. */
+        public apiConfidence: number;
 
         /**
          * Creates a new TLSEvent instance using the specified properties.
@@ -3286,6 +3479,39 @@ export namespace pb {
 
         /** EventEnvelope agentsightAlertEvent */
         agentsightAlertEvent?: (pb.IAgentSightAlertEvent|null);
+
+        /** EventEnvelope kernelTimestampNs */
+        kernelTimestampNs?: (number|Long|null);
+
+        /** EventEnvelope kernelSequence */
+        kernelSequence?: (number|Long|null);
+
+        /** EventEnvelope kernelCpu */
+        kernelCpu?: (number|null);
+
+        /** EventEnvelope kernelClock */
+        kernelClock?: (string|null);
+
+        /** EventEnvelope ingestTimestampNs */
+        ingestTimestampNs?: (number|Long|null);
+
+        /** EventEnvelope captureDelayNs */
+        captureDelayNs?: (number|Long|null);
+
+        /** EventEnvelope captureTimestampNs */
+        captureTimestampNs?: (number|Long|null);
+
+        /** EventEnvelope auditFlags */
+        auditFlags?: (number|null);
+
+        /** EventEnvelope kernelAuditGeneration */
+        kernelAuditGeneration?: (number|Long|null);
+
+        /** EventEnvelope kernelDroppedSinceLast */
+        kernelDroppedSinceLast?: (number|Long|null);
+
+        /** EventEnvelope kernelReserveFailuresTotal */
+        kernelReserveFailuresTotal?: (number|Long|null);
     }
 
     /** Represents an EventEnvelope. */
@@ -3419,6 +3645,39 @@ export namespace pb {
 
         /** EventEnvelope agentsightAlertEvent. */
         public agentsightAlertEvent?: (pb.IAgentSightAlertEvent|null);
+
+        /** EventEnvelope kernelTimestampNs. */
+        public kernelTimestampNs: (number|Long);
+
+        /** EventEnvelope kernelSequence. */
+        public kernelSequence: (number|Long);
+
+        /** EventEnvelope kernelCpu. */
+        public kernelCpu: number;
+
+        /** EventEnvelope kernelClock. */
+        public kernelClock: string;
+
+        /** EventEnvelope ingestTimestampNs. */
+        public ingestTimestampNs: (number|Long);
+
+        /** EventEnvelope captureDelayNs. */
+        public captureDelayNs: (number|Long);
+
+        /** EventEnvelope captureTimestampNs. */
+        public captureTimestampNs: (number|Long);
+
+        /** EventEnvelope auditFlags. */
+        public auditFlags: number;
+
+        /** EventEnvelope kernelAuditGeneration. */
+        public kernelAuditGeneration: (number|Long);
+
+        /** EventEnvelope kernelDroppedSinceLast. */
+        public kernelDroppedSinceLast: (number|Long);
+
+        /** EventEnvelope kernelReserveFailuresTotal. */
+        public kernelReserveFailuresTotal: (number|Long);
 
         /** EventEnvelope payload. */
         public payload?: ("execEvent"|"fileEvent"|"networkEvent"|"processEvent"|"policyEvent"|"wrapperEvent"|"hookEvent"|"mcpEvent"|"tlsEvent"|"httpEvent"|"sseEvent"|"stdioEvent"|"systemMetricEvent"|"otelSpanEvent"|"agentsightAlertEvent");
@@ -3592,6 +3851,205 @@ export namespace pb {
 
         /**
          * Gets the default type url for EventEnvelopeBatch
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a DesktopEventSummary. */
+    interface IDesktopEventSummary {
+
+        /** DesktopEventSummary eventId */
+        eventId?: (string|null);
+
+        /** DesktopEventSummary receivedAtMs */
+        receivedAtMs?: (number|Long|null);
+
+        /** DesktopEventSummary pid */
+        pid?: (number|null);
+
+        /** DesktopEventSummary ppid */
+        ppid?: (number|null);
+
+        /** DesktopEventSummary rootAgentPid */
+        rootAgentPid?: (number|null);
+
+        /** DesktopEventSummary eventType */
+        eventType?: (number|null);
+
+        /** DesktopEventSummary type */
+        type?: (string|null);
+
+        /** DesktopEventSummary tag */
+        tag?: (string|null);
+
+        /** DesktopEventSummary comm */
+        comm?: (string|null);
+
+        /** DesktopEventSummary target */
+        target?: (string|null);
+
+        /** DesktopEventSummary network */
+        network?: (boolean|null);
+
+        /** DesktopEventSummary netBytes */
+        netBytes?: (number|Long|null);
+
+        /** DesktopEventSummary decision */
+        decision?: (string|null);
+
+        /** DesktopEventSummary riskScore */
+        riskScore?: (number|null);
+
+        /** DesktopEventSummary agentRunId */
+        agentRunId?: (string|null);
+
+        /** DesktopEventSummary conversationId */
+        conversationId?: (string|null);
+
+        /** DesktopEventSummary toolName */
+        toolName?: (string|null);
+
+        /** DesktopEventSummary hasAgentContext */
+        hasAgentContext?: (boolean|null);
+    }
+
+    /** Represents a DesktopEventSummary. */
+    class DesktopEventSummary implements IDesktopEventSummary {
+
+        /**
+         * Constructs a new DesktopEventSummary.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IDesktopEventSummary);
+
+        /** DesktopEventSummary eventId. */
+        public eventId: string;
+
+        /** DesktopEventSummary receivedAtMs. */
+        public receivedAtMs: (number|Long);
+
+        /** DesktopEventSummary pid. */
+        public pid: number;
+
+        /** DesktopEventSummary ppid. */
+        public ppid: number;
+
+        /** DesktopEventSummary rootAgentPid. */
+        public rootAgentPid: number;
+
+        /** DesktopEventSummary eventType. */
+        public eventType: number;
+
+        /** DesktopEventSummary type. */
+        public type: string;
+
+        /** DesktopEventSummary tag. */
+        public tag: string;
+
+        /** DesktopEventSummary comm. */
+        public comm: string;
+
+        /** DesktopEventSummary target. */
+        public target: string;
+
+        /** DesktopEventSummary network. */
+        public network: boolean;
+
+        /** DesktopEventSummary netBytes. */
+        public netBytes: (number|Long);
+
+        /** DesktopEventSummary decision. */
+        public decision: string;
+
+        /** DesktopEventSummary riskScore. */
+        public riskScore: number;
+
+        /** DesktopEventSummary agentRunId. */
+        public agentRunId: string;
+
+        /** DesktopEventSummary conversationId. */
+        public conversationId: string;
+
+        /** DesktopEventSummary toolName. */
+        public toolName: string;
+
+        /** DesktopEventSummary hasAgentContext. */
+        public hasAgentContext: boolean;
+
+        /**
+         * Creates a new DesktopEventSummary instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns DesktopEventSummary instance
+         */
+        public static create(properties?: pb.IDesktopEventSummary): pb.DesktopEventSummary;
+
+        /**
+         * Encodes the specified DesktopEventSummary message. Does not implicitly {@link pb.DesktopEventSummary.verify|verify} messages.
+         * @param message DesktopEventSummary message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IDesktopEventSummary, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified DesktopEventSummary message, length delimited. Does not implicitly {@link pb.DesktopEventSummary.verify|verify} messages.
+         * @param message DesktopEventSummary message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IDesktopEventSummary, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a DesktopEventSummary message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns DesktopEventSummary
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.DesktopEventSummary;
+
+        /**
+         * Decodes a DesktopEventSummary message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns DesktopEventSummary
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.DesktopEventSummary;
+
+        /**
+         * Verifies a DesktopEventSummary message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a DesktopEventSummary message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns DesktopEventSummary
+         */
+        public static fromObject(object: { [k: string]: any }): pb.DesktopEventSummary;
+
+        /**
+         * Creates a plain object from a DesktopEventSummary message. Also converts values to other types if specified.
+         * @param message DesktopEventSummary
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.DesktopEventSummary, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this DesktopEventSummary to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for DesktopEventSummary
          * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
          * @returns The default type url
          */

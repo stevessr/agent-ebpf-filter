@@ -63,6 +63,7 @@ export const pb = $root.pb = (() => {
      * @property {number} OTEL_SPAN=40 OTEL_SPAN value
      * @property {number} AGENTSIGHT_ALERT=41 AGENTSIGHT_ALERT value
      * @property {number} OBSERVE_NAVIGATE=42 OBSERVE_NAVIGATE value
+     * @property {number} SOCKET_HTTP=43 SOCKET_HTTP value
      */
     pb.EventType = (function() {
         const valuesById = {}, values = Object.create(valuesById);
@@ -109,6 +110,7 @@ export const pb = $root.pb = (() => {
         values[valuesById[40] = "OTEL_SPAN"] = 40;
         values[valuesById[41] = "AGENTSIGHT_ALERT"] = 41;
         values[valuesById[42] = "OBSERVE_NAVIGATE"] = 42;
+        values[valuesById[43] = "SOCKET_HTTP"] = 43;
         return values;
     })();
 
@@ -1299,6 +1301,31 @@ export const pb = $root.pb = (() => {
          * @property {string|null} [ipScope] Event ipScope
          * @property {string|null} [redactionLevel] Event redactionLevel
          * @property {Array.<string>|null} [sanitizedFields] Event sanitizedFields
+         * @property {number|Long|null} [kernelTimestampNs] Event kernelTimestampNs
+         * @property {number|Long|null} [kernelSequence] Event kernelSequence
+         * @property {number|null} [kernelCpu] Event kernelCpu
+         * @property {string|null} [kernelClock] Event kernelClock
+         * @property {number|Long|null} [ingestTimestampNs] Event ingestTimestampNs
+         * @property {number|Long|null} [captureDelayNs] Event captureDelayNs
+         * @property {number|Long|null} [captureTimestampNs] Event captureTimestampNs
+         * @property {number|null} [auditFlags] Event auditFlags
+         * @property {number|Long|null} [kernelAuditGeneration] Event kernelAuditGeneration
+         * @property {number|Long|null} [kernelDroppedSinceLast] Event kernelDroppedSinceLast
+         * @property {number|Long|null} [kernelReserveFailuresTotal] Event kernelReserveFailuresTotal
+         * @property {string|null} [captureSource] Event captureSource
+         * @property {string|null} [apiProfile] Event apiProfile
+         * @property {string|null} [apiVendor] Event apiVendor
+         * @property {string|null} [apiProduct] Event apiProduct
+         * @property {string|null} [apiOperation] Event apiOperation
+         * @property {string|null} [httpMethod] Event httpMethod
+         * @property {string|null} [httpPath] Event httpPath
+         * @property {number|null} [apiConfidence] Event apiConfidence
+         * @property {number|null} [kernelPayloadPrefixLen] Event kernelPayloadPrefixLen
+         * @property {number|null} [kernelCaptureFlags] Event kernelCaptureFlags
+         * @property {number|null} [kernelSocketFd] Event kernelSocketFd
+         * @property {number|null} [httpStatus] Event httpStatus
+         * @property {string|null} [grpcService] Event grpcService
+         * @property {string|null} [grpcMethod] Event grpcMethod
          */
 
         /**
@@ -1878,6 +1905,206 @@ export const pb = $root.pb = (() => {
         Event.prototype.sanitizedFields = $util.emptyArray;
 
         /**
+         * Event kernelTimestampNs.
+         * @member {number|Long} kernelTimestampNs
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.kernelTimestampNs = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * Event kernelSequence.
+         * @member {number|Long} kernelSequence
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.kernelSequence = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * Event kernelCpu.
+         * @member {number} kernelCpu
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.kernelCpu = 0;
+
+        /**
+         * Event kernelClock.
+         * @member {string} kernelClock
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.kernelClock = "";
+
+        /**
+         * Event ingestTimestampNs.
+         * @member {number|Long} ingestTimestampNs
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.ingestTimestampNs = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * Event captureDelayNs.
+         * @member {number|Long} captureDelayNs
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.captureDelayNs = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * Event captureTimestampNs.
+         * @member {number|Long} captureTimestampNs
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.captureTimestampNs = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * Event auditFlags.
+         * @member {number} auditFlags
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.auditFlags = 0;
+
+        /**
+         * Event kernelAuditGeneration.
+         * @member {number|Long} kernelAuditGeneration
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.kernelAuditGeneration = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * Event kernelDroppedSinceLast.
+         * @member {number|Long} kernelDroppedSinceLast
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.kernelDroppedSinceLast = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * Event kernelReserveFailuresTotal.
+         * @member {number|Long} kernelReserveFailuresTotal
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.kernelReserveFailuresTotal = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * Event captureSource.
+         * @member {string} captureSource
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.captureSource = "";
+
+        /**
+         * Event apiProfile.
+         * @member {string} apiProfile
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.apiProfile = "";
+
+        /**
+         * Event apiVendor.
+         * @member {string} apiVendor
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.apiVendor = "";
+
+        /**
+         * Event apiProduct.
+         * @member {string} apiProduct
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.apiProduct = "";
+
+        /**
+         * Event apiOperation.
+         * @member {string} apiOperation
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.apiOperation = "";
+
+        /**
+         * Event httpMethod.
+         * @member {string} httpMethod
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.httpMethod = "";
+
+        /**
+         * Event httpPath.
+         * @member {string} httpPath
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.httpPath = "";
+
+        /**
+         * Event apiConfidence.
+         * @member {number} apiConfidence
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.apiConfidence = 0;
+
+        /**
+         * Event kernelPayloadPrefixLen.
+         * @member {number} kernelPayloadPrefixLen
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.kernelPayloadPrefixLen = 0;
+
+        /**
+         * Event kernelCaptureFlags.
+         * @member {number} kernelCaptureFlags
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.kernelCaptureFlags = 0;
+
+        /**
+         * Event kernelSocketFd.
+         * @member {number} kernelSocketFd
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.kernelSocketFd = 0;
+
+        /**
+         * Event httpStatus.
+         * @member {number} httpStatus
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.httpStatus = 0;
+
+        /**
+         * Event grpcService.
+         * @member {string} grpcService
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.grpcService = "";
+
+        /**
+         * Event grpcMethod.
+         * @member {string} grpcMethod
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.grpcMethod = "";
+
+        /**
          * Creates a new Event instance using the specified properties.
          * @function create
          * @memberof pb.Event
@@ -2042,6 +2269,56 @@ export const pb = $root.pb = (() => {
             if (message.sanitizedFields != null && message.sanitizedFields.length)
                 for (let i = 0; i < message.sanitizedFields.length; ++i)
                     writer.uint32(/* id 70, wireType 2 =*/562).string(message.sanitizedFields[i]);
+            if (message.kernelTimestampNs != null && Object.hasOwnProperty.call(message, "kernelTimestampNs"))
+                writer.uint32(/* id 71, wireType 0 =*/568).uint64(message.kernelTimestampNs);
+            if (message.kernelSequence != null && Object.hasOwnProperty.call(message, "kernelSequence"))
+                writer.uint32(/* id 72, wireType 0 =*/576).uint64(message.kernelSequence);
+            if (message.kernelCpu != null && Object.hasOwnProperty.call(message, "kernelCpu"))
+                writer.uint32(/* id 73, wireType 0 =*/584).uint32(message.kernelCpu);
+            if (message.kernelClock != null && Object.hasOwnProperty.call(message, "kernelClock"))
+                writer.uint32(/* id 74, wireType 2 =*/594).string(message.kernelClock);
+            if (message.ingestTimestampNs != null && Object.hasOwnProperty.call(message, "ingestTimestampNs"))
+                writer.uint32(/* id 75, wireType 0 =*/600).uint64(message.ingestTimestampNs);
+            if (message.captureDelayNs != null && Object.hasOwnProperty.call(message, "captureDelayNs"))
+                writer.uint32(/* id 76, wireType 0 =*/608).uint64(message.captureDelayNs);
+            if (message.captureTimestampNs != null && Object.hasOwnProperty.call(message, "captureTimestampNs"))
+                writer.uint32(/* id 77, wireType 0 =*/616).uint64(message.captureTimestampNs);
+            if (message.auditFlags != null && Object.hasOwnProperty.call(message, "auditFlags"))
+                writer.uint32(/* id 78, wireType 0 =*/624).uint32(message.auditFlags);
+            if (message.kernelAuditGeneration != null && Object.hasOwnProperty.call(message, "kernelAuditGeneration"))
+                writer.uint32(/* id 79, wireType 0 =*/632).uint64(message.kernelAuditGeneration);
+            if (message.kernelDroppedSinceLast != null && Object.hasOwnProperty.call(message, "kernelDroppedSinceLast"))
+                writer.uint32(/* id 80, wireType 0 =*/640).uint64(message.kernelDroppedSinceLast);
+            if (message.kernelReserveFailuresTotal != null && Object.hasOwnProperty.call(message, "kernelReserveFailuresTotal"))
+                writer.uint32(/* id 81, wireType 0 =*/648).uint64(message.kernelReserveFailuresTotal);
+            if (message.captureSource != null && Object.hasOwnProperty.call(message, "captureSource"))
+                writer.uint32(/* id 82, wireType 2 =*/658).string(message.captureSource);
+            if (message.apiProfile != null && Object.hasOwnProperty.call(message, "apiProfile"))
+                writer.uint32(/* id 83, wireType 2 =*/666).string(message.apiProfile);
+            if (message.apiVendor != null && Object.hasOwnProperty.call(message, "apiVendor"))
+                writer.uint32(/* id 84, wireType 2 =*/674).string(message.apiVendor);
+            if (message.apiProduct != null && Object.hasOwnProperty.call(message, "apiProduct"))
+                writer.uint32(/* id 85, wireType 2 =*/682).string(message.apiProduct);
+            if (message.apiOperation != null && Object.hasOwnProperty.call(message, "apiOperation"))
+                writer.uint32(/* id 86, wireType 2 =*/690).string(message.apiOperation);
+            if (message.httpMethod != null && Object.hasOwnProperty.call(message, "httpMethod"))
+                writer.uint32(/* id 87, wireType 2 =*/698).string(message.httpMethod);
+            if (message.httpPath != null && Object.hasOwnProperty.call(message, "httpPath"))
+                writer.uint32(/* id 88, wireType 2 =*/706).string(message.httpPath);
+            if (message.apiConfidence != null && Object.hasOwnProperty.call(message, "apiConfidence"))
+                writer.uint32(/* id 89, wireType 0 =*/712).uint32(message.apiConfidence);
+            if (message.kernelPayloadPrefixLen != null && Object.hasOwnProperty.call(message, "kernelPayloadPrefixLen"))
+                writer.uint32(/* id 90, wireType 0 =*/720).uint32(message.kernelPayloadPrefixLen);
+            if (message.kernelCaptureFlags != null && Object.hasOwnProperty.call(message, "kernelCaptureFlags"))
+                writer.uint32(/* id 91, wireType 0 =*/728).uint32(message.kernelCaptureFlags);
+            if (message.kernelSocketFd != null && Object.hasOwnProperty.call(message, "kernelSocketFd"))
+                writer.uint32(/* id 92, wireType 0 =*/736).int32(message.kernelSocketFd);
+            if (message.httpStatus != null && Object.hasOwnProperty.call(message, "httpStatus"))
+                writer.uint32(/* id 93, wireType 0 =*/744).uint32(message.httpStatus);
+            if (message.grpcService != null && Object.hasOwnProperty.call(message, "grpcService"))
+                writer.uint32(/* id 94, wireType 2 =*/754).string(message.grpcService);
+            if (message.grpcMethod != null && Object.hasOwnProperty.call(message, "grpcMethod"))
+                writer.uint32(/* id 95, wireType 2 =*/762).string(message.grpcMethod);
             return writer;
         };
 
@@ -2360,6 +2637,106 @@ export const pb = $root.pb = (() => {
                         message.sanitizedFields.push(reader.string());
                         break;
                     }
+                case 71: {
+                        message.kernelTimestampNs = reader.uint64();
+                        break;
+                    }
+                case 72: {
+                        message.kernelSequence = reader.uint64();
+                        break;
+                    }
+                case 73: {
+                        message.kernelCpu = reader.uint32();
+                        break;
+                    }
+                case 74: {
+                        message.kernelClock = reader.string();
+                        break;
+                    }
+                case 75: {
+                        message.ingestTimestampNs = reader.uint64();
+                        break;
+                    }
+                case 76: {
+                        message.captureDelayNs = reader.uint64();
+                        break;
+                    }
+                case 77: {
+                        message.captureTimestampNs = reader.uint64();
+                        break;
+                    }
+                case 78: {
+                        message.auditFlags = reader.uint32();
+                        break;
+                    }
+                case 79: {
+                        message.kernelAuditGeneration = reader.uint64();
+                        break;
+                    }
+                case 80: {
+                        message.kernelDroppedSinceLast = reader.uint64();
+                        break;
+                    }
+                case 81: {
+                        message.kernelReserveFailuresTotal = reader.uint64();
+                        break;
+                    }
+                case 82: {
+                        message.captureSource = reader.string();
+                        break;
+                    }
+                case 83: {
+                        message.apiProfile = reader.string();
+                        break;
+                    }
+                case 84: {
+                        message.apiVendor = reader.string();
+                        break;
+                    }
+                case 85: {
+                        message.apiProduct = reader.string();
+                        break;
+                    }
+                case 86: {
+                        message.apiOperation = reader.string();
+                        break;
+                    }
+                case 87: {
+                        message.httpMethod = reader.string();
+                        break;
+                    }
+                case 88: {
+                        message.httpPath = reader.string();
+                        break;
+                    }
+                case 89: {
+                        message.apiConfidence = reader.uint32();
+                        break;
+                    }
+                case 90: {
+                        message.kernelPayloadPrefixLen = reader.uint32();
+                        break;
+                    }
+                case 91: {
+                        message.kernelCaptureFlags = reader.uint32();
+                        break;
+                    }
+                case 92: {
+                        message.kernelSocketFd = reader.int32();
+                        break;
+                    }
+                case 93: {
+                        message.httpStatus = reader.uint32();
+                        break;
+                    }
+                case 94: {
+                        message.grpcService = reader.string();
+                        break;
+                    }
+                case 95: {
+                        message.grpcMethod = reader.string();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -2505,6 +2882,7 @@ export const pb = $root.pb = (() => {
                 case 40:
                 case 41:
                 case 42:
+                case 43:
                     break;
                 }
             if (message.behavior != null && message.hasOwnProperty("behavior")) {
@@ -2657,6 +3035,81 @@ export const pb = $root.pb = (() => {
                     if (!$util.isString(message.sanitizedFields[i]))
                         return "sanitizedFields: string[] expected";
             }
+            if (message.kernelTimestampNs != null && message.hasOwnProperty("kernelTimestampNs"))
+                if (!$util.isInteger(message.kernelTimestampNs) && !(message.kernelTimestampNs && $util.isInteger(message.kernelTimestampNs.low) && $util.isInteger(message.kernelTimestampNs.high)))
+                    return "kernelTimestampNs: integer|Long expected";
+            if (message.kernelSequence != null && message.hasOwnProperty("kernelSequence"))
+                if (!$util.isInteger(message.kernelSequence) && !(message.kernelSequence && $util.isInteger(message.kernelSequence.low) && $util.isInteger(message.kernelSequence.high)))
+                    return "kernelSequence: integer|Long expected";
+            if (message.kernelCpu != null && message.hasOwnProperty("kernelCpu"))
+                if (!$util.isInteger(message.kernelCpu))
+                    return "kernelCpu: integer expected";
+            if (message.kernelClock != null && message.hasOwnProperty("kernelClock"))
+                if (!$util.isString(message.kernelClock))
+                    return "kernelClock: string expected";
+            if (message.ingestTimestampNs != null && message.hasOwnProperty("ingestTimestampNs"))
+                if (!$util.isInteger(message.ingestTimestampNs) && !(message.ingestTimestampNs && $util.isInteger(message.ingestTimestampNs.low) && $util.isInteger(message.ingestTimestampNs.high)))
+                    return "ingestTimestampNs: integer|Long expected";
+            if (message.captureDelayNs != null && message.hasOwnProperty("captureDelayNs"))
+                if (!$util.isInteger(message.captureDelayNs) && !(message.captureDelayNs && $util.isInteger(message.captureDelayNs.low) && $util.isInteger(message.captureDelayNs.high)))
+                    return "captureDelayNs: integer|Long expected";
+            if (message.captureTimestampNs != null && message.hasOwnProperty("captureTimestampNs"))
+                if (!$util.isInteger(message.captureTimestampNs) && !(message.captureTimestampNs && $util.isInteger(message.captureTimestampNs.low) && $util.isInteger(message.captureTimestampNs.high)))
+                    return "captureTimestampNs: integer|Long expected";
+            if (message.auditFlags != null && message.hasOwnProperty("auditFlags"))
+                if (!$util.isInteger(message.auditFlags))
+                    return "auditFlags: integer expected";
+            if (message.kernelAuditGeneration != null && message.hasOwnProperty("kernelAuditGeneration"))
+                if (!$util.isInteger(message.kernelAuditGeneration) && !(message.kernelAuditGeneration && $util.isInteger(message.kernelAuditGeneration.low) && $util.isInteger(message.kernelAuditGeneration.high)))
+                    return "kernelAuditGeneration: integer|Long expected";
+            if (message.kernelDroppedSinceLast != null && message.hasOwnProperty("kernelDroppedSinceLast"))
+                if (!$util.isInteger(message.kernelDroppedSinceLast) && !(message.kernelDroppedSinceLast && $util.isInteger(message.kernelDroppedSinceLast.low) && $util.isInteger(message.kernelDroppedSinceLast.high)))
+                    return "kernelDroppedSinceLast: integer|Long expected";
+            if (message.kernelReserveFailuresTotal != null && message.hasOwnProperty("kernelReserveFailuresTotal"))
+                if (!$util.isInteger(message.kernelReserveFailuresTotal) && !(message.kernelReserveFailuresTotal && $util.isInteger(message.kernelReserveFailuresTotal.low) && $util.isInteger(message.kernelReserveFailuresTotal.high)))
+                    return "kernelReserveFailuresTotal: integer|Long expected";
+            if (message.captureSource != null && message.hasOwnProperty("captureSource"))
+                if (!$util.isString(message.captureSource))
+                    return "captureSource: string expected";
+            if (message.apiProfile != null && message.hasOwnProperty("apiProfile"))
+                if (!$util.isString(message.apiProfile))
+                    return "apiProfile: string expected";
+            if (message.apiVendor != null && message.hasOwnProperty("apiVendor"))
+                if (!$util.isString(message.apiVendor))
+                    return "apiVendor: string expected";
+            if (message.apiProduct != null && message.hasOwnProperty("apiProduct"))
+                if (!$util.isString(message.apiProduct))
+                    return "apiProduct: string expected";
+            if (message.apiOperation != null && message.hasOwnProperty("apiOperation"))
+                if (!$util.isString(message.apiOperation))
+                    return "apiOperation: string expected";
+            if (message.httpMethod != null && message.hasOwnProperty("httpMethod"))
+                if (!$util.isString(message.httpMethod))
+                    return "httpMethod: string expected";
+            if (message.httpPath != null && message.hasOwnProperty("httpPath"))
+                if (!$util.isString(message.httpPath))
+                    return "httpPath: string expected";
+            if (message.apiConfidence != null && message.hasOwnProperty("apiConfidence"))
+                if (!$util.isInteger(message.apiConfidence))
+                    return "apiConfidence: integer expected";
+            if (message.kernelPayloadPrefixLen != null && message.hasOwnProperty("kernelPayloadPrefixLen"))
+                if (!$util.isInteger(message.kernelPayloadPrefixLen))
+                    return "kernelPayloadPrefixLen: integer expected";
+            if (message.kernelCaptureFlags != null && message.hasOwnProperty("kernelCaptureFlags"))
+                if (!$util.isInteger(message.kernelCaptureFlags))
+                    return "kernelCaptureFlags: integer expected";
+            if (message.kernelSocketFd != null && message.hasOwnProperty("kernelSocketFd"))
+                if (!$util.isInteger(message.kernelSocketFd))
+                    return "kernelSocketFd: integer expected";
+            if (message.httpStatus != null && message.hasOwnProperty("httpStatus"))
+                if (!$util.isInteger(message.httpStatus))
+                    return "httpStatus: integer expected";
+            if (message.grpcService != null && message.hasOwnProperty("grpcService"))
+                if (!$util.isString(message.grpcService))
+                    return "grpcService: string expected";
+            if (message.grpcMethod != null && message.hasOwnProperty("grpcMethod"))
+                if (!$util.isString(message.grpcMethod))
+                    return "grpcMethod: string expected";
             return null;
         };
 
@@ -2907,6 +3360,10 @@ export const pb = $root.pb = (() => {
             case 42:
                 message.eventType = 42;
                 break;
+            case "SOCKET_HTTP":
+            case 43:
+                message.eventType = 43;
+                break;
             }
             if (object.behavior != null) {
                 if (typeof object.behavior !== "object")
@@ -3068,6 +3525,112 @@ export const pb = $root.pb = (() => {
                 for (let i = 0; i < object.sanitizedFields.length; ++i)
                     message.sanitizedFields[i] = String(object.sanitizedFields[i]);
             }
+            if (object.kernelTimestampNs != null)
+                if ($util.Long)
+                    (message.kernelTimestampNs = $util.Long.fromValue(object.kernelTimestampNs)).unsigned = true;
+                else if (typeof object.kernelTimestampNs === "string")
+                    message.kernelTimestampNs = parseInt(object.kernelTimestampNs, 10);
+                else if (typeof object.kernelTimestampNs === "number")
+                    message.kernelTimestampNs = object.kernelTimestampNs;
+                else if (typeof object.kernelTimestampNs === "object")
+                    message.kernelTimestampNs = new $util.LongBits(object.kernelTimestampNs.low >>> 0, object.kernelTimestampNs.high >>> 0).toNumber(true);
+            if (object.kernelSequence != null)
+                if ($util.Long)
+                    (message.kernelSequence = $util.Long.fromValue(object.kernelSequence)).unsigned = true;
+                else if (typeof object.kernelSequence === "string")
+                    message.kernelSequence = parseInt(object.kernelSequence, 10);
+                else if (typeof object.kernelSequence === "number")
+                    message.kernelSequence = object.kernelSequence;
+                else if (typeof object.kernelSequence === "object")
+                    message.kernelSequence = new $util.LongBits(object.kernelSequence.low >>> 0, object.kernelSequence.high >>> 0).toNumber(true);
+            if (object.kernelCpu != null)
+                message.kernelCpu = object.kernelCpu >>> 0;
+            if (object.kernelClock != null)
+                message.kernelClock = String(object.kernelClock);
+            if (object.ingestTimestampNs != null)
+                if ($util.Long)
+                    (message.ingestTimestampNs = $util.Long.fromValue(object.ingestTimestampNs)).unsigned = true;
+                else if (typeof object.ingestTimestampNs === "string")
+                    message.ingestTimestampNs = parseInt(object.ingestTimestampNs, 10);
+                else if (typeof object.ingestTimestampNs === "number")
+                    message.ingestTimestampNs = object.ingestTimestampNs;
+                else if (typeof object.ingestTimestampNs === "object")
+                    message.ingestTimestampNs = new $util.LongBits(object.ingestTimestampNs.low >>> 0, object.ingestTimestampNs.high >>> 0).toNumber(true);
+            if (object.captureDelayNs != null)
+                if ($util.Long)
+                    (message.captureDelayNs = $util.Long.fromValue(object.captureDelayNs)).unsigned = true;
+                else if (typeof object.captureDelayNs === "string")
+                    message.captureDelayNs = parseInt(object.captureDelayNs, 10);
+                else if (typeof object.captureDelayNs === "number")
+                    message.captureDelayNs = object.captureDelayNs;
+                else if (typeof object.captureDelayNs === "object")
+                    message.captureDelayNs = new $util.LongBits(object.captureDelayNs.low >>> 0, object.captureDelayNs.high >>> 0).toNumber(true);
+            if (object.captureTimestampNs != null)
+                if ($util.Long)
+                    (message.captureTimestampNs = $util.Long.fromValue(object.captureTimestampNs)).unsigned = true;
+                else if (typeof object.captureTimestampNs === "string")
+                    message.captureTimestampNs = parseInt(object.captureTimestampNs, 10);
+                else if (typeof object.captureTimestampNs === "number")
+                    message.captureTimestampNs = object.captureTimestampNs;
+                else if (typeof object.captureTimestampNs === "object")
+                    message.captureTimestampNs = new $util.LongBits(object.captureTimestampNs.low >>> 0, object.captureTimestampNs.high >>> 0).toNumber(true);
+            if (object.auditFlags != null)
+                message.auditFlags = object.auditFlags >>> 0;
+            if (object.kernelAuditGeneration != null)
+                if ($util.Long)
+                    (message.kernelAuditGeneration = $util.Long.fromValue(object.kernelAuditGeneration)).unsigned = true;
+                else if (typeof object.kernelAuditGeneration === "string")
+                    message.kernelAuditGeneration = parseInt(object.kernelAuditGeneration, 10);
+                else if (typeof object.kernelAuditGeneration === "number")
+                    message.kernelAuditGeneration = object.kernelAuditGeneration;
+                else if (typeof object.kernelAuditGeneration === "object")
+                    message.kernelAuditGeneration = new $util.LongBits(object.kernelAuditGeneration.low >>> 0, object.kernelAuditGeneration.high >>> 0).toNumber(true);
+            if (object.kernelDroppedSinceLast != null)
+                if ($util.Long)
+                    (message.kernelDroppedSinceLast = $util.Long.fromValue(object.kernelDroppedSinceLast)).unsigned = true;
+                else if (typeof object.kernelDroppedSinceLast === "string")
+                    message.kernelDroppedSinceLast = parseInt(object.kernelDroppedSinceLast, 10);
+                else if (typeof object.kernelDroppedSinceLast === "number")
+                    message.kernelDroppedSinceLast = object.kernelDroppedSinceLast;
+                else if (typeof object.kernelDroppedSinceLast === "object")
+                    message.kernelDroppedSinceLast = new $util.LongBits(object.kernelDroppedSinceLast.low >>> 0, object.kernelDroppedSinceLast.high >>> 0).toNumber(true);
+            if (object.kernelReserveFailuresTotal != null)
+                if ($util.Long)
+                    (message.kernelReserveFailuresTotal = $util.Long.fromValue(object.kernelReserveFailuresTotal)).unsigned = true;
+                else if (typeof object.kernelReserveFailuresTotal === "string")
+                    message.kernelReserveFailuresTotal = parseInt(object.kernelReserveFailuresTotal, 10);
+                else if (typeof object.kernelReserveFailuresTotal === "number")
+                    message.kernelReserveFailuresTotal = object.kernelReserveFailuresTotal;
+                else if (typeof object.kernelReserveFailuresTotal === "object")
+                    message.kernelReserveFailuresTotal = new $util.LongBits(object.kernelReserveFailuresTotal.low >>> 0, object.kernelReserveFailuresTotal.high >>> 0).toNumber(true);
+            if (object.captureSource != null)
+                message.captureSource = String(object.captureSource);
+            if (object.apiProfile != null)
+                message.apiProfile = String(object.apiProfile);
+            if (object.apiVendor != null)
+                message.apiVendor = String(object.apiVendor);
+            if (object.apiProduct != null)
+                message.apiProduct = String(object.apiProduct);
+            if (object.apiOperation != null)
+                message.apiOperation = String(object.apiOperation);
+            if (object.httpMethod != null)
+                message.httpMethod = String(object.httpMethod);
+            if (object.httpPath != null)
+                message.httpPath = String(object.httpPath);
+            if (object.apiConfidence != null)
+                message.apiConfidence = object.apiConfidence >>> 0;
+            if (object.kernelPayloadPrefixLen != null)
+                message.kernelPayloadPrefixLen = object.kernelPayloadPrefixLen >>> 0;
+            if (object.kernelCaptureFlags != null)
+                message.kernelCaptureFlags = object.kernelCaptureFlags >>> 0;
+            if (object.kernelSocketFd != null)
+                message.kernelSocketFd = object.kernelSocketFd | 0;
+            if (object.httpStatus != null)
+                message.httpStatus = object.httpStatus >>> 0;
+            if (object.grpcService != null)
+                message.grpcService = String(object.grpcService);
+            if (object.grpcMethod != null)
+                message.grpcMethod = String(object.grpcMethod);
             return message;
         };
 
@@ -3196,6 +3759,63 @@ export const pb = $root.pb = (() => {
                 object.geoAsn = 0;
                 object.ipScope = "";
                 object.redactionLevel = "";
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.kernelTimestampNs = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.kernelTimestampNs = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.kernelSequence = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.kernelSequence = options.longs === String ? "0" : 0;
+                object.kernelCpu = 0;
+                object.kernelClock = "";
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.ingestTimestampNs = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.ingestTimestampNs = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.captureDelayNs = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.captureDelayNs = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.captureTimestampNs = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.captureTimestampNs = options.longs === String ? "0" : 0;
+                object.auditFlags = 0;
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.kernelAuditGeneration = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.kernelAuditGeneration = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.kernelDroppedSinceLast = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.kernelDroppedSinceLast = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.kernelReserveFailuresTotal = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.kernelReserveFailuresTotal = options.longs === String ? "0" : 0;
+                object.captureSource = "";
+                object.apiProfile = "";
+                object.apiVendor = "";
+                object.apiProduct = "";
+                object.apiOperation = "";
+                object.httpMethod = "";
+                object.httpPath = "";
+                object.apiConfidence = 0;
+                object.kernelPayloadPrefixLen = 0;
+                object.kernelCaptureFlags = 0;
+                object.kernelSocketFd = 0;
+                object.httpStatus = 0;
+                object.grpcService = "";
+                object.grpcMethod = "";
             }
             if (message.pid != null && message.hasOwnProperty("pid"))
                 object.pid = message.pid;
@@ -3370,6 +3990,80 @@ export const pb = $root.pb = (() => {
                 for (let j = 0; j < message.sanitizedFields.length; ++j)
                     object.sanitizedFields[j] = message.sanitizedFields[j];
             }
+            if (message.kernelTimestampNs != null && message.hasOwnProperty("kernelTimestampNs"))
+                if (typeof message.kernelTimestampNs === "number")
+                    object.kernelTimestampNs = options.longs === String ? String(message.kernelTimestampNs) : message.kernelTimestampNs;
+                else
+                    object.kernelTimestampNs = options.longs === String ? $util.Long.prototype.toString.call(message.kernelTimestampNs) : options.longs === Number ? new $util.LongBits(message.kernelTimestampNs.low >>> 0, message.kernelTimestampNs.high >>> 0).toNumber(true) : message.kernelTimestampNs;
+            if (message.kernelSequence != null && message.hasOwnProperty("kernelSequence"))
+                if (typeof message.kernelSequence === "number")
+                    object.kernelSequence = options.longs === String ? String(message.kernelSequence) : message.kernelSequence;
+                else
+                    object.kernelSequence = options.longs === String ? $util.Long.prototype.toString.call(message.kernelSequence) : options.longs === Number ? new $util.LongBits(message.kernelSequence.low >>> 0, message.kernelSequence.high >>> 0).toNumber(true) : message.kernelSequence;
+            if (message.kernelCpu != null && message.hasOwnProperty("kernelCpu"))
+                object.kernelCpu = message.kernelCpu;
+            if (message.kernelClock != null && message.hasOwnProperty("kernelClock"))
+                object.kernelClock = message.kernelClock;
+            if (message.ingestTimestampNs != null && message.hasOwnProperty("ingestTimestampNs"))
+                if (typeof message.ingestTimestampNs === "number")
+                    object.ingestTimestampNs = options.longs === String ? String(message.ingestTimestampNs) : message.ingestTimestampNs;
+                else
+                    object.ingestTimestampNs = options.longs === String ? $util.Long.prototype.toString.call(message.ingestTimestampNs) : options.longs === Number ? new $util.LongBits(message.ingestTimestampNs.low >>> 0, message.ingestTimestampNs.high >>> 0).toNumber(true) : message.ingestTimestampNs;
+            if (message.captureDelayNs != null && message.hasOwnProperty("captureDelayNs"))
+                if (typeof message.captureDelayNs === "number")
+                    object.captureDelayNs = options.longs === String ? String(message.captureDelayNs) : message.captureDelayNs;
+                else
+                    object.captureDelayNs = options.longs === String ? $util.Long.prototype.toString.call(message.captureDelayNs) : options.longs === Number ? new $util.LongBits(message.captureDelayNs.low >>> 0, message.captureDelayNs.high >>> 0).toNumber(true) : message.captureDelayNs;
+            if (message.captureTimestampNs != null && message.hasOwnProperty("captureTimestampNs"))
+                if (typeof message.captureTimestampNs === "number")
+                    object.captureTimestampNs = options.longs === String ? String(message.captureTimestampNs) : message.captureTimestampNs;
+                else
+                    object.captureTimestampNs = options.longs === String ? $util.Long.prototype.toString.call(message.captureTimestampNs) : options.longs === Number ? new $util.LongBits(message.captureTimestampNs.low >>> 0, message.captureTimestampNs.high >>> 0).toNumber(true) : message.captureTimestampNs;
+            if (message.auditFlags != null && message.hasOwnProperty("auditFlags"))
+                object.auditFlags = message.auditFlags;
+            if (message.kernelAuditGeneration != null && message.hasOwnProperty("kernelAuditGeneration"))
+                if (typeof message.kernelAuditGeneration === "number")
+                    object.kernelAuditGeneration = options.longs === String ? String(message.kernelAuditGeneration) : message.kernelAuditGeneration;
+                else
+                    object.kernelAuditGeneration = options.longs === String ? $util.Long.prototype.toString.call(message.kernelAuditGeneration) : options.longs === Number ? new $util.LongBits(message.kernelAuditGeneration.low >>> 0, message.kernelAuditGeneration.high >>> 0).toNumber(true) : message.kernelAuditGeneration;
+            if (message.kernelDroppedSinceLast != null && message.hasOwnProperty("kernelDroppedSinceLast"))
+                if (typeof message.kernelDroppedSinceLast === "number")
+                    object.kernelDroppedSinceLast = options.longs === String ? String(message.kernelDroppedSinceLast) : message.kernelDroppedSinceLast;
+                else
+                    object.kernelDroppedSinceLast = options.longs === String ? $util.Long.prototype.toString.call(message.kernelDroppedSinceLast) : options.longs === Number ? new $util.LongBits(message.kernelDroppedSinceLast.low >>> 0, message.kernelDroppedSinceLast.high >>> 0).toNumber(true) : message.kernelDroppedSinceLast;
+            if (message.kernelReserveFailuresTotal != null && message.hasOwnProperty("kernelReserveFailuresTotal"))
+                if (typeof message.kernelReserveFailuresTotal === "number")
+                    object.kernelReserveFailuresTotal = options.longs === String ? String(message.kernelReserveFailuresTotal) : message.kernelReserveFailuresTotal;
+                else
+                    object.kernelReserveFailuresTotal = options.longs === String ? $util.Long.prototype.toString.call(message.kernelReserveFailuresTotal) : options.longs === Number ? new $util.LongBits(message.kernelReserveFailuresTotal.low >>> 0, message.kernelReserveFailuresTotal.high >>> 0).toNumber(true) : message.kernelReserveFailuresTotal;
+            if (message.captureSource != null && message.hasOwnProperty("captureSource"))
+                object.captureSource = message.captureSource;
+            if (message.apiProfile != null && message.hasOwnProperty("apiProfile"))
+                object.apiProfile = message.apiProfile;
+            if (message.apiVendor != null && message.hasOwnProperty("apiVendor"))
+                object.apiVendor = message.apiVendor;
+            if (message.apiProduct != null && message.hasOwnProperty("apiProduct"))
+                object.apiProduct = message.apiProduct;
+            if (message.apiOperation != null && message.hasOwnProperty("apiOperation"))
+                object.apiOperation = message.apiOperation;
+            if (message.httpMethod != null && message.hasOwnProperty("httpMethod"))
+                object.httpMethod = message.httpMethod;
+            if (message.httpPath != null && message.hasOwnProperty("httpPath"))
+                object.httpPath = message.httpPath;
+            if (message.apiConfidence != null && message.hasOwnProperty("apiConfidence"))
+                object.apiConfidence = message.apiConfidence;
+            if (message.kernelPayloadPrefixLen != null && message.hasOwnProperty("kernelPayloadPrefixLen"))
+                object.kernelPayloadPrefixLen = message.kernelPayloadPrefixLen;
+            if (message.kernelCaptureFlags != null && message.hasOwnProperty("kernelCaptureFlags"))
+                object.kernelCaptureFlags = message.kernelCaptureFlags;
+            if (message.kernelSocketFd != null && message.hasOwnProperty("kernelSocketFd"))
+                object.kernelSocketFd = message.kernelSocketFd;
+            if (message.httpStatus != null && message.hasOwnProperty("httpStatus"))
+                object.httpStatus = message.httpStatus;
+            if (message.grpcService != null && message.hasOwnProperty("grpcService"))
+                object.grpcService = message.grpcService;
+            if (message.grpcMethod != null && message.hasOwnProperty("grpcMethod"))
+                object.grpcMethod = message.grpcMethod;
             return object;
         };
 
@@ -6811,6 +7505,13 @@ export const pb = $root.pb = (() => {
          * @property {string|null} [promptDigest] TLSEvent promptDigest
          * @property {number|Long|null} [promptLen] TLSEvent promptLen
          * @property {string|null} [vendor] TLSEvent vendor
+         * @property {string|null} [captureSource] TLSEvent captureSource
+         * @property {string|null} [appProtocol] TLSEvent appProtocol
+         * @property {string|null} [requestPath] TLSEvent requestPath
+         * @property {string|null} [apiProfile] TLSEvent apiProfile
+         * @property {string|null} [apiProduct] TLSEvent apiProduct
+         * @property {string|null} [apiOperation] TLSEvent apiOperation
+         * @property {number|null} [apiConfidence] TLSEvent apiConfidence
          */
 
         /**
@@ -6949,6 +7650,62 @@ export const pb = $root.pb = (() => {
         TLSEvent.prototype.vendor = "";
 
         /**
+         * TLSEvent captureSource.
+         * @member {string} captureSource
+         * @memberof pb.TLSEvent
+         * @instance
+         */
+        TLSEvent.prototype.captureSource = "";
+
+        /**
+         * TLSEvent appProtocol.
+         * @member {string} appProtocol
+         * @memberof pb.TLSEvent
+         * @instance
+         */
+        TLSEvent.prototype.appProtocol = "";
+
+        /**
+         * TLSEvent requestPath.
+         * @member {string} requestPath
+         * @memberof pb.TLSEvent
+         * @instance
+         */
+        TLSEvent.prototype.requestPath = "";
+
+        /**
+         * TLSEvent apiProfile.
+         * @member {string} apiProfile
+         * @memberof pb.TLSEvent
+         * @instance
+         */
+        TLSEvent.prototype.apiProfile = "";
+
+        /**
+         * TLSEvent apiProduct.
+         * @member {string} apiProduct
+         * @memberof pb.TLSEvent
+         * @instance
+         */
+        TLSEvent.prototype.apiProduct = "";
+
+        /**
+         * TLSEvent apiOperation.
+         * @member {string} apiOperation
+         * @memberof pb.TLSEvent
+         * @instance
+         */
+        TLSEvent.prototype.apiOperation = "";
+
+        /**
+         * TLSEvent apiConfidence.
+         * @member {number} apiConfidence
+         * @memberof pb.TLSEvent
+         * @instance
+         */
+        TLSEvent.prototype.apiConfidence = 0;
+
+        /**
          * Creates a new TLSEvent instance using the specified properties.
          * @function create
          * @memberof pb.TLSEvent
@@ -7002,6 +7759,20 @@ export const pb = $root.pb = (() => {
                 writer.uint32(/* id 14, wireType 0 =*/112).uint64(message.promptLen);
             if (message.vendor != null && Object.hasOwnProperty.call(message, "vendor"))
                 writer.uint32(/* id 15, wireType 2 =*/122).string(message.vendor);
+            if (message.captureSource != null && Object.hasOwnProperty.call(message, "captureSource"))
+                writer.uint32(/* id 16, wireType 2 =*/130).string(message.captureSource);
+            if (message.appProtocol != null && Object.hasOwnProperty.call(message, "appProtocol"))
+                writer.uint32(/* id 17, wireType 2 =*/138).string(message.appProtocol);
+            if (message.requestPath != null && Object.hasOwnProperty.call(message, "requestPath"))
+                writer.uint32(/* id 18, wireType 2 =*/146).string(message.requestPath);
+            if (message.apiProfile != null && Object.hasOwnProperty.call(message, "apiProfile"))
+                writer.uint32(/* id 19, wireType 2 =*/154).string(message.apiProfile);
+            if (message.apiProduct != null && Object.hasOwnProperty.call(message, "apiProduct"))
+                writer.uint32(/* id 20, wireType 2 =*/162).string(message.apiProduct);
+            if (message.apiOperation != null && Object.hasOwnProperty.call(message, "apiOperation"))
+                writer.uint32(/* id 21, wireType 2 =*/170).string(message.apiOperation);
+            if (message.apiConfidence != null && Object.hasOwnProperty.call(message, "apiConfidence"))
+                writer.uint32(/* id 22, wireType 0 =*/176).uint32(message.apiConfidence);
             return writer;
         };
 
@@ -7098,6 +7869,34 @@ export const pb = $root.pb = (() => {
                         message.vendor = reader.string();
                         break;
                     }
+                case 16: {
+                        message.captureSource = reader.string();
+                        break;
+                    }
+                case 17: {
+                        message.appProtocol = reader.string();
+                        break;
+                    }
+                case 18: {
+                        message.requestPath = reader.string();
+                        break;
+                    }
+                case 19: {
+                        message.apiProfile = reader.string();
+                        break;
+                    }
+                case 20: {
+                        message.apiProduct = reader.string();
+                        break;
+                    }
+                case 21: {
+                        message.apiOperation = reader.string();
+                        break;
+                    }
+                case 22: {
+                        message.apiConfidence = reader.uint32();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -7178,6 +7977,27 @@ export const pb = $root.pb = (() => {
             if (message.vendor != null && message.hasOwnProperty("vendor"))
                 if (!$util.isString(message.vendor))
                     return "vendor: string expected";
+            if (message.captureSource != null && message.hasOwnProperty("captureSource"))
+                if (!$util.isString(message.captureSource))
+                    return "captureSource: string expected";
+            if (message.appProtocol != null && message.hasOwnProperty("appProtocol"))
+                if (!$util.isString(message.appProtocol))
+                    return "appProtocol: string expected";
+            if (message.requestPath != null && message.hasOwnProperty("requestPath"))
+                if (!$util.isString(message.requestPath))
+                    return "requestPath: string expected";
+            if (message.apiProfile != null && message.hasOwnProperty("apiProfile"))
+                if (!$util.isString(message.apiProfile))
+                    return "apiProfile: string expected";
+            if (message.apiProduct != null && message.hasOwnProperty("apiProduct"))
+                if (!$util.isString(message.apiProduct))
+                    return "apiProduct: string expected";
+            if (message.apiOperation != null && message.hasOwnProperty("apiOperation"))
+                if (!$util.isString(message.apiOperation))
+                    return "apiOperation: string expected";
+            if (message.apiConfidence != null && message.hasOwnProperty("apiConfidence"))
+                if (!$util.isInteger(message.apiConfidence))
+                    return "apiConfidence: integer expected";
             return null;
         };
 
@@ -7237,6 +8057,20 @@ export const pb = $root.pb = (() => {
                     message.promptLen = new $util.LongBits(object.promptLen.low >>> 0, object.promptLen.high >>> 0).toNumber(true);
             if (object.vendor != null)
                 message.vendor = String(object.vendor);
+            if (object.captureSource != null)
+                message.captureSource = String(object.captureSource);
+            if (object.appProtocol != null)
+                message.appProtocol = String(object.appProtocol);
+            if (object.requestPath != null)
+                message.requestPath = String(object.requestPath);
+            if (object.apiProfile != null)
+                message.apiProfile = String(object.apiProfile);
+            if (object.apiProduct != null)
+                message.apiProduct = String(object.apiProduct);
+            if (object.apiOperation != null)
+                message.apiOperation = String(object.apiOperation);
+            if (object.apiConfidence != null)
+                message.apiConfidence = object.apiConfidence >>> 0;
             return message;
         };
 
@@ -7277,6 +8111,13 @@ export const pb = $root.pb = (() => {
                 } else
                     object.promptLen = options.longs === String ? "0" : 0;
                 object.vendor = "";
+                object.captureSource = "";
+                object.appProtocol = "";
+                object.requestPath = "";
+                object.apiProfile = "";
+                object.apiProduct = "";
+                object.apiOperation = "";
+                object.apiConfidence = 0;
             }
             if (message.direction != null && message.hasOwnProperty("direction"))
                 object.direction = message.direction;
@@ -7314,6 +8155,20 @@ export const pb = $root.pb = (() => {
                     object.promptLen = options.longs === String ? $util.Long.prototype.toString.call(message.promptLen) : options.longs === Number ? new $util.LongBits(message.promptLen.low >>> 0, message.promptLen.high >>> 0).toNumber(true) : message.promptLen;
             if (message.vendor != null && message.hasOwnProperty("vendor"))
                 object.vendor = message.vendor;
+            if (message.captureSource != null && message.hasOwnProperty("captureSource"))
+                object.captureSource = message.captureSource;
+            if (message.appProtocol != null && message.hasOwnProperty("appProtocol"))
+                object.appProtocol = message.appProtocol;
+            if (message.requestPath != null && message.hasOwnProperty("requestPath"))
+                object.requestPath = message.requestPath;
+            if (message.apiProfile != null && message.hasOwnProperty("apiProfile"))
+                object.apiProfile = message.apiProfile;
+            if (message.apiProduct != null && message.hasOwnProperty("apiProduct"))
+                object.apiProduct = message.apiProduct;
+            if (message.apiOperation != null && message.hasOwnProperty("apiOperation"))
+                object.apiOperation = message.apiOperation;
+            if (message.apiConfidence != null && message.hasOwnProperty("apiConfidence"))
+                object.apiConfidence = message.apiConfidence;
             return object;
         };
 
@@ -9532,6 +10387,17 @@ export const pb = $root.pb = (() => {
          * @property {pb.ISystemMetricEvent|null} [systemMetricEvent] EventEnvelope systemMetricEvent
          * @property {pb.IOtelSpanEvent|null} [otelSpanEvent] EventEnvelope otelSpanEvent
          * @property {pb.IAgentSightAlertEvent|null} [agentsightAlertEvent] EventEnvelope agentsightAlertEvent
+         * @property {number|Long|null} [kernelTimestampNs] EventEnvelope kernelTimestampNs
+         * @property {number|Long|null} [kernelSequence] EventEnvelope kernelSequence
+         * @property {number|null} [kernelCpu] EventEnvelope kernelCpu
+         * @property {string|null} [kernelClock] EventEnvelope kernelClock
+         * @property {number|Long|null} [ingestTimestampNs] EventEnvelope ingestTimestampNs
+         * @property {number|Long|null} [captureDelayNs] EventEnvelope captureDelayNs
+         * @property {number|Long|null} [captureTimestampNs] EventEnvelope captureTimestampNs
+         * @property {number|null} [auditFlags] EventEnvelope auditFlags
+         * @property {number|Long|null} [kernelAuditGeneration] EventEnvelope kernelAuditGeneration
+         * @property {number|Long|null} [kernelDroppedSinceLast] EventEnvelope kernelDroppedSinceLast
+         * @property {number|Long|null} [kernelReserveFailuresTotal] EventEnvelope kernelReserveFailuresTotal
          */
 
         /**
@@ -9877,6 +10743,94 @@ export const pb = $root.pb = (() => {
          */
         EventEnvelope.prototype.agentsightAlertEvent = null;
 
+        /**
+         * EventEnvelope kernelTimestampNs.
+         * @member {number|Long} kernelTimestampNs
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.kernelTimestampNs = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * EventEnvelope kernelSequence.
+         * @member {number|Long} kernelSequence
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.kernelSequence = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * EventEnvelope kernelCpu.
+         * @member {number} kernelCpu
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.kernelCpu = 0;
+
+        /**
+         * EventEnvelope kernelClock.
+         * @member {string} kernelClock
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.kernelClock = "";
+
+        /**
+         * EventEnvelope ingestTimestampNs.
+         * @member {number|Long} ingestTimestampNs
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.ingestTimestampNs = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * EventEnvelope captureDelayNs.
+         * @member {number|Long} captureDelayNs
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.captureDelayNs = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * EventEnvelope captureTimestampNs.
+         * @member {number|Long} captureTimestampNs
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.captureTimestampNs = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * EventEnvelope auditFlags.
+         * @member {number} auditFlags
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.auditFlags = 0;
+
+        /**
+         * EventEnvelope kernelAuditGeneration.
+         * @member {number|Long} kernelAuditGeneration
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.kernelAuditGeneration = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * EventEnvelope kernelDroppedSinceLast.
+         * @member {number|Long} kernelDroppedSinceLast
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.kernelDroppedSinceLast = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * EventEnvelope kernelReserveFailuresTotal.
+         * @member {number|Long} kernelReserveFailuresTotal
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.kernelReserveFailuresTotal = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
         // OneOf field names bound to virtual getters and setters
         let $oneOfFields;
 
@@ -9997,6 +10951,28 @@ export const pb = $root.pb = (() => {
                 $root.pb.OtelSpanEvent.encode(message.otelSpanEvent, writer.uint32(/* id 40, wireType 2 =*/322).fork()).ldelim();
             if (message.agentsightAlertEvent != null && Object.hasOwnProperty.call(message, "agentsightAlertEvent"))
                 $root.pb.AgentSightAlertEvent.encode(message.agentsightAlertEvent, writer.uint32(/* id 41, wireType 2 =*/330).fork()).ldelim();
+            if (message.kernelTimestampNs != null && Object.hasOwnProperty.call(message, "kernelTimestampNs"))
+                writer.uint32(/* id 42, wireType 0 =*/336).uint64(message.kernelTimestampNs);
+            if (message.kernelSequence != null && Object.hasOwnProperty.call(message, "kernelSequence"))
+                writer.uint32(/* id 43, wireType 0 =*/344).uint64(message.kernelSequence);
+            if (message.kernelCpu != null && Object.hasOwnProperty.call(message, "kernelCpu"))
+                writer.uint32(/* id 44, wireType 0 =*/352).uint32(message.kernelCpu);
+            if (message.kernelClock != null && Object.hasOwnProperty.call(message, "kernelClock"))
+                writer.uint32(/* id 45, wireType 2 =*/362).string(message.kernelClock);
+            if (message.ingestTimestampNs != null && Object.hasOwnProperty.call(message, "ingestTimestampNs"))
+                writer.uint32(/* id 46, wireType 0 =*/368).uint64(message.ingestTimestampNs);
+            if (message.captureDelayNs != null && Object.hasOwnProperty.call(message, "captureDelayNs"))
+                writer.uint32(/* id 47, wireType 0 =*/376).uint64(message.captureDelayNs);
+            if (message.captureTimestampNs != null && Object.hasOwnProperty.call(message, "captureTimestampNs"))
+                writer.uint32(/* id 48, wireType 0 =*/384).uint64(message.captureTimestampNs);
+            if (message.auditFlags != null && Object.hasOwnProperty.call(message, "auditFlags"))
+                writer.uint32(/* id 49, wireType 0 =*/392).uint32(message.auditFlags);
+            if (message.kernelAuditGeneration != null && Object.hasOwnProperty.call(message, "kernelAuditGeneration"))
+                writer.uint32(/* id 50, wireType 0 =*/400).uint64(message.kernelAuditGeneration);
+            if (message.kernelDroppedSinceLast != null && Object.hasOwnProperty.call(message, "kernelDroppedSinceLast"))
+                writer.uint32(/* id 51, wireType 0 =*/408).uint64(message.kernelDroppedSinceLast);
+            if (message.kernelReserveFailuresTotal != null && Object.hasOwnProperty.call(message, "kernelReserveFailuresTotal"))
+                writer.uint32(/* id 52, wireType 0 =*/416).uint64(message.kernelReserveFailuresTotal);
             return writer;
         };
 
@@ -10197,6 +11173,50 @@ export const pb = $root.pb = (() => {
                         message.agentsightAlertEvent = $root.pb.AgentSightAlertEvent.decode(reader, reader.uint32());
                         break;
                     }
+                case 42: {
+                        message.kernelTimestampNs = reader.uint64();
+                        break;
+                    }
+                case 43: {
+                        message.kernelSequence = reader.uint64();
+                        break;
+                    }
+                case 44: {
+                        message.kernelCpu = reader.uint32();
+                        break;
+                    }
+                case 45: {
+                        message.kernelClock = reader.string();
+                        break;
+                    }
+                case 46: {
+                        message.ingestTimestampNs = reader.uint64();
+                        break;
+                    }
+                case 47: {
+                        message.captureDelayNs = reader.uint64();
+                        break;
+                    }
+                case 48: {
+                        message.captureTimestampNs = reader.uint64();
+                        break;
+                    }
+                case 49: {
+                        message.auditFlags = reader.uint32();
+                        break;
+                    }
+                case 50: {
+                        message.kernelAuditGeneration = reader.uint64();
+                        break;
+                    }
+                case 51: {
+                        message.kernelDroppedSinceLast = reader.uint64();
+                        break;
+                    }
+                case 52: {
+                        message.kernelReserveFailuresTotal = reader.uint64();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -10352,6 +11372,7 @@ export const pb = $root.pb = (() => {
                 case 40:
                 case 41:
                 case 42:
+                case 43:
                     break;
                 }
             if (message.legacyEvent != null && message.hasOwnProperty("legacyEvent")) {
@@ -10507,6 +11528,39 @@ export const pb = $root.pb = (() => {
                         return "agentsightAlertEvent." + error;
                 }
             }
+            if (message.kernelTimestampNs != null && message.hasOwnProperty("kernelTimestampNs"))
+                if (!$util.isInteger(message.kernelTimestampNs) && !(message.kernelTimestampNs && $util.isInteger(message.kernelTimestampNs.low) && $util.isInteger(message.kernelTimestampNs.high)))
+                    return "kernelTimestampNs: integer|Long expected";
+            if (message.kernelSequence != null && message.hasOwnProperty("kernelSequence"))
+                if (!$util.isInteger(message.kernelSequence) && !(message.kernelSequence && $util.isInteger(message.kernelSequence.low) && $util.isInteger(message.kernelSequence.high)))
+                    return "kernelSequence: integer|Long expected";
+            if (message.kernelCpu != null && message.hasOwnProperty("kernelCpu"))
+                if (!$util.isInteger(message.kernelCpu))
+                    return "kernelCpu: integer expected";
+            if (message.kernelClock != null && message.hasOwnProperty("kernelClock"))
+                if (!$util.isString(message.kernelClock))
+                    return "kernelClock: string expected";
+            if (message.ingestTimestampNs != null && message.hasOwnProperty("ingestTimestampNs"))
+                if (!$util.isInteger(message.ingestTimestampNs) && !(message.ingestTimestampNs && $util.isInteger(message.ingestTimestampNs.low) && $util.isInteger(message.ingestTimestampNs.high)))
+                    return "ingestTimestampNs: integer|Long expected";
+            if (message.captureDelayNs != null && message.hasOwnProperty("captureDelayNs"))
+                if (!$util.isInteger(message.captureDelayNs) && !(message.captureDelayNs && $util.isInteger(message.captureDelayNs.low) && $util.isInteger(message.captureDelayNs.high)))
+                    return "captureDelayNs: integer|Long expected";
+            if (message.captureTimestampNs != null && message.hasOwnProperty("captureTimestampNs"))
+                if (!$util.isInteger(message.captureTimestampNs) && !(message.captureTimestampNs && $util.isInteger(message.captureTimestampNs.low) && $util.isInteger(message.captureTimestampNs.high)))
+                    return "captureTimestampNs: integer|Long expected";
+            if (message.auditFlags != null && message.hasOwnProperty("auditFlags"))
+                if (!$util.isInteger(message.auditFlags))
+                    return "auditFlags: integer expected";
+            if (message.kernelAuditGeneration != null && message.hasOwnProperty("kernelAuditGeneration"))
+                if (!$util.isInteger(message.kernelAuditGeneration) && !(message.kernelAuditGeneration && $util.isInteger(message.kernelAuditGeneration.low) && $util.isInteger(message.kernelAuditGeneration.high)))
+                    return "kernelAuditGeneration: integer|Long expected";
+            if (message.kernelDroppedSinceLast != null && message.hasOwnProperty("kernelDroppedSinceLast"))
+                if (!$util.isInteger(message.kernelDroppedSinceLast) && !(message.kernelDroppedSinceLast && $util.isInteger(message.kernelDroppedSinceLast.low) && $util.isInteger(message.kernelDroppedSinceLast.high)))
+                    return "kernelDroppedSinceLast: integer|Long expected";
+            if (message.kernelReserveFailuresTotal != null && message.hasOwnProperty("kernelReserveFailuresTotal"))
+                if (!$util.isInteger(message.kernelReserveFailuresTotal) && !(message.kernelReserveFailuresTotal && $util.isInteger(message.kernelReserveFailuresTotal.low) && $util.isInteger(message.kernelReserveFailuresTotal.high)))
+                    return "kernelReserveFailuresTotal: integer|Long expected";
             return null;
         };
 
@@ -10763,6 +11817,10 @@ export const pb = $root.pb = (() => {
             case 42:
                 message.eventType = 42;
                 break;
+            case "SOCKET_HTTP":
+            case 43:
+                message.eventType = 43;
+                break;
             }
             if (object.legacyEvent != null) {
                 if (typeof object.legacyEvent !== "object")
@@ -10844,6 +11902,84 @@ export const pb = $root.pb = (() => {
                     throw TypeError(".pb.EventEnvelope.agentsightAlertEvent: object expected");
                 message.agentsightAlertEvent = $root.pb.AgentSightAlertEvent.fromObject(object.agentsightAlertEvent);
             }
+            if (object.kernelTimestampNs != null)
+                if ($util.Long)
+                    (message.kernelTimestampNs = $util.Long.fromValue(object.kernelTimestampNs)).unsigned = true;
+                else if (typeof object.kernelTimestampNs === "string")
+                    message.kernelTimestampNs = parseInt(object.kernelTimestampNs, 10);
+                else if (typeof object.kernelTimestampNs === "number")
+                    message.kernelTimestampNs = object.kernelTimestampNs;
+                else if (typeof object.kernelTimestampNs === "object")
+                    message.kernelTimestampNs = new $util.LongBits(object.kernelTimestampNs.low >>> 0, object.kernelTimestampNs.high >>> 0).toNumber(true);
+            if (object.kernelSequence != null)
+                if ($util.Long)
+                    (message.kernelSequence = $util.Long.fromValue(object.kernelSequence)).unsigned = true;
+                else if (typeof object.kernelSequence === "string")
+                    message.kernelSequence = parseInt(object.kernelSequence, 10);
+                else if (typeof object.kernelSequence === "number")
+                    message.kernelSequence = object.kernelSequence;
+                else if (typeof object.kernelSequence === "object")
+                    message.kernelSequence = new $util.LongBits(object.kernelSequence.low >>> 0, object.kernelSequence.high >>> 0).toNumber(true);
+            if (object.kernelCpu != null)
+                message.kernelCpu = object.kernelCpu >>> 0;
+            if (object.kernelClock != null)
+                message.kernelClock = String(object.kernelClock);
+            if (object.ingestTimestampNs != null)
+                if ($util.Long)
+                    (message.ingestTimestampNs = $util.Long.fromValue(object.ingestTimestampNs)).unsigned = true;
+                else if (typeof object.ingestTimestampNs === "string")
+                    message.ingestTimestampNs = parseInt(object.ingestTimestampNs, 10);
+                else if (typeof object.ingestTimestampNs === "number")
+                    message.ingestTimestampNs = object.ingestTimestampNs;
+                else if (typeof object.ingestTimestampNs === "object")
+                    message.ingestTimestampNs = new $util.LongBits(object.ingestTimestampNs.low >>> 0, object.ingestTimestampNs.high >>> 0).toNumber(true);
+            if (object.captureDelayNs != null)
+                if ($util.Long)
+                    (message.captureDelayNs = $util.Long.fromValue(object.captureDelayNs)).unsigned = true;
+                else if (typeof object.captureDelayNs === "string")
+                    message.captureDelayNs = parseInt(object.captureDelayNs, 10);
+                else if (typeof object.captureDelayNs === "number")
+                    message.captureDelayNs = object.captureDelayNs;
+                else if (typeof object.captureDelayNs === "object")
+                    message.captureDelayNs = new $util.LongBits(object.captureDelayNs.low >>> 0, object.captureDelayNs.high >>> 0).toNumber(true);
+            if (object.captureTimestampNs != null)
+                if ($util.Long)
+                    (message.captureTimestampNs = $util.Long.fromValue(object.captureTimestampNs)).unsigned = true;
+                else if (typeof object.captureTimestampNs === "string")
+                    message.captureTimestampNs = parseInt(object.captureTimestampNs, 10);
+                else if (typeof object.captureTimestampNs === "number")
+                    message.captureTimestampNs = object.captureTimestampNs;
+                else if (typeof object.captureTimestampNs === "object")
+                    message.captureTimestampNs = new $util.LongBits(object.captureTimestampNs.low >>> 0, object.captureTimestampNs.high >>> 0).toNumber(true);
+            if (object.auditFlags != null)
+                message.auditFlags = object.auditFlags >>> 0;
+            if (object.kernelAuditGeneration != null)
+                if ($util.Long)
+                    (message.kernelAuditGeneration = $util.Long.fromValue(object.kernelAuditGeneration)).unsigned = true;
+                else if (typeof object.kernelAuditGeneration === "string")
+                    message.kernelAuditGeneration = parseInt(object.kernelAuditGeneration, 10);
+                else if (typeof object.kernelAuditGeneration === "number")
+                    message.kernelAuditGeneration = object.kernelAuditGeneration;
+                else if (typeof object.kernelAuditGeneration === "object")
+                    message.kernelAuditGeneration = new $util.LongBits(object.kernelAuditGeneration.low >>> 0, object.kernelAuditGeneration.high >>> 0).toNumber(true);
+            if (object.kernelDroppedSinceLast != null)
+                if ($util.Long)
+                    (message.kernelDroppedSinceLast = $util.Long.fromValue(object.kernelDroppedSinceLast)).unsigned = true;
+                else if (typeof object.kernelDroppedSinceLast === "string")
+                    message.kernelDroppedSinceLast = parseInt(object.kernelDroppedSinceLast, 10);
+                else if (typeof object.kernelDroppedSinceLast === "number")
+                    message.kernelDroppedSinceLast = object.kernelDroppedSinceLast;
+                else if (typeof object.kernelDroppedSinceLast === "object")
+                    message.kernelDroppedSinceLast = new $util.LongBits(object.kernelDroppedSinceLast.low >>> 0, object.kernelDroppedSinceLast.high >>> 0).toNumber(true);
+            if (object.kernelReserveFailuresTotal != null)
+                if ($util.Long)
+                    (message.kernelReserveFailuresTotal = $util.Long.fromValue(object.kernelReserveFailuresTotal)).unsigned = true;
+                else if (typeof object.kernelReserveFailuresTotal === "string")
+                    message.kernelReserveFailuresTotal = parseInt(object.kernelReserveFailuresTotal, 10);
+                else if (typeof object.kernelReserveFailuresTotal === "number")
+                    message.kernelReserveFailuresTotal = object.kernelReserveFailuresTotal;
+                else if (typeof object.kernelReserveFailuresTotal === "object")
+                    message.kernelReserveFailuresTotal = new $util.LongBits(object.kernelReserveFailuresTotal.low >>> 0, object.kernelReserveFailuresTotal.high >>> 0).toNumber(true);
             return message;
         };
 
@@ -10895,6 +12031,49 @@ export const pb = $root.pb = (() => {
                 object.riskScore = 0;
                 object.eventType = options.enums === String ? "EXECVE" : 0;
                 object.legacyEvent = null;
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.kernelTimestampNs = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.kernelTimestampNs = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.kernelSequence = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.kernelSequence = options.longs === String ? "0" : 0;
+                object.kernelCpu = 0;
+                object.kernelClock = "";
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.ingestTimestampNs = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.ingestTimestampNs = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.captureDelayNs = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.captureDelayNs = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.captureTimestampNs = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.captureTimestampNs = options.longs === String ? "0" : 0;
+                object.auditFlags = 0;
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.kernelAuditGeneration = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.kernelAuditGeneration = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.kernelDroppedSinceLast = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.kernelDroppedSinceLast = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.kernelReserveFailuresTotal = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.kernelReserveFailuresTotal = options.longs === String ? "0" : 0;
             }
             if (message.schemaVersion != null && message.hasOwnProperty("schemaVersion"))
                 object.schemaVersion = message.schemaVersion;
@@ -11029,6 +12208,52 @@ export const pb = $root.pb = (() => {
                 if (options.oneofs)
                     object.payload = "agentsightAlertEvent";
             }
+            if (message.kernelTimestampNs != null && message.hasOwnProperty("kernelTimestampNs"))
+                if (typeof message.kernelTimestampNs === "number")
+                    object.kernelTimestampNs = options.longs === String ? String(message.kernelTimestampNs) : message.kernelTimestampNs;
+                else
+                    object.kernelTimestampNs = options.longs === String ? $util.Long.prototype.toString.call(message.kernelTimestampNs) : options.longs === Number ? new $util.LongBits(message.kernelTimestampNs.low >>> 0, message.kernelTimestampNs.high >>> 0).toNumber(true) : message.kernelTimestampNs;
+            if (message.kernelSequence != null && message.hasOwnProperty("kernelSequence"))
+                if (typeof message.kernelSequence === "number")
+                    object.kernelSequence = options.longs === String ? String(message.kernelSequence) : message.kernelSequence;
+                else
+                    object.kernelSequence = options.longs === String ? $util.Long.prototype.toString.call(message.kernelSequence) : options.longs === Number ? new $util.LongBits(message.kernelSequence.low >>> 0, message.kernelSequence.high >>> 0).toNumber(true) : message.kernelSequence;
+            if (message.kernelCpu != null && message.hasOwnProperty("kernelCpu"))
+                object.kernelCpu = message.kernelCpu;
+            if (message.kernelClock != null && message.hasOwnProperty("kernelClock"))
+                object.kernelClock = message.kernelClock;
+            if (message.ingestTimestampNs != null && message.hasOwnProperty("ingestTimestampNs"))
+                if (typeof message.ingestTimestampNs === "number")
+                    object.ingestTimestampNs = options.longs === String ? String(message.ingestTimestampNs) : message.ingestTimestampNs;
+                else
+                    object.ingestTimestampNs = options.longs === String ? $util.Long.prototype.toString.call(message.ingestTimestampNs) : options.longs === Number ? new $util.LongBits(message.ingestTimestampNs.low >>> 0, message.ingestTimestampNs.high >>> 0).toNumber(true) : message.ingestTimestampNs;
+            if (message.captureDelayNs != null && message.hasOwnProperty("captureDelayNs"))
+                if (typeof message.captureDelayNs === "number")
+                    object.captureDelayNs = options.longs === String ? String(message.captureDelayNs) : message.captureDelayNs;
+                else
+                    object.captureDelayNs = options.longs === String ? $util.Long.prototype.toString.call(message.captureDelayNs) : options.longs === Number ? new $util.LongBits(message.captureDelayNs.low >>> 0, message.captureDelayNs.high >>> 0).toNumber(true) : message.captureDelayNs;
+            if (message.captureTimestampNs != null && message.hasOwnProperty("captureTimestampNs"))
+                if (typeof message.captureTimestampNs === "number")
+                    object.captureTimestampNs = options.longs === String ? String(message.captureTimestampNs) : message.captureTimestampNs;
+                else
+                    object.captureTimestampNs = options.longs === String ? $util.Long.prototype.toString.call(message.captureTimestampNs) : options.longs === Number ? new $util.LongBits(message.captureTimestampNs.low >>> 0, message.captureTimestampNs.high >>> 0).toNumber(true) : message.captureTimestampNs;
+            if (message.auditFlags != null && message.hasOwnProperty("auditFlags"))
+                object.auditFlags = message.auditFlags;
+            if (message.kernelAuditGeneration != null && message.hasOwnProperty("kernelAuditGeneration"))
+                if (typeof message.kernelAuditGeneration === "number")
+                    object.kernelAuditGeneration = options.longs === String ? String(message.kernelAuditGeneration) : message.kernelAuditGeneration;
+                else
+                    object.kernelAuditGeneration = options.longs === String ? $util.Long.prototype.toString.call(message.kernelAuditGeneration) : options.longs === Number ? new $util.LongBits(message.kernelAuditGeneration.low >>> 0, message.kernelAuditGeneration.high >>> 0).toNumber(true) : message.kernelAuditGeneration;
+            if (message.kernelDroppedSinceLast != null && message.hasOwnProperty("kernelDroppedSinceLast"))
+                if (typeof message.kernelDroppedSinceLast === "number")
+                    object.kernelDroppedSinceLast = options.longs === String ? String(message.kernelDroppedSinceLast) : message.kernelDroppedSinceLast;
+                else
+                    object.kernelDroppedSinceLast = options.longs === String ? $util.Long.prototype.toString.call(message.kernelDroppedSinceLast) : options.longs === Number ? new $util.LongBits(message.kernelDroppedSinceLast.low >>> 0, message.kernelDroppedSinceLast.high >>> 0).toNumber(true) : message.kernelDroppedSinceLast;
+            if (message.kernelReserveFailuresTotal != null && message.hasOwnProperty("kernelReserveFailuresTotal"))
+                if (typeof message.kernelReserveFailuresTotal === "number")
+                    object.kernelReserveFailuresTotal = options.longs === String ? String(message.kernelReserveFailuresTotal) : message.kernelReserveFailuresTotal;
+                else
+                    object.kernelReserveFailuresTotal = options.longs === String ? $util.Long.prototype.toString.call(message.kernelReserveFailuresTotal) : options.longs === Number ? new $util.LongBits(message.kernelReserveFailuresTotal.low >>> 0, message.kernelReserveFailuresTotal.high >>> 0).toNumber(true) : message.kernelReserveFailuresTotal;
             return object;
         };
 
@@ -11285,6 +12510,631 @@ export const pb = $root.pb = (() => {
         };
 
         return EventEnvelopeBatch;
+    })();
+
+    pb.DesktopEventSummary = (function() {
+
+        /**
+         * Properties of a DesktopEventSummary.
+         * @memberof pb
+         * @interface IDesktopEventSummary
+         * @property {string|null} [eventId] DesktopEventSummary eventId
+         * @property {number|Long|null} [receivedAtMs] DesktopEventSummary receivedAtMs
+         * @property {number|null} [pid] DesktopEventSummary pid
+         * @property {number|null} [ppid] DesktopEventSummary ppid
+         * @property {number|null} [rootAgentPid] DesktopEventSummary rootAgentPid
+         * @property {number|null} [eventType] DesktopEventSummary eventType
+         * @property {string|null} [type] DesktopEventSummary type
+         * @property {string|null} [tag] DesktopEventSummary tag
+         * @property {string|null} [comm] DesktopEventSummary comm
+         * @property {string|null} [target] DesktopEventSummary target
+         * @property {boolean|null} [network] DesktopEventSummary network
+         * @property {number|Long|null} [netBytes] DesktopEventSummary netBytes
+         * @property {string|null} [decision] DesktopEventSummary decision
+         * @property {number|null} [riskScore] DesktopEventSummary riskScore
+         * @property {string|null} [agentRunId] DesktopEventSummary agentRunId
+         * @property {string|null} [conversationId] DesktopEventSummary conversationId
+         * @property {string|null} [toolName] DesktopEventSummary toolName
+         * @property {boolean|null} [hasAgentContext] DesktopEventSummary hasAgentContext
+         */
+
+        /**
+         * Constructs a new DesktopEventSummary.
+         * @memberof pb
+         * @classdesc Represents a DesktopEventSummary.
+         * @implements IDesktopEventSummary
+         * @constructor
+         * @param {pb.IDesktopEventSummary=} [properties] Properties to set
+         */
+        function DesktopEventSummary(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * DesktopEventSummary eventId.
+         * @member {string} eventId
+         * @memberof pb.DesktopEventSummary
+         * @instance
+         */
+        DesktopEventSummary.prototype.eventId = "";
+
+        /**
+         * DesktopEventSummary receivedAtMs.
+         * @member {number|Long} receivedAtMs
+         * @memberof pb.DesktopEventSummary
+         * @instance
+         */
+        DesktopEventSummary.prototype.receivedAtMs = $util.Long ? $util.Long.fromBits(0,0,false) : 0;
+
+        /**
+         * DesktopEventSummary pid.
+         * @member {number} pid
+         * @memberof pb.DesktopEventSummary
+         * @instance
+         */
+        DesktopEventSummary.prototype.pid = 0;
+
+        /**
+         * DesktopEventSummary ppid.
+         * @member {number} ppid
+         * @memberof pb.DesktopEventSummary
+         * @instance
+         */
+        DesktopEventSummary.prototype.ppid = 0;
+
+        /**
+         * DesktopEventSummary rootAgentPid.
+         * @member {number} rootAgentPid
+         * @memberof pb.DesktopEventSummary
+         * @instance
+         */
+        DesktopEventSummary.prototype.rootAgentPid = 0;
+
+        /**
+         * DesktopEventSummary eventType.
+         * @member {number} eventType
+         * @memberof pb.DesktopEventSummary
+         * @instance
+         */
+        DesktopEventSummary.prototype.eventType = 0;
+
+        /**
+         * DesktopEventSummary type.
+         * @member {string} type
+         * @memberof pb.DesktopEventSummary
+         * @instance
+         */
+        DesktopEventSummary.prototype.type = "";
+
+        /**
+         * DesktopEventSummary tag.
+         * @member {string} tag
+         * @memberof pb.DesktopEventSummary
+         * @instance
+         */
+        DesktopEventSummary.prototype.tag = "";
+
+        /**
+         * DesktopEventSummary comm.
+         * @member {string} comm
+         * @memberof pb.DesktopEventSummary
+         * @instance
+         */
+        DesktopEventSummary.prototype.comm = "";
+
+        /**
+         * DesktopEventSummary target.
+         * @member {string} target
+         * @memberof pb.DesktopEventSummary
+         * @instance
+         */
+        DesktopEventSummary.prototype.target = "";
+
+        /**
+         * DesktopEventSummary network.
+         * @member {boolean} network
+         * @memberof pb.DesktopEventSummary
+         * @instance
+         */
+        DesktopEventSummary.prototype.network = false;
+
+        /**
+         * DesktopEventSummary netBytes.
+         * @member {number|Long} netBytes
+         * @memberof pb.DesktopEventSummary
+         * @instance
+         */
+        DesktopEventSummary.prototype.netBytes = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * DesktopEventSummary decision.
+         * @member {string} decision
+         * @memberof pb.DesktopEventSummary
+         * @instance
+         */
+        DesktopEventSummary.prototype.decision = "";
+
+        /**
+         * DesktopEventSummary riskScore.
+         * @member {number} riskScore
+         * @memberof pb.DesktopEventSummary
+         * @instance
+         */
+        DesktopEventSummary.prototype.riskScore = 0;
+
+        /**
+         * DesktopEventSummary agentRunId.
+         * @member {string} agentRunId
+         * @memberof pb.DesktopEventSummary
+         * @instance
+         */
+        DesktopEventSummary.prototype.agentRunId = "";
+
+        /**
+         * DesktopEventSummary conversationId.
+         * @member {string} conversationId
+         * @memberof pb.DesktopEventSummary
+         * @instance
+         */
+        DesktopEventSummary.prototype.conversationId = "";
+
+        /**
+         * DesktopEventSummary toolName.
+         * @member {string} toolName
+         * @memberof pb.DesktopEventSummary
+         * @instance
+         */
+        DesktopEventSummary.prototype.toolName = "";
+
+        /**
+         * DesktopEventSummary hasAgentContext.
+         * @member {boolean} hasAgentContext
+         * @memberof pb.DesktopEventSummary
+         * @instance
+         */
+        DesktopEventSummary.prototype.hasAgentContext = false;
+
+        /**
+         * Creates a new DesktopEventSummary instance using the specified properties.
+         * @function create
+         * @memberof pb.DesktopEventSummary
+         * @static
+         * @param {pb.IDesktopEventSummary=} [properties] Properties to set
+         * @returns {pb.DesktopEventSummary} DesktopEventSummary instance
+         */
+        DesktopEventSummary.create = function create(properties) {
+            return new DesktopEventSummary(properties);
+        };
+
+        /**
+         * Encodes the specified DesktopEventSummary message. Does not implicitly {@link pb.DesktopEventSummary.verify|verify} messages.
+         * @function encode
+         * @memberof pb.DesktopEventSummary
+         * @static
+         * @param {pb.IDesktopEventSummary} message DesktopEventSummary message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        DesktopEventSummary.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.eventId != null && Object.hasOwnProperty.call(message, "eventId"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.eventId);
+            if (message.receivedAtMs != null && Object.hasOwnProperty.call(message, "receivedAtMs"))
+                writer.uint32(/* id 2, wireType 0 =*/16).int64(message.receivedAtMs);
+            if (message.pid != null && Object.hasOwnProperty.call(message, "pid"))
+                writer.uint32(/* id 3, wireType 0 =*/24).uint32(message.pid);
+            if (message.ppid != null && Object.hasOwnProperty.call(message, "ppid"))
+                writer.uint32(/* id 4, wireType 0 =*/32).uint32(message.ppid);
+            if (message.rootAgentPid != null && Object.hasOwnProperty.call(message, "rootAgentPid"))
+                writer.uint32(/* id 5, wireType 0 =*/40).uint32(message.rootAgentPid);
+            if (message.eventType != null && Object.hasOwnProperty.call(message, "eventType"))
+                writer.uint32(/* id 6, wireType 0 =*/48).int32(message.eventType);
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
+                writer.uint32(/* id 7, wireType 2 =*/58).string(message.type);
+            if (message.tag != null && Object.hasOwnProperty.call(message, "tag"))
+                writer.uint32(/* id 8, wireType 2 =*/66).string(message.tag);
+            if (message.comm != null && Object.hasOwnProperty.call(message, "comm"))
+                writer.uint32(/* id 9, wireType 2 =*/74).string(message.comm);
+            if (message.target != null && Object.hasOwnProperty.call(message, "target"))
+                writer.uint32(/* id 10, wireType 2 =*/82).string(message.target);
+            if (message.network != null && Object.hasOwnProperty.call(message, "network"))
+                writer.uint32(/* id 11, wireType 0 =*/88).bool(message.network);
+            if (message.netBytes != null && Object.hasOwnProperty.call(message, "netBytes"))
+                writer.uint32(/* id 12, wireType 0 =*/96).uint64(message.netBytes);
+            if (message.decision != null && Object.hasOwnProperty.call(message, "decision"))
+                writer.uint32(/* id 13, wireType 2 =*/106).string(message.decision);
+            if (message.riskScore != null && Object.hasOwnProperty.call(message, "riskScore"))
+                writer.uint32(/* id 14, wireType 1 =*/113).double(message.riskScore);
+            if (message.agentRunId != null && Object.hasOwnProperty.call(message, "agentRunId"))
+                writer.uint32(/* id 15, wireType 2 =*/122).string(message.agentRunId);
+            if (message.conversationId != null && Object.hasOwnProperty.call(message, "conversationId"))
+                writer.uint32(/* id 16, wireType 2 =*/130).string(message.conversationId);
+            if (message.toolName != null && Object.hasOwnProperty.call(message, "toolName"))
+                writer.uint32(/* id 17, wireType 2 =*/138).string(message.toolName);
+            if (message.hasAgentContext != null && Object.hasOwnProperty.call(message, "hasAgentContext"))
+                writer.uint32(/* id 18, wireType 0 =*/144).bool(message.hasAgentContext);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified DesktopEventSummary message, length delimited. Does not implicitly {@link pb.DesktopEventSummary.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.DesktopEventSummary
+         * @static
+         * @param {pb.IDesktopEventSummary} message DesktopEventSummary message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        DesktopEventSummary.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a DesktopEventSummary message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.DesktopEventSummary
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.DesktopEventSummary} DesktopEventSummary
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        DesktopEventSummary.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.DesktopEventSummary();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.eventId = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.receivedAtMs = reader.int64();
+                        break;
+                    }
+                case 3: {
+                        message.pid = reader.uint32();
+                        break;
+                    }
+                case 4: {
+                        message.ppid = reader.uint32();
+                        break;
+                    }
+                case 5: {
+                        message.rootAgentPid = reader.uint32();
+                        break;
+                    }
+                case 6: {
+                        message.eventType = reader.int32();
+                        break;
+                    }
+                case 7: {
+                        message.type = reader.string();
+                        break;
+                    }
+                case 8: {
+                        message.tag = reader.string();
+                        break;
+                    }
+                case 9: {
+                        message.comm = reader.string();
+                        break;
+                    }
+                case 10: {
+                        message.target = reader.string();
+                        break;
+                    }
+                case 11: {
+                        message.network = reader.bool();
+                        break;
+                    }
+                case 12: {
+                        message.netBytes = reader.uint64();
+                        break;
+                    }
+                case 13: {
+                        message.decision = reader.string();
+                        break;
+                    }
+                case 14: {
+                        message.riskScore = reader.double();
+                        break;
+                    }
+                case 15: {
+                        message.agentRunId = reader.string();
+                        break;
+                    }
+                case 16: {
+                        message.conversationId = reader.string();
+                        break;
+                    }
+                case 17: {
+                        message.toolName = reader.string();
+                        break;
+                    }
+                case 18: {
+                        message.hasAgentContext = reader.bool();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a DesktopEventSummary message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.DesktopEventSummary
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.DesktopEventSummary} DesktopEventSummary
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        DesktopEventSummary.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a DesktopEventSummary message.
+         * @function verify
+         * @memberof pb.DesktopEventSummary
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        DesktopEventSummary.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.eventId != null && message.hasOwnProperty("eventId"))
+                if (!$util.isString(message.eventId))
+                    return "eventId: string expected";
+            if (message.receivedAtMs != null && message.hasOwnProperty("receivedAtMs"))
+                if (!$util.isInteger(message.receivedAtMs) && !(message.receivedAtMs && $util.isInteger(message.receivedAtMs.low) && $util.isInteger(message.receivedAtMs.high)))
+                    return "receivedAtMs: integer|Long expected";
+            if (message.pid != null && message.hasOwnProperty("pid"))
+                if (!$util.isInteger(message.pid))
+                    return "pid: integer expected";
+            if (message.ppid != null && message.hasOwnProperty("ppid"))
+                if (!$util.isInteger(message.ppid))
+                    return "ppid: integer expected";
+            if (message.rootAgentPid != null && message.hasOwnProperty("rootAgentPid"))
+                if (!$util.isInteger(message.rootAgentPid))
+                    return "rootAgentPid: integer expected";
+            if (message.eventType != null && message.hasOwnProperty("eventType"))
+                if (!$util.isInteger(message.eventType))
+                    return "eventType: integer expected";
+            if (message.type != null && message.hasOwnProperty("type"))
+                if (!$util.isString(message.type))
+                    return "type: string expected";
+            if (message.tag != null && message.hasOwnProperty("tag"))
+                if (!$util.isString(message.tag))
+                    return "tag: string expected";
+            if (message.comm != null && message.hasOwnProperty("comm"))
+                if (!$util.isString(message.comm))
+                    return "comm: string expected";
+            if (message.target != null && message.hasOwnProperty("target"))
+                if (!$util.isString(message.target))
+                    return "target: string expected";
+            if (message.network != null && message.hasOwnProperty("network"))
+                if (typeof message.network !== "boolean")
+                    return "network: boolean expected";
+            if (message.netBytes != null && message.hasOwnProperty("netBytes"))
+                if (!$util.isInteger(message.netBytes) && !(message.netBytes && $util.isInteger(message.netBytes.low) && $util.isInteger(message.netBytes.high)))
+                    return "netBytes: integer|Long expected";
+            if (message.decision != null && message.hasOwnProperty("decision"))
+                if (!$util.isString(message.decision))
+                    return "decision: string expected";
+            if (message.riskScore != null && message.hasOwnProperty("riskScore"))
+                if (typeof message.riskScore !== "number")
+                    return "riskScore: number expected";
+            if (message.agentRunId != null && message.hasOwnProperty("agentRunId"))
+                if (!$util.isString(message.agentRunId))
+                    return "agentRunId: string expected";
+            if (message.conversationId != null && message.hasOwnProperty("conversationId"))
+                if (!$util.isString(message.conversationId))
+                    return "conversationId: string expected";
+            if (message.toolName != null && message.hasOwnProperty("toolName"))
+                if (!$util.isString(message.toolName))
+                    return "toolName: string expected";
+            if (message.hasAgentContext != null && message.hasOwnProperty("hasAgentContext"))
+                if (typeof message.hasAgentContext !== "boolean")
+                    return "hasAgentContext: boolean expected";
+            return null;
+        };
+
+        /**
+         * Creates a DesktopEventSummary message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.DesktopEventSummary
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.DesktopEventSummary} DesktopEventSummary
+         */
+        DesktopEventSummary.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.DesktopEventSummary)
+                return object;
+            let message = new $root.pb.DesktopEventSummary();
+            if (object.eventId != null)
+                message.eventId = String(object.eventId);
+            if (object.receivedAtMs != null)
+                if ($util.Long)
+                    (message.receivedAtMs = $util.Long.fromValue(object.receivedAtMs)).unsigned = false;
+                else if (typeof object.receivedAtMs === "string")
+                    message.receivedAtMs = parseInt(object.receivedAtMs, 10);
+                else if (typeof object.receivedAtMs === "number")
+                    message.receivedAtMs = object.receivedAtMs;
+                else if (typeof object.receivedAtMs === "object")
+                    message.receivedAtMs = new $util.LongBits(object.receivedAtMs.low >>> 0, object.receivedAtMs.high >>> 0).toNumber();
+            if (object.pid != null)
+                message.pid = object.pid >>> 0;
+            if (object.ppid != null)
+                message.ppid = object.ppid >>> 0;
+            if (object.rootAgentPid != null)
+                message.rootAgentPid = object.rootAgentPid >>> 0;
+            if (object.eventType != null)
+                message.eventType = object.eventType | 0;
+            if (object.type != null)
+                message.type = String(object.type);
+            if (object.tag != null)
+                message.tag = String(object.tag);
+            if (object.comm != null)
+                message.comm = String(object.comm);
+            if (object.target != null)
+                message.target = String(object.target);
+            if (object.network != null)
+                message.network = Boolean(object.network);
+            if (object.netBytes != null)
+                if ($util.Long)
+                    (message.netBytes = $util.Long.fromValue(object.netBytes)).unsigned = true;
+                else if (typeof object.netBytes === "string")
+                    message.netBytes = parseInt(object.netBytes, 10);
+                else if (typeof object.netBytes === "number")
+                    message.netBytes = object.netBytes;
+                else if (typeof object.netBytes === "object")
+                    message.netBytes = new $util.LongBits(object.netBytes.low >>> 0, object.netBytes.high >>> 0).toNumber(true);
+            if (object.decision != null)
+                message.decision = String(object.decision);
+            if (object.riskScore != null)
+                message.riskScore = Number(object.riskScore);
+            if (object.agentRunId != null)
+                message.agentRunId = String(object.agentRunId);
+            if (object.conversationId != null)
+                message.conversationId = String(object.conversationId);
+            if (object.toolName != null)
+                message.toolName = String(object.toolName);
+            if (object.hasAgentContext != null)
+                message.hasAgentContext = Boolean(object.hasAgentContext);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a DesktopEventSummary message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.DesktopEventSummary
+         * @static
+         * @param {pb.DesktopEventSummary} message DesktopEventSummary
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        DesktopEventSummary.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.defaults) {
+                object.eventId = "";
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, false);
+                    object.receivedAtMs = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.receivedAtMs = options.longs === String ? "0" : 0;
+                object.pid = 0;
+                object.ppid = 0;
+                object.rootAgentPid = 0;
+                object.eventType = 0;
+                object.type = "";
+                object.tag = "";
+                object.comm = "";
+                object.target = "";
+                object.network = false;
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.netBytes = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.netBytes = options.longs === String ? "0" : 0;
+                object.decision = "";
+                object.riskScore = 0;
+                object.agentRunId = "";
+                object.conversationId = "";
+                object.toolName = "";
+                object.hasAgentContext = false;
+            }
+            if (message.eventId != null && message.hasOwnProperty("eventId"))
+                object.eventId = message.eventId;
+            if (message.receivedAtMs != null && message.hasOwnProperty("receivedAtMs"))
+                if (typeof message.receivedAtMs === "number")
+                    object.receivedAtMs = options.longs === String ? String(message.receivedAtMs) : message.receivedAtMs;
+                else
+                    object.receivedAtMs = options.longs === String ? $util.Long.prototype.toString.call(message.receivedAtMs) : options.longs === Number ? new $util.LongBits(message.receivedAtMs.low >>> 0, message.receivedAtMs.high >>> 0).toNumber() : message.receivedAtMs;
+            if (message.pid != null && message.hasOwnProperty("pid"))
+                object.pid = message.pid;
+            if (message.ppid != null && message.hasOwnProperty("ppid"))
+                object.ppid = message.ppid;
+            if (message.rootAgentPid != null && message.hasOwnProperty("rootAgentPid"))
+                object.rootAgentPid = message.rootAgentPid;
+            if (message.eventType != null && message.hasOwnProperty("eventType"))
+                object.eventType = message.eventType;
+            if (message.type != null && message.hasOwnProperty("type"))
+                object.type = message.type;
+            if (message.tag != null && message.hasOwnProperty("tag"))
+                object.tag = message.tag;
+            if (message.comm != null && message.hasOwnProperty("comm"))
+                object.comm = message.comm;
+            if (message.target != null && message.hasOwnProperty("target"))
+                object.target = message.target;
+            if (message.network != null && message.hasOwnProperty("network"))
+                object.network = message.network;
+            if (message.netBytes != null && message.hasOwnProperty("netBytes"))
+                if (typeof message.netBytes === "number")
+                    object.netBytes = options.longs === String ? String(message.netBytes) : message.netBytes;
+                else
+                    object.netBytes = options.longs === String ? $util.Long.prototype.toString.call(message.netBytes) : options.longs === Number ? new $util.LongBits(message.netBytes.low >>> 0, message.netBytes.high >>> 0).toNumber(true) : message.netBytes;
+            if (message.decision != null && message.hasOwnProperty("decision"))
+                object.decision = message.decision;
+            if (message.riskScore != null && message.hasOwnProperty("riskScore"))
+                object.riskScore = options.json && !isFinite(message.riskScore) ? String(message.riskScore) : message.riskScore;
+            if (message.agentRunId != null && message.hasOwnProperty("agentRunId"))
+                object.agentRunId = message.agentRunId;
+            if (message.conversationId != null && message.hasOwnProperty("conversationId"))
+                object.conversationId = message.conversationId;
+            if (message.toolName != null && message.hasOwnProperty("toolName"))
+                object.toolName = message.toolName;
+            if (message.hasAgentContext != null && message.hasOwnProperty("hasAgentContext"))
+                object.hasAgentContext = message.hasAgentContext;
+            return object;
+        };
+
+        /**
+         * Converts this DesktopEventSummary to JSON.
+         * @function toJSON
+         * @memberof pb.DesktopEventSummary
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        DesktopEventSummary.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for DesktopEventSummary
+         * @function getTypeUrl
+         * @memberof pb.DesktopEventSummary
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        DesktopEventSummary.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.DesktopEventSummary";
+        };
+
+        return DesktopEventSummary;
     })();
 
     pb.EventBatch = (function() {
