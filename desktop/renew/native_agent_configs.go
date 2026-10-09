@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -295,10 +294,13 @@ func inspectLocalAgentConfigs(project string) agentConfigInspection {
 }
 
 func countObservedConfigHost(agent, target string, events []eventSummary) int {
+	return countObservedConfigHostWithIndex(agent, target, events, buildAgentOwnershipIndex(events, nil))
+}
+
+func countObservedConfigHostWithIndex(agent, target string, events []eventSummary, index agentOwnershipIndex) int {
 	if target == "" || target == "localhost" {
 		return 0
 	}
-	index := buildAgentOwnershipIndex(events, nil)
 	count := 0
 	for _, event := range events {
 		owner := index.attribution(event)
@@ -320,4 +322,3 @@ func formatConfigCandidate(c agentConfigCandidate) string {
 	return "未显式配置 URL"
 }
 
-var _ = net.IP{} // no DNS lookups or proxy resolution in this feature
