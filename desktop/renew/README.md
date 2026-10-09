@@ -93,6 +93,26 @@ single ELF: renew
                                           Unix socket (no TCP port listener)
 ```
 
+### Responsive workspace and disconnected operation
+
+The native workspace keeps a 54-DIP icon rail at narrow widths. If the user prefers
+the detailed 302-DIP navigation but the window is under 1240 DIP, it temporarily
+switches to the 198-DIP compact labels without discarding the preference; widening
+the window restores detailed names. With less than 860 DIP of center content width,
+event search moves below the title/toolbar. Page padding is tighter on laptop
+windows, while the right-hand incident inspector still obeys its minimum center
+width rule. Linux/Wayland remains opaque.
+
+After a backend connection failure, **Overview** shows the startup/retry message
+when no events have been loaded, but Events, System, configuration and other
+monitoring pages remain navigable, with a visible stale-data banner. The banner
+can retry the existing API connection or relaunch the embedded backend when the
+initial launch never succeeded. A reconnect does not create a second event
+stream/poll loop for an already initialized client. The bottom status line
+exposes high-risk and attention items independently, and the workspace filter
+indicator counts root-PID, exact-target, delegated-edit and domain drilldowns
+as well as ordinary PID/type/risk filters.
+
 The native client now covers the low-noise daily-monitoring workflow: Overview, Events, Agent Sessions, Network, Processes, Monitoring, Wrapper Rules, Tracking, and System. Events and configuration surfaces use MyGo-native tables/forms/selects/tabs/switches; the browser runtime is not embedded.
 
 For a backend started by Renew, the Events page no longer uses the generic WebSocket hot path. After the private lifetime-socket token handshake, the same socket becomes Native IPC v2 and receives a compact `DesktopEventSummary` as a length-prefixed protobuf frame. The full `EventEnvelope` and payload stay in backend retention. This bypasses HTTP routing, WebSocket framing, JSON summary serialization, and the backend's 50 ms browser batching window. The desktop IPC reader is also decoupled from rendering: events enter a bounded queue, are committed to MyGo at most once per ~16 ms frame, and are merged into the retained sorted window with a small-batch linear merge. The retained event window and realtime batch buffers are reused, while search/filter/aggregate results are cached by event version. This prevents event bursts from turning into one main-thread redraw, full sort, and large allocation per event. Initial history is loaded once; after the native stream attaches, the desktop stops re-fetching event summaries every two seconds. The existing `/ws/event-summaries` path is retained only for remote/custom instances and automatic fallback. The page supports type/session/decision/attention filtering and expands history through `/events/summaries?compact=1`. Selecting or double-clicking a row never fetches the complete event; only the explicit **Details** action calls `/events/detail/:id`. Closing the detail modal immediately drops the full payload from desktop memory, and the formatted raw JSON string is only materialized if the Raw JSON tab is opened. The Agent Sessions page follows the browser Renew grouping rule: only summaries with Agent context participate, and sessions are isolated by harness plus run/conversation/root-process context. Event detail can show the raw JSON on demand and, when `policy_management` is enabled, uses the existing cgroup/BPF LSM APIs to block or unblock literal destination IPs, ports, and absolute executable paths. Hostnames are never submitted as IP enforcement targets.
