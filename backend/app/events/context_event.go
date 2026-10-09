@@ -282,6 +282,32 @@ func ApplyProcessContextToEvent(event *pb.Event, ctx ProcessContext) {
 	}
 }
 
+// contextFromAgentCgroup retains the root PID when the backend has richer
+// cgroup evidence. The legacy three-field hook remains usable in tests and
+// alternate integrations that have not supplied the structured accessor.
+func contextFromAgentCgroup(cgroupID uint64) (ProcessContext, bool) {
+	if cgroupID == 0 {
+		return ProcessContext{}, false
+	}
+	if Deps.CgroupAttributionGet != nil {
+		if entry, ok := Deps.CgroupAttributionGet(cgroupID); ok && entry.AgentRunID != "" {
+			return ProcessContext{
+				RootAgentPid: entry.RootAgentPID,
+				AgentRunID: entry.AgentRunID,
+				TaskID: entry.TaskID,
+				ToolCallID: entry.ToolCallID,
+			}, true
+		}
+	}
+	if Deps.CgroupAttributionEnrich != nil {
+		run, task, tool := Deps.CgroupAttributionEnrich(cgroupID)
+		if run != "" {
+			return ProcessContext{AgentRunID: run, TaskID: task, ToolCallID: tool}, true
+		}
+	}
+	return ProcessContext{}, false
+}
+
 // EnrichEventContext applies process context and cgroup attribution to an
 // event. Tool-baseline observation runs later in BuildSemanticAlerts.
 func EnrichEventContext(event *pb.Event) *pb.Event {
@@ -328,14 +354,7 @@ func EnrichEventContext(event *pb.Event) *pb.Event {
 	}
 	// Try cgroup-based attribution if no direct PID context
 	if !ok && event.CgroupId != 0 {
-		if agentRunID, taskID, toolCallID := Deps.CgroupAttributionEnrich(event.CgroupId); agentRunID != "" {
-			ctx = ProcessContext{
-				AgentRunID: agentRunID,
-				TaskID:     taskID,
-				ToolCallID: toolCallID,
-			}
-			ok = true
-		}
+		ctx, ok = contextFromAgentCgroup(event.CgroupId)
 	}
 	if ok {
 		ApplyProcessContextToEvent(event, ctx)
@@ -377,14 +396,7 @@ func ApplyBestEffortProcessContextToEvent(event *pb.Event) {
 		}
 	}
 	if !ok && event.CgroupId != 0 {
-		if agentRunID, taskID, toolCallID := Deps.CgroupAttributionEnrich(event.CgroupId); agentRunID != "" {
-			ctx = ProcessContext{
-				AgentRunID: agentRunID,
-				TaskID:     taskID,
-				ToolCallID: toolCallID,
-			}
-			ok = true
-		}
+		ctx, ok = contextFromAgentCgroup(event.CgroupId)
 	}
 	if ok {
 		ApplyProcessContextToEvent(event, ctx)
