@@ -8,22 +8,27 @@ import (
 func TestWorkspaceInspectorResponsive(t *testing.T) {
 	tests := []struct {
 		width float32
+		nav   float32
 		open  bool
 		page  string
 		want  bool
 	}{
-		{1480, true, "概览", true},
-		{1480, true, "网络", true},
-		{1480, true, "研判", false},
-		{1480, true, "系统", true},
-		{1320, true, "事件", true},
-		{1319, true, "事件", false},
-		{1480, false, "事件", false},
-		{1480, true, "规则", false},
+		{1480, 198, true, "概览", true},
+		{1480, 198, true, "网络", true},
+		{1480, 198, true, "研判", false},
+		{1480, 198, true, "系统", true},
+		{1320, 198, true, "事件", true},
+		{1313, 198, true, "事件", false},
+		{1120, 0, true, "事件", true},
+		{1120, 198, true, "事件", false},
+		{1250, 150, true, "事件", false},
+		{1250, 100, true, "事件", true},
+		{1480, 198, false, "事件", false},
+		{1480, 198, true, "规则", false},
 	}
 	for _, tc := range tests {
-		if got := showWorkspaceInspector(tc.width, tc.open, tc.page); got != tc.want {
-			t.Errorf("showWorkspaceInspector(%v, %v, %q) = %v, want %v", tc.width, tc.open, tc.page, got, tc.want)
+		if got := showWorkspaceInspector(tc.width, tc.nav, tc.open, tc.page); got != tc.want {
+			t.Errorf("showWorkspaceInspector(%v, %v, %v, %q) = %v, want %v", tc.width, tc.nav, tc.open, tc.page, got, tc.want)
 		}
 	}
 }
@@ -226,5 +231,29 @@ func TestWindowMaterialFallsBackOnLinuxAndWhenDisabled(t *testing.T) {
 	}
 	if got := windowMaterial("darwin", true); got != "sidebar" {
 		t.Fatalf("macOS must use sidebar material, got %q", got)
+	}
+}
+
+func TestInspectorQueueSelectionOverridesPinnedEvent(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.inspectorPinnedID = "old"
+	a.inspectorSelectedID = "old"
+	a.inspectorTab = 1
+	a.eventSelected = 0
+	a.events = []eventSummary{{EventID: "old"}, {EventID: "alert", Decision: "ALERT"}}
+	a.selectInspectorEvent("alert")
+	if a.inspectorPinnedID != "" || a.inspectorSelectedID != "alert" {
+		t.Fatalf("queue selection must replace old pin: pinned=%q selected=%q", a.inspectorPinnedID, a.inspectorSelectedID)
+	}
+	if a.inspectorTab != 0 || a.eventSelected != -1 {
+		t.Fatalf("queue selection must switch to incident tab and clear table index")
+	}
+	event, ok := a.inspectorEvent()
+	if !ok || event.EventID != "alert" {
+		t.Fatalf("queue selection was not visible: %+v %v", event, ok)
+	}
+	a.selectInspectorEvent("")
+	if a.inspectorSelectedID != "alert" {
+		t.Fatal("empty event identity should not disturb selection")
 	}
 }
