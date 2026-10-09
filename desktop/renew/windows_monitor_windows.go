@@ -286,6 +286,13 @@ func (a *renewApp) runLocalMonitor(ctx context.Context) {
 			})
 		} else {
 			events, lost := windowsObservationEvents(previous, snapshot, hasBaseline, now)
+			connections := make([]windowsTCPSample, 0, len(snapshot.Connections))
+			for _, conn := range snapshot.Connections { connections = append(connections, conn) }
+			sort.Slice(connections, func(i, j int) bool {
+				if connections[i].PID != connections[j].PID { return connections[i].PID < connections[j].PID }
+				if connections[i].Remote != connections[j].Remote { return connections[i].Remote < connections[j].Remote }
+				return connections[i].Local < connections[j].Local
+			})
 			dropped += int64(lost)
 			previous, previousAt, hasBaseline = snapshot, now, true
 			a.update(func() {
@@ -296,6 +303,7 @@ func (a *renewApp) runLocalMonitor(ctx context.Context) {
 				a.health.CaptureHealthy = true
 				a.health.RingbufDroppedTotal = dropped // Windows UI explicitly labels this as sampled-summary overflow
 				a.system = snapshot.System
+				a.windowsConnections = connections
 				a.systemErr = ""
 				a.lastErr = ""
 				a.lastSync = now
