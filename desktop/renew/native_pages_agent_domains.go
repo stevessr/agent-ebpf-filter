@@ -219,6 +219,8 @@ func (a *renewApp) agentDomainsView(c *ui.Context) {
 	ui.Text(c, "按 Agent 关联域名和 IP 外联，查看告警与相关会话。无需代理或导入 API Key。").TextColor(t.TextMuted)
 	ui.Text(c, "仅统计当前已加载的有限事件摘要，不代表完整请求数、真实流量、Token 用量或所有出站连接；DoH、ECH、DNS/SNI 缺失均可能使域名不可见。域名是观测线索，并非已验证的 HTTP Host。").FontSize(11).TextColor(t.TextMuted)
 
+	a.agentConfigPanel(c)
+
 	all := a.agentDomainRows()
 	domainCount, ipCount, alertCount := 0, 0, 0
 	agents := make(map[string]struct{})
