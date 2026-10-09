@@ -381,11 +381,13 @@ func inspectAgentConfigExtensions(claudeDir, codexDir, project string) agentConf
 		}
 		// Only explicit project MCP configs; Claude's ~/.claude.json also
 		// contains session credentials and must not be opened for this audit.
-		rows, exists, err := readClaudeMCP(filepath.Join(projectConfigRoot(project), ".mcp.json"), "项目")
-		if err != nil {
-			out.Notes = append(out.Notes, "Claude Code · 项目 MCP：读取或解析失败")
-		} else if exists {
-			out.Candidates = append(out.Candidates, rows...)
+		if claudeRoot := projectConfigRoot(project); claudeRoot != "" {
+			rows, exists, err := readClaudeMCP(filepath.Join(claudeRoot, ".mcp.json"), "项目")
+			if err != nil {
+				out.Notes = append(out.Notes, "Claude Code · 项目 MCP：读取或解析失败")
+			} else if exists {
+				out.Candidates = append(out.Candidates, rows...)
+			}
 		}
 	}
 	return out
