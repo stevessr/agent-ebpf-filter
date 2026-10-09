@@ -591,9 +591,15 @@ func BuildSemanticAlerts(event *pb.Event) []*pb.Event {
 	}
 
 	// Per-tool baseline drift detection
-	if event.GetToolName() != "" && event.GetComm() != "" && Deps.ToolBaselineObserve != nil {
-		if reason, ok := Deps.ToolBaselineObserve(event.GetToolName(), event.GetComm(), event.GetType()); ok {
-			addAlert("TOOL_BEHAVIOR_DRIFT", platform.FirstNonEmpty(event.GetComm(), event.GetPath()), reason, 0.91)
+	if event.GetToolName() != "" && event.GetComm() != "" {
+		if Deps.ToolBaselineAssess != nil {
+			if reason, riskFloor, ok := Deps.ToolBaselineAssess(event.GetToolName(), event.GetComm(), event.GetType()); ok {
+				addAlert("TOOL_BEHAVIOR_DRIFT", platform.FirstNonEmpty(event.GetComm(), event.GetPath()), reason, riskFloor)
+			}
+		} else if Deps.ToolBaselineObserve != nil {
+			if reason, ok := Deps.ToolBaselineObserve(event.GetToolName(), event.GetComm(), event.GetType()); ok {
+				addAlert("TOOL_BEHAVIOR_DRIFT", platform.FirstNonEmpty(event.GetComm(), event.GetPath()), reason, 0.91)
+			}
 		}
 	}
 
