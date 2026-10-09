@@ -72,6 +72,7 @@ var workspaceNavigationLabels = map[string][2]string{
 	"跟踪":       {"跟踪范围", "进程、命令与路径跟踪"},
 	"路径权限":   {"文件访问保护", "文件路径与访问权限"},
 	"终端":       {"本地 Shell · 多标签与分屏", "本地 Shell 终端与多窗格"},
+	"CCS":        {"管理软件联动", "CC-Switch / AstrLink / CCR / Antigravity 本地视图"},
 	"系统":       {"系统诊断", "采集链路与系统运行诊断"},
 }
 
@@ -190,6 +191,8 @@ func (a *renewApp) workspacePage(c *ui.Context) {
 		a.pathAccessView(c)
 	case "系统":
 		a.systemView(c)
+	case "CCS":
+		a.integrationsView(c)
 	default:
 		a.overview(c)
 	}
@@ -216,6 +219,7 @@ func (a *renewApp) activityRail(c *ui.Context) {
 			{"网络", "⇄"},
 			{"域名", "◎"},
 			{"进程", "▣"},
+			{"CCS", "♧"},
 			{"Agent 识别", "◉"},
 			{"监控", "◈"},
 			{"规则", "▤"},
@@ -289,6 +293,7 @@ func (a *renewApp) sidebar(c *ui.Context) {
 			})
 			ui.SidebarSection(c, "工具", nil, func() {
 				ui.SidebarItem(c, "终端", nil, label("终端"))
+				ui.SidebarItem(c, "CCS", nil, label("管理软件联动"))
 			})
 			ui.SidebarSection(c, "运行诊断", nil, func() {
 				system := ui.SidebarItem(c, "系统", nil, label("系统"))
@@ -422,6 +427,11 @@ func (a *renewApp) refreshActiveView() {
 		go a.refreshRegistry(context.Background())
 	case "eBPF 模块":
 		go a.refreshEBPFModules(context.Background())
+	case "CCS":
+		go a.refreshCCS(context.Background())
+		go a.refreshAstrLink(context.Background())
+		go a.refreshCCR(context.Background())
+		go a.refreshAntigravity(context.Background())
 	case "路径权限":
 		go a.refreshPathAccess()
 		go a.refreshConfiguration(context.Background())
