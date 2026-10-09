@@ -254,7 +254,9 @@ func collectWindowsObservation(ctx context.Context, prev windowsObservation, has
 
 func (a *renewApp) runLocalMonitor(ctx context.Context) {
 	a.startEventUIBatcher(ctx)
+	refreshSignal := make(chan struct{},1)
 	a.update(func() {
+		a.localRefresh = refreshSignal
 		a.starting = false
 		a.backend = "Windows Win32 / IP Helper API（本机只读采样）"
 		a.connected = false
@@ -326,6 +328,7 @@ func (a *renewApp) runLocalMonitor(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+		case <-refreshSignal:
 		}
 	}
 }
