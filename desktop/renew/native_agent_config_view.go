@@ -34,7 +34,7 @@ func (a *renewApp) refreshAgentConfigInspection() {
 func (a *renewApp) agentConfigPanel(c *ui.Context) {
 	t := c.Theme()
 	card(c, "Claude Code / Codex 配置识别（只读）", func() {
-		ui.Text(c, "从当前桌面用户的 Claude settings.json、Codex config.toml 读取模型、Provider 与 API 域名；可指定一个项目目录检查项目配置。不会读取 auth.json 或执行 Hook/MCP 命令；设置文件可能包含凭据，但仅保留白名单安全字段。").FontSize(11).TextColor(t.TextMuted)
+		ui.Text(c, "按官方配置层级检查 Claude Code 与 Codex 的模型、Provider、API/MCP 主机、权限、沙箱及本机受管配置。可输入 Agent 的工作目录绝对路径，识别仓库根目录和 Codex 子目录覆盖。只读，不执行 Hook/MCP，也不读取 auth.json。").FontSize(11).TextColor(t.TextMuted)
 		ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
 			ui.TextInput(c, &a.configProjectPath).Label("项目绝对路径（可选）").Width(340)
 			label := "读取本机配置"
@@ -48,7 +48,7 @@ func (a *renewApp) agentConfigPanel(c *ui.Context) {
 				a.refreshAgentConfigInspection()
 			}
 		})
-		ui.Text(c, "只显示白名单字段与 URL 的主机名，不展示 URL 路径、参数、Header、API Key 或完整设置。项目配置仅为候选：实际生效配置还受 CLI、环境变量、受信任工作区和受管策略影响。").FontSize(11).TextColor(t.TextMuted)
+		ui.Text(c, "只显示白名单字段、规则数量和 URL 主机名；不展示路径参数、鉴权内容或完整配置。每层及“静态合并预览”均非运行时生效判定：CLI、Agent 环境、工作区信任、云端/MDM 管理策略可能覆盖。").FontSize(11).TextColor(t.TextMuted)
 		if !a.configLoaded {
 			if a.configLoading {
 				ui.Text(c, "正在分析本地文件…").TextColor(t.TextMuted)
@@ -64,7 +64,7 @@ func (a *renewApp) agentConfigPanel(c *ui.Context) {
 		if len(rows) == 0 {
 			return
 		}
-		ui.Text(c, fmt.Sprintf("已识别 %d 条配置声明。以下“观测”仅来自当前有限事件摘要，不表示完整网络请求或配置生效状态。", len(rows))).FontSize(11).TextColor(t.TextMuted)
+		ui.Text(c, fmt.Sprintf("已识别 %d 条只读配置/审计记录。观测次数仅来自当前有限事件摘要，不代表完整请求数；无明确主机的安全策略显示为 0。", len(rows))).FontSize(11).TextColor(t.TextMuted)
 		cols := []ui.TableColumn{
 			{Title: "Agent", Width: 124, Fixed: true},
 			{Title: "配置来源", MinWidth: 156},
