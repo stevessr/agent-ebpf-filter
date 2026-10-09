@@ -44,3 +44,31 @@ AstrLink refreshes every 30 seconds or on explicit **刷新 AstrLink**. Missing 
 ### Trust boundary
 
 No integration code runs as root or changes the privileged agent backend. The AstrLink Unix Socket authenticates same-user readers with Observer rights, and the Windows adapter uses only an observer token from the protected session locator. All responses are decoded into allowlisted typed fields and capped at 1 MiB. Redirects, HTTP non-loopback addresses, raw records and write methods are not used.
+
+## Claude Code Router (CCR)
+
+Source: [musistudio/claude-code-router](https://github.com/musistudio/claude-code-router).
+The current upstream persists its configuration in `config.sqlite`, not the legacy `config.json`.
+
+- macOS/Linux: `~/.claude-code-router/config.sqlite`; Windows: `%APPDATA%\\claude-code-router\\config.sqlite`.
+- Optional `AGENT_RENEW_CCR_CONFIG_DB` absolute-path override.
+- Reads only hard-coded `SELECT` expressions against the `app_config` row keyed `default`: `json_array_length(Providers)`, `preferredProvider`, and the saved `PORT` (not a live listener check). It never selects the `value_json` payload as a whole or accesses the `api_keys` table.
+- Aggregates the prior hour's `usage_events` in sibling `app-data/usage.sqlite` for request count, failures and token counts. It never reads request IDs, credentials, request bodies, model names, or messages.
+- Missing usage database / older schema only degrades usage display. Refreshes every 30 seconds plus explicit button.
+- `ccr` and `claude-code-router` can be correlated to the current eBPF event buffer by executable identity. Generic `node` processes are **not** attributed to CCR. Linux `comm` is limited to 15 bytes, so `claude-code-rou` is also recognized. This is a hint, not proof of causality.
+
+## Antigravity Tools
+
+Source: [lbjlaq/Antigravity-Manager](https://github.com/lbjlaq/Antigravity-Manager).
+The adapter reads the manager's **`gui_config.json` only** and aggregates the proxy's `request_logs` table from `proxy_logs.db`.
+
+- Default: `~/.antigravity_tools/gui_config.json`. Recognizes the upstream's `ABV_DATA_DIR` environment override, legacy `~/.antigravity_tools_location` relocation pointer, and platform-specific `antigravity-tools/data_dir.txt` pointer. All pointer reads are limited and read-only; Renew **never creates** a relocated data directory.
+- Optional `AGENT_RENEW_ANTIGRAVITY_CONFIG` absolute-path override.
+- Keeps only typed **proxy enabled, port, LAN access, auth mode, request logging, auto start, quota protection, circuit breaker and warmup flags**. Does not retain API keys, admin password, usernames, account index, model mappings, upstream URLs or prompts.
+- Queries a fixed `SELECT` aggregate over `request_logs` for the past hour. Uses the upstream's **millisecond Unix timestamp**, not seconds.
+- Missing, malformed, oversized or symlinked config is handled without touching the backend. Usage schema differences are reported separately. Refresh interval: 30 seconds plus manual refresh.
+- An eBPF event shortcut matches observed `antigravity-tools` executable identity, including truncated Linux `comm` value `antigravity-too`. It cannot prove which request a kernel event belongs to.
+
+## Third-party integrations explicitly not enabled automatically
+
+CLIProxyAPI's **v8 Management API** requires a management secret even on loopback, and its usage queue endpoint **removes** records when queried. This read-only monitoring integration does not invoke the v0/v8 usage queue, impersonate a client, or attempt to find a management secret in config files. Any future integration should use a separately authorized, genuinely non-destructive metrics endpoint. Do not use the legacy v0 API for new integrations.
