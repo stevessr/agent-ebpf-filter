@@ -37,6 +37,7 @@ var (
 	winOpenProcess = winKernel32.NewProc("OpenProcess")
 	winCloseHandle = winKernel32.NewProc("CloseHandle")
 	winGetProcessTimes = winKernel32.NewProc("GetProcessTimes")
+	winQueryFullProcessImageName = winKernel32.NewProc("QueryFullProcessImageNameW")
 	winGetSystemTimes = winKernel32.NewProc("GetSystemTimes")
 	winGlobalMemoryStatusEx = winKernel32.NewProc("GlobalMemoryStatusEx")
 	winGetProcessMemoryInfo = winPSAPI.NewProc("GetProcessMemoryInfo")
@@ -96,6 +97,18 @@ func winAPIError(name string, err error) error {
 	return fmt.Errorf("%s: %w", name, err)
 }
 
+func winReadImagePath(handle uintptr) string {
+    // Prefer PROCESS_QUERY_LIMITED_INFORMATION. No cross-process memory
+    // reading or command line scraping; return empty on access denied.
+    const pathBufferLength = 4096
+    buffer := make([]uint16,pathBufferLength)
+    chars := uint32(len(buffer))
+    result, _, _ := winQueryFullProcessImageName.Call(handle,0,
+        uintptr(unsafe.Pointer(&buffer[0])),uintptr(unsafe.Pointer(&chars)))
+    if result == 0 || chars == 0 || chars > uint32(len(buffer)) { return "" }
+    return syscall.UTF16ToString(buffer[:chars])
+}
+
 func winReadProcesses() (map[int]windowsProcessSample, error) {
 	snapshot, _, callErr := winCreateToolhelp32Snapshot.Call(winTH32CS_SNAPPROCESS, 0)
 	if snapshot == ^uintptr(0) { return nil, winAPIError("CreateToolhelp32Snapshot", callErr) }
@@ -115,6 +128,7 @@ func winReadProcesses() (map[int]windowsProcessSample, error) {
 				handle, _, _ = winOpenProcess.Call(winPROCESS_QUERY_LIMITED_INFORMATION, 0, uintptr(entry.ProcessID))
 			}
 			if handle != 0 {
+				p.ImagePath = winReadImagePath(handle)
 				var created, exited, kernel, user winFiletime
 				r, _, _ := winGetProcessTimes.Call(handle,
 					uintptr(unsafe.Pointer(&created)), uintptr(unsafe.Pointer(&exited)),
@@ -243,6 +257,7 @@ func collectWindowsObservation(ctx context.Context, prev windowsObservation, has
 		system.Processes = append(system.Processes, systemProcess{
 			PID: p.PID, PPID: p.PPID, Name: p.Name, CPU: cpu,
 			MemPercent: mem, CreateTime: winFiletime{Low: uint32(p.Start), High: uint32(p.Start >> 32)}.unixMillis(),
+			ImagePath: p.ImagePath,
 		})
 	}
 	sort.Slice(system.Processes, func(i,j int) bool { return system.Processes[i].PID < system.Processes[j].PID })
