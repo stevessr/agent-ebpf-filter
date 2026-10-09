@@ -7,7 +7,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
-	"os"
 	"runtime"
 	"sort"
 	"syscall"
@@ -311,21 +310,3 @@ func (a *renewApp) runLocalMonitor(ctx context.Context) {
 	}
 }
 
-// Local polling is opt-in only when no --backend or AGENT_BACKEND_URL was set.
-// A Windows desktop can still attach to an existing remote Linux collector.
-func localWindowsMonitoringEnabled(explicitBackend, envBackend string) bool {
-	return explicitBackend == "" && envBackend == ""
-}
-
-// Keep the desktop entirely read-only in Windows local mode. Neither WFP
-// blocking, BPF LSM nor Linux wrapper settings are silently emulated.
-func windowsLocalPage(page string) bool {
-	switch page {
-	case "概览", "研判", "事件", "会话", "网络", "进程", "系统":
-		return true
-	default:
-		return false
-	}
-}
-
-var _ = os.ErrNotExist
