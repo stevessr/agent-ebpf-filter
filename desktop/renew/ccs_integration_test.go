@@ -34,6 +34,22 @@ func TestCCSAppForEventMatchesOnlyExecutable(t *testing.T) {
 	}
 }
 
+func TestManagementAppForEvent(t *testing.T) {
+	for _, tc := range []struct{comm, expected string}{
+		{"astrlink-core", "astrlink"},
+		{"AstrLink.exe", "astrlink"},
+		{"astrlinkcore", "astrlink"},
+		{"claude", "claude"},
+		{"codex", "codex"},
+		{"sh", ""},
+	} {
+		actual := managementAppForEvent(eventSummary{Comm: tc.comm})
+		if actual != tc.expected {
+			t.Errorf("managementAppForEvent(%q) = %q, want %q",tc.comm, actual, tc.expected)
+		}
+	}
+}
+
 func TestCCSDatabasePathOverride(t *testing.T) {
 	t.Setenv("AGENT_RENEW_CCS_DB", "relative.db")
 	if _, err := ccsDatabasePath(); err == nil {
