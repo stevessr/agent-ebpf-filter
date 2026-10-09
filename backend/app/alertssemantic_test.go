@@ -118,6 +118,12 @@ func TestSemanticAlertsDetectMultiAgentFileContention(t *testing.T) {
 	if alert.GetPath() != "/workspace/shared-plan.md" {
 		t.Fatalf("alert path = %q", alert.GetPath())
 	}
+	if alert.GetRiskScore() != 70 {
+		t.Fatalf("temporal pathname correlation alone should be medium priority (70), got %v", alert.GetRiskScore())
+	}
+	if !strings.Contains(alert.GetExtraInfo(), "temporal overlap, identical inode and malicious intent are not established") {
+		t.Fatalf("alert must state what the available evidence cannot prove: %q", alert.GetExtraInfo())
+	}
 	if !strings.Contains(alert.GetExtraInfo(), "run-a") || !strings.Contains(alert.GetExtraInfo(), "run-b") {
 		t.Fatalf("alert reason should include both agent contexts: %q", alert.GetExtraInfo())
 	}
