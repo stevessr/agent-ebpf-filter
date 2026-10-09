@@ -110,7 +110,7 @@ func TestEventProcessInvestigationMissingSnapshot(t *testing.T) {
 		a.eventProcessInvestigation(c, detail, 420)
 	}, 840, 560)
 	tester.Frame()
-	for _, label := range []string{"事件时的进程证据", "PID 391385", "PPID 315919", "实时系统数据暂不可用"} {
+	for _, label := range []string{"事件时的进程证据", "PID 391385", "PPID 315919", "实时系统数据暂不可用；仅显示该事件实际保存的字段。"} {
 		if !tester.HasText(label) {
 			t.Fatalf("missing event-only fallback label %q", label)
 		}
