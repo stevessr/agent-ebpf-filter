@@ -394,10 +394,17 @@ func TestEnforcementTargetsRejectHostnameAndAcceptLiteralIP(t *testing.T) {
 	}
 
 	ip := enforcementTargets(map[string]any{
-		"event": map[string]any{"netEndpoint": "192.0.2.10:443", "path": "/usr/bin/curl"},
+		"event": map[string]any{"type": "execve", "netEndpoint": "192.0.2.10:443", "path": "/usr/bin/curl"},
 	})
 	if ip.IP != "192.0.2.10" || ip.Port != 443 || ip.ExecPath != "/usr/bin/curl" {
 		t.Fatalf("unexpected literal-IP target: %+v", ip)
+	}
+	// A write destination must never be offered as an exec block target.
+	write := enforcementTargets(map[string]any{
+		"Event": map[string]any{"type": "write", "path": "/home/user/document.txt"},
+	})
+	if write.ExecPath != "" {
+		t.Fatalf("file write path must not be a process execution target: %+v", write)
 	}
 }
 
