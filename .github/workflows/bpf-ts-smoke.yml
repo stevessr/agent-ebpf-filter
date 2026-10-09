@@ -97,7 +97,7 @@ jobs:
         run: go test ./core ./app/events ./app/observability ./app -run 'Test(BpfEventAuditABIGuard|KernelSequenceAudit|ApplyKernelAuditGeneration|KernelEnvelopeID|TrackingModeFlags|PathRuleFastRejectSourceContract|PIDFirstEnterTrackingSourceContract|PIDFirstNetworkEnterSourceContract|L7ScratchLookupAfterProtocolGateSourceContract|RemainingMacroEnterPathsArePIDFirst|CompactIOCorrelationSourceContract)' -count=1
       - name: Semantic alert evidence and risk-score regressions
         working-directory: backend
-        run: go test ./app ./app/events -run 'Test(SyntheticSemanticAlertUsesHundredPointRiskScale|SemanticAlertsDetectMultiAgentFileContention|SemanticFileContention|SemanticAlertStateEvictsExpiredEntriesAcrossKinds|NormalizeSemanticPathJoinsTrimmedRelativePath)' -count=1
+        run: go test ./app ./app/events -run 'Test(ToolBaseline|SyntheticSemanticAlertUsesHundredPointRiskScale|SemanticAlertsDetectMultiAgentFileContention|SemanticFileContention|SemanticAlertStateEvictsExpiredEntriesAcrossKinds|NormalizeSemanticPathJoinsTrimmedRelativePath)' -count=1
       - name: Sandbox runtime attribution tests
         working-directory: backend
         run: go test ./app/sandboxruntime ./app/handlers -run 'Test(SandboxRuntime|DetectSnapshot|Manager)' -count=1
