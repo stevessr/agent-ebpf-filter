@@ -172,8 +172,22 @@ func ccsAppForEvent(event eventSummary) string {
 	}
 }
 
+// Correlate management gateways by observed executable only; CCS remains
+// a separate adapter and can still count its own supported tools.
+func managementAppForEvent(event eventSummary) string {
+	comm := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(event.Comm)), ".exe")
+	switch comm {
+	case "astrlink", "astrlink-core", "astrlinkcore":
+		return "astrlink"
+	default:
+		return ccsAppForEvent(event)
+	}
+}
+
 func ccsAppLabel(app string) string {
 	switch app {
+	case "astrlink":
+		return "AstrLink"
 	case "claude":
 		return "Claude Code"
 	case "codex":
@@ -193,7 +207,7 @@ func ccsAppLabel(app string) string {
 
 func (a *renewApp) ccsView(c *ui.Context) {
 	t := c.Theme()
-	ui.Text(c, "CC-Switch 联动").FontSize(28).Bold()
+	ui.Text(c, "CC-Switch · Provider 管理").FontSize(20).Bold()
 	ui.Text(c, "只读取本机 CCS 已选择的 Provider 和代理配置；按进程身份关联 eBPF 事件。不读取 API Key，不修改 CCS。").TextColor(t.TextMuted)
 	ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 		if !a.ccs.Found {
