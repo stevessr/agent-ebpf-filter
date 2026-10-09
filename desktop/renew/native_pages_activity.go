@@ -207,6 +207,15 @@ func (a *renewApp) eventsView(c *ui.Context) {
 		}
 	})
 
+	if a.ccsEventAppFilter != "" {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			statusPill(c, "CC-Switch · "+ccsAppLabel(a.ccsEventAppFilter), t.Accent)
+			if ui.Button(c, "移除 CCS 筛选").Clicked() {
+				a.ccsEventAppFilter = ""
+			}
+		})
+	}
+
 	if a.eventPIDFilter > 0 || a.eventRootPIDFilter > 0 ||
 		a.eventTargetFilter != "" || a.eventFileEditsOnly || a.eventDelegatedOnly {
 		ui.Row(c).Gap(6).Wrap().AlignItems(ui.Center).Children(func() {
