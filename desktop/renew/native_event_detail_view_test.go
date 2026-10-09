@@ -210,3 +210,32 @@ func TestEventDetailFieldLookupPrefersExactKey(t *testing.T) {
 		t.Fatalf("ambiguous aliases resolved nondeterministically: %q, %q, %v", got, origin, ok)
 	}
 }
+
+func TestEventDetailVisualLayoutAcrossThemeAndWindowSizes(t *testing.T) {
+	detail := map[string]any{
+		"Event": map[string]any{
+			"type": "write", "pid": float64(19), "comm": "agent",
+			"path": "/home/user/project/config.txt",
+		},
+	}
+	for _, dims := range [][2]int{{1120, 820}, {510, 680}} {
+		a := &renewApp{eventDetailID: "test-evidence"}
+		tester := ui.NewTester(func(c *ui.Context) {
+			width, _ := c.Size()
+			ui.Scroll(c).Fill().Children(func() {
+				a.richEventDetail(c, detail, width-24)
+			})
+		}, dims[0], dims[1])
+		tester.Frame()
+		for _, label := range []string{"事件概况", "文件操作", "执行主体"} {
+			if !tester.HasText(label) {
+				t.Errorf("%dx%d missing %q", dims[0], dims[1], label)
+			}
+		}
+		tester.SetDark(true)
+		tester.Frame()
+		if !tester.HasText("事件概况") {
+			t.Errorf("%dx%d missing summary in dark theme", dims[0], dims[1])
+		}
+	}
+}
