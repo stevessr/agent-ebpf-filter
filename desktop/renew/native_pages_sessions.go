@@ -47,20 +47,23 @@ func isAgentSummary(event eventSummary) bool {
 		(strings.TrimSpace(event.Tag) != "" && !strings.EqualFold(event.Tag, "Unknown"))
 }
 
+// A session key is based on recorded Agent identity, never on a child comm.
+// Switching from native tools to bash/python must not create another session.
 func eventSessionKey(event eventSummary) string {
-	contextID := strings.Join(nonEmptyStrings(event.AgentRunID, event.ConversationID), ":")
+	if run := strings.TrimSpace(event.AgentRunID); run != "" {
+		return "run:" + run
+	}
 	root := event.RootAgentPID
 	if root <= 0 {
 		root = event.PID
 	}
-	harness := eventHarnessLabel(event)
-	if contextID == "" {
-		return harness + " · PID " + strconv.Itoa(root)
+	if conversation := strings.TrimSpace(event.ConversationID); conversation != "" {
+		return "conversation:" + conversation + ":pid:" + strconv.Itoa(root)
 	}
-	if harness == "未识别" {
-		return harness + " · " + contextID + " · PID " + strconv.Itoa(root)
+	if event.RootAgentPID > 0 {
+		return "agent:pid:" + strconv.Itoa(root)
 	}
-	return harness + " · " + contextID
+	return eventHarnessLabel(event) + " · PID " + strconv.Itoa(root)
 }
 
 func nonEmptyStrings(values ...string) []string {
@@ -75,15 +78,19 @@ func nonEmptyStrings(values ...string) []string {
 
 func aggregateAgentSessions(events []eventSummary) []agentSessionSummary {
 	byKey := make(map[string]*agentSessionSummary)
+	owners := buildAgentOwnershipIndex(events, nil)
 	for _, event := range events {
 		if !isAgentSummary(event) {
 			continue
 		}
 		key := eventSessionKey(event)
+		owner := owners.attribution(event)
 		session := byKey[key]
 		if session == nil {
-			session = &agentSessionSummary{Key: key, Label: key}
+			session = &agentSessionSummary{Key: key, Label: eventSessionDisplayLabel(event, owner)}
 			byKey[key] = session
+		} else if session.Label == "" || (owner.OwnerComm != "" && strings.HasPrefix(session.Label, "Agent PID ")) {
+			session.Label = eventSessionDisplayLabel(event, owner)
 		}
 		session.Events++
 		if eventRisk(event) != "正常" || event.Type == "semantic_alert" || event.Type == "agentsight_alert" {
@@ -92,6 +99,9 @@ func aggregateAgentSessions(events []eventSummary) []agentSessionSummary {
 		if event.ReceivedAtMS >= session.LastSeen {
 			session.LastSeen = event.ReceivedAtMS
 			action := eventAction(event)
+			if executor := attributionExecutorLabel(owner); executor != "" {
+				action += "（" + executor + "）"
+			}
 			target := eventTarget(event)
 			if target != "-" {
 				action += " · " + target
