@@ -109,3 +109,27 @@ func TestHistoricalPIDReuseDoesNotRenameEarlierAgentRun(t *testing.T) {
 		t.Fatalf("historical edit misidentified as reused Claude PID: %+v", owner)
 	}
 }
+
+func TestFileEditCountersDoNotCountNetworkWrites(t *testing.T) {
+	events := []eventSummary{
+		{PID: 100, Comm: "codex", Tag: "Codex", AgentRunID: "run-1", ReceivedAtMS: 10},
+		{PID: 201, RootAgentPID: 100, Comm: "python", AgentRunID: "run-1", Type: "write", Target: "file write", ToolName: "exec", ReceivedAtMS: 20},
+		{PID: 202, RootAgentPID: 100, Comm: "node", AgentRunID: "run-1", Type: "write", Target: "socket write", ReceivedAtMS: 30},
+		{PID: 203, RootAgentPID: 100, Comm: "fish", AgentRunID: "run-1", Type: "network_write", Network: true, ReceivedAtMS: 40},
+		{PID: 204, RootAgentPID: 100, Comm: "bash", AgentRunID: "run-1", Type: "open", Target: "/workspace/file", ReceivedAtMS: 50},
+		{PID: 205, RootAgentPID: 100, Comm: "pwsh", AgentRunID: "run-1", Type: "renameat2", Target: "/workspace/file", ReceivedAtMS: 60},
+	}
+	rows := aggregateAgentSessions(events)
+	if len(rows) != 1 || rows[0].FileEdits != 2 || rows[0].DelegatedEdits != 2 {
+		t.Fatalf("delegated file edits counted incorrectly: %+v", rows)
+	}
+	if got := eventAction(events[1]); got != "修改文件" {
+		t.Fatalf("file syscall should override inherited tool name, got %q", got)
+	}
+	if got := eventAction(events[2]); got == "修改文件" {
+		t.Fatal("socket write misclassified as a file edit")
+	}
+	if isFileMutationSummary(eventSummary{Type: "openai_request"}) {
+		t.Fatal("substring matching must not invent file operations")
+	}
+}
