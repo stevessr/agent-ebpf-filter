@@ -115,7 +115,7 @@ func TestSemanticStateBoundsOversizedIdentifiersAndValues(t *testing.T) {
 }
 
 
-func TestSemanticMutationRequiresSuccessfulSyscallResult(t *testing.T) {
+func TestSemanticFileContentionRequiresSuccessfulSyscallResult(t *testing.T) {
 	for _, kind := range []string{"write", "rename", "unlink", "chmod", "mkdir"} {
 		t.Run(kind, func(t *testing.T) {
 			failed := &pb.Event{Type: kind, Path: "/workspace/shared.txt", Retval: -13}
@@ -138,7 +138,7 @@ func TestSemanticMutationRequiresSuccessfulSyscallResult(t *testing.T) {
 	}
 }
 
-func TestSemanticContentionCooldownAndContainerIsolation(t *testing.T) {
+func TestSemanticFileContentionCooldownAndContainerIsolation(t *testing.T) {
 	start := time.Date(2026, 10, 9, 16, 0, 0, 0, time.UTC)
 	writer := func(id, container string) *pb.Event {
 		return &pb.Event{Type: "write", Path: "/workspace/shared.txt",
