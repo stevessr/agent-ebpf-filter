@@ -160,13 +160,22 @@ func runEventBroadcaster(ctx context.Context) {
 			// Semantic alerts must see the event before recordCapturedEvent
 			// redacts it in place; the broadcaster owns the event outright
 			// once it leaves the queue (see enqueueBroadcastEvent).
-			alerts := buildSemanticAlerts(event)
+			// Capture admission runs after attribution, before analysis or retention.
+			if !captureAgentEvent(event) {
+				continue
+			}
+			var alerts []*pb.Event
+			if monitorAgentEvent(event) {
+				alerts = buildSemanticAlerts(event)
+			}
 			if !shouldIgnoreEventPath(event) {
 				appendRecord(recordCapturedEvent(event))
 			}
 			for _, alert := range alerts {
 				alert = enrichEventContext(alert)
-				appendRecord(recordCapturedEvent(alert))
+				if captureAgentEvent(alert) && monitorAgentEvent(alert) {
+					appendRecord(recordCapturedEvent(alert))
+				}
 			}
 			if len(eventBatch) >= broadcastBatchSize || len(envelopeBatch) >= broadcastBatchSize || len(summaryBatch) >= broadcastBatchSize {
 				flushBatch()
