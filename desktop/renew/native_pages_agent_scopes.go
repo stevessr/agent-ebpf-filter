@@ -200,7 +200,7 @@ func (a *renewApp) agentScopeEditor(c *ui.Context, kind, heading, help string) {
 		ui.Text(c, help).FontSize(12).TextColor(t.TextMuted)
 		ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
 			ui.Select(c, mode, []string{"黑名单", "白名单"}).Label(heading+"模式").Width(145)
-			if list.Mode == "whitelist" && len(list.Entries) == 0 {
+			if *mode == "白名单" && len(agentScopeNames(*text)) == 0 {
 				statusPill(c, "空白名单：不包含任何 Agent", t.Warning)
 			} else {
 				statusPill(c, fmt.Sprintf("已生效 %d 项", len(list.Entries)), t.Accent)
@@ -283,7 +283,9 @@ func (a *renewApp) agentRecognitionView(c *ui.Context) {
 			row := rows[index]
 			switch column {
 			case 0:
-				harnessIdentity(c, displayOr(row.Label, row.Comm), row.Tag, row.Comm)
+				visible := row.Label
+				if visible == "未识别" { visible = row.Comm }
+				harnessIdentity(c, visible, row.Tag, row.Comm)
 			case 1:
 				ui.Text(c, row.Comm+" · "+displayOr(row.Tag, "-")).SingleLine()
 			case 2:
@@ -295,7 +297,9 @@ func (a *renewApp) agentRecognitionView(c *ui.Context) {
 					statusPill(c, "捕获", t.Success)
 				} else { statusPill(c, "排除", t.TextMuted) }
 			case 5:
-				if scopeMatches(a.agentScopes.Monitor, row.Comm, row.Tag) {
+				if !scopeMatches(a.agentScopes.Capture, row.Comm, row.Tag) {
+					statusPill(c, "未捕获", t.TextMuted)
+				} else if scopeMatches(a.agentScopes.Monitor, row.Comm, row.Tag) {
 					statusPill(c, "监视", t.Success)
 				} else { statusPill(c, "跳过", t.TextMuted) }
 			case 6:
