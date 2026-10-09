@@ -285,11 +285,15 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 			field("目标 PID", "targetPid"), field("退出状态", "exitStatus"), field("返回值", "retval"),
 			field("附加信息", "extraInfo"))
 	default:
-		m.Target = prefer("path", "targetPath", "netEndpoint", "domain", "commandLine", "relatedEndpoint")
-		section("操作详情", field("路径", "path", "targetPath", "relatedPath"),
-			field("目标地址", "netEndpoint", "endpoint", "relatedEndpoint"),
-			field("命令行", "commandLine"), field("原因", "reason"),
-			field("结果", "retval"), field("附加信息", "extraInfo"))
+		// A typed payload gets its own domain view below. A generic card here
+		// would mistake unrelated legacy fields for part of that payload.
+		if eventDetailTypedPayload(detail).Kind == "" {
+			m.Target = prefer("path", "targetPath", "netEndpoint", "domain", "commandLine", "relatedEndpoint")
+			section("操作详情", field("路径", "path", "targetPath", "relatedPath"),
+				field("目标地址", "netEndpoint", "endpoint", "relatedEndpoint"),
+				field("命令行", "commandLine"), field("原因", "reason"),
+				field("结果", "retval"), field("附加信息", "extraInfo"))
+		}
 	}
 	// Domain cards use only fields from the corresponding protobuf oneof.
 	// Legacy fields remain visible in the common sections, with their origin.
