@@ -761,6 +761,13 @@ func (s *runtimeState) eventLogRoot() string {
 // retained by the archive, the persistence queue and the websocket batch.
 // Callers must not read or modify it afterwards.
 func recordCapturedEvent(event *pb.Event) CapturedEventRecord {
+	return recordCapturedEventWithMonitoring(event, monitorAgentEvent(event))
+}
+
+// The broadcaster provides the source Agent's monitoring decision for both the
+// source and its derived semantic alerts. Those alerts may have a synthetic
+// Security tag, so re-matching the alert itself would incorrectly drop work.
+func recordCapturedEventWithMonitoring(event *pb.Event, monitorAllowed bool) CapturedEventRecord {
 	if event == nil {
 		return CapturedEventRecord{}
 	}
@@ -786,9 +793,13 @@ func recordCapturedEvent(event *pb.Event) CapturedEventRecord {
 	}
 	recording.Default().Record(record)
 	otelExporterStore.Record(record)
-	queueLoopDetectionRecord(record)
-	research.QueueProcessingRecord(record)
-	queueSignalProcessingRecord(record)
-	persistSignalProgramLog(record)
+	// Capture and monitoring are independent: non-monitored events stay
+	// observable and persistable, but do not enter expensive analysis queues.
+	if monitorAllowed {
+		queueLoopDetectionRecord(record)
+		research.QueueProcessingRecord(record)
+		queueSignalProcessingRecord(record)
+		persistSignalProgramLog(record)
+	}
 	return record
 }

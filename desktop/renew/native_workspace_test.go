@@ -182,7 +182,6 @@ func TestRiskSeverityFilterMatchesClassification(t *testing.T) {
 	}
 }
 
-
 func TestWorkspaceCompactNavigationDoesNotLeaveBlankGutter(t *testing.T) {
 	a := newRenewApp("http://127.0.0.1:8080")
 	view := ui.NewTester(a.view, 1480, 860)
@@ -196,12 +195,19 @@ func TestWorkspaceCompactNavigationDoesNotLeaveBlankGutter(t *testing.T) {
 	if view.HasText("监控工作台") {
 		t.Fatal("the full navigation should not reserve room when collapsed")
 	}
+	if !view.HasText("事件研判") {
+		t.Fatal("the compact layout should retain the incident-inspector on a wide window")
+	}
 
 	// The explicit expand control still provides the full navigation.
 	a.navigationOpen = true
 	view.Frame()
 	if !view.HasText("监控工作台") || !view.HasText("文件访问保护") {
 		t.Fatal("expanded navigation must show the full sidebar contents")
+	}
+	navHeader, found := view.Find("监控工作台")
+	if !found || navHeader.X < 54 || navHeader.X > 240 || navHeader.Y < 0 || navHeader.Y > 200 {
+		t.Fatalf("expanded sidebar content must begin alongside the activity rail, header=%+v found=%v", navHeader, found)
 	}
 	breadcrumb, ok = view.Find("工作区")
 	if !ok || breadcrumb.X < 245 {
