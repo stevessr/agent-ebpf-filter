@@ -6,6 +6,7 @@ import { resolveHarnessIcon } from "../../utils/harnessIcons";
 const props = withDefaults(defineProps<{
   harness?: string | null;
   command?: string | null;
+  commandLine?: string | null;
   size?: number;
   fallback?: boolean;
 }>(), {
@@ -13,7 +14,7 @@ const props = withDefaults(defineProps<{
   fallback: false,
 });
 
-const key = computed(() => resolveHarnessIcon(props.harness, props.command));
+const key = computed(() => resolveHarnessIcon(props.harness, props.command, props.commandLine));
 const failed = ref(false);
 watch(key, () => { failed.value = false; });
 const iconUrl = computed(() =>

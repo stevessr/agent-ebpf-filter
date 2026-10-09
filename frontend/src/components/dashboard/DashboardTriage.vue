@@ -126,7 +126,7 @@ const columns = [
           ><small class="reason">{{ record.reason }}</small></template
         >
         <template v-else-if="column.key === 'activity'"
-          ><strong class="activity-comm"><HarnessIcon :harness="record.latest.comm" :size="16" />{{ record.latest.comm || "未知进程" }}</strong
+          ><strong class="activity-comm"><HarnessIcon :harness="record.latest.harness || record.latest.tag" :command="record.latest.comm" :size="16" />{{ record.latest.comm || "未知进程" }}</strong
           ><small class="reason"
             >PID {{ record.latest.pid }} · {{ record.latest.type }}</small
           ></template

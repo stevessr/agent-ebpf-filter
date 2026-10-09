@@ -3,7 +3,10 @@
     "aliases": [
       "claude",
       "claude-code",
-      "claudecode"
+      "claudecode",
+      "Claude Code CLI",
+      "claude_code",
+      "anthropic-claude-code"
     ],
     "assets": [
       "claudecode-color.svg",
@@ -16,7 +19,10 @@
     "aliases": [
       "codex",
       "codex-code-mode",
-      "codex-code-mode-host"
+      "codex-code-mode-host",
+      "OpenAI Codex",
+      "codex-cli",
+      "codex-app"
     ],
     "assets": [
       "codex-color.svg",
@@ -28,7 +34,8 @@
   "gemini": {
     "aliases": [
       "gemini",
-      "gemini-cli"
+      "gemini-cli",
+      "Google Gemini CLI"
     ],
     "assets": [
       "geminicli-color.svg",
@@ -41,7 +48,11 @@
     "aliases": [
       "dsh",
       "dsh-exec",
-      "deepseek-harness"
+      "deepseek-harness",
+      "DeepSeek Harness",
+      "deepseek-harness-subprocess-policy",
+      "DeepSeek Harness · subprocess policy",
+      "deepseek harness exec"
     ],
     "assets": [
       "deepseek-color.svg",
@@ -51,7 +62,8 @@
   "pi": {
     "aliases": [
       "pi",
-      "pi-coding-agent"
+      "pi-coding-agent",
+      "Pi coding agent"
     ],
     "assets": [
       "pi-color.svg",
@@ -62,7 +74,9 @@
     "aliases": [
       "omp",
       "oh-my-pi",
-      "ohmypi"
+      "ohmypi",
+      "Oh My Pi",
+      "oh-my-pi-cli"
     ],
     "assets": [
       "ohmypi-color.svg",
@@ -77,7 +91,9 @@
       "copilot-cli",
       "github-copilot",
       "github-copilot-cli",
-      "githubcopilot"
+      "githubcopilot",
+      "GitHub Copilot CLI",
+      "Copilot CLI"
     ],
     "assets": [
       "githubcopilot-color.svg",
@@ -87,7 +103,8 @@
   "kiro": {
     "aliases": [
       "kiro",
-      "kiro-cli"
+      "kiro-cli",
+      "Kiro CLI"
     ],
     "assets": [
       "kiro-color.svg",
@@ -99,7 +116,10 @@
       "augment",
       "auggie",
       "augment-code",
-      "augment-cli"
+      "augment-cli",
+      "Augment (Auggie CLI)",
+      "Auggie CLI",
+      "augmentcode"
     ],
     "assets": [
       "augment-color.svg",
@@ -110,7 +130,10 @@
     "aliases": [
       "antigravity",
       "antigravity-cli",
-      "agy"
+      "agy",
+      "Antigravity CLI",
+      "Google Antigravity",
+      "antigravity-agent"
     ],
     "assets": [
       "antigravity-color.svg",
@@ -119,7 +142,10 @@
   },
   "zcode": {
     "aliases": [
-      "zcode"
+      "zcode",
+      "ZCode CLI",
+      "zcode.AppImage",
+      "zcode-cli"
     ],
     "assets": [
       "zcode-color.svg",
@@ -129,7 +155,10 @@
   "mcode": {
     "aliases": [
       "mcode",
-      "minimax-code"
+      "minimax-code",
+      "MiniMax Code",
+      "MiniMax Code CLI",
+      "minimaxcode"
     ],
     "assets": [
       "minimax-color.svg",
@@ -139,7 +168,9 @@
   "cursor": {
     "aliases": [
       "cursor",
-      "cursor-agent"
+      "cursor-agent",
+      "Cursor Agent",
+      "cursor-cli"
     ],
     "assets": [
       "cursor-color.svg",
@@ -149,11 +180,142 @@
   "opencode": {
     "aliases": [
       "opencode",
-      "open-code"
+      "open-code",
+      "OpenCode CLI"
     ],
     "assets": [
       "opencode-color.svg",
       "opencode.svg"
+    ]
+  },
+  "cline": {
+    "aliases": [
+      "cline",
+      "cline-cli"
+    ],
+    "assets": [
+      "cline.svg"
+    ]
+  },
+  "roocode": {
+    "aliases": [
+      "roocode",
+      "roo-code",
+      "roo code"
+    ],
+    "assets": [
+      "roocode.svg"
+    ]
+  },
+  "kilocode": {
+    "aliases": [
+      "kilocode",
+      "kilo-code",
+      "kilo code"
+    ],
+    "assets": [
+      "kilocode.svg"
+    ]
+  },
+  "goose": {
+    "aliases": [
+      "goose",
+      "goose-cli",
+      "block-goose"
+    ],
+    "assets": [
+      "goose.svg"
+    ]
+  },
+  "windsurf": {
+    "aliases": [
+      "windsurf",
+      "windsurf-agent"
+    ],
+    "assets": [
+      "windsurf.svg"
+    ]
+  },
+  "trae": {
+    "aliases": [
+      "trae",
+      "trae-agent"
+    ],
+    "assets": [
+      "trae-color.svg",
+      "trae.svg"
+    ]
+  },
+  "openhands": {
+    "aliases": [
+      "openhands",
+      "open-hands",
+      "openhands-cli"
+    ],
+    "assets": [
+      "openhands-color.svg",
+      "openhands.svg"
+    ]
+  },
+  "qoder": {
+    "aliases": [
+      "qoder",
+      "qoder-cli"
+    ],
+    "assets": [
+      "qoder-color.svg",
+      "qoder.svg"
+    ]
+  },
+  "amp": {
+    "aliases": [
+      "amp",
+      "sourcegraph-amp",
+      "amp-cli"
+    ],
+    "assets": [
+      "amp-color.svg",
+      "amp.svg"
+    ]
+  },
+  "codebuddy": {
+    "aliases": [
+      "codebuddy",
+      "codebuddy-cli"
+    ],
+    "assets": [
+      "codebuddy-color.svg",
+      "codebuddy.svg"
+    ]
+  },
+  "zencoder": {
+    "aliases": [
+      "zencoder",
+      "zencoder-cli"
+    ],
+    "assets": [
+      "zencoder-color.svg",
+      "zencoder.svg"
+    ]
+  },
+  "openclaw": {
+    "aliases": [
+      "openclaw",
+      "open-claw"
+    ],
+    "assets": [
+      "openclaw-color.svg",
+      "openclaw.svg"
+    ]
+  },
+  "devin": {
+    "aliases": [
+      "devin",
+      "devin-ai"
+    ],
+    "assets": [
+      "devin-color.svg",
+      "devin.svg"
     ]
   }
 }

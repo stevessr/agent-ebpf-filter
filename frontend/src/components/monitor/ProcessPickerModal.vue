@@ -219,7 +219,7 @@ const confirmSelection = () => {
               size="small"
               style="padding: 0"
             >
-              <HarnessIcon :harness="record.name" :size="16" />
+              <HarnessIcon :harness="record.name" :command-line="record.cmdline" :size="16" />
               {{ text || "process" }}
             </a-button>
           </template>
