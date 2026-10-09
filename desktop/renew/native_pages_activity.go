@@ -31,13 +31,13 @@ type processAggregate struct {
 
 func (a *renewApp) overview(c *ui.Context) {
 	t := c.Theme()
-	ui.Column(c).Padding(20).Gap(12).Radius(14).Background(t.Accent.Alpha(0.055)).Border(1, t.Accent.Alpha(0.26)).Children(func() {
+	ui.Column(c).Padding(18).Gap(10).Radius(12).Background(t.Surface).Border(1, t.Border).Children(func() {
 		ui.Row(c).Gap(12).Wrap().AlignItems(ui.Center).Children(func() {
-			ui.Box(c).Size(48, 48).Radius(14).Background(t.Accent).Center().Children(func() {
-				ui.Text(c, "镜").FontSize(24).Bold().TextColor(t.AccentText)
+			ui.Box(c).Size(40, 40).Radius(12).Background(t.Accent.Alpha(0.17)).Center().Children(func() {
+				ui.Text(c, "镜").FontSize(20).Bold().TextColor(t.Accent)
 			})
 			ui.Column(c).Grow(1).MinWidth(250).Gap(4).Children(func() {
-				ui.Text(c, desktopBrandName).FontSize(28).Bold()
+				ui.Text(c, "系统运行态势").FontSize(22).Bold()
 				ui.Text(c, desktopBrandSlogan).FontSize(14).TextColor(t.TextMuted)
 			})
 			status, level := a.pipelineStatus()
@@ -81,13 +81,8 @@ func (a *renewApp) overview(c *ui.Context) {
 			if actionLabel, actionPage, attentionOnly := a.overviewAction(); actionLabel != "" {
 				if ui.PrimaryButton(c, actionLabel).Clicked() {
 					if attentionOnly {
-						a.search = ""
-						a.eventTypeFilter = ""
-						a.eventSessionFilter = ""
-						a.eventDecisionFilter = ""
+						a.clearEventFilters()
 						a.eventAttentionOnly = true
-						a.eventVisibleLimit = 50
-						a.eventSelected = -1
 					}
 					a.page = actionPage
 				}
@@ -197,17 +192,23 @@ func (a *renewApp) eventsView(c *ui.Context) {
 		ui.Select(c, &a.eventTypeFilter, eventTypes).Label("事件类型").Width(170)
 		ui.Select(c, &a.eventSessionFilter, eventSessions).Label("会话").Width(210)
 		ui.Select(c, &a.eventDecisionFilter, []string{"", "已阻断", "告警", "已允许"}).Label("决策").Width(130)
+		ui.Select(c, &a.eventRiskFilter, []string{"", "高风险", "需关注", "正常"}).Label("风险等级").Width(130)
 		ui.Checkbox(c, &a.eventAttentionOnly, "只看待关注")
 		if ui.Button(c, "清除筛选").Clicked() {
-			a.search = ""
-			a.eventTypeFilter = ""
-			a.eventSessionFilter = ""
-			a.eventDecisionFilter = ""
-			a.eventAttentionOnly = false
-			a.eventVisibleLimit = 50
-			a.eventSelected = -1
+			a.clearEventFilters()
 		}
 	})
+
+	if a.eventPIDFilter > 0 {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			statusPill(c, fmt.Sprintf("PID = %d", a.eventPIDFilter), t.Accent)
+			if ui.Button(c, "清除 PID 筛选").Clicked() {
+				a.eventPIDFilter = 0
+				a.eventSelected = -1
+				a.inspectorSelectedID = ""
+			}
+		})
+	}
 
 	rows := a.filteredEvents()
 	limit := a.eventVisibleLimit
@@ -233,7 +234,7 @@ func (a *renewApp) eventsView(c *ui.Context) {
 			{Title: "分数", Width: 64, Align: ui.End},
 		}
 		a.eventTable.Key = func(row int) any { return visible[row].EventID }
-		ui.Table(c, &a.eventTable, cols, len(visible), func(row, col int) {
+		table := ui.Table(c, &a.eventTable, cols, len(visible), func(row, col int) {
 			e := visible[row]
 			switch col {
 			case 0:
@@ -241,7 +242,7 @@ func (a *renewApp) eventsView(c *ui.Context) {
 			case 1:
 				ui.Text(c, eventAction(e)).SingleLine()
 			case 2:
-				ui.Text(c, displayOr(e.Comm, "-")).SingleLine()
+				harnessIdentity(c, displayOr(e.Comm, "-"), e.Tag, e.Comm)
 			case 3:
 				ui.Text(c, eventTarget(e)).SingleLine()
 			case 4:
@@ -255,12 +256,33 @@ func (a *renewApp) eventsView(c *ui.Context) {
 				}
 			}
 		}).Height(440).Label("事件摘要")
+		if table.Changed() && a.eventSelected >= 0 && a.eventSelected < len(visible) {
+			a.inspectorSelectedID = visible[a.eventSelected].EventID
+		}
+		if table.Submitted() && a.eventSelected >= 0 && a.eventSelected < len(visible) {
+			a.openEventDetail(visible[a.eventSelected].EventID)
+		}
 		if a.eventSelected >= 0 && a.eventSelected < len(visible) {
 			selected := visible[a.eventSelected]
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
 				ui.Text(c, selected.EventID).Font("monospace").FontSize(10).TextColor(t.TextMuted).Grow(1)
 				if ui.PrimaryButton(c, "详细").Clicked() {
 					a.openEventDetail(selected.EventID)
+				}
+				if selected.PID > 0 && ui.Button(c, "同 PID").Clicked() {
+					a.openEventFilter(selected, "pid")
+				}
+				if isAgentSummary(selected) && ui.Button(c, "同会话").Clicked() {
+					a.openEventFilter(selected, "session")
+				}
+				if ui.Button(c, "固定到研判栏").Clicked() {
+					a.inspectorPinnedID = selected.EventID
+					a.inspectorOpen = true
+					a.inspectorTab = 0
+					width, _ := c.Size()
+					if width < 1320 {
+						a.page = "研判"
+					}
 				}
 			})
 		}
@@ -320,6 +342,17 @@ func (a *renewApp) networkView(c *ui.Context) {
 				ui.Textf(c, "%.0f", r.Risk)
 			}
 		}).Height(480).Label("网络目标")
+		if a.networkSelected >= 0 && a.networkSelected < len(rows) {
+			target := rows[a.networkSelected].Target
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, target).FontSize(11).Font("monospace").TextColor(t.TextMuted).Grow(1).MaxLines(2)
+				if ui.PrimaryButton(c, "查看该目标事件").Clicked() {
+					a.clearEventFilters()
+					a.page = "事件"
+					a.search = target
+				}
+			})
+		}
 	})
 }
 
@@ -352,7 +385,7 @@ func (a *renewApp) processesView(c *ui.Context) {
 				case 1:
 					ui.Text(c, strconv.Itoa(p.PPID)).Font("monospace")
 				case 2:
-					ui.Text(c, displayOr(p.Name, "未知进程")).SingleLine()
+					harnessIdentity(c, displayOr(p.Name, "未知进程"), p.Name)
 				case 3:
 					ui.Textf(c, "%.1f%%", p.CPU)
 				case 4:
@@ -367,9 +400,14 @@ func (a *renewApp) processesView(c *ui.Context) {
 			}
 			if a.processSelected >= 0 && a.processSelected < len(rows) {
 				p := rows[a.processSelected]
-				ui.Column(c).Gap(5).Children(func() {
+				ui.Column(c).Gap(6).Children(func() {
 					ui.Textf(c, "%s · PID %d / PPID %d", displayOr(p.Name, "未知进程"), p.PID, p.PPID).Bold()
 					ui.Text(c, displayOr(p.Cmdline, "后端未提供命令行")).Font("monospace").FontSize(10).TextColor(t.TextMuted).MaxLines(4)
+					if ui.Button(c, "查看此 PID 的事件").Clicked() {
+						a.clearEventFilters()
+						a.eventPIDFilter = p.PID
+						a.page = "事件"
+					}
 				})
 			}
 		})
@@ -407,7 +445,7 @@ func (a *renewApp) processesView(c *ui.Context) {
 					ui.Text(c, "-")
 				}
 			case 2:
-				ui.Text(c, displayOr(r.Comm, "未知进程")).SingleLine()
+				harnessIdentity(c, displayOr(r.Comm, "未知进程"), r.Comm)
 			case 3:
 				ui.Text(c, strconv.Itoa(r.Events))
 			case 4:
@@ -416,6 +454,14 @@ func (a *renewApp) processesView(c *ui.Context) {
 				ui.Text(c, summaryTime(r.LastMS)).SingleLine()
 			}
 		}).Height(480).Label("活动进程")
+		if a.processSelected >= 0 && a.processSelected < len(rows) {
+			pid := rows[a.processSelected].PID
+			if ui.Button(c, fmt.Sprintf("查看 PID %d 的事件", pid)).Clicked() {
+				a.clearEventFilters()
+				a.eventPIDFilter = pid
+				a.page = "事件"
+			}
+		}
 	})
 }
 func (a *renewApp) systemView(c *ui.Context) {
@@ -511,7 +557,12 @@ func (a *renewApp) eventRow(c *ui.Context, e eventSummary) {
 			ui.Row(c).Gap(8).Children(func() {
 				ui.Text(c, eventAction(e)).Bold()
 				if e.Comm != "" {
-					ui.Badge(c, e.Comm)
+					ui.Row(c).Gap(5).AlignItems(ui.Center).Children(func() {
+						if label := eventHarnessLabel(e); label != "未识别" {
+							drawHarnessIcon(c, label)
+						}
+						ui.Badge(c, e.Comm)
+					})
 				}
 				risk := eventRisk(e)
 				if risk != "正常" {
@@ -522,6 +573,9 @@ func (a *renewApp) eventRow(c *ui.Context, e eventSummary) {
 		})
 		if e.RiskScore > 0 {
 			ui.Textf(c, "%.0f", e.RiskScore).Width(36).Font("monospace").TextColor(t.TextMuted)
+		}
+		if e.EventID != "" && ui.Button(c, "定位").Tooltip("在事件表中选中这条摘要").Clicked() {
+			a.focusSummary(e.EventID)
 		}
 	})
 }

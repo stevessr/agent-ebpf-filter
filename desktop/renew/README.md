@@ -6,6 +6,23 @@
 
 明镜高悬是 Agent eBPF Filter 的原生桌面监控应用。界面完全使用 Go 和 MyGo `ui` 组件绘制，不依赖 WebView、Vite、HTML、JavaScript 或 Vue Renew 前端运行时。
 
+## Native workspace layout
+
+Renew renders an editor-inspired low-glare navy workspace **entirely with native MyGo widgets**. Its 54-DIP activity rail offers page shortcuts and toggles the 198-DIP navigation sidebar. The center retains live eBPF monitoring, sessions, network/process tables and existing privileged management controls. A page toolbar provides search, stream pause and context-aware refresh (rules, tracking, eBPF module state and path permissions re-fetch their own data).
+
+When the center has at least 760 DIPs left after the icon rail, animated navigation width, and 302-DIP inspector, Overview, Events, Sessions, Network, Processes and System can show the optional right incident-inspector rail. Collapsing the navigation makes more room for it without overlapping tables during the transition. On narrower windows, **风险研判工作台** is available as a dedicated page, so the investigation features are still accessible.
+
+### Incident investigation
+
+- **事件研判** shows risk-severity totals for the bounded summary window, the selected event, and the most recent alert/block events. Click any risk counter to filter the Events page to exactly that severity.
+- **Fixed selection** pins an event by ID across live additions. If that summary ages out, the inspector announces it rather than silently replacing it. Event-table selections are also reconciled by ID when live inserts reorder rows.
+- Actions support copying the redacted compact summary, selecting the event in its table, viewing the complete detail on explicit request, and read-only correlation by exact PID, event type or Agent session.
+- **运行诊断** presents the backend's real capture health, ringbuffer loss, queue lengths, event/system transport status and actual CPU/memory telemetry. It never infers a clean capture from an empty alert list.
+- Events, Agent sessions, network targets and processes provide direct drill-down into related events; switching correlation scopes clears incompatible prior event filters.
+- All filters operate on the bounded 1200-summary in-memory window, with older-record pagination through the existing backend API. They do **not** change kernel capture rules or claim to search all history.
+
+No new privileged API or AI inference service is introduced. As before, only the explicit event Details action retrieves a complete event payload; closing its modal discards it from the desktop. The workspace shell (`native_workspace.go`) and inspector (`native_inspector.go`) remain independent of the native IPC data path and original per-page monitoring implementations.
+
 The desktop process stays unprivileged. On Linux it reuses an already running backend or re-executes the **same Renew executable** in an internal backend mode and requests system authorization for that child. The backend is linked as a Go library; there is no packaged backend sidecar. Only the internal backend child gains privileges.
 
 ## Architecture
@@ -117,7 +134,7 @@ cd desktop/renew
 go tool mygo build
 ```
 
-The build hook generates the backend protobuf/eBPF bindings, then MyGo links the backend library directly into Renew. The Linux output `build/linux-amd64/renew` remains the complete UI + backend executable. No `agent-ebpf-filter` helper ELF, askpass script, or `frontend/dist` bundle is shipped beside it. The terminal plugin additionally needs a verified `libghostty-vt.so` runtime, shipped with the full MyGo Linux packages; the legacy `renew-linux-amd64-single-binary` artifact contains only the executable and therefore may not provide a working terminal on a clean machine.
+The build hook generates the backend protobuf/eBPF bindings, then MyGo links the backend library directly into Renew. The Linux output `build/linux-amd64/renew` contains the UI + backend; the terminal additionally uses a verified `libghostty-vt.so` native runtime supplied by the complete MyGo Linux package. No `agent-ebpf-filter` helper ELF, askpass script, or `frontend/dist` bundle is shipped beside it. The CI workflow also publishes that executable by itself as the `renew-linux-amd64-single-binary` artifact.
 
 On Linux the native MyGo UI uses GTK for the window and MyGo's own renderer. WebKitGTK is not required by Renew Desktop.
 
@@ -162,3 +179,10 @@ The tracking panel can filter by tag and activation status. Commands may be disa
 New runtime configs ignore `/proc` and `/tmp` by default. The extra built-in `/usr/bin` rule suppresses only low-risk read/write operations (not executable launches, renames, or policy alerts); the explicit empty `ignoredPaths: []` opt-out remains effective. Already saved custom ignored paths are not overwritten.
 
 In bundled mode the privileged child listens only on an authenticated private Unix domain API socket, plus the separate lifetime/event-stream socket. It does **not** open TCP port 8080 or write a backend port file. When the user explicitly connects to a pre-existing local/remote backend, the desktop reuses that independently managed endpoint without changing how that service listens.
+
+## MyGo v0.3.4 appearance and responsive UI
+
+- The native Go desktop module pins **MyGo v0.3.4** (the Go CLI tool shares the module version); it does not add a WebView runtime.
+- Windows 11 supports a Mica material and macOS supports a sidebar material where the compositor offers native vibrancy. The toolbar provides a session-only **纯色模式 / 系统材质** switch; all content tables and event details keep opaque surfaces for readability. Unsupported Windows versions and Linux (Wayland/X11) retain the full opaque navy theme. Do not imply Linux compositor material support.
+- Navigation opens and closes with native, reduced-motion-aware animation. Page changes have a modest entrance transition; the toolbar automatically overflows actions at narrow sizes while preserving keyboard and screen-reader behavior.
+- Search, event pinning, explicit detail requests and privileged backend permissions are unchanged. No additional collection, telemetry or network call is introduced by these UI effects.

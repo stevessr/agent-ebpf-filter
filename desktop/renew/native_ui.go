@@ -26,7 +26,7 @@ type renewApp struct {
 	search string
 	paused bool
 
-	// The GoRex-inspired terminal lives entirely in the unprivileged UI.
+	// Local native terminal lifecycle stays outside the privileged backend.
 	terminalInitialized bool
 	terminalTabs []*renewTerminalTab
 	terminalActive int
@@ -34,6 +34,12 @@ type renewApp struct {
 	terminalFocusRequest int
 	terminalError string
 	terminalClosing atomic.Bool
+	navigationOpen bool
+	inspectorOpen bool
+	materialEnabled bool
+	inspectorTab int
+	inspectorPinnedID string
+	inspectorSelectedID string
 
 	events             []eventSummary
 	eventMergeScratch  []eventSummary
@@ -75,6 +81,7 @@ type renewApp struct {
 
 	eventTable          ui.ListState
 	networkTable        ui.ListState
+	networkSelected     int
 	processTable        ui.ListState
 	sessionTable        ui.ListState
 	rulesTable          ui.ListState
@@ -88,6 +95,8 @@ type renewApp struct {
 	commSelected        int
 	pathSelected        int
 	prefixSelected      int
+	eventPIDFilter      int
+	eventRiskFilter     string
 	eventTypeFilter     string
 	eventSessionFilter  string
 	eventDecisionFilter string
@@ -160,7 +169,11 @@ func newRenewApp(backend string) *renewApp {
 		backend:            backend,
 		starting:           true,
 		page:               "概览",
+		navigationOpen:       true,
+		inspectorOpen:      true,
+		materialEnabled:    true,
 		eventSelected:      -1,
+		networkSelected:    -1,
 		processSelected:    -1,
 		sessionSelected:    -1,
 		ruleSelected:       -1,
@@ -175,6 +188,7 @@ func newRenewApp(backend string) *renewApp {
 		pathAccessMode: "阻止写入",
 	}
 	a.eventTable.Selected = &a.eventSelected
+	a.networkTable.Selected = &a.networkSelected
 	a.processTable.Selected = &a.processSelected
 	a.sessionTable.Selected = &a.sessionSelected
 	a.rulesTable.Selected = &a.ruleSelected
@@ -291,183 +305,9 @@ func (a *renewApp) refreshConfiguration(parent context.Context) {
 	})
 }
 
+// view delegates the desktop shell to its own file so monitoring pages stay independent.
 func (a *renewApp) view(c *ui.Context) {
-	t := c.Theme()
-	ui.Row(c).Fill().AlignItems(ui.Stretch).Children(func() {
-		a.sidebar(c)
-		ui.Column(c).Grow(1).MinWidth(0).Background(t.Background).Children(func() {
-			a.header(c)
-			if a.page == "终端" {
-				a.terminalView(c)
-			} else {
-				ui.Scroll(c).Grow(1).Padding(24).Gap(18).Children(func() {
-					if a.starting {
-						a.startingView(c)
-						return
-					}
-					if a.lastErr != "" && len(a.events) == 0 {
-						a.errorView(c)
-						return
-					}
-					switch a.page {
-					case "事件":
-						a.eventsView(c)
-					case "会话":
-						a.sessionsView(c)
-					case "网络":
-						a.networkView(c)
-					case "进程":
-						a.processesView(c)
-					case "监控":
-						a.monitoringView(c)
-					case "eBPF 模块":
-						a.ebpfModulesView(c)
-					case "规则":
-						a.rulesView(c)
-					case "跟踪":
-						a.trackingView(c)
-					case "路径权限":
-						a.pathAccessView(c)
-					case "系统":
-						a.systemView(c)
-					default:
-						a.overview(c)
-					}
-				})
-			}
-			detailWasOpen := a.eventDetailOpen
-			a.eventDetailModal(c)
-			if detailWasOpen && !a.eventDetailOpen {
-				a.releaseEventDetailPayload()
-			}
-		})
-	})
-}
-
-func (a *renewApp) sidebar(c *ui.Context) {
-	t := c.Theme()
-	_, attention, danger := a.riskCounts()
-
-	ui.Column(c).Width(224).Shrink(0).Background(t.Surface).Children(func() {
-		ui.Row(c).Padding(18, 16, 12, 16).Gap(10).AlignItems(ui.Center).Children(func() {
-			ui.Box(c).Size(36, 36).Radius(11).Background(t.Accent).Center().Children(func() {
-				ui.Text(c, "镜").FontSize(18).Bold().TextColor(t.AccentText)
-			})
-			ui.Column(c).Gap(2).Children(func() {
-				ui.Text(c, desktopBrandName).FontSize(17).Bold()
-				ui.Text(c, "Agent 行为观测与防护").FontSize(10).TextColor(t.TextMuted)
-			})
-		})
-
-		ui.Sidebar(c, &a.page, func() {
-			ui.SidebarSection(c, "监控", nil, func() {
-				ui.SidebarItem(c, "概览", nil, "概览")
-				events := ui.SidebarItem(c, "事件", nil, "事件")
-				switch {
-				case danger > 0:
-					events.Children(func() {
-						statusPill(c, fmt.Sprint(danger), t.Danger)
-					})
-				case attention > 0:
-					events.Children(func() {
-						statusPill(c, fmt.Sprint(attention), t.Warning)
-					})
-				}
-				ui.SidebarItem(c, "会话", nil, "会话")
-				ui.SidebarItem(c, "网络", nil, "网络")
-				ui.SidebarItem(c, "进程", nil, "进程")
-			})
-			ui.SidebarSection(c, "管理", nil, func() {
-				ui.SidebarItem(c, "监控", nil, "采集与能力")
-				ui.SidebarItem(c, "eBPF 模块", nil, "内核程序挂载")
-				ui.SidebarItem(c, "规则", nil, "Wrapper 规则")
-				ui.SidebarItem(c, "跟踪", nil, "跟踪范围")
-				ui.SidebarItem(c, "路径权限", nil, "敏感文件读写保护")
-			})
-			ui.SidebarSection(c, "工具", nil, func() {
-				ui.SidebarItem(c, "终端", nil, "本地 Shell 与分屏工作区")
-			})
-			ui.SidebarSection(c, "诊断", nil, func() {
-				system := ui.SidebarItem(c, "系统", nil, "系统")
-				_, collectorLevel := a.collectorStatus()
-				switch {
-				case collectorLevel == "danger":
-					system.Children(func() {
-						statusPill(c, "异常", t.Danger)
-					})
-				case collectorLevel == "warning":
-					system.Children(func() {
-						statusPill(c, "同步", t.Warning)
-					})
-				case a.connected && (!a.eventStreamConnected || !a.systemConnected):
-					system.Children(func() {
-						statusPill(c, "降级", t.Warning)
-					})
-				}
-			})
-		}).Grow(1).Width(224)
-
-		ui.Divider(c)
-		ui.Column(c).Padding(12, 16, 16, 16).Gap(6).Children(func() {
-			status, tone := "未连接", t.Danger
-			switch {
-			case a.starting:
-				status, tone = "正在启动", t.Warning
-			case a.connected:
-				status, tone = "后端已连接", t.Success
-			}
-			ui.Row(c).Gap(7).AlignItems(ui.Center).Children(func() {
-				statusPill(c, status, tone)
-				if a.paused {
-					statusPill(c, "已暂停", t.Warning)
-				}
-			})
-			ui.Text(c, a.backend).Font("monospace").FontSize(10).TextColor(t.TextMuted).MaxLines(2)
-		})
-	})
-}
-
-func (a *renewApp) header(c *ui.Context) {
-	t := c.Theme()
-	ui.Row(c).MinHeight(64).Padding(9, 18).Gap(12).AlignItems(ui.Center).Background(t.Surface).Children(func() {
-		ui.Column(c).Gap(3).MinWidth(160).Children(func() {
-			ui.Text(c, a.page).FontSize(18).Bold()
-			ui.Text(c, pageSubtitle(a.page)).FontSize(10).TextColor(t.TextMuted).SingleLine()
-		})
-
-		pipelineLabel, pipelineLevel := a.pipelineStatus()
-		pipelineTone := t.Success
-		if pipelineLevel == "danger" {
-			pipelineTone = t.Danger
-		} else if pipelineLevel == "warning" {
-			pipelineTone = t.Warning
-		}
-		statusPill(c, pipelineLabel, pipelineTone)
-
-		ui.Spacer(c)
-		if pageUsesEventSearch(a.page) {
-			ui.SearchField(c, &a.search).Label("搜索当前视图").Width(240)
-		}
-		ui.Toolbar(c, func() {
-			label := "暂停"
-			if a.paused {
-				label = "继续"
-			}
-			if ui.Button(c, label).Tooltip("暂停或继续桌面事件合并").Clicked() {
-				a.paused = !a.paused
-				a.eventUIPaused.Store(a.paused)
-				if !a.paused {
-					go a.refresh(context.Background())
-				}
-			}
-			if ui.Button(c, "刷新").Tooltip("立即同步当前后端状态").Clicked() {
-				go a.refresh(context.Background())
-				if a.page == "监控" || a.page == "规则" || a.page == "跟踪" {
-					go a.refreshConfiguration(context.Background())
-				}
-			}
-		}).Label("页面操作")
-	})
+	a.workspaceView(c)
 }
 
 func (a *renewApp) collectorStatus() (label, level string) {
@@ -506,6 +346,8 @@ func (a *renewApp) pipelineStatus() (label, level string) {
 
 func pageSubtitle(page string) string {
 	switch page {
+	case "研判":
+		return "事件研判、上下文筛选与运行诊断"
 	case "事件":
 		return "实时事件、风险筛选与按需详情"
 	case "会话":
@@ -527,7 +369,7 @@ func pageSubtitle(page string) string {
 	case "系统":
 		return "采集器、系统流与队列诊断"
 	case "终端":
-		return "本地普通用户 Shell · Ghostty VT · 多标签与分屏"
+		return "普通用户 Shell · Ghostty VT · 多标签与分屏"
 	default:
 		return "健康、风险与最近活动"
 	}
@@ -590,7 +432,7 @@ func (a *renewApp) errorView(c *ui.Context) {
 
 func (a *renewApp) eventFilterCacheKey() string {
 	q := strings.ToLower(strings.TrimSpace(a.search))
-	key := q + "\x00" + a.eventTypeFilter + "\x00" + a.eventSessionFilter + "\x00" + a.eventDecisionFilter
+	key := q + "\x00" + a.eventTypeFilter + "\x00" + a.eventSessionFilter + "\x00" + a.eventDecisionFilter + "\x00" + fmt.Sprint(a.eventPIDFilter) + "\x00" + a.eventRiskFilter
 	if a.eventAttentionOnly {
 		key += "\x001"
 	}
@@ -603,7 +445,7 @@ func (a *renewApp) filteredEvents() []eventSummary {
 	if a.filterCacheValid && a.filterCacheVersion == a.eventsVersion && a.filterCacheKey == key {
 		return a.filterCacheRows
 	}
-	if q == "" && a.eventTypeFilter == "" && a.eventSessionFilter == "" && a.eventDecisionFilter == "" && !a.eventAttentionOnly {
+	if q == "" && a.eventPIDFilter == 0 && a.eventRiskFilter == "" && a.eventTypeFilter == "" && a.eventSessionFilter == "" && a.eventDecisionFilter == "" && !a.eventAttentionOnly {
 		a.filterCacheValid = true
 		a.filterCacheVersion = a.eventsVersion
 		a.filterCacheKey = key
@@ -614,6 +456,12 @@ func (a *renewApp) filteredEvents() []eventSummary {
 	out := make([]eventSummary, 0, min(len(a.events), 256))
 	for _, event := range a.events {
 		if q != "" && !strings.Contains(eventSearchText(event), q) {
+			continue
+		}
+		if a.eventRiskFilter != "" && eventRisk(event) != a.eventRiskFilter {
+			continue
+		}
+		if a.eventPIDFilter > 0 && event.PID != a.eventPIDFilter {
 			continue
 		}
 		if a.eventTypeFilter != "" && event.Type != a.eventTypeFilter {

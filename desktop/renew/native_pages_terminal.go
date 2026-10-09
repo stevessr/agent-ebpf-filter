@@ -402,11 +402,11 @@ func (a *renewApp) terminalView(c *ui.Context) {
 	})
 }
 
-func (a *renewApp) terminalNodeView(c *ui.Context, tab *renewTerminalTab, n *renewTerminalNode) *ui.Element {
+func (a *renewApp) terminalNodeView(c *ui.Context, tab *renewTerminalTab, n *renewTerminalNode) ui.Element {
 	if n.pane != nil {
 		return a.terminalPaneView(c, tab, n.pane)
 	}
-	var box *ui.Element
+	var box ui.Element
 	if n.vertical {
 		box = ui.Column(c)
 	} else {
@@ -439,7 +439,7 @@ func (a *renewApp) terminalNodeView(c *ui.Context, tab *renewTerminalTab, n *ren
 	return box
 }
 
-func (a *renewApp) terminalPaneView(c *ui.Context, tab *renewTerminalTab, pane *renewTerminalPane) *ui.Element {
+func (a *renewApp) terminalPaneView(c *ui.Context, tab *renewTerminalTab, pane *renewTerminalPane) ui.Element {
 	t := c.Theme()
 	col := ui.Column(c).MinWidth(0).MinHeight(0).Radius(10).Clip().
 		Background(t.Surface).Border(1, t.Border)
