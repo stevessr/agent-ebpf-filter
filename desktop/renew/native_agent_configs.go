@@ -26,6 +26,7 @@ type agentConfigCandidate struct {
 	Host     string
 	HostKind string
 	Source   string
+	Security string // allowlisted permission/sandbox posture; never an enforcement verdict
 }
 
 type agentConfigInspection struct {
@@ -100,6 +101,9 @@ func readClaudeCandidate(path, scope string) (agentConfigCandidate, bool, error)
 	var settings struct {
 		Model string            `json:"model"`
 		Env   map[string]string `json:"env"`
+		Permissions struct {
+			DefaultMode string `json:"defaultMode"`
+		} `json:"permissions"`
 	}
 	if err := json.Unmarshal(data, &settings); err != nil {
 		return agentConfigCandidate{}, true, errors.New("JSON 格式不正确或字段类型不匹配")
@@ -107,6 +111,7 @@ func readClaudeCandidate(path, scope string) (agentConfigCandidate, bool, error)
 	c := agentConfigCandidate{
 		Agent: "Claude Code", Scope: scope, Provider: "Anthropic / 未明确指定",
 		Model: configLabel(settings.Model), Source: "settings.json",
+		Security: claudeConfigSecurity(settings.Permissions.DefaultMode, scope),
 	}
 	if model := configLabel(settings.Env["ANTHROPIC_MODEL"]); model != "" {
 		c.Model = model
@@ -132,6 +137,57 @@ func readClaudeCandidate(path, scope string) (agentConfigCandidate, bool, error)
 	return c, true, nil
 }
 
+func claudeConfigSecurity(mode, scope string) string {
+	switch mode {
+	case "bypassPermissions":
+		return "绕过权限提示（候选，需核查）"
+	case "acceptEdits":
+		return "自动接受文件编辑"
+	case "dontAsk":
+		return "不弹出授权请求"
+	case "plan":
+		return "计划模式"
+	case "auto":
+		if strings.HasPrefix(scope, "项目") {
+			return "auto（项目层不生效）"
+		}
+		return "auto 模式"
+	case "default", "manual":
+		return "默认交互权限"
+	default:
+		return "未声明权限模式"
+	}
+}
+
+func codexConfigSecurity(doc map[string]any) string {
+	var details []string
+	switch mode := tomlString(doc, "sandbox_mode"); mode {
+	case "danger-full-access":
+		details = append(details, "无沙箱（需核查）")
+	case "workspace-write":
+		details = append(details, "工作区写入")
+	case "read-only":
+		details = append(details, "只读沙箱")
+	}
+	switch policy := tomlString(doc, "approval_policy"); policy {
+	case "never":
+		details = append(details, "不请求审批")
+	case "on-request":
+		details = append(details, "按需审批")
+	case "untrusted":
+		details = append(details, "未受信任审批")
+	}
+	if workspace := tomlTable(doc["sandbox_workspace_write"]); workspace != nil {
+		if allowed, ok := workspace["network_access"].(bool); ok && allowed {
+			details = append(details, "沙箱允许外联")
+		}
+	}
+	if len(details) == 0 {
+		return "未声明隔离/审批策略"
+	}
+	return strings.Join(details, " · ")
+}
+
 func enabledClaudeFlag(value string) bool {
 	return value == "1" || strings.EqualFold(value, "true")
 }
@@ -151,7 +207,7 @@ func codexCandidate(doc map[string]any, scope string, allowProvider bool) []agen
 	provider := configLabel(tomlString(doc, "model_provider"))
 	if !allowProvider {
 		// Codex rejects machine-local provider configuration from project files.
-		return []agentConfigCandidate{{Agent: "Codex", Scope: scope, Model: model, Source: "config.toml · 项目模型候选"}}
+		return []agentConfigCandidate{{Agent: "Codex", Scope: scope, Model: model, Source: "config.toml · 项目模型候选", Security: codexConfigSecurity(doc)}}
 	}
 	if provider == "" {
 		provider = "openai"
@@ -168,6 +224,7 @@ func codexCandidate(doc map[string]any, scope string, allowProvider bool) []agen
 	result := []agentConfigCandidate{{
 		Agent: "Codex", Scope: scope, Provider: provider, Model: model,
 		Host: host, HostKind: kind, Source: "config.toml · 当前声明",
+		Security: codexConfigSecurity(doc),
 	}}
 	// Other configured providers are alternatives, not active endpoints.
 	names := make([]string, 0, len(providers))
@@ -183,6 +240,7 @@ func codexCandidate(doc map[string]any, scope string, allowProvider bool) []agen
 		result = append(result, agentConfigCandidate{
 			Agent: "Codex", Scope: scope, Provider: name, Host: host,
 			HostKind: kind, Source: "config.toml · 未选用的 Provider",
+			Security: "非当前 Provider（不表示实际使用）",
 		})
 	}
 	// A configured [profiles.name] profile is a candidate, not an active
@@ -211,6 +269,7 @@ func codexCandidate(doc map[string]any, scope string, allowProvider bool) []agen
 				Agent: "Codex", Scope: scope + " · profile " + selected,
 				Provider: name, Model: alternateModel, Host: host, HostKind: kind,
 				Source: "config.toml · 选中 Profile（可能被 CLI 覆盖）",
+				Security: codexConfigSecurity(profile),
 			})
 		}
 	}
