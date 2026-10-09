@@ -253,7 +253,7 @@ func (a *renewApp) agentScopeEditor(c *ui.Context, kind, heading, help string) {
 		ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
 			ui.Select(c, mode, []string{"黑名单", "白名单"}).Label(heading+"模式").Width(145)
 			if *mode == "白名单" && len(agentScopeNames(*text)) == 0 {
-				statusPill(c, "空白名单：不包含任何 Agent", t.Warning)
+				statusPill(c, "保存空白名单将停止对应处理", t.Warning)
 			} else {
 				statusPill(c, fmt.Sprintf("已生效 %d 项", len(list.Entries)), t.Accent)
 			}
@@ -306,7 +306,18 @@ func (a *renewApp) agentRecognitionView(c *ui.Context) {
 	}
 	card(c, "Agent 识别 · 实时进程、近期事件与跟踪登记", func() {
 		ui.SearchField(c, &a.agentSearch).Label("搜索 Agent、标签或 PID")
-		rows := aggregateAgentRecognitionWithProcesses(a.events, a.registry, a.system.Processes)
+		// System stream snapshots may outlive a disconnected stream; do not show
+		// stale processes as actively running. Event/registry fallbacks remain.
+		var live []systemProcess
+		if a.systemConnected && !a.system.FetchedAt.IsZero() &&
+			time.Since(a.system.FetchedAt) < 15*time.Second {
+			live = a.system.Processes
+		}
+		if a.agentLastSearch != a.agentSearch {
+			a.agentSelected = -1
+			a.agentLastSearch = a.agentSearch
+		}
+		rows := aggregateAgentRecognitionWithProcesses(a.events, a.registry, live)
 		if query := strings.ToLower(strings.TrimSpace(a.agentSearch)); query != "" {
 			filtered := make([]agentRecognitionRow, 0, len(rows))
 			for _, row := range rows {
@@ -317,7 +328,7 @@ func (a *renewApp) agentRecognitionView(c *ui.Context) {
 			rows = filtered
 		}
 		if len(rows) == 0 {
-			ui.Text(c, "当前没有已识别的 Agent；可先在「跟踪」登记命令，或等待 Agent 事件。").TextColor(t.TextMuted)
+			ui.Text(c, "当前没有已识别 Agent；可以先登记命令、启动受支持的 Agent，或等待其事件。").TextColor(t.TextMuted)
 			if ui.Button(c, "打开跟踪").Clicked() { a.page = "跟踪" }
 			return
 		}
