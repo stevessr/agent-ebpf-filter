@@ -199,3 +199,53 @@ func TestDetailHeadlineUsesTypedEvidenceNotSubstring(t *testing.T) {
 		})
 	}
 }
+
+func TestTelemetryWithoutTargetDoesNotRaiseFalseMissingPathWarning(t *testing.T) {
+	detail := map[string]any{
+		"Event": map[string]any{"type": "system_metric", "comm": "agent"},
+		"Envelope": map[string]any{"systemMetricEvent": map[string]any{"cpuPercent": float64(1.2)}},
+	}
+	model := eventDetailModel(detail)
+	if !model.NoTargetExpected || model.Target != "无文件或网络操作对象" || model.EvidenceNote == "" {
+		t.Fatalf("metric-only event should not appear to have lost a file path: %+v", model)
+	}
+}
+
+func TestWriteWithoutPathExplainsFDLimitations(t *testing.T) {
+	model := eventDetailModel(map[string]any{
+		"Event": map[string]any{"type": "write", "pid": float64(90)},
+	})
+	if model.NoTargetExpected || !strings.Contains(model.EvidenceNote, "文件描述符") {
+		t.Fatalf("write target unknown should explain FD-based system call: %+v", model)
+	}
+}
+
+func TestConflictingTypedAndLegacyEnforcementTargetsAreRejected(t *testing.T) {
+	for _, detail := range []map[string]any{
+		{
+			"Event": map[string]any{
+				"type": "connect", "netEndpoint": "192.0.2.1:443",
+			},
+			"Envelope": map[string]any{"networkEvent": map[string]any{
+				"endpoint": "198.51.100.2:443",
+			}},
+		},
+		{
+			"Event": map[string]any{"type": "execve", "path": "/usr/bin/true"},
+			"Envelope": map[string]any{"execEvent": map[string]any{
+				"path": "/usr/bin/false",
+			}},
+		},
+	} {
+		if got := enforcementTargets(detail); got.IP != "" || got.Port != 0 || got.ExecPath != "" {
+			t.Fatalf("disagreeing targets must never generate a privileged block action: %+v", got)
+		}
+	}
+	consistent := enforcementTargets(map[string]any{
+		"Event": map[string]any{"type": "execve", "path": "/usr/bin/true"},
+		"Envelope": map[string]any{"execEvent": map[string]any{"path": "/usr/bin/true"}},
+	})
+	if consistent.ExecPath != "/usr/bin/true" {
+		t.Fatalf("matching typed and legacy exec path should remain actionable: %+v", consistent)
+	}
+}
