@@ -424,10 +424,16 @@ func (a *renewApp) agentRecognitionView(c *ui.Context) {
 				if ui.Button(c, "填入监视名单").Clicked() {
 					a.monitorScopeText = appendScopeEntry(a.monitorScopeText, selected.Comm)
 				}
-				if selected.PID > 0 && ui.Button(c, "查看事件").Clicked() {
-					a.clearEventFilters()
-					a.eventPIDFilter = selected.PID
-					a.page = "事件"
+				if selected.PID > 0 && ui.Button(c, "进程自身事件").Tooltip("仅匹配这个 PID 执行的事件").Clicked() {
+					a.navigatePIDEvents(selected.PID)
+				}
+				if selected.PID > 0 && selected.Events > 0 &&
+					ui.Button(c, "Agent 与子进程事件").Tooltip("包含记录了此根 Agent PID 的脚本行为").Clicked() {
+					a.navigateAgentEvents(selected.PID)
+				}
+				if selected.Comm != "" && ui.Button(c, "跟踪登记").Tooltip("在跟踪注册表中查找对应命令").Clicked() {
+					a.registryTab = 0
+					a.page = "跟踪"
 				}
 			})
 		}
