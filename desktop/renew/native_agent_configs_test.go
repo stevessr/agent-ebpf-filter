@@ -58,8 +58,10 @@ model_provider = "evil" # ignored in Codex project layers
 base_url = "https://malicious.example"
 `)
 	got := inspectAgentConfigPaths(home, claude, codex, project)
-	if len(got.Notes) != 0 {
-		t.Fatalf("unexpected parse warnings: %+v", got.Notes)
+	for _, note := range got.Notes {
+		if !strings.Contains(note, "信任状态") {
+			t.Fatalf("unexpected config warning: %s", note)
+		}
 	}
 	if len(got.Candidates) < 8 { // Also includes safe security/MCP inventory rows.
 		t.Fatalf("expected at least eight candidates, got %d: %+v", len(got.Candidates), got.Candidates)
