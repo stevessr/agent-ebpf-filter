@@ -158,6 +158,9 @@ type SemanticAlertState struct {
 	capacityEvictionsTotal        uint64
 	truncatedStateValuesTotal     uint64
 	ignoredOversizedMetadataTotal uint64
+	fileCorrelationAlertsTotal    uint64
+	fileCorrelationDedupedTotal   uint64
+	fileCorrelationLateTotal      uint64
 	lastSweepAt                   time.Time
 }
 
@@ -402,6 +405,7 @@ func (s *SemanticAlertState) ObserveMultiAgentFileContention(event *pb.Event, no
 	// older observation must not replace newer evidence or revive a cooldown
 	// window; neither can it establish an ordered interleaving.
 	if seen && now.Before(previous.SeenAt) {
+		s.fileCorrelationLateTotal++
 		return "", "", false
 	}
 	if seen && semanticStateExpired(now, previous.SeenAt, SemanticFileContentionTTL) {
@@ -430,8 +434,13 @@ func (s *SemanticAlertState) ObserveMultiAgentFileContention(event *pb.Event, no
 	}
 	cooldown := seen && !previous.LastAlertAt.IsZero() &&
 		!semanticStateExpired(now, previous.LastAlertAt, SemanticFileContentionTTL)
-	if comparable && !cooldown {
-		current.LastAlertAt = now
+	if comparable {
+		if cooldown {
+			s.fileCorrelationDedupedTotal++
+		} else {
+			current.LastAlertAt = now
+			s.fileCorrelationAlertsTotal++
+		}
 	}
 	s.noteCapacityEvictionLocked(s.recentFileMutations.Set(key, current))
 	if !comparable || cooldown {
@@ -496,6 +505,9 @@ func (s *SemanticAlertState) statusLocked() SemanticAlertStateStatus {
 		CapacityEvictionsTotal:        s.capacityEvictionsTotal,
 		TruncatedStateValuesTotal:     s.truncatedStateValuesTotal,
 		IgnoredOversizedMetadataTotal: s.ignoredOversizedMetadataTotal,
+		FileCorrelationAlertsTotal:    s.fileCorrelationAlertsTotal,
+		FileCorrelationDedupedTotal:   s.fileCorrelationDedupedTotal,
+		FileCorrelationLateTotal:      s.fileCorrelationLateTotal,
 		LastSweepAt:                   s.lastSweepAt,
 	}
 	status.Entries = status.RecentSecrets + status.RecentExecutables + status.ForkWindows + status.AgenticLoopWindows + status.RecentFileMutations
