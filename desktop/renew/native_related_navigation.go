@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/egoist/mygo/ui"
 )
 
 // Related-context navigation is read-only by default. It uses compact,
@@ -110,4 +112,44 @@ func matchesEventDrilldown(e eventSummary, rootPID int, target string, fileOnly,
 		return false
 	}
 	return true
+}
+
+ 
+// eventQuickLinks exposes actionable, evidence-backed relationships at the
+// point of investigation. The actual executor and the owning Agent get
+// separate buttons; a same-PID drilldown is not a substitute for root lineage.
+func (a *renewApp) eventQuickLinks(c *ui.Context, event eventSummary, withPolicy bool) {
+	owner := buildAgentOwnershipIndex(a.events, nil).attribution(event)
+	ui.Row(c).Wrap().Gap(6).Children(func() {
+		if event.PID > 0 && ui.Button(c, "执行 PID").Tooltip("精确过滤本次系统调用的实际进程").Clicked() {
+			a.navigatePIDEvents(event.PID)
+		}
+		if owner.Indirect && owner.OwnerPID > 0 &&
+			ui.Button(c, "归属 Agent").Tooltip("查看此根 Agent 及其子进程的事件").Clicked() {
+			a.navigateAgentEvents(owner.OwnerPID)
+		}
+		if isAgentSummary(event) && eventSessionKey(event) != "" &&
+			ui.Button(c, "同会话").Tooltip("按运行 ID 或已知根 PID 关联会话").Clicked() {
+			a.navigateSessionEvents(eventSessionKey(event), false, false)
+		}
+		if isFileMutationSummary(event) && isAgentSummary(event) {
+			if ui.Button(c, "本会话文件修改").Clicked() {
+				a.navigateSessionEvents(eventSessionKey(event), true, false)
+			}
+			if owner.Indirect && ui.Button(c, "委托编辑").Clicked() {
+				a.navigateSessionEvents(eventSessionKey(event), true, true)
+			}
+		}
+		if usableEventTarget(event.Target) && ui.Button(c, "同目标").Tooltip("按摘要目标精确匹配，不做全文模糊搜索").Clicked() {
+			a.navigateTargetEvents(event.Target)
+		}
+		if owner.IsAgent && owner.OwnerPID > 0 &&
+			ui.Button(c, "Agent 识别").Tooltip("定位 Agent 根 PID 的识别与捕获范围").Clicked() {
+			a.navigateRecognition(owner.OwnerPID, owner.OwnerComm)
+		}
+		if withPolicy && isFileMutationSummary(event) && safeExactFilePath(event.Target) &&
+			ui.Button(c, "路径权限").Tooltip("仅填入文件路径，不会创建或启用阻断策略").Clicked() {
+			a.navigatePathAccess(event.Target)
+		}
+	})
 }
