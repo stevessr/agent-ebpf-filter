@@ -268,6 +268,7 @@ func (a *renewApp) inspector(c *ui.Context) {
 
 func (a *renewApp) inspectorEventCard(c *ui.Context, event eventSummary) {
 	t := c.Theme()
+	owner := buildAgentOwnershipIndex(a.events, nil).attribution(event)
 	ui.Column(c).Padding(12).Gap(8).Radius(10).Background(t.Background).Border(1, t.Border).Children(func() {
 		ui.Row(c).Gap(7).AlignItems(ui.Center).Children(func() {
 			riskPill(c, eventRisk(event))
@@ -292,12 +293,24 @@ func (a *renewApp) inspectorEventCard(c *ui.Context, event eventSummary) {
 			}
 		}
 		ui.Text(c, eventAction(event)).FontSize(14).Bold()
-		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-			if label := eventHarnessLabel(event); label != "未识别" {
-				drawHarnessIcon(c, label)
-			}
-			ui.Text(c, displayOr(event.Comm, "未知进程")+" · PID "+strconv.Itoa(event.PID)).FontSize(11).TextColor(t.TextMuted)
-		})
+		if owner.Indirect {
+			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+				if label := harnessLabelFor(owner.OwnerTag, owner.OwnerComm); label != "未识别" {
+					drawHarnessIcon(c, label)
+				}
+				ui.Text(c, "归属 Agent："+owner.OwnerLabel+" · PID "+strconv.Itoa(owner.OwnerPID)).
+					FontSize(11).Bold()
+			})
+			ui.Text(c, "实际执行："+attributionExecutorLabel(owner)).
+				FontSize(11).TextColor(t.TextMuted)
+		} else {
+			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+				if label := eventHarnessLabel(event); label != "未识别" {
+					drawHarnessIcon(c, label)
+				}
+				ui.Text(c, displayOr(event.Comm, "未知进程")+" · PID "+strconv.Itoa(event.PID)).FontSize(11).TextColor(t.TextMuted)
+			})
+		}
 		if target := strings.TrimSpace(eventTarget(event)); target != "" && target != "-" {
 			ui.Text(c, target).Font("monospace").FontSize(11).MaxLines(4)
 		}
