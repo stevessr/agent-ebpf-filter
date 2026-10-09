@@ -32,10 +32,15 @@ func processReferenceFromEvent(detail map[string]any) eventProcessReference {
 		}
 		return n
 	}
+	comm := get("comm")
+	if get("type") == "semantic_alert" {
+		// Event.comm stores the alert rule, not the process name.
+		comm = semanticAlertSourceComm(get("extraInfo"))
+	}
 	ref := eventProcessReference{
 		PID:  parsePID(get("pid")),
 		PPID: parsePID(get("ppid")),
-		Comm: get("comm"),
+		Comm: comm,
 	}
 	// Persisted Timestamp is Unix milliseconds. Do not use monotonic kernel
 	// nanoseconds as calendar time or as a PID-reuse identity check.
@@ -178,6 +183,10 @@ func (a *renewApp) eventProcessInvestigation(c *ui.Context, detail map[string]an
 	target, matched, matchNote := processAtEvent(ref, live)
 
 	ui.Scroll(c).Height(height).Gap(12).Children(func() {
+		if event := eventDetailModel(detail); event.Type == "semantic_alert" {
+			ui.Text(c, "此记录是规则生成的告警，不存在同名的独立告警进程；下方 PID 指向触发事件的历史进程，进程可能已退出。").
+				FontSize(11).TextColor(t.TextMuted)
+		}
 		card(c, "事件时的进程证据", func() {
 			ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
 				if ref.PID > 0 {
