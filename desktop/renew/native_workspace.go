@@ -65,8 +65,15 @@ func pageHasInspector(page string) bool {
 	}
 }
 
-func showWorkspaceInspector(width float32, expanded bool, page string) bool {
-	return expanded && width >= 1320 && pageHasInspector(page)
+// Minimum usable center canvas when the 302-DIP investigator is visible.
+// Evaluate the current animated sidebar width, not only its target state,
+// to prevent the inspector from overlapping tables during the transition.
+func showWorkspaceInspector(windowWidth, navigationWidth float32, expanded bool, page string) bool {
+	const activityRailWidth = 54
+	const inspectorWidth = 302
+	const minimumCenterWidth = 760
+	return expanded && pageHasInspector(page) &&
+		windowWidth-activityRailWidth-navigationWidth-inspectorWidth >= minimumCenterWidth
 }
 
 func (a *renewApp) workspaceView(c *ui.Context) {
@@ -95,7 +102,7 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 			})
 		}
 		ui.Column(c).Grow(1).MinWidth(0).Background(t.Background).Children(func() {
-			a.header(c)
+			a.header(c, 198*navProgress)
 			if a.page == "终端" {
 				// Real PTY bounds without a parent Scroll; also usable offline.
 				a.terminalView(c)
@@ -116,11 +123,7 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 						}
 					})
 				})
-				inspectorWidth := width
-				if !a.navigationOpen {
-					inspectorWidth += 198
-				}
-				if showWorkspaceInspector(inspectorWidth, a.inspectorOpen, a.page) {
+				if showWorkspaceInspector(width, 198*navProgress, a.inspectorOpen, a.page) {
 					a.inspector(c)
 				}
 				})
@@ -290,7 +293,7 @@ func workspaceStatusTone(t *ui.Theme, level string) ui.Color {
 	}
 }
 
-func (a *renewApp) header(c *ui.Context) {
+func (a *renewApp) header(c *ui.Context, navigationWidth float32) {
 	t := c.Theme()
 	ui.Column(c).Background(t.Surface).Children(func() {
 		ui.Row(c).MinHeight(61).Padding(10, 16).Gap(10).AlignItems(ui.Center).Children(func() {
@@ -352,11 +355,7 @@ func (a *renewApp) header(c *ui.Context) {
 			ui.Spacer(c)
 			if pageHasInspector(a.page) {
 				width, _ := c.Size()
-				availableWidth := width
-				if !a.navigationOpen {
-					availableWidth += 198
-				}
-				if availableWidth >= 1320 {
+				if showWorkspaceInspector(width, navigationWidth, true, a.page) {
 					label := "打开研判栏"
 					if a.inspectorOpen {
 						label = "收起研判栏"
