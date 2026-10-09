@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 	"testing"
+
+	"github.com/egoist/mygo/ui"
 )
 
 func TestRelatedNavigationSetsExactFiltersAndReturnSource(t *testing.T) {
@@ -133,5 +135,58 @@ func TestDetailSummaryProvidesRelatedAgentIdentifiers(t *testing.T) {
 	}
 	if !isFileMutationSummary(selected) || !strings.HasPrefix(eventSessionKey(selected), "run:") {
 		t.Fatal("detail should expose a navigable Agent file mutation")
+	}
+}
+
+func TestRelatedQuickLinksAreClickable(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.page = "研判"
+	e := eventSummary{
+		EventID: "edit", PID: 201, PPID: 200, RootAgentPID: 100,
+		Comm: "python", Type: "file_write", Target: "/workspace/code.py",
+		AgentRunID: "run-1",
+	}
+	a.events = []eventSummary{
+		{EventID: "root", PID: 100, Comm: "codex", AgentRunID: "run-1"},
+		e,
+	}
+	tester := ui.NewTester(func(c *ui.Context) {
+		a.eventQuickLinks(c, e, true)
+	}, 910, 240)
+	tester.Frame()
+	for _, label := range []string{"执行 PID", "父 PID", "归属 Agent", "同会话",
+		"本会话文件修改", "委托编辑", "同目标", "Agent 识别", "路径权限"} {
+		if !tester.HasText(label) {
+			t.Errorf("missing link %q in incident context", label)
+		}
+	}
+	if err := tester.Click("归属 Agent"); err != nil {
+		t.Fatalf("root quick link not clickable: %v", err)
+	}
+	if a.page != "事件" || a.eventRootPIDFilter != 100 || a.eventReturnPage != "研判" {
+		t.Fatalf("root quick link navigated incorrectly: %+v", a)
+	}
+}
+
+func TestModalRelatedLinkClosesSensitiveDetail(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.page = "事件"
+	a.eventDetailOpen = true
+	a.eventDetailID = "secret-1"
+	a.eventDetail = map[string]any{"Event": map[string]any{"path": "/workspace/private.txt"}}
+	e := eventSummary{
+		EventID: "secret-1", PID: 201, RootAgentPID: 100, Comm: "bash",
+		Type: "file_write", AgentRunID: "run-1", Target: "/workspace/private.txt",
+	}
+	tester := ui.NewTester(func(c *ui.Context) {
+		a.eventDetailQuickLinks(c, e)
+	}, 910, 260)
+	tester.Frame()
+	if err := tester.Click("同目标事件"); err != nil {
+		t.Fatalf("same target link not clickable: %v", err)
+	}
+	if a.page != "事件" || a.eventTargetFilter != "/workspace/private.txt" ||
+		a.eventDetailOpen || a.eventDetail != nil || a.eventDetailID != "" {
+		t.Fatalf("modal link retained evidence payload or failed navigation: %+v", a)
 	}
 }
