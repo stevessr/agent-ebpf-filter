@@ -15,6 +15,9 @@ const (
 	toolBaselineMaxTools          = 512
 	toolBaselineMaxSamplesPerTool = 128
 	toolBaselineMinObservations   = 16
+	// A one-off normal change is not enough evidence of drift. Require two
+	// observations in separate time buckets to avoid burst-induced alerts.
+	toolBaselineConfirmationGap   = time.Second
 	toolBaselineTTL               = 24 * time.Hour
 	toolBaselineEvictionInterval  = time.Minute
 	toolBaselineMaxNameRunes      = 128
@@ -31,6 +34,11 @@ type toolBaselineBehaviorKey struct {
 type toolBaselineSample struct {
 	Count          uint64
 	LastSeen       time.Time
+	// A new non-sensitive behavior is held in probation until supported by
+	// independent time-separated observations. Baseline state stays bounded.
+	Pending        bool
+	LastEvidence   time.Time
+	EvidenceCount  uint8
 	recencyElement *list.Element
 }
 
@@ -112,7 +120,12 @@ func (s *toolBaselineStore) observeAt(toolName, comm, eventType string, now time
 	if exists {
 		_, knownBehavior = tool.samples[key]
 	}
-	drift := exists && !knownBehavior && len(tool.samples) >= 3 && tool.observationCount >= toolBaselineMinObservations
+	mature := exists && len(tool.samples) >= 3 && tool.observationCount >= toolBaselineMinObservations
+	// Only high-signal novel behaviors should alert on their first sample.
+	// Generic read/write/open events and unfamiliar but benign tools are
+	// candidates, not automatically security incidents.
+	immediate := mature && !knownBehavior && highSignalToolBaselineBehavior(comm, eventType)
+	drift := immediate
 
 	if !exists {
 		if len(s.tools) >= toolBaselineMaxTools {
@@ -129,14 +142,25 @@ func (s *toolBaselineStore) observeAt(toolName, comm, eventType string, now time
 		sample.Count++
 		tool.observationCount++
 		sample.LastSeen = now
+		if sample.Pending && !now.Before(sample.LastEvidence.Add(toolBaselineConfirmationGap)) {
+			sample.EvidenceCount++
+			sample.LastEvidence = now
+			if sample.EvidenceCount >= 2 {
+				drift = true
+				sample.Pending = false // One alert; subsequent observations are known.
+			}
+		}
 		tool.recency.MoveToFront(sample.recencyElement)
 	} else {
 		if len(tool.samples) >= toolBaselineMaxSamplesPerTool {
 			s.evictOldestSampleLocked(tool)
 		}
 		sample := &toolBaselineSample{
-			Count:    1,
-			LastSeen: now,
+			Count:         1,
+			LastSeen:      now,
+			Pending:       mature && !immediate,
+			LastEvidence:  now,
+			EvidenceCount: 1,
 		}
 		sample.recencyElement = tool.recency.PushFront(key)
 		tool.samples[key] = sample
@@ -151,7 +175,27 @@ func (s *toolBaselineStore) observeAt(toolName, comm, eventType string, now time
 	if !drift {
 		return "", false
 	}
-	return fmt.Sprintf("tool %q baseline drift: unexpected behavior %s/%s", toolName, comm, eventType), true
+	if immediate {
+		return fmt.Sprintf("tool %q baseline drift: high-signal new behavior %s/%s (mature baseline, explicit risky executable or network transport)", toolName, comm, eventType), true
+	}
+	return fmt.Sprintf("tool %q baseline drift: repeated novel behavior %s/%s (at least two observations >= %s apart)", toolName, comm, eventType, toolBaselineConfirmationGap), true
+}
+
+// highSignalToolBaselineBehavior is a small, auditable security prior, not a
+// trained attack probability. It gates latency-sensitive warnings while all
+// other novelty must pass a temporal confirmation test. In particular, an
+// ordinary syscall from a new process is not automatically suspicious.
+func highSignalToolBaselineBehavior(comm, eventType string) bool {
+	name := strings.ToLower(strings.TrimSpace(comm))
+	kind := strings.ToLower(strings.TrimSpace(eventType))
+	switch name {
+	case "curl", "wget", "nc", "netcat", "ncat", "socat", "ssh", "scp", "rsync":
+		return kind == "execve" || kind == "process_exec" ||
+			strings.Contains(kind, "network") ||
+			strings.Contains(kind, "connect") || strings.Contains(kind, "transport")
+	default:
+		return false
+	}
 }
 
 func (s *toolBaselineStore) EvictExpired(now time.Time) toolBaselineStatus {
