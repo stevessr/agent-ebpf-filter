@@ -106,3 +106,12 @@ func TestAgentCLISeedsOnlyKnownAgentRoot(t *testing.T) {
 		}
 	}
 }
+
+func TestAgentCustomTagCanSeedRootAtFork(t *testing.T) {
+	if !shouldSeedAgentRootAtFork(&pb.Event{Pid: 150, Type: "process_fork", Comm: "codex", Tag: "My Agent"}) {
+		t.Fatal("registered Codex with a custom user label must still seed its descendant tree")
+	}
+	if shouldSeedAgentRootAtFork(&pb.Event{Pid: 151, Type: "process_fork", Comm: "python", Tag: "My Agent"}) {
+		t.Fatal("custom tag must never promote a generic interpreter to Agent root")
+	}
+}
