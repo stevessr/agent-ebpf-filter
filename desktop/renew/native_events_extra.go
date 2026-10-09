@@ -215,7 +215,11 @@ func (a *renewApp) openEventDetail(eventID string) {
 		detail, err := a.client.eventDetail(ctx, id)
 		var enforcement enforcementSnapshot
 		var enforcementErr error
-		if err == nil && a.runtimeCfg.Runtime.PolicyManagementEnabled {
+		// An unrelated file/CPU event needs only the detail request.
+		// Avoid a second backend round-trip unless there is a valid action.
+		targets := enforcementTargets(detail)
+		if err == nil && a.runtimeCfg.Runtime.PolicyManagementEnabled &&
+			(targets.IP != "" || targets.ExecPath != "") {
 			enforcement, enforcementErr = a.client.enforcementStatus(ctx)
 		}
 		a.update(func() {
@@ -306,37 +310,48 @@ func enforcementTargets(detail map[string]any) eventEnforcementTargets {
 	if record == nil {
 		return eventEnforcementTargets{}
 	}
+	kind := eventDetailCategory(detail, mapText(record, "type", "Type"))
+	layers := eventDetailLayers(detail)
+	get := func(keys ...string) string {
+		value, _, _ := eventDetailLookup(layers, keys...)
+		return value
+	}
 	var target eventEnforcementTargets
-	endpoint := mapText(record, "net_endpoint", "netEndpoint", "NetEndpoint", "endpoint")
-	if endpoint != "" {
-		host := endpoint
-		port := 0
-		if parsedHost, parsedPort, err := net.SplitHostPort(endpoint); err == nil {
-			host = strings.Trim(parsedHost, "[]")
-			port, _ = strconv.Atoi(parsedPort)
+	if kind == "network" {
+		// Only actual network evidence may suggest a cgroup IP/port policy.
+		endpoint := get("netEndpoint", "endpoint")
+		if endpoint != "" {
+			host := endpoint
+			port := 0
+			if parsedHost, parsedPort, err := net.SplitHostPort(endpoint); err == nil {
+				host = strings.Trim(parsedHost, "[]")
+				port, _ = strconv.Atoi(parsedPort)
+			}
+			if net.ParseIP(strings.Trim(host, "[]")) != nil {
+				target.IP = strings.Trim(host, "[]")
+				if port >= 1 && port <= 65535 {
+					target.Port = port
+				}
+			}
 		}
-		if net.ParseIP(strings.Trim(host, "[]")) != nil {
-			target.IP = strings.Trim(host, "[]")
-			if port >= 1 && port <= 65535 {
-				target.Port = port
+		if target.IP == "" {
+			ip := get("dstIp")
+			if net.ParseIP(ip) != nil {
+				target.IP = ip
+				port, _ := strconv.Atoi(get("dstPort"))
+				if port >= 1 && port <= 65535 {
+					target.Port = port
+				}
 			}
 		}
 	}
-	if target.IP == "" {
-		ip := mapText(record, "dst_ip", "dstIp", "DstIp")
-		if net.ParseIP(ip) != nil {
-			target.IP = ip
-			port := int(mapNumber(record, "dst_port", "dstPort", "DstPort"))
-			if port >= 1 && port <= 65535 {
-				target.Port = port
-			}
-		}
-	}
-	// A file write's path is not evidence of an executable invocation.
-	// Only offer the LSM exec-path action when the event is an exec.
+	// File writes are not process executions. Prefer the typed exec payload,
+	// or a legacy executable path only when the syscall is clearly exec.
 	typ := strings.ToLower(mapText(record, "type", "Type"))
-	if strings.HasPrefix(typ, "exec") || typ == "process_exec" {
-		path := mapText(record, "path", "Path")
+	envelope, _ := mapValue(detail, "Envelope", "envelope").(map[string]any)
+	_, typedExec := mapValue(envelope, "execEvent").(map[string]any)
+	if kind == "process" && (typedExec || strings.HasPrefix(typ, "exec") || typ == "process_exec") {
+		path := get("path")
 		if strings.HasPrefix(path, "/") {
 			target.ExecPath = path
 		}
