@@ -1,6 +1,7 @@
 package main
 
 import (
+ "os"
  "path/filepath"
  "strings"
  "testing"
@@ -40,4 +41,25 @@ func TestClaudePrecedenceProjectionAndManagedSummaries(t *testing.T) {
  if strings.Contains(req,"private.internal"){t.Fatal("managed domain policy leaked")}
  managed:=claudeManagedSummary(map[string]any{"allowManagedHooksOnly":true,"allowManagedMcpServersOnly":true})
  if !strings.Contains(managed,"仅受管 Hooks")||!strings.Contains(managed,"仅受管 MCP"){t.Fatalf("missing managed constraints: %q",managed)}
+}
+
+func TestNestedWorkingDirectoryResolvesClaudeRepositoryRoot(t *testing.T) {
+ root:=filepath.Join(t.TempDir(),"repo")
+ nested:=filepath.Join(root,"pkg","feature")
+ writeConfigFixture(t,filepath.Join(root,".git","config"),"[core]\n")
+ writeConfigFixture(t,filepath.Join(root,".claude","settings.json"),`{"model":"root-model"}`)
+ writeConfigFixture(t,filepath.Join(root,".mcp.json"),`{"mcpServers":{"rootMCP":{"url":"https://root-mcp.example.net/events?key=SECRET"}}}`)
+ if err:=os.MkdirAll(nested,0700);err!=nil{t.Fatal(err)}
+ if got:=projectConfigRoot(nested);got!=root{t.Fatalf("unexpected root: %s",got)}
+ preview,ok:=claudeStaticConfigPreview(filepath.Join(root,".missing-claude-home"),nested)
+ if !ok||preview.Model!="root-model"{t.Fatalf("missing root settings: %+v",preview)}
+ inspection:=inspectAgentConfigExtensions("", "", nested)
+ found:=false
+ for _,row:=range inspection.Candidates{
+  if row.Host=="root-mcp.example.net"&&row.Agent=="Claude Code"{found=true}
+ }
+ if !found{t.Fatalf("root MCP was missed: %+v",inspection)}
+ if root:=projectConfigRoot(filepath.Join(t.TempDir(),"absent"));root!=""{
+  t.Fatalf("nonexistent project must have no root: %s",root)
+ }
 }
