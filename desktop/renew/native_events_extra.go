@@ -317,10 +317,22 @@ func enforcementTargets(detail map[string]any) eventEnforcementTargets {
 		value, _, _ := eventDetailLookupPreferred(layers, keys...)
 		return value
 	}
+	typed := eventDetailTypedPayload(detail)
 	var target eventEnforcementTargets
 	if kind == "network" {
-		// Only actual network evidence may suggest a cgroup IP/port policy.
 		endpoint := get("netEndpoint", "endpoint")
+		if typed.Kind == "network" {
+			if value := mapText(typed.Data, "endpoint"); value != "" {
+				// Policy actions may have system-wide impact. If the typed
+				// endpoint conflicts with the legacy endpoint, refuse to
+				// guess which address is safe to block.
+				legacyEndpoint := mapText(record, "netEndpoint")
+				if legacyEndpoint != "" && legacyEndpoint != value {
+					return target
+				}
+				endpoint = value
+			}
+		}
 		if endpoint != "" {
 			host := endpoint
 			port := 0
@@ -337,22 +349,42 @@ func enforcementTargets(detail map[string]any) eventEnforcementTargets {
 		}
 		if target.IP == "" {
 			ip := get("dstIp")
+			if typed.Kind == "network" {
+				if typedIP := mapText(typed.Data, "dstIp"); typedIP != "" {
+					if legacyIP := mapText(record, "dstIp"); legacyIP != "" && legacyIP != typedIP {
+						return target
+					}
+					ip = typedIP
+				}
+			}
 			if net.ParseIP(ip) != nil {
 				target.IP = ip
 				port, _ := strconv.Atoi(get("dstPort"))
+				if typed.Kind == "network" {
+					if typedPort := mapText(typed.Data, "dstPort"); typedPort != "" {
+						port, _ = strconv.Atoi(typedPort)
+					}
+				}
 				if port >= 1 && port <= 65535 {
 					target.Port = port
 				}
 			}
 		}
 	}
-	// File writes are not process executions. Prefer the typed exec payload,
-	// or a legacy executable path only when the syscall is clearly exec.
+
+	// Never derive an execution block from a file operation. If both
+	// protobuf exec and legacy Event paths exist, they must agree.
 	typ := strings.ToLower(mapText(record, "type", "Type"))
-	envelope, _ := mapValue(detail, "Envelope", "envelope").(map[string]any)
-	_, typedExec := mapValue(envelope, "execEvent").(map[string]any)
-	if kind == "process" && (typedExec || strings.HasPrefix(typ, "exec") || typ == "process_exec") {
-		path := get("path")
+	if kind == "process" {
+		path := ""
+		if typed.Kind == "process" && strings.HasSuffix(typed.Origin, ".execEvent") {
+			path = mapText(typed.Data, "path")
+			if legacy := mapText(record, "path"); legacy != "" && legacy != path {
+				return target
+			}
+		} else if strings.HasPrefix(typ, "exec") || typ == "process_exec" {
+			path = mapText(record, "path")
+		}
 		if strings.HasPrefix(path, "/") {
 			target.ExecPath = path
 		}
