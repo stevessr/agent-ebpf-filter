@@ -85,6 +85,9 @@ func runDesktop() {
 			Content:   ui.View(app.view),
 		})
 		app.win = window
+		if err := app.setupTray(window); err != nil {
+			log.Printf("[renew] system tray unavailable (normal window exit retained): %v", err)
+		}
 		windowMu.Lock()
 		mainWindow = window
 		windowMu.Unlock()
