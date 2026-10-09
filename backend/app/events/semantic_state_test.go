@@ -200,6 +200,56 @@ func TestSemanticFileContentionCooldownAndContainerIsolation(t *testing.T) {
 	})
 }
 
+func TestSemanticFileContentionRejectsPseudoFilesButPreservesSharedMemory(t *testing.T) {
+	for _, path := range []string{
+		"/dev/null", "/dev/stdout", "/dev/pts/0", "/dev/fd/1",
+		"/proc/self/fd/1", "/proc/42/mem", "/sys/kernel/debug/tracing",
+		"/tmp/../dev/null",
+	} {
+		t.Run(path, func(t *testing.T) {
+			event := &pb.Event{Type: "write", Path: path, Retval: 4}
+			resolved, _, ok := semanticFileMutationPath(event)
+			// /tmp/../dev/null resolves to /dev/null, too.
+			if ok || resolved != "" {
+				t.Fatalf("device/pseudo-file %q was treated as a regular shared file: %q", path, resolved)
+			}
+		})
+	}
+	for _, path := range []string{"/workspace/report.txt", "/dev/shm/agent-cache"} {
+		event := &pb.Event{Type: "write", Path: path, Retval: 4}
+		if got, _, ok := semanticFileMutationPath(event); !ok || got != path {
+			t.Fatalf("normal shared file %q was rejected: %q, %v", path, got, ok)
+		}
+	}
+}
+
+func TestSemanticFileContentionIgnoresOutOfOrderObservations(t *testing.T) {
+	s := NewSemanticAlertState()
+	start := time.Date(2026, 10, 9, 16, 0, 0, 0, time.UTC)
+	writer := func(run string) *pb.Event {
+		return &pb.Event{Type: "write", Path: "/workspace/shared.txt", AgentRunId: run, Retval: 4}
+	}
+	if _, _, ok := s.ObserveMultiAgentFileContention(writer("fresh"), start.Add(10*time.Second)); ok {
+		t.Fatal("first observation should not emit an alert")
+	}
+	if _, _, ok := s.ObserveMultiAgentFileContention(writer("stale"), start.Add(5*time.Second)); ok {
+		t.Fatal("out-of-order event should not manufacture a temporal correlation")
+	}
+	path, reason, ok := s.ObserveMultiAgentFileContention(writer("second"), start.Add(12*time.Second))
+	if !ok || path != "/workspace/shared.txt" {
+		t.Fatalf("new valid observation must correlate with the newest evidence: %q %q %v", path, reason, ok)
+	}
+	if strings.Contains(reason, "agent_run:stale") || !strings.Contains(reason, "agent_run:fresh") {
+		t.Fatalf("stale event replaced the evidence source: %q", reason)
+	}
+	if _, _, ok := s.ObserveMultiAgentFileContention(writer("late"), start.Add(11*time.Second)); ok {
+		t.Fatal("late replay must not bypass cooldown")
+	}
+	if _, _, ok := s.ObserveMultiAgentFileContention(writer("fresh"), start.Add(13*time.Second)); ok {
+		t.Fatal("normal follow-up should be deduplicated")
+	}
+}
+
 func TestNormalizeSemanticPathJoinsTrimmedRelativePath(t *testing.T) {
 	path, truncated := normalizeSemanticPath("  cache/result.json  ", "  /workspace/project  ")
 	if truncated || path != "/workspace/project/cache/result.json" {
