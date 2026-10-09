@@ -51,35 +51,100 @@ func eventDetailKey(key string) string {
 
 func eventDetailLookup(layers []eventDetailLayer, keys ...string) (string, string, bool) {
 	for _, layer := range layers {
+		// Prefer an exact key before fuzzy aliases; map iteration order
+		// must never decide which provenance is displayed to the analyst.
 		for _, name := range keys {
-			normalized := eventDetailKey(name)
-			for key, raw := range layer.Values {
-				if eventDetailKey(key) != normalized || raw == nil {
-					continue
+			if raw, ok := layer.Values[name]; ok {
+				if value := detailScalarText(raw); value != "" {
+					return value, layer.Path + "." + name, true
 				}
-				var value string
-				switch v := raw.(type) {
-				case string:
-					value = strings.TrimSpace(v)
-				case float64:
-					value = strconv.FormatFloat(v, 'f', -1, 64)
-				case float32:
-					value = strconv.FormatFloat(float64(v), 'f', -1, 32)
-				case bool, int, int64, uint64, json.Number:
-					value = fmt.Sprint(v)
-				default:
-					b, err := json.Marshal(v)
-					if err == nil {
-						value = string(b)
+			}
+			keysInLayer := make([]string, 0, len(layer.Values))
+			for key := range layer.Values {
+				keysInLayer = append(keysInLayer, key)
+			}
+			sort.Strings(keysInLayer)
+			for _, key := range keysInLayer {
+				if eventDetailKey(key) == eventDetailKey(name) {
+					if value := detailScalarText(layer.Values[key]); value != "" {
+						return value, layer.Path + "." + key, true
 					}
-				}
-				if value != "" {
-					return value, layer.Path + "." + key, true
 				}
 			}
 		}
 	}
 	return "", "", false
+}
+
+func detailScalarText(raw any) string {
+	switch v := raw.(type) {
+	case nil:
+		return ""
+	case string:
+		return strings.TrimSpace(v)
+	case float64:
+		return strconv.FormatFloat(v, 'f', -1, 64)
+	case float32:
+		return strconv.FormatFloat(float64(v), 'f', -1, 32)
+	case bool, int, int64, uint64, json.Number:
+		return fmt.Sprint(v)
+	default:
+		b, err := json.Marshal(v)
+		if err == nil {
+			return string(b)
+		}
+		return ""
+	}
+}
+
+func eventDetailCategory(detail map[string]any, eventType string) string {
+	envelope, _ := mapValue(detail, "Envelope", "envelope").(map[string]any)
+	for _, item := range [][2]string{
+		{"fileEvent", "file"}, {"networkEvent", "network"},
+		{"execEvent", "process"}, {"processEvent", "process"},
+		{"tlsEvent", "network"}, {"httpEvent", "network"},
+	} {
+		if _, ok := mapValue(envelope, item[0]).(map[string]any); ok {
+			return item[1]
+		}
+	}
+	name := strings.ToLower(strings.TrimSpace(eventType))
+	switch {
+	case strings.HasPrefix(name, "file_"):
+		return "file"
+	case strings.HasPrefix(name, "network_"), strings.HasPrefix(name, "net_"):
+		return "network"
+	case strings.HasPrefix(name, "process_"):
+		return "process"
+	}
+	// Exact syscall stems, not substring matches ("openai_request" is NOT open).
+	for _, item := range []struct {
+		kind string
+		stems []string
+	}{
+		{"file", []string{"read", "write", "open", "creat", "unlink", "rename", "chmod", "chown", "mkdir", "rmdir", "truncate", "fsync", "lseek", "stat"}},
+		{"network", []string{"connect", "accept", "bind", "listen", "send", "recv", "socket", "dns", "tls", "http", "quic"}},
+		{"process", []string{"exec", "fork", "clone", "vfork", "exit", "kill", "wait", "ptrace"}},
+	} {
+		for _, stem := range item.stems {
+			if name == stem || strings.HasPrefix(name, stem+"_") || strings.HasPrefix(name, stem+"at") ||
+				strings.HasPrefix(name, stem+"ve") || name == stem+"msg" || name == stem+"to" || name == stem+"from" {
+				return item.kind
+			}
+		}
+	}
+	return "other"
+}
+
+func eventDetailPreview(value string, limit int) string {
+	if limit <= 0 {
+		return ""
+	}
+	runes := []rune(value)
+	if len(runes) <= limit {
+		return value
+	}
+	return string(runes[:limit]) + "…（可复制完整值）"
 }
 
 func eventDetailLayers(detail map[string]any) []eventDetailLayer {
@@ -97,6 +162,9 @@ func eventDetailLayers(detail map[string]any) []eventDetailLayer {
 			}
 		}
 		layers = append(layers, eventDetailLayer{prefix, event})
+		if behavior, ok := mapValue(event, "behavior").(map[string]any); ok {
+			layers = append(layers, eventDetailLayer{prefix+".behavior", behavior})
+		}
 	}
 	envelope, _ := mapValue(detail, "Envelope", "envelope").(map[string]any)
 	if envelope != nil {
@@ -160,28 +228,10 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 		}
 	}
 
-	// Infer the operation family from real event type or protobuf payload.
-	category := strings.ToLower(eventType)
-	hasPayload := func(key string) bool {
-		envelope, _ := mapValue(detail, "Envelope", "envelope").(map[string]any)
-		_, ok := mapValue(envelope, key).(map[string]any)
-		return ok
-	}
-	isFile := hasPayload("fileEvent") || strings.Contains(category, "file") ||
-		strings.Contains(category, "write") || strings.Contains(category, "read") ||
-		strings.Contains(category, "open") || strings.Contains(category, "unlink") ||
-		strings.Contains(category, "rename") || strings.Contains(category, "chmod") ||
-		strings.Contains(category, "mkdir") || strings.Contains(category, "truncate")
-	isNetwork := hasPayload("networkEvent") || strings.Contains(category, "net") ||
-		strings.Contains(category, "connect") || strings.Contains(category, "accept") ||
-		strings.Contains(category, "send") || strings.Contains(category, "recv") ||
-		strings.Contains(category, "dns") || strings.Contains(category, "tls")
-	isProcess := hasPayload("processEvent") || hasPayload("execEvent") ||
-		strings.Contains(category, "exec") || strings.Contains(category, "fork") ||
-		strings.Contains(category, "clone") || strings.Contains(category, "kill")
-
-	switch {
-	case isFile:
+	// Typed protobuf payload is authoritative; syscall names are a fallback.
+	category := eventDetailCategory(detail, eventType)
+	switch category {
+	case "file":
 		m.Target = get("path", "targetPath", "relatedPath", "extraPath")
 		section("文件操作", field("操作", "operation", "type"),
 			field("目标路径", "path", "targetPath", "relatedPath"),
@@ -189,7 +239,7 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 			field("读写字节数", "bytes"), field("目标 UID", "uidArg"),
 			field("目标 GID", "gidArg"), field("返回值", "retval"),
 			field("附加信息", "extraInfo"))
-	case isNetwork:
+	case "network":
 		m.Target = get("netEndpoint", "endpoint", "dstIp", "domain", "dnsName", "sni")
 		section("网络行为", field("目标端点", "netEndpoint", "endpoint"),
 			field("方向", "netDirection", "direction"),
@@ -200,7 +250,7 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 			field("网络族", "netFamily", "family"), field("发送字节", "bytesOut"),
 			field("接收字节", "bytesIn"), field("流 ID", "flowId"),
 			field("返回值", "retval"), field("附加信息", "extraInfo"))
-	case isProcess:
+	case "process":
 		m.Target = get("path", "commandLine", "targetPid")
 		section("进程行为", field("阶段", "phase"), field("执行文件", "path"),
 			field("命令行", "commandLine"), field("参数", "args"),
@@ -215,6 +265,11 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 			field("命令行", "commandLine"), field("原因", "reason"),
 			field("结果", "retval"), field("附加信息", "extraInfo"))
 	}
+	section("策略与分类", field("策略决定", "decision", "policyDecision"),
+		field("风险评分", "riskScore"), field("判定原因", "reason"),
+		field("关联策略路径", "relatedPath"), field("关联端点", "relatedEndpoint"),
+		field("行为分类", "primaryCategory"), field("分类置信度", "confidence"),
+		field("分类依据", "reasoning"))
 	section("执行主体", field("进程名称", "comm"),
 		field("PID", "pid"), field("PPID", "ppid"), field("TGID", "tgid"),
 		field("根 Agent PID", "rootAgentPid"), field("UID", "uid"), field("GID", "gid"),
@@ -244,9 +299,13 @@ func eventDetailFieldRow(c *ui.Context, field eventDetailField) {
 	ui.Row(c).Gap(12).AlignItems(ui.Start).Children(func() {
 		ui.Text(c, field.Label).Width(126).Shrink(0).FontSize(11).TextColor(t.TextMuted)
 		ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-			ui.Text(c, field.Value).Font("monospace").FontSize(11)
+			ui.Text(c, eventDetailPreview(field.Value, 420)).Font("monospace").FontSize(11).MaxLines(4)
 			ui.Text(c, field.Origin).FontSize(9).TextColor(t.TextMuted)
 		})
+		if ui.Button(c, "复制").Tooltip("复制"+field.Label+"的完整值").Clicked() {
+			c.WriteClipboard(field.Value)
+			c.Toast("已复制 "+field.Label)
+		}
 	})
 }
 
@@ -287,11 +346,20 @@ func (a *renewApp) richEventDetail(c *ui.Context, detail map[string]any, width f
 				ui.Badge(c, "风险分 " + model.Risk)
 			}
 		})
-		ui.Text(c, model.Target).Font("monospace").FontSize(12)
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, eventDetailPreview(model.Target, 520)).Font("monospace").FontSize(12).Grow(1).MinWidth(0).MaxLines(3)
+			if model.Target != "此事件没有提供明确的操作对象" && ui.Button(c, "复制目标").Clicked() {
+				c.WriteClipboard(model.Target)
+				c.Toast("目标已复制")
+			}
+		})
+		if model.Target == "此事件没有提供明确的操作对象" {
+			ui.Text(c, "当前完整事件未携带该操作的目标路径或端点；这表示采集信息缺失，不能推断具体文件或地址。").FontSize(11).TextColor(t.Warning)
+		}
 		if model.When != "" {
 			ui.Text(c, "发生时间  "+model.When).FontSize(11).TextColor(t.TextMuted)
 		}
-		ui.Text(c, "此处展示后端实际记录的字段；空缺信息不会推测补全。").FontSize(10).TextColor(t.TextMuted)
+		ui.Text(c, "字段来源与脱敏状态以记录为准；没有采集到的内容不进行推断。").FontSize(10).TextColor(t.TextMuted)
 	})
 	if width >= 760 {
 		leftWidth := (width - 46) / 2
@@ -336,7 +404,7 @@ func (a *renewApp) eventDetailRelated(c *ui.Context, detail map[string]any) {
 	if len(related) == 0 {
 		return
 	}
-	card(c, "同进程事件 · 已缓存摘要", func() {
+	card(c, "同 PID 的缓存事件（不保证同一次进程运行）", func() {
 		for _, item := range related {
 			item := item
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
