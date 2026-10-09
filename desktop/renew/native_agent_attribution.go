@@ -135,3 +135,25 @@ func eventSessionDisplayLabel(e eventSummary, a eventAttribution) string {
 		return label
 	}
 }
+
+ 
+// isFileMutationSummary recognizes actual file-change operations rather than
+// assuming every inherited shell tool call is a file modification.
+// Socket writes and generic open/read events must not inflate edit counts.
+func isFileMutationSummary(event eventSummary) bool {
+	if event.Network || strings.EqualFold(strings.TrimSpace(event.Target), "socket write") {
+		return false
+	}
+	kind := strings.ToLower(strings.TrimSpace(event.Type))
+	kind = strings.TrimPrefix(kind, "file_")
+	switch kind {
+	case "write", "writev", "pwrite", "pwrite64", "pwritev", "pwritev2",
+		"rename", "renameat", "renameat2", "unlink", "unlinkat",
+		"truncate", "ftruncate", "creat", "mkdir", "mkdirat",
+		"rmdir", "chmod", "fchmod", "fchmodat", "chown", "fchown",
+		"fchownat", "lchown", "link", "linkat", "symlink", "symlinkat",
+		"mknod", "mknodat", "setxattr", "removexattr":
+		return true
+	}
+	return false
+}
