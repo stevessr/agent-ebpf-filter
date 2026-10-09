@@ -427,34 +427,48 @@ func (a *renewApp) richEventDetail(c *ui.Context, detail map[string]any, width f
 
 func (a *renewApp) eventDetailRelated(c *ui.Context, detail map[string]any) {
 	layers := eventDetailLayers(detail)
-	pidText, _, ok := eventDetailLookup(layers, "pid")
-	if !ok {
-		return
+	read := func(key string) string {
+		v, _, _ := eventDetailLookup(layers, key)
+		return v
 	}
+	pidText := read("pid")
 	pid, err := strconv.Atoi(pidText)
 	if err != nil || pid <= 0 {
 		return
 	}
-	related := make([]eventSummary, 0, 4)
+	selected := eventSummary{
+		EventID: a.eventDetailID,
+		PID: pid,
+		AgentRunID: read("agentRunId"),
+		ConversationID: read("conversationId"),
+	}
+	if ms, ok := eventDetailInt64(mapText(detail, "Timestamp")); ok && ms > 0 {
+		selected.ReceivedAtMS = ms
+	}
+	// Prefer a matching retained summary only for values absent in the loaded
+	// event. This works when an event has been truncated from the live window.
 	for _, item := range a.events {
-		if item.EventID != "" && item.EventID != a.eventDetailID && item.PID == pid {
-			related = append(related, item)
-			if len(related) == 4 {
-				break
-			}
+		if item.EventID == selected.EventID {
+			if selected.ReceivedAtMS == 0 { selected.ReceivedAtMS = item.ReceivedAtMS }
+			if selected.AgentRunID == "" { selected.AgentRunID = item.AgentRunID }
+			if selected.ConversationID == "" { selected.ConversationID = item.ConversationID }
+			break
 		}
 	}
+	related := eventDetailRelatedCandidates(a.events, selected, 4)
 	if len(related) == 0 {
 		return
 	}
-	card(c, "同 PID 的缓存事件（不保证同一次进程运行）", func() {
-		for _, item := range related {
-			item := item
+	card(c, "邻近事件 · 当前缓存", func() {
+		ui.Text(c, "仅基于相同 PID、可验证的 Agent Run/会话或两分钟时间窗口筛选；这些事件不证明因果关系。").FontSize(10).TextColor(c.Theme().TextMuted)
+		for _, entry := range related {
+			entry := entry
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, summaryTime(item.ReceivedAtMS)+"  "+displayOr(item.Type, "event")).FontSize(11).Grow(1)
-				ui.Text(c, eventTarget(item)).MaxLines(1).FontSize(10).TextColor(c.Theme().TextMuted).Grow(1)
+				ui.Badge(c, entry.Relation)
+				ui.Text(c, summaryTime(entry.Event.ReceivedAtMS)+"  "+displayOr(entry.Event.Type, "event")).FontSize(11)
+				ui.Text(c, eventTarget(entry.Event)).MaxLines(1).FontSize(10).TextColor(c.Theme().TextMuted).Grow(1).MinWidth(0)
 				if ui.Button(c, "查看").Clicked() {
-					a.openEventDetail(item.EventID)
+					a.openEventDetail(entry.Event.EventID)
 				}
 			})
 		}
