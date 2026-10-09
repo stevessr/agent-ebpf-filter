@@ -142,6 +142,17 @@ func init() {
 	// Process context / cgroup attribution (context_event.go)
 	events.Deps.ProcessContexts = trackedProcessContexts
 	events.Deps.CgroupAttributionEnrich = enrichEventWithCgroupContext
+	events.Deps.CgroupAttributionGet = func(cgroupID uint64) (events.CgroupAttributionEntry, bool) {
+		entry, ok := cgroupAttribution.Get(cgroupID)
+		if !ok {
+			return events.CgroupAttributionEntry{}, false
+		}
+		return events.CgroupAttributionEntry{
+			CgroupID: entry.CgroupID, AgentRunID: entry.AgentRunID,
+			TaskID: entry.TaskID, ToolCallID: entry.ToolCallID,
+			RootAgentPID: entry.RootAgentPID, CreatedAt: entry.CreatedAt,
+		}, true
+	}
 	events.Deps.CgroupAttributionSet = func(cgroupID uint64, entry events.CgroupAttributionEntry) {
 		cgroupAttribution.Set(cgroupID, cgroupAttributionEntry{
 			CgroupID:     entry.CgroupID,

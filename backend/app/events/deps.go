@@ -130,6 +130,7 @@ var Deps struct {
 	// Process context / cgroup attribution (used by context_event.go)
 	ProcessContexts         *ProcessContextStore
 	CgroupAttributionEnrich func(cgroupID uint64) (agentRunID, taskID, toolCallID string)
+	CgroupAttributionGet    func(cgroupID uint64) (CgroupAttributionEntry, bool)
 	CgroupAttributionSet    func(cgroupID uint64, entry CgroupAttributionEntry)
 
 	// Semantic alerts (used by alerts_semantic.go, alertsdetectsemantic.go)

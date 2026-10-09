@@ -563,20 +563,23 @@ func eventTarget(e eventSummary) string {
 }
 
 func eventAction(e eventSummary) string {
-	if e.ToolName != "" {
-		return "调用工具 " + e.ToolName
+	// ToolCall context may be inherited by a script that modifies a file.
+	// Classify the observed syscall first, and exclude socket writes.
+	if isFileMutationSummary(e) {
+		return "修改文件"
 	}
 	t := strings.ToLower(e.Type)
 	switch {
 	case strings.Contains(t, "network"), strings.Contains(t, "connect"), strings.Contains(t, "socket"), strings.Contains(t, "tcp"), strings.Contains(t, "dns"):
 		return "访问网络"
-	case strings.Contains(t, "write"), strings.Contains(t, "rename"), strings.Contains(t, "unlink"):
-		return "修改文件"
 	case strings.Contains(t, "open"), strings.Contains(t, "read"), strings.Contains(t, "file"):
 		return "读取文件"
 	case strings.Contains(t, "exec"), strings.Contains(t, "process"), strings.Contains(t, "clone"):
 		return "进程活动"
 	default:
+		if e.ToolName != "" {
+			return "调用工具 " + e.ToolName
+		}
 		if e.Type != "" {
 			return e.Type
 		}
