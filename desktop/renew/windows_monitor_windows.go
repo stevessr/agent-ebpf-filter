@@ -155,27 +155,23 @@ func winReadSystem() (systemSnapshot, uint64, uint64, error) {
 // events. Only ESTABLISHED rows are reported as observed peer addresses.
 // Local listening sockets and transient connections are not mislabeled.
 func winTCPTable(family uintptr) ([]byte, error) {
-	var size uint32
-	r, _, _ := winGetExtendedTcpTable.Call(0, uintptr(unsafe.Pointer(&size)), 0, family, winTCP_TABLE_OWNER_PID_ALL, 0)
-	if r != 0 && syscall.Errno(r) != winERROR_INSUFFICIENT_BUFFER {
-		return nil, fmt.Errorf("GetExtendedTcpTable (%d) size: %w", family, syscall.Errno(r))
-	}
-	if size < 4 || size > 16<<20 {
-		return nil, fmt.Errorf("GetExtendedTcpTable (%d) invalid response length %d", family, size)
-	}
-	buf := make([]byte, size)
-	r, _, _ = winGetExtendedTcpTable.Call(uintptr(unsafe.Pointer(&buf[0])), uintptr(unsafe.Pointer(&size)),
-		0, family, winTCP_TABLE_OWNER_PID_ALL, 0)
-	if r != 0 { return nil, fmt.Errorf("GetExtendedTcpTable (%d): %w", family, syscall.Errno(r)) }
-	if size > uint32(len(buf)) || size < 4 { return nil, fmt.Errorf("GetExtendedTcpTable invalid table size") }
-	return buf[:size], nil
+    return winFetchIPTable(fmt.Sprintf("GetExtendedTcpTable(%d)",family),
+        func(buffer uintptr, size *uint32) uint32 {
+            status, _, _ := winGetExtendedTcpTable.Call(buffer, uintptr(unsafe.Pointer(size)),
+                0, family, winTCP_TABLE_OWNER_PID_ALL, 0)
+            return uint32(status)
+        })
 }
 
 func winParseTCPRows(data []byte, family uintptr) (map[string]windowsTCPSample, error) {
 	if len(data) < 4 { return nil, fmt.Errorf("TCP table header truncated") }
 	count := binary.LittleEndian.Uint32(data[:4])
 	rowLen := 24
-	if family == winAF_INET6 { rowLen = 56 }
+	switch family {
+	case winAF_INET:
+	case winAF_INET6: rowLen = 56
+	default: return nil, fmt.Errorf("unsupported TCP family %d", family)
+	}
 	if uint64(count)*uint64(rowLen) > uint64(len(data)-4) {
 		return nil, fmt.Errorf("TCP table length inconsistent with row count")
 	}
@@ -195,8 +191,8 @@ func winParseTCPRows(data []byte, family uintptr) (map[string]windowsTCPSample, 
 		} else {
 			state = binary.LittleEndian.Uint32(row[48:52])
 			owner = binary.LittleEndian.Uint32(row[52:56])
-			local = net.IP(row[0:16]).String()
-			remote = net.IP(row[24:40]).String()
+			local = winIPv6Scoped(row[0:16], row[16:20])
+			remote = winIPv6Scoped(row[24:40], row[40:44])
 			portLocal = binary.BigEndian.Uint16(row[20:22])
 			portRemote = binary.BigEndian.Uint16(row[44:46])
 		}
@@ -227,10 +223,12 @@ func collectWindowsObservation(ctx context.Context, prev windowsObservation, has
 	if err != nil { return windowsObservation{}, err }
 	connections, err := winReadTCPConnections()
 	if err != nil { return windowsObservation{}, err }
+	udpBindings, err := winReadUDPBindings()
+	if err != nil { return windowsObservation{}, err }
 	system, idle, total, err := winReadSystem()
 	if err != nil { return windowsObservation{}, err }
 	result := windowsObservation{
-		Processes: processes, Connections: connections, System: system,
+		Processes: processes, Connections: connections, UDPBindings: udpBindings, System: system,
 		CPUIdle: idle, CPUTotal: total,
 	}
 	system.Processes = make([]systemProcess, 0, len(processes))
@@ -244,7 +242,7 @@ func collectWindowsObservation(ctx context.Context, prev windowsObservation, has
 		if system.MemTotal > 0 && p.HasMemory { mem = 100*float64(p.WorkingSet)/float64(system.MemTotal) }
 		system.Processes = append(system.Processes, systemProcess{
 			PID: p.PID, PPID: p.PPID, Name: p.Name, CPU: cpu,
-			MemPercent: mem, CreateTime: 0,
+			MemPercent: mem, CreateTime: winFiletime{Low: uint32(p.Start), High: uint32(p.Start >> 32)}.unixMillis(),
 		})
 	}
 	sort.Slice(system.Processes, func(i,j int) bool { return system.Processes[i].PID < system.Processes[j].PID })
@@ -284,11 +282,23 @@ func (a *renewApp) runLocalMonitor(ctx context.Context) {
 				a.health.CaptureHealthy = false
 				a.lastErr = "Windows 本机采集失败：" + err.Error()
 				a.systemErr = err.Error()
+				a.windowsConnections = nil
+				a.windowsUDPBindings = nil
+				a.system = systemSnapshot{}
 			})
+			// A gap is unobservable: the next good read must be a new baseline,
+			// not a fabricated burst of missed process/connection starts.
+			hasBaseline = false
 		} else {
 			events, lost := windowsObservationEvents(previous, snapshot, hasBaseline, now)
 			connections := make([]windowsTCPSample, 0, len(snapshot.Connections))
 			for _, conn := range snapshot.Connections { connections = append(connections, conn) }
+			udpBindings := make([]windowsUDPSample, 0, len(snapshot.UDPBindings))
+			for _, binding := range snapshot.UDPBindings { udpBindings = append(udpBindings, binding) }
+			sort.Slice(udpBindings, func(i, j int) bool {
+				if udpBindings[i].PID != udpBindings[j].PID { return udpBindings[i].PID < udpBindings[j].PID }
+				return udpBindings[i].Local < udpBindings[j].Local
+			})
 			sort.Slice(connections, func(i, j int) bool {
 				if connections[i].PID != connections[j].PID { return connections[i].PID < connections[j].PID }
 				if connections[i].Remote != connections[j].Remote { return connections[i].Remote < connections[j].Remote }
@@ -305,6 +315,7 @@ func (a *renewApp) runLocalMonitor(ctx context.Context) {
 				a.health.RingbufDroppedTotal = dropped // Windows UI explicitly labels this as sampled-summary overflow
 				a.system = snapshot.System
 				a.windowsConnections = connections
+				a.windowsUDPBindings = udpBindings
 				a.systemErr = ""
 				a.lastErr = ""
 				a.lastSync = now
