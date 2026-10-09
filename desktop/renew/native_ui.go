@@ -503,13 +503,28 @@ func (a *renewApp) startingView(c *ui.Context) {
 	})
 }
 
+// Retry a failed initial launch, or refresh an existing connection without
+// starting duplicate event streams and backend polling loops.
+func (a *renewApp) retryBackendConnection() {
+	if a.client != nil {
+		a.refreshActiveView()
+		return
+	}
+	if a.starting {
+		return
+	}
+	a.starting = true
+	a.lastErr = ""
+	go a.bootstrap(context.Background())
+}
+
 func (a *renewApp) errorView(c *ui.Context) {
 	t := c.Theme()
 	card(c, "后端未就绪", func() {
 		ui.Text(c, a.lastErr).TextColor(t.TextMuted)
 		ui.Text(c, "可通过 AGENT_BACKEND_URL / --backend 指向其他实例；远程受保护实例可通过 AGENT_API_TOKEN 提供 token。").FontSize(12).TextColor(t.TextMuted)
 		if ui.PrimaryButton(c, "重试").Clicked() {
-			go a.bootstrap(context.Background())
+			a.retryBackendConnection()
 		}
 	})
 }
