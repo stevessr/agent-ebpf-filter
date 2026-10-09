@@ -496,6 +496,9 @@ func (a *renewApp) eventDetailModal(c *ui.Context) {
 			}
 			if a.eventDetailErr != "" {
 				ui.Text(c, "完整记录读取失败：" + a.eventDetailErr).TextColor(t.Danger)
+				if ui.Button(c, "重新加载").Clicked() {
+					a.openEventDetail(a.eventDetailID)
+				}
 				return
 			}
 			record := detailRecord(a.eventDetail)
@@ -516,23 +519,58 @@ func (a *renewApp) eventDetailModal(c *ui.Context) {
 					ui.Text(c, a.eventDetailText).Font("monospace").FontSize(10)
 				})
 			case 2:
-				ui.TextInput(c, &a.eventDetailFieldSearch).Placeholder("筛选字段名、路径或值（仅当前事件）").Width(panelWidth - 12)
-				fields := eventDetailTreeItems(a.eventDetail, a.eventDetailFieldSearch)
-				ui.Text(c, fmt.Sprintf("匹配 %d 条叶子字段，最多展示 300 条；原始 JSON 保留完整结构。", len(fields))).FontSize(10).TextColor(t.TextMuted)
-				ui.Scroll(c).Height(scrollHeight - 56).Gap(7).Children(func() {
-					if len(fields) == 0 {
-						ui.Text(c, "没有匹配的字段。").TextColor(t.TextMuted)
+				ui.TextInput(c, &a.eventDetailFieldSearch).
+					Placeholder("搜索字段名、路径或值（仅当前事件）").
+					Width(panelWidth - 12)
+				if a.eventDetailSearchSnapshot != a.eventDetailFieldSearch {
+					a.eventDetailSearchSnapshot = a.eventDetailFieldSearch
+					a.eventDetailFieldOffset = 0
+					a.eventDetailExpandedField = ""
+				}
+				page := eventDetailTreePage(a.eventDetail, a.eventDetailFieldSearch, a.eventDetailFieldOffset, eventFieldPageSize)
+				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+					if len(page.Items) == 0 {
+						ui.Text(c, "没有匹配字段").FontSize(10).TextColor(t.TextMuted)
+					} else {
+						ui.Text(c, fmt.Sprintf("第 %d–%d 条字段", a.eventDetailFieldOffset+1, a.eventDetailFieldOffset+len(page.Items))).FontSize(10).TextColor(t.TextMuted)
 					}
-					for _, field := range fields {
-						ui.Column(c).Gap(2).Padding(8).Radius(6).Background(t.Surface).Children(func() {
-							ui.Text(c, field.Label).Font("monospace").FontSize(10).TextColor(t.TextMuted)
+					if page.ScanLimited {
+						ui.Text(c, "检索达到安全扫描上限，请缩小范围或查看原始 JSON").FontSize(10).TextColor(t.Warning)
+					}
+					if a.eventDetailFieldOffset > 0 && ui.Button(c, "上一页").Clicked() {
+						a.eventDetailFieldOffset = max(0, a.eventDetailFieldOffset-eventFieldPageSize)
+						a.eventDetailExpandedField = ""
+					}
+					if page.HasMore && !page.ScanLimited && ui.Button(c, "下一页").Clicked() {
+						a.eventDetailFieldOffset += eventFieldPageSize
+						a.eventDetailExpandedField = ""
+					}
+				})
+				ui.Scroll(c).Key(fmt.Sprintf("event-fields-page-%d", a.eventDetailFieldOffset)).
+					Height(max(float32(70), scrollHeight-82)).Gap(7).Children(func() {
+					for _, field := range page.Items {
+						field := field
+						ui.Column(c).Gap(3).Padding(8).Radius(6).Background(t.Surface).Children(func() {
 							ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-								ui.Text(c, eventDetailPreview(field.Value, 360)).Font("monospace").FontSize(11).MaxLines(3).Grow(1).MinWidth(0)
+								ui.Text(c, field.Label).Font("monospace").FontSize(10).TextColor(t.TextMuted).Grow(1).MinWidth(0)
+								if len([]rune(field.Value)) > 300 {
+									key := "tree:" + field.Label
+									label := "展开"
+									if a.eventDetailExpandedField == key { label = "收起" }
+									if ui.Button(c, label).Clicked() {
+										if a.eventDetailExpandedField == key { a.eventDetailExpandedField = "" } else { a.eventDetailExpandedField = key }
+									}
+								}
 								if ui.Button(c, "复制").Tooltip("复制该字段的完整值").Clicked() {
 									c.WriteClipboard(field.Value)
 									c.Toast("字段值已复制")
 								}
 							})
+							value := eventDetailPreview(field.Value, 300)
+							if a.eventDetailExpandedField == "tree:"+field.Label {
+								value = field.Value
+							}
+							ui.Text(c, value).Font("monospace").FontSize(11).MaxLines(4)
 						})
 					}
 				})
