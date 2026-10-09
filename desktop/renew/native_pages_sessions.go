@@ -227,10 +227,14 @@ func (a *renewApp) sessionsView(c *ui.Context) {
 			selected := rows[a.sessionSelected]
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				harnessIdentity(c, selected.Label, strings.SplitN(selected.Label, " · ", 2)[0])
-				if ui.PrimaryButton(c, "查看此会话事件").Clicked() {
-					a.clearEventFilters()
-					a.eventSessionFilter = selected.Key
-					a.page = "事件"
+				if ui.PrimaryButton(c, "全部事件").Tooltip("按稳定的 Agent 运行或根 PID 会话键跳转").Clicked() {
+					a.navigateSessionEvents(selected.Key, false, false)
+				}
+				if selected.FileEdits > 0 && ui.Button(c, "文件修改").Clicked() {
+					a.navigateSessionEvents(selected.Key, true, false)
+				}
+				if selected.DelegatedEdits > 0 && ui.Button(c, "委托编辑").Tooltip("只看该 Agent 的脚本和子进程文件修改").Clicked() {
+					a.navigateSessionEvents(selected.Key, true, true)
 				}
 			})
 		}
