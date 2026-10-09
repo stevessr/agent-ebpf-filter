@@ -347,6 +347,12 @@ func semanticFileMutationPath(event *pb.Event) (string, bool, bool) {
 	default:
 		return "", false, false
 	}
+	// As with Tetragon's return-value selectors, a failed mutating syscall
+	// cannot establish a successful change to a shared resource.
+	// Zero is intentionally permitted for metadata syscalls: success == 0.
+	if event.GetRetval() < 0 {
+		return "", false, false
+	}
 	for _, candidate := range []string{event.GetPath(), event.GetExtraPath()} {
 		path := strings.TrimSpace(candidate)
 		if path == "" || semanticFileTargetIsPlaceholder(path) {
