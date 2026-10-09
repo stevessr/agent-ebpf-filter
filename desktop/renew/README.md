@@ -17,6 +17,23 @@
 
 **证据和隐私边界：** 看板使用当前后端已加载的有界、上游脱敏的摘要，不代表完整网络流、每一次 HTTP/API 请求、Token 或费用。DNS 反向关联无法证明具体 HTTPS Host；DoH、ECH、缓存命中、未抓取的连接等可能导致只显示 IP。它不劫持流量、不新增 MITM/透明代理、不采集额外明文，也不会自动修改阻断规则。CC Switch 的逐请求用量账单基于自身代理接管/请求日志，并非 eBPF 连接摘要可以等价获得的数据。
 
+### Claude Code / Codex 配置解析（本机只读）
+
+在 **Agent 域名监控 → Claude Code / Codex 配置识别** 中手动点击 **读取本机配置**。Renew 会以**普通桌面用户**身份、按需检查：
+
+| Agent | 用户层 | 指定项目绝对路径后 |
+|---|---|---|
+| Claude Code | `$CLAUDE_CONFIG_DIR/settings.json`，默认 `~/.claude/settings.json` | `.claude/settings.json`、`.claude/settings.local.json` |
+| Codex | `$CODEX_HOME/config.toml`，默认 `~/.codex/config.toml`；如显式选择 Profile，也检查 `$CODEX_HOME/<profile>.config.toml` | `.codex/config.toml`（项目层 Provider 选项不作为生效配置） |
+
+- Claude Code 解析 `model`、`env.ANTHROPIC_MODEL`、`ANTHROPIC_BASE_URL` / Vertex / Foundry 地址和 Bedrock/Vertex/Foundry 开关；Codex 解析 `model`、`model_provider`、`openai_base_url`、`[model_providers.*].base_url`、选中的 `[profiles.*]` 或独立 Profile 文件。
+- 仅保存显示允许列出的模型名、Provider 标识和**候选主机名**；绝不呈现 URL 路径和查询参数、密码、环境变量的密钥值、HTTP Headers、MCP 环境或 `auth.json` 内容，也不执行配置里的命令。
+- 基于确切 Agent 归属、实际捕获的域名/IP，对比当前有界事件摘要中的目标数。**配置的候选外联主机不等于真正发出请求、实际路由或生效的后端配置**。
+- 配置解析不模拟进程 CLI 参数、项目信任、受管策略或运行中的环境变量覆盖。Claude Code 项目本地设置和 Codex Profile 文件分别展示为候选，避免错误声称生效优先级。配置读取不触发任何内核策略或采集范围修改。
+- 仅读取手动指定目录的少数固定文件，拒绝符号链接、特殊文件与大于 512 KiB 的文件；JSON/TOML 解析错误不会回显原始内容。用户未点击前不会读取其配置。
+
+官方参考：[Claude Code Settings](https://code.claude.com/docs/en/settings) 和 [Codex Configuration Reference](https://developers.openai.com/codex/config-reference)。
+
 ## Native workspace layout
 
 Renew renders an editor-inspired native workspace **entirely with MyGo widgets**. Its light and dark palettes follow the host OS appearance (including live changes through MyGo's system theme), while native accent colors, text scaling and high-contrast preferences remain available. A monochrome hand-mirror SVG is embedded and rendered as the activity-rail identity; collector health is shown in the main status indicators and System diagnostics, not in a redundant sidebar block. Its 54-DIP activity rail offers page shortcuts; the full navigation is collapsed by default so the center starts immediately after the icon rail. Users can open a 198-DIP compact navigation and then switch to a 302-DIP detailed navigation with full Chinese page labels. The sidebar's actual animated width feeds the incident inspector's responsive breakpoint; the page IDs, selection, keyboard navigation, and Agent identification controls are unchanged. The center retains live eBPF monitoring, sessions, network/process tables and existing privileged management controls. A page toolbar provides search, stream pause and context-aware refresh (rules, tracking, eBPF module state and path permissions re-fetch their own data).
