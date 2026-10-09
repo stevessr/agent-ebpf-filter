@@ -1,8 +1,6 @@
 package app
 
 import (
-	"agent-ebpf-filter/pb"
-	"agent-ebpf-filter/udsframe"
 	"context"
 	"encoding/json"
 	"net"
@@ -12,6 +10,9 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"agent-ebpf-filter/pb"
+	"agent-ebpf-filter/udsframe"
 
 	"github.com/gin-gonic/gin"
 	"google.golang.org/protobuf/proto"
@@ -103,7 +104,7 @@ func TestDesktopLifetimeEOFAndToken(t *testing.T) {
 		t.Fatal(err)
 	}
 	if summary.GetEventId() != "evt_native_test" || summary.GetTarget() != "/tmp/x" {
-		t.Fatalf("native compact summary = %+v", summary)
+		t.Fatalf("native compact summary = %s", summary.String())
 	}
 	_ = conn.Close()
 	select {
@@ -156,10 +157,10 @@ func TestBuildRenewDesktopEventSummaryIsCompact(t *testing.T) {
 
 func TestDesktopStaticAssets(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.Mkdir(filepath.Join(dir, "assets"), 0755); err != nil {
+	if err := os.Mkdir(filepath.Join(dir, "assets"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("frontend-bundle"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("frontend-bundle"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("AGENT_FRONTEND_DIST", dir)

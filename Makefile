@@ -60,7 +60,7 @@ export $(DEV_ENV_EXPORTS)
 
 .DEFAULT_GOAL := all
 
-.PHONY: all backend frontend wrapper clean proto proto-check help predev predev-check predev-go predev-python predev-frontend predev-tui dev dev-env dev-env-tui dev-env-cli dev-env-build dev-env-print dev-env-doctor tui tui-build tui-test renew-desktop-dev renew-desktop-build run deps ebpf-bootstrap ebpf-tls ebpf-cgroup ebpf-lsm os-enforcement-preflight os-enforcement-check os-enforcement-smoke os-enforcement-smoke-start cuda ml-sweep ml-presentation runtime-benchmark test lint lint-backend lint-frontend githooks build install uninstall docker dev-image dev-image-repository dev-image-tag exec
+.PHONY: all backend frontend wrapper clean proto proto-check help predev predev-check predev-go predev-python predev-frontend predev-tui dev dev-env dev-env-tui dev-env-cli dev-env-build dev-env-print dev-env-doctor tui tui-build tui-test renew-desktop-dev renew-desktop-build run deps ebpf-bootstrap ebpf-tls ebpf-cgroup ebpf-lsm os-enforcement-preflight os-enforcement-check os-enforcement-smoke os-enforcement-smoke-start cuda ml-sweep ml-presentation runtime-benchmark test lint lint-backend lint-frontend push githooks build install uninstall docker dev-image dev-image-repository dev-image-tag exec
 
 
 docker: ## Pull the privileged devcontainer image from GHCR
@@ -408,6 +408,31 @@ lint-backend: ## Format Go backend, wrapper, and tooling source code
 lint-frontend: ## Format Vue/TypeScript frontend source code with Prettier
 	@echo "Formatting frontend code..."
 	@cd frontend && bunx --bun prettier --write $(FRONTEND_FORMAT_GLOBS)
+
+push: ## Run all pre-push gates (fmt, vet, build), then git push
+	@echo "Pre-push: verification gate..."
+	@UNFORMATTED=$$(cd backend && gofmt -l . 2>/dev/null); \
+	if [ -n "$$UNFORMATTED" ]; then \
+		echo "✗ Unformatted Go files (run 'make lint-backend'):"; \
+		for f in $$UNFORMATTED; do echo "  - backend/$$f"; done; \
+		exit 1; \
+	fi
+	@UNFORMATTED=$$(cd wrapper && gofmt -l . 2>/dev/null); \
+	if [ -n "$$UNFORMATTED" ]; then \
+		echo "✗ Unformatted wrapper files:"; \
+		for f in $$UNFORMATTED; do echo "  - wrapper/$$f"; done; \
+		exit 1; \
+	fi
+	@echo "  ✓ Go formatting OK"
+	@echo "  → Running go vet..."
+	@cd backend && $(GO) vet ./...
+	@echo "  ✓ Go vet OK"
+	@echo "  → Checking compilation..."
+	@cd backend && $(GO) build -o /dev/null .
+	@cd wrapper && $(GO) build -o /dev/null .
+	@echo "  ✓ Compilation OK"
+	@echo "Pre-push checks passed; pushing..."
+	@git push
 
 githooks: ## Install git hooks (auto-format, commit lint, pre-push checks)
 	@mkdir -p .githooks
