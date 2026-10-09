@@ -190,6 +190,25 @@ func TestSemanticFileContentionRequiresDistinctAgentEvidence(t *testing.T) {
 	}
 }
 
+func TestSemanticFileContentionRejectsIncomparableAgentIdentifiers(t *testing.T) {
+	resetSemanticAlertState()
+	first := &pb.Event{
+		Pid: 201, RootAgentPid: 101, AgentRunId: "run-a",
+		Type: "write", EventType: pb.EventType_WRITE,
+		Path: "/workspace/shared.txt",
+	}
+	second := &pb.Event{
+		Pid: 301, AgentRunId: "run-b", Type: "write",
+		EventType: pb.EventType_WRITE, Path: first.Path,
+	}
+	if alert := findSemanticAlertCode(buildSemanticAlerts(first), "MULTI_AGENT_FILE_CONTENTION"); alert != nil {
+		t.Fatalf("initial write should not alert: %+v", alert)
+	}
+	if alert := findSemanticAlertCode(buildSemanticAlerts(second), "MULTI_AGENT_FILE_CONTENTION"); alert != nil {
+		t.Fatalf("root PID and run ID are incomparable identity types: %+v", alert)
+	}
+}
+
 func TestSemanticFileContentionResolvesRealRelativePaths(t *testing.T) {
 	resetSemanticAlertState()
 	first := &pb.Event{
