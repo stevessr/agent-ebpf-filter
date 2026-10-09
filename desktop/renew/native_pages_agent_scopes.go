@@ -307,6 +307,27 @@ func (a *renewApp) agentScopeEditor(c *ui.Context, kind, heading, help string) {
 	})
 }
 
+// Manual text search is fuzzy, but links from a root Agent PID are exact.
+// Never show PID 1001 when the analyst jumped to PID 100.
+func filterAgentRecognitionRows(rows []agentRecognitionRow, query string, focusPID int) []agentRecognitionRow {
+	q := strings.ToLower(strings.TrimSpace(query))
+	if q == "" && focusPID <= 0 {
+		return rows
+	}
+	filtered := make([]agentRecognitionRow, 0, len(rows))
+	for _, row := range rows {
+		if focusPID > 0 && row.PID != focusPID {
+			continue
+		}
+		if q != "" &&
+			!strings.Contains(strings.ToLower(row.Comm+" "+row.Tag+" "+row.Label+" "+strconv.Itoa(row.PID)), q) {
+			continue
+		}
+		filtered = append(filtered, row)
+	}
+	return filtered
+}
+
 func (a *renewApp) agentRecognitionView(c *ui.Context) {
 	t := c.Theme()
 	ui.Text(c, "Agent 识别与范围").FontSize(28).Bold()
@@ -374,19 +395,10 @@ func (a *renewApp) agentRecognitionView(c *ui.Context) {
 				}
 			})
 		}
-		rows := aggregateAgentRecognitionWithProcesses(a.events, a.registry, live)
-		if query := strings.ToLower(strings.TrimSpace(a.agentSearch)); query != "" {
-			filtered := make([]agentRecognitionRow, 0, len(rows))
-			for _, row := range rows {
-				if a.agentFocusPID > 0 && row.PID != a.agentFocusPID {
-					continue
-				}
-				if strings.Contains(strings.ToLower(row.Comm+" "+row.Tag+" "+row.Label+" "+strconv.Itoa(row.PID)), query) {
-					filtered = append(filtered, row)
-				}
-			}
-			rows = filtered
-		}
+		rows := filterAgentRecognitionRows(
+			aggregateAgentRecognitionWithProcesses(a.events, a.registry, live),
+			a.agentSearch, a.agentFocusPID,
+		)
 		if len(rows) == 0 {
 			ui.Text(c, "当前没有已识别 Agent；可以先登记命令、启动受支持的 Agent，或等待其事件。").TextColor(t.TextMuted)
 			if ui.Button(c, "打开跟踪").Clicked() { a.page = "跟踪" }
