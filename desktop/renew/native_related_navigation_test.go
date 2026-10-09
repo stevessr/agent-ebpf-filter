@@ -190,3 +190,39 @@ func TestModalRelatedLinkClosesSensitiveDetail(t *testing.T) {
 		t.Fatalf("modal link retained evidence payload or failed navigation: %+v", a)
 	}
 }
+
+func TestAgentIdentificationLinkIsExactNotSubstring(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.page = "研判"
+	if !a.navigateRecognition(100, "codex") {
+		t.Fatal("valid owner Agent was not located")
+	}
+	if a.page != "Agent 识别" || a.agentFocusPID != 100 ||
+		a.agentReturnPage != "研判" || a.agentSearch != "100" {
+		t.Fatalf("Agent jump failed to retain exact PID: %+v", a)
+	}
+	rows := []agentRecognitionRow{
+		{Comm: "codex", PID: 100},
+		{Comm: "codex", PID: 1001},
+		{Comm: "claude", PID: 2100},
+	}
+	exact := filterAgentRecognitionRows(rows, a.agentSearch, a.agentFocusPID)
+	if len(exact) != 1 || exact[0].PID != 100 {
+		t.Fatalf("PID 100 navigation matched different processes: %+v", exact)
+	}
+	fuzzy := filterAgentRecognitionRows(rows, "codex", 0)
+	if len(fuzzy) != 2 {
+		t.Fatalf("manual fuzzy search should remain available: %+v", fuzzy)
+	}
+}
+
+func TestPathPermissionJumpRemembersSourceWithoutApplyingPolicy(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.page = "研判"
+	if !a.navigatePathAccess("/home/test/project/settings.yaml") {
+		t.Fatal("cannot prefill path")
+	}
+	if a.pathAccessReturnPage != "研判" || a.pathAccessConfirm {
+		t.Fatalf("linked path should remain draft-only and offer return: %+v", a)
+	}
+}
