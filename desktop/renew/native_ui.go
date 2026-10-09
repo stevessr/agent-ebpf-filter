@@ -15,6 +15,7 @@ type renewApp struct {
 	win     *mygo.Window
 	backend string
 	client  *apiClient
+	localMonitor bool // Windows experimental native polling; never a privileged eBPF backend
 
 	starting   bool
 	connected  bool
@@ -344,6 +345,9 @@ func (a *renewApp) view(c *ui.Context) {
 }
 
 func (a *renewApp) collectorStatus() (label, level string) {
+	if a.localMonitor && a.healthReady && a.health.CaptureHealthy {
+		return "实验性采样", "warning"
+	}
 	switch {
 	case a.starting:
 		return "同步中", "warning"
@@ -359,6 +363,9 @@ func (a *renewApp) collectorStatus() (label, level string) {
 }
 
 func (a *renewApp) pipelineStatus() (label, level string) {
+	if a.localMonitor && a.connected && a.healthReady && a.health.CaptureHealthy {
+		return "Windows · 2 秒采样", "warning"
+	}
 	switch {
 	case a.starting:
 		return "启动中", "warning"
