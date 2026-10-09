@@ -64,3 +64,29 @@ func TestAncestorResolutionBounded(t *testing.T) {
 		t.Fatal("an overly deep /proc ancestry chain should not be followed")
 	}
 }
+
+func TestPropagateAgentContextAtFork(t *testing.T) {
+	store := NewProcessContextStore()
+	parent := ProcessContext{RootAgentPid: 100, AgentRunID: "codex-run"}
+	fork := &pb.Event{Pid: 100, Type: "process_fork", ExtraInfo: "child_pid=101"}
+	propagateAgentContextOnFork(fork, parent, store)
+	child, ok := store.Get(101)
+	if !ok || child.RootAgentPid != 100 || child.AgentRunID != "codex-run" {
+		t.Fatalf("child did not inherit Agent identity at fork: %+v %t", child, ok)
+	}
+
+	// A child that registers an independent run retains its own attribution.
+	store.Set(102, ProcessContext{RootAgentPid: 102, AgentRunID: "child-run"})
+	propagateAgentContextOnFork(&pb.Event{Pid: 100, Type: "process_fork", ExtraInfo: "child_pid=102"}, parent, store)
+	registered, _ := store.Get(102)
+	if registered.AgentRunID != "child-run" {
+		t.Fatalf("fork overwrote an explicitly registered child: %+v", registered)
+	}
+
+	for _, extra := range []string{"child_pid=100", "child_pid=0", "child_pid=bogus", ""} {
+		propagateAgentContextOnFork(&pb.Event{Pid: 100, Type: "process_fork", ExtraInfo: extra}, parent, store)
+	}
+	if _, found := store.Get(0); found {
+		t.Fatal("invalid fork child became a process context")
+	}
+}
