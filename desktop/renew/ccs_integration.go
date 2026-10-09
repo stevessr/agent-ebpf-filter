@@ -153,7 +153,7 @@ func (a *renewApp) pollCCS(ctx context.Context) {
 // Match only observed executable identities, not child shells or remote
 // provider names. This is an attribution hint, NOT proof of API routing.
 func ccsAppForEvent(event eventSummary) string {
-	comm := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(event.Comm), ".exe"))
+	comm := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(event.Comm)), ".exe")
 	switch comm {
 	case "claude", "claude-code":
 		return "claude"
