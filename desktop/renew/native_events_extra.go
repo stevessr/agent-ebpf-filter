@@ -604,59 +604,86 @@ func (a *renewApp) eventDetailModal(c *ui.Context) {
 
 // Enforcement actions remain explicitly gated and separate from observation.
 // Never translate a file write path into an executable block rule.
+// All privileged policy mutations require a fresh status and a separate
+// explicit confirmation. An IP or port rule can affect traffic beyond this
+// single event, and must never be a one-click operation in a detail panel.
+func (a *renewApp) eventDetailEnforcementChoice(
+	c *ui.Context, label, path, key string, value any, scope string,
+) {
+	actionID := path + "|" + fmt.Sprint(value)
+	if a.eventDetailPendingAction != actionID {
+		if ui.Button(c, "选择 · "+label).Clicked() {
+			a.eventDetailPendingAction = actionID
+		}
+		return
+	}
+	ui.Column(c).Gap(6).Padding(9).Radius(6).Background(c.Theme().Surface).Children(func() {
+		ui.Text(c, "待确认："+label).FontSize(12).Bold()
+		ui.Text(c, scope).FontSize(11).TextColor(c.Theme().Warning)
+		ui.Row(c).Gap(8).Children(func() {
+			if ui.Button(c, "确认修改策略").Clicked() {
+				a.eventDetailPendingAction = ""
+				a.runEnforcement(path, map[string]any{key: value})
+			}
+			if ui.Button(c, "取消").Clicked() {
+				a.eventDetailPendingAction = ""
+			}
+		})
+	})
+}
+
 func (a *renewApp) eventDetailEnforcement(c *ui.Context) {
 	t := c.Theme()
 	targets := enforcementTargets(a.eventDetail)
 	if targets.IP == "" && targets.ExecPath == "" {
 		return
 	}
-	card(c, "可选处置", func() {
+	card(c, "可选处置 · 手动确认", func() {
 		if !a.runtimeCfg.Runtime.PolicyManagementEnabled {
-			ui.Text(c, "策略管理未启用。处置须在“监控”页手动启用 policy_management。").FontSize(11).TextColor(t.TextMuted)
+			ui.Text(c, "策略管理未启用，可前往采集设置查看权限。").FontSize(11).TextColor(t.TextMuted)
+			return
+		}
+		if a.enforcementBusy {
+			ui.Text(c, "正在等待策略提交及内核状态确认…").FontSize(11).TextColor(t.TextMuted)
 			return
 		}
 		if a.enforcementErr != "" {
-			ui.Text(c, "无法确认当前阻断策略："+a.enforcementErr).FontSize(11).TextColor(t.Danger)
+			ui.Text(c, "无法确认策略状态："+a.enforcementErr).FontSize(11).TextColor(t.Danger)
 			return
 		}
-		ui.Text(c, "以下操作会更改内核阻断策略，请核对目标。").FontSize(11).TextColor(t.Warning)
-		ui.Row(c).Gap(8).Wrap().Children(func() {
+		if !a.eventDetailEnforcementReady {
+			ui.Text(c, "当前没有可验证的新鲜策略状态，已禁用修改操作。请重新加载事件详情。").FontSize(11).TextColor(t.Warning)
+			return
+		}
+		ui.Text(c, "策略会持续影响后续进程或网络活动；与这条历史事件的风险评分无直接等价关系。").FontSize(11).TextColor(t.TextMuted)
+		ui.Column(c).Gap(8).Children(func() {
 			if targets.IP != "" {
 				blocked := containsString(a.enforcement.Cgroup.BlockedIPs, targets.IP)
 				label, path := "阻断 IP "+targets.IP, "/sandbox/cgroup/block-ip"
 				if blocked {
 					label, path = "解除 IP "+targets.IP, "/sandbox/cgroup/unblock-ip"
 				}
-				if ui.Button(c, label).Clicked() {
-					a.runEnforcement(path, map[string]any{"ip": targets.IP})
-				}
+				a.eventDetailEnforcementChoice(c, label, path, "ip", targets.IP,
+					"此操作影响命中该 IP 的后续网络连接，不仅限于当前事件。")
 			}
 			if targets.Port > 0 {
 				blocked := containsInt(a.enforcement.Cgroup.BlockedPorts, targets.Port)
-				label, path := fmt.Sprintf("阻断端口 %d", targets.Port), "/sandbox/cgroup/block-port"
+				label, path := fmt.Sprintf("阻断端口 %d（所有目标 IP）", targets.Port), "/sandbox/cgroup/block-port"
 				if blocked {
-					label, path = fmt.Sprintf("解除端口 %d", targets.Port), "/sandbox/cgroup/unblock-port"
+					label, path = fmt.Sprintf("解除端口 %d（所有目标 IP）", targets.Port), "/sandbox/cgroup/unblock-port"
 				}
-				if ui.Button(c, label).Clicked() {
-					a.runEnforcement(path, map[string]any{"port": targets.Port})
-				}
+				a.eventDetailEnforcementChoice(c, label, path, "port", targets.Port,
+					"端口策略按端口匹配，不绑定事件中的目标 IP，可能影响多个服务。")
 			}
 			if targets.ExecPath != "" {
 				blocked := containsString(a.enforcement.LSM.BlockedExecPaths, targets.ExecPath)
-				label, path := "阻断执行 "+targets.ExecPath, "/sandbox/lsm/block-exec-path"
+				label, path := "阻止后续执行 "+targets.ExecPath, "/sandbox/lsm/block-exec-path"
 				if blocked {
-					label, path = "解除执行 "+targets.ExecPath, "/sandbox/lsm/unblock-exec-path"
+					label, path = "解除执行阻断 "+targets.ExecPath, "/sandbox/lsm/unblock-exec-path"
 				}
-				if ui.Button(c, label).Clicked() {
-					a.runEnforcement(path, map[string]any{"path": targets.ExecPath})
-				}
+				a.eventDetailEnforcementChoice(c, label, path, "path", targets.ExecPath,
+					"此 LSM 路径规则作用于后续执行请求，不会撤销已有进程或当前记录。")
 			}
 		})
-		if a.enforcementBusy {
-			ui.Text(c, "正在等待内核状态确认…").FontSize(11).TextColor(t.TextMuted)
-		}
-		if a.enforcementErr != "" {
-			ui.Text(c, a.enforcementErr).FontSize(11).TextColor(t.Danger)
-		}
 	})
 }
