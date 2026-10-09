@@ -43,7 +43,7 @@ func (a *renewApp) inspectorEvent() (eventSummary, bool) {
 		return rows[a.eventSelected], true
 	}
 	for _, event := range rows {
-		if eventRisk(event) != "正常" {
+		if risk := eventRisk(event); risk == "高风险" || risk == "需关注" {
 			return event, true
 		}
 	}
@@ -186,7 +186,7 @@ func (a *renewApp) inspector(c *ui.Context) {
 			a.inspectorDiagnostics(c)
 		} else {
 			ui.Scroll(c).Grow(1).Padding(12).Gap(12).Children(func() {
-				ui.Row(c).Gap(8).Children(func() {
+				if !a.localMonitor { ui.Row(c).Gap(8).Children(func() {
 					ui.Column(c).Grow(1).Padding(12).Gap(4).Radius(9).Background(t.Background).Children(func() {
 						ui.Text(c, "需关注").FontSize(11).TextColor(t.TextMuted)
 						ui.Text(c, strconv.Itoa(attention)).FontSize(22).Bold().TextColor(t.Warning)
@@ -207,11 +207,15 @@ func (a *renewApp) inspector(c *ui.Context) {
 					})
 				})
 				ui.Text(c, "统计来自当前最多 1200 条摘要，并非历史总量").FontSize(10).TextColor(t.TextMuted)
-				if ui.Button(c, "查看所有需关注事件").Clicked() {
-					a.clearEventFilters()
-					a.eventAttentionOnly = true
-					a.page = "事件"
-				}
+                if ui.Button(c, "查看所有需关注事件").Clicked() {
+                    a.clearEventFilters()
+                    a.eventAttentionOnly = true
+                    a.page = "事件"
+                }
+                } else {
+                    ui.Text(c, fmt.Sprintf("Windows 本机采样 · %d 条未评级状态观察",len(a.events))).FontSize(12).TextColor(t.Warning)
+                    ui.Text(c, "观察到的连接与进程变化不是威胁判定；不进行风险评分或拦截。").FontSize(11).TextColor(t.TextMuted)
+                }
 				ui.Divider(c)
 				ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
 					ui.Text(c, "事件上下文").Bold().FontSize(12).Grow(1)
@@ -233,7 +237,7 @@ func (a *renewApp) inspector(c *ui.Context) {
 					a.inspectorEventCard(c, event)
 				}
 				ui.Divider(c)
-				ui.Text(c, "最近需关注事件").FontSize(12).Bold()
+				if a.localMonitor { ui.Text(c, "采样记录不会作为风险告警").FontSize(12).TextColor(t.TextMuted) } else { ui.Text(c, "最近需关注事件").FontSize(12).Bold() }
 				alerts := a.inspectorAlerts(5)
 				if len(alerts) == 0 {
 					ui.Text(c, "当前摘要窗口暂无待关注事件。").FontSize(11).TextColor(t.TextMuted)
