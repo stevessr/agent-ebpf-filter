@@ -566,11 +566,11 @@ func (a *renewApp) eventDetailModal(c *ui.Context) {
 									c.Toast("字段值已复制")
 								}
 							})
-							value := eventDetailPreview(field.Value, 300)
 							if a.eventDetailExpandedField == "tree:"+field.Label {
-								value = field.Value
+								ui.Text(c, field.Value).Font("monospace").FontSize(11)
+							} else {
+								ui.Text(c, eventDetailPreview(field.Value, 300)).Font("monospace").FontSize(11).MaxLines(4)
 							}
-							ui.Text(c, value).Font("monospace").FontSize(11).MaxLines(4)
 						})
 					}
 				})
