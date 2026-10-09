@@ -168,8 +168,10 @@ func claudeStaticConfigPreview(claudeDir, project string) (agentConfigCandidate,
 			origins = append(origins,"ANTHROPIC_MODEL ← "+layer.Scope)
 		}
 		if v := configText(jsonConfigTable(doc,"permissions"),"defaultMode"); v!="" {
-			mode = v
-			origins = append(origins,"defaultMode ← "+layer.Scope)
+			if v != "auto" || layer.Scope == "用户" {
+				mode = v
+				origins = append(origins,"defaultMode ← "+layer.Scope)
+			}
 		}
 		env := jsonConfigTable(doc,"env")
 		for _, flag := range []struct{Key,Label string}{{"CLAUDE_CODE_USE_BEDROCK","AWS Bedrock"},{"CLAUDE_CODE_USE_VERTEX","Google Vertex AI"},{"CLAUDE_CODE_USE_FOUNDRY","Microsoft Foundry"}} {
