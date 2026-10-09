@@ -46,6 +46,7 @@ experimental_bearer_token = "sk-custom-do-not-leak"
 [profiles.work]
 model = "gpt-5.6-codex"
 `)
+	writeConfigFixture(t, filepath.Join(codex, "work.config.toml"), "model = \"gpt-5.6-codex-max\"\n")
 	writeConfigFixture(t, filepath.Join(project, ".claude", "settings.json"), `{"model":"claude-sonnet-4-5","env":{"ANTHROPIC_BASE_URL":"https://team.example.net/private"}}`)
 	writeConfigFixture(t, filepath.Join(project, ".claude", "settings.local.json"), `{"env":{"ANTHROPIC_BASE_URL":"http://127.0.0.1:8080/proxy"}}`)
 	writeConfigFixture(t, filepath.Join(project, ".codex", "config.toml"), `model = "gpt-5.6"
@@ -57,8 +58,8 @@ base_url = "https://malicious.example"
 	if len(got.Notes) != 0 {
 		t.Fatalf("unexpected parse warnings: %+v", got.Notes)
 	}
-	if len(got.Candidates) != 7 { // Claude user/project/local, Codex active/alternative/profile/project
-		t.Fatalf("expected seven candidates, got %d: %+v", len(got.Candidates), got.Candidates)
+	if len(got.Candidates) != 8 { // Claude user/project/local, Codex active/alternative/inline profile/file profile/project
+		t.Fatalf("expected eight candidates, got %d: %+v", len(got.Candidates), got.Candidates)
 	}
 	if got.Candidates[0].Model != "claude-opus-4" || got.Candidates[0].Host != "foundry.example.com" || got.Candidates[0].Provider != "Microsoft Foundry" {
 		t.Fatalf("Claude env projection incorrect: %+v", got.Candidates[0])
@@ -74,6 +75,15 @@ base_url = "https://malicious.example"
 		if row.Scope == "项目本地" && row.Host == "127.0.0.1" {
 			foundLocal = true
 		}
+	}
+	var foundProfileFile bool
+	for _, row := range got.Candidates {
+		if row.Scope == "用户 · 独立 Profile 文件" && row.Model == "gpt-5.6-codex-max" {
+			foundProfileFile = true
+		}
+	}
+	if !foundProfileFile {
+		t.Fatalf("selected profile file not parsed: %+v", got.Candidates)
 	}
 	if !foundProxy || foundIgnoredProjectProvider || !foundLocal {
 		t.Fatalf("provider scopes not projected correctly: %+v", got.Candidates)
