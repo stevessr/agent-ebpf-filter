@@ -26,7 +26,7 @@
 | Claude Code | `$CLAUDE_CONFIG_DIR/settings.json`，默认 `~/.claude/settings.json` | `.claude/settings.json`、`.claude/settings.local.json` |
 | Codex | `$CODEX_HOME/config.toml`，默认 `~/.codex/config.toml`；如显式选择 Profile，也检查 `$CODEX_HOME/<profile>.config.toml` | `.codex/config.toml`（项目层 Provider 选项不作为生效配置） |
 
-- Claude Code 解析 `model`、`env.ANTHROPIC_MODEL`、`ANTHROPIC_BASE_URL` / Vertex / Foundry 地址和 Bedrock/Vertex/Foundry 开关；Codex 解析 `model`、`model_provider`、`openai_base_url`、`[model_providers.*].base_url`、选中的 `[profiles.*]` 或独立 Profile 文件。
+- Claude Code 解析 `model`、`env.ANTHROPIC_MODEL`、`ANTHROPIC_BASE_URL` / Vertex / Foundry 地址、Bedrock/Vertex/Foundry 开关以及 `permissions.defaultMode`（包含 `bypassPermissions` 提示）；Codex 解析 `model`、`model_provider`、`openai_base_url`、`[model_providers.*].base_url`、选中的 `[profiles.*]` 或独立 Profile 文件，额外列出 `sandbox_mode`、`approval_policy` 和工作区沙箱网络访问声明（包含 `danger-full-access`、`never` 等风险提示）。这些都仅是配置声明，不是对正在运行的沙箱/权限的验证。
 - 仅保存显示允许列出的模型名、Provider 标识和**候选主机名**；绝不呈现 URL 路径和查询参数、密码、环境变量的密钥值、HTTP Headers、MCP 环境或 `auth.json` 内容（读取设置文件时敏感字段会被解析器临时接触，但绝不保留在展示结构中），也不执行配置里的命令。
 - 基于确切 Agent 归属、实际捕获的域名/IP，对比当前有界事件摘要中的目标数。**配置的候选外联主机不等于真正发出请求、实际路由或生效的后端配置**。
 - 配置解析不模拟进程 CLI 参数、项目信任、受管策略或运行中的环境变量覆盖。Claude Code 项目本地设置和 Codex Profile 文件分别展示为候选，避免错误声称生效优先级。配置读取不触发任何内核策略或采集范围修改。
