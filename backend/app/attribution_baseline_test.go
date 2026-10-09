@@ -290,6 +290,12 @@ func TestToolBaselineHighSignalNoveltyAndConcurrentBurst(t *testing.T) {
 
 func TestToolBaselineRiskPriorIsNarrow(t *testing.T) {
 	t.Parallel()
+	if score := toolBaselineRiskFloor("curl", "execve"); score != 0.91 {
+		t.Fatalf("high-signal novelty risk floor = %v", score)
+	}
+	if score := toolBaselineRiskFloor("jq", "read"); score != 0.60 {
+		t.Fatalf("time-confirmed benign novelty risk floor = %v", score)
+	}
 	for _, item := range []struct{ comm, event string; want bool }{
 		{"curl", "execve", true},
 		{"curl", "baseline_network", true},
