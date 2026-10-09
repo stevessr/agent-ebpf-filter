@@ -90,3 +90,19 @@ func TestPropagateAgentContextAtFork(t *testing.T) {
 		t.Fatal("invalid fork child became a process context")
 	}
 }
+
+func TestAgentCLISeedsOnlyKnownAgentRoot(t *testing.T) {
+	if !shouldSeedAgentRootAtFork(&pb.Event{Pid: 100, Type: "process_fork", Tag: "Agent CLI", Comm: "codex"}) {
+		t.Fatal("Codex selected by comm should establish its own root context")
+	}
+	for _, test := range []pb.Event{
+		{Pid: 102, Type: "process_fork", Tag: "Shell", Comm: "bash"},
+		{Pid: 103, Type: "process_fork", Tag: "Runtime", Comm: "python"},
+		{Pid: 104, Type: "process_fork", Tag: "Agent CLI", Comm: "gh"},
+		{Pid: 105, Type: "file_write", Tag: "Agent CLI", Comm: "codex"},
+	} {
+		if shouldSeedAgentRootAtFork(&test) {
+			t.Fatalf("unverified process was used as Agent root: %+v", test)
+		}
+	}
+}
