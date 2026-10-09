@@ -175,3 +175,27 @@ func TestRelatedSummaryCanUseExplicitRunWithoutPID(t *testing.T) {
 		t.Fatalf("run correlation should not require a local PID: %+v", got)
 	}
 }
+
+func TestDetailHeadlineUsesTypedEvidenceNotSubstring(t *testing.T) {
+	cases := []struct {
+		name, eventType, typedKey, want string
+	}{
+		{"OpenAI-like name", "openai_request", "", "openai_request"},
+		{"file modification", "file_write", "", "修改文件"},
+		{"file read", "openat", "", "读取文件"},
+		{"native TLS", "openai_request", "tlsEvent", "TLS / LLM 请求"},
+		{"MCP", "", "mcpEvent", "MCP 工具调用"},
+		{"uncategorized", "", "", "未分类事件"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			detail := map[string]any{"Event": map[string]any{"type": tc.eventType}}
+			if tc.typedKey != "" {
+				detail["Envelope"] = map[string]any{tc.typedKey: map[string]any{"toolName": "tool"}}
+			}
+			if got := eventDetailModel(detail).Action; got != tc.want {
+				t.Fatalf("event headline = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
