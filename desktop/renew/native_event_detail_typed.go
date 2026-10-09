@@ -218,16 +218,17 @@ type eventDetailRelatedItem struct {
 }
 
 func eventDetailRelatedCandidates(events []eventSummary, selected eventSummary, limit int) []eventDetailRelatedItem {
-	if selected.PID <= 0 || limit <= 0 {
+	if limit <= 0 {
 		return nil
 	}
 	out := make([]eventDetailRelatedItem, 0, min(limit, 8))
 	for _, e := range events {
-		if e.EventID == "" || e.EventID == selected.EventID || e.PID != selected.PID {
+		if e.EventID == "" || e.EventID == selected.EventID {
 			continue
 		}
 		var distance int64
-		if e.ReceivedAtMS != 0 && selected.ReceivedAtMS != 0 {
+		hasTime := e.ReceivedAtMS > 0 && selected.ReceivedAtMS > 0
+		if hasTime {
 			distance = e.ReceivedAtMS - selected.ReceivedAtMS
 			if distance < 0 {
 				distance = -distance
@@ -235,26 +236,34 @@ func eventDetailRelatedCandidates(events []eventSummary, selected eventSummary, 
 		}
 		relation := ""
 		switch {
+		// An explicit Agent Run or conversation is meaningful even when an
+		// agent spawns child processes with a different PID.
 		case selected.AgentRunID != "" && e.AgentRunID == selected.AgentRunID:
 			relation = "同 Agent Run"
 		case selected.ConversationID != "" && e.ConversationID == selected.ConversationID:
 			relation = "同会话"
-		case e.ReceivedAtMS != 0 && selected.ReceivedAtMS != 0 && distance <= (2*time.Minute).Milliseconds():
+		case selected.PID > 0 && e.PID == selected.PID && hasTime &&
+			distance <= (2*time.Minute).Milliseconds() &&
+			// Do not call contradictory explicit run attribution "related"
+			// merely because a long-running PID was reused nearby.
+			(selected.AgentRunID == "" || e.AgentRunID == "" || selected.AgentRunID == e.AgentRunID) &&
+			(selected.ConversationID == "" || e.ConversationID == "" || selected.ConversationID == e.ConversationID):
 			relation = "同 PID · 两分钟内"
 		default:
-			// No evidence of either a bounded time window or a stable run.
 			continue
 		}
 		out = append(out, eventDetailRelatedItem{Event: e, Relation: relation, DistanceMS: distance})
 	}
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].Relation != out[j].Relation {
-			// Explicitly correlated Agent run/session precedes a PID-only row.
 			rank := func(name string) int {
 				switch name {
-				case "同 Agent Run": return 0
-				case "同会话": return 1
-				default: return 2
+				case "同 Agent Run":
+					return 0
+				case "同会话":
+					return 1
+				default:
+					return 2
 				}
 			}
 			return rank(out[i].Relation) < rank(out[j].Relation)
