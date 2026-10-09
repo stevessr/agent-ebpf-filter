@@ -82,3 +82,19 @@ func TestUnknownRootDoesNotInheritInterpreterIdentity(t *testing.T) {
 		t.Fatalf("PID-reused live Agent misnamed historical event: %+v", owner)
 	}
 }
+
+func TestGenericTaggedShellDoesNotBecomeAnAgent(t *testing.T) {
+	for _, input := range []eventSummary{
+		{PID: 201, Comm: "fish", Tag: "Shell", HasAgentContext: true, Type: "file_write"},
+		{PID: 202, Comm: "python", Tag: "Runtime", HasAgentContext: true, Type: "file_write"},
+		{PID: 203, Comm: "node", Tag: "Runtime", HasAgentContext: true, Type: "file_write"},
+		{PID: 204, Comm: "pwsh", Tag: "Runtime", HasAgentContext: true, Type: "file_write"},
+	} {
+		if isAgentSummary(input) {
+			t.Fatalf("generic executor became independent Agent: %+v", input)
+		}
+	}
+	if !isAgentSummary(eventSummary{PID: 205, RootAgentPID: 100, Comm: "bash", Tag: "Shell", HasAgentContext: true}) {
+		t.Fatal("confirmed descendant must still belong to its Agent")
+	}
+}
