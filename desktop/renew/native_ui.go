@@ -166,6 +166,9 @@ type renewApp struct {
 	monitorScopeText     string
 	agentSearch          string
 	agentLastSearch      string
+	agentFocusPID        int
+	agentReturnPage      string
+	pathAccessReturnPage string
 	agentTable           ui.ListState
 	agentSelected        int
 
