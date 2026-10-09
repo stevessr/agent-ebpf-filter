@@ -16,6 +16,8 @@ type windowsProcessSample struct {
 	Start uint64 // FILETIME, when accessible; zero for protected processes
 	CPU uint64 // cumulative user + kernel time, 100 ns units
 	WorkingSet uint64
+	HasCPU bool // protected-process access may prevent reading counters
+	HasMemory bool
 }
 
 type windowsTCPSample struct {
@@ -51,7 +53,7 @@ func windowsObservationEvents(prev, next windowsObservation, hasBaseline bool, a
 	for _, pid := range ids {
 		p := next.Processes[pid]
 		old, exists := prev.Processes[pid]
-		if !exists || (old.Start != 0 && p.Start != 0 && old.Start != p.Start) {
+		if !exists || windowsProcessIdentityChanged(old, p) {
 			add(eventSummary{PID: p.PID, PPID: p.PPID, Comm: p.Name, Type: "process_newly_observed", Target: p.Name})
 		}
 	}
@@ -61,7 +63,7 @@ func windowsObservationEvents(prev, next windowsObservation, hasBaseline bool, a
 	for _, pid := range ids {
 		p := prev.Processes[pid]
 		newer, exists := next.Processes[pid]
-		if !exists || (p.Start != 0 && newer.Start != 0 && p.Start != newer.Start) {
+		if !exists || windowsProcessIdentityChanged(p, newer) {
 			add(eventSummary{PID: p.PID, PPID: p.PPID, Comm: p.Name, Type: "process_disappeared", Target: p.Name})
 		}
 	}
@@ -79,6 +81,13 @@ func windowsObservationEvents(prev, next windowsObservation, hasBaseline bool, a
 		return events[:windowsMaxEventsPerPoll], len(events)-windowsMaxEventsPerPoll
 	}
 	return events, 0
+}
+
+func windowsProcessIdentityChanged(before, after windowsProcessSample) bool {
+	if before.Start != 0 && after.Start != 0 { return before.Start != after.Start }
+	// For inaccessible process handles, image and parent are the best
+	// available identity checks. Do not assume a reused PID is unchanged.
+	return before.Name != after.Name || before.PPID != after.PPID
 }
 
 func windowsCPUPercent(prev, next windowsObservation) float64 {
