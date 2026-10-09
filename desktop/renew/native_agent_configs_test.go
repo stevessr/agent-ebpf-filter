@@ -81,7 +81,7 @@ base_url = "https://malicious.example"
 	}
 	var foundProfileFile bool
 	for _, row := range got.Candidates {
-		if row.Scope == "用户 · 独立 Profile 文件" && row.Model == "gpt-5.6-codex-max" {
+		if row.Scope == "用户 · 独立 Profile 文件" && row.Model == "gpt-5.6-codex-max" && row.Provider == "未声明（继承上层）" {
 			foundProfileFile = true
 		}
 	}
