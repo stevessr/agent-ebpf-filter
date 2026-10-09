@@ -4,6 +4,8 @@ package main
 
 import (
 	"encoding/binary"
+    "os"
+    "path/filepath"
 	"testing"
 )
 
@@ -128,5 +130,16 @@ func TestWinParseIPv6TCPScopedAddress(t *testing.T) {
         if conn.Local!="[fe80::1%4]:100" || conn.Remote!="[fe80::2%5]:110"{
             t.Fatalf("wrong scope ids: %+v",conn)
         }
+    }
+}
+
+
+func TestWinReadOwnProcessImagePath(t *testing.T) {
+    handle, _, _ := winOpenProcess.Call(winPROCESS_QUERY_LIMITED_INFORMATION,0,uintptr(os.Getpid()))
+    if handle == 0 { t.Skip("current process handle not available in runner") }
+    defer winCloseHandle.Call(handle)
+    imagePath := winReadImagePath(handle)
+    if imagePath == "" || !filepath.IsAbs(imagePath) {
+        t.Fatalf("own executable Win32 image path invalid: %q",imagePath)
     }
 }
