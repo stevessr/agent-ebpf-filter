@@ -77,6 +77,9 @@ type renewApp struct {
 	trackedComms       []string
 	system             systemSnapshot
 	windowsConnections []windowsTCPSample // current established TCP sockets (Windows local only)
+	windowsUDPBindings []windowsUDPSample // current UDP local socket bindings
+	windowsNetworkTab int
+	windowsNetworkLastTab int
 	systemConnected    bool
 	systemErr          string
 	eventStreamConnected bool
