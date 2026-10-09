@@ -118,11 +118,11 @@ func winReadProcesses() (map[int]windowsProcessSample, error) {
 				r, _, _ := winGetProcessTimes.Call(handle,
 					uintptr(unsafe.Pointer(&created)), uintptr(unsafe.Pointer(&exited)),
 					uintptr(unsafe.Pointer(&kernel)), uintptr(unsafe.Pointer(&user)))
-				if r != 0 { p.Start = created.ticks(); p.CPU = kernel.ticks()+user.ticks() }
+				if r != 0 { p.Start = created.ticks(); p.CPU = kernel.ticks()+user.ticks(); p.HasCPU = true }
 				var mem winProcessMemoryCounters
 				mem.Size = uint32(unsafe.Sizeof(mem))
 				r, _, _ = winGetProcessMemoryInfo.Call(handle, uintptr(unsafe.Pointer(&mem)), uintptr(mem.Size))
-				if r != 0 { p.WorkingSet = uint64(mem.WorkingSetSize) }
+				if r != 0 { p.WorkingSet = uint64(mem.WorkingSetSize); p.HasMemory = true }
 				winCloseHandle.Call(handle)
 			}
 			processes[pid] = p
@@ -234,13 +234,13 @@ func collectWindowsObservation(ctx context.Context, prev windowsObservation, has
 	}
 	system.Processes = make([]systemProcess, 0, len(processes))
 	for _, p := range processes {
-		var cpu, mem float64
-		if hasBaseline {
-			if old, exists := prev.Processes[p.PID]; exists {
+		cpu, mem := -1.0, -1.0
+		if hasBaseline && p.HasCPU {
+			if old, exists := prev.Processes[p.PID]; exists && old.HasCPU {
 				cpu = windowsProcessCPUPercent(old, p, elapsed, runtime.NumCPU())
 			}
 		}
-		if system.MemTotal > 0 { mem = 100*float64(p.WorkingSet)/float64(system.MemTotal) }
+		if system.MemTotal > 0 && p.HasMemory { mem = 100*float64(p.WorkingSet)/float64(system.MemTotal) }
 		system.Processes = append(system.Processes, systemProcess{
 			PID: p.PID, PPID: p.PPID, Name: p.Name, CPU: cpu,
 			MemPercent: mem, CreateTime: 0,
