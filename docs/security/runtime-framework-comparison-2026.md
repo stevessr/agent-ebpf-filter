@@ -28,6 +28,12 @@ The emitted event remains named `MULTI_AGENT_FILE_CONTENTION` for compatibility 
 
 The project already has eBPF probes, protobuf events, process/Agent attribution and a Renew desktop client. Embedding Falco/Tetragon/Tracee would duplicate collection and introduce another process, policy lifecycle and deployment dependency. It is safer to implement narrowly scoped invariants and regressions first. This change does not claim external rule/config compatibility.
 
+## Operational noise and replay hardening (incremental improvement)
+
+- Pseudo-files and device endpoints such as `/dev/null`, `/dev/pts/*`, `/proc/*`, `/sys/*`, and `/dev/fd/*` are not suitable evidence of two Agents modifying the same **regular file**. Only the cross-Agent file-contention predicate excludes these targets; secret-access and other safety rules still receive their original events. We deliberately preserve ordinary files under `/dev/shm`.
+- Out-of-order observations on a scoped path must not overwrite newer evidence or synthesize a temporal correlation. The correlation state now ignores timestamps older than the stored observation. This is mainly relevant for synthetic replay, asynchronous producers and clock skew; the production detector uses ingestion time.
+- Three monotonic counters are exposed through the existing semantic state status JSON: `fileCorrelationAlertsTotal`, `fileCorrelationDedupedTotal`, and `fileCorrelationLateTotal`. All updates happen under the existing state lock and use no unbounded retention. They measure decision volume, not false-positive rate, which requires ground-truth labels.
+
 ## Regression and follow-up
 
 The new `TestSemanticFileContentionRequiresSuccessfulSyscallResult` and `TestSemanticFileContentionCooldownAndContainerIsolation` tests cover successful/failing syscall outcomes, null-byte writes, known container boundaries, deduplication and cooldown expiry. CI invokes Go tests through the repository's bpf-ts smoke workflow.
