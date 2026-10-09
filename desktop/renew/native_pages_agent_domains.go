@@ -198,6 +198,19 @@ func (a *renewApp) openAgentDomainEvents(row agentDomainRow) {
 	a.eventDomainKind = row.Kind
 }
 
+func agentDomainRowKey(row agentDomainRow) string {
+	return row.Agent + "\x00" + row.Kind + "\x00" + row.Target
+}
+
+func agentDomainSelectedIndex(rows []agentDomainRow, key string) int {
+	for i, row := range rows {
+		if agentDomainRowKey(row) == key {
+			return i
+		}
+	}
+	return -1
+}
+
 func (a *renewApp) agentDomainsView(c *ui.Context) {
 	t := c.Theme()
 	ui.Text(c, "Agent 域名监控").FontSize(28).Bold()
@@ -245,7 +258,12 @@ func (a *renewApp) agentDomainsView(c *ui.Context) {
 	filterKey := fmt.Sprintf("%s\x00%s\x00%t\x00%t", a.domainSearch, a.domainAgentFilter, a.domainRiskOnly, a.domainShowIPs)
 	if a.domainLastFilter != filterKey {
 		a.domainSelected = -1
+		a.domainSelectedKey = ""
 		a.domainLastFilter = filterKey
+	}
+	if a.domainLastVersion != a.eventsVersion {
+		a.domainSelected = agentDomainSelectedIndex(rows, a.domainSelectedKey)
+		a.domainLastVersion = a.eventsVersion
 	}
 	card(c, fmt.Sprintf("外联目的地 · %d 组", len(rows)), func() {
 		if len(rows) == 0 {
@@ -257,14 +275,13 @@ func (a *renewApp) agentDomainsView(c *ui.Context) {
 			{Title: "Agent", Width: 146},
 			{Title: "证据", Width: 80},
 			{Title: "事件", Width: 60, Align: ui.End},
+			{Title: "摘要字节", Width: 100, Align: ui.End},
 			{Title: "会话", Width: 60, Align: ui.End},
 			{Title: "风险", Width: 85},
 			{Title: "最近", Width: 80},
 		}
-		a.domainTable.Key = func(i int) any {
-			return rows[i].Agent + "\x00" + rows[i].Kind + "\x00" + rows[i].Target
-		}
-		ui.Table(c, &a.domainTable, cols, len(rows), func(i, col int) {
+		a.domainTable.Key = func(i int) any { return agentDomainRowKey(rows[i]) }
+		table := ui.Table(c, &a.domainTable, cols, len(rows), func(i, col int) {
 			row := rows[i]
 			switch col {
 			case 0:
@@ -276,13 +293,18 @@ func (a *renewApp) agentDomainsView(c *ui.Context) {
 			case 3:
 				ui.Text(c, strconv.Itoa(row.Events))
 			case 4:
-				ui.Text(c, strconv.Itoa(row.Sessions))
+				ui.Text(c, formatBytes(row.Bytes))
 			case 5:
-				ui.Text(c, row.Risk).TextColor(riskTextColor(t, row.Risk))
+				ui.Text(c, strconv.Itoa(row.Sessions))
 			case 6:
+				ui.Text(c, row.Risk).TextColor(riskTextColor(t, row.Risk))
+			case 7:
 				ui.Text(c, summaryTime(row.LastMS)).Font("monospace")
 			}
 		}).Height(470).Label("Agent 网络目的地")
+		if table.Changed() && a.domainSelected >= 0 && a.domainSelected < len(rows) {
+			a.domainSelectedKey = agentDomainRowKey(rows[a.domainSelected])
+		}
 		if a.domainSelected >= 0 && a.domainSelected < len(rows) {
 			row := rows[a.domainSelected]
 			ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
