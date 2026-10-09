@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 	"testing"
+
+	"github.com/egoist/mygo/ui"
 )
 
 func eventDetailHasField(model eventDetailViewModel, section, label, value string) bool {
@@ -96,5 +98,86 @@ func TestEventDetailTreeSearchAndBound(t *testing.T) {
 	}
 	if values := eventDetailTreeItems(detail, "does-not-exist"); len(values) != 0 {
 		t.Fatalf("unexpected search results: %+v", values)
+	}
+}
+
+func TestEventDetailCategoryDoesNotGuessFromSubstring(t *testing.T) {
+	for _, tc := range []struct{ eventType, want string }{
+		{"openat", "file"}, {"file_write", "file"}, {"connect", "network"},
+		{"sendmsg", "network"}, {"execve", "process"}, {"clone", "process"},
+		{"openai_request", "other"}, {"readiness_probe", "other"},
+	} {
+		if got := eventDetailCategory(nil, tc.eventType); got != tc.want {
+			t.Errorf("%q classified as %q instead of %q", tc.eventType, got, tc.want)
+		}
+	}
+	got := eventDetailCategory(map[string]any{
+		"Envelope": map[string]any{"networkEvent": map[string]any{"endpoint": "192.0.2.1:443"}},
+	}, "open")
+	if got != "network" {
+		t.Fatalf("explicit typed evidence must outrank ambiguous event type: %q", got)
+	}
+}
+
+func TestEventDetailPolicyExplanationAndProvenance(t *testing.T) {
+	model := eventDetailModel(map[string]any{
+		"Event": map[string]any{
+			"type": "write",
+			"behavior": map[string]any{
+				"primary_category": "FILE_WRITE", "confidence": "high",
+				"reasoning": "detected file modification",
+			},
+		},
+		"Envelope": map[string]any{
+			"policyDecision": "ALERT",
+			"policyEvent": map[string]any{
+				"reason": "sensitive target", "relatedPath": "/tmp/example",
+			},
+		},
+	})
+	for _, tc := range []struct{ label, value string }{
+		{"策略决定", "ALERT"},
+		{"判定原因", "sensitive target"},
+		{"行为分类", "FILE_WRITE"},
+		{"分类置信度", "high"},
+		{"分类依据", "detected file modification"},
+	} {
+		if !eventDetailHasField(model, "策略与分类", tc.label, tc.value) {
+			t.Errorf("missing policy evidence: %s = %q", tc.label, tc.value)
+		}
+	}
+	for _, group := range model.Sections {
+		if group.Title == "策略与分类" {
+			for _, field := range group.Fields {
+				if field.Origin == "" {
+					t.Fatalf("policy field %q has no source", field.Label)
+				}
+			}
+		}
+	}
+}
+
+func TestDetailPreviewDoesNotSplitUnicode(t *testing.T) {
+	if got := eventDetailPreview("命令行测试", 3); got != "命令行…（可复制完整值）" {
+		t.Fatalf("unicode preview = %q", got)
+	}
+	if got := eventDetailPreview("short", 50); got != "short" {
+		t.Fatalf("short preview = %q", got)
+	}
+}
+
+func TestEventDetailFieldRowCopiesCompleteValue(t *testing.T) {
+	const full = "/home/user/" + "很长的路径/"
+	tester := ui.NewTester(func(c *ui.Context) {
+		eventDetailFieldRow(c, eventDetailField{
+			Label: "目标路径", Value: full, Origin: "Event.path",
+		})
+	}, 520, 170)
+	tester.Frame()
+	if err := tester.Click("复制"); err != nil {
+		t.Fatalf("copy button not reachable: %v", err)
+	}
+	if got := tester.Clipboard(); got != full {
+		t.Fatalf("copy returned %q, want %q", got, full)
 	}
 }
