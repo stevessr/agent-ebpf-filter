@@ -27,7 +27,7 @@
 | Codex | `$CODEX_HOME/config.toml`，默认 `~/.codex/config.toml`；如显式选择 Profile，也检查 `$CODEX_HOME/<profile>.config.toml` | `.codex/config.toml`（项目层 Provider 选项不作为生效配置） |
 
 - Claude Code 解析 `model`、`env.ANTHROPIC_MODEL`、`ANTHROPIC_BASE_URL` / Vertex / Foundry 地址和 Bedrock/Vertex/Foundry 开关；Codex 解析 `model`、`model_provider`、`openai_base_url`、`[model_providers.*].base_url`、选中的 `[profiles.*]` 或独立 Profile 文件。
-- 仅保存显示允许列出的模型名、Provider 标识和**候选主机名**；绝不呈现 URL 路径和查询参数、密码、环境变量的密钥值、HTTP Headers、MCP 环境或 `auth.json` 内容，也不执行配置里的命令。
+- 仅保存显示允许列出的模型名、Provider 标识和**候选主机名**；绝不呈现 URL 路径和查询参数、密码、环境变量的密钥值、HTTP Headers、MCP 环境或 `auth.json` 内容（读取设置文件时敏感字段会被解析器临时接触，但绝不保留在展示结构中），也不执行配置里的命令。
 - 基于确切 Agent 归属、实际捕获的域名/IP，对比当前有界事件摘要中的目标数。**配置的候选外联主机不等于真正发出请求、实际路由或生效的后端配置**。
 - 配置解析不模拟进程 CLI 参数、项目信任、受管策略或运行中的环境变量覆盖。Claude Code 项目本地设置和 Codex Profile 文件分别展示为候选，避免错误声称生效优先级。配置读取不触发任何内核策略或采集范围修改。
 - 仅读取手动指定目录的少数固定文件，拒绝符号链接、特殊文件与大于 512 KiB 的文件；JSON/TOML 解析错误不会回显原始内容。用户未点击前不会读取其配置。
