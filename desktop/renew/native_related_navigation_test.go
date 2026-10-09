@@ -239,3 +239,12 @@ func TestInterpreterWithoutRootDoesNotGetAgentIdentityLink(t *testing.T) {
 		t.Fatal("explicit root Agent PID must be available as a link")
 	}
 }
+
+func TestFallbackToolNameIsNotAnObservedTarget(t *testing.T) {
+	if hasNavigableEventTarget(eventSummary{Target: "exec_command", ToolName: "exec_command", Type: "process_exec"}) {
+		t.Fatal("fallback toolName was exposed as exact file/network target")
+	}
+	if !hasNavigableEventTarget(eventSummary{Target: "/workspace/x.txt", ToolName: "exec_command", Type: "file_write"}) {
+		t.Fatal("captured file path must remain navigable")
+	}
+}
