@@ -139,10 +139,12 @@ type SemanticAgenticLoopObservation struct {
 }
 
 type SemanticFileMutationObservation struct {
-	SeenAt time.Time
-	Actor  string
-	Op     string
-	Path   string
+	SeenAt      time.Time
+	LastAlertAt time.Time
+	Actor       string
+	Op          string
+	Path        string
+	ContainerID string
 }
 
 type SemanticAlertState struct {
@@ -359,6 +361,9 @@ func (s *SemanticAlertState) observeAgenticResourceLoop(event *pb.Event, now tim
 	return "", "", false
 }
 
+// ObserveMultiAgentFileContention detects interleaved mutations of a
+// verified pathname by distinct Agent contexts. It does not prove that the
+// operations overlapped or that they refer to one inode across mount namespaces.
 func (s *SemanticAlertState) ObserveMultiAgentFileContention(event *pb.Event, now time.Time) (string, string, bool) {
 	if s == nil || event == nil {
 		return "", "", false
@@ -368,8 +373,11 @@ func (s *SemanticAlertState) ObserveMultiAgentFileContention(event *pb.Event, no
 		return "", "", false
 	}
 	actor, actorTruncated := semanticAgentIdentity(event)
-	if actor == "" {
+	if actor == "" || actorTruncated {
 		return "", "", false
+	}
+	if now.IsZero() {
+		now = time.Now().UTC()
 	}
 
 	s.mu.Lock()
@@ -378,28 +386,42 @@ func (s *SemanticAlertState) ObserveMultiAgentFileContention(event *pb.Event, no
 	s.noteTruncationsLocked(pathTruncated, actorTruncated)
 
 	previous, seen := s.recentFileMutations.Get(path)
-	current := SemanticFileMutationObservation{
-		SeenAt: now,
-		Actor:  actor,
-		Op:     event.GetType(),
-		Path:   path,
-	}
-	s.noteCapacityEvictionLocked(s.recentFileMutations.Set(path, current))
 	if seen && semanticStateExpired(now, previous.SeenAt, SemanticFileContentionTTL) {
 		s.expiredEvictionsTotal++
 		seen = false
 	}
-	if !seen || previous.Actor == "" || previous.Actor == actor {
-		return "", "", false
+	current := SemanticFileMutationObservation{
+		SeenAt:     now,
+		Actor:      actor,
+		Op:         event.GetType(),
+		Path:       path,
+		ContainerID: event.GetContainerId(),
 	}
-	// Root PID and Agent run ID are different kinds of identity. When only
-	// one is available for either write, they cannot prove distinct Agents.
-	if strings.HasPrefix(previous.Actor, "root_pid:") != strings.HasPrefix(actor, "root_pid:") {
+	if seen {
+		current.LastAlertAt = previous.LastAlertAt
+	}
+	// An Agent run ID and a root PID are different identity namespaces.
+	// They are not evidence that two agents are distinct from each other.
+	comparable := seen && previous.Actor != "" && previous.Actor != actor &&
+		(strings.HasPrefix(previous.Actor, "root_pid:") == strings.HasPrefix(actor, "root_pid:"))
+	// Different container IDs may describe different mount namespaces; a
+	// shared pathname alone does not establish a shared underlying file.
+	if comparable && previous.ContainerID != "" && current.ContainerID != "" &&
+		previous.ContainerID != current.ContainerID {
+		comparable = false
+	}
+	cooldown := seen && !previous.LastAlertAt.IsZero() &&
+		!semanticStateExpired(now, previous.LastAlertAt, SemanticFileContentionTTL)
+	if comparable && !cooldown {
+		current.LastAlertAt = now
+	}
+	s.noteCapacityEvictionLocked(s.recentFileMutations.Set(path, current))
+	if !comparable || cooldown {
 		return "", "", false
 	}
 
-	reason := fmt.Sprintf("agent context %s performed %s on a path touched by %s via %s within %s",
-		actor, event.GetType(), previous.Actor, previous.Op, SemanticFileContentionTTL)
+	reason := fmt.Sprintf("two distinct agent contexts (%s and %s) modified the same reported pathname within %s (%s then %s); temporal overlap, identical inode and malicious intent are not established",
+		previous.Actor, actor, SemanticFileContentionTTL, previous.Op, event.GetType())
 	return path, reason, true
 }
 
@@ -573,7 +595,9 @@ func BuildSemanticAlerts(event *pb.Event) []*pb.Event {
 	}
 
 	if target, reason, ok := Deps.SemanticAlertsState.ObserveMultiAgentFileContention(event, now); ok {
-		addAlert("MULTI_AGENT_FILE_CONTENTION", target, reason, 0.96)
+		// Interleaved writes alone are investigation evidence, not proof of
+		// simultaneous modification or malicious data races.
+		addAlert("MULTI_AGENT_FILE_CONTENTION", target, reason, 0.70)
 	}
 
 	// Codex-specific workflow semantic checks
