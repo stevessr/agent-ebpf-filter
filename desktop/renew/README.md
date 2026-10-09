@@ -186,3 +186,10 @@ In bundled mode the privileged child listens only on an authenticated private Un
 - Windows 11 supports a Mica material and macOS supports a sidebar material where the compositor offers native vibrancy. The toolbar provides a session-only **纯色模式 / 系统材质** switch; all content tables and event details keep opaque surfaces for readability. Unsupported Windows versions and Linux (Wayland/X11) retain the full opaque navy theme. Do not imply Linux compositor material support.
 - Navigation opens and closes with native, reduced-motion-aware animation. Page changes have a modest entrance transition; the toolbar automatically overflows actions at narrow sizes while preserving keyboard and screen-reader behavior.
 - Search, event pinning, explicit detail requests and privileged backend permissions are unchanged. No additional collection, telemetry or network call is introduced by these UI effects.
+
+### MyGo v0.3.5 follow-up: terminal and triage usability
+
+- Use MyGo v0.3.5 for its fix when a window closes while a native frame is being rendered.
+- The terminal action row is a native, keyboard-friendly toolbar with automatic overflow on narrow windows. The terminal tab strip uses an accessible native tablist and horizontal scrolling; tab titles are shortened on Unicode boundaries.
+- A new terminal tab reveals the end of the strip. Closing a tab before the active tab preserves the current PTY, and closing the last tab clears stale focus state.
+- Clicking an alert in the inspector always shows that retained redacted summary, even if the Events table currently filters it out. Event table filters remain unchanged until the user explicitly chooses "定位" or another correlation action.
