@@ -39,7 +39,7 @@ func TestDocumentedCodexConfigMCPAndSecurity(t *testing.T) {
   if !strings.Contains(label,part){t.Fatalf("missing %q in %q",part,label)}
  }
  rows:=codexAdditionalRows(doc,"项目","config.toml",true)
- if len(rows)!=3||rows[0].Host!="codex-mcp.example.net"||rows[1].Host!="off.example.net"||rows[2].Host!=""||!strings.Contains(rows[1].Security,"已禁用"){t.Fatalf("MCP misparsed: %+v",rows)}
+ if len(rows)!=3||rows[0].Host!="off.example.net"||rows[1].Host!=""||rows[2].Host!="codex-mcp.example.net"||!strings.Contains(rows[0].Security,"已禁用"){t.Fatalf("MCP misparsed: %+v",rows)}
  for _,r:=range rows{if strings.Contains(r.Host+r.Security+r.Provider+r.Source,"SECRET"){t.Fatal("credential leaked")}}
 }
 
