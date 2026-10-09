@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -45,6 +46,7 @@ func TestLocalOriginAndTokenIsolation(t *testing.T) {
 }
 
 func TestBundledBackendStartupAndCleanup(t *testing.T) {
+	if runtime.GOOS != "linux" { t.Skip("Linux-only backend / filesystem test") }
 	if _, err := exec.LookPath("python3"); err != nil {
 		t.Skip("python3 needed for fake backend")
 	}
@@ -110,6 +112,7 @@ s.shutdown(); s.server_close(); c.close()
 }
 
 func TestBackendAuthorizationFailure(t *testing.T) {
+	if runtime.GOOS != "linux" { t.Skip("Linux-only backend / filesystem test") }
 	t.Setenv("HOME", t.TempDir())
 	binary := filepath.Join(t.TempDir(), "denied-renew")
 	if err := os.WriteFile(binary, []byte("#!/bin/sh\nexit 126\n"), 0755); err != nil {
@@ -128,6 +131,7 @@ func TestBackendAuthorizationFailure(t *testing.T) {
 }
 
 func TestSelfAskpassSelection(t *testing.T) {
+	if runtime.GOOS != "linux" { t.Skip("Linux-only backend / filesystem test") }
 	tools := t.TempDir()
 	t.Setenv("PATH", tools)
 	t.Setenv("SUDO_ASKPASS", "")
@@ -152,6 +156,7 @@ func TestSelfAskpassSelection(t *testing.T) {
 }
 
 func TestUnixClientDoesNotRequireTCP(t *testing.T) {
+	if runtime.GOOS != "linux" { t.Skip("Linux-only backend / filesystem test") }
 	dir := t.TempDir()
 	socket := filepath.Join(dir, "api.sock")
 	listener, err := net.Listen("unix", socket)
