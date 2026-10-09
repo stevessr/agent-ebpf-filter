@@ -34,6 +34,7 @@ type eventDetailViewModel struct {
 	When     string
 	WhenLabel string
 	EvidenceNote string
+	NoTargetExpected bool
 	Sections []eventDetailSection
 }
 
@@ -382,10 +383,21 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 		field("脱敏等级", "redactionLevel"), field("已脱敏字段", "sanitizedFields"),
 		field("审计标志", "auditFlags"), field("丢弃计数", "kernelDroppedSinceLast"))
 	if m.Target == "" {
-		m.Target = "目标路径或端点未记录"
-		m.EvidenceNote = "该事件未包含可用的目标路径或端点；可能与探针采集范围、事件类型或脱敏有关，不能据此推断具体目标。"
-		if redaction := get("redactionLevel"); redaction != "" {
-			m.EvidenceNote += " 记录的脱敏等级：" + redaction
+		typedKind := eventDetailTypedPayload(detail).Kind
+		switch typedKind {
+		case "metric", "otel", "sse", "stdio":
+			m.Target = "无文件或网络操作对象"
+			m.NoTargetExpected = true
+			m.EvidenceNote = "此类事件主要描述遥测指标或数据流，不要求存在文件路径或网络端点。"
+		default:
+			m.Target = "目标路径或端点未记录"
+			m.EvidenceNote = "当前记录没有可用的操作目标，不能反推出具体文件或地址。"
+			if category == "file" && (eventType == "write" || eventType == "read") {
+				m.EvidenceNote += " Linux write/read 系统调用使用文件描述符而非文件名；只有存在文件描述符到路径的有效关联，才能定位实际文件。"
+			}
+			if redaction := get("redactionLevel"); redaction != "" {
+				m.EvidenceNote += " 记录的脱敏等级：" + redaction
+			}
 		}
 	}
 	return m
@@ -451,7 +463,11 @@ func (a *renewApp) richEventDetail(c *ui.Context, detail map[string]any, width f
 			}
 		})
 		if model.EvidenceNote != "" {
-			ui.Text(c, model.EvidenceNote).FontSize(11).TextColor(t.Warning)
+			tone := t.Warning
+			if model.NoTargetExpected {
+				tone = t.TextMuted
+			}
+			ui.Text(c, model.EvidenceNote).FontSize(11).TextColor(tone)
 		}
 		if model.When != "" {
 			ui.Text(c, model.WhenLabel+"  "+model.When).FontSize(11).TextColor(t.TextMuted)
