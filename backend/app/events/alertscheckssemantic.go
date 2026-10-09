@@ -352,6 +352,9 @@ func semanticFileMutationPath(event *pb.Event) (string, bool, bool) {
 		if path == "" || semanticFileTargetIsPlaceholder(path) {
 			continue
 		}
+		if !filepath.IsAbs(path) && semanticFileTargetIsPlaceholder(event.GetCwd()) {
+			continue
+		}
 		normalized, truncated := normalizeSemanticPath(path, event.GetCwd())
 		// An unresolved relative filename is ambiguous across working
 		// directories. A truncated/redacted key is not a proven same file.
@@ -367,7 +370,15 @@ func semanticFileTargetIsPlaceholder(path string) bool {
 	lower := strings.ToLower(strings.TrimSpace(path))
 	switch lower {
 	case "write", "read", "file write", "file read", "file_write", "file_read",
-		"file-write", "file-read", "unknown", "(unknown)", "<unknown>", "<redacted>", "-":
+		"file-write", "file-read", "file writev", "file readv",
+		"file_writev", "file_readv", "unknown", "(unknown)", "<unknown>",
+		"<redacted>", "[redacted]", "<custom_redacted>", "-":
+		return true
+	}
+	// A redacted target or cwd cannot prove that two Agents wrote the same
+	// inode: unrelated paths often collapse to one shared placeholder.
+	if strings.Contains(lower, "[redacted]") || strings.Contains(lower, "<redacted") ||
+		strings.Contains(lower, "<custom_redacted>") {
 		return true
 	}
 	for _, prefix := range []string{"socket ", "socket:", "pipe:", "anon_inode:", "fd:", "fd="} {
