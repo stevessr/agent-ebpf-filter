@@ -18,7 +18,7 @@ This is an **experimental monitoring rewrite**, not Windows eBPF:
 
 | Scope | Windows API | Semantics |
 | --- | --- | --- |
-| Process inventory | Toolhelp32Snapshot / Process32FirstW / Process32NextW | PID, parent PID, image name every ~2 seconds |
+| Process inventory | Toolhelp32Snapshot / Process32FirstW / Process32NextW | PID, parent PID, image name, accessible full executable path (not full command line) every ~2 seconds |
 | CPU / memory | GetSystemTimes, GlobalMemoryStatusEx, GetProcessTimes, GetProcessMemoryInfo | CPU deltas, physical memory and accessible process working sets |
 | TCP peers | IP Helper GetExtendedTcpTable (IPv4 + IPv6, owning PID) | Established connections only; IPv6 scope IDs retained; differences are **observations**, not connection-start kernel events |
 | UDP local bindings | IP Helper GetExtendedUdpTable (IPv4 + IPv6, owning PID) | Local UDP bound endpoints and owner PIDs; **not peers, datagrams, traffic, or DNS requests** |
@@ -40,7 +40,7 @@ flows, packet content/TLS decryption, actual Agent session attribution,
 long-term event storage, system I/O byte totals, WFP/WDAC enforcement, BPF
 LSM/cgroup policy actions, Agent tracking and embedded backend privileges.
 The interface hides Linux-only administrative pages in local Windows mode,
-and visibly marks collection coverage and gaps. Short-lived processes and
+and visibly marks collection coverage and gaps. Refresh triggers an actual bounded native sample. The Network page has separate live TCP/UDP tables, including the first inventory, rather than only event deltas. Short-lived processes and
 connections between polls can be missed. This mode is **not a security audit
 trail**.
 
@@ -55,11 +55,12 @@ Build and test on Windows:
 cd desktop/renew
 go test ./...
 go build -o renew.exe .
-.\renew.exe
+# Package native dependencies and the Windows installer:
+go tool mygo build -skip-build-command -platform windows/amd64
+.\build\windows-amd64\Renew.exe
 ```
 
-The `Renew desktop` GitHub Actions workflow publishes
-`renew-windows-amd64-experimental` from a Windows runner. Linux still uses
+The `Renew desktop` GitHub Actions workflow publishes a full native Windows app directory and installer in `renew-windows-amd64-experimental` (including the version-pinned `ghostty-vt.dll`). Its separate `renew-windows-amd64-raw-exe` is for diagnostics only and may lack runtime resources. Linux still uses
 its previous privileged embedded backend and private Unix IPC without
 modification.
 
