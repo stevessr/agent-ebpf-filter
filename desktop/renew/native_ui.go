@@ -147,6 +147,7 @@ type renewApp struct {
 	captureScopeText     string
 	monitorScopeText     string
 	agentSearch          string
+	agentLastSearch      string
 	agentTable           ui.ListState
 	agentSelected        int
 
