@@ -98,3 +98,14 @@ func TestGenericTaggedShellDoesNotBecomeAnAgent(t *testing.T) {
 		t.Fatal("confirmed descendant must still belong to its Agent")
 	}
 }
+
+func TestHistoricalPIDReuseDoesNotRenameEarlierAgentRun(t *testing.T) {
+	events := []eventSummary{
+		{PID: 300, Comm: "claude", AgentRunID: "new-run", ReceivedAtMS: 4000},
+		{PID: 310, RootAgentPID: 300, Comm: "python", Type: "file_write", AgentRunID: "old-run", ReceivedAtMS: 1000},
+	}
+	owner := buildAgentOwnershipIndex(events, nil).attribution(events[1])
+	if owner.OwnerComm != "" || owner.OwnerLabel != "Agent PID 300" {
+		t.Fatalf("historical edit misidentified as reused Claude PID: %+v", owner)
+	}
+}
