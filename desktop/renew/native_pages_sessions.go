@@ -14,6 +14,8 @@ type agentSessionSummary struct {
 	Label      string
 	Events     int
 	Alerts     int
+	FileEdits  int
+	DelegatedEdits int
 	LastSeen   int64
 	LastAction string
 }
@@ -105,6 +107,12 @@ func aggregateAgentSessions(events []eventSummary) []agentSessionSummary {
 			session.Label = eventSessionDisplayLabel(event, owner)
 		}
 		session.Events++
+		if isFileMutationSummary(event) {
+			session.FileEdits++
+			if owner.Indirect {
+				session.DelegatedEdits++
+			}
+		}
 		if eventRisk(event) != "正常" || event.Type == "semantic_alert" || event.Type == "agentsight_alert" {
 			session.Alerts++
 		}
@@ -150,7 +158,14 @@ func (a *renewApp) sessionsView(c *ui.Context) {
 	for _, row := range rows {
 		totalAlerts += row.Alerts
 	}
+	totalEdits := 0
+	delegatedEdits := 0
+	for _, row := range rows {
+		totalEdits += row.FileEdits
+		delegatedEdits += row.DelegatedEdits
+	}
 	ui.Row(c).Gap(12).Wrap().Children(func() {
+		statCard(c, "文件修改", strconv.Itoa(totalEdits), fmt.Sprintf("其中 %d 次通过子进程执行", delegatedEdits))
 		statCard(c, "活动会话", strconv.Itoa(len(rows)), "当前摘要窗口")
 		statCard(c, "会话告警", strconv.Itoa(totalAlerts), "需关注或高风险活动")
 		stream := "回退同步"
@@ -172,9 +187,11 @@ func (a *renewApp) sessionsView(c *ui.Context) {
 		}
 		cols := []ui.TableColumn{
 			{Title: "会话", MinWidth: 280, Fixed: true},
-			{Title: "动作", Width: 80, Align: ui.End},
-			{Title: "告警", Width: 80, Align: ui.End},
-			{Title: "最近动作", MinWidth: 260},
+			{Title: "动作", Width: 70, Align: ui.End},
+			{Title: "文件修改", Width: 85, Align: ui.End},
+			{Title: "委托编辑", Width: 85, Align: ui.End},
+			{Title: "告警", Width: 70, Align: ui.End},
+			{Title: "最近动作", MinWidth: 220},
 			{Title: "最后活动", Width: 100},
 		}
 		a.sessionTable.Key = func(row int) any { return rows[row].Key }
@@ -186,14 +203,22 @@ func (a *renewApp) sessionsView(c *ui.Context) {
 			case 1:
 				ui.Text(c, strconv.Itoa(session.Events))
 			case 2:
+				ui.Text(c, strconv.Itoa(session.FileEdits))
+			case 3:
+				if session.DelegatedEdits > 0 {
+					ui.Text(c, strconv.Itoa(session.DelegatedEdits)).Bold().TextColor(t.Accent)
+				} else {
+					ui.Text(c, "0").TextColor(t.TextMuted)
+				}
+			case 4:
 				if session.Alerts > 0 {
 					statusPill(c, strconv.Itoa(session.Alerts), t.Warning)
 				} else {
 					ui.Text(c, "0").TextColor(t.TextMuted)
 				}
-			case 3:
+			case 5:
 				ui.Text(c, displayOr(session.LastAction, "-")).SingleLine()
-			case 4:
+			case 6:
 				ui.Text(c, summaryTime(session.LastSeen)).SingleLine()
 			}
 		}).Height(430).Label("Agent 会话")
