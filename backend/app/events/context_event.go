@@ -331,6 +331,10 @@ func EnrichEventContext(event *pb.Event) *pb.Event {
 	}
 	if ok {
 		ApplyProcessContextToEvent(event, ctx)
+		// sched_process_fork already carries the child's PID. Seed its
+		// context immediately, before bash/python/node runs and exits.
+		// This does not overwrite a separately registered child context.
+		propagateAgentContextOnFork(event, ctx, Deps.ProcessContexts)
 		// Lazily bind cgroup to agent context for future child attribution
 		if event.CgroupId != 0 && ctx.AgentRunID != "" {
 			Deps.CgroupAttributionSet(event.CgroupId, CgroupAttributionEntry{
