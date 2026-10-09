@@ -65,7 +65,11 @@ func (a *renewApp) navigateRecognition(pid int, comm string) bool {
 	if query == "" {
 		return false
 	}
+	if a.page != "Agent 识别" {
+		a.agentReturnPage = a.page
+	}
 	a.agentSearch = query
+	a.agentFocusPID = pid
 	a.agentSelected = -1
 	a.page = "Agent 识别"
 	return true
@@ -81,6 +85,9 @@ func safeExactFilePath(target string) bool {
 func (a *renewApp) navigatePathAccess(target string) bool {
 	if !safeExactFilePath(target) {
 		return false
+	}
+	if a.page != "路径权限" {
+		a.pathAccessReturnPage = a.page
 	}
 	a.pathAccessTarget = target
 	a.pathAccessConfirm = false
