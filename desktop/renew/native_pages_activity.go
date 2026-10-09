@@ -53,9 +53,9 @@ func (a *renewApp) overview(c *ui.Context) {
 		ui.Text(c, desktopBrandDescription).FontSize(12).TextColor(t.TextMuted)
 		ui.Row(c).Gap(8).Wrap().Children(func() {
 			ui.Badge(c, map[bool]string{true: "Windows API · 实验性采样", false: "eBPF 内核观测"}[a.localMonitor])
-			ui.Badge(c, "Agent 会话溯源")
+			if !a.localMonitor { ui.Badge(c, "Agent 会话溯源") }
 			ui.Badge(c, "网络外联洞察")
-			ui.Badge(c, "策略事件追踪")
+			if !a.localMonitor { ui.Badge(c, "策略事件追踪") }
 		})
 	})
 
