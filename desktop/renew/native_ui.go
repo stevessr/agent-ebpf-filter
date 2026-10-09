@@ -470,11 +470,15 @@ func (a *renewApp) startingView(c *ui.Context) {
 
 func (a *renewApp) errorView(c *ui.Context) {
 	t := c.Theme()
-	card(c, "后端未就绪", func() {
+	card(c, map[bool]string{true:"Windows 本机采样不可用",false:"后端未就绪"}[a.localMonitor], func() {
 		ui.Text(c, a.lastErr).TextColor(t.TextMuted)
-		ui.Text(c, "可通过 AGENT_BACKEND_URL / --backend 指向其他实例；远程受保护实例可通过 AGENT_API_TOKEN 提供 token。").FontSize(12).TextColor(t.TextMuted)
-		if ui.PrimaryButton(c, "重试").Clicked() {
-			go a.bootstrap(context.Background())
+		if a.localMonitor {
+            ui.Text(c, "本机进程与网络采样发生错误；下次恢复时会重新建立基线，不补造缺失期间的事件。").FontSize(12).TextColor(t.TextMuted)
+        } else {
+            ui.Text(c, "可通过 AGENT_BACKEND_URL / --backend 指向其他实例；远程受保护实例可通过 AGENT_API_TOKEN 提供 token。").FontSize(12).TextColor(t.TextMuted)
+        }
+		if ui.PrimaryButton(c, map[bool]string{true:"立即重新采样",false:"重试"}[a.localMonitor]).Clicked() {
+            if a.localMonitor { a.requestWindowsRefresh() } else { go a.bootstrap(context.Background()) }
 		}
 	})
 }
