@@ -187,7 +187,7 @@ type renewApp struct {
 
 	ccs               ccsSnapshot
 	astrlink          astrLinkSnapshot
-	ccsEventAppFilter string
+	managementEventFilter string
 
 	rulesReady    bool
 	rulesBusy     bool
@@ -483,7 +483,7 @@ func (a *renewApp) errorView(c *ui.Context) {
 
 func (a *renewApp) eventFilterCacheKey() string {
 	q := strings.ToLower(strings.TrimSpace(a.search))
-	key := q + "\x00" + a.eventTypeFilter + "\x00" + a.eventSessionFilter + "\x00" + a.eventDecisionFilter + "\x00" + fmt.Sprint(a.eventPIDFilter) + "\x00" + fmt.Sprint(a.eventRootPIDFilter) + "\x00" + a.eventTargetFilter + "\x00" + fmt.Sprint(a.eventFileEditsOnly) + "\x00" + fmt.Sprint(a.eventDelegatedOnly) + "\x00" + a.eventRiskFilter + "\x00" + a.ccsEventAppFilter
+	key := q + "\x00" + a.eventTypeFilter + "\x00" + a.eventSessionFilter + "\x00" + a.eventDecisionFilter + "\x00" + fmt.Sprint(a.eventPIDFilter) + "\x00" + fmt.Sprint(a.eventRootPIDFilter) + "\x00" + a.eventTargetFilter + "\x00" + fmt.Sprint(a.eventFileEditsOnly) + "\x00" + fmt.Sprint(a.eventDelegatedOnly) + "\x00" + a.eventRiskFilter + "\x00" + a.managementEventFilter
 	if a.eventAttentionOnly {
 		key += "\x001"
 	}
@@ -496,7 +496,7 @@ func (a *renewApp) filteredEvents() []eventSummary {
 	if a.filterCacheValid && a.filterCacheVersion == a.eventsVersion && a.filterCacheKey == key {
 		return a.filterCacheRows
 	}
-	if q == "" && a.eventPIDFilter == 0 && a.eventRootPIDFilter == 0 && a.eventTargetFilter == "" && !a.eventFileEditsOnly && !a.eventDelegatedOnly && a.eventRiskFilter == "" && a.eventTypeFilter == "" && a.eventSessionFilter == "" && a.eventDecisionFilter == "" && a.ccsEventAppFilter == "" && !a.eventAttentionOnly {
+	if q == "" && a.eventPIDFilter == 0 && a.eventRootPIDFilter == 0 && a.eventTargetFilter == "" && !a.eventFileEditsOnly && !a.eventDelegatedOnly && a.eventRiskFilter == "" && a.eventTypeFilter == "" && a.eventSessionFilter == "" && a.eventDecisionFilter == "" && a.managementEventFilter == "" && !a.eventAttentionOnly {
 		a.filterCacheValid = true
 		a.filterCacheVersion = a.eventsVersion
 		a.filterCacheKey = key
@@ -509,7 +509,7 @@ func (a *renewApp) filteredEvents() []eventSummary {
 		if q != "" && !strings.Contains(eventSearchText(event), q) {
 			continue
 		}
-		if a.ccsEventAppFilter != "" && ccsAppForEvent(event) != a.ccsEventAppFilter {
+		if a.managementEventFilter != "" && managementAppForEvent(event) != a.managementEventFilter {
 			continue
 		}
 		if a.eventRiskFilter != "" && eventRisk(event) != a.eventRiskFilter {
