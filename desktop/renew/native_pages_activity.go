@@ -432,11 +432,14 @@ func (a *renewApp) processesView(c *ui.Context) {
 				ui.Column(c).Gap(6).Children(func() {
 					ui.Textf(c, "%s · PID %d / PPID %d", displayOr(p.Name, "未知进程"), p.PID, p.PPID).Bold()
 					ui.Text(c, displayOr(p.Cmdline, "后端未提供命令行")).Font("monospace").FontSize(10).TextColor(t.TextMuted).MaxLines(4)
-					if ui.Button(c, "查看此 PID 的事件").Clicked() {
-						a.clearEventFilters()
-						a.eventPIDFilter = p.PID
-						a.page = "事件"
-					}
+					ui.Row(c).Wrap().Gap(6).Children(func() {
+						if ui.Button(c, "此 PID 事件").Clicked() {
+							a.navigatePIDEvents(p.PID)
+						}
+						if p.PPID > 0 && ui.Button(c, "父 PID 事件").Clicked() {
+							a.navigatePIDEvents(p.PPID)
+						}
+					})
 				})
 			}
 		})
@@ -485,11 +488,15 @@ func (a *renewApp) processesView(c *ui.Context) {
 		}).Height(480).Label("活动进程")
 		if a.processSelected >= 0 && a.processSelected < len(rows) {
 			pid := rows[a.processSelected].PID
-			if ui.Button(c, fmt.Sprintf("查看 PID %d 的事件", pid)).Clicked() {
-				a.clearEventFilters()
-				a.eventPIDFilter = pid
-				a.page = "事件"
-			}
+			ui.Row(c).Gap(6).Wrap().Children(func() {
+				if ui.Button(c, fmt.Sprintf("PID %d 事件", pid)).Clicked() {
+					a.navigatePIDEvents(pid)
+				}
+				if rows[a.processSelected].PPID > 0 &&
+					ui.Button(c, "父 PID 事件").Clicked() {
+					a.navigatePIDEvents(rows[a.processSelected].PPID)
+				}
+			})
 		}
 	})
 }
