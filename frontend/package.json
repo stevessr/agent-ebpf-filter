@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vue-tsc -b && vite build",
+    "dev": "node scripts/copy-lobe-icons.mjs && vite",
+    "build": "node scripts/copy-lobe-icons.mjs && vue-tsc -b && vite build",
     "test:agentsight": "bun test tests/agentsight-stdio*.test.ts tests/dashboard-insights.test.ts",
     "test:dashboard-insights": "bun test tests/dashboard-insights.test.ts",
     "preview": "vite preview",
@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@ant-design/icons-vue": "^7.0.1",
+    "@lobehub/icons-static-svg": "1.95.1",
     "@shikijs/core": "4.0.2",
     "@shikijs/engine-javascript": "4.0.2",
     "@shikijs/langs": "4.0.2",
