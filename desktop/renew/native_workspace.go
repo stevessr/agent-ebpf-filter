@@ -395,7 +395,7 @@ func (a *renewApp) header(c *ui.Context, navigationWidth float32) {
 
 
 func (a *renewApp) refreshActiveView() {
-	if a.localMonitor { return /* next native snapshot arrives within 2 seconds */ }
+	if a.localMonitor { a.requestWindowsRefresh(); return }
 	// Keep the continuously streamed metrics subscription intact: opening a
 	// second system WebSocket here would duplicate the collector workload.
 	go a.refresh(context.Background())
