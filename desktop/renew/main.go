@@ -62,6 +62,7 @@ func runDesktop() {
 	mygo.App.OnQuit(stop)
 
 	app := newRenewApp(backend)
+	app.localMonitor = runtime.GOOS == "windows" && localWindowsMonitoringEnabled(*backendFlag, os.Getenv("AGENT_BACKEND_URL"))
 	mygo.App.OnSecondInstance(func(_ []string, _ string) {
 		windowMu.Lock()
 		window := mainWindow
@@ -113,6 +114,10 @@ func internalBackendArgs(args []string) (bool, []string) {
 }
 
 func (a *renewApp) bootstrap(ctx context.Context) {
+	if a.localMonitor {
+		a.runLocalMonitor(ctx)
+		return
+	}
 	startupCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	session, startupErr := ensureBackend(startupCtx, a.backend)
 	cancel()
