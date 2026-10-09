@@ -113,6 +113,9 @@ type renewApp struct {
 	eventDetailText     string
 	eventDetailErr      string
 	eventDetailTab      int
+	eventProcessTab      int
+	eventProcessSelectedPID int
+	eventProcessExpanded map[int]bool
 	eventDetailFieldSearch string
 	eventDetailFieldOffset int
 	eventDetailSearchSnapshot string
