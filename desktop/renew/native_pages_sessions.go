@@ -60,10 +60,12 @@ func eventSessionKey(event eventSummary) string {
 	if conversation := strings.TrimSpace(event.ConversationID); conversation != "" {
 		return "conversation:" + conversation + ":pid:" + strconv.Itoa(root)
 	}
-	if event.RootAgentPID > 0 {
+	if root > 0 {
+		// A direct Agent event may not carry rootAgentPid yet; it must still
+		// share the same PID-keyed session with attributed descendants.
 		return "agent:pid:" + strconv.Itoa(root)
 	}
-	return eventHarnessLabel(event) + " · PID " + strconv.Itoa(root)
+	return ""
 }
 
 func nonEmptyStrings(values ...string) []string {
