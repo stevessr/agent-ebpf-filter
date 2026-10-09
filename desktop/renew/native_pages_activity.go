@@ -207,11 +207,11 @@ func (a *renewApp) eventsView(c *ui.Context) {
 		}
 	})
 
-	if a.ccsEventAppFilter != "" {
+	if a.managementEventFilter != "" {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			statusPill(c, "CC-Switch · "+ccsAppLabel(a.ccsEventAppFilter), t.Accent)
+			statusPill(c, "管理器 · "+ccsAppLabel(a.managementEventFilter), t.Accent)
 			if ui.Button(c, "移除 CCS 筛选").Clicked() {
-				a.ccsEventAppFilter = ""
+				a.managementEventFilter = ""
 			}
 		})
 	}
