@@ -182,6 +182,7 @@ func (a *renewApp) releaseEventDetailPayload() {
 	a.eventDetail = nil
 	a.eventDetailText = ""
 	a.eventDetailErr = ""
+	a.enforcementErr = ""
 	a.eventDetailTab = 0
 	a.eventDetailFieldSearch = ""
 }
@@ -313,7 +314,7 @@ func enforcementTargets(detail map[string]any) eventEnforcementTargets {
 	kind := eventDetailCategory(detail, mapText(record, "type", "Type"))
 	layers := eventDetailLayers(detail)
 	get := func(keys ...string) string {
-		value, _, _ := eventDetailLookup(layers, keys...)
+		value, _, _ := eventDetailLookupPreferred(layers, keys...)
 		return value
 	}
 	var target eventEnforcementTargets
@@ -409,8 +410,8 @@ func (a *renewApp) eventDetailModal(c *ui.Context) {
 	}
 	t := c.Theme()
 	viewportWidth, viewportHeight := c.Size()
-	panelWidth := min(float32(980), max(float32(300), viewportWidth-48))
-	scrollHeight := min(float32(680), max(float32(240), viewportHeight-182))
+	panelWidth := min(float32(980), max(float32(260), viewportWidth-48))
+	scrollHeight := min(float32(680), max(float32(140), viewportHeight-182))
 	ui.Modal(c, &a.eventDetailOpen, func() {
 		ui.Column(c).Width(panelWidth).Gap(12).Children(func() {
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
@@ -418,6 +419,10 @@ func (a *renewApp) eventDetailModal(c *ui.Context) {
 					ui.Text(c, "事件取证详情").FontSize(20).Bold()
 					ui.Text(c, a.eventDetailID).Font("monospace").FontSize(10).TextColor(t.TextMuted)
 				})
+				if ui.Button(c, "复制事件 ID").Clicked() {
+					c.WriteClipboard(a.eventDetailID)
+					c.Toast("已复制事件 ID")
+				}
 				if ui.Button(c, "关闭").Clicked() {
 					a.closeEventDetail()
 				}
@@ -443,7 +448,11 @@ func (a *renewApp) eventDetailModal(c *ui.Context) {
 			switch a.eventDetailTab {
 			case 1:
 				a.ensureEventDetailText()
-				ui.Scroll(c).Height(scrollHeight).Padding(10).Children(func() {
+				if ui.Button(c, "复制完整 JSON").Tooltip("原始事件可能包含敏感信息；仅主动复制时写入剪贴板").Clicked() {
+					c.WriteClipboard(a.eventDetailText)
+					c.Toast("已复制原始 JSON，请注意敏感信息")
+				}
+				ui.Scroll(c).Height(scrollHeight-40).Padding(10).Children(func() {
 					ui.Text(c, a.eventDetailText).Font("monospace").FontSize(10)
 				})
 			case 2:
@@ -457,7 +466,13 @@ func (a *renewApp) eventDetailModal(c *ui.Context) {
 					for _, field := range fields {
 						ui.Column(c).Gap(2).Padding(8).Radius(6).Background(t.Surface).Children(func() {
 							ui.Text(c, field.Label).Font("monospace").FontSize(10).TextColor(t.TextMuted)
-							ui.Text(c, field.Value).Font("monospace").FontSize(11)
+							ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+								ui.Text(c, eventDetailPreview(field.Value, 360)).Font("monospace").FontSize(11).MaxLines(3).Grow(1).MinWidth(0)
+								if ui.Button(c, "复制").Tooltip("复制该字段的完整值").Clicked() {
+									c.WriteClipboard(field.Value)
+									c.Toast("字段值已复制")
+								}
+							})
 						})
 					}
 				})
@@ -500,6 +515,10 @@ func (a *renewApp) eventDetailEnforcement(c *ui.Context) {
 	card(c, "可选处置", func() {
 		if !a.runtimeCfg.Runtime.PolicyManagementEnabled {
 			ui.Text(c, "策略管理未启用。处置须在“监控”页手动启用 policy_management。").FontSize(11).TextColor(t.TextMuted)
+			return
+		}
+		if a.enforcementErr != "" {
+			ui.Text(c, "无法确认当前阻断策略："+a.enforcementErr).FontSize(11).TextColor(t.Danger)
 			return
 		}
 		ui.Text(c, "以下操作会更改内核阻断策略，请核对目标。").FontSize(11).TextColor(t.Warning)
