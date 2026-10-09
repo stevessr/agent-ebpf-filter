@@ -2,10 +2,12 @@ package main
 
 import (
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
 func TestSensitivePathPresetsAreExactAndUserScoped(t *testing.T) {
+	if runtime.GOOS != "linux" { t.Skip("Linux-only backend / filesystem test") }
 	home := "/home/example-user"
 	presets := commonSensitivePaths(home)
 	if len(presets) < 10 { t.Fatalf("need common path presets, got %d", len(presets)) }
