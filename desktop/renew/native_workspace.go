@@ -129,6 +129,8 @@ func (a *renewApp) workspacePage(c *ui.Context) {
 		a.networkView(c)
 	case "进程":
 		a.processesView(c)
+	case "Agent 识别":
+		a.agentRecognitionView(c)
 	case "监控":
 		a.monitoringView(c)
 	case "eBPF 模块":
@@ -166,6 +168,7 @@ func (a *renewApp) activityRail(c *ui.Context) {
 			{"会话", "◎"},
 			{"网络", "⇄"},
 			{"进程", "▣"},
+			{"Agent 识别", "◉"},
 			{"监控", "◈"},
 			{"规则", "▤"},
 			{"系统", "⚙"},
@@ -213,6 +216,7 @@ func (a *renewApp) sidebar(c *ui.Context) {
 				ui.SidebarItem(c, "会话", nil, "Agent 会话")
 				ui.SidebarItem(c, "网络", nil, "网络外联")
 				ui.SidebarItem(c, "进程", nil, "进程活动")
+				ui.SidebarItem(c, "Agent 识别", nil, "捕获与监视范围")
 			})
 			ui.SidebarSection(c, "防护与管理", nil, func() {
 				ui.SidebarItem(c, "监控", nil, "采集设置")
@@ -336,6 +340,9 @@ func (a *renewApp) refreshActiveView() {
 	// second system WebSocket here would duplicate the collector workload.
 	go a.refresh(context.Background())
 	switch a.page {
+	case "Agent 识别":
+		go a.refreshAgentScopes(context.Background())
+		go a.refreshRegistry(context.Background())
 	case "监控":
 		go a.refreshConfiguration(context.Background())
 	case "规则":
