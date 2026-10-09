@@ -6,6 +6,32 @@ import (
 	"testing"
 )
 
+func TestSyntheticSemanticAlertUsesHundredPointRiskScale(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		sourceScore, expected float64
+	}{
+		{name: "low source", sourceScore: 12, expected: 96},
+		{name: "high source", sourceScore: 99, expected: 99},
+		{name: "zero source", sourceScore: 0, expected: 96},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			resetSemanticAlertState()
+			event := &pb.Event{
+				Pid: 123, Type: "openat", EventType: pb.EventType_OPENAT,
+				Path: "/home/demo/.ssh/id_rsa", RiskScore: tc.sourceScore,
+			}
+			alert := findSemanticAlertCode(buildSemanticAlerts(event), "SECRET_ACCESS")
+			if alert == nil {
+				t.Fatal("expected secret access alert")
+			}
+			if got := alert.GetRiskScore(); got != tc.expected {
+				t.Fatalf("synthetic score = %v, want %v (0-100 scale)", got, tc.expected)
+			}
+		})
+	}
+}
+
 func TestSemanticAlertsDetectAgenticResourceLoopFromSafeMetadata(t *testing.T) {
 	resetSemanticAlertState()
 
