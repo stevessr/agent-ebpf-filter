@@ -33,7 +33,7 @@ func TestRenewWorkspaceThemeFollowsSystem(t *testing.T) {
 		}
 
 		styleRenewWorkspaceTheme(&styled, system, true)
-		if styled.Border != system.Border || styled.TextMuted != system.TextMuted {
+		if styled.Border != system.Border || styled.TextMuted != system.TextMuted || styled.Text != system.Text {
 			t.Fatal("high-contrast borders and secondary text must stay system-controlled")
 		}
 	}
