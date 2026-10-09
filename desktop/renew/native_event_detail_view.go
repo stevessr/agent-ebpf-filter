@@ -429,25 +429,24 @@ func (a *renewApp) richEventDetail(c *ui.Context, detail map[string]any, width f
 	a.eventDetailRelated(c, detail)
 }
 
-func (a *renewApp) eventDetailRelated(c *ui.Context, detail map[string]any) {
+// Model the current event independently from the UI, preserving JSON
+// timestamps and preferring persisted evidence over live summary fallbacks.
+func eventDetailSelectedSummary(detail map[string]any, eventID string, retained []eventSummary) eventSummary {
 	layers := eventDetailLayers(detail)
 	read := func(key string) string {
 		v, _, _ := eventDetailLookup(layers, key)
 		return v
 	}
-	pidText := read("pid")
-	pid, err := strconv.Atoi(pidText)
-	if err != nil || pid <= 0 {
-		return
-	}
 	selected := eventSummary{
-		EventID: a.eventDetailID,
-		PID: pid,
-		AgentRunID: read("agentRunId"),
+		EventID:        eventID,
+		AgentRunID:     read("agentRunId"),
 		ConversationID: read("conversationId"),
 	}
-	// Unlike mapText (fmt.Sprint), the dedicated lookup preserves the
-	// decimal spelling of JSON float64 timestamps rather than "1.76e+12".
+	if pid, err := strconv.Atoi(read("pid")); err == nil && pid > 0 {
+		selected.PID = pid
+	}
+	// fmt.Sprint of a JSON float64 can yield exponent notation, which is
+	// invalid for a decimal timestamp. Our scalar lookup preserves decimals.
 	if text, _, exists := eventDetailLookup(
 		[]eventDetailLayer{newEventDetailLayer("$", detail)}, "Timestamp",
 	); exists {
@@ -455,15 +454,23 @@ func (a *renewApp) eventDetailRelated(c *ui.Context, detail map[string]any) {
 			selected.ReceivedAtMS = ms
 		}
 	}
-	// Prefer a matching retained summary only for values absent in the loaded
-	// event. This works when an event has been truncated from the live window.
-	for _, item := range a.events {
-		if item.EventID == selected.EventID {
-			if selected.ReceivedAtMS == 0 { selected.ReceivedAtMS = item.ReceivedAtMS }
-			if selected.AgentRunID == "" { selected.AgentRunID = item.AgentRunID }
-			if selected.ConversationID == "" { selected.ConversationID = item.ConversationID }
-			break
+	for _, item := range retained {
+		if item.EventID != selected.EventID {
+			continue
 		}
+		if selected.PID == 0 { selected.PID = item.PID }
+		if selected.ReceivedAtMS == 0 { selected.ReceivedAtMS = item.ReceivedAtMS }
+		if selected.AgentRunID == "" { selected.AgentRunID = item.AgentRunID }
+		if selected.ConversationID == "" { selected.ConversationID = item.ConversationID }
+		break
+	}
+	return selected
+}
+
+func (a *renewApp) eventDetailRelated(c *ui.Context, detail map[string]any) {
+	selected := eventDetailSelectedSummary(detail, a.eventDetailID, a.events)
+	if selected.PID <= 0 && selected.AgentRunID == "" && selected.ConversationID == "" {
+		return
 	}
 	related := eventDetailRelatedCandidates(a.events, selected, 4)
 	if len(related) == 0 {
