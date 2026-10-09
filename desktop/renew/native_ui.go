@@ -16,6 +16,7 @@ type renewApp struct {
 	backend string
 	client  *apiClient
 	localMonitor bool // Windows experimental native polling; never a privileged eBPF backend
+	localRefresh chan struct{} // bounded manual refresh signal; only consumed in Windows local mode
 
 	starting   bool
 	connected  bool
@@ -521,7 +522,7 @@ func (a *renewApp) filteredEvents() []eventSummary {
 		if !matchesEventDecision(event, a.eventDecisionFilter) {
 			continue
 		}
-		if a.eventAttentionOnly && eventRisk(event) == "正常" {
+		if a.eventAttentionOnly && eventRisk(event) != "高风险" && eventRisk(event) != "需关注" {
 			continue
 		}
 		out = append(out, event)
@@ -543,6 +544,8 @@ func (a *renewApp) riskCounts() (normal, attention, danger int) {
 			danger++
 		case "需关注":
 			attention++
+		case "未评级":
+			// Windows state observations have no detection verdict.
 		default:
 			normal++
 		}
