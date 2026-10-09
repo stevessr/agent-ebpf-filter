@@ -21,19 +21,22 @@ func (a *renewApp) inspectorEvent() (eventSummary, bool) {
 		return eventSummary{}, false
 	}
 
+	// A direct choice from the alert queue is an investigation override:
+	// it must remain visible even when local table filters exclude it.
+	// This does not change the filters or request full event details.
+	if a.inspectorSelectedID != "" {
+		for _, event := range a.events {
+			if event.EventID == a.inspectorSelectedID {
+				return event, true
+			}
+		}
+	}
 	rows := a.events
 	if a.page == "事件" || a.page == "概览" {
 		rows = a.filteredEvents()
 	}
 	if len(rows) == 0 {
 		return eventSummary{}, false
-	}
-	if a.inspectorSelectedID != "" {
-		for _, event := range rows {
-			if event.EventID == a.inspectorSelectedID {
-				return event, true
-			}
-		}
 	}
 	if a.page == "事件" && a.eventSelected >= 0 && a.eventSelected < len(rows) &&
 		a.eventSelected < a.eventVisibleLimit {

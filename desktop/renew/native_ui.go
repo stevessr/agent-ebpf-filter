@@ -30,6 +30,7 @@ type renewApp struct {
 	terminalInitialized bool
 	terminalTabs []*renewTerminalTab
 	terminalActive int
+	terminalTabScroll ui.ScrollState
 	terminalNextID int
 	terminalFocusRequest int
 	terminalError string

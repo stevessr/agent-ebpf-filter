@@ -257,3 +257,25 @@ func TestInspectorQueueSelectionOverridesPinnedEvent(t *testing.T) {
 		t.Fatal("empty event identity should not disturb selection")
 	}
 }
+
+func TestInspectorQueueChoiceBypassesLocalEventFilters(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.page = "事件"
+	a.events = []eventSummary{
+		{EventID: "normal", Type: "read", RiskScore: 0},
+		{EventID: "critical", Type: "connect", RiskScore: 95},
+	}
+	a.eventTypeFilter = "read"
+	a.inspectorPinnedID = "normal"
+	a.selectInspectorEvent("critical")
+	if len(a.filteredEvents()) != 1 || a.filteredEvents()[0].EventID != "normal" {
+		t.Fatal("queue navigation must not silently clear the event table's filters")
+	}
+	if event, ok := a.inspectorEvent(); !ok || event.EventID != "critical" {
+		t.Fatalf("queue selection was hidden by active event filter: %+v %v", event, ok)
+	}
+	a.focusSummary("critical")
+	if a.eventTypeFilter != "" || a.eventSelected != 1 {
+		t.Fatal("explicit locate must clear filters and select the target row")
+	}
+}

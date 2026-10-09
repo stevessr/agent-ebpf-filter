@@ -8,6 +8,7 @@ package main
 // No shell execution is routed through the privileged eBPF backend.
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -203,6 +204,8 @@ func (a *renewApp) newTerminalTab(dir string) {
 	}
 	a.terminalTabs = append(a.terminalTabs, tab)
 	a.terminalActive = len(a.terminalTabs) - 1
+	// Newly created tabs can be beyond the visible width; reveal the end.
+	a.terminalTabScroll.X = math.MaxFloat32
 	a.terminalFocusRequest = pane.id
 }
 
@@ -278,6 +281,10 @@ func (a *renewApp) closeTerminalTab(index int) {
 	tab := a.terminalTabs[index]
 	tab.root.closeAll()
 	a.terminalTabs = append(a.terminalTabs[:index], a.terminalTabs[index+1:]...)
+	// Keep the same active tab when a tab before it is removed.
+	if index < a.terminalActive {
+		a.terminalActive--
+	}
 	if a.terminalActive >= len(a.terminalTabs) {
 		a.terminalActive = len(a.terminalTabs) - 1
 	}
@@ -286,6 +293,9 @@ func (a *renewApp) closeTerminalTab(index int) {
 	}
 	if current := a.currentTerminalTab(); current != nil {
 		a.terminalFocusRequest = current.focus
+	} else {
+		a.terminalFocusRequest = 0
+		a.terminalTabScroll.X = 0
 	}
 }
 
@@ -310,6 +320,19 @@ func terminalPaneLabel(p *renewTerminalPane) string {
 	return "Shell"
 }
 
+func compactTerminalTabTitle(name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "终端"
+	}
+	const maxRunes = 22
+	runes := []rune(name)
+	if len(runes) <= maxRunes {
+		return name
+	}
+	return string(runes[:maxRunes-1]) + "…"
+}
+
 func terminalShortDir(dir string) string {
 	home, _ := os.UserHomeDir()
 	if home != "" && (dir == home || strings.HasPrefix(dir, home+string(filepath.Separator))) {
@@ -327,55 +350,66 @@ func (a *renewApp) terminalView(c *ui.Context) {
 		a.newTerminalTab(terminalHomeDir())
 	}
 	ui.Column(c).Grow(1).MinHeight(0).MinWidth(0).Padding(14).Gap(10).Children(func() {
+
 		ui.Row(c).Height(38).MinWidth(0).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, "本地终端").FontSize(15).Bold()
 			statusPill(c, "普通用户权限", t.Success)
-			ui.Spacer(c)
-			if ui.Button(c, "新建标签").Clicked() {
-				a.newTerminalTab(a.terminalWorkingDir())
-			}
-			tab := a.currentTerminalTab()
-			if tab != nil {
-				if ui.Button(c, "左右拆分").Clicked() {
-					a.splitFocusedTerminal(false)
+			// MyGo toolbar keeps every terminal action reachable from the
+			// overflow menu when the content area becomes narrow.
+			ui.Toolbar(c, func() {
+				if ui.Button(c, "新建标签").Clicked() {
+					a.newTerminalTab(a.terminalWorkingDir())
 				}
-				if ui.Button(c, "上下拆分").Clicked() {
-					a.splitFocusedTerminal(true)
-				}
-				label := "最大化窗格"
-				if tab.zoom != 0 {
-					label = "还原窗格"
-				}
-				if ui.Button(c, label).Clicked() {
+				tab := a.currentTerminalTab()
+				if tab != nil {
+					if ui.Button(c, "左右拆分").Clicked() {
+						a.splitFocusedTerminal(false)
+					}
+					if ui.Button(c, "上下拆分").Clicked() {
+						a.splitFocusedTerminal(true)
+					}
+					label := "最大化窗格"
 					if tab.zoom != 0 {
-						tab.zoom = 0
-					} else {
-						tab.zoom = tab.focus
+						label = "还原窗格"
+					}
+					if ui.Button(c, label).Clicked() {
+						if tab.zoom != 0 {
+							tab.zoom = 0
+						} else {
+							tab.zoom = tab.focus
+						}
+					}
+					if ui.Button(c, "关闭窗格").Clicked() {
+						a.closeFocusedTerminal()
 					}
 				}
-				if ui.Button(c, "关闭窗格").Clicked() {
-					a.closeFocusedTerminal()
-				}
-			}
+			}).Grow(1).MinWidth(0).Label("终端操作")
 		})
-		ui.Row(c).Height(34).MinWidth(0).Gap(6).AlignItems(ui.Center).Children(func() {
+		// A native tablist adds focus, arrow-key and Home/End navigation.
+		// Horizontal scrolling prevents many tabs from forcing a wider PTY.
+		ui.Row(c).Height(36).MinWidth(0).Gap(8).AlignItems(ui.Center).Children(func() {
+			labels := make([]string, len(a.terminalTabs))
 			for i, tab := range a.terminalTabs {
-				index := i
 				name := tab.label
 				if tab.root != nil && tab.root.first == nil {
 					if title := terminalPaneLabel(tab.root.pane); title != "Shell" && title != "" {
 						name = title
 					}
 				}
-				if ui.Button(c, name).Clicked() {
-					a.terminalActive = index
-					a.terminalFocusRequest = tab.focus
-				}
+				labels[i] = compactTerminalTabTitle(name)
 			}
-			if len(a.terminalTabs) > 0 {
-				if ui.Button(c, "关闭标签").Clicked() {
-					a.closeTerminalTab(a.terminalActive)
+			ui.ScrollHorizontal(c).Grow(1).MinWidth(0).TrackScroll(&a.terminalTabScroll).Children(func() {
+				if len(labels) == 0 {
+					return
 				}
+				if ui.Tabs(c, &a.terminalActive, labels...).Changed() {
+					if tab := a.currentTerminalTab(); tab != nil {
+						a.terminalFocusRequest = tab.focus
+					}
+				}
+			})
+			if len(labels) > 0 && ui.Button(c, "关闭标签").Clicked() {
+				a.closeTerminalTab(a.terminalActive)
 			}
 		})
 		if a.terminalError != "" {
