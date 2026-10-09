@@ -92,14 +92,17 @@ func (a *renewApp) navigatePathAccess(target string) bool {
 
 func usableEventTarget(target string) bool {
 	target = strings.TrimSpace(target)
-	return target != "" && target != "-" && target != "目标路径或端点未记录" &&
-		target != "无文件或网络操作对象"
+	return target != "" && target != "-" && target != "file write" &&
+		target != "socket write" && target != "目标路径或端点未记录" &&
+		target != "无文件或网络操作对象" && !strings.ContainsAny(target, "\x00\r\n")
 }
 
 // A related file edit must be a real mutation by a confirmed descendant.
 // A generic executor tagged Shell/Runtime is never enough by itself.
 func matchesEventDrilldown(e eventSummary, rootPID int, target string, fileOnly, delegatedOnly bool) bool {
-	if rootPID > 0 && e.RootAgentPID != rootPID && e.PID != rootPID {
+	if rootPID > 0 &&
+		e.RootAgentPID != rootPID &&
+		!(e.PID == rootPID && e.RootAgentPID == 0) {
 		return false
 	}
 	if target != "" && e.Target != target {
