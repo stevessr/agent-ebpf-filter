@@ -179,6 +179,10 @@ func managementAppForEvent(event eventSummary) string {
 	switch comm {
 	case "astrlink", "astrlink-core", "astrlinkcore":
 		return "astrlink"
+	case "ccr", "claude-code-router", "claude-code-rou":
+		return "ccr"
+	case "antigravity-tools", "antigravity-too":
+		return "antigravity"
 	default:
 		return ccsAppForEvent(event)
 	}
@@ -188,6 +192,10 @@ func ccsAppLabel(app string) string {
 	switch app {
 	case "astrlink":
 		return "AstrLink"
+	case "ccr":
+		return "Claude Code Router"
+	case "antigravity":
+		return "Antigravity Tools"
 	case "claude":
 		return "Claude Code"
 	case "codex":
