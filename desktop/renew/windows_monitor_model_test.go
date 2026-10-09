@@ -58,3 +58,10 @@ func TestWindowsCPUSampling(t *testing.T) {
 		t.Fatalf("reused PID returned CPU: %.2f", got)
 	}
 }
+
+func TestWindowsSampledObservationIsUnrated(t *testing.T) {
+	event := eventSummary{Type: "network_tcp_observed", Decision: "OBSERVED"}
+	if got := eventRisk(event); got != "未评级" {
+		t.Fatalf("polling must not claim a connection is safe: %q", got)
+	}
+}
