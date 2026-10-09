@@ -35,7 +35,7 @@ AstrLink uses its documented local **Control API**. It publishes `~/.astrlink/co
 Only the following endpoints are queried with **GET**:
 
 - `/control/v1/health` — readiness check.
-- `/control/v1/services?limit=100` — project to service **name, kind and enabled** state; the API may return pagination, so the view is limited to the first 100 services.
+- `/control/v1/services?limit=100` — project to service **name, kind and enabled** state; follow at most 3 pages / 300 services with a 512-byte cursor bound.
 - `/control/v1/policies` — project to **name, enabled, detector and actions** only. Never fetch regex patterns or allowlist literals.
 - `/control/v1/usage-summary` — last-hour **aggregate** request count, failures and input/output tokens. It never requests original request records, audit bodies, request headers, OAuth sessions, credentials or access tokens.
 
