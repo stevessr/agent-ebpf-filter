@@ -54,9 +54,9 @@ func computeAttackVectorScores(classification *pb.BehaviorClassification, anomal
 			out.Persistence = 42
 		case "PACKAGE_MANAGER":
 			out.Persistence = 30
-		// NETWORK, DATABASE and COMPRESSION are context, not attack vectors by
-		// themselves. Concrete network-audit findings or other evidence below
-		// must establish intrusion/exfiltration/persistence intent.
+			// NETWORK, DATABASE and COMPRESSION are context, not attack vectors by
+			// themselves. Concrete network-audit findings or other evidence below
+			// must establish intrusion/exfiltration/persistence intent.
 		}
 
 		switch classification.Confidence {

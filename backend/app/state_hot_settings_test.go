@@ -48,7 +48,7 @@ func TestRuntimeHotSettingsSnapshotRefresh(t *testing.T) {
 func TestRuntimeHotSettingsFallbackForLiteralState(t *testing.T) {
 	state := &runtimeState{
 		settings: RuntimeSettings{
-		LoopDetection: LoopDetectionSettings{Enabled: true, QueueSize: 11},
+			LoopDetection: LoopDetectionSettings{Enabled: true, QueueSize: 11},
 		},
 	}
 	got := state.LoopDetectionSettings()

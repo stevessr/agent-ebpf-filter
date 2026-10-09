@@ -19,7 +19,7 @@ func (m *riskMetricTestModel) Predict(features [FeatureDim]float64) Prediction {
 }
 
 func (m *riskMetricTestModel) Serialize(string) error { return nil }
-func (m *riskMetricTestModel) Type() ModelType         { return ModelType("risk-metric-test") }
+func (m *riskMetricTestModel) Type() ModelType        { return ModelType("risk-metric-test") }
 
 func TestEvaluateRiskModelTracksSecurityAndCalibrationMetrics(t *testing.T) {
 	model := &riskMetricTestModel{predictions: []Prediction{

@@ -23,13 +23,13 @@ const LsmEnforcerMapPinMode os.FileMode = 0600
 const expectedLsmEnforcerLinks = 14
 
 type lsmEnforcerRuntime struct {
-	ExecPathBlocklist *ebpf.Map
-	ExecNameBlocklist *ebpf.Map
-	FileNameBlocklist *ebpf.Map
-	Stats             *ebpf.Map
-	Links             []link.Link
-	LinkPins          []string
-	LastError         string
+	ExecPathBlocklist   *ebpf.Map
+	ExecNameBlocklist   *ebpf.Map
+	FileNameBlocklist   *ebpf.Map
+	Stats               *ebpf.Map
+	Links               []link.Link
+	LinkPins            []string
+	LastError           string
 	PathAccessSupported bool
 }
 
@@ -53,13 +53,13 @@ var lsmEnforcerMu sync.RWMutex
 var errLsmEnforcerPinnedLinksMissing = errors.New("BPF LSM pinned links missing")
 
 type LsmEnforcerSnapshot struct {
-	ExecPathBlocklist *ebpf.Map
-	ExecNameBlocklist *ebpf.Map
-	FileNameBlocklist *ebpf.Map
-	Stats             *ebpf.Map
-	LinkCount         int
-	LinkPins          []string
-	LastError         string
+	ExecPathBlocklist   *ebpf.Map
+	ExecNameBlocklist   *ebpf.Map
+	FileNameBlocklist   *ebpf.Map
+	Stats               *ebpf.Map
+	LinkCount           int
+	LinkPins            []string
+	LastError           string
 	PathAccessSupported bool
 }
 
@@ -67,13 +67,13 @@ func CurrentLsmEnforcerSnapshot() LsmEnforcerSnapshot {
 	lsmEnforcerMu.RLock()
 	defer lsmEnforcerMu.RUnlock()
 	return LsmEnforcerSnapshot{
-		ExecPathBlocklist: lsmEnforcer.ExecPathBlocklist,
-		ExecNameBlocklist: lsmEnforcer.ExecNameBlocklist,
-		FileNameBlocklist: lsmEnforcer.FileNameBlocklist,
-		Stats:             lsmEnforcer.Stats,
-		LinkCount:         len(lsmEnforcer.Links),
-		LinkPins:          append([]string(nil), lsmEnforcer.LinkPins...),
-		LastError:         lsmEnforcer.LastError,
+		ExecPathBlocklist:   lsmEnforcer.ExecPathBlocklist,
+		ExecNameBlocklist:   lsmEnforcer.ExecNameBlocklist,
+		FileNameBlocklist:   lsmEnforcer.FileNameBlocklist,
+		Stats:               lsmEnforcer.Stats,
+		LinkCount:           len(lsmEnforcer.Links),
+		LinkPins:            append([]string(nil), lsmEnforcer.LinkPins...),
+		LastError:           lsmEnforcer.LastError,
 		PathAccessSupported: lsmEnforcer.PathAccessSupported,
 	}
 }

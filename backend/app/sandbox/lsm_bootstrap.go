@@ -67,7 +67,9 @@ func bootstrapLsmEnforcer() error {
 		return err
 	}
 	replaceLsmEnforcerLinks(links)
-	if err := loadLsmEnforcerRuntimeMaps(pins); err != nil { return err }
+	if err := loadLsmEnforcerRuntimeMaps(pins); err != nil {
+		return err
+	}
 	lsmEnforcer.PathAccessSupported = true
 	return nil
 }
@@ -93,7 +95,9 @@ func attachLsmEnforcerWithPinnedMaps() error {
 	links, pins, err := updatePinnedLsmEnforcerLinks(&objs)
 	if err == nil {
 		replaceLsmEnforcerLinks(links)
-		if err := loadLsmEnforcerRuntimeMaps(pins); err != nil { return err }
+		if err := loadLsmEnforcerRuntimeMaps(pins); err != nil {
+			return err
+		}
 		lsmEnforcer.PathAccessSupported = true
 		return nil
 	}
@@ -118,7 +122,9 @@ func attachLsmEnforcerWithPinnedMaps() error {
 		return err
 	}
 	replaceLsmEnforcerLinks(links)
-	if err := loadLsmEnforcerRuntimeMaps(pins); err != nil { return err }
+	if err := loadLsmEnforcerRuntimeMaps(pins); err != nil {
+		return err
+	}
 	lsmEnforcer.PathAccessSupported = true
 	return nil
 }

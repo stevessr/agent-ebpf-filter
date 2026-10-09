@@ -10,7 +10,7 @@ func (m *attackMetricStubModel) Predict(features [FeatureDim]float64) Prediction
 	return Prediction{Action: m.predictions[int(features[0])], Confidence: 0.9}
 }
 func (m *attackMetricStubModel) Serialize(string) error { return nil }
-func (m *attackMetricStubModel) Type() ModelType         { return ModelRandomForest }
+func (m *attackMetricStubModel) Type() ModelType        { return ModelRandomForest }
 
 func attackMetricSample(id int, label int32, category, command string) TrainingSample {
 	var features [FeatureDim]float64
@@ -108,7 +108,7 @@ func TestThreatVectorsDoNotInventSpecificVectorForUnknownAttack(t *testing.T) {
 
 func TestNormalizeSecurityAutoTuneMetric(t *testing.T) {
 	cases := map[string]string{
-		"security_score":      "securityUtility",
+		"security_score":     "securityUtility",
 		"destructive_recall": "destructionRecall",
 		"high_impact_recall": "highImpactRecall",
 		"balanced_accuracy":  "balancedAccuracy",

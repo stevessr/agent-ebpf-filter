@@ -19,8 +19,8 @@ var (
 	listLsmExecNames             = sandbox.ListExecNames
 	listLsmFileNames             = sandbox.ListFileNames
 	listLsmFileAccessPaths       = sandbox.ListFileAccessPaths
-	setLsmFileAccessPath        = sandbox.SetFileAccessPath
-	normalizeLsmFileAccessPath  = sandbox.NormalizeFileAccessPath
+	setLsmFileAccessPath         = sandbox.SetFileAccessPath
+	normalizeLsmFileAccessPath   = sandbox.NormalizeFileAccessPath
 	blockCgroup                  = sandbox.BlockCgroup
 	unblockCgroup                = sandbox.UnblockCgroup
 	blockIP                      = sandbox.BlockIP

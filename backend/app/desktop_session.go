@@ -24,7 +24,7 @@ const (
 	desktopFrameSystemStats   byte = 2
 	desktopFrameEventSummary  byte = 3
 
-	desktopNativeQueueSize   = 1024
+	desktopNativeQueueSize    = 1024
 	desktopNativeWriteTimeout = 750 * time.Millisecond
 )
 

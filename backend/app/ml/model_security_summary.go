@@ -7,45 +7,45 @@ import "sort"
 // the actual validation support of each attack vector rather than averaging
 // per-model percentages, which would over-emphasize tiny slices.
 type ModelSecurityGroupSummary struct {
-	Key                       string  `json:"key"`
-	Family                    string  `json:"family"`
-	FamilyLabel               string  `json:"familyLabel"`
-	FeatureClass              string  `json:"featureClass"`
-	ModelCount                int     `json:"modelCount"`
-	SuccessfulModels          int     `json:"successfulModels"`
-	ScoredSamples             int     `json:"scoredSamples"`
-	AttackSamples             int     `json:"attackSamples"`
-	HighImpactSamples         int     `json:"highImpactSamples"`
-	IntrusionSamples          int     `json:"intrusionSamples"`
-	DestructionSamples        int     `json:"destructionSamples"`
-	ExfiltrationSamples       int     `json:"exfiltrationSamples"`
-	PersistenceSamples        int     `json:"persistenceSamples"`
-	MeanSecurityUtility       float64 `json:"meanSecurityUtility"`
-	AttackRecall              float64 `json:"attackRecall"`
-	HighImpactRecall          float64 `json:"highImpactRecall"`
-	IntrusionRecall           float64 `json:"intrusionRecall"`
-	DestructionRecall         float64 `json:"destructionRecall"`
-	ExfiltrationRecall        float64 `json:"exfiltrationRecall"`
-	PersistenceRecall         float64 `json:"persistenceRecall"`
-	CatastrophicMissRate      float64 `json:"catastrophicMissRate"`
-	BenignFalsePositiveRate   float64 `json:"benignFalsePositiveRate"`
-	BestModelType             string  `json:"bestModelType,omitempty"`
-	BestModelLabel            string  `json:"bestModelLabel,omitempty"`
-	BestModelSecurityUtility  float64 `json:"bestModelSecurityUtility"`
+	Key                      string  `json:"key"`
+	Family                   string  `json:"family"`
+	FamilyLabel              string  `json:"familyLabel"`
+	FeatureClass             string  `json:"featureClass"`
+	ModelCount               int     `json:"modelCount"`
+	SuccessfulModels         int     `json:"successfulModels"`
+	ScoredSamples            int     `json:"scoredSamples"`
+	AttackSamples            int     `json:"attackSamples"`
+	HighImpactSamples        int     `json:"highImpactSamples"`
+	IntrusionSamples         int     `json:"intrusionSamples"`
+	DestructionSamples       int     `json:"destructionSamples"`
+	ExfiltrationSamples      int     `json:"exfiltrationSamples"`
+	PersistenceSamples       int     `json:"persistenceSamples"`
+	MeanSecurityUtility      float64 `json:"meanSecurityUtility"`
+	AttackRecall             float64 `json:"attackRecall"`
+	HighImpactRecall         float64 `json:"highImpactRecall"`
+	IntrusionRecall          float64 `json:"intrusionRecall"`
+	DestructionRecall        float64 `json:"destructionRecall"`
+	ExfiltrationRecall       float64 `json:"exfiltrationRecall"`
+	PersistenceRecall        float64 `json:"persistenceRecall"`
+	CatastrophicMissRate     float64 `json:"catastrophicMissRate"`
+	BenignFalsePositiveRate  float64 `json:"benignFalsePositiveRate"`
+	BestModelType            string  `json:"bestModelType,omitempty"`
+	BestModelLabel           string  `json:"bestModelLabel,omitempty"`
+	BestModelSecurityUtility float64 `json:"bestModelSecurityUtility"`
 }
 
 type modelSecurityGroupAccumulator struct {
-	summary                ModelSecurityGroupSummary
-	securityUtilityWeight  float64
-	attackDetected         float64
-	highImpactDetected     float64
-	intrusionDetected      float64
-	destructionDetected    float64
-	exfiltrationDetected   float64
-	persistenceDetected    float64
-	catastrophicMisses     float64
-	benignSamples          int
-	benignFalsePositives   float64
+	summary               ModelSecurityGroupSummary
+	securityUtilityWeight float64
+	attackDetected        float64
+	highImpactDetected    float64
+	intrusionDetected     float64
+	destructionDetected   float64
+	exfiltrationDetected  float64
+	persistenceDetected   float64
+	catastrophicMisses    float64
+	benignSamples         int
+	benignFalsePositives  float64
 }
 
 // SummarizeModelTuneSecurity returns deterministic family × feature summaries

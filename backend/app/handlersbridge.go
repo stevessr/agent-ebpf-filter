@@ -166,16 +166,16 @@ type lsmEnforcerAdapter struct{}
 func (a *lsmEnforcerAdapter) Snapshot() handlers.LsmEnforcerSnapshot {
 	snap := currentLsmEnforcerSnapshot()
 	return handlers.LsmEnforcerSnapshot{
-		Available:         snap.Available(),
-		Attached:          snap.Attached(),
-		LinkCount:         snap.LinkCount,
-		LinkPins:          snap.LinkPins,
-		LastError:         snap.LastError,
+		Available:           snap.Available(),
+		Attached:            snap.Attached(),
+		LinkCount:           snap.LinkCount,
+		LinkPins:            snap.LinkPins,
+		LastError:           snap.LastError,
 		PathAccessSupported: snap.PathAccessSupported,
-		ExecPathBlocklist: snap.ExecPathBlocklist,
-		ExecNameBlocklist: snap.ExecNameBlocklist,
-		FileNameBlocklist: snap.FileNameBlocklist,
-		Stats:             snap.Stats,
+		ExecPathBlocklist:   snap.ExecPathBlocklist,
+		ExecNameBlocklist:   snap.ExecNameBlocklist,
+		FileNameBlocklist:   snap.FileNameBlocklist,
+		Stats:               snap.Stats,
 	}
 }
 
@@ -207,12 +207,16 @@ func (a *lsmEnforcerAdapter) ListFileNames(blocklist any) []string {
 }
 
 func (a *lsmEnforcerAdapter) ListFileAccessPaths(m any) []handlers.LsmFileAccessRule {
-	if m == nil { return nil }
+	if m == nil {
+		return nil
+	}
 	rows := listLsmFileAccessPaths(m.(*ebpf.Map))
 	out := make([]handlers.LsmFileAccessRule, 0, len(rows))
-	for _, row := range rows { out = append(out, handlers.LsmFileAccessRule{
-		Path: row.Path, DenyRead: row.DenyRead, DenyWrite: row.DenyWrite,
-	}) }
+	for _, row := range rows {
+		out = append(out, handlers.LsmFileAccessRule{
+			Path: row.Path, DenyRead: row.DenyRead, DenyWrite: row.DenyWrite,
+		})
+	}
 	return out
 }
 func (a *lsmEnforcerAdapter) SetFileAccessPath(path string, read, write bool) error {

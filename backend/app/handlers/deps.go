@@ -317,22 +317,22 @@ type CgroupSandboxSnapshot struct {
 
 // LsmEnforcerSnapshot holds the state of the LSM enforcer for handler responses.
 type LsmEnforcerSnapshot struct {
-	Available         bool
-	Attached          bool
-	LinkCount         int
-	LinkPins          []string
-	LastError         string
+	Available           bool
+	Attached            bool
+	LinkCount           int
+	LinkPins            []string
+	LastError           string
 	PathAccessSupported bool
-	ExecPathBlocklist any
-	ExecNameBlocklist any
-	FileNameBlocklist any
-	Stats             any
+	ExecPathBlocklist   any
+	ExecNameBlocklist   any
+	FileNameBlocklist   any
+	Stats               any
 }
 
 type LsmFileAccessRule struct {
-	Path string `json:"path"`
-	DenyRead bool `json:"denyRead"`
-	DenyWrite bool `json:"denyWrite"`
+	Path      string `json:"path"`
+	DenyRead  bool   `json:"denyRead"`
+	DenyWrite bool   `json:"denyWrite"`
 }
 
 // LsmEnforcerOps is the interface for LSM enforcer operations.

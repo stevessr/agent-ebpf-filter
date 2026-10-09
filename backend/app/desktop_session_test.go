@@ -113,30 +113,29 @@ func TestDesktopLifetimeEOFAndToken(t *testing.T) {
 	}
 }
 
-
 func TestBuildRenewDesktopEventSummaryIsCompact(t *testing.T) {
 	at := time.UnixMilli(123456).UTC()
 	record := CapturedEventRecord{
 		ReceivedAt: at,
 		Event: &pb.Event{
-			Pid: 42,
-			Ppid: 7,
+			Pid:          42,
+			Ppid:         7,
 			RootAgentPid: 41,
-			Type: "NETWORK_CONNECT",
-			Tag: "AI Agent",
-			Comm: "codex",
-			Path: "",
-			NetEndpoint: "203.0.113.10:443",
-			NetBytes: 4096,
-			ToolCallId: "tool-1",
-			TraceId: "trace-should-not-be-in-compact-summary",
+			Type:         "NETWORK_CONNECT",
+			Tag:          "AI Agent",
+			Comm:         "codex",
+			Path:         "",
+			NetEndpoint:  "203.0.113.10:443",
+			NetBytes:     4096,
+			ToolCallId:   "tool-1",
+			TraceId:      "trace-should-not-be-in-compact-summary",
 		},
 		Envelope: &pb.EventEnvelope{
-			EventId: "evt-compact",
-			AgentRunId: "run-1",
+			EventId:        "evt-compact",
+			AgentRunId:     "run-1",
 			ConversationId: "conv-1",
 			PolicyDecision: "ALERT",
-			RiskScore: 72,
+			RiskScore:      72,
 		},
 	}
 	summary, ok := buildRenewDesktopEventSummary(record)

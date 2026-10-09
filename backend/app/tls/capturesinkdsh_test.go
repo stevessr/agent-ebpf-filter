@@ -14,7 +14,7 @@ func TestDshInspectorSinkSanitizesAndLabelsUserspaceCapture(t *testing.T) {
 		Type: "http_request", RequestID: "req-1", Timestamp: time.Now().UTC(),
 		Method: "POST", URL: "https://api.example.test/v1/messages?api_key=secret",
 		Headers: map[string]string{"Authorization": "Bearer top-secret", "Content-Type": "application/json"},
-		Body: `{"token":"top-secret","message":"hello"}`, BodySize: 40, ContentType: "application/json",
+		Body:    `{"token":"top-secret","message":"hello"}`, BodySize: 40, ContentType: "application/json",
 	})
 	events := store.Recent(1)
 	if len(events) != 1 {

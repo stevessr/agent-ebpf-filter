@@ -21,19 +21,19 @@ import (
 )
 
 type runtimeHotSettings struct {
-	loopDetection LoopDetectionSettings
+	loopDetection      LoopDetectionSettings
 	researchProcessing ResearchProcessingSettings
-	signalProcessing SignalProcessingSettings
+	signalProcessing   SignalProcessingSettings
 }
 
 type runtimeState struct {
-	mu         sync.RWMutex
-	settings   RuntimeSettings
+	mu          sync.RWMutex
+	settings    RuntimeSettings
 	hotSettings atomic.Pointer[runtimeHotSettings]
-	logWriter  *runtimeEventLogWriter // legacy JSONL compatibility
-	eventStore *runtimeEventStore
-	logPath    string
-	logRoot    string
+	logWriter   *runtimeEventLogWriter // legacy JSONL compatibility
+	eventStore  *runtimeEventStore
+	logPath     string
+	logRoot     string
 }
 
 func newRuntimeState() *runtimeState {

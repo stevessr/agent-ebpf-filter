@@ -62,7 +62,9 @@ func TestUsrBinNoiseOnlySuppressesReadWrite(t *testing.T) {
 		{EventType: pb.EventType_WRITE, Path: "/usr/bin/test"},
 		{Type: "pwrite64", ExtraPath: "/usr/bin/utility"},
 	} {
-		if !shouldIgnoreEventPath(event) { t.Fatalf("expected read/write noise suppressed: %+v", event) }
+		if !shouldIgnoreEventPath(event) {
+			t.Fatalf("expected read/write noise suppressed: %+v", event)
+		}
 	}
 	for _, event := range []*pb.Event{
 		{EventType: pb.EventType_EXECVE, Path: "/usr/bin/bash"},
@@ -71,7 +73,9 @@ func TestUsrBinNoiseOnlySuppressesReadWrite(t *testing.T) {
 		{EventType: pb.EventType_READ, Path: "/usr/binary/bash"},
 		{EventType: pb.EventType_WRITE, Path: "/usr/bin/bash", Decision: "BLOCK"},
 	} {
-		if shouldIgnoreEventPath(event) { t.Fatalf("sensitive or unrelated event was suppressed: %+v", event) }
+		if shouldIgnoreEventPath(event) {
+			t.Fatalf("sensitive or unrelated event was suppressed: %+v", event)
+		}
 	}
 	if !shouldIgnoreEventPath(&pb.Event{EventType: pb.EventType_WRITE, Path: "/tmp/test"}) {
 		t.Fatal("default /tmp path was not ignored")

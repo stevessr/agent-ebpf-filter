@@ -21,10 +21,10 @@ func gridSecuritySample(id int, label int32, categoryIndex int, networkFlags ...
 
 func TestEvaluateAttackImpactTrainSamplesRecoversFeatureThreatVectors(t *testing.T) {
 	samples := []TrainSample{
-		gridSecuritySample(1, 1, 3),       // FILE_DELETE -> destruction
-		gridSecuritySample(2, 1, 5, 122),  // NETWORK + reverse shell -> intrusion+persistence
-		gridSecuritySample(3, 3, 5, 123),  // NETWORK + explicit exfil -> exfiltration
-		gridSecuritySample(4, 0, 5),       // benign generic NETWORK remains vector-neutral
+		gridSecuritySample(1, 1, 3),      // FILE_DELETE -> destruction
+		gridSecuritySample(2, 1, 5, 122), // NETWORK + reverse shell -> intrusion+persistence
+		gridSecuritySample(3, 3, 5, 123), // NETWORK + explicit exfil -> exfiltration
+		gridSecuritySample(4, 0, 5),      // benign generic NETWORK remains vector-neutral
 	}
 	predictions := map[int]int32{
 		1: 0, // catastrophic destructive miss

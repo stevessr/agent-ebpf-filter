@@ -7,8 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"sync"
 	"strings"
+	"sync"
 
 	"github.com/cilium/ebpf"
 )
@@ -189,7 +189,7 @@ func listLsmExecPaths(blocklist *ebpf.Map) []string {
 	var key lsmPathKey
 	var val uint32
 	for iter.Next(&key, &val) {
-		if val & denyExec == 0 {
+		if val&denyExec == 0 {
 			continue
 		}
 		items = append(items, string(bytes.TrimRight(key.Path[:], "\x00")))
@@ -253,12 +253,13 @@ const (
 	denyRead  uint32 = 2
 	denyWrite uint32 = 4
 )
+
 var lsmPathPolicyMu sync.Mutex
 
 type FileAccessRule struct {
-	Path string `json:"path"`
-	DenyRead bool `json:"denyRead"`
-	DenyWrite bool `json:"denyWrite"`
+	Path      string `json:"path"`
+	DenyRead  bool   `json:"denyRead"`
+	DenyWrite bool   `json:"denyWrite"`
 }
 
 func NormalizeFileAccessPath(path string) (string, error) {
@@ -282,10 +283,16 @@ func NormalizeFileAccessPath(path string) (string, error) {
 // its original file was deleted, because revocation never calls this helper.
 func validateProtectedFile(path string) error {
 	info, err := os.Stat(path)
-	if err != nil { return fmt.Errorf("target must exist before enabling a file restriction: %w", err) }
-	if !info.Mode().IsRegular() { return fmt.Errorf("only existing regular files can be protected") }
+	if err != nil {
+		return fmt.Errorf("target must exist before enabling a file restriction: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("only existing regular files can be protected")
+	}
 	resolved, err := filepath.EvalSymlinks(path)
-	if err != nil { return fmt.Errorf("resolve target file: %w", err) }
+	if err != nil {
+		return fmt.Errorf("resolve target file: %w", err)
+	}
 	if filepath.Clean(resolved) != filepath.Clean(path) {
 		return fmt.Errorf("path uses a symbolic link; select the canonical path %q", resolved)
 	}
@@ -293,7 +300,9 @@ func validateProtectedFile(path string) error {
 }
 
 func mergedPathBits(old, mask uint32, enabled bool) uint32 {
-	if enabled { return old | mask }
+	if enabled {
+		return old | mask
+	}
 	return old &^ mask
 }
 
@@ -301,21 +310,29 @@ func mergedPathBits(old, mask uint32, enabled bool) uint32 {
 // existing executable-block bit and vice versa.
 func mutatePathBits(path string, update func(uint32) uint32) error {
 	key, err := lsmPathKeyFromString(path)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	lsmPathPolicyMu.Lock()
 	defer lsmPathPolicyMu.Unlock()
 	snap := CurrentLsmEnforcerSnapshot()
 	if !snap.Available() || !snap.Attached() {
-		if err := ensureLsmEnforcerLoaded(); err != nil { return err }
+		if err := ensureLsmEnforcerLoaded(); err != nil {
+			return err
+		}
 		snap = CurrentLsmEnforcerSnapshot()
 	}
-	if snap.ExecPathBlocklist == nil { return fmt.Errorf("BPF LSM path map unavailable") }
+	if snap.ExecPathBlocklist == nil {
+		return fmt.Errorf("BPF LSM path map unavailable")
+	}
 	var old uint32
 	if err := snap.ExecPathBlocklist.Lookup(&key, &old); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
 		return err
 	}
 	next := update(old)
-	if next == 0 { return ignoreMissingMapKey(snap.ExecPathBlocklist.Delete(&key)) }
+	if next == 0 {
+		return ignoreMissingMapKey(snap.ExecPathBlocklist.Delete(&key))
+	}
 	return snap.ExecPathBlocklist.Put(&key, &next)
 }
 
@@ -325,39 +342,53 @@ func updateLsmPathBits(path string, mask uint32, enabled bool) error {
 
 func SetFileAccessPath(path string, denyR, denyW bool) error {
 	path, err := NormalizeFileAccessPath(path)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	if denyR || denyW {
-		if err := validateProtectedFile(path); err != nil { return err }
+		if err := validateProtectedFile(path); err != nil {
+			return err
+		}
 	}
 	// The file path feature must never appear to succeed when an upgraded
 	// kernel enforcer fell back to older pinned programs.
 	snap := CurrentLsmEnforcerSnapshot()
 	if !snap.PathAccessSupported {
-		if err := ensureLsmEnforcerLoaded(); err != nil { return err }
+		if err := ensureLsmEnforcerLoaded(); err != nil {
+			return err
+		}
 		if !CurrentLsmEnforcerSnapshot().PathAccessSupported {
 			return fmt.Errorf("LSM file path access rules are not supported by the attached programs")
 		}
 	}
 	return mutatePathBits(path, func(old uint32) uint32 {
 		next := old &^ (denyRead | denyWrite)
-		if denyR { next |= denyRead }
-		if denyW { next |= denyWrite }
+		if denyR {
+			next |= denyRead
+		}
+		if denyW {
+			next |= denyWrite
+		}
 		return next
 	})
 }
 
 func ListFileAccessPaths(blocklist *ebpf.Map) []FileAccessRule {
-	if blocklist == nil { return nil }
+	if blocklist == nil {
+		return nil
+	}
 	out := []FileAccessRule{}
 	iterator := blocklist.Iterate()
 	var key lsmPathKey
 	var bits uint32
 	for iterator.Next(&key, &bits) {
-		if bits & (denyRead | denyWrite) == 0 { continue }
+		if bits&(denyRead|denyWrite) == 0 {
+			continue
+		}
 		out = append(out, FileAccessRule{
-			Path: string(bytes.TrimRight(key.Path[:], "\x00")),
-			DenyRead: bits & denyRead != 0,
-			DenyWrite: bits & denyWrite != 0,
+			Path:      string(bytes.TrimRight(key.Path[:], "\x00")),
+			DenyRead:  bits&denyRead != 0,
+			DenyWrite: bits&denyWrite != 0,
 		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })

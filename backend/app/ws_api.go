@@ -287,57 +287,57 @@ func parseEventLimitQuery(raw string, defaultLimit int) int {
 }
 
 type renewEventSummary struct {
-	RootAgentPID   uint32  `json:"rootAgentPid,omitempty"`
-	Key            string  `json:"key"`
-	EventID        string  `json:"eventId"`
-	PID            uint32  `json:"pid"`
-	PPID           uint32  `json:"ppid"`
-	UID            uint32  `json:"uid"`
-	Type           string  `json:"type"`
-	EventType      int32   `json:"eventType"`
-	Tag            string  `json:"tag"`
-	Comm           string  `json:"comm"`
-	Target         string  `json:"target,omitempty"`
-	Network        bool    `json:"network,omitempty"`
-	HasAgentContext bool   `json:"hasAgentContext,omitempty"`
-	Path           string  `json:"path"`
-	ExtraPath      string  `json:"extraPath,omitempty"`
-	NetDirection   string  `json:"netDirection,omitempty"`
-	NetEndpoint    string  `json:"netEndpoint,omitempty"`
-	NetBytes       uint64  `json:"netBytes,omitempty"`
-	Domain         string  `json:"domain,omitempty"`
-	Decision       string  `json:"decision,omitempty"`
-	RiskScore      float64 `json:"riskScore,omitempty"`
-	AgentRunID     string  `json:"agentRunId,omitempty"`
-	ConversationID string  `json:"conversationId,omitempty"`
-	TurnID         string  `json:"turnId,omitempty"`
-	ToolCallID     string  `json:"toolCallId,omitempty"`
-	ToolName       string  `json:"toolName,omitempty"`
-	TraceID        string  `json:"traceId,omitempty"`
-	SpanID         string  `json:"spanId,omitempty"`
-	Time           string  `json:"time"`
-	ReceivedAtMS   int64   `json:"receivedAtMs"`
+	RootAgentPID    uint32  `json:"rootAgentPid,omitempty"`
+	Key             string  `json:"key"`
+	EventID         string  `json:"eventId"`
+	PID             uint32  `json:"pid"`
+	PPID            uint32  `json:"ppid"`
+	UID             uint32  `json:"uid"`
+	Type            string  `json:"type"`
+	EventType       int32   `json:"eventType"`
+	Tag             string  `json:"tag"`
+	Comm            string  `json:"comm"`
+	Target          string  `json:"target,omitempty"`
+	Network         bool    `json:"network,omitempty"`
+	HasAgentContext bool    `json:"hasAgentContext,omitempty"`
+	Path            string  `json:"path"`
+	ExtraPath       string  `json:"extraPath,omitempty"`
+	NetDirection    string  `json:"netDirection,omitempty"`
+	NetEndpoint     string  `json:"netEndpoint,omitempty"`
+	NetBytes        uint64  `json:"netBytes,omitempty"`
+	Domain          string  `json:"domain,omitempty"`
+	Decision        string  `json:"decision,omitempty"`
+	RiskScore       float64 `json:"riskScore,omitempty"`
+	AgentRunID      string  `json:"agentRunId,omitempty"`
+	ConversationID  string  `json:"conversationId,omitempty"`
+	TurnID          string  `json:"turnId,omitempty"`
+	ToolCallID      string  `json:"toolCallId,omitempty"`
+	ToolName        string  `json:"toolName,omitempty"`
+	TraceID         string  `json:"traceId,omitempty"`
+	SpanID          string  `json:"spanId,omitempty"`
+	Time            string  `json:"time"`
+	ReceivedAtMS    int64   `json:"receivedAtMs"`
 }
 
 type renewDesktopEventSummary struct {
-	EventID          string  `json:"eventId"`
-	ReceivedAtMS     int64   `json:"receivedAtMs"`
-	PID              uint32  `json:"pid"`
-	PPID             uint32  `json:"ppid"`
-	RootAgentPID     uint32  `json:"rootAgentPid,omitempty"`
-	EventType        int32   `json:"eventType"`
-	Type             string  `json:"type"`
-	Tag              string  `json:"tag,omitempty"`
-	Comm             string  `json:"comm,omitempty"`
-	Target           string  `json:"target,omitempty"`
-	Network          bool    `json:"network,omitempty"`
-	NetBytes         uint64  `json:"netBytes,omitempty"`
-	Decision         string  `json:"decision,omitempty"`
-	RiskScore        float64 `json:"riskScore,omitempty"`
-	AgentRunID       string  `json:"agentRunId,omitempty"`
-	ConversationID   string  `json:"conversationId,omitempty"`
-	ToolName         string  `json:"toolName,omitempty"`
-	HasAgentContext  bool    `json:"hasAgentContext,omitempty"`
+	EventID         string  `json:"eventId"`
+	ReceivedAtMS    int64   `json:"receivedAtMs"`
+	PID             uint32  `json:"pid"`
+	PPID            uint32  `json:"ppid"`
+	RootAgentPID    uint32  `json:"rootAgentPid,omitempty"`
+	EventType       int32   `json:"eventType"`
+	Type            string  `json:"type"`
+	Tag             string  `json:"tag,omitempty"`
+	Comm            string  `json:"comm,omitempty"`
+	Target          string  `json:"target,omitempty"`
+	Network         bool    `json:"network,omitempty"`
+	NetBytes        uint64  `json:"netBytes,omitempty"`
+	Decision        string  `json:"decision,omitempty"`
+	RiskScore       float64 `json:"riskScore,omitempty"`
+	AgentRunID      string  `json:"agentRunId,omitempty"`
+	ConversationID  string  `json:"conversationId,omitempty"`
+	ToolName        string  `json:"toolName,omitempty"`
+	HasAgentContext bool    `json:"hasAgentContext,omitempty"`
 }
 
 func buildRenewDesktopEventSummary(record CapturedEventRecord) (renewDesktopEventSummary, bool) {
@@ -408,24 +408,24 @@ func buildRenewDesktopEventSummaryNormalized(record CapturedEventRecord) (renewD
 
 func desktopEventSummaryProto(summary renewDesktopEventSummary) *pb.DesktopEventSummary {
 	return &pb.DesktopEventSummary{
-		EventId:          summary.EventID,
-		ReceivedAtMs:     summary.ReceivedAtMS,
-		Pid:              summary.PID,
-		Ppid:             summary.PPID,
-		RootAgentPid:     summary.RootAgentPID,
-		EventType:        summary.EventType,
-		Type:             summary.Type,
-		Tag:              summary.Tag,
-		Comm:             summary.Comm,
-		Target:           summary.Target,
-		Network:          summary.Network,
-		NetBytes:         summary.NetBytes,
-		Decision:         summary.Decision,
-		RiskScore:        summary.RiskScore,
-		AgentRunId:       summary.AgentRunID,
-		ConversationId:   summary.ConversationID,
-		ToolName:         summary.ToolName,
-		HasAgentContext:  summary.HasAgentContext,
+		EventId:         summary.EventID,
+		ReceivedAtMs:    summary.ReceivedAtMS,
+		Pid:             summary.PID,
+		Ppid:            summary.PPID,
+		RootAgentPid:    summary.RootAgentPID,
+		EventType:       summary.EventType,
+		Type:            summary.Type,
+		Tag:             summary.Tag,
+		Comm:            summary.Comm,
+		Target:          summary.Target,
+		Network:         summary.Network,
+		NetBytes:        summary.NetBytes,
+		Decision:        summary.Decision,
+		RiskScore:       summary.RiskScore,
+		AgentRunId:      summary.AgentRunID,
+		ConversationId:  summary.ConversationID,
+		ToolName:        summary.ToolName,
+		HasAgentContext: summary.HasAgentContext,
 	}
 }
 
@@ -442,36 +442,36 @@ func buildRenewEventSummary(record CapturedEventRecord) (renewEventSummary, bool
 	}
 	compact, _ := buildRenewDesktopEventSummaryNormalized(record)
 	return renewEventSummary{
-		Key:            eventID,
-		EventID:        eventID,
-		PID:            event.GetPid(),
-		PPID:           event.GetPpid(),
-		UID:            event.GetUid(),
-		Type:           event.GetType(),
-		EventType:      int32(event.GetEventType()),
-		Tag:            event.GetTag(),
-		Comm:           event.GetComm(),
-		Target:         compact.Target,
-		Network:        compact.Network,
+		Key:             eventID,
+		EventID:         eventID,
+		PID:             event.GetPid(),
+		PPID:            event.GetPpid(),
+		UID:             event.GetUid(),
+		Type:            event.GetType(),
+		EventType:       int32(event.GetEventType()),
+		Tag:             event.GetTag(),
+		Comm:            event.GetComm(),
+		Target:          compact.Target,
+		Network:         compact.Network,
 		HasAgentContext: compact.HasAgentContext,
-		Path:           event.GetPath(),
-		ExtraPath:      event.GetExtraPath(),
-		NetDirection:   event.GetNetDirection(),
-		NetEndpoint:    event.GetNetEndpoint(),
-		NetBytes:       uint64(event.GetNetBytes()),
-		Domain:         event.GetDomain(),
-		Decision:       platform.FirstNonEmpty(event.GetDecision(), envelope.GetPolicyDecision()),
-		RiskScore:      max(event.GetRiskScore(), envelope.GetRiskScore()),
-		RootAgentPID:   event.GetRootAgentPid(),
-		AgentRunID:     platform.FirstNonEmpty(event.GetAgentRunId(), envelope.GetAgentRunId()),
-		ConversationID: platform.FirstNonEmpty(event.GetConversationId(), envelope.GetConversationId()),
-		TurnID:         platform.FirstNonEmpty(event.GetTurnId(), envelope.GetTurnId()),
-		ToolCallID:     platform.FirstNonEmpty(event.GetToolCallId(), envelope.GetToolCallId()),
-		ToolName:       platform.FirstNonEmpty(event.GetToolName(), envelope.GetToolName()),
-		TraceID:        platform.FirstNonEmpty(event.GetTraceId(), envelope.GetTraceId()),
-		SpanID:         platform.FirstNonEmpty(event.GetSpanId(), envelope.GetSpanId()),
-		Time:           record.ReceivedAt.UTC().Format(time.RFC3339Nano),
-		ReceivedAtMS:   record.ReceivedAt.UnixMilli(),
+		Path:            event.GetPath(),
+		ExtraPath:       event.GetExtraPath(),
+		NetDirection:    event.GetNetDirection(),
+		NetEndpoint:     event.GetNetEndpoint(),
+		NetBytes:        uint64(event.GetNetBytes()),
+		Domain:          event.GetDomain(),
+		Decision:        platform.FirstNonEmpty(event.GetDecision(), envelope.GetPolicyDecision()),
+		RiskScore:       max(event.GetRiskScore(), envelope.GetRiskScore()),
+		RootAgentPID:    event.GetRootAgentPid(),
+		AgentRunID:      platform.FirstNonEmpty(event.GetAgentRunId(), envelope.GetAgentRunId()),
+		ConversationID:  platform.FirstNonEmpty(event.GetConversationId(), envelope.GetConversationId()),
+		TurnID:          platform.FirstNonEmpty(event.GetTurnId(), envelope.GetTurnId()),
+		ToolCallID:      platform.FirstNonEmpty(event.GetToolCallId(), envelope.GetToolCallId()),
+		ToolName:        platform.FirstNonEmpty(event.GetToolName(), envelope.GetToolName()),
+		TraceID:         platform.FirstNonEmpty(event.GetTraceId(), envelope.GetTraceId()),
+		SpanID:          platform.FirstNonEmpty(event.GetSpanId(), envelope.GetSpanId()),
+		Time:            record.ReceivedAt.UTC().Format(time.RFC3339Nano),
+		ReceivedAtMS:    record.ReceivedAt.UnixMilli(),
 	}, true
 }
 
