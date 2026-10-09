@@ -33,6 +33,40 @@ func TestWorkspaceInspectorResponsive(t *testing.T) {
 	}
 }
 
+func TestWorkspaceNavigationDetailedLabels(t *testing.T) {
+	tests := []struct {
+		open, detailed bool
+		want float32
+	}{
+		{false, false, 0},
+		{false, true, 0},
+		{true, false, workspaceNavigationCompactWidth},
+		{true, true, workspaceNavigationDetailedWidth},
+	}
+	for _, tc := range tests {
+		if got := workspaceNavigationWidth(tc.open, tc.detailed); got != tc.want {
+			t.Errorf("workspaceNavigationWidth(%v, %v) = %v, want %v", tc.open, tc.detailed, got, tc.want)
+		}
+	}
+
+	for _, id := range []string{"概览", "研判", "事件", "会话", "网络", "进程", "监控", "eBPF 模块", "规则", "跟踪", "路径权限", "终端", "系统"} {
+		short, detailed := workspaceNavigationLabel(id, false), workspaceNavigationLabel(id, true)
+		if short == "" || detailed == "" || short == detailed {
+			t.Errorf("navigation labels for %q must differ and be nonempty: %q / %q", id, short, detailed)
+		}
+	}
+	if got := workspaceNavigationLabel("未知页面", true); got != "未知页面" {
+		t.Errorf("unknown page must preserve the routing key, got %q", got)
+	}
+	// The wider sidebar is included in the inspector's available-width check.
+	if showWorkspaceInspector(1400, workspaceNavigationDetailedWidth, true, "事件") {
+		t.Fatal("expanded navigation must not overlap the event inspector")
+	}
+	if !showWorkspaceInspector(1480, workspaceNavigationDetailedWidth, true, "事件") {
+		t.Fatal("expanded navigation should leave room for inspector on wide windows")
+	}
+}
+
 func TestInspectorUsesCompactEventsWithoutLoadingDetails(t *testing.T) {
 	a := newRenewApp("http://127.0.0.1:8080")
 	a.events = []eventSummary{
