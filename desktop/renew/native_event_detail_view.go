@@ -446,8 +446,14 @@ func (a *renewApp) eventDetailRelated(c *ui.Context, detail map[string]any) {
 		AgentRunID: read("agentRunId"),
 		ConversationID: read("conversationId"),
 	}
-	if ms, ok := eventDetailInt64(mapText(detail, "Timestamp")); ok && ms > 0 {
-		selected.ReceivedAtMS = ms
+	// Unlike mapText (fmt.Sprint), the dedicated lookup preserves the
+	// decimal spelling of JSON float64 timestamps rather than "1.76e+12".
+	if text, _, exists := eventDetailLookup(
+		[]eventDetailLayer{newEventDetailLayer("$", detail)}, "Timestamp",
+	); exists {
+		if ms, ok := eventDetailInt64(text); ok && ms > 0 {
+			selected.ReceivedAtMS = ms
+		}
 	}
 	// Prefer a matching retained summary only for values absent in the loaded
 	// event. This works when an event has been truncated from the live window.
@@ -464,7 +470,7 @@ func (a *renewApp) eventDetailRelated(c *ui.Context, detail map[string]any) {
 		return
 	}
 	card(c, "邻近事件 · 当前缓存", func() {
-		ui.Text(c, "仅基于相同 PID、可验证的 Agent Run/会话或两分钟时间窗口筛选；这些事件不证明因果关系。").FontSize(10).TextColor(c.Theme().TextMuted)
+		ui.Text(c, "优先使用 Agent Run/会话标识关联跨进程活动；仅在两分钟窗口内匹配无冲突的同 PID 记录。这些事件不代表因果关系。").FontSize(10).TextColor(c.Theme().TextMuted)
 		for _, entry := range related {
 			entry := entry
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
