@@ -176,6 +176,12 @@ func TestSemanticContentionCooldownAndContainerIsolation(t *testing.T) {
 		if _, _, ok := s.ObserveMultiAgentFileContention(writer("second", "container-b"), start.Add(time.Second)); ok {
 			t.Fatal("same pathname in different known containers should not correlate")
 		}
+		if _, _, ok := s.ObserveMultiAgentFileContention(writer("third", "container-a"), start.Add(2*time.Second)); !ok {
+			t.Fatal("another container must not overwrite the first container's history")
+		}
+		if _, _, ok := s.ObserveMultiAgentFileContention(writer("unknown", ""), start.Add(3*time.Second)); ok {
+			t.Fatal("unknown container scope must not match a known container")
+		}
 	})
 	t.Run("failed write never creates state or overwrites previous evidence", func(t *testing.T) {
 		s := NewSemanticAlertState()
