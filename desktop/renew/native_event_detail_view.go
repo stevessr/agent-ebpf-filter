@@ -374,6 +374,15 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 			m.Sections = append(m.Sections, domain)
 		}
 	}
+	// Typed alert metadata must not re-introduce a synthetic or ambiguous
+	// file target after the legacy evidence check above.
+	if semanticAlert && get("comm") == "MULTI_AGENT_FILE_CONTENTION" &&
+		!strings.HasPrefix(m.Target, "/") {
+		m.Target = ""
+		if m.EvidenceNote == "" {
+			m.EvidenceNote = "该合成语义告警没有可核实的文件路径，可能是旧版本误报；请核对原始事件证据。"
+		}
+	}
 
 	section("策略与分类", field("策略决定", "decision", "policyDecision"),
 		field("风险评分", "riskScore"), field("判定原因", "reason"),
