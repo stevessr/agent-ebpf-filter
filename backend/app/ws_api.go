@@ -374,7 +374,8 @@ func buildRenewDesktopEventSummaryNormalized(record CapturedEventRecord) (renewD
 	tag := event.GetTag()
 	rootAgentPID := event.GetRootAgentPid()
 	eventType := event.GetType()
-	network := strings.TrimSpace(event.GetNetEndpoint()) != "" || strings.TrimSpace(event.GetDomain()) != ""
+	network := strings.TrimSpace(event.GetNetEndpoint()) != "" || strings.TrimSpace(event.GetDomain()) != "" ||
+		strings.TrimSpace(event.GetSni()) != "" || strings.TrimSpace(event.GetHttpHost()) != "" || strings.TrimSpace(event.GetDnsName()) != ""
 	if !network {
 		lowerType := strings.ToLower(eventType)
 		network = strings.Contains(lowerType, "network") ||
