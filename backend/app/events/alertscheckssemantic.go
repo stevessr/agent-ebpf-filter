@@ -334,6 +334,10 @@ func semanticContainsFold(value, needle string) bool {
 	return false
 }
 
+// File contention requires an actual, unambiguous filesystem target. Kernel
+// write(2) only exposes an fd; event adapters sometimes report a description
+// such as "file write" instead of a resolved filename. Those labels are not
+// paths and must never become keys shared across unrelated processes.
 func semanticFileMutationPath(event *pb.Event) (string, bool, bool) {
 	if event == nil {
 		return "", false, false
@@ -343,17 +347,35 @@ func semanticFileMutationPath(event *pb.Event) (string, bool, bool) {
 	default:
 		return "", false, false
 	}
-	path := platform.FirstNonEmpty(event.GetPath(), event.GetExtraPath())
-	if path == "" {
-		return "", false, false
+	for _, candidate := range []string{event.GetPath(), event.GetExtraPath()} {
+		path := strings.TrimSpace(candidate)
+		if path == "" || semanticFileTargetIsPlaceholder(path) {
+			continue
+		}
+		normalized, truncated := normalizeSemanticPath(path, event.GetCwd())
+		// An unresolved relative filename is ambiguous across working
+		// directories. A truncated/redacted key is not a proven same file.
+		if truncated || !filepath.IsAbs(normalized) {
+			continue
+		}
+		return normalized, false, true
 	}
-	trimmedPath := strings.TrimSpace(path)
-	if strings.EqualFold(trimmedPath, "write") ||
-		(len(trimmedPath) >= len("socket ") && strings.EqualFold(trimmedPath[:len("socket ")], "socket ")) {
-		return "", false, false
+	return "", false, false
+}
+
+func semanticFileTargetIsPlaceholder(path string) bool {
+	lower := strings.ToLower(strings.TrimSpace(path))
+	switch lower {
+	case "write", "read", "file write", "file read", "file_write", "file_read",
+		"file-write", "file-read", "unknown", "(unknown)", "<unknown>", "<redacted>", "-":
+		return true
 	}
-	normalized, truncated := normalizeSemanticPath(path, event.GetCwd())
-	return normalized, truncated, normalized != ""
+	for _, prefix := range []string{"socket ", "socket:", "pipe:", "anon_inode:", "fd:", "fd="} {
+		if strings.HasPrefix(lower, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizeSemanticPath(path, cwd string) (string, bool) {
@@ -380,27 +402,18 @@ func normalizeSemanticPath(path, cwd string) (string, bool) {
 	return filepath.Clean(trimmed), truncated
 }
 
+// A PID by itself is a process identity, not evidence of an Agent context.
+// Tool call and trace identifiers may rotate within one Agent, so they are not
+// valid evidence that two different Agents touched a file.
 func semanticAgentIdentity(event *pb.Event) (string, bool) {
 	if event == nil {
 		return "", false
 	}
-	if value, truncated := boundSemanticStatePrefixed("agent_run:", event.GetAgentRunId(), SemanticStateMaxContextBytes); value != "" {
-		return value, truncated
-	}
-	if value, truncated := boundSemanticStatePrefixed("task:", event.GetTaskId(), SemanticStateMaxContextBytes); value != "" {
-		return value, truncated
-	}
-	if value, truncated := boundSemanticStatePrefixed("tool_call:", event.GetToolCallId(), SemanticStateMaxContextBytes); value != "" {
-		return value, truncated
-	}
-	if value, truncated := boundSemanticStatePrefixed("trace:", event.GetTraceId(), SemanticStateMaxContextBytes); value != "" {
-		return value, truncated
-	}
 	if event.GetRootAgentPid() > 0 {
 		return fmt.Sprintf("root_pid:%d", event.GetRootAgentPid()), false
 	}
-	if event.GetPid() > 0 {
-		return fmt.Sprintf("pid:%d", event.GetPid()), false
+	if value, truncated := boundSemanticStatePrefixed("agent_run:", event.GetAgentRunId(), SemanticStateMaxContextBytes); value != "" {
+		return value, truncated
 	}
 	return "", false
 }
