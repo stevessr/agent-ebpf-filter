@@ -104,3 +104,35 @@ jobs:
             desktop/renew/build/linux-amd64/renew-0.1.0-linux-amd64.tar.gz
             desktop/renew/build/linux-amd64/install.sh
           if-no-files-found: error
+
+
+  windows-experimental:
+    name: Windows native desktop (experimental)
+    runs-on: windows-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: desktop/renew
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.27.1"
+          cache-dependency-path: desktop/renew/go.sum
+      # No Linux embedded backend, clang, BPF sources or elevation on Windows.
+      - name: Download MyGo desktop dependencies
+        run: go mod download
+      - name: Test native Windows monitor and portable desktop models
+        run: go test ./...
+      - name: Cross-check desktop binary build
+        run: |
+          New-Item -ItemType Directory -Force -Path build | Out-Null
+          go build -o build/renew.exe .
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (!(Test-Path build/renew.exe)) { throw "Windows executable missing" }
+      - name: Upload Windows experimental executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: renew-windows-amd64-experimental
+          path: desktop/renew/build/renew.exe
+          if-no-files-found: error
