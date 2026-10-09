@@ -195,9 +195,17 @@ func claudeSafetySummary(doc map[string]any) string {
 	return strings.Join(detail, " · ")
 }
 
+func safePermissionProfileLabel(raw string) string {
+	switch raw {
+	case ":read-only", ":workspace", ":danger-full-access":
+		return raw
+	}
+	return configLabel(raw)
+}
+
 func codexSafetySummary(doc map[string]any, project bool) string {
 	detail := []string{}
-	if v := configLabel(tomlString(doc, "default_permissions")); v != "" {
+	if v := safePermissionProfileLabel(tomlString(doc, "default_permissions")); v != "" {
 		detail = append(detail, "权限配置 "+v)
 	}
 	if mode := tomlString(doc, "sandbox_mode"); mode != "" {
