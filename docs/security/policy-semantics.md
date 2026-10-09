@@ -96,6 +96,8 @@ graph TD
 * `TOKEN_EXFIL_RISK`：检测到通过环境变量、命令行参数或 HTTP 报头尝试外发凭证。
 * `RESOURCE_WASTING_LOOP`：检测到进程分叉炸弹（fork storm）或短周期内重复出现的提示词消化与出口网络流量循环。
 * `MULTI_AGENT_FILE_CONTENTION`：不同 Agent 运行上下文在极短的时间窗口内对同一核心路径进行并发写操作。
+  * 仅在能确认不同 Agent 根 PID（或有明确 Agent run ID），且拿到真实、可解析为绝对路径的文件目标时进行判定；单纯不同的进程 PID、tool call/trace ID 不足以证明属于不同 Agent。
+  * 原始 `write(2)` 只有文件描述符时不一定能解析文件名；`file write`、`fd:3` 等占位文本不得用于跨 Agent 文件冲突检测。进程退出后，历史 PID 不再能从实时进程列表中定位到，不代表事件自动无效。
 
 > ⚠️ **安全红线警示**：以上语义告警均在**用户空间（Userspace）**通过相关规则引擎分析生成，不属于内核同步阻断链路的一部分。它们主要用于生成安全报告并推荐下发硬阻断策略 Map 规则。
 
