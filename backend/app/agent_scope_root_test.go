@@ -40,10 +40,10 @@ func TestAgentScopeNoCrossRunOrUnobservedRootAttribution(t *testing.T) {
 			t.Fatalf("unverified Agent root was accepted: %q", name)
 		}
 	}
-	// Missing run identifier cannot refute a recorded source, but does
-	// not introduce an unrelated named root.
-	if name := store.OwnerComm(cases[2]); name != "codex" {
-		t.Fatalf("missing run should preserve inherited root evidence: %q", name)
+	// Missing run identifier is not enough to validate the cached
+	// run identity, especially when a PID could have been reused.
+	if name := store.OwnerComm(cases[2]); name != "" {
+		t.Fatalf("unversioned child inherited a named Agent run: %q", name)
 	}
 	if name := store.OwnerComm(&pb.Event{Pid: 401, RootAgentPid: 401, Comm: "python"}); name != "" {
 		t.Fatalf("direct process unexpectedly has a second Agent owner: %q", name)
