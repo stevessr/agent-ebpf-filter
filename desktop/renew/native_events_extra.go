@@ -185,6 +185,12 @@ func (a *renewApp) releaseEventDetailPayload() {
 	a.enforcementErr = ""
 	a.eventDetailTab = 0
 	a.eventDetailFieldSearch = ""
+	a.eventDetailFieldOffset = 0
+	a.eventDetailSearchSnapshot = ""
+	a.eventDetailExpandedField = ""
+	a.eventDetailEnforcementReady = false
+	a.eventDetailPendingAction = ""
+	a.eventDetailGeneration++
 }
 
 func (a *renewApp) closeEventDetail() {
@@ -201,6 +207,12 @@ func (a *renewApp) ensureEventDetailText() {
 	}
 }
 
+// An event ID is not a request identity: the same event can be closed and
+// reopened before its first fetch completes. Keep a generation lease.
+func (a *renewApp) acceptsEventDetailResponse(id string, generation uint64) bool {
+	return a.eventDetailOpen && a.eventDetailID == id && a.eventDetailGeneration == generation
+}
+
 func (a *renewApp) openEventDetail(eventID string) {
 	if a.client == nil || strings.TrimSpace(eventID) == "" {
 		return
@@ -210,21 +222,26 @@ func (a *renewApp) openEventDetail(eventID string) {
 	a.eventDetailID = id
 	a.eventDetailOpen = true
 	a.eventDetailLoading = true
+	generation := a.eventDetailGeneration
+	client := a.client
+	policyEnabled := a.runtimeCfg.Runtime.PolicyManagementEnabled
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 		defer cancel()
-		detail, err := a.client.eventDetail(ctx, id)
+		detail, err := client.eventDetail(ctx, id)
 		var enforcement enforcementSnapshot
 		var enforcementErr error
-		// An unrelated file/CPU event needs only the detail request.
-		// Avoid a second backend round-trip unless there is a valid action.
-		targets := enforcementTargets(detail)
-		if err == nil && a.runtimeCfg.Runtime.PolicyManagementEnabled &&
-			(targets.IP != "" || targets.ExecPath != "") {
-			enforcement, enforcementErr = a.client.enforcementStatus(ctx)
+		enforcementQueried := false
+		// Never use a cached status to enable a privileged action.
+		if err == nil && policyEnabled {
+			targets := enforcementTargets(detail)
+			if targets.IP != "" || targets.ExecPath != "" {
+				enforcementQueried = true
+				enforcement, enforcementErr = client.enforcementStatus(ctx)
+			}
 		}
 		a.update(func() {
-			if !a.eventDetailOpen || a.eventDetailID != id {
+			if !a.acceptsEventDetailResponse(id, generation) {
 				return
 			}
 			a.eventDetailLoading = false
@@ -233,9 +250,11 @@ func (a *renewApp) openEventDetail(eventID string) {
 				return
 			}
 			a.eventDetail = detail
-			if enforcementErr == nil {
+			a.eventDetailEnforcementReady = enforcementQueried && enforcementErr == nil
+			if a.eventDetailEnforcementReady {
 				a.enforcement = enforcement
-			} else {
+			}
+			if enforcementErr != nil {
 				a.enforcementErr = enforcementErr.Error()
 			}
 		})
@@ -411,11 +430,14 @@ func containsInt(values []int, target int) bool {
 }
 
 func (a *renewApp) runEnforcement(path string, payload map[string]any) {
-	if a.client == nil || a.enforcementBusy || !a.runtimeCfg.Runtime.PolicyManagementEnabled {
+	if a.client == nil || a.enforcementBusy || !a.eventDetailOpen ||
+		!a.eventDetailEnforcementReady || !a.runtimeCfg.Runtime.PolicyManagementEnabled {
 		return
 	}
 	a.enforcementBusy = true
+	a.eventDetailEnforcementReady = false
 	a.enforcementErr = ""
+	generation := a.eventDetailGeneration
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 		defer cancel()
@@ -423,6 +445,11 @@ func (a *renewApp) runEnforcement(path string, payload map[string]any) {
 		snapshot, statusErr := a.client.enforcementStatus(ctx)
 		a.update(func() {
 			a.enforcementBusy = false
+			// Never apply a late policy snapshot to a newer investigation.
+			if generation != a.eventDetailGeneration || !a.eventDetailOpen {
+				a.eventDetailEnforcementReady = false
+				return
+			}
 			if err != nil {
 				a.enforcementErr = err.Error()
 				return
@@ -432,6 +459,7 @@ func (a *renewApp) runEnforcement(path string, payload map[string]any) {
 				return
 			}
 			a.enforcement = snapshot
+			a.eventDetailEnforcementReady = true
 		})
 	}()
 }
