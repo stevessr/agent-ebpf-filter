@@ -761,12 +761,17 @@ func (s *runtimeState) eventLogRoot() string {
 // retained by the archive, the persistence queue and the websocket batch.
 // Callers must not read or modify it afterwards.
 func recordCapturedEvent(event *pb.Event) CapturedEventRecord {
+	return recordCapturedEventWithMonitoring(event, monitorAgentEvent(event))
+}
+
+// The broadcaster provides the source Agent's monitoring decision for both the
+// source and its derived semantic alerts. Those alerts may have a synthetic
+// Security tag, so re-matching the alert itself would incorrectly drop work.
+func recordCapturedEventWithMonitoring(event *pb.Event, monitorAllowed bool) CapturedEventRecord {
 	if event == nil {
 		return CapturedEventRecord{}
 	}
 
-	// Evaluate against the attributed event before redaction can change fields.
-	monitorAllowed := monitorAgentEvent(event)
 	collectorMetricsStore.RecordEvent(event)
 
 	record := normalizeCapturedEventRecord(CapturedEventRecord{
