@@ -365,7 +365,7 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 	// Domain cards use only fields from the corresponding protobuf oneof.
 	// Legacy fields remain visible in the common sections, with their origin.
 	if typed := eventDetailTypedPayload(detail); typed.Kind != "" {
-		if typed.Kind != "file" && typed.Kind != "network" && typed.Kind != "process" {
+		if !semanticAlert && typed.Kind != "file" && typed.Kind != "network" && typed.Kind != "process" {
 			if target := eventTypedTarget(typed); target != "" {
 				m.Target = target
 			}
