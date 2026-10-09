@@ -185,6 +185,9 @@ type renewApp struct {
 	trackName     string
 	trackTag      string
 
+	ccs               ccsSnapshot
+	ccsEventAppFilter string
+
 	rulesReady    bool
 	rulesBusy     bool
 	rulesErr      string
@@ -240,6 +243,7 @@ func newRenewApp(backend string) *renewApp {
 
 func (a *renewApp) runPolling(ctx context.Context, session *backendSession) {
 	a.startEventUIBatcher(ctx)
+	go a.pollCCS(ctx)
 	if session != nil && session.reader != nil && session.nativeIPCVersion >= nativeIPCVersion {
 		go a.runNativeIPC(ctx, session)
 	} else {
@@ -411,6 +415,8 @@ func pageSubtitle(page string) string {
 		return "按完整路径精确限制读取和写入"
 	case "系统":
 		return "采集器、系统流与队列诊断"
+	case "CCS":
+		return "CC-Switch 配置与 Agent eBPF 事件联动"
 	case "终端":
 		return "普通用户 Shell · Ghostty VT · 多标签与分屏"
 	default:
@@ -475,7 +481,7 @@ func (a *renewApp) errorView(c *ui.Context) {
 
 func (a *renewApp) eventFilterCacheKey() string {
 	q := strings.ToLower(strings.TrimSpace(a.search))
-	key := q + "\x00" + a.eventTypeFilter + "\x00" + a.eventSessionFilter + "\x00" + a.eventDecisionFilter + "\x00" + fmt.Sprint(a.eventPIDFilter) + "\x00" + fmt.Sprint(a.eventRootPIDFilter) + "\x00" + a.eventTargetFilter + "\x00" + fmt.Sprint(a.eventFileEditsOnly) + "\x00" + fmt.Sprint(a.eventDelegatedOnly) + "\x00" + a.eventRiskFilter
+	key := q + "\x00" + a.eventTypeFilter + "\x00" + a.eventSessionFilter + "\x00" + a.eventDecisionFilter + "\x00" + fmt.Sprint(a.eventPIDFilter) + "\x00" + fmt.Sprint(a.eventRootPIDFilter) + "\x00" + a.eventTargetFilter + "\x00" + fmt.Sprint(a.eventFileEditsOnly) + "\x00" + fmt.Sprint(a.eventDelegatedOnly) + "\x00" + a.eventRiskFilter + "\x00" + a.ccsEventAppFilter
 	if a.eventAttentionOnly {
 		key += "\x001"
 	}
@@ -488,7 +494,7 @@ func (a *renewApp) filteredEvents() []eventSummary {
 	if a.filterCacheValid && a.filterCacheVersion == a.eventsVersion && a.filterCacheKey == key {
 		return a.filterCacheRows
 	}
-	if q == "" && a.eventPIDFilter == 0 && a.eventRootPIDFilter == 0 && a.eventTargetFilter == "" && !a.eventFileEditsOnly && !a.eventDelegatedOnly && a.eventRiskFilter == "" && a.eventTypeFilter == "" && a.eventSessionFilter == "" && a.eventDecisionFilter == "" && !a.eventAttentionOnly {
+	if q == "" && a.eventPIDFilter == 0 && a.eventRootPIDFilter == 0 && a.eventTargetFilter == "" && !a.eventFileEditsOnly && !a.eventDelegatedOnly && a.eventRiskFilter == "" && a.eventTypeFilter == "" && a.eventSessionFilter == "" && a.eventDecisionFilter == "" && a.ccsEventAppFilter == "" && !a.eventAttentionOnly {
 		a.filterCacheValid = true
 		a.filterCacheVersion = a.eventsVersion
 		a.filterCacheKey = key
@@ -499,6 +505,9 @@ func (a *renewApp) filteredEvents() []eventSummary {
 	out := make([]eventSummary, 0, min(len(a.events), 256))
 	for _, event := range a.events {
 		if q != "" && !strings.Contains(eventSearchText(event), q) {
+			continue
+		}
+		if a.ccsEventAppFilter != "" && ccsAppForEvent(event) != a.ccsEventAppFilter {
 			continue
 		}
 		if a.eventRiskFilter != "" && eventRisk(event) != a.eventRiskFilter {
