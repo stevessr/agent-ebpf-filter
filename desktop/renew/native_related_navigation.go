@@ -104,6 +104,13 @@ func usableEventTarget(target string) bool {
 		target != "无文件或网络操作对象" && !strings.ContainsAny(target, "\x00\r\n")
 }
 
+// A compact summary can fall back to toolName when no actual target was
+// recorded. That is not evidence of a file or network destination.
+func hasNavigableEventTarget(event eventSummary) bool {
+	return usableEventTarget(event.Target) &&
+		(event.ToolName == "" || event.Target != event.ToolName)
+}
+
 // A related file edit must be a real mutation by a confirmed descendant.
 // A generic executor tagged Shell/Runtime is never enough by itself.
 func matchesEventDrilldown(e eventSummary, rootPID int, target string, fileOnly, delegatedOnly bool) bool {
@@ -161,7 +168,7 @@ func (a *renewApp) eventQuickLinks(c *ui.Context, event eventSummary, withPolicy
 				a.navigateSessionEvents(eventSessionKey(event), true, true)
 			}
 		}
-		if usableEventTarget(event.Target) && ui.Button(c, "同目标").Tooltip("按摘要目标精确匹配，不做全文模糊搜索").Clicked() {
+		if hasNavigableEventTarget(event) && ui.Button(c, "同目标").Tooltip("按摘要目标精确匹配，不做全文模糊搜索").Clicked() {
 			a.navigateTargetEvents(event.Target)
 		}
 		if hasKnownRootAgent(event, owner) &&
@@ -210,7 +217,7 @@ func (a *renewApp) eventDetailQuickLinks(c *ui.Context, event eventSummary) {
 			a.navigateSessionEvents(eventSessionKey(event), true, true)
 			a.closeEventDetail()
 		}
-		if usableEventTarget(event.Target) && ui.Button(c, "同目标事件").Clicked() {
+		if hasNavigableEventTarget(event) && ui.Button(c, "同目标事件").Clicked() {
 			a.navigateTargetEvents(event.Target)
 			a.closeEventDetail()
 		}
