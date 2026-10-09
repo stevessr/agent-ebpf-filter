@@ -32,7 +32,7 @@ func normalizedDestinationHost(raw string) (string, string) {
 	}
 	if strings.Contains(raw, "://") {
 		u, err := url.Parse(raw)
-		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.User != nil {
+		if err != nil || (!strings.EqualFold(u.Scheme, "https") && !strings.EqualFold(u.Scheme, "http")) || u.User != nil {
 			return "", ""
 		}
 		raw = u.Hostname()
