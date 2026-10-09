@@ -130,9 +130,26 @@ jobs:
           go build -o build/renew.exe .
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (!(Test-Path build/renew.exe)) { throw "Windows executable missing" }
-      - name: Upload Windows experimental executable
+      - name: Package Windows app and native Ghostty resource
+        run: |
+          go tool mygo build -skip-build-command -platform windows/amd64
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (!(Test-Path build/windows-amd64/Renew.exe)) { throw "Windows packaged app missing" }
+          if (!(Get-ChildItem build/windows-amd64 -Recurse -Filter ghostty-vt.dll)) {
+            throw "Ghostty native VT runtime missing from Windows app"
+          }
+          if (!(Get-ChildItem build/windows-amd64 -Filter "*Setup*.exe")) {
+            throw "Windows installer missing"
+          }
+      - name: Upload Windows experimental installer and runtime
         uses: actions/upload-artifact@v4
         with:
           name: renew-windows-amd64-experimental
+          path: desktop/renew/build/windows-amd64/**
+          if-no-files-found: error
+      - name: Upload Windows raw binary (diagnostics only)
+        uses: actions/upload-artifact@v4
+        with:
+          name: renew-windows-amd64-raw-exe
           path: desktop/renew/build/renew.exe
           if-no-files-found: error
