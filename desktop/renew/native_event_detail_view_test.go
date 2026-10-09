@@ -93,6 +93,11 @@ func TestEventDetailContentionWithRealPathKeepsTarget(t *testing.T) {
 			"path": "/workspace/shared.txt",
 			"extraInfo": "source=write tool=editor comm=agent reason=cross agent contention",
 		},
+		"Envelope": map[string]any{
+			"agentsightAlertEvent": map[string]any{
+				"category": "semantic", "reason": "two agents touched a file",
+			},
+		},
 	}
 	model := eventDetailModel(detail)
 	if model.Target != "/workspace/shared.txt" ||
