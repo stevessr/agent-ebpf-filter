@@ -99,6 +99,17 @@ func eventDetailLookupPreferred(layers []eventDetailLayer, keys ...string) (stri
 	return "", "", false
 }
 
+// Older kernels encoded fd-only read/write operation labels in Event.path.
+// These are descriptive markers, never resolvable filesystem targets.
+func eventDetailFDPathPlaceholder(path string) bool {
+	switch strings.ToLower(strings.TrimSpace(path)) {
+	case "file read", "file write", "file readv", "file writev",
+		"socket read", "socket write", "socket readv", "socket writev":
+		return true
+	}
+	return false
+}
+
 func detailScalarText(raw any) string {
 	switch v := raw.(type) {
 	case nil:
@@ -314,12 +325,24 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 	switch category {
 	case "file":
 		m.Target = prefer("path", "targetPath", "relatedPath", "extraPath")
-		section("文件操作", field("操作", "operation", "type"),
-			field("目标路径", "path", "targetPath", "relatedPath"),
-			field("关联路径", "extraPath"), field("模式 / 权限", "mode"),
-			field("读写字节数", "bytes"), field("目标 UID", "uidArg"),
-			field("目标 GID", "gidArg"), field("返回值", "retval"),
-			field("附加信息", "extraInfo"))
+		if eventDetailFDPathPlaceholder(m.Target) {
+			// Prefer a separately resolved pathname if one exists, but never
+			// present the kernel's old "file write" label as a real file.
+			m.Target = prefer("targetPath", "relatedPath", "extraPath")
+			m.EvidenceNote = "旧版内核把仅有 FD 的文件操作描述写入了路径字段；不能凭 FD 确认文件名。原始 FD 与读写计数仍在附加信息中。"
+			section("文件操作", field("操作", "operation", "type"),
+				field("关联路径", "extraPath"), field("模式 / 权限", "mode"),
+				field("读写字节数", "bytes"), field("目标 UID", "uidArg"),
+				field("目标 GID", "gidArg"), field("返回值", "retval"),
+				field("附加信息", "extraInfo"))
+		} else {
+			section("文件操作", field("操作", "operation", "type"),
+				field("目标路径", "path", "targetPath", "relatedPath"),
+				field("关联路径", "extraPath"), field("模式 / 权限", "mode"),
+				field("读写字节数", "bytes"), field("目标 UID", "uidArg"),
+				field("目标 GID", "gidArg"), field("返回值", "retval"),
+				field("附加信息", "extraInfo"))
+		}
 	case "network":
 		m.Target = prefer("netEndpoint", "endpoint", "dstIp", "domain", "dnsName", "sni")
 		section("网络行为", field("目标端点", "netEndpoint", "endpoint"),
