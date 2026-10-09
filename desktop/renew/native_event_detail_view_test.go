@@ -109,6 +109,24 @@ func TestEventDetailContentionWithRealPathKeepsTarget(t *testing.T) {
 	}
 }
 
+func TestEventDetailLegacyFDOnlyWriteDoesNotInventFilePath(t *testing.T) {
+	model := eventDetailModel(map[string]any{
+		"Event": map[string]any{
+			"type": "write", "path": "file write", "pid": float64(448183),
+			"comm": "fish", "extraInfo": "fd=7 count=32", "bytes": float64(32),
+		},
+	})
+	if model.Target != "目标路径或端点未记录" || !strings.Contains(model.EvidenceNote, "FD") {
+		t.Fatalf("synthetic kernel label was presented as a file: %+v", model)
+	}
+	if eventDetailHasField(model, "文件操作", "目标路径", "file write") {
+		t.Fatalf("kernel operation label must not be displayed as a real target: %+v", model.Sections)
+	}
+	if !eventDetailHasField(model, "文件操作", "附加信息", "fd=7 count=32") {
+		t.Fatal("actual fd and byte count should remain available")
+	}
+}
+
 func TestEventDetailModelEnvelopeNetworkAndMissingFields(t *testing.T) {
 	payload := map[string]any{
 		"Event": map[string]any{"type": "connect", "comm": "curl", "pid": float64(42)},
