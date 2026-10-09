@@ -322,6 +322,7 @@ func (a *renewApp) eventsView(c *ui.Context) {
 	}
 }
 func (a *renewApp) networkView(c *ui.Context) {
+	if a.localMonitor { a.windowsNetworkView(c); return }
 	t := c.Theme()
 	rows := a.filteredNetworkRows()
 	ui.Text(c, "网络").FontSize(28).Bold()
@@ -377,7 +378,11 @@ func (a *renewApp) processesView(c *ui.Context) {
 
 	if a.systemConnected && len(a.system.Processes) > 0 {
 		rows := a.filteredSystemProcesses()
-		ui.Text(c, "来自 /ws/system 的 protobuf 实时进程快照，按 CPU 使用率排序；搜索同时匹配 PID、用户与命令行。").TextColor(t.TextMuted)
+		if a.localMonitor {
+			ui.Text(c, "Windows Win32 进程清单每 2 秒采样；CPU 为相邻样本间的估算使用率，部分受保护进程的内存与 CPU 无法读取。").TextColor(t.Warning)
+		} else {
+			ui.Text(c, "来自 /ws/system 的 protobuf 实时进程快照，按 CPU 使用率排序；搜索同时匹配 PID、用户与命令行。").TextColor(t.TextMuted)
+		}
 		card(c, fmt.Sprintf("实时进程 · %d", len(rows)), func() {
 			if len(rows) == 0 {
 				ui.Text(c, "当前搜索没有匹配进程").TextColor(t.TextMuted)
