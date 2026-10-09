@@ -47,6 +47,18 @@ func (a *renewApp) inspectorEvent() (eventSummary, bool) {
 	return rows[0], true
 }
 
+// A direct click on a queue item must take precedence over any old pin.
+func (a *renewApp) selectInspectorEvent(id string) {
+	if id == "" {
+		return
+	}
+	a.inspectorPinnedID = ""
+	a.inspectorSelectedID = id
+	// Only an explicit event-table selection should drive table navigation.
+	a.eventSelected = -1
+	a.inspectorTab = 0
+}
+
 func (a *renewApp) inspectorAlerts(limit int) []eventSummary {
 	if limit <= 0 {
 		return nil
@@ -153,8 +165,16 @@ func (a *renewApp) inspector(c *ui.Context) {
 				ui.Text(c, "事件研判").FontSize(14).Bold()
 				ui.Text(c, "本地摘要 · 按需加载原始详情").FontSize(10).TextColor(t.TextMuted)
 			})
-			if ui.Button(c, "×").Tooltip("关闭侧栏").Clicked() {
-				a.inspectorOpen = false
+			closeTitle := "关闭侧栏"
+			if a.page == "研判" {
+				closeTitle = "返回事件列表"
+			}
+			if ui.Button(c, "×").Tooltip(closeTitle).Clicked() {
+				if a.page == "研判" {
+					a.page = "事件"
+				} else {
+					a.inspectorOpen = false
+				}
 			}
 		})
 		ui.Tabs(c, &a.inspectorTab, "事件研判", "运行诊断")
@@ -229,8 +249,7 @@ func (a *renewApp) inspector(c *ui.Context) {
 							ui.Text(c, eventAction(item)+" · "+displayOr(item.Comm, "未知")).FontSize(11).MaxLines(2)
 						})
 						if ui.Button(c, "查看此事件").Clicked() {
-							a.inspectorSelectedID = item.EventID
-							a.eventSelected = -1
+							a.selectInspectorEvent(item.EventID)
 						}
 					})
 				}
