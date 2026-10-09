@@ -75,6 +75,14 @@ func (a *renewApp) pathAccessView(c *ui.Context) {
 	t := c.Theme()
 	ui.Text(c, "路径访问与读写权限").FontSize(28).Bold()
 	ui.Text(c, "BPF LSM 精确文件路径策略：只在显式确认后阻止打开、读取、写入以及相关 mmap 访问。").TextColor(t.TextMuted)
+	if a.pathAccessReturnPage != "" && a.pathAccessReturnPage != "路径权限" {
+		if ui.Button(c, "← 返回"+a.pathAccessReturnPage).Clicked() {
+			a.page = a.pathAccessReturnPage
+			a.pathAccessReturnPage = ""
+			a.pathAccessConfirm = false
+			a.pathAccessConfirmText = ""
+		}
+	}
 	ui.Column(c).Padding(14).Gap(7).Radius(12).Background(t.Warning.Alpha(0.07)).Border(1, t.Warning.Alpha(0.3)).Children(func() {
 		ui.Text(c, "注意：当前为全系统范围，不只限制 Agent 进程。").Bold()
 		ui.Text(c, "任何使用该精确文件路径的进程都可能受影响，包括系统服务。不会递归匹配目录、不会自动保护同名文件，也不覆盖重命名、删除、chmod 或已经建立的映射。请优先在测试环境验证。").FontSize(11).TextColor(t.TextMuted)
