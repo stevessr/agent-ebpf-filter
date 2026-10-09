@@ -135,7 +135,10 @@ func astrLinkClient(session astrLinkSession) (*http.Client, string, string, erro
 		session.ControlToken == "" {
 		return nil, "", "", errors.New("AstrLink 控制入口必须是带 Observer 凭据的本地回环地址")
 	}
-	return &http.Client{Timeout: shortTimeout,
+	// Never inherit HTTP_PROXY/HTTPS_PROXY: the observer bearer token must
+	// travel directly to loopback and must not reach a configured proxy.
+	transport := &http.Transport{Proxy: nil, DisableKeepAlives: true}
+	return &http.Client{Timeout: shortTimeout, Transport: transport,
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}, parsed.Scheme + "://" + parsed.Host, session.ControlToken, nil
 }
