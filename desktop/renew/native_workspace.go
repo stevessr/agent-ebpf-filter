@@ -75,11 +75,11 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 	shell.Children(func() {
 		a.activityRail(c)
 		if navProgress > 0 {
-			ui.Row(c).Width(198 * navProgress).Shrink(0).Clip().Children(func() {
+			ui.Row(c).Width(198 * navProgress).Shrink(0).AlignItems(ui.Stretch).Clip().Children(func() {
 				a.sidebar(c)
 			})
 		}
-		ui.Column(c).Grow(1).MinWidth(0).Background(t.Background).Children(func() {
+		ui.Column(c).Key("workspace-content").Grow(1).MinWidth(0).Background(t.Background).Children(func() {
 			a.header(c, 198*navProgress)
 			if a.page == "终端" {
 				// Real PTY bounds without a parent Scroll; also usable offline.
