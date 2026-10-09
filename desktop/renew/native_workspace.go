@@ -86,6 +86,28 @@ func workspaceNavigationWidth(open, detailed bool) float32 {
 	return workspaceNavigationCompactWidth
 }
 
+// Keep at least a laptop-sized center canvas even if the user prefers full
+// navigation labels. The preference survives resizing and is restored when
+// there is enough room; the icon rail remains available at every size.
+const (
+	workspaceActivityRailWidth float32 = 54
+	workspaceDetailedMinWindowWidth float32 = 1240
+	workspaceHeaderMinContentWidth float32 = 860
+)
+
+func workspaceResponsiveNavigationWidth(windowWidth float32, open, detailed bool) (float32, bool) {
+	effectiveDetailed := detailed && windowWidth >= workspaceDetailedMinWindowWidth
+	return workspaceNavigationWidth(open, effectiveDetailed), effectiveDetailed
+}
+
+func workspaceCompactHeader(windowWidth, navigationWidth float32) bool {
+	return windowWidth-workspaceActivityRailWidth-navigationWidth < workspaceHeaderMinContentWidth
+}
+
+func workspaceShowsBackendError(page string, starting bool, lastErr string, eventCount int) bool {
+	return !starting && page == "概览" && lastErr != "" && eventCount == 0
+}
+
 func workspaceNavigationLabel(page string, detailed bool) string {
 	labels, ok := workspaceNavigationLabels[page]
 	if !ok {
@@ -116,13 +138,13 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 	// MyGo 0.3 animations honor the OS reduced-motion setting.
 	// Animate actual widths, not a percentage, so resizing and switching
 	// label density use the same inspector layout calculation.
-	navTarget := workspaceNavigationWidth(a.navigationOpen, a.navigationDetailed)
+	navTarget, navDetailed := workspaceResponsiveNavigationWidth(width, a.navigationOpen, a.navigationDetailed)
 	navWidth := shell.Animate("renew-navigation", navTarget, 180*time.Millisecond)
 	shell.Children(func() {
 		a.activityRail(c)
 		if navWidth > 0 {
 			ui.Row(c).Width(navWidth).Shrink(0).AlignItems(ui.Stretch).Clip().Children(func() {
-				a.sidebar(c)
+				a.sidebar(c, navDetailed)
 			})
 		}
 		ui.Column(c).Key("workspace-content").Grow(1).MinWidth(0).Background(t.Background).Children(func() {
@@ -133,13 +155,16 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 			} else {
 				ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Stretch).Children(func() {
 				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-					ui.Scroll(c).Grow(1).Padding(20).Gap(16).Children(func() {
+					pagePadding := float32(20)
+					if width < 1200 { pagePadding = 12 }
+					ui.Scroll(c).Grow(1).Padding(pagePadding).Gap(16).Children(func() {
 						switch {
 						case a.starting:
 							a.startingView(c)
-						case a.lastErr != "" && len(a.events) == 0:
+						case workspaceShowsBackendError(a.page, a.starting, a.lastErr, len(a.events)):
 							a.errorView(c)
 						default:
+							if !a.connected && a.lastErr != "" { a.connectionBanner(c) }
 							ui.Column(c).Key("page-"+a.page).Gap(16).Transition(ui.ElementTransition{
 							Duration: 160 * time.Millisecond,
 							Enter: &ui.Motion{Y: 8},
@@ -252,11 +277,11 @@ func (a *renewApp) activityRail(c *ui.Context) {
 	})
 }
 
-func (a *renewApp) sidebar(c *ui.Context) {
+func (a *renewApp) sidebar(c *ui.Context, detailed bool) {
 	t := c.Theme()
 	_, attention, danger := a.riskCounts()
-	width := workspaceNavigationWidth(true, a.navigationDetailed)
-	label := func(page string) string { return workspaceNavigationLabel(page, a.navigationDetailed) }
+	width := workspaceNavigationWidth(true, detailed)
+	label := func(page string) string { return workspaceNavigationLabel(page, detailed) }
 	// Preserve MyGo's Sidebar tree semantics and keyboard arrow navigation.
 	// A chosen row stays accent-highlighted even when focus moves to content.
 	var selectedItem ui.Element
@@ -274,8 +299,11 @@ func (a *renewApp) sidebar(c *ui.Context) {
 	side.Children(func() {
 		ui.Row(c).Padding(9, 10).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, "功能导航").FontSize(12).Bold().Grow(1)
-			switchLabel, tip := "详细 ›", "展开侧边栏，显示完整的功能名称"
-			if a.navigationDetailed {
+			switchLabel, tip := "详细 ›", "在宽窗口显示完整的功能名称"
+			switch {
+			case a.navigationDetailed && !detailed:
+				switchLabel, tip = "自动精简", "当前窗口宽度不足，详细导航将在加宽后自动恢复；点击取消详细偏好"
+			case a.navigationDetailed:
 				switchLabel, tip = "精简 ‹", "收窄侧边栏，显示精简的功能名称"
 			}
 			if ui.Button(c, switchLabel).Tooltip(tip).Clicked() {
@@ -347,13 +375,15 @@ func workspaceStatusTone(t *ui.Theme, level string) ui.Color {
 
 func (a *renewApp) header(c *ui.Context, navigationWidth float32) {
 	t := c.Theme()
+	width, _ := c.Size()
+	compact := workspaceCompactHeader(width, navigationWidth)
 	ui.Column(c).Background(t.Surface).Children(func() {
 		ui.Row(c).MinHeight(61).Padding(10, 16).Gap(10).AlignItems(ui.Center).Children(func() {
 			ui.Column(c).Gap(3).MinWidth(132).Grow(1).Children(func() {
 				ui.Text(c, a.page).FontSize(18).Bold()
 				ui.Text(c, pageSubtitle(a.page)).FontSize(10).SingleLine().TextColor(t.TextMuted)
 			})
-			if pageUsesEventSearch(a.page) {
+			if pageUsesEventSearch(a.page) && !compact {
 				ui.SearchField(c, &a.search).Label("搜索事件、进程或目标").Width(215)
 			}
 			label, level := a.pipelineStatus()
@@ -395,20 +425,26 @@ func (a *renewApp) header(c *ui.Context, navigationWidth float32) {
 				}
 			}).MinWidth(0).Label("监控操作")
 		})
+		if compact && pageUsesEventSearch(a.page) {
+			ui.Row(c).Padding(5, 16).Children(func() {
+				ui.SearchField(c, &a.search).Label("搜索事件、进程或目标").Grow(1).MinWidth(0)
+			})
+		}
 		ui.Divider(c)
 		ui.Row(c).MinHeight(38).Padding(6, 16).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, "工作区").FontSize(11).TextColor(t.TextMuted)
 			ui.Text(c, "›").TextColor(t.TextMuted)
 			ui.Badge(c, a.page).Background(t.Accent.Alpha(0.16)).TextColor(t.Accent)
 			if a.page == "概览" || a.page == "事件" || a.page == "网络" || a.page == "进程" {
-				if a.eventPIDFilter > 0 {
+				if n := a.eventConstraintCount(); n > 0 { statusPill(c, fmt.Sprintf("筛选 %d 项", n), t.Accent) }
+				if !compact && a.eventPIDFilter > 0 {
 					statusPill(c, fmt.Sprintf("PID %d", a.eventPIDFilter), t.Accent)
 				}
-				if a.eventRiskFilter != "" {
+				if !compact && a.eventRiskFilter != "" {
 					statusPill(c, a.eventRiskFilter, workspaceStatusTone(t, map[string]string{"高风险": "danger", "需关注": "warning"}[a.eventRiskFilter]))
 				}
 				if a.hasEventConstraints() {
-					if ui.Button(c, "重置事件筛选").Tooltip("清除 PID、类型、会话、决策与风险约束").Clicked() {
+					if ui.Button(c, "重置事件筛选").Tooltip("清除搜索、PID、Agent、目标、会话、决策与风险约束").Clicked() {
 						a.clearEventFilters()
 					}
 				}
@@ -460,10 +496,41 @@ func (a *renewApp) refreshActiveView() {
 	}
 }
 
+func (a *renewApp) eventConstraintCount() int {
+	count := 0
+	for _, enabled := range [...]bool{
+		a.search != "", a.eventPIDFilter > 0, a.eventRootPIDFilter > 0,
+		a.eventTargetFilter != "", a.eventRiskFilter != "",
+		a.eventTypeFilter != "", a.eventSessionFilter != "",
+		a.eventDecisionFilter != "", a.eventAttentionOnly,
+		a.eventFileEditsOnly, a.eventDelegatedOnly,
+		a.eventDomainAgent != "", a.eventDomainTarget != "", a.eventDomainKind != "",
+	} {
+		if enabled {
+			count++
+		}
+	}
+	return count
+}
+
 func (a *renewApp) hasEventConstraints() bool {
-	return a.eventPIDFilter > 0 || a.eventRiskFilter != "" ||
-		a.eventTypeFilter != "" || a.eventSessionFilter != "" ||
-		a.eventDecisionFilter != "" || a.eventAttentionOnly
+	return a.eventConstraintCount() > 0
+}
+
+// Offline data is still useful for inspection. Only the empty Overview gets
+// a full-screen connection error; all other pages retain their controls and
+// any already-captured evidence.
+func (a *renewApp) connectionBanner(c *ui.Context) {
+	t := c.Theme()
+	ui.Row(c).Wrap().Gap(10).Padding(12).Background(t.Warning.Alpha(0.08)).Border(1, t.Warning.Alpha(0.35)).Radius(8).Children(func() {
+		ui.Text(c, "后端连接异常 · 当前内容可能不是最新").TextColor(t.Warning).Grow(1)
+		if ui.Button(c, "重试连接").Tooltip("重新读取已有后端；仅初始启动失败时重新启动内置后端").Clicked() {
+			a.retryBackendConnection()
+		}
+		if a.page != "系统" && ui.Button(c, "系统诊断").Tooltip("查看采集器与数据传输状态").Clicked() {
+			a.page = "系统"
+		}
+	})
 }
 
 func (a *renewApp) workspaceFooter(c *ui.Context) {
@@ -489,8 +556,9 @@ func (a *renewApp) workspaceFooter(c *ui.Context) {
 				a.eventRiskFilter = "高风险"
 				a.page = "事件"
 			}
-		} else if attention > 0 {
-			if ui.Button(c, fmt.Sprintf("需关注 %d", attention)).Tooltip("查看需要关注的事件").Clicked() {
+		}
+		if attention > 0 {
+			if ui.Button(c, fmt.Sprintf("需关注 %d", attention)).Tooltip("查看需关注事件").Clicked() {
 				a.clearEventFilters()
 				a.eventRiskFilter = "需关注"
 				a.page = "事件"
