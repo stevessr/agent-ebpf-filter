@@ -379,13 +379,25 @@ func (s *SemanticAlertState) ObserveMultiAgentFileContention(event *pb.Event, no
 	if now.IsZero() {
 		now = time.Now().UTC()
 	}
+	// Pathnames are scoped by mount/container context. We currently have no
+	// mount-namespace inode ID, so separate known containers instead of
+	// allowing an unrelated same-named path to evict another actor's evidence.
+	// Empty container IDs are a separate unknown scope, not a wildcard.
+	containerID := strings.TrimSpace(event.GetContainerId())
+	if len(containerID) > 128 || strings.ContainsRune(containerID, 0) {
+		return "", "", false
+	}
+	key := path
+	if containerID != "" {
+		key = "container:" + containerID + "\x00" + path
+	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.ensureMapsLocked()
 	s.noteTruncationsLocked(pathTruncated, actorTruncated)
 
-	previous, seen := s.recentFileMutations.Get(path)
+	previous, seen := s.recentFileMutations.Get(key)
 	if seen && semanticStateExpired(now, previous.SeenAt, SemanticFileContentionTTL) {
 		s.expiredEvictionsTotal++
 		seen = false
@@ -395,7 +407,7 @@ func (s *SemanticAlertState) ObserveMultiAgentFileContention(event *pb.Event, no
 		Actor:      actor,
 		Op:         event.GetType(),
 		Path:       path,
-		ContainerID: event.GetContainerId(),
+		ContainerID: containerID,
 	}
 	if seen {
 		current.LastAlertAt = previous.LastAlertAt
@@ -415,7 +427,7 @@ func (s *SemanticAlertState) ObserveMultiAgentFileContention(event *pb.Event, no
 	if comparable && !cooldown {
 		current.LastAlertAt = now
 	}
-	s.noteCapacityEvictionLocked(s.recentFileMutations.Set(path, current))
+	s.noteCapacityEvictionLocked(s.recentFileMutations.Set(key, current))
 	if !comparable || cooldown {
 		return "", "", false
 	}
