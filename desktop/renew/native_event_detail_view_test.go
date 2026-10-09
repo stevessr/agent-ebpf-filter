@@ -181,3 +181,32 @@ func TestEventDetailFieldRowCopiesCompleteValue(t *testing.T) {
 		t.Fatalf("copy returned %q, want %q", got, full)
 	}
 }
+
+func TestEventDetailTargetPrefersCompleteEndpointAcrossLayers(t *testing.T) {
+	detail := map[string]any{
+		"Event": map[string]any{"type": "connect", "dstIp": "203.0.113.5"},
+		"Envelope": map[string]any{
+			"networkEvent": map[string]any{"endpoint": "203.0.113.5:443"},
+		},
+	}
+	if model := eventDetailModel(detail); model.Target != "203.0.113.5:443" {
+		t.Fatalf("lost typed port information in target: %q", model.Target)
+	}
+	target := enforcementTargets(detail)
+	if target.IP != "203.0.113.5" || target.Port != 443 {
+		t.Fatalf("typed endpoint should retain port: %+v", target)
+	}
+}
+
+func TestEventDetailFieldLookupPrefersExactKey(t *testing.T) {
+	layers := []eventDetailLayer{{
+		Path: "Event",
+		Values: map[string]any{
+			"riskScore": float64(20), "risk_score": float64(40),
+		},
+	}}
+	got, origin, ok := eventDetailLookup(layers, "riskScore")
+	if !ok || got != "20" || origin != "Event.riskScore" {
+		t.Fatalf("ambiguous aliases resolved nondeterministically: %q, %q, %v", got, origin, ok)
+	}
+}
