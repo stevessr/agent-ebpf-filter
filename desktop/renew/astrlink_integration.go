@@ -193,13 +193,34 @@ func loadAstrLinkSnapshot(ctx context.Context, locatorPath string, now time.Time
 	}
 	out.Connected = true
 
-	var providers struct {
-		Items []astrLinkProvider `json:"items"`
-	}
-	if err := astrLinkGET(ctx, client, base, token, "/control/v1/services?limit=100", &providers); err != nil {
-		out.ProviderError = err.Error()
-	} else {
-		out.Providers = providers.Items
+	// Follow at most three pages. Never fetch unbounded account metadata
+	// and never retain raw service documents in the UI state.
+	cursor := ""
+	for page := 0; page < 3; page++ {
+		query := url.Values{"limit": {"100"}}
+		if cursor != "" {
+			query.Set("cursor", cursor)
+		}
+		var providers struct {
+			Items      []astrLinkProvider `json:"items"`
+			NextCursor string             `json:"next_cursor"`
+		}
+		if err := astrLinkGET(ctx, client, base, token, "/control/v1/services?"+query.Encode(), &providers); err != nil {
+			out.ProviderError = err.Error()
+			break
+		}
+		out.Providers = append(out.Providers, providers.Items...)
+		if providers.NextCursor == "" {
+			break
+		}
+		if len(providers.NextCursor) > 512 {
+			out.ProviderError = "AstrLink 分页游标异常"
+			break
+		}
+		cursor = providers.NextCursor
+		if page == 2 {
+			out.ProviderError = "服务列表仅展示前 300 项（分页上限）"
+		}
 	}
 	var policies struct {
 		Items []astrLinkPolicy `json:"items"`
