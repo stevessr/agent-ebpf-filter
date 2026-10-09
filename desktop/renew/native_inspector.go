@@ -68,7 +68,7 @@ func (a *renewApp) inspectorAlerts(limit int) []eventSummary {
 	}
 	out := make([]eventSummary, 0, min(limit, 6))
 	for _, event := range a.events {
-		if eventRisk(event) == "正常" {
+		if risk := eventRisk(event); risk == "正常" || risk == "未评级" {
 			continue
 		}
 		out = append(out, event)
