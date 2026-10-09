@@ -189,6 +189,29 @@ func claudeSafetySummary(doc map[string]any) string {
 	if n := configArrayCount(sandbox["excludedCommands"]); n > 0 {
 		detail = append(detail, fmt.Sprintf("沙箱排除命令 %d", n))
 	}
+	network := jsonConfigTable(sandbox, "network")
+	for _, rule := range []struct{key,label string}{
+		{"allowedDomains", "允许出站域名"},
+		{"deniedDomains", "禁止出站域名"},
+	} {
+		if _, exists := network[rule.key]; exists {
+			detail = append(detail, fmt.Sprintf("%s规则 %d", rule.label, configArrayCount(network[rule.key])))
+		}
+	}
+	if strict, ok := configBool(network, "strictAllowlist"); ok && strict {
+		detail = append(detail, "限制出站访问白名单")
+	}
+	if tls, exists := network["tlsTerminate"]; exists && tls != nil {
+		detail = append(detail, "沙箱代理声明 TLS 终止（核查信任边界）")
+	}
+	if writable, exists := jsonConfigTable(sandbox, "filesystem")["allowWrite"]; exists {
+		detail = append(detail, fmt.Sprintf("额外可写路径 %d 项", configArrayCount(writable)))
+	}
+	if enabled, _ := configBool(sandbox, "enabled"); enabled {
+		if strict, _ := configBool(sandbox, "failIfUnavailable"); !strict {
+			detail = append(detail, "沙箱启动失败可能无隔离降级（需核查）")
+		}
+	}
 	if len(detail) == 0 {
 		return "未声明可审计安全模式"
 	}
