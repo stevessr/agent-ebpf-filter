@@ -31,17 +31,29 @@ type ccsProxy struct {
 	ProxyEnabled int    `json:"proxy_enabled"`
 }
 
+type ccsUsage struct {
+	App          string `json:"app"`
+	Requests     int64  `json:"requests"`
+	Failures     int64  `json:"failures"`
+	InputTokens  int64  `json:"input_tokens"`
+	OutputTokens int64  `json:"output_tokens"`
+	AvgLatencyMS int64  `json:"avg_latency_ms"`
+}
+
 type ccsSnapshot struct {
 	Found     bool
 	Path      string
 	Providers []ccsProvider
 	Proxies   []ccsProxy
+	Usage     []ccsUsage
+	UsageErr  string
 	FetchedAt time.Time
 	Err       string
 }
 
 const ccsProvidersSQL = "SELECT app_type AS app, name, is_current AS current FROM providers WHERE is_current = 1 ORDER BY app_type, name LIMIT 64;"
 const ccsProxySQL = "SELECT app_type AS app, listen_address AS host, listen_port AS port, enabled, proxy_enabled FROM proxy_config ORDER BY app_type LIMIT 16;"
+const ccsUsageSQL = "SELECT app_type AS app, COUNT(*) AS requests, SUM(CASE WHEN status_code < 200 OR status_code >= 400 THEN 1 ELSE 0 END) AS failures, COALESCE(SUM(input_tokens), 0) AS input_tokens, COALESCE(SUM(output_tokens), 0) AS output_tokens, CAST(AVG(latency_ms) AS INTEGER) AS avg_latency_ms FROM proxy_request_logs WHERE created_at >= CAST(strftime('%s', 'now') AS INTEGER) - 3600 AND data_source = 'proxy' GROUP BY app_type ORDER BY app_type LIMIT 16;"
 
 // CCS itself supports a customized data directory. Users can point Renew at
 // that directory's database with AGENT_RENEW_CCS_DB; never create the file.
@@ -100,6 +112,11 @@ func loadCCSSnapshot(ctx context.Context, db string) ccsSnapshot {
 	}
 	if err := ccsQuery(ctx, db, ccsProxySQL, &result.Proxies); err != nil {
 		result.Err = err.Error()
+		return result
+	}
+	if err := ccsQuery(ctx, db, ccsUsageSQL, &result.Usage); err != nil {
+		// Older CCS schemas may not have request logs. Metadata remains usable.
+		result.UsageErr = "代理用量暂不可用（可能是 CCS 数据库版本差异）"
 	}
 	return result
 }
@@ -233,6 +250,23 @@ func (a *renewApp) ccsView(c *ui.Context) {
 			})
 		}
 		ui.Text(c, "这里只显示存储配置，不探测端口，也不读取代理认证材料。").FontSize(11).TextColor(t.TextMuted)
+	})
+
+	card(c, "CCS 代理使用量 · 最近一小时", func() {
+		if a.ccs.UsageErr != "" {
+			ui.Text(c, a.ccs.UsageErr).TextColor(t.TextMuted)
+		} else if len(a.ccs.Usage) == 0 {
+			ui.Text(c, "最近一小时没有 CCS 代理请求日志，或 CCS 未开启使用量记录。").TextColor(t.TextMuted)
+		}
+		for _, item := range a.ccs.Usage {
+			ui.Row(c).Gap(12).Wrap().AlignItems(ui.Center).Children(func() {
+				ui.Text(c, ccsAppLabel(item.App)).Width(140).Bold()
+				ui.Text(c, fmt.Sprintf("请求 %d · 失败 %d", item.Requests, item.Failures)).Width(180)
+				ui.Text(c, fmt.Sprintf("输入 %d / 输出 %d tokens", item.InputTokens, item.OutputTokens)).Grow(1)
+				ui.Text(c, fmt.Sprintf("平均延迟 %d ms", item.AvgLatencyMS))
+			})
+		}
+		ui.Text(c, "仅聚合 CCS 记录的代理请求，不表示所有直连请求或 eBPF 事件；不会读取模型提示词、会话正文或错误信息。").FontSize(11).TextColor(t.TextMuted)
 	})
 
 	card(c, "eBPF 关联事件 · 当前摘要窗口", func() {
