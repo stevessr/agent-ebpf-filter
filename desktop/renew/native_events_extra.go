@@ -580,7 +580,6 @@ func (a *renewApp) eventDetailModal(c *ui.Context) {
 					}
 				})
 			default:
-				model := eventDetailModel(a.eventDetail)
 				ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
 					ref := processReferenceFromEvent(a.eventDetail)
 					if ref.PID > 0 {
@@ -595,21 +594,9 @@ func (a *renewApp) eventDetailModal(c *ui.Context) {
 							a.eventDetailTab = 3
 						}
 					}
-					pidText, _, ok := eventDetailLookup(eventDetailLayers(a.eventDetail), "pid")
-					if ok {
-						if pid, err := strconv.Atoi(pidText); err == nil && pid > 0 {
-							if ui.Button(c, fmt.Sprintf("查看 PID %d 的事件", pid)).Clicked() {
-								a.openEventFilter(eventSummary{PID: pid}, "pid")
-								a.closeEventDetail()
-							}
-						}
-					}
-					if model.Type != "" && ui.Button(c, "筛选同类操作").Clicked() {
-						a.openEventFilter(eventSummary{Type: model.Type}, "type")
-						a.closeEventDetail()
-					}
-					ui.Text(c, "详情来自当前记录，不会自动加载其它事件的完整负载。").FontSize(10).TextColor(t.TextMuted)
+					ui.Text(c, "关联操作只使用已捕获的事件证据。").FontSize(10).TextColor(t.TextMuted)
 				})
+				a.eventDetailQuickLinks(c, eventDetailSelectedSummary(a.eventDetail, a.eventDetailID, a.events))
 				ui.Scroll(c).Height(scrollHeight).Gap(12).Children(func() {
 					a.richEventDetail(c, a.eventDetail, panelWidth)
 					a.eventDetailEnforcement(c)
