@@ -765,6 +765,8 @@ func recordCapturedEvent(event *pb.Event) CapturedEventRecord {
 		return CapturedEventRecord{}
 	}
 
+	// Evaluate against the attributed event before redaction can change fields.
+	monitorAllowed := monitorAgentEvent(event)
 	collectorMetricsStore.RecordEvent(event)
 
 	record := normalizeCapturedEventRecord(CapturedEventRecord{
@@ -788,7 +790,7 @@ func recordCapturedEvent(event *pb.Event) CapturedEventRecord {
 	otelExporterStore.Record(record)
 	// Capture and monitoring are independent: non-monitored events stay
 	// observable and persistable, but do not enter expensive analysis queues.
-	if monitorAgentEvent(event) {
+	if monitorAllowed {
 		queueLoopDetectionRecord(record)
 		research.QueueProcessingRecord(record)
 		queueSignalProcessingRecord(record)
