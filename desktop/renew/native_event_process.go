@@ -68,7 +68,7 @@ func processAtEvent(ref eventProcessReference, processes []systemProcess) (syste
 		if ref.Occurred.IsZero() || p.CreateTime <= 0 {
 			return p, true, "当前有同 PID 进程，但缺少可比对的事件时间或启动时间，身份尚未核实。"
 		}
-		return p, true, "进程启动时间早于事件发生时间；下方展示的是当前实时快照，不是事件发生时的进程树。"
+		return p, true, "当前 PID 的启动时间未晚于事件时间，但仅凭时间不能完全证明身份；下方是实时快照，不是历史进程树。"
 	}
 	return systemProcess{}, false, "实时进程列表中找不到该 PID；进程可能已退出，或快照尚未覆盖该进程。"
 }
@@ -106,9 +106,6 @@ func buildEventProcessTreeRows(processes []systemProcess, targetPID int, expande
 			}
 		}
 	}
-	for pid := range children {
-		sort.Ints(children[pid])
-	}
 	path := map[int]bool{}
 	root := targetPID
 	for steps := 0; steps < 40; steps++ {
@@ -125,6 +122,17 @@ func buildEventProcessTreeRows(processes []systemProcess, targetPID int, expande
 		}
 		root = parent
 	}
+	// Prefer the route to the selected PID before rendering potentially
+	// hundreds of siblings belonging to a high-level parent such as PID 1.
+	for pid := range children {
+		sort.Slice(children[pid], func(i, j int) bool {
+			x, y := children[pid][i], children[pid][j]
+			if path[x] != path[y] {
+				return path[x]
+			}
+			return x < y
+		})
+	}
 	rows := make([]eventProcessTreeRow, 0, min(limit, 64))
 	visited := map[int]bool{}
 	truncated := false
@@ -139,7 +147,10 @@ func buildEventProcessTreeRows(processes []systemProcess, targetPID int, expande
 		}
 		visited[pid] = true
 		descendants := children[pid]
-		isOpen := path[pid] || expanded[pid]
+		isOpen := path[pid]
+		if value, set := expanded[pid]; set {
+			isOpen = value
+		}
 		rows = append(rows, eventProcessTreeRow{
 			Process: byPID[pid], Depth: depth, ChildCount: len(descendants),
 			OnPath: path[pid], Expanded: isOpen,
