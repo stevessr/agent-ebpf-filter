@@ -112,6 +112,7 @@ type renewApp struct {
 	eventDetailText     string
 	eventDetailErr      string
 	eventDetailTab      int
+	eventDetailFieldSearch string
 	enforcement         enforcementSnapshot
 	enforcementBusy     bool
 	enforcementErr      string
