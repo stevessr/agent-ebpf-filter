@@ -114,6 +114,12 @@ type renewApp struct {
 	eventDetailErr      string
 	eventDetailTab      int
 	eventDetailFieldSearch string
+	eventDetailFieldOffset int
+	eventDetailSearchSnapshot string
+	eventDetailExpandedField string
+	eventDetailGeneration uint64
+	eventDetailEnforcementReady bool
+	eventDetailPendingAction string
 	enforcement         enforcementSnapshot
 	enforcementBusy     bool
 	enforcementErr      string
