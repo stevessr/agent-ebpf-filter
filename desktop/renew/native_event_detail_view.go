@@ -544,10 +544,23 @@ func eventDetailSelectedSummary(detail map[string]any, eventID string, retained 
 		EventID:        eventID,
 		AgentRunID:     read("agentRunId"),
 		ConversationID: read("conversationId"),
+		Type:           read("type"),
+		Comm:           read("comm"),
+		Tag:            read("tag"),
 	}
 	if pid, err := strconv.Atoi(read("pid")); err == nil && pid > 0 {
 		selected.PID = pid
 	}
+	if pid, err := strconv.Atoi(read("ppid")); err == nil && pid > 0 {
+		selected.PPID = pid
+	}
+	if pid, err := strconv.Atoi(read("rootAgentPid")); err == nil && pid > 0 {
+		selected.RootAgentPID = pid
+	}
+	if target := eventDetailModel(detail).Target; usableEventTarget(target) {
+		selected.Target = target
+	}
+	selected.Network = isNetworkEvent(selected)
 	// fmt.Sprint of a JSON float64 can yield exponent notation, which is
 	// invalid for a decimal timestamp. Our scalar lookup preserves decimals.
 	if text, _, exists := eventDetailLookup(
@@ -562,9 +575,16 @@ func eventDetailSelectedSummary(detail map[string]any, eventID string, retained 
 			continue
 		}
 		if selected.PID == 0 { selected.PID = item.PID }
+		if selected.PPID == 0 { selected.PPID = item.PPID }
+		if selected.RootAgentPID == 0 { selected.RootAgentPID = item.RootAgentPID }
+		if selected.Type == "" { selected.Type = item.Type }
+		if selected.Comm == "" { selected.Comm = item.Comm }
+		if selected.Tag == "" { selected.Tag = item.Tag }
+		if selected.Target == "" { selected.Target = item.Target }
 		if selected.ReceivedAtMS == 0 { selected.ReceivedAtMS = item.ReceivedAtMS }
 		if selected.AgentRunID == "" { selected.AgentRunID = item.AgentRunID }
 		if selected.ConversationID == "" { selected.ConversationID = item.ConversationID }
+		selected.Network = selected.Network || item.Network
 		break
 	}
 	return selected
