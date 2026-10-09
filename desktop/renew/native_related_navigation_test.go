@@ -226,3 +226,16 @@ func TestPathPermissionJumpRemembersSourceWithoutApplyingPolicy(t *testing.T) {
 		t.Fatalf("linked path should remain draft-only and offer return: %+v", a)
 	}
 }
+
+func TestInterpreterWithoutRootDoesNotGetAgentIdentityLink(t *testing.T) {
+	interpreter := eventSummary{PID: 201, Comm: "python", Tag: "Runtime", AgentRunID: "run-known"}
+	owner := buildAgentOwnershipIndex([]eventSummary{interpreter}, nil).attribution(interpreter)
+	if hasKnownRootAgent(interpreter, owner) {
+		t.Fatalf("Agent-run context is not proof that python is the root Agent: %+v", owner)
+	}
+	descendant := interpreter
+	descendant.RootAgentPID = 100
+	if !hasKnownRootAgent(descendant, buildAgentOwnershipIndex([]eventSummary{descendant}, nil).attribution(descendant)) {
+		t.Fatal("explicit root Agent PID must be available as a link")
+	}
+}
