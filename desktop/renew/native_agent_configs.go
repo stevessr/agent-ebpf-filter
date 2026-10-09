@@ -210,7 +210,13 @@ func codexCandidate(doc map[string]any, scope string, allowProvider bool) []agen
 		return []agentConfigCandidate{{Agent: "Codex", Scope: scope, Model: model, Source: "config.toml · 项目模型候选", Security: codexConfigSecurity(doc)}}
 	}
 	if provider == "" {
-		provider = "openai"
+		// An independent profile file is a partial override layer; treating
+		// its omitted provider as openai would misrepresent inheritance.
+		if strings.Contains(scope, "Profile 文件") {
+			provider = "未声明（继承上层）"
+		} else {
+			provider = "openai"
+		}
 	}
 	base := ""
 	if provider == "openai" {
