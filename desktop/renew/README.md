@@ -17,22 +17,32 @@
 
 **证据和隐私边界：** 看板使用当前后端已加载的有界、上游脱敏的摘要，不代表完整网络流、每一次 HTTP/API 请求、Token 或费用。DNS 反向关联无法证明具体 HTTPS Host；DoH、ECH、缓存命中、未抓取的连接等可能导致只显示 IP。它不劫持流量、不新增 MITM/透明代理、不采集额外明文，也不会自动修改阻断规则。CC Switch 的逐请求用量账单基于自身代理接管/请求日志，并非 eBPF 连接摘要可以等价获得的数据。
 
-### Claude Code / Codex 配置解析（本机只读）
+### Claude Code / Codex 配置解析（基于官方文档的本机只读审计）
 
-在 **Agent 域名监控 → Claude Code / Codex 配置识别** 中手动点击 **读取本机配置**。Renew 会以**普通桌面用户**身份、按需检查：
+在 **Agent 域名监控 → Claude Code / Codex 配置识别** 中手动点击 **读取本机配置**，可选填指定会话工作目录的绝对路径。只读取配置文件，不连接 API、不探测域名、不执行 Hook/MCP/凭据命令、不修改内核策略。
 
-| Agent | 用户层 | 指定项目绝对路径后 |
+| Agent | 检查来源 | 官方语义与局限 |
 |---|---|---|
-| Claude Code | `$CLAUDE_CONFIG_DIR/settings.json`，默认 `~/.claude/settings.json` | `.claude/settings.json`、`.claude/settings.local.json` |
-| Codex | `$CODEX_HOME/config.toml`，默认 `~/.codex/config.toml`；如显式选择 Profile，也检查 `$CODEX_HOME/<profile>.config.toml` | `.codex/config.toml`（项目层 Provider 选项不作为生效配置） |
+| Claude Code | `$CLAUDE_CONFIG_DIR/settings.json`（默认 `~/.claude/settings.json`）；指定目录下的 `.claude/settings.json` 与 `.claude/settings.local.json` | 管理 > CLI > 本地 > 项目 > 用户；权限规则跨层合并，不能按普通标量取最高值 |
+| Claude Code MCP | 手动指定目录下的 `.mcp.json` | HTTP MCP 只展示主机名；stdio 命令不会被当成网址；为避免读取 OAuth 缓存**不读取** `~/.claude.json` |
+| Codex | `$CODEX_HOME/config.toml`（默认 `~/.codex/config.toml`），用户配置声明的 Profile 候选及独立 Profile 文件 | CLI > 受信任的多级项目配置 > 显式 Profile > 用户 > 系统 > 默认；**读取文件并不能获知真实 CLI --profile** |
+| Codex 项目覆盖 | 从被指定目录所在仓库根目录到该目录的各级 `.codex/config.toml`（若没有 `.git`，只读取指定目录） | **允许**模型、审批、沙箱、MCP 覆盖；**忽略**机器级 Provider、Profile 选择、鉴权、通知、遥测相关的项目字段。信任状态不明确时，只做假设受信任预览 |
+| 本机受管策略 | Linux 的 `/etc/codex/config.toml`、`/etc/codex/requirements.toml`、`/etc/claude-code/managed-settings.json`、`managed-settings.d/*.json` | 只读有界扫描，提取不含规则正文的约束摘要；**并不模拟**云端、MDM、企业配置合并或客户端的实际执行状态 |
 
-- Claude Code 解析 `model`、`env.ANTHROPIC_MODEL`、`ANTHROPIC_BASE_URL` / Vertex / Foundry 地址、Bedrock/Vertex/Foundry 开关以及 `permissions.defaultMode`（包含 `bypassPermissions` 提示）；Codex 解析 `model`、`model_provider`、`openai_base_url`、`[model_providers.*].base_url`、选中的 `[profiles.*]` 或独立 Profile 文件，额外列出 `sandbox_mode`、`approval_policy` 和工作区沙箱网络访问声明（包含 `danger-full-access`、`never` 等风险提示）。这些都仅是配置声明，不是对正在运行的沙箱/权限的验证。
-- 仅保存显示允许列出的模型名、Provider 标识和**候选主机名**；绝不呈现 URL 路径和查询参数、密码、环境变量的密钥值、HTTP Headers、MCP 环境或 `auth.json` 内容（读取设置文件时敏感字段会被解析器临时接触，但绝不保留在展示结构中），也不执行配置里的命令。
-- 基于确切 Agent 归属、实际捕获的域名/IP，对比当前有界事件摘要中的目标数。**配置的候选外联主机不等于真正发出请求、实际路由或生效的后端配置**。
-- 配置解析不模拟进程 CLI 参数、项目信任、受管策略或运行中的环境变量覆盖。Claude Code 项目本地设置和 Codex Profile 文件分别展示为候选，避免错误声称生效优先级。配置读取不触发任何内核策略或采集范围修改。
-- 仅读取手动指定目录的少数固定文件，拒绝符号链接、特殊文件与大于 512 KiB 的文件；JSON/TOML 解析错误不会回显原始内容。用户未点击前不会读取其配置。
+**可展示的配置候选：**
 
-官方参考：[Claude Code Settings](https://code.claude.com/docs/en/settings) 和 [Codex Configuration Reference](https://developers.openai.com/codex/config-reference)。
+- API：Claude Code 模型/环境模型名、Bedrock/Vertex/Foundry 开关和显式 API 主机名；Codex 模型、自定义 Provider / `base_url`、Profile 以及所声明的额外 API 端点。
+- 安全：Claude Code `permissions.defaultMode`、allow/ask/deny 规则数量、`sandbox.enabled`、`failIfUnavailable`、禁用沙箱逃逸等；Codex `default_permissions`（包括 `:workspace`）、`sandbox_mode`、`approval_policy`、`sandbox_workspace_write.network_access`、命名权限模板数量及不兼容/废弃设置提醒。
+- MCP：Claude Code 的 `mcpServers.*.url`，Codex 的 `mcp_servers.*.url`；明确区分 HTTP、已禁用和 stdio 声明。配置中的命令、参数、环境变量和 HTTP 头不作为域名证据。
+- 静态合并预览：按官方所述的常见**标量键**覆盖顺序给出模型/审批/沙箱候选，同时显示字段来源；**不声称是实际运行时生效配置**。对于复杂规则的合并（如 Claude 权限、Codex 受管 requirements），仅给出逐层证据而非臆造最终权限判定。
+
+**安全和结果边界：** 文件限 512 KiB，拒绝符号链接及特殊文件；从 JSON/TOML 中仅投影白名单字段，URL 只保留经过验证的主机名，不显示 URL path/query/user-info、MCP 请求头、环境密钥、模型鉴权令牌或 `auth.json`。错误摘要不包含原始配置和解析器原文。宿主进程的环境变量不能代表运行中的 Agent，也不会拿来当成其运行时配置。与 eBPF 事件的关联仅根据已识别 Agent 的**确切主机**匹配当前窗口；域名声明、连接事件以及成功请求是三件不同的事。真实结果请在 Claude Code `/status`、Codex `/status` 或 `/debug-config` 中核对。
+
+官方文档：
+
+- [Claude Code Settings](https://code.claude.com/docs/en/settings)、[Model configuration](https://code.claude.com/docs/en/model-config)
+- [Codex Config basics](https://developers.openai.com/codex/config-basic)、[Configuration Reference](https://developers.openai.com/codex/config-reference)
+- [Codex Managed configuration](https://learn.chatgpt.com/docs/enterprise/managed-configuration)
 
 ## Native workspace layout
 
