@@ -142,15 +142,6 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 		}
 	}
 
-	addSection := func(title string, specs ...struct{ label string; keys []string }) {
-		fields := make([]eventDetailField, 0, len(specs))
-		for _, spec := range specs {
-			appendDetailField(&fields, layers, spec.label, spec.keys...)
-		}
-		if len(fields) > 0 {
-			m.Sections = append(m.Sections, eventDetailSection{title, fields})
-		}
-	}
 	// A typed field specification keeps the presentation deterministic and
 	// makes missing keys truly absent, rather than displaying bogus "--" rows.
 	type spec struct{ label string; keys []string }
@@ -164,7 +155,6 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 			m.Sections = append(m.Sections, eventDetailSection{title, fields})
 		}
 	}
-	_ = addSection
 
 	// Infer the operation family from real event type or protobuf payload.
 	category := strings.ToLower(eventType)
