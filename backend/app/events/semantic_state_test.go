@@ -167,6 +167,11 @@ func TestSemanticFileContentionCooldownAndContainerIsolation(t *testing.T) {
 		if _, _, ok := s.ObserveMultiAgentFileContention(second, start.Add(17*time.Second)); !ok {
 			t.Fatal("new window should allow an alert after cooldown")
 		}
+		status := s.Status()
+		if status.FileCorrelationAlertsTotal != 2 || status.FileCorrelationDedupedTotal != 13 ||
+			status.FileCorrelationLateTotal != 0 {
+			t.Fatalf("unexpected bounded correlation metrics after burst: %+v", status)
+		}
 	})
 	t.Run("different containers are not proof of same file", func(t *testing.T) {
 		s := NewSemanticAlertState()
@@ -247,6 +252,11 @@ func TestSemanticFileContentionIgnoresOutOfOrderObservations(t *testing.T) {
 	}
 	if _, _, ok := s.ObserveMultiAgentFileContention(writer("fresh"), start.Add(13*time.Second)); ok {
 		t.Fatal("normal follow-up should be deduplicated")
+	}
+	status := s.Status()
+	if status.FileCorrelationAlertsTotal != 1 || status.FileCorrelationLateTotal != 2 ||
+		status.FileCorrelationDedupedTotal != 1 {
+		t.Fatalf("late and dedup metrics disagree with observed events: %+v", status)
 	}
 }
 
