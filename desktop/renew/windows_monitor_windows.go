@@ -16,6 +16,7 @@ import (
 
 const (
 	winTH32CS_SNAPPROCESS = 0x00000002
+	winPROCESS_QUERY_INFORMATION = 0x0400
 	winPROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 	winPROCESS_VM_READ = 0x0010
 	winAF_INET = 2
@@ -107,7 +108,7 @@ func winReadProcesses() (map[int]windowsProcessSample, error) {
 		if entry.ProcessID != 0 {
 			pid := int(entry.ProcessID)
 			p := windowsProcessSample{PID: pid, PPID: int(entry.ParentProcessID), Name: syscall.UTF16ToString(entry.ExeFile[:])}
-			handle, _, _ := winOpenProcess.Call(winPROCESS_QUERY_LIMITED_INFORMATION|winPROCESS_VM_READ, 0, uintptr(entry.ProcessID))
+			handle, _, _ := winOpenProcess.Call(winPROCESS_QUERY_INFORMATION|winPROCESS_VM_READ, 0, uintptr(entry.ProcessID))
 			if handle == 0 {
 				// Protected processes can still appear in the inventory even
 				// though their resource counters are inaccessible.
