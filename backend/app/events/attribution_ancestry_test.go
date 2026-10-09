@@ -115,3 +115,46 @@ func TestAgentCustomTagCanSeedRootAtFork(t *testing.T) {
 		t.Fatal("custom tag must never promote a generic interpreter to Agent root")
 	}
 }
+
+func TestCgroupAttributionRetainsRootAgentPID(t *testing.T) {
+	oldGet, oldEnrich := Deps.CgroupAttributionGet, Deps.CgroupAttributionEnrich
+	defer func() {
+		Deps.CgroupAttributionGet = oldGet
+		Deps.CgroupAttributionEnrich = oldEnrich
+	}()
+	Deps.CgroupAttributionGet = func(id uint64) (CgroupAttributionEntry, bool) {
+		if id != 99 {
+			return CgroupAttributionEntry{}, false
+		}
+		return CgroupAttributionEntry{RootAgentPID: 100, AgentRunID: "run-1", TaskID: "task", ToolCallID: "tool"}, true
+	}
+	Deps.CgroupAttributionEnrich = nil
+	ctx, ok := contextFromAgentCgroup(99)
+	if !ok || ctx.RootAgentPid != 100 || ctx.AgentRunID != "run-1" || ctx.ToolCallID != "tool" {
+		t.Fatalf("cgroup lookup lost Agent root: ok=%v ctx=%+v", ok, ctx)
+	}
+	event := &pb.Event{Pid: 200, Comm: "python", Type: "file_write"}
+	ApplyProcessContextToEvent(event, ctx)
+	if event.RootAgentPid != 100 || event.AgentRunId != "run-1" {
+		t.Fatalf("python edit was not attributed to cgroup Agent: %+v", event)
+	}
+	if _, ok := contextFromAgentCgroup(0); ok {
+		t.Fatal("zero cgroup ID cannot establish Agent identity")
+	}
+}
+
+func TestCgroupAttributionLegacyFallbackWithoutRoot(t *testing.T) {
+	oldGet, oldEnrich := Deps.CgroupAttributionGet, Deps.CgroupAttributionEnrich
+	defer func() {
+		Deps.CgroupAttributionGet = oldGet
+		Deps.CgroupAttributionEnrich = oldEnrich
+	}()
+	Deps.CgroupAttributionGet = nil
+	Deps.CgroupAttributionEnrich = func(uint64) (string, string, string) {
+		return "legacy-run", "legacy-task", "legacy-tool"
+	}
+	ctx, ok := contextFromAgentCgroup(44)
+	if !ok || ctx.AgentRunID != "legacy-run" || ctx.RootAgentPid != 0 {
+		t.Fatalf("legacy attribution compatibility regression: %+v ok=%v", ctx, ok)
+	}
+}
