@@ -102,6 +102,12 @@ type renewApp struct {
 	domainLastFilter    string
 	domainSelectedKey   string
 	domainLastVersion   uint64
+	configProjectPath string
+	configLoaded      bool
+	configLoading     bool
+	configGeneration  uint64
+	configInspection  agentConfigInspection
+	configTable       ui.ListState
 	sessionTable        ui.ListState
 	rulesTable          ui.ListState
 	commTable           ui.ListState
