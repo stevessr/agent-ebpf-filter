@@ -1050,6 +1050,23 @@ static __always_inline void fill_from_exit_meta(struct event *e, u64 pid_tgid, s
 // ============================================================
 // sched tracepoints: process fork / exec / exit
 // ============================================================
+// A generic tracked Shell/Runtime must not cause whole unrelated process
+// trees to be inherited. Only recognized Agent CLI comms may bootstrap the
+// PID-based fork propagation without prior explicit registration.
+// (Custom Agent integrations continue to register their root PID.)
+static __always_inline int is_known_agent_fork_comm(const char *comm) {
+    return __builtin_memcmp(comm, "codex", sizeof("codex")) == 0 ||
+           __builtin_memcmp(comm, "claude", sizeof("claude")) == 0 ||
+           __builtin_memcmp(comm, "gemini", sizeof("gemini")) == 0 ||
+           __builtin_memcmp(comm, "dsh", sizeof("dsh")) == 0 ||
+           __builtin_memcmp(comm, "pi", sizeof("pi")) == 0 ||
+           __builtin_memcmp(comm, "omp", sizeof("omp")) == 0 ||
+           __builtin_memcmp(comm, "cursor", sizeof("cursor")) == 0 ||
+           __builtin_memcmp(comm, "kiro-cli", sizeof("kiro-cli")) == 0 ||
+           __builtin_memcmp(comm, "opencode", sizeof("opencode")) == 0 ||
+           __builtin_memcmp(comm, "zcode", sizeof("zcode")) == 0 ||
+           __builtin_memcmp(comm, "mcode", sizeof("mcode")) == 0;
+}
 SEC("tracepoint/sched/sched_process_fork")
 int tracepoint__sched__sched_process_fork(struct trace_event_raw_sched_process_fork *ctx) {
     u32 parent_pid = (u32)ctx->parent_pid;
@@ -1063,6 +1080,7 @@ int tracepoint__sched__sched_process_fork(struct trace_event_raw_sched_process_f
     char parent_comm[TASK_COMM_LEN] = {};
     if (!tag_id) {
         read_tracepoint_data_loc_str(parent_comm, sizeof(parent_comm), ctx, ctx->parent_comm_loc);
+        if (!is_known_agent_fork_comm(parent_comm)) return 0;
         tag_id = get_comm_tag_id(parent_comm);
     }
     if (!tag_id) return 0;
