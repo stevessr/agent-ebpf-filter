@@ -186,6 +186,7 @@ type renewApp struct {
 	trackTag      string
 
 	ccs               ccsSnapshot
+	astrlink          astrLinkSnapshot
 	ccsEventAppFilter string
 
 	rulesReady    bool
@@ -244,6 +245,7 @@ func newRenewApp(backend string) *renewApp {
 func (a *renewApp) runPolling(ctx context.Context, session *backendSession) {
 	a.startEventUIBatcher(ctx)
 	go a.pollCCS(ctx)
+	go a.pollAstrLink(ctx)
 	if session != nil && session.reader != nil && session.nativeIPCVersion >= nativeIPCVersion {
 		go a.runNativeIPC(ctx, session)
 	} else {
@@ -416,7 +418,7 @@ func pageSubtitle(page string) string {
 	case "系统":
 		return "采集器、系统流与队列诊断"
 	case "CCS":
-		return "CC-Switch 配置与 Agent eBPF 事件联动"
+		return "CC-Switch、AstrLink 与 Agent eBPF 事件联动"
 	case "终端":
 		return "普通用户 Shell · Ghostty VT · 多标签与分屏"
 	default:
