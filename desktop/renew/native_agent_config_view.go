@@ -75,6 +75,7 @@ func (a *renewApp) agentConfigPanel(c *ui.Context) {
 			{Title: "观测事件", Width: 78, Align: ui.End},
 		}
 		ownership := buildAgentOwnershipIndex(a.events, nil)
+		observedByAgentHost := observedConfigHostCounts(a.events, ownership)
 		a.configTable.Key = func(i int) any {
 			row := rows[i]
 			return row.Agent + "\x00" + row.Scope + "\x00" + row.Provider + "\x00" + row.Source
@@ -95,7 +96,7 @@ func (a *renewApp) agentConfigPanel(c *ui.Context) {
 			case 5:
 				ui.Text(c, formatConfigCandidate(item)).SingleLine()
 			case 6:
-				ui.Text(c, fmt.Sprint(countObservedConfigHostWithIndex(item.Agent, item.Host, a.events, ownership)))
+				ui.Text(c, fmt.Sprint(observedByAgentHost[item.Agent+"\x00"+item.Host]))
 			}
 		}).Height(260).Label("本机 Agent 配置候选")
 	})
