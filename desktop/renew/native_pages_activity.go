@@ -210,6 +210,7 @@ func (a *renewApp) eventsView(c *ui.Context) {
 		})
 	}
 
+	owners := buildAgentOwnershipIndex(a.events, nil)
 	rows := a.filteredEvents()
 	limit := a.eventVisibleLimit
 	if limit <= 0 {
@@ -228,7 +229,7 @@ func (a *renewApp) eventsView(c *ui.Context) {
 		cols := []ui.TableColumn{
 			{Title: "时间", Width: 78, Fixed: true},
 			{Title: "动作", Width: 150},
-			{Title: "进程", Width: 120},
+			{Title: "归属 / 执行进程", Width: 195},
 			{Title: "目标", MinWidth: 220},
 			{Title: "风险", Width: 86},
 			{Title: "分数", Width: 64, Align: ui.End},
@@ -242,7 +243,15 @@ func (a *renewApp) eventsView(c *ui.Context) {
 			case 1:
 				ui.Text(c, eventAction(e)).SingleLine()
 			case 2:
-				harnessIdentity(c, displayOr(e.Comm, "-"), e.Tag, e.Comm)
+				attribution := owners.attribution(e)
+				if attribution.Indirect {
+					ui.Column(c).Gap(2).MinWidth(0).Children(func() {
+						harnessIdentity(c, attribution.OwnerLabel, attribution.OwnerTag, attribution.OwnerComm)
+						ui.Text(c, attributionExecutorLabel(attribution)).FontSize(10).TextColor(t.TextMuted).SingleLine()
+					})
+				} else {
+					harnessIdentity(c, displayOr(e.Comm, "-"), e.Tag, e.Comm)
+				}
 			case 3:
 				ui.Text(c, eventTarget(e)).SingleLine()
 			case 4:
@@ -551,12 +560,21 @@ func (a *renewApp) systemView(c *ui.Context) {
 }
 func (a *renewApp) eventRow(c *ui.Context, e eventSummary) {
 	t := c.Theme()
+	owner := buildAgentOwnershipIndex(a.events, nil).attribution(e)
 	ui.Row(c).Padding(9, 0).Gap(12).AlignItems(ui.Start).Children(func() {
 		ui.Text(c, eventTime(e)).Width(66).Font("monospace").FontSize(11).TextColor(t.TextMuted)
 		ui.Column(c).Grow(1).MinWidth(0).Gap(3).Children(func() {
 			ui.Row(c).Gap(8).Children(func() {
 				ui.Text(c, eventAction(e)).Bold()
-				if e.Comm != "" {
+				if owner.Indirect {
+					ui.Row(c).Gap(5).AlignItems(ui.Center).Children(func() {
+						if label := harnessLabelFor(owner.OwnerTag, owner.OwnerComm); label != "未识别" {
+							drawHarnessIcon(c, label)
+						}
+						ui.Badge(c, owner.OwnerLabel)
+						ui.Text(c, attributionExecutorLabel(owner)).FontSize(10).TextColor(t.TextMuted)
+					})
+				} else if e.Comm != "" {
 					ui.Row(c).Gap(5).AlignItems(ui.Center).Children(func() {
 						if label := eventHarnessLabel(e); label != "未识别" {
 							drawHarnessIcon(c, label)
