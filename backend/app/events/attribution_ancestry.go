@@ -114,3 +114,21 @@ func propagateAgentContextOnFork(event *pb.Event, parent ProcessContext, store *
 		store.Set(child, parent)
 	}
 }
+
+// A comm-tracked Agent can emit a sched_process_fork before an adapter has
+// registered its PID. Only the explicitly Agent-tagged, known CLI entrypoints
+// may seed a root context; ordinary tracked runtimes and tools must not.
+func shouldSeedAgentRootAtFork(event *pb.Event) bool {
+	if event == nil || event.Type != "process_fork" || event.Pid == 0 ||
+		!strings.EqualFold(strings.TrimSpace(event.Tag), "Agent CLI") {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(event.Comm)) {
+	case "codex", "claude", "gemini", "dsh", "pi", "omp",
+		"kiro", "kiro-cli", "cursor", "cursor-agent",
+		"opencode", "copilot", "auggie", "augment", "agy",
+		"antigravity", "zcode", "zcode.appimage", "mcode", "minimax-code":
+		return true
+	}
+	return false
+}
