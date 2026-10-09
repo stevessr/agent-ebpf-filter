@@ -76,6 +76,17 @@ func eventDetailLookup(layers []eventDetailLayer, keys ...string) (string, strin
 	return "", "", false
 }
 
+// Choose a semantic field first across all sources; otherwise a lower
+// priority legacy field (e.g. dstIp) could hide a typed endpoint with a port.
+func eventDetailLookupPreferred(layers []eventDetailLayer, keys ...string) (string, string, bool) {
+	for _, key := range keys {
+		if value, origin, ok := eventDetailLookup(layers, key); ok {
+			return value, origin, true
+		}
+	}
+	return "", "", false
+}
+
 func detailScalarText(raw any) string {
 	switch v := raw.(type) {
 	case nil:
@@ -196,6 +207,10 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 		value, _, _ := eventDetailLookup(layers, keys...)
 		return value
 	}
+	prefer := func(keys ...string) string {
+		value, _, _ := eventDetailLookupPreferred(layers, keys...)
+		return value
+	}
 	eventType := get("type")
 	m := eventDetailViewModel{Type: eventType, Action: eventAction(eventSummary{Type: eventType}), Decision: get("decision", "policyDecision")}
 	if value, _, ok := eventDetailLookup(layers, "riskScore", "risk_score"); ok {
@@ -232,7 +247,7 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 	category := eventDetailCategory(detail, eventType)
 	switch category {
 	case "file":
-		m.Target = get("path", "targetPath", "relatedPath", "extraPath")
+		m.Target = prefer("path", "targetPath", "relatedPath", "extraPath")
 		section("文件操作", field("操作", "operation", "type"),
 			field("目标路径", "path", "targetPath", "relatedPath"),
 			field("关联路径", "extraPath"), field("模式 / 权限", "mode"),
@@ -240,7 +255,7 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 			field("目标 GID", "gidArg"), field("返回值", "retval"),
 			field("附加信息", "extraInfo"))
 	case "network":
-		m.Target = get("netEndpoint", "endpoint", "dstIp", "domain", "dnsName", "sni")
+		m.Target = prefer("netEndpoint", "endpoint", "dstIp", "domain", "dnsName", "sni")
 		section("网络行为", field("目标端点", "netEndpoint", "endpoint"),
 			field("方向", "netDirection", "direction"),
 			field("源地址", "srcIp"), field("源端口", "srcPort"),
@@ -251,7 +266,7 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 			field("接收字节", "bytesIn"), field("流 ID", "flowId"),
 			field("返回值", "retval"), field("附加信息", "extraInfo"))
 	case "process":
-		m.Target = get("path", "commandLine", "targetPid")
+		m.Target = prefer("path", "commandLine", "targetPid")
 		section("进程行为", field("阶段", "phase"), field("执行文件", "path"),
 			field("命令行", "commandLine"), field("参数", "args"),
 			field("工作目录", "cwd"), field("父进程 PID", "parentPid"),
@@ -259,7 +274,7 @@ func eventDetailModel(detail map[string]any) eventDetailViewModel {
 			field("退出状态", "exitStatus"), field("返回值", "retval"),
 			field("附加信息", "extraInfo"))
 	default:
-		m.Target = get("path", "targetPath", "netEndpoint", "domain", "commandLine", "relatedEndpoint")
+		m.Target = prefer("path", "targetPath", "netEndpoint", "domain", "commandLine", "relatedEndpoint")
 		section("操作详情", field("路径", "path", "targetPath", "relatedPath"),
 			field("目标地址", "netEndpoint", "endpoint", "relatedEndpoint"),
 			field("命令行", "commandLine"), field("原因", "reason"),
