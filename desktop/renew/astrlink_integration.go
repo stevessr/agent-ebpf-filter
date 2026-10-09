@@ -285,6 +285,12 @@ func (a *renewApp) astrLinkView(c *ui.Context) {
 			return
 		}
 		ui.Text(c, "使用 AstrLink 官方 Observer 控制接口，仅读取启用状态、策略摘要和聚合用量。").FontSize(11).TextColor(t.TextMuted)
+		if ui.Button(c, "查看 AstrLink 网关进程事件").Clicked() {
+			a.clearEventFilters()
+			a.managementEventFilter = "astrlink"
+			a.eventReturnPage = "CCS"
+			a.page = "事件"
+		}
 		if a.astrlink.ProviderError != "" {
 			ui.Text(c, "Provider 状态："+a.astrlink.ProviderError).TextColor(t.Warning)
 		} else {
