@@ -6,6 +6,59 @@
 
 明镜高悬是 Agent eBPF Filter 的原生桌面监控应用。界面完全使用 Go 和 MyGo `ui` 组件绘制，不依赖 WebView、Vite、HTML、JavaScript 或 Vue Renew 前端运行时。
 
+## Windows experimental support (read-only local sampler)
+
+Windows 10/11 amd64 can now launch the native MyGo desktop **without a Linux
+backend or administrator elevation**. When neither `--backend` nor
+`AGENT_BACKEND_URL` is supplied, Renew uses a Windows-native collector in the
+desktop process. Providing either explicit backend setting retains the original
+authenticated remote Linux backend workflow.
+
+This is an **experimental monitoring rewrite**, not Windows eBPF:
+
+| Scope | Windows API | Semantics |
+| --- | --- | --- |
+| Process inventory | Toolhelp32Snapshot / Process32FirstW / Process32NextW | PID, parent PID, image name every ~2 seconds |
+| CPU / memory | GetSystemTimes, GlobalMemoryStatusEx, GetProcessTimes, GetProcessMemoryInfo | CPU deltas, physical memory and accessible process working sets |
+| TCP peers | IP Helper GetExtendedTcpTable (IPv4 + IPv6, owning PID) | Established connections only; differences between snapshots are **observations**, not connection-start kernel events |
+| Event window | Local bounded differential sampler | Up to 256 new summary records per poll, retained in the standard 1200-summary desktop window; overflows reported |
+| Detail | On-demand local sampled summary | Explicitly identifies Windows sampler source; no privileged rule actions |
+
+The initial inventory is used as a baseline, not emitted as a burst of
+fabricated process starts. Events are named `process_newly_observed`,
+`process_disappeared` and `network_tcp_observed` to avoid pretending
+polling proves an exact startup, exit or connect timestamp. All records use
+`OBSERVED` as their decision and do not fabricate risk scores.
+
+**Not currently available:** Linux eBPF ring buffers, ETW session tracing,
+Sysmon/Event Log integration, per-file access, filesystem syscalls, UDP/QUIC
+flows, packet content/TLS decryption, actual Agent session attribution,
+long-term event storage, system I/O byte totals, WFP/WDAC enforcement, BPF
+LSM/cgroup policy actions, Agent tracking and embedded backend privileges.
+The interface hides Linux-only administrative pages in local Windows mode,
+and visibly marks collection coverage and gaps. Short-lived processes and
+connections between polls can be missed. This mode is **not a security audit
+trail**.
+
+The Windows local collector neither opens an HTTP listener nor executes
+PowerShell/WMI subprocesses. It does not enable telemetry outside the local
+machine. A future Windows ETW + WFP backend must be designed and evaluated
+separately rather than treating this sampled prototype as feature parity.
+
+Build and test on Windows:
+
+```powershell
+cd desktop/renew
+go test ./...
+go build -o renew.exe .
+.\renew.exe
+```
+
+The `Renew desktop` GitHub Actions workflow publishes
+`renew-windows-amd64-experimental` from a Windows runner. Linux still uses
+its previous privileged embedded backend and private Unix IPC without
+modification.
+
 ## Native workspace layout
 
 Renew renders an editor-inspired native workspace **entirely with MyGo widgets**. Its light and dark palettes follow the host OS appearance (including live changes through MyGo's system theme), while native accent colors, text scaling and high-contrast preferences remain available. A monochrome hand-mirror SVG is embedded and rendered as the activity-rail identity; collector health is shown in the main status indicators and System diagnostics, not in a redundant sidebar block. Its 54-DIP activity rail offers page shortcuts; the full navigation is collapsed by default so the center starts immediately after the icon rail. Users can open a 198-DIP compact navigation and then switch to a 302-DIP detailed navigation with full Chinese page labels. The sidebar's actual animated width feeds the incident inspector's responsive breakpoint; the page IDs, selection, keyboard navigation, and Agent identification controls are unchanged. The center retains live eBPF monitoring, sessions, network/process tables and existing privileged management controls. A page toolbar provides search, stream pause and context-aware refresh (rules, tracking, eBPF module state and path permissions re-fetch their own data).
