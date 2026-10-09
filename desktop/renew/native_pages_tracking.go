@@ -260,7 +260,7 @@ func (a *renewApp) trackedCommsTable(c *ui.Context) {
 		item := rows[row]
 		switch col {
 		case 0:
-			ui.Text(c, item.Comm).Font("monospace").SingleLine()
+			harnessIdentity(c, item.Comm, item.Tag, item.Comm)
 		case 1:
 			ui.Text(c, displayOr(item.Tag, "-")).SingleLine()
 		case 2:

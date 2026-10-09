@@ -7,6 +7,7 @@ import { augmentHook } from "./hooks/augment";
 import { antigravityHook } from "./hooks/antigravity";
 import { copilotHook } from "./hooks/copilot";
 import { dshHook } from "./hooks/dsh";
+import { dshExecHook } from "./hooks/dshExec";
 import { piHook } from "./hooks/pi";
 import { ompHook } from "./hooks/omp";
 import { zcodeHook } from "./hooks/zcode";
@@ -23,6 +24,7 @@ export const hookCatalog: Record<string, HookCliDoc> = {
 	antigravity: antigravityHook,
 	copilot: copilotHook,
 	dsh: dshHook,
+	"dsh-exec": dshExecHook,
 	pi: piHook,
 	omp: ompHook,
 	zcode: zcodeHook,

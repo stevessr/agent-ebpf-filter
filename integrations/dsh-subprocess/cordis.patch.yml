@@ -1,0 +1,5 @@
+# Replace the profile's canonical subprocess provider. Because every ordinary
+# process and PTY allocation goes through ctx.subprocess, this covers Harness
+# shell tools, background jobs, hooks, MCP/LSP stdio children, and terminals.
+- id: subprocess
+  name: '@agent-ebpf/dsh-subprocess'

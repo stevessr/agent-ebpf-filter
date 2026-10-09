@@ -14,6 +14,7 @@ export const dshHook: HookCliDoc = {
     "Restart dsh after installation. DSH_HOME must match the backend environment. Existing profile patches and user comments are preserved; unsupported YAML layouts are rejected rather than rewritten.",
     "Metadata only: PID, session, cwd, tool name, call ID and error flag. No arguments, prompts or result bodies are sent. This observes events and does not block tools.",
     "Uninstall removes only the managed patch block and plugin. Existing dsh wrapper aliases are not changed automatically.",
+    "For opt-in process/PTY interception and userspace Inspector network capture, install the separate dsh-exec provider hook. This does not replace native lifecycle telemetry.",
   ],
   events: [
     { name: "session_start", description: "Cordis session/created", fields: [

@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -74,11 +75,13 @@ func runDesktop() {
 	mygo.App.WhenReady(func() {
 		window := mygo.NewWindow(mygo.WindowOptions{
 			Title:     desktopWindowTitle,
-			Width:     1180,
-			Height:    760,
-			MinWidth:  900,
+			Width:     1480,
+			Height:    860,
+			MinWidth:  980,
 			MinHeight: 620,
 			StateKey:  "main",
+			// Mica on Windows, native sidebar material on macOS; Linux stays opaque.
+			Vibrancy:  windowMaterial(runtime.GOOS, app.materialEnabled),
 			Content:   ui.View(app.view),
 		})
 		app.win = window
@@ -92,6 +95,8 @@ func runDesktop() {
 	if err := mygo.App.Run(); err != nil {
 		log.Printf("[renew] %v", err)
 	}
+	// Every terminal PTY belongs to the desktop user; close on application exit.
+	app.closeTerminals()
 }
 
 func internalBackendArgs(args []string) (bool, []string) {

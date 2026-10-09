@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"agent-ebpf-filter/internal/dshcli"
 	"agent-ebpf-filter/pb"
 )
 
@@ -128,6 +129,25 @@ func ClassifyBehavior(comm string, args []string) *pb.BehaviorClassification {
 	type present struct{}
 	cats := make(map[pb.BehaviorCategory]present)
 	confidence := "low"
+
+	if dshcli.IsCommand(comm) {
+		invocation := dshcli.Parse(args)
+		switch invocation.Mode {
+		case dshcli.ModePlugin:
+			cats[pb.BehaviorCategory_PACKAGE_MANAGER] = present{}
+			confidence = "high"
+			if invocation.Operation == "allow-version" {
+				// DeepSeek Harness requires an explicit --accept-risk acknowledgement
+				// because exact-version compatibility exemptions can break the app or
+				// corrupt data. Surface that operation as sensitive without inspecting
+				// package names or other forwarded pnpm arguments.
+				cats[pb.BehaviorCategory_SENSITIVE] = present{}
+			}
+		case dshcli.ModeDumpConfig, dshcli.ModeDumpDefaultConfig, dshcli.ModeDumpConfigSchema:
+			cats[pb.BehaviorCategory_SYSTEM_INFO] = present{}
+			confidence = "high"
+		}
+	}
 
 	for _, r := range rules {
 		if !r.commRe.MatchString(comm) {

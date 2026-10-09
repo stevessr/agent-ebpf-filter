@@ -49,7 +49,7 @@ func (a *renewApp) monitoringView(c *ui.Context) {
 			for _, name := range []string{"轻量", "日常", "深度"} {
 				name := name
 				active := a.monitoringProfileActive(name)
-				var button *ui.Element
+				var button ui.Element
 				if active {
 					button = ui.PrimaryButton(c, name+" · 当前")
 				} else {
@@ -254,7 +254,7 @@ func (a *renewApp) rulesView(c *ui.Context) {
 	}
 }
 
-func ruleActionPill(c *ui.Context, action string) *ui.Element {
+func ruleActionPill(c *ui.Context, action string) ui.Element {
 	t := c.Theme()
 	switch strings.ToUpper(strings.TrimSpace(action)) {
 	case "BLOCK":

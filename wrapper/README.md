@@ -129,3 +129,7 @@ Or directly:
 cd wrapper
 go build -o ../agent-wrapper
 ```
+
+## DeepSeek Harness exact argv semantics
+
+`dsh-exec` is an opt-in provider hook independent of the existing native Cordis session/tool metadata hook. Provider-spawned child commands preserve every argument (including blank and whitespace-significant values) through `--dsh-exec --verbatim --`. Other CLI commands retain their historical normalization. Wrapper argument digests use NUL-delimited command/argv boundaries to avoid collapsing distinct commands.

@@ -28,6 +28,18 @@ func (a *renewApp) mergeEventWindow(incoming []eventSummary, limit int) bool {
 		a.eventMergeScratch = nil
 	}
 	a.eventsVersion++
+	// Preserve the selected event identity instead of leaving the table
+	// pointing at a different row when newer summaries arrive at the top.
+	// Only run this O(window) lookup while an Events table row is selected.
+	if a.page == "事件" && a.eventSelected >= 0 && a.inspectorSelectedID != "" {
+		a.eventSelected = -1
+		for i, event := range a.filteredEvents() {
+			if event.EventID == a.inspectorSelectedID {
+				a.eventSelected = i
+				break
+			}
+		}
+	}
 	return true
 }
 

@@ -196,3 +196,11 @@ Pi/Oh My Pi extension 当前上报 `session_start`、`tool_call` 和 `tool_resul
 - [事件管线](../backend/event-pipeline.md)
 - [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)
 - [代码入口索引](../reference/code-entrypoints.md)
+
+## DeepSeek Harness dual-hook capability
+
+`dsh` keeps the existing DSH_HOME Cordis patch integration for metadata-only session/tool observation. It remains the default native hook, and uninstall preserves shell aliases.
+
+`dsh-exec` is an **independent, opt-in** subprocess provider implemented in `integrations/dsh-subprocess`. It wraps Harness-owned `spawn` and `spawnTerminal` through `agent-wrapper --dsh-exec --verbatim --` and then delegates to the official local provider. Installing or uninstalling `dsh-exec` does not install/uninstall the `dsh` native Cordis monitor, and does not edit shell aliases. Both integrations can coexist.
+
+The API `/api/dsh/inspector/{status,events,connect,disconnect}` exposes optional user-triggered userspace Network capture over a loopback-only CDP endpoint. Captured URL, headers and body are sanitized before storage; the source tag stays `dsh_inspector`. No Inspector connection is opened automatically. To enforce commands, a working `agent-wrapper` backend Unix socket and actual compatible dsh profile plugin installation are required; an offline test cannot establish enforcement.

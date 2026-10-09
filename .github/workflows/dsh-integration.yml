@@ -1,0 +1,81 @@
+name: DeepSeek Harness dual hook integration
+on:
+  pull_request:
+    paths:
+      - 'backend/app/dsh*.go'
+      - 'backend/app/dshinspector/**'
+      - 'backend/app/tls/**'
+      - 'backend/app/detection_hooks.go'
+      - 'backend/app/handlers/hooksconfig*'
+      - 'backend/app/handlersbridge.go'
+      - 'backend/core/types.go'
+      - 'backend/internal/dshcli/**'
+      - 'integrations/dsh-subprocess/**'
+      - 'wrapper/**'
+      - 'frontend/src/data/hooks/dsh*'
+      - '.github/workflows/dsh-integration.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'backend/app/dsh*.go'
+      - 'backend/app/dshinspector/**'
+      - 'backend/app/tls/**'
+      - 'integrations/dsh-subprocess/**'
+      - 'wrapper/**'
+      - '.github/workflows/dsh-integration.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  harness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Install native dependencies
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler clang llvm libbpf-dev libelf-dev
+      - name: Generate protobuf and eBPF bindings
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          mkdir -p backend/pb
+          protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto \
+            proto/tracker_common.proto proto/tracker_events.proto \
+            proto/tracker_registration.proto proto/tracker_system.proto \
+            proto/tracker_config.proto proto/tracker_shell.proto
+          (cd backend/ebpf && go generate)
+      - name: Ensure modified Go files are formatted
+        shell: bash
+        run: |
+          paths=(backend/app/dsh_plugin.go backend/app/dsh_plugin_test.go backend/app/dsh_wrapper_audit.go
+            backend/app/dsh_wrapper_audit_test.go backend/app/dsh_inspector_routes.go
+            backend/app/dshinspector backend/app/handlers/hooksconfig.go
+            backend/internal/dshcli wrapper/main.go wrapper/main_test.go)
+          files="$(gofmt -l "${paths[@]}")"
+          if [[ -n "$files" ]]; then
+            gofmt -d "${paths[@]}"
+            printf '%s\n' "$files"
+            exit 1
+          fi
+      - name: Test DSH backend, Inspector, hooks, wrapper
+        shell: bash
+        run: |
+          (cd backend && go test ./internal/dshcli ./internal/behavior ./app/dshinspector ./app/tls ./app/handlers -count=1)
+          (cd backend && go test ./app -run 'Test(Dsh|FormatDsh|DefaultTrackedCommandsOnlyAgentCLI)' -count=1)
+          (cd wrapper && go test ./... -count=1)
+      - name: Test Harness provider JS
+        run: cd integrations/dsh-subprocess && node --test tests/*.test.mjs
+
+  web:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: oven-sh/setup-bun@v2.2.0
+      - name: Build web Hook and Inspector UI
+        run: cd frontend && bun install --frozen-lockfile && bun run build
