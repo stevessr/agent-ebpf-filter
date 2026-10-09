@@ -184,6 +184,9 @@ func (a *renewApp) releaseEventDetailPayload() {
 	a.eventDetailErr = ""
 	a.enforcementErr = ""
 	a.eventDetailTab = 0
+	a.eventProcessTab = 0
+	a.eventProcessSelectedPID = 0
+	a.eventProcessExpanded = nil
 	a.eventDetailFieldSearch = ""
 	a.eventDetailFieldOffset = 0
 	a.eventDetailSearchSnapshot = ""
@@ -507,8 +510,10 @@ func (a *renewApp) eventDetailModal(c *ui.Context) {
 				return
 			}
 
-			ui.Tabs(c, &a.eventDetailTab, "可视化详情", "原始 JSON", "字段浏览")
+			ui.Tabs(c, &a.eventDetailTab, "可视化详情", "原始 JSON", "字段浏览", "进程关联")
 			switch a.eventDetailTab {
+			case 3:
+				a.eventProcessInvestigation(c, a.eventDetail, scrollHeight)
 			case 1:
 				a.ensureEventDetailText()
 				if ui.Button(c, "复制完整 JSON").Tooltip("原始事件可能包含敏感信息；仅主动复制时写入剪贴板").Clicked() {
@@ -577,6 +582,19 @@ func (a *renewApp) eventDetailModal(c *ui.Context) {
 			default:
 				model := eventDetailModel(a.eventDetail)
 				ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
+					ref := processReferenceFromEvent(a.eventDetail)
+					if ref.PID > 0 {
+						if ui.Button(c, "查看进程树").Clicked() {
+							a.eventProcessSelectedPID = ref.PID
+							a.eventProcessTab = 0
+							a.eventDetailTab = 3
+						}
+						if ui.Button(c, "进程详细信息").Clicked() {
+							a.eventProcessSelectedPID = ref.PID
+							a.eventProcessTab = 1
+							a.eventDetailTab = 3
+						}
+					}
 					pidText, _, ok := eventDetailLookup(eventDetailLayers(a.eventDetail), "pid")
 					if ok {
 						if pid, err := strconv.Atoi(pidText); err == nil && pid > 0 {
