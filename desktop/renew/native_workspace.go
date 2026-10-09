@@ -211,27 +211,33 @@ func (a *renewApp) activityRail(c *ui.Context) {
 			ui.Icon(c, renewMirrorSVG).Size(27, 27).TextColor(t.Accent).Label(desktopBrandName)
 		})
 		ui.Divider(c)
-		for _, item := range []struct{ label, glyph string }{
-			{"概览", "⌂"},
-			{"事件", "☷"},
-			{"研判", "◇"},
-			{"会话", "◎"},
-			{"网络", "⇄"},
-			{"域名", "◎"},
-			{"进程", "▣"},
-			{"CCS", "♧"},
-			{"Agent 识别", "◉"},
-			{"监控", "◈"},
-			{"规则", "▤"},
-			{"系统", "⚙"},
-			{"终端", "⌘"},
-		} {
-			marker := item.glyph
-			if a.page == item.label {
-				marker = "●"
+		for _, page := range workspaceRailPages {
+			active := a.page == page
+			name := workspaceNavigationLabel(page, true)
+			button := ui.ButtonBase(c.Key("rail-" + page)).
+				Width(40).Height(40).Padding(0).Radius(11).
+				AlignItems(ui.Center).Justify(ui.Center).
+				Label(name).Tooltip(name)
+			switch {
+			case active:
+				button.Background(t.Accent.Alpha(0.17)).TextColor(t.Accent)
+				if c.Preferences().HighContrast {
+					button.Border(2, t.Accent)
+				} else {
+					button.Border(1, t.Accent.Alpha(0.28))
+				}
+			case button.Pressed():
+				button.Background(t.SurfacePressed).TextColor(t.Text)
+			case button.Hovered():
+				button.Background(t.SurfaceHover).TextColor(t.Text)
+			default:
+				button.TextColor(t.TextMuted)
 			}
-			if ui.Button(c, marker).Tooltip(workspaceNavigationLabel(item.label, true)).Width(40).Clicked() {
-				a.page = item.label
+			button.Children(func() {
+				ui.Icon(c, workspaceNavigationIcon(page)).Size(20, 20)
+			})
+			if button.Clicked() {
+				a.page = page
 			}
 		}
 		ui.Spacer(c)
@@ -251,6 +257,16 @@ func (a *renewApp) sidebar(c *ui.Context) {
 	_, attention, danger := a.riskCounts()
 	width := workspaceNavigationWidth(true, a.navigationDetailed)
 	label := func(page string) string { return workspaceNavigationLabel(page, a.navigationDetailed) }
+	// Preserve MyGo's Sidebar tree semantics and keyboard arrow navigation.
+	// A chosen row stays accent-highlighted even when focus moves to content.
+	var selectedItem ui.Element
+	navItem := func(page string) ui.Element {
+		item := ui.SidebarItem(c, page, workspaceNavigationIcon(page), label(page))
+		if a.page == page {
+			selectedItem = item
+		}
+		return item
+	}
 	side := ui.Column(c).Width(width).Shrink(0).Border(1, t.Border)
 	if !c.Vibrancy() {
 		side.Background(t.Surface)
@@ -269,34 +285,34 @@ func (a *renewApp) sidebar(c *ui.Context) {
 		ui.Divider(c)
 		menu := ui.Sidebar(c, &a.page, func() {
 			ui.SidebarSection(c, "监控工作台", nil, func() {
-				ui.SidebarItem(c, "概览", nil, label("概览"))
-				ui.SidebarItem(c, "研判", nil, label("研判"))
-				events := ui.SidebarItem(c, "事件", nil, label("事件"))
+				navItem("概览")
+				navItem("研判")
+				events := navItem("事件")
 				switch {
 				case danger > 0:
 					events.Children(func() { statusPill(c, fmt.Sprint(danger), t.Danger) })
 				case attention > 0:
 					events.Children(func() { statusPill(c, fmt.Sprint(attention), t.Warning) })
 				}
-				ui.SidebarItem(c, "会话", nil, label("会话"))
-				ui.SidebarItem(c, "网络", nil, label("网络"))
-				ui.SidebarItem(c, "域名", nil, label("域名"))
-				ui.SidebarItem(c, "进程", nil, label("进程"))
-				ui.SidebarItem(c, "Agent 识别", nil, label("Agent 识别"))
+				navItem("会话")
+				navItem("网络")
+				navItem("域名")
+				navItem("进程")
+				navItem("Agent 识别")
 			})
 			ui.SidebarSection(c, "防护与管理", nil, func() {
-				ui.SidebarItem(c, "监控", nil, label("监控"))
-				ui.SidebarItem(c, "eBPF 模块", nil, label("eBPF 模块"))
-				ui.SidebarItem(c, "规则", nil, label("规则"))
-				ui.SidebarItem(c, "跟踪", nil, label("跟踪"))
-				ui.SidebarItem(c, "路径权限", nil, label("路径权限"))
+				navItem("监控")
+				navItem("eBPF 模块")
+				navItem("规则")
+				navItem("跟踪")
+				navItem("路径权限")
 			})
 			ui.SidebarSection(c, "工具", nil, func() {
-				ui.SidebarItem(c, "终端", nil, label("终端"))
-				ui.SidebarItem(c, "CCS", nil, label("管理软件联动"))
+				navItem("终端")
+				navItem("CCS")
 			})
 			ui.SidebarSection(c, "运行诊断", nil, func() {
-				system := ui.SidebarItem(c, "系统", nil, label("系统"))
+				system := navItem("系统")
 				_, level := a.collectorStatus()
 				if level == "danger" {
 					system.Children(func() { statusPill(c, "异常", t.Danger) })
@@ -307,6 +323,12 @@ func (a *renewApp) sidebar(c *ui.Context) {
 		}).Grow(1).Width(width - 2)
 		if c.Vibrancy() {
 			menu.Background(ui.Transparent)
+		}
+		if selectedItem.Valid() && !menu.Focused() {
+			selectedItem.Background(t.Accent.Alpha(0.15)).TextColor(t.Accent)
+			if c.Preferences().HighContrast {
+				selectedItem.Border(2, t.Accent)
+			}
 		}
 
 	})
