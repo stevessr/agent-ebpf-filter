@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -499,12 +500,13 @@ func (a *renewApp) refreshActiveView() {
 func (a *renewApp) eventConstraintCount() int {
 	count := 0
 	for _, enabled := range [...]bool{
-		a.search != "", a.eventPIDFilter > 0, a.eventRootPIDFilter > 0,
+		strings.TrimSpace(a.search) != "", a.eventPIDFilter > 0, a.eventRootPIDFilter > 0,
 		a.eventTargetFilter != "", a.eventRiskFilter != "",
 		a.eventTypeFilter != "", a.eventSessionFilter != "",
 		a.eventDecisionFilter != "", a.eventAttentionOnly,
 		a.eventFileEditsOnly, a.eventDelegatedOnly,
 		a.eventDomainAgent != "", a.eventDomainTarget != "", a.eventDomainKind != "",
+		a.managementEventFilter != "",
 	} {
 		if enabled {
 			count++

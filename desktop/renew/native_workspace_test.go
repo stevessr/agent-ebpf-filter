@@ -449,7 +449,8 @@ func TestWorkspaceEventConstraintIndicatorIncludesDrilldowns(t *testing.T) {
 	a.eventTargetFilter = "/tmp/report.txt"
 	a.eventDelegatedOnly = true
 	a.eventDomainKind = "dns"
-	if count := a.eventConstraintCount(); count != 4 || !a.hasEventConstraints() {
+	a.managementEventFilter = "ccs"
+	if count := a.eventConstraintCount(); count != 5 || !a.hasEventConstraints() {
 		t.Fatalf("hidden drilldown constraints must appear in the workspace, count=%d", count)
 	}
 	a.clearEventFilters()
@@ -459,6 +460,10 @@ func TestWorkspaceEventConstraintIndicatorIncludesDrilldowns(t *testing.T) {
 	a.search = "curl"
 	if got := a.eventConstraintCount(); got != 1 || !a.hasEventConstraints() {
 		t.Fatalf("search is also an active event filter, count=%d", got)
+	}
+	a.search = "  "
+	if got := a.eventConstraintCount(); got != 0 || a.hasEventConstraints() {
+		t.Fatalf("whitespace-only search must not be counted as an active filter, count=%d", got)
 	}
 }
 
