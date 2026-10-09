@@ -61,7 +61,11 @@ func eventDetailLookup(layers []eventDetailLayer, keys ...string) (string, strin
 				switch v := raw.(type) {
 				case string:
 					value = strings.TrimSpace(v)
-				case bool, float64, float32, int, int64, uint64, json.Number:
+				case float64:
+					value = strconv.FormatFloat(v, 'f', -1, 64)
+				case float32:
+					value = strconv.FormatFloat(float64(v), 'f', -1, 32)
+				case bool, int, int64, uint64, json.Number:
 					value = fmt.Sprint(v)
 				default:
 					b, err := json.Marshal(v)
