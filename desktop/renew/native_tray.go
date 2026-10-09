@@ -1,10 +1,7 @@
 package main
 
 import (
-	"bytes"
 	_ "embed"
-	"fmt"
-	"image/png"
 
 	"github.com/egoist/mygo"
 )
@@ -15,10 +12,6 @@ var renewTrayIconPNG []byte
 // The tray is deliberately optional. If Wayland's status notifier is missing,
 // closing the only window must retain the ordinary exit behavior.
 func (a *renewApp) setupTray(window *mygo.Window) error {
-	icon, err := png.Decode(bytes.NewReader(renewTrayIconPNG))
-	if err != nil {
-		return fmt.Errorf("decode tray icon: %w", err)
-	}
 	open := func(page string) {
 		window.Update(func() {
 			a.page = page
@@ -28,7 +21,7 @@ func (a *renewApp) setupTray(window *mygo.Window) error {
 		window.Focus()
 	}
 	tray, err := mygo.NewTray(mygo.TrayOptions{
-		Icon: icon,
+		Icon: renewTrayIconPNG,
 		ToolTip: desktopBrandName + " · Agent 安全监控",
 		Menu: mygo.NewMenu([]*mygo.MenuItem{
 			{Label: "打开安全概览", Click: func(*mygo.MenuItem, *mygo.Window) { open("概览") }},
