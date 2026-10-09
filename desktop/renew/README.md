@@ -20,18 +20,22 @@ This is an **experimental monitoring rewrite**, not Windows eBPF:
 | --- | --- | --- |
 | Process inventory | Toolhelp32Snapshot / Process32FirstW / Process32NextW | PID, parent PID, image name every ~2 seconds |
 | CPU / memory | GetSystemTimes, GlobalMemoryStatusEx, GetProcessTimes, GetProcessMemoryInfo | CPU deltas, physical memory and accessible process working sets |
-| TCP peers | IP Helper GetExtendedTcpTable (IPv4 + IPv6, owning PID) | Established connections only; differences between snapshots are **observations**, not connection-start kernel events |
+| TCP peers | IP Helper GetExtendedTcpTable (IPv4 + IPv6, owning PID) | Established connections only; IPv6 scope IDs retained; differences are **observations**, not connection-start kernel events |
+| UDP local bindings | IP Helper GetExtendedUdpTable (IPv4 + IPv6, owning PID) | Local UDP bound endpoints and owner PIDs; **not peers, datagrams, traffic, or DNS requests** |
 | Event window | Local bounded differential sampler | Up to 256 new summary records per poll, retained in the standard 1200-summary desktop window; overflows reported |
 | Detail | On-demand local sampled summary | Explicitly identifies Windows sampler source; no privileged rule actions |
 
 The initial inventory is used as a baseline, not emitted as a burst of
-fabricated process starts. Events are named `process_newly_observed`,
-`process_disappeared` and `network_tcp_observed` to avoid pretending
+fabricated process starts. After any collection error the next successful snapshot
+is again treated as a baseline, avoiding false events across unobservable gaps.
+IP Helper tables are fetched with bounded retries if rows change between size
+query and retrieval. Sampling allocations and event queues are bounded. Events are named `process_newly_observed`,
+`process_disappeared`, `network_tcp_observed` and `network_udp_binding_observed` to avoid pretending
 polling proves an exact startup, exit or connect timestamp. All records use
 `OBSERVED` as their decision and do not fabricate risk scores.
 
 **Not currently available:** Linux eBPF ring buffers, ETW session tracing,
-Sysmon/Event Log integration, per-file access, filesystem syscalls, UDP/QUIC
+Sysmon/Event Log integration, per-file access, filesystem syscalls, UDP remote peers / QUIC
 flows, packet content/TLS decryption, actual Agent session attribution,
 long-term event storage, system I/O byte totals, WFP/WDAC enforcement, BPF
 LSM/cgroup policy actions, Agent tracking and embedded backend privileges.
