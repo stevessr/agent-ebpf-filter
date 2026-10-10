@@ -38,7 +38,7 @@ Each post-handshake message uses existing `udsframe` length prefix + type byte +
 
 ## Queue and backpressure
 
-`componentipc.Outbox` is a one-shot single-sender worker, with nonblocking `TryEnqueue`, a hard limit of 64 pending messages, maximum 1 MiB/message, a 1-second bounded write, and accepted/dropped/sent/failed counters. Accepted payloads are **copied** so the producer can reuse its buffer. On saturation, callers receive `QueueSaturated`; drops must be surfaced in collector health and cannot be interpreted as successful delivery. Cancellation stops accepting; it does not guarantee that pending records reached the receiver.
+`componentipc.Outbox` is a one-shot single-sender worker, with nonblocking `TryEnqueue`, a hard limit of 64 pending messages, maximum 1 MiB/message, a 1-second bounded write, and accepted/dropped/sent/failed counters. Accepted payloads are **copied** so the producer can reuse its buffer. On saturation, callers receive `QueueSaturated`; drops must be surfaced in collector health and cannot be interpreted as successful delivery. Cancellation stops accepting and counts undelivered queued frames as drops; it does not guarantee that already accepted or in-flight records reached the receiver.
 
 `KindAck` is reserved for explicit sequencing/credits but **credit-based flow control and replay/recovery are not yet implemented**. Before process separation, implement receive acknowledgments, sequence IDs, reset/resume handling, priority for DENY/ALERT and persisted drop reasons. Until then, treat this transport as best-effort telemetry only; no enforcement action may depend on event delivery succeeding.
 
