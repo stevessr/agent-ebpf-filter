@@ -23,10 +23,10 @@ type agentScopeList = agentscope.List
 type agentScopePolicy = agentscope.Policy
 
 const (
-	agentScopeBlacklist = agentscope.ModeBlacklist
-	agentScopeWhitelist = agentscope.ModeWhitelist
+	agentScopeBlacklist  = agentscope.ModeBlacklist
+	agentScopeWhitelist  = agentscope.ModeWhitelist
 	agentScopeMaxEntries = agentscope.MaxEntries
-	agentScopeFileName = "agent-scopes.json"
+	agentScopeFileName   = "agent-scopes.json"
 )
 
 var agentScopes struct {
