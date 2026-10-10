@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "backend/internal/collectorstream/**"
+      - "backend/internal/collectorcodec/**"
+      - "backend/internal/taskgroup/**"
       - "backend/internal/eventqueue/**"
       - "backend/app/jobs_background.go"
       - "backend/app/broadcast_queue*.go"
@@ -12,6 +14,8 @@ on:
   push:
     paths:
       - "backend/internal/collectorstream/**"
+      - "backend/internal/collectorcodec/**"
+      - "backend/internal/taskgroup/**"
       - "backend/internal/eventqueue/**"
       - "backend/app/jobs_background.go"
       - "backend/app/broadcast_queue*.go"
@@ -33,13 +37,13 @@ jobs:
           cache-dependency-path: backend/go.sum
       - name: Test independent transport components with race detector
         working-directory: backend
-        run: go test -race ./internal/collectorstream ./internal/eventqueue -count=1
+        run: go test -race ./internal/collectorstream ./internal/collectorcodec ./internal/eventqueue ./internal/taskgroup -count=1
       - name: Verify Go formatting
         run: |
-          files="$(gofmt -l backend/internal/collectorstream/*.go backend/internal/eventqueue/*.go backend/app/jobs_background.go backend/app/broadcast_queue.go backend/app/broadcast_queue_test.go)"
+          files="$(gofmt -l backend/internal/collectorstream/*.go backend/internal/collectorcodec/*.go backend/internal/eventqueue/*.go backend/internal/taskgroup/*.go backend/app/jobs_background.go backend/app/broadcast_queue.go backend/app/broadcast_queue_test.go)"
           if [ -n "$files" ]; then
             printf '%s\n' "$files"
-            gofmt -d backend/internal/collectorstream/*.go backend/internal/eventqueue/*.go backend/app/jobs_background.go backend/app/broadcast_queue.go backend/app/broadcast_queue_test.go
+            gofmt -d backend/internal/collectorstream/*.go backend/internal/collectorcodec/*.go backend/internal/eventqueue/*.go backend/internal/taskgroup/*.go backend/app/jobs_background.go backend/app/broadcast_queue.go backend/app/broadcast_queue_test.go
             exit 1
           fi
 
