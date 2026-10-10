@@ -22,6 +22,7 @@ The main Go `app` package previously combined configuration/HTTP orchestration w
 5. Existing configured path prefixes retain prior behavior. Extra low-risk system paths only suppress ordinary open/read/metadata events. The `/usr/bin` exception only affects read/write events.
 6. Any event marked BLOCK/DENY/ALERT, with risk score >= 60, or typed as `semantic_alert`/`agentsight_alert`, bypasses noise filtering.
 7. No protobuf field changes, HTTP route changes, database migrations, process launcher changes or new privileges are introduced.
+8. Security hardening: malformed UTF-8 Agent names are now rejected **before** lowercase normalization; prior normalization could replace invalid bytes with Unicode replacement characters. Valid policy files are unaffected.
 
 ## Data flows
 
