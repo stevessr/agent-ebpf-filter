@@ -214,14 +214,16 @@ func TestTLSCaptureRoutesEnforceRuntimeGate(t *testing.T) {
 }
 
 func TestTLSCaptureWebSocketRouteEnforcesRuntimeGate(t *testing.T) {
+	t.Setenv("DISABLE_AUTH", "false")
 	gin.SetMode(gin.TestMode)
 	previousRuntime := runtimeSettingsStore
-	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{TlsCaptureEnabled: false}}
+	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{TlsCaptureEnabled: false, AccessToken: "gate-test-token"}}
 	t.Cleanup(func() { runtimeSettingsStore = previousRuntime })
 
 	router := gin.New()
 	registerWebSocketRoutes(router, nil, newFeatureRegistry(), nil)
 	req := httptest.NewRequest(http.MethodGet, "/ws/tls-capture", nil)
+	req.Header.Set("X-API-KEY", "gate-test-token")
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 	if resp.Code != http.StatusForbidden {

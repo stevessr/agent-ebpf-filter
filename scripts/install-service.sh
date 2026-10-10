@@ -262,6 +262,8 @@ write_env_file() {
     printf 'GIN_MODE=release\n'
     printf '# Optional overrides:\n'
     printf '# AGENT_BACKEND_PORT=8080\n'
+    printf '# AGENT_BACKEND_HOST=127.0.0.1 # Set an explicit IP for remote access; auth required.\n'
+    printf '# AGENT_WS_ALLOWED_ORIGINS=https://ui.example.com\n'
     printf '# AGENT_CGROUP_SANDBOX_PATH=/sys/fs/cgroup\n'
     printf '# DISABLE_AUTH=true\n'
   } >"$tmp"

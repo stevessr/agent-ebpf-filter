@@ -51,12 +51,14 @@ func (a testAddr) Network() string { return "test" }
 func (a testAddr) String() string  { return string(a) }
 
 func TestListenBackendReturnsConfiguredListener(t *testing.T) {
+	t.Setenv("AGENT_BACKEND_HOST", "")
+	t.Setenv("AGENT_DESKTOP_API_SOCKET", "")
 	const port = 18443
 	t.Setenv("AGENT_BACKEND_PORT", strconv.Itoa(port))
 	wantListener := newTestListener()
 	originalListen := listenTCP
 	listenTCP = func(network, address string) (net.Listener, error) {
-		if network != "tcp" || address != ":18443" {
+		if network != "tcp" || address != "127.0.0.1:18443" {
 			t.Fatalf("listen called with %q %q", network, address)
 		}
 		return wantListener, nil
@@ -77,6 +79,8 @@ func TestListenBackendReturnsConfiguredListener(t *testing.T) {
 }
 
 func TestListenBackendReturnsConfiguredBindError(t *testing.T) {
+	t.Setenv("AGENT_BACKEND_HOST", "")
+	t.Setenv("AGENT_DESKTOP_API_SOCKET", "")
 	const port = 18444
 	t.Setenv("AGENT_BACKEND_PORT", strconv.Itoa(port))
 	wantErr := errors.New("address already in use")

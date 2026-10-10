@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
@@ -86,7 +85,7 @@ func isProtectedClusterProxyPath(path string) bool {
 }
 
 func clusterProxyRequestAllowed(c *gin.Context) bool {
-	if gin.Mode() != gin.ReleaseMode || os.Getenv("DISABLE_AUTH") == "true" {
+	if !authEnforced() {
 		return true
 	}
 	if clusterRequestAuthAllowed(c) {

@@ -207,7 +207,14 @@ mode. Browser/remote Renew uses `/ws/event-summaries` for its live view. A local
 
 ## HTTP endpoints
 
-### Release-mode authenticated routes
+### Authenticated routes (all Gin modes)
+
+TCP defaults to `127.0.0.1`. Set `AGENT_BACKEND_HOST` to a literal IPv4/IPv6
+address to opt into another bind address; non-loopback addresses reject
+`DISABLE_AUTH=true`. Debug logging does not disable authentication. `make dev`
+explicitly opts out on loopback; packaged Renew uses a private Unix socket.
+See [runtime authentication and migration](../docs/security/runtime-gates-auth.md)
+for remote deployment and WebSocket Origin configuration.
 
 The runtime access token protects:
 
@@ -242,7 +249,7 @@ The runtime access token protects:
 
 `POST /hooks/event` accepts either the normal token or a per-hook secret via `X-Agent-Hook-Secret` + `X-Agent-CLI`.
 
-### Routes behind `authMiddleware()` in release mode
+### Routes behind `authMiddleware()`
 
 Config routes:
 

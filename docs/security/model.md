@@ -11,7 +11,7 @@ graph TB
     
     subgraph "L2: 认证层"
         Token["Runtime Access Token<br/>~/.config/.../runtime.json"]
-        Auth["authMiddleware()<br/>release mode"]
+        Auth["authMiddleware()<br/>all Gin modes"]
         HookSecret["Per-Hook Secret<br/>X-Agent-Hook-Secret"]
     end
     
@@ -60,7 +60,7 @@ graph TB
 ## 安全目标
 
 - 只在授权环境中加载和管理 eBPF；
-- release mode 保护敏感 API；
+- 所有 Gin 模式默认保护敏感 API；
 - 高风险能力默认关闭；
 - policy mutation 通过认证后端 API；
 - 避免普通事件流泄漏 secrets / TLS plaintext；
@@ -131,10 +131,10 @@ sequenceDiagram
         Middleware-->>Client: 401 Unauthorized
     end
     
-    Note over Middleware: dev mode: skip auth check<br/>release mode: enforce token
+    Note over Middleware: all Gin modes: enforce token<br/>explicit loopback-only opt-out: DISABLE_AUTH=true
 ```
 
-release mode 下敏感 API 使用 runtime access token。常见受保护面：
+所有 Gin 模式下敏感 API 默认使用 runtime access token。常见受保护面：
 
 - `/config/**`
 - `/system/**`

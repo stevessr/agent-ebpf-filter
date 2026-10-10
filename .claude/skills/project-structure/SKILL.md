@@ -69,6 +69,6 @@ description: Understand the agent-ebpf-filter repository structure through layer
 - `tracked_paths` 是 256-byte path exact match，不是递归路径树。
 - cgroup destination blocking 使用 exact IPv4 / IPv6 / port map，不是 CIDR/range。
 - LSM 文件名策略是 basename-based；exec 策略按 exact path 或 executable basename。
-- Release mode 中敏感 API 受 runtime access token 保护；dev mode 默认关闭 auth。
+- 所有 Gin 模式默认要求 runtime access token；TCP 默认回环监听，`DISABLE_AUTH=true` 只允许回环 TCP 或私有桌面 Unix socket。
 - Shell sessions、`/system/run`、hook 安装、policy mutation、TLS capture 等能力受 runtime feature gate 控制。
 - 不要手改生成文件：`backend/pb/*.pb.go`、`frontend/src/pb/*`、`adapters/*/tracker_*`、`backend/ebpf/*_bpf*.go`、`backend/ebpf/*.o`。

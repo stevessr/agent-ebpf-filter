@@ -52,7 +52,7 @@ Agent eBPF Filter combines **eBPF kernel tracing**, **Go backend**, **Vue.js das
 - **Recording/Replay:** Capture and replay execution sessions
 
 ### 🔐 **Security-First Design**
-- Release-mode authentication with runtime access tokens
+- Authentication by default with runtime access tokens (independent of Gin mode)
 - Four-level data redaction (None/Basic/Standard/Strict)
 - Runtime feature gates for dangerous capabilities
 - TLS capture **disabled by default** (opt-in diagnostic tool)
@@ -403,7 +403,7 @@ make runtime-benchmark
 - Policy management **disabled** by default
 - Shell/system commands **disabled** by default
 - Hook installation **disabled** by default
-- Release-mode authentication **enabled** in production
+- Authentication **enabled** in production; TCP listens on loopback unless explicitly configured
 - Four-level redaction with automatic key removal
 
 ⚠️ **Dangerous capabilities require explicit opt-in:**
@@ -463,7 +463,7 @@ Check:
 - DeepSeek Harness is invoked through the `agent-wrapper` alias; dsh profile/plugin configuration remains dsh-owned
 - Hook callback URL is reachable from CLI process
 - `curl` is available in PATH
-- Backend is running and auth token is valid (if in release mode)
+- Backend is running and auth token is valid (unless explicitly using loopback-only `DISABLE_AUTH=true`)
 
 ### OS enforcement smoke test fails
 

@@ -1,13 +1,16 @@
 name: Backend hot path regression
 on:
   pull_request:
-    paths: ['backend/app/observability/**', 'backend/app/handlers/native_hook*', 'backend/app/statepersistenceruntime.go', 'backend/app/tls/probemanager_readlooptls.go', '.github/workflows/perf-hotpath.yml']
+    paths: ['backend/**', 'proto/**', 'go.work', 'go.work.sum', '.github/workflows/perf-hotpath.yml']
   push:
     branches: [master]
-    paths: ['backend/app/observability/**', 'backend/app/handlers/native_hook*', '.github/workflows/perf-hotpath.yml']
+    paths: ['backend/**', 'proto/**', 'go.work', 'go.work.sum', '.github/workflows/perf-hotpath.yml']
+permissions:
+  contents: read
 jobs:
   perf:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v6
@@ -25,4 +28,21 @@ jobs:
             proto/tracker_config.proto proto/tracker_shell.proto
           (cd backend/ebpf && go generate)
       - name: Run hot-path and hook tests
-        run: cd backend && go test ./app/handlers ./app/observability ./app -run 'Test.*(Hot|NativeHook|Metric|Settings)' -count=1
+        working-directory: backend
+        run: |
+          go test ./app/handlers ./app/observability ./app/events ./internal/wsfanout -count=1
+          go test ./app -run 'Test.*(Hot|NativeHook|Metric|Settings|BackendListenHost|ListenBackend|WebSocket|HTTPRouter|Authentication|AuthMiddleware|DesktopUnixServer|TLSCaptureWebSocketRoute|Broadcast|RuntimeEventLog|RuntimeEventStore)' -count=1
+      - name: Race-check shared event paths
+        run: cd backend && go test -race ./internal/wsfanout ./app/observability ./app/events ./app/recording ./redaction ./core -count=1
+      - name: Record event construction microbenchmarks
+        working-directory: backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          go test ./app/events -run '^$' -bench '^BenchmarkBuildKernelEvent' -benchmem -count=5 | tee hotpath-bench.txt
+      - name: Upload baseline evidence (not an end-to-end performance claim)
+        uses: actions/upload-artifact@v4
+        with:
+          name: hotpath-bench-${{ github.sha }}
+          path: backend/hotpath-bench.txt
+          if-no-files-found: error

@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -20,7 +21,6 @@ import (
 	internal_sandbox "agent-ebpf-filter/internal/sandbox"
 
 	"github.com/cilium/ebpf/ringbuf"
-	"github.com/gin-gonic/gin"
 )
 
 // tlsCaptureController is exposed for UDS handler to trigger TLS attach
@@ -46,6 +46,12 @@ func Main() error {
 			return fmt.Errorf("bootstrap eBPF components: %w", err)
 		}
 		return nil
+	}
+	// Reject unsafe network configuration before elevation or BPF side effects.
+	if strings.TrimSpace(os.Getenv("AGENT_DESKTOP_API_SOCKET")) == "" {
+		if _, err := backendListenHost(); err != nil {
+			return err
+		}
 	}
 	if relaunched, err := ensureBackendPrivileges(); err != nil {
 		return fmt.Errorf("elevate backend privileges: %w", err)
@@ -183,7 +189,7 @@ func Main() error {
 
 	internal_sandbox.Apply()
 
-	r := gin.Default()
+	r := newHTTPRouter()
 	r.Use(clusterGatewayMiddleware())
 	r.Use(ContextMiddleware(AppCtx))
 

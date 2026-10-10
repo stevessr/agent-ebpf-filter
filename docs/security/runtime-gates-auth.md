@@ -7,7 +7,7 @@
 ```mermaid
 flowchart TD
     Build{"Build feature compiled in?"} --> Runtime{"Runtime setting enabled?"}
-    Runtime --> Auth{"Release mode auth passed?"}
+    Runtime --> Auth{"Authentication passed?"}
     Auth --> Handler["Handler executes"]
 ```
 
@@ -66,7 +66,7 @@ Kernel risk feedback 写内核策略时需要 `PolicyManagementEnabled=true` 且
 
 ## Auth
 
-release mode 使用 runtime access token。token 存储：
+所有 Gin 模式默认使用 runtime access token；`GIN_MODE=debug` 不再隐式关闭认证。token 存储：
 
 ```text
 ~/.config/agent-ebpf-filter/runtime.json
@@ -87,7 +87,7 @@ AGENT_ACCESS_TOKEN
 - `Authorization: Bearer`；
 - `?key=`。
 
-release mode 下，敏感入口默认需要 token，包括：
+敏感入口默认需要 token，包括：
 
 - `/config/**`
 - `/system/**`
@@ -102,6 +102,44 @@ release mode 下，敏感入口默认需要 token，包括：
 - `/mcp`
 
 修改这些范围时，同步 [路由与 API](/backend/routes-api)、[External API](../integrations/external-api.md)、[MCP、External API 与 OTLP](/integrations/mcp-external-otlp) 和 [文档地图](/reference/documentation-map)。
+
+### 安全监听与升级迁移
+
+独立后端 TCP 默认监听 `127.0.0.1`，不再监听所有网络地址。`AGENT_BACKEND_HOST`
+仅接受 IPv4/IPv6 字面地址（例如 `127.0.0.1`、`::1`、`0.0.0.0`），不接受主机名或端口。
+需要跨主机访问的现有部署必须显式配置监听地址，并通过 TLS 网关保护链路：
+
+```bash
+AGENT_BACKEND_HOST=0.0.0.0 DISABLE_AUTH=false GIN_MODE=release ./backend/agent-ebpf-filter
+```
+
+这是启动配置示例；认证仍使用现有 runtime token。不要把真实 token 写入 URL、日志或文档。
+Kubernetes 示例显式设置 `AGENT_BACKEND_HOST=0.0.0.0`，继续从 Secret 获取 token。
+本地 Renew 的私有 Unix socket 路径不受 TCP 监听地址变更影响。
+
+只有显式设置 `DISABLE_AUTH=true` 才关闭认证，且非回环 TCP 地址会在启动时被拒绝。
+`make dev` 已显式设置此变量；直接运行 `go run` 即使是 debug 模式也默认要求 token。
+免认证开发实例及其 Vite/反向代理入口都只能供可信本机使用，不能将代理暴露到不可信网络。
+
+### WebSocket 来源限制
+
+- 默认允许 Origin 的 host:port 与 HTTP Host 相同；不信任任意客户端的 `X-Forwarded-Host`。
+- 无 Origin 的原生客户端可以连接，但仍需要认证。
+- 拒绝外部来源、`Origin: null`、多重 Origin、带 userinfo/path/query 的异常来源。
+- 单独托管的 Web UI 可用 `AGENT_WS_ALLOWED_ORIGINS` 指定逗号分隔的完整来源，
+  例如 `https://ui.example.com,http://localhost:5173`；不支持通配符，列表项不带尾部 `/`。
+- 反向代理应保留公开 Host；若不能保留，显式配置可信 UI 来源。Vite 默认代理保留 Host。
+
+Origin 检查同时覆盖本地升级入口与集群转发入口，但不是 token 的替代品。
+
+### 日志与凭证兼容边界
+
+内置 HTTP access logger 不记录 query、请求头及 handler error 内容；panic recovery 只记录
+通用提示和调用栈，不转储请求及 panic 值。访问路径、状态码与耗时仍保留。
+这不自动保护第三方代理、外部诊断包或业务模块自行输出的日志，部署时需要分别核查。
+
+`?key=` 目前为兼容现有 WebSocket/MCP 客户端仍被接受，**尚未迁移为短期 ticket**。
+普通 HTTP 和原生客户端应优先使用认证 header；已确认真实凭证曾写入旧日志时应安排轮换。
 
 ## Hooks 特例
 

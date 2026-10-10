@@ -39,6 +39,10 @@ func listenBackend() (net.Listener, int, error) {
 		}
 		return listener, 0, nil // no TCP listener, port file, or cluster heartbeat
 	}
+	host, err := backendListenHost()
+	if err != nil {
+		return nil, 0, err
+	}
 	startPort, maxTries := 8080, 10
 	if rawPort := strings.TrimSpace(os.Getenv("AGENT_BACKEND_PORT")); rawPort != "" {
 		if configuredPort, err := strconv.Atoi(rawPort); err == nil && configuredPort > 0 {
@@ -51,7 +55,7 @@ func listenBackend() (net.Listener, int, error) {
 	var lastErr error
 	for i := 0; i < maxTries; i++ {
 		port := startPort + i
-		l, err := listenTCP("tcp", fmt.Sprintf(":%d", port))
+		l, err := listenTCP("tcp", net.JoinHostPort(host, strconv.Itoa(port)))
 		if err == nil {
 			return l, port, nil
 		}

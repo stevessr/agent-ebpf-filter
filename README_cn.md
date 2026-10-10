@@ -451,7 +451,7 @@ make runtime-benchmark
 - DeepSeek Harness 通过 `agent-wrapper` 别名启动；dsh 的 profile/plugin 配置仍由 dsh 管理
 - Hook 回调 URL 可从 CLI 进程访问
 - `curl` 在 PATH 中可用
-- 后端正在运行且认证令牌有效（如果在发布模式）
+- 后端正在运行且认证令牌有效（所有 Gin 模式默认要求认证；仅本地开发可显式设置 `DISABLE_AUTH=true`）
 
 ### OS 强制执行冒烟测试失败
 

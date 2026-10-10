@@ -11,6 +11,8 @@ CORE_KEYS=(
   AGENT_API_KEY
   AGENT_ACCESS_TOKEN
   AGENT_BACKEND_PORT
+  AGENT_BACKEND_HOST
+  AGENT_WS_ALLOWED_ORIGINS
   AGENT_REAL_HOME
   AGENT_WRAPPER_PATH
   AGENT_HOOK_ENDPOINT
@@ -418,10 +420,12 @@ hint_for() {
   [ -n "$owner" ] && repo="ghcr.io/${owner}/devcontainer"
   [ -n "$branch" ] && tag="$(branch_tag "$branch")"
   case "$key" in
-    DISABLE_AUTH) printf 'Use true for make dev. Release installs still use runtime auth.' ;;
+    DISABLE_AUTH) printf 'Use true only for loopback make dev. Auth is otherwise required in every Gin mode.' ;;
     GIN_MODE) printf 'debug or release. debug is recommended for make dev.' ;;
     AGENT_API_KEY) printf 'Seeds backend runtime access token only when runtime.json has none; also used by adapters.' ;;
     AGENT_ACCESS_TOKEN) printf 'Used by smoke scripts; AGENT_API_KEY is the backend token seed.' ;;
+    AGENT_BACKEND_HOST) printf 'Literal bind IP; default 127.0.0.1. Non-loopback requires auth.' ;;
+    AGENT_WS_ALLOWED_ORIGINS) printf 'Optional comma-separated exact HTTP(S) origins; same-host and native clients work by default.' ;;
     AGENT_BACKEND_PORT) printf 'Leave unset for auto-select 8080..8089.' ;;
     AGENT_REAL_HOME) printf 'Use when sudo/pkexec would otherwise store config under /root.' ;;
     AGENT_WRAPPER_PATH) printf 'Leave unset to use ./agent-wrapper built by make dev.' ;;
