@@ -28,6 +28,12 @@ func LoadFile(path string) (Policy, error) {
 // SaveFile preserves the previous atomic temp-write/rename storage format.
 // The runtime directory remains owned and access-controlled by the caller.
 func SaveFile(path string, cfg Policy) error {
+	// Never persist an invalid scope policy, even when called without HTTP.
+	var err error
+	cfg, err = Validate(cfg)
+	if err != nil {
+		return err
+	}
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return err
