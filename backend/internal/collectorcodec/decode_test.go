@@ -15,7 +15,7 @@ type record struct {
 func alignedSample(size int, alignment uintptr) []byte {
 	raw := make([]byte, size+int(alignment))
 	base := uintptr(unsafe.Pointer(&raw[0]))
-	offset := int((alignment-base%alignment)%alignment)
+	offset := int((alignment - base%alignment) % alignment)
 	return raw[offset : offset+size]
 }
 
