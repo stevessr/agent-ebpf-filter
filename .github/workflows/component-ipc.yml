@@ -1,0 +1,39 @@
+name: Component IPC security
+
+on:
+  pull_request:
+    paths:
+      - "backend/internal/componentipc/**"
+      - ".github/workflows/component-ipc.yml"
+  push:
+    paths:
+      - "backend/internal/componentipc/**"
+      - ".github/workflows/component-ipc.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  protocol:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Security protocol and bounded queue race tests
+        working-directory: backend
+        run: go test -race -count=1 ./internal/componentipc
+      - name: Static vet
+        working-directory: backend
+        run: go vet ./internal/componentipc
+      - name: Go formatting
+        run: |
+          files="$(gofmt -l backend/internal/componentipc/*.go)"
+          if [ -n "$files" ]; then
+            echo "$files"
+            gofmt -d backend/internal/componentipc/*.go
+            exit 1
+          fi
