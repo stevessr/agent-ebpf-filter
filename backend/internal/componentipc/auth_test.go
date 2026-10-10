@@ -19,7 +19,7 @@ func trustPipe(net.Conn) error { return nil }
 
 type serverResult struct {
 	session *Session
-	err error
+	err     error
 }
 
 func handshakePair(t *testing.T, clientRole, serverRole Role) (*Session, *Session) {
@@ -127,7 +127,7 @@ func TestHandshakeRejectsWrongServerRoleAndVersion(t *testing.T) {
 	go func() {
 		defer s.Close()
 		var challenge [35]byte
-		binary.BigEndian.PutUint16(challenge[:2], Version + 1)
+		binary.BigEndian.PutUint16(challenge[:2], Version+1)
 		challenge[2] = byte(RoleEngine)
 		_, _ = rand.Read(challenge[3:])
 		_ = udsframe.WriteTyped(s, kindHello, challenge[:])
