@@ -17,8 +17,8 @@ type Reader interface {
 }
 
 var (
-	ErrInvalidReader = errors.New("kernel sample reader is nil")
-	ErrInvalidConsumer = errors.New("kernel sample consumer is nil")
+	ErrInvalidReader     = errors.New("kernel sample reader is nil")
+	ErrInvalidConsumer   = errors.New("kernel sample consumer is nil")
 	ErrInvalidSampleSize = errors.New("kernel sample size must be positive")
 )
 
