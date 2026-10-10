@@ -8,10 +8,10 @@ The main Go `app` package previously combined configuration/HTTP orchestration w
 
 | Component | Imports | Responsible for | Must not do |
 | --- | --- | --- | --- |
-| `backend/internal/agentscope` | Go standard library | Scope list validation, defaults, exact comm/tag/verified-owner admission | Infer owner from a PID; call LSM/cgroup; load config files; start HTTP |
+| `backend/internal/agentscope` | Go standard library | Scope list validation, defaults, exact comm/tag/verified-owner admission, atomic local scope-file persistence | Infer owner from a PID; call LSM/cgroup; start HTTP |
 | `backend/internal/eventnoise` | Go standard library | Ignored-path normalization, path-boundary matching, ordinary telemetry suppression | Suppress denial/alert/high-risk events; change enforcement; persist settings |
 | `backend/internal/agentidentity` | Go standard library | Bounded observed-root cache, run identity verification, TTL and conservative PID reuse handling | Guess an Agent owner from process name; trust child-declared roots; consume protobuf or change execution permissions |
-| `backend/app` | App, protobuf, internal components | Adapt protobuf to pure policy input; own runtime locking, API routes, persistence, and verified root ancestry | Re-implement the same pure rules in multiple handlers |
+| `backend/app` | App, protobuf, internal components | Adapt protobuf to pure policy input; own runtime locking, API routes and runtime path selection; adapt verified root ancestry | Re-implement the same pure rules in multiple handlers |
 | `desktop/renew` | Native UI / local IPC | Present validated state and read-only evidence, request authorized policy edits | Load eBPF independently; bypass backend runtime gates |
 
 ## Compatibility retained in this phase
@@ -71,3 +71,7 @@ Do **not** turn these into independent privileged network daemons until auth, li
 ## Phase 2: observed Agent root identity extracted
 
 The bounded Agent root cache has been moved from `app/agent_scope_root.go` into `internal/agentidentity`. Only an event with `pid == root_agent_pid` and a nonempty command establishes a root. Child sessions must match an observed root PID and its run token exactly; an unversioned event cannot silently downgrade a known run. Capacity remains 4096 and TTL remains 24 hours. The protobuf adaptation stays in `app` so future collectors or transports can share the identity engine without importing runtime HTTP/protobuf packages. Deterministic clock injection enables independent TTL tests. This cache is still **not** a complete historical event graph or a security boundary for untrusted caller-supplied PID metadata.
+
+## Scope persistence isolation
+
+`agentscope.LoadFile` validates the on-disk policy and `agentscope.SaveFile` preserves the existing JSON indentation, newline, 0600 permission, 0700 newly-created parent directory and temporary-file rename behavior. The app continues to own the runtime directory choice, initial defaults, synchronized writes, HTTP authentication and gate checks. File storage tests now verify round-trip persistence, invalid-data rejection, permissions and replacement. This is still a local settings store rather than a transactional security policy engine.
