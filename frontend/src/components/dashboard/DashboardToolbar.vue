@@ -55,7 +55,7 @@ const emit = defineEmits<{
           size="small"
           danger
         >
-          {{ isPaused ? "Resume Stream" : "Pause Stream" }}
+          {{ isPaused ? "Resume Display" : "Pause Display" }}
         </a-button>
         <a-button type="primary" danger size="small" @click="clearEvents"
           >Clear Events</a-button

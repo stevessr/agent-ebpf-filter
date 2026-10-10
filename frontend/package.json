@@ -11,7 +11,8 @@
     "test:workbench-browser": "node scripts/test-workbench-browser.mjs",
     "test:dashboard-insights": "bun test tests/dashboard-insights.test.ts",
     "preview": "vite preview",
-    "prepare-agentsight-sample": "node scripts/prepare-agentsight-sample.mjs"
+    "prepare-agentsight-sample": "node scripts/prepare-agentsight-sample.mjs",
+    "test:dashboard-stream-browser": "bun scripts/test-dashboard-stream-browser.mjs"
   },
   "dependencies": {
     "@ant-design/icons-vue": "^7.0.1",

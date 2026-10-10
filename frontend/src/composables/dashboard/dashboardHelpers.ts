@@ -374,7 +374,41 @@ export const extractHistoryTimestampMs = (record: any): number => {
   return Date.now();
 };
 
+// Envelope IDs are shared by history and /ws/envelopes. Never deduplicate
+// unrelated syscalls by PID/path/timestamp: identical calls are real evidence.
+export const normalizeEnvelope = (
+  envelope: pb.IEventEnvelope,
+  fallbackTimestampMs = Date.now(),
+): AgentEvent | null => {
+  // The protobuf transport uses camelCase; the server's JSON fallback uses
+  // proto field names (UseProtoNames), including legacy_event and event_id.
+  const raw = envelope as Record<string, unknown>;
+  const legacy = envelope.legacyEvent ?? raw.legacy_event;
+  if (!legacy) return null;
+  const timestampNs =
+    toOptionalNumber(envelope.ingestTimestampNs ?? raw.ingest_timestamp_ns) ||
+    toOptionalNumber(envelope.timestampNs ?? raw.timestamp_ns);
+  const event = buildAgentEvent(
+    legacy as Record<string, unknown>,
+    timestampNs ? timestampNs / 1_000_000 : fallbackTimestampMs,
+  );
+  const eventId = toText(envelope.eventId ?? raw.event_id);
+  if (eventId) {
+    event.eventId = eventId;
+    event.key = eventId;
+  }
+  return event;
+};
+
 export const normalizeHistoryRecord = (record: any): AgentEvent | null => {
+  const envelope = record?.envelope ?? record?.Envelope;
+  if (envelope) {
+    const normalized = normalizeEnvelope(
+      envelope,
+      extractHistoryTimestampMs(record),
+    );
+    if (normalized) return normalized;
+  }
   const event = record?.event ?? record?.Event;
   if (!event) {
     return null;

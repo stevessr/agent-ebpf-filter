@@ -97,6 +97,9 @@ export function useDashboard() {
   const {
     historyLoaded,
     evictedRecords,
+    streamNotice,
+    recoveryState,
+    loadRecentEvents,
     startStream,
     stopStream,
     resetStreamState,
@@ -850,6 +853,9 @@ export function useDashboard() {
   return {
     showRawEvents,
     evictedRecords,
+    streamNotice,
+    recoveryState,
+    loadRecentEvents,
     events,
     isConnected,
     isPaused,

@@ -22,6 +22,9 @@ import RedactionBadge from "../../components/common/RedactionBadge.vue";
 const {
   events,
   evictedRecords,
+  streamNotice,
+  recoveryState,
+  loadRecentEvents,
   showRawEvents,
   isConnected,
   isPaused,
@@ -101,6 +104,12 @@ const copyPath = async (path: string) => {
       <RedactionBadge level="standard" />
     </div>
 
+    <a-alert v-if="streamNotice" class="dashboard-stream-notice" type="warning" show-icon
+      :message="streamNotice" style="margin-bottom: 12px">
+      <template #action>
+        <a-button v-if="recoveryState === 'error'" size="small" @click="loadRecentEvents">重试补取</a-button>
+      </template>
+    </a-alert>
     <a-tabs
       :activeKey="activeTab"
       size="small"
