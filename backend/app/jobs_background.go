@@ -19,7 +19,6 @@ import (
 	"agent-ebpf-filter/app/events"
 	"agent-ebpf-filter/internal/collectorstream"
 	"agent-ebpf-filter/pb"
-
 )
 
 type runtimeBackgroundJobs struct {
