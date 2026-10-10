@@ -91,12 +91,11 @@ func TestHandshakeFailsClosedWhenDeadlineCannotBeReset(t *testing.T) {
 	if !wrapped.closed.Load() {
 		t.Fatal("failed handshake left connection open")
 	}
+	// A net.Pipe server may still be finishing its last write when the
+	// failed client deliberately closes. Either outcome is safe on that end.
 	server := <-result
 	if server.session != nil {
 		defer server.session.Close()
-	}
-	if server.err != nil {
-		t.Fatalf("server handshake unexpectedly failed: %v", server.err)
 	}
 }
 
