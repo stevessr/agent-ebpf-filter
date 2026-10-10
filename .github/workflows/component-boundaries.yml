@@ -37,4 +37,24 @@ jobs:
       - name: Check touched Go file formatting
         run: |
           files="$(gofmt -l backend/internal/agentscope/*.go backend/internal/agentidentity/*.go backend/internal/eventnoise/*.go backend/app/agent_scope_policy.go backend/app/agent_scope_root.go backend/app/agent_scope_root_test.go backend/app/event_path_filter.go)"
-          test -z "$files" || { echo "$files"; gofmt -d backend/internal/agentscope/*.go backend/internal/eventnoise/*.go backend/app/agent_scope_policy.go backend/app/agent_scope_root.go backend/app/event_path_filter.go; exit 1; }
+          test -z "$files" || { echo "$files"; gofmt -d backend/internal/agentscope/*.go backend/internal/agentidentity/*.go backend/internal/eventnoise/*.go backend/app/agent_scope_policy.go backend/app/agent_scope_root.go backend/app/agent_scope_root_test.go backend/app/event_path_filter.go; exit 1; }
+
+  app-compat:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Install generation prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm libbpf-dev libelf-dev protobuf-compiler
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+      - name: Generate backend protobuf and BPF objects
+        run: ./scripts/renew-desktop.sh prepare
+      - name: Verify old app contract with extracted components
+        working-directory: backend
+        run: go test ./app -run 'TestAgentScope|TestDefaultIgnoredEventPaths|TestNormalizeIgnoredEventPaths|TestPathMatchesIgnoredPrefix|TestShouldIgnoreEventPath|TestEmptyIgnoredPathsRemainExplicitInRuntimeJSON' -count=1
