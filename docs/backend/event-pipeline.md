@@ -21,12 +21,12 @@ flowchart TD
 独立 `collectorstream.Pump()` 读取循环持有一个 `ringbuf.Record`，通过 `ReadInto` 复用其 `RawSample` 缓冲：内核 ring
 到用户态只有一次必要拷贝，之后每条事件不再分配新的 sample 切片。
 
-`decodeBPFEventRecord()`：
+`decodeBPFEventRecord()` 现在由 `app` 薄适配调用 `internal/collectorcodec.Decode[bpfEvent]`，复用独立解码器：
 
 - 如果 RawSample 长度不足，返回错误；
 - 如果 native little-endian 且内存对齐，则直接构造 `*bpfEvent` view（指针在下一次 `ReadInto` 前有效）；
 - 否则 `binary.Read` 到新结构体；
-- 记录 zero-copy / copy 指标。
+- 记录 zero-copy / copy 指标；借用的指针只可在当前同步处理回调中使用。
 
 ### 字符串与 payload 视图
 
@@ -37,6 +37,10 @@ flowchart TD
   原始 payload，不再经过 string→[]byte 往返，TLS/DNS 头里的 NUL 字节也得以保留。
 - 禁用 comm 的过滤 (`commDisabled`) 用 `map[string(bytes)]` 的临时视图查表，整条过滤链路
   在常见情况下零分配。
+
+## Runtime task supervision
+
+后端在 `jobs_background.go` 中继续集中启动原有后台任务，但等待与退出计数现由独立的 `internal/taskgroup.Group` 管理，保留 `Go`/`Wait(ctx)` 接口。调用方继续负责通过运行时 Context 停止工作协程；`Wait(ctx)` 不创建辅助等待协程，因此超时和重复等待不再产生无法回收的 waiter goroutine。所有任务必须先完成登记，再调用 `Wait`。
 
 ## Process context
 
