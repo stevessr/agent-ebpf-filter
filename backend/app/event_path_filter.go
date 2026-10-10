@@ -1,172 +1,83 @@
 package app
 
 import (
-	"errors"
-	"path/filepath"
-	"sort"
-	"strings"
-
+	"agent-ebpf-filter/internal/eventnoise"
 	"agent-ebpf-filter/pb"
 )
 
-const ignoredPathBypassRiskScore = 60
+// Keep the existing internal helpers and API contracts, but isolate the
+// deterministic noise policy from protobuf and mutable runtime state.
+const ignoredPathBypassRiskScore = eventnoise.BypassRiskScore
 
 func defaultIgnoredEventPaths() []string {
-	return []string{"/proc", "/tmp"}
+	return eventnoise.DefaultIgnoredPaths()
 }
 
-// routineSystemNoisePaths are built-in read-only noise candidates. They are
-// active whenever ignoredPaths is non-empty, and disabled together with the
-// user-configurable defaults when ignoredPaths is explicitly set to [].
 func routineSystemNoisePaths() []string {
-	return []string{
-		"/sys/bus",
-		"/sys/class",
-		"/sys/devices",
-		"/sys/fs/cgroup",
-		"/sys/kernel/mm",
-		"/dev/null",
-		"/dev/random",
-		"/dev/urandom",
-		"/dev/zero",
-		"/etc/ld.so.cache",
-		"/etc/localtime",
-		"/usr/lib/locale",
-		"/usr/share/locale",
-		"/usr/share/zoneinfo",
-	}
+	return eventnoise.RoutineNoisePaths()
 }
 
 func normalizeIgnoredEventPaths(values []string) ([]string, error) {
-	if values == nil {
-		return nil, nil
-	}
-	seen := make(map[string]struct{}, len(values))
-	normalized := make([]string, 0, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value == "" {
-			continue
-		}
-		if !filepath.IsAbs(value) {
-			return nil, errors.New("ignored event path must be absolute")
-		}
-		value = filepath.Clean(value)
-		if value == string(filepath.Separator) {
-			return nil, errors.New("ignored event path cannot be filesystem root")
-		}
-		if len(value) > 4096 {
-			return nil, errors.New("ignored event path exceeds supported length")
-		}
-		if _, exists := seen[value]; exists {
-			continue
-		}
-		seen[value] = struct{}{}
-		normalized = append(normalized, value)
-	}
-	sort.Strings(normalized)
-	return normalized, nil
+	return eventnoise.NormalizeIgnoredPaths(values)
 }
 
 func pathMatchesIgnoredPrefix(path string, ignored []string) bool {
-	path = strings.TrimSpace(path)
-	if path == "" || !filepath.IsAbs(path) {
-		return false
-	}
-	path = filepath.Clean(path)
-	for _, prefix := range ignored {
-		if path == prefix || strings.HasPrefix(path, prefix+string(filepath.Separator)) {
-			return true
-		}
-	}
-	return false
+	return eventnoise.MatchesPrefix(path, ignored)
 }
 
 func eventPathNoiseEligible(event *pb.Event) bool {
 	if event == nil {
 		return false
 	}
-	switch event.GetEventType() {
-	case pb.EventType_OPENAT, pb.EventType_OPEN, pb.EventType_READ:
-		return true
-	}
-
-	switch strings.ToLower(strings.TrimSpace(event.GetType())) {
-	case "openat", "open", "read",
-		"stat", "lstat", "fstat", "newfstatat", "statx",
-		"access", "faccessat", "faccessat2",
-		"readlink", "readlinkat", "getdents", "getdents64":
-		return true
-	default:
-		return false
-	}
+	return eventnoise.ReadOrMetadataEligible(event.GetType(),
+		event.GetEventType() == pb.EventType_OPENAT ||
+			event.GetEventType() == pb.EventType_OPEN ||
+			event.GetEventType() == pb.EventType_READ)
 }
 
-// /usr/bin is a frequent read/write noise source. Never suppress exec,
-// file mutation, policy decisions, or other event types solely by this rule.
 func isUsrBinReadWriteNoise(event *pb.Event) bool {
 	if event == nil {
 		return false
 	}
-	switch event.GetEventType() {
-	case pb.EventType_READ, pb.EventType_WRITE:
-		return pathMatchesIgnoredPrefix(event.GetPath(), []string{"/usr/bin"}) ||
-			pathMatchesIgnoredPrefix(event.GetExtraPath(), []string{"/usr/bin"})
-	}
-	switch strings.ToLower(strings.TrimSpace(event.GetType())) {
-	case "read", "write", "pread64", "pwrite64", "readv", "writev":
-		return pathMatchesIgnoredPrefix(event.GetPath(), []string{"/usr/bin"}) ||
-			pathMatchesIgnoredPrefix(event.GetExtraPath(), []string{"/usr/bin"})
-	}
-	return false
+	return eventnoise.UsrBinReadWriteNoise(event.GetType(), event.GetPath(),
+		event.GetExtraPath(), event.GetEventType() == pb.EventType_READ ||
+			event.GetEventType() == pb.EventType_WRITE)
 }
 
 func eventBypassesIgnoredPaths(event *pb.Event) bool {
 	if event == nil {
 		return false
 	}
-	decision := strings.ToUpper(strings.TrimSpace(event.GetDecision()))
-	if strings.Contains(decision, "BLOCK") ||
-		strings.Contains(decision, "DENY") ||
-		strings.Contains(decision, "ALERT") {
-		return true
-	}
-	if event.GetRiskScore() >= ignoredPathBypassRiskScore {
-		return true
-	}
-	switch strings.ToLower(strings.TrimSpace(event.GetType())) {
-	case "semantic_alert", "agentsight_alert":
-		return true
-	default:
-		return false
+	return eventnoise.BypassesIgnoredPaths(event.GetDecision(),
+		int64(event.GetRiskScore()), event.GetType())
+}
+
+func eventNoiseInput(event *pb.Event) eventnoise.Event {
+	return eventnoise.Event{
+		Type:      event.GetType(),
+		Decision:  event.GetDecision(),
+		Path:      event.GetPath(),
+		ExtraPath: event.GetExtraPath(),
+		RiskScore: int64(event.GetRiskScore()),
+		KernelOpenRead: event.GetEventType() == pb.EventType_OPENAT ||
+			event.GetEventType() == pb.EventType_OPEN ||
+			event.GetEventType() == pb.EventType_READ,
+		KernelReadWrite: event.GetEventType() == pb.EventType_READ ||
+			event.GetEventType() == pb.EventType_WRITE,
 	}
 }
 
-// shouldIgnoreEventPath preserves configured ignored-path compatibility while
-// applying the extra built-in system-noise paths only to low-risk read/open/
-// metadata telemetry. Semantic analysis runs before this gate, and alert/block/
-// high-risk events always bypass it.
+// shouldIgnoreEventPath runs only after semantic alert evaluation. A high-risk
+// event, an alert, or a denied action always reaches the user. An explicit
+// empty ignoredPaths list disables all built-in noise suppressions.
 func shouldIgnoreEventPath(event *pb.Event) bool {
 	if event == nil || eventBypassesIgnoredPaths(event) || runtimeSettingsStore == nil {
 		return false
 	}
-
+	// The pure matcher reads configured paths under the existing runtime lock;
+	// no per-event slice allocation or mutating global policy is introduced.
 	runtimeSettingsStore.mu.RLock()
-	ignored := runtimeSettingsStore.settings.IgnoredPaths
-	if len(ignored) == 0 {
-		runtimeSettingsStore.mu.RUnlock()
-		return false
-	}
-	configuredMatch := pathMatchesIgnoredPrefix(event.GetPath(), ignored) ||
-		pathMatchesIgnoredPrefix(event.GetExtraPath(), ignored)
-	runtimeSettingsStore.mu.RUnlock()
-	if configuredMatch || isUsrBinReadWriteNoise(event) {
-		return true
-	}
-	if !eventPathNoiseEligible(event) {
-		return false
-	}
-	systemNoise := routineSystemNoisePaths()
-	return pathMatchesIgnoredPrefix(event.GetPath(), systemNoise) ||
-		pathMatchesIgnoredPrefix(event.GetExtraPath(), systemNoise)
+	defer runtimeSettingsStore.mu.RUnlock()
+	return eventnoise.ShouldIgnore(eventNoiseInput(event),
+		runtimeSettingsStore.settings.IgnoredPaths)
 }

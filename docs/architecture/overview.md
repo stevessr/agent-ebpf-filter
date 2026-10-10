@@ -200,3 +200,8 @@ L5: 工程交付层 (Makefile/K8s/Systemd/VitePress)
 - [后端 API 路由参考](../backend/routes-api.md) -- 完整 HTTP/WS API 索引
 - [运行时启动流程](../backend/runtime-startup.md) -- Main 函数引导序列
 - [TLS 快速入门](../backend/TLS_QUICKSTART.md) -- TLS 明文捕获配置指南
+
+
+## Independent component extraction
+
+The incremental split between pure Agent scope policy, event-noise filtering, app transport and future collector/control-plane isolation is documented in [Independent component boundaries](independent-components.md). The first phase preserves API and kernel policy semantics; library packages must not be described as independently deployable daemons.
