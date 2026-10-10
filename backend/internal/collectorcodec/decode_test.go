@@ -8,7 +8,7 @@ import (
 )
 
 type record struct {
-	PID uint32
+	PID  uint32
 	Kind uint32
 }
 
