@@ -14,9 +14,9 @@ import (
 // only a direct event where pid == root_agent_pid can establish a name.
 // This store is used for scope admission only; it does not modify audit data.
 type agentRootScopeEntry struct {
-	Comm      string
-	RunID     string
-	Observed  time.Time
+	Comm     string
+	RunID    string
+	Observed time.Time
 }
 
 type agentRootScopeStore struct {
@@ -26,7 +26,7 @@ type agentRootScopeStore struct {
 
 const (
 	agentRootScopeMaxEntries = 4096
-	agentRootScopeTTL = 24 * time.Hour
+	agentRootScopeTTL        = 24 * time.Hour
 )
 
 func newAgentRootScopeStore() *agentRootScopeStore {
