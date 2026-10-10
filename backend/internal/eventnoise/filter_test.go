@@ -42,7 +42,7 @@ func TestAttentionEventsNeverSuppressed(t *testing.T) {
 
 func TestNoiseKeepsMutationsAndExplicitEmptyConfiguration(t *testing.T) {
 	cases := []struct {
-		event Event
+		event  Event
 		ignore bool
 	}{
 		{Event{Path: "/sys/class/net/eth0", Type: "stat"}, true},
