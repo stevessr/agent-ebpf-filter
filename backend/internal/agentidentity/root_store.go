@@ -17,11 +17,11 @@ const (
 // Evidence must come from the trusted event enrichment pipeline; callers must
 // not construct the root identity from an unverified child's own claims.
 type Evidence struct {
-	PID         uint32
-	RootPID     uint32
-	Comm        string
-	RunID       string
-	EventType   string
+	PID       uint32
+	RootPID   uint32
+	Comm      string
+	RunID     string
+	EventType string
 }
 
 type rootEntry struct {
