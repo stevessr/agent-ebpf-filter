@@ -7,35 +7,26 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"sync/atomic"
-	"unicode/utf8"
 
 	"agent-ebpf-filter/app/platform"
+	"agent-ebpf-filter/internal/agentscope"
 	"agent-ebpf-filter/pb"
 
 	"github.com/gin-gonic/gin"
 )
 
-// Agent scope lists are independent: capture controls event admission to the
-// userspace archive/stream, while monitor controls semantic alerts and the
-// downstream analysis queues. Neither list is an execution-deny policy.
-type agentScopeList struct {
-	Mode    string   `json:"mode"`
-	Entries []string `json:"entries"`
-}
-
-type agentScopePolicy struct {
-	Capture agentScopeList `json:"capture"`
-	Monitor agentScopeList `json:"monitor"`
-}
+// Agent scope policy is independent of HTTP and kernel-enforcement control.
+// Keep these aliases for the existing app tests, routes and JSON contract.
+type agentScopeList = agentscope.List
+type agentScopePolicy = agentscope.Policy
 
 const (
-	agentScopeBlacklist = "blacklist"
-	agentScopeWhitelist = "whitelist"
-	agentScopeMaxEntries = 256
-	agentScopeFileName   = "agent-scopes.json"
+	agentScopeBlacklist = agentscope.ModeBlacklist
+	agentScopeWhitelist = agentscope.ModeWhitelist
+	agentScopeMaxEntries = agentscope.MaxEntries
+	agentScopeFileName = "agent-scopes.json"
 )
 
 var agentScopes struct {
@@ -45,49 +36,15 @@ var agentScopes struct {
 }
 
 func defaultAgentScopePolicy() agentScopePolicy {
-	return agentScopePolicy{
-		Capture: agentScopeList{Mode: agentScopeBlacklist, Entries: []string{}},
-		Monitor: agentScopeList{Mode: agentScopeBlacklist, Entries: []string{}},
-	}
-}
-
-func agentScopePath() string {
-	return filepath.Join(platform.RuntimeSettingsDir(), agentScopeFileName)
+	return agentscope.Default()
 }
 
 func validateAgentScopeList(list agentScopeList) (agentScopeList, error) {
-	if list.Mode != agentScopeBlacklist && list.Mode != agentScopeWhitelist {
-		return agentScopeList{}, fmt.Errorf("mode must be blacklist or whitelist")
-	}
-	if len(list.Entries) > agentScopeMaxEntries {
-		return agentScopeList{}, fmt.Errorf("too many entries (max %d)", agentScopeMaxEntries)
-	}
-	out := agentScopeList{Mode: list.Mode, Entries: make([]string, 0, len(list.Entries))}
-	seen := make(map[string]struct{}, len(list.Entries))
-	for _, raw := range list.Entries {
-		entry := strings.ToLower(strings.TrimSpace(raw))
-		if !utf8.ValidString(entry) || len(entry) == 0 || len(entry) > 128 ||
-			strings.ContainsAny(entry, "\x00\r\n\t") {
-			return agentScopeList{}, errors.New("entries must be nonempty UTF-8 names (max 128 bytes)")
-		}
-		if _, found := seen[entry]; !found {
-			seen[entry] = struct{}{}
-			out.Entries = append(out.Entries, entry)
-		}
-	}
-	return out, nil
+	return agentscope.ValidateList(list)
 }
 
 func validateAgentScopePolicy(input agentScopePolicy) (agentScopePolicy, error) {
-	capture, err := validateAgentScopeList(input.Capture)
-	if err != nil {
-		return agentScopePolicy{}, fmt.Errorf("capture: %w", err)
-	}
-	monitor, err := validateAgentScopeList(input.Monitor)
-	if err != nil {
-		return agentScopePolicy{}, fmt.Errorf("monitor: %w", err)
-	}
-	return agentScopePolicy{Capture: capture, Monitor: monitor}, nil
+	return agentscope.Validate(input)
 }
 
 func currentAgentScopePolicy() *agentScopePolicy {
@@ -113,22 +70,9 @@ func currentAgentScopePolicy() *agentScopePolicy {
 	return agentScopes.snapshot.Load()
 }
 
-// Exact, case-insensitive match against the process comm or resolved Agent tag.
-// No substring, regexp, or PID matching: PID reuse must not affect admission.
-// In whitelist mode an empty list rejects all; empty blacklists allow all.
+// User-facing scope matching lives in a transport-independent component.
 func agentScopeAllows(list agentScopeList, comm, tag string) bool {
-	found := false
-	for _, entry := range list.Entries {
-		if strings.EqualFold(entry, strings.TrimSpace(comm)) ||
-			strings.EqualFold(entry, strings.TrimSpace(tag)) {
-			found = true
-			break
-		}
-	}
-	if list.Mode == agentScopeWhitelist {
-		return found
-	}
-	return !found
+	return agentscope.Allows(list, comm, tag)
 }
 
 func captureAgentEvent(event *pb.Event) bool {
