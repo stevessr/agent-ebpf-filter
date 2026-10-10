@@ -37,6 +37,15 @@ func TestOutboxLimitsAndCopiesBorrowedPayload(t *testing.T) {
 	if string(message.Payload) != "before" {
 		t.Fatalf("accepted payload was mutated: %q", message.Payload)
 	}
+	// Receive unblocks the writer, but delivery metrics update only after
+	// WriteTyped has fully returned; synchronize before checking counters.
+	deadline := time.Now().Add(2 * time.Second)
+	for box.Stats().Sent != 1 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if box.Stats().Sent != 1 {
+		t.Fatal("outbox did not account for delivered frame")
+	}
 	cancel()
 	select {
 	case err := <-done:
