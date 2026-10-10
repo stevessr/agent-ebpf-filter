@@ -17,11 +17,11 @@ import (
 )
 
 const (
-	Version             uint16 = 1
-	MaxMessageBytes            = 1 << 20
-	MaxHandshakeBytes          = 128
-	DefaultHandshakeTimeout    = 5 * time.Second
-	DefaultWriteTimeout        = time.Second
+	Version                 uint16 = 1
+	MaxMessageBytes                = 1 << 20
+	MaxHandshakeBytes              = 128
+	DefaultHandshakeTimeout        = 5 * time.Second
+	DefaultWriteTimeout            = time.Second
 )
 
 var (
@@ -36,10 +36,10 @@ var (
 type Role byte
 
 const (
-	RoleCollector Role = 1
-	RoleEngine    Role = 2
+	RoleCollector  Role = 1
+	RoleEngine     Role = 2
 	RoleController Role = 3
-	RoleGateway   Role = 4
+	RoleGateway    Role = 4
 )
 
 func (r Role) Valid() bool {
@@ -89,16 +89,31 @@ type Message struct {
 // Session represents a successfully authenticated full-duplex connection.
 // Calls to Send are serialized; only one goroutine should call Receive.
 type Session struct {
-	conn       net.Conn
-	local      Role
-	peer       Role
-	writeMu    sync.Mutex
-	readBuf    []byte
+	conn    net.Conn
+	local   Role
+	peer    Role
+	writeMu sync.Mutex
+	readBuf []byte
 }
 
-func (s *Session) LocalRole() Role { if s == nil { return 0 }; return s.local }
-func (s *Session) PeerRole() Role { if s == nil { return 0 }; return s.peer }
-func (s *Session) Close() error { if s == nil { return nil }; return s.conn.Close() }
+func (s *Session) LocalRole() Role {
+	if s == nil {
+		return 0
+	}
+	return s.local
+}
+func (s *Session) PeerRole() Role {
+	if s == nil {
+		return 0
+	}
+	return s.peer
+}
+func (s *Session) Close() error {
+	if s == nil {
+		return nil
+	}
+	return s.conn.Close()
+}
 
 // Send serializes a nonempty payload, bounded before touching the socket.
 // Blocking writes have a deadline, so one slow reader cannot halt a writer.
