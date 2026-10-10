@@ -29,8 +29,8 @@ func TestEnqueueBroadcastEventMetrics(t *testing.T) {
 func TestEnqueueBroadcastEventFailureReasons(t *testing.T) {
 	var absent chan *pb.Event
 	for _, tc := range []struct {
-		queue chan<- *pb.Event
-		event *pb.Event
+		queue  chan<- *pb.Event
+		event  *pb.Event
 		source string
 		reason string
 	}{
