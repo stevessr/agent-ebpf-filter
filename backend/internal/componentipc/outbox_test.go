@@ -76,8 +76,14 @@ func TestOutboxBoundsAndLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if got := box.TryEnqueue(KindEvent, []byte("pending")); got != Enqueued {
+		t.Fatalf("initial enqueue: %v", got)
+	}
 	box.Stop()
 	box.Stop()
+	if stats := box.Stats(); stats.Dropped != 1 || stats.Accepted != 1 || stats.Queued != 0 {
+		t.Fatalf("shutdown must account for undelivered items: %+v", stats)
+	}
 	if got := box.TryEnqueue(KindEvent, []byte("event")); got != QueueClosed {
 		t.Fatalf("stopped queue result %v", got)
 	}
