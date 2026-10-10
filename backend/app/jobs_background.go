@@ -13,8 +13,8 @@ import (
 	"unicode/utf8"
 
 	"agent-ebpf-filter/app/events"
-	"agent-ebpf-filter/internal/collectorstream"
 	"agent-ebpf-filter/internal/collectorcodec"
+	"agent-ebpf-filter/internal/collectorstream"
 	"agent-ebpf-filter/internal/taskgroup"
 	"agent-ebpf-filter/pb"
 )
