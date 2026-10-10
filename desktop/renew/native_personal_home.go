@@ -28,3 +28,29 @@ func (a *renewApp) overviewSnapshotHint() string {
 func (a *renewApp) overviewRecentEvents() []eventSummary {
 	return a.events[:min(len(a.events), 5)]
 }
+
+// Show the most recent high-risk events before lower-severity alerts. All
+// rows come from the already-loaded summary window, without additional
+// privileged reads or hidden investigator filters.
+func (a *renewApp) overviewPriorityEvents() []eventSummary {
+	const limit = 3
+	out := make([]eventSummary, 0, limit)
+	for _, severity := range [...]string{"高风险", "需关注"} {
+		for _, event := range a.events {
+			if eventRisk(event) != severity {
+				continue
+			}
+			out = append(out, event)
+			if len(out) == limit {
+				return out
+			}
+		}
+	}
+	return out
+}
+
+// The collector remains observable when the user pauses presentation of
+// event summaries. A paused UI must not freeze the health/connection probe.
+func (a *renewApp) shouldFetchEventWindow() bool {
+	return !a.eventUIPaused.Load() && (!a.historyInitialized || !a.eventStreamConnected)
+}
