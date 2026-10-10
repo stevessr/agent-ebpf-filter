@@ -1,7 +1,6 @@
 package app
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -54,20 +53,11 @@ func validateAgentScopePolicy(input agentScopePolicy) (agentScopePolicy, error) 
 func currentAgentScopePolicy() *agentScopePolicy {
 	agentScopes.loadOnce.Do(func() {
 		cfg := defaultAgentScopePolicy()
-		raw, err := os.ReadFile(agentScopePath())
+		stored, err := agentscope.LoadFile(agentScopePath())
 		if err == nil {
-			var stored agentScopePolicy
-			if json.Unmarshal(raw, &stored) == nil {
-				if normalized, validationErr := validateAgentScopePolicy(stored); validationErr == nil {
-					cfg = normalized
-				} else {
-					log.Printf("[WARN] invalid agent scopes: %v (using defaults)", validationErr)
-				}
-			} else {
-				log.Printf("[WARN] cannot decode agent scopes (using defaults)")
-			}
+			cfg = stored
 		} else if !errors.Is(err, os.ErrNotExist) {
-			log.Printf("[WARN] cannot read agent scopes: %v (using defaults)", err)
+			log.Printf("[WARN] invalid or unreadable agent scopes: %v (using defaults)", err)
 		}
 		agentScopes.snapshot.Store(&cfg)
 	})
@@ -98,33 +88,7 @@ func monitorAgentEvent(event *pb.Event) bool {
 }
 
 func persistAgentScopePolicy(cfg agentScopePolicy) error {
-	data, err := json.MarshalIndent(cfg, "", "  ")
-	if err != nil {
-		return err
-	}
-	path := agentScopePath()
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-		return err
-	}
-	file, err := os.CreateTemp(filepath.Dir(path), ".agent-scopes-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(file.Name())
-	defer file.Close()
-	if err := file.Chmod(0600); err != nil {
-		return err
-	}
-	if _, err := file.Write(append(data, '\n')); err != nil {
-		return err
-	}
-	if err := file.Sync(); err != nil {
-		return err
-	}
-	if err := file.Close(); err != nil {
-		return err
-	}
-	return os.Rename(file.Name(), path)
+	return agentscope.SaveFile(agentScopePath(), cfg)
 }
 
 func handleAgentScopesGet(c *gin.Context) {
