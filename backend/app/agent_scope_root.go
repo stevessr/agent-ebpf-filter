@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"agent-ebpf-filter/internal/agentscope"
 	"agent-ebpf-filter/pb"
 )
 
@@ -99,27 +100,11 @@ func (s *agentRootScopeStore) OwnerComm(event *pb.Event) string {
 	return entry.Comm
 }
 
-// Keep policy matching exact and case insensitive. The expanded owner name
-// participates in both whitelist and blacklist rules, so excluding Codex
-// excludes its descendants as well.
+// This app adapter supplies only the verified root identity from the bounded
+// ancestry cache; the policy matcher itself has no dependency on protobuf.
 func agentScopeAllowsWithRoot(list agentScopeList, event *pb.Event, owner string) bool {
 	if event == nil {
 		return false
 	}
-	if strings.TrimSpace(owner) == "" {
-		return agentScopeAllows(list, event.Comm, event.Tag)
-	}
-	matched := false
-	for _, entry := range list.Entries {
-		if strings.EqualFold(entry, strings.TrimSpace(event.Comm)) ||
-			strings.EqualFold(entry, strings.TrimSpace(event.Tag)) ||
-			strings.EqualFold(entry, owner) {
-			matched = true
-			break
-		}
-	}
-	if list.Mode == agentScopeWhitelist {
-		return matched
-	}
-	return !matched
+	return agentscope.AllowsWithOwner(list, event.Comm, event.Tag, owner)
 }
