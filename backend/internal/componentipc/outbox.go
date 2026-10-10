@@ -136,13 +136,22 @@ func (o *Outbox) Run(ctx context.Context) error {
 	}
 }
 
-// Stop prevents new accepted frames without closing the channel while
-// producers are using it. Stop is idempotent.
+// Stop prevents new admissions and accounts for queued-but-undelivered
+// frames as drops. It never closes the channel while producers may use it.
+// An in-flight Send remains separately tracked as sent or failed by Run.
 func (o *Outbox) Stop() {
 	if o == nil {
 		return
 	}
 	o.mu.Lock()
+	defer o.mu.Unlock()
 	o.accepting = false
-	o.mu.Unlock()
+	for {
+		select {
+		case <-o.queue:
+			o.dropped.Add(1)
+		default:
+			return
+		}
+	}
 }
