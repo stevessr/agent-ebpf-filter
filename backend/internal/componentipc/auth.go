@@ -25,17 +25,17 @@ type ServerConfig struct {
 }
 
 type ClientConfig struct {
-	Secret          []byte
-	Role            Role
-	ExpectedServer  Role
-	VerifyPeer      Verifier
+	Secret         []byte
+	Role           Role
+	ExpectedServer Role
+	VerifyPeer     Verifier
 }
 
 // HandshakeServer rejects unexpected OS peers, protocol versions, and roles.
 // Both challenge/response MACs bind the nonce and both side roles to the
 // protocol version. A failed handshake always closes the supplied connection.
 func HandshakeServer(conn net.Conn, cfg ServerConfig) (_ *Session, err error) {
-	if conn == nil || len(cfg.Secret) < 32 || !cfg.Role.Valid() || cfg.VerifyPeer == nil || len(cfg.AllowedPeers) == 0 {
+	if conn == nil {
 		return nil, ErrInvalidConfig
 	}
 	defer func() {
@@ -43,6 +43,9 @@ func HandshakeServer(conn net.Conn, cfg ServerConfig) (_ *Session, err error) {
 			_ = conn.Close()
 		}
 	}()
+	if len(cfg.Secret) < 32 || !cfg.Role.Valid() || cfg.VerifyPeer == nil || len(cfg.AllowedPeers) == 0 {
+		return nil, ErrInvalidConfig
+	}
 	if err = cfg.VerifyPeer(conn); err != nil {
 		return nil, fmt.Errorf("%w: peer identity: %v", ErrAuthentication, err)
 	}
@@ -97,7 +100,7 @@ func HandshakeServer(conn net.Conn, cfg ServerConfig) (_ *Session, err error) {
 // nonce and finally validates that the server possesses the shared secret.
 // No credential is transmitted in clear text on the socket.
 func HandshakeClient(conn net.Conn, cfg ClientConfig) (_ *Session, err error) {
-	if conn == nil || len(cfg.Secret) < 32 || !cfg.Role.Valid() || !cfg.ExpectedServer.Valid() || cfg.VerifyPeer == nil {
+	if conn == nil {
 		return nil, ErrInvalidConfig
 	}
 	defer func() {
@@ -105,6 +108,9 @@ func HandshakeClient(conn net.Conn, cfg ClientConfig) (_ *Session, err error) {
 			_ = conn.Close()
 		}
 	}()
+	if len(cfg.Secret) < 32 || !cfg.Role.Valid() || !cfg.ExpectedServer.Valid() || cfg.VerifyPeer == nil {
+		return nil, ErrInvalidConfig
+	}
 	if err = cfg.VerifyPeer(conn); err != nil {
 		return nil, fmt.Errorf("%w: peer identity: %v", ErrAuthentication, err)
 	}
