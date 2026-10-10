@@ -81,3 +81,61 @@ func TestPersonalOverviewRecentEventsIgnoreInvestigationFilters(t *testing.T) {
 		t.Fatalf("empty summary should remain empty, got %#v", got)
 	}
 }
+
+func TestPersonalOverviewPriorityEventsShowOlderRisk(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.search = "hides-everything-on-events-page"
+	a.eventAttentionOnly = false
+	// The first five new events are normal. An older high-risk event must
+	// remain visible on the homepage instead of being pushed out of sight.
+	for i := 0; i < 6; i++ {
+		a.events = append(a.events, eventSummary{EventID: fmt.Sprintf("normal-%d", i)})
+	}
+	a.events = append(a.events,
+		eventSummary{EventID: "attention-latest", RiskScore: 65},
+		eventSummary{EventID: "danger-older", RiskScore: 95},
+		eventSummary{EventID: "danger-oldest", RiskScore: 90},
+	)
+	got := a.overviewPriorityEvents()
+	if len(got) != 3 {
+		t.Fatalf("priority length = %d; want three", len(got))
+	}
+	want := []string{"danger-older", "danger-oldest", "attention-latest"}
+	for i, event := range got {
+		if event.EventID != want[i] {
+			t.Fatalf("priority[%d] = %q; want %q", i, event.EventID, want[i])
+		}
+	}
+	if a.search != "hides-everything-on-events-page" {
+		t.Fatal("personal alerts must not alter investigator filters")
+	}
+
+	a.events = []eventSummary{{EventID: "normal"}}
+	if got := a.overviewPriorityEvents(); len(got) != 0 {
+		t.Fatalf("normal activity is not a priority alert: %#v", got)
+	}
+}
+
+func TestPausedEventDisplayStillRefreshesCollectorStatus(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	if !a.shouldFetchEventWindow() {
+		t.Fatal("initial snapshot should include event summaries")
+	}
+	a.historyInitialized = true
+	a.eventStreamConnected = true
+	if a.shouldFetchEventWindow() {
+		t.Fatal("active event stream should only fetch status")
+	}
+	a.eventStreamConnected = false
+	if !a.shouldFetchEventWindow() {
+		t.Fatal("fallback needs event window")
+	}
+	a.eventUIPaused.Store(true)
+	if a.shouldFetchEventWindow() {
+		t.Fatal("pausing the event display should fetch status only")
+	}
+	a.eventUIPaused.Store(false)
+	if !a.shouldFetchEventWindow() {
+		t.Fatal("resume should fetch summaries if stream is offline")
+	}
+}
