@@ -33,6 +33,7 @@ func TestPersonalOverviewSnapshotHintStates(t *testing.T) {
 			a.starting = false
 			a.connected = true
 			a.healthReady = true
+			a.paused = true // A broken collector must override the pause hint.
 		}, "可能漏记活动"},
 		{"stream fallback", func(a *renewApp) {
 			a.starting = false
