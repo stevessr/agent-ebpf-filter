@@ -52,9 +52,13 @@ func TestLoadRejectsMalformedOrInvalidPolicies(t *testing.T) {
 func TestSaveReplacesExistingFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "agent-scopes.json")
 	cfg := Default()
-	if err := SaveFile(path, cfg); err != nil { t.Fatal(err) }
+	if err := SaveFile(path, cfg); err != nil {
+		t.Fatal(err)
+	}
 	cfg.Monitor = List{Mode: ModeWhitelist, Entries: []string{"codex"}}
-	if err := SaveFile(path, cfg); err != nil { t.Fatal(err) }
+	if err := SaveFile(path, cfg); err != nil {
+		t.Fatal(err)
+	}
 	got, err := LoadFile(path)
 	if err != nil || !reflect.DeepEqual(got, cfg) {
 		t.Fatalf("updated file mismatch: got=%#v err=%v", got, err)
