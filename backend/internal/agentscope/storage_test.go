@@ -64,3 +64,20 @@ func TestSaveReplacesExistingFile(t *testing.T) {
 		t.Fatalf("updated file mismatch: got=%#v err=%v", got, err)
 	}
 }
+
+func TestSaveRejectsInvalidWithoutOverwriting(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "agent-scopes.json")
+	cfg := Default()
+	if err := SaveFile(path, cfg); err != nil {
+		t.Fatal(err)
+	}
+	invalid := Default()
+	invalid.Capture = List{Mode: "invalid", Entries: []string{}}
+	if err := SaveFile(path, invalid); err == nil {
+		t.Fatal("invalid policy was persisted")
+	}
+	loaded, err := LoadFile(path)
+	if err != nil || !reflect.DeepEqual(loaded, cfg) {
+		t.Fatalf("valid stored policy was modified: %#v, err=%v", loaded, err)
+	}
+}
