@@ -31,54 +31,32 @@ type processAggregate struct {
 
 func (a *renewApp) overview(c *ui.Context) {
 	t := c.Theme()
-	ui.Column(c).Padding(18).Gap(10).Radius(12).Background(t.Surface).Border(1, t.Border).Children(func() {
+	headline, detail, level := a.overviewHeadline()
+	tone := workspaceStatusTone(t, level)
+	_, attention, danger := a.riskCounts()
+
+	// The default desktop landing view answers "am I being monitored, and
+	// what should I do?" instead of showing a second investigator dashboard.
+	ui.Column(c).Padding(18).Gap(12).Radius(12).Background(t.Surface).Border(1, t.Border).Children(func() {
 		ui.Row(c).Gap(12).Wrap().AlignItems(ui.Center).Children(func() {
-			ui.Box(c).Size(40, 40).Radius(12).Background(t.Accent.Alpha(0.17)).Center().Children(func() {
+			ui.Box(c).Size(42, 42).Radius(12).Background(t.Accent.Alpha(0.17)).Center().Children(func() {
 				ui.Icon(c, renewMirrorSVG).Size(29, 29).TextColor(t.Accent).Label(desktopBrandName)
 			})
-			ui.Column(c).Grow(1).MinWidth(250).Gap(4).Children(func() {
-				ui.Text(c, "系统运行态势").FontSize(22).Bold()
-				ui.Text(c, desktopBrandSlogan).FontSize(14).TextColor(t.TextMuted)
+			ui.Column(c).Grow(1).MinWidth(210).Gap(3).Children(func() {
+				ui.Text(c, "我的设备").FontSize(22).Bold()
+				ui.Text(c, "监控状态与需要处理的活动").FontSize(12).TextColor(t.TextMuted)
 			})
-			status, level := a.pipelineStatus()
-			color := t.Success
-			switch level {
-			case "danger":
-				color = t.Danger
-			case "warning":
-				color = t.Warning
-			}
-			statusPill(c, status, color)
+			status, statusLevel := a.pipelineStatus()
+			statusPill(c, status, workspaceStatusTone(t, statusLevel))
 		})
-		ui.Text(c, desktopBrandDescription).FontSize(12).TextColor(t.TextMuted)
-		ui.Row(c).Gap(8).Wrap().Children(func() {
-			ui.Badge(c, "eBPF 内核观测")
-			ui.Badge(c, "Agent 会话溯源")
-			ui.Badge(c, "网络外联洞察")
-			ui.Badge(c, "Agent 域名审计")
-			ui.Badge(c, "策略事件追踪")
+		ui.Divider(c)
+		ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
+			ui.Text(c, headline).FontSize(19).Bold().TextColor(tone)
+			statusPill(c, map[string]string{"success": "正常", "warning": "关注", "danger": "异常"}[level], tone)
 		})
-	})
-
-	ui.Text(c, "运行态势基于采集健康与当前摘要窗口；未发现异常不代表没有未观测到的风险。").FontSize(11).TextColor(t.TextMuted)
-
-	headline, detail, level := a.overviewHeadline()
-	tone := t.Success
-	switch level {
-	case "danger":
-		tone = t.Danger
-	case "warning":
-		tone = t.Warning
-	}
-	ui.Column(c).Padding(18).Gap(12).Radius(12).Background(tone.Alpha(0.055)).Border(1, tone.Alpha(0.38)).Children(func() {
-		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-			ui.Column(c).Grow(1).Gap(4).Children(func() {
-				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, headline).FontSize(20).Bold()
-					statusPill(c, map[string]string{"success": "正常", "warning": "关注", "danger": "异常"}[level], tone)
-				})
-				ui.Text(c, detail).TextColor(t.TextMuted)
-			})
+		ui.Text(c, detail).TextColor(t.TextMuted)
+		ui.Text(c, a.overviewSnapshotHint()).FontSize(12).TextColor(t.TextMuted)
+		ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
 			if actionLabel, actionPage, attentionOnly := a.overviewAction(); actionLabel != "" {
 				if ui.PrimaryButton(c, actionLabel).Clicked() {
 					if attentionOnly {
@@ -87,60 +65,64 @@ func (a *renewApp) overview(c *ui.Context) {
 					}
 					a.page = actionPage
 				}
+			} else if !a.connected && !a.starting {
+				if ui.PrimaryButton(c, "重试连接").Clicked() {
+					a.retryBackendConnection()
+				}
+			}
+			if ui.Button(c, "查看全部活动").Clicked() {
+				a.clearEventFilters()
+				a.page = "事件"
 			}
 		})
 	})
 
-	_, attention, danger := a.riskCounts()
-	ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-		if ui.PrimaryButton(c, "查看 Agent 域名监控").Clicked() {
+	ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
+		ui.Badge(c, fmt.Sprintf("摘要活动 %d 条", len(a.events)))
+		if danger > 0 {
+			statusPill(c, fmt.Sprintf("高风险 %d 条", danger), t.Danger)
+		} else {
+			ui.Badge(c, "高风险 0 条")
+		}
+		if attention > 0 {
+			statusPill(c, fmt.Sprintf("需关注 %d 条", attention), t.Warning)
+		} else {
+			ui.Badge(c, "需关注 0 条")
+		}
+	})
+	ui.Text(c, "数量只统计当前摘要窗口，不代表设备所有历史活动；断线或采集异常时不能据此判断设备安全。").
+		FontSize(11).TextColor(t.TextMuted)
+
+	ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
+		if ui.Button(c, "查看联网行为").Tooltip("查看 Agent 关联的域名及 IP 连接").Clicked() {
 			a.page = "域名"
 		}
-		ui.Text(c, "按 Agent 归属查看访问域名、IP-only 连接与风险目标").FontSize(11).TextColor(t.TextMuted)
-	})
-	collectorLabel, _ := a.collectorStatus()
-	ui.Row(c).Gap(12).Wrap().Children(func() {
-		statCard(c, "采集状态", collectorLabel, fmt.Sprintf("Ringbuf 丢弃 %d", a.health.RingbufDroppedTotal))
-		statCard(c, "最近活动", fmt.Sprint(len(a.events)), "当前紧凑摘要窗口")
-		statCard(c, "需关注", fmt.Sprint(attention), "风险分 ≥ 60 / ALERT")
-		statCard(c, "高风险", fmt.Sprint(danger), "BLOCK / DENY / 高风险")
-		if a.systemConnected {
-			statCard(c, "CPU", fmt.Sprintf("%.1f%%", a.system.CPUTotal), fmt.Sprintf("%d 个实时进程", len(a.system.Processes)))
-			statCard(c, "内存", fmt.Sprintf("%.1f%%", a.system.MemPercent), fmt.Sprintf("%s / %s", formatBytes(int64(a.system.MemUsed)), formatBytes(int64(a.system.MemTotal))))
+		if ui.Button(c, "调整监控范围").Tooltip("选择日常或深度采集方案，不会直接修改拦截策略").Clicked() {
+			a.page = "监控"
+		}
+		if ui.Button(c, "查看访问权限").Tooltip("查看或编辑路径访问规则，策略生效以服务端反馈为准").Clicked() {
+			a.page = "路径权限"
 		}
 	})
 
 	card(c, "最近活动", func() {
-		filtered := a.filteredEvents()
-		if len(filtered) == 0 {
-			ui.Text(c, "暂无匹配活动。若刚启动，等待事件流进入；若有筛选条件，可在顶栏清空搜索。").TextColor(t.TextMuted)
-			return
-		}
-		limit := min(len(filtered), 12)
-		for _, event := range filtered[:limit] {
-			a.eventRow(c, event)
-		}
-		if len(filtered) > limit {
-			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-				ui.Textf(c, "还有 %d 条活动", len(filtered)-limit).FontSize(11).TextColor(t.TextMuted).Grow(1)
-				if ui.Button(c, "打开事件页").Clicked() {
-					a.page = "事件"
-				}
-			})
-		}
-	})
-
-	card(c, "已跟踪进程", func() {
-		if len(a.trackedComms) == 0 {
-			ui.Text(c, "后端未返回显式跟踪列表；可在“跟踪范围”中添加命令、路径或标签。").TextColor(t.TextMuted)
-			return
-		}
-		ui.Row(c).Gap(8).Wrap().Children(func() {
-			for _, name := range a.trackedComms {
-				ui.Badge(c, name)
+		// This summary must not silently inherit filters from the Events
+		// page, otherwise a clean home could be mistaken for no activity.
+		if len(a.events) == 0 {
+			ui.Text(c, "尚无活动摘要。可能是刚启动、未匹配到采集范围，或事件流暂不可用；这不是安全证明。").
+				TextColor(t.TextMuted)
+		} else {
+			for _, event := range a.events[:min(len(a.events), 5)] {
+				a.eventRow(c, event)
 			}
-		})
+		}
+		if ui.Button(c, "打开事件记录").Tooltip("清除旧筛选后查看事件详情与证据").Clicked() {
+			a.clearEventFilters()
+			a.page = "事件"
+		}
 	})
+	ui.Text(c, "提示：风险分数和 ALERT 表示需要核查，并不等于已拦截；请在事件详情核对决策、执行结果和证据。").
+		FontSize(11).TextColor(t.TextMuted)
 }
 
 func (a *renewApp) overviewHeadline() (headline, detail, level string) {
