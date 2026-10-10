@@ -54,9 +54,9 @@ func eventBypassesIgnoredPaths(event *pb.Event) bool {
 
 func eventNoiseInput(event *pb.Event) eventnoise.Event {
 	return eventnoise.Event{
-		Type: event.GetType(),
-		Decision: event.GetDecision(),
-		Path: event.GetPath(),
+		Type:      event.GetType(),
+		Decision:  event.GetDecision(),
+		Path:      event.GetPath(),
 		ExtraPath: event.GetExtraPath(),
 		RiskScore: int64(event.GetRiskScore()),
 		KernelOpenRead: event.GetEventType() == pb.EventType_OPENAT ||
