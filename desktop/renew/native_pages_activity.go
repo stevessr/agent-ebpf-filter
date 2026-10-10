@@ -112,7 +112,7 @@ func (a *renewApp) overview(c *ui.Context) {
 			ui.Text(c, "尚无活动摘要。可能是刚启动、未匹配到采集范围，或事件流暂不可用；这不是安全证明。").
 				TextColor(t.TextMuted)
 		} else {
-			for _, event := range a.events[:min(len(a.events), 5)] {
+			for _, event := range a.overviewRecentEvents() {
 				a.eventRow(c, event)
 			}
 		}
