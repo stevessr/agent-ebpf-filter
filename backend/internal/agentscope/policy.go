@@ -46,8 +46,13 @@ func ValidateList(list List) (List, error) {
 	out := List{Mode: list.Mode, Entries: make([]string, 0, len(list.Entries))}
 	seen := make(map[string]struct{}, len(list.Entries))
 	for _, raw := range list.Entries {
+		// Validate the original bytes before case folding: strings.ToLower
+		// replaces invalid UTF-8 with RuneError and would otherwise hide it.
+		if !utf8.ValidString(raw) {
+			return List{}, errors.New("entries must be nonempty UTF-8 names (max 128 bytes)")
+		}
 		entry := strings.ToLower(strings.TrimSpace(raw))
-		if !utf8.ValidString(entry) || len(entry) == 0 || len(entry) > 128 ||
+		if len(entry) == 0 || len(entry) > 128 ||
 			strings.ContainsAny(entry, "\x00\r\n\t") {
 			return List{}, errors.New("entries must be nonempty UTF-8 names (max 128 bytes)")
 		}
