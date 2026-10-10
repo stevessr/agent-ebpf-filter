@@ -2,7 +2,6 @@ package componentipc
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"sync/atomic"
 )
@@ -21,7 +20,7 @@ const (
 )
 
 type queuedFrame struct {
-	kind Kind
+	kind    Kind
 	payload []byte
 }
 
@@ -30,24 +29,24 @@ type queuedFrame struct {
 // backing buffers. Run owns the only sending worker, and never retries errors
 // indefinitely. Outbox never creates additional privileged services.
 type Outbox struct {
-	session *Session
-	queue chan queuedFrame
-	mu sync.Mutex
+	session   *Session
+	queue     chan queuedFrame
+	mu        sync.Mutex
 	accepting bool
-	ran bool
-	accepted atomic.Uint64
-	dropped atomic.Uint64
-	sent atomic.Uint64
-	failed atomic.Uint64
+	ran       bool
+	accepted  atomic.Uint64
+	dropped   atomic.Uint64
+	sent      atomic.Uint64
+	failed    atomic.Uint64
 }
 
 type OutboxStats struct {
-	Accepted uint64
-	Dropped uint64
-	Sent uint64
-	Failed uint64
-	Queued int
-	Capacity int
+	Accepted  uint64
+	Dropped   uint64
+	Sent      uint64
+	Failed    uint64
+	Queued    int
+	Capacity  int
 	Accepting bool
 }
 
@@ -96,12 +95,12 @@ func (o *Outbox) Stats() OutboxStats {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return OutboxStats{
-		Accepted: o.accepted.Load(),
-		Dropped: o.dropped.Load(),
-		Sent: o.sent.Load(),
-		Failed: o.failed.Load(),
-		Queued: len(o.queue),
-		Capacity: cap(o.queue),
+		Accepted:  o.accepted.Load(),
+		Dropped:   o.dropped.Load(),
+		Sent:      o.sent.Load(),
+		Failed:    o.failed.Load(),
+		Queued:    len(o.queue),
+		Capacity:  cap(o.queue),
 		Accepting: o.accepting,
 	}
 }
@@ -148,4 +147,3 @@ func (o *Outbox) Stop() {
 	o.mu.Unlock()
 }
 
-var ErrQueueUnavailable = errors.New("component IPC outbox unavailable")
