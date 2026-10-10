@@ -520,12 +520,22 @@ func (a *renewApp) retryBackendConnection() {
 
 func (a *renewApp) errorView(c *ui.Context) {
 	t := c.Theme()
-	card(c, "后端未就绪", func() {
-		ui.Text(c, a.lastErr).TextColor(t.TextMuted)
-		ui.Text(c, "可通过 AGENT_BACKEND_URL / --backend 指向其他实例；远程受保护实例可通过 AGENT_API_TOKEN 提供 token。").FontSize(12).TextColor(t.TextMuted)
-		if ui.PrimaryButton(c, "重试").Clicked() {
-			a.retryBackendConnection()
+	card(c, "监控服务尚未连接", func() {
+		ui.Text(c, "目前无法确认新的设备活动是否正在被记录。您可以重新连接，或打开系统诊断了解原因。").
+			TextColor(t.TextMuted)
+		if a.lastErr != "" {
+			ui.Text(c, "连接详情："+a.lastErr).FontSize(11).TextColor(t.TextMuted)
 		}
+		ui.Row(c).Gap(8).Wrap().Children(func() {
+			if ui.PrimaryButton(c, "重新连接").Clicked() {
+				a.retryBackendConnection()
+			}
+			if ui.Button(c, "打开系统诊断").Clicked() {
+				a.page = "系统"
+			}
+		})
+		ui.Text(c, "高级用法：可以通过 --backend 或 AGENT_BACKEND_URL 连接已有监控服务。").
+			FontSize(11).TextColor(t.TextMuted)
 	})
 }
 
