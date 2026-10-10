@@ -105,6 +105,21 @@ func (a *renewApp) overview(c *ui.Context) {
 		}
 	})
 
+	if priority := a.overviewPriorityEvents(); len(priority) > 0 {
+		card(c, "优先核查", func() {
+			ui.Text(c, "以下活动按风险等级优先展示。ALERT 仅代表告警；BLOCK / DENY 是否已执行，请以详情为准。").
+				FontSize(11).TextColor(t.TextMuted)
+			for _, event := range priority {
+				a.eventRow(c, event)
+			}
+			if ui.Button(c, "查看所有需关注活动").Clicked() {
+				a.clearEventFilters()
+				a.eventAttentionOnly = true
+				a.page = "事件"
+			}
+		})
+	}
+
 	card(c, "最近活动", func() {
 		// This summary must not silently inherit filters from the Events
 		// page, otherwise a clean home could be mistaken for no activity.
