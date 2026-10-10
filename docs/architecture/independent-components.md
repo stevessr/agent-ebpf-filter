@@ -10,6 +10,8 @@ The main Go `app` package previously combined configuration/HTTP orchestration w
 | --- | --- | --- | --- |
 | `backend/internal/agentscope` | Go standard library | Scope list validation, defaults, exact comm/tag/verified-owner admission, atomic local scope-file persistence | Infer owner from a PID; call LSM/cgroup; start HTTP |
 | `backend/internal/eventnoise` | Go standard library | Ignored-path normalization, path-boundary matching, ordinary telemetry suppression | Suppress denial/alert/high-risk events; change enforcement; persist settings |
+| `backend/internal/collectorcodec` | Go standard library | Typed, size-checked and alignment-aware fixed-layout BPF sample decoder, including copy fallback | Load BPF maps, retain borrowed buffer, apply risk policy |
+| `backend/internal/taskgroup` | Go standard library | Context-bounded join of supervised runtime tasks without spawning waiter goroutines | Own shutdown signals, cancel tasks without caller direction, launch detached long-lived workers |
 | `backend/internal/collectorstream` | `cilium/ebpf/ringbuf`, stdlib | Reusable sample loop and cancellation-triggered reader close | Attach BPF, modify policy maps, interpret protobuf, access user settings |
 | `backend/internal/eventqueue` | Go standard library | Generic non-blocking handoff and labeled drop reasons | Own channel lifecycle, redact events, issue alert decisions, record metrics |
 | `backend/internal/agentidentity` | Go standard library | Bounded observed-root cache, run identity verification, TTL and conservative PID reuse handling | Guess an Agent owner from process name; trust child-declared roots; consume protobuf or change execution permissions |
@@ -92,3 +94,19 @@ go test -race ./internal/collectorstream ./internal/eventqueue
 ```
 
 Integration tests must still generate the repository's protobuf/BPF objects first. `component-transport.yml` runs the legacy broadcast drop-metric and kernel-reader shutdown tests, and triggers the existing Renew CI via changed backend paths. The preferred next boundary is a **versioned, authenticated local IPC contract** for events/status, not a second privileged BPF loader.
+
+## Phase 4: decoding and lifecycle are independent components
+
+`internal/collectorcodec.Decode[T]` now owns the low-level fixed-layout decode. It accepts a borrowed ring-buffer sample and returns a zero-copy view only when the host is little-endian and the record is properly aligned; otherwise it reads a detached little-endian copy using the same fallback as the former app implementation. This component does not know the generated `bpfEvent` type: the app adapter calls `collectorcodec.Decode[bpfEvent]`. **T must be a pointer-free, binary-readable fixed-layout event type**, and a zero-copy view cannot outlive the synchronous `collectorstream.Pump` callback.
+
+`internal/taskgroup.Group` now supervises the app runtime background workers without depending on application globals. It preserves the existing `Go`/`Wait(context.Context)` caller interface and nil-group behavior. Unlike the old `WaitGroup` wrapper, a timeout does not create a lingering waiter goroutine. The group is not a job scheduler: all tasks must be registered before waiting, and the application still cancels their contexts.
+
+Compatibility and race checks:
+
+```sh
+cd backend
+go test -race ./internal/collectorstream ./internal/collectorcodec ./internal/eventqueue ./internal/taskgroup
+go test ./app -run 'TestEnqueueBroadcastEvent|TestKernelEventReader|TestDecodeBPFEventRecord'
+```
+
+Kernel BPF attachment, generated-object ABI, kernel risk policy, Windows/Linux frontends and Renew single-process startup stay untouched. This is still library-level separation; standalone component processes need a separately designed authenticated versioned IPC protocol.
