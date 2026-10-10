@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "backend/internal/agentscope/**"
+      - "backend/internal/agentidentity/**"
       - "backend/internal/eventnoise/**"
       - "backend/app/agent_scope_*.go"
       - "backend/app/event_path_filter*.go"
@@ -11,6 +12,7 @@ on:
   push:
     paths:
       - "backend/internal/agentscope/**"
+      - "backend/internal/agentidentity/**"
       - "backend/internal/eventnoise/**"
       - "backend/app/agent_scope_*.go"
       - "backend/app/event_path_filter*.go"
@@ -31,8 +33,8 @@ jobs:
           cache-dependency-path: backend/go.sum
       - name: Pure package tests (no BPF/root required)
         working-directory: backend
-        run: go test ./internal/agentscope ./internal/eventnoise -count=1
+        run: go test -race ./internal/agentscope ./internal/agentidentity ./internal/eventnoise -count=1
       - name: Check touched Go file formatting
         run: |
-          files="$(gofmt -l backend/internal/agentscope/*.go backend/internal/eventnoise/*.go backend/app/agent_scope_policy.go backend/app/agent_scope_root.go backend/app/event_path_filter.go)"
+          files="$(gofmt -l backend/internal/agentscope/*.go backend/internal/agentidentity/*.go backend/internal/eventnoise/*.go backend/app/agent_scope_policy.go backend/app/agent_scope_root.go backend/app/agent_scope_root_test.go backend/app/event_path_filter.go)"
           test -z "$files" || { echo "$files"; gofmt -d backend/internal/agentscope/*.go backend/internal/eventnoise/*.go backend/app/agent_scope_policy.go backend/app/agent_scope_root.go backend/app/event_path_filter.go; exit 1; }
