@@ -130,10 +130,16 @@ func (s *Session) Send(kind Kind, payload []byte) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	if err := s.conn.SetWriteDeadline(time.Now().Add(DefaultWriteTimeout)); err != nil {
+		_ = s.conn.Close()
 		return err
 	}
-	defer s.conn.SetWriteDeadline(time.Time{})
-	return udsframe.WriteTyped(s.conn, byte(kind), payload)
+	err := udsframe.WriteTyped(s.conn, byte(kind), payload)
+	if err != nil {
+		// A partial write can desynchronize the frame stream: fail closed.
+		_ = s.conn.Close()
+		return err
+	}
+	return s.conn.SetWriteDeadline(time.Time{})
 }
 
 // Receive enforces a strict per-message maximum and the authenticated peer's
@@ -145,14 +151,18 @@ func (s *Session) Receive() (Message, error) {
 	// One byte of typed framing precedes the bounded message body.
 	raw, err := udsframe.ReadLimitInto(s.conn, s.readBuf, MaxMessageBytes+1)
 	if err != nil {
+		// Reject truncated or oversized frames without attempting resync.
+		_ = s.conn.Close()
 		return Message{}, err
 	}
 	s.readBuf = raw
 	if len(raw) < 2 {
+		_ = s.conn.Close()
 		return Message{}, ErrFrameTooLarge
 	}
 	kind := Kind(raw[0])
 	if !CanSend(s.peer, kind) {
+		_ = s.conn.Close()
 		return Message{}, fmt.Errorf("%w: peer=%d kind=%d", ErrFrameDenied, s.peer, kind)
 	}
 	return Message{Kind: kind, Payload: raw[1:]}, nil
