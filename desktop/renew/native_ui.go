@@ -294,9 +294,9 @@ func (a *renewApp) runPolling(ctx context.Context, session *backendSession) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if !a.eventUIPaused.Load() {
-				a.refresh(ctx)
-			}
+			// Pausing local event presentation must not hide a disconnected
+			// or unhealthy collector. Refresh status without event payloads.
+			a.refresh(ctx)
 		}
 	}
 }
@@ -307,7 +307,7 @@ func (a *renewApp) refresh(parent context.Context) {
 	}
 	ctx, cancel := context.WithTimeout(parent, 4*time.Second)
 	defer cancel()
-	fullSnapshot := !a.historyInitialized || !a.eventStreamConnected
+	fullSnapshot := a.shouldFetchEventWindow()
 	var snapshot apiSnapshot
 	var err error
 	if fullSnapshot {
