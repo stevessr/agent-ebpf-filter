@@ -7,56 +7,24 @@ import (
 	"agent-ebpf-filter/app/research"
 	"bytes"
 	"context"
-	"encoding/binary"
-	"fmt"
 	"log"
 	"os"
-	"sync"
 	"time"
 	"unicode/utf8"
-	"unsafe"
 
 	"agent-ebpf-filter/app/events"
 	"agent-ebpf-filter/internal/collectorstream"
+	"agent-ebpf-filter/internal/collectorcodec"
+	"agent-ebpf-filter/internal/taskgroup"
 	"agent-ebpf-filter/pb"
 )
 
-type runtimeBackgroundJobs struct {
-	wg sync.WaitGroup
-}
+// Compatibility type retained for startup and graceful shutdown callers.
+// The task supervisor is now separately testable without app or eBPF.
+type runtimeBackgroundJobs = taskgroup.Group
 
-func (jobs *runtimeBackgroundJobs) Go(run func()) {
-	if jobs == nil || run == nil {
-		return
-	}
-	jobs.wg.Add(1)
-	go func() {
-		defer jobs.wg.Done()
-		run()
-	}()
-}
-
-func (jobs *runtimeBackgroundJobs) Wait(ctx context.Context) error {
-	if jobs == nil {
-		return nil
-	}
-	done := make(chan struct{})
-	go func() {
-		jobs.wg.Wait()
-		close(done)
-	}()
-	select {
-	case <-done:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
-var nativeLittleEndian = func() bool {
-	var value uint16 = 1
-	return *(*byte)(unsafe.Pointer(&value)) == 1
-}()
+// Keep the old package-level probe for the existing zero-copy regression test.
+var nativeLittleEndian = collectorcodec.NativeLittleEndian
 
 // commDisabled reports whether the raw kernel comm buffer names a command the
 // operator disabled. Clean buffers (the overwhelmingly common case) are looked
@@ -88,28 +56,10 @@ func eventTypeDisabled(eventType uint32) bool {
 	return disabledEventTypeBits[word].Load()&bit != 0
 }
 
-// decodeBPFEventRecord returns a view over the ring-buffer sample when the host
-// layout matches the generated little-endian BPF object. The pointer must not be
-// retained after the caller finishes processing this record because the sample
-// buffer is reused for the next ReadInto call. On non-native endian or
-// unaligned samples it falls back to the old binary.Read copy path.
+// decodeBPFEventRecord preserves the existing caller contract. The isolated
+// codec handles alignment, endian and bounded-size validation.
 func decodeBPFEventRecord(raw []byte) (*bpfEvent, bool, error) {
-	if len(raw) < bpfEventSampleSize {
-		return nil, false, fmt.Errorf("short eBPF event sample: got %d bytes, want at least %d", len(raw), bpfEventSampleSize)
-	}
-
-	if nativeLittleEndian && len(raw) > 0 {
-		ptr := unsafe.Pointer(&raw[0])
-		if uintptr(ptr)%bpfEventSampleAlign == 0 {
-			return (*bpfEvent)(ptr), true, nil
-		}
-	}
-
-	event := new(bpfEvent)
-	if err := binary.Read(bytes.NewReader(raw[:bpfEventSampleSize]), binary.LittleEndian, event); err != nil {
-		return nil, false, err
-	}
-	return event, false, nil
+	return collectorcodec.Decode[bpfEvent](raw)
 }
 
 // Preserve the kernel reader injection contract for existing app lifecycle
