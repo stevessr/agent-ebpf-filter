@@ -87,12 +87,14 @@ type Message struct {
 }
 
 // Session represents a successfully authenticated full-duplex connection.
-// Calls to Send are serialized; only one goroutine should call Receive.
+// Send and Receive are independently serialized. A borrowed Receive payload
+// is only valid until the next Receive, including one from another goroutine.
 type Session struct {
 	conn    net.Conn
 	local   Role
 	peer    Role
 	writeMu sync.Mutex
+	readMu  sync.Mutex
 	readBuf []byte
 }
 
@@ -109,7 +111,7 @@ func (s *Session) PeerRole() Role {
 	return s.peer
 }
 func (s *Session) Close() error {
-	if s == nil {
+	if s == nil || s.conn == nil {
 		return nil
 	}
 	return s.conn.Close()
@@ -139,7 +141,12 @@ func (s *Session) Send(kind Kind, payload []byte) error {
 		_ = s.conn.Close()
 		return err
 	}
-	return s.conn.SetWriteDeadline(time.Time{})
+	if err := s.conn.SetWriteDeadline(time.Time{}); err != nil {
+		// A stale deadline makes subsequent frames unsafe to reuse.
+		_ = s.conn.Close()
+		return err
+	}
+	return nil
 }
 
 // Receive enforces a strict per-message maximum and the authenticated peer's
@@ -148,6 +155,10 @@ func (s *Session) Receive() (Message, error) {
 	if s == nil || s.conn == nil {
 		return Message{}, ErrInvalidConfig
 	}
+	// Serialize reads to protect buffer reuse. The returned payload still
+	// expires at the next Receive, regardless of which goroutine calls it.
+	s.readMu.Lock()
+	defer s.readMu.Unlock()
 	// One byte of typed framing precedes the bounded message body.
 	raw, err := udsframe.ReadLimitInto(s.conn, s.readBuf, MaxMessageBytes+1)
 	if err != nil {

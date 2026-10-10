@@ -52,7 +52,6 @@ func HandshakeServer(conn net.Conn, cfg ServerConfig) (_ *Session, err error) {
 	if err = conn.SetDeadline(time.Now().Add(DefaultHandshakeTimeout)); err != nil {
 		return nil, err
 	}
-	defer conn.SetDeadline(time.Time{})
 	var nonce [32]byte
 	if _, err = rand.Read(nonce[:]); err != nil {
 		return nil, err
@@ -93,6 +92,10 @@ func HandshakeServer(conn net.Conn, cfg ServerConfig) (_ *Session, err error) {
 	if err = udsframe.WriteTyped(conn, kindReady, ready[:]); err != nil {
 		return nil, err
 	}
+	// Never return an authenticated session with an uncleared handshake deadline.
+	if err = conn.SetDeadline(time.Time{}); err != nil {
+		return nil, err
+	}
 	return &Session{conn: conn, local: cfg.Role, peer: clientRole}, nil
 }
 
@@ -117,7 +120,6 @@ func HandshakeClient(conn net.Conn, cfg ClientConfig) (_ *Session, err error) {
 	if err = conn.SetDeadline(time.Now().Add(DefaultHandshakeTimeout)); err != nil {
 		return nil, err
 	}
-	defer conn.SetDeadline(time.Time{})
 	frame, readErr := udsframe.ReadLimit(conn, MaxHandshakeBytes)
 	if readErr != nil {
 		return nil, readErr
@@ -150,6 +152,9 @@ func HandshakeClient(conn net.Conn, cfg ClientConfig) (_ *Session, err error) {
 	expected := challengeMAC(cfg.Secret, "server", nonce, cfg.Role, cfg.ExpectedServer)
 	if !hmac.Equal(ready[1:], expected[:]) {
 		return nil, ErrAuthentication
+	}
+	if err = conn.SetDeadline(time.Time{}); err != nil {
+		return nil, err
 	}
 	return &Session{conn: conn, local: cfg.Role, peer: cfg.ExpectedServer}, nil
 }

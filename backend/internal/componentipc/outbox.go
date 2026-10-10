@@ -31,6 +31,7 @@ type queuedFrame struct {
 type Outbox struct {
 	session   *Session
 	queue     chan queuedFrame
+	stopCh    chan struct{}
 	mu        sync.Mutex
 	accepting bool
 	ran       bool
@@ -55,7 +56,7 @@ func NewOutbox(session *Session, capacity int) (*Outbox, error) {
 	if session == nil || session.conn == nil || capacity <= 0 || capacity > MaxPendingMessages {
 		return nil, ErrInvalidConfig
 	}
-	return &Outbox{session: session, queue: make(chan queuedFrame, capacity), accepting: true}, nil
+	return &Outbox{session: session, queue: make(chan queuedFrame, capacity), stopCh: make(chan struct{}), accepting: true}, nil
 }
 
 func (o *Outbox) TryEnqueue(kind Kind, payload []byte) EnqueueResult {
@@ -120,12 +121,29 @@ func (o *Outbox) Run(ctx context.Context) error {
 	o.mu.Unlock()
 	defer o.Stop()
 	for {
+		// Prefer cancellation or explicit Stop over a queued frame when
+		// shutdown races with the worker's select.
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		select {
+		case <-o.stopCh:
+			return nil
+		default:
+		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-o.stopCh:
+			return nil
 		case item := <-o.queue:
-			if ctx.Err() != nil {
-				return ctx.Err()
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			select {
+			case <-o.stopCh:
+				return nil
+			default:
 			}
 			if err := o.session.Send(item.kind, item.payload); err != nil {
 				o.failed.Add(1)
@@ -136,16 +154,19 @@ func (o *Outbox) Run(ctx context.Context) error {
 	}
 }
 
-// Stop prevents new admissions and accounts for queued-but-undelivered
-// frames as drops. It never closes the channel while producers may use it.
-// An in-flight Send remains separately tracked as sent or failed by Run.
+// Stop prevents new admissions, wakes an idle Run worker and accounts for
+// queued-but-undelivered frames as drops. The data channel stays open for
+// concurrent producers. An in-flight Send finishes or fails by its deadline.
 func (o *Outbox) Stop() {
 	if o == nil {
 		return
 	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	o.accepting = false
+	if o.accepting {
+		o.accepting = false
+		close(o.stopCh)
+	}
 	for {
 		select {
 		case <-o.queue:

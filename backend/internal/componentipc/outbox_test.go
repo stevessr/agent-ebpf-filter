@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -128,5 +129,61 @@ func TestReceiveRejectsUnauthorizedAndOversizedWire(t *testing.T) {
 				t.Fatal(wireErr)
 			}
 		})
+	}
+}
+
+func TestOutboxStopWakesIdleRun(t *testing.T) {
+	client, _ := handshakePair(t, RoleCollector, RoleEngine)
+	box, err := NewOutbox(client, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- box.Run(context.Background()) }()
+	box.Stop()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("stopped worker should exit normally: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Stop did not wake an idle Run worker")
+	}
+	if stats := box.Stats(); stats.Accepting || stats.Queued != 0 {
+		t.Fatalf("Stop left live queue: %+v", stats)
+	}
+}
+
+func TestOutboxConcurrentShutdownAccountsForEveryAttempt(t *testing.T) {
+	client, _ := handshakePair(t, RoleCollector, RoleEngine)
+	box, err := NewOutbox(client, 8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const producers, attempts = 20, 32
+	var wg sync.WaitGroup
+	for i := 0; i < producers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < attempts; j++ {
+				box.TryEnqueue(KindEvent, []byte("event"))
+			}
+		}()
+	}
+	box.Stop()
+	wg.Wait()
+	box.Stop() // idempotent even after racing producers
+	stats := box.Stats()
+	if stats.Accepted+stats.Dropped != producers*attempts+stats.Accepted {
+		// Stop counts every unsent accepted item as dropped in addition
+		// to any admission rejection. No worker is active in this test.
+		t.Fatalf("accounting mismatch: %+v", stats)
+	}
+	if stats.Dropped != producers*attempts || stats.Sent != 0 || stats.Failed != 0 || stats.Queued != 0 || stats.Accepting {
+		t.Fatalf("shutdown failed to account for pending frames: %+v", stats)
+	}
+	if err := box.Run(context.Background()); err != nil {
+		t.Fatalf("Run after Stop should return without hanging: %v", err)
 	}
 }

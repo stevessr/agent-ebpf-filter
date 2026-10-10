@@ -17,7 +17,7 @@ The separate `backend/internal/componentipc` package defines a **new** private i
 2. The server sends protocol version (16-bit big-endian), server role (1 byte) and 32 cryptographically random nonce bytes.
 3. Client checks version, expected server role and peer UID; responds with protocol version, client role and HMAC-SHA256 over a domain-separated transcript containing nonce + both roles + protocol version.
 4. Server checks its role allowlist, verifier and client HMAC using constant-time comparison. It replies with a **different**, server-labeled HMAC of the same transcript. Client verifies to authenticate the server's possession of the secret.
-5. Each side rejects invalid/short/oversized frames; handshake has a 5-second deadline and closes the connection on failure.
+5. Each side rejects invalid/short/oversized frames; handshake has a 5-second deadline, explicitly clears it before returning a live session and closes the connection if clearing fails.
 
 The shared secret is a *deployment credential*. Future launchers must issue a per-session random secret of at least 32 bytes over a protected inherited descriptor, not arguments, logs, a world-readable settings file or ambient environment. The current package does **not** generate, store, rotate or distribute secrets; callers must not introduce insecure distribution when integrating it.
 
@@ -34,11 +34,11 @@ SO_PEERCRED verifies Linux UID, not an executable identity. HMAC proves possessi
 
 The protocol **does not expose policy apply, BPF map mutation, shell execution, plugin loading or arbitrary commands**. Those require a separate review, authorized request semantics, transactional apply/rollback and audit trail before enabling.
 
-Each post-handshake message uses existing `udsframe` length prefix + type byte + opaque payload, at most 1 MiB per message. The decoder validates the sender's authenticated role before returning borrowed payload bytes. Payloads are not protobuf-versioned yet; the higher-layer canonical event and health schemas must be added before attaching production components.
+Each post-handshake message uses existing `udsframe` length prefix + type byte + opaque payload, at most 1 MiB per message. The decoder validates the sender's authenticated role before returning borrowed payload bytes. Concurrent receive calls are serialized; callers must consume or copy returned bytes before any subsequent receive, even from another goroutine. A failure to clear a post-send deadline closes the session. Payloads are not protobuf-versioned yet; the higher-layer canonical event and health schemas must be added before attaching production components.
 
 ## Queue and backpressure
 
-`componentipc.Outbox` is a one-shot single-sender worker, with nonblocking `TryEnqueue`, a hard limit of 64 pending messages, maximum 1 MiB/message, a 1-second bounded write, and accepted/dropped/sent/failed counters. Accepted payloads are **copied** so the producer can reuse its buffer. On saturation, callers receive `QueueSaturated`; drops must be surfaced in collector health and cannot be interpreted as successful delivery. Cancellation stops accepting and counts undelivered queued frames as drops; it does not guarantee that already accepted or in-flight records reached the receiver.
+`componentipc.Outbox` is a one-shot single-sender worker, with nonblocking `TryEnqueue`, a hard limit of 64 pending messages, maximum 1 MiB/message, a 1-second bounded write, and accepted/dropped/sent/failed counters. Accepted payloads are **copied** so the producer can reuse its buffer. On saturation, callers receive `QueueSaturated`; drops must be surfaced in collector health and cannot be interpreted as successful delivery. Cancellation stops accepting and counts undelivered queued frames as drops; an explicit `Stop` additionally wakes an idle `Run(context.Background())` worker and returns normally. Concurrent stop is idempotent and never closes the producer queue. In-flight writes remain subject to their one-second deadline, and neither accepted nor in-flight records are guaranteed to have reached the receiver.
 
 `KindAck` is reserved for explicit sequencing/credits but **credit-based flow control and replay/recovery are not yet implemented**. Before process separation, implement receive acknowledgments, sequence IDs, reset/resume handling, priority for DENY/ALERT and persisted drop reasons. Until then, treat this transport as best-effort telemetry only; no enforcement action may depend on event delivery succeeding.
 
