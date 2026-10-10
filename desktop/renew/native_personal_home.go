@@ -10,10 +10,10 @@ func (a *renewApp) overviewSnapshotHint() string {
 		return "连接已中断；保留的记录可能过时，新的活动暂时无法确认。"
 	case !a.healthReady:
 		return "正在确认采集器状态，当前记录可能尚未完整同步。"
-	case a.paused:
-		return "您暂停的是桌面事件展示，不是后台采集；恢复画面后可继续查看更新。"
 	case !a.health.CaptureHealthy:
 		return "采集链路异常，可能漏记活动；建议打开系统诊断。"
+	case a.paused:
+		return "您暂停的是桌面事件展示，不是后台采集；恢复画面后可继续查看更新。"
 	case !a.eventStreamConnected:
 		return "事件流正在使用回退同步方式，新活动可能延迟显示。"
 	case a.lastSync.IsZero():
