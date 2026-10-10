@@ -146,4 +146,3 @@ func (o *Outbox) Stop() {
 	o.accepting = false
 	o.mu.Unlock()
 }
-
