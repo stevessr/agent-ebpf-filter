@@ -11,9 +11,9 @@ import (
 // Group tracks goroutines started during runtime initialization.
 // The zero value is usable. Callers must finish adding tasks before Wait.
 type Group struct {
-	mu sync.Mutex
+	mu      sync.Mutex
 	pending int
-	done chan struct{}
+	done    chan struct{}
 }
 
 // Go registers and launches a task. Nil groups or functions are no-ops.
