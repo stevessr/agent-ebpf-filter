@@ -67,7 +67,7 @@ func TestPumpRejectsInvalidInputs(t *testing.T) {
 
 type blockingReader struct {
 	closed chan struct{}
-	once sync.Once
+	once   sync.Once
 }
 
 func (r *blockingReader) ReadInto(_ *ringbuf.Record) error {
