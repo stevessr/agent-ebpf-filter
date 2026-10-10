@@ -34,7 +34,7 @@ func TestSO_PEERCREDChecksExplicitUserID(t *testing.T) {
 	if err := VerifyUnixPeerUIDs(uid)(conn); err != nil {
 		t.Fatalf("client peer uid mismatch: %v", err)
 	}
-	if err := VerifyUnixPeerUIDs(uid+10000)(server); !errors.Is(err, ErrAuthentication) {
+	if err := VerifyUnixPeerUIDs(uid + 10000)(server); !errors.Is(err, ErrAuthentication) {
 		t.Fatalf("unexpected uid allowed: %v", err)
 	}
 	if err := VerifyUnixPeerUIDs()(server); !errors.Is(err, ErrInvalidConfig) {
