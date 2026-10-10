@@ -4,11 +4,11 @@
 
 ## 内核事件读取
 
-`backend/app/jobs_background.go` 中：
+`backend/app/jobs_background.go` 负责调度生命周期，`backend/internal/collectorstream` 负责连续读取 `ringbuf.Record`：
 
 ```mermaid
 flowchart TD
-    Start["startKernelEventReader(rd)"] --> Read["rd.ReadInto(&record)  (复用同一块 sample 缓冲)"]
+    Start["startKernelEventReader(rd)"] --> Read["collectorstream.Pump: rd.ReadInto(&record)  (复用同一块 sample 缓冲)"]
     Read --> Decode["decodeBPFEventRecord(record.RawSample)"]
     Decode --> SelfFilter["self PID 过滤"]
     SelfFilter --> DisabledFilter["disabled comm / event type 过滤"]
@@ -18,7 +18,7 @@ flowchart TD
 
 ## 解码策略
 
-读取循环持有一个 `ringbuf.Record`，通过 `ReadInto` 复用其 `RawSample` 缓冲：内核 ring
+独立 `collectorstream.Pump()` 读取循环持有一个 `ringbuf.Record`，通过 `ReadInto` 复用其 `RawSample` 缓冲：内核 ring
 到用户态只有一次必要拷贝，之后每条事件不再分配新的 sample 切片。
 
 `decodeBPFEventRecord()`：
@@ -49,6 +49,13 @@ flowchart TD
 | `buildProcessContextFromHookPayload()` | native hook JSON payload |
 | `normalizeProcessContext()` | 去空白、规范 decision、补 root pid、清理 risk score |
 | `enrichEventContext()` | 将 context 注入 `pb.Event` |
+
+## Collector 与广播入口组件边界
+
+- `backend/internal/collectorstream`：独立内核 Ringbuf **读取传输组件**，持有一次性分配且循环复用的 sample 缓冲。消费回调同步运行，禁止在下一次 `ReadInto` 后保留 `RawSample` 视图。组件只负责读取/取消触发关闭，不负责挂载 eBPF、内核策略、事件解码或用户权限；`app` 仍是唯一特权资源持有者。
+- `backend/internal/eventqueue`：无依赖的泛型、非阻塞单次入队组件。区分 `Accepted`、`NilItem`、`QueueUnavailable`、`QueueFull`。只在成功入队后交接对象所有权，不处理序列化、脱敏或指标；旧采集健康指标（含 `unknown` source）由 `app/broadcast_queue.go` 兼容适配。
+- 现有 `startKernelEventReader` 继续接收可替换 Reader，`runtimeBackgroundJobs` 继续监管采样循环和关闭协程。内核事件 BPF 结构的零拷贝解码与禁用列表过滤还在 app，由此避免搬迁时变更 ABI 或内核挂载语义。
+- **不是独立进程**：两者现为独立可测试 Go package；后续引入多进程权限隔离需要先做认证的 UDS、版本协商、背压、丢弃审计和策略回滚。
 
 ## Broadcast 与 archive
 

@@ -10,6 +10,8 @@ The main Go `app` package previously combined configuration/HTTP orchestration w
 | --- | --- | --- | --- |
 | `backend/internal/agentscope` | Go standard library | Scope list validation, defaults, exact comm/tag/verified-owner admission, atomic local scope-file persistence | Infer owner from a PID; call LSM/cgroup; start HTTP |
 | `backend/internal/eventnoise` | Go standard library | Ignored-path normalization, path-boundary matching, ordinary telemetry suppression | Suppress denial/alert/high-risk events; change enforcement; persist settings |
+| `backend/internal/collectorstream` | `cilium/ebpf/ringbuf`, stdlib | Reusable sample loop and cancellation-triggered reader close | Attach BPF, modify policy maps, interpret protobuf, access user settings |
+| `backend/internal/eventqueue` | Go standard library | Generic non-blocking handoff and labeled drop reasons | Own channel lifecycle, redact events, issue alert decisions, record metrics |
 | `backend/internal/agentidentity` | Go standard library | Bounded observed-root cache, run identity verification, TTL and conservative PID reuse handling | Guess an Agent owner from process name; trust child-declared roots; consume protobuf or change execution permissions |
 | `backend/app` | App, protobuf, internal components | Adapt protobuf to pure policy input; own runtime locking, API routes and runtime path selection; adapt verified root ancestry | Re-implement the same pure rules in multiple handlers |
 | `desktop/renew` | Native UI / local IPC | Present validated state and read-only evidence, request authorized policy edits | Load eBPF independently; bypass backend runtime gates |
@@ -75,3 +77,18 @@ The bounded Agent root cache has been moved from `app/agent_scope_root.go` into 
 ## Scope persistence isolation
 
 `agentscope.LoadFile` validates the on-disk policy and `agentscope.SaveFile` preserves the existing JSON indentation, newline, 0600 permission, 0700 newly-created parent directory and temporary-file rename behavior. The app continues to own the runtime directory choice, initial defaults, synchronized writes, HTTP authentication and gate checks. File storage tests now verify round-trip persistence, invalid-data rejection, permissions and replacement. This is still a local settings store rather than a transactional security policy engine.
+
+## Phase 3: collector ingress transport isolation
+
+The new `internal/collectorstream` library takes a `Reader` (`ReadInto(*ringbuf.Record)`/`Close()`) and a **synchronous** sample callback. It reuses the same sample buffer until the reader returns an error. The callback must not retain the sample; any zero-copy decoded BPF view is invalid after callback return. `CloseOnCancel` retains the existing shutdown arrangement. eBPF attachment, privileged maps, BPF ABI decoding, self-PID/comm/event-type filtering and derived event construction remain in `app`.
+
+`internal/eventqueue` provides a protobuf-independent `Offer` result for the broadcast channel. Acceptance transfers ownership of the mutable event. The app adapter keeps existing collection metrics, non-blocking semantics and source:reason labels. **Do not close a queue while producers are still using it.** Neither library is a separately deployed service.
+
+Rootless commands:
+
+```sh
+cd backend
+go test -race ./internal/collectorstream ./internal/eventqueue
+```
+
+Integration tests must still generate the repository's protobuf/BPF objects first. `component-transport.yml` runs the legacy broadcast drop-metric and kernel-reader shutdown tests, and triggers the existing Renew CI via changed backend paths. The preferred next boundary is a **versioned, authenticated local IPC contract** for events/status, not a second privileged BPF loader.

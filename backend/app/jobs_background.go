@@ -17,9 +17,8 @@ import (
 	"unsafe"
 
 	"agent-ebpf-filter/app/events"
+	"agent-ebpf-filter/internal/collectorstream"
 	"agent-ebpf-filter/pb"
-
-	"github.com/cilium/ebpf/ringbuf"
 )
 
 type runtimeBackgroundJobs struct {
@@ -113,13 +112,9 @@ func decodeBPFEventRecord(raw []byte) (*bpfEvent, bool, error) {
 	return event, false, nil
 }
 
-// kernelEventReader is the subset of *ringbuf.Reader the event loop needs.
-// ReadInto lets the loop own one sample buffer for its whole lifetime instead
-// of allocating a fresh one per record.
-type kernelEventReader interface {
-	ReadInto(*ringbuf.Record) error
-	Close() error
-}
+// Preserve the kernel reader injection contract for existing app lifecycle
+// tests, while the actual sample read loop belongs to collectorstream.
+type kernelEventReader = collectorstream.Reader
 
 func startKernelEventReader(ctx context.Context, rd kernelEventReader, jobs *runtimeBackgroundJobs) {
 	if ctx == nil || rd == nil || jobs == nil {
@@ -127,29 +122,26 @@ func startKernelEventReader(ctx context.Context, rd kernelEventReader, jobs *run
 	}
 	jobs.Go(func() {
 		selfPid := uint32(os.Getpid())
-		record := ringbuf.Record{RawSample: make([]byte, bpfEventSampleSize)}
-		for {
-			if err := rd.ReadInto(&record); err != nil {
-				return
-			}
-			event, zeroCopy, err := decodeBPFEventRecord(record.RawSample)
+		// Consume synchronously. Zero-copy decode views must never outlive a
+		// callback because the next ReadInto can reuse the sample buffer.
+		_ = collectorstream.Pump(rd, bpfEventSampleSize, func(raw []byte) {
+			event, zeroCopy, err := decodeBPFEventRecord(raw)
 			collectorMetricsStore.RecordRingbufDecode(zeroCopy)
 			if err != nil {
-				log.Printf("[WARN] failed to decode eBPF event: %v (sample len=%d)", err, len(record.RawSample))
-				continue
+				log.Printf("[WARN] failed to decode eBPF event: %v (sample len=%d)", err, len(raw))
+				return
 			}
 			if event.PID == selfPid {
-				continue
+				return
 			}
 			if commDisabled(event.Comm[:]) || eventTypeDisabled(event.Type) {
-				continue
+				return
 			}
 			enqueueBroadcastEvent(broadcast, buildKernelEventFromRaw(event), "kernel_event_reader")
-		}
+		})
 	})
 	jobs.Go(func() {
-		<-ctx.Done()
-		_ = rd.Close()
+		collectorstream.CloseOnCancel(ctx, rd)
 	})
 }
 
