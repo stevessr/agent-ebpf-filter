@@ -473,7 +473,7 @@ func TestWorkspaceOfflineMonitoringRemainsNavigable(t *testing.T) {
 	if workspaceShowsBackendError(a.page, a.starting, a.lastErr, len(a.events)) {
 		t.Fatal("offline events should not be replaced by the overview error")
 	}
-	if !view.HasText("后端连接异常 · 当前内容可能不是最新") {
+	if !view.HasText("监控连接已中断") {
 		t.Fatal("offline pages need an explicit stale-data notice")
 	}
 	if !view.HasText("紧凑摘要支持本地筛选与后端历史分页；完整事件只在打开详情时按 ID 读取。") {
@@ -481,7 +481,7 @@ func TestWorkspaceOfflineMonitoringRemainsNavigable(t *testing.T) {
 	}
 	a.page = "概览"
 	view.Frame()
-	if !view.HasText("后端未就绪") {
+	if !view.HasText("监控服务尚未连接") {
 		t.Fatal("empty overview should retain a full connection retry surface")
 	}
 }

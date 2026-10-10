@@ -388,11 +388,14 @@ func (a *renewApp) header(c *ui.Context, navigationWidth float32) {
 			}
 			label, level := a.pipelineStatus()
 			statusPill(c, label, workspaceStatusTone(t, level))
+			if a.paused {
+				statusPill(c, "事件展示已暂停", t.Warning)
+			}
 			// The native toolbar moves actions to its overflow menu on narrow
 			// windows, retaining keyboard navigation and accessibility labels.
 			ui.Toolbar(c, func() {
-				if ui.Button(c, map[bool]string{true: "继续", false: "暂停"}[a.paused]).
-					Tooltip("暂停或恢复桌面事件合并").Clicked() {
+				if ui.Button(c, map[bool]string{true: "恢复事件", false: "暂停事件"}[a.paused]).
+					Tooltip("只暂停 Renew 桌面事件列表的更新，不会停止后台采集和策略执行").Clicked() {
 					a.paused = !a.paused
 					a.eventUIPaused.Store(a.paused)
 					if !a.paused {
@@ -523,7 +526,10 @@ func (a *renewApp) hasEventConstraints() bool {
 func (a *renewApp) connectionBanner(c *ui.Context) {
 	t := c.Theme()
 	ui.Row(c).Wrap().Gap(10).Padding(12).Background(t.Warning.Alpha(0.08)).Border(1, t.Warning.Alpha(0.35)).Radius(8).Children(func() {
-		ui.Text(c, "后端连接异常 · 当前内容可能不是最新").TextColor(t.Warning).Grow(1)
+		ui.Column(c).Grow(1).MinWidth(230).Gap(3).Children(func() {
+			ui.Text(c, "监控连接已中断").TextColor(t.Warning).Bold()
+			ui.Text(c, "可查看已有记录，但无法确认新活动；请勿将无新告警视作安全。").FontSize(11).TextColor(t.TextMuted)
+		})
 		if ui.Button(c, "重试连接").Tooltip("重新读取已有后端；仅初始启动失败时重新启动内置后端").Clicked() {
 			a.retryBackendConnection()
 		}
@@ -543,7 +549,7 @@ func (a *renewApp) workspaceFooter(c *ui.Context) {
 		case !a.connected:
 			statusPill(c, "后端离线", t.Danger)
 		case a.paused:
-			statusPill(c, "界面已暂停", t.Warning)
+			statusPill(c, "事件展示暂停", t.Warning)
 		case a.eventStreamConnected:
 			statusPill(c, "事件流实时", t.Success)
 		default:
