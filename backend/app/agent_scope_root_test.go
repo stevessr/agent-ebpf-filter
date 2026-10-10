@@ -59,13 +59,10 @@ func TestAgentScopeRootCacheDoesNotTrustChildAssertions(t *testing.T) {
 }
 
 func TestAgentScopeRootCacheExpiresAndBounds(t *testing.T) {
-	store := newAgentRootScopeStore()
+	now := time.Now()
+	store := newAgentRootScopeStoreWithClock(func() time.Time { return now })
 	store.Observe(&pb.Event{Pid: 100, RootAgentPid: 100, Comm: "codex"})
-	store.mu.Lock()
-	entry := store.items[100]
-	entry.Observed = time.Now().Add(-agentRootScopeTTL - time.Minute)
-	store.items[100] = entry
-	store.mu.Unlock()
+	now = now.Add(agentRootScopeTTL + time.Minute)
 	if got := store.OwnerComm(&pb.Event{Pid: 101, RootAgentPid: 100}); got != "" {
 		t.Fatalf("stale root was trusted: %q", got)
 	}
