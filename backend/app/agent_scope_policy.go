@@ -39,6 +39,10 @@ func defaultAgentScopePolicy() agentScopePolicy {
 	return agentscope.Default()
 }
 
+func agentScopePath() string {
+	return filepath.Join(platform.RuntimeSettingsDir(), agentScopeFileName)
+}
+
 func validateAgentScopeList(list agentScopeList) (agentScopeList, error) {
 	return agentscope.ValidateList(list)
 }
