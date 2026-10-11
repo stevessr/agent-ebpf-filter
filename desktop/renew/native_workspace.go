@@ -93,11 +93,27 @@ const (
 	workspaceActivityRailWidth float32 = 54
 	workspaceDetailedMinWindowWidth float32 = 1240
 	workspaceHeaderMinContentWidth float32 = 860
+	workspaceNarrowNavigationWidth float32 = 900
+	workspaceTightHeaderWidth float32 = 660
 )
 
 func workspaceResponsiveNavigationWidth(windowWidth float32, open, detailed bool) (float32, bool) {
+	// On compact laptop/tiling layouts the expanded sidebar would reduce
+	// the live event table below its usable width. Use the native rail menu
+	// instead, without changing the user's preferred sidebar state.
+	if windowWidth < workspaceNarrowNavigationWidth {
+		return 0, false
+	}
 	effectiveDetailed := detailed && windowWidth >= workspaceDetailedMinWindowWidth
 	return workspaceNavigationWidth(open, effectiveDetailed), effectiveDetailed
+}
+
+func workspaceUsesNavigationMenu(windowWidth float32) bool {
+	return windowWidth < workspaceNarrowNavigationWidth
+}
+
+func workspaceTightHeader(windowWidth, navigationWidth float32) bool {
+	return windowWidth-workspaceActivityRailWidth-navigationWidth < workspaceTightHeaderWidth
 }
 
 func workspaceCompactHeader(windowWidth, navigationWidth float32) bool {
@@ -141,7 +157,7 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 	navTarget, navDetailed := workspaceResponsiveNavigationWidth(width, a.navigationOpen, a.navigationDetailed)
 	navWidth := shell.Animate("renew-navigation", navTarget, 180*time.Millisecond)
 	shell.Children(func() {
-		a.activityRail(c)
+		a.activityRail(c, width)
 		if navWidth > 0 {
 			ui.Row(c).Width(navWidth).Shrink(0).AlignItems(ui.Stretch).Clip().Children(func() {
 				a.sidebar(c, navDetailed)
@@ -223,9 +239,35 @@ func (a *renewApp) workspacePage(c *ui.Context) {
 	}
 }
 
+// Workspace routes in the narrow-screen native menu are the same stable
+// page IDs the ordinary sidebar uses. Both include privileged settings
+// rather than silently hiding them on smaller displays.
+var workspaceNavigationMenuSections = []struct {
+	title string
+	pages []string
+}{
+	{"监控工作台", []string{"概览", "研判", "事件", "会话", "网络", "域名", "进程", "Agent 识别"}},
+	{"防护与管理", []string{"监控", "eBPF 模块", "规则", "跟踪", "路径权限"}},
+	{"工具", []string{"终端", "CCS"}},
+	{"运行诊断", []string{"系统"}},
+}
+
+func (a *renewApp) compactNavigationMenu(m *ui.Menu) {
+	for _, section := range workspaceNavigationMenuSections {
+		section := section
+		m.Submenu(section.title, func(items *ui.Menu) {
+			for _, page := range section.pages {
+				if items.Item(workspaceNavigationLabel(page, false)).Checked(a.page == page).Chosen() {
+					a.page = page
+				}
+			}
+		})
+	}
+}
+
 // Activity-bar shortcuts are a quick route into real monitoring pages.
 // The full navigation and privileged configuration gates remain unchanged.
-func (a *renewApp) activityRail(c *ui.Context) {
+func (a *renewApp) activityRail(c *ui.Context, windowWidth float32) {
 	t := c.Theme()
 	rail := ui.Column(c).Width(54).Shrink(0).Gap(8).Padding(9, 6)
 	if !c.Vibrancy() {
@@ -266,13 +308,20 @@ func (a *renewApp) activityRail(c *ui.Context) {
 			}
 		}
 		ui.Spacer(c)
-		navLabel := "≡"
-		navTip := "收起导航"
-		if !a.navigationOpen {
-			navLabel, navTip = "»", "展开导航"
-		}
-		if ui.Button(c, navLabel).Tooltip(navTip).Width(40).Clicked() {
-			a.navigationOpen = !a.navigationOpen
+		if workspaceUsesNavigationMenu(windowWidth) {
+			// A native menu is keyboard/screen-reader accessible and avoids
+			// laying a sidebar on top of full-width event tables in niri.
+			ui.Button(c, "≡").Label("打开全部页面导航").Tooltip("打开页面导航（窄窗口模式）").
+				Width(40).Menu(a.compactNavigationMenu)
+		} else {
+			navLabel := "≡"
+			navTip := "收起导航"
+			if !a.navigationOpen {
+				navLabel, navTip = "»", "展开导航"
+			}
+			if ui.Button(c, navLabel).Tooltip(navTip).Width(40).Clicked() {
+				a.navigationOpen = !a.navigationOpen
+			}
 		}
 	})
 }
