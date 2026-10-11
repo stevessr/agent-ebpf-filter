@@ -299,7 +299,7 @@ func modeLooksExecutable(mode string) bool {
 	return strings.Contains(trimmed, "7") || strings.Contains(trimmed, "5") || strings.Contains(strings.ToLower(trimmed), "x")
 }
 
-func observeForkStorm(event *pb.Event, now time.Time, threshold int) (string, bool) {
+func observeForkStorm(event *pb.Event, now time.Time, threshold int, verifiedPublicClone bool) (string, bool) {
 	if event == nil {
 		return "", false
 	}
@@ -310,7 +310,11 @@ func observeForkStorm(event *pb.Event, now time.Time, threshold int) (string, bo
 	}
 	// Emit once on threshold crossing. >= here flooded the UI with one high-risk
 	// alert for every subsequent fork in the same two-second window.
-	if count := Deps.SemanticAlertsState.IncrementForkCount(event, now); count == threshold {
+	clonePID := uint32(0)
+	if verifiedPublicClone {
+		clonePID = event.GetPid()
+	}
+	if count := Deps.SemanticAlertsState.incrementForkCountInScope(event, now, clonePID); count == threshold {
 		return platform.FirstNonEmpty(event.GetToolCallId(), event.GetAgentRunId(), event.GetComm(), event.GetPath()), true
 	}
 	return "", false
