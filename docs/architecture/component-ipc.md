@@ -116,3 +116,58 @@ This is useful when working on IPC protocol or diagnosing Linux runtime
 permissions. A successful self-test **does not mean Collector/Engine are
 running**, does not verify an active desktop's health, and does not prove that
 durable replay or kernel enforcement works.
+
+## Phase 6: separate Engine process boundary (rootless opt-in)
+
+`backend/internal/componentwire` now serializes the existing canonical protobuf
+`pb.EventEnvelope` with schema `envelope.v1`, a nonempty event ID, source
+and timestamp. Encoding and decoding reject malformed or oversized data;
+**redaction must still happen in the Collector before serialization**.
+The original event normalization, policy maps, risk feedback, HTTP APIs,
+wrapper sockets and Renew startup behavior remain unchanged.
+
+`backend/internal/componentproc` contains a Linux-only demonstration of a
+**real, supervised child process**, rather than an in-process goroutine.
+`RunEngine(ctx, absoluteExecutable, publisher)` creates a private `0700`
+temporary directory, a `0600` UDS and a 32-byte random session secret,
+starts `backend/cmd/component-engine-worker` with a minimal environment,
+and supplies the secret only through inherited **FD 3**. The socket path is
+not a secret. The Collector and Engine both verify Linux `SO_PEERCRED` and
+complete the mutual v1 HMAC handshake before accepting traffic. The
+supervisor owns shutdown, closes its sockets, joins/kills the worker on
+cancellation and removes its private directory.
+
+This **does not yet start from `app.Main()` or Renew**. A root supervisor is
+explicitly rejected rather than accidentally launching a root Engine;
+the current demonstration only supports a *same-UID non-root* supervisor and
+worker. A real privileged Collector must introduce explicitly configured
+UID/GID dropping, a separate private socket accessibility policy and a
+reviewed launcher before production opt-in. Same-UID subprocess isolation is
+a process-lifecycle boundary, **not** a hard OS security boundary.
+
+The worker currently validates and consumes normalized EventEnvelope records
+and returns cumulative ACKs only after successful decode/check/commit.
+It never issues alerts, runs AI/ML inference, mutates BPF maps or implements
+controller RPCs. Repeated or skipped sequences, malformed protobuf envelopes
+and unexpected kinds terminate the worker; there is **no automatic replay,
+deduplication across restarts, credit flow control, durable cursors or policy
+decision equivalence**. A manual publisher uses `SendEvent` to wait for an
+explicit ACK, which means the envelope was decoded/validated, not evaluated
+by any security engine.
+
+An unprivileged Linux end-to-end test compiles the child executable, launches
+it as a separate OS process, sends two canonical envelopes and checks ACKs,
+then verifies malformed protobuf causes worker failure with no ACK.
+Run locally:
+
+```sh
+cd backend
+go test -race -count=1 ./internal/componentwire ./internal/componentproc
+go vet ./internal/componentwire ./internal/componentproc
+```
+
+This is phase **6a** only. Next: explicit dedicated engine UID, safe
+supervisor integration, production-compatible event parity tests, and later
+controlled cutover of the current in-process engine behind an off-by-default
+feature flag. Do not advertise subprocess schema validation as a replacement
+for existing security decisions.

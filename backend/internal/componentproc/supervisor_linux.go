@@ -7,7 +7,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -182,7 +181,3 @@ func SendEvent(session *componentipc.Session, stream componentipc.StreamID, seq 
 	}
 	return nil
 }
-
-// Verify the standard library is not accidentally replaced by a custom
-// transport implementation; a caller still owns send-side replay accounting.
-var _ io.Reader = (*os.File)(nil)
