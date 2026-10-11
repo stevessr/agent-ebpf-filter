@@ -61,8 +61,8 @@ func TestPublicGitHubCloneRepositoryIsStrict(t *testing.T) {
 func TestPublicGitHubRepositoryRequiresAnonymousPublicMetadata(t *testing.T) {
 	for _, tc := range []struct {
 		name, response string
-		status int
-		want bool
+		status         int
+		want           bool
 	}{
 		{"public", `{"full_name":"example/project","private":false,"visibility":"public"}`, http.StatusOK, true},
 		{"private", `{"full_name":"example/project","private":true,"visibility":"private"}`, http.StatusOK, false},
@@ -90,9 +90,9 @@ func TestVerifiedPublicCloneExemptsOnlyCloneProcessLoopHeuristics(t *testing.T) 
 	const pid uint32 = 42731
 	markPublicCloneProcess(pid, "gh")
 	t.Cleanup(func() { unmarkPublicCloneProcess(pid) })
-	testCases := []struct{
+	testCases := []struct {
 		event *pb.Event
-		want bool
+		want  bool
 	}{
 		{&pb.Event{Pid: pid, Comm: "gh", Type: "clone"}, true},
 		{&pb.Event{Pid: pid + 1, Ppid: pid, Comm: "git", Type: "openat"}, true},
