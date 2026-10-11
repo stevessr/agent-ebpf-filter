@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"agent-ebpf-filter/pb"
@@ -28,10 +29,13 @@ var (
 		sync.Mutex
 		entries map[string]time.Time
 	}{entries: make(map[string]time.Time)}
+	// Process observations are read from the hot event path. Publish an
+	// immutable map snapshot on the rare registration write, not a mutex
+	// acquisition for every kernel event.
 	publicCloneProcesses = struct {
 		sync.Mutex
-		entries map[uint32]publicCloneProcess
-	}{entries: make(map[uint32]publicCloneProcess)}
+		entries atomic.Pointer[map[uint32]publicCloneProcess]
+	}{}
 )
 
 type publicCloneProcess struct {
@@ -149,41 +153,56 @@ func markPublicCloneProcess(pid uint32, comm string) {
 	publicCloneProcesses.Lock()
 	defer publicCloneProcesses.Unlock()
 	now := time.Now()
-	for existing, entry := range publicCloneProcesses.entries {
-		if now.After(entry.expires) {
-			delete(publicCloneProcesses.entries, existing)
+	next := make(map[uint32]publicCloneProcess)
+	if previous := publicCloneProcesses.entries.Load(); previous != nil {
+		for oldPID, entry := range *previous {
+			if now.Before(entry.expires) {
+				next[oldPID] = entry
+			}
 		}
 	}
-	if len(publicCloneProcesses.entries) >= publicCloneCacheLimit {
-		clear(publicCloneProcesses.entries)
+	if len(next) >= publicCloneCacheLimit {
+		clear(next)
 	}
-	publicCloneProcesses.entries[pid] = publicCloneProcess{
+	next[pid] = publicCloneProcess{
 		comm: strings.ToLower(filepath.Base(comm)), expires: now.Add(publicCloneProcessTTL),
 	}
+	publicCloneProcesses.entries.Store(&next)
 }
 
-// A verified clone exempts ONLY loop heuristics for the launching process and
+func unmarkPublicCloneProcess(pid uint32) {
+	publicCloneProcesses.Lock()
+	defer publicCloneProcesses.Unlock()
+	old := publicCloneProcesses.entries.Load()
+	if old == nil {
+		return
+	}
+	next := make(map[uint32]publicCloneProcess, len(*old))
+	for previousPID, entry := range *old {
+		if previousPID != pid {
+			next[previousPID] = entry
+		}
+	}
+	publicCloneProcesses.entries.Store(&next)
+}
+
+// A verified clone raises ONLY loop heuristics for the launching process and
 // its direct Git transport children, not secret access or other security checks.
 func isVerifiedPublicCloneProcess(event *pb.Event) bool {
 	if event == nil {
 		return false
 	}
-	comm := strings.ToLower(filepath.Base(strings.TrimSpace(event.GetComm())))
-	publicCloneProcesses.Lock()
-	defer publicCloneProcesses.Unlock()
-	now := time.Now()
-	match := func(pid uint32) (publicCloneProcess, bool) {
-		entry, ok := publicCloneProcesses.entries[pid]
-		if ok && now.After(entry.expires) {
-			delete(publicCloneProcesses.entries, pid)
-			return publicCloneProcess{}, false
-		}
-		return entry, ok
+	snapshot := publicCloneProcesses.entries.Load()
+	if snapshot == nil {
+		return false
 	}
-	if entry, ok := match(event.GetPid()); ok && entry.comm == comm {
+	comm := strings.ToLower(filepath.Base(strings.TrimSpace(event.GetComm())))
+	now := time.Now()
+	if entry, ok := (*snapshot)[event.GetPid()]; ok &&
+		now.Before(entry.expires) && entry.comm == comm {
 		return true
 	}
-	if _, ok := match(event.GetPpid()); ok {
+	if entry, ok := (*snapshot)[event.GetPpid()]; ok && now.Before(entry.expires) {
 		switch comm {
 		case "git", "git-remote-http", "git-remote-https", "git-index-pack":
 			return true
