@@ -143,6 +143,7 @@ func (a *renewApp) rulesView(c *ui.Context) {
 	t := c.Theme()
 	ui.Text(c, "Wrapper 规则").FontSize(28).Bold()
 	ui.Text(c, "为经 agent-wrapper 执行的命令设置允许、告警、阻断或重写策略；高影响动作会在列表中明确标色。").TextColor(t.TextMuted)
+	ui.Text(c, "内置默认放行：匿名验证为公开的 GitHub 仓库，使用 git clone 或 gh repo clone 时降低循环误报；用户自定义规则与其他安全检测仍然优先。").FontSize(12).TextColor(t.TextMuted)
 
 	if a.rulesErr != "" {
 		ui.Text(c, a.rulesErr).TextColor(t.TextMuted)
