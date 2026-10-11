@@ -143,6 +143,9 @@ func (n *renewTerminalNode) closeAll() {
 }
 
 func (a *renewApp) nextTerminalID() int {
+	if a.detachedParent != nil {
+		return a.detachedParent.nextTerminalID()
+	}
 	a.terminalNextID++
 	return a.terminalNextID
 }
@@ -301,6 +304,9 @@ func (a *renewApp) closeTerminalTab(index int) {
 
 func (a *renewApp) closeTerminals() {
 	a.terminalClosing.Store(true)
+	for _, child := range a.detachedTerminals {
+		child.closeTerminals()
+	}
 	for _, tab := range a.terminalTabs {
 		tab.root.closeAll()
 	}
@@ -361,6 +367,15 @@ func (a *renewApp) terminalView(c *ui.Context) {
 					a.newTerminalTab(a.terminalWorkingDir())
 				}
 				tab := a.currentTerminalTab()
+				if a.detachedParent != nil {
+					if ui.Button(c, "收回主窗口").Tooltip("保留全部 Shell 和分屏，将标签移回主工作台").Clicked() && a.win != nil {
+						a.win.Close()
+					}
+				} else if tab != nil {
+					if ui.Button(c, "分离当前标签").Tooltip("将选中终端标签移到独立原生窗口，不重启 PTY").Clicked() {
+						a.openDetachedTerminalTab()
+					}
+				}
 				if tab != nil {
 					if ui.Button(c, "左右拆分").Clicked() {
 						a.splitFocusedTerminal(false)
