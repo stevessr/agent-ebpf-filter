@@ -67,7 +67,7 @@ go vet ./internal/componentipc
 
 ## Opt-in sequenced transport metadata (phase 5 extension)
 
-This is a **library-only opt-in** wire contract and does not change existing `Session.Send`, `Session.Receive`, `udsframe` or desktop/native IPC messages. Both sides must deliberately opt into `SendSequenced` and `DecodeSequenced`; mixing a raw body with a sequenced body is invalid. It is deliberately not yet a canonical domain Event/Status protobuf schema.
+This is a **library-only opt-in** wire contract and does not change existing `Session.Send`, `Session.Receive`, `udsframe` or desktop/native IPC messages. Both sides must deliberately opt into `SendSequenced` and the strict `ReceiveRecordCopy` decoder (or explicitly pair `ReceiveCopy` with `DecodeRecord`); mixing a raw body with a sequenced body is invalid. The strict receiver closes the session on an invalid schema, malformed ACK, or raw heartbeat; it never guesses how to resynchronize. It is deliberately not yet a canonical domain Event/Status protobuf schema.
 
 After the outer `udsframe` 4-byte big-endian length and one-byte message kind, an event, alert or status body is:
 
