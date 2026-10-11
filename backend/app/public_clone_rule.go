@@ -290,8 +290,10 @@ func unmarkPublicCloneProcess(pid uint32) {
 	publicCloneProcesses.entries.Store(&next)
 }
 
-// A verified clone raises ONLY loop heuristics for the launching process and
-// its direct Git transport children, not secret access or other security checks.
+// A verified clone raises ONLY loop heuristics, not secret access or other
+// security checks. Trust follows observed Git transport process starts for
+// multi-level gh -> git -> git-remote-https ancestry. Arbitrary children, such
+// as shells and network utilities, never inherit the exemption.
 func isVerifiedPublicCloneProcess(event *pb.Event) bool {
 	if event == nil {
 		return false
@@ -304,17 +306,29 @@ func isVerifiedPublicCloneProcess(event *pb.Event) bool {
 	now := time.Now()
 	if entry, ok := (*snapshot)[event.GetPid()]; ok &&
 		now.Before(entry.expires) && entry.comm == comm {
-		// Remove process trust as soon as the monitored PID exits to
-		// avoid inheriting an exemption if Linux reuses the PID.
+		// Remove process trust as soon as the observed PID exits.
 		if event.GetType() == "process_exit" || event.GetType() == "exit" {
 			unmarkPublicCloneProcess(event.GetPid())
 			return false
 		}
 		return true
 	}
+	if event.GetType() == "process_exit" || event.GetType() == "exit" {
+		return false
+	}
+	if event.GetPid() == 0 || event.GetPpid() == 0 || event.GetPid() == event.GetPpid() {
+		return false
+	}
 	if entry, ok := (*snapshot)[event.GetPpid()]; ok && now.Before(entry.expires) {
 		switch comm {
 		case "git", "git-remote-http", "git-remote-https", "git-index-pack":
+			// Parent PID plus recognized child name is sufficient only for
+			// this event. Promote ancestry solely at an observed process
+			// creation/exec boundary, not on arbitrary user-supplied I/O.
+			switch event.GetType() {
+			case "execve", "process_exec", "process_fork", "clone":
+				markPublicCloneProcess(event.GetPid(), comm)
+			}
 			return true
 		}
 	}
