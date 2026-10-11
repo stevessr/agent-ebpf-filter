@@ -148,9 +148,10 @@ func runWorker(ctx context.Context, socketPath string, shared bool, supervisorUI
 	}
 }
 
-// consumeShared is a read-only Engine observer. The shared tail advances
-// after the slot has been copied; UDS ACKs are emitted only after all payloads
-// in the current batch pass the versioned schema check.
+// consumeShared is a read-only Engine observer. Its read cursor is private
+// to the Engine and never mutates the sealed shared data mapping. UDS ACKs
+// are emitted only after all payloads in the current batch pass validation;
+// only the authenticated Collector may recycle those confirmed slots.
 func consumeShared(ctx context.Context, session *componentipc.Session, ring *componentshm.Ring) error {
 	stream := componentipc.StreamID(ring.Stream())
 	if stream == (componentipc.StreamID{}) {
