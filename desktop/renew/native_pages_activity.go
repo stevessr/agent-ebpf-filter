@@ -212,7 +212,7 @@ func (a *renewApp) eventsView(c *ui.Context) {
 	})
 	// View-only filtering: the slider never changes backend capture or enforcement.
 	ui.Row(c).Gap(10).Wrap().AlignItems(ui.Center).Children(func() {
-		ui.Textf(c, "最低风险分 %.0f（0 = 全部）", a.eventMinRiskScore).FontSize(11).TextColor(t.TextMuted)
+		ui.Textf(c, "最低风险分 %.1f（0 = 全部）", a.eventMinRiskScore).FontSize(11).TextColor(t.TextMuted)
 		if ui.Slider(c.Key("minimum-risk-score"), &a.eventMinRiskScore, 0, 100).
 			Label("最低风险分").Width(220).Changed() {
 			// Filtering changes row indices; never leave a stale selection.
@@ -269,9 +269,9 @@ func (a *renewApp) eventsView(c *ui.Context) {
 	// Keep the existing +50 pagination for deep inspection; this native
 	// stepped slider offers a quick, bounded adjustment for daily monitoring.
 	ui.Row(c).Gap(10).Wrap().AlignItems(ui.Center).Children(func() {
-		displayCount := float64(min(max(a.eventVisibleLimit, 50), 500))
+		displayCount := float64(max(a.eventVisibleLimit, 50))
 		ui.Textf(c, "列表展示上限 %d 条", a.eventVisibleLimit).FontSize(11).TextColor(t.TextMuted)
-		if ui.StepSlider(c.Key("event-display-limit"), &displayCount, 50, 500, 50).
+		if ui.StepSlider(c.Key("event-display-limit"), &displayCount, 50, eventDisplaySliderMax(a.eventVisibleLimit), 50).
 			Label("事件展示条数").Width(220).Changed() {
 			a.eventVisibleLimit = int(displayCount)
 			if a.eventSelected >= a.eventVisibleLimit {
