@@ -546,7 +546,15 @@ func (s *SemanticAlertState) noteTruncationsLocked(values ...bool) {
 	}
 }
 
+// BuildSemanticAlerts retains the standard strict thresholds for unverified activity.
 func BuildSemanticAlerts(event *pb.Event) []*pb.Event {
+	return BuildSemanticAlertsWithCloneContext(event, false)
+}
+
+// BuildSemanticAlertsWithCloneContext keeps all independent security checks
+// active while allowing a higher (not disabled) fork-storm threshold for an
+// anonymously verified public clone associated with this exact process.
+func BuildSemanticAlertsWithCloneContext(event *pb.Event, verifiedPublicClone bool) []*pb.Event {
 	if event == nil || event.GetType() == "semantic_alert" {
 		return nil
 	}
@@ -616,7 +624,11 @@ func BuildSemanticAlerts(event *pb.Event) []*pb.Event {
 		}
 	}
 
-	if target, ok := observeForkStorm(event, now); ok {
+	forkThreshold := SemanticForkStormThreshold
+	if verifiedPublicClone {
+		forkThreshold *= 8
+	}
+	if target, ok := observeForkStorm(event, now, forkThreshold); ok {
 		addAlert("RESOURCE_WASTING_LOOP", target, "observed repeated fork/clone activity suggesting a lightweight fork storm or runaway loop", 0.94)
 	}
 
