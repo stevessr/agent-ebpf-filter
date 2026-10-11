@@ -38,6 +38,8 @@ type renewApp struct {
 	// Floating windows share this process and never start another collector.
 	detachedParent *renewApp
 	detachedTerminals map[int]*renewApp
+	detachedPages map[string]*renewApp
+	detachedPageID string
 	navigationOpen bool
 	navigationDetailed bool
 	inspectorOpen bool
