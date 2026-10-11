@@ -32,6 +32,20 @@ It is responsible for:
 - `ebpf/lsm_enforcer.c` — BPF LSM `bprm_check_security`, `file_open`, `file_permission`, `mmap_file`, `file_mprotect`, `inode_setattr`, `inode_create`, `inode_link`, `inode_symlink`, `inode_unlink`, `inode_mkdir`, `inode_rmdir`, `inode_mknod`, and `inode_rename` blocking source
 - `ebpf/gen.go` — `bpf2go` generation entrypoint
 
+## Rootless IPC self-test (developer/operator)
+
+The optional, library-only inter-component IPC can be smoke-tested without
+starting the privileged backend:
+
+```sh
+make ipc-doctor
+make ipc-doctor IPC_DOCTOR_ARGS="--json"
+```
+
+The doctor creates and removes its own private socket; it does not inspect a
+production service. See [component IPC design](../docs/architecture/component-ipc.md)
+for the security boundary and what the self-test does not verify.
+
 ## Privilege model
 
 The backend needs elevated privileges to create and attach eBPF programs.

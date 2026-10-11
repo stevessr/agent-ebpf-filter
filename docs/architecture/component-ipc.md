@@ -85,3 +85,34 @@ An ACK uses the same 26-byte metadata header **without any payload**. `EncodeAck
 On reconnection, callers must create a fresh stream ID and explicitly establish a new baseline. Never reset an existing ID to sequence 1 or claim old unacknowledged records have been delivered. Events with security significance must not be discarded or considered enforced solely because this opt-in transport produced an ACK.
 
 Validation adds codec bounds/version/role tests, gap/duplicate/foreign-stream handling and an authenticated `net.Pipe` event-to-ACK round trip. Kernel privilege, persistent replay and production process supervision remain outside this phase.
+
+
+// Operator convenience: one-command rootless IPC doctor
+
+The optional `component-ipc-doctor` command is an **isolated self-test**, not a
+live production backend status probe. It creates a private temporary `0700`
+directory and an owner-only `0600` Unix socket, generates a fresh 32-byte
+in-memory secret, performs a bidirectionally UID-verified HMAC handshake,
+sends one versioned event, checks its sequence, and receives an explicit ACK.
+The socket and directory are removed when the process exits. No eBPF hooks,
+policy maps, existing Renew sockets, or privileged commands are touched.
+
+From the repository root, on Linux:
+
+```sh
+make ipc-doctor
+make ipc-doctor IPC_DOCTOR_ARGS="--json"
+# Or without Make: cd backend && go run ./cmd/component-ipc-doctor --json
+```
+
+Outputs include per-stage **pass/fail**, a bounded execution time, and
+machine-readable `status`, `scope: isolated_local_self_test`,
+`checks`, and `duration_ms`. Exit code 0 means the isolated test passed;
+1 indicates a failed check, and 2 means invalid CLI arguments. The `--timeout`
+flag overrides the 8-second default. Failure checks are reported to the
+terminal or JSON output without exposing the secret or raw event body.
+
+This is useful when working on IPC protocol or diagnosing Linux runtime
+permissions. A successful self-test **does not mean Collector/Engine are
+running**, does not verify an active desktop's health, and does not prove that
+durable replay or kernel enforcement works.

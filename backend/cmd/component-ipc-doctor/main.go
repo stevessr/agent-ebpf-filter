@@ -50,64 +50,78 @@ func runDoctor(ctx context.Context) (report doctorReport, err error) {
 	report = doctorReport{Status: "fail", Scope: "isolated_local_self_test", Checks: []checkResult{}}
 	defer func() { report.DurationMS = time.Since(start).Milliseconds() }()
 	if ctx == nil {
-		return report, report.fail("context", componentipc.ErrInvalidConfig)
+		err = report.fail("context", componentipc.ErrInvalidConfig)
+		return report, err
 	}
 	if err := ctx.Err(); err != nil {
-		return report, report.fail("context", err)
+		err = report.fail("context", err)
+		return report, err
 	}
 	if runtime.GOOS != "linux" {
-		return report, report.fail("platform", errors.New("SO_PEERCRED component IPC requires Linux"))
+		err = report.fail("platform", errors.New("SO_PEERCRED component IPC requires Linux"))
+		return report, err
 	}
 	report.pass("platform", "Linux SO_PEERCRED available")
+	workCtx, cancelWork := context.WithCancel(ctx)
+	defer cancelWork()
 
 	directory, err := os.MkdirTemp("", "agent-ebpf-ipc-doctor-")
 	if err != nil {
-		return report, report.fail("private_directory", err)
+		err = report.fail("private_directory", err)
+		return report, err
 	}
 	defer os.RemoveAll(directory)
 	directoryInfo, err := os.Stat(directory)
 	if err != nil {
-		return report, report.fail("private_directory", err)
+		err = report.fail("private_directory", err)
+		return report, err
 	}
 	if directoryInfo.Mode().Perm() != 0700 {
-		return report, report.fail("private_directory", fmt.Errorf("directory permissions %04o, expected 0700", directoryInfo.Mode().Perm()))
+		err = report.fail("private_directory", fmt.Errorf("directory permissions %04o, expected 0700", directoryInfo.Mode().Perm()))
+		return report, err
 	}
 	report.pass("private_directory", "temporary 0700 directory")
 
 	socketPath := filepath.Join(directory, "component.sock")
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
-		return report, report.fail("private_socket", err)
+		err = report.fail("private_socket", err)
+		return report, err
 	}
 	defer listener.Close()
 	if err := os.Chmod(socketPath, 0600); err != nil {
-		return report, report.fail("private_socket", err)
+		err = report.fail("private_socket", err)
+		return report, err
 	}
 	socketInfo, err := os.Stat(socketPath)
 	if err != nil {
-		return report, report.fail("private_socket", err)
+		err = report.fail("private_socket", err)
+		return report, err
 	}
-	if !socketInfo.Mode().IsRegular() && socketInfo.Mode()&os.ModeSocket == 0 {
-		return report, report.fail("private_socket", errors.New("listener did not create a Unix socket"))
+	if socketInfo.Mode()&os.ModeSocket == 0 {
+		err = report.fail("private_socket", errors.New("listener did not create a Unix socket"))
+		return report, err
 	}
 	if socketInfo.Mode().Perm() != 0600 {
-		return report, report.fail("private_socket", fmt.Errorf("socket permissions %04o, expected 0600", socketInfo.Mode().Perm()))
+		err = report.fail("private_socket", fmt.Errorf("socket permissions %04o, expected 0600", socketInfo.Mode().Perm()))
+		return report, err
 	}
 	report.pass("private_socket", "owner-only 0600 Unix socket")
 
 	// The secret never appears in args, logs, files or an environment variable.
 	var secret [32]byte
 	if _, err := rand.Read(secret[:]); err != nil {
-		return report, report.fail("credentials", err)
+		err = report.fail("credentials", err)
+		return report, err
 	}
-	defer func() { clear(secret[:]) }()
 	stream, err := componentipc.NewStreamID()
 	if err != nil {
-		return report, report.fail("credentials", err)
+		err = report.fail("credentials", err)
+		return report, err
 	}
 	uid := uint32(os.Getuid())
 	serverDone := make(chan error, 1)
-	stopListener := context.AfterFunc(ctx, func() { _ = listener.Close() })
+	stopListener := context.AfterFunc(workCtx, func() { _ = listener.Close() })
 	defer stopListener()
 
 	go func() {
@@ -117,7 +131,7 @@ func runDoctor(ctx context.Context) (report doctorReport, err error) {
 			return
 		}
 		defer raw.Close()
-		stopConn := context.AfterFunc(ctx, func() { _ = raw.Close() })
+		stopConn := context.AfterFunc(workCtx, func() { _ = raw.Close() })
 		defer stopConn()
 		server, handshakeErr := componentipc.HandshakeServer(raw, componentipc.ServerConfig{
 			Secret: secret[:], Role: componentipc.RoleEngine,
@@ -157,12 +171,13 @@ func runDoctor(ctx context.Context) (report doctorReport, err error) {
 	}()
 
 	dialer := net.Dialer{}
-	rawClient, err := dialer.DialContext(ctx, "unix", socketPath)
+	rawClient, err := dialer.DialContext(workCtx, "unix", socketPath)
 	if err != nil {
-		return report, report.fail("peer_auth", err)
+		err = report.fail("peer_auth", err)
+		return report, err
 	}
 	defer rawClient.Close()
-	stopClient := context.AfterFunc(ctx, func() { _ = rawClient.Close() })
+	stopClient := context.AfterFunc(workCtx, func() { _ = rawClient.Close() })
 	defer stopClient()
 	client, err := componentipc.HandshakeClient(rawClient, componentipc.ClientConfig{
 		Secret: secret[:], Role: componentipc.RoleCollector,
@@ -170,43 +185,53 @@ func runDoctor(ctx context.Context) (report doctorReport, err error) {
 		VerifyPeer: componentipc.VerifyUnixPeerUIDs(uid),
 	})
 	if err != nil {
-		return report, report.fail("peer_auth", err)
+		err = report.fail("peer_auth", err)
+		return report, err
 	}
 	defer client.Close()
 	report.pass("peer_auth", "bidirectional UID verification and HMAC challenge")
 
 	tracker, err := componentipc.NewAckTracker(stream)
 	if err != nil {
-		return report, report.fail("sequence_ack", err)
+		err = report.fail("sequence_ack", err)
+		return report, err
 	}
 	if err := client.SendSequenced(componentipc.KindEvent, componentipc.Sequenced{
 		Stream: stream, Sequence: 1, Payload: []byte("doctor-event"),
 	}); err != nil {
-		return report, report.fail("sequence_ack", err)
+		err = report.fail("sequence_ack", err)
+		return report, err
 	}
 	if err := tracker.MarkSent(1); err != nil {
-		return report, report.fail("sequence_ack", err)
+		err = report.fail("sequence_ack", err)
+		return report, err
 	}
 	record, err := client.ReceiveRecordCopy()
 	if err != nil {
-		return report, report.fail("sequence_ack", err)
+		err = report.fail("sequence_ack", err)
+		return report, err
 	}
 	if record.Kind != componentipc.KindAck {
-		return report, report.fail("sequence_ack", errors.New("server did not return an ACK"))
+		err = report.fail("sequence_ack", errors.New("server did not return an ACK"))
+		return report, err
 	}
 	if err := tracker.ApplyAck(record.Receipt); err != nil {
-		return report, report.fail("sequence_ack", err)
+		err = report.fail("sequence_ack", err)
+		return report, err
 	}
 	if tracker.LastAcked() != 1 {
-		return report, report.fail("sequence_ack", errors.New("ACK did not confirm sequence 1"))
+		err = report.fail("sequence_ack", errors.New("ACK did not confirm sequence 1"))
+		return report, err
 	}
 	select {
 	case err := <-serverDone:
 		if err != nil {
-			return report, report.fail("sequence_ack", err)
+			err = report.fail("sequence_ack", err)
+		return report, err
 		}
-	case <-ctx.Done():
-		return report, report.fail("sequence_ack", ctx.Err())
+	case <-workCtx.Done():
+		err = report.fail("sequence_ack", workCtx.Err())
+		return report, err
 	}
 	report.pass("sequence_ack", "versioned event and application ACK, sequence 1")
 	report.Status = "pass"

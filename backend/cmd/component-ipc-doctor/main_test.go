@@ -5,11 +5,15 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"runtime"
 	"testing"
 	"time"
 )
 
 func TestDoctorRootlessIsolatedSelfTest(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("SO_PEERCRED is Linux-only")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	result, err := runDoctor(ctx)
@@ -40,6 +44,9 @@ func TestDoctorReportsCancelledContext(t *testing.T) {
 }
 
 func TestDoctorJSONOutputAndOptions(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("SO_PEERCRED is Linux-only")
+	}
 	var out bytes.Buffer
 	var errorsOut bytes.Buffer
 	if code := runCLI([]string{"--json", "--timeout=5s"}, &out, &errorsOut); code != 0 {
@@ -65,5 +72,15 @@ func TestDoctorJSONOutputAndOptions(t *testing.T) {
 		if code := runCLI(args, &out, &errorsOut); code != 2 {
 			t.Fatalf("invalid args %q returned %d", args, code)
 		}
+	}
+}
+
+func TestDoctorJSONFailureHasVisibleCheck(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	result, err := runDoctor(ctx)
+	if err == nil || result.Error == "" || len(result.Checks) != 1 ||
+		result.Checks[0].Status != "fail" {
+		t.Fatalf("failure was not preserved in JSON report: %+v %v", result, err)
 	}
 }
