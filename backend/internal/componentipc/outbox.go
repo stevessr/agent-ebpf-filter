@@ -36,16 +36,19 @@ type Outbox struct {
 	accepting bool
 	ran       bool
 	accepted  atomic.Uint64
-	dropped   atomic.Uint64
+	rejected  atomic.Uint64
+	abandoned atomic.Uint64
 	sent      atomic.Uint64
 	failed    atomic.Uint64
 }
 
 type OutboxStats struct {
-	Accepted  uint64
-	Dropped   uint64
-	Sent      uint64
-	Failed    uint64
+	Accepted  uint64 // Successfully admitted to queue.
+	Dropped   uint64 // Rejected offers + abandoned admitted frames.
+	Rejected  uint64 // Refused before admission.
+	Abandoned uint64 // Admitted but never passed to Send.
+	Sent      uint64 // Completed writes, not acknowledged processing.
+	Failed    uint64 // Attempted writes returned an error.
 	Queued    int
 	Capacity  int
 	Accepting bool
@@ -66,16 +69,16 @@ func (o *Outbox) TryEnqueue(kind Kind, payload []byte) EnqueueResult {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if !o.accepting {
-		o.dropped.Add(1)
+		o.rejected.Add(1)
 		return QueueClosed
 	}
 	if !CanSend(o.session.local, kind) || len(payload) == 0 || len(payload) > MaxMessageBytes {
-		o.dropped.Add(1)
+		o.rejected.Add(1)
 		return InvalidMessage
 	}
 	// Avoid the payload copy when an already full queue will reject the item.
 	if len(o.queue) == cap(o.queue) {
-		o.dropped.Add(1)
+		o.rejected.Add(1)
 		return QueueSaturated
 	}
 	frame := queuedFrame{kind: kind, payload: append([]byte(nil), payload...)}
@@ -84,7 +87,7 @@ func (o *Outbox) TryEnqueue(kind Kind, payload []byte) EnqueueResult {
 		o.accepted.Add(1)
 		return Enqueued
 	default:
-		o.dropped.Add(1)
+		o.rejected.Add(1)
 		return QueueSaturated
 	}
 }
@@ -95,9 +98,13 @@ func (o *Outbox) Stats() OutboxStats {
 	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	rejected := o.rejected.Load()
+	abandoned := o.abandoned.Load()
 	return OutboxStats{
 		Accepted:  o.accepted.Load(),
-		Dropped:   o.dropped.Load(),
+		Dropped:   rejected + abandoned,
+		Rejected:  rejected,
+		Abandoned: abandoned,
 		Sent:      o.sent.Load(),
 		Failed:    o.failed.Load(),
 		Queued:    len(o.queue),
@@ -107,7 +114,7 @@ func (o *Outbox) Stats() OutboxStats {
 }
 
 // Run is a one-shot synchronous drain. Cancellation halts admission; queued
-// items are not silently assumed delivered. In-flight writes have a timeout.
+// items are accounted as abandoned, not delivered. In-flight writes have a timeout.
 func (o *Outbox) Run(ctx context.Context) error {
 	if o == nil || ctx == nil {
 		return ErrInvalidConfig
@@ -138,10 +145,13 @@ func (o *Outbox) Run(ctx context.Context) error {
 			return nil
 		case item := <-o.queue:
 			if err := ctx.Err(); err != nil {
+				// Stop cannot drain a frame already taken by Run.
+				o.abandoned.Add(1)
 				return err
 			}
 			select {
 			case <-o.stopCh:
+				o.abandoned.Add(1)
 				return nil
 			default:
 			}
@@ -157,6 +167,7 @@ func (o *Outbox) Run(ctx context.Context) error {
 // Stop prevents new admissions, wakes an idle Run worker and accounts for
 // queued-but-undelivered frames as drops. The data channel stays open for
 // concurrent producers. An in-flight Send finishes or fails by its deadline.
+// Dropped includes both rejected offers and accepted-but-abandoned frames.
 func (o *Outbox) Stop() {
 	if o == nil {
 		return
@@ -170,7 +181,7 @@ func (o *Outbox) Stop() {
 	for {
 		select {
 		case <-o.queue:
-			o.dropped.Add(1)
+			o.abandoned.Add(1)
 		default:
 			return
 		}

@@ -38,7 +38,7 @@ Each post-handshake message uses existing `udsframe` length prefix + type byte +
 
 ## Queue and backpressure
 
-`componentipc.Outbox` is a one-shot single-sender worker, with nonblocking `TryEnqueue`, a hard limit of 64 pending messages, maximum 1 MiB/message, a 1-second bounded write, and accepted/dropped/sent/failed counters. Accepted payloads are **copied** so the producer can reuse its buffer. On saturation, callers receive `QueueSaturated`; drops must be surfaced in collector health and cannot be interpreted as successful delivery. Cancellation stops accepting and counts undelivered queued frames as drops; an explicit `Stop` additionally wakes an idle `Run(context.Background())` worker and returns normally. Concurrent stop is idempotent and never closes the producer queue. In-flight writes remain subject to their one-second deadline, and neither accepted nor in-flight records are guaranteed to have reached the receiver.
+`componentipc.Outbox` is a one-shot single-sender worker, with nonblocking `TryEnqueue`, a hard limit of 64 pending messages (plus at most one in-flight frame), maximum 1 MiB/message, a 1-second bounded write, and accepted/dropped/sent/failed counters. `Rejected` tracks offers refused before admission; `Abandoned` counts admitted frames never passed to Send, including dequeue/shutdown races. `Dropped = Rejected + Abandoned`. Attempted writes that fail count as `Failed`, not `Abandoned`. Accepted payloads are **copied** so the producer can reuse its buffer. On saturation, callers receive `QueueSaturated`; drops must be surfaced in collector health and cannot be interpreted as successful delivery. Cancellation stops accepting and counts undelivered queued frames as drops; an explicit `Stop` additionally wakes an idle `Run(context.Background())` worker and returns normally. Concurrent stop is idempotent and never closes the producer queue. In-flight writes remain subject to their one-second deadline, and neither accepted nor in-flight records are guaranteed to have reached the receiver.
 
 `KindAck` is reserved for explicit sequencing/credits but **credit-based flow control and replay/recovery are not yet implemented**. Before process separation, implement receive acknowledgments, sequence IDs, reset/resume handling, priority for DENY/ALERT and persisted drop reasons. Until then, treat this transport as best-effort telemetry only; no enforcement action may depend on event delivery succeeding.
 
@@ -48,7 +48,7 @@ Rootless Linux tests include:
 - mutual handshake over a real Unix socket with SO_PEERCRED, rejection of wrong UID and non-UDS connections;
 - wrong key, role, version, and missing verifier rejection;
 - role-based frame validation and size limits;
-- copied payload ownership and bounded nonblocking queue under cancellation;
+- copied payload ownership, rejected/abandoned/failed write accounting, and bounded nonblocking queue under cancellation;
 - `go test -race`, `go vet` and `gofmt` in CI.
 
 ```sh
