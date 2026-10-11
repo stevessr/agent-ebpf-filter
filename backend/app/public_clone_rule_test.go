@@ -72,11 +72,7 @@ func TestPublicGitHubRepositoryRequiresAnonymousPublicMetadata(t *testing.T) {
 func TestVerifiedPublicCloneExemptsOnlyCloneProcessLoopHeuristics(t *testing.T) {
 	const pid uint32 = 42731
 	markPublicCloneProcess(pid, "gh")
-	t.Cleanup(func() {
-		publicCloneProcesses.Lock()
-		delete(publicCloneProcesses.entries, pid)
-		publicCloneProcesses.Unlock()
-	})
+	t.Cleanup(func() { unmarkPublicCloneProcess(pid) })
 	testCases := []struct{
 		event *pb.Event
 		want bool
