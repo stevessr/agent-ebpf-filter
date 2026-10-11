@@ -309,11 +309,7 @@ func TestVerifiedPublicCloneRetainsForkStormAndSecretDetection(t *testing.T) {
 	resetSemanticAlertState()
 	const pid uint32 = 49825
 	markPublicCloneProcess(pid, "gh")
-	t.Cleanup(func() {
-		publicCloneProcesses.Lock()
-		delete(publicCloneProcesses.entries, pid)
-		publicCloneProcesses.Unlock()
-	})
+	t.Cleanup(func() { unmarkPublicCloneProcess(pid) })
 
 	// A normal clone can fork more than the generic threshold (8) quickly,
 	// but an extreme fork storm (8 * 8) must still be reported exactly once.
