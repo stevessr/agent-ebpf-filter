@@ -88,7 +88,7 @@ func runDesktop() {
 		// Keep the collector/UI owner alive while tabs are floating. The final
 		// floating window redocks to this (possibly hidden) main window.
 		window.OnClose(func(e *mygo.CloseEvent) {
-			if len(app.detachedTerminals) > 0 {
+			if len(app.detachedTerminals) > 0 || len(app.detachedPages) > 0 {
 				e.PreventDefault()
 				window.Hide()
 			}
