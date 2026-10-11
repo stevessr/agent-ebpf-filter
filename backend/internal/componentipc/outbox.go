@@ -1,0 +1,189 @@
+package componentipc
+
+import (
+	"context"
+	"sync"
+	"sync/atomic"
+)
+
+// MaxPendingMessages is a hard upper bound on buffered frames per connection.
+// Combined with MaxMessageBytes, it bounds a malicious producer's memory use.
+const MaxPendingMessages = 64
+
+type EnqueueResult byte
+
+const (
+	Enqueued EnqueueResult = iota
+	QueueClosed
+	QueueSaturated
+	InvalidMessage
+)
+
+type queuedFrame struct {
+	kind    Kind
+	payload []byte
+}
+
+// Outbox implements a non-blocking, bounded ingress for one authenticated
+// session. Accepted payloads are copied so callers may immediately reuse their
+// backing buffers. Run owns the only sending worker, and never retries errors
+// indefinitely. Outbox never creates additional privileged services.
+type Outbox struct {
+	session   *Session
+	queue     chan queuedFrame
+	stopCh    chan struct{}
+	mu        sync.Mutex
+	accepting bool
+	ran       bool
+	accepted  atomic.Uint64
+	rejected  atomic.Uint64
+	abandoned atomic.Uint64
+	sent      atomic.Uint64
+	failed    atomic.Uint64
+}
+
+type OutboxStats struct {
+	Accepted  uint64 // Successfully admitted to queue.
+	Dropped   uint64 // Rejected offers + abandoned admitted frames.
+	Rejected  uint64 // Refused before admission.
+	Abandoned uint64 // Admitted but never passed to Send.
+	Sent      uint64 // Completed writes, not acknowledged processing.
+	Failed    uint64 // Attempted writes returned an error.
+	Queued    int
+	Capacity  int
+	Accepting bool
+}
+
+// NewOutbox never creates a buffer above the protocol maximum.
+func NewOutbox(session *Session, capacity int) (*Outbox, error) {
+	if session == nil || session.conn == nil || capacity <= 0 || capacity > MaxPendingMessages {
+		return nil, ErrInvalidConfig
+	}
+	return &Outbox{session: session, queue: make(chan queuedFrame, capacity), stopCh: make(chan struct{}), accepting: true}, nil
+}
+
+func (o *Outbox) TryEnqueue(kind Kind, payload []byte) EnqueueResult {
+	if o == nil {
+		return QueueClosed
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if !o.accepting {
+		o.rejected.Add(1)
+		return QueueClosed
+	}
+	if !CanSend(o.session.local, kind) || len(payload) == 0 || len(payload) > MaxMessageBytes {
+		o.rejected.Add(1)
+		return InvalidMessage
+	}
+	// Avoid the payload copy when an already full queue will reject the item.
+	if len(o.queue) == cap(o.queue) {
+		o.rejected.Add(1)
+		return QueueSaturated
+	}
+	frame := queuedFrame{kind: kind, payload: append([]byte(nil), payload...)}
+	select {
+	case o.queue <- frame:
+		o.accepted.Add(1)
+		return Enqueued
+	default:
+		o.rejected.Add(1)
+		return QueueSaturated
+	}
+}
+
+func (o *Outbox) Stats() OutboxStats {
+	if o == nil {
+		return OutboxStats{}
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	rejected := o.rejected.Load()
+	abandoned := o.abandoned.Load()
+	return OutboxStats{
+		Accepted:  o.accepted.Load(),
+		Dropped:   rejected + abandoned,
+		Rejected:  rejected,
+		Abandoned: abandoned,
+		Sent:      o.sent.Load(),
+		Failed:    o.failed.Load(),
+		Queued:    len(o.queue),
+		Capacity:  cap(o.queue),
+		Accepting: o.accepting,
+	}
+}
+
+// Run is a one-shot synchronous drain. Cancellation halts admission; queued
+// items are accounted as abandoned, not delivered. In-flight writes have a timeout.
+func (o *Outbox) Run(ctx context.Context) error {
+	if o == nil || ctx == nil {
+		return ErrInvalidConfig
+	}
+	o.mu.Lock()
+	if o.ran {
+		o.mu.Unlock()
+		return ErrInvalidConfig
+	}
+	o.ran = true
+	o.mu.Unlock()
+	defer o.Stop()
+	for {
+		// Prefer cancellation or explicit Stop over a queued frame when
+		// shutdown races with the worker's select.
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		select {
+		case <-o.stopCh:
+			return nil
+		default:
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-o.stopCh:
+			return nil
+		case item := <-o.queue:
+			if err := ctx.Err(); err != nil {
+				// Stop cannot drain a frame already taken by Run.
+				o.abandoned.Add(1)
+				return err
+			}
+			select {
+			case <-o.stopCh:
+				o.abandoned.Add(1)
+				return nil
+			default:
+			}
+			if err := o.session.Send(item.kind, item.payload); err != nil {
+				o.failed.Add(1)
+				return err
+			}
+			o.sent.Add(1)
+		}
+	}
+}
+
+// Stop prevents new admissions, wakes an idle Run worker and accounts for
+// queued-but-undelivered frames as drops. The data channel stays open for
+// concurrent producers. An in-flight Send finishes or fails by its deadline.
+// Dropped includes both rejected offers and accepted-but-abandoned frames.
+func (o *Outbox) Stop() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.accepting {
+		o.accepting = false
+		close(o.stopCh)
+	}
+	for {
+		select {
+		case <-o.queue:
+			o.abandoned.Add(1)
+		default:
+			return
+		}
+	}
+}

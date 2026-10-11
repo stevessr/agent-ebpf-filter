@@ -13,6 +13,7 @@ The main Go `app` package previously combined configuration/HTTP orchestration w
 | `backend/internal/collectorcodec` | Go standard library | Typed, size-checked and alignment-aware fixed-layout BPF sample decoder, including copy fallback | Load BPF maps, retain borrowed buffer, apply risk policy |
 | `backend/internal/taskgroup` | Go standard library | Context-bounded join of supervised runtime tasks without spawning waiter goroutines | Own shutdown signals, cancel tasks without caller direction, launch detached long-lived workers |
 | `backend/internal/collectorstream` | `cilium/ebpf/ringbuf`, stdlib | Reusable sample loop and cancellation-triggered reader close | Attach BPF, modify policy maps, interpret protobuf, access user settings |
+| `backend/internal/componentipc` | Standard library, existing `udsframe`, Linux peer-credential API | Versioned authenticated component-to-component frames, role admission, bounded outbox | Replace desktop/wrapper IPC, load BPF, mutate policy, open listeners automatically |
 | `backend/internal/eventqueue` | Go standard library | Generic non-blocking handoff and labeled drop reasons | Own channel lifecycle, redact events, issue alert decisions, record metrics |
 | `backend/internal/agentidentity` | Go standard library | Bounded observed-root cache, run identity verification, TTL and conservative PID reuse handling | Guess an Agent owner from process name; trust child-declared roots; consume protobuf or change execution permissions |
 | `backend/app` | App, protobuf, internal components | Adapt protobuf to pure policy input; own runtime locking, API routes and runtime path selection; adapt verified root ancestry | Re-implement the same pure rules in multiple handlers |
@@ -110,3 +111,9 @@ go test ./app -run 'TestEnqueueBroadcastEvent|TestKernelEventReader|TestDecodeBP
 ```
 
 Kernel BPF attachment, generated-object ABI, kernel risk policy, Windows/Linux frontends and Renew single-process startup stay untouched. This is still library-level separation; standalone component processes need a separately designed authenticated versioned IPC protocol.
+
+## Phase 5: opt-in component IPC contract
+
+An independently testable, authenticated **v1** component IPC protocol is available in `internal/componentipc` for future Collector, Engine, Controller and Gateway processes. It requires explicit Linux Unix peer UID verification on both ends and mutually proved HMAC possession of a session secret. Role-scoped typed frames are capped at 1 MiB, and a bounded 64-item producer outbox supports non-blocking admission with dropped/sent counters. This package currently makes **no** production connection and creates **no** socket; Renew and the embedded backend still use the existing private session transport.
+
+Security model, roles, wire layout and staged rollout: [Component IPC design](component-ipc.md).
