@@ -218,7 +218,7 @@ func TestOutboxCancelDuringWriteDistinguishesFailedAndAbandoned(t *testing.T) {
 	go func() { done <- box.Run(ctx) }()
 	select {
 	case <-wrapped.started:
-	case <-time.After(2*time.Second):
+	case <-time.After(2 * time.Second):
 		t.Fatal("writer never began")
 	}
 	// Without a receiving peer one write times out; the second queued
@@ -229,7 +229,7 @@ func TestOutboxCancelDuringWriteDistinguishesFailedAndAbandoned(t *testing.T) {
 		if err == nil {
 			t.Fatal("blocked write unexpectedly succeeded")
 		}
-	case <-time.After(3*time.Second):
+	case <-time.After(3 * time.Second):
 		t.Fatal("write did not respect timeout")
 	}
 	stats := box.Stats()
