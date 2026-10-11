@@ -61,4 +61,4 @@ jobs:
       - name: Run public clone and semantic alert regression tests
         working-directory: backend
         run: |
-          go test ./app -run '^(TestPublicGitHub|TestVerifiedPublicClone|TestLoopDetectionVerifiedClone|TestSemanticAlertsDetectAgenticResourceLoop)' -count=1 -timeout=7m
+          go test ./app -run '^(TestPublicGitHub|TestPublicClone|TestVerifiedPublicClone|TestLoopDetectionVerifiedClone|TestLoopDetectionPublicClone|TestSemanticAlertsDetectAgenticResourceLoop)' -count=1 -timeout=7m
