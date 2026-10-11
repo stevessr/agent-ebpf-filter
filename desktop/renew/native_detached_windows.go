@@ -9,6 +9,20 @@ import (
     "github.com/egoist/mygo/ui"
 )
 
+// reassignOwner ensures the exit callback always repaints the actual owner
+// of a live PTY, even after repeated detachable-window transfers.
+func (n *renewTerminalNode) reassignOwner(owner *renewApp) {
+    if n == nil {
+        return
+    }
+    if n.pane != nil {
+        n.pane.owner.Store(owner)
+        return
+    }
+    n.first.reassignOwner(owner)
+    n.second.reassignOwner(owner)
+}
+
 // takeTerminalTab moves a tab without closing any of its running PTYs.
 func (a *renewApp) takeTerminalTab(index int) *renewTerminalTab {
     if index < 0 || index >= len(a.terminalTabs) {
@@ -40,6 +54,9 @@ func (a *renewApp) dockDetachedTerminals(child *renewApp) {
         return
     }
     a.terminalInitialized = true
+    for _, tab := range child.terminalTabs {
+        tab.root.reassignOwner(a)
+    }
     a.terminalTabs = append(a.terminalTabs, child.terminalTabs...)
     a.terminalActive = len(a.terminalTabs) - 1
     a.terminalTabScroll.X = math.MaxFloat32
@@ -65,6 +82,7 @@ func (a *renewApp) openDetachedTerminalTab() {
     }
     child := newRenewApp(a.backend)
     child.detachedParent = a
+    tab.root.reassignOwner(child)
     child.terminalInitialized = true
     child.terminalTabs = []*renewTerminalTab{tab}
     child.terminalActive = 0
