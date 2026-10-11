@@ -143,7 +143,16 @@ func (a *renewApp) rulesView(c *ui.Context) {
 	t := c.Theme()
 	ui.Text(c, "Wrapper 规则").FontSize(28).Bold()
 	ui.Text(c, "为经 agent-wrapper 执行的命令设置允许、告警、阻断或重写策略；高影响动作会在列表中明确标色。").TextColor(t.TextMuted)
-	ui.Text(c, "内置默认放行：匿名验证为公开的 GitHub 仓库，使用 git clone 或 gh repo clone 时降低循环误报；用户自定义规则与其他安全检测仍然优先。").FontSize(12).TextColor(t.TextMuted)
+	card(c, "内置默认规则 · 只读", func() {
+		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
+			statusPill(c, "ALLOW", t.Success)
+			ui.Column(c).Grow(1).Gap(4).Children(func() {
+				ui.Text(c, "公开 GitHub 仓库克隆").Bold()
+				ui.Text(c, "git clone / gh repo clone · 匿名验证仓库公开后放行；仅提高该克隆链路的循环检测阈值，不关闭安全检查。").FontSize(12).TextColor(t.TextMuted)
+				ui.Text(c, "需要经 agent-wrapper 捕获命令；私有仓库、危险 Git 参数和用户自定义 Wrapper 规则不受此默认放行影响。").FontSize(11).TextColor(t.TextMuted)
+			})
+		})
+	})
 
 	if a.rulesErr != "" {
 		ui.Text(c, a.rulesErr).TextColor(t.TextMuted)
