@@ -93,11 +93,27 @@ const (
 	workspaceActivityRailWidth float32 = 54
 	workspaceDetailedMinWindowWidth float32 = 1240
 	workspaceHeaderMinContentWidth float32 = 860
+	workspaceNarrowNavigationWidth float32 = 900
+	workspaceTightHeaderWidth float32 = 660
 )
 
 func workspaceResponsiveNavigationWidth(windowWidth float32, open, detailed bool) (float32, bool) {
+	// On compact laptop/tiling layouts the expanded sidebar would reduce
+	// the live event table below its usable width. Use the native rail menu
+	// instead, without changing the user's preferred sidebar state.
+	if windowWidth < workspaceNarrowNavigationWidth {
+		return 0, false
+	}
 	effectiveDetailed := detailed && windowWidth >= workspaceDetailedMinWindowWidth
 	return workspaceNavigationWidth(open, effectiveDetailed), effectiveDetailed
+}
+
+func workspaceUsesNavigationMenu(windowWidth float32) bool {
+	return windowWidth < workspaceNarrowNavigationWidth
+}
+
+func workspaceTightHeader(windowWidth, navigationWidth float32) bool {
+	return windowWidth-workspaceActivityRailWidth-navigationWidth < workspaceTightHeaderWidth
 }
 
 func workspaceCompactHeader(windowWidth, navigationWidth float32) bool {
@@ -141,7 +157,7 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 	navTarget, navDetailed := workspaceResponsiveNavigationWidth(width, a.navigationOpen, a.navigationDetailed)
 	navWidth := shell.Animate("renew-navigation", navTarget, 180*time.Millisecond)
 	shell.Children(func() {
-		a.activityRail(c)
+		a.activityRail(c, width)
 		if navWidth > 0 {
 			ui.Row(c).Width(navWidth).Shrink(0).AlignItems(ui.Stretch).Clip().Children(func() {
 				a.sidebar(c, navDetailed)
@@ -223,9 +239,35 @@ func (a *renewApp) workspacePage(c *ui.Context) {
 	}
 }
 
+// Workspace routes in the narrow-screen native menu are the same stable
+// page IDs the ordinary sidebar uses. Both include privileged settings
+// rather than silently hiding them on smaller displays.
+var workspaceNavigationMenuSections = []struct {
+	title string
+	pages []string
+}{
+	{"监控工作台", []string{"概览", "研判", "事件", "会话", "网络", "域名", "进程", "Agent 识别"}},
+	{"防护与管理", []string{"监控", "eBPF 模块", "规则", "跟踪", "路径权限"}},
+	{"工具", []string{"终端", "CCS"}},
+	{"运行诊断", []string{"系统"}},
+}
+
+func (a *renewApp) compactNavigationMenu(m *ui.Menu) {
+	for _, section := range workspaceNavigationMenuSections {
+		section := section
+		m.Submenu(section.title, func(items *ui.Menu) {
+			for _, page := range section.pages {
+				if items.Item(workspaceNavigationLabel(page, false)).Checked(a.page == page).Chosen() {
+					a.page = page
+				}
+			}
+		})
+	}
+}
+
 // Activity-bar shortcuts are a quick route into real monitoring pages.
 // The full navigation and privileged configuration gates remain unchanged.
-func (a *renewApp) activityRail(c *ui.Context) {
+func (a *renewApp) activityRail(c *ui.Context, windowWidth float32) {
 	t := c.Theme()
 	rail := ui.Column(c).Width(54).Shrink(0).Gap(8).Padding(9, 6)
 	if !c.Vibrancy() {
@@ -266,13 +308,20 @@ func (a *renewApp) activityRail(c *ui.Context) {
 			}
 		}
 		ui.Spacer(c)
-		navLabel := "≡"
-		navTip := "收起导航"
-		if !a.navigationOpen {
-			navLabel, navTip = "»", "展开导航"
-		}
-		if ui.Button(c, navLabel).Tooltip(navTip).Width(40).Clicked() {
-			a.navigationOpen = !a.navigationOpen
+		if workspaceUsesNavigationMenu(windowWidth) {
+			// A native menu is keyboard/screen-reader accessible and avoids
+			// laying a sidebar on top of full-width event tables in niri.
+			ui.Button(c, "≡").Label("打开全部页面导航").Tooltip("打开页面导航（窄窗口模式）").
+				Width(40).Menu(a.compactNavigationMenu)
+		} else {
+			navLabel := "≡"
+			navTip := "收起导航"
+			if !a.navigationOpen {
+				navLabel, navTip = "»", "展开导航"
+			}
+			if ui.Button(c, navLabel).Tooltip(navTip).Width(40).Clicked() {
+				a.navigationOpen = !a.navigationOpen
+			}
 		}
 	})
 }
@@ -388,51 +437,21 @@ func (a *renewApp) header(c *ui.Context, navigationWidth float32) {
 			}
 			label, level := a.pipelineStatus()
 			statusPill(c, label, workspaceStatusTone(t, level))
-			if a.paused {
+			if a.paused && !workspaceTightHeader(width, navigationWidth) {
 				statusPill(c, "事件展示已暂停", t.Warning)
 			}
-			// The native toolbar moves actions to its overflow menu on narrow
-			// windows, retaining keyboard navigation and accessibility labels.
-			ui.Toolbar(c, func() {
-				if a.detachedParent == nil && detachableMonitoringPage(a.page) {
-					if ui.Button(c, "分离本页").Tooltip("在独立原生窗口打开此监控页面；筛选和选中状态各自独立").Clicked() {
-						a.openDetachedMonitoringPage(a.page)
-					}
-				}
-				if ui.Button(c, map[bool]string{true: "恢复事件", false: "暂停事件"}[a.paused]).
-					Tooltip("只暂停 Renew 桌面事件列表的更新，不会停止后台采集和策略执行").Clicked() {
-					a.paused = !a.paused
-					a.eventUIPaused.Store(a.paused)
-					if !a.paused {
-						go a.refresh(context.Background())
-					}
-				}
-				if ui.Button(c, "刷新").Tooltip("重新读取当前页面的数据").Clicked() {
-					a.refreshActiveView()
-				}
-				if a.trayAvailable {
-					label := "关闭后退出"
-					if a.minimizeToTray {
-						label = "关闭后驻留托盘"
-					}
-					if ui.Button(c, label).Tooltip("切换关闭窗口时退出或驻留托盘。驻留期间继续监控；从托盘明确退出才结束。").Clicked() {
-						a.minimizeToTray = !a.minimizeToTray
-					}
-				}
-				if windowMaterial(runtime.GOOS, true) != mygo.VibrancyNone {
-					caption := "纯色模式"
-					if !a.materialEnabled {
-						caption = "系统材质"
-					}
-					if ui.Button(c, caption).Tooltip("切换系统材质与不透明背景").Clicked() {
-						a.materialEnabled = !a.materialEnabled
-						if a.win != nil {
-							a.win.SetVibrancy(windowMaterial(runtime.GOOS, a.materialEnabled))
-						}
-					}
-				}
-			}).MinWidth(0).Label("监控操作")
+			if !workspaceTightHeader(width, navigationWidth) {
+				a.headerActions(c)
+			}
 		})
+		if workspaceTightHeader(width, navigationWidth) {
+			ui.Row(c).Padding(5, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+				if a.paused {
+					statusPill(c, "展示暂停", t.Warning)
+				}
+				a.headerActions(c)
+			})
+		}
 		if compact && pageUsesEventSearch(a.page) {
 			ui.Row(c).Padding(5, 16).Children(func() {
 				ui.SearchField(c, &a.search).Label("搜索事件、进程或目标").Grow(1).MinWidth(0)
@@ -440,8 +459,10 @@ func (a *renewApp) header(c *ui.Context, navigationWidth float32) {
 		}
 		ui.Divider(c)
 		ui.Row(c).MinHeight(38).Padding(6, 16).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "工作区").FontSize(11).TextColor(t.TextMuted)
-			ui.Text(c, "›").TextColor(t.TextMuted)
+			if !workspaceTightHeader(width, navigationWidth) {
+				ui.Text(c, "工作区").FontSize(11).TextColor(t.TextMuted)
+				ui.Text(c, "›").TextColor(t.TextMuted)
+			}
 			ui.Badge(c, a.page).Background(t.Accent.Alpha(0.16)).TextColor(t.Accent)
 			if a.page == "概览" || a.page == "事件" || a.page == "网络" || a.page == "进程" {
 				if n := a.eventConstraintCount(); n > 0 { statusPill(c, fmt.Sprintf("筛选 %d 项", n), t.Accent) }
@@ -476,6 +497,53 @@ func (a *renewApp) header(c *ui.Context, navigationWidth float32) {
 	})
 }
 
+
+// Header actions are laid out as one native toolbar, in the first row on
+// desktop and on a separate full-width row on narrow tiled windows. MyGo
+// handles overflow and keyboard navigation in both placements.
+func (a *renewApp) headerActions(c *ui.Context) {
+	// The native toolbar moves actions to its overflow menu on narrow
+	// windows, retaining keyboard navigation and accessibility labels.
+	ui.Toolbar(c, func() {
+		if a.detachedParent == nil && detachableMonitoringPage(a.page) {
+			if ui.Button(c, "分离本页").Tooltip("在独立原生窗口打开此监控页面；筛选和选中状态各自独立").Clicked() {
+				a.openDetachedMonitoringPage(a.page)
+			}
+		}
+		if ui.Button(c, map[bool]string{true: "恢复事件", false: "暂停事件"}[a.paused]).
+			Tooltip("只暂停 Renew 桌面事件列表的更新，不会停止后台采集和策略执行").Clicked() {
+			a.paused = !a.paused
+			a.eventUIPaused.Store(a.paused)
+			if !a.paused {
+				go a.refresh(context.Background())
+			}
+		}
+		if ui.Button(c, "刷新").Tooltip("重新读取当前页面的数据").Clicked() {
+			a.refreshActiveView()
+		}
+		if a.trayAvailable {
+			label := "关闭后退出"
+			if a.minimizeToTray {
+				label = "关闭后驻留托盘"
+			}
+			if ui.Button(c, label).Tooltip("切换关闭窗口时退出或驻留托盘。驻留期间继续监控；从托盘明确退出才结束。").Clicked() {
+				a.minimizeToTray = !a.minimizeToTray
+			}
+		}
+		if windowMaterial(runtime.GOOS, true) != mygo.VibrancyNone {
+			caption := "纯色模式"
+			if !a.materialEnabled {
+				caption = "系统材质"
+			}
+			if ui.Button(c, caption).Tooltip("切换系统材质与不透明背景").Clicked() {
+				a.materialEnabled = !a.materialEnabled
+				if a.win != nil {
+					a.win.SetVibrancy(windowMaterial(runtime.GOOS, a.materialEnabled))
+				}
+			}
+		}
+	}).MinWidth(0).Label("监控操作")
+}
 
 func (a *renewApp) refreshActiveView() {
 	// Keep the continuously streamed metrics subscription intact: opening a
@@ -544,23 +612,30 @@ func (a *renewApp) connectionBanner(c *ui.Context) {
 	})
 }
 
+// The footer never reports a live event stream when the collector itself
+// has failed. Pause is a presentation state and must not mask an unhealthy
+// capture pipeline.
+func (a *renewApp) workspaceFooterStatus() (string, string) {
+	label, level := a.pipelineStatus()
+	if level == "danger" || a.starting {
+		return label, level
+	}
+	if a.paused {
+		return "事件展示暂停", "warning"
+	}
+	return label, level
+}
+
 func (a *renewApp) workspaceFooter(c *ui.Context) {
 	t := c.Theme()
 	_, attention, danger := a.riskCounts()
-	ui.Row(c).MinHeight(29).Padding(5, 12).Gap(12).AlignItems(ui.Center).Background(t.Surface).Children(func() {
-		switch {
-		case a.starting:
-			statusPill(c, "启动中", t.Warning)
-		case !a.connected:
-			statusPill(c, "后端离线", t.Danger)
-		case a.paused:
-			statusPill(c, "事件展示暂停", t.Warning)
-		case a.eventStreamConnected:
-			statusPill(c, "事件流实时", t.Success)
-		default:
-			statusPill(c, "事件流回退", t.Warning)
+	width, _ := c.Size()
+	ui.Row(c).MinHeight(29).Padding(5, 12).Gap(10).AlignItems(ui.Center).Background(t.Surface).Children(func() {
+		label, level := a.workspaceFooterStatus()
+		statusPill(c, label, workspaceStatusTone(t, level))
+		if width >= 700 {
+			ui.Text(c, fmt.Sprintf("摘要 %d", len(a.events))).FontSize(10).Font("monospace").TextColor(t.TextMuted)
 		}
-		ui.Text(c, fmt.Sprintf("摘要 %d", len(a.events))).FontSize(10).Font("monospace").TextColor(t.TextMuted)
 		if danger > 0 {
 			if ui.Button(c, fmt.Sprintf("高风险 %d", danger)).Tooltip("查看高风险事件").Clicked() {
 				a.clearEventFilters()
@@ -576,11 +651,15 @@ func (a *renewApp) workspaceFooter(c *ui.Context) {
 			}
 		}
 		ui.Spacer(c)
-		if !a.lastSync.IsZero() {
+		if width >= 1024 && !a.lastSync.IsZero() {
 			ui.Text(c, "同步 "+a.lastSync.Format("15:04:05")).FontSize(10).TextColor(t.TextMuted)
 		}
-		if ui.Button(c, fmt.Sprintf("丢弃 %d", a.health.RingbufDroppedTotal)).Tooltip("打开采集链路诊断").Clicked() {
-			a.page = "系统"
+		// Nonzero packet/event loss must stay visible even in very narrow
+		// windows; zero-valued diagnostics can be reached from System.
+		if width >= 700 || a.health.RingbufDroppedTotal > 0 {
+			if ui.Button(c, fmt.Sprintf("丢弃 %d", a.health.RingbufDroppedTotal)).Tooltip("打开采集链路诊断").Clicked() {
+				a.page = "系统"
+			}
 		}
 	})
 }
