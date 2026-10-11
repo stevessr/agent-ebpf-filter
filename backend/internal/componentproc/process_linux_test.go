@@ -236,3 +236,24 @@ func TestRunEngineSharedFailsClosedOnCorruptedProjection(t *testing.T) {
 		t.Fatalf("malformed shared event failed to close the worker: %v", err)
 	}
 }
+
+func TestSendSharedBatchRejectsInvalidProjectionBeforeAdmission(t *testing.T) {
+	ring, err := componentshm.Create(4, 512)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ring.Close()
+	bad := testEnvelope("bad-version")
+	bad.SchemaVersion = "invalid"
+	// With nil Session, the invalid session fails closed first.
+	if err := SendSharedBatch(nil, ring, []componentwire.Event{bad}); !errors.Is(err, componentipc.ErrInvalidConfig) {
+		t.Fatalf("nil session accepted: %v", err)
+	}
+	// An empty batch never mutates the queue.
+	if err := SendSharedBatch(nil, ring, nil); !errors.Is(err, componentipc.ErrInvalidConfig) {
+		t.Fatalf("empty batch accepted: %v", err)
+	}
+	if got := ring.Stats(); got.Published != 0 || got.Queued != 0 {
+		t.Fatalf("invalid batch mutated the ring: %+v", got)
+	}
+}

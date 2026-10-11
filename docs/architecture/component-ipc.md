@@ -261,3 +261,18 @@ in eight batches** with ACKs on the authenticated UDS, verify the shared
 consumer tail and reject malformed events. The production embedded
 Collector/Engine, Renew, and kernel policy paths still do not call this
 prototype. Privileged process separation and crash replay are not implied.
+
+
+For repeatable **end-to-end experimental** comparisons (not a kernel/BPF
+benchmark), run on the same unprivileged Linux host:
+
+```sh
+cd backend
+go test ./internal/componentproc -run '^$' -bench '^BenchmarkEngine(UDS|Shared)16$' -benchmem -count=3
+```
+
+These deliberately compare the implemented **per-event UDS+ACK** baseline
+against **16 shared-memory events per notification and cumulative ACK**.
+The two sides therefore differ in acknowledgement cadence as well as
+transport. Report results per host/kernel/Go version and do not imply a
+measured speedup without collecting both numbers under equivalent load.
