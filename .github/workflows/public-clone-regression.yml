@@ -60,7 +60,5 @@ jobs:
         run: go generate
       - name: Run public clone and semantic alert regression tests
         working-directory: backend
-        env:
-          CGO_ENABLED: "0"
         run: |
           go test ./app -run '^(TestPublicGitHub|TestVerifiedPublicClone|TestLoopDetectionVerifiedClone|TestSemanticAlertsDetectAgenticResourceLoop)' -count=1 -timeout=7m
