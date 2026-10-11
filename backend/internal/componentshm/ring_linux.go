@@ -36,6 +36,7 @@ var (
 	ErrRingClosed  = errors.New("shared event ring closed")
 	ErrNoRecord    = errors.New("shared event ring empty")
 	ErrInvalidRole = errors.New("shared event ring requires one writer or one reader")
+	ErrInvalidAck  = errors.New("shared event ring receipt is stale or beyond published data")
 )
 
 const (
@@ -45,7 +46,6 @@ const (
 	offStream   = 24
 	offPayload  = 16
 	offHead     = 64
-	offTail     = 128
 	offClosed   = 192
 	offRejected = 200
 )
@@ -64,8 +64,9 @@ type Stats struct {
 
 // Ring has exactly one writing owner and one reading owner. The memory file
 // must be inherited or passed only to authenticated, trusted participants.
-// Both participants can map the file writable to maintain their cursors:
-// this is NOT a least-privilege data-integrity sandbox against a malicious peer.
+// The publisher holds the sole writable mapping, created before applying
+// F_SEAL_FUTURE_WRITE. The Engine maps event memory read-only and cannot
+// advance the recycling watermark; authenticated UDS ACKs are required.
 type Ring struct {
 	memory []byte
 	memfd  *os.File
@@ -75,6 +76,8 @@ type Ring struct {
 	limit  int
 	writer bool
 	closed bool
+	confirmed atomic.Uint64 // publisher-private authenticated ACK cursor
+	readTail uint64       // reader-private cursor; never in shared memory
 }
 
 // align each record to an 8-byte boundary so wrap offsets remain bounded.
@@ -112,15 +115,16 @@ func Create(slots, payload int) (_ *Ring, err error) {
 	if err = unix.Ftruncate(fd, int64(size)); err != nil {
 		return nil, err
 	}
-	// Seal only size changes: sealing writes would prohibit the RW mappings
-	// needed for shared producer and consumer cursor updates.
-	_, err = unix.FcntlInt(uintptr(fd), unix.F_ADD_SEALS,
-		unix.F_SEAL_SHRINK|unix.F_SEAL_GROW|unix.F_SEAL_SEAL)
+	// The parent maps RW before sealing. F_SEAL_FUTURE_WRITE denies new
+	// writable mappings and write(2), including with an inherited FD.
+	memory, err := unix.Mmap(fd, 0, size, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
 	if err != nil {
 		return nil, err
 	}
-	memory, err := unix.Mmap(fd, 0, size, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+	_, err = unix.FcntlInt(uintptr(fd), unix.F_ADD_SEALS,
+		unix.F_SEAL_SHRINK|unix.F_SEAL_GROW|unix.F_SEAL_FUTURE_WRITE|unix.F_SEAL_SEAL)
 	if err != nil {
+		_ = unix.Munmap(memory)
 		return nil, err
 	}
 	var stream [16]byte
@@ -158,8 +162,8 @@ func OpenReader(memoryFile, wakeFile *os.File) (*Ring, error) {
 	fd := int(memoryFile.Fd())
 	wakefd := int(wakeFile.Fd())
 	seals, err := unix.FcntlInt(uintptr(fd), unix.F_GET_SEALS, 0)
-	if err != nil || seals&(unix.F_SEAL_SHRINK|unix.F_SEAL_GROW|unix.F_SEAL_SEAL) !=
-		(unix.F_SEAL_SHRINK|unix.F_SEAL_GROW|unix.F_SEAL_SEAL) {
+	if err != nil || seals&(unix.F_SEAL_SHRINK|unix.F_SEAL_GROW|unix.F_SEAL_FUTURE_WRITE|unix.F_SEAL_SEAL) !=
+		(unix.F_SEAL_SHRINK|unix.F_SEAL_GROW|unix.F_SEAL_FUTURE_WRITE|unix.F_SEAL_SEAL) {
 		return nil, ErrInvalidRing
 	}
 	var st unix.Stat_t
@@ -174,7 +178,7 @@ func OpenReader(memoryFile, wakeFile *os.File) (*Ring, error) {
 		// eventfd is an anonymous inode (mode 0600 but no file type).
 		return nil, ErrInvalidRing
 	}
-	memory, err := unix.Mmap(fd, 0, int(st.Size), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+	memory, err := unix.Mmap(fd, 0, int(st.Size), unix.PROT_READ, unix.MAP_SHARED)
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +266,7 @@ func (r *Ring) TryWrite(data []byte) error {
 	if len(data) == 0 || len(data) > r.MaxPayload() {
 		return ErrTooLarge
 	}
-	head, tail := r.load(offHead), r.load(offTail)
+	head, tail := r.load(offHead), r.confirmed.Load()
 	if head < tail || head-tail > r.slots {
 		return ErrInvalidRing
 	}
@@ -276,6 +280,20 @@ func (r *Ring) TryWrite(data []byte) error {
 	// Release publication after payload write. Reader's atomic head load
 	// acquires the full slot before it reads.
 	r.store(offHead, head+1)
+	return nil
+}
+
+// Confirm releases published slots after the Collector verifies an
+// authenticated, monotonic, matching-stream cumulative UDS ACK.
+func (r *Ring) Confirm(sequence uint64) error {
+	if !r.alive(true) {
+		return ErrInvalidRole
+	}
+	old, head := r.confirmed.Load(), r.load(offHead)
+	if sequence <= old || sequence > head || head-old > r.slots {
+		return ErrInvalidAck
+	}
+	r.confirmed.Store(sequence)
 	return nil
 }
 
@@ -308,7 +326,7 @@ func (r *Ring) ReadCopy() ([]byte, error) {
 	if !r.alive(false) {
 		return nil, ErrInvalidRole
 	}
-	tail, head := r.load(offTail), r.load(offHead)
+	tail, head := r.readTail, r.load(offHead)
 	if head < tail || head-tail > r.slots {
 		return nil, ErrInvalidRing
 	}
@@ -324,8 +342,9 @@ func (r *Ring) ReadCopy() ([]byte, error) {
 		return nil, ErrInvalidRing
 	}
 	data := append([]byte(nil), r.memory[off+4:off+4+length]...)
-	// Release tail after the copy: the producer can now reuse the slot.
-	r.store(offTail, tail+1)
+	// Reader tail is private. The writer may reclaim the slot only after
+	// verifying a matching authenticated cumulative UDS ACK.
+	r.readTail = tail + 1
 	return data, nil
 }
 
@@ -340,7 +359,7 @@ func (r *Ring) WaitReady(ctx context.Context) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		tail, head := r.load(offTail), r.load(offHead)
+		tail, head := r.readTail, r.load(offHead)
 		if head < tail || head-tail > r.slots {
 			return ErrInvalidRing
 		}
@@ -395,7 +414,13 @@ func (r *Ring) Stats() Stats {
 	if r == nil || r.closed || len(r.memory) < HeaderBytes {
 		return Stats{}
 	}
-	head, tail := r.load(offHead), r.load(offTail)
+	head := r.load(offHead)
+	var tail uint64
+	if r.writer {
+		tail = r.confirmed.Load()
+	} else {
+		tail = r.readTail
+	}
 	queued := uint64(0)
 	if head >= tail && head-tail <= r.slots {
 		queued = head - tail
