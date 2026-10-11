@@ -373,12 +373,25 @@ func (a *renewApp) terminalView(c *ui.Context) {
 				}
 				tab := a.currentTerminalTab()
 				if a.detachedParent != nil {
-					if ui.Button(c, "收回主窗口").Tooltip("保留全部 Shell 和分屏，将标签移回主工作台").Clicked() && a.win != nil {
+					if tab != nil {
+						if ui.Button(c, "收回当前标签").Tooltip("只将当前标签移回主窗口，其余 Shell 继续运行").Clicked() {
+							a.dockFocusedDetachedTab()
+							return
+						}
+						if len(a.terminalTabs) > 1 && ui.Button(c, "再分离当前标签").Tooltip("将此子窗口内的标签分离到第三个原生窗口").Clicked() {
+							a.openDetachedTerminalTab()
+							return
+						}
+					}
+					if ui.Button(c, "收回全部标签").Tooltip("关闭此窗口，把所有剩余终端标签移回主窗口").Clicked() && a.win != nil {
 						a.win.Close()
+						a.detachedParent.revealDockedTerminal()
+						return
 					}
 				} else if tab != nil {
 					if ui.Button(c, "分离当前标签").Tooltip("将选中终端标签移到独立原生窗口，不重启 PTY").Clicked() {
 						a.openDetachedTerminalTab()
+						return
 					}
 				}
 				if tab != nil {
