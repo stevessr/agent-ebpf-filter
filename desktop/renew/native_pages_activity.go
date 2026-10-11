@@ -213,8 +213,12 @@ func (a *renewApp) eventsView(c *ui.Context) {
 	// View-only filtering: the slider never changes backend capture or enforcement.
 	ui.Row(c).Gap(10).Wrap().AlignItems(ui.Center).Children(func() {
 		ui.Textf(c, "最低风险分 %.0f（0 = 全部）", a.eventMinRiskScore).FontSize(11).TextColor(t.TextMuted)
-		ui.Slider(c.Key("minimum-risk-score"), &a.eventMinRiskScore, 0, 100).
-			Label("最低风险分").Width(220)
+		if ui.Slider(c.Key("minimum-risk-score"), &a.eventMinRiskScore, 0, 100).
+			Label("最低风险分").Width(220).Changed() {
+			// Filtering changes row indices; never leave a stale selection.
+			a.eventSelected = -1
+			a.inspectorSelectedID = ""
+		}
 	})
 
 	if a.managementEventFilter != "" {
