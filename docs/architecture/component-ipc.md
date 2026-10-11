@@ -176,3 +176,61 @@ supervisor integration, production-compatible event parity tests, and later
 controlled cutover of the current in-process engine behind an off-by-default
 feature flag. Do not advertise subprocess schema validation as a replacement
 for existing security decisions.
+
+
+## Phase 6b: opt-in shared-memory data-plane prototype (not production)
+
+The Linux-only `backend/internal/componentshm` package adds a bounded
+single-producer/single-consumer **memfd + MAP_SHARED** ring with an **eventfd**
+wakeup descriptor. This stage is an independently testable data-plane prototype:
+the production Collector/Engine still use their existing paths, and
+`componentproc.RunEngine` is **not** automatically converted to shared memory.
+A later supervised integration must hand descriptors only to authenticated
+participants and preserve the existing HMAC/UID-checked UDS control channel.
+
+- The writer creates a size-sealed anonymous memfd
+  (`F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL`), fixed-width bounded slots,
+  and a nonblocking CLOEXEC eventfd. Memory size limits are 2..4096
+  power-of-two slots with 64..16384 bytes per event. There are no external
+  shared-memory pathnames or persistence.
+- Writer `TryWrite` rejects oversized/empty data, never blocks and increments
+  the rejection count on saturation. The reader `ReadCopy` validates the
+  encoded slot length before copying, then publishes the consumer cursor.
+  The ring never overwrites unread data.
+- 64-bit publication/consumption cursors are aligned to separate cache lines.
+  Producer and consumer use Go sequentially consistent atomics to publish
+  ownership across MAP_SHARED. This layout currently targets Linux platforms
+  where 64-bit atomics on shared, aligned mappings are supported; mixing
+  architectures/endianness or using multiple writers/readers is unsupported.
+- A publisher calls `Notify` once per batch, rather than per event.
+  Reader `WaitReady` checks ring occupancy before polling eventfd; it uses
+  bounded 100-ms polling to allow cancellation if a publisher disappears.
+  `Finish` marks end-of-stream and wakes the reader, but does **not** mean
+  validation, ACK or durable receipt.
+- Descriptors may be handed to an explicitly supervised child as inherited
+  files (or later over an authenticated UDS with SCM_RIGHTS). `OpenReader`
+  validates seals, layout magic/version, file size and bounded dimensions.
+  Both writer and reader currently require writable mappings for their
+  respective head/tail cursors, so **same-UID shared memory is not an adversarial
+  OS isolation boundary**. The security design must separate read-only event
+  pages from writable consumer cursor pages and constrain the Engine UID
+  before privileged production rollout.
+
+Tests cover slot boundaries, buffer wraparound, saturation/overflow counting,
+owned-buffer semantics, malformed record and unsupported header rejection,
+timeouts, termination, and a real second process with inherited FD3/FD4
+that consumes 250 ordered events. A microbenchmark exercises grouped 64-event
+writes + one eventfd notify; it is **not** an eBPF-to-AI end-to-end latency
+measurement and makes no claim of zero copying.
+
+```sh
+cd backend
+go test -race -count=1 ./internal/componentshm
+go test ./internal/componentshm -run '^$' -bench BenchmarkRingBatch64 -benchmem
+```
+
+Next steps before adopting this data plane: one stable end-to-end mode switch,
+control-plane authenticated FD transfer, multi-batch ACK checkpoints,
+PID/UID process isolation, explicit reconnect and loss reasons, benchmark
+comparison versus UDS using equivalent payloads, and actual kernel-event
+parity tests. No security enforcement action may depend on this prototype.
