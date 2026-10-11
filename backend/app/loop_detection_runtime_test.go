@@ -334,11 +334,7 @@ func BenchmarkLoopDetectionSteadyStateWindowHit(b *testing.B) {
 func TestLoopDetectionVerifiedCloneIncreasesThresholdWithoutDisabling(t *testing.T) {
 	const pid uint32 = 49826
 	markPublicCloneProcess(pid, "gh")
-	t.Cleanup(func() {
-		publicCloneProcesses.Lock()
-		delete(publicCloneProcesses.entries, pid)
-		publicCloneProcesses.Unlock()
-	})
+	t.Cleanup(func() { unmarkPublicCloneProcess(pid) })
 	worker := newLoopDetectionWorker()
 	settings := LoopDetectionSettings{
 		Enabled: true, WindowSeconds: 60, RepeatThreshold: 2, MaxContexts: 32,
