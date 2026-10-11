@@ -612,23 +612,30 @@ func (a *renewApp) connectionBanner(c *ui.Context) {
 	})
 }
 
+// The footer never reports a live event stream when the collector itself
+// has failed. Pause is a presentation state and must not mask an unhealthy
+// capture pipeline.
+func (a *renewApp) workspaceFooterStatus() (string, string) {
+	label, level := a.pipelineStatus()
+	if level == "danger" || a.starting {
+		return label, level
+	}
+	if a.paused {
+		return "事件展示暂停", "warning"
+	}
+	return label, level
+}
+
 func (a *renewApp) workspaceFooter(c *ui.Context) {
 	t := c.Theme()
 	_, attention, danger := a.riskCounts()
-	ui.Row(c).MinHeight(29).Padding(5, 12).Gap(12).AlignItems(ui.Center).Background(t.Surface).Children(func() {
-		switch {
-		case a.starting:
-			statusPill(c, "启动中", t.Warning)
-		case !a.connected:
-			statusPill(c, "后端离线", t.Danger)
-		case a.paused:
-			statusPill(c, "事件展示暂停", t.Warning)
-		case a.eventStreamConnected:
-			statusPill(c, "事件流实时", t.Success)
-		default:
-			statusPill(c, "事件流回退", t.Warning)
+	width, _ := c.Size()
+	ui.Row(c).MinHeight(29).Padding(5, 12).Gap(10).AlignItems(ui.Center).Background(t.Surface).Children(func() {
+		label, level := a.workspaceFooterStatus()
+		statusPill(c, label, workspaceStatusTone(t, level))
+		if width >= 700 {
+			ui.Text(c, fmt.Sprintf("摘要 %d", len(a.events))).FontSize(10).Font("monospace").TextColor(t.TextMuted)
 		}
-		ui.Text(c, fmt.Sprintf("摘要 %d", len(a.events))).FontSize(10).Font("monospace").TextColor(t.TextMuted)
 		if danger > 0 {
 			if ui.Button(c, fmt.Sprintf("高风险 %d", danger)).Tooltip("查看高风险事件").Clicked() {
 				a.clearEventFilters()
@@ -644,11 +651,15 @@ func (a *renewApp) workspaceFooter(c *ui.Context) {
 			}
 		}
 		ui.Spacer(c)
-		if !a.lastSync.IsZero() {
+		if width >= 1024 && !a.lastSync.IsZero() {
 			ui.Text(c, "同步 "+a.lastSync.Format("15:04:05")).FontSize(10).TextColor(t.TextMuted)
 		}
-		if ui.Button(c, fmt.Sprintf("丢弃 %d", a.health.RingbufDroppedTotal)).Tooltip("打开采集链路诊断").Clicked() {
-			a.page = "系统"
+		// Nonzero packet/event loss must stay visible even in very narrow
+		// windows; zero-valued diagnostics can be reached from System.
+		if width >= 700 || a.health.RingbufDroppedTotal > 0 {
+			if ui.Button(c, fmt.Sprintf("丢弃 %d", a.health.RingbufDroppedTotal)).Tooltip("打开采集链路诊断").Clicked() {
+				a.page = "系统"
+			}
 		}
 	})
 }
