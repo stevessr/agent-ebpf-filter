@@ -20,34 +20,34 @@ import (
 )
 
 const (
-	Version        uint32 = 1
-	HeaderBytes           = 256
-	MinSlots              = 2
-	MaxSlots              = 4096
-	MinPayload            = 64
-	MaxPayload            = 16384
-	maxMappingBytes       = HeaderBytes + MaxSlots*(MaxPayload+8)
+	Version         uint32 = 1
+	HeaderBytes            = 256
+	MinSlots               = 2
+	MaxSlots               = 4096
+	MinPayload             = 64
+	MaxPayload             = 16384
+	maxMappingBytes        = HeaderBytes + MaxSlots*(MaxPayload+8)
 )
 
 var (
-	ErrInvalidRing  = errors.New("invalid shared ring descriptor or header")
-	ErrRingFull     = errors.New("shared event ring full")
-	ErrTooLarge     = errors.New("shared event exceeds slot capacity")
-	ErrRingClosed   = errors.New("shared event ring closed")
-	ErrNoRecord     = errors.New("shared event ring empty")
-	ErrInvalidRole  = errors.New("shared event ring requires one writer or one reader")
+	ErrInvalidRing = errors.New("invalid shared ring descriptor or header")
+	ErrRingFull    = errors.New("shared event ring full")
+	ErrTooLarge    = errors.New("shared event exceeds slot capacity")
+	ErrRingClosed  = errors.New("shared event ring closed")
+	ErrNoRecord    = errors.New("shared event ring empty")
+	ErrInvalidRole = errors.New("shared event ring requires one writer or one reader")
 )
 
 const (
-	offMagic     = 0
-	offVersion   = 8
-	offCapacity  = 12
-	offStream    = 24
-	offPayload   = 16
-	offHead      = 64
-	offTail      = 128
-	offClosed    = 192
-	offRejected  = 200
+	offMagic    = 0
+	offVersion  = 8
+	offCapacity = 12
+	offStream   = 24
+	offPayload  = 16
+	offHead     = 64
+	offTail     = 128
+	offClosed   = 192
+	offRejected = 200
 )
 
 const magic = "AEBPSHM1"
@@ -144,7 +144,7 @@ func Create(slots, payload int) (_ *Ring, err error) {
 	return &Ring{
 		memory: memory, memfd: memoryFile,
 		wakefd: os.NewFile(uintptr(wake), "component-event-wakeup"),
-		slots: uint64(slots), width: slotStride(payload), limit: payload, writer: true,
+		slots:  uint64(slots), width: slotStride(payload), limit: payload, writer: true,
 	}, nil
 }
 
@@ -186,8 +186,8 @@ func OpenReader(memoryFile, wakeFile *os.File) (*Ring, error) {
 		binary.LittleEndian.Uint32(memory[offVersion:offVersion+4]) != Version {
 		return reject()
 	}
-	slots := int(binary.LittleEndian.Uint32(memory[offCapacity:offCapacity+4]))
-	payload := int(binary.LittleEndian.Uint32(memory[offPayload:offPayload+4]))
+	slots := int(binary.LittleEndian.Uint32(memory[offCapacity : offCapacity+4]))
+	payload := int(binary.LittleEndian.Uint32(memory[offPayload : offPayload+4]))
 	if checkConfig(slots, payload) != nil || int(st.Size) != sizeFor(slots, payload) ||
 		string(memory[offStream:offStream+16]) == string(make([]byte, 16)) {
 		return reject()
@@ -319,7 +319,7 @@ func (r *Ring) ReadCopy() ([]byte, error) {
 		return nil, ErrNoRecord
 	}
 	off := HeaderBytes + int((tail%r.slots)*r.width)
-	length := int(binary.LittleEndian.Uint32(r.memory[off:off+4]))
+	length := int(binary.LittleEndian.Uint32(r.memory[off : off+4]))
 	if length <= 0 || length > r.MaxPayload() {
 		return nil, ErrInvalidRing
 	}
@@ -398,7 +398,7 @@ func (r *Ring) Stats() Stats {
 	head, tail := r.load(offHead), r.load(offTail)
 	queued := uint64(0)
 	if head >= tail && head-tail <= r.slots {
-		queued = head-tail
+		queued = head - tail
 	}
 	return Stats{
 		Published: head, Consumed: tail, Queued: queued,

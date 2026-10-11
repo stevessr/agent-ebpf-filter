@@ -80,8 +80,12 @@ func runWorker(ctx context.Context, socketPath string, shared bool) error {
 		mem := os.NewFile(4, "component-event-memfd")
 		wake := os.NewFile(5, "component-event-wakeup")
 		if mem == nil || wake == nil {
-			if mem != nil { _ = mem.Close() }
-			if wake != nil { _ = wake.Close() }
+			if mem != nil {
+				_ = mem.Close()
+			}
+			if wake != nil {
+				_ = wake.Close()
+			}
 			return ErrInvalidWorker
 		}
 		ring, err := componentshm.OpenReader(mem, wake)

@@ -6,11 +6,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -196,7 +196,7 @@ func TestRunEngineSharedSendsBatchedEventsAcrossRealProcesses(t *testing.T) {
 			for batch := 0; batch < 8; batch++ {
 				group := make([]componentwire.Event, 25)
 				for j := range group {
-					group[j] = testEnvelope(strconv.Itoa(batch*25+j))
+					group[j] = testEnvelope(strconv.Itoa(batch*25 + j))
 				}
 				if err := SendSharedBatch(session, ring, group); err != nil {
 					return err
