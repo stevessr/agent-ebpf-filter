@@ -255,12 +255,23 @@ func (s *SemanticAlertState) RecentExecutablePath(key, path string, now time.Tim
 }
 
 func (s *SemanticAlertState) IncrementForkCount(event *pb.Event, now time.Time) int {
-	if s == nil {
+	return s.incrementForkCountInScope(event, now, "")
+}
+
+// Clone loop thresholds apply only to a verified clone PID. In particular,
+// unrelated commands belonging to the SAME Agent tool/run must continue to
+// use the ordinary fork window, rather than inheriting the relaxed threshold
+// or advancing a trusted clone's counter.
+func (s *SemanticAlertState) incrementForkCountInScope(event *pb.Event, now time.Time, clonePID uint32) int {
+	if s == nil || event == nil {
 		return 0
 	}
 	key, keyTruncated := semanticAlertContextKeyBounded(event)
 	if key == "" {
 		return 0
+	}
+	if clonePID != 0 {
+		key += fmt.Sprintf("/verified_public_clone_pid:%d", clonePID)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
