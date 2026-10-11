@@ -98,7 +98,7 @@ func RunEngineSharedAsUID(
 	cmd.ExtraFiles = []*os.File{credentialReader, memory, wake}
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Credential: &syscall.Credential{Uid: uid, Gid: gid, Groups: []uint32{}},
-		Pdeathsig: syscall.SIGKILL,
+		Pdeathsig:  syscall.SIGKILL,
 	}
 	cmd.WaitDelay = 2 * time.Second
 	if err := cmd.Start(); err != nil {
@@ -124,14 +124,14 @@ func RunEngineSharedAsUID(
 
 	accepted := make(chan struct {
 		conn *net.UnixConn
-		err error
+		err  error
 	}, 1)
 	go func() {
 		conn, acceptErr := listener.AcceptUnix()
 		accepted <- struct {
 			conn *net.UnixConn
-			err error
-		}{conn:conn,err:acceptErr}
+			err  error
+		}{conn: conn, err: acceptErr}
 	}()
 	var conn *net.UnixConn
 	select {
@@ -152,7 +152,7 @@ func RunEngineSharedAsUID(
 	session, err := componentipc.HandshakeServer(conn, componentipc.ServerConfig{
 		Secret: secret[:], Role: componentipc.RoleCollector,
 		AllowedPeers: []componentipc.Role{componentipc.RoleEngine},
-		VerifyPeer: componentipc.VerifyUnixPeerUIDs(uid),
+		VerifyPeer:   componentipc.VerifyUnixPeerUIDs(uid),
 	})
 	if err != nil {
 		return fmt.Errorf("authenticate dropped-UID Engine: %w", err)

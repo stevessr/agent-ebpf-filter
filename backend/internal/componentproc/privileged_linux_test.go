@@ -58,7 +58,7 @@ func TestPrivilegedSharedEngineDropsUID(t *testing.T) {
 				SchemaVersion: componentwire.EnvelopeVersion,
 				EventID:       "isolated-" + string(rune('a'+i)),
 				Source:        "kernel",
-				TimestampNS:   uint64(i+1),
+				TimestampNS:   uint64(i + 1),
 				Type:          "exec",
 			}
 			if err := SendSharedBatch(session, ring, []componentwire.Event{ev}); err != nil {

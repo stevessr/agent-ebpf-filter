@@ -68,16 +68,16 @@ type Stats struct {
 // F_SEAL_FUTURE_WRITE. The Engine maps event memory read-only and cannot
 // advance the recycling watermark; authenticated UDS ACKs are required.
 type Ring struct {
-	memory []byte
-	memfd  *os.File
-	wakefd *os.File
-	slots  uint64
-	width  uint64
-	limit  int
-	writer bool
-	closed bool
+	memory    []byte
+	memfd     *os.File
+	wakefd    *os.File
+	slots     uint64
+	width     uint64
+	limit     int
+	writer    bool
+	closed    bool
 	confirmed atomic.Uint64 // publisher-private authenticated ACK cursor
-	readTail uint64       // reader-private cursor; never in shared memory
+	readTail  uint64        // reader-private cursor; never in shared memory
 }
 
 // align each record to an 8-byte boundary so wrap offsets remain bounded.
