@@ -45,3 +45,28 @@ func TestDetachedMonitoringSnapshotKeepsWindowLocalFilters(t *testing.T) {
         t.Fatal("a changed event version must refresh the detached window")
     }
 }
+
+func TestDetachedMonitoringNavigationRedirectsToOwner(t *testing.T) {
+	parent := newRenewApp("http://127.0.0.1:8080")
+	child := newRenewApp(parent.backend)
+	child.detachedParent = parent
+	child.detachedPageID = "事件"
+	child.page = "事件"
+	if destination := child.redirectDetachedNavigation(); destination != "" {
+		t.Fatalf("stable page should not redirect: %q", destination)
+	}
+	child.page = "路径权限"
+	if destination := child.redirectDetachedNavigation(); destination != "路径权限" {
+		t.Fatalf("privileged target should be delegated to owner, got %q", destination)
+	}
+	if child.page != "事件" {
+		t.Fatal("floating window must remain tied to its original monitor page")
+	}
+	child.page = "网络"
+	if destination := child.redirectDetachedNavigation(); destination != "网络" {
+		t.Fatalf("monitor-to-monitor navigation should use the main workspace too: %q", destination)
+	}
+	if child.page != "事件" {
+		t.Fatal("monitor tab identity must remain stable across navigation")
+	}
+}
