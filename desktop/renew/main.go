@@ -85,6 +85,14 @@ func runDesktop() {
 			Content:   ui.View(app.view),
 		})
 		app.win = window
+		// Keep the collector/UI owner alive while tabs are floating. The final
+		// floating window redocks to this (possibly hidden) main window.
+		window.OnClose(func(e *mygo.CloseEvent) {
+			if len(app.detachedTerminals) > 0 {
+				e.PreventDefault()
+				window.Hide()
+			}
+		})
 		if err := app.setupTray(window); err != nil {
 			log.Printf("[renew] system tray unavailable (normal window exit retained): %v", err)
 		}
