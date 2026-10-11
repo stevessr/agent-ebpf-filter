@@ -5,6 +5,7 @@ package componentproc
 import (
 	"context"
 	"errors"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -130,11 +131,48 @@ func TestWorkerRejectsMissingCredentials(t *testing.T) {
 	}
 }
 
-func TestSendEventNeverWritesAnInvalidProjection(t *testing.T) {
+func TestSendEventValidatesProjectionBeforeWriting(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	defer clientConn.Close()
+	defer serverConn.Close()
+	secret := []byte("0123456789abcdef0123456789abcdef")
+	verifier := func(net.Conn) error { return nil }
+	type result struct {
+		session *componentipc.Session
+		err error
+	}
+	accepted := make(chan result, 1)
+	go func() {
+		session, err := componentipc.HandshakeServer(serverConn, componentipc.ServerConfig{
+			Secret: secret, Role: componentipc.RoleEngine,
+			AllowedPeers: []componentipc.Role{componentipc.RoleCollector},
+			VerifyPeer: verifier,
+		})
+		accepted <- result{session: session, err: err}
+	}()
+	client, err := componentipc.HandshakeClient(clientConn, componentipc.ClientConfig{
+		Secret: secret, Role: componentipc.RoleCollector,
+		ExpectedServer: componentipc.RoleEngine, VerifyPeer: verifier,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	peer := <-accepted
+	if peer.err != nil {
+		t.Fatal(peer.err)
+	}
+	defer peer.session.Close()
+	stream, err := componentipc.NewStreamID()
+	if err != nil {
+		t.Fatal(err)
+	}
 	bad := testEnvelope("valid")
 	bad.SchemaVersion = "wrong-version"
-	err := SendEvent(nil, componentipc.StreamID{}, 1, bad)
-	if !errors.Is(err, componentipc.ErrInvalidConfig) {
-		t.Fatalf("nil session was not rejected first: %v", err)
+	if err := SendEvent(client, stream, 1, bad); !errors.Is(err, componentwire.ErrInvalidEnvelope) {
+		t.Fatalf("invalid projection accepted: %v", err)
+	}
+	if err := SendEvent(nil, stream, 1, testEnvelope("ok")); !errors.Is(err, componentipc.ErrInvalidConfig) {
+		t.Fatalf("nil session accepted: %v", err)
 	}
 }
