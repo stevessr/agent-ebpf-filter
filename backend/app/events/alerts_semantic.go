@@ -413,10 +413,10 @@ func (s *SemanticAlertState) ObserveMultiAgentFileContention(event *pb.Event, no
 		seen = false
 	}
 	current := SemanticFileMutationObservation{
-		SeenAt:     now,
-		Actor:      actor,
-		Op:         event.GetType(),
-		Path:       path,
+		SeenAt:      now,
+		Actor:       actor,
+		Op:          event.GetType(),
+		Path:        path,
 		ContainerID: containerID,
 	}
 	if seen {
