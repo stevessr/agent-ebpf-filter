@@ -39,7 +39,7 @@ jobs:
       - name: Verify Go formatting
         run: |
           files="$(gofmt -l backend/app/public_clone_rule*.go backend/app/alertsbridge.go backend/app/alertssemantic_test.go backend/app/events/alerts_semantic.go backend/app/events/alertsdetectsemantic.go backend/app/loop_detection_runtime*.go backend/app/server_uds.go)"
-          test -z "$files" || { printf 'Unformatted files:\n%s\n' "$files"; exit 1; }
+          test -z "$files" || { printf 'Unformatted files:\n%s\n' "$files"; gofmt -d backend/app/public_clone_rule*.go backend/app/alertsbridge.go backend/app/alertssemantic_test.go backend/app/events/alerts_semantic.go backend/app/events/alertsdetectsemantic.go backend/app/loop_detection_runtime*.go backend/app/server_uds.go; exit 1; }
       - name: Install backend code generation dependencies
         run: |
           sudo apt-get update
