@@ -12,9 +12,9 @@ import (
 // It is distinct from the connection handshake version. Legacy raw Send and
 // Receive frames are deliberately unchanged by this codec.
 const (
-	SequencedSchemaVersion uint16 = 1
-	SequencedHeaderBytes          = 2 + 16 + 8
-	MaxSequencedPayloadBytes      = MaxMessageBytes - SequencedHeaderBytes
+	SequencedSchemaVersion   uint16 = 1
+	SequencedHeaderBytes            = 2 + 16 + 8
+	MaxSequencedPayloadBytes        = MaxMessageBytes - SequencedHeaderBytes
 )
 
 var (
@@ -241,10 +241,10 @@ func (r *SequenceReceiver) LastCommitted() uint64 {
 // cumulative ACK validated for that same stream. It does not retain payloads,
 // resubmit failed writes or persist checkpoints across process restarts.
 type AckTracker struct {
-	mu         sync.Mutex
-	stream     StreamID
-	lastSent   uint64
-	lastAcked  uint64
+	mu        sync.Mutex
+	stream    StreamID
+	lastSent  uint64
+	lastAcked uint64
 }
 
 func NewAckTracker(stream StreamID) (*AckTracker, error) {
