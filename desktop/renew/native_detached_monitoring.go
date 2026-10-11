@@ -103,7 +103,36 @@ func (a *renewApp) openDetachedMonitoringPage(page string) {
     win.Focus()
 }
 
+// redirectDetachedNavigation keeps a detached window dedicated to one page.
+// Internal links into other monitoring or policy pages open in the owner
+// workspace; a detached observation window never becomes a policy editor.
+func (a *renewApp) redirectDetachedNavigation() string {
+	if a.detachedParent == nil || a.detachedPageID == "" || a.page == a.detachedPageID {
+		return ""
+	}
+	target := a.page
+	a.page = a.detachedPageID
+	return target
+}
+
+func (a *renewApp) openDetachedDestinationInMain(target string) {
+	if a.detachedParent == nil || target == "" || a.detachedParent.win == nil {
+		return
+	}
+	parent := a.detachedParent
+	parent.hiddenForDetached = false
+	parent.win.Update(func() {
+		parent.page = target
+	})
+	parent.win.Restore()
+	parent.win.Show()
+	parent.win.Focus()
+}
+
 func (a *renewApp) detachedMonitoringView(c *ui.Context) {
+    if target := a.redirectDetachedNavigation(); target != "" {
+        a.openDetachedDestinationInMain(target)
+    }
     styleRenewWorkspaceTheme(&a.workspaceTheme, c.Theme(), c.Preferences().HighContrast)
     c.SetTheme(&a.workspaceTheme)
     theme := c.Theme()
@@ -133,6 +162,12 @@ func (a *renewApp) detachedMonitoringView(c *ui.Context) {
                 ui.Text(c, "监控服务离线，显示最近一次同步的活动摘要。").TextColor(theme.Warning)
             }
             a.workspacePage(c)
+            // A link inside the observation page may request another route.
+            // Redirect it after the current frame rather than rendering
+            // privileged controls into a floating monitoring window.
+            if target := a.redirectDetachedNavigation(); target != "" {
+                a.openDetachedDestinationInMain(target)
+            }
         })
         wasOpen := a.eventDetailOpen
         a.eventDetailModal(c)
