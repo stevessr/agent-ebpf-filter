@@ -155,10 +155,31 @@ func (s *Session) Receive() (Message, error) {
 	if s == nil || s.conn == nil {
 		return Message{}, ErrInvalidConfig
 	}
-	// Serialize reads to protect buffer reuse. The returned payload still
-	// expires at the next Receive, regardless of which goroutine calls it.
+	// The borrowed payload expires on the next Receive, regardless of
+	// which goroutine calls it. Use ReceiveCopy for caller-owned bytes.
 	s.readMu.Lock()
 	defer s.readMu.Unlock()
+	return s.receiveLocked()
+}
+
+// ReceiveCopy copies the payload while holding the read lock. The returned
+// bytes remain owned by the caller even if another goroutine receives next.
+func (s *Session) ReceiveCopy() (Message, error) {
+	if s == nil || s.conn == nil {
+		return Message{}, ErrInvalidConfig
+	}
+	s.readMu.Lock()
+	defer s.readMu.Unlock()
+	msg, err := s.receiveLocked()
+	if err != nil {
+		return Message{}, err
+	}
+	msg.Payload = append([]byte(nil), msg.Payload...)
+	return msg, nil
+}
+
+// receiveLocked requires readMu to be held.
+func (s *Session) receiveLocked() (Message, error) {
 	// One byte of typed framing precedes the bounded message body.
 	raw, err := udsframe.ReadLimitInto(s.conn, s.readBuf, MaxMessageBytes+1)
 	if err != nil {

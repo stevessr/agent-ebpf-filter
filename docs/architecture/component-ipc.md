@@ -34,7 +34,7 @@ SO_PEERCRED verifies Linux UID, not an executable identity. HMAC proves possessi
 
 The protocol **does not expose policy apply, BPF map mutation, shell execution, plugin loading or arbitrary commands**. Those require a separate review, authorized request semantics, transactional apply/rollback and audit trail before enabling.
 
-Each post-handshake message uses existing `udsframe` length prefix + type byte + opaque payload, at most 1 MiB per message. The decoder validates the sender's authenticated role before returning borrowed payload bytes. Concurrent receive calls are serialized; callers must consume or copy returned bytes before any subsequent receive, even from another goroutine. A failure to clear a post-send deadline closes the session. Payloads are not protobuf-versioned yet; the higher-layer canonical event and health schemas must be added before attaching production components.
+Each post-handshake message uses existing `udsframe` length prefix + type byte + opaque payload, at most 1 MiB per message. The decoder validates the sender's authenticated role before returning borrowed payload bytes. Concurrent receive calls are serialized; callers must consume or copy borrowed bytes before the next receive. `Session.ReceiveCopy()` returns caller-owned bytes that remain valid across later receives, including from another goroutine. A failure to clear a post-send deadline closes the session. Payloads are not protobuf-versioned yet; the higher-layer canonical event and health schemas must be added before attaching production components.
 
 ## Queue and backpressure
 
