@@ -70,6 +70,7 @@ type Ring struct {
 	wakefd *os.File
 	slots  uint64
 	width  uint64
+	limit  int
 	writer bool
 	closed bool
 }
@@ -132,7 +133,7 @@ func Create(slots, payload int) (_ *Ring, err error) {
 	return &Ring{
 		memory: memory, memfd: memoryFile,
 		wakefd: os.NewFile(uintptr(wake), "component-event-wakeup"),
-		slots: uint64(slots), width: slotStride(payload), writer: true,
+		slots: uint64(slots), width: slotStride(payload), limit: payload, writer: true,
 	}, nil
 }
 
@@ -181,7 +182,7 @@ func OpenReader(memoryFile, wakeFile *os.File) (*Ring, error) {
 	}
 	return &Ring{
 		memory: memory, memfd: memoryFile, wakefd: wakeFile,
-		slots: uint64(slots), width: slotStride(payload),
+		slots: uint64(slots), width: slotStride(payload), limit: payload,
 	}, nil
 }
 
@@ -212,7 +213,7 @@ func (r *Ring) MaxPayload() int {
 	if r == nil {
 		return 0
 	}
-	return int(r.width) - 8
+	return r.limit
 }
 
 // Files returns descriptors owned by the ring, intended for an explicit
