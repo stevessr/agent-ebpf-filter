@@ -90,6 +90,9 @@ func runDesktop() {
 		window.OnClose(func(e *mygo.CloseEvent) {
 			if len(app.detachedTerminals) > 0 || len(app.detachedPages) > 0 {
 				e.PreventDefault()
+				// Closing the owner must never destroy live child PTYs; but an
+				// intentional tray minimization must remain minimized later.
+				app.hiddenForDetached = !app.minimizeToTray
 				window.Hide()
 			}
 		})
