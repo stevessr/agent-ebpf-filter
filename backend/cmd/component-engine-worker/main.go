@@ -17,6 +17,7 @@ import (
 
 func main() {
 	socket := flag.String("socket", "", "private supervisor-owned Unix socket")
+	shared := flag.Bool("shared", false, "use inherited memfd and eventfd event data plane")
 	flag.Parse()
 	if *socket == "" || flag.NArg() != 0 {
 		fmt.Fprintln(os.Stderr, "usage: component-engine-worker --socket <private-path>")
@@ -24,7 +25,13 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := componentproc.RunWorker(ctx, *socket); err != nil {
+	var err error
+	if *shared {
+		err = componentproc.RunWorkerShared(ctx, *socket)
+	} else {
+		err = componentproc.RunWorker(ctx, *socket)
+	}
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "component Engine worker:", err)
 		os.Exit(1)
 	}

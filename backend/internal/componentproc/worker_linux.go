@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 
 	"agent-ebpf-filter/internal/componentipc"
+	"agent-ebpf-filter/internal/componentshm"
 	"agent-ebpf-filter/internal/componentwire"
 )
 
@@ -27,6 +28,16 @@ var (
 // never argv, the environment or a filesystem secret. It performs no policy
 // updates and acknowledges only schema-valid events received in sequence.
 func RunWorker(ctx context.Context, socketPath string) error {
+	return runWorker(ctx, socketPath, false)
+}
+
+// RunWorkerShared uses inherited FD4/FD5 for the event ring and its notifier.
+// The same authenticated UDS carries validation ACKs, never raw event bodies.
+func RunWorkerShared(ctx context.Context, socketPath string) error {
+	return runWorker(ctx, socketPath, true)
+}
+
+func runWorker(ctx context.Context, socketPath string, shared bool) error {
 	if ctx == nil || !filepath.IsAbs(socketPath) {
 		return ErrInvalidWorker
 	}
@@ -65,6 +76,23 @@ func RunWorker(ctx context.Context, socketPath string) error {
 		return err
 	}
 	defer session.Close()
+	if shared {
+		mem := os.NewFile(4, "component-event-memfd")
+		wake := os.NewFile(5, "component-event-wakeup")
+		if mem == nil || wake == nil {
+			if mem != nil { _ = mem.Close() }
+			if wake != nil { _ = wake.Close() }
+			return ErrInvalidWorker
+		}
+		ring, err := componentshm.OpenReader(mem, wake)
+		if err != nil {
+			_ = mem.Close()
+			_ = wake.Close()
+			return err
+		}
+		defer ring.Close()
+		return consumeShared(ctx, session, ring)
+	}
 
 	var receiver *componentipc.SequenceReceiver
 	for {
@@ -101,6 +129,47 @@ func RunWorker(ctx context.Context, socketPath string) error {
 		}
 		if err := session.SendAck(ack); err != nil {
 			return err
+		}
+	}
+}
+
+// consumeShared is a read-only Engine observer. The shared tail advances
+// after the slot has been copied; UDS ACKs are emitted only after all payloads
+// in the current batch pass the versioned schema check.
+func consumeShared(ctx context.Context, session *componentipc.Session, ring *componentshm.Ring) error {
+	stream := componentipc.StreamID(ring.Stream())
+	if stream == (componentipc.StreamID{}) {
+		return componentshm.ErrInvalidRing
+	}
+	lastAcked := uint64(0)
+	for {
+		if err := ring.WaitReady(ctx); err != nil {
+			if errors.Is(err, componentshm.ErrRingClosed) {
+				return nil
+			}
+			return err
+		}
+		var lastRead uint64
+		for {
+			data, err := ring.ReadCopy()
+			if errors.Is(err, componentshm.ErrNoRecord) || errors.Is(err, componentshm.ErrRingClosed) {
+				break
+			}
+			if err != nil {
+				return err
+			}
+			if _, err := componentwire.DecodeEvent(data); err != nil {
+				return err
+			}
+			lastRead = ring.Stats().Consumed
+		}
+		if lastRead > lastAcked {
+			if err := session.SendAck(componentipc.Ack{
+				Stream: stream, Sequence: lastRead,
+			}); err != nil {
+				return err
+			}
+			lastAcked = lastRead
 		}
 	}
 }
