@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	ErrUnsafeSupervisor = errors.New("root supervisor must not launch a same-UID Engine")
+	ErrUnsafeSupervisor  = errors.New("root supervisor must not launch a same-UID Engine")
 	ErrInvalidSupervisor = errors.New("invalid component supervisor configuration")
 )
 
@@ -135,7 +135,7 @@ func RunEngine(ctx context.Context, executable string, publish func(*componentip
 	session, err := componentipc.HandshakeServer(conn, componentipc.ServerConfig{
 		Secret: secret[:], Role: componentipc.RoleCollector,
 		AllowedPeers: []componentipc.Role{componentipc.RoleEngine},
-		VerifyPeer: componentipc.VerifyUnixPeerUIDs(uint32(os.Geteuid())),
+		VerifyPeer:   componentipc.VerifyUnixPeerUIDs(uint32(os.Geteuid())),
 	})
 	if err != nil {
 		_ = waitChild()

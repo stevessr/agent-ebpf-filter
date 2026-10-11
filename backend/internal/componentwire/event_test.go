@@ -12,11 +12,11 @@ import (
 func validEvent() Event {
 	return Event{
 		SchemaVersion: EnvelopeVersion,
-		EventID: "evt-test-1",
-		Source: "kernel",
-		TimestampNS: 123456789,
-		Type: "exec",
-		PID: 42,
+		EventID:       "evt-test-1",
+		Source:        "kernel",
+		TimestampNS:   123456789,
+		Type:          "exec",
+		PID:           42,
 	}
 }
 

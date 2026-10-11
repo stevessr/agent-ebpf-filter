@@ -30,10 +30,10 @@ func testWorkerBinary(t *testing.T) string {
 func testEnvelope(id string) componentwire.Event {
 	return componentwire.Event{
 		SchemaVersion: componentwire.EnvelopeVersion,
-		EventID: id,
-		Source: "kernel",
-		TimestampNS: 12345,
-		Type: "exec",
+		EventID:       id,
+		Source:        "kernel",
+		TimestampNS:   12345,
+		Type:          "exec",
 	}
 }
 

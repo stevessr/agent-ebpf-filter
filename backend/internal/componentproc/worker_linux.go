@@ -59,7 +59,7 @@ func RunWorker(ctx context.Context, socketPath string) error {
 	session, err := componentipc.HandshakeClient(conn, componentipc.ClientConfig{
 		Secret: secret[:], Role: componentipc.RoleEngine,
 		ExpectedServer: componentipc.RoleCollector,
-		VerifyPeer: componentipc.VerifyUnixPeerUIDs(uint32(os.Geteuid())),
+		VerifyPeer:     componentipc.VerifyUnixPeerUIDs(uint32(os.Geteuid())),
 	})
 	if err != nil {
 		return err
