@@ -5,6 +5,10 @@ on:
     paths:
       - "backend/internal/componentipc/**"
       - "backend/cmd/component-ipc-doctor/**"
+      - "backend/cmd/component-engine-worker/**"
+      - "backend/internal/componentwire/**"
+      - "backend/internal/componentproc/**"
+      - "backend/internal/componentshm/**"
       - "docs/architecture/component-ipc.md"
       - "Makefile"
       - ".github/workflows/component-ipc.yml"
@@ -12,6 +16,10 @@ on:
     paths:
       - "backend/internal/componentipc/**"
       - "backend/cmd/component-ipc-doctor/**"
+      - "backend/cmd/component-engine-worker/**"
+      - "backend/internal/componentwire/**"
+      - "backend/internal/componentproc/**"
+      - "backend/internal/componentshm/**"
       - "docs/architecture/component-ipc.md"
       - "Makefile"
       - ".github/workflows/component-ipc.yml"
@@ -22,7 +30,7 @@ permissions:
 jobs:
   protocol:
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-go@v7.0.0
@@ -37,14 +45,23 @@ jobs:
         run: |
           go test -race -count=1 ./cmd/component-ipc-doctor
           go run ./cmd/component-ipc-doctor --json
+      - name: Rootless split Engine process and canonical event schema
+        working-directory: backend
+        run: go test -race -count=1 ./internal/componentwire ./internal/componentproc
+      - name: Linux memfd and eventfd transport race / child-process tests
+        working-directory: backend
+        run: go test -race -count=1 ./internal/componentshm
+      - name: Smoke benchmark for UDS versus shared-memory transport
+        working-directory: backend
+        run: go test ./internal/componentproc -run '^$' -bench '^BenchmarkEngine(UDS|Shared)16$' -benchtime=15x -count=1 -timeout=3m
       - name: Static vet
         working-directory: backend
-        run: go vet ./internal/componentipc ./cmd/component-ipc-doctor
+        run: go vet ./internal/componentipc ./cmd/component-ipc-doctor ./internal/componentwire ./internal/componentproc ./internal/componentshm ./cmd/component-engine-worker
       - name: Go formatting
         run: |
-          files="$(gofmt -l backend/internal/componentipc/*.go backend/cmd/component-ipc-doctor/*.go)"
+          files="$(gofmt -l backend/internal/componentipc/*.go backend/cmd/component-ipc-doctor/*.go backend/internal/componentwire/*.go backend/internal/componentproc/*.go backend/cmd/component-engine-worker/*.go backend/internal/componentshm/*.go)"
           if [ -n "$files" ]; then
             echo "$files"
-            gofmt -d backend/internal/componentipc/*.go backend/cmd/component-ipc-doctor/*.go
+            gofmt -d backend/internal/componentipc/*.go backend/cmd/component-ipc-doctor/*.go backend/internal/componentwire/*.go backend/internal/componentproc/*.go backend/cmd/component-engine-worker/*.go backend/internal/componentshm/*.go
             exit 1
           fi

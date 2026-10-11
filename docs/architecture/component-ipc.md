@@ -116,3 +116,221 @@ This is useful when working on IPC protocol or diagnosing Linux runtime
 permissions. A successful self-test **does not mean Collector/Engine are
 running**, does not verify an active desktop's health, and does not prove that
 durable replay or kernel enforcement works.
+
+## Phase 6: separate Engine process boundary (rootless opt-in)
+
+`backend/internal/componentwire` now defines a **minimal typed and bounded
+JSON event projection** with schema `component.event.v1` and only whitelisted
+fields (event ID, source, timestamp, event type, PID, decision and risk score).
+Unknown JSON fields, trailing content, invalid versions and malformed records
+are rejected. In particular raw argv, prompts, paths, secrets and packet
+contents cannot be represented in this projection. The future privileged
+Collector adapter will map **already-redacted** `pb.EventEnvelope` values
+into this deliberately smaller independent schema. Unlike a direct protobuf
+import, this projection can compile without generated `pb` dependencies.
+The original event normalization, policy maps, risk feedback, HTTP APIs,
+wrapper sockets and Renew startup behavior remain unchanged.
+
+`backend/internal/componentproc` contains a Linux-only demonstration of a
+**real, supervised child process**, rather than an in-process goroutine.
+`RunEngine(ctx, absoluteExecutable, publisher)` creates a private `0700`
+temporary directory, a `0600` UDS and a 32-byte random session secret,
+starts `backend/cmd/component-engine-worker` with a minimal environment,
+and supplies the secret only through inherited **FD 3**. The socket path is
+not a secret. The Collector and Engine both verify Linux `SO_PEERCRED` and
+complete the mutual v1 HMAC handshake before accepting traffic. The
+supervisor owns shutdown, closes its sockets, joins/kills the worker on
+cancellation and removes its private directory.
+
+This **does not yet start from `app.Main()` or Renew**. A root supervisor is
+explicitly rejected rather than accidentally launching a root Engine;
+the current demonstration only supports a *same-UID non-root* supervisor and
+worker. A real privileged Collector must introduce explicitly configured
+UID/GID dropping, a separate private socket accessibility policy and a
+reviewed launcher before production opt-in. Same-UID subprocess isolation is
+a process-lifecycle boundary, **not** a hard OS security boundary.
+
+The worker currently validates and consumes normalized EventEnvelope records
+and returns cumulative ACKs only after successful decode/check/commit.
+It never issues alerts, runs AI/ML inference, mutates BPF maps or implements
+controller RPCs. Repeated or skipped sequences, malformed projection envelopes
+and unexpected kinds terminate the worker; there is **no automatic replay,
+deduplication across restarts, credit flow control, durable cursors or policy
+decision equivalence**. A manual publisher uses `SendEvent` (which itself validates and encodes
+only the whitelisted projection) to wait for an explicit ACK, which means the envelope was decoded/validated, not evaluated
+by any security engine.
+
+An unprivileged Linux end-to-end test compiles the child executable, launches
+it as a separate OS process, sends two typed event projections and checks ACKs,
+then verifies malformed protobuf causes worker failure with no ACK.
+Run locally:
+
+```sh
+cd backend
+go test -race -count=1 ./internal/componentwire ./internal/componentproc
+go vet ./internal/componentwire ./internal/componentproc
+```
+
+This is phase **6a** only. Next: explicit dedicated engine UID, safe
+supervisor integration, production-compatible event parity tests, and later
+controlled cutover of the current in-process engine behind an off-by-default
+feature flag. Do not advertise subprocess schema validation as a replacement
+for existing security decisions.
+
+
+## Phase 6b: opt-in shared-memory data-plane prototype (not production)
+
+The Linux-only `backend/internal/componentshm` package adds a bounded
+single-producer/single-consumer **memfd + MAP_SHARED** ring with an **eventfd**
+wakeup descriptor. This stage is an independently testable data-plane prototype:
+the production Collector/Engine still use their existing paths, and
+`componentproc.RunEngine` is **not** automatically converted to shared memory.
+A later supervised integration must hand descriptors only to authenticated
+participants and preserve the existing HMAC/UID-checked UDS control channel.
+
+- The writer creates a size-sealed anonymous memfd
+  (`F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL`), fixed-width bounded slots,
+  and a nonblocking CLOEXEC eventfd. Memory size limits are 2..4096
+  power-of-two slots with 64..16384 bytes per event. There are no external
+  shared-memory pathnames or persistence.
+- Writer `TryWrite` rejects oversized/empty data, never blocks and increments
+  the rejection count on saturation. The reader `ReadCopy` validates the
+  encoded slot length before copying, then publishes the consumer cursor.
+  The ring never overwrites any data that has not been acknowledged over
+  the authenticated control UDS; a local Engine read alone cannot reclaim
+  the publisher's slots.
+- 64-bit publication/consumption cursors are aligned to separate cache lines.
+  Producer and consumer use Go sequentially consistent atomics to publish
+  ownership across MAP_SHARED. This layout currently targets Linux platforms
+  where 64-bit atomics on shared, aligned mappings are supported; mixing
+  architectures/endianness or using multiple writers/readers is unsupported.
+- A publisher calls `Notify` once per batch, rather than per event.
+  Reader `WaitReady` checks ring occupancy before polling eventfd; it uses
+  bounded 100-ms polling to allow cancellation if a publisher disappears.
+  `Finish` marks end-of-stream and wakes the reader, but does **not** mean
+  validation, ACK or durable receipt.
+- Descriptors may be handed to an explicitly supervised child as inherited
+  files (or later over an authenticated UDS with SCM_RIGHTS). `OpenReader`
+  validates seals, layout magic/version, file size and bounded dimensions.
+  **Phase 6c replaces the original shared writable-tail design** with
+  `F_SEAL_FUTURE_WRITE` read-only Engine mappings and a Collector-private
+  confirmed cursor advanced exclusively after authenticated UDS receipts.
+  A separate shared writable cursor page is therefore no longer needed.
+  True process privilege separation additionally requires the explicitly
+  configured `RunEngineSharedAsUID` path, not the default rootless mode.
+
+Tests cover slot boundaries, buffer wraparound, saturation/overflow counting,
+owned-buffer semantics, malformed record and unsupported header rejection,
+timeouts, termination, and a real second process with inherited FD3/FD4
+that consumes 250 ordered events. A microbenchmark exercises grouped 64-event
+writes + one eventfd notify; it is **not** an eBPF-to-AI end-to-end latency
+measurement and makes no claim of zero copying.
+
+```sh
+cd backend
+go test -race -count=1 ./internal/componentshm
+go test ./internal/componentshm -run '^$' -bench BenchmarkRingBatch64 -benchmem
+```
+
+Next steps before adopting this data plane: one stable end-to-end mode switch,
+control-plane authenticated FD transfer, multi-batch ACK checkpoints,
+PID/UID process isolation, explicit reconnect and loss reasons, benchmark
+comparison versus UDS using equivalent payloads, and actual kernel-event
+parity tests. No security enforcement action may depend on this prototype.
+
+
+### Rootless Engine integration of the shared data plane (experimental)
+
+Phase 6b now also has **opt-in, real-process** integration:
+`componentproc.RunEngineShared(ctx, executable, slots, payload, publisher)`
+launches the existing rootless Engine binary with `--shared`. The parent
+passes the already-authenticated session's secret through FD3 and the
+sealed-size event memfd plus eventfd through FD4/FD5. The Engine verifies the
+parent's UID and HMAC on the original private UDS, then validates shared
+`component.event.v1` projections without receiving one socket frame per
+event. Only cumulative per-batch validation ACKs go back over UDS.
+
+`SendSharedBatch` encodes and validates all events before writing, rejects
+oversized or unavailable-capacity batches, emits one eventfd wakeup, and waits
+for authenticated cumulative ACKs with matching stream identity. On failure,
+treat an incomplete batch as ambiguous; **never silently retry it**. Engine
+exits with an error and does not ACK malformed projections. On success the
+supervisor marks the ring closed, wakes the reader, closes its socket and
+joins the Engine. This supports comparing UDS-only vs memfd modes, but does
+not yet offer automatic mode switching or a production data-plane toggle.
+
+End-to-end CI tests launch an actual Engine subprocess, send **200 events
+in eight batches** with ACKs on the authenticated UDS, verify the shared
+consumer tail and reject malformed events. The production embedded
+Collector/Engine, Renew, and kernel policy paths still do not call this
+prototype. Privileged process separation and crash replay are not implied.
+
+
+For repeatable **end-to-end experimental** comparisons (not a kernel/BPF
+benchmark), run on the same unprivileged Linux host:
+
+```sh
+cd backend
+go test ./internal/componentproc -run '^$' -bench '^BenchmarkEngine(UDS|Shared)16$' -benchmem -count=3
+```
+
+These deliberately compare the implemented **per-event UDS+ACK** baseline
+against **16 shared-memory events per notification and cumulative ACK**.
+The two sides therefore differ in acknowledgement cadence as well as
+transport. Report results per host/kernel/Go version and do not imply a
+measured speedup without collecting both numbers under equivalent load.
+
+
+## Phase 6c: read-only Engine and explicit UID switching
+
+The shared event mapping now has a stronger trust boundary:
+
+- Collector maps the memfd **writable before sealing**, then applies
+  `F_SEAL_FUTURE_WRITE` in addition to grow/shrink/seal restrictions.
+  A later Engine holding the inherited memfd cannot map its data pages
+  writable or mutate them through `write(2)`. The Engine only maps
+  `PROT_READ | MAP_SHARED`.
+- The consumer's read cursor lives **only in Engine-private memory**.
+  The producer maintains its own independent, trusted `confirmed` cursor;
+  Engine cannot change it through the mapping. Slot capacity is reclaimed
+  only when the supervising Collector validates the authenticated UDS ACK
+  stream ID and strictly increasing cumulative sequence, then calls
+  `Ring.Confirm`. Forged, duplicated or future ACKs are rejected. This
+  creates bounded backpressure on missing acknowledgments and prevents an
+  untrusted Engine from freeing and overwriting unconfirmed event slots.
+- The existing `RunEngineShared` remains a **same-UID rootless test mode**.
+  The additional `RunEngineSharedAsUID(ctx, executable, uid, gid, ...)`
+  is an explicit *privileged-host integration experiment*, never automatic:
+  only root may invoke it and only with nonzero UID/GID. The selected
+  Engine executable must be root-owned, regular, executable by the target
+  UID and not writable by group or others. `exec.Cmd.SysProcAttr.Credential`
+  switches the child to the requested UID/GID with an empty supplementary
+  group list, and `Pdeathsig=SIGKILL` limits orphan lifetime.
+- To avoid opening a root-controlled `0700` socket directory to another
+  UID, this path uses a fresh unpredictable **Linux abstract UDS** name.
+  Abstract socket names do not themselves authorize a peer; the server
+  checks **the connecting non-root process's SO_PEERCRED after exec/setuid**
+  and performs the mutual HMAC handshake using the secret delivered through
+  FD3. FD4 and FD5 carry the memfd and eventfd. This explicitly avoids
+  the subtle pitfall of a pre-created socketpair, whose `SO_PEERCRED`
+  can reflect the credentials when it was created rather than those of
+  the subsequently dropped-privilege child.
+- The optional privileged integration test is **not run with sudo against
+  untrusted PR code**. Rootless CI always tests rejection of unauthorized
+  privileged launches and all shared-memory mapping restrictions. A
+  trusted operator can separately install the Engine under a root-owned,
+  executable directory and run
+  `AGENT_COMPONENT_TEST_ROOT_OWNED_WORKER=/path/to/installed/worker go test ./internal/componentproc -run '^TestPrivilegedSharedEngineDropsUID$' -v`
+  **as root in an isolated test VM**. This has not been validated on a
+  privileged production host and does not test eBPF policy semantics.
+
+These changes strengthen the data plane, **not** the scope of Engine
+privileges relative to optional application/API code. The current Engine
+remains a read-only schema-validation worker with no inference or policy
+RPC. Root retains the eBPF owner. A malicious child still has read access
+to the whitelisted telemetry payload and can withhold or fabricate
+application ACKs using its authorized HMAC session (the supervisor never
+treats an ACK as proof of security enforcement). Production integration
+still requires a pinned installer and executable trust policy, workload
+parity checks, crash recovery, and operator health metrics. No standard
+backend / Renew process is launched differently by this phase.
