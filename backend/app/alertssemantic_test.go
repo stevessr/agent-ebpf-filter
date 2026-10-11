@@ -8,7 +8,7 @@ import (
 
 func TestSyntheticSemanticAlertUsesHundredPointRiskScale(t *testing.T) {
 	for _, tc := range []struct {
-		name string
+		name                  string
 		sourceScore, expected float64
 	}{
 		{name: "low source", sourceScore: 12, expected: 96},
@@ -88,9 +88,9 @@ func TestSemanticAlertsDetectMultiAgentFileContention(t *testing.T) {
 	resetSemanticAlertState()
 
 	first := &pb.Event{
-		Pid:        201,
-		Tgid:       201,
-		Type:       "write", Retval: 1,
+		Pid:  201,
+		Tgid: 201,
+		Type: "write", Retval: 1,
 		EventType:  pb.EventType_WRITE,
 		Path:       "/workspace/shared-plan.md",
 		AgentRunId: "run-a",
@@ -102,9 +102,9 @@ func TestSemanticAlertsDetectMultiAgentFileContention(t *testing.T) {
 	}
 
 	second := &pb.Event{
-		Pid:        301,
-		Tgid:       301,
-		Type:       "write", Retval: 1,
+		Pid:  301,
+		Tgid: 301,
+		Type: "write", Retval: 1,
 		EventType:  pb.EventType_WRITE,
 		Path:       "/workspace/shared-plan.md",
 		AgentRunId: "run-b",
@@ -303,7 +303,6 @@ func findSemanticAlertCode(alerts []*pb.Event, code string) *pb.Event {
 func hasSemanticAlertCode(alerts []*pb.Event, code string) bool {
 	return findSemanticAlertCode(alerts, code) != nil
 }
-
 
 func TestVerifiedPublicCloneRetainsForkStormAndSecretDetection(t *testing.T) {
 	resetSemanticAlertState()
