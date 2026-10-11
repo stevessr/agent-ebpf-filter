@@ -639,7 +639,7 @@ func BuildSemanticAlertsWithCloneContext(event *pb.Event, verifiedPublicClone bo
 	if verifiedPublicClone {
 		forkThreshold *= 8
 	}
-	if target, ok := observeForkStorm(event, now, forkThreshold); ok {
+	if target, ok := observeForkStorm(event, now, forkThreshold, verifiedPublicClone); ok {
 		addAlert("RESOURCE_WASTING_LOOP", target, "observed repeated fork/clone activity suggesting a lightweight fork storm or runaway loop", 0.94)
 	}
 
