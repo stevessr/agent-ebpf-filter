@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"agent-ebpf-filter/internal/componentipc"
+	"agent-ebpf-filter/internal/componentshm"
 	"agent-ebpf-filter/internal/componentwire"
 )
 
@@ -31,6 +32,40 @@ var (
 // events through Session.SendSequenced. This is a rootless integration boundary,
 // NOT the privileged production Collector path or a promise of privilege drop.
 func RunEngine(ctx context.Context, executable string, publish func(*componentipc.Session) error) error {
+	return runEngine(ctx, executable, nil, publish)
+}
+
+// RunEngineShared is a rootless opt-in alternative: events use a bounded
+// process-shared memfd ring; only cumulative validation ACKs cross authenticated
+// UDS. The current embedded backend and Renew never invoke this function.
+func RunEngineShared(ctx context.Context, executable string, slots, payload int,
+	publish func(*componentipc.Session, *componentshm.Ring) error) error {
+	if ctx == nil || publish == nil || !filepath.IsAbs(executable) {
+		return ErrInvalidSupervisor
+	}
+	if os.Geteuid() == 0 {
+		return ErrUnsafeSupervisor
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	ring, err := componentshm.Create(slots, payload)
+	if err != nil {
+		return err
+	}
+	defer ring.Close()
+	return runEngine(ctx, executable, ring, func(session *componentipc.Session) error {
+		publishErr := publish(session, ring)
+		closeErr := ring.Finish()
+		if publishErr != nil {
+			return publishErr
+		}
+		return closeErr
+	})
+}
+
+func runEngine(ctx context.Context, executable string, shared *componentshm.Ring,
+	publish func(*componentipc.Session) error) error {
 	if ctx == nil || executable == "" || !filepath.IsAbs(executable) || publish == nil {
 		return ErrInvalidSupervisor
 	}
@@ -76,10 +111,20 @@ func RunEngine(ctx context.Context, executable string, publish func(*componentip
 
 	childCtx, stopChild := context.WithCancel(ctx)
 	defer stopChild()
-	command := exec.CommandContext(childCtx, executable, "--socket", socketPath)
+	args := []string{"--socket", socketPath}
+	extra := []*os.File{reader}
+	if shared != nil {
+		mem, wake, err := shared.Files()
+		if err != nil {
+			return err
+		}
+		args = append(args, "--shared")
+		extra = append(extra, mem, wake)
+	}
+	command := exec.CommandContext(childCtx, executable, args...)
 	// A minimal environment avoids leaking supervisor-only runtime secrets.
 	command.Env = []string{"LANG=C"}
-	command.ExtraFiles = []*os.File{reader}
+	command.ExtraFiles = extra
 	command.WaitDelay = 2 * time.Second
 	if err := command.Start(); err != nil {
 		return fmt.Errorf("launch Engine: %w", err)
@@ -185,4 +230,64 @@ func SendEvent(session *componentipc.Session, stream componentipc.StreamID, seq 
 		return fmt.Errorf("%w: unexpected ACK stream or sequence", componentipc.ErrInvalidSequence)
 	}
 	return nil
+}
+
+// SendSharedBatch validates the entire batch before publishing any record,
+// then issues one eventfd wakeup. Authenticated UDS only carries cumulative
+// ACKs for schema-validated records; it does not transport event payloads.
+// Caller MUST serialize batches: no concurrent producers or UDS ACK readers.
+// A timeout/cancellation belongs to the supervisor's context and will close
+// the authenticated session. There is no retry, replay or durable delivery.
+func SendSharedBatch(session *componentipc.Session, ring *componentshm.Ring,
+	events []componentwire.Event) error {
+	if session == nil || ring == nil || len(events) == 0 {
+		return componentipc.ErrInvalidConfig
+	}
+	encoded := make([][]byte, 0, len(events))
+	for _, event := range events {
+		data, err := componentwire.EncodeEvent(event)
+		if err != nil {
+			return err
+		}
+		if len(data) > ring.MaxPayload() {
+			return componentshm.ErrTooLarge
+		}
+		encoded = append(encoded, data)
+	}
+	stats := ring.Stats()
+	if len(encoded) > int(stats.Capacity-stats.Queued) {
+		return componentshm.ErrRingFull
+	}
+	for _, data := range encoded {
+		if err := ring.TryWrite(data); err != nil {
+			// A failed write may leave only a partially enqueued batch.
+			// The caller must abandon this session rather than resubmit.
+			return err
+		}
+	}
+	want := ring.Stats().Published
+	if err := ring.Notify(); err != nil {
+		return err
+	}
+	stream := componentipc.StreamID(ring.Stream())
+	last := uint64(0)
+	for {
+		record, err := session.ReceiveRecordCopy()
+		if err != nil {
+			return err
+		}
+		if record.Kind != componentipc.KindAck {
+			return componentipc.ErrFrameDenied
+		}
+		if record.Receipt.Stream != stream {
+			return componentipc.ErrForeignStream
+		}
+		if record.Receipt.Sequence <= last || record.Receipt.Sequence > want {
+			return componentipc.ErrInvalidSequence
+		}
+		last = record.Receipt.Sequence
+		if last == want {
+			return nil
+		}
+	}
 }
