@@ -263,3 +263,10 @@ In bundled mode the privileged child listens only on an authenticated private Un
 - The terminal action row is a native, keyboard-friendly toolbar with automatic overflow on narrow windows. The terminal tab strip uses an accessible native tablist and horizontal scrolling; tab titles are shortened on Unicode boundaries.
 - A new terminal tab reveals the end of the strip. Closing a tab before the active tab preserves the current PTY, and closing the last tab clears stale focus state.
 - Clicking an alert in the inspector always shows that retained redacted summary, even if the Events table currently filters it out. Event table filters remain unchanged until the user explicitly chooses "定位" or another correlation action.
+
+
+### 分离式终端子窗口（MyGo 0.4.1）
+
+在 **终端** 页选择标签后点击 **分离当前标签**，现有标签（包括 Ghostty PTY、目录、分屏布局与滚动状态）会移到单独的原生窗口，Shell 进程不会重启。子窗口仍可新增标签、左右或上下拆分；点击 **收回主窗口** 或正常关闭子窗口会一次性将全部标签送回主工作台。主窗口在子窗口仍打开时会自动隐藏而非停止后台采集器，回收后会恢复。退出整个应用时仍会清理全部 PTY。
+
+分离使用 MyGo 的 `NewWindow`、`StateKey`、`OnClose` 原生 API，终端和主窗口保持同一进程与共享 ID 分配器，不开第二个后端/事件 WebSocket。**当前通过按钮分离与回收**，并非跨窗口拖拽标签；Wayland 下不依赖全局窗口位置控制。
