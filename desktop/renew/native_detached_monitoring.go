@@ -31,6 +31,7 @@ func (a *renewApp) copyMonitoringSnapshot(child *renewApp) {
     }
     child.client = a.client
     child.starting = a.starting
+    child.paused = a.paused
     child.connected = a.connected
     child.healthReady = a.healthReady
     child.lastErr = a.lastErr
@@ -137,11 +138,17 @@ func (a *renewApp) detachedMonitoringView(c *ui.Context) {
     c.SetTheme(&a.workspaceTheme)
     theme := c.Theme()
     ui.Column(c).Fill().MinWidth(0).MinHeight(0).Background(theme.Background).Children(func() {
-        ui.Row(c).Height(54).Padding(10, 16).Gap(10).AlignItems(ui.Center).Background(theme.Surface).Children(func() {
+        ui.Row(c).MinHeight(54).Padding(10, 16).Gap(10).Wrap().AlignItems(ui.Center).Background(theme.Surface).Children(func() {
             ui.Text(c, a.page).FontSize(17).Bold()
             status, level := a.pipelineStatus()
             statusPill(c, status, workspaceStatusTone(theme, level))
+            if a.paused {
+                statusPill(c, "事件展示暂停", theme.Warning)
+            }
             ui.Spacer(c)
+            if ui.Button(c, "系统诊断").Tooltip("在主工作台检查采集状态，避免独立窗口重复建立连接").Clicked() {
+                a.openDetachedDestinationInMain("系统")
+            }
             if ui.Button(c, "返回主窗口").Tooltip("在主工作台打开本页，关闭独立窗口").Clicked() {
                 parent := a.detachedParent
                 if parent != nil && parent.win != nil {
@@ -158,8 +165,12 @@ func (a *renewApp) detachedMonitoringView(c *ui.Context) {
         })
         ui.Divider(c)
         ui.Scroll(c).Grow(1).MinHeight(0).MinWidth(0).Padding(16).Gap(14).Children(func() {
-            if !a.connected && a.lastErr != "" {
-                ui.Text(c, "监控服务离线，显示最近一次同步的活动摘要。").TextColor(theme.Warning)
+            if a.starting || !a.connected || !a.healthReady || !a.health.CaptureHealthy || !a.eventStreamConnected || a.paused {
+                ui.Row(c).Wrap().Padding(10).Gap(8).Radius(8).
+                    Background(theme.Warning.Alpha(0.08)).Border(1, theme.Warning.Alpha(0.32)).
+                    Children(func() {
+                        ui.Text(c, a.overviewSnapshotHint()).FontSize(12).TextColor(theme.Warning)
+                    })
             }
             a.workspacePage(c)
             // A link inside the observation page may request another route.
