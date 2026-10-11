@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 
 	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
@@ -20,6 +21,7 @@ import (
 const terminalScrollbackBytes = 8 << 20
 
 type renewTerminalPane struct {
+	owner    atomic.Pointer[renewApp]
 	id       int
 	term     *terminal.Terminal
 	startDir string
@@ -163,15 +165,18 @@ func (a *renewApp) newTerminalPane(dir string) (*renewTerminalPane, error) {
 		dir = terminalHomeDir()
 	}
 	pane := &renewTerminalPane{id: a.nextTerminalID(), startDir: dir}
+	pane.owner.Store(a)
 	term, err := terminal.New(terminal.Options{
 		Dir:        dir,
 		Scrollback: terminalScrollbackBytes,
 		Font:       terminal.Font{Family: "monospace", Size: 13},
 		OnExit: func(code int) {
-			if a.terminalClosing.Load() {
+			// The same PTY may be moved between windows while its process exits.
+			owner := pane.owner.Load()
+			if owner == nil || owner.terminalClosing.Load() {
 				return
 			}
-			a.update(func() {
+			owner.update(func() {
 				pane.exited = true
 				pane.exitCode = code
 			})
