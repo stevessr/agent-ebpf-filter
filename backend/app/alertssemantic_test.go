@@ -303,3 +303,45 @@ func findSemanticAlertCode(alerts []*pb.Event, code string) *pb.Event {
 func hasSemanticAlertCode(alerts []*pb.Event, code string) bool {
 	return findSemanticAlertCode(alerts, code) != nil
 }
+
+
+func TestVerifiedPublicCloneRetainsForkStormAndSecretDetection(t *testing.T) {
+	resetSemanticAlertState()
+	const pid uint32 = 49825
+	markPublicCloneProcess(pid, "gh")
+	t.Cleanup(func() {
+		publicCloneProcesses.Lock()
+		delete(publicCloneProcesses.entries, pid)
+		publicCloneProcesses.Unlock()
+	})
+
+	// A normal clone can fork more than the generic threshold (8) quickly,
+	// but an extreme fork storm (8 * 8) must still be reported exactly once.
+	for index := 0; index < 70; index++ {
+		event := &pb.Event{Pid: pid, Comm: "gh", Type: "process_fork", AgentRunId: "public-clone-test"}
+		alert := findSemanticAlertCode(buildSemanticAlerts(event), "RESOURCE_WASTING_LOOP")
+		switch {
+		case index+1 == 64 && alert == nil:
+			t.Fatal("verified clone must still report a real fork storm at its raised threshold")
+		case index+1 != 64 && alert != nil:
+			t.Fatalf("unexpected repeated fork alert at event %d", index+1)
+		}
+	}
+
+	secret := &pb.Event{Pid: pid, Comm: "gh", Type: "openat", Path: "/home/demo/.ssh/id_rsa"}
+	if !hasSemanticAlertCode(buildSemanticAlerts(secret), "SECRET_ACCESS") {
+		t.Fatal("public clone exemption must not hide secret access")
+	}
+
+	resetSemanticAlertState()
+	var count int
+	for index := 0; index < 16; index++ {
+		event := &pb.Event{Pid: pid + 100, Comm: "gh", Type: "process_fork", AgentRunId: "unverified-clone-test"}
+		if hasSemanticAlertCode(buildSemanticAlerts(event), "RESOURCE_WASTING_LOOP") {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("unverified fork storm emitted %d alerts, want exactly one", count)
+	}
+}
