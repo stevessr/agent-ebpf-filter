@@ -136,7 +136,7 @@ func runDoctor(ctx context.Context) (report doctorReport, err error) {
 		server, handshakeErr := componentipc.HandshakeServer(raw, componentipc.ServerConfig{
 			Secret: secret[:], Role: componentipc.RoleEngine,
 			AllowedPeers: []componentipc.Role{componentipc.RoleCollector},
-			VerifyPeer: componentipc.VerifyUnixPeerUIDs(uid),
+			VerifyPeer:   componentipc.VerifyUnixPeerUIDs(uid),
 		})
 		if handshakeErr != nil {
 			serverDone <- handshakeErr
@@ -182,7 +182,7 @@ func runDoctor(ctx context.Context) (report doctorReport, err error) {
 	client, err := componentipc.HandshakeClient(rawClient, componentipc.ClientConfig{
 		Secret: secret[:], Role: componentipc.RoleCollector,
 		ExpectedServer: componentipc.RoleEngine,
-		VerifyPeer: componentipc.VerifyUnixPeerUIDs(uid),
+		VerifyPeer:     componentipc.VerifyUnixPeerUIDs(uid),
 	})
 	if err != nil {
 		err = report.fail("peer_auth", err)
@@ -227,7 +227,7 @@ func runDoctor(ctx context.Context) (report doctorReport, err error) {
 	case err := <-serverDone:
 		if err != nil {
 			err = report.fail("sequence_ack", err)
-		return report, err
+			return report, err
 		}
 	case <-workCtx.Done():
 		err = report.fail("sequence_ack", workCtx.Err())
