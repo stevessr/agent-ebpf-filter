@@ -33,7 +33,7 @@ func TestSequencedReceiptOverAuthenticatedUnixSocket(t *testing.T) {
 		server, err := HandshakeServer(conn, ServerConfig{
 			Secret: testSecret(), Role: RoleEngine,
 			AllowedPeers: []Role{RoleCollector},
-			VerifyPeer: VerifyUnixPeerUIDs(uid),
+			VerifyPeer:   VerifyUnixPeerUIDs(uid),
 		})
 		if err != nil {
 			result <- err
