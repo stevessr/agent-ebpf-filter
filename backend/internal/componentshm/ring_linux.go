@@ -7,6 +7,7 @@ package componentshm
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -41,6 +42,7 @@ const (
 	offMagic     = 0
 	offVersion   = 8
 	offCapacity  = 12
+	offStream    = 24
 	offPayload   = 16
 	offHead      = 64
 	offTail      = 128
@@ -121,7 +123,16 @@ func Create(slots, payload int) (_ *Ring, err error) {
 	if err != nil {
 		return nil, err
 	}
+	var stream [16]byte
+	if _, randErr := rand.Read(stream[:]); randErr != nil || stream == ([16]byte{}) {
+		_ = unix.Munmap(memory)
+		if randErr != nil {
+			return nil, randErr
+		}
+		return nil, ErrInvalidRing
+	}
 	copy(memory[offMagic:offMagic+8], magic)
+	copy(memory[offStream:offStream+16], stream[:])
 	binary.LittleEndian.PutUint32(memory[offVersion:offVersion+4], Version)
 	binary.LittleEndian.PutUint32(memory[offCapacity:offCapacity+4], uint32(slots))
 	binary.LittleEndian.PutUint32(memory[offPayload:offPayload+4], uint32(payload))
@@ -177,7 +188,8 @@ func OpenReader(memoryFile, wakeFile *os.File) (*Ring, error) {
 	}
 	slots := int(binary.LittleEndian.Uint32(memory[offCapacity:offCapacity+4]))
 	payload := int(binary.LittleEndian.Uint32(memory[offPayload:offPayload+4]))
-	if checkConfig(slots, payload) != nil || int(st.Size) != sizeFor(slots, payload) {
+	if checkConfig(slots, payload) != nil || int(st.Size) != sizeFor(slots, payload) ||
+		string(memory[offStream:offStream+16]) == string(make([]byte, 16)) {
 		return reject()
 	}
 	return &Ring{
@@ -200,6 +212,17 @@ func (r *Ring) store(off int, value uint64) {
 
 func (r *Ring) alive(writer bool) bool {
 	return r != nil && !r.closed && len(r.memory) >= HeaderBytes && r.writer == writer
+}
+
+// Stream identifies this ring lifetime. It is public metadata, not a secret
+// or authorization credential. It lets authenticated control ACKs bind to this
+// ring and reject stale receipts from previous subprocess lifetimes.
+func (r *Ring) Stream() [16]byte {
+	var id [16]byte
+	if r != nil && !r.closed && len(r.memory) >= HeaderBytes {
+		copy(id[:], r.memory[offStream:offStream+16])
+	}
+	return id
 }
 
 func (r *Ring) Capacity() int {
