@@ -278,6 +278,26 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 					reason = "Trusted health dataset generator process (ALLOW)"
 				}
 
+				// Built-in, narrow default: an unauthenticated GitHub API lookup
+				// must confirm that a simple git/gh clone source is PUBLIC.
+				// An explicit user rule, high-risk network audit, strong ML verdict,
+				// or destructive classification is never overridden.
+				if !hasRule && (resolvedAction == pb.WrapperResponse_ALLOW ||
+					(resolvedAction == pb.WrapperResponse_ALERT &&
+						(reason == "Anomalous behavior detected (insufficient labeled data for ML classification)" ||
+							reason == "ML classification: uncertain benign (anomaly elevated)"))) &&
+					!strings.EqualFold(netAudit.RiskLevel, "HIGH") &&
+					!strings.EqualFold(netAudit.RiskLevel, "CRITICAL") &&
+					(classification == nil || (classification.PrimaryCategory != "SENSITIVE" &&
+						classification.PrimaryCategory != "FILE_DELETE")) {
+					if repo, candidate := publicGitHubCloneRepository(req.Comm, req.Args); candidate &&
+						isPublicGitHubRepository(ctx, repo) {
+						resolvedAction = pb.WrapperResponse_ALLOW
+						reason = "Built-in default ALLOW: anonymously verified public GitHub clone"
+						markPublicCloneProcess(req.Pid, req.Comm)
+					}
+				}
+
 				// ── Apply REWRITE logic ──
 				resp := &pb.WrapperResponse{
 					Action:         resolvedAction,
