@@ -326,7 +326,7 @@ func isVerifiedPublicCloneProcess(event *pb.Event) bool {
 			// this event. Promote ancestry solely at an observed process
 			// creation/exec boundary, not on arbitrary user-supplied I/O.
 			switch event.GetType() {
-			case "execve", "process_exec", "process_fork", "clone":
+			case "execve", "process_exec":
 				markPublicCloneProcess(event.GetPid(), comm)
 			}
 			return true
