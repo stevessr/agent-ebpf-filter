@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"agent-ebpf-filter/internal/componentipc"
 	"agent-ebpf-filter/internal/componentshm"
@@ -28,17 +29,27 @@ var (
 // never argv, the environment or a filesystem secret. It performs no policy
 // updates and acknowledges only schema-valid events received in sequence.
 func RunWorker(ctx context.Context, socketPath string) error {
-	return runWorker(ctx, socketPath, false)
+	return runWorker(ctx, socketPath, false, uint32(os.Geteuid()))
 }
 
 // RunWorkerShared uses inherited FD4/FD5 for the event ring and its notifier.
 // The same authenticated UDS carries validation ACKs, never raw event bodies.
 func RunWorkerShared(ctx context.Context, socketPath string) error {
-	return runWorker(ctx, socketPath, true)
+	return runWorker(ctx, socketPath, true, uint32(os.Geteuid()))
 }
 
-func runWorker(ctx context.Context, socketPath string, shared bool) error {
-	if ctx == nil || !filepath.IsAbs(socketPath) {
+// RunWorkerSharedPrivilegedSupervisor expects a root-owned Collector and an
+// explicit non-root Engine. The abstract UDS requires no writable filesystem
+// socket or directory and the peer is still verified with Linux SO_PEERCRED.
+func RunWorkerSharedPrivilegedSupervisor(ctx context.Context, socketPath string) error {
+	if !strings.HasPrefix(socketPath, "@agent-ebpf-engine-") {
+		return ErrInvalidWorker
+	}
+	return runWorker(ctx, socketPath, true, 0)
+}
+
+func runWorker(ctx context.Context, socketPath string, shared bool, supervisorUID uint32) error {
+	if ctx == nil || !(filepath.IsAbs(socketPath) || strings.HasPrefix(socketPath, "@agent-ebpf-engine-")) {
 		return ErrInvalidWorker
 	}
 	if os.Geteuid() == 0 {
@@ -70,7 +81,7 @@ func runWorker(ctx context.Context, socketPath string, shared bool) error {
 	session, err := componentipc.HandshakeClient(conn, componentipc.ClientConfig{
 		Secret: secret[:], Role: componentipc.RoleEngine,
 		ExpectedServer: componentipc.RoleCollector,
-		VerifyPeer:     componentipc.VerifyUnixPeerUIDs(uint32(os.Geteuid())),
+		VerifyPeer:     componentipc.VerifyUnixPeerUIDs(supervisorUID),
 	})
 	if err != nil {
 		return err
