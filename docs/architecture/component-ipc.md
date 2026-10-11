@@ -196,7 +196,9 @@ participants and preserve the existing HMAC/UID-checked UDS control channel.
 - Writer `TryWrite` rejects oversized/empty data, never blocks and increments
   the rejection count on saturation. The reader `ReadCopy` validates the
   encoded slot length before copying, then publishes the consumer cursor.
-  The ring never overwrites unread data.
+  The ring never overwrites any data that has not been acknowledged over
+  the authenticated control UDS; a local Engine read alone cannot reclaim
+  the publisher's slots.
 - 64-bit publication/consumption cursors are aligned to separate cache lines.
   Producer and consumer use Go sequentially consistent atomics to publish
   ownership across MAP_SHARED. This layout currently targets Linux platforms
@@ -210,11 +212,12 @@ participants and preserve the existing HMAC/UID-checked UDS control channel.
 - Descriptors may be handed to an explicitly supervised child as inherited
   files (or later over an authenticated UDS with SCM_RIGHTS). `OpenReader`
   validates seals, layout magic/version, file size and bounded dimensions.
-  Both writer and reader currently require writable mappings for their
-  respective head/tail cursors, so **same-UID shared memory is not an adversarial
-  OS isolation boundary**. The security design must separate read-only event
-  pages from writable consumer cursor pages and constrain the Engine UID
-  before privileged production rollout.
+  **Phase 6c replaces the original shared writable-tail design** with
+  `F_SEAL_FUTURE_WRITE` read-only Engine mappings and a Collector-private
+  confirmed cursor advanced exclusively after authenticated UDS receipts.
+  A separate shared writable cursor page is therefore no longer needed.
+  True process privilege separation additionally requires the explicitly
+  configured `RunEngineSharedAsUID` path, not the default rootless mode.
 
 Tests cover slot boundaries, buffer wraparound, saturation/overflow counting,
 owned-buffer semantics, malformed record and unsupported header rejection,

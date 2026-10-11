@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +15,28 @@ import (
 	"agent-ebpf-filter/internal/componentshm"
 	"agent-ebpf-filter/internal/componentwire"
 )
+
+func TestTrustedEnginePathRejectsUserWritableOrUntrustedAncestors(t *testing.T) {
+	// This check is independent of effective UID: it must reject a
+	// root-installed binary if any component in its path is replaceable.
+	candidate := filepath.Join(t.TempDir(), "replaceable-worker")
+	if err := os.WriteFile(candidate, []byte("not a trusted Engine"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateTrustedEnginePath(candidate); !errors.Is(err, ErrInvalidSupervisor) {
+		t.Fatalf("writable ancestor path accepted: %v", err)
+	}
+	linked := filepath.Join(t.TempDir(), "worker-link")
+	if err := os.Symlink(candidate, linked); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateTrustedEnginePath(linked); !errors.Is(err, ErrInvalidSupervisor) {
+		t.Fatalf("symbolic executable link accepted: %v", err)
+	}
+	if err := validateTrustedEnginePath("relative/path"); !errors.Is(err, ErrInvalidSupervisor) {
+		t.Fatalf("relative executable path accepted: %v", err)
+	}
+}
 
 func TestPrivilegedSupervisorFailsClosedWithoutExplicitIdentity(t *testing.T) {
 	publish := func(*componentipc.Session, *componentshm.Ring) error { return nil }
