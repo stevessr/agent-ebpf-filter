@@ -18,13 +18,13 @@ import (
 
 const (
 	publicCloneProcessTTL = 90 * time.Second
-	publicCloneCacheTTL   = 10 * time.Minute
+	publicCloneCacheTTL   = 60 * time.Second
 	publicCloneCacheLimit = 256
 )
 
 var (
 	githubCloneName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
-	githubCloneHTTP = &http.Client{Timeout: 1500 * time.Millisecond}
+	githubCloneHTTP = &http.Client{Timeout: 900 * time.Millisecond}
 	publicCloneCache = struct {
 		sync.Mutex
 		entries map[string]time.Time
@@ -304,6 +304,12 @@ func isVerifiedPublicCloneProcess(event *pb.Event) bool {
 	now := time.Now()
 	if entry, ok := (*snapshot)[event.GetPid()]; ok &&
 		now.Before(entry.expires) && entry.comm == comm {
+		// Remove process trust as soon as the monitored PID exits to
+		// avoid inheriting an exemption if Linux reuses the PID.
+		if event.GetType() == "process_exit" || event.GetType() == "exit" {
+			unmarkPublicCloneProcess(event.GetPid())
+			return false
+		}
 		return true
 	}
 	if entry, ok := (*snapshot)[event.GetPpid()]; ok && now.Before(entry.expires) {
