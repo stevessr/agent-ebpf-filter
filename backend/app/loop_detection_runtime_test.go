@@ -330,7 +330,6 @@ func BenchmarkLoopDetectionSteadyStateWindowHit(b *testing.B) {
 	}
 }
 
-
 func TestLoopDetectionVerifiedCloneIncreasesThresholdWithoutDisabling(t *testing.T) {
 	const pid uint32 = 49826
 	markPublicCloneProcess(pid, "gh")
