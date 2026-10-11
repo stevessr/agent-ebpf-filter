@@ -96,7 +96,7 @@ func TestConfigAndInvalidReader(t *testing.T) {
 	if err != nil { t.Fatal(err) }
 	defer writer.Close()
 	reader:=readerMirror(t,writer)
-	if _,err:=reader.Files(); !errors.Is(err,ErrInvalidRole) { t.Fatal(err) }
+	if _,_,err:=reader.Files(); !errors.Is(err,ErrInvalidRole) { t.Fatal(err) }
 	if err:=reader.TryWrite([]byte("wrong-role")); !errors.Is(err,ErrInvalidRole) { t.Fatal(err) }
 	if _,err:=writer.ReadCopy(); !errors.Is(err,ErrInvalidRole) { t.Fatal(err) }
 	if err:=writer.TryWrite(nil); !errors.Is(err,ErrTooLarge) { t.Fatal(err) }
