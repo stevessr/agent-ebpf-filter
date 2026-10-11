@@ -276,3 +276,58 @@ against **16 shared-memory events per notification and cumulative ACK**.
 The two sides therefore differ in acknowledgement cadence as well as
 transport. Report results per host/kernel/Go version and do not imply a
 measured speedup without collecting both numbers under equivalent load.
+
+
+## Phase 6c: read-only Engine and explicit UID switching
+
+The shared event mapping now has a stronger trust boundary:
+
+- Collector maps the memfd **writable before sealing**, then applies
+  `F_SEAL_FUTURE_WRITE` in addition to grow/shrink/seal restrictions.
+  A later Engine holding the inherited memfd cannot map its data pages
+  writable or mutate them through `write(2)`. The Engine only maps
+  `PROT_READ | MAP_SHARED`.
+- The consumer's read cursor lives **only in Engine-private memory**.
+  The producer maintains its own independent, trusted `confirmed` cursor;
+  Engine cannot change it through the mapping. Slot capacity is reclaimed
+  only when the supervising Collector validates the authenticated UDS ACK
+  stream ID and strictly increasing cumulative sequence, then calls
+  `Ring.Confirm`. Forged, duplicated or future ACKs are rejected. This
+  creates bounded backpressure on missing acknowledgments and prevents an
+  untrusted Engine from freeing and overwriting unconfirmed event slots.
+- The existing `RunEngineShared` remains a **same-UID rootless test mode**.
+  The additional `RunEngineSharedAsUID(ctx, executable, uid, gid, ...)`
+  is an explicit *privileged-host integration experiment*, never automatic:
+  only root may invoke it and only with nonzero UID/GID. The selected
+  Engine executable must be root-owned, regular, executable by the target
+  UID and not writable by group or others. `exec.Cmd.SysProcAttr.Credential`
+  switches the child to the requested UID/GID with an empty supplementary
+  group list, and `Pdeathsig=SIGKILL` limits orphan lifetime.
+- To avoid opening a root-controlled `0700` socket directory to another
+  UID, this path uses a fresh unpredictable **Linux abstract UDS** name.
+  Abstract socket names do not themselves authorize a peer; the server
+  checks **the connecting non-root process's SO_PEERCRED after exec/setuid**
+  and performs the mutual HMAC handshake using the secret delivered through
+  FD3. FD4 and FD5 carry the memfd and eventfd. This explicitly avoids
+  the subtle pitfall of a pre-created socketpair, whose `SO_PEERCRED`
+  can reflect the credentials when it was created rather than those of
+  the subsequently dropped-privilege child.
+- The optional privileged integration test is **not run with sudo against
+  untrusted PR code**. Rootless CI always tests rejection of unauthorized
+  privileged launches and all shared-memory mapping restrictions. A
+  trusted operator can separately install the Engine under a root-owned,
+  executable directory and run
+  `AGENT_COMPONENT_TEST_ROOT_OWNED_WORKER=/path/to/installed/worker go test ./internal/componentproc -run '^TestPrivilegedSharedEngineDropsUID$' -v`
+  **as root in an isolated test VM**. This has not been validated on a
+  privileged production host and does not test eBPF policy semantics.
+
+These changes strengthen the data plane, **not** the scope of Engine
+privileges relative to optional application/API code. The current Engine
+remains a read-only schema-validation worker with no inference or policy
+RPC. Root retains the eBPF owner. A malicious child still has read access
+to the whitelisted telemetry payload and can withhold or fabricate
+application ACKs using its authorized HMAC session (the supervisor never
+treats an ACK as proof of security enforcement). Production integration
+still requires a pinned installer and executable trust policy, workload
+parity checks, crash recovery, and operator health metrics. No standard
+backend / Renew process is launched differently by this phase.
