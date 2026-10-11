@@ -175,6 +175,12 @@ func (a *renewApp) update(fn func()) {
 					child.win.Update(func() {})
 				}
 			}
+			for _, child := range a.detachedPages {
+				if child.win != nil {
+					floating := child
+					floating.win.Update(func() { a.copyMonitoringSnapshot(floating) })
+				}
+			}
 		}
 	})
 }
