@@ -317,6 +317,12 @@ func (w *loopDetectionWorker) processRecordWithSettings(record CapturedEventReco
 	if threshold <= 0 {
 		threshold = loopDetectionDefaultRepeatThreshold
 	}
+	// A validated public clone legitimately repeats object/file operations.
+	// Raise only its loop heuristic threshold; keep detection active and
+	// leave all other security alert categories untouched.
+	if isVerifiedPublicCloneProcess(event) && threshold <= 1_000_000 {
+		threshold *= 8
+	}
 	windowKey := loopDetectionWindowKey{contextKey: contextKey, fingerprint: fingerprint}
 
 	var finding *loopDetectionFinding
