@@ -35,6 +35,13 @@ type renewApp struct {
 	terminalFocusRequest int
 	terminalError string
 	terminalClosing atomic.Bool
+	// Floating windows share this process and never start another collector.
+	detachedParent *renewApp
+	detachedTerminals map[int]*renewApp
+	detachedPages map[string]*renewApp
+	detachedPageID string
+	// True only when the main window was hidden to keep detached windows alive.
+	hiddenForDetached bool
 	navigationOpen bool
 	navigationDetailed bool
 	inspectorOpen bool
