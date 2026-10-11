@@ -255,7 +255,15 @@ func SendSharedBatch(session *componentipc.Session, ring *componentshm.Ring,
 		encoded = append(encoded, data)
 	}
 	stats := ring.Stats()
-	if len(encoded) > int(stats.Capacity-stats.Queued) {
+	if stats.Queued > stats.Capacity {
+		return componentshm.ErrInvalidRing
+	}
+	if uint64(len(encoded)) > stats.Capacity-stats.Queued {
+		// This rejection is atomic for the whole batch; do not publish any
+		// subset of records or silently hide lost admission attempts.
+		if err := ring.RejectBatch(uint64(len(encoded))); err != nil {
+			return err
+		}
 		return componentshm.ErrRingFull
 	}
 	for _, data := range encoded {

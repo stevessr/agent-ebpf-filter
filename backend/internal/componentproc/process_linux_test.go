@@ -257,3 +257,30 @@ func TestSendSharedBatchRejectsInvalidProjectionBeforeAdmission(t *testing.T) {
 		t.Fatalf("invalid batch mutated the ring: %+v", got)
 	}
 }
+
+func TestRunEngineSharedCountsWholeRejectedBatch(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("same-UID Engine supervisor does not run as root")
+	}
+	exe := testWorkerBinary(t)
+	ctx, stop := context.WithTimeout(context.Background(), 15*time.Second)
+	defer stop()
+	err := RunEngineShared(ctx, exe, 4, 512,
+		func(session *componentipc.Session, ring *componentshm.Ring) error {
+			group := make([]componentwire.Event, 5)
+			for i := range group {
+				group[i] = testEnvelope(strconv.Itoa(i))
+			}
+			if err := SendSharedBatch(session, ring, group); !errors.Is(err, componentshm.ErrRingFull) {
+				return fmt.Errorf("whole-batch backpressure: %w", err)
+			}
+			stats := ring.Stats()
+			if stats.Rejected != 5 || stats.Published != 0 || stats.Queued != 0 {
+				return fmt.Errorf("whole-batch rejection accounting: %+v", stats)
+			}
+			return nil
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+}

@@ -283,6 +283,20 @@ func (r *Ring) TryWrite(data []byte) error {
 	return nil
 }
 
+// RejectBatch records an atomic admission rejection for all records in a
+// failed all-or-nothing batch. No payload has been published. This must only
+// be called by the ring's single producer; retries are new attempts.
+func (r *Ring) RejectBatch(count uint64) error {
+	if !r.alive(true) {
+		return ErrInvalidRole
+	}
+	if count == 0 {
+		return ErrInvalidRing
+	}
+	atomic.AddUint64(r.cursor(offRejected), count)
+	return nil
+}
+
 // Confirm releases published slots after the Collector verifies an
 // authenticated, monotonic, matching-stream cumulative UDS ACK.
 func (r *Ring) Confirm(sequence uint64) error {
