@@ -78,6 +78,9 @@ func TestRingCapacityWrapBackpressureAndOwnedRead(t *testing.T) {
 		t.Fatalf("lost final slot byte: %d", len(first))
 	}
 	first[0] = 'Z'
+	if err := writer.Confirm(reader.Stats().Consumed); err != nil {
+		t.Fatal(err)
+	}
 	if err := writer.TryWrite([]byte("wrapped")); err != nil {
 		t.Fatal(err)
 	}
@@ -229,7 +232,7 @@ func TestReaderChildProcess(t *testing.T) {
 }
 
 func TestRealProcessInheritedFDsAndBatchedWakeups(t *testing.T) {
-	w, err := Create(16, 64)
+	w, err := Create(512, 64)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -295,6 +298,12 @@ func TestRealProcessInheritedFDsAndBatchedWakeups(t *testing.T) {
 	if !strings.Contains(string(out), "verified=250") {
 		t.Fatalf("unexpected subprocess output: %q", out)
 	}
+	// The untrusted child cannot advance the producer's recycling cursor.
+	// The parent marks this completed only after explicit verified output;
+	// the authenticated componentproc path verifies HMAC ACKs instead.
+	if err := w.Confirm(250); err != nil {
+		t.Fatal(err)
+	}
 	stats := w.Stats()
 	if stats.Published != 250 || stats.Consumed != 250 || stats.Queued != 0 {
 		t.Fatalf("process-shared cursor mismatch: %+v", stats)
@@ -339,5 +348,61 @@ func BenchmarkRingBatch64(b *testing.B) {
 				b.Fatal(err)
 			}
 		}
+		if err := w.Confirm(r.Stats().Consumed); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func TestReadOnlyConsumerCannotMapOrWriteDataAndCannotForgeAck(t *testing.T) {
+	writer, err := Create(2, 128)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writer.Close()
+	mem, _, err := writer.Files()
+	if err != nil {
+		t.Fatal(err)
+	}
+	seals, err := unix.FcntlInt(mem.Fd(), unix.F_GET_SEALS, 0)
+	if err != nil || seals&unix.F_SEAL_FUTURE_WRITE == 0 {
+		t.Fatalf("missing future write seal: %v, %x", err, seals)
+	}
+	if mapped, err := unix.Mmap(int(mem.Fd()), 0, HeaderBytes, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED); err == nil {
+		_ = unix.Munmap(mapped)
+		t.Fatal("Engine could create a writable data mapping")
+	}
+	if _, err := unix.Pwrite(int(mem.Fd()), []byte{99}, HeaderBytes); err == nil {
+		t.Fatal("Engine could write through inherited memfd")
+	}
+	reader := readerMirror(t, writer)
+	if err := writer.TryWrite([]byte("immutable")); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := reader.ReadCopy(); err != nil || string(data) != "immutable" {
+		t.Fatalf("reader: %q %v", data, err)
+	}
+	if got := writer.Stats(); got.Queued != 1 || got.Consumed != 0 {
+		t.Fatalf("untrusted reader prematurely reclaimed slot: %+v", got)
+	}
+	if err := writer.TryWrite([]byte("second")); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.TryWrite([]byte("blocked")); !errors.Is(err, ErrRingFull) {
+		t.Fatalf("unconfirmed slots were reused: %v", err)
+	}
+	for _, seq := range []uint64{0, 3} {
+		if err := writer.Confirm(seq); !errors.Is(err, ErrInvalidAck) {
+			t.Fatalf("invalid ACK %d accepted: %v", seq, err)
+		}
+	}
+	if err := writer.Confirm(1); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Confirm(1); !errors.Is(err, ErrInvalidAck) {
+		t.Fatalf("duplicate ACK accepted: %v", err)
+	}
+	if err := writer.TryWrite([]byte("now-free")); err != nil {
+		t.Fatal(err)
 	}
 }

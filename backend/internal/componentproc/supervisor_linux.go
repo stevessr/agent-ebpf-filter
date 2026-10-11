@@ -270,7 +270,7 @@ func SendSharedBatch(session *componentipc.Session, ring *componentshm.Ring,
 		return err
 	}
 	stream := componentipc.StreamID(ring.Stream())
-	last := uint64(0)
+	last := stats.Consumed
 	for {
 		record, err := session.ReceiveRecordCopy()
 		if err != nil {
@@ -284,6 +284,9 @@ func SendSharedBatch(session *componentipc.Session, ring *componentshm.Ring,
 		}
 		if record.Receipt.Sequence <= last || record.Receipt.Sequence > want {
 			return componentipc.ErrInvalidSequence
+		}
+		if err := ring.Confirm(record.Receipt.Sequence); err != nil {
+			return err
 		}
 		last = record.Receipt.Sequence
 		if last == want {
