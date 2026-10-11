@@ -51,9 +51,9 @@ func TestReceiveRecordCopyFailsClosedOnMalformedBody(t *testing.T) {
 	if !errors.Is(err, ErrVersionMismatch) && !errors.Is(err, ErrInvalidSequence) {
 		t.Fatalf("bad body accepted: %v", err)
 	}
-	if err := <-done; err != nil {
-		t.Fatalf("malformed frame did not finish writing: %v", err)
-	}
+	// The strict receiver intentionally closes after reading. A net.Pipe
+	// writer can finish or observe the close; either result is safe.
+	<-done
 	if err := client.Send(KindEvent, []byte("later")); err == nil {
 		t.Fatal("sender could continue after strict receiver closed socket")
 	}
