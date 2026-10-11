@@ -55,11 +55,7 @@ func TestRunEngineUsesActualChildProcessAndAcknowledgesEvents(t *testing.T) {
 			return err
 		}
 		for sequence, id := range []string{"one", "two"} {
-			data, err := componentwire.EncodeEvent(testEnvelope(id))
-			if err != nil {
-				return err
-			}
-			if err := SendEvent(session, stream, uint64(sequence+1), data); err != nil {
+			if err := SendEvent(session, stream, uint64(sequence+1), testEnvelope(id)); err != nil {
 				return err
 			}
 		}
@@ -82,7 +78,12 @@ func TestRunEngineRefusesMalformedEventsWithoutAck(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if err := SendEvent(session, stream, 1, []byte("invalid protobuf")); err == nil {
+		if err := session.SendSequenced(componentipc.KindEvent, componentipc.Sequenced{
+			Stream: stream, Sequence: 1, Payload: []byte("invalid-json-projection"),
+		}); err != nil {
+			return err
+		}
+		if _, err := session.ReceiveRecordCopy(); err == nil {
 			return errors.New("malformed payload was acknowledged")
 		}
 		// The worker must fail closed and exit nonzero. Returning nil from the
@@ -126,5 +127,14 @@ func TestWorkerRejectsMissingCredentials(t *testing.T) {
 	}
 	if err := RunWorker(nil, "/tmp/never-connect"); !errors.Is(err, ErrInvalidWorker) {
 		t.Fatalf("nil worker context accepted: %v", err)
+	}
+}
+
+func TestSendEventNeverWritesAnInvalidProjection(t *testing.T) {
+	bad := testEnvelope("valid")
+	bad.SchemaVersion = "wrong-version"
+	err := SendEvent(nil, componentipc.StreamID{}, 1, bad)
+	if !errors.Is(err, componentipc.ErrInvalidConfig) {
+		t.Fatalf("nil session was not rejected first: %v", err)
 	}
 }

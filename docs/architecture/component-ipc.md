@@ -156,8 +156,8 @@ It never issues alerts, runs AI/ML inference, mutates BPF maps or implements
 controller RPCs. Repeated or skipped sequences, malformed projection envelopes
 and unexpected kinds terminate the worker; there is **no automatic replay,
 deduplication across restarts, credit flow control, durable cursors or policy
-decision equivalence**. A manual publisher uses `SendEvent` to wait for an
-explicit ACK, which means the envelope was decoded/validated, not evaluated
+decision equivalence**. A manual publisher uses `SendEvent` (which itself validates and encodes
+only the whitelisted projection) to wait for an explicit ACK, which means the envelope was decoded/validated, not evaluated
 by any security engine.
 
 An unprivileged Linux end-to-end test compiles the child executable, launches

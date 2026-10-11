@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"agent-ebpf-filter/internal/componentipc"
+	"agent-ebpf-filter/internal/componentwire"
 )
 
 var (
@@ -158,11 +159,15 @@ func RunEngine(ctx context.Context, executable string, publish func(*componentip
 	}
 }
 
-// SendEvent waits for an explicit processing ACK for a normalized envelope.
-// No retry is performed and a write alone never establishes delivery.
-func SendEvent(session *componentipc.Session, stream componentipc.StreamID, seq uint64, payload []byte) error {
+// SendEvent strictly encodes a privacy-minimized projection and waits for an
+// explicit validation ACK. No retry occurs; a write alone is not delivery.
+func SendEvent(session *componentipc.Session, stream componentipc.StreamID, seq uint64, event componentwire.Event) error {
 	if session == nil {
 		return componentipc.ErrInvalidConfig
+	}
+	payload, err := componentwire.EncodeEvent(event)
+	if err != nil {
+		return err
 	}
 	if err := session.SendSequenced(componentipc.KindEvent, componentipc.Sequenced{
 		Stream: stream, Sequence: seq, Payload: payload,
