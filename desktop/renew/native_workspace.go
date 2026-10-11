@@ -437,51 +437,21 @@ func (a *renewApp) header(c *ui.Context, navigationWidth float32) {
 			}
 			label, level := a.pipelineStatus()
 			statusPill(c, label, workspaceStatusTone(t, level))
-			if a.paused {
+			if a.paused && !workspaceTightHeader(width, navigationWidth) {
 				statusPill(c, "事件展示已暂停", t.Warning)
 			}
-			// The native toolbar moves actions to its overflow menu on narrow
-			// windows, retaining keyboard navigation and accessibility labels.
-			ui.Toolbar(c, func() {
-				if a.detachedParent == nil && detachableMonitoringPage(a.page) {
-					if ui.Button(c, "分离本页").Tooltip("在独立原生窗口打开此监控页面；筛选和选中状态各自独立").Clicked() {
-						a.openDetachedMonitoringPage(a.page)
-					}
-				}
-				if ui.Button(c, map[bool]string{true: "恢复事件", false: "暂停事件"}[a.paused]).
-					Tooltip("只暂停 Renew 桌面事件列表的更新，不会停止后台采集和策略执行").Clicked() {
-					a.paused = !a.paused
-					a.eventUIPaused.Store(a.paused)
-					if !a.paused {
-						go a.refresh(context.Background())
-					}
-				}
-				if ui.Button(c, "刷新").Tooltip("重新读取当前页面的数据").Clicked() {
-					a.refreshActiveView()
-				}
-				if a.trayAvailable {
-					label := "关闭后退出"
-					if a.minimizeToTray {
-						label = "关闭后驻留托盘"
-					}
-					if ui.Button(c, label).Tooltip("切换关闭窗口时退出或驻留托盘。驻留期间继续监控；从托盘明确退出才结束。").Clicked() {
-						a.minimizeToTray = !a.minimizeToTray
-					}
-				}
-				if windowMaterial(runtime.GOOS, true) != mygo.VibrancyNone {
-					caption := "纯色模式"
-					if !a.materialEnabled {
-						caption = "系统材质"
-					}
-					if ui.Button(c, caption).Tooltip("切换系统材质与不透明背景").Clicked() {
-						a.materialEnabled = !a.materialEnabled
-						if a.win != nil {
-							a.win.SetVibrancy(windowMaterial(runtime.GOOS, a.materialEnabled))
-						}
-					}
-				}
-			}).MinWidth(0).Label("监控操作")
+			if !workspaceTightHeader(width, navigationWidth) {
+				a.headerActions(c)
+			}
 		})
+		if workspaceTightHeader(width, navigationWidth) {
+			ui.Row(c).Padding(5, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+				if a.paused {
+					statusPill(c, "展示暂停", t.Warning)
+				}
+				a.headerActions(c)
+			})
+		}
 		if compact && pageUsesEventSearch(a.page) {
 			ui.Row(c).Padding(5, 16).Children(func() {
 				ui.SearchField(c, &a.search).Label("搜索事件、进程或目标").Grow(1).MinWidth(0)
@@ -489,8 +459,10 @@ func (a *renewApp) header(c *ui.Context, navigationWidth float32) {
 		}
 		ui.Divider(c)
 		ui.Row(c).MinHeight(38).Padding(6, 16).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "工作区").FontSize(11).TextColor(t.TextMuted)
-			ui.Text(c, "›").TextColor(t.TextMuted)
+			if !workspaceTightHeader(width, navigationWidth) {
+				ui.Text(c, "工作区").FontSize(11).TextColor(t.TextMuted)
+				ui.Text(c, "›").TextColor(t.TextMuted)
+			}
 			ui.Badge(c, a.page).Background(t.Accent.Alpha(0.16)).TextColor(t.Accent)
 			if a.page == "概览" || a.page == "事件" || a.page == "网络" || a.page == "进程" {
 				if n := a.eventConstraintCount(); n > 0 { statusPill(c, fmt.Sprintf("筛选 %d 项", n), t.Accent) }
@@ -525,6 +497,53 @@ func (a *renewApp) header(c *ui.Context, navigationWidth float32) {
 	})
 }
 
+
+// Header actions are laid out as one native toolbar, in the first row on
+// desktop and on a separate full-width row on narrow tiled windows. MyGo
+// handles overflow and keyboard navigation in both placements.
+func (a *renewApp) headerActions(c *ui.Context) {
+	// The native toolbar moves actions to its overflow menu on narrow
+	// windows, retaining keyboard navigation and accessibility labels.
+	ui.Toolbar(c, func() {
+		if a.detachedParent == nil && detachableMonitoringPage(a.page) {
+			if ui.Button(c, "分离本页").Tooltip("在独立原生窗口打开此监控页面；筛选和选中状态各自独立").Clicked() {
+				a.openDetachedMonitoringPage(a.page)
+			}
+		}
+		if ui.Button(c, map[bool]string{true: "恢复事件", false: "暂停事件"}[a.paused]).
+			Tooltip("只暂停 Renew 桌面事件列表的更新，不会停止后台采集和策略执行").Clicked() {
+			a.paused = !a.paused
+			a.eventUIPaused.Store(a.paused)
+			if !a.paused {
+				go a.refresh(context.Background())
+			}
+		}
+		if ui.Button(c, "刷新").Tooltip("重新读取当前页面的数据").Clicked() {
+			a.refreshActiveView()
+		}
+		if a.trayAvailable {
+			label := "关闭后退出"
+			if a.minimizeToTray {
+				label = "关闭后驻留托盘"
+			}
+			if ui.Button(c, label).Tooltip("切换关闭窗口时退出或驻留托盘。驻留期间继续监控；从托盘明确退出才结束。").Clicked() {
+				a.minimizeToTray = !a.minimizeToTray
+			}
+		}
+		if windowMaterial(runtime.GOOS, true) != mygo.VibrancyNone {
+			caption := "纯色模式"
+			if !a.materialEnabled {
+				caption = "系统材质"
+			}
+			if ui.Button(c, caption).Tooltip("切换系统材质与不透明背景").Clicked() {
+				a.materialEnabled = !a.materialEnabled
+				if a.win != nil {
+					a.win.SetVibrancy(windowMaterial(runtime.GOOS, a.materialEnabled))
+				}
+			}
+		}
+	}).MinWidth(0).Label("监控操作")
+}
 
 func (a *renewApp) refreshActiveView() {
 	// Keep the continuously streamed metrics subscription intact: opening a
