@@ -186,6 +186,15 @@ func (a *renewApp) overviewAction() (label, page string, attentionOnly bool) {
 	return "", "", false
 }
 
+// eventDisplaySliderMax grows in whole steps to follow explicit “show more”
+// and locate-by-ID actions without silently capping those existing workflows.
+func eventDisplaySliderMax(visibleLimit int) float64 {
+	if visibleLimit <= 500 {
+		return 500
+	}
+	return float64(((visibleLimit - 1) / 50 + 1) * 50)
+}
+
 func (a *renewApp) eventsView(c *ui.Context) {
 	t := c.Theme()
 	ui.Text(c, "事件").FontSize(28).Bold()
@@ -267,7 +276,7 @@ func (a *renewApp) eventsView(c *ui.Context) {
 	owners := buildAgentOwnershipIndex(a.events, nil)
 	rows := a.filteredEvents()
 	// Keep the existing +50 pagination for deep inspection; this native
-	// stepped slider offers a quick, bounded adjustment for daily monitoring.
+	// stepped slider offers a quick adjustment for daily monitoring.
 	ui.Row(c).Gap(10).Wrap().AlignItems(ui.Center).Children(func() {
 		displayCount := float64(max(a.eventVisibleLimit, 50))
 		ui.Textf(c, "列表展示上限 %d 条", a.eventVisibleLimit).FontSize(11).TextColor(t.TextMuted)
