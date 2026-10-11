@@ -8,7 +8,7 @@ import (
 
 func TestSyntheticSemanticAlertUsesHundredPointRiskScale(t *testing.T) {
 	for _, tc := range []struct {
-		name string
+		name                  string
 		sourceScore, expected float64
 	}{
 		{name: "low source", sourceScore: 12, expected: 96},
@@ -88,9 +88,9 @@ func TestSemanticAlertsDetectMultiAgentFileContention(t *testing.T) {
 	resetSemanticAlertState()
 
 	first := &pb.Event{
-		Pid:        201,
-		Tgid:       201,
-		Type:       "write", Retval: 1,
+		Pid:  201,
+		Tgid: 201,
+		Type: "write", Retval: 1,
 		EventType:  pb.EventType_WRITE,
 		Path:       "/workspace/shared-plan.md",
 		AgentRunId: "run-a",
@@ -102,9 +102,9 @@ func TestSemanticAlertsDetectMultiAgentFileContention(t *testing.T) {
 	}
 
 	second := &pb.Event{
-		Pid:        301,
-		Tgid:       301,
-		Type:       "write", Retval: 1,
+		Pid:  301,
+		Tgid: 301,
+		Type: "write", Retval: 1,
 		EventType:  pb.EventType_WRITE,
 		Path:       "/workspace/shared-plan.md",
 		AgentRunId: "run-b",
@@ -302,4 +302,77 @@ func findSemanticAlertCode(alerts []*pb.Event, code string) *pb.Event {
 
 func hasSemanticAlertCode(alerts []*pb.Event, code string) bool {
 	return findSemanticAlertCode(alerts, code) != nil
+}
+
+func TestVerifiedPublicCloneRetainsForkStormAndSecretDetection(t *testing.T) {
+	resetSemanticAlertState()
+	const pid uint32 = 49825
+	markPublicCloneProcess(pid, "gh")
+	t.Cleanup(func() { unmarkPublicCloneProcess(pid) })
+
+	// A normal clone can fork more than the generic threshold (8) quickly,
+	// but an extreme fork storm (8 * 8) must still be reported exactly once.
+	for index := 0; index < 70; index++ {
+		event := &pb.Event{Pid: pid, Comm: "gh", Type: "process_fork", AgentRunId: "public-clone-test"}
+		alert := findSemanticAlertCode(buildSemanticAlerts(event), "RESOURCE_WASTING_LOOP")
+		switch {
+		case index+1 == 64 && alert == nil:
+			t.Fatal("verified clone must still report a real fork storm at its raised threshold")
+		case index+1 != 64 && alert != nil:
+			t.Fatalf("unexpected repeated fork alert at event %d", index+1)
+		}
+	}
+
+	secret := &pb.Event{Pid: pid, Comm: "gh", Type: "openat", Path: "/home/demo/.ssh/id_rsa"}
+	if !hasSemanticAlertCode(buildSemanticAlerts(secret), "SECRET_ACCESS") {
+		t.Fatal("public clone exemption must not hide secret access")
+	}
+
+	resetSemanticAlertState()
+	var count int
+	for index := 0; index < 16; index++ {
+		event := &pb.Event{Pid: pid + 100, Comm: "gh", Type: "process_fork", AgentRunId: "unverified-clone-test"}
+		if hasSemanticAlertCode(buildSemanticAlerts(event), "RESOURCE_WASTING_LOOP") {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("unverified fork storm emitted %d alerts, want exactly one", count)
+	}
+}
+
+func TestPublicCloneForkThresholdDoesNotSuppressUnrelatedAgentProcess(t *testing.T) {
+	resetSemanticAlertState()
+	const clonePID uint32 = 60123
+	markPublicCloneProcess(clonePID, "gh")
+	t.Cleanup(func() { unmarkPublicCloneProcess(clonePID) })
+
+	// The clone and unrelated process belong to the very same Agent run,
+	// which previously meant they shared a fork-count map entry.
+	for i := 0; i < 15; i++ {
+		event := &pb.Event{
+			Pid: clonePID, Comm: "gh", AgentRunId: "shared-agent-run",
+			Type: "process_fork",
+		}
+		if hasSemanticAlertCode(buildSemanticAlerts(event), "RESOURCE_WASTING_LOOP") {
+			t.Fatalf("verified public clone alerted before raised threshold at fork %d", i+1)
+		}
+	}
+
+	var ordinaryAlerts int
+	for i := 0; i < 12; i++ {
+		event := &pb.Event{
+			Pid: clonePID + 1, Comm: "bash", AgentRunId: "shared-agent-run",
+			Type: "process_fork",
+		}
+		if hasSemanticAlertCode(buildSemanticAlerts(event), "RESOURCE_WASTING_LOOP") {
+			ordinaryAlerts++
+			if i+1 != 8 {
+				t.Fatalf("unrelated process emitted on fork %d, want fork 8", i+1)
+			}
+		}
+	}
+	if ordinaryAlerts != 1 {
+		t.Fatalf("unrelated process emitted %d alerts, want exactly one", ordinaryAlerts)
+	}
 }

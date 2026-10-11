@@ -255,12 +255,23 @@ func (s *SemanticAlertState) RecentExecutablePath(key, path string, now time.Tim
 }
 
 func (s *SemanticAlertState) IncrementForkCount(event *pb.Event, now time.Time) int {
-	if s == nil {
+	return s.incrementForkCountInScope(event, now, 0)
+}
+
+// Clone loop thresholds apply only to a verified clone PID. In particular,
+// unrelated commands belonging to the SAME Agent tool/run must continue to
+// use the ordinary fork window, rather than inheriting the relaxed threshold
+// or advancing a trusted clone's counter.
+func (s *SemanticAlertState) incrementForkCountInScope(event *pb.Event, now time.Time, clonePID uint32) int {
+	if s == nil || event == nil {
 		return 0
 	}
 	key, keyTruncated := semanticAlertContextKeyBounded(event)
 	if key == "" {
 		return 0
+	}
+	if clonePID != 0 {
+		key += fmt.Sprintf("/verified_public_clone_pid:%d", clonePID)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -413,10 +424,10 @@ func (s *SemanticAlertState) ObserveMultiAgentFileContention(event *pb.Event, no
 		seen = false
 	}
 	current := SemanticFileMutationObservation{
-		SeenAt:     now,
-		Actor:      actor,
-		Op:         event.GetType(),
-		Path:       path,
+		SeenAt:      now,
+		Actor:       actor,
+		Op:          event.GetType(),
+		Path:        path,
 		ContainerID: containerID,
 	}
 	if seen {
@@ -546,7 +557,15 @@ func (s *SemanticAlertState) noteTruncationsLocked(values ...bool) {
 	}
 }
 
+// BuildSemanticAlerts retains the standard strict thresholds for unverified activity.
 func BuildSemanticAlerts(event *pb.Event) []*pb.Event {
+	return BuildSemanticAlertsWithCloneContext(event, false)
+}
+
+// BuildSemanticAlertsWithCloneContext keeps all independent security checks
+// active while allowing a higher (not disabled) fork-storm threshold for an
+// anonymously verified public clone associated with this exact process.
+func BuildSemanticAlertsWithCloneContext(event *pb.Event, verifiedPublicClone bool) []*pb.Event {
 	if event == nil || event.GetType() == "semantic_alert" {
 		return nil
 	}
@@ -616,7 +635,11 @@ func BuildSemanticAlerts(event *pb.Event) []*pb.Event {
 		}
 	}
 
-	if target, ok := observeForkStorm(event, now); ok {
+	forkThreshold := SemanticForkStormThreshold
+	if verifiedPublicClone {
+		forkThreshold *= 8
+	}
+	if target, ok := observeForkStorm(event, now, forkThreshold, verifiedPublicClone); ok {
 		addAlert("RESOURCE_WASTING_LOOP", target, "observed repeated fork/clone activity suggesting a lightweight fork storm or runaway loop", 0.94)
 	}
 

@@ -329,3 +329,60 @@ func BenchmarkLoopDetectionSteadyStateWindowHit(b *testing.B) {
 		})
 	}
 }
+
+func TestLoopDetectionVerifiedCloneIncreasesThresholdWithoutDisabling(t *testing.T) {
+	const pid uint32 = 49826
+	markPublicCloneProcess(pid, "gh")
+	t.Cleanup(func() { unmarkPublicCloneProcess(pid) })
+	worker := newLoopDetectionWorker()
+	settings := LoopDetectionSettings{
+		Enabled: true, WindowSeconds: 60, RepeatThreshold: 2, MaxContexts: 32,
+		EmitSemanticAlerts: false,
+	}
+	start := time.Unix(123456789, 0).UTC()
+	for i := 0; i < 16; i++ {
+		worker.processRecordWithSettings(CapturedEventRecord{
+			ReceivedAt: start.Add(time.Duration(i) * time.Millisecond),
+			Event: &pb.Event{
+				Pid: pid, Comm: "gh", AgentRunId: "clone-progress",
+				Type: "openat", Path: "/tmp/public-repo/.git/objects/pack",
+			},
+		}, true, settings)
+		if i < 15 && len(worker.findings) != 0 {
+			t.Fatalf("false loop positive during verified public clone at event %d", i+1)
+		}
+	}
+	if len(worker.findings) != 1 {
+		t.Fatalf("even verified clones must report sustained 16-event loops, got %d", len(worker.findings))
+	}
+}
+
+func TestLoopDetectionPublicCloneWindowDoesNotMaskOrdinaryProcess(t *testing.T) {
+	const clonePID uint32 = 60124
+	markPublicCloneProcess(clonePID, "gh")
+	t.Cleanup(func() { unmarkPublicCloneProcess(clonePID) })
+	worker := newLoopDetectionWorker()
+	settings := LoopDetectionSettings{Enabled: true, WindowSeconds: 60, RepeatThreshold: 2, MaxContexts: 32}
+	base := time.Unix(1_700_000_000, 0).UTC()
+	process := func(pid uint32, comm string, i int) {
+		worker.processRecordWithSettings(CapturedEventRecord{
+			ReceivedAt: base.Add(time.Duration(i) * time.Millisecond),
+			Event: &pb.Event{Pid: pid, Comm: comm, AgentRunId: "shared-run",
+				Type: "openat", Path: "/tmp/same-path"},
+		}, true, settings)
+	}
+	for i := 0; i < 7; i++ {
+		process(clonePID, "gh", i)
+	}
+	if len(worker.findings) != 0 {
+		t.Fatalf("public clone prematurely raised %d findings", len(worker.findings))
+	}
+	process(clonePID+1, "bash", 8)
+	if len(worker.findings) != 0 {
+		t.Fatal("unrelated process inherited public clone's repeat count")
+	}
+	process(clonePID+1, "bash", 9)
+	if len(worker.findings) != 1 || worker.findings[0].PID != clonePID+1 {
+		t.Fatalf("ordinary process did not trigger its own threshold: %+v", worker.findings)
+	}
+}
