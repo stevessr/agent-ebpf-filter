@@ -35,6 +35,9 @@ type renewApp struct {
 	terminalFocusRequest int
 	terminalError string
 	terminalClosing atomic.Bool
+	// Floating windows share this process and never start another collector.
+	detachedParent *renewApp
+	detachedTerminals map[int]*renewApp
 	navigationOpen bool
 	navigationDetailed bool
 	inspectorOpen bool
