@@ -139,14 +139,14 @@ func TestSendEventValidatesProjectionBeforeWriting(t *testing.T) {
 	verifier := func(net.Conn) error { return nil }
 	type result struct {
 		session *componentipc.Session
-		err error
+		err     error
 	}
 	accepted := make(chan result, 1)
 	go func() {
 		session, err := componentipc.HandshakeServer(serverConn, componentipc.ServerConfig{
 			Secret: secret, Role: componentipc.RoleEngine,
 			AllowedPeers: []componentipc.Role{componentipc.RoleCollector},
-			VerifyPeer: verifier,
+			VerifyPeer:   verifier,
 		})
 		accepted <- result{session: session, err: err}
 	}()
