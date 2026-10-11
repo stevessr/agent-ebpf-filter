@@ -394,6 +394,11 @@ func (a *renewApp) header(c *ui.Context, navigationWidth float32) {
 			// The native toolbar moves actions to its overflow menu on narrow
 			// windows, retaining keyboard navigation and accessibility labels.
 			ui.Toolbar(c, func() {
+				if a.detachedParent == nil && detachableMonitoringPage(a.page) {
+					if ui.Button(c, "分离本页").Tooltip("在独立原生窗口打开此监控页面；筛选和选中状态各自独立").Clicked() {
+						a.openDetachedMonitoringPage(a.page)
+					}
+				}
 				if ui.Button(c, map[bool]string{true: "恢复事件", false: "暂停事件"}[a.paused]).
 					Tooltip("只暂停 Renew 桌面事件列表的更新，不会停止后台采集和策略执行").Clicked() {
 					a.paused = !a.paused
