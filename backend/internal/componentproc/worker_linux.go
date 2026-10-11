@@ -83,7 +83,7 @@ func RunWorker(ctx context.Context, socketPath string) error {
 		}
 		// This stage validates and consumes events in a separate process but
 		// deliberately does NOT run ML inference, issue alerts or apply policy.
-		if _, err := componentwire.DecodeEventEnvelope(record.Data.Payload); err != nil {
+		if _, err := componentwire.DecodeEvent(record.Data.Payload); err != nil {
 			return err
 		}
 		if receiver == nil {

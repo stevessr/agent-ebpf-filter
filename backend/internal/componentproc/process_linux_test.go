@@ -14,7 +14,6 @@ import (
 
 	"agent-ebpf-filter/internal/componentipc"
 	"agent-ebpf-filter/internal/componentwire"
-	"agent-ebpf-filter/pb"
 )
 
 func testWorkerBinary(t *testing.T) string {
@@ -28,12 +27,13 @@ func testWorkerBinary(t *testing.T) string {
 	return path
 }
 
-func testEnvelope(id string) *pb.EventEnvelope {
-	return &pb.EventEnvelope{
+func testEnvelope(id string) componentwire.Event {
+	return componentwire.Event{
 		SchemaVersion: componentwire.EnvelopeVersion,
-		EventId: id,
+		EventID: id,
 		Source: "kernel",
-		TimestampNs: 12345,
+		TimestampNS: 12345,
+		Type: "exec",
 	}
 }
 
@@ -55,7 +55,7 @@ func TestRunEngineUsesActualChildProcessAndAcknowledgesEvents(t *testing.T) {
 			return err
 		}
 		for sequence, id := range []string{"one", "two"} {
-			data, err := componentwire.EncodeEventEnvelope(testEnvelope(id))
+			data, err := componentwire.EncodeEvent(testEnvelope(id))
 			if err != nil {
 				return err
 			}

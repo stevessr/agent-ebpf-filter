@@ -119,10 +119,15 @@ durable replay or kernel enforcement works.
 
 ## Phase 6: separate Engine process boundary (rootless opt-in)
 
-`backend/internal/componentwire` now serializes the existing canonical protobuf
-`pb.EventEnvelope` with schema `envelope.v1`, a nonempty event ID, source
-and timestamp. Encoding and decoding reject malformed or oversized data;
-**redaction must still happen in the Collector before serialization**.
+`backend/internal/componentwire` now defines a **minimal typed and bounded
+JSON event projection** with schema `component.event.v1` and only whitelisted
+fields (event ID, source, timestamp, event type, PID, decision and risk score).
+Unknown JSON fields, trailing content, invalid versions and malformed records
+are rejected. In particular raw argv, prompts, paths, secrets and packet
+contents cannot be represented in this projection. The future privileged
+Collector adapter will map **already-redacted** `pb.EventEnvelope` values
+into this deliberately smaller independent schema. Unlike a direct protobuf
+import, this projection can compile without generated `pb` dependencies.
 The original event normalization, policy maps, risk feedback, HTTP APIs,
 wrapper sockets and Renew startup behavior remain unchanged.
 
@@ -148,7 +153,7 @@ a process-lifecycle boundary, **not** a hard OS security boundary.
 The worker currently validates and consumes normalized EventEnvelope records
 and returns cumulative ACKs only after successful decode/check/commit.
 It never issues alerts, runs AI/ML inference, mutates BPF maps or implements
-controller RPCs. Repeated or skipped sequences, malformed protobuf envelopes
+controller RPCs. Repeated or skipped sequences, malformed projection envelopes
 and unexpected kinds terminate the worker; there is **no automatic replay,
 deduplication across restarts, credit flow control, durable cursors or policy
 decision equivalence**. A manual publisher uses `SendEvent` to wait for an
@@ -156,7 +161,7 @@ explicit ACK, which means the envelope was decoded/validated, not evaluated
 by any security engine.
 
 An unprivileged Linux end-to-end test compiles the child executable, launches
-it as a separate OS process, sends two canonical envelopes and checks ACKs,
+it as a separate OS process, sends two typed event projections and checks ACKs,
 then verifies malformed protobuf causes worker failure with no ACK.
 Run locally:
 

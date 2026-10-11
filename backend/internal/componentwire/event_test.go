@@ -1,60 +1,72 @@
 package componentwire
 
 import (
+	"bytes"
 	"errors"
+	"strings"
 	"testing"
 
 	"agent-ebpf-filter/internal/componentipc"
-	"agent-ebpf-filter/pb"
 )
 
-func validEnvelope() *pb.EventEnvelope {
-	return &pb.EventEnvelope{
+func validEvent() Event {
+	return Event{
 		SchemaVersion: EnvelopeVersion,
-		EventId: "evt-test-1",
+		EventID: "evt-test-1",
 		Source: "kernel",
-		TimestampNs: 123456789,
+		TimestampNS: 123456789,
+		Type: "exec",
+		PID: 42,
 	}
 }
 
-func TestEnvelopeRoundTrip(t *testing.T) {
-	source := validEnvelope()
-	data, err := EncodeEventEnvelope(source)
+func TestEventProjectionRoundTrip(t *testing.T) {
+	source := validEvent()
+	data, err := EncodeEvent(source)
 	if err != nil {
 		t.Fatal(err)
 	}
-	source.EventId = "later-mutated"
-	received, err := DecodeEventEnvelope(data)
+	source.EventID = "later-mutated"
+	received, err := DecodeEvent(data)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if received.GetEventId() != "evt-test-1" ||
-		received.GetSchemaVersion() != EnvelopeVersion ||
-		received.GetSource() != "kernel" {
-		t.Fatalf("decoded envelope: %+v", received)
+	if received.EventID != "evt-test-1" || received.SchemaVersion != EnvelopeVersion ||
+		received.Source != "kernel" || received.PID != 42 {
+		t.Fatalf("decoded event: %+v", received)
+	}
+	if bytes.Contains(data, []byte("argv")) || bytes.Contains(data, []byte("prompt")) {
+		t.Fatal("projection unexpectedly added sensitive raw fields")
 	}
 }
 
-func TestEnvelopeFailClosedValidation(t *testing.T) {
-	if _, err := EncodeEventEnvelope(nil); !errors.Is(err, ErrInvalidEnvelope) {
-		t.Fatalf("nil envelope accepted: %v", err)
-	}
-	for _, mutate := range []func(*pb.EventEnvelope){
-		func(e *pb.EventEnvelope) { e.SchemaVersion = "envelope.v2" },
-		func(e *pb.EventEnvelope) { e.EventId = "" },
-		func(e *pb.EventEnvelope) { e.Source = "  " },
-		func(e *pb.EventEnvelope) { e.TimestampNs = 0 },
+func TestEventProjectionFailsClosed(t *testing.T) {
+	for _, mutate := range []func(*Event){
+		func(e *Event) { e.SchemaVersion = "component.event.v2" },
+		func(e *Event) { e.EventID = "" },
+		func(e *Event) { e.EventID = strings.Repeat("x", 129) },
+		func(e *Event) { e.Source = "  " },
+		func(e *Event) { e.Type = "" },
+		func(e *Event) { e.TimestampNS = 0 },
 	} {
-		bad := validEnvelope()
-		mutate(bad)
-		if _, err := EncodeEventEnvelope(bad); !errors.Is(err, ErrInvalidEnvelope) {
-			t.Fatalf("invalid envelope accepted: %+v: %v", bad, err)
+		bad := validEvent()
+		mutate(&bad)
+		if _, err := EncodeEvent(bad); !errors.Is(err, ErrInvalidEnvelope) {
+			t.Fatalf("invalid event accepted: %+v: %v", bad, err)
 		}
 	}
-	if _, err := DecodeEventEnvelope([]byte{0xff}); !errors.Is(err, ErrInvalidEnvelope) {
-		t.Fatalf("malformed protobuf accepted: %v", err)
+	for _, raw := range [][]byte{
+		nil,
+		[]byte("{broken-json"),
+		[]byte("{}"),
+		[]byte("{\"schema_version\":\"component.event.v1\",\"event_id\":\"x\",\"source\":\"kernel\",\"timestamp_ns\":1,\"event_type\":\"exec\",\"argv\":\"SECRET\"}"),
+		[]byte("{\"schema_version\":\"component.event.v1\",\"event_id\":\"x\",\"source\":\"kernel\",\"timestamp_ns\":1,\"event_type\":\"exec\"} {}"),
+	} {
+		if _, err := DecodeEvent(raw); !errors.Is(err, ErrInvalidEnvelope) {
+			t.Fatalf("invalid JSON accepted: %q: %v", raw, err)
+		}
 	}
-	if _, err := DecodeEventEnvelope(make([]byte, componentipc.MaxSequencedPayloadBytes+1)); !errors.Is(err, componentipc.ErrFrameTooLarge) {
-		t.Fatalf("oversized protobuf accepted: %v", err)
+	if _, err := DecodeEvent(make([]byte, componentipc.MaxSequencedPayloadBytes+1)); !errors.Is(err, componentipc.ErrFrameTooLarge) {
+		t.Fatalf("oversized projection accepted: %v", err)
 	}
 }
