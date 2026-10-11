@@ -272,6 +272,48 @@ func TestRiskSeverityFilterMatchesClassification(t *testing.T) {
 	}
 }
 
+// Slider changes are local view filters, never backend capture changes.
+func TestEventMinimumRiskSliderFiltersCachedRowsAndResets(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.events = []eventSummary{
+		{EventID: "zero", RiskScore: 0},
+		{EventID: "middle", RiskScore: 65},
+		{EventID: "high", RiskScore: 90},
+	}
+	if got := a.filteredEvents(); len(got) != 3 {
+		t.Fatalf("default slider must retain all events, got %d", len(got))
+	}
+	a.eventMinRiskScore = 70
+	if got := a.filteredEvents(); len(got) != 1 || got[0].EventID != "high" {
+		t.Fatalf("risk threshold must invalidate cached rows: %+v", got)
+	}
+	if a.eventConstraintCount() != 1 {
+		t.Fatal("the active slider must count as a visible event constraint")
+	}
+	a.eventMinRiskScore = 60
+	if got := a.filteredEvents(); len(got) != 2 {
+		t.Fatalf("lowering threshold must refresh the cached rows, got %+v", got)
+	}
+	a.clearEventFilters()
+	if a.eventMinRiskScore != 0 || a.hasEventConstraints() || len(a.filteredEvents()) != 3 {
+		t.Fatal("clear filters must restore the slider and all events")
+	}
+}
+
+func TestEventSlidersRemainAvailableWithoutBackend(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.starting = false
+	a.page = "事件"
+	view := ui.NewTester(a.view, 1280, 900)
+	view.SetPreferences(ui.Preferences{ReduceMotion: true, TextScale: 1})
+	if _, ok := view.Find("最低风险分"); !ok {
+		t.Fatal("event risk slider must be visible in the native view")
+	}
+	if _, ok := view.Find("事件展示条数"); !ok {
+		t.Fatal("event count step slider must be visible in the native view")
+	}
+}
+
 func TestWorkspaceCompactNavigationDoesNotLeaveBlankGutter(t *testing.T) {
 	a := newRenewApp("http://127.0.0.1:8080")
 	view := ui.NewTester(a.view, 1480, 860)
