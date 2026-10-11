@@ -50,30 +50,134 @@ func publicGitHubCloneRepository(comm string, args []string) (string, bool) {
 	comm = strings.ToLower(filepath.Base(strings.TrimSpace(comm)))
 	switch comm {
 	case "git":
-		if len(args) < 2 || len(args) > 3 || args[0] != "clone" {
+		if len(args) < 2 || args[0] != "clone" {
 			return "", false
 		}
-		if len(args) == 3 && !safeCloneDestination(args[2]) {
+		// Git accepts options before its remote operand. Only a small set
+		// of transfer/read-only options is safe to recognize automatically.
+		index := 1
+		for index < len(args) && strings.HasPrefix(args[index], "-") {
+			n, ok := safeGitCloneOption(args[index:])
+			if !ok {
+				return "", false
+			}
+			index += n
+		}
+		if len(args)-index < 1 || len(args)-index > 2 {
 			return "", false
 		}
-		remote, err := url.Parse(args[1])
-		if err != nil || remote.Scheme != "https" || !strings.EqualFold(remote.Host, "github.com") ||
-			remote.User != nil || remote.RawQuery != "" || remote.Fragment != "" || remote.Opaque != "" {
+		if len(args)-index == 2 && !safeCloneDestination(args[index+1]) {
 			return "", false
 		}
-		return githubCloneRepoPath(remote.Path)
+		return httpsGitHubCloneRepository(args[index])
 	case "gh":
-		if len(args) < 3 || len(args) > 4 || args[0] != "repo" || args[1] != "clone" {
+		if len(args) < 3 || args[0] != "repo" || args[1] != "clone" {
 			return "", false
 		}
-		if len(args) == 4 && !safeCloneDestination(args[3]) {
+		repo, ok := githubCloneRepoPath("/" + args[2])
+		if strings.HasPrefix(args[2], "https://") {
+			repo, ok = httpsGitHubCloneRepository(args[2])
+		}
+		if !ok {
 			return "", false
 		}
-		// gh also accepts URLs, but only an explicit owner/repo is trusted here.
-		return githubCloneRepoPath("/" + args[2])
+		rest := args[3:]
+		if len(rest) != 0 && rest[0] != "--" {
+			if !safeCloneDestination(rest[0]) {
+				return "", false
+			}
+			rest = rest[1:]
+		}
+		if len(rest) == 0 {
+			return repo, true
+		}
+		if rest[0] != "--" || len(rest) < 2 {
+			return "", false
+		}
+		// gh passes arguments after -- to git clone. Only approved options
+		// are allowed, never another repository or a command override.
+		rest = rest[1:]
+		for len(rest) > 0 {
+			n, valid := safeGitCloneOption(rest)
+			if !valid {
+				return "", false
+			}
+			rest = rest[n:]
+		}
+		return repo, true
 	default:
 		return "", false
 	}
+}
+
+func httpsGitHubCloneRepository(raw string) (string, bool) {
+	remote, err := url.Parse(raw)
+	if err != nil || remote.Scheme != "https" || !strings.EqualFold(remote.Host, "github.com") ||
+		remote.User != nil || remote.RawQuery != "" || remote.Fragment != "" ||
+		remote.Opaque != "" || remote.RawPath != "" || strings.Contains(raw, "%") {
+		return "", false
+	}
+	return githubCloneRepoPath(remote.Path)
+}
+
+// These flags affect clone transport/output, not hooks, executable helpers,
+// remote URLs, or arbitrary Git configuration. No other flag receives the
+// built-in reduction in loop-alert sensitivity.
+func safeGitCloneOption(args []string) (int, bool) {
+	if len(args) == 0 {
+		return 0, false
+	}
+	switch args[0] {
+	case "-q", "--quiet", "--progress", "--single-branch", "--no-checkout":
+		return 1, true
+	case "--depth":
+		if len(args) > 1 && validCloneDepth(args[1]) {
+			return 2, true
+		}
+	case "-b", "--branch":
+		if len(args) > 1 && safeCloneBranch(args[1]) {
+			return 2, true
+		}
+	}
+	if strings.HasPrefix(args[0], "--depth=") && validCloneDepth(strings.TrimPrefix(args[0], "--depth=")) {
+		return 1, true
+	}
+	if strings.HasPrefix(args[0], "--branch=") && safeCloneBranch(strings.TrimPrefix(args[0], "--branch=")) {
+		return 1, true
+	}
+	if args[0] == "--filter=blob:none" {
+		return 1, true
+	}
+	return 0, false
+}
+
+func validCloneDepth(raw string) bool {
+	if len(raw) == 0 || len(raw) > 7 {
+		return false
+	}
+	var n int
+	for _, c := range raw {
+		if c < '0' || c > '9' {
+			return false
+		}
+		n = n*10 + int(c-'0')
+	}
+	return n > 0 && n <= 1_000_000
+}
+
+func safeCloneBranch(value string) bool {
+	if len(value) == 0 || len(value) > 128 || strings.HasPrefix(value, "-") ||
+		strings.Contains(value, "..") || strings.HasSuffix(value, ".lock") ||
+		strings.HasSuffix(value, "/") || strings.HasPrefix(value, "/") {
+		return false
+	}
+	for _, c := range value {
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+			(c >= '0' && c <= '9') || c == '/' || c == '.' || c == '-' || c == '_') {
+			return false
+		}
+	}
+	return true
 }
 
 func safeCloneDestination(dst string) bool {
