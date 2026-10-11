@@ -576,7 +576,7 @@ func (a *renewApp) eventConstraintCount() int {
 	count := 0
 	for _, enabled := range [...]bool{
 		a.search != "", a.eventPIDFilter > 0, a.eventRootPIDFilter > 0,
-		a.eventTargetFilter != "", a.eventRiskFilter != "",
+		a.eventTargetFilter != "", a.eventRiskFilter != "", a.eventMinRiskScore > 0,
 		a.eventTypeFilter != "", a.eventSessionFilter != "",
 		a.eventDecisionFilter != "", a.eventAttentionOnly,
 		a.eventFileEditsOnly, a.eventDelegatedOnly,
