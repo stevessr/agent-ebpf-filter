@@ -255,7 +255,7 @@ func (s *SemanticAlertState) RecentExecutablePath(key, path string, now time.Tim
 }
 
 func (s *SemanticAlertState) IncrementForkCount(event *pb.Event, now time.Time) int {
-	return s.incrementForkCountInScope(event, now, "")
+	return s.incrementForkCountInScope(event, now, 0)
 }
 
 // Clone loop thresholds apply only to a verified clone PID. In particular,
