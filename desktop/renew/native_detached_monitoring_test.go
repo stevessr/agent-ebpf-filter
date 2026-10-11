@@ -21,10 +21,11 @@ func TestDetachedMonitoringSnapshotKeepsWindowLocalFilters(t *testing.T) {
     parent.events = []eventSummary{{EventID: "one"}, {EventID: "two"}}
     parent.eventsVersion = 2
     parent.connected = true
+    parent.paused = true
     child.search = "my local query"
     child.eventRiskFilter = "高风险"
     parent.copyMonitoringSnapshot(child)
-    if len(child.events) != 2 || !child.connected || child.eventsVersion != 2 {
+    if len(child.events) != 2 || !child.connected || child.eventsVersion != 2 || !child.paused {
         t.Fatal("new monitoring window did not get the shared compact snapshot")
     }
     if child.search != "my local query" || child.eventRiskFilter != "高风险" {
