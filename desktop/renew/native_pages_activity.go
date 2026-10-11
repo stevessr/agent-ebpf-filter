@@ -186,6 +186,15 @@ func (a *renewApp) overviewAction() (label, page string, attentionOnly bool) {
 	return "", "", false
 }
 
+// eventDisplaySliderMax grows in whole steps to follow explicit “show more”
+// and locate-by-ID actions without silently capping those existing workflows.
+func eventDisplaySliderMax(visibleLimit int) float64 {
+	if visibleLimit <= 500 {
+		return 500
+	}
+	return float64(((visibleLimit - 1) / 50 + 1) * 50)
+}
+
 func (a *renewApp) eventsView(c *ui.Context) {
 	t := c.Theme()
 	ui.Text(c, "事件").FontSize(28).Bold()
@@ -208,6 +217,16 @@ func (a *renewApp) eventsView(c *ui.Context) {
 		ui.Checkbox(c, &a.eventAttentionOnly, "只看待关注")
 		if ui.Button(c, "清除筛选").Clicked() {
 			a.clearEventFilters()
+		}
+	})
+	// View-only filtering: the slider never changes backend capture or enforcement.
+	ui.Row(c).Gap(10).Wrap().AlignItems(ui.Center).Children(func() {
+		ui.Textf(c, "最低风险分 %.1f（0 = 全部）", a.eventMinRiskScore).FontSize(11).TextColor(t.TextMuted)
+		if ui.Slider(c.Key("minimum-risk-score"), &a.eventMinRiskScore, 0, 100).
+			Label("最低风险分").Width(220).Changed() {
+			// Filtering changes row indices; never leave a stale selection.
+			a.eventSelected = -1
+			a.inspectorSelectedID = ""
 		}
 	})
 
@@ -256,6 +275,20 @@ func (a *renewApp) eventsView(c *ui.Context) {
 
 	owners := buildAgentOwnershipIndex(a.events, nil)
 	rows := a.filteredEvents()
+	// Keep the existing +50 pagination for deep inspection; this native
+	// stepped slider offers a quick adjustment for daily monitoring.
+	ui.Row(c).Gap(10).Wrap().AlignItems(ui.Center).Children(func() {
+		displayCount := float64(max(a.eventVisibleLimit, 50))
+		ui.Textf(c, "列表展示上限 %d 条", a.eventVisibleLimit).FontSize(11).TextColor(t.TextMuted)
+		if ui.StepSlider(c.Key("event-display-limit"), &displayCount, 50, eventDisplaySliderMax(a.eventVisibleLimit), 50).
+			Label("事件展示条数").Width(220).Changed() {
+			a.eventVisibleLimit = int(displayCount)
+			if a.eventSelected >= a.eventVisibleLimit {
+				a.eventSelected = -1
+				a.inspectorSelectedID = ""
+			}
+		}
+	})
 	limit := a.eventVisibleLimit
 	if limit <= 0 {
 		limit = 50

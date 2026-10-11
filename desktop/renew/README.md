@@ -12,6 +12,7 @@
 
 - **查看联网行为** 用于关联 Agent 域名和 IP-only 外联；**调整监控范围** 用于选择采集强度；**查看访问权限** 用于检查路径保护。进入页面本身不会修改策略。
 - **暂停事件** 仅暂停桌面展示与事件摘要合并：后台采集与策略继续运行，连接与采集器健康仍会每两秒刷新。恢复时再次同步事件。暂停期间可能因有界队列容量而丢失部分 UI 摘要，不能当作完整历史。
+- **事件页滑块**：使用 MyGo 原生 `ui.Slider` 设置本地最低风险分（0 不过滤），使用 `ui.StepSlider` 每次调整 50 条可见摘要；“展开更多”仍可突破默认的 500 条滑块范围。滑块只过滤/分页已加载摘要，不会改变 eBPF 采集范围、风险判定或阻断策略。
 - 断线、流回退、未完成初始化、采集链路异常均有独立的状态说明；新事件暂时不可验证时，不应因为首页没有新告警就认为设备安全。可以使用“重新连接”或“系统诊断”继续排查。
 
 ## 日常安全软件：Agent 域名监控与托盘
@@ -169,7 +170,7 @@ The browser `/renew` frontend has been removed. The main browser workbench remai
 
 ## Why a separate module?
 
-MyGo requires Go 1.27+. Renew pins MyGo v0.2.18 and the repository workspace uses Go 1.27.1, while `desktop/renew` remains its own module so desktop dependencies never enter the privileged backend module. The v0.2.18 runtime also brings the native UI memory/cache fixes, Linux repaint/rendering improvements, and safer input handling added after v0.2.7 without changing Renew's privilege boundary.
+MyGo requires Go 1.27.1+. Renew currently pins **MyGo v0.4.3** and the repository workspace uses Go 1.27.1. The `desktop/renew` module remains isolated so native UI dependencies do not enter the privileged backend. The current runtime includes earlier memory/cache, Linux rendering, and input improvements as well as v0.4.3's latest native UI fixes without altering the privilege boundary.
 
 ## Develop
 
@@ -208,7 +209,7 @@ The build hook generates the backend protobuf/eBPF bindings, then MyGo links the
 
 On Linux the native MyGo UI uses GTK for the window and MyGo's own renderer. WebKitGTK is not required by Renew Desktop.
 
-MyGo v0.2.18 deliberately packages Go applications with `CGO_ENABLED=0`. The embedded backend therefore uses pure-Go hardware fallbacks: core eBPF monitoring, policy enforcement, event capture, system/process statistics, and generic DRM fdinfo GPU telemetry remain available, while NVML-only NVIDIA detail fields and V4L2 camera capture are omitted from the single-file build. The standalone backend keeps those integrations when built with CGO enabled.
+Renew's Linux single-binary build also validates the `CGO_ENABLED=0` embedded-backend path. In that configuration the embedded backend uses pure-Go hardware fallbacks: core eBPF monitoring, policy enforcement, event capture, system/process statistics, and generic DRM fdinfo GPU telemetry remain available, while NVML-only NVIDIA detail fields and V4L2 camera capture are omitted from the single-file build. The standalone backend keeps those integrations when built with CGO enabled.
 
 ## Runtime ownership
 
@@ -252,14 +253,14 @@ In bundled mode the privileged child listens only on an authenticated private Un
 
 ## MyGo v0.3.4 appearance and responsive UI
 
-- The native Go desktop module pins **MyGo v0.3.4** (the Go CLI tool shares the module version); it does not add a WebView runtime.
+- This UI iteration originally landed on **MyGo v0.3.4**; the current desktop module and CLI tool pin **v0.4.3**. It does not add a WebView runtime.
 - Windows 11 supports a Mica material and macOS supports a sidebar material where the compositor offers native vibrancy. The toolbar provides a session-only **纯色模式 / 系统材质** switch; all content tables and event details keep opaque surfaces for readability. Unsupported Windows versions and Linux (Wayland/X11) retain the full opaque navy theme. Do not imply Linux compositor material support.
 - Navigation opens and closes with native, reduced-motion-aware animation. Page changes have a modest entrance transition; the toolbar automatically overflows actions at narrow sizes while preserving keyboard and screen-reader behavior.
 - Search, event pinning, explicit detail requests and privileged backend permissions are unchanged. No additional collection, telemetry or network call is introduced by these UI effects.
 
 ### MyGo v0.3.5 follow-up: terminal and triage usability
 
-- Use MyGo v0.3.5 for its fix when a window closes while a native frame is being rendered.
+- The earlier MyGo v0.3.5 migration fixed closing a window during native-frame rendering.
 - The terminal action row is a native, keyboard-friendly toolbar with automatic overflow on narrow windows. The terminal tab strip uses an accessible native tablist and horizontal scrolling; tab titles are shortened on Unicode boundaries.
 - A new terminal tab reveals the end of the strip. Closing a tab before the active tab preserves the current PTY, and closing the last tab clears stale focus state.
 - Clicking an alert in the inspector always shows that retained redacted summary, even if the Events table currently filters it out. Event table filters remain unchanged until the user explicitly chooses "定位" or another correlation action.
