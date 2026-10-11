@@ -106,3 +106,37 @@ func TestVerifiedPublicCloneExemptsOnlyCloneProcessLoopHeuristics(t *testing.T) 
 		}
 	}
 }
+
+func TestVerifiedPublicCloneOnlyPropagatesThroughGitTransportStarts(t *testing.T) {
+	const root uint32 = 52800
+	markPublicCloneProcess(root, "gh")
+	t.Cleanup(func() {
+		for _, pid := range []uint32{root, root + 1, root + 2, root + 3} {
+			unmarkPublicCloneProcess(pid)
+		}
+	})
+	for _, event := range []*pb.Event{
+		{Pid: root + 1, Ppid: root, Comm: "git", Type: "process_exec"},
+		{Pid: root + 2, Ppid: root + 1, Comm: "git-remote-https", Type: "process_exec"},
+		{Pid: root + 3, Ppid: root + 2, Comm: "git-index-pack", Type: "openat"},
+	} {
+		if !isVerifiedPublicCloneProcess(event) {
+			t.Fatalf("verified Git clone transport child should inherit loop threshold: %+v", event)
+		}
+	}
+	for _, event := range []*pb.Event{
+		{Pid: root + 4, Ppid: root, Comm: "bash", Type: "process_exec"},
+		{Pid: root + 5, Ppid: root + 1, Comm: "curl", Type: "process_exec"},
+		{Pid: root + 6, Ppid: root + 3, Comm: "git-index-pack", Type: "openat"},
+	} {
+		if isVerifiedPublicCloneProcess(event) {
+			t.Fatalf("unrelated or unverified deep descendant inherited exemption: %+v", event)
+		}
+	}
+	if isVerifiedPublicCloneProcess(&pb.Event{Pid: root + 2, Comm: "git-remote-https", Type: "process_exit"}) {
+		t.Fatal("exited Git transport PID must lose its exemption")
+	}
+	if isVerifiedPublicCloneProcess(&pb.Event{Pid: root + 7, Ppid: root + 2, Comm: "git-index-pack", Type: "openat"}) {
+		t.Fatal("descendants of a terminated process must not inherit trust")
+	}
+}
