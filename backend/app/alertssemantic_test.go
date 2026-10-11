@@ -340,3 +340,39 @@ func TestVerifiedPublicCloneRetainsForkStormAndSecretDetection(t *testing.T) {
 		t.Fatalf("unverified fork storm emitted %d alerts, want exactly one", count)
 	}
 }
+
+func TestPublicCloneForkThresholdDoesNotSuppressUnrelatedAgentProcess(t *testing.T) {
+	resetSemanticAlertState()
+	const clonePID uint32 = 60123
+	markPublicCloneProcess(clonePID, "gh")
+	t.Cleanup(func() { unmarkPublicCloneProcess(clonePID) })
+
+	// The clone and unrelated process belong to the very same Agent run,
+	// which previously meant they shared a fork-count map entry.
+	for i := 0; i < 15; i++ {
+		event := &pb.Event{
+			Pid: clonePID, Comm: "gh", AgentRunId: "shared-agent-run",
+			Type: "process_fork",
+		}
+		if hasSemanticAlertCode(buildSemanticAlerts(event), "RESOURCE_WASTING_LOOP") {
+			t.Fatalf("verified public clone alerted before raised threshold at fork %d", i+1)
+		}
+	}
+
+	var ordinaryAlerts int
+	for i := 0; i < 12; i++ {
+		event := &pb.Event{
+			Pid: clonePID + 1, Comm: "bash", AgentRunId: "shared-agent-run",
+			Type: "process_fork",
+		}
+		if hasSemanticAlertCode(buildSemanticAlerts(event), "RESOURCE_WASTING_LOOP") {
+			ordinaryAlerts++
+			if i+1 != 8 {
+				t.Fatalf("unrelated process emitted on fork %d, want fork 8", i+1)
+			}
+		}
+	}
+	if ordinaryAlerts != 1 {
+		t.Fatalf("unrelated process emitted %d alerts, want exactly one", ordinaryAlerts)
+	}
+}
