@@ -23,8 +23,8 @@ const (
 )
 
 var (
-	githubCloneName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
-	githubCloneHTTP = &http.Client{Timeout: 900 * time.Millisecond}
+	githubCloneName  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
+	githubCloneHTTP  = &http.Client{Timeout: 900 * time.Millisecond}
 	publicCloneCache = struct {
 		sync.Mutex
 		entries map[string]time.Time
