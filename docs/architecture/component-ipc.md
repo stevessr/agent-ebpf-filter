@@ -234,3 +234,30 @@ control-plane authenticated FD transfer, multi-batch ACK checkpoints,
 PID/UID process isolation, explicit reconnect and loss reasons, benchmark
 comparison versus UDS using equivalent payloads, and actual kernel-event
 parity tests. No security enforcement action may depend on this prototype.
+
+
+### Rootless Engine integration of the shared data plane (experimental)
+
+Phase 6b now also has **opt-in, real-process** integration:
+`componentproc.RunEngineShared(ctx, executable, slots, payload, publisher)`
+launches the existing rootless Engine binary with `--shared`. The parent
+passes the already-authenticated session's secret through FD3 and the
+sealed-size event memfd plus eventfd through FD4/FD5. The Engine verifies the
+parent's UID and HMAC on the original private UDS, then validates shared
+`component.event.v1` projections without receiving one socket frame per
+event. Only cumulative per-batch validation ACKs go back over UDS.
+
+`SendSharedBatch` encodes and validates all events before writing, rejects
+oversized or unavailable-capacity batches, emits one eventfd wakeup, and waits
+for authenticated cumulative ACKs with matching stream identity. On failure,
+treat an incomplete batch as ambiguous; **never silently retry it**. Engine
+exits with an error and does not ACK malformed projections. On success the
+supervisor marks the ring closed, wakes the reader, closes its socket and
+joins the Engine. This supports comparing UDS-only vs memfd modes, but does
+not yet offer automatic mode switching or a production data-plane toggle.
+
+End-to-end CI tests launch an actual Engine subprocess, send **200 events
+in eight batches** with ACKs on the authenticated UDS, verify the shared
+consumer tail and reject malformed events. The production embedded
+Collector/Engine, Renew, and kernel policy paths still do not call this
+prototype. Privileged process separation and crash replay are not implied.

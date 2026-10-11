@@ -5,6 +5,8 @@ package componentproc
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strconv"
 	"net"
 	"os"
 	"os/exec"
@@ -14,6 +16,7 @@ import (
 	"time"
 
 	"agent-ebpf-filter/internal/componentipc"
+	"agent-ebpf-filter/internal/componentshm"
 	"agent-ebpf-filter/internal/componentwire"
 )
 
@@ -174,5 +177,62 @@ func TestSendEventValidatesProjectionBeforeWriting(t *testing.T) {
 	}
 	if err := SendEvent(nil, stream, 1, testEnvelope("ok")); !errors.Is(err, componentipc.ErrInvalidConfig) {
 		t.Fatalf("nil session accepted: %v", err)
+	}
+}
+
+func TestRunEngineSharedSendsBatchedEventsAcrossRealProcesses(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("shared Engine supervisor must not run as root")
+	}
+	exe := testWorkerBinary(t)
+	ctx, stop := context.WithTimeout(context.Background(), 15*time.Second)
+	defer stop()
+	err := RunEngineShared(ctx, exe, 64, 512,
+		func(session *componentipc.Session, ring *componentshm.Ring) error {
+			if session.LocalRole() != componentipc.RoleCollector ||
+				session.PeerRole() != componentipc.RoleEngine {
+				return componentipc.ErrRoleDenied
+			}
+			for batch := 0; batch < 8; batch++ {
+				group := make([]componentwire.Event, 25)
+				for j := range group {
+					group[j] = testEnvelope(strconv.Itoa(batch*25+j))
+				}
+				if err := SendSharedBatch(session, ring, group); err != nil {
+					return err
+				}
+			}
+			if stats := ring.Stats(); stats.Published != 200 || stats.Consumed != 200 || stats.Queued != 0 {
+				return fmt.Errorf("shared ACK counter mismatch: %+v", stats)
+			}
+			return nil
+		})
+	if err != nil {
+		t.Fatalf("shared Engine failed real cross-process transport: %v", err)
+	}
+}
+
+func TestRunEngineSharedFailsClosedOnCorruptedProjection(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("shared Engine supervisor must not run as root")
+	}
+	exe := testWorkerBinary(t)
+	ctx, stop := context.WithTimeout(context.Background(), 15*time.Second)
+	defer stop()
+	err := RunEngineShared(ctx, exe, 4, 512,
+		func(session *componentipc.Session, ring *componentshm.Ring) error {
+			if err := ring.TryWrite([]byte("{invalid projection")); err != nil {
+				return err
+			}
+			if err := ring.Notify(); err != nil {
+				return err
+			}
+			if _, err := session.ReceiveRecordCopy(); err == nil {
+				return errors.New("invalid shared event was acknowledged")
+			}
+			return nil
+		})
+	if err == nil || !strings.Contains(err.Error(), "exit status") {
+		t.Fatalf("malformed shared event failed to close the worker: %v", err)
 	}
 }
