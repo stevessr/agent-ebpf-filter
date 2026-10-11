@@ -59,3 +59,31 @@ func TestFloatingTerminalSharesIDAllocator(t *testing.T) {
         t.Fatalf("terminal IDs may not collide across windows: %d", id)
     }
 }
+
+func TestOwnerFollowsSplitTreeAcrossWindows(t *testing.T) {
+    parent := newRenewApp("http://127.0.0.1:8080")
+    child := newRenewApp(parent.backend)
+    child.detachedParent = parent
+    x, y := makeDetachedTestTab(21), makeDetachedTestTab(22)
+    split := &renewTerminalNode{
+        id: 30,
+        first: x.root,
+        second: y.root,
+    }
+    tab := &renewTerminalTab{id: 30, label: "split", root: split, focus: 21}
+    tab.root.reassignOwner(child)
+    if got := x.root.pane.owner.Load(); got != child {
+        t.Fatal("left pane owner did not move to child")
+    }
+    if got := y.root.pane.owner.Load(); got != child {
+        t.Fatal("right pane owner did not move to child")
+    }
+    child.terminalTabs = []*renewTerminalTab{tab}
+    parent.dockDetachedTerminals(child)
+    if got := x.root.pane.owner.Load(); got != parent {
+        t.Fatal("left pane owner did not return")
+    }
+    if got := y.root.pane.owner.Load(); got != parent {
+        t.Fatal("right pane owner did not return")
+    }
+}
