@@ -157,7 +157,18 @@ func (a *renewApp) update(fn func()) {
 	if a.win == nil {
 		return
 	}
-	a.win.Update(fn)
+	a.win.Update(func() {
+		fn()
+		// A moved PTY may still have an exit callback on the original app.
+		// Repaint floating windows without subscribing to the backend again.
+		if a.detachedParent == nil {
+			for _, child := range a.detachedTerminals {
+				if child.win != nil {
+					child.win.Update(func() {})
+				}
+			}
+		}
+	})
 }
 
 func resolveBackendURL(explicit string) (string, error) {
