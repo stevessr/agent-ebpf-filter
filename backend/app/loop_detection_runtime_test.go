@@ -329,3 +329,35 @@ func BenchmarkLoopDetectionSteadyStateWindowHit(b *testing.B) {
 		})
 	}
 }
+
+
+func TestLoopDetectionVerifiedCloneIncreasesThresholdWithoutDisabling(t *testing.T) {
+	const pid uint32 = 49826
+	markPublicCloneProcess(pid, "gh")
+	t.Cleanup(func() {
+		publicCloneProcesses.Lock()
+		delete(publicCloneProcesses.entries, pid)
+		publicCloneProcesses.Unlock()
+	})
+	worker := newLoopDetectionWorker()
+	settings := LoopDetectionSettings{
+		Enabled: true, WindowSeconds: 60, RepeatThreshold: 2, MaxContexts: 32,
+		EmitSemanticAlerts: false,
+	}
+	start := time.Unix(123456789, 0).UTC()
+	for i := 0; i < 16; i++ {
+		worker.processRecordWithSettings(CapturedEventRecord{
+			ReceivedAt: start.Add(time.Duration(i) * time.Millisecond),
+			Event: &pb.Event{
+				Pid: pid, Comm: "gh", AgentRunId: "clone-progress",
+				Type: "openat", Path: "/tmp/public-repo/.git/objects/pack",
+			},
+		}, true, settings)
+		if i < 15 && len(worker.findings) != 0 {
+			t.Fatalf("false loop positive during verified public clone at event %d", i+1)
+		}
+	}
+	if len(worker.findings) != 1 {
+		t.Fatalf("even verified clones must report sustained 16-event loops, got %d", len(worker.findings))
+	}
+}
