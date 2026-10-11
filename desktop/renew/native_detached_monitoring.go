@@ -97,9 +97,7 @@ func (a *renewApp) openDetachedMonitoringPage(page string) {
         child.releaseEventDetailPayload()
         delete(a.detachedPages, page)
         child.win = nil
-        if len(a.detachedPages) == 0 && len(a.detachedTerminals) == 0 && a.win != nil {
-            a.win.Show()
-        }
+        a.restoreMainAfterLastDetached()
     })
     win.Show()
     win.Focus()
@@ -118,6 +116,7 @@ func (a *renewApp) detachedMonitoringView(c *ui.Context) {
             if ui.Button(c, "返回主窗口").Tooltip("在主工作台打开本页，关闭独立窗口").Clicked() {
                 parent := a.detachedParent
                 if parent != nil && parent.win != nil {
+                    parent.hiddenForDetached = false
                     parent.win.Update(func() { parent.page = a.page })
                     parent.win.Restore()
                     parent.win.Show()
