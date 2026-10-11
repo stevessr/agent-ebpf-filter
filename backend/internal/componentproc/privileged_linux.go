@@ -46,14 +46,8 @@ func RunEngineSharedAsUID(
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	info, err := os.Stat(executable)
-	if err != nil {
+	if err := validateTrustedEnginePath(executable); err != nil {
 		return err
-	}
-	stat, ok := info.Sys().(*syscall.Stat_t)
-	if !ok || !info.Mode().IsRegular() || stat.Uid != 0 ||
-		info.Mode().Perm()&0022 != 0 || info.Mode().Perm()&0001 == 0 {
-		return ErrInvalidSupervisor
 	}
 	ring, err := componentshm.Create(slots, payload)
 	if err != nil {
@@ -173,4 +167,37 @@ func RunEngineSharedAsUID(
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+// validateTrustedEnginePath rejects symlinks and writable directory ancestors.
+// Checking only the final executable inode is insufficient because a
+// non-root actor can replace it through a writable ancestor after validation.
+// A reviewed installation under a root-owned, non-writable /usr/local tree
+// is required for this explicit privileged launch path.
+func validateTrustedEnginePath(executable string) error {
+	if !filepath.IsAbs(executable) || filepath.Clean(executable) != executable {
+		return ErrInvalidSupervisor
+	}
+	for current := executable; ; current = filepath.Dir(current) {
+		info, err := os.Lstat(current)
+		if err != nil {
+			return err
+		}
+		owner, ok := info.Sys().(*syscall.Stat_t)
+		if !ok || owner.Uid != 0 || info.Mode().Perm()&0022 != 0 ||
+			info.Mode()&os.ModeSymlink != 0 {
+			return ErrInvalidSupervisor
+		}
+		if current == executable {
+			if !info.Mode().IsRegular() || info.Mode().Perm()&0001 == 0 {
+				return ErrInvalidSupervisor
+			}
+		} else if !info.IsDir() {
+			return ErrInvalidSupervisor
+		}
+		if current == "/" {
+			break
+		}
+	}
+	return nil
 }
