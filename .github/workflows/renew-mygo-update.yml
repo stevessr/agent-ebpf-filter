@@ -5,36 +5,77 @@ on:
     - cron: "23 4 * * *"
   workflow_dispatch:
 
+# Never run new upstream code with a write-capable GitHub token.
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 concurrency:
   group: renew-mygo-updates
   cancel-in-progress: false
 
 jobs:
-  update:
+  verify-update:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    outputs:
+      changed: ${{ steps.version.outputs.changed }}
     defaults:
       run:
         working-directory: desktop/renew
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/setup-go@v6
         with:
           go-version: "1.27.1"
           cache-dependency-path: desktop/renew/go.sum
-      - name: Update to the latest stable MyGo module
+      - name: Compare pinned and latest stable MyGo
+        id: version
+        run: |
+          pinned="$(go list -m -f '{{.Version}}' github.com/egoist/mygo)"
+          latest="$(go list -m -f '{{.Version}}' github.com/egoist/mygo@latest)"
+          echo "Pinned: ${pinned}; latest stable: ${latest}"
+          if [ "$pinned" = "$latest" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Update module and checksums
+        if: steps.version.outputs.changed == 'true'
         run: |
           go get github.com/egoist/mygo@latest
           go mod tidy
       - name: Verify native desktop tests and build
+        if: steps.version.outputs.changed == 'true'
         run: |
           go test ./...
           go tool mygo vet .
           go build ./...
+      - name: Save verified module files for the PR job
+        if: steps.version.outputs.changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: renew-mygo-verified-module
+          path: |
+            desktop/renew/go.mod
+            desktop/renew/go.sum
+          if-no-files-found: error
+          retention-days: 2
+
+  propose:
+    needs: verify-update
+    if: needs.verify-update.outputs.changed == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/download-artifact@v4
+        with:
+          name: renew-mygo-verified-module
+          path: desktop/renew
       - name: Open reviewable dependency pull request
         uses: peter-evans/create-pull-request@v7
         with:
@@ -44,11 +85,11 @@ jobs:
           commit-message: "build(renew): update MyGo Go module and checksums"
           body: |
             Automated stable MyGo dependency refresh for Renew's isolated native desktop module.
-            The updater ran go mod tidy, desktop unit tests, MyGo UI lifetime vet,
-            and go build. Standard Renew PR CI additionally validates the embedded
-            Linux backend and desktop package.
+            Read-only CI ran go mod tidy, native desktop unit tests, MyGo UI
+            lifetime vet, and go build. Standard PR CI additionally checks
+            the Linux embedded backend and packaged desktop executable.
 
-            Review upstream release notes and any UI behavior changes before merging.
+            Review upstream release notes and any UI changes before merging.
             This workflow intentionally does not auto-merge.
           add-paths: |
             desktop/renew/go.mod
