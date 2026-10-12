@@ -617,6 +617,39 @@ func TestWorkspaceToolbarMovesBelowStatusForNarrowLayouts(t *testing.T) {
 	}
 }
 
+func TestWorkspaceGlobalJumpAndCaptureWarning(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.starting = false
+	a.connected = true
+	a.healthReady = true
+	a.health.CaptureHealthy = false
+	a.page = "事件"
+	view := ui.NewTester(a.view, 1480, 860)
+	view.SetPreferences(ui.Preferences{ReduceMotion: true, TextScale: 1})
+	if !view.HasText("前往页面") {
+		t.Fatal("desktop toolbar should expose full navigation even with the sidebar collapsed")
+	}
+	if !view.HasText("采集链路异常，摘要可能不完整") {
+		t.Fatal("monitoring pages must not hide capture failures behind old event summaries")
+	}
+	if err := view.Click("查看采集诊断"); err != nil {
+		t.Fatal(err)
+	}
+	if a.page != "系统" {
+		t.Fatalf("capture health action must open read-only diagnostics, got %q", a.page)
+	}
+	view.Frame()
+	if view.HasText("采集链路异常，摘要可能不完整") {
+		t.Fatal("the system page has its own diagnostics; do not duplicate the warning")
+	}
+	a.page = "网络"
+	a.health.CaptureHealthy = true
+	view.Frame()
+	if view.HasText("采集链路异常，摘要可能不完整") {
+		t.Fatal("healthy capture must not show a stale warning")
+	}
+}
+
 func TestWorkspaceFooterNeverMasksCollectorFailureWithRealtimeOrPause(t *testing.T) {
 	a := newRenewApp("http://127.0.0.1:8080")
 	a.starting = false

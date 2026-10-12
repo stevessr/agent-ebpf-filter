@@ -181,6 +181,11 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 							a.errorView(c)
 						default:
 							if !a.connected && a.lastErr != "" { a.connectionBanner(c) }
+							// A populated event table is not proof that collection is healthy.
+							// Make capture failures visible on every monitoring page.
+							if a.connected && a.healthReady && !a.health.CaptureHealthy && a.page != "概览" && a.page != "系统" {
+								a.captureWarning(c)
+							}
 							ui.Column(c).Key("page-"+a.page).Gap(16).Transition(ui.ElementTransition{
 							Duration: 160 * time.Millisecond,
 							Enter: &ui.Motion{Y: 8},
@@ -505,6 +510,10 @@ func (a *renewApp) headerActions(c *ui.Context) {
 	// The native toolbar moves actions to its overflow menu on narrow
 	// windows, retaining keyboard navigation and accessibility labels.
 	ui.Toolbar(c, func() {
+		// The icon rail intentionally exposes only the most-used pages.
+		// A native category menu keeps every route one click away even
+		// when the full sidebar is collapsed.
+		ui.Button(c, "前往页面").Tooltip("按类别快速切换监控、管理与诊断页面").Menu(a.compactNavigationMenu)
 		if a.detachedParent == nil && detachableMonitoringPage(a.page) {
 			if ui.Button(c, "分离本页").Tooltip("在独立原生窗口打开此监控页面；筛选和选中状态各自独立").Clicked() {
 				a.openDetachedMonitoringPage(a.page)
@@ -607,6 +616,23 @@ func (a *renewApp) connectionBanner(c *ui.Context) {
 			a.retryBackendConnection()
 		}
 		if a.page != "系统" && ui.Button(c, "系统诊断").Tooltip("查看采集器与数据传输状态").Clicked() {
+			a.page = "系统"
+		}
+	})
+}
+
+// Keep failures visible next to the data they may affect. This is a read-only
+// status surface: visiting diagnostics must never alter collection or policy.
+func (a *renewApp) captureWarning(c *ui.Context) {
+	t := c.Theme()
+	ui.Row(c).Wrap().Gap(10).Padding(12).AlignItems(ui.Center).
+		Background(t.Danger.Alpha(0.08)).Border(1, t.Danger.Alpha(0.4)).Radius(8).Children(func() {
+		ui.Column(c).Grow(1).MinWidth(230).Gap(3).Children(func() {
+			ui.Text(c, "采集链路异常，摘要可能不完整").Bold().TextColor(t.Danger)
+			ui.Text(c, fmt.Sprintf("eBPF 健康检查未通过 · Ringbuf 累计丢弃 %d；请核对系统诊断，勿以空白事件判断安全。",
+				a.health.RingbufDroppedTotal)).FontSize(11).TextColor(t.TextMuted)
+		})
+		if ui.Button(c, "查看采集诊断").Tooltip("只读查看采集器健康、事件丢弃及传输状态").Clicked() {
 			a.page = "系统"
 		}
 	})
