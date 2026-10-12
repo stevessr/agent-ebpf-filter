@@ -53,6 +53,23 @@
 - [Codex Config basics](https://developers.openai.com/codex/config-basic)、[Configuration Reference](https://developers.openai.com/codex/config-reference)
 - [Codex Managed configuration](https://learn.chatgpt.com/docs/enterprise/managed-configuration)
 
+## MyGo release tracking and desktop usability
+
+The desktop Go module pins a tested MyGo version independently of the privileged backend.
+`.github/workflows/renew-mygo-update.yml` checks upstream's latest stable Go module
+release daily and on manual dispatch. It runs module tidy, native UI lifetime vet,
+unit tests and a build before opening or updating a dependency PR; **it never
+auto-merges** an upstream framework update. Existing pull-request CI still verifies
+the packaged Linux desktop app and embedded backend.
+
+The native workspace now exposes a **前往页面** category menu in the toolbar,
+including when the activity rail is collapsed or the navigation drawer is hidden
+by a narrow/tiled window. Pages remain accessible without switching navigation
+density. If collection is unhealthy, event, session and other monitoring pages
+show a prominent, read-only warning with a direct route to **系统诊断**, rather
+than relying on the Overview page or a small footer indicator. A warning never
+interprets missing events as evidence of a safe system.
+
 ## Native workspace layout
 
 Renew renders an editor-inspired native workspace **entirely with MyGo widgets**. Its light and dark palettes follow the host OS appearance (including live changes through MyGo's system theme), while native accent colors, text scaling and high-contrast preferences remain available. A monochrome hand-mirror SVG is embedded and rendered as the activity-rail identity; collector health is shown in the main status indicators and System diagnostics, not in a redundant sidebar block. Its 54-DIP activity rail offers page shortcuts; the full navigation is collapsed by default so the center starts immediately after the icon rail. Users can open a 198-DIP compact navigation and then switch to a 302-DIP detailed navigation with full Chinese page labels. The sidebar's actual animated width feeds the incident inspector's responsive breakpoint; the page IDs, selection, keyboard navigation, and Agent identification controls are unchanged. The center retains live eBPF monitoring, sessions, network/process tables and existing privileged management controls. A page toolbar provides search, stream pause and context-aware refresh (rules, tracking, eBPF module state and path permissions re-fetch their own data).
