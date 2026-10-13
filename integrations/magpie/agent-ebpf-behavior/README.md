@@ -73,6 +73,8 @@ magpie plugin rm "$(pwd)/integrations/magpie/agent-ebpf-behavior"
 | `blocked_protocols` | string[] | 禁止 `anthropic`、`chat`、`responses`、`gemini` 等协议 |
 | `blocked_tools` | string[] | 请求声明了列出的工具时拒绝整个请求 |
 | `allowed_tools` | string[] | 非空时拒绝未列入的工具声明，包括无法识别的工具 |
+| `blocked_tool_categories` | string[] | 根据工具**名称**推断类别并拒绝；支持 `process`、`file_read`、`file_write`、`network`、`other` |
+| `allowed_tool_categories` | string[] | 仅允许指定的工具名称类别，未识别的归入 `other` |
 | `blocked_user_terms` | string[] | 禁止用户最近一轮文本中包含指定字面子串（区分不了语义） |
 | `max_output_tokens` | integer | enforce 模式下仅压低请求里**已存在**的输出 token 上限，不新增缺失字段 |
 | `audit` | boolean | 禁用/启用元数据审计日志，默认启用 |
@@ -100,6 +102,18 @@ magpie plugin rm "$(pwd)/integrations/magpie/agent-ebpf-behavior"
 ```
 
 本插件只控制向模型**声明工具能力的请求**，不会修改工具实现，也不会验证 Agent 随后实际执行的 Shell 命令。建议同时使用 Agent eBPF Filter 的包装器规则和内核级防护。
+
+### 样例：按行为类别管理工具
+
+```json
+{
+  "mode": "enforce",
+  "blocked_tool_categories": ["process", "file_write"],
+  "audit_tool_calls": true
+}
+```
+
+该选项会阻止带有 Bash、shell_command、codeExecution、Write、Edit、apply_patch 等**已知名称**的工具能力声明；`file_read`、`network`、`other` 为其他分类。分类仅根据工具名称进行启发式匹配：自定义工具名或 MCP 工具可能落到 `other`，并不能推断工具的实际副作用。需要严格白名单时使用 `allowed_tool_categories`，例如只允许 `file_read`；必须由 eBPF/LSM/agent-wrapper 拦截真实的进程、文件和网络行为。
 
 ### 样例：允许名单
 
