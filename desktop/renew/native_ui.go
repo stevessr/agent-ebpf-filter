@@ -217,6 +217,12 @@ type renewApp struct {
 	trackName     string
 	trackTag      string
 
+	magpieSpec            string
+	magpiePendingAction   string
+	magpiePendingSpec     string
+	magpieBusy            bool
+	magpieErr             string
+	magpieNotice          string
 	ccs                   ccsSnapshot
 	astrlink              astrLinkSnapshot
 	ccr                   ccrSnapshot
@@ -460,6 +466,8 @@ func pageSubtitle(page string) string {
 		return "采集器、系统流与队列诊断"
 	case "CCS":
 		return "CC-Switch、AstrLink、CCR、Antigravity 与 eBPF 事件联动"
+	case "Magpie":
+		return "yetone/magpie 的本机安装、npm 插件安装与更新"
 	case "终端":
 		return "普通用户 Shell · Ghostty VT · 多标签与分屏"
 	default:
