@@ -1,0 +1,34 @@
+{
+  "name": "@agent-ebpf-filter/magpie-behavior",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Agent eBPF Filter request-level behavior policy and metadata-only tool-call audit middleware for yetone/magpie",
+  "type": "module",
+  "keywords": [
+    "magpie",
+    "magpie-middleware",
+    "agent-ebpf-filter",
+    "agent-safety",
+    "request-policy"
+  ],
+  "license": "MIT",
+  "magpie": {
+    "middleware": "./behavior.middleware.js",
+    "options": {
+      "enabled": true,
+      "mode": "audit",
+      "audit": true,
+      "audit_requests": false,
+      "audit_tool_calls": true,
+      "blocked_agents": [],
+      "allowed_agents": [],
+      "blocked_protocols": [],
+      "blocked_models": [],
+      "allowed_models": [],
+      "blocked_tools": [],
+      "allowed_tools": [],
+      "blocked_user_terms": [],
+      "max_output_tokens": 0
+    }
+  }
+}
