@@ -49,6 +49,9 @@ function toolName(tool) {
 }
 
 function inputTools(body) {
+  // Magpie currently supports Anthropic, Chat, Responses and Gemini. The
+  // first three use one definition per tool; Gemini may group function
+  // declarations, or expose standalone built-ins like codeExecution.
   const tools = Array.isArray(body.tools) ? body.tools : []
   const out = []
   let overflow = tools.length > MAX_TOOLS
@@ -71,7 +74,20 @@ function inputTools(body) {
         }
       }
     } else if (object(tool)) {
-      out.push(toolName(tool))
+      const name = toolName(tool)
+      if (name) {
+        out.push(name)
+      } else if (object(tool.functionDeclarations)) {
+        out.push("")
+      } else {
+        const keys = Object.keys(tool)
+        if (keys.length === 0) out.push("")
+        for (const key of keys) {
+          if (out.length >= MAX_TOOLS) { overflow = true; break }
+          if (key === "functionDeclarations") out.push("")
+          else out.push(key)
+        }
+      }
     } else {
       out.push("")
     }
@@ -80,18 +96,24 @@ function inputTools(body) {
   return out
 }
 
+// Strings are deliberately not sent to any other process. The scan is
+// bounded, and enforcing rules must reject oversized text instead of
+// silently ignoring blocked terms at the end.
 function requestedText(body, protocol) {
   let messages = []
   if (protocol === "gemini") {
     messages = Array.isArray(body.contents) ? body.contents : []
   } else if (protocol === "responses") {
-    if (typeof body.input === "string") return body.input.slice(0, MAX_TEXT_CHARS)
+    if (typeof body.input === "string") {
+      return { text: body.input.slice(0, MAX_TEXT_CHARS), truncated: body.input.length > MAX_TEXT_CHARS }
+    }
     messages = Array.isArray(body.input) ? body.input : []
   } else {
     messages = Array.isArray(body.messages) ? body.messages : []
   }
   let remaining = MAX_TEXT_CHARS
   let result = ""
+  let truncated = false
   // Only the user's latest turn, not system prompts, tool results or prior
   // assistant responses. This does not replace kernel/process monitoring.
   for (let i = messages.length - 1; i >= 0 && remaining > 0; i--) {
@@ -108,6 +130,7 @@ function requestedText(body, protocol) {
         : object(part) && typeof part.text === "string" &&
           (protocol === "gemini" || part.type === "text" || part.type === "input_text") ? part.text : ""
       if (value) {
+        if (value.length > remaining) truncated = true
         const chunk = value.slice(0, remaining)
         result += chunk
         remaining -= chunk.length
@@ -115,7 +138,7 @@ function requestedText(body, protocol) {
     }
     break
   }
-  return result
+  return { text: result, truncated }
 }
 
 function label(value) {
@@ -135,6 +158,27 @@ function audit(ctx, type, code, detail) {
     protocol: label(ctx.protocol),
     tool: label(detail),
   }))
+}
+
+// Malformed and overlong rules in enforce mode are rejected rather than
+// silently ignored. In audit mode we keep observing without disruption.
+const POLICY_LIST_FIELDS = [
+  "allowed_agents", "blocked_agents", "allowed_models", "blocked_models",
+  "allowed_tools", "blocked_tools", "blocked_protocols", "blocked_user_terms",
+]
+
+function invalidOptions(o) {
+  for (const key of POLICY_LIST_FIELDS) {
+    if (o[key] === undefined) continue
+    if (!Array.isArray(o[key]) || o[key].length > MAX_RULES) return true
+    for (const item of o[key]) {
+      if (typeof item !== "string" || item.trim().length === 0 || item.length > 160) return true
+    }
+  }
+  if (o.max_output_tokens !== undefined && o.max_output_tokens !== 0 &&
+      (!Number.isSafeInteger(o.max_output_tokens) ||
+       o.max_output_tokens < 1 || o.max_output_tokens > 131072)) return true
+  return false
 }
 
 function tokenCap(body, protocol, max) {
@@ -170,6 +214,12 @@ export function onRequest(body, ctx) {
   if (!object(body) || !ctx || !object(ctx)) return
   const o = object(ctx.options) ? ctx.options : {}
   if (o.enabled === false) return
+  const enforce = o.mode === "enforce"
+  if (enforce && invalidOptions(o)) {
+    audit(ctx, "deny", "invalid_policy", "")
+    ctx.reject(403, "Agent eBPF Filter / Magpie policy denied request: invalid_policy")
+    return
+  }
 
   const protocol = typeof ctx.protocol === "string" ? ctx.protocol : ""
   const agent = typeof ctx.agent === "string" ? ctx.agent : ""
@@ -190,7 +240,21 @@ export function onRequest(body, ctx) {
   if (matches(blockedModels, model)) violations.push("blocked_model")
   if (allowedModels.length && !matches(allowedModels, model)) violations.push("unapproved_model")
 
+  // Explicit/forced tool_choice can name a tool independently of tools[].
+  // Include it so it cannot evade allow/deny checks.
   const tools = inputTools(body)
+  if (object(body.tool_choice)) {
+    const forced = toolName(body.tool_choice)
+    if (forced) tools.push(forced)
+    else if (body.tool_choice.type !== "auto" && body.tool_choice.type !== "none" &&
+             body.tool_choice.type !== "any" && body.tool_choice.type !== "required") tools.push("")
+  }
+  const geminiChoice = object(body.toolConfig) && object(body.toolConfig.functionCallingConfig)
+    ? body.toolConfig.functionCallingConfig : null
+  if (geminiChoice && Array.isArray(geminiChoice.allowedFunctionNames)) {
+    for (const name of geminiChoice.allowedFunctionNames.slice(0, MAX_TOOLS)) tools.push(name)
+    if (geminiChoice.allowedFunctionNames.length > MAX_TOOLS) tools.push("")
+  }
   if ((blockedTools.length || allowedTools.length) && tools.includes("")) {
     violations.push("uninspectable_tool")
   }
@@ -204,11 +268,14 @@ export function onRequest(body, ctx) {
 
   const terms = list(o.blocked_user_terms)
   if (terms.length) {
-    const text = requestedText(body, protocol).toLowerCase()
-    if (terms.some((term) => text.includes(term))) violations.push("blocked_user_term")
+    const inspected = requestedText(body, protocol)
+    if (terms.some((term) => inspected.text.toLowerCase().includes(term))) {
+      violations.push("blocked_user_term")
+    } else if (inspected.truncated) {
+      violations.push("uninspectable_user_text")
+    }
   }
 
-  const enforce = o.mode === "enforce"
   if (violations.length) {
     audit(ctx, enforce ? "deny" : "observe", violations[0], "")
     if (enforce) {
