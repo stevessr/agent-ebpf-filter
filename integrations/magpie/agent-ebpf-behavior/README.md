@@ -79,7 +79,9 @@ magpie plugin rm "$(pwd)/integrations/magpie/agent-ebpf-behavior"
 | `audit_requests` | boolean | 记录未触发拦截的请求，默认关闭 |
 | `audit_tool_calls` | boolean | 记录模型拟发起的工具调用名，默认开启 |
 
-规则字符串不区分大小写。支持**精确匹配**与**尾部星号**，例如 `gpt-*`、`shell*`；**不运行用户提供的正则表达式**。单字段最多评估 128 条规则、前 256 条工具声明；只要配置了工具黑名单或白名单，无法识别或超出范围的工具声明均会被视为未知并拦截。用户输入扫描仅查看最后一轮用户文本前 64Ki 字符；文件、图片、音频、工具输出不在此扫描范围内。
+规则字符串不区分大小写。支持**精确匹配**与**尾部星号**，例如 `gpt-*`、`shell*`；**不运行用户提供的正则表达式**。单字段最多接受 128 条规则，最多检查 256 条工具声明；只要配置了工具黑名单或白名单，无法识别或超出范围的工具声明均会被视为未知并拦截。检查包括 OpenAI/Anthropic 的强制工具选择（`tool_choice`）、Gemini 的 `toolConfig.functionCallingConfig.allowedFunctionNames` 和内置工具。`enforce` 下格式错误或过大的规则将返回 403 `invalid_policy`，不静默忽略。
+
+用户文本规则仅扫描最新一轮用户文本的前 64 Ki **字符**，跳过工具结果及系统提示；在 `enforce` 模式下，文本超出检查上限且已配置 `blocked_user_terms` 时，会返回 403 `uninspectable_user_text`，防止仅检查前缀造成绕过。文件、图片、音频、工具输出不在此扫描范围内。
 
 > 配置中的空数组表示对相应类别不设限制；`mode: "audit"` 不会修改请求或拒绝请求。要切换到拦截模式，必须在 Magpie 里显式设成 `"enforce"`。
 
@@ -129,6 +131,6 @@ magpie plugin rm "$(pwd)/integrations/magpie/agent-ebpf-behavior"
 node --test integrations/magpie/agent-ebpf-behavior/behavior.test.mjs
 ```
 
-测试无需启动特权后端或 Magpie，也不下载第三方包。CI 另有 `magpie-behavior.yml`。
+上述 Node 单元测试无需启动特权后端或 Magpie，也不下载第三方包。CI 还会**检出固定提交 `71f796069f9078295b54e26d1f790bf38e087c6c` 的 yetone/magpie**，将本插件加载到其真正的 moejs 中间件运行时，验证 403 策略拦截、正常请求透传和 SSE 原样透传。该测试不需要 root、内核 eBPF 或真实云端 API 凭据；真实生产 Magpie 环境中的端到端服务部署验证仍单独进行。
 
 参考：[yetone/magpie Gateway middleware reference](https://github.com/yetone/magpie/blob/main/docs/reference.md#gateway-middleware)。
