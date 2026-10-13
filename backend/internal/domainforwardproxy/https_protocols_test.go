@@ -16,10 +16,10 @@ import (
 func TestHTTPSProtocolNegotiation(t *testing.T) {
 	certFile, keyFile := writeTestCA(t)
 	serverTLS, warnings, err := NewTLSConfig(DomainForwardProxySettings{
-		TLSInterceptEnabled: true,
-		TLSInterceptAllowlist: "api.openai.com",
+		TLSInterceptEnabled:    true,
+		TLSInterceptAllowlist:  "api.openai.com",
 		TLSInterceptCACertFile: certFile,
-		TLSInterceptCAKeyFile: keyFile,
+		TLSInterceptCAKeyFile:  keyFile,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -49,7 +49,7 @@ func TestHTTPSProtocolNegotiation(t *testing.T) {
 	}
 	server := &http.Server{
 		TLSConfig: serverTLS,
-		Protocols: proxyHTTPProtocols(),
+		Protocols:       proxyHTTPProtocols(),
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			_, _ = io.WriteString(w, r.Proto)
 		}),
