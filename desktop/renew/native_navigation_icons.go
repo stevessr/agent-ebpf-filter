@@ -37,5 +37,5 @@ func workspaceNavigationIcon(page string) *ui.SVG {
 // exposes the complete set, and both surfaces share these same SVGs.
 var workspaceRailPages = []string{
 	"概览", "事件", "研判", "会话", "网络", "域名", "进程",
-	"Agent 识别", "监控", "规则", "系统", "终端", "文件", "编辑器",
+	"Agent 识别", "监控", "规则", "系统", "终端",
 }
