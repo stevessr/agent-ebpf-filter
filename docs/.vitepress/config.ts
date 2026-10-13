@@ -156,6 +156,7 @@ export default defineConfig({
             { text: '外部资源与最佳实践', link: '/reference/external-resources' },
             { text: 'VitePress 插件配置', link: '/reference/vitepress-plugins' },
             { text: 'AgentSight 项目致敬', link: '/reference/agentsight-acknowledgment' },
+            { text: 'Agent-Warden 论文解读', link: '/reference/agent-warden-analysis' },
             { text: '维护检查清单', link: '/reference/maintenance-checklists' },
             { text: '开发设计索引', link: '/reference/DEV_DOCS_INDEX' },
             { text: '项目技术路线图', link: '/reference/project-roadmap' },
