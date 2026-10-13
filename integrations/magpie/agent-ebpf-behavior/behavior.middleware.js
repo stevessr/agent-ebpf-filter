@@ -10,7 +10,7 @@
 
 const MAX_RULES = 128
 const MAX_TOOLS = 256
-const MAX_TEXT_BYTES = 64 * 1024
+const MAX_TEXT_CHARS = 64 * 1024
 
 function list(value) {
   if (!Array.isArray(value)) return []
@@ -53,13 +53,14 @@ function inputTools(body) {
   const out = []
   for (let i = 0; i < tools.length && i < MAX_TOOLS; i++) {
     const tool = tools[i]
+    if (out.length >= MAX_TOOLS) break
     if (object(tool) && Array.isArray(tool.functionDeclarations)) {
       for (const d of tool.functionDeclarations.slice(0, MAX_TOOLS - out.length)) {
         out.push(toolName(d))
       }
       // Gemini built-in tools (e.g. googleSearch, codeExecution).
       for (const key of Object.keys(tool)) {
-        if (key !== "functionDeclarations") out.push(key)
+        if (key !== "functionDeclarations" && out.length < MAX_TOOLS) out.push(key)
       }
     } else if (object(tool)) {
       out.push(toolName(tool))
@@ -67,7 +68,7 @@ function inputTools(body) {
       out.push("")
     }
   }
-  if (tools.length > MAX_TOOLS) out.push("")
+  if (tools.length > MAX_TOOLS || (tools.length && out.length >= MAX_TOOLS)) out.push("")
   return out
 }
 
@@ -76,12 +77,12 @@ function requestedText(body, protocol) {
   if (protocol === "gemini") {
     messages = Array.isArray(body.contents) ? body.contents : []
   } else if (protocol === "responses") {
-    if (typeof body.input === "string") return body.input.slice(0, MAX_TEXT_BYTES)
+    if (typeof body.input === "string") return body.input.slice(0, MAX_TEXT_CHARS)
     messages = Array.isArray(body.input) ? body.input : []
   } else {
     messages = Array.isArray(body.messages) ? body.messages : []
   }
-  let remaining = MAX_TEXT_BYTES
+  let remaining = MAX_TEXT_CHARS
   let result = ""
   // Only the user's latest turn, not system prompts, tool results or prior
   // assistant responses. This does not replace kernel/process monitoring.
@@ -96,7 +97,8 @@ function requestedText(body, protocol) {
     for (const part of parts) {
       const value = typeof part === "string"
         ? part
-        : object(part) && typeof part.text === "string" ? part.text : ""
+        : object(part) && typeof part.text === "string" &&
+          (protocol === "gemini" || part.type === "text" || part.type === "input_text") ? part.text : ""
       if (value) {
         const chunk = value.slice(0, remaining)
         result += chunk
