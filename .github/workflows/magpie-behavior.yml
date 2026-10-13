@@ -66,5 +66,4 @@ jobs:
           # Upstream's headless Docker build uses these flags; default
           # desktop Go compilation requires libfontconfig + other GUI libs.
           AGENT_EBPF_MAGPIE_PLUGIN="$GITHUB_WORKSPACE/agent-ebpf-filter/integrations/magpie/agent-ebpf-behavior" \
-            CGO_ENABLED=0 go test -tags nogui ./internal/middleware -run '^TestAgentEBPFExternalMiddleware
- -count=1 -v
+            CGO_ENABLED=0 go test -tags nogui ./internal/middleware -run '^TestAgentEBPFExternalMiddleware$' -count=1 -v
