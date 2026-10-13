@@ -56,6 +56,17 @@ type localFileWorkspace struct {
 	docs []*localFileDocument
 	active int
 	closePending string
+	quitPending bool
+	allowQuit bool
+}
+
+func (a *renewApp) hasUnsavedLocalDocuments() bool {
+	for _, doc := range a.files.docs {
+		if doc.saving || doc.state.Buffer.Modified() {
+			return true
+		}
+	}
+	return false
 }
 
 // Read only a bounded number of directory entries. Directory listing never
