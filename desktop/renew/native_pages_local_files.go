@@ -207,7 +207,7 @@ func (a *renewApp) localFileManagerView(c *ui.Context) {
 			if ui.Button(c, "↑").Tooltip("上级目录").Clicked() && a.files.dir != "" {
 				a.browseLocalDirectory(filepath.Dir(a.files.dir))
 			}
-			ui.TextField(c, &a.files.address).Label("本地绝对路径").Grow(1).MinWidth(160)
+			ui.TextInput(c, &a.files.address).Label("本地绝对路径").Grow(1).MinWidth(160)
 			if ui.Button(c, "前往").Clicked() {
 				a.browseLocalDirectory(a.files.address)
 			}
@@ -217,7 +217,7 @@ func (a *renewApp) localFileManagerView(c *ui.Context) {
 		})
 		ui.Row(c).Wrap().Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.SearchField(c, &a.files.filter).Label("过滤当前目录文件名").Grow(1).MinWidth(180)
-			ui.TextField(c, &a.files.newName).Label("新建文件或文件夹名称").Width(220)
+			ui.TextInput(c, &a.files.newName).Label("新建文件或文件夹名称").Width(220)
 			if ui.Button(c, "新建文件").Clicked() {
 				name, dir := strings.TrimSpace(a.files.newName), a.files.dir
 				a.runLocalFileAction(func() error { return createLocalItem(dir, name, false) }, "文件已创建")
@@ -230,7 +230,7 @@ func (a *renewApp) localFileManagerView(c *ui.Context) {
 		if a.files.selected != "" {
 			ui.Row(c).Wrap().Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, "已选择 "+a.files.selected).FontSize(12).TextColor(t.TextMuted)
-				ui.TextField(c, &a.files.renameName).Label("新名称").Width(220)
+				ui.TextInput(c, &a.files.renameName).Label("新名称").Width(220)
 				if ui.Button(c, "重命名").Clicked() {
 					from, to, dir := a.files.selected, strings.TrimSpace(a.files.renameName), a.files.dir
 					if doc, _ := a.localDocument(filepath.Join(dir, from)); doc != nil {
