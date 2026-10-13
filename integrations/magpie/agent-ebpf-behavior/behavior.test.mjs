@@ -309,6 +309,43 @@ test("user-term enforcement rejects text too large to inspect completely", () =>
   assert.equal(segments.rejected.length, 1)
 })
 
+
+test("categorizes process, file and network tool capabilities (opt-in)", () => {
+  const cases = [
+    ["Bash", "process"],
+    ["shell_command", "process"],
+    ["codeExecution", "process"],
+    ["apply_patch", "file_write"],
+    ["Write", "file_write"],
+    ["Read", "file_read"],
+    ["WebFetch", "network"],
+    ["googleSearch", "network"],
+  ]
+  for (const [name, category] of cases) {
+    const { ctx, rejected } = context({
+      mode: "enforce", blocked_tool_categories: [category],
+    })
+    withAudit(() => onRequest({ tools: [{ name }] }, ctx))
+    assert.equal(rejected.length, 1, "failed to categorize " + name)
+    assert.match(rejected[0].reason, /unapproved_tool_category/)
+  }
+})
+
+test("category allowlist denies unknown or different tools, not harmless declarations", () => {
+  const options = { mode: "enforce", allowed_tool_categories: ["file_read"] }
+  const accepted = context(options)
+  withAudit(() => onRequest({ tools: [{ name: "Read" }, { name: "Grep" }] }, accepted.ctx))
+  assert.equal(accepted.rejected.length, 0)
+  for (const name of ["Bash", "some_custom_tool"]) {
+    const { ctx, rejected } = context(options)
+    withAudit(() => onRequest({ tools: [{ name }] }, ctx))
+    assert.equal(rejected.length, 1, name)
+  }
+  const invalid = context({ mode: "enforce", blocked_tool_categories: ["file_rwed"] })
+  withAudit(() => onRequest({ tools: [{ name: "Read" }] }, invalid.ctx))
+  assert.match(invalid.rejected[0].reason, /invalid_policy/)
+})
+
 test("bounded scan of tool lists and user text", () => {
   const { ctx, rejected } = context({ mode: "enforce", allowed_tools: ["safe"] })
   const input = { tools: Array.from({ length: 1000 }, () => ({ name: "safe" })) }
