@@ -49,7 +49,7 @@ func TestHTTPSProtocolNegotiation(t *testing.T) {
 	}
 	server := &http.Server{
 		TLSConfig: serverTLS,
-		Protocols:       proxyHTTPProtocols(),
+		Protocols: proxyHTTPProtocols(),
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			_, _ = io.WriteString(w, r.Proto)
 		}),
@@ -68,7 +68,7 @@ func TestHTTPSProtocolNegotiation(t *testing.T) {
 	}
 	clientTransport := &http.Transport{
 		TLSClientConfig: &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12},
-		Protocols: proxyHTTPProtocols(),
+		Protocols:       proxyHTTPProtocols(),
 		DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
 			return (&net.Dialer{}).DialContext(ctx, network, listener.Addr().String())
 		},
