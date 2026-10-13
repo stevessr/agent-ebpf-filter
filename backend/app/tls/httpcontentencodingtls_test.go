@@ -55,7 +55,7 @@ func TestTLSCompressedHTTPBodiesAreRedacted(t *testing.T) {
 			wire := encodeTLSHTTPBodyTest(t, encoding, []byte(plain))
 			for _, request := range []bool{false, true} {
 				var headers string
-				direction := tlsDirectionRecv
+				direction := uint8(tlsDirectionRecv)
 				if request {
 					direction = tlsDirectionSend
 					headers = fmt.Sprintf("POST /v1/chat HTTP/1.1\r\nHost: example.com\r\nContent-Type: application/json\r\nContent-Encoding: %s\r\nContent-Length: %d\r\n\r\n", encoding, len(wire))
