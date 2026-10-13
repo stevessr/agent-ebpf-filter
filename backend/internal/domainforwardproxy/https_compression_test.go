@@ -86,7 +86,7 @@ func TestHandlerRewritesBrotliAndZstdRequests(t *testing.T) {
 				}
 				return &http.Response{
 					StatusCode: http.StatusOK, Header: make(http.Header),
-					Body: io.NopCloser(strings.NewReader("ok")),
+					Body:          io.NopCloser(strings.NewReader("ok")),
 					ContentLength: 2, Request: req,
 				}, nil
 			}))
@@ -113,11 +113,11 @@ func TestHandlerRewritesBrotliAndZstdResponses(t *testing.T) {
 				return &http.Response{
 					StatusCode: http.StatusOK,
 					Header: http.Header{
-						"Content-Type": []string{"application/json"},
+						"Content-Type":     []string{"application/json"},
 						"Content-Encoding": []string{encoding},
-						"Etag": []string{`"original"`},
+						"Etag":             []string{`"original"`},
 					},
-					Body: io.NopCloser(bytes.NewReader(raw)),
+					Body:          io.NopCloser(bytes.NewReader(raw)),
 					ContentLength: int64(len(raw)), Request: req,
 				}, nil
 			}))
@@ -163,10 +163,10 @@ func TestCompressedSSEIsUnmodified(t *testing.T) {
 				return &http.Response{
 					StatusCode: http.StatusOK,
 					Header: http.Header{
-						"Content-Type": []string{"text/event-stream"},
+						"Content-Type":     []string{"text/event-stream"},
 						"Content-Encoding": []string{encoding},
 					},
-					Body: io.NopCloser(bytes.NewReader(raw)),
+					Body:          io.NopCloser(bytes.NewReader(raw)),
 					ContentLength: -1, Request: req,
 				}, nil
 			}))
