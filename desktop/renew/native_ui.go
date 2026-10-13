@@ -217,6 +217,12 @@ type renewApp struct {
 	trackName     string
 	trackTag      string
 
+	magpieTarget          string
+	magpieFamily          string
+	magpieConfirm         string
+	magpieBusy            bool
+	magpieErr             string
+	magpieResult          string
 	ccs                   ccsSnapshot
 	astrlink              astrLinkSnapshot
 	ccr                   ccrSnapshot
@@ -265,6 +271,8 @@ func newRenewApp(backend string) *renewApp {
 		rulePriority:       "0",
 		ruleRewrite:        "[]",
 		pathAccessMode: "阻止写入",
+		magpieTarget:   "Claude Code",
+		magpieFamily:   "仅安装基础组件",
 	}
 	a.eventTable.Selected = &a.eventSelected
 	a.networkTable.Selected = &a.networkSelected
@@ -460,6 +468,8 @@ func pageSubtitle(page string) string {
 		return "采集器、系统流与队列诊断"
 	case "CCS":
 		return "CC-Switch、AstrLink、CCR、Antigravity 与 eBPF 事件联动"
+	case "Magpie":
+		return "Apache Magpie 插件安装与安装前审核"
 	case "终端":
 		return "普通用户 Shell · Ghostty VT · 多标签与分屏"
 	default:
