@@ -5,6 +5,7 @@ package middleware
 
 import (
     "bytes"
+    "context"
     "net/http/httptest"
     "os"
     "strings"
@@ -20,6 +21,19 @@ func TestAgentEBPFExternalMiddleware(t *testing.T) {
     }
     if _, err := os.Stat(dir + "/package.json"); err != nil {
         t.Fatal(err)
+    }
+
+    // Exercise the same plugin.Add path as 'magpie plugin add <folder>',
+    // including its package.json manifest and middleware entry detection.
+    registered, err := plugin.Add(context.Background(), dir)
+    if err != nil {
+        t.Fatalf("Magpie rejected behavior plugin installation: %v", err)
+    }
+    if registered.Spec != dir {
+        t.Fatalf("registered unexpected plugin source: %s", registered.Spec)
+    }
+    if entry, _ := plugin.Middleware(plugin.Target(registered.Spec)); entry == "" {
+        t.Fatal("installed plugin is not recognized as Magpie middleware")
     }
 
     use(t, plugin.Entry{Spec: dir, Options: map[string]any{
