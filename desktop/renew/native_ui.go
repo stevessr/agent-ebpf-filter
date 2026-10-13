@@ -23,6 +23,7 @@ type renewApp struct {
 	lastSync   time.Time
 
 	page   string
+	files  localFileWorkspace
 	search string
 	paused bool
 
@@ -243,6 +244,7 @@ func newRenewApp(backend string) *renewApp {
 		backend:            backend,
 		starting:           true,
 		page:               "概览",
+		files:              localFileWorkspace{active: -1},
 		navigationOpen:       false,
 		inspectorOpen:      true,
 		materialEnabled:    true,
@@ -462,6 +464,10 @@ func pageSubtitle(page string) string {
 		return "CC-Switch、AstrLink、CCR、Antigravity 与 eBPF 事件联动"
 	case "终端":
 		return "普通用户 Shell · Ghostty VT · 多标签与分屏"
+	case "文件":
+		return "不经特权后端的本地文件浏览与管理"
+	case "编辑器":
+		return "MyGo 原生 UTF-8 代码编辑、语法高亮与保存"
 	default:
 		return "健康、风险与最近活动"
 	}
