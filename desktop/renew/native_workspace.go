@@ -73,6 +73,7 @@ var workspaceNavigationLabels = map[string][2]string{
 	"路径权限":   {"文件访问保护", "文件路径与访问权限"},
 	"终端":       {"本地 Shell · 多标签与分屏", "本地 Shell 终端与多窗格"},
 	"CCS":        {"管理软件联动", "CC-Switch / AstrLink / CCR / Antigravity 本地视图"},
+	"Magpie":     {"Magpie 插件", "Apache Magpie · Agent 插件安装"},
 	"系统":       {"系统诊断", "采集链路与系统运行诊断"},
 }
 
@@ -239,6 +240,8 @@ func (a *renewApp) workspacePage(c *ui.Context) {
 		a.systemView(c)
 	case "CCS":
 		a.integrationsView(c)
+	case "Magpie":
+		a.magpieView(c)
 	default:
 		a.overview(c)
 	}
@@ -253,7 +256,7 @@ var workspaceNavigationMenuSections = []struct {
 }{
 	{"监控工作台", []string{"概览", "研判", "事件", "会话", "网络", "域名", "进程", "Agent 识别"}},
 	{"防护与管理", []string{"监控", "eBPF 模块", "规则", "跟踪", "路径权限"}},
-	{"工具", []string{"终端", "CCS"}},
+	{"工具", []string{"终端", "CCS", "Magpie"}},
 	{"运行诊断", []string{"系统"}},
 }
 
@@ -392,6 +395,7 @@ func (a *renewApp) sidebar(c *ui.Context, detailed bool) {
 			ui.SidebarSection(c, "工具", nil, func() {
 				navItem("终端")
 				navItem("CCS")
+				navItem("Magpie")
 			})
 			ui.SidebarSection(c, "运行诊断", nil, func() {
 				system := navItem("系统")
