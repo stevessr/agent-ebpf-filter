@@ -262,6 +262,16 @@ func (a *renewApp) localFileManagerView(c *ui.Context) {
 				}
 			})
 		}
+		if a.files.quitPending {
+			ui.Row(c).Wrap().Gap(9).Padding(10).Radius(8).Background(t.Danger.Alpha(0.12)).Children(func() {
+				ui.Text(c, "仍有未保存的文件。退出 Renew 将丢失这些修改。").TextColor(t.Danger)
+				if ui.Button(c, "继续编辑").Clicked() { a.files.quitPending = false }
+				if ui.Button(c, "放弃修改并退出").Clicked() {
+					a.files.allowQuit = true
+					if a.win != nil { a.win.Close() }
+				}
+			})
+		}
 		if a.files.errorText != "" {
 			ui.Text(c, a.files.errorText).TextColor(t.Danger).FontSize(12)
 		} else if a.files.notice != "" {
