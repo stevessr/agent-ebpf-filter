@@ -48,6 +48,23 @@ function toolName(tool) {
   return ""
 }
 
+// Tool categories are HEURISTICS based only on declared names, not on tool
+// arguments or runtime effects. For mandatory security use Agent eBPF
+// Filter's process, file and network enforcement instead.
+function toolCategory(name) {
+  if (typeof name !== "string") return "other"
+  const n = name.toLowerCase().replace(/[^a-z0-9]/g, "")
+  if (/^(bash|shell|shellcommand|exec|execcommand|execute|runcommand|terminal|codeexecution|pythonrepl|runshell|runterminal)$/.test(n))
+    return "process"
+  if (/^(write|edit|multiedit|applypatch|writefile|editfile|createfile|deletefile|removefile|renamefile|movefile|mkdir|filewrite|fswrite)$/.test(n))
+    return "file_write"
+  if (/^(read|readfile|listfiles|glob|grep|searchfiles|fileread|fsread)$/.test(n))
+    return "file_read"
+  if (/^(webfetch|websearch|googlesearch|fetchurl|httpget|browse|browser|searchweb|networkrequest|fetch)$/.test(n))
+    return "network"
+  return "other"
+}
+
 function inputTools(body) {
   // Magpie currently supports Anthropic, Chat, Responses and Gemini. The
   // first three use one definition per tool; Gemini may group function
@@ -165,6 +182,7 @@ function audit(ctx, type, code, detail) {
 const POLICY_LIST_FIELDS = [
   "allowed_agents", "blocked_agents", "allowed_models", "blocked_models",
   "allowed_tools", "blocked_tools", "blocked_protocols", "blocked_user_terms",
+  "blocked_tool_categories", "allowed_tool_categories",
 ]
 
 function invalidOptions(o) {
@@ -173,6 +191,13 @@ function invalidOptions(o) {
     if (!Array.isArray(o[key]) || o[key].length > MAX_RULES) return true
     for (const item of o[key]) {
       if (typeof item !== "string" || item.trim().length === 0 || item.length > 160) return true
+    }
+  }
+  const categories = ["process", "file_write", "file_read", "network", "other"]
+  for (const key of ["blocked_tool_categories", "allowed_tool_categories"]) {
+    if (o[key] === undefined) continue
+    for (const name of o[key]) {
+      if (typeof name !== "string" || !categories.includes(name.toLowerCase())) return true
     }
   }
   if (o.max_output_tokens !== undefined && o.max_output_tokens !== 0 &&
@@ -233,6 +258,8 @@ export function onRequest(body, ctx) {
   const blockedModels = list(o.blocked_models)
   const blockedProtocols = list(o.blocked_protocols)
   const blockedTools = list(o.blocked_tools)
+  const blockedCategories = list(o.blocked_tool_categories)
+  const allowedCategories = list(o.allowed_tool_categories)
 
   if (matches(blockedAgents, agent)) violations.push("blocked_agent")
   if (allowedAgents.length && !matches(allowedAgents, agent)) violations.push("unapproved_agent")
@@ -270,6 +297,12 @@ export function onRequest(body, ctx) {
     if ((blockedTools.length && matches(blockedTools, name)) ||
         (allowedTools.length && !matches(allowedTools, name))) {
       violations.push("unapproved_tool")
+      break
+    }
+    const category = toolCategory(name)
+    if ((blockedCategories.length && matches(blockedCategories, category)) ||
+        (allowedCategories.length && !matches(allowedCategories, category))) {
+      violations.push("unapproved_tool_category")
       break
     }
   }
