@@ -305,3 +305,17 @@ In bundled mode the privileged child listens only on an authenticated private Un
 在内容区不足 660 DIP 时，刷新、暂停/恢复事件和分离窗口操作会自动移到单独一行，并使用 MyGo 原生 Toolbar 溢出处理，不与状态标签争夺标题空间。底部状态栏根据可用宽度简化次要指标，但**采集异常、离线和非零丢弃数量始终保留**。它只在后端采集器、事件流和系统流均健康时报告「全链路实时」，避免将空白或中断的数据误报为正常运行。
 
 分离监控页同步主窗口的暂停展示状态；一旦采集链路离线、回退或启动未完成，展示可见的快照时效提示。分离页内的「系统诊断」会把主工作台切换到诊断页，而不是再启动一个后端连接。
+
+
+## yetone/magpie · 插件安装
+
+Renew 原生桌面工作区的 **工具 → Magpie 插件** 面板对接的项目是 [yetone/magpie](https://github.com/yetone/magpie)，不是 Apache Magpie。这是管理 AI Agent 模型、Provider 和本地网关的独立软件。
+
+- 检测本机 `magpie` CLI（PATH / 环境中的 GOBIN、GOPATH/bin / 默认 ~/go/bin）；未找到时可通过官方推荐的 `go install github.com/yetone/magpie@latest` 安装 Go 构建的 Magpie，前提是已有 Go 工具链。需要完整桌面分发包时可从 [官方网站](https://usemagpie.ai) 安装。
+- 安装页面接受 npm **包名**，例如 `opencode-gemini-auth`、`pi-antigravity` 或 `@magpie-community/middleware-model-map`，由 Renew 执行官方 `magpie plugin add <package>` 命令。插件可作为 OpenCode/Pi 授权 Provider 或 Magpie 网关中间件运行。
+- 另提供 `magpie plugin update` 更新已安装插件。安装/更新必须先预览命令、再次确认；页面加载、切换、刷新不做修改。
+- 为避免命令注入与任意脚本执行，Renew 的安装输入**仅支持 npm 包名**，拒绝文件路径、Git URL、带空白/ Shell 字符的输入。Magpie 官方 CLI 还支持 Git 与本地插件，但本 UI 暂不提供这些高风险安装源。
+- 安装器不调用 Shell/sudo/pkexec，不连接 Renew 的特权后端，不修改 eBPF 规则，且拒绝以 root 运行。命令输出在本机限量丢弃（不复制到 UI，也不转发后端）；每步有限时，执行时关闭 Magpie 当前命令的订阅账号自动扫描与匿名使用统计。
+- **安全提醒**：被安装的 npm 插件可以执行第三方代码、读取模型请求；只在信任软件包作者时确认安装。插件是否加载、是否需要进一步登录请在 Magpie **Settings → Plugins** 核对；Renew 不读取 Magpie 凭据，也不声明已验证具体插件的运行状态。
+
+命令参考：[yetone/magpie README](https://github.com/yetone/magpie#quick-start) 与 [Magpie CLI reference](https://github.com/yetone/magpie/blob/main/docs/reference.md)。源码集成仅使用 Magpie 的公开 CLI，不添加其 Go 依赖到 Renew 或内核模块。
