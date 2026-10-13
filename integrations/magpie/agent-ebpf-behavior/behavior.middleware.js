@@ -244,10 +244,18 @@ export function onRequest(body, ctx) {
   // Include it so it cannot evade allow/deny checks.
   const tools = inputTools(body)
   if (object(body.tool_choice)) {
-    const forced = toolName(body.tool_choice)
-    if (forced) tools.push(forced)
-    else if (body.tool_choice.type !== "auto" && body.tool_choice.type !== "none" &&
-             body.tool_choice.type !== "any" && body.tool_choice.type !== "required") tools.push("")
+    const choice = body.tool_choice
+    const choiceType = typeof choice.type === "string" ? choice.type : ""
+    if (choiceType === "auto" || choiceType === "none" ||
+        choiceType === "any" || choiceType === "required") {
+      // No individual tool name is forced.
+    } else {
+      const forced = toolName(choice)
+      tools.push(forced)
+    }
+  } else if (typeof body.tool_choice === "string" &&
+             !["auto", "none", "any", "required"].includes(body.tool_choice)) {
+    tools.push(body.tool_choice)
   }
   const geminiChoice = object(body.toolConfig) && object(body.toolConfig.functionCallingConfig)
     ? body.toolConfig.functionCallingConfig : null
