@@ -569,7 +569,7 @@ func TestWorkspaceNavigationMenuCoversEverySidebarRoute(t *testing.T) {
 		}
 	}
 	for _, page := range []string{"概览", "研判", "事件", "会话", "网络", "域名", "进程",
-		"Agent 识别", "监控", "eBPF 模块", "规则", "跟踪", "路径权限", "终端", "CCS", "系统"} {
+		"Agent 识别", "监控", "eBPF 模块", "规则", "跟踪", "路径权限", "终端", "CCS", "Magpie", "系统"} {
 		if !seen[page] {
 			t.Fatalf("small-screen menu omitted workspace page %q", page)
 		}
