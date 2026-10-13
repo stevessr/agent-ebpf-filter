@@ -346,6 +346,31 @@ test("category allowlist denies unknown or different tools, not harmless declara
   assert.match(invalid.rejected[0].reason, /invalid_policy/)
 })
 
+
+test("invalid explicit mode and enabled flag fail closed", () => {
+  for (const options of [
+    { mode: "enfroce", blocked_tools: ["Bash"] },
+    { mode: "Enforce", blocked_tools: ["Bash"] },
+    { enabled: "false", mode: "audit" },
+  ]) {
+    const { ctx, rejected } = context(options)
+    withAudit(() => onRequest({ model: "safe" }, ctx))
+    assert.equal(rejected.length, 1)
+    assert.match(rejected[0].reason, /invalid_policy/)
+  }
+})
+
+test("prototype property tool names are observed without collision", () => {
+  const { ctx } = context()
+  const result = withAudit(() => {
+    onEvent({ content_block: { type: "tool_use", name: "__proto__" } }, ctx)
+    onEvent({ content_block: { type: "tool_use", name: "constructor" } }, ctx)
+    onEvent({ content_block: { type: "tool_use", name: "__proto__" } }, ctx)
+  })
+  assert.equal(result.messages.length, 2)
+  assert.deepEqual(ctx.state.seen_tools, ["__proto__", "constructor"])
+})
+
 test("bounded scan of tool lists and user text", () => {
   const { ctx, rejected } = context({ mode: "enforce", allowed_tools: ["safe"] })
   const input = { tools: Array.from({ length: 1000 }, () => ({ name: "safe" })) }
