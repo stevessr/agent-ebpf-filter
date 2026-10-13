@@ -51,16 +51,24 @@ function toolName(tool) {
 function inputTools(body) {
   const tools = Array.isArray(body.tools) ? body.tools : []
   const out = []
+  let overflow = tools.length > MAX_TOOLS
   for (let i = 0; i < tools.length && i < MAX_TOOLS; i++) {
     const tool = tools[i]
-    if (out.length >= MAX_TOOLS) break
+    if (out.length >= MAX_TOOLS) {
+      overflow = true
+      break
+    }
     if (object(tool) && Array.isArray(tool.functionDeclarations)) {
+      if (tool.functionDeclarations.length > MAX_TOOLS - out.length) overflow = true
       for (const d of tool.functionDeclarations.slice(0, MAX_TOOLS - out.length)) {
         out.push(toolName(d))
       }
       // Gemini built-in tools (e.g. googleSearch, codeExecution).
       for (const key of Object.keys(tool)) {
-        if (key !== "functionDeclarations" && out.length < MAX_TOOLS) out.push(key)
+        if (key !== "functionDeclarations") {
+          if (out.length >= MAX_TOOLS) overflow = true
+          else out.push(key)
+        }
       }
     } else if (object(tool)) {
       out.push(toolName(tool))
@@ -68,7 +76,7 @@ function inputTools(body) {
       out.push("")
     }
   }
-  if (tools.length > MAX_TOOLS || (tools.length && out.length >= MAX_TOOLS)) out.push("")
+  if (overflow) out.push("") // unknown/unchecked extra tools => fail closed
   return out
 }
 
@@ -183,6 +191,9 @@ export function onRequest(body, ctx) {
   if (allowedModels.length && !matches(allowedModels, model)) violations.push("unapproved_model")
 
   const tools = inputTools(body)
+  if ((blockedTools.length || allowedTools.length) && tools.includes("")) {
+    violations.push("uninspectable_tool")
+  }
   for (const name of tools) {
     if ((blockedTools.length && matches(blockedTools, name)) ||
         (allowedTools.length && !matches(allowedTools, name))) {
