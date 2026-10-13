@@ -240,7 +240,9 @@ export function onRequest(body, ctx) {
   const o = object(ctx.options) ? ctx.options : {}
   if (o.enabled === false) return
   const enforce = o.mode === "enforce"
-  if (enforce && invalidOptions(o)) {
+  if ((o.mode !== undefined && o.mode !== "audit" && o.mode !== "enforce") ||
+      (o.enabled !== undefined && typeof o.enabled !== "boolean") ||
+      (enforce && invalidOptions(o))) {
     audit(ctx, "deny", "invalid_policy", "")
     ctx.reject(403, "Agent eBPF Filter / Magpie policy denied request: invalid_policy")
     return
@@ -388,12 +390,16 @@ function observeToolCalls(body, ctx) {
     }
   }
   const state = object(ctx.state) ? ctx.state : {}
-  if (!object(state.seen_tools)) state.seen_tools = {}
+  // Use an array rather than an object keyed by untrusted tool names:
+  // "__proto__" and "constructor" must not collide with JS prototypes.
+  if (!Array.isArray(state.seen_tools)) state.seen_tools = []
   for (const name of names.slice(0, 32)) {
     const safe = label(name)
-    if (safe === "unknown" || state.seen_tools[safe]) continue
-    if (Object.keys(state.seen_tools).length >= 32) break
-    state.seen_tools[safe] = true
+    if (safe === "unknown") continue
+    const key = safe.toLowerCase()
+    if (state.seen_tools.includes(key)) continue
+    if (state.seen_tools.length >= 32) break
+    state.seen_tools.push(key)
     audit(ctx, "tool_call_observed", "model_proposed_tool", safe)
   }
 }
