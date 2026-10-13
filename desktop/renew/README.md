@@ -305,3 +305,17 @@ In bundled mode the privileged child listens only on an authenticated private Un
 在内容区不足 660 DIP 时，刷新、暂停/恢复事件和分离窗口操作会自动移到单独一行，并使用 MyGo 原生 Toolbar 溢出处理，不与状态标签争夺标题空间。底部状态栏根据可用宽度简化次要指标，但**采集异常、离线和非零丢弃数量始终保留**。它只在后端采集器、事件流和系统流均健康时报告「全链路实时」，避免将空白或中断的数据误报为正常运行。
 
 分离监控页同步主窗口的暂停展示状态；一旦采集链路离线、回退或启动未完成，展示可见的快照时效提示。分离页内的「系统诊断」会把主工作台切换到诊断页，而不是再启动一个后端连接。
+
+
+## Apache Magpie 插件安装（本机普通用户）
+
+原生工作区「工具 → Magpie 插件」提供 [Apache Magpie](https://github.com/apache/magpie) 官方 Marketplace 安装入口，当前支持 **Claude Code** 和 **Codex CLI**。这是开发 Agent 的技能/Hook 插件，**不是 eBPF 内核模块**；后端、BPF 策略和工作目录均不会因打开该页面而更改。
+
+1. 选择已在本机 PATH 中安装的 Agent CLI，选择「仅安装基础组件」或单个插件系列（PR、发布、安全、Issue、仓库健康、贡献者成长、导师辅导、结对协作）。
+2. 在页面核对将执行的确切命令，先点击「准备安装」，再点击「确认执行」。没有确认就不会联网安装。
+3. Renew **不使用 Shell、sudo 或 pkexec**，通过普通用户会话调用 `claude plugin …` 或 `codex plugin …`；拒绝 root 启动的安装，并限制命令、参数、插件名和单条命令运行时长。不将 CLI 输出、密钥或安装日志发送给 eBPF 服务端。
+4. 重复注册 Marketplace 或重复安装已存在插件时，识别 CLI 的「already installed/added/exists」报告并视为幂等。其他失败会保留明确失败状态，需要用户检查本机 Agent CLI。
+
+Claude Code 安装默认基础组件 `magpie-setup`、`magpie-agent-guard`、`magpie-utilities`；Codex CLI 仅提供 `magpie-setup` 与 `magpie-utilities` 基础组件（官方 Codex 目录没有 agent-guard）。不会默认一次性安装所有插件系列。安装完成后请进入 Agent 的插件列表确认加载状态；Claude 的第三方 Marketplace 自动更新需要自行开启。
+
+以 https://github.com/apache/magpie/blob/main/docs/setup/marketplace-install.md 的 CLI 命令为依据。注意官方 CLI 插件接口可能随版本调整；本功能只面向已安装且支持相应 marketplace 子命令的 Agent 版本。
