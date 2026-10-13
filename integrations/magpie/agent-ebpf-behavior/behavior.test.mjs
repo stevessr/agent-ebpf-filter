@@ -214,6 +214,29 @@ test("logs only sanitized metadata for attacker-supplied names", () => {
   assert.doesNotMatch(logged, /PROMPT_SECRET|header-injection|PASSWORD=secret/)
 })
 
+test("tool-result blocks in user turns are not treated as a user's words", () => {
+  const { ctx, rejected } = context({ mode: "enforce", blocked_user_terms: ["secret"] }, { protocol: "anthropic" })
+  const payload = { messages: [{ role: "user", content: [
+    { type: "tool_result", text: "secret", tool_use_id: "tool-1" },
+    { type: "text", text: "summarize the result" },
+  ] }] }
+  withAudit(() => onRequest(payload, ctx))
+  assert.equal(rejected.length, 0)
+})
+
+test("a blocked-tools policy rejects oversized and unknown tool declarations", () => {
+  const options = { mode: "enforce", blocked_tools: ["Bash"] }
+  const oversized = { tools: Array.from({ length: 1000 }, () => ({ name: "safe" })) }
+  const { ctx, rejected } = context(options)
+  withAudit(() => onRequest(oversized, ctx))
+  assert.equal(rejected.length, 1)
+  assert.match(rejected[0].reason, /uninspectable_tool/)
+  const missing = context(options)
+  withAudit(() => onRequest({ tools: [{}] }, missing.ctx))
+  assert.equal(missing.rejected.length, 1)
+  assert.match(missing.rejected[0].reason, /uninspectable_tool/)
+})
+
 test("bounded scan of tool lists and user text", () => {
   const { ctx, rejected } = context({ mode: "enforce", allowed_tools: ["safe"] })
   const input = { tools: Array.from({ length: 1000 }, () => ({ name: "safe" })) }
