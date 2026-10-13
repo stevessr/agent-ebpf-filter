@@ -38,3 +38,30 @@ jobs:
           assert.equal(p.private, true)
           assert.equal(typeof p.dependencies, 'undefined')
           NODE
+
+  upstream-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          path: agent-ebpf-filter
+      - name: Checkout pinned yetone/magpie (actual moejs plugin host)
+        uses: actions/checkout@v7.0.1
+        with:
+          repository: yetone/magpie
+          ref: 71f796069f9078295b54e26d1f790bf38e087c6c
+          path: magpie-upstream
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: magpie-upstream/go.mod
+          cache: true
+          cache-dependency-path: magpie-upstream/go.sum
+      - name: Verify against Magpie middleware runtime
+        run: |
+          cp agent-ebpf-filter/integrations/magpie/agent-ebpf-behavior/upstream_runtime_test.go \
+            magpie-upstream/internal/middleware/agent_ebpf_external_test.go
+          cd magpie-upstream
+          AGENT_EBPF_MAGPIE_PLUGIN="$GITHUB_WORKSPACE/agent-ebpf-filter/integrations/magpie/agent-ebpf-behavior" \
+            go test ./internal/middleware -run '^TestAgentEBPFExternalMiddleware$' -count=1 -v
