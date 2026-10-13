@@ -64,6 +64,10 @@ Agent eBPF Filter 是面向 Linux 本地工作站、实验节点和开发环境�
 优先阅读 [比赛答辩主线](/delivery/competition-defense)、[演示脚本](/delivery/demo-script)、[评测报告](/delivery/evaluation)。
 :::
 
+::: tip 相关研究
+阅读 [Agent-Warden 论文解读](/reference/agent-warden-analysis)，理解内核原生进程—文件溯源、因果图证据与本项目现有实现的差异；勿将论文原型能力写成已实现特性。
+:::
+
 ## 致谢
 
 本项目在架构设计和技术选型上受到 [AgentSight](https://github.com/eunomia-bpf/agentsight) 项目的启发。AgentSight 是由 eunomia-bpf 团队开发的开源 AI Agent 系统级追踪工具，验证了 eBPF + TLS capture 对 Agent 观测的可行性。
