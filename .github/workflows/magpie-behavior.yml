@@ -1,0 +1,40 @@
+name: Magpie behavior middleware
+
+on:
+  push:
+    paths:
+      - "integrations/magpie/agent-ebpf-behavior/**"
+      - ".github/workflows/magpie-behavior.yml"
+  pull_request:
+    paths:
+      - "integrations/magpie/agent-ebpf-behavior/**"
+      - ".github/workflows/magpie-behavior.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  behavior-policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check JavaScript syntax
+        run: node --check integrations/magpie/agent-ebpf-behavior/behavior.middleware.js
+      - name: Test Magpie policy and stream audit
+        run: node --test integrations/magpie/agent-ebpf-behavior/behavior.test.mjs
+      - name: Verify Magpie plugin manifest and offline dependency boundary
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs'
+          import assert from 'node:assert/strict'
+          const dir = 'integrations/magpie/agent-ebpf-behavior'
+          const p = JSON.parse(fs.readFileSync(dir + '/package.json', 'utf8'))
+          assert.equal(p.magpie.middleware, './behavior.middleware.js')
+          assert.equal(p.magpie.options.mode, 'audit')
+          assert.equal(p.private, true)
+          assert.equal(typeof p.dependencies, 'undefined')
+          NODE
