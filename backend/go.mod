@@ -4,6 +4,7 @@ go 1.27.1
 
 require (
 	github.com/NVIDIA/go-nvml v0.13.0-1
+	github.com/andybalholm/brotli v1.2.4
 	github.com/cilium/ebpf v0.22.0
 	github.com/cockroachdb/pebble/v2 v2.1.7
 	github.com/creack/pty/v2 v2.0.1
@@ -61,7 +62,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/compress v1.18.0 // indirect
+	github.com/klauspost/compress v1.18.0
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
