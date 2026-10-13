@@ -28,7 +28,9 @@
       "blocked_tools": [],
       "allowed_tools": [],
       "blocked_user_terms": [],
-      "max_output_tokens": 0
+      "max_output_tokens": 0,
+      "blocked_tool_categories": [],
+      "allowed_tool_categories": []
     }
   }
 }
