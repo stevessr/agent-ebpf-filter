@@ -237,6 +237,78 @@ test("a blocked-tools policy rejects oversized and unknown tool declarations", (
   assert.match(missing.rejected[0].reason, /uninspectable_tool/)
 })
 
+
+test("denies forced tool choices even when declarations differ", () => {
+  const rules = { mode: "enforce", blocked_tools: ["Bash"] }
+  const forms = [
+    { tools: [{ name: "Read" }], tool_choice: { type: "tool", name: "Bash" } },
+    { tools: [{ type: "function", function: { name: "Read" } }], tool_choice: { type: "function", function: { name: "Bash" } } },
+    { tools: [{ name: "Read" }], tool_choice: "Bash" },
+  ]
+  for (const body of forms) {
+    const { ctx, rejected } = context(rules)
+    withAudit(() => onRequest(body, ctx))
+    assert.equal(rejected.length, 1)
+    assert.match(rejected[0].reason, /unapproved_tool/)
+  }
+  for (const tool_choice of ["auto", "required", { type: "auto" }, { type: "none" }]) {
+    const { ctx, rejected } = context({ mode: "enforce", allowed_tools: ["Read"] })
+    withAudit(() => onRequest({ tools: [{ name: "Read" }], tool_choice }, ctx))
+    assert.equal(rejected.length, 0, JSON.stringify(tool_choice))
+  }
+})
+
+test("denies Gemini toolConfig choices and built-in tool entries", () => {
+  const opts = { mode: "enforce", blocked_tools: ["codeexecution", "Bash"] }
+  const builtin = context(opts, { protocol: "gemini" })
+  withAudit(() => onRequest({ tools: [{ codeExecution: {} }] }, builtin.ctx))
+  assert.equal(builtin.rejected.length, 1)
+  assert.match(builtin.rejected[0].reason, /unapproved_tool/)
+  const forced = context(opts, { protocol: "gemini" })
+  withAudit(() => onRequest({
+    tools: [{ functionDeclarations: [{ name: "Read" }] }],
+    toolConfig: { functionCallingConfig: { mode: "ANY", allowedFunctionNames: ["Bash"] } },
+  }, forced.ctx))
+  assert.equal(forced.rejected.length, 1)
+})
+
+test("enforcement rejects malformed or oversized rules rather than ignoring them", () => {
+  const invalid = [
+    { blocked_tools: Array.from({ length: 129 }, (_, i) => "tool_" + i) },
+    { blocked_models: "my-forbidden-model" },
+    { allowed_tools: [""] },
+    { blocked_user_terms: ["good", 13] },
+    { max_output_tokens: -10 },
+    { max_output_tokens: 131073 },
+  ]
+  for (const options of invalid) {
+    const { ctx, rejected } = context({ mode: "enforce", ...options })
+    withAudit(() => onRequest({ model: "good" }, ctx))
+    assert.equal(rejected.length, 1, JSON.stringify(options).slice(0, 80))
+    assert.match(rejected[0].reason, /invalid_policy/)
+  }
+  const nonblocking = context({ mode: "audit", blocked_models: "gpt" })
+  withAudit(() => onRequest({ model: "gpt" }, nonblocking.ctx))
+  assert.equal(nonblocking.rejected.length, 0)
+})
+
+test("user-term enforcement rejects text too large to inspect completely", () => {
+  const { ctx, rejected } = context({ mode: "enforce", blocked_user_terms: ["end-secret"] })
+  const payload = { messages: [{ role: "user", content: "x".repeat(65536) + "end-secret" }] }
+  withAudit(() => onRequest(payload, ctx))
+  assert.equal(rejected.length, 1)
+  assert.match(rejected[0].reason, /uninspectable_user_text/)
+  const audit = context({ mode: "audit", blocked_user_terms: ["end-secret"] })
+  withAudit(() => onRequest(payload, audit.ctx))
+  assert.equal(audit.rejected.length, 0)
+  const segments = context({ mode: "enforce", blocked_user_terms: ["needle"] })
+  withAudit(() => onRequest({ messages: [{ role: "user", content: [
+    { type: "text", text: "x".repeat(65536) },
+    { type: "text", text: "needle" },
+  ] }] }, segments.ctx))
+  assert.equal(segments.rejected.length, 1)
+})
+
 test("bounded scan of tool lists and user text", () => {
   const { ctx, rejected } = context({ mode: "enforce", allowed_tools: ["safe"] })
   const input = { tools: Array.from({ length: 1000 }, () => ({ name: "safe" })) }
