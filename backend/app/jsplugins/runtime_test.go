@@ -44,3 +44,30 @@ func TestLoopInterrupted(t *testing.T) {
     _, err = p.Run(ctx, "onEvent", json.RawMessage("{}"))
     if err == nil || time.Since(started)>time.Second { t.Fatalf("interrupt err=%v elapsed=%s",err,time.Since(started)) }
 }
+
+func TestRuntimeIsolatedAcrossCalls(t *testing.T) {
+	p, err := Compile(`let n=0; export function onEvent() { return { n: ++n }; }`)
+	if err != nil { t.Fatal(err) }
+	for i:=0; i<3; i++ {
+		result, err := p.Run(context.Background(), "onEvent", json.RawMessage(`{}`))
+		if err!=nil || string(result)!=`{"n":1}` {
+			t.Fatalf("call %d got %s error %v",i,result,err)
+		}
+	}
+}
+
+func TestRuntimeRejectsDynamicCode(t *testing.T) {
+	p, err := Compile(`export function onEvent() { return eval("1+1"); }`)
+	if err != nil { t.Fatal(err) }
+	if _, err := p.Run(context.Background(), "onEvent", json.RawMessage(`{}`)); err == nil {
+		t.Fatal("dynamic code was permitted")
+	}
+}
+
+func TestOutputSizeLimit(t *testing.T) {
+	p, err := Compile(`export function onEvent() { return { data: "x".repeat(40000) }; }`)
+	if err != nil { t.Fatal(err) }
+	if _, err := p.Run(context.Background(), "onEvent", json.RawMessage(`{}`)); err == nil {
+		t.Fatal("oversized output accepted")
+	}
+}

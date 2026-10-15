@@ -21,7 +21,10 @@ const (
     MemoryLimitBytes int64 = 8 << 20
 )
 
-var ErrHookUnsupported = errors.New("javascript plugin hook must be onEvent or onAlert")
+var (
+	ErrHookUnsupported = errors.New("javascript plugin hook must be onEvent or onAlert")
+	ErrExecutorBusy = errors.New("javascript plugin executor is busy")
+)
 
 // Program is a compiled immutable module. Each call uses a fresh runtime.
 // The current API deliberately has no plugin-to-host function imports.
@@ -92,6 +95,9 @@ func (p *Program) Run(ctx context.Context, name string, payload json.RawMessage)
         }
     }()
     if err := rt.Load(p.module); err != nil {
+        if ctx.Err() != nil {
+            return nil, ctx.Err()
+        }
         return nil, fmt.Errorf("load javascript plugin: %w", err)
     }
     callable, err := rt.Has(hook)
@@ -107,6 +113,9 @@ func (p *Program) Run(ctx context.Context, name string, payload json.RawMessage)
     }
     value, err := rt.Call(hook, arg)
     if err != nil {
+        if ctx.Err() != nil {
+            return nil, ctx.Err()
+        }
         return nil, err
     }
     out, err := rt.AppendJSON(nil, value)

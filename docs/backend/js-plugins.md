@@ -25,7 +25,7 @@ invocation only**: automatic subscription to the eBPF event hot path is not
 enabled. Results do not automatically alter allow/deny decisions.
 
 - JavaScript source limit: 128 KiB; input/output: 32 KiB each.
-- Per-invocation timeout: 100 ms; JavaScript memory allocation budget: 8 MiB.
+- Per-invocation deadline: 100 ms (including source verification/cache lookup); JavaScript memory allocation budget: 8 MiB. HTTP returns 429 on executor overload and 504 on execution timeout.
 - Fresh runtime for each invocation; compiled modules cached by SHA-256 (32-entry bound) and at most four invocations globally run concurrently. Overload is rejected without queueing.
 - Enabling, disabling, replacing sources and deletion are synchronized with running hooks; disabling waits for in-flight hooks to finish or time out.
 - Dynamic code (`eval` and Function) disabled, module imports unsupported.

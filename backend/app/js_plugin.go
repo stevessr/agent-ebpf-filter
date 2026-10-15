@@ -16,7 +16,7 @@ const (
 )
 
 var (
-	ErrJSPluginBusy   = errors.New("JavaScript plugin executor is busy")
+	ErrJSPluginBusy   = jsplugins.ErrExecutorBusy
 	jsInvocationSlots = make(chan struct{}, maxConcurrentJSInvocations)
 
 	jsProgramCache = struct {

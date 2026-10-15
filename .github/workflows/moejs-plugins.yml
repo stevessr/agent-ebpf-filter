@@ -65,3 +65,4 @@ jobs:
         run: |
           go test ./app/handlers -run '(Plugin|BPF)' -count=1
           go test ./app -run '(JavaScript|PluginStore|PluginFiles|PluginDelete|PluginKind)' -count=1
+          go test -race ./app -run '^TestJavaScript' -count=1 -timeout=5m

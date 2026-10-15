@@ -26,6 +26,7 @@ type fakePluginService struct {
 	loadEBPF   func(ctx context.Context, id string) (types.PluginManifest, error)
 	unloadEBPF func(id string)
 	compile    func(ctx context.Context, id, source string) (string, []byte, error)
+	runJSErr   error
 }
 
 func (f *fakePluginService) ValidateID(id string) error {
@@ -76,6 +77,7 @@ func (f *fakePluginService) CompileUserBPF(ctx context.Context, id, source strin
 }
 func (f *fakePluginService) BPFTemplates() []types.BPFTemplate { return nil }
 func (f *fakePluginService) RunJS(_ context.Context, id, hook string, payload json.RawMessage) (json.RawMessage, error) {
+	if f.runJSErr != nil { return nil, f.runJSErr }
 	if id != "valid-plugin" || hook != "onEvent" || !json.Valid(payload) { return nil, errors.New("invalid JS invocation") }
 	return json.RawMessage(`{"ok":true}`), nil
 }

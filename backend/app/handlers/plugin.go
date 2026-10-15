@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"agent-ebpf-filter/app/jsplugins"
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -243,7 +245,16 @@ func HandleJSInvoke(c *gin.Context) {
 	}
 	result, err := Deps.Plugins.RunJS(c.Request.Context(), id, req.Hook, req.Payload)
 	if err != nil {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		status := http.StatusUnprocessableEntity
+		switch {
+		case errors.Is(err, jsplugins.ErrExecutorBusy):
+			status = http.StatusTooManyRequests
+		case errors.Is(err, context.DeadlineExceeded):
+			status = http.StatusGatewayTimeout
+		case errors.Is(err, context.Canceled):
+			status = http.StatusRequestTimeout
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"result": result})
