@@ -22,7 +22,7 @@ func startLocalWindowsMonitoring(ctx context.Context, a *renewApp) bool {
 		a.starting = false
 		a.connected = true
 		a.healthReady = false
-		a.configErr = "Windows 本机模式仅观测进程与 TCP 连接；eBPF、文件/网络阻断、策略编辑和完整事件回溯不可用。"
+		a.configErr = "Windows API 提供进程/TCP 快照；eBPF for Windows 网络 Hook 可选安装。Linux eBPF/LSM 文件保护、策略编辑和完整事件回溯不可用。"
 	})
 	go a.runWindowsMonitoring(ctx)
 	return true
