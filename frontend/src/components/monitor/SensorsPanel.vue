@@ -116,10 +116,10 @@ onUnmounted(() => {
 <template>
   <div
     style="
-      background: #fff;
+      background: var(--ui-surface);
       padding: 16px;
       border-radius: 4px;
-      border: 1px solid #f0f0f0;
+      border: 1px solid var(--ui-border);
     "
   >
     <a-tabs
@@ -133,7 +133,7 @@ onUnmounted(() => {
             style="display: flex; justify-content: flex-end; margin-bottom: 8px"
           >
             <a-space>
-              <span style="font-size: 12px; color: #4b5563">Interval:</span>
+              <span style="font-size: 12px; color: var(--ui-text-muted)">Interval:</span>
               <a-select
                 :value="sensorInterval"
                 size="small"
@@ -174,7 +174,7 @@ onUnmounted(() => {
                 ><div
                   style="
                     height: 260px;
-                    background: #fafafa;
+                    background: var(--ui-surface-muted);
                     border-radius: 8px;
                     padding: 8px;
                   "
@@ -219,8 +219,8 @@ onUnmounted(() => {
                       align-items: center;
                       margin-bottom: 8px;
                       padding: 6px 10px;
-                      background: #fff;
-                      border: 1px solid #f0f0f0;
+                      background: var(--ui-surface);
+                      border: 1px solid var(--ui-border);
                       border-radius: 4px;
                     "
                   >
@@ -382,7 +382,7 @@ onUnmounted(() => {
           ></template>
           <div style="display: flex; gap: 24px; align-items: center">
             <div style="flex: 1">
-              <div style="margin-bottom: 8px; font-size: 12px; color: #4b5563">
+              <div style="margin-bottom: 8px; font-size: 12px; color: var(--ui-text-muted)">
                 Waveform
               </div>
               <VueApexCharts
@@ -398,7 +398,7 @@ onUnmounted(() => {
                   style="
                     margin-bottom: 8px;
                     font-size: 12px;
-                    color: #4b5563;
+                    color: var(--ui-text-muted);
                     display: flex;
                     justify-content: space-between;
                   "
@@ -423,7 +423,7 @@ onUnmounted(() => {
                   :stroke-color="micVolume > 80 ? '#ff4d4f' : '#52c41a'"
                 />
               </div>
-              <div style="font-size: 12px; color: #4b5563; margin-bottom: 4px">
+              <div style="font-size: 12px; color: var(--ui-text-muted); margin-bottom: 4px">
                 Device
               </div>
               <a-select
