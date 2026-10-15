@@ -132,14 +132,15 @@ func (e *PrivacyEngine) InspectRequestMetadata(request *http.Request) (PrivacyRe
 	return report, nil
 }
 
-
 // Query parsers differ in whether embedded percent-escapes are decoded again.
 // Inspecting up to two extra encodings (without changing what is forwarded)
 // prevents common double-encoding evasion such as jane%2540example.com.
 func privacyDecodeRepeatedly(raw string) string {
 	for i := 0; i < 2; i++ {
 		decoded, err := url.QueryUnescape(raw)
-		if err != nil || decoded == raw { break }
+		if err != nil || decoded == raw {
+			break
+		}
 		raw = decoded
 	}
 	return raw
