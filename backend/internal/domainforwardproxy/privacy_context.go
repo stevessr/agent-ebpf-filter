@@ -70,7 +70,10 @@ func NormalizeContextSettings(settings *PrivacySettings) {
 	}
 	settings.ContextMode = mode
 	if len(settings.JSONFieldRules) > maxContextJSONRules {
-		settings.JSONFieldRules = settings.JSONFieldRules[:maxContextJSONRules]
+		// Never discard an explicit denial rule and silently continue with a
+		// weaker policy. Retain a sentinel that fails the entire policy closed.
+		settings.JSONFieldRules = append(append([]PrivacyJSONFieldRule(nil), settings.JSONFieldRules[:maxContextJSONRules]...),
+			PrivacyJSONFieldRule{Path: "/_rule_limit", Action: "__invalid__"})
 	}
 	rules := make([]PrivacyJSONFieldRule, 0, len(settings.JSONFieldRules))
 	seen := make(map[string]bool)
@@ -268,6 +271,17 @@ func (s *contextualJSONState) walk(node any, path string, force bool, depth int)
 		out := make(map[string]any, len(value))
 		changed := false
 		for _, key := range keys {
+			// Property names themselves leave the trust boundary. Do not
+			// leak a secret as a JSON key while checking only its value.
+			if len(s.engine.detect(key)) != 0 {
+				if err := s.finding("sensitive_field_name"); err != nil {
+					return nil, false, err
+				}
+				if s.engine.settings.Action != "warn" {
+					s.report.Blocked = true
+					return nil, false, nil
+				}
+			}
 			childPath := path + "/" + privacyPointerPart(key)
 			action := s.explicit[childPath].Action
 			if action == "allow" && s.explicit[childPath].Recipient != s.recipient {
