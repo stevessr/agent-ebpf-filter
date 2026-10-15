@@ -16,6 +16,7 @@ import (
 type DomainForwardRoute struct {
 	Host     string `json:"host"`
 	Upstream string `json:"upstream,omitempty"`
+	UseUpstreamHost bool `json:"useUpstreamHost,omitempty"`
 	CertFile string `json:"certFile,omitempty"`
 	KeyFile  string `json:"keyFile,omitempty"`
 }
@@ -23,6 +24,8 @@ type DomainForwardRoute struct {
 type DomainForwardProxySettings struct {
 	Enabled                    bool                 `json:"enabled"`
 	HTTPPort                   int                  `json:"httpPort"`
+	BindAddress                string               `json:"bindAddress,omitempty"`
+	HTTPSDisabled              bool                 `json:"httpsDisabled,omitempty"`
 	HTTPSPort                  int                  `json:"httpsPort"`
 	DefaultScheme              string               `json:"defaultScheme"`
 	AllowAnyHost               bool                 `json:"allowAnyHost"`
@@ -147,7 +150,7 @@ func (m *Runtime) Apply(settings DomainForwardProxySettings) error {
 			m.status.Errors = append(m.status.Errors, fmt.Sprintf("http listener: %v", err))
 		}
 	}
-	if settings.HTTPSPort > 0 {
+	if !settings.HTTPSDisabled && settings.HTTPSPort > 0 {
 		if err := m.startHTTPSServerLocked(settings, handler); err != nil {
 			m.status.Errors = append(m.status.Errors, fmt.Sprintf("https listener: %v", err))
 		}
@@ -160,7 +163,7 @@ func (m *Runtime) Apply(settings DomainForwardProxySettings) error {
 }
 
 func (m *Runtime) startHTTPServerLocked(settings DomainForwardProxySettings, handler http.Handler) error {
-	addr := fmt.Sprintf(":%d", settings.HTTPPort)
+	addr := net.JoinHostPort(settings.BindAddress, fmt.Sprintf("%d", settings.HTTPPort))
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
@@ -188,7 +191,7 @@ func (m *Runtime) startHTTPSServerLocked(settings DomainForwardProxySettings, ha
 	if err != nil {
 		return err
 	}
-	addr := fmt.Sprintf(":%d", settings.HTTPSPort)
+	addr := net.JoinHostPort(settings.BindAddress, fmt.Sprintf("%d", settings.HTTPSPort))
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
