@@ -23,14 +23,18 @@ func looksLikePaymentCard(raw string) bool {
 		(first == 5 && second >= 1 && second <= 5) ||
 		(first == 3 && (second == 4 || second == 7)) ||
 		(first == 2 && second >= 2 && second <= 7)
-	if !issuer { return false }
+	if !issuer {
+		return false
+	}
 	sum := 0
 	double := false
-	for i := len(digits)-1; i >= 0; i-- {
+	for i := len(digits) - 1; i >= 0; i-- {
 		digit := int(digits[i])
 		if double {
 			digit *= 2
-			if digit > 9 { digit -= 9 }
+			if digit > 9 {
+				digit -= 9
+			}
 		}
 		sum += digit
 		double = !double
