@@ -81,6 +81,20 @@ func TestContextualPrivacyFieldRules(t *testing.T) {
 	}
 }
 
+func TestContextualPrivacyRejectsDuplicateJSONKeys(t *testing.T) {
+	engine := NewPrivacyEngine(PrivacySettings{Enabled: true, Action: "redact"})
+	for _, payload := range []string{
+		`{"task_history":"private history","task_history":null}`,
+		`{"outer":{"api_key":"token-value","api_key":null}}`,
+		`{"e\u006dail":"first@example.com","email":"second@example.com"}`,
+	} {
+		_, _, _, err := engine.Apply("application/json", []byte(payload))
+		if err == nil {
+			t.Errorf("must reject duplicate JSON object keys: %s", payload)
+		}
+	}
+}
+
 func TestContextualPrivacyNumericFieldIsDeniedInsteadOfTypeChange(t *testing.T) {
 	engine := NewPrivacyEngine(PrivacySettings{Enabled: true, Action: "redact"})
 	_, _, report, err := engine.Apply("application/json", []byte(`{"api_key":123456789012345}`))
