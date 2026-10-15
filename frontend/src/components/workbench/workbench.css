@@ -782,3 +782,33 @@
   color: var(--wb-8d9cb6);
   font-size: 12px;
 }
+
+/* Always-visible language selector, independent of Ant Design overlays. */
+.ide-locale-picker {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 5px;
+  color: var(--wb-9aa7bd);
+  font-size: 11px;
+}
+.ide-locale-picker select {
+  appearance: auto;
+  max-width: 110px;
+  min-height: 26px;
+  padding: 2px 5px;
+  border-radius: 5px;
+  border: 1px solid var(--wb-353b47);
+  background: var(--wb-232731);
+  color: var(--wb-d5dded);
+  font: 11px/1.35 system-ui, sans-serif;
+  cursor: pointer;
+}
+.ide-locale-picker select:focus-visible {
+  outline: 2px solid var(--wb-8eabff);
+  outline-offset: 2px;
+}
+@media (max-width: 640px) {
+  .ide-locale-picker { font-size: 0; gap: 0; }
+  .ide-locale-picker select { max-width: 94px; }
+}
