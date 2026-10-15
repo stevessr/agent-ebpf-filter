@@ -118,8 +118,27 @@ func (p *Program) Run(ctx context.Context, name string, payload json.RawMessage)
         }
         return nil, err
     }
+    // moejs flushes queued Promise reactions before Call returns. A Promise
+    // still pending has no host event loop to advance it, so fail explicitly
+    // instead of serializing it as the misleading JSON object "{}".
+    if state, settled, isPromise := moejs.PromiseResult(value); isPromise {
+        switch state {
+        case moejs.PromiseFulfilled:
+            value = settled
+        case moejs.PromiseRejected:
+            return nil, errors.New("javascript plugin returned a rejected Promise")
+        default:
+            return nil, errors.New("javascript plugin returned a pending Promise")
+        }
+    }
     out, err := rt.AppendJSON(nil, value)
     if err != nil {
+        if ctx.Err() != nil {
+            return nil, ctx.Err()
+        }
+        return nil, err
+    }
+    if err := ctx.Err(); err != nil {
         return nil, err
     }
     if len(out) > MaxResultBytes || !json.Valid(out) {

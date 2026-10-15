@@ -42,3 +42,5 @@ cd backend
 go mod tidy
 go test ./app/jsplugins ./app/handlers ./app
 ```
+
+- Promise results are supported only when settled synchronously by moejs microtasks; pending or rejected Promises produce explicit errors. There is no Node.js/DOM event loop or async host I/O.

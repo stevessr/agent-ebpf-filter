@@ -71,3 +71,24 @@ func TestOutputSizeLimit(t *testing.T) {
 		t.Fatal("oversized output accepted")
 	}
 }
+
+func TestResolvedAsyncHook(t *testing.T) {
+	p, err := Compile(`export async function onEvent(e) { return { value: e.value + 1 }; }`)
+	if err != nil { t.Fatal(err) }
+	out, err := p.Run(context.Background(), "onEvent", json.RawMessage(`{"value":41}`))
+	if err!=nil || string(out)!=`{"value":42}` {
+		t.Fatalf("settled Promise: output=%s, err=%v",out,err)
+	}
+}
+
+func TestPendingAndRejectedPromises(t *testing.T) {
+	for _, source := range []string{
+		`export function onEvent() { return new Promise(()=>{}); }`,
+		`export async function onEvent() { throw new Error("boom"); }`,
+	} {
+		p, err := Compile(source)
+		if err!=nil {t.Fatal(err)}
+		out, err:=p.Run(context.Background(),"onEvent",json.RawMessage(`{}`))
+		if err == nil {t.Fatalf("Promise unexpectedly became valid JSON: %s",out)}
+	}
+}
