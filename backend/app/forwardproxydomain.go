@@ -78,6 +78,7 @@ func fromInternalDomainForwardRoute(route domainforwardproxy.DomainForwardRoute)
 	return DomainForwardRoute{
 		Host:     route.Host,
 		Upstream: route.Upstream,
+		UseUpstreamHost: route.UseUpstreamHost,
 		CertFile: route.CertFile,
 		KeyFile:  route.KeyFile,
 	}
