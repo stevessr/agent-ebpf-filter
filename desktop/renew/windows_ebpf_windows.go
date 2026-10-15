@@ -36,12 +36,11 @@ func probeWindowsEBPF(parent context.Context) windowsEBPFProbe {
 		return result
 	}
 	result.Available = true
-	// Require both named programs, not merely some unrelated eBPF hook.
-	text := strings.ToLower(string(data))
-	result.Connected = strings.Contains(text, "renew_connect4") &&
-		strings.Contains(text, "renew_connect6")
+	// A registered program with zero links is not an active kernel hook.
+	result.Connected = windowsProgramHasAttachedLink(string(data), "renew_connect4") &&
+		windowsProgramHasAttachedLink(string(data), "renew_connect6")
 	if !result.Connected {
-		result.Message = "eBPF 运行时已发现；Renew connect4/connect6 Hook 未全部附加"
+		result.Message = "eBPF 运行时已发现；Renew connect4/connect6 Hook 未全部附加（需要 Links > 0）"
 		return result
 	}
 	result.Message = "eBPF for Windows connect4/connect6 Hook 已注册（只读计数）"
@@ -113,4 +112,19 @@ func (p windowsEBPFProbe) Summary() string {
 		return fmt.Sprintf("%s；IPv4 %d 次，IPv6 %d 次（累计 Hook 调用次数，不代表已放行/已阻断连接数）", p.Message, p.IPv4, p.IPv6)
 	}
 	return p.Message
+}
+
+func windowsProgramHasAttachedLink(table, name string) bool {
+    for _, line := range strings.Split(table, "\n") {
+        fields := strings.Fields(line)
+        // netsh ebpf show programs: ID Pins Links Mode Type Name
+        if len(fields) < 6 || !strings.EqualFold(fields[len(fields)-1], name) {
+            continue
+        }
+        links, err := strconv.ParseUint(fields[2], 10, 32)
+        if err == nil && links > 0 {
+            return true
+        }
+    }
+    return false
 }
