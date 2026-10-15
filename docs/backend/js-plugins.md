@@ -77,3 +77,7 @@ On restart, the Worker takes an advisory lock in its private runtime directory. 
 ## Live systemd integration test
 
 GitHub Actions also starts the provided service as a real systemd unit on the Ubuntu runner, probes it from a root process (the collector's access model), asserts the worker UID is non-root with zero effective Linux capabilities and a distinct network namespace, checks the 0700 runtime directory and 0600 socket, and exercises real JS validation/invocation and malformed-source refusal. It stops and removes the temporary unit at the end. This complements but does not replace production-host deployment testing and security auditing.
+
+## Startup readiness
+
+The hardened service uses `Type=notify` with `NotifyAccess=main`. The worker sends `READY=1` through `NOTIFY_SOCKET` **only after** it has bound and chmod-protected the private Unix socket, so `systemctl start` does not report readiness while the process is still initializing. Ordinary manual invocations without `NOTIFY_SOCKET` are unaffected. The binary readiness test in CI verifies that the 0600 socket exists and accepts IPC when the notification arrives.

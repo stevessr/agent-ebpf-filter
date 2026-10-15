@@ -6,7 +6,9 @@ Description=Agent eBPF isolated JavaScript plugin worker
 After=local-fs.target
 
 [Service]
-Type=simple
+Type=notify
+NotifyAccess=main
+TimeoutStartSec=10s
 DynamicUser=yes
 ExecStart=/usr/local/libexec/agent-ebpf-jsplugin-worker --socket /run/agent-ebpf-jsplugin/worker.sock
 RuntimeDirectory=agent-ebpf-jsplugin

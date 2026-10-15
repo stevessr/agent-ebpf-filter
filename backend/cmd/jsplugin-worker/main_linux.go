@@ -97,10 +97,37 @@ func main() {
 		fmt.Fprintln(os.Stderr, "protect socket:", err)
 		os.Exit(1)
 	}
+	// systemd Type=notify must not report the worker as ready until
+	// the private socket is bound and protected. Manual invocations without
+	// NOTIFY_SOCKET continue to work without requiring systemd.
+	if err := notifyReady(); err != nil {
+		fmt.Fprintln(os.Stderr, "signal worker readiness:", err)
+		os.Exit(1)
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := jsplugins.NewWorker().Serve(ctx, listener); err != nil {
 		fmt.Fprintln(os.Stderr, "JavaScript worker:", err)
 		os.Exit(1)
 	}
+}
+
+
+// notifyReady supports filesystem and Linux abstract Unix notify addresses.
+// systemd accepts READY=1 only from the configured service main process.
+func notifyReady() error {
+	path := os.Getenv("NOTIFY_SOCKET")
+	if path == "" {
+		return nil
+	}
+	conn, err := net.DialUnix("unixgram", nil, &net.UnixAddr{Name: path, Net: "unixgram"})
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if err := conn.SetWriteDeadline(time.Now().Add(time.Second)); err != nil {
+		return err
+	}
+	_, err = conn.Write([]byte("READY=1"))
+	return err
 }

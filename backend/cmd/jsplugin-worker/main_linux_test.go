@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"net"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -186,4 +187,46 @@ func TestWorkerSystemdIntegration(t *testing.T) {
 	if err := jsplugins.ValidateRemote(ctx, socket, `export function onEvent( {`); err == nil {
 		t.Fatal("systemd worker accepted malformed source")
 	}
+}
+
+
+func TestWorkerBinaryNotifiesOnlyAfterSocketReady(t *testing.T) {
+	if os.Geteuid() == 0 { t.Skip("non-root worker test") }
+	binary := filepath.Join(t.TempDir(), "jsplugin-worker")
+	if out, err := exec.Command("go", "build", "-o", binary, ".").CombinedOutput(); err != nil {
+		t.Fatalf("build worker: %v %s", err, out)
+	}
+	dir := t.TempDir()
+	if err := os.Chmod(dir, 0o700); err != nil { t.Fatal(err) }
+	notifyPath := filepath.Join(dir, "notify.sock")
+	sock := filepath.Join(dir, "worker.sock")
+	notify, err := net.ListenUnixgram("unixgram", &net.UnixAddr{Name: notifyPath, Net: "unixgram"})
+	if err != nil { t.Fatal(err) }
+	defer notify.Close()
+
+	cmd := exec.Command(binary, "--socket", sock)
+	cmd.Env = append(os.Environ(), "NOTIFY_SOCKET="+notifyPath)
+	if err := cmd.Start(); err != nil { t.Fatal(err) }
+	waited := false
+	defer func() { if !waited { _ = cmd.Process.Kill(); _ = cmd.Wait() } }()
+
+	if err := notify.SetReadDeadline(time.Now().Add(3*time.Second)); err != nil { t.Fatal(err) }
+	var buf [128]byte
+	n, _, err := notify.ReadFromUnix(buf[:])
+	if err != nil || string(buf[:n]) != "READY=1" {
+		t.Fatalf("missing worker readiness notification: %q err=%v", buf[:n], err)
+	}
+	info, err := os.Lstat(sock)
+	if err != nil || info.Mode()&os.ModeSocket == 0 || info.Mode().Perm() != 0o600 {
+		t.Fatalf("worker reported READY before protected socket existed: info=%v err=%v", info, err)
+	}
+	out, err := jsplugins.InvokeRemote(context.Background(), sock,
+		`export function onEvent(e){return {ready: true}}`,
+		"onEvent", json.RawMessage(`{}`))
+	if err != nil || string(out) != `{"ready":true}` {
+		t.Fatalf("worker not callable after READY=1: %s %v", out, err)
+	}
+	if err := cmd.Process.Signal(syscall.SIGTERM); err != nil { t.Fatal(err) }
+	if err := cmd.Wait(); err != nil { t.Fatal(err) }
+	waited = true
 }
