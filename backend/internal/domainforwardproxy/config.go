@@ -161,6 +161,11 @@ func NormalizeSettings(settings *DomainForwardProxySettings) {
 	}
 	settings.HTTPPort = normalizeTCPPort(settings.HTTPPort, 80)
 	settings.BindAddress = strings.TrimSpace(settings.BindAddress)
+	// Privacy is an explicitly routed local middleware by default. Never
+	// expose its plaintext HTTP listener to all interfaces accidentally.
+	if settings.Privacy.Enabled && settings.BindAddress == "" {
+		settings.BindAddress = "127.0.0.1"
+	}
 	if settings.BindAddress != "" && net.ParseIP(settings.BindAddress) == nil {
 		settings.BindAddress = "127.0.0.1" // malformed bind input must not expose the gateway
 	}
