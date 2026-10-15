@@ -82,17 +82,26 @@ func (p harnessProbe) wingetInstalled(id,source string)bool{
 
 // Installed app matching is checked against the exact Scoop package prefix,
 // a Scoop-generated shim and Scoop's recorded installed-package list.
+func (p harnessProbe) runScoop(args ...string)(string,error){
+ if p.has("scoop"){return p.run("scoop",args...)}
+ shell:=p.powershell()
+ if shell==""{return "",os.ErrNotExist}
+ for _,arg:=range args{
+  if cleanOwnedName(arg)==""{return "",os.ErrInvalid}
+ }
+ return p.run(shell,"-NoProfile","-NonInteractive","-Command","scoop "+strings.Join(args," "))
+}
 func (p harnessProbe) scoopOwner(id,actual string)(string,bool){
- if !p.has("scoop"){return "",false}
+ if !p.has("scoop")&&p.powershell()==""{return "",false}
  root:=os.Getenv("SCOOP")
  if root==""{root=p.home+"/scoop"}
  if !winPathUnder(actual,root+"/apps")&&!winPathUnder(actual,root+"/shims"){return "",false}
  name:=id
  if id=="kiro"{name="kiro-cli"}
  if cleanOwnedName(name)==""{return "",false}
- prefix,err:=p.run("scoop","prefix",name)
+ prefix,err:=p.runScoop("prefix",name)
  if err!=nil||!winPathUnder(prefix,root+"/apps/"+name){return "",false}
- list,err:=p.run("scoop","list")
+ list,err:=p.runScoop("list")
  if err!=nil{return "",false}
  found:=false
  for _,row:=range strings.Split(list,"\n"){
@@ -103,7 +112,7 @@ func (p harnessProbe) scoopOwner(id,actual string)(string,bool){
  if winPathUnder(actual,prefix){return name,true}
  if !winPathUnder(actual,root+"/shims"){return "",false}
  if winBase(actual)!=strings.ToLower(id)+".exe"&&winBase(actual)!=strings.ToLower(name)+".exe"{return "",false}
- owned,err:=p.run("scoop","which",id)
+ owned,err:=p.runScoop("which",id)
  if err!=nil||!winPathUnder(strings.TrimSpace(owned),prefix){return "",false}
  return name,true
 }
