@@ -131,10 +131,10 @@ jobs:
           effective_caps="$(sudo awk '/^CapEff:/ {print $2}' "/proc/$worker_pid/status")"
           echo "Ready worker effective capabilities=$effective_caps"
           [[ "$effective_caps" == "0000000000000000" ]]
-          worker_net="$(sudo readlink "/proc/$worker_pid/ns/net")"
-          host_net="$(readlink /proc/1/ns/net)"
+          worker_net="$(sudo readlink "/proc/$worker_pid/ns/net" || true)"
+          host_net="$(sudo readlink /proc/1/ns/net || true)"
           echo "Worker namespace=$worker_net / host namespace=$host_net"
-          [[ "$worker_net" != "$host_net" ]]
+          [[ -n "$worker_net" && -n "$host_net" && "$worker_net" != "$host_net" ]]
           sudo systemctl is-active --quiet agent-ebpf-jsplugin-worker.service
       - name: JavaScript VM race regression
         working-directory: backend
