@@ -215,6 +215,15 @@ func (s *contextualJSONState) walk(node any, path string, force bool, depth int)
 			s.report.Blocked = true
 			return nil, false, nil
 		case "redact":
+			// A stronger field rule must never be silently downgraded by the
+			// global warn mode. Deny when the active action cannot redact.
+			if s.engine.settings.Action != "redact" {
+				if err := s.finding("field_policy"); err != nil {
+					return nil, false, err
+				}
+				s.report.Blocked = true
+				return nil, false, nil
+			}
 			force = true
 		case "drop":
 			// Parent map removes this property instead of entering walk.
