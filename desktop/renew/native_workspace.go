@@ -62,6 +62,7 @@ var workspaceNavigationLabels = map[string][2]string{
 	"研判":       {"风险研判工作台", "风险事件研判工作台"},
 	"事件":       {"事件流", "eBPF 实时事件流"},
 	"会话":       {"Agent 会话", "Agent 会话与行为关联"},
+	"派生":       {"Agent 派生", "Agent → SubAgent 调用与进程派生"},
 	"网络":       {"网络外联", "网络连接与外联目标"},
 	"域名":       {"Agent 域名监控", "Agent 域名与外联目的地监控"},
 	"进程":       {"进程活动", "进程活动与资源监测"},
@@ -223,6 +224,8 @@ func (a *renewApp) workspacePage(c *ui.Context) {
 		a.inspectorStandalone(c)
 	case "会话":
 		a.sessionsView(c)
+	case "派生":
+		a.agentLineageView(c)
 	case "网络":
 		a.networkView(c)
 	case "域名":
@@ -261,7 +264,7 @@ var workspaceNavigationMenuSections = []struct {
 	title string
 	pages []string
 }{
-	{"监控工作台", []string{"概览", "研判", "事件", "会话", "网络", "域名", "进程", "Agent 识别"}},
+	{"监控工作台", []string{"概览", "研判", "事件", "会话", "派生", "网络", "域名", "进程", "Agent 识别"}},
 	{"防护与管理", []string{"监控", "eBPF 模块", "规则", "跟踪", "路径权限"}},
 	{"工具", []string{"终端", "文件", "编辑器", "CCS"}},
 	{"运行诊断", []string{"系统"}},
@@ -387,6 +390,7 @@ func (a *renewApp) sidebar(c *ui.Context, detailed bool) {
 					events.Children(func() { statusPill(c, fmt.Sprint(attention), t.Warning) })
 				}
 				navItem("会话")
+				navItem("派生")
 				navItem("网络")
 				navItem("域名")
 				navItem("进程")

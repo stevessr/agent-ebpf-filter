@@ -317,3 +317,22 @@ In bundled mode the privileged child listens only on an authenticated private Un
 - **独立于采集**：即使采集器断开或启动失败，文件浏览与编辑器仍可使用；进入本地页面不会创建额外事件流、改写 eBPF 捕获范围或变更 LSM 文件权限策略。
 
 依赖版本升级至 **MyGo v0.4.8**（Go 1.27.1），仍与特权后端模块隔离。常规 PR CI 执行 `go mod tidy -diff`、`go test ./...`、`go tool mygo vet .`、单二进制构建及 Linux 安装包检查。
+
+
+## Agent → SubAgent 进程派生可视化
+
+原生桌面侧边栏的「Agent 派生」页面提供两个可即时切换的视图：
+
+- **放射图**：以识别出的 Agent 进程为中心，按当前 PID/PPID 关系逐层展开后代；点击节点查看进程详情、事件和父进程事件。
+- **瀑布图**：按派生层级排列进程，并以进程启动时间到当前系统快照时刻显示存活区间；它**不是** SubAgent 任务耗时，也不代表进程真实退出时间。
+- 颜色用于区分根 Agent、普通进程及「子 Agent 候选」；候选要求后代进程本身被识别为 Agent 工具，不会把 bash、python 等普通派生执行器标记为真正的子 Agent。
+- 两个视图共用选中 PID；支持按根 Agent 过滤、事件跳转，且可从「进程」页直接进入。
+- 数据来自既有 /ws/system protobuf 进程快照及当前事件摘要窗口，不需要新特权端点。单图限制为 72 个节点 / 6 层；断线时不以旧事件拼接历史树。PID 启动时间用于过滤不可能的跨代父子链接，并阻止老事件冒充新进程上下文。
+
+**证据限制**：OS 进程父子关系不自动等于模型、RPC 或 Agent SDK 层的调用关系。内部同进程 SubAgent、异机 SubAgent、跨 RPC 协作、已经退出的进程，需要采集 Agent SDK / hooks 的 trace_id、span_id、parent_span_id、agent_run_id、开始及结束时间后才能显示为**已确认逻辑调用**。本页目前只把其它 Agent 可执行文件后代标注为「子 Agent 候选」，不会虚构时序或逻辑调用。
+
+### Claude Code SubAgent 生命周期采集（可选）
+
+在 Web 管理台的 Hook 配置中，除普通的 **Claude Code / PreToolUse** 外，可分别启用 **Claude Code · SubagentStart** 和 **Claude Code · SubagentStop**。它们独立写入 `~/.claude/settings.json` 的对应事件，不会覆盖已有 `PreToolUse` 或手工 Hook，且可分别卸载。只有显式启用时才增加生命周期采集；安装后需重新启动 Claude Code 会话以读取 Hook 配置。
+
+接收端继续使用每个 Hook 独立的 secret 认证。Hook relay 最多报告其调用进程的父 PID 作为尽力关联线索，不能单凭该 PID 推断跨进程 Agent 调用关系。完整事件的 `ExtraInfo` 仅持久化 `agent_id` 的摘要及 `agent_type` 元数据（以及既有 prompt digest）；不保留原始 agent_id、用户输入或响应文本。Renew 的原生摘要展示已观察到的开始/结束信号，但不在缺乏原始 span/call_id 证据时拼接虚构的完整生命周期。
