@@ -153,6 +153,27 @@ func (p harnessProbe) globalNodeSource(path,pkgDir string)string{
  }
  return ""
 }
+// pnpm's global launcher can be a generated shell shim rather than a symlink.
+// Confirm all three signals: executable is in the global bin directory, pnpm
+// reports the exact package as globally installed, and the shim names it.
+func (p harnessProbe) pnpmGlobalShim(path,expected string)bool{
+ if expected==""||!p.has("pnpm"){return false}
+ binDir,err:=p.run("pnpm","bin","-g")
+ if err!=nil||!filepath.IsAbs(strings.TrimSpace(binDir)){return false}
+ if filepath.Clean(path)!=filepath.Join(strings.TrimSpace(binDir),filepath.Base(path)){return false}
+ inventory,err:=p.run("pnpm","list","-g","--depth","0","--json")
+ if err!=nil{return false}
+ var projects []struct{Dependencies map[string]json.RawMessage}
+ if json.Unmarshal([]byte(inventory),&projects)!=nil{return false}
+ found:=false
+ for _,project:=range projects{if _,ok:=project.Dependencies[expected];ok{found=true;break}}
+ if !found{return false}
+ script,err:=p.readFile(path)
+ if err!=nil||len(script)>32768{return false}
+ readable:=string(script)
+ return strings.Contains(readable,expected)||strings.Contains(readable,strings.ReplaceAll(expected,"/","+"))
+}
+
 func harnessUpdateCommand(source,pkg,executable string,p harnessProbe)[]string{
  if cleanOwnedName(pkg)==""{return nil}
  switch source{
@@ -203,6 +224,15 @@ func inspectHarnessInstallation(id,label,path string,p harnessProbe)harnessUpdat
   }
   result.Advisory="已识别 Node 包，但尚不能确认原始包管理器；需要人工核对。"
   return result
+ }
+ // A pnpm global shim is not necessarily a symlink to its real package.
+ for _,launcher:=range []string{absolute,resolved}{
+  if p.pnpmGlobalShim(launcher,expected){
+   result.Source,result.Package,result.Evidence="pnpm",expected,"pnpm 全局清单、bin 目录及启动脚本一致"
+   result.Command=harnessUpdateCommand("pnpm",expected,"",p)
+   result.Advisory="使用原 pnpm 全局安装渠道更新；执行前请确认命令。"
+   return result
+  }
  }
  // Official Claude native installer owns this version-managed directory.
  // Generic ~/.local/bin files are deliberately NOT treated as official.
