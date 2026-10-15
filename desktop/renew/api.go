@@ -96,12 +96,24 @@ type runtimeToggle struct {
 	Enabled bool `json:"enabled"`
 }
 
+type desktopPrivacySettings struct {
+    Enabled bool `json:"enabled"`
+    Action string `json:"action"`
+    RestoreResponse bool `json:"restoreResponse"`
+    MaxBodyBytes int64 `json:"maxBodyBytes"`
+}
+type desktopDomainForwardSettings struct {
+    Enabled bool `json:"enabled"`
+    Privacy desktopPrivacySettings `json:"privacy"`
+}
+
 type runtimeSettings struct {
 	LogPersistenceEnabled   bool          `json:"logPersistenceEnabled"`
 	LogFilePath             string        `json:"logFilePath"`
 	DisabledEventTypes      []int         `json:"disabledEventTypes"`
 	PolicyManagementEnabled bool          `json:"policyManagementEnabled"`
 	TLSCaptureEnabled       bool          `json:"tlsCaptureEnabled"`
+	DomainForwardProxy      desktopDomainForwardSettings `json:"domainForwardProxy"`
 	LoopDetection           runtimeToggle `json:"loopDetection"`
 	SignalProcessing        runtimeToggle `json:"signalProcessing"`
 	ResearchProcessing      runtimeToggle `json:"researchProcessing"`
@@ -363,6 +375,32 @@ func (c *apiClient) putRuntimeConfig(ctx context.Context, patch map[string]any) 
 	var cfg runtimeConfigResponse
 	err := c.requestJSON(ctx, http.MethodPut, "/config/runtime", patch, &cfg)
 	return cfg, err
+}
+
+// patchPrivacyGateway changes only one privacy policy field and preserves
+// all existing reverse-proxy routes, certificates, and other settings.
+func (c *apiClient) patchPrivacyGateway(ctx context.Context, field string, value any) (runtimeConfigResponse, error) {
+    switch field {
+    case "enabled", "action", "restoreResponse":
+    default:
+        return runtimeConfigResponse{}, fmt.Errorf("unsupported privacy field")
+    }
+    var current map[string]any
+    if err := c.getJSON(ctx, "/config/runtime", &current); err != nil {
+        return runtimeConfigResponse{}, err
+    }
+    runtimeMap, _ := current["runtime"].(map[string]any)
+    if runtimeMap == nil { return runtimeConfigResponse{}, fmt.Errorf("missing runtime settings") }
+    original, _ := runtimeMap["domainForwardProxy"].(map[string]any)
+    if original == nil { return runtimeConfigResponse{}, fmt.Errorf("missing proxy settings") }
+    forward := make(map[string]any, len(original)+1)
+    for key, val := range original { forward[key] = val }
+    existing, _ := original["privacy"].(map[string]any)
+    privacy := make(map[string]any, len(existing)+1)
+    for key, val := range existing { privacy[key] = val }
+    privacy[field] = value
+    forward["privacy"] = privacy
+    return c.putRuntimeConfig(ctx, map[string]any{"domainForwardProxy": forward})
 }
 
 func (c *apiClient) runtimePatchWithNestedToggle(ctx context.Context, key string, enabled bool) (runtimeConfigResponse, error) {
