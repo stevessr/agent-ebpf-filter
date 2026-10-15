@@ -1,5 +1,7 @@
 # Agent eBPF Filter
 
+> **源码技术手册（2026-10-15）：** [25 篇技术章节、90 张 Mermaid 图](docs/technical/index.md)。实现状态、运行门控与平台限制以当前代码为准，历史规划不能作为功能交付证据。
+
 **面向 Linux 的 AI Agent 观测与控制平面**
 
 [![许可证：GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)

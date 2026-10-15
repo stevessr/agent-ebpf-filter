@@ -1,5 +1,7 @@
 # Agent eBPF Filter
 
+> **Source-anchored technical manual (2026-10-15):** [25 chapters / 90 Mermaid diagrams](docs/technical/index.md). Coverage reflects current code, feature gates and platform limitations; historic roadmaps are not implementation evidence.
+
 **Linux-first observability and control plane for AI agents and developer CLIs.**
 
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)

@@ -2,8 +2,12 @@
 
 看见 AI Agent 在 Linux 上真正做了什么。项目将 eBPF 内核事实、Agent 语义关联、原生 Renew 桌面和 Web 研发控制台组合成可观测与安全控制框架。
 
-**[演示导览](guide/demo-tour.md)** · **[快速开始](guide/quick-start.md)** · **[架构总览](architecture/overview.md)**
+**[代码技术手册（25 篇）](technical/index.md)** · **[演示导览](guide/demo-tour.md)** · **[快速开始](guide/quick-start.md)** · **[架构总览](architecture/overview.md)**
 
+
+## 当前源码技术手册
+
+[打开按模块拆分的技术手册](technical/index.md)。手册将内核事实、Go 运行时、Agent 身份、TLS、存储、IPC、Renew / Vue、策略、研究评测和平台差异逐章落到源码与测试，并提供 90 张 Mermaid 结构、状态和时序图。原有研究与答辩资料保留，但不作为已运行能力的证据。
 
 ## 两个界面，各有职责
 

@@ -73,6 +73,32 @@ exclude_docs: |
   /site_hooks.py
 
 nav:
+  - 技术手册（源码基线）:
+      - 代码基线与导航: technical/index.md
+      - 总体架构与系统边界: technical/architecture.md
+      - 启动与关停: technical/startup.md
+      - 事件管线: technical/events.md
+      - eBPF/LSM 执行点: technical/kernel.md
+      - 内核时钟与丢失审计: technical/collector-clock-audit.md
+      - 采集 Scope 和 API 指纹: technical/tracking-selection.md
+      - Agent 归属与图谱: technical/agent-identity.md
+      - 网络、TLS 与代理: technical/network-tls.md
+      - Signal 规则处理: technical/signal-runtime.md
+      - 语义风险与反馈执行: technical/detection-evidence.md
+      - 运行时配置与热更新: technical/runtime-settings.md
+      - 认证、门控与脱敏: technical/security.md
+      - API / Proto / WebSocket / MCP: technical/api-protocol.md
+      - 独立组件 IPC: technical/components-ipc.md
+      - Renew / Web 分工: technical/clients.md
+      - Renew 私有 IPC 与回退: technical/desktop-transport.md
+      - Vue 状态 / 路由 / 国际化: technical/web-workbench-internals.md
+      - Linux/Windows/macOS 能力边界: technical/platform-capabilities.md
+      - 存储与可观测性: technical/storage-observability.md
+      - Pebble 与 JSONL 实现: technical/storage-internals.md
+      - 研究回放与安全结局: technical/research-replay.md
+      - ML 与实验性能力: technical/optional-engines.md
+      - 构建与验证: technical/build-verify.md
+      - 故障排查 Runbook: technical/operations-debug.md
   - 首页: index.md
   - 使用指南:
       - 项目简介: guide/what-is-agent-ebpf-filter.md
