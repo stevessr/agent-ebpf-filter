@@ -96,7 +96,9 @@ func NormalizeContextSettings(settings *PrivacySettings) {
 }
 
 func validPrivacyRecipient(host string) bool {
-	if host == "" || len(host) > 253 || strings.Contains(host, "*") { return false }
+	if host == "" || len(host) > 253 || strings.Contains(host, "*") {
+		return false
+	}
 	for _, char := range host {
 		if !(char >= 'a' && char <= 'z' || char >= '0' && char <= '9' || char == '.' || char == '-' || char == ':') {
 			return false
@@ -140,14 +142,14 @@ func privacyFoldKey(key string) string {
 }
 
 type contextualJSONState struct {
-	engine   *PrivacyEngine
-	prefix   string
-	session  *PrivacySession
-	reverse  map[string]string
-	report   PrivacyReport
-	count    int
-	nodes    int
-	explicit map[string]PrivacyJSONFieldRule
+	engine    *PrivacyEngine
+	prefix    string
+	session   *PrivacySession
+	reverse   map[string]string
+	report    PrivacyReport
+	count     int
+	nodes     int
+	explicit  map[string]PrivacyJSONFieldRule
 	recipient string
 }
 
@@ -221,35 +223,35 @@ func (s *contextualJSONState) walk(node any, path string, force bool, depth int)
 			// Untrusted client-controlled Host must never declassify for a
 			// different upstream recipient.
 		} else {
-		switch rule.Action {
-		case "allow":
-			// Only scalar-level declassification; nested children keep their
-			// own classification and cannot be blanket-whitelisted.
-			switch node.(type) {
-			case string, json.Number, bool, nil:
-				return node, false, nil
-			}
-		case "block":
-			if err := s.finding("field_policy"); err != nil {
-				return nil, false, err
-			}
-			s.report.Blocked = true
-			return nil, false, nil
-		case "redact":
-			// A stronger field rule must never be silently downgraded by the
-			// global warn mode. Deny when the active action cannot redact.
-			if s.engine.settings.Action != "redact" {
+			switch rule.Action {
+			case "allow":
+				// Only scalar-level declassification; nested children keep their
+				// own classification and cannot be blanket-whitelisted.
+				switch node.(type) {
+				case string, json.Number, bool, nil:
+					return node, false, nil
+				}
+			case "block":
 				if err := s.finding("field_policy"); err != nil {
 					return nil, false, err
 				}
 				s.report.Blocked = true
 				return nil, false, nil
+			case "redact":
+				// A stronger field rule must never be silently downgraded by the
+				// global warn mode. Deny when the active action cannot redact.
+				if s.engine.settings.Action != "redact" {
+					if err := s.finding("field_policy"); err != nil {
+						return nil, false, err
+					}
+					s.report.Blocked = true
+					return nil, false, nil
+				}
+				force = true
+			case "drop":
+				// Parent map removes this property instead of entering walk.
+				return nil, false, errors.New("drop policy must target an object property")
 			}
-			force = true
-		case "drop":
-			// Parent map removes this property instead of entering walk.
-			return nil, false, errors.New("drop policy must target an object property")
-		}
 		}
 	}
 	switch value := node.(type) {
@@ -264,7 +266,9 @@ func (s *contextualJSONState) walk(node any, path string, force bool, depth int)
 		for _, key := range keys {
 			childPath := path + "/" + privacyPointerPart(key)
 			action := s.explicit[childPath].Action
-			if action == "allow" && s.explicit[childPath].Recipient != s.recipient { action = "" }
+			if action == "allow" && s.explicit[childPath].Recipient != s.recipient {
+				action = ""
+			}
 			if action == "drop" {
 				if err := s.finding("field_drop"); err != nil {
 					return nil, false, err
@@ -345,12 +349,12 @@ func (e *PrivacyEngine) applyContextualJSON(
 		return nil, nil, report, errors.New("privacy JSON has trailing data")
 	}
 	state := &contextualJSONState{
-		engine:   e,
-		prefix:   prefix,
-		session:  session,
-		reverse:  make(map[string]string),
-		report:   report,
-		explicit: make(map[string]PrivacyJSONFieldRule, len(e.settings.JSONFieldRules)),
+		engine:    e,
+		prefix:    prefix,
+		session:   session,
+		reverse:   make(map[string]string),
+		report:    report,
+		explicit:  make(map[string]PrivacyJSONFieldRule, len(e.settings.JSONFieldRules)),
 		recipient: recipient,
 	}
 	for _, rule := range e.settings.JSONFieldRules {
@@ -374,7 +378,6 @@ func (e *PrivacyEngine) applyContextualJSON(
 	return output, session, state.report, nil
 }
 
-
 // parseStrictPrivacyJSON rejects duplicate object members before classification.
 // Otherwise a last-key-wins map can hide an earlier task_history/secret value
 // while a different upstream JSON parser may consume that earlier value.
@@ -388,20 +391,30 @@ func parseStrictPrivacyJSON(decoder *json.Decoder, depth int, visited *int) (any
 		return nil, err
 	}
 	delim, ok := token.(json.Delim)
-	if !ok { return token, nil }
+	if !ok {
+		return token, nil
+	}
 	switch delim {
 	case '{':
 		object := make(map[string]any)
 		seen := make(map[string]bool)
 		for decoder.More() {
 			keyToken, err := decoder.Token()
-			if err != nil { return nil, err }
+			if err != nil {
+				return nil, err
+			}
 			key, ok := keyToken.(string)
-			if !ok { return nil, errors.New("invalid privacy JSON object key") }
-			if seen[key] { return nil, errors.New("duplicate privacy JSON member") }
+			if !ok {
+				return nil, errors.New("invalid privacy JSON object key")
+			}
+			if seen[key] {
+				return nil, errors.New("duplicate privacy JSON member")
+			}
 			seen[key] = true
 			next, err := parseStrictPrivacyJSON(decoder, depth+1, visited)
-			if err != nil { return nil, err }
+			if err != nil {
+				return nil, err
+			}
 			object[key] = next
 		}
 		_, err := decoder.Token()
@@ -410,7 +423,9 @@ func parseStrictPrivacyJSON(decoder *json.Decoder, depth int, visited *int) (any
 		list := make([]any, 0)
 		for decoder.More() {
 			next, err := parseStrictPrivacyJSON(decoder, depth+1, visited)
-			if err != nil { return nil, err }
+			if err != nil {
+				return nil, err
+			}
 			list = append(list, next)
 		}
 		_, err := decoder.Token()
