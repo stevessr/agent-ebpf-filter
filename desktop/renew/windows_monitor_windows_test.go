@@ -58,3 +58,13 @@ func TestWindowsAgentAttributionRejectsGenericShell(t *testing.T) {
         t.Fatal("generic node process must not imply agent ownership")
     }
 }
+
+func TestWindowsEBPFAttachmentRequiresLinks(t *testing.T) {
+    table := "ID Pins Links Mode Type Name\n100 1 0 JIT cgroup/connect4 renew_connect4\n101 1 2 JIT cgroup/connect6 renew_connect6\n"
+    if windowsProgramHasAttachedLink(table, "renew_connect4") {
+        t.Fatal("loaded but unlinked program must not be considered active")
+    }
+    if !windowsProgramHasAttachedLink(table, "renew_connect6") {
+        t.Fatal("linked program should be considered active")
+    }
+}
