@@ -88,11 +88,17 @@ func invokeRemote(ctx context.Context, socketPath, source, hook, operation strin
 	req := workerRequest{Version: ProtocolVersion, Source: source, Hook: hook, Operation: operation, Payload: payload}
 	if err := json.NewEncoder(conn).Encode(req); err != nil {
 		if ctx.Err() != nil { return nil, ctx.Err() }
+		var timeout net.Error
+		if errors.As(err, &timeout) && timeout.Timeout() { return nil, context.DeadlineExceeded }
 		return nil, fmt.Errorf("write JavaScript worker request: %w", err)
 	}
 	var response workerResponse
 	if err := json.NewDecoder(io.LimitReader(conn, MaxResultBytes+4096)).Decode(&response); err != nil {
 		if ctx.Err() != nil { return nil, ctx.Err() }
+		// A socket deadline can fire just before ctx.Err becomes visible.
+		// Never surface a raw i/o timeout as an unrelated VM failure.
+		var timeout net.Error
+		if errors.As(err, &timeout) && timeout.Timeout() { return nil, context.DeadlineExceeded }
 		return nil, fmt.Errorf("read JavaScript worker response: %w", err)
 	}
 	if response.Version != ProtocolVersion {
