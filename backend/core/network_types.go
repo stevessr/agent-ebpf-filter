@@ -64,12 +64,12 @@ type DomainPrivacyJSONFieldRule struct {
 // DomainPrivacySettings controls local-only inspection of routed request bodies.
 // Restore maps are intentionally per-request and never persisted.
 type DomainPrivacySettings struct {
-	Enabled         bool     `json:"enabled"`
-	Action          string   `json:"action"`
-	RestoreResponse bool     `json:"restoreResponse"`
-	MaxBodyBytes    int64    `json:"maxBodyBytes"`
-	Categories      []string `json:"categories,omitempty"`
-	Allowlist       []string `json:"allowlist,omitempty"`
+	Enabled         bool                         `json:"enabled"`
+	Action          string                       `json:"action"`
+	RestoreResponse bool                         `json:"restoreResponse"`
+	MaxBodyBytes    int64                        `json:"maxBodyBytes"`
+	Categories      []string                     `json:"categories,omitempty"`
+	Allowlist       []string                     `json:"allowlist,omitempty"`
 	ContextMode     string                       `json:"contextMode,omitempty"`
 	JSONFieldRules  []DomainPrivacyJSONFieldRule `json:"jsonFieldRules,omitempty"`
 }
