@@ -1,7 +1,7 @@
 # Optional, explicit administrator-run eBPF for Windows hook setup.
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
-    [Parameter(Mandatory = $true)][string]$IncludeDir,
+    [string]$IncludeDir = "",
     [ValidateSet("Verify", "Install")][string]$Action = "Verify",
     [string]$Clang = "clang",
     [string]$PrebuiltProgramPath = "",
