@@ -245,6 +245,18 @@ func TestContextualPrivacyDeclassificationRecipientScope(t *testing.T) {
 	}
 }
 
+func TestContextualPrivacyRepeatedNormalizationPreservesFailClosed(t *testing.T) {
+	settings := PrivacySettings{
+		Enabled: true, Action: "redact",
+		JSONFieldRules: []PrivacyJSONFieldRule{{Path: "/email", Action: "allow"}},
+	}
+	NormalizePrivacySettings(&settings)
+	NormalizePrivacySettings(&settings)
+	engine := NewPrivacyEngine(settings)
+	_, _, _, err := engine.Apply("application/json", []byte(`{"email":"jane@example.com"}`))
+	if err == nil { t.Fatal("invalid declassification became permissive during repeated normalization") }
+}
+
 func TestContextualPrivacyInvalidFieldRulesFailClosed(t *testing.T) {
 	for _, rule := range []PrivacyJSONFieldRule{
 		{Path: "/payload", Action: "allow"},
