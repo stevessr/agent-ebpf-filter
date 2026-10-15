@@ -4,10 +4,11 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path, PurePosixPath
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 DOCS = Path(__file__).resolve().parent
 LINK = re.compile(r'(?P<start>!?\[[^\]\n]*\]\()(?P<url>/[^)\s]*)(?P<end>\))')
+SOURCE_LINK = re.compile(r'(?P<start>!?\[[^\]\n]*\]\()(?P<url>(?:\.\./)+[^)\s]*)(?P<end>\))')
 ADMONITION = re.compile(r"^:::\s*(tip|warning|danger|info|details)(?:\s+(.*?))?\s*$")
 KINDS = {"tip": "tip", "warning": "warning", "danger": "danger", "info": "info", "details": "note"}
 
@@ -60,5 +61,22 @@ def _admonitions(markdown):
     return "".join(lines)
 
 
+def _repository_source_link(match, page):
+    """Point Markdown references outside docs_dir to the GitHub source browser."""
+    parsed = urlsplit(match.group("url"))
+    target = (DOCS / page.file.src_path).parent.joinpath(parsed.path).resolve()
+    if not target.is_file() or DOCS in target.parents:
+        return match.group(0)
+    try:
+        source_path = target.relative_to(DOCS.parent).as_posix()
+    except ValueError:
+        return match.group(0)
+    url = "https://github.com/stevessr/agent-ebpf-filter/blob/master/" + quote(source_path)
+    if parsed.fragment:
+        url += "#" + parsed.fragment
+    return match.group("start") + url + match.group("end")
+
+
 def on_page_markdown(markdown, page, config, files):
-    return LINK.sub(lambda match: _link(match, page), _admonitions(markdown))
+    markdown = LINK.sub(lambda match: _link(match, page), _admonitions(markdown))
+    return SOURCE_LINK.sub(lambda match: _repository_source_link(match, page), markdown)
