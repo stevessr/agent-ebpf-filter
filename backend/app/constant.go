@@ -51,6 +51,7 @@ const (
 	PluginKindEBPF    = types.PluginKindEBPF
 	PluginKindWebhook = types.PluginKindWebhook
 	PluginKindCommand = types.PluginKindCommand
+	PluginKindJavaScript = types.PluginKindJavaScript
 )
 
 const (

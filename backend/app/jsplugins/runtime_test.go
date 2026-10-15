@@ -1,0 +1,94 @@
+package jsplugins
+
+import (
+    "context"
+    "encoding/json"
+    "errors"
+    "strings"
+    "testing"
+    "time"
+)
+
+func TestCompileAndRun(t *testing.T) {
+    p, err := Compile("export function onEvent(event) { return { alert: event.risk >= 80, name: event.comm }; }")
+    if err != nil { t.Fatal(err) }
+    got, err := p.Run(context.Background(), "onEvent", json.RawMessage(`{"risk":90,"comm":"agent"}`))
+    if err != nil { t.Fatal(err) }
+    var result struct { Alert bool `json:"alert"`; Name string `json:"name"` }
+    if err := json.Unmarshal(got, &result); err != nil { t.Fatal(err) }
+    if !result.Alert || result.Name != "agent" { t.Fatalf("result=%s",got) }
+}
+
+func TestInvalidSourcesAndHook(t *testing.T) {
+    for _, source := range []string{
+        "export const x = 1;",
+        "import {a} from 'fs'; export function onEvent(e){return e}",
+        "export function onEvent( { ",
+        strings.Repeat("a", MaxSourceBytes + 1),
+    } {
+        if _, err := Compile(source); err == nil { t.Errorf("accepted source %q",source[:min(len(source),32)]) }
+    }
+    p, err := Compile("export function onEvent(e){ return e; }")
+    if err != nil { t.Fatal(err) }
+    if _, err := p.Run(context.Background(), "onPolicy", json.RawMessage("{}")); !errors.Is(err,ErrHookUnsupported) { t.Fatal(err) }
+    if _, err := p.Run(context.Background(), "onAlert", json.RawMessage("{}")); err == nil { t.Fatal("missing hook accepted") }
+    if _, err := p.Run(context.Background(), "onEvent", json.RawMessage("{bad")); err == nil { t.Fatal("bad JSON accepted") }
+}
+
+func TestLoopInterrupted(t *testing.T) {
+    p, err := Compile("export function onEvent(e) { for (;;) {} }")
+    if err != nil { t.Fatal(err) }
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+    defer cancel()
+    started:=time.Now()
+    _, err = p.Run(ctx, "onEvent", json.RawMessage("{}"))
+    if err == nil || time.Since(started)>time.Second { t.Fatalf("interrupt err=%v elapsed=%s",err,time.Since(started)) }
+}
+
+func TestRuntimeIsolatedAcrossCalls(t *testing.T) {
+	p, err := Compile(`let n=0; export function onEvent() { return { n: ++n }; }`)
+	if err != nil { t.Fatal(err) }
+	for i:=0; i<3; i++ {
+		result, err := p.Run(context.Background(), "onEvent", json.RawMessage(`{}`))
+		if err!=nil || string(result)!=`{"n":1}` {
+			t.Fatalf("call %d got %s error %v",i,result,err)
+		}
+	}
+}
+
+func TestRuntimeRejectsDynamicCode(t *testing.T) {
+	p, err := Compile(`export function onEvent() { return eval("1+1"); }`)
+	if err != nil { t.Fatal(err) }
+	if _, err := p.Run(context.Background(), "onEvent", json.RawMessage(`{}`)); err == nil {
+		t.Fatal("dynamic code was permitted")
+	}
+}
+
+func TestOutputSizeLimit(t *testing.T) {
+	p, err := Compile(`export function onEvent() { return { data: "x".repeat(40000) }; }`)
+	if err != nil { t.Fatal(err) }
+	if _, err := p.Run(context.Background(), "onEvent", json.RawMessage(`{}`)); err == nil {
+		t.Fatal("oversized output accepted")
+	}
+}
+
+func TestResolvedAsyncHook(t *testing.T) {
+	p, err := Compile(`export async function onEvent(e) { return { value: e.value + 1 }; }`)
+	if err != nil { t.Fatal(err) }
+	out, err := p.Run(context.Background(), "onEvent", json.RawMessage(`{"value":41}`))
+	if err!=nil || string(out)!=`{"value":42}` {
+		t.Fatalf("settled Promise: output=%s, err=%v",out,err)
+	}
+}
+
+func TestPendingAndRejectedPromises(t *testing.T) {
+	for _, source := range []string{
+		`export function onEvent() { return new Promise(()=>{}); }`,
+		`export async function onEvent() { throw new Error("boom"); }`,
+	} {
+		p, err := Compile(source)
+		if err!=nil {t.Fatal(err)}
+		out, err:=p.Run(context.Background(),"onEvent",json.RawMessage(`{}`))
+		if err == nil {t.Fatalf("Promise unexpectedly became valid JSON: %s",out)}
+	}
+}

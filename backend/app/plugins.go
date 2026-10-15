@@ -2,6 +2,7 @@ package app
 
 import (
 	"agent-ebpf-filter/app/research"
+	"agent-ebpf-filter/app/jsplugins"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -127,6 +128,10 @@ func validatePluginManifest(manifest *PluginManifest) error {
 		default:
 			return fmt.Errorf("unsupported attach kind %q", manifest.AttachKind)
 		}
+	case PluginKindJavaScript:
+		if manifest.Enabled && manifest.SourceSHA256 == "" {
+			return errors.New("enabled JavaScript plugin requires a source checksum")
+		}
 	case PluginKindWebhook, PluginKindCommand:
 		// Runtime-specific fields are bounded above; their executors perform
 		// additional semantic validation when those plugin kinds are enabled.
@@ -232,11 +237,17 @@ func (s *pluginStore) upsert(ctx context.Context, m *PluginManifest, source *str
 		return err
 	}
 	if source != nil {
-		if m.Kind != PluginKindEBPF {
-			return errors.New("source is only supported for eBPF plugins")
+		if m.Kind != PluginKindEBPF && m.Kind != PluginKindJavaScript {
+			return errors.New("source is only supported for eBPF and JavaScript plugins")
 		}
-		if len(*source) > int(pluginSourceMaxBytes) {
-			return fmt.Errorf("plugin source exceeds %d bytes", pluginSourceMaxBytes)
+		limit := pluginSourceMaxBytes
+		if m.Kind == PluginKindJavaScript {
+			limit = jsplugins.MaxSourceBytes
+			// Disabled plugin drafts are stored without parsing untrusted JS
+			// inside the privileged backend. The worker checks syntax on enable.
+		}
+		if len(*source) > int(limit) {
+			return fmt.Errorf("plugin source exceeds %d bytes", limit)
 		}
 	}
 	if err := s.ensureLoaded(); err != nil {
@@ -255,6 +266,9 @@ func (s *pluginStore) upsert(ctx context.Context, m *PluginManifest, source *str
 
 	var existing *PluginManifest
 	if current, ok := s.entries[m.ID]; ok {
+		if current.Kind != next.Kind {
+			return errors.New("changing a registered plugin kind is not supported; delete and recreate it")
+		}
 		next.CreatedAt = current.CreatedAt
 		existing = clonePluginManifest(current)
 	} else {
@@ -265,11 +279,17 @@ func (s *pluginStore) upsert(ctx context.Context, m *PluginManifest, source *str
 	}
 	next.UpdatedAt = time.Now().UTC()
 
+	sourceFile := "source.c"
+	sourceLimit := pluginSourceMaxBytes
+	if next.Kind == PluginKindJavaScript {
+		sourceFile = "plugin.mjs"
+		sourceLimit = jsplugins.MaxSourceBytes
+	}
 	var oldSource []byte
 	oldSourceExists := false
 	if source != nil {
 		var err error
-		oldSource, err = readPluginFile(next.ID, "source.c", pluginSourceMaxBytes)
+		oldSource, err = readPluginFile(next.ID, sourceFile, sourceLimit)
 		if err == nil {
 			oldSourceExists = true
 		} else if !errors.Is(err, os.ErrNotExist) {
@@ -277,15 +297,17 @@ func (s *pluginStore) upsert(ctx context.Context, m *PluginManifest, source *str
 		}
 		next.SourceSHA256 = sha256Hex([]byte(*source))
 		next.ObjectSHA256 = ""
-		if existing != nil && existing.Kind == PluginKindEBPF && existing.SourceSHA256 == next.SourceSHA256 {
-			next.ObjectSHA256 = existing.ObjectSHA256
-		}
-		if oldSourceExists && string(oldSource) == *source {
-			object, err := readPluginFile(next.ID, "program.o", maxUserBPFObjectBytes)
-			if err == nil {
-				next.ObjectSHA256 = sha256Hex(object)
-			} else if !errors.Is(err, os.ErrNotExist) {
-				return err
+		if next.Kind == PluginKindEBPF {
+			if existing != nil && existing.SourceSHA256 == next.SourceSHA256 {
+				next.ObjectSHA256 = existing.ObjectSHA256
+			}
+			if oldSourceExists && string(oldSource) == *source {
+				object, err := readPluginFile(next.ID, "program.o", maxUserBPFObjectBytes)
+				if err == nil {
+					next.ObjectSHA256 = sha256Hex(object)
+				} else if !errors.Is(err, os.ErrNotExist) {
+					return err
+				}
 			}
 		}
 	} else if existing != nil && existing.Kind == next.Kind {
@@ -298,21 +320,40 @@ func (s *pluginStore) upsert(ctx context.Context, m *PluginManifest, source *str
 	if err := validatePluginManifest(next); err != nil {
 		return err
 	}
+	if next.Kind == PluginKindJavaScript && next.Enabled {
+		// A direct enabled=true upsert must not bypass the worker validation
+		// performed by SetEnabled. The backend never parses script source.
+		var candidate []byte
+		if source != nil {
+			candidate = []byte(*source)
+		} else {
+			candidate, err = readPluginFile(next.ID, "plugin.mjs", jsplugins.MaxSourceBytes)
+			if err != nil {
+				return err
+			}
+		}
+		if next.SourceSHA256 == "" || sha256Hex(candidate) != next.SourceSHA256 {
+			return errors.New("JavaScript plugin source checksum mismatch")
+		}
+		if err := jsplugins.ValidateRemote(ctx, os.Getenv("AGENT_EBPF_JS_WORKER_SOCKET"), string(candidate)); err != nil {
+			return fmt.Errorf("validate JavaScript plugin in isolated worker: %w", err)
+		}
+	}
 
 	rollbackSource := func() error {
 		if source == nil {
 			return nil
 		}
 		if oldSourceExists {
-			return writePluginFile(next.ID, "source.c", oldSource, pluginSourceMaxBytes)
+			return writePluginFile(next.ID, sourceFile, oldSource, sourceLimit)
 		}
-		return removePluginFileIfExists(next.ID, "source.c")
+		return removePluginFileIfExists(next.ID, sourceFile)
 	}
 	if source != nil {
-		if err := writePluginSource(next.ID, *source); err != nil {
+		if err := writePluginFile(next.ID, sourceFile, []byte(*source), sourceLimit); err != nil {
 			return err
 		}
-		if next.ObjectSHA256 == "" {
+		if next.Kind == PluginKindEBPF && next.ObjectSHA256 == "" {
 			if err := removePluginFileIfExists(next.ID, "program.o"); err != nil {
 				return errors.Join(err, rollbackSource())
 			}
@@ -380,8 +421,17 @@ func (s *pluginStore) Delete(id string) error {
 	return nil
 }
 
-func (s *pluginStore) SetEnabled(id string, enabled bool) (PluginManifest, error) {
-	_ = s.ensureLoaded()
+func (s *pluginStore) SetEnabled(ctx context.Context, id string, enabled bool) (PluginManifest, error) {
+	if err := s.ensureLoaded(); err != nil {
+		return PluginManifest{}, err
+	}
+	// Serialize enabling/disabling with JavaScript invocation, source updates,
+	// and plugin deletion. No prior invocation survives a successful disable.
+	releaseArtifacts, err := acquirePluginArtifactLock(ctx, id)
+	if err != nil {
+		return PluginManifest{}, err
+	}
+	defer releaseArtifacts()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	m, ok := s.entries[id]
@@ -393,6 +443,18 @@ func (s *pluginStore) SetEnabled(id string, enabled bool) (PluginManifest, error
 	next.UpdatedAt = time.Now().UTC()
 	if next.Kind == PluginKindEBPF && enabled && next.ObjectSHA256 == "" {
 		return PluginManifest{}, errors.New("enabled eBPF plugin requires a compiled object checksum")
+	}
+	if next.Kind == PluginKindJavaScript && enabled {
+		source, err := readPluginFile(id, "plugin.mjs", jsplugins.MaxSourceBytes)
+		if err != nil {
+			return PluginManifest{}, err
+		}
+		if next.SourceSHA256 == "" || sha256Hex(source) != next.SourceSHA256 {
+			return PluginManifest{}, errors.New("JavaScript plugin source checksum mismatch")
+		}
+		if err := jsplugins.ValidateRemote(ctx, os.Getenv("AGENT_EBPF_JS_WORKER_SOCKET"), string(source)); err != nil {
+			return PluginManifest{}, fmt.Errorf("validate JavaScript plugin in isolated worker: %w", err)
+		}
 	}
 	if err := validatePluginManifest(next); err != nil {
 		return PluginManifest{}, err
@@ -409,7 +471,13 @@ func PluginSource(id string) (string, error) {
 	if err := validatePluginID(id); err != nil {
 		return "", err
 	}
-	data, err := readPluginFile(id, "source.c", pluginSourceMaxBytes)
+	sourceFile := "source.c"
+	sourceLimit := pluginSourceMaxBytes
+	if manifest, ok := pluginRegistry.Get(id); ok && manifest.Kind == PluginKindJavaScript {
+		sourceFile = "plugin.mjs"
+		sourceLimit = jsplugins.MaxSourceBytes
+	}
+	data, err := readPluginFile(id, sourceFile, sourceLimit)
 	if errors.Is(err, os.ErrNotExist) {
 		return "", nil
 	}

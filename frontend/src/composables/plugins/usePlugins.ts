@@ -2,7 +2,7 @@ import { ref } from "vue";
 import axios from "axios";
 import { message } from "ant-design-vue";
 
-export type PluginKind = "ebpf" | "webhook" | "command";
+export type PluginKind = "ebpf" | "webhook" | "command" | "javascript";
 export type PluginAttachKind =
   | "tracepoint"
   | "kprobe"

@@ -1,0 +1,41 @@
+# /etc/systemd/system/agent-ebpf-jsplugin-worker.service
+# Install the separately built jsplugin-worker binary at /usr/local/libexec.
+# Backend requires root to access the DynamicUser 0600 socket.
+[Unit]
+Description=Agent eBPF isolated JavaScript plugin worker
+After=local-fs.target
+
+[Service]
+Type=notify
+NotifyAccess=main
+TimeoutStartSec=10s
+DynamicUser=yes
+ExecStart=/usr/local/libexec/agent-ebpf-jsplugin-worker --socket /run/agent-ebpf-jsplugin/worker.sock
+RuntimeDirectory=agent-ebpf-jsplugin
+RuntimeDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=yes
+PrivateNetwork=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+PrivateDevices=yes
+PrivateTmp=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+MemoryMax=128M
+TasksMax=32
+CPUQuota=50%
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
