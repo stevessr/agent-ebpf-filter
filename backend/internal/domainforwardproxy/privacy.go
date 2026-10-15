@@ -263,6 +263,9 @@ func (e *PrivacyEngine) detect(value string) []privacyMatch {
 					if char >= '0' && char <= '9' { digits++ }
 				}
 				if digits < 10 || digits > 15 { continue }
+				// Long unformatted digit runs are often IDs, epoch values or
+				// telemetry counters. Require explicit phone punctuation.
+				if digits > 11 && !strings.ContainsAny(raw, "+()- ") { continue }
 			}
 			if _, allowed := e.allowlist[raw]; allowed {
 				continue
