@@ -302,6 +302,14 @@ const updateDomainForwardRouteField = (
               />
             </div>
           </div>
+
+          <a-input
+            v-model:value="runtimeSettings.domainForwardProxy.bindAddress"
+            placeholder="绑定地址：127.0.0.1（推荐本地隐私网关）；留空表示监听所有网卡"
+          />
+          <a-checkbox v-model:checked="runtimeSettings.domainForwardProxy.httpsDisabled">
+            禁用 HTTPS 入站监听（供 127.0.0.1 HTTP 本地网关使用）
+          </a-checkbox>
           <div style="display: flex; align-items: center; gap: 12px">
             <a-switch
               v-model:checked="runtimeSettings.domainForwardProxy.allowAnyHost"
@@ -769,6 +777,9 @@ const updateDomainForwardRouteField = (
                     "
                   />
                 </div>
+                <a-checkbox v-model:checked="route.useUpstreamHost" style="margin-top: 8px">
+                  向上游发送其真实 Host（适用于 127.0.0.1 → AI API 的显式本地网关）
+                </a-checkbox>
               </a-col>
             </a-row>
           </a-card>
