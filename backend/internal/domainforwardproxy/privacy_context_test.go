@@ -181,8 +181,30 @@ func TestContextualPrivacyProxyDeniesBeforeUpstream(t *testing.T) {
 	}
 }
 
+func TestContextualPrivacyDeclassificationRecipientScope(t *testing.T) {
+	engine := NewPrivacyEngine(PrivacySettings{
+		Enabled: true,
+		Action: "redact",
+		JSONFieldRules: []PrivacyJSONFieldRule{
+			{Path: "/recipientEmail", Action: "allow", Recipient: "api.openai.com"},
+		},
+	})
+	body := []byte(`{"recipientEmail":"jane@example.com"}`)
+	trusted, _, report, err := engine.ApplyForRecipient("application/json", body, "api.openai.com")
+	if err != nil || report.Blocked || report.Redacted || !bytes.Equal(trusted, body) {
+		t.Fatalf("trusted recipient unexpectedly sanitized: %+v, %v", report, err)
+	}
+	untrusted, _, report, err := engine.ApplyForRecipient("application/json", body, "evil.example")
+	if err != nil || report.Blocked || !report.Redacted || bytes.Contains(untrusted, []byte("jane@example.com")) {
+		t.Fatalf("untrusted recipient inherited declassification: %+v, %v", report, err)
+	}
+	_, _, _, err = engine.Apply("application/json", body)
+	if err != nil { t.Fatalf("fallback without recipient should sanitize: %v", err) }
+}
+
 func TestContextualPrivacyInvalidFieldRulesFailClosed(t *testing.T) {
 	for _, rule := range []PrivacyJSONFieldRule{
+		{Path: "/payload", Action: "allow"},
 		{Path: "params/arguments", Action: "allow"},
 		{Path: "/params/~4bad", Action: "drop"},
 	} {
