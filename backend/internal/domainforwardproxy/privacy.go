@@ -20,6 +20,8 @@ type PrivacySettings struct {
 	MaxBodyBytes    int64    `json:"maxBodyBytes"`
 	Categories      []string `json:"categories,omitempty"`
 	Allowlist       []string `json:"allowlist,omitempty"`
+	ContextMode     string                 `json:"contextMode,omitempty"`
+	JSONFieldRules  []PrivacyJSONFieldRule `json:"jsonFieldRules,omitempty"`
 }
 
 const defaultPrivacyMaxBytes = int64(1 << 20)
@@ -93,6 +95,7 @@ func NormalizePrivacySettings(s *PrivacySettings) {
 		categories = []string{"secret", "email", "phone"}
 	}
 	s.Categories = categories
+	NormalizeContextSettings(s)
 	if len(s.Allowlist) > 100 {
 		s.Allowlist = s.Allowlist[:100]
 	}
@@ -153,6 +156,9 @@ func (e *PrivacyEngine) Apply(contentType string, body []byte) ([]byte, *Privacy
 	prefix := "[[AE_PRIV_" + hex.EncodeToString(nonce) + "_"
 	session := &PrivacySession{replacements: make(map[string]string)}
 	reverse := make(map[string]string)
+	if isJSON {
+		return e.applyContextualJSON(body, prefix, session, report)
+	}
 	count := 0
 	transform := func(value string) (string, bool) {
 		matches := e.detect(value)
