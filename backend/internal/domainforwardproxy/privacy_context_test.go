@@ -162,6 +162,28 @@ func TestContextualPrivacyMetadataEgress(t *testing.T) {
 	}
 }
 
+func TestContextualPrivacyRejectsUpgradedAndCONNECTTraffic(t *testing.T) {
+	var calls atomic.Int32
+	transport := testRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		calls.Add(1)
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("ok")), Header: make(http.Header)}, nil
+	})
+	handler := privacyHandler("redact", transport)
+	for _, method := range []string{http.MethodGet, http.MethodConnect} {
+		request := httptest.NewRequest(method, "https://api.openai.com/v1/responses", nil)
+		if method == http.MethodGet {
+			request.Header.Set("Connection", "keep-alive, Upgrade")
+			request.Header.Set("Upgrade", "websocket")
+		}
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusNotImplemented {
+			t.Errorf("%s: upgraded/tunneled traffic must be rejected, got %d", method, recorder.Code)
+		}
+	}
+	if calls.Load() != 0 { t.Fatal("uninspectable upgraded traffic reached upstream") }
+}
+
 func TestContextualPrivacyProxyDeniesBeforeUpstream(t *testing.T) {
 	var calls atomic.Int32
 	transport := testRoundTripFunc(func(r *http.Request) (*http.Response, error) {
