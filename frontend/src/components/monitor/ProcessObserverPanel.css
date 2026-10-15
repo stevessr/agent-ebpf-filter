@@ -1,5 +1,24 @@
+:root {
+  --obs-surface: #ffffff;
+  --obs-muted-surface: #f8fafc;
+  --obs-hover: #f1f5f9;
+  --obs-border: #e2e8f0;
+  --obs-strong: #1e293b;
+  --obs-text: #475569;
+  --obs-muted: #64748b;
+}
+:root[data-theme="dark"] {
+  --obs-surface: #191c22;
+  --obs-muted-surface: #202938;
+  --obs-hover: #28354a;
+  --obs-border: #344154;
+  --obs-strong: #e4edfa;
+  --obs-text: #b9c8dc;
+  --obs-muted: #92a4bd;
+}
+
 .observer-panel {
-  background: #fff;
+  background: var(--obs-surface);
   padding: 0;
   border-radius: 4px;
 }
@@ -26,8 +45,8 @@
   gap: 6px;
   margin-top: 8px;
   padding: 6px 8px;
-  background: #fafafa;
-  border: 1px solid #f0f0f0;
+  background: var(--obs-muted-surface);
+  border: 1px solid var(--obs-border);
   border-radius: 6px;
 }
 
@@ -49,17 +68,17 @@
 .sub-title {
   font-weight: 600;
   font-size: 13px;
-  color: #555;
+  color: var(--obs-strong);
   margin-bottom: 6px;
   padding-bottom: 4px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--obs-border);
   display: flex;
   align-items: center;
   gap: 6px;
 }
 .sub-count {
   font-size: 11px;
-  color: #6b7280;
+  color: var(--obs-muted);
   font-weight: 400;
 }
 .ssl-attach-comm {
@@ -77,13 +96,13 @@
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  background: #fafafa;
-  border: 1px solid #f0f0f0;
+  background: var(--obs-muted-surface);
+  border: 1px solid var(--obs-border);
   border-radius: 6px;
   transition: background 0.15s;
 }
 .ssl-pending-row:hover {
-  background: #f5f5f5;
+  background: var(--obs-hover);
 }
 .ssl-pending-pid {
   font-family: ui-monospace, monospace;
@@ -96,11 +115,11 @@
   font-family: ui-monospace, monospace;
   font-size: 12px;
   font-weight: 500;
-  color: #1f2937;
+  color: var(--obs-strong);
 }
 .ssl-pending-cmd {
   font-size: 11px;
-  color: #6b7280;
+  color: var(--obs-muted);
   font-family: ui-monospace, monospace;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -147,15 +166,15 @@
 .tls-expand-label {
   font-size: 11px;
   font-weight: 600;
-  color: #64748b;
+  color: var(--obs-muted);
   text-transform: uppercase;
   margin-bottom: 4px;
   padding-bottom: 2px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--obs-border);
 }
 .tls-headers-box {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--obs-muted-surface);
+  border: 1px solid var(--obs-border);
   border-radius: 4px;
   padding: 4px 8px;
   max-height: 160px;
@@ -169,12 +188,12 @@
 }
 .tls-header-key {
   font-weight: 600;
-  color: #475569;
+  color: var(--obs-text);
   font-family: ui-monospace, monospace;
   min-width: 120px;
 }
 .tls-header-val {
-  color: #334155;
+  color: var(--obs-strong);
   font-family: ui-monospace, monospace;
   word-break: break-all;
 }
@@ -196,8 +215,8 @@
   white-space: pre-wrap;
 }
 .tls-body-text {
-  background: #f1f5f9;
-  color: #1e293b;
+  background: var(--obs-muted-surface);
+  color: var(--obs-strong);
   padding: 10px;
   border-radius: 6px;
   font-size: 12px;
@@ -215,27 +234,27 @@
   line-height: 1.8;
 }
 .tls-ctx-key {
-  color: #64748b;
+  color: var(--obs-muted);
   font-weight: 500;
   min-width: 55px;
 }
 .tls-ctx-row code {
   font-family: ui-monospace, monospace;
   font-size: 10px;
-  color: #334155;
-  background: #f1f5f9;
+  color: var(--obs-strong);
+  background: var(--obs-muted-surface);
   padding: 1px 4px;
   border-radius: 3px;
 }
 .tls-sse-info {
   font-size: 11px;
-  color: #64748b;
+  color: var(--obs-muted);
   font-family: ui-monospace, monospace;
 }
 .tls-body-preview {
   font-family: ui-monospace, monospace;
   font-size: 10px;
-  color: #475569;
+  color: var(--obs-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -250,7 +269,7 @@
 .path-fallback {
   font-family: ui-monospace, monospace;
   font-size: 10px;
-  color: #64748b;
+  color: var(--obs-muted);
   max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;

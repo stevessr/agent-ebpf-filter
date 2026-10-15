@@ -107,7 +107,7 @@ const {
         <div
           style="
             margin-bottom: 16px;
-            background: #fafafa;
+            background: var(--ui-surface-muted);
             padding: 16px;
             border-radius: 8px;
           "
@@ -123,7 +123,7 @@ const {
           >
             <div>
               <div style="font-weight: 600">典型规则快捷添加</div>
-              <div style="font-size: 12px; color: #6b7280">
+              <div style="font-size: 12px; color: var(--ui-text-muted)">
                 参考 Gemini CLI / Codex / Hermes
                 的常见高风险命令，点击即可写入预设规则。
               </div>
@@ -165,7 +165,7 @@ const {
         <div
           style="
             margin-bottom: 16px;
-            background: #fafafa;
+            background: var(--ui-surface-muted);
             padding: 16px;
             border-radius: 8px;
           "
@@ -181,7 +181,7 @@ const {
           >
             <div>
               <div style="font-weight: 600">外部规则一键获取</div>
-              <div style="font-size: 12px; color: #6b7280">
+              <div style="font-size: 12px; color: var(--ui-text-muted)">
                 从社区维护的 AI
                 代理安全规则集中获取最新规则，支持预览后一键导入。
               </div>
@@ -203,7 +203,7 @@ const {
                 <div
                   style="
                     font-size: 11px;
-                    color: #6b7280;
+                    color: var(--ui-text-muted);
                     margin-bottom: 8px;
                     min-height: 32px;
                   "
@@ -279,7 +279,7 @@ const {
         <div
           style="
             margin-bottom: 16px;
-            background: #fafafa;
+            background: var(--ui-surface-muted);
             padding: 16px;
             border-radius: 8px;
           "
@@ -329,7 +329,7 @@ const {
               </a-col>
             </template>
             <a-col v-else :xs="24" :md="12">
-              <span style="color: #6b7280; font-size: 12px"
+              <span style="color: var(--ui-text-muted); font-size: 12px"
                 >当命令通过 agent-wrapper 调用时进行拦截，并按策略阻断或告警</span
               >
             </a-col>
@@ -371,7 +371,7 @@ const {
                   <a-col :span="11">
                     <div
                       style="
-                        background: #fff;
+                        background: var(--ui-surface);
                         padding: 4px 11px;
                         border: 1px solid #d9d9d9;
                         border-radius: 2px;
@@ -566,7 +566,7 @@ const {
                     <div
                       style="
                         font-size: 11px;
-                        color: #6b7280;
+                        color: var(--ui-text-muted);
                         white-space: nowrap;
                         overflow: hidden;
                         text-overflow: ellipsis;

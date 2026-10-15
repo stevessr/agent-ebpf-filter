@@ -107,7 +107,7 @@ const ancestorChain = computed<string>(() => {
         >
           {{ process.name.charAt(0).toUpperCase() }}
         </a-avatar>
-        <span style="font-size: 16px; font-weight: 600; color: #1f2937">
+        <span style="font-size: 16px; font-weight: 600; color: var(--ui-text-strong)">
           {{ process.name }}
         </span>
         <code style="font-size: 14px; color: #1677ff; font-weight: 700">
@@ -150,7 +150,7 @@ const ancestorChain = computed<string>(() => {
           <span v-if="process.gpuUtil != null && process.gpuUtil >= 0">
             {{ process.gpuUtil.toFixed(1) }}%
           </span>
-          <span v-else style="color: #6b7280">—</span>
+          <span v-else style="color: var(--ui-text-muted)">—</span>
         </a-descriptions-item>
 
         <a-descriptions-item label="Children" :span="1">
@@ -213,7 +213,7 @@ const ancestorChain = computed<string>(() => {
 
 <style scoped>
 .duration-dead {
-  color: #6b7280;
+  color: var(--ui-text-muted);
   font-style: italic;
 }
 </style>

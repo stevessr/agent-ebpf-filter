@@ -102,7 +102,7 @@ const openGpuPowerHistory = (gpu: GPUStatus) => {
         :key="gpu.index"
         size="small"
         :bordered="false"
-        style="background: #fafafa"
+        style="background: var(--ui-surface-muted)"
       >
         <!-- Header -->
         <template #title>
@@ -115,7 +115,7 @@ const openGpuPowerHistory = (gpu: GPUStatus) => {
             "
           >
             <span style="font-weight: bold">GPU #{{ gpu.index }}</span>
-            <span style="font-family: monospace; color: #4b5563">{{
+            <span style="font-family: monospace; color: var(--ui-text-muted)">{{
               gpu.name
             }}</span>
             <a-tag
@@ -153,7 +153,7 @@ const openGpuPowerHistory = (gpu: GPUStatus) => {
               style="
                 margin-top: 8px;
                 font-size: 13px;
-                color: #4b5563;
+                color: var(--ui-text-muted);
                 cursor: pointer;
               "
               role="button"
@@ -182,7 +182,7 @@ const openGpuPowerHistory = (gpu: GPUStatus) => {
               style="
                 margin-top: 8px;
                 font-size: 13px;
-                color: #4b5563;
+                color: var(--ui-text-muted);
                 cursor: pointer;
               "
               role="button"
@@ -206,7 +206,7 @@ const openGpuPowerHistory = (gpu: GPUStatus) => {
               "
             >
               <span style="font-size: 36px; color: #d9d9d9">⊕</span>
-              <span style="font-size: 12px; color: #4b5563; margin-top: 8px"
+              <span style="font-size: 12px; color: var(--ui-text-muted); margin-top: 8px"
                 >Shared System Memory</span
               >
             </div>
@@ -218,7 +218,7 @@ const openGpuPowerHistory = (gpu: GPUStatus) => {
               <!-- VRAM stats -->
               <template v-if="!isIntegrated(gpu) && (gpu.memTotal ?? 0) > 0">
                 <div
-                  style="font-size: 12px; color: #4b5563; cursor: pointer"
+                  style="font-size: 12px; color: var(--ui-text-muted); cursor: pointer"
                   title="点击查看 VRAM 使用历史"
                   role="button"
                   tabindex="0"
@@ -247,7 +247,7 @@ const openGpuPowerHistory = (gpu: GPUStatus) => {
                 />
               </template>
               <template v-else-if="isIntegrated(gpu) && (gpu.memUsed ?? 0) > 0">
-                <div style="font-size: 12px; color: #4b5563">
+                <div style="font-size: 12px; color: var(--ui-text-muted)">
                   Shared Mem: {{ ((gpu.memUsed ?? 0) / 1024).toFixed(2) }} GB
                 </div>
               </template>
@@ -260,14 +260,14 @@ const openGpuPowerHistory = (gpu: GPUStatus) => {
               >
                 Temperature: {{ gpu.temp }}°C
               </div>
-              <div v-else style="font-size: 12px; color: #6b7280">
+              <div v-else style="font-size: 12px; color: var(--ui-text-muted)">
                 Temp sensor unavailable
               </div>
 
               <!-- Power -->
               <div
                 v-if="(gpu.powerW ?? 0) > 0"
-                style="font-size: 12px; color: #4b5563"
+                style="font-size: 12px; color: var(--ui-text-muted)"
               >
                 <div
                   style="cursor: pointer"
@@ -309,7 +309,7 @@ const openGpuPowerHistory = (gpu: GPUStatus) => {
               <!-- Fan -->
               <div
                 v-if="(gpu.fanSpeed ?? 0) > 0"
-                style="font-size: 12px; color: #4b5563"
+                style="font-size: 12px; color: var(--ui-text-muted)"
               >
                 Fan: {{ gpu.fanSpeed }}%
                 <a-progress
@@ -334,7 +334,7 @@ const openGpuPowerHistory = (gpu: GPUStatus) => {
               (gpu.smClockMhz ?? 0) > 0 ||
               (gpu.memClockMhz ?? 0) > 0)
           "
-          style="margin: 12px 0 8px; font-size: 11px; color: #4b5563"
+          style="margin: 12px 0 8px; font-size: 11px; color: var(--ui-text-muted)"
         >
           Engine Details
         </a-divider>
@@ -353,7 +353,7 @@ const openGpuPowerHistory = (gpu: GPUStatus) => {
               :stroke-color="encColor(gpu.encUtil ?? 0)"
               :format="fmtPct(gpu.encUtil ?? 0)"
             />
-            <div style="font-size: 11px; color: #4b5563; margin-top: 4px">
+            <div style="font-size: 11px; color: var(--ui-text-muted); margin-top: 4px">
               Encoder (NVENC)
             </div>
           </a-col>
@@ -371,7 +371,7 @@ const openGpuPowerHistory = (gpu: GPUStatus) => {
               :stroke-color="decColor(gpu.decUtil ?? 0)"
               :format="fmtPct(gpu.decUtil ?? 0)"
             />
-            <div style="font-size: 11px; color: #4b5563; margin-top: 4px">
+            <div style="font-size: 11px; color: var(--ui-text-muted); margin-top: 4px">
               Decoder (NVDEC)
             </div>
           </a-col>
@@ -387,7 +387,7 @@ const openGpuPowerHistory = (gpu: GPUStatus) => {
                   font-size: 12px;
                 "
               >
-                <span style="color: #4b5563">Graphics Clock</span>
+                <span style="color: var(--ui-text-muted)">Graphics Clock</span>
                 <span style="font-weight: bold; font-family: monospace"
                   >{{ gpu.gfxClockMhz }} MHz</span
                 >
@@ -400,7 +400,7 @@ const openGpuPowerHistory = (gpu: GPUStatus) => {
                   font-size: 12px;
                 "
               >
-                <span style="color: #4b5563">SM Clock</span>
+                <span style="color: var(--ui-text-muted)">SM Clock</span>
                 <span style="font-weight: bold; font-family: monospace"
                   >{{ gpu.smClockMhz }} MHz</span
                 >
@@ -413,7 +413,7 @@ const openGpuPowerHistory = (gpu: GPUStatus) => {
                   font-size: 12px;
                 "
               >
-                <span style="color: #4b5563">Memory Clock</span>
+                <span style="color: var(--ui-text-muted)">Memory Clock</span>
                 <span style="font-weight: bold; font-family: monospace"
                   >{{ gpu.memClockMhz }} MHz</span
                 >

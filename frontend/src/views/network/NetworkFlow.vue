@@ -141,7 +141,7 @@ const startResize = (e: MouseEvent) => {
 </script>
 
 <template>
-  <div style="padding: 20px; background: #f0f2f5; min-height: 100%">
+  <div style="padding: 20px; background: var(--ui-surface-muted); min-height: 100%">
     <!-- ── Stat cards (always visible) ──────────────────────────── -->
     <a-row :gutter="[16, 16]" style="margin-bottom: 16px">
       <a-col :xs="12" :sm="6">
@@ -149,7 +149,7 @@ const startResize = (e: MouseEvent) => {
           <div style="display: flex; align-items: center; gap: 12px">
             <ArrowDownOutlined style="font-size: 24px; color: #1890ff" />
             <div>
-              <div style="font-size: 12px; color: #4a4a4a">Download</div>
+              <div style="font-size: 12px; color: var(--ui-text-muted)">Download</div>
               <div style="font-size: 22px; font-weight: bold; color: #1890ff">
                 {{ formatBytes(displayTotalNetRecv, 1) }}/s
               </div>
@@ -158,11 +158,11 @@ const startResize = (e: MouseEvent) => {
         </a-card>
       </a-col>
       <a-col :xs="12" :sm="6">
-        <a-card size="small" :bordered="false" style="background: #f6ffed">
+        <a-card size="small" :bordered="false" style="background: var(--ui-success-soft)">
           <div style="display: flex; align-items: center; gap: 12px">
             <ArrowUpOutlined style="font-size: 24px; color: #52c41a" />
             <div>
-              <div style="font-size: 12px; color: #4a4a4a">Upload</div>
+              <div style="font-size: 12px; color: var(--ui-text-muted)">Upload</div>
               <div style="font-size: 22px; font-weight: bold; color: #52c41a">
                 {{ formatBytes(displayTotalNetSent, 1) }}/s
               </div>
@@ -175,7 +175,7 @@ const startResize = (e: MouseEvent) => {
           <div style="display: flex; align-items: center; gap: 12px">
             <GlobalOutlined style="font-size: 24px; color: #fa8c16" />
             <div>
-              <div style="font-size: 12px; color: #4a4a4a">Active Flows</div>
+              <div style="font-size: 12px; color: var(--ui-text-muted)">Active Flows</div>
               <div style="font-size: 22px; font-weight: bold; color: #fa8c16">
                 {{ flowList.length }}
               </div>
@@ -188,7 +188,7 @@ const startResize = (e: MouseEvent) => {
           <div style="display: flex; align-items: center; gap: 12px">
             <AlertOutlined style="font-size: 24px; color: #722ed1" />
             <div>
-              <div style="font-size: 12px; color: #4a4a4a">Suspicious</div>
+              <div style="font-size: 12px; color: var(--ui-text-muted)">Suspicious</div>
               <div style="font-size: 22px; font-weight: bold; color: #722ed1">
                 {{ suspiciousFlows().length }}
               </div>
@@ -217,15 +217,15 @@ const startResize = (e: MouseEvent) => {
                 :text="isConnected ? 'Connected' : 'Disconnected'"
               />
               <a-divider type="vertical" />
-              <span style="font-size: 12px; color: #475569">
+              <span style="font-size: 12px; color: var(--ui-text-secondary)">
                 Session: ↓{{ formatBytes(cumRecv, 1) }} ↑{{
                   formatBytes(cumSent, 1)
                 }}
               </span>
-              <span style="font-size: 12px; color: #475569">
+              <span style="font-size: 12px; color: var(--ui-text-secondary)">
                 TCP Est: {{ establishedConns().length }}
               </span>
-              <span style="font-size: 12px; color: #475569">
+              <span style="font-size: 12px; color: var(--ui-text-secondary)">
                 DNS: {{ dnsMap.length }}
               </span>
             </div>
@@ -361,7 +361,7 @@ const startResize = (e: MouseEvent) => {
                     }}</span>
                   </div>
                   <a-divider type="vertical" />
-                  <span style="font-size: 12px; color: #4a4a4a">
+                  <span style="font-size: 12px; color: var(--ui-text-muted)">
                     Public: {{ publicFlows().length }} | ↓{{
                       formatBytes(totalBytesIn())
                     }}
@@ -420,7 +420,7 @@ const startResize = (e: MouseEvent) => {
                 gap: 6px;
                 flex-wrap: wrap;
                 font-size: 12px;
-                color: #64748b;
+                color: var(--ui-text-muted);
               "
             >
               <span>Quick:</span>
@@ -475,7 +475,7 @@ const startResize = (e: MouseEvent) => {
                         style="
                           font-family: monospace;
                           font-size: 11px;
-                          color: #64748b;
+                          color: var(--ui-text-muted);
                         "
                         >{{ record.srcIp }}:{{ record.srcPort }}</span
                       >
@@ -872,7 +872,7 @@ const startResize = (e: MouseEvent) => {
       <div
         v-if="showInterfaceChartModal"
         style="
-          background: #fff;
+          background: var(--ui-surface);
           padding: 10px;
           border-radius: 4px;
           border: 1px solid #f0f0f0;

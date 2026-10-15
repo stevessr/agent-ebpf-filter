@@ -14,7 +14,7 @@
   border: 1px solid var(--workflow-border);
   background: linear-gradient(
     135deg,
-    #ffffff 0%,
+    var(--workflow-surface) 0%,
     var(--workflow-primary-subtle) 100%
   );
   color: var(--workflow-text-secondary);
@@ -126,7 +126,7 @@
 }
 
 .block-body {
-  background: #ffffff;
+  background: var(--workflow-surface);
   padding: 18px;
   color: var(--workflow-text-secondary);
 }
@@ -278,8 +278,8 @@
 .map-workspace-shell .ant-input,
 .map-workspace-shell .ant-input-number,
 .map-workspace-shell .ant-radio-button-wrapper {
-  background-color: #ffffff !important;
-  border-color: #d9d9d9 !important;
+  background-color: var(--workflow-surface) !important;
+  border-color: var(--workflow-border) !important;
   color: var(--workflow-text) !important;
 }
 
@@ -299,7 +299,7 @@
 }
 
 .map-workspace-shell .ant-btn-dashed {
-  background: #ffffff !important;
+  background: var(--workflow-surface) !important;
   border-color: var(--workflow-border) !important;
   color: var(--workflow-text-muted) !important;
 }
@@ -310,7 +310,7 @@
 }
 
 .map-workspace-shell .ant-card {
-  background: #ffffff !important;
+  background: var(--workflow-surface) !important;
   border-color: var(--workflow-border) !important;
 }
 

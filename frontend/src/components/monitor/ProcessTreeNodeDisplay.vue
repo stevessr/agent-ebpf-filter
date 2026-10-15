@@ -169,7 +169,7 @@ const durationLabel = computed(() => {
 .tree-toggle {
   width: 14px;
   flex-shrink: 0;
-  color: #4b5563;
+  color: var(--ui-text-muted);
   font-size: 10px;
   cursor: pointer;
 }
@@ -179,10 +179,10 @@ const durationLabel = computed(() => {
   min-width: 50px;
 }
 .tree-name {
-  color: #1f2937;
+  color: var(--ui-text-strong);
 }
 .tree-ppid {
-  color: #6b7280;
+  color: var(--ui-text-muted);
   font-size: 11px;
 }
 .tree-focus-btn {
@@ -202,18 +202,18 @@ const durationLabel = computed(() => {
 }
 .tree-usage {
   margin-left: auto;
-  color: #4b5563;
+  color: var(--ui-text-muted);
   font-size: 11px;
 }
 .tree-time {
   margin-left: 12px;
-  color: #6b7280;
+  color: var(--ui-text-muted);
   font-size: 11px;
   font-family: ui-monospace, monospace;
   cursor: help;
 }
 .tree-duration {
-  color: #6b7280;
+  color: var(--ui-text-muted);
   font-size: 10px;
   margin-left: 4px;
 }
@@ -232,18 +232,18 @@ const durationLabel = computed(() => {
   background: #f5f5f5;
 }
 .tree-node-row.dead .tree-pid {
-  color: #6b7280;
+  color: var(--ui-text-muted);
 }
 .tree-node-row.dead .tree-name {
-  color: #6b7280;
+  color: var(--ui-text-muted);
   font-style: italic;
 }
 .tree-node-row.dead .tree-ppid {
-  color: #6b7280;
+  color: var(--ui-text-muted);
 }
 .tree-dead-tag {
   font-size: 9px;
-  color: #4b5563;
+  color: var(--ui-text-muted);
   background: #e5e7eb;
   border: 1px solid #e0e0e0;
   border-radius: 3px;
