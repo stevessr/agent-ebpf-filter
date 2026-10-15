@@ -1,16 +1,25 @@
 <script setup lang="ts">
-import { defineAsyncComponent } from "vue";
+import { computed, defineAsyncComponent } from "vue";
+import { systemIsDark } from "../../composables/useSystemTheme";
 
 const VueApexCharts = defineAsyncComponent(
   async () => (await import("vue3-apexcharts")).default as any,
 ) as any;
 
-defineProps<{
+const props = defineProps<{
   show: boolean;
   title: string;
   series: any[];
   chartOptions: any;
 }>();
+
+const themedOptions = computed(() => ({
+  ...props.chartOptions,
+  theme: { ...props.chartOptions?.theme, mode: systemIsDark.value ? "dark" : "light" },
+  chart: { ...props.chartOptions?.chart, foreColor: systemIsDark.value ? "#bdc4d1" : "#475569" },
+  grid: { ...props.chartOptions?.grid, borderColor: systemIsDark.value ? "#334155" : "#e2e8f0" },
+  tooltip: { ...props.chartOptions?.tooltip, theme: systemIsDark.value ? "dark" : "light" },
+}));
 
 const emit = defineEmits<{
   "update:show": [value: boolean];
@@ -29,7 +38,7 @@ const emit = defineEmits<{
       <VueApexCharts
         type="line"
         height="380"
-        :options="chartOptions"
+        :options="themedOptions"
         :series="series"
       />
     </div>
