@@ -23,6 +23,9 @@ type renewApp struct {
 	lastSync   time.Time
 
 	page   string
+	lineageMode int // 0 radial, 1 waterfall
+	lineageRootChoice string
+	lineageSelectedPID int
 	files  localFileWorkspace
 	search string
 	paused bool
@@ -440,6 +443,8 @@ func pageSubtitle(page string) string {
 		return "实时事件、风险筛选与按需详情"
 	case "会话":
 		return "按 Agent 上下文聚合运行会话"
+	case "派生":
+		return "Agent 调用关系与实时派生进程（放射图 / 瀑布图）"
 	case "网络":
 		return "外联目标与摘要窗口聚合"
 	case "域名":
