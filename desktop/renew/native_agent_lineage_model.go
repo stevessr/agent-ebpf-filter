@@ -37,8 +37,8 @@ func eventMatchesLiveProcess(e eventSummary, p systemProcess) bool {
 	if e.PID != p.PID {
 		return false
 	}
-	if p.CreateTime > 0 && e.ReceivedAtMS > 0 &&
-		e.ReceivedAtMS < p.CreateTime*1000-2000 {
+	if p.CreateTime > 0 && (e.ReceivedAtMS <= 0 ||
+		e.ReceivedAtMS < p.CreateTime*1000-2000) {
 		return false
 	}
 	return true
@@ -146,7 +146,7 @@ func buildAgentLineage(processes []systemProcess, events []eventSummary, rootPID
 				continue
 			}
 			node.Events++
-			if e.RiskScore >= 60 || e.Type == "semantic_alert" || e.Type == "agentsight_alert" {
+			if eventRisk(e) != "正常" || e.Type == "semantic_alert" || e.Type == "agentsight_alert" {
 				node.Alerts++
 			}
 		}
