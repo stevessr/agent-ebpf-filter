@@ -71,11 +71,11 @@ const eCores = computed(() =>
     <div
       v-if="cpuView === 'overall'"
       style="
-        background: #fafafa;
+        background: var(--ui-surface-muted);
         padding: 24px;
         border-radius: 8px;
         text-align: center;
-        border: 1px solid #f0f0f0;
+        border: 1px solid var(--ui-border);
       "
     >
       <a-progress
@@ -118,7 +118,7 @@ const eCores = computed(() =>
               border: 1px solid #e6f0ff;
               border-radius: 8px;
               text-align: center;
-              background: #fafcff;
+              background: var(--ui-primary-soft);
               cursor: pointer;
               transition: all 0.2s;
             "
@@ -210,7 +210,7 @@ const eCores = computed(() =>
               border: 1px solid #e6ffe6;
               border-radius: 8px;
               text-align: center;
-              background: #fafffa;
+              background: var(--ui-success-soft);
               cursor: pointer;
               transition: all 0.2s;
             "
@@ -286,12 +286,12 @@ const eCores = computed(() =>
 <style scoped>
 .core-card--p:hover {
   border-color: #91caff !important;
-  background: #f0f7ff !important;
+  background: var(--ui-primary-soft) !important;
   box-shadow: 0 2px 8px rgba(24, 144, 255, 0.12);
 }
 .core-card--e:hover {
   border-color: #95de64 !important;
-  background: #f6ffed !important;
+  background: var(--ui-success-soft) !important;
   box-shadow: 0 2px 8px rgba(82, 196, 26, 0.12);
 }
 </style>

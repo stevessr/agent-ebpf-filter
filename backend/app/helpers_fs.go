@@ -367,7 +367,7 @@ func refreshHooksPaths() {
 	for i := range availableHooks {
 		if availableHooks[i].HookType == HookTypeNative {
 			switch availableHooks[i].ID {
-			case "claude":
+			case "claude", "claude-subagent-start", "claude-subagent-stop":
 				availableHooks[i].NativeConfigPath = filepath.Join(home, ".claude", "settings.json")
 			case "gemini":
 				availableHooks[i].NativeConfigPath = filepath.Join(home, ".gemini", "settings.json")

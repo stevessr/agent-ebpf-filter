@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 
 	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
@@ -20,9 +21,11 @@ import (
 const terminalScrollbackBytes = 8 << 20
 
 type renewTerminalPane struct {
+	owner    atomic.Pointer[renewApp]
 	id       int
 	term     *terminal.Terminal
 	startDir string
+	finished atomic.Bool
 	exited   bool
 	exitCode int
 }
@@ -132,6 +135,7 @@ func (n *renewTerminalNode) closeAll() {
 		return
 	}
 	if n.pane != nil {
+		n.pane.finished.Store(true)
 		if n.pane.term != nil {
 			_ = n.pane.term.Close()
 			n.pane.term = nil
@@ -143,6 +147,9 @@ func (n *renewTerminalNode) closeAll() {
 }
 
 func (a *renewApp) nextTerminalID() int {
+	if a.detachedParent != nil {
+		return a.detachedParent.nextTerminalID()
+	}
 	a.terminalNextID++
 	return a.terminalNextID
 }
@@ -156,22 +163,35 @@ func terminalHomeDir() string {
 }
 
 func (a *renewApp) newTerminalPane(dir string) (*renewTerminalPane, error) {
+	return a.newTerminalPaneCommand(dir, nil)
+}
+
+// A harness is executed directly by the PTY (never through sh -c).
+func (a *renewApp) newTerminalPaneCommand(dir string, command []string) (*renewTerminalPane, error) {
 	if dir == "" {
 		dir = terminalHomeDir()
 	}
 	pane := &renewTerminalPane{id: a.nextTerminalID(), startDir: dir}
+	pane.owner.Store(a)
 	term, err := terminal.New(terminal.Options{
+		Command:    command,
 		Dir:        dir,
 		Scrollback: terminalScrollbackBytes,
 		Font:       terminal.Font{Family: "monospace", Size: 13},
 		OnExit: func(code int) {
-			if a.terminalClosing.Load() {
+			pane.finished.Store(true)
+			// The same PTY may be moved between windows while its process exits.
+			owner := pane.owner.Load()
+			if owner == nil || owner.terminalClosing.Load() {
 				return
 			}
-			a.update(func() {
+			owner.update(func() {
 				pane.exited = true
 				pane.exitCode = code
 			})
+			if owner.detachedParent != nil {
+				owner.detachedParent.update(func() {})
+			}
 		},
 	})
 	if err != nil {
@@ -194,11 +214,15 @@ func (a *renewApp) newTerminalTab(dir string) {
 		a.terminalError = fmt.Sprintf("无法打开终端：%v", err)
 		return
 	}
+	a.appendTerminalTab(pane, fmt.Sprintf("终端 %d", len(a.terminalTabs)+1))
+}
+
+func (a *renewApp) appendTerminalTab(pane *renewTerminalPane, label string) {
 	a.terminalError = ""
 	id := a.nextTerminalID()
 	tab := &renewTerminalTab{
 		id:    id,
-		label: fmt.Sprintf("终端 %d", len(a.terminalTabs)+1),
+		label: label,
 		root:  &renewTerminalNode{id: pane.id, pane: pane},
 		focus: pane.id,
 	}
@@ -261,6 +285,7 @@ func (a *renewApp) closeFocusedTerminal() {
 	if pane == nil {
 		return
 	}
+	pane.finished.Store(true)
 	if pane.term != nil {
 		_ = pane.term.Close()
 		pane.term = nil
@@ -301,6 +326,9 @@ func (a *renewApp) closeTerminalTab(index int) {
 
 func (a *renewApp) closeTerminals() {
 	a.terminalClosing.Store(true)
+	for _, child := range a.detachedTerminals {
+		child.closeTerminals()
+	}
 	for _, tab := range a.terminalTabs {
 		tab.root.closeAll()
 	}
@@ -361,6 +389,28 @@ func (a *renewApp) terminalView(c *ui.Context) {
 					a.newTerminalTab(a.terminalWorkingDir())
 				}
 				tab := a.currentTerminalTab()
+				if a.detachedParent != nil {
+					if tab != nil {
+						if ui.Button(c, "收回当前标签").Tooltip("只将当前标签移回主窗口，其余 Shell 继续运行").Clicked() {
+							a.dockFocusedDetachedTab()
+							return
+						}
+						if len(a.terminalTabs) > 1 && ui.Button(c, "再分离当前标签").Tooltip("将此子窗口内的标签分离到第三个原生窗口").Clicked() {
+							a.openDetachedTerminalTab()
+							return
+						}
+					}
+					if ui.Button(c, "收回全部标签").Tooltip("关闭此窗口，把所有剩余终端标签移回主窗口").Clicked() && a.win != nil {
+						a.win.Close()
+						a.detachedParent.revealDockedTerminal()
+						return
+					}
+				} else if tab != nil {
+					if ui.Button(c, "分离当前标签").Tooltip("将选中终端标签移到独立原生窗口，不重启 PTY").Clicked() {
+						a.openDetachedTerminalTab()
+						return
+					}
+				}
 				if tab != nil {
 					if ui.Button(c, "左右拆分").Clicked() {
 						a.splitFocusedTerminal(false)
@@ -385,6 +435,8 @@ func (a *renewApp) terminalView(c *ui.Context) {
 				}
 			}).Grow(1).MinWidth(0).Label("终端操作")
 		})
+		a.codingHarnessToolbar(c)
+		a.harnessUpdaterView(c)
 		// A native tablist adds focus, arrow-key and Home/End navigation.
 		// Horizontal scrolling prevents many tabs from forcing a wider PTY.
 		ui.Row(c).Height(36).MinWidth(0).Gap(8).AlignItems(ui.Center).Children(func() {
@@ -425,14 +477,7 @@ func (a *renewApp) terminalView(c *ui.Context) {
 			})
 			return
 		}
-		if tab.zoom != 0 {
-			if pane := tab.root.findPane(tab.zoom); pane != nil {
-				a.terminalPaneView(c, tab, pane).Grow(1).MinHeight(0)
-				return
-			}
-			tab.zoom = 0
-		}
-		a.terminalNodeView(c, tab, tab.root).Grow(1).MinHeight(0).MinWidth(0)
+		a.terminalWorkArea(c, tab)
 	})
 }
 

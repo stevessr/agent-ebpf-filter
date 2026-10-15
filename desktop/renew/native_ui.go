@@ -23,6 +23,12 @@ type renewApp struct {
 	lastSync   time.Time
 
 	page   string
+	lineageMode int // 0 radial, 1 waterfall
+	lineageRootChoice string
+	lineageSelectedPID int
+	lineageSignalTable ui.ListState
+	lineageSignalSelected int
+	files  localFileWorkspace
 	search string
 	paused bool
 
@@ -34,7 +40,29 @@ type renewApp struct {
 	terminalNextID int
 	terminalFocusRequest int
 	terminalError string
+	// Coding CLI detection is cached until explicitly refreshed.
+	codingHarnessPaths map[string]string
+	// Installer discovery is read-only and decoupled from the privileged backend.
+	harnessUpdatePlans []harnessUpdatePlan
+	harnessUpdateScanned bool
+	harnessUpdateBusy bool
+	harnessUpdateSelected string
+	harnessUpdateConfirm string
+	harnessUpdateError string
+	// DeepSeek runs as an unprivileged terminal pane; only its loopback UI is embedded.
+	deepseekPane *renewTerminalPane
+	deepseekWebView *mygo.WebView
+	deepseekPort int
+	deepseekStatus string
+	deepseekVisible bool
 	terminalClosing atomic.Bool
+	// Floating windows share this process and never start another collector.
+	detachedParent *renewApp
+	detachedTerminals map[int]*renewApp
+	detachedPages map[string]*renewApp
+	detachedPageID string
+	// True only when the main window was hidden to keep detached windows alive.
+	hiddenForDetached bool
 	navigationOpen bool
 	navigationDetailed bool
 	inspectorOpen bool
@@ -139,6 +167,7 @@ type renewApp struct {
 	eventDelegatedOnly  bool
 	eventReturnPage     string
 	eventRiskFilter     string
+	eventMinRiskScore   float64
 	eventTypeFilter     string
 	eventSessionFilter  string
 	eventDecisionFilter string
@@ -244,6 +273,7 @@ func newRenewApp(backend string) *renewApp {
 		backend:            backend,
 		starting:           true,
 		page:               "概览",
+		files:              localFileWorkspace{active: -1},
 		navigationOpen:       false,
 		inspectorOpen:      true,
 		materialEnabled:    true,
@@ -272,6 +302,7 @@ func newRenewApp(backend string) *renewApp {
 	a.processTable.Selected = &a.processSelected
 	a.domainTable.Selected = &a.domainSelected
 	a.sessionTable.Selected = &a.sessionSelected
+	a.lineageSignalTable.Selected = &a.lineageSignalSelected
 	a.rulesTable.Selected = &a.ruleSelected
 	a.commTable.Selected = &a.commSelected
 	a.agentTable.Selected = &a.agentSelected
@@ -439,6 +470,8 @@ func pageSubtitle(page string) string {
 		return "实时事件、风险筛选与按需详情"
 	case "会话":
 		return "按 Agent 上下文聚合运行会话"
+	case "派生":
+		return "Agent 调用关系与实时派生进程（放射图 / 瀑布图）"
 	case "网络":
 		return "外联目标与摘要窗口聚合"
 	case "域名":
@@ -463,6 +496,10 @@ func pageSubtitle(page string) string {
 		return "CC-Switch、AstrLink、CCR、Antigravity 与 eBPF 事件联动"
 	case "终端":
 		return "普通用户 Shell · Ghostty VT · 多标签与分屏"
+	case "文件":
+		return "不经特权后端的本地文件浏览与管理"
+	case "编辑器":
+		return "MyGo 原生 UTF-8 代码编辑、语法高亮与保存"
 	default:
 		return "健康、风险与最近活动"
 	}
@@ -550,7 +587,7 @@ func (a *renewApp) errorView(c *ui.Context) {
 
 func (a *renewApp) eventFilterCacheKey() string {
 	q := strings.ToLower(strings.TrimSpace(a.search))
-	key := q + "\x00" + a.eventTypeFilter + "\x00" + a.eventSessionFilter + "\x00" + a.eventDecisionFilter + "\x00" + fmt.Sprint(a.eventPIDFilter) + "\x00" + fmt.Sprint(a.eventRootPIDFilter) + "\x00" + a.eventTargetFilter + "\x00" + a.eventDomainAgent + "\x00" + a.eventDomainTarget + "\x00" + a.eventDomainKind + "\x00" + fmt.Sprint(a.eventFileEditsOnly) + "\x00" + fmt.Sprint(a.eventDelegatedOnly) + "\x00" + a.eventRiskFilter + "\x00" + a.managementEventFilter
+	key := q + "\x00" + a.eventTypeFilter + "\x00" + a.eventSessionFilter + "\x00" + a.eventDecisionFilter + "\x00" + fmt.Sprint(a.eventPIDFilter) + "\x00" + fmt.Sprint(a.eventRootPIDFilter) + "\x00" + a.eventTargetFilter + "\x00" + a.eventDomainAgent + "\x00" + a.eventDomainTarget + "\x00" + a.eventDomainKind + "\x00" + fmt.Sprint(a.eventFileEditsOnly) + "\x00" + fmt.Sprint(a.eventDelegatedOnly) + "\x00" + a.eventRiskFilter + "\x00" + fmt.Sprint(a.eventMinRiskScore) + "\x00" + a.managementEventFilter
 	if a.eventAttentionOnly {
 		key += "\x001"
 	}
@@ -563,7 +600,7 @@ func (a *renewApp) filteredEvents() []eventSummary {
 	if a.filterCacheValid && a.filterCacheVersion == a.eventsVersion && a.filterCacheKey == key {
 		return a.filterCacheRows
 	}
-	if q == "" && a.eventPIDFilter == 0 && a.eventRootPIDFilter == 0 && a.eventTargetFilter == "" && a.eventDomainTarget == "" && !a.eventFileEditsOnly && !a.eventDelegatedOnly && a.eventRiskFilter == "" && a.eventTypeFilter == "" && a.eventSessionFilter == "" && a.eventDecisionFilter == "" && a.managementEventFilter == "" && !a.eventAttentionOnly {
+	if q == "" && a.eventPIDFilter == 0 && a.eventRootPIDFilter == 0 && a.eventTargetFilter == "" && a.eventDomainTarget == "" && !a.eventFileEditsOnly && !a.eventDelegatedOnly && a.eventRiskFilter == "" && a.eventMinRiskScore <= 0 && a.eventTypeFilter == "" && a.eventSessionFilter == "" && a.eventDecisionFilter == "" && a.managementEventFilter == "" && !a.eventAttentionOnly {
 		a.filterCacheValid = true
 		a.filterCacheVersion = a.eventsVersion
 		a.filterCacheKey = key
@@ -587,6 +624,9 @@ func (a *renewApp) filteredEvents() []eventSummary {
 			continue
 		}
 		if a.eventRiskFilter != "" && eventRisk(event) != a.eventRiskFilter {
+			continue
+		}
+		if a.eventMinRiskScore > 0 && event.RiskScore < a.eventMinRiskScore {
 			continue
 		}
 		if a.eventPIDFilter > 0 && event.PID != a.eventPIDFilter {

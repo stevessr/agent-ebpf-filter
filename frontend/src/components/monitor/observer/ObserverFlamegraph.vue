@@ -466,7 +466,7 @@ const statsColumns = [
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 10px; gap: 8px; flex-wrap: wrap;
 }
-.flame-title { font-size: 13px; font-weight: 600; color: #475569; white-space: nowrap; }
+.flame-title { font-size: 13px; font-weight: 600; color: var(--ui-text-secondary); white-space: nowrap; }
 .flame-controls {
   display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
 }
@@ -480,7 +480,7 @@ const statsColumns = [
 }
 
 /* ── Flamegraph ──────────────────────────────────────────────────────── */
-.flame-legend { display: flex; gap: 12px; margin-top: 8px; font-size: 11px; color: #64748b; }
+.flame-legend { display: flex; gap: 12px; margin-top: 8px; font-size: 11px; color: var(--ui-text-muted); }
 .legend-item { display: flex; align-items: center; gap: 4px; }
 .legend-dot { width: 8px; height: 8px; border-radius: 2px; display: inline-block; flex-shrink: 0; }
 
@@ -492,17 +492,17 @@ const statsColumns = [
 .bar-label-row {
   display: flex; align-items: center; gap: 6px; font-size: 11px;
 }
-.bar-cat-name { font-weight: 600; color: #334155; min-width: 60px; }
+.bar-cat-name { font-weight: 600; color: var(--ui-text-strong); min-width: 60px; }
 .bar-value {
   color: #1e293b; font-family: ui-monospace, monospace;
   font-size: 11px; font-weight: 500; margin-left: auto;
 }
 .bar-pct {
-  color: #64748b; font-size: 10px; min-width: 38px; text-align: right;
+  color: var(--ui-text-muted); font-size: 10px; min-width: 38px; text-align: right;
 }
 
 .bar-track {
-  height: 22px; background: #f1f5f9; border-radius: 4px; overflow: hidden; position: relative;
+  height: 22px; background: var(--ui-surface-soft); border-radius: 4px; overflow: hidden; position: relative;
 }
 .bar-fill {
   height: 100%; border-radius: 4px; transition: width 0.35s ease;
@@ -520,22 +520,22 @@ const statsColumns = [
 }
 .donut-legend { display: flex; flex-direction: column; gap: 6px; }
 .donut-legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; }
-.donut-legend-label { color: #334155; min-width: 55px; }
+.donut-legend-label { color: var(--ui-text-strong); min-width: 55px; }
 .donut-legend-pct {
-  color: #64748b; font-family: ui-monospace,monospace; font-size: 10px;
+  color: var(--ui-text-muted); font-family: ui-monospace,monospace; font-size: 10px;
 }
 
 /* ── Stats table ─────────────────────────────────────────────────────── */
 .stats-section { margin-top: 16px; }
-.stats-title { font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 8px; }
+.stats-title { font-size: 12px; font-weight: 600; color: var(--ui-text-secondary); margin-bottom: 8px; }
 .stats-section :deep(.ant-table) { font-size: 11px; }
 .stats-section :deep(.ant-table-thead > tr > th) {
-  font-size: 10px; padding: 4px 8px; background: #f8fafc;
+  font-size: 10px; padding: 4px 8px; background: var(--ui-surface-soft);
 }
 .stats-section :deep(.ant-table-tbody > tr > td) { padding: 4px 8px; }
 
 /* ── Zero state ──────────────────────────────────────────────────────── */
 .zero-msg {
-  text-align: center; padding: 28px 0; color: #64748b; font-size: 13px;
+  text-align: center; padding: 28px 0; color: var(--ui-text-muted); font-size: 13px;
 }
 </style>

@@ -634,7 +634,7 @@ const showRawFallback = (g: MergedGroup): boolean =>
   display: flex;
   gap: 16px;
   padding: 8px 12px;
-  background: #f8fafc;
+  background: var(--ui-surface-soft);
   border-radius: 6px;
   border: 1px solid #e2e8f0;
 }
@@ -652,15 +652,15 @@ const showRawFallback = (g: MergedGroup): boolean =>
 }
 .ac-stat-label {
   font-weight: 600;
-  color: #475569;
+  color: var(--ui-text-secondary);
 }
 .ac-stat-val {
-  color: #64748b;
+  color: var(--ui-text-muted);
 }
 .ac-stat-size {
   font-family: ui-monospace, monospace;
   font-weight: 600;
-  color: #334155;
+  color: var(--ui-text-strong);
 }
 .ac-hide-raw-toggle {
   display: flex;
@@ -678,7 +678,7 @@ const showRawFallback = (g: MergedGroup): boolean =>
 }
 .ac-cap-label {
   font-size: 10px;
-  color: #64748b;
+  color: var(--ui-text-muted);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -704,7 +704,7 @@ const showRawFallback = (g: MergedGroup): boolean =>
   overflow-y: auto;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  background: #fafafa;
+  background: var(--ui-surface-muted);
 }
 .ac-send-col {
   border-left: 3px solid #f59e0b;
@@ -719,8 +719,8 @@ const showRawFallback = (g: MergedGroup): boolean =>
   padding: 8px 12px;
   font-size: 12px;
   font-weight: 600;
-  color: #334155;
-  background: #fff;
+  color: var(--ui-text-strong);
+  background: var(--ui-surface);
   border-bottom: 1px solid #e2e8f0;
   position: sticky;
   top: 0;
@@ -733,7 +733,7 @@ const showRawFallback = (g: MergedGroup): boolean =>
   padding: 6px;
 }
 .ac-card {
-  background: #fff;
+  background: var(--ui-surface);
   border: 1px solid #e2e8f0;
   border-radius: 6px;
   cursor: pointer;
@@ -754,7 +754,7 @@ const showRawFallback = (g: MergedGroup): boolean =>
 }
 .ac-h-icon {
   font-size: 9px;
-  color: #64748b;
+  color: var(--ui-text-muted);
 }
 .ac-h-meta {
   display: flex;
@@ -771,7 +771,7 @@ const showRawFallback = (g: MergedGroup): boolean =>
 }
 .ac-model {
   font-size: 10px;
-  color: #64748b;
+  color: var(--ui-text-muted);
   font-family: ui-monospace, monospace;
 }
 .ac-tok-inline {
@@ -786,11 +786,11 @@ const showRawFallback = (g: MergedGroup): boolean =>
 }
 .ac-cbc {
   font-size: 10px;
-  color: #64748b;
+  color: var(--ui-text-muted);
 }
 .ac-h-host {
   font-size: 10px;
-  color: #64748b;
+  color: var(--ui-text-muted);
   font-family: ui-monospace, monospace;
   max-width: 120px;
   overflow: hidden;
@@ -799,12 +799,12 @@ const showRawFallback = (g: MergedGroup): boolean =>
 }
 .ac-h-size {
   font-size: 10px;
-  color: #64748b;
+  color: var(--ui-text-muted);
   font-family: ui-monospace, monospace;
 }
 .ac-h-time {
   font-size: 10px;
-  color: #64748b;
+  color: var(--ui-text-muted);
   font-family: ui-monospace, monospace;
 }
 .ac-view {
@@ -832,7 +832,7 @@ const showRawFallback = (g: MergedGroup): boolean =>
   align-items: baseline;
 }
 .ac-k {
-  color: #64748b;
+  color: var(--ui-text-muted);
   text-transform: uppercase;
   min-width: 30px;
   font-size: 10px;
@@ -840,7 +840,7 @@ const showRawFallback = (g: MergedGroup): boolean =>
 .ac-meta code {
   font-family: ui-monospace, monospace;
   font-size: 10px;
-  color: #0f172a;
+  color: var(--ui-text-strong);
   word-break: break-all;
 }
 .ac-tokens {
@@ -860,7 +860,7 @@ const showRawFallback = (g: MergedGroup): boolean =>
   font-size: 11px;
 }
 .ac-tok-label {
-  color: #64748b;
+  color: var(--ui-text-muted);
   font-size: 10px;
 }
 .ac-tok-val {
@@ -902,13 +902,13 @@ const showRawFallback = (g: MergedGroup): boolean =>
   align-items: center;
   gap: 5px;
   padding: 4px 8px;
-  background: #f8fafc;
+  background: var(--ui-surface-soft);
   border-bottom: 1px solid #f0f0f0;
   font-size: 11px;
 }
 .ac-b-icon {
   font-size: 12px;
-  color: #64748b;
+  color: var(--ui-text-muted);
 }
 .ac-tn {
   font-family: ui-monospace, monospace;
@@ -919,12 +919,12 @@ const showRawFallback = (g: MergedGroup): boolean =>
 .ac-tid {
   font-family: ui-monospace, monospace;
   font-size: 9px;
-  color: #64748b;
+  color: var(--ui-text-muted);
 }
 .ac-bsz {
   margin-left: auto;
   font-size: 9px;
-  color: #64748b;
+  color: var(--ui-text-muted);
 }
 .ac-b-tok {
   font-size: 9px;

@@ -44,10 +44,13 @@ jobs:
       - name: Prepare embedded backend sources
         working-directory: ${{ github.workspace }}
         run: ./scripts/renew-desktop.sh prepare
+      - name: Download desktop dependencies
+        run: |
+          go mod download
+          # Useful for reviewing framework upgrades without guessing Go checksums.
+          grep '^github.com/egoist/mygo ' go.sum
       - name: Check module and checksum consistency
         run: go mod tidy -diff
-      - name: Download desktop dependencies
-        run: go mod download
       - name: Download backend dependencies
         working-directory: ${{ github.workspace }}/backend
         run: go mod download
@@ -104,3 +107,48 @@ jobs:
             desktop/renew/build/linux-amd64/renew-0.1.0-linux-amd64.tar.gz
             desktop/renew/build/linux-amd64/install.sh
           if-no-files-found: error
+
+
+  windows-updater:
+    name: Windows updater provenance
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.27.1"
+          cache: false
+      - name: Validate Windows installer detection without privileged eBPF
+        shell: pwsh
+        run: |
+          $scratch = Join-Path $env:RUNNER_TEMP "renew-updater-tests"
+          New-Item -ItemType Directory -Force -Path $scratch | Out-Null
+          $files = @(
+            "native_harness_updates_core.go",
+            "native_harness_updates_desktop.go",
+            "native_harness_updates_core_test.go",
+            "native_harness_updates_desktop_test.go"
+          )
+          foreach ($file in $files) {
+            Copy-Item (Join-Path "desktop/renew" $file) (Join-Path $scratch $file)
+          }
+          @'
+          package main
+          var codingHarnessCatalog = []struct{ID, Label, Command string}{
+            {"codex","Codex","codex"},
+            {"claude","Claude Code","claude"},
+            {"gemini","Gemini CLI","gemini"},
+            {"opencode","OpenCode","opencode"},
+            {"pi","Pi","pi"},
+            {"copilot","Copilot CLI","copilot"},
+            {"aider","Aider","aider"},
+            {"kiro","Kiro CLI","kiro-cli"},
+          }
+          '@ | Set-Content (Join-Path $scratch "catalog_stub.go")
+          @("module example.org/renew-update-probes", "go 1.27.1") | Set-Content (Join-Path $scratch "go.mod")
+          Push-Location $scratch
+          $env:GOWORK = "off"
+          go test -run 'TestWindows|TestWingetMatcher' -count=1 -v .
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Pop-Location

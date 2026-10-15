@@ -1,6 +1,7 @@
 export interface DomainForwardRoute {
   host: string;
   upstream?: string;
+  useUpstreamHost?: boolean;
   certFile?: string;
   keyFile?: string;
 }
@@ -41,9 +42,28 @@ export interface DomainBodyRewriteSettings {
   inference: DomainNativeInferenceSettings;
 }
 
+export interface DomainPrivacyJSONFieldRule {
+  path: string;
+  action: "allow" | "redact" | "drop" | "block";
+  recipient?: string;
+}
+
+export interface DomainPrivacySettings {
+  enabled: boolean;
+  action: "warn" | "block" | "redact";
+  restoreResponse: boolean;
+  maxBodyBytes: number;
+  categories: Array<"secret" | "email" | "phone" | "payment_card">;
+  contextMode?: "strict" | "off";
+  jsonFieldRules?: DomainPrivacyJSONFieldRule[];
+  allowlist: string[];
+}
+
 export interface DomainForwardProxySettings {
   enabled: boolean;
   httpPort: number;
+  bindAddress?: string;
+  httpsDisabled?: boolean;
   httpsPort: number;
   defaultScheme: "http" | "https";
   allowAnyHost: boolean;
@@ -57,6 +77,7 @@ export interface DomainForwardProxySettings {
   tlsInterceptCaKeyFile?: string;
   tlsInterceptLeafTtlSeconds?: number;
   rewrite: DomainBodyRewriteSettings;
+  privacy: DomainPrivacySettings;
   routes: DomainForwardRoute[];
 }
 
@@ -73,6 +94,8 @@ export interface DomainForwardProxyStatus {
   dnsResolver?: string;
   tlsInterceptEnabled?: boolean;
   rewriteEnabled?: boolean;
+  privacyEnabled?: boolean;
+  privacyAction?: string;
   inferenceEnabled?: boolean;
   inferenceReady?: boolean;
   errors?: string[];

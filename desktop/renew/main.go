@@ -85,6 +85,25 @@ func runDesktop() {
 			Content:   ui.View(app.view),
 		})
 		app.win = window
+		// Keep the collector/UI owner alive while tabs are floating. The final
+		// floating window redocks to this (possibly hidden) main window.
+		window.OnClose(func(e *mygo.CloseEvent) {
+			if len(app.detachedTerminals) > 0 || len(app.detachedPages) > 0 {
+				e.PreventDefault()
+				// Closing the owner must never destroy live child PTYs; but an
+				// intentional tray minimization must remain minimized later.
+				app.hiddenForDetached = !app.minimizeToTray
+				window.Hide()
+				return
+			}
+			if !app.minimizeToTray && !app.files.allowQuit && app.hasUnsavedLocalDocuments() {
+				e.PreventDefault()
+				app.files.quitPending = true
+				app.page = "编辑器"
+				window.Show()
+				window.Focus()
+			}
+		})
 		if err := app.setupTray(window); err != nil {
 			log.Printf("[renew] system tray unavailable (normal window exit retained): %v", err)
 		}
@@ -157,7 +176,24 @@ func (a *renewApp) update(fn func()) {
 	if a.win == nil {
 		return
 	}
-	a.win.Update(fn)
+	a.win.Update(func() {
+		fn()
+		// A moved PTY may still have an exit callback on the original app.
+		// Repaint floating windows without subscribing to the backend again.
+		if a.detachedParent == nil {
+			for _, child := range a.detachedTerminals {
+				if child.win != nil {
+					child.win.Update(func() {})
+				}
+			}
+			for _, child := range a.detachedPages {
+				if child.win != nil {
+					floating := child
+					floating.win.Update(func() { a.copyMonitoringSnapshot(floating) })
+				}
+			}
+		}
+	})
 }
 
 func resolveBackendURL(explicit string) (string, error) {

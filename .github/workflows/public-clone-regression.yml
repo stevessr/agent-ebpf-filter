@@ -1,0 +1,64 @@
+name: Public repository clone policy regression
+
+on:
+  pull_request:
+    paths:
+      - "backend/app/public_clone_rule*.go"
+      - "backend/app/alertsbridge.go"
+      - "backend/app/alertssemantic_test.go"
+      - "backend/app/events/alerts_semantic.go"
+      - "backend/app/events/alertsdetectsemantic.go"
+      - "backend/app/loop_detection_runtime*.go"
+      - "backend/app/server_uds.go"
+      - ".github/workflows/public-clone-regression.yml"
+  push:
+    branches: [master]
+    paths:
+      - "backend/app/public_clone_rule*.go"
+      - "backend/app/alertsbridge.go"
+      - "backend/app/alertssemantic_test.go"
+      - "backend/app/events/alerts_semantic.go"
+      - "backend/app/events/alertsdetectsemantic.go"
+      - "backend/app/loop_detection_runtime*.go"
+      - "backend/app/server_uds.go"
+      - ".github/workflows/public-clone-regression.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  clone-policy-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Verify Go formatting
+        run: |
+          files="$(gofmt -l backend/app/public_clone_rule*.go backend/app/alertsbridge.go backend/app/alertssemantic_test.go backend/app/events/alerts_semantic.go backend/app/events/alertsdetectsemantic.go backend/app/loop_detection_runtime*.go backend/app/server_uds.go)"
+          test -z "$files" || { printf 'Unformatted files:\n%s\n' "$files"; gofmt -d backend/app/public_clone_rule*.go backend/app/alertsbridge.go backend/app/alertssemantic_test.go backend/app/events/alerts_semantic.go backend/app/events/alertsdetectsemantic.go backend/app/loop_detection_runtime*.go backend/app/server_uds.go; exit 1; }
+      - name: Install backend code generation dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler clang llvm libbpf-dev libelf-dev
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+      - name: Generate Go protobuf bindings
+        run: |
+          mkdir -p backend/pb
+          protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto \
+            proto/tracker_common.proto \
+            proto/tracker_events.proto \
+            proto/tracker_registration.proto \
+            proto/tracker_system.proto \
+            proto/tracker_config.proto \
+            proto/tracker_shell.proto
+      - name: Generate eBPF bindings
+        working-directory: backend/ebpf
+        run: go generate
+      - name: Run public clone and semantic alert regression tests
+        working-directory: backend
+        run: |
+          go test ./app -run '^(TestPublicGitHub|TestPublicClone|TestVerifiedPublicClone|TestLoopDetectionVerifiedClone|TestLoopDetectionPublicClone|TestSemanticAlertsDetectAgenticResourceLoop)' -count=1 -timeout=7m

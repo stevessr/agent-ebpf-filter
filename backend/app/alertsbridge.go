@@ -9,7 +9,7 @@ import (
 
 func buildSemanticAlerts(event *pb.Event) []*pb.Event {
 	events.Deps.SemanticAlertsState = semanticAlertsState
-	return events.BuildSemanticAlerts(event)
+	return events.BuildSemanticAlertsWithCloneContext(event, isVerifiedPublicCloneProcess(event))
 }
 
 func resetSemanticAlertState() {

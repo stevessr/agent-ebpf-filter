@@ -272,6 +272,48 @@ func TestRiskSeverityFilterMatchesClassification(t *testing.T) {
 	}
 }
 
+// Slider changes are local view filters, never backend capture changes.
+func TestEventMinimumRiskSliderFiltersCachedRowsAndResets(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.events = []eventSummary{
+		{EventID: "zero", RiskScore: 0},
+		{EventID: "middle", RiskScore: 65},
+		{EventID: "high", RiskScore: 90},
+	}
+	if got := a.filteredEvents(); len(got) != 3 {
+		t.Fatalf("default slider must retain all events, got %d", len(got))
+	}
+	a.eventMinRiskScore = 70
+	if got := a.filteredEvents(); len(got) != 1 || got[0].EventID != "high" {
+		t.Fatalf("risk threshold must invalidate cached rows: %+v", got)
+	}
+	if a.eventConstraintCount() != 1 {
+		t.Fatal("the active slider must count as a visible event constraint")
+	}
+	a.eventMinRiskScore = 60
+	if got := a.filteredEvents(); len(got) != 2 {
+		t.Fatalf("lowering threshold must refresh the cached rows, got %+v", got)
+	}
+	a.clearEventFilters()
+	if a.eventMinRiskScore != 0 || a.hasEventConstraints() || len(a.filteredEvents()) != 3 {
+		t.Fatal("clear filters must restore the slider and all events")
+	}
+}
+
+func TestEventSlidersRemainAvailableWithoutBackend(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.starting = false
+	a.page = "事件"
+	view := ui.NewTester(a.view, 1280, 900)
+	view.SetPreferences(ui.Preferences{ReduceMotion: true, TextScale: 1})
+	if _, ok := view.Find("最低风险分"); !ok {
+		t.Fatal("event risk slider must be visible in the native view")
+	}
+	if _, ok := view.Find("事件展示条数"); !ok {
+		t.Fatal("event count step slider must be visible in the native view")
+	}
+}
+
 func TestWorkspaceCompactNavigationDoesNotLeaveBlankGutter(t *testing.T) {
 	a := newRenewApp("http://127.0.0.1:8080")
 	view := ui.NewTester(a.view, 1480, 860)
@@ -483,5 +525,157 @@ func TestWorkspaceOfflineMonitoringRemainsNavigable(t *testing.T) {
 	view.Frame()
 	if !view.HasText("监控服务尚未连接") {
 		t.Fatal("empty overview should retain a full connection retry surface")
+	}
+}
+
+func TestWorkspaceNarrowNavigationUsesNativeMenuWithoutChangingPreference(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.navigationOpen = true
+	a.navigationDetailed = true
+	a.page = "事件"
+	view := ui.NewTester(a.view, 760, 740)
+	view.SetPreferences(ui.Preferences{ReduceMotion: true, TextScale: 1})
+	if view.HasText("功能导航") {
+		t.Fatal("narrow workspace must release the fixed sidebar width")
+	}
+	if !a.navigationOpen || !a.navigationDetailed {
+		t.Fatal("responsive sidebar fallback must not mutate the user's preferences")
+	}
+	if badge, found := view.Find("事件"); !found || badge.X < 54 {
+		t.Fatalf("the central event page should remain reachable, found=%v bounds=%+v", found, badge)
+	}
+	// Layout restores the user-selected detailed sidebar when there is
+	// enough room; the native rail never imposes coordinates on Wayland.
+	view.SetSize(1480, 740)
+	if !view.HasText("功能导航") || !view.HasText("eBPF 内核模块管理") {
+		t.Fatal("wide workspace should restore detailed navigation")
+	}
+}
+
+func TestWorkspaceNavigationMenuCoversEverySidebarRoute(t *testing.T) {
+	seen := make(map[string]bool)
+	for _, section := range workspaceNavigationMenuSections {
+		if section.title == "" || len(section.pages) == 0 {
+			t.Fatal("native menu sections must have an accessible name and entries")
+		}
+		for _, page := range section.pages {
+			if seen[page] {
+				t.Fatalf("duplicate native navigation entry: %q", page)
+			}
+			seen[page] = true
+			if workspaceNavigationLabel(page, false) == "" {
+				t.Fatalf("native navigation is missing a visible label: %q", page)
+			}
+		}
+	}
+	for _, page := range []string{"概览", "研判", "事件", "会话", "网络", "域名", "进程",
+		"Agent 识别", "监控", "eBPF 模块", "规则", "跟踪", "路径权限", "终端", "CCS", "系统"} {
+		if !seen[page] {
+			t.Fatalf("small-screen menu omitted workspace page %q", page)
+		}
+	}
+	for _, tc := range []struct {
+		width float32
+		menu bool
+	}{
+		{600, true}, {899, true}, {900, false}, {1280, false},
+	} {
+		if got := workspaceUsesNavigationMenu(tc.width); got != tc.menu {
+			t.Errorf("native navigation menu width %.0f: got=%t, want=%t", tc.width, got, tc.menu)
+		}
+	}
+	if got, _ := workspaceResponsiveNavigationWidth(899, true, true); got != 0 {
+		t.Fatalf("narrow navigation should free all sidebar space, got %.0f", got)
+	}
+}
+
+func TestWorkspaceToolbarMovesBelowStatusForNarrowLayouts(t *testing.T) {
+	for _, tc := range []struct {
+		window, nav float32
+		tight bool
+	}{
+		{640, 0, true},
+		{750, 0, false},
+		{1100, workspaceNavigationCompactWidth, false},
+		{980, workspaceNavigationCompactWidth, false},
+		{900, workspaceNavigationCompactWidth, true},
+	} {
+		if got := workspaceTightHeader(tc.window, tc.nav); got != tc.tight {
+			t.Errorf("header density %.0f/%.0f: got=%t want=%t", tc.window, tc.nav, got, tc.tight)
+		}
+	}
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.starting = false
+	a.page = "事件"
+	view := ui.NewTester(a.view, 640, 720)
+	view.SetPreferences(ui.Preferences{ReduceMotion: true, TextScale: 1})
+	if !view.HasText("事件") || !view.HasText("刷新") {
+		t.Fatal("narrow workspace must retain the page heading and refresh action")
+	}
+	if view.HasText("工作区") {
+		t.Fatal("tight header should omit redundant breadcrumb prefix")
+	}
+}
+
+func TestWorkspaceGlobalJumpAndCaptureWarning(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.starting = false
+	a.connected = true
+	a.healthReady = true
+	a.health.CaptureHealthy = false
+	a.page = "事件"
+	view := ui.NewTester(a.view, 1480, 860)
+	view.SetPreferences(ui.Preferences{ReduceMotion: true, TextScale: 1})
+	if !view.HasText("前往页面") {
+		t.Fatal("desktop toolbar should expose full navigation even with the sidebar collapsed")
+	}
+	if !view.HasText("采集链路异常，摘要可能不完整") {
+		t.Fatal("monitoring pages must not hide capture failures behind old event summaries")
+	}
+	if err := view.Click("查看采集诊断"); err != nil {
+		t.Fatal(err)
+	}
+	if a.page != "系统" {
+		t.Fatalf("capture health action must open read-only diagnostics, got %q", a.page)
+	}
+	view.Frame()
+	if view.HasText("采集链路异常，摘要可能不完整") {
+		t.Fatal("the system page has its own diagnostics; do not duplicate the warning")
+	}
+	a.page = "网络"
+	a.health.CaptureHealthy = true
+	view.Frame()
+	if view.HasText("采集链路异常，摘要可能不完整") {
+		t.Fatal("healthy capture must not show a stale warning")
+	}
+}
+
+func TestWorkspaceFooterNeverMasksCollectorFailureWithRealtimeOrPause(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.starting = false
+	a.connected = true
+	a.healthReady = true
+	a.eventStreamConnected = true
+	a.systemConnected = true
+	a.health.CaptureHealthy = false
+	a.paused = true
+	if got, level := a.workspaceFooterStatus(); got != "采集异常" || level != "danger" {
+		t.Fatalf("capture failure must override pause/realtime: %q/%q", got, level)
+	}
+	a.health.CaptureHealthy = true
+	if got, level := a.workspaceFooterStatus(); got != "事件展示暂停" || level != "warning" {
+		t.Fatalf("presentation pause should be explicit when collector healthy: %q/%q", got, level)
+	}
+	a.paused = false
+	if got, level := a.workspaceFooterStatus(); got != "全链路实时" || level != "success" {
+		t.Fatalf("full pipeline success required for realtime badge: %q/%q", got, level)
+	}
+	a.systemConnected = false
+	if got, level := a.workspaceFooterStatus(); got != "系统流重连" || level != "warning" {
+		t.Fatalf("system stream failure must appear as degraded: %q/%q", got, level)
+	}
+	a.connected = false
+	if got, level := a.workspaceFooterStatus(); got != "后端离线" || level != "danger" {
+		t.Fatalf("backend outage must be prominent: %q/%q", got, level)
 	}
 }

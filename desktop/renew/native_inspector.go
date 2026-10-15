@@ -93,6 +93,7 @@ func (a *renewApp) clearEventFilters() {
 	a.eventFileEditsOnly = false
 	a.eventDelegatedOnly = false
 	a.eventRiskFilter = ""
+	a.eventMinRiskScore = 0
 	a.eventAttentionOnly = false
 	a.managementEventFilter = ""
 	a.eventVisibleLimit = 50

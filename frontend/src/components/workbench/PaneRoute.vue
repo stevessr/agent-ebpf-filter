@@ -12,6 +12,7 @@ import type {
   RouteLocationNormalizedLoaded,
 } from "vue-router";
 import { resolvePanelRoute } from "../../composables/workbench/resolvePanelRoute";
+import { translateUI as tr } from "../../i18n";
 const props = defineProps<{ path: string }>();
 const emit = defineEmits<{ navigate: [path: string] }>();
 const router = useRouter();
@@ -66,7 +67,7 @@ provide(routerKey, {
   <RouterView v-if="loaded" :route="loaded" /><a-alert
     v-else-if="loadError"
     type="error"
-    :message="loadError"
+    :message="tr(loadError)"
   />
-  <div v-else class="pane-loading">正在加载面板…</div>
+  <div v-else class="pane-loading">{{ tr("正在加载面板…") }}</div>
 </template>

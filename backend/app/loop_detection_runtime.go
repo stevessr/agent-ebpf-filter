@@ -308,6 +308,12 @@ func (w *loopDetectionWorker) processRecordWithSettings(record CapturedEventReco
 	if contextKey == "" || fingerprint == "" {
 		return
 	}
+	verifiedClone := isVerifiedPublicCloneProcess(event)
+	if verifiedClone {
+		// Avoid letting a normal command in the same Agent run inherit
+		// a clone's 8x threshold or contribute to its repeat window.
+		contextKey += "|public_clone_pid=" + strconv.FormatUint(uint64(event.GetPid()), 10)
+	}
 	windowSeconds := settings.WindowSeconds
 	if windowSeconds <= 0 {
 		windowSeconds = loopDetectionDefaultWindowSeconds
@@ -316,6 +322,12 @@ func (w *loopDetectionWorker) processRecordWithSettings(record CapturedEventReco
 	threshold := settings.RepeatThreshold
 	if threshold <= 0 {
 		threshold = loopDetectionDefaultRepeatThreshold
+	}
+	// A validated public clone legitimately repeats object/file operations.
+	// Raise only its loop heuristic threshold; keep detection active and
+	// leave all other security alert categories untouched.
+	if verifiedClone && threshold <= 1_000_000 {
+		threshold *= 8
 	}
 	windowKey := loopDetectionWindowKey{contextKey: contextKey, fingerprint: fingerprint}
 

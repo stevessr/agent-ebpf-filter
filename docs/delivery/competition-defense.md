@@ -1,5 +1,9 @@
 # 操作系统设计赛答辩项目文档
 
+::: warning 版本提示（2026-10-15）
+本页保留比赛题目与历史技术讨论，**不宜直接作为最新产品现场操作步骤**。现行代码的演示入口已经转向 Go/MyGo 原生 Renew，增加了 Agent 派生放射/瀑布视图、可选 Claude SubAgent 生命周期 Hook 与原生文件编辑器；Web UI 仍负责研究和策略管理。请优先使用 [新版现场演示脚本](/delivery/demo-script) 与 [产品演示导览](/guide/demo-tour)；未经实测的性能、可用性与实验性组件独立部署不得写成当前验证结论。
+:::
+
 > 项目：Agent eBPF Filter  
 > 赛道：功能挑战赛道（操作系统相关系统 / 工具方向）  
 > 赛事入口：<https://os.educg.net/#/index?TYPE=26OS_F>  

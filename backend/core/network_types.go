@@ -5,10 +5,11 @@ package core
 // DomainForwardRoute maps one request host/SNI name to an optional upstream.
 // When Upstream is empty, the proxy forwards to <defaultScheme>://<request-host>.
 type DomainForwardRoute struct {
-	Host     string `json:"host"`
-	Upstream string `json:"upstream,omitempty"`
-	CertFile string `json:"certFile,omitempty"`
-	KeyFile  string `json:"keyFile,omitempty"`
+	Host            string `json:"host"`
+	Upstream        string `json:"upstream,omitempty"`
+	UseUpstreamHost bool   `json:"useUpstreamHost,omitempty"`
+	CertFile        string `json:"certFile,omitempty"`
+	KeyFile         string `json:"keyFile,omitempty"`
 }
 
 // DomainBodyRewriteRule applies a bounded literal replacement to textual
@@ -52,10 +53,33 @@ type DomainBodyRewriteSettings struct {
 	Inference    DomainNativeInferenceSettings `json:"inference,omitempty"`
 }
 
+// DomainPrivacyJSONFieldRule is an exact JSON-pointer disclosure decision.
+// Allow rules require an upstream recipient and never apply across destinations.
+type DomainPrivacyJSONFieldRule struct {
+	Path      string `json:"path"`
+	Action    string `json:"action"`
+	Recipient string `json:"recipient,omitempty"`
+}
+
+// DomainPrivacySettings controls local-only inspection of routed request bodies.
+// Restore maps are intentionally per-request and never persisted.
+type DomainPrivacySettings struct {
+	Enabled         bool                         `json:"enabled"`
+	Action          string                       `json:"action"`
+	RestoreResponse bool                         `json:"restoreResponse"`
+	MaxBodyBytes    int64                        `json:"maxBodyBytes"`
+	Categories      []string                     `json:"categories,omitempty"`
+	Allowlist       []string                     `json:"allowlist,omitempty"`
+	ContextMode     string                       `json:"contextMode,omitempty"`
+	JSONFieldRules  []DomainPrivacyJSONFieldRule `json:"jsonFieldRules,omitempty"`
+}
+
 // DomainForwardProxySettings controls the optional public HTTP/HTTPS reverse proxy.
 type DomainForwardProxySettings struct {
 	Enabled                    bool                      `json:"enabled"`
 	HTTPPort                   int                       `json:"httpPort"`
+	BindAddress                string                    `json:"bindAddress,omitempty"`
+	HTTPSDisabled              bool                      `json:"httpsDisabled,omitempty"`
 	HTTPSPort                  int                       `json:"httpsPort"`
 	DefaultScheme              string                    `json:"defaultScheme"`
 	AllowAnyHost               bool                      `json:"allowAnyHost"`
@@ -69,5 +93,6 @@ type DomainForwardProxySettings struct {
 	TLSInterceptCAKeyFile      string                    `json:"tlsInterceptCaKeyFile,omitempty"`
 	TLSInterceptLeafTTLSeconds int                       `json:"tlsInterceptLeafTtlSeconds,omitempty"`
 	Rewrite                    DomainBodyRewriteSettings `json:"rewrite,omitempty"`
+	Privacy                    DomainPrivacySettings     `json:"privacy,omitempty"`
 	Routes                     []DomainForwardRoute      `json:"routes,omitempty"`
 }

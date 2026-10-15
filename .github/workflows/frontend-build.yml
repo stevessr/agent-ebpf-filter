@@ -27,5 +27,9 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Test harness icon mappings
         run: bun test tests/harness-icons.test.ts
+      - name: Test system color-scheme switching
+        run: bun test tests/system-theme.test.ts
+      - name: Test bilingual locale switching
+        run: bun test tests/i18n.test.ts
       - name: Typecheck and build
         run: bun run build

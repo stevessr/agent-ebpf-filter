@@ -26,7 +26,7 @@ const props = defineProps<{
 <template>
   <a-row :gutter="16" style="padding-top: 16px">
     <a-col :span="12">
-      <a-card size="small" :bordered="false" style="background: #fafafa">
+      <a-card size="small" :bordered="false" style="background: var(--ui-surface-muted)">
         <template #title>
           <div
             style="
@@ -37,7 +37,7 @@ const props = defineProps<{
             "
           >
             <span>Network Activity</span>
-            <span style="font-size: 11px; color: #4b5563; font-weight: normal"
+            <span style="font-size: 11px; color: var(--ui-text-muted); font-weight: normal"
               >(Total: ↓{{ formatBytesWithUnit(systemStats.totalNetRecv) }}/s
               ↑{{ formatBytesWithUnit(systemStats.totalNetSent) }}/s)</span
             >
@@ -89,7 +89,7 @@ const props = defineProps<{
                 style="
                   font-size: 11px;
                   font-weight: bold;
-                  color: #4b5563;
+                  color: var(--ui-text-muted);
                   margin: 8px 0 4px;
                 "
               >
@@ -102,8 +102,8 @@ const props = defineProps<{
                   margin-bottom: 8px;
                   padding: 10px;
                   border-radius: 6px;
-                  background: #fff;
-                  border: 1px solid #f0f0f0;
+                  background: var(--ui-surface);
+                  border: 1px solid var(--ui-border);
                   cursor: pointer;
                   transition: all 0.2s;
                 "
@@ -180,7 +180,7 @@ const props = defineProps<{
       </a-card>
     </a-col>
     <a-col :span="12">
-      <a-card size="small" :bordered="false" style="background: #fafafa">
+      <a-card size="small" :bordered="false" style="background: var(--ui-surface-muted)">
         <template #title>
           <div
             style="
@@ -191,7 +191,7 @@ const props = defineProps<{
             "
           >
             <span>Storage Activity</span>
-            <span style="font-size: 11px; color: #4b5563; font-weight: normal"
+            <span style="font-size: 11px; color: var(--ui-text-muted); font-weight: normal"
               >(Total: R:{{ formatBytesWithUnit(systemStats.totalDiskRead) }}/s
               W:{{ formatBytesWithUnit(systemStats.totalDiskWrite) }}/s)</span
             >
@@ -246,7 +246,7 @@ const props = defineProps<{
               style="
                 padding: 10px;
                 border-radius: 6px;
-                background: #fff;
+                background: var(--ui-surface);
                 border: 1px solid #e8e8e8;
                 cursor: pointer;
               "
@@ -337,8 +337,8 @@ const props = defineProps<{
                     gap: 12px;
                     font-size: 10px;
                     padding: 2px 0 2px 20px;
-                    color: #4a4a4a;
-                    border-left: 2px solid #f0f0f0;
+                    color: var(--ui-text-muted);
+                    border-left: 2px solid var(--ui-border);
                     margin-left: 6px;
                   "
                 >
