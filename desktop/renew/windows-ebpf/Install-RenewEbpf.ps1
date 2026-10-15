@@ -4,19 +4,27 @@ param(
     [Parameter(Mandatory = $true)][string]$IncludeDir,
     [ValidateSet("Verify", "Install")][string]$Action = "Verify",
     [string]$Clang = "clang",
+    [string]$PrebuiltProgramPath = "",
     [string]$Netsh = "netsh"
 )
 $ErrorActionPreference = "Stop"
 $source = Join-Path $PSScriptRoot "renew_connect.c"
 $obj = Join-Path $PSScriptRoot "renew_connect.o"
-if (-not (Test-Path -LiteralPath $IncludeDir)) {
-    throw "eBPF for Windows include directory not found: $IncludeDir"
+if ([string]::IsNullOrWhiteSpace($PrebuiltProgramPath)) {
+    if (-not (Test-Path -LiteralPath $IncludeDir)) {
+        throw "eBPF for Windows include directory not found: $IncludeDir"
+    }
+} else {
+    if (-not (Test-Path -LiteralPath $PrebuiltProgramPath -PathType Leaf)) {
+        throw "Prebuilt program not found: $PrebuiltProgramPath"
+    }
+    $obj = (Resolve-Path -LiteralPath $PrebuiltProgramPath).Path
 }
-if ($PSCmdlet.ShouldProcess($obj, "Compile eBPF for Windows hooks")) {
+if ([string]::IsNullOrWhiteSpace($PrebuiltProgramPath) -and $PSCmdlet.ShouldProcess($obj, "Compile eBPF for Windows hooks")) {
     & $Clang -target bpf -O2 -g -Werror -I $IncludeDir -c $source -o $obj
     if ($LASTEXITCODE -ne 0) { throw "Clang eBPF compilation failed" }
 }
-if ($PSCmdlet.ShouldProcess($obj, "Verify eBPF sections")) {
+if ([System.IO.Path]::GetExtension($obj) -eq ".o" -and $PSCmdlet.ShouldProcess($obj, "Verify eBPF sections")) {
     & $Netsh ebpf show sections $obj
     if ($LASTEXITCODE -ne 0) { throw "eBPF for Windows provider missing or program incompatible" }
 }
