@@ -207,7 +207,7 @@ const formatLastSeen = (timestamp: number) => {
 .insights-subtitle,
 .insights-note,
 .empty-text {
-  color: #6b7280;
+  color: var(--ui-text-muted);
   font-size: 12px;
 }
 
@@ -257,7 +257,7 @@ const formatLastSeen = (timestamp: number) => {
 
 .metric-card--good {
   border-color: #b7eb8f;
-  background: #f6ffed;
+  background: var(--ui-success-soft);
 }
 
 .metric-card--good strong {
@@ -312,7 +312,7 @@ const formatLastSeen = (timestamp: number) => {
   min-width: 720px;
   padding: 6px 4px;
   border-top: 1px solid #edf1ea;
-  color: #334155;
+  color: var(--ui-text-strong);
   font-size: 12px;
   align-items: center;
 }
