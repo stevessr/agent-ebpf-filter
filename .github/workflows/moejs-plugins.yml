@@ -75,7 +75,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$(cat /proc/1/comm)" != "systemd" ]]; then
-            echo "::error::Live systemd integration requires an Ubuntu systemd VM runner"
+            echo "::error::This integration test requires a systemd Ubuntu VM runner"
             exit 1
           fi
           (cd backend && go test -c -o /tmp/jsplugin-worker-systemd.test ./cmd/jsplugin-worker)
@@ -97,32 +97,9 @@ jobs:
           [[ "$worker_pid" -gt 1 && "$worker_uid" != "0" ]]
           effective_caps="$(sudo awk '/^CapEff:/ {print $2}' "/proc/$worker_pid/status")"
           [[ "$effective_caps" == "0000000000000000" ]]
-          [[ "$(readlink "/proc/$worker_pid/ns/net")" != "$(readlink /proc/1/ns/net)" ]]
+          [[ "$(sudo readlink "/proc/$worker_pid/ns/net")" != "$(readlink /proc/1/ns/net)" ]]
           sudo env AGENT_EBPF_TEST_SYSTEMD_SOCKET=/run/agent-ebpf-jsplugin/worker.sock \
-            /tmp/jsplugin-worker-systemd.test -test.run '^TestWorkerSystemdIntegration
-      - name: Concurrent overload stress
-        working-directory: backend
-        run: go test -race ./app/jsplugins -run '^TestWorker(ConcurrentCalls|OverloadResponse)' -count=25 -timeout=5m
-      - name: Install native backend build dependencies
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler clang llvm libbpf-dev libelf-dev
-      - name: Generate protobuf bindings
-        run: |
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
-          mkdir -p backend/pb
-          protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto \
-            proto/tracker_common.proto proto/tracker_events.proto \
-            proto/tracker_registration.proto proto/tracker_system.proto \
-            proto/tracker_config.proto proto/tracker_shell.proto
-      - name: Generate eBPF bindings
-        working-directory: backend/ebpf
-        run: go generate
-      - name: Plugin registry and handler regression
-        working-directory: backend
-        run: |
-          go test ./app/handlers -run '(Plugin|BPF)' -count=1
-          go test ./app -run '(JavaScript|PluginStore|PluginFiles|PluginDelete|PluginKind)' -count=1
-          go test -race ./app -run '^TestJavaScript' -count=1 -timeout=5m
- -test.v
+            /tmp/jsplugin-worker-systemd.test -test.run '^TestWorkerSystemdIntegration$' -test.v
           sudo systemctl is-active --quiet agent-ebpf-jsplugin-worker.service
       - name: JavaScript VM race regression
         working-directory: backend
