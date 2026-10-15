@@ -45,7 +45,14 @@ func systemHarnessProbe() harnessProbe {
  return harnessProbe{
   lookup:exec.LookPath,resolve:filepath.EvalSymlinks,readFile:os.ReadFile,home:home,goos:runtime.GOOS,
   run:func(name string,args ...string)(string,error){
-   ctx,cancel:=context.WithTimeout(context.Background(),1600*time.Millisecond)
+   timeout:=1600*time.Millisecond
+   if runtime.GOOS=="windows"{
+    switch name{
+    case "powershell.exe","pwsh.exe","winget":timeout=12*time.Second
+    case "scoop","choco":timeout=5*time.Second
+    }
+   }
+   ctx,cancel:=context.WithTimeout(context.Background(),timeout)
    defer cancel()
    output,err:=exec.CommandContext(ctx,name,args...).CombinedOutput()
    if err!=nil{return "",err}
