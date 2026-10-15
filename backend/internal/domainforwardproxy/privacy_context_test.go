@@ -22,8 +22,12 @@ func TestContextualPrivacyNestedRedactAndRestore(t *testing.T) {
 		t.Fatalf("structured JSON leaked detected email or context-labelled API key")
 	}
 	var value map[string]any
-	if err := json.Unmarshal(out, &value); err != nil { t.Fatalf("invalid sanitized JSON: %v", err) }
-	if value["model"] != "gpt-4" { t.Fatalf("task-critical non-sensitive model lost") }
+	if err := json.Unmarshal(out, &value); err != nil {
+		t.Fatalf("invalid sanitized JSON: %v", err)
+	}
+	if value["model"] != "gpt-4" {
+		t.Fatalf("task-critical non-sensitive model lost")
+	}
 	restored, changed := session.Restore(out)
 	if !changed || !bytes.Contains(restored, []byte("jane@example.com")) ||
 		!bytes.Contains(restored, []byte("shortvalue")) {
@@ -53,7 +57,7 @@ func TestContextualPrivacyMCPMemoryEgress(t *testing.T) {
 func TestContextualPrivacyFieldRules(t *testing.T) {
 	for _, tc := range []struct {
 		name, action, value string
-		blocked, contains bool
+		blocked, contains   bool
 	}{
 		{"declassify", "allow", "jane@example.com", false, true},
 		{"drop", "drop", "jane@example.com", false, false},
@@ -74,8 +78,12 @@ func TestContextualPrivacyFieldRules(t *testing.T) {
 			}
 			if !tc.blocked {
 				var parsed map[string]any
-				if json.Unmarshal(out, &parsed) != nil { t.Fatalf("%s invalid JSON", tc.name) }
-				if parsed["count"] != float64(4) { t.Fatalf("unrelated value corrupted") }
+				if json.Unmarshal(out, &parsed) != nil {
+					t.Fatalf("%s invalid JSON", tc.name)
+				}
+				if parsed["count"] != float64(4) {
+					t.Fatalf("unrelated value corrupted")
+				}
 			}
 		})
 	}
@@ -98,7 +106,9 @@ func TestContextualPrivacyRejectsDuplicateJSONKeys(t *testing.T) {
 func TestContextualPrivacyNumericFieldIsDeniedInsteadOfTypeChange(t *testing.T) {
 	engine := NewPrivacyEngine(PrivacySettings{Enabled: true, Action: "redact"})
 	_, _, report, err := engine.Apply("application/json", []byte(`{"api_key":123456789012345}`))
-	if err != nil || !report.Blocked { t.Fatalf("numeric credential was not blocked: %+v %v", report, err) }
+	if err != nil || !report.Blocked {
+		t.Fatalf("numeric credential was not blocked: %+v %v", report, err)
+	}
 }
 
 func TestContextualPrivacyPaymentCardAndPhoneHeuristics(t *testing.T) {
@@ -113,8 +123,12 @@ func TestContextualPrivacyPaymentCardAndPhoneHeuristics(t *testing.T) {
 		{`{"phone":"+1 (415) 555-0199"}`, true},
 	} {
 		out, _, report, err := engine.Apply("application/json", []byte(tc.text))
-		if err != nil || report.Redacted != tc.want { t.Errorf("text %s report %+v err %v", tc.text, report, err) }
-		if tc.want && bytes.Equal(out, []byte(tc.text)) { t.Errorf("unredacted: %s", out) }
+		if err != nil || report.Redacted != tc.want {
+			t.Errorf("text %s report %+v err %v", tc.text, report, err)
+		}
+		if tc.want && bytes.Equal(out, []byte(tc.text)) {
+			t.Errorf("unredacted: %s", out)
+		}
 	}
 }
 
@@ -122,7 +136,7 @@ func TestContextualPrivacyMetadataEgress(t *testing.T) {
 	engine := NewPrivacyEngine(PrivacySettings{Enabled: true, Action: "redact"})
 	cases := []struct {
 		name, target, header, value string
-		deny bool
+		deny                        bool
 	}{
 		{"query email", "https://api.openai.com/v1/chat?mail=jane%40example.com", "", "", true},
 		{"query memory", "https://api.openai.com/v1/chat?task_history=everything", "", "", true},
@@ -135,7 +149,9 @@ func TestContextualPrivacyMetadataEgress(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodGet, tc.target, nil)
-			if tc.header != "" { request.Header.Set(tc.header, tc.value) }
+			if tc.header != "" {
+				request.Header.Set(tc.header, tc.value)
+			}
 			report, err := engine.InspectRequestMetadata(request)
 			if err != nil || report.Blocked != tc.deny {
 				t.Fatalf("%s: report=%+v err=%v", tc.name, report, err)
@@ -167,8 +183,8 @@ func TestContextualPrivacyProxyDeniesBeforeUpstream(t *testing.T) {
 
 func TestContextualPrivacyFieldRedactCannotBypassWithWarn(t *testing.T) {
 	engine := NewPrivacyEngine(PrivacySettings{
-		Enabled: true,
-		Action: "warn",
+		Enabled:        true,
+		Action:         "warn",
 		JSONFieldRules: []PrivacyJSONFieldRule{{Path: "/payload", Action: "redact"}},
 	})
 	_, _, report, err := engine.Apply("application/json", []byte(`{"payload":"important"}`))
@@ -183,11 +199,17 @@ func FuzzPrivacyStructuredJSONNoPanics(f *testing.F) {
 	f.Add(`{"array":[1,2,3],"plain":"hello"}`)
 	f.Add(`{"malformed":`)
 	f.Fuzz(func(t *testing.T, value string) {
-		if len(value) > 8192 { t.Skip() }
+		if len(value) > 8192 {
+			t.Skip()
+		}
 		engine := NewPrivacyEngine(PrivacySettings{Enabled: true, Action: "redact"})
 		output, _, report, err := engine.Apply("application/json", []byte(value))
-		if err != nil || report.Blocked { return }
-		if !json.Valid(output) { t.Fatalf("forwarded malformed JSON") }
+		if err != nil || report.Blocked {
+			return
+		}
+		if !json.Valid(output) {
+			t.Fatalf("forwarded malformed JSON")
+		}
 	})
 }
 
@@ -198,6 +220,8 @@ func BenchmarkContextualPrivacySanitization(b *testing.B) {
 	b.SetBytes(int64(len(payload)))
 	for i := 0; i < b.N; i++ {
 		_, _, _, err := engine.Apply("application/json", payload)
-		if err != nil { b.Fatal(err) }
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 }
