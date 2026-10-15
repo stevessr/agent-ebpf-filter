@@ -558,6 +558,27 @@ func (a *renewApp) processesView(c *ui.Context) {
 func (a *renewApp) systemView(c *ui.Context) {
 	t := c.Theme()
 	ui.Text(c, "系统").FontSize(28).Bold()
+	if a.localWindowsMonitoring {
+		ui.Text(c, "Windows 本机观测：Win32 Tool Help + IP Helper；eBPF for Windows Hook 为可选扩展。").TextColor(t.TextMuted)
+		ui.Row(c).Gap(12).Wrap().Children(func() {
+			statCard(c, "采集器", "Windows API", "两秒一次快照，非 ETW 全事件流")
+			if a.systemConnected {
+				statCard(c, "进程", fmt.Sprintf("%d", len(a.system.Processes)), "Tool Help 进程/父进程")
+				statCard(c, "内存", fmt.Sprintf("%.1f%%", a.system.MemPercent), fmt.Sprintf("%s / %s", formatBytes(int64(a.system.MemUsed)), formatBytes(int64(a.system.MemTotal))))
+			}
+		})
+		card(c, "eBPF for Windows · 内核网络 Hook", func() {
+			ui.Text(c, a.windowsEBPFSummary).TextColor(t.TextMuted)
+			ui.Text(c, "独立的 connect4/connect6 Hook 只计数并软放行；不提供 PID 级 eBPF 事件或文件阻断。未安装时由 Windows API 继续观测。").FontSize(11).TextColor(t.TextMuted)
+			ui.Text(c, "SDK、编译/加载说明见 desktop/renew/windows-ebpf/README.md；驱动与 Hook 不会自动安装。").FontSize(11).TextColor(t.TextMuted)
+		})
+		card(c, "采样限制与健康", func() {
+			ui.Text(c, "TCP 连接短于轮询间隔时可能漏掉。未知的 CPU、磁盘和网络字节计数不会显示成零。").FontSize(12).TextColor(t.TextMuted)
+			if a.systemErr != "" { ui.Text(c, a.systemErr).TextColor(t.Warning) }
+			if !a.lastSync.IsZero() { ui.Text(c, "最近同步：" + a.lastSync.Format("15:04:05")).TextColor(t.TextMuted) }
+		})
+		return
+	}
 
 	_, attention, danger := a.riskCounts()
 	if !a.connected || (a.healthReady && !a.health.CaptureHealthy) ||

@@ -30,6 +30,9 @@ func (a *renewApp) copyMonitoringSnapshot(child *renewApp) {
         return
     }
     child.client = a.client
+    child.localWindowsMonitoring = a.localWindowsMonitoring
+    child.windowsEBPFSummary = a.windowsEBPFSummary
+    child.localWindowsMonitoring = a.localWindowsMonitoring
     child.starting = a.starting
     child.paused = a.paused
     child.connected = a.connected

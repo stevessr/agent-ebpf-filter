@@ -107,3 +107,28 @@ jobs:
             desktop/renew/build/linux-amd64/renew-0.1.0-linux-amd64.tar.gz
             desktop/renew/build/linux-amd64/install.sh
           if-no-files-found: error
+
+  windows-native:
+    runs-on: windows-2025
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: desktop/renew
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.27.1"
+          cache-dependency-path: desktop/renew/go.sum
+      - name: Check Windows Go sources
+        run: gofmt -l windows_api_windows.go windows_monitor_windows.go windows_ebpf_windows.go windows_monitor_windows_test.go
+      - name: Test native Win32 collector and eBPF map decoding
+        run: go test -run TestWindows ./...
+      - name: Build Windows desktop binary
+        run: go build -o renew.exe .
+      - name: Upload Windows smoke binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: renew-windows-amd64-smoke
+          path: desktop/renew/renew.exe
+          if-no-files-found: error

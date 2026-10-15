@@ -217,6 +217,13 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 }
 
 func (a *renewApp) workspacePage(c *ui.Context) {
+	if a.localWindowsMonitoring {
+		switch a.page {
+		case "监控", "eBPF 模块", "规则", "跟踪", "路径权限":
+			ui.Text(c, "当前使用 Windows API 本机观测。此页依赖 Linux eBPF/LSM 后端，Windows 模式不会执行策略、阻断或模拟成功结果。可通过 --backend 连接已有 Linux 服务。").TextColor(c.Theme().Warning)
+			return
+		}
+	}
 	switch a.page {
 	case "事件":
 		a.eventsView(c)
@@ -652,8 +659,12 @@ func (a *renewApp) captureWarning(c *ui.Context) {
 		Background(t.Danger.Alpha(0.08)).Border(1, t.Danger.Alpha(0.4)).Radius(8).Children(func() {
 		ui.Column(c).Grow(1).MinWidth(230).Gap(3).Children(func() {
 			ui.Text(c, "采集链路异常，摘要可能不完整").Bold().TextColor(t.Danger)
-			ui.Text(c, fmt.Sprintf("eBPF 健康检查未通过 · Ringbuf 累计丢弃 %d；请核对系统诊断，勿以空白事件判断安全。",
-				a.health.RingbufDroppedTotal)).FontSize(11).TextColor(t.TextMuted)
+			if a.localWindowsMonitoring {
+				ui.Text(c, "Win32 进程/TCP 采样异常："+a.systemErr).FontSize(11).TextColor(t.TextMuted)
+			} else {
+				ui.Text(c, fmt.Sprintf("eBPF 健康检查未通过 · Ringbuf 累计丢弃 %d；请核对系统诊断，勿以空白事件判断安全。",
+					a.health.RingbufDroppedTotal)).FontSize(11).TextColor(t.TextMuted)
+			}
 		})
 		if ui.Button(c, "查看采集诊断").Tooltip("只读查看采集器健康、事件丢弃及传输状态").Clicked() {
 			a.page = "系统"
