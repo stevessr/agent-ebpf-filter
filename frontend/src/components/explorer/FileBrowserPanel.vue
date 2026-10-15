@@ -650,7 +650,7 @@ onMounted(async () => {
 
 <style scoped>
 .file-browser-panel {
-  background: #fff;
+  background: var(--ui-surface);
 }
 
 .file-browser-alert {
@@ -690,7 +690,7 @@ onMounted(async () => {
 .file-browser-hidden-toggle span,
 .file-browser-track-label {
   font-size: 12px;
-  color: #4a4a4a;
+  color: var(--ui-text-muted);
   white-space: nowrap;
 }
 
@@ -741,7 +741,7 @@ onMounted(async () => {
 }
 
 .file-browser-grid-item:hover {
-  background: #f0f7ff;
+  background: var(--ui-primary-soft);
 }
 
 .file-browser-grid-item.is-selected {
@@ -795,7 +795,7 @@ onMounted(async () => {
   justify-content: center;
   overflow: hidden;
   border-radius: 4px;
-  background: #fff;
+  background: var(--ui-surface);
 }
 
 .file-browser-list-image {
@@ -816,7 +816,7 @@ onMounted(async () => {
 
 .file-browser-entry-name {
   font-family: monospace;
-  color: #1f2937;
+  color: var(--ui-text-strong);
 }
 
 .file-browser-entry-name.is-dir {
@@ -825,7 +825,7 @@ onMounted(async () => {
 
 .file-browser-muted {
   font-size: 12px;
-  color: #4a4a4a;
+  color: var(--ui-text-muted);
 }
 
 .file-browser-mono {
