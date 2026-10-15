@@ -68,6 +68,10 @@ flowchart LR
 本轮演示文档按仓库 `master` **2026-10-15** 的提交 `10e9766` 核对。页面描述的是**代码具备的能力及其前提**，不是对任意安装环境的运行结果保证。最新功能以源码、运行时状态与实际测试为准。
 :::
 
+::: tip 相关研究
+阅读 [Agent-Warden 论文解读](/reference/agent-warden-analysis)，理解内核原生进程—文件溯源、因果图证据与本项目现有实现的差异；勿将论文原型能力写成已实现特性。
+:::
+
 ## 来源与致谢
 
 项目受到 [AgentSight](https://github.com/eunomia-bpf/agentsight) 启发，在其 Agent 系统追踪方向上扩展 Go 后端、策略控制与本地桌面体验。详见 [项目致谢](/reference/agentsight-acknowledgment)。
