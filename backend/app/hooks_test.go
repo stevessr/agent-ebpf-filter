@@ -359,7 +359,7 @@ func TestPiAndOmpPayloadFeedsProcessContext(t *testing.T) {
 	}
 }
 
-func TestClaudeSubAgentLifecycleHooksIndependent(t *testing.T) {
+func TestNativeHookClaudeSubAgentLifecycleHooksIndependent(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), ".claude", "settings.json")
 	oldStore := runtimeSettingsStore
 	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{
@@ -436,7 +436,7 @@ func TestClaudeSubAgentLifecycleHooksIndependent(t *testing.T) {
 	}
 }
 
-func TestUnchangedNativeHookRelayKeepsCurlHeaders(t *testing.T) {
+func TestNativeHookRelayKeepsCurlHeaders(t *testing.T) {
 	oldStore := runtimeSettingsStore
 	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{
 		HookSecrets: map[string]string{"claude": "original-secret"},
