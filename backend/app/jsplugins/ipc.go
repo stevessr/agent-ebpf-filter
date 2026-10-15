@@ -178,8 +178,7 @@ func (w *Worker) handleConn(conn net.Conn) {
 	resp.Version = ProtocolVersion
 	// The newline terminator is part of the protocol. Restrict bytes BEFORE
 	// decoding: an attacker must not be able to stream unbounded JSON.
-	line, err := bufio.NewReader(io.LimitReader(conn, MaxWireBytes+1)).ReadBytes('
-')
+	line, err := bufio.NewReader(io.LimitReader(conn, MaxWireBytes+1)).ReadBytes('\n')
 	if err != nil || len(line) > MaxWireBytes {
 		resp.Code, resp.Error = "validation", "invalid or oversized JavaScript worker frame"
 		_ = json.NewEncoder(conn).Encode(resp)

@@ -50,10 +50,7 @@ func TestWorkerFailClosedWithoutSocket(t *testing.T) {
 
 func TestWorkerRejectsMalformedAndOversizedFrames(t *testing.T) {
 	socket := testWorker(t)
-	for _, payload := range []string{"garbage
-",strings.Repeat("x",MaxWireBytes+2)+"
-",`{"version":999,"source":"x","hook":"onEvent","payload":{}}`+"
-"} {
+	for _, payload := range []string{"garbage\n",strings.Repeat("x",MaxWireBytes+2)+"\n",`{"version":999,"source":"x","hook":"onEvent","payload":{}}`+"\n"} {
 		conn,err:=net.Dial("unix",socket)
 		if err!=nil{t.Fatal(err)}
 		_ = conn.SetDeadline(time.Now().Add(time.Second))
