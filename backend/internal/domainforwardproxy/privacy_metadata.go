@@ -79,6 +79,13 @@ func (e *PrivacyEngine) InspectRequestMetadata(request *http.Request) (PrivacyRe
 		}
 		sort.Strings(keys)
 		for _, key := range keys {
+			// Query names are just as visible to the upstream as values.
+			if err := check("query_name", privacyDecodeRepeatedly(key), false); err != nil {
+				return report, err
+			}
+			if report.Blocked {
+				return report, nil
+			}
 			for _, value := range parameters[key] {
 				if err := check(privacyDecodeRepeatedly(key), privacyDecodeRepeatedly(value), false); err != nil {
 					return report, err
@@ -95,6 +102,12 @@ func (e *PrivacyEngine) InspectRequestMetadata(request *http.Request) (PrivacyRe
 	}
 	sort.Strings(headerNames)
 	for _, key := range headerNames {
+		if err := check("header_name", key, false); err != nil {
+			return report, err
+		}
+		if report.Blocked {
+			return report, nil
+		}
 		folded := privacyFoldKey(key)
 		switch folded {
 		case "authorization", "xapikey", "apikey":
@@ -113,11 +126,8 @@ func (e *PrivacyEngine) InspectRequestMetadata(request *http.Request) (PrivacyRe
 		}
 		// Ignore ordinary transport metadata, not arbitrary X-* attributes.
 		switch folded {
-		case "accept", "acceptencoding", "contenttype", "contentlength",
-			"useragent", "connection", "cachecontrol", "host",
-			"contentencoding", "transferencoding", "xforwardedfor",
-			"xforwardedhost", "xforwardedproto", "openaiorganization",
-			"openaiproject":
+		case "contentlength", "connection", "host", "contentencoding",
+			"transferencoding", "xforwardedfor", "xforwardedhost", "xforwardedproto":
 			continue
 		}
 		for _, value := range request.Header.Values(key) {
