@@ -5,11 +5,11 @@ package core
 // DomainForwardRoute maps one request host/SNI name to an optional upstream.
 // When Upstream is empty, the proxy forwards to <defaultScheme>://<request-host>.
 type DomainForwardRoute struct {
-	Host     string `json:"host"`
-	Upstream string `json:"upstream,omitempty"`
-	UseUpstreamHost bool `json:"useUpstreamHost,omitempty"`
-	CertFile string `json:"certFile,omitempty"`
-	KeyFile  string `json:"keyFile,omitempty"`
+	Host            string `json:"host"`
+	Upstream        string `json:"upstream,omitempty"`
+	UseUpstreamHost bool   `json:"useUpstreamHost,omitempty"`
+	CertFile        string `json:"certFile,omitempty"`
+	KeyFile         string `json:"keyFile,omitempty"`
 }
 
 // DomainBodyRewriteRule applies a bounded literal replacement to textual
