@@ -17,6 +17,7 @@ type renewApp struct {
 	client  *apiClient
 	// Local Windows snapshots have deliberately reduced visibility and no policy enforcement.
 	localWindowsMonitoring bool
+	windowsEBPFSummary string
 
 	starting   bool
 	connected  bool
