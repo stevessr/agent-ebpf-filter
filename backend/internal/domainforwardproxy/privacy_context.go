@@ -77,6 +77,9 @@ func NormalizeContextSettings(settings *PrivacySettings) {
 		rule.Path = strings.TrimSpace(rule.Path)
 		rule.Action = strings.ToLower(strings.TrimSpace(rule.Action))
 		if !validPrivacyJSONPointer(rule.Path) || seen[rule.Path] {
+			// Preserve an invalid rule as an explicit invalid marker so the
+			// gateway fails closed instead of silently dropping a user policy.
+			rules = append(rules, PrivacyJSONFieldRule{Path: rule.Path, Action: "__invalid__"})
 			continue
 		}
 		if rule.Action != "allow" && rule.Action != "redact" &&
