@@ -54,7 +54,9 @@ export const defaultDomainForwardProxy = (): DomainForwardProxySettings => ({
     action: "redact",
     restoreResponse: true,
     maxBodyBytes: 1024 * 1024,
-    categories: ["secret", "email", "phone"],
+    categories: ["secret", "email", "phone", "payment_card"],
+    contextMode: "strict",
+    jsonFieldRules: [],
     allowlist: [],
   },
   rewrite: {
@@ -334,6 +336,10 @@ export const normalizeDomainForwardProxy = (
       ...(value?.privacy || {}),
       categories: Array.isArray(value?.privacy?.categories) ? value.privacy.categories : defaults.privacy.categories,
       allowlist: Array.isArray(value?.privacy?.allowlist) ? value.privacy.allowlist : defaults.privacy.allowlist,
+      contextMode: value?.privacy?.contextMode === "off" ? "off" : "strict",
+      jsonFieldRules: Array.isArray(value?.privacy?.jsonFieldRules)
+        ? value.privacy.jsonFieldRules
+        : [],
     },
     rewrite: {
       ...defaults.rewrite,
