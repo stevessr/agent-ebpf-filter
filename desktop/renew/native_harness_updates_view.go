@@ -38,6 +38,14 @@ func harnessCommandForID(id string)string{
  for _,spec:=range codingHarnessCatalog{if spec.ID==id{return spec.Command}}
  return ""
 }
+func reinspectHarnessUpdatePlan(plan harnessUpdatePlan,p harnessProbe) harnessUpdatePlan {
+ if plan.ID=="claude-desktop"||plan.ID=="chatgpt-desktop"{
+  for _,candidate:=range scanDesktopAppUpdates(p){if candidate.ID==plan.ID{return candidate}}
+  return harnessUpdatePlan{ID:plan.ID,Source:"missing"}
+ }
+ path,_:=p.lookup(harnessCommandForID(plan.ID))
+ return inspectHarnessInstallation(plan.ID,plan.Label,path,p)
+}
 func (a *renewApp) startHarnessUpdate(plan harnessUpdatePlan){
  if a.harnessUpdateBusy||len(plan.Command)==0{return}
  a.harnessUpdateConfirm=""
@@ -46,12 +54,11 @@ func (a *renewApp) startHarnessUpdate(plan harnessUpdatePlan){
  go func(){
   // Reinspect active ownership immediately before launching the updater.
   probe:=systemHarnessProbe()
-  path,_:=probe.lookup(harnessCommandForID(plan.ID))
-  latest:=inspectHarnessInstallation(plan.ID,plan.Label,path,probe)
+  latest:=reinspectHarnessUpdatePlan(plan,probe)
   if a.terminalClosing.Load(){return}
   a.update(func(){
    a.harnessUpdateBusy=false
-   if latest.Path!=plan.Path||latest.Source!=plan.Source||latest.Package!=plan.Package||!reflect.DeepEqual(latest.Command,plan.Command){
+   if latest.Path!=plan.Path||latest.Source!=plan.Source||latest.Package!=plan.Package||latest.Evidence!=plan.Evidence||!reflect.DeepEqual(latest.Command,plan.Command){
     a.harnessUpdateError="安装来源已变化，请重新检测后确认。"
     a.harnessUpdateScanned=false
     return
@@ -104,7 +111,7 @@ func (a *renewApp) harnessUpdaterView(c *ui.Context){
   if a.harnessUpdateConfirm==plan.ID&&!a.harnessUpdateBusy&&len(plan.Command)>0{
    ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func(){
     statusPill(c,"需要确认",t.Warning)
-    ui.Text(c,"在普通用户 PTY 中运行上述命令；sudo 如有需要将在终端内申请授权。").FontSize(11)
+    ui.Text(c,"在本地普通用户终端执行指定包更新；如需系统授权，由安装器自行提示。").FontSize(11)
     if ui.PrimaryButton(c,"确认执行更新").Clicked(){a.startHarnessUpdate(plan)}
     if ui.Button(c,"取消").Clicked(){a.harnessUpdateConfirm=""}
    })
