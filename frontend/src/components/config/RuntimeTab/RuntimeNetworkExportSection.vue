@@ -65,7 +65,7 @@ const privacyFieldActionOptions = [
 const addPrivacyFieldRule = () => {
   const privacy = runtimeSettings.value.domainForwardProxy.privacy;
   privacy.jsonFieldRules ||= [];
-  privacy.jsonFieldRules.push({ path: "/params/arguments/task_history", action: "block" });
+  privacy.jsonFieldRules.push({ path: "/params/arguments/task_history", action: "block", recipient: "" });
 };
 const removePrivacyFieldRule = (index: number) => {
   runtimeSettings.value.domainForwardProxy.privacy.jsonFieldRules?.splice(index, 1);
@@ -465,10 +465,11 @@ const updateDomainForwardRouteField = (
                   <div
                     v-for="(rule, index) in runtimeSettings.domainForwardProxy.privacy.jsonFieldRules || []"
                     :key="index"
-                    style="display: grid; grid-template-columns: minmax(200px, 2fr) minmax(160px, 1fr) auto; gap: 8px"
+                    style="display: grid; grid-template-columns: minmax(190px, 2fr) minmax(140px, 1fr) minmax(150px, 1fr) auto; gap: 8px"
                   >
                     <a-input v-model:value="rule.path" placeholder="/params/arguments/task_history" />
                     <a-select v-model:value="rule.action" :options="privacyFieldActionOptions" />
+                    <a-input v-model:value="rule.recipient" placeholder="allow 时必填上游域名" />
                     <a-button danger @click="removePrivacyFieldRule(index)">
                       <DeleteOutlined />
                     </a-button>
@@ -477,7 +478,7 @@ const updateDomainForwardRouteField = (
                     type="warning"
                     show-icon
                     message="allow 是显式解密/披露授权；drop 可能改变上游 API 输入结构。"
-                    description="精确路径中的 allow 仅允许对应标量，不会自动放行嵌套子字段；路径值不得由外部 MCP 工具提供。"
+                    description="精确路径中的 allow 仅允许对应标量，且必须填写真实上游域名（例如 api.openai.com），不会自动放行嵌套子字段；路径值不得由外部 MCP 工具提供。"
                   />
                 </div>
               </a-card>
