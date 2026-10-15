@@ -30,7 +30,7 @@ func (a *renewApp) privacyGatewayView(c *ui.Context) {
             }
             ui.Spacer(c)
             if ui.Button(c, "刷新配置").Clicked() && !a.configBusy {
-                go a.refreshRuntimeConfig(context.Background())
+                go a.refreshEventTypeConfig(context.Background())
             }
         })
         enabled := cfg.Privacy.Enabled
