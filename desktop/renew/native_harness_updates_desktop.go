@@ -38,6 +38,9 @@ func (p harnessProbe) powershell()string{
 
 // Exactly three fixed identities are queried: CLI aliases are not proof of a
 // desktop app, and Store names/locations are not matched fuzzily.
+func appxProbeScript(name string)string{
+ return "$p = Get-AppxPackage -Name '" +name+"' | Select-Object -First 1; if ($null -ne $p) { $p | Select-Object Name,PackageFamilyName,InstallLocation,Version | ConvertTo-Json -Compress }"
+}
 func (p harnessProbe) appx(name string)(registeredWindowsApp,bool){
  if p.goos!="windows"||p.powershell()==""{return registeredWindowsApp{},false}
  allowed:=map[string]string{
@@ -65,7 +68,11 @@ func (p harnessProbe) wingetInstalled(id,source string)bool{
  if err!=nil{return false}
  for _,line:=range strings.Split(raw,"\n"){
   columns:=strings.Fields(line)
-  if len(columns)<4||columns[len(columns)-1]!=source{continue}
+  if len(columns)<3{continue}
+  // Filtered winget list can omit Source; if present, require agreement.
+  if columns[len(columns)-1]=="winget"||columns[len(columns)-1]=="msstore"{
+   if columns[len(columns)-1]!=source{continue}
+  }
   for i:=0;i<len(columns)-2;i++{
    if columns[i]==id && columns[i+1]!=""{return true}
   }
