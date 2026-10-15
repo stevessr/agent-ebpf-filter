@@ -53,3 +53,11 @@ func TestEmitNativeHookEventDoesNotBlockWhenQueueFull(t *testing.T) {
 		t.Fatalf("full queue contents changed: got %q", got.GetType())
 	}
 }
+
+func TestClaudeSubAgentLifecycleProviderTag(t *testing.T) {
+	for _, event := range []string{"SubagentStart", "SubagentStop"} {
+		if got := nativeHookProviderTag("claude-subagent-start", "", event); got != "Claude Code" {
+			t.Fatalf("hook source must retain provider identity: event=%s tag=%s", event, got)
+		}
+	}
+}
