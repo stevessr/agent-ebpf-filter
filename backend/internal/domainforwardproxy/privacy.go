@@ -31,6 +31,7 @@ const maxPrivacyFindings = 128
 var (
 	privacyEmail  = regexp.MustCompile(`(?i)\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b`)
 	privacyPhone  = regexp.MustCompile(`\b\+?[0-9][0-9\-(). ]{8,}[0-9]\b`)
+	privacyPaymentCard = regexp.MustCompile(`\b(?:[0-9][ -]?){12,18}[0-9]\b`)
 	privacySecret = regexp.MustCompile(`(?i)\b(?:sk-[A-Za-z0-9_\-]{16,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|(?:api[_-]?key|access[_-]?token|password|secret)\s*[:=]\s*["']?[A-Za-z0-9_./+\-]{12,})`)
 )
 
@@ -86,7 +87,7 @@ func NormalizePrivacySettings(s *PrivacySettings) {
 	seen := map[string]bool{}
 	for _, category := range s.Categories {
 		category = strings.ToLower(strings.TrimSpace(category))
-		if (category == "secret" || category == "email" || category == "phone") && !seen[category] {
+		if (category == "secret" || category == "email" || category == "phone" || category == "payment_card") && !seen[category] {
 			categories = append(categories, category)
 			seen[category] = true
 		}
@@ -118,6 +119,8 @@ func NewPrivacyEngine(settings PrivacySettings) *PrivacyEngine {
 			pattern = privacyEmail
 		case "phone":
 			pattern = privacyPhone
+		case "payment_card":
+			pattern = privacyPaymentCard
 		}
 		if pattern != nil {
 			engine.patterns = append(engine.patterns, struct {
@@ -251,6 +254,16 @@ func (e *PrivacyEngine) detect(value string) []privacyMatch {
 	for _, item := range e.patterns {
 		for _, offsets := range item.pattern.FindAllStringIndex(value, maxPrivacyFindings+1) {
 			raw := value[offsets[0]:offsets[1]]
+			if item.category == "payment_card" && !looksLikePaymentCard(raw) {
+				continue
+			}
+			if item.category == "phone" {
+				digits := 0
+				for _, char := range raw {
+					if char >= '0' && char <= '9' { digits++ }
+				}
+				if digits < 10 || digits > 15 { continue }
+			}
 			if _, allowed := e.allowlist[raw]; allowed {
 				continue
 			}
@@ -261,7 +274,8 @@ func (e *PrivacyEngine) detect(value string) []privacyMatch {
 		if candidates[i].start != candidates[j].start {
 			return candidates[i].start < candidates[j].start
 		}
-		return candidates[i].end > candidates[j].end
+		if candidates[i].end != candidates[j].end { return candidates[i].end > candidates[j].end }
+		return candidates[i].category == "payment_card" && candidates[j].category != "payment_card"
 	})
 	kept := candidates[:0]
 	end := 0
