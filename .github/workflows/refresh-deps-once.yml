@@ -55,7 +55,7 @@ jobs:
           done
           go work sync
           for module in backend desktop/renew wrapper tools/agent-tui tools/dev-env-tui; do
-            (cd "$module" && go mod tidy -diff)
+            (cd "$module" && go mod tidy && go mod tidy -diff)
           done
           grep -qx 'go 1.27.1' <(head -n 1 go.work)
       - name: Refresh Bun dependencies within declared ranges
