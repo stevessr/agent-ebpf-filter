@@ -135,10 +135,46 @@ func (p harnessProbe) chocoOwner(id,actual string)(string,bool){
  }
  return "",false
 }
+// Node's Windows global launchers are usually generated .cmd/.ps1 wrappers,
+// not POSIX symlinks. Require manager global directories, manifest identity,
+// and a wrapper that directly refers to that exact installed package.
+func (p harnessProbe) windowsNodeShim(id,actual string)(source,pkg string){
+ if p.goos!="windows"{return "",""}
+ expected:=harnessUpdatePackageNames[id]
+ command:=id
+ if id=="deepseek"{command="dsh"}
+ if expected==""{return "",""}
+ actualBase:=winBase(actual)
+ if actualBase!=command+".cmd"&&actualBase!=command+".ps1"{return "",""}
+ for _,entry:=range []struct{source,binQuery,globalRootQuery,globalRootSource string}{
+  {"npm","prefix -g","root -g","npm"},
+  {"yarn","global bin","global dir","yarn"},
+ }{
+  if !p.has(entry.source){continue}
+  words:=strings.Fields(entry.binQuery)
+  binDir,err:=p.run(entry.source,words...)
+  if err!=nil||!winSamePath(actual,strings.TrimSpace(binDir)+"/"+actualBase){continue}
+  rootArgs:=strings.Fields(entry.globalRootQuery)
+  globalRoot,err:=p.run(entry.source,rootArgs...)
+  if err!=nil{continue}
+  globalRoot=strings.TrimSpace(globalRoot)
+  if entry.source=="yarn"{globalRoot+="/node_modules"}
+  var metadata struct{Name string}
+  metadataBytes,err:=p.readFile(globalRoot+"/"+expected+"/package.json")
+  if err!=nil||json.Unmarshal(metadataBytes,&metadata)!=nil||metadata.Name!=expected{continue}
+  wrapper,err:=p.readFile(actual)
+  if err!=nil||len(wrapper)>32768{continue}
+  linkText:=strings.ToLower(strings.ReplaceAll(string(wrapper),"\\","/"))
+  if !strings.Contains(linkText,"node_modules/"+strings.ToLower(expected)+"/"){continue}
+  return entry.source,expected
+ }
+ return "",""
+}
 func (p harnessProbe) windowsCLIOwner(id,actual string)(source,pkg,evidence string){
  if p.goos!="windows"{return "","",""}
  if name,ok:=p.scoopOwner(id,actual);ok{return "scoop",name,"Scoop 的应用前缀、已安装清单和启动入口一致"}
  if name,ok:=p.chocoOwner(id,actual);ok{return "choco",name,"Chocolatey bin shim 与已安装包清单一致"}
+ if src,name:=p.windowsNodeShim(id,actual);src!=""{return src,name,"Windows 全局 shim、管理器目录和包清单均匹配"}
  return "","",""
 }
 
