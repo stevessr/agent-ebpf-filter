@@ -15,6 +15,8 @@ type renewApp struct {
 	win     *mygo.Window
 	backend string
 	client  *apiClient
+	// Local Windows snapshots have deliberately reduced visibility and no policy enforcement.
+	localWindowsMonitoring bool
 
 	starting   bool
 	connected  bool
@@ -422,6 +424,8 @@ func (a *renewApp) collectorStatus() (label, level string) {
 		return "同步中", "warning"
 	case !a.health.CaptureHealthy:
 		return "异常", "danger"
+	case a.localWindowsMonitoring:
+		return "Windows 部分观测", "warning"
 	default:
 		return "正常", "success"
 	}
@@ -441,6 +445,8 @@ func (a *renewApp) pipelineStatus() (label, level string) {
 		return "事件流回退", "warning"
 	case !a.systemConnected:
 		return "系统流重连", "warning"
+	case a.localWindowsMonitoring:
+		return "Windows API 轮询", "warning"
 	default:
 		return "全链路实时", "success"
 	}
