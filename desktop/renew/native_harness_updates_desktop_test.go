@@ -1,6 +1,7 @@
 package main
 
 import (
+ "encoding/json"
  "reflect"
  "strings"
  "testing"
@@ -12,7 +13,8 @@ func windowsTestProbe(supported []string, receipts map[string]string) harnessPro
  return p
 }
 func appxReceipt(name,family string)string{
- return `{"Name":"`+name+`","PackageFamilyName":"`+family+`","InstallLocation":"C:\\Program Files\\WindowsApps\\test","Version":"1.2.3"}`
+ data,_:=json.Marshal(registeredWindowsApp{Name:name,PackageFamilyName:family,InstallLocation:"C:/Program Files/WindowsApps/test",Version:"1.2.3"})
+ return string(data)
 }
 func appxReceiptKey(name string)string{
  return "powershell.exe -NoProfile -NonInteractive -Command "+appxProbeScript(name)
