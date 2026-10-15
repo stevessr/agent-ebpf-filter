@@ -200,6 +200,7 @@ func inspectHarnessInstallation(id,label,path string,p harnessProbe)harnessUpdat
  result:=harnessUpdatePlan{ID:id,Label:label,Path:path,Source:"unknown",Advisory:"安装来源无法可靠确认；请使用原安装渠道手动更新，避免覆盖或重复安装。"}
  if path==""{result.Source="missing";result.Advisory="尚未在 PATH 中发现该 CLI。";return result}
  absolute,err:=filepath.Abs(path)
+ if p.goos=="windows"&&len(path)>=3&&path[1]==\u0027:\u0027&&(path[2]==\u0027\\\\\u0027||path[2]==\u0027/\u0027){absolute,err=path,nil}
  if err!=nil{return result}
  resolved,err:=p.resolve(absolute)
  if err!=nil{resolved=absolute}
