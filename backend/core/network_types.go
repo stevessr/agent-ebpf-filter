@@ -53,6 +53,14 @@ type DomainBodyRewriteSettings struct {
 	Inference    DomainNativeInferenceSettings `json:"inference,omitempty"`
 }
 
+// DomainPrivacyJSONFieldRule is an exact JSON-pointer disclosure decision.
+// Allow rules require an upstream recipient and never apply across destinations.
+type DomainPrivacyJSONFieldRule struct {
+	Path      string `json:"path"`
+	Action    string `json:"action"`
+	Recipient string `json:"recipient,omitempty"`
+}
+
 // DomainPrivacySettings controls local-only inspection of routed request bodies.
 // Restore maps are intentionally per-request and never persisted.
 type DomainPrivacySettings struct {
@@ -62,6 +70,8 @@ type DomainPrivacySettings struct {
 	MaxBodyBytes    int64    `json:"maxBodyBytes"`
 	Categories      []string `json:"categories,omitempty"`
 	Allowlist       []string `json:"allowlist,omitempty"`
+	ContextMode     string                       `json:"contextMode,omitempty"`
+	JSONFieldRules  []DomainPrivacyJSONFieldRule `json:"jsonFieldRules,omitempty"`
 }
 
 // DomainForwardProxySettings controls the optional public HTTP/HTTPS reverse proxy.
