@@ -14,12 +14,12 @@ import (
 // PrivacySettings is a local middleware policy independent of event redaction.
 // TLS interception and raw request logging are never implicitly enabled.
 type PrivacySettings struct {
-	Enabled         bool     `json:"enabled"`
-	Action          string   `json:"action"`
-	RestoreResponse bool     `json:"restoreResponse"`
-	MaxBodyBytes    int64    `json:"maxBodyBytes"`
-	Categories      []string `json:"categories,omitempty"`
-	Allowlist       []string `json:"allowlist,omitempty"`
+	Enabled         bool                   `json:"enabled"`
+	Action          string                 `json:"action"`
+	RestoreResponse bool                   `json:"restoreResponse"`
+	MaxBodyBytes    int64                  `json:"maxBodyBytes"`
+	Categories      []string               `json:"categories,omitempty"`
+	Allowlist       []string               `json:"allowlist,omitempty"`
 	ContextMode     string                 `json:"contextMode,omitempty"`
 	JSONFieldRules  []PrivacyJSONFieldRule `json:"jsonFieldRules,omitempty"`
 }
@@ -29,10 +29,10 @@ const privacyMaxBytes = int64(8 << 20)
 const maxPrivacyFindings = 128
 
 var (
-	privacyEmail  = regexp.MustCompile(`(?i)\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b`)
-	privacyPhone  = regexp.MustCompile(`\b\+?[0-9][0-9\-(). ]{8,}[0-9]\b`)
+	privacyEmail       = regexp.MustCompile(`(?i)\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b`)
+	privacyPhone       = regexp.MustCompile(`\b\+?[0-9][0-9\-(). ]{8,}[0-9]\b`)
 	privacyPaymentCard = regexp.MustCompile(`\b(?:[0-9][ -]?){12,18}[0-9]\b`)
-	privacySecret = regexp.MustCompile(`(?i)\b(?:sk-[A-Za-z0-9_\-]{16,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|(?:api[_-]?key|access[_-]?token|password|secret)\s*[:=]\s*["']?[A-Za-z0-9_./+\-]{12,})`)
+	privacySecret      = regexp.MustCompile(`(?i)\b(?:sk-[A-Za-z0-9_\-]{16,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|(?:api[_-]?key|access[_-]?token|password|secret)\s*[:=]\s*["']?[A-Za-z0-9_./+\-]{12,})`)
 )
 
 type PrivacyFinding struct {
@@ -260,12 +260,18 @@ func (e *PrivacyEngine) detect(value string) []privacyMatch {
 			if item.category == "phone" {
 				digits := 0
 				for _, char := range raw {
-					if char >= '0' && char <= '9' { digits++ }
+					if char >= '0' && char <= '9' {
+						digits++
+					}
 				}
-				if digits < 10 || digits > 15 { continue }
+				if digits < 10 || digits > 15 {
+					continue
+				}
 				// Long unformatted digit runs are often IDs, epoch values or
 				// telemetry counters. Require explicit phone punctuation.
-				if digits > 11 && !strings.ContainsAny(raw, "+()- ") { continue }
+				if digits > 11 && !strings.ContainsAny(raw, "+()- ") {
+					continue
+				}
 			}
 			if _, allowed := e.allowlist[raw]; allowed {
 				continue
@@ -277,7 +283,9 @@ func (e *PrivacyEngine) detect(value string) []privacyMatch {
 		if candidates[i].start != candidates[j].start {
 			return candidates[i].start < candidates[j].start
 		}
-		if candidates[i].end != candidates[j].end { return candidates[i].end > candidates[j].end }
+		if candidates[i].end != candidates[j].end {
+			return candidates[i].end > candidates[j].end
+		}
 		return candidates[i].category == "payment_card" && candidates[j].category != "payment_card"
 	})
 	kept := candidates[:0]
