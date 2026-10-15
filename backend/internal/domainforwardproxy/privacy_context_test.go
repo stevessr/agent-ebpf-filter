@@ -66,10 +66,10 @@ func TestContextualPrivacyFieldRules(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			settings := PrivacySettings{Enabled: true, Action: "redact",
-				JSONFieldRules: []PrivacyJSONFieldRule{{Path: "/data/customer~1email", Action: tc.action}}}
+				JSONFieldRules: []PrivacyJSONFieldRule{{Path: "/data/customer~1email", Action: tc.action, Recipient: "api.openai.com"}}}
 			engine := NewPrivacyEngine(settings)
 			body := []byte(`{"data":{"customer/email":"` + tc.value + `"},"count":4}`)
-			out, _, report, err := engine.Apply("application/json", body)
+			out, _, report, err := engine.ApplyForRecipient("application/json", body, "api.openai.com")
 			if err != nil || report.Blocked != tc.blocked {
 				t.Fatalf("%s: report=%+v err=%v", tc.name, report, err)
 			}
