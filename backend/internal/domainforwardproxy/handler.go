@@ -137,7 +137,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "request cannot be decoded for privacy inspection", http.StatusUnprocessableEntity)
 			return
 		}
-		rewritten, session, report, err := h.privacy.Apply(r.Header.Get("Content-Type"), decoded)
+		rewritten, session, report, err := h.privacy.ApplyForRecipient(r.Header.Get("Content-Type"), decoded, target.Hostname())
 		if err != nil {
 			http.Error(w, "privacy inspection failed: request refused", http.StatusUnprocessableEntity)
 			return
