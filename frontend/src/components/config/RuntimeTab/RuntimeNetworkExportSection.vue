@@ -5,6 +5,7 @@ import {
   ReloadOutlined,
 } from "@ant-design/icons-vue";
 import type { useConfigRuntime } from "../../../composables/config/useConfigRuntime";
+import { computed } from "vue";
 
 const props = defineProps<{
   runtime: ReturnType<typeof useConfigRuntime>;
@@ -39,6 +40,27 @@ const {
 
 const { mergedFeatures, isCompiledIn, featureStatusLabel, featureStatusColor } =
   featureManifest;
+
+const privacyActionOptions = [
+  { value: "redact", label: "脱敏后继续转发" },
+  { value: "block", label: "命中后阻断" },
+  { value: "warn", label: "仅检测/告警（原文仍会转发）" },
+];
+const privacyCategoryOptions = [
+  { label: "API Key / Token / 密码", value: "secret" },
+  { label: "邮箱", value: "email" },
+  { label: "电话号码", value: "phone" },
+];
+const privacyAllowlistText = computed({
+  get: () => runtimeSettings.value.domainForwardProxy.privacy.allowlist.join("\n"),
+  set: (text: string) => {
+    runtimeSettings.value.domainForwardProxy.privacy.allowlist = text
+      .split("\n")
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .slice(0, 100);
+  },
+});
 
 const rewriteDirectionOptions = [
   { value: "both", label: "Both" },
@@ -347,6 +369,72 @@ const updateDomainForwardRouteField = (
                 show-icon
                 message="Strict allowlist"
                 description="Dynamic certificates are issued only for exact or *.suffix entries above. Clients must explicitly trust this local CA. A host outside the allowlist is not dynamically decrypted."
+              />
+            </div>
+          </a-card>
+
+
+          <a-card title="本地 AI 隐私过滤中间件（Privacy Gateway）" size="small">
+            <div style="display: flex; flex-direction: column; gap: 12px">
+              <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+                <a-switch
+                  v-model:checked="runtimeSettings.domainForwardProxy.privacy.enabled"
+                  :disabled="!isCompiledIn('domain_forward')"
+                />
+                <span>启用请求发送前的本地隐私检测</span>
+                <a-tag v-if="domainForwardStatus.privacyEnabled" color="green">
+                  {{ domainForwardStatus.privacyAction || "enabled" }}
+                </a-tag>
+              </div>
+              <a-alert
+                type="info"
+                show-icon
+                message="仅检查明确路由经过本代理的 HTTP(S) 请求"
+                description="不会自动解密 HTTPS、不会安装系统根证书，也不会读取 AstrLink 的凭据。正文不写入审计日志。建议先在测试流量中验证规则；检测不支持的消息格式或超限请求会拒绝转发。WebSocket 在隐私防护开启时暂不支持，连接会拒绝而不是绕过。"
+              />
+              <div style="display: flex; gap: 12px; flex-wrap: wrap">
+                <div>
+                  <div style="font-weight: 600; margin-bottom: 6px">命中后动作</div>
+                  <a-select
+                    v-model:value="runtimeSettings.domainForwardProxy.privacy.action"
+                    :options="privacyActionOptions"
+                    style="min-width: 255px"
+                  />
+                </div>
+                <div>
+                  <div style="font-weight: 600; margin-bottom: 6px">最大检查正文（字节）</div>
+                  <a-input-number
+                    v-model:value="runtimeSettings.domainForwardProxy.privacy.maxBodyBytes"
+                    :min="1024"
+                    :max="8388608"
+                    style="width: 195px"
+                  />
+                </div>
+              </div>
+              <a-checkbox-group
+                v-model:value="runtimeSettings.domainForwardProxy.privacy.categories"
+                :options="privacyCategoryOptions"
+              />
+              <a-checkbox
+                v-model:checked="runtimeSettings.domainForwardProxy.privacy.restoreResponse"
+              >
+                在本机响应中还原占位符（普通 HTTP / SSE）
+              </a-checkbox>
+              <div>
+                <div style="font-weight: 600; margin-bottom: 6px">
+                  可信例外值（每行一个，按完整命中值精确匹配）
+                </div>
+                <a-textarea
+                  v-model:value="privacyAllowlistText"
+                  :rows="3"
+                  placeholder="demo@example.test"
+                />
+              </div>
+              <a-alert
+                v-if="runtimeSettings.domainForwardProxy.privacy.action === 'warn'"
+                type="warning"
+                show-icon
+                message="Warn 模式不会隐藏敏感信息，原始内容仍将发给上游模型。"
               />
             </div>
           </a-card>
