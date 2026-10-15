@@ -81,7 +81,7 @@ func NormalizePrivacySettings(s *PrivacySettings) {
 		s.MaxBodyBytes = privacyMaxBytes
 	}
 	if len(s.Categories) == 0 {
-		s.Categories = []string{"secret", "email", "phone"}
+		s.Categories = []string{"secret", "email", "phone", "payment_card"}
 	}
 	categories := make([]string, 0, 3)
 	seen := map[string]bool{}
@@ -93,7 +93,7 @@ func NormalizePrivacySettings(s *PrivacySettings) {
 		}
 	}
 	if len(categories) == 0 {
-		categories = []string{"secret", "email", "phone"}
+		categories = []string{"secret", "email", "phone", "payment_card"}
 	}
 	s.Categories = categories
 	NormalizeContextSettings(s)
