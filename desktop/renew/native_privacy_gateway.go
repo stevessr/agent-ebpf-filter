@@ -2,6 +2,7 @@ package main
 
 import (
     "context"
+    "fmt"
     "strings"
     "time"
 
@@ -49,7 +50,8 @@ func (a *renewApp) privacyGatewayView(c *ui.Context) {
         if ui.Switch(c, &restore).Label("在本地响应中还原脱敏占位符").Changed() && !a.configBusy {
             a.updatePrivacyGateway("restoreResponse", restore)
         }
-        ui.Text(c, "检测规则：API Token、邮箱、电话号码；更多分类和精确白名单请使用 WebUI 的运行时网络配置。").FontSize(11).TextColor(t.TextMuted)
+        ui.Text(c, "检测规则：API Token、邮箱、电话、银行卡 Luhn 校验；更多分类与精确白名单请使用 WebUI。").FontSize(11).TextColor(t.TextMuted)
+        ui.Text(c, "上下文保护："+cfg.Privacy.ContextMode+" · JSON 字段策略数："+fmt.Sprint(len(cfg.Privacy.JSONFieldRules))).FontSize(11).TextColor(t.TextMuted)
         ui.Text(c, "SSE 支持按完整事件还原；WebSocket 隐私检查尚未实现，开启防护时会拒绝该类连接。").FontSize(11).TextColor(t.TextMuted)
         if action == "warn" {
             ui.Text(c, "注意：warn 仅检测，不会脱敏，原始敏感信息仍然可能发送至上游。").TextColor(t.Warning)
