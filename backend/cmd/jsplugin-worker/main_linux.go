@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"time"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -45,10 +46,50 @@ func main() {
 	}
 	// Prevent a brief overly-permissive socket between bind and chmod.
 	syscall.Umask(0o077)
-	if _, err := os.Lstat(*socket); !errors.Is(err, os.ErrNotExist) {
+
+	// Lock the private directory before examining an orphaned socket.
+	// The lock survives until process exit and serializes worker restarts.
+	lockPath := filepath.Join(directory, ".worker.lock")
+	fd, err := syscall.Open(lockPath, syscall.O_NOFOLLOW|syscall.O_CLOEXEC|syscall.O_CREAT|syscall.O_RDWR, 0o600)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "open private worker lock:", err)
+		os.Exit(1)
+	}
+	defer syscall.Close(fd)
+	if err := syscall.Flock(fd, syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		fmt.Fprintln(os.Stderr, "socket path already exists or worker lock is held")
+		os.Exit(1)
+	}
+	defer syscall.Flock(fd, syscall.LOCK_UN)
+
+	// Recover only a *socket* owned by this worker UID, and only when a
+	// connection attempt confirms no live listener. Never remove arbitrary
+	// files, active sockets or foreign-owned paths.
+	if info, err := os.Lstat(*socket); err == nil {
+		st, ok := info.Sys().(*syscall.Stat_t)
+		if !ok || info.Mode()&os.ModeSocket == 0 || st.Uid != uint32(os.Geteuid()) {
+			fmt.Fprintln(os.Stderr, "socket path already exists or is inaccessible")
+			os.Exit(1)
+		}
+		conn, dialErr := net.DialTimeout("unix", *socket, 60*time.Millisecond)
+		if dialErr == nil {
+			_ = conn.Close()
+			fmt.Fprintln(os.Stderr, "socket path already exists or is inaccessible")
+			os.Exit(1)
+		}
+		if !errors.Is(dialErr, syscall.ECONNREFUSED) {
+			fmt.Fprintln(os.Stderr, "unable to verify orphaned socket:", dialErr)
+			os.Exit(1)
+		}
+		if err := os.Remove(*socket); err != nil {
+			fmt.Fprintln(os.Stderr, "remove verified orphaned socket:", err)
+			os.Exit(1)
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
 		fmt.Fprintln(os.Stderr, "socket path already exists or is inaccessible")
 		os.Exit(1)
 	}
+
 	listener, err := net.Listen("unix", *socket)
 	if err != nil { fmt.Fprintln(os.Stderr, "listen:", err); os.Exit(1) }
 	defer listener.Close()

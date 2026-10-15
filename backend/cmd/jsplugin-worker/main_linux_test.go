@@ -114,3 +114,40 @@ func TestWorkerBinaryRequiresPrivateSocketDirectory(t *testing.T) {
 		t.Fatalf("symlink directory unexpectedly accepted: %v %s",err,out)
 	}
 }
+
+func TestWorkerBinaryRecoversAfterSIGKILL(t *testing.T) {
+	if os.Geteuid() == 0 { t.Skip("non-root worker test") }
+	binary := filepath.Join(t.TempDir(), "jsplugin-worker")
+	if out, err := exec.Command("go", "build", "-o", binary, ".").CombinedOutput(); err != nil {
+		t.Fatalf("build worker: %v %s", err, out)
+	}
+	private := filepath.Join(t.TempDir(), "private")
+	if err:=os.Mkdir(private,0o700);err!=nil{t.Fatal(err)}
+	socket := filepath.Join(private, "worker.sock")
+	start := func() *exec.Cmd {
+		t.Helper()
+		cmd := exec.Command(binary, "--socket", socket)
+		if err:=cmd.Start();err!=nil{t.Fatal(err)}
+		t.Cleanup(func(){ if cmd.ProcessState==nil { _=cmd.Process.Kill(); _=cmd.Wait() } })
+		ctx, cancel:=context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		for {
+			if _, err:=jsplugins.ValidateRemote(ctx,socket,`export function onEvent(e){return e}`);err==nil{ return cmd }
+			if ctx.Err()!=nil {t.Fatalf("worker never became ready: %v",ctx.Err())}
+			time.Sleep(10*time.Millisecond)
+		}
+	}
+	first:=start()
+	if err:=first.Process.Kill();err!=nil{t.Fatal(err)}
+	_ = first.Wait()
+	if _,err:=os.Lstat(socket);err!=nil {t.Fatalf("expected stale socket after SIGKILL: %v",err)}
+	second:=start()
+	result,err:=jsplugins.InvokeRemote(context.Background(),socket,
+		`export function onEvent(){return {restarted:true}}`,
+		"onEvent",json.RawMessage(`{}`))
+	if err!=nil || string(result)!=`{"restarted":true}` {
+		t.Fatalf("restarted worker: %s, %v", result,err)
+	}
+	if err:=second.Process.Signal(syscall.SIGTERM);err!=nil{t.Fatal(err)}
+	if err:=second.Wait();err!=nil{t.Fatal(err)}
+}
