@@ -198,7 +198,7 @@ func harnessUpdateCommand(source,pkg,executable string,p harnessProbe)[]string{
  case "official-script":if executable!=""&&pkg=="claude"{return []string{executable,"update"}}
  case "winget":if bin:=p.use("winget");bin!=""{return []string{bin,"upgrade","--id",pkg,"--exact","--source","winget"}}
  case "msstore":if bin:=p.use("winget");bin!=""{return []string{bin,"upgrade","--id",pkg,"--exact","--source","msstore"}}
- case "scoop":if p.has("scoop")&&p.has("powershell.exe"){return []string{p.use("powershell.exe"),"-NoProfile","-NonInteractive","-Command","scoop update "+pkg}}
+ case "scoop":if shell:=p.powershell();shell!=""{return []string{p.use(shell),"-NoProfile","-NonInteractive","-Command","scoop update "+pkg}}
  case "choco":if bin:=p.use("choco");bin!=""{return []string{bin,"upgrade",pkg}}
  }
  return nil
