@@ -437,6 +437,9 @@ const updateDomainForwardRouteField = (
                   :rows="3"
                   placeholder="demo@example.test"
                 />
+                <div style="font-size: 12px; color: #b45309; margin-top: 4px">
+                  例外值会作为运行时策略保存，请勿在此填写真实密码或 API Key；敏感凭据推荐通过不记录原文的独立规则处理。
+                </div>
               </div>
               <a-alert
                 v-if="runtimeSettings.domainForwardProxy.privacy.action === 'warn'"
