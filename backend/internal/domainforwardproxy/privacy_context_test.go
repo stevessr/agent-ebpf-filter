@@ -265,15 +265,15 @@ func TestPrivacyMustEnforceAfterRequestBodyRewrite(t *testing.T) {
 					t.Errorf("post-rewrite PII leaked upstream: %s", body)
 				}
 				return &http.Response{
-					StatusCode: 200,
-					Header: http.Header{"Content-Type": []string{"application/json"}},
-					Body: io.NopCloser(bytes.NewReader(body)),
+					StatusCode:    200,
+					Header:        http.Header{"Content-Type": []string{"application/json"}},
+					Body:          io.NopCloser(bytes.NewReader(body)),
 					ContentLength: int64(len(body)),
 				}, nil
 			})
 			handler := NewHandlerWithTransport(DomainForwardProxySettings{
 				DefaultScheme: "https",
-				Routes: []DomainForwardRoute{{Host: "api.openai.com", Upstream: "https://api.openai.com"}},
+				Routes:        []DomainForwardRoute{{Host: "api.openai.com", Upstream: "https://api.openai.com"}},
 				Rewrite: BodyRewriteSettings{
 					Enabled: true,
 					Rules: []BodyRewriteRule{{
