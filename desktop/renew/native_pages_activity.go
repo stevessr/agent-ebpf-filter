@@ -483,6 +483,11 @@ func (a *renewApp) processesView(c *ui.Context) {
 					ui.Textf(c, "%s · PID %d / PPID %d", displayOr(p.Name, "未知进程"), p.PID, p.PPID).Bold()
 					ui.Text(c, displayOr(p.Cmdline, "后端未提供命令行")).Font("monospace").FontSize(10).TextColor(t.TextMuted).MaxLines(4)
 					ui.Row(c).Wrap().Gap(6).Children(func() {
+						if agentLabelForLiveProcess(p, a.events) != "" && ui.Button(c, "查看派生关系").Clicked() {
+							a.lineageRootChoice = fmt.Sprintf("%s · %s · PID %d", agentLabelForLiveProcess(p, a.events), agentProcessName(p), p.PID)
+							a.lineageSelectedPID = p.PID
+							a.page = "派生"
+						}
 						if ui.Button(c, "此 PID 事件").Clicked() {
 							a.navigatePIDEvents(p.PID)
 						}
