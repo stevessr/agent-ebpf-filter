@@ -160,6 +160,10 @@ func NormalizeSettings(settings *DomainForwardProxySettings) {
 		return
 	}
 	settings.HTTPPort = normalizeTCPPort(settings.HTTPPort, 80)
+	settings.BindAddress = strings.TrimSpace(settings.BindAddress)
+	if settings.BindAddress != "" && net.ParseIP(settings.BindAddress) == nil {
+		settings.BindAddress = "127.0.0.1" // malformed bind input must not expose the gateway
+	}
 	settings.HTTPSPort = normalizeTCPPort(settings.HTTPSPort, 443)
 	settings.DefaultScheme = normalizedForwardScheme(settings.DefaultScheme)
 	settings.CertFile = strings.TrimSpace(settings.CertFile)
@@ -298,6 +302,7 @@ func NormalizeForwardHost(raw string) string {
 func SettingsEqual(a, b DomainForwardProxySettings) bool {
 	if a.Enabled != b.Enabled || a.HTTPPort != b.HTTPPort || a.HTTPSPort != b.HTTPSPort ||
 		a.DefaultScheme != b.DefaultScheme || a.AllowAnyHost != b.AllowAnyHost ||
+		a.BindAddress != b.BindAddress || a.HTTPSDisabled != b.HTTPSDisabled ||
 		a.DNSResolver != b.DNSResolver || a.DialTimeoutSeconds != b.DialTimeoutSeconds ||
 		a.CertFile != b.CertFile || a.KeyFile != b.KeyFile ||
 		a.TLSInterceptEnabled != b.TLSInterceptEnabled ||
