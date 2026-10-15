@@ -35,10 +35,10 @@ classDiagram
     +SetRetention(maxRecords, maxAge)
   }
   class RecordIndex {
-    +e timestamp eventId
+    +string recordKey
   }
   class IDIndex {
-    +i eventId
+    +string eventId
   }
   runtimeEventStore --> RecordIndex : range iteration
   runtimeEventStore --> IDIndex : id lookup
