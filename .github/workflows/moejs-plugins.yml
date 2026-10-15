@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "backend/app/jsplugins/**"
+      - "backend/cmd/jsplugin-worker/**"
       - "backend/app/js_plugin.go"
       - "backend/app/plugins.go"
       - "backend/app/plugin_files.go"
@@ -17,6 +18,7 @@ on:
   push:
     paths:
       - "backend/app/jsplugins/**"
+      - "backend/cmd/jsplugin-worker/**"
       - "backend/app/js_plugin.go"
       - "backend/app/plugins.go"
       - "backend/app/plugin_files.go"
@@ -44,6 +46,12 @@ jobs:
       - name: moejs runtime compile, hook and deadline tests
         working-directory: backend
         run: go test ./app/jsplugins -count=1 -timeout=5m
+      - name: Build isolated JavaScript worker
+        working-directory: backend
+        run: go build -o /tmp/agent-ebpf-jsplugin-worker ./cmd/jsplugin-worker
+      - name: JavaScript worker IPC regression
+        working-directory: backend
+        run: go test -race ./app/jsplugins -run '^TestWorker' -count=1 -timeout=5m
       - name: JavaScript VM race regression
         working-directory: backend
         run: go test -race ./app/jsplugins -count=1 -timeout=5m

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,6 +20,25 @@ func isolatedJSRegistry(t *testing.T) {
 	old := pluginRegistry
 	pluginRegistry = &pluginStore{entries: make(map[string]*PluginManifest), loaded: true}
 	t.Cleanup(func() { pluginRegistry = old })
+
+	// Integration tests exercise the same private Unix IPC path as production.
+	// This local in-process test server is not a production security sandbox.
+	socket := filepath.Join(t.TempDir(), "test-worker.sock")
+	listener, err := net.Listen("unix", socket)
+	if err != nil { t.Fatal(err) }
+	ctx, stop := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func(){ done <- jsplugins.NewWorker().Serve(ctx, listener) }()
+	t.Setenv("AGENT_EBPF_JS_WORKER_SOCKET", socket)
+	t.Cleanup(func(){
+		stop()
+		select {
+		case err := <-done:
+			if err != nil { t.Errorf("test JS worker: %v", err) }
+		case <-time.After(time.Second):
+			t.Error("test JS worker did not shut down")
+		}
+	})
 }
 
 func jsManifest() *PluginManifest {
@@ -156,5 +176,16 @@ func TestJavaScriptDisableWaitsForInvocationLease(t *testing.T) {
 		if err != nil { t.Fatal(err) }
 	case <-time.After(time.Second):
 		t.Fatal("disable did not complete after execution lock released")
+	}
+}
+
+func TestJavaScriptRequiresIsolatedWorker(t *testing.T) {
+	isolatedJSRegistry(t)
+	if err := pluginRegistry.UpsertWithSource(jsManifest(), jsSource); err != nil { t.Fatal(err) }
+	if _,err:=pluginRegistry.SetEnabled(context.Background(),"testing-js",true);err!=nil{t.Fatal(err)}
+	t.Setenv("AGENT_EBPF_JS_WORKER_SOCKET","")
+	_,err:=RunJavaScriptPlugin(context.Background(),"testing-js","onEvent",json.RawMessage(`{}`))
+	if err==nil || !strings.Contains(err.Error(),"in-process execution is disabled"){
+		t.Fatalf("missing worker must fail closed: %v",err)
 	}
 }

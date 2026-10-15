@@ -9,6 +9,24 @@ a substitute for the kernel/wrapper/cgroup/LSM enforcement boundary.
 Use the existing authenticated `/plugins` routes. The existing
 `policy_management` runtime gate is required for writes and execution.
 
+Build and start an independently restricted worker before enabling scripts.
+The backend deliberately **rejects JavaScript invocation if the socket is not configured**.
+
+```sh
+cd backend
+go build -o /usr/local/libexec/agent-ebpf-jsplugin-worker ./cmd/jsplugin-worker
+# Linux: deploy systemd unit deploy/systemd/agent-ebpf-jsplugin-worker.service,
+# enable agent-ebpf-jsplugin-worker.service and configure the backend with:
+export AGENT_EBPF_JS_WORKER_SOCKET=/run/agent-ebpf-jsplugin/worker.sock
+```
+
+The supplied systemd example starts a non-root DynamicUser worker with a private
+network namespace, restricted filesystem access and CPU/memory/task quotas.
+Its socket is mode 0600 under a 0700 service directory: the backend must have
+explicit permission to connect (typically the root collector). Do not loosen
+these permissions just to make a desktop build work; for development run a
+worker under the same user and a private 0700 runtime directory.
+
 Register (disabled first), then enable:
 
 ```sh
@@ -26,12 +44,11 @@ enabled. Results do not automatically alter allow/deny decisions.
 
 - JavaScript source limit: 128 KiB; input/output: 32 KiB each.
 - Per-invocation deadline: 100 ms (including source verification/cache lookup); JavaScript memory allocation budget: 8 MiB. HTTP returns 429 on executor overload and 504 on execution timeout.
-- Fresh runtime for each invocation; compiled modules cached by SHA-256 (32-entry bound) and at most four invocations globally run concurrently. Overload is rejected without queueing.
+- Fresh runtime for each invocation **inside the worker process**; only the worker caches immutable modules by SHA-256 (32-entry bound). Both client and worker cap concurrent invocations at four; overload is rejected without queueing.
 - Enabling, disabling, replacing sources and deletion are synchronized with running hooks; disabling waits for in-flight hooks to finish or time out.
 - Dynamic code (`eval` and Function) disabled, module imports unsupported.
 - No injected host functions, filesystem, network, process or shell APIs.
-- Scripts execute in the backend process. Resource limits are defense-in-depth,
-  **not an OS-level security boundary**. Only install reviewed/trusted plugins.
+- Hook execution runs in the separate worker process via bounded, versioned Unix-socket JSON IPC. The **Go backend still parses JS when saving plugins**; source registration remains trusted-administrator-only. Isolation depends on the operator deploying the worker under a separate unprivileged OS identity and the specified service sandbox; a socket alone is not a sandbox. Do not install unreviewed scripts yet.
 - Malformed, disabled, or modified plugins fail without affecting eBPF policy.
 - moejs is alpha; its API and VM security need ongoing audit before broader use.
 
@@ -44,3 +61,7 @@ go test ./app/jsplugins ./app/handlers ./app
 ```
 
 - Promise results are supported only when settled synchronously by moejs microtasks; pending or rejected Promises produce explicit errors. There is no Node.js/DOM event loop or async host I/O.
+
+The worker refuses to start as root. Worker errors or unavailable sockets
+fail closed: no automatic in-process fallback. The service does not execute
+scripts on the eBPF enforcement path or grant host functions to JavaScript.
