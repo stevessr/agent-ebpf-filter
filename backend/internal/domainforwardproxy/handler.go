@@ -78,6 +78,12 @@ func NewHandlerWithTransport(settings DomainForwardProxySettings, transport http
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if h.settings.Privacy.Enabled && (r.Method == http.MethodConnect ||
+		strings.TrimSpace(r.Header.Get("Upgrade")) != "" ||
+		strings.Contains(strings.ToLower(r.Header.Get("Connection")), "upgrade")) {
+		http.Error(w, "privacy middleware cannot inspect upgraded or tunneled connections", http.StatusNotImplemented)
+		return
+	}
 	host := NormalizeForwardHost(r.Host)
 	if host == "" && r.URL != nil {
 		host = NormalizeForwardHost(r.URL.Host)
@@ -113,12 +119,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if h.settings.Privacy.Enabled && (r.Method == http.MethodConnect ||
-		strings.TrimSpace(r.Header.Get("Upgrade")) != "" ||
-		strings.Contains(strings.ToLower(r.Header.Get("Connection")), "upgrade")) {
-		http.Error(w, "privacy middleware cannot inspect upgraded or tunneled connections", http.StatusNotImplemented)
-		return
-	}
 	if isResponsesWebSocketRequest(r) && h.settings.Privacy.Enabled {
 		http.Error(w, "privacy inspection of WebSocket frames is not available; connection refused", http.StatusNotImplemented)
 		return
