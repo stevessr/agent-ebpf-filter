@@ -4,6 +4,8 @@ export default defineConfig({
   title: 'Agent eBPF Filter',
   description: 'Linux-first observability and control plane for AI agents and developer CLIs',
   lang: 'zh-CN',
+  // Pages uses /agent-ebpf-filter/; local dev and other hosting keep /.
+  base: process.env.VITEPRESS_BASE || '/',
   cleanUrls: true,
   lastUpdated: true,
   srcDir: '.',
