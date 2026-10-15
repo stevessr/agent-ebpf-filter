@@ -209,7 +209,7 @@ function resizeKey(event: KeyboardEvent) {
           <button
             role="tab"
             :aria-selected="node.active === tab.id"
-            :title="tab.path + ' · 拖拽到边缘分屏'"
+            :title="tab.path + ' · ' + tr('拖拽到边缘分屏')"
             @click="emit('select', node.id, tab.id)"
           >
             <span class="tab-mark">◇</span>{{ tr(tab.title) }}
