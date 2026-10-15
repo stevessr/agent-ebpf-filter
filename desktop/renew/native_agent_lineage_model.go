@@ -6,8 +6,7 @@ import (
 	"time"
 )
 
-// Lineage shows currently observed OS process ancestry. It never claims that
-// fork/exec by itself proves an application-level Agent -> SubAgent RPC.
+// The graph is an OS process snapshot, not a causal Agent SDK span graph.
 type agentLineageNode struct {
 	Process systemProcess
 	Parent  int // index in Nodes, -1 for the focused root
@@ -24,6 +23,23 @@ type agentLineage struct {
 	Snapshot  time.Time
 }
 
+type lineageEvidence struct {
+	Label  string
+	Events int
+	Alerts int
+}
+
+// Native hooks can provide evidence of a logical SubAgent lifecycle, even
+// when the agent runs in the same OS process. A bare start/stop event does
+// not prove the duration, result, or parent call ID.
+type agentLineageSignal struct {
+	PID      int
+	WhenMS   int64
+	Name     string
+	Provider string
+	Kind     string // start or stop
+}
+
 func agentProcessName(p systemProcess) string {
 	if v := strings.TrimSpace(p.Name); v != "" {
 		return v
@@ -31,17 +47,37 @@ func agentProcessName(p systemProcess) string {
 	return "unknown"
 }
 
-// Event context is only usable for the live process when it is not older than
-// the current PID's start time. A reused PID must not inherit old Agent tags.
+// A PID is only a current identity if the event was emitted after that
+// process started. A missing timestamp cannot establish that identity.
 func eventMatchesLiveProcess(e eventSummary, p systemProcess) bool {
-	if e.PID != p.PID {
+	if e.PID != p.PID || e.PID <= 0 {
 		return false
 	}
-	if p.CreateTime > 0 && (e.ReceivedAtMS <= 0 ||
-		e.ReceivedAtMS < p.CreateTime*1000-2000) {
+	if p.CreateTime > 0 && (e.ReceivedAtMS <= 0 || e.ReceivedAtMS < p.CreateTime*1000-2000) {
 		return false
 	}
 	return true
+}
+
+func lineageDirectAgentEvidence(e eventSummary, p systemProcess) string {
+	if !eventMatchesLiveProcess(e, p) {
+		return ""
+	}
+	// AgentRunID is inherited by ordinary shell executors and cannot
+	// establish a new Agent root. Explicit root attribution or a native hook
+	// emitted by this PID is stronger evidence.
+	if e.RootAgentPID != p.PID && !(e.Type == "native_hook" && e.RootAgentPID <= 0) {
+		return ""
+	}
+	if label := harnessLabelFor(e.Tag); label != "未识别" {
+		return label
+	}
+	if e.Type == "native_hook" {
+		if label := harnessLabelFor(e.Comm); label != "未识别" {
+			return label
+		}
+	}
+	return ""
 }
 
 func agentLabelForLiveProcess(p systemProcess, events []eventSummary) string {
@@ -49,22 +85,52 @@ func agentLabelForLiveProcess(p systemProcess, events []eventSummary) string {
 		return label
 	}
 	for _, e := range events {
-		if !eventMatchesLiveProcess(e, p) {
-			continue
-		}
-		if e.RootAgentPID == p.PID || (e.PID == p.PID && e.AgentRunID != "") {
-			if label := harnessLabelFor(e.Tag, e.Comm); label != "未识别" {
-				return label
-			}
+		if label := lineageDirectAgentEvidence(e, p); label != "" {
+			return label
 		}
 	}
 	return ""
 }
 
+// Index once: O(processes + events) rather than rescanning each event
+// for each process and once again for every visible graph node.
+func indexLineageEvidence(processes []systemProcess, events []eventSummary) map[int]lineageEvidence {
+	byPID := make(map[int]systemProcess, len(processes))
+	out := make(map[int]lineageEvidence, len(processes))
+	for _, p := range processes {
+		if p.PID <= 0 {
+			continue
+		}
+		byPID[p.PID] = p
+		label := harnessLabelFor(p.Name)
+		if label == "未识别" {
+			label = ""
+		}
+		out[p.PID] = lineageEvidence{Label: label}
+	}
+	for _, e := range events {
+		p, ok := byPID[e.PID]
+		if !ok || !eventMatchesLiveProcess(e, p) {
+			continue
+		}
+		facts := out[p.PID]
+		facts.Events++
+		if eventRisk(e) != "正常" || e.Type == "semantic_alert" || e.Type == "agentsight_alert" {
+			facts.Alerts++
+		}
+		if facts.Label == "" {
+			facts.Label = lineageDirectAgentEvidence(e, p)
+		}
+		out[p.PID] = facts
+	}
+	return out
+}
+
 func agentLineageRoots(processes []systemProcess, events []eventSummary) []systemProcess {
+	facts := indexLineageEvidence(processes, events)
 	out := make([]systemProcess, 0, 16)
 	for _, p := range processes {
-		if p.PID > 0 && agentLabelForLiveProcess(p, events) != "" {
+		if p.PID > 0 && facts[p.PID].Label != "" {
 			out = append(out, p)
 		}
 	}
@@ -81,8 +147,8 @@ func validLineageEdge(parent, child systemProcess) bool {
 	if parent.PID <= 0 || child.PID <= 0 || parent.PID == child.PID || child.PPID != parent.PID {
 		return false
 	}
-	// Suppress impossible links after PID reuse; if either start time is
-	// missing, PPID is only a live-snapshot observation, not a historical edge.
+	// Suppress impossible links after PID reuse. If either start time is
+	// missing, the link remains only a best-effort live PPID observation.
 	if parent.CreateTime > 0 && child.CreateTime > 0 && child.CreateTime < parent.CreateTime {
 		return false
 	}
@@ -90,7 +156,7 @@ func validLineageEdge(parent, child systemProcess) bool {
 }
 
 // buildAgentLineage follows one live snapshot, with cycle, depth and size
-// limits. No history is fabricated for processes that have exited.
+// limits. Exited processes and unknown causal RPC edges are not fabricated.
 func buildAgentLineage(processes []systemProcess, events []eventSummary, rootPID, limit int, snapshot time.Time) agentLineage {
 	graph := agentLineage{RootPID: rootPID, Snapshot: snapshot}
 	if limit <= 0 {
@@ -102,8 +168,9 @@ func buildAgentLineage(processes []systemProcess, events []eventSummary, rootPID
 			byPID[p.PID] = p
 		}
 	}
+	facts := indexLineageEvidence(processes, events)
 	root, ok := byPID[rootPID]
-	if !ok || agentLabelForLiveProcess(root, events) == "" {
+	if !ok || facts[rootPID].Label == "" {
 		return graph
 	}
 	children := make(map[int][]systemProcess)
@@ -122,7 +189,6 @@ func buildAgentLineage(processes []systemProcess, events []eventSummary, rootPID
 			return a.PID < b.PID
 		})
 	}
-
 	seen := make(map[int]bool, min(limit, len(processes)))
 	var visit func(p systemProcess, parent, depth int)
 	visit = func(p systemProcess, parent, depth int) {
@@ -137,21 +203,15 @@ func buildAgentLineage(processes []systemProcess, events []eventSummary, rootPID
 		role := "process"
 		if parent < 0 {
 			role = "agent"
-		} else if agentLabelForLiveProcess(p, events) != "" {
+		} else if facts[p.PID].Label != "" {
 			role = "subagent-candidate"
 		}
-		node := agentLineageNode{Process: p, Parent: parent, Depth: depth, Role: role}
-		for _, e := range events {
-			if !eventMatchesLiveProcess(e, p) {
-				continue
-			}
-			node.Events++
-			if eventRisk(e) != "正常" || e.Type == "semantic_alert" || e.Type == "agentsight_alert" {
-				node.Alerts++
-			}
-		}
+		evidence := facts[p.PID]
 		index := len(graph.Nodes)
-		graph.Nodes = append(graph.Nodes, node)
+		graph.Nodes = append(graph.Nodes, agentLineageNode{
+			Process: p, Parent: parent, Depth: depth, Role: role,
+			Events: evidence.Events, Alerts: evidence.Alerts,
+		})
 		if depth == 6 {
 			if len(children[p.PID]) > 0 {
 				graph.Truncated = true
@@ -196,4 +256,59 @@ func lineageVisibleSpan(graph agentLineage) (int64, int64) {
 		hi = lo + 1
 	}
 	return lo, hi
+}
+
+func classifySubAgentHook(e eventSummary) (string, string, bool) {
+	if !strings.EqualFold(e.Type, "native_hook") {
+		return "", "", false
+	}
+	name, _, _ := strings.Cut(strings.TrimSpace(e.Comm), ":")
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "subagentstart", "agentspawn":
+		return "start", name, true
+	case "subagentstop":
+		return "stop", name, true
+	default:
+		return "", "", false
+	}
+}
+
+func collectAgentLineageSignals(graph agentLineage, events []eventSummary, limit int) []agentLineageSignal {
+	if limit <= 0 {
+		return nil
+	}
+	byPID := make(map[int]systemProcess, len(graph.Nodes))
+	for _, node := range graph.Nodes {
+		byPID[node.Process.PID] = node.Process
+	}
+	signals := make([]agentLineageSignal, 0)
+	for _, e := range events {
+		kind, name, ok := classifySubAgentHook(e)
+		if !ok {
+			continue
+		}
+		p, found := byPID[e.PID]
+		if !found || !eventMatchesLiveProcess(e, p) || e.ReceivedAtMS <= 0 {
+			continue
+		}
+		// A descendant hook may be attributed to this root explicitly. A
+		// hook emitted by the graph's root process also qualifies.
+		if e.PID != graph.RootPID && e.RootAgentPID != graph.RootPID {
+			continue
+		}
+		signals = append(signals, agentLineageSignal{
+			PID: e.PID, WhenMS: e.ReceivedAtMS, Name: name,
+			Provider: e.Tag, Kind: kind,
+		})
+	}
+	sort.Slice(signals, func(i, j int) bool {
+		if signals[i].WhenMS != signals[j].WhenMS {
+			return signals[i].WhenMS > signals[j].WhenMS
+		}
+		return signals[i].PID < signals[j].PID
+	})
+	if len(signals) > limit {
+		signals = signals[:limit]
+	}
+	return signals
 }
