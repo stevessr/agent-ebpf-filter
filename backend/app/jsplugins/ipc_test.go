@@ -221,3 +221,16 @@ func TestWorkerCancelsExecutionAfterClientDisconnect(t *testing.T) {
 		t.Fatal("worker did not cancel disconnected invocation promptly")
 	}
 }
+
+func TestWorkerEscapedSourceWithinConfiguredLimit(t *testing.T) {
+	socket := testWorker(t)
+	// encoding/json expands '<' to '\\u003c'. A valid source within the
+	// 128 KiB plugin limit must survive this transport expansion.
+	source := "//" + strings.Repeat("<", 70<<10) +
+		"\nexport function onEvent(e) { return e; }"
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := ValidateRemote(ctx, socket, source); err != nil {
+		t.Fatalf("escaped source rejected: %v", err)
+	}
+}

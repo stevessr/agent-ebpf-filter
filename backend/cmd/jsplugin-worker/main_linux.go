@@ -29,6 +29,22 @@ func main() {
 		fmt.Fprintln(os.Stderr, "refusing to run JavaScript worker as root")
 		os.Exit(1)
 	}
+	// Socket access is the authorization boundary for sending JavaScript
+	// source. Refuse shared or symlinked directories even when invoked
+	// manually rather than through the hardened systemd unit.
+	directory := filepath.Dir(*socket)
+	dirInfo, err := os.Lstat(directory)
+	if err != nil || !dirInfo.IsDir() || dirInfo.Mode().Perm()&0o077 != 0 {
+		fmt.Fprintln(os.Stderr, "socket directory must be a private 0700 directory")
+		os.Exit(1)
+	}
+	owner, ok := dirInfo.Sys().(*syscall.Stat_t)
+	if !ok || owner.Uid != uint32(os.Geteuid()) {
+		fmt.Fprintln(os.Stderr, "socket directory must be owned by the worker")
+		os.Exit(1)
+	}
+	// Prevent a brief overly-permissive socket between bind and chmod.
+	syscall.Umask(0o077)
 	if _, err := os.Lstat(*socket); !errors.Is(err, os.ErrNotExist) {
 		fmt.Fprintln(os.Stderr, "socket path already exists or is inaccessible")
 		os.Exit(1)

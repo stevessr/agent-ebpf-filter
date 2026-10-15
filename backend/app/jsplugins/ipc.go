@@ -17,7 +17,9 @@ import (
 const (
 	// One request/response per Unix socket connection; no long-lived state crosses IPC.
 	ProtocolVersion = 1
-	MaxWireBytes = MaxSourceBytes + MaxPayloadBytes + 8<<10
+	// JSON encodes some valid source bytes (e.g. '<') as six-byte
+	// escapes. Count worst-case wire encoding, not unescaped source length.
+	MaxWireBytes = 6*(MaxSourceBytes+MaxPayloadBytes) + 8<<10
 	MaxWorkerConnections = 4
 	MaxWorkerCacheEntries = 32
 	WorkerIOTimeout = 250 * time.Millisecond

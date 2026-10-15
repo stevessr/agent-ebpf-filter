@@ -87,3 +87,30 @@ func TestWorkerBinaryLifecycle(t *testing.T) {
 		t.Fatal("stopped worker remained callable")
 	}
 }
+
+func TestWorkerBinaryRequiresPrivateSocketDirectory(t *testing.T) {
+	if os.Geteuid() == 0 { t.Skip("non-root worker test") }
+	binary := filepath.Join(t.TempDir(), "jsplugin-worker")
+	build := exec.Command("go", "build", "-o", binary, ".")
+	if out, err := build.CombinedOutput(); err != nil { t.Fatalf("build worker: %v %s",err,out) }
+	shared := filepath.Join(t.TempDir(), "shared")
+	if err:=os.Mkdir(shared,0o755);err!=nil {t.Fatal(err)}
+	if err:=os.Chmod(shared,0o755);err!=nil {t.Fatal(err)}
+	socket := filepath.Join(shared,"worker.sock")
+	cmd := exec.Command(binary,"--socket",socket)
+	if out,err:=cmd.CombinedOutput();err==nil || !strings.Contains(string(out),"private 0700") {
+		t.Fatalf("shared directory unexpectedly accepted: %v %s",err,out)
+	}
+	if _,err:=os.Lstat(socket);!errors.Is(err,os.ErrNotExist) {
+		t.Fatalf("unauthorized socket was created: %v",err)
+	}
+
+	private:=filepath.Join(t.TempDir(),"real-private")
+	if err:=os.Mkdir(private,0o700);err!=nil {t.Fatal(err)}
+	link:=filepath.Join(t.TempDir(),"dir-symlink")
+	if err:=os.Symlink(private,link);err!=nil {t.Fatal(err)}
+	cmd=exec.Command(binary,"--socket",filepath.Join(link,"worker.sock"))
+	if out,err:=cmd.CombinedOutput();err==nil || !strings.Contains(string(out),"private 0700") {
+		t.Fatalf("symlink directory unexpectedly accepted: %v %s",err,out)
+	}
+}

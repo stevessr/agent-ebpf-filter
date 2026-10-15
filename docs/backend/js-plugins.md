@@ -69,3 +69,5 @@ scripts on the eBPF enforcement path or grant host functions to JavaScript.
 ## Isolation verification (GitHub Actions)
 
 The `moejs JavaScript plugins` workflow supports `workflow_dispatch` and pull-request triggers. It builds the real worker executable, exercises a non-root worker in a separate process, asserts graceful SIGTERM shutdown and socket cleanup, rejects a worker started by root, and verifies the restricted systemd unit. IPC tests additionally cover malformed frames, concurrent requests, client-disconnect cancellation, and VM deadlines. The backend must never silently fall back to evaluating JavaScript itself.
+
+The worker rejects group/world-accessible, symlinked, or foreign-owned socket directories. Prepare a worker-owned `0700` runtime directory (as in the systemd service); the process sets `umask 077` before binding the Unix socket. The JavaScript interpreter does not require executable writable memory, so the unit enables `MemoryDenyWriteExecute=yes`. Protocol framing budgets account for JSON escape expansion while still enforcing the original 128 KiB source / 32 KiB payload limits.
