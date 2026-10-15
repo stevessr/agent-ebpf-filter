@@ -135,6 +135,9 @@ func internalBackendArgs(args []string) (bool, []string) {
 }
 
 func (a *renewApp) bootstrap(ctx context.Context) {
+	if startLocalWindowsMonitoring(ctx, a) {
+		return
+	}
 	startupCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	session, startupErr := ensureBackend(startupCtx, a.backend)
 	cancel()
