@@ -41,6 +41,15 @@ export interface DomainBodyRewriteSettings {
   inference: DomainNativeInferenceSettings;
 }
 
+export interface DomainPrivacySettings {
+  enabled: boolean;
+  action: "warn" | "block" | "redact";
+  restoreResponse: boolean;
+  maxBodyBytes: number;
+  categories: Array<"secret" | "email" | "phone">;
+  allowlist: string[];
+}
+
 export interface DomainForwardProxySettings {
   enabled: boolean;
   httpPort: number;
@@ -57,6 +66,7 @@ export interface DomainForwardProxySettings {
   tlsInterceptCaKeyFile?: string;
   tlsInterceptLeafTtlSeconds?: number;
   rewrite: DomainBodyRewriteSettings;
+  privacy: DomainPrivacySettings;
   routes: DomainForwardRoute[];
 }
 
@@ -73,6 +83,8 @@ export interface DomainForwardProxyStatus {
   dnsResolver?: string;
   tlsInterceptEnabled?: boolean;
   rewriteEnabled?: boolean;
+  privacyEnabled?: boolean;
+  privacyAction?: string;
   inferenceEnabled?: boolean;
   inferenceReady?: boolean;
   errors?: string[];
