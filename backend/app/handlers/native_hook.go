@@ -123,7 +123,7 @@ func emitNativeHookEvent(event *pb.Event) {
 
 func nativeHookProviderTag(sourceCLI, userAgent, hookEvent string) string {
 	tag := "Native Hook"
-	if sourceCLI == "claude" || strings.Contains(userAgent, "claude") {
+	if sourceCLI == "claude" || strings.HasPrefix(sourceCLI, "claude-subagent-") || strings.Contains(userAgent, "claude") {
 		return "Claude Code"
 	}
 	if sourceCLI == "gemini" || strings.Contains(userAgent, "gemini") {
