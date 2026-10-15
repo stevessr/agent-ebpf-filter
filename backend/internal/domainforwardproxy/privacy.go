@@ -142,6 +142,12 @@ func NewPrivacyEngine(settings PrivacySettings) *PrivacyEngine {
 // Apply inspects JSON string values (not keys) or plain text. Unsupported
 // content types, malformed JSON and oversized payloads fail closed.
 func (e *PrivacyEngine) Apply(contentType string, body []byte) ([]byte, *PrivacySession, PrivacyReport, error) {
+	return e.ApplyForRecipient(contentType, body, "")
+}
+
+// ApplyForRecipient binds any explicit declassification to the resolved
+// upstream hostname, not the user-supplied Host or tool metadata.
+func (e *PrivacyEngine) ApplyForRecipient(contentType string, body []byte, recipient string) ([]byte, *PrivacySession, PrivacyReport, error) {
 	report := PrivacyReport{Action: e.settings.Action}
 	if !e.settings.Enabled { return body, nil, report, nil }
 	if e.configurationError != nil { return nil, nil, report, e.configurationError }
@@ -169,7 +175,7 @@ func (e *PrivacyEngine) Apply(contentType string, body []byte) ([]byte, *Privacy
 	session := &PrivacySession{replacements: make(map[string]string)}
 	reverse := make(map[string]string)
 	if isJSON {
-		return e.applyContextualJSON(body, prefix, session, report)
+		return e.applyContextualJSON(body, prefix, session, report, NormalizeForwardHost(recipient))
 	}
 	count := 0
 	transform := func(value string) (string, bool) {
