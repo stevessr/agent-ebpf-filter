@@ -132,7 +132,7 @@ func TestWorkerBinaryRecoversAfterSIGKILL(t *testing.T) {
 		ctx, cancel:=context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
 		for {
-			if _, err:=jsplugins.ValidateRemote(ctx,socket,`export function onEvent(e){return e}`);err==nil{ return cmd }
+			if err:=jsplugins.ValidateRemote(ctx,socket,`export function onEvent(e){return e}`);err==nil{ return cmd }
 			if ctx.Err()!=nil {t.Fatalf("worker never became ready: %v",ctx.Err())}
 			time.Sleep(10*time.Millisecond)
 		}
