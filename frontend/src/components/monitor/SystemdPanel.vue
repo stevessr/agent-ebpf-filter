@@ -27,10 +27,10 @@ const emit = defineEmits<{
 <template>
   <div
     style="
-      background: #fff;
+      background: var(--ui-surface);
       padding: 20px;
       border-radius: 4px;
-      border: 1px solid #f0f0f0;
+      border: 1px solid var(--ui-border);
     "
   >
     <div
