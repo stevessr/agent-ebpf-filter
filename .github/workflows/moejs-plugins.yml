@@ -112,10 +112,15 @@ jobs:
           # finished spawning the real process. Wait for the IPC socket before
           # inspecting its PID, UID and namespaces.
           for attempt in {1..100}; do
-            if [[ -S /run/agent-ebpf-jsplugin/worker.sock ]]; then break; fi
+            if sudo test -S /run/agent-ebpf-jsplugin/worker.sock; then break; fi
             sleep 0.05
           done
-          [[ -S /run/agent-ebpf-jsplugin/worker.sock ]]
+          sudo test -S /run/agent-ebpf-jsplugin/worker.sock
+          # Access is intentionally denied to the unprivileged CI runner.
+          if test -S /run/agent-ebpf-jsplugin/worker.sock; then
+            echo "::error::Private worker socket unexpectedly visible to unprivileged runner"
+            exit 1
+          fi
           sudo env AGENT_EBPF_TEST_SYSTEMD_SOCKET=/run/agent-ebpf-jsplugin/worker.sock \
             /tmp/jsplugin-worker-systemd.test -test.run '^TestWorkerSystemdIntegration$' -test.v
           sudo systemctl is-active --quiet agent-ebpf-jsplugin-worker.service
