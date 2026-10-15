@@ -73,7 +73,16 @@ jobs:
       - name: Live systemd DynamicUser sandbox integration
         shell: bash
         run: |
-          set -euo pipefail
+          set -Eeuo pipefail
+          diagnose() {
+            result=$?
+            echo "::error::Live systemd sandbox integration failed (exit=$result)"
+            sudo systemctl status agent-ebpf-jsplugin-worker.service --full --no-pager || true
+            sudo systemctl show agent-ebpf-jsplugin-worker.service -p MainPID -p ExecMainStatus -p Result -p User -p DynamicUser || true
+            sudo journalctl -u agent-ebpf-jsplugin-worker.service -n 80 --no-pager || true
+            exit "$result"
+          }
+          trap diagnose ERR
           if [[ "$(cat /proc/1/comm)" != "systemd" ]]; then
             echo "::error::This integration test requires a systemd Ubuntu VM runner"
             exit 1
