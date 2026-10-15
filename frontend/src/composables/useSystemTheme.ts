@@ -18,6 +18,9 @@ const applySystemTheme = () => {
   }
 };
 
+// Set the initial appearance before Vue mounts to avoid a light-theme flash.
+applySystemTheme();
+
 /** Call once from the root app; cleanup prevents listeners on remount/HMR. */
 export const watchSystemTheme = () => {
   applySystemTheme();
