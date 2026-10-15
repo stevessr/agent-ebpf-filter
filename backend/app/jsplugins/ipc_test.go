@@ -2,6 +2,7 @@ package jsplugins
 
 import (
 	"context"
+	"os/exec"
 	"encoding/json"
 	"errors"
 	"net"
@@ -121,5 +122,47 @@ func TestWorkerRemoteValidation(t *testing.T) {
 	}
 	if err:=ValidateRemote(context.Background(),"",`export function onEvent(){return 1}`);err==nil {
 		t.Fatal("validation silently fell back to backend")
+	}
+}
+
+func TestWorkerRunsInSeparateOSProcess(t *testing.T) {
+	socketEnv := "AGENT_EBPF_TEST_CHILD_SOCKET"
+	socket := os.Getenv(socketEnv)
+	if socket != "" {
+		listener, err := net.Listen("unix", socket)
+		if err != nil { t.Fatal(err) }
+		if err := NewWorker().Serve(context.Background(), listener); err != nil { t.Fatal(err) }
+		return
+	}
+	socket = filepath.Join(t.TempDir(), "subprocess.sock")
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestWorkerRunsInSeparateOSProcess$")
+	cmd.Env = append(os.Environ(), socketEnv+"="+socket)
+	if err:=cmd.Start();err!=nil { t.Fatal(err) }
+	waited := false
+	defer func(){ if !waited {cancel(); _ = cmd.Wait()} }()
+	for i:=0;i<100;i++{
+		if _,err:=os.Stat(socket);err==nil {break}
+		select{
+		case <-ctx.Done():
+			t.Fatalf("worker never started: %v",ctx.Err())
+		case <-time.After(10*time.Millisecond):
+		}
+	}
+	out,err:=InvokeRemote(ctx,socket,`export function onEvent(e){return {separate:true, value:e.value}}`,"onEvent",json.RawMessage(`{"value":7}`))
+	if err!=nil || string(out)!=`{"separate":true,"value":7}` {
+		t.Fatalf("subprocess worker response=%s err=%v",out,err)
+	}
+	cancel()
+	err = cmd.Wait()
+	waited = true
+	if err==nil {
+		t.Fatal("worker subprocess should have been terminated by context")
+	}
+	// A terminated worker cannot be called again, regardless of an existing
+	// listener socket inode from an unexpectedly interrupted subprocess.
+	if _,err:=InvokeRemote(context.Background(),socket,`export function onEvent(){return 1}`,"onEvent",json.RawMessage(`{}`));err==nil {
+		t.Fatal("terminated worker accepted a new call")
 	}
 }
