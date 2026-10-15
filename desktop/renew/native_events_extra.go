@@ -217,6 +217,27 @@ func (a *renewApp) acceptsEventDetailResponse(id string, generation uint64) bool
 }
 
 func (a *renewApp) openEventDetail(eventID string) {
+	if a.localWindowsMonitoring && strings.TrimSpace(eventID) != "" {
+		for _, event := range a.events {
+			if event.EventID != eventID { continue }
+			a.releaseEventDetailPayload()
+			a.eventDetailID = eventID
+			a.eventDetailOpen = true
+			a.eventDetail = map[string]any{
+				"source": "Windows Tool Help / IP Helper API polling",
+				"evidence": "point-in-time snapshot; no kernel operation or enforcement decision",
+				"limitations": "transient TCP connections, file operations, payloads and syscall traces are not covered",
+				"event": map[string]any{
+					"eventId": event.EventID, "type": event.Type, "pid": event.PID, "ppid": event.PPID,
+					"rootAgentPid": event.RootAgentPID, "comm": event.Comm, "tag": event.Tag,
+					"target": event.Target, "netEndpoint": event.NetEndpoint,
+					"decision": event.Decision, "receivedAtMs": event.ReceivedAtMS,
+				},
+			}
+			return
+		}
+		return
+	}
 	if a.client == nil || strings.TrimSpace(eventID) == "" {
 		return
 	}
