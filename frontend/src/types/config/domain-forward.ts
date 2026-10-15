@@ -42,12 +42,19 @@ export interface DomainBodyRewriteSettings {
   inference: DomainNativeInferenceSettings;
 }
 
+export interface DomainPrivacyJSONFieldRule {
+  path: string;
+  action: "allow" | "redact" | "drop" | "block";
+}
+
 export interface DomainPrivacySettings {
   enabled: boolean;
   action: "warn" | "block" | "redact";
   restoreResponse: boolean;
   maxBodyBytes: number;
-  categories: Array<"secret" | "email" | "phone">;
+  categories: Array<"secret" | "email" | "phone" | "payment_card">;
+  contextMode?: "strict" | "off";
+  jsonFieldRules?: DomainPrivacyJSONFieldRule[];
   allowlist: string[];
 }
 
