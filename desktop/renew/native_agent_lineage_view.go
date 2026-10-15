@@ -99,7 +99,73 @@ func (a *renewApp) agentLineageView(c *ui.Context) {
 		})
 	})
 	a.agentLineageDetail(c, graph)
-	ui.Text(c, "数据边界：可确认的是当前操作系统快照里的 PID/PPID 关系。Agent 内部同进程 SubAgent、RPC 调用链、已经退出的进程以及精确调用/结束时间，必须额外接入 Agent SDK 的 span / parent_call_id 事件才能完整还原。").FontSize(11).TextColor(t.TextMuted)
+	a.agentLineageInsights(c, graph)
+	ui.Text(c, "数据边界：可确认的是当前操作系统快照里的 PID/PPID 关系，以及原生 Hook 明确发出的 SubAgent 生命周期信号。二者不能自动拼成一条因果调用链。同进程或远端 SubAgent 的精确调用、耗时和结果，需要 SDK 提供稳定的 agent_id / parent_call_id / span_id 和结束时间。").FontSize(11).TextColor(t.TextMuted)
+}
+
+// The signals below do not manufacture OS nodes or infer a duration from
+// events that lack a stable SubAgent invocation identifier.
+func (a *renewApp) agentLineageInsights(c *ui.Context, graph agentLineage) {
+	t := c.Theme()
+	ui.Row(c).Gap(10).Wrap().Children(func() {
+		card(c, "重点进程 · 快捷定位", func() {
+			shown := 0
+			for _, node := range graph.Nodes {
+				if node.Role != "subagent-candidate" && node.Alerts == 0 {
+					continue
+				}
+				if shown == 12 {
+					ui.Text(c, "仅列出前 12 项，完整节点可在图中选择。").FontSize(11).TextColor(t.TextMuted)
+					break
+				}
+				shown++
+				label := fmt.Sprintf("%s · PID %d", agentProcessName(node.Process), node.Process.PID)
+				if node.Alerts > 0 {
+					label += fmt.Sprintf(" · %d 条异常", node.Alerts)
+				}
+				if ui.Button(c, label).Clicked() {
+					a.lineageSelectedPID = node.Process.PID
+				}
+			}
+			if shown == 0 {
+				ui.Text(c, "当前可见进程中暂无 Agent 候选或异常。").TextColor(t.TextMuted)
+			}
+		})
+	})
+	signals := collectAgentLineageSignals(graph, a.events, 24)
+	card(c, fmt.Sprintf("SubAgent 原生 Hook · 最近 %d 条", len(signals)), func() {
+		ui.Text(c, "这一栏只展示实际观察到的 SubagentStart、SubagentStop、agentSpawn 等原生 Hook 信号；它们可能发生在同一 PID 内，但没有稳定的 agent_id 时不推断父调用或任务时长。").FontSize(11).TextColor(t.TextMuted)
+		if len(signals) == 0 {
+			ui.Text(c, "当前事件窗口尚无可关联的 SubAgent 生命周期 Hook。可以在监控设置中开启对应 CLI 的原生 Hook 采集。").TextColor(t.TextMuted)
+			return
+		}
+		cols := []ui.TableColumn{
+			{Title: "时间", Width: 92, Fixed: true},
+			{Title: "Hook", MinWidth: 140},
+			{Title: "Agent", MinWidth: 130},
+			{Title: "PID", Width: 90},
+			{Title: "生命周期", Width: 104},
+		}
+		ui.Table(c, &a.lineageSignalTable, cols, len(signals), func(row, col int) {
+			sig := signals[row]
+			switch col {
+			case 0:
+				ui.Text(c, time.UnixMilli(sig.WhenMS).Format("15:04:05")).Font("monospace")
+			case 1:
+				ui.Text(c, sig.Name)
+			case 2:
+				ui.Text(c, displayOr(sig.Provider, "未识别"))
+			case 3:
+				ui.Textf(c, "%d", sig.PID).Font("monospace")
+			case 4:
+				if sig.Kind == "start" {
+					statusPill(c, "已观察到开始", t.Accent)
+				} else {
+					statusPill(c, "已观察到结束", t.TextMuted)
+				}
+			}
+		}).Height(min(float32(430), 58+float32(len(signals))*32)).Label("原生 SubAgent 生命周期 Hook 信号")
+	})
 }
 
 func radialLineagePoints(graph agentLineage, width, height float32) []ui.Point {
