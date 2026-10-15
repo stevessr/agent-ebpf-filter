@@ -243,9 +243,8 @@ func (s *pluginStore) upsert(ctx context.Context, m *PluginManifest, source *str
 		limit := pluginSourceMaxBytes
 		if m.Kind == PluginKindJavaScript {
 			limit = jsplugins.MaxSourceBytes
-			if _, err := jsplugins.Compile(*source); err != nil {
-				return fmt.Errorf("compile JavaScript plugin: %w", err)
-			}
+			// Disabled plugin drafts are stored without parsing untrusted JS
+			// inside the privileged backend. The worker checks syntax on enable.
 		}
 		if len(*source) > int(limit) {
 			return fmt.Errorf("plugin source exceeds %d bytes", limit)
@@ -434,8 +433,8 @@ func (s *pluginStore) SetEnabled(ctx context.Context, id string, enabled bool) (
 		if next.SourceSHA256 == "" || sha256Hex(source) != next.SourceSHA256 {
 			return PluginManifest{}, errors.New("JavaScript plugin source checksum mismatch")
 		}
-		if _, err := jsplugins.Compile(string(source)); err != nil {
-			return PluginManifest{}, err
+		if err := jsplugins.ValidateRemote(ctx, os.Getenv("AGENT_EBPF_JS_WORKER_SOCKET"), string(source)); err != nil {
+			return PluginManifest{}, fmt.Errorf("validate JavaScript plugin in isolated worker: %w", err)
 		}
 	}
 	if err := validatePluginManifest(next); err != nil {

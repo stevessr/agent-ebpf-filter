@@ -24,6 +24,7 @@ const (
 )
 
 type workerRequest struct {
+	Operation string `json:"operation"`
 	Version int             `json:"version"`
 	Source  string          `json:"source"`
 	Hook    string          `json:"hook"`
@@ -41,6 +42,17 @@ type workerResponse struct {
 // process. This transport itself does not enforce process privileges: deploy
 // the worker under a separate restricted OS identity.
 func InvokeRemote(ctx context.Context, socketPath, source, hook string, payload json.RawMessage) (json.RawMessage, error) {
+	return invokeRemote(ctx, socketPath, source, hook, "invoke", payload)
+}
+
+// ValidateRemote ensures the worker, not the privileged backend, compiles
+// plugin source before enabling it. Disabled drafts can remain unvalidated.
+func ValidateRemote(ctx context.Context, socketPath, source string) error {
+	_, err := invokeRemote(ctx, socketPath, source, "", "validate", json.RawMessage("null"))
+	return err
+}
+
+func invokeRemote(ctx context.Context, socketPath, source, hook, operation string, payload json.RawMessage) (json.RawMessage, error) {
 	if socketPath == "" {
 		return nil, errors.New("JavaScript worker socket is not configured; in-process execution is disabled")
 	}
@@ -48,8 +60,11 @@ func InvokeRemote(ctx context.Context, socketPath, source, hook string, payload 
 		len(payload) == 0 || len(payload) > MaxPayloadBytes || !json.Valid(payload) {
 		return nil, errors.New("invalid JavaScript worker request")
 	}
-	if hook != "onEvent" && hook != "onAlert" {
+	if operation == "invoke" && hook != "onEvent" && hook != "onAlert" {
 		return nil, ErrHookUnsupported
+	}
+	if operation != "invoke" && operation != "validate" {
+		return nil, errors.New("unsupported worker operation")
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -70,7 +85,7 @@ func InvokeRemote(ctx context.Context, socketPath, source, hook string, payload 
 	}
 	stop := context.AfterFunc(ctx, func(){ _ = conn.Close() })
 	defer stop()
-	req := workerRequest{Version: ProtocolVersion, Source: source, Hook: hook, Payload: payload}
+	req := workerRequest{Version: ProtocolVersion, Source: source, Hook: hook, Operation: operation, Payload: payload}
 	if err := json.NewEncoder(conn).Encode(req); err != nil {
 		if ctx.Err() != nil { return nil, ctx.Err() }
 		return nil, fmt.Errorf("write JavaScript worker request: %w", err)
@@ -176,7 +191,10 @@ func (w *Worker) handleConn(conn net.Conn) {
 		_ = json.NewEncoder(conn).Encode(resp)
 		return
 	}
-	if req.Version != ProtocolVersion || req.Hook != "onEvent" && req.Hook != "onAlert" ||
+	if req.Version != ProtocolVersion ||
+		(req.Operation != "invoke" && req.Operation != "validate") ||
+		(req.Operation == "invoke" && req.Hook != "onEvent" && req.Hook != "onAlert") ||
+		(req.Operation == "validate" && req.Hook != "") ||
 		len(req.Source) == 0 || len(req.Source) > MaxSourceBytes ||
 		len(req.Payload) == 0 || len(req.Payload) > MaxPayloadBytes || !json.Valid(req.Payload) {
 		resp.Code, resp.Error = "validation", "invalid JavaScript worker version, hook, source or payload"
@@ -185,11 +203,13 @@ func (w *Worker) handleConn(conn net.Conn) {
 	}
 	program, err := w.compiled(req.Source)
 	if err == nil {
-		var cancel context.CancelFunc
-		runCtx, c := context.WithTimeout(context.Background(), DefaultTimeout)
-		cancel = c
-		resp.Result, err = program.Run(runCtx, req.Hook, req.Payload)
-		cancel()
+		if req.Operation == "validate" {
+			resp.Result = json.RawMessage("true")
+		} else {
+			runCtx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
+			resp.Result, err = program.Run(runCtx, req.Hook, req.Payload)
+			cancel()
+		}
 	}
 	if err != nil {
 		resp.Code, resp.Error = "runtime", err.Error()

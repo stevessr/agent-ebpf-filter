@@ -189,3 +189,16 @@ func TestJavaScriptRequiresIsolatedWorker(t *testing.T) {
 		t.Fatalf("missing worker must fail closed: %v",err)
 	}
 }
+
+func TestJavaScriptDraftIsValidatedOnlyInWorker(t *testing.T) {
+	isolatedJSRegistry(t)
+	invalid := `export function onEvent( {`
+	// Registering drafts must not parse arbitrary third-party JavaScript
+	// in the privileged backend process.
+	if err:=pluginRegistry.UpsertWithSource(jsManifest(),invalid);err!=nil {t.Fatal(err)}
+	if _,err:=pluginRegistry.SetEnabled(context.Background(),"testing-js",true);err==nil {
+		t.Fatal("worker approved invalid JavaScript")
+	}
+	m,ok:=pluginRegistry.Get("testing-js")
+	if !ok || m.Enabled {t.Fatalf("invalid plugin unexpectedly enabled: %+v",m)}
+}

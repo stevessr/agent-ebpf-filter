@@ -48,7 +48,7 @@ enabled. Results do not automatically alter allow/deny decisions.
 - Enabling, disabling, replacing sources and deletion are synchronized with running hooks; disabling waits for in-flight hooks to finish or time out.
 - Dynamic code (`eval` and Function) disabled, module imports unsupported.
 - No injected host functions, filesystem, network, process or shell APIs.
-- Hook execution runs in the separate worker process via bounded, versioned Unix-socket JSON IPC. The **Go backend still parses JS when saving plugins**; source registration remains trusted-administrator-only. Isolation depends on the operator deploying the worker under a separate unprivileged OS identity and the specified service sandbox; a socket alone is not a sandbox. Do not install unreviewed scripts yet.
+- Hook execution **and JavaScript syntax validation** run in the separate worker process via bounded, versioned Unix-socket JSON IPC. The backend only enforces size/metadata checks and verifies persisted source hashes. Disabled drafts may be stored even if malformed; enabling invokes remote validation. Isolation depends on the operator deploying the worker under a separate unprivileged OS identity and the specified service sandbox; a socket alone is not a sandbox. The runtime remains experimental and needs independent security review.
 - Malformed, disabled, or modified plugins fail without affecting eBPF policy.
 - moejs is alpha; its API and VM security need ongoing audit before broader use.
 

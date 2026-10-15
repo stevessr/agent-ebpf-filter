@@ -113,3 +113,16 @@ func TestWorkerSocketPermissions(t *testing.T) {
 		t.Fatalf("missing worker socket: %v, %+v",err,info)
 	}
 }
+
+func TestWorkerRemoteValidation(t *testing.T) {
+	socket:=testWorker(t)
+	if err:=ValidateRemote(context.Background(),socket,`export function onEvent(e){return e}`);err!=nil {
+		t.Fatalf("valid source rejected: %v",err)
+	}
+	if err:=ValidateRemote(context.Background(),socket,`const invalid = ;`);err==nil {
+		t.Fatal("worker accepted invalid JavaScript")
+	}
+	if err:=ValidateRemote(context.Background(),"",`export function onEvent(){return 1}`);err==nil {
+		t.Fatal("validation silently fell back to backend")
+	}
+}
