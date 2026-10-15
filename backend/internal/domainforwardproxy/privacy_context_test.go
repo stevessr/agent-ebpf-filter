@@ -166,7 +166,7 @@ func TestContextualPrivacyRejectsAllowAnyHostMisconfiguration(t *testing.T) {
 	var calls atomic.Int32
 	handler := NewHandlerWithTransport(DomainForwardProxySettings{
 		AllowAnyHost: true,
-		Privacy: PrivacySettings{Enabled: true, Action: "redact"},
+		Privacy:      PrivacySettings{Enabled: true, Action: "redact"},
 	}, testRoundTripFunc(func(r *http.Request) (*http.Response, error) {
 		calls.Add(1)
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("ok")), Header: make(http.Header)}, nil
@@ -198,7 +198,9 @@ func TestContextualPrivacyRejectsUpgradedAndCONNECTTraffic(t *testing.T) {
 			t.Errorf("%s: upgraded/tunneled traffic must be rejected, got %d", method, recorder.Code)
 		}
 	}
-	if calls.Load() != 0 { t.Fatal("uninspectable upgraded traffic reached upstream") }
+	if calls.Load() != 0 {
+		t.Fatal("uninspectable upgraded traffic reached upstream")
+	}
 }
 
 func TestContextualPrivacyProxyDeniesBeforeUpstream(t *testing.T) {
@@ -254,7 +256,9 @@ func TestContextualPrivacyRepeatedNormalizationPreservesFailClosed(t *testing.T)
 	NormalizePrivacySettings(&settings)
 	engine := NewPrivacyEngine(settings)
 	_, _, _, err := engine.Apply("application/json", []byte(`{"email":"jane@example.com"}`))
-	if err == nil { t.Fatal("invalid declassification became permissive during repeated normalization") }
+	if err == nil {
+		t.Fatal("invalid declassification became permissive during repeated normalization")
+	}
 }
 
 func TestContextualPrivacyInvalidFieldRulesFailClosed(t *testing.T) {
