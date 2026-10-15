@@ -192,7 +192,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			} else {
 				out.URL.RawQuery = target.RawQuery + "&" + out.URL.RawQuery
 			}
-			out.Host = r.Host
+			if route.UseUpstreamHost { out.Host = target.Host } else { out.Host = r.Host }
 			out.Header.Set("X-Forwarded-Host", r.Host)
 			out.Header.Set("X-Forwarded-Proto", requestForwardedProto(r))
 			out.Header.Set("X-Agent-Forward-Route", route.Host)
