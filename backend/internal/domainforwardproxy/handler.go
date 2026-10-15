@@ -97,6 +97,18 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.settings.Privacy.Enabled {
+		metadata, checkErr := h.privacy.InspectRequestMetadata(r)
+		if checkErr != nil {
+			http.Error(w, "privacy metadata inspection failed", http.StatusUnprocessableEntity)
+			return
+		}
+		if metadata.Blocked {
+			http.Error(w, "request metadata blocked by privacy policy", http.StatusForbidden)
+			return
+		}
+	}
+
 	if isResponsesWebSocketRequest(r) && h.settings.Privacy.Enabled {
 		http.Error(w, "privacy inspection of WebSocket frames is not available; connection refused", http.StatusNotImplemented)
 		return
