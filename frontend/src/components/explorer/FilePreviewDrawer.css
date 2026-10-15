@@ -44,7 +44,7 @@
 
 .file-preview-drawer__hex-table,
 .file-preview-drawer__pre,
-.file-preview-drawer__shiki :deep(pre) {
+.file-preview-drawer__shiki pre {
   margin: 0;
   padding: 16px;
   max-height: calc(100vh - 280px);
@@ -186,13 +186,13 @@
   overflow: visible;
 }
 
-.file-preview-drawer__shiki :deep(.line) {
+.file-preview-drawer__shiki .line {
   display: block;
   min-height: 1.5em;
 }
 
 .is-wrapped,
-.is-wrapped :deep(pre) {
+.is-wrapped pre {
   white-space: pre-wrap !important;
   word-break: break-all !important;
   overflow-wrap: anywhere !important;
