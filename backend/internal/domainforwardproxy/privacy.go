@@ -58,6 +58,7 @@ type PrivacyEngine struct {
 		pattern  *regexp.Regexp
 	}
 	allowlist map[string]struct{}
+	configurationError error
 }
 
 // PrivacySession contains plaintext only in process memory for one HTTP
@@ -105,6 +106,12 @@ func NormalizePrivacySettings(s *PrivacySettings) {
 func NewPrivacyEngine(settings PrivacySettings) *PrivacyEngine {
 	NormalizePrivacySettings(&settings)
 	engine := &PrivacyEngine{settings: settings, allowlist: make(map[string]struct{})}
+	for _, rule := range settings.JSONFieldRules {
+		if rule.Action == "__invalid__" || !validPrivacyJSONPointer(rule.Path) {
+			engine.configurationError = errors.New("invalid privacy JSON disclosure rule")
+			break
+		}
+	}
 	for _, value := range settings.Allowlist {
 		if value != "" && len(value) <= 512 {
 			engine.allowlist[value] = struct{}{}
@@ -136,7 +143,9 @@ func NewPrivacyEngine(settings PrivacySettings) *PrivacyEngine {
 // content types, malformed JSON and oversized payloads fail closed.
 func (e *PrivacyEngine) Apply(contentType string, body []byte) ([]byte, *PrivacySession, PrivacyReport, error) {
 	report := PrivacyReport{Action: e.settings.Action}
-	if !e.settings.Enabled || len(body) == 0 {
+	if !e.settings.Enabled { return body, nil, report, nil }
+	if e.configurationError != nil { return nil, nil, report, e.configurationError }
+	if len(body) == 0 {
 		return body, nil, report, nil
 	}
 	if int64(len(body)) > e.settings.MaxBodyBytes {
