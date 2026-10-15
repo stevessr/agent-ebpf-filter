@@ -38,12 +38,14 @@ The existing `/config/runtime` authenticated API stores the policy with
 {
   "domainForwardProxy": {
     "enabled": true,
-    "httpPort": 8080,
+    "httpPort": 8318,
+    "bindAddress": "127.0.0.1",
+    "httpsDisabled": true,
     "httpsPort": 8443,
     "defaultScheme": "https",
     "allowAnyHost": false,
     "routes": [
-      {"host": "api.openai.com", "upstream": "https://api.openai.com"}
+      {"host": "127.0.0.1", "upstream": "https://api.openai.com", "useUpstreamHost": true}
     ],
     "privacy": {
       "enabled": true,
@@ -56,6 +58,18 @@ The existing `/config/runtime` authenticated API stores the policy with
   }
 }
 ```
+
+For this specific **loopback-local** configuration, use the existing
+OpenAI-compatible client base URL `http://127.0.0.1:8318/v1` (a client that
+allows overriding its API base URL); send the provider API key using the
+client's existing `Authorization` setting. Requests to the local proxy use
+`Host: 127.0.0.1`, which resolves the explicit route, while
+`useUpstreamHost: true` sends `Host: api.openai.com` to the upstream HTTPS
+endpoint. No credential is saved in the proxy config.
+
+`bindAddress: "127.0.0.1"` avoids exposing local unencrypted HTTP on other
+interfaces. `httpsDisabled: true` disables the incoming HTTPS listener only;
+outbound connections to upstream AI services still use HTTPS.
 
 Example is illustrative: the proxy needs a suitable host route, inbound
 listening ports and client configuration. HTTPS listener requires a separately
