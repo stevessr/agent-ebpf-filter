@@ -104,3 +104,20 @@ func TestHarnessUpdateRejectsUnsafePackageNamesAndWrongDpkgPath(t *testing.T){
  missing:=inspectHarnessInstallation("gemini","Gemini CLI","",fakeHarnessProbe(nil,nil,""))
  if missing.Source!="missing"||len(missing.Command)>0{t.Fatal(missing)}
 }
+
+func TestHarnessUpdatePnpmGlobalShimRequiresInventoryAndScript(t *testing.T){
+ dir:=t.TempDir()
+ path:=filepath.Join(dir,"codex")
+ if err:=os.WriteFile(path,[]byte("#!/bin/sh\nexec node \"@openai/codex/bin/codex.js\" \"$@\"\n"),0700);err!=nil{t.Fatal(err)}
+ receipts:=map[string]string{
+  "pnpm bin -g":dir,
+  "pnpm list -g --depth 0 --json":"[{\"dependencies\":{\"@openai/codex\":{\"version\":\"2.0.0\"}}}]",
+ }
+ p:=fakeHarnessProbe([]string{"pnpm"},receipts,dir)
+ got:=inspectHarnessInstallation("codex","Codex",path,p)
+ if got.Source!="pnpm"||got.Package!="@openai/codex"{t.Fatalf("shim provenance: %+v",got)}
+ if !reflect.DeepEqual(got.Command,[]string{"/mock/bin/pnpm","add","-g","@openai/codex@latest"}){t.Fatalf("update argv: %v",got.Command)}
+ receipts["pnpm list -g --depth 0 --json"]="[{\"dependencies\":{\"other\":{\"version\":\"1\"}}}]"
+ other:=inspectHarnessInstallation("codex","Codex",path,p)
+ if other.Source!="unknown"||len(other.Command)!=0{t.Fatalf("invented shim owner: %+v",other)}
+}
