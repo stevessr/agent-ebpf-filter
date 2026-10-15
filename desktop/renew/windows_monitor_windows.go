@@ -59,6 +59,7 @@ func windowsConnectionKey(conn windowsTCPConnection) string {
 // HTTPS hostnames, process command lines, or kernel policy decisions.
 func (a *renewApp) runWindowsMonitoring(ctx context.Context) {
 	a.startEventUIBatcher(ctx)
+	go a.runWindowsEBPFProbeLoop(ctx)
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
@@ -170,4 +171,18 @@ func (a *renewApp) runWindowsMonitoring(ctx context.Context) {
 		case <-ticker.C:
 		}
 	}
+}
+
+func (a *renewApp) runWindowsEBPFProbeLoop(ctx context.Context) {
+    ticker := time.NewTicker(20 * time.Second)
+    defer ticker.Stop()
+    for ctx.Err() == nil {
+        probe := probeWindowsEBPF(ctx)
+        if ctx.Err() != nil { return }
+        a.update(func() { a.windowsEBPFSummary = " · " + probe.Summary() })
+        select {
+        case <-ctx.Done(): return
+        case <-ticker.C:
+        }
+    }
 }
