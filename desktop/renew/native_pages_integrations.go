@@ -7,7 +7,8 @@ import "github.com/egoist/mygo/ui"
 func (a *renewApp) integrationsView(c *ui.Context) {
 	t := c.Theme()
 	ui.Text(c, "管理软件联动").FontSize(28).Bold()
-	ui.Text(c, "汇总本机 Agent 管理器、隐私网关与 eBPF 事件。联动全部只读，外部产品未安装时自动降级。").TextColor(t.TextMuted)
+	ui.Text(c, "内置隐私过滤可独立启用；外部管理软件联动保持只读，未安装时自动降级。").TextColor(t.TextMuted)
+	a.privacyGatewayView(c)
 	a.astrLinkView(c)
 	a.ccsView(c)
 	a.ccrView(c)
