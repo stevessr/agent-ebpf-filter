@@ -27,6 +27,19 @@
 - 扩展控制能力（wrapper/cgroup/LSM）
 - TLS capture 默认关闭（安全优先）
 
+### Rustrak
+
+**轻量级 Sentry 协议兼容错误追踪及 AI Agent Trace 服务**
+
+- **GitHub**: https://github.com/rustrak/rustrak
+- **文档**: https://rustrak.github.io/rustrak/
+- **许可证**: GPL-3.0
+- **技术与部署**: Rust 服务端；SQLite 默认、PostgreSQL 可选；兼容 Sentry SDK 上报，支持错误、日志、事务、AI Agent Span 等
+- **借鉴价值**: 两阶段事件摄取、异常指纹聚合、Agent Trace 瀑布、轻量级独立观测面和 Typed Client / MCP
+- **重要边界**: Rustrak 本身不是 eBPF/OS 执法产品；其 Sentry/Spans 摄取协议不应等同于通用 OTLP 入口。现阶段仅作架构研究，不代表已有集成
+
+**专题解读**：[Rustrak 项目解读：架构、差异与集成边界](rustrak-architecture-review.md)
+
 ### Cilium
 
 **eBPF 驱动的云原生网络、安全和可观测性**
