@@ -162,6 +162,23 @@ func TestContextualPrivacyMetadataEgress(t *testing.T) {
 	}
 }
 
+func TestContextualPrivacyRejectsAllowAnyHostMisconfiguration(t *testing.T) {
+	var calls atomic.Int32
+	handler := NewHandlerWithTransport(DomainForwardProxySettings{
+		AllowAnyHost: true,
+		Privacy: PrivacySettings{Enabled: true, Action: "redact"},
+	}, testRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		calls.Add(1)
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("ok")), Header: make(http.Header)}, nil
+	}))
+	req := httptest.NewRequest(http.MethodGet, "https://attacker.example.test/v1/models", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnprocessableEntity || calls.Load() != 0 {
+		t.Fatalf("unrestricted outbound host accepted: %d calls=%d", rec.Code, calls.Load())
+	}
+}
+
 func TestContextualPrivacyRejectsUpgradedAndCONNECTTraffic(t *testing.T) {
 	var calls atomic.Int32
 	transport := testRoundTripFunc(func(r *http.Request) (*http.Response, error) {
