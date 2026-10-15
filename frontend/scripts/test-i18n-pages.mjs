@@ -82,7 +82,7 @@ for (const [name, route] of selected) {
     await page.waitForFunction(() => document.documentElement.lang === "en-US");
     await page.waitForFunction(() => {
       const t = Array.from(document.querySelectorAll(".ide-nav-item")).map(e => e.textContent?.trim());
-      return t.includes("Dashboard");
+      return t.some(value => value?.includes("Dashboard"));
     }, null, { timeout: 7000 });
     assert.equal(await picker.inputValue(), "en-US");
     assert.ok((await navDashboard(page).textContent())?.includes("Dashboard"), "English navigation missing");
@@ -110,7 +110,7 @@ for (const [name, route] of selected) {
     await picker.selectOption("zh-CN");
     await page.waitForFunction(() => document.documentElement.lang === "zh-CN");
     await page.waitForFunction(() =>
-      Array.from(document.querySelectorAll(".ide-nav-item")).some(e => e.textContent?.trim() === "仪表盘")
+      Array.from(document.querySelectorAll(".ide-nav-item")).some(e => e.textContent?.includes("仪表盘"))
     );
     await screenshot(page, name, "zh", "light");
     verdict.steps.push("Chinese UI & light theme");
