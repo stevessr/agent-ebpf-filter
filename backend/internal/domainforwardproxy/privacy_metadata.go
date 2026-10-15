@@ -18,6 +18,9 @@ func (e *PrivacyEngine) InspectRequestMetadata(request *http.Request) (PrivacyRe
 	if e == nil || !e.settings.Enabled || request == nil || request.URL == nil {
 		return report, nil
 	}
+	if e.configurationError != nil {
+		return report, e.configurationError
+	}
 	if len(request.URL.RawQuery) > 1<<16 {
 		return report, errors.New("privacy URL query too large")
 	}
