@@ -80,6 +80,14 @@ jobs:
             sudo systemctl status agent-ebpf-jsplugin-worker.service --full --no-pager || true
             sudo systemctl show agent-ebpf-jsplugin-worker.service -p MainPID -p ExecMainStatus -p Result -p User -p DynamicUser || true
             sudo journalctl -u agent-ebpf-jsplugin-worker.service -n 80 --no-pager || true
+            echo "Host runtime directory:"
+            sudo ls -ld /run/agent-ebpf-jsplugin /run/private/agent-ebpf-jsplugin || true
+            sudo ls -la /run/agent-ebpf-jsplugin/ || true
+            pid="$(sudo systemctl show -P MainPID agent-ebpf-jsplugin-worker.service)"
+            echo "Worker root-visible directory:"
+            sudo ls -la "/proc/$pid/root/run/agent-ebpf-jsplugin/" || true
+            echo "Unix sockets:"
+            sudo ss -xlpn | grep -E '(agent-ebpf|jsplugin)' || true
             exit "$result"
           }
           trap diagnose ERR
