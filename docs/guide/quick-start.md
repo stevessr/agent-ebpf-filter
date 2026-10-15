@@ -1,12 +1,12 @@
 # 快速开始
 
-根据目标选择启动入口。**日常监控首选原生 Renew；深度研究、策略与 API 管理使用 Vue Web 工作台。** VitePress 是本站文档，不是监控前端。
+根据目标选择启动入口。**日常监控首选原生 Renew；深度研究、策略与 API 管理使用 Vue Web 工作台。** 文档站使用 MkDocs Material，与监控桌面和 Web 工作台独立。
 
 ## 环境要求
 
 | 用途 | 最低前提 |
 | --- | --- |
-| 文档站 | Bun + 根目录依赖（VitePress） |
+| 文档站 | Python 3.12 + `docs/requirements.txt` |
 | Go / MyGo 原生桌面编译 | Linux、项目声明的 Go **1.27.1** 工具链、MyGo v0.4.8（模块自动拉取）与对应本机 GUI 开发依赖 |
 | 嵌入式后端/eBPF 构建 | clang/LLVM、`protoc`/`protoc-gen-go`、eBPF 对象构建依赖 |
 | 真实 eBPF 采集 | Linux eBPF/BTF、授权的 BPF 加载能力和受支持内核 |
@@ -70,19 +70,18 @@ TUI 订阅后端的事件接口，适合无桌面的测试环境。采集事实�
 ## 文档站本地预览
 
 ```bash
-bun install
-bun run docs:dev
-bun run docs:build
-bun run docs:preview
+python3 -m pip install -r docs/requirements.txt
+python3 docs/build_site.py serve
+python3 docs/build_site.py build
 ```
 
-以上命令须从**仓库根目录**执行，因为文档站依赖在根目录 `package.json`，与 `frontend/package.json` 独立。
+从仓库根目录运行；配置位于 `docs/mkdocs.yml`，与前端的 Bun 依赖独立。
 
 ## 最小验证清单
 
 | 改动范围 | 建议检查 |
 | --- | --- |
-| VitePress 页面 / 导航 | `bun run docs:build`；有条件时运行 `python3 scripts/check-doc-links.py` |
+| MkDocs 页面 / 导航 | `python3 docs/build_site.py build`；有条件时运行 `python3 scripts/check-doc-links.py` |
 | Renew MyGo 桌面 | `cd desktop/renew && go test ./...` 与 `go tool mygo vet .` |
 | Go 后端 | `cd backend && go test ./...` |
 | Vue Web | `cd frontend && bun run build` |
@@ -97,6 +96,6 @@ Hook 安装会修改目标 CLI 的配置；BPF LSM 与 cgroup 策略可能真的
 
 - 只有 UI，没有事件：检查内核权限、collector 健康、跟踪登记与忽略规则；没有数据不等于没有风险。
 - Renew 无法访问后端：先区分内置私有 UDS 模式与显式 `--backend` / `AGENT_BACKEND_URL` 连接已有服务的模式。
-- 前端报 VitePress 缺失：在仓库根目录执行 `bun install`，而非只进入 `frontend/`。
+- 文档缺少依赖：执行 `python3 -m pip install -r docs/requirements.txt`；Vue 前端的 Bun 依赖另行安装。
 
 [桌面详解](/frontend/renew) · [构建与运行](/operations/build-and-run) · [安全模型](/security/model)。

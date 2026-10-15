@@ -107,4 +107,4 @@ flowchart TD
 - 🧪 **构建命令闭环**：每当在文档中看到任意一条“构建/验证/压测”命令，请确保其已被收录在 [验证、测试与 Benchmark](/operations/verification-benchmark) 手册中，或已集成为标准 `make` 指令。
 - 🤖 **提交前自动化审计**：
   - 每次本地文档修改完毕后，在提交 PR 前请务必至少在本地执行一次：`python3 scripts/check-doc-links.py` 确保无死链。
-  - 若涉及导航栏（Sidebar）、Frontmatter 属性元数据或复杂 Mermaid 图表的变更，请本地执行 `bun run docs:build` 验证 VitePress 静态化编译是否通过。
+  - 若涉及导航栏（Sidebar）、Frontmatter 属性元数据或复杂 Mermaid 图表的变更，请本地执行 `python3 docs/build_site.py build` 验证 VitePress 静态化编译是否通过。

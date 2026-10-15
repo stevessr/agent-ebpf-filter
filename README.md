@@ -3,7 +3,7 @@
 **Linux-first observability and control plane for AI agents and developer CLIs.**
 
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
-[![Documentation](https://img.shields.io/badge/docs-VitePress-green.svg)](docs/index.md)
+[![Documentation](https://img.shields.io/badge/docs-MkDocs-green.svg)](docs/index.md)
 
 > Real-time monitoring, semantic correlation, and kernel-level enforcement for AI agent behaviors on Linux workstations.
 
@@ -256,9 +256,8 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory, orga
 
 **Preview documentation site:**
 ```bash
-cd docs
-bun install
-bun run docs:dev
+python3 -m pip install -r docs/requirements.txt
+python3 docs/build_site.py serve
 ```
 
 ---
@@ -280,7 +279,7 @@ agent-ebpf-filter/
 ├── adapters/             # Python and Node.js PID registration helpers
 ├── proto/                # Protobuf definitions (source of truth)
 ├── kernel-ml/            # Optional DKMS kernel-space ML module
-├── docs/                 # VitePress documentation site
+├── docs/                 # MkDocs documentation site
 ├── tools/agent-tui/      # Terminal event monitor (make tui)
 ├── deploy/kubernetes/    # Kubernetes manifests
 └── scripts/              # Demo and validation scripts
