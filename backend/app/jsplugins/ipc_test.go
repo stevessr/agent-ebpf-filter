@@ -234,3 +234,17 @@ func TestWorkerEscapedSourceWithinConfiguredLimit(t *testing.T) {
 		t.Fatalf("escaped source rejected: %v", err)
 	}
 }
+
+func TestWorkerReturnsTypedExecutionDeadline(t *testing.T) {
+	socket := testWorker(t)
+	// Keep the caller alive longer than the VM's own 100ms budget so the
+	// error originates from the worker's versioned response, not a socket timeout.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, err := InvokeRemote(ctx, socket,
+		`export function onEvent(){while(true){}}`,
+		"onEvent", json.RawMessage(`{}`))
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("worker execution deadline not preserved across IPC: %v", err)
+	}
+}

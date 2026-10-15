@@ -107,8 +107,13 @@ func invokeRemote(ctx context.Context, socketPath, source, hook, operation strin
 		return nil, errors.New("JavaScript worker protocol version mismatch")
 	}
 	if response.Error != "" {
-		if response.Code == "busy" {
+		switch response.Code {
+		case "busy":
 			return nil, ErrExecutorBusy
+		case "deadline":
+			return nil, context.DeadlineExceeded
+		case "canceled":
+			return nil, context.Canceled
 		}
 		return nil, fmt.Errorf("JavaScript worker: %s", response.Error)
 	}
@@ -234,7 +239,14 @@ func (w *Worker) handleConn(conn net.Conn) {
 		}
 	}
 	if err != nil {
-		resp.Code, resp.Error = "runtime", err.Error()
+		resp.Code = "runtime"
+		switch {
+		case errors.Is(err, context.DeadlineExceeded):
+			resp.Code = "deadline"
+		case errors.Is(err, context.Canceled):
+			resp.Code = "canceled"
+		}
+		resp.Error = err.Error()
 	}
 	_ = json.NewEncoder(conn).Encode(resp)
 }
