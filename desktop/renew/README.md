@@ -93,6 +93,8 @@ No new privileged API or AI inference service is introduced. As before, only the
 
 The desktop process stays unprivileged. On Linux it reuses an already running backend or re-executes the **same Renew executable** in an internal backend mode and requests system authorization for that child. The backend is linked as a Go library; there is no packaged backend sidecar. Only the internal backend child gains privileges.
 
+Harness CLI installation-source detection and update workflow are documented in [HARNESS_UPDATES.md](HARNESS_UPDATES.md).
+
 ## Architecture
 
 ```text
@@ -183,11 +185,11 @@ These controls target **registered custom eBPF programs only**, and detach their
 
 System telemetry uses the same native socket for a locally launched backend. The system sampler is transport-independent and shared by both clients: browser clients receive its protobuf snapshots over `/ws/system`, while Renew receives the identical `SystemStats` payload directly over Native IPC. This avoids a duplicated sampler while keeping the local desktop off the generic web transport. Remote/custom backends still use the WebSocket implementation, and a lost local IPC channel automatically falls back to it.
 
-The browser `/renew` frontend has been removed. The main browser workbench remains independent; the native desktop UI does not ship a browser, a WebView, or a TCP HTTP listener. The privately started backend serves authenticated configuration and history requests over a second Unix socket in the desktop-owned 0700 session directory.
+The browser `/renew` frontend has been removed. The main browser workbench remains independent. Renew's monitoring panels remain native, and the optional Coding Harness panel hosts a localhost-only MyGo embedded WebView without adding any listening port to Renew. The privately started backend serves authenticated configuration and history requests over a second Unix socket in the desktop-owned 0700 session directory.
 
 ## Why a separate module?
 
-MyGo requires Go 1.27.1+. Renew currently pins **MyGo v0.4.3** and the repository workspace uses Go 1.27.1. The `desktop/renew` module remains isolated so native UI dependencies do not enter the privileged backend. The current runtime includes earlier memory/cache, Linux rendering, and input improvements as well as v0.4.3's latest native UI fixes without altering the privilege boundary.
+MyGo requires Go 1.27.1+. Renew currently pins **MyGo v0.5.1** and the repository workspace uses Go 1.27.1. The `desktop/renew` module remains isolated so native UI dependencies do not enter the privileged backend. The current runtime includes earlier memory/cache, Linux rendering, and input improvements as well as v0.4.3's latest native UI fixes without altering the privilege boundary.
 
 ## Develop
 
@@ -224,7 +226,7 @@ go tool mygo build
 
 The build hook generates the backend protobuf/eBPF bindings, then MyGo links the backend library directly into Renew. The Linux output `build/linux-amd64/renew` contains the UI + backend; the terminal additionally uses a verified `libghostty-vt.so` native runtime supplied by the complete MyGo Linux package. No `agent-ebpf-filter` helper ELF, askpass script, or `frontend/dist` bundle is shipped beside it. The CI workflow also publishes that executable by itself as the `renew-linux-amd64-single-binary` artifact.
 
-On Linux the native MyGo UI uses GTK for the window and MyGo's own renderer. WebKitGTK is not required by Renew Desktop.
+On Linux the native monitoring UI uses GTK and MyGo's renderer. The optional embedded DeepSeek Harness panel needs WebKitGTK 4.1 (e.g. libwebkit2gtk-4.1-0), while monitoring and PTY terminals continue to work without it.
 
 Renew's Linux single-binary build also validates the `CGO_ENABLED=0` embedded-backend path. In that configuration the embedded backend uses pure-Go hardware fallbacks: core eBPF monitoring, policy enforcement, event capture, system/process statistics, and generic DRM fdinfo GPU telemetry remain available, while NVML-only NVIDIA detail fields and V4L2 camera capture are omitted from the single-file build. The standalone backend keeps those integrations when built with CGO enabled.
 
@@ -270,7 +272,7 @@ In bundled mode the privileged child listens only on an authenticated private Un
 
 ## MyGo v0.3.4 appearance and responsive UI
 
-- This UI iteration originally landed on **MyGo v0.3.4**; the current desktop module and CLI tool pin **v0.4.3**. It does not add a WebView runtime.
+- This UI iteration originally landed on **MyGo v0.3.4**; the current desktop module and CLI tool pin **v0.5.1**. It does not add a WebView runtime.
 - Windows 11 supports a Mica material and macOS supports a sidebar material where the compositor offers native vibrancy. The toolbar provides a session-only **纯色模式 / 系统材质** switch; all content tables and event details keep opaque surfaces for readability. Unsupported Windows versions and Linux (Wayland/X11) retain the full opaque navy theme. Do not imply Linux compositor material support.
 - Navigation opens and closes with native, reduced-motion-aware animation. Page changes have a modest entrance transition; the toolbar automatically overflows actions at narrow sizes while preserving keyboard and screen-reader behavior.
 - Search, event pinning, explicit detail requests and privileged backend permissions are unchanged. No additional collection, telemetry or network call is introduced by these UI effects.
@@ -317,3 +319,39 @@ In bundled mode the privileged child listens only on an authenticated private Un
 - **独立于采集**：即使采集器断开或启动失败，文件浏览与编辑器仍可使用；进入本地页面不会创建额外事件流、改写 eBPF 捕获范围或变更 LSM 文件权限策略。
 
 依赖版本升级至 **MyGo v0.4.8**（Go 1.27.1），仍与特权后端模块隔离。常规 PR CI 执行 `go mod tidy -diff`、`go test ./...`、`go tool mygo vet .`、单二进制构建及 Linux 安装包检查。
+
+
+## Agent → SubAgent 进程派生可视化
+
+原生桌面侧边栏的「Agent 派生」页面提供两个可即时切换的视图：
+
+- **放射图**：以识别出的 Agent 进程为中心，按当前 PID/PPID 关系逐层展开后代；点击节点查看进程详情、事件和父进程事件。
+- **瀑布图**：按派生层级排列进程，并以进程启动时间到当前系统快照时刻显示存活区间；它**不是** SubAgent 任务耗时，也不代表进程真实退出时间。
+- 颜色用于区分根 Agent、普通进程及「子 Agent 候选」；候选要求后代进程本身被识别为 Agent 工具，不会把 bash、python 等普通派生执行器标记为真正的子 Agent。
+- 两个视图共用选中 PID；支持按根 Agent 过滤、事件跳转，且可从「进程」页直接进入。
+- 数据来自既有 /ws/system protobuf 进程快照及当前事件摘要窗口，不需要新特权端点。单图限制为 72 个节点 / 6 层；断线时不以旧事件拼接历史树。PID 启动时间用于过滤不可能的跨代父子链接，并阻止老事件冒充新进程上下文。
+
+**证据限制**：OS 进程父子关系不自动等于模型、RPC 或 Agent SDK 层的调用关系。内部同进程 SubAgent、异机 SubAgent、跨 RPC 协作、已经退出的进程，需要采集 Agent SDK / hooks 的 trace_id、span_id、parent_span_id、agent_run_id、开始及结束时间后才能显示为**已确认逻辑调用**。本页目前只把其它 Agent 可执行文件后代标注为「子 Agent 候选」，不会虚构时序或逻辑调用。
+
+### Claude Code SubAgent 生命周期采集（可选）
+
+在 Web 管理台的 Hook 配置中，除普通的 **Claude Code / PreToolUse** 外，可分别启用 **Claude Code · SubagentStart** 和 **Claude Code · SubagentStop**。它们独立写入 `~/.claude/settings.json` 的对应事件，不会覆盖已有 `PreToolUse` 或手工 Hook，且可分别卸载。只有显式启用时才增加生命周期采集；安装后需重新启动 Claude Code 会话以读取 Hook 配置。
+
+接收端继续使用每个 Hook 独立的 secret 认证。Hook relay 最多报告其调用进程的父 PID 作为尽力关联线索，不能单凭该 PID 推断跨进程 Agent 调用关系。完整事件的 `ExtraInfo` 仅持久化 `agent_id` 的摘要及 `agent_type` 元数据（以及既有 prompt digest）；不保留原始 agent_id、用户输入或响应文本。Renew 的原生摘要展示已观察到的开始/结束信号，但不在缺乏原始 span/call_id 证据时拼接虚构的完整生命周期。
+
+
+### Coding Harness 快捷启动与 DeepSeek 内嵌 Web UI（MyGo 0.5.1）
+
+在 **终端** 顶部的 Coding Harness 工具栏中，可一键创建 Codex、Claude Code、Gemini CLI、OpenCode、Pi、Copilot CLI、Aider、Kiro CLI 的独立 PTY。工具栏显示已发现 CLI 数量与未安装项；**刷新检测** 可重新读取 PATH。每个启动器都直接执行对应已安装程序（无 sh -c / 命令字符串拼接），默认继承当前终端工作目录，退出后仍能查看终端输出。
+
+**DeepSeek Harness** 是独立的开源 Agent Harness，不等于 DeepSeek 聊天网站。点击 **启动 DeepSeek Harness** 会优先运行已安装的 dsh；如果只有 npx，按钮会标明 **npx 联网启动**，通过官方 @deepseek-ai/dsh 包按需下载并执行。启动参数等价于 dsh web --no-open --host 127.0.0.1 --port <随机回环端口>。后台进程保持在本地 PTY 中，日志可见，关闭其终端 Tab 即停止会话。
+
+服务准备就绪后，Renew 通过 MyGo 0.5.1 的 Window.NewWebView + ui.WebView 在**同一个原生终端页面**渲染本地 http://localhost:<端口>/，而非调用外部系统浏览器或打开 chat.deepseek.com。宽屏默认 PTY/网页左右并排；窄屏上下并排；支持刷新或收起网页，收起不会停止进程。网页只在端口就绪后创建；代理不接管回环探测请求，也不跟随网页探测重定向。WebView 不添加 TrustedOrigins，不授权 DeepSeek 页面调用 Renew 的 Go 绑定服务。
+
+首次运行可自行安装：
+
+- Node.js 与 npm：npm install -g @deepseek-ai/dsh。
+- Linux：WebKitGTK 4.1（原生监控与 PTY 不依赖它）。
+- DeepSeek Harness 开发预览版能执行命令并操作文件，请遵循其权限确认和最小权限建议。
+
+注意：端口由本机临时分配并释放后交由 dsh 绑定，仍存在很小的端口竞争窗口；运行错误应以 DeepSeek PTY 内日志为准。框架本身的采集器仍由独立授权进程负责，Coding Harness 一律在桌面用户权限下运行。

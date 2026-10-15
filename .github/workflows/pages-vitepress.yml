@@ -1,0 +1,86 @@
+name: Deploy VitePress to GitHub Pages
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "docs/**"
+      - "package.json"
+      - "bun.lock"
+      - "scripts/check-doc-links.py"
+      - ".github/workflows/pages-vitepress.yml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - "package.json"
+      - "bun.lock"
+      - "scripts/check-doc-links.py"
+      - ".github/workflows/pages-vitepress.yml"
+  workflow_dispatch:
+
+# Serialize releases to production while letting PR checks run independently.
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build GitHub Pages artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pages: read
+    steps:
+      - name: Checkout repository history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate local documentation links
+        run: python3 scripts/check-doc-links.py
+
+      - name: Build VitePress for repository Pages URL
+        env:
+          VITEPRESS_BASE: /agent-ebpf-filter/
+        run: bun run docs:build
+
+      - name: Check Pages base path and output
+        run: |
+          test -f docs/.vitepress/dist/index.html
+          grep -Eq '(src|href)="/agent-ebpf-filter/assets/' docs/.vitepress/dist/index.html
+
+      # A PR validates exactly the Pages-targeted build, but never uploads or publishes.
+      - name: Configure Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: docs/.vitepress/dist
+
+  deploy:
+    name: Publish to GitHub Pages
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy artifact
+        id: deployment
+        uses: actions/deploy-pages@v4

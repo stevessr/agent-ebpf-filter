@@ -3,82 +3,75 @@ layout: home
 
 hero:
   name: Agent eBPF Filter
-  text: AI Agent 的 Linux 观测与控制平面
-  tagline: eBPF 事实采集、Go 后端控制、Vue 工作台、Wrapper / Hooks / Adapters 语义关联、cgroup / BPF LSM 内核阻断。
+  text: 看见 AI Agent 在 Linux 上真正做了什么
+  tagline: 从 eBPF 内核事实与 Agent 语义关联，到「明镜高悬」原生桌面调查、Web 研究控制台与可选的内核策略。
   actions:
     - theme: brand
-      text: 快速开始
+      text: 开始演示
+      link: /guide/demo-tour
+    - theme: alt
+      text: 安装与运行
       link: /guide/quick-start
     - theme: alt
-      text: 架构总览
+      text: 了解架构
       link: /architecture/overview
-    - theme: alt
-      text: 安全模型
-      link: /security/model
-    - theme: alt
-      text: 研究工作流
-      link: /guide/agent-security-research-workflow
 
 features:
-  - title: 内核事实采集
-    details: 通过 eBPF tracepoint、ringbuf、pinned maps 记录 exec/open/connect/sendto/recvfrom/bind/ioctl 等系统调用事实。
-  - title: Agent 语义关联
-    details: 通过 PID registration、native hooks、wrapper request、trace_id、tool_call_id 和 EventEnvelope 把 Agent 意图与 OS 行为合并。
-  - title: 用户态 + 内核态控制
-    details: wrapper 提供 ALLOW/BLOCK/ALERT/REWRITE 命令策略，cgroup 与 BPF LSM 提供网络、文件和执行阻断。
-  - title: 可视化工作台
-    details: Dashboard、Network、Execution Graph、AgentSight、Config、Executor、Hooks、ML 和 Plugins 组成统一观察与配置界面。
-  - title: 安全默认值
-    details: release-mode auth、runtime feature gates、脱敏、危险能力默认关闭，避免把诊断能力变成默认数据暴露。
-  - title: 可交付文档体系
-    details: 本站按指南、架构、后端、前端、安全、集成、运维、答辩和参考组织，可直接作为项目网站。
+  - title: 看见 OS 级行为
+    details: eBPF 追踪进程、文件与网络活动；展示采集健康、事件丢失和关联证据，不把「没有事件」等同于「没有风险」。
+  - title: 明镜高悬 · 原生桌面
+    details: 基于 Go + MyGo 的日常监控客户端，提供告警研判、Agent 域名、会话、路径权限及原生工具，不依赖 WebView。
+  - title: Agent → SubAgent 派生
+    details: 放射图与瀑布图查看当前进程后代；明确区别 OS 进程关系、子 Agent 候选和 Hook 生命周期信号。
+  - title: 关联 Agent 语义
+    details: Native Hooks、Wrapper、Adapters 与 root Agent 证据补充 syscall 事实；不凭通用 shell 名称猜测 Agent 归属。
+  - title: 多层安全控制
+    details: Wrapper 命令策略、cgroup 目的地阻断和 BPF LSM 文件/执行访问控制；需要匹配的内核能力与显式授权。
+  - title: 开放且可验证
+    details: Vue Web 工作台用于研究管理，另有 MCP、External API、OTLP、Prometheus 与测试/回放工具，保留能力边界。
 ---
 
-## 项目定位
+## 两个界面，各有职责
 
-Agent eBPF Filter 是面向 Linux 本地工作站、实验节点和开发环境的 **AI Agent 行为观测与安全控制系统**。它并不只是一组 syscall 日志，也不是单一的命令拦截器，而是把内核态事实、用户态语义、Web 控制面和可选内核阻断组合成一条完整证据链。
+| 入口 | 适合谁 | 主要任务 | 代码位置 |
+| --- | --- | --- | --- |
+| **明镜高悬（Renew）** | Linux 个人用户、Agent 开发者 | 日常状态、风险事件、Agent 域名、会话、进程派生、文件与编辑器 | [`desktop/renew/`](https://github.com/stevessr/agent-ebpf-filter/tree/master/desktop/renew) |
+| **Web 工作台** | 研发、运维、安全与评测人员 | Dashboard、网络分析、执行图谱、Hook 管理、配置、实验与高级诊断 | [`frontend/`](https://github.com/stevessr/agent-ebpf-filter/tree/master/frontend) |
 
-核心问题是：当 AI Agent 或开发者 CLI 在本机执行任务时，系统如何回答以下问题？
+Renew 的 **Web 版 `/renew` 已移除**。桌面由 MyGo 原生组件绘制；既有 Vue Web 工作台继续独立存在。桌面独立启动时可通过私有 Unix Socket 使用其启动的授权后端，不必暴露本地 TCP API 端口；连接已经运行的后端则沿用该后端的配置。
 
-- 它实际执行了什么命令？
-- 它打开、修改或删除了哪些文件？
-- 它连接了哪些网络目标？
-- 这些行为属于哪个 Agent run、哪个 tool call、哪个 trace？
-- 是否触发了 wrapper / cgroup / LSM / ML / semantic policy？
-- 高风险诊断数据是否经过脱敏？
-- 这些证据能否被查询、导出、回放和用于答辩？
+## 三分钟了解数据流
 
-本站文档按“能直接用于项目网站”的粒度组织，既服务新开发者，也服务比赛答辩、安全审查和后续维护。
+```mermaid
+flowchart LR
+  A["AI Agent / CLI"] --> T["Linux syscalls"]
+  A --> H["Hooks / Wrapper / Adapters"]
+  T --> B["eBPF tracepoints"]
+  B --> C["Go Collector / event pipeline"]
+  H --> C
+  C --> R["Renew · MyGo 原生桌面"]
+  C --> W["Vue Web 工作台"]
+  C --> E["MCP / OTLP / Prometheus"]
+  P["经授权的策略请求"] --> S["Wrapper / cgroup / BPF LSM"]
+```
 
-## 推荐阅读
+**注意**：观察数据与策略执行是两个不同的路径。展现某个异常、路径或网络目标，不代表已自动对其执行阻断。cgroup/BPF LSM 的可用性取决于内核、附着状态和运行时门控。
 
-::: tip 新开发者
-从 [项目是什么](/guide/what-is-agent-ebpf-filter) 和 [快速开始](/guide/quick-start) 开始，再进入 [总体架构](/architecture/overview) 与 [代码入口索引](/reference/code-entrypoints)。
-:::
+## 从哪里开始
 
-::: tip 安全审查
-优先阅读 [安全模型](/security/model)、[策略语义](/security/policy-semantics)、[Runtime Gates 与 Auth](/security/runtime-gates-auth)。
-:::
+- 想实际体验：按 [演示导览](/guide/demo-tour) 的顺序，从桌面健康状态 → Agent 域名 → 进程派生 → 文件事件逐步查看。
+- 想部署：先读 [快速开始](/guide/quick-start)，再读 [构建与运行](/operations/build-and-run)。
+- 想理解技术：读 [架构总览](/architecture/overview)、[组件边界](/architecture/independent-components) 与 [安全模型](/security/model)。
+- 想做答辩：参考 [现场演示脚本](/delivery/demo-script) 和 [验证与 Benchmark](/operations/verification-benchmark)。
 
-::: tip 答辩准备
-优先阅读 [比赛答辩主线](/delivery/competition-defense)、[演示脚本](/delivery/demo-script)、[评测报告](/delivery/evaluation)。
+::: tip 文档版本口径
+本轮演示文档按仓库 `master` **2026-10-15** 的提交 `10e9766` 核对。页面描述的是**代码具备的能力及其前提**，不是对任意安装环境的运行结果保证。最新功能以源码、运行时状态与实际测试为准。
 :::
 
 ::: tip 相关研究
 阅读 [Agent-Warden 论文解读](/reference/agent-warden-analysis)，理解内核原生进程—文件溯源、因果图证据与本项目现有实现的差异；勿将论文原型能力写成已实现特性。
 :::
 
-## 致谢
+## 来源与致谢
 
-本项目在架构设计和技术选型上受到 [AgentSight](https://github.com/eunomia-bpf/agentsight) 项目的启发。AgentSight 是由 eunomia-bpf 团队开发的开源 AI Agent 系统级追踪工具，验证了 eBPF + TLS capture 对 Agent 观测的可行性。
-
-Agent eBPF Filter 在以下方面进行了扩展和差异化：
-- **技术栈**: Go + Vue 3（vs Rust + Next.js）
-- **产品定位**: 观测 + 控制（vs 纯观测）
-- **控制能力**: wrapper / cgroup / BPF LSM enforcement
-- **安全模型**: TLS capture 默认关闭，作为高风险诊断能力
-- **目标场景**: 包含操作系统课程答辩交付
-
-详见 [AgentSight 项目致敬](/reference/agentsight-acknowledgment)。
-
-感谢 AgentSight 项目对开源社区的贡献！
+项目受到 [AgentSight](https://github.com/eunomia-bpf/agentsight) 启发，在其 Agent 系统追踪方向上扩展 Go 后端、策略控制与本地桌面体验。详见 [项目致谢](/reference/agentsight-acknowledgment)。

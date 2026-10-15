@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
+import { systemIsDark, watchSystemTheme } from "./composables/useSystemTheme";
 import zhCN from "ant-design-vue/es/locale/zh_CN";
 import { theme } from "ant-design-vue";
 import {
@@ -17,6 +18,22 @@ import { groups } from "./composables/workbench/layout";
 import { useRouter } from "vue-router";
 import "./components/workbench/workbench.css";
 const router = useRouter();
+
+let stopSystemTheme: (() => void) | undefined;
+onMounted(() => { stopSystemTheme = watchSystemTheme(); });
+onUnmounted(() => stopSystemTheme?.());
+
+const antTheme = computed(() => ({
+  algorithm: systemIsDark.value ? theme.darkAlgorithm : theme.defaultAlgorithm,
+  token: {
+    colorPrimary: systemIsDark.value ? "#7b9fff" : "#2563eb",
+    colorBgBase: systemIsDark.value ? "#111318" : "#f8fafc",
+    colorBgContainer: systemIsDark.value ? "#191c22" : "#ffffff",
+    colorBorder: systemIsDark.value ? "#2b303b" : "#d9e2ef",
+    borderRadius: 4,
+    fontSize: 13,
+  },
+}));
 const {
   notice,
   storageAvailable,
@@ -69,17 +86,7 @@ function resetLayout() {
 <template>
   <a-config-provider
     :locale="zhCN"
-    :theme="{
-      algorithm: theme.darkAlgorithm,
-      token: {
-        colorPrimary: '#7b9fff',
-        colorBgBase: '#111318',
-        colorBgContainer: '#191c22',
-        colorBorder: '#2b303b',
-        borderRadius: 4,
-        fontSize: 13,
-      },
-    }"
+    :theme="antTheme"
   >
     <div class="ide-workbench">
       <header class="ide-titlebar">

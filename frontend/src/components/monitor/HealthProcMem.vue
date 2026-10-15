@@ -223,7 +223,7 @@ const tileTitle = (tile: ProcTile) =>
         <div style="font-weight: 600">
           Process Memory Blocks ({{ tiles.length }} unique)
         </div>
-        <div style="color: #4b5563; font-size: 12px; margin-top: 4px">
+        <div style="color: var(--ui-text-muted); font-size: 12px; margin-top: 4px">
           Size is log-scaled by estimated RSS from process mem% × total RAM.
         </div>
       </div>
@@ -233,7 +233,7 @@ const tileTitle = (tile: ProcTile) =>
           gap: 4px;
           text-align: right;
           font-size: 12px;
-          color: #4a4a4a;
+          color: var(--ui-text-muted);
         "
       >
         <div>
@@ -382,21 +382,21 @@ const tileTitle = (tile: ProcTile) =>
         <a-card
           size="small"
           :bordered="false"
-          style="background: #fafafa; margin-bottom: 16px"
+          style="background: var(--ui-surface-muted); margin-bottom: 16px"
         >
           <a-space direction="vertical" size="small" style="width: 100%">
             <div>
-              <span style="color: #4b5563">PIDs:</span>
+              <span style="color: var(--ui-text-muted)">PIDs:</span>
               <span style="font-family: monospace">{{
                 selectedGroup.pids.join(", ")
               }}</span>
             </div>
             <div>
-              <span style="color: #4b5563">Approx RSS:</span>
+              <span style="color: var(--ui-text-muted)">Approx RSS:</span>
               <b>{{ formatBytesWithUnit(selectedGroup.approxBytes) }}</b>
             </div>
             <div>
-              <span style="color: #4b5563">Peak instance mem:</span>
+              <span style="color: var(--ui-text-muted)">Peak instance mem:</span>
               <b>{{ formatPercent(selectedGroup.instances[0]?.mem ?? 0) }}</b>
             </div>
           </a-space>
@@ -438,14 +438,14 @@ const tileTitle = (tile: ProcTile) =>
               >
             </template>
             <template v-if="column.key === 'createTime'">
-              <span style="font-size: 12px; color: #4a4a4a">{{
+              <span style="font-size: 12px; color: var(--ui-text-muted)">{{
                 formatDateTime(text ?? 0)
               }}</span>
             </template>
           </template>
         </a-table>
 
-        <div style="margin-top: 12px; color: #4b5563; font-size: 12px">
+        <div style="margin-top: 12px; color: var(--ui-text-muted); font-size: 12px">
           Started times are shown in local time when available.
         </div>
       </template>

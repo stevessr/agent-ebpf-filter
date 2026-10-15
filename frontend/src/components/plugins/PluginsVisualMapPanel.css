@@ -4,10 +4,10 @@
   border-radius: 8px;
   overflow: visible; /* to show ports */
   box-shadow: 0 8px 24px rgba(22, 119, 255, 0.08);
-  background: #ffffff;
+  background: var(--workflow-surface);
   backdrop-filter: blur(8px);
   transition: all 0.3s ease;
-  border: 1px solid #d6e4ff;
+  border: 1px solid var(--workflow-border);
   position: relative;
 }
 .block-card:hover {
@@ -16,7 +16,7 @@
 }
 
 .block-map {
-  border-color: #91caff !important;
+  border-color: var(--workflow-primary-border) !important;
 }
 .block-map:hover {
   border-color: #1677ff !important;
@@ -27,7 +27,7 @@
   padding: 10px 14px;
   display: flex;
   align-items: center;
-  border-bottom: 1px solid #d6e4ff;
+  border-bottom: 1px solid var(--workflow-border);
   background: linear-gradient(135deg, #1677ff, #4096ff);
 }
 .block-badge {
@@ -40,20 +40,20 @@
   font-weight: bold;
 }
 .block-body {
-  background: #ffffff;
+  background: var(--workflow-surface);
   padding: 18px;
-  color: #475569;
+  color: var(--workflow-text-secondary);
 }
 .desc-line {
   font-size: 13px;
-  color: #64748b;
+  color: var(--workflow-text-muted);
   margin-bottom: 12px;
 }
 
 .control-group label {
   display: block;
   font-size: 11px;
-  color: #64748b;
+  color: var(--workflow-text-muted);
   margin-bottom: 4px;
 }
 
@@ -78,8 +78,8 @@
 .map-blueprint-canvas {
   height: 180px;
   position: relative;
-  border: 1px solid #d6e4ff;
-  background: #f8fbff;
+  border: 1px solid var(--workflow-border);
+  background: var(--workflow-surface-soft);
   border-radius: 6px;
   overflow: hidden;
   box-shadow: inset 0 0 15px rgba(22, 119, 255, 0.08);
@@ -123,13 +123,13 @@
 /* Map node cards */
 .map-node {
   position: absolute;
-  background: #ffffff;
-  border: 1px solid #91caff;
+  background: var(--workflow-surface);
+  border: 1px solid var(--workflow-primary-border);
   border-radius: 5px;
   box-shadow: 0 8px 18px rgba(22, 119, 255, 0.1);
   font-family: monospace;
   font-size: 10px;
-  color: #0f172a;
+  color: var(--workflow-text);
   z-index: 2;
   box-sizing: border-box;
   transition: all 0.2s ease;
@@ -137,15 +137,15 @@
 
 .map-node:hover {
   border-color: #1677ff;
-  box-shadow: 0 0 8px #91caff;
+  box-shadow: 0 0 8px var(--workflow-primary-border);
 }
 
 .node-title {
   padding: 3px 6px;
-  background: #e6f4ff;
-  border-bottom: 1px solid #91caff;
+  background: var(--workflow-primary-soft);
+  border-bottom: 1px solid var(--workflow-primary-border);
   font-weight: bold;
-  color: #0958d9;
+  color: var(--workflow-primary);
 }
 
 .node-content {
@@ -199,18 +199,18 @@
 
 /* Database map styles inside the node */
 .map-db-node {
-  border-color: #91caff;
+  border-color: var(--workflow-primary-border);
 }
 .map-db-node:hover {
   border-color: #1677ff;
-  box-shadow: 0 0 8px #91caff;
+  box-shadow: 0 0 8px var(--workflow-primary-border);
 }
 .db-type {
   font-size: 8px;
-  background: #e6f4ff;
+  background: var(--workflow-primary-soft);
   padding: 0px 3px;
   border-radius: 2px;
-  color: #0958d9;
+  color: var(--workflow-primary);
 }
 .db-grid {
   padding: 4px;
@@ -221,7 +221,7 @@
 .db-row {
   display: flex;
   justify-content: space-between;
-  border-bottom: 1px solid #e6f4ff;
+  border-bottom: 1px solid var(--workflow-primary-soft);
   padding: 1px 2px;
   font-size: 8px;
 }
@@ -229,7 +229,7 @@
   border-bottom: none;
 }
 .db-k {
-  color: #64748b;
+  color: var(--workflow-text-muted);
 }
 .db-v {
   color: #237804;
@@ -242,7 +242,7 @@
   font-weight: bold;
 }
 .trigger-row {
-  background: #fff1f0;
+  background: var(--workflow-danger-surface);
   border-radius: 2px;
 }
 
@@ -277,10 +277,10 @@
 /* Form styling aligned with app theme */
 .block-map .ant-select-selector,
 .block-map .ant-input-number {
-  background-color: #ffffff !important;
-  border-color: #d9d9d9 !important;
-  color: #0f172a !important;
+  background-color: var(--workflow-surface) !important;
+  border-color: var(--workflow-border) !important;
+  color: var(--workflow-text) !important;
 }
 .block-map .ant-select-arrow {
-  color: #64748b !important;
+  color: var(--workflow-text-muted) !important;
 }

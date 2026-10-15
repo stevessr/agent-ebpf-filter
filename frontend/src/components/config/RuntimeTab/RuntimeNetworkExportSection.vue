@@ -5,6 +5,7 @@ import {
   ReloadOutlined,
 } from "@ant-design/icons-vue";
 import type { useConfigRuntime } from "../../../composables/config/useConfigRuntime";
+import { computed } from "vue";
 
 const props = defineProps<{
   runtime: ReturnType<typeof useConfigRuntime>;
@@ -39,6 +40,47 @@ const {
 
 const { mergedFeatures, isCompiledIn, featureStatusLabel, featureStatusColor } =
   featureManifest;
+
+const privacyActionOptions = [
+  { value: "redact", label: "脱敏后继续转发" },
+  { value: "block", label: "命中后阻断" },
+  { value: "warn", label: "只检测并放行（原文仍会转发；暂不生成独立告警）" },
+];
+const privacyCategoryOptions = [
+  { label: "API Key / Token / 密码", value: "secret" },
+  { label: "邮箱", value: "email" },
+  { label: "电话号码", value: "phone" },
+  { label: "银行卡号（Luhn 校验）", value: "payment_card" },
+];
+const privacyContextModeOptions = [
+  { label: "严格：自动拦截记忆外传并识别敏感字段", value: "strict" },
+  { label: "仅规则：关闭内置字段上下文分类", value: "off" },
+];
+const privacyFieldActionOptions = [
+  { label: "阻断请求", value: "block" },
+  { label: "强制脱敏", value: "redact" },
+  { label: "移除字段", value: "drop" },
+  { label: "明确信任 / 放行该字段", value: "allow" },
+];
+const addPrivacyFieldRule = () => {
+  const privacy = runtimeSettings.value.domainForwardProxy.privacy;
+  privacy.jsonFieldRules ||= [];
+  privacy.jsonFieldRules.push({ path: "/params/arguments/task_history", action: "block", recipient: "" });
+};
+const removePrivacyFieldRule = (index: number) => {
+  runtimeSettings.value.domainForwardProxy.privacy.jsonFieldRules?.splice(index, 1);
+};
+
+const privacyAllowlistText = computed({
+  get: () => runtimeSettings.value.domainForwardProxy.privacy.allowlist.join("\n"),
+  set: (text: string) => {
+    runtimeSettings.value.domainForwardProxy.privacy.allowlist = text
+      .split("\n")
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .slice(0, 100);
+  },
+});
 
 const rewriteDirectionOptions = [
   { value: "both", label: "Both" },
@@ -280,11 +322,22 @@ const updateDomainForwardRouteField = (
               />
             </div>
           </div>
+
+          <a-input
+            v-model:value="runtimeSettings.domainForwardProxy.bindAddress"
+            placeholder="绑定地址：127.0.0.1（推荐本地隐私网关）；留空表示监听所有网卡"
+          />
+          <a-checkbox v-model:checked="runtimeSettings.domainForwardProxy.httpsDisabled">
+            禁用 HTTPS 入站监听（供 127.0.0.1 HTTP 本地网关使用）
+          </a-checkbox>
           <div style="display: flex; align-items: center; gap: 12px">
             <a-switch
               v-model:checked="runtimeSettings.domainForwardProxy.allowAnyHost"
             />
             <span>Allow any Host header and forward to the same domain</span>
+            <a-tag v-if="runtimeSettings.domainForwardProxy.privacy.enabled" color="red">
+              隐私防护模式禁止任意域名转发
+            </a-tag>
           </div>
           <a-input
             v-model:value="runtimeSettings.domainForwardProxy.dnsResolver"
@@ -347,6 +400,114 @@ const updateDomainForwardRouteField = (
                 show-icon
                 message="Strict allowlist"
                 description="Dynamic certificates are issued only for exact or *.suffix entries above. Clients must explicitly trust this local CA. A host outside the allowlist is not dynamically decrypted."
+              />
+            </div>
+          </a-card>
+
+
+          <a-card title="本地 AI 隐私过滤中间件（Privacy Gateway）" size="small">
+            <div style="display: flex; flex-direction: column; gap: 12px">
+              <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+                <a-switch
+                  v-model:checked="runtimeSettings.domainForwardProxy.privacy.enabled"
+                  :disabled="!isCompiledIn('domain_forward')"
+                />
+                <span>启用请求发送前的本地隐私检测</span>
+                <a-tag v-if="domainForwardStatus.privacyEnabled" color="green">
+                  {{ domainForwardStatus.privacyAction || "enabled" }}
+                </a-tag>
+              </div>
+              <a-alert
+                type="info"
+                show-icon
+                message="隐私防护要求显式路由且关闭 Allow Any Host"
+                description="不会自动解密 HTTPS、不会安装系统根证书，也不会读取 AstrLink 的凭据。正文不写入审计日志。建议先在测试流量中验证规则；检测不支持的消息格式或超限请求会拒绝转发。WebSocket 在隐私防护开启时暂不支持，连接会拒绝而不是绕过。"
+              />
+              <div style="display: flex; gap: 12px; flex-wrap: wrap">
+                <div>
+                  <div style="font-weight: 600; margin-bottom: 6px">命中后动作</div>
+                  <a-select
+                    v-model:value="runtimeSettings.domainForwardProxy.privacy.action"
+                    :options="privacyActionOptions"
+                    style="min-width: 255px"
+                  />
+                </div>
+                <div>
+                  <div style="font-weight: 600; margin-bottom: 6px">最大检查正文（字节）</div>
+                  <a-input-number
+                    v-model:value="runtimeSettings.domainForwardProxy.privacy.maxBodyBytes"
+                    :min="1024"
+                    :max="8388608"
+                    style="width: 195px"
+                  />
+                </div>
+              </div>
+              <a-checkbox-group
+                v-model:value="runtimeSettings.domainForwardProxy.privacy.categories"
+                :options="privacyCategoryOptions"
+              />
+              <a-card title="上下文完整性 · 字段级策略" size="small">
+                <div style="display: flex; flex-direction: column; gap: 10px">
+                  <a-select
+                    v-model:value="runtimeSettings.domainForwardProxy.privacy.contextMode"
+                    :options="privacyContextModeOptions"
+                    style="max-width: 440px"
+                  />
+                  <a-alert
+                    type="info"
+                    show-icon
+                    message="参考 FLOWSEAL / MINIM：在网关边界阻断完整 Agent 记忆外传"
+                    description="严格模式自动识别 task_history、session_memory、private_key、api_key 等结构化字段。显式字段规则使用 RFC 6901 JSON Pointer；它们基于真实 JSON 路径，而不是正则猜测字段位置。"
+                  />
+                  <div style="display: flex; align-items: center; justify-content: space-between">
+                    <span style="font-weight: 600">JSON 字段覆盖规则</span>
+                    <a-button size="small" @click="addPrivacyFieldRule">
+                      <PlusOutlined /> 添加
+                    </a-button>
+                  </div>
+                  <div
+                    v-for="(rule, index) in runtimeSettings.domainForwardProxy.privacy.jsonFieldRules || []"
+                    :key="index"
+                    style="display: grid; grid-template-columns: minmax(190px, 2fr) minmax(140px, 1fr) minmax(150px, 1fr) auto; gap: 8px"
+                  >
+                    <a-input v-model:value="rule.path" placeholder="/params/arguments/task_history" />
+                    <a-select v-model:value="rule.action" :options="privacyFieldActionOptions" />
+                    <a-input v-model:value="rule.recipient" placeholder="allow 时必填上游域名" />
+                    <a-button danger @click="removePrivacyFieldRule(index)">
+                      <DeleteOutlined />
+                    </a-button>
+                  </div>
+                  <a-alert
+                    type="warning"
+                    show-icon
+                    message="allow 是显式解密/披露授权；drop 可能改变上游 API 输入结构。"
+                    description="精确路径中的 allow 仅允许对应标量，且必须填写真实上游域名（例如 api.openai.com），不会自动放行嵌套子字段；路径值不得由外部 MCP 工具提供。"
+                  />
+                </div>
+              </a-card>
+              <a-checkbox
+                v-model:checked="runtimeSettings.domainForwardProxy.privacy.restoreResponse"
+              >
+                在本机响应中还原占位符（普通 HTTP / SSE）
+              </a-checkbox>
+              <div>
+                <div style="font-weight: 600; margin-bottom: 6px">
+                  可信例外值（每行一个，按完整命中值精确匹配）
+                </div>
+                <a-textarea
+                  v-model:value="privacyAllowlistText"
+                  :rows="3"
+                  placeholder="demo@example.test"
+                />
+                <div style="font-size: 12px; color: #b45309; margin-top: 4px">
+                  例外值会作为运行时策略保存，请勿在此填写真实密码或 API Key；敏感凭据推荐通过不记录原文的独立规则处理。
+                </div>
+              </div>
+              <a-alert
+                v-if="runtimeSettings.domainForwardProxy.privacy.action === 'warn'"
+                type="warning"
+                show-icon
+                message="Warn 模式不会隐藏敏感信息，原始内容仍将发给上游模型。"
               />
             </div>
           </a-card>
@@ -681,6 +842,9 @@ const updateDomainForwardRouteField = (
                     "
                   />
                 </div>
+                <a-checkbox v-model:checked="route.useUpstreamHost" style="margin-top: 8px">
+                  向上游发送其真实 Host（适用于 127.0.0.1 → AI API 的显式本地网关）
+                </a-checkbox>
               </a-col>
             </a-row>
           </a-card>

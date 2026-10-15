@@ -23,6 +23,11 @@ type renewApp struct {
 	lastSync   time.Time
 
 	page   string
+	lineageMode int // 0 radial, 1 waterfall
+	lineageRootChoice string
+	lineageSelectedPID int
+	lineageSignalTable ui.ListState
+	lineageSignalSelected int
 	files  localFileWorkspace
 	search string
 	paused bool
@@ -35,6 +40,21 @@ type renewApp struct {
 	terminalNextID int
 	terminalFocusRequest int
 	terminalError string
+	// Coding CLI detection is cached until explicitly refreshed.
+	codingHarnessPaths map[string]string
+	// Installer discovery is read-only and decoupled from the privileged backend.
+	harnessUpdatePlans []harnessUpdatePlan
+	harnessUpdateScanned bool
+	harnessUpdateBusy bool
+	harnessUpdateSelected string
+	harnessUpdateConfirm string
+	harnessUpdateError string
+	// DeepSeek runs as an unprivileged terminal pane; only its loopback UI is embedded.
+	deepseekPane *renewTerminalPane
+	deepseekWebView *mygo.WebView
+	deepseekPort int
+	deepseekStatus string
+	deepseekVisible bool
 	terminalClosing atomic.Bool
 	// Floating windows share this process and never start another collector.
 	detachedParent *renewApp
@@ -273,6 +293,7 @@ func newRenewApp(backend string) *renewApp {
 	a.processTable.Selected = &a.processSelected
 	a.domainTable.Selected = &a.domainSelected
 	a.sessionTable.Selected = &a.sessionSelected
+	a.lineageSignalTable.Selected = &a.lineageSignalSelected
 	a.rulesTable.Selected = &a.ruleSelected
 	a.commTable.Selected = &a.commSelected
 	a.agentTable.Selected = &a.agentSelected
@@ -440,6 +461,8 @@ func pageSubtitle(page string) string {
 		return "实时事件、风险筛选与按需详情"
 	case "会话":
 		return "按 Agent 上下文聚合运行会话"
+	case "派生":
+		return "Agent 调用关系与实时派生进程（放射图 / 瀑布图）"
 	case "网络":
 		return "外联目标与摘要窗口聚合"
 	case "域名":
