@@ -1,0 +1,49 @@
+name: moejs JavaScript plugins
+
+on:
+  pull_request:
+    paths:
+      - "backend/app/jsplugins/**"
+      - "backend/app/js_plugin.go"
+      - "backend/app/plugins.go"
+      - "backend/app/plugin_files.go"
+      - "backend/app/handlers/plugin*.go"
+      - "backend/app/handlers/deps.go"
+      - "backend/app/handlersbridge.go"
+      - "backend/app/types/constant.go"
+      - "backend/go.mod"
+      - "backend/go.sum"
+      - ".github/workflows/moejs-plugins.yml"
+  push:
+    paths:
+      - "backend/app/jsplugins/**"
+      - "backend/app/js_plugin.go"
+      - "backend/app/plugins.go"
+      - "backend/app/plugin_files.go"
+      - "backend/app/handlers/plugin*.go"
+      - "backend/app/handlers/deps.go"
+      - "backend/app/handlersbridge.go"
+      - "backend/app/types/constant.go"
+      - "backend/go.mod"
+      - "backend/go.sum"
+      - ".github/workflows/moejs-plugins.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: moejs runtime compile, hook and deadline tests
+        working-directory: backend
+        run: go test ./app/jsplugins -count=1 -timeout=5m
+      - name: JavaScript VM race regression
+        working-directory: backend
+        run: go test -race ./app/jsplugins -count=1 -timeout=5m
