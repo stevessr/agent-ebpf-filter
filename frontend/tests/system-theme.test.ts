@@ -19,15 +19,16 @@ test("WebUI follows OS light/dark changes without reload or stale listeners", as
   };
   try {
     (globalThis as any).window = { matchMedia: () => media };
-    (globalThis as any).document = { documentElement: root };
-
+    // Vue runtime-dom detects document while importing; create the DOM stub
+    // only after Vue has loaded, so no createElement implementation is needed.
+    (globalThis as any).document = undefined;
     const { systemIsDark, watchSystemTheme } = await import(
       "../src/composables/useSystemTheme"
     );
+    (globalThis as any).document = { documentElement: root };
+    const stop = watchSystemTheme();
     expect(root.dataset.theme).toBe("light");
     expect(systemIsDark.value).toBe(false);
-
-    const stop = watchSystemTheme();
     media.matches = true;
     listener?.();
     expect(systemIsDark.value).toBe(true);
