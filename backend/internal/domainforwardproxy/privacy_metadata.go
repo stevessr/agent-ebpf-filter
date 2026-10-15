@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
-	"strings"
 )
 
 // InspectRequestMetadata prevents leaks through URL paths, query parameters,
