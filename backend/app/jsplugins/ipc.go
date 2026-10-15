@@ -11,6 +11,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -92,6 +93,16 @@ func invokeRemote(ctx context.Context, socketPath, source, hook, operation strin
 		if ctx.Err() != nil { return nil, ctx.Err() }
 		var timeout net.Error
 		if errors.As(err, &timeout) && timeout.Timeout() { return nil, context.DeadlineExceeded }
+		// When overloaded, the worker sends a busy response and closes
+		// immediately, potentially before the caller finishes its write.
+		// Preserve the structured 429-equivalent instead of leaking EPIPE.
+		if errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET) {
+			var early workerResponse
+			if readErr := json.NewDecoder(io.LimitReader(conn, MaxResultBytes+4096)).Decode(&early); readErr == nil &&
+				early.Version == ProtocolVersion && early.Code == "busy" {
+				return nil, ErrExecutorBusy
+			}
+		}
 		return nil, fmt.Errorf("write JavaScript worker request: %w", err)
 	}
 	var response workerResponse
