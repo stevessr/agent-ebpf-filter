@@ -97,6 +97,12 @@ type runtimeToggle struct {
 }
 
 type desktopPrivacySettings struct {
+    ContextMode string `json:"contextMode"`
+    JSONFieldRules []struct {
+        Path string `json:"path"`
+        Action string `json:"action"`
+        Recipient string `json:"recipient"`
+    } `json:"jsonFieldRules"`
     Enabled bool `json:"enabled"`
     Action string `json:"action"`
     RestoreResponse bool `json:"restoreResponse"`
