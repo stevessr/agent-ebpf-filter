@@ -178,6 +178,7 @@ func NormalizeSettings(settings *DomainForwardProxySettings) {
 	} else if settings.DialTimeoutSeconds > 120 {
 		settings.DialTimeoutSeconds = 120
 	}
+	NormalizePrivacySettings(&settings.Privacy)
 	if settings.Rewrite.MaxBodyBytes <= 0 {
 		settings.Rewrite.MaxBodyBytes = defaultRewriteBodyBytes
 	} else if settings.Rewrite.MaxBodyBytes > maxRewriteBodyBytes {
