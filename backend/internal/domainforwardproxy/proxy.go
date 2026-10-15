@@ -36,6 +36,7 @@ type DomainForwardProxySettings struct {
 	TLSInterceptCAKeyFile      string               `json:"tlsInterceptCaKeyFile,omitempty"`
 	TLSInterceptLeafTTLSeconds int                  `json:"tlsInterceptLeafTtlSeconds,omitempty"`
 	Rewrite                    BodyRewriteSettings  `json:"rewrite,omitempty"`
+	Privacy                    PrivacySettings      `json:"privacy,omitempty"`
 	Routes                     []DomainForwardRoute `json:"routes,omitempty"`
 }
 
@@ -52,6 +53,8 @@ type Status struct {
 	DNSResolver         string    `json:"dnsResolver,omitempty"`
 	TLSInterceptEnabled bool      `json:"tlsInterceptEnabled"`
 	RewriteEnabled      bool      `json:"rewriteEnabled"`
+	PrivacyEnabled      bool      `json:"privacyEnabled"`
+	PrivacyAction       string    `json:"privacyAction,omitempty"`
 	InferenceEnabled    bool      `json:"inferenceEnabled"`
 	InferenceReady      bool      `json:"inferenceReady"`
 	Errors              []string  `json:"errors,omitempty"`
@@ -242,6 +245,8 @@ func BuildStatus(settings DomainForwardProxySettings) Status {
 		DNSResolver:         settings.DNSResolver,
 		TLSInterceptEnabled: settings.TLSInterceptEnabled,
 		RewriteEnabled:      settings.Rewrite.Enabled,
+		PrivacyEnabled:      settings.Privacy.Enabled,
+		PrivacyAction:       settings.Privacy.Action,
 		InferenceEnabled:    settings.Rewrite.Inference.Enabled,
 		UpdatedAt:           time.Now().UTC(),
 	}
