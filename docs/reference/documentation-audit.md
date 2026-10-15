@@ -8,7 +8,7 @@
 
 - 根 README、`AGENTS.md`、组件 README、`kernel-ml/README.md`；
 - `docs/**/*.md`，默认排除 `docs/ref/**` 外部参考快照；
-- VitePress `nav` / `sidebar` 中的 `link:`；
+- MkDocs 导航配置中的页面路径；
 - Markdown 中指向本仓库文档和源码的相对链接。
 
 检查命令：
@@ -22,7 +22,7 @@ bun run docs:build
 当前结果：
 
 - `checked_files=122 missing_links=0`；
-- VitePress 构建通过；
+- 文档站构建通过；
 - 弱出链页面已从“多批当前专题页”收敛到少量历史 / 低变更页面；当前权威页和多数专项总结页已补“相关导航”。
 
 ## 关系图分层
@@ -61,7 +61,7 @@ graph TB
 
 | 类别 | 现象 | 处理策略 |
 | --- | --- | --- |
-| 首页 / 入口页 | `docs/index.md` 作为 VitePress home，入链低是正常现象 | 由 VitePress nav 负责入口，不强求普通 Markdown 入链 |
+| 首页 / 入口页 | `docs/index.md` 作为站点首页，入链低是正常现象 | 由 MkDocs 导航负责入口，不强求普通 Markdown 入链 |
 | 历史计划 / superpowers | 计划和规格页通常只有索引入链、正文少出链 | 由 [文档地图](documentation-map.md) 主题表承接；必要时在页尾补“历史上下文” |
 | 专项实现总结 | 例如 TLS、MCP、ML、脱敏总结页容易成为孤岛 | 在页尾补“相关导航”，指向当前权威页、代码入口和验证页 |
 | 旧版深度文档 | `DEEP_CODE_ANALYSIS.md`、`project-structure-deep-dive.md` 等篇幅大且历史路径多 | 保留历史价值，同时在开头或结尾指向当前网站页与代码入口索引 |
@@ -71,7 +71,7 @@ graph TB
 
 - 文档地图增加功能域互联矩阵、变更影响链、历史/专项材料主题入口。
 - 项目文档索引中的路径改为可点击 Markdown 链接。
-- VitePress 顶部导航加入“答辩交付”。
+- 站点顶部导航曾加入“答辩交付”。
 - Runtime gates、事件管线、eBPF enforcement、ML/plugins 等核心专题页补了跨页影响链。
 - 新增 `scripts/check-doc-links.py --report`，用于后续持续发现弱入链/弱出链页面。
 - 给当前权威页、专项总结、交付材料、MCP/TLS/ML/eBPF 历史页和 Superpowers 计划页批量补了“相关导航”，让读者能跳回当前专题、代码入口或验证命令。
@@ -85,8 +85,8 @@ graph TB
    - [文档地图](documentation-map.md)；
    - [阅读路线](/guide/reading-paths)；
    - [维护检查清单](maintenance-checklists.md)；
-   - `docs/.vitepress/config.ts`（如果需要 nav / sidebar）。
-5. 完成后运行 `python3 scripts/check-doc-links.py`、`git diff --check`、`bun run docs:build`。
+   - `docs/mkdocs.yml`（如果需要 nav / sidebar）。
+5. 完成后运行 `python3 scripts/check-doc-links.py`、`git diff --check`、`python3 docs/build_site.py build`。
 
 ## 完成判定
 
@@ -95,5 +95,5 @@ graph TB
 - 当前权威页面可从 nav/sidebar 或文档地图到达；
 - 读者从任一核心功能页能跳到安全边界、代码入口和验证命令；
 - 历史/专项页至少能被某个索引或主题表发现；
-- 文档变更有链接扫描和 VitePress 构建证据；
+- 文档变更有链接扫描和 文档站构建证据；
 - 旧路径或历史说法不会冒充当前实现。

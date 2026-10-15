@@ -3,7 +3,7 @@
 **面向 Linux 的 AI Agent 观测与控制平面**
 
 [![许可证：GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
-[![文档](https://img.shields.io/badge/docs-VitePress-green.svg)](docs/index.md)
+[![文档](https://img.shields.io/badge/docs-MkDocs-green.svg)](docs/index.md)
 
 > Linux 工作站上 AI Agent 行为的实时监控、语义关联与内核级强制执行。
 
@@ -253,9 +253,8 @@ curl -X POST http://localhost:8080/sandbox/lsm/block-exec-path \
 
 **预览文档站：**
 ```bash
-cd docs
-bun install
-bun run docs:dev
+python3 -m pip install -r docs/requirements.txt
+python3 docs/build_site.py serve
 ```
 
 ---
@@ -277,7 +276,7 @@ agent-ebpf-filter/
 ├── adapters/             # Python 和 Node.js PID 注册助手
 ├── proto/                # Protobuf 定义（单一事实来源）
 ├── kernel-ml/            # 可选 DKMS 内核态 ML 模块
-├── docs/                 # VitePress 文档站
+├── docs/                 # MkDocs 文档站
 ├── deploy/kubernetes/    # Kubernetes 清单
 └── scripts/              # 演示和验证脚本
 ```

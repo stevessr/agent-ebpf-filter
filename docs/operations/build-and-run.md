@@ -122,14 +122,13 @@ cd .. && go build ./...
 ## 文档站
 
 ```bash
-bun install            # 安装文档站依赖（根目录 package.json）
-bun run docs:dev       # 本地实时预览
-bun run docs:build     # 生产构建
-bun run docs:preview   # 预览构建产物
+python3 -m pip install -r docs/requirements.txt  # 安装文档站依赖
+python3 docs/build_site.py serve                # 本地实时预览
+python3 docs/build_site.py build                # 生产构建
 ```
 
 ::: warning 依赖隔离
-前端应用的依赖位于 `frontend/package.json`，文档站的依赖位于根目录 `package.json`，两者相互独立。
+前端应用的依赖位于 `frontend/package.json`，文档站的依赖位于 `docs/requirements.txt`，两者相互独立。
 :::
 
 ---
@@ -141,7 +140,7 @@ bun run docs:preview   # 预览构建产物
 | `GOPATH=/go` 不可写 | `make predev` 自动 fallback 到 `$HOME/go` |
 | `protobufjs-cli` 报错 | 必须通过 Node.js 运行 `pbjs`/`pbts`，不能用 `bunx` |
 | CUDA 编译失败 | 无 CUDA 时使用 CPU-only stub，不影响正常构建 |
-| 前端找不到 `vitepress` | 在根目录执行 `bun install` |
+| 文档站缺少 `mkdocs` | 执行 `python3 -m pip install -r docs/requirements.txt` |
 | eBPF 编译需要 clang | 安装 `clang` / LLVM |
 
 ---
