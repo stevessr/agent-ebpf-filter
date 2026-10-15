@@ -7,6 +7,7 @@ package core
 type DomainForwardRoute struct {
 	Host     string `json:"host"`
 	Upstream string `json:"upstream,omitempty"`
+	UseUpstreamHost bool `json:"useUpstreamHost,omitempty"`
 	CertFile string `json:"certFile,omitempty"`
 	KeyFile  string `json:"keyFile,omitempty"`
 }
@@ -67,6 +68,8 @@ type DomainPrivacySettings struct {
 type DomainForwardProxySettings struct {
 	Enabled                    bool                      `json:"enabled"`
 	HTTPPort                   int                       `json:"httpPort"`
+	BindAddress                string                    `json:"bindAddress,omitempty"`
+	HTTPSDisabled              bool                      `json:"httpsDisabled,omitempty"`
 	HTTPSPort                  int                       `json:"httpsPort"`
 	DefaultScheme              string                    `json:"defaultScheme"`
 	AllowAnyHost               bool                      `json:"allowAnyHost"`
