@@ -93,6 +93,8 @@ No new privileged API or AI inference service is introduced. As before, only the
 
 The desktop process stays unprivileged. On Linux it reuses an already running backend or re-executes the **same Renew executable** in an internal backend mode and requests system authorization for that child. The backend is linked as a Go library; there is no packaged backend sidecar. Only the internal backend child gains privileges.
 
+Harness CLI installation-source detection and update workflow are documented in [HARNESS_UPDATES.md](HARNESS_UPDATES.md).
+
 ## Architecture
 
 ```text

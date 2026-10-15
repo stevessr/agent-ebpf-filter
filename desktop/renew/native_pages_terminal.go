@@ -436,6 +436,7 @@ func (a *renewApp) terminalView(c *ui.Context) {
 			}).Grow(1).MinWidth(0).Label("终端操作")
 		})
 		a.codingHarnessToolbar(c)
+		a.harnessUpdaterView(c)
 		// A native tablist adds focus, arrow-key and Home/End navigation.
 		// Horizontal scrolling prevents many tabs from forcing a wider PTY.
 		ui.Row(c).Height(36).MinWidth(0).Gap(8).AlignItems(ui.Center).Children(func() {

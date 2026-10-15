@@ -42,6 +42,13 @@ type renewApp struct {
 	terminalError string
 	// Coding CLI detection is cached until explicitly refreshed.
 	codingHarnessPaths map[string]string
+	// Installer discovery is read-only and decoupled from the privileged backend.
+	harnessUpdatePlans []harnessUpdatePlan
+	harnessUpdateScanned bool
+	harnessUpdateBusy bool
+	harnessUpdateSelected string
+	harnessUpdateConfirm string
+	harnessUpdateError string
 	// DeepSeek runs as an unprivileged terminal pane; only its loopback UI is embedded.
 	deepseekPane *renewTerminalPane
 	deepseekWebView *mygo.WebView
