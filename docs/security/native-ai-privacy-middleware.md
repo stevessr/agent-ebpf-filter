@@ -14,7 +14,7 @@ below deliberately covers a smaller, verifiable surface:
 
 | Capability | Native privacy gateway |
 | --- | --- |
-| Rule-based local detection | Secret/key patterns, emails, telephone numbers |
+| Rule-based local detection | Secrets, emails, 10–15 digit phone candidates, checksum-validated payment cards |
 | Request actions | Warn (passthrough), block (403), redact |
 | Placeholder restoration | HTTP JSON/text and complete SSE events |
 | Cross-request mapping | Never; random, per-request in-memory mappings |
@@ -22,8 +22,8 @@ below deliberately covers a smaller, verifiable surface:
 | WebSocket frame inspection | **Not implemented**: rejects WS when policy enabled |
 | LLM protocol conversion | Not implemented by the privacy layer |
 | Local ML inference | Not yet integrated; rule engine only |
-| MCP tool-call arguments | Inspects arguments only when they appear as JSON strings in routed HTTP requests |
-| Secret header scanning | Not implemented: headers are **not** inspected |
+| MCP tool-call arguments | JSON member-aware classification, including task_history/session_memory default denial when routed over HTTP; no full MCP wire-level provenance tracking |
+| Request metadata inspection | URL paths, decoded query parameters, custom headers and cookie egress guard; provider Authorization and API-key headers are explicitly exempt |
 | eBPF attribution | Existing eBPF monitoring continues independently; no new claim of per-request causal attribution |
 
 ## Configuration
@@ -52,7 +52,12 @@ The existing `/config/runtime` authenticated API stores the policy with
       "action": "redact",
       "restoreResponse": true,
       "maxBodyBytes": 1048576,
-      "categories": ["secret", "email", "phone"],
+      "categories": ["secret", "email", "phone", "payment_card"],
+      "contextMode": "strict",
+      "jsonFieldRules": [
+        {"path": "/params/arguments/task_history", "action": "block"},
+        {"path": "/payload/customerEmail", "action": "allow", "recipient": "api.openai.com"}
+      ],
       "allowlist": []
     }
   }
@@ -84,10 +89,27 @@ is not magically decrypted by eBPF. The policy defaults to disabled.
 
 ## Failure behavior and data handling
 
-- JSON **string values** and `text/plain` request bodies are inspected locally.
-  JSON property names, request headers, multipart bodies, binary uploads and
-  other content types are not inspected. Nonempty unsupported or malformed
-  request bodies are **rejected** when protection is enabled (HTTP 422).
+- JSON values are inspected locally with a bounded, duplicate-key-rejecting
+  decoder. JSON member names drive *field sensitivity decisions* without
+  publishing them as raw findings; `text/plain` bodies also support pattern
+  masking. Arbitrary multipart bodies and binary uploads remain unsupported
+  and are **rejected** when protection is enabled (HTTP 422).
+- In default **strict** context mode, known full-session / memory-export
+  fields such as `task_history`, `session_memory` and `conversation_transcript`
+  are denied independent of the global warn/redact action. Secret-labelled
+  fields such as `api_key`, `private_key`, `password` are redacted even when
+  their string values do not resemble common token regexes. Sensitive numeric
+  JSON fields are denied instead of being silently converted into strings.
+- Exact RFC 6901 `jsonFieldRules` support `allow`, `redact`, `drop` and `block`.
+  `allow` is deliberately restricted to a scalar value **and** the explicitly
+  named upstream recipient hostname; it never grants blanket sub-tree access.
+  Invalid pointer rules fail closed, including on bodyless requests.
+- URL paths, repeatedly decoded query parameters and non-authentication
+  headers are also scanned; sensitive metadata is **denied** in redact/block
+  modes because rewriting query/header values can invalidate semantics.
+  Provider `Authorization` and API-key headers are exempt for authentication,
+  so routes and recipients must be configured restrictively. Cookies are
+  denied in strict mode. Metadata warn mode does not sanitize.
 - Requests exceeding the configured maximum (default 1 MiB, cap 8 MiB),
   requests with unsupported content encoding, signed requests, or invalid
   encodings are rejected before an upstream request is issued. This is
@@ -107,6 +129,9 @@ is not magically decrypted by eBPF. The policy defaults to disabled.
 - Neither the UI nor the middleware records original request bodies. Existing
   proxy/error logging continues to apply, but this feature emits no matched
   plaintext values. Disable upstream server-side logging separately if needed.
+
+Read [the 2025–2026 privacy-filter research review](../research/agent-privacy-filter-literature-2026.md)
+for the paper-derived threat model, implementation mapping and evaluation plan.
 
 Do not consider the patterns complete PII/secret detection. There are false
 positives and false negatives, especially for regional telephone formats and
