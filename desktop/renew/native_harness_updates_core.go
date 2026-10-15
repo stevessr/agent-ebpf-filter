@@ -183,13 +183,28 @@ func (p harnessProbe) pnpmGlobalShim(path,expected string)bool{
  return strings.Contains(readable,expected)||strings.Contains(readable,strings.ReplaceAll(expected,"/","+"))
 }
 
+func (p harnessProbe) nodeUpdateCommand(program string,args ...string)[]string{
+ bin:=p.use(program)
+ if bin==""{return nil}
+ if p.goos=="windows"&&(strings.HasSuffix(strings.ToLower(bin),".cmd")||strings.HasSuffix(strings.ToLower(bin),".bat")){
+  shell:=p.powershell()
+  if shell==""{return nil}
+  // Package tokens are validated by harnessUpdateCommand; the script consists
+  // of a fixed command plus individually quoted, literal argv elements.
+  quoted:=make([]string,0,len(args)+1)
+  quoted=append(quoted,program)
+  for _,arg:=range args{quoted=append(quoted,"'"+arg+"'")}
+  return []string{p.use(shell),"-NoProfile","-NonInteractive","-Command",strings.Join(quoted," ")}
+ }
+ return append([]string{bin},args...)
+}
 func harnessUpdateCommand(source,pkg,executable string,p harnessProbe)[]string{
  if cleanOwnedName(pkg)==""{return nil}
  switch source{
- case "pnpm":if bin:=p.use("pnpm");bin!=""{return []string{bin,"add","-g",pkg+"@latest"}}
- case "npm":if bin:=p.use("npm");bin!=""{return []string{bin,"install","-g",pkg+"@latest"}}
- case "yarn":if bin:=p.use("yarn");bin!=""{return []string{bin,"global","add",pkg+"@latest"}}
- case "bun":if bin:=p.use("bun");bin!=""{return []string{bin,"add","-g",pkg+"@latest"}}
+ case "pnpm":return p.nodeUpdateCommand("pnpm","add","-g",pkg+"@latest")
+ case "npm":return p.nodeUpdateCommand("npm","install","-g",pkg+"@latest")
+ case "yarn":return p.nodeUpdateCommand("yarn","global","add",pkg+"@latest")
+ case "bun":return p.nodeUpdateCommand("bun","add","-g",pkg+"@latest")
  case "flatpak":if bin:=p.use("flatpak");bin!=""{return []string{bin,"update",pkg}}
  case "apt":if p.has("sudo"){return []string{p.use("sudo"),"apt-get","install","--only-upgrade","--",pkg}}
  case "pacman":if p.has("sudo"){return []string{p.use("sudo"),"pacman","-S","--needed","--",pkg}}
