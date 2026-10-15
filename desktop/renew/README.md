@@ -353,3 +353,16 @@ In bundled mode the privileged child listens only on an authenticated private Un
 - DeepSeek Harness 开发预览版能执行命令并操作文件，请遵循其权限确认和最小权限建议。
 
 注意：端口由本机临时分配并释放后交由 dsh 绑定，仍存在很小的端口竞争窗口；运行错误应以 DeepSeek PTY 内日志为准。框架本身的采集器仍由独立授权进程负责，Coding Harness 一律在桌面用户权限下运行。
+
+
+## Windows 本地监控（预览）
+
+Windows 上默认先尝试连接指定的现有后端；如果使用默认本地地址且没有可用后端，Renew 自动进入原生 Windows API 只读采样模式：
+
+- Tool Help 进程快照（PID/PPID/进程名）和内存占用、TCP IPv4/IPv6 连接（IP/端口/PID），默认每 2 秒采样一次。
+- 关联已识别的 AI Agent 根进程与后代活动。普通 node/cmd/powershell 不会无证据地自动归属到某个 Agent。
+- 可选安装真正的 **eBPF for Windows** 网络 connect4/connect6 内核 Hook，并通过 netsh + bpftool 只读查看附加状态与 IPv4/IPv6 累计调用次数。程序始终 soft permit，不修改 Windows Firewall 策略。
+- 进程生命周期、短连接、文件读写、syscall、网络内容、HTTPS Host、系统策略阻断结果均**不保证**通过 Windows API 采样观察到；eBPF 的全局统计也不能当作 PID 级网络证据。
+- Windows 模式下对 Linux eBPF/BPF LSM 操作与策略设置明确显示不支持，防止误以为规则已经执行。通过 `--backend` 指向 Linux 实例仍可访问 Linux 后端。
+
+开发、安装和适用版本说明见 [Windows eBPF 扩展](./windows-ebpf/README.md)。不会自动安装驱动、修改 Windows 防火墙或索要管理员权限。
