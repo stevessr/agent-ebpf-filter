@@ -223,11 +223,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			out.Header.Set("X-Forwarded-Host", r.Host)
 			out.Header.Set("X-Forwarded-Proto", requestForwardedProto(r))
 			out.Header.Set("X-Agent-Forward-Route", route.Host)
-			if h.rewrite != nil && h.settings.Rewrite.Enabled {
-				// Ask upstreams for identity encoding so response body rules do
-				// not silently stop applying when the client advertised gzip.
-				out.Header.Del("Accept-Encoding")
-			}
+			// Preserve the client's Accept-Encoding negotiation (gzip, br,
+			// zstd) end to end. ModifyResponse now decodes and re-encodes
+			// bounded rewriteable bodies while leaving streaming and signed
+			// responses untouched.
 		},
 		Transport: h.transport,
 		ModifyResponse: func(response *http.Response) (resultErr error) {
@@ -242,9 +241,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			contentType := response.Header.Get("Content-Type")
 			encoding := response.Header.Get("Content-Encoding")
 			if strings.Contains(strings.ToLower(contentType), "text/event-stream") {
-				// Keep SSE fully streaming. Compressed SSE is deliberately left
-				// untouched; the production transport normally negotiates or
-				// auto-decompresses gzip before ModifyResponse.
+				// Keep SSE fully streaming. Compressed SSE is deliberately
+				// passed through unchanged; buffering it for rewriting would
+				// break incremental event delivery.
 				if normalizeContentEncoding(encoding) != "" {
 					return nil
 				}

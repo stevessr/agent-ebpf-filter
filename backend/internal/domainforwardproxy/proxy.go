@@ -198,6 +198,8 @@ func (m *Runtime) startHTTPSServerLocked(settings DomainForwardProxySettings, ha
 	}
 	server := &http.Server{
 		Handler:           handler,
+		TLSConfig:         tlsConfig,
+		Protocols:         proxyHTTPProtocols(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	m.httpsServer = server

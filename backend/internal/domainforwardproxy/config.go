@@ -75,6 +75,7 @@ func NewTLSConfig(settings DomainForwardProxySettings) (*tls.Config, []string, e
 	}
 	return &tls.Config{
 		MinVersion:     tls.VersionTLS12,
+		NextProtos:     []string{"h2", "http/1.1"},
 		GetCertificate: store.GetCertificate,
 	}, warnings, nil
 }
@@ -111,8 +112,19 @@ func (s *domainForwardCertStore) GetCertificate(hello *tls.ClientHelloInfo) (*tl
 	return nil, fmt.Errorf("no certificate configured for %q", host)
 }
 
+// Explicitly opt in to both HTTP/1.1 and HTTP/2. With a custom DNS dialer
+// Go's default heuristics may otherwise suppress HTTP/2 on the upstream hop.
+func proxyHTTPProtocols() *http.Protocols {
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	protocols.SetHTTP2(true)
+	return protocols
+}
+
 func NewTransport(settings DomainForwardProxySettings) http.RoundTripper {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Protocols = proxyHTTPProtocols()
+	transport.ForceAttemptHTTP2 = true
 	transport.Proxy = nil
 	timeout := time.Duration(settings.DialTimeoutSeconds) * time.Second
 	if timeout <= 0 {
