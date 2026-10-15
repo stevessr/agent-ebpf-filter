@@ -2,6 +2,7 @@ package main
 
 import (
  "encoding/json"
+ "os"
  "reflect"
  "strings"
  "testing"
@@ -131,4 +132,37 @@ func TestWindowsScoopUsesPowerShellWhenNoExecutableShim(t *testing.T){
  receipts["powershell.exe -NoProfile -NonInteractive -Command scoop which codex"]="C:/Windows/not-owned.exe"
  other:=inspectHarnessInstallation("codex","Codex",path,p)
  if other.Source=="scoop"||len(other.Command)>0{t.Fatalf("unowned PowerShell Scoop shim: %+v",other)}
+}
+
+
+func TestWindowsNpmGlobalCmdShimWithManifestAndFixedShell(t *testing.T){
+ bin:="C:/Users/Tester/AppData/Roaming/npm/codex.cmd"
+ prefix:="C:/Users/Tester/AppData/Roaming/npm"
+ global:=prefix+"/node_modules"
+ receipts:=map[string]string{
+  "npm prefix -g":prefix,
+  "npm root -g":global,
+ }
+ p:=windowsTestProbe([]string{"npm","powershell.exe"},receipts)
+ original:=p.lookup
+ p.lookup=func(name string)(string,error){
+  if name=="npm"{return "C:/Program Files/nodejs/npm.cmd",nil}
+  return original(name)
+ }
+ p.readFile=func(location string)([]byte,error){
+  switch cleanWinPath(location){
+  case cleanWinPath(global+"/@openai/codex/package.json"):
+   return []byte(`{"name":"@openai/codex"}`),nil
+  case cleanWinPath(bin):
+   return []byte("node_modules\\@openai\\codex\\bin\\codex.js"),nil
+  }
+  return nil,os.ErrNotExist
+ }
+ got:=inspectHarnessInstallation("codex","Codex",bin,p)
+ if got.Source!="npm"||got.Package!="@openai/codex"{t.Fatalf("Windows npm shim not recognized: %+v",got)}
+ expected:=[]string{"/mock/bin/powershell.exe","-NoProfile","-NonInteractive","-Command","npm 'install' '-g' '@openai/codex@latest'"}
+ if !reflect.DeepEqual(got.Command,expected){t.Fatalf("Windows .cmd update should use quoted fixed PowerShell: %v",got.Command)}
+ p.readFile=func(string)([]byte,error){return nil,os.ErrNotExist}
+ unknown:=inspectHarnessInstallation("codex","Codex",bin,p)
+ if unknown.Source=="npm"||len(unknown.Command)>0{t.Fatalf("accepted shim without manifest: %+v",unknown)}
 }
