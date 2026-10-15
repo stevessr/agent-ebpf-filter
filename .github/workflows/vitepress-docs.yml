@@ -1,0 +1,36 @@
+name: VitePress documentation
+
+on:
+  pull_request:
+    paths:
+      - "docs/**"
+      - "package.json"
+      - "bun.lock"
+      - "scripts/check-doc-links.py"
+      - ".github/workflows/vitepress-docs.yml"
+  push:
+    branches: [master]
+    paths:
+      - "docs/**"
+      - "package.json"
+      - "bun.lock"
+      - "scripts/check-doc-links.py"
+      - ".github/workflows/vitepress-docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Validate repository document links
+        run: python3 scripts/check-doc-links.py
+      - name: Build VitePress
+        run: bun run docs:build
