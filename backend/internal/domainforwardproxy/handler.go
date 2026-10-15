@@ -128,9 +128,44 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Privacy is enforced before generic model/body rewrite and before the
-	// outbound request is created. On inspection failure no bytes go upstream.
 	var privacySession *PrivacySession
+
+	var modelMapping *modelRewrite
+	if h.rewrite != nil && h.settings.Rewrite.Enabled && requestBodyIsRewriteable(r) {
+		rawBody, bounded, err := readRequestBodyBounded(r, h.rewrite.MaxBodyBytes())
+		if err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if bounded {
+			encoding := r.Header.Get("Content-Encoding")
+			body, decodedBounded, err := decodeBodyForRewrite(encoding, rawBody, h.rewrite.MaxBodyBytes())
+			if err != nil {
+				http.Error(w, "invalid request body encoding", http.StatusBadRequest)
+				return
+			}
+			if !decodedBounded {
+				restoreRequestBody(r, rawBody)
+			} else {
+				rewritten, mapping, changed := h.rewrite.RewriteRequest(host, r.URL.Path, r.Header.Get("Content-Type"), body)
+				modelMapping = mapping
+				if changed {
+					encoded, err := encodeBodyAfterRewrite(encoding, rewritten)
+					if err != nil {
+						http.Error(w, "failed to encode rewritten request body", http.StatusBadRequest)
+						return
+					}
+					invalidateRequestBodyIntegrity(r)
+					setRequestBody(r, encoded)
+				} else {
+					restoreRequestBody(r, rawBody)
+				}
+			}
+		}
+	}
+
+	// The privacy inspection is deliberately the LAST outbound body transform:
+	// upstream rewrite/inference must never inject unchecked plaintext.
 	if h.settings.Privacy.Enabled && r.Body != nil && r.Body != http.NoBody {
 		if !requestBodyIsRewriteable(r) {
 			http.Error(w, "request is not inspectable under privacy policy", http.StatusUnprocessableEntity)
@@ -167,40 +202,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			setRequestBody(r, encoded)
 		} else {
 			restoreRequestBody(r, raw)
-		}
-	}
-
-	var modelMapping *modelRewrite
-	if h.rewrite != nil && h.settings.Rewrite.Enabled && requestBodyIsRewriteable(r) {
-		rawBody, bounded, err := readRequestBodyBounded(r, h.rewrite.MaxBodyBytes())
-		if err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
-			return
-		}
-		if bounded {
-			encoding := r.Header.Get("Content-Encoding")
-			body, decodedBounded, err := decodeBodyForRewrite(encoding, rawBody, h.rewrite.MaxBodyBytes())
-			if err != nil {
-				http.Error(w, "invalid request body encoding", http.StatusBadRequest)
-				return
-			}
-			if !decodedBounded {
-				restoreRequestBody(r, rawBody)
-			} else {
-				rewritten, mapping, changed := h.rewrite.RewriteRequest(host, r.URL.Path, r.Header.Get("Content-Type"), body)
-				modelMapping = mapping
-				if changed {
-					encoded, err := encodeBodyAfterRewrite(encoding, rewritten)
-					if err != nil {
-						http.Error(w, "failed to encode rewritten request body", http.StatusBadRequest)
-						return
-					}
-					invalidateRequestBodyIntegrity(r)
-					setRequestBody(r, encoded)
-				} else {
-					restoreRequestBody(r, rawBody)
-				}
-			}
 		}
 	}
 
