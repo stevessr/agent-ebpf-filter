@@ -39,7 +39,7 @@ func (p harnessProbe) powershell()string{
 // Exactly three fixed identities are queried: CLI aliases are not proof of a
 // desktop app, and Store names/locations are not matched fuzzily.
 func appxProbeScript(name string)string{
- return "$p = Get-AppxPackage -Name '" +name+"' | Select-Object -First 1; if ($null -ne $p) { $p | Select-Object Name,PackageFamilyName,InstallLocation,Version | ConvertTo-Json -Compress }"
+ return "$p = Get-AppxPackage -Name '"+name+"' | Select-Object -First 1; if ($null -ne $p) { $p | Select-Object Name,PackageFamilyName,InstallLocation,@{Name='Version';Expression={$_.Version.ToString()}} | ConvertTo-Json -Compress }"
 }
 func (p harnessProbe) appx(name string)(registeredWindowsApp,bool){
  if p.goos!="windows"||p.powershell()==""{return registeredWindowsApp{},false}
