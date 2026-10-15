@@ -50,7 +50,27 @@ const privacyCategoryOptions = [
   { label: "API Key / Token / 密码", value: "secret" },
   { label: "邮箱", value: "email" },
   { label: "电话号码", value: "phone" },
+  { label: "银行卡号（Luhn 校验）", value: "payment_card" },
 ];
+const privacyContextModeOptions = [
+  { label: "严格：自动拦截记忆外传并识别敏感字段", value: "strict" },
+  { label: "仅规则：关闭内置字段上下文分类", value: "off" },
+];
+const privacyFieldActionOptions = [
+  { label: "阻断请求", value: "block" },
+  { label: "强制脱敏", value: "redact" },
+  { label: "移除字段", value: "drop" },
+  { label: "明确信任 / 放行该字段", value: "allow" },
+];
+const addPrivacyFieldRule = () => {
+  const privacy = runtimeSettings.value.domainForwardProxy.privacy;
+  privacy.jsonFieldRules ||= [];
+  privacy.jsonFieldRules.push({ path: "/params/arguments/task_history", action: "block" });
+};
+const removePrivacyFieldRule = (index: number) => {
+  runtimeSettings.value.domainForwardProxy.privacy.jsonFieldRules?.splice(index, 1);
+};
+
 const privacyAllowlistText = computed({
   get: () => runtimeSettings.value.domainForwardProxy.privacy.allowlist.join("\n"),
   set: (text: string) => {
@@ -423,6 +443,44 @@ const updateDomainForwardRouteField = (
                 v-model:value="runtimeSettings.domainForwardProxy.privacy.categories"
                 :options="privacyCategoryOptions"
               />
+              <a-card title="上下文完整性 · 字段级策略" size="small">
+                <div style="display: flex; flex-direction: column; gap: 10px">
+                  <a-select
+                    v-model:value="runtimeSettings.domainForwardProxy.privacy.contextMode"
+                    :options="privacyContextModeOptions"
+                    style="max-width: 440px"
+                  />
+                  <a-alert
+                    type="info"
+                    show-icon
+                    message="参考 FLOWSEAL / MINIM：在网关边界阻断完整 Agent 记忆外传"
+                    description="严格模式自动识别 task_history、session_memory、private_key、api_key 等结构化字段。显式字段规则使用 RFC 6901 JSON Pointer；它们基于真实 JSON 路径，而不是正则猜测字段位置。"
+                  />
+                  <div style="display: flex; align-items: center; justify-content: space-between">
+                    <span style="font-weight: 600">JSON 字段覆盖规则</span>
+                    <a-button size="small" @click="addPrivacyFieldRule">
+                      <PlusOutlined /> 添加
+                    </a-button>
+                  </div>
+                  <div
+                    v-for="(rule, index) in runtimeSettings.domainForwardProxy.privacy.jsonFieldRules || []"
+                    :key="index"
+                    style="display: grid; grid-template-columns: minmax(200px, 2fr) minmax(160px, 1fr) auto; gap: 8px"
+                  >
+                    <a-input v-model:value="rule.path" placeholder="/params/arguments/task_history" />
+                    <a-select v-model:value="rule.action" :options="privacyFieldActionOptions" />
+                    <a-button danger @click="removePrivacyFieldRule(index)">
+                      <DeleteOutlined />
+                    </a-button>
+                  </div>
+                  <a-alert
+                    type="warning"
+                    show-icon
+                    message="allow 是显式解密/披露授权；drop 可能改变上游 API 输入结构。"
+                    description="精确路径中的 allow 仅允许对应标量，不会自动放行嵌套子字段；路径值不得由外部 MCP 工具提供。"
+                  />
+                </div>
+              </a-card>
               <a-checkbox
                 v-model:checked="runtimeSettings.domainForwardProxy.privacy.restoreResponse"
               >
