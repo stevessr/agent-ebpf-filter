@@ -15,6 +15,8 @@ type sseRewriteBody struct {
 	path                string
 	contentType         string
 	mapping             *modelRewrite
+	privacy             *PrivacySession
+	privacyLimit        int64
 	pending             []byte
 	terminalErr         error
 	passthroughEvent    bool
@@ -36,6 +38,18 @@ func newSSERewriteBody(
 		contentType: contentType,
 		mapping:     mapping,
 	}
+}
+
+// newSSEPrivacyBody restores per-request placeholders on complete SSE events,
+// including placeholders split across transport read chunks.
+func newSSEPrivacyBody(source io.ReadCloser, session *PrivacySession, limit int64) io.ReadCloser {
+    if limit <= 0 { limit = defaultPrivacyMaxBytes }
+    return &sseRewriteBody{
+        source: source,
+        reader: bufio.NewReaderSize(source, 32<<10),
+        privacy: session,
+        privacyLimit: limit,
+    }
 }
 
 func (r *sseRewriteBody) Close() error {
@@ -83,6 +97,7 @@ func (r *sseRewriteBody) readEvent() ([]byte, error, bool) {
 	if r.kernel != nil {
 		limit = r.kernel.MaxBodyBytes()
 	}
+	if r.privacy != nil { limit = r.privacyLimit }
 	event := make([]byte, 0, 1024)
 	lineLen := 0
 	for {
@@ -149,7 +164,7 @@ func isSSEBlankLine(line []byte) bool {
 }
 
 func (r *sseRewriteBody) rewriteEvent(event []byte) []byte {
-	if r.kernel == nil || !r.kernel.enabled || len(event) == 0 {
+	if ((r.kernel == nil || !r.kernel.enabled) && r.privacy == nil) || len(event) == 0 {
 		return event
 	}
 
@@ -178,17 +193,18 @@ func (r *sseRewriteBody) rewriteEvent(event []byte) []byte {
 	if looksLikeJSONPayload(payload) {
 		payloadContentType = "application/json"
 	}
-	rewritten, changed := r.kernel.rewriteResponseWithContentTypes(
-		r.host,
-		r.path,
-		payloadContentType,
-		r.contentType,
-		payload,
-		r.mapping,
-	)
-	if !changed {
-		return event
-	}
+	rewritten, changed := payload, false
+    if r.kernel != nil && r.kernel.enabled {
+        rewritten, changed = r.kernel.rewriteResponseWithContentTypes(
+            r.host, r.path, payloadContentType, r.contentType, rewritten, r.mapping,
+        )
+    }
+    if r.privacy != nil {
+        var restored bool
+        rewritten, restored = r.privacy.Restore(rewritten)
+        changed = changed || restored
+    }
+    if !changed { return event }
 
 	lineEnding := sseLineEnding(lines[firstData])
 	if len(lineEnding) == 0 {
