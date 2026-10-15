@@ -22,19 +22,19 @@ func TestPrivacyLoopbackGatewayRoutesToExplicitUpstream(t *testing.T) {
 			t.Errorf("original inbound Host was lost")
 		}
 		return &http.Response{
-			StatusCode: http.StatusOK,
-			Header: make(http.Header),
-			Body: io.NopCloser(strings.NewReader("ok")),
+			StatusCode:    http.StatusOK,
+			Header:        make(http.Header),
+			Body:          io.NopCloser(strings.NewReader("ok")),
 			ContentLength: 2,
 		}, nil
 	})
 	settings := DomainForwardProxySettings{
-		BindAddress: "127.0.0.1",
+		BindAddress:   "127.0.0.1",
 		HTTPSDisabled: true,
 		DefaultScheme: "https",
 		Routes: []DomainForwardRoute{{
-			Host: "127.0.0.1",
-			Upstream: "https://api.openai.com",
+			Host:            "127.0.0.1",
+			Upstream:        "https://api.openai.com",
 			UseUpstreamHost: true,
 		}},
 		Privacy: PrivacySettings{Enabled: true, Action: "block"},
