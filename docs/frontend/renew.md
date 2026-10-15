@@ -1,5 +1,7 @@
 # 明镜高悬（Renew）：原生桌面使用指南
 
+> **源码技术手册权威入口（2026-10-15）**：本页保留专题讲解与既有链接；有关当前函数、数据流、功能门控及平台可用性的实现事实，请优先核对 [技术手册：desktop-transport](../technical/desktop-transport.md) 和链接的源码与测试。旧示意图不表示其所绘功能已在默认部署中启用。
+
 > **察微知著 · 守护 Agent 边界**
 >
 > 本页基于 `desktop/renew`（MyGo v0.4.8，Go 1.27.1）及 2026-10-15 的代码。Renew 是**纯原生 Go/MyGo 桌面**，不是 Vue Web 页，更不是基于 WebView 的壳。原 Web `/renew` 客户端已移除；`agent-ebpf-renew` 命令继续保留兼容。
