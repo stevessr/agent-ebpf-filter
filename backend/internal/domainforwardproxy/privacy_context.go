@@ -29,37 +29,37 @@ const (
 // Task-History and taskHistory all resolve to the same information-flow label.
 // Generic "context", "history" or "messages" are deliberately NOT denied.
 var privacyMemoryKeys = map[string]bool{
-	"taskhistory": true,
-	"conversationhistory": true,
-	"chathistory": true,
-	"sessionmemory": true,
-	"agentmemory": true,
-	"fullcontext": true,
-	"memorydump": true,
-	"fullconversation": true,
+	"taskhistory":            true,
+	"conversationhistory":    true,
+	"chathistory":            true,
+	"sessionmemory":          true,
+	"agentmemory":            true,
+	"fullcontext":            true,
+	"memorydump":             true,
+	"fullconversation":       true,
 	"conversationtranscript": true,
-	"toolcallhistory": true,
-	"toolresultshistory": true,
-	"systemprompt": true,
-	"developermessage": true,
+	"toolcallhistory":        true,
+	"toolresultshistory":     true,
+	"systemprompt":           true,
+	"developermessage":       true,
 }
 var privacySensitiveKeys = map[string]bool{
-	"password": true,
-	"passwd": true,
-	"passphrase": true,
-	"apikey": true,
-	"apiaccesskey": true,
-	"authtoken": true,
-	"accesstoken": true,
-	"refreshtoken": true,
-	"clientsecret": true,
-	"privatekey": true,
-	"secretkey": true,
-	"ssn": true,
+	"password":             true,
+	"passwd":               true,
+	"passphrase":           true,
+	"apikey":               true,
+	"apiaccesskey":         true,
+	"authtoken":            true,
+	"accesstoken":          true,
+	"refreshtoken":         true,
+	"clientsecret":         true,
+	"privatekey":           true,
+	"secretkey":            true,
+	"ssn":                  true,
 	"socialsecuritynumber": true,
-	"bankaccount": true,
-	"creditcard": true,
-	"sessioncookie": true,
+	"bankaccount":          true,
+	"creditcard":           true,
+	"sessioncookie":        true,
 }
 
 func NormalizeContextSettings(settings *PrivacySettings) {
@@ -115,7 +115,7 @@ func privacyFoldKey(key string) string {
 	for _, char := range key {
 		switch {
 		case char >= 'A' && char <= 'Z':
-			out.WriteByte(byte(char-'A'+'a'))
+			out.WriteByte(byte(char - 'A' + 'a'))
 		case char >= 'a' && char <= 'z', char >= '0' && char <= '9':
 			out.WriteByte(byte(char))
 		}
@@ -124,14 +124,14 @@ func privacyFoldKey(key string) string {
 }
 
 type contextualJSONState struct {
-	engine      *PrivacyEngine
-	prefix      string
-	session     *PrivacySession
-	reverse     map[string]string
-	report      PrivacyReport
-	count       int
-	nodes       int
-	explicit    map[string]string
+	engine   *PrivacyEngine
+	prefix   string
+	session  *PrivacySession
+	reverse  map[string]string
+	report   PrivacyReport
+	count    int
+	nodes    int
+	explicit map[string]string
 }
 
 func (s *contextualJSONState) finding(category string) error {
@@ -322,11 +322,11 @@ func (e *PrivacyEngine) applyContextualJSON(
 		return nil, nil, report, errors.New("privacy JSON has trailing data")
 	}
 	state := &contextualJSONState{
-		engine: e,
-		prefix: prefix,
-		session: session,
-		reverse: make(map[string]string),
-		report: report,
+		engine:   e,
+		prefix:   prefix,
+		session:  session,
+		reverse:  make(map[string]string),
+		report:   report,
 		explicit: make(map[string]string, len(e.settings.JSONFieldRules)),
 	}
 	for _, rule := range e.settings.JSONFieldRules {
