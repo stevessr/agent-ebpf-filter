@@ -139,6 +139,8 @@ func TestContextualPrivacyMetadataEgress(t *testing.T) {
 		deny                        bool
 	}{
 		{"query email", "https://api.openai.com/v1/chat?mail=jane%40example.com", "", "", true},
+		{"double-encoded email", "https://api.openai.com/v1/chat?mail=jane%2540example.com", "", "", true},
+		{"encoded memory field", "https://api.openai.com/v1/chat?task%255Fhistory=everything", "", "", true},
 		{"query memory", "https://api.openai.com/v1/chat?task_history=everything", "", "", true},
 		{"url path", "https://api.openai.com/v1/jane@example.com", "", "", true},
 		{"custom header", "https://api.openai.com/v1/chat", "X-Private-Note", "jane@example.com", true},
