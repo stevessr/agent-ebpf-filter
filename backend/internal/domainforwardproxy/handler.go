@@ -86,6 +86,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing request host", http.StatusBadRequest)
 		return
 	}
+	if h.settings.Privacy.Enabled && h.settings.AllowAnyHost {
+		http.Error(w, "privacy protection requires explicitly allowlisted forward routes", http.StatusUnprocessableEntity)
+		return
+	}
 	target, route, err := h.TargetForHost(host)
 	if err != nil {
 		if errors.Is(err, errNoForwardingRoute) {
