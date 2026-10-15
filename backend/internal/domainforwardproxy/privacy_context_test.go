@@ -186,7 +186,7 @@ func TestContextualPrivacyProxyDeniesBeforeUpstream(t *testing.T) {
 func TestContextualPrivacyDeclassificationRecipientScope(t *testing.T) {
 	engine := NewPrivacyEngine(PrivacySettings{
 		Enabled: true,
-		Action: "redact",
+		Action:  "redact",
 		JSONFieldRules: []PrivacyJSONFieldRule{
 			{Path: "/recipientEmail", Action: "allow", Recipient: "api.openai.com"},
 		},
@@ -201,7 +201,9 @@ func TestContextualPrivacyDeclassificationRecipientScope(t *testing.T) {
 		t.Fatalf("untrusted recipient inherited declassification: %+v, %v", report, err)
 	}
 	_, _, _, err = engine.Apply("application/json", body)
-	if err != nil { t.Fatalf("fallback without recipient should sanitize: %v", err) }
+	if err != nil {
+		t.Fatalf("fallback without recipient should sanitize: %v", err)
+	}
 }
 
 func TestContextualPrivacyInvalidFieldRulesFailClosed(t *testing.T) {
@@ -215,7 +217,9 @@ func TestContextualPrivacyInvalidFieldRulesFailClosed(t *testing.T) {
 			JSONFieldRules: []PrivacyJSONFieldRule{rule},
 		})
 		_, _, _, err := engine.Apply("application/json", []byte(`{"safe":"hello"}`))
-		if err == nil { t.Fatal("invalid JSON policy silently ignored") }
+		if err == nil {
+			t.Fatal("invalid JSON policy silently ignored")
+		}
 		req := httptest.NewRequest(http.MethodGet, "https://api.openai.com/v1/models", nil)
 		if _, err := engine.InspectRequestMetadata(req); err == nil {
 			t.Fatal("invalid policy silently allowed empty-body HTTP request")
