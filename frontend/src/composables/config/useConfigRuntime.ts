@@ -249,6 +249,7 @@ export function useConfigRuntime() {
       id: nextEditableRowId("domain-route"),
       host: route.host || "",
       upstream: route.upstream || "",
+      useUpstreamHost: route.useUpstreamHost || false,
       certFile: route.certFile || "",
       keyFile: route.keyFile || "",
     }));
@@ -448,7 +449,7 @@ export function useConfigRuntime() {
         if (!host) {
           throw new Error(`Domain forward route #${index + 1} requires a host`);
         }
-        acc.push({ host, upstream, certFile, keyFile });
+        acc.push({ host, upstream, certFile, keyFile, useUpstreamHost: Boolean(route.useUpstreamHost) });
         return acc;
       },
       [],
@@ -472,6 +473,7 @@ export function useConfigRuntime() {
       id: nextEditableRowId("domain-route"),
       host: "",
       upstream: "",
+      useUpstreamHost: false,
       certFile: "",
       keyFile: "",
     });
