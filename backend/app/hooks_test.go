@@ -358,3 +358,80 @@ func TestPiAndOmpPayloadFeedsProcessContext(t *testing.T) {
 		t.Fatalf("native hook metadata leaked raw command: %q", extra)
 	}
 }
+
+func TestClaudeSubAgentLifecycleHooksIndependent(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), ".claude", "settings.json")
+	oldStore := runtimeSettingsStore
+	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{
+		HookSecrets: map[string]string{
+			"claude-subagent-start": "start-secret",
+			"claude-subagent-stop": "stop-secret",
+		},
+	}}
+	t.Cleanup(func() { runtimeSettingsStore = oldStore })
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	foreign := []byte(`{"hooks":{"PreToolUse":[{"matcher":"","hooks":[{"type":"command","command":"echo existing"}]}]}}`)
+	if err := os.WriteFile(configPath, foreign, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	start := HookDef{
+		ID: "claude-subagent-start", NativeConfigPath: configPath,
+		NativeHookEvent: "SubagentStart", ConfigFormat: ConfigFormatJSON,
+	}
+	stop := HookDef{
+		ID: "claude-subagent-stop", NativeConfigPath: configPath,
+		NativeHookEvent: "SubagentStop", ConfigFormat: ConfigFormatJSON,
+	}
+	if isNativeHookInstalled(start) || isNativeHookInstalled(stop) {
+		t.Fatal("uninstalled SubAgent hook incorrectly detected from foreign setting")
+	}
+	if err := installNativeHook(start); err != nil {
+		t.Fatal(err)
+	}
+	if !isNativeHookInstalled(start) || isNativeHookInstalled(stop) {
+		t.Fatal("start and stop opt-in states are not independent")
+	}
+	if err := installNativeHook(stop); err != nil {
+		t.Fatal(err)
+	}
+	if !isNativeHookInstalled(start) || !isNativeHookInstalled(stop) {
+		t.Fatal("both lifecycle hook events must be independently installed")
+	}
+	if err := installNativeHook(start); err != nil {
+		t.Fatal(err)
+	}
+	var config struct {
+		Hooks map[string][]json.RawMessage `json:"hooks"`
+	}
+	contents, err := os.ReadFile(configPath)
+	if err != nil || json.Unmarshal(contents, &config) != nil {
+		t.Fatalf("parse hook config: %v", err)
+	}
+	for _, hookEvent := range []string{"PreToolUse", "SubagentStart", "SubagentStop"} {
+		if len(config.Hooks[hookEvent]) != 1 {
+			t.Fatalf("hook %s duplicated or lost: %+v", hookEvent, config.Hooks)
+		}
+	}
+	relay, err := os.ReadFile(hookRelayScriptPath(start))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(relay), "X-Agent-Hook-Parent-PID") {
+		t.Fatal("lifecycle relay missing best-effort parent PID header")
+	}
+	if err := uninstallNativeHook(stop); err != nil {
+		t.Fatal(err)
+	}
+	if isNativeHookInstalled(stop) || !isNativeHookInstalled(start) {
+		t.Fatal("uninstall of stop corrupted independent start hook")
+	}
+	if err := uninstallNativeHook(start); err != nil {
+		t.Fatal(err)
+	}
+	contents, err = os.ReadFile(configPath)
+	if err != nil || json.Unmarshal(contents, &config) != nil || len(config.Hooks["PreToolUse"]) != 1 {
+		t.Fatalf("existing user hook should be retained: %v / %+v", err, config)
+	}
+}
