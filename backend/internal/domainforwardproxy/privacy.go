@@ -57,7 +57,7 @@ type PrivacyEngine struct {
 		category string
 		pattern  *regexp.Regexp
 	}
-	allowlist map[string]struct{}
+	allowlist          map[string]struct{}
 	configurationError error
 }
 
@@ -149,8 +149,12 @@ func (e *PrivacyEngine) Apply(contentType string, body []byte) ([]byte, *Privacy
 // upstream hostname, not the user-supplied Host or tool metadata.
 func (e *PrivacyEngine) ApplyForRecipient(contentType string, body []byte, recipient string) ([]byte, *PrivacySession, PrivacyReport, error) {
 	report := PrivacyReport{Action: e.settings.Action}
-	if !e.settings.Enabled { return body, nil, report, nil }
-	if e.configurationError != nil { return nil, nil, report, e.configurationError }
+	if !e.settings.Enabled {
+		return body, nil, report, nil
+	}
+	if e.configurationError != nil {
+		return nil, nil, report, e.configurationError
+	}
 	if len(body) == 0 {
 		return body, nil, report, nil
 	}
