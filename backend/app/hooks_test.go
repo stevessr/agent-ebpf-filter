@@ -435,3 +435,21 @@ func TestClaudeSubAgentLifecycleHooksIndependent(t *testing.T) {
 		t.Fatalf("existing user hook should be retained: %v / %+v", err, config)
 	}
 }
+
+func TestUnchangedNativeHookRelayKeepsCurlHeaders(t *testing.T) {
+	oldStore := runtimeSettingsStore
+	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{
+		HookSecrets: map[string]string{"claude": "original-secret"},
+	}}
+	t.Cleanup(func() { runtimeSettingsStore = oldStore })
+	script := buildGenericHookRelayScript(HookDef{ID: "claude"})
+	if strings.Contains(script, "X-Agent-Hook-Parent-PID") {
+		t.Fatal("ordinary hooks must not opt into new PID attribution")
+	}
+	if strings.Contains(script, "\\\n\n  -H") {
+		t.Fatal("unexpected blank line terminates curl header continuation")
+	}
+	if !strings.Contains(script, "X-Agent-Hook-Secret: original-secret") {
+		t.Fatal("original hook secret header lost")
+	}
+}
