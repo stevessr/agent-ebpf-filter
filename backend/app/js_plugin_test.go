@@ -202,3 +202,23 @@ func TestJavaScriptDraftIsValidatedOnlyInWorker(t *testing.T) {
 	m,ok:=pluginRegistry.Get("testing-js")
 	if !ok || m.Enabled {t.Fatalf("invalid plugin unexpectedly enabled: %+v",m)}
 }
+
+func TestJavaScriptUpsertEnabledRequiresWorkerValidation(t *testing.T) {
+	isolatedJSRegistry(t)
+	p := jsManifest()
+	p.Enabled = true
+	if err:=pluginRegistry.UpsertWithSource(p,`export function onEvent( {`);err==nil {
+		t.Fatal("enabled=true upsert accepted invalid script")
+	}
+	if _,ok:=pluginRegistry.Get(p.ID);ok {
+		t.Fatal("invalid enabled plugin persisted in registry")
+	}
+	if err:=pluginRegistry.UpsertWithSource(p,jsSource);err!=nil {
+		t.Fatalf("valid enabled plugin rejected: %v",err)
+	}
+	t.Setenv("AGENT_EBPF_JS_WORKER_SOCKET","")
+	p.Name = "No worker"
+	if err:=pluginRegistry.Upsert(p);err==nil {
+		t.Fatal("enabled plugin update bypassed worker availability")
+	}
+}

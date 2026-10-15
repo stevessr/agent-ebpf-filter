@@ -320,6 +320,25 @@ func (s *pluginStore) upsert(ctx context.Context, m *PluginManifest, source *str
 	if err := validatePluginManifest(next); err != nil {
 		return err
 	}
+	if next.Kind == PluginKindJavaScript && next.Enabled {
+		// A direct enabled=true upsert must not bypass the worker validation
+		// performed by SetEnabled. The backend never parses script source.
+		var candidate []byte
+		if source != nil {
+			candidate = []byte(*source)
+		} else {
+			candidate, err = readPluginFile(next.ID, "plugin.mjs", jsplugins.MaxSourceBytes)
+			if err != nil {
+				return err
+			}
+		}
+		if next.SourceSHA256 == "" || sha256Hex(candidate) != next.SourceSHA256 {
+			return errors.New("JavaScript plugin source checksum mismatch")
+		}
+		if err := jsplugins.ValidateRemote(ctx, os.Getenv("AGENT_EBPF_JS_WORKER_SOCKET"), string(candidate)); err != nil {
+			return fmt.Errorf("validate JavaScript plugin in isolated worker: %w", err)
+		}
+	}
 
 	rollbackSource := func() error {
 		if source == nil {
