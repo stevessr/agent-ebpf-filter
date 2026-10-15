@@ -54,6 +54,8 @@ jobs:
             )
           done
           go work sync
+          # Prevent the legacy monolithic genproto from overlapping newer split googleapis modules.
+          go work edit -replace=google.golang.org/genproto=google.golang.org/genproto@v0.0.0-20261005182115-fad411399dd8
           for module in backend desktop/renew wrapper tools/agent-tui tools/dev-env-tui; do
             (cd "$module" && go mod tidy && go mod tidy -diff)
           done
