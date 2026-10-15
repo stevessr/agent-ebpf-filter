@@ -9,6 +9,12 @@
 - 使用方式：`python3 scripts/check-doc-links.py`；该脚本不替代 `bun run docs:build`，而是补上 VitePress `ignoreDeadLinks` 对仓库外源码链接不敏感的问题。
 - 权威性原则：当前代码和 [`AGENTS.md`](../../AGENTS.md) 优先；网站页负责稳定入口；历史/专项文档必须通过本页或 `DEV_DOCS_INDEX.md` 标注它与当前实现的关系。
 
+## 最新演示入口
+
+- [演示导览](/guide/demo-tour)：日常用户的操作路径与证据限制。
+- [Renew 原生桌面](/frontend/renew)：Go + MyGo 监控、Agent 派生、文件管理与编辑器。
+- [现场演示脚本](/delivery/demo-script)：比赛/展示用的有前置检查与兜底流程。
+
 ## 网站章节
 
 | 章节 | 用途 | 常用入口 |
