@@ -18,6 +18,7 @@ import {
 } from "@ant-design/icons-vue";
 import { message } from "ant-design-vue";
 import type * as Monaco from "monaco-editor";
+import { systemIsDark } from "../../composables/useSystemTheme";
 
 import { usePlugins } from "../../composables/plugins/usePlugins";
 import {
@@ -144,7 +145,7 @@ const initMonaco = async () => {
     editor = monaco.editor.create(editorContainer.value, {
       value: pseudoCode.value,
       language: "typescript",
-      theme: "vs-dark",
+      theme: systemIsDark.value ? "vs-dark" : "vs",
       automaticLayout: true,
       minimap: { enabled: false },
       fontSize: 12,
@@ -165,6 +166,12 @@ const initMonaco = async () => {
     if (componentMounted) editorLoading.value = false;
   }
 };
+
+watch(systemIsDark, async (dark) => {
+  if (!editor) return;
+  const { api: monaco } = await loadMonaco();
+  if (editor) monaco.editor.setTheme(dark ? "vs-dark" : "vs");
+});
 
 watch(pseudoCode, (nextCode) => {
   if (editor && editor.getValue() !== nextCode) {
