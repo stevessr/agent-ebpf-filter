@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -132,6 +133,50 @@ func TestContextualPrivacyPaymentCardAndPhoneHeuristics(t *testing.T) {
 	}
 }
 
+func TestPrivacySensitiveJSONPropertyNamesCannotLeak(t *testing.T) {
+	for _, action := range []string{"block", "redact"} {
+		engine := NewPrivacyEngine(PrivacySettings{Enabled: true, Action: action})
+		for _, payload := range []string{
+			`{"jane@example.com":"harmless"}`,
+			`{"sk-abcdefghijklmnopqrstuv":"harmless"}`,
+		} {
+			_, _, report, err := engine.Apply("application/json", []byte(payload))
+			if err != nil || !report.Blocked || len(report.Findings) == 0 {
+				t.Errorf("JSON member name escaped policy: action=%s body=%s report=%+v err=%v", action, payload, report, err)
+			}
+		}
+	}
+}
+
+func TestPrivacyExcessFieldRulesFailClosed(t *testing.T) {
+	rules := make([]PrivacyJSONFieldRule, maxContextJSONRules+1)
+	for i := range rules {
+		rules[i] = PrivacyJSONFieldRule{Path: "/unused-" + strconv.Itoa(i), Action: "block"}
+	}
+	engine := NewPrivacyEngine(PrivacySettings{Enabled: true, Action: "redact", JSONFieldRules: rules})
+	if _, _, _, err := engine.Apply("application/json", []byte(`{"safe":"hello"}`)); err == nil {
+		t.Fatal("extra disclosure rules were silently discarded")
+	}
+}
+
+func TestPrivacyLoopbackDefaultWhenFilterEnabled(t *testing.T) {
+	settings := DomainForwardProxySettings{Privacy: PrivacySettings{Enabled: true}}
+	NormalizeSettings(&settings)
+	if settings.BindAddress != "127.0.0.1" {
+		t.Fatalf("privacy proxy must default to loopback, got %q", settings.BindAddress)
+	}
+	legacy := DomainForwardProxySettings{}
+	NormalizeSettings(&legacy)
+	if legacy.BindAddress != "" {
+		t.Fatalf("non-privacy proxy default unexpectedly changed: %q", legacy.BindAddress)
+	}
+	explicit := DomainForwardProxySettings{BindAddress: "0.0.0.0", Privacy: PrivacySettings{Enabled: true}}
+	NormalizeSettings(&explicit)
+	if explicit.BindAddress != "0.0.0.0" {
+		t.Fatal("explicit network bind must remain an operator decision")
+	}
+}
+
 func TestContextualPrivacyMetadataEgress(t *testing.T) {
 	engine := NewPrivacyEngine(PrivacySettings{Enabled: true, Action: "redact"})
 	cases := []struct {
@@ -144,6 +189,9 @@ func TestContextualPrivacyMetadataEgress(t *testing.T) {
 		{"query memory", "https://api.openai.com/v1/chat?task_history=everything", "", "", true},
 		{"url path", "https://api.openai.com/v1/jane@example.com", "", "", true},
 		{"custom header", "https://api.openai.com/v1/chat", "X-Private-Note", "jane@example.com", true},
+		{"user agent metadata", "https://api.openai.com/v1/chat", "User-Agent", "myapp jane@example.com", true},
+		{"organization metadata", "https://api.openai.com/v1/chat", "OpenAI-Organization", "jane@example.com", true},
+		{"query key", "https://api.openai.com/v1/chat?jane%40example.com=benign", "", "", true},
 		{"session cookie", "https://api.openai.com/v1/chat", "Cookie", "session=opaque", true},
 		{"provider auth exception", "https://api.openai.com/v1/chat", "Authorization", "Bearer sk-abcdefghijklmnopqrstuvwxyz", false},
 		{"ordinary request", "https://api.openai.com/v1/chat", "", "", false},
