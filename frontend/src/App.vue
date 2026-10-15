@@ -96,7 +96,7 @@ function activity(key: string) {
   }
 }
 function resetLayout() {
-  if (window.confirm("恢复单面板布局？现有分屏标签将关闭，后端配置不会改变。"))
+  if (window.confirm(tr("恢复单面板布局？现有分屏标签将关闭，后端配置不会改变。")))
     reset();
 }
 </script>
