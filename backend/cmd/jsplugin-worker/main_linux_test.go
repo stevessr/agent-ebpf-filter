@@ -151,3 +151,39 @@ func TestWorkerBinaryRecoversAfterSIGKILL(t *testing.T) {
 	if err:=second.Process.Signal(syscall.SIGTERM);err!=nil{t.Fatal(err)}
 	if err:=second.Wait();err!=nil{t.Fatal(err)}
 }
+
+
+// TestWorkerSystemdIntegration executes in a separately compiled test binary
+// under sudo, against the actual DynamicUser service started by GitHub Actions.
+// It is opt-in and cannot accidentally run against a developer's local daemon.
+func TestWorkerSystemdIntegration(t *testing.T) {
+	socket := os.Getenv("AGENT_EBPF_TEST_SYSTEMD_SOCKET")
+	if socket == "" {
+		t.Skip("requires a dedicated real-systemd integration environment")
+	}
+	if os.Geteuid() != 0 {
+		t.Fatal("systemd integration client must run as root to access worker-owned 0600 socket")
+	}
+	info, err := os.Lstat(socket)
+	if err != nil || info.Mode()&os.ModeSocket == 0 || info.Mode().Perm() != 0o600 {
+		t.Fatalf("worker socket must be mode 0600: info=%v err=%v", info, err)
+	}
+	dirInfo, err := os.Lstat(filepath.Dir(socket))
+	if err != nil || !dirInfo.IsDir() || dirInfo.Mode().Perm() != 0o700 {
+		t.Fatalf("worker runtime directory must be mode 0700: info=%v err=%v", dirInfo, err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	valid := `export function onEvent(e) { return {checked: true, id: e.id}; }`
+	if err := jsplugins.ValidateRemote(ctx, socket, valid); err != nil {
+		t.Fatalf("running systemd service rejected valid script: %v", err)
+	}
+	out, err := jsplugins.InvokeRemote(ctx, socket, valid, "onEvent", json.RawMessage(`{"id":42}`))
+	if err != nil || string(out) != `{"checked":true,"id":42}` {
+		t.Fatalf("real service invocation: %s / %v", out, err)
+	}
+	if err := jsplugins.ValidateRemote(ctx, socket, `export function onEvent( {`); err == nil {
+		t.Fatal("systemd worker accepted malformed source")
+	}
+}

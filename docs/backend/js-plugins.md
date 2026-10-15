@@ -73,3 +73,7 @@ The `moejs JavaScript plugins` workflow supports `workflow_dispatch` and pull-re
 The worker rejects group/world-accessible, symlinked, or foreign-owned socket directories. Prepare a worker-owned `0700` runtime directory (as in the systemd service); the process sets `umask 077` before binding the Unix socket. The JavaScript interpreter does not require executable writable memory, so the unit enables `MemoryDenyWriteExecute=yes`. Protocol framing budgets account for JSON escape expansion while still enforcing the original 128 KiB source / 32 KiB payload limits.
 
 On restart, the Worker takes an advisory lock in its private runtime directory. If a previous crash left a Unix socket inode, it only removes an owned socket after a connection attempt reports `ECONNREFUSED`. A live socket, foreign-owned socket, symlink, or regular file is never overwritten. SIGKILL restart/recovery is tested with the actual worker executable in GitHub Actions.
+
+## Live systemd integration test
+
+GitHub Actions also starts the provided service as a real systemd unit on the Ubuntu runner, probes it from a root process (the collector's access model), asserts the worker UID is non-root with zero effective Linux capabilities and a distinct network namespace, checks the 0700 runtime directory and 0600 socket, and exercises real JS validation/invocation and malformed-source refusal. It stops and removes the temporary unit at the end. This complements but does not replace production-host deployment testing and security auditing.
