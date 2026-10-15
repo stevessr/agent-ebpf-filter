@@ -35,6 +35,8 @@ export const nextEditableRowId = (prefix: string) =>
 export const defaultDomainForwardProxy = (): DomainForwardProxySettings => ({
   enabled: false,
   httpPort: 80,
+  bindAddress: "",
+  httpsDisabled: false,
   httpsPort: 443,
   defaultScheme: "https",
   allowAnyHost: false,
