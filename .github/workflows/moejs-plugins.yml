@@ -71,6 +71,9 @@ jobs:
       - name: JavaScript VM race regression
         working-directory: backend
         run: go test -race ./app/jsplugins -count=1 -timeout=5m
+      - name: Concurrent overload stress
+        working-directory: backend
+        run: go test -race ./app/jsplugins -run '^TestWorker(ConcurrentCalls|OverloadResponse)' -count=25 -timeout=5m
       - name: Install native backend build dependencies
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler clang llvm libbpf-dev libelf-dev
       - name: Generate protobuf bindings

@@ -248,3 +248,44 @@ func TestWorkerReturnsTypedExecutionDeadline(t *testing.T) {
 		t.Fatalf("worker execution deadline not preserved across IPC: %v", err)
 	}
 }
+
+func TestWorkerOverloadResponse(t *testing.T) {
+	socket := filepath.Join(t.TempDir(), "busy.sock")
+	listener, err := net.Listen("unix", socket)
+	if err != nil { t.Fatal(err) }
+	ctx, stop := context.WithCancel(context.Background())
+	worker := NewWorker()
+	done := make(chan error, 1)
+	go func() { done <- worker.Serve(ctx, listener) }()
+	t.Cleanup(func() {
+		stop()
+		select {
+		case err := <-done:
+			if err != nil { t.Errorf("worker shutdown: %v", err) }
+		case <-time.After(time.Second):
+			t.Error("worker shutdown timed out")
+		}
+	})
+	// Fill each worker slot with a client that has not completed a frame.
+	conns := make([]net.Conn, 0, MaxWorkerConnections)
+	for i := 0; i < MaxWorkerConnections; i++ {
+		conn, err := net.Dial("unix", socket)
+		if err != nil { t.Fatal(err) }
+		conns = append(conns, conn)
+		defer conn.Close()
+	}
+	deadline := time.Now().Add(time.Second)
+	for len(worker.slots) < MaxWorkerConnections && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if len(worker.slots) != MaxWorkerConnections {
+		t.Fatal("worker capacity could not be saturated")
+	}
+	_, err = InvokeRemote(context.Background(), socket,
+		`export function onEvent(){return true}`,
+		"onEvent", json.RawMessage(`{}`))
+	if !errors.Is(err, ErrExecutorBusy) {
+		t.Fatalf("overload failed to produce typed busy error: %v", err)
+	}
+	for _, conn := range conns { _ = conn.Close() }
+}
