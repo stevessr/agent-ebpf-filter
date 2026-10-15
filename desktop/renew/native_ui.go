@@ -26,6 +26,8 @@ type renewApp struct {
 	lineageMode int // 0 radial, 1 waterfall
 	lineageRootChoice string
 	lineageSelectedPID int
+	lineageSignalTable ui.ListState
+	lineageSignalSelected int
 	files  localFileWorkspace
 	search string
 	paused bool
@@ -276,6 +278,7 @@ func newRenewApp(backend string) *renewApp {
 	a.processTable.Selected = &a.processSelected
 	a.domainTable.Selected = &a.domainSelected
 	a.sessionTable.Selected = &a.sessionSelected
+	a.lineageSignalTable.Selected = &a.lineageSignalSelected
 	a.rulesTable.Selected = &a.ruleSelected
 	a.commTable.Selected = &a.commSelected
 	a.agentTable.Selected = &a.agentSelected
