@@ -311,9 +311,10 @@ func (e *PrivacyEngine) applyContextualJSON(
 ) ([]byte, *PrivacySession, PrivacyReport, error) {
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.UseNumber()
-	var doc any
-	if err := decoder.Decode(&doc); err != nil {
-		return nil, nil, report, errors.New("privacy JSON parse failed")
+	nodeCount := 0
+	doc, err := parseStrictPrivacyJSON(decoder, 0, &nodeCount)
+	if err != nil {
+		return nil, nil, report, errors.New("privacy JSON parse/duplicate-field validation failed")
 	}
 	// The caller checks json.Valid; this also rejects trailing JSON values.
 	var trailing any
@@ -347,4 +348,50 @@ func (e *PrivacyEngine) applyContextualJSON(
 	}
 	state.report.Redacted = true
 	return output, session, state.report, nil
+}
+
+
+// parseStrictPrivacyJSON rejects duplicate object members before classification.
+// Otherwise a last-key-wins map can hide an earlier task_history/secret value
+// while a different upstream JSON parser may consume that earlier value.
+func parseStrictPrivacyJSON(decoder *json.Decoder, depth int, visited *int) (any, error) {
+	(*visited)++
+	if depth > maxContextJSONDepth || *visited > maxContextJSONNodes {
+		return nil, errors.New("privacy JSON depth/node limit exceeded")
+	}
+	token, err := decoder.Token()
+	if err != nil {
+		return nil, err
+	}
+	delim, ok := token.(json.Delim)
+	if !ok { return token, nil }
+	switch delim {
+	case '{':
+		object := make(map[string]any)
+		seen := make(map[string]bool)
+		for decoder.More() {
+			keyToken, err := decoder.Token()
+			if err != nil { return nil, err }
+			key, ok := keyToken.(string)
+			if !ok { return nil, errors.New("invalid privacy JSON object key") }
+			if seen[key] { return nil, errors.New("duplicate privacy JSON member") }
+			seen[key] = true
+			next, err := parseStrictPrivacyJSON(decoder, depth+1, visited)
+			if err != nil { return nil, err }
+			object[key] = next
+		}
+		_, err := decoder.Token()
+		return object, err
+	case '[':
+		list := make([]any, 0)
+		for decoder.More() {
+			next, err := parseStrictPrivacyJSON(decoder, depth+1, visited)
+			if err != nil { return nil, err }
+			list = append(list, next)
+		}
+		_, err := decoder.Token()
+		return list, err
+	default:
+		return nil, errors.New("unexpected privacy JSON delimiter")
+	}
 }
