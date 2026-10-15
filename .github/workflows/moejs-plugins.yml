@@ -100,15 +100,28 @@ jobs:
             sudo journalctl -u agent-ebpf-jsplugin-worker.service -n 80 --no-pager
             exit 1
           fi
+          # Type=simple reports active before the DynamicUser sandbox has
+          # finished spawning the real process. Wait for the IPC socket before
+          # inspecting its PID, UID and namespaces.
+          for attempt in {1..100}; do
+            if [[ -S /run/agent-ebpf-jsplugin/worker.sock ]]; then break; fi
+            sleep 0.05
+          done
+          [[ -S /run/agent-ebpf-jsplugin/worker.sock ]]
+          sudo env AGENT_EBPF_TEST_SYSTEMD_SOCKET=/run/agent-ebpf-jsplugin/worker.sock \
+            /tmp/jsplugin-worker-systemd.test -test.run '^TestWorkerSystemdIntegration$' -test.v
           sudo systemctl is-active --quiet agent-ebpf-jsplugin-worker.service
           worker_pid="$(sudo systemctl show -P MainPID agent-ebpf-jsplugin-worker.service)"
           worker_uid="$(ps -o uid= -p "$worker_pid" | tr -d ' ')"
+          echo "Ready worker PID=$worker_pid UID=$worker_uid"
           [[ "$worker_pid" -gt 1 && "$worker_uid" != "0" ]]
           effective_caps="$(sudo awk '/^CapEff:/ {print $2}' "/proc/$worker_pid/status")"
+          echo "Ready worker effective capabilities=$effective_caps"
           [[ "$effective_caps" == "0000000000000000" ]]
-          [[ "$(sudo readlink "/proc/$worker_pid/ns/net")" != "$(readlink /proc/1/ns/net)" ]]
-          sudo env AGENT_EBPF_TEST_SYSTEMD_SOCKET=/run/agent-ebpf-jsplugin/worker.sock \
-            /tmp/jsplugin-worker-systemd.test -test.run '^TestWorkerSystemdIntegration$' -test.v
+          worker_net="$(sudo readlink "/proc/$worker_pid/ns/net")"
+          host_net="$(readlink /proc/1/ns/net)"
+          echo "Worker namespace=$worker_net / host namespace=$host_net"
+          [[ "$worker_net" != "$host_net" ]]
           sudo systemctl is-active --quiet agent-ebpf-jsplugin-worker.service
       - name: JavaScript VM race regression
         working-directory: backend
