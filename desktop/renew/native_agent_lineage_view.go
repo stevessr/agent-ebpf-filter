@@ -136,7 +136,7 @@ func (a *renewApp) agentLineageInsights(c *ui.Context, graph agentLineage) {
 	card(c, fmt.Sprintf("SubAgent 原生 Hook · 最近 %d 条", len(signals)), func() {
 		ui.Text(c, "这一栏只展示实际观察到的 SubagentStart、SubagentStop、agentSpawn 等原生 Hook 信号；它们可能发生在同一 PID 内，但没有稳定的 agent_id 时不推断父调用或任务时长。").FontSize(11).TextColor(t.TextMuted)
 		if len(signals) == 0 {
-			ui.Text(c, "当前事件窗口尚无可关联的 SubAgent 生命周期 Hook。可以在监控设置中开启对应 CLI 的原生 Hook 采集。").TextColor(t.TextMuted)
+			ui.Text(c, "当前事件窗口尚无可关联的 SubAgent 生命周期 Hook。可在 Web 管理台的 Hooks 配置中分别启用 Claude Code 的 SubagentStart / SubagentStop 采集。").TextColor(t.TextMuted)
 			return
 		}
 		cols := []ui.TableColumn{
@@ -145,6 +145,10 @@ func (a *renewApp) agentLineageInsights(c *ui.Context, graph agentLineage) {
 			{Title: "Agent", MinWidth: 130},
 			{Title: "PID", Width: 90},
 			{Title: "生命周期", Width: 104},
+		}
+		a.lineageSignalTable.Key = func(row int) any {
+			sig := signals[row]
+			return fmt.Sprintf("%d:%d:%s", sig.PID, sig.WhenMS, sig.Name)
 		}
 		ui.Table(c, &a.lineageSignalTable, cols, len(signals), func(row, col int) {
 			sig := signals[row]
@@ -165,6 +169,17 @@ func (a *renewApp) agentLineageInsights(c *ui.Context, graph agentLineage) {
 				}
 			}
 		}).Height(min(float32(430), 58+float32(len(signals))*32)).Label("原生 SubAgent 生命周期 Hook 信号")
+		if a.lineageSignalSelected >= 0 && a.lineageSignalSelected < len(signals) {
+			pid := signals[a.lineageSignalSelected].PID
+			ui.Row(c).Gap(8).Wrap().Children(func() {
+				if ui.Button(c, fmt.Sprintf("定位 PID %d", pid)).Clicked() {
+					a.lineageSelectedPID = pid
+				}
+				if ui.Button(c, "查看该 Hook 进程的事件").Clicked() {
+					a.navigatePIDEvents(pid)
+				}
+			})
+		}
 	})
 }
 
