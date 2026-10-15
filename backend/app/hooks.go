@@ -155,7 +155,7 @@ fi
 curl -fsS -X POST '%s' \
   -H 'Content-Type: application/json' \
   -H 'X-Agent-CLI: %s' \
-  -H 'X-Agent-Hook-Parent-PID: '\"$PPID\" \
+  -H "X-Agent-Hook-Parent-PID: $PPID" \
   -H 'X-Agent-Hook-Secret: %s' \
   "${event_header[@]}" \
   --data-binary "@$tmp_file" \
