@@ -10,6 +10,7 @@ import {
 } from "vue";
 import type { FilePreviewResponse } from "../../types/filePreview";
 import { buildRequestHeaders } from "../../utils/requestContext";
+import { systemIsDark } from "../../composables/useSystemTheme";
 
 type CodeHighlightingModule = typeof import("../../utils/codeHighlighting");
 
@@ -475,15 +476,16 @@ watch(
       props.preview?.language,
       props.preview?.content,
       props.preview?.streamable,
+      systemIsDark.value,
     ] as const,
-  async ([isOpen, , previewType, language, content, streamable]) => {
+  async ([isOpen, , previewType, language, content, streamable, dark]) => {
     const runId = ++highlightRunId;
     if (isOpen && previewType === "text" && content && !streamable) {
       highlightLoading.value = true;
       highlightedHtml.value = "";
       try {
         const { highlightPreviewCode } = await loadCodeHighlightingModule();
-        const html = await highlightPreviewCode(content, language);
+        const html = await highlightPreviewCode(content, language, dark);
         if (runId !== highlightRunId) return;
         highlightedHtml.value = html;
       } catch (err) {
