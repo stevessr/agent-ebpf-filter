@@ -6,6 +6,7 @@ import {
   ColumnHeightOutlined,
 } from "@ant-design/icons-vue";
 import PaneRoute from "./PaneRoute.vue";
+import { translateUI as tr } from "../../i18n";
 import type { DockNode, DockEdge } from "../../composables/workbench/layout";
 const props = defineProps<{
   node: DockNode;
@@ -211,11 +212,11 @@ function resizeKey(event: KeyboardEvent) {
             :title="tab.path + ' · 拖拽到边缘分屏'"
             @click="emit('select', node.id, tab.id)"
           >
-            <span class="tab-mark">◇</span>{{ tab.title }}
+            <span class="tab-mark">◇</span>{{ tr(tab.title) }}
           </button>
           <button
             class="tab-close"
-            :aria-label="'关闭 ' + tab.title"
+            :aria-label="tr('关闭') + ' ' + tr(tab.title)"
             @click="emit('close', node.id, tab.id)"
           >
             <CloseOutlined />
@@ -239,7 +240,7 @@ function resizeKey(event: KeyboardEvent) {
       </div>
     </header>
     <div class="dock-breadcrumb">
-      工作空间 <span>›</span> {{ activeTab?.title || "欢迎" }}
+      {{ tr("工作空间") }} <span>›</span> {{ tr(activeTab?.title || "欢迎") }}
       <span class="dock-breadcrumb-path">{{ activeTab?.path }}</span>
     </div>
     <div class="dock-content" role="tabpanel">
@@ -252,13 +253,13 @@ function resizeKey(event: KeyboardEvent) {
       </template>
       <div v-if="!node.tabs.length" class="dock-empty">
         <div>⌘</div>
-        <h2>Agent 工作空间</h2>
-        <p>从左侧打开功能，或将标签拖到这里</p>
-        <p>拖到边缘分屏 · 拖到中央合并 · 拖动分隔线调整大小</p>
+        <h2>{{ tr("Agent 工作空间") }}</h2>
+        <p>{{ tr("从左侧打开功能，或将标签拖到这里") }}</p>
+        <p>{{ tr("拖到边缘分屏 · 拖到中央合并 · 拖动分隔线调整大小") }}</p>
       </div>
     </div>
     <div v-if="dragging && hover" class="dock-drop-preview" :class="hover">
-      <span>{{ hover === "center" ? "合并到此面板" : "释放以创建分屏" }}</span>
+      <span>{{ tr(hover === "center" ? "合并到此面板" : "释放以创建分屏") }}</span>
     </div>
   </section>
 </template>
