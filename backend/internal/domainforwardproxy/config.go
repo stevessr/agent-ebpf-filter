@@ -306,6 +306,7 @@ func SettingsEqual(a, b DomainForwardProxySettings) bool {
 		a.TLSInterceptCAKeyFile != b.TLSInterceptCAKeyFile ||
 		a.TLSInterceptLeafTTLSeconds != b.TLSInterceptLeafTTLSeconds ||
 		!reflect.DeepEqual(a.Rewrite, b.Rewrite) ||
+		!reflect.DeepEqual(a.Privacy, b.Privacy) ||
 		len(a.Routes) != len(b.Routes) {
 		return false
 	}
