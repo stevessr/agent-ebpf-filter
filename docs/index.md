@@ -1,35 +1,9 @@
----
-layout: home
+# Agent eBPF Filter
 
-hero:
-  name: Agent eBPF Filter
-  text: 看见 AI Agent 在 Linux 上真正做了什么
-  tagline: 从 eBPF 内核事实与 Agent 语义关联，到「明镜高悬」原生桌面调查、Web 研究控制台与可选的内核策略。
-  actions:
-    - theme: brand
-      text: 开始演示
-      link: /guide/demo-tour
-    - theme: alt
-      text: 安装与运行
-      link: /guide/quick-start
-    - theme: alt
-      text: 了解架构
-      link: /architecture/overview
+看见 AI Agent 在 Linux 上真正做了什么。项目将 eBPF 内核事实、Agent 语义关联、原生 Renew 桌面和 Web 研发控制台组合成可观测与安全控制框架。
 
-features:
-  - title: 看见 OS 级行为
-    details: eBPF 追踪进程、文件与网络活动；展示采集健康、事件丢失和关联证据，不把「没有事件」等同于「没有风险」。
-  - title: 明镜高悬 · 原生桌面
-    details: 基于 Go + MyGo 的日常监控客户端，提供告警研判、Agent 域名、会话、路径权限及原生工具，不依赖 WebView。
-  - title: Agent → SubAgent 派生
-    details: 放射图与瀑布图查看当前进程后代；明确区别 OS 进程关系、子 Agent 候选和 Hook 生命周期信号。
-  - title: 关联 Agent 语义
-    details: Native Hooks、Wrapper、Adapters 与 root Agent 证据补充 syscall 事实；不凭通用 shell 名称猜测 Agent 归属。
-  - title: 多层安全控制
-    details: Wrapper 命令策略、cgroup 目的地阻断和 BPF LSM 文件/执行访问控制；需要匹配的内核能力与显式授权。
-  - title: 开放且可验证
-    details: Vue Web 工作台用于研究管理，另有 MCP、External API、OTLP、Prometheus 与测试/回放工具，保留能力边界。
----
+**[演示导览](guide/demo-tour.md)** · **[快速开始](guide/quick-start.md)** · **[架构总览](architecture/overview.md)**
+
 
 ## 两个界面，各有职责
 

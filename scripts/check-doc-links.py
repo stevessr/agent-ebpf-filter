@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """Check repository-local Markdown links used by the documentation set.
 
-VitePress currently has ``ignoreDeadLinks`` enabled because the docs include
-historical notes and links to source files outside ``docs/``.  This script is a
-lighter repository-aware guard: it ignores external URLs and generated/reference
-snapshots, but verifies that Markdown links to local docs, component READMEs and
-source files still resolve.
+This repository-aware guard ignores external URLs and archived/reference
+snapshots, but verifies Markdown links to local docs and source files. MkDocs
+performs the independent site navigation/build validation.
 """
 
 from __future__ import annotations
@@ -48,7 +46,7 @@ LOCAL_LINK_RE = re.compile(
     r"""(?<!!)\[[^\]]*]\(([^)]+)\)|<a\s+[^>]*href=["']([^"']+)["']""",
     re.IGNORECASE,
 )
-VITEPRESS_LINK_RE = re.compile(r"""link:\s*["']([^"']+)["']""")
+MKDOCS_NAV_RE = re.compile(r"^\s+-\s+[^:#]+:\s+((?:[\w.-]+/)*[\w.-]+\.md)\s*$", re.MULTILINE)
 
 SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*:")
 
@@ -157,23 +155,22 @@ def main() -> int:
             outbound.setdefault(markdown_file, set()).add(resolved)
             inbound.setdefault(resolved, set()).add(markdown_file)
 
-    # VitePress nav/sidebar links are not Markdown, but they are first-class
-    # documentation entrypoints and should be checked as well.
-    vitepress_config = Path("docs/.vitepress/config.ts")
-    if vitepress_config.exists():
-        text = vitepress_config.read_text(encoding="utf-8", errors="ignore")
-        for raw in VITEPRESS_LINK_RE.findall(text):
+    # MkDocs navigation is first-class documentation and must resolve too.
+    mkdocs_config = Path("docs/mkdocs.yml")
+    if mkdocs_config.exists():
+        text = mkdocs_config.read_text(encoding="utf-8", errors="ignore")
+        for raw in MKDOCS_NAV_RE.findall(text):
             target = normalize_target(raw)
             if is_ignored_target(raw, target):
                 continue
-            candidates = candidate_paths(vitepress_config, target)
+            candidates = [Path("docs") / target]
             resolved = next((path for path in candidates if path.exists()), None)
             if resolved is None:
-                missing.append((vitepress_config, raw, candidates[:4]))
+                missing.append((mkdocs_config, raw, candidates))
                 continue
             resolved = normalize_existing_path(resolved)
-            outbound.setdefault(vitepress_config, set()).add(resolved)
-            inbound.setdefault(resolved, set()).add(vitepress_config)
+            outbound.setdefault(mkdocs_config, set()).add(resolved)
+            inbound.setdefault(resolved, set()).add(mkdocs_config)
 
     if missing:
         print(f"checked_files={len(files)} missing_links={len(missing)}")

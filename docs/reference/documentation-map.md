@@ -5,8 +5,8 @@
 ## 本轮扫描摘要
 
 - 扫描对象：根 README、`docs/**/*.md`（默认排除 `docs/ref/**` 参考快照）、组件 README、`kernel-ml/README.md`、devcontainer 与 dev-env 文档。
-- 链接守卫：新增 [`scripts/check-doc-links.py`](../../scripts/check-doc-links.py)，用于检查仓库内 Markdown 链接、VitePress 绝对路径和指向源码的相对路径。
-- 使用方式：`python3 scripts/check-doc-links.py`；该脚本不替代 `bun run docs:build`，而是补上 VitePress `ignoreDeadLinks` 对仓库外源码链接不敏感的问题。
+- 链接守卫：新增 [`scripts/check-doc-links.py`](../../scripts/check-doc-links.py)，用于检查仓库内 Markdown 链接、文档站绝对路径和指向源码的相对路径。
+- 使用方式：`python3 scripts/check-doc-links.py`；该脚本不替代 `python3 docs/build_site.py build`，而是补上 MkDocs 构建日志 对仓库外源码链接不敏感的问题。
 - 权威性原则：当前代码和 [`AGENTS.md`](../../AGENTS.md) 优先；网站页负责稳定入口；历史/专项文档必须通过本页或 `DEV_DOCS_INDEX.md` 标注它与当前实现的关系。
 
 ## 最新演示入口
@@ -56,7 +56,7 @@
 | runtime setting 或 build feature | [Runtime Settings 与 Feature Manifest](/backend/runtime-settings-features)、[安全模型](/security/model)、[前端 Feature Flags](/frontend/build-feature-flags)、[维护清单](/reference/maintenance-checklists) | 把 compiled-in 写成 runtime enabled，或漏掉 release-mode auth |
 | kernel risk feedback / ML catalog / kernel-ml UAPI | [ML、Plugins 与扩展能力](/backend/ml-plugins)、[ML 模型指南](/backend/ml-models-complete-guide)、[内核 ML README](../../kernel-ml/README.md)、[评测报告](/delivery/evaluation) | 后端模型 registry、前端 catalog、kernel-ml README / tests 不一致 |
 | TLS / Codex capture / redaction | [脱敏与隐私](/security/redaction-privacy)、[Sanitization](../security/sanitization.md)、[TLS Quickstart](../backend/TLS_QUICKSTART.md)、[安全模型](/security/model) | 忘记说明默认关闭、body 截断、密钥移除和 EventEnvelope 输出 |
-| 文档站页面或导航 | 本页、[阅读路线](/guide/reading-paths)、[维护检查清单](/reference/maintenance-checklists)、`docs/.vitepress/config.ts` | 页面存在但未进 sidebar；相对链接在仓库浏览时失效 |
+| 文档站页面或导航 | 本页、[阅读路线](/guide/reading-paths)、[维护检查清单](/reference/maintenance-checklists)、`docs/mkdocs.yml` | 页面存在但未进 sidebar；相对链接在仓库浏览时失效 |
 
 ## ML 模型文档
 
@@ -71,7 +71,7 @@
 
 ## 仓库内专项文档
 
-这些文档不一定全部进入 VitePress sidebar，但应由本页或对应专题页反向索引：
+这些文档不一定全部进入 MkDocs 导航，但应由本页或对应专题页反向索引：
 
 - [项目文档索引](../_archive/project-docs-index.md) — 旧版集中索引，覆盖比赛材料和历史专题；
 - [开发历史与实现记录](DEV_DOCS_INDEX.md) — 开发过程、专项实现和历史决策索引；
@@ -85,7 +85,7 @@
 ### 历史 / 专项材料按主题入口
 
 ::: tip 归档说明
-一次性开发总结、实现完成报告、迁移验证记录等文件已归档到 `docs/_archive/`，不再参与 VitePress 构建。如需查阅历史记录，请直接访问 `docs/_archive/` 目录。
+一次性开发总结、实现完成报告、迁移验证记录等文件已归档到 `docs/_archive/`，不再参与 MkDocs 构建。如需查阅历史记录，请直接访问 `docs/_archive/` 目录。
 :::
 
 | 主题 | 文档 |
@@ -101,6 +101,6 @@
 1. 网站页面提供稳定入口，专项文档保留详细实验 / 设计 / 历史记录。
 2. 行为变化优先同步网站对应页面、组件 README 和专项源文档；不要只改总结页。
 3. 代码路径、route、feature gate、UAPI、构建命令变化时，同时更新 [代码入口索引](/reference/code-entrypoints)、[维护检查清单](/reference/maintenance-checklists) 和相关专题页。
-4. 文档变更最小验证：`python3 scripts/check-doc-links.py`；需要看弱互链页面时加 `--report`；若改 VitePress 配置、mermaid、frontmatter 或导航，再跑 `bun run docs:build`。
+4. 文档变更最小验证：`python3 scripts/check-doc-links.py`；需要看弱互链页面时加 `--report`；若改 MkDocs 配置、mermaid、frontmatter 或导航，再跑 `python3 docs/build_site.py build`。
 5. 旧路径表述需要定期校正到当前代码；如必须保留历史路径，应明确标注“历史记录”而不是让读者误以为它是当前入口。
 6. 周期性复盘 [文档关系审计](documentation-audit.md)，把弱互链页面分成“入口页正常”“历史页由索引承接”“当前专题需补相关导航”三类处理。

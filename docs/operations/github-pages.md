@@ -1,58 +1,51 @@
 # GitHub Pages 自动部署
 
-项目的 VitePress 文档站可以通过 GitHub Actions 发布为静态网站；不需要在 Pages 主机上运行 Go 后端、MyGo 桌面或 eBPF。
+本站采用 **MkDocs Material** 生成静态文档，使用 GitHub Actions artifact 部署到 GitHub Pages，不再使用 VitePress。无需在 Pages 上运行 Go、MyGo 桌面或 eBPF。
 
-- **预期地址**：[https://stevessr.github.io/agent-ebpf-filter/](https://stevessr.github.io/agent-ebpf-filter/)
-- **构建输入**：仓库根目录的 `package.json`、`bun.lock` 与 `docs/`。
-- **构建输出**：`docs/.vitepress/dist`。
-- **发布工作流**：[pages-vitepress.yml](https://github.com/stevessr/agent-ebpf-filter/blob/master/.github/workflows/pages-vitepress.yml)。
-- **独立文档检查**：`vitepress-docs.yml` 保留原有的本地根路径构建验证。
+- 网站预期地址：https://stevessr.github.io/agent-ebpf-filter/
+- 唯一发布工作流：[Documentation / GitHub Pages](https://github.com/stevessr/agent-ebpf-filter/actions/workflows/docs-pages.yml)
+- 工作流路径：`.github/workflows/docs-pages.yml`
+- 文档站配置：`docs/mkdocs.yml`
+- 生成目录：`site/`（不需要提交进 Git）
+- Python 依赖：`docs/requirements.txt`
 
-## 第一次启用：仓库 Pages 设置
+## 自动触发：仅文档变更
 
-站点首次发布前，仓库管理员需在 [Settings → Pages](https://github.com/stevessr/agent-ebpf-filter/settings/pages) 中，将 **Build and deployment → Source** 设为 **GitHub Actions**。
+| 事件 | 条件 | 行为 |
+| --- | --- | --- |
+| 推送到 `master` | 此次推送至少修改一个 `docs/**` 路径 | 构建并发布 GitHub Pages |
+| 新建/更新 PR | PR 中至少修改一个 `docs/**` 路径 | 检查文档并构建，**不发布** |
+| 其他源码、依赖或工作流文件变动 | 未修改 `docs/**` | **不触发此文档工作流** |
 
-> 提交工作流文件**不会自动修改仓库的 Pages 发布源**。本仓库的部署工作流仅使用自动颁发的 `GITHUB_TOKEN`，不会要求长期 PAT 或把凭据写进仓库；如未开启 Pages，`configure-pages` 可能失败。这一步仅需管理员配置一次。
+不启用 `workflow_dispatch`、定时任务或其它事件。文档站配置本身存放在 `docs/`，因此对该配置的修改也计入文档变更。
 
-## 自动运行规则
+## 第一次启用 Pages
 
-| 事件 | 会发生什么 |
-| --- | --- |
-| 向 `master` 推送文档、锁文件或部署配置更改 | 安装锁定依赖、查链接、构建 Pages 版本、上传静态文件并发布 |
-| 创建/更新涉及相关文件的 PR | 执行同样的 Pages 路径构建与检验，**不发布、不上传部署产物** |
-| Actions 页面手动触发 `workflow_dispatch` | 在默认分支运行构建和发布，适合初次开启 Pages 后重新部署 |
-| 无关源代码变更 | 不重复构建文档，减少不必要的 Actions 运行 |
+仓库管理员需要在 [Settings → Pages](https://github.com/stevessr/agent-ebpf-filter/settings/pages) 中选择 **Build and deployment → Source → GitHub Actions**。
 
-发布工作流设置了 `github-pages` 环境。部署作业只有 `contents: read`、`pages: write`、`id-token: write` 这些必需权限，不需要提交 Pages 分支或配置 GitHub PAT。
+仅提交工作流 **不能自动修改仓库 Pages 发布源设置**。CI 使用 GitHub 自动颁发的 `GITHUB_TOKEN`，部署 job 申请 `pages: write` 和 `id-token: write`，不需要自定义 PAT。
 
-## 子路径、导航和本地开发
+## 本地验证
 
-仓库 Pages 地址以 `/agent-ebpf-filter/` 开头，因此**仅在 Pages Actions 构建时**设置：
-
-```bash
-VITEPRESS_BASE=/agent-ebpf-filter/ bun run docs:build
-```
-
-VitePress 的 `base` 会自动应用于站内导航和资产链接。普通开发仍使用 `/`：
+从仓库根目录执行：
 
 ```bash
-bun install --frozen-lockfile
-bun run docs:dev
-bun run docs:build
+python3 -m pip install -r docs/requirements.txt
+python3 scripts/check-doc-links.py docs
+python3 docs/build_site.py build
+python3 docs/build_site.py serve
 ```
 
-在本地验证 Pages 静态文件时，构建后应检查 `docs/.vitepress/dist/index.html` 中的 JS/CSS URL 指向 `/agent-ebpf-filter/assets/`，否则 GitHub Pages 上可能出现首页可打开、但样式和脚本 404 的问题。
+MkDocs 不允许配置文件直接位于其 `docs_dir` 中，因此 `docs/build_site.py` 会短暂创建仓库根目录下的临时配置，构建或预览结束后自动清除。这样配置和构建脚本依然属于 `docs/**`，符合触发约束。
 
-如果以后改为自定义域名的根目录托管，需要同时把工作流里的 `VITEPRESS_BASE` 更新为 `/`，并在 Settings → Pages 配置域名；不要只修改 DNS。
+文档站在仓库子路径 `/agent-ebpf-filter/` 下运行。文档钩子会将旧站的站内根路径链接转换成相对 Markdown 链接，由 MkDocs 生成正确子路径。Mermaid 图表、LaTeX 公式和旧的 `::: tip` 提示块也予以兼容。
 
-## 排查部署问题
+## 故障排查
 
-1. **Actions 构建失败**：检查 [Pages 工作流运行记录](https://github.com/stevessr/agent-ebpf-filter/actions/workflows/pages-vitepress.yml) 中的 Bun 安装、`check-doc-links.py` 或 VitePress 构建步骤。
-2. **`configure-pages` 失败**：确认 Pages 已启用、发布源是 GitHub Actions，且仓库允许 GitHub Actions 使用相应权限。
-3. **部署返回 403**：检查部署作业的 `pages: write` / `id-token: write`、`github-pages` 环境审批及分支规则。
-4. **静态资源 404**：检查 `VITEPRESS_BASE` 是否等于 `/agent-ebpf-filter/`，并重新触发发布。
-5. **首次部署仍显示 404**：先以成功的 `Deploy artifact` 作业为准核对 Pages URL；不能把 PR 的绿色构建等同于网站已经发布。
+1. 如果构建失败，请查看 Python 依赖安装、链接校验和 MkDocs 日志。
+2. 如果 `configure-pages` 失败，请确认 Pages Source 设置为 GitHub Actions。
+3. 如果部署失败并返回 403，请确认 `github-pages` 环境规则与 `pages: write` / `id-token: write` 权限。
+4. 如果站点返回 404，请核对 `site_url` 和构建产物中的路径。
+5. PR 检查通过不代表网站已更新，只有包含文档变更的 `master` push 会发布。
 
-## 关联
-
-[文档入口](/) · [快速开始](/guide/quick-start) · [构建与运行](/operations/build-and-run)。
+[文档入口](/) · [快速开始](/guide/quick-start) · [构建与运行](/operations/build-and-run)

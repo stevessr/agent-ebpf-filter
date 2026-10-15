@@ -78,11 +78,12 @@ agent-ebpf-filter/
 ├── proto/                      # Protobuf schemas (source of truth)
 │   ├── tracker_events.proto    # Event definitions
 │   └── tracker.proto
-├── docs/                       # VitePress documentation
+├── docs/                       # MkDocs documentation
 │   ├── guide/                  # Getting started
 │   ├── architecture/           # System design
 │   ├── backend/                # Backend internals
 │   ├── security/               # Security model
+│   ├── mkdocs.yml               # Documentation site configuration
 │   └── index.md                # Documentation home
 ├── deploy/kubernetes/          # Kubernetes manifests
 ├── kernel-ml/                  # Optional DKMS kernel ML module
