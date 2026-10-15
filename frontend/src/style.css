@@ -1,3 +1,29 @@
+/* Shared colors for legacy metric cards and inline Vue template styles. */
+:root {
+  --ui-surface: #ffffff;
+  --ui-surface-muted: #fafafa;
+  --ui-surface-soft: #f8fafc;
+  --ui-text-strong: #1f2937;
+  --ui-text-secondary: #475569;
+  --ui-text-muted: #64748b;
+  --ui-border: #e5e7eb;
+  --ui-primary-soft: #f0f7ff;
+  --ui-success-soft: #f6ffed;
+  --ui-danger-soft: #fff2f0;
+}
+:root[data-theme="dark"] {
+  --ui-surface: #191c22;
+  --ui-surface-muted: #212834;
+  --ui-surface-soft: #232c3b;
+  --ui-text-strong: #e5edf9;
+  --ui-text-secondary: #b8c6dc;
+  --ui-text-muted: #98a9c1;
+  --ui-border: #344256;
+  --ui-primary-soft: #24354e;
+  --ui-success-soft: #203a30;
+  --ui-danger-soft: #452b31;
+}
+
 :root {
   --text-h: #08060d;
   --code-bg: #f4f3ec;
