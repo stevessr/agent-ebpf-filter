@@ -15,8 +15,9 @@ import (
 // allow explicitly declassifies this one scalar; redact forces minimization,
 // drop removes this map property, and block denies the entire request.
 type PrivacyJSONFieldRule struct {
-	Path   string `json:"path"`
-	Action string `json:"action"`
+	Path      string `json:"path"`
+	Action    string `json:"action"`
+	Recipient string `json:"recipient,omitempty"` // required for allow
 }
 
 const (
@@ -76,7 +77,9 @@ func NormalizeContextSettings(settings *PrivacySettings) {
 	for _, rule := range settings.JSONFieldRules {
 		rule.Path = strings.TrimSpace(rule.Path)
 		rule.Action = strings.ToLower(strings.TrimSpace(rule.Action))
-		if !validPrivacyJSONPointer(rule.Path) || seen[rule.Path] {
+		rule.Recipient = NormalizeForwardHost(strings.TrimSpace(rule.Recipient))
+		if !validPrivacyJSONPointer(rule.Path) || seen[rule.Path] ||
+			(rule.Action == "allow" && !validPrivacyRecipient(rule.Recipient)) {
 			// Preserve an invalid rule as an explicit invalid marker so the
 			// gateway fails closed instead of silently dropping a user policy.
 			rules = append(rules, PrivacyJSONFieldRule{Path: rule.Path, Action: "__invalid__"})
@@ -90,6 +93,16 @@ func NormalizeContextSettings(settings *PrivacySettings) {
 		rules = append(rules, rule)
 	}
 	settings.JSONFieldRules = rules
+}
+
+func validPrivacyRecipient(host string) bool {
+	if host == "" || len(host) > 253 || strings.Contains(host, "*") { return false }
+	for _, char := range host {
+		if !(char >= 'a' && char <= 'z' || char >= '0' && char <= '9' || char == '.' || char == '-' || char == ':') {
+			return false
+		}
+	}
+	return true
 }
 
 func validPrivacyJSONPointer(path string) bool {
@@ -134,7 +147,8 @@ type contextualJSONState struct {
 	report   PrivacyReport
 	count    int
 	nodes    int
-	explicit map[string]string
+	explicit map[string]PrivacyJSONFieldRule
+	recipient string
 }
 
 func (s *contextualJSONState) finding(category string) error {
@@ -202,8 +216,12 @@ func (s *contextualJSONState) walk(node any, path string, force bool, depth int)
 	if depth > maxContextJSONDepth || s.nodes > maxContextJSONNodes {
 		return nil, false, errors.New("privacy JSON nesting/node limit exceeded")
 	}
-	if rule := s.explicit[path]; rule != "" {
-		switch rule {
+	if rule, exists := s.explicit[path]; exists {
+		if rule.Action == "allow" && rule.Recipient != s.recipient {
+			// Untrusted client-controlled Host must never declassify for a
+			// different upstream recipient.
+		} else {
+		switch rule.Action {
 		case "allow":
 			// Only scalar-level declassification; nested children keep their
 			// own classification and cannot be blanket-whitelisted.
@@ -232,6 +250,7 @@ func (s *contextualJSONState) walk(node any, path string, force bool, depth int)
 			// Parent map removes this property instead of entering walk.
 			return nil, false, errors.New("drop policy must target an object property")
 		}
+		}
 	}
 	switch value := node.(type) {
 	case map[string]any:
@@ -244,7 +263,8 @@ func (s *contextualJSONState) walk(node any, path string, force bool, depth int)
 		changed := false
 		for _, key := range keys {
 			childPath := path + "/" + privacyPointerPart(key)
-			action := s.explicit[childPath]
+			action := s.explicit[childPath].Action
+			if action == "allow" && s.explicit[childPath].Recipient != s.recipient { action = "" }
 			if action == "drop" {
 				if err := s.finding("field_drop"); err != nil {
 					return nil, false, err
@@ -310,7 +330,7 @@ func (s *contextualJSONState) walk(node any, path string, force bool, depth int)
 }
 
 func (e *PrivacyEngine) applyContextualJSON(
-	body []byte, prefix string, session *PrivacySession, report PrivacyReport,
+	body []byte, prefix string, session *PrivacySession, report PrivacyReport, recipient string,
 ) ([]byte, *PrivacySession, PrivacyReport, error) {
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.UseNumber()
@@ -330,10 +350,11 @@ func (e *PrivacyEngine) applyContextualJSON(
 		session:  session,
 		reverse:  make(map[string]string),
 		report:   report,
-		explicit: make(map[string]string, len(e.settings.JSONFieldRules)),
+		explicit: make(map[string]PrivacyJSONFieldRule, len(e.settings.JSONFieldRules)),
+		recipient: recipient,
 	}
 	for _, rule := range e.settings.JSONFieldRules {
-		state.explicit[rule.Path] = rule.Action
+		state.explicit[rule.Path] = rule
 	}
 	rewritten, changed, err := state.walk(doc, "", false, 0)
 	if err != nil {
