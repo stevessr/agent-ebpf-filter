@@ -41,7 +41,7 @@
 
 | 文档 | 说明 |
 | --- | --- |
-| [SANITIZATION_IMPLEMENTATION_SUMMARY.md](../_archive/SANITIZATION_IMPLEMENTATION_SUMMARY.md) | 脱敏机制实现说明 |
+| [数据脱敏设计](../security/sanitization.md) | 脱敏机制实现说明 |
 
 ### Execution Graph
 
@@ -129,7 +129,7 @@
 → 查看 [runtime-replay-benchmark.md](../operations/runtime-replay-benchmark.md) 和 [evaluation.md](../delivery/evaluation.md)
 
 **想了解安全设计？**
-→ 查看 [SANITIZATION_IMPLEMENTATION_SUMMARY.md](../_archive/SANITIZATION_IMPLEMENTATION_SUMMARY.md) 和 [安全模型](/security/model)
+→ 查看 [数据脱敏设计](../security/sanitization.md) 和 [安全模型](/security/model)
 
 ## 📝 维护建议
 

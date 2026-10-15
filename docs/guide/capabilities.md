@@ -1,199 +1,65 @@
-# 🎯 功能总览
+# 功能与状态总览
 
-Agent eBPF Filter 的核心功能聚焦于大模型智能体（AI Agent）运行时的安全与可观测性，整体可切分为“采集、关联、展示、控制、导出、交付”六大能力维度。
+请先分清三种不同含义：**已写入代码**、**必须显式开启**、**需要特定 Linux 内核/外部程序才能实际生效**。以下按 `master@10e9766`（2026-10-15）整理，不将实验机制描述为默认启用的生产服务。
 
-```mermaid
-flowchart TB
-    %% 样式定义
-    classDef category fill:#f9f9f9,stroke:#333,stroke-width:2px,font-weight:bold;
-    classDef nodeCls fill:#ffffff,stroke:#666,stroke-width:1px;
-    
-    subgraph Matrix ["Agent eBPF Filter 功能矩阵全景图"]
-        direction TB
+## 面向用户：原生桌面与 Web 工作台
 
-        %% 1. 采集能力
-        subgraph B_Capture ["📥 1. 采集能力 (Telemetry & Capture)"]
-            direction LR
-            C1["Syscall Telemetry<br/>(execve/openat/connect...)"]:::nodeCls
-            C2["Network Flow<br/>(L4/L7 协议解析/GeoIP)"]:::nodeCls
-            C3["TLS / Codex Capture<br/>(动态符号探测/明文脱敏)"]:::nodeCls
-        end
-        style B_Capture fill:#e1f5fe,stroke:#03a9f4,stroke-width:1px
+| 能力 | 当前入口 | 关键实现与边界 |
+| --- | --- | --- |
+| 设备健康与风险优先级 | Renew「我的设备」「系统诊断」 | 区分连接、系统流、采集器与队列损失；暂无事件不等于安全 |
+| 事件检索、风险过滤、详细取证 | Renew「事件」「风险研判」 | 桌面展示有界紧凑摘要；按需拉取完整详情，暂停/滑块只影响界面 |
+| Agent 域名/IP 外联 | Renew「Agent 域名监控」 | 基于后端网络摘要与受验证归因；不是逐请求 API 日志或代理 |
+| Claude / Codex 配置候选检查 | Renew 域名页的只读功能 | 限定读取本机 JSON/TOML 白名单，不能声称复现 CLI 最终有效配置 |
+| Agent → SubAgent 派生 | Renew「Agent 派生」 | 放射/瀑布双视图；当前 PID/PPID 快照，最多 72 节点与 6 层；逻辑子 Agent 仅为候选或独立 Hook 信号 |
+| 本机文件管理 / 编辑器 | Renew「工具」 | 纯 MyGo 编辑器、多标签；普通用户权限，冲突保护，拒绝符号链接；无需后端在线 |
+| 终端与分离窗口 | Renew 原生工作区 | 终端标签可以分离/回收；部分只读监控页可分离，复用同一采集后端 |
+| 研究型实时仪表盘 | Vue `frontend/` | Dashboard、Monitor、Network、Execution Graph、AgentSight、Hooks、Config、ML、Plugins 等 |
+| 终端实时事件查看 | `make tui` | 复用后端 protobuf WebSocket 事件接口 |
 
-        %% 2. 关联能力
-        subgraph B_Correlation ["🔗 2. 关联能力 (Context Aggregation)"]
-            direction LR
-            CR1["PID 注册上下文"]:::nodeCls
-            CR2["Wrapper 请求指令"]:::nodeCls
-            CR3["Native Hooks 语义"]:::nodeCls
-            CR4["EventEnvelope 归一化"]:::nodeCls
-        end
-        style B_Correlation fill:#e8f5e9,stroke:#4caf50,stroke-width:1px
+## 采集与 Agent 归因
 
-        %% 3. 展示能力
-        subgraph B_Display ["🖥️ 3. 展示能力 (Vue Workbench UI)"]
-            direction TB
-            D1["基础监控: Dashboard / Monitor / Network 视窗"]:::nodeCls
-            D2["全景拓扑: Execution Graph / AgentSight 时空复盘"]:::nodeCls
-            D3["扩展运维: Explorer / Executor / Hooks / ML Plugins"]:::nodeCls
-        end
-        style B_Display fill:#fff3e0,stroke:#ff9800,stroke-width:1px
+- **eBPF 追踪**：内核 tracepoint → ringbuf → Go 解码/过滤/分发，进程、文件与网络事件结合系统调用类型、PID 和时间戳。
+- **来源语义**：Python/Node PID 注册、CLI Native Hooks 与 `agent-wrapper`，把 Run、Trace、Tool 与 OS 事实结合。不是每个 syscall 都天然具备完整 Agent 上下文。
+- **进程后代**：使用受限的 root Agent 缓存、fork 继承与进程证据；考虑 PID 重用，不把普通 `bash`、`python` 自动提升为新 Agent。
+- **Claude SubAgent Hook**：`SubagentStart` 与 `SubagentStop` 为两个独立 opt-in 管理项，需明确安装与重启会话。仅保留摘要化 ID 与类型等受限信息，不能据此自行推造父级调用边或任务时长。
+- **网络富化**：连接与流聚合可结合 DNS/SNI/HTTP Host 等可用元数据；加密 DNS、ECH 或没采到的流量会导致缺项。
 
-        %% 4. 控制能力
-        subgraph B_Control ["🛡️ 4. 控制能力 (Multi-Layer Enforcement)"]
-            direction TB
-            CTL1["Wrapper 层 (ALLOW / BLOCK / REWRITE 改写)"]:::nodeCls
-            CTL2["cgroup eBPF 层 (精确 L4 四层网络秒级阻断)"]:::nodeCls
-            CTL3["BPF LSM 层 (文件系统与内核执行强控)"]:::nodeCls
-            CTL4["Runtime Gates & Auth (动态门控路由与 Token 校验)"]:::nodeCls
-        end
-        style B_Control fill:#ffebee,stroke:#f44336,stroke-width:1px
+## 控制与安全边界
 
-        %% 5. 导出能力
-        subgraph B_Export ["📤 5. 导出能力 (Integration & Export)"]
-            direction LR
-            E1["持久化: JSONL / PCAP / 录制回放"]:::nodeCls
-            E2["标准监控: OTLP Spans / Prom Metrics"]:::nodeCls
-            E3["AI 协议: MCP Server 端点"]:::nodeCls
-        end
-        style B_Export fill:#f3e5f5,stroke:#9c27b0,stroke-width:1px
+| 执行层 | 有什么 | 使用前核查 |
+| --- | --- | --- |
+| 用户态 Wrapper | ALLOW / ALERT / BLOCK / REWRITE | 命令必须实际经过 wrapper；不覆盖绕过它的直接执行 |
+| cgroup eBPF | 部分 TCP/UDP IPv4/IPv6 的地址、端口阻断 | cgroup v2、程序附着、精确规则与授权 |
+| BPF LSM | 执行/文件操作策略、部分精确路径读写限制 | 内核 BPF LSM 启用、规则已确认、路径和 hook 覆盖边界 |
+| Runtime Auth/Gates | release token 与危险功能 gate | 编译进去不等于运行时启用；查看实际 feature/status |
+| Redaction | 多级脱敏和内容/凭据处理 | 取证详情和导出需按敏感数据规范操作 |
+| TLS 明文 | 可选诊断采集 | 默认关闭，必须显式授权和隔离使用 |
 
-        %% 6. 交付能力
-        subgraph B_Delivery ["📦 6. 交付能力 (Shipment & Artifacts)"]
-            direction LR
-            DV1["环境: devcontainer / K8s / Systemd"]:::nodeCls
-            DV2["工程: Benchmark & Replay 脚本"]:::nodeCls
-            DV3["合规: 答辩文档 / AI 披露 / 评测"]:::nodeCls
-        end
-        style B_Delivery fill:#f5f5f5,stroke:#9e9e9e,stroke-width:1px
+**区分三个容易混淆的功能**：`trackedPaths` 用于**采集观察**；`ignoredPaths` 用于**事件降噪**；`path-access` 才是需要 kernel hook 与授权的**读写阻断**。目录递归跟踪不意味着目录递归 LSM 阻断。
 
-        %% 数据与控制核心流向
-        B_Capture -->|1. 原始事件流| B_Correlation
-        B_Correlation -->|2. 富化后因果拓扑| B_Display
-        B_Correlation -->|3. 触发策略决策| B_Control
-        B_Correlation -->|4. 结构化固化| B_Export
-        B_Export -->|5. 生产就绪资产| B_Delivery
-        
-        B_Control -.->|反向实时阻断/安全干预| B_Capture
-    end
+## 系统组件与发布状态
+
+| 组件 | 状态 | 不能夸大的地方 |
+| --- | --- | --- |
+| Go 应用后端、eBPF collector | 当前主要执行路径 | eBPF 需要受支持的实际 Linux 环境 |
+| 低耦合 Go 包（agentscope、eventnoise、collectorcodec 等） | 已拆分并用于单元测试 | 是可复用库，并非每个都是独立可部署服务 |
+| 私有桌面 Unix IPC + 授权 API Socket | Renew 内置后端路径 | 不是默认暴露公网服务；复用已有后端时保留该服务原本的端口配置 |
+| `componentipc` 协议、`componentproc`、`componentshm` | 明确 opt-in、分阶段验证 | IPC 和 memfd/ACK 原型不意味着生产数据面已经整体切换 |
+| Web/MCP/External API/OTLP/Prometheus | 后端提供对应集成入口 | 各功能仍受 token、feature 和 runtime 配置影响 |
+| Kubernetes、systemd、devcontainer | 仓库提供部署和工程文件 | 有清单/脚本不等于已在所有系统环境验证 |
+
+## 快速验证
+
+```bash
+make os-enforcement-preflight
+make os-enforcement-check
+cd desktop/renew && go test ./...
+# 文档站（回到仓库根目录）：
+bun run docs:build
 ```
 
+真正的内核拒绝测试应在已授权的隔离 Linux 主机进行；静态检查与离线 replay 不能替代 live enforcement 测试。
 
+## 下一步
 
-## 📥 1. 采集能力 (Telemetry & Capture)
-
-### 🪟 Syscall 级别运行时观测
-
-主 eBPF Tracker 深度覆盖以下核心系统调用（Syscall Tracepoints），构建确定性的行为审计轨：
-
-* **进程与执行**：`execve`
-* **文件系统**：`openat`、`mkdirat`、`unlinkat`
-* **网络通信**：`connect`、`bind`、`sendto`、`recvfrom`
-* **设备与底控**：`ioctl`
-
-> 💡 **性能黑科技**：底层事件通过 Linux Kernel `ringbuf` 异步推送至 Go 后端。后端默认采用 **Mmap-backed Zero-copy View** 机制，针对内存对齐的 Native-endian 样本进行免拷贝高能解码；在极端或错位场景下，自动无缝回退至标准 Copy Path，确保绝对稳定性。
-
-### 🌐 全栈网络流拓扑 (Network Flow)
-
-在 Syscall 事件链的基础上，网络层具备深度的 L4/L7 协议解析与上下文聚合能力：
-
-* **流归因（Flow Attribution）**：支持强确定的 TCP / UDP 流量到进程/线程的绑定。
-* **协议与上下文富化**：自动提取并富化 DNS / SNI / HTTP Host / ALPN 等关键元数据。
-* **网络画像与状态**：支持网络接口实时流量图（Traffic Charts）、死流/历史流（Stale/Historic Flow）标记、TCP 状态机跟踪及边缘协议侦测（Protocol Detection）。
-* **地理与导出**：内建 GeoIP 归属地解析，支持一键导出标准 JSONL 或 PCAP 原始报文。
-
-### 🔑 TLS / Codex 明文捕获 (敏感诊断)
-
-> ⚠️ **高风险审计警示**
-> TLS 明文捕获作为可选的深层诊断能力，**默认保持关闭**。
-> * **动态探测**：启用后支持对系统级 OpenSSL、GnuTLS、NSS 以及 Go 运行时 TLS 符号表的自动挂载与探测。
-> * **Codex 显式捕获**：针对现代化 AI 应用常用的 `rustls` / `reqwest` 等无传统符号表或静态链接场景，提供源码级显式上报适配器。
-> * **安全红线**：普通事件流在传输与落盘时仅携带 Metadata、摘要（Digest）以及脱敏状态（Redaction State），绝不在无保护状态下固化敏感明文凭据。
-> 
-> 
-
-
-## 🔗 2. 关联能力 (Context Aggregation)
-
-通过将“用户态语义”与“内核态事件”进行多维碰撞，实现完整的行为因果链追踪：
-
-| 数据来源 | 核心关联语义 |
-| --- | --- |
-| **PID 注册 (PID Registration)** | 绑定 `root_agent_pid`、`agent_run_id`、`task_id`、`cwd`（当前工作目录）等。 |
-| **包装器请求 (Wrapper Request)** | 捕获 AI CLI 触发的命令 `command`、参数摘要 `args digest`、拦截决策 `decision`、风险评分 `risk_score` 及工具元数据。 |
-| **原生钩子 (Native Hooks)** | 上报 `hook_name`、`tool_name`、目标路径 `target_path` 以及 Payload 元数据。 |
-| **事件统一包 (EventEnvelope)** | 封装将 Process、Tool、Syscall、Network、Policy、TLS 归一化后的标准全时空包。 |
-| **执行图谱 (Execution Graph)** | 动态构建 `Agent -> Process -> Tool -> Syscall -> File / Network -> Policy` 的网状拓扑因果图。 |
-
-
-## 🖥️ 3. 展示能力 (Vue Workbench UI Component Ecosystem)
-
-前端控制台（Vue Workbench）采用模块化微视窗设计，提供极富科技感的多维立体观测体验：
-
-### 📊 基础监控与看板
-
-* **Dashboard**：提供实时高频事件流瀑布、多维复合过滤、详尽的系统调用详情模态框（Modal）以及人类可读的 Strace-style 行为摘要。
-* **Monitor**：深度监控宿主机的 CPU、Memory、GPU 状态、磁盘 IO、Page Fault（缺页中断）、传感器温度（Sensor）以及 Systemd 服务和 Tracing 拓扑。
-* **Network**：提供直观的网络事件流、Flows 列表、全景网络拓扑图（Network Graph）以及实时流量图表。
-
-### 🗺️ 拓扑与全景透视
-
-* **Execution Graph**：动态渲染进程树、工具调用链、受控文件系统与网络策略相互作用的宏观因果图谱。
-* **AgentSight**：面向 AI 执行流的集成式全景复盘工具，提供 Log、时间轴（Timeline）、进程树（Process Tree）、多维指标（Metrics）交叉复盘，并支持快照导入与导出。
-
-### ⚙️ 运维、控制与扩展
-
-* **Explorer & Executor**：内建底层文件浏览器（支持安全预览与受控路径一键标记）；集成标准 PTY Web 终端、Tmux 视窗及 Launcher 启动器。
-* **Hooks & Config**：AI CLI 自动化钩子的状态检测、一键安装、可视化配置；运行时控制门控（Runtime Gates）、注册表（Registry）以及系统健康度看板。
-* **ML (机器学习工作台)**：支持本地异常检测模型的训练状态跟踪、参数微调、数据集管理（Dataset）以及 LLM 实时行为评分（Scoring）看板。
-* **Plugins (插件中心)**：允许开发者通过低代码/无代码可视化构建器（Visual/Pseudocode Builder）或自定义 eBPF 插件无缝扩展过滤器的边界。
-
-
-## 🛡️ 4. 控制能力 (Multi-Layer Enforcement)
-
-过滤器提供从用户态到内核态的“纵深防御体系”，执行毫秒级的实时阻断与重写：
-
-| 控制层级 | 执行机制 | 核心阻断语义 |
-| --- | --- | --- |
-| **Wrapper 层** | 监听 Unix Domain Socket `/tmp/agent-ebpf.sock` | 支持最上层的 `ALLOW`（放行）、`BLOCK`（阻断）、`ALERT`（告警）以及 `REWRITE`（参数改写拦截） |
-| **cgroup eBPF 层** | 挂载至 cgroup `connect` / `sendmsg` 钩子 | 实现基于精确 `cgroup id`、`IPv4/IPv6` 目标地址及 `TCP/UDP` 端口的四层网络秒级阻断 |
-| **BPF LSM 层** | 注入 Linux 安全模块 `exec` / `file` 核心钩子 | 基于绝对执行路径（Executable Path）、执行体别名（Basename）以及敏感目标文件名的强制访问控制 |
-| **Runtime Gates** | 内存热加载路由 `/config/runtime` | 动态开关 Shell 拦截、System_run 策略、Hooks 状态、TLS 捕获、OTLP 导出以及 80/443 端口强转门控 |
-| **Release Auth** | 统一生成的 Runtime Access Token | 强力保护敏感控制 API、WebSocket 广播流、MCP 端点以及外部 API 的越权访问 |
-
-
-## 📤 5. 导出能力 (Integration & Data Persistence)
-
-* **💾 本地事件持久化 (Pebble LSM)**：默认将完整事件写入 `~/.config/agent-ebpf-filter/events.pebble`，前端只保留紧凑摘要并按 event ID 按需读取详情；显式配置 `.jsonl` 路径时保留旧版文本日志模式。
-* **📼 录制与回放 (Recording & Replay)**：支持对高危历史行为或执行拓扑图谱进行“帧级快照录制”，便于离线审计与红蓝对抗回放。
-* **📊 开放多格式导出**：
-* **AgentSight 侧**：支持一键导出标准的 JSON、JSONL 或 CSV 表格。
-* **网络取证侧**：支持导出用于流量分析的 JSONL 元数据或标准的行业 PCAP 报文文件。
-
-
-* **🔌 企业级生态对接**：
-* **OpenTelemetry (OTLP)**：自动将底层离散的 Syscall/网络行为，向上派生归纳为符合分布式追踪规范的 `agent.run`、`codex.task`、`tool.call` 链路 Spans。
-* **Prometheus**：标准暴露 `/metrics` 端点，供 Grafana 提取系统级性能与阻断频率监控指标。
-* **Model Context Protocol (MCP)**：暴露标准 `/mcp` 接口，将本系统的配置变更与事件流虚拟化为 Tools，供外部大模型直接掌控。
-
-
-
-
-## 📦 6. 交付能力 (Shipment & Artifacts)
-
-项目致力于提供“开箱即用”的高集成度完整产物：
-
-* **🐳 容器化开发环境**：内置标准的 `devcontainer` 配置，实现工具链的一键就绪。
-* **☸️ 云原生编排**：提供开箱即用的 Kubernetes Manifests（包含 DaemonSet 配置及安全特权描述）。
-* **💾 传统服务集成**：内建 `systemd` 服务安装脚本，并在古老发行版上自动优雅退化至 `rc.local` 引导加载。
-* **🧪 自动化基准测试**：提供专门的压力测试（Benchmark）与事件回放（Replay）工程脚本。
-* **🎓 学术与合规物料**：内含专为“全国计算机系统能力挑战赛（操作系统设计赛）”准备的完整答辩文档、AI 工具使用透明度披露指引、第三方开源授权告示（Notice）以及详尽的性能评测报告模板。
-
-
-## 🔗 相关导航
-
-* [项目是什么](what-is-agent-ebpf-filter.md)
-* [快速开始](quick-start.md)
-* [阅读路线](reading-paths.md)
-* [总体架构](../architecture/overview.md)
-* [前端工作台](../frontend/workbench.md)
+[实际演示](/guide/demo-tour) · [原生桌面](/frontend/renew) · [架构](/architecture/overview) · [内核权限模型](/security/model) · [组件独立性](/architecture/independent-components)。

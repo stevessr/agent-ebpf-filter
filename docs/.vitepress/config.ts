@@ -14,6 +14,7 @@ export default defineConfig({
     logo: undefined,
     siteTitle: 'Agent eBPF Filter',
     nav: [
+      { text: '演示导览', link: '/guide/demo-tour' },
       { text: '指南', link: '/guide/what-is-agent-ebpf-filter' },
       { text: '架构', link: '/architecture/overview' },
       { text: '后端与内核', link: '/backend/runtime-startup' },
@@ -31,6 +32,7 @@ export default defineConfig({
           items: [
             { text: '项目是什么', link: '/guide/what-is-agent-ebpf-filter' },
             { text: '快速开始', link: '/guide/quick-start' },
+            { text: '演示导览', link: '/guide/demo-tour' },
             { text: 'IDE Web 工作台', link: '/guide/web-workbench' },
             { text: '功能总览', link: '/guide/capabilities' },
             { text: '图表与示例索引', link: '/guide/diagrams-and-examples' },
@@ -43,6 +45,8 @@ export default defineConfig({
           text: '架构',
           items: [
             { text: '总体架构', link: '/architecture/overview' },
+            { text: '组件拆分与 IPC', link: '/architecture/independent-components' },
+            { text: '组件 IPC 实验边界', link: '/architecture/component-ipc' },
             { text: '数据流', link: '/architecture/data-flow' },
             { text: '运行时边界', link: '/architecture/runtime-boundaries' },
             { text: '协议与事件模型', link: '/architecture/protocol-events' }
@@ -79,6 +83,7 @@ export default defineConfig({
           text: '前端工作台',
           items: [
             { text: '工作台总览', link: '/frontend/workbench' },
+            { text: '明镜高悬原生桌面', link: '/frontend/renew' },
             { text: '路由与功能页', link: '/frontend/routes-and-pages' },
             { text: '组件与 Composables', link: '/frontend/components-composables' },
             { text: '构建与 Feature Flags', link: '/frontend/build-feature-flags' },
