@@ -51,7 +51,7 @@ func (p harnessProbe) appx(name string)(registeredWindowsApp,bool){
  family,ok:=allowed[name]
  if !ok{return registeredWindowsApp{},false}
  // Constant command text derived from the above whitelist, never user input.
- script:="$p = Get-AppxPackage -Name '"+name+"' | Select-Object -First 1; if ($null -ne $p) { $p | Select-Object Name,PackageFamilyName,InstallLocation,Version | ConvertTo-Json -Compress }"
+ script:=appxProbeScript(name)
  raw,err:=p.run(p.powershell(),"-NoProfile","-NonInteractive","-Command",script)
  if err!=nil||raw==""{return registeredWindowsApp{},false}
  var found registeredWindowsApp
