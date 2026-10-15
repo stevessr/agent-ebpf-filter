@@ -73,7 +73,7 @@ func (p harnessProbe) wingetInstalled(id,source string)bool{
   if columns[len(columns)-1]=="winget"||columns[len(columns)-1]=="msstore"{
    if columns[len(columns)-1]!=source{continue}
   }
-  for i:=0;i<len(columns)-2;i++{
+  for i:=0;i<len(columns)-1;i++{
    if columns[i]==id && columns[i+1]!=""{return true}
   }
  }
