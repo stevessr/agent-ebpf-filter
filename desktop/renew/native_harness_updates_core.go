@@ -9,6 +9,7 @@ import (
  "os/exec"
  "path/filepath"
  "regexp"
+ "runtime"
  "strings"
  "time"
 )
@@ -36,12 +37,13 @@ type harnessProbe struct {
  readFile func(string)([]byte,error)
  run func(string,...string)(string,error)
  home string
+ goos string
 }
 
 func systemHarnessProbe() harnessProbe {
  home,_:=os.UserHomeDir()
  return harnessProbe{
-  lookup:exec.LookPath,resolve:filepath.EvalSymlinks,readFile:os.ReadFile,home:home,
+  lookup:exec.LookPath,resolve:filepath.EvalSymlinks,readFile:os.ReadFile,home:home,goos:runtime.GOOS,
   run:func(name string,args ...string)(string,error){
    ctx,cancel:=context.WithTimeout(context.Background(),1600*time.Millisecond)
    defer cancel()
@@ -187,6 +189,10 @@ func harnessUpdateCommand(source,pkg,executable string,p harnessProbe)[]string{
  case "dnf":if p.has("sudo"){manager:="dnf";if !p.has(manager){manager="dnf5"};return []string{p.use("sudo"),manager,"upgrade","--",pkg}}
  case "snap":if p.has("sudo"){return []string{p.use("sudo"),"snap","refresh",pkg}}
  case "official-script":if executable!=""&&pkg=="claude"{return []string{executable,"update"}}
+ case "winget":if bin:=p.use("winget");bin!=""{return []string{bin,"upgrade","--id",pkg,"--exact","--source","winget"}}
+ case "msstore":if bin:=p.use("winget");bin!=""{return []string{bin,"upgrade","--id",pkg,"--exact","--source","msstore"}}
+ case "scoop":if p.has("scoop")&&p.has("powershell.exe"){return []string{p.use("powershell.exe"),"-NoProfile","-NonInteractive","-Command","scoop update "+pkg}}
+ case "choco":if bin:=p.use("choco");bin!=""{return []string{bin,"upgrade",pkg}}
  }
  return nil
 }
@@ -198,6 +204,14 @@ func inspectHarnessInstallation(id,label,path string,p harnessProbe)harnessUpdat
  resolved,err:=p.resolve(absolute)
  if err!=nil{resolved=absolute}
  for _,owned:=range []string{absolute,resolved}{
+  if p.goos=="windows"{
+   if src,pkg,evidence:=p.windowsCLIOwner(id,owned);src!=""{
+    result.Source,result.Package,result.Evidence=src,pkg,evidence
+    result.Command=harnessUpdateCommand(src,pkg,"",p)
+    result.Advisory="Windows 包管理器已核对已安装包与入口；请确认预览的单包更新命令。"
+    return result
+   }
+  }
   if src,pkg:=p.sandboxOwner(owned);src!=""{
    result.Source,result.Package,result.Evidence=src,pkg,"包管理器确认了 PATH 导出的应用入口"
    result.Command=harnessUpdateCommand(src,pkg,"",p)
@@ -251,6 +265,7 @@ func scanHarnessUpdatePlans()[]harnessUpdatePlan{
   results=append(results,inspectHarnessInstallation(spec.ID,spec.Label,path,p))
  }
  path,_:=p.lookup("dsh")
- return append(results,inspectHarnessInstallation("deepseek","DeepSeek Harness",path,p))
+ results=append(results,inspectHarnessInstallation("deepseek","DeepSeek Harness",path,p))
+ return append(results,scanDesktopAppUpdates(p)...)
 }
 func updatePreview(command []string)string{return strings.Join(command," ")}
