@@ -166,3 +166,58 @@ func TestWorkerRunsInSeparateOSProcess(t *testing.T) {
 		t.Fatal("terminated worker accepted a new call")
 	}
 }
+
+func TestWorkerCancelsExecutionAfterClientDisconnect(t *testing.T) {
+	socket := filepath.Join(t.TempDir(), "cancellation.sock")
+	listener, err := net.Listen("unix", socket)
+	if err != nil { t.Fatal(err) }
+	ctx, stop := context.WithCancel(context.Background())
+	worker := NewWorker()
+	done := make(chan error, 1)
+	go func() { done <- worker.Serve(ctx, listener) }()
+	t.Cleanup(func() {
+		stop()
+		select {
+		case err := <-done:
+			if err != nil { t.Errorf("worker shutdown: %v", err) }
+		case <-time.After(time.Second):
+			t.Error("worker did not shut down")
+		}
+	})
+
+	request := workerRequest{
+		Version: ProtocolVersion, Operation: "invoke", Hook: "onEvent",
+		Source: `export function onEvent(){while(true){}}`,
+		Payload: json.RawMessage(`{}`),
+	}
+	conn, err := net.Dial("unix", socket)
+	if err != nil { t.Fatal(err) }
+	if err := json.NewEncoder(conn).Encode(request); err != nil {
+		_ = conn.Close()
+		t.Fatal(err)
+	}
+	// Wait for admission so the test doesn't pass just because the worker
+	// has not accepted the request yet.
+	deadline := time.Now().Add(time.Second)
+	for len(worker.slots) == 0 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if len(worker.slots) == 0 {
+		_ = conn.Close()
+		t.Fatal("worker did not admit request")
+	}
+	_ = conn.Close()
+	// Cancellation should release the execution slot promptly; without
+	// disconnect handling it stays occupied until the 100ms VM deadline.
+	released := false
+	for i := 0; i < 35; i++ {
+		if len(worker.slots) == 0 {
+			released = true
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if !released {
+		t.Fatal("worker did not cancel disconnected invocation promptly")
+	}
+}

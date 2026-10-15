@@ -65,3 +65,7 @@ go test ./app/jsplugins ./app/handlers ./app
 The worker refuses to start as root. Worker errors or unavailable sockets
 fail closed: no automatic in-process fallback. The service does not execute
 scripts on the eBPF enforcement path or grant host functions to JavaScript.
+
+## Isolation verification (GitHub Actions)
+
+The `moejs JavaScript plugins` workflow supports `workflow_dispatch` and pull-request triggers. It builds the real worker executable, exercises a non-root worker in a separate process, asserts graceful SIGTERM shutdown and socket cleanup, rejects a worker started by root, and verifies the restricted systemd unit. IPC tests additionally cover malformed frames, concurrent requests, client-disconnect cancellation, and VM deadlines. The backend must never silently fall back to evaluating JavaScript itself.

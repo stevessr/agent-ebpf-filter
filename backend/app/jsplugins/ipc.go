@@ -212,7 +212,22 @@ func (w *Worker) handleConn(conn net.Conn) {
 			resp.Result = json.RawMessage("true")
 		} else {
 			runCtx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
+			// The client may time out or disconnect before the worker's own
+			// deadline. Detect EOF to interrupt the VM and release its slot,
+			// rather than allowing execution after the caller has returned.
+			peerDone := make(chan struct{})
+			go func() {
+				defer close(peerDone)
+				var extra [1]byte
+				if _, readErr := conn.Read(extra[:]); readErr != nil {
+					cancel()
+				}
+			}()
 			resp.Result, err = program.Run(runCtx, req.Hook, req.Payload)
+			// Wake the reader on normal completion too. A deadline also
+			// bounds it if the peer leaves the connection open.
+			_ = conn.SetReadDeadline(time.Now())
+			<-peerDone
 			cancel()
 		}
 	}

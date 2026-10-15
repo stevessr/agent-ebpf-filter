@@ -1,6 +1,7 @@
 name: moejs JavaScript plugins
 
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - "backend/app/jsplugins/**"
@@ -52,6 +53,21 @@ jobs:
       - name: JavaScript worker IPC regression
         working-directory: backend
         run: go test -race ./app/jsplugins -run '^TestWorker' -count=1 -timeout=5m
+      - name: Real worker process isolation regression
+        working-directory: backend
+        run: |
+          go test ./cmd/jsplugin-worker -run '^TestWorkerBinary' -count=1 -v -timeout=3m
+      - name: Worker refuses privileged execution
+        run: |
+          if sudo /tmp/agent-ebpf-jsplugin-worker --socket /tmp/agent-ebpf-should-not-exist.sock 2>/tmp/jsworker-root-test.log; then
+            echo "::error::JavaScript worker unexpectedly accepted root privileges"
+            exit 1
+          fi
+          grep -q 'refusing to run JavaScript worker as root' /tmp/jsworker-root-test.log
+      - name: Validate restricted systemd deployment
+        run: |
+          sudo install -D -m 0755 /tmp/agent-ebpf-jsplugin-worker /usr/local/libexec/agent-ebpf-jsplugin-worker
+          systemd-analyze verify deploy/systemd/agent-ebpf-jsplugin-worker.service
       - name: JavaScript VM race regression
         working-directory: backend
         run: go test -race ./app/jsplugins -count=1 -timeout=5m
