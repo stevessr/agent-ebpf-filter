@@ -36,6 +36,7 @@ const (
 	PluginKindEBPF    PluginKind = "ebpf"
 	PluginKindWebhook PluginKind = "webhook"
 	PluginKindCommand PluginKind = "command"
+	PluginKindJavaScript PluginKind = "javascript"
 )
 
 // PluginAttachKind describes how an eBPF plugin attaches to the kernel.

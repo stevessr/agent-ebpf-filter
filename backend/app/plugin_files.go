@@ -165,7 +165,7 @@ func deletePluginFiles(id string) error {
 	}
 	for _, name := range names {
 		switch name {
-		case "manifest.json", "source.c", "program.o":
+		case "manifest.json", "source.c", "program.o", "plugin.mjs":
 		default:
 			return fmt.Errorf("unexpected plugin entry %q", name)
 		}

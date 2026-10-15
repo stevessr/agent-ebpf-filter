@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -224,6 +225,30 @@ func HandleBPFUnload(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"plugin": plugin})
 }
 
+// HandleJSInvoke is an explicit, policy-gated JavaScript metadata hook.
+// It never participates in the kernel enforcement decision path.
+func HandleJSInvoke(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
+	if err := Deps.Plugins.ValidateID(id); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	var req struct {
+		Hook string `json:"hook"`
+		Payload json.RawMessage `json:"payload"`
+	}
+	if status, err := bindPluginJSON(c, &req, pluginControlMaxBodyBytes); err != nil {
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+	result, err := Deps.Plugins.RunJS(c.Request.Context(), id, req.Hook, req.Payload)
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"result": result})
+}
+
 func RegisterPluginRoutes(rg *gin.RouterGroup, policyMiddleware gin.HandlerFunc) {
 	rg.GET("", HandlePluginsList)
 	rg.GET("/", HandlePluginsList)
@@ -232,6 +257,7 @@ func RegisterPluginRoutes(rg *gin.RouterGroup, policyMiddleware gin.HandlerFunc)
 	rg.PUT("/:id", policyMiddleware, HandlePluginUpsert)
 	rg.DELETE("/:id", policyMiddleware, HandlePluginDelete)
 	rg.POST("/:id/toggle", policyMiddleware, HandlePluginToggle)
+	rg.POST("/:id/invoke", policyMiddleware, HandleJSInvoke)
 
 	bpf := rg.Group("/bpf")
 	{

@@ -75,6 +75,10 @@ func (f *fakePluginService) CompileUserBPF(ctx context.Context, id, source strin
 	return f.compile(ctx, id, source)
 }
 func (f *fakePluginService) BPFTemplates() []types.BPFTemplate { return nil }
+func (f *fakePluginService) RunJS(_ context.Context, id, hook string, payload json.RawMessage) (json.RawMessage, error) {
+	if id != "valid-plugin" || hook != "onEvent" || !json.Valid(payload) { return nil, errors.New("invalid JS invocation") }
+	return json.RawMessage(`{"ok":true}`), nil
+}
 
 func withPluginHandlerDeps(t *testing.T) *fakePluginService {
 	t.Helper()
