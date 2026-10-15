@@ -15,6 +15,8 @@ func (a *renewApp) overviewSnapshotHint() string {
 	case a.paused:
 		return "您暂停的是桌面事件展示，不是后台采集；恢复画面后可继续查看更新。"
 	case a.localWindowsMonitoring:
+		return "Windows 每两秒采样进程和 TCP 连接；短连接、文件行为与内容未覆盖。" + a.windowsEBPFSummary
+	case a.localWindowsMonitoring:
 		return "Windows 本机模式：每两秒采样进程和 TCP 连接（仅匹配已识别的 Agent 进程树）。短连接、文件行为、内容和阻断状态不在覆盖范围内；未记录不代表安全。"
 	case !a.eventStreamConnected:
 		return "事件流正在使用回退同步方式，新活动可能延迟显示。"
