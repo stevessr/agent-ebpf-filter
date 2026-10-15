@@ -41,7 +41,7 @@ jobs:
       - name: Verify published entrypoints
         run: |
           test -s site/index.html
-          test -s site/technical/index/index.html
+          test -s site/technical/index.html
           test -s site/technical/kernel/index.html
           test -s site/guide/quick-start/index.html
       - name: Configure GitHub Pages

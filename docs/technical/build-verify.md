@@ -4,7 +4,7 @@
 
 ## 1. 依赖事实
 
-本仓库 `go.work` 覆盖五个 Go module：`backend`、`desktop/renew`、`tools/agent-tui`、`tools/dev-env-tui`、`wrapper`，要求 Go `1.27.1`。文档使用 MkDocs Material，前端使用 Vue、Vue（前端）和 Bun；eBPF 编译需要 clang/LLVM、对应 kernel BTF 与 libbpf/bpf2go 生成流程。更新生成物以 `Makefile` 真实目标为准。
+本仓库 `go.work` 覆盖五个 Go module：`backend`、`desktop/renew`、`tools/agent-tui`、`tools/dev-env-tui`、`wrapper`，要求 Go `1.27.1`。文档使用 MkDocs Material（Python），Web 前端使用 Vue 与 Bun；eBPF 编译需要 clang/LLVM、对应 kernel BTF 与 libbpf/bpf2go 生成流程。更新生成物以 `Makefile` 真实目标为准。
 
 ```mermaid
 flowchart LR
@@ -52,7 +52,7 @@ make wrapper
 make test
 python3 scripts/check-doc-links.py
 python3 scripts/check-technical-docs.py
-bun install --frozen-lockfile
+python3 -m pip install -r docs/requirements.txt
 python3 docs/build_site.py build
 ```
 
@@ -60,14 +60,14 @@ python3 docs/build_site.py build
 
 ## 4. CI 对照
 
-``.github/workflows/docs-pages.yml`` 检查源码锚点、本地 Markdown 链接并构建 MkDocs；`pages-vitepress.yml` 对应发布；`component-ipc.yml`、`collector-transport.yml`、`renew-desktop.yml`、`agent-boundary.yml`、`detection-engineering.yml` 等用于专题验证。
+`.github/workflows/docs-pages.yml` 检查源码锚点、本地 Markdown 链接并构建 MkDocs；由同一 workflow 在 master 推送后部署 GitHub Pages；`component-ipc.yml`、`collector-transport.yml`、`renew-desktop.yml`、`agent-boundary.yml`、`detection-engineering.yml` 等用于专题验证。
 
 ```mermaid
 flowchart TB
   Edit["source/proto change"] --> Lint["format / static / schema"]
   Edit --> Doc["update technical docs + Mermaid"]
   Lint --> CI["applicable Go / Vue / BPF tests"]
-  Doc --> Links["check-doc-links + docs:build"]
+  Doc --> Links["check-doc-links + check-technical-docs + build_site"]
   CI --> Review["PR review"]
   Links --> Review
   Review --> Merge["merge after checks"]
@@ -75,7 +75,7 @@ flowchart TB
 
 ## 5. 图表维护约定
 
-- Mermaid 使用 `flowchart`、`sequenceDiagram`、`stateDiagram-v2` 与 `classDiagram`；站点渲染器入口是 `docs/.vitepress/theme/index.ts`（`pymdownx.superfences`）。
+- Mermaid 使用 `flowchart`、`sequenceDiagram`、`stateDiagram-v2` 与 `classDiagram`；站点导航和 Mermaid 渲染配置位于 `docs/mkdocs.yml`，静态构建入口是 `docs/build_site.py`（`pymdownx.superfences`）。
 - 实线画实际调用 / 数据写入，可选能力标明 `opt-in`、`experimental` 或 runtime gate。
 - 任何图中节点更名后，直接更新对应源码路径；**不能**凭旧幻灯片、旧 README 或历史完成汇报推导实现。
 - 本目录的页面统一标注代码路径，并可使用 `scripts/check-doc-links.py` 检查 Markdown 本地页面导航；所有安全相关改动以实际测试为准。
