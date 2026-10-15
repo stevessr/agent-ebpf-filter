@@ -128,6 +128,7 @@ export default defineConfig({
           text: '运维交付',
           items: [
             { text: '构建与运行', link: '/operations/build-and-run' },
+            { text: 'GitHub Pages 自动发布', link: '/operations/github-pages' },
             { text: '开发容器', link: '/operations/devcontainer' },
             { text: '部署与安装', link: '/operations/deployment' },
             { text: 'Kubernetes 集群部署', link: '/operations/kubernetes' },
