@@ -112,7 +112,7 @@ func (a *renewApp) codingHarnessToolbar(c *ui.Context) {
 				if !present {
 					label += " · 未安装"
 				}
-				if ui.Button(c, label).
+				if ui.Button(c.Key(spec.ID), label).
 					Tooltip("在当前工作目录创建独立 PTY；不会通过 eBPF 后端执行命令").
 					Clicked() {
 					a.launchCodingHarness(spec)
