@@ -40,6 +40,14 @@ type renewApp struct {
 	terminalNextID int
 	terminalFocusRequest int
 	terminalError string
+	// Coding CLI detection is cached until explicitly refreshed.
+	codingHarnessPaths map[string]string
+	// DeepSeek runs as an unprivileged terminal pane; only its loopback UI is embedded.
+	deepseekPane *renewTerminalPane
+	deepseekWebView *mygo.WebView
+	deepseekPort int
+	deepseekStatus string
+	deepseekVisible bool
 	terminalClosing atomic.Bool
 	// Floating windows share this process and never start another collector.
 	detachedParent *renewApp

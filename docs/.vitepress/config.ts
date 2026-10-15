@@ -4,6 +4,8 @@ export default defineConfig({
   title: 'Agent eBPF Filter',
   description: 'Linux-first observability and control plane for AI agents and developer CLIs',
   lang: 'zh-CN',
+  // Pages uses /agent-ebpf-filter/; local dev and other hosting keep /.
+  base: process.env.VITEPRESS_BASE || '/',
   cleanUrls: true,
   lastUpdated: true,
   srcDir: '.',
@@ -126,6 +128,7 @@ export default defineConfig({
           text: '运维交付',
           items: [
             { text: '构建与运行', link: '/operations/build-and-run' },
+            { text: 'GitHub Pages 自动发布', link: '/operations/github-pages' },
             { text: '开发容器', link: '/operations/devcontainer' },
             { text: '部署与安装', link: '/operations/deployment' },
             { text: 'Kubernetes 集群部署', link: '/operations/kubernetes' },
@@ -155,6 +158,7 @@ export default defineConfig({
             { text: '技术深度参考', link: '/reference/technical-depth' },
             { text: '代码实现模式与最佳实践', link: '/reference/implementation-patterns' },
             { text: '技术对比与差异化', link: '/reference/technical-comparison' },
+            { text: 'Rustrak 架构解读', link: '/reference/rustrak-architecture-review' },
             { text: '代码入口索引', link: '/reference/code-entrypoints' },
             { text: '生成文件边界', link: '/reference/generated-files' },
             { text: '性能分析与数学模型', link: '/reference/performance-models' },

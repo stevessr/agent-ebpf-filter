@@ -53,6 +53,21 @@ graph TB
 - 需要特权权限
 - 不跨网络边界（本地）
 
+### vs. Rustrak（Sentry SDK 错误追踪 / AI Agent Trace）
+
+| 维度 | Rustrak | Agent eBPF Filter |
+| --- | --- | --- |
+| 采集方式 | 应用主动通过 Sentry SDK 上报 | eBPF OS 采集 + Hooks/Wrapper/Adapters |
+| 核心对象 | 错误 Issue、结构化日志、Transaction/Span、Agent Trace | PID/进程树、系统调用、文件/网络、Agent 关联证据 |
+| 持久化 | SQLite 默认，PostgreSQL 可选 | 实时流与可选归档、外部导出 |
+| 事件处理 | 磁盘暂存 + 后台 Digest / 分组 | ringbuf 采集 + Go 事件管线 / 多路输出 |
+| 安全控制 | 聚合、分诊与通知；不执行内核阻断 | Wrapper/cgroup/BPF LSM 按授权执行策略 |
+| 集成重点 | Sentry Envelope / Spans v2 | Protobuf/WS/API，支持 OTLP 外部接口 |
+
+**互补而非替代**：Rustrak 可以补充应用内的错误/LLM/tool Span 时间线，本项目保持 syscall 事实、进程归属和 OS 策略控制。当前**不声称已接入 Rustrak**，也不假定 OTLP 可以直接当成 Sentry Envelope 输入。
+
+详见 [Rustrak 架构解读与集成边界](rustrak-architecture-review.md)。
+
 ### vs. AgentSight
 
 | 维度 | AgentSight | Agent eBPF Filter |
