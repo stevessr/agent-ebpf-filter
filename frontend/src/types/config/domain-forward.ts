@@ -1,6 +1,7 @@
 export interface DomainForwardRoute {
   host: string;
   upstream?: string;
+  useUpstreamHost?: boolean;
   certFile?: string;
   keyFile?: string;
 }
@@ -53,6 +54,8 @@ export interface DomainPrivacySettings {
 export interface DomainForwardProxySettings {
   enabled: boolean;
   httpPort: number;
+  bindAddress?: string;
+  httpsDisabled?: boolean;
   httpsPort: number;
   defaultScheme: "http" | "https";
   allowAnyHost: boolean;
