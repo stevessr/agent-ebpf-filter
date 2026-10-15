@@ -52,6 +52,17 @@ type DomainBodyRewriteSettings struct {
 	Inference    DomainNativeInferenceSettings `json:"inference,omitempty"`
 }
 
+// DomainPrivacySettings controls local-only inspection of routed request bodies.
+// Restore maps are intentionally per-request and never persisted.
+type DomainPrivacySettings struct {
+	Enabled         bool     `json:"enabled"`
+	Action          string   `json:"action"`
+	RestoreResponse bool     `json:"restoreResponse"`
+	MaxBodyBytes    int64    `json:"maxBodyBytes"`
+	Categories      []string `json:"categories,omitempty"`
+	Allowlist       []string `json:"allowlist,omitempty"`
+}
+
 // DomainForwardProxySettings controls the optional public HTTP/HTTPS reverse proxy.
 type DomainForwardProxySettings struct {
 	Enabled                    bool                      `json:"enabled"`
@@ -69,5 +80,6 @@ type DomainForwardProxySettings struct {
 	TLSInterceptCAKeyFile      string                    `json:"tlsInterceptCaKeyFile,omitempty"`
 	TLSInterceptLeafTTLSeconds int                       `json:"tlsInterceptLeafTtlSeconds,omitempty"`
 	Rewrite                    DomainBodyRewriteSettings `json:"rewrite,omitempty"`
+	Privacy                    DomainPrivacySettings     `json:"privacy,omitempty"`
 	Routes                     []DomainForwardRoute      `json:"routes,omitempty"`
 }
