@@ -66,8 +66,16 @@ func lineageDirectAgentEvidence(e eventSummary, p systemProcess) string {
 	// AgentRunID is inherited by ordinary shell executors and cannot
 	// establish a new Agent root. Explicit root attribution or a native hook
 	// emitted by this PID is stronger evidence.
-	if e.RootAgentPID != p.PID && !(e.Type == "native_hook" && e.RootAgentPID <= 0) {
-		return ""
+	if e.RootAgentPID != p.PID {
+		if e.Type != "native_hook" || e.RootAgentPID > 0 {
+			return ""
+		}
+		// A native Hook's relay may run under a shell launcher; the
+		// best-effort $PPID cannot turn that shell into a new Agent.
+		switch strings.ToLower(strings.TrimSpace(p.Name)) {
+		case "sh", "bash", "dash", "zsh", "fish", "pwsh", "powershell", "curl":
+			return ""
+		}
 	}
 	if label := harnessLabelFor(e.Tag); label != "未识别" {
 		return label
