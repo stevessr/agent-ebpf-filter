@@ -138,6 +138,18 @@ func TestLineageDirectNativeHookLabelsNonStandardExecutable(t *testing.T) {
 	}
 }
 
+func TestLineageDoesNotTurnRelayShellIntoAgent(t *testing.T) {
+	p := lineageProcess(41, 1, "bash", 200)
+	event := eventSummary{PID: 41, Type: "native_hook", Tag: "Claude Code", ReceivedAtMS: 201000}
+	if agentLabelForLiveProcess(p, []eventSummary{event}) != "" {
+		t.Fatal("native hook relay attributed to bash cannot establish an Agent root")
+	}
+	event.RootAgentPID = 41
+	if got := agentLabelForLiveProcess(p, []eventSummary{event}); got != "Claude Code" {
+		t.Fatalf("explicit root attribution must be retained, got %q", got)
+	}
+}
+
 func TestLineageHookSignalsStaySeparateFromOSChildNodes(t *testing.T) {
 	processes := []systemProcess{
 		lineageProcess(10, 1, "claude", 200),
