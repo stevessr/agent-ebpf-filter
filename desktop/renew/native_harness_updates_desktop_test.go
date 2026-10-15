@@ -116,3 +116,19 @@ func TestWindowsProvenancePathsCaseInsensitiveAndNoEscape(t *testing.T){
  if winPathUnder("D:/Users/Tester/scoop/apps/codex.exe","C:/Users/Tester/scoop/apps"){t.Fatal("different drive accepted")}
  if !strings.Contains(strings.ToLower(winBase("C:\\ProgramData\\Chocolatey\\bin\\Codex.exe")),"codex"){t.Fatal("Windows executable basename failed")}
 }
+
+
+func TestWindowsScoopUsesPowerShellWhenNoExecutableShim(t *testing.T){
+ path:="C:/Users/Tester/scoop/shims/codex.exe"
+ receipts:=map[string]string{
+  "powershell.exe -NoProfile -NonInteractive -Command scoop prefix codex":"C:/Users/Tester/scoop/apps/codex/current",
+  "powershell.exe -NoProfile -NonInteractive -Command scoop list":"codex 1.0 main",
+  "powershell.exe -NoProfile -NonInteractive -Command scoop which codex":"C:/Users/Tester/scoop/apps/codex/current/bin/codex.exe",
+ }
+ p:=windowsTestProbe([]string{"powershell.exe"},receipts)
+ got:=inspectHarnessInstallation("codex","Codex",path,p)
+ if got.Source!="scoop"||len(got.Command)==0{t.Fatalf("PowerShell-only Scoop not detected: %+v",got)}
+ receipts["powershell.exe -NoProfile -NonInteractive -Command scoop which codex"]="C:/Windows/not-owned.exe"
+ other:=inspectHarnessInstallation("codex","Codex",path,p)
+ if other.Source=="scoop"||len(other.Command)>0{t.Fatalf("unowned PowerShell Scoop shim: %+v",other)}
+}
