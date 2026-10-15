@@ -60,7 +60,7 @@ func isNativeHookInstalled(h HookDef) bool {
 	if h.ID == "kiro" {
 		return hasNativeHookMarker(h.NativeConfigPath) && isKiroManagedAgentSelected()
 	}
-	if strings.HasPrefix(h.ID, "claude-subagent-") {
+	if h.ID == "claude" || strings.HasPrefix(h.ID, "claude-subagent-") {
 		// Hooks are independently opt-in. The presence of *another*
 		// agent-ebpf marker in Claude settings does not mean this event
 		// type is enabled.
