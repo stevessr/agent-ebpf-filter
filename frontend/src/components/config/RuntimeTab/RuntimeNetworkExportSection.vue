@@ -335,6 +335,9 @@ const updateDomainForwardRouteField = (
               v-model:checked="runtimeSettings.domainForwardProxy.allowAnyHost"
             />
             <span>Allow any Host header and forward to the same domain</span>
+            <a-tag v-if="runtimeSettings.domainForwardProxy.privacy.enabled" color="red">
+              隐私防护模式禁止任意域名转发
+            </a-tag>
           </div>
           <a-input
             v-model:value="runtimeSettings.domainForwardProxy.dnsResolver"
@@ -417,7 +420,7 @@ const updateDomainForwardRouteField = (
               <a-alert
                 type="info"
                 show-icon
-                message="仅检查明确路由经过本代理的 HTTP(S) 请求"
+                message="隐私防护要求显式路由且关闭 Allow Any Host"
                 description="不会自动解密 HTTPS、不会安装系统根证书，也不会读取 AstrLink 的凭据。正文不写入审计日志。建议先在测试流量中验证规则；检测不支持的消息格式或超限请求会拒绝转发。WebSocket 在隐私防护开启时暂不支持，连接会拒绝而不是绕过。"
               />
               <div style="display: flex; gap: 12px; flex-wrap: wrap">
