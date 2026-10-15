@@ -285,7 +285,7 @@ const copyHeaders = async () => {
 .tls-section-title {
   font-size: 12px;
   font-weight: 600;
-  color: #475569;
+  color: var(--ui-text-secondary);
   text-transform: uppercase;
   display: flex;
   align-items: center;
@@ -297,12 +297,12 @@ const copyHeaders = async () => {
 .tls-body-meta {
   font-size: 10px;
   font-weight: 400;
-  color: #64748b;
+  color: var(--ui-text-muted);
   text-transform: none;
 }
 
 .tls-headers-box {
-  background: #f8fafc;
+  background: var(--ui-surface-soft);
   border: 1px solid #e2e8f0;
   border-radius: 6px;
   padding: 6px 10px;
@@ -319,7 +319,7 @@ const copyHeaders = async () => {
 
 .tls-header-key {
   font-weight: 600;
-  color: #475569;
+  color: var(--ui-text-secondary);
   font-family: ui-monospace, monospace;
   min-width: 140px;
   max-width: 180px;
@@ -328,7 +328,7 @@ const copyHeaders = async () => {
 }
 
 .tls-header-val {
-  color: #334155;
+  color: var(--ui-text-strong);
   font-family: ui-monospace, monospace;
   word-break: break-all;
 }
@@ -353,7 +353,7 @@ const copyHeaders = async () => {
 }
 
 .tls-body-text {
-  background: #f1f5f9;
+  background: var(--ui-surface-soft);
   color: #1e293b;
   padding: 12px;
   border-radius: 8px;
@@ -374,8 +374,8 @@ const copyHeaders = async () => {
 }
 
 .tls-raw-hex {
-  background: #f8fafc;
-  color: #64748b;
+  background: var(--ui-surface-soft);
+  color: var(--ui-text-muted);
   padding: 10px;
   border-radius: 6px;
   font-size: 10px;
