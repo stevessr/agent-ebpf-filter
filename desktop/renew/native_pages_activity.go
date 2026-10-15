@@ -105,12 +105,44 @@ func (a *renewApp) overview(c *ui.Context) {
 		}
 	})
 
-	if priority := a.overviewPriorityEvents(); len(priority) > 0 {
+	groups, hidden := a.personalAlertGroups()
+	if len(groups) > 0 || len(a.personalAlertMuteOrder) > 0 {
 		card(c, "优先核查", func() {
-			ui.Text(c, "以下活动按风险等级优先展示。ALERT 仅代表告警；BLOCK / DENY 是否已执行，请以详情为准。").
+			ui.Text(c, "按风险等级展示相似活动，数量只来自已加载摘要。高风险始终显示；收起关注项只影响本次桌面提醒，不会放行或修改策略。").
 				FontSize(11).TextColor(t.TextMuted)
-			for _, event := range priority {
-				a.eventRow(c, event)
+			if len(a.personalAlertMuteOrder) > 0 {
+				ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
+					ui.Textf(c, "本次已收起 %d 类关注提示（当前窗口 %d 条），记录仍可在事件页查看。",
+						len(a.personalAlertMuteOrder), hidden).FontSize(11).TextColor(t.TextMuted).Grow(1)
+					if ui.Button(c, "恢复全部提示").Clicked() {
+						a.restorePersonalAlerts()
+					}
+				})
+			}
+			if len(groups) == 0 {
+				ui.Text(c, "当前未显示需要核查的提醒。已收起的关注事件仍保留在事件记录中。").
+					FontSize(12).TextColor(t.TextMuted)
+			}
+			for _, group := range groups[:min(len(groups), 3)] {
+				group := group
+				ui.Column(c).Gap(5).Children(func() {
+					a.eventRow(c, group.Event)
+					ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
+						if group.Count > 1 {
+							ui.Badge(c, fmt.Sprintf("同类活动 %d 条", group.Count))
+						}
+						if group.Risk == "需关注" {
+							if ui.Button(c, "本次收起同类提示").
+								Tooltip("只在本次运行中收起相同进程、目标、动作和风险等级的关注提示；不影响原始记录、规则或高风险事件").Clicked() {
+								a.mutePersonalAlert(group)
+							}
+						}
+					})
+				})
+			}
+			if len(groups) > 3 {
+				ui.Textf(c, "另有 %d 类待关注活动，可在事件页查看。", len(groups)-3).
+					FontSize(11).TextColor(t.TextMuted)
 			}
 			if ui.Button(c, "查看所有需关注活动").Clicked() {
 				a.clearEventFilters()

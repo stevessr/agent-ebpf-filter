@@ -91,6 +91,15 @@ type renewApp struct {
 	riskCacheValid     bool
 	riskCacheVersion   uint64
 	riskCacheCounts    [3]int
+	// Local, session-scoped alert triage. Never changes backend policy.
+	personalAlertMuted             map[[32]byte]struct{}
+	personalAlertMuteOrder         [][32]byte
+	personalAlertMuteVersion       uint64
+	personalAlertCacheReady        bool
+	personalAlertCacheEventsVersion uint64
+	personalAlertCacheMuteVersion  uint64
+	personalAlertCacheRows         []personalAlertGroup
+	personalAlertCacheHidden       int
 	networkCacheValid  bool
 	networkCacheVersion uint64
 	networkCacheKey    string

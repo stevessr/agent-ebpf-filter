@@ -36,6 +36,8 @@ func (a *renewApp) setupTray(window *mygo.Window) error {
 				window.Show()
 				window.Focus()
 			}},
+			{Label: "系统诊断与连接状态", Click: func(*mygo.MenuItem, *mygo.Window) { open("系统") }},
+			{Label: "调整采集设置", Click: func(*mygo.MenuItem, *mygo.Window) { open("监控") }},
 			mygo.Separator(),
 			{Label: "退出（停止本程序启动的采集器）", Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.minimizeToTray = false
