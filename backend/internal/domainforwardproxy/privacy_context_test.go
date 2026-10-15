@@ -181,6 +181,24 @@ func TestContextualPrivacyProxyDeniesBeforeUpstream(t *testing.T) {
 	}
 }
 
+func TestContextualPrivacyInvalidFieldRulesFailClosed(t *testing.T) {
+	for _, rule := range []PrivacyJSONFieldRule{
+		{Path: "params/arguments", Action: "allow"},
+		{Path: "/params/~4bad", Action: "drop"},
+	} {
+		engine := NewPrivacyEngine(PrivacySettings{
+			Enabled: true, Action: "redact",
+			JSONFieldRules: []PrivacyJSONFieldRule{rule},
+		})
+		_, _, _, err := engine.Apply("application/json", []byte(`{"safe":"hello"}`))
+		if err == nil { t.Fatal("invalid JSON policy silently ignored") }
+		req := httptest.NewRequest(http.MethodGet, "https://api.openai.com/v1/models", nil)
+		if _, err := engine.InspectRequestMetadata(req); err == nil {
+			t.Fatal("invalid policy silently allowed empty-body HTTP request")
+		}
+	}
+}
+
 func TestContextualPrivacyFieldRedactCannotBypassWithWarn(t *testing.T) {
 	engine := NewPrivacyEngine(PrivacySettings{
 		Enabled:        true,
