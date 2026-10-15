@@ -62,7 +62,7 @@ func (e *PrivacyEngine) InspectRequestMetadata(request *http.Request) (PrivacyRe
 		}
 		return nil
 	}
-	if err := check("url_path", request.URL.Path, false); err != nil {
+	if err := check("url_path", privacyDecodeRepeatedly(request.URL.Path), false); err != nil {
 		return report, err
 	}
 	if report.Blocked {
@@ -80,7 +80,7 @@ func (e *PrivacyEngine) InspectRequestMetadata(request *http.Request) (PrivacyRe
 		sort.Strings(keys)
 		for _, key := range keys {
 			for _, value := range parameters[key] {
-				if err := check(key, value, false); err != nil {
+				if err := check(privacyDecodeRepeatedly(key), privacyDecodeRepeatedly(value), false); err != nil {
 					return report, err
 				}
 				if report.Blocked {
@@ -130,4 +130,17 @@ func (e *PrivacyEngine) InspectRequestMetadata(request *http.Request) (PrivacyRe
 		}
 	}
 	return report, nil
+}
+
+
+// Query parsers differ in whether embedded percent-escapes are decoded again.
+// Inspecting up to two extra encodings (without changing what is forwarded)
+// prevents common double-encoding evasion such as jane%2540example.com.
+func privacyDecodeRepeatedly(raw string) string {
+	for i := 0; i < 2; i++ {
+		decoded, err := url.QueryUnescape(raw)
+		if err != nil || decoded == raw { break }
+		raw = decoded
+	}
+	return raw
 }
