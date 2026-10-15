@@ -45,6 +45,7 @@ export interface DomainBodyRewriteSettings {
 export interface DomainPrivacyJSONFieldRule {
   path: string;
   action: "allow" | "redact" | "drop" | "block";
+  recipient?: string;
 }
 
 export interface DomainPrivacySettings {
