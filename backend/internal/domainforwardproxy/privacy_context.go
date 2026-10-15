@@ -78,6 +78,10 @@ func NormalizeContextSettings(settings *PrivacySettings) {
 		rule.Path = strings.TrimSpace(rule.Path)
 		rule.Action = strings.ToLower(strings.TrimSpace(rule.Action))
 		rule.Recipient = NormalizeForwardHost(strings.TrimSpace(rule.Recipient))
+		if rule.Action == "__invalid__" {
+			rules = append(rules, rule)
+			continue
+		}
 		if !validPrivacyJSONPointer(rule.Path) || seen[rule.Path] ||
 			(rule.Action == "allow" && !validPrivacyRecipient(rule.Recipient)) {
 			// Preserve an invalid rule as an explicit invalid marker so the
