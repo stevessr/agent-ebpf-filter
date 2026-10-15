@@ -203,6 +203,53 @@ func TestContextualPrivacyRejectsUpgradedAndCONNECTTraffic(t *testing.T) {
 	}
 }
 
+func TestPrivacyMustEnforceAfterRequestBodyRewrite(t *testing.T) {
+	for _, action := range []string{"block", "redact"} {
+		t.Run(action, func(t *testing.T) {
+			var calls atomic.Int32
+			transport := testRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+				calls.Add(1)
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if bytes.Contains(body, []byte("jane@example.com")) {
+					t.Errorf("post-rewrite PII leaked upstream: %s", body)
+				}
+				return &http.Response{
+					StatusCode: 200,
+					Header: http.Header{"Content-Type": []string{"application/json"}},
+					Body: io.NopCloser(bytes.NewReader(body)),
+					ContentLength: int64(len(body)),
+				}, nil
+			})
+			handler := NewHandlerWithTransport(DomainForwardProxySettings{
+				DefaultScheme: "https",
+				Routes: []DomainForwardRoute{{Host: "api.openai.com", Upstream: "https://api.openai.com"}},
+				Rewrite: BodyRewriteSettings{
+					Enabled: true,
+					Rules: []BodyRewriteRule{{
+						Enabled: true, Direction: "request", Find: "safe-placeholder", Replace: "jane@example.com",
+					}},
+				},
+				Privacy: PrivacySettings{Enabled: true, Action: action, RestoreResponse: true},
+			}, transport)
+			req := privacyRequest(`{"input":"safe-placeholder"}`, "application/json")
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if action == "block" {
+				if rec.Code != http.StatusForbidden || calls.Load() != 0 {
+					t.Fatalf("post-rewrite sensitive information bypassed blocking: code=%d calls=%d", rec.Code, calls.Load())
+				}
+			} else {
+				if rec.Code != 200 || calls.Load() != 1 || !strings.Contains(rec.Body.String(), "jane@example.com") {
+					t.Fatalf("redaction restoration failed: code=%d calls=%d response=%s", rec.Code, calls.Load(), rec.Body.String())
+				}
+			}
+		})
+	}
+}
+
 func TestContextualPrivacyProxyDeniesBeforeUpstream(t *testing.T) {
 	var calls atomic.Int32
 	transport := testRoundTripFunc(func(r *http.Request) (*http.Response, error) {
