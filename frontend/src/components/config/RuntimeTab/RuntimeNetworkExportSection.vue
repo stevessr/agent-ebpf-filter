@@ -44,7 +44,7 @@ const { mergedFeatures, isCompiledIn, featureStatusLabel, featureStatusColor } =
 const privacyActionOptions = [
   { value: "redact", label: "脱敏后继续转发" },
   { value: "block", label: "命中后阻断" },
-  { value: "warn", label: "仅检测/告警（原文仍会转发）" },
+  { value: "warn", label: "只检测并放行（原文仍会转发；暂不生成独立告警）" },
 ];
 const privacyCategoryOptions = [
   { label: "API Key / Token / 密码", value: "secret" },
