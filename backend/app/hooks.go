@@ -147,7 +147,7 @@ func buildGenericHookRelayScript(h HookDef) string {
 	// hooks. Existing CLI integrations keep their previous PID semantics.
 	parentPIDHeader := ""
 	if strings.HasPrefix(h.ID, "claude-subagent-") {
-		parentPIDHeader = "  -H \"X-Agent-Hook-Parent-PID: $PPID\" \\"
+		parentPIDHeader = "  -H \"X-Agent-Hook-Parent-PID: $PPID\" \\\n"
 	}
 	return fmt.Sprintf(`#!/usr/bin/env bash
 hook_event="${1:-${AGENT_EBPF_HOOK_EVENT:-}}"
@@ -161,8 +161,7 @@ fi
 curl -fsS -X POST '%s' \
   -H 'Content-Type: application/json' \
   -H 'X-Agent-CLI: %s' \
-%s
-  -H 'X-Agent-Hook-Secret: %s' \
+%s  -H 'X-Agent-Hook-Secret: %s' \
   "${event_header[@]}" \
   --data-binary "@$tmp_file" \
   >/dev/null 2>&1 || true
