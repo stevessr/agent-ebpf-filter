@@ -14,11 +14,11 @@ import (
 )
 
 type DomainForwardRoute struct {
-	Host     string `json:"host"`
-	Upstream string `json:"upstream,omitempty"`
-	UseUpstreamHost bool `json:"useUpstreamHost,omitempty"`
-	CertFile string `json:"certFile,omitempty"`
-	KeyFile  string `json:"keyFile,omitempty"`
+	Host            string `json:"host"`
+	Upstream        string `json:"upstream,omitempty"`
+	UseUpstreamHost bool   `json:"useUpstreamHost,omitempty"`
+	CertFile        string `json:"certFile,omitempty"`
+	KeyFile         string `json:"keyFile,omitempty"`
 }
 
 type DomainForwardProxySettings struct {
