@@ -117,7 +117,7 @@ function resetLayout() {
             :placeholder="tr('搜索功能 / 工作空间')"
           /><kbd>IDE</kbd></label
         >
-        <label class="ide-locale-picker" for="webui-language">${tr('语言')} 
+        <label class="ide-locale-picker" for="webui-language">{{ tr('语言') }} 
           <select id="webui-language" v-model="localeChoice" data-testid="locale-switch" aria-label="Language / 语言">
             <option value="zh-CN">简体中文</option>
             <option value="en-US">English</option>
