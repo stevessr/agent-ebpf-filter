@@ -403,8 +403,17 @@ func (s *pluginStore) Delete(id string) error {
 	return nil
 }
 
-func (s *pluginStore) SetEnabled(id string, enabled bool) (PluginManifest, error) {
-	_ = s.ensureLoaded()
+func (s *pluginStore) SetEnabled(ctx context.Context, id string, enabled bool) (PluginManifest, error) {
+	if err := s.ensureLoaded(); err != nil {
+		return PluginManifest{}, err
+	}
+	// Serialize enabling/disabling with JavaScript invocation, source updates,
+	// and plugin deletion. No prior invocation survives a successful disable.
+	releaseArtifacts, err := acquirePluginArtifactLock(ctx, id)
+	if err != nil {
+		return PluginManifest{}, err
+	}
+	defer releaseArtifacts()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	m, ok := s.entries[id]

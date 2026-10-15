@@ -790,7 +790,7 @@ func (pluginService) RunJS(ctx context.Context, id, hook string, payload json.Ra
 }
 
 func (pluginService) SetEnabled(ctx context.Context, id string, enabled bool) (types.PluginManifest, error) {
-	manifest, err := pluginRegistry.SetEnabled(id, enabled)
+	manifest, err := pluginRegistry.SetEnabled(ctx, id, enabled)
 	if err != nil {
 		return types.PluginManifest{}, err
 	}

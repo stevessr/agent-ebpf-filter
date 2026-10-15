@@ -26,8 +26,9 @@ enabled. Results do not automatically alter allow/deny decisions.
 
 - JavaScript source limit: 128 KiB; input/output: 32 KiB each.
 - Per-invocation timeout: 100 ms; JavaScript memory allocation budget: 8 MiB.
-- Fresh runtime for each invocation; dynamic code (`eval` and Function)
-  disabled, module imports unsupported.
+- Fresh runtime for each invocation; compiled modules cached by SHA-256 (32-entry bound) and at most four invocations globally run concurrently. Overload is rejected without queueing.
+- Enabling, disabling, replacing sources and deletion are synchronized with running hooks; disabling waits for in-flight hooks to finish or time out.
+- Dynamic code (`eval` and Function) disabled, module imports unsupported.
 - No injected host functions, filesystem, network, process or shell APIs.
 - Scripts execute in the backend process. Resource limits are defense-in-depth,
   **not an OS-level security boundary**. Only install reviewed/trusted plugins.
