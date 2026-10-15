@@ -94,6 +94,14 @@ func runDesktop() {
 				// intentional tray minimization must remain minimized later.
 				app.hiddenForDetached = !app.minimizeToTray
 				window.Hide()
+				return
+			}
+			if !app.minimizeToTray && !app.files.allowQuit && app.hasUnsavedLocalDocuments() {
+				e.PreventDefault()
+				app.files.quitPending = true
+				app.page = "编辑器"
+				window.Show()
+				window.Focus()
 			}
 		})
 		if err := app.setupTray(window); err != nil {

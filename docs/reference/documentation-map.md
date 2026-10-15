@@ -9,6 +9,12 @@
 - 使用方式：`python3 scripts/check-doc-links.py`；该脚本不替代 `bun run docs:build`，而是补上 VitePress `ignoreDeadLinks` 对仓库外源码链接不敏感的问题。
 - 权威性原则：当前代码和 [`AGENTS.md`](../../AGENTS.md) 优先；网站页负责稳定入口；历史/专项文档必须通过本页或 `DEV_DOCS_INDEX.md` 标注它与当前实现的关系。
 
+## 最新演示入口
+
+- [演示导览](/guide/demo-tour)：日常用户的操作路径与证据限制。
+- [Renew 原生桌面](/frontend/renew)：Go + MyGo 监控、Agent 派生、文件管理与编辑器。
+- [现场演示脚本](/delivery/demo-script)：比赛/展示用的有前置检查与兜底流程。
+
 ## 网站章节
 
 | 章节 | 用途 | 常用入口 |
@@ -21,7 +27,7 @@
 | Integrations | adapters、wrapper、hooks、MCP/API/OTLP | [Agents](/integrations/agents)、[Wrapper](/integrations/wrapper)、[Native Hooks](/integrations/native-hooks)、[MCP/External API/OTLP](/integrations/mcp-external-otlp) |
 | Operations | 构建运行、devcontainer、部署、验证 benchmark | [构建与运行](/operations/build-and-run)、[部署与安装](/operations/deployment)、[验证、测试与 Benchmark](/operations/verification-benchmark) |
 | Delivery | 答辩、演示、评测、合规 | [比赛答辩主线](/delivery/competition-defense)、[演示脚本](/delivery/demo-script)、[评测报告](/delivery/evaluation) |
-| Reference | 文档地图、关系审计、代码入口、生成文件、检查清单 | [文档关系审计](/reference/documentation-audit)、[代码入口索引](/reference/code-entrypoints)、[生成文件边界](/reference/generated-files)、[维护检查清单](/reference/maintenance-checklists) |
+| Reference | 文档地图、关系审计、代码入口、生成文件、相关研究、检查清单 | [文档关系审计](/reference/documentation-audit)、[代码入口索引](/reference/code-entrypoints)、[Agent-Warden 论文解读](/reference/agent-warden-analysis)、[维护检查清单](/reference/maintenance-checklists) |
 
 ## 功能域互联矩阵
 
@@ -32,6 +38,7 @@
 | 一条 syscall 如何变成 UI / AgentSight / OTLP 数据？ | [事件管线](/backend/event-pipeline) | [协议与事件模型](/architecture/protocol-events)、[前端工作台](/frontend/workbench)、[MCP/External API/OTLP](/integrations/mcp-external-otlp) | `proto/tracker.proto`、`backend/app/events/*.go`、`frontend/src/pb/` |
 | cgroup / BPF LSM 到底拦截什么？ | [eBPF 与 OS Enforcement](/backend/ebpf-os-enforcement) | [策略语义](/security/policy-semantics)、[安全模型](/security/model)、[Runtime Gates 与 Auth](/security/runtime-gates-auth) | `make ebpf-cgroup`、`make ebpf-lsm`、[验证页](/operations/verification-benchmark) |
 | Agent、wrapper、hooks 如何把语义关联到 PID？ | [Agents、Adapters 与 PID 注册](/integrations/agents) | [Wrapper 命令策略](/integrations/wrapper)、[Native Hooks](/integrations/native-hooks)、[事件管线](/backend/event-pipeline) | `adapters/*/README.md`、`wrapper/README.md`、`backend/app/hooks*.go` |
+| 进程—文件溯源是否等于目前的执行图谱？ | [Agent-Warden 论文解读](/reference/agent-warden-analysis) | [安全框架对照](/security/runtime-framework-comparison-2026)、[数据流](/architecture/data-flow) | `backend/app/events/graph_execution.go`、`backend/app/events/alerts_semantic.go`（现有实现；不等价于 inode 传播） |
 | release mode 为什么 401/403？ | [Runtime Gates 与 Auth](/security/runtime-gates-auth) | [Runtime Settings 与 Feature Manifest](/backend/runtime-settings-features)、[路由与 API](/backend/routes-api) | `/config/runtime`、`backend/app/helpers_auth.go` |
 | ML、内核风险反馈、kernel-ml 怎样串起来？ | [ML、Plugins 与扩展能力](/backend/ml-plugins) | [ML 模型完整指南](/backend/ml-models-complete-guide)、[内核 ML README](../../kernel-ml/README.md)、[安全模型](/security/model) | `backend/app/events/kernel_risk*.go`、`backend/ml/*.go`、`kernel-ml/Makefile` |
 | TLS / Codex capture 与脱敏边界在哪里？ | [脱敏与隐私](/security/redaction-privacy) | [TLS Quickstart](../backend/TLS_QUICKSTART.md)、[Sanitization](../security/sanitization.md)、[Redaction 模块](../../backend/redaction/README.md) | `backend/app/tls_*`、`backend/codex/capture/` |

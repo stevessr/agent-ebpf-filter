@@ -494,7 +494,7 @@ const copyPath = async (path: string) => {
   padding: 0;
   background: linear-gradient(180deg, #ffffff 0%, #f8fbf5 100%);
   font-family: Calibri, "Segoe UI", Arial, sans-serif;
-  color: #1f2937;
+  color: var(--ui-text-strong);
   width: 100%;
   box-sizing: border-box;
 }
@@ -513,7 +513,7 @@ const copyPath = async (path: string) => {
   border: 1px solid #d9e4d1;
   border-radius: 6px;
   overflow: hidden;
-  background: #fff;
+  background: var(--ui-surface);
   width: 100%;
   min-width: 100%;
 }
@@ -526,7 +526,7 @@ const copyPath = async (path: string) => {
 
 .excel-table :deep(.ant-table) {
   font-family: inherit;
-  background: #fff;
+  background: var(--ui-surface);
   width: 100%;
 }
 
@@ -614,7 +614,7 @@ const copyPath = async (path: string) => {
   padding: 12px;
   border: 1px solid #d9e4d1;
   border-radius: 6px;
-  background: #fff;
+  background: var(--ui-surface);
   box-shadow: 0 6px 18px rgba(34, 54, 24, 0.12);
 }
 
@@ -701,7 +701,7 @@ const copyPath = async (path: string) => {
 }
 
 .excel-path-text.muted {
-  color: #6b7280;
+  color: var(--ui-text-muted);
   cursor: default;
   user-select: none;
 }
@@ -715,7 +715,7 @@ const copyPath = async (path: string) => {
   border-right: 1px solid #e6ece0;
   border-bottom: 1px solid #e6ece0;
   padding: 10px 14px;
-  background: #fff;
+  background: var(--ui-surface);
   vertical-align: top;
   min-width: 0;
   white-space: normal;
@@ -726,7 +726,7 @@ const copyPath = async (path: string) => {
 }
 
 .excel-table :deep(.ant-table-tbody > tr.excel-row-even > td) {
-  background: #ffffff;
+  background: var(--ui-surface);
 }
 
 .excel-table :deep(.ant-table-tbody > tr.excel-row-odd > td) {

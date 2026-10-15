@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -51,5 +52,31 @@ func TestEmitNativeHookEventDoesNotBlockWhenQueueFull(t *testing.T) {
 
 	if got := <-queue; got.GetType() != "occupied" {
 		t.Fatalf("full queue contents changed: got %q", got.GetType())
+	}
+}
+
+func TestClaudeSubAgentLifecycleProviderTag(t *testing.T) {
+	for _, event := range []string{"SubagentStart", "SubagentStop"} {
+		if got := nativeHookProviderTag("claude-subagent-start", "", event); got != "Claude Code" {
+			t.Fatalf("hook source must retain provider identity: event=%s tag=%s", event, got)
+		}
+	}
+}
+
+func TestSubagentHookMetadataDigestDoesNotLeakIdentifier(t *testing.T) {
+	payload := map[string]interface{}{
+		"agent_id": "private-agent-id-123",
+		"agent_type": "Explore",
+		"prompt": "private user prompt",
+	}
+	extra := buildNativeHookExtraInfo(payload, "SubagentStart", "")
+	if !strings.Contains(extra, "subagent_id_digest=sha256:") ||
+		!strings.Contains(extra, "subagent_type=Explore") {
+		t.Fatalf("missing privacy-safe SubAgent lifecycle metadata: %q", extra)
+	}
+	for _, secret := range []string{"private-agent-id-123", "private user prompt"} {
+		if strings.Contains(extra, secret) {
+			t.Fatalf("extra info leaked raw identifier or prompt: %q", extra)
+		}
 	}
 }

@@ -123,7 +123,7 @@ func emitNativeHookEvent(event *pb.Event) {
 
 func nativeHookProviderTag(sourceCLI, userAgent, hookEvent string) string {
 	tag := "Native Hook"
-	if sourceCLI == "claude" || strings.Contains(userAgent, "claude") {
+	if sourceCLI == "claude" || strings.HasPrefix(sourceCLI, "claude-subagent-") || strings.Contains(userAgent, "claude") {
 		return "Claude Code"
 	}
 	if sourceCLI == "gemini" || strings.Contains(userAgent, "gemini") {
@@ -233,6 +233,18 @@ func buildNativeHookExtraInfo(payload map[string]interface{}, hookEvent, toolNam
 	}
 	if requestID := events.PayloadString(payload, "request_id", "requestId"); requestID != "" {
 		parts = append(parts, "request_id="+sanitizeExtraInfoValue(requestID))
+	}
+	if strings.EqualFold(strings.TrimSpace(hookEvent), "SubagentStart") ||
+		strings.EqualFold(strings.TrimSpace(hookEvent), "SubagentStop") {
+		// Opaque invocation identifiers may be sensitive. Preserve only a
+		// stable digest in the detailed event; never persist hook prompt
+		// or raw subagent identifiers into compact telemetry.
+		if agentID := events.PayloadString(payload, "agent_id", "agentId"); agentID != "" {
+			parts = append(parts, "subagent_id_digest="+digestHookText(agentID))
+		}
+		if agentType := events.PayloadString(payload, "agent_type", "agentType"); agentType != "" {
+			parts = append(parts, "subagent_type="+sanitizeExtraInfoValue(agentType))
+		}
 	}
 	if strings.EqualFold(strings.TrimSpace(hookEvent), "PostToolUseFailure") {
 		if errorText := payloadNestedString(payload, "error"); errorText != "" {

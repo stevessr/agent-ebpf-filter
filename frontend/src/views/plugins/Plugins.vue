@@ -100,7 +100,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div style="padding: 24px; background: #f0f2f5; min-height: 100%">
+  <div style="padding: 24px; background: var(--wb-111318); min-height: 100%">
     <a-tabs v-model:activeKey="activeTab" type="card" size="large">
       <!-- --- Plugin List --- -->
       <a-tab-pane key="list">

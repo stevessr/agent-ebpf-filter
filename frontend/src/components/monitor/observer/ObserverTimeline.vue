@@ -506,14 +506,14 @@ const formatTLSBodyPreview = (ev: ObserverTLSEvent, maxLen: number = 200): strin
   display: flex; align-items: center; gap: 3px;
   padding: 3px 10px; border: none; border-radius: 5px;
   background: transparent; cursor: pointer;
-  font-size: 12px; color: #64748b; white-space: nowrap;
+  font-size: 12px; color: var(--ui-text-muted); white-space: nowrap;
   transition: all 0.15s;
 }
-.cat-tab:hover { color: #334155; background: #e2e8f0; }
-.cat-tab.active { background: #fff; color: #0f172a; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.cat-tab:hover { color: var(--ui-text-strong); background: #e2e8f0; }
+.cat-tab.active { background: var(--ui-surface); color: var(--ui-text-strong); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
 .cat-icon { font-size: 13px; }
 .cat-count {
-  background: #e2e8f0; color: #64748b; border-radius: 8px;
+  background: #e2e8f0; color: var(--ui-text-muted); border-radius: 8px;
   padding: 0 5px; font-size: 10px; font-weight: 600; min-width: 16px; text-align: center;
 }
 .cat-tab.active .cat-count { background: #dbeafe; color: #1d4ed8; }
@@ -523,16 +523,16 @@ const formatTLSBodyPreview = (ev: ObserverTLSEvent, maxLen: number = 200): strin
   margin-bottom: 6px; padding-bottom: 4px;
   border-bottom: 1px solid #f0f0f0;
 }
-.toolbar-count { font-size: 12px; color: #4b5563; display: flex; align-items: center; gap: 6px; }
+.toolbar-count { font-size: 12px; color: var(--ui-text-muted); display: flex; align-items: center; gap: 6px; }
 .toolbar-actions { display: flex; gap: 4px; }
 
 .ignored-badge {
-  font-size: 11px; color: #64748b; display: inline-flex; align-items: center; gap: 2px;
+  font-size: 11px; color: var(--ui-text-muted); display: inline-flex; align-items: center; gap: 2px;
 }
 
 /* Ignore rules panel */
 .ignore-panel {
-  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;
+  background: var(--ui-surface-soft); border: 1px solid #e2e8f0; border-radius: 6px;
   padding: 8px 10px; margin-bottom: 8px;
 }
 .ignore-panel-header {
@@ -540,7 +540,7 @@ const formatTLSBodyPreview = (ev: ObserverTLSEvent, maxLen: number = 200): strin
   margin-bottom: 6px;
 }
 .ignore-panel-title {
-  font-size: 12px; font-weight: 600; color: #0f172a;
+  font-size: 12px; font-weight: 600; color: var(--ui-text-strong);
   display: inline-flex; align-items: center; gap: 4px;
 }
 .ignore-rule-list { display: flex; flex-direction: column; gap: 4px; }
@@ -551,8 +551,8 @@ const formatTLSBodyPreview = (ev: ObserverTLSEvent, maxLen: number = 200): strin
 .ignore-rule-name {
   font-size: 12px; font-weight: 500; color: #1e293b; min-width: 120px;
 }
-.ignore-rule-name.disabled { color: #64748b; }
-.ignore-rule-desc { font-size: 11px; color: #64748b; flex: 1; }
+.ignore-rule-name.disabled { color: var(--ui-text-muted); }
+.ignore-rule-desc { font-size: 11px; color: var(--ui-text-muted); flex: 1; }
 
 .timeline-list { display: flex; flex-direction: column; gap: 6px; max-height: 520px; overflow-y: auto; }
 
@@ -567,10 +567,10 @@ const formatTLSBodyPreview = (ev: ObserverTLSEvent, maxLen: number = 200): strin
   display: flex; align-items: center; gap: 6px; cursor: pointer;
   user-select: none;
 }
-.event-icon { color: #64748b; font-size: 13px; display: flex; }
+.event-icon { color: var(--ui-text-muted); font-size: 13px; display: flex; }
 .event-type {
   font-family: ui-monospace,monospace; font-size: 11px;
-  color: #475569; font-weight: 600; min-width: 70px;
+  color: var(--ui-text-secondary); font-weight: 600; min-width: 70px;
 }
 .event-comm {
   font-family: ui-monospace,monospace; font-size: 12px;
@@ -578,12 +578,12 @@ const formatTLSBodyPreview = (ev: ObserverTLSEvent, maxLen: number = 200): strin
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .pid-tag { cursor: pointer; }
-.event-time { font-size: 11px; color: #64748b; white-space: nowrap; font-family: ui-monospace,monospace; }
-.expand-icon { color: #64748b; font-size: 10px; }
+.event-time { font-size: 11px; color: var(--ui-text-muted); white-space: nowrap; font-family: ui-monospace,monospace; }
+.expand-icon { color: var(--ui-text-muted); font-size: 10px; }
 
 .event-preview {
   margin-top: 4px; padding-left: 24px; font-size: 12px;
-  color: #64748b; overflow: hidden; text-overflow: ellipsis;
+  color: var(--ui-text-muted); overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; font-family: ui-monospace,monospace;
 }
 
@@ -592,8 +592,8 @@ const formatTLSBodyPreview = (ev: ObserverTLSEvent, maxLen: number = 200): strin
   border-radius: 6px; font-size: 12px; display: flex; flex-direction: column; gap: 4px;
 }
 .detail-row { display: flex; gap: 8px; align-items: baseline; }
-.dl { color: #64748b; min-width: 45px; font-size: 11px; text-transform: uppercase; }
-.detail-row code { font-family: ui-monospace,monospace; color: #0f172a; font-size: 12px; word-break: break-all; }
+.dl { color: var(--ui-text-muted); min-width: 45px; font-size: 11px; text-transform: uppercase; }
+.detail-row code { font-family: ui-monospace,monospace; color: var(--ui-text-strong); font-size: 12px; word-break: break-all; }
 
 /* TLS timeline body */
 .tls-timeline-body { flex: 1; min-width: 0; }

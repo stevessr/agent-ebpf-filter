@@ -14,15 +14,18 @@ import (
 )
 
 type DomainForwardRoute struct {
-	Host     string `json:"host"`
-	Upstream string `json:"upstream,omitempty"`
-	CertFile string `json:"certFile,omitempty"`
-	KeyFile  string `json:"keyFile,omitempty"`
+	Host            string `json:"host"`
+	Upstream        string `json:"upstream,omitempty"`
+	UseUpstreamHost bool   `json:"useUpstreamHost,omitempty"`
+	CertFile        string `json:"certFile,omitempty"`
+	KeyFile         string `json:"keyFile,omitempty"`
 }
 
 type DomainForwardProxySettings struct {
 	Enabled                    bool                 `json:"enabled"`
 	HTTPPort                   int                  `json:"httpPort"`
+	BindAddress                string               `json:"bindAddress,omitempty"`
+	HTTPSDisabled              bool                 `json:"httpsDisabled,omitempty"`
 	HTTPSPort                  int                  `json:"httpsPort"`
 	DefaultScheme              string               `json:"defaultScheme"`
 	AllowAnyHost               bool                 `json:"allowAnyHost"`
@@ -36,6 +39,7 @@ type DomainForwardProxySettings struct {
 	TLSInterceptCAKeyFile      string               `json:"tlsInterceptCaKeyFile,omitempty"`
 	TLSInterceptLeafTTLSeconds int                  `json:"tlsInterceptLeafTtlSeconds,omitempty"`
 	Rewrite                    BodyRewriteSettings  `json:"rewrite,omitempty"`
+	Privacy                    PrivacySettings      `json:"privacy,omitempty"`
 	Routes                     []DomainForwardRoute `json:"routes,omitempty"`
 }
 
@@ -52,6 +56,8 @@ type Status struct {
 	DNSResolver         string    `json:"dnsResolver,omitempty"`
 	TLSInterceptEnabled bool      `json:"tlsInterceptEnabled"`
 	RewriteEnabled      bool      `json:"rewriteEnabled"`
+	PrivacyEnabled      bool      `json:"privacyEnabled"`
+	PrivacyAction       string    `json:"privacyAction,omitempty"`
 	InferenceEnabled    bool      `json:"inferenceEnabled"`
 	InferenceReady      bool      `json:"inferenceReady"`
 	Errors              []string  `json:"errors,omitempty"`
@@ -144,7 +150,7 @@ func (m *Runtime) Apply(settings DomainForwardProxySettings) error {
 			m.status.Errors = append(m.status.Errors, fmt.Sprintf("http listener: %v", err))
 		}
 	}
-	if settings.HTTPSPort > 0 {
+	if !settings.HTTPSDisabled && settings.HTTPSPort > 0 {
 		if err := m.startHTTPSServerLocked(settings, handler); err != nil {
 			m.status.Errors = append(m.status.Errors, fmt.Sprintf("https listener: %v", err))
 		}
@@ -157,7 +163,7 @@ func (m *Runtime) Apply(settings DomainForwardProxySettings) error {
 }
 
 func (m *Runtime) startHTTPServerLocked(settings DomainForwardProxySettings, handler http.Handler) error {
-	addr := fmt.Sprintf(":%d", settings.HTTPPort)
+	addr := net.JoinHostPort(settings.BindAddress, fmt.Sprintf("%d", settings.HTTPPort))
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
@@ -185,7 +191,7 @@ func (m *Runtime) startHTTPSServerLocked(settings DomainForwardProxySettings, ha
 	if err != nil {
 		return err
 	}
-	addr := fmt.Sprintf(":%d", settings.HTTPSPort)
+	addr := net.JoinHostPort(settings.BindAddress, fmt.Sprintf("%d", settings.HTTPSPort))
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
@@ -244,6 +250,8 @@ func BuildStatus(settings DomainForwardProxySettings) Status {
 		DNSResolver:         settings.DNSResolver,
 		TLSInterceptEnabled: settings.TLSInterceptEnabled,
 		RewriteEnabled:      settings.Rewrite.Enabled,
+		PrivacyEnabled:      settings.Privacy.Enabled,
+		PrivacyAction:       settings.Privacy.Action,
 		InferenceEnabled:    settings.Rewrite.Inference.Enabled,
 		UpdatedAt:           time.Now().UTC(),
 	}

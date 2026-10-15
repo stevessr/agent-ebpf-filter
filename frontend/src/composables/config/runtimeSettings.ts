@@ -35,6 +35,8 @@ export const nextEditableRowId = (prefix: string) =>
 export const defaultDomainForwardProxy = (): DomainForwardProxySettings => ({
   enabled: false,
   httpPort: 80,
+  bindAddress: "",
+  httpsDisabled: false,
   httpsPort: 443,
   defaultScheme: "https",
   allowAnyHost: false,
@@ -47,6 +49,16 @@ export const defaultDomainForwardProxy = (): DomainForwardProxySettings => ({
   tlsInterceptCaCertFile: "",
   tlsInterceptCaKeyFile: "",
   tlsInterceptLeafTtlSeconds: 43200,
+  privacy: {
+    enabled: false,
+    action: "redact",
+    restoreResponse: true,
+    maxBodyBytes: 1024 * 1024,
+    categories: ["secret", "email", "phone", "payment_card"],
+    contextMode: "strict",
+    jsonFieldRules: [],
+    allowlist: [],
+  },
   rewrite: {
     enabled: false,
     maxBodyBytes: 4 * 1024 * 1024,
@@ -319,6 +331,16 @@ export const normalizeDomainForwardProxy = (
       value?.tlsInterceptLeafTtlSeconds ||
         defaults.tlsInterceptLeafTtlSeconds,
     ),
+    privacy: {
+      ...defaults.privacy,
+      ...(value?.privacy || {}),
+      categories: Array.isArray(value?.privacy?.categories) ? value.privacy.categories : defaults.privacy.categories,
+      allowlist: Array.isArray(value?.privacy?.allowlist) ? value.privacy.allowlist : defaults.privacy.allowlist,
+      contextMode: value?.privacy?.contextMode === "off" ? "off" : "strict",
+      jsonFieldRules: Array.isArray(value?.privacy?.jsonFieldRules)
+        ? value.privacy.jsonFieldRules
+        : [],
+    },
     rewrite: {
       ...defaults.rewrite,
       ...rewrite,

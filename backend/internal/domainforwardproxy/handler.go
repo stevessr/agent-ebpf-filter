@@ -20,6 +20,7 @@ type Handler struct {
 	exact     map[string]DomainForwardRoute
 	wildcards []DomainForwardRoute
 	rewrite   *RewriteKernel
+	privacy   *PrivacyEngine
 }
 
 var errNoForwardingRoute = errors.New("no forwarding route")
@@ -72,16 +73,27 @@ func NewHandlerWithTransport(settings DomainForwardProxySettings, transport http
 		exact:     exact,
 		wildcards: wildcards,
 		rewrite:   NewRewriteKernel(settings.Rewrite),
+		privacy:   NewPrivacyEngine(settings.Privacy),
 	}
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if h.settings.Privacy.Enabled && (r.Method == http.MethodConnect ||
+		strings.TrimSpace(r.Header.Get("Upgrade")) != "" ||
+		strings.Contains(strings.ToLower(r.Header.Get("Connection")), "upgrade")) {
+		http.Error(w, "privacy middleware cannot inspect upgraded or tunneled connections", http.StatusNotImplemented)
+		return
+	}
 	host := NormalizeForwardHost(r.Host)
 	if host == "" && r.URL != nil {
 		host = NormalizeForwardHost(r.URL.Host)
 	}
 	if host == "" {
 		http.Error(w, "missing request host", http.StatusBadRequest)
+		return
+	}
+	if h.settings.Privacy.Enabled && h.settings.AllowAnyHost {
+		http.Error(w, "privacy protection requires explicitly allowlisted forward routes", http.StatusUnprocessableEntity)
 		return
 	}
 	target, route, err := h.TargetForHost(host)
@@ -95,10 +107,28 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.settings.Privacy.Enabled {
+		metadata, checkErr := h.privacy.InspectRequestMetadata(r)
+		if checkErr != nil {
+			http.Error(w, "privacy metadata inspection failed", http.StatusUnprocessableEntity)
+			return
+		}
+		if metadata.Blocked {
+			http.Error(w, "request metadata blocked by privacy policy", http.StatusForbidden)
+			return
+		}
+	}
+
+	if isResponsesWebSocketRequest(r) && h.settings.Privacy.Enabled {
+		http.Error(w, "privacy inspection of WebSocket frames is not available; connection refused", http.StatusNotImplemented)
+		return
+	}
 	if isResponsesWebSocketRequest(r) {
 		h.serveResponsesWebSocket(w, r, target, host)
 		return
 	}
+
+	var privacySession *PrivacySession
 
 	var modelMapping *modelRewrite
 	if h.rewrite != nil && h.settings.Rewrite.Enabled && requestBodyIsRewriteable(r) {
@@ -134,6 +164,47 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// The privacy inspection is deliberately the LAST outbound body transform:
+	// upstream rewrite/inference must never inject unchecked plaintext.
+	if h.settings.Privacy.Enabled && r.Body != nil && r.Body != http.NoBody {
+		if !requestBodyIsRewriteable(r) {
+			http.Error(w, "request is not inspectable under privacy policy", http.StatusUnprocessableEntity)
+			return
+		}
+		raw, bounded, err := readRequestBodyBounded(r, h.settings.Privacy.MaxBodyBytes)
+		if err != nil || !bounded {
+			http.Error(w, "request exceeds privacy inspection limit", http.StatusRequestEntityTooLarge)
+			return
+		}
+		encoding := r.Header.Get("Content-Encoding")
+		decoded, decodedBounded, err := decodeBodyForRewrite(encoding, raw, h.settings.Privacy.MaxBodyBytes)
+		if err != nil || !decodedBounded {
+			http.Error(w, "request cannot be decoded for privacy inspection", http.StatusUnprocessableEntity)
+			return
+		}
+		rewritten, session, report, err := h.privacy.ApplyForRecipient(r.Header.Get("Content-Type"), decoded, target.Hostname())
+		if err != nil {
+			http.Error(w, "privacy inspection failed: request refused", http.StatusUnprocessableEntity)
+			return
+		}
+		if report.Blocked {
+			http.Error(w, "request blocked by local privacy policy", http.StatusForbidden)
+			return
+		}
+		privacySession = session
+		if report.Redacted {
+			encoded, err := encodeBodyAfterRewrite(encoding, rewritten)
+			if err != nil {
+				http.Error(w, "privacy request encoding failed", http.StatusUnprocessableEntity)
+				return
+			}
+			invalidateRequestBodyIntegrity(r)
+			setRequestBody(r, encoded)
+		} else {
+			restoreRequestBody(r, raw)
+		}
+	}
+
 	proxy := &httputil.ReverseProxy{
 		Director: func(out *http.Request) {
 			out.URL.Scheme = target.Scheme
@@ -144,7 +215,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			} else {
 				out.URL.RawQuery = target.RawQuery + "&" + out.URL.RawQuery
 			}
-			out.Host = r.Host
+			if route.UseUpstreamHost {
+				out.Host = target.Host
+			} else {
+				out.Host = r.Host
+			}
 			out.Header.Set("X-Forwarded-Host", r.Host)
 			out.Header.Set("X-Forwarded-Proto", requestForwardedProto(r))
 			out.Header.Set("X-Agent-Forward-Route", route.Host)
@@ -154,7 +229,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// responses untouched.
 		},
 		Transport: h.transport,
-		ModifyResponse: func(response *http.Response) error {
+		ModifyResponse: func(response *http.Response) (resultErr error) {
+			defer func() {
+				if resultErr == nil {
+					resultErr = h.restorePrivacyResponse(response, privacySession)
+				}
+			}()
 			if h.rewrite == nil || !h.settings.Rewrite.Enabled || !responseBodyIsRewriteable(r, response) {
 				return nil
 			}
@@ -526,4 +606,44 @@ func singleJoiningSlash(a, b string) string {
 	default:
 		return a + b
 	}
+}
+
+// restorePrivacyResponse runs after model routing/body rewrites. It does not
+// restore anything upstream; placeholder maps exist only for this HTTP request.
+func (h *Handler) restorePrivacyResponse(response *http.Response, session *PrivacySession) error {
+	if session == nil || !h.settings.Privacy.RestoreResponse || response == nil || response.Body == nil {
+		return nil
+	}
+	encoding := response.Header.Get("Content-Encoding")
+	contentType := strings.ToLower(response.Header.Get("Content-Type"))
+	if strings.Contains(contentType, "text/event-stream") {
+		if normalizeContentEncoding(encoding) != "" {
+			return errors.New("cannot restore compressed privacy SSE safely")
+		}
+		response.Body = newSSEPrivacyBody(response.Body, session, h.settings.Privacy.MaxBodyBytes)
+		response.ContentLength = -1
+		response.Header.Del("Content-Length")
+		response.Header.Del("ETag")
+		response.Header.Del("Content-MD5")
+		return nil
+	}
+	raw, bounded, err := readResponseBodyBounded(response, h.settings.Privacy.MaxBodyBytes)
+	if err != nil || !bounded {
+		return errors.New("privacy response restoration exceeds limit")
+	}
+	decoded, decodedBounded, err := decodeBodyForRewrite(encoding, raw, h.settings.Privacy.MaxBodyBytes)
+	if err != nil || !decodedBounded {
+		return errors.New("privacy response restoration decoding failed")
+	}
+	restored, changed := session.Restore(decoded)
+	if !changed {
+		restoreResponseBody(response, raw)
+		return nil
+	}
+	encoded, err := encodeBodyAfterRewrite(encoding, restored)
+	if err != nil {
+		return errors.New("privacy response restoration encoding failed")
+	}
+	setResponseBody(response, encoded)
+	return nil
 }

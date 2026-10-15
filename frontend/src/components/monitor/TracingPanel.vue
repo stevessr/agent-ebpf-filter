@@ -87,7 +87,7 @@ const columns = [
 </script>
 
 <template>
-  <div style="background: #fff; padding: 20px; border-radius: 4px">
+  <div style="background: var(--ui-surface); padding: 20px; border-radius: 4px">
     <div
       style="
         margin-bottom: 16px;
@@ -118,12 +118,12 @@ const columns = [
           @click="toggleComm(name)"
           >{{ name }}</a-tag
         >
-        <span v-if="trackedCommsNames.length === 0" style="color: #4b5563"
+        <span v-if="trackedCommsNames.length === 0" style="color: var(--ui-text-muted)"
           >No tracked processes</span
         >
         <span
           v-if="hiddenComms.length > 0"
-          style="color: #6b7280; font-size: 12px"
+          style="color: var(--ui-text-muted); font-size: 12px"
         >
           ({{ hiddenComms.length }} hidden — click hidden tag to restore)
         </span>
@@ -177,6 +177,6 @@ const columns = [
   border-left: 3px solid #52c41a;
 }
 :deep(.tracked-row:hover) > td {
-  background: #f6ffed !important;
+  background: var(--ui-success-soft) !important;
 }
 </style>

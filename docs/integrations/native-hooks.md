@@ -204,3 +204,9 @@ Pi/Oh My Pi extension 当前上报 `session_start`、`tool_call` 和 `tool_resul
 `dsh-exec` is an **independent, opt-in** subprocess provider implemented in `integrations/dsh-subprocess`. It wraps Harness-owned `spawn` and `spawnTerminal` through `agent-wrapper --dsh-exec --verbatim --` and then delegates to the official local provider. Installing or uninstalling `dsh-exec` does not install/uninstall the `dsh` native Cordis monitor, and does not edit shell aliases. Both integrations can coexist.
 
 The API `/api/dsh/inspector/{status,events,connect,disconnect}` exposes optional user-triggered userspace Network capture over a loopback-only CDP endpoint. Captured URL, headers and body are sanitized before storage; the source tag stays `dsh_inspector`. No Inspector connection is opened automatically. To enforce commands, a working `agent-wrapper` backend Unix socket and actual compatible dsh profile plugin installation are required; an offline test cannot establish enforcement.
+
+### Claude Code SubAgent 生命周期采集（可选）
+
+在 Web 管理台的 Hook 配置中，除普通的 **Claude Code / PreToolUse** 外，可分别启用 **Claude Code · SubagentStart** 和 **Claude Code · SubagentStop**。它们独立写入 `~/.claude/settings.json` 的对应事件，不会覆盖已有 `PreToolUse` 或手工 Hook，且可分别卸载。只有显式启用时才增加生命周期采集；安装后需重新启动 Claude Code 会话以读取 Hook 配置。
+
+接收端继续使用每个 Hook 独立的 secret 认证。Hook relay 最多报告其调用进程的父 PID 作为尽力关联线索，不能单凭该 PID 推断跨进程 Agent 调用关系。完整事件的 `ExtraInfo` 仅持久化 `agent_id` 的摘要及 `agent_type` 元数据（以及既有 prompt digest）；不保留原始 agent_id、用户输入或响应文本。Renew 的原生摘要展示已观察到的开始/结束信号，但不在缺乏原始 span/call_id 证据时拼接虚构的完整生命周期。
