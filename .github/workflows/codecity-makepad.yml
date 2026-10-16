@@ -7,6 +7,8 @@ on:
       - ".github/workflows/codecity-makepad.yml"
       - "scripts/codecity-export-index.py"
       - "scripts/test-codecity-export-index.py"
+      - "scripts/codecity-smoke-feed.py"
+      - "scripts/codecity-display-smoke.sh"
   push:
     branches: [master]
     paths:
@@ -14,6 +16,8 @@ on:
       - ".github/workflows/codecity-makepad.yml"
       - "scripts/codecity-export-index.py"
       - "scripts/test-codecity-export-index.py"
+      - "scripts/codecity-smoke-feed.py"
+      - "scripts/codecity-display-smoke.sh"
   workflow_dispatch:
 
 permissions:
@@ -55,3 +59,38 @@ jobs:
         run: cargo check --manifest-path desktop/visualizer-makepad/Cargo.toml
       - name: Test read-only event model and binary
         run: cargo test --manifest-path desktop/visualizer-makepad/Cargo.toml
+      - name: Install virtual desktop and software GL dependencies
+        run: |
+          sudo apt-get install -y --no-install-recommends \
+            xvfb x11-utils x11-xserver-utils xdotool openbox \
+            imagemagick mesa-utils libgl1-mesa-dri libegl1 \
+            weston wayland-utils
+      - name: Build the actual Makepad desktop executable
+        run: cargo build --manifest-path desktop/visualizer-makepad/Cargo.toml
+      - name: X11 software renderer window, screenshot, and input smoke
+        id: smoke_x11
+        continue-on-error: true
+        run: timeout --signal=TERM --kill-after=5s 110s bash scripts/codecity-display-smoke.sh x11 display-evidence/x11
+      - name: Wayland Weston headless surface smoke
+        id: smoke_wayland
+        if: always()
+        continue-on-error: true
+        run: timeout --signal=TERM --kill-after=5s 110s bash scripts/codecity-display-smoke.sh wayland display-evidence/wayland
+      - name: Preserve X11 and Wayland diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codecity-linux-display-smoke-${{ github.run_id }}
+          path: display-evidence/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Enforce both display-backend smoke results
+        if: always()
+        env:
+          X11_OUTCOME: ${{ steps.smoke_x11.outcome }}
+          WAYLAND_OUTCOME: ${{ steps.smoke_wayland.outcome }}
+        run: |
+          echo "X11 software desktop smoke: $X11_OUTCOME"
+          echo "Wayland Weston headless smoke: $WAYLAND_OUTCOME"
+          test "$X11_OUTCOME" = success
+          test "$WAYLAND_OUTCOME" = success
