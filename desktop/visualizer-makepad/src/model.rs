@@ -166,9 +166,18 @@ pub struct City {
     replay_cursor: Option<usize>,
     seen_ids: HashSet<String>,
     seen_order: VecDeque<String>,
+    agent_run_filter: Option<String>,
+    agent_root_filter: Option<i32>,
+    agent_only: bool,
 }
 
 impl City {
+    pub fn set_agent_scope(&mut self, run_id: Option<String>, root_pid: Option<i32>, only_agent: bool) {
+        self.agent_run_filter = run_id.filter(|s| !s.trim().is_empty() && s.len() <= 256);
+        self.agent_root_filter = root_pid.filter(|pid| *pid > 0);
+        self.agent_only = only_agent;
+    }
+
     pub fn seed(&mut self, path: String) {
         if self.lookup.contains_key(&path) || self.buildings.len() >= MAX_BUILDINGS { return; }
         let district = path.split('/').next().unwrap_or("root").to_owned();
@@ -238,6 +247,15 @@ impl City {
     }
 
     pub fn apply(&mut self, event: Summary, root: Option<&Path>) -> bool {
+        // Filters require exact recorded context, never process-name guesses
+        // or substring matching of session/tool/target fields.
+        if self.agent_only && !event.known_agent() { return false; }
+        if self.agent_run_filter.as_deref().is_some_and(|run| event.agent_run_id != run) {
+            return false;
+        }
+        if self.agent_root_filter.is_some_and(|root| event.root_agent_pid != root) {
+            return false;
+        }
         let Some(activity) = event.classify() else { return false };
         let Some(path) = workspace_path(&event.target, root) else { return false };
         // The backend can resend the same compact event after reconnect or
@@ -342,7 +360,10 @@ impl City {
             Some(index) => format!("  |  REPLAY {}/{}", index + 1, self.history.len()),
             None => "  |  LIVE".into(),
         };
-        format!("{state}{replay}  |  FILES {}  |  EVENTS {}  |  AGENT {}  |  LOST {}",
+        let filtered = if self.agent_only || self.agent_run_filter.is_some() || self.agent_root_filter.is_some() {
+            "  |  AGENT SCOPE"
+        } else { "" };
+        format!("{state}{replay}{filtered}  |  FILES {}  |  EVENTS {}  |  AGENT {}  |  LOST {}",
             self.buildings.len(), self.total_events, self.agent_events,
             self.dropped_events + self.transport_dropped)
     }
@@ -455,6 +476,25 @@ mod tests {
         city.replay_forward();
         assert!(city.status_line().contains("LIVE"));
         assert_eq!(city.history.len(), 3);
+    }
+
+    #[test]
+    fn exact_agent_scoping_never_attributes_generic_shells() {
+        let mut city = City::default();
+        city.set_agent_scope(Some("run-1".into()), Some(127), true);
+        let mut match_event = e("file_write", "/workspaces/repo/src/agent.rs");
+        match_event.agent_run_id = "run-1".into();
+        match_event.root_agent_pid = 127;
+        assert!(city.apply(match_event, None));
+        let mut other = e("file_write", "/workspaces/repo/src/other.rs");
+        other.agent_run_id = "run-10".into();
+        other.root_agent_pid = 127;
+        assert!(!city.apply(other, None));
+        let mut shell = e("file_write", "/workspaces/repo/src/shell.rs");
+        shell.tag = "Shell".into();
+        assert!(!city.apply(shell, None));
+        assert_eq!(city.agent_events, 1);
+        assert_eq!(city.history.len(), 1);
     }
 
 }
