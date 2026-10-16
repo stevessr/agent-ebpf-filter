@@ -517,8 +517,7 @@ impl City {
         self.visible_subagent_stops = 0;
         for signal in &self.subagent_signals {
             if self.time_window.contains(signal.timestamp_ms, anchor) &&
-                (self.lane_selection.includes(&signal.lane) ||
-                 matches!(self.lane_selection, LaneSelection::Verified)) {
+                self.lane_selection.includes(&signal.lane) {
                 match signal.kind {
                     SubagentSignalKind::Start => self.visible_subagent_starts += 1,
                     SubagentSignalKind::Stop => self.visible_subagent_stops += 1,
