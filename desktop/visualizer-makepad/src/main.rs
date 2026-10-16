@@ -427,9 +427,11 @@ impl CityViewport {
             } else {
                 vec4(0.35, 0.87, 0.95, 1.0)
             };
-            self.draw_mesh.cube(cx, cube, vec3(x, 0.05, z),
+            // Suspended marker level avoids confusing a lifecycle signal
+            // with a filename building occupying the same x/z footprint.
+            self.draw_mesh.cube(cx, cube, vec3(x, 8.0, z),
                 vec3(1.0, 0.1, 0.8), vec4(0.28,0.22,0.41,1.0));
-            self.draw_mesh.cube(cx, cube, vec3(x, 0.95, z),
+            self.draw_mesh.cube(cx, cube, vec3(x, 9.05, z),
                 vec3(0.27,0.95,0.27), tint);
         }
 
@@ -583,7 +585,7 @@ impl Widget for CityViewport {
                 if let Lane::VerifiedSubagent { id, .. } = &signal.lane {
                     let suffix = id.strip_prefix("sha256:").unwrap_or(id);
                     let label = format!("SUB {}", suffix.chars().take(8).collect::<String>());
-                    let _ = self.draw_label.draw_world_text(cx, vec3(x,2.3,z), &label);
+                    let _ = self.draw_label.draw_world_text(cx, vec3(x,11.0,z), &label);
                 }
             }
             for (name, x, z) in self.city.district_labels(18) {
