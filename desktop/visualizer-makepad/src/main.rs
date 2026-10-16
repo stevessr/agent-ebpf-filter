@@ -478,9 +478,9 @@ impl Widget for CityViewport {
                 if let Some((screen, depth)) = self.draw_label
                     .project_world_to_screen(vec3(b.x, b.height * 2.0, b.z))
                 {
-                    if screen.x >= rect.pos.x && screen.y >= rect.pos.y
-                        && screen.x <= rect.pos.x + rect.size.x
-                        && screen.y <= rect.pos.y + rect.size.y {
+                    if screen.x >= rect.pos.x as f32 && screen.y >= rect.pos.y as f32
+                        && screen.x <= (rect.pos.x + rect.size.x) as f32
+                        && screen.y <= (rect.pos.y + rect.size.y) as f32 {
                         self.pick_points.push((screen.x, screen.y, depth, i));
                     }
                 }
