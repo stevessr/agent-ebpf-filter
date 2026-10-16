@@ -166,6 +166,38 @@ impl City {
             activity: Activity::Access, owned_by_agent: false });
     }
 
+    /// Optional local metadata-only index for a populated city before the
+    /// first syscall. Never follows symlinks or opens source file contents.
+    pub fn seed_workspace(&mut self, root: &Path) {
+        let mut dirs = vec![(root.to_path_buf(), 0usize)];
+        let mut inspected = 0usize;
+        while let Some((dir, depth)) = dirs.pop() {
+            if depth > 7 || inspected >= 30000 || self.buildings.len() >= MAX_BUILDINGS { break; }
+            let Ok(entries) = std::fs::read_dir(dir) else { continue };
+            for entry in entries.flatten() {
+                if inspected >= 30000 || self.buildings.len() >= MAX_BUILDINGS { return; }
+                inspected += 1;
+                let name = entry.file_name();
+                let name = name.to_string_lossy();
+                if name.starts_with('.') || matches!(name.as_ref(),
+                    "node_modules" | "target" | "dist" | "build" | "__pycache__" |
+                    "vendor" | ".git" | ".next" | ".cache") { continue; }
+                let Ok(kind) = entry.file_type() else { continue };
+                // file_type does not follow symlinks.
+                if kind.is_symlink() { continue; }
+                if kind.is_dir() {
+                    if depth < 7 { dirs.push((entry.path(), depth+1)); }
+                } else if kind.is_file() {
+                    if let Ok(relative) = entry.path().strip_prefix(root) {
+                        if let Some(path) = relative.to_str() {
+                            if path.len() <= 360 { self.seed(path.replace('\\', "/")); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     pub fn apply(&mut self, event: Summary, root: Option<&Path>) -> bool {
         let Some(activity) = event.classify() else { return false };
         let Some(path) = workspace_path(&event.target, root) else { return false };
