@@ -46,7 +46,11 @@ fn consume(tx: &SyncSender<FeedMessage>, url: &str, token: &str) -> Result<(), S
     loop {
         let msg = socket.read().map_err(|e| format!("{e}"))?;
         if !msg.is_text() { continue; }
-        let batch: FeedBatch = match serde_json::from_slice(msg.as_bytes()) {
+        let text = match msg.to_text() {
+            Ok(text) => text,
+            Err(_) => continue,
+        };
+        let batch: FeedBatch = match serde_json::from_str(text) {
             Ok(batch) => batch,
             Err(_) => continue,
         };
