@@ -249,7 +249,7 @@ impl City {
         let Some(&index) = self.lookup.get(&path) else { self.dropped_events += 1; return false };
         if !event.event_id.is_empty() {
             self.seen_ids.insert(event.event_id.clone());
-            self.seen_order.push_back(event.event_id);
+            self.seen_order.push_back(event.event_id.clone());
             if self.seen_order.len() > MAX_SEEN_IDS {
                 if let Some(oldest) = self.seen_order.pop_front() {
                     self.seen_ids.remove(&oldest);
