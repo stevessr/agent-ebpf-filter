@@ -115,7 +115,7 @@ else
   # wl_surface.commit + xdg_toplevel means the Wayland client constructed and
   # submitted at least one window surface. This is not pixel/screenshot proof.
   for _ in $(seq 1 100); do
-    if grep -Eq 'wl_surface@[0-9]+\\.commit' "$out/app.log" &&
+    if grep -Eq 'wl_surface@[0-9]+\.commit' "$out/app.log" &&
        grep -q 'Selected: Wayland backend' "$out/app.log"; then
       break
     fi
@@ -127,7 +127,7 @@ else
     sleep 0.2
   done
   grep -q 'Selected: Wayland backend' "$out/app.log" || { echo "unexpected windowing backend" >&2; exit 1; }
-  grep -Eq 'wl_surface@[0-9]+\\.commit' "$out/app.log" || { echo "no Wayland surface commit observed" >&2; exit 1; }
+  grep -Eq 'wl_surface@[0-9]+\.commit' "$out/app.log" || { echo "no Wayland surface commit observed" >&2; exit 1; }
   sleep 4
   kill -0 "$app_pid" || { echo "Wayland app crashed after surface creation" >&2; tail -n 100 "$out/app.log"; exit 1; }
   echo "wayland-protocol-surface-commit=PASS" | tee -a "$out/summary.txt"
