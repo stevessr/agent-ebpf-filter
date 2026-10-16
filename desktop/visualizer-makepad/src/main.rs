@@ -281,6 +281,12 @@ impl CityViewport {
             DrawPassClearDepth::ClearWith(1.0));
         cx.passes[self.pass.draw_pass_id()].keep_camera_matrix = true;
         self.workspace_root = model::workspace_root();
+        let run_id = std::env::var("AGENT_EBPF_AGENT_RUN_ID").ok();
+        let root_pid = std::env::var("AGENT_EBPF_AGENT_ROOT_PID").ok()
+            .and_then(|pid| pid.parse::<i32>().ok());
+        let agent_only = std::env::var("AGENT_EBPF_AGENT_ONLY")
+            .ok().is_some_and(|value| value == "1" || value.eq_ignore_ascii_case("true"));
+        self.city.set_agent_scope(run_id, root_pid, agent_only);
         if let Some(root) = self.workspace_root.as_deref() {
             self.city.seed_workspace(root);
         }
