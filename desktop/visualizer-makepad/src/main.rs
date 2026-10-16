@@ -256,6 +256,10 @@ pub struct CityViewport {
     #[rust]
     city: City,
     #[rust]
+    selected_file: Option<usize>,
+    #[rust]
+    pick_points: Vec<(f32, f32, f32, usize)>,
+    #[rust]
     workspace_root: Option<PathBuf>,
     #[rust]
     feed: Option<EventFeed>,
@@ -315,6 +319,30 @@ impl CityViewport {
         }
     }
 
+    fn selected_note(&self) -> String {
+        if let Some(i) = self.selected_file {
+            if let Some(b) = self.city.buildings.get(i) {
+                let path = &b.path;
+                let path = if path.chars().count() > 100 {
+                    let pos = path.char_indices()
+                        .nth(path.chars().count() - 99)
+                        .map(|(i, _)| i).unwrap_or(0);
+                    format!("…{}", &path[pos..])
+                } else { path.to_owned() };
+                let kind = match b.activity {
+                    Activity::Read => "READ",
+                    Activity::Write => "WRITE",
+                    Activity::Alert => "ALERT",
+                    Activity::Blocked => "BLOCKED",
+                    Activity::Access => "ACCESS",
+                };
+                return format!("SELECTED • {kind} • {path} • {}",
+                    if b.owned_by_agent { "AGENT" } else { "UNATTRIBUTED" });
+            }
+        }
+        self.city.latest_note()
+    }
+
     fn draw_city(&mut self, cx: &mut Cx3d, state: SceneState3D) {
         self.draw_list.begin_always(cx);
         cx.begin_scene_3d(state);
@@ -332,8 +360,13 @@ impl CityViewport {
         self.draw_mesh.cube(cx, cube, vec3(-29., 2.0, -25.),
             vec3(0.3,2.0,0.3), beacon);
 
-        for building in &self.city.buildings {
+        for (i, building) in self.city.buildings.iter().enumerate() {
             let h = building.height;
+            if self.selected_file == Some(i) {
+                // A slightly larger silver shell under the selected tower.
+                self.draw_mesh.cube(cx, cube, vec3(building.x, h, building.z),
+                    vec3(0.58, h + 0.07, 0.58), vec4(0.83, 0.86, 1.0, 1.0));
+            }
             let color = material(building.activity, building.pulse, building.owned_by_agent);
             self.draw_mesh.cube(cx, cube, vec3(building.x, h, building.z),
                 vec3(0.51, h, 0.51), color);
@@ -377,6 +410,22 @@ impl WidgetNode for CityViewport {
 impl Widget for CityViewport {
     fn handle_event(&mut self, cx: &mut Cx, event: &Event, _scope: &mut Scope) {
         self.camera.handle_desktop_interaction(cx, event);
+        // Click/tap selects the nearest projected tower. Camera dragging is
+        // not a tap and therefore never accidentally selects a building.
+        if let Hit::FingerUp(hit) = event.hits(cx, self.area) {
+            if hit.is_primary_hit() && hit.was_tap() {
+                let x = hit.abs.x as f32;
+                let y = hit.abs.y as f32;
+                self.selected_file = self.pick_points.iter()
+                    .filter_map(|(bx, by, depth, i)| {
+                        let distance = (x - *bx).powi(2) + (y - *by).powi(2);
+                        (distance <= 24.0 * 24.0).then_some((distance, *depth, *i))
+                    })
+                    .min_by(|a, b| a.0.total_cmp(&b.0).then(a.1.total_cmp(&b.1)))
+                    .map(|(_, _, i)| i);
+                self.area.redraw(cx);
+            }
+        }
         if let Event::KeyDown(key) = event {
             match key.key_code {
                 KeyCode::ArrowLeft => self.city.replay_back(),
@@ -422,6 +471,20 @@ impl Widget for CityViewport {
             self.draw_label.set_camera_state(state.view, state.projection,
                 vec3(camera.x * inv, camera.y * inv, camera.z * inv));
             self.draw_label.set_viewport_rect(rect);
+            self.pick_points.clear();
+            // The GPU scene is authoritative; project building rooftops using
+            // the same camera as the labels for read-only mouse picking.
+            for (i, b) in self.city.buildings.iter().enumerate() {
+                if let Some((screen, depth)) = self.draw_label
+                    .project_world_to_screen(vec3(b.x, b.height * 2.0, b.z))
+                {
+                    if screen.x >= rect.pos.x && screen.y >= rect.pos.y
+                        && screen.x <= rect.pos.x + rect.size.x
+                        && screen.y <= rect.pos.y + rect.size.y {
+                        self.pick_points.push((screen.x, screen.y, depth, i));
+                    }
+                }
+            }
             for (name, x, z) in self.city.district_labels(18) {
                 let _ = self.draw_label.draw_world_text(cx, vec3(x, 5.0, z), &name);
             }
@@ -467,7 +530,7 @@ impl AppMain for App {
         // Updating only on change avoids forcing layout work at every GPU tick.
         let stats = self.ui.widget(cx, ids!(viewport))
             .borrow::<CityViewport>()
-            .map(|viewport| (viewport.city.status_line(), viewport.city.latest_note()));
+            .map(|viewport| (viewport.city.status_line(), viewport.selected_note()));
         if let Some((status, note)) = stats {
             if status != self.last_status {
                 self.ui.label(cx, ids!(status_hint)).set_text(cx, &status);
