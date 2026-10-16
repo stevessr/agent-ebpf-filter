@@ -75,6 +75,7 @@ script_mod! {
         clear_color: #x0c1120
         draw_bg: mod.draw.DrawXrSceneTexture{}
         draw_mesh: mod.draw.DrawCityMesh{backface_culling: true}
+        draw_label: mod.draw.DrawText3d{}
         camera: mod.widgets.XrCamera{
             fov_y: 43.0
             desktop_target: vec3(0.0, 1.0, 0.0)
@@ -232,6 +233,8 @@ pub struct CityViewport {
     draw_bg: DrawXrSceneTexture,
     #[live]
     draw_mesh: DrawCityMesh,
+    #[live]
+    draw_label: DrawText3d,
     #[live(vec4(0.047, 0.067, 0.125, 1.0))]
     clear_color: Vec4f,
     #[live]
@@ -403,6 +406,28 @@ impl Widget for CityViewport {
         cx.end_pass(&self.pass);
         self.draw_bg.set_scene_texture(&self.color_texture);
         self.draw_bg.draw_abs(cx, rect);
+        // A small number of directory headings is projected into native 2D
+        // overlay text. This avoids creating per-file 3D text meshes.
+        if let Some(state) = self.camera.desktop_scene_state(rect, cx.time()) {
+            let camera = state.view.invert().transform_vec4(vec4(0.0, 0.0, 0.0, 1.0));
+            let inv = 1.0 / camera.w.max(0.00001);
+            self.draw_label.set_camera_state(state.view, state.projection,
+                vec3(camera.x * inv, camera.y * inv, camera.z * inv));
+            self.draw_label.set_viewport_rect(rect);
+            for (name, x, z) in self.city.district_labels(18) {
+                let _ = self.draw_label.draw_world_text(cx, vec3(x, 5.0, z), &name);
+            }
+            // Recent events float above their own towers, like commit lights.
+            let mut shown = 0;
+            for b in self.city.buildings.iter().rev() {
+                if b.pulse < 0.88 { continue; }
+                let label = b.path.rsplit('/').next().unwrap_or(&b.path);
+                if shown >= 8 { break; }
+                let _ = self.draw_label.draw_world_text(cx,
+                    vec3(b.x, b.height * 2.0 + 2.0, b.z), label);
+                shown += 1;
+            }
+        }
         self.area = self.draw_bg.area();
         cx.set_pass_area(&self.pass, self.area);
         DrawStep::done()
