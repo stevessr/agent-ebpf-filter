@@ -54,6 +54,17 @@ func TestOptInAndPortValidation(t *testing.T) {
 	if m.Status().Running { t.Fatal("stop did not shut down listener") }
 }
 
+func TestSOCKSOnlyTLSConfiguration(t *testing.T) {
+	cfg := Config{SOCKS5Port: 8900, InterceptTLS: true, TLSAllowlist: "api.example.com"}
+	if err := validConfig(cfg); err != nil {
+		t.Fatalf("SOCKS-only HTTPS capture settings rejected: %v", err)
+	}
+	cfg.TLSAllowlist = ""
+	if err := validConfig(cfg); err == nil {
+		t.Fatal("TLS interception without an explicit allowlist must fail")
+	}
+}
+
 func TestGenerateCAHasNoImplicitTrust(t *testing.T) {
 	dir:=t.TempDir()
 	m:=NewManager(dir)
