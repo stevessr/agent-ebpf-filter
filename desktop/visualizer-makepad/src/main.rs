@@ -11,8 +11,8 @@ use makepad_widgets::*;
 use makepad_xr::scene::*;
 use model::{Activity, City, MAX_EVENTS_PER_FRAME};
 use std::path::PathBuf;
-use std::sync::mpsc::Receiver;
-use stream::FeedMessage;
+use std::sync::atomic::Ordering;
+use stream::EventFeed;
 
 app_main!(App);
 
@@ -255,7 +255,7 @@ pub struct CityViewport {
     #[rust]
     workspace_root: Option<PathBuf>,
     #[rust]
-    feed: Option<Receiver<FeedMessage>>,
+    feed: Option<EventFeed>,
     #[rust]
     next_frame: NextFrame,
 }
@@ -286,13 +286,14 @@ impl CityViewport {
     }
 
     fn pull_feed(&mut self) {
-        if let Some(receiver) = &self.feed {
+        if let Some(feed) = &self.feed {
+            // Health and lost-message counters cannot be starved by a full
+            // event queue (e.g. when switching away from the desktop window).
+            self.city.connected = feed.online.load(Ordering::Acquire);
+            self.city.transport_dropped = feed.dropped.load(Ordering::Relaxed);
             for _ in 0..MAX_EVENTS_PER_FRAME {
-                match receiver.try_recv() {
-                    Ok(FeedMessage::Connected(connected)) => self.city.connected = connected,
-                    Ok(FeedMessage::Event(event)) => {
-                        let _ = self.city.apply(event, self.workspace_root.as_deref());
-                    }
+                match feed.events.try_recv() {
+                    Ok(event) => { let _ = self.city.apply(event, self.workspace_root.as_deref()); }
                     Err(std::sync::mpsc::TryRecvError::Empty) => break,
                     Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                         self.city.connected = false;
