@@ -27,7 +27,9 @@ For an authenticated backend, set `AGENT_EBPF_API_TOKEN` in the viewer's environ
 
 **Rendering controls:** drag to orbit, mouse wheel to zoom, ← to step backward one captured file event, → to step forward, Esc to resume live. During replay, new events still enter the bounded history but do not rewrite the paused scene. The top HUD distinguishes LIVE/REPLAY/OFFLINE and lists file count, observed events, Agent-attributed events and dropped events. Replay is a *visualization* of the bounded event window; it does not rewind kernel state or recover evicted history.
 
-By default only absolute event paths inside `/workspaces/<repo>` are displayed, and their UI paths retain the repository name to prevent collisions. An explicitly configured `AGENT_EBPF_WORKSPACE_ROOT` restricts activity to that repository and seeds up to 2,048 files via local metadata enumeration. The visual city heights are stable illustrative hashes **not** bytes, source lines, file risk or execution time.
+By default only absolute event paths inside `/workspaces/<repo>` are displayed, and their UI paths retain the repository name to prevent collisions. An explicitly configured `AGENT_EBPF_WORKSPACE_ROOT` restricts activity to that repository and seeds up to 2,048 files via local metadata enumeration. You can further constrain the stream view to **only confirmed Agent events** with `AGENT_EBPF_AGENT_ONLY=1`, or exact identity with `AGENT_EBPF_AGENT_RUN_ID=<run-id>` and/or `AGENT_EBPF_AGENT_ROOT_PID=<PID>`. Filters never infer an owner from an inherited shell name, file path, or substring.
+
+The visual city heights are stable illustrative hashes **not** bytes, source lines, file risk or execution time.
 
 ## Limitations and architecture
 
