@@ -98,7 +98,7 @@ func registerProxyCaptureRoutes(r gin.IRouter) {
 func isLocalCaptureController(c *gin.Context) bool {
 	addr := strings.TrimSpace(c.Request.RemoteAddr)
 	host, _, err := net.SplitHostPort(addr)
-	if err != nil { return addr=="@" || addr=="unix" }
+	if err != nil { return addr=="" || addr=="@" || addr=="unix" }
 	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback()
 }
