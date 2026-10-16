@@ -46,10 +46,11 @@ class TechnicalDocsValidationTests(unittest.TestCase):
 
     def test_short_closing_fence_does_not_count(self) -> None:
         tick = chr(96) * 3
-        broken = self.sample_page().replace(
-            f"{tick}mermaid\nflowchart LR\n  A --> B\n{tick}",
-            "~~~~mermaid\nflowchart LR\n  A --> B\n~~~",
-            1,
+        original = self.sample_page()
+        valid = f"{tick}mermaid\nflowchart LR\n  A --> B\n{tick}"
+        second = original.rfind(valid)
+        broken = original[:second] + original[second:].replace(
+            valid, "~~~~mermaid\nflowchart LR\n  A --> B\n~~~", 1
         )
         count, issues = self.check_page(broken)
         self.assertEqual(count, 1)
