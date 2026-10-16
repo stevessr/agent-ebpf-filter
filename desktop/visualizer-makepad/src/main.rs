@@ -266,6 +266,9 @@ impl CityViewport {
             DrawPassClearDepth::ClearWith(1.0));
         cx.passes[self.pass.draw_pass_id()].keep_camera_matrix = true;
         self.workspace_root = model::workspace_root();
+        if let Some(root) = self.workspace_root.as_deref() {
+            self.city.seed_workspace(root);
+        }
         self.feed = Some(stream::subscribe());
         self.next_frame = cx.new_next_frame();
     }
