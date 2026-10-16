@@ -105,8 +105,8 @@ func validConfig(c Config) error {
 		hasPort = true
 	}
 	if !hasPort { return errors.New("configure at least one HTTP/SOCKS5/SOCKS4 port before starting") }
-	if c.InterceptTLS && (c.HTTPPort == 0 || strings.TrimSpace(c.TLSAllowlist) == "") {
-		return errors.New("TLS interception requires an HTTP port and explicit domain allowlist")
+	if c.InterceptTLS && strings.TrimSpace(c.TLSAllowlist) == "" {
+		return errors.New("TLS interception requires an explicit domain allowlist")
 	}
 	return nil
 }
