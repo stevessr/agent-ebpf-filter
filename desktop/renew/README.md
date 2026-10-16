@@ -56,6 +56,17 @@
 - [Codex Config basics](https://developers.openai.com/codex/config-basic)、[Configuration Reference](https://developers.openai.com/codex/config-reference)
 - [Codex Managed configuration](https://learn.chatgpt.com/docs/enterprise/managed-configuration)
 
+
+## Makepad CodeCity（独立高级可视化）
+
+日常监控仍使用 Renew/MyGo 原生 UI；实验性的 3D 代码城市独立实现于
+[`desktop/visualizer-makepad`](../visualizer-makepad/README.md)（Rust/Makepad）。
+它消费相同的 `/ws/event-summaries` 紧凑事件协议，按 CodeSpace 工作目录构建
+文件街区，用 GPU 绘制读、写、告警、阻断的实时建筑信号和相机轨道视图。
+这是可选的无特权独立程序：**不需要**替换 MyGo、不向后台授予新权限，也不
+接管原有采集和策略。没有真实观测事件时不制造 Agent 文件修改记录。
+详见子模块 README 的 CodeSpace 启动参数、GPU 显示条件及当前限制。
+
 ## MyGo release tracking and desktop usability
 
 The desktop Go module pins a tested MyGo version independently of the privileged backend.
