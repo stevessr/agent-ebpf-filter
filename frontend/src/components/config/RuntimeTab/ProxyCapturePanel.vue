@@ -151,7 +151,7 @@ onUnmounted(() => {
       type="warning"
       show-icon
       message="仅用于你有权监控的流量；默认关闭，不接管系统代理、不安装根证书"
-      description="监听地址固定为 127.0.0.1，必须先保存端口并再次确认才会启动。SOCKS 和未解密的 CONNECT 只记录目的地等元数据；允许名单中的 HTTP CONNECT 才支持 TLS 解密。"
+      description="监听地址固定为 127.0.0.1，必须先保存端口并再次确认才会启动。未解密的 SOCKS/CONNECT 仅记录目的地；启用白名单和 CA 后 HTTP/SOCKS CONNECT 的 HTTPS（HTTP/1.1）可解密。"
       style="margin-bottom: 14px"
     />
     <a-alert v-if="error" :message="error" type="error" show-icon closable @close="error = ''" />
