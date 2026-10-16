@@ -362,7 +362,7 @@ impl CityViewport {
             self.city.transport_dropped = feed.dropped.load(Ordering::Relaxed);
             for _ in 0..MAX_EVENTS_PER_FRAME {
                 match feed.events.try_recv() {
-                    Ok(event) => { let _ = self.city.apply(event, self.workspace_root.as_deref()); }
+                    Ok(event) => { let _ = self.city.observe(event, self.workspace_root.as_deref()); }
                     Err(std::sync::mpsc::TryRecvError::Empty) => break,
                     Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                         self.city.connected = false;
