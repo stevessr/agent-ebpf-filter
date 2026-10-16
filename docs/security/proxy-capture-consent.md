@@ -14,7 +14,7 @@ Open **WebUI → Runtime Configuration → Proxy Capture** or **Renew Desktop �
 
 HTTP transaction metadata contains the method, host, URL path (no query parameters), response status, elapsed time and content type. All request cookies and Authorization headers are excluded. JSON preview is **off by default**. When enabled, JSON bodies up to 4096 bytes are sampled and sensitive *key names* are masked. This is best-effort: arbitrary string values and personal data are not guaranteed to be removed. Do not collect data without consent.
 
-SOCKS4/SOCKS5 and HTTPS CONNECT without explicit TLS interception record destination metadata only. No traffic is transparently intercepted. The capture proxy does not implement SOCKS UDP ASSOCIATE, SOCKS TLS MITM, HTTP/2 MITM, WebSocket upgrade or full mitmdump scripting.
+SOCKS4/SOCKS5 and HTTPS CONNECT without explicit TLS interception record destination metadata only. When TLS interception is enabled for an allowlisted destination on port 443, SOCKS4/SOCKS5 CONNECT also supports HTTP/1.1 HTTPS-context capture (other SOCKS traffic stays opaque). No traffic is transparently intercepted. The capture proxy does not implement SOCKS UDP ASSOCIATE, HTTP/2 MITM, WebSocket upgrade or full mitmdump scripting.
 
 ## Explicit HTTPS trust steps
 
