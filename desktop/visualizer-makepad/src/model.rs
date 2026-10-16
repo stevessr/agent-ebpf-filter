@@ -121,9 +121,20 @@ fn workspace_relative(relative: &Path) -> Option<String> {
 pub fn workspace_root() -> Option<PathBuf> {
     let raw = std::env::var_os("AGENT_EBPF_WORKSPACE_ROOT")?;
     let root = PathBuf::from(raw);
-    // Explicit user-supplied root must exist; we never follow a supplied root
-    // through a file event target or independently read source contents.
-    root.canonicalize().ok().filter(|p| p.is_dir())
+    // A remote CodeSpace root generally does NOT exist on the graphics
+    // workstation. Still preserve it as an exact logical event-path filter.
+    if !root.is_absolute() || root.components()
+        .any(|c| matches!(c, Component::ParentDir | Component::CurDir)) {
+        return None;
+    }
+    Some(root)
+}
+
+/// Only locally accessible physical roots may seed metadata. Never follow a
+/// symbolic link supplied as the root of the metadata traversal.
+pub fn local_scan_root(root: &Path) -> bool {
+    std::fs::symlink_metadata(root).ok()
+        .is_some_and(|meta| meta.is_dir() && !meta.file_type().is_symlink())
 }
 
 fn hash_path(path: &str) -> u32 {
