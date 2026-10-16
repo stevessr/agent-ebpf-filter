@@ -3,6 +3,7 @@
 //! This process is read-only and never starts or configures a collector.
 mod model;
 mod stream;
+mod timeline;
 
 pub use makepad_widgets;
 pub use makepad_xr;
@@ -10,6 +11,7 @@ pub use makepad_xr;
 use makepad_widgets::*;
 use makepad_xr::scene::*;
 use model::{Activity, City, MAX_EVENTS_PER_FRAME};
+use timeline::{Lane, LaneSelection};
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use stream::EventFeed;
@@ -111,6 +113,45 @@ script_mod! {
                             status_hint := Label{
                                 text: "● CONNECTING  •  drag: orbit  /  wheel: zoom"
                                 draw_text +: {color: #x91a3bf}
+                            }
+                        }
+                        time_toolbar := SolidView{
+                            width: Fill
+                            height: 44.0
+                            flow: Right
+                            spacing: 7.0
+                            align: Align{x: 0.0 y: 0.5}
+                            padding: Inset{left: 12.0 right: 12.0}
+                            draw_bg +: {color: #x161c2b}
+                            time_title := Label{text: "Time span" draw_text +: {color: #x9eacd1}}
+                            time_1 := Button{text: "1m"}
+                            time_5 := Button{text: "5m"}
+                            time_15 := Button{text: "15m"}
+                            time_60 := Button{text: "1h"}
+                            time_all := Button{text: "All"}
+                            time_shrink := Button{text: "−"}
+                            time_grow := Button{text: "+"}
+                            time_older := Button{text: "◀ Older"}
+                            time_newer := Button{text: "Newer ▶"}
+                            time_live := Button{text: "Live"}
+                        }
+                        actor_toolbar := SolidView{
+                            width: Fill
+                            height: 44.0
+                            flow: Right
+                            spacing: 8.0
+                            align: Align{x: 0.0 y: 0.5}
+                            padding: Inset{left: 12.0 right: 12.0}
+                            draw_bg +: {color: #x121a29}
+                            actor_all := Button{text: "All actors"}
+                            actor_root := Button{text: "Main"}
+                            actor_child := Button{text: "Child processes"}
+                            actor_verified := Button{text: "Subagents ✓"}
+                            actor_prev := Button{text: "◀ Lane"}
+                            actor_next := Button{text: "Lane ▶"}
+                            actor_info := Label{
+                                text: "ALL ACTORS"
+                                draw_text +: {color: #xf0c2f2}
                             }
                         }
                         viewport := mod.widgets.CityViewport{}
@@ -375,6 +416,23 @@ impl CityViewport {
 
         for (i, building) in self.city.buildings.iter().enumerate() {
             let h = building.height;
+            // An inactive filename still remains in the topological city,
+            // but cannot masquerade as an event within the chosen time span.
+            if !building.visible {
+                self.draw_mesh.cube(cx, cube, vec3(building.x, h, building.z),
+                    vec3(0.51, h, 0.51), vec4(0.09, 0.12, 0.20, 1.0));
+                continue;
+            }
+            // Actor-local accents are intentionally separate from the semantic
+            // file-operation color of the building and signal column.
+            let actor_tint = match building.last_lane.as_ref() {
+                Some(Lane::VerifiedSubagent { .. }) => vec4(0.74,0.45,0.97,1.0),
+                Some(Lane::Delegated { .. }) => vec4(0.98,0.64,0.26,1.0),
+                Some(Lane::Root { .. }) => vec4(0.18,0.90,0.96,1.0),
+                _ => vec4(0.33,0.36,0.48,1.0),
+            };
+            self.draw_mesh.cube(cx, cube, vec3(building.x,-0.012,building.z),
+                vec3(0.57,0.04,0.57), actor_tint);
             if self.selected_file == Some(i) {
                 // A slightly larger silver shell under the selected tower.
                 self.draw_mesh.cube(cx, cube, vec3(building.x, h, building.z),
@@ -488,6 +546,7 @@ impl Widget for CityViewport {
             // The GPU scene is authoritative; project building rooftops using
             // the same camera as the labels for read-only mouse picking.
             for (i, b) in self.city.buildings.iter().enumerate() {
+                if !b.visible { continue; }
                 if let Some((screen, depth)) = self.draw_label
                     .project_world_to_screen(vec3(b.x, b.height * 2.0, b.z))
                 {
@@ -504,7 +563,7 @@ impl Widget for CityViewport {
             // Recent events float above their own towers, like commit lights.
             let mut shown = 0;
             for b in self.city.buildings.iter().rev() {
-                if b.pulse < 0.88 { continue; }
+                if !b.visible || b.pulse < 0.88 { continue; }
                 let label = b.path.rsplit('/').next().unwrap_or(&b.path);
                 if shown >= 8 { break; }
                 let _ = self.draw_label.draw_world_text(cx,
@@ -526,9 +585,73 @@ pub struct App {
     last_status: String,
     #[rust]
     last_note: String,
+    #[rust]
+    last_actor: String,
 }
 
-impl MatchEvent for App {}
+#[derive(Clone, Copy)]
+enum ToolbarCommand {
+    Span(u32), Shrink, Grow, Older, Newer, Live,
+    AllActors, MainActors, ChildProcesses, VerifiedSubagents,
+    PreviousActor, NextActor,
+}
+
+impl MatchEvent for App {
+    fn handle_actions(&mut self, cx: &mut Cx, actions: &Actions) {
+        let command = if self.ui.button(cx, ids!(time_1)).clicked(actions) {
+            Some(ToolbarCommand::Span(1))
+        } else if self.ui.button(cx, ids!(time_5)).clicked(actions) {
+            Some(ToolbarCommand::Span(5))
+        } else if self.ui.button(cx, ids!(time_15)).clicked(actions) {
+            Some(ToolbarCommand::Span(15))
+        } else if self.ui.button(cx, ids!(time_60)).clicked(actions) {
+            Some(ToolbarCommand::Span(60))
+        } else if self.ui.button(cx, ids!(time_all)).clicked(actions) {
+            Some(ToolbarCommand::Span(0))
+        } else if self.ui.button(cx, ids!(time_shrink)).clicked(actions) {
+            Some(ToolbarCommand::Shrink)
+        } else if self.ui.button(cx, ids!(time_grow)).clicked(actions) {
+            Some(ToolbarCommand::Grow)
+        } else if self.ui.button(cx, ids!(time_older)).clicked(actions) {
+            Some(ToolbarCommand::Older)
+        } else if self.ui.button(cx, ids!(time_newer)).clicked(actions) {
+            Some(ToolbarCommand::Newer)
+        } else if self.ui.button(cx, ids!(time_live)).clicked(actions) {
+            Some(ToolbarCommand::Live)
+        } else if self.ui.button(cx, ids!(actor_all)).clicked(actions) {
+            Some(ToolbarCommand::AllActors)
+        } else if self.ui.button(cx, ids!(actor_root)).clicked(actions) {
+            Some(ToolbarCommand::MainActors)
+        } else if self.ui.button(cx, ids!(actor_child)).clicked(actions) {
+            Some(ToolbarCommand::ChildProcesses)
+        } else if self.ui.button(cx, ids!(actor_verified)).clicked(actions) {
+            Some(ToolbarCommand::VerifiedSubagents)
+        } else if self.ui.button(cx, ids!(actor_prev)).clicked(actions) {
+            Some(ToolbarCommand::PreviousActor)
+        } else if self.ui.button(cx, ids!(actor_next)).clicked(actions) {
+            Some(ToolbarCommand::NextActor)
+        } else { None };
+        let Some(command) = command else { return };
+        let viewport = self.ui.widget(cx, ids!(viewport));
+        if let Some(mut viewport) = viewport.borrow_mut::<CityViewport>() {
+            match command {
+                ToolbarCommand::Span(minutes) => viewport.city.set_time_span(minutes),
+                ToolbarCommand::Shrink => viewport.city.resize_time_span(false),
+                ToolbarCommand::Grow => viewport.city.resize_time_span(true),
+                ToolbarCommand::Older => viewport.city.shift_time_range(true),
+                ToolbarCommand::Newer => viewport.city.shift_time_range(false),
+                ToolbarCommand::Live => viewport.city.resume_time_live(),
+                ToolbarCommand::AllActors => viewport.city.set_lane_selection(LaneSelection::All),
+                ToolbarCommand::MainActors => viewport.city.set_lane_selection(LaneSelection::Main),
+                ToolbarCommand::ChildProcesses => viewport.city.set_lane_selection(LaneSelection::Delegated),
+                ToolbarCommand::VerifiedSubagents => viewport.city.set_lane_selection(LaneSelection::Verified),
+                ToolbarCommand::PreviousActor => viewport.city.cycle_actor(false),
+                ToolbarCommand::NextActor => viewport.city.cycle_actor(true),
+            };
+            viewport.area.redraw(cx);
+        }
+    }
+}
 
 impl AppMain for App {
     fn script_mod(vm: &mut ScriptVm) -> ScriptValue {
@@ -543,8 +666,9 @@ impl AppMain for App {
         // Updating only on change avoids forcing layout work at every GPU tick.
         let stats = self.ui.widget(cx, ids!(viewport))
             .borrow::<CityViewport>()
-            .map(|viewport| (viewport.city.status_line(), viewport.selected_note()));
-        if let Some((status, note)) = stats {
+             .map(|viewport| (viewport.city.status_line(), viewport.selected_note(),
+                viewport.city.lane_selection.label()));
+        if let Some((status, note, actor)) = stats {
             if status != self.last_status {
                 self.ui.label(cx, ids!(status_hint)).set_text(cx, &status);
                 self.last_status = status;
@@ -552,6 +676,10 @@ impl AppMain for App {
             if note != self.last_note {
                 self.ui.label(cx, ids!(event_detail)).set_text(cx, &note);
                 self.last_note = note;
+            }
+            if actor != self.last_actor {
+                self.ui.label(cx, ids!(actor_info)).set_text(cx, &actor);
+                self.last_actor = actor;
             }
         }
     }
