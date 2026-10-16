@@ -5,7 +5,6 @@ package proxycapture
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -374,7 +373,9 @@ func (m *Manager) connect(w http.ResponseWriter,r *http.Request,cfg Config) {
 	start:=time.Now()
 	address,host,err:=destination(r.Host,"443")
 	if err!=nil {http.Error(w,err.Error(),400);return}
-	client,rw,err:=w.(http.Hijacker).Hijack()
+	hijacker,ok:=w.(http.Hijacker)
+	if !ok {http.Error(w,"proxy cannot hijack this HTTP connection",500);return}
+	client,rw,err:=hijacker.Hijack()
 	if err!=nil {http.Error(w,"proxy cannot hijack",500);return}
 	defer client.Close()
 	// CONNECT is acknowledged only once we can either terminate TLS ourselves
@@ -384,7 +385,9 @@ func (m *Manager) connect(w http.ResponseWriter,r *http.Request,cfg Config) {
 		tlsCfg,caErr:=domainforwardproxy.NewCaptureTLSConfig(certPath,keyPath,cfg.TLSAllowlist,host)
 		if caErr==nil {
 			_,_ = io.WriteString(client,"HTTP/1.1 200 Connection Established\r\n\r\n")
-			tlsConn:=tls.Server(client,tlsCfg)
+			var tlsBase net.Conn=client
+			if rw.Reader.Buffered()>0 {tlsBase=&bufferedConn{Conn:client,reader:rw.Reader}}
+			tlsConn:=tls.Server(tlsBase,tlsCfg)
 			defer tlsConn.Close()
 			if err:=tlsConn.Handshake();err!=nil {
 				m.record(Flow{Protocol:"HTTPS MITM",Host:host,Error:"TLS handshake failed"})
@@ -412,8 +415,23 @@ func (m *Manager) connect(w http.ResponseWriter,r *http.Request,cfg Config) {
 type bufferedConn struct {net.Conn;reader *bufio.Reader}
 func (c *bufferedConn) Read(p []byte)(int,error){return c.reader.Read(p)}
 
-type oneConnListener struct {mu sync.Mutex;conn net.Conn;used bool}
-func (l *oneConnListener) Accept()(net.Conn,error){l.mu.Lock();defer l.mu.Unlock();if l.used{return nil,io.EOF};l.used=true;return l.conn,nil}
+type oneConnListener struct {mu sync.Mutex;conn net.Conn;used bool;done chan struct{}}
+type closeNotifyingConn struct {net.Conn;done chan struct{};once sync.Once}
+func (c *closeNotifyingConn) Close() error {c.once.Do(func(){close(c.done)});return c.Conn.Close()}
+func (l *oneConnListener) Accept()(net.Conn,error){
+ l.mu.Lock()
+ if !l.used {
+  l.used=true
+  l.done=make(chan struct{})
+  conn:=&closeNotifyingConn{Conn:l.conn,done:l.done}
+  l.mu.Unlock()
+  return conn,nil
+ }
+ done:=l.done
+ l.mu.Unlock()
+ <-done
+ return nil,io.EOF
+}
 func (l *oneConnListener) Close() error {return nil}
 func (l *oneConnListener) Addr() net.Addr {return l.conn.LocalAddr()}
 
@@ -525,6 +543,3 @@ func socks4Handshake(conn net.Conn,r *bufio.Reader)(string,string,error){
 // Explicitly shut down listeners on backend lifecycle stop; nothing persists.
 func (m *Manager) Close() {m.Stop()}
 
-// Keep package compile-time context dependency visible for future lifecycle
-// cancellation without granting any background capture capability.
-var _ = context.Background
