@@ -766,6 +766,7 @@ mod tests {
         started.root_agent_pid = 100;
         started.pid = 100;
         started.agent_run_id = "run-1".into();
+        started.subagent_id = "sha256:0123456789abcdef0123".into();
         started.received_at_ms = now - 5_000;
         assert!(city.observe(started.clone(), None));
         assert!(!city.observe(started, None));
@@ -777,7 +778,21 @@ mod tests {
         city.set_lane_selection(LaneSelection::Verified);
         assert_eq!(city.visible_subagent_starts, 1);
         assert_eq!(city.visible_events, 0);
+        assert!(matches!(city.subagent_signals[0].lane,
+            Lane::VerifiedSubagent { .. }));
+        let mut second = e("native_hook", "");
+        second.comm = "SubagentStart:Plan".into();
+        second.event_id = "start-2".into();
+        second.root_agent_pid = 100;
+        second.pid = 100;
+        second.agent_run_id = "run-1".into();
+        second.subagent_id = "sha256:abcdef0123456789abcd".into();
+        second.received_at_ms = now - 3_000;
+        assert!(city.observe(second, None));
+        city.refresh_view(now);
+        assert_eq!(city.visible_subagent_starts, 2);
         city.cycle_actor(true);
+        assert_eq!(city.visible_subagent_starts, 1);
         assert!(matches!(city.lane_selection, LaneSelection::One(_)));
         city.shift_time_range(true);
         assert_eq!(city.visible_subagent_starts, 0);
