@@ -23,21 +23,12 @@ pub fn subscribe() -> Receiver<FeedMessage> {
             if let Err(err) = consume(&tx, &url, &token) {
                 eprintln!("codecity: event feed disconnected: {err}");
             }
-            let _ = tx.try_send(FeedMessage::Connected(false));
-            if tx.is_empty_receiver_closed() { break; }
+            if matches!(tx.try_send(FeedMessage::Connected(false)),
+                Err(TrySendError::Disconnected(_))) { break; }
             thread::sleep(Duration::from_secs(3));
         }
     });
     rx
-}
-
-// Receiver disconnection is inferred from send failure, not from sensitive
-// networking errors. The feed doesn't log tokens, request URLs or payloads.
-trait SenderClosed { fn is_empty_receiver_closed(&self) -> bool; }
-impl<T> SenderClosed for SyncSender<T> {
-    fn is_empty_receiver_closed(&self) -> bool {
-        matches!(self.try_send, _)
-    }
 }
 
 fn consume(tx: &SyncSender<FeedMessage>, url: &str, token: &str) -> Result<(), String> {
