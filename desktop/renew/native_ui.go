@@ -209,6 +209,22 @@ type renewApp struct {
 	disabledEventTypes map[int]bool
 	runtimeCfg         runtimeConfigResponse
 	runtimeReady       bool
+	proxyCaptureLoaded bool
+	proxyCaptureLastPoll time.Time
+	proxyCaptureBusy bool
+	proxyCaptureError string
+	proxyCaptureInfo string
+	proxyCaptureHTTP string
+	proxyCaptureSOCKS5 string
+	proxyCaptureSOCKS string
+	proxyCaptureTLS bool
+	proxyCaptureAllowlist string
+	proxyCapturePreview bool
+	proxyCaptureStartConfirm bool
+	proxyCaptureCAConfirm bool
+	proxyCaptureTrustConfirm bool
+	proxyCaptureStatus desktopProxyCaptureStatus
+	proxyCaptureFlows []desktopProxyCaptureFlow
 
 	modulesReady         bool
 	modulesBusy          bool
