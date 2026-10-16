@@ -4,7 +4,7 @@ An independent, **unprivileged, read-only** Rust/Makepad renderer for the Agent 
 
 ## Why separate Makepad?
 
-MyGo manages daily monitoring, alerts, native dialogs and OS integration. Makepad provides an optional 3D scene: pastel cyan/pink buildings grouped by top-level folders, camera orbit/zoom, and animated columns on real file operations. A source file is represented by a building **only when its path was actually observed in the bounded event stream**, never invented from an Agent prompt. Directory grouping is visual, not a source dependency graph.
+MyGo manages daily monitoring, alerts, native dialogs and OS integration. Makepad provides an optional 3D scene: pastel cyan/pink buildings grouped by top-level folders, camera orbit/zoom, and animated columns on real file operations. When `AGENT_EBPF_WORKSPACE_ROOT` points to an accessible local directory, a bounded, symlink-safe **metadata-only file index** seeds the initial buildings without reading file contents. Otherwise, buildings appear only for paths observed in the event stream; activity beams always require real observed events and are never invented from Agent prompts. Directory grouping is visual, not a source dependency graph.
 
 ## Running inside a Linux CodeSpace / devcontainer
 
