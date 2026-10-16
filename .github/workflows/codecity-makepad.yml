@@ -15,6 +15,11 @@ on:
 permissions:
   contents: read
 
+# An active renderer build is superseded by a newer CodeCity commit.
+concurrency:
+  group: codecity-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-test:
     runs-on: ubuntu-24.04
@@ -36,6 +41,10 @@ jobs:
         run: |
           rustup toolchain install stable --profile minimal
           rustup default stable
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/visualizer-makepad
       - name: Check Makepad Rust visualizer
         run: cargo check --manifest-path desktop/visualizer-makepad/Cargo.toml
       - name: Test read-only event model and binary
