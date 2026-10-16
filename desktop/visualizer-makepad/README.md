@@ -1,33 +1,45 @@
 # CodeCity — Makepad GPU visualizer (experimental)
 
-An independent, **unprivileged, read-only** Rust/Makepad renderer for the Agent eBPF Filter compact event stream. It does **not** replace Renew/MyGo, access BPF maps, enforce policy, or read source-code contents.
+Independent, **unprivileged, read-only** Rust/Makepad viewer for Agent eBPF Filter's compact event feed. It does **not** replace Renew/MyGo, read file contents, access BPF maps or change policy. The MyGo v0.5.5 dependency update is merged separately in PR #111.
 
-## Why separate Makepad?
+## Scene and capabilities
 
-MyGo manages daily monitoring, alerts, native dialogs and OS integration. Makepad provides an optional 3D scene: pastel cyan/pink buildings grouped by top-level folders, camera orbit/zoom, and animated columns on real file operations. When `AGENT_EBPF_WORKSPACE_ROOT` points to an accessible local directory, a bounded, symlink-safe **metadata-only file index** seeds the initial buildings without reading file contents. Otherwise, buildings appear only for paths observed in the event stream; activity beams always require real observed events and are never invented from Agent prompts. Directory grouping is visual, not a source dependency graph.
+- GPU-instanced 3D cuboid buildings, orbit/zoom controls, per-directory pastel streets, camera-projected district and active file labels
+- Cyan for reads, teal for ordinary file metadata/access, pink for writes, amber for alerts, red for blocked operations
+- Vertical signal beams only for observed file events; 8 highlighted file names at most
+- Bounded optional local source-tree **metadata-only** scan, never following symlinks or opening source files
+- File event ownership based on actual `rootAgentPid`, `agentRunId` or explicit known harness tag, not arbitrary shell commands
+- Bounded history (2,048 file events), dedupe cache (4,096 event IDs), capped 2,048 rendered buildings and no unbounded event queue
+- Real-time transport-health indicator and message-loss counters separate from the event queue: failed reconnects do not appear healthy
 
-## Running inside a Linux CodeSpace / devcontainer
+## Running from a Linux devcontainer / CodeSpace
 
-Run Agent eBPF backend as normal, then in the devcontainer with GPU/display forwarding (or on a Linux desktop connected to a remote WSS event endpoint):
+Build on a GPU-equipped Linux workstation or within a CodeSpace with working desktop display/graphics forwarding. Headless Codespaces cannot render a native 3D window by themselves.
 
 ```sh
 cd desktop/visualizer-makepad
-AGENT_EBPF_WS_URL=ws://127.0.0.1:8080/ws/event-summaries \
 AGENT_EBPF_WORKSPACE_ROOT=/workspaces/agent-ebpf-filiter \
+AGENT_EBPF_WS_URL=ws://127.0.0.1:8080/ws/event-summaries \
 cargo run --release
 ```
 
-For secured API authentication set `AGENT_EBPF_API_TOKEN` in the process environment; this is transmitted as `X-API-KEY` on the WS handshake, never in the URL. Remote endpoints **must** be `wss://`. Do not forward an unauthenticated backend port publicly. A headless CodeSpace cannot display a native GPU window; run on a desktop with display forwarding or a GPU-enabled CodeSpace. A separate browser/WASM frontend is **not** claimed here.
+For an authenticated backend, set `AGENT_EBPF_API_TOKEN` in the viewer's environment (it is sent in the WebSocket `X-API-KEY` header). Remote endpoints **must** use `wss://` with TLS and have the exact `/ws/event-summaries` path. Query-string credentials and URL userinfo are deliberately rejected. Never expose an unauthenticated eBPF backend directly on a public CodeSpace forwarded port.
 
-Optional `AGENT_EBPF_WORKSPACE_ROOT` strictly filters observed paths by directory boundary; when omitted the viewer only accepts paths under `/workspaces/<repo>/`. Redacted/relative/non-file targets are omitted. If no events are present or capture is unhealthy, no fabricated activity is shown. Only existing compact-summary fields are used, respecting upstream collection scope and redaction.
+**Rendering controls:** drag to orbit, mouse wheel to zoom, ← to step backward one captured file event, → to step forward, Esc to resume live. During replay, new events still enter the bounded history but do not rewrite the paused scene. The top HUD distinguishes LIVE/REPLAY/OFFLINE and lists file count, observed events, Agent-attributed events and dropped events. Replay is a *visualization* of the bounded event window; it does not rewind kernel state or recover evicted history.
 
-**Scene:** drag to orbit; scroll to zoom. City buildings are instance-rendered GPU cuboids, with cyan for reads, turquoise for other file access, pink for writes, orange for alerts, red for blocked operations. Bright vertical pulses decay after new events; unrelated network and tool events are not painted as file writes.
+By default only absolute event paths inside `/workspaces/<repo>` are displayed, and their UI paths retain the repository name to prevent collisions. An explicitly configured `AGENT_EBPF_WORKSPACE_ROOT` restricts activity to that repository and seeds up to 2,048 files via local metadata enumeration. The visual city heights are stable illustrative hashes **not** bytes, source lines, file risk or execution time.
 
-## Status
+## Limitations and architecture
 
-An initial standalone Makepad integration, not a production-ready alternative to Renew. The current backend compact event stream does not provide a complete repository file tree or per-file source size/line count; buildings and height are visual encodings of observed file paths, not filesystem utilization. CodeSpace-to-desktop file-tree sync, timeline scrubbing, per-file picking and full cross-platform packaging remain follow-up work.
+This is a separate experimental desktop executable, not yet embedded in MyGo. Source-file picking by ray casting, 3D labels/GPU output screenshots on actual machines, browser-native Makepad WASM deployment, remote CodeSpace file-tree synchronization, official Windows packaging, timeline persistence and source-code diffs are **not** verified/implemented. Without a local workspace root the city is populated by observed events only. No fabricated Agent edit events or complete-file-tree claims.
+
+The observer is subject to eBPF capture scope, upstream redaction, event transport loss and the event summary window; it cannot infer code changes that the collector never saw. Source texts, API keys and contents of unrelated files remain outside the renderer.
+
+## Validation
 
 ```sh
+cargo check --manifest-path desktop/visualizer-makepad/Cargo.toml
 cargo test --manifest-path desktop/visualizer-makepad/Cargo.toml
-cargo build --manifest-path desktop/visualizer-makepad/Cargo.toml --release
 ```
+
+See [CodeCity CI](../../.github/workflows/codecity-makepad.yml). Compilation and unit tests cannot establish that a graphical Wayland/X11 session renders correctly; GPU interaction still requires a hands-on desktop smoke test.
