@@ -468,7 +468,10 @@ impl City {
         let now = self.anchor_ms(system_time_ms());
         let snapshot = self.history.iter()
             .filter(|event| self.time_window.contains(event.timestamp_ms, now))
-            .map(|event| event.lane.clone());
+            .map(|event| event.lane.clone())
+            .chain(self.subagent_signals.iter()
+                .filter(|signal| self.time_window.contains(signal.timestamp_ms, now))
+                .map(|signal| signal.lane.clone()));
         self.lane_selection = timeline::cycle_lane(&self.lane_selection, snapshot, forward);
         self.dirty_view = true;
         self.refresh_view(system_time_ms());
@@ -774,6 +777,8 @@ mod tests {
         city.set_lane_selection(LaneSelection::Verified);
         assert_eq!(city.visible_subagent_starts, 1);
         assert_eq!(city.visible_events, 0);
+        city.cycle_actor(true);
+        assert!(matches!(city.lane_selection, LaneSelection::One(_)));
         city.shift_time_range(true);
         assert_eq!(city.visible_subagent_starts, 0);
     }
