@@ -108,11 +108,23 @@ script_mod! {
                                 draw_text +: {color: #xdfe7fc}
                             }
                             status_hint := Label{
-                                text: "LIVE FILE ACTIVITY  •  drag: orbit  /  wheel: zoom"
+                                text: "● CONNECTING  •  drag: orbit  /  wheel: zoom"
                                 draw_text +: {color: #x91a3bf}
                             }
                         }
                         viewport := mod.widgets.CityViewport{}
+                        insight := SolidView{
+                            width: Fill
+                            height: 30.0
+                            flow: Right
+                            align: Align{x: 0.0 y: 0.5}
+                            padding: Inset{left: 20.0 right: 20.0}
+                            draw_bg +: {color: #x101827}
+                            event_detail := Label{
+                                text: "No observed file activity yet"
+                                draw_text +: {color: #xd9bbed}
+                            }
+                        }
                         footer := SolidView{
                             width: Fill
                             height: 44.0
@@ -122,7 +134,7 @@ script_mod! {
                             spacing: 18.0
                             draw_bg +: {color: #x151c2b}
                             legend := Label{
-                                text: "CYAN read   /   TEAL access   /   PINK write   /   AMBER alert   /   RED blocked   •   beacon: GREEN connected, AMBER offline"
+                                text: "CYAN read  /  TEAL access  /  PINK write  /  AMBER alert  /  RED blocked   •   ←/→ replay   Esc live"
                                 draw_text +: {color: #xb0bed6}
                             }
                         }
@@ -353,6 +365,14 @@ impl WidgetNode for CityViewport {
 impl Widget for CityViewport {
     fn handle_event(&mut self, cx: &mut Cx, event: &Event, _scope: &mut Scope) {
         self.camera.handle_desktop_interaction(cx, event);
+        if let Event::KeyDown(key) = event {
+            match key.key_code {
+                KeyCode::ArrowLeft => self.city.replay_back(),
+                KeyCode::ArrowRight => self.city.replay_forward(),
+                KeyCode::Escape => self.city.resume_live(),
+                _ => {}
+            }
+        }
         if self.next_frame.is_event(event).is_some() {
             self.pull_feed();
             self.city.step();
@@ -389,7 +409,14 @@ impl Widget for CityViewport {
 }
 
 #[derive(Script, ScriptHook)]
-pub struct App { #[live] ui: WidgetRef }
+pub struct App {
+    #[live]
+    ui: WidgetRef,
+    #[rust]
+    last_status: String,
+    #[rust]
+    last_note: String,
+}
 
 impl MatchEvent for App {}
 
@@ -402,5 +429,20 @@ impl AppMain for App {
     fn handle_event(&mut self, cx: &mut Cx, event: &Event) {
         self.match_event(cx, event);
         self.ui.handle_event(cx, event, &mut Scope::empty());
+        // Compose lightweight native HUD from the same bounded renderer model.
+        // Updating only on change avoids forcing layout work at every GPU tick.
+        let stats = self.ui.widget(cx, ids!(viewport))
+            .borrow::<CityViewport>()
+            .map(|viewport| (viewport.city.status_line(), viewport.city.latest_note()));
+        if let Some((status, note)) = stats {
+            if status != self.last_status {
+                self.ui.label(cx, ids!(status_hint)).set_text(cx, &status);
+                self.last_status = status;
+            }
+            if note != self.last_note {
+                self.ui.label(cx, ids!(event_detail)).set_text(cx, &note);
+                self.last_note = note;
+            }
+        }
     }
 }
