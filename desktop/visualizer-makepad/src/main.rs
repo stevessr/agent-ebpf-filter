@@ -291,6 +291,19 @@ impl CityViewport {
         let agent_only = std::env::var("AGENT_EBPF_AGENT_ONLY")
             .ok().is_some_and(|value| value == "1" || value.eq_ignore_ascii_case("true"));
         self.city.set_agent_scope(run_id, root_pid, agent_only);
+        // An optional remote CodeSpace inventory is names-only JSON. The file
+        // itself must be regular, non-symlink, and small; never read source.
+        if let Some(index) = std::env::var_os("AGENT_EBPF_INDEX_JSON") {
+            let path = std::path::PathBuf::from(index);
+            if std::fs::symlink_metadata(&path).ok()
+                .is_some_and(|meta| meta.is_file()
+                    && !meta.file_type().is_symlink() && meta.len() <= 1024 * 1024)
+            {
+                if let Ok(bytes) = std::fs::read(path) {
+                    let _ = self.city.seed_manifest(&bytes);
+                }
+            }
+        }
         if let Some(root) = self.workspace_root.as_deref() {
             if model::local_scan_root(root) {
                 self.city.seed_workspace(root);
