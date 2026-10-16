@@ -75,13 +75,14 @@ type Manager struct {
 	running bool
 	httpServer *http.Server
 	listeners []net.Listener
+	connections map[net.Conn]struct{}
 	flows []Flow
 	nextID atomic.Uint64
 	caDir string
 }
 
 func NewManager(caDir string) *Manager {
-	return &Manager{caDir: caDir}
+	return &Manager{caDir: caDir, connections:make(map[net.Conn]struct{})}
 }
 
 func DefaultCADir() string {
@@ -267,12 +268,28 @@ func firstAllowedHost(s string) string {
 func (m *Manager) Stop() {
 	m.mu.Lock()
 	servers, listeners := m.httpServer, m.listeners
+	connections := make([]net.Conn,0,len(m.connections))
+	for conn := range m.connections { connections=append(connections,conn) }
 	m.httpServer=nil
 	m.listeners=nil
 	m.running=false
 	m.mu.Unlock()
+	for _, conn := range connections { _=conn.Close() }
 	for _, l := range listeners { _=l.Close() }
 	if servers!=nil { _=servers.Close() }
+}
+
+func (m *Manager) track(conn net.Conn) bool {
+ m.mu.Lock()
+ defer m.mu.Unlock()
+ if !m.running {return false}
+ m.connections[conn]=struct{}{}
+ return true
+}
+func (m *Manager) untrack(conn net.Conn) {
+ m.mu.Lock()
+ delete(m.connections,conn)
+ m.mu.Unlock()
 }
 
 func destination(addr, defaultPort string)(string,string,error) {
@@ -378,6 +395,8 @@ func (m *Manager) connect(w http.ResponseWriter,r *http.Request,cfg Config) {
 	client,rw,err:=hijacker.Hijack()
 	if err!=nil {http.Error(w,"proxy cannot hijack",500);return}
 	defer client.Close()
+	if !m.track(client) {return}
+	defer m.untrack(client)
 	// CONNECT is acknowledged only once we can either terminate TLS ourselves
 	// or have successfully established the upstream TCP connection.
 	if cfg.InterceptTLS && allowedHost(cfg.TLSAllowlist,host) {
@@ -464,7 +483,9 @@ func (m *Manager) serveSOCKS(l net.Listener, proto string) {
 
 func (m *Manager) handleSOCKS(conn net.Conn,proto string) {
 	defer conn.Close()
-	_ = conn.SetDeadline(time.Now().Add(5*time.Minute))
+	if !m.track(conn) {return}
+	defer m.untrack(conn)
+	_ = conn.SetDeadline(time.Now().Add(10*time.Second))
 	reader:=bufio.NewReaderSize(conn,512)
 	var address,host string
 	var err error
