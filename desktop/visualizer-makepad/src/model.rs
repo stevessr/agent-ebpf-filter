@@ -1,7 +1,7 @@
 //! A bounded, read-only projection of *observed* CodeSpace paths; never reads file contents.
 use serde::Deserialize;
 use crate::timeline::{self, Lane, LaneSelection, TimeWindow};
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::path::{Component, Path, PathBuf};
 
 pub const MAX_BUILDINGS: usize = 2048;
@@ -181,6 +181,14 @@ pub struct SubagentSignal {
     pub timestamp_ms: i64,
     pub kind: SubagentSignalKind,
     pub lane: Lane,
+}
+
+#[derive(Debug, Clone)]
+pub struct SubagentMarker {
+    pub lane: Lane,
+    pub starts: usize,
+    pub stops: usize,
+    pub latest_signal: SubagentSignalKind,
 }
 
 #[derive(Default)]
@@ -540,6 +548,33 @@ impl City {
         }
     }
 
+    /// Independent, evidence-only SDK Subagent markers. They never share
+    /// building paths or inherit file mutations from child OS processes.
+    pub fn visible_subagent_markers(&self, now_ms: i64) -> Vec<SubagentMarker> {
+        let anchor = self.anchor_ms(now_ms);
+        let mut lanes: BTreeMap<Lane, (usize, usize, i64, SubagentSignalKind)> = BTreeMap::new();
+        for signal in &self.subagent_signals {
+            if !signal.lane.is_verified_subagent()
+                || !self.time_window.contains(signal.timestamp_ms, anchor)
+                || !self.lane_selection.includes(&signal.lane) {
+                continue;
+            }
+            let entry = lanes.entry(signal.lane.clone())
+                .or_insert((0, 0, i64::MIN, signal.kind));
+            match signal.kind {
+                SubagentSignalKind::Start => entry.0 += 1,
+                SubagentSignalKind::Stop => entry.1 += 1,
+            }
+            if signal.timestamp_ms >= entry.2 {
+                entry.2 = signal.timestamp_ms;
+                entry.3 = signal.kind;
+            }
+        }
+        lanes.into_iter().take(24).map(|(lane, (starts, stops, _, latest_signal))| {
+            SubagentMarker { lane, starts, stops, latest_signal }
+        }).collect()
+    }
+
     /// Directory name/position pairs for small, camera-projected district
     /// labels. Labels are UI metadata, not a dependency or syscall trace.
     pub fn district_labels(&self, limit: usize) -> Vec<(String, f32, f32)> {
@@ -795,6 +830,36 @@ mod tests {
         assert!(matches!(city.lane_selection, LaneSelection::One(_)));
         city.shift_time_range(true);
         assert_eq!(city.visible_subagent_starts, 0);
+    }
+
+    #[test]
+    fn subagent_markers_are_isolated_and_do_not_create_file_towers() {
+        let now = system_time_ms();
+        let mut city = City::default();
+        for (name, id, verb) in [
+            ("SubagentStart", "sha256:1111111111111111", SubagentSignalKind::Start),
+            ("SubagentStart", "sha256:2222222222222222", SubagentSignalKind::Start),
+            ("SubagentStop", "sha256:1111111111111111", SubagentSignalKind::Stop),
+        ] {
+            let mut e = e("native_hook", "");
+            e.comm = format!("{name}:Explore");
+            e.pid = 44; e.root_agent_pid = 44; e.agent_run_id = "run-1".into();
+            e.subagent_id = id.into();
+            e.received_at_ms = now - 5000 + if verb == SubagentSignalKind::Stop {1000} else {0};
+            assert!(city.observe(e, None));
+        }
+        city.refresh_view(now);
+        let markers = city.visible_subagent_markers(now);
+        assert_eq!(markers.len(), 2);
+        assert_eq!(city.visible_events, 0);
+        assert!(city.buildings.is_empty());
+        assert!(markers.iter().any(|m| m.starts == 1 && m.stops == 1
+            && m.latest_signal == SubagentSignalKind::Stop));
+        city.set_lane_selection(LaneSelection::One(markers[0].lane.clone()));
+        assert_eq!(city.visible_subagent_markers(now).len(), 1);
+        city.set_time_span(1);
+        city.shift_time_range(true);
+        assert_eq!(city.visible_subagent_markers(now).len(), 0);
     }
 
 }
