@@ -10,7 +10,7 @@ pub use makepad_xr;
 
 use makepad_widgets::*;
 use makepad_xr::scene::*;
-use model::{Activity, City, MAX_EVENTS_PER_FRAME};
+use model::{Activity, City, SubagentSignalKind, MAX_EVENTS_PER_FRAME};
 use timeline::{Lane, LaneSelection};
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
@@ -414,6 +414,25 @@ impl CityViewport {
         self.draw_mesh.cube(cx, cube, vec3(-29., 2.0, -25.),
             vec3(0.3,2.0,0.3), beacon);
 
+        // Separate lifecycle plaza. One beacon per explicit pseudonymous
+        // SDK Subagent ID. These beacons deliberately do not attach to files:
+        // a lifecycle hook cannot prove ownership of a kernel file syscall.
+        for (i, signal) in self.city.visible_subagent_markers(model::system_time_ms())
+            .iter().enumerate() {
+            let x = -26.0 + (i % 10) as f32 * 5.2;
+            let z = 19.0 + (i / 10) as f32 * 3.5;
+            let latest_start = matches!(signal.latest_signal, SubagentSignalKind::Start);
+            let tint = if latest_start {
+                vec4(0.72, 0.38, 0.98, 1.0)
+            } else {
+                vec4(0.35, 0.87, 0.95, 1.0)
+            };
+            self.draw_mesh.cube(cx, cube, vec3(x, 0.05, z),
+                vec3(1.0, 0.1, 0.8), vec4(0.28,0.22,0.41,1.0));
+            self.draw_mesh.cube(cx, cube, vec3(x, 0.95, z),
+                vec3(0.27,0.95,0.27), tint);
+        }
+
         for (i, building) in self.city.buildings.iter().enumerate() {
             let h = building.height;
             // An inactive filename still remains in the topological city,
@@ -555,6 +574,16 @@ impl Widget for CityViewport {
                         && screen.y <= (rect.pos.y + rect.size.y) as f32 {
                         self.pick_points.push((screen.x, screen.y, depth, i));
                     }
+                }
+            }
+            for (i, signal) in self.city.visible_subagent_markers(model::system_time_ms())
+                .iter().enumerate() {
+                let x = -26.0 + (i % 10) as f32 * 5.2;
+                let z = 19.0 + (i / 10) as f32 * 3.5;
+                if let Lane::VerifiedSubagent { id, .. } = &signal.lane {
+                    let suffix = id.strip_prefix("sha256:").unwrap_or(id);
+                    let label = format!("SUB {}", suffix.chars().take(8).collect::<String>());
+                    let _ = self.draw_label.draw_world_text(cx, vec3(x,2.3,z), &label);
                 }
             }
             for (name, x, z) in self.city.district_labels(18) {
