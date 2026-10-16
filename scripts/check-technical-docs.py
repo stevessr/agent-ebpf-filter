@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
+from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs" / "technical"
@@ -16,57 +17,80 @@ CONFIG = ROOT / "docs" / "mkdocs.yml"
 MIN_PAGES = 25
 MIN_DIAGRAMS = 85
 ANCHOR = re.compile(r"`((?:backend|frontend|desktop|adapters|proto|wrapper|kernel-ml|docs|scripts|tools|\.github)/[^`]+)`")
-LOCAL_LINK = re.compile(r"\]\(\./([^\)#]+)(?:#[^)]*)?\)")
-PAGE_LINK = re.compile(r"\]\(\./([^\)#]+)(?:#[^)]*)?\)")
-FENCE = re.compile(r"^\s*`{3,}([^\s`]*)")
+LOCAL_LINK = re.compile(r"\]\(((?:\.{1,2}/)[^)\s#?]+)")
+FENCE = re.compile(r"^ {0,3}((?:\x60){3,}|~{3,})(.*)$")
 PAGES = sorted(DOCS.glob("*.md"))
 
 
-def check_document(page: Path, config: str, index: str) -> tuple[int, list[str]]:
+def check_document(page: Path, config: str, index: str, root: Path = ROOT) -> tuple[int, list[str]]:
+    """Check a page against the technical nav, index and repository tree."""
     issues: list[str] = []
     text = page.read_text(encoding="utf-8")
     slug = page.stem
     target = f"technical/{slug}.md"
-    if f": {target}" not in config:
-        issues.append("not in MkDocs technical navigation")
-    if slug != "index" and f"(./{slug}.md)" not in index:
-        issues.append("not in technical index")
+
+    # Compare complete nav entries rather than an arbitrary substring/comment.
+    nav_pages = re.findall(
+        r"(?m)^\s*-\s*[^:\n]+:\s*(technical/[A-Za-z0-9_.-]+\.md)\s*$",
+        config,
+    )
+    if nav_pages.count(target) != 1:
+        issues.append(f"expected exactly one MkDocs nav entry; got {nav_pages.count(target)}")
+    if slug != "index":
+        index_links = re.findall(
+            r"\]\(\./([A-Za-z0-9_.-]+\.md)(?:#[^)]*)?\)", index
+        )
+        if index_links.count(page.name) != 1:
+            issues.append(f"expected exactly one technical index link; got {index_links.count(page.name)}")
     if not re.search(r"(?m)^# ", text):
         issues.append("missing page title")
-    if not ANCHOR.search(text):
-        issues.append("missing backticked code source anchor")
-    fence_open = False
+
+    # Only CLOSED Mermaid blocks count. The closing fence must match the
+    # opening delimiter (backticks or tildes) and be at least as long.
+    opener: str | None = None
     kind = ""
     diagrams = 0
     for line in text.splitlines():
         match = FENCE.match(line)
         if not match:
             continue
-        if not fence_open:
-            fence_open = True
-            kind = match.group(1).strip().lower()
+        marker, info = match.groups()
+        if opener is None:
+            opener = marker
+            kind = info.strip().split(maxsplit=1)[0].lower() if info.strip() else ""
+        elif marker[0] == opener[0] and len(marker) >= len(opener) and not info.strip():
             if kind == "mermaid":
                 diagrams += 1
-        else:
-            fence_open = False
+            opener = None
             kind = ""
-    if fence_open:
-        issues.append(f"unclosed {kind} fence")
+    if opener is not None:
+        issues.append(f"unclosed {kind or 'plain'} fence")
     if diagrams < 2:
-        issues.append(f"expected >=2 Mermaid diagrams; got {diagrams}")
+        issues.append(f"expected >=2 closed Mermaid diagrams; got {diagrams}")
+
+    valid_anchors = 0
     for raw in ANCHOR.findall(text):
         raw = raw.strip().rstrip(".,;:")
         if any(c.isspace() for c in raw):
             continue
         if any(c in raw for c in "*?["):
-            exists = bool(list(ROOT.glob(raw)))
+            exists = bool(list(root.glob(raw)))
         else:
-            exists = (ROOT / raw).exists()
-        if not exists:
+            exists = (root / raw).exists()
+        if exists:
+            valid_anchors += 1
+        else:
             issues.append(f"source path not found: {raw}")
-    for target_link in LOCAL_LINK.findall(text):
-        if not (page.parent / target_link).exists():
-            issues.append(f"broken relative link: {target_link}")
+    if valid_anchors == 0:
+        issues.append("missing resolvable backticked source anchor")
+
+    # This is intentionally scoped to explicit ./ and ../ links. The generic
+    # repository docs linker independently checks all other Markdown links.
+    for raw_link in LOCAL_LINK.findall(text):
+        relative_link = unquote(raw_link)
+        resolved = (page.parent / relative_link).resolve()
+        if not resolved.is_relative_to(root.resolve()) or not resolved.is_file():
+            issues.append(f"broken or out-of-repository relative link: {raw_link}")
     return diagrams, issues
 
 
