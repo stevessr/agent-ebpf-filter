@@ -61,7 +61,7 @@ func (a *renewApp) proxyCaptureView(c *ui.Context) {
 	card(c,"本机代理与上下文捕获（mitmdump 风格）",func(){
 		ui.Text(c,"按需配置 HTTP / SOCKS5 / SOCKS4 端口；仅监听 127.0.0.1，不会自动修改系统代理设置。").TextColor(t.TextMuted)
 		ui.Text(c,"TLS 只解密白名单内的 HTTPS（包含对应 SOCKS CONNECT）；未解密隧道只记录目的地。").FontSize(11).TextColor(t.Warning)
-		if !a.proxyCaptureLoaded && !a.proxyCaptureBusy {
+		if !a.proxyCaptureBusy && (!a.proxyCaptureLoaded || time.Since(a.proxyCaptureLastPoll) > 2500*time.Millisecond) {
 			a.refreshProxyCapture()
 		}
 		if a.proxyCaptureError!="" {ui.Text(c,a.proxyCaptureError).TextColor(t.Danger)}
@@ -156,6 +156,7 @@ func (a *renewApp) proxyCaptureView(c *ui.Context) {
 func (a *renewApp) refreshProxyCapture() {
 	if a.client==nil || a.proxyCaptureBusy {return}
 	a.proxyCaptureBusy=true
+	a.proxyCaptureLastPoll=time.Now()
 	go func(){
 		ctx,cancel:=context.WithTimeout(context.Background(),6*time.Second);defer cancel()
 		var status desktopProxyCaptureStatus
