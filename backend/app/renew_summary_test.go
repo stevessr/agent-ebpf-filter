@@ -17,7 +17,7 @@ func TestRenewSummaryPreservesHarnessSessionContext(t *testing.T) {
 }
 
 func TestCodeCitySubagentLifecycleDigestIsScopedAndRedacted(t *testing.T) {
-    digest := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    digest := "0123456789abcdef"
     example := &pb.Event{
         Type: "native_hook",
         Comm: "SubagentStart:Explore",
@@ -26,13 +26,13 @@ func TestCodeCitySubagentLifecycleDigestIsScopedAndRedacted(t *testing.T) {
         Pid: 123,
         AgentRunId: "run-123",
     }
-    if got := nativeSubagentDigest(example); got != "sha256:0123456789abcdef0123" {
+    if got := nativeSubagentDigest(example); got != "sha256:0123456789abcdef" {
         t.Fatalf("short opaque digest missing: %q", got)
     }
     start, ok := buildRenewEventSummary(CapturedEventRecord{
         ReceivedAt: time.Now(), Event: example,
     })
-    if !ok || start.SubagentID != "sha256:0123456789abcdef0123" {
+    if !ok || start.SubagentID != "sha256:0123456789abcdef" {
         t.Fatalf("lifecycle digest absent from read-only compact summary: %+v", start)
     }
     stop := *example
