@@ -5,11 +5,15 @@ on:
     paths:
       - "desktop/visualizer-makepad/**"
       - ".github/workflows/codecity-makepad.yml"
+      - "scripts/codecity-export-index.py"
+      - "scripts/test-codecity-export-index.py"
   push:
     branches: [master]
     paths:
       - "desktop/visualizer-makepad/**"
       - ".github/workflows/codecity-makepad.yml"
+      - "scripts/codecity-export-index.py"
+      - "scripts/test-codecity-export-index.py"
   workflow_dispatch:
 
 permissions:
@@ -45,6 +49,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: desktop/visualizer-makepad
+      - name: Verify metadata-only CodeSpace inventory exporter
+        run: python3 scripts/test-codecity-export-index.py
       - name: Check Makepad Rust visualizer
         run: cargo check --manifest-path desktop/visualizer-makepad/Cargo.toml
       - name: Test read-only event model and binary
