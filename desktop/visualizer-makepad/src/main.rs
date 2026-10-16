@@ -649,7 +649,7 @@ impl MatchEvent for App {
                 ToolbarCommand::NextActor => viewport.city.cycle_actor(true),
             };
             viewport.area.redraw(cx);
-        }
+        };
     }
 }
 
