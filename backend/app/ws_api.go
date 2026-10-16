@@ -464,7 +464,7 @@ func nativeSubagentDigest(event *pb.Event) string {
             continue
         }
         digest := strings.TrimPrefix(field, prefix)
-        if len(digest) != 64 {
+        if len(digest) != 16 {
             return ""
         }
         for _, c := range digest {
@@ -472,9 +472,9 @@ func nativeSubagentDigest(event *pb.Event) string {
                 return ""
             }
         }
-        // An 80-bit prefix is stable for matching start/stop inside the
-        // viewer yet avoids publishing the full persisted SHA-256 digest.
-        return "sha256:" + digest[:20]
+        // Native-hook ExtraInfo already contains only the first eight SHA-256
+        // bytes (16 hex characters). Reuse that same bounded pseudonym.
+        return "sha256:" + digest
     }
     return ""
 }
