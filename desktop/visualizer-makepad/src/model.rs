@@ -172,6 +172,17 @@ pub struct HistoryEvent {
     pub lane: Lane,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SubagentSignalKind { Start, Stop }
+
+#[derive(Clone, Debug)]
+pub struct SubagentSignal {
+    pub event_id: String,
+    pub timestamp_ms: i64,
+    pub kind: SubagentSignalKind,
+    pub lane: Lane,
+}
+
 #[derive(Default)]
 pub struct City {
     pub buildings: Vec<Building>,
@@ -186,6 +197,10 @@ pub struct City {
     pub transport_dropped: u64,
     pub connected: bool,
     pub history: VecDeque<HistoryEvent>,
+    // Explicit native-hook lifecycle signals are kept separate from file I/O.
+    pub subagent_signals: VecDeque<SubagentSignal>,
+    pub visible_subagent_starts: usize,
+    pub visible_subagent_stops: usize,
     replay_cursor: Option<usize>,
     seen_ids: HashSet<String>,
     seen_order: VecDeque<String>,
@@ -301,6 +316,40 @@ impl City {
             if self.buildings.len() >= MAX_BUILDINGS { break; }
         }
         Ok(self.buildings.len() - before)
+    }
+
+    pub fn observe(&mut self, event: Summary, root: Option<&Path>) -> bool {
+        // Native lifecycle hooks are not file operations and never light towers.
+        if event.kind == "native_hook" {
+            let name = event.comm.split(':').next().unwrap_or("").trim();
+            let signal = match name.to_ascii_lowercase().as_str() {
+                "subagentstart" | "agentspawn" => Some(SubagentSignalKind::Start),
+                "subagentstop" => Some(SubagentSignalKind::Stop),
+                _ => None,
+            };
+            if let Some(kind) = signal {
+                if event.received_at_ms <= 0 { return false; }
+                if self.agent_only && !event.known_agent() { return false; }
+                if self.agent_run_filter.as_deref()
+                    .is_some_and(|run| event.agent_run_id != run) { return false; }
+                if self.agent_root_filter.is_some_and(|root_pid| event.root_agent_pid != root_pid) {
+                    return false;
+                }
+                if !event.event_id.is_empty() && self.subagent_signals.iter()
+                    .any(|entry| entry.event_id == event.event_id) { return false; }
+                let lane = Lane::from_fields(&event.agent_run_id, event.root_agent_pid,
+                    event.pid, &event.subagent_id);
+                if self.subagent_signals.len() >= MAX_HISTORY {
+                    self.subagent_signals.pop_front();
+                }
+                self.subagent_signals.push_back(SubagentSignal {
+                    event_id: event.event_id, timestamp_ms: event.received_at_ms, kind, lane,
+                });
+                self.dirty_view = true;
+                return true;
+            }
+        }
+        self.apply(event, root)
     }
 
     pub fn apply(&mut self, event: Summary, root: Option<&Path>) -> bool {
@@ -461,6 +510,18 @@ impl City {
         }
         self.visible_events = visible.len() as u64;
         self.visible_agent_events = visible.iter().filter(|e| e.agent).count() as u64;
+        self.visible_subagent_starts = 0;
+        self.visible_subagent_stops = 0;
+        for signal in &self.subagent_signals {
+            if self.time_window.contains(signal.timestamp_ms, anchor) &&
+                (self.lane_selection.includes(&signal.lane) ||
+                 matches!(self.lane_selection, LaneSelection::Verified)) {
+                match signal.kind {
+                    SubagentSignalKind::Start => self.visible_subagent_starts += 1,
+                    SubagentSignalKind::Stop => self.visible_subagent_stops += 1,
+                }
+            }
+        }
         for event in visible {
             if let Some(&index) = self.lookup.get(&event.path) {
                 let building = &mut self.buildings[index];
@@ -501,9 +562,10 @@ impl City {
         let filtered = if self.agent_only || self.agent_run_filter.is_some() || self.agent_root_filter.is_some() {
             "  |  AGENT SCOPE"
         } else { "" };
-        format!("{state}{replay}{filtered}  |  SPAN {}  |  {}  |  SHOWN {} (AGENT {})  |  ALL {}  |  LOST {}",
+        format!("{state}{replay}{filtered}  |  SPAN {}  |  {}  |  FILE {} (AGENT {})  |  HOOKS +{}/-{}  |  LOST {}",
             self.time_window.caption(), self.lane_selection.label(),
-            self.visible_events, self.visible_agent_events, self.total_events,
+            self.visible_events, self.visible_agent_events,
+            self.visible_subagent_starts, self.visible_subagent_stops,
             self.dropped_events + self.transport_dropped)
     }
 
@@ -689,6 +751,31 @@ mod tests {
         assert_eq!(city.visible_events, 0);
         // The current stream does not provide verifiable SDK Subagent IDs.
         assert_eq!(city.agent_events, 2);
+    }
+
+    #[test]
+    fn native_subagent_hooks_are_separate_from_file_activity() {
+        let now = system_time_ms();
+        let mut city = City::default();
+        let mut started = e("native_hook", "");
+        started.comm = "SubagentStart:Explore".into();
+        started.event_id = "start-1".into();
+        started.root_agent_pid = 100;
+        started.pid = 100;
+        started.agent_run_id = "run-1".into();
+        started.received_at_ms = now - 5_000;
+        assert!(city.observe(started.clone(), None));
+        assert!(!city.observe(started, None));
+        city.refresh_view(now);
+        assert_eq!(city.visible_subagent_starts, 1);
+        assert_eq!(city.visible_subagent_stops, 0);
+        assert_eq!(city.visible_events, 0);
+        assert!(city.buildings.is_empty());
+        city.set_lane_selection(LaneSelection::Verified);
+        assert_eq!(city.visible_subagent_starts, 1);
+        assert_eq!(city.visible_events, 0);
+        city.shift_time_range(true);
+        assert_eq!(city.visible_subagent_starts, 0);
     }
 
 }
