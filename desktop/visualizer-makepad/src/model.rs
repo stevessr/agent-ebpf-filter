@@ -160,6 +160,7 @@ pub struct City {
     pub total_events: u64,
     pub agent_events: u64,
     pub dropped_events: u64,
+    pub transport_dropped: u64,
     pub connected: bool,
     pub history: VecDeque<HistoryEvent>,
     replay_cursor: Option<usize>,
@@ -326,8 +327,9 @@ impl City {
             Some(index) => format!("  |  REPLAY {}/{}", index + 1, self.history.len()),
             None => "  |  LIVE".into(),
         };
-        format!("{state}{replay}  |  FILES {}  |  EVENTS {}  |  AGENT {}",
-            self.buildings.len(), self.total_events, self.agent_events)
+        format!("{state}{replay}  |  FILES {}  |  EVENTS {}  |  AGENT {}  |  LOST {}",
+            self.buildings.len(), self.total_events, self.agent_events,
+            self.dropped_events + self.transport_dropped)
     }
 
     pub fn latest_note(&self) -> String {
