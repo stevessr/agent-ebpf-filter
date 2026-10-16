@@ -288,7 +288,9 @@ impl CityViewport {
             .ok().is_some_and(|value| value == "1" || value.eq_ignore_ascii_case("true"));
         self.city.set_agent_scope(run_id, root_pid, agent_only);
         if let Some(root) = self.workspace_root.as_deref() {
-            self.city.seed_workspace(root);
+            if model::local_scan_root(root) {
+                self.city.seed_workspace(root);
+            }
         }
         self.feed = Some(stream::subscribe());
         self.next_frame = cx.new_next_frame();
