@@ -1,3 +1,5 @@
+> **Source-anchored technical manual (2026-10-15):** [25 chapters / 90 Mermaid diagrams](docs/technical/index.md). Coverage reflects current code, feature gates and platform limitations; historic roadmaps are not implementation evidence.
+
 # Documentation Index
 
 This index helps you quickly find the right documentation for your needs.

@@ -1,5 +1,7 @@
 # eBPF 与 OS Enforcement
 
+> **源码技术手册权威入口（2026-10-15）**：本页保留专题讲解与既有链接；有关当前函数、数据流、功能门控及平台可用性的实现事实，请优先核对 [技术手册：kernel](../technical/kernel.md) 和链接的源码与测试。旧示意图不表示其所绘功能已在默认部署中启用。
+
 本项目的内核能力分为三类：主 syscall tracker、cgroup 网络阻断、BPF LSM 文件/执行阻断。TLS uprobe capture 是可选高风险诊断能力。
 
 ## 主 tracker

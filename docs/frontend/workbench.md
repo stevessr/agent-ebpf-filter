@@ -1,5 +1,7 @@
 # 前端工作台总览
 
+> **源码技术手册权威入口（2026-10-15）**：本页保留专题讲解与既有链接；有关当前函数、数据流、功能门控及平台可用性的实现事实，请优先核对 [技术手册：web-workbench-internals](../technical/web-workbench-internals.md) 和链接的源码与测试。旧示意图不表示其所绘功能已在默认部署中启用。
+
 前端是 Vue 3 + Vite + TypeScript 工作台，位于 `frontend/src/`。
 
 ## 技术栈
