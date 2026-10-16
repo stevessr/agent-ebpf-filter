@@ -29,6 +29,7 @@ export LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe
 export AGENT_EBPF_WS_URL=ws://127.0.0.1:18765/ws/event-summaries
 export AGENT_EBPF_WORKSPACE_ROOT=/workspaces/codecity-demo
 export AGENT_EBPF_INDEX_JSON="$display_temp/codecity-index.json"
+export AGENT_EBPF_SMOKE_MARKER="$out/scene-draw.ok"
 printf '{"version":1,"files":["src/main.rs","src/view.rs","src/agent.rs","README.md","tests/smoke.rs"]}\n' > "$AGENT_EBPF_INDEX_JSON"
 python3 "$repo/scripts/codecity-smoke-feed.py" --port 18765 >"$out/feed.log" 2>&1 &
 mock_pid=$!
@@ -73,6 +74,7 @@ if [[ "$mode" == "x11" ]]; then
   xwininfo -id "$window_id" >"$out/window-info.log"
   xdotool windowactivate --sync "$window_id" || true
   sleep 5
+  [[ -s "$AGENT_EBPF_SMOKE_MARKER" ]] || { echo "X11 3D draw-path marker absent" >&2; tail -n 120 "$out/app.log" >&2; exit 1; }
   import -display "$DISPLAY" -window "$window_id" "$out/x11-before.png"
   colors="$(identify -format '%k' "$out/x11-before.png")"
   echo "x11-first-frame-unique-colors=$colors" | tee -a "$out/summary.txt"
@@ -112,25 +114,28 @@ else
   wayland-info >"$out/display-info.log" 2>&1 || true
   WAYLAND_DEBUG=client "$app" --linux-backend=wayland >"$out/app.log" 2>&1 &
   app_pid=$!
-  # wl_surface.commit + xdg_toplevel means the Wayland client constructed and
-  # submitted at least one window surface. This is not pixel/screenshot proof.
+  # Wayland's Rust protocol backend does not promise WAYLAND_DEBUG traces,
+  # so require native geometry notification AND the actual 3D draw path.
+  # Weston handles protocol/configure/commit; pixel output is not captured.
   for _ in $(seq 1 100); do
-    if grep -Eq 'wl_surface@[0-9]+\.commit' "$out/app.log" &&
+    if [[ -s "$AGENT_EBPF_SMOKE_MARKER" ]] &&
+       grep -q 'CODECITY_WINDOW_GEOMETRY' "$out/app.log" &&
        grep -q 'Selected: Wayland backend' "$out/app.log"; then
       break
     fi
     if ! kill -0 "$app_pid" 2>/dev/null; then
-      echo "Wayland app exited before surface commit" >&2
+      echo "Wayland app exited before window geometry/draw" >&2
       tail -n 100 "$out/app.log" >&2
       exit 1
     fi
     sleep 0.2
   done
   grep -q 'Selected: Wayland backend' "$out/app.log" || { echo "unexpected windowing backend" >&2; exit 1; }
-  grep -Eq 'wl_surface@[0-9]+\.commit' "$out/app.log" || { echo "no Wayland surface commit observed" >&2; exit 1; }
+  grep -q 'CODECITY_WINDOW_GEOMETRY' "$out/app.log" || { echo "no Wayland window configure reached Makepad" >&2; exit 1; }
+  [[ -s "$AGENT_EBPF_SMOKE_MARKER" ]] || { echo "no Wayland 3D draw path was reached" >&2; exit 1; }
   sleep 4
-  kill -0 "$app_pid" || { echo "Wayland app crashed after surface creation" >&2; tail -n 100 "$out/app.log"; exit 1; }
-  echo "wayland-protocol-surface-commit=PASS" | tee -a "$out/summary.txt"
+  kill -0 "$app_pid" || { echo "Wayland app crashed after window draw" >&2; tail -n 100 "$out/app.log"; exit 1; }
+  echo "wayland-window-configure-and-draw=PASS" | tee -a "$out/summary.txt"
   echo "wayland-screen-pixels=NOT_CAPTURED (Weston headless)" >>"$out/summary.txt"
 fi
 
