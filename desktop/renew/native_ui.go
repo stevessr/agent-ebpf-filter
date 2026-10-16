@@ -210,6 +210,7 @@ type renewApp struct {
 	runtimeCfg         runtimeConfigResponse
 	runtimeReady       bool
 	proxyCaptureLoaded bool
+	proxyCaptureLastPoll time.Time
 	proxyCaptureBusy bool
 	proxyCaptureError string
 	proxyCaptureInfo string
