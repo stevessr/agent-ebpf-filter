@@ -60,7 +60,7 @@ func (a *renewApp) proxyCaptureView(c *ui.Context) {
 	t:=c.Theme()
 	card(c,"本机代理与上下文捕获（mitmdump 风格）",func(){
 		ui.Text(c,"按需配置 HTTP / SOCKS5 / SOCKS4 端口；仅监听 127.0.0.1，不会自动修改系统代理设置。").TextColor(t.TextMuted)
-		ui.Text(c,"TLS 仅针对手动白名单和已准备的 CA 解密；SOCKS 与其他 CONNECT 只记录目标元数据。").FontSize(11).TextColor(t.Warning)
+		ui.Text(c,"TLS 只解密白名单内的 HTTPS（包含对应 SOCKS CONNECT）；未解密隧道只记录目的地。").FontSize(11).TextColor(t.Warning)
 		if !a.proxyCaptureLoaded && !a.proxyCaptureBusy {
 			a.refreshProxyCapture()
 		}
@@ -95,7 +95,18 @@ func (a *renewApp) proxyCaptureView(c *ui.Context) {
 				}
 				if ui.Button(c,"取消").Clicked(){a.proxyCaptureStartConfirm=false}
 			} else if ui.Button(c,"启动前手动确认…").Clicked() && !a.proxyCaptureBusy {
-				a.proxyCaptureStartConfirm=true
+				if !s.Configured {
+					a.proxyCaptureError="请先填写并保存 HTTP / SOCKS 端口"
+				} else if strings.TrimSpace(a.proxyCaptureHTTP)!=strconv.Itoa(s.Config.HTTPPort) ||
+					strings.TrimSpace(a.proxyCaptureSOCKS5)!=strconv.Itoa(s.Config.SOCKS5Port) ||
+					strings.TrimSpace(a.proxyCaptureSOCKS)!=strconv.Itoa(s.Config.SOCKSPort) ||
+					a.proxyCaptureTLS!=s.Config.InterceptTLS ||
+					a.proxyCaptureAllowlist!=s.Config.TLSAllowlist ||
+					a.proxyCapturePreview!=s.Config.JSONPreview {
+					a.proxyCaptureError="配置已修改，请先保存并等候后端确认，再启动捕获"
+				} else {
+					a.proxyCaptureStartConfirm=true
+				}
 			}
 		} else if ui.Button(c,"停止捕获").Clicked() && !a.proxyCaptureBusy {
 			a.proxyCaptureAction(http.MethodPost,"/network/proxy-capture/stop",map[string]any{})
@@ -103,10 +114,10 @@ func (a *renewApp) proxyCaptureView(c *ui.Context) {
 		ui.Text(c,"系统根证书 · 必须手动导入").Bold()
 		if s.CAReady {
 			ui.Text(c,"SHA-256: "+s.CAFingerprint).Font("monospace").FontSize(10).TextColor(t.TextMuted)
-			ui.Text(c,"证书永不自动加入操作系统信任库；点击下方操作会弹出本机原生证书管理器。").FontSize(11).TextColor(t.Warning)
+			ui.Text(c,"证书绝不会自动加入操作系统信任库；点击后会使用系统关联工具打开证书，仍需你手动导入并授权。").FontSize(11).TextColor(t.Warning)
 			if a.proxyCaptureTrustConfirm {
 				ui.Text(c,"只有在核对上方 SHA-256 指纹且理解 CA 信任风险后，才打开本机证书安装界面。")
-				if ui.Button(c,"已确认：打开系统证书导入界面").Clicked() && !a.proxyCaptureBusy {
+				if ui.Button(c,"已确认：打开本机证书文件").Clicked() && !a.proxyCaptureBusy {
 					a.proxyCaptureTrustConfirm=false
 					a.openProxyCaptureCertificate()
 				}
