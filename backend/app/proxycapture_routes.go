@@ -4,6 +4,7 @@ import (
 	"agent-ebpf-filter/internal/proxycapture"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -96,7 +97,18 @@ func registerProxyCaptureRoutes(r gin.IRouter) {
 // remote browser is insufficient to create a root-signing identity or open
 // a new proxy listener on the backend host.
 func isLocalCaptureController(c *gin.Context) bool {
-	addr := strings.TrimSpace(c.Request.RemoteAddr)
+ // Reject browser-originated controls served from a remote WebUI, including
+ // when a local reverse proxy obscures the network peer's address.
+ if origin := c.GetHeader("Origin"); origin != "" {
+  u, err := url.Parse(origin)
+  if err != nil {return false}
+  host := strings.ToLower(u.Hostname())
+  if host!="localhost" {
+   ip:=net.ParseIP(host)
+   if ip==nil || !ip.IsLoopback() {return false}
+  }
+ }
+ addr := strings.TrimSpace(c.Request.RemoteAddr)
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil { return addr=="" || addr=="@" || addr=="unix" }
 	ip := net.ParseIP(host)
