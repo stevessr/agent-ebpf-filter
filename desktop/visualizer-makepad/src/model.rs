@@ -286,7 +286,7 @@ impl City {
 
     pub fn replay_forward(&mut self) {
         if let Some(cursor) = self.replay_cursor {
-            if cursor + 1 >= self.history.len() { self.resume_live(); }
+            if cursor + 1 >= self.history.len().saturating_sub(1) { self.resume_live(); }
             else {
                 self.replay_cursor = Some(cursor + 1);
                 self.rebuild_replay();
