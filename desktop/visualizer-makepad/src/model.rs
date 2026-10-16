@@ -321,6 +321,21 @@ impl City {
         }
     }
 
+    /// Directory name/position pairs for small, camera-projected district
+    /// labels. Labels are UI metadata, not a dependency or syscall trace.
+    pub fn district_labels(&self, limit: usize) -> Vec<(String, f32, f32)> {
+        let mut districts: Vec<_> = self.district_lookup.iter()
+            .filter_map(|(name, id)| {
+                let tile = *self.district_tiles.get(&(*id, 0))?;
+                let x = (tile % 4) as f32 * 16.0 - 17.5;
+                let z = (tile / 4) as f32 * 16.0 - 17.5;
+                Some((tile, name.clone(), x, z))
+            }).collect();
+        districts.sort_by_key(|d| d.0);
+        districts.into_iter().take(limit.min(24))
+            .map(|(_, name, x, z)| (name, x, z)).collect()
+    }
+
     pub fn status_line(&self) -> String {
         let state = if self.connected { "● ONLINE" } else { "● OFFLINE" };
         let replay = match self.replay_cursor {
