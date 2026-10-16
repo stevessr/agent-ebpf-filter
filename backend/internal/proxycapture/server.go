@@ -495,6 +495,33 @@ func (m *Manager) handleSOCKS(conn net.Conn,proto string) {
 	}
 	if err!=nil {return}
 	start:=time.Now()
+	m.mu.Lock()
+	cfg:=m.config
+	m.mu.Unlock()
+	// SOCKS CONNECT can also carry HTTPS. Only terminate TLS when the user
+	// explicitly enabled interception for this exact destination.
+	if cfg.InterceptTLS && strings.HasSuffix(address,":443") && allowedHost(cfg.TLSAllowlist,host) {
+		certPath,keyPath:=m.caPaths()
+		tlsConfig,caErr:=domainforwardproxy.NewCaptureTLSConfig(certPath,keyPath,cfg.TLSAllowlist,host)
+		if caErr != nil {return}
+		if proto=="socks5" {
+			_,_ = conn.Write([]byte{5,0,0,1,0,0,0,0,0,0})
+		} else {
+			_,_ = conn.Write([]byte{0,90,0,0,0,0,0,0})
+		}
+		var stream net.Conn=conn
+		if reader.Buffered()>0 {stream=&bufferedConn{Conn:conn,reader:reader}}
+		tlsConn:=tls.Server(stream,tlsConfig)
+		defer tlsConn.Close()
+		if err:=tlsConn.Handshake();err!=nil {
+			m.record(Flow{Protocol:strings.ToUpper(proto)+" HTTPS MITM",Host:host,Error:"TLS handshake failed"})
+			return
+		}
+		_ = conn.SetDeadline(time.Time{})
+		srv:=&http.Server{Handler:http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){m.httpRequest(w,r,cfg,true,address)}),ReadHeaderTimeout:15*time.Second}
+		_ = srv.Serve(&oneConnListener{conn:tlsConn})
+		return
+	}
 	upstream,err:=net.DialTimeout("tcp",address,10*time.Second)
 	if err!=nil {return}
 	defer upstream.Close()
