@@ -307,6 +307,8 @@ pub struct CityViewport {
     feed: Option<EventFeed>,
     #[rust]
     next_frame: NextFrame,
+    #[rust]
+    smoke_draw_reported: bool,
 }
 
 impl CityViewport {
@@ -556,6 +558,18 @@ impl Widget for CityViewport {
         cx.end_pass(&self.pass);
         self.draw_bg.set_scene_texture(&self.color_texture);
         self.draw_bg.draw_abs(cx, rect);
+        // Opt-in CI evidence that the *real* 3D viewport draw path ran.
+        // This is a render-submission probe, not a claim that the GPU presented
+        // pixels. It never runs when the environment variable is unset.
+        if !self.smoke_draw_reported {
+            if let Some(path) = std::env::var_os("AGENT_EBPF_SMOKE_MARKER") {
+                if std::fs::write(path, b"codecity_draw_path_reached\n").is_ok() {
+                    self.smoke_draw_reported = true;
+                }
+            } else {
+                self.smoke_draw_reported = true;
+            }
+        }
         // A small number of directory headings is projected into native 2D
         // overlay text. This avoids creating per-file 3D text meshes.
         if let Some(state) = self.camera.desktop_scene_state(rect, cx.time()) {
@@ -692,6 +706,12 @@ impl AppMain for App {
         self::script_mod(vm)
     }
     fn handle_event(&mut self, cx: &mut Cx, event: &Event) {
+        if std::env::var_os("AGENT_EBPF_SMOKE_MARKER").is_some() {
+            if let Event::WindowGeomChange(ev) = event {
+                eprintln!("CODECITY_WINDOW_GEOMETRY {}x{}",
+                    ev.new_geom.inner_size.x, ev.new_geom.inner_size.y);
+            }
+        }
         self.match_event(cx, event);
         self.ui.handle_event(cx, event, &mut Scope::empty());
         // Compose lightweight native HUD from the same bounded renderer model.
