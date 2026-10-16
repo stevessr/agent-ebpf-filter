@@ -319,6 +319,9 @@ type renewEventSummary struct {
 	Decision        string  `json:"decision,omitempty"`
 	RiskScore       float64 `json:"riskScore,omitempty"`
 	AgentRunID      string  `json:"agentRunId,omitempty"`
+	// Privacy-preserving digest on authenticated Subagent lifecycle hooks
+	// only. Not evidence that a syscall belongs to that SDK Subagent.
+	SubagentID      string  `json:"subagentId,omitempty"`
 	ConversationID  string  `json:"conversationId,omitempty"`
 	TurnID          string  `json:"turnId,omitempty"`
 	ToolCallID      string  `json:"toolCallId,omitempty"`
@@ -444,6 +447,38 @@ func desktopEventSummaryProto(summary renewDesktopEventSummary) *pb.DesktopEvent
 	}
 }
 
+// nativeSubagentDigest exposes a short pseudonymous marker *only* for an
+// explicit SubagentStart/Stop native hook. No raw SDK agent_id or prompt is
+// exposed, and unrelated kernel file events never inherit the digest.
+func nativeSubagentDigest(event *pb.Event) string {
+    if event == nil || event.GetType() != "native_hook" {
+        return ""
+    }
+    name, _, _ := strings.Cut(strings.ToLower(strings.TrimSpace(event.GetComm())), ":")
+    if name != "subagentstart" && name != "subagentstop" {
+        return ""
+    }
+    const prefix = "subagent_id_digest=sha256:"
+    for _, field := range strings.Fields(event.GetExtraInfo()) {
+        if !strings.HasPrefix(field, prefix) {
+            continue
+        }
+        digest := strings.TrimPrefix(field, prefix)
+        if len(digest) != 64 {
+            return ""
+        }
+        for _, c := range digest {
+            if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+                return ""
+            }
+        }
+        // An 80-bit prefix is stable for matching start/stop inside the
+        // viewer yet avoids publishing the full persisted SHA-256 digest.
+        return "sha256:" + digest[:20]
+    }
+    return ""
+}
+
 func buildRenewEventSummary(record CapturedEventRecord) (renewEventSummary, bool) {
 	record = normalizeCapturedEventRecord(record)
 	if record.Event == nil || record.Envelope == nil {
@@ -479,6 +514,7 @@ func buildRenewEventSummary(record CapturedEventRecord) (renewEventSummary, bool
 		RiskScore:       max(event.GetRiskScore(), envelope.GetRiskScore()),
 		RootAgentPID:    event.GetRootAgentPid(),
 		AgentRunID:      platform.FirstNonEmpty(event.GetAgentRunId(), envelope.GetAgentRunId()),
+		SubagentID:      nativeSubagentDigest(event),
 		ConversationID:  platform.FirstNonEmpty(event.GetConversationId(), envelope.GetConversationId()),
 		TurnID:          platform.FirstNonEmpty(event.GetTurnId(), envelope.GetTurnId()),
 		ToolCallID:      platform.FirstNonEmpty(event.GetToolCallId(), envelope.GetToolCallId()),
