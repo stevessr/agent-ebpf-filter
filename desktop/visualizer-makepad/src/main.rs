@@ -91,6 +91,7 @@ script_mod! {
     load_all_resources() do #(App::script_component(vm)){
         ui: Root{
             main_window := Window{
+                window.title: "CodeCity | Agent eBPF"
                 window.inner_size: vec2(1280, 800)
                 body +: {
                     app_view := SolidView{
