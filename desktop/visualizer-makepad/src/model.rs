@@ -257,6 +257,33 @@ impl City {
         }
     }
 
+    /// Populate the CodeSpace layout from an explicitly imported file-name-only
+    /// JSON manifest. This also works when the CodeSpace is remote and the
+    /// renderer has no filesystem mount. No files mentioned are opened.
+    pub fn seed_manifest(&mut self, bytes: &[u8]) -> Result<usize, &'static str> {
+        if bytes.len() > 1024 * 1024 {
+            return Err("metadata manifest exceeds 1 MiB");
+        }
+        #[derive(Deserialize)]
+        struct Manifest { version: u32, files: Vec<String> }
+        let manifest: Manifest = serde_json::from_slice(bytes)
+            .map_err(|_| "malformed metadata manifest")?;
+        if manifest.version != 1 {
+            return Err("unsupported metadata manifest version");
+        }
+        let before = self.buildings.len();
+        for candidate in manifest.files.into_iter().take(8_000) {
+            let path = Path::new(candidate.as_str());
+            if path.is_absolute() || path.components()
+                .any(|c| !matches!(c, Component::Normal(_))) { continue; }
+            if let Some(normalized) = workspace_relative(path) {
+                self.seed(normalized);
+            }
+            if self.buildings.len() >= MAX_BUILDINGS { break; }
+        }
+        Ok(self.buildings.len() - before)
+    }
+
     pub fn apply(&mut self, event: Summary, root: Option<&Path>) -> bool {
         // Filters require exact recorded context, never process-name guesses
         // or substring matching of session/tool/target fields.
@@ -506,6 +533,24 @@ mod tests {
         assert!(!city.apply(shell, None));
         assert_eq!(city.agent_events, 1);
         assert_eq!(city.history.len(), 1);
+    }
+
+
+    #[test]
+    fn remote_manifest_is_metadata_only_bounded_and_path_safe() {
+        let mut city = City::default();
+        let bytes = serde_json::to_vec(&serde_json::json!({
+            "version":1, "files":[
+                "src/main.rs", "src/main.rs", "../outside.txt", "/etc/passwd",
+                "src/../bad.rs", ".git/config", "assets/logo.svg"
+            ]
+        })).unwrap();
+        assert_eq!(city.seed_manifest(&bytes).unwrap(), 2);
+        assert_eq!(city.buildings.len(), 2);
+        assert!(city.buildings.iter().any(|b| b.path == "src/main.rs"));
+        assert!(city.buildings.iter().any(|b| b.path == "assets/logo.svg"));
+        assert!(city.seed_manifest(&vec![b' '; 1_048_577]).is_err());
+        assert!(city.seed_manifest(br#"{"version":2,"files":[]}"#).is_err());
     }
 
 }
