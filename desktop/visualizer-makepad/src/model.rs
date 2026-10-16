@@ -1,5 +1,6 @@
 //! A bounded, read-only projection of *observed* CodeSpace paths; never reads file contents.
 use serde::Deserialize;
+use crate::timeline::{self, Lane, LaneSelection, TimeWindow};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Component, Path, PathBuf};
 
@@ -18,6 +19,14 @@ pub struct Summary {
     pub event_id: String,
     #[serde(default)]
     pub event_type: i32,
+    #[serde(default)]
+    pub pid: i32,
+    #[serde(default)]
+    pub ppid: i32,
+    // Not currently populated by the compact backend. Only future explicit
+    // trusted identifiers can establish a logical SDK Subagent lane.
+    #[serde(default)]
+    pub subagent_id: String,
     #[serde(default, rename = "type")]
     pub kind: String,
     #[serde(default)]
@@ -150,6 +159,8 @@ pub struct Building {
     pub pulse: f32,
     pub activity: Activity,
     pub owned_by_agent: bool,
+    pub visible: bool,
+    pub last_lane: Option<Lane>,
 }
 
 #[derive(Debug, Clone)]
@@ -158,6 +169,7 @@ pub struct HistoryEvent {
     pub activity: Activity,
     pub agent: bool,
     pub timestamp_ms: i64,
+    pub lane: Lane,
 }
 
 #[derive(Default)]
@@ -180,6 +192,12 @@ pub struct City {
     agent_run_filter: Option<String>,
     agent_root_filter: Option<i32>,
     agent_only: bool,
+    pub time_window: TimeWindow,
+    pub lane_selection: LaneSelection,
+    pub visible_events: u64,
+    pub visible_agent_events: u64,
+    dirty_view: bool,
+    last_view_second: i64,
 }
 
 impl City {
@@ -220,7 +238,8 @@ impl City {
         let height = 0.25 + (hash_path(&path) % 350) as f32 / 125.0;
         self.lookup.insert(path.clone(), self.buildings.len());
         self.buildings.push(Building { path, x, z, height, pulse: 0.0,
-            activity: Activity::Access, owned_by_agent: false });
+            activity: Activity::Access, owned_by_agent: false, visible: false,
+            last_lane: None });
     }
 
     /// Optional local metadata-only index for a populated city before the
@@ -313,10 +332,12 @@ impl City {
             }
         }
         let agent = event.known_agent();
+        let lane = Lane::from_fields(&event.agent_run_id, event.root_agent_pid, event.pid,
+            &event.subagent_id);
         self.total_events += 1;
         if agent { self.agent_events += 1; }
         self.history.push_back(HistoryEvent {
-            path, activity, agent, timestamp_ms: event.received_at_ms,
+            path, activity, agent, timestamp_ms: event.received_at_ms, lane: lane.clone(),
         });
         if self.history.len() > MAX_HISTORY {
             self.history.pop_front();
@@ -329,7 +350,10 @@ impl City {
             building.activity = activity;
             building.pulse = 1.0;
             building.owned_by_agent = agent;
+            building.last_lane = Some(lane);
+            building.visible = true;
         }
+        self.dirty_view = true;
         true
     }
 
@@ -356,23 +380,99 @@ impl City {
     }
 
     fn rebuild_replay(&mut self) {
+        self.dirty_view = true;
+        self.refresh_view(system_time_ms());
+    }
+
+    pub fn set_time_span(&mut self, minutes: u32) {
+        self.time_window.set_minutes(minutes);
+        self.dirty_view = true;
+        self.refresh_view(system_time_ms());
+    }
+
+    pub fn resize_time_span(&mut self, longer: bool) {
+        self.time_window.adjust_span(longer);
+        self.dirty_view = true;
+        self.refresh_view(system_time_ms());
+    }
+
+    pub fn shift_time_range(&mut self, older: bool) {
+        self.time_window.shift(older);
+        self.dirty_view = true;
+        self.refresh_view(system_time_ms());
+    }
+
+    pub fn resume_time_live(&mut self) {
+        self.time_window.live();
+        self.replay_cursor = None;
+        self.dirty_view = true;
+        self.refresh_view(system_time_ms());
+    }
+
+    pub fn set_lane_selection(&mut self, chosen: LaneSelection) {
+        self.lane_selection = chosen;
+        self.dirty_view = true;
+        self.refresh_view(system_time_ms());
+    }
+
+    pub fn cycle_actor(&mut self, forward: bool) {
+        let now = self.anchor_ms(system_time_ms());
+        let snapshot = self.history.iter()
+            .filter(|event| self.time_window.contains(event.timestamp_ms, now))
+            .map(|event| event.lane.clone());
+        self.lane_selection = timeline::cycle_lane(&self.lane_selection, snapshot, forward);
+        self.dirty_view = true;
+        self.refresh_view(system_time_ms());
+    }
+
+    fn anchor_ms(&self, now_ms: i64) -> i64 {
+        self.replay_cursor
+            .and_then(|pos| self.history.get(pos).map(|e| e.timestamp_ms))
+            .filter(|ts| *ts > 0)
+            .unwrap_or(now_ms)
+    }
+
+    fn event_visible(&self, event: &HistoryEvent, index: usize, anchor: i64) -> bool {
+        self.replay_cursor.is_none_or(|cursor| index <= cursor)
+            && self.time_window.contains(event.timestamp_ms, anchor)
+            && self.lane_selection.includes(&event.lane)
+    }
+
+    /// Refresh the visible city only on source changes, user selections, or a
+    /// second boundary; all counters and highlights use the same interval.
+    pub fn refresh_view(&mut self, now_ms: i64) {
+        let second = now_ms / 1000;
+        if !self.dirty_view && (self.replay_cursor.is_some() || self.last_view_second == second) {
+            return;
+        }
+        self.dirty_view = false;
+        self.last_view_second = second;
+        let anchor = self.anchor_ms(now_ms);
+        let visible = self.history.iter().enumerate()
+            .filter(|(index, event)| self.event_visible(event, *index, anchor))
+            .map(|(_, event)| event.clone())
+            .collect::<Vec<_>>();
         for building in &mut self.buildings {
+            building.visible = false;
+            building.last_lane = None;
             building.activity = Activity::Access;
             building.owned_by_agent = false;
             building.pulse = 0.0;
         }
-        let limit = self.replay_cursor.unwrap_or_else(|| self.history.len().saturating_sub(1));
-        for event in self.history.iter().take(limit + 1) {
+        self.visible_events = visible.len() as u64;
+        self.visible_agent_events = visible.iter().filter(|e| e.agent).count() as u64;
+        for event in visible {
             if let Some(&index) = self.lookup.get(&event.path) {
                 let building = &mut self.buildings[index];
+                building.visible = true;
                 building.activity = event.activity;
                 building.owned_by_agent = event.agent;
-                building.pulse = 0.0;
-            }
-        }
-        if let Some(last) = self.history.get(limit) {
-            if let Some(&index) = self.lookup.get(&last.path) {
-                self.buildings[index].pulse = 1.0;
+                building.last_lane = Some(event.lane.clone());
+                // Time-based intensity reflects the actual event age, not UI FPS.
+                let age = anchor.saturating_sub(event.timestamp_ms);
+                if (0..=6_000).contains(&age) {
+                    building.pulse = ((6_000 - age) as f32 / 6_000.0).max(building.pulse);
+                }
             }
         }
     }
@@ -401,14 +501,16 @@ impl City {
         let filtered = if self.agent_only || self.agent_run_filter.is_some() || self.agent_root_filter.is_some() {
             "  |  AGENT SCOPE"
         } else { "" };
-        format!("{state}{replay}{filtered}  |  FILES {}  |  EVENTS {}  |  AGENT {}  |  LOST {}",
-            self.buildings.len(), self.total_events, self.agent_events,
+        format!("{state}{replay}{filtered}  |  SPAN {}  |  {}  |  SHOWN {} (AGENT {})  |  ALL {}  |  LOST {}",
+            self.time_window.caption(), self.lane_selection.label(),
+            self.visible_events, self.visible_agent_events, self.total_events,
             self.dropped_events + self.transport_dropped)
     }
 
     pub fn latest_note(&self) -> String {
-        let index = self.replay_cursor.unwrap_or_else(|| self.history.len().saturating_sub(1));
-        let Some(event) = self.history.get(index) else {
+        let anchor = self.anchor_ms(system_time_ms());
+        let Some((_,event)) = self.history.iter().enumerate().rev()
+            .find(|(index,event)| self.event_visible(event,*index,anchor)) else {
             return "No observed file activity yet • left/right: timeline, Esc: live".into();
         };
         let verb = match event.activity {
@@ -424,14 +526,19 @@ impl City {
                 .nth(event.path.chars().count().saturating_sub(90))
                 .map(|(i,_)| i).unwrap_or(0)..])
         } else { event.path.clone() };
-        format!("{verb} • {agent} • {filename}")
+        format!("{verb} • {agent} • {} • {filename}", event.lane.title())
     }
 
     pub fn step(&mut self) {
-        if self.replay_cursor.is_none() {
-            for b in &mut self.buildings { b.pulse = (b.pulse - 0.018).max(0.0); }
-        }
+        self.refresh_view(system_time_ms());
     }
+}
+
+pub fn system_time_ms() -> i64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now().duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis().min(i64::MAX as u128) as i64)
+        .unwrap_or(0)
 }
 
 #[cfg(test)]
@@ -551,6 +658,37 @@ mod tests {
         assert!(city.buildings.iter().any(|b| b.path == "assets/logo.svg"));
         assert!(city.seed_manifest(&vec![b' '; 1_048_577]).is_err());
         assert!(city.seed_manifest(br#"{"version":2,"files":[]}"#).is_err());
+    }
+
+    #[test]
+    fn visible_counters_and_highlights_follow_time_span_and_actor() {
+        let now = system_time_ms();
+        let mut city = City::default();
+        let mut root = e("file_write","/workspaces/repo/src/a.rs");
+        root.pid = 10; root.root_agent_pid = 10;
+        root.agent_run_id = "test-run".into();
+        root.received_at_ms = now - 15_000;
+        assert!(city.apply(root, None));
+        let mut child = e("file_read","/workspaces/repo/src/b.rs");
+        child.pid = 11; child.root_agent_pid = 10;
+        child.agent_run_id = "test-run".into();
+        child.received_at_ms = now - 120_000;
+        assert!(city.apply(child, None));
+        city.set_time_span(1);
+        city.refresh_view(now);
+        assert_eq!(city.visible_events, 1);
+        assert!(city.buildings[0].visible);
+        assert!(!city.buildings[1].visible);
+        city.set_time_span(5);
+        city.set_lane_selection(LaneSelection::Delegated);
+        city.refresh_view(now);
+        assert_eq!(city.visible_events, 1);
+        assert!(!city.buildings[0].visible);
+        assert!(city.buildings[1].visible);
+        city.set_lane_selection(LaneSelection::Verified);
+        assert_eq!(city.visible_events, 0);
+        // The current stream does not provide verifiable SDK Subagent IDs.
+        assert_eq!(city.agent_events, 2);
     }
 
 }
