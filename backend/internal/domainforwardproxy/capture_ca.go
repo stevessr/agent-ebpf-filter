@@ -10,12 +10,12 @@ import (
 // explicit, allowlisted forward-proxy interception. A CONNECT destination must
 // match the selected certificate; clients cannot ask us to sign an arbitrary SNI.
 func NewCaptureTLSConfig(certFile, keyFile, allowlist, connectHost string) (*tls.Config, error) {
-	ca, err := loadMITMCertificateAuthority(DomainForwardProxySettings{
-		TLSInterceptEnabled: true,
-		TLSInterceptCACertFile: certFile,
-		TLSInterceptCAKeyFile: keyFile,
-		TLSInterceptAllowlist: allowlist,
-	})
+	settings := DomainForwardProxySettings{}
+	settings.TLSInterceptEnabled = true
+	settings.TLSInterceptCACertFile = certFile
+	settings.TLSInterceptCAKeyFile = keyFile
+	settings.TLSInterceptAllowlist = allowlist
+	ca, err := loadMITMCertificateAuthority(settings)
 	if err != nil {
 		return nil, err
 	}
