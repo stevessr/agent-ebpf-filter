@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	SchemaVersion   = "agent-context-harness.v1"
-	MaxBatchEvents  = 20000
+	SchemaVersion  = "agent-context-harness.v1"
+	MaxBatchEvents = 20000
 )
 
 // Evidence describes how an association was established. Observing an OS
@@ -102,7 +102,10 @@ type Report struct {
 }
 
 type scope struct{ host, run string }
-type eventKey struct{ scope scope; source, id string }
+type eventKey struct {
+	scope      scope
+	source, id string
+}
 type counts struct {
 	total, starts, results, failures int
 	exec, writes, connects          int
