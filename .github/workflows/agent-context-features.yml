@@ -27,8 +27,8 @@ jobs:
           cache-dependency-path: backend/go.sum
       - name: Verify Go formatting
         run: |
-          files="$(gofmt -l backend/internal/agentfeatures/*.go)"
-          test -z "$files" || { printf 'Unformatted files:\n%s\n' "$files"; exit 1; }
+          diffs="$(gofmt -d backend/internal/agentfeatures/*.go)"
+          test -z "$diffs" || { printf 'Go formatting diff:\n%s\n' "$diffs"; exit 1; }
       - name: Offline feature extraction tests
         working-directory: backend
         run: go test -race ./internal/agentfeatures -count=1
