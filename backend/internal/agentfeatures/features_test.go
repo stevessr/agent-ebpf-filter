@@ -134,3 +134,16 @@ func TestBatchBoundariesAndCatalogCopy(t *testing.T) {
 		t.Fatal("catalog unexpectedly mutable")
 	}
 }
+
+func TestConflictingSourceEventIDsFailClosed(t *testing.T) {
+	w := Window{StartNS: 1, EndNS: 100}
+	a := event("shared", "host", "run", "tool", 10)
+	b := a
+	b.Kind = "file_write"
+	if _, err := Extract([]Event{a, b}, w); err == nil {
+		t.Fatal("conflicting duplicate IDs must not silently choose input order")
+	}
+	if _, err := Extract([]Event{b, a}, w); err == nil {
+		t.Fatal("reverse order must also reject conflicting duplicate IDs")
+	}
+}
