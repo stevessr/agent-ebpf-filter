@@ -108,10 +108,10 @@ type eventKey struct {
 }
 type counts struct {
 	total, starts, results, failures int
-	exec, writes, connects          int
-	osAttributed, osKnown           int
-	knownEvidence, inferred         int
-	audited, loss                   int
+	exec, writes, connects           int
+	osAttributed, osKnown            int
+	knownEvidence, inferred          int
+	audited, loss                    int
 }
 
 func (c *counts) observe(e Event) {
