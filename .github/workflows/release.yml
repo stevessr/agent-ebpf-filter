@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: manual-release-${${ inputs.tag }}
+  group: manual-release-${{ inputs.tag }}
   cancel-in-progress: false
 
 jobs:
@@ -27,7 +27,7 @@ jobs:
     steps:
       - name: Check release target and tag
         env:
-          TAG: ${${ inputs.tag }}
+          TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
           test "$GITHUB_REF" = "refs/heads/master" || {
@@ -69,7 +69,7 @@ jobs:
           retention-days: 2
 
   linux:
-    name: Build linux/${${ matrix.arch }}
+    name: Build linux/${{ matrix.arch }}
     needs: [validate, frontend]
     strategy:
       fail-fast: false
@@ -79,7 +79,7 @@ jobs:
             runner: ubuntu-24.04
           - arch: arm64
             runner: ubuntu-24.04-arm
-    runs-on: ${${ matrix.runner }}
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -115,7 +115,7 @@ jobs:
         env:
           CGO_ENABLED: "0"
           GOOS: linux
-          GOARCH: ${${ matrix.arch }}
+          GOARCH: ${{ matrix.arch }}
         run: |
           cd backend
           go build -trimpath -tags agentfeat_all -ldflags="-s -w" -o agent-ebpf-filter .
@@ -130,11 +130,11 @@ jobs:
           path: frontend/dist
       - name: Package release archive
         env:
-          TARGET_ARCH: ${${ matrix.arch }}
+          TARGET_ARCH: ${{ matrix.arch }}
         run: bash scripts/package-release.sh "$TARGET_ARCH" dist/release
       - uses: actions/upload-artifact@v4
         with:
-          name: release-linux-${${ matrix.arch }}
+          name: release-linux-${{ matrix.arch }}
           path: dist/release/*.tar.gz
           if-no-files-found: error
           retention-days: 7
@@ -162,9 +162,9 @@ jobs:
           cat SHA256SUMS
       - name: Publish only a new tag/release
         env:
-          GH_TOKEN: ${${ github.token }}
-          TAG: ${${ inputs.tag }}
-          PRERELEASE: ${${ inputs.prerelease }}
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          PRERELEASE: ${{ inputs.prerelease }}
         run: |
           set -euo pipefail
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
@@ -183,7 +183,7 @@ jobs:
             dist/release/SHA256SUMS "${args[@]}"
       - name: Print installer command
         env:
-          TAG: ${${ inputs.tag }}
+          TAG: ${{ inputs.tag }}
         run: |
           echo "Release: https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG"
           echo "Install: curl -fsSL https://raw.githubusercontent.com/$GITHUB_REPOSITORY/master/scripts/install.sh | bash -s -- --version $TAG"
