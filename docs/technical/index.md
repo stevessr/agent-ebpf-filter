@@ -53,6 +53,7 @@
 | [JSONL/Pebble 内部协议](./storage-internals.md) | `backend/app/runtime_event_store_pebble.go` |
 | [Research 与规则回放](./research-replay.md) | `backend/app/research/processing_runtime.go` |
 | [ML、插件与实验引擎](./optional-engines.md) | `backend/app/ml/` |
+| [Agent Context / Harness 特征工程 P0 基线](./agent-context-feature-engineering.md) | `backend/internal/agentfeatures/` · `backend/app/events/context_event.go` |
 | [构建与验证](./build-verify.md) | `Makefile` · `go.work` |
 | [运行故障排查手册](./operations-debug.md) | `backend/app/observability/metrics_collector.go` |
 
