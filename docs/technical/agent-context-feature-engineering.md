@@ -90,3 +90,39 @@
 5. P5：Renew 与 Web 仅显示**证据等级和观测事实**，不把推断链渲染成已证实 Agent 因果。
 
 参考：OpenTelemetry GenAI semconv、OpenInference、MCP（作为对照，并非该代码已完全符合）；[Agent-Warden 文献分析](../reference/agent-warden-analysis.md)、[Detection Engineering replay](../security/nvidia-validation-first-detection.md)。
+
+
+## 7. 统一上下文证据与离线特征帧的数据流
+
+```mermaid
+flowchart LR
+    A["Native Hook / Wrapper / Adapter"] --> B["显式 Session / Run / Tool 元数据"]
+    K["eBPF / OS 采样"] --> C["OS 进程与文件网络事件"]
+    B --> D["可信身份与时钟归一化（后续接入）"]
+    C --> D
+    D --> E["已脱敏 CanonicalEvent（计划）"]
+    E --> F["agentfeatures Extract：离线 MVP"]
+    F --> G["FeatureFrame v1 + Missing Mask"]
+    G -. "未来：人工标注与 Replay" .-> H["离线检测与消融"]
+```
+
+**图的实线和虚线区分**：本 PR 已提供独立离线 Extract，但 B/C→D/E 的实时 Adapter 尚未实现；该图为目标数据流，不表示整个链路已上线。
+
+## 8. 证据与缺失值决策
+
+```mermaid
+flowchart TD
+    E["已脱敏输入事件"] --> V{"Unix-ns 时间和 Host+Run 可验证？"}
+    V -->|否| U["Skipped counter；不合成身份"]
+    V -->|是| S["按 Host+Run 与 Source+EventID 去重"]
+    S --> O{"OS effect 有独立 Tool 归因证据？"}
+    O -->|"observed + ToolCallID"| L["计入 explicit attribution"]
+    O -->|"derived/inferred/unknown"| M["仅保留各自证据；不计入 explicit ratio"]
+    L --> F["聚合有界 FeatureFrame"]
+    M --> F
+    F --> D{"该比率有实测分母？"}
+    D -->|是| P["present=true，返回观测比率"]
+    D -->|否| N["present=false，denominator_unobserved"]
+```
+
+这两张图仅描述协议边界和本 PR 的纯函数处理；不能以它们宣称已获得完整 Harness 生命周期数据。
