@@ -2,6 +2,38 @@
 
 ---
 
+## curl 快速安装（预编译 Release）
+
+发布稳定版本后，Linux x86_64/aarch64 用户无需安装 Go、Bun 或编译工具链：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/stevessr/agent-ebpf-filter/master/scripts/install.sh | bash
+
+# 指定已发布的版本，不启动也不开机自启
+curl -fsSL https://raw.githubusercontent.com/stevessr/agent-ebpf-filter/master/scripts/install.sh | bash -s -- --version v1.0.0 --no-start --no-enable
+
+# 检查参数
+curl -fsSL https://raw.githubusercontent.com/stevessr/agent-ebpf-filter/master/scripts/install.sh | bash -s -- --help
+```
+
+安装器自动识别 Linux amd64/arm64，下载 GitHub Releases 中的 `agent-ebpf-filter-linux-<arch>.tar.gz` 与 `SHA256SUMS`，校验 SHA-256 后解包，并调用包内的 `scripts/install-service.sh`。校验失败时禁止继续安装；服务安装阶段才按需申请管理员权限。默认使用最新**稳定**版本，不包含 prerelease。生产运行仍需要支持 eBPF/BTF 的 Linux 内核与适当权限。建议先审阅脚本内容再执行。
+
+自定义路径可使用 `--prefix`、`--bindir`、`--config-dir`；可使用 `--method systemd`、`--no-start`、`--no-enable`、`--dry-run`。不支持的 OS/架构会直接报错。
+
+### 手动发布 Release
+
+仓库 **Actions → Manual Release → Run workflow**，从 `master` 分支触发，输入新版本号（如 `v1.0.0`），并选择是否标记为 prerelease。流程先验证安装器，再编译 Vue 前端、生成 protobuf/eBPF 产物、原生构建 Linux amd64 和 arm64 二进制，最终上传两个完整安装包与 `SHA256SUMS` 到 GitHub Release。若 tag 或 Release 已存在，工作流拒绝覆盖。
+
+也可以使用 GitHub CLI：
+
+```bash
+gh workflow run release.yml --ref master -f tag=v1.0.0 -f prerelease=false
+```
+
+注意：`--version v1.0.0` 仅为命令示例，实际请使用已发布的版本号。发布包包含后端、wrapper、构建完成的前端、系统服务安装脚本与必要的文档；解包后可离线执行 `bash scripts/install-service.sh install`。
+
+---
+
 ## 本机系统服务安装
 
 ```bash
