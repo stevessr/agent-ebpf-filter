@@ -157,7 +157,7 @@ const columns = [
   padding: 20px;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
-  background: #fff;
+  background: var(--ui-surface);
 }
 .triage-header {
   display: flex;
@@ -172,7 +172,7 @@ h2 {
 }
 p,
 small {
-  color: #64748b;
+  color: var(--ui-text-muted);
 }
 .triage-metrics {
   display: grid;
@@ -184,7 +184,7 @@ small {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  background: #f8fafc;
+  background: var(--ui-surface-soft);
   padding: 16px;
   border-radius: 8px;
 }

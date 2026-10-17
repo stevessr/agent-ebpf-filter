@@ -75,6 +75,7 @@ func NewTLSConfig(settings DomainForwardProxySettings) (*tls.Config, []string, e
 	}
 	return &tls.Config{
 		MinVersion:     tls.VersionTLS12,
+		NextProtos:     []string{"h2", "http/1.1"},
 		GetCertificate: store.GetCertificate,
 	}, warnings, nil
 }
@@ -111,8 +112,19 @@ func (s *domainForwardCertStore) GetCertificate(hello *tls.ClientHelloInfo) (*tl
 	return nil, fmt.Errorf("no certificate configured for %q", host)
 }
 
+// Explicitly opt in to both HTTP/1.1 and HTTP/2. With a custom DNS dialer
+// Go's default heuristics may otherwise suppress HTTP/2 on the upstream hop.
+func proxyHTTPProtocols() *http.Protocols {
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	protocols.SetHTTP2(true)
+	return protocols
+}
+
 func NewTransport(settings DomainForwardProxySettings) http.RoundTripper {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Protocols = proxyHTTPProtocols()
+	transport.ForceAttemptHTTP2 = true
 	transport.Proxy = nil
 	timeout := time.Duration(settings.DialTimeoutSeconds) * time.Second
 	if timeout <= 0 {
@@ -160,6 +172,15 @@ func NormalizeSettings(settings *DomainForwardProxySettings) {
 		return
 	}
 	settings.HTTPPort = normalizeTCPPort(settings.HTTPPort, 80)
+	settings.BindAddress = strings.TrimSpace(settings.BindAddress)
+	// Privacy is an explicitly routed local middleware by default. Never
+	// expose its plaintext HTTP listener to all interfaces accidentally.
+	if settings.Privacy.Enabled && settings.BindAddress == "" {
+		settings.BindAddress = "127.0.0.1"
+	}
+	if settings.BindAddress != "" && net.ParseIP(settings.BindAddress) == nil {
+		settings.BindAddress = "127.0.0.1" // malformed bind input must not expose the gateway
+	}
 	settings.HTTPSPort = normalizeTCPPort(settings.HTTPSPort, 443)
 	settings.DefaultScheme = normalizedForwardScheme(settings.DefaultScheme)
 	settings.CertFile = strings.TrimSpace(settings.CertFile)
@@ -178,6 +199,7 @@ func NormalizeSettings(settings *DomainForwardProxySettings) {
 	} else if settings.DialTimeoutSeconds > 120 {
 		settings.DialTimeoutSeconds = 120
 	}
+	NormalizePrivacySettings(&settings.Privacy)
 	if settings.Rewrite.MaxBodyBytes <= 0 {
 		settings.Rewrite.MaxBodyBytes = defaultRewriteBodyBytes
 	} else if settings.Rewrite.MaxBodyBytes > maxRewriteBodyBytes {
@@ -297,6 +319,7 @@ func NormalizeForwardHost(raw string) string {
 func SettingsEqual(a, b DomainForwardProxySettings) bool {
 	if a.Enabled != b.Enabled || a.HTTPPort != b.HTTPPort || a.HTTPSPort != b.HTTPSPort ||
 		a.DefaultScheme != b.DefaultScheme || a.AllowAnyHost != b.AllowAnyHost ||
+		a.BindAddress != b.BindAddress || a.HTTPSDisabled != b.HTTPSDisabled ||
 		a.DNSResolver != b.DNSResolver || a.DialTimeoutSeconds != b.DialTimeoutSeconds ||
 		a.CertFile != b.CertFile || a.KeyFile != b.KeyFile ||
 		a.TLSInterceptEnabled != b.TLSInterceptEnabled ||
@@ -305,6 +328,7 @@ func SettingsEqual(a, b DomainForwardProxySettings) bool {
 		a.TLSInterceptCAKeyFile != b.TLSInterceptCAKeyFile ||
 		a.TLSInterceptLeafTTLSeconds != b.TLSInterceptLeafTTLSeconds ||
 		!reflect.DeepEqual(a.Rewrite, b.Rewrite) ||
+		!reflect.DeepEqual(a.Privacy, b.Privacy) ||
 		len(a.Routes) != len(b.Routes) {
 		return false
 	}

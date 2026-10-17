@@ -3,6 +3,7 @@ import { computed, defineAsyncComponent, ref, onUnmounted, watch } from "vue";
 import axios from "axios";
 import type { ProcessInfo } from "../../../composables/monitor/useProcessObserver";
 import { useProcessResourceHistory } from "./useProcessResourceHistory";
+import { systemIsDark } from "../../../composables/useSystemTheme";
 
 const VueApexCharts = defineAsyncComponent(
   async () => (await import("vue3-apexcharts")).default as any,
@@ -118,16 +119,11 @@ const makeLineOpts = (yLabel: string, byteFormat = false) => ({
   },
   stroke: { width: 2, curve: "smooth" as const },
   legend: { show: true, fontSize: "10px", position: "bottom" as const },
-  grid: { borderColor: "#f0f0f0" },
-  tooltip: {
+  theme: { mode: systemIsDark.value ? "dark" : "light" },
+  grid: { borderColor: systemIsDark.value ? "#334155" : "#e2e8f0" },
+  tooltip: { theme: systemIsDark.value ? "dark" : "light",
     x: { format: "HH:mm:ss" },
-    ...(byteFormat
-      ? {
-          y: {
-            formatter: (val: number) => fmtBytes(val),
-          },
-        }
-      : {}),
+    ...(byteFormat ? { y: { formatter: (val: number) => fmtBytes(val) } } : {}),
   },
   colors: ["#1677ff","#52c41a","#fa8c16","#722ed1","#eb2f96","#13c2c2","#f5222d","#2f54eb","#faad14","#a0d911"],
 });

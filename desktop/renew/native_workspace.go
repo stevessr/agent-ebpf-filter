@@ -50,7 +50,6 @@ func showWorkspaceInspector(windowWidth, navigationWidth float32, expanded bool,
 		windowWidth-activityRailWidth-navigationWidth-inspectorWidth >= minimumCenterWidth
 }
 
-
 const (
 	workspaceNavigationCompactWidth  float32 = 198
 	workspaceNavigationDetailedWidth float32 = 302
@@ -62,6 +61,7 @@ var workspaceNavigationLabels = map[string][2]string{
 	"研判":       {"风险研判工作台", "风险事件研判工作台"},
 	"事件":       {"事件流", "eBPF 实时事件流"},
 	"会话":       {"Agent 会话", "Agent 会话与行为关联"},
+	"派生":       {"Agent 派生", "Agent → SubAgent 调用与进程派生"},
 	"网络":       {"网络外联", "网络连接与外联目标"},
 	"域名":       {"Agent 域名监控", "Agent 域名与外联目的地监控"},
 	"进程":       {"进程活动", "进程活动与资源监测"},
@@ -70,11 +70,11 @@ var workspaceNavigationLabels = map[string][2]string{
 	"eBPF 模块":  {"内核模块", "eBPF 内核模块管理"},
 	"规则":       {"Wrapper 规则", "Wrapper 拦截与防护规则"},
 	"跟踪":       {"跟踪范围", "进程、命令与路径跟踪"},
-	"路径权限":   {"文件访问保护", "文件路径与访问权限"},
+	"路径权限":     {"文件访问保护", "文件路径与访问权限"},
 	"终端":       {"本地 Shell · 多标签与分屏", "本地 Shell 终端与多窗格"},
 	"文件":       {"文件管理", "本机文件管理与目录浏览"},
-	"编辑器":     {"原生编辑器", "MyGo 原生代码编辑器"},
-	"CCS":        {"管理软件联动", "CC-Switch / AstrLink / CCR / Antigravity 本地视图"},
+	"编辑器":      {"原生编辑器", "MyGo 原生代码编辑器"},
+	"CCS":      {"管理软件联动", "CC-Switch / AstrLink / CCR / Antigravity 本地视图"},
 	"系统":       {"系统诊断", "采集链路与系统运行诊断"},
 }
 
@@ -92,11 +92,11 @@ func workspaceNavigationWidth(open, detailed bool) float32 {
 // navigation labels. The preference survives resizing and is restored when
 // there is enough room; the icon rail remains available at every size.
 const (
-	workspaceActivityRailWidth float32 = 54
+	workspaceActivityRailWidth      float32 = 54
 	workspaceDetailedMinWindowWidth float32 = 1240
-	workspaceHeaderMinContentWidth float32 = 860
-	workspaceNarrowNavigationWidth float32 = 900
-	workspaceTightHeaderWidth float32 = 660
+	workspaceHeaderMinContentWidth  float32 = 860
+	workspaceNarrowNavigationWidth  float32 = 900
+	workspaceTightHeaderWidth       float32 = 660
 )
 
 func workspaceResponsiveNavigationWidth(windowWidth float32, open, detailed bool) (float32, bool) {
@@ -176,32 +176,36 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 				a.localEditorView(c)
 			} else {
 				ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Stretch).Children(func() {
-				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-					pagePadding := float32(20)
-					if width < 1200 { pagePadding = 12 }
-					ui.Scroll(c).Grow(1).Padding(pagePadding).Gap(16).Children(func() {
-						switch {
-						case a.starting:
-							a.startingView(c)
-						case workspaceShowsBackendError(a.page, a.starting, a.lastErr, len(a.events)):
-							a.errorView(c)
-						default:
-							if !a.connected && a.lastErr != "" { a.connectionBanner(c) }
-							// A populated event table is not proof that collection is healthy.
-							// Make capture failures visible on every monitoring page.
-							if a.connected && a.healthReady && !a.health.CaptureHealthy && a.page != "概览" && a.page != "系统" {
-								a.captureWarning(c)
-							}
-							ui.Column(c).Key("page-"+a.page).Gap(16).Transition(ui.ElementTransition{
-							Duration: 160 * time.Millisecond,
-							Enter: &ui.Motion{Y: 8},
-						}).Children(func() { a.workspacePage(c) })
+					ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+						pagePadding := float32(20)
+						if width < 1200 {
+							pagePadding = 12
 						}
+						ui.Scroll(c).Grow(1).Padding(pagePadding).Gap(16).Children(func() {
+							switch {
+							case a.starting:
+								a.startingView(c)
+							case workspaceShowsBackendError(a.page, a.starting, a.lastErr, len(a.events)):
+								a.errorView(c)
+							default:
+								if !a.connected && a.lastErr != "" {
+									a.connectionBanner(c)
+								}
+								// A populated event table is not proof that collection is healthy.
+								// Make capture failures visible on every monitoring page.
+								if a.connected && a.healthReady && !a.health.CaptureHealthy && a.page != "概览" && a.page != "系统" {
+									a.captureWarning(c)
+								}
+								ui.Column(c).Key("page-" + a.page).Gap(16).Transition(ui.ElementTransition{
+									Duration: 160 * time.Millisecond,
+									Enter:    &ui.Motion{Y: 8},
+								}).Children(func() { a.workspacePage(c) })
+							}
+						})
 					})
-				})
-				if showWorkspaceInspector(width, navWidth, a.inspectorOpen, a.page) {
-					a.inspector(c)
-				}
+					if showWorkspaceInspector(width, navWidth, a.inspectorOpen, a.page) {
+						a.inspector(c)
+					}
 				})
 			}
 			a.workspaceFooter(c)
@@ -223,6 +227,8 @@ func (a *renewApp) workspacePage(c *ui.Context) {
 		a.inspectorStandalone(c)
 	case "会话":
 		a.sessionsView(c)
+	case "派生":
+		a.agentLineageView(c)
 	case "网络":
 		a.networkView(c)
 	case "域名":
@@ -261,7 +267,7 @@ var workspaceNavigationMenuSections = []struct {
 	title string
 	pages []string
 }{
-	{"监控工作台", []string{"概览", "研判", "事件", "会话", "网络", "域名", "进程", "Agent 识别"}},
+	{"监控工作台", []string{"概览", "研判", "事件", "会话", "派生", "网络", "域名", "进程", "Agent 识别"}},
 	{"防护与管理", []string{"监控", "eBPF 模块", "规则", "跟踪", "路径权限"}},
 	{"工具", []string{"终端", "文件", "编辑器", "CCS"}},
 	{"运行诊断", []string{"系统"}},
@@ -387,6 +393,7 @@ func (a *renewApp) sidebar(c *ui.Context, detailed bool) {
 					events.Children(func() { statusPill(c, fmt.Sprint(attention), t.Warning) })
 				}
 				navItem("会话")
+				navItem("派生")
 				navItem("网络")
 				navItem("域名")
 				navItem("进程")
@@ -482,7 +489,9 @@ func (a *renewApp) header(c *ui.Context, navigationWidth float32) {
 			}
 			ui.Badge(c, a.page).Background(t.Accent.Alpha(0.16)).TextColor(t.Accent)
 			if a.page == "概览" || a.page == "事件" || a.page == "网络" || a.page == "进程" {
-				if n := a.eventConstraintCount(); n > 0 { statusPill(c, fmt.Sprintf("筛选 %d 项", n), t.Accent) }
+				if n := a.eventConstraintCount(); n > 0 {
+					statusPill(c, fmt.Sprintf("筛选 %d 项", n), t.Accent)
+				}
 				if !compact && a.eventPIDFilter > 0 {
 					statusPill(c, fmt.Sprintf("PID %d", a.eventPIDFilter), t.Accent)
 				}
@@ -513,7 +522,6 @@ func (a *renewApp) header(c *ui.Context, navigationWidth float32) {
 		})
 	})
 }
-
 
 // Header actions are laid out as one native toolbar, in the first row on
 // desktop and on a separate full-width row on narrow tiled windows. MyGo

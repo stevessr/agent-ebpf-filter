@@ -143,6 +143,12 @@ func uninstallTypeScriptNativeHook(h HookDef) error {
 
 func buildGenericHookRelayScript(h HookDef) string {
 	hookSecret := runtimeSettingsStore.HookSecret(h.ID)
+	// Restrict best-effort parent attribution to the new opt-in lifecycle
+	// hooks. Existing CLI integrations keep their previous PID semantics.
+	parentPIDHeader := ""
+	if strings.HasPrefix(h.ID, "claude-subagent-") {
+		parentPIDHeader = "  -H \"X-Agent-Hook-Parent-PID: $PPID\" \\\n"
+	}
 	return fmt.Sprintf(`#!/usr/bin/env bash
 hook_event="${1:-${AGENT_EBPF_HOOK_EVENT:-}}"
 tmp_file="$(mktemp "${TMPDIR:-/tmp}/agent-ebpf-hook.XXXXXX")" || exit 0
@@ -155,11 +161,11 @@ fi
 curl -fsS -X POST '%s' \
   -H 'Content-Type: application/json' \
   -H 'X-Agent-CLI: %s' \
-  -H 'X-Agent-Hook-Secret: %s' \
+%s  -H 'X-Agent-Hook-Secret: %s' \
   "${event_header[@]}" \
   --data-binary "@$tmp_file" \
   >/dev/null 2>&1 || true
-`, platform.ResolveHookCallbackURL(), h.ID, hookSecret)
+`, platform.ResolveHookCallbackURL(), h.ID, parentPIDHeader, hookSecret)
 }
 
 // installNativeHook injects a hook into the agent CLI's settings (JSON or TOML)

@@ -99,6 +99,20 @@ var AvailableHooks = []HookDef{
 		ConfigFormat:    ConfigFormatJSON,
 	},
 	{
+		ID: "claude-subagent-start", Name: "Claude Code · SubagentStart", HookType: HookTypeNative,
+		Description:     "Opt-in read-only SubagentStart lifecycle telemetry for Renew lineage visualization",
+		TargetCmd:       "claude",
+		NativeHookEvent: "SubagentStart",
+		ConfigFormat:    ConfigFormatJSON,
+	},
+	{
+		ID: "claude-subagent-stop", Name: "Claude Code · SubagentStop", HookType: HookTypeNative,
+		Description:     "Opt-in read-only SubagentStop lifecycle telemetry for Renew lineage visualization",
+		TargetCmd:       "claude",
+		NativeHookEvent: "SubagentStop",
+		ConfigFormat:    ConfigFormatJSON,
+	},
+	{
 		ID: "gemini", Name: "Gemini CLI", HookType: HookTypeNative,
 		Description:     "Uses Gemini CLI's native BeforeTool hook for high-performance interception",
 		TargetCmd:       "gemini",

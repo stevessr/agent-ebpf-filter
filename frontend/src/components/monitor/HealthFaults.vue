@@ -40,7 +40,7 @@ const emit = defineEmits<{
         title="System Page Faults"
         size="small"
         :bordered="false"
-        style="background: #fafafa"
+        style="background: var(--ui-surface-muted)"
       >
         <template #extra>
           <a-button
@@ -135,11 +135,11 @@ const emit = defineEmits<{
         title="Top Processes by Faults"
         size="small"
         :bordered="false"
-        style="background: #fafafa"
+        style="background: var(--ui-surface-muted)"
       >
         <template #extra>
           <a-space>
-            <span style="font-size: 12px; color: #4b5563">Top:</span>
+            <span style="font-size: 12px; color: var(--ui-text-muted)">Top:</span>
             <a-select
               :value="faultTopN"
               size="small"
@@ -156,7 +156,7 @@ const emit = defineEmits<{
                 (e: any) =>
                   emit('update:mergeFaultProcesses', e?.target?.checked ?? e)
               "
-              style="font-size: 12px; color: #4b5563"
+              style="font-size: 12px; color: var(--ui-text-muted)"
               >Merge by Name</a-checkbox
             >
           </a-space>

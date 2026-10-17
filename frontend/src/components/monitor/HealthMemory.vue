@@ -26,7 +26,7 @@ defineProps<{
         title="Physical Memory"
         size="small"
         :bordered="false"
-        style="background: #fafafa"
+        style="background: var(--ui-surface-muted)"
       >
         <template #extra>
           <a-button
@@ -199,7 +199,7 @@ defineProps<{
         title="Swap / ZRAM"
         size="small"
         :bordered="false"
-        style="background: #fafafa"
+        style="background: var(--ui-surface-muted)"
       >
         <template #extra>
           <a-button
@@ -244,7 +244,7 @@ defineProps<{
                 margin-bottom: 4px;
               "
             >
-              <span style="font-size: 12px; color: #4b5563">System Swap</span>
+              <span style="font-size: 12px; color: var(--ui-text-muted)">System Swap</span>
               <span style="font-weight: bold"
                 >{{
                   systemStats.swapTotal > 0
@@ -302,7 +302,7 @@ defineProps<{
                 margin-bottom: 4px;
               "
             >
-              <span style="font-size: 12px; color: #4b5563"
+              <span style="font-size: 12px; color: var(--ui-text-muted)"
                 >ZRAM (Compressed)</span
               >
               <span style="font-weight: bold"

@@ -1,5 +1,13 @@
 # 总体架构
 
+> **源码技术手册权威入口（2026-10-15）**：本页保留专题讲解与既有链接；有关当前函数、数据流、功能门控及平台可用性的实现事实，请优先核对 [技术手册：architecture](../technical/architecture.md) 和链接的源码与测试。旧示意图不表示其所绘功能已在默认部署中启用。
+
+::: tip 2026-10 运行时口径
+当前主要实现仍由**单个特权后端**管理 eBPF 对象、策略与事件管线；原生「明镜高悬」位于 `desktop/renew/`，以**普通用户 MyGo 桌面 + 按需启动的内置授权后端**工作。Vue 是独立 Web 研究控制台，不是 Renew 的嵌入 WebView。
+
+`internal/componentipc`、`componentproc`、`componentshm` 的分角色认证、进程与共享内存数据面均是**阶段化 opt-in 实验**，不可把本页的逻辑组件图读成默认已部署的独立微服务。新版 Agent 派生图展示实时 PID/PPID 与受限 Hook 生命周期证据，不是完整的 SDK SubAgent 调用 DAG。建议先读 [当前功能总览](/guide/capabilities)、[Renew](/frontend/renew) 与 [组件 IPC 边界](/architecture/component-ipc)。
+:::
+
 Agent eBPF Filter 采用 L0-L5 六层分层架构设计，从产品战略目标向下延伸，贯穿运行时边界、通信协议、后端领域引擎、前端工作台，直至底层工程交付流水线。
 
 ## L0: 产品目标层

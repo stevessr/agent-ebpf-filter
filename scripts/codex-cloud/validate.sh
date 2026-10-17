@@ -50,7 +50,7 @@ if [[ "$mode" == full ]]; then
   run frontend-tests bash -c 'cd "$CODEX_ROOT/frontend" && bun run test:agentsight'
   run frontend-build bash -c 'cd "$CODEX_ROOT/frontend" && bun run build'
   run bpf-ts-check bash -c 'cd "$CODEX_ROOT/tools/bpf-ts" && bun run check'
-  run docs-build bash -c 'cd "$CODEX_ROOT" && bun run docs:build'
+  run docs-build bash -c 'cd "$CODEX_ROOT" && python3 -m pip install -r docs/requirements.txt && python3 docs/build_site.py build'
   run python-adapter bash -c 'cd "$CODEX_ROOT/adapters/python" && uv run --frozen python -c "import requests, grpc_tools, google.protobuf; import agent_tracker" && uv run --frozen python -m compileall -q agent_tracker.py'
 fi
 {

@@ -1,6 +1,8 @@
 import { createHighlighterCore } from "@shikijs/core";
 import { createJavaScriptRegexEngine } from "@shikijs/engine-javascript";
 import githubDark from "@shikijs/themes/github-dark";
+import githubLight from "@shikijs/themes/github-light";
+import { systemIsDark } from "../composables/useSystemTheme";
 
 const languageLoaders = {
   bash: () => import("@shikijs/langs/bash"),
@@ -67,7 +69,7 @@ const languageLoadPromises = new Map<PreviewLanguage, Promise<void>>();
 const getHighlighter = () => {
   if (!highlighterPromise) {
     highlighterPromise = createHighlighterCore({
-      themes: [githubDark],
+      themes: [githubDark, githubLight],
       langs: [],
       engine: createJavaScriptRegexEngine(),
     }).catch((error) => {
@@ -107,6 +109,7 @@ const ensureLanguageLoaded = async (
 export const highlightPreviewCode = async (
   content: string,
   language?: string,
+  dark = systemIsDark.value,
 ) => {
   const normalizedLanguage = normalizePreviewLanguage(language);
   const highlighter = await getHighlighter();
@@ -115,6 +118,6 @@ export const highlightPreviewCode = async (
   }
   return highlighter.codeToHtml(content, {
     lang: normalizedLanguage,
-    theme: "github-dark",
+    theme: dark ? "github-dark" : "github-light",
   });
 };

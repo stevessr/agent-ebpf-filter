@@ -1,7 +1,8 @@
-这里是为您修复后的完整阅读路线文档。重点修正了 **“2. 任务型阅读路线”** 中由于不规则换行和未转义的 `|` 字符导致的 Markdown 表格解析崩溃问题。
+# 阅读路线
 
-
-# 🧭 阅读路线
+::: tip 先从 2026-10 的当前代码入口开始
+日常桌面使用：[演示导览](/guide/demo-tour) → [Renew 原生桌面](/frontend/renew)；研究管理：[Vue 工作台](/frontend/workbench)；内核/安全：[架构](/architecture/overview) → [组件 IPC 实验边界](/architecture/component-ipc)。下方较早形成的专题路径仍可作为参考，但不应以其中的版本号覆盖最新源码。
+:::
 
 由于 Agent eBPF Filter 跨越了 Linux 内核态（eBPF/LSM）、用户态后端（Go）以及前端工作台（Vue 3），全站内容较为庞大。**不同角色在不同阶段的关注点完全不同**，建议根据以下量身定制的路线图进行探索。
 
@@ -106,4 +107,4 @@ flowchart TD
 - 🧪 **构建命令闭环**：每当在文档中看到任意一条“构建/验证/压测”命令，请确保其已被收录在 [验证、测试与 Benchmark](/operations/verification-benchmark) 手册中，或已集成为标准 `make` 指令。
 - 🤖 **提交前自动化审计**：
   - 每次本地文档修改完毕后，在提交 PR 前请务必至少在本地执行一次：`python3 scripts/check-doc-links.py` 确保无死链。
-  - 若涉及导航栏（Sidebar）、Frontmatter 属性元数据或复杂 Mermaid 图表的变更，请本地执行 `bun run docs:build` 验证 VitePress 静态化编译是否通过。
+  - 若涉及导航栏（Sidebar）、Frontmatter 属性元数据或复杂 Mermaid 图表的变更，请本地执行 `python3 docs/build_site.py build` 验证 VitePress 静态化编译是否通过。

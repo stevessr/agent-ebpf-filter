@@ -1,0 +1,157 @@
+site_name: Agent eBPF Filter
+site_description: AI Agent 的系统级可观测性、安全策略与日常监控
+site_url: https://stevessr.github.io/agent-ebpf-filter/
+repo_url: https://github.com/stevessr/agent-ebpf-filter
+repo_name: stevessr/agent-ebpf-filter
+edit_uri: edit/master/docs/
+docs_dir: docs
+site_dir: site
+use_directory_urls: true
+
+theme:
+  name: material
+  language: zh
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: 切换深色模式
+    - scheme: slate
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: 切换浅色模式
+
+plugins:
+  - search
+
+hooks:
+  - docs/site_hooks.py
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+
+exclude_docs: |
+  /_archive/
+  /ref/
+  /superpowers/
+  /mkdocs.yml
+  /requirements.txt
+  /build_site.py
+  /site_hooks.py
+
+nav:
+  - 首页: index.md
+  - 技术手册（源码基线）:
+      - 系统主链:
+          - 阅读索引: technical/index.md
+          - 总体架构: technical/architecture.md
+          - 启动生命周期: technical/startup.md
+          - 事件管线: technical/events.md
+          - eBPF、cgroup 与 LSM: technical/kernel.md
+      - 采集、归属与风险:
+          - 内核时钟与丢失审计: technical/collector-clock-audit.md
+          - Scope / Capture Profiles: technical/tracking-selection.md
+          - Agent 身份与执行图: technical/agent-identity.md
+          - 网络、TLS 和代理: technical/network-tls.md
+          - Signal 规则处理: technical/signal-runtime.md
+          - 风险反馈与证据等级: technical/detection-evidence.md
+      - 控制面与通信:
+          - RuntimeSettings 热更新: technical/runtime-settings.md
+          - 安全与门控: technical/security.md
+          - REST / Proto / WS / MCP: technical/api-protocol.md
+          - 组件 IPC 与共享内存: technical/components-ipc.md
+      - 客户端与平台:
+          - Renew / Web 职责: technical/clients.md
+          - Renew Native IPC 与回退: technical/desktop-transport.md
+          - Web 路由、状态与 i18n: technical/web-workbench-internals.md
+          - Linux / Windows / macOS: technical/platform-capabilities.md
+      - 数据处理与验证:
+          - 存储及可观测性: technical/storage-observability.md
+          - Pebble 与 JSONL: technical/storage-internals.md
+          - 研究回放与安全结局: technical/research-replay.md
+          - ML、插件与可选引擎: technical/optional-engines.md
+          - 构建与验证: technical/build-verify.md
+          - 运维排障 Runbook: technical/operations-debug.md
+  - 使用指南:
+      - 项目简介: guide/what-is-agent-ebpf-filter.md
+      - 快速开始: guide/quick-start.md
+      - 演示导览: guide/demo-tour.md
+      - Web 工作台: guide/web-workbench.md
+      - 功能总览: guide/capabilities.md
+      - 阅读路线: guide/reading-paths.md
+  - 系统架构:
+      - 总览: architecture/overview.md
+      - 数据流: architecture/data-flow.md
+      - 运行时边界: architecture/runtime-boundaries.md
+      - 组件与 IPC: architecture/independent-components.md
+      - 协议与事件模型: architecture/protocol-events.md
+  - 后端与内核:
+      - 启动链路: backend/runtime-startup.md
+      - API: backend/routes-api.md
+      - 事件管线: backend/event-pipeline.md
+      - eBPF 与 OS Enforcement: backend/ebpf-os-enforcement.md
+      - ML 模型速查: backend/ml-models-summary.md
+  - 前端:
+      - 工作台: frontend/workbench.md
+      - Renew 桌面: frontend/renew.md
+      - 事件流: frontend/dashboard.md
+      - 执行图谱: frontend/execution-graph.md
+  - 安全:
+      - 安全模型: security/model.md
+      - 策略语义: security/policy-semantics.md
+      - 威胁模型: security/threat-model.md
+      - 脱敏与隐私: security/redaction-privacy.md
+  - 集成:
+      - Agents: integrations/agents.md
+      - Wrapper: integrations/wrapper.md
+      - Native Hooks: integrations/native-hooks.md
+      - External API: integrations/external-api.md
+  - 运维:
+      - 构建与运行: operations/build-and-run.md
+      - GitHub Pages: operations/github-pages.md
+      - 部署: operations/deployment.md
+      - 故障排查: operations/troubleshooting.md
+  - 答辩交付:
+      - 比赛答辩: delivery/competition-defense.md
+      - 演示脚本: delivery/demo-script.md
+      - 评测报告: delivery/evaluation.md
+  - 参考:
+      - 文档地图: reference/documentation-map.md
+      - 技术深度: reference/technical-depth.md
+      - 渲染与迁移: reference/vitepress-plugins.md
+      - Agent Warden 参考: reference/agent-warden-analysis.md
+      - 代码入口: reference/code-entrypoints.md
+      - 维护清单: reference/maintenance-checklists.md

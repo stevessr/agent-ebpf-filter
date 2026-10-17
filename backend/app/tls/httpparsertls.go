@@ -193,8 +193,8 @@ func buildTLSPlaintextHTTPRequestEvent(base TLSPlaintextEvent, parsed *tlsHTTPRe
 	base.Headers = sanitizeTLSHeaders(parsed.req.Header)
 	base.ContentType = parsed.content
 	base.BodySize = parsed.bodySize
-	body, bodyTruncated := formatTLSPlaintextBody(parsed.body, base.ContentType)
-	base.Body = sanitizeTLSBody(body, base.ContentType)
+	body, bodyTruncated := formatEncodedTLSPlaintextBody(parsed.body, base.ContentType, parsed.req.Header.Get("Content-Encoding"))
+	base.Body = body
 	// Never erase the eBPF capture-level truncation flag. The previous tuple
 	// assignment overwrote it with the display-body result, making truncated
 	// kernel captures appear complete in Agent Sight.
@@ -211,8 +211,8 @@ func buildTLSPlaintextHTTPResponseEvent(base TLSPlaintextEvent, parsed *tlsHTTPR
 	base.Headers = sanitizeTLSHeaders(parsed.resp.Header)
 	base.ContentType = parsed.content
 	base.BodySize = parsed.bodySize
-	body, bodyTruncated := formatTLSPlaintextBody(parsed.body, base.ContentType)
-	base.Body = sanitizeTLSBody(body, base.ContentType)
+	body, bodyTruncated := formatEncodedTLSPlaintextBody(parsed.body, base.ContentType, parsed.resp.Header.Get("Content-Encoding"))
+	base.Body = body
 	base.Truncated = base.Truncated || bodyTruncated || declaredTLSBodyIncomplete(parsed.resp.ContentLength, len(parsed.body))
 	base.RedactionState = "sanitized"
 	annotateTLSSSEEvent(&base)

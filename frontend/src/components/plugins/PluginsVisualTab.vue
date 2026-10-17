@@ -597,6 +597,23 @@ onBeforeUnmount(() => {
   --workflow-surface: #ffffff;
   --workflow-surface-soft: #f8fbff;
   --workflow-shadow: 0 14px 34px rgba(22, 119, 255, 0.12);
+  --workflow-danger-surface: #fff1f0;
+}
+
+:global(html[data-theme="dark"]) .plugins-visual-tab {
+  --workflow-primary: #8fb4ff;
+  --workflow-primary-hover: #b6ceff;
+  --workflow-primary-soft: #233652;
+  --workflow-primary-subtle: #1d2b40;
+  --workflow-primary-border: #46658f;
+  --workflow-text: #e5edfa;
+  --workflow-text-secondary: #b8c6d9;
+  --workflow-text-muted: #92a4bd;
+  --workflow-border: #34445b;
+  --workflow-surface: #1b2432;
+  --workflow-surface-soft: #222f41;
+  --workflow-danger-surface: #402729;
+  --workflow-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
 }
 
 .dify-workspace-tabs {
@@ -620,7 +637,7 @@ onBeforeUnmount(() => {
   border: 1px solid var(--workflow-border);
   background: linear-gradient(
     135deg,
-    #ffffff 0%,
+    var(--workflow-surface) 0%,
     var(--workflow-primary-subtle) 100%
   );
   color: var(--workflow-text-secondary);
@@ -692,7 +709,7 @@ onBeforeUnmount(() => {
 }
 
 .graphical-workspace {
-  background-color: #ffffff;
+  background-color: var(--workflow-surface);
   background-image:
     linear-gradient(to right, rgba(22, 119, 255, 0.06) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(22, 119, 255, 0.06) 1px, transparent 1px),

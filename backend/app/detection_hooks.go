@@ -60,6 +60,34 @@ func isNativeHookInstalled(h HookDef) bool {
 	if h.ID == "kiro" {
 		return hasNativeHookMarker(h.NativeConfigPath) && isKiroManagedAgentSelected()
 	}
+	if h.ID == "claude" || strings.HasPrefix(h.ID, "claude-subagent-") {
+		// Hooks are independently opt-in. The presence of *another*
+		// agent-ebpf marker in Claude settings does not mean this event
+		// type is enabled.
+		data, err := os.ReadFile(h.NativeConfigPath)
+		if err != nil {
+			return false
+		}
+		var config struct {
+			Hooks map[string][]struct {
+				Hooks []struct {
+					Command string `json:"command"`
+				} `json:"hooks"`
+			} `json:"hooks"`
+		}
+		if json.Unmarshal(data, &config) != nil {
+			return false
+		}
+		want := hookMarker + "-" + h.ID + ".sh"
+		for _, entry := range config.Hooks[h.NativeHookEvent] {
+			for _, cmd := range entry.Hooks {
+				if strings.Contains(cmd.Command, want) {
+					return true
+				}
+			}
+		}
+		return false
+	}
 	if !hasNativeHookMarker(h.NativeConfigPath) {
 		return false
 	}
