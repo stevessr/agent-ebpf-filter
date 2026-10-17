@@ -19,7 +19,9 @@ func TestAgentScopeIndependentCaptureAndMonitoring(t *testing.T) {
 		Monitor: agentScopeList{Mode: "blacklist", Entries: []string{"claude code"}},
 	}
 	normalized, err := validateAgentScopePolicy(cfg)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !agentScopeAllows(normalized.Capture, "codex", "") || !agentScopeAllows(normalized.Monitor, "codex", "") {
 		t.Fatal("codex should be captured and monitored")
 	}
@@ -48,7 +50,9 @@ func TestAgentScopeNormalizeAndValidate(t *testing.T) {
 	list, err := validateAgentScopeList(agentScopeList{
 		Mode: "blacklist", Entries: []string{" Codex ", "codex", "Claude Code"},
 	})
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(list.Entries) != 2 || list.Entries[0] != "codex" || list.Entries[1] != "claude code" {
 		t.Fatalf("incorrect normalized entries: %#v", list.Entries)
 	}

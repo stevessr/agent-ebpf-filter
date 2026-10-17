@@ -32,8 +32,8 @@ type toolBaselineBehaviorKey struct {
 }
 
 type toolBaselineSample struct {
-	Count          uint64
-	LastSeen       time.Time
+	Count    uint64
+	LastSeen time.Time
 	// A new non-sensitive behavior is held in probation until supported by
 	// independent time-separated observations. Baseline state stays bounded.
 	Pending        bool

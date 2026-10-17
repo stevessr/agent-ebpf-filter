@@ -293,9 +293,9 @@ func contextFromAgentCgroup(cgroupID uint64) (ProcessContext, bool) {
 		if entry, ok := Deps.CgroupAttributionGet(cgroupID); ok && entry.AgentRunID != "" {
 			return ProcessContext{
 				RootAgentPid: entry.RootAgentPID,
-				AgentRunID: entry.AgentRunID,
-				TaskID: entry.TaskID,
-				ToolCallID: entry.ToolCallID,
+				AgentRunID:   entry.AgentRunID,
+				TaskID:       entry.TaskID,
+				ToolCallID:   entry.ToolCallID,
 			}, true
 		}
 	}
