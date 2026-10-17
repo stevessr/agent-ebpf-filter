@@ -1,0 +1,8 @@
+raw/
+base_model/
+artifacts/*.safetensors
+artifacts/*.joblib
+data/*.jsonl
+agent_privacy_data/*.jsonl
+__pycache__/
+.venv/

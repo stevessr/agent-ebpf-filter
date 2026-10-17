@@ -1,0 +1,5 @@
+agent_privacy_base {"epoch": 1, "loss": 0.674633568773667, "validation_AP": 0.5982155162819389, "elapsed_seconds": 28.581790100000035}
+agent_privacy_base {"epoch": 2, "loss": 0.6714733627935251, "validation_AP": 0.5862942361065755, "elapsed_seconds": 55.7078170929999}
+agent_privacy_base {"epoch": 3, "loss": 0.6697218716144562, "validation_AP": 0.5910197091665312, "elapsed_seconds": 82.65666835299999}
+agent_privacy_base {"epoch": 4, "loss": 0.6672416093448797, "validation_AP": 0.6020278371724336, "elapsed_seconds": 108.62444945399989}
+agent_privacy_base {"epoch": 5, "loss": 0.6585180461406708, "validation_AP": 0.6175117333688207, "elapsed_seconds": 136.84653443899992}

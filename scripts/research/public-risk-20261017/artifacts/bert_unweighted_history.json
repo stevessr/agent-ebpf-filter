@@ -1,0 +1,35 @@
+[
+  {
+    "epoch": 1,
+    "loss": 0.3569201076878052,
+    "validation_AP": {
+      "privacy": 0.7857253334586997,
+      "vulnerability": 0.5002371398144085,
+      "harmful_request": 0.5988199636145219
+    },
+    "macro_AP": 0.6282608122958767,
+    "elapsed_seconds": 176.43637489799994
+  },
+  {
+    "epoch": 2,
+    "loss": 0.29413008510920347,
+    "validation_AP": {
+      "privacy": 0.7344896732625805,
+      "vulnerability": 0.516971702384809,
+      "harmful_request": 0.6127405542018415
+    },
+    "macro_AP": 0.621400643283077,
+    "elapsed_seconds": 355.20356934200004
+  },
+  {
+    "epoch": 3,
+    "loss": 0.26334144989503366,
+    "validation_AP": {
+      "privacy": 0.736297730771684,
+      "vulnerability": 0.5118999790388568,
+      "harmful_request": 0.6818712581624026
+    },
+    "macro_AP": 0.6433563226576479,
+    "elapsed_seconds": 534.6320129420001
+  }
+]

@@ -1,0 +1,80 @@
+{
+  "selected": "code_mlp_0.001",
+  "configs": {
+    "code_mlp_0.001": {
+      "lr": 0.001,
+      "completed_epochs": 6,
+      "selected_epoch": 1,
+      "validation_AP": 0.5446181837922326,
+      "history": [
+        {
+          "epoch": 1,
+          "validation_AP": 0.5446181837922326
+        },
+        {
+          "epoch": 2,
+          "validation_AP": 0.5407999617752736
+        },
+        {
+          "epoch": 3,
+          "validation_AP": 0.5376979112604474
+        },
+        {
+          "epoch": 4,
+          "validation_AP": 0.5367123176019002
+        },
+        {
+          "epoch": 5,
+          "validation_AP": 0.5384379203237442
+        },
+        {
+          "epoch": 6,
+          "validation_AP": 0.5366587353706178
+        }
+      ]
+    },
+    "code_mlp_0.0003": {
+      "lr": 0.0003,
+      "completed_epochs": 8,
+      "selected_epoch": 3,
+      "validation_AP": 0.5425870222808972,
+      "history": [
+        {
+          "epoch": 1,
+          "validation_AP": 0.5293485643398838
+        },
+        {
+          "epoch": 2,
+          "validation_AP": 0.5406898900245103
+        },
+        {
+          "epoch": 3,
+          "validation_AP": 0.5425870222808972
+        },
+        {
+          "epoch": 4,
+          "validation_AP": 0.540087394370259
+        },
+        {
+          "epoch": 5,
+          "validation_AP": 0.5401352888401594
+        },
+        {
+          "epoch": 6,
+          "validation_AP": 0.5370865655795507
+        },
+        {
+          "epoch": 7,
+          "validation_AP": 0.5378413258012595
+        },
+        {
+          "epoch": 8,
+          "validation_AP": 0.5370148037794633
+        }
+      ]
+    }
+  },
+  "parameters": 41217,
+  "training_seconds": 9.279362285999923,
+  "scope": "targeted additional architecture chosen after weak transformer code validation; no test-driven selection"
+}

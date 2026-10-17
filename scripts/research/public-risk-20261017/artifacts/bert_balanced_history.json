@@ -1,0 +1,57 @@
+[
+  {
+    "epoch": 1,
+    "loss": 0.46964990333014844,
+    "validation_AP": {
+      "privacy": 0.8128379894726515,
+      "vulnerability": 0.5136653644998161,
+      "harmful_request": 0.5476445057455677
+    },
+    "macro_AP": 0.624715953239345,
+    "elapsed_seconds": 171.23189662200002
+  },
+  {
+    "epoch": 2,
+    "loss": 0.3602971760738714,
+    "validation_AP": {
+      "privacy": 0.8209016173878,
+      "vulnerability": 0.5169158163180999,
+      "harmful_request": 0.6615414933871001
+    },
+    "macro_AP": 0.6664529756976667,
+    "elapsed_seconds": 346.04348696399984
+  },
+  {
+    "epoch": 3,
+    "loss": 0.31755945787710305,
+    "validation_AP": {
+      "privacy": 0.814663531452062,
+      "vulnerability": 0.521025971221172,
+      "harmful_request": 0.6872937989487422
+    },
+    "macro_AP": 0.6743277672073255,
+    "elapsed_seconds": 519.8874147719998
+  },
+  {
+    "epoch": 4,
+    "loss": 0.2878508101418322,
+    "validation_AP": {
+      "privacy": 0.7864645147163741,
+      "vulnerability": 0.5203683429605478,
+      "harmful_request": 0.5885943921818803
+    },
+    "macro_AP": 0.6318090832862674,
+    "elapsed_seconds": 688.7033058110001
+  },
+  {
+    "epoch": 5,
+    "loss": 0.2644311862942927,
+    "validation_AP": {
+      "privacy": 0.7825562640784669,
+      "vulnerability": 0.5202627835338252,
+      "harmful_request": 0.6491379845332529
+    },
+    "macro_AP": 0.650652344048515,
+    "elapsed_seconds": 855.9049087100002
+  }
+]

@@ -1,0 +1,15 @@
+train-only representation fitted 6.704105093999715
+code_mlp_0.001 {'epoch': 1, 'validation_AP': 0.5446181837922326}
+code_mlp_0.001 {'epoch': 2, 'validation_AP': 0.5407999617752736}
+code_mlp_0.001 {'epoch': 3, 'validation_AP': 0.5376979112604474}
+code_mlp_0.001 {'epoch': 4, 'validation_AP': 0.5367123176019002}
+code_mlp_0.001 {'epoch': 5, 'validation_AP': 0.5384379203237442}
+code_mlp_0.001 {'epoch': 6, 'validation_AP': 0.5366587353706178}
+code_mlp_0.0003 {'epoch': 1, 'validation_AP': 0.5293485643398838}
+code_mlp_0.0003 {'epoch': 2, 'validation_AP': 0.5406898900245103}
+code_mlp_0.0003 {'epoch': 3, 'validation_AP': 0.5425870222808972}
+code_mlp_0.0003 {'epoch': 4, 'validation_AP': 0.540087394370259}
+code_mlp_0.0003 {'epoch': 5, 'validation_AP': 0.5401352888401594}
+code_mlp_0.0003 {'epoch': 6, 'validation_AP': 0.5370865655795507}
+code_mlp_0.0003 {'epoch': 7, 'validation_AP': 0.5378413258012595}
+code_mlp_0.0003 {'epoch': 8, 'validation_AP': 0.5370148037794633}

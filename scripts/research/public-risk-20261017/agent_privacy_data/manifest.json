@@ -1,0 +1,33 @@
+{
+  "unknown_or_tie": 305,
+  "train": {
+    "n": 1524,
+    "positive": 927,
+    "groups": 863
+  },
+  "validation": {
+    "n": 253,
+    "positive": 145,
+    "groups": 140
+  },
+  "calibration": {
+    "n": 236,
+    "positive": 137,
+    "groups": 131
+  },
+  "test": {
+    "n": 382,
+    "positive": 231,
+    "groups": 199
+  },
+  "source_sha256": {
+    "train": "f18f7298c45d1d4eb34b5fb363200e93da67d322d50203340a870ab40d1135ea",
+    "test": "dcb6793c1ada91be158060a06036acda279b4f91d897968cdd2406c0e56087c5"
+  },
+  "prepared_sha256": {
+    "train": "ee7ac26157a4ca142b2c0d8de6e187512e43c1baea4f37f549c241ac9001a741",
+    "validation": "92ff48cf0fe4f6eb22b1d9017345962f262728eff2d47de47af11a8db53ba325",
+    "calibration": "3f535cea54ae0da080aad1c15289ff71f171691bfb96bc4a0c4e80e1f2e3cd28",
+    "test": "1abecfd4716b428cecb55466a7a709125fc9589098e6d6aefcf4389033f32882"
+  }
+}

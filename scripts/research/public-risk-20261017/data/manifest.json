@@ -1,0 +1,93 @@
+{
+  "privacy_removed": {
+    "official_test_prompt_overlap": 8151,
+    "exact_text_duplicate": 46
+  },
+  "vulnerability_removed": {
+    "exact_code_duplicate": 25,
+    "validation_test_overlap": 996,
+    "train_validation_overlap": 2252,
+    "train_test_overlap": 7740
+  },
+  "privacy": {
+    "train": {
+      "n": 13947,
+      "positive": 759,
+      "groups": 3853
+    },
+    "validation": {
+      "n": 2554,
+      "positive": 105,
+      "groups": 706
+    },
+    "calibration": {
+      "n": 2490,
+      "positive": 158,
+      "groups": 678
+    },
+    "test": {
+      "n": 3019,
+      "positive": 155,
+      "groups": 2525
+    }
+  },
+  "vulnerability": {
+    "train": {
+      "n": 10163,
+      "positive": 5351,
+      "groups": 7439
+    },
+    "validation": {
+      "n": 1736,
+      "positive": 848,
+      "groups": 1578
+    },
+    "calibration": {
+      "n": 1676,
+      "positive": 864,
+      "groups": 1205
+    },
+    "test": {
+      "n": 2730,
+      "positive": 1254,
+      "groups": 2067
+    }
+  },
+  "harmful_request": {
+    "train": {
+      "n": 248,
+      "positive": 124,
+      "groups": 31
+    },
+    "validation": {
+      "n": 48,
+      "positive": 24,
+      "groups": 6
+    },
+    "calibration": {
+      "n": 0,
+      "positive": 0,
+      "groups": 0
+    },
+    "test": {
+      "n": 56,
+      "positive": 28,
+      "groups": 7
+    }
+  },
+  "raw_sha256": {
+    "beaver_train.jsonl.gz": "2e24b85dd599224eeb7379da297223bad50e11fea9fee6a7fdb4bd26aedec315",
+    "beaver_test.jsonl.gz": "0ce619bf4c421c12e578445b1fb8d1aedf4bf05ca3eb985f4ddf498a784769ff",
+    "devign_train.parquet": "e319c83e2e816a10aeeebe78668aa95b757b04e555700bf5f826766b0e80bb06",
+    "devign_validation.parquet": "a17a76ed040d7f8657d1ff741f967b44704c008101ac958e2990ad468203cfa4",
+    "devign_test.parquet": "259c944eb4f8689e83895de476a00fe4cadf4839636769e725d3744fc36cfcd5",
+    "harm_public.json": "fc3e4abbcd812022b85150b0e6f81c0bdbdfabb486e5b82ec46f1ba135f3ba08",
+    "harm_benign.json": "65b4ebd4d8d2e7c9a79db4e11bc642f1800e642be0626ba0a990c763a325957a"
+  },
+  "prepared_sha256": {
+    "train.jsonl": "86564d3dd14aae04f398fba252780a6a9045c1b12c1010876d8b78a650a936b5",
+    "validation.jsonl": "8623f1195439d61607b0b41e7096639684430bbbef420fc42a5c82eb7241510c",
+    "test.jsonl": "8a1577a3259413ad28cf99397a93eb2d5310420ee4fcbf8dab42d153e1cf208a",
+    "calibration.jsonl": "30b26142317fe5c0b311cd400c1632a427808bf910b33073974b297577e5f922"
+  }
+}

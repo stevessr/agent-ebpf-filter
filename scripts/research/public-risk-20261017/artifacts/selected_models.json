@@ -1,0 +1,38 @@
+{
+  "auxiliary": {
+    "name": "bert_balanced",
+    "weights": "bert_balanced.safetensors",
+    "scoring": {
+      "privacy": {
+        "calibration": {
+          "slope": 0.6588463011424908,
+          "intercept": -1.027987355441701
+        },
+        "threshold": 0.6020699041487196
+      },
+      "vulnerability": {
+        "calibration": {
+          "slope": 0.5003093781470049,
+          "intercept": 0.13283954131923334
+        },
+        "threshold": 0.39785023346056037
+      },
+      "harmful_request": {
+        "calibration": null,
+        "threshold": 0.09998819854110479
+      }
+    }
+  },
+  "agent_privacy": {
+    "name": "agent_privacy_transfer_balanced",
+    "weights": "agent_privacy_transfer_balanced.safetensors",
+    "scoring": {
+      "calibration": {
+        "slope": 0.4699908758986801,
+        "intercept": 0.2881188834305323
+      },
+      "threshold": 0.5
+    }
+  },
+  "selection": "validation AP only, selected neural checkpoints; TF-IDF remains a separate comparator"
+}

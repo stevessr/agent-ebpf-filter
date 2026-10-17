@@ -1,0 +1,40 @@
+{
+  "epochs": 5,
+  "selected_epoch": 5,
+  "lr": 0.0001,
+  "pos_weight": 0.6440129280090332,
+  "transfer_from": "bert_balanced",
+  "history": [
+    {
+      "epoch": 1,
+      "loss": 0.577141543229421,
+      "validation_AP": 0.5679819703132997,
+      "elapsed_seconds": 26.662189135999597
+    },
+    {
+      "epoch": 2,
+      "loss": 0.5437933541834354,
+      "validation_AP": 0.6095151914301575,
+      "elapsed_seconds": 53.66996172399968
+    },
+    {
+      "epoch": 3,
+      "loss": 0.5414784873525301,
+      "validation_AP": 0.6214778820946427,
+      "elapsed_seconds": 78.68258596199985
+    },
+    {
+      "epoch": 4,
+      "loss": 0.5367997580518326,
+      "validation_AP": 0.6238825664010064,
+      "elapsed_seconds": 104.23240861799968
+    },
+    {
+      "epoch": 5,
+      "loss": 0.5260306398073832,
+      "validation_AP": 0.627513252224115,
+      "elapsed_seconds": 129.3638419099998
+    }
+  ],
+  "training_seconds": 129.37291427799983
+}
