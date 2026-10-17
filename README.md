@@ -80,6 +80,21 @@ Agent eBPF Filter combines **eBPF kernel tracing**, **Go backend**, **Vue.js das
 - **protoc** (Protocol Buffers compiler)
 - **sudo** or **pkexec** (privilege elevation)
 
+### Quick Install (prebuilt Linux Release)
+
+Once a stable GitHub Release is published, install without Go, Bun or LLVM:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/stevessr/agent-ebpf-filter/master/scripts/install.sh | bash
+
+# Install a pinned release, but do not enable/start the service:
+curl -fsSL https://raw.githubusercontent.com/stevessr/agent-ebpf-filter/master/scripts/install.sh | bash -s -- --version v1.0.0 --no-start --no-enable
+```
+
+The installer detects Linux amd64/arm64, downloads the matching release archive and `SHA256SUMS`, verifies the checksum, and delegates to the existing system service installer. It prompts for root privileges only when installing system files. `--version` refers to a **published** tag; omit it to use the latest stable release (not prereleases). Kernel eBPF/BTF support and appropriate runtime permissions are still required. Review the script before piping it to `bash`.
+
+See [release/install documentation](docs/operations/deployment.md) for manual publishing, package contents, and other installation options.
+
 ### Development Mode
 
 ```bash
