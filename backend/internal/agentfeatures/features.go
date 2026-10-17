@@ -35,8 +35,8 @@ type Event struct {
 	ToolCallID          string   `json:"toolCallId,omitempty"`
 	ProcessKey          string   `json:"processKey,omitempty"`
 	Source              string   `json:"source"`
-	Kind                string   `json:"kind"` // tool, process_exec, file_write, network_connect, other
-	Phase               string   `json:"phase,omitempty"` // start, result (tool only)
+	Kind                string   `json:"kind"`              // tool, process_exec, file_write, network_connect, other
+	Phase               string   `json:"phase,omitempty"`   // start, result (tool only)
 	Outcome             string   `json:"outcome,omitempty"` // success, failure (tool result only)
 	EventTimeNS         int64    `json:"eventTimeNs"`
 	EventEvidence       Evidence `json:"eventEvidence"`
