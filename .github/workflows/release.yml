@@ -1,0 +1,189 @@
+name: Manual Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "New semantic version tag, e.g. v1.0.0"
+        required: true
+        type: string
+      prerelease:
+        description: "Publish as a prerelease (excluded from latest stable installer)"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: manual-release-${${ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate release request and installer
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check release target and tag
+        env:
+          TAG: ${${ inputs.tag }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/master" || {
+            echo "Start releases from the master branch only." >&2
+            exit 1
+          }
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || {
+            echo "Expected a tag like v1.2.3 or v1.2.3-rc.1" >&2
+            exit 1
+          }
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate release scripts
+        run: |
+          bash -n scripts/install.sh scripts/package-release.sh scripts/install-service.sh
+          bash scripts/tests/install-release.sh
+
+  frontend:
+    name: Bundle frontend
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+      - name: Build production frontend
+        working-directory: frontend
+        run: |
+          bun install --frozen-lockfile
+          VITE_AGENT_BUILD_FEATURES=all bun run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-frontend-dist
+          path: frontend/dist/
+          if-no-files-found: error
+          retention-days: 2
+
+  linux:
+    name: Build linux/${${ matrix.arch }}
+    needs: [validate, frontend]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${${ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.27.1"
+          cache-dependency-path: |
+            backend/go.sum
+            wrapper/go.sum
+      - name: Install kernel and protobuf build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm libbpf-dev libelf-dev protobuf-compiler
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Generate Go protobuf bindings
+        run: |
+          mkdir -p backend/pb
+          protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto \
+            proto/tracker_common.proto proto/tracker_events.proto \
+            proto/tracker_registration.proto proto/tracker_system.proto \
+            proto/tracker_config.proto proto/tracker_shell.proto
+      - name: Build Linux eBPF objects
+        working-directory: backend/ebpf
+        run: |
+          go generate
+          go generate gen_tls.go
+          go generate gen_cgroup.go
+          go generate gen_lsm.go
+      - name: Compile production backend and wrapper
+        env:
+          CGO_ENABLED: "0"
+          GOOS: linux
+          GOARCH: ${${ matrix.arch }}
+        run: |
+          cd backend
+          go build -trimpath -tags agentfeat_all -ldflags="-s -w" -o agent-ebpf-filter .
+          cd ../wrapper
+          go build -trimpath -ldflags="-s -w" -o ../agent-wrapper .
+          cd ..
+          test -s backend/agent-ebpf-filter
+          test -s agent-wrapper
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-frontend-dist
+          path: frontend/dist
+      - name: Package release archive
+        env:
+          TARGET_ARCH: ${${ matrix.arch }}
+        run: bash scripts/package-release.sh "$TARGET_ARCH" dist/release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-linux-${${ matrix.arch }}
+          path: dist/release/*.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish GitHub Release
+    needs: linux
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-linux-*
+          path: dist/release
+          merge-multiple: true
+      - name: Check assets and generate checksums
+        run: |
+          set -euo pipefail
+          cd dist/release
+          test -s agent-ebpf-filter-linux-amd64.tar.gz
+          test -s agent-ebpf-filter-linux-arm64.tar.gz
+          sha256sum agent-ebpf-filter-linux-amd64.tar.gz agent-ebpf-filter-linux-arm64.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+      - name: Publish only a new tag/release
+        env:
+          GH_TOKEN: ${${ github.token }}
+          TAG: ${${ inputs.tag }}
+          PRERELEASE: ${${ inputs.prerelease }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists. Refusing to overwrite it." >&2
+            exit 1
+          fi
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists. Refusing to retarget it." >&2
+            exit 1
+          fi
+          args=(--repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Agent eBPF Filter $TAG" --generate-notes)
+          if [[ "$PRERELEASE" == true ]]; then args+=(--prerelease); fi
+          gh release create "$TAG" \
+            dist/release/agent-ebpf-filter-linux-amd64.tar.gz \
+            dist/release/agent-ebpf-filter-linux-arm64.tar.gz \
+            dist/release/SHA256SUMS "${args[@]}"
+      - name: Print installer command
+        env:
+          TAG: ${${ inputs.tag }}
+        run: |
+          echo "Release: https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG"
+          echo "Install: curl -fsSL https://raw.githubusercontent.com/$GITHUB_REPOSITORY/master/scripts/install.sh | bash -s -- --version $TAG"
