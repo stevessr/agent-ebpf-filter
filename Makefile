@@ -537,8 +537,8 @@ benchmark-clean: ## Clean benchmark reports
 .PHONY: benchmark-tool benchmark-baseline benchmark-quick benchmark-multi benchmark-extended benchmark-full benchmark-report benchmark-clean
 
 
-// IPC doctor checks a fresh temporary local socket; it never attaches eBPF,
-// requires root, or reaches any existing backend/desktop component.
+# IPC doctor checks a fresh temporary local socket; it never attaches eBPF,
+# requires root, or reaches any existing backend/desktop component.
 .PHONY: ipc-doctor
 IPC_DOCTOR_ARGS ?=
 ipc-doctor: ## Rootless component IPC health smoke test (IPC_DOCTOR_ARGS="--json")
