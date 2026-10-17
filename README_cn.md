@@ -79,6 +79,19 @@ Agent eBPF Filter 结合 **eBPF 内核追踪**、**Go 后端**、**Vue.js 仪表
 - **protoc**（Protocol Buffers 编译器）
 - **sudo** 或 **pkexec**（权限提升）
 
+### curl 一键安装（预编译 Linux Release）
+
+正式发布稳定版后，Linux x86_64/aarch64 用户可直接安装，无需在本机配置 Go、Bun 和 clang：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/stevessr/agent-ebpf-filter/master/scripts/install.sh | bash
+
+# 指定一个已经发布的版本，不立即启动服务
+curl -fsSL https://raw.githubusercontent.com/stevessr/agent-ebpf-filter/master/scripts/install.sh | bash -s -- --version v1.0.0 --no-start
+```
+
+安装器自动检测架构、获取 GitHub Release、验证 SHA-256，随后调用原有的系统服务安装脚本；安装系统文件时才按需提升权限。默认使用最新稳定版，不包含 prerelease；要求 Linux 内核具备对应 eBPF/BTF 能力。更多选项及手动发布操作见[部署与安装](docs/operations/deployment.md)。执行管道脚本前建议先审阅其内容。
+
 ### 开发模式
 
 ```bash
