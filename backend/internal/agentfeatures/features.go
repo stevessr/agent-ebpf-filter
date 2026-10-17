@@ -29,33 +29,33 @@ const (
 // timestamps. No prompt, command argument, file path, token, or response body
 // belongs here. An empty RunID stays unknown and is never synthesized.
 type Event struct {
-	ID                  string   \`json:"id"\`
-	HostID              string   \`json:"hostId"\`
-	RunID               string   \`json:"runId"\`
-	ToolCallID          string   \`json:"toolCallId,omitempty"\`
-	ProcessKey          string   \`json:"processKey,omitempty"\`
-	Source              string   \`json:"source"\`
-	Kind                string   \`json:"kind"\` // tool, process_exec, file_write, network_connect, other
-	Phase               string   \`json:"phase,omitempty"\` // start, result (tool only)
-	Outcome             string   \`json:"outcome,omitempty"\` // success, failure (tool result only)
-	EventTimeNS         int64    \`json:"eventTimeNs"\`
-	EventEvidence       Evidence \`json:"eventEvidence"\`
-	AttributionEvidence Evidence \`json:"attributionEvidence,omitempty"\`
-	CaptureAudited      bool     \`json:"captureAudited"\`
-	CaptureLoss         bool     \`json:"captureLoss"\`
+	ID                  string   `json:"id"`
+	HostID              string   `json:"hostId"`
+	RunID               string   `json:"runId"`
+	ToolCallID          string   `json:"toolCallId,omitempty"`
+	ProcessKey          string   `json:"processKey,omitempty"`
+	Source              string   `json:"source"`
+	Kind                string   `json:"kind"` // tool, process_exec, file_write, network_connect, other
+	Phase               string   `json:"phase,omitempty"` // start, result (tool only)
+	Outcome             string   `json:"outcome,omitempty"` // success, failure (tool result only)
+	EventTimeNS         int64    `json:"eventTimeNs"`
+	EventEvidence       Evidence `json:"eventEvidence"`
+	AttributionEvidence Evidence `json:"attributionEvidence,omitempty"`
+	CaptureAudited      bool     `json:"captureAudited"`
+	CaptureLoss         bool     `json:"captureLoss"`
 }
 
 // Window has inclusive start and exclusive end in the same Unix-ns clock
 // domain. The extractor is stateless, event-time based and replayable.
 type Window struct {
-	StartNS int64 \`json:"startNs"\`
-	EndNS   int64 \`json:"endNs"\`
+	StartNS int64 `json:"startNs"`
+	EndNS   int64 `json:"endNs"`
 }
 
 type Definition struct {
-	ID          string \`json:"id"\`
-	Unit        string \`json:"unit"\`
-	Description string \`json:"description"\`
+	ID          string `json:"id"`
+	Unit        string `json:"unit"`
+	Description string `json:"description"`
 }
 
 var definitions = []Definition{
@@ -78,27 +78,27 @@ func Catalog() []Definition {
 }
 
 type Value struct {
-	ID      string  \`json:"id"\`
-	Value   float64 \`json:"value"\`
-	Present bool    \`json:"present"\`
-	Reason  string  \`json:"reason,omitempty"\`
+	ID      string  `json:"id"`
+	Value   float64 `json:"value"`
+	Present bool    `json:"present"`
+	Reason  string  `json:"reason,omitempty"`
 }
 
 type Frame struct {
-	SchemaVersion string  \`json:"schemaVersion"\`
-	HostID        string  \`json:"hostId"\`
-	RunID         string  \`json:"runId"\`
-	Window        Window  \`json:"window"\`
-	Values        []Value \`json:"values"\`
+	SchemaVersion string  `json:"schemaVersion"`
+	HostID        string  `json:"hostId"`
+	RunID         string  `json:"runId"`
+	Window        Window  `json:"window"`
+	Values        []Value `json:"values"`
 }
 
 type Report struct {
-	SchemaVersion       string  \`json:"schemaVersion"\`
-	Frames              []Frame \`json:"frames"\`
-	SkippedUnknownScope int     \`json:"skippedUnknownScope"\`
-	SkippedNoTime       int     \`json:"skippedNoTime"\`
-	SkippedOutOfWindow  int     \`json:"skippedOutOfWindow"\`
-	Duplicates          int     \`json:"duplicates"\`
+	SchemaVersion       string  `json:"schemaVersion"`
+	Frames              []Frame `json:"frames"`
+	SkippedUnknownScope int     `json:"skippedUnknownScope"`
+	SkippedNoTime       int     `json:"skippedNoTime"`
+	SkippedOutOfWindow  int     `json:"skippedOutOfWindow"`
+	Duplicates          int     `json:"duplicates"`
 }
 
 type scope struct{ host, run string }
