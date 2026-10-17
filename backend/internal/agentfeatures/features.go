@@ -205,7 +205,7 @@ func Extract(events []Event, window Window) (Report, error) {
 	}
 	report := Report{SchemaVersion: SchemaVersion, Frames: []Frame{}}
 	groups := make(map[scope]*counts)
-	seen := make(map[eventKey]struct{}, len(events))
+	seen := make(map[eventKey]Event, len(events))
 	for _, e := range events {
 		if e.EventTimeNS <= 0 {
 			report.SkippedNoTime++
@@ -222,11 +222,14 @@ func Extract(events []Event, window Window) (Report, error) {
 		k := scope{e.HostID, e.RunID}
 		if e.ID != "" {
 			dk := eventKey{k, e.Source, e.ID}
-			if _, ok := seen[dk]; ok {
+			if previous, ok := seen[dk]; ok {
+				if previous != e {
+					return Report{}, errors.New("conflicting reused event ID within host/run/source")
+				}
 				report.Duplicates++
 				continue
 			}
-			seen[dk] = struct{}{}
+			seen[dk] = e
 		}
 		c := groups[k]
 		if c == nil {
