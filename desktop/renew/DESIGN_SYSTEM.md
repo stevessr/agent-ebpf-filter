@@ -89,6 +89,11 @@ headless test run and, where possible, desktop visual checks.
 
 ## Performance work
 
+The desktop CI includes a short, non-gating microbenchmark step on native
+filter signatures and shared attribution. Benchmark data is machine-specific;
+compare runs on the same runner/toolchain before drawing performance claims.
+
+
 - Filter conditions now use a comparable `eventFilterSignature` struct rather
   than constructing a NUL-delimited string with repeated integer/float/boolean
   formatting. This prevents delimiter collisions and repeated key allocations.
