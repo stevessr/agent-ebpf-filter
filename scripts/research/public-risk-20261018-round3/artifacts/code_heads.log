@@ -1,0 +1,10 @@
+code {'front': 'tiny', 'back': 'linear'} 0.5342 keep
+code {'front': 'tiny', 'back': 'residual', 'lr': 0.001} 0.5145 discard
+code {'front': 'tiny', 'back': 'residual', 'lr': 0.0003} 0.5079 discard
+code {'front': 'tiny', 'back': 'gated', 'lr': 0.001} 0.5269 discard
+code {'front': 'tiny', 'back': 'gated', 'lr': 0.0003} 0.5171 discard
+code {'front': 'new', 'back': 'linear'} 0.5326 discard
+code {'front': 'new', 'back': 'residual', 'lr': 0.001} 0.5379 keep
+code {'front': 'new', 'back': 'residual', 'lr': 0.0003} 0.5559 keep
+code {'front': 'new', 'back': 'gated', 'lr': 0.001} 0.5594 keep
+code {'front': 'new', 'back': 'gated', 'lr': 0.0003} 0.5665 keep

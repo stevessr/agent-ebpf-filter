@@ -1,0 +1,31 @@
+{
+  "checks": {
+    "data_hashes": true,
+    "trial_counts_and_unique_configs": true,
+    "keep_discard_monotonicity": true,
+    "calibration_FPR_cap": true,
+    "frozen_checkpoints": true,
+    "recomputed_confusion_matrices": true,
+    "white_task_family_isolation": true,
+    "white_trace_hashes_and_acceptance": true,
+    "white_frozen_weights": true,
+    "safe_tensor_export_parity": true
+  },
+  "all_passed": true,
+  "scope": "executable experiment-integrity checks, not a formal proof of model correctness",
+  "source_sha256": {
+    "white_features.py": "26fc2d0bde4a68b8513b29c05fbc1ea64d84694e3e9559d7ef057f216f662197",
+    "prepare.py": "595fdc2d779e8367ddc80463d810f1fd48d0a6953fd67e7f1d44dbfd6d5636c4",
+    "verify.py": "fe7ef99354cb0540bf3aa828de90a92d3d5846b4055d52567370713dd928c9da",
+    "download_guard.py": "a0a00482329d673624c97fb146970c1689f94ba20ba66b846c7ec053b66abd2e",
+    "test_protocol.py": "6d36bfdee93295aa8a429fecc6712ee85dfc20397a3d7daf8adebefd918f1932",
+    "report.py": "6a01437f34bdc5bec702d5fcb08abed09171803990f638e8430ec05c5f5323e7",
+    "export_models.py": "577cdbfa7215af172e20d2fe6f4fb2f56badd317f7838911c37223f6f3b6f6f7",
+    "replicate_controls.py": "48f74a6b36b54148ec00ebddfe1d4a74115811f87f4844e543582f117a8ebe6b",
+    "white_ablation.py": "062b38b0fd380919332ea096bb02a021ff125e5a81160f5f0e55074d5cc97aed",
+    "train.py": "502f129b1088fc5ab7939ffdad9a9806727d98573f2fa037b40ea9efdfefc5c9",
+    "collect_white.py": "58d5f5dd7c68e8eaf2cadaa55460d7e48bf752817628ffd1f3cd1d1fe7bf6f4d",
+    "guard_features.py": "a43d710c4d135397ea91bd01fdf33fa0be2209ec754fee2101439dda1603cae2",
+    "paths.py": "2ecdd29cb93f24284b582e492778b680519af20d73c857099b824124307404ca"
+  }
+}

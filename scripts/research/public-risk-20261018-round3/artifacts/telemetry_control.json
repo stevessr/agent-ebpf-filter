@@ -1,0 +1,8 @@
+{
+  "initial_run": "blocked by automatic approval review due to ONNX Runtime telemetry connection attempt",
+  "remediation": "ORT_DISABLE_TELEMETRY=1 set before import and process launch; disable_telemetry_events called as secondary measure",
+  "source": "https://github.com/microsoft/onnxruntime/blob/main/docs/Privacy.md",
+  "local_session_smoke": "passed",
+  "strace_network_check": "unavailable: ptrace denied; empty trace is NOT proof of zero connections",
+  "runtime": "onnxruntime 1.31.0"
+}

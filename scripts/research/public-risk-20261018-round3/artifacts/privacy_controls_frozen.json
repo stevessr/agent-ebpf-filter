@@ -1,0 +1,105 @@
+{
+  "config": {
+    "front": "tiny",
+    "back": "linear"
+  },
+  "replications": [
+    {
+      "config": {
+        "front": "tiny",
+        "back": "linear"
+      },
+      "seed": 20261020,
+      "validation": {
+        "n": 253,
+        "positive": 145,
+        "accuracy": 0.4624505928853755,
+        "balanced_accuracy": 0.526309067688378,
+        "F1": 0.16049382716049382,
+        "recall": 0.0896551724137931,
+        "FPR": 0.037037037037037035,
+        "AP": 0.6092299450831503,
+        "ROC_AUC": 0.5436781609195402,
+        "threshold": 0.9992875102665253,
+        "confusion": {
+          "tn": 104,
+          "fp": 4,
+          "fn": 132,
+          "tp": 13
+        }
+      },
+      "calibration": {
+        "n": 236,
+        "positive": 137,
+        "accuracy": 0.4872881355932203,
+        "balanced_accuracy": 0.5541915505419155,
+        "F1": 0.2389937106918239,
+        "recall": 0.1386861313868613,
+        "FPR": 0.030303030303030304,
+        "AP": 0.7169119188681574,
+        "ROC_AUC": 0.6655607166556072,
+        "threshold": 0.9992875102665253,
+        "confusion": {
+          "tn": 96,
+          "fp": 3,
+          "fn": 118,
+          "tp": 19
+        }
+      },
+      "objective": 0.526309067688378,
+      "history": [],
+      "seconds": 15.182390213012695,
+      "training": "frozen front, trained decision head",
+      "weights_sha256": "41a00ac1e58defe51981c3ad5739743d9ec8b67827c6d457db97d764da51ea95"
+    },
+    {
+      "config": {
+        "front": "tiny",
+        "back": "linear"
+      },
+      "seed": 20261021,
+      "validation": {
+        "n": 253,
+        "positive": 145,
+        "accuracy": 0.4624505928853755,
+        "balanced_accuracy": 0.526309067688378,
+        "F1": 0.16049382716049382,
+        "recall": 0.0896551724137931,
+        "FPR": 0.037037037037037035,
+        "AP": 0.6092299450831503,
+        "ROC_AUC": 0.5436781609195402,
+        "threshold": 0.9992875102665253,
+        "confusion": {
+          "tn": 104,
+          "fp": 4,
+          "fn": 132,
+          "tp": 13
+        }
+      },
+      "calibration": {
+        "n": 236,
+        "positive": 137,
+        "accuracy": 0.4872881355932203,
+        "balanced_accuracy": 0.5541915505419155,
+        "F1": 0.2389937106918239,
+        "recall": 0.1386861313868613,
+        "FPR": 0.030303030303030304,
+        "AP": 0.7169119188681574,
+        "ROC_AUC": 0.6655607166556072,
+        "threshold": 0.9992875102665253,
+        "confusion": {
+          "tn": 96,
+          "fp": 3,
+          "fn": 118,
+          "tp": 19
+        }
+      },
+      "objective": 0.526309067688378,
+      "history": [],
+      "seconds": 12.80107593536377,
+      "training": "frozen front, trained decision head",
+      "weights_sha256": "427e6cf2805d9a4ab242e3ed4396b447561762e4642b4d559d968f678ca09191"
+    }
+  ],
+  "no_architecture_reselection": true
+}

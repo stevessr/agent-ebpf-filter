@@ -1,0 +1,23 @@
+sum-1-glm-5.3-flash-free accepted True cost 0
+sum-1-deepseek-v4.1-flash-free accepted True cost 0
+sort-0-glm-5.3-flash-free accepted True cost 0
+sort-0-deepseek-v4.1-flash-free accepted True cost 0
+sort-1-glm-5.3-flash-free accepted True cost 0
+version-0-glm-5.3-flash-free accepted True cost 0
+sort-1-deepseek-v4.1-flash-free accepted True cost 0
+version-0-deepseek-v4.1-flash-free accepted True cost 0
+version-1-glm-5.3-flash-free accepted True cost 0
+logs-0-glm-5.3-flash-free accepted True cost 0
+version-1-deepseek-v4.1-flash-free accepted True cost 0
+logs-1-glm-5.3-flash-free accepted True cost 0
+logs-0-deepseek-v4.1-flash-free accepted False cost 0
+logs-1-deepseek-v4.1-flash-free accepted True cost 0
+config-0-glm-5.3-flash-free accepted True cost 0
+config-1-glm-5.3-flash-free accepted True cost 0
+config-0-deepseek-v4.1-flash-free accepted True cost 0
+releases-0-glm-5.3-flash-free accepted False cost 0
+config-1-deepseek-v4.1-flash-free accepted True cost 0
+releases-0-deepseek-v4.1-flash-free accepted True cost 0
+releases-1-glm-5.3-flash-free accepted True cost 0
+releases-1-deepseek-v4.1-flash-free accepted True cost 0
+{'attempted': 24, 'accepted': 22, 'cost_reported': 0, 'by_model': {'opencode/glm-5.3-flash-free': 11, 'opencode/deepseek-v4.1-flash-free': 11}, 'by_split': {'train': 15, 'white_audit': 7}, 'isolation': 'app-level read-only permissions, external_directory denied; no OS sandbox claim', 'models': ['opencode/glm-5.3-flash-free', 'opencode/deepseek-v4.1-flash-free']}

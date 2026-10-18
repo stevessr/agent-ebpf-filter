@@ -1,0 +1,18 @@
+{
+  "attempted": 24,
+  "accepted": 22,
+  "cost_reported": 0,
+  "by_model": {
+    "opencode/glm-5.3-flash-free": 11,
+    "opencode/deepseek-v4.1-flash-free": 11
+  },
+  "by_split": {
+    "train": 15,
+    "white_audit": 7
+  },
+  "isolation": "app-level read-only permissions, external_directory denied; no OS sandbox claim",
+  "models": [
+    "opencode/glm-5.3-flash-free",
+    "opencode/deepseek-v4.1-flash-free"
+  ]
+}

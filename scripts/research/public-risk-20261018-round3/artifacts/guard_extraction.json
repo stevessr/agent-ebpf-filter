@@ -1,0 +1,26 @@
+{
+  "kinds": [
+    "account",
+    "common_secret",
+    "email",
+    "ip_address",
+    "payment_card",
+    "phone",
+    "private_address",
+    "private_date",
+    "private_person",
+    "url"
+  ],
+  "dimensions": 150,
+  "decoder": "token BIO category probability aggregates; no production span parity",
+  "max_windows_per_text": 3,
+  "chunk_tokens": 384,
+  "stride": 320,
+  "sequences": 8786,
+  "original_tokens": 4184402,
+  "selected_tokens_with_overlap": 2144319,
+  "truncated_unique_texts": 1343,
+  "unique_texts": 5061,
+  "seconds": 364.00004601478577,
+  "frozen": true
+}

@@ -1,0 +1,81 @@
+{
+  "privacy": {
+    "validation": {
+      "n": 253,
+      "positive": 145,
+      "groups": 140
+    },
+    "calibration": {
+      "n": 236,
+      "positive": 137,
+      "groups": 131
+    },
+    "regression": {
+      "n": 382,
+      "positive": 231,
+      "groups": 199
+    },
+    "previous_confirmation": {
+      "n": 303,
+      "positive": 182,
+      "groups": 178
+    },
+    "train": {
+      "n": 1003,
+      "positive": 619,
+      "groups": 565
+    },
+    "audit": {
+      "n": 218,
+      "positive": 126,
+      "groups": 120
+    }
+  },
+  "code": {
+    "validation": {
+      "n": 800,
+      "positive": 373,
+      "groups": 719
+    },
+    "calibration": {
+      "n": 800,
+      "positive": 393,
+      "groups": 571
+    },
+    "regression": {
+      "n": 2730,
+      "positive": 1254,
+      "groups": 2067
+    },
+    "previous_confirmation": {
+      "n": 1955,
+      "positive": 1073,
+      "groups": 1430
+    },
+    "train": {
+      "n": 3656,
+      "positive": 1890,
+      "groups": 2634
+    },
+    "audit": {
+      "n": 844,
+      "positive": 450,
+      "groups": 620
+    }
+  },
+  "protocol": "audit newly held out for this round only; not external or previously unexposed corpus",
+  "data_sha256": {
+    "data/code/calibration.jsonl": "7a211fe2881643619bb3dfc52540f7718afa32deedeae282c32b1e063e092edd",
+    "data/code/regression.jsonl": "6778f2d7bb3a37e4528b9edafd7d6e387ef6fbd654c058560c2d992f08f52cbf",
+    "data/code/validation.jsonl": "b120bbc97249b3a3852ff9ac152212a4034a388dd1e7739d44332afc6bca8d7c",
+    "data/code/train.jsonl": "59acb840da76ee10f2fd3edd3acdf870a87238766455a3e7528097737e441ae2",
+    "data/code/previous_confirmation.jsonl": "801cef6231ddd5011f272400beded161eddc85cf2481f03cdfae09fc1fb3ca92",
+    "data/code/audit.jsonl": "26d685751a69b18490db9ed8b3d02434190957b6efc451b0a536771aa455a50a",
+    "data/privacy/calibration.jsonl": "d16262068a6465c7aa5a5fde0bc9fa076500a297b22ca910e3f5b7cba5f6f3ef",
+    "data/privacy/regression.jsonl": "e69a8bf9dadc512443b61c1e444f39a31f75e0dd439e255e7dde2d0d1becaf36",
+    "data/privacy/validation.jsonl": "3349e2a3fc5ebe16ef05407ea577a6740fa90c06120b51a01992cf76abc2d78c",
+    "data/privacy/train.jsonl": "f78d0713739389d663d80c8ec515d2193fb0ae504d9df25e653f54099d8020ef",
+    "data/privacy/previous_confirmation.jsonl": "6c565b6de2bba37b31a616a31b419e0416e1407cb0838aebf50f07e0b8f6106b",
+    "data/privacy/audit.jsonl": "f71218f8135e65263388256cff462fed5d684bd7c8f31d85c70130c1d0f100e7"
+  }
+}

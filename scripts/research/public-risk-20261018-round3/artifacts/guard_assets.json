@@ -1,0 +1,42 @@
+{
+  "revision": "56988fbffdd37d4b0f477066457ddab8b197b3dc",
+  "repo": "QuantumNous/astrlink-guard",
+  "files": {
+    "README.md": {
+      "bytes": 32654,
+      "sha256": "bf665aaf7b4cd47538dd3c29579c80a74ce89057288d4527e7905b66b4ef98e5"
+    },
+    "LICENSE": {
+      "bytes": 11357,
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    "licenses/SOURCES.json": {
+      "bytes": 32130,
+      "sha256": "337d78e6be82edd7f96474e831e96f8fcad2bba0db0c57d50f3171a59d80ac9f"
+    },
+    "int8/model_int8.onnx": {
+      "bytes": 330781,
+      "sha256": "0a070d3113615e33ba3b84d6bd486f663a377c04c4b056e7381732179f51832a"
+    },
+    "int8/model_int8.onnx_data": {
+      "bytes": 37124608,
+      "sha256": "0ba34216ceead01e0ae2dfd8e46d52b67e7aee80b04f722d9b758613a91c0067"
+    },
+    "int8/tokenizer.json": {
+      "bytes": 1502881,
+      "sha256": "0cf3b235ef125658015a6c8026a5fe6f28088bf825101a990ec18a10200feef4"
+    },
+    "int8/config.json": {
+      "bytes": 1804,
+      "sha256": "2c20003590d642e273c03c4c7c82d9849fa75f64bf29a71ec0a0c9a20ba4a150"
+    },
+    "int8/labels.json": {
+      "bytes": 768,
+      "sha256": "1a81b6cdcedbc8481b956109df303a84fbbef84cc2229bf3a26c80237dc1f120"
+    },
+    "int8/CHECKSUMS.json": {
+      "bytes": 769,
+      "sha256": "9aedf1796c122cab7541844d2e1956abdce08001319236767efb00869b736de5"
+    }
+  }
+}

@@ -1,0 +1,105 @@
+{
+  "config": {
+    "front": "tiny",
+    "back": "linear"
+  },
+  "replications": [
+    {
+      "config": {
+        "front": "tiny",
+        "back": "linear"
+      },
+      "seed": 20261020,
+      "validation": {
+        "n": 800,
+        "positive": 373,
+        "accuracy": 0.5625,
+        "balanced_accuracy": 0.5342215469231687,
+        "F1": 0.19724770642201836,
+        "recall": 0.11528150134048257,
+        "FPR": 0.0468384074941452,
+        "AP": 0.5362456211742037,
+        "ROC_AUC": 0.5547934024398666,
+        "threshold": 0.7451240256018824,
+        "confusion": {
+          "tn": 407,
+          "fp": 20,
+          "fn": 330,
+          "tp": 43
+        }
+      },
+      "calibration": {
+        "n": 800,
+        "positive": 393,
+        "accuracy": 0.53,
+        "balanced_accuracy": 0.5223724765709499,
+        "F1": 0.15315315315315314,
+        "recall": 0.08651399491094147,
+        "FPR": 0.04176904176904177,
+        "AP": 0.5489943264859528,
+        "ROC_AUC": 0.555251295709311,
+        "threshold": 0.7451240256018824,
+        "confusion": {
+          "tn": 390,
+          "fp": 17,
+          "fn": 359,
+          "tp": 34
+        }
+      },
+      "objective": 0.5342215469231687,
+      "history": [],
+      "seconds": 9.248744249343872,
+      "training": "frozen front, trained decision head",
+      "weights_sha256": "bd2145e697b6c328b804c60320525c0f4cfa7612afa814e75923217d6b6566a3"
+    },
+    {
+      "config": {
+        "front": "tiny",
+        "back": "linear"
+      },
+      "seed": 20261021,
+      "validation": {
+        "n": 800,
+        "positive": 373,
+        "accuracy": 0.5625,
+        "balanced_accuracy": 0.5342215469231687,
+        "F1": 0.19724770642201836,
+        "recall": 0.11528150134048257,
+        "FPR": 0.0468384074941452,
+        "AP": 0.5362456211742037,
+        "ROC_AUC": 0.5547934024398666,
+        "threshold": 0.7451240256018824,
+        "confusion": {
+          "tn": 407,
+          "fp": 20,
+          "fn": 330,
+          "tp": 43
+        }
+      },
+      "calibration": {
+        "n": 800,
+        "positive": 393,
+        "accuracy": 0.53,
+        "balanced_accuracy": 0.5223724765709499,
+        "F1": 0.15315315315315314,
+        "recall": 0.08651399491094147,
+        "FPR": 0.04176904176904177,
+        "AP": 0.5489943264859528,
+        "ROC_AUC": 0.555251295709311,
+        "threshold": 0.7451240256018824,
+        "confusion": {
+          "tn": 390,
+          "fp": 17,
+          "fn": 359,
+          "tp": 34
+        }
+      },
+      "objective": 0.5342215469231687,
+      "history": [],
+      "seconds": 9.996724843978882,
+      "training": "frozen front, trained decision head",
+      "weights_sha256": "b2e2d1a7ce273e998913ba1af81e751142925f86c79e025f238b8f9a3390d9b6"
+    }
+  ],
+  "no_architecture_reselection": true
+}

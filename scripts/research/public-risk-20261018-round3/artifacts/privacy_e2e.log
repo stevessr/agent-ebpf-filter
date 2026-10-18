@@ -1,0 +1,11 @@
+You're using a BertTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+You're using a BertTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+You're using a BertTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+privacy {'front': 'finetuned_tiny', 'back': 'mean'} 1 0.578 seconds 25
+privacy {'front': 'finetuned_tiny', 'back': 'mean'} 2 0.5812 seconds 39
+privacy {'front': 'finetuned_tiny', 'back': 'mean'} 3 0.5812 seconds 52
+privacy {'front': 'finetuned_tiny', 'back': 'mean'} 0.4954 keep
+privacy {'front': 'finetuned_tiny', 'back': 'cnn'} 1 0.5869 seconds 14
+privacy {'front': 'finetuned_tiny', 'back': 'cnn'} 2 0.5833 seconds 30
+privacy {'front': 'finetuned_tiny', 'back': 'cnn'} 3 0.5658 seconds 49
+privacy {'front': 'finetuned_tiny', 'back': 'cnn'} 0.501 keep

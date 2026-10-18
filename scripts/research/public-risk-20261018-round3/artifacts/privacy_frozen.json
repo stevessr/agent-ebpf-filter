@@ -1,0 +1,251 @@
+{
+  "task": "privacy",
+  "selected": {
+    "front": "new",
+    "back": "residual",
+    "lr": 0.001
+  },
+  "weights_sha256": "d68fbd0579b00e979e311f503e56f60ea15de4b8450382856b7d3ee5f2fc30e8",
+  "trial_count": 22,
+  "trials_sha256": "7b925401add6448878da20e00dea97dc6d25040d6ca838e838bfd9ed5f80ddda",
+  "replications": [
+    {
+      "config": {
+        "front": "new",
+        "back": "residual",
+        "lr": 0.001
+      },
+      "seed": 20261020,
+      "validation": {
+        "n": 253,
+        "positive": 145,
+        "accuracy": 0.466403162055336,
+        "balanced_accuracy": 0.5309386973180077,
+        "F1": 0.16149068322981366,
+        "recall": 0.0896551724137931,
+        "FPR": 0.027777777777777776,
+        "AP": 0.6762028462536576,
+        "ROC_AUC": 0.5957854406130267,
+        "threshold": 0.9999359846115112,
+        "confusion": {
+          "tn": 105,
+          "fp": 3,
+          "fn": 132,
+          "tp": 13
+        }
+      },
+      "calibration": {
+        "n": 236,
+        "positive": 137,
+        "accuracy": 0.4957627118644068,
+        "balanced_accuracy": 0.5600899506008995,
+        "F1": 0.26993865030674846,
+        "recall": 0.16058394160583941,
+        "FPR": 0.04040404040404041,
+        "AP": 0.7044079540688768,
+        "ROC_AUC": 0.6349996313499963,
+        "threshold": 0.9999359846115112,
+        "confusion": {
+          "tn": 95,
+          "fp": 4,
+          "fn": 115,
+          "tp": 22
+        }
+      },
+      "objective": 0.5309386973180077,
+      "history": [
+        {
+          "epoch": 1,
+          "validation_AP": 0.644558393555283
+        },
+        {
+          "epoch": 2,
+          "validation_AP": 0.6385004653055087
+        },
+        {
+          "epoch": 3,
+          "validation_AP": 0.6386838737362887
+        },
+        {
+          "epoch": 4,
+          "validation_AP": 0.645986818425161
+        },
+        {
+          "epoch": 5,
+          "validation_AP": 0.6512875630501814
+        },
+        {
+          "epoch": 6,
+          "validation_AP": 0.6540044089540662
+        },
+        {
+          "epoch": 7,
+          "validation_AP": 0.6575416202378771
+        },
+        {
+          "epoch": 8,
+          "validation_AP": 0.6577007813654525
+        },
+        {
+          "epoch": 9,
+          "validation_AP": 0.6325493509884019
+        },
+        {
+          "epoch": 10,
+          "validation_AP": 0.6762028462536576
+        },
+        {
+          "epoch": 11,
+          "validation_AP": 0.660023962120676
+        },
+        {
+          "epoch": 12,
+          "validation_AP": 0.6575169186596872
+        },
+        {
+          "epoch": 13,
+          "validation_AP": 0.6715111073671061
+        },
+        {
+          "epoch": 14,
+          "validation_AP": 0.662759048534947
+        },
+        {
+          "epoch": 15,
+          "validation_AP": 0.6633637182456307
+        },
+        {
+          "epoch": 16,
+          "validation_AP": 0.6632180681857214
+        },
+        {
+          "epoch": 17,
+          "validation_AP": 0.6490715224862389
+        },
+        {
+          "epoch": 18,
+          "validation_AP": 0.6518266271373025
+        }
+      ],
+      "seconds": 2.087474822998047,
+      "training": "frozen front, trained decision head",
+      "weights_sha256": "c9e2a76e21d13fd848d51acacdb4549bc2cdfebf06c22a4ced47f156008d49f2"
+    },
+    {
+      "config": {
+        "front": "new",
+        "back": "residual",
+        "lr": 0.001
+      },
+      "seed": 20261021,
+      "validation": {
+        "n": 253,
+        "positive": 145,
+        "accuracy": 0.4505928853754941,
+        "balanced_accuracy": 0.5159642401021711,
+        "F1": 0.12578616352201258,
+        "recall": 0.06896551724137931,
+        "FPR": 0.037037037037037035,
+        "AP": 0.6651531417852856,
+        "ROC_AUC": 0.5851532567049809,
+        "threshold": 0.9999767541885376,
+        "confusion": {
+          "tn": 104,
+          "fp": 4,
+          "fn": 135,
+          "tp": 10
+        }
+      },
+      "calibration": {
+        "n": 236,
+        "positive": 137,
+        "accuracy": 0.4957627118644068,
+        "balanced_accuracy": 0.562891690628917,
+        "F1": 0.25157232704402516,
+        "recall": 0.145985401459854,
+        "FPR": 0.020202020202020204,
+        "AP": 0.6984934724402836,
+        "ROC_AUC": 0.6110742461107425,
+        "threshold": 0.9999767541885376,
+        "confusion": {
+          "tn": 97,
+          "fp": 2,
+          "fn": 117,
+          "tp": 20
+        }
+      },
+      "objective": 0.5159642401021711,
+      "history": [
+        {
+          "epoch": 1,
+          "validation_AP": 0.6590988147016353
+        },
+        {
+          "epoch": 2,
+          "validation_AP": 0.6471959073344908
+        },
+        {
+          "epoch": 3,
+          "validation_AP": 0.640479777527519
+        },
+        {
+          "epoch": 4,
+          "validation_AP": 0.6450514220324067
+        },
+        {
+          "epoch": 5,
+          "validation_AP": 0.6453598209322413
+        },
+        {
+          "epoch": 6,
+          "validation_AP": 0.6316242779121521
+        },
+        {
+          "epoch": 7,
+          "validation_AP": 0.6651531417852856
+        },
+        {
+          "epoch": 8,
+          "validation_AP": 0.632159826679135
+        },
+        {
+          "epoch": 9,
+          "validation_AP": 0.6474027370794191
+        },
+        {
+          "epoch": 10,
+          "validation_AP": 0.6444543622558139
+        },
+        {
+          "epoch": 11,
+          "validation_AP": 0.6226217519857782
+        },
+        {
+          "epoch": 12,
+          "validation_AP": 0.6159694572629089
+        },
+        {
+          "epoch": 13,
+          "validation_AP": 0.6256746486822357
+        },
+        {
+          "epoch": 14,
+          "validation_AP": 0.6259851786664197
+        },
+        {
+          "epoch": 15,
+          "validation_AP": 0.6306581116585124
+        }
+      ],
+      "seconds": 0.8895413875579834,
+      "training": "frozen front, trained decision head",
+      "weights_sha256": "4b56142b33e01ee571928bc6737360978806e1568936a012b2ba844293b31f09"
+    }
+  ],
+  "audit_used_for_selection": false,
+  "gate": {
+    "recall": 0.7,
+    "FPR": 0.05
+  },
+  "time": 1792287935.885276
+}

@@ -1,0 +1,20 @@
+{
+  "privacy": {
+    "mean_seed_BA_delta": 0.013601334253508165,
+    "paired_group_bootstrap_95CI": [
+      -0.025680130131639507,
+      0.04896425731715256
+    ],
+    "bootstrap_replicates": 1000,
+    "scope": "conditional on these 3 trained seeds; within-corpus audit, not external validation"
+  },
+  "code": {
+    "mean_seed_BA_delta": 0.04401767249482985,
+    "paired_group_bootstrap_95CI": [
+      0.018481909051634642,
+      0.07102291607351748
+    ],
+    "bootstrap_replicates": 1000,
+    "scope": "conditional on these 3 trained seeds; within-corpus audit, not external validation"
+  }
+}

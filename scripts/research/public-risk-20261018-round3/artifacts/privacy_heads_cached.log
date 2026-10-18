@@ -1,0 +1,10 @@
+privacy {'front': 'tiny', 'back': 'linear'} 0.5263 keep
+privacy {'front': 'tiny', 'back': 'residual', 'lr': 0.001} 0.5091 discard
+privacy {'front': 'tiny', 'back': 'residual', 'lr': 0.0003} 0.516 discard
+privacy {'front': 'tiny', 'back': 'gated', 'lr': 0.001} 0.4953 discard
+privacy {'front': 'tiny', 'back': 'gated', 'lr': 0.0003} 0.5138 discard
+privacy {'front': 'new', 'back': 'linear'} 0.5138 discard
+privacy {'front': 'new', 'back': 'residual', 'lr': 0.001} 0.5332 keep
+privacy {'front': 'new', 'back': 'residual', 'lr': 0.0003} 0.5125 discard
+privacy {'front': 'new', 'back': 'gated', 'lr': 0.001} 0.5217 discard
+privacy {'front': 'new', 'back': 'gated', 'lr': 0.0003} 0.5149 discard
