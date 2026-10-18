@@ -25,8 +25,15 @@ type eventFilterSignature struct {
 }
 
 func (a *renewApp) eventFilterCacheKey() eventFilterSignature {
+	// Most frames are repaints of an unchanged query. Normalize only on
+	// actual user edits to avoid allocating for a mixed-case search every frame.
+	if !a.searchKeyReady || a.searchKeySource != a.search {
+		a.searchKeySource = a.search
+		a.searchKeyNormalized = strings.ToLower(strings.TrimSpace(a.search))
+		a.searchKeyReady = true
+	}
 	return eventFilterSignature{
-		Search: strings.ToLower(strings.TrimSpace(a.search)),
+		Search: a.searchKeyNormalized,
 		Type: a.eventTypeFilter,
 		Session: a.eventSessionFilter,
 		Decision: a.eventDecisionFilter,

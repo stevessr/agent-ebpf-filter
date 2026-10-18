@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -85,6 +84,9 @@ type renewApp struct {
 	eventUIPaused         eventPauseFlag
 	eventUIBatcherStarted eventBatcherFlag
 	eventUICommitPending  eventCommitFlag
+	searchKeyReady        bool
+	searchKeySource       string
+	searchKeyNormalized   string
 	ownerCacheValid       bool
 	ownerCacheVersion     uint64
 	ownerCache            agentOwnershipIndex

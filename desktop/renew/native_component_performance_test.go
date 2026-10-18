@@ -99,3 +99,22 @@ func BenchmarkSharedSummaryOwnershipIndex(b *testing.B) {
 		_ = index.attribution(a.events[i%len(a.events)])
 	}
 }
+
+func TestSearchNormalizationReusedAndInvalidated(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.search = " MiXeD "
+	if got := a.eventFilterCacheKey().Search; got != "mixed" {
+		t.Fatalf("unexpected normalized query: %q", got)
+	}
+	if allocs := testing.AllocsPerRun(100, func() { _ = a.eventFilterCacheKey() }); allocs != 0 {
+		t.Fatalf("stable filter signatures should allocate 0 B/op, got %.2f allocs", allocs)
+	}
+	a.search = "  NEW Query  "
+	if got := a.eventFilterCacheKey().Search; got != "new query" {
+		t.Fatalf("search edit failed to invalidate normalization: %q", got)
+	}
+	a.search = ""
+	if got := a.eventFilterCacheKey().Search; got != "" {
+		t.Fatalf("clearing query left stale normalized text: %q", got)
+	}
+}
