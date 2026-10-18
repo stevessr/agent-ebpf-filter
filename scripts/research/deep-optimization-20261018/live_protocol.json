@@ -1,0 +1,35 @@
+{
+  "models": {
+    "privacy": "c9c9af71932d21c1d9e5e41a876ac55c445386ac1bc5bdaec668c6fc6d80ec82",
+    "http": "201b97a5f7dbaf8c76046486cd6ce5e29ffce1ddf2dffb5659a3919d33342aaa",
+    "http_structured": "74d9f7adecdb8f7684a4cdc145eb9c8a92596d8c8ad7079cfb6a005eb1548abe",
+    "http_v2": "4b99575fbd144c1d3ebff5c27ca2a3302291ebfd7b5d82d41adf6d4173346b92",
+    "http_structured_v3": "985104e9a6fac9586fb7226057243825c2d5a5b2abdab15ea40fe499225b2727"
+  },
+  "thresholds": {
+    "privacy": 0.9397593953789883,
+    "http": 0.5605252268847042,
+    "http_structured": 0.812524098588585,
+    "http_v2": 0.5573576633884558,
+    "http_structured_v3": 0.7957398957192502
+  },
+  "fit_count": 0,
+  "threshold_changes": 0,
+  "cases": [
+    "unit_tests",
+    "fix_bug",
+    "build",
+    "http_tests"
+  ],
+  "free_model": "opencode/deepseek-v4.1-flash-free",
+  "opencode_version": "1.19.3",
+  "mode": "shadow_only",
+  "production_approved": false,
+  "source_sha256": {
+    "inference.py": "8b8c385c70d2de5f992a9fc653ab11821efa712de2e63cf41ac4b383d22e4dad",
+    "privacy.py": "0b2818d1fb06e1211ff3e120bb10d5c43f7dfd46fdb17da2b443f8eda1324719",
+    "http_model.py": "45119583d04fac588480f7304c51f43552e3f746612a27cfd1090dece16e3e42",
+    "live.py": "88de89498f8ec86b39b1d0ca3a438a96a52644bb791acfe06ceca0ec5120848a",
+    "model-shadow.js": "180bc3f960e2e43bab88532efd62f3ce01e456c060417e132086b909ee11216b"
+  }
+}

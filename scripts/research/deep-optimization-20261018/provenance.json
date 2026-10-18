@@ -1,0 +1,42 @@
+{
+  "python": "3.12.14",
+  "system": "Linux",
+  "architecture": "x86_64",
+  "packages": {
+    "torch": "2.14.1+cpu",
+    "transformers": "4.57.6",
+    "tokenizers": "0.22.2",
+    "safetensors": "0.8.0",
+    "numpy": "2.3.5",
+    "scipy": "1.17.0",
+    "scikit-learn": "1.8.0",
+    "joblib": "1.5.3",
+    "PyYAML": "6.0.3"
+  },
+  "cpu_threads_per_training_process": 2,
+  "cgroup_cpu_quota": 8,
+  "memory_limit_bytes": 8589934592,
+  "actual_fits": 43,
+  "risk_classifier_fits": 40,
+  "feature_selector_fits": 3,
+  "actual_neural_epochs": 12,
+  "source_sha256_final_reviewed": {
+    "test_contracts.py": "25a6d096f0ca0e06494448e4aefc9ad6474347999573e3a394701d2cdec10b2c",
+    "download.py": "b42a8cff97f8aca7f48c5e276d2925d3577c3df44633cbe5fce77d741f5ab05f",
+    "report.py": "1461f01da3187378a46d1d85c67731798665e9ea31c9d6845a14f4a6993e66d1",
+    "http_model.py": "45119583d04fac588480f7304c51f43552e3f746612a27cfd1090dece16e3e42",
+    "evaluate.py": "d8b7dba218e3d637649401c6a6d03e42b70e7e614ff867b91ebb484d57cdb8b5",
+    "structured.py": "bc8a8c2065af1cf4e461f7d6eff12e7deeb542ceb4e60f78c671e06e18c868f2",
+    "challenge.py": "14bbd297b3aecd27db06147052fadafbddc32db11de2232d8534b6da43663a9a",
+    "audit.py": "7f7e1dce349874a8562ca4ad52809779fe0f37cf409b748c1b30b6cf3d40162b",
+    "inference.py": "8b8c385c70d2de5f992a9fc653ab11821efa712de2e63cf41ac4b383d22e4dad",
+    "corrected.py": "ee7c0094b8ba78f76962c49898f5cd09e575b115c57fdfb443641e832eb335cf",
+    "prepare_public.py": "46bfe06fedba9d9b3df2cfdceedb048eec84d96337cd5ab9b6a91918ccc32aaf",
+    "privacy.py": "0b2818d1fb06e1211ff3e120bb10d5c43f7dfd46fdb17da2b443f8eda1324719",
+    "live.py": "88de89498f8ec86b39b1d0ca3a438a96a52644bb791acfe06ceca0ec5120848a"
+  },
+  "post_training_numerically_neutral_change": "structured.extract now closes subprocess stdout/stderr handles; numerical feature logic unchanged",
+  "training_input": "public datasets only; no live OpenCode examples fitted",
+  "preparation_hash_parity": true,
+  "production_approved": false
+}

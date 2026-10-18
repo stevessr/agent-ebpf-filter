@@ -1,0 +1,79 @@
+{
+  "freeze": {
+    "artifact_sha256": "74d9f7adecdb8f7684a4cdc145eb9c8a92596d8c8ad7079cfb6a005eb1548abe",
+    "threshold": 0.812524098588585,
+    "selection": {
+      "leaves": 63,
+      "validation": {
+        "public_csic_generated": {
+          "n": 4264,
+          "tn": 1264,
+          "fp": 12,
+          "fn": 934,
+          "tp": 2054,
+          "accuracy": 0.7781425891181989,
+          "fpr": 0.009404388714733543,
+          "recall": 0.6874163319946452,
+          "fpr_upper95": 0.015192677307553863,
+          "AP": 0.9533820717849177,
+          "AUROC": 0.8743397046912833
+        },
+        "public_ecml_generated": {
+          "n": 7428,
+          "tn": 5137,
+          "fp": 51,
+          "fn": 360,
+          "tp": 1880,
+          "accuracy": 0.9446688206785138,
+          "fpr": 0.009830377794911334,
+          "recall": 0.8392857142857143,
+          "fpr_upper95": 0.012397580406261753,
+          "AP": 0.971384078743136,
+          "AUROC": 0.9802228614797887
+        }
+      },
+      "rank": [
+        0.6874163319946452,
+        0.9623830752640269
+      ]
+    },
+    "source_thresholds": {
+      "public_csic_generated": 0.812524098588585,
+      "public_ecml_generated": 0.7917810959968918
+    },
+    "protocol_sha256": "dee98c671b054f5dfb4be587956d0cfe9884969a0fb2e44327289b5ed96b628e",
+    "mode": "shadow_only",
+    "production_approved": false
+  },
+  "actual_fits": 4,
+  "actual_boosting_rounds": 600,
+  "consumed_regression": {
+    "public_csic_generated": {
+      "n": 5132,
+      "tn": 1506,
+      "fp": 345,
+      "fn": 1197,
+      "tp": 2084,
+      "accuracy": 0.6995323460639127,
+      "fpr": 0.18638573743922204,
+      "recall": 0.6351722035964645,
+      "fpr_upper95": 0.20190906124304614,
+      "AP": 0.8827750099666698,
+      "AUROC": 0.7469695614996614
+    },
+    "public_ecml_generated": {
+      "n": 7667,
+      "tn": 5242,
+      "fp": 36,
+      "fn": 520,
+      "tp": 1869,
+      "accuracy": 0.9274814138515717,
+      "fpr": 0.006820765441455097,
+      "recall": 0.7823357053160318,
+      "fpr_upper95": 0.008997482355785312,
+      "AP": 0.9731357257683356,
+      "AUROC": 0.9812661321444393
+    }
+  },
+  "seconds": 83.9315473609995
+}

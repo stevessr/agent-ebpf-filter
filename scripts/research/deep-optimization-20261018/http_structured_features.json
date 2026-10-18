@@ -1,0 +1,169 @@
+{
+  "base_feature_count": 137,
+  "engineered_feature_count": 411,
+  "varying": 126,
+  "selected": [
+    {
+      "index": 156,
+      "name": "log1p:payload.quote_count",
+      "train_importance": 0.06443476709271453
+    },
+    {
+      "index": 101,
+      "name": "payload.sql_hint",
+      "train_importance": 0.04747177863546523
+    },
+    {
+      "index": 87,
+      "name": "payload.decode_rounds",
+      "train_importance": 0.045571012730909126
+    },
+    {
+      "index": 147,
+      "name": "log1p:http.header_count",
+      "train_importance": 0.045457337393106055
+    },
+    {
+      "index": 81,
+      "name": "payload.alpha_ratio",
+      "train_importance": 0.04083516777581789
+    },
+    {
+      "index": 6,
+      "name": "body.decode_rounds",
+      "train_importance": 0.037415827358704024
+    },
+    {
+      "index": 96,
+      "name": "payload.quote_count",
+      "train_importance": 0.03688239129237742
+    },
+    {
+      "index": 91,
+      "name": "payload.nested_url_hint",
+      "train_importance": 0.022244613713355735
+    },
+    {
+      "index": 178,
+      "name": "per_byte:payload.quote_count",
+      "train_importance": 0.02183916420417861
+    },
+    {
+      "index": 143,
+      "name": "log1p:body.quote_count",
+      "train_importance": 0.020918830629302984
+    },
+    {
+      "index": 19,
+      "name": "body.space_ratio",
+      "train_importance": 0.020269179572303755
+    },
+    {
+      "index": 151,
+      "name": "log1p:payload.bytes",
+      "train_importance": 0.019307687459039196
+    },
+    {
+      "index": 54,
+      "name": "http.method_get",
+      "train_importance": 0.019147981549714706
+    },
+    {
+      "index": 138,
+      "name": "log1p:body.bytes",
+      "train_importance": 0.01899508349744901
+    },
+    {
+      "index": 84,
+      "name": "payload.command_hint",
+      "train_importance": 0.018213413560938082
+    },
+    {
+      "index": 170,
+      "name": "per_byte:http.header_count",
+      "train_importance": 0.018112197297373622
+    },
+    {
+      "index": 89,
+      "name": "payload.entropy",
+      "train_importance": 0.017655246123914742
+    },
+    {
+      "index": 88,
+      "name": "payload.digit_ratio",
+      "train_importance": 0.017627819937062698
+    },
+    {
+      "index": 58,
+      "name": "http.method_post",
+      "train_importance": 0.015949311950654535
+    },
+    {
+      "index": 171,
+      "name": "per_byte:http.query_count",
+      "train_importance": 0.015889245669408168
+    },
+    {
+      "index": 83,
+      "name": "payload.bytes",
+      "train_importance": 0.014273864640866213
+    },
+    {
+      "index": 180,
+      "name": "per_byte:payload.slash_count",
+      "train_importance": 0.013982968597108977
+    },
+    {
+      "index": 99,
+      "name": "payload.slash_count",
+      "train_importance": 0.01316850659903491
+    },
+    {
+      "index": 2,
+      "name": "body.bytes",
+      "train_importance": 0.012414823217445865
+    },
+    {
+      "index": 145,
+      "name": "log1p:body.slash_count",
+      "train_importance": 0.012355128536987987
+    },
+    {
+      "index": 148,
+      "name": "log1p:http.query_count",
+      "train_importance": 0.012166463835053645
+    },
+    {
+      "index": 218,
+      "name": "payload.nested_url_hint*payload.command_hint",
+      "train_importance": 0.011117050030984654
+    },
+    {
+      "index": 158,
+      "name": "log1p:payload.slash_count",
+      "train_importance": 0.010891727341810207
+    },
+    {
+      "index": 20,
+      "name": "body.sql_hint",
+      "train_importance": 0.010710337038156941
+    },
+    {
+      "index": 0,
+      "name": "body.alpha_ratio",
+      "train_importance": 0.009960904876783023
+    },
+    {
+      "index": 226,
+      "name": "payload.sql_hint*payload.command_hint",
+      "train_importance": 0.009741761332531898
+    },
+    {
+      "index": 61,
+      "name": "http.path_depth",
+      "train_importance": 0.009289811392675974
+    }
+  ],
+  "fit_rows": 77831,
+  "fit_partition": "train"
+}

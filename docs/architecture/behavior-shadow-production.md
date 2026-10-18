@@ -65,6 +65,14 @@ Not performed here: installing/enabling the service on a production host, modify
 
 ## Gates still required before production enforcement
 
+The subsequent [public-data deep optimization](../../scripts/research/deep-optimization-20261018/RESULTS.md)
+completed 43 actual fits, two six-epoch BERT adaptations and new frozen-model
+OpenCode sessions. It improves privacy ranking metrics, but low-FPR privacy
+recall, PiSAs transfer recall and real benign HTTP false positives still fail.
+Versioned request normalization and field-ratio corrections retain their failed
+results. Those Python research models are separate artifacts and do not replace
+the Go worker or change the production enforcement qualification below.
+
 - Multi-source generalization and measured production benign FPR, separated by site/tenant/time, with attack-family holdout and an untouched external source. The tested CSIC source is now consumed as evaluation evidence.
 - Separately labelled privacy leakage and destructive syscall heads; authorization and provenance context; safe lab replay with established outcomes. HTTP attack/anomaly labels cannot substitute for either head.
 - Real eBPF→archive→v2 feature→decision trace validation on supported kernels, loss counters, FD/path resolution and stable identity; TLS visibility and HTTP request framing completeness.
