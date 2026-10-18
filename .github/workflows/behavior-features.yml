@@ -1,0 +1,25 @@
+name: Offline behavior features
+on:
+  pull_request:
+    paths:
+      - 'backend/internal/behaviorfeatures/**'
+      - 'backend/cmd/behavior-features/**'
+      - '.github/workflows/behavior-features.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: '1.27.1'
+          cache-dependency-path: backend/go.sum
+      - working-directory: backend
+        run: |
+          test -z "$(gofmt -l internal/behaviorfeatures cmd/behavior-features)"
+          go test -race ./internal/behaviorfeatures ./cmd/behavior-features
+          go vet ./internal/behaviorfeatures ./cmd/behavior-features

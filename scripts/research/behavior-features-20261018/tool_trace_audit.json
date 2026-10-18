@@ -1,0 +1,9 @@
+{
+  "provenance": "previous round3 actual OpenCode tool traces, including rejected runs",
+  "files": 24,
+  "counts": {
+    "no_syscall_or_request_evidence": 146
+  },
+  "kernel_events_proven": 0,
+  "note": "This audit is an evidence-type rejection test, not a detection accuracy benchmark."
+}

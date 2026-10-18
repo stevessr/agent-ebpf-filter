@@ -1,0 +1,33 @@
+{
+  "go_named_tests_and_subtests_passed": 27,
+  "go_packages_passed": [
+    "agent-ebpf-filter/cmd/behavior-features",
+    "agent-ebpf-filter/internal/behaviorfeatures"
+  ],
+  "python_protocol_tests_passed": 6,
+  "go_vet": "passed",
+  "portable_json_prediction_max_abs_error": 0.0,
+  "go_version": "1.27.1",
+  "kernel_runtime_capture_executed": false,
+  "tool_trace_evidence_audit": {
+    "provenance": "previous round3 actual OpenCode tool traces, including rejected runs",
+    "files": 24,
+    "counts": {
+      "no_syscall_or_request_evidence": 146
+    },
+    "kernel_events_proven": 0,
+    "note": "This audit is an evidence-type rejection test, not a detection accuracy benchmark."
+  },
+  "benchmark_note": "synthetic HTTP fixture, offline extraction only",
+  "benchmark_ns_per_op": [
+    40452,
+    43803,
+    41874
+  ],
+  "benchmark_bytes_per_op": [
+    30001,
+    30006,
+    30015
+  ],
+  "benchmark_allocations_per_op": 226
+}
