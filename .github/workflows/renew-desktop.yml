@@ -56,6 +56,10 @@ jobs:
         run: go mod download
       - name: Test desktop single binary
         run: go test ./...
+      # Microbenchmarks are informational. Do not enforce cross-runner timing thresholds.
+      - name: Benchmark native component hot paths
+        run: |
+          go test -run Never_Run -bench 'Benchmark(StructuredEventFilterKey|SharedSummaryOwnershipIndex)' -benchmem -benchtime=150ms .
       - name: Vet MyGo native UI element lifetimes
         run: go tool mygo vet .
       - name: Compile desktop single binary
