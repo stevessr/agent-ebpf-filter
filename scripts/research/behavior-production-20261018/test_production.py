@@ -1,4 +1,4 @@
-import importlib.util, json, pathlib, subprocess, sys, unittest
+import importlib.util, json, pathlib, re, subprocess, sys, unittest
 old=pathlib.Path(__file__).parent.parent/'behavior-features-20261018'
 spec=importlib.util.spec_from_file_location('adapter',old/'adapt_capture.py');adapter=importlib.util.module_from_spec(spec);spec.loader.exec_module(adapter)
 from train_production import select_threshold, metrics, http
@@ -24,6 +24,14 @@ class ProductionTests(unittest.TestCase):
         _,ok=select_threshold(np.array([0]*10+[1]*10),np.linspace(0,1,20));self.assertFalse(ok)
         y=np.array([0]*1000+[1]*1000);scores=np.r_[np.linspace(0,.2,1000),np.linspace(.3,.9,1000)]
         t,ok=select_threshold(y,scores);self.assertTrue(ok);self.assertLessEqual(metrics(y,scores,t)['fpr_upper95'],.01)
+    def test_strace_openat_annotated_dirfd(self):
+        # Test the actual regex embedded in the deliberately narrow CI parser.
+        source=(pathlib.Path(__file__).parent/'audit_kernel_fixture.py').read_text()
+        pattern=next(line.split("re.match(r'",1)[1].split("',line)",1)[0] for line in source.splitlines() if 'openat\\(' in line)
+        for fd in ['AT_FDCWD','AT_FDCWD</tmp/runner>']:
+            m=re.match(pattern,'123 openat('+fd+', "/tmp/fixture/input.json", O_RDONLY|O_CLOEXEC) = 4</tmp/fixture/input.json>')
+            self.assertIsNotNone(m)
+            self.assertEqual(m[2],'/tmp/fixture/input.json')
     def test_request_parser_preserves_headers(self):
         h=http('POST /a?x=1 HTTP/1.1\r\nX-A: 1\r\nX-A: 2\r\n\r\na=hello')
         self.assertEqual(len(h['headers']),2);self.assertEqual(h['body'],'a=hello')

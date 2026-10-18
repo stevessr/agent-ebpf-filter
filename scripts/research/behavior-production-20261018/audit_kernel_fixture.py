@@ -11,7 +11,7 @@ for line in args.trace.read_text(errors='strict').splitlines():
     m=re.match(r'^\s*(\d+)\s+(read|write)\(\d+<([^>]+)>.*?,\s*(\d+)\)\s+=\s+(\d+)\s*$',line)
     if m and m[3].startswith(root):
         records.append({'source':'strace_ci_kernel_syscall','syscall':{'name':m[2],'fd_path':m[3],'path_truncated':False,'requested_bytes':int(m[4]),'return':int(m[5])}});counts[m[2]]+=1;continue
-    m=re.match(r'^\s*(\d+)\s+openat\(AT_FDCWD, "([^"]+)", .*\)\s+=\s+(\d+)(?:<[^>]+>)?\s*$',line)
+    m=re.match(r'^\s*(\d+)\s+openat\(AT_FDCWD(?:<[^>]+>)?, "([^"]+)", .*\)\s+=\s+(\d+)(?:<[^>]+>)?\s*$',line)
     if m and m[2].startswith(root):
         records.append({'source':'strace_ci_kernel_syscall','syscall':{'name':'openat','dirfd':-100,'path':m[2],'path_truncated':False,'return':int(m[3])}});counts['openat']+=1;continue
     m=re.match(r'^\s*(\d+)\s+execve\("([^"]+)",.*\)\s+=\s+0\s*$',line)

@@ -7,7 +7,7 @@ from collections import Counter, defaultdict
 from array import array
 from pathlib import Path
 import numpy as np
-from scipy.sparse import csr_matrix, save_npz
+from scipy.sparse import csr_matrix
 from scipy.stats import beta
 from sklearn.linear_model import SGDClassifier
 from sklearn.metrics import accuracy_score, balanced_accuracy_score, f1_score, average_precision_score, confusion_matrix
@@ -119,42 +119,11 @@ def main():
     model={'encoding':protocol['encoding'],'kind':'http_request','weights':m.coef_[0].tolist(),'intercept':float(m.intercept_[0]),'threshold':threshold,'shadow_only':True}
     mp=args.out/'http_request_model.json';mp.write_text(json.dumps(model,separators=(',',':'))+'\n');digest=sha(mp)
     (args.out/'freeze.json').write_text(json.dumps({'model_sha256':digest,'selected_alpha':trials[chosen]['alpha'],'threshold':threshold,'protocol_sha256':sha(args.out/'protocol.json')},indent=2)+'\n')
-    # Test/source access for scoring starts only after the model/threshold freeze.
-    ti=parts['test'];tp=m.predict_proba(x[ti])[:,1];internal=metrics(y[ti],tp,threshold)
-    external,ea=csic(args.data);external,ed=dedupe(external);ea.update(ed)
-    train_hashes={key(r[0]) for r in rows};train_groups=set(groups)
-    external2=[r for r in external if key(r[0]) not in train_hashes and group(r[0]) not in train_groups];ea['overlap_removed']=len(external)-len(external2)
-    ex,ek,eab=features(external2,args.worker);external2=[external2[i] for i in ek];ey=np.array([r[1] for r in external2]);ep=m.predict_proba(ex)[:,1];external_metrics=metrics(ey,ep,threshold)
-    # Cluster bootstrap for source/test uncertainty, separate from the order-statistic bound.
-    def group_interval(labels,probs,gg):
-        ug,inverse=np.unique(gg,return_inverse=True);pred=probs>threshold
-        neg=np.bincount(inverse,weights=(labels==0),minlength=len(ug));fp=np.bincount(inverse,weights=((labels==0)&pred),minlength=len(ug))
-        pos=np.bincount(inverse,weights=(labels==1),minlength=len(ug));tp=np.bincount(inverse,weights=((labels==1)&pred),minlength=len(ug))
-        rng=np.random.default_rng(20261018);fprs=[];recalls=[]
-        for _ in range(1000):
-            ii=rng.integers(len(ug),size=len(ug));nn=neg[ii].sum();pp=pos[ii].sum()
-            if nn:fprs.append(fp[ii].sum()/nn)
-            if pp:recalls.append(tp[ii].sum()/pp)
-        return {'groups':len(ug),'fpr_95ci':np.quantile(fprs,[.025,.975]).tolist(),'recall_95ci':np.quantile(recalls,[.025,.975]).tolist()}
-    internal['group_bootstrap']=group_interval(y[ti],tp,groups[ti]);external_metrics['group_bootstrap']=group_interval(ey,ep,[group(r[0]) for r in external2])
-    # Use the actual Go deployment path over the WHOLE internal test, not a Python surrogate.
-    with tempfile.TemporaryFile(mode='w+') as f:
-        for i in ti:f.write(json.dumps(rows[i][0])+'\n')
-        f.seek(0);q=subprocess.run([str(args.worker),'--model',str(mp),'--sha256',digest],stdin=f,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=True)
-    got=[json.loads(line)['score'] for line in q.stdout.splitlines()];parity=float(np.max(np.abs(np.asarray(got)-tp)));assert parity<1e-10
-    def gate(v,ab,total):return v['fpr_upper95']<=.01 and v['group_bootstrap']['fpr_95ci'][1]<=.01 and v['recall']>=.9 and v['group_bootstrap']['recall_95ci'][0]>=.9 and ab/max(1,total)<=.01
-    report={'protocol':protocol,'source_revision':subprocess.check_output(['git','-C',str(args.data),'rev-parse','HEAD'],text=True).strip(),
-      'source_sha256':{str(f.relative_to(args.data)):sha(f) for f in args.data.glob('OriginalDataSets/ecml_pkdd/dataset_ecml_pkdd_train_test/*.txt')},
-      'audit':{'ecml':audit,'ecml_abstained':abstained,'csic':ea,'csic_abstained':eab},
-      'splits':{k:{'rows':len(v),'groups':len(set(groups[v])),'negative':int((y[v]==0).sum()),'positive':int(y[v].sum())} for k,v in parts.items()},
-      'split_seed':seed,'trials':trials,'selected_alpha':trials[chosen]['alpha'],'threshold':threshold,'calibration_bound_feasible':feasible,
-      'calibration':metrics(y[parts['calibration']],cp,threshold),'heldout_ecml':internal,'external_csic':external_metrics,
-      'model_sha256':digest,'model_bytes':mp.stat().st_size,'go_prediction_max_abs_error':parity,
-      'gates':{'ecml_pass':gate(internal,abstained,len(rows)+abstained),'external_csic_pass':gate(external_metrics,eab,len(external2)+eab),'kernel_privacy_destruction_pass':False,'production_blocking_approved':False},
-      'fit_count':len(models),'elapsed_seconds':time.monotonic()-started}
-    for f in (args.data/'OriginalDataSets/csic_2010').glob('*Test.txt'):report['source_sha256'][str(f.relative_to(args.data))]=sha(f)
-    (args.out/'results.json').write_text(json.dumps(report,indent=2)+'\n')
-    (args.out/'private_splits.json').write_text(json.dumps({'groups':groups.tolist(),'partitions':{k:v.tolist() for k,v in parts.items()},'test_predictions':tp.tolist(),'external_predictions':ep.tolist()}))
-    save_npz(args.out/'ecml_features.npz',x);np.save(args.out/'ecml_labels.npy',y)
-    print(json.dumps({'heldout_ecml':internal,'external_csic':external_metrics,'gates':report['gates'],'parity':parity,'seconds':report['elapsed_seconds']},indent=2),flush=True)
+    # Evaluation runs in a fresh process after this training process exits, so
+    # its source arrays and sparse matrices cannot overlap the training cache.
+    (args.out/'trials.json').write_text(json.dumps(trials,indent=2)+'\n')
+    (args.out/'training_audit.json').write_text(json.dumps({'rows':len(rows),'abstained':abstained,'audit':audit,'elapsed_seconds':time.monotonic()-started},indent=2)+'\n')
+    if abstained:
+        raise RuntimeError('Training input abstentions require a versioned split protocol; do not evaluate reconstructed splits')
+    print('Frozen. Run evaluate_frozen.py separately after this process exits.',flush=True)
 if __name__=='__main__':main()
