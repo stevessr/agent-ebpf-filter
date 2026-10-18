@@ -1,0 +1,96 @@
+name: CodeCity Makepad visualizer
+
+on:
+  pull_request:
+    paths:
+      - "desktop/visualizer-makepad/**"
+      - ".github/workflows/codecity-makepad.yml"
+      - "scripts/codecity-export-index.py"
+      - "scripts/test-codecity-export-index.py"
+      - "scripts/codecity-smoke-feed.py"
+      - "scripts/codecity-display-smoke.sh"
+  push:
+    branches: [master]
+    paths:
+      - "desktop/visualizer-makepad/**"
+      - ".github/workflows/codecity-makepad.yml"
+      - "scripts/codecity-export-index.py"
+      - "scripts/test-codecity-export-index.py"
+      - "scripts/codecity-smoke-feed.py"
+      - "scripts/codecity-display-smoke.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# An active renderer build is superseded by a newer CodeCity commit.
+concurrency:
+  group: codecity-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Makepad Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config clang libssl-dev libx11-dev \
+            libxcursor-dev libxkbcommon-dev libxrandr-dev libxi-dev \
+            libxinerama-dev libasound2-dev libpulse-dev libwayland-dev \
+            wayland-protocols libegl1-mesa-dev libgl1-mesa-dev \
+            libglx-dev libdrm-dev libgbm-dev
+      - name: Install stable Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/visualizer-makepad
+      - name: Verify metadata-only CodeSpace inventory exporter
+        run: python3 scripts/test-codecity-export-index.py
+      - name: Check Makepad Rust visualizer
+        run: cargo check --manifest-path desktop/visualizer-makepad/Cargo.toml
+      - name: Test read-only event model and binary
+        run: cargo test --manifest-path desktop/visualizer-makepad/Cargo.toml
+      - name: Install virtual desktop and software GL dependencies
+        run: |
+          sudo apt-get install -y --no-install-recommends \
+            xvfb x11-utils x11-xserver-utils xdotool openbox \
+            imagemagick mesa-utils libgl1-mesa-dri libegl1 \
+            weston wayland-utils
+      - name: Build the actual Makepad desktop executable
+        run: cargo build --manifest-path desktop/visualizer-makepad/Cargo.toml
+      - name: X11 software renderer window, screenshot, and input smoke
+        id: smoke_x11
+        continue-on-error: true
+        run: timeout --signal=TERM --kill-after=5s 110s bash scripts/codecity-display-smoke.sh x11 display-evidence/x11
+      - name: Wayland Weston headless surface smoke
+        id: smoke_wayland
+        if: always()
+        continue-on-error: true
+        run: timeout --signal=TERM --kill-after=5s 110s bash scripts/codecity-display-smoke.sh wayland display-evidence/wayland
+      - name: Preserve X11 and Wayland diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codecity-linux-display-smoke-${{ github.run_id }}
+          path: display-evidence/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Enforce both display-backend smoke results
+        if: always()
+        env:
+          X11_OUTCOME: ${{ steps.smoke_x11.outcome }}
+          WAYLAND_OUTCOME: ${{ steps.smoke_wayland.outcome }}
+        run: |
+          echo "X11 software desktop smoke: $X11_OUTCOME"
+          echo "Wayland Weston headless smoke: $WAYLAND_OUTCOME"
+          test "$X11_OUTCOME" = success
+          test "$WAYLAND_OUTCOME" = success
