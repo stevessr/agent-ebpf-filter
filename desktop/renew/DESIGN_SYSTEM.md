@@ -24,6 +24,9 @@ retain its license and be independently pinned, audited and tested.
 
 | API | Usage | Contract |
 | --- | --- | --- |
+| `Action(context, label, variant)` | Native primary/neutral/ghost action, MyGo event lifecycle and accessibility | No DOM bridge or external component dependency |
+| `SemanticBadge(context, label, tone)` / `TintedBadge` | State and risk chips | Theme-driven, high-contrast-safe |
+| `EmptyState(context, title, explanation)` | Missing data or collector state | Does not imply that zero alerts prove safety |
 | `ToneColor(theme, Tone)` | Semantic color resolver | Uses current theme's accent/success/warning/danger/muted; no fixed color |
 | `MetricTile(context, Metric)` | Desktop KPI / observation snapshot | Not a button; always supply timeframe or summary boundary in Detail |
 | `MetricStrip(context, []Metric)` | Responsive metrics row | Wraps on narrow windows; works with MyGo scaling |
@@ -55,7 +58,9 @@ design.NoticeCard(c, design.Notice{
 ```
 
 The Overview page projects the existing bounded, redacted event buffer into
-metrics. Other pages' existing `statCard` helper now shares `MetricTile`
+metrics. Existing native cards delegate to `design.Section`; common status chips
+use `design.TintedBadge`. A subset of home actions uses native `Action` to
+exercise the self-owned interaction layer without replacing MyGo input/focus. Other pages' existing `statCard` helper now shares `MetricTile`
 styling. UI work changes **no** collectors, policies, permission gates,
 network access, telemetry, secrets or event retention.
 
@@ -80,3 +85,22 @@ From `desktop/renew`, run `go test ./design ./...` (Go 1.27.1 or newer) and
 `ui.NewTester` tests enforce visible text. Theme colors and snapshot
 semantics are checked separately. A PR should not be merged without a full
 headless test run and, where possible, desktop visual checks.
+
+
+## Performance work
+
+- Filter conditions now use a comparable `eventFilterSignature` struct rather
+  than constructing a NUL-delimited string with repeated integer/float/boolean
+  formatting. This prevents delimiter collisions and repeated key allocations.
+- `summaryOwnershipIndex()` caches attribution for a single event version:
+  per-row render, inspector and quick navigation share one index. The index
+  rebuilds on the next event-window version; direct unversioned snapshots are
+  deliberately uncached.
+- Native actions are thin wrappers over `ui.ButtonBase`, not a second input,
+  graphics or widget lifecycle. All presentation components remain synchronous
+  and avoid timers, background work and independent event subscription.
+- `BenchmarkStructuredEventFilterKey` and
+  `BenchmarkSharedSummaryOwnershipIndex` provide allocation/CPU regression
+  baselines. Use `go test -run '^$' -bench
+  'Benchmark(StructuredEventFilterKey|SharedSummaryOwnershipIndex)' -benchmem
+  ./...` on the supported Go toolchain.

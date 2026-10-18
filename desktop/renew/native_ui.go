@@ -510,7 +510,7 @@ func pageSubtitle(page string) string {
 }
 
 func statusPill(c *ui.Context, text string, tone ui.Color) ui.Element {
-	return ui.Badge(c, text).Background(tone.Alpha(0.13)).TextColor(tone)
+	return design.TintedBadge(c, text, tone)
 }
 
 func riskTextColor(t *ui.Theme, risk string) ui.Color {
@@ -709,13 +709,7 @@ func (a *renewApp) eventFilterOptions() ([]string, []string) {
 }
 
 func card(c *ui.Context, title string, body func()) ui.Element {
-	t := c.Theme()
-	return ui.Column(c).Padding(18).Gap(12).Radius(12).Background(t.Surface).Border(1, t.Border).Children(func() {
-		if title != "" {
-			ui.Text(c, title).FontSize(15).Bold()
-		}
-		body()
-	})
+	return design.Section(c, title, "", body)
 }
 
 func statCard(c *ui.Context, label, value, detail string) {

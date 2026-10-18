@@ -83,13 +83,13 @@ func (a *renewApp) overview(c *ui.Context) {
 		FontSize(11).TextColor(t.TextMuted)
 
 	ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
-		if ui.Button(c, "查看联网行为").Tooltip("查看 Agent 关联的域名及 IP 连接").Clicked() {
+		if design.Action(c, "查看联网行为", design.ActionNeutral).Tooltip("查看 Agent 关联的域名及 IP 连接").Clicked() {
 			a.page = "域名"
 		}
-		if ui.Button(c, "调整监控范围").Tooltip("选择日常或深度采集方案，不会直接修改拦截策略").Clicked() {
+		if design.Action(c, "调整监控范围", design.ActionNeutral).Tooltip("选择日常或深度采集方案，不会直接修改拦截策略").Clicked() {
 			a.page = "监控"
 		}
-		if ui.Button(c, "查看访问权限").Tooltip("查看或编辑路径访问规则，策略生效以服务端反馈为准").Clicked() {
+		if design.Action(c, "查看访问权限", design.ActionNeutral).Tooltip("查看或编辑路径访问规则，策略生效以服务端反馈为准").Clicked() {
 			a.page = "路径权限"
 		}
 	})
@@ -145,8 +145,7 @@ func (a *renewApp) overview(c *ui.Context) {
 		// This summary must not silently inherit filters from the Events
 		// page, otherwise a clean home could be mistaken for no activity.
 		if len(a.events) == 0 {
-			ui.Text(c, "尚无活动摘要。可能是刚启动、未匹配到采集范围，或事件流暂不可用；这不是安全证明。").
-				TextColor(t.TextMuted)
+			design.EmptyState(c, "暂无活动摘要", "可能是刚启动、未匹配到采集范围，或事件流暂不可用；这不是安全证明。")
 		} else {
 			for _, event := range a.overviewRecentEvents() {
 				a.eventRow(c, event)
