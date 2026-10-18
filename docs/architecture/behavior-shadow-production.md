@@ -71,3 +71,5 @@ Not performed here: installing/enabling the service on a production host, modify
 - Bounded backend integration, target-host concurrency/maximum-size/soak/cgroup tests, operator metrics, rollout and tested incident rollback.
 
 References: scikit-learn threshold tuning https://scikit-learn.org/stable/modules/classification_threshold.html ; calibration https://scikit-learn.org/stable/modules/calibration.html ; regression test design https://github.com/coreruleset/go-ftw . These informed evaluation discipline; they were not used as evidence that this model passed those projects' tests.
+
+Final code validation: [CI 39093620547](https://github.com/stevessr/agent-ebpf-filter/actions/runs/39093620547) passed all behavior-contract steps at `5082bc3541069912104f644789a03970bb602eb1`. Sorted L2 accumulation removes map-order roundoff nondeterminism; replay of all 7,475 internal and 61,065 external records changed no threshold decisions (max score change 1.7763568394002505e-15), with the original weights/threshold frozen. Regression determinism test passed 100 repetitions.
