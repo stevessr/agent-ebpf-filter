@@ -1,20 +1,20 @@
 # Renew Native Design System（MyGo）
 
 Renew uses **MyGo native UI** (Go and GPU drawing), **not** a webview. Our small
-\`design\` package implements opinionated monitoring presentation on top of
+`design` package implements opinionated monitoring presentation on top of
 MyGo's accessible primitives. It has no dependencies beyond the MyGo version
-already pinned in \`desktop/renew/go.mod\`, does not import application code and
+already pinned in `desktop/renew/go.mod`, does not import application code and
 does not call the privileged backend.
 
 ## Ecosystem evaluation (2026-10)
 
 | Option | Strength | Decision |
 | --- | --- | --- |
-| [MyGo native \`ui\`](https://github.com/egoist/mygo/tree/main/ui) | GPU-native rendering, layout, input/IME, focus, tables, virtual lists, accessibility, test harness | **Foundation**: keep native semantics and use for controls |
+| [MyGo native `ui`](https://github.com/egoist/mygo/tree/main/ui) | GPU-native rendering, layout, input/IME, focus, tables, virtual lists, accessibility, test harness | **Foundation**: keep native semantics and use for controls |
 | [Onevra](https://github.com/oneo-me/onevra/tree/main/source) | Existing MyGo v0.5.5-compatible components, theme, sidebar/shells, chart and command packages; MIT | **Design reference / optional future dependency**; avoid wholesale theme replacement and transitive migration now |
 | [Fyne](https://github.com/fyne-io/fyne) / [Gio](https://github.com/gioui/gio) | Mature alternative native Go GUI approaches | Not drop-in MyGo components; would introduce another event/rendering stack |
 | [shadcn/ui](https://ui.shadcn.com/) / [Radix](https://www.radix-ui.com/) | Excellent web component primitives | Appropriate for the separate Vue/web UI only with framework integration; not native MyGo |
-| Renew \`design\` (this package) | Bounded-summary metrics, evidence notices, product semantics, host theme adherence | **Domain-specific layer**; reusable across native Renew pages |
+| Renew `design` (this package) | Bounded-summary metrics, evidence notices, product semantics, host theme adherence | **Domain-specific layer**; reusable across native Renew pages |
 
 Onevra is MIT licensed. Our code is an original composition using public MyGo
 APIs and does **not** copy Onevra source or assets. Any future vendor/import must
@@ -24,11 +24,11 @@ retain its license and be independently pinned, audited and tested.
 
 | API | Usage | Contract |
 | --- | --- | --- |
-| \`ToneColor(theme, Tone)\` | Semantic color resolver | Uses current theme's accent/success/warning/danger/muted; no fixed color |
-| \`MetricTile(context, Metric)\` | Desktop KPI / observation snapshot | Not a button; always supply timeframe or summary boundary in Detail |
-| \`MetricStrip(context, []Metric)\` | Responsive metrics row | Wraps on narrow windows; works with MyGo scaling |
-| \`Section(context, title, subtitle, content)\` | Common section surface | Caller owns content and interactions |
-| \`NoticeCard(context, Notice)\` | Evidence caveat / advisory | Text-first; never show green “safe” just because event count is zero |
+| `ToneColor(theme, Tone)` | Semantic color resolver | Uses current theme's accent/success/warning/danger/muted; no fixed color |
+| `MetricTile(context, Metric)` | Desktop KPI / observation snapshot | Not a button; always supply timeframe or summary boundary in Detail |
+| `MetricStrip(context, []Metric)` | Responsive metrics row | Wraps on narrow windows; works with MyGo scaling |
+| `Section(context, title, subtitle, content)` | Common section surface | Caller owns content and interactions |
+| `NoticeCard(context, Notice)` | Evidence caveat / advisory | Text-first; never show green “safe” just because event count is zero |
 
 Components use the **current per-frame theme**, including live appearance
 changes, system accent, font scaling, reduced-motion setting and high-contrast
@@ -39,7 +39,7 @@ bounded input sizes.
 
 ### Wiring / examples
 
-\`\`\`go
+```go
 // UI build pass, within a MyGo native view:
 design.MetricStrip(c, []design.Metric{
     {
@@ -52,10 +52,10 @@ design.NoticeCard(c, design.Notice{
     Message: "ALERT 不是 BLOCK；完整处置证据需要查看事件详情。",
     Tone: design.Warning,
 })
-\`\`\`
+```
 
 The Overview page projects the existing bounded, redacted event buffer into
-metrics. Other pages' existing \`statCard\` helper now shares \`MetricTile\`
+metrics. Other pages' existing `statCard` helper now shares `MetricTile`
 styling. UI work changes **no** collectors, policies, permission gates,
 network access, telemetry, secrets or event retention.
 
@@ -75,8 +75,8 @@ network access, telemetry, secrets or event retention.
 
 ## Verification
 
-From \`desktop/renew\`, run \`go test ./design ./...\` (Go 1.27.1 or newer) and
-\`go vet ./...\`, followed by the existing Renew CI/package workflow.
-\`ui.NewTester\` tests enforce visible text. Theme colors and snapshot
+From `desktop/renew`, run `go test ./design ./...` (Go 1.27.1 or newer) and
+`go vet ./...`, followed by the existing Renew CI/package workflow.
+`ui.NewTester` tests enforce visible text. Theme colors and snapshot
 semantics are checked separately. A PR should not be merged without a full
 headless test run and, where possible, desktop visual checks.
