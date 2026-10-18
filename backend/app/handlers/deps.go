@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"os/exec"
 
 	"agent-ebpf-filter/app/events"
@@ -118,6 +119,7 @@ type PluginService interface {
 	UnloadEBPF(id string)
 	CompileUserBPF(ctx context.Context, id, source string) (objPath string, log []byte, err error)
 	BPFTemplates() []types.BPFTemplate
+	RunJS(context.Context, string, string, json.RawMessage) (json.RawMessage, error)
 }
 
 // MLService is the ML engine surface the ML handlers use. Response-shaped

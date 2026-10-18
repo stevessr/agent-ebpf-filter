@@ -3,6 +3,7 @@ module agent-ebpf-filter
 go 1.27.1
 
 require (
+	github.com/Calcium-Ion/moejs v0.1.0-alpha.7
 	github.com/NVIDIA/go-nvml v0.13.0-1
 	github.com/andybalholm/brotli v1.2.4
 	github.com/cilium/ebpf v0.22.0

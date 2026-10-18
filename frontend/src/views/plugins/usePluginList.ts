@@ -20,6 +20,8 @@ export function usePluginList(
         return "Webhook";
       case "command":
         return "命令规则";
+      case "javascript":
+        return "JavaScript (moejs)";
       default:
         return kind;
     }
@@ -39,7 +41,7 @@ export function usePluginList(
   const confirmDelete = (plugin: PluginManifest) => {
     Modal.confirm({
       title: `删除插件 ${plugin.id}?`,
-      content: "该操作会卸载已加载的 eBPF 程序并删除全部源码与编译产物。",
+      content: "这将删除插件源码和相关产物；若为 eBPF 插件，还会卸载已加载的程序。",
       okType: "danger",
       onOk: () => deletePlugin(plugin.id),
     });

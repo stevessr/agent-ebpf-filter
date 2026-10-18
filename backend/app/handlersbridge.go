@@ -771,7 +771,7 @@ func (pluginService) Upsert(req *handlers.PluginUpsertRequest) (types.PluginMani
 		CommandRewrite: append([]string(nil), req.CommandRewrite...),
 	}
 	var err error
-	if kind == PluginKindEBPF && strings.TrimSpace(req.Source) != "" {
+	if (kind == PluginKindEBPF && strings.TrimSpace(req.Source) != "") || kind == PluginKindJavaScript && req.Source != "" {
 		err = pluginRegistry.UpsertWithSource(m, req.Source)
 	} else {
 		err = pluginRegistry.Upsert(m)
@@ -785,8 +785,12 @@ func (pluginService) Upsert(req *handlers.PluginUpsertRequest) (types.PluginMani
 
 func (pluginService) Delete(id string) error { return pluginRegistry.Delete(id) }
 
+func (pluginService) RunJS(ctx context.Context, id, hook string, payload json.RawMessage) (json.RawMessage, error) {
+	return RunJavaScriptPlugin(ctx, id, hook, payload)
+}
+
 func (pluginService) SetEnabled(ctx context.Context, id string, enabled bool) (types.PluginManifest, error) {
-	manifest, err := pluginRegistry.SetEnabled(id, enabled)
+	manifest, err := pluginRegistry.SetEnabled(ctx, id, enabled)
 	if err != nil {
 		return types.PluginManifest{}, err
 	}

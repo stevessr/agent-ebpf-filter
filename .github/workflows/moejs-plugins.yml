@@ -1,0 +1,163 @@
+name: moejs JavaScript plugins
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "backend/app/jsplugins/**"
+      - "backend/cmd/jsplugin-worker/**"
+      - "deploy/systemd/agent-ebpf-jsplugin-worker.service"
+      - "backend/app/js_plugin.go"
+      - "backend/app/plugins.go"
+      - "backend/app/plugin_files.go"
+      - "backend/app/handlers/plugin*.go"
+      - "backend/app/handlers/deps.go"
+      - "backend/app/handlersbridge.go"
+      - "backend/app/types/constant.go"
+      - "backend/go.mod"
+      - "backend/go.sum"
+      - ".github/workflows/moejs-plugins.yml"
+  push:
+    paths:
+      - "backend/app/jsplugins/**"
+      - "backend/cmd/jsplugin-worker/**"
+      - "deploy/systemd/agent-ebpf-jsplugin-worker.service"
+      - "backend/app/js_plugin.go"
+      - "backend/app/plugins.go"
+      - "backend/app/plugin_files.go"
+      - "backend/app/handlers/plugin*.go"
+      - "backend/app/handlers/deps.go"
+      - "backend/app/handlersbridge.go"
+      - "backend/app/types/constant.go"
+      - "backend/go.mod"
+      - "backend/go.sum"
+      - ".github/workflows/moejs-plugins.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: moejs runtime compile, hook and deadline tests
+        working-directory: backend
+        run: go test ./app/jsplugins -count=1 -timeout=5m
+      - name: Build isolated JavaScript worker
+        working-directory: backend
+        run: go build -o /tmp/agent-ebpf-jsplugin-worker ./cmd/jsplugin-worker
+      - name: JavaScript worker IPC regression
+        working-directory: backend
+        run: go test -race ./app/jsplugins -run '^TestWorker' -count=1 -timeout=5m
+      - name: Real worker process isolation regression
+        working-directory: backend
+        run: |
+          go test ./cmd/jsplugin-worker -run '^TestWorkerBinary' -count=1 -v -timeout=3m
+      - name: Worker refuses privileged execution
+        run: |
+          if sudo /tmp/agent-ebpf-jsplugin-worker --socket /tmp/agent-ebpf-should-not-exist.sock 2>/tmp/jsworker-root-test.log; then
+            echo "::error::JavaScript worker unexpectedly accepted root privileges"
+            exit 1
+          fi
+          grep -q 'refusing to run JavaScript worker as root' /tmp/jsworker-root-test.log
+      - name: Validate restricted systemd deployment
+        run: |
+          sudo install -D -m 0755 /tmp/agent-ebpf-jsplugin-worker /usr/local/libexec/agent-ebpf-jsplugin-worker
+          systemd-analyze verify deploy/systemd/agent-ebpf-jsplugin-worker.service
+      - name: Live systemd DynamicUser sandbox integration
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          diagnose() {
+            result=$?
+            echo "::error::Live systemd sandbox integration failed (exit=$result)"
+            sudo systemctl status agent-ebpf-jsplugin-worker.service --full --no-pager || true
+            sudo systemctl show agent-ebpf-jsplugin-worker.service -p MainPID -p ExecMainStatus -p Result -p User -p DynamicUser || true
+            sudo journalctl -u agent-ebpf-jsplugin-worker.service -n 80 --no-pager || true
+            echo "Host runtime directory:"
+            sudo ls -ld /run/agent-ebpf-jsplugin /run/private/agent-ebpf-jsplugin || true
+            sudo ls -la /run/agent-ebpf-jsplugin/ || true
+            pid="$(sudo systemctl show -P MainPID agent-ebpf-jsplugin-worker.service)"
+            echo "Worker root-visible directory:"
+            sudo ls -la "/proc/$pid/root/run/agent-ebpf-jsplugin/" || true
+            echo "Unix sockets:"
+            sudo ss -xlpn | grep -E '(agent-ebpf|jsplugin)' || true
+            exit "$result"
+          }
+          trap diagnose ERR
+          if [[ "$(cat /proc/1/comm)" != "systemd" ]]; then
+            echo "::error::This integration test requires a systemd Ubuntu VM runner"
+            exit 1
+          fi
+          (cd backend && go test -c -o /tmp/jsplugin-worker-systemd.test ./cmd/jsplugin-worker)
+          sudo install -D -m 0644 deploy/systemd/agent-ebpf-jsplugin-worker.service /etc/systemd/system/agent-ebpf-jsplugin-worker.service
+          cleanup() {
+            sudo systemctl stop agent-ebpf-jsplugin-worker.service || true
+            sudo rm -f /etc/systemd/system/agent-ebpf-jsplugin-worker.service
+            sudo systemctl daemon-reload || true
+          }
+          trap cleanup EXIT
+          sudo systemctl daemon-reload
+          if ! sudo systemctl start agent-ebpf-jsplugin-worker.service; then
+            sudo journalctl -u agent-ebpf-jsplugin-worker.service -n 80 --no-pager
+            exit 1
+          fi
+          # Type=simple reports active before the DynamicUser sandbox has
+          # finished spawning the real process. Wait for the IPC socket before
+          # inspecting its PID, UID and namespaces.
+          for attempt in {1..100}; do
+            if sudo test -S /run/agent-ebpf-jsplugin/worker.sock; then break; fi
+            sleep 0.05
+          done
+          sudo test -S /run/agent-ebpf-jsplugin/worker.sock
+          # Access is intentionally denied to the unprivileged CI runner.
+          if test -S /run/agent-ebpf-jsplugin/worker.sock; then
+            echo "::error::Private worker socket unexpectedly visible to unprivileged runner"
+            exit 1
+          fi
+          sudo env AGENT_EBPF_TEST_SYSTEMD_SOCKET=/run/agent-ebpf-jsplugin/worker.sock \
+            /tmp/jsplugin-worker-systemd.test -test.run '^TestWorkerSystemdIntegration$' -test.v
+          sudo systemctl is-active --quiet agent-ebpf-jsplugin-worker.service
+          worker_pid="$(sudo systemctl show -P MainPID agent-ebpf-jsplugin-worker.service)"
+          worker_uid="$(ps -o uid= -p "$worker_pid" | tr -d ' ')"
+          echo "Ready worker PID=$worker_pid UID=$worker_uid"
+          [[ "$worker_pid" -gt 1 && "$worker_uid" != "0" ]]
+          effective_caps="$(sudo awk '/^CapEff:/ {print $2}' "/proc/$worker_pid/status")"
+          echo "Ready worker effective capabilities=$effective_caps"
+          [[ "$effective_caps" == "0000000000000000" ]]
+          worker_net="$(sudo readlink "/proc/$worker_pid/ns/net" || true)"
+          host_net="$(sudo readlink /proc/1/ns/net || true)"
+          echo "Worker namespace=$worker_net / host namespace=$host_net"
+          [[ -n "$worker_net" && -n "$host_net" && "$worker_net" != "$host_net" ]]
+          sudo systemctl is-active --quiet agent-ebpf-jsplugin-worker.service
+      - name: JavaScript VM race regression
+        working-directory: backend
+        run: go test -race ./app/jsplugins -count=1 -timeout=5m
+      - name: Concurrent overload stress
+        working-directory: backend
+        run: go test -race ./app/jsplugins -run '^TestWorker(ConcurrentCalls|OverloadResponse)' -count=25 -timeout=5m
+      - name: Install native backend build dependencies
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler clang llvm libbpf-dev libelf-dev
+      - name: Generate protobuf bindings
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
+          mkdir -p backend/pb
+          protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto \
+            proto/tracker_common.proto proto/tracker_events.proto \
+            proto/tracker_registration.proto proto/tracker_system.proto \
+            proto/tracker_config.proto proto/tracker_shell.proto
+      - name: Generate eBPF bindings
+        working-directory: backend/ebpf
+        run: go generate
+      - name: Plugin registry and handler regression
+        working-directory: backend
+        run: |
+          go test ./app/handlers -run '(Plugin|BPF)' -count=1
+          go test ./app -run '(JavaScript|PluginStore|PluginFiles|PluginDelete|PluginKind)' -count=1
+          go test -race ./app -run '^TestJavaScript' -count=1 -timeout=5m
