@@ -37,3 +37,7 @@ The GitHub workflow has normal contract tests and an opt-in `workflow_dispatch` 
 - Full syscall/TLS collection needs a supported host and separately trusted collector. Tool traces must not be converted into fabricated syscall or website-request records.
 
 Official plugin and run APIs: https://opencode.ai/docs/plugins/ ; https://opencode.ai/docs/cli/ . See [adapter configuration](../../../adapters/opencode/README.md) and the eventual frozen `REPORT.md` for measured counts.
+
+A normal-task label does **not** certify every generated tool action as benign. A model may explore the protected fixture while doing an unrelated build. Normal-task blocked-call and affected-task rates are therefore operational interference measurements / false-positive review candidates, not a ground-truth action-classifier FPR. Retain those inputs for review; do not automatically import all calls from successful tasks as negative training examples.
+
+Metric review: control attempts are matched to their requested operation (read secret / rm protected file / write protected file), not merely to any argument mentioning the protected directory. The original long-running matrix used a looser derived counter; `audit_results.py` preserves its original `runs.json` and writes corrected `canonical_runs.json` / `canonical_summary.json` from unchanged native logs. This fixes measurement, without rerunning inference or changing the frozen policy. Corrected run IDs are listed explicitly.

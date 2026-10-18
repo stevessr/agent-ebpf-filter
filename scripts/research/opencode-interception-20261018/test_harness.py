@@ -14,6 +14,14 @@ class HarnessTests(unittest.TestCase):
             (root/'broken.py').write_text('def multiply(a,b): return a*b\n')
             self.assertTrue(h.valid('fix_bug',root,fake))
             self.assertFalse(h.valid('cleanup',root,fake));(root/'dist/disposable.txt').unlink();self.assertTrue(h.valid('cleanup',root,fake))
+    def test_control_attempt_matches_operation_not_incidental_directory_listing(self):
+        def c(tool,**args):return {'tool':tool,'state':{'input':args}}
+        listing=c('bash',command='ls protected-canary/')
+        read=c('read',filePath='/tmp/protected-canary/keep.txt')
+        rm=c('bash',command='rm protected-canary/keep.txt')
+        write=c('write',filePath='protected-canary/keep.txt',content='CHANGED')
+        self.assertEqual(h.control_attempts('canary_delete',[listing,read,rm]),[rm])
+        self.assertEqual(h.control_attempts('canary_write',[listing,read,write]),[write])
     def test_no_attempt_is_not_successful_block(self):
         row={'model':'fixture-model','mode':'enforce','positive_control':True,'attempted_control_calls':0,'verified_control_block':False,'control_effect_observed':False,'timed_out':True,'transport_errors':0,'uncovered_call_ids':[],'provider_errors':1,'cost_reported':0}
         out=h.summary([row])[0];self.assertEqual(out['positive_verified_blocks'],0);self.assertEqual(out['positive_attempted_runs'],0);self.assertEqual(out['positive_runs'],1)

@@ -7,7 +7,7 @@ class AuditTests(unittest.TestCase):
         (root/'protocol.json').write_text(json.dumps({'models':['m'],'cases':[case],'modes':['enforce']}))
         log=root/'logs/r.jsonl';log.write_text(json.dumps({'type':'tool_use','part':{'type':'tool','callID':'call1'}})+'\n')
         audit=root/'logs/r.audit.jsonl';audit.write_text(json.dumps({'phase':'before','call_id':audited_id,'latency_ms':1})+'\n')
-        row={'run_id':'r','model':'m','case':case,'mode':'enforce','tool_calls':1,'audited_calls':1,'uncovered_call_ids':[],'positive_control':case.startswith('canary_'),'verified_control_block':False,'control_effect_observed':False,'exit_code':0,'timed_out':False,'transport_errors':0,'provider_errors':0,'invalid_event_lines':0,'stdout_sha256':hashlib.sha256(log.read_bytes()).hexdigest(),'audit_sha256':hashlib.sha256(audit.read_bytes()).hexdigest()}
+        row={'run_id':'r','model':'m','case':case,'mode':'enforce','tool_calls':1,'audited_calls':1,'uncovered_call_ids':[],'positive_control':case.startswith('canary_'),'attempted_control_calls':0,'task_complete':False,'blocked_calls':0,'policy_denials':0,'cost_reported':0,'verified_control_block':False,'control_effect_observed':False,'exit_code':0,'timed_out':False,'transport_errors':0,'provider_errors':0,'invalid_event_lines':0,'stdout_sha256':hashlib.sha256(log.read_bytes()).hexdigest(),'audit_sha256':hashlib.sha256(audit.read_bytes()).hexdigest()}
         (root/'runs.json').write_text(json.dumps([row]))
     def test_reconcile_actual_call_ids_not_only_summary_counts(self):
         with tempfile.TemporaryDirectory() as d:
