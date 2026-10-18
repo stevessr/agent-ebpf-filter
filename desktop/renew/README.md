@@ -192,7 +192,7 @@ The browser `/renew` frontend has been removed. The main browser workbench remai
 
 ## Why a separate module?
 
-MyGo requires Go 1.27.1+. Renew currently pins **MyGo v0.5.1** and the repository workspace uses Go 1.27.1. The `desktop/renew` module remains isolated so native UI dependencies do not enter the privileged backend. The current runtime includes earlier memory/cache, Linux rendering, and input improvements as well as v0.4.3's latest native UI fixes without altering the privilege boundary.
+MyGo requires Go 1.27.1+. Renew pins the MyGo dependency in [`desktop/renew/go.mod`](go.mod) (**v0.5.5 as of 2026-10-18**) and the repository workspace uses Go 1.27.1. The `desktop/renew` module remains isolated so native UI dependencies do not enter the privileged backend. The current runtime includes earlier memory/cache, Linux rendering, and input improvements as well as v0.4.3's latest native UI fixes without altering the privilege boundary.
 
 ## Develop
 
@@ -275,7 +275,7 @@ In bundled mode the privileged child listens only on an authenticated private Un
 
 ## MyGo v0.3.4 appearance and responsive UI
 
-- This UI iteration originally landed on **MyGo v0.3.4**; the current desktop module and CLI tool pin **v0.5.1**. It does not add a WebView runtime.
+- This UI iteration originally landed on **MyGo v0.3.4**; the current desktop module and CLI tool share the version pinned in [`go.mod`](go.mod) (**v0.5.5 as of 2026-10-18**). It does not add a WebView runtime.
 - Windows 11 supports a Mica material and macOS supports a sidebar material where the compositor offers native vibrancy. The toolbar provides a session-only **纯色模式 / 系统材质** switch; all content tables and event details keep opaque surfaces for readability. Unsupported Windows versions and Linux (Wayland/X11) retain the full opaque navy theme. Do not imply Linux compositor material support.
 - Navigation opens and closes with native, reduced-motion-aware animation. Page changes have a modest entrance transition; the toolbar automatically overflows actions at narrow sizes while preserving keyboard and screen-reader behavior.
 - Search, event pinning, explicit detail requests and privileged backend permissions are unchanged. No additional collection, telemetry or network call is introduced by these UI effects.
@@ -321,7 +321,7 @@ In bundled mode the privileged child listens only on an authenticated private Un
 - **安全边界**：所有本地文件 I/O 只由未提权的 Renew 桌面进程按当前用户权限执行。不会经由 eBPF 后端、Shell、远程 API 或策略管理权限代读写。编辑器拒绝符号链接和设备文件，并对保存前的外部修改进行版本/时间与文件标识检查。使用同目录临时文件原子替换、保留原权限，并通过 MyGo Buffer 写入原始行尾格式；发现冲突时拒绝覆盖、要求重新打开确认。极小的并发替换竞争窗口不等于跨进程强制锁。
 - **独立于采集**：即使采集器断开或启动失败，文件浏览与编辑器仍可使用；进入本地页面不会创建额外事件流、改写 eBPF 捕获范围或变更 LSM 文件权限策略。
 
-依赖版本升级至 **MyGo v0.4.8**（Go 1.27.1），仍与特权后端模块隔离。常规 PR CI 执行 `go mod tidy -diff`、`go test ./...`、`go tool mygo vet .`、单二进制构建及 Linux 安装包检查。
+本次历史迭代曾将依赖升级至 **MyGo v0.4.8**（Go 1.27.1）；这不是现行版本。当前版本以 [`go.mod`](go.mod) 为准，仍与特权后端模块隔离。常规 PR CI 执行 `go mod tidy -diff`、`go test ./...`、`go tool mygo vet .`、单二进制构建及 Linux 安装包检查。
 
 
 ## Agent → SubAgent 进程派生可视化
