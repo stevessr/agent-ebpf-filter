@@ -74,7 +74,7 @@ func (a *renewApp) agentConfigPanel(c *ui.Context) {
 			{Title: "候选主机", MinWidth: 185},
 			{Title: "观测事件", Width: 78, Align: ui.End},
 		}
-		ownership := buildAgentOwnershipIndex(a.events, nil)
+		ownership := a.summaryOwnershipIndex()
 		observedByAgentHost := observedConfigHostCounts(a.events, ownership)
 		a.configTable.Key = func(i int) any {
 			row := rows[i]

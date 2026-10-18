@@ -85,9 +85,12 @@ type renewApp struct {
 	eventUIPaused         eventPauseFlag
 	eventUIBatcherStarted eventBatcherFlag
 	eventUICommitPending  eventCommitFlag
+	ownerCacheValid       bool
+	ownerCacheVersion     uint64
+	ownerCache            agentOwnershipIndex
 	filterCacheValid      bool
 	filterCacheVersion    uint64
-	filterCacheKey        string
+	filterCacheKey        eventFilterSignature
 	filterCacheRows       []eventSummary
 	riskCacheValid        bool
 	riskCacheVersion      uint64
@@ -103,11 +106,11 @@ type renewApp struct {
 	personalAlertCacheHidden        int
 	networkCacheValid               bool
 	networkCacheVersion             uint64
-	networkCacheKey                 string
+	networkCacheKey                 eventFilterSignature
 	networkCacheRows                []networkAggregate
 	processCacheValid               bool
 	processCacheVersion             uint64
-	processCacheKey                 string
+	processCacheKey                 eventFilterSignature
 	processCacheRows                []processAggregate
 	domainCacheValid                bool
 	domainCacheVersion              uint64
@@ -586,18 +589,9 @@ func (a *renewApp) errorView(c *ui.Context) {
 	})
 }
 
-func (a *renewApp) eventFilterCacheKey() string {
-	q := strings.ToLower(strings.TrimSpace(a.search))
-	key := q + "\x00" + a.eventTypeFilter + "\x00" + a.eventSessionFilter + "\x00" + a.eventDecisionFilter + "\x00" + fmt.Sprint(a.eventPIDFilter) + "\x00" + fmt.Sprint(a.eventRootPIDFilter) + "\x00" + a.eventTargetFilter + "\x00" + a.eventDomainAgent + "\x00" + a.eventDomainTarget + "\x00" + a.eventDomainKind + "\x00" + fmt.Sprint(a.eventFileEditsOnly) + "\x00" + fmt.Sprint(a.eventDelegatedOnly) + "\x00" + a.eventRiskFilter + "\x00" + fmt.Sprint(a.eventMinRiskScore) + "\x00" + a.managementEventFilter
-	if a.eventAttentionOnly {
-		key += "\x001"
-	}
-	return key
-}
-
 func (a *renewApp) filteredEvents() []eventSummary {
-	q := strings.ToLower(strings.TrimSpace(a.search))
 	key := a.eventFilterCacheKey()
+	q := key.Search
 	if a.filterCacheValid && a.filterCacheVersion == a.eventsVersion && a.filterCacheKey == key {
 		return a.filterCacheRows
 	}
@@ -612,7 +606,7 @@ func (a *renewApp) filteredEvents() []eventSummary {
 	out := make([]eventSummary, 0, min(len(a.events), 256))
 	var domainOwners agentOwnershipIndex
 	if a.eventDomainTarget != "" {
-		domainOwners = buildAgentOwnershipIndex(a.events, nil)
+		domainOwners = a.summaryOwnershipIndex()
 	}
 	for _, event := range a.events {
 		if a.eventDomainTarget != "" && !matchesAgentDomainEvent(event, domainOwners, a.eventDomainAgent, a.eventDomainTarget, a.eventDomainKind) {

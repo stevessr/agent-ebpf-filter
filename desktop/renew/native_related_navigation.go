@@ -143,7 +143,7 @@ func hasKnownRootAgent(event eventSummary, owner eventAttribution) bool {
 // point of investigation. The actual executor and the owning Agent get
 // separate buttons; a same-PID drilldown is not a substitute for root lineage.
 func (a *renewApp) eventQuickLinks(c *ui.Context, event eventSummary, withPolicy bool) {
-	owner := buildAgentOwnershipIndex(a.events, nil).attribution(event)
+	owner := a.summaryOwnershipIndex().attribution(event)
 	ui.Row(c).Wrap().Gap(6).Children(func() {
 		if event.PID > 0 && ui.Button(c, "执行 PID").Tooltip("精确过滤本次系统调用的实际进程").Clicked() {
 			a.navigatePIDEvents(event.PID)
@@ -186,7 +186,7 @@ func (a *renewApp) eventQuickLinks(c *ui.Context, event eventSummary, withPolicy
 // Modal links close the detail and release its sensitive payload before
 // changing pages/filters. Nothing navigates to an unknown or inferred value.
 func (a *renewApp) eventDetailQuickLinks(c *ui.Context, event eventSummary) {
-	owner := buildAgentOwnershipIndex(a.events, nil).attribution(event)
+	owner := a.summaryOwnershipIndex().attribution(event)
 	ui.Row(c).Wrap().Gap(6).Children(func() {
 		if event.PID > 0 && ui.Button(c, "执行 PID 事件").Clicked() {
 			a.navigatePIDEvents(event.PID)

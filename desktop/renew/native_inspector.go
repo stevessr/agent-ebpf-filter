@@ -289,7 +289,7 @@ func (a *renewApp) inspector(c *ui.Context) {
 
 func (a *renewApp) inspectorEventCard(c *ui.Context, event eventSummary) {
 	t := c.Theme()
-	owner := buildAgentOwnershipIndex(a.events, nil).attribution(event)
+	owner := a.summaryOwnershipIndex().attribution(event)
 	ui.Column(c).Padding(12).Gap(8).Radius(10).Background(t.Background).Border(1, t.Border).Children(func() {
 		ui.Row(c).Gap(7).AlignItems(ui.Center).Children(func() {
 			riskPill(c, eventRisk(event))

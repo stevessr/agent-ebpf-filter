@@ -297,7 +297,7 @@ func (a *renewApp) eventsView(c *ui.Context) {
 		})
 	}
 
-	owners := buildAgentOwnershipIndex(a.events, nil)
+	owners := a.summaryOwnershipIndex()
 	rows := a.filteredEvents()
 	// Keep the existing +50 pagination for deep inspection; this native
 	// stepped slider offers a quick adjustment for daily monitoring.
@@ -670,7 +670,7 @@ func (a *renewApp) systemView(c *ui.Context) {
 }
 func (a *renewApp) eventRow(c *ui.Context, e eventSummary) {
 	t := c.Theme()
-	owner := buildAgentOwnershipIndex(a.events, nil).attribution(e)
+	owner := a.summaryOwnershipIndex().attribution(e)
 	ui.Row(c).Padding(9, 0).Gap(12).AlignItems(ui.Start).Children(func() {
 		ui.Text(c, eventTime(e)).Width(66).Font("monospace").FontSize(11).TextColor(t.TextMuted)
 		ui.Column(c).Grow(1).MinWidth(0).Gap(3).Children(func() {
