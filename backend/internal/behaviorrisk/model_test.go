@@ -78,11 +78,11 @@ func TestAbstentionAndNoSecrets(t *testing.T) {
 	}
 }
 func TestVectorDeterminismAndBounds(t *testing.T) {
-	v, e := Encode("a%2520b SQL", "http_parameter")
+	v, e := Encode(strings.Repeat("ab%2520cd", 11)+strings.Repeat("xyz", 7)+"SQL987", "http_parameter")
 	if e != nil {
 		t.Fatal(e)
 	}
-	v2, _ := Encode("a%2520b SQL", "http_parameter")
+	v2, _ := Encode(strings.Repeat("ab%2520cd", 11)+strings.Repeat("xyz", 7)+"SQL987", "http_parameter")
 	b, _ := json.Marshal(v)
 	b2, _ := json.Marshal(v2)
 	if !bytes.Equal(b, b2) {

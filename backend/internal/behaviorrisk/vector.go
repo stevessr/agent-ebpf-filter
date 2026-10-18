@@ -109,11 +109,15 @@ func Encode(text, kind string) (Vector, error) {
 		}
 	}
 	out := Vector{Kind: kind, Entries: make([]Entry, 0, len(counts))}
-	norm := 0.
 	for index, count := range counts {
 		value := math.Log1p(float64(count))
 		out.Entries = append(out.Entries, Entry{index, value})
-		norm += value * value
+	}
+	// Sum in index order: Go map iteration must not affect floating-point output.
+	sort.Slice(out.Entries, func(a, b int) bool { return out.Entries[a].Index < out.Entries[b].Index })
+	norm := 0.
+	for _, entry := range out.Entries {
+		norm += entry.Value * entry.Value
 	}
 	norm = math.Sqrt(norm)
 	if norm > 0 {
@@ -121,6 +125,5 @@ func Encode(text, kind string) (Vector, error) {
 			out.Entries[j].Value /= norm
 		}
 	}
-	sort.Slice(out.Entries, func(a, b int) bool { return out.Entries[a].Index < out.Entries[b].Index })
 	return out, nil
 }
