@@ -11,7 +11,7 @@ does not call the privileged backend.
 | Option | Strength | Decision |
 | --- | --- | --- |
 | [MyGo native `ui`](https://github.com/egoist/mygo/tree/main/ui) | GPU-native rendering, layout, input/IME, focus, tables, virtual lists, accessibility, test harness | **Foundation**: keep native semantics and use for controls |
-| [Onevra](https://github.com/oneo-me/onevra/tree/main/source) | Existing MyGo v0.5.5-compatible components, theme, sidebar/shells, chart and command packages; MIT | **Design reference / optional future dependency**; avoid wholesale theme replacement and transitive migration now |
+| [Onevra](https://github.com/oneo-me/onevra/tree/main/source) | Existing MyGo v0.5.5-compatible components, theme, sidebar/shells, chart and command packages; MIT | **Visual reference only**; no Onevra import, vendoring or runtime dependency |
 | [Fyne](https://github.com/fyne-io/fyne) / [Gio](https://github.com/gioui/gio) | Mature alternative native Go GUI approaches | Not drop-in MyGo components; would introduce another event/rendering stack |
 | [shadcn/ui](https://ui.shadcn.com/) / [Radix](https://www.radix-ui.com/) | Excellent web component primitives | Appropriate for the separate Vue/web UI only with framework integration; not native MyGo |
 | Renew `design` (this package) | Bounded-summary metrics, evidence notices, product semantics, host theme adherence | **Domain-specific layer**; reusable across native Renew pages |
@@ -73,7 +73,7 @@ network access, telemetry, secrets or event retention.
    confirmed-block outcomes; synchronize cursor with the event detail view.
 3. **AgentGraph:** keyboard-selectable, virtualized lineage explorer; preserve
    uncertainty in process attribution and differentiate root agents/subagents.
-4. **CommandPalette / Preferences:** reuse MyGo or audited Onevra primitives,
+4. **CommandPalette / Preferences:** implement local Renew controls over MyGo primitives,
    preserving existing privilege confirmation flows.
 5. **Theme gallery / visual regression:** screenshots at narrow/wide sizes,
    dark/light and high contrast on Wayland, Windows and macOS.
