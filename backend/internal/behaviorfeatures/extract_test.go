@@ -183,3 +183,22 @@ func BenchmarkExtractHTTP(b *testing.B) {
 		}
 	}
 }
+
+func TestHTTPCaseAndMediaType(t *testing.T) {
+	h := HTTP{Method: "get", Target: ptr("/"), HeadersPresent: true, Body: ptr("a+b"), Headers: []Header{{"Content-Type", "application/x-www-form-urlencoded-extra"}}}
+	o := get(t, Input{HTTP: &h})
+	want(t, o, "http.method_get", 0, true)
+	want(t, o, "http.method_other", 1, true)
+	want(t, o, "body.space_ratio", 0, true)
+	h.Headers[0].Value = "application/x-www-form-urlencoded; charset=UTF-8"
+	o = get(t, Input{HTTP: &h})
+	want(t, o, "body.space_ratio", 1.0/3, true)
+}
+func TestCatalogCannotBeMutated(t *testing.T) {
+	c := Catalog()
+	c[0] = "injected"
+	o := get(t, Input{Parameter: ptr("test")})
+	if _, ok := o.Features["injected"]; ok {
+		t.Fatal("shared catalog mutated")
+	}
+}

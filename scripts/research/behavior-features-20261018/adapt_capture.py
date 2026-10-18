@@ -12,17 +12,70 @@ from collections import Counter
 SYSCALLS = set("read write readv writev pread64 pwrite64 preadv pwritev preadv2 pwritev2 open openat openat2 creat exec execve execveat unlink unlinkat rmdir rename renameat renameat2 chmod fchmod fchmodat chown fchown lchown fchownat".split())
 
 
+MAX_LINE = 512 * 1024
+
+
+def strict_object(pairs):
+    result = {}
+    for k, v in pairs:
+        if k in result:
+            raise ValueError("duplicate JSON key")
+        result[k] = v
+    return result
+
+
+def alias(obj, *names, default=None):
+    present = [n for n in names if n in obj]
+    if len(present) > 1:
+        raise ValueError("ambiguous aliases")
+    return obj[present[0]] if present else default
+
+
+def integer(value, signed=False):
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        raise ValueError("invalid integer")
+    if isinstance(value, str) and not re.fullmatch(r"-?[0-9]+", value):
+        raise ValueError("invalid integer")
+    n = int(value)
+    if not (-(2**63) if signed else 0) <= n <= (2**63-1 if signed else 2**64-1):
+        raise ValueError("integer out of range")
+    return n
+
+
+def unwrap(record, fmt):
+    if not isinstance(record, dict):
+        raise ValueError("record must be an object")
+    if fmt != "archive":
+        return record
+    wrapped = alias(record, "event", "Event")
+    envelope = alias(record, "envelope", "Envelope")
+    if wrapped is not None:
+        return wrapped
+    if envelope is not None:
+        if not isinstance(envelope, dict):
+            raise ValueError("invalid envelope")
+        return alias(envelope, "legacy_event", "legacyEvent", default={})
+    return record
+
+
 def adapt(record, fmt):
-    e = record.get("event", record) if fmt == "archive" else record
+    e = unwrap(record, fmt)
     if not isinstance(e, dict):
         return None, "invalid_event"
+    normalized = {}
+    for key, value in e.items():
+        name = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", key).lower()
+        if name in normalized:
+            raise ValueError("ambiguous protobuf JSON aliases")
+        normalized[name] = value
+    e = normalized
     out = {"source": str(e.get("capture_source", "unknown")), "context": {
-        "run_id": str(e.get("agent_run_id", "")), "tgid": e.get("tgid", 0),
+        "run_id": str(e.get("agent_run_id", "")), "tgid": integer(e.get("tgid", 0)),
     }}
     if fmt == "archive" and "kernel_timestamp_ns" in e:
-        out["context"].update(event_time_ns=int(e["kernel_timestamp_ns"]), clock=str(e.get("kernel_clock", "")))
+        out["context"].update(event_time_ns=integer(e["kernel_timestamp_ns"], signed=True), clock=str(e.get("kernel_clock", "")))
     if "kernel_dropped_since_last" in e:
-        out["capture_loss"] = int(e["kernel_dropped_since_last"]) > 0
+        out["capture_loss"] = integer(e["kernel_dropped_since_last"]) > 0
     name = e.get("type", "")
     if fmt == "archive" and name in SYSCALLS:
         s = {"name": name, "relative_base_unknown": True}
@@ -32,9 +85,9 @@ def adapt(record, fmt):
             if isinstance(e.get(src), str) and e[src]:
                 s[dst] = e[src]
         if "retval" in e:
-            s["return"] = int(e["retval"])
+            s["return"] = integer(e["retval"], signed=True)
         if name in {"read", "write"} and "bytes" in e:
-            s["requested_bytes"] = int(e["bytes"])
+            s["requested_bytes"] = integer(e["bytes"])
         if name == "open":
             m = re.fullmatch(r"flags=0x([0-9a-fA-F]+) mode=0[0-7]+", str(e.get("extra_info", "")))
             if m:
@@ -51,6 +104,8 @@ def adapt(record, fmt):
     if fmt == "tls" and not target:
         target = e.get("url")
     if method or target:
+        if not isinstance(method, str) or target is not None and not isinstance(target, str):
+            raise ValueError("invalid request field")
         h = {"method": str(method)}
         if isinstance(target, str) and target:
             h["target"] = target
@@ -81,18 +136,30 @@ def main():
     p.add_argument("--format", choices=["archive", "tls"], required=True)
     args = p.parse_args()
     counts = Counter()
-    for line in sys.stdin:
-        if len(line) > 512 * 1024:
+    stream = sys.stdin.buffer
+    while True:
+        line = stream.readline(MAX_LINE + 1)
+        if not line:
+            break
+        if len(line) > MAX_LINE:
+            while not line.endswith(b"\n"):
+                line = stream.readline(MAX_LINE + 1)
+                if not line:
+                    break
             counts["oversized"] += 1
             continue
         try:
-            record, status = adapt(json.loads(line), args.format)
+            parsed = json.loads(line.decode("utf-8", errors="strict"), object_pairs_hook=strict_object,
+                                parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite")))
+            record, status = adapt(parsed, args.format)
             counts[status] += 1
             if record is not None:
                 print(json.dumps(record, ensure_ascii=True))
-        except (ValueError, TypeError, AttributeError, OverflowError):
+        except (ValueError, TypeError, AttributeError, OverflowError, RecursionError):
             counts["invalid"] += 1
     print(json.dumps({"audit": dict(counts)}), file=sys.stderr)
+    if counts["invalid"] or counts["oversized"]:
+        raise SystemExit(2)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-# Kernel and HTTP behavior feature cleaning (offline v1)
+# Kernel and HTTP behavior feature cleaning (offline v2)
 
 This implements the behavior-cleaning slice of #112, alongside the context
 bootstrap in draft #114. It is a separate offline package and CLI. It does not
@@ -31,7 +31,7 @@ headers and bodies are excluded. Aggregate features are not differential privacy
 | Target/body | separate bounded lexical statistics, entropy, encoding/traversal and SQL/XSS/command/URL hints | hints are inputs, never labels or proof of exploitation; no full WAF/parser equivalence |
 | History | prior events, successful sensitive-path reads, successful writes, outgoing requests over 1/30/300 s | counts cover this batch only, not complete host history; temporal relation is not dataflow |
 
-The ordered `Catalog()` is the independent `kernel-http-behavior.v1` contract.
+The ordered `Catalog()` is the independent `kernel-http-behavior.v2` contract.
 No `risk_score`, `decision`, source identity, dataset label, attack category or
 run identifier becomes a training feature. The canonical CLI rejects unknown
 JSON fields, duplicate keys, excessive nesting and trailing JSON values.
@@ -143,3 +143,5 @@ References: [Linux open/openat](https://man7.org/linux/man-pages/man2/openat.2.h
 [OWASP CRS](https://owasp.org/projects/crs),
 [OWASP SSRF guidance](https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html),
 [original HttpParamsDataset](https://github.com/Morzeux/HttpParamsDataset).
+
+Version 2 adds exact-key/UTF-8 validation and corrects case-sensitive HTTP method / media type parsing. Version 1 research artifacts remain tied to commit 2073296ea6a02c6f36846bb12ba354ac946df961; do not mix feature schema versions. See the production readiness report for current evidence.

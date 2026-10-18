@@ -3,12 +3,15 @@ package behaviorfeatures
 import (
 	"errors"
 	"math"
+	"mime"
 	"net"
 	"net/url"
 	"path"
 	"regexp"
 	"strings"
 )
+
+var errInvalidInput = errors.New("invalid or oversized behavior record")
 
 var sqlHint = regexp.MustCompile(`(?i)(union\s+(all\s+)?select|\bselect\b.+\bfrom\b|\bor\s+['"0-9]+\s*=|sleep\s*\(|benchmark\s*\(|information_schema|--|/\*)`)
 var xssHint = regexp.MustCompile(`(?i)(<\s*(script|svg|iframe|img)\b|javascript\s*:|\bon[a-z]+\s*=)`)
@@ -21,7 +24,11 @@ var syscallKeys = strings.Fields("op_known op_read op_write op_exec op_open op_d
 var httpKeys = strings.Fields("method_known method_get method_post method_put method_patch method_delete method_other outgoing incoming truncated target_present target_valid absolute_form query_count query_duplicate_keys encoded_delimiter path_depth path_traversal host_present authority_mismatch destination_ip_present ip_valid ip_private ip_loopback ip_linklocal ip_multicast ip_unspecified headers_present header_count duplicate_content_length transfer_encoding_with_content_length body_present body_bytes")
 
 // Catalog is a stable, ordered feature contract independent of the legacy 128 dimensions.
-func Catalog() []string {
+var catalog = buildCatalog()
+
+func Catalog() []string { return append([]string(nil), catalog...) }
+
+func buildCatalog() []string {
 	keys := []string{"capture_loss", "join_context_complete"}
 	for _, p := range []string{"path.", "target_path."} {
 		for _, k := range pathKeys {
@@ -88,11 +95,11 @@ func validInput(i Input) bool {
 
 // Extract never retains input text. An error deliberately contains no input content.
 func Extract(i Input) (Output, error) {
-	o := Output{Schema: SchemaVersion, Features: map[string]Value{}}
+	o := Output{Schema: SchemaVersion, Features: make(map[string]Value, len(catalog))}
 	if !validInput(i) {
-		return o, errors.New("invalid or oversized behavior record")
+		return o, errInvalidInput
 	}
-	for _, k := range Catalog() {
+	for _, k := range catalog {
 		o.missing(k)
 	}
 	o.flag("join_context_complete", complete(i.Context))
@@ -314,7 +321,7 @@ func extractSys(o *Output, s Syscall) {
 }
 
 func extractHTTP(o *Output, h HTTP) {
-	method := strings.ToUpper(h.Method)
+	method := h.Method // HTTP method tokens are case-sensitive.
 	known := method != ""
 	o.flag("http.method_known", known)
 	for _, m := range []string{"GET", "POST", "PUT", "PATCH", "DELETE"} {
@@ -404,8 +411,11 @@ func extractHTTP(o *Output, h HTTP) {
 		o.put("http.body_bytes", float64(len(*h.Body)))
 		form := false
 		for _, v := range h.Headers {
-			if strings.EqualFold(v.Name, "content-type") && strings.HasPrefix(strings.ToLower(v.Value), "application/x-www-form-urlencoded") {
-				form = true
+			if strings.EqualFold(v.Name, "content-type") {
+				mediaType, _, err := mime.ParseMediaType(v.Value)
+				if err == nil && mediaType == "application/x-www-form-urlencoded" {
+					form = true
+				}
 			}
 		}
 		tmp := Output{Features: map[string]Value{}}

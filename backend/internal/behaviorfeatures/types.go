@@ -2,7 +2,7 @@
 // features. Source strings describe provenance; they do not authenticate it.
 package behaviorfeatures
 
-const SchemaVersion = "kernel-http-behavior.v1"
+const SchemaVersion = "kernel-http-behavior.v2"
 const MaxText = 65536
 const MaxEvents = 20000
 const MaxBatchBytes = 16 * 1024 * 1024
@@ -85,3 +85,11 @@ func (o *Output) flag(k string, v bool) {
 	o.put(k, n)
 }
 func (o *Output) missing(k string) { o.Features[k] = Value{} }
+
+// Validate checks input bounds without allocating feature output.
+func Validate(i Input) error {
+	if !validInput(i) {
+		return errInvalidInput
+	}
+	return nil
+}
