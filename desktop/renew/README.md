@@ -6,6 +6,8 @@
 
 明镜高悬是 Agent eBPF Filter 的原生桌面监控应用。界面完全使用 Go 和 MyGo `ui` 组件绘制，不依赖 WebView、Vite、HTML、JavaScript 或 Vue Renew 前端运行时。
 
+桌面组件选型、可复用指标卡与设计规范见 [Renew Native Design System](DESIGN_SYSTEM.md)。
+
 ## 个人用户快速上手
 
 启动 Renew 后先在 **我的设备** 查看监控状态；只有采集健康、事件/系统流可用时，摘要中的“正常”才表示**当前已观测窗口**没有待关注事件，不能替代设备安全扫描。若出现 **优先核查**，先查看高风险事件再看普通告警，通过“定位”进入事件页核对真实的 `ALERT`、`BLOCK`、`DENY` 决策和执行证据。近期五条活动与优先核查互相独立，事件页的搜索和 PID 筛选不会令首页误显空白。

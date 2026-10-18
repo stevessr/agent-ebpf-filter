@@ -9,6 +9,7 @@ import (
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
+	"github.com/stevessr/agent-ebpf-filter/desktop/renew/design"
 )
 
 type renewApp struct {
@@ -724,9 +725,7 @@ func card(c *ui.Context, title string, body func()) ui.Element {
 }
 
 func statCard(c *ui.Context, label, value, detail string) {
-	t := c.Theme()
-	card(c, label, func() {
-		ui.Text(c, value).FontSize(26).Bold()
-		ui.Text(c, detail).FontSize(11).TextColor(t.TextMuted)
+	design.MetricTile(c, design.Metric{
+		Label: label, Value: value, Detail: detail, Tone: design.Neutral,
 	}).Width(220)
 }

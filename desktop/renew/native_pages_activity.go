@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/stevessr/agent-ebpf-filter/desktop/renew/design"
 )
 
 type networkAggregate struct {
@@ -77,19 +78,7 @@ func (a *renewApp) overview(c *ui.Context) {
 		})
 	})
 
-	ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
-		ui.Badge(c, fmt.Sprintf("摘要活动 %d 条", len(a.events)))
-		if danger > 0 {
-			statusPill(c, fmt.Sprintf("高风险 %d 条", danger), t.Danger)
-		} else {
-			ui.Badge(c, "高风险 0 条")
-		}
-		if attention > 0 {
-			statusPill(c, fmt.Sprintf("需关注 %d 条", attention), t.Warning)
-		} else {
-			ui.Badge(c, "需关注 0 条")
-		}
-	})
+	design.MetricStrip(c, overviewMetricSpecs(len(a.events), attention, danger))
 	ui.Text(c, "数量只统计当前摘要窗口，不代表设备所有历史活动；断线或采集异常时不能据此判断设备安全。").
 		FontSize(11).TextColor(t.TextMuted)
 
@@ -168,8 +157,11 @@ func (a *renewApp) overview(c *ui.Context) {
 			a.page = "事件"
 		}
 	})
-	ui.Text(c, "提示：风险分数和 ALERT 表示需要核查，并不等于已拦截；请在事件详情核对决策、执行结果和证据。").
-		FontSize(11).TextColor(t.TextMuted)
+	design.NoticeCard(c, design.Notice{
+		Title: "证据与处置",
+		Message: "风险分数和 ALERT 表示需要核查，并不等于已拦截；请在事件详情核对决策、执行结果和证据。",
+		Tone: design.Warning,
+	})
 }
 
 func (a *renewApp) overviewHeadline() (headline, detail, level string) {
