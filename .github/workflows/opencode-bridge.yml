@@ -29,7 +29,7 @@ jobs:
         with:
           node-version: '24'
       - run: node --test adapters/opencode/agent-filter.test.mjs
-      - run: python3 -m unittest discover -s scripts/research/opencode-interception-20261018 -p test_harness.py -v
+      - run: python3 -m unittest discover -s scripts/research/opencode-interception-20261018 -p 'test_*.py' -v
   live-fixtures:
     if: github.event_name == 'workflow_dispatch' && inputs.run_live
     runs-on: ubuntu-latest
@@ -48,6 +48,8 @@ jobs:
             --opencode /tmp/opencode-tools/node_modules/.bin/opencode \
             --state /tmp/opencode-state --out /tmp/opencode-results \
             --models "$FIXTURE_MODEL" --timeout 60
+      - name: Reconcile native calls, controls and immutable log checksums
+        run: python3 scripts/research/opencode-interception-20261018/audit_results.py --results /tmp/opencode-results --require-complete
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -56,5 +58,6 @@ jobs:
             /tmp/opencode-results/protocol.json
             /tmp/opencode-results/runs.json
             /tmp/opencode-results/summary.json
+            /tmp/opencode-results/measurement_audit.json
             /tmp/opencode-results/logs
           retention-days: 7
