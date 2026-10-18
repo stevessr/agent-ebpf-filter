@@ -6,9 +6,10 @@ def audit(root):
     protocol=json.loads((root/'protocol.json').read_text());rows=json.loads((root/'runs.json').read_text())
     expected={(m,c,o) for m in protocol['models'] for c in protocol['cases'] for o in protocol['modes']}
     actual=[(r['model'],r['case'],r['mode']) for r in rows]
-    coverage=[];checksums=[];latencies=[];verified_controls={};observed_effects={};canonical=[];corrections=[]
+    coverage=[];checksums=[];latencies=[];verified_controls={};observed_effects={};canonical=[];corrections=[];mismatches=[]
     for r in rows:
-        path=root/'logs'/(r['run_id']+'.jsonl');checksums.append(hashlib.sha256(path.read_bytes()).hexdigest()==r['stdout_sha256'])
+        path=root/'logs'/(r['run_id']+'.jsonl');observed_sha=hashlib.sha256(path.read_bytes()).hexdigest();checksums.append(observed_sha==r['stdout_sha256'])
+        if observed_sha!=r['stdout_sha256']:mismatches.append({'file':str(path.relative_to(root)),'expected_sha256':r['stdout_sha256'],'observed_sha256':observed_sha})
         log_text=path.read_text();events=[json.loads(l) for l in log_text.splitlines()]
         native=[e['part'] for e in events if e.get('type')=='tool_use' and e.get('part',{}).get('type')=='tool']
         native_ids={c.get('callID') for c in native}
@@ -37,7 +38,7 @@ def audit(root):
     observed=[r for r in canonical if r['positive_control'] and r['mode']=='observe']
     integrity=len(actual)==len(expected) and len(set(actual))==len(actual) and set(actual)==expected and all(checksums)
     complete=integrity and all(coverage) and not any(r['transport_errors'] or r['provider_errors'] or r['invalid_event_lines'] or r['timed_out'] or r['exit_code'] for r in rows)
-    return {'schema':'opencode-study-audit.v1','expected_sessions':len(expected),'recorded_sessions':len(rows),'corrected_derived_counter_runs':corrections,'matrix_and_log_integrity':integrity,'all_sessions_have_full_hook_coverage':len(coverage)==len(rows) and all(coverage),'complete_measurement_without_runtime_errors':complete,'enforce_controls_verified':sum(verified_controls.get(r['run_id'],False) for r in controlled),'enforce_controls_total':len(controlled),'observe_controls_effects_seen':sum(observed_effects.get(r['run_id'],False) for r in observed),'observe_controls_total':len(observed),'controlled_bridge_gate_pass':complete and bool(controlled) and all(verified_controls.get(r['run_id'],False) for r in controlled) and all(observed_effects.get(r['run_id'],False) for r in observed),'production_enforcement_approved':False,'latency_scope':'policy subprocess round trip; includes Python process launch, not model inference or kernel latency','hook_round_trip_p50_ms':statistics.median(latencies) if latencies else None,'hook_round_trip_max_ms':max(latencies) if latencies else None}
+    return {'schema':'opencode-study-audit.v1','expected_sessions':len(expected),'recorded_sessions':len(rows),'corrected_derived_counter_runs':corrections,'checksum_mismatches':mismatches,'matrix_and_log_integrity':integrity,'all_sessions_have_full_hook_coverage':len(coverage)==len(rows) and all(coverage),'complete_measurement_without_runtime_errors':complete,'enforce_controls_verified':sum(verified_controls.get(r['run_id'],False) for r in controlled),'enforce_controls_total':len(controlled),'observe_controls_effects_seen':sum(observed_effects.get(r['run_id'],False) for r in observed),'observe_controls_total':len(observed),'controlled_bridge_gate_pass':complete and bool(controlled) and all(verified_controls.get(r['run_id'],False) for r in controlled) and all(observed_effects.get(r['run_id'],False) for r in observed),'production_enforcement_approved':False,'latency_scope':'policy subprocess round trip; includes Python process launch, not model inference or kernel latency','hook_round_trip_p50_ms':statistics.median(latencies) if latencies else None,'hook_round_trip_max_ms':max(latencies) if latencies else None}
 
 def main():
     p=argparse.ArgumentParser();p.add_argument('--results',type=pathlib.Path,required=True);p.add_argument('--require-complete',action='store_true');args=p.parse_args();report=audit(args.results);(args.results/'measurement_audit.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))
