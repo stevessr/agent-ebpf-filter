@@ -1,0 +1,17 @@
+{
+  "task": "code",
+  "base": "new",
+  "encoder": "/workspace/scratch/0c0f9db64263/public-risk-round2/models/codet5-small",
+  "frozen": true,
+  "encoder_parameters": 35316480,
+  "hidden_size": 512,
+  "encoded_sequences": 10785,
+  "coverage": {
+    "original_tokens": 9688068,
+    "selected_tokens": 1852637,
+    "truncated_units": 8244,
+    "units": 10785
+  },
+  "wall_seconds": 588.174482432,
+  "encoding_seconds": 565.8289540410001
+}

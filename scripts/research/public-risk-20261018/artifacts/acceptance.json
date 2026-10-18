@@ -1,0 +1,24 @@
+{
+  "privacy": {
+    "deployment_gate_passed_all_head_seeds": false,
+    "low_FPR_gate_passed_all_head_seeds": false,
+    "paired_comparison_CI": [
+      -0.09923696736220598,
+      0.004315387301845117
+    ],
+    "paired_comparison_direction": "not_established",
+    "automatic_enforcement": false,
+    "note": "descriptive frozen comparison; no further search based on confirmation"
+  },
+  "code": {
+    "deployment_gate_passed_all_head_seeds": false,
+    "low_FPR_gate_passed_all_head_seeds": false,
+    "paired_comparison_CI": [
+      0.03864599414263738,
+      0.08431405300087792
+    ],
+    "paired_comparison_direction": "positive",
+    "automatic_enforcement": false,
+    "note": "descriptive frozen comparison; no further search based on confirmation"
+  }
+}

@@ -1,0 +1,9 @@
+privacy tiny 0 {'kind': 'linear', 'view': 'candidate', 'C': 0.1} objective 0.5032 keep
+privacy tiny 1 {'kind': 'linear', 'view': 'candidate', 'C': 1} objective 0.51 keep
+privacy tiny 2 {'kind': 'linear', 'view': 'retrieval', 'C': 0.1} objective 0.5034 discard
+privacy tiny 3 {'kind': 'linear', 'view': 'retrieval', 'C': 1} objective 0.4939 discard
+privacy tiny 4 {'kind': 'linear', 'view': 'evidence', 'C': 0.1} objective 0.5239 keep
+privacy tiny 5 {'kind': 'linear', 'view': 'evidence', 'C': 1} objective 0.4986 discard
+privacy tiny 6 {'kind': 'mlp', 'view': 'context', 'lr': 0.001} objective 0.5022 discard
+privacy tiny 7 {'kind': 'mlp', 'view': 'evidence', 'lr': 0.001} objective 0.5367 keep
+FROZEN privacy tiny {'kind': 'mlp', 'view': 'evidence', 'lr': 0.001}

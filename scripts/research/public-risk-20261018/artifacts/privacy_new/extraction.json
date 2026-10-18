@@ -1,0 +1,20 @@
+{
+  "task": "privacy",
+  "base": "new",
+  "encoder": "/workspace/scratch/0c0f9db64263/public-risk-round2/models/all-MiniLM-L6-v2",
+  "frozen": true,
+  "encoder_parameters": 22713216,
+  "hidden_size": 384,
+  "encoded_sequences": 14783,
+  "coverage": {
+    "original_tokens": 3936896,
+    "selected_tokens": 2293776,
+    "truncated_units": 1774,
+    "units": 5061
+  },
+  "wall_seconds": 449.156646824,
+  "encoding_seconds": 443.71429650500005,
+  "evidence_augmented": true,
+  "evidence_dimension": 16,
+  "evidence_source": "candidate + preceding request/memories/history only; exact lexical matches are not authorization proof"
+}

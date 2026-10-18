@@ -1,0 +1,7 @@
+models/
+data/*/*.jsonl
+artifacts/*/*.npz
+artifacts/*.joblib
+artifacts/*.head.json
+__pycache__/
+.venv/

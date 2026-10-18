@@ -1,0 +1,22 @@
+{
+  "privacy_tiny.head.json": {
+    "sha256": "92e55cf2a84331139cdb7dc442b8151c856846d715a02950f98f88f0d4b754a4",
+    "prediction_max_abs_error": 5.960464477539063e-08,
+    "numeric_only": true
+  },
+  "privacy_new.head.json": {
+    "sha256": "475cf58f06092725fa5b1f8a2c7a58d563f4f21a60e1b0465e1b68c24262ac5b",
+    "prediction_max_abs_error": 1.1920928955078125e-07,
+    "numeric_only": true
+  },
+  "code_tiny.head.json": {
+    "sha256": "0ae1e72f5d5157c4daf0159f1deba84f2c005a898795126922e770d5cca456ef",
+    "prediction_max_abs_error": 5.3801540667031134e-08,
+    "numeric_only": true
+  },
+  "code_new.head.json": {
+    "sha256": "b3f1ae95941f4f624bab4df85adb04b1032f5ec83e5813546c729ae7e89c6cc6",
+    "prediction_max_abs_error": 5.456272494930303e-08,
+    "numeric_only": true
+  }
+}

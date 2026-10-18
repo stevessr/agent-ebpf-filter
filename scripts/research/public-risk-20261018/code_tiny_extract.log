@@ -1,0 +1,19 @@
+You're using a BertTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+code tiny encoded 64 / 10785 seconds 0.1
+code tiny encoded 704 / 10785 seconds 1.2
+code tiny encoded 1344 / 10785 seconds 2.3
+code tiny encoded 1984 / 10785 seconds 3.5
+code tiny encoded 2624 / 10785 seconds 4.7
+code tiny encoded 3264 / 10785 seconds 5.8
+code tiny encoded 3904 / 10785 seconds 6.8
+code tiny encoded 4544 / 10785 seconds 7.9
+code tiny encoded 5184 / 10785 seconds 9.1
+code tiny encoded 5824 / 10785 seconds 10.3
+code tiny encoded 6464 / 10785 seconds 11.3
+code tiny encoded 7104 / 10785 seconds 12.5
+code tiny encoded 7744 / 10785 seconds 13.6
+code tiny encoded 8384 / 10785 seconds 14.6
+code tiny encoded 9024 / 10785 seconds 15.7
+code tiny encoded 9664 / 10785 seconds 16.9
+code tiny encoded 10304 / 10785 seconds 18.0
+COMPLETE {"task": "code", "base": "tiny", "encoder": "/workspace/scratch/0c0f9db64263/public-risk-experiment/base_model", "frozen": true, "encoder_parameters": 4385920, "hidden_size": 128, "encoded_sequences": 10785, "coverage": {"original_tokens": 8862395, "selected_tokens": 1819242, "truncated_units": 7901, "units": 10785}, "wall_seconds": 42.69899297199993, "encoding_seconds": 19.548978121999994}

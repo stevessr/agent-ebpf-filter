@@ -1,0 +1,75 @@
+{
+  "privacy": {
+    "train": {
+      "n": 1221,
+      "positive": 745,
+      "groups": 685
+    },
+    "validation": {
+      "n": 253,
+      "positive": 145,
+      "groups": 140
+    },
+    "calibration": {
+      "n": 236,
+      "positive": 137,
+      "groups": 131
+    },
+    "confirmation": {
+      "n": 303,
+      "positive": 182,
+      "groups": 178
+    },
+    "regression": {
+      "n": 382,
+      "positive": 231,
+      "groups": 199
+    }
+  },
+  "code": {
+    "train": {
+      "n": 4500,
+      "positive": 2340,
+      "groups": 3254
+    },
+    "validation": {
+      "n": 800,
+      "positive": 373,
+      "groups": 719
+    },
+    "calibration": {
+      "n": 800,
+      "positive": 393,
+      "groups": 571
+    },
+    "confirmation": {
+      "n": 1955,
+      "positive": 1073,
+      "groups": 1430
+    },
+    "regression": {
+      "n": 2730,
+      "positive": 1254,
+      "groups": 2067
+    }
+  },
+  "protocol": {
+    "confirmation": "reserved from old train before new-base/head training; not a new external benchmark",
+    "regression": "previously examined old test; exploratory comparison only",
+    "code_train_cap": 4500,
+    "code_dev_and_cal_cap": 800,
+    "seed": 20261018
+  },
+  "sha256": {
+    "data/code/calibration.jsonl": "7a211fe2881643619bb3dfc52540f7718afa32deedeae282c32b1e063e092edd",
+    "data/code/regression.jsonl": "6778f2d7bb3a37e4528b9edafd7d6e387ef6fbd654c058560c2d992f08f52cbf",
+    "data/code/confirmation.jsonl": "801cef6231ddd5011f272400beded161eddc85cf2481f03cdfae09fc1fb3ca92",
+    "data/code/validation.jsonl": "b120bbc97249b3a3852ff9ac152212a4034a388dd1e7739d44332afc6bca8d7c",
+    "data/code/train.jsonl": "487fdae0cf41a99cac62b1e0d96e306c47cfbd7bbd24e7602d3f24dfd3469d74",
+    "data/privacy/calibration.jsonl": "d16262068a6465c7aa5a5fde0bc9fa076500a297b22ca910e3f5b7cba5f6f3ef",
+    "data/privacy/regression.jsonl": "e69a8bf9dadc512443b61c1e444f39a31f75e0dd439e255e7dde2d0d1becaf36",
+    "data/privacy/confirmation.jsonl": "6c565b6de2bba37b31a616a31b419e0416e1407cb0838aebf50f07e0b8f6106b",
+    "data/privacy/validation.jsonl": "3349e2a3fc5ebe16ef05407ea577a6740fa90c06120b51a01992cf76abc2d78c",
+    "data/privacy/train.jsonl": "d6e8d6360f7deae8118fb12d7e8cbaf630779533b0e5b9a9ba6330aa07d308be"
+  }
+}

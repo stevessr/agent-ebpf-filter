@@ -1,0 +1,9 @@
+code new 0 {'kind': 'linear', 'view': 'mean', 'C': 0.1} objective 0.5758 keep
+code new 1 {'kind': 'linear', 'view': 'mean', 'C': 1} objective 0.5773 keep
+code new 2 {'kind': 'linear', 'view': 'mean', 'C': 10} objective 0.5743 discard
+code new 3 {'kind': 'linear', 'view': 'meanmax', 'C': 0.1} objective 0.5537 discard
+code new 4 {'kind': 'linear', 'view': 'meanmax', 'C': 1} objective 0.5572 discard
+code new 5 {'kind': 'linear', 'view': 'meanmax', 'C': 10} objective 0.5584 discard
+code new 6 {'kind': 'mlp', 'view': 'meanmax', 'lr': 0.001} objective 0.5655 discard
+code new 7 {'kind': 'mlp', 'view': 'meanmax', 'lr': 0.0003} objective 0.5695 discard
+FROZEN code new {'kind': 'linear', 'view': 'mean', 'C': 1}

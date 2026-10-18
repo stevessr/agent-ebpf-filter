@@ -1,0 +1,26 @@
+{
+  "kind": "executable experimental invariants, not formal model correctness",
+  "group_isolation": {
+    "privacy": true,
+    "code": true
+  },
+  "source_hashes_verified": true,
+  "features_finite": {
+    "privacy_tiny": true,
+    "privacy_new": true,
+    "code_tiny": true,
+    "code_new": true
+  },
+  "frozen_weights_verified": {
+    "privacy_tiny": true,
+    "privacy_new": true,
+    "code_tiny": true,
+    "code_new": true
+  },
+  "selection_constraints_verified": {
+    "privacy_tiny": true,
+    "privacy_new": true,
+    "code_tiny": true,
+    "code_new": true
+  }
+}

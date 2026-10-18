@@ -1,0 +1,26 @@
+You're using a BertTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+privacy tiny encoded 64 / 14783 seconds 0.1
+privacy tiny encoded 704 / 14783 seconds 1.3
+privacy tiny encoded 1344 / 14783 seconds 2.4
+privacy tiny encoded 1984 / 14783 seconds 3.5
+privacy tiny encoded 2624 / 14783 seconds 4.6
+privacy tiny encoded 3264 / 14783 seconds 5.8
+privacy tiny encoded 3904 / 14783 seconds 7.0
+privacy tiny encoded 4544 / 14783 seconds 8.3
+privacy tiny encoded 5184 / 14783 seconds 9.5
+privacy tiny encoded 5824 / 14783 seconds 10.6
+privacy tiny encoded 6464 / 14783 seconds 11.8
+privacy tiny encoded 7104 / 14783 seconds 13.0
+privacy tiny encoded 7744 / 14783 seconds 14.5
+privacy tiny encoded 8384 / 14783 seconds 16.0
+privacy tiny encoded 9024 / 14783 seconds 17.3
+privacy tiny encoded 9664 / 14783 seconds 18.5
+privacy tiny encoded 10304 / 14783 seconds 19.7
+privacy tiny encoded 10944 / 14783 seconds 20.9
+privacy tiny encoded 11584 / 14783 seconds 22.1
+privacy tiny encoded 12224 / 14783 seconds 23.3
+privacy tiny encoded 12864 / 14783 seconds 24.5
+privacy tiny encoded 13504 / 14783 seconds 25.7
+privacy tiny encoded 14144 / 14783 seconds 26.9
+privacy tiny encoded 14783 / 14783 seconds 28.2
+COMPLETE {"task": "privacy", "base": "tiny", "encoder": "/workspace/scratch/0c0f9db64263/public-risk-experiment/base_model", "frozen": true, "encoder_parameters": 4385920, "hidden_size": 128, "encoded_sequences": 14783, "coverage": {"original_tokens": 3936896, "selected_tokens": 2293776, "truncated_units": 1774, "units": 5061}, "wall_seconds": 34.96237100399992, "encoding_seconds": 28.639023844999997}

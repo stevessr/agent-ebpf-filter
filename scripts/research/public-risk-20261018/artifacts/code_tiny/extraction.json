@@ -1,0 +1,17 @@
+{
+  "task": "code",
+  "base": "tiny",
+  "encoder": "/workspace/scratch/0c0f9db64263/public-risk-experiment/base_model",
+  "frozen": true,
+  "encoder_parameters": 4385920,
+  "hidden_size": 128,
+  "encoded_sequences": 10785,
+  "coverage": {
+    "original_tokens": 8862395,
+    "selected_tokens": 1819242,
+    "truncated_units": 7901,
+    "units": 10785
+  },
+  "wall_seconds": 42.69899297199993,
+  "encoding_seconds": 19.548978121999994
+}

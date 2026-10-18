@@ -1,0 +1,9 @@
+code tiny 0 {'kind': 'linear', 'view': 'mean', 'C': 0.1} objective 0.5167 keep
+code tiny 1 {'kind': 'linear', 'view': 'mean', 'C': 1} objective 0.5215 keep
+code tiny 2 {'kind': 'linear', 'view': 'mean', 'C': 10} objective 0.5187 discard
+code tiny 3 {'kind': 'linear', 'view': 'meanmax', 'C': 0.1} objective 0.5318 keep
+code tiny 4 {'kind': 'linear', 'view': 'meanmax', 'C': 1} objective 0.5253 discard
+code tiny 5 {'kind': 'linear', 'view': 'meanmax', 'C': 10} objective 0.5289 discard
+code tiny 6 {'kind': 'mlp', 'view': 'meanmax', 'lr': 0.001} objective 0.5135 discard
+code tiny 7 {'kind': 'mlp', 'view': 'meanmax', 'lr': 0.0003} objective 0.523 discard
+FROZEN code tiny {'kind': 'linear', 'view': 'meanmax', 'C': 0.1}

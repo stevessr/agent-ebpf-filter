@@ -1,0 +1,27 @@
+Token indices sequence length is longer than the specified maximum sequence length for this model (1762 > 512). Running this sequence through the model will result in indexing errors
+You're using a BertTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+privacy new encoded 64 / 14783 seconds 1.6
+privacy new encoded 704 / 14783 seconds 17.4
+privacy new encoded 1344 / 14783 seconds 32.9
+privacy new encoded 1984 / 14783 seconds 49.4
+privacy new encoded 2624 / 14783 seconds 67.1
+privacy new encoded 3264 / 14783 seconds 88.1
+privacy new encoded 3904 / 14783 seconds 110.9
+privacy new encoded 4544 / 14783 seconds 130.6
+privacy new encoded 5184 / 14783 seconds 149.6
+privacy new encoded 5824 / 14783 seconds 172.1
+privacy new encoded 6464 / 14783 seconds 193.2
+privacy new encoded 7104 / 14783 seconds 211.8
+privacy new encoded 7744 / 14783 seconds 231.9
+privacy new encoded 8384 / 14783 seconds 251.2
+privacy new encoded 9024 / 14783 seconds 270.2
+privacy new encoded 9664 / 14783 seconds 289.3
+privacy new encoded 10304 / 14783 seconds 307.7
+privacy new encoded 10944 / 14783 seconds 325.9
+privacy new encoded 11584 / 14783 seconds 345.0
+privacy new encoded 12224 / 14783 seconds 364.2
+privacy new encoded 12864 / 14783 seconds 384.5
+privacy new encoded 13504 / 14783 seconds 404.6
+privacy new encoded 14144 / 14783 seconds 424.1
+privacy new encoded 14783 / 14783 seconds 442.9
+COMPLETE {"task": "privacy", "base": "new", "encoder": "/workspace/scratch/0c0f9db64263/public-risk-round2/models/all-MiniLM-L6-v2", "frozen": true, "encoder_parameters": 22713216, "hidden_size": 384, "encoded_sequences": 14783, "coverage": {"original_tokens": 3936896, "selected_tokens": 2293776, "truncated_units": 1774, "units": 5061}, "wall_seconds": 449.156646824, "encoding_seconds": 443.71429650500005}

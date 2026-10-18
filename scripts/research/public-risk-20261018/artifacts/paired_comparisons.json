@@ -1,0 +1,16 @@
+{
+  "privacy": {
+    "mean_three_seed_delta_BA": -0.029372143008506546,
+    "seed0_paired_group_bootstrap_95CI": [
+      -0.09923696736220598,
+      0.004315387301845117
+    ]
+  },
+  "code": {
+    "mean_three_seed_delta_BA": 0.05978321741868542,
+    "seed0_paired_group_bootstrap_95CI": [
+      0.03864599414263738,
+      0.08431405300087792
+    ]
+  }
+}

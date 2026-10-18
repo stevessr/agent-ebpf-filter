@@ -1,0 +1,20 @@
+Token indices sequence length is longer than the specified maximum sequence length for this model (582 > 512). Running this sequence through the model will result in indexing errors
+You're using a RobertaTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+code new encoded 64 / 10785 seconds 3.5
+code new encoded 704 / 10785 seconds 36.4
+code new encoded 1344 / 10785 seconds 75.2
+code new encoded 1984 / 10785 seconds 110.4
+code new encoded 2624 / 10785 seconds 149.3
+code new encoded 3264 / 10785 seconds 183.4
+code new encoded 3904 / 10785 seconds 217.3
+code new encoded 4544 / 10785 seconds 251.1
+code new encoded 5184 / 10785 seconds 284.1
+code new encoded 5824 / 10785 seconds 319.0
+code new encoded 6464 / 10785 seconds 355.6
+code new encoded 7104 / 10785 seconds 390.6
+code new encoded 7744 / 10785 seconds 420.9
+code new encoded 8384 / 10785 seconds 450.1
+code new encoded 9024 / 10785 seconds 484.0
+code new encoded 9664 / 10785 seconds 513.4
+code new encoded 10304 / 10785 seconds 543.8
+COMPLETE {"task": "code", "base": "new", "encoder": "/workspace/scratch/0c0f9db64263/public-risk-round2/models/codet5-small", "frozen": true, "encoder_parameters": 35316480, "hidden_size": 512, "encoded_sequences": 10785, "coverage": {"original_tokens": 9688068, "selected_tokens": 1852637, "truncated_units": 8244, "units": 10785}, "wall_seconds": 588.174482432, "encoding_seconds": 565.8289540410001}

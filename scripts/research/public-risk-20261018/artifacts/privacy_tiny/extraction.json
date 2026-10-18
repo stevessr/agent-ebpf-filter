@@ -1,0 +1,20 @@
+{
+  "task": "privacy",
+  "base": "tiny",
+  "encoder": "/workspace/scratch/0c0f9db64263/public-risk-experiment/base_model",
+  "frozen": true,
+  "encoder_parameters": 4385920,
+  "hidden_size": 128,
+  "encoded_sequences": 14783,
+  "coverage": {
+    "original_tokens": 3936896,
+    "selected_tokens": 2293776,
+    "truncated_units": 1774,
+    "units": 5061
+  },
+  "wall_seconds": 34.96237100399992,
+  "encoding_seconds": 28.639023844999997,
+  "evidence_augmented": true,
+  "evidence_dimension": 16,
+  "evidence_source": "candidate + preceding request/memories/history only; exact lexical matches are not authorization proof"
+}
