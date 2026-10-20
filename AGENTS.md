@@ -36,7 +36,7 @@ Agent eBPF Filter is a **Linux observability and control plane** for AI agents a
 1. **Event Flow:** eBPF ringbuffer → Go backend → WebSocket → Vue frontend
 2. **Tracking:** PID registration, command names, exact paths, wrapper interception, native hooks
 3. **Enforcement:** Wrapper policies (ALLOW/BLOCK/ALERT/REWRITE), cgroup network blocking, BPF LSM file/exec blocking
-4. **Security:** Release-mode auth, runtime gates, 4-level redaction, TLS capture disabled by default
+4. **Security:** Auth by default in every Gin mode, loopback TCP by default, runtime gates, 4-level redaction, TLS capture disabled by default
 
 ---
 
@@ -78,11 +78,12 @@ agent-ebpf-filter/
 ├── proto/                      # Protobuf schemas (source of truth)
 │   ├── tracker_events.proto    # Event definitions
 │   └── tracker.proto
-├── docs/                       # VitePress documentation
+├── docs/                       # MkDocs documentation
 │   ├── guide/                  # Getting started
 │   ├── architecture/           # System design
 │   ├── backend/                # Backend internals
 │   ├── security/               # Security model
+│   ├── mkdocs.yml               # Documentation site configuration
 │   └── index.md                # Documentation home
 ├── deploy/kubernetes/          # Kubernetes manifests
 ├── kernel-ml/                  # Optional DKMS kernel ML module

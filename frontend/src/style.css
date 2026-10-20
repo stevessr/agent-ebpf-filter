@@ -1,3 +1,29 @@
+/* Shared colors for legacy metric cards and inline Vue template styles. */
+:root {
+  --ui-surface: #ffffff;
+  --ui-surface-muted: #fafafa;
+  --ui-surface-soft: #f8fafc;
+  --ui-text-strong: #1f2937;
+  --ui-text-secondary: #475569;
+  --ui-text-muted: #64748b;
+  --ui-border: #e5e7eb;
+  --ui-primary-soft: #f0f7ff;
+  --ui-success-soft: #f6ffed;
+  --ui-danger-soft: #fff2f0;
+}
+:root[data-theme="dark"] {
+  --ui-surface: #191c22;
+  --ui-surface-muted: #212834;
+  --ui-surface-soft: #232c3b;
+  --ui-text-strong: #e5edf9;
+  --ui-text-secondary: #b8c6dc;
+  --ui-text-muted: #98a9c1;
+  --ui-border: #344256;
+  --ui-primary-soft: #24354e;
+  --ui-success-soft: #203a30;
+  --ui-danger-soft: #452b31;
+}
+
 :root {
   --text-h: #08060d;
   --code-bg: #f4f3ec;
@@ -5,7 +31,7 @@
 
   font: 18px/145% system-ui, "Segoe UI", Roboto, sans-serif;
   letter-spacing: 0.18px;
-  color-scheme: light dark;
+  color-scheme: light;
   color: #6b6375;
   background: #fff;
   font-synthesis: none;
@@ -13,17 +39,16 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text-h: #f3f4f6;
-    --code-bg: #1f2028;
-  }
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  background: #111318;
+  color: #bdc4d1;
+  --text-h: #f3f4f6;
+  --code-bg: #1f2028;
 }
+@media (max-width: 1024px) { :root { font-size: 16px; } }
 
 body {
   margin: 0;

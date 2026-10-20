@@ -70,9 +70,9 @@ func TestAuthMiddleware(t *testing.T) {
 			expectedStatus: http.StatusUnauthorized,
 		},
 		{
-			name:           "Dev mode - no auth required",
+			name:           "Dev mode requires auth too",
 			releaseMode:    false,
-			expectedStatus: http.StatusOK,
+			expectedStatus: http.StatusUnauthorized,
 		},
 	}
 

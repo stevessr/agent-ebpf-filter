@@ -365,7 +365,7 @@ func TestNativeHookClaudeSubAgentLifecycleHooksIndependent(t *testing.T) {
 	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{
 		HookSecrets: map[string]string{
 			"claude-subagent-start": "start-secret",
-			"claude-subagent-stop": "stop-secret",
+			"claude-subagent-stop":  "stop-secret",
 		},
 	}}
 	t.Cleanup(func() { runtimeSettingsStore = oldStore })

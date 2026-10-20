@@ -1,9 +1,11 @@
 # Agent eBPF Filter
 
+> **Source-anchored technical manual (2026-10-15):** [25 chapters / 90 Mermaid diagrams](docs/technical/index.md). Coverage reflects current code, feature gates and platform limitations; historic roadmaps are not implementation evidence.
+
 **Linux-first observability and control plane for AI agents and developer CLIs.**
 
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
-[![Documentation](https://img.shields.io/badge/docs-VitePress-green.svg)](docs/index.md)
+[![Documentation](https://img.shields.io/badge/docs-MkDocs-green.svg)](docs/index.md)
 
 > Real-time monitoring, semantic correlation, and kernel-level enforcement for AI agent behaviors on Linux workstations.
 
@@ -52,7 +54,7 @@ Agent eBPF Filter combines **eBPF kernel tracing**, **Go backend**, **Vue.js das
 - **Recording/Replay:** Capture and replay execution sessions
 
 ### 🔐 **Security-First Design**
-- Release-mode authentication with runtime access tokens
+- Authentication by default with runtime access tokens (independent of Gin mode)
 - Four-level data redaction (None/Basic/Standard/Strict)
 - Runtime feature gates for dangerous capabilities
 - TLS capture **disabled by default** (opt-in diagnostic tool)
@@ -77,6 +79,21 @@ Agent eBPF Filter combines **eBPF kernel tracing**, **Go backend**, **Vue.js das
 - **clang/LLVM** (eBPF compilation)
 - **protoc** (Protocol Buffers compiler)
 - **sudo** or **pkexec** (privilege elevation)
+
+### Quick Install (prebuilt Linux Release)
+
+Once a stable GitHub Release is published, install without Go, Bun or LLVM:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/stevessr/agent-ebpf-filter/master/scripts/install.sh | bash
+
+# Install a pinned release, but do not enable/start the service:
+curl -fsSL https://raw.githubusercontent.com/stevessr/agent-ebpf-filter/master/scripts/install.sh | bash -s -- --version v1.0.0 --no-start --no-enable
+```
+
+The installer detects Linux amd64/arm64, downloads the matching release archive and `SHA256SUMS`, verifies the checksum, and delegates to the existing system service installer. It prompts for root privileges only when installing system files. `--version` refers to a **published** tag; omit it to use the latest stable release (not prereleases). Kernel eBPF/BTF support and appropriate runtime permissions are still required. Review the script before piping it to `bash`.
+
+See [release/install documentation](docs/operations/deployment.md) for manual publishing, package contents, and other installation options.
 
 ### Development Mode
 
@@ -249,15 +266,15 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory, orga
 **Start here:**
 - New developers: [What is Agent eBPF Filter?](docs/guide/what-is-agent-ebpf-filter.md)
 - Security review: [Security Model](docs/security/model.md)
+- Research / related work: [Agent-Warden kernel process-file provenance analysis](docs/reference/agent-warden-analysis.md) (paper study; **not** an implemented feature)
 - Validation-first detection engineering: [NVIDIA-inspired offline replay](docs/security/nvidia-validation-first-detection.md)
 - Integration: [External API](docs/integrations/external-api.md)
 - Deployment: [Kubernetes Guide](docs/operations/kubernetes.md)
 
 **Preview documentation site:**
 ```bash
-cd docs
-bun install
-bun run docs:dev
+python3 -m pip install -r docs/requirements.txt
+python3 docs/build_site.py serve
 ```
 
 ---
@@ -279,7 +296,7 @@ agent-ebpf-filter/
 ├── adapters/             # Python and Node.js PID registration helpers
 ├── proto/                # Protobuf definitions (source of truth)
 ├── kernel-ml/            # Optional DKMS kernel-space ML module
-├── docs/                 # VitePress documentation site
+├── docs/                 # MkDocs documentation site
 ├── tools/agent-tui/      # Terminal event monitor (make tui)
 ├── deploy/kubernetes/    # Kubernetes manifests
 └── scripts/              # Demo and validation scripts
@@ -403,7 +420,7 @@ make runtime-benchmark
 - Policy management **disabled** by default
 - Shell/system commands **disabled** by default
 - Hook installation **disabled** by default
-- Release-mode authentication **enabled** in production
+- Authentication **enabled** in production; TCP listens on loopback unless explicitly configured
 - Four-level redaction with automatic key removal
 
 ⚠️ **Dangerous capabilities require explicit opt-in:**
@@ -463,7 +480,7 @@ Check:
 - DeepSeek Harness is invoked through the `agent-wrapper` alias; dsh profile/plugin configuration remains dsh-owned
 - Hook callback URL is reachable from CLI process
 - `curl` is available in PATH
-- Backend is running and auth token is valid (if in release mode)
+- Backend is running and auth token is valid (unless explicitly using loopback-only `DISABLE_AUTH=true`)
 
 ### OS enforcement smoke test fails
 

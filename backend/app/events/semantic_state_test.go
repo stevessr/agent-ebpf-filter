@@ -114,7 +114,6 @@ func TestSemanticStateBoundsOversizedIdentifiersAndValues(t *testing.T) {
 	}
 }
 
-
 func TestSemanticFileContentionRequiresSuccessfulSyscallResult(t *testing.T) {
 	for _, kind := range []string{"write", "rename", "unlink", "chmod", "mkdir"} {
 		t.Run(kind, func(t *testing.T) {

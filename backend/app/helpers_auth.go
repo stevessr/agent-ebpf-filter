@@ -15,7 +15,7 @@ import (
 
 func authMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !releaseAuthEnforced() || clusterRequestAuthAllowed(c) {
+		if !authEnforced() || clusterRequestAuthAllowed(c) {
 			c.Next()
 			return
 		}
@@ -29,13 +29,14 @@ func authMiddleware() gin.HandlerFunc {
 	}
 }
 
-func releaseAuthEnforced() bool {
-	return gin.Mode() == gin.ReleaseMode && os.Getenv("DISABLE_AUTH") != "true"
+func authEnforced() bool {
+	// Debug logging must never implicitly disable authentication.
+	return os.Getenv("DISABLE_AUTH") != "true"
 }
 
 func hookIngressAuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !releaseAuthEnforced() || clusterRequestAuthAllowed(c) {
+		if !authEnforced() || clusterRequestAuthAllowed(c) {
 			c.Next()
 			return
 		}

@@ -1,15 +1,11 @@
-import { ref, watch, type Ref } from "vue";
+import { computed, ref, watch, type Ref } from "vue";
 import axios from "axios";
 import { message } from "ant-design-vue";
 
 import { pb } from "../../pb/tracker_pb.js";
 import { buildWebSocketUrl, fetchProto } from "../../utils/requestContext";
-import {
-  decodeIncomingEvents,
-  buildAgentEvent,
-  normalizeHistoryRecord,
-} from "./dashboardHelpers";
-import { appendBounded } from "./dashboardBuffer";
+import { normalizeEnvelope, normalizeHistoryRecord } from "./dashboardHelpers";
+import { appendBounded, mergeDashboardRecords } from "./dashboardBuffer";
 import type { AgentEvent } from "./dashboardConstants";
 
 export type DashboardStreamDeps = {
@@ -20,240 +16,245 @@ export type DashboardStreamDeps = {
   getFilteredEvents: () => AgentEvent[];
 };
 
+// Injectable transport keeps lifecycle tests independent of a browser/backend.
+export type DashboardStreamTransport = {
+  open: () => WebSocket;
+  history: (signal: AbortSignal) => Promise<pb.IEventHistoryResponse>;
+  clear: () => Promise<unknown>;
+  notify: (kind: "success" | "error", text: string) => void;
+};
+const HISTORY_LOAD_LIMIT = 1000; // Server-side /events/recent maximum, not a cursor.
 const EVENT_BATCH_WINDOW_MS = 80;
-const HISTORY_LOAD_LIMIT = 200;
-const HISTORY_LOAD_BATCH_SIZE = 24;
-const HISTORY_LOAD_BATCH_DELAY_MS = 24;
 
-export function useDashboardStream(deps: DashboardStreamDeps) {
-  // ── Internal mutable state ──
+export function useDashboardStream(
+  deps: DashboardStreamDeps,
+  transport: DashboardStreamTransport = {
+    open: () => new WebSocket(buildWebSocketUrl("/ws/envelopes")),
+    history: (signal) =>
+      fetchProto(
+        `/events/recent?limit=${HISTORY_LOAD_LIMIT}`,
+        pb.EventHistoryResponse.decode,
+        signal,
+      ),
+    clear: () => axios.post("/data/clear-events-memory"),
+    notify: (kind, text) => message[kind](text),
+  },
+) {
   let ws: WebSocket | null = null;
-  let reconnectTimer: number | null = null;
-  let shouldReconnect = true;
-  const eventBuffer: AgentEvent[] = [];
-  let flushTimer: number | null = null;
-  let historyLoadTimer: number | null = null;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let flushTimer: ReturnType<typeof setTimeout> | null = null;
+  let historyController: AbortController | null = null;
   let historyLoadToken = 0;
-  const pendingLiveEvents: AgentEvent[] = [];
-  const historyLoaded = ref(false);
-  const evictedRecords = ref(0);
-  const enqueue = (queue: AgentEvent[], records: AgentEvent[]) => {
-    evictedRecords.value += appendBounded(queue, records, deps.maxEvents.value);
-  };
-  watch(deps.maxEvents, (capacity) => {
-    evictedRecords.value += appendBounded(eventBuffer, [], capacity);
-    evictedRecords.value += appendBounded(pendingLiveEvents, [], capacity);
-    if (deps.events.value.length > capacity) {
-      evictedRecords.value += deps.events.value.length - capacity;
-      deps.events.value = deps.events.value.slice(0, capacity);
-    }
-  });
-
-  // ── Event buffer management ──
-
-  const markRecentRowsRef = ref<(keys: string[]) => void>(() => {});
-
-  const flushEventBuffer = () => {
-    if (eventBuffer.length === 0) return;
-
-    const bufferedEvents = [...eventBuffer];
-    const newEvents = [...bufferedEvents.reverse(), ...deps.events.value];
-    if (newEvents.length > deps.maxEvents.value) {
-      evictedRecords.value += newEvents.length - deps.maxEvents.value;
-      newEvents.length = deps.maxEvents.value;
-    }
-    deps.events.value = newEvents;
-    eventBuffer.length = 0;
-
-    markRecentRowsRef.value(
-      newEvents.slice(0, bufferedEvents.length).map((event) => event.key),
+  let lifecycle = 0;
+  let shouldReconnect = false;
+  const eventBuffer: AgentEvent[] = [];
+  let displayedIds = new Set<string>();
+  const indexDisplayedIds = () => {
+    displayedIds = new Set(
+      deps.events.value.flatMap((event) =>
+        event.eventId ? [event.eventId] : [],
+      ),
     );
   };
+  const historyLoaded = ref(false);
+  const recoveryState = ref<"idle" | "loading" | "ready" | "error">("idle");
+  const continuityGap = ref(false);
+  const queuedRecords = ref(0);
+  const droppedRecords = ref(0);
+  const evictedRecords = ref(0);
+  const markRecentRowsRef = ref<(keys: string[]) => void>(() => {});
+  const streamNotice = computed(() => {
+    const parts: string[] = [];
+    if (!deps.isConnected.value) parts.push("实时流未连接，正在等待连接。");
+    if (deps.isPaused.value)
+      parts.push(
+        `显示已暂停（不主动停止接收）；待显示 ${queuedRecords.value} 条，缓存上限 ${deps.maxEvents.value} 条。`,
+      );
+    if (recoveryState.value === "loading")
+      parts.push("正在补取最近记录并按事件 ID 去重。");
+    if (recoveryState.value === "error")
+      parts.push("最近记录补取失败；已保留本地事件，可重试。");
+    if (continuityGap.value)
+      parts.push(
+        "本次会话发生过断线或解码失败；每次仅补取最近 1000 条，无法保证间隙完整，请核对持久化审计记录。",
+      );
+    if (droppedRecords.value)
+      parts.push(
+        `待显示缓存累计淘汰 ${droppedRecords.value} 条（不代表后端丢失）。`,
+      );
+    return parts.join(" ");
+  });
 
+  const enqueue = (records: AgentEvent[]) => {
+    const queuedIds = new Set(
+      eventBuffer.flatMap((event) => (event.eventId ? [event.eventId] : [])),
+    );
+    const unique = records.filter((event) => {
+      if (!event.eventId) return true;
+      if (displayedIds.has(event.eventId) || queuedIds.has(event.eventId))
+        return false;
+      queuedIds.add(event.eventId);
+      return true;
+    });
+    droppedRecords.value += appendBounded(
+      eventBuffer,
+      unique,
+      deps.maxEvents.value,
+    );
+    queuedRecords.value = eventBuffer.length;
+  };
+  const flushEventBuffer = () => {
+    if (deps.isPaused.value || eventBuffer.length === 0) return;
+    const oldKeys = new Set(deps.events.value.map((event) => event.key));
+    const merged = mergeDashboardRecords(
+      deps.events.value,
+      eventBuffer,
+      deps.maxEvents.value,
+    );
+    evictedRecords.value += merged.evicted;
+    deps.events.value = merged.records;
+    indexDisplayedIds();
+    eventBuffer.length = 0;
+    queuedRecords.value = 0;
+    markRecentRowsRef.value(
+      merged.records
+        .filter((event) => !oldKeys.has(event.key))
+        .map((event) => event.key),
+    );
+  };
   const scheduleEventBufferFlush = () => {
-    if (flushTimer !== null) return;
-    flushTimer = window.setTimeout(() => {
+    if (deps.isPaused.value || flushTimer !== null) return;
+    flushTimer = setTimeout(() => {
       flushTimer = null;
       flushEventBuffer();
     }, EVENT_BATCH_WINDOW_MS);
   };
-
-  // ── History loading ──
-
-  const clearHistoryLoadTimer = () => {
-    if (historyLoadTimer !== null) {
-      window.clearTimeout(historyLoadTimer);
-      historyLoadTimer = null;
+  watch(deps.isPaused, (paused) => {
+    if (!paused) flushEventBuffer();
+  });
+  watch(deps.maxEvents, (capacity) => {
+    droppedRecords.value += appendBounded(eventBuffer, [], capacity);
+    queuedRecords.value = eventBuffer.length;
+    if (deps.events.value.length > capacity) {
+      evictedRecords.value += deps.events.value.length - capacity;
+      deps.events.value = deps.events.value.slice(0, capacity);
+      indexDisplayedIds();
     }
+  });
+
+  const cancelHistory = () => {
+    historyLoadToken += 1;
+    historyController?.abort();
+    historyController = null;
   };
-
-  const clearPendingLiveEvents = () => {
-    pendingLiveEvents.length = 0;
-  };
-
-  const flushPendingLiveEvents = () => {
-    if (pendingLiveEvents.length === 0) {
-      return;
-    }
-    enqueue(eventBuffer, pendingLiveEvents);
-    clearPendingLiveEvents();
-    flushEventBuffer();
-  };
-
-  const animateHistoryRecords = (records: AgentEvent[], token: number) =>
-    new Promise<void>((resolve) => {
-      if (records.length === 0 || token !== historyLoadToken) {
-        resolve();
-        return;
-      }
-
-      let index = 0;
-      const pump = () => {
-        if (token !== historyLoadToken) {
-          resolve();
-          return;
-        }
-
-        const chunk = records.slice(index, index + HISTORY_LOAD_BATCH_SIZE);
-        if (chunk.length === 0) {
-          resolve();
-          return;
-        }
-
-        enqueue(eventBuffer, chunk);
-        flushEventBuffer();
-        index += chunk.length;
-
-        if (index < records.length) {
-          historyLoadTimer = window.setTimeout(
-            pump,
-            HISTORY_LOAD_BATCH_DELAY_MS,
-          );
-          return;
-        }
-
-        historyLoadTimer = null;
-        resolve();
-      };
-
-      clearHistoryLoadTimer();
-      pump();
-    });
-
   const loadRecentEvents = async () => {
-    const token = ++historyLoadToken;
+    if (!shouldReconnect) return;
+    cancelHistory();
+    const token = historyLoadToken;
+    const controller = new AbortController();
+    historyController = controller;
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+    recoveryState.value = "loading";
     historyLoaded.value = false;
-    clearPendingLiveEvents();
-    clearHistoryLoadTimer();
-
     try {
-      const response = await fetchProto(
-        `/events/recent?limit=${HISTORY_LOAD_LIMIT}`,
-        pb.EventHistoryResponse.decode,
+      const response = await transport.history(controller.signal);
+      if (token !== historyLoadToken) return;
+      const records = (response.events ?? [])
+        .map(normalizeHistoryRecord)
+        .filter(
+          (record): record is AgentEvent =>
+            record !== null &&
+            (!record.eventId || !displayedIds.has(record.eventId)),
+        );
+      // Merge before truncation so the history/live overlap cannot evict unique
+      // queued events. Keep the queue oldest-first for bounded live appends.
+      const merged = mergeDashboardRecords(
+        eventBuffer,
+        records,
+        deps.maxEvents.value,
       );
-      if (token !== historyLoadToken) {
-        return;
-      }
-
-      const rawEvents = response.events ?? [];
-      const records = rawEvents
-        .map((record) => normalizeHistoryRecord(record))
-        .filter((record): record is AgentEvent => record !== null);
-
-      await animateHistoryRecords(records, token);
-    } catch (err) {
-      if (token === historyLoadToken) {
-        console.error("Failed to load recent dashboard events", err);
-      }
+      droppedRecords.value += merged.evicted;
+      eventBuffer.length = 0;
+      for (const record of merged.records.reverse()) eventBuffer.push(record);
+      queuedRecords.value = eventBuffer.length;
+      recoveryState.value = "ready";
+      flushEventBuffer();
+    } catch {
+      if (token === historyLoadToken) recoveryState.value = "error";
     } finally {
+      clearTimeout(timeout);
       if (token === historyLoadToken) {
+        historyController = null;
         historyLoaded.value = true;
-        flushPendingLiveEvents();
-        clearHistoryLoadTimer();
       }
     }
   };
-
-  // ── WebSocket connection ──
 
   const connectWebSocket = () => {
     if (!shouldReconnect) return;
+    if (reconnectTimer !== null) clearTimeout(reconnectTimer);
+    reconnectTimer = null;
     if (ws) {
-      ws.onopen = null;
-      ws.onmessage = null;
-      ws.onclose = null;
+      ws.onopen = ws.onmessage = ws.onclose = null;
       ws.close();
     }
-    const socket = new WebSocket(buildWebSocketUrl("/ws"));
+    const socket = transport.open();
     ws = socket;
     socket.binaryType = "arraybuffer";
-
     socket.onopen = () => {
       if (ws !== socket) return;
       deps.isConnected.value = true;
+      // Subscribe first, then snapshot. Stable IDs remove overlap without a
+      // blind window between the history request and WebSocket subscription.
+      void loadRecentEvents();
     };
-
     socket.onmessage = (ev) => {
       if (ws !== socket) return;
-      if (deps.isPaused.value) return;
       try {
-        const incomingEvents = decodeIncomingEvents(new Uint8Array(ev.data));
-        const normalizedEvents = incomingEvents.map((data) =>
-          buildAgentEvent(data as Record<string, unknown>, Date.now()),
-        );
-        if (!historyLoaded.value) {
-          enqueue(pendingLiveEvents, normalizedEvents);
-        } else {
-          enqueue(eventBuffer, normalizedEvents);
-          scheduleEventBufferFlush();
-        }
-      } catch (e) {
-        console.error("Failed to parse message", e);
+        const envelopes = pb.EventEnvelopeBatch.decode(
+          new Uint8Array(ev.data),
+        ).envelopes;
+        const records = envelopes
+          .map((envelope) => normalizeEnvelope(envelope))
+          .filter((record): record is AgentEvent => record !== null);
+        enqueue(records);
+        scheduleEventBufferFlush();
+      } catch {
+        continuityGap.value = true;
       }
     };
-
     socket.onclose = () => {
       if (ws !== socket) return;
       deps.isConnected.value = false;
+      continuityGap.value = true;
       ws = null;
+      cancelHistory();
+      recoveryState.value = "idle";
       if (!shouldReconnect) return;
-      if (reconnectTimer !== null) {
-        window.clearTimeout(reconnectTimer);
-      }
-      reconnectTimer = window.setTimeout(() => {
-        connectWebSocket();
-      }, 3000);
+      reconnectTimer = setTimeout(connectWebSocket, 3000);
     };
   };
 
-  // ── Clear and export ──
-
   const clearEvents = async () => {
+    const session = lifecycle;
     try {
-      await axios.post("/data/clear-events-memory");
+      await transport.clear();
+      if (session !== lifecycle) return;
+      cancelHistory();
       deps.events.value = [];
+      displayedIds.clear();
       eventBuffer.length = 0;
-      clearPendingLiveEvents();
-      clearHistoryLoadTimer();
-      historyLoadToken += 1;
+      queuedRecords.value = 0;
       historyLoaded.value = true;
-      if (flushTimer !== null) {
-        window.clearTimeout(flushTimer);
-        flushTimer = null;
-      }
-      message.success("Event buffer cleared on backend");
-    } catch (err: any) {
-      message.error(err?.response?.data?.error || "Failed to clear events");
-      deps.events.value = [];
-      eventBuffer.length = 0;
-      clearPendingLiveEvents();
-      clearHistoryLoadTimer();
-      historyLoadToken += 1;
-      historyLoaded.value = true;
-      if (flushTimer !== null) {
-        window.clearTimeout(flushTimer);
-        flushTimer = null;
-      }
+      recoveryState.value = "idle";
+      transport.notify("success", "Event buffer cleared on backend");
+    } catch {
+      // A failed server operation must not silently destroy local evidence.
+      if (session === lifecycle)
+        transport.notify(
+          "error",
+          "Failed to clear events; local events retained",
+        );
     }
   };
 
@@ -323,6 +324,7 @@ export function useDashboardStream(deps: DashboardStreamDeps) {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(url);
       message.success("Events exported as CSV");
     } catch (err) {
       message.error("Failed to export CSV");
@@ -330,44 +332,40 @@ export function useDashboardStream(deps: DashboardStreamDeps) {
   };
 
   // ── Lifecycle helpers ──
-
-  const startStream = () => {
-    shouldReconnect = true;
-    connectWebSocket();
-    void loadRecentEvents();
-  };
-
   const resetStreamState = () => {
-    evictedRecords.value = 0;
+    lifecycle += 1;
+    indexDisplayedIds();
+    cancelHistory();
+    deps.isConnected.value = false;
+    evictedRecords.value = droppedRecords.value = queuedRecords.value = 0;
+    continuityGap.value = false;
+    recoveryState.value = "idle";
     eventBuffer.length = 0;
-    clearHistoryLoadTimer();
-    clearPendingLiveEvents();
-    historyLoadToken += 1;
     historyLoaded.value = false;
-    if (flushTimer !== null) {
-      window.clearTimeout(flushTimer);
-      flushTimer = null;
-    }
-    if (reconnectTimer !== null) {
-      window.clearTimeout(reconnectTimer);
-      reconnectTimer = null;
-    }
+    if (flushTimer !== null) clearTimeout(flushTimer);
+    if (reconnectTimer !== null) clearTimeout(reconnectTimer);
+    flushTimer = reconnectTimer = null;
     if (ws) {
-      ws.onopen = null;
-      ws.onmessage = null;
-      ws.onclose = null;
+      ws.onopen = ws.onmessage = ws.onclose = null;
       ws.close();
       ws = null;
     }
   };
-
+  const startStream = () => {
+    resetStreamState();
+    shouldReconnect = true;
+    connectWebSocket();
+  };
   const stopStream = () => {
     shouldReconnect = false;
     resetStreamState();
   };
-
   return {
     evictedRecords,
+    droppedRecords,
+    queuedRecords,
+    streamNotice,
+    recoveryState,
     historyLoaded,
     startStream,
     stopStream,

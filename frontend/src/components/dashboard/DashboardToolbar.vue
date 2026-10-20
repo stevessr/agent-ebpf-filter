@@ -55,7 +55,7 @@ const emit = defineEmits<{
           size="small"
           danger
         >
-          {{ isPaused ? "Resume Stream" : "Pause Stream" }}
+          {{ isPaused ? "Resume Display" : "Pause Display" }}
         </a-button>
         <a-button type="primary" danger size="small" @click="clearEvents"
           >Clear Events</a-button
@@ -125,7 +125,7 @@ const emit = defineEmits<{
         </a-popover>
       </div>
       <div style="display: flex; gap: 8px; align-items: center">
-        <span style="font-size: 12px; color: #4b5563">Max:</span>
+        <span style="font-size: 12px; color: var(--ui-text-muted)">Max:</span>
         <a-select
           :value="maxEvents"
           size="small"
@@ -182,12 +182,12 @@ const emit = defineEmits<{
 .builtin-filter-popover-title {
   font-size: 13px;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--ui-text-strong);
 }
 
 .builtin-filter-popover-summary {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--ui-text-muted);
   line-height: 1.4;
 }
 

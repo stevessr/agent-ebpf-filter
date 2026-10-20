@@ -67,10 +67,15 @@ import axios from "axios";
 export const fetchProto = async <T>(
   url: string,
   decode: (data: Uint8Array) => T,
+  signal?: AbortSignal,
 ): Promise<T> => {
   const headers = buildRequestHeaders();
   headers["Accept"] = "application/x-protobuf, application/json;q=0.9";
-  const res = await axios.get(url, { headers, responseType: "arraybuffer" });
+  const res = await axios.get(url, {
+    headers,
+    responseType: "arraybuffer",
+    signal,
+  });
   const contentType = String(res.headers["content-type"] ?? "");
   if (contentType.includes("application/x-protobuf")) {
     return decode(new Uint8Array(res.data));

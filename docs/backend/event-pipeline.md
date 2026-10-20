@@ -1,5 +1,7 @@
 # 事件管线
 
+> **源码技术手册权威入口（2026-10-15）**：本页保留专题讲解与既有链接；有关当前函数、数据流、功能门控及平台可用性的实现事实，请优先核对 [技术手册：events](../technical/events.md) 和链接的源码与测试。旧示意图不表示其所绘功能已在默认部署中启用。
+
 事件管线负责把内核、wrapper、hooks、TLS、policy、system metrics 等不同来源统一成 `pb.Event` 与 `EventEnvelope`。
 
 ## 内核事件读取

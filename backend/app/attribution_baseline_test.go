@@ -296,7 +296,10 @@ func TestToolBaselineRiskPriorIsNarrow(t *testing.T) {
 	if score := toolBaselineRiskFloor("jq", "read"); score != 0.60 {
 		t.Fatalf("time-confirmed benign novelty risk floor = %v", score)
 	}
-	for _, item := range []struct{ comm, event string; want bool }{
+	for _, item := range []struct {
+		comm, event string
+		want        bool
+	}{
 		{"curl", "execve", true},
 		{"curl", "baseline_network", true},
 		{"socat", "network_connect", true},

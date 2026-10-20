@@ -357,30 +357,30 @@ func (a *renewApp) drawLineageWaterfall(c *ui.Context, graph agentLineage) {
 		}
 		p.Text(r.X+14, r.Y+19, "PID / 进程（缩进表示父子层级）", 11, t.TextMuted)
 		for i, node := range graph.Nodes {
-			y := r.Y+62+rowHeight*float32(i)
+			y := r.Y + 62 + rowHeight*float32(i)
 			tone := lineageTone(t, node)
 			if a.lineageSelectedPID == node.Process.PID {
-				p.Fill(ui.Rect{X: r.X+5, Y: y-3, W: r.W-10, H: rowHeight-2}, t.Accent.Alpha(0.10), 5)
+				p.Fill(ui.Rect{X: r.X + 5, Y: y - 3, W: r.W - 10, H: rowHeight - 2}, t.Accent.Alpha(0.10), 5)
 			}
 			label := fmt.Sprintf("%d · %s", node.Process.PID, agentProcessName(node.Process))
 			runes := []rune(label)
 			if len(runes) > 23 {
 				label = string(runes[:22]) + "…"
 			}
-			indent := float32(min(node.Depth, 5))*12
+			indent := float32(min(node.Depth, 5)) * 12
 			p.Text(r.X+12+indent, y+3, label, 11, t.Text)
 			if starts[i] < 0 {
 				p.Text(r.X+left+8, y+3, "启动时间未知", 10, t.TextMuted)
 				continue
 			}
-			start := r.X+left+starts[i]
+			start := r.X + left + starts[i]
 			if start > r.X+left+plotWidth-3 {
-				start = r.X+left+plotWidth-3
+				start = r.X + left + plotWidth - 3
 			}
-			p.Fill(ui.Rect{X: start, Y: y+3, W: max(float32(3), r.X+left+plotWidth-start), H: 15}, tone.Alpha(0.75), 4)
+			p.Fill(ui.Rect{X: start, Y: y + 3, W: max(float32(3), r.X+left+plotWidth-start), H: 15}, tone.Alpha(0.75), 4)
 			p.FillPath((&ui.Path{}).Circle(start, y+10, 4), tone)
 			if node.Alerts > 0 {
-				p.Fill(ui.Rect{X: start, Y: y+3, W: 3, H: 15}, t.Danger, 1)
+				p.Fill(ui.Rect{X: start, Y: y + 3, W: 3, H: 15}, t.Danger, 1)
 			}
 		}
 	})

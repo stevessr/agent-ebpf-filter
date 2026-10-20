@@ -1,9 +1,11 @@
 # Agent eBPF Filter
 
+> **源码技术手册（2026-10-15）：** [25 篇技术章节、90 张 Mermaid 图](docs/technical/index.md)。实现状态、运行门控与平台限制以当前代码为准，历史规划不能作为功能交付证据。
+
 **面向 Linux 的 AI Agent 观测与控制平面**
 
 [![许可证：GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
-[![文档](https://img.shields.io/badge/docs-VitePress-green.svg)](docs/index.md)
+[![文档](https://img.shields.io/badge/docs-MkDocs-green.svg)](docs/index.md)
 
 > Linux 工作站上 AI Agent 行为的实时监控、语义关联与内核级强制执行。
 
@@ -76,6 +78,19 @@ Agent eBPF Filter 结合 **eBPF 内核追踪**、**Go 后端**、**Vue.js 仪表
 - **clang/LLVM**（eBPF 编译）
 - **protoc**（Protocol Buffers 编译器）
 - **sudo** 或 **pkexec**（权限提升）
+
+### curl 一键安装（预编译 Linux Release）
+
+正式发布稳定版后，Linux x86_64/aarch64 用户可直接安装，无需在本机配置 Go、Bun 和 clang：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/stevessr/agent-ebpf-filter/master/scripts/install.sh | bash
+
+# 指定一个已经发布的版本，不立即启动服务
+curl -fsSL https://raw.githubusercontent.com/stevessr/agent-ebpf-filter/master/scripts/install.sh | bash -s -- --version v1.0.0 --no-start
+```
+
+安装器自动检测架构、获取 GitHub Release、验证 SHA-256，随后调用原有的系统服务安装脚本；安装系统文件时才按需提升权限。默认使用最新稳定版，不包含 prerelease；要求 Linux 内核具备对应 eBPF/BTF 能力。更多选项及手动发布操作见[部署与安装](docs/operations/deployment.md)。执行管道脚本前建议先审阅其内容。
 
 ### 开发模式
 
@@ -253,9 +268,8 @@ curl -X POST http://localhost:8080/sandbox/lsm/block-exec-path \
 
 **预览文档站：**
 ```bash
-cd docs
-bun install
-bun run docs:dev
+python3 -m pip install -r docs/requirements.txt
+python3 docs/build_site.py serve
 ```
 
 ---
@@ -277,7 +291,7 @@ agent-ebpf-filter/
 ├── adapters/             # Python 和 Node.js PID 注册助手
 ├── proto/                # Protobuf 定义（单一事实来源）
 ├── kernel-ml/            # 可选 DKMS 内核态 ML 模块
-├── docs/                 # VitePress 文档站
+├── docs/                 # MkDocs 文档站
 ├── deploy/kubernetes/    # Kubernetes 清单
 └── scripts/              # 演示和验证脚本
 ```
@@ -451,7 +465,7 @@ make runtime-benchmark
 - DeepSeek Harness 通过 `agent-wrapper` 别名启动；dsh 的 profile/plugin 配置仍由 dsh 管理
 - Hook 回调 URL 可从 CLI 进程访问
 - `curl` 在 PATH 中可用
-- 后端正在运行且认证令牌有效（如果在发布模式）
+- 后端正在运行且认证令牌有效（所有 Gin 模式默认要求认证；仅本地开发可显式设置 `DISABLE_AUTH=true`）
 
 ### OS 强制执行冒烟测试失败
 

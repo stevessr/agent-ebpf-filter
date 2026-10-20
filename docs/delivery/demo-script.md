@@ -1,595 +1,181 @@
-# 答辩演示脚本
+# 现场演示脚本：Agent eBPF Filter（2026-10 版）
 
-> 项目：Agent eBPF Filter  
-> 目标：为操作系统设计赛答辩准备可重复、可解释、可兜底的现场演示流程。  
-> 关联文档：`docs/delivery/competition-defense.md`、`docs/reference/project-structure-deep-dive.md`、`docs/reference/project-roadmap.md`、`docs/delivery/evaluation.md`。  
-> 安全提醒：涉及 root、eBPF attach、cgroup / BPF LSM enforcement、hook 安装、TLS capture、domain forward、命令执行等操作时，必须在授权环境中进行。
+> 适用：项目展示 / 操作系统设计赛答辩 / 真实 Linux 开发机产品演示  
+> 基线：`master@10e9766`（2026-10-15）  
+> 主线：**内核事实 → Agent 归因 → 原生桌面调查 → 受控 OS Enforcement → 工程验证**  
+> 安全原则：全程在授权环境进行；策略拒绝、Hook 安装、Shell、TLS 明文采集等副作用操作只在隔离测试机展示。
 
----
+与旧版纯 Web 演示不同，本版分为**必备的 Renew 桌面演示**和**依条件开放的 Web/内核高级演示**。现场不具备 BPF LSM/cgroup 时，明确说明未执行阻断，不用普通事件冒充内核拒绝。
 
-## 1. 演示目标
+## 0. 演示前必须核对的能力
 
-本演示要向评委证明：
+| 检查项 | 操作 / 判断 | 若不满足 |
+| --- | --- | --- |
+| 内核与加载前提 | `make os-enforcement-preflight` | 保留只读桌面、文档与离线评测路径 |
+| 源码一致性 | 演示前记录 `git rev-parse --short HEAD` | 不把其它提交功能写成本次可展示能力 |
+| 原生桌面 | `make renew-desktop-dev` 或已打包的 Renew | 提前保存可核对版本的截图和日志，不声称实时运行 |
+| eBPF collector | 桌面「系统诊断」实际显示健康与 event/system 流 | 展示故障状态与 fallback，不将空白页视为安全 |
+| Agent 识别/生命周期 | 已有受支持 Agent 进程；可选 Hook 分别安装成功 | 只展示普通进程图，不标为已证实 SubAgent |
+| cgroup/BPF LSM | 相应 hook 真正附着、gate 开启、隔离环境授权 | 省略现场策略变更，解释机制与验证命令 |
+| 隐私数据 | 演示目录和 Agent 会话不含真实秘密 | 不打开完整凭据、TLS body 或用户私人配置 |
 
-1. 项目能在 Linux 上通过 eBPF 观察 AI Agent / CLI 的真实 OS 行为；
-2. 项目能把 syscall、网络、文件、进程、hook 语义统一到可视化证据链；
-3. 项目不仅能观测，还能通过 wrapper、cgroup、BPF LSM 实施策略控制；
-4. 项目具备录制、回放、benchmark、合规披露和工程化交付能力；
-5. 项目清楚区分安全基线与高风险诊断能力，不夸大安全边界。
+## 1. 时间线（约 12–15 分钟）
 
----
+| 段落 | 建议用时 | 画面 | 要证实的观点 |
+| --- | --- | --- | --- |
+| 1. 目标与架构 | 1 分钟 | 文档站首页 / Mermaid 图 | 事实、语义、策略是不同层 |
+| 2. 原生桌面启动与健康 | 2 分钟 | 「我的设备」和「系统诊断」 | 连通性、采集状态与丢弃计数可见 |
+| 3. Agent 事件归因 | 2 分钟 | 「事件」→ 详情 / 关联 | syscall PID 与 root Agent 区分 |
+| 4. Agent 域名外联 | 1.5 分钟 | 「Agent 域名监控」 | 网络元数据可以定位目标，但不等于明文 API 账单 |
+| 5. Agent → SubAgent | 2 分钟 | 放射图 / 瀑布图 / 生命周期信号 | 进程关系与逻辑调用证据有清楚界限 |
+| 6. 原生文件工具与路径策略 | 2 分钟 | 文件管理 / 编辑器 / 路径权限 | 普通用户文件操作与内核策略授权隔离 |
+| 7. Web 深度功能和安全控制 | 2 分钟 | Dashboard、Hooks、Config、内核状态 | 多层控制必须有运行时证据 |
+| 8. 工程验证与收尾 | 1–2 分钟 | 预检 / 回放 / 版本记录 | 可验证、可复现、不夸大 |
 
-## 2. 演示环境准备
+### 讲解开场（约 30 秒）
 
-### 2.1 推荐环境
+> AI Agent 可以声称它运行了什么命令，但这不等于系统真实发生的行为。我们用 eBPF 获得内核事实，再用 Hook/Wrapper/注册上下文关联一次 Agent 会话，最后通过 Renew 桌面和 Web 工作台呈现可核查的证据。只有需要主动拦截时，我们才在授权条件下启用 wrapper、cgroup 或 BPF LSM 策略。
 
-| 项目 | 建议 |
-| --- | --- |
-| OS | Linux，启用 BTF 的现代内核 |
-| 权限 | 可使用 root / sudo，或 privileged devcontainer |
-| cgroup | cgroup v2 可用 |
-| BPF LSM | 内核启用 BPF LSM；若不可用，准备 replay 兜底 |
-| 前端工具 | Bun / Node.js 可用 |
-| 后端工具 | Go、clang、llvm、bpftool 或相关 eBPF 构建依赖 |
-| 浏览器 | Chrome / Chromium / Firefox 均可 |
-| 网络 | 尽量准备本地 loopback 演示，避免依赖外网 |
+## 2. 桌面健康：必须先展示「采集到底有没有发生」
 
-### 2.2 启动前检查
+**操作**
+
+1. 启动 Renew，打开「我的设备」。
+2. 展示后端、collector、系统/事件流状态以及最近活动。
+3. 进入「系统诊断」，说明 loss/drop/queue 等指标与连接异常提示。
+4. 可演示「暂停事件」后状态刷新仍持续；**暂停仅影响 UI**，不暂停 BPF 采集或策略。
+
+**必须说清**
+
+- UI 没有新事件 ≠ BPF 挂载正常；更不等于主机安全。
+- 独立 Renew 后端通过私有 Unix Socket 传递摘要/鉴权请求；本地内置模式并不默认打开 HTTP 8080。
+- 事件完整详情需要显式查询，列表只保存有界摘要。
+
+**兜底**：采集未就绪时保留诊断画面，用先前准备的可识别来源的日志/录屏说明预期；不伪装实时事件。
+
+## 3. 内核事实与 Agent 归因
+
+**事前准备**：已有被检测/跟踪的目标进程，以及符合当前 capture/monitor 规则的本地测试文件。注意新的默认噪声规则会降低 `/tmp` 和 `/proc` 的普通事件，因此**测试内容不要完全依赖这些路径出现的低风险记录**。
+
+可在你控制的工作目录准备：
 
 ```bash
-make predev
-make os-enforcement-preflight
-make os-enforcement-check
+mkdir -p "$HOME/agent-ebpf-demo"
+printf 'demo\n' > "$HOME/agent-ebpf-demo/input.txt"
+python3 -c 'from pathlib import Path; p=Path.home()/"agent-ebpf-demo"/"input.txt"; print(p.read_text())'
 ```
 
-预期：
+**操作**
 
-- `make predev` 完成开发依赖检查；
-- `make os-enforcement-preflight` 给出当前机器是否适合 live kernel deny validation；
-- `make os-enforcement-check` 完成 rootless static check。
+1. 进入「事件」，按实际执行程序、PID、类型、风险过滤。
+2. 选中一次记录，查看真实 syscall PID、时间、文件/网络目标、可用的 root Agent/run 上下文。
+3. 使用「查看进程树」「父进程」或「Agent 会话」跳转；如是 shell/python 间接编辑文件，比较**实际执行器**与**有证据的 Agent 归属**。
 
-如果 preflight 显示 BPF LSM 或 cgroup 条件不足：
+**必须说清**
 
-- 仍可演示 Dashboard、Network、Execution Graph、AgentSight、wrapper、runtime replay；
-- OS enforcement live demo 改用录屏或 replay 兜底。
+- PID 注册和 fork/clone 证据帮助关联后代；不会把所有 `python`、`bash` 默认识别成 Agent。
+- 一条 `write` 只有满足文件相关证据时才算文件编辑，不能把套接字写入误算为文件改动。
+- 已退出进程、时间戳缺失、PID 重用无法事后准确恢复所有关系。
 
-### 2.3 启动项目
+## 4. Agent 域名目标：展示「外联证据」的边界
 
-开发模式：
+**操作**：打开「Agent 域名监控」，挑选实际采到的目标，演示 Agent/域名/IP 筛选、风险优先级、目标跳转事件。可在功能需要时查看 Claude/Codex 本地**只读配置候选**，不要打开真实密钥或用户私有数据。
+
+**必须说清**：域名或 IP 线索来自既有事件/网络元数据，不能自动得出每个模型调用的 token、请求 body 或账单。没有主机名时可能只是 IP-only，不能用反查域名臆造 HTTPS Host。配置文件声明也不是一次网络访问已成功的证据。
+
+## 5. 新功能：Agent → SubAgent 可视化
+
+**前提**：有在线 `/ws/system` 进程快照和可识别的 Agent 根进程。演示前应确认正在运行的 Agent 确实产生了至少一个 OS 子进程，否则展示「无当前后代」是正常结果。
+
+**操作**
+
+1. 在原生桌面选「Agent 派生」，选定一个 root Agent。
+2. 切换「放射图」与「瀑布图」，选中同一节点，展示事件/进程详情交叉跳转。
+3. 解释普通 shell 执行器、其它 Agent 可执行程序的**子 Agent 候选**和 Hook 生命周期信号之间的区别。
+4. 若已显式启用 Claude Code `SubagentStart`、`SubagentStop`，展示带有实际时间的信号；未启用时明确不展示该信号。
+
+**关键边界**
+
+- **放射图**：实时 PID/PPID，不是 SDK 的 parent span。
+- **瀑布图**：进程创建到快照时刻的区间，不是任务执行耗时、也不是退出时间。
+- **限制**：最多 72 节点与 6 层；重用 PID、过期快照不能拼成所谓历史全景图。
+- **独立 Hook**：两个生命周期事件可分别安装/卸载；不保存原始 `agent_id` / prompt，也不凭两个孤立事件凑出跨 RPC 逻辑调用链。
+
+可将页面与 [Agent 派生功能说明](/frontend/renew#4-agent-subagent-派生图-当前新增) 一起展示。
+
+## 6. 原生工具与访问控制
+
+**操作**
+
+1. 在「工具 → 文件管理」浏览用户演示目录，新建/重命名临时文本。
+2. 双击文本，用 MyGo 原生编辑器修改、保存；可展示多标签、未保存提醒。演示冲突保护时不要对真实文件进行外部并发修改。
+3. 打开「跟踪范围」与「路径权限」界面作对比，不直接对系统凭据下发危险策略。
+
+**讲解边界**
+
+| 功能 | 主体与效果 |
+| --- | --- |
+| 文件管理 / 编辑器 | Renew **未提权的普通桌面进程**执行，仍受用户文件权限约束 |
+| 跟踪规则 | 决定采集目标或递归路径前缀，不等同文件拒绝 |
+| 忽略路径 | 减少低风险噪声，不抹掉 ALERT/BLOCK/DENY |
+| BPF LSM 精确路径保护 | 明确授权的内核读写阻断，受 gate、支持的 hook 和精确路径约束 |
+
+如需 live LSM smoke，先阅读 [路径权限说明](/security/mingjing-path-access)，在隔离主机用临时普通文件完成，**不要**测试 `/etc/shadow`、用户 SSH 私钥等真实文件。
+
+## 7. Web 研究工作台、策略和 IPC
 
 ```bash
+# 与原生桌面独立的 Web 开发流程
 make dev
 ```
 
-或分开启动：
+在 Vue 工作台中选取 **Dashboard → Network → Execution Graph → Hooks / Config** 的一条真实事件，说明网络/进程/工具链如何穿透不同视图。只有授权与 gate 条件满足时，才展示以下可选验证：
+
+- **Wrapper**：明确让命令经 wrapper 执行，演示 ALLOW/BLOCK/ALERT/REWRITE；命令不经过 wrapper 的直接执行不受它保证。
+- **cgroup eBPF**：在隔离范围验证精确 IP/端口规则、attach 状态、连接失败和计数器，不能说是任意 CIDR 防火墙。
+- **BPF LSM**：选临时精确路径验证文件/exec deny，核对拒绝返回及内核指标；保存一条规则不意味着成功生效。
+- **组件化阶段**：说明 `agentscope`、`eventnoise`、`collectorcodec` 等可测库与实验性 `componentipc`、`componentproc`、`componentshm`。这些**不是**默认替换生产 Collector/Engine/Controller 的多服务拓扑。
+
+::: warning 实验边界
+分组件 Unix Socket/HMAC、memfd/eventfd、共享内存 ACK 和 opt-in 子进程路径用于验证隔离与传输机制；不能把 schema 验证的 ACK 误称为 ML 风险判断或执行策略成功。核对 [组件 IPC 设计](/architecture/component-ipc)。
+:::
+
+## 8. 验证证据：用真实结果代替修辞
+
+演示可以引用运行在当前环境的命令和报告，不应单纯用「零开销」「完美隔离」「绝对安全」等无法验证的表达。
 
 ```bash
-make dev-backend
-make dev-frontend
-```
-
-生产 / 后端-only 演示：
-
-```bash
-make backend
-sudo -E ./backend/agent-ebpf-filter
-```
-
-说明：
-
-- 后端会在 `8080..8089` 中选择端口，并写入 `backend/.port`；
-- Vite dev proxy 会读取 `backend/.port`；
-- eBPF / cgroup / LSM attach 通常需要特权；
-- release mode 下需要 runtime access token。
-
----
-
-## 3. 演示总流程
-
-建议现场按 8 个环节推进，总时长 10–15 分钟。
-
-| 环节 | 时间 | 目标 |
-| --- | --- | --- |
-| 1. 项目总览 | 1 分钟 | 说明 AI Agent OS 行为观测与控制问题 |
-| 2. 系统启动与健康状态 | 1 分钟 | 展示 backend / frontend / eBPF collector 状态 |
-| 3. 实时 syscall 观测 | 2 分钟 | 展示 exec/open/connect 等事件 |
-| 4. 网络流分析 | 1–2 分钟 | 展示 process-level network flow |
-| 5. Execution Graph / AgentSight | 2 分钟 | 展示进程树、时间线、行为证据链 |
-| 6. cgroup 网络阻断 | 1–2 分钟 | 展示内核侧网络 deny |
-| 7. BPF LSM 文件 / 执行阻断 | 1–2 分钟 | 展示内核侧文件 / exec deny |
-| 8. replay / benchmark / 合规总结 | 2 分钟 | 展示可回放、可评测、可合规交付 |
-
----
-
-## 4. 演示 1：系统启动与健康状态
-
-### 4.1 操作
-
-1. 打开前端页面；
-2. 进入 Config / System Health；
-3. 展示 collector health、eBPF bootstrap、runtime config、feature gates；
-4. 展示 Dashboard 初始事件流。
-
-### 4.2 讲解要点
-
-- 后端负责加载 eBPF、读取 ringbuf、维护 runtime state；
-- 前端通过 WebSocket / REST 接收事件；
-- 安全敏感能力由 runtime gates 控制；
-- release mode 下敏感 API 需要 runtime token。
-
-### 4.3 预期现象
-
-- 前端能显示 backend 在线；
-- collector health 有事件计数或 attach 状态；
-- runtime config 能看到 shell / policy / TLS / OTLP 等 gate。
-
-### 4.4 兜底
-
-如果现场 eBPF attach 失败：
-
-- 展示 `make os-enforcement-preflight` 输出；
-- 展示已有截图 / 录屏；
-- 使用 JSONL replay 展示 UI 功能。
-
----
-
-## 5. 演示 2：实时 syscall 观测
-
-### 5.1 操作方式 A：普通命令触发
-
-在终端执行安全、可控的本地命令：
-
-```bash
-pwd
-ls
-uname -a
-python3 -c 'import os; print("demo pid", os.getpid()); open("/tmp/agent-ebpf-demo.txt", "w").write("hello")'
-python3 -c 'open("/tmp/agent-ebpf-demo.txt").read(); print("read ok")'
-```
-
-### 5.2 操作方式 B：通过 Agent adapter 注册 PID
-
-如使用 Python adapter，可准备一个短脚本：
-
-```python
-import os
-import time
-
-# 伪代码：实际按 adapters/python/README.md 引入 agent_tracker
-print("agent demo pid", os.getpid())
-open("/tmp/agent-ebpf-agent-demo.txt", "w").write("agent demo")
-time.sleep(1)
-```
-
-### 5.3 UI 展示
-
-在 Dashboard 中筛选：
-
-- `execve`
-- `openat`
-- `connect`
-- `mkdirat`
-- `unlinkat`
-- command / PID / path
-
-### 5.4 讲解要点
-
-- eBPF tracepoint 是事实来源；
-- 事件通过 ringbuf 到 Go 后端，再到 WebSocket 和前端；
-- tracked command / tracked path 是 exact match；
-- PID registration 是 per-process，子进程通过 fork/clone lineage 和 userspace parent fallback 关联。
-
-### 5.5 预期现象
-
-- Dashboard 出现命令执行、文件打开等事件；
-- 事件中可看到 PID、comm、path、event type、timestamp；
-- 如果启用 EventEnvelope，可进一步进入图谱关联。
-
----
-
-## 6. 演示 3：网络流分析
-
-### 6.1 推荐本地网络演示
-
-为了避免外网不稳定，建议使用本地 HTTP server：
-
-终端 1：
-
-```bash
-python3 -m http.server 18080 --bind 127.0.0.1
-```
-
-终端 2：
-
-```bash
-curl http://127.0.0.1:18080/
-```
-
-### 6.2 UI 展示
-
-打开：
-
-- Network；
-- Network Flow；
-- Dashboard 中的 connect / sendto / recvfrom 事件。
-
-筛选：
-
-- `process:curl`
-- `dport:18080`
-- `state:` 或对应 flow state；
-- PID / comm。
-
-### 6.3 讲解要点
-
-- 网络事件由 syscall-derived network events 和 flow aggregator 组织；
-- 支持 per-process TCP / UDP flow attribution；
-- 可结合 DNS / SNI / HTTP Host / ALPN 等 metadata；
-- Network 页面用于从 OS 行为角度回答“Agent 连接了哪里”。
-
-### 6.4 预期现象
-
-- Network 页面显示 127.0.0.1:18080 相关连接；
-- 能关联到 `curl` 或对应进程；
-- flow detail 中显示时间、方向、端口和进程信息。
-
----
-
-## 7. 演示 4：Execution Graph / AgentSight 行为证据链
-
-### 7.1 操作
-
-执行一个多步骤脚本：
-
-```bash
-python3 - <<'PY'
-import os, subprocess, pathlib, urllib.request
-p = pathlib.Path('/tmp/agent-ebpf-graph-demo')
-p.mkdir(exist_ok=True)
-(p / 'input.txt').write_text('demo')
-subprocess.run(['sh', '-c', 'cat /tmp/agent-ebpf-graph-demo/input.txt > /tmp/agent-ebpf-graph-demo/output.txt'])
-try:
-    urllib.request.urlopen('http://127.0.0.1:18080/', timeout=2).read(64)
-except Exception as exc:
-    print('network demo skipped:', exc)
-print('graph demo pid', os.getpid())
-PY
-```
-
-### 7.2 UI 展示
-
-打开：
-
-- Execution Graph；
-- 行为追踪 / AgentSight tab；
-- Timeline；
-- Process Tree；
-- Metrics；
-- Log。
-
-### 7.3 讲解要点
-
-- EventEnvelope 将 syscall、wrapper、hook、TLS、policy 等来源归一化；
-- Execution Graph 组织 agent / process / tool / syscall / file / network / policy；
-- AgentSight 兼容视图提供 Log、Timeline、Process Tree、Metrics；
-- 支持导出 JSON / JSONL / CSV，便于赛后审计和复现。
-
-### 7.4 预期现象
-
-- 可看到 Python 进程及其子进程；
-- 可看到文件创建、读取、网络连接；
-- 时间线上能展示事件顺序；
-- 进程树能体现父子关系。
-
----
-
-## 8. 演示 5：cgroup 网络阻断
-
-> 该演示需要 cgroup sandbox attach 成功，且 policy mutation gate 已开启。请只在授权环境中执行。
-
-### 8.1 准备
-
-确认 Runtime Config 中：
-
-- `policyManagementEnabled = true`；
-- cgroup sandbox status 正常；
-- 当前用户有权限调用 policy API。
-
-### 8.2 操作方式 A：通过 UI
-
-1. 打开 Config → Security Policies；
-2. 添加 destination port block，例如 `18080`；
-3. 再次执行：
-
-```bash
-curl http://127.0.0.1:18080/
-```
-
-4. 查看连接失败和 counters 增加。
-
-### 8.3 操作方式 B：通过 MCP / API
-
-若使用 MCP 工具，可调用 `block_network_destination`，参数为 `port: 18080`。  
-若使用 REST API，按当前 `/sandbox/cgroup/**` 文档和 token 调用。
-
-### 8.4 讲解要点
-
-- 阻断发生在 cgroup/connect 或 cgroup/sendmsg hook；
-- 规则是 exact IP / IPv6 / TCP/UDP port map，不是 CIDR / range；
-- kernel path 在连接完成前返回失败；
-- policy map mutation 通过 authenticated backend API 进行。
-
-### 8.5 预期现象
-
-- `curl` 连接失败；
-- UI 中 cgroup decision counters 的 blocked 数增加；
-- Dashboard / policy event 可显示阻断事实。
-
-### 8.6 兜底
-
-如果现场 cgroup 不可用：
-
-- 展示 `make os-enforcement-check` 静态检查结果；
-- 展示 smoke 脚本内容和历史报告；
-- 使用录屏或 replay 展示阻断效果。
-
----
-
-## 9. 演示 6：BPF LSM 文件 / 执行阻断
-
-> 该演示需要内核支持 BPF LSM，且 LSM enforcer attach 成功。请只在授权环境中执行。
-
-### 9.1 文件阻断演示
-
-准备文件：
-
-```bash
-printf 'secret demo\n' > /tmp/agent-ebpf-secret-demo.txt
-cat /tmp/agent-ebpf-secret-demo.txt
-```
-
-通过 UI Config → Security Policies 添加 basename block：
-
-```text
-agent-ebpf-secret-demo.txt
-```
-
-再次读取：
-
-```bash
-cat /tmp/agent-ebpf-secret-demo.txt
-```
-
-### 9.2 执行阻断演示
-
-准备一个临时脚本：
-
-```bash
-cat > /tmp/agent-ebpf-blocked-exec.sh <<'SH'
-#!/usr/bin/env sh
-echo should-not-run
-SH
-chmod +x /tmp/agent-ebpf-blocked-exec.sh
-/tmp/agent-ebpf-blocked-exec.sh
-```
-
-通过 UI 或 API 添加 exec path / basename block：
-
-```text
-/tmp/agent-ebpf-blocked-exec.sh
-```
-
-再次执行：
-
-```bash
-/tmp/agent-ebpf-blocked-exec.sh
-```
-
-### 9.3 讲解要点
-
-- BPF LSM 覆盖 exec、open、read/write、mmap、mprotect、setattr、create/link/symlink/delete/mkdir/rmdir/mknod/rename 等 hook；
-- file-name policy 是 basename-based；
-- exec policy 是 exact path 或 executable basename；
-- 阻断通常表现为 `EACCES`；
-- LSM 是确定性 map lookup，不把 LLM / ML 放在同步内核决策路径。
-
-### 9.4 预期现象
-
-- 读取被阻断文件返回 Permission denied；
-- 执行被阻断脚本返回 Permission denied；
-- UI status / counters / event 中能看到策略命中。
-
-### 9.5 兜底
-
-如果 BPF LSM 不可用：
-
-- 展示 preflight 输出；
-- 展示 `docs/security/model.md` 中的边界说明；
-- 使用录屏或 smoke 报告展示。
-
----
-
-## 10. 演示 7：Wrapper 策略控制
-
-### 10.1 操作
-
-确认 wrapper 可用：
-
-```bash
-make wrapper
-./agent-wrapper --help || true
-```
-
-在 UI Config / Wrapper Rules 中配置规则，例如：
-
-- 对某个命令返回 ALERT；
-- 对某个危险命令返回 BLOCK；
-- 对某个命令参数做 REWRITE。
-
-通过 Executor 的 Remote / Wrapper terminal 运行命令。
-
-### 10.2 讲解要点
-
-- wrapper 是命令 shim / policy layer，不是完整 shell sandbox；
-- 决策通过 UDS `/tmp/agent-ebpf.sock`；
-- 支持 ALLOW / BLOCK / ALERT / REWRITE；
-- UDS socket 应保持 restrictive，backend 校验 peer credentials；
-- policy mutation 受 runtime gate 控制。
-
-### 10.3 预期现象
-
-- UI 显示 wrapper intercept event；
-- BLOCK 命令不执行；
-- ALERT 命令执行但产生告警；
-- REWRITE 命令参数被替换后执行。
-
----
-
-## 11. 演示 8：Runtime replay / Benchmark
-
-### 11.1 操作
-
-```bash
+make os-enforcement-preflight
+make os-enforcement-check
 make runtime-benchmark
+cd desktop/renew && go test ./...
 ```
 
-或：
+| 证据 | 可以支持的结论 | 不能代替 |
+| --- | --- | --- |
+| `go test` / 前端构建通过 | 对应代码可编译或断言通过 | 实际内核挂载及现场策略执行 |
+| rootless component IPC / SHM 测试 | 协议/队列/ACK 原型满足测试条件 | 默认线上组件分离与可靠重放 |
+| runtime replay summary | 离线数据集上的延迟、召回/误报或上下文回归指标 | 当前主机真实 ringbuf loss / kernel drop |
+| collector health | 实际采集链路和丢弃状态 | 主机没有恶意行为 |
+| isolated OS smoke | 指定 hook/规则/内核组合下发生过真实 deny | 任意平台或全路径/全网络默认覆盖 |
 
-```bash
-cd backend
-RUNTIME_REPLAY_OUT=../reports/runtime-replay-manual/summary.json go test ./... -run TestRuntimeReplaySuite -count=1 -v
-```
+**实测性能数字**请连同提交、内核、CPU、工作负载、采样规模和统计口径一起给出。无法现场复现时应明确标注「历史评测」或「预先录制」，不插入未经本次确认的新百分比。
 
-### 11.2 展示内容
+## 9. 结束时的三句话
 
-展示 `reports/runtime-replay-*/summary.json`，重点包括：
+1. **可观测**：系统调用事实与 Agent 语义被合并为可检查的关联证据，而不是只信任终端文本。
+2. **可调查**：MyGo 原生桌面降低日常监控复杂度，同时保留 Vue Web 工作台作深入分析。
+3. **可约束但不夸大**：用户态与内核策略在正确前提下起作用；捕获、关联、进程图、Hook 信号、实验 IPC 各自有明确的证据与权限边界。
 
-- scenario coverage.
-- pass count.
-- false positives / false negatives.
-- p50 / p95 / p99 replay-event latency.
-- p50 / p95 / p99 wrapper-decision latency.
-- p50 / p95 / p99 first-alert / block latency.
-- memory allocation delta.
-- trace-correlation accuracy.
+## 10. 演示结束检查
 
-### 11.3 讲解要点
+- [ ] 记录演示的 Git 提交、内核版本、实际 collector 状态与截图来源。
+- [ ] 移除所有仅为演示创建的 wrapper/cgroup/LSM 规则。
+- [ ] 停止本地临时 HTTP/Agent 服务，清理用户演示目录。
+- [ ] 如安装 Hook，检查是否要移除本次新增的 SubagentStart/Stop 配置。
+- [ ] 不保存明文凭据、真实用户 prompt/TLS body 或不必要的敏感事件详情。
+- [ ] 将真实测试输出与离线演示素材清晰区分。
 
-- replay suite 是 offline replay，不依赖现场 kernel attach；
-- 它用于回归测试 context inheritance、semantic alert、wrapper latency、expected-vs-observed classification；
-- live kernel drop rate 仍需通过 `/system/collector-health` 或 `/metrics` 验证。
+## 关联资料
 
----
-
-## 12. 可选演示：kernel-ml 内核态推理
-
-> 可选。若现场环境不适合加载 DKMS 模块，可用 README、测试输出或录屏展示。
-
-### 12.1 编译 / 测试
-
-```bash
-cd kernel-ml
-make test
-make dkms-smoke
-```
-
-如果具备权限：
-
-```bash
-sudo dkms add .
-sudo dkms build kernel-ml/1.1
-sudo dkms install kernel-ml/1.1
-sudo insmod kernel_ml.ko
-```
-
-### 12.2 展示接口
-
-```bash
-cat /sys/kernel/kernel_ml/model_info
-cat /sys/kernel/kernel_ml/stats
-cat /sys/kernel/kernel_ml/cache_stats
-cat /sys/kernel/kernel_ml/backend
-```
-
-### 12.3 讲解要点
-
-- 内核禁止浮点，因此使用定点数；
-- Random Forest 适合可解释、低延迟推理；
-- CUDA runtime 不能直接进入内核，因此采用 userspace helper；
-- helper 不存在或超时时 fallback 到内核 CPU 路径。
-
----
-
-## 13. 不建议现场开启的能力
-
-除非评委明确要求且环境授权充分，否则不建议现场开启：
-
-| 能力 | 原因 |
-| --- | --- |
-| TLS 明文捕获 | 高风险诊断能力，涉及敏感数据；建议用截图或脱敏样例展示 |
-| domain forward 80/443 | 可能影响本机网络服务，需要 root / CAP_NET_BIND_SERVICE |
-| 真实 AI CLI hook 安装 | 会修改本机 AI CLI 配置；除非已准备隔离环境 |
-| 删除 / 清空持久化事件 | 不可逆操作，可能影响演示数据 |
-| 外网攻击 / 扫描 / DoS 类演示 | 不符合安全边界和比赛合规 |
-
----
-
-## 14. 现场问答准备
-
-### Q1：这是不是一个完整沙箱？
-
-不是。项目是 Agent 行为观测与控制平面，提供 wrapper、cgroup、BPF LSM 等精确策略能力，但不声称替代容器沙箱、VM 或完整 MAC 系统。
-
-### Q2：为什么不防 root 攻击者？
-
-root 可以卸载 BPF program、修改 map、停止服务或直接绕过用户态控制。防 root 需要可信启动、内核硬化、外部隔离等更大范围能力。
-
-### Q3：TLS 明文捕获是否侵犯隐私？
-
-TLS capture 默认关闭，是高风险诊断能力。安全基线依赖 syscall、网络元数据、digest、长度和脱敏事件，不依赖默认采集明文。
-
-### Q4：ML 是否在内核同步决策路径中？
-
-cgroup / LSM 同步阻断是确定性 map lookup。ML / LLM 可以用于风险评分、训练样本、规则建议，但不应把不确定模型放进同步内核阻断路径。
-
-### Q5：策略匹配是不是递归路径或 CIDR？
-
-不是。tracked command 是 16-byte exact match；tracked path 是 256-byte exact path；cgroup destination blocking 是 exact IP / IPv6 / port；LSM file policy 是 basename-based。
-
----
-
-## 15. 演示前检查清单
-
-- [ ] `make backend` 通过。
-- [ ] `make frontend` 通过。
-- [ ] `make wrapper` 通过。
-- [ ] `make os-enforcement-preflight` 已记录。
-- [ ] `make os-enforcement-check` 已记录。
-- [ ] 如需 live enforcement，已确认 root / cgroup v2 / BPF LSM 可用。
-- [ ] 已准备本地 HTTP server 演示，避免外网依赖。
-- [ ] 已准备 JSONL replay 或录屏兜底。
-- [ ] 已确认不会误删用户文件、修改真实 AI CLI 配置或开启高风险 TLS capture。
-- [ ] 已打开 `docs/delivery/competition-defense.md`、`docs/reference/project-structure-deep-dive.md`、`docs/delivery/evaluation.md` 备用说明。
-
----
-
-## 16. 演示后收尾
-
-演示结束后建议恢复环境：
-
-- 移除临时 policy block entries；
-- 删除 `/tmp/agent-ebpf-*` 临时文件；
-- 停止本地 HTTP server；
-- 如安装了 hook，按 UI / 文档卸载；
-- 如加载了 kernel module，按需 `sudo rmmod kernel_ml`；
-- 保存录屏、截图和 benchmark summary 到 `reports/` 或答辩材料目录。
-
----
-
-## 相关导航
-
-- [演示脚本](demo-script.md)
-- [比赛答辩主线](competition-defense.md)
-- [评测报告](evaluation.md)
-- [验证、测试与 Benchmark](../operations/verification-benchmark.md)
-- [OS competition defense 草案](competition-defense.md)
+[产品演示导览](/guide/demo-tour) · [Renew 用户指南](/frontend/renew) · [系统架构](/architecture/overview) · [OS Enforcement](/backend/ebpf-os-enforcement) · [评测报告](/delivery/evaluation) · [第三方和 AI 使用披露](/delivery/compliance)。

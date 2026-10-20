@@ -195,9 +195,9 @@ func BenchmarkAgentLineageEventIndex(b *testing.B) {
 	events := make([]eventSummary, 1200)
 	for i := range events {
 		events[i] = eventSummary{
-			PID: i%len(processes)+10,
+			PID:          i%len(processes) + 10,
 			RootAgentPID: 10,
-			ReceivedAtMS: 250000+int64(i),
+			ReceivedAtMS: 250000 + int64(i),
 		}
 	}
 	b.ResetTimer()

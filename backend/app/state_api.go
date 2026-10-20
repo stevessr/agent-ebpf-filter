@@ -2,7 +2,6 @@ package app
 
 import (
 	"agent-ebpf-filter/pb"
-	"net/http"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -13,7 +12,7 @@ var (
 	broadcast = make(chan *pb.Event, 1000)
 
 	upgrader = websocket.Upgrader{
-		CheckOrigin:      func(r *http.Request) bool { return true },
+		CheckOrigin:      allowWebSocketOrigin,
 		ReadBufferSize:   1024 * 32,
 		WriteBufferSize:  1024 * 1024,
 		HandshakeTimeout: 5 * time.Second,

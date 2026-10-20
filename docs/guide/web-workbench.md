@@ -40,3 +40,23 @@ CHROMIUM_PATH=/usr/bin/chromium bun run test:workbench-browser
 ```
 
 可设置 `AGENT_BROWSER_CLI` 指定 CLI 可执行路径、`WORKBENCH_URL` 指定前端地址。脚本使用独立浏览器会话，验证原生标签拖拽合并、HTML5 边缘投放、分屏折叠、鼠标／键盘尺寸调整、刷新恢复、独立页面路由、功能搜索和窄屏布局。不替代后端 API、特权 eBPF 或真实设备验证。
+
+## Dashboard 接收、暂停与重连
+
+- Dashboard 使用 `/ws/envelopes` 的稳定 `eventId`，与 `/events/recent?limit=1000` 返回的历史记录去重；内容相同但 ID 不同的系统调用不会因此合并为同一证据。
+- “暂停显示 / Pause Display”不关闭接收：当前窗口冻结，待显示队列仍受当前容量限制；恢复时合并。队列超限会丢弃最早待显示记录并持续提示数量，与已显示窗口的容量淘汰分开统计。
+- 每次 WebSocket 连接成功后补取最近记录；补取失败不清空本地数据，提供重试按钮。离开页面或切换集群时取消旧请求，旧响应不会写入新会话。清空后端失败也不会清空本地证据。
+- **补取不是完整恢复协议**：每次最多 1000 条，没有连续游标/保留期证明。断线、解码失败和缓存淘汰提示不因重新连接就消失；需要完整证据时核对后端持久化审计记录。旧历史若无 ID，不按内容猜测去重。
+
+流恢复浏览器测试用本地合成 WebSocket / protobuf / HTTP 响应替代全部 API 请求，不会改变真实后端数据。需要运行中的 Vite 前端、Chromium 和可用的 `playwright-core`：
+
+```bash
+cd frontend
+bun test tests/dashboard-stream.test.ts
+# 已在模块搜索路径安装 playwright-core 时无需 PLAYWRIGHT_MODULE；否则指定其 index.mjs。
+PLAYWRIGHT_MODULE=/path/to/playwright-core/index.mjs \
+  CHROMIUM_PATH=/usr/bin/chromium DASHBOARD_URL=http://127.0.0.1:5173 \
+  bun run test:dashboard-stream-browser
+```
+
+覆盖暂停/恢复、自动重连补取、稳定 ID 去重、HTTP 失败重试、清空失败保留、明细模式和窄屏提示。不是实际 eBPF 采集、长期过载或持久化完整性的验收。

@@ -16,168 +16,192 @@ type renewApp struct {
 	backend string
 	client  *apiClient
 
-	starting   bool
-	connected  bool
+	starting    bool
+	connected   bool
 	healthReady bool
-	lastErr    string
-	lastSync   time.Time
+	lastErr     string
+	lastSync    time.Time
 
-	page   string
-	lineageMode int // 0 radial, 1 waterfall
-	lineageRootChoice string
-	lineageSelectedPID int
-	lineageSignalTable ui.ListState
+	page                  string
+	lineageMode           int // 0 radial, 1 waterfall
+	lineageRootChoice     string
+	lineageSelectedPID    int
+	lineageSignalTable    ui.ListState
 	lineageSignalSelected int
-	files  localFileWorkspace
-	search string
-	paused bool
+	files                 localFileWorkspace
+	search                string
+	paused                bool
 
 	// Local native terminal lifecycle stays outside the privileged backend.
-	terminalInitialized bool
-	terminalTabs []*renewTerminalTab
-	terminalActive int
-	terminalTabScroll ui.ScrollState
-	terminalNextID int
+	terminalInitialized  bool
+	terminalTabs         []*renewTerminalTab
+	terminalActive       int
+	terminalTabScroll    ui.ScrollState
+	terminalNextID       int
 	terminalFocusRequest int
-	terminalError string
+	terminalError        string
+	// Coding CLI detection is cached until explicitly refreshed.
+	codingHarnessPaths map[string]string
+	// Installer discovery is read-only and decoupled from the privileged backend.
+	harnessUpdatePlans    []harnessUpdatePlan
+	harnessUpdateScanned  bool
+	harnessUpdateBusy     bool
+	harnessUpdateSelected string
+	harnessUpdateConfirm  string
+	harnessUpdateError    string
+	// DeepSeek runs as an unprivileged terminal pane; only its loopback UI is embedded.
+	deepseekPane    *renewTerminalPane
+	deepseekWebView *mygo.WebView
+	deepseekPort    int
+	deepseekStatus  string
+	deepseekVisible bool
 	terminalClosing atomic.Bool
 	// Floating windows share this process and never start another collector.
-	detachedParent *renewApp
+	detachedParent    *renewApp
 	detachedTerminals map[int]*renewApp
-	detachedPages map[string]*renewApp
-	detachedPageID string
+	detachedPages     map[string]*renewApp
+	detachedPageID    string
 	// True only when the main window was hidden to keep detached windows alive.
-	hiddenForDetached bool
-	navigationOpen bool
+	hiddenForDetached  bool
+	navigationOpen     bool
 	navigationDetailed bool
-	inspectorOpen bool
-	materialEnabled bool
-	tray *mygo.Tray
-	trayAvailable bool
-	minimizeToTray bool
+	inspectorOpen      bool
+	materialEnabled    bool
+	tray               *mygo.Tray
+	trayAvailable      bool
+	minimizeToTray     bool
 	// Mutable per-window theme, refreshed from MyGo's system theme every frame.
-	workspaceTheme ui.Theme
-	inspectorTab int
-	inspectorPinnedID string
+	workspaceTheme      ui.Theme
+	inspectorTab        int
+	inspectorPinnedID   string
 	inspectorSelectedID string
 
-	events             []eventSummary
-	eventMergeScratch  []eventSummary
-	eventsVersion      uint64
-	eventUIQueue       chan eventSummary
-	eventUIDropped     eventDropCounter
-	eventUIPaused      eventPauseFlag
+	events                []eventSummary
+	eventMergeScratch     []eventSummary
+	eventsVersion         uint64
+	eventUIQueue          chan eventSummary
+	eventUIDropped        eventDropCounter
+	eventUIPaused         eventPauseFlag
 	eventUIBatcherStarted eventBatcherFlag
-	eventUICommitPending eventCommitFlag
-	filterCacheValid   bool
-	filterCacheVersion uint64
-	filterCacheKey     string
-	filterCacheRows    []eventSummary
-	riskCacheValid     bool
-	riskCacheVersion   uint64
-	riskCacheCounts    [3]int
-	networkCacheValid  bool
-	networkCacheVersion uint64
-	networkCacheKey    string
-	networkCacheRows   []networkAggregate
-	processCacheValid  bool
-	processCacheVersion uint64
-	processCacheKey    string
-	processCacheRows   []processAggregate
-	domainCacheValid   bool
-	domainCacheVersion uint64
-	domainCacheRows    []agentDomainRow
-	optionCacheValid   bool
-	optionCacheVersion uint64
-	eventTypeOptions   []string
-	eventSessionOptions []string
-	health             collectorHealth
-	trackedComms       []string
-	system             systemSnapshot
-	systemConnected    bool
-	systemErr          string
-	eventStreamConnected bool
-	eventStreamErr       string
-	historyCursor      string
-	historyInitialized bool
-	historyLoading     bool
+	eventUICommitPending  eventCommitFlag
+	filterCacheValid      bool
+	filterCacheVersion    uint64
+	filterCacheKey        string
+	filterCacheRows       []eventSummary
+	riskCacheValid        bool
+	riskCacheVersion      uint64
+	riskCacheCounts       [3]int
+	// Local, session-scoped alert triage. Never changes backend policy.
+	personalAlertMuted              map[[32]byte]struct{}
+	personalAlertMuteOrder          [][32]byte
+	personalAlertMuteVersion        uint64
+	personalAlertCacheReady         bool
+	personalAlertCacheEventsVersion uint64
+	personalAlertCacheMuteVersion   uint64
+	personalAlertCacheRows          []personalAlertGroup
+	personalAlertCacheHidden        int
+	networkCacheValid               bool
+	networkCacheVersion             uint64
+	networkCacheKey                 string
+	networkCacheRows                []networkAggregate
+	processCacheValid               bool
+	processCacheVersion             uint64
+	processCacheKey                 string
+	processCacheRows                []processAggregate
+	domainCacheValid                bool
+	domainCacheVersion              uint64
+	domainCacheRows                 []agentDomainRow
+	optionCacheValid                bool
+	optionCacheVersion              uint64
+	eventTypeOptions                []string
+	eventSessionOptions             []string
+	health                          collectorHealth
+	trackedComms                    []string
+	system                          systemSnapshot
+	systemConnected                 bool
+	systemErr                       string
+	eventStreamConnected            bool
+	eventStreamErr                  string
+	historyCursor                   string
+	historyInitialized              bool
+	historyLoading                  bool
 
-	eventTable          ui.ListState
-	networkTable        ui.ListState
-	networkSelected     int
-	processTable        ui.ListState
-	domainTable         ui.ListState
-	domainSelected      int
-	domainSearch        string
-	domainAgentFilter   string
-	domainRiskOnly      bool
-	domainShowIPs       bool
-	domainLastFilter    string
-	domainSelectedKey   string
-	domainLastVersion   uint64
-	configProjectPath string
-	configLoaded      bool
-	configLoading     bool
-	configGeneration  uint64
-	configInspection  agentConfigInspection
-	configTable       ui.ListState
-	sessionTable        ui.ListState
-	rulesTable          ui.ListState
-	commTable           ui.ListState
-	pathTable           ui.ListState
-	prefixTable         ui.ListState
-	eventSelected       int
-	processSelected     int
-	sessionSelected     int
-	ruleSelected        int
-	commSelected        int
-	pathSelected        int
-	prefixSelected      int
-	eventPIDFilter      int
-	eventRootPIDFilter  int
-	eventTargetFilter   string
-	eventDomainAgent    string
-	eventDomainTarget   string
-	eventDomainKind     string
-	eventFileEditsOnly  bool
-	eventDelegatedOnly  bool
-	eventReturnPage     string
-	eventRiskFilter     string
-	eventMinRiskScore   float64
-	eventTypeFilter     string
-	eventSessionFilter  string
-	eventDecisionFilter string
-	eventAttentionOnly  bool
-	eventVisibleLimit   int
-	eventDetailOpen     bool
-	eventDetailLoading  bool
-	eventDetailID       string
-	eventDetail         map[string]any
-	eventDetailText     string
-	eventDetailErr      string
-	eventDetailTab      int
-	eventProcessTab      int
-	eventProcessSelectedPID int
-	eventProcessExpanded map[int]bool
-	eventDetailFieldSearch string
-	eventDetailFieldOffset int
-	eventDetailSearchSnapshot string
-	eventDetailExpandedField string
-	eventDetailGeneration uint64
+	eventTable                  ui.ListState
+	networkTable                ui.ListState
+	networkSelected             int
+	processTable                ui.ListState
+	domainTable                 ui.ListState
+	domainSelected              int
+	domainSearch                string
+	domainAgentFilter           string
+	domainRiskOnly              bool
+	domainShowIPs               bool
+	domainLastFilter            string
+	domainSelectedKey           string
+	domainLastVersion           uint64
+	configProjectPath           string
+	configLoaded                bool
+	configLoading               bool
+	configGeneration            uint64
+	configInspection            agentConfigInspection
+	configTable                 ui.ListState
+	sessionTable                ui.ListState
+	rulesTable                  ui.ListState
+	commTable                   ui.ListState
+	pathTable                   ui.ListState
+	prefixTable                 ui.ListState
+	eventSelected               int
+	processSelected             int
+	sessionSelected             int
+	ruleSelected                int
+	commSelected                int
+	pathSelected                int
+	prefixSelected              int
+	eventPIDFilter              int
+	eventRootPIDFilter          int
+	eventTargetFilter           string
+	eventDomainAgent            string
+	eventDomainTarget           string
+	eventDomainKind             string
+	eventFileEditsOnly          bool
+	eventDelegatedOnly          bool
+	eventReturnPage             string
+	eventRiskFilter             string
+	eventMinRiskScore           float64
+	eventTypeFilter             string
+	eventSessionFilter          string
+	eventDecisionFilter         string
+	eventAttentionOnly          bool
+	eventVisibleLimit           int
+	eventDetailOpen             bool
+	eventDetailLoading          bool
+	eventDetailID               string
+	eventDetail                 map[string]any
+	eventDetailText             string
+	eventDetailErr              string
+	eventDetailTab              int
+	eventProcessTab             int
+	eventProcessSelectedPID     int
+	eventProcessExpanded        map[int]bool
+	eventDetailFieldSearch      string
+	eventDetailFieldOffset      int
+	eventDetailSearchSnapshot   string
+	eventDetailExpandedField    string
+	eventDetailGeneration       uint64
 	eventDetailEnforcementReady bool
-	eventDetailPendingAction string
-	enforcement         enforcementSnapshot
-	enforcementBusy     bool
-	enforcementErr      string
-	pathAccessLoaded bool
-	pathAccessBusy bool
-	pathAccessErr string
-	pathAccessState lsmSandboxStatus
-	pathAccessTarget string
-	pathAccessMode string
-	pathAccessConfirm bool
-	pathAccessConfirmText string
-	pathAccessPending fileAccessRule
+	eventDetailPendingAction    string
+	enforcement                 enforcementSnapshot
+	enforcementBusy             bool
+	enforcementErr              string
+	pathAccessLoaded            bool
+	pathAccessBusy              bool
+	pathAccessErr               string
+	pathAccessState             lsmSandboxStatus
+	pathAccessTarget            string
+	pathAccessMode              string
+	pathAccessConfirm           bool
+	pathAccessConfirmText       string
+	pathAccessPending           fileAccessRule
 
 	configReady        bool
 	configBusy         bool
@@ -210,18 +234,18 @@ type renewApp struct {
 	agentTable           ui.ListState
 	agentSelected        int
 
-	registryReady bool
-	registryBusy  bool
-	registryErr   string
-	registryTab   int
-	registryFilterTag    string
-	registryFilterStatus string
-	registryLastFilterTag string
+	registryReady            bool
+	registryBusy             bool
+	registryErr              string
+	registryTab              int
+	registryFilterTag        string
+	registryFilterStatus     string
+	registryLastFilterTag    string
 	registryLastFilterStatus string
-	registry      registrySnapshot
-	newTag        string
-	trackName     string
-	trackTag      string
+	registry                 registrySnapshot
+	newTag                   string
+	trackName                string
+	trackTag                 string
 
 	ccs                   ccsSnapshot
 	astrlink              astrLinkSnapshot
@@ -250,7 +274,7 @@ func newRenewApp(backend string) *renewApp {
 		starting:           true,
 		page:               "概览",
 		files:              localFileWorkspace{active: -1},
-		navigationOpen:       false,
+		navigationOpen:     false,
 		inspectorOpen:      true,
 		materialEnabled:    true,
 		eventSelected:      -1,
@@ -271,7 +295,7 @@ func newRenewApp(backend string) *renewApp {
 		ruleAction:         "ALERT",
 		rulePriority:       "0",
 		ruleRewrite:        "[]",
-		pathAccessMode: "阻止写入",
+		pathAccessMode:     "阻止写入",
 	}
 	a.eventTable.Selected = &a.eventSelected
 	a.networkTable.Selected = &a.networkSelected

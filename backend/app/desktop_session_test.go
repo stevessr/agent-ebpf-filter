@@ -160,9 +160,9 @@ func TestCompactDomainPrefersObservedHost(t *testing.T) {
 		ReceivedAt: time.UnixMilli(123456).UTC(),
 		Event: &pb.Event{
 			Pid: 42, Type: "connect", Comm: "codex",
-			NetEndpoint: "203.0.113.10:443",
-			Sni: "api.openai.com",
-			DnsName: "shared.host.example",
+			NetEndpoint:  "203.0.113.10:443",
+			Sni:          "api.openai.com",
+			DnsName:      "shared.host.example",
 			RootAgentPid: 42,
 		},
 		Envelope: &pb.EventEnvelope{EventId: "evt-domain"},

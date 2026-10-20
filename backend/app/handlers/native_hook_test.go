@@ -65,9 +65,9 @@ func TestClaudeSubAgentLifecycleProviderTag(t *testing.T) {
 
 func TestSubagentHookMetadataDigestDoesNotLeakIdentifier(t *testing.T) {
 	payload := map[string]interface{}{
-		"agent_id": "private-agent-id-123",
+		"agent_id":   "private-agent-id-123",
 		"agent_type": "Explore",
-		"prompt": "private user prompt",
+		"prompt":     "private user prompt",
 	}
 	extra := buildNativeHookExtraInfo(payload, "SubagentStart", "")
 	if !strings.Contains(extra, "subagent_id_digest=sha256:") ||

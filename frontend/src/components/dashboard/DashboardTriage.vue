@@ -48,17 +48,11 @@ const columns = [
           :text="isConnected ? '已连接' : '未连接'"
         />
         <a-button @click="emit('pause')">{{
-          isPaused ? "恢复接收" : "暂停接收"
+          isPaused ? "恢复显示" : "暂停显示"
         }}</a-button>
         <a-button @click="emit('raw')">查看事件明细</a-button>
       </a-space>
     </header>
-    <a-alert
-      v-if="isPaused"
-      type="warning"
-      show-icon
-      message="接收已暂停；暂停期间的实时事件不会进入本页，也不会自动补回。"
-    />
     <div class="triage-metrics">
       <div>
         <span>优先检查</span
@@ -163,7 +157,7 @@ const columns = [
   padding: 20px;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
-  background: #fff;
+  background: var(--ui-surface);
 }
 .triage-header {
   display: flex;
@@ -178,7 +172,7 @@ h2 {
 }
 p,
 small {
-  color: #64748b;
+  color: var(--ui-text-muted);
 }
 .triage-metrics {
   display: grid;
@@ -190,7 +184,7 @@ small {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  background: #f8fafc;
+  background: var(--ui-surface-soft);
   padding: 16px;
   border-radius: 8px;
 }

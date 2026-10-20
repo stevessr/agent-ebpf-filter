@@ -60,7 +60,7 @@ flowchart LR
 
 根据部署环境的安全级别，身份认证边界提供分级的受控保护：
 
-* **🧪 研发调试模式 (Dev Mode)**：默认完全关闭 Auth 校验，方便本地快速运行多端联调。
+* **🧪 研发调试模式 (Dev Mode)**：所有 Gin 模式默认开启认证；`make dev` 显式设置 `DISABLE_AUTH=true`，只允许回环 TCP 或私有桌面 Unix socket。
 * **🚀 生产就绪模式 (Release Mode)**：所有涉及敏感数据提取、策略下发、长连接广播的端点必须携带系统级分配的 `Runtime Access Token`。
 
 ### 📡 令牌传输规约
@@ -69,7 +69,7 @@ flowchart LR
 
 * **标准 HTTP 报头**：`X-API-KEY: <token>`
 * **RFC 标准承载报头**：`Authorization: Bearer <token>`
-* **流式长连接通道 (WebSocket / MCP)**：强制在握手 URL 中检索 Query 参数 `?key=<token>`
+* **流式长连接通道 (WebSocket / MCP)**：兼容握手 URL Query 参数 `?key=<token>`；原生客户端也可发送认证报头。内置访问日志不记录 query，短期 ticket 迁移仍待实施
 
 
 ## 🙈 5. 数据安全与隐私边界 (Data Boundaries)

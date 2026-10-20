@@ -70,7 +70,9 @@ func isNativeHookInstalled(h HookDef) bool {
 		}
 		var config struct {
 			Hooks map[string][]struct {
-				Hooks []struct { Command string `json:"command"` } `json:"hooks"`
+				Hooks []struct {
+					Command string `json:"command"`
+				} `json:"hooks"`
 			} `json:"hooks"`
 		}
 		if json.Unmarshal(data, &config) != nil {

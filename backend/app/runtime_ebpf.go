@@ -577,7 +577,7 @@ func ensurePinnedMapPermissions() error {
 
 func privilegedCommand(priv, exe string, args ...string) *exec.Cmd {
 	if filepath.Base(priv) == "sudo" {
-		sudoArgs := []string{"--preserve-env=AGENT_WRAPPER_PATH,DISPLAY,WAYLAND_DISPLAY,XAUTHORITY,USER,HOME,AGENT_REAL_HOME,GIN_MODE,DISABLE_AUTH", exe}
+		sudoArgs := []string{"--preserve-env=AGENT_WRAPPER_PATH,DISPLAY,WAYLAND_DISPLAY,XAUTHORITY,USER,HOME,AGENT_REAL_HOME,GIN_MODE,DISABLE_AUTH,AGENT_BACKEND_HOST,AGENT_BACKEND_PORT,AGENT_WS_ALLOWED_ORIGINS", exe}
 		if os.Getenv("SUDO_ASKPASS") != "" {
 			sudoArgs = append([]string{"-A"}, sudoArgs...)
 		}
@@ -594,13 +594,16 @@ func privilegedCommand(priv, exe string, args ...string) *exec.Cmd {
 	// Manual environment inheritance for non-sudo escalators (like pkexec)
 	// We want to pass down only selected safe/required variables.
 	whitelist := map[string]bool{
-		"AGENT_WRAPPER_PATH": true,
-		"AGENT_REAL_HOME":    true,
-		"GIN_MODE":           true,
-		"DISABLE_AUTH":       true,
-		"DISPLAY":            true,
-		"WAYLAND_DISPLAY":    true,
-		"XAUTHORITY":         true,
+		"AGENT_BACKEND_HOST":       true,
+		"AGENT_BACKEND_PORT":       true,
+		"AGENT_WS_ALLOWED_ORIGINS": true,
+		"AGENT_WRAPPER_PATH":       true,
+		"AGENT_REAL_HOME":          true,
+		"GIN_MODE":                 true,
+		"DISABLE_AUTH":             true,
+		"DISPLAY":                  true,
+		"WAYLAND_DISPLAY":          true,
+		"XAUTHORITY":               true,
 	}
 
 	inherited := os.Environ()

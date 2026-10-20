@@ -63,7 +63,7 @@ flowchart TD
 
 - PID registration 是 per-process。
 - 子进程继承依赖 kernel fork/clone lineage 和 userspace parent fallback，而不是 adapter 自动递归注册所有子进程。
-- `/register` / `/unregister` 在 release mode 受 auth 保护。
+- `/register` / `/unregister` 默认受 auth 保护（不依赖 Gin mode）。
 
 修改 adapters 时同步：
 
@@ -172,7 +172,7 @@ flowchart TD
 
 ## Auth 模型
 
-Release mode 中后端要求 runtime access token 保护敏感 API，包括：
+所有 Gin 模式中后端默认要求 runtime access token 保护敏感 API，包括：
 
 - `/config/**`
 - `/system/**`
@@ -189,7 +189,7 @@ Release mode 中后端要求 runtime access token 保护敏感 API，包括：
 - `/events/graph`
 - `/sandbox/**`
 
-Dev mode 默认关闭 auth。
+只有显式 `DISABLE_AUTH=true` 才免认证，且 TCP 必须绑定回环地址；`make dev` 设置该变量，直接 `go run` 不再自动免认证。
 
 前端 Runtime Config tab 会本地保存 access token，并在 WebSocket URL 附加 `?key=...`。
 

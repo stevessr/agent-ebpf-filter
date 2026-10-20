@@ -1,7 +1,6 @@
 package tls
 
 import (
-	"net/http"
 	"sync"
 
 	"github.com/gin-gonic/gin"
@@ -59,7 +58,7 @@ func (noopTLSCollectorMetrics) RecordBroadcastEnqueue(bool, string) {}
 func init() {
 	deps.TrackedProcessContexts = trackedProcessContexts
 	deps.CollectorMetrics = noopTLSCollectorMetrics{}
-	deps.Upgrader = &websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	deps.Upgrader = &websocket.Upgrader{}
 }
 
 func registerTLSCaptureRoutes(router gin.IRouter, runtime tlsCaptureRuntime, store *TLSCaptureStore, rules *TLSCaptureRuleStore) {

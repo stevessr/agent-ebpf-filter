@@ -4,6 +4,7 @@ go 1.27.1
 
 require (
 	github.com/NVIDIA/go-nvml v0.13.4-1
+	github.com/andybalholm/brotli v1.2.4
 	github.com/cilium/ebpf v0.22.0
 	github.com/cockroachdb/pebble/v2 v2.1.7
 	github.com/creack/pty/v2 v2.0.1
@@ -11,6 +12,7 @@ require (
 	github.com/gin-gonic/gin v1.12.0
 	github.com/goccy/go-yaml v1.19.2
 	github.com/gorilla/websocket v1.5.3
+	github.com/klauspost/compress v1.18.7
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/shirou/gopsutil/v3 v3.24.5
@@ -61,7 +63,6 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/compress v1.18.7 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect

@@ -477,22 +477,20 @@ clean: ## Clean build artifacts
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | sed -e 's/:.*## /: /'
 
-docs: docs-install docs-build ## Generate/update project documentation
-	@echo "Documentation generated/updated."
+docs: docs-build ## Generate/update project documentation
+	@echo "Documentation built with MkDocs."
 
 docs-build: docs-install ## Build the project documentation site
-	@bun run docs:build
+	@python3 docs/build_site.py build
 
-docs-dev:
-	@bun run docs:dev
+docs-dev: docs-install
+	@python3 docs/build_site.py serve
 
 docs-preview: docs-build
-	@bun run docs:preview
+	@python3 -m http.server 8000 --directory site
 
 docs-install:
-	if [ -d "node_modules" ]; then \
-		bun install; \
-	fi
+	@python3 -m pip install -r docs/requirements.txt
 
 # ── Performance Benchmarking ──────────────────────────────────────────────────
 
@@ -537,8 +535,8 @@ benchmark-clean: ## Clean benchmark reports
 .PHONY: benchmark-tool benchmark-baseline benchmark-quick benchmark-multi benchmark-extended benchmark-full benchmark-report benchmark-clean
 
 
-// IPC doctor checks a fresh temporary local socket; it never attaches eBPF,
-// requires root, or reaches any existing backend/desktop component.
+# IPC doctor checks a fresh temporary local socket; it never attaches eBPF,
+# requires root, or reaches any existing backend/desktop component.
 .PHONY: ipc-doctor
 IPC_DOCTOR_ARGS ?=
 ipc-doctor: ## Rootless component IPC health smoke test (IPC_DOCTOR_ARGS="--json")

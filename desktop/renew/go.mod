@@ -4,7 +4,7 @@ module github.com/stevessr/agent-ebpf-filter/desktop/renew
 go 1.27.1
 
 require (
-	github.com/egoist/mygo v0.5.1
+	github.com/egoist/mygo v0.5.5
 	github.com/gorilla/websocket v1.5.3
 	github.com/pelletier/go-toml/v2 v2.2.4
 	google.golang.org/protobuf v1.36.12

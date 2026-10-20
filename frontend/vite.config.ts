@@ -15,9 +15,17 @@ try {
   // Use default
 }
 
-const backendUrl =
-  process.env.VITE_AGENT_BACKEND_URL?.replace(/\/$/, "") ||
-  `http://127.0.0.1:${backendPort}`;
+export const resolveBackendUrl = (override?: string, port = 8080) => {
+  const configured = override?.trim().replace(/\/+$/, "");
+  if (configured) return configured;
+  const validPort = Number.isInteger(port) && port > 0 && port <= 65535;
+  return `http://127.0.0.1:${validPort ? port : 8080}`;
+};
+
+const backendUrl = resolveBackendUrl(
+  process.env.VITE_AGENT_BACKEND_URL,
+  backendPort,
+);
 const backendWsUrl = backendUrl.replace(/^http/, "ws");
 const bypassHtmlToIndex = (req: { headers: { accept?: string } }) => {
   if (req.headers.accept?.includes("text/html")) {

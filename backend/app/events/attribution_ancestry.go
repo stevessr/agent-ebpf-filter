@@ -99,7 +99,6 @@ func shouldResolveAgentAncestor(event *pb.Event) bool {
 	return false
 }
 
- 
 // propagateAgentContextOnFork uses the kernel's explicit child PID evidence,
 // not a process-name guess. Carrying the context at fork time covers scripts
 // which exit before a later procfs ancestry fallback could inspect them.
