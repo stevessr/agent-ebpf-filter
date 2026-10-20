@@ -1,0 +1,28 @@
+name: Root dependency lock consistency
+
+on:
+  pull_request:
+    paths:
+      - "package.json"
+      - "bun.lock"
+      - ".github/workflows/root-dependency-lock.yml"
+  push:
+    paths:
+      - "package.json"
+      - "bun.lock"
+      - ".github/workflows/root-dependency-lock.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  root-bun-lock:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: oven-sh/setup-bun@v2
+      - name: Ensure root Bun lockfile is reproducible
+        run: bun install --frozen-lockfile
+      - name: Smoke test installed Nx
+        run: ./node_modules/.bin/nx --version
