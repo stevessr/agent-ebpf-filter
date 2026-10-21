@@ -96,7 +96,7 @@ func (a *renewApp) pathAccessView(c *ui.Context) {
 	if a.pathAccessLoaded && !a.pathAccessState.PathAccessSupported {
 		ui.Text(c, "当前内核 LSM 尚未确认支持精确路径读写权限；在获得新程序挂载确认前不会启用该功能。").TextColor(t.Warning)
 	}
-	if a.pathAccessBusy { ui.Spinner(c) }
+	if a.pathAccessBusy { renewLoadingIndicator(c, "正在读取路径访问权限") }
 	card(c, "常见敏感文件 · 建议项（全部默认关闭）", func() {
 		home, err := os.UserHomeDir()
 		if err != nil || !filepath.IsAbs(home) {

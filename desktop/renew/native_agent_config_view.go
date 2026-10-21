@@ -47,11 +47,14 @@ func (a *renewApp) agentConfigPanel(c *ui.Context) {
 			if ui.PrimaryButton(c, label).Disabled(a.configLoading).Clicked() {
 				a.refreshAgentConfigInspection()
 			}
+			if a.configLoading {
+				renewLoadingIndicator(c, "正在读取 Agent 配置")
+			}
 		})
 		ui.Text(c, "只显示白名单字段、规则数量和 URL 主机名；不展示路径参数、鉴权内容或完整配置。每层及“静态合并预览”均非运行时生效判定：CLI、Agent 环境、工作区信任、云端/MDM 管理策略可能覆盖。").FontSize(11).TextColor(t.TextMuted)
 		if !a.configLoaded {
 			if a.configLoading {
-				ui.Text(c, "正在分析本地文件…").TextColor(t.TextMuted)
+				renewLoadingRow(c, "正在分析本地文件…")
 			} else {
 				ui.Text(c, "尚未读取本机配置。点击按钮进行一次性只读检查。").TextColor(t.TextMuted)
 			}

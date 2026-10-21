@@ -29,7 +29,7 @@ func (a *renewApp) ebpfModulesView(c *ui.Context) {
 			go a.refreshEBPFModules(context.Background())
 		}
 		if a.modulesBusy {
-			ui.Spinner(c)
+			renewLoadingIndicator(c, "正在同步 eBPF 模块")
 			ui.Text(c, "等待后端确认…").TextColor(t.TextMuted)
 		}
 		if a.modulesReady {

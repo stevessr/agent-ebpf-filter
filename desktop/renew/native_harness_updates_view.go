@@ -117,6 +117,7 @@ func (a *renewApp) harnessUpdaterView(c *ui.Context) {
 			ui.Text(c, "Harness 更新管理").FontSize(12).Bold()
 			if a.harnessUpdateBusy {
 				statusPill(c, "检测中", t.Warning)
+				renewLoadingIndicator(c, "正在检查本地 Harness 更新来源")
 			} else if a.harnessUpdateScanned {
 				statusPill(c, "本机来源检测", t.Success)
 			}

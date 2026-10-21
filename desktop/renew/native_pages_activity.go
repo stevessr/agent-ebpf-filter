@@ -413,6 +413,9 @@ func (a *renewApp) eventsView(c *ui.Context) {
 			if ui.Button(c, label).Clicked() && !a.historyLoading {
 				a.loadOlderEvents()
 			}
+			if a.historyLoading {
+				renewLoadingIndicator(c, "正在读取更早的事件记录")
+			}
 		}
 	})
 	if strings.TrimSpace(a.historyCursor) == "" && a.historyInitialized {

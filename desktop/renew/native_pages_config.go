@@ -133,7 +133,7 @@ func (a *renewApp) monitoringView(c *ui.Context) {
 		ui.Text(c, "配置尚未成功加载，写操作已禁用。").FontSize(12).TextColor(t.TextMuted)
 	} else if a.configBusy {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Spinner(c)
+			renewLoadingIndicator(c, "正在等待配置写入确认")
 			ui.Text(c, "等待后端确认…").TextColor(t.TextMuted)
 		})
 	}

@@ -122,7 +122,7 @@ func (a *renewApp) trackingView(c *ui.Context) {
 
 	if a.registryBusy {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Spinner(c)
+			renewLoadingIndicator(c, "正在同步跟踪配置")
 			ui.Text(c, "等待后端确认…").TextColor(t.TextMuted)
 		})
 	}
