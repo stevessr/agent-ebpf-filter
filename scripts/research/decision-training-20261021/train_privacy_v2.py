@@ -24,6 +24,7 @@ from sklearn.metrics import average_precision_score
 from decision_protocol import (audit_splits, confusion, group_batches,
                                group_bootstrap_recall, operating_threshold)
 from automl_protocol import candidate_rank, leaderboard, research_gate, trial_plan
+from quality_protocol import crossfit_validation
 from privacy import PairBert, encode
 
 SEED = 20261021
@@ -37,8 +38,10 @@ def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def pairwise_loss(logits, labels, rows, indices):
-    """Only within-scenario opposite-label comparisons, never unrelated runs."""
+def pairwise_loss(logits, labels, rows, indices, *, strategy="all"):
+    """Opposite-label comparisons are restricted to the same scenario."""
+    if strategy not in ("all", "hardest"):
+        raise ValueError("invalid pair strategy")
     groups = {}
     for i, global_idx in enumerate(indices):
         groups.setdefault(rows[global_idx]['group'], []).append(i)
@@ -46,24 +49,42 @@ def pairwise_loss(logits, labels, rows, indices):
     for positions in groups.values():
         positives = [i for i in positions if labels[i].item() == 1]
         negatives = [i for i in positions if labels[i].item() == 0]
-        for pos in positives:
-            for neg in negatives:
-                losses.append(F.softplus(0.25 - logits[pos] + logits[neg]))
+        if not positives or not negatives:
+            continue
+        if strategy == "hardest":
+            # Hardest benign candidate within the same user/task scenario.
+            # The max retains gradients through the selected negative.
+            hardest = torch.stack([logits[i] for i in negatives]).max()
+            losses.extend(F.softplus(0.25 + hardest - logits[pos]) for pos in positives)
+        else:
+            for pos in positives:
+                for neg in negatives:
+                    losses.append(F.softplus(0.25 - logits[pos] + logits[neg]))
     return torch.stack(losses).mean() if losses else logits.sum() * 0
 
 
-def training_loss(logits, labels, rows, indices, *, hard_negative_weight, pair_weight):
+def training_loss(logits, labels, rows, indices, *,
+                  hard_negative_weight, pair_weight,
+                  positive_weight=1.0, pair_strategy="all"):
+    """Asymmetric supervised BCE + optional hardest-pair ranking.
+
+    Positive upweighting tests reduced misses; hard negatives test low FPR.
+    Model selection, NOT these guesses, determines which variant to retain.
+    """
     per_row = F.binary_cross_entropy_with_logits(logits, labels, reduction='none')
     weight = torch.ones_like(per_row)
+    if positive_weight > 1:
+        weight[labels == 1] = positive_weight
     if hard_negative_weight > 1:
         neg = torch.nonzero(labels == 0, as_tuple=False).flatten()
         if len(neg):
-            # Select the highest-scored benign actions in THIS training batch.
             count = max(1, math.ceil(len(neg) / 4))
             worst = neg[torch.topk(logits.detach()[neg], count).indices]
             weight[worst] = hard_negative_weight
     bce = (per_row * weight).sum() / weight.sum()
-    return bce + pair_weight * pairwise_loss(logits, labels, rows, indices)
+    return bce + pair_weight * pairwise_loss(
+        logits, labels, rows, indices, strategy=pair_strategy
+    )
 
 
 def predict(model, encoded, batch_size=24):
@@ -80,6 +101,7 @@ def validation(rows, scores, *, seed):
     operation = operating_threshold(labels, scores.tolist())
     metrics = confusion(labels, scores.tolist(), operation['threshold'])
     metrics['AP'] = float(average_precision_score(labels, scores))
+    metrics['crossfit'] = crossfit_validation(rows, scores.tolist(), seed=seed)
     metrics['cluster_recall95'] = group_bootstrap_recall(rows, scores.tolist(), operation['threshold'],
                                                           replicates=400, seed=seed)
     return operation, metrics
@@ -106,6 +128,8 @@ def train_variant(spec, mini, out, datasets, encoded, *, epochs, batch_size, see
             logits = model(**{k: v[indices] for k, v in encoded['train'].items()})
             loss = training_loss(logits, labels[indices], datasets['train'], indices,
                                  hard_negative_weight=spec['hard_negative_weight'],
+                                 positive_weight=spec['positive_weight'],
+                                 pair_strategy=spec['pair_strategy'],
                                  pair_weight=spec['pair_weight'])
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -138,11 +162,13 @@ def main():
     p.add_argument('--batch-size', type=int, default=16)
     p.add_argument('--search-space', type=Path, help='Optional bounded JSON parameter grid')
     p.add_argument('--max-trials', type=int, default=12)
+    p.add_argument('--quality-search', action='store_true',
+                   help='Four same-seed candidates: existing controls plus low-FPR ranking objectives')
     args = p.parse_args()
     if args.epochs < 1 or args.batch_size < 2:
         p.error('positive epochs and batch-size >= 2 required')
     space = json.loads(args.search_space.read_text()) if args.search_space else None
-    plan = trial_plan(space, max_trials=args.max_trials)
+    plan = trial_plan(space, max_trials=args.max_trials, quality_search=args.quality_search)
     args.out.mkdir(parents=True, exist_ok=True)
     if any((args.out / name).exists() for name in ('protocol.json', 'freeze.json', 'trials.json')):
         p.error('output already contains a training run; use a new directory')
@@ -154,11 +180,11 @@ def main():
     development_audit = audit_splits(datasets)
     tok = BertTokenizerFast(vocab_file=str(args.assets / 'base_model' / 'vocab.txt'), do_lower_case=True)
     encoded = {split: encode(rows, tok) for split, rows in datasets.items()}
-    protocol = dict(version='privacy_hard_negative.v2', seed=SEED, epochs=args.epochs,
+    protocol = dict(version='privacy_low_fpr_automl.v3', seed=SEED, epochs=args.epochs,
                     batch_size=args.batch_size, variants=plan,
-                    max_trials=args.max_trials,
-                    objective='BCE + configurable within-scenario pair loss; optional weighted top-quartile batch negatives',
-                    selection='validation group-bootstrap 95% recall lower bound, then empirical recall@1% FPR, then AP',
+                    max_trials=args.max_trials, quality_search=args.quality_search,
+                    objective='weighted BCE + all/hardest within-scenario pair loss, optional hard negatives and missed-positive weighting',
+                    selection='group-isolated validation threshold crossfit FPR feasibility, clustered recall lower bound, recall, AP; independent final calibration',
                     calibration='separate calibration split; strict > with floor(1% * negatives) FP budget',
                     heldout='previously consumed PrivacyAlign test, regression only',
                     production_approved=False, mode='shadow_only')
