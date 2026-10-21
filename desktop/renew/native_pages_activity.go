@@ -410,7 +410,7 @@ func (a *renewApp) eventsView(c *ui.Context) {
 			if a.historyLoading {
 				label = "正在读取…"
 			}
-			if ui.Button(c, label).Clicked() && !a.historyLoading {
+			if ui.Button(c, label).Disabled(a.historyLoading).Clicked() && !a.historyLoading {
 				a.loadOlderEvents()
 			}
 			if a.historyLoading {
