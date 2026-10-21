@@ -29,6 +29,13 @@ class DecisionProtocolTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'scenario leakage'):
             audit_splits(self.splits)
 
+    def test_reused_source_id_with_modified_text_leaks(self):
+        self.splits['train'][0]['id'] = 'action-123'
+        self.splits['test'][0]['id'] = 'action-123'
+        self.splits['test'][0]['candidate'] = 'different action'
+        with self.assertRaisesRegex(ValueError, 'source action ID leakage'):
+            audit_splits(self.splits)
+
     def test_duplicate_candidate_independent_of_group(self):
         duplicate = dict(self.splits['train'][0], group='other')
         self.splits['test'][0] = duplicate

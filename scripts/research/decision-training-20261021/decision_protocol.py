@@ -13,7 +13,7 @@ def audit_splits(splits):
         required += ('test',)
     if set(splits) != set(required):
         raise ValueError('expected train/validation/calibration with optional test')
-    owners, payloads, report = {}, {}, {}
+    owners, payloads, identities, report = {}, {}, {}, {}
     for split in required:
         rows = splits[split]
         groups = set()
@@ -27,6 +27,15 @@ def audit_splits(splits):
                 raise ValueError('scenario leakage: ' + g)
             owners[g] = split
             groups.add(g)
+            # Prepared PrivacyAlign IDs refer to a source action; a reused ID
+            # with mutated text is leakage too, even if its payload differs.
+            row_id = r.get('id')
+            if row_id is not None:
+                if not isinstance(row_id, str) or not row_id.strip():
+                    raise ValueError('invalid source action ID')
+                if row_id in identities and identities[row_id] != split:
+                    raise ValueError('source action ID leakage: ' + row_id)
+                identities[row_id] = split
             # Hash only independent input fields, not dataset id/label/split.
             c = r.get('context')
             a = r.get('candidate')
