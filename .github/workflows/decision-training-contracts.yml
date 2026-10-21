@@ -1,0 +1,19 @@
+name: Agent decision training contracts
+on:
+  pull_request:
+    paths:
+      - 'scripts/research/decision-training-20261021/**'
+      - '.github/workflows/decision-training-contracts.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  protocol:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile training entrypoint
+        run: python3 -m py_compile scripts/research/decision-training-20261021/*.py
+      - name: Run data isolation and low-FPR contract tests
+        run: python3 -m unittest discover -s scripts/research/decision-training-20261021 -p 'test_*.py' -v
