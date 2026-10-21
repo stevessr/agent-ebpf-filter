@@ -86,6 +86,25 @@ class DecisionProtocolTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'no calibration negatives'):
             operating_threshold([1], [0.5])
 
+    def test_accuracy_does_not_hide_class_imbalance(self):
+        # Classifier abstaining on every positive may have high accuracy but
+        # must report zero recall and zero F1.
+        metrics = confusion([0]*9 + [1], [0.1]*10, 0.5)
+        self.assertAlmostEqual(metrics['accuracy'], 0.9)
+        self.assertEqual(metrics['precision'], 0.0)
+        self.assertEqual(metrics['recall'], 0.0)
+        self.assertEqual(metrics['balanced_accuracy'], 0.5)
+        self.assertEqual(metrics['f1'], 0.0)
+        self.assertEqual(metrics['specificity'], 1.0)
+
+    def test_quality_metrics_for_partial_detection(self):
+        metrics = confusion([0, 0, 1, 1], [0.9, 0.1, 0.7, 0.2], 0.5)
+        self.assertAlmostEqual(metrics['accuracy'], 0.5)
+        self.assertAlmostEqual(metrics['precision'], 0.5)
+        self.assertAlmostEqual(metrics['recall'], 0.5)
+        self.assertAlmostEqual(metrics['f1'], 0.5)
+        self.assertAlmostEqual(metrics['balanced_accuracy'], 0.5)
+
     def test_binomial_upper_bound_monotonic(self):
         self.assertAlmostEqual(upper_binomial95(0, 100), 1-math.pow(0.05, 0.01))
         self.assertGreater(upper_binomial95(2, 100), upper_binomial95(1, 100))

@@ -38,7 +38,7 @@ class QualityProtocolTests(unittest.TestCase):
         self.assertGreater(result["fpr"], 0.1)
 
     def test_unstratifiable_folds_fail(self):
-        rows = [dict(group=f"g{i}", label=int(i < 2)) for i in range(4)]
+        rows = [dict(group=f"g{i}", label=int(i == 0)) for i in range(4)]
         with self.assertRaisesRegex(ValueError, "both labels"):
             crossfit_validation(rows, [0.1, 0.2, 0.8, 0.9])
 

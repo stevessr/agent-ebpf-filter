@@ -60,3 +60,25 @@ python3 scripts/research/decision-training-20261021/automl_review.py   --freeze 
 ```
 
 审查工具不接入运行时、不写权重、不自动加载新模型；即使统计门槛全部满足，也只会标记 `shadow_review_candidate`，并保留 `production_approved=false`。独立性/人工标签来源仍须实证核查。样例和协议测试均为合成数据，不代表真实性能提升。
+
+
+## v3 低误报识别能力训练（代码可用，权重待实验）
+
+使用 `--quality-search` 将原 BERT-Mini baseline 与困难负例候选保留，并增加两组**可检验的训练假设**：
+
+- `mini_hardest_pair`：仅在同一场景内，对最容易被误报的良性动作施加更强的 pair margin，目标是在固定误报预算下提高两类动作的分离度。
+- `mini_missed_positive`：同时增加漏检正例的 BCE 权重，测试是否改善高阈值召回；其副作用可能是误报上升，必须如实报告。
+
+```bash
+python3 scripts/research/decision-training-20261021/train_privacy_v2.py \
+  --assets /tmp/risk-assets \
+  --mini /tmp/risk-round/base_mini \
+  --out /tmp/privacy-low-fpr-v3 \
+  --epochs 6 --batch-size 16 --quality-search
+```
+
+旧 `--search-space` 的三个轴仍兼容；新网格还可选 `positive_weights: [1, 2]` 和 `pair_strategies: ["all", "hardest"]`；最多 24 组。质量预设与自定义网格互斥。
+
+**模型选择偏差修复**：新增 `quality_protocol.py`。按完整场景分两个验证折，每折使用另一折负例确定阈值，再进行样本外评分；交换折后合并统计。模型排序优先满足经验 FPR≤1%，再比较场景 Bootstrap 召回下界、召回率、AP。训练依旧只使用 train；校准依旧只使用独立 calibration；此前已消费 test 仅作为回归而非新的泛化证明。
+
+报告新增 Accuracy、Precision、Recall、Specificity、Balanced Accuracy、F1、FPR 与一侧 95% FPR 上界。Accuracy 易受 PrivacyAlign 标签比例影响；是否真正改善只能由新训练和独立影子数据支持。**无自动模型部署、无自动 BLOCK，PR 继续 Draft。**

@@ -142,8 +142,18 @@ def confusion(labels, scores, threshold):
             else: tn += 1
     negatives = tn + fp
     positives = tp + fn
+    predicted_positive = tp + fp
+    total = positives + negatives
+    precision = tp / predicted_positive if predicted_positive else 0.0
+    recall = tp / positives if positives else None
+    specificity = tn / negatives if negatives else None
     return dict(tp=tp, fp=fp, tn=tn, fn=fn,
-                recall=tp / positives if positives else None,
+                accuracy=(tp + tn) / total if total else None,
+                precision=precision,
+                recall=recall,
+                specificity=specificity,
+                balanced_accuracy=(recall + specificity) / 2 if recall is not None and specificity is not None else None,
+                f1=2 * precision * recall / (precision + recall) if recall is not None and precision + recall else 0.0,
                 fpr=fp / negatives if negatives else None,
                 fpr_upper95=upper_binomial95(fp, negatives) if negatives else None)
 
