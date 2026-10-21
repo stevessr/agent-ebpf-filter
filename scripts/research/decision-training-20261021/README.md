@@ -10,7 +10,7 @@
 - **场景完整 batch**：同一 group 的候选动作一起进入 batch，以保证 pair loss 只发生在同任务上下文内；超大 group 明确报错而不默默拆分。每个 epoch 使用固定派生种子打乱 group。
 - **验证集选 epoch/模型**：按场景聚类重采样 400 次，优先最大化 recall 的 bootstrap 95% 下界，再以验证集经验 FPR≤1% 的召回率、AP 破平局。bootstrap 本身不是新的独立验证集；多模型搜索造成的选择偏差仍需独立数据检验。
 - **校准与统计门槛**：独立 calibration 的负例按分数降序，严格使用 `score > threshold`，允许最多 `floor(0.01 × negative_count)` 个经验 FP。发布 FP、TP、FN、TN 以及单侧 95% Clopper–Pearson FPR 上界。现有 99 条隐私校准负例即使 0 FP，上界仍约 2.98%，不构成 1% 真实 FPR 资格。
-- **封存与回归**：`freeze.json` 写入选中 epoch、参数、模型 SHA-256 和校准结果后才打开已消费的 PrivacyAlign test；它只能用于回归，不能声称独立 held-out。分割审计再排查跨 split 的 group/完整输入重复。
+- **封存与回归**：`freeze.json` 写入选中 epoch、参数、模型 SHA-256 和校准结果后才打开已消费的 PrivacyAlign test；它只能用于回归，不能声称独立 held-out。训练前先审计 train/validation/calibration 的 group/完整输入重复；冻结后再打开 test 完成跨 split 审计。输出同时保存数据来源 SHA-256。
 
 ## 运行
 
@@ -28,7 +28,7 @@ python3 scripts/research/decision-training-20261021/train_privacy_v2.py \
   --epochs 6 --batch-size 16
 ```
 
-将产生 `protocol.json`、两组 `*.safetensors`、`trials.json`、`freeze.json`、`results.json` 与脱敏预测标识。模型结构仍使用历史实验的 `PairBert` 与 `encode`，避免隐式改变 tokenization。输出应按 model SHA-256、数据 digest 和运行环境归档；**不得覆盖 2026-10-18 旧权重/冻结分数**。本目录提供程序与 10 项纯标准库协议测试，当前不包含实际 v2 全量训练产物。
+将产生 `protocol.json`、两组 `*.safetensors`、`trials.json`、`freeze.json`、`results.json` 与脱敏预测标识。模型结构仍使用历史实验的 `PairBert` 与 `encode`，避免隐式改变 tokenization。输出应按 model SHA-256、数据 digest 和运行环境归档；**不得覆盖 2026-10-18 旧权重/冻结分数**。本目录提供程序与 11 项纯标准库协议测试，当前不包含实际 v2 全量训练产物。
 
 ## 下一道真实评测门槛
 
