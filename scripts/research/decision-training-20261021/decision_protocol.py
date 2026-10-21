@@ -8,9 +8,11 @@ import random
 
 def audit_splits(splits):
     """Reject label/identity leakage between train, validation, calibration and test."""
-    required = ('train', 'validation', 'calibration', 'test')
+    required = ('train', 'validation', 'calibration')
+    if 'test' in splits:
+        required += ('test',)
     if set(splits) != set(required):
-        raise ValueError('expected train/validation/calibration/test splits')
+        raise ValueError('expected train/validation/calibration with optional test')
     owners, payloads, report = {}, {}, {}
     for split in required:
         rows = splits[split]
