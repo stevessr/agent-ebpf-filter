@@ -139,10 +139,9 @@ def main():
     torch.set_num_threads(2)
     torch.use_deterministic_algorithms(True)
     datasets = {s: load_rows(args.assets, s) for s in ['train', 'validation', 'calibration']}
-    # Test remains unopened until selection, calibration, and checkpoint freeze.
-    for left, right in [('train', 'validation'), ('train', 'calibration'), ('validation', 'calibration')]:
-        if {r['group'] for r in datasets[left]} & {r['group'] for r in datasets[right]}:
-            raise ValueError('scenario overlap between ' + left + ' and ' + right)
+    # Reject duplicate identities and context/action leakage among development
+    # splits before optimization, without opening consumed test labels.
+    development_audit = audit_splits(datasets)
     tok = BertTokenizerFast(vocab_file=str(args.assets / 'base_model' / 'vocab.txt'), do_lower_case=True)
     encoded = {split: encode(rows, tok) for split, rows in datasets.items()}
     protocol = dict(version='privacy_hard_negative.v2', seed=SEED, epochs=args.epochs,
@@ -152,6 +151,9 @@ def main():
                     calibration='separate calibration split; strict > with floor(1% * negatives) FP budget',
                     heldout='previously consumed PrivacyAlign test, regression only',
                     production_approved=False, mode='shadow_only')
+    protocol['development_split_audit'] = development_audit
+    protocol['development_source_sha256'] = {s: sha(args.assets / 'agent_privacy_data' / (s + '.jsonl')) for s in datasets}
+    protocol['vocab_sha256'] = sha(args.assets / 'base_model' / 'vocab.txt')
     (args.out / 'protocol.json').write_text(json.dumps(protocol, indent=2) + '\n')
     trials = []
     for variant in protocol['variants']:
@@ -180,6 +182,7 @@ def main():
     result = dict(freeze=freeze, split_audit=audit, regression=confusion(
         [r['label'] for r in datasets['test']], scores.tolist(), freeze['threshold']),
         regression_AP=float(average_precision_score([r['label'] for r in datasets['test']], scores)),
+        test_source_sha256=sha(args.assets / 'agent_privacy_data' / 'test.jsonl'),
         note='Regression set consumed in prior experiments; no independent production-quality claim.')
     (args.out / 'results.json').write_text(json.dumps(result, indent=2) + '\n')
     (args.out / 'test_predictions.jsonl').write_text(''.join(json.dumps(dict(
