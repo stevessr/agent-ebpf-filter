@@ -545,7 +545,7 @@ func (a *renewApp) startingView(c *ui.Context) {
 	t := c.Theme()
 	card(c, "明镜高悬 · 正在连接监控后端", func() {
 		ui.Text(c, "正在复用现有后端，或通过系统授权启动内置后端。桌面界面始终以普通用户权限运行。").TextColor(t.TextMuted)
-		ui.Spinner(c)
+		renewLoadingIndicator(c, "正在连接监控后端")
 	})
 }
 

@@ -492,7 +492,7 @@ func (a *renewApp) eventDetailModal(c *ui.Context) {
 			})
 			if a.eventDetailLoading {
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-					ui.Spinner(c)
+					renewLoadingIndicator(c, "正在读取完整事件记录")
 					ui.Text(c, "正在按需读取完整事件…").TextColor(t.TextMuted)
 				})
 				return
@@ -649,7 +649,7 @@ func (a *renewApp) eventDetailEnforcement(c *ui.Context) {
 			return
 		}
 		if a.enforcementBusy {
-			ui.Text(c, "正在等待策略提交及内核状态确认…").FontSize(11).TextColor(t.TextMuted)
+			renewLoadingRow(c, "正在等待策略提交及内核状态确认…")
 			return
 		}
 		if a.enforcementErr != "" {

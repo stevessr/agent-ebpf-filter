@@ -364,7 +364,7 @@ func (a *renewApp) agentRecognitionView(c *ui.Context) {
 	a.agentScopeEditor(c, "monitor", "监视范围", "黑名单跳过匹配对象的高级分析，白名单只分析匹配对象；即使不监视，已捕获事件仍可浏览。")
 	if a.agentScopesBusy {
 		ui.Row(c).Gap(8).Children(func() {
-			ui.Spinner(c)
+			renewLoadingIndicator(c, "正在同步 Agent 识别范围")
 			ui.Text(c, "等待后端确认名单…").TextColor(t.TextMuted)
 		})
 	}

@@ -131,9 +131,10 @@ func (a *renewApp) monitoringView(c *ui.Context) {
 	})
 	if !a.configReady {
 		ui.Text(c, "配置尚未成功加载，写操作已禁用。").FontSize(12).TextColor(t.TextMuted)
-	} else if a.configBusy {
+	}
+	if a.configBusy {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Spinner(c)
+			renewLoadingIndicator(c, "正在等待配置写入确认")
 			ui.Text(c, "等待后端确认…").TextColor(t.TextMuted)
 		})
 	}
@@ -191,17 +192,20 @@ func (a *renewApp) rulesView(c *ui.Context) {
 			}
 		})
 		ui.Row(c).Gap(8).Children(func() {
-			if ui.PrimaryButton(c, "保存规则").Clicked() && a.rulesReady && !a.rulesBusy {
+			if ui.PrimaryButton(c, "保存规则").Disabled(!a.rulesReady || a.rulesBusy).Clicked() && a.rulesReady && !a.rulesBusy {
 				a.saveRule()
 			}
-			if a.editingRule != "" && ui.Button(c, "取消编辑").Clicked() && !a.rulesBusy {
+			if a.editingRule != "" && ui.Button(c, "取消编辑").Disabled(a.rulesBusy).Clicked() && !a.rulesBusy {
 				a.resetRuleForm()
 			}
-			if ui.Button(c, "重新读取").Clicked() && !a.rulesBusy {
+			if ui.Button(c, "重新读取").Disabled(a.rulesBusy).Clicked() && !a.rulesBusy {
 				go a.refreshRules(context.Background())
 			}
 		})
 	})
+	if a.rulesBusy {
+		renewLoadingRow(c, "正在等待规则操作确认…")
+	}
 
 	rows := a.filteredRules()
 	card(c, fmt.Sprintf("已配置规则 · %d", len(rows)), func() {

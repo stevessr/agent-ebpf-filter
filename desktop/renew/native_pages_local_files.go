@@ -281,7 +281,7 @@ func (a *renewApp) localFileManagerView(c *ui.Context) {
 		}
 		if a.files.listLoading {
 			ui.Row(c).Gap(8).Children(func() {
-				ui.Spinner(c)
+				renewLoadingIndicator(c, "正在读取本地目录")
 				ui.Text(c, "正在读取本地目录…")
 			})
 		}

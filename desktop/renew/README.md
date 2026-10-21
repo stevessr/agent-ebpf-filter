@@ -56,6 +56,10 @@
 - [Codex Config basics](https://developers.openai.com/codex/config-basic)、[Configuration Reference](https://developers.openai.com/codex/config-reference)
 - [Codex Managed configuration](https://learn.chatgpt.com/docs/enterprise/managed-configuration)
 
+## Native loading feedback
+
+Renew uses MyGo `plugins/loading` for native busy states (no WebView, npm package, or `mygo.Use`). Ring indicators mark connection setup, module/configuration writes, path access, event details, and local file operations; linear dots mark the explicit local Agent configuration inspection. Event history pagination, Wrapper rule writes and local Harness discovery show loading feedback while their existing asynchronous operations run. Policy enforcement confirmation has its own pending state; rule and history actions are disabled while requests run, and initial configuration loading remains visible even when settings are not yet ready. Each indicator has an accessibility label and obeys the host Reduce Motion preference; it never asserts that the eBPF collector is healthy.
+
 ## MyGo release tracking and desktop usability
 
 The desktop Go module pins a tested MyGo version independently of the privileged backend.
