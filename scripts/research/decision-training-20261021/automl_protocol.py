@@ -10,10 +10,18 @@ from decision_protocol import confusion, upper_binomial95
 
 
 DEFAULT_TRIALS = [
-    dict(name="mini_pair_baseline", learning_rate=3e-5,
-         pair_weight=0.2, hard_negative_weight=1.0),
-    dict(name="mini_hard_negative", learning_rate=3e-5,
-         pair_weight=0.2, hard_negative_weight=3.0),
+    dict(name="mini_pair_baseline", learning_rate=3e-5, pair_weight=0.2,
+         hard_negative_weight=1.0, positive_weight=1.0, pair_strategy="all"),
+    dict(name="mini_hard_negative", learning_rate=3e-5, pair_weight=0.2,
+         hard_negative_weight=3.0, positive_weight=1.0, pair_strategy="all"),
+]
+
+# Two additional controlled objectives, available only on explicit request.
+QUALITY_TRIALS = DEFAULT_TRIALS + [
+    dict(name="mini_hardest_pair", learning_rate=3e-5, pair_weight=0.4,
+         hard_negative_weight=3.0, positive_weight=1.0, pair_strategy="hardest"),
+    dict(name="mini_missed_positive", learning_rate=3e-5, pair_weight=0.3,
+         hard_negative_weight=3.0, positive_weight=2.0, pair_strategy="hardest"),
 ]
 
 
@@ -26,7 +34,7 @@ def _number(value, minimum, maximum, label):
     return value
 
 
-def trial_plan(space=None, *, max_trials=12):
+def trial_plan(space=None, *, max_trials=12, quality_search=False):
     """Explicit finite grid; refuse budget overruns rather than truncate trials.
 
     Baseline and 3x hard-negative candidates share all other hyperparameters.
@@ -34,34 +42,49 @@ def trial_plan(space=None, *, max_trials=12):
     """
     if type(max_trials) is not int or not 1 <= max_trials <= 24:
         raise ValueError("max_trials must be in [1,24]")
+    if type(quality_search) is not bool:
+        raise ValueError("quality_search must be bool")
+    if quality_search and space is not None:
+        raise ValueError("choose quality_search or custom search space")
     if space is None:
-        trials = [dict(v) for v in DEFAULT_TRIALS]
+        trials = [dict(v) for v in (QUALITY_TRIALS if quality_search else DEFAULT_TRIALS)]
     else:
-        if not isinstance(space, dict) or set(space) != {
-            "learning_rates", "pair_weights", "hard_negative_weights"
-        }:
-            raise ValueError("search space requires three named axes")
+        if not isinstance(space, dict):
+            raise ValueError("search space must be JSON object")
+        required = {"learning_rates", "pair_weights", "hard_negative_weights"}
+        allowed = required | {"positive_weights", "pair_strategies"}
+        if not required.issubset(space) or not set(space).issubset(allowed):
+            raise ValueError("search space requires three named axes and optional positive/pair axes")
         axes = (
             ("learning_rates", 1e-6, 1e-3),
             ("pair_weights", 0.0, 1.0),
             ("hard_negative_weights", 1.0, 6.0),
+            ("positive_weights", 1.0, 6.0),
         )
         values = []
         for name, lo, hi in axes:
-            axis = space[name]
+            axis = space.get(name, [1.0])
             if not isinstance(axis, list) or not 1 <= len(axis) <= 8:
                 raise ValueError("invalid search axis: " + name)
             checked = [_number(v, lo, hi, name) for v in axis]
             if len(set(checked)) != len(checked):
                 raise ValueError("duplicate search value: " + name)
             values.append(sorted(checked))
-        count = math.prod(len(axis) for axis in values)
+        strategies = space.get("pair_strategies", ["all"])
+        if not isinstance(strategies, list) or not 1 <= len(strategies) <= 2 or (
+            any(x not in ("all", "hardest") for x in strategies)
+        ) or len(set(strategies)) != len(strategies):
+            raise ValueError("invalid pair_strategies")
+        count = math.prod(len(axis) for axis in values) * len(strategies)
         if count > max_trials:
             raise ValueError("trial budget exceeded; narrow the search space")
         trials = [
             dict(name=f"mini_auto_{i:02d}", learning_rate=lr,
-                 pair_weight=pw, hard_negative_weight=hw)
-            for i, (lr, pw, hw) in enumerate(product(*values), 1)
+                 pair_weight=pw, hard_negative_weight=hw,
+                 positive_weight=posw, pair_strategy=strategy)
+            for i, (lr, pw, hw, posw, strategy) in enumerate(
+                product(*values, sorted(strategies)), 1
+            )
         ]
     if len(trials) > max_trials:
         raise ValueError("trial budget exceeded")
@@ -69,10 +92,16 @@ def trial_plan(space=None, *, max_trials=12):
 
 
 def candidate_rank(metrics):
-    """Rank *only* validation evidence, never calibration or test results."""
+    """Prefer validation cross-fit low-FPR quality, never calibration/test labels."""
     try:
-        ci = metrics["cluster_recall95"]
-        vals = (ci["low"], metrics["recall"], metrics["AP"])
+        if "crossfit" in metrics:
+            held = metrics["crossfit"]
+            ci = held["cluster_recall95"]
+            feasible = float(held["fpr"] <= held["target_fpr"])
+            vals = (feasible, ci["low"], held["recall"], metrics["AP"], 1.0-held["fpr"])
+        else:
+            ci = metrics["cluster_recall95"]
+            vals = (ci["low"], metrics["recall"], metrics["AP"])
     except (KeyError, TypeError) as exc:
         raise ValueError("missing validation metric") from exc
     return tuple(_number(v, 0.0, 1.0, "validation metric") for v in vals)
