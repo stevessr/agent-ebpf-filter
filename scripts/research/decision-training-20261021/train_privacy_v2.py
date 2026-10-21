@@ -8,7 +8,11 @@ import hashlib
 import json
 import math
 import random
+import sys
 from pathlib import Path
+
+# Reuse the exact tokenizer/model definitions from the frozen v1 study.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'deep-optimization-20261018'))
 
 import numpy as np
 import torch
