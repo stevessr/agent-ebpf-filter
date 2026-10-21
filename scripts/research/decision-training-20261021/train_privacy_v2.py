@@ -23,6 +23,7 @@ from sklearn.metrics import average_precision_score
 
 from decision_protocol import (audit_splits, confusion, group_batches,
                                group_bootstrap_recall, operating_threshold)
+from automl_protocol import candidate_rank, leaderboard, research_gate, trial_plan
 from privacy import PairBert, encode
 
 SEED = 20261021
@@ -51,18 +52,18 @@ def pairwise_loss(logits, labels, rows, indices):
     return torch.stack(losses).mean() if losses else logits.sum() * 0
 
 
-def training_loss(logits, labels, rows, indices, *, hard_negatives):
+def training_loss(logits, labels, rows, indices, *, hard_negative_weight, pair_weight):
     per_row = F.binary_cross_entropy_with_logits(logits, labels, reduction='none')
     weight = torch.ones_like(per_row)
-    if hard_negatives:
+    if hard_negative_weight > 1:
         neg = torch.nonzero(labels == 0, as_tuple=False).flatten()
         if len(neg):
             # Select the highest-scored benign actions in THIS training batch.
             count = max(1, math.ceil(len(neg) / 4))
             worst = neg[torch.topk(logits.detach()[neg], count).indices]
-            weight[worst] = 3.0
+            weight[worst] = hard_negative_weight
     bce = (per_row * weight).sum() / weight.sum()
-    return bce + 0.2 * pairwise_loss(logits, labels, rows, indices)
+    return bce + pair_weight * pairwise_loss(logits, labels, rows, indices)
 
 
 def predict(model, encoded, batch_size=24):
@@ -84,12 +85,13 @@ def validation(rows, scores, *, seed):
     return operation, metrics
 
 
-def train_variant(variant, mini, out, datasets, encoded, *, epochs, batch_size, seed):
+def train_variant(spec, mini, out, datasets, encoded, *, epochs, batch_size, seed):
+    variant = spec['name']
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     model = PairBert(mini, pretrained=True)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=3e-5, weight_decay=0.01)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=spec['learning_rate'], weight_decay=0.01)
     labels = torch.tensor([r['label'] for r in datasets['train']], dtype=torch.float32)
     best_rank = None
     best_epoch = 0
@@ -103,14 +105,15 @@ def train_variant(variant, mini, out, datasets, encoded, *, epochs, batch_size, 
             optimizer.zero_grad(set_to_none=True)
             logits = model(**{k: v[indices] for k, v in encoded['train'].items()})
             loss = training_loss(logits, labels[indices], datasets['train'], indices,
-                                 hard_negatives=(variant == 'mini_hard_negative'))
+                                 hard_negative_weight=spec['hard_negative_weight'],
+                                 pair_weight=spec['pair_weight'])
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
             losses.append(float(loss.item()))
         scores = predict(model, encoded['validation'])
         operation, stats = validation(datasets['validation'], scores, seed=seed)
-        rank = (stats['cluster_recall95']['low'], stats['recall'], stats['AP'])
+        rank = candidate_rank(stats)
         history.append(dict(epoch=epoch, loss=float(np.mean(losses)), validation=stats,
                             empirical_validation_threshold=operation))
         print(variant, json.dumps(history[-1], sort_keys=True), flush=True)
@@ -122,6 +125,7 @@ def train_variant(variant, mini, out, datasets, encoded, *, epochs, batch_size, 
     calibration = predict(model, encoded['calibration'])
     return dict(name=variant, selected_epoch=best_epoch, epoch_history=history,
                 validation=history[best_epoch - 1]['validation'],
+                hyperparameters=spec,
                 checkpoint_sha256=sha(checkpoint)), calibration
 
 
@@ -132,10 +136,16 @@ def main():
     p.add_argument('--out', type=Path, required=True)
     p.add_argument('--epochs', type=int, default=6)
     p.add_argument('--batch-size', type=int, default=16)
+    p.add_argument('--search-space', type=Path, help='Optional bounded JSON parameter grid')
+    p.add_argument('--max-trials', type=int, default=12)
     args = p.parse_args()
     if args.epochs < 1 or args.batch_size < 2:
         p.error('positive epochs and batch-size >= 2 required')
+    space = json.loads(args.search_space.read_text()) if args.search_space else None
+    plan = trial_plan(space, max_trials=args.max_trials)
     args.out.mkdir(parents=True, exist_ok=True)
+    if any((args.out / name).exists() for name in ('protocol.json', 'freeze.json', 'trials.json')):
+        p.error('output already contains a training run; use a new directory')
     torch.set_num_threads(2)
     torch.use_deterministic_algorithms(True)
     datasets = {s: load_rows(args.assets, s) for s in ['train', 'validation', 'calibration']}
@@ -145,31 +155,36 @@ def main():
     tok = BertTokenizerFast(vocab_file=str(args.assets / 'base_model' / 'vocab.txt'), do_lower_case=True)
     encoded = {split: encode(rows, tok) for split, rows in datasets.items()}
     protocol = dict(version='privacy_hard_negative.v2', seed=SEED, epochs=args.epochs,
-                    batch_size=args.batch_size, variants=['mini_pair_baseline', 'mini_hard_negative'],
-                    objective='BCE + within-scenario pair loss; hard-negative: 3x top quartile batch negatives',
+                    batch_size=args.batch_size, variants=plan,
+                    max_trials=args.max_trials,
+                    objective='BCE + configurable within-scenario pair loss; optional weighted top-quartile batch negatives',
                     selection='validation group-bootstrap 95% recall lower bound, then empirical recall@1% FPR, then AP',
                     calibration='separate calibration split; strict > with floor(1% * negatives) FP budget',
                     heldout='previously consumed PrivacyAlign test, regression only',
                     production_approved=False, mode='shadow_only')
     protocol['development_split_audit'] = development_audit
+    protocol['search_space_sha256'] = sha(args.search_space) if args.search_space else None
     protocol['development_source_sha256'] = {s: sha(args.assets / 'agent_privacy_data' / (s + '.jsonl')) for s in datasets}
     protocol['vocab_sha256'] = sha(args.assets / 'base_model' / 'vocab.txt')
     (args.out / 'protocol.json').write_text(json.dumps(protocol, indent=2) + '\n')
     trials = []
-    for variant in protocol['variants']:
-        trial, cp = train_variant(variant, args.mini, args.out, datasets, encoded,
+    for spec in plan:
+        trial, cp = train_variant(spec, args.mini, args.out, datasets, encoded,
                                   epochs=args.epochs, batch_size=args.batch_size, seed=SEED)
         op = operating_threshold([r['label'] for r in datasets['calibration']], cp.tolist())
         trial['calibration'] = confusion([r['label'] for r in datasets['calibration']], cp.tolist(), op['threshold'])
         trial['calibration_threshold'] = op
         trials.append(trial)
-    selected = max(trials, key=lambda r:(r['validation']['cluster_recall95']['low'],
-                                         r['validation']['recall'], r['validation']['AP']))
+    ranking = leaderboard(trials)
+    (args.out / 'leaderboard.json').write_text(json.dumps(ranking, indent=2) + '\n')
+    selected = next(t for t in trials if t['name'] == ranking[0]['name'])
     freeze = dict(selected=selected['name'], selected_epoch=selected['selected_epoch'],
                   threshold=selected['calibration_threshold']['threshold'],
                   empirical_calibration=selected['calibration'],
                   upper95_within_1pct=(selected['calibration']['fpr_upper95'] <= 0.01),
                   artifact_sha256=selected['checkpoint_sha256'], protocol_sha256=sha(args.out / 'protocol.json'),
+                  selection_rank=ranking[0]['rank'],
+                  shadow_review_gate=research_gate(selected['calibration']),
                   mode='shadow_only', production_approved=False)
     (args.out / 'trials.json').write_text(json.dumps(trials, indent=2) + '\n')
     (args.out / 'freeze.json').write_text(json.dumps(freeze, indent=2) + '\n')

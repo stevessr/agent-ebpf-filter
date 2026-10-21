@@ -36,3 +36,27 @@ python3 scripts/research/decision-training-20261021/train_privacy_v2.py \
 2. 加入新的跨 session/harness 正常开发调用与独立人工确认的隐私外发正例；用同一冻结阈值计算 per-run FP、Recall、AP、置信区间。
 3. 对 PiSAs/工具动作类型与特征缺失做跨来源分层诊断；不因单一 AP 进步就升级生产资格。
 4. 真实 shadow 回放通过后另审推理部署与数据使用许可证。只有独立且足量样本通过 FPR 上界及召回门槛，才考虑审批阶段；此代码永不自动开启 BLOCK。
+
+## AutoML 搜索与独立影子审核（增量）
+
+保持默认两组消融方案不变；只有显式提供 JSON 搜索空间时，才进行更多 BERT-Mini 拟合。参数组合确定性排序、完整预算检查（最多 24 项），不会静默截断或读取 test/calibration 标签以选择训练超参。
+
+示例文件 auto-grid.json：
+
+```json
+{
+  "learning_rates": [0.00002, 0.00003],
+  "pair_weights": [0.0, 0.2],
+  "hard_negative_weights": [1, 3]
+}
+```
+
+运行参数添加 `--search-space /tmp/auto-grid.json --max-trials 8`；将实际训练 **8 次 BERT-Mini 完整 epoch 配置**，资源开销约为默认方案的四倍，不会虚报执行结果。新增 `leaderboard.json` 按验证集组 Bootstrap 召回下界、召回率、AP 排序；独立 calibration 只设阈值，不参与模型选择。输出目录存在协议/冻结结果时拒绝覆盖。
+
+`freeze.json` 添加 `shadow_review_gate`：独立人工标注影子评测缺失则自动标记不合格；现有 99 条负例的校准 FPR 上界也无法通过 1% 门槛。可选在**模型冻结后**通过离线 `automl_review.py` 读取新来源、人工确认的隐私动作评分 JSONL，计算行级及场景级 FPR 95% 上界和召回率。每条必须包含 `id/group/label/domain=privacy_action/split=independent_review/source/annotation_source/score/artifact_sha256`，摘要不能与冻结模型摘要不一致；不能将旧 regression/test/HTTP 标签充当新隐私正例。
+
+```bash
+python3 scripts/research/decision-training-20261021/automl_review.py   --freeze /tmp/risk-v2/freeze.json   --review-predictions /path/to/new_verified_shadow_actions.jsonl   --output /tmp/new-shadow-review.json
+```
+
+审查工具不接入运行时、不写权重、不自动加载新模型；即使统计门槛全部满足，也只会标记 `shadow_review_candidate`，并保留 `production_approved=false`。独立性/人工标签来源仍须实证核查。样例和协议测试均为合成数据，不代表真实性能提升。
