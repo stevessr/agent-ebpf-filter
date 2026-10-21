@@ -19,6 +19,9 @@ class DecisionProtocolTests(unittest.TestCase):
             'calibration': [row('c', 0), row('c', 1)],
             'test': [row('h', 0), row('h', 1)]}
 
+    def test_three_way_preflight_without_opening_test(self):
+        self.assertEqual(audit_splits({k: v for k, v in self.splits.items() if k != 'test'})['validation']['groups'], 1)
+
     def test_strict_scenario_split(self):
         self.assertEqual(audit_splits(self.splits)['train']['groups'], 1)
         self.splits['test'][0]['group'] = 'train_invalid'
