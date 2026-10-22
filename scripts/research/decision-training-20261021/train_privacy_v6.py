@@ -109,7 +109,7 @@ def main():
         trial['calibration_threshold'] = operation
         trial['calibration'] = confusion(labels, scores.tolist(), operation['threshold'])
         (args.out / 'calibration_predictions.jsonl').write_text(''.join(json.dumps(dict(
-            id=r['id'], group=r['group'], source=r.get('source', ''), label=r['label'], score=float(s)),
+            id=r['id'], group=r['group'], **({'source': r['source']} if 'source' in r else {}), label=r['label'], score=float(s)),
             allow_nan=False) + '\n' for r, s in zip(datasets['calibration'], scores)))
         write_json(args.out / 'worker.json', dict(common=common, trial=trial))
         print('WORKER_V6', json.dumps(dict(name=trial['name'], epoch=trial['selected_epoch'],
@@ -132,7 +132,7 @@ def main():
         cp = read_jsonl(path.parent / 'calibration_predictions.jsonl')
         expected = [dict(id=r['id'], group=r['group'], source=r.get('source', ''), label=r['label'])
                     for r in datasets['calibration']]
-        if [{k: row.get(k) for k in ('id', 'group', 'source', 'label')} for row in cp] != expected:
+        if [dict(id=row.get('id'), group=row.get('group'), source=row.get('source', ''), label=row.get('label')) for row in cp] != expected:
             raise ValueError('calibration row identities/order differ')
         scores = [row['score'] for row in cp]
         labels = [r['label'] for r in datasets['calibration']]
@@ -169,7 +169,7 @@ def main():
             threshold=threshold, checkpoint_sha256=trial['checkpoint_sha256'])
         write_json(args.out / (name + '_error_slices.json'), error_slices(datasets['test'], scores, threshold))
         (args.out / (name + '_test_predictions.jsonl')).write_text(''.join(json.dumps(dict(
-            id=r['id'], group=r['group'], source=r.get('source', ''), tags=r['tags'],
+            id=r['id'], group=r['group'], **({'source': r['source']} if 'source' in r else {}), tags=r['tags'],
             tag_version=TAG_VERSION, label=r['label'], score=s), allow_nan=False) + '\n'
             for r, s in zip(datasets['test'], scores)))
         del model

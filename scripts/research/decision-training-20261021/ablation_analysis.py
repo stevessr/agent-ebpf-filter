@@ -15,7 +15,7 @@ from automl_protocol import leaderboard
 from decision_protocol import confusion, scenario_key
 from error_analysis import error_slices
 from json_contract import read_json, read_jsonl
-from v6_protocol import NAMES, validate_workers
+from v6_protocol import NAMES, VERSION, validate_workers
 
 
 def digest(path):
@@ -96,6 +96,27 @@ def paired_changes(rows, baseline_scores, scores, baseline_threshold, threshold,
         thresholds_previously_frozen=True,regression_only=True)
 
 
+# The first v6 export wrote absent source as "". Restore absence only for this
+# exact archived writer and prepared test digest; do not relax source validation.
+LEGACY_WRITER = 'd24182f4fedc62f49e8a886c2b5db959e134e942'
+LEGACY_TEST = '1abecfd4716b428cecb55466a7a709125fc9589098e6d6aefcf4389033f32882'
+
+
+def archived_rows(rows, source_commit, version, test_sha256):
+    repaired = 0
+    restored = []
+    for row in rows:
+        copy = dict(row)
+        if copy.get('source') == '':
+            if (source_commit, version, test_sha256) != (LEGACY_WRITER, VERSION, LEGACY_TEST):
+                raise ValueError('empty source outside pinned legacy export')
+            copy.pop('source')
+            repaired += 1
+        scenario_key(copy)
+        restored.append(copy)
+    return restored, repaired
+
+
 def analyze(root, expected_source):
     freezes=list(root.rglob('freeze.json'))
     if len(freezes) != 1:
@@ -116,11 +137,14 @@ def analyze(root, expected_source):
         raise ValueError('validation-only ranking does not reproduce')
     predictions={}
     verified={}
+    source_repairs={}
     for name in NAMES:
         selected=frozen['candidates'][name]
         if digest(directory/(name+'.safetensors')) != selected['checkpoint_sha256']:
             raise ValueError('checkpoint digest mismatch')
         rows=read_jsonl(directory/(name+'_test_predictions.jsonl'))
+        rows, source_repairs[name] = archived_rows(rows, expected_source,
+            frozen['common']['request']['version'], result.get('test_source_sha256'))
         stats=confusion([r['label'] for r in rows],[r['score'] for r in rows],selected['threshold'])
         ap=average_precision([r['label'] for r in rows],[r['score'] for r in rows])
         if not same_numbers(stats,result['candidates'][name]['metrics']) or not same_numbers(ap,result['candidates'][name]['AP']):
@@ -149,6 +173,7 @@ def analyze(root, expected_source):
         freeze_sha256=result['freeze_sha256'],all_weight_digests_verified=True,
         validation_selection_reproduced=True,all_regression_metrics_reproduced=True,
         candidates=verified,paired_against_baseline=changes,encoding_audit=audits[0],
+        pinned_legacy_empty_source_omissions=source_repairs,
         production_approved=False,mode='shadow_only',
         note='Paired scenario bootstrap describes a consumed regression set; no independent quality claim or model/threshold reselection.')
 

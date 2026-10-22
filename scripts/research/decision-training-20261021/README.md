@@ -212,3 +212,13 @@ A separate request-triggered archive-audit workflow downloads only the specified
 completed training artifact and runs this standard-library verification. It does
 not retrain or execute code from the artifact. The original training artifact remains the
 source of weights; the smaller audit artifact contains JSON/log evidence only.
+
+The first archive-audit execution exposed an export mismatch: the initial v6
+writer serialized absent `source` as an empty string, while identity validation
+correctly rejects explicit empty sources. Future exports omit absent source;
+archived predictions are restored only for the exact initial writer commit and
+known prepared-test digest, with repair counts recorded. Original artifact bytes,
+scores, groups, labels and thresholds remain unchanged. Other empty sources still
+fail. All three public training/audit workflows explicitly select Bash so pipeline
+failures propagate through `tee`; a workflow success alone is insufficient proof
+without the expected result records.

@@ -8,10 +8,21 @@ from decision_protocol import confusion
 from low_fpr_ranking import low_fpr_ranking
 from v6_protocol import NAMES, spec_for, VERSION
 
-from ablation_analysis import analyze, average_precision, paired_changes, digest
+from ablation_analysis import analyze, archived_rows, average_precision, paired_changes, digest, LEGACY_WRITER, LEGACY_TEST
 
 
 class AblationAnalysisTests(unittest.TestCase):
+    def test_empty_source_repair_is_limited_to_exact_archived_writer(self):
+        rows=[dict(source='',group='g',label=0)]
+        repaired,count=archived_rows(rows,LEGACY_WRITER,VERSION,LEGACY_TEST)
+        self.assertEqual(count,1)
+        self.assertNotIn('source',repaired[0])
+        self.assertIn('source',rows[0])
+        for commit,version,sha in [('b'*40,VERSION,LEGACY_TEST),
+                                   (LEGACY_WRITER,'future',LEGACY_TEST),
+                                   (LEGACY_WRITER,VERSION,'b'*64)]:
+            with self.assertRaises(ValueError): archived_rows(rows,commit,version,sha)
+
     def test_ap_perfect_tied_and_reversed(self):
         self.assertEqual(average_precision([0,1],[.1,.9]),1)
         self.assertEqual(average_precision([0,1],[.5,.5]),.5)

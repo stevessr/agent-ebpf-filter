@@ -4,6 +4,9 @@ on:
     branches: ['research/kernel-http-features-20261018']
     paths: ['scripts/research/decision-training-20261021/public-v6-analysis-request.json']
   workflow_dispatch:
+defaults:
+  run:
+    shell: bash
 permissions:
   contents: read
   actions: read
@@ -25,10 +28,11 @@ jobs:
           sys.path.insert(0, 'scripts/research/decision-training-20261021')
           from json_contract import read_json
           r = read_json(Path('scripts/research/decision-training-20261021/public-v6-analysis-request.json'))
-          assert set(r) == {'run_id', 'source_commit', 'regression_only'}
+          assert set(r) == {'run_id', 'source_commit', 'regression_only', 'revision'}
           assert type(r['run_id']) is int and r['run_id'] > 0
           assert re.fullmatch('[0-9a-f]{40}', r['source_commit'])
           assert r['regression_only'] is True
+          assert type(r['revision']) is int and r['revision'] == 2
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write('run_id=' + str(r['run_id']) + '\nsource_commit=' + r['source_commit'] + '\n')
           PY

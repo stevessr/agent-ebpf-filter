@@ -4,6 +4,9 @@ on:
     branches: ['research/kernel-http-features-20261018']
     paths: ['scripts/research/decision-training-20261021/public-training-request.json']
   workflow_dispatch:
+defaults:
+  run:
+    shell: bash
 permissions:
   contents: read
 jobs:
