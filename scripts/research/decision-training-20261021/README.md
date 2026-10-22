@@ -1,6 +1,6 @@
-# Agent 决策模型训练 v2：困难负例与低误报评估（2026-10-21）
+# Agent 决策模型训练：困难负例、低误报与 tag 归一化（2026-10-22）
 
-状态：**研究分支中的可复现实验代码；尚未重新完成公开数据训练，未产生本轮模型权重或新准确率。** 保持 PR #116 为 draft、shadow-only，不修改线上内核策略、模型权重及旧实验成绩。
+状态：**已完成 v5 两候选各 6 epoch 的真实公开数据重训。** 选中 baseline 第 5 轮，旧测试集回归 Recall 2.16%、FPR 0/151、AP 0.7913；困难负例方案未胜出，仍未达到生产门槛。见[完整结果与权重证据](RESULTS-20261022.md)。PR #116 保持 draft、shadow-only，不修改线上内核策略、模型权重及旧实验成绩。
 
 本目录在 [2026-10-18 冻结实验](../deep-optimization-20261018/README.md) 的基础上新增一套**独立**训练/校准协议，以解决当前 PrivacyAlign AP 上升但低误报召回仍为 1.73%、PiSAs 迁移召回为 0 的问题。改善这些指标是**待检验假设**，不是已经取得的效果。HTTP 高误报留待独立的真实良性流量采集及专门实验；PrivacyAlign 隐私标签不能冒充 HTTP/syscall 攻击标签。
 
@@ -28,7 +28,7 @@ python3 scripts/research/decision-training-20261021/train_privacy_v2.py \
   --epochs 6 --batch-size 16
 ```
 
-将产生 `protocol.json`、两组 `*.safetensors`、`trials.json`、`freeze.json`、`results.json` 与脱敏预测标识。模型结构仍使用历史实验的 `PairBert` 与 `encode`，避免隐式改变 tokenization。输出应按 model SHA-256、数据 digest 和运行环境归档；**不得覆盖 2026-10-18 旧权重/冻结分数**。本目录提供程序与 11 项纯标准库协议测试，当前不包含实际 v2 全量训练产物。
+将产生 `protocol.json`、两组 `*.safetensors`、`trials.json`、`freeze.json`、`results.json` 与脱敏预测标识。模型结构仍使用历史实验的 `PairBert` 与 `encode`，避免隐式改变 tokenization。输出应按 model SHA-256、数据 digest 和运行环境归档；**不得覆盖 2026-10-18 旧权重/冻结分数**。本目录提供程序与协议测试；v5 全量运行产物已单独归档并在结果报告中链接。
 
 ## 下一道真实评测门槛
 
@@ -62,7 +62,7 @@ python3 scripts/research/decision-training-20261021/automl_review.py   --freeze 
 审查工具不接入运行时、不写权重、不自动加载新模型；即使统计门槛全部满足，也只会标记 `shadow_review_candidate`，并保留 `production_approved=false`。独立性/人工标签来源仍须实证核查。样例和协议测试均为合成数据，不代表真实性能提升。
 
 
-## v3 低误报识别能力训练（代码可用，权重待实验）
+## v3 低误报识别能力训练（历史代码阶段）
 
 使用 `--quality-search` 将原 BERT-Mini baseline 与困难负例候选保留，并增加两组**可检验的训练假设**：
 
@@ -105,7 +105,7 @@ python3 scripts/research/decision-training-20261021/train_privacy_v2.py \
 
 - 统一指标增加 `recall_lower95`（精确 Clopper–Pearson 单侧下界）；总体、每个来源和每个归一化 tag 切片增加正例场景数、全部正例动作命中的场景数、场景召回率及 `scenario_recall_lower95`。一个场景只要漏掉任一人工正例，就不计为完整检出；严格 `score > threshold` 保持一致。
 - `research_gate` 要求总体及每个来源的**动作/场景召回下界**都达到既有 20% 门槛，同时保留 FPR 上界检查。来源缺正例、正例场景不足、仅提供旧版点估计或缺少分来源证据，均不能通过审核候选门槛。tag 是诊断切片，不用任意事后筛选的 tag 声称统计资格。各置信区间是边际区间，未声称跨所有切片的同时 95% 覆盖。
-- 审核报告版本变为 `privacy_automl_review.v3`；训练协议变为 `privacy_low_fpr_automl.v5`。旧报告需从原始冻结预测重新计算，不能直接补造置信界。训练前数据/阈值分工保持原设计，未重训任何 BERT 权重。
+- 审核报告版本变为 `privacy_automl_review.v3`；训练协议变为 `privacy_low_fpr_automl.v5`。旧报告需从原始冻结预测重新计算，不能直接补造置信界。训练前数据/阈值分工保持原设计；v5 实际重训与冻结回归已完成，详见结果报告。
 - `json_contract.py` 在训练数据、搜索网格、freeze 和审核预测入口拒绝重复 JSON 键、NaN/Infinity/指数溢出、非对象及无效 UTF-8。训练 JSONL 限 64 MiB / 单行 1 MiB / 100,000 行；审核预测限 16 MiB / 单行 64 KiB / 100,000 行；freeze 和搜索网格限 1 MiB。冲突 `label`/tag 不再由 JSON 的最后一个同名键悄悄覆盖；统计预算按实际 UTF-8 字节计算。
 - 损失函数移至 `training_objectives.py`，实现保持原公式，仅依赖 PyTorch，不再要求 Transformers、完整模型或语料才能运行梯度测试。新增 CPU CI，使用与既有训练相同的 `torch==2.14.1+cpu`。`REQUIRE_TORCH_TESTS=1` 下缺 Torch 直接失败；Torch 已存在时的代码导入错误也不再被吞成 skip。六项实际测试覆盖排序损失、有限梯度、跨来源不配对、梯度方向、真实 SGD 单步下降和极端 logits 数值稳定性。这些小张量测试不代表真实数据训练或模型拦截率。
 
@@ -118,11 +118,11 @@ REQUIRE_TORCH_TESTS=1 python -m unittest discover \
   -p 'test_training_objectives_torch.py' -v
 ```
 
-本地共发现 **69 项测试，63 项标准库测试通过、6 项 Torch 测试因当前环境缺依赖跳过**；Python 编译检查通过。远端 CPU job 的实际结果以本提交的 Actions 为准，不能把本地 skip 写成通过。PR 保持 Draft / shadow-only。
+本地共发现 **69 项测试，63 项标准库测试通过、6 项 Torch 测试因当前环境缺依赖跳过**；Python 编译检查通过。[远端 CPU CI](https://github.com/stevessr/agent-ebpf-filter/actions/runs/39723968550) 已实际执行全部 6 项 Torch 测试、零跳过；结合标准库 job，69 项测试均得到实际通过证据。PR 保持 Draft / shadow-only。
 
 ### 有限预算公开数据运行
 
 `privacy-public-training.yml` 仅在研究分支的 `public-training-request.json` 改动或手动触发时运行；其他代码提交不会自动重训。本次请求固定默认两候选、每组 6 epoch、batch 16、seed 20261021、2 CPU 线程和 40 分钟总超时，不扩大 AutoML 网格。`fetch_privacy_assets.py` 仅下载原实验固定 revision 的 PrivacyAlign、Mini 配置/权重和词表，逐个检查既有 `source_hashes.json`；单文件限 96 MiB，损坏/超限下载不安装，已存在文件也重新校验。HTTP 数据集、PiSAs、在线 Agent/API 均不在本次下载或运行中。
 
-运行产物包含两组权重、每 epoch 日志、参数/输入/源码摘要、选模榜、独立 calibration 冻结阈值、已消费 test 回归及 tag/source 错误切片；Actions artifact 保留 30 天。语料原文不上传 artifact。是否训练成功及具体模型指标以实际运行证据为准，不把 workflow 配置写成已执行结果。统计审核继续要求新的独立人工标注数据，不自动安装模型或开启 BLOCK。
+运行产物包含两组权重、每 epoch 日志、参数/输入/源码摘要、选模榜、独立 calibration 冻结阈值、已消费 test 回归及 tag/source 错误切片；本轮 Actions artifact 已上传成功，保留至 2026-11-21。语料原文不上传 artifact。全量训练、失败门槛及具体指标见 [RESULTS-20261022.md](RESULTS-20261022.md)。统计审核继续要求新的独立人工标注数据，不自动安装模型或开启 BLOCK。训练步骤另设 35 分钟超时，在 40 分钟 job 预算内为失败日志和部分产物归档预留时间。
 

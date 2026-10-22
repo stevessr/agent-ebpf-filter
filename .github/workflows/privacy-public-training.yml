@@ -38,6 +38,7 @@ jobs:
       - name: Reproduce scenario-disjoint public preparation
         run: python scripts/research/deep-optimization-20261018/prepare_public.py --assets _research_assets | tee _research_run/preparation.log
       - name: Train two candidates and freeze before consumed-test regression
+        timeout-minutes: 35
         run: |
           python scripts/research/decision-training-20261021/train_privacy_v2.py \
             --assets _research_assets --mini _research_assets/base_mini \
