@@ -48,7 +48,7 @@ class QualityProtocolTests(unittest.TestCase):
         for fold in folds:
             self.assertEqual({rows[i]["label"] for i in fold}, {0, 1})
         result = crossfit_validation(
-            rows, [.9, .8, .1, .2], seed=1)
+            rows, [.9, .8, .1, .1], seed=1)
         self.assertEqual((result["tp"], result["fp"]), (2, 0))
 
     def test_single_mixed_group_repairs_to_other_class_complete_fold(self):
