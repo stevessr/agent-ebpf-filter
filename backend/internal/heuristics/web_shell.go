@@ -72,6 +72,15 @@ func processName(argv []string) string {
 	return strings.ToLower(filepath.Base(strings.TrimSpace(argv[0])))
 }
 
+func hasExactArg(args []string, target string) bool {
+	for _, arg := range args {
+		if arg == target {
+			return true
+		}
+	}
+	return false
+}
+
 func hasArg(args []string, target string) bool {
 	for _, arg := range args {
 		if strings.EqualFold(arg, target) {
@@ -131,7 +140,7 @@ func IdentifyWebService(argv []string) string {
 	case strings.HasPrefix(name, "php-fpm"), strings.HasPrefix(name, "php-cgi"):
 		return "PHP"
 	case name == "php" || strings.HasPrefix(name, "php8.") || strings.HasPrefix(name, "php7."):
-		if hasArg(args, "-S") || (hasArg(args, "artisan") && hasArg(args, "serve")) ||
+		if hasExactArg(args, "-S") || (hasArg(args, "artisan") && hasArg(args, "serve")) ||
 			hasArg(args, "server:run") {
 			return "PHP"
 		}
