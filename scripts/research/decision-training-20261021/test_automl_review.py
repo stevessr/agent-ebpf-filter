@@ -8,6 +8,20 @@ from automl_review import review
 
 
 class ReviewCLITests(unittest.TestCase):
+    def test_conflicting_json_labels_never_produce_review(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            freeze = root / 'freeze.json'
+            freeze.write_text(json.dumps(dict(mode='shadow_only', production_approved=False,
+                artifact_sha256='a'*64, threshold=0.6,
+                empirical_calibration=dict(fpr_upper95=0.001))))
+            predictions = root / 'review.jsonl'
+            predictions.write_text('{"artifact_sha256":"' + 'a'*64 + '","label":1,"label":0}\n')
+            output = root / 'audit.json'
+            with self.assertRaisesRegex(ValueError, 'duplicate'):
+                review(freeze, predictions, output)
+            self.assertFalse(output.exists())
+
     def test_snapshot_attestation_and_no_overwrite(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

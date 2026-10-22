@@ -81,7 +81,9 @@ class AutoMLProtocolTests(unittest.TestCase):
     def test_review_gate_is_still_shadow_only(self):
         # Synthetic proof that satisfying all *statistical* gates still does
         # not authorize production activation or prove source provenance.
-        review = dict(fpr_upper95=0.005, scenario_fpr_upper95=0.006, recall=0.7)
+        rows = [action('normal_' + str(i), 0, i) for i in range(400)]
+        rows += [action('risk_' + str(i), 1, 400+i) for i in range(30)]
+        review = shadow_review_metrics(rows, [0.1]*400 + [0.9]*30, 0.5)
         gate = research_gate(dict(fpr_upper95=0.008), review)
         self.assertTrue(gate["shadow_review_candidate"])
         self.assertFalse(gate["production_approved"])
@@ -90,3 +92,4 @@ class AutoMLProtocolTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

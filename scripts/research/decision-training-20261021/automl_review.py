@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from automl_protocol import research_gate, shadow_review_metrics
+from json_contract import read_json, read_jsonl
 
 
 def digest(path):
@@ -12,7 +13,7 @@ def digest(path):
 
 
 def review(freeze_path, predictions_path, output_path):
-    freeze = json.loads(freeze_path.read_text(encoding="utf-8"))
+    freeze = read_json(freeze_path)
     if freeze.get("mode") != "shadow_only" or freeze.get("production_approved") is not False:
         raise ValueError("expected an unapproved shadow-only freeze")
     expected = freeze.get("artifact_sha256")
@@ -21,17 +22,14 @@ def review(freeze_path, predictions_path, output_path):
     if output_path.exists():
         raise ValueError("refusing to overwrite an existing review")
     rows, scores = [], []
-    for line in predictions_path.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        item = json.loads(line)
+    for item in read_jsonl(predictions_path, max_bytes=16 << 20, max_line_bytes=64 << 10):
         if item.get("artifact_sha256") != expected:
             raise ValueError("review scored by a different model")
         rows.append(item)
         scores.append(item.get("score"))
     metrics = shadow_review_metrics(rows, scores, freeze["threshold"])
     gate = research_gate(freeze["empirical_calibration"], metrics)
-    report = dict(version="privacy_automl_review.v2",
+    report = dict(version="privacy_automl_review.v3",
                   freeze_sha256=digest(freeze_path),
                   reviewed_predictions_sha256=digest(predictions_path),
                   model_sha256=expected, metrics=metrics, gate=gate,

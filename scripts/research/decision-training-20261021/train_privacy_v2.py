@@ -6,7 +6,6 @@ No prior frozen weights or consumed test predictions are used for fitting.
 import argparse
 import hashlib
 import json
-import math
 import random
 import sys
 from pathlib import Path
@@ -16,77 +15,29 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'deep-optimization-
 
 import numpy as np
 import torch
-from torch.nn import functional as F
 from safetensors.torch import load_file, save_file
 from transformers import BertTokenizerFast
 from sklearn.metrics import average_precision_score
 
 from decision_protocol import (audit_splits, confusion, group_batches,
-                               group_bootstrap_recall, operating_threshold, scenario_key)
+                               group_bootstrap_recall, operating_threshold)
 from automl_protocol import candidate_rank, leaderboard, research_gate, trial_plan
 from quality_protocol import crossfit_validation
 from tag_protocol import normalize_rows, TAG_VERSION
 from error_analysis import error_slices
 from privacy import PairBert, encode
+from training_objectives import pairwise_loss, training_loss
+from json_contract import read_json, read_jsonl
 
 SEED = 20261021
 
 
 def load_rows(assets, split):
-    return normalize_rows([json.loads(s) for s in (assets / 'agent_privacy_data' / (split + '.jsonl')).read_text(encoding='utf-8').splitlines()])
+    return normalize_rows(read_jsonl(assets / 'agent_privacy_data' / (split + '.jsonl')))
 
 
 def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
-
-
-def pairwise_loss(logits, labels, rows, indices, *, strategy="all"):
-    """Opposite-label comparisons are restricted to the same scenario."""
-    if strategy not in ("all", "hardest"):
-        raise ValueError("invalid pair strategy")
-    groups = {}
-    for i, global_idx in enumerate(indices):
-        groups.setdefault(scenario_key(rows[global_idx]), []).append(i)
-    losses = []
-    for positions in groups.values():
-        positives = [i for i in positions if labels[i].item() == 1]
-        negatives = [i for i in positions if labels[i].item() == 0]
-        if not positives or not negatives:
-            continue
-        if strategy == "hardest":
-            # Hardest benign candidate within the same user/task scenario.
-            # The max retains gradients through the selected negative.
-            hardest = torch.stack([logits[i] for i in negatives]).max()
-            losses.extend(F.softplus(0.25 + hardest - logits[pos]) for pos in positives)
-        else:
-            for pos in positives:
-                for neg in negatives:
-                    losses.append(F.softplus(0.25 - logits[pos] + logits[neg]))
-    return torch.stack(losses).mean() if losses else logits.sum() * 0
-
-
-def training_loss(logits, labels, rows, indices, *,
-                  hard_negative_weight, pair_weight,
-                  positive_weight=1.0, pair_strategy="all"):
-    """Asymmetric supervised BCE + optional hardest-pair ranking.
-
-    Positive upweighting tests reduced misses; hard negatives test low FPR.
-    Model selection, NOT these guesses, determines which variant to retain.
-    """
-    per_row = F.binary_cross_entropy_with_logits(logits, labels, reduction='none')
-    weight = torch.ones_like(per_row)
-    if positive_weight > 1:
-        weight[labels == 1] = positive_weight
-    if hard_negative_weight > 1:
-        neg = torch.nonzero(labels == 0, as_tuple=False).flatten()
-        if len(neg):
-            count = max(1, math.ceil(len(neg) / 4))
-            worst = neg[torch.topk(logits.detach()[neg], count).indices]
-            weight[worst] = hard_negative_weight
-    bce = (per_row * weight).sum() / weight.sum()
-    return bce + pair_weight * pairwise_loss(
-        logits, labels, rows, indices, strategy=pair_strategy
-    )
 
 
 def predict(model, encoded, batch_size=24):
@@ -169,7 +120,7 @@ def main():
     args = p.parse_args()
     if args.epochs < 1 or args.batch_size < 2:
         p.error('positive epochs and batch-size >= 2 required')
-    space = json.loads(args.search_space.read_text()) if args.search_space else None
+    space = read_json(args.search_space) if args.search_space else None
     plan = trial_plan(space, max_trials=args.max_trials, quality_search=args.quality_search)
     args.out.mkdir(parents=True, exist_ok=True)
     if any((args.out / name).exists() for name in ('protocol.json', 'freeze.json', 'trials.json')):
@@ -182,7 +133,7 @@ def main():
     development_audit = audit_splits(datasets)
     tok = BertTokenizerFast(vocab_file=str(args.assets / 'base_model' / 'vocab.txt'), do_lower_case=True)
     encoded = {split: encode(rows, tok) for split, rows in datasets.items()}
-    protocol = dict(version='privacy_low_fpr_automl.v4', tag_version=TAG_VERSION, seed=SEED, epochs=args.epochs,
+    protocol = dict(version='privacy_low_fpr_automl.v5', tag_version=TAG_VERSION, seed=SEED, epochs=args.epochs,
                     batch_size=args.batch_size, variants=plan,
                     max_trials=args.max_trials, quality_search=args.quality_search,
                     objective='weighted BCE + all/hardest within-scenario pair loss, optional hard negatives and missed-positive weighting',
@@ -195,7 +146,7 @@ def main():
     protocol['development_source_sha256'] = {s: sha(args.assets / 'agent_privacy_data' / (s + '.jsonl')) for s in datasets}
     protocol['vocab_sha256'] = sha(args.assets / 'base_model' / 'vocab.txt')
     protocol['implementation_sha256'] = {name: sha(Path(__file__).with_name(name)) for name in
-        ('train_privacy_v2.py', 'decision_protocol.py', 'quality_protocol.py', 'automl_protocol.py', 'tag_protocol.py', 'error_analysis.py')}
+        ('train_privacy_v2.py', 'decision_protocol.py', 'quality_protocol.py', 'automl_protocol.py', 'tag_protocol.py', 'error_analysis.py', 'training_objectives.py', 'json_contract.py')}
     protocol['model_definition_sha256'] = sha(Path(__file__).resolve().parents[1] / 'deep-optimization-20261018' / 'privacy.py')
     (args.out / 'protocol.json').write_text(json.dumps(protocol, indent=2) + '\n')
     trials = []

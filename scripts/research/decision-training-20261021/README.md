@@ -99,3 +99,30 @@ python3 scripts/research/decision-training-20261021/train_privacy_v2.py \
 
 验证：本目录共发现 **49 项测试，46 项通过、3 项 PyTorch 梯度测试因依赖缺失跳过**；`py_compile` 通过。新增 16 项标准库回归覆盖 tag 等价/幂等/边界、标签不变、跨来源身份与场景隔离、近重复和冲突标签、严格阈值、NaN 拒绝、分折/分来源误报及不合格候选排序。CLI 审核集成测试同时核对归一化切片。合成测试验证软件行为，不能解释为真实模型拦截率。完整 BERT 重训和独立人工标注评估仍待具备训练依赖与资产的环境执行。
 
+## v5：召回证据、严格输入与真实梯度 CI（2026-10-22）
+
+审核不能仅凭召回率点估计通过。例如 400 个独立正常场景零误报、仅 1 个泄露正例命中时，点召回为 100%，但单侧 95% 精确召回下界仅 **5%**；重复同一正例场景的 100 个候选，也不能形成 100 个独立场景证据。
+
+- 统一指标增加 `recall_lower95`（精确 Clopper–Pearson 单侧下界）；总体、每个来源和每个归一化 tag 切片增加正例场景数、全部正例动作命中的场景数、场景召回率及 `scenario_recall_lower95`。一个场景只要漏掉任一人工正例，就不计为完整检出；严格 `score > threshold` 保持一致。
+- `research_gate` 要求总体及每个来源的**动作/场景召回下界**都达到既有 20% 门槛，同时保留 FPR 上界检查。来源缺正例、正例场景不足、仅提供旧版点估计或缺少分来源证据，均不能通过审核候选门槛。tag 是诊断切片，不用任意事后筛选的 tag 声称统计资格。各置信区间是边际区间，未声称跨所有切片的同时 95% 覆盖。
+- 审核报告版本变为 `privacy_automl_review.v3`；训练协议变为 `privacy_low_fpr_automl.v5`。旧报告需从原始冻结预测重新计算，不能直接补造置信界。训练前数据/阈值分工保持原设计，未重训任何 BERT 权重。
+- `json_contract.py` 在训练数据、搜索网格、freeze 和审核预测入口拒绝重复 JSON 键、NaN/Infinity/指数溢出、非对象及无效 UTF-8。训练 JSONL 限 64 MiB / 单行 1 MiB / 100,000 行；审核预测限 16 MiB / 单行 64 KiB / 100,000 行；freeze 和搜索网格限 1 MiB。冲突 `label`/tag 不再由 JSON 的最后一个同名键悄悄覆盖；统计预算按实际 UTF-8 字节计算。
+- 损失函数移至 `training_objectives.py`，实现保持原公式，仅依赖 PyTorch，不再要求 Transformers、完整模型或语料才能运行梯度测试。新增 CPU CI，使用与既有训练相同的 `torch==2.14.1+cpu`。`REQUIRE_TORCH_TESTS=1` 下缺 Torch 直接失败；Torch 已存在时的代码导入错误也不再被吞成 skip。六项实际测试覆盖排序损失、有限梯度、跨来源不配对、梯度方向、真实 SGD 单步下降和极端 logits 数值稳定性。这些小张量测试不代表真实数据训练或模型拦截率。
+
+运行轻量梯度验证：
+
+```bash
+python -m pip install -r scripts/research/decision-training-20261021/requirements-objectives.txt
+REQUIRE_TORCH_TESTS=1 python -m unittest discover \
+  -s scripts/research/decision-training-20261021 \
+  -p 'test_training_objectives_torch.py' -v
+```
+
+本地共发现 **69 项测试，63 项标准库测试通过、6 项 Torch 测试因当前环境缺依赖跳过**；Python 编译检查通过。远端 CPU job 的实际结果以本提交的 Actions 为准，不能把本地 skip 写成通过。PR 保持 Draft / shadow-only。
+
+### 有限预算公开数据运行
+
+`privacy-public-training.yml` 仅在研究分支的 `public-training-request.json` 改动或手动触发时运行；其他代码提交不会自动重训。本次请求固定默认两候选、每组 6 epoch、batch 16、seed 20261021、2 CPU 线程和 40 分钟总超时，不扩大 AutoML 网格。`fetch_privacy_assets.py` 仅下载原实验固定 revision 的 PrivacyAlign、Mini 配置/权重和词表，逐个检查既有 `source_hashes.json`；单文件限 96 MiB，损坏/超限下载不安装，已存在文件也重新校验。HTTP 数据集、PiSAs、在线 Agent/API 均不在本次下载或运行中。
+
+运行产物包含两组权重、每 epoch 日志、参数/输入/源码摘要、选模榜、独立 calibration 冻结阈值、已消费 test 回归及 tag/source 错误切片；Actions artifact 保留 30 天。语料原文不上传 artifact。是否训练成功及具体模型指标以实际运行证据为准，不把 workflow 配置写成已执行结果。统计审核继续要求新的独立人工标注数据，不自动安装模型或开启 BLOCK。
+

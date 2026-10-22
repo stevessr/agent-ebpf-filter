@@ -6,7 +6,6 @@ research triage signal, never authorization to install a model or block calls.
 from itertools import product
 import math
 
-from decision_protocol import confusion, upper_binomial95, scenario_key
 from error_analysis import error_slices
 
 
@@ -139,8 +138,7 @@ def shadow_review_metrics(rows, scores, threshold):
         raise ValueError("missing shadow review examples")
     if type(threshold) not in (float, int) or not math.isfinite(threshold):
         raise ValueError("invalid threshold")
-    labels, negative_groups, bad_groups, sources, identities = [], set(), set(), set(), set()
-    source_scenarios = {}
+    sources, identities = set(), set()
     for row, score in zip(rows, scores):
         if not isinstance(row, dict) or type(row.get("label")) is not int or row["label"] not in (0, 1):
             raise ValueError("invalid reviewed action label")
@@ -157,28 +155,14 @@ def shadow_review_metrics(rows, scores, threshold):
         identities.add(identity)
         if type(score) not in (float, int) or not math.isfinite(score):
             raise ValueError("invalid reviewed score")
-        labels.append(row["label"])
         sources.add(row["source"])
-        source_negative, source_bad = source_scenarios.setdefault(row['source'], (set(), set()))
-        if row["label"] == 0:
-            negative_groups.add(scenario_key(row))
-            source_negative.add(scenario_key(row))
-            if score > threshold:
-                bad_groups.add(scenario_key(row))
-                source_bad.add(scenario_key(row))
-    result = confusion(labels, scores, threshold)
-    if not result["tp"] + result["fn"] or not negative_groups:
+    slices = error_slices(rows, scores, threshold)
+    result = dict(slices['overall'])
+    if not result["tp"] + result["fn"] or not result['negative_scenarios']:
         raise ValueError("review needs confirmed positives and negatives")
-    result["negative_scenarios"] = len(negative_groups)
-    result["false_positive_scenarios"] = len(bad_groups)
-    result["scenario_fpr_upper95"] = upper_binomial95(len(bad_groups), len(negative_groups))
     result["source_count"] = len(sources)
     result["reviewed_rows"] = len(rows)
-    result["slices"] = error_slices(rows, scores, threshold)
-    for metric in result["slices"]["by_source"]:
-        negative, bad = source_scenarios[metric['key']]
-        metric['negative_scenarios'] = len(negative)
-        metric['scenario_fpr_upper95'] = upper_binomial95(len(bad), len(negative)) if negative else None
+    result["slices"] = slices
     return result
 
 
@@ -200,15 +184,28 @@ def research_gate(calibration, independent_review=None, *,
             reasons.append("shadow scenario FPR upper bound exceeds budget")
         if _number(independent_review["recall"], 0, 1, 'shadow recall') < min_review_recall:
             reasons.append("shadow recall below budget")
-        for metric in independent_review.get('slices', {}).get('by_source', []):
+        for key in ('recall_lower95', 'scenario_recall_lower95'):
+            if independent_review.get(key) is None or _number(independent_review[key], 0, 1, 'recall lower bound') < min_review_recall:
+                reasons.append('shadow recall lower bound below budget or missing')
+                break
+        source_metrics = independent_review.get('slices', {}).get('by_source', [])
+        if not source_metrics:
+            reasons.append('source-level review evidence missing')
+        for metric in source_metrics:
             if any(metric.get(key) is None or _number(metric[key], 0, 1, 'source FPR bound') > max_fpr_upper95
                    for key in ('fpr_upper95', 'scenario_fpr_upper95')):
                 reasons.append('shadow source FPR upper bound exceeds budget')
+                break
+        for metric in source_metrics:
+            if any(metric.get(key) is None or _number(metric[key], 0, 1, 'source recall lower bound') < min_review_recall
+                   for key in ('recall_lower95', 'scenario_recall_lower95')):
+                reasons.append('shadow source recall lower bound below budget or missing')
                 break
     return dict(shadow_review_candidate=not reasons,
                 production_approved=False, mode="shadow_only",
                 requires_human_provenance_review=True,
                 max_fpr_upper95=max_fpr_upper95,
                 min_review_recall=min_review_recall,
+                recall_requirement='row and fully-detected-positive-scenario one-sided 95% lower bounds',
                 blockers=reasons)
 

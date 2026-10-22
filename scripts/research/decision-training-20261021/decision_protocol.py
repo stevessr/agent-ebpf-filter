@@ -126,12 +126,15 @@ def operating_threshold(labels, scores, target_fpr=0.01):
 
 def upper_binomial95(fp, negatives):
     """Exact one-sided Clopper-Pearson upper bound, with no scipy dependency."""
-    if not (0 <= fp <= negatives) or negatives <= 0:
+    if type(fp) is not int or type(negatives) is not int or not (0 <= fp <= negatives) or negatives <= 0:
         raise ValueError('invalid false-positive counts')
     if fp == negatives:
         return 1.0
     if fp == 0:
         return 1.0 - 0.05 ** (1.0 / negatives)
+    # Cache binomial coefficients once, not on every bisection iteration.
+    combinations = [math.lgamma(negatives + 1) - math.lgamma(k + 1)
+                    - math.lgamma(negatives - k + 1) for k in range(fp + 1)]
     # Log-sum-exp avoids underflow for large negative audit cohorts.
     def cdf(p):
         if p == 1:
@@ -139,9 +142,8 @@ def upper_binomial95(fp, negatives):
         if p == 0:
             return 1.0
         lp, lq = math.log(p), math.log1p(-p)
-        terms = [math.lgamma(negatives + 1) - math.lgamma(k + 1)
-                 - math.lgamma(negatives - k + 1) + k * lp
-                 + (negatives - k) * lq for k in range(fp + 1)]
+        terms = [coefficient + k * lp + (negatives - k) * lq
+                 for k, coefficient in enumerate(combinations)]
         maximum = max(terms)
         return math.exp(maximum) * sum(math.exp(term - maximum) for term in terms)
     lo, hi = 0.0, 1.0
@@ -152,6 +154,13 @@ def upper_binomial95(fp, negatives):
         else:
             hi = mid
     return hi
+
+
+def lower_binomial95(successes, total):
+    """Exact one-sided recall lower bound via binomial failure symmetry."""
+    if type(successes) is not int or type(total) is not int or not 0 <= successes <= total or total <= 0:
+        raise ValueError('invalid recall counts')
+    return 1.0 - upper_binomial95(total - successes, total)
 
 
 def confusion(labels, scores, threshold):
@@ -180,6 +189,7 @@ def confusion(labels, scores, threshold):
                 accuracy=(tp + tn) / total if total else None,
                 precision=precision,
                 recall=recall,
+                recall_lower95=lower_binomial95(tp, positives) if positives else None,
                 specificity=specificity,
                 balanced_accuracy=(recall + specificity) / 2 if recall is not None and specificity is not None else None,
                 f1=2 * precision * recall / (precision + recall) if recall is not None and precision + recall else 0.0,
