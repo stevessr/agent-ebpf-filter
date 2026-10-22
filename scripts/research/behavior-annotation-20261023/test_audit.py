@@ -13,7 +13,7 @@ class AnnotationAuditTests(unittest.TestCase):
         result = annotation.audit()
         self.assertEqual(result["collected_source_references"], 11)
         self.assertEqual(result["analyst_constructed_cases"], 33)
-        self.assertEqual(result["source_reported_procedures"], 8)
+        self.assertEqual(result["source_reported_procedures"], 11)
         self.assertEqual(set(result["verdict_counts"].values()), {11})
         self.assertEqual(result["real_system_call_traces"], 0)
         self.assertEqual(result["independent_human_ground_truth"], 0)
