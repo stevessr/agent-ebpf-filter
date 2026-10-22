@@ -28,6 +28,7 @@ func TestIdentifyWebService(t *testing.T) {
 		{"Python CLI", []string{"python3", "-m", "pytest"}, ""},
 		{"Python worker", []string{"python3", "-m", "celery", "worker"}, ""},
 		{"PHP CLI", []string{"php", "script.php"}, ""},
+		{"PHP syntax highlight CLI", []string{"php", "-s", "script.php"}, ""},
 		{"PHP Laravel queue", []string{"php", "artisan", "queue:work"}, ""},
 		{"Node build", []string{"node", "scripts/build.js"}, ""},
 		{"Node test", []string{"node", "--test", "tests/a.test.js"}, ""},
