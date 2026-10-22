@@ -37,6 +37,31 @@ class QualityProtocolTests(unittest.TestCase):
         result = crossfit_validation(rows, scores)
         self.assertGreater(result["fpr"], 0.1)
 
+    def test_rare_class_groups_get_valid_deterministic_folds(self):
+        # Formerly seed=1 grouped both negatives together and both positives
+        # together. A valid class-complete group split nevertheless exists.
+        rows = [dict(source="a", group=f"p{i}", label=1) for i in range(2)]
+        rows += [dict(source="a", group=f"n{i}", label=0) for i in range(2)]
+        folds = group_folds(rows, seed=1)
+        self.assertEqual(folds, group_folds(rows, seed=1))
+        self.assertEqual(sorted(folds[0] + folds[1]), list(range(4)))
+        for fold in folds:
+            self.assertEqual({rows[i]["label"] for i in fold}, {0, 1})
+        result = crossfit_validation(
+            rows, [.9, .8, .1, .2], seed=1)
+        self.assertEqual((result["tp"], result["fp"]), (2, 0))
+
+    def test_single_mixed_group_repairs_to_other_class_complete_fold(self):
+        rows = [dict(group="mixed", label=y) for y in (0, 1)]
+        rows += [dict(group="positive", label=1),
+                 dict(group="negative", label=0),
+                 dict(group="positive2", label=1)]
+        folds = group_folds(rows, seed=0)
+        self.assertEqual(sorted(folds[0] + folds[1]), list(range(5)))
+        for fold in folds:
+            self.assertEqual({rows[i]["label"] for i in fold}, {0, 1})
+        self.assertEqual(0 in folds[0], 1 in folds[0])
+
     def test_unstratifiable_folds_fail(self):
         rows = [dict(group=f"g{i}", label=int(i == 0)) for i in range(4)]
         with self.assertRaisesRegex(ValueError, "both labels"):
