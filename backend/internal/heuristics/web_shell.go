@@ -110,12 +110,9 @@ func webEntrypoint(args []string) bool {
 	return false
 }
 
-func webFlags(args []string) bool {
+func hasEntrypoint(args []string, entry string) bool {
 	for _, arg := range args {
-		lower := strings.ToLower(arg)
-		if lower == "--port" || strings.HasPrefix(lower, "--port=") ||
-			lower == "--listen" || strings.HasPrefix(lower, "--listen=") ||
-			lower == "--host" || strings.HasPrefix(lower, "--host=") {
+		if strings.EqualFold(filepath.Base(arg), entry) {
 			return true
 		}
 	}
@@ -143,6 +140,7 @@ func IdentifyWebService(argv []string) string {
 		return "Python"
 	case strings.HasPrefix(name, "python") || name == "pypy" || name == "pypy3":
 		if hasModule(args, "uvicorn", "gunicorn", "hypercorn", "daphne", "http.server", "waitress", "fastapi") ||
+			(hasModule(args, "flask") && (hasArg(args, "run") || hasArg(args, "serve"))) ||
 			(hasArg(args, "manage.py") && hasArg(args, "runserver")) ||
 			(hasArg(args, "flask") && (hasArg(args, "run") || hasArg(args, "serve"))) {
 			return "Python"
@@ -154,10 +152,9 @@ func IdentifyWebService(argv []string) string {
 	case name == "node" || name == "nodejs" || name == "tsx" ||
 		name == "ts-node" || name == "bun" || name == "deno":
 		if webEntrypoint(args) ||
-			(hasArg(args, "next") && (hasArg(args, "start") || hasArg(args, "dev"))) ||
-			(hasArg(args, "nuxt") && (hasArg(args, "start") || hasArg(args, "dev"))) ||
-			(hasArg(args, "nest") && hasArg(args, "start")) ||
-			(webFlags(args) && (name == "tsx" || name == "ts-node" || name == "deno")) {
+			(hasEntrypoint(args, "next") && (hasArg(args, "start") || hasArg(args, "dev"))) ||
+			(hasEntrypoint(args, "nuxt") && (hasArg(args, "start") || hasArg(args, "dev"))) ||
+			(hasEntrypoint(args, "nest") && hasArg(args, "start")) {
 			return "Node.js/TypeScript"
 		}
 	case name == "next" || name == "nuxt" || name == "nest" ||
