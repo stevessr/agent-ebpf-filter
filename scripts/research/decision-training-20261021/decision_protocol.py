@@ -101,20 +101,30 @@ def group_batches(rows, batch_size, seed):
     return batches
 
 
+def _finite_number(value):
+    """Reject booleans, numeric strings and overflowing integers as scores."""
+    if type(value) not in (int, float):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
+
+
 def operating_threshold(labels, scores, target_fpr=0.01):
     """Maximize observed recall with <= floor(target_fpr * negative count) FPs.
 
     Uses strict score > threshold and handles ties without exceeding FP budget.
     This is empirical calibration, not a population FPR guarantee.
     """
-    if not 0 <= target_fpr < 1:
+    if not _finite_number(target_fpr) or not 0 <= target_fpr < 1:
         raise ValueError('invalid target_fpr')
     if len(labels) != len(scores) or not labels:
         raise ValueError('missing or unmatched calibration rows')
     if any(type(y) is not int or y not in (0, 1) for y in labels):
         raise ValueError('non-binary labels')
-    if any(not math.isfinite(float(s)) for s in scores):
-        raise ValueError('non-finite scores')
+    if any(not _finite_number(s) for s in scores):
+        raise ValueError('non-finite or non-numeric scores')
     negatives = sorted((float(s) for y, s in zip(labels, scores) if y == 0), reverse=True)
     if not negatives:
         raise ValueError('no calibration negatives')
@@ -164,13 +174,13 @@ def lower_binomial95(successes, total):
 
 
 def confusion(labels, scores, threshold):
-    if type(threshold) not in (int, float) or not math.isfinite(threshold):
+    if not _finite_number(threshold):
         raise ValueError('invalid evaluation threshold')
     if len(labels) != len(scores):
         raise ValueError('length mismatch')
     tp = fp = tn = fn = 0
     for y, score in zip(labels, scores):
-        if type(y) is not int or y not in (0, 1) or type(score) not in (int, float) or not math.isfinite(score):
+        if type(y) is not int or y not in (0, 1) or not _finite_number(score):
             raise ValueError('invalid evaluation row')
         if score > threshold:
             if y == 1: tp += 1
@@ -199,11 +209,11 @@ def confusion(labels, scores, threshold):
 
 def group_bootstrap_recall(rows, scores, threshold, *, replicates=400, seed=20261021):
     """Group-clustered CI; never treat same-scenario candidates as independent."""
-    if len(rows) != len(scores) or replicates < 1:
+    if len(rows) != len(scores) or type(replicates) is not int or not 1 <= replicates <= 10000:
         raise ValueError('invalid bootstrap arguments')
     groups = defaultdict(list)
     for r, p in zip(rows, scores):
-        if type(r.get('label')) is not int or r['label'] not in (0, 1) or not math.isfinite(float(p)):
+        if type(r.get('label')) is not int or r['label'] not in (0, 1) or not _finite_number(p):
             raise ValueError('invalid bootstrap row')
         groups[scenario_key(r)].append((r['label'], float(p)))
     if not groups:
