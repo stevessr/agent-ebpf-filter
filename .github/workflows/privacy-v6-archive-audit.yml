@@ -1,0 +1,54 @@
+name: Privacy v6 archived prediction audit
+on:
+  push:
+    branches: ['research/kernel-http-features-20261018']
+    paths: ['scripts/research/decision-training-20261021/public-v6-analysis-request.json']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate fixed archived-run request
+        id: request
+        run: |
+          python - <<'PY'
+          import os, re, sys
+          from pathlib import Path
+          sys.path.insert(0, 'scripts/research/decision-training-20261021')
+          from json_contract import read_json
+          r = read_json(Path('scripts/research/decision-training-20261021/public-v6-analysis-request.json'))
+          assert set(r) == {'run_id', 'source_commit', 'regression_only'}
+          assert type(r['run_id']) is int and r['run_id'] > 0
+          assert re.fullmatch('[0-9a-f]{40}', r['source_commit'])
+          assert r['regression_only'] is True
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('run_id=' + str(r['run_id']) + '\nsource_commit=' + r['source_commit'] + '\n')
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: privacy-public-v6-${{ steps.request.outputs.run_id }}
+          path: _v6_archived
+          run-id: ${{ steps.request.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify weights, frozen predictions, tag coverage and paired errors
+        run: |
+          mkdir -p _v6_audit
+          python scripts/research/decision-training-20261021/ablation_analysis.py \
+            --artifacts _v6_archived --expected-source '${{ steps.request.outputs.source_commit }}' \
+            --out _v6_audit/report.json | tee _v6_audit/analysis.log
+      - name: Preserve audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: privacy-v6-archive-audit-${{ github.run_id }}
+          path: _v6_audit/
+          retention-days: 30
+          if-no-files-found: warn

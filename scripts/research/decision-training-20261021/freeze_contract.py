@@ -1,6 +1,6 @@
 """Resolve legacy or v6 selected checkpoints without retuning any threshold."""
 from decision_protocol import confusion
-from v6_protocol import VERSION, NAMES
+from v6_protocol import VERSION, NAMES, spec_for
 
 
 def selected_freeze(freeze):
@@ -25,4 +25,5 @@ def selected_freeze(freeze):
     digest = selected.get('checkpoint_sha256')
     return dict(mode='shadow_only', production_approved=False,
         selected=name, threshold=threshold, artifact_sha256=digest,
+        encoding_view=spec_for(name)['context_view'], requires_freeze_attestation=True,
         empirical_calibration=selected['calibration'])

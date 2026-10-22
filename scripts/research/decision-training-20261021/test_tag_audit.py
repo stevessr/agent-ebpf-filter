@@ -3,7 +3,7 @@ import copy
 import json
 from pathlib import Path
 import tempfile
-from automl_review import review
+from automl_review import review, digest
 import unittest
 
 from error_analysis import error_slices
@@ -89,7 +89,8 @@ class FreezeAdapterTests(unittest.TestCase):
             (root/'freeze.json').write_text(json.dumps(frozen))
             examples=[dict(id=str(y),group=str(y),source='new',domain='privacy_action',
                 split='independent_review',annotation_source='test_fixture',label=y,
-                artifact_sha256='a'*64,score=.8 if y else .2,tag='FileRead') for y in (0,1)]
+                artifact_sha256='a'*64,score=.8 if y else .2,tag='FileRead',
+                freeze_sha256=digest(root/'freeze.json'),encoding_view='evidence_pair.v1') for y in (0,1)]
             (root/'predictions.jsonl').write_text(''.join(json.dumps(r)+'\n' for r in examples))
             result=review(root/'freeze.json',root/'predictions.jsonl',root/'review.json')
             self.assertEqual(result['metrics']['tp'],1)
@@ -97,6 +98,11 @@ class FreezeAdapterTests(unittest.TestCase):
             self.assertEqual(result['metrics']['slices']['tag_coverage']['annotation_coverage'],1)
             self.assertFalse(result['gate']['shadow_review_candidate'])
             self.assertFalse(result['gate']['production_approved'])
+            for field, value in [('encoding_view','legacy'),('freeze_sha256','b'*64)]:
+                altered=[dict(r,**{field:value}) for r in examples]
+                (root/'predictions.jsonl').write_text(''.join(json.dumps(r)+'\n' for r in altered))
+                with self.assertRaisesRegex(ValueError,'attestation'):
+                    review(root/'freeze.json',root/'predictions.jsonl',root/'other.json')
 
     def test_ambiguous_version_selection_and_threshold_fail(self):
         for change in (dict(selected='other'), dict(production_approved=True),

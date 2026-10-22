@@ -22,18 +22,23 @@ def review(freeze_path, predictions_path, output_path):
         raise ValueError("missing frozen checkpoint SHA-256")
     if output_path.exists():
         raise ValueError("refusing to overwrite an existing review")
+    freeze_digest = digest(freeze_path)
     rows, scores = [], []
     for item in read_jsonl(predictions_path, max_bytes=16 << 20, max_line_bytes=64 << 10):
         if item.get("artifact_sha256") != expected:
             raise ValueError("review scored by a different model")
+        if freeze.get('requires_freeze_attestation'):
+            if item.get('freeze_sha256') != freeze_digest or item.get('encoding_view') != freeze['encoding_view']:
+                raise ValueError('review freeze or encoding attestation differs from v6 selection')
         rows.append(item)
         scores.append(item.get("score"))
     metrics = shadow_review_metrics(rows, scores, freeze["threshold"])
     gate = research_gate(freeze["empirical_calibration"], metrics)
     report = dict(version="privacy_automl_review.v3",
-                  freeze_sha256=digest(freeze_path),
+                  freeze_sha256=freeze_digest,
                   reviewed_predictions_sha256=digest(predictions_path),
                   model_sha256=expected, metrics=metrics, gate=gate,
+                  encoding_view=freeze.get("encoding_view"),
                   note="Independent source and human labels must be audited separately; never an automatic policy promotion.")
     output_path.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return report

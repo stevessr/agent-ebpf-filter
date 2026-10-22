@@ -188,6 +188,27 @@ coverage. Tags do not enter fitting or alter reviewed labels.
 
 `automl_review.py` accepts both legacy single-checkpoint freezes and the v6
 multi-candidate envelope. It resolves only the validation-selected checkpoint and
-its already frozen threshold/calibration. Unknown envelope versions, ambiguous
+its already frozen threshold/calibration. V6 review prediction rows also attest
+`freeze_sha256` (exact envelope bytes) and the selected `encoding_view`, preventing
+legacy preprocessing metadata from being accepted for evidence-view weights.
+These are provenance attestations to audit, not proof of actual scorer execution.
+Unknown envelope versions, ambiguous
 candidate sets and invalid thresholds fail. Model digest checks, independent
 provenance requirements and production denial remain unchanged.
+
+### Frozen archive verification
+
+`ablation_analysis.py` independently reconstructs the validation-only winner,
+checks all four weight digests and the exact freeze-file digest, aligns regression
+rows by `(source, id, group, label)`, and reproduces confusion metrics/AP from the
+archived predictions. It reports paired gained/lost positives and added/removed
+false positives against `v6_legacy_pair`, with deterministic 2,000-replicate paired
+scenario bootstrap delta intervals. These are descriptive intervals on the
+consumed regression corpus; they do not turn reused data into independent
+validation. The script also checks agreement of label-free encoding audits and
+computes actual canonical tag coverage. No fitting or threshold change is allowed.
+
+A separate request-triggered archive-audit workflow downloads only the specified
+completed training artifact and runs this standard-library verification. It does
+not retrain or execute code from the artifact. The original training artifact remains the
+source of weights; the smaller audit artifact contains JSON/log evidence only.
