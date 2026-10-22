@@ -31,6 +31,40 @@ def group_folds(rows, seed=20261021):
     for g in order:
         chosen = min(range(2), key=lambda i: (len(folds[i]), i))
         folds[chosen].extend(groups[g])
+    # Preserve historic partitions whenever both folds already contain both
+    # labels. Only repair a failing assignment; never split a scenario.
+    if all({rows[i]["label"] for i in fold} == {0, 1} for fold in folds):
+        return [sorted(fold) for fold in folds]
+
+    # Size balancing alone can put all positives into one fold and all
+    # negatives into the other, even though a valid two-fold split exists.
+    # Anchor the rare label coverage first, then greedily balance leftovers.
+    mixed, positive_only, negative_only = [], [], []
+    for key in order:
+        labels = {rows[i]["label"] for i in groups[key]}
+        if labels == {0, 1}:
+            mixed.append(key)
+        elif labels == {1}:
+            positive_only.append(key)
+        else:
+            negative_only.append(key)
+    if len(mixed) >= 2:
+        anchors = [[mixed[0]], [mixed[1]]]
+    elif len(mixed) == 1 and positive_only and negative_only:
+        anchors = [[mixed[0]], [positive_only[0], negative_only[0]]]
+    elif not mixed and len(positive_only) >= 2 and len(negative_only) >= 2:
+        anchors = [[positive_only[0], negative_only[0]],
+                   [positive_only[1], negative_only[1]]]
+    else:
+        raise ValueError("two folds with both labels require independent positive and negative scenarios")
+
+    seeded = set(anchors[0] + anchors[1])
+    folds = [[i for key in anchor for i in groups[key]] for anchor in anchors]
+    for key in order:
+        if key in seeded:
+            continue
+        chosen = min(range(2), key=lambda i: (len(folds[i]), i))
+        folds[chosen].extend(groups[key])
     return [sorted(fold) for fold in folds]
 
 
