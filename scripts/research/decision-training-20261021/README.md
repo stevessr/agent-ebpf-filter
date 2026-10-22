@@ -82,3 +82,20 @@ python3 scripts/research/decision-training-20261021/train_privacy_v2.py \
 **模型选择偏差修复**：新增 `quality_protocol.py`。按完整场景分两个验证折，每折使用另一折负例确定阈值，再进行样本外评分；交换折后合并统计。模型排序优先满足经验 FPR≤1%，再比较场景 Bootstrap 召回下界、召回率、AP。训练依旧只使用 train；校准依旧只使用独立 calibration；此前已消费 test 仅作为回归而非新的泛化证明。
 
 报告新增 Accuracy、Precision、Recall、Specificity、Balanced Accuracy、F1、FPR 与一侧 95% FPR 上界。Accuracy 易受 PrivacyAlign 标签比例影响；是否真正改善只能由新训练和独立影子数据支持。**无自动模型部署、无自动 BLOCK，PR 继续 Draft。**
+
+## v4：tag 归一化、来源隔离与错误分层（2026-10-22）
+
+这次修复数据与选模链路中的可验证缺陷；尚无新训练权重或模型准确率提升结果。训练协议升级为 `privacy_low_fpr_automl.v4`，审核报告升级为 `privacy_automl_review.v2`，不能与旧协议结果混为同一实验。
+
+`tag_protocol.py` 定义 `behavior_tags.v1`：合并 `tags`、`tag`、`category`；NFKC、大小写、camelCase、连字符/空白/下划线归一化；排序去重。`FILE_READ`、`file-read`、`FileRead`、`ReadFile`、`文件读取` 都得到 `file_read`。`privacy_leakage`/`隐私泄露` 得到 `privacy_leak`；一般网络请求仍归入 `network`，不冒充完整 HTTP 请求。缺失为 `unknown`；合法自定义英文标识保留，已知中文别名单独映射；其他非法格式、非字符串、超限或未知版本明确拒绝。最多 32 个输入 tag，每个原值最多 128 字符、规范值最多 64 字符。
+
+**tag 仅用于误差诊断，不产生二分类标签，也不进入模型输入。** `label`、上下文、候选动作、source/group/id/domain 均不做 tag 规范化；带 `privacy_leak` 或 `BLOCK` tag 的人工负例仍为负例。旧数据没有 tag 时只能报告 `unknown`，不能从分数或策略结论推造语义标签。
+
+训练批次、pair loss、验证折、bootstrap 和影子评估统一按 `(source, group)` 隔离；同名 group 和 action ID 可以属于不同来源，同一来源内重用 ID 仍受审计。source 缺失保留缺失，不把身份字段改成小写。泄漏检查额外拒绝跨分区的 NFKC/空白规范化近重复，以及同一输入或 ID 的标签冲突；原始模型输入保持原样。
+
+模型选择要求**总体和每个验证折**均满足经验误报预算；全部候选失败时，优先减小最差折 FPR，再比较召回下界/召回/AP。修复之前会在全部不合格候选中仍优先选高召回的问题。独立影子审核同时检查每个来源的行级/场景级 FPR 上界，避免大来源稀释小来源的误报；样本不足也会保留不合格。
+
+冻结后的 `error_slices.json` 及审核报告 `metrics.slices` 提供按 source/tag 的 FP/FN/TP/TN、Accuracy/Precision/Recall/F1/FPR 和 FPR 上界，缺少正例或负例时相应指标为 null。多 tag 样本参与多个切片，**不可把切片计数相加当总体**。这是固定阈值诊断，不回调阈值，不使用 regression 标签选模；报告只包含元数据聚合，不包含上下文/候选动作。协议增加训练、归一化、评估及模型定义源码 SHA-256。
+
+验证：本目录共发现 **49 项测试，46 项通过、3 项 PyTorch 梯度测试因依赖缺失跳过**；`py_compile` 通过。新增 16 项标准库回归覆盖 tag 等价/幂等/边界、标签不变、跨来源身份与场景隔离、近重复和冲突标签、严格阈值、NaN 拒绝、分折/分来源误报及不合格候选排序。CLI 审核集成测试同时核对归一化切片。合成测试验证软件行为，不能解释为真实模型拦截率。完整 BERT 重训和独立人工标注评估仍待具备训练依赖与资产的环境执行。
+

@@ -22,16 +22,18 @@ from transformers import BertTokenizerFast
 from sklearn.metrics import average_precision_score
 
 from decision_protocol import (audit_splits, confusion, group_batches,
-                               group_bootstrap_recall, operating_threshold)
+                               group_bootstrap_recall, operating_threshold, scenario_key)
 from automl_protocol import candidate_rank, leaderboard, research_gate, trial_plan
 from quality_protocol import crossfit_validation
+from tag_protocol import normalize_rows, TAG_VERSION
+from error_analysis import error_slices
 from privacy import PairBert, encode
 
 SEED = 20261021
 
 
 def load_rows(assets, split):
-    return [json.loads(s) for s in (assets / 'agent_privacy_data' / (split + '.jsonl')).read_text().splitlines()]
+    return normalize_rows([json.loads(s) for s in (assets / 'agent_privacy_data' / (split + '.jsonl')).read_text(encoding='utf-8').splitlines()])
 
 
 def sha(path):
@@ -44,7 +46,7 @@ def pairwise_loss(logits, labels, rows, indices, *, strategy="all"):
         raise ValueError("invalid pair strategy")
     groups = {}
     for i, global_idx in enumerate(indices):
-        groups.setdefault(rows[global_idx]['group'], []).append(i)
+        groups.setdefault(scenario_key(rows[global_idx]), []).append(i)
     losses = []
     for positions in groups.values():
         positives = [i for i in positions if labels[i].item() == 1]
@@ -180,7 +182,7 @@ def main():
     development_audit = audit_splits(datasets)
     tok = BertTokenizerFast(vocab_file=str(args.assets / 'base_model' / 'vocab.txt'), do_lower_case=True)
     encoded = {split: encode(rows, tok) for split, rows in datasets.items()}
-    protocol = dict(version='privacy_low_fpr_automl.v3', seed=SEED, epochs=args.epochs,
+    protocol = dict(version='privacy_low_fpr_automl.v4', tag_version=TAG_VERSION, seed=SEED, epochs=args.epochs,
                     batch_size=args.batch_size, variants=plan,
                     max_trials=args.max_trials, quality_search=args.quality_search,
                     objective='weighted BCE + all/hardest within-scenario pair loss, optional hard negatives and missed-positive weighting',
@@ -192,6 +194,9 @@ def main():
     protocol['search_space_sha256'] = sha(args.search_space) if args.search_space else None
     protocol['development_source_sha256'] = {s: sha(args.assets / 'agent_privacy_data' / (s + '.jsonl')) for s in datasets}
     protocol['vocab_sha256'] = sha(args.assets / 'base_model' / 'vocab.txt')
+    protocol['implementation_sha256'] = {name: sha(Path(__file__).with_name(name)) for name in
+        ('train_privacy_v2.py', 'decision_protocol.py', 'quality_protocol.py', 'automl_protocol.py', 'tag_protocol.py', 'error_analysis.py')}
+    protocol['model_definition_sha256'] = sha(Path(__file__).resolve().parents[1] / 'deep-optimization-20261018' / 'privacy.py')
     (args.out / 'protocol.json').write_text(json.dumps(protocol, indent=2) + '\n')
     trials = []
     for spec in plan:
@@ -227,10 +232,15 @@ def main():
         note='Regression set consumed in prior experiments; no independent production-quality claim.')
     (args.out / 'results.json').write_text(json.dumps(result, indent=2) + '\n')
     (args.out / 'test_predictions.jsonl').write_text(''.join(json.dumps(dict(
-        id=r['id'], group=r['group'], label=r['label'], score=float(s))) + '\n'
+        id=r['id'], group=r['group'], **({'source': r['source']} if 'source' in r else {}), tags=r['tags'],
+        tag_version=TAG_VERSION, label=r['label'], score=float(s))) + '\n'
         for r, s in zip(datasets['test'], scores)))
+    (args.out / 'error_slices.json').write_text(json.dumps(
+        error_slices(datasets['test'], scores.tolist(), freeze['threshold']),
+        indent=2, sort_keys=True) + '\n')
     print('FROZEN', json.dumps(result), flush=True)
 
 
 if __name__ == '__main__':
     main()
+

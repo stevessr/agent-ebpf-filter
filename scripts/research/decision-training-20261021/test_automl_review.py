@@ -21,6 +21,7 @@ class ReviewCLITests(unittest.TestCase):
             examples = [
                 dict(id="1", group="benign", domain="privacy_action",
                      split="independent_review", source="new_source",
+                     tags=['FileRead', 'read-file'],
                      annotation_source="manually_reviewed", label=0,
                      score=0.2, artifact_sha256=artifact),
                 dict(id="2", group="unsafe", domain="privacy_action",
@@ -31,6 +32,8 @@ class ReviewCLITests(unittest.TestCase):
             output = root / "audit.json"
             result = review(freeze, predictions, output)
             self.assertEqual(result["metrics"]["tp"], 1)
+            self.assertEqual(result['metrics']['slices']['by_tag'][0]['key'], 'file_read')
+            self.assertEqual(result['metrics']['slices']['by_tag'][0]['rows'], 1)
             self.assertTrue(output.exists())
             self.assertFalse(result["gate"]["production_approved"])
             self.assertFalse(result["gate"]["shadow_review_candidate"])
@@ -44,3 +47,4 @@ class ReviewCLITests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

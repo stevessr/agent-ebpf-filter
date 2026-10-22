@@ -6,7 +6,8 @@ research triage signal, never authorization to install a model or block calls.
 from itertools import product
 import math
 
-from decision_protocol import confusion, upper_binomial95
+from decision_protocol import confusion, upper_binomial95, scenario_key
+from error_analysis import error_slices
 
 
 DEFAULT_TRIALS = [
@@ -97,8 +98,13 @@ def candidate_rank(metrics):
         if "crossfit" in metrics:
             held = metrics["crossfit"]
             ci = held["cluster_recall95"]
-            feasible = float(held["fpr"] <= held["target_fpr"])
-            vals = (feasible, ci["low"], held["recall"], metrics["AP"], 1.0-held["fpr"])
+            fprs = [held["fpr"]] + [fold["metrics"]["fpr"] for fold in held.get("folds", [])]
+            worst_fpr = max(_number(value, 0, 1, 'fold FPR') for value in fprs)
+            feasible = float(worst_fpr <= _number(held["target_fpr"], 0, 1, 'target FPR'))
+            # If all candidates fail the FPR budget, minimize the violation
+            # before comparing recall; one shifted fold cannot hide in pooling.
+            vals = (feasible, 1.0 if feasible else 1.0-worst_fpr,
+                    ci["low"], held["recall"], metrics["AP"], 1.0-held["fpr"])
         else:
             ci = metrics["cluster_recall95"]
             vals = (ci["low"], metrics["recall"], metrics["AP"])
@@ -144,17 +150,18 @@ def shadow_review_metrics(rows, scores, threshold):
         for field in ("group", "source", "annotation_source", "id"):
             if not isinstance(row.get(field), str) or not row[field].strip():
                 raise ValueError("missing review provenance: " + field)
-        if row["id"] in identities:
+        identity = (row["source"], row["id"])
+        if identity in identities:
             raise ValueError("duplicate review ID")
-        identities.add(row["id"])
+        identities.add(identity)
         if type(score) not in (float, int) or not math.isfinite(score):
             raise ValueError("invalid reviewed score")
         labels.append(row["label"])
         sources.add(row["source"])
         if row["label"] == 0:
-            negative_groups.add(row["group"])
+            negative_groups.add(scenario_key(row))
             if score > threshold:
-                bad_groups.add(row["group"])
+                bad_groups.add(scenario_key(row))
     result = confusion(labels, scores, threshold)
     if not result["tp"] + result["fn"] or not negative_groups:
         raise ValueError("review needs confirmed positives and negatives")
@@ -163,6 +170,13 @@ def shadow_review_metrics(rows, scores, threshold):
     result["scenario_fpr_upper95"] = upper_binomial95(len(bad_groups), len(negative_groups))
     result["source_count"] = len(sources)
     result["reviewed_rows"] = len(rows)
+    result["slices"] = error_slices(rows, scores, threshold)
+    for metric in result["slices"]["by_source"]:
+        source_rows = [(r, s) for r, s in zip(rows, scores) if r['source'] == metric['key']]
+        negative = {scenario_key(r) for r, _ in source_rows if r['label'] == 0}
+        bad = {scenario_key(r) for r, s in source_rows if r['label'] == 0 and s > threshold}
+        metric['negative_scenarios'] = len(negative)
+        metric['scenario_fpr_upper95'] = upper_binomial95(len(bad), len(negative)) if negative else None
     return result
 
 
@@ -178,15 +192,21 @@ def research_gate(calibration, independent_review=None, *,
     if independent_review is None:
         reasons.append("new, independently annotated shadow review missing")
     else:
-        if independent_review["fpr_upper95"] > max_fpr_upper95:
+        if _number(independent_review["fpr_upper95"], 0, 1, 'shadow FPR bound') > max_fpr_upper95:
             reasons.append("shadow row FPR upper bound exceeds budget")
-        if independent_review["scenario_fpr_upper95"] > max_fpr_upper95:
+        if _number(independent_review["scenario_fpr_upper95"], 0, 1, 'scenario FPR bound') > max_fpr_upper95:
             reasons.append("shadow scenario FPR upper bound exceeds budget")
-        if independent_review["recall"] < min_review_recall:
+        if _number(independent_review["recall"], 0, 1, 'shadow recall') < min_review_recall:
             reasons.append("shadow recall below budget")
+        for metric in independent_review.get('slices', {}).get('by_source', []):
+            if any(metric.get(key) is None or _number(metric[key], 0, 1, 'source FPR bound') > max_fpr_upper95
+                   for key in ('fpr_upper95', 'scenario_fpr_upper95')):
+                reasons.append('shadow source FPR upper bound exceeds budget')
+                break
     return dict(shadow_review_candidate=not reasons,
                 production_approved=False, mode="shadow_only",
                 requires_human_provenance_review=True,
                 max_fpr_upper95=max_fpr_upper95,
                 min_review_recall=min_review_recall,
                 blockers=reasons)
+

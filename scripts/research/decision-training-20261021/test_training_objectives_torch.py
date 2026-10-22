@@ -36,6 +36,15 @@ class QualityGradientTests(unittest.TestCase):
         self.assertTrue(torch.isfinite(self.logits.grad).all().item())
         self.assertGreater(float(self.logits.grad.abs().sum()), 0.0)
 
+    def test_same_group_across_sources_does_not_create_training_pair(self):
+        rows = [dict(source='a', group='same'), dict(source='b', group='same')]
+        logits = torch.tensor([0.1, 0.9], requires_grad=True)
+        loss = pairwise_loss(logits, torch.tensor([0.0, 1.0]), rows, [0, 1])
+        self.assertEqual(float(loss.detach()), 0.0)
+        loss.backward()
+        self.assertEqual(logits.grad.tolist(), [0.0, 0.0])
+
 
 if __name__ == "__main__":
     unittest.main()
+

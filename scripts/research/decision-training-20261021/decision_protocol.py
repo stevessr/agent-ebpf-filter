@@ -4,6 +4,26 @@ import hashlib
 import json
 import math
 import random
+import unicodedata
+
+
+def scenario_key(row):
+    """Source-local group names are identities, not normalizable behavior tags."""
+    group = row.get('group')
+    source = row.get('source', '')
+    if not isinstance(group, str) or not group.strip():
+        raise ValueError('missing scenario group')
+    if not isinstance(source, str) or ('source' in row and not source.strip()):
+        raise ValueError('invalid source identity')
+    return source, group
+
+
+def _input_digest(context, action):
+    # Conservatively flag Unicode/whitespace near-duplicates for leakage review;
+    # never case-fold executable inputs or change what the encoder receives.
+    fields = [' '.join(unicodedata.normalize('NFKC', s).split())
+              for s in (context, action)]
+    return hashlib.sha256(json.dumps(fields, ensure_ascii=False).encode()).hexdigest()
 
 
 def audit_splits(splits):
@@ -14,17 +34,16 @@ def audit_splits(splits):
     if set(splits) != set(required):
         raise ValueError('expected train/validation/calibration with optional test')
     owners, payloads, identities, report = {}, {}, {}, {}
+    payload_labels = {}
     for split in required:
         rows = splits[split]
         groups = set()
         for r in rows:
             if r.get('label') not in (0, 1) or type(r.get('label')) is not int:
                 raise ValueError('invalid binary label')
-            g = r.get('group')
-            if not isinstance(g, str) or not g:
-                raise ValueError('missing scenario group')
+            g = scenario_key(r)
             if g in owners and owners[g] != split:
-                raise ValueError('scenario leakage: ' + g)
+                raise ValueError('scenario leakage')
             owners[g] = split
             groups.add(g)
             # Prepared PrivacyAlign IDs refer to a source action; a reused ID
@@ -33,15 +52,23 @@ def audit_splits(splits):
             if row_id is not None:
                 if not isinstance(row_id, str) or not row_id.strip():
                     raise ValueError('invalid source action ID')
-                if row_id in identities and identities[row_id] != split:
-                    raise ValueError('source action ID leakage: ' + row_id)
-                identities[row_id] = split
+                identity = (g[0], row_id)
+                if identity in identities:
+                    prior_split, prior_payload = identities[identity]
+                    if prior_split != split:
+                        raise ValueError('source action ID leakage')
+                    if prior_payload != (r.get('context'), r.get('candidate'), r['label']):
+                        raise ValueError('conflicting source action ID')
+                identities[identity] = (split, (r.get('context'), r.get('candidate'), r['label']))
             # Hash only independent input fields, not dataset id/label/split.
             c = r.get('context')
             a = r.get('candidate')
             if not isinstance(c, str) or not isinstance(a, str):
                 raise ValueError('missing context/action input')
-            digest = hashlib.sha256(json.dumps((c, a), ensure_ascii=False).encode()).hexdigest()
+            digest = _input_digest(c, a)
+            if digest in payload_labels and payload_labels[digest] != r['label']:
+                raise ValueError('conflicting context/action labels')
+            payload_labels[digest] = r['label']
             if digest in payloads and payloads[digest] != split:
                 raise ValueError('duplicate context/action across splits')
             payloads[digest] = split
@@ -57,7 +84,7 @@ def group_batches(rows, batch_size, seed):
         raise ValueError('batch size must be at least 2')
     groups = defaultdict(list)
     for i, r in enumerate(rows):
-        groups[r['group']].append(i)
+        groups[scenario_key(r)].append(i)
     if any(len(g) > batch_size for g in groups.values()):
         raise ValueError('scenario exceeds batch size: increase --batch-size')
     keys = sorted(groups)
@@ -128,11 +155,13 @@ def upper_binomial95(fp, negatives):
 
 
 def confusion(labels, scores, threshold):
+    if type(threshold) not in (int, float) or not math.isfinite(threshold):
+        raise ValueError('invalid evaluation threshold')
     if len(labels) != len(scores):
         raise ValueError('length mismatch')
     tp = fp = tn = fn = 0
     for y, score in zip(labels, scores):
-        if y not in (0, 1) or not math.isfinite(float(score)):
+        if type(y) is not int or y not in (0, 1) or type(score) not in (int, float) or not math.isfinite(score):
             raise ValueError('invalid evaluation row')
         if score > threshold:
             if y == 1: tp += 1
@@ -164,7 +193,9 @@ def group_bootstrap_recall(rows, scores, threshold, *, replicates=400, seed=2026
         raise ValueError('invalid bootstrap arguments')
     groups = defaultdict(list)
     for r, p in zip(rows, scores):
-        groups[r['group']].append((r['label'], float(p)))
+        if type(r.get('label')) is not int or r['label'] not in (0, 1) or not math.isfinite(float(p)):
+            raise ValueError('invalid bootstrap row')
+        groups[scenario_key(r)].append((r['label'], float(p)))
     if not groups:
         raise ValueError('empty bootstrap input')
     units = [groups[g] for g in sorted(groups)]
@@ -185,3 +216,4 @@ def group_bootstrap_recall(rows, scores, threshold, *, replicates=400, seed=2026
     return dict(low=samples[max(0, math.ceil(0.025 * len(samples)) - 1)],
                 high=samples[min(len(samples)-1, math.ceil(0.975 * len(samples))-1)],
                 valid_replicates=len(samples), total_replicates=replicates)
+

@@ -7,7 +7,7 @@ from collections import defaultdict
 import hashlib
 import math
 
-from decision_protocol import confusion, group_bootstrap_recall, operating_threshold
+from decision_protocol import confusion, group_bootstrap_recall, operating_threshold, scenario_key
 
 
 def group_folds(rows, seed=20261021):
@@ -21,11 +21,11 @@ def group_folds(rows, seed=20261021):
             raise ValueError("validation row missing group")
         if type(row.get("label")) is not int or row["label"] not in (0, 1):
             raise ValueError("validation row missing binary label")
-        groups[g].append(i)
+        groups[scenario_key(row)].append(i)
     if len(groups) < 4:
         raise ValueError("need at least four independent scenario groups")
     order = sorted(groups, key=lambda g: (
-        -len(groups[g]), hashlib.sha256((str(seed) + ":" + g).encode()).hexdigest()
+        -len(groups[g]), hashlib.sha256(repr((seed, g)).encode()).hexdigest()
     ))
     folds = [[], []]
     for g in order:
@@ -57,6 +57,7 @@ def crossfit_validation(rows, scores, *, target_fpr=0.01, seed=20261021):
         for i in evaluation:
             decisions[i] = int(scores[i] > op["threshold"])
         reports.append(dict(fold=k, threshold=op["threshold"],
+                            metrics=confusion(evaluation_y, [scores[i] for i in evaluation], op["threshold"]),
                             threshold_examples=len(threshold_indices),
                             evaluated_examples=len(evaluation),
                             threshold_negative_count=op["negatives"],
@@ -72,3 +73,4 @@ def crossfit_validation(rows, scores, *, target_fpr=0.01, seed=20261021):
     stats["measured_out_of_fold"] = True
     stats["proven_independent"] = False
     return stats
+

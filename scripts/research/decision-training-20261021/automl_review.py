@@ -31,7 +31,7 @@ def review(freeze_path, predictions_path, output_path):
         scores.append(item.get("score"))
     metrics = shadow_review_metrics(rows, scores, freeze["threshold"])
     gate = research_gate(freeze["empirical_calibration"], metrics)
-    report = dict(version="privacy_automl_review.v1",
+    report = dict(version="privacy_automl_review.v2",
                   freeze_sha256=digest(freeze_path),
                   reviewed_predictions_sha256=digest(predictions_path),
                   model_sha256=expected, metrics=metrics, gate=gate,
@@ -52,3 +52,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
