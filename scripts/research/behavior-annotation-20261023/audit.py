@@ -142,7 +142,7 @@ def audit(root=ROOT):
         if row["source_id"] not in source_ids:
             raise ValueError("unknown documented source")
         if row["source_id"] not in {
-            "ATTACK_T1485", "ATTACK_T1486", "ATTACK_T1070_004", "ATTACK_T1098"
+            "ATTACK_T1485", "ATTACK_T1486", "ATTACK_T1070_004", "ATTACK_T1098", "ATTACK_T1567"
         }:
             raise ValueError("documented example must reference reviewed ATT&CK procedure")
         for key in ("procedure_id", "actor_or_campaign", "behavior_summary_zh", "evidence_limitation_zh"):
