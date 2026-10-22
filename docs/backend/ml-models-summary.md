@@ -238,6 +238,32 @@ sudo cat model_new.bin > /proc/ml_load
 
 ---
 
+## 自动数据集候选训练
+
+离线候选训练流水线把公开、带标签的 shell 命令数据集转换成运行时可加载的 `ml_model.bin` 候选模型。入口：
+
+```bash
+cd backend
+go run ./cmd/ml-train --output artifacts/decision-model.bin
+```
+
+- 数据源固定为公开仓库 `rivoluzione-informatica/bash-datasets` 中按提交
+  `fcac513317e1487c75f5d3fd0f50f3ddb2ba325a` 锁定的 `data/taglio4_3k/taglio4_safe.jsonl`
+  与 `taglio4_unsafe.jsonl`（命令文本 + `safe`/`unsafe` 标签，数据许可 CC-BY-SA-4.0，需在上游引用处保留署名）。
+- 拉取失败、记录截断、行标签无法解析（既非 `safe` 也非 `unsafe`）或重复命令标签冲突都会终止训练，不会静默降级。
+- 训练使用与运行时相同的 `FeatureExtractor` / 随机森林路径，模型以二进制格式写入候选路径，
+  并立即反序列化回读，逐样本校验预测一致后才写 manifest。
+- manifest (`*.manifest.json`) 记录数据来源、许可、样本计数与验证集 accuracy / balanced accuracy /
+  ALLOW recall / BLOCK recall。它是候选证据，不是已上线证明。
+- **安全边界**：流程只产出 `artifacts/` 下的候选文件；绝不自动覆盖
+  `~/.config/agent-ebpf-filter/ml_model.bin`、修改 `MLConfig`（`Enabled` / `ModelPath`）或启用阻断。
+  手工上线步骤：人工审阅 manifest 指标，确认验证集合格后，由运维把候选文件复制到配置的
+  `modelPath` 并按现有运行时门控启用。脚本化替换前必须备份原文件。
+- GitHub Actions：`.github/workflows/decision-model-training.yml` 每周一 04:17 UTC 运行
+  （也可手动触发），在 `ubuntu-24.04` 上安装 eBPF 工具链、生成绑定、执行 `go run ./cmd/ml-train`
+  并上传候选模型 + manifest（保留 30 天）。不使用 OpenCode 免费模型生成标签：
+  安全标签必须有独立可复核依据，LLM 输出只适合在人工评审流程中辅助，不应作为训练真值。
+
 ## 相关文档
 
 - **[ML 模型完整指南](./ml-models-complete-guide.md)** - 详细结构、示例、API

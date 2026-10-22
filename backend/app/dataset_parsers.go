@@ -720,6 +720,13 @@ func buildRemoteDatasetRow(record remoteDatasetRecord, mode string, cleanSensiti
 }
 
 func buildRemoteDatasetSample(row remoteDatasetRow, mode string, cleanSensitive bool) ml.TrainingSample {
+	return buildRemoteDatasetSampleWithExtractor(row, mode, cleanSensitive, globalFeatureExtractor)
+}
+
+func buildRemoteDatasetSampleWithExtractor(row remoteDatasetRow, mode string, cleanSensitive bool, extractor *FeatureExtractor) ml.TrainingSample {
+	if extractor == nil {
+		extractor = globalFeatureExtractor
+	}
 	if cleanSensitive {
 		row = sanitizeRemoteDatasetRow(row)
 	}
@@ -772,7 +779,7 @@ func buildRemoteDatasetSample(row remoteDatasetRow, mode string, cleanSensitive 
 		}
 	}
 
-	features := globalFeatureExtractor.Extract(comm, args, "", 0)
+	features := extractor.Extract(comm, args, "", 0)
 	commandLine := strings.TrimSpace(row.CommandLine)
 	if commandLine == "" {
 		commandLine = behavior.JoinCommandLine(comm, args)

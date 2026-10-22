@@ -106,6 +106,10 @@ func inferRemoteDatasetLabelFromSource(source string) (string, string) {
 	if lower == "" {
 		return "", ""
 	}
+	if strings.Contains(lower, "unsafe") {
+		return "BLOCK", "source"
+	}
+
 	switch {
 	case strings.Contains(lower, "benign"),
 		strings.Contains(lower, "normal"),

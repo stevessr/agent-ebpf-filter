@@ -1,0 +1,44 @@
+name: Decision model candidate training
+on:
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: decision-model-training
+  cancel-in-progress: false
+jobs:
+  train-candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.work
+          cache-dependency-path: |
+            go.work.sum
+            backend/go.sum
+      - name: Install eBPF build dependencies
+        run: sudo apt-get update && sudo apt-get install -y clang llvm libbpf-dev libelf-dev
+      - name: Generate eBPF bindings
+        working-directory: backend/ebpf
+        run: |
+          go generate
+          go generate gen_tls.go
+          go generate gen_cgroup.go
+          go generate gen_lsm.go
+      - name: Train and verify runtime-loadable candidate
+        working-directory: backend
+        run: go run ./cmd/ml-train --output artifacts/decision-model.bin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: decision-model-candidate-${{ github.run_id }}
+          path: |
+            backend/artifacts/decision-model.bin
+            backend/artifacts/decision-model.bin.manifest.json
+          if-no-files-found: error
+          retention-days: 30

@@ -1,13 +1,14 @@
 package app
 
 import (
-	"agent-ebpf-filter/app/ml"
-	"agent-ebpf-filter/internal/behavior"
 	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
+
+	"agent-ebpf-filter/app/ml"
+	"agent-ebpf-filter/internal/behavior"
 )
 
 func normalizeDatasetLabelValue(raw any) string {
@@ -36,7 +37,7 @@ func normalizeActionLabel(raw string) string {
 	switch strings.ToUpper(strings.TrimSpace(raw)) {
 	case "0", "ALLOW", "BENIGN", "SAFE", "NORMAL", "NORM", "PASSED", "PASS":
 		return "ALLOW"
-	case "1", "BLOCK", "DENY", "REJECT", "MALICIOUS", "MALWARE", "BAD", "ANOM", "ANOMALY", "ATTACK", "INTRUSION", "CMDI", "COMMAND INJECTION", "SQLI", "SQL INJECTION", "XSS", "CROSS-SITE SCRIPTING", "PATH-TRAVERSAL", "PATH_TRAVERSAL", "PATH TRAVERSAL":
+	case "1", "BLOCK", "DENY", "REJECT", "UNSAFE", "MALICIOUS", "MALWARE", "BAD", "ANOM", "ANOMALY", "ATTACK", "INTRUSION", "CMDI", "COMMAND INJECTION", "SQLI", "SQL INJECTION", "XSS", "CROSS-SITE SCRIPTING", "PATH-TRAVERSAL", "PATH_TRAVERSAL", "PATH TRAVERSAL":
 		return "BLOCK"
 	case "2", "REWRITE", "TRANSFORM", "MODIFY":
 		return "REWRITE"
