@@ -273,7 +273,8 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 					classification, anomalyScore, mlPrediction, mlRuntime.Config, mlRuntime.Enabled, mlRuntime.ModelLoaded,
 				)
 
-				if isHealthGenerator {
+				// A trusted workload label cannot bypass a verified web shell deny.
+				if isHealthGenerator && !strings.HasPrefix(reason, "Web service shell policy:") {
 					resolvedAction = pb.WrapperResponse_ALLOW
 					reason = "Trusted health dataset generator process (ALLOW)"
 				}
