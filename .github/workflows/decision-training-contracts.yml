@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'scripts/research/decision-training-20261021/**'
+      - 'scripts/research/behavior-annotation-20261023/**'
       - '.github/workflows/decision-training-contracts.yml'
   workflow_dispatch:
 permissions:
@@ -17,6 +18,10 @@ jobs:
         run: python3 -m py_compile scripts/research/decision-training-20261021/*.py
       - name: Run data isolation and low-FPR contract tests
         run: python3 -m unittest discover -s scripts/research/decision-training-20261021 -p 'test_*.py' -v
+      - name: Verify source-grounded manual annotation contracts
+        run: |
+          python3 scripts/research/behavior-annotation-20261023/audit.py
+          python3 -m unittest discover -s scripts/research/behavior-annotation-20261023 -p 'test_*.py' -v
   gradients:
     runs-on: ubuntu-latest
     timeout-minutes: 10
