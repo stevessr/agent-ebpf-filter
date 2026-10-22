@@ -160,6 +160,12 @@ func IdentifyWebService(argv []string) string {
 		}
 	case name == "node" || name == "nodejs" || name == "tsx" ||
 		name == "ts-node" || name == "bun" || name == "deno":
+		// Node/TS test runners can execute server.* fixtures without hosting HTTP.
+		for _, arg := range args {
+			if arg == "--test" || strings.HasPrefix(arg, "--test=") || arg == "--test-only" {
+				return ""
+			}
+		}
 		if webEntrypoint(args) ||
 			(hasEntrypoint(args, "next") && (hasArg(args, "start") || hasArg(args, "dev"))) ||
 			(hasEntrypoint(args, "nuxt") && (hasArg(args, "start") || hasArg(args, "dev"))) ||
