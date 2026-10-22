@@ -32,6 +32,7 @@ func TestIdentifyWebService(t *testing.T) {
 		{"PHP Laravel queue", []string{"php", "artisan", "queue:work"}, ""},
 		{"Node build", []string{"node", "scripts/build.js"}, ""},
 		{"Node test", []string{"node", "--test", "tests/a.test.js"}, ""},
+		{"Node test invoking server fixture", []string{"node", "--test", "tests/server.js"}, ""},
 		{"TypeScript CLI", []string{"tsx", "scripts/generate.ts"}, ""},
 		{"TypeScript CLI with port argument", []string{"tsx", "scripts/generate.ts", "--port", "8080"}, ""},
 		{"Bun package installer", []string{"bun", "install"}, ""},
@@ -74,10 +75,10 @@ func TestShellExecutable(t *testing.T) {
 
 func TestMatchWebShellSpawn(t *testing.T) {
 	tests := []struct {
-		name string
-		cmd string
-		args []string
-		parent []string
+		name     string
+		cmd      string
+		args     []string
+		parent   []string
 		wantCode string
 	}{
 		{"PHP FPM spawns sh", "/bin/sh", []string{"-c", "curl x"}, []string{"php-fpm: pool www"}, "PHP_WEB_SHELL_SPAWN"},
