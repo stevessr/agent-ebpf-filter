@@ -140,6 +140,7 @@ def shadow_review_metrics(rows, scores, threshold):
     if type(threshold) not in (float, int) or not math.isfinite(threshold):
         raise ValueError("invalid threshold")
     labels, negative_groups, bad_groups, sources, identities = [], set(), set(), set(), set()
+    source_scenarios = {}
     for row, score in zip(rows, scores):
         if not isinstance(row, dict) or type(row.get("label")) is not int or row["label"] not in (0, 1):
             raise ValueError("invalid reviewed action label")
@@ -158,10 +159,13 @@ def shadow_review_metrics(rows, scores, threshold):
             raise ValueError("invalid reviewed score")
         labels.append(row["label"])
         sources.add(row["source"])
+        source_negative, source_bad = source_scenarios.setdefault(row['source'], (set(), set()))
         if row["label"] == 0:
             negative_groups.add(scenario_key(row))
+            source_negative.add(scenario_key(row))
             if score > threshold:
                 bad_groups.add(scenario_key(row))
+                source_bad.add(scenario_key(row))
     result = confusion(labels, scores, threshold)
     if not result["tp"] + result["fn"] or not negative_groups:
         raise ValueError("review needs confirmed positives and negatives")
@@ -172,9 +176,7 @@ def shadow_review_metrics(rows, scores, threshold):
     result["reviewed_rows"] = len(rows)
     result["slices"] = error_slices(rows, scores, threshold)
     for metric in result["slices"]["by_source"]:
-        source_rows = [(r, s) for r, s in zip(rows, scores) if r['source'] == metric['key']]
-        negative = {scenario_key(r) for r, _ in source_rows if r['label'] == 0}
-        bad = {scenario_key(r) for r, s in source_rows if r['label'] == 0 and s > threshold}
+        negative, bad = source_scenarios[metric['key']]
         metric['negative_scenarios'] = len(negative)
         metric['scenario_fpr_upper95'] = upper_binomial95(len(bad), len(negative)) if negative else None
     return result
