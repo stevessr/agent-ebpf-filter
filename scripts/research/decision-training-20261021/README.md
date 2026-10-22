@@ -126,3 +126,47 @@ REQUIRE_TORCH_TESTS=1 python -m unittest discover \
 
 运行产物包含两组权重、每 epoch 日志、参数/输入/源码摘要、选模榜、独立 calibration 冻结阈值、已消费 test 回归及 tag/source 错误切片；本轮 Actions artifact 已上传成功，保留至 2026-11-21。语料原文不上传 artifact。全量训练、失败门槛及具体指标见 [RESULTS-20261022.md](RESULTS-20261022.md)。统计审核继续要求新的独立人工标注数据，不自动安装模型或开启 BLOCK。训练步骤另设 35 分钟超时，在 40 分钟 job 预算内为失败日志和部分产物归档预留时间。
 
+
+## v6: finite-sample selection correction and controlled evidence ablation
+
+The v5 per-fold empirical FPR feasibility test is unsuitable for the current
+validation sample size: folds have 51/57 negatives. A single error is 1.96% or
+1.75%. With strict `>` and no tied negative maxima, calibration against the
+opposite fold's maximum necessarily produces at least one fold error, even if
+positives rank perfectly above negatives. The v5 fits/results remain historical
+records; their per-fold failure is not evidence that the classifier cannot
+separate positives from negatives. Independent calibration/review gates still
+fail because negative support and recall are insufficient.
+
+`privacy_low_fpr_ablation.v6` selects epochs/candidates by validation standardized
+partial ROC AUC (`max_fpr=0.01`, tied-score groups, linear ROC interpolation), then
+empirical validation recall, AP and lower empirical FPR. Crossfit results remain
+diagnostics. This interpolated ranking is **not** a population FPR certificate.
+Separate calibration, strict thresholds and independent human-review gates stay
+unchanged. A full-environment preflight checks partial AUC against sklearn.
+
+The fixed request `public-v6-request.json` specifies four equal-budget 2x2 cells:
+legacy/evidence token selection crossed with baseline/source-local negative-tail
+ranking. Each uses the same BERT-Mini architecture, pretrained initialization,
+seed, 384-token budget, batch size 16, AdamW learning rate 3e-5, within-scenario
+pair weight 0.2 and six epochs. Tail ranking adds weight 0.2 against the highest
+10% of benign logits in each training batch/source; at small batches this is one
+negative, not an estimator of the population 1% tail. Only public privacy-action
+labels are supported.
+
+`evidence_pair.v1` reserves at most 64 tokens for the goal (head/tail) and the
+remaining context budget for at most two original memory/trajectory chunks.
+Deterministic token overlap and within-row document frequencies choose windows;
+subject anchors and source order are preserved. A long action keeps first 126,
+last 63 and an overlap-selected middle 64 tokens. No labels, tags, identities,
+model scores or corpus-fitted vocabulary enter token selection. This joint
+context/action view is one feature axis; it does not isolate just goal truncation.
+
+The new workflow runs four independent CPU workers, verifies identical initial
+state/source/assets/budgets, and selects using validation only. All four weight
+digests and calibration thresholds are written to `freeze.json` **before** any
+consumed-test evaluation. All four then receive the same regression evaluation;
+test performance never changes selection or thresholds. Worker/final artifacts
+include checkpoints, provenance, encoding aggregates, prediction/error slices and
+logs. Only the v6 request file change (or manual dispatch) triggers this training;
+the old v5 request is unchanged. Mode remains Draft/shadow-only.

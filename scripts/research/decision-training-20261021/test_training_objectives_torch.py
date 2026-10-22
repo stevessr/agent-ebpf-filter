@@ -11,7 +11,7 @@ except (ImportError, OSError):
     TORCH_READY = False
 else:
     # Code/import regressions must fail rather than masquerade as missing Torch.
-    from training_objectives import pairwise_loss, training_loss
+    from training_objectives import pairwise_loss, training_loss, tail_ranking_loss
     TORCH_READY = True
 
 if os.environ.get('REQUIRE_TORCH_TESTS') == '1' and not TORCH_READY:
@@ -77,6 +77,42 @@ class QualityGradientTests(unittest.TestCase):
         self.assertTrue(torch.isfinite(loss).item())
         loss.backward()
         self.assertTrue(torch.isfinite(logits.grad).all().item())
+
+    def test_tail_selects_worst_negative_and_gradient_direction(self):
+        loss = tail_ranking_loss(self.logits, self.labels, self.rows, list(range(5)))
+        loss.backward()
+        self.assertTrue((self.logits.grad[self.labels == 1] < 0).all().item())
+        self.assertGreater(float(self.logits.grad[2]), 0)
+        self.assertEqual(float(self.logits.grad[1]), 0)
+        self.assertEqual(float(self.logits.grad[4]), 0)
+
+    def test_tail_never_pairs_across_sources(self):
+        logits = torch.tensor([.1, .9], requires_grad=True)
+        rows = [dict(source='a', group='x'), dict(source='b', group='y')]
+        loss = tail_ranking_loss(logits, torch.tensor([0.,1.]), rows, [0,1])
+        loss.backward()
+        self.assertEqual(logits.grad.tolist(), [0.,0.])
+
+    def test_tail_rejects_foreign_label_domain_and_invalid_fraction(self):
+        for fraction in (0, 1.1, float('nan'), True):
+            with self.assertRaises(ValueError):
+                tail_ranking_loss(self.logits, self.labels, self.rows, list(range(5)), fraction=fraction)
+        rows = [dict(group='x', domain='syscall')]
+        with self.assertRaises(ValueError):
+            tail_ranking_loss(self.logits[:1], self.labels[:1], rows, [0])
+
+    def test_tail_extreme_logits_and_combined_optimizer_are_finite(self):
+        logits = torch.tensor([-10000.,10000.,0.,-10000.,10000.], requires_grad=True)
+        optimizer = torch.optim.SGD([logits], lr=.1)
+        def objective():
+            return training_loss(logits, self.labels, self.rows, list(range(5)),
+                                 hard_negative_weight=1., pair_weight=.2, tail_weight=.2)
+        before = objective()
+        before.backward()
+        self.assertTrue(torch.isfinite(before).item())
+        self.assertTrue(torch.isfinite(logits.grad).all().item())
+        optimizer.step()
+        self.assertLess(float(objective().detach()), float(before.detach()))
 
 
 if __name__ == "__main__":

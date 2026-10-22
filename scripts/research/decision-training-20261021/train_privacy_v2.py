@@ -28,6 +28,7 @@ from error_analysis import error_slices
 from privacy import PairBert, encode
 from training_objectives import pairwise_loss, training_loss
 from json_contract import read_json, read_jsonl
+from low_fpr_ranking import low_fpr_ranking
 
 SEED = 20261021
 
@@ -49,23 +50,36 @@ def predict(model, encoded, batch_size=24):
     return torch.sigmoid(torch.cat(logits)).numpy()
 
 
-def validation(rows, scores, *, seed):
+def validation(rows, scores, *, seed, selection_mode='crossfit'):
     labels = [r['label'] for r in rows]
     operation = operating_threshold(labels, scores.tolist())
     metrics = confusion(labels, scores.tolist(), operation['threshold'])
     metrics['AP'] = float(average_precision_score(labels, scores))
+    if selection_mode == 'partial_auc':
+        metrics['low_fpr_ranking'] = low_fpr_ranking(labels, scores.tolist())
+    elif selection_mode != 'crossfit':
+        raise ValueError('invalid selection mode')
     metrics['crossfit'] = crossfit_validation(rows, scores.tolist(), seed=seed)
     metrics['cluster_recall95'] = group_bootstrap_recall(rows, scores.tolist(), operation['threshold'],
                                                           replicates=400, seed=seed)
     return operation, metrics
 
 
-def train_variant(spec, mini, out, datasets, encoded, *, epochs, batch_size, seed):
+def train_variant(spec, mini, out, datasets, encoded, *, epochs, batch_size, seed,
+                  selection_mode='crossfit', capture_initial_digest=False):
     variant = spec['name']
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     model = PairBert(mini, pretrained=True)
+    initial = None
+    if capture_initial_digest:
+        digest = hashlib.sha256()
+        for key, tensor in sorted(model.state_dict().items()):
+            digest.update(key.encode())
+            digest.update(str((str(tensor.dtype), list(tensor.shape))).encode())
+            digest.update(tensor.detach().cpu().contiguous().numpy().tobytes())
+        initial = digest.hexdigest()
     optimizer = torch.optim.AdamW(model.parameters(), lr=spec['learning_rate'], weight_decay=0.01)
     labels = torch.tensor([r['label'] for r in datasets['train']], dtype=torch.float32)
     best_rank = None
@@ -83,13 +97,13 @@ def train_variant(spec, mini, out, datasets, encoded, *, epochs, batch_size, see
                                  hard_negative_weight=spec['hard_negative_weight'],
                                  positive_weight=spec['positive_weight'],
                                  pair_strategy=spec['pair_strategy'],
-                                 pair_weight=spec['pair_weight'])
+                                 pair_weight=spec['pair_weight'], tail_weight=spec.get('tail_weight', 0.0))
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
             losses.append(float(loss.item()))
         scores = predict(model, encoded['validation'])
-        operation, stats = validation(datasets['validation'], scores, seed=seed)
+        operation, stats = validation(datasets['validation'], scores, seed=seed, selection_mode=selection_mode)
         rank = candidate_rank(stats)
         history.append(dict(epoch=epoch, loss=float(np.mean(losses)), validation=stats,
                             empirical_validation_threshold=operation))
@@ -101,6 +115,7 @@ def train_variant(spec, mini, out, datasets, encoded, *, epochs, batch_size, see
     model.load_state_dict(load_file(str(checkpoint)))
     calibration = predict(model, encoded['calibration'])
     return dict(name=variant, selected_epoch=best_epoch, epoch_history=history,
+                initial_state_sha256=initial,
                 validation=history[best_epoch - 1]['validation'],
                 hyperparameters=spec,
                 checkpoint_sha256=sha(checkpoint)), calibration

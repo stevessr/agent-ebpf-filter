@@ -94,7 +94,11 @@ def trial_plan(space=None, *, max_trials=12, quality_search=False):
 def candidate_rank(metrics):
     """Prefer validation cross-fit low-FPR quality, never calibration/test labels."""
     try:
-        if "crossfit" in metrics:
+        if "low_fpr_ranking" in metrics:
+            low = metrics['low_fpr_ranking']
+            vals = (low['standardized_partial_auc'], low['empirical_recall'],
+                    metrics['AP'], 1.0-low['empirical_fpr'])
+        elif "crossfit" in metrics:
             held = metrics["crossfit"]
             ci = held["cluster_recall95"]
             fprs = [held["fpr"]] + [fold["metrics"]["fpr"] for fold in held.get("folds", [])]
