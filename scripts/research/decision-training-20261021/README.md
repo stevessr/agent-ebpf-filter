@@ -170,3 +170,24 @@ test performance never changes selection or thresholds. Worker/final artifacts
 include checkpoints, provenance, encoding aggregates, prediction/error slices and
 logs. Only the v6 request file change (or manual dispatch) triggers this training;
 the old v5 request is unchanged. Mode remains Draft/shadow-only.
+
+### Tag coverage and v6 independent-review compatibility
+
+`normalize_with_audit` retains the same `behavior_tags.v1` canonical IDs and
+returns aggregate accounting: annotation coverage, missing/explicit unknowns,
+known-taxonomy/custom-tag rows, canonicalized spellings, duplicate values and
+unknowns suppressed by a concrete tag. Custom IDs remain valid metadata;
+known/custom row counts can overlap. Repeated delimiter-only tags now consistently
+normalize to `unknown`. Zero-width controls, unsupported Unicode IDs, overlong
+canonical expansions and merged-input budgets still fail closed.
+
+`error_slices` includes this audit overall and per source/tag; raw contexts,
+actions and identities are absent from coverage. Public PrivacyAlign remains 0%
+annotated / all unknown, rather than silently appearing to have runtime tag
+coverage. Tags do not enter fitting or alter reviewed labels.
+
+`automl_review.py` accepts both legacy single-checkpoint freezes and the v6
+multi-candidate envelope. It resolves only the validation-selected checkpoint and
+its already frozen threshold/calibration. Unknown envelope versions, ambiguous
+candidate sets and invalid thresholds fail. Model digest checks, independent
+provenance requirements and production denial remain unchanged.

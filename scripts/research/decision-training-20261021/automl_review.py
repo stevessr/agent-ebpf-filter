@@ -6,6 +6,7 @@ from pathlib import Path
 
 from automl_protocol import research_gate, shadow_review_metrics
 from json_contract import read_json, read_jsonl
+from freeze_contract import selected_freeze
 
 
 def digest(path):
@@ -13,7 +14,7 @@ def digest(path):
 
 
 def review(freeze_path, predictions_path, output_path):
-    freeze = read_json(freeze_path)
+    freeze = selected_freeze(read_json(freeze_path))
     if freeze.get("mode") != "shadow_only" or freeze.get("production_approved") is not False:
         raise ValueError("expected an unapproved shadow-only freeze")
     expected = freeze.get("artifact_sha256")

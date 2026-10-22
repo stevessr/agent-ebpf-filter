@@ -2,7 +2,7 @@
 from collections import defaultdict
 
 from decision_protocol import confusion, scenario_key, upper_binomial95, lower_binomial95
-from tag_protocol import normalize_rows, TAG_VERSION
+from tag_protocol import normalize_with_audit, TAG_VERSION
 
 
 def _scenario_metrics(rows, scores, threshold):
@@ -34,7 +34,7 @@ def _scenario_metrics(rows, scores, threshold):
 def error_slices(rows, scores, threshold):
     if not rows or len(rows) != len(scores):
         raise ValueError("missing or unmatched diagnostic rows")
-    normalized = normalize_rows(rows)
+    normalized, tag_audit = normalize_with_audit(rows)
     # Validate every score and label before constructing any subgroups.
     overall = confusion([r.get("label") for r in normalized], scores, threshold)
     overall.update(_scenario_metrics(normalized, scores, threshold))
@@ -44,7 +44,7 @@ def error_slices(rows, scores, threshold):
         indices["by_source"][row.get("source", "")].append(i)
         for tag in row["tags"]:
             indices["by_tag"][tag].append(i)
-    report = dict(tag_version=TAG_VERSION, overall=overall,
+    report = dict(tag_version=TAG_VERSION, tag_coverage=tag_audit, overall=overall,
                   comparison="strict >", threshold=threshold,
                   overlapping_tag_slices=True)
     for axis, groups in indices.items():
@@ -54,7 +54,8 @@ def error_slices(rows, scores, threshold):
                                [scores[i] for i in members], threshold)
             metric.update(_scenario_metrics([normalized[i] for i in members],
                                             [scores[i] for i in members], threshold))
-            report[axis].append(dict(key=name, rows=len(members),
+            coverage = normalize_with_audit([rows[i] for i in members])[1]
+            report[axis].append(dict(key=name, rows=len(members), tag_coverage=coverage,
                 scenarios=len({scenario_key(normalized[i]) for i in members}),
                 **metric))
     return report
