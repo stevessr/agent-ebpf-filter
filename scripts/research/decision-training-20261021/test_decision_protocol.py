@@ -86,6 +86,27 @@ class DecisionProtocolTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'no calibration negatives'):
             operating_threshold([1], [0.5])
 
+    def test_calibration_rejects_ambiguous_numeric_values(self):
+        for score in (True, False, "0.5", None, 10**1000):
+            with self.subTest(score=str(score)[:30]), self.assertRaisesRegex(ValueError, 'scores'):
+                operating_threshold([0, 1], [score, 0.9])
+        for target in (True, False, "0.01", float("nan"), 10**1000):
+            with self.subTest(target=str(target)[:30]), self.assertRaisesRegex(ValueError, 'target_fpr'):
+                operating_threshold([0, 1], [0.1, 0.9], target)
+        with self.assertRaisesRegex(ValueError, 'threshold'):
+            confusion([0, 1], [0.1, 0.9], 10**1000)
+        with self.assertRaisesRegex(ValueError, 'evaluation row'):
+            confusion([0, 1], [10**1000, 0.9], 0.5)
+
+    def test_bootstrap_rejects_unbounded_and_ambiguous_scores(self):
+        rows = [row("a", 0), row("b", 1)]
+        for scores in ((True, 0.9), ("0.1", 0.9), (10**1000, 0.9)):
+            with self.assertRaisesRegex(ValueError, 'bootstrap row'):
+                group_bootstrap_recall(rows, scores, 0.5)
+        for replicates in (True, False, 0, 10001):
+            with self.assertRaisesRegex(ValueError, 'bootstrap arguments'):
+                group_bootstrap_recall(rows, (0.1, 0.9), 0.5, replicates=replicates)
+
     def test_accuracy_does_not_hide_class_imbalance(self):
         # Classifier abstaining on every positive may have high accuracy but
         # must report zero recall and zero F1.
