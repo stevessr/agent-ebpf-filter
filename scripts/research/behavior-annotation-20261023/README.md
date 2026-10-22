@@ -1,6 +1,6 @@
 # Agent eBPF Filter：公开危险行为证据与逐条研读标注（2026-10-23）
 
-本目录是**可审查的威胁特征研究语料**，不是预训练标签集，也不是生产阻断验证。资料来源包括 MITRE ATT&CK、Falco、OWASP Agentic Top 10、AgentDojo 和 PrivacyAlign。收集 11 条公开资料索引、对其逐条研读形成 33 条**分析者构造的对照场景**（危险候选 11、明确授权的正常对照 11、证据不足 11），另从 MITRE ATT&CK 的 *Procedure Examples* 摘要转录 8 条**有出处的恶意技术案例**。案例为独立简述，不复制攻击代码、第三方样本原文、凭据或可识别个人数据。
+本目录是**可审查的威胁特征研究语料**，不是预训练标签集，也不是生产阻断验证。资料来源包括 MITRE ATT&CK、Falco、OWASP Agentic Top 10、AgentDojo 和 PrivacyAlign。收集 11 条公开资料索引、对其逐条研读形成 33 条**分析者构造的对照场景**（危险候选 11、明确授权的正常对照 11、证据不足 11），另从 MITRE ATT&CK 的 *Procedure Examples* 摘要转录 11 条**有出处的恶意技术案例**。案例为独立简述，不复制攻击代码、第三方样本原文、凭据或可识别个人数据。
 
 ## 文件
 
@@ -27,6 +27,7 @@
 例如：
 - ATT&CK [T1485](https://attack.mitre.org/techniques/T1485/) 的 C0034、C0063 分别报告擦除相关文件和覆盖破坏文件，提取「跨目标覆盖/删除异常」而不伪造某个 `unlink()` 的返回值；
 - [T1486](https://attack.mitre.org/techniques/T1486/) 的 S1133、S1129 报告恶意加密现象，但加密意图/结果不能仅通过高写入量来识别；
+- [T1567](https://attack.mitre.org/techniques/T1567/) 的 C0062、C0059、S0622 包含 Agent 辅助资料整理及利用合法 Web/API 通道外传的真实报告；C0062 的报告描述攻击者确认外传，不等于用户合法批准，也未证明 Agent 自主执行外传；
 - [T1098](https://attack.mitre.org/techniques/T1098/) 的 C0025、G0125 是账户/权限操作证据，Linux 网络流量不足以等价认定；
 - [T1070.004](https://attack.mitre.org/techniques/T1070/004/) 的 S0504、S1167 说明自删除存在于恶意软件中，但普通临时文件清理是必须保留的困难负例；
 - [Falco default rules](https://falco.org/docs/reference/rules/default-rules/) 的规则有范围和噪声注意事项。Shell、敏感文件、外连请求均应结合应用身份；
