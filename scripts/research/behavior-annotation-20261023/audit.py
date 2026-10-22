@@ -91,7 +91,7 @@ def audit(root=ROOT):
         if set(row) != HYPOTHETICAL_KEYS:
             raise ValueError("hypothetical case fields drifted")
         case_id = text_field(row, "case_id")
-        if not re.fullmatch(r"CUR-\\d{3}", case_id) or case_id in identities:
+        if not re.fullmatch(r"CUR-\d{3}", case_id) or case_id in identities:
             raise ValueError("invalid/duplicate hypothetical ID")
         identities.add(case_id)
         if row["source_id"] not in source_ids:
@@ -136,7 +136,7 @@ def audit(root=ROOT):
         if set(row) != REPORTED_KEYS:
             raise ValueError("reported case fields drifted")
         cid = text_field(row, "case_id")
-        if not re.fullmatch(r"PUB-\\d{3}", cid) or cid in identities:
+        if not re.fullmatch(r"PUB-\d{3}", cid) or cid in identities:
             raise ValueError("invalid/duplicate documented ID")
         identities.add(cid)
         if row["source_id"] not in source_ids:
@@ -147,7 +147,7 @@ def audit(root=ROOT):
             raise ValueError("documented example must reference reviewed ATT&CK procedure")
         for key in ("procedure_id", "actor_or_campaign", "behavior_summary_zh", "evidence_limitation_zh"):
             text_field(row, key)
-        if not re.fullmatch(r"(C|S|G)\\d{4}", row["procedure_id"]):
+        if not re.fullmatch(r"(C|S|G)\d{4}", row["procedure_id"]):
             raise ValueError("invalid public procedure ID")
         tokens(row, "potential_detection_signals")
         tokens(row, "tags", allowed=TAGS)
