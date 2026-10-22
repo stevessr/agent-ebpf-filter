@@ -2,6 +2,7 @@ package events
 
 import (
 	"agent-ebpf-filter/app/platform"
+	"agent-ebpf-filter/internal/heuristics"
 	"agent-ebpf-filter/pb"
 	"fmt"
 	"path/filepath"
@@ -621,6 +622,19 @@ func BuildSemanticAlertsWithCloneContext(event *pb.Event, verifiedPublicClone bo
 		}
 		if secretTarget, secretSeen := Deps.SemanticAlertsState.RecentSecretTarget(event, now); secretSeen {
 			addAlert("TOKEN_EXFIL_RISK", secretTarget, fmt.Sprintf("secret-like data at %q was accessed before outbound network activity to %q", secretTarget, endpoint), 0.99)
+		}
+	}
+
+	// A shell directly spawned from a positively identified PHP, Python or
+	// JS/TS web worker is a separate semantic signal. Observing execve here
+	// is post-factum: only wrapped invocations can currently be denied.
+	if event.GetType() == "execve" || event.GetType() == "execveat" || event.GetType() == "process_exec" {
+		target := strings.TrimSpace(event.GetPath())
+		if target == "" {
+			target = strings.TrimSpace(event.GetComm())
+		}
+		if finding, ok := heuristics.DetectWebShellSpawn(target, nil, event.GetPpid()); ok {
+			addAlert(finding.Code, target, finding.Reason(), 0.98)
 		}
 	}
 
