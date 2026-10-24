@@ -1,6 +1,7 @@
 package ml
 
 import (
+	"math"
 	"math/rand"
 	"sort"
 )
@@ -122,7 +123,17 @@ func findBestSplit(samples []TrainSample, minSamplesLeaf, featureSampleCount int
 				sorted[i].features[fi] == sorted[i-1].features[fi] {
 				continue
 			}
-			threshold := (sorted[i].features[fi] + sorted[i-1].features[fi]) / 2
+			// DecisionNode stores float32 thresholds. Select only a threshold
+			// that is representable *and* still separates the float64 samples;
+			// otherwise training and inference can take opposite branches.
+			low, high := sorted[i-1].features[fi], sorted[i].features[fi]
+			threshold := float64(float32((low + high) / 2))
+			if !(threshold > low && threshold <= high) {
+				threshold = float64(math.Nextafter32(float32(low), float32(math.Inf(1))))
+				if !(threshold > low && threshold <= high) {
+					continue
+				}
+			}
 			leftWeight := float64(i) / float64(n)
 			gain := parentGini - leftWeight*giniFromCounts(leftCounts, i) -
 				(1-leftWeight)*giniFromCounts(rightCounts, n-i)
