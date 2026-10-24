@@ -245,17 +245,25 @@ func firstTokenNumber(m map[string]any, keys ...string) (uint64, bool) {
 		case uint64:
 			return n, true
 		case int:
-			if n >= 0 { return uint64(n), true }
+			if n >= 0 {
+				return uint64(n), true
+			}
 		case int64:
-			if n >= 0 { return uint64(n), true }
+			if n >= 0 {
+				return uint64(n), true
+			}
 		case float64:
 			if !math.IsNaN(n) && !math.IsInf(n, 0) && n >= 0 && n <= 1e15 && math.Trunc(n) == n {
 				return uint64(n), true
 			}
 		case json.Number:
-			if v, err := strconv.ParseUint(string(n), 10, 64); err == nil { return v, true }
+			if v, err := strconv.ParseUint(string(n), 10, 64); err == nil {
+				return v, true
+			}
 		case string:
-			if v, err := strconv.ParseUint(strings.TrimSpace(n), 10, 64); err == nil { return v, true }
+			if v, err := strconv.ParseUint(strings.TrimSpace(n), 10, 64); err == nil {
+				return v, true
+			}
 		}
 	}
 	return 0, false
