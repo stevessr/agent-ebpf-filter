@@ -253,3 +253,44 @@ func TestEnsembleWeightsPenalizeIndiscriminateRiskPredictions(t *testing.T) {
 		t.Fatalf("high false-positive enforcement was not penalized: precise=%v indiscriminate=%v", a, b)
 	}
 }
+
+func TestBenchmarkHoldoutExcludesRepeatedFutureCommands(t *testing.T) {
+	base := time.Unix(1_700_000_000, 0)
+	samples := make([]TrainingSample, 40)
+	for i := range samples {
+		samples[i] = TrainingSample{
+			Label: int32(i % 4),
+			Timestamp: base.Add(time.Duration(i) * time.Minute),
+			CommandLine: "benchmark-command-" + strconv.Itoa(i),
+		}
+	}
+	samples[37].CommandLine = samples[3].CommandLine
+	samples[39].CommandLine = samples[12].CommandLine
+	train, test := splitModelBenchmarkHoldout(samples)
+	if len(train) != 32 || len(test) != 6 {
+		t.Fatalf("invalid independent chronological benchmark train=%d test=%d", len(train), len(test))
+	}
+	trainKeys := make(map[[32]byte]bool)
+	for _, sample := range train {
+		trainKeys[behaviorHoldoutKey(sample)] = true
+		if !sample.Timestamp.Before(samples[32].Timestamp) {
+			t.Fatal("future test event migrated into training")
+		}
+	}
+	for _, sample := range test {
+		if trainKeys[behaviorHoldoutKey(sample)] {
+			t.Fatal("benchmark test repeats a training behavior")
+		}
+	}
+}
+
+func TestBenchmarkHoldoutRefusesDuplicatesOnlyEvaluation(t *testing.T) {
+	samples := make([]TrainingSample, 24)
+	for i := range samples {
+		samples[i].CommandLine = "same command"
+	}
+	train, test := splitModelBenchmarkHoldout(samples)
+	if len(train) == 0 || len(test) != 0 {
+		t.Fatalf("duplicates-only benchmark must have no independent test rows: train=%d test=%d", len(train), len(test))
+	}
+}
