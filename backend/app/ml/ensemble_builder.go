@@ -254,6 +254,8 @@ func extractFeaturesLabels(labeled []TrainingSample) ([][FeatureDim]float64, []i
 
 type ModelBenchmark struct {
 	ModelType               string  `json:"modelType"`
+	TrainSamples            int     `json:"trainSamples"`
+	TestSamples             int     `json:"testSamples"`
 	Accuracy                float64 `json:"accuracy"`
 	BalancedAccuracy        float64 `json:"balancedAccuracy"`
 	MacroF1                 float64 `json:"macroF1"`
@@ -271,32 +273,51 @@ type ModelBenchmark struct {
 }
 
 // BenchmarkAllModels trains and evaluates all registered model types.
+// splitModelBenchmarkHoldout keeps later repetitions of training-time
+// commands out of the test window. Time-order alone is insufficient when
+// command templates repeat across sessions.
+func splitModelBenchmarkHoldout(labeled []TrainingSample) (train, test []TrainingSample) {
+	if len(labeled) < 20 {
+		return nil, nil
+	}
+	ordered := chronologicalTrainingSamples(labeled)
+	cut := len(ordered) * 4 / 5
+	if cut < 1 || cut >= len(ordered) {
+		return nil, nil
+	}
+	train = ordered[:cut]
+	seen := make(map[[32]byte]struct{}, len(train))
+	for _, sample := range train {
+		seen[behaviorHoldoutKey(sample)] = struct{}{}
+	}
+	for _, sample := range ordered[cut:] {
+		if _, duplicate := seen[behaviorHoldoutKey(sample)]; duplicate {
+			continue
+		}
+		test = append(test, sample)
+	}
+	return train, test
+}
+
 func BenchmarkAllModels(store *TrainingDataStore) []ModelBenchmark {
 	labeled := store.LabeledSamples()
-	if len(labeled) < 20 {
+	trainSet, testSet := splitModelBenchmarkHoldout(labeled)
+	if len(trainSet) == 0 || len(testSet) == 0 {
+		// No independent evidence: do not publish self-evaluation as an
+		// apparently valid benchmark.
 		return nil
 	}
-	labeled = chronologicalTrainingSamples(labeled)
-
 	allTypes := AllModelTypes()
 	results := make([]ModelBenchmark, 0, len(allTypes))
-
-	// Use a chronological 80/20 split so benchmark quality is closer to the
-	// online setting and does not benefit from future samples.
-	splitIdx := len(labeled) * 4 / 5
-	trainSet := labeled[:splitIdx]
-	testSet := labeled[splitIdx:]
-
 	for _, mt := range allTypes {
 		bench := benchmarkModelType(mt, trainSet, testSet)
 		results = append(results, bench)
 	}
-
 	return results
 }
 
 func benchmarkModelType(mt ModelType, trainSet, testSet []TrainingSample) ModelBenchmark {
-	bench := ModelBenchmark{ModelType: string(mt)}
+	bench := ModelBenchmark{ModelType: string(mt), TrainSamples: len(trainSet), TestSamples: len(testSet)}
 
 	cfg := DefaultMLConfig()
 	cfg.ModelType = mt
