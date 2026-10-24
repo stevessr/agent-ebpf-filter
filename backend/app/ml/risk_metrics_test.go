@@ -1,6 +1,7 @@
 package ml
 
 import (
+	"strconv"
 	"math"
 	"testing"
 	"time"
@@ -137,5 +138,33 @@ func assertNear(t *testing.T, name string, got, want float64) {
 	t.Helper()
 	if math.Abs(got-want) > 1e-9 {
 		t.Fatalf("%s: got %f want %f", name, got, want)
+	}
+}
+
+func TestSplitEnsembleCalibrationHoldoutKeepsRepeatedBehaviorInTraining(t *testing.T) {
+	base := time.Unix(1_700_000_000, 0)
+	samples := make([]TrainingSample, 40)
+	for i := range samples {
+		samples[i] = TrainingSample{
+			Label: int32(i % 4),
+			Timestamp: base.Add(time.Duration(i) * time.Minute),
+			CommandLine: "unique-cmd-" + strconv.Itoa(i),
+		}
+	}
+	// New observations of this command are not new independent behaviors.
+	samples[34].CommandLine = samples[4].CommandLine
+	samples[39].CommandLine = samples[2].CommandLine
+	train, holdout := splitEnsembleCalibrationHoldout(samples)
+	if len(train) != 34 || len(holdout) != 6 {
+		t.Fatalf("duplicate groups not excluded from calibration: train=%d calibration=%d", len(train), len(holdout))
+	}
+	seen := make(map[[32]byte]bool)
+	for _, sample := range train {
+		seen[behaviorHoldoutKey(sample)] = true
+	}
+	for _, sample := range holdout {
+		if seen[behaviorHoldoutKey(sample)] {
+			t.Fatal("behavior present in training leaked into ensemble calibration")
+		}
 	}
 }
