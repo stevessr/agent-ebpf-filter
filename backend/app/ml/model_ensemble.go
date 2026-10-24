@@ -40,10 +40,25 @@ func NewEnsembleModel(models []Model, voting string, weights []float64) *Ensembl
 		for i := range weights {
 			weights[i] = 1.0
 		}
+	} else {
+		// Do not mutate caller-owned weights during normalization.
+		weights = append([]float64(nil), weights...)
 	}
 	totalW := 0.0
-	for _, w := range weights {
+	for i, w := range weights {
+		if math.IsNaN(w) || math.IsInf(w, 0) || w < 0 || models[i] == nil {
+			weights[i] = 0
+			continue
+		}
 		totalW += w
+	}
+	if totalW == 0 {
+		for i, model := range models {
+			if model != nil {
+				weights[i] = 1
+				totalW++
+			}
+		}
 	}
 	if totalW > 0 {
 		for i := range weights {
@@ -51,6 +66,13 @@ func NewEnsembleModel(models []Model, voting string, weights []float64) *Ensembl
 		}
 	}
 	return &EnsembleModel{Models: models, Voting: voting, Weights: weights}
+}
+
+func validEnsembleVote(pred Prediction, weight float64) bool {
+	return pred.Action >= 0 && pred.Action < 4 &&
+		weight > 0 && !math.IsNaN(weight) && !math.IsInf(weight, 0) &&
+		pred.Confidence > 0 && pred.Confidence <= 1 &&
+		!math.IsNaN(pred.Confidence) && !math.IsInf(pred.Confidence, 0)
 }
 
 func (m *EnsembleModel) Type() ModelType { return ModelEnsemble }
@@ -85,10 +107,12 @@ func (m *EnsembleModel) hardVote(features [FeatureDim]float64) Prediction {
 	votes := make([]float64, 4)
 	totalW := 0.0
 	for i, model := range m.Models {
+		if model == nil || i >= len(m.Weights) { continue }
 		pred := model.Predict(features)
-		if pred.Action >= 0 && pred.Action < 4 {
-			votes[pred.Action] += m.Weights[i]
-			totalW += m.Weights[i]
+		w := m.Weights[i]
+		if validEnsembleVote(pred, w) {
+			votes[pred.Action] += w
+			totalW += w
 		}
 	}
 	if totalW == 0 {
@@ -110,8 +134,10 @@ func (m *EnsembleModel) softVote(features [FeatureDim]float64) Prediction {
 	classProbs := make([]float64, 4)
 	totalW := 0.0
 	for i, model := range m.Models {
+		if model == nil || i >= len(m.Weights) { continue }
 		pred := model.Predict(features)
 		w := m.Weights[i]
+		if !validEnsembleVote(pred, w) { continue }
 		for c := 0; c < 4; c++ {
 			if pred.Action == int32(c) {
 				classProbs[c] += pred.Confidence * w
@@ -143,13 +169,11 @@ func (m *EnsembleModel) stackedVote(features [FeatureDim]float64) Prediction {
 	bestRisk := soft
 	bestRiskWeight := 0.0
 	for i, model := range m.Models {
+		if model == nil || i >= len(m.Weights) { continue }
 		pred := model.Predict(features)
-		if pred.Action != 1 && pred.Action != 3 {
+		weight := m.Weights[i]
+		if !validEnsembleVote(pred, weight) || (pred.Action != 1 && pred.Action != 3) {
 			continue
-		}
-		weight := 1.0
-		if i < len(m.Weights) {
-			weight = m.Weights[i]
 		}
 		weightedConfidence := pred.Confidence * weight
 		if weightedConfidence > bestRiskWeight {
@@ -158,11 +182,8 @@ func (m *EnsembleModel) stackedVote(features [FeatureDim]float64) Prediction {
 		}
 	}
 	if bestRisk.Action == 1 || bestRisk.Action == 3 {
-		// Risk-stacked mode favours minority high-risk voters so rare BLOCK/ALERT
-		// labels are not drowned out by benign majority votes.
-		if bestRisk.Confidence < soft.Confidence && soft.Action == 0 {
-			bestRisk.Confidence = math.Max(bestRisk.Confidence, soft.Confidence*0.75)
-		}
+		// Preserve the actual risk model's confidence rather than borrowing
+		// confidence from an ALLOW majority and overstating enforcement certainty.
 		bestRisk.AnomalyScore = math.Max(bestRisk.AnomalyScore, 1-bestRisk.Confidence)
 		return bestRisk
 	}
