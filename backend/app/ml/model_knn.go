@@ -153,14 +153,31 @@ func (m *KNNModel) Predict(features [FeatureDim]float64) Prediction {
 	k := len(neighbors)
 	classVotes := make([]float64, m.NumClasses)
 	totalWeight := 0.0
+	// Inverse-distance weighting must never make a merely nearby neighbor
+	// outweigh an exact match. With exact matches, vote only among those
+	// matches; otherwise retain normal inverse-distance behavior.
+	exactMatch := m.Weight == "distance" && neighbors[0].distance <= 1e-10
 	for i := 0; i < k; i++ {
 		n := neighbors[i]
+		if n.idx < 0 || n.idx >= len(m.Labels) {
+			continue
+		}
+		label := m.Labels[n.idx]
+		if label < 0 || int(label) >= m.NumClasses {
+			continue
+		}
+		if exactMatch && n.distance > 1e-10 {
+			continue
+		}
 		w := 1.0
-		if m.Weight == "distance" && n.distance > 1e-10 {
+		if !exactMatch && m.Weight == "distance" && n.distance > 1e-10 {
 			w = 1.0 / n.distance
 		}
-		classVotes[m.Labels[n.idx]] += w
+		classVotes[label] += w
 		totalWeight += w
+	}
+	if totalWeight == 0 {
+		return Prediction{Action: 0, Confidence: 0, AnomalyScore: 0.5}
 	}
 
 	bestClass := int32(0)
