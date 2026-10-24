@@ -14,7 +14,12 @@ type riskEvaluation struct {
 	Accuracy                float64
 	BalancedAccuracy        float64
 	HighRiskSamples         int
-	HighRiskRecall          float64
+	HighRiskRecall          float64 // any BLOCK/ALERT detection of a high-risk action
+	HighRiskExactRecall     float64 // exact BLOCK/ALERT label accuracy, not interchangeable
+	BlockSamples            int
+	BlockRecall             float64
+	AlertSamples            int
+	AlertRecall             float64
 	BenignSamples           int
 	BenignFalsePositiveRate float64
 	ConfidenceBrier         float64
@@ -38,6 +43,9 @@ func evaluateRiskModel(model Model, samples []TrainingSample) riskEvaluation {
 	var bins [confidenceCalibrationBins]confidenceBin
 	correctTotal := 0
 	highRiskDetected := 0
+	highRiskExact := 0
+	blockCorrect := 0
+	alertCorrect := 0
 	benignFalsePositives := 0
 	brierTotal := 0.0
 
@@ -63,6 +71,17 @@ func evaluateRiskModel(model Model, samples []TrainingSample) riskEvaluation {
 			if pred.Action == 1 || pred.Action == 3 {
 				highRiskDetected++
 			}
+			if correct {
+				highRiskExact++
+			}
+		}
+		if label == 1 {
+			result.BlockSamples++
+			if correct { blockCorrect++ }
+		}
+		if label == 3 {
+			result.AlertSamples++
+			if correct { alertCorrect++ }
 		}
 		if label == 0 {
 			result.BenignSamples++
@@ -110,6 +129,13 @@ func evaluateRiskModel(model Model, samples []TrainingSample) riskEvaluation {
 
 	if result.HighRiskSamples > 0 {
 		result.HighRiskRecall = float64(highRiskDetected) / float64(result.HighRiskSamples)
+		result.HighRiskExactRecall = float64(highRiskExact) / float64(result.HighRiskSamples)
+	}
+	if result.BlockSamples > 0 {
+		result.BlockRecall = float64(blockCorrect) / float64(result.BlockSamples)
+	}
+	if result.AlertSamples > 0 {
+		result.AlertRecall = float64(alertCorrect) / float64(result.AlertSamples)
 	}
 	if result.BenignSamples > 0 {
 		result.BenignFalsePositiveRate = float64(benignFalsePositives) / float64(result.BenignSamples)
@@ -137,7 +163,12 @@ func calibratedEnsembleWeight(metrics riskEvaluation) float64 {
 
 	riskRecall := metrics.BalancedAccuracy
 	if metrics.HighRiskSamples > 0 {
-		riskRecall = metrics.HighRiskRecall
+		// Merely detecting risk is insufficient: predicting ALERT for a BLOCK
+		// action leaves a dangerous operation unblocked. Shrink exact-action
+		// evidence toward the balanced baseline when support is sparse.
+		groupSupport := float64(metrics.HighRiskSamples) / float64(metrics.HighRiskSamples+8)
+		exactQuality := 0.25*metrics.HighRiskRecall + 0.75*metrics.HighRiskExactRecall
+		riskRecall = groupSupport*exactQuality + (1-groupSupport)*metrics.BalancedAccuracy
 	}
 	benignSpecificity := metrics.BalancedAccuracy
 	if metrics.BenignSamples > 0 {
