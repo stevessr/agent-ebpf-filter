@@ -4,45 +4,15 @@ package ml
 // the sweep harness and the model registry tests.
 
 import (
-	"errors"
 	"math"
 	"math/rand"
-	"sort"
 )
 
+// PrepareAutoTuneSplit partitions duplicates as complete groups, then stratifies
+// the group assignment where class evidence permits. A missing validation class
+// is reported by security metric coverage rather than invented as zero recall.
 func PrepareAutoTuneSplit(labeled []TrainingSample, validationRatio float64) ([]TrainSample, []TrainSample, []TrainingSample, []TrainingSample, error) {
-	if len(labeled) < 2 {
-		return nil, nil, nil, nil, errors.New("need at least 2 labeled samples for tuning")
-	}
-	if validationRatio <= 0 || validationRatio >= 0.5 {
-		validationRatio = 0.20
-	}
-
-	samples := make([]TrainSample, len(labeled))
-	for i, s := range labeled {
-		samples[i] = TrainSample{features: s.Features, label: s.Label}
-	}
-
-	shuffledRaw := append([]TrainingSample(nil), labeled...)
-	rand.Shuffle(len(samples), func(i, j int) {
-		samples[i], samples[j] = samples[j], samples[i]
-		shuffledRaw[i], shuffledRaw[j] = shuffledRaw[j], shuffledRaw[i]
-	})
-
-	validationCount := int(math.Round(float64(len(samples)) * validationRatio))
-	if validationCount < 1 {
-		validationCount = 1
-	}
-	if validationCount >= len(samples) {
-		validationCount = len(samples) - 1
-	}
-
-	trainCount := len(samples) - validationCount
-	trainSet := append([]TrainSample(nil), samples[:trainCount]...)
-	validationSet := append([]TrainSample(nil), samples[trainCount:]...)
-	trainRaw := append([]TrainingSample(nil), shuffledRaw[:trainCount]...)
-	validationRaw := append([]TrainingSample(nil), shuffledRaw[trainCount:]...)
-	return trainSet, validationSet, trainRaw, validationRaw, nil
+	return prepareGroupedHoldout(labeled, validationRatio)
 }
 
 func BuildAutoTuneForest(trainSet []TrainSample, numTrees, maxDepth, minSamplesLeaf int, seed int64) *DecisionForest {
@@ -93,7 +63,7 @@ func buildAutoTuneTree(samples []TrainSample, depth, maxDepth, minSamplesLeaf, f
 		return []DecisionNode{{LeftChild: -1, RightChild: -1, LeafValue: float32(firstLabel)}}
 	}
 
-	best := findAutoTuneBestSplit(samples, featureSampleCount, rng)
+	best := findBestSplit(samples, minSamplesLeaf, featureSampleCount, rng)
 	if best.giniGain <= 0 {
 		return []DecisionNode{{LeftChild: -1, RightChild: -1, LeafValue: majorityClass(samples)}}
 	}
@@ -145,48 +115,3 @@ func buildAutoTuneTree(samples []TrainSample, depth, maxDepth, minSamplesLeaf, f
 	return nodes
 }
 
-func findAutoTuneBestSplit(samples []TrainSample, featureSampleCount int, rng *rand.Rand) splitPoint {
-	best := splitPoint{giniGain: -1}
-	parentGini := giniImpurity(samples)
-
-	features := make([]int, FeatureDim)
-	for i := range features {
-		features[i] = i
-	}
-	rng.Shuffle(len(features), func(i, j int) { features[i], features[j] = features[j], features[i] })
-	if featureSampleCount > len(features) {
-		featureSampleCount = len(features)
-	}
-	selectedFeatures := features[:featureSampleCount]
-
-	for _, fi := range selectedFeatures {
-		sorted := append([]TrainSample(nil), samples...)
-		sort.Slice(sorted, func(i, j int) bool {
-			return sorted[i].features[fi] < sorted[j].features[fi]
-		})
-
-		for i := 1; i < len(sorted); i++ {
-			if sorted[i].features[fi] == sorted[i-1].features[fi] {
-				continue
-			}
-			threshold := (sorted[i].features[fi] + sorted[i-1].features[fi]) / 2.0
-			leftSamples := sorted[:i]
-			rightSamples := sorted[i:]
-			if len(leftSamples) < 1 || len(rightSamples) < 1 {
-				continue
-			}
-
-			leftWeight := float64(len(leftSamples)) / float64(len(sorted))
-			gain := parentGini - leftWeight*giniImpurity(leftSamples) - (1-leftWeight)*giniImpurity(rightSamples)
-			if gain > best.giniGain {
-				best = splitPoint{
-					featureIdx: fi,
-					threshold:  threshold,
-					giniGain:   gain,
-				}
-			}
-		}
-	}
-
-	return best
-}

@@ -66,11 +66,9 @@ func (t *ModelTrainer) trainForestWithConfig(store *TrainingDataStore, numTrees,
 	}
 	t.Logf("Labeled samples loaded: %d", len(labeled))
 
-	samples := make([]TrainSample, len(labeled))
 	classDist := make(map[int32]int)
-	for i, s := range labeled {
-		samples[i] = TrainSample{features: s.Features, label: s.Label}
-		classDist[s.Label]++
+	for _, sample := range labeled {
+		classDist[sample.Label]++
 	}
 	t.Logf("Class distribution: ALLOW=%d, BLOCK=%d, ALERT=%d, REWRITE=%d",
 		classDist[0], classDist[1], classDist[3], classDist[2])
@@ -79,24 +77,12 @@ func (t *ModelTrainer) trainForestWithConfig(store *TrainingDataStore, numTrees,
 	if validationRatio <= 0 || validationRatio >= 0.5 {
 		validationRatio = 0.20
 	}
-	shuffledRaw := append([]TrainingSample(nil), labeled...)
+	trainSet, validationSet, trainRaw, validationRaw, err := PrepareAutoTuneSplit(labeled, validationRatio)
+	if err != nil {
+		return nil, TrainResult{Error: fmt.Sprintf("independent holdout: %v", err)}
+	}
+	validationRatio = float64(len(validationSet)) / float64(len(labeled))
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	rng.Shuffle(len(samples), func(i, j int) {
-		samples[i], samples[j] = samples[j], samples[i]
-		shuffledRaw[i], shuffledRaw[j] = shuffledRaw[j], shuffledRaw[i]
-	})
-	validationCount := int(math.Round(float64(len(samples)) * validationRatio))
-	if validationCount < 1 {
-		validationCount = 1
-	}
-	if validationCount >= len(samples) {
-		validationCount = len(samples) - 1
-	}
-	trainCount := len(samples) - validationCount
-	trainSet := samples[:trainCount]
-	validationSet := samples[trainCount:]
-	trainRaw := append([]TrainingSample(nil), shuffledRaw[:trainCount]...)
-	validationRaw := append([]TrainingSample(nil), shuffledRaw[trainCount:]...)
 	t.Logf("Data split: train=%d, validation=%d (ratio=%.2f)", len(trainSet), len(validationSet), validationRatio)
 
 	t.Logf("Building random forest with %d trees...", numTrees)
@@ -264,25 +250,27 @@ func (t *ModelTrainer) TrainWithConfig(store *TrainingDataStore, cfg MLConfig) (
 }
 
 func (t *ModelTrainer) trainKNN(store *TrainingDataStore, cfg MLConfig) (Model, TrainResult) {
-	t.mu <- struct{}{}
-	defer func() { <-t.mu }()
-
+	t.acquire()
+	defer t.release()
 	t.BeginTraining()
 	defer t.finishTraining()
 
 	labeled := store.LabeledSamples()
-	if len(labeled) == 0 {
-		return nil, TrainResult{Error: "no labeled samples available"}
+	if len(labeled) < 2 {
+		return nil, TrainResult{Error: "need at least 2 labeled samples for a KNN holdout"}
+	}
+	trainSet, validationSet, trainRaw, validationRaw, err := PrepareAutoTuneSplit(labeled, cfg.ValidationSplitRatio)
+	if err != nil {
+		return nil, TrainResult{Error: err.Error()}
 	}
 
 	k := cfg.NumTrees
 	if k < 1 {
 		k = 5
 	}
-	if k > len(labeled) {
-		k = len(labeled)
+	if k > len(trainSet) {
+		k = len(trainSet)
 	}
-
 	distance := "euclidean"
 	if cfg.MaxDepth >= 16 {
 		distance = "cosine"
@@ -296,47 +284,28 @@ func (t *ModelTrainer) trainKNN(store *TrainingDataStore, cfg MLConfig) (Model, 
 
 	model := NewKNNModel(k, distance, weight)
 	model.NumClasses = 4
-	model.Samples = make([][FeatureDim]float64, len(labeled))
-	model.Labels = make([]int32, len(labeled))
-	for i, s := range labeled {
-		model.Samples[i] = s.Features
-		model.Labels[i] = s.Label
+	model.Samples = make([][FeatureDim]float64, len(trainSet))
+	model.Labels = make([]int32, len(trainSet))
+	for i, s := range trainSet {
+		model.Samples[i] = s.features
+		model.Labels[i] = s.label
 	}
 
-	t.Logf("KNN 训练完成: k=%d, distance=%s, weight=%s, samples=%d", k, distance, weight, len(labeled))
-
-	correct := 0
-	for _, s := range labeled {
-		pred := model.Predict(s.Features)
-		if pred.Action == s.Label {
-			correct++
-		}
-	}
-	accuracy := float64(correct) / float64(len(labeled))
-
-	trainedAt := time.Now()
-	t.setTrainingResult(trainedAt, accuracy, accuracy, accuracy)
-
-	t.addHistory(TrainingHistoryEntry{
-		Timestamp:  trainedAt,
-		Accuracy:   accuracy,
-		NumSamples: len(labeled),
-	})
-	t.setLastSplit(labeled, labeled)
-
+	trainAcc := EvalModelSamples(model, trainSet)
+	valAcc := EvalModelSamples(model, validationSet)
+	t.Logf("KNN 训练完成: k=%d, distance=%s, weight=%s, train=%d, validation=%d", k, distance, weight, len(trainSet), len(validationSet))
+	t.finishMetrics(valAcc, trainAcc, valAcc, len(labeled), len(trainSet), len(validationSet))
+	t.setValidationRatio(float64(len(validationSet)) / float64(len(labeled)))
+	t.setLastSplit(trainRaw, validationRaw)
 	return model, TrainResult{
-		Accuracy:           accuracy,
-		TrainAccuracy:      accuracy,
-		ValidationAccuracy: accuracy,
-		NumSamples:         len(labeled),
-		TrainSamples:       len(labeled),
+		Accuracy: valAcc, TrainAccuracy: trainAcc, ValidationAccuracy: valAcc,
+		NumSamples: len(labeled), TrainSamples: len(trainSet), ValidationSamples: len(validationSet),
 	}
 }
 
 func (t *ModelTrainer) trainLogistic(store *TrainingDataStore, cfg MLConfig) (Model, TrainResult) {
-	t.mu <- struct{}{}
-	defer func() { <-t.mu }()
-
+	t.acquire()
+	defer t.release()
 	t.BeginTraining()
 	defer t.finishTraining()
 
@@ -344,22 +313,15 @@ func (t *ModelTrainer) trainLogistic(store *TrainingDataStore, cfg MLConfig) (Mo
 	if len(labeled) < 10 {
 		return nil, TrainResult{Error: "need at least 10 labeled samples for logistic regression"}
 	}
-
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	shuffled := make([]TrainingSample, len(labeled))
-	copy(shuffled, labeled)
-	rng.Shuffle(len(shuffled), func(i, j int) { shuffled[i], shuffled[j] = shuffled[j], shuffled[i] })
-
-	splitIdx := int(float64(len(shuffled)) * (1.0 - cfg.ValidationSplitRatio))
-	if splitIdx < 1 {
-		splitIdx = 1
+	trainSet, validationSet, trainRaw, validationRaw, err := PrepareAutoTuneSplit(labeled, cfg.ValidationSplitRatio)
+	if err != nil {
+		return nil, TrainResult{Error: err.Error()}
 	}
 
 	learningRate := 0.01
 	if cfg.NumTrees > 0 {
 		learningRate = float64(cfg.NumTrees) / 1000.0
 	}
-
 	regularization := "l2"
 	switch cfg.MaxDepth {
 	case 4:
@@ -367,17 +329,16 @@ func (t *ModelTrainer) trainLogistic(store *TrainingDataStore, cfg MLConfig) (Mo
 	case 12:
 		regularization = "l1"
 	}
-
 	maxIter := cfg.MinSamplesLeaf
 	if maxIter < 100 {
 		maxIter = 1000
 	}
 
-	trainSamples := make([][FeatureDim]float64, splitIdx)
-	trainLabels := make([]int32, splitIdx)
-	for i := 0; i < splitIdx; i++ {
-		trainSamples[i] = shuffled[i].Features
-		trainLabels[i] = shuffled[i].Label
+	trainSamples := make([][FeatureDim]float64, len(trainSet))
+	trainLabels := make([]int32, len(trainSet))
+	for i, sample := range trainSet {
+		trainSamples[i] = sample.features
+		trainLabels[i] = sample.label
 	}
 
 	model := NewLogisticModel(learningRate, regularization, maxIter)
@@ -387,45 +348,14 @@ func (t *ModelTrainer) trainLogistic(store *TrainingDataStore, cfg MLConfig) (Mo
 	}
 	model.Train(trainSamples, trainLabels)
 
-	t.Logf("逻辑回归训练完成: lr=%.4f, reg=%s, iter=%d, samples=%d", learningRate, regularization, maxIter, splitIdx)
-
-	trainCorrect := 0
-	for i := 0; i < splitIdx; i++ {
-		if pred := model.Predict(trainSamples[i]); pred.Action == trainLabels[i] {
-			trainCorrect++
-		}
-	}
-	trainAcc := float64(trainCorrect) / float64(splitIdx)
-
-	valAcc := trainAcc
-	valSamples := 0
-	if splitIdx < len(shuffled) {
-		valSamples = len(shuffled) - splitIdx
-		valCorrect := 0
-		for i := splitIdx; i < len(shuffled); i++ {
-			if pred := model.Predict(shuffled[i].Features); pred.Action == shuffled[i].Label {
-				valCorrect++
-			}
-		}
-		valAcc = float64(valCorrect) / float64(valSamples)
-	}
-
-	trainedAt := time.Now()
-	t.setTrainingResult(trainedAt, valAcc, trainAcc, valAcc)
-
-	t.addHistory(TrainingHistoryEntry{
-		Timestamp:  trainedAt,
-		Accuracy:   valAcc,
-		NumSamples: len(labeled),
-	})
-	t.setLastSplit(shuffled[:splitIdx], shuffled[splitIdx:])
-
+	trainAcc := EvalModelSamples(model, trainSet)
+	valAcc := EvalModelSamples(model, validationSet)
+	t.Logf("逻辑回归训练完成: lr=%.4f, reg=%s, iter=%d, train=%d, validation=%d", learningRate, regularization, maxIter, len(trainSet), len(validationSet))
+	t.finishMetrics(valAcc, trainAcc, valAcc, len(labeled), len(trainSet), len(validationSet))
+	t.setValidationRatio(float64(len(validationSet)) / float64(len(labeled)))
+	t.setLastSplit(trainRaw, validationRaw)
 	return model, TrainResult{
-		Accuracy:           valAcc,
-		TrainAccuracy:      trainAcc,
-		ValidationAccuracy: valAcc,
-		NumSamples:         len(labeled),
-		TrainSamples:       splitIdx,
-		ValidationSamples:  valSamples,
+		Accuracy: valAcc, TrainAccuracy: trainAcc, ValidationAccuracy: valAcc,
+		NumSamples: len(labeled), TrainSamples: len(trainSet), ValidationSamples: len(validationSet),
 	}
 }

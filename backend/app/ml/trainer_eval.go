@@ -11,7 +11,17 @@ func (t *ModelTrainer) release() { <-t.mu }
 func (t *ModelTrainer) finishMetrics(acc, trainAcc, valAcc float64, total, trainN, valN int) {
 	trainedAt := time.Now()
 	t.setTrainingResult(trainedAt, acc, trainAcc, valAcc)
-	t.addHistory(TrainingHistoryEntry{Timestamp: trainedAt, Accuracy: acc, NumSamples: total})
+	ratio := 0.0
+	if total > 0 && valN > 0 {
+		ratio = float64(valN) / float64(total)
+	}
+	t.setValidationRatio(ratio)
+	t.addHistory(TrainingHistoryEntry{
+		Timestamp: trainedAt,
+		Accuracy: acc, TrainAccuracy: trainAcc, ValidationAccuracy: valAcc,
+		NumSamples: total, TrainSamples: trainN, ValidationSamples: valN,
+		ValidationSplitRatio: ratio,
+	})
 }
 
 func evalModelLabeled(model Model, labeled []TrainingSample) float64 {

@@ -13,8 +13,18 @@ type riskEvaluation struct {
 	Samples                 int
 	Accuracy                float64
 	BalancedAccuracy        float64
+	MacroF1                 float64
+	HighRiskPredictions     int
+	HighRiskPrecision       float64 // BLOCK or ALERT precision, including false enforcement of ALLOW/REWRITE
+	BlockPrecision          float64
+	AlertPrecision          float64
 	HighRiskSamples         int
-	HighRiskRecall          float64
+	HighRiskRecall          float64 // any BLOCK/ALERT detection of a high-risk action
+	HighRiskExactRecall     float64 // exact BLOCK/ALERT label accuracy, not interchangeable
+	BlockSamples            int
+	BlockRecall             float64
+	AlertSamples            int
+	AlertRecall             float64
 	BenignSamples           int
 	BenignFalsePositiveRate float64
 	ConfidenceBrier         float64
@@ -35,9 +45,13 @@ func evaluateRiskModel(model Model, samples []TrainingSample) riskEvaluation {
 
 	var classTotal [4]int
 	var classCorrect [4]int
+	var classPredicted [4]int
 	var bins [confidenceCalibrationBins]confidenceBin
 	correctTotal := 0
 	highRiskDetected := 0
+	highRiskExact := 0
+	blockCorrect := 0
+	alertCorrect := 0
 	benignFalsePositives := 0
 	brierTotal := 0.0
 
@@ -53,6 +67,12 @@ func evaluateRiskModel(model Model, samples []TrainingSample) riskEvaluation {
 
 		result.Samples++
 		classTotal[label]++
+		if pred.Action >= 0 && pred.Action < 4 {
+			classPredicted[pred.Action]++
+			if pred.Action == 1 || pred.Action == 3 {
+				result.HighRiskPredictions++
+			}
+		}
 		if correct {
 			correctTotal++
 			classCorrect[label]++
@@ -63,6 +83,17 @@ func evaluateRiskModel(model Model, samples []TrainingSample) riskEvaluation {
 			if pred.Action == 1 || pred.Action == 3 {
 				highRiskDetected++
 			}
+			if correct {
+				highRiskExact++
+			}
+		}
+		if label == 1 {
+			result.BlockSamples++
+			if correct { blockCorrect++ }
+		}
+		if label == 3 {
+			result.AlertSamples++
+			if correct { alertCorrect++ }
 		}
 		if label == 0 {
 			result.BenignSamples++
@@ -103,13 +134,37 @@ func evaluateRiskModel(model Model, samples []TrainingSample) riskEvaluation {
 		}
 		observedClasses++
 		result.BalancedAccuracy += float64(classCorrect[class]) / float64(classTotal[class])
+		// Macro-F1 averages over classes with actual validation support.
+		// Predictions of absent classes remain false negatives in the supported
+		// classes; no unobserved label is silently assumed to be a true negative.
+		denom := classTotal[class] + classPredicted[class]
+		if denom > 0 {
+			result.MacroF1 += 2 * float64(classCorrect[class]) / float64(denom)
+		}
 	}
 	if observedClasses > 0 {
 		result.BalancedAccuracy /= float64(observedClasses)
+		result.MacroF1 /= float64(observedClasses)
 	}
 
 	if result.HighRiskSamples > 0 {
 		result.HighRiskRecall = float64(highRiskDetected) / float64(result.HighRiskSamples)
+		result.HighRiskExactRecall = float64(highRiskExact) / float64(result.HighRiskSamples)
+	}
+	if result.HighRiskPredictions > 0 {
+		result.HighRiskPrecision = float64(highRiskDetected) / float64(result.HighRiskPredictions)
+	}
+	if classPredicted[1] > 0 {
+		result.BlockPrecision = float64(blockCorrect) / float64(classPredicted[1])
+	}
+	if classPredicted[3] > 0 {
+		result.AlertPrecision = float64(alertCorrect) / float64(classPredicted[3])
+	}
+	if result.BlockSamples > 0 {
+		result.BlockRecall = float64(blockCorrect) / float64(result.BlockSamples)
+	}
+	if result.AlertSamples > 0 {
+		result.AlertRecall = float64(alertCorrect) / float64(result.AlertSamples)
 	}
 	if result.BenignSamples > 0 {
 		result.BenignFalsePositiveRate = float64(benignFalsePositives) / float64(result.BenignSamples)
@@ -137,7 +192,12 @@ func calibratedEnsembleWeight(metrics riskEvaluation) float64 {
 
 	riskRecall := metrics.BalancedAccuracy
 	if metrics.HighRiskSamples > 0 {
-		riskRecall = metrics.HighRiskRecall
+		// Merely detecting risk is insufficient: predicting ALERT for a BLOCK
+		// action leaves a dangerous operation unblocked. Shrink exact-action
+		// evidence toward the balanced baseline when support is sparse.
+		groupSupport := float64(metrics.HighRiskSamples) / float64(metrics.HighRiskSamples+8)
+		exactQuality := 0.25*metrics.HighRiskRecall + 0.75*metrics.HighRiskExactRecall
+		riskRecall = groupSupport*exactQuality + (1-groupSupport)*metrics.BalancedAccuracy
 	}
 	benignSpecificity := metrics.BalancedAccuracy
 	if metrics.BenignSamples > 0 {
@@ -146,9 +206,21 @@ func calibratedEnsembleWeight(metrics riskEvaluation) float64 {
 	calibration := 1 - 0.5*(metrics.ConfidenceBrier+metrics.ECE)
 	calibration = finiteUnitInterval(calibration)
 
-	quality := 0.35*metrics.BalancedAccuracy +
-		0.30*riskRecall +
-		0.20*benignSpecificity +
+	// Precision penalizes indiscriminate BLOCK/ALERT predictions, including
+	// misclassifying REWRITE as an enforcement action. Rare risk predictions
+	// receive less weight because their precision estimate is unstable.
+	riskPrecision := metrics.BalancedAccuracy
+	if metrics.HighRiskPredictions > 0 {
+		precisionSupport := float64(metrics.HighRiskPredictions) / float64(metrics.HighRiskPredictions+8)
+		riskPrecision = precisionSupport*metrics.HighRiskPrecision +
+			(1-precisionSupport)*metrics.BalancedAccuracy
+	} else if metrics.HighRiskSamples > 0 {
+		riskPrecision = 0
+	}
+	quality := 0.30*metrics.BalancedAccuracy +
+		0.25*riskRecall +
+		0.15*riskPrecision +
+		0.15*benignSpecificity +
 		0.15*calibration
 
 	// Bayesian-style shrinkage: about 20 validation observations are needed

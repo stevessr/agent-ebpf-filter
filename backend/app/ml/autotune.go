@@ -203,6 +203,10 @@ func (t *ModelTrainer) AutoTuneWithConfig(store *TrainingDataStore, cfg MLConfig
 				trainS, trainL := extractTrainData(trainSet)
 				lrModel := NewLogisticModel(lr, reg, maxIter)
 				lrModel.NumClasses = 4
+				// Honor balanced presets in candidate scoring, not just final training.
+				if effectiveCfg.BalanceClasses {
+					lrModel.ClassWeights = computeClassWeights(trainL, 4)
+				}
 				lrModel.Train(trainS, trainL)
 				trainAccuracy = evalLogisticModel(lrModel, trainSet)
 				evalStart = time.Now()
@@ -257,7 +261,7 @@ func (t *ModelTrainer) AutoTuneWithConfig(store *TrainingDataStore, cfg MLConfig
 
 			case ModelExtraTrees:
 				seed := int64((yi+1)*100000 + (xi+1)*1000 + numTrees*31 + maxDepth*17 + minLeaf*13)
-				et := BuildExtraTrees(trainSet, numTrees, maxDepth, minLeaf, seed)
+				et := BuildExtraTreesWithBalance(trainSet, numTrees, maxDepth, minLeaf, seed, effectiveCfg.BalanceClasses)
 				trainAccuracy = EvalModelSamples(&ExtraTreesModel{Forest: et}, trainSet)
 				evalStart = time.Now()
 				validationAccuracy = EvalModelSamples(&ExtraTreesModel{Forest: et}, validationSet)
@@ -268,7 +272,7 @@ func (t *ModelTrainer) AutoTuneWithConfig(store *TrainingDataStore, cfg MLConfig
 
 			case ModelAdaBoost:
 				trainS, trainL := extractTrainData(trainSet)
-				ab := trainAdaBoostFromData(trainS, trainL, numTrees)
+				ab := trainAdaBoostFromDataBalanced(trainS, trainL, numTrees, effectiveCfg.BalanceClasses)
 				trainAccuracy = EvalModelSamples(ab, trainSet)
 				evalStart = time.Now()
 				validationAccuracy = EvalModelSamples(ab, validationSet)
