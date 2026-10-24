@@ -214,7 +214,10 @@ func splitEnsembleCalibrationHoldout(labeled []TrainingSample) (trainSet, valida
 	for _, sample := range ordered[splitIdx:] {
 		key := behaviorHoldoutKey(sample)
 		if _, alreadyTrained := seen[key]; alreadyTrained {
-			trainSet = append(trainSet, sample)
+			// Drop repetitions from the calibration window rather than
+			// moving future observations into the training partition.
+			// Moving them would leak a newer event into a time-forward
+			// model that is evaluated on earlier validation events.
 			continue
 		}
 		validationSet = append(validationSet, sample)
