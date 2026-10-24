@@ -119,8 +119,10 @@ func (m *LogisticModel) Train(samples [][FeatureDim]float64, labels []int32) {
 		}
 	}
 
-	// ── CUDA-accelerated training path ──
-	if cuda.IsAvailable() && nSamples >= 100 {
+	// CUDA currently implements an unweighted loss. Running a balanced model
+	// there would silently ignore ClassWeights and change its decision boundary.
+	// Invalid labels are likewise unsafe for the CUDA gradient kernel.
+	if cuda.IsAvailable() && m.cudaTrainingCompatible(labels) {
 		m.trainWithCUDA(samples, labels, nSamples)
 		return
 	}
@@ -187,6 +189,21 @@ func (m *LogisticModel) Train(samples [][FeatureDim]float64, labels []int32) {
 			break
 		}
 	}
+}
+
+
+// cudaTrainingCompatible checks the loss semantics independently of GPU
+// availability, so the weighted CPU fallback can be covered on CI hosts.
+func (m *LogisticModel) cudaTrainingCompatible(labels []int32) bool {
+	if len(labels) < 100 || len(m.ClassWeights) != 0 {
+		return false
+	}
+	for _, label := range labels {
+		if label < 0 || int(label) >= m.NumClasses {
+			return false
+		}
+	}
+	return true
 }
 
 // computeClassWeights computes inverse-frequency class weights to handle imbalance.
