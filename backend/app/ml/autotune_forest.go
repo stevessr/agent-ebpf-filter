@@ -4,45 +4,16 @@ package ml
 // the sweep harness and the model registry tests.
 
 import (
-	"errors"
 	"math"
 	"math/rand"
 	"sort"
 )
 
+// PrepareAutoTuneSplit partitions duplicates as complete groups, then stratifies
+// the group assignment where class evidence permits. A missing validation class
+// is reported by security metric coverage rather than invented as zero recall.
 func PrepareAutoTuneSplit(labeled []TrainingSample, validationRatio float64) ([]TrainSample, []TrainSample, []TrainingSample, []TrainingSample, error) {
-	if len(labeled) < 2 {
-		return nil, nil, nil, nil, errors.New("need at least 2 labeled samples for tuning")
-	}
-	if validationRatio <= 0 || validationRatio >= 0.5 {
-		validationRatio = 0.20
-	}
-
-	samples := make([]TrainSample, len(labeled))
-	for i, s := range labeled {
-		samples[i] = TrainSample{features: s.Features, label: s.Label}
-	}
-
-	shuffledRaw := append([]TrainingSample(nil), labeled...)
-	rand.Shuffle(len(samples), func(i, j int) {
-		samples[i], samples[j] = samples[j], samples[i]
-		shuffledRaw[i], shuffledRaw[j] = shuffledRaw[j], shuffledRaw[i]
-	})
-
-	validationCount := int(math.Round(float64(len(samples)) * validationRatio))
-	if validationCount < 1 {
-		validationCount = 1
-	}
-	if validationCount >= len(samples) {
-		validationCount = len(samples) - 1
-	}
-
-	trainCount := len(samples) - validationCount
-	trainSet := append([]TrainSample(nil), samples[:trainCount]...)
-	validationSet := append([]TrainSample(nil), samples[trainCount:]...)
-	trainRaw := append([]TrainingSample(nil), shuffledRaw[:trainCount]...)
-	validationRaw := append([]TrainingSample(nil), shuffledRaw[trainCount:]...)
-	return trainSet, validationSet, trainRaw, validationRaw, nil
+	return prepareGroupedHoldout(labeled, validationRatio)
 }
 
 func BuildAutoTuneForest(trainSet []TrainSample, numTrees, maxDepth, minSamplesLeaf int, seed int64) *DecisionForest {
