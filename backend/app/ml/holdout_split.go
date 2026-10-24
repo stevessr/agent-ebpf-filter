@@ -20,7 +20,6 @@ type holdoutGroup struct {
 	key     [32]byte
 	indices []int
 	counts  [4]int
-	primary int
 }
 
 // prepareGroupedHoldout keeps duplicate behavior signatures in one partition.
@@ -64,13 +63,6 @@ func prepareGroupedHoldout(labeled []TrainingSample, ratio float64) ([]TrainSamp
 	})
 	rng := rand.New(rand.NewSource(HoldoutSplitSeed))
 	rng.Shuffle(len(groups), func(i, j int) { groups[i], groups[j] = groups[j], groups[i] })
-	for _, group := range groups {
-		for c := 1; c < 4; c++ {
-			if group.counts[c] > group.counts[group.primary] {
-				group.primary = c
-			}
-		}
-	}
 
 	validationTarget := int(math.Round(float64(len(labeled)) * ratio))
 	if validationTarget < 1 {
