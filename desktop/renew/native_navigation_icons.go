@@ -13,6 +13,7 @@ var workspaceNavigationIcons = map[string]*ui.SVG{
 	"研判":       renewNavigationSVG(`<path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5M3 16l9 5 9-5"/>`),
 	"事件":       renewNavigationSVG(`<path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/>`),
 	"派生":       renewNavigationSVG(`<circle cx="5" cy="12" r="2"/><circle cx="18" cy="5" r="2"/><circle cx="18" cy="19" r="2"/><path d="M7 12h5m0 0 4-6m-4 6 4 6"/>`),
+	"AgentSight": renewNavigationSVG(`<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M6 15l4-4 3 2 5-6"/><circle cx="18" cy="7" r="1"/>`),
 	"会话":       renewNavigationSVG(`<path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5 9 9 0 0 1-4.1-.9L3 21l1.9-5.4a9 9 0 0 1-.9-4.1A8.5 8.5 0 0 1 12.5 3 8.5 8.5 0 0 1 21 11.5Z"/><path d="M8 12h9"/>`),
 	"域名":       renewNavigationSVG(`<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c-3 4-3 14 0 18m0-18c3 4 3 14 0 18"/>`),
 	"网络":       renewNavigationSVG(`<circle cx="12" cy="5" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/><path d="m11 7-5 9m7-9 5 9M7 18h10"/>`),
@@ -37,6 +38,6 @@ func workspaceNavigationIcon(page string) *ui.SVG {
 // The narrow rail deliberately keeps the most-used pages. The full sidebar
 // exposes the complete set, and both surfaces share these same SVGs.
 var workspaceRailPages = []string{
-	"概览", "事件", "研判", "会话", "派生", "网络", "域名", "进程",
+	"概览", "事件", "研判", "会话", "AgentSight", "派生", "网络", "域名", "进程",
 	"Agent 识别", "监控", "规则", "系统", "终端",
 }
