@@ -10,6 +10,7 @@ import (
 	"agent-ebpf-filter/app/ml"
 	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/core"
+	"agent-ebpf-filter/internal/heuristics"
 	"agent-ebpf-filter/pb"
 )
 
@@ -186,6 +187,14 @@ func resolveAction(
 	mlEnabled bool,
 	mlModelLoaded bool,
 ) (pb.WrapperResponse_Action, string) {
+	// A verified web-service process must not launch an OS shell through the wrapper.
+	// This deterministic rule does not depend on the ML model or its confidence.
+	if req != nil {
+		if finding, ok := heuristics.DetectWebShellWrapper(req.Comm, req.Args, req.Pid); ok {
+			return pb.WrapperResponse_BLOCK, "Web service shell policy: " + finding.Code + ": " + finding.Reason()
+		}
+	}
+
 	// ── Explicit high-priority rules always win ──
 	if ruleAction != "" && rulePriority >= cfg.RuleOverridePriority {
 		switch ruleAction {
