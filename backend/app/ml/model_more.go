@@ -31,17 +31,31 @@ func NewNaiveBayes() *NaiveBayesModel      { return &NaiveBayesModel{Classes: 4}
 func (m *NaiveBayesModel) Type() ModelType { return ModelNaiveBayes }
 
 func (m *NaiveBayesModel) Predict(features [FeatureDim]float64) Prediction {
-	if len(m.Means) == 0 {
+	if m.Classes <= 0 || len(m.Means) < m.Classes || len(m.Vars) < m.Classes || len(m.Priors) < m.Classes {
 		return Prediction{Action: 0, Confidence: 0, AnomalyScore: 0.5}
 	}
-	var bestClass int32
+	bestClass := int32(0)
 	bestLogProb := math.Inf(-1)
 	logProbs := make([]float64, m.Classes)
+	for c := range logProbs {
+		logProbs[c] = math.Inf(-1)
+	}
 	for c := 0; c < m.Classes; c++ {
-		logProb := math.Log(m.Priors[c] + 1e-10)
+		// The smoothed 1e-10 prior previously made a never-observed class
+		// artificially competitive: zero variance across 128 dimensions
+		// could overwhelm its tiny prior and produce a confident false BLOCK.
+		// No observed examples means this class is unavailable to predict.
+		if m.Priors[c] <= 0 || math.IsNaN(m.Priors[c]) {
+			continue
+		}
+		logProb := math.Log(m.Priors[c])
 		for d := 0; d < FeatureDim; d++ {
+			variance := math.Max(m.Vars[c][d], 0) + 1e-8
 			diff := features[d] - m.Means[c][d]
-			logProb += -0.5 * (diff*diff/(m.Vars[c][d]+1e-8) + math.Log(2*math.Pi*(m.Vars[c][d]+1e-8)))
+			logProb += -0.5 * (diff*diff/variance + math.Log(2*math.Pi*variance))
+		}
+		if math.IsNaN(logProb) {
+			continue
 		}
 		logProbs[c] = logProb
 		if logProb > bestLogProb {
@@ -49,11 +63,17 @@ func (m *NaiveBayesModel) Predict(features [FeatureDim]float64) Prediction {
 			bestClass = int32(c)
 		}
 	}
+	if math.IsInf(bestLogProb, -1) {
+		return Prediction{Action: 0, Confidence: 0, AnomalyScore: 0.5}
+	}
 	sumExp := 0.0
 	for _, lp := range logProbs {
 		sumExp += math.Exp(lp - bestLogProb)
 	}
-	confidence := 1.0 / (sumExp + 1e-10)
+	if sumExp <= 0 || math.IsNaN(sumExp) || math.IsInf(sumExp, 0) {
+		return Prediction{Action: 0, Confidence: 0, AnomalyScore: 0.5}
+	}
+	confidence := 1.0 / sumExp
 	return Prediction{Action: bestClass, Confidence: confidence, AnomalyScore: 1 - confidence}
 }
 
