@@ -51,6 +51,40 @@ type agentSightUsageResponse struct {
 	Summary agentSightUsageSummary `json:"summary"`
 }
 
+// Effect counters summarize only the loaded compact desktop event window;
+// they are not silently extrapolated to the retained model-usage report.
+type agentSightEffects struct {
+	AgentEvents   int
+	FileMutations int
+	NetworkEvents int
+	RiskEvents    int
+	DeniedEvents  int
+}
+
+func buildAgentSightEffects(events []eventSummary) agentSightEffects {
+	var result agentSightEffects
+	for _, event := range events {
+		if !isAgentSummary(event) {
+			continue
+		}
+		result.AgentEvents++
+		if isFileMutationSummary(event) {
+			result.FileMutations++
+		}
+		if event.Network || isNetworkEvent(event) {
+			result.NetworkEvents++
+		}
+		if eventRisk(event) != "正常" || event.Type == "semantic_alert" || event.Type == "agentsight_alert" {
+			result.RiskEvents++
+		}
+		decision := strings.ToUpper(strings.TrimSpace(event.Decision))
+		if decision == "BLOCK" || decision == "DENY" {
+			result.DeniedEvents++
+		}
+	}
+	return result
+}
+
 const agentSightDesktopEventLimit = 2000
 
 func (c *apiClient) agentSightUsage(ctx context.Context) (agentSightUsageResponse, error) {
@@ -109,9 +143,10 @@ func agentSightSessionLabel(id string) string {
 	if id == "" {
 		return "未知会话"
 	}
-	// IDs may be long; do not lose their source distinction.
-	if len(id) > 72 {
-		return id[:44] + "…" + id[len(id)-18:]
+	// Truncate by rune so imported Unicode session IDs remain valid UTF-8.
+	runes := []rune(id)
+	if len(runes) > 72 {
+		return string(runes[:44]) + "…" + string(runes[len(runes)-18:])
 	}
 	return id
 }
@@ -194,6 +229,17 @@ func (a *renewApp) agentSightView(c *ui.Context) {
 			a.clearEventFilters()
 			a.page = "事件"
 		}
+	})
+	effects := buildAgentSightEffects(a.events)
+	card(c, "系统行为侧证 · 桌面摘要窗口", func() {
+		ui.Text(c, fmt.Sprintf("当前本机摘要窗口内识别到 %d 条 Agent 相关事件；系统行为和模型用量的覆盖窗口可能不同，不代表逐调用因果关系。", effects.AgentEvents)).
+			FontSize(12).TextColor(t.TextMuted)
+		ui.Row(c).Gap(12).Wrap().Children(func() {
+			statCard(c, "文件修改", strconv.Itoa(effects.FileMutations), "来自当前摘要")
+			statCard(c, "网络事件", strconv.Itoa(effects.NetworkEvents), "连接等系统事件")
+			statCard(c, "风险事件", strconv.Itoa(effects.RiskEvents), "不等于已拦截")
+			statCard(c, "BLOCK / DENY", strconv.Itoa(effects.DeniedEvents), "记录中的策略决策")
+		})
 	})
 	card(c, fmt.Sprintf("模型用量 · %d", len(summary.Models)), func() {
 		if len(summary.Models) == 0 {
