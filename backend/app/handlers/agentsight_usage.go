@@ -18,16 +18,16 @@ import (
 // AgentSightUsageSummary is a bounded, metadata-only report. It never exports
 // prompt bodies, TLS plaintext, filenames, or request headers.
 type AgentSightUsageSummary struct {
-	EventCount          int                         `json:"event_count"`
-	UnattributedEvents  int                         `json:"unattributed_events"`
-	UsageEvents         int                         `json:"usage_events"`
-	InputTokens         uint64                      `json:"input_tokens"`
-	OutputTokens        uint64                      `json:"output_tokens"`
-	CacheReadTokens     uint64                      `json:"cache_read_tokens"`
-	CacheCreationTokens uint64                      `json:"cache_creation_tokens"`
-	Sessions            []AgentSightSessionUsage    `json:"sessions"`
-	Models              []AgentSightModelUsage      `json:"models"`
-	Coverage            string                      `json:"coverage"`
+	EventCount          int                      `json:"event_count"`
+	UnattributedEvents  int                      `json:"unattributed_events"`
+	UsageEvents         int                      `json:"usage_events"`
+	InputTokens         uint64                   `json:"input_tokens"`
+	OutputTokens        uint64                   `json:"output_tokens"`
+	CacheReadTokens     uint64                   `json:"cache_read_tokens"`
+	CacheCreationTokens uint64                   `json:"cache_creation_tokens"`
+	Sessions            []AgentSightSessionUsage `json:"sessions"`
+	Models              []AgentSightModelUsage   `json:"models"`
+	Coverage            string                   `json:"coverage"`
 }
 
 type AgentSightSessionUsage struct {

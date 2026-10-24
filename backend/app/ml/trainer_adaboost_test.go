@@ -16,10 +16,10 @@ func TestAdaBoostLearnsAllFourActions(t *testing.T) {
 		}
 		for i := 0; i < 25; i++ {
 			store.Add(TrainingSample{
-				Features: exemplars[action],
-				Label: int32(action),
+				Features:    exemplars[action],
+				Label:       int32(action),
 				CommandLine: fmt.Sprintf("ada-action-%d-example-%d", action, i),
-				UserLabel: "test",
+				UserLabel:   "test",
 			})
 		}
 	}

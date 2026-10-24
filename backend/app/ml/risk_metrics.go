@@ -89,11 +89,15 @@ func evaluateRiskModel(model Model, samples []TrainingSample) riskEvaluation {
 		}
 		if label == 1 {
 			result.BlockSamples++
-			if correct { blockCorrect++ }
+			if correct {
+				blockCorrect++
+			}
 		}
 		if label == 3 {
 			result.AlertSamples++
-			if correct { alertCorrect++ }
+			if correct {
+				alertCorrect++
+			}
 		}
 		if label == 0 {
 			result.BenignSamples++

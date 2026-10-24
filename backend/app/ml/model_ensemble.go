@@ -107,7 +107,9 @@ func (m *EnsembleModel) hardVote(features [FeatureDim]float64) Prediction {
 	votes := make([]float64, 4)
 	totalW := 0.0
 	for i, model := range m.Models {
-		if model == nil || i >= len(m.Weights) { continue }
+		if model == nil || i >= len(m.Weights) {
+			continue
+		}
 		pred := model.Predict(features)
 		w := m.Weights[i]
 		if validEnsembleVote(pred, w) {
@@ -134,10 +136,14 @@ func (m *EnsembleModel) softVote(features [FeatureDim]float64) Prediction {
 	classProbs := make([]float64, 4)
 	totalW := 0.0
 	for i, model := range m.Models {
-		if model == nil || i >= len(m.Weights) { continue }
+		if model == nil || i >= len(m.Weights) {
+			continue
+		}
 		pred := model.Predict(features)
 		w := m.Weights[i]
-		if !validEnsembleVote(pred, w) { continue }
+		if !validEnsembleVote(pred, w) {
+			continue
+		}
 		for c := 0; c < 4; c++ {
 			if pred.Action == int32(c) {
 				classProbs[c] += pred.Confidence * w
@@ -169,7 +175,9 @@ func (m *EnsembleModel) stackedVote(features [FeatureDim]float64) Prediction {
 	bestRisk := soft
 	bestRiskWeight := 0.0
 	for i, model := range m.Models {
-		if model == nil || i >= len(m.Weights) { continue }
+		if model == nil || i >= len(m.Weights) {
+			continue
+		}
 		pred := model.Predict(features)
 		weight := m.Weights[i]
 		if !validEnsembleVote(pred, weight) || (pred.Action != 1 && pred.Action != 3) {

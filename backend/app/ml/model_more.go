@@ -249,8 +249,12 @@ func buildExtraTree(samples []TrainSample, depth, maxDepth, minLeaf, fCount int,
 				valid = false
 				break
 			}
-			if v < minV { minV = v }
-			if v > maxV { maxV = v }
+			if v < minV {
+				minV = v
+			}
+			if v > maxV {
+				maxV = v
+			}
 		}
 		if !valid || minV >= maxV {
 			continue
@@ -267,16 +271,20 @@ func buildExtraTree(samples []TrainSample, depth, maxDepth, minLeaf, fCount int,
 			for _, s := range samples {
 				if s.features[fi] < threshold {
 					nLeft++
-					if s.label >= 0 && s.label < 4 { leftCounts[s.label]++ }
+					if s.label >= 0 && s.label < 4 {
+						leftCounts[s.label]++
+					}
 				} else {
-					if s.label >= 0 && s.label < 4 { rightCounts[s.label]++ }
+					if s.label >= 0 && s.label < 4 {
+						rightCounts[s.label]++
+					}
 				}
 			}
-			nRight := len(samples)-nLeft
+			nRight := len(samples) - nLeft
 			if nLeft < minLeaf || nRight < minLeaf {
 				continue
 			}
-			leftWeight := float64(nLeft)/float64(len(samples))
+			leftWeight := float64(nLeft) / float64(len(samples))
 			gain := parentGini -
 				leftWeight*giniFromCounts(leftCounts, nLeft) -
 				(1-leftWeight)*giniFromCounts(rightCounts, nRight)

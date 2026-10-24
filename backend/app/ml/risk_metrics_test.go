@@ -1,8 +1,8 @@
 package ml
 
 import (
-	"strconv"
 	"math"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -146,8 +146,8 @@ func TestSplitEnsembleCalibrationHoldoutKeepsRepeatedBehaviorInTraining(t *testi
 	samples := make([]TrainingSample, 40)
 	for i := range samples {
 		samples[i] = TrainingSample{
-			Label: int32(i % 4),
-			Timestamp: base.Add(time.Duration(i) * time.Minute),
+			Label:       int32(i % 4),
+			Timestamp:   base.Add(time.Duration(i) * time.Minute),
 			CommandLine: "unique-cmd-" + strconv.Itoa(i),
 		}
 	}
@@ -240,7 +240,7 @@ func TestEnsembleWeightsPenalizeIndiscriminateRiskPredictions(t *testing.T) {
 		Samples: 200, BalancedAccuracy: 0.8,
 		HighRiskSamples: 40, HighRiskRecall: 1, HighRiskExactRecall: 0.8,
 		HighRiskPredictions: 60,
-		BenignSamples: 100, BenignFalsePositiveRate: 0.05,
+		BenignSamples:       100, BenignFalsePositiveRate: 0.05,
 		ConfidenceBrier: 0.1, ECE: 0.08,
 	}
 	highPrecision := base
@@ -259,8 +259,8 @@ func TestBenchmarkHoldoutExcludesRepeatedFutureCommands(t *testing.T) {
 	samples := make([]TrainingSample, 40)
 	for i := range samples {
 		samples[i] = TrainingSample{
-			Label: int32(i % 4),
-			Timestamp: base.Add(time.Duration(i) * time.Minute),
+			Label:       int32(i % 4),
+			Timestamp:   base.Add(time.Duration(i) * time.Minute),
 			CommandLine: "benchmark-command-" + strconv.Itoa(i),
 		}
 	}

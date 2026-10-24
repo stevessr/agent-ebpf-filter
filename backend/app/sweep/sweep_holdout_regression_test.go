@@ -14,11 +14,11 @@ func TestIncrementalSweepUsesRealHoldout(t *testing.T) {
 		features[i%4] = 1
 		features[31] = float64(i+1) / 100
 		samples = append(samples, ml.TrainingSample{
-			Features: features,
-			Label: int32(i % 4),
+			Features:    features,
+			Label:       int32(i % 4),
 			CommandLine: fmt.Sprintf("sweep-class-%d-example-%d", i%4, i),
-			Timestamp: time.Unix(1780000000+int64(i), 0),
-			UserLabel: "test",
+			Timestamp:   time.Unix(1780000000+int64(i), 0),
+			UserLabel:   "test",
 		})
 	}
 	store := trainingStoreFromSamples(samples)

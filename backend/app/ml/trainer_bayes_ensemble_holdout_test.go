@@ -19,8 +19,8 @@ func TestNaiveBayesAndEnsembleTrainOnIndependentBehaviorHoldouts(t *testing.T) {
 				store.Add(TrainingSample{
 					Features: features, Label: label,
 					CommandLine: fmt.Sprintf("unique-run-%s-%03d", mt, i),
-					Timestamp: base.Add(time.Duration(i) * time.Second),
-					UserLabel: "test",
+					Timestamp:   base.Add(time.Duration(i) * time.Second),
+					UserLabel:   "test",
 				})
 			}
 			cfg := DefaultMLConfig()

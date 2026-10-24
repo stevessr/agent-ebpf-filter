@@ -247,16 +247,26 @@ func trainAdaBoostFromDataBalanced(X [][FeatureDim]float64, Y []int32, nEst int,
 	weights := make([]float64, n)
 	normalize := func() bool {
 		total := 0.0
-		for _, weight := range weights { total += weight }
-		if total <= 0 || math.IsNaN(total) || math.IsInf(total, 0) { return false }
-		for i := range weights { weights[i] /= total }
+		for _, weight := range weights {
+			total += weight
+		}
+		if total <= 0 || math.IsNaN(total) || math.IsInf(total, 0) {
+			return false
+		}
+		for i := range weights {
+			weights[i] /= total
+		}
 		return true
 	}
 	for i, label := range Y {
 		weights[i] = 1
-		if balance { weights[i] = 1 / float64(counts[label]) }
+		if balance {
+			weights[i] = 1 / float64(counts[label])
+		}
 	}
-	if !normalize() { return model }
+	if !normalize() {
+		return model
+	}
 	// Use a local stable RNG so comparing grid cells does not depend on
 	// request timing or the process-global random stream.
 	rng := rand.New(rand.NewSource(0x414441424f4f5354))
@@ -270,16 +280,22 @@ func trainAdaBoostFromDataBalanced(X [][FeatureDim]float64, Y []int32, nEst int,
 			var totals [2]float64
 			for i, sample := range X {
 				side := 0
-				if sample[feature] >= threshold { side = 1 }
+				if sample[feature] >= threshold {
+					side = 1
+				}
 				sides[side][Y[i]] += weights[i]
 				totals[side] += weights[i]
 			}
-			if totals[0] <= 0 || totals[1] <= 0 { continue }
+			if totals[0] <= 0 || totals[1] <= 0 {
+				continue
+			}
 			votes := [2]int{}
 			correct := 0.0
 			for side := 0; side < 2; side++ {
 				for c := 1; c < 4; c++ {
-					if sides[side][c] > sides[side][votes[side]] { votes[side] = c }
+					if sides[side][c] > sides[side][votes[side]] {
+						votes[side] = c
+					}
 				}
 				correct += sides[side][votes[side]]
 			}
@@ -295,16 +311,24 @@ func trainAdaBoostFromDataBalanced(X [][FeatureDim]float64, Y []int32, nEst int,
 		}
 		err := math.Max(1e-10, bestError)
 		alpha := math.Log((1-err)/err) + math.Log(float64(model.Classes-1))
-		if alpha <= 0 || math.IsNaN(alpha) || math.IsInf(alpha, 0) { continue }
+		if alpha <= 0 || math.IsNaN(alpha) || math.IsInf(alpha, 0) {
+			continue
+		}
 		model.Stumps = append(model.Stumps, best)
 		model.Alphas = append(model.Alphas, alpha)
 		penalty := math.Exp(alpha)
 		for i, sample := range X {
 			vote := int32(best.RightVote)
-			if sample[best.Feature] < best.Threshold { vote = int32(best.LeftVote) }
-			if vote != Y[i] { weights[i] *= penalty }
+			if sample[best.Feature] < best.Threshold {
+				vote = int32(best.LeftVote)
+			}
+			if vote != Y[i] {
+				weights[i] *= penalty
+			}
 		}
-		if !normalize() { break }
+		if !normalize() {
+			break
+		}
 	}
 	return model
 }

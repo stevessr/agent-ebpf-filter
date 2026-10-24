@@ -8,8 +8,8 @@ import (
 type ensembleVoteStub struct{ prediction Prediction }
 
 func (m *ensembleVoteStub) Predict([FeatureDim]float64) Prediction { return m.prediction }
-func (m *ensembleVoteStub) Serialize(string) error { return nil }
-func (m *ensembleVoteStub) Type() ModelType { return ModelType("ensemble-vote-stub") }
+func (m *ensembleVoteStub) Serialize(string) error                 { return nil }
+func (m *ensembleVoteStub) Type() ModelType                        { return ModelType("ensemble-vote-stub") }
 
 func TestEnsembleAbstainingMembersDoNotInventAllowOrRiskVotes(t *testing.T) {
 	unknown := &ensembleVoteStub{prediction: Prediction{Action: 0, Confidence: 0}}

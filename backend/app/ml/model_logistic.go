@@ -191,7 +191,6 @@ func (m *LogisticModel) Train(samples [][FeatureDim]float64, labels []int32) {
 	}
 }
 
-
 // cudaTrainingCompatible checks the loss semantics independently of GPU
 // availability, so the weighted CPU fallback can be covered on CI hosts.
 func (m *LogisticModel) cudaTrainingCompatible(labels []int32) bool {

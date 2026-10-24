@@ -12,7 +12,9 @@ func TestAutoTuneAdaBoostSupportsFourActionsDeterministically(t *testing.T) {
 		for i := 0; i < 24; i++ {
 			var features [FeatureDim]float64
 			for d := 0; d < FeatureDim; d++ {
-				if d%4 == label { features[d] = 1 }
+				if d%4 == label {
+					features[d] = 1
+				}
 			}
 			features[127] = float64(i) / 1000
 			X = append(X, features)
@@ -32,7 +34,9 @@ func TestAutoTuneAdaBoostSupportsFourActionsDeterministically(t *testing.T) {
 	for _, label := range []int32{2, 3} {
 		var features [FeatureDim]float64
 		for d := 0; d < FeatureDim; d++ {
-			if d%4 == int(label) { features[d] = 1 }
+			if d%4 == int(label) {
+				features[d] = 1
+			}
 		}
 		prediction := first.Predict(features)
 		if prediction.Action != label {

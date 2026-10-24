@@ -11,7 +11,9 @@ func TestKNNExactDuplicateVotesAreNotTruncatedByK(t *testing.T) {
 	knn.Labels = []int32{0, 1, 1, 1, 1, 1, 1, 1}
 	var point [FeatureDim]float64
 	point[4] = 0.5
-	for i := range knn.Samples { knn.Samples[i] = point }
+	for i := range knn.Samples {
+		knn.Samples[i] = point
+	}
 	prediction := knn.Predict(point)
 	if prediction.Action != 1 || math.Abs(prediction.Confidence-0.875) > 1e-9 {
 		t.Fatalf("one first ALLOW row overruled seven identical BLOCK rows at K=1: %+v", prediction)
@@ -41,7 +43,9 @@ func TestKNNDistanceWeightedExactDuplicatesIncludeAllLabels(t *testing.T) {
 	knn.Labels = []int32{1, 3, 3, 3, 3, 0}
 	var q [FeatureDim]float64
 	q[0] = 0.125
-	for i := 0; i < 5; i++ { knn.Samples[i] = q }
+	for i := 0; i < 5; i++ {
+		knn.Samples[i] = q
+	}
 	knn.Samples[5][0] = 0.1251
 	prediction := knn.Predict(q)
 	if prediction.Action != 3 || math.Abs(prediction.Confidence-0.8) > 1e-9 {

@@ -114,4 +114,3 @@ func buildAutoTuneTree(samples []TrainSample, depth, maxDepth, minSamplesLeaf, f
 	nodes = append(nodes, rightNodes...)
 	return nodes
 }
-

@@ -13,8 +13,8 @@ func holdoutIsolationStore() *TrainingDataStore {
 		features[31] = float64(i+1) / 100
 		features[32] = float64((i*7)%19) / 20
 		store.Add(TrainingSample{
-			Features: features,
-			Label: int32(i % 4),
+			Features:  features,
+			Label:     int32(i % 4),
 			UserLabel: "test",
 		})
 	}

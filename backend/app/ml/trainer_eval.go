@@ -18,7 +18,7 @@ func (t *ModelTrainer) finishMetrics(acc, trainAcc, valAcc float64, total, train
 	t.setValidationRatio(ratio)
 	t.addHistory(TrainingHistoryEntry{
 		Timestamp: trainedAt,
-		Accuracy: acc, TrainAccuracy: trainAcc, ValidationAccuracy: valAcc,
+		Accuracy:  acc, TrainAccuracy: trainAcc, ValidationAccuracy: valAcc,
 		NumSamples: total, TrainSamples: trainN, ValidationSamples: valN,
 		ValidationSplitRatio: ratio,
 	})
