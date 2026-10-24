@@ -141,7 +141,7 @@ func buildIncrementalCountContext(profile sweepProfile, store *ml.TrainingDataSt
 		}
 		// The sweep must train on the exact same holdout-excluded slice that
 		// it later uses to score candidate estimator counts.
-		forest := ml.BuildExtraTrees(trainSet, maxValue, cfgMax.MaxDepth, cfgMax.MinSamplesLeaf, time.Now().UnixNano())
+		forest := ml.BuildExtraTreesWithBalance(trainSet, maxValue, cfgMax.MaxDepth, cfgMax.MinSamplesLeaf, time.Now().UnixNano(), cfgMax.BalanceClasses)
 		ctx.TrainSet = trainSet
 		ctx.ValSet = valSet
 		ctx.ValRaw = valRaw
