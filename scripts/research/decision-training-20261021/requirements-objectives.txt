@@ -1,0 +1,3 @@
+# Matches the existing public-data training environment; CPU only, no model assets.
+--index-url https://download.pytorch.org/whl/cpu
+torch==2.14.1+cpu

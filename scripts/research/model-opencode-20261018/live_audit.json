@@ -1,0 +1,44 @@
+{
+  "all_live_log_hashes_and_call_ids_and_model_digests_verified": true,
+  "native_calls": 21,
+  "privacy_scored_calls": 21,
+  "http_records": 8,
+  "inference_abstentions": 0,
+  "timeouts": 0,
+  "annotation_corrections": [
+    "call_06_6jktklz0rbn9vrr4cw9wh2od"
+  ],
+  "threshold_changes": 0,
+  "fit_count": 0,
+  "actual_blocks": 0,
+  "mode": "shadow_only",
+  "production_approved": false,
+  "agent_privacy": {
+    "n": 21,
+    "tp": 0,
+    "fp": 21,
+    "tn": 0,
+    "fn": 0,
+    "recall": null,
+    "fpr": 1.0,
+    "accuracy": 0.0,
+    "above_threshold": 21,
+    "threshold": 0.5,
+    "truncated_rows": 0
+  },
+  "vulnerability": {
+    "n": 8,
+    "tp": 5,
+    "fp": 3,
+    "tn": 0,
+    "fn": 0,
+    "recall": 1.0,
+    "fpr": 1.0,
+    "accuracy": 0.625,
+    "above_threshold": 8,
+    "threshold": 0.39785023346056037,
+    "truncated_rows": 0
+  },
+  "privacy_live_p50_ms": 9.378298999763501,
+  "privacy_live_max_ms": 63.182698000673554
+}

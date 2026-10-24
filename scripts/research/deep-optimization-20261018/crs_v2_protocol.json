@@ -1,0 +1,25 @@
+{
+  "repo": "coreruleset/coreruleset",
+  "revision": "ab3ccd5fcd691424ba3f320d4040c61417270193",
+  "selection": "predeclared different rule IDs, same pinned release; remove requests duplicated in earlier CRS audit",
+  "role": "new-rule positive offline holdout for corrected families; not an independent second source",
+  "files": [
+    "tests/regression/tests/REQUEST-941-APPLICATION-ATTACK-XSS/941150.yaml",
+    "tests/regression/tests/REQUEST-941-APPLICATION-ATTACK-XSS/941160.yaml",
+    "tests/regression/tests/REQUEST-941-APPLICATION-ATTACK-XSS/941170.yaml",
+    "tests/regression/tests/REQUEST-941-APPLICATION-ATTACK-XSS/941180.yaml",
+    "tests/regression/tests/REQUEST-941-APPLICATION-ATTACK-XSS/941190.yaml",
+    "tests/regression/tests/REQUEST-942-APPLICATION-ATTACK-SQLI/942150.yaml",
+    "tests/regression/tests/REQUEST-942-APPLICATION-ATTACK-SQLI/942160.yaml",
+    "tests/regression/tests/REQUEST-942-APPLICATION-ATTACK-SQLI/942170.yaml",
+    "tests/regression/tests/REQUEST-942-APPLICATION-ATTACK-SQLI/942180.yaml",
+    "tests/regression/tests/REQUEST-942-APPLICATION-ATTACK-SQLI/942190.yaml",
+    "tests/regression/tests/REQUEST-932-APPLICATION-ATTACK-RCE/932130.yaml",
+    "tests/regression/tests/REQUEST-932-APPLICATION-ATTACK-RCE/932140.yaml",
+    "tests/regression/tests/REQUEST-932-APPLICATION-ATTACK-RCE/932150.yaml",
+    "tests/regression/tests/REQUEST-932-APPLICATION-ATTACK-RCE/932160.yaml",
+    "tests/regression/tests/REQUEST-932-APPLICATION-ATTACK-RCE/932170.yaml",
+    "LICENSE"
+  ],
+  "label_policy": "explicit expect_ids for target rule only; no negative relabeling"
+}

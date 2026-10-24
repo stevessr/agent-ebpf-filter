@@ -1,0 +1,15 @@
+{
+  "schema": "kernel-http-behavior.v2",
+  "extractor_sha256": "ad1d2adba51207de02315afca36b00c1b98a72a1f4e0bfb29cba2b130f5cd0b8",
+  "sources": "same ECML + CSIC development corpora and template-disjoint splits as lexical round",
+  "selection": "train-only variance filter + ExtraTrees importance + correlation<.98; 32 maximum features; validation worst-source recall at empirical 1% FPR",
+  "leaf_candidates": [
+    15,
+    31,
+    63
+  ],
+  "feature_label_scope": "HTTP request anomaly only; unavailable syscalls stay missing, never inferred",
+  "old_holdouts_status": "all previously consumed; regression only",
+  "mode": "shadow_only",
+  "production_approved": false
+}

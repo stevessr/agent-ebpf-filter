@@ -1,0 +1,23 @@
+{
+  "version": "request-model-origin-preserving.v2/field-ratios.v3",
+  "changes": [
+    "retain literal # suffix in HTTP request-target",
+    "strip only dataset body CR/LF separators, retain spaces",
+    "body count ratios divide by body.bytes, target ratios by payload.bytes",
+    "Go selection uses minimum feature importance across source-specific train-only forests"
+  ],
+  "lexical_candidates": [
+    "char3-5 logistic C2",
+    "word1-2 logistic C2"
+  ],
+  "go_leaf_candidates": [
+    15,
+    31,
+    63
+  ],
+  "selection": "validation worse-source recall at empirical 1% FPR, then macro AP",
+  "calibration": "max source calibration 99th negative percentile; strict >",
+  "earlier_audits_status": "consumed regression, not independent for follow-up",
+  "mode": "shadow_only",
+  "production_approved": false
+}

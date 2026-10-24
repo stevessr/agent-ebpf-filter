@@ -1,0 +1,57 @@
+name: Offline behavior features
+on:
+  pull_request:
+    paths:
+      - 'backend/internal/behaviorfeatures/**'
+      - 'backend/internal/behaviorrisk/**'
+      - 'backend/internal/strictjson/**'
+      - 'backend/cmd/behavior-features/**'
+      - 'backend/cmd/behavior-risk/**'
+      - 'scripts/research/behavior-features-20261018/**'
+      - 'scripts/research/behavior-production-20261018/**'
+      - 'deploy/systemd/agent-behavior-shadow.service'
+      - '.github/workflows/behavior-features.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: '1.27.1'
+          cache-dependency-path: backend/go.sum
+      - name: Race tests and real Unix socket integration
+        working-directory: backend
+        run: |
+          set -o pipefail
+          test -z "$(gofmt -l internal/behaviorfeatures internal/behaviorrisk internal/strictjson cmd/behavior-features cmd/behavior-risk)"
+          go test -race -json ./internal/behaviorfeatures ./internal/behaviorrisk ./internal/strictjson ./cmd/behavior-features ./cmd/behavior-risk | tee /tmp/behavior-tests.jsonl
+          python3 - <<'PY'
+          import json
+          events=[json.loads(line) for line in open('/tmp/behavior-tests.jsonl')]
+          assert not [e for e in events if e.get('Action')=='skip'], 'CI must execute native socket tests, not skip them'
+          for name in ['TestPrivateServerEndToEnd','TestConnectionLimit']:
+              assert any(e.get('Action')=='pass' and e.get('Test')==name for e in events), name
+          PY
+          go vet ./internal/behaviorfeatures ./internal/behaviorrisk ./internal/strictjson ./cmd/behavior-features ./cmd/behavior-risk
+      - name: Bounded input fuzzing
+        working-directory: backend
+        run: |
+          go test -run '^$' -fuzz FuzzStrictJSON -fuzztime=15s -parallel=2 ./internal/strictjson
+          go test -run '^$' -fuzz FuzzBoundedVector -fuzztime=15s -parallel=2 ./internal/behaviorrisk
+      - name: Data and calibration protocol tests
+        run: |
+          python3 -m pip install -r scripts/research/behavior-features-20261018/requirements.txt
+          (cd scripts/research/behavior-features-20261018 && python3 -m unittest -v test_pipeline.py)
+          (cd scripts/research/behavior-production-20261018 && python3 -m unittest -v test_production.py)
+      - name: Actual benign kernel syscall trace (isolated runner)
+        run: |
+          command -v strace || (sudo apt-get update -qq && sudo apt-get install -y strace)
+          (cd backend && go build -o /tmp/behavior-features ./cmd/behavior-features)
+          fixture_dir=$(mktemp -d /tmp/behavior-fixture.XXXXXX)
+          strace -f -yy -s 4096 -e trace=openat,read,write,execve -o /tmp/behavior-fixture.trace python3 -I scripts/research/behavior-production-20261018/kernel_fixture.py "$fixture_dir"
+          python3 scripts/research/behavior-production-20261018/audit_kernel_fixture.py --trace /tmp/behavior-fixture.trace --root "$fixture_dir" --extractor /tmp/behavior-features --out /tmp/kernel-fixture-audit.json

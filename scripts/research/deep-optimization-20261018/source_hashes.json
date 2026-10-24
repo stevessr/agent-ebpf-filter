@@ -1,0 +1,22 @@
+{
+  "https://huggingface.co/datasets/ServiceNow/PrivacyAlign/resolve/edaf507a2d1019b03b592b92a60d113b7eb46425/data/train.jsonl": "f18f7298c45d1d4eb34b5fb363200e93da67d322d50203340a870ab40d1135ea",
+  "https://huggingface.co/datasets/ServiceNow/PrivacyAlign/resolve/edaf507a2d1019b03b592b92a60d113b7eb46425/data/test.jsonl": "dcb6793c1ada91be158060a06036acda279b4f91d897968cdd2406c0e56087c5",
+  "https://huggingface.co/datasets/ServiceNow/PrivacyAlign/resolve/edaf507a2d1019b03b592b92a60d113b7eb46425/README.md": "71fd1d4ebda7729e97ba34d4417b55d3fca8803476d761ac7a542b966ebdcdf7",
+  "https://huggingface.co/google/bert_uncased_L-2_H-128_A-2/resolve/30b0a37ccaaa32f332884b96992754e246e48c5f/config.json": "508e1f01aae55d73355cbdd82609be2f43ba5a0d3428837adbe56cf8391f8b39",
+  "https://huggingface.co/google/bert_uncased_L-2_H-128_A-2/resolve/30b0a37ccaaa32f332884b96992754e246e48c5f/vocab.txt": "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3",
+  "https://huggingface.co/google/bert_uncased_L-2_H-128_A-2/resolve/30b0a37ccaaa32f332884b96992754e246e48c5f/model.safetensors": "7fb69ad9f6866d8983183c930e33828f326470bf6ad8bbb2ad4ed957a92e9414",
+  "https://huggingface.co/google/bert_uncased_L-2_H-128_A-2/resolve/30b0a37ccaaa32f332884b96992754e246e48c5f/README.md": "d13a54d652a2a54fbbc50e063b465fb273295870867821e1b06baba1d49d68a9",
+  "https://huggingface.co/google/bert_uncased_L-4_H-256_A-4/resolve/387825ce42dbb39b87911cdf8e383ee3b25184f8/config.json": "61716a972c73e9cc1d6f1165e27e577c1f4012a3cc480e431f427a78d5071ece",
+  "https://huggingface.co/google/bert_uncased_L-4_H-256_A-4/resolve/387825ce42dbb39b87911cdf8e383ee3b25184f8/vocab.txt": "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3",
+  "https://huggingface.co/google/bert_uncased_L-4_H-256_A-4/resolve/387825ce42dbb39b87911cdf8e383ee3b25184f8/pytorch_model.bin": "01671831dfec6818302153919efbfd6ee4ad91dd9fba7f3649bdd6cb7b0f16e4",
+  "https://huggingface.co/google/bert_uncased_L-4_H-256_A-4/resolve/387825ce42dbb39b87911cdf8e383ee3b25184f8/README.md": "d13a54d652a2a54fbbc50e063b465fb273295870867821e1b06baba1d49d68a9",
+  "https://raw.githubusercontent.com/msudol/Web-Application-Attack-Datasets/424c6e1c1951570473d9d6c0227eaaac6fdd6d02/OriginalDataSets/csic_2010/normalTrafficTraining.txt": "d51de812d9201ef2b173b6ae3e3e740c309047ac85545c06c51d6fb1ddbc1e63",
+  "https://raw.githubusercontent.com/msudol/Web-Application-Attack-Datasets/424c6e1c1951570473d9d6c0227eaaac6fdd6d02/OriginalDataSets/csic_2010/normalTrafficTest.txt": "f05dfc312d5d14fd1ed8371de27a9e4deab3dc09265f5d7f9df2643df8385089",
+  "https://raw.githubusercontent.com/msudol/Web-Application-Attack-Datasets/424c6e1c1951570473d9d6c0227eaaac6fdd6d02/OriginalDataSets/csic_2010/anomalousTrafficTest.txt": "12fa4f0d496ceb859bb2652abf7f0f0ed8c59e1d9ce501b8a9a0ef38a625c046",
+  "https://raw.githubusercontent.com/msudol/Web-Application-Attack-Datasets/424c6e1c1951570473d9d6c0227eaaac6fdd6d02/OriginalDataSets/csic_2010/README.md": "c8ceb802ce21b51e6db6412f9d8ad646bb5151d297b4c2ab28c86f37134fbe93",
+  "https://raw.githubusercontent.com/msudol/Web-Application-Attack-Datasets/424c6e1c1951570473d9d6c0227eaaac6fdd6d02/OriginalDataSets/ecml_pkdd/dataset_ecml_pkdd_train_test/xml_train.txt": "b4e85e85a315eb522f5175e11ed0d35d0e0aab5cd41c4618102b624772692a86",
+  "https://raw.githubusercontent.com/msudol/Web-Application-Attack-Datasets/424c6e1c1951570473d9d6c0227eaaac6fdd6d02/OriginalDataSets/ecml_pkdd/dataset_ecml_pkdd_train_test/xml_test.txt": "f1b79ffbe51b271a55545fb4caf1f4edd97e3514a835ade64f875245a9bb4116",
+  "https://raw.githubusercontent.com/msudol/Web-Application-Attack-Datasets/424c6e1c1951570473d9d6c0227eaaac6fdd6d02/LICENSE": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+  "https://raw.githubusercontent.com/msudol/Web-Application-Attack-Datasets/424c6e1c1951570473d9d6c0227eaaac6fdd6d02/README.md": "42d86254de37a08f7a43004d458fdabb62d1e24edfc0e8eb86365bbe990b6d2c",
+  "https://raw.githubusercontent.com/msudol/Web-Application-Attack-Datasets/424c6e1c1951570473d9d6c0227eaaac6fdd6d02/OriginalDataSets/ecml_pkdd/README.md": "90261cdaafca760e88cbfed86a8d39b22aa38f6c34ee719fb3386a1abc029721"
+}

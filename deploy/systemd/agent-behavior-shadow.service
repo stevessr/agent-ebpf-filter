@@ -1,0 +1,36 @@
+# Opt-in shadow worker. Install the verified model and checksum manifest first.
+# No policy/enforcement decision is produced by this service.
+[Unit]
+Description=Agent behavior shadow scoring worker
+After=local-fs.target
+
+[Service]
+Type=simple
+DynamicUser=yes
+RuntimeDirectory=agent-behavior
+RuntimeDirectoryMode=0700
+EnvironmentFile=/etc/agent-ebpf/behavior-shadow.env
+Environment=GOMEMLIMIT=96MiB
+ExecStart=/usr/local/bin/behavior-risk --model /etc/agent-ebpf/http_request_model.json --sha256 ${BEHAVIOR_MODEL_SHA256} --socket /run/agent-behavior/risk.sock
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+MemoryMax=128M
+CPUQuota=100%
+TasksMax=32
+LimitNOFILE=64
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictSUIDSGID=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
