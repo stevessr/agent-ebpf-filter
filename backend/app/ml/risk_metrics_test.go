@@ -1,6 +1,7 @@
 package ml
 
 import (
+	"strconv"
 	"math"
 	"testing"
 	"time"
@@ -137,5 +138,159 @@ func assertNear(t *testing.T, name string, got, want float64) {
 	t.Helper()
 	if math.Abs(got-want) > 1e-9 {
 		t.Fatalf("%s: got %f want %f", name, got, want)
+	}
+}
+
+func TestSplitEnsembleCalibrationHoldoutKeepsRepeatedBehaviorInTraining(t *testing.T) {
+	base := time.Unix(1_700_000_000, 0)
+	samples := make([]TrainingSample, 40)
+	for i := range samples {
+		samples[i] = TrainingSample{
+			Label: int32(i % 4),
+			Timestamp: base.Add(time.Duration(i) * time.Minute),
+			CommandLine: "unique-cmd-" + strconv.Itoa(i),
+		}
+	}
+	// New observations of this command are not new independent behaviors.
+	samples[34].CommandLine = samples[4].CommandLine
+	samples[39].CommandLine = samples[2].CommandLine
+	train, holdout := splitEnsembleCalibrationHoldout(samples)
+	if len(train) != 32 || len(holdout) != 6 {
+		t.Fatalf("future duplicate events must be discarded, not inserted into train: train=%d calibration=%d", len(train), len(holdout))
+	}
+	for _, sample := range train {
+		if !sample.Timestamp.Before(samples[32].Timestamp) {
+			t.Fatal("future event leaked into time-forward ensemble training")
+		}
+	}
+	seen := make(map[[32]byte]bool)
+	for _, sample := range train {
+		seen[behaviorHoldoutKey(sample)] = true
+	}
+	for _, sample := range holdout {
+		if seen[behaviorHoldoutKey(sample)] {
+			t.Fatal("behavior present in training leaked into ensemble calibration")
+		}
+	}
+}
+
+func TestRiskMetricsDoNotConflateBlockWithAlert(t *testing.T) {
+	model := &riskMetricTestModel{predictions: []Prediction{
+		{Action: 3, Confidence: 0.9}, // BLOCK mislabeled as ALERT
+		{Action: 1, Confidence: 0.9}, // ALERT mislabeled as BLOCK
+		{Action: 0, Confidence: 0.9}, // correct benign
+	}}
+	labels := []int32{1, 3, 0}
+	samples := make([]TrainingSample, len(labels))
+	for i, label := range labels {
+		samples[i].Features[0] = float64(i)
+		samples[i].Label = label
+	}
+	metrics := evaluateRiskModel(model, samples)
+	if metrics.HighRiskRecall != 1 || metrics.HighRiskExactRecall != 0 {
+		t.Fatalf("high-risk detection was confused with enforcement action correctness: %+v", metrics)
+	}
+	if metrics.BlockSamples != 1 || metrics.BlockRecall != 0 || metrics.AlertSamples != 1 || metrics.AlertRecall != 0 {
+		t.Fatalf("BLOCK/ALERT distinctions lost: %+v", metrics)
+	}
+}
+
+func TestEnsembleCalibrationPrefersCorrectEnforcementToRiskOnlyDetection(t *testing.T) {
+	base := riskEvaluation{
+		Samples: 100, BalancedAccuracy: 0.8,
+		HighRiskSamples: 40, HighRiskRecall: 1,
+		BenignSamples: 40, BenignFalsePositiveRate: 0.05,
+		ConfidenceBrier: 0.1, ECE: 0.1,
+	}
+	unsafe := base
+	unsafe.HighRiskExactRecall = 0 // every BLOCK is only ALERTed
+	correct := base
+	correct.HighRiskExactRecall = 1
+	if a, b := calibratedEnsembleWeight(correct), calibratedEnsembleWeight(unsafe); !(a > b) {
+		t.Fatalf("unsafe high-risk action substitution ranked equally: exact=%v swapped=%v", a, b)
+	}
+}
+
+func TestSecurityRiskPrecisionAndMacroF1(t *testing.T) {
+	model := &riskMetricTestModel{predictions: []Prediction{
+		{Action: 1, Confidence: 0.8}, // ALLOW blocked: false enforcement
+		{Action: 1, Confidence: 0.8}, // BLOCK correct
+		{Action: 1, Confidence: 0.8}, // REWRITE blocked: false enforcement
+		{Action: 3, Confidence: 0.8}, // ALERT correct
+	}}
+	samples := make([]TrainingSample, 4)
+	for i, label := range []int32{0, 1, 2, 3} {
+		samples[i].Features[0] = float64(i)
+		samples[i].Label = label
+	}
+	metrics := evaluateRiskModel(model, samples)
+	assertNear(t, "high-risk recall", metrics.HighRiskRecall, 1)
+	assertNear(t, "risk precision", metrics.HighRiskPrecision, 0.5)
+	assertNear(t, "exact risk recall", metrics.HighRiskExactRecall, 1)
+	assertNear(t, "block precision", metrics.BlockPrecision, 1.0/3.0)
+	assertNear(t, "alert precision", metrics.AlertPrecision, 1)
+	assertNear(t, "macro F1", metrics.MacroF1, 0.375)
+	if metrics.HighRiskPredictions != 4 {
+		t.Fatalf("expected 4 enforcement predictions, got %+v", metrics)
+	}
+}
+
+func TestEnsembleWeightsPenalizeIndiscriminateRiskPredictions(t *testing.T) {
+	base := riskEvaluation{
+		Samples: 200, BalancedAccuracy: 0.8,
+		HighRiskSamples: 40, HighRiskRecall: 1, HighRiskExactRecall: 0.8,
+		HighRiskPredictions: 60,
+		BenignSamples: 100, BenignFalsePositiveRate: 0.05,
+		ConfidenceBrier: 0.1, ECE: 0.08,
+	}
+	highPrecision := base
+	highPrecision.HighRiskPrecision = 0.9
+	lowPrecision := base
+	lowPrecision.HighRiskPrecision = 0.2
+	a := calibratedEnsembleWeight(highPrecision)
+	b := calibratedEnsembleWeight(lowPrecision)
+	if !(a > b && a <= 1 && b > 0) {
+		t.Fatalf("high false-positive enforcement was not penalized: precise=%v indiscriminate=%v", a, b)
+	}
+}
+
+func TestBenchmarkHoldoutExcludesRepeatedFutureCommands(t *testing.T) {
+	base := time.Unix(1_700_000_000, 0)
+	samples := make([]TrainingSample, 40)
+	for i := range samples {
+		samples[i] = TrainingSample{
+			Label: int32(i % 4),
+			Timestamp: base.Add(time.Duration(i) * time.Minute),
+			CommandLine: "benchmark-command-" + strconv.Itoa(i),
+		}
+	}
+	samples[37].CommandLine = samples[3].CommandLine
+	samples[39].CommandLine = samples[12].CommandLine
+	train, test := splitModelBenchmarkHoldout(samples)
+	if len(train) != 32 || len(test) != 6 {
+		t.Fatalf("invalid independent chronological benchmark train=%d test=%d", len(train), len(test))
+	}
+	trainKeys := make(map[[32]byte]bool)
+	for _, sample := range train {
+		trainKeys[behaviorHoldoutKey(sample)] = true
+		if !sample.Timestamp.Before(samples[32].Timestamp) {
+			t.Fatal("future test event migrated into training")
+		}
+	}
+	for _, sample := range test {
+		if trainKeys[behaviorHoldoutKey(sample)] {
+			t.Fatal("benchmark test repeats a training behavior")
+		}
+	}
+}
+
+func TestBenchmarkHoldoutRefusesDuplicatesOnlyEvaluation(t *testing.T) {
+	samples := make([]TrainingSample, 24)
+	for i := range samples {
+		samples[i].CommandLine = "same command"
+	}
+	train, test := splitModelBenchmarkHoldout(samples)
+	if len(train) == 0 || len(test) != 0 {
+		t.Fatalf("duplicates-only benchmark must have no independent test rows: train=%d test=%d", len(train), len(test))
 	}
 }

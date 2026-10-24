@@ -139,8 +139,9 @@ func buildIncrementalCountContext(profile sweepProfile, store *ml.TrainingDataSt
 		if err != nil {
 			return incrementalCountContext{}, err
 		}
-		allSamples := ml.ToTrainSamples(labeled)
-		forest := ml.BuildExtraTrees(allSamples, maxValue, cfgMax.MaxDepth, cfgMax.MinSamplesLeaf, time.Now().UnixNano())
+		// The sweep must train on the exact same holdout-excluded slice that
+		// it later uses to score candidate estimator counts.
+		forest := ml.BuildExtraTreesWithBalance(trainSet, maxValue, cfgMax.MaxDepth, cfgMax.MinSamplesLeaf, time.Now().UnixNano(), cfgMax.BalanceClasses)
 		ctx.TrainSet = trainSet
 		ctx.ValSet = valSet
 		ctx.ValRaw = valRaw
@@ -150,8 +151,15 @@ func buildIncrementalCountContext(profile sweepProfile, store *ml.TrainingDataSt
 			return &ml.ExtraTreesModel{Forest: prefixDecisionForest(forest, v), NumTrees: clampCount(v, len(forest.Trees)), MaxDepth: cfgMax.MaxDepth}
 		}
 	case ModelAdaBoost:
+		// Fit the prefix ensemble using only the training partition. Earlier
+		// scans reused training accuracy as a fake validation score.
+		trainSet, valSet, trainRaw, valRaw, err := ml.PrepareAutoTuneSplit(labeled, cfgMax.ValidationSplitRatio)
+		if err != nil {
+			return incrementalCountContext{}, err
+		}
+		trainingStore := trainingStoreFromSamples(trainRaw)
 		trainer := newSweepTrainer()
-		model, result := trainer.TrainWithConfig(store, cfgMax)
+		model, result := trainer.TrainWithConfig(trainingStore, cfgMax)
 		if result.Error != "" {
 			return incrementalCountContext{}, fmt.Errorf("%s", result.Error)
 		}
@@ -159,12 +167,11 @@ func buildIncrementalCountContext(profile sweepProfile, store *ml.TrainingDataSt
 		if !ok || ada == nil || len(ada.Stumps) == 0 {
 			return incrementalCountContext{}, fmt.Errorf("expected AdaBoost model for %s", profile.Name)
 		}
-		allSamples := ml.ToTrainSamples(labeled)
-		ctx.TrainSet = allSamples
-		ctx.ValSet = allSamples
-		ctx.ValRaw = labeled
-		ctx.TrainSamples = len(allSamples)
-		ctx.ValSamples = 0
+		ctx.TrainSet = trainSet
+		ctx.ValSet = valSet
+		ctx.ValRaw = valRaw
+		ctx.TrainSamples = len(trainSet)
+		ctx.ValSamples = len(valSet)
 		ctx.ModelForValue = func(v int) ml.Model {
 			return prefixAdaBoostModel(ada, v)
 		}

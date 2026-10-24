@@ -1,6 +1,7 @@
 package ml
 
 import (
+	"math"
 	"math/rand"
 	"sort"
 )
@@ -23,7 +24,7 @@ func buildTree(samples []TrainSample, depth, maxDepth, minSamplesLeaf, featureSa
 		return []DecisionNode{{LeftChild: -1, RightChild: -1, LeafValue: float32(firstLabel)}}
 	}
 
-	best := findBestSplit(samples, featureSampleCount, rng)
+	best := findBestSplit(samples, minSamplesLeaf, featureSampleCount, rng)
 	if best.giniGain <= 0 {
 		return []DecisionNode{{LeftChild: -1, RightChild: -1, LeafValue: majorityClass(samples)}}
 	}
@@ -77,123 +78,149 @@ func buildTree(samples []TrainSample, depth, maxDepth, minSamplesLeaf, featureSa
 	return nodes
 }
 
-// findBestSplit finds the best feature and threshold using Gini impurity
-func findBestSplit(samples []TrainSample, featureSampleCount int, rng *rand.Rand) splitPoint {
+// findBestSplit scans each sorted feature once, using incremental class
+// histograms. It enforces minSamplesLeaf at split selection time rather
+// than only at recursion entry (which formerly allowed singleton leaves).
+func findBestSplit(samples []TrainSample, minSamplesLeaf, featureSampleCount int, rng *rand.Rand) splitPoint {
 	best := splitPoint{giniGain: -1}
+	n := len(samples)
+	if minSamplesLeaf < 1 {
+		minSamplesLeaf = 1
+	}
+	if n < 2*minSamplesLeaf {
+		return best
+	}
 	parentGini := giniImpurity(samples)
-
 	features := make([]int, FeatureDim)
 	for i := range features {
 		features[i] = i
 	}
 	rng.Shuffle(len(features), func(i, j int) { features[i], features[j] = features[j], features[i] })
-	selectedFeatures := features[:featureSampleCount]
-
-	for _, fi := range selectedFeatures {
-		sort.Slice(samples, func(i, j int) bool {
-			return samples[i].features[fi] < samples[j].features[fi]
+	if featureSampleCount > FeatureDim {
+		featureSampleCount = FeatureDim
+	}
+	if featureSampleCount <= 0 {
+		return best
+	}
+	sorted := make([]TrainSample, n)
+	for _, fi := range features[:featureSampleCount] {
+		copy(sorted, samples)
+		sort.Slice(sorted, func(i, j int) bool {
+			return sorted[i].features[fi] < sorted[j].features[fi]
 		})
-
-		for i := 1; i < len(samples); i++ {
-			if samples[i].features[fi] == samples[i-1].features[fi] {
+		var leftCounts, rightCounts [4]int
+		for _, sample := range sorted {
+			if sample.label >= 0 && sample.label < 4 {
+				rightCounts[sample.label]++
+			}
+		}
+		for i := 1; i < n; i++ {
+			if label := sorted[i-1].label; label >= 0 && label < 4 {
+				leftCounts[label]++
+				rightCounts[label]--
+			}
+			if i < minSamplesLeaf || n-i < minSamplesLeaf ||
+				sorted[i].features[fi] == sorted[i-1].features[fi] {
 				continue
 			}
-			threshold := (samples[i].features[fi] + samples[i-1].features[fi]) / 2.0
-
-			leftSamples := samples[:i]
-			rightSamples := samples[i:]
-
-			if len(leftSamples) < 1 || len(rightSamples) < 1 {
-				continue
-			}
-
-			leftWeight := float64(len(leftSamples)) / float64(len(samples))
-			gain := parentGini - leftWeight*giniImpurity(leftSamples) -
-				(1-leftWeight)*giniImpurity(rightSamples)
-
-			if gain > best.giniGain {
-				best = splitPoint{
-					featureIdx: fi,
-					threshold:  threshold,
-					giniGain:   gain,
+			// DecisionNode stores float32 thresholds. Select only a threshold
+			// that is representable *and* still separates the float64 samples;
+			// otherwise training and inference can take opposite branches.
+			low, high := sorted[i-1].features[fi], sorted[i].features[fi]
+			threshold := float64(float32((low + high) / 2))
+			if !(threshold > low && threshold <= high) {
+				threshold = float64(math.Nextafter32(float32(low), float32(math.Inf(1))))
+				if !(threshold > low && threshold <= high) {
+					continue
 				}
+			}
+			leftWeight := float64(i) / float64(n)
+			gain := parentGini - leftWeight*giniFromCounts(leftCounts, i) -
+				(1-leftWeight)*giniFromCounts(rightCounts, n-i)
+			if gain > best.giniGain {
+				best = splitPoint{featureIdx: fi, threshold: threshold, giniGain: gain}
 			}
 		}
 	}
 	return best
 }
 
-// giniImpurity computes Gini impurity for a set of samples
+// giniImpurity computes Gini impurity from the four known action classes.
 func giniImpurity(samples []TrainSample) float64 {
 	if len(samples) == 0 {
 		return 0
 	}
-	counts := make(map[int32]float64)
+	var counts [4]int
 	for _, s := range samples {
-		counts[s.label]++
+		if s.label >= 0 && s.label < 4 {
+			counts[s.label]++
+		}
 	}
-	var impurity float64
-	n := float64(len(samples))
-	for _, c := range counts {
-		p := c / n
-		impurity += p * (1 - p)
+	return giniFromCounts(counts, len(samples))
+}
+
+func giniFromCounts(counts [4]int, n int) float64 {
+	if n <= 0 {
+		return 0
+	}
+	impurity := 1.0
+	for _, count := range counts {
+		p := float64(count) / float64(n)
+		impurity -= p * p
 	}
 	return impurity
 }
 
-// majorityClass returns the most common class label as float32
+// majorityClass resolves equal votes deterministically in ALLOW/BLOCK/REWRITE/ALERT
+// class order. Hash-map iteration is intentionally excluded from model outcomes.
 func majorityClass(samples []TrainSample) float32 {
-	if len(samples) == 0 {
-		return 0
-	}
-	counts := make(map[int32]int)
+	var counts [4]int
 	for _, s := range samples {
-		counts[s.label]++
+		if s.label >= 0 && s.label < 4 {
+			counts[s.label]++
+		}
 	}
-	best := int32(0)
-	bestCount := 0
-	for label, count := range counts {
-		if count > bestCount {
-			bestCount = count
-			best = label
+	best := 0
+	for c := 1; c < len(counts); c++ {
+		if counts[c] > counts[best] {
+			best = c
 		}
 	}
 	return float32(best)
 }
 
-// classStratifiedBootstrap creates a bootstrap sample where each class
-// is proportionally represented. Minority classes are upsampled to ensure
-// they appear in every tree's training set.
+// classStratifiedBootstrap gives each observed class approximately equal
+// representation (within one row), oversampling rare classes rather than
+// allowing majority ALLOW events to dominate every tree. Class ordering and
+// the RNG stream are deterministic for reproducible experiments.
 func classStratifiedBootstrap(src, dst []TrainSample, rng *rand.Rand) {
-	groups := make(map[int32][]TrainSample)
-	for _, s := range src {
-		groups[s.label] = append(groups[s.label], s)
-	}
-
-	nClasses := len(groups)
-	if nClasses == 0 {
-		return
-	}
-	perClass := len(dst) / nClasses
-	if perClass < 1 {
-		perClass = 1
-	}
-
-	i := 0
-	for i < len(dst) {
-		for _, group := range groups {
-			if i >= len(dst) {
-				break
-			}
-			dst[i] = group[rng.Intn(len(group))]
-			i++
+	var groups [4][]TrainSample
+	for _, sample := range src {
+		if sample.label >= 0 && sample.label < 4 {
+			groups[sample.label] = append(groups[sample.label], sample)
 		}
 	}
+	active := make([]int, 0, 4)
+	for c := range groups {
+		if len(groups[c]) > 0 {
+			active = append(active, c)
+		}
+	}
+	if len(active) == 0 || len(dst) == 0 {
+		return
+	}
+	start := rng.Intn(len(active))
+	for i := range dst {
+		group := groups[active[(start+i)%len(active)]]
+		dst[i] = group[rng.Intn(len(group))]
+	}
+	// Avoid a fixed class cycle in downstream tree-building.
+	rng.Shuffle(len(dst), func(i, j int) { dst[i], dst[j] = dst[j], dst[i] })
 }
 
 func EvaluateForest(forest *DecisionForest, testSet []TrainSample) float64 {
 	if len(testSet) == 0 {
-		return 1.0
+		return 0 // zero evidence must not be reported as perfect accuracy
 	}
 	correct := 0
 	for _, s := range testSet {

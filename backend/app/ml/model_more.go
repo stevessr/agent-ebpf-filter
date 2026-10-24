@@ -31,17 +31,31 @@ func NewNaiveBayes() *NaiveBayesModel      { return &NaiveBayesModel{Classes: 4}
 func (m *NaiveBayesModel) Type() ModelType { return ModelNaiveBayes }
 
 func (m *NaiveBayesModel) Predict(features [FeatureDim]float64) Prediction {
-	if len(m.Means) == 0 {
+	if m.Classes <= 0 || len(m.Means) < m.Classes || len(m.Vars) < m.Classes || len(m.Priors) < m.Classes {
 		return Prediction{Action: 0, Confidence: 0, AnomalyScore: 0.5}
 	}
-	var bestClass int32
+	bestClass := int32(0)
 	bestLogProb := math.Inf(-1)
 	logProbs := make([]float64, m.Classes)
+	for c := range logProbs {
+		logProbs[c] = math.Inf(-1)
+	}
 	for c := 0; c < m.Classes; c++ {
-		logProb := math.Log(m.Priors[c] + 1e-10)
+		// The smoothed 1e-10 prior previously made a never-observed class
+		// artificially competitive: zero variance across 128 dimensions
+		// could overwhelm its tiny prior and produce a confident false BLOCK.
+		// No observed examples means this class is unavailable to predict.
+		if m.Priors[c] <= 0 || math.IsNaN(m.Priors[c]) {
+			continue
+		}
+		logProb := math.Log(m.Priors[c])
 		for d := 0; d < FeatureDim; d++ {
+			variance := math.Max(m.Vars[c][d], 0) + 1e-8
 			diff := features[d] - m.Means[c][d]
-			logProb += -0.5 * (diff*diff/(m.Vars[c][d]+1e-8) + math.Log(2*math.Pi*(m.Vars[c][d]+1e-8)))
+			logProb += -0.5 * (diff*diff/variance + math.Log(2*math.Pi*variance))
+		}
+		if math.IsNaN(logProb) {
+			continue
 		}
 		logProbs[c] = logProb
 		if logProb > bestLogProb {
@@ -49,11 +63,17 @@ func (m *NaiveBayesModel) Predict(features [FeatureDim]float64) Prediction {
 			bestClass = int32(c)
 		}
 	}
+	if math.IsInf(bestLogProb, -1) {
+		return Prediction{Action: 0, Confidence: 0, AnomalyScore: 0.5}
+	}
 	sumExp := 0.0
 	for _, lp := range logProbs {
 		sumExp += math.Exp(lp - bestLogProb)
 	}
-	confidence := 1.0 / (sumExp + 1e-10)
+	if sumExp <= 0 || math.IsNaN(sumExp) || math.IsInf(sumExp, 0) {
+		return Prediction{Action: 0, Confidence: 0, AnomalyScore: 0.5}
+	}
+	confidence := 1.0 / sumExp
 	return Prediction{Action: bestClass, Confidence: confidence, AnomalyScore: 1 - confidence}
 }
 
@@ -132,28 +152,58 @@ func (m *ExtraTreesModel) Serialize(path string) error {
 	return nil
 }
 
+// BuildExtraTrees preserves the historical uniform-bootstrap API. For a
+// class-balanced variant (without changing inference serialization), use the
+// explicit option below, enabled only by the caller's BalanceClasses setting.
 func BuildExtraTrees(trainSet []TrainSample, numTrees, maxDepth, minLeaf int, seed int64) *DecisionForest {
+	return BuildExtraTreesWithBalance(trainSet, numTrees, maxDepth, minLeaf, seed, false)
+}
+
+func BuildExtraTreesWithBalance(trainSet []TrainSample, numTrees, maxDepth, minLeaf int, seed int64, balance bool) *DecisionForest {
+	if numTrees < 1 {
+		numTrees = 1
+	}
+	if maxDepth < 1 {
+		maxDepth = 1
+	}
+	if minLeaf < 1 {
+		minLeaf = 1
+	}
 	rng := rand.New(rand.NewSource(seed))
 	forest := NewDecisionForest(numTrees, maxDepth, 4)
+	if len(trainSet) == 0 {
+		return forest // untrained, never synthesize a successful prediction
+	}
 	fCount := int(math.Sqrt(float64(FeatureDim)))
 	if fCount < 1 {
 		fCount = 1
 	}
 	for ti := 0; ti < numTrees; ti++ {
 		bootstrap := make([]TrainSample, len(trainSet))
-		for i := range bootstrap {
-			bootstrap[i] = trainSet[rng.Intn(len(trainSet))]
+		if balance {
+			classStratifiedBootstrap(trainSet, bootstrap, rng)
+		} else {
+			for i := range bootstrap {
+				bootstrap[i] = trainSet[rng.Intn(len(trainSet))]
+			}
 		}
-		nodes := buildExtraTree(bootstrap, 0, maxDepth, minLeaf, fCount, rng)
-		forest.Trees[ti] = DecisionTree{Nodes: nodes}
+		forest.Trees[ti] = DecisionTree{
+			Nodes: buildExtraTree(bootstrap, 0, maxDepth, minLeaf, fCount, rng),
+		}
 	}
 	forest.IsTrained = true
 	return forest
 }
 
 func buildExtraTree(samples []TrainSample, depth, maxDepth, minLeaf, fCount int, rng *rand.Rand) []DecisionNode {
-	if depth >= maxDepth || len(samples) < minLeaf*2 {
+	leaf := func() []DecisionNode {
 		return []DecisionNode{{LeftChild: -1, RightChild: -1, LeafValue: majorityClass(samples)}}
+	}
+	if minLeaf < 1 {
+		minLeaf = 1
+	}
+	if depth >= maxDepth || len(samples) < 2*minLeaf || len(samples) == 0 {
+		return leaf()
 	}
 	allSame := true
 	for _, s := range samples[1:] {
@@ -163,55 +213,105 @@ func buildExtraTree(samples []TrainSample, depth, maxDepth, minLeaf, fCount int,
 		}
 	}
 	if allSame {
-		return []DecisionNode{{LeftChild: -1, RightChild: -1, LeafValue: float32(samples[0].label)}}
+		return leaf()
 	}
 
-	// Extra Trees: pick random feature AND random threshold
-	fi := rng.Intn(FeatureDim)
-	minV, maxV := samples[0].features[fi], samples[0].features[fi]
-	for _, s := range samples {
-		if s.features[fi] < minV {
-			minV = s.features[fi]
+	// Extra Trees: random feature subset and randomized thresholds, selecting
+	// the highest *valid* Gini gain. Previously fCount was ignored, leaving a
+	// 127/128 chance of a useless split when only one signal dimension varied.
+	if fCount > FeatureDim {
+		fCount = FeatureDim
+	}
+	if fCount <= 0 {
+		return leaf()
+	}
+	parentGini := giniImpurity(samples)
+	bestGain := 0.0
+	bestFeature := -1
+	bestThreshold := 0.0
+	features := rng.Perm(FeatureDim)
+	for index, fi := range features {
+		// If the initial random feature subset is completely uninformative,
+		// widen the search rather than producing a constant majority leaf.
+		// Sparse syscall/category vectors often contain only one informative
+		// dimension out of 128; this bounded fallback preserves learnability.
+		if index >= fCount && bestGain > 0 {
+			break
 		}
-		if s.features[fi] > maxV {
-			maxV = s.features[fi]
+		minV, maxV := samples[0].features[fi], samples[0].features[fi]
+		if math.IsNaN(minV) || math.IsInf(minV, 0) {
+			continue
+		}
+		valid := true
+		for _, s := range samples[1:] {
+			v := s.features[fi]
+			if math.IsNaN(v) || math.IsInf(v, 0) {
+				valid = false
+				break
+			}
+			if v < minV { minV = v }
+			if v > maxV { maxV = v }
+		}
+		if !valid || minV >= maxV {
+			continue
+		}
+		for trial := 0; trial < 3; trial++ {
+			// Quantize *before* scoring to match the DecisionNode float32
+			// threshold used by the online predictor.
+			threshold := float64(float32(minV + rng.Float64()*(maxV-minV)))
+			if !(threshold > minV && threshold <= maxV) {
+				continue
+			}
+			var leftCounts, rightCounts [4]int
+			nLeft := 0
+			for _, s := range samples {
+				if s.features[fi] < threshold {
+					nLeft++
+					if s.label >= 0 && s.label < 4 { leftCounts[s.label]++ }
+				} else {
+					if s.label >= 0 && s.label < 4 { rightCounts[s.label]++ }
+				}
+			}
+			nRight := len(samples)-nLeft
+			if nLeft < minLeaf || nRight < minLeaf {
+				continue
+			}
+			leftWeight := float64(nLeft)/float64(len(samples))
+			gain := parentGini -
+				leftWeight*giniFromCounts(leftCounts, nLeft) -
+				(1-leftWeight)*giniFromCounts(rightCounts, nRight)
+			if gain > bestGain {
+				bestGain, bestFeature, bestThreshold = gain, fi, threshold
+			}
 		}
 	}
-	threshold := minV + rng.Float64()*(maxV-minV)
-	if minV >= maxV {
-		return []DecisionNode{{LeftChild: -1, RightChild: -1, LeafValue: majorityClass(samples)}}
+	if bestFeature < 0 {
+		return leaf()
 	}
-
 	var left, right []TrainSample
 	for _, s := range samples {
-		if s.features[fi] < threshold {
+		if s.features[bestFeature] < bestThreshold {
 			left = append(left, s)
 		} else {
 			right = append(right, s)
 		}
 	}
-	if len(left) == 0 || len(right) == 0 {
-		return []DecisionNode{{LeftChild: -1, RightChild: -1, LeafValue: majorityClass(samples)}}
-	}
-
 	leftNodes := buildExtraTree(left, depth+1, maxDepth, minLeaf, fCount, rng)
 	rightNodes := buildExtraTree(right, depth+1, maxDepth, minLeaf, fCount, rng)
-
 	leftOff, rightOff := 1, 1+len(leftNodes)
 	for i := range leftNodes {
-		if n := &leftNodes[i]; !n.IsLeaf() {
-			n.LeftChild += int16(leftOff)
-			n.RightChild += int16(leftOff)
+		if node := &leftNodes[i]; !node.IsLeaf() {
+			node.LeftChild += int16(leftOff)
+			node.RightChild += int16(leftOff)
 		}
 	}
 	for i := range rightNodes {
-		if n := &rightNodes[i]; !n.IsLeaf() {
-			n.LeftChild += int16(rightOff)
-			n.RightChild += int16(rightOff)
+		if node := &rightNodes[i]; !node.IsLeaf() {
+			node.LeftChild += int16(rightOff)
+			node.RightChild += int16(rightOff)
 		}
 	}
-
-	nodes := []DecisionNode{{FeatureIndex: uint8(fi), Threshold: float32(threshold), LeftChild: int16(leftOff), RightChild: int16(rightOff)}}
+	nodes := []DecisionNode{{FeatureIndex: uint8(bestFeature), Threshold: float32(bestThreshold), LeftChild: int16(leftOff), RightChild: int16(rightOff)}}
 	nodes = append(nodes, leftNodes...)
 	nodes = append(nodes, rightNodes...)
 	return nodes

@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - "backend/app/ml/**"
+      - "backend/app/sweep/**"
       - "backend/app/autotune*.go"
       - "backend/app/risk_scoring*.go"
       - "backend/app/features.go"
@@ -22,6 +23,7 @@ on:
   pull_request:
     paths:
       - "backend/app/ml/**"
+      - "backend/app/sweep/**"
       - "backend/app/autotune*.go"
       - "backend/app/risk_scoring*.go"
       - "backend/app/features.go"
@@ -73,6 +75,9 @@ jobs:
       - name: ML package tests
         working-directory: backend
         run: go test ./app/ml -count=1
+      - name: ML sweep holdout regression tests
+        working-directory: backend
+        run: go test ./app/sweep -run 'TestIncrementalSweepUsesRealHoldout' -count=1
       - name: Attack-risk app tests
         working-directory: backend
         run: go test ./app -run 'TestAttackVectorScores|TestAttackRiskClass' -count=1

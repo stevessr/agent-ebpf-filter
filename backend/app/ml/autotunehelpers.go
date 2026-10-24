@@ -4,7 +4,6 @@ import (
 	"math"
 	"math/rand"
 	"strings"
-	"time"
 )
 
 func NormalizeAutoTuneAxis(axis string) string {
@@ -222,81 +221,92 @@ func extractTrainData(samples []TrainSample) ([][FeatureDim]float64, []int32) {
 	return X, Y
 }
 
+// trainAdaBoostFromData is the compatibility entry point for the AutoTune
+// candidate grid. The learner uses genuine four-class SAMME, not the former
+// binary BLOCK-vs-other stump loss (which could never predict REWRITE/ALERT).
 func trainAdaBoostFromData(X [][FeatureDim]float64, Y []int32, nEst int) *AdaBoostModel {
-	n := len(X)
+	return trainAdaBoostFromDataBalanced(X, Y, nEst, false)
+}
+
+func trainAdaBoostFromDataBalanced(X [][FeatureDim]float64, Y []int32, nEst int, balance bool) *AdaBoostModel {
 	if nEst < 10 {
 		nEst = 50
 	}
-	m := NewAdaBoost(nEst)
+	model := NewAdaBoost(nEst)
+	n := len(X)
+	if n < 2 || n != len(Y) {
+		return model
+	}
+	var counts [4]int
+	for _, label := range Y {
+		if label < 0 || label >= 4 {
+			return model
+		}
+		counts[label]++
+	}
 	weights := make([]float64, n)
-	for i := range weights {
-		weights[i] = 1.0 / float64(n)
+	normalize := func() bool {
+		total := 0.0
+		for _, weight := range weights { total += weight }
+		if total <= 0 || math.IsNaN(total) || math.IsInf(total, 0) { return false }
+		for i := range weights { weights[i] /= total }
+		return true
 	}
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i, label := range Y {
+		weights[i] = 1
+		if balance { weights[i] = 1 / float64(counts[label]) }
+	}
+	if !normalize() { return model }
+	// Use a local stable RNG so comparing grid cells does not depend on
+	// request timing or the process-global random stream.
+	rng := rand.New(rand.NewSource(0x414441424f4f5354))
 	for e := 0; e < nEst; e++ {
-		cum := make([]float64, n)
-		cum[0] = weights[0]
-		for i := 1; i < n; i++ {
-			cum[i] = cum[i-1] + weights[i]
-		}
-		totalW := cum[n-1]
-		bestStump := AdaBoostStump{Feature: -1}
-		bestErr := 1e9
-		for tries := 0; tries < 30; tries++ {
-			fi := rng.Intn(FeatureDim)
-			thresh := X[rng.Intn(n)][fi]
-			var lErr, rErr, lW, rW float64
-			for i := 0; i < n; i++ {
-				cl := 0
-				if Y[i] == 1 {
-					cl = 1
-				}
-				if X[i][fi] < thresh {
-					if cl != 1 {
-						lErr += weights[i]
-					}
-					lW += weights[i]
-				} else {
-					if cl != 0 {
-						rErr += weights[i]
-					}
-					rW += weights[i]
-				}
+		best := AdaBoostStump{Feature: -1}
+		bestError := math.Inf(1)
+		for trial := 0; trial < 50; trial++ {
+			feature := rng.Intn(FeatureDim)
+			threshold := X[rng.Intn(n)][feature]
+			var sides [2][4]float64
+			var totals [2]float64
+			for i, sample := range X {
+				side := 0
+				if sample[feature] >= threshold { side = 1 }
+				sides[side][Y[i]] += weights[i]
+				totals[side] += weights[i]
 			}
-			err := (lErr + rErr) / totalW
-			if err < bestErr {
-				bestErr = err
-				bestStump = AdaBoostStump{Feature: fi, Threshold: thresh, LeftVote: 1, RightVote: 0}
-				if lErr/lW > rErr/rW {
-					bestStump.LeftVote = 0
-					bestStump.RightVote = 1
+			if totals[0] <= 0 || totals[1] <= 0 { continue }
+			votes := [2]int{}
+			correct := 0.0
+			for side := 0; side < 2; side++ {
+				for c := 1; c < 4; c++ {
+					if sides[side][c] > sides[side][votes[side]] { votes[side] = c }
 				}
+				correct += sides[side][votes[side]]
+			}
+			err := 1 - correct
+			if err < bestError {
+				bestError = err
+				best = AdaBoostStump{Feature: feature, Threshold: threshold,
+					LeftVote: float64(votes[0]), RightVote: float64(votes[1])}
 			}
 		}
-		if bestStump.Feature < 0 {
+		if best.Feature < 0 || bestError >= 1-1/float64(model.Classes) {
 			continue
 		}
-		err := math.Max(bestErr, 1e-10)
-		alpha := 0.5 * math.Log((1-err)/err)
-		if alpha <= 0 {
-			continue
+		err := math.Max(1e-10, bestError)
+		alpha := math.Log((1-err)/err) + math.Log(float64(model.Classes-1))
+		if alpha <= 0 || math.IsNaN(alpha) || math.IsInf(alpha, 0) { continue }
+		model.Stumps = append(model.Stumps, best)
+		model.Alphas = append(model.Alphas, alpha)
+		penalty := math.Exp(alpha)
+		for i, sample := range X {
+			vote := int32(best.RightVote)
+			if sample[best.Feature] < best.Threshold { vote = int32(best.LeftVote) }
+			if vote != Y[i] { weights[i] *= penalty }
 		}
-		for i := 0; i < n; i++ {
-			pred := 0
-			if X[i][bestStump.Feature] < bestStump.Threshold {
-				pred = int(bestStump.LeftVote)
-			} else {
-				pred = int(bestStump.RightVote)
-			}
-			cl := int(Y[i])
-			if pred != cl {
-				weights[i] *= math.Exp(alpha)
-			}
-		}
-		m.Stumps = append(m.Stumps, bestStump)
-		m.Alphas = append(m.Alphas, alpha)
+		if !normalize() { break }
 	}
-	return m
+	return model
 }
 
 func autoTuneMaxInt(a, b int) int {
