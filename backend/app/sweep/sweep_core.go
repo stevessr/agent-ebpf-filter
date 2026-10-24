@@ -17,7 +17,33 @@ func canRunIncrementalCountProfile(profile sweepProfile) bool {
 	case ModelRandomForest, ModelExtraTrees:
 		return profile.ParameterName == "numTrees"
 	case ModelAdaBoost:
-		return profile.ParameterName == "estimators"
+		// Train on an independent subset; the historical sweep fitted AdaBoost
+		// on all observations and then reported in-sample fit as validation.
+		trainSet, valSet, trainRaw, valRaw, err := ml.PrepareAutoTuneSplit(labeled, cfgMax.ValidationSplitRatio)
+		if err != nil {
+			return incrementalCountContext{}, err
+		}
+		trainingStore := ml.NewTrainingDataStore(len(trainRaw))
+		for _, sample := range trainRaw {
+			trainingStore.Add(sample)
+		}
+		trainer := newSweepTrainer()
+		model, result := trainer.TrainWithConfig(trainingStore, cfgMax)
+		if result.Error != "" {
+			return incrementalCountContext{}, fmt.Errorf("%s", result.Error)
+		}
+		ada, ok := ml.UnwrapModelType(model).(*ml.AdaBoostModel)
+		if !ok || ada == nil || len(ada.Stumps) == 0 {
+			return incrementalCountContext{}, fmt.Errorf("expected AdaBoost model for %s", profile.Name)
+		}
+		ctx.TrainSet = trainSet
+		ctx.ValSet = valSet
+		ctx.ValRaw = valRaw
+		ctx.TrainSamples = len(trainSet)
+		ctx.ValSamples = len(valSet)
+		ctx.ModelForValue = func(v int) ml.Model {
+			return prefixAdaBoostModel(ada, v)
+		}
 	default:
 		return false
 	}
@@ -139,8 +165,9 @@ func buildIncrementalCountContext(profile sweepProfile, store *ml.TrainingDataSt
 		if err != nil {
 			return incrementalCountContext{}, err
 		}
-		allSamples := ml.ToTrainSamples(labeled)
-		forest := ml.BuildExtraTrees(allSamples, maxValue, cfgMax.MaxDepth, cfgMax.MinSamplesLeaf, time.Now().UnixNano())
+		// The sweep must train on the exact same holdout-excluded slice that
+		// it later uses to score candidate estimator counts.
+		forest := ml.BuildExtraTrees(trainSet, maxValue, cfgMax.MaxDepth, cfgMax.MinSamplesLeaf, time.Now().UnixNano())
 		ctx.TrainSet = trainSet
 		ctx.ValSet = valSet
 		ctx.ValRaw = valRaw
