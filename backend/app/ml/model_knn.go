@@ -153,6 +153,8 @@ func (m *KNNModel) Predict(features [FeatureDim]float64) Prediction {
 	k := len(neighbors)
 	classVotes := make([]float64, m.NumClasses)
 	totalWeight := 0.0
+	weightedDistanceSum := 0.0
+	votedNeighbors := 0
 	// Inverse-distance weighting must never make a merely nearby neighbor
 	// outweigh an exact match. With exact matches, vote only among those
 	// matches; otherwise retain normal inverse-distance behavior.
@@ -175,6 +177,8 @@ func (m *KNNModel) Predict(features [FeatureDim]float64) Prediction {
 		}
 		classVotes[label] += w
 		totalWeight += w
+		weightedDistanceSum += n.distance
+		votedNeighbors++
 	}
 	if totalWeight == 0 {
 		return Prediction{Action: 0, Confidence: 0, AnomalyScore: 0.5}
@@ -194,11 +198,10 @@ func (m *KNNModel) Predict(features [FeatureDim]float64) Prediction {
 		confidence = bestVotes / totalWeight
 	}
 
-	avgDist := 0.0
-	for i := 0; i < k; i++ {
-		avgDist += neighbors[i].distance
-	}
-	avgDist /= float64(k)
+	// The anomaly score must use the same neighbors that actually cast
+	// votes. Otherwise a perfect match can still appear anomalous because
+	// discarded, more distant neighbors inflate the reported distance.
+	avgDist := weightedDistanceSum / float64(votedNeighbors)
 	anomalyScore := math.Tanh(avgDist)
 
 	return Prediction{Action: bestClass, Confidence: confidence, AnomalyScore: anomalyScore}
