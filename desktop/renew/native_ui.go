@@ -146,6 +146,16 @@ type renewApp struct {
 	configInspection            agentConfigInspection
 	configTable                 ui.ListState
 	sessionTable                ui.ListState
+	agentSightModelTable        ui.ListState
+	agentSightSessionTable      ui.ListState
+	agentSightModelSelected     int
+	agentSightSessionSelected   int
+	agentSightReport            agentSightUsageResponse
+	agentSightReady             bool
+	agentSightLoading           bool
+	agentSightError             string
+	agentSightChecked           time.Time
+	agentSightSynced            time.Time
 	rulesTable                  ui.ListState
 	commTable                   ui.ListState
 	pathTable                   ui.ListState
@@ -283,6 +293,8 @@ func newRenewApp(backend string) *renewApp {
 		domainSelected:     -1,
 		domainShowIPs:      true,
 		sessionSelected:    -1,
+		agentSightModelSelected: -1,
+		agentSightSessionSelected: -1,
 		ruleSelected:       -1,
 		commSelected:       -1,
 		pathSelected:       -1,
@@ -302,6 +314,8 @@ func newRenewApp(backend string) *renewApp {
 	a.processTable.Selected = &a.processSelected
 	a.domainTable.Selected = &a.domainSelected
 	a.sessionTable.Selected = &a.sessionSelected
+	a.agentSightModelTable.Selected = &a.agentSightModelSelected
+	a.agentSightSessionTable.Selected = &a.agentSightSessionSelected
 	a.lineageSignalTable.Selected = &a.lineageSignalSelected
 	a.rulesTable.Selected = &a.ruleSelected
 	a.commTable.Selected = &a.commSelected
@@ -470,6 +484,8 @@ func pageSubtitle(page string) string {
 		return "实时事件、风险筛选与按需详情"
 	case "会话":
 		return "按 Agent 上下文聚合运行会话"
+	case "AgentSight":
+		return "已观测模型调用、Token 用量与归因证据"
 	case "派生":
 		return "Agent 调用关系与实时派生进程（放射图 / 瀑布图）"
 	case "网络":
