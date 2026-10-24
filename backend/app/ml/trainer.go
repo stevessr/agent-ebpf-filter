@@ -66,11 +66,9 @@ func (t *ModelTrainer) trainForestWithConfig(store *TrainingDataStore, numTrees,
 	}
 	t.Logf("Labeled samples loaded: %d", len(labeled))
 
-	samples := make([]TrainSample, len(labeled))
 	classDist := make(map[int32]int)
-	for i, s := range labeled {
-		samples[i] = TrainSample{features: s.Features, label: s.Label}
-		classDist[s.Label]++
+	for _, sample := range labeled {
+		classDist[sample.Label]++
 	}
 	t.Logf("Class distribution: ALLOW=%d, BLOCK=%d, ALERT=%d, REWRITE=%d",
 		classDist[0], classDist[1], classDist[3], classDist[2])
@@ -79,24 +77,12 @@ func (t *ModelTrainer) trainForestWithConfig(store *TrainingDataStore, numTrees,
 	if validationRatio <= 0 || validationRatio >= 0.5 {
 		validationRatio = 0.20
 	}
-	shuffledRaw := append([]TrainingSample(nil), labeled...)
+	trainSet, validationSet, trainRaw, validationRaw, err := PrepareAutoTuneSplit(labeled, validationRatio)
+	if err != nil {
+		return nil, TrainResult{Error: fmt.Sprintf("independent holdout: %v", err)}
+	}
+	validationRatio = float64(len(validationSet)) / float64(len(labeled))
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	rng.Shuffle(len(samples), func(i, j int) {
-		samples[i], samples[j] = samples[j], samples[i]
-		shuffledRaw[i], shuffledRaw[j] = shuffledRaw[j], shuffledRaw[i]
-	})
-	validationCount := int(math.Round(float64(len(samples)) * validationRatio))
-	if validationCount < 1 {
-		validationCount = 1
-	}
-	if validationCount >= len(samples) {
-		validationCount = len(samples) - 1
-	}
-	trainCount := len(samples) - validationCount
-	trainSet := samples[:trainCount]
-	validationSet := samples[trainCount:]
-	trainRaw := append([]TrainingSample(nil), shuffledRaw[:trainCount]...)
-	validationRaw := append([]TrainingSample(nil), shuffledRaw[trainCount:]...)
 	t.Logf("Data split: train=%d, validation=%d (ratio=%.2f)", len(trainSet), len(validationSet), validationRatio)
 
 	t.Logf("Building random forest with %d trees...", numTrees)
