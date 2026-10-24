@@ -78,6 +78,7 @@ func BuildExternalOpenAPISpec() *openapi3.T {
 	addOperation(paths, "/agentsight/events", http.MethodPost, "Import AgentSight JSON, JSON arrays, {\"events\":[...]}, or JSONL text into the compatibility store.")
 	addOperation(paths, "/agentsight/events.jsonl", http.MethodGet, "AgentSight-compatible JSONL export of merged retained events and TLS capture history.")
 	addOperation(paths, "/agentsight/events/stats", http.MethodGet, "AgentSight storage statistics by semantic source, event type, runner, and command.")
+	addOperation(paths, "/agentsight/report/usage", http.MethodGet, "Explicit model input/output/cache token usage grouped by Agent session and model. Query: limit, session, include_tls, and event filters.")
 	addOperation(paths, "/agentsight/events/runners/{id}/stats", http.MethodGet, "AgentSight event statistics for one logical runner.")
 	addOperation(paths, "/agentsight/events/query", http.MethodPost, "Advanced AgentSight query with JSON body filters for sources, event types, PIDs, runner, time range, and text search.")
 	addOperation(paths, "/agentsight/events/stream", http.MethodGet, "Server-sent AgentSight-compatible stream for clients that cannot use WebSockets.")
