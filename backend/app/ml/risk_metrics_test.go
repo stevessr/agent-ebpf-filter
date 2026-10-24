@@ -173,3 +173,40 @@ func TestSplitEnsembleCalibrationHoldoutKeepsRepeatedBehaviorInTraining(t *testi
 		}
 	}
 }
+
+func TestRiskMetricsDoNotConflateBlockWithAlert(t *testing.T) {
+	model := &riskMetricTestModel{predictions: []Prediction{
+		{Action: 3, Confidence: 0.9}, // BLOCK mislabeled as ALERT
+		{Action: 1, Confidence: 0.9}, // ALERT mislabeled as BLOCK
+		{Action: 0, Confidence: 0.9}, // correct benign
+	}}
+	labels := []int32{1, 3, 0}
+	samples := make([]TrainingSample, len(labels))
+	for i, label := range labels {
+		samples[i].Features[0] = float64(i)
+		samples[i].Label = label
+	}
+	metrics := evaluateRiskModel(model, samples)
+	if metrics.HighRiskRecall != 1 || metrics.HighRiskExactRecall != 0 {
+		t.Fatalf("high-risk detection was confused with enforcement action correctness: %+v", metrics)
+	}
+	if metrics.BlockSamples != 1 || metrics.BlockRecall != 0 || metrics.AlertSamples != 1 || metrics.AlertRecall != 0 {
+		t.Fatalf("BLOCK/ALERT distinctions lost: %+v", metrics)
+	}
+}
+
+func TestEnsembleCalibrationPrefersCorrectEnforcementToRiskOnlyDetection(t *testing.T) {
+	base := riskEvaluation{
+		Samples: 100, BalancedAccuracy: 0.8,
+		HighRiskSamples: 40, HighRiskRecall: 1,
+		BenignSamples: 40, BenignFalsePositiveRate: 0.05,
+		ConfidenceBrier: 0.1, ECE: 0.1,
+	}
+	unsafe := base
+	unsafe.HighRiskExactRecall = 0 // every BLOCK is only ALERTed
+	correct := base
+	correct.HighRiskExactRecall = 1
+	if a, b := calibratedEnsembleWeight(correct), calibratedEnsembleWeight(unsafe); !(a > b) {
+		t.Fatalf("unsafe high-risk action substitution ranked equally: exact=%v swapped=%v", a, b)
+	}
+}
