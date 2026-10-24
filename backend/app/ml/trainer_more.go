@@ -181,7 +181,7 @@ func (t *ModelTrainer) trainExtraTrees(store *TrainingDataStore, cfg MLConfig) (
 		ml = 5
 	}
 
-	forest := BuildExtraTrees(trainSet, nt, md, ml, time.Now().UnixNano())
+	forest := BuildExtraTreesWithBalance(trainSet, nt, md, ml, time.Now().UnixNano(), cfg.BalanceClasses)
 	m := &ExtraTreesModel{Forest: forest, NumTrees: nt, MaxDepth: md}
 
 	t.Logf("Extra Trees 训练完成：trees=%d, depth=%d", nt, md)
@@ -212,11 +212,13 @@ func (t *ModelTrainer) trainAdaBoost(store *TrainingDataStore, cfg MLConfig) (Mo
 	}
 	m := NewAdaBoost(nEst)
 
-	samples := make([]TrainSample, len(labeled))
-	for i, s := range labeled {
-		samples[i] = TrainSample{features: s.Features, label: s.Label}
+	// AdaBoost's previous TrainResult reported training accuracy as held-out
+	// validation accuracy. Use the same duplicate-safe split as other models.
+	trainSet, validationSet, trainRaw, validationRaw, err := PrepareAutoTuneSplit(labeled, cfg.ValidationSplitRatio)
+	if err != nil {
+		return nil, TrainResult{Error: err.Error()}
 	}
-
+	samples := trainSet
 	n := len(samples)
 	weights := make([]float64, n)
 	var classCounts [4]int
@@ -323,11 +325,19 @@ func (t *ModelTrainer) trainAdaBoost(store *TrainingDataStore, cfg MLConfig) (Mo
 		}
 	}
 
-	t.Logf("AdaBoost 训练完成：estimators=%d", len(m.Stumps))
-	acc := EvalModelSamples(m, samples)
-	t.finishMetrics(acc, acc, acc, len(labeled), len(samples), 0)
-	t.setLastSplit(labeled, labeled)
-	return m, TrainResult{Accuracy: acc, TrainAccuracy: acc, ValidationAccuracy: acc, NumSamples: len(labeled), TrainSamples: len(samples)}
+	if len(m.Stumps) == 0 {
+		return nil, TrainResult{Error: "AdaBoost found no weak learner better than random"}
+	}
+	t.Logf("AdaBoost 训练完成：estimators=%d, train=%d, validation=%d", len(m.Stumps), len(trainSet), len(validationSet))
+	trainAcc := EvalModelSamples(m, trainSet)
+	valAcc := EvalModelSamples(m, validationSet)
+	t.finishMetrics(valAcc, trainAcc, valAcc, len(labeled), len(trainSet), len(validationSet))
+	t.setValidationRatio(float64(len(validationSet)) / float64(len(labeled)))
+	t.setLastSplit(trainRaw, validationRaw)
+	return m, TrainResult{
+		Accuracy: valAcc, TrainAccuracy: trainAcc, ValidationAccuracy: valAcc,
+		NumSamples: len(labeled), TrainSamples: len(trainSet), ValidationSamples: len(validationSet),
+	}
 }
 
 // ── Ensemble ───────────────────────────────────────────────────────
