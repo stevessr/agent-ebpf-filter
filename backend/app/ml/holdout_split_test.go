@@ -112,3 +112,42 @@ func TestKNNExactMatchOutvotesNearbyClassMajority(t *testing.T) {
 		t.Fatalf("exact match must not look anomalous due to ignored neighbors: %+v", pred)
 	}
 }
+
+func TestGroupedHoldoutProtectsRareHighRiskValidationSupport(t *testing.T) {
+	// Majority ALLOW samples dominate the event stream. A row-order-first
+	// greedy splitter can fill the 20% holdout before encountering ALERT.
+	var samples []TrainingSample
+	for label, count := range []int{90, 4, 4, 2} {
+		for i := 0; i < count; i++ {
+			var features [FeatureDim]float64
+			features[label] = 1
+			features[31] = float64(i+1) / 1000
+			samples = append(samples, TrainingSample{
+				Features: features, Label: int32(label),
+				CommandLine: fmt.Sprintf("class-%d-independent-command-%d", label, i),
+			})
+		}
+	}
+	train, validation, trainRaw, validationRaw, err := PrepareAutoTuneSplit(samples, 0.20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(validation) != 20 || len(train) != 80 {
+		t.Fatalf("unexpected split train=%d validation=%d", len(train), len(validation))
+	}
+	var tr, va [4]int
+	for _, sample := range train { tr[sample.label]++ }
+	for _, sample := range validation { va[sample.label]++ }
+	for c := 0; c < 4; c++ {
+		if tr[c] == 0 || va[c] == 0 {
+			t.Fatalf("class %d lacks independent train/validation evidence: train=%v validation=%v", c, tr, va)
+		}
+	}
+	seen := make(map[[32]byte]bool)
+	for _, sample := range trainRaw { seen[behaviorHoldoutKey(sample)] = true }
+	for _, sample := range validationRaw {
+		if seen[behaviorHoldoutKey(sample)] {
+			t.Fatal("behavior leaked across class-aware holdout split")
+		}
+	}
+}
