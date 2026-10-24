@@ -219,86 +219,108 @@ func (t *ModelTrainer) trainAdaBoost(store *TrainingDataStore, cfg MLConfig) (Mo
 
 	n := len(samples)
 	weights := make([]float64, n)
-	for i := range weights {
-		weights[i] = 1.0 / float64(n)
+	var classCounts [4]int
+	for _, sample := range samples {
+		if sample.label >= 0 && sample.label < 4 {
+			classCounts[sample.label]++
+		}
 	}
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i, sample := range samples {
+		weights[i] = 1
+		if cfg.BalanceClasses && sample.label >= 0 && sample.label < 4 && classCounts[sample.label] > 0 {
+			weights[i] = 1 / float64(classCounts[sample.label])
+		}
+	}
+	normalizeWeights := func() bool {
+		total := 0.0
+		for _, weight := range weights {
+			total += weight
+		}
+		if total <= 0 || math.IsNaN(total) || math.IsInf(total, 0) {
+			return false
+		}
+		for i := range weights {
+			weights[i] /= total
+		}
+		return true
+	}
+	if !normalizeWeights() {
+		return nil, TrainResult{Error: "AdaBoost requires valid labels and weights"}
+	}
 
+	// Discrete SAMME boosting supports all four security actions. The old
+	// binary-only stumps could never predict REWRITE/ALERT and mislabeled their
+	// samples as errors even when the feature evidence separated them.
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	for e := 0; e < nEst; e++ {
 		t.setTrainingProgress(float64(e) / float64(nEst))
 		if t.IsCancelled() {
 			return nil, TrainResult{Error: "cancelled"}
 		}
-
-		// Weighted sampling
-		cum := make([]float64, n)
-		cum[0] = weights[0]
-		for i := 1; i < n; i++ {
-			cum[i] = cum[i-1] + weights[i]
-		}
-		totalW := cum[n-1]
-
-		// Find best stump: sample a few random features and thresholds
 		bestStump := AdaBoostStump{Feature: -1}
-		bestErr := 1e9
-		for tries := 0; tries < 50; tries++ {
-			fi := rng.Intn(FeatureDim)
-			si := rng.Intn(n)
-			thresh := samples[si].features[fi]
-
-			var leftErr, rightErr, leftW, rightW float64
-			for i, s := range samples {
-				if s.features[fi] < thresh {
-					if s.label != 1 {
-						leftErr += weights[i]
-					}
-					leftW += weights[i]
-				} else {
-					if s.label != 0 {
-						rightErr += weights[i]
-					}
-					rightW += weights[i]
+		bestError := math.Inf(1)
+		for trial := 0; trial < 50; trial++ {
+			feature := rng.Intn(FeatureDim)
+			threshold := samples[rng.Intn(n)].features[feature]
+			var sideWeights [2][4]float64
+			var sideTotals [2]float64
+			for i, sample := range samples {
+				if sample.label < 0 || sample.label >= 4 {
+					continue
 				}
+				side := 0
+				if sample.features[feature] >= threshold {
+					side = 1
+				}
+				sideWeights[side][sample.label] += weights[i]
+				sideTotals[side] += weights[i]
 			}
-			err := (leftErr + rightErr) / totalW
-			if err < bestErr {
-				bestErr = err
+			if sideTotals[0] <= 0 || sideTotals[1] <= 0 {
+				continue
+			}
+			votes := [2]int{}
+			correctWeight := 0.0
+			for side := 0; side < 2; side++ {
+				for c := 1; c < 4; c++ {
+					if sideWeights[side][c] > sideWeights[side][votes[side]] {
+						votes[side] = c
+					}
+				}
+				correctWeight += sideWeights[side][votes[side]]
+			}
+			errorRate := 1 - correctWeight
+			if errorRate < bestError {
+				bestError = errorRate
 				bestStump = AdaBoostStump{
-					Feature: fi, Threshold: thresh,
-					LeftVote: float64(1), RightVote: float64(0),
-				}
-				if leftErr/leftW > rightErr/rightW {
-					bestStump.LeftVote = 0
-					bestStump.RightVote = 1
+					Feature: feature, Threshold: threshold,
+					LeftVote: float64(votes[0]), RightVote: float64(votes[1]),
 				}
 			}
 		}
-		if bestStump.Feature < 0 {
+		// SAMME requires a classifier better than 1/K random accuracy.
+		if bestStump.Feature < 0 || bestError >= 1-1/float64(m.Classes) {
 			continue
 		}
-
-		// Compute alpha
-		err := math.Max(bestErr, 1e-10)
-		alpha := 0.5 * math.Log((1-err)/err)
-		if alpha <= 0 {
+		errorRate := math.Max(1e-10, bestError)
+		alpha := math.Log((1-errorRate)/errorRate) + math.Log(float64(m.Classes-1))
+		if alpha <= 0 || math.IsNaN(alpha) || math.IsInf(alpha, 0) {
 			continue
 		}
-
-		// Update weights
-		for i, s := range samples {
-			pred := 0
-			if s.features[bestStump.Feature] < bestStump.Threshold {
-				pred = int(bestStump.LeftVote)
-			} else {
-				pred = int(bestStump.RightVote)
-			}
-			if pred != int(s.label) {
-				weights[i] *= math.Exp(alpha)
-			}
-		}
-
 		m.Stumps = append(m.Stumps, bestStump)
 		m.Alphas = append(m.Alphas, alpha)
+		penalty := math.Exp(alpha)
+		for i, sample := range samples {
+			pred := int32(bestStump.RightVote)
+			if sample.features[bestStump.Feature] < bestStump.Threshold {
+				pred = int32(bestStump.LeftVote)
+			}
+			if pred != sample.label {
+				weights[i] *= penalty
+			}
+		}
+		if !normalizeWeights() {
+			return nil, TrainResult{Error: "AdaBoost sample weights became non-finite"}
+		}
 	}
 
 	t.Logf("AdaBoost 训练完成：estimators=%d", len(m.Stumps))
