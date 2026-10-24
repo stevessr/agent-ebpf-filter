@@ -18,6 +18,10 @@ func (t *ModelTrainer) trainNaiveBayes(store *TrainingDataStore, cfg MLConfig) (
 	if len(labeled) < 10 {
 		return nil, TrainResult{Error: "need >=10 labeled samples"}
 	}
+	trainSet, valSet, trainRaw, valRaw, err := PrepareAutoTuneSplit(labeled, cfg.ValidationSplitRatio)
+	if err != nil {
+		return nil, TrainResult{Error: err.Error()}
+	}
 
 	m := NewNaiveBayes()
 	m.Means = make([][FeatureDim]float64, m.Classes)
@@ -25,7 +29,7 @@ func (t *ModelTrainer) trainNaiveBayes(store *TrainingDataStore, cfg MLConfig) (
 	m.Priors = make([]float64, m.Classes)
 	counts := make([]int, m.Classes)
 
-	for _, s := range labeled {
+	for _, s := range trainRaw {
 		if s.Label < 0 || int(s.Label) >= m.Classes {
 			continue
 		}
@@ -35,7 +39,7 @@ func (t *ModelTrainer) trainNaiveBayes(store *TrainingDataStore, cfg MLConfig) (
 			m.Means[c][d] += s.Features[d]
 		}
 	}
-	n := float64(len(labeled))
+	n := float64(len(trainRaw))
 	nonEmptyClasses := 0
 	for _, count := range counts {
 		if count > 0 {
@@ -55,7 +59,7 @@ func (t *ModelTrainer) trainNaiveBayes(store *TrainingDataStore, cfg MLConfig) (
 		}
 	}
 	// Compute variances
-	for _, s := range labeled {
+	for _, s := range trainRaw {
 		if s.Label < 0 || int(s.Label) >= m.Classes {
 			continue
 		}
@@ -74,10 +78,12 @@ func (t *ModelTrainer) trainNaiveBayes(store *TrainingDataStore, cfg MLConfig) (
 	}
 
 	t.Logf("Naive Bayes 训练完成：classes=%d", m.Classes)
-	acc := evalModelLabeled(m, labeled)
-	t.finishMetrics(acc, acc, acc, len(labeled), len(labeled), 0)
-	t.setLastSplit(labeled, labeled)
-	return m, TrainResult{Accuracy: acc, TrainAccuracy: acc, ValidationAccuracy: acc, NumSamples: len(labeled), TrainSamples: len(labeled)}
+	trainAcc := EvalModelSamples(m, trainSet)
+	valAcc := EvalModelSamples(m, valSet)
+	t.finishMetrics(valAcc, trainAcc, valAcc, len(labeled), len(trainSet), len(valSet))
+	t.setLastSplit(trainRaw, valRaw)
+	return m, TrainResult{Accuracy: valAcc, TrainAccuracy: trainAcc, ValidationAccuracy: valAcc,
+		NumSamples: len(labeled), TrainSamples: len(trainSet), ValidationSamples: len(valSet)}
 }
 
 // ── Nearest Centroid ───────────────────────────────────────────────
@@ -353,16 +359,26 @@ func (t *ModelTrainer) trainEnsemble(store *TrainingDataStore, cfg MLConfig) (Mo
 		return nil, TrainResult{Error: "need >=10 labeled samples"}
 	}
 
-	model := BuildEnsembleFromStore(store)
+	// Weight calibration is nested inside the outer training partition.
+	trainSet, valSet, trainRaw, valRaw, err := PrepareAutoTuneSplit(labeled, cfg.ValidationSplitRatio)
+	if err != nil {
+		return nil, TrainResult{Error: err.Error()}
+	}
+	trainingStore := NewTrainingDataStore(len(trainRaw))
+	for _, sample := range trainRaw {
+		trainingStore.Add(sample)
+	}
+	model := BuildEnsembleFromStore(trainingStore)
 	if model == nil {
 		return nil, TrainResult{Error: "failed to build ensemble"}
 	}
 	model.Voting = normalizeEnsembleVoting(cfg.EnsembleVoting)
-
-	samples := ToTrainSamples(labeled)
-	acc := EvalModelSamples(model, samples)
-	t.Logf("Ensemble 训练完成: voting=%s, models=%d", model.Voting, len(model.Models))
-	t.finishMetrics(acc, acc, acc, len(labeled), len(samples), 0)
-	t.setLastSplit(labeled, labeled)
-	return model, TrainResult{Accuracy: acc, TrainAccuracy: acc, ValidationAccuracy: acc, NumSamples: len(labeled), TrainSamples: len(samples)}
+	trainAcc := EvalModelSamples(model, trainSet)
+	valAcc := EvalModelSamples(model, valSet)
+	t.Logf("Ensemble 训练完成: voting=%s, models=%d, train=%d, validation=%d",
+		model.Voting, len(model.Models), len(trainSet), len(valSet))
+	t.finishMetrics(valAcc, trainAcc, valAcc, len(labeled), len(trainSet), len(valSet))
+	t.setLastSplit(trainRaw, valRaw)
+	return model, TrainResult{Accuracy: valAcc, TrainAccuracy: trainAcc, ValidationAccuracy: valAcc,
+		NumSamples: len(labeled), TrainSamples: len(trainSet), ValidationSamples: len(valSet)}
 }
