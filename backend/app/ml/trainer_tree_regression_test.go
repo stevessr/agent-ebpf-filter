@@ -76,3 +76,29 @@ func TestForestGiniAndEmptyEvaluation(t *testing.T) {
 		t.Fatalf("empty holdout falsely scored %v, want 0", got)
 	}
 }
+
+func TestForestSkipsUnrepresentableFloat32Threshold(t *testing.T) {
+	// The two feature values are distinct float64 values but the same
+	// float32 number, so a serialized forest cannot separate them safely.
+	rows := make([]TrainSample, 6)
+	for i := range rows {
+		rows[i].features[0] = 0.1
+		if i >= 3 {
+			rows[i].features[0] += 1e-12
+			rows[i].label = 1
+		}
+	}
+	point := findBestSplit(rows, 2, FeatureDim, rand.New(rand.NewSource(7)))
+	if point.giniGain > 0 {
+		t.Fatalf("selected split that cannot survive float32 serialization: %+v", point)
+	}
+
+	// A genuine float32-separated boundary must still be learnable.
+	for i := 3; i < len(rows); i++ {
+		rows[i].features[0] = 0.9
+	}
+	point = findBestSplit(rows, 2, FeatureDim, rand.New(rand.NewSource(7)))
+	if point.giniGain <= 0 || point.threshold <= 0.1 || point.threshold > 0.9 {
+		t.Fatalf("failed to learn a representable threshold: %+v", point)
+	}
+}
