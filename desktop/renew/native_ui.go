@@ -2,13 +2,13 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"sync/atomic"
 	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
+	"github.com/stevessr/agent-ebpf-filter/desktop/renew/design"
 )
 
 type renewApp struct {
@@ -84,9 +84,15 @@ type renewApp struct {
 	eventUIPaused         eventPauseFlag
 	eventUIBatcherStarted eventBatcherFlag
 	eventUICommitPending  eventCommitFlag
+	searchKeyReady        bool
+	searchKeySource       string
+	searchKeyNormalized   string
+	ownerCacheValid       bool
+	ownerCacheVersion     uint64
+	ownerCache            agentOwnershipIndex
 	filterCacheValid      bool
 	filterCacheVersion    uint64
-	filterCacheKey        string
+	filterCacheKey        eventFilterSignature
 	filterCacheRows       []eventSummary
 	riskCacheValid        bool
 	riskCacheVersion      uint64
@@ -102,11 +108,11 @@ type renewApp struct {
 	personalAlertCacheHidden        int
 	networkCacheValid               bool
 	networkCacheVersion             uint64
-	networkCacheKey                 string
+	networkCacheKey                 eventFilterSignature
 	networkCacheRows                []networkAggregate
 	processCacheValid               bool
 	processCacheVersion             uint64
-	processCacheKey                 string
+	processCacheKey                 eventFilterSignature
 	processCacheRows                []processAggregate
 	domainCacheValid                bool
 	domainCacheVersion              uint64
@@ -506,7 +512,7 @@ func pageSubtitle(page string) string {
 }
 
 func statusPill(c *ui.Context, text string, tone ui.Color) ui.Element {
-	return ui.Badge(c, text).Background(tone.Alpha(0.13)).TextColor(tone)
+	return design.TintedBadge(c, text, tone)
 }
 
 func riskTextColor(t *ui.Theme, risk string) ui.Color {
@@ -585,18 +591,9 @@ func (a *renewApp) errorView(c *ui.Context) {
 	})
 }
 
-func (a *renewApp) eventFilterCacheKey() string {
-	q := strings.ToLower(strings.TrimSpace(a.search))
-	key := q + "\x00" + a.eventTypeFilter + "\x00" + a.eventSessionFilter + "\x00" + a.eventDecisionFilter + "\x00" + fmt.Sprint(a.eventPIDFilter) + "\x00" + fmt.Sprint(a.eventRootPIDFilter) + "\x00" + a.eventTargetFilter + "\x00" + a.eventDomainAgent + "\x00" + a.eventDomainTarget + "\x00" + a.eventDomainKind + "\x00" + fmt.Sprint(a.eventFileEditsOnly) + "\x00" + fmt.Sprint(a.eventDelegatedOnly) + "\x00" + a.eventRiskFilter + "\x00" + fmt.Sprint(a.eventMinRiskScore) + "\x00" + a.managementEventFilter
-	if a.eventAttentionOnly {
-		key += "\x001"
-	}
-	return key
-}
-
 func (a *renewApp) filteredEvents() []eventSummary {
-	q := strings.ToLower(strings.TrimSpace(a.search))
 	key := a.eventFilterCacheKey()
+	q := key.Search
 	if a.filterCacheValid && a.filterCacheVersion == a.eventsVersion && a.filterCacheKey == key {
 		return a.filterCacheRows
 	}
@@ -611,7 +608,7 @@ func (a *renewApp) filteredEvents() []eventSummary {
 	out := make([]eventSummary, 0, min(len(a.events), 256))
 	var domainOwners agentOwnershipIndex
 	if a.eventDomainTarget != "" {
-		domainOwners = buildAgentOwnershipIndex(a.events, nil)
+		domainOwners = a.summaryOwnershipIndex()
 	}
 	for _, event := range a.events {
 		if a.eventDomainTarget != "" && !matchesAgentDomainEvent(event, domainOwners, a.eventDomainAgent, a.eventDomainTarget, a.eventDomainKind) {
@@ -714,19 +711,11 @@ func (a *renewApp) eventFilterOptions() ([]string, []string) {
 }
 
 func card(c *ui.Context, title string, body func()) ui.Element {
-	t := c.Theme()
-	return ui.Column(c).Padding(18).Gap(12).Radius(12).Background(t.Surface).Border(1, t.Border).Children(func() {
-		if title != "" {
-			ui.Text(c, title).FontSize(15).Bold()
-		}
-		body()
-	})
+	return design.Section(c, title, "", body)
 }
 
 func statCard(c *ui.Context, label, value, detail string) {
-	t := c.Theme()
-	card(c, label, func() {
-		ui.Text(c, value).FontSize(26).Bold()
-		ui.Text(c, detail).FontSize(11).TextColor(t.TextMuted)
+	design.MetricTile(c, design.Metric{
+		Label: label, Value: value, Detail: detail, Tone: design.Neutral,
 	}).Width(220)
 }
