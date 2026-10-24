@@ -146,6 +146,16 @@ type renewApp struct {
 	configInspection            agentConfigInspection
 	configTable                 ui.ListState
 	sessionTable                ui.ListState
+	agentSightModelTable        ui.ListState
+	agentSightSessionTable      ui.ListState
+	agentSightModelSelected     int
+	agentSightSessionSelected   int
+	agentSightReport            agentSightUsageResponse
+	agentSightReady             bool
+	agentSightLoading           bool
+	agentSightError             string
+	agentSightChecked           time.Time
+	agentSightSynced            time.Time
 	rulesTable                  ui.ListState
 	commTable                   ui.ListState
 	pathTable                   ui.ListState
@@ -283,6 +293,8 @@ func newRenewApp(backend string) *renewApp {
 		domainSelected:     -1,
 		domainShowIPs:      true,
 		sessionSelected:    -1,
+		agentSightModelSelected: -1,
+		agentSightSessionSelected: -1,
 		ruleSelected:       -1,
 		commSelected:       -1,
 		pathSelected:       -1,
@@ -302,6 +314,8 @@ func newRenewApp(backend string) *renewApp {
 	a.processTable.Selected = &a.processSelected
 	a.domainTable.Selected = &a.domainSelected
 	a.sessionTable.Selected = &a.sessionSelected
+	a.agentSightModelTable.Selected = &a.agentSightModelSelected
+	a.agentSightSessionTable.Selected = &a.agentSightSessionSelected
 	a.lineageSignalTable.Selected = &a.lineageSignalSelected
 	a.rulesTable.Selected = &a.ruleSelected
 	a.commTable.Selected = &a.commSelected
