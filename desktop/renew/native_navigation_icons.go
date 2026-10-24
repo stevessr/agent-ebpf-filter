@@ -38,6 +38,6 @@ func workspaceNavigationIcon(page string) *ui.SVG {
 // The narrow rail deliberately keeps the most-used pages. The full sidebar
 // exposes the complete set, and both surfaces share these same SVGs.
 var workspaceRailPages = []string{
-	"概览", "事件", "研判", "会话", "AgentSight", "派生", "网络", "域名", "进程",
+	"概览", "事件", "研判", "会话", "派生", "网络", "域名", "进程",
 	"Agent 识别", "监控", "规则", "系统", "终端",
 }
