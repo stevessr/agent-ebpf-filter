@@ -163,11 +163,10 @@ func (t *ModelTrainer) trainExtraTrees(store *TrainingDataStore, cfg MLConfig) (
 		return nil, TrainResult{Error: "insufficient labeled samples"}
 	}
 
-	samples := make([]TrainSample, len(labeled))
-	for i, s := range labeled {
-		samples[i] = TrainSample{features: s.Features, label: s.Label}
+	trainSet, valSet, trainRaw, validationRaw, err := PrepareAutoTuneSplit(labeled, cfg.ValidationSplitRatio)
+	if err != nil {
+		return nil, TrainResult{Error: err.Error()}
 	}
-	trainSet, valSet, _, _, _ := PrepareAutoTuneSplit(labeled, cfg.ValidationSplitRatio)
 
 	nt := cfg.NumTrees
 	if nt < 1 {
@@ -182,14 +181,15 @@ func (t *ModelTrainer) trainExtraTrees(store *TrainingDataStore, cfg MLConfig) (
 		ml = 5
 	}
 
-	forest := BuildExtraTrees(samples, nt, md, ml, time.Now().UnixNano())
+	forest := BuildExtraTrees(trainSet, nt, md, ml, time.Now().UnixNano())
 	m := &ExtraTreesModel{Forest: forest, NumTrees: nt, MaxDepth: md}
 
 	t.Logf("Extra Trees 训练完成：trees=%d, depth=%d", nt, md)
 	trainAcc := EvalModelSamples(m, trainSet)
 	valAcc := EvalModelSamples(m, valSet)
 	t.finishMetrics(valAcc, trainAcc, valAcc, len(labeled), len(trainSet), len(valSet))
-	t.setLastSplit(ToTrainingSamples(trainSet), ToTrainingSamples(valSet))
+	t.setValidationRatio(float64(len(valSet)) / float64(len(labeled)))
+	t.setLastSplit(trainRaw, validationRaw)
 	return m, TrainResult{Accuracy: valAcc, TrainAccuracy: trainAcc, ValidationAccuracy: valAcc, NumSamples: len(labeled), TrainSamples: len(trainSet), ValidationSamples: len(valSet)}
 }
 
