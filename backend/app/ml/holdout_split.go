@@ -85,63 +85,60 @@ func prepareGroupedHoldout(labeled []TrainingSample, ratio float64) ([]TrainSamp
 	selected := make(map[[32]byte]bool)
 	var validationClassCount [4]int
 	validationCount := 0
-	// First try to meet class-wise targets. Group boundaries take precedence
-	// over the exact row count so repeated observations cannot contaminate eval.
-	for _, group := range groups {
-		if validationCount >= validationTarget {
-			break
+	canSelect := func(group *holdoutGroup) bool {
+		if selected[group.key] {
+			return false
 		}
-		needed := false
 		for c, count := range group.counts {
-			if count > 0 && validationClassCount[c] < quotas[c] {
-				needed = true
-			}
-			// Always retain at least one training sample of each seen class.
 			if count > 0 && classTotals[c]-validationClassCount[c]-count < 1 {
-				needed = false
-				break
+				return false // never erase a class from the training set
 			}
-		}
-		if !needed {
-			continue
 		}
 		next := validationCount + len(group.indices)
-		if next > validationTarget && next-validationTarget > validationTarget-validationCount {
-			continue
-		}
+		return next <= validationTarget ||
+			next-validationTarget <= validationTarget-validationCount
+	}
+	selectGroup := func(group *holdoutGroup) {
 		selected[group.key] = true
-		validationCount = next
+		validationCount += len(group.indices)
 		for c, count := range group.counts {
 			validationClassCount[c] += count
 		}
 	}
-	// When low-frequency groups prevent class-quotas from filling the target,
-	// use other independent groups while keeping every class represented in train.
+
+	// Stratify in ascending class-support order, not random group order.
+	// Otherwise majority ALLOW groups can exhaust the holdout quota before a
+	// rare BLOCK or ALERT group is encountered at all. The actual group key
+	// ordering is still deterministic and randomized using the fixed seed.
+	classPriority := make([]int, 0, len(quotas))
+	for c, quota := range quotas {
+		if quota > 0 {
+			classPriority = append(classPriority, c)
+		}
+	}
+	sort.SliceStable(classPriority, func(i, j int) bool {
+		return classTotals[classPriority[i]] < classTotals[classPriority[j]]
+	})
+	for _, c := range classPriority {
+		for _, group := range groups {
+			if validationCount >= validationTarget ||
+				validationClassCount[c] >= quotas[c] {
+				break
+			}
+			if group.counts[c] == 0 || !canSelect(group) {
+				continue
+			}
+			selectGroup(group)
+		}
+	}
+	// Top up the remaining holdout rows after rare-class evidence has a
+	// chance to enter validation. Group boundaries remain strict.
 	for _, group := range groups {
 		if validationCount >= validationTarget {
 			break
 		}
-		if selected[group.key] {
-			continue
-		}
-		canSelect := true
-		for c, count := range group.counts {
-			if count > 0 && classTotals[c]-validationClassCount[c]-count < 1 {
-				canSelect = false
-				break
-			}
-		}
-		if !canSelect {
-			continue
-		}
-		next := validationCount + len(group.indices)
-		if next > validationTarget && next-validationTarget > validationTarget-validationCount {
-			continue
-		}
-		selected[group.key] = true
-		validationCount = next
-		for c, count := range group.counts {
-			validationClassCount[c] += count
+		if canSelect(group) {
+			selectGroup(group)
 		}
 	}
 	if validationCount == 0 || validationCount >= len(labeled) {
