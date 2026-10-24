@@ -70,3 +70,27 @@ func TestAgentSightUsageUnknownAndSessionNavigation(t *testing.T) {
 		t.Fatalf("session label must be truncated for native layout")
 	}
 }
+
+func TestAgentSightEffectSummaryUsesOnlyAgentEvidence(t *testing.T) {
+	rows := []eventSummary{
+		{AgentRunID: "run-1", Type: "openat", EventType: 4, Comm: "codex"},
+		{AgentRunID: "run-1", Type: "network", Network: true, Decision: "BLOCK", Comm: "codex", RiskScore: 90},
+		{AgentRunID: "run-1", Type: "semantic_alert", Comm: "codex"},
+		{Tag: "Shell", Comm: "bash", Type: "network", Network: true},
+	}
+	result := buildAgentSightEffects(rows)
+	if result.AgentEvents != 3 || result.NetworkEvents != 1 || result.DeniedEvents != 1 {
+		t.Fatalf("unattributed shell included or policy decisions lost: %+v", result)
+	}
+	if result.RiskEvents < 2 {
+		t.Fatalf("risk events missing: %+v", result)
+	}
+}
+
+func TestAgentSightUnicodeSessionLabel(t *testing.T) {
+	id := strings.Repeat("会", 110)
+	label := agentSightSessionLabel(id)
+	if !strings.Contains(label, "…") || !strings.HasPrefix(label, "会") {
+		t.Fatalf("Unicode label was not truncated safely: %q", label)
+	}
+}
