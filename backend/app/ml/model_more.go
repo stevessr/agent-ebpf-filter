@@ -210,7 +210,14 @@ func buildExtraTree(samples []TrainSample, depth, maxDepth, minLeaf, fCount int,
 	bestFeature := -1
 	bestThreshold := 0.0
 	features := rng.Perm(FeatureDim)
-	for _, fi := range features[:fCount] {
+	for index, fi := range features {
+		// If the initial random feature subset is completely uninformative,
+		// widen the search rather than producing a constant majority leaf.
+		// Sparse syscall/category vectors often contain only one informative
+		// dimension out of 128; this bounded fallback preserves learnability.
+		if index >= fCount && bestGain > 0 {
+			break
+		}
 		minV, maxV := samples[0].features[fi], samples[0].features[fi]
 		if math.IsNaN(minV) || math.IsInf(minV, 0) {
 			continue
