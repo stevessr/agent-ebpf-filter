@@ -33,6 +33,10 @@ func TestAdaBoostLearnsAllFourActions(t *testing.T) {
 	if result.Error != "" || model == nil {
 		t.Fatalf("AdaBoost training failed: %+v", result)
 	}
+	if result.TrainSamples+result.ValidationSamples != 100 || result.ValidationSamples < 15 {
+		t.Fatalf("AdaBoost must report an independent holdout, not training-as-validation: %+v", result)
+	}
+
 	ada, ok := UnwrapModelType(model).(*AdaBoostModel)
 	if !ok || len(ada.Stumps) == 0 {
 		t.Fatalf("AdaBoost trained no stumps: %T", UnwrapModelType(model))
