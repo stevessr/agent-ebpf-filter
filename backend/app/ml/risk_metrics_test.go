@@ -210,3 +210,46 @@ func TestEnsembleCalibrationPrefersCorrectEnforcementToRiskOnlyDetection(t *test
 		t.Fatalf("unsafe high-risk action substitution ranked equally: exact=%v swapped=%v", a, b)
 	}
 }
+
+func TestSecurityRiskPrecisionAndMacroF1(t *testing.T) {
+	model := &riskMetricTestModel{predictions: []Prediction{
+		{Action: 1, Confidence: 0.8}, // ALLOW blocked: false enforcement
+		{Action: 1, Confidence: 0.8}, // BLOCK correct
+		{Action: 1, Confidence: 0.8}, // REWRITE blocked: false enforcement
+		{Action: 3, Confidence: 0.8}, // ALERT correct
+	}}
+	samples := make([]TrainingSample, 4)
+	for i, label := range []int32{0, 1, 2, 3} {
+		samples[i].Features[0] = float64(i)
+		samples[i].Label = label
+	}
+	metrics := evaluateRiskModel(model, samples)
+	assertNear(t, "high-risk recall", metrics.HighRiskRecall, 1)
+	assertNear(t, "risk precision", metrics.HighRiskPrecision, 0.5)
+	assertNear(t, "exact risk recall", metrics.HighRiskExactRecall, 1)
+	assertNear(t, "block precision", metrics.BlockPrecision, 1.0/3.0)
+	assertNear(t, "alert precision", metrics.AlertPrecision, 1)
+	assertNear(t, "macro F1", metrics.MacroF1, 0.375)
+	if metrics.HighRiskPredictions != 4 {
+		t.Fatalf("expected 4 enforcement predictions, got %+v", metrics)
+	}
+}
+
+func TestEnsembleWeightsPenalizeIndiscriminateRiskPredictions(t *testing.T) {
+	base := riskEvaluation{
+		Samples: 200, BalancedAccuracy: 0.8,
+		HighRiskSamples: 40, HighRiskRecall: 1, HighRiskExactRecall: 0.8,
+		HighRiskPredictions: 60,
+		BenignSamples: 100, BenignFalsePositiveRate: 0.05,
+		ConfidenceBrier: 0.1, ECE: 0.08,
+	}
+	highPrecision := base
+	highPrecision.HighRiskPrecision = 0.9
+	lowPrecision := base
+	lowPrecision.HighRiskPrecision = 0.2
+	a := calibratedEnsembleWeight(highPrecision)
+	b := calibratedEnsembleWeight(lowPrecision)
+	if !(a > b && a <= 1 && b > 0) {
+		t.Fatalf("high false-positive enforcement was not penalized: precise=%v indiscriminate=%v", a, b)
+	}
+}
