@@ -155,8 +155,13 @@ func TestSplitEnsembleCalibrationHoldoutKeepsRepeatedBehaviorInTraining(t *testi
 	samples[34].CommandLine = samples[4].CommandLine
 	samples[39].CommandLine = samples[2].CommandLine
 	train, holdout := splitEnsembleCalibrationHoldout(samples)
-	if len(train) != 34 || len(holdout) != 6 {
-		t.Fatalf("duplicate groups not excluded from calibration: train=%d calibration=%d", len(train), len(holdout))
+	if len(train) != 32 || len(holdout) != 6 {
+		t.Fatalf("future duplicate events must be discarded, not inserted into train: train=%d calibration=%d", len(train), len(holdout))
+	}
+	for _, sample := range train {
+		if !sample.Timestamp.Before(samples[32].Timestamp) {
+			t.Fatal("future event leaked into time-forward ensemble training")
+		}
 	}
 	seen := make(map[[32]byte]bool)
 	for _, sample := range train {
