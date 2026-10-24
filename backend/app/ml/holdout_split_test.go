@@ -108,4 +108,7 @@ func TestKNNExactMatchOutvotesNearbyClassMajority(t *testing.T) {
 	if pred.Action != 1 || math.Abs(pred.Confidence-1) > 1e-9 {
 		t.Fatalf("exact match lost to neighbors: %+v", pred)
 	}
+	if pred.AnomalyScore > 1e-9 {
+		t.Fatalf("exact match must not look anomalous due to ignored neighbors: %+v", pred)
+	}
 }
