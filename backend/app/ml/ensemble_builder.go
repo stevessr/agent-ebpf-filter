@@ -203,7 +203,23 @@ func splitEnsembleCalibrationHoldout(labeled []TrainingSample) (trainSet, valida
 	if splitIdx < 10 || splitIdx >= len(ordered) {
 		return ordered, nil
 	}
-	return ordered[:splitIdx], ordered[splitIdx:]
+	// A command/feature group observed during training must never be reused
+	// for calibration, even when it reappears in the newest event window.
+	// Time order alone is not enough to prevent duplicate-behavior leakage.
+	trainSet = append([]TrainingSample(nil), ordered[:splitIdx]...)
+	seen := make(map[[32]byte]struct{}, len(trainSet))
+	for _, sample := range trainSet {
+		seen[behaviorHoldoutKey(sample)] = struct{}{}
+	}
+	for _, sample := range ordered[splitIdx:] {
+		key := behaviorHoldoutKey(sample)
+		if _, alreadyTrained := seen[key]; alreadyTrained {
+			trainSet = append(trainSet, sample)
+			continue
+		}
+		validationSet = append(validationSet, sample)
+	}
+	return trainSet, validationSet
 }
 
 func chronologicalTrainingSamples(samples []TrainingSample) []TrainingSample {
