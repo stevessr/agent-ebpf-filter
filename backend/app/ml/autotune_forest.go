@@ -6,7 +6,6 @@ package ml
 import (
 	"math"
 	"math/rand"
-	"sort"
 )
 
 // PrepareAutoTuneSplit partitions duplicates as complete groups, then stratifies
@@ -64,7 +63,7 @@ func buildAutoTuneTree(samples []TrainSample, depth, maxDepth, minSamplesLeaf, f
 		return []DecisionNode{{LeftChild: -1, RightChild: -1, LeafValue: float32(firstLabel)}}
 	}
 
-	best := findAutoTuneBestSplit(samples, featureSampleCount, rng)
+	best := findBestSplit(samples, minSamplesLeaf, featureSampleCount, rng)
 	if best.giniGain <= 0 {
 		return []DecisionNode{{LeftChild: -1, RightChild: -1, LeafValue: majorityClass(samples)}}
 	}
@@ -116,48 +115,3 @@ func buildAutoTuneTree(samples []TrainSample, depth, maxDepth, minSamplesLeaf, f
 	return nodes
 }
 
-func findAutoTuneBestSplit(samples []TrainSample, featureSampleCount int, rng *rand.Rand) splitPoint {
-	best := splitPoint{giniGain: -1}
-	parentGini := giniImpurity(samples)
-
-	features := make([]int, FeatureDim)
-	for i := range features {
-		features[i] = i
-	}
-	rng.Shuffle(len(features), func(i, j int) { features[i], features[j] = features[j], features[i] })
-	if featureSampleCount > len(features) {
-		featureSampleCount = len(features)
-	}
-	selectedFeatures := features[:featureSampleCount]
-
-	for _, fi := range selectedFeatures {
-		sorted := append([]TrainSample(nil), samples...)
-		sort.Slice(sorted, func(i, j int) bool {
-			return sorted[i].features[fi] < sorted[j].features[fi]
-		})
-
-		for i := 1; i < len(sorted); i++ {
-			if sorted[i].features[fi] == sorted[i-1].features[fi] {
-				continue
-			}
-			threshold := (sorted[i].features[fi] + sorted[i-1].features[fi]) / 2.0
-			leftSamples := sorted[:i]
-			rightSamples := sorted[i:]
-			if len(leftSamples) < 1 || len(rightSamples) < 1 {
-				continue
-			}
-
-			leftWeight := float64(len(leftSamples)) / float64(len(sorted))
-			gain := parentGini - leftWeight*giniImpurity(leftSamples) - (1-leftWeight)*giniImpurity(rightSamples)
-			if gain > best.giniGain {
-				best = splitPoint{
-					featureIdx: fi,
-					threshold:  threshold,
-					giniGain:   gain,
-				}
-			}
-		}
-	}
-
-	return best
-}
