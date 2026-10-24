@@ -247,7 +247,7 @@ func (a *renewApp) agentSightView(c *ui.Context) {
 			session := summary.Sessions[row]
 			switch col {
 			case 0:
-				ui.Text(c, agentSightSessionLabel(session.ID)).Tooltip(session.ID).SingleLine()
+				ui.Text(c, agentSightSessionLabel(session.ID)).SingleLine()
 			case 1:
 				ui.Text(c, strconv.Itoa(session.EventCount))
 			case 2:
