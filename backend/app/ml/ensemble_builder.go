@@ -256,6 +256,8 @@ type ModelBenchmark struct {
 	ModelType               string  `json:"modelType"`
 	Accuracy                float64 `json:"accuracy"`
 	BalancedAccuracy        float64 `json:"balancedAccuracy"`
+	MacroF1                 float64 `json:"macroF1"`
+	HighRiskPrecision       float64 `json:"highRiskPrecision"`
 	HighRiskRecall          float64 `json:"highRiskRecall"`
 	HighRiskExactRecall     float64 `json:"highRiskExactRecall"`
 	BlockRecall             float64 `json:"blockRecall"`
@@ -341,6 +343,8 @@ func benchmarkModelType(mt ModelType, trainSet, testSet []TrainingSample) ModelB
 	metrics := evaluateRiskModel(model, testSet)
 	bench.Accuracy = metrics.Accuracy
 	bench.BalancedAccuracy = metrics.BalancedAccuracy
+	bench.MacroF1 = metrics.MacroF1
+	bench.HighRiskPrecision = metrics.HighRiskPrecision
 	bench.HighRiskRecall = metrics.HighRiskRecall
 	bench.HighRiskExactRecall = metrics.HighRiskExactRecall
 	bench.BlockRecall = metrics.BlockRecall
