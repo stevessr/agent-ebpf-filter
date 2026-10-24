@@ -484,6 +484,8 @@ func pageSubtitle(page string) string {
 		return "实时事件、风险筛选与按需详情"
 	case "会话":
 		return "按 Agent 上下文聚合运行会话"
+	case "AgentSight":
+		return "已观测模型调用、Token 用量与归因证据"
 	case "派生":
 		return "Agent 调用关系与实时派生进程（放射图 / 瀑布图）"
 	case "网络":
