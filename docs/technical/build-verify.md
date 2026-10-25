@@ -77,7 +77,7 @@ flowchart TB
 
 `.github/workflows/opencode-ebpf-soak.yml` 每周在 GitHub-hosted `ubuntu-24.04` 上运行一次，也可手动 dispatch。它先用 `make proto-go` 生成未纳入版本控制的 Go protobuf bindings，再用 `make ebpf-bootstrap` 构建后端，安装固定版本的 OpenCode v2 CLI，并以无需 API key 的 `opencode/big-pickle` 运行一组临时文件操作。工作流不授予仓库写权限；失败时上传后端日志、OpenCode JSONL 日志和 tracepoint bootstrap 状态，保留 14 天。
 
-`scripts/opencode-ebpf-soak.sh` 只绑定 loopback，创建短期 backend token，并将 OpenCode 的 home 与工作目录隔离到临时目录。其项目 agent 权限默认全部拒绝，只允许对该临时目录执行三条 `mkdir` / `touch` 命令；backend 会注册 OpenCode 进程，测试随后要求 marker 文件既存在又出现在 `/events/recent`，并检查至少一个 tracepoint 已附加。脚本发现 `/sys/fs/bpf/agent-ebpf` 已存在时会拒绝运行，以免覆盖当前机器已有的 eBPF pin；在本次运行确认 backend 退出后，删除本次创建的 pin。
+`scripts/opencode-ebpf-soak.sh` 只绑定 loopback，创建短期 backend token，并将 OpenCode 的 home 与工作目录隔离到临时目录。其项目 agent 默认拒绝其他权限，仅允许读取临时工作区内的 OpenCode 配置文件，以及对该临时目录执行三条 `mkdir` / `touch` 命令；backend 会注册 OpenCode 进程，测试随后要求 marker 文件既存在又出现在 `/events/recent`，并检查至少一个 tracepoint 已附加。脚本发现 `/sys/fs/bpf/agent-ebpf` 已存在时会拒绝运行，以免覆盖当前机器已有的 eBPF pin；在本次运行确认 backend 退出后，删除本次创建的 pin。
 
 本地复现需 Go、`protobuf-compiler`、Linux BTF、已挂载的 bpffs、root 或免交互 `sudo`、Node.js/npm 与 OpenCode 可访问网络：
 

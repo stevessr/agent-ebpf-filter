@@ -195,14 +195,18 @@ commands = [
     f"touch {workdir}/nested/marker-one.txt",
     f"touch {workdir}/nested/marker-two.txt",
 ]
-permissions = [{"action": "*", "resource": "*", "effect": "deny"}]
+global_permissions = [{"action": "*", "resource": "*", "effect": "deny"}]
+global_permissions.append(
+    {"action": "read", "resource": config_path, "effect": "allow"}
+)
+permissions = list(global_permissions)
 permissions.extend(
     {"action": "shell", "resource": command, "effect": "allow"}
     for command in commands
 )
 config = {
     "$schema": "https://opencode.ai/config.json",
-    "permissions": [{"action": "*", "resource": "*", "effect": "deny"}],
+    "permissions": global_permissions,
     "agents": {
         "soak": {
             "description": "Execute only the three explicitly allowed temporary-file operations.",
