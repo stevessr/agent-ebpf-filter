@@ -35,6 +35,18 @@ def strings_in(value: object):
             yield from strings_in(child)
 
 
+def event_summary(record: dict) -> dict[str, object]:
+    event = record.get("Event", record.get("event"))
+    if not isinstance(event, dict):
+        return {"record_keys": sorted(record)}
+    fields = ("type", "eventType", "pid", "comm", "path", "cwd")
+    return {
+        key: event[key]
+        for key in fields
+        if key in event
+    }
+
+
 def captured_path_variants(path: str) -> tuple[str, ...]:
     # Standard redaction replaces the runner's concrete home prefix with "~".
     home = os.path.expanduser("~").rstrip(os.sep)
@@ -63,10 +75,12 @@ def main() -> int:
     path_candidates = {path: captured_path_variants(path) for path in expected}
     last_missing = expected[:]
     last_error: str | None = None
+    last_events: list[dict] = []
 
     while time.monotonic() < deadline:
         try:
             events = fetch_events(url, args.api_key, timeout=10.0)
+            last_events = events
             event_strings = [text for event in events for text in strings_in(event)]
             last_missing = [
                 path
@@ -86,6 +100,10 @@ def main() -> int:
         print(f"[soak] recent-events query failed: {last_error}", file=sys.stderr)
     if last_missing:
         print(f"[soak] marker paths absent from captured events: {', '.join(last_missing)}", file=sys.stderr)
+    print(f"[soak] recent-events returned {len(last_events)} records; sample:", file=sys.stderr)
+    for event in last_events[:5]:
+        print(f"[soak] {json.dumps(event_summary(event), sort_keys=True)}", file=sys.stderr)
+
     return 1
 
 

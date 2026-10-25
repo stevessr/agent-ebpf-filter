@@ -81,6 +81,7 @@ OPENCODE_LOG="$RUN_DIR/opencode.jsonl"
 SUMMARY="$RUN_DIR/summary.txt"
 START_FIFO="$RUN_DIR/opencode-start.fifo"
 BACKEND_LAUNCH_PID=""
+OPENCODE_LAUNCH_PID=""
 REGISTERED_PID=""
 PIN_ROOT_RESERVED=1
 BACKEND_STOPPED=0
@@ -95,19 +96,12 @@ cleanup() {
   local status=$?
   trap - EXIT
 
+  if [[ -n "$OPENCODE_LAUNCH_PID" ]]; then
+    kill -TERM "$OPENCODE_LAUNCH_PID" 2>/dev/null || true
+    wait "$OPENCODE_LAUNCH_PID" 2>/dev/null || true
+    OPENCODE_LAUNCH_PID=""
+  fi
   if [[ -n "$REGISTERED_PID" ]]; then
-    if kill -0 "$REGISTERED_PID" 2>/dev/null; then
-      kill -TERM "$REGISTERED_PID" 2>/dev/null || true
-      for _ in {1..20}; do
-        kill -0 "$REGISTERED_PID" 2>/dev/null || break
-        sleep 0.2
-      done
-      if kill -0 "$REGISTERED_PID" 2>/dev/null; then
-        kill -KILL "$REGISTERED_PID" 2>/dev/null || true
-        status=1
-      fi
-    fi
-    wait "$REGISTERED_PID" 2>/dev/null || true
     curl --silent --show-error --max-time 3 -X POST \
       -H "X-API-KEY: $API_KEY" -H 'Content-Type: application/json' \
       --data "{\"pid\":$REGISTERED_PID}" "$BASE_URL/unregister" >/dev/null 2>&1 || true
@@ -311,19 +305,47 @@ printf -v PROMPT 'Run exactly these three shell commands, one per tool call and 
     XDG_STATE_HOME="$OPENCODE_HOME/state" \
     timeout --signal=TERM --kill-after=10s "${MODEL_TIMEOUT}s" \
       opencode run --standalone --model "$MODEL" --agent soak --format json --auto "$PROMPT"
-) >"$OPENCODE_LOG" 2>&1 &
-REGISTERED_PID=$!
+  ) >"$OPENCODE_LOG" 2>&1 &
+OPENCODE_LAUNCH_PID=$!
+printf 'start\n' > "$START_FIFO"
+
+for _ in {1..100}; do
+  launch_children=()
+  children_path="/proc/$OPENCODE_LAUNCH_PID/task/$OPENCODE_LAUNCH_PID/children"
+  if [[ -r "$children_path" ]]; then
+    read -r -a launch_children < "$children_path" || true
+    for candidate_pid in "${launch_children[@]}"; do
+      if [[ -r "/proc/$candidate_pid/cmdline" ]]; then
+        REGISTERED_PID="$candidate_pid"
+        break 2
+      fi
+    done
+  fi
+  if ! kill -0 "$OPENCODE_LAUNCH_PID" 2>/dev/null; then
+    break
+  fi
+  sleep 0.05
+done
+if [[ -z "$REGISTERED_PID" ]]; then
+  echo "[soak] could not identify the OpenCode process under timeout supervisor" >&2
+  exit 1
+fi
 
 curl_api -X POST -H 'Content-Type: application/json' \
   --data "{\"pid\":$REGISTERED_PID,\"tag\":\"Agent CLI\",\"cwd\":\"$WORKDIR\"}" \
   "$BASE_URL/register" >/dev/null
-printf 'start\n' > "$START_FIFO"
+echo "[soak] registered OpenCode PID $REGISTERED_PID"
 
 set +e
-wait "$REGISTERED_PID"
+wait "$OPENCODE_LAUNCH_PID"
 opencode_status=$?
 set -e
-REGISTERED_PID=""
+OPENCODE_LAUNCH_PID=""
+if [[ -n "$REGISTERED_PID" ]]; then
+  curl_api -X POST -H 'Content-Type: application/json' \
+    --data "{\"pid\":$REGISTERED_PID}" "$BASE_URL/unregister" >/dev/null
+  REGISTERED_PID=""
+fi
 if (( opencode_status != 0 )); then
   echo "[soak] OpenCode exited with status $opencode_status (model: $MODEL)" >&2
   exit 1
@@ -335,10 +357,17 @@ for marker in "$WORKDIR/nested/marker-one.txt" "$WORKDIR/nested/marker-two.txt";
   fi
 done
 
+set +e
 python3 "$ROOT_DIR/scripts/check-opencode-soak.py" \
   --base-url "$BASE_URL" --api-key "$API_KEY" \
   --expect "$WORKDIR/nested/marker-one.txt" \
   --expect "$WORKDIR/nested/marker-two.txt" \
   --timeout "$EVENT_TIMEOUT"
+event_status=$?
+set -e
+curl_api -o "$RUN_DIR/post-run-health.json" "$BASE_URL/api/v1/health"
+if (( event_status != 0 )); then
+  exit "$event_status"
+fi
 printf 'OpenCode model: %s\nBackend: %s\nEvent assertions: passed\n' "$MODEL" "$BASE_URL" >>"$SUMMARY"
 echo "[soak] OpenCode free-model exec was observed in kernel events"
