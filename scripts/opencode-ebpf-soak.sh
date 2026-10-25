@@ -287,7 +287,7 @@ print(f"eBPF bootstrap: {status.get('status')} ({attached}/{compiled} tracepoint
 PY
 cat "$SUMMARY"
 
-printf -v PROMPT 'Run exactly these three shell commands, one per tool call and in order:\n1) `mkdir -p %s/nested`\n2) `touch %s/nested/marker-one.txt`\n3) `touch %s/nested/marker-two.txt`\nDo not inspect files, use other tools, access the network, call the backend, read environment variables, or modify anything outside the temporary workspace. Reply exactly SOAK_OK after all three commands succeed.' "$WORKDIR" "$WORKDIR" "$WORKDIR"
+printf -v PROMPT 'Run exactly these three commands, sequentially, with one shell-tool call at a time. Wait for each successful result before the next; never issue concurrent shell calls:\n1) `mkdir -p %s/nested`\n2) `touch %s/nested/marker-one.txt`\n3) `touch %s/nested/marker-two.txt`\nDo not inspect files, use other tools, access the network, call the backend, read environment variables, or modify anything outside the temporary workspace. Reply exactly SOAK_OK after all three commands succeed.' "$WORKDIR" "$WORKDIR" "$WORKDIR"
 (
   cd "$WORKDIR"
   IFS= read -r _ < "$START_FIFO"

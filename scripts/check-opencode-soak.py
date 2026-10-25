@@ -48,10 +48,13 @@ def event_summary(record: dict) -> dict[str, object]:
 
 
 def captured_path_variants(path: str) -> tuple[str, ...]:
-    # Standard redaction replaces the runner's concrete home prefix with "~".
+    # Match the current standard rule, which drops the first component below $HOME.
     home = os.path.expanduser("~").rstrip(os.sep)
     if home and path.startswith(home + os.sep):
-        return path, "~" + path[len(home) :]
+        relative = path[len(home) + 1 :].split(os.sep, 1)
+        redacted_tail = relative[1] if len(relative) == 2 else ""
+        redacted_path = f"~{os.sep}{redacted_tail}" if redacted_tail else "~"
+        return path, redacted_path
     return (path,)
 
 
@@ -73,14 +76,27 @@ def main() -> int:
     url = f"{base_url}/events/recent?{query}"
     deadline = time.monotonic() + args.timeout
     path_candidates = {path: captured_path_variants(path) for path in expected}
+
+    workspace_candidates = {
+        candidate
+        for path in expected
+        for candidate in captured_path_variants(os.path.dirname(os.path.dirname(path)))
+    }
     last_missing = expected[:]
     last_error: str | None = None
     last_events: list[dict] = []
+    last_workspace_events: list[dict[str, object]] = []
 
     while time.monotonic() < deadline:
         try:
             events = fetch_events(url, args.api_key, timeout=10.0)
             last_events = events
+            last_workspace_events = []
+            for record in events:
+                summary = event_summary(record)
+                cwd = summary.get("cwd")
+                if isinstance(cwd, str) and any(candidate in cwd for candidate in workspace_candidates):
+                    last_workspace_events.append(summary)
             event_strings = [text for event in events for text in strings_in(event)]
             last_missing = [
                 path
@@ -100,9 +116,13 @@ def main() -> int:
         print(f"[soak] recent-events query failed: {last_error}", file=sys.stderr)
     if last_missing:
         print(f"[soak] marker paths absent from captured events: {', '.join(last_missing)}", file=sys.stderr)
-    print(f"[soak] recent-events returned {len(last_events)} records; sample:", file=sys.stderr)
-    for event in last_events[:5]:
-        print(f"[soak] {json.dumps(event_summary(event), sort_keys=True)}", file=sys.stderr)
+    print(
+        f"[soak] recent-events returned {len(last_events)} records; "
+        f"{len(last_workspace_events)} reference the soak workspace (last 20):",
+        file=sys.stderr,
+    )
+    for event in last_workspace_events[-20:]:
+        print(f"[soak] {json.dumps(event, sort_keys=True)}", file=sys.stderr)
 
     return 1
 
