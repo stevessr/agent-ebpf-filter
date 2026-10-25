@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 import urllib.error
@@ -34,6 +35,14 @@ def strings_in(value: object):
             yield from strings_in(child)
 
 
+def captured_path_variants(path: str) -> tuple[str, ...]:
+    # Standard redaction replaces the runner's concrete home prefix with "~".
+    home = os.path.expanduser("~").rstrip(os.sep)
+    if home and path.startswith(home + os.sep):
+        return path, "~" + path[len(home) :]
+    return (path,)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", required=True)
@@ -51,6 +60,7 @@ def main() -> int:
     query = urllib.parse.urlencode({"limit": args.limit})
     url = f"{base_url}/events/recent?{query}"
     deadline = time.monotonic() + args.timeout
+    path_candidates = {path: captured_path_variants(path) for path in expected}
     last_missing = expected[:]
     last_error: str | None = None
 
@@ -58,7 +68,11 @@ def main() -> int:
         try:
             events = fetch_events(url, args.api_key, timeout=10.0)
             event_strings = [text for event in events for text in strings_in(event)]
-            last_missing = [path for path in expected if not any(path in text for text in event_strings)]
+            last_missing = [
+                path
+                for path, candidates in path_candidates.items()
+                if not any(candidate in text for candidate in candidates for text in event_strings)
+            ]
             last_error = None
             if not last_missing:
                 print(f"[soak] captured all {len(expected)} marker paths across {len(events)} recent events")
