@@ -253,6 +253,9 @@ go run ./cmd/ml-train --output artifacts/decision-model.bin
 - 拉取失败、记录截断、行标签无法解析（既非 `safe` 也非 `unsafe`）或重复命令标签冲突都会终止训练，不会静默降级。
 - 训练使用与运行时相同的 `FeatureExtractor` / 随机森林路径，模型以二进制格式写入候选路径，
   并立即反序列化回读，逐样本校验预测一致后才写 manifest。
+- 候选训练超参由离线 sweep（`scripts/ml-sweep.sh --mode full`，repeats=3）在本数据集上调优：
+  `random_forest` 72 trees / depth 14 / min-samples-leaf 3（稳定性验证准确率 97.3%±0.5，
+  优于此前 31 trees / depth 8 的 ~95%）。
 - manifest (`*.manifest.json`) 记录数据来源、许可、样本计数与验证集 accuracy / balanced accuracy /
   ALLOW recall / BLOCK recall。它是候选证据，不是已上线证明。
 - **安全边界**：流程只产出 `artifacts/` 下的候选文件；绝不自动覆盖

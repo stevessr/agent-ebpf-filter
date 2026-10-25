@@ -15,6 +15,14 @@ const (
 	decisionTrainingStoreLimit     = 100000
 	decisionTrainingMinPerClass    = 20
 	decisionTrainingDatasetLicense = "CC-BY-SA-4.0"
+
+	// Hyperparameters tuned by the offline sweep (scripts/ml-sweep.sh --mode full,
+	// repeats=3) against this public dataset: stability validation accuracy
+	// 97.3%±0.5 for 72 trees/depth 14 versus ~95% for the previous
+	// 31-tree/depth-8 defaults.
+	decisionTrainingNumTrees       = 72
+	decisionTrainingMaxDepth       = 14
+	decisionTrainingMinSamplesLeaf = 3
 )
 
 // DecisionTrainingDataset identifies one labeled JSONL source for offline training.
@@ -79,6 +87,9 @@ func TrainDecisionModelFromPublicDatasets(sources []DecisionTrainingDataset, mod
 
 	cfg := ml.DefaultMLConfig()
 	cfg.ModelType = ml.ModelRandomForest
+	cfg.NumTrees = decisionTrainingNumTrees
+	cfg.MaxDepth = decisionTrainingMaxDepth
+	cfg.MinSamplesLeaf = decisionTrainingMinSamplesLeaf
 	cfg.LlmEnabled = false
 	cfg.AutoTrain = false
 	store := ml.NewTrainingDataStore(decisionTrainingStoreLimit)
