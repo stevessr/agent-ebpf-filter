@@ -17,7 +17,6 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
-      OPENCODE_SOAK_ARTIFACT_DIR: ${{ runner.temp }}/opencode-ebpf-soak
       OPENCODE_SOAK_KEEP_ARTIFACTS: "1"
       OPENCODE_SOAK_MODEL: opencode/big-pickle
     steps:
@@ -53,6 +52,8 @@ jobs:
           "$RUNNER_TEMP/opencode/bin/opencode" --version
 
       - name: Run anonymous free-model agent soak
+        env:
+          OPENCODE_SOAK_ARTIFACT_DIR: ${{ runner.temp }}/opencode-ebpf-soak
         run: scripts/opencode-ebpf-soak.sh
 
       - name: Upload backend, agent, and bootstrap logs
