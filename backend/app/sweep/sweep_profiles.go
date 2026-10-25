@@ -1,9 +1,10 @@
 package sweep
 
 import (
-	"agent-ebpf-filter/app/ml"
 	"fmt"
 	"strconv"
+
+	"agent-ebpf-filter/app/ml"
 )
 
 func profileForDataset(profile sweepProfile, dataset sweepDataset) sweepProfile {
@@ -585,6 +586,104 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			YName:      "maxDepth",
 			XValues:    []int{31, 41, 51, 61, 71},
 			YValues:    []int{8, 10, 12, 14},
+			Build: func(x, y int) MLConfig {
+				cfg := DefaultMLConfig()
+				cfg.ModelType = ModelExtraTrees
+				cfg.NumTrees = x
+				cfg.MaxDepth = y
+				cfg.MinSamplesLeaf = 3
+				cfg.ValidationSplitRatio = 0.2
+				cfg.LlmEnabled = false
+				return cfg
+			},
+			XLabel: strconv.Itoa,
+			YLabel: strconv.Itoa,
+			Summary: func(cfg MLConfig) string {
+				return fmt.Sprintf("trees=%d depth=%d leaf=%d", cfg.NumTrees, cfg.MaxDepth, cfg.MinSamplesLeaf)
+			},
+		},
+		{
+			// Round-two refinement around the promoted 72-tree/depth-14
+			// incumbent: sweep the previously fixed minSamplesLeaf axis.
+			Name:       "random_forest_leaf",
+			ModelType:  ModelRandomForest,
+			Comparable: true,
+			Kind:       "bar",
+			XName:      "minSamplesLeaf",
+			XValues:    []int{1, 2, 3, 4, 5, 6, 8, 10, 12, 16},
+			Build: func(x, _ int) MLConfig {
+				cfg := DefaultMLConfig()
+				cfg.ModelType = ModelRandomForest
+				cfg.NumTrees = 72
+				cfg.MaxDepth = 14
+				cfg.MinSamplesLeaf = x
+				cfg.ValidationSplitRatio = 0.2
+				cfg.LlmEnabled = false
+				return cfg
+			},
+			XLabel: strconv.Itoa,
+			Summary: func(cfg MLConfig) string {
+				return fmt.Sprintf("trees=%d depth=%d leaf=%d", cfg.NumTrees, cfg.MaxDepth, cfg.MinSamplesLeaf)
+			},
+		},
+		{
+			// Round-two refinement: trees × depth around the incumbent
+			// leaf=3, extending past the earlier 100-tree/16-depth grid edge.
+			Name:       "random_forest_refine",
+			ModelType:  ModelRandomForest,
+			Comparable: true,
+			Kind:       "heatmap",
+			XName:      "numTrees",
+			YName:      "maxDepth",
+			XValues:    []int{51, 61, 72, 81, 91, 101, 121, 151},
+			YValues:    []int{12, 13, 14, 15, 16},
+			Build: func(x, y int) MLConfig {
+				cfg := DefaultMLConfig()
+				cfg.ModelType = ModelRandomForest
+				cfg.NumTrees = x
+				cfg.MaxDepth = y
+				cfg.MinSamplesLeaf = 3
+				cfg.ValidationSplitRatio = 0.2
+				cfg.LlmEnabled = false
+				return cfg
+			},
+			XLabel: strconv.Itoa,
+			YLabel: strconv.Itoa,
+			Summary: func(cfg MLConfig) string {
+				return fmt.Sprintf("trees=%d depth=%d leaf=%d", cfg.NumTrees, cfg.MaxDepth, cfg.MinSamplesLeaf)
+			},
+		},
+		{
+			Name:       "extra_trees_leaf",
+			ModelType:  ModelExtraTrees,
+			Comparable: true,
+			Kind:       "bar",
+			XName:      "minSamplesLeaf",
+			XValues:    []int{1, 2, 3, 4, 5, 6, 8, 10, 12, 16},
+			Build: func(x, _ int) MLConfig {
+				cfg := DefaultMLConfig()
+				cfg.ModelType = ModelExtraTrees
+				cfg.NumTrees = 44
+				cfg.MaxDepth = 12
+				cfg.MinSamplesLeaf = x
+				cfg.ValidationSplitRatio = 0.2
+				cfg.LlmEnabled = false
+				return cfg
+			},
+			XLabel: strconv.Itoa,
+			Summary: func(cfg MLConfig) string {
+				return fmt.Sprintf("trees=%d depth=%d leaf=%d", cfg.NumTrees, cfg.MaxDepth, cfg.MinSamplesLeaf)
+			},
+		},
+		{
+			Name:       "extra_trees_refine",
+			ModelType:  ModelExtraTrees,
+			Comparable: true,
+			Kind:       "heatmap",
+			XName:      "numTrees",
+			YName:      "maxDepth",
+			XValues:    []int{31, 44, 51, 61, 72, 91, 121},
+			YValues:    []int{10, 11, 12, 13, 14},
 			Build: func(x, y int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelExtraTrees

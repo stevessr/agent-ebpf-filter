@@ -18,13 +18,21 @@ func main() {
 }
 
 func run() error {
+	defaults := app.DefaultDecisionTrainingHyperparameters()
 	output := flag.String("output", "artifacts/decision-model.bin", "candidate model output path")
+	numTrees := flag.Int("num-trees", defaults.NumTrees, "random-forest tree count (sweep-tuned default)")
+	maxDepth := flag.Int("max-depth", defaults.MaxDepth, "random-forest max depth (sweep-tuned default)")
+	minSamplesLeaf := flag.Int("min-samples-leaf", defaults.MinSamplesLeaf, "random-forest minimum samples per leaf (sweep-tuned default)")
 	flag.Parse()
 	if flag.NArg() != 0 {
 		return fmt.Errorf("unexpected positional arguments: %v", flag.Args())
 	}
 
-	report, err := app.TrainDecisionModelFromPublicDatasets(app.DefaultDecisionTrainingDatasets(), *output)
+	report, err := app.TrainDecisionModelFromPublicDatasets(app.DefaultDecisionTrainingDatasets(), *output, app.DecisionTrainingHyperparameters{
+		NumTrees:       *numTrees,
+		MaxDepth:       *maxDepth,
+		MinSamplesLeaf: *minSamplesLeaf,
+	})
 	if err != nil {
 		return err
 	}

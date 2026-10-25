@@ -20,10 +20,67 @@ const (
 	// repeats=3) against this public dataset: stability validation accuracy
 	// 97.3%±0.5 for 72 trees/depth 14 versus ~95% for the previous
 	// 31-tree/depth-8 defaults.
+	//
+	// Second refinement round (random_forest_leaf/random_forest_refine profiles,
+	// 3 repeats) kept these values: 72/14/1 raised raw validation accuracy to
+	// 97.5%±0.6 but cut BLOCK recall to 92.9% (balanced 95.5%), while this
+	// configuration holds 97.2% accuracy with 97.0% BLOCK recall and 97.1%
+	// balanced accuracy on the fixed grouped holdout.
 	decisionTrainingNumTrees       = 72
 	decisionTrainingMaxDepth       = 14
 	decisionTrainingMinSamplesLeaf = 3
 )
+
+// DecisionTrainingHyperparameters are the random-forest knobs selected offline
+// by the sweep harness. They are recorded in the manifest so a candidate
+// artifact can be reproduced without reading this source file.
+type DecisionTrainingHyperparameters struct {
+	NumTrees       int `json:"numTrees"`
+	MaxDepth       int `json:"maxDepth"`
+	MinSamplesLeaf int `json:"minSamplesLeaf"`
+}
+
+const (
+	maxDecisionTrainingNumTrees       = 4096
+	maxDecisionTrainingMaxDepth       = 64
+	maxDecisionTrainingMinSamplesLeaf = 256
+)
+
+// DefaultDecisionTrainingHyperparameters returns the promoted sweep winner.
+// Change it only together with the tuning evidence in
+// docs/backend/ml-models-summary.md and a fresh stability comparison.
+func DefaultDecisionTrainingHyperparameters() DecisionTrainingHyperparameters {
+	return DecisionTrainingHyperparameters{
+		NumTrees:       decisionTrainingNumTrees,
+		MaxDepth:       decisionTrainingMaxDepth,
+		MinSamplesLeaf: decisionTrainingMinSamplesLeaf,
+	}
+}
+
+// normalizeDecisionTrainingHyperparameters treats zero fields as "use the
+// promoted default" so callers can override only the knobs they are testing.
+func normalizeDecisionTrainingHyperparameters(hyperparameters DecisionTrainingHyperparameters) (DecisionTrainingHyperparameters, error) {
+	defaults := DefaultDecisionTrainingHyperparameters()
+	if hyperparameters.NumTrees == 0 {
+		hyperparameters.NumTrees = defaults.NumTrees
+	}
+	if hyperparameters.MaxDepth == 0 {
+		hyperparameters.MaxDepth = defaults.MaxDepth
+	}
+	if hyperparameters.MinSamplesLeaf == 0 {
+		hyperparameters.MinSamplesLeaf = defaults.MinSamplesLeaf
+	}
+	if hyperparameters.NumTrees < 1 || hyperparameters.NumTrees > maxDecisionTrainingNumTrees {
+		return hyperparameters, fmt.Errorf("numTrees must be between 1 and %d, got %d", maxDecisionTrainingNumTrees, hyperparameters.NumTrees)
+	}
+	if hyperparameters.MaxDepth < 1 || hyperparameters.MaxDepth > maxDecisionTrainingMaxDepth {
+		return hyperparameters, fmt.Errorf("maxDepth must be between 1 and %d, got %d", maxDecisionTrainingMaxDepth, hyperparameters.MaxDepth)
+	}
+	if hyperparameters.MinSamplesLeaf < 1 || hyperparameters.MinSamplesLeaf > maxDecisionTrainingMinSamplesLeaf {
+		return hyperparameters, fmt.Errorf("minSamplesLeaf must be between 1 and %d, got %d", maxDecisionTrainingMinSamplesLeaf, hyperparameters.MinSamplesLeaf)
+	}
+	return hyperparameters, nil
+}
 
 // DecisionTrainingDataset identifies one labeled JSONL source for offline training.
 // FallbackURL is optional and must serve byte-identical content (same pinned revision).
@@ -36,23 +93,24 @@ type DecisionTrainingDataset struct {
 // DecisionModelTrainingReport records dataset provenance and held-out validation
 // results for a candidate artifact. The workflow must not deploy it automatically.
 type DecisionModelTrainingReport struct {
-	GeneratedAt                time.Time      `json:"generatedAt"`
-	CandidateOnly              bool           `json:"candidateOnly"`
-	ModelType                  string         `json:"modelType"`
-	ModelPath                  string         `json:"modelPath"`
-	DatasetLicense             string         `json:"datasetLicense"`
-	DatasetSources             []string       `json:"datasetSources"`
-	SourceRecords              int            `json:"sourceRecords"`
-	Samples                    int            `json:"samples"`
-	DuplicatesSkipped          int            `json:"duplicatesSkipped"`
-	LabelCounts                map[string]int `json:"labelCounts"`
-	TrainingSamples            int            `json:"trainingSamples"`
-	ValidationSamples          int            `json:"validationSamples"`
-	ValidationAccuracy         float64        `json:"validationAccuracy"`
-	ValidationBalancedAccuracy float64        `json:"validationBalancedAccuracy"`
-	ValidationAllowRecall      float64        `json:"validationAllowRecall"`
-	ValidationBlockRecall      float64        `json:"validationBlockRecall"`
-	ArtifactReloadVerified     bool           `json:"artifactReloadVerified"`
+	GeneratedAt                time.Time                       `json:"generatedAt"`
+	CandidateOnly              bool                            `json:"candidateOnly"`
+	ModelType                  string                          `json:"modelType"`
+	Hyperparameters            DecisionTrainingHyperparameters `json:"hyperparameters"`
+	ModelPath                  string                          `json:"modelPath"`
+	DatasetLicense             string                          `json:"datasetLicense"`
+	DatasetSources             []string                        `json:"datasetSources"`
+	SourceRecords              int                             `json:"sourceRecords"`
+	Samples                    int                             `json:"samples"`
+	DuplicatesSkipped          int                             `json:"duplicatesSkipped"`
+	LabelCounts                map[string]int                  `json:"labelCounts"`
+	TrainingSamples            int                             `json:"trainingSamples"`
+	ValidationSamples          int                             `json:"validationSamples"`
+	ValidationAccuracy         float64                         `json:"validationAccuracy"`
+	ValidationBalancedAccuracy float64                         `json:"validationBalancedAccuracy"`
+	ValidationAllowRecall      float64                         `json:"validationAllowRecall"`
+	ValidationBlockRecall      float64                         `json:"validationBlockRecall"`
+	ArtifactReloadVerified     bool                            `json:"artifactReloadVerified"`
 }
 
 // DefaultDecisionTrainingDatasets returns the reviewed, immutable public JSONL
@@ -76,7 +134,7 @@ func DefaultDecisionTrainingDatasets() []DecisionTrainingDataset {
 // converts them with the runtime feature extractor, trains the default random
 // forest, and writes a runtime-loadable candidate model. It does not publish the
 // model into the active runtime or change policy configuration.
-func TrainDecisionModelFromPublicDatasets(sources []DecisionTrainingDataset, modelPath string) (DecisionModelTrainingReport, error) {
+func TrainDecisionModelFromPublicDatasets(sources []DecisionTrainingDataset, modelPath string, hyperparameters DecisionTrainingHyperparameters) (DecisionModelTrainingReport, error) {
 	if len(sources) == 0 {
 		return DecisionModelTrainingReport{}, fmt.Errorf("at least one public training dataset is required")
 	}
@@ -84,12 +142,16 @@ func TrainDecisionModelFromPublicDatasets(sources []DecisionTrainingDataset, mod
 	if modelPath == "" {
 		return DecisionModelTrainingReport{}, fmt.Errorf("model output path is required")
 	}
+	hyperparameters, err := normalizeDecisionTrainingHyperparameters(hyperparameters)
+	if err != nil {
+		return DecisionModelTrainingReport{}, err
+	}
 
 	cfg := ml.DefaultMLConfig()
 	cfg.ModelType = ml.ModelRandomForest
-	cfg.NumTrees = decisionTrainingNumTrees
-	cfg.MaxDepth = decisionTrainingMaxDepth
-	cfg.MinSamplesLeaf = decisionTrainingMinSamplesLeaf
+	cfg.NumTrees = hyperparameters.NumTrees
+	cfg.MaxDepth = hyperparameters.MaxDepth
+	cfg.MinSamplesLeaf = hyperparameters.MinSamplesLeaf
 	cfg.LlmEnabled = false
 	cfg.AutoTrain = false
 	store := ml.NewTrainingDataStore(decisionTrainingStoreLimit)
@@ -97,12 +159,13 @@ func TrainDecisionModelFromPublicDatasets(sources []DecisionTrainingDataset, mod
 	seen := make(map[string]int32)
 	labelCounts := map[string]int{"ALLOW": 0, "BLOCK": 0}
 	report := DecisionModelTrainingReport{
-		GeneratedAt:    time.Now().UTC(),
-		CandidateOnly:  true,
-		ModelPath:      filepath.Clean(modelPath),
-		DatasetLicense: decisionTrainingDatasetLicense,
-		DatasetSources: make([]string, 0, len(sources)),
-		LabelCounts:    labelCounts,
+		GeneratedAt:     time.Now().UTC(),
+		CandidateOnly:   true,
+		Hyperparameters: hyperparameters,
+		ModelPath:       filepath.Clean(modelPath),
+		DatasetLicense:  decisionTrainingDatasetLicense,
+		DatasetSources:  make([]string, 0, len(sources)),
+		LabelCounts:     labelCounts,
 	}
 
 	for _, source := range sources {

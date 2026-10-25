@@ -256,6 +256,12 @@ go run ./cmd/ml-train --output artifacts/decision-model.bin
 - 候选训练超参由离线 sweep（`scripts/ml-sweep.sh --mode full`，repeats=3）在本数据集上调优：
   `random_forest` 72 trees / depth 14 / min-samples-leaf 3（稳定性验证准确率 97.3%±0.5，
   优于此前 31 trees / depth 8 的 ~95%）。
+- 超参可通过 `--num-trees` / `--max-depth` / `--min-samples-leaf` 覆盖（默认即上述调优值），
+  实际使用的超参会写入 manifest 的 `hyperparameters` 字段，便于对候选做可复核的 A/B 对比。
+- 第二轮细化 sweep（`random_forest_leaf`、`random_forest_refine`、`extra_trees_leaf`、
+  `extra_trees_refine` profile，3 次重复）没有推翻 72/14/3：`leaf=1` 把原始验证准确率抬到
+  97.5%±0.6，但 BLOCK 召回降到 92.9%、balanced 降到 95.5%；72/14/3 在同一固定分组留出集上
+  保持 97.2% 准确率、97.0% BLOCK 召回与 97.1% balanced accuracy，因此保留不变。
 - manifest (`*.manifest.json`) 记录数据来源、许可、样本计数与验证集 accuracy / balanced accuracy /
   ALLOW recall / BLOCK recall。它是候选证据，不是已上线证明。
 - **安全边界**：流程只产出 `artifacts/` 下的候选文件；绝不自动覆盖
