@@ -10,9 +10,11 @@ response only when traffic is routed through it.
 Dynamic TLS interception is **off by default**. Enabling it requires all of:
 
 - `tlsInterceptEnabled: true`;
-- a local CA certificate and matching private key;
+- CA material to sign leaves with: a local CA certificate and matching private
+  key (`tlsInterceptCaMode: "local"`, the default), or the embedded
+  compromised eMudhra key from an opt-in mode described below;
 - a non-empty `tlsInterceptAllowlist`;
-- client trust in that CA.
+- client trust in the selected CA.
 
 The allowlist accepts exact hosts and strict `*.suffix` patterns. A wildcard
 authorizes subdomains only; it does not authorize the apex host. Dynamic leaf
@@ -25,7 +27,7 @@ bounded 1024-host cache with concurrent read hits and oldest-expiry eviction. A 
 generated certificate. Explicit route/default certificates remain available as
 administrator-configured fallback material outside the dynamic MITM allowlist.
 
-Example:
+Example (default `local` mode):
 
 ```json
 {
@@ -36,6 +38,7 @@ Example:
     "defaultScheme": "https",
     "allowAnyHost": false,
     "tlsInterceptEnabled": true,
+    "tlsInterceptCaMode": "local",
     "tlsInterceptAllowlist": "api.openai.com,*.example.internal",
     "tlsInterceptCaCertFile": "/etc/agent-ebpf-filter/ca/ca.pem",
     "tlsInterceptCaKeyFile": "/etc/agent-ebpf-filter/ca/ca-key.pem",
@@ -51,6 +54,79 @@ Example:
 ```
 
 The CA private key must stay local. Do not commit it to the repository.
+
+### CA mode selection
+
+`tlsInterceptCaMode` selects which CA material signs dynamic leaf
+certificates. It is a material selector, not an enablement gate: every mode
+still requires `tlsInterceptEnabled: true`, traffic explicitly routed through
+this proxy, and the strict non-empty `tlsInterceptAllowlist` above. No mode
+widens routing or the allowlist, and leaves are still minted only for
+allowlisted SNI names. The active mode is reported as `tlsInterceptCaMode` in
+forward-proxy status.
+
+- `local` (default): signs with the operator-provided CA from
+  `tlsInterceptCaCertFile` and `tlsInterceptCaKeyFile`; the served chain is
+  the configured CA only. All guidance above applies to this mode.
+- `emudhra`: signs with the embedded compromised eMudhra key and serves the
+  emSign-issued intermediate first.
+- `emudhra-old`: signs with the same embedded key and serves the AAA
+  Certificate Services cross-sign first.
+
+The field is empty-safe (`local` when unset) and matched case-insensitively
+after trimming; an unsupported value fails when the interception CA is loaded.
+
+`emudhra` and `emudhra-old` mirror mitmproxy's `--emudhra` and `--emudhra-old`
+options (mitmproxy PR #8503). Both sign with the **publicly compromised eMudhra
+`EM OV TLS CA - G3C` private key** embedded in the program
+(`backend/internal/domainforwardproxy/assets/emudhra_compromised_chain.pem`;
+disclosure: <https://emudhra.we-have-a-problem.com/>). That key is intentionally
+public — anyone can forge certificates under this CA — so these modes are
+opt-in, for **authorized debugging only**, and high risk. Trust stores may
+reject or revoke the CA at any time. The proxy logs a warning at startup and
+records it in the forward-proxy status `errors` list.
+`tlsInterceptCaCertFile` and `tlsInterceptCaKeyFile` are ignored in these
+modes.
+
+The embedded bundle contains the compromised intermediate twice — issued by
+`emSign Root TLS CA - G3` and cross-signed by `AAA Certificate Services` — plus
+`emSign Root TLS CA - G3` itself (cross-signed by `emSign ECC Root CA - G3`).
+The mode only changes the order served after the leaf, which matters for
+OpenSSL clients (rationale from mitmproxy PR #8503):
+
+- `emudhra` serves the emSign-issued intermediate first. Path-building TLS
+  stacks (Go, Rust, Java, macOS, Windows, browsers) consider every certificate
+  in the chain and accept whichever of the three roots they trust, and the
+  Mozilla-derived root bundles used by Python/certifi, curl, Node.js, and
+  Linux `ca-certificates` already dropped AAA Certificate Services in 2025.
+- `emudhra-old` serves the AAA Certificate Services cross-sign first. OpenSSL
+  does not backtrack across untrusted intermediates sharing a Subject/SKI and
+  follows only the first match, so older OpenSSL trust stores that still carry
+  AAA Certificate Services need this order. That cross-sign expires
+  **2028-12-31**; once it has expired, `emudhra-old` no longer loads or mints
+  leaves. In `emudhra` the chain is instead bounded by the
+  `emSign Root TLS CA - G3` cross-sign, which expires 2039-07-09.
+
+Leaf expiry is clamped to those bounds, and the expiry recheck described above
+stops a long-running proxy from minting leaves past them.
+
+Compromised-key mode snippet (authorized debugging only — leaves are signed
+with the publicly compromised key above, and the CA path fields are ignored):
+
+```json
+{
+  "domainForwardProxy": {
+    "enabled": true,
+    "httpsPort": 8443,
+    "tlsInterceptEnabled": true,
+    "tlsInterceptCaMode": "emudhra",
+    "tlsInterceptAllowlist": "api.openai.com"
+  }
+}
+```
+
+Use `"emudhra-old"` instead to serve the AAA Certificate Services cross-sign
+first.
 
 ## Request and response rewrite order
 

@@ -70,6 +70,9 @@ func NewTLSConfig(settings DomainForwardProxySettings) (*tls.Config, []string, e
 		return nil, warnings, err
 	}
 	store.mitm = mitm
+	if mitm != nil && mitm.warning != "" {
+		warnings = append(warnings, mitm.warning)
+	}
 	if store.defaultCert == nil && len(store.exact) == 0 && len(store.wildcards) == 0 && store.mitm == nil {
 		return nil, warnings, errors.New("https forwarding requires a default cert/key, route-level cert/key, or allowlisted TLS interception CA")
 	}
@@ -188,6 +191,7 @@ func NormalizeSettings(settings *DomainForwardProxySettings) {
 	settings.DNSResolver = normalizeDNSResolver(settings.DNSResolver)
 	settings.TLSInterceptCACertFile = strings.TrimSpace(settings.TLSInterceptCACertFile)
 	settings.TLSInterceptCAKeyFile = strings.TrimSpace(settings.TLSInterceptCAKeyFile)
+	settings.TLSInterceptCAMode = normalizeTLSInterceptCAMode(settings.TLSInterceptCAMode)
 	settings.TLSInterceptAllowlist = strings.Join(splitDomainAllowlist(settings.TLSInterceptAllowlist), ",")
 	if settings.TLSInterceptLeafTTLSeconds <= 0 {
 		settings.TLSInterceptLeafTTLSeconds = 12 * 60 * 60
@@ -323,6 +327,7 @@ func SettingsEqual(a, b DomainForwardProxySettings) bool {
 		a.DNSResolver != b.DNSResolver || a.DialTimeoutSeconds != b.DialTimeoutSeconds ||
 		a.CertFile != b.CertFile || a.KeyFile != b.KeyFile ||
 		a.TLSInterceptEnabled != b.TLSInterceptEnabled ||
+		a.TLSInterceptCAMode != b.TLSInterceptCAMode ||
 		a.TLSInterceptAllowlist != b.TLSInterceptAllowlist ||
 		a.TLSInterceptCACertFile != b.TLSInterceptCACertFile ||
 		a.TLSInterceptCAKeyFile != b.TLSInterceptCAKeyFile ||

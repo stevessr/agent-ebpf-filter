@@ -32,3 +32,15 @@ func TestDomainForwardContextPolicySurvivesCoreBoundary(t *testing.T) {
 		t.Fatalf("contextual disclosure settings lost in proxy-to-core conversion: %+v", reversed.Privacy)
 	}
 }
+
+func TestDomainForwardTLSInterceptCAModeSurvivesCoreBoundary(t *testing.T) {
+	settings := DomainForwardProxySettings{TLSInterceptCAMode: "emudhra-old"}
+	internal := toInternalDomainForwardProxySettings(settings)
+	if internal.TLSInterceptCAMode != "emudhra-old" {
+		t.Fatalf("TLS interception CA mode lost during core-to-proxy conversion: %q", internal.TLSInterceptCAMode)
+	}
+	reversed := fromInternalDomainForwardProxySettings(internal)
+	if reversed.TLSInterceptCAMode != "emudhra-old" {
+		t.Fatalf("TLS interception CA mode lost during proxy-to-core conversion: %q", reversed.TLSInterceptCAMode)
+	}
+}

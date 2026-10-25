@@ -73,6 +73,7 @@ export interface DomainForwardProxySettings {
   keyFile?: string;
   tlsInterceptEnabled: boolean;
   tlsInterceptAllowlist?: string;
+  tlsInterceptCaMode: "local" | "emudhra" | "emudhra-old";
   tlsInterceptCaCertFile?: string;
   tlsInterceptCaKeyFile?: string;
   tlsInterceptLeafTtlSeconds?: number;
@@ -92,6 +93,7 @@ export interface DomainForwardProxyStatus {
   routeCount: number;
   allowAnyHost: boolean;
   dnsResolver?: string;
+  tlsInterceptCaMode?: string;
   tlsInterceptEnabled?: boolean;
   rewriteEnabled?: boolean;
   privacyEnabled?: boolean;

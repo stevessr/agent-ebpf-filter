@@ -16,6 +16,29 @@ const schemeOptions = [
   { value: "http", label: "http" },
 ];
 
+const tlsInterceptCaModeOptions = [
+  { value: "local", label: "Local CA files (cert + key paths)" },
+  { value: "emudhra", label: "eMudhra EM OV TLS CA - G3C (emSign chain first)" },
+  {
+    value: "emudhra-old",
+    label: "eMudhra EM OV TLS CA - G3C (AAA cross-sign first)",
+  },
+];
+
+const tlsInterceptUsesEmudhra = computed(
+  () =>
+    runtimeSettings.value.domainForwardProxy.tlsInterceptCaMode ===
+      "emudhra" ||
+    runtimeSettings.value.domainForwardProxy.tlsInterceptCaMode ===
+      "emudhra-old",
+);
+
+const tlsInterceptAllowlistHelp = computed(() =>
+  tlsInterceptUsesEmudhra.value
+    ? "Dynamic certificates are issued only for exact or *.suffix entries above. Leaf certificates chain to the explicitly selected eMudhra CA instead of a local CA file. A host outside the allowlist is not dynamically decrypted."
+    : "Dynamic certificates are issued only for exact or *.suffix entries above. Clients must explicitly trust this local CA. A host outside the allowlist is not dynamically decrypted.",
+);
+
 const {
   runtimeSettings,
   mcpEndpoint,
@@ -369,17 +392,38 @@ const updateDomainForwardRouteField = (
                 :rows="3"
                 placeholder="api.openai.com, *.example.internal"
               />
-              <a-input
-                v-model:value="
-                  runtimeSettings.domainForwardProxy.tlsInterceptCaCertFile
-                "
-                placeholder="Local CA certificate path (PEM)"
-              />
-              <a-input
-                v-model:value="
-                  runtimeSettings.domainForwardProxy.tlsInterceptCaKeyFile
-                "
-                placeholder="Local CA private key path (PEM)"
+              <div>
+                <div style="margin-bottom: 6px; font-weight: 600">
+                  Certificate authority mode
+                </div>
+                <a-select
+                  v-model:value="
+                    runtimeSettings.domainForwardProxy.tlsInterceptCaMode
+                  "
+                  :options="tlsInterceptCaModeOptions"
+                  style="max-width: 440px"
+                />
+              </div>
+              <template v-if="!tlsInterceptUsesEmudhra">
+                <a-input
+                  v-model:value="
+                    runtimeSettings.domainForwardProxy.tlsInterceptCaCertFile
+                  "
+                  placeholder="Local CA certificate path (PEM)"
+                />
+                <a-input
+                  v-model:value="
+                    runtimeSettings.domainForwardProxy.tlsInterceptCaKeyFile
+                  "
+                  placeholder="Local CA private key path (PEM)"
+                />
+              </template>
+              <a-alert
+                v-if="tlsInterceptUsesEmudhra"
+                type="error"
+                show-icon
+                message="Publicly compromised CA key — opt-in debugging only"
+                description="This mode signs leaf certificates with a publicly compromised eMudhra CA private key that is embedded in this project. It is provided exclusively for authorized debugging of this proxy and must never be used against untrusted networks or production clients. Standard trust stores may reject the chain (emSign or AAA cross-sign ordering, depending on the selected mode), and it does not weaken routing: only allowlisted SNI hosts above are eligible for dynamic decryption."
               />
               <div>
                 <div style="margin-bottom: 6px; font-weight: 600">
@@ -399,7 +443,7 @@ const updateDomainForwardRouteField = (
                 type="warning"
                 show-icon
                 message="Strict allowlist"
-                description="Dynamic certificates are issued only for exact or *.suffix entries above. Clients must explicitly trust this local CA. A host outside the allowlist is not dynamically decrypted."
+                :description="tlsInterceptAllowlistHelp"
               />
             </div>
           </a-card>
