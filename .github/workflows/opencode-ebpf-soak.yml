@@ -1,0 +1,65 @@
+name: OpenCode eBPF soak
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 5 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: opencode-ebpf-soak-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  soak:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      OPENCODE_SOAK_ARTIFACT_DIR: ${{ runner.temp }}/opencode-ebpf-soak
+      OPENCODE_SOAK_KEEP_ARTIFACTS: "1"
+      OPENCODE_SOAK_MODEL: opencode/big-pickle
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install eBPF build dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential clang llvm libbpf-dev libelf-dev
+
+      - name: Ensure bpffs is mounted for pinned tracker maps
+        run: |
+          if ! mountpoint -q /sys/fs/bpf; then
+            sudo mount -t bpf bpf /sys/fs/bpf
+          fi
+          mountpoint -q /sys/fs/bpf
+          sudo test -w /sys/fs/bpf
+
+      - name: Build backend and eBPF programs
+        run: make ebpf-bootstrap
+
+      - name: Install OpenCode v2 CLI
+        run: |
+          npm install --global --prefix "$RUNNER_TEMP/opencode" @opencode/cli@2.1.3
+          echo "$RUNNER_TEMP/opencode/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/opencode/bin/opencode" --version
+
+      - name: Run anonymous free-model agent soak
+        run: scripts/opencode-ebpf-soak.sh
+
+      - name: Upload backend, agent, and bootstrap logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: opencode-ebpf-soak-${{ github.run_id }}
+          path: ${{ runner.temp }}/opencode-ebpf-soak/
+          if-no-files-found: ignore
+          retention-days: 14
