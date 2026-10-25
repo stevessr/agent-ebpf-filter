@@ -32,7 +32,7 @@ jobs:
           node-version: 22
 
       - name: Install eBPF build dependencies
-        run: sudo apt-get update && sudo apt-get install -y build-essential clang llvm libbpf-dev libelf-dev
+        run: sudo apt-get update && sudo apt-get install -y build-essential clang llvm libbpf-dev libelf-dev protobuf-compiler
 
       - name: Ensure bpffs is mounted for pinned tracker maps
         run: |
@@ -41,6 +41,11 @@ jobs:
           fi
           mountpoint -q /sys/fs/bpf
           sudo test -w /sys/fs/bpf
+
+      - name: Generate Go Protocol Buffer bindings
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
+          make proto-go
 
       - name: Build backend and eBPF programs
         run: make ebpf-bootstrap
