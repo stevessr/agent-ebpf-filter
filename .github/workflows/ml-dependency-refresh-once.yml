@@ -1,0 +1,65 @@
+name: One-time ML branch Go dependency refresh
+
+on:
+  push:
+    branches:
+      - feat/kernel-ml-cgroup-guard
+    paths:
+      - .github/workflows/ml-dependency-refresh-once.yml
+
+permissions:
+  contents: read
+
+jobs:
+  refresh-and-verify:
+    if: github.repository == 'stevessr/agent-ebpf-filter' && github.ref == 'refs/heads/feat/kernel-ml-cgroup-guard'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: true
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: '1.27.3'
+          cache-dependency-path: backend/go.sum
+      - name: Upgrade selected stable dependencies and regenerate checksums
+        working-directory: backend
+        run: |
+          set -euo pipefail
+          go mod edit -go=1.27.3
+          go get \
+            github.com/klauspost/compress@v1.20.1 \
+            github.com/modelcontextprotocol/go-sdk@v1.8.0 \
+            go.opentelemetry.io/otel@v1.47.0 \
+            go.opentelemetry.io/otel/sdk@v1.47.0 \
+            go.opentelemetry.io/otel/trace@v1.47.0 \
+            go.opentelemetry.io/otel/metric@v1.47.0 \
+            go.opentelemetry.io/otel/exporters/otlp/otlptrace@v1.47.0 \
+            go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp@v1.47.0
+          go mod tidy
+          go mod verify
+          go list -m github.com/klauspost/compress github.com/modelcontextprotocol/go-sdk \
+            go.opentelemetry.io/otel go.opentelemetry.io/otel/sdk \
+            go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp
+      - name: Go regression tests and backend compilation
+        working-directory: backend
+        run: |
+          set -euo pipefail
+          go test ./internal/kernelguard ./cmd/kernel-ml-guard -count=1
+          go build ./app
+          go test ./app -run '^$'
+      - name: Commit verified go.mod and go.sum
+        run: |
+          set -euo pipefail
+          git add backend/go.mod backend/go.sum
+          if git diff --cached --quiet; then
+            echo 'No Go dependency changes.'
+            exit 0
+          fi
+          git -c user.name='github-actions[bot]' \
+            -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -m 'chore(deps): Go 1.27.3, MCP 1.8, OTel 1.47 and compress 1.20'
+          git push origin HEAD:feat/kernel-ml-cgroup-guard
