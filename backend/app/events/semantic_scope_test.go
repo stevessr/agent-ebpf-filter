@@ -61,3 +61,17 @@ func TestScopedSemanticIdentifiersRemainBounded(t *testing.T) {
 		t.Fatalf("bounded scoped key broken; len=%d truncated=%v", len(key1), truncated)
 	}
 }
+
+func TestSemanticScopeIsolatedAcrossContainers(t *testing.T) {
+	s := NewSemanticAlertState()
+	now := time.Now().UTC()
+	a := &pb.Event{AgentRunId: "run", ContainerId: "A", RootAgentPid: 42, ToolCallId: "id"}
+	b := &pb.Event{AgentRunId: "run", ContainerId: "B", RootAgentPid: 42, ToolCallId: "id"}
+	s.RememberSecret(a, "/home/user/.ssh/id_ed25519", now)
+	if target, ok := s.RecentSecretTarget(b, now); ok {
+		t.Fatalf("cross-container secret evidence leak: %q", target)
+	}
+	if target, ok := s.RecentSecretTarget(a, now); !ok || target == "" {
+		t.Fatalf("same-container secret evidence missing: %q %v", target, ok)
+	}
+}
