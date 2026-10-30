@@ -46,3 +46,16 @@ func TestUnifiedAgentRiskSkipsBlockedSideEffects(t *testing.T) {
 		t.Fatalf("blocked event should not be a side effect: %v", got)
 	}
 }
+
+func TestNormalizeAgentRiskMessageMCPAndTLS(t *testing.T) {
+	mcpEvent := &pb.Event{Type: "mcp_tool_call", ToolCallId: "call-42", ToolName: "repository_write", AgentRunId: "A"}
+	normalized := normalizeAgentRiskMessage(mcpEvent)
+	if normalized.Kind != "tool_call" || normalized.ToolCallID != "call-42" || normalized.ToolName != "repository_write" {
+		t.Fatalf("mcp call normalization: %+v", normalized)
+	}
+	tlsEvent := &pb.Event{Type: "tls_plaintext", ExtraInfo: "role=tool source=external risk_level=high prompt_digest=abc", AgentRunId: "A"}
+	normalized = normalizeAgentRiskMessage(tlsEvent)
+	if normalized.Kind != "tool_result" || !normalized.UntrustedInput || !normalized.HighRiskInput {
+		t.Fatalf("tls risk provenance missing: %+v", normalized)
+	}
+}
