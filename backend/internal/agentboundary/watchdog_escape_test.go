@@ -18,8 +18,8 @@ func TestEscapeSignalsRespectAuthorizationAndObservedOutcome(t *testing.T) {
 	allowed := p.Grants[0]
 	disallowed := Grant{Domain: "network", Resource: "external.example:443", Operation: "CONNECT"}
 	for _, tc := range []struct {
-		name, kind string
-		grant *Grant
+		name, kind     string
+		grant          *Grant
 		want, priority string
 	}{
 		{"blocked attempt", "network_attempt", &disallowed, "unapproved_network_attempt", "P2"},

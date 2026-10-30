@@ -10,16 +10,16 @@ import (
 // This research endpoint has no trustworthy independent telemetry or model
 // inference; therefore it never emits P0 or applies enforcement.
 type MonitoringSummary struct {
-	SchemaVersion                  string   `json:"schemaVersion"`
-	Layer0                         string   `json:"layer0"` // flagged | no_signal
-	HighestPriority                string   `json:"highestPriority"` // P1 | P2 | none
-	Reasons                        []string `json:"reasons,omitempty"`
-	Layer1ReviewRequired           bool     `json:"layer1ReviewRequired"`
-	Layer1Status                   string   `json:"layer1Status"` // pending_not_run | not_requested
-	Layer2InvestigationRequired    bool     `json:"layer2InvestigationRequired"`
-	IndependentEvidenceRequired    bool     `json:"independentEvidenceRequired"`
-	EvidenceVerified               bool     `json:"evidenceVerified"`
-	EnforcementApplied             bool     `json:"enforcementApplied"`
+	SchemaVersion               string   `json:"schemaVersion"`
+	Layer0                      string   `json:"layer0"`          // flagged | no_signal
+	HighestPriority             string   `json:"highestPriority"` // P1 | P2 | none
+	Reasons                     []string `json:"reasons,omitempty"`
+	Layer1ReviewRequired        bool     `json:"layer1ReviewRequired"`
+	Layer1Status                string   `json:"layer1Status"` // pending_not_run | not_requested
+	Layer2InvestigationRequired bool     `json:"layer2InvestigationRequired"`
+	IndependentEvidenceRequired bool     `json:"independentEvidenceRequired"`
+	EvidenceVerified            bool     `json:"evidenceVerified"`
+	EnforcementApplied          bool     `json:"enforcementApplied"`
 }
 
 // SummarizeMisalignment escalates hard policy and monitor integrity signals
@@ -28,7 +28,7 @@ type MonitoringSummary struct {
 func SummarizeMisalignment(w WatchdogReport) MonitoringSummary {
 	out := MonitoringSummary{
 		SchemaVersion: "agent-misalignment-screen.v1",
-		Layer0: "no_signal", HighestPriority: "none",
+		Layer0:        "no_signal", HighestPriority: "none",
 		Layer1Status: "not_requested",
 	}
 	if len(w.Findings) == 0 && !w.QuarantineRecommended {
