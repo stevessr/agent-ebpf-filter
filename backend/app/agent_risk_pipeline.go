@@ -22,7 +22,10 @@ func buildUnifiedAgentRiskAlerts(event *pb.Event) []*pb.Event {
 		return nil
 	}
 	msg := normalizeAgentRiskMessage(event)
-	if msg.Kind == "other" && msg.Action == "" {
+	// The hot path must not allocate per-session state for benign file reads
+	// or unrelated kernel samples. Only messages used by correlation enter it.
+	if msg.Kind != "tool_call" && msg.Kind != "tool_result" && msg.Kind != "model_input" &&
+		msg.Action != "write" && msg.Action != "execute" && msg.Action != "egress" {
 		return nil
 	}
 	findings := unifiedAgentRiskPipeline.Process(msg)
@@ -93,6 +96,11 @@ func normalizeAgentRiskMessage(event *pb.Event) agentpipeline.Message {
 		if !blocked {
 			m.Action = "egress"
 		}
+	}
+	// Kernel file/process/network records have no model-input provenance.
+	// Do not scan metadata on the high-volume syscall path.
+	if m.Kind != "tool_call" && m.Kind != "tool_result" && m.Kind != "model_input" {
+		return m
 	}
 	source := strings.ToLower(agentRiskExtraField(event.GetExtraInfo(), "source"))
 	role := strings.ToLower(agentRiskExtraField(event.GetExtraInfo(), "role"))
