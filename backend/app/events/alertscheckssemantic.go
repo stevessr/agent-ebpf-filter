@@ -166,6 +166,8 @@ func semanticAlertContextKeyBounded(event *pb.Event) (string, bool) {
 		scope = "conversation:" + strings.TrimSpace(event.GetConversationId())
 	case event.GetRootAgentPid() != 0:
 		scope = pidContextKey(event.GetRootAgentPid())
+	case event.GetPid() != 0:
+		scope = pidContextKey(event.GetPid())
 	}
 	if scope != "" && event.GetRootAgentPid() != 0 && !strings.HasPrefix(scope, "pid:") {
 		scope += "|root:" + pidContextKey(event.GetRootAgentPid())
@@ -178,8 +180,11 @@ func semanticAlertContextKeyBounded(event *pb.Event) (string, bool) {
 		// Length-framed digest keeps IDs unambiguous even if one contains
 		// the human-readable separator. No unbounded identifier is retained.
 		digest := semanticStateDigest(kind, scope, id)
-		key := semanticBoundWithDigest(kind+":"+scope+"|"+id, SemanticStateMaxContextBytes, digest)
-		return key, len(kind)+len(scope)+len(id)+2 > SemanticStateMaxContextBytes
+		boundedScope, scopeTruncated := boundSemanticStateString(scope, SemanticStateMaxContextBytes/2)
+		boundedID, idTruncated := boundSemanticStateString(id, SemanticStateMaxContextBytes/2)
+		prefix := kind + ":" + boundedScope + "|" + boundedID
+		key := semanticBoundWithDigest(prefix, SemanticStateMaxContextBytes, digest)
+		return key, scopeTruncated || idTruncated || len(prefix)+17 > SemanticStateMaxContextBytes
 	}
 
 	if toolCallID := strings.TrimSpace(event.GetToolCallId()); toolCallID != "" {
@@ -188,9 +193,12 @@ func semanticAlertContextKeyBounded(event *pb.Event) (string, bool) {
 	if event.GetTaskId() != "" || event.GetTraceId() != "" {
 		if scope != "" {
 			digest := semanticStateDigest("task-trace", scope, event.GetTaskId(), event.GetTraceId())
-			prefix := "task-trace:" + scope + "|" + event.GetTaskId() + "|" + event.GetTraceId()
+			boundedScope, scopeTruncated := boundSemanticStateString(scope, SemanticStateMaxContextBytes/3)
+			boundedTask, taskTruncated := boundSemanticStateString(event.GetTaskId(), SemanticStateMaxContextBytes/3)
+			boundedTrace, traceTruncated := boundSemanticStateString(event.GetTraceId(), SemanticStateMaxContextBytes/3)
+			prefix := "task-trace:" + boundedScope + "|" + boundedTask + "|" + boundedTrace
 			return semanticBoundWithDigest(prefix, SemanticStateMaxContextBytes, digest),
-				len(prefix)+17 > SemanticStateMaxContextBytes
+				scopeTruncated || taskTruncated || traceTruncated || len(prefix)+17 > SemanticStateMaxContextBytes
 		}
 		return boundSemanticStatePair(event.GetTaskId(), event.GetTraceId(), SemanticStateMaxContextBytes)
 	}
