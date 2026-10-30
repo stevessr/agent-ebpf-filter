@@ -217,7 +217,9 @@ func (p *Pipeline) Process(m Message) []Finding {
 		if m.Kind == "tool_result" && id != "" {
 			if call := s.calls[id]; call != nil &&
 				(call.turn == "" || m.TurnID == "" || call.turn == bound(m.TurnID)) {
-				call.completedAt = now
+				if call.completedAt.IsZero() {
+					call.completedAt = now
+				}
 			}
 		}
 		if m.UntrustedInput && m.HighRiskInput {
