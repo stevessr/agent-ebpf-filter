@@ -1,7 +1,7 @@
 module github.com/stevessr/agent-ebpf-filter/desktop/renew
 
 // MyGo is isolated here so desktop UI dependencies never enter the privileged backend module.
-go 1.27.1
+go 1.27.3
 
 require (
 	github.com/egoist/mygo v0.6.3

@@ -23,13 +23,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go: ["1.27.1", "1.27.3"]
+        go: ["1.27.3"]
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-go@v7.0.0
         with:
           go-version: ${{ matrix.go }}
           cache-dependency-path: backend/go.sum
+      - name: Enforce workspace Go toolchain baseline
+        run: |
+          python3 scripts/check-go-version.py
+          go version
       - name: Verify backend checksum and module graph
         working-directory: backend
         run: |
