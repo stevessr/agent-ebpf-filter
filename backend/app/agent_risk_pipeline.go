@@ -61,6 +61,7 @@ func normalizeAgentRiskMessage(event *pb.Event) agentpipeline.Message {
 		At: time.Now().UTC(),
 		Kind: "other",
 		AgentRunID: event.GetAgentRunId(),
+		ContainerID: event.GetContainerId(),
 		ConversationID: event.GetConversationId(),
 		TaskID: event.GetTaskId(),
 		TurnID: event.GetTurnId(),
