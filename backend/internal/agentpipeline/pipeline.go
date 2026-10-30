@@ -5,6 +5,8 @@ package agentpipeline
 import (
 	"container/list"
 	"crypto/sha256"
+	"encoding/binary"
+	"io"
 	"encoding/hex"
 	"strconv"
 	"strings"
@@ -287,22 +289,43 @@ func isReadOnly(s string) bool {
 }
 
 func sessionKey(m Message) string {
-	// Never key by tool_call_id alone: IDs collide across independent Agents.
-	// Require a parent identity; PID-only fallback is intentionally short-lived.
+	// All fields are length-framed before hashing. Literal delimiter
+	// concatenation is ambiguous when caller-controlled IDs contain |task:
+	// or |root: and can merge unrelated Agent security contexts.
+	root := strconv.FormatUint(uint64(m.RootPID), 10)
 	switch {
 	case m.AgentRunID != "":
-		return "run:" + bound(m.AgentRunID) + "|task:" + bound(m.TaskID) + "|conv:" + bound(m.ConversationID) + "|root:" + strconv.FormatUint(uint64(m.RootPID), 10)
+		return opaqueContextKey("run", m.AgentRunID, m.TaskID, m.ConversationID, root)
 	case m.ConversationID != "":
-		return "conv:" + bound(m.ConversationID) + "|root:" + strconv.FormatUint(uint64(m.RootPID), 10)
+		return opaqueContextKey("conversation", m.ConversationID, root)
 	case m.TraceID != "":
-		return "trace:" + bound(m.TraceID) + "|root:" + strconv.FormatUint(uint64(m.RootPID), 10)
+		return opaqueContextKey("trace", m.TraceID, root)
 	case m.RootPID != 0:
-		return "root:" + strconv.FormatUint(uint64(m.RootPID), 10)
+		return opaqueContextKey("root", root)
 	case m.PID != 0:
-		return "pid:" + strconv.FormatUint(uint64(m.PID), 10)
+		return opaqueContextKey("pid", strconv.FormatUint(uint64(m.PID), 10))
 	default:
 		return ""
 	}
+}
+
+// Opaque context keys avoid retaining complete Agent/session identifiers in
+// the LRU map. Hash length framing prevents concatenation and separator
+// injection collisions while retaining stable equality for matching events.
+func opaqueContextKey(kind string, values ...string) string {
+	h := sha256.New()
+	var length [8]byte
+	write := func(value string) {
+		binary.BigEndian.PutUint64(length[:], uint64(len(value)))
+		_, _ = h.Write(length[:])
+		_, _ = io.WriteString(h, value)
+	}
+	write(kind)
+	for _, value := range values {
+		write(value)
+	}
+	sum := h.Sum(nil)
+	return "context:" + hex.EncodeToString(sum[:16])
 }
 
 func bound(s string) string {
