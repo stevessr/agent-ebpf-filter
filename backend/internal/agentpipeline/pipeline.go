@@ -30,6 +30,7 @@ type Message struct {
 	Kind            string // tool_call, tool_result, model_input, session_end, process, file, network, other
 	Action          string // read, write, execute, egress, none
 	AgentRunID      string
+	ContainerID     string
 	ConversationID  string
 	TaskID          string
 	TurnID          string
@@ -293,17 +294,18 @@ func sessionKey(m Message) string {
 	// concatenation is ambiguous when caller-controlled IDs contain |task:
 	// or |root: and can merge unrelated Agent security contexts.
 	root := strconv.FormatUint(uint64(m.RootPID), 10)
+	container := m.ContainerID
 	switch {
 	case m.AgentRunID != "":
-		return opaqueContextKey("run", m.AgentRunID, m.TaskID, m.ConversationID, root)
+		return opaqueContextKey("run", container, m.AgentRunID, m.TaskID, m.ConversationID, root)
 	case m.ConversationID != "":
-		return opaqueContextKey("conversation", m.ConversationID, root)
+		return opaqueContextKey("conversation", container, m.ConversationID, root)
 	case m.TraceID != "":
-		return opaqueContextKey("trace", m.TraceID, root)
+		return opaqueContextKey("trace", container, m.TraceID, root)
 	case m.RootPID != 0:
-		return opaqueContextKey("root", root)
+		return opaqueContextKey("root", container, root)
 	case m.PID != 0:
-		return opaqueContextKey("pid", strconv.FormatUint(uint64(m.PID), 10))
+		return opaqueContextKey("pid", container, strconv.FormatUint(uint64(m.PID), 10))
 	default:
 		return ""
 	}
