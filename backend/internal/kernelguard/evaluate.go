@@ -22,6 +22,9 @@ type HoldoutCounts struct {
 	IndependentGroups int
 	BenignGroups      int
 	AttackGroups      int
+	ValidationSHA256  string
+	BenignRunsWithFP  int
+	AttackRunsWithTP  int
 }
 
 // EvaluateCSVHoldout recomputes the Python trainer's deterministic run split
@@ -54,9 +57,13 @@ func EvaluateCSVHoldout(path string, model Model) (HoldoutCounts, error) {
 			return result, fmt.Errorf("missing CSV column %s", name)
 		}
 	}
+	sum := sha256.Sum256(data)
+	result.ValidationSHA256 = fmt.Sprintf("%x", sum)
 	groups := make(map[string]bool)
 	benignGroups := make(map[string]bool)
 	attackGroups := make(map[string]bool)
+	benignRunsWithFP := make(map[string]bool)
+	attackRunsWithTP := make(map[string]bool)
 	for line := 2; ; line++ {
 		if line > 250002 {
 			return result, errors.New("validation CSV row cap exceeded")
@@ -98,18 +105,22 @@ func EvaluateCSVHoldout(path string, model Model) (HoldoutCounts, error) {
 			attackGroups[run] = true
 			if matched {
 				result.TruePositives++
+				attackRunsWithTP[run] = true
 			}
 		} else {
 			result.Benign++
 			benignGroups[run] = true
 			if matched {
 				result.FalsePositives++
+				benignRunsWithFP[run] = true
 			}
 		}
 	}
 	result.IndependentGroups = len(groups)
 	result.BenignGroups = len(benignGroups)
 	result.AttackGroups = len(attackGroups)
+	result.BenignRunsWithFP = len(benignRunsWithFP)
+	result.AttackRunsWithTP = len(attackRunsWithTP)
 	return result, nil
 }
 
@@ -137,7 +148,10 @@ func VerifyHoldoutAgainstCSV(reportPath, csvPath string, model Model, digest str
 		report.TruePositives != recomputed.TruePositives ||
 		report.IndependentGroups != recomputed.IndependentGroups ||
 		report.BenignGroups != recomputed.BenignGroups ||
-		report.AttackGroups != recomputed.AttackGroups {
+		report.AttackGroups != recomputed.AttackGroups ||
+		report.BenignRunsWithFP != recomputed.BenignRunsWithFP ||
+		report.AttackRunsWithTP != recomputed.AttackRunsWithTP ||
+		!strings.EqualFold(report.ValidationSHA256, recomputed.ValidationSHA256) {
 		return fmt.Errorf("holdout counts differ from independently replayed CSV")
 	}
 	return nil

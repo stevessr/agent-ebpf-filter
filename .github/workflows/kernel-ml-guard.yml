@@ -52,11 +52,11 @@ jobs:
           with open('/tmp/kernel-ml-training.csv', 'w', newline='') as f:
               w = csv.writer(f)
               w.writerow(['agent_run_id', 'destination_ip', 'destination_port', 'label'])
-              for i in range(100):
+              for i in range(500):
                   rid = f'run-{i:03d}'
-                  for _ in range(300):
+                  for _ in range(50):
                       w.writerow([rid, '8.8.8.8', 443, 'benign'])
-                  for _ in range(20):
+                  for _ in range(10):
                       w.writerow([rid, '8.8.8.8', 4444, 'attack'])
           PY
           python3 scripts/train-kernel-guard.py \

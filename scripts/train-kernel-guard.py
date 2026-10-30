@@ -14,7 +14,7 @@ from pathlib import Path
 
 FEATURE_COUNT = 6
 MODEL_SCHEMA = "kernel-cgroup-linear-v1"
-REPORT_SCHEMA = "kernel-guard-holdout-v2"
+REPORT_SCHEMA = "kernel-guard-holdout-v3"
 
 
 def external_ipv4(address):
@@ -156,30 +156,43 @@ def wilson_bounds95(successes, total):
     return (center - margin) / denominator, (center + margin) / denominator
 
 
-def evaluate(model, holdout_rows, model_digest):
+def evaluate(model, holdout_rows, model_digest, validation_digest):
     benign = attacks = false_pos = true_pos = 0
     benign_groups = set()
     attack_groups = set()
+    benign_run_fps = set()
+    attack_run_tps = set()
     for run, x, label in holdout_rows:
         positive = predict(model, x)
         if label:
             attack_groups.add(run)
             attacks += 1
             true_pos += int(positive)
+            if positive:
+                attack_run_tps.add(run)
         else:
             benign_groups.add(run)
             benign += 1
             false_pos += int(positive)
+            if positive:
+                benign_run_fps.add(run)
     _, fpr_upper = wilson_bounds95(false_pos, benign)
     recall_lower, _ = wilson_bounds95(true_pos, attacks)
+    _, run_fp_upper = wilson_bounds95(len(benign_run_fps), len(benign_groups))
+    run_tp_lower, _ = wilson_bounds95(len(attack_run_tps), len(attack_groups))
     return {
         "schemaVersion": REPORT_SCHEMA,
         "modelSHA256": model_digest,
+        "validationSHA256": validation_digest,
         "benign": benign, "attacks": attacks,
         "falsePositives": false_pos, "truePositives": true_pos,
         "independentGroups": len({run for run, _, _ in holdout_rows}),
         "benignGroups": len(benign_groups),
         "attackGroups": len(attack_groups),
+        "benignRunsWithFP": len(benign_run_fps),
+        "attackRunsWithTP": len(attack_run_tps),
+        "benignRunFPUpper95": run_fp_upper,
+        "attackRunRecallLower95": run_tp_lower,
         "falsePositiveUpper95": fpr_upper,
         "attackRecallLower95": recall_lower,
         "falsePositiveRate": false_pos / benign if benign else None,
@@ -205,12 +218,14 @@ def main():
     payload = (json.dumps(model, sort_keys=True, indent=2) + "\n").encode()
     Path(args.model).write_bytes(payload)
     digest = hashlib.sha256(payload).hexdigest()
-    report = evaluate(model, holdout, digest)
+    validation_digest = hashlib.sha256(Path(args.input).read_bytes()).hexdigest()
+    report = evaluate(model, holdout, digest, validation_digest)
     # Go report loader is strict about unknown fields; retain extended metrics
     # on stdout while storing only the versioned enforcement evidence contract.
     print(json.dumps(report, indent=2, sort_keys=True))
     for key in ("falsePositiveRate", "recall", "falsePositiveUpper95",
-                "attackRecallLower95", "note"):
+                "attackRecallLower95", "benignRunFPUpper95",
+                "attackRunRecallLower95", "note"):
         del report[key]
     Path(args.holdout).write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
     print("modelSHA256:", digest)

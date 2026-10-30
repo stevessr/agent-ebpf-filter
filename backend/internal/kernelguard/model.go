@@ -183,6 +183,9 @@ type Holdout struct {
 	IndependentGroups int    `json:"independentGroups"`
 	BenignGroups      int    `json:"benignGroups"`
 	AttackGroups      int    `json:"attackGroups"`
+	ValidationSHA256  string `json:"validationSHA256"`
+	BenignRunsWithFP  int    `json:"benignRunsWithFP"`
+	AttackRunsWithTP  int    `json:"attackRunsWithTP"`
 }
 
 // WilsonBounds95 returns one-sided 95% Wilson score confidence bounds.
@@ -205,7 +208,7 @@ func WilsonBounds95(successes, total int) (float64, float64) {
 // AssessHoldout checks numerical release gates, not authenticity of the input
 // dataset or evaluator. The operator must still independently review provenance.
 func AssessHoldout(h Holdout, hash string) error {
-	if h.SchemaVersion != "kernel-guard-holdout-v2" ||
+	if h.SchemaVersion != "kernel-guard-holdout-v3" ||
 		!strings.EqualFold(h.ModelSHA256, hash) || len(hash) != 64 {
 		return errors.New("holdout schema/digest mismatch")
 	}
@@ -213,7 +216,10 @@ func AssessHoldout(h Holdout, hash string) error {
 		h.BenignGroups < 10 || h.AttackGroups < 10 ||
 		h.BenignGroups > h.IndependentGroups || h.AttackGroups > h.IndependentGroups ||
 		h.FalsePositives < 0 || h.TruePositives < 0 ||
-		h.FalsePositives > h.Benign || h.TruePositives > h.Attacks {
+		h.FalsePositives > h.Benign || h.TruePositives > h.Attacks ||
+		h.BenignRunsWithFP < 0 || h.BenignRunsWithFP > h.BenignGroups ||
+		h.AttackRunsWithTP < 0 || h.AttackRunsWithTP > h.AttackGroups ||
+		len(h.ValidationSHA256) != 64 {
 		return errors.New("holdout evidence or per-class run coverage insufficient")
 	}
 	// A lucky zero-false-positive result on a small holdout must not
@@ -221,8 +227,13 @@ func AssessHoldout(h Holdout, hash string) error {
 	// because individual events are not necessarily independent.
 	_, falsePositiveUpper := WilsonBounds95(h.FalsePositives, h.Benign)
 	attackRecallLower, _ := WilsonBounds95(h.TruePositives, h.Attacks)
+	_, benignRunUpper := WilsonBounds95(h.BenignRunsWithFP, h.BenignGroups)
+	attackRunLower, _ := WilsonBounds95(h.AttackRunsWithTP, h.AttackGroups)
 	if falsePositiveUpper > 0.001 || attackRecallLower < 0.95 {
 		return fmt.Errorf("holdout confidence bounds fail: FPR upper95=%.6f (max .001), recall lower95=%.6f (min .95)", falsePositiveUpper, attackRecallLower)
+	}
+	if benignRunUpper > 0.05 || attackRunLower < 0.90 {
+		return fmt.Errorf("holdout run-level gate failed: FP-runs upper95=%.6f (max .05), attack-detected-runs lower95=%.6f (min .90)", benignRunUpper, attackRunLower)
 	}
 	return nil
 }
