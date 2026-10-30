@@ -90,7 +90,9 @@ never give the monitored Agent permission to invoke this privileged loader.
 The privileged launcher independently replays the deterministic holdout split
 from the labeled CSV using its own Go feature extractor and requires all
 confusion-matrix totals **and benign/attack independent-run support** to match
-the versioned `kernel-guard-holdout-v2` report before arming. Previous
+the versioned `kernel-guard-holdout-v2` report before arming. The SHA-256
+of the **exact CSV bytes independently replayed** must also match the report.
+The evaluator reads a bounded snapshot once, avoiding hash/replay races. Previous
 `v1` reports are not accepted by block mode. The trainer prints point
 estimates and Wilson bounds; only the strictly validated counters enter the
 published JSON contract. This catches
