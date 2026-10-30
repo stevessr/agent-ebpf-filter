@@ -103,6 +103,7 @@ func TestABISize(t *testing.T) {
 		t.Fatalf("ABI changed: %d", got)
 	}
 }
+
 func TestWilsonBoundsRejectLuckySmallHoldout(t *testing.T) {
 	_, smallFPRUpper := WilsonBounds95(0, 1000)
 	if smallFPRUpper <= 0.001 {
