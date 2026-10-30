@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/netip"
 	"os"
 	"strings"
@@ -180,24 +181,48 @@ type Holdout struct {
 	FalsePositives    int    `json:"falsePositives"`
 	TruePositives     int    `json:"truePositives"`
 	IndependentGroups int    `json:"independentGroups"`
+	BenignGroups      int    `json:"benignGroups"`
+	AttackGroups      int    `json:"attackGroups"`
+}
+
+// WilsonBounds95 returns one-sided 95% Wilson score confidence bounds.
+// Correlated events from the same run weaken these row-level guarantees;
+// operators still need independent run-level and temporal evaluations.
+func WilsonBounds95(successes, total int) (float64, float64) {
+	if total <= 0 || successes < 0 || successes > total {
+		return 0, 1
+	}
+	const z = 1.6448536269514722
+	n := float64(total)
+	p := float64(successes) / n
+	z2 := z * z
+	denom := 1 + z2/n
+	center := p + z2/(2*n)
+	margin := z * math.Sqrt(p*(1-p)/n+z2/(4*n*n))
+	return (center - margin) / denom, (center + margin) / denom
 }
 
 // AssessHoldout checks numerical release gates, not authenticity of the input
 // dataset or evaluator. The operator must still independently review provenance.
 func AssessHoldout(h Holdout, hash string) error {
-	if h.SchemaVersion != "kernel-guard-holdout-v1" ||
+	if h.SchemaVersion != "kernel-guard-holdout-v2" ||
 		!strings.EqualFold(h.ModelSHA256, hash) || len(hash) != 64 {
 		return errors.New("holdout schema/digest mismatch")
 	}
 	if h.Benign < 1000 || h.Attacks < 100 || h.IndependentGroups < 10 ||
+		h.BenignGroups < 10 || h.AttackGroups < 10 ||
+		h.BenignGroups > h.IndependentGroups || h.AttackGroups > h.IndependentGroups ||
 		h.FalsePositives < 0 || h.TruePositives < 0 ||
 		h.FalsePositives > h.Benign || h.TruePositives > h.Attacks {
-		return errors.New("holdout evidence insufficient or invalid")
+		return errors.New("holdout evidence or per-class run coverage insufficient")
 	}
-	// <= 0.1% point FPR and >= 95% recall; not a statistical confidence bound.
-	if int64(h.FalsePositives)*1000 > int64(h.Benign) ||
-		int64(h.TruePositives)*100 < 95*int64(h.Attacks) {
-		return errors.New("holdout does not meet point FPR / recall gates")
+	// A lucky zero-false-positive result on a small holdout must not
+	// authorize kernel blocking. Confidence limits remain provisional
+	// because individual events are not necessarily independent.
+	_, falsePositiveUpper := WilsonBounds95(h.FalsePositives, h.Benign)
+	attackRecallLower, _ := WilsonBounds95(h.TruePositives, h.Attacks)
+	if falsePositiveUpper > 0.001 || attackRecallLower < 0.95 {
+		return fmt.Errorf("holdout confidence bounds fail: FPR upper95=%.6f (max .001), recall lower95=%.6f (min .95)", falsePositiveUpper, attackRecallLower)
 	}
 	return nil
 }

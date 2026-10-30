@@ -58,21 +58,22 @@ func TestMapConfigFixedWidthABI(t *testing.T) {
 
 func TestHoldoutReleaseGate(t *testing.T) {
 	hash := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	h := Holdout{SchemaVersion: "kernel-guard-holdout-v1", ModelSHA256: hash,
-		Benign: 2000, Attacks: 200, TruePositives: 196, FalsePositives: 1, IndependentGroups: 25}
+	h := Holdout{SchemaVersion: "kernel-guard-holdout-v2", ModelSHA256: hash,
+		Benign: 10000, Attacks: 500, TruePositives: 499, FalsePositives: 0,
+		IndependentGroups: 25, BenignGroups: 20, AttackGroups: 20}
 	if err := AssessHoldout(h, hash); err != nil {
 		t.Fatal(err)
 	}
-	h.FalsePositives = 3
+	h.FalsePositives = 30
 	if err := AssessHoldout(h, hash); err == nil {
 		t.Fatal("high false positive rate accepted")
 	}
 	h.FalsePositives = 0
-	h.TruePositives = 170
+	h.TruePositives = 440
 	if err := AssessHoldout(h, hash); err == nil {
 		t.Fatal("low recall accepted")
 	}
-	h.TruePositives = 199
+	h.TruePositives = 499
 	h.IndependentGroups = 1
 	if err := AssessHoldout(h, hash); err == nil {
 		t.Fatal("insufficient run groups accepted")
@@ -85,5 +86,19 @@ func TestABISize(t *testing.T) {
 	const want = 44
 	if got := 4*5 + 4*FeatureCount; got != want {
 		t.Fatalf("ABI changed: %d", got)
+	}
+}
+func TestWilsonBoundsRejectLuckySmallHoldout(t *testing.T) {
+	_, smallFPRUpper := WilsonBounds95(0, 1000)
+	if smallFPRUpper <= 0.001 {
+		t.Fatalf("1000 benign with zero FP insufficient: %.6f", smallFPRUpper)
+	}
+	_, largeFPRUpper := WilsonBounds95(0, 10000)
+	if largeFPRUpper >= 0.001 {
+		t.Fatalf("10000 benign with zero FP should pass: %.6f", largeFPRUpper)
+	}
+	smallRecallLower, _ := WilsonBounds95(95, 100)
+	if smallRecallLower >= 0.95 {
+		t.Fatalf("95/100 recall should fail lower confidence bound: %.6f", smallRecallLower)
 	}
 }
