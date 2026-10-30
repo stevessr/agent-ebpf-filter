@@ -51,13 +51,13 @@ type Finding struct {
 }
 
 type Status struct {
-	Sessions    int
-	MaxSessions int
-	Evictions   uint64
-	Findings    uint64
-	ActiveCalls int
-	CompletedCalls int
-	TaintedSessions int
+	Sessions int `json:"sessions"`
+	MaxSessions int `json:"maxSessions"`
+	Evictions uint64 `json:"evictions"`
+	Findings uint64 `json:"findings"`
+	ActiveCalls int `json:"activeCalls"`
+	CompletedCalls int `json:"completedCalls"`
+	TaintedSessions int `json:"taintedSessions"`
 }
 
 type invocation struct {
