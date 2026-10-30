@@ -24,7 +24,7 @@ func buildUnifiedAgentRiskAlerts(event *pb.Event) []*pb.Event {
 	msg := normalizeAgentRiskMessage(event)
 	// The hot path must not allocate per-session state for benign file reads
 	// or unrelated kernel samples. Only messages used by correlation enter it.
-	if msg.Kind != "tool_call" && msg.Kind != "tool_result" && msg.Kind != "model_input" &&
+	if msg.Kind != "tool_call" && msg.Kind != "tool_result" && msg.Kind != "model_input" && msg.Kind != "session_end" &&
 		msg.Action != "write" && msg.Action != "execute" && msg.Action != "egress" {
 		return nil
 	}
@@ -59,12 +59,14 @@ func normalizeAgentRiskMessage(event *pb.Event) agentpipeline.Message {
 	switch event.GetType() {
 	case "native_hook":
 		switch strings.ToLower(agentRiskExtraField(event.GetExtraInfo(), "hook_event")) {
-		case "pretooluse", "beforetool", "pretool", "tool_call", "before_tool_call", "pretoolusehook":
+		case "pretooluse", "beforetool", "pretool", "tool_call", "before_tool_call", "pretoolusehook", "before_tool_use":
 			m.Kind = "tool_call"
-		case "posttooluse", "posttoolusefailure", "aftertool", "tool_result", "after_tool_call":
+		case "posttooluse", "posttoolusefailure", "aftertool", "tool_result", "after_tool_call", "after_tool_use", "post_tool_use":
 			m.Kind = "tool_result"
-		case "userpromptsubmit", "prompt_submit", "prompt", "beforeagent":
+		case "userpromptsubmit", "userpromptsubmitted", "prompt_submit", "prompt", "beforeagent", "beforemodel":
 			m.Kind = "model_input"
+		case "sessionend", "session_end", "sessionstop", "session_stop":
+			m.Kind = "session_end"
 		}
 		m.SideEffectScope = agentRiskExtraField(event.GetExtraInfo(), "side_effect_scope")
 		m.PermissionMode = agentRiskExtraField(event.GetExtraInfo(), "permission_mode")
@@ -77,6 +79,12 @@ func normalizeAgentRiskMessage(event *pb.Event) agentpipeline.Message {
 		if strings.EqualFold(agentRiskExtraField(event.GetExtraInfo(), "role"), "tool") {
 			m.Kind = "tool_result"
 		}
+	case "process_exit", "exit":
+		// A child exit must not terminate its parent Agent's entire run.
+		if (event.GetRootAgentPid() != 0 && event.GetPid() == event.GetRootAgentPid()) ||
+			(event.GetRootAgentPid() == 0 && event.GetAgentRunId() == "" && event.GetConversationId() == "" && event.GetTraceId() == "") {
+			m.Kind = "session_end"
+		}
 	case "execve", "process_exec":
 		m.Kind = "process"
 		if !blocked {
@@ -87,7 +95,8 @@ func normalizeAgentRiskMessage(event *pb.Event) agentpipeline.Message {
 		m.Action = "read"
 	case "write", "chmod", "chown", "rename", "link", "symlink", "mknod", "mkdir", "unlink", "unlinkat":
 		m.Kind = "file"
-		if !blocked {
+		// Zero-byte writes do not demonstrate an actual data mutation.
+		if !blocked && (event.GetType() != "write" || event.GetRetval() > 0) {
 			m.Action = "write"
 		}
 	case "network_connect", "network_sendto", "tcp_connect":
