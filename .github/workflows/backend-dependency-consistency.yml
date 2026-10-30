@@ -1,0 +1,45 @@
+name: Backend dependency consistency
+
+on:
+  pull_request:
+    paths:
+      - "backend/go.mod"
+      - "backend/go.sum"
+      - ".github/workflows/backend-dependency-consistency.yml"
+  push:
+    branches: [master]
+    paths:
+      - "backend/go.mod"
+      - "backend/go.sum"
+      - ".github/workflows/backend-dependency-consistency.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-integrity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ["1.27.1", "1.27.3"]
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: ${{ matrix.go }}
+          cache-dependency-path: backend/go.sum
+      - name: Verify backend checksum and module graph
+        working-directory: backend
+        run: |
+          go mod download
+          go mod verify
+          go mod tidy -diff
+          go list -m github.com/modelcontextprotocol/go-sdk github.com/klauspost/compress \
+            go.opentelemetry.io/otel go.opentelemetry.io/otel/sdk \
+            go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp \
+            github.com/cilium/ebpf
+      - name: Exercise source-only backend contracts
+        working-directory: backend
+        run: go test ./internal/agentboundary -count=1
