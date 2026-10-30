@@ -76,7 +76,7 @@ func scopeCgroup(path string) (string, error) {
 	return resolved, nil
 }
 
-func run(ctx context.Context, object, modelPath, evidence, cgroup, portsCSV, mode, approvedDigest string) error {
+func run(ctx context.Context, object, modelPath, evidence, validationCSV, cgroup, portsCSV, mode, approvedDigest string) error {
 	if mode != "shadow" && mode != "block" {
 		return errors.New("mode must be shadow or block")
 	}
@@ -100,10 +100,10 @@ func run(ctx context.Context, object, modelPath, evidence, cgroup, portsCSV, mod
 		if len(approvedDigest) != 64 || !strings.EqualFold(approvedDigest, digest) {
 			return fmt.Errorf("operator must pass --approve-sha256 %s", digest)
 		}
-		if evidence == "" {
-			return errors.New("block requires --holdout report")
+		if evidence == "" || validationCSV == "" {
+			return errors.New("block requires --holdout and --validation-csv")
 		}
-		if err := kernelguard.ReadHoldout(evidence, digest); err != nil {
+		if err := kernelguard.VerifyHoldoutAgainstCSV(evidence, validationCSV, m, digest); err != nil {
 			return fmt.Errorf("holdout gate: %w", err)
 		}
 	}
@@ -196,10 +196,11 @@ func run(ctx context.Context, object, modelPath, evidence, cgroup, portsCSV, mod
 }
 
 func main() {
-	var obj, model, holdout, cgroup, ports, mode, approved string
+	var obj, model, holdout, validationCSV, cgroup, ports, mode, approved string
 	flag.StringVar(&obj, "object", "", "compiled backend/ebpf/kernel_ml_guard.o")
 	flag.StringVar(&model, "model", "", "validated linear model JSON")
 	flag.StringVar(&holdout, "holdout", "", "group-held-out evaluation JSON, required for block")
+	flag.StringVar(&validationCSV, "validation-csv", "", "source labeled CSV for independent Go holdout replay (block)")
 	flag.StringVar(&cgroup, "cgroup", "", "non-root cgroup v2 directory")
 	flag.StringVar(&ports, "ports", "", "comma-separated explicitly reviewed destination ports")
 	flag.StringVar(&mode, "mode", "shadow", "shadow (default) or block")
@@ -213,7 +214,7 @@ func main() {
 	// Do not expose these flags through untrusted Agent tool interfaces.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := run(ctx, obj, model, holdout, cgroup, ports, mode, approved); err != nil {
+	if err := run(ctx, obj, model, holdout, validationCSV, cgroup, ports, mode, approved); err != nil {
 		log.Fatal(err)
 	}
 }

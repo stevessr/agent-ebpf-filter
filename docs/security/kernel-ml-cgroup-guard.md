@@ -80,6 +80,12 @@ rollbacks and cgroup scope are acceptable, *block* requires additionally:
 reported by the training utility>`. It is a deliberate per-launch decision;
 never give the monitored Agent permission to invoke this privileged loader.
 
+The privileged launcher independently replays the deterministic holdout split
+from the labeled CSV using its own Go feature extractor and requires all
+confusion-matrix totals to match the report before arming. This catches
+accidental report/model mismatches; it does **not** prove labels or CSV
+provenance.
+
 **Critical caveat**: the holdout JSON is not signed and is not external
 attestation. The numerical gate is not proof that labels are honest or
 that future traffic matches training data. The operator needs an

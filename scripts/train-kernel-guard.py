@@ -65,7 +65,7 @@ def load_csv(path):
             if not run or len(run) > 128:
                 raise ValueError(f"line {line}: invalid run id")
             port_text = record["destination_port"].strip()
-            if not port_text.isdecimal():
+            if not port_text.isascii() or not port_text.isdecimal():
                 raise ValueError(f"line {line}: invalid destination_port")
             port = int(port_text)
             if not 1 <= port <= 65535:
