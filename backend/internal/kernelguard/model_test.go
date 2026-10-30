@@ -58,9 +58,10 @@ func TestMapConfigFixedWidthABI(t *testing.T) {
 
 func TestHoldoutReleaseGate(t *testing.T) {
 	hash := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	h := Holdout{SchemaVersion: "kernel-guard-holdout-v2", ModelSHA256: hash,
+	h := Holdout{SchemaVersion: "kernel-guard-holdout-v3", ModelSHA256: hash,
 		Benign: 10000, Attacks: 500, TruePositives: 499, FalsePositives: 0,
-		IndependentGroups: 25, BenignGroups: 20, AttackGroups: 20}
+		IndependentGroups: 100, BenignGroups: 90, AttackGroups: 90,
+		ValidationSHA256: hash, BenignRunsWithFP: 0, AttackRunsWithTP: 90}
 	if err := AssessHoldout(h, hash); err != nil {
 		t.Fatal(err)
 	}
@@ -78,20 +79,30 @@ func TestHoldoutReleaseGate(t *testing.T) {
 	if err := AssessHoldout(h, hash); err == nil {
 		t.Fatal("insufficient run groups accepted")
 	}
-	h.IndependentGroups = 25
+	h.IndependentGroups = 100
 	h.BenignGroups = 9
 	if err := AssessHoldout(h, hash); err == nil {
 		t.Fatal("insufficient benign-run groups accepted")
 	}
-	h.BenignGroups = 20
+	h.BenignGroups = 90
 	h.AttackGroups = 9
 	if err := AssessHoldout(h, hash); err == nil {
 		t.Fatal("insufficient attack-run groups accepted")
 	}
-	h.AttackGroups = 20
+	h.AttackGroups = 90
 	h.Benign = 1000
 	if err := AssessHoldout(h, hash); err == nil {
 		t.Fatal("zero FP in only 1000 benign rows cannot prove FPR upper <= .001")
+	}
+	h.Benign = 10000
+	h.BenignRunsWithFP = 6
+	if err := AssessHoldout(h, hash); err == nil {
+		t.Fatal("high risk of false positive at Agent Run level accepted")
+	}
+	h.BenignRunsWithFP = 0
+	h.AttackRunsWithTP = 50
+	if err := AssessHoldout(h, hash); err == nil {
+		t.Fatal("low Agent Run detection confidence accepted")
 	}
 }
 

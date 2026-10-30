@@ -27,6 +27,19 @@ class KernelGuardTrainerTests(unittest.TestCase):
         lower, _ = trainer.wilson_bounds95(95, 100)
         self.assertLess(lower, 0.95)
 
+    def test_v3_report_binds_runs_and_dataset(self):
+        import hashlib
+        model = {"bias": -100, "threshold": 100,
+                 "weights": [0, 0, 300, 0, 0, 0]}
+        rows = [("run-1", trainer.features("8.8.8.8", 443), 0),
+                ("run-2", trainer.features("8.8.8.8", 4444), 1)]
+        report = trainer.evaluate(model, rows, "b" * 64, "a" * 64)
+        self.assertEqual(report["schemaVersion"], "kernel-guard-holdout-v3")
+        self.assertEqual(report["validationSHA256"], "a" * 64)
+        self.assertEqual(report["attackRunsWithTP"], 1)
+        self.assertEqual(report["benignRunsWithFP"], 0)
+        self.assertEqual(report["attackRunRecallLower95"] < 1, True)
+
     def test_run_split_does_not_split_one_run(self):
         one = trainer.split_group("agent-run-one")
         self.assertEqual(one, trainer.split_group("agent-run-one"))

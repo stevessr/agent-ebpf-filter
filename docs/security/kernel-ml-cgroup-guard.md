@@ -22,7 +22,7 @@ A high held-out accuracy alone is not sufficient for kernel blocking:
 ## Present implementation
 
 - `backend/ebpf/kernel_ml_guard.c`: independent `cgroup/connect4`, `cgroup/sendmsg4`,
-  `cgroup/connect6`, and `cgroup/sendmsg6` eBPF (the 6 hooks accept
+  `cgroup/connect6`, and `cgroup/sendmsg6` eBPF (the IPv6 hooks accept
   **only IPv4-mapped IPv6** destinations for model evaluation). Returns 0 to deny only if (1) manually attached
   to a non-root cgroup, (2) model schema valid, (3) external IPv4 candidate,
   (4) destination port explicitly reviewed, (5) integer score reaches
@@ -90,8 +90,10 @@ never give the monitored Agent permission to invoke this privileged loader.
 The privileged launcher independently replays the deterministic holdout split
 from the labeled CSV using its own Go feature extractor and requires all
 confusion-matrix totals **and benign/attack independent-run support** to match
-the versioned `kernel-guard-holdout-v2` report before arming. Previous
-`v1` reports are not accepted by block mode. The trainer prints point
+the versioned `kernel-guard-holdout-v3` report before arming. Previous
+`v1` and `v2` reports are not accepted by block mode. The report also binds
+the exact source labeled CSV bytes via `validationSHA256`; changing a CSV
+without regenerating the report invalidates the release check. The trainer prints point
 estimates and Wilson bounds; only the strictly validated counters enter the
 published JSON contract. This catches
 accidental report/model mismatches; it does **not** prove labels or CSV
@@ -118,14 +120,18 @@ does not attach anything on a dry build or test.
   close on process exit; operator should still inspect `bpftool cgroup show`.
 - Scope is cgroup and descendant processes; service owners should avoid
   placing privileged or unrelated tasks inside that cgroup.
-- The v2 holdout release gate requires >=1,000 benign samples, >=100 attack
+- The v3 holdout release gate requires >=1,000 benign samples, >=100 attack
   samples, >=10 distinct benign Agent runs **and** >=10 distinct attack
   Agent runs. It requires a **one-sided Wilson 95% FPR upper bound <=0.1%**
   and **one-sided Wilson 95% attack-recall lower bound >=95%**.
-  These are conservative numerical release criteria rather than established
+  In addition it requires the upper 95% Wilson bound of **benign
+  Runs containing any false positive <=5%**, and the lower 95% Wilson
+  bound of **attack Runs with at least one detected attack >=90%**.
+  Both per-row and per-Run checks must pass. These conservative numerical
+  release criteria are not established
   production accuracy. Repeated events within a run are correlated: row-level
-  Wilson confidence bounds do **not** replace independent-run and temporal
-  holdouts or operator-reviewed labels. Shadow must remain the default until
+  Wilson row confidence bounds are supplemented by per-Run event bounds;
+  neither substitutes for temporal holdouts or operator-reviewed labels. Shadow must remain the default until
   the deployment workload has been evaluated.
 
 ## Model safety and evaluation roadmap
