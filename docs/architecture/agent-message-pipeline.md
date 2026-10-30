@@ -59,7 +59,7 @@ flowchart LR
 
 ### 身份与证据安全
 
-- 关联状态键采用按字段长度分帧的 SHA-256 派生短标识，避免含分隔符的恶意 Agent ID 造成键碰撞，同时不在 LRU 状态里保留原始会话标识。
+- 关联状态键采用按字段长度分帧的 SHA-256 派生短标识，并纳入可用的 container ID，避免分隔符构造和跨容器的 Agent ID/PID 重用碰撞，同时不在 LRU 状态里保留原始会话标识。
 - 旧版语义告警的 `tool_call_id / task_id / trace_id` 现在尽可能与 Agent run、根 PID 或进程 PID 结合，而非跨 Agent 共用裸标识。
 - 如果事件缺少可核实的 Run/Conversation/Root 证据，**宁可失去一部分关联，也不将不同 Agent 的工具行为错误拼接**。PID-only 是退化路径，需结合 session exit 和生命周期判断。
 - 高风险不可信输入仍要求上游显式证据；单纯 `BeforeModel`、普通工具结果和无结果的 MCP 工具声明，不产生新的关联状态。
