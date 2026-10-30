@@ -59,8 +59,8 @@ func TestSessionIsolationExpiryBoundsAndPlanMode(t *testing.T) {
 	if len(got) != 1 || got[0].Code != "PLAN_MODE_SIDE_EFFECT" {
 		t.Fatalf("plan: %v", got)
 	}
-	p.Process(Message{At: t0.Add(5 * time.Second), AgentRunID: "next", Kind: "other"})
-	p.Process(Message{At: t0.Add(6 * time.Second), AgentRunID: "last", Kind: "other"})
+	p.Process(Message{At: t0.Add(5 * time.Second), AgentRunID: "next", Kind: "tool_call", ToolCallID: "next-call"})
+	p.Process(Message{At: t0.Add(6 * time.Second), AgentRunID: "last", Kind: "tool_call", ToolCallID: "last-call"})
 	if stats := p.Stats(); stats.Sessions > 2 || stats.Evictions < 1 {
 		t.Fatalf("state unbounded: %+v", stats)
 	}
@@ -87,7 +87,7 @@ func TestConcurrentProcessors(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for j := 0; j < 50; j++ {
-				p.Process(Message{AgentRunID: "same", Kind: "model_input", HighRiskInput: true})
+				p.Process(Message{AgentRunID: "same", Kind: "model_input", UntrustedInput: true, HighRiskInput: true})
 			}
 		}()
 	}
@@ -118,7 +118,7 @@ func TestExpiredCallDoesNotSurviveBusySession(t *testing.T) {
 	start := time.Now()
 	p.Process(Message{At: start, AgentRunID: "busy", ToolCallID: "old", Kind: "tool_call", SideEffectScope: "read_only"})
 	for i := 1; i <= 4; i++ {
-		p.Process(Message{At: start.Add(time.Duration(i)*400*time.Millisecond), AgentRunID: "busy", Kind: "model_input"})
+		p.Process(Message{At: start.Add(time.Duration(i)*400*time.Millisecond), AgentRunID: "busy", Kind: "tool_call", ToolCallID: "heartbeat"})
 	}
 	if got := p.Process(Message{At: start.Add(1700 * time.Millisecond), AgentRunID: "busy", ToolCallID: "old", Action: "write"}); len(got) != 0 {
 		t.Fatalf("stale tool scope reused: %v", got)
