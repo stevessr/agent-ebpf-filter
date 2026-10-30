@@ -1,8 +1,8 @@
 package kernelguard
 
 import (
-	"fmt"
 	"crypto/sha256"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
