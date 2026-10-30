@@ -14,7 +14,7 @@ from pathlib import Path
 
 FEATURE_COUNT = 6
 MODEL_SCHEMA = "kernel-cgroup-linear-v1"
-REPORT_SCHEMA = "kernel-guard-holdout-v1"
+REPORT_SCHEMA = "kernel-guard-holdout-v2"
 
 
 def external_ipv4(address):
@@ -142,22 +142,46 @@ def predict(model, x):
     return score >= model["threshold"]
 
 
+def wilson_bounds95(successes, total):
+    """One-sided 95% Wilson bounds. Correlated event rows weaken confidence."""
+    if total <= 0:
+        return 0.0, 1.0
+    z = 1.6448536269514722
+    n = float(total)
+    p = successes / n
+    z2 = z * z
+    denominator = 1 + z2 / n
+    center = p + z2 / (2 * n)
+    margin = z * math.sqrt(p * (1 - p) / n + z2 / (4 * n * n))
+    return (center - margin) / denominator, (center + margin) / denominator
+
+
 def evaluate(model, holdout_rows, model_digest):
     benign = attacks = false_pos = true_pos = 0
-    for _, x, label in holdout_rows:
+    benign_groups = set()
+    attack_groups = set()
+    for run, x, label in holdout_rows:
         positive = predict(model, x)
         if label:
+            attack_groups.add(run)
             attacks += 1
             true_pos += int(positive)
         else:
+            benign_groups.add(run)
             benign += 1
             false_pos += int(positive)
+    _, fpr_upper = wilson_bounds95(false_pos, benign)
+    recall_lower, _ = wilson_bounds95(true_pos, attacks)
     return {
         "schemaVersion": REPORT_SCHEMA,
         "modelSHA256": model_digest,
         "benign": benign, "attacks": attacks,
         "falsePositives": false_pos, "truePositives": true_pos,
         "independentGroups": len({run for run, _, _ in holdout_rows}),
+        "benignGroups": len(benign_groups),
+        "attackGroups": len(attack_groups),
+        "falsePositiveUpper95": fpr_upper,
+        "attackRecallLower95": recall_lower,
         "falsePositiveRate": false_pos / benign if benign else None,
         "recall": true_pos / attacks if attacks else None,
         "note": "Point estimates on group-held-out data; not attested and not calibrated.",
@@ -185,7 +209,8 @@ def main():
     # Go report loader is strict about unknown fields; retain extended metrics
     # on stdout while storing only the versioned enforcement evidence contract.
     print(json.dumps(report, indent=2, sort_keys=True))
-    for key in ("falsePositiveRate", "recall", "note"):
+    for key in ("falsePositiveRate", "recall", "falsePositiveUpper95",
+                "attackRecallLower95", "note"):
         del report[key]
     Path(args.holdout).write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
     print("modelSHA256:", digest)

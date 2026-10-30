@@ -20,6 +20,8 @@ type HoldoutCounts struct {
 	FalsePositives    int
 	TruePositives     int
 	IndependentGroups int
+	BenignGroups      int
+	AttackGroups      int
 }
 
 // EvaluateCSVHoldout recomputes the Python trainer's deterministic run split
@@ -53,6 +55,8 @@ func EvaluateCSVHoldout(path string, model Model) (HoldoutCounts, error) {
 		}
 	}
 	groups := make(map[string]bool)
+	benignGroups := make(map[string]bool)
+	attackGroups := make(map[string]bool)
 	for line := 2; ; line++ {
 		if line > 250002 {
 			return result, errors.New("validation CSV row cap exceeded")
@@ -91,17 +95,21 @@ func EvaluateCSVHoldout(path string, model Model) (HoldoutCounts, error) {
 		matched := Predict(model, ip, uint16(portInt))
 		if label == "attack" {
 			result.Attacks++
+			attackGroups[run] = true
 			if matched {
 				result.TruePositives++
 			}
 		} else {
 			result.Benign++
+			benignGroups[run] = true
 			if matched {
 				result.FalsePositives++
 			}
 		}
 	}
 	result.IndependentGroups = len(groups)
+	result.BenignGroups = len(benignGroups)
+	result.AttackGroups = len(attackGroups)
 	return result, nil
 }
 
@@ -127,7 +135,9 @@ func VerifyHoldoutAgainstCSV(reportPath, csvPath string, model Model, digest str
 		report.Attacks != recomputed.Attacks ||
 		report.FalsePositives != recomputed.FalsePositives ||
 		report.TruePositives != recomputed.TruePositives ||
-		report.IndependentGroups != recomputed.IndependentGroups {
+		report.IndependentGroups != recomputed.IndependentGroups ||
+		report.BenignGroups != recomputed.BenignGroups ||
+		report.AttackGroups != recomputed.AttackGroups {
 		return fmt.Errorf("holdout counts differ from independently replayed CSV")
 	}
 	return nil

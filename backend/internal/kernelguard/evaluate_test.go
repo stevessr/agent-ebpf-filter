@@ -27,7 +27,8 @@ func TestCSVHoldoutReplayAndBadLabels(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got.IndependentGroups < 1 || got.Attacks != got.TruePositives ||
-		got.Benign < 1 || got.FalsePositives != 0 {
+		got.Benign < 1 || got.FalsePositives != 0 ||
+		got.BenignGroups < 1 || got.AttackGroups < 1 {
 		t.Fatalf("unexpected deterministic holdout: %+v", got)
 	}
 	if err := os.WriteFile(path, []byte(header+"run-x,8.8.8.8,4444,untrusted\n"), 0600); err != nil {

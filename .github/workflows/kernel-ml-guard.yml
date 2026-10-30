@@ -54,7 +54,7 @@ jobs:
               w.writerow(['agent_run_id', 'destination_ip', 'destination_port', 'label'])
               for i in range(100):
                   rid = f'run-{i:03d}'
-                  for _ in range(120):
+                  for _ in range(300):
                       w.writerow([rid, '8.8.8.8', 443, 'benign'])
                   for _ in range(20):
                       w.writerow([rid, '8.8.8.8', 4444, 'attack'])
