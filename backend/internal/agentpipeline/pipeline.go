@@ -141,12 +141,8 @@ func (p *Pipeline) Process(m Message) []Finding {
 		p.recency.MoveToFront(s.element)
 		s.touched = now
 	}
-	// Expire individual tool calls: a reused ID cannot inherit a stale policy.
-	for id, call := range s.calls {
-		if now.Sub(call.seenAt) > p.ttl {
-			delete(s.calls, id)
-		}
-	}
+	// Tool-call expiry is checked lazily for the touched call below;
+	// do not sweep up to 64 calls for every hot-path process/network event.
 	var findings []Finding
 	emit := func(code, reason string, score float64) {
 		findings = append(findings, Finding{Code: code, Reason: reason, Target: bound(m.Target), RiskScore: score})
@@ -158,6 +154,10 @@ func (p *Pipeline) Process(m Message) []Finding {
 	case "tool_call":
 		if id != "" {
 			call := s.calls[id]
+			if call != nil && now.Sub(call.seenAt) > p.ttl {
+				delete(s.calls, id)
+				call = nil
+			}
 			if call != nil && call.name != "" && m.ToolName != "" && call.name != bound(m.ToolName) {
 				if call.reported&8 == 0 {
 					emit("TOOL_CALL_ID_CONFLICT", "one scoped tool-call ID was reused for different tools", 83)
