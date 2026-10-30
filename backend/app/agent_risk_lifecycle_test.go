@@ -54,3 +54,10 @@ func TestRootExitClearsAgentStateButChildExitDoesNot(t *testing.T) {
 		t.Fatalf("root exit did not close run: %+v", s)
 	}
 }
+
+func TestAgentRiskMessageContainerAttribution(t *testing.T) {
+	event := &pb.Event{Type: "mcp_tool_call", ContainerId: "container-7", AgentRunId: "run"}
+	if got := normalizeAgentRiskMessage(event).ContainerID; got != "container-7" {
+		t.Fatalf("container identity was lost: %q", got)
+	}
+}
