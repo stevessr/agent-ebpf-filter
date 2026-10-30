@@ -1,6 +1,7 @@
 package app
 
 import (
+	"sync"
 	"strings"
 	"time"
 
@@ -12,9 +13,19 @@ import (
 // The existing single-consumer broadcaster is the message bus. This stage
 // consumes its admitted, attributed and monitored events in causal order.
 var unifiedAgentRiskPipeline = agentpipeline.New(4096, 5*time.Minute)
+var unifiedAgentRiskPipelineMu sync.RWMutex
+
+func agentRiskPipelineSnapshot() agentpipeline.Status {
+	unifiedAgentRiskPipelineMu.RLock()
+	p := unifiedAgentRiskPipeline
+	unifiedAgentRiskPipelineMu.RUnlock()
+	return p.Stats()
+}
 
 func resetUnifiedAgentRiskPipeline() {
+	unifiedAgentRiskPipelineMu.Lock()
 	unifiedAgentRiskPipeline = agentpipeline.New(4096, 5*time.Minute)
+	unifiedAgentRiskPipelineMu.Unlock()
 }
 
 func buildUnifiedAgentRiskAlerts(event *pb.Event) []*pb.Event {
@@ -24,11 +35,17 @@ func buildUnifiedAgentRiskAlerts(event *pb.Event) []*pb.Event {
 	msg := normalizeAgentRiskMessage(event)
 	// The hot path must not allocate per-session state for benign file reads
 	// or unrelated kernel samples. Only messages used by correlation enter it.
+	if msg.Kind == "tool_call" && msg.ToolCallID == "" {
+		return nil
+	}
 	if msg.Kind != "tool_call" && msg.Kind != "tool_result" && msg.Kind != "model_input" && msg.Kind != "session_end" &&
 		msg.Action != "write" && msg.Action != "execute" && msg.Action != "egress" {
 		return nil
 	}
-	findings := unifiedAgentRiskPipeline.Process(msg)
+	unifiedAgentRiskPipelineMu.RLock()
+	pipeline := unifiedAgentRiskPipeline
+	unifiedAgentRiskPipelineMu.RUnlock()
+	findings := pipeline.Process(msg)
 	if len(findings) == 0 {
 		return nil
 	}
