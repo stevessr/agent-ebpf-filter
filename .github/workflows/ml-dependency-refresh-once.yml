@@ -29,7 +29,7 @@ jobs:
         working-directory: backend
         run: |
           set -euo pipefail
-          go mod edit -go=1.27.3
+          go mod edit -go=1.27.1
           go get \
             github.com/klauspost/compress@v1.20.1 \
             github.com/modelcontextprotocol/go-sdk@v1.8.0 \
@@ -39,7 +39,7 @@ jobs:
             go.opentelemetry.io/otel/metric@v1.47.0 \
             go.opentelemetry.io/otel/exporters/otlp/otlptrace@v1.47.0 \
             go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp@v1.47.0
-          go mod tidy
+          go mod tidy -go=1.27.1
           go mod verify
           go list -m github.com/klauspost/compress github.com/modelcontextprotocol/go-sdk \
             go.opentelemetry.io/otel go.opentelemetry.io/otel/sdk \
