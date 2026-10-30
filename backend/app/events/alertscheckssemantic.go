@@ -172,6 +172,11 @@ func semanticAlertContextKeyBounded(event *pb.Event) (string, bool) {
 	if scope != "" && event.GetRootAgentPid() != 0 && !strings.HasPrefix(scope, "pid:") {
 		scope += "|root:" + pidContextKey(event.GetRootAgentPid())
 	}
+	// PID and even run identifiers may be reused in independent containers.
+	// Prefer isolation to an inferred cross-container incident.
+	if container := strings.TrimSpace(event.GetContainerId()); container != "" {
+		scope = "container:" + container + "|" + scope
+	}
 
 	makeScopedKey := func(kind, id string) (string, bool) {
 		if scope == "" {
