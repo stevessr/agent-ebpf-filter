@@ -104,6 +104,9 @@ func run(ctx context.Context, object, modelPath, evidence, validationCSV, cgroup
 		if err := kernelguard.VerifyHoldoutAgainstCSV(evidence, validationCSV, m, digest); err != nil {
 			return fmt.Errorf("holdout gate: %w", err)
 		}
+		if err := kernelguard.VerifyScopeCoverageCSV(validationCSV, m, ports); err != nil {
+			return fmt.Errorf("reviewed port scope gate: %w", err)
+		}
 	}
 
 	spec, err := ebpf.LoadCollectionSpec(object)
@@ -233,7 +236,18 @@ func main() {
 		if err := kernelguard.VerifyHoldoutAgainstCSV(holdout, validationCSV, m, digest); err != nil {
 			log.Fatal(err)
 		}
-		log.Printf("offline holdout validated for model_sha256=%s; no BPF program loaded", digest)
+		if strings.TrimSpace(ports) != "" {
+			reviewed, err := parsePorts(ports)
+			if err != nil {
+				log.Fatal(err)
+			}
+			if err := kernelguard.VerifyScopeCoverageCSV(validationCSV, m, reviewed); err != nil {
+				log.Fatal(err)
+			}
+			log.Printf("offline holdout and reviewed port scopes validated for model_sha256=%s; no BPF program loaded", digest)
+			return
+		}
+		log.Printf("offline holdout validated; port coverage NOT checked (pass --ports); model_sha256=%s", digest)
 		return
 	}
 	if obj == "" || model == "" || cgroup == "" {

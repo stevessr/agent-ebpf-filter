@@ -67,7 +67,17 @@ jobs:
           go run ./cmd/kernel-ml-guard --validate-only \
             --model /tmp/kernel-ml-model.json \
             --holdout /tmp/kernel-ml-holdout.json \
-            --validation-csv /tmp/kernel-ml-training.csv
+            --validation-csv /tmp/kernel-ml-training.csv \
+            --ports 4444
+          # A port without independent attack evidence may not be armed.
+          if go run ./cmd/kernel-ml-guard --validate-only \
+              --model /tmp/kernel-ml-model.json \
+              --holdout /tmp/kernel-ml-holdout.json \
+              --validation-csv /tmp/kernel-ml-training.csv \
+              --ports 22; then
+            echo 'uncovered port unexpectedly passed the release gate' >&2
+            exit 1
+          fi
       - name: Go formatting
         run: |
           files="$(gofmt -l backend/internal/kernelguard/*.go backend/cmd/kernel-ml-guard/*.go)"

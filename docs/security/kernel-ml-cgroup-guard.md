@@ -72,7 +72,8 @@ python3 scripts/train-kernel-guard.py --input path/to/labeled.csv \
 # Verify the group-held-out report WITHOUT root privileges or eBPF access:
 cd backend
 go run ./cmd/kernel-ml-guard --validate-only --model /tmp/guard.json \
-  --holdout /tmp/guard-holdout.json --validation-csv ../path/to/labeled.csv
+  --holdout /tmp/guard-holdout.json --validation-csv ../path/to/labeled.csv \
+  --ports 4444
 cd ..
 
 # Start *shadow*, with a dedicated non-root cgroup containing test Agent tasks.
@@ -83,7 +84,8 @@ sudo /tmp/kernel-ml-guard --object /tmp/kernel_ml_guard.o \
 
 When a separately reviewed production-like dataset, kernel smoke tests,
 rollbacks and cgroup scope are acceptable, *block* requires additionally:
-`--mode block --holdout /tmp/guard-holdout.json --approve-sha256 <exact SHA256
+`--mode block --ports 4444 --holdout /tmp/guard-holdout.json
+--validation-csv path/to/labeled.csv --approve-sha256 <exact SHA256
 reported by the training utility>`. It is a deliberate per-launch decision;
 never give the monitored Agent permission to invoke this privileged loader.
 
@@ -93,7 +95,12 @@ confusion-matrix totals **and benign/attack independent-run support** to match
 the versioned `kernel-guard-holdout-v3` report before arming. Previous
 `v1` and `v2` reports are not accepted by block mode. The report also binds
 the exact source labeled CSV bytes via `validationSHA256`; changing a CSV
-without regenerating the report invalidates the release check. The trainer prints point
+without regenerating the report invalidates the release check. For **each
+approved blocking port**, the kernel launcher additionally requires >=20
+held-out matched attacks across >=10 distinct attack Runs, with zero matched
+benign examples on that port. A model that only passed evaluation on port 4444
+cannot be armed to block port 22 without its own evidence. This is a
+scoped-data sanity check, **not** proof that future use of a port is malicious. The trainer prints point
 estimates and Wilson bounds; only the strictly validated counters enter the
 published JSON contract. This catches
 accidental report/model mismatches; it does **not** prove labels or CSV
