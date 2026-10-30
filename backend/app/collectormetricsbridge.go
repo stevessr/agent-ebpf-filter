@@ -92,7 +92,7 @@ func (metricsStoreBridge) RecordKernelRiskFeedback(success bool, err error) {
 
 func (metricsStoreBridge) Snapshot() CollectorHealthResponse {
 	snapshot := observability.GetCollectorHealthSnapshot()
-	status := unifiedAgentRiskPipeline.Stats()
+	status := agentRiskPipelineSnapshot()
 	snapshot.AgentRiskPipeline = &status
 	return snapshot
 }
