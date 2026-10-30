@@ -16,6 +16,7 @@ const (
 	defaultMaxSessions = 4096
 	defaultMaxCalls    = 64
 	defaultTTL         = 5 * time.Minute
+	completionGrace   = 2 * time.Second
 	maxFieldBytes      = 256
 )
 
@@ -24,7 +25,7 @@ const (
 // time, not a potentially untrusted kernel/producer timestamp.
 type Message struct {
 	At              time.Time
-	Kind            string // tool_call, tool_result, model_input, process, file, network, other
+	Kind            string // tool_call, tool_result, model_input, session_end, process, file, network, other
 	Action          string // read, write, execute, egress, none
 	AgentRunID      string
 	ConversationID  string
@@ -54,6 +55,9 @@ type Status struct {
 	MaxSessions int
 	Evictions   uint64
 	Findings    uint64
+	ActiveCalls int
+	CompletedCalls int
+	TaintedSessions int
 }
 
 type invocation struct {
@@ -61,6 +65,8 @@ type invocation struct {
 	readOnly bool
 	planMode bool
 	seenAt   time.Time
+	turn     string
+	completedAt time.Time
 	reported uint8
 }
 
@@ -103,6 +109,11 @@ func (p *Pipeline) Process(m Message) []Finding {
 	if p == nil || m.Kind == "semantic_alert" {
 		return nil
 	}
+	// Inert model frames do not create session state. A risk signal must be
+	// explicitly marked by an upstream detector, not inferred from raw text.
+	if m.Kind == "model_input" && !(m.UntrustedInput && m.HighRiskInput) {
+		return nil
+	}
 	key := sessionKey(m)
 	if key == "" {
 		return nil
@@ -126,6 +137,18 @@ func (p *Pipeline) Process(m Message) []Finding {
 	if s != nil && (now.Sub(s.touched) > p.ttl || now.Before(s.touched.Add(-time.Second))) {
 		p.remove(s)
 		s = nil
+	}
+	// Lifecycle/end events never allocate a new scope. A syscall without a
+	// prior declaration or independently flagged risk also has no state to
+	// correlate; dropping it here protects the high-volume kernel path.
+	if m.Kind == "session_end" {
+		if s != nil {
+			p.remove(s)
+		}
+		return nil
+	}
+	if s == nil && m.Kind != "tool_call" && !(m.UntrustedInput && m.HighRiskInput) {
+		return nil
 	}
 	if s == nil {
 		if len(p.sessions) >= p.maxSessions {
@@ -154,7 +177,11 @@ func (p *Pipeline) Process(m Message) []Finding {
 	case "tool_call":
 		if id != "" {
 			call := s.calls[id]
-			if call != nil && now.Sub(call.seenAt) > p.ttl {
+			if call != nil && (now.Sub(call.seenAt) > p.ttl ||
+				(call.turn != "" && m.TurnID != "" && call.turn != bound(m.TurnID)) ||
+				!call.completedAt.IsZero()) {
+				// A new invocation of a reused call ID must not inherit the
+				// previous call's permission declaration or risk flags.
 				delete(s.calls, id)
 				call = nil
 			}
@@ -180,12 +207,19 @@ func (p *Pipeline) Process(m Message) []Finding {
 					s.calls[id] = call
 				}
 				call.name = bound(m.ToolName)
+				call.turn = bound(m.TurnID)
 				call.seenAt = now
 				call.readOnly = call.readOnly || isReadOnly(m.SideEffectScope)
 				call.planMode = call.planMode || strings.EqualFold(strings.TrimSpace(m.PermissionMode), "plan")
 			}
 		}
 	case "model_input", "tool_result":
+		if m.Kind == "tool_result" && id != "" {
+			if call := s.calls[id]; call != nil &&
+				(call.turn == "" || m.TurnID == "" || call.turn == bound(m.TurnID)) {
+				call.completedAt = now
+			}
+		}
 		if m.UntrustedInput && m.HighRiskInput {
 			s.taintedAt = now
 			s.taintedTurn = bound(m.TurnID)
@@ -193,7 +227,9 @@ func (p *Pipeline) Process(m Message) []Finding {
 		}
 	}
 	if m.Action == "write" || m.Action == "execute" || m.Action == "egress" {
-		if call := s.calls[id]; id != "" && call != nil && now.Sub(call.seenAt) >= 0 && now.Sub(call.seenAt) <= p.ttl {
+		if call := s.calls[id]; id != "" && call != nil && now.Sub(call.seenAt) >= 0 && now.Sub(call.seenAt) <= p.ttl &&
+			(call.turn == "" || m.TurnID == "" || call.turn == bound(m.TurnID)) &&
+			(call.completedAt.IsZero() || (!now.Before(call.completedAt) && now.Sub(call.completedAt) <= completionGrace)) {
 			if call.readOnly && call.reported&1 == 0 {
 				emit("TOOL_SCOPE_VIOLATION", "tool declared read-only scope but produced a side effect", 96)
 				call.reported |= 1
@@ -223,7 +259,20 @@ func (p *Pipeline) Stats() Status {
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return Status{Sessions: len(p.sessions), MaxSessions: p.maxSessions, Evictions: p.evictions, Findings: p.findings}
+	status := Status{Sessions: len(p.sessions), MaxSessions: p.maxSessions, Evictions: p.evictions, Findings: p.findings}
+	for _, s := range p.sessions {
+		if !s.taintedAt.IsZero() && !s.taintReported {
+			status.TaintedSessions++
+		}
+		for _, call := range s.calls {
+			if call.completedAt.IsZero() {
+				status.ActiveCalls++
+			} else {
+				status.CompletedCalls++
+			}
+		}
+	}
+	return status
 }
 
 func isReadOnly(s string) bool {
