@@ -49,3 +49,11 @@
 `go test ./internal/agentboundary -count=1` 覆盖授权连接与合法文件读取、未授权尝试/成功的区分、DNS 负例、监控篡改、评测文件变更、乱序信号、密钥抽样及只读 API 行为。
 
 下一阶段需要独立带标签 replay 数据，以 **按 Agent Run、代码仓库和时间** 分组切分。比较 L0 单独、L0 + 模型审核、L0 + 模型审核 + 独立日志验证，分别报告 P0/P1/P2 召回、正常流量每万事件误报、首次报警延迟、p95 处理时延、模型调用预算、隐蔽逃逸测试和监控失效测试。当前 PR **没有训练新的分类器，也没有证明召回率改善**。
+
+## 实时 Agent 可观测性需求（2026-10-29 研究补充）
+
+MIT Technology Review 的 [实时 Agent 行为监控文章](https://www.technologyreview.com/2026/10/29/1147824/monitor-ai-agents-actions-real-time/) 与 [Partnership on AI 的六类遥测缺口研究](https://partnershiponai.org/resource/the-observability-gap-in-ai-agents/) 提醒我们：`agent_run_id`、PID、单行命令和风险分值不足以回答**谁拥有持续身份、谁批准了动作、权限或记忆何时改变**。系统必须区分可核实的执行结果与 Agent 自述的决策解释。
+
+详见 **[Agent 实时行为监控：可观测性需求与验收规范](real-time-agent-observability.md)**。该规范将持久 Agent 身份、人工审批、权限/记忆变更、审计完整性、OTLP 映射和回放标准定义为待开发契约，并单独标出 CoT/logprob 的研究限制。
+
+**状态强调**：本 PR 当前实现的 `monitoring` 仍只是只读 L0 研究初筛；新的审批/Memory 事件、持久 Agent ID、独立采集器、L1 模型审查及自动阻断均**尚未落地**。约 5% 的审计函数也尚未接入实际调度；关键审批与权限事件一旦实现应全量记录，绝不参与抽样。
