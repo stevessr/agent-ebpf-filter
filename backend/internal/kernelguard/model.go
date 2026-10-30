@@ -176,6 +176,7 @@ func Predict(m Model, ip netip.Addr, port uint16) bool {
 type Holdout struct {
 	SchemaVersion     string `json:"schemaVersion"`
 	ModelSHA256       string `json:"modelSHA256"`
+	SourceCSVsha256    string `json:"sourceCSVsha256"`
 	Benign            int    `json:"benign"`
 	Attacks           int    `json:"attacks"`
 	FalsePositives    int    `json:"falsePositives"`

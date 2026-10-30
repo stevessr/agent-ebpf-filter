@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/csv"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,30 +29,43 @@ type HoldoutCounts struct {
 // and decisions in Go. It cannot attest that labels are truthful, but prevents
 // a report for another model or data file from silently arming enforcement.
 func EvaluateCSVHoldout(path string, model Model) (HoldoutCounts, error) {
+	counts, _, err := evaluateCSVHoldoutWithDigest(path, model)
+	return counts, err
+}
+
+// evaluateCSVHoldoutWithDigest uses a single bounded CSV snapshot for both
+// checksum and replay, so an on-disk edit cannot race the two checks.
+func evaluateCSVHoldoutWithDigest(path string, model Model) (HoldoutCounts, string, error) {
 	var result HoldoutCounts
-	data, err := os.ReadFile(path)
+	f, err := os.Open(path)
 	if err != nil {
-		return result, err
+		return result, "", err
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, 32<<20+1))
+	if err != nil {
+		return result, "", err
 	}
 	if len(data) > 32<<20 {
-		return result, errors.New("validation CSV exceeds 32MiB")
+		return result, "", errors.New("validation CSV exceeds 32MiB")
 	}
+	sum := sha256.Sum256(data)
 	r := csv.NewReader(bytes.NewReader(data))
 	r.FieldsPerRecord = 4
 	header, err := r.Read()
 	if err != nil {
-		return result, err
+		return result, "", err
 	}
 	order := make(map[string]int, 4)
 	for i, field := range header {
 		if _, duplicate := order[field]; duplicate {
-			return result, errors.New("duplicate validation CSV header")
+			return result, "", errors.New("duplicate validation CSV header")
 		}
 		order[field] = i
 	}
 	for _, name := range []string{"agent_run_id", "destination_ip", "destination_port", "label"} {
 		if _, ok := order[name]; !ok {
-			return result, fmt.Errorf("missing CSV column %s", name)
+			return result, "", fmt.Errorf("missing CSV column %s", name)
 		}
 	}
 	groups := make(map[string]bool)
@@ -59,31 +73,31 @@ func EvaluateCSVHoldout(path string, model Model) (HoldoutCounts, error) {
 	attackGroups := make(map[string]bool)
 	for line := 2; ; line++ {
 		if line > 250002 {
-			return result, errors.New("validation CSV row cap exceeded")
+			return result, "", errors.New("validation CSV row cap exceeded")
 		}
 		rec, err := r.Read()
 		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
-			return result, fmt.Errorf("CSV row %d: %w", line, err)
+			return result, "", fmt.Errorf("CSV row %d: %w", line, err)
 		}
 		run := strings.TrimSpace(rec[order["agent_run_id"]])
 		if run == "" || len(run) > 128 {
-			return result, fmt.Errorf("CSV row %d invalid run id", line)
+			return result, "", fmt.Errorf("CSV row %d invalid run id", line)
 		}
 		portStr := strings.TrimSpace(rec[order["destination_port"]])
 		portInt, err := strconv.ParseUint(portStr, 10, 16)
 		if err != nil || portInt == 0 {
-			return result, fmt.Errorf("CSV row %d invalid port", line)
+			return result, "", fmt.Errorf("CSV row %d invalid port", line)
 		}
 		ip, err := netip.ParseAddr(strings.TrimSpace(rec[order["destination_ip"]]))
 		if err != nil {
-			return result, fmt.Errorf("CSV row %d invalid destination", line)
+			return result, "", fmt.Errorf("CSV row %d invalid destination", line)
 		}
 		label := strings.ToLower(strings.TrimSpace(rec[order["label"]]))
 		if label != "attack" && label != "benign" {
-			return result, fmt.Errorf("CSV row %d invalid label", line)
+			return result, "", fmt.Errorf("CSV row %d invalid label", line)
 		}
 		// Exactly the same group split as train-kernel-guard.py. Only the
 		// holdout rows count towards release evidence.
@@ -110,7 +124,7 @@ func EvaluateCSVHoldout(path string, model Model) (HoldoutCounts, error) {
 	result.IndependentGroups = len(groups)
 	result.BenignGroups = len(benignGroups)
 	result.AttackGroups = len(attackGroups)
-	return result, nil
+	return result, hex.EncodeToString(sum[:]), nil
 }
 
 func VerifyHoldoutAgainstCSV(reportPath, csvPath string, model Model, digest string) error {
@@ -127,9 +141,12 @@ func VerifyHoldoutAgainstCSV(reportPath, csvPath string, model Model, digest str
 	if err := json.Unmarshal(reportData, &report); err != nil {
 		return err
 	}
-	recomputed, err := EvaluateCSVHoldout(csvPath, model)
+	recomputed, sourceDigest, err := evaluateCSVHoldoutWithDigest(csvPath, model)
 	if err != nil {
 		return err
+	}
+	if len(report.SourceCSVsha256) != 64 || !strings.EqualFold(report.SourceCSVsha256, sourceDigest) {
+		return fmt.Errorf("holdout CSV SHA-256 mismatch: same metrics alone do not validate dataset identity")
 	}
 	if report.Benign != recomputed.Benign ||
 		report.Attacks != recomputed.Attacks ||

@@ -206,6 +206,7 @@ def main():
     Path(args.model).write_bytes(payload)
     digest = hashlib.sha256(payload).hexdigest()
     report = evaluate(model, holdout, digest)
+    report["sourceCSVsha256"] = hashlib.sha256(Path(args.input).read_bytes()).hexdigest()
     # Go report loader is strict about unknown fields; retain extended metrics
     # on stdout while storing only the versioned enforcement evidence contract.
     print(json.dumps(report, indent=2, sort_keys=True))
