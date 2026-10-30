@@ -41,7 +41,7 @@ cd backend
 go test ./internal/domainforwardproxy ./app/tls
 ```
 
-Tests cover gzip/br/zstd codec round trips, rewritten request and response representations, byte/expansion bounds, signed and unsupported coding pass-through (existing tests), compressed SSE pass-through, captured-body redaction, and a real HTTP/2 ALPN TLS connection. A build with the repository's declared Go version (1.27.1+) is required.
+Tests cover gzip/br/zstd codec round trips, rewritten request and response representations, byte/expansion bounds, signed and unsupported coding pass-through (existing tests), compressed SSE pass-through, captured-body redaction, and a real HTTP/2 ALPN TLS connection. A build with the repository's declared Go version (1.27.3+) is required.
 
 ### Boundaries
 

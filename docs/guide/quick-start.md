@@ -7,7 +7,7 @@
 | 用途 | 最低前提 |
 | --- | --- |
 | 文档站 | Python 3.12 + `docs/requirements.txt` |
-| Go / MyGo 原生桌面编译 | Linux、项目声明的 Go **1.27.1** 工具链、MyGo 版本以 [`desktop/renew/go.mod`](https://github.com/stevessr/agent-ebpf-filter/blob/master/desktop/renew/go.mod) 为准（截至 2026-10-18 为 v0.5.5，模块自动拉取）与对应本机 GUI 开发依赖 |
+| Go / MyGo 原生桌面编译 | Linux、项目声明的 Go **1.27.3** 工具链、MyGo 版本以 [`desktop/renew/go.mod`](https://github.com/stevessr/agent-ebpf-filter/blob/master/desktop/renew/go.mod) 为准（截至 2026-10-18 为 v0.5.5，模块自动拉取）与对应本机 GUI 开发依赖 |
 | 嵌入式后端/eBPF 构建 | clang/LLVM、`protoc`/`protoc-gen-go`、eBPF 对象构建依赖 |
 | 真实 eBPF 采集 | Linux eBPF/BTF、授权的 BPF 加载能力和受支持内核 |
 | 内核级 cgroup / BPF LSM 阻断 | 额外需要 cgroup v2 / 已启用的 BPF LSM、程序成功附着与 Runtime Policy Gate |
