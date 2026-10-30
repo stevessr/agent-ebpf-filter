@@ -49,6 +49,23 @@ A high held-out accuracy alone is not sufficient for kernel blocking:
 - Per-CPU map reports examined, reviewed, matched and actually blocked. A
   matched event in shadow **is not** a denied syscall.
 
+## Pinned and tested dependency baseline (2026-10-30)
+
+The kernel ML workflow uses **Go 1.27.3** for the security-patched
+toolchain (the workspace's declared minimum Go version remains 1.27.1
+until all sibling module CI pipelines are updated together). Go modules
+in the backend now include `github.com/modelcontextprotocol/go-sdk v1.8.0`,
+`github.com/klauspost/compress v1.20.1`, and aligned
+`go.opentelemetry.io/otel` core, trace, SDK, and OTLP HTTP `v1.47.0`
+modules. `github.com/cilium/ebpf v0.22.0` is retained as the newest
+verified stable release.
+
+The update regenerates `backend/go.sum` with `go mod tidy` and checks
+`go mod verify`. MCP 2026-07-28 negotiation and OTel exporter behavior
+must still be regression-tested against deployed clients/collectors;
+dependency version upgrades alone do not imply those interfaces were
+verified in production.
+
 ## Build and safe usage (Linux; cgroup v2, root/CAP_BPF required)
 
 ```bash
