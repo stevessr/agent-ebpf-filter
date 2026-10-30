@@ -83,8 +83,8 @@ func validateCollectionSpec(spec *ebpf.CollectionSpec) error {
 		return errors.New("nil BPF collection spec")
 	}
 	mapChecks := []struct {
-		name string
-		kind ebpf.MapType
+		name                string
+		kind                ebpf.MapType
 		key, value, entries uint32
 	}{
 		{"kernel_guard_config", ebpf.Array, 4, uint32(binary.Size(kernelguard.MapConfig{})), 1},
@@ -99,7 +99,7 @@ func validateCollectionSpec(spec *ebpf.CollectionSpec) error {
 		}
 	}
 	programChecks := []struct {
-		name string
+		name   string
 		attach ebpf.AttachType
 	}{
 		{"kernel_guard_connect4", ebpf.AttachCGroupInet4Connect},
