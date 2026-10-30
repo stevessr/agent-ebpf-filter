@@ -47,3 +47,47 @@ flowchart LR
 - 本阶段的 queue full 仍按原采集策略记录丢弃，**不声称 at-least-once 或 exactly-once**。
 - 单元测试覆盖：跨 run 隔离、工具只读冲突、显式高风险链、过期及容量、重复抑制、并发竞争和 BLOCK 行为。
 - 运行 `cd backend && go test ./internal/agentpipeline ./app/...`；完整 CI 仍需 Go 1.27.3 与实际 eBPF 环境。
+
+
+## 第二阶段：生命周期、作用域隔离和健康指标
+
+### 工具调用状态机
+
+`tool_call` 打开一个只在当前 Agent session 有效的 invocation；`tool_result` 将调用标记为已完成，**不会立即丢弃**，允许最多 2 秒的迟到内核事件关联（以摄取时间为准，重复结果不能延长宽限期）。后续同 ID 但不同 Turn 或新的调用会建立新的状态，不继承旧调用的只读/plan 声明。原有的 5 分钟 TTL 是状态缓存上限，不是已完成工具的活动期限。
+
+`SessionEnd` 或明确的根 Agent 进程退出清理对应 session，普通子进程退出**不**终止整个 Agent run。收不到生命周期结束事件的上下文仍由 TTL 和 LRU 回收。
+
+### 身份与证据安全
+
+- 关联状态键采用按字段长度分帧的 SHA-256 派生短标识，避免含分隔符的恶意 Agent ID 造成键碰撞，同时不在 LRU 状态里保留原始会话标识。
+- 旧版语义告警的 `tool_call_id / task_id / trace_id` 现在尽可能与 Agent run、根 PID 或进程 PID 结合，而非跨 Agent 共用裸标识。
+- 如果事件缺少可核实的 Run/Conversation/Root 证据，**宁可失去一部分关联，也不将不同 Agent 的工具行为错误拼接**。PID-only 是退化路径，需结合 session exit 和生命周期判断。
+- 高风险不可信输入仍要求上游显式证据；单纯 `BeforeModel`、普通工具结果和无结果的 MCP 工具声明，不产生新的关联状态。
+- `write` 必须报告正的写入字节数才计作数据修改；失败或拦截的系统调用不算已发生的副作用。
+- 目前的 `semantic_alert` 是观测到的证据链风险，**不是对恶意意图的确定性证明**，自动阻断仍须独立测试和准入门槛。
+
+### 健康接口
+
+`GET /system/collector-health` 附加可选的 `agentRiskPipeline` 字段：
+
+```json
+{
+  "agentRiskPipeline": {
+    "sessions": 12,
+    "maxSessions": 4096,
+    "evictions": 0,
+    "findings": 3,
+    "activeCalls": 4,
+    "completedCalls": 8,
+    "taintedSessions": 1
+  }
+}
+```
+
+以上仅说明字段与示例值，不是测量结果。Renew/WebUI 可按需使用这些统计字段；现有客户端可忽略它们。
+
+### 回归测试与后续工作
+
+新增的回归测试覆盖生命周期完成窗口、重复 tool result、SessionEnd、根/子进程退出、多 Agent 的相同调用 ID、同 Run 不同 Turn、恶意分隔符构造的标识、过长作用域键、零字节写入、MCP/TLS 元数据与 collector health 统计。
+
+仍需在真实内核与多 Agent 工具链上采集生产级 replay 样本，定量评估误报、漏报、p95/p99 处理时延、队列丢弃与跨进程关联质量。当前消息总线仍是单进程无持久重放的现有队列，**不得宣称 exactly-once 或可跨主机可靠交付**。
