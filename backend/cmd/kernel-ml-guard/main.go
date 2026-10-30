@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"flag"
 	"fmt"
@@ -74,6 +75,48 @@ func scopeCgroup(path string) (string, error) {
 	return resolved, nil
 }
 
+// validateCollectionSpec verifies the compiled ELF contract *before*
+// allocating kernel resources or attaching to a cgroup. BPF ELF compilation
+// alone cannot guarantee correct map layout or intended hook attachment.
+func validateCollectionSpec(spec *ebpf.CollectionSpec) error {
+	if spec == nil {
+		return errors.New("nil BPF collection spec")
+	}
+	mapChecks := []struct {
+		name string
+		kind ebpf.MapType
+		key, value, entries uint32
+	}{
+		{"kernel_guard_config", ebpf.Array, 4, uint32(binary.Size(kernelguard.MapConfig{})), 1},
+		{"kernel_guard_ports", ebpf.Hash, 4, 4, 64},
+		{"kernel_guard_stats", ebpf.PerCPUArray, 4, uint32(binary.Size(counters{})), 1},
+	}
+	for _, expected := range mapChecks {
+		m := spec.Maps[expected.name]
+		if m == nil || m.Type != expected.kind || m.KeySize != expected.key ||
+			m.ValueSize != expected.value || m.MaxEntries != expected.entries {
+			return fmt.Errorf("unexpected BPF map ABI for %s", expected.name)
+		}
+	}
+	programChecks := []struct {
+		name string
+		attach ebpf.AttachType
+	}{
+		{"kernel_guard_connect4", ebpf.AttachCGroupInet4Connect},
+		{"kernel_guard_sendmsg4", ebpf.AttachCGroupUDP4Sendmsg},
+		{"kernel_guard_connect6", ebpf.AttachCGroupInet6Connect},
+		{"kernel_guard_sendmsg6", ebpf.AttachCGroupUDP6Sendmsg},
+	}
+	for _, expected := range programChecks {
+		prog := spec.Programs[expected.name]
+		if prog == nil || prog.Type != ebpf.CGroupSockAddr ||
+			prog.AttachType != expected.attach {
+			return fmt.Errorf("unexpected BPF program/attach ABI for %s", expected.name)
+		}
+	}
+	return nil
+}
+
 func run(ctx context.Context, object, modelPath, evidence, validationCSV, cgroup, portsCSV, mode, approvedDigest string) error {
 	if mode != "shadow" && mode != "block" {
 		return errors.New("mode must be shadow or block")
@@ -112,6 +155,9 @@ func run(ctx context.Context, object, modelPath, evidence, validationCSV, cgroup
 	spec, err := ebpf.LoadCollectionSpec(object)
 	if err != nil {
 		return fmt.Errorf("load BPF ELF: %w", err)
+	}
+	if err := validateCollectionSpec(spec); err != nil {
+		return fmt.Errorf("BPF ELF ABI preflight: %w", err)
 	}
 	col, err := ebpf.NewCollection(spec)
 	if err != nil {
