@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"agent-ebpf-filter/pb"
+	"agent-ebpf-filter/internal/agentpipeline"
 )
 
 type bpfCollectorStats struct {
@@ -83,6 +84,7 @@ type CollectorMetricsSnapshot struct {
 }
 
 type CollectorHealthResponse struct {
+	AgentRiskPipeline *agentpipeline.Status `json:"agentRiskPipeline,omitempty"`
 	CollectorMapAvailable            bool                          `json:"collectorMapAvailable"`
 	RingbufEventsTotal               uint64                        `json:"ringbufEventsTotal"`
 	RingbufDroppedTotal              uint64                        `json:"ringbufDroppedTotal"`

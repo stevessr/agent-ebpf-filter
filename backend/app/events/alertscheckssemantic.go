@@ -155,17 +155,60 @@ func semanticAlertContextKeyBounded(event *pb.Event) (string, bool) {
 	if event == nil {
 		return "", false
 	}
-	if toolCallID, truncated := boundSemanticStateString(event.GetToolCallId(), SemanticStateMaxContextBytes); toolCallID != "" {
-		return toolCallID, truncated
+	// A tool_call_id, task_id, or trace_id is NOT globally unique. The old
+	// tool-only key could match unrelated Agent runs and fabricate a
+	// secret-to-egress chain. Scope it using explicit identity first.
+	scope := strings.TrimSpace(event.GetAgentRunId())
+	switch {
+	case scope != "":
+		scope = "run:" + scope
+	case strings.TrimSpace(event.GetConversationId()) != "":
+		scope = "conversation:" + strings.TrimSpace(event.GetConversationId())
+	case event.GetRootAgentPid() != 0:
+		scope = pidContextKey(event.GetRootAgentPid())
+	case event.GetPid() != 0:
+		scope = pidContextKey(event.GetPid())
 	}
-	if taskTrace, truncated := boundSemanticStatePair(event.GetTaskId(), event.GetTraceId(), SemanticStateMaxContextBytes); taskTrace != "" {
-		return taskTrace, truncated
+	if scope != "" && event.GetRootAgentPid() != 0 && !strings.HasPrefix(scope, "pid:") {
+		scope += "|root:" + pidContextKey(event.GetRootAgentPid())
 	}
-	if agentRunID, truncated := boundSemanticStateString(event.GetAgentRunId(), SemanticStateMaxContextBytes); agentRunID != "" {
-		return agentRunID, truncated
+	// PID and even run identifiers may be reused in independent containers.
+	// Prefer isolation to an inferred cross-container incident.
+	if container := strings.TrimSpace(event.GetContainerId()); container != "" {
+		scope = "container:" + container + "|" + scope
 	}
-	if event.GetRootAgentPid() > 0 {
-		return pidContextKey(event.GetRootAgentPid()), false
+
+	makeScopedKey := func(kind, id string) (string, bool) {
+		if scope == "" {
+			return boundSemanticStateString(id, SemanticStateMaxContextBytes)
+		}
+		// Length-framed digest keeps IDs unambiguous even if one contains
+		// the human-readable separator. No unbounded identifier is retained.
+		digest := semanticStateDigest(kind, scope, id)
+		boundedScope, scopeTruncated := boundSemanticStateString(scope, SemanticStateMaxContextBytes/2)
+		boundedID, idTruncated := boundSemanticStateString(id, SemanticStateMaxContextBytes/2)
+		prefix := kind + ":" + boundedScope + "|" + boundedID
+		key := semanticBoundWithDigest(prefix, SemanticStateMaxContextBytes, digest)
+		return key, scopeTruncated || idTruncated || len(prefix)+17 > SemanticStateMaxContextBytes
+	}
+
+	if toolCallID := strings.TrimSpace(event.GetToolCallId()); toolCallID != "" {
+		return makeScopedKey("tool", toolCallID)
+	}
+	if event.GetTaskId() != "" || event.GetTraceId() != "" {
+		if scope != "" {
+			digest := semanticStateDigest("task-trace", scope, event.GetTaskId(), event.GetTraceId())
+			boundedScope, scopeTruncated := boundSemanticStateString(scope, SemanticStateMaxContextBytes/3)
+			boundedTask, taskTruncated := boundSemanticStateString(event.GetTaskId(), SemanticStateMaxContextBytes/3)
+			boundedTrace, traceTruncated := boundSemanticStateString(event.GetTraceId(), SemanticStateMaxContextBytes/3)
+			prefix := "task-trace:" + boundedScope + "|" + boundedTask + "|" + boundedTrace
+			return semanticBoundWithDigest(prefix, SemanticStateMaxContextBytes, digest),
+				scopeTruncated || taskTruncated || traceTruncated || len(prefix)+17 > SemanticStateMaxContextBytes
+		}
+		return boundSemanticStatePair(event.GetTaskId(), event.GetTraceId(), SemanticStateMaxContextBytes)
+	}
+	if scope != "" {
+		return boundSemanticStateString(scope, SemanticStateMaxContextBytes)
 	}
 	if event.GetPid() > 0 {
 		return pidContextKey(event.GetPid()), false

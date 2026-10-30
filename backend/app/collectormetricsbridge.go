@@ -3,6 +3,7 @@ package app
 import (
 	"agent-ebpf-filter/app/observability"
 	"agent-ebpf-filter/pb"
+	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -90,7 +91,10 @@ func (metricsStoreBridge) RecordKernelRiskFeedback(success bool, err error) {
 }
 
 func (metricsStoreBridge) Snapshot() CollectorHealthResponse {
-	return observability.GetCollectorHealthSnapshot()
+	snapshot := observability.GetCollectorHealthSnapshot()
+	status := agentRiskPipelineSnapshot()
+	snapshot.AgentRiskPipeline = &status
+	return snapshot
 }
 
 var collectorMetricsStore metricsStoreBridge
@@ -114,5 +118,5 @@ func handlePrometheusMetrics(c *gin.Context) {
 }
 
 func handleCollectorHealth(c *gin.Context) {
-	observability.HandleCollectorHealth(c)
+	c.JSON(http.StatusOK, collectorMetricsStore.Snapshot())
 }
