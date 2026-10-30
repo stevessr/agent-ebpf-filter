@@ -1,0 +1,51 @@
+name: Kernel cgroup ML guard — shadow-only checks
+
+on:
+  push:
+    paths:
+      - "backend/ebpf/kernel_ml_guard.c"
+      - "backend/internal/kernelguard/**"
+      - "backend/cmd/kernel-ml-guard/**"
+      - "scripts/train-kernel-guard.py"
+      - "scripts/tests/test_kernel_guard_trainer.py"
+      - ".github/workflows/kernel-ml-guard.yml"
+  pull_request:
+    paths:
+      - "backend/ebpf/kernel_ml_guard.c"
+      - "backend/internal/kernelguard/**"
+      - "backend/cmd/kernel-ml-guard/**"
+      - "scripts/train-kernel-guard.py"
+      - "scripts/tests/test_kernel_guard_trainer.py"
+      - ".github/workflows/kernel-ml-guard.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verifier-build-and-model-parity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Install clang and libbpf headers
+        run: sudo apt-get update && sudo apt-get install -y clang llvm libbpf-dev
+      - name: Compile BPF ELF (not loaded by CI)
+        run: |
+          clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -Ibackend/ebpf \
+            -c backend/ebpf/kernel_ml_guard.c -o /tmp/kernel_ml_guard.o
+          llvm-objdump -h /tmp/kernel_ml_guard.o
+      - name: Go unit tests and daemon compilation
+        working-directory: backend
+        run: |
+          go test ./internal/kernelguard ./cmd/kernel-ml-guard -count=1
+          go build ./cmd/kernel-ml-guard
+      - name: Python trainer unit tests
+        run: python3 -m unittest discover -s scripts/tests -p test_kernel_guard_trainer.py
+      - name: Go formatting
+        run: |
+          files="$(gofmt -l backend/internal/kernelguard/*.go backend/cmd/kernel-ml-guard/*.go)"
+          test -z "$files" || { gofmt -d backend/internal/kernelguard/*.go backend/cmd/kernel-ml-guard/*.go; exit 1; }

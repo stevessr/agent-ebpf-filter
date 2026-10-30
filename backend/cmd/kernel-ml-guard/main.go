@@ -1,0 +1,181 @@
+// kernel-ml-guard loads a separate, transient IPv4 cgroup model. It never
+// attaches to the host root cgroup or changes existing sandbox policy maps.
+package main
+
+import (
+    "context"
+    "crypto/sha256"
+    "encoding/hex"
+    "errors"
+    "flag"
+    "fmt"
+    "log"
+    "os"
+    "os/signal"
+    "path/filepath"
+    "strconv"
+    "strings"
+    "syscall"
+    "time"
+
+    "agent-ebpf-filter/internal/kernelguard"
+    "github.com/cilium/ebpf"
+    "github.com/cilium/ebpf/link"
+)
+
+type counters struct {
+    Examined uint64
+    Reviewed uint64
+    Matched uint64
+    Blocked uint64
+}
+
+func parsePorts(s string) ([]uint32, error) {
+    if strings.TrimSpace(s) == "" { return nil, errors.New("specify 1-64 operator-reviewed ports") }
+    parts := strings.Split(s, ",")
+    if len(parts) > 64 { return nil, errors.New("too many reviewed ports") }
+    seen := make(map[uint32]bool, len(parts))
+    out := make([]uint32, 0, len(parts))
+    for _, part := range parts {
+        part = strings.TrimSpace(part)
+        n, err := strconv.ParseUint(part, 10, 16)
+        if err != nil || n == 0 { return nil, fmt.Errorf("invalid port: %q", part) }
+        p := uint32(n)
+        if seen[p] { return nil, fmt.Errorf("duplicate port %d", p) }
+        seen[p] = true
+        out = append(out, p)
+    }
+    return out, nil
+}
+
+func scopeCgroup(path string) (string, error) {
+    resolved, err := filepath.EvalSymlinks(path)
+    if err != nil { return "", err }
+    resolved = filepath.Clean(resolved)
+    if resolved == "/sys/fs/cgroup" || resolved == "/" ||
+        !strings.HasPrefix(resolved, "/sys/fs/cgroup/") {
+        return "", errors.New("refusing root or out-of-tree cgroup")
+    }
+    st, err := os.Stat(resolved)
+    if err != nil { return "", err }
+    if !st.IsDir() { return "", errors.New("cgroup path is not a directory") }
+    return resolved, nil
+}
+
+func run(ctx context.Context, object, modelPath, evidence, cgroup, portsCSV, mode, approvedDigest string) error {
+    if mode != "shadow" && mode != "block" { return errors.New("mode must be shadow or block") }
+    scoped, err := scopeCgroup(cgroup)
+    if err != nil { return err }
+    ports, err := parsePorts(portsCSV)
+    if err != nil { return err }
+    m, digest, err := kernelguard.ReadModel(modelPath)
+    if err != nil { return err }
+
+    // Approval is independent of classifier predictions. The report is a
+    // numerical gate, not cryptographic proof of dataset provenance.
+    block := mode == "block"
+    if block {
+        if len(approvedDigest) != 64 || !strings.EqualFold(approvedDigest, digest) {
+            return fmt.Errorf("operator must pass --approve-sha256 %s", digest)
+        }
+        if evidence == "" { return errors.New("block requires --holdout report") }
+        if err := kernelguard.ReadHoldout(evidence, digest); err != nil { return fmt.Errorf("holdout gate: %w", err) }
+    }
+
+    spec, err := ebpf.LoadCollectionSpec(object)
+    if err != nil { return fmt.Errorf("load BPF ELF: %w", err) }
+    col, err := ebpf.NewCollection(spec)
+    if err != nil { return fmt.Errorf("load BPF programs: %w", err) }
+    defer col.Close()
+    config := col.Maps["kernel_guard_config"]
+    reviewed := col.Maps["kernel_guard_ports"]
+    stats := col.Maps["kernel_guard_stats"]
+    c4 := col.Programs["kernel_guard_connect4"]
+    s4 := col.Programs["kernel_guard_sendmsg4"]
+    if config == nil || reviewed == nil || stats == nil || c4 == nil || s4 == nil {
+        return errors.New("BPF object missing required maps/programs")
+    }
+    key := uint32(0)
+    cfg := m.Config(kernelguard.ModeShadow) // attach and validate *before* arming
+    if err := config.Put(&key, &cfg); err != nil { return err }
+    for _, port := range ports {
+        enabled := uint32(1)
+        if err := reviewed.Put(&port, &enabled); err != nil { return err }
+    }
+    connLink, err := link.AttachCgroup(link.CgroupOptions{
+        Path: scoped, Attach: ebpf.AttachCGroupInet4Connect, Program: c4,
+    })
+    if err != nil { return fmt.Errorf("attach IPv4 connect: %w", err) }
+    defer connLink.Close()
+    sendLink, err := link.AttachCgroup(link.CgroupOptions{
+        Path: scoped, Attach: ebpf.AttachCGroupUDP4Sendmsg, Program: s4,
+    })
+    if err != nil { return fmt.Errorf("attach IPv4 UDP sendmsg: %w", err) }
+    defer sendLink.Close()
+
+    if block {
+        cfg = m.Config(kernelguard.ModeEnforce)
+        if err := config.Put(&key, &cfg); err != nil { return err }
+    }
+    log.Printf("guard active scope=%s mode=%s generation=%d model_sha256=%s approved_ports=%v",
+        scoped, mode, m.Generation, digest, ports)
+    log.Print("IPv6, already-established TCP sockets, other cgroups and unlisted ports are NOT covered")
+    ticker := time.NewTicker(5*time.Second)
+    defer ticker.Stop()
+    for {
+        select {
+        case <-ctx.Done():
+            // Flip back to shadow before detaching.
+            shadow := m.Config(kernelguard.ModeShadow)
+            if err := config.Put(&key, &shadow); err != nil { log.Printf("disarm: %v", err) }
+            return nil
+        case <-ticker.C:
+            cpus, err := ebpf.PossibleCPU()
+            if err != nil { log.Printf("stats cpu count: %v", err); continue }
+            values := make([]counters, cpus)
+            if err := stats.Lookup(&key, &values); err != nil {
+                log.Printf("stats lookup: %v", err)
+                continue
+            }
+            var sum counters
+            for _, x := range values {
+                sum.Examined += x.Examined
+                sum.Reviewed += x.Reviewed
+                sum.Matched += x.Matched
+                sum.Blocked += x.Blocked
+            }
+            log.Printf("guard stats examined=%d in_scope=%d matches=%d blocked=%d",
+                sum.Examined, sum.Reviewed, sum.Matched, sum.Blocked)
+        }
+    }
+}
+
+func main() {
+    var obj, model, holdout, cgroup, ports, mode, approved string
+    flag.StringVar(&obj, "object", "", "compiled backend/ebpf/kernel_ml_guard.o")
+    flag.StringVar(&model, "model", "", "validated linear model JSON")
+    flag.StringVar(&holdout, "holdout", "", "group-held-out evaluation JSON, required for block")
+    flag.StringVar(&cgroup, "cgroup", "", "non-root cgroup v2 directory")
+    flag.StringVar(&ports, "ports", "", "comma-separated explicitly reviewed destination ports")
+    flag.StringVar(&mode, "mode", "shadow", "shadow (default) or block")
+    flag.StringVar(&approved, "approve-sha256", "", "operator-pinned exact model digest (block mode)")
+    flag.Parse()
+    if obj == "" || model == "" || cgroup == "" {
+        log.Fatal("--object, --model and --cgroup are required")
+    }
+    // Reject a world-readable model approval file via an insecure implicit
+    // default. Digest is confirmed on the CLI for each enforced invocation.
+    // Do not expose these flags through untrusted Agent tool interfaces.
+    ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+    defer stop()
+    if err := run(ctx, obj, model, holdout, cgroup, ports, mode, approved); err != nil {
+        log.Fatal(err)
+    }
+}
+
+// This helper provides an audit digest for future signed release manifests.
+// A content digest alone does not prove who supplied the model or training data.
+func hashBytes(data []byte) string {
+    h := sha256.Sum256(data)
+    return hex.EncodeToString(h[:])
+}
