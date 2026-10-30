@@ -168,6 +168,7 @@ func runEventBroadcaster(ctx context.Context) {
 			var alerts []*pb.Event
 			if monitorAllowed {
 				alerts = buildSemanticAlerts(event)
+				alerts = append(alerts, buildUnifiedAgentRiskAlerts(event)...)
 			}
 			if !shouldIgnoreEventPath(event) {
 				appendRecord(recordCapturedEventWithMonitoring(event, monitorAllowed))

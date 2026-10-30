@@ -228,6 +228,9 @@ func buildNativeHookExtraInfo(payload map[string]interface{}, hookEvent, toolNam
 	if riskLevel := events.PayloadString(payload, "risk_level", "riskLevel"); riskLevel != "" {
 		parts = append(parts, "risk_level="+sanitizeExtraInfoValue(riskLevel))
 	}
+	if detected, ok := payload["prompt_injection_detected"].(bool); ok && detected {
+		parts = append(parts, "prompt_injection_detected=true")
+	}
 	if sideEffectScope := events.PayloadString(payload, "side_effect_scope", "sideEffectScope"); sideEffectScope != "" {
 		parts = append(parts, "side_effect_scope="+sanitizeExtraInfoValue(sideEffectScope))
 	}
