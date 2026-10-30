@@ -9,7 +9,7 @@ type Observation struct {
 	AgentID            string `json:"agentId"`
 	TimestampMS        int64  `json:"timestampMs"`
 	Sequence           uint64 `json:"sequence"`
-	Kind               string `json:"kind"` // heartbeat, policy_denial, model_access, credential_use, delegate, generation, supervisor_disconnected
+	Kind               string `json:"kind"` // Core watchdog kinds plus metadata-only escape signals defined in watchdog_signals.go
 	Grant              *Grant `json:"grant,omitempty"`
 	ChildID            string `json:"childId,omitempty"`
 	ObservedGeneration uint64 `json:"observedGeneration,omitempty"`
@@ -48,10 +48,11 @@ type SafetyCase struct {
 }
 
 type SafetyReport struct {
-	Boundary   Report         `json:"boundary"`
-	Watchdog   WatchdogReport `json:"watchdog"`
-	Transition TransitionPlan `json:"transition"`
-	Applied    bool           `json:"applied"`
+	Boundary   Report            `json:"boundary"`
+	Watchdog   WatchdogReport    `json:"watchdog"`
+	Transition TransitionPlan    `json:"transition"`
+	Monitoring MonitoringSummary `json:"monitoring"`
+	Applied    bool              `json:"applied"`
 }
 
 func finding(out *WatchdogReport, code, id string, quarantine bool) {
@@ -176,7 +177,9 @@ func EvaluateWatchdog(policy Policy, descendants []Policy, req WatchdogRequest) 
 		case "supervisor_disconnected":
 			finding(&out, "lost_control_plane", event.ID, true)
 		default:
-			finding(&out, "unknown_signal_kind", event.ID, true)
+			if !evaluateEscapeSignal(policy, event, &out) {
+				finding(&out, "unknown_signal_kind", event.ID, true)
+			}
 		}
 	}
 	if lastHeartbeat == 0 || req.NowMS-lastHeartbeat > req.HeartbeatTimeoutMS {
@@ -194,10 +197,11 @@ func EvaluateCase(input SafetyCase) SafetyReport {
 	b := CheckUpdate(input.Lineage, input.Previous)
 	plan := PlanTransition(input.Lineage, input.Previous, b, input.FailureMode)
 	if len(input.Lineage) == 0 {
-		return SafetyReport{Boundary: b, Transition: plan, Watchdog: WatchdogReport{
+		w := WatchdogReport{
 			SchemaVersion: "agent-watchdog.v1", Verdict: "quarantine_recommended",
 			QuarantineRecommended: true, Findings: []WatchdogFinding{{Code: "missing_effective_policy"}},
-		}}
+		}
+		return SafetyReport{Boundary: b, Transition: plan, Watchdog: w, Monitoring: SummarizeMisalignment(w)}
 	}
 	p := input.Lineage[len(input.Lineage)-1]
 	w := EvaluateWatchdog(p, input.Delegates, input.Watchdog)
@@ -210,5 +214,5 @@ func EvaluateCase(input SafetyCase) SafetyReport {
 	if b.RequiresApproval {
 		finding(&w, "policy_change_requires_approval", "", false)
 	}
-	return SafetyReport{Boundary: b, Watchdog: w, Transition: plan}
+	return SafetyReport{Boundary: b, Watchdog: w, Transition: plan, Monitoring: SummarizeMisalignment(w)}
 }
