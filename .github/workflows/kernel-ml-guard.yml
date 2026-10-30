@@ -41,7 +41,7 @@ jobs:
       - name: Go unit tests and daemon compilation
         working-directory: backend
         run: |
-          go test ./internal/kernelguard ./cmd/kernel-ml-guard -count=1
+          KERNEL_GUARD_OBJECT=/tmp/kernel_ml_guard.o go test ./internal/kernelguard ./cmd/kernel-ml-guard -count=1
           go build ./cmd/kernel-ml-guard
       - name: Python trainer unit tests
         run: python3 -m unittest discover -s scripts/tests -p test_kernel_guard_trainer.py
@@ -76,6 +76,17 @@ jobs:
               --validation-csv /tmp/kernel-ml-training.csv \
               --ports 22; then
             echo 'uncovered port unexpectedly passed the release gate' >&2
+            exit 1
+          fi
+          # Dataset integrity binding: changing an input IP without changing
+          # the predictions still invalidates the exact CSV digest.
+          sed '2s/8.8.8.8/1.1.1.1/' /tmp/kernel-ml-training.csv > /tmp/tampered-training.csv
+          if go run ./cmd/kernel-ml-guard --validate-only \
+              --model /tmp/kernel-ml-model.json \
+              --holdout /tmp/kernel-ml-holdout.json \
+              --validation-csv /tmp/tampered-training.csv \
+              --ports 4444; then
+            echo 'modified validation dataset unexpectedly passed the digest check' >&2
             exit 1
           fi
       - name: Go formatting

@@ -1,6 +1,11 @@
 package main
 
-import "testing"
+import (
+	"os"
+	"testing"
+
+	"github.com/cilium/ebpf"
+)
 
 func TestReviewedPortInput(t *testing.T) {
 	if _, err := parsePorts(""); err == nil {
@@ -23,5 +28,25 @@ func TestReviewedPortInput(t *testing.T) {
 func TestRootCgroupAlwaysRejected(t *testing.T) {
 	if _, err := scopeCgroup("/"); err == nil {
 		t.Fatal("host root cgroup scope accepted")
+	}
+}
+
+func TestCompiledELFLayoutWithoutKernelPrivileges(t *testing.T) {
+	object := os.Getenv("KERNEL_GUARD_OBJECT")
+	if object == "" {
+		t.Skip("set KERNEL_GUARD_OBJECT to compiled ELF for ABI preflight")
+	}
+	spec, err := ebpf.LoadCollectionSpec(object)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateCollectionSpec(spec); err != nil {
+		t.Fatal(err)
+	}
+	// Exercise a genuinely incompatible object as an explicit failure case.
+	invalid := spec.Copy()
+	invalid.Maps["kernel_guard_config"].ValueSize++
+	if err := validateCollectionSpec(invalid); err == nil {
+		t.Fatal("ABI preflight accepted corrupted model map size")
 	}
 }
