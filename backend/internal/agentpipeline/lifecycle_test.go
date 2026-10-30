@@ -78,3 +78,22 @@ func TestHighRiskInputCanInitializeOtherwiseUnknownSession(t *testing.T) {
 		t.Fatalf("missing independent high-risk chain: %+v", got)
 	}
 }
+
+func TestScopeKeyCannotCollideThroughDelimitedAgentIdentifiers(t *testing.T) {
+	left := Message{AgentRunID: "a|task:b", TaskID: "c", ConversationID: "d", RootPID: 101}
+	right := Message{AgentRunID: "a", TaskID: "b|task:c", ConversationID: "d", RootPID: 101}
+	if sessionKey(left) == sessionKey(right) || sessionKey(left) == "" {
+		t.Fatal("ambiguous Agent scope key merged separate identities")
+	}
+	if sessionKey(left) != sessionKey(left) {
+		t.Fatal("scope key was not deterministic")
+	}
+	p := New(3, time.Minute)
+	now := time.Now().UTC()
+	left.Kind, left.At, left.ToolCallID, left.SideEffectScope = "tool_call", now, "same", "read_only"
+	p.Process(left)
+	right.At, right.ToolCallID, right.Action = now.Add(time.Second), "same", "write"
+	if got := p.Process(right); len(got) != 0 {
+		t.Fatalf("length-framed identity failed to isolate tool calls: %+v", got)
+	}
+}
