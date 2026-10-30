@@ -97,3 +97,19 @@ func TestScopeKeyCannotCollideThroughDelimitedAgentIdentifiers(t *testing.T) {
 		t.Fatalf("length-framed identity failed to isolate tool calls: %+v", got)
 	}
 }
+
+func TestContainerNamespaceIsolation(t *testing.T) {
+	p := New(4, time.Minute)
+	now := time.Now().UTC()
+	p.Process(Message{At: now, AgentRunID: "run", ContainerID: "container-A", RootPID: 42,
+		ToolCallID: "id", Kind: "tool_call", SideEffectScope: "read_only"})
+	if got := p.Process(Message{At: now.Add(time.Second), AgentRunID: "run",
+		ContainerID: "container-B", RootPID: 42, ToolCallID: "id", Action: "write"}); len(got) != 0 {
+		t.Fatalf("different container acquired the other Agent's scope: %+v", got)
+	}
+	got := p.Process(Message{At: now.Add(time.Second), AgentRunID: "run",
+		ContainerID: "container-A", RootPID: 42, ToolCallID: "id", Action: "write"})
+	if len(got) != 1 || got[0].Code != "TOOL_SCOPE_VIOLATION" {
+		t.Fatalf("same container correlation missing: %+v", got)
+	}
+}
