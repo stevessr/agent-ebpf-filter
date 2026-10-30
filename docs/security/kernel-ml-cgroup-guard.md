@@ -68,6 +68,12 @@ Do not derive the label from current model output or the existing risk score.
 python3 scripts/train-kernel-guard.py --input path/to/labeled.csv \
   --model /tmp/guard.json --holdout /tmp/guard-holdout.json
 
+# Verify the group-held-out report WITHOUT root privileges or eBPF access:
+cd backend
+go run ./cmd/kernel-ml-guard --validate-only --model /tmp/guard.json \
+  --holdout /tmp/guard-holdout.json --validation-csv ../path/to/labeled.csv
+cd ..
+
 # Start *shadow*, with a dedicated non-root cgroup containing test Agent tasks.
 sudo /tmp/kernel-ml-guard --object /tmp/kernel_ml_guard.o \
   --model /tmp/guard.json --cgroup /sys/fs/cgroup/agent-test \

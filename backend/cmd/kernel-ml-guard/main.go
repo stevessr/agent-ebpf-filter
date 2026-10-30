@@ -4,8 +4,6 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -197,6 +195,7 @@ func run(ctx context.Context, object, modelPath, evidence, validationCSV, cgroup
 
 func main() {
 	var obj, model, holdout, validationCSV, cgroup, ports, mode, approved string
+	var validateOnly bool
 	flag.StringVar(&obj, "object", "", "compiled backend/ebpf/kernel_ml_guard.o")
 	flag.StringVar(&model, "model", "", "validated linear model JSON")
 	flag.StringVar(&holdout, "holdout", "", "group-held-out evaluation JSON, required for block")
@@ -205,7 +204,22 @@ func main() {
 	flag.StringVar(&ports, "ports", "", "comma-separated explicitly reviewed destination ports")
 	flag.StringVar(&mode, "mode", "shadow", "shadow (default) or block")
 	flag.StringVar(&approved, "approve-sha256", "", "operator-pinned exact model digest (block mode)")
+	flag.BoolVar(&validateOnly, "validate-only", false, "offline model + group holdout verification; no BPF objects or root required")
 	flag.Parse()
+	if validateOnly {
+		if model == "" || holdout == "" || validationCSV == "" {
+			log.Fatal("--validate-only requires --model, --holdout and --validation-csv")
+		}
+		m, digest, err := kernelguard.ReadModel(model)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if err := kernelguard.VerifyHoldoutAgainstCSV(holdout, validationCSV, m, digest); err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("offline holdout validated for model_sha256=%s; no BPF program loaded", digest)
+		return
+	}
 	if obj == "" || model == "" || cgroup == "" {
 		log.Fatal("--object, --model and --cgroup are required")
 	}
@@ -219,9 +233,3 @@ func main() {
 	}
 }
 
-// This helper provides an audit digest for future signed release manifests.
-// A content digest alone does not prove who supplied the model or training data.
-func hashBytes(data []byte) string {
-	h := sha256.Sum256(data)
-	return hex.EncodeToString(h[:])
-}
