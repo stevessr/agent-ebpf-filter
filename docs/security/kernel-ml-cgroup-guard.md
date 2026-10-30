@@ -89,7 +89,11 @@ never give the monitored Agent permission to invoke this privileged loader.
 
 The privileged launcher independently replays the deterministic holdout split
 from the labeled CSV using its own Go feature extractor and requires all
-confusion-matrix totals to match the report before arming. This catches
+confusion-matrix totals **and benign/attack independent-run support** to match
+the versioned `kernel-guard-holdout-v2` report before arming. Previous
+`v1` reports are not accepted by block mode. The trainer prints point
+estimates and Wilson bounds; only the strictly validated counters enter the
+published JSON contract. This catches
 accidental report/model mismatches; it does **not** prove labels or CSV
 provenance.
 
@@ -114,12 +118,15 @@ does not attach anything on a dry build or test.
   close on process exit; operator should still inspect `bpftool cgroup show`.
 - Scope is cgroup and descendant processes; service owners should avoid
   placing privileged or unrelated tasks inside that cgroup.
-- The review gate requires >=1,000 benign holdout samples, >=100 attack
-  samples, >=10 distinct held-out Agent runs, point false-positive rate <=0.1%
-  and attack recall >=95%. These are provisional **release criteria**,
-  not measured project performance, statistical confidence intervals or
-  a security warranty. Shadow should remain the default until real benign
-  traffic and operator-reviewed attack outcomes are available.
+- The v2 holdout release gate requires >=1,000 benign samples, >=100 attack
+  samples, >=10 distinct benign Agent runs **and** >=10 distinct attack
+  Agent runs. It requires a **one-sided Wilson 95% FPR upper bound <=0.1%**
+  and **one-sided Wilson 95% attack-recall lower bound >=95%**.
+  These are conservative numerical release criteria rather than established
+  production accuracy. Repeated events within a run are correlated: row-level
+  Wilson confidence bounds do **not** replace independent-run and temporal
+  holdouts or operator-reviewed labels. Shadow must remain the default until
+  the deployment workload has been evaluated.
 
 ## Model safety and evaluation roadmap
 

@@ -78,6 +78,21 @@ func TestHoldoutReleaseGate(t *testing.T) {
 	if err := AssessHoldout(h, hash); err == nil {
 		t.Fatal("insufficient run groups accepted")
 	}
+	h.IndependentGroups = 25
+	h.BenignGroups = 9
+	if err := AssessHoldout(h, hash); err == nil {
+		t.Fatal("insufficient benign-run groups accepted")
+	}
+	h.BenignGroups = 20
+	h.AttackGroups = 9
+	if err := AssessHoldout(h, hash); err == nil {
+		t.Fatal("insufficient attack-run groups accepted")
+	}
+	h.AttackGroups = 20
+	h.Benign = 1000
+	if err := AssessHoldout(h, hash); err == nil {
+		t.Fatal("zero FP in only 1000 benign rows cannot prove FPR upper <= .001")
+	}
 }
 
 func TestABISize(t *testing.T) {

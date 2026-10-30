@@ -21,6 +21,12 @@ class KernelGuardTrainerTests(unittest.TestCase):
         self.assertEqual(trainer.features("::ffff:10.0.0.1", 4444), (0,) * 6)
         self.assertEqual(trainer.features("::1", 4444), (0,) * 6)
 
+    def test_wilson_bounds_are_conservative(self):
+        _, fp_upper = trainer.wilson_bounds95(0, 1000)
+        self.assertGreater(fp_upper, 0.001)
+        lower, _ = trainer.wilson_bounds95(95, 100)
+        self.assertLess(lower, 0.95)
+
     def test_run_split_does_not_split_one_run(self):
         one = trainer.split_group("agent-run-one")
         self.assertEqual(one, trainer.split_group("agent-run-one"))
