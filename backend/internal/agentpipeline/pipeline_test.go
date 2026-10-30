@@ -96,3 +96,31 @@ func TestConcurrentProcessors(t *testing.T) {
 		t.Fatalf("stats: %+v", p.Stats())
 	}
 }
+
+func TestMultiAgentRootAndTurnSeparation(t *testing.T) {
+	p := New(10, time.Minute)
+	now := time.Now()
+	p.Process(Message{At: now, AgentRunID: "shared-run", RootPID: 101, ToolCallID: "same-call", Kind: "tool_call", SideEffectScope: "read"})
+	if got := p.Process(Message{At: now.Add(time.Second), AgentRunID: "shared-run", RootPID: 202, ToolCallID: "same-call", Action: "execute"}); len(got) != 0 {
+		t.Fatalf("different root was attributed to the wrong agent: %v", got)
+	}
+	if got := p.Process(Message{At: now.Add(time.Second), AgentRunID: "shared-run", RootPID: 101, ToolCallID: "same-call", Action: "execute"}); len(got) != 1 {
+		t.Fatalf("same-root correlation failed: %v", got)
+	}
+	p.Process(Message{At: now.Add(2 * time.Second), AgentRunID: "shared-run", RootPID: 101, TurnID: "turn-A", Kind: "model_input", UntrustedInput: true, HighRiskInput: true})
+	if got := p.Process(Message{At: now.Add(3 * time.Second), AgentRunID: "shared-run", RootPID: 101, TurnID: "turn-B", Action: "write"}); len(got) != 0 {
+		t.Fatalf("risk signal leaked into another turn: %v", got)
+	}
+}
+
+func TestExpiredCallDoesNotSurviveBusySession(t *testing.T) {
+	p := New(3, time.Second)
+	start := time.Now()
+	p.Process(Message{At: start, AgentRunID: "busy", ToolCallID: "old", Kind: "tool_call", SideEffectScope: "read_only"})
+	for i := 1; i <= 4; i++ {
+		p.Process(Message{At: start.Add(time.Duration(i)*400*time.Millisecond), AgentRunID: "busy", Kind: "model_input"})
+	}
+	if got := p.Process(Message{At: start.Add(1700 * time.Millisecond), AgentRunID: "busy", ToolCallID: "old", Action: "write"}); len(got) != 0 {
+		t.Fatalf("stale tool scope reused: %v", got)
+	}
+}
