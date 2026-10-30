@@ -133,6 +133,9 @@ nav:
       - 安全模型: security/model.md
       - 策略语义: security/policy-semantics.md
       - 威胁模型: security/threat-model.md
+      - 实时 Agent 可观测性（需求与验收）: security/real-time-agent-observability.md
+      - 逃逸检测与对齐失范（研究初筛）: security/misalignment-monitoring.md
+      - 在线异常检测与证据分层: security/streaming-detection-model-2026.md
       - 脱敏与隐私: security/redaction-privacy.md
   - 集成:
       - Agents: integrations/agents.md
