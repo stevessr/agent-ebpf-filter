@@ -155,17 +155,47 @@ func semanticAlertContextKeyBounded(event *pb.Event) (string, bool) {
 	if event == nil {
 		return "", false
 	}
-	if toolCallID, truncated := boundSemanticStateString(event.GetToolCallId(), SemanticStateMaxContextBytes); toolCallID != "" {
-		return toolCallID, truncated
+	// A tool_call_id, task_id, or trace_id is NOT globally unique. The old
+	// tool-only key could match unrelated Agent runs and fabricate a
+	// secret-to-egress chain. Scope it using explicit identity first.
+	scope := strings.TrimSpace(event.GetAgentRunId())
+	switch {
+	case scope != "":
+		scope = "run:" + scope
+	case strings.TrimSpace(event.GetConversationId()) != "":
+		scope = "conversation:" + strings.TrimSpace(event.GetConversationId())
+	case event.GetRootAgentPid() != 0:
+		scope = pidContextKey(event.GetRootAgentPid())
 	}
-	if taskTrace, truncated := boundSemanticStatePair(event.GetTaskId(), event.GetTraceId(), SemanticStateMaxContextBytes); taskTrace != "" {
-		return taskTrace, truncated
+	if scope != "" && event.GetRootAgentPid() != 0 && !strings.HasPrefix(scope, "pid:") {
+		scope += "|root:" + pidContextKey(event.GetRootAgentPid())
 	}
-	if agentRunID, truncated := boundSemanticStateString(event.GetAgentRunId(), SemanticStateMaxContextBytes); agentRunID != "" {
-		return agentRunID, truncated
+
+	makeScopedKey := func(kind, id string) (string, bool) {
+		if scope == "" {
+			return boundSemanticStateString(id, SemanticStateMaxContextBytes)
+		}
+		// Length-framed digest keeps IDs unambiguous even if one contains
+		// the human-readable separator. No unbounded identifier is retained.
+		digest := semanticStateDigest(kind, scope, id)
+		key := semanticBoundWithDigest(kind+":"+scope+"|"+id, SemanticStateMaxContextBytes, digest)
+		return key, len(kind)+len(scope)+len(id)+2 > SemanticStateMaxContextBytes
 	}
-	if event.GetRootAgentPid() > 0 {
-		return pidContextKey(event.GetRootAgentPid()), false
+
+	if toolCallID := strings.TrimSpace(event.GetToolCallId()); toolCallID != "" {
+		return makeScopedKey("tool", toolCallID)
+	}
+	if event.GetTaskId() != "" || event.GetTraceId() != "" {
+		if scope != "" {
+			digest := semanticStateDigest("task-trace", scope, event.GetTaskId(), event.GetTraceId())
+			prefix := "task-trace:" + scope + "|" + event.GetTaskId() + "|" + event.GetTraceId()
+			return semanticBoundWithDigest(prefix, SemanticStateMaxContextBytes, digest),
+				len(prefix)+17 > SemanticStateMaxContextBytes
+		}
+		return boundSemanticStatePair(event.GetTaskId(), event.GetTraceId(), SemanticStateMaxContextBytes)
+	}
+	if scope != "" {
+		return boundSemanticStateString(scope, SemanticStateMaxContextBytes)
 	}
 	if event.GetPid() > 0 {
 		return pidContextKey(event.GetPid()), false
