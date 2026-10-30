@@ -208,7 +208,7 @@ The browser `/renew` frontend has been removed. The main browser workbench remai
 
 ## Why a separate module?
 
-MyGo requires Go 1.27.1+. Renew pins the MyGo dependency in [`desktop/renew/go.mod`](go.mod) (**v0.5.5 as of 2026-10-18**) and the repository workspace uses Go 1.27.1. The `desktop/renew` module remains isolated so native UI dependencies do not enter the privileged backend. The current runtime includes earlier memory/cache, Linux rendering, and input improvements as well as v0.4.3's latest native UI fixes without altering the privilege boundary.
+The Renew workspace requires Go 1.27.3 or newer. Renew pins the MyGo dependency in [`desktop/renew/go.mod`](go.mod) (**v0.5.5 as of 2026-10-18**) and the repository workspace uses Go 1.27.3. The `desktop/renew` module remains isolated so native UI dependencies do not enter the privileged backend. The current runtime includes earlier memory/cache, Linux rendering, and input improvements as well as v0.4.3's latest native UI fixes without altering the privilege boundary.
 
 ## Develop
 

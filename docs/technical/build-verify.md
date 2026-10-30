@@ -4,7 +4,15 @@
 
 ## 1. 依赖事实
 
-本仓库 `go.work` 覆盖五个 Go module：`backend`、`desktop/renew`、`tools/agent-tui`、`tools/dev-env-tui`、`wrapper`，要求 Go `1.27.1`。文档使用 MkDocs Material（Python），Web 前端使用 Vue 与 Bun；eBPF 编译需要 clang/LLVM、对应 kernel BTF 与 libbpf/bpf2go 生成流程。更新生成物以 `Makefile` 真实目标为准。
+升级至 Go 1.27.3 后，运行 `python3 scripts/check-go-version.py` 检查
+五个模块、工作区、Dev Container 和 CI 引用一致性。后端运行
+`cd backend && go mod verify && go mod tidy -diff`，桌面端及各模块
+依赖现有 GitHub Actions 完成编译与测试。升级 Go 补丁版本不等于
+更新所有第三方模块，也不意味着修改 `go.sum`。
+
+
+
+本仓库 `go.work` 覆盖五个 Go module：`backend`、`desktop/renew`、`tools/agent-tui`、`tools/dev-env-tui`、`wrapper`，要求 Go `1.27.3`。文档使用 MkDocs Material（Python），Web 前端使用 Vue 与 Bun；eBPF 编译需要 clang/LLVM、对应 kernel BTF 与 libbpf/bpf2go 生成流程。更新生成物以 `Makefile` 真实目标为准。
 
 ```mermaid
 flowchart LR

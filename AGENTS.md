@@ -104,7 +104,7 @@ agent-ebpf-filter/
 ### Prerequisites
 
 - Linux with eBPF + BTF support
-- Go 1.27.1+
+- Go 1.27.3+
 - Bun (frontend build tool)
 - clang/LLVM (eBPF compilation)
 - protoc (Protocol Buffers compiler)

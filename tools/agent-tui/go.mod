@@ -1,6 +1,6 @@
 module agent-ebpf-filter-tui
 
-go 1.27.1
+go 1.27.3
 
 require (
 	agent-ebpf-filter v0.0.0
