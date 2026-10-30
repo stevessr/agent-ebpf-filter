@@ -19,6 +19,8 @@ REPORT_SCHEMA = "kernel-guard-holdout-v1"
 
 def external_ipv4(address):
     ip = ipaddress.ip_address(address)
+    if ip.version == 6 and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
     if ip.version != 4:
         return False
     a, b, c, _ = ip.packed

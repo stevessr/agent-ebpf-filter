@@ -17,6 +17,8 @@ class KernelGuardTrainerTests(unittest.TestCase):
         for ip in ("127.0.0.1", "10.0.0.1", "172.19.1.2",
                    "192.168.1.9", "198.51.100.1", "203.0.113.2"):
             self.assertEqual(trainer.features(ip, 4444), (0,) * 6)
+        self.assertEqual(trainer.features("::ffff:8.8.8.8", 4444), (1, 0, 1, 0, 0, 0))
+        self.assertEqual(trainer.features("::ffff:10.0.0.1", 4444), (0,) * 6)
         self.assertEqual(trainer.features("::1", 4444), (0,) * 6)
 
     def test_run_split_does_not_split_one_run(self):

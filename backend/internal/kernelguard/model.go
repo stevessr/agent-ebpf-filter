@@ -101,6 +101,9 @@ func ReadModel(path string) (Model, string, error) {
 // ExternalIPv4Candidate mirrors the bounded kernel predicate. It is a safety
 // gate, not a substitute for routing, NAT, destination reputation or policy.
 func ExternalIPv4Candidate(ip netip.Addr) bool {
+	if ip.Is4In6() {
+		ip = ip.Unmap()
+	}
 	if !ip.Is4() {
 		return false
 	}

@@ -1,5 +1,6 @@
 //go:build ignore
-// Opt-in cgroup IPv4 classifier. Not attached by the normal backend.
+// Opt-in cgroup IPv4 classifier, including IPv4-mapped IPv6 sockets.
+// Not attached by the normal backend.
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_endian.h>
@@ -63,7 +64,7 @@ static __always_inline int external_ipv4(__u32 ip)
     return 1;
 }
 
-static __always_inline int evaluate(struct bpf_sock_addr *ctx)
+static __always_inline int evaluate_ipv4(__u32 ip, __u32 port)
 {
     __u32 zero = 0;
     struct guard_config *cfg = bpf_map_lookup_elem(&kernel_guard_config, &zero);
@@ -73,9 +74,6 @@ static __always_inline int evaluate(struct bpf_sock_addr *ctx)
 
     struct guard_stats *stats = bpf_map_lookup_elem(&kernel_guard_stats, &zero);
     if (stats) stats->examined++;
-    if (ctx->family != 2) return 1; // AF_INET
-    __u32 ip = bpf_ntohl(ctx->user_ip4);
-    __u32 port = bpf_ntohs(ctx->user_port);
     if (!external_ipv4(ip)) return 1;
 
     // Mandatory independent operator-reviewed target scope. The model alone
@@ -95,21 +93,51 @@ static __always_inline int evaluate(struct bpf_sock_addr *ctx)
     if (stats) stats->matched++;
     if (cfg->mode == GUARD_ENFORCE) {
         if (stats) stats->blocked++;
-        return 0; // cgroup/connect4 and sendmsg4: deny
+        return 0; // cgroup/connect / sendmsg: deny
     }
     return 1;
+}
+
+static __always_inline int evaluate4(struct bpf_sock_addr *ctx)
+{
+    if (ctx->family != 2) return 1; // AF_INET
+    return evaluate_ipv4(bpf_ntohl(ctx->user_ip4),
+                         bpf_ntohs(ctx->user_port));
+}
+
+// ::ffff:a.b.c.d passes through the same v4 scorer and port scope.
+// Native IPv6 must not be silently classified as IPv4 or blocked.
+static __always_inline int evaluate_mapped6(struct bpf_sock_addr *ctx)
+{
+    if (ctx->family != 10) return 1; // AF_INET6
+    if (ctx->user_ip6[0] != 0 || ctx->user_ip6[1] != 0 ||
+        bpf_ntohl(ctx->user_ip6[2]) != 0x0000ffff) return 1;
+    return evaluate_ipv4(bpf_ntohl(ctx->user_ip6[3]),
+                         bpf_ntohs(ctx->user_port));
 }
 
 SEC("cgroup/connect4")
 int kernel_guard_connect4(struct bpf_sock_addr *ctx)
 {
-    return evaluate(ctx);
+    return evaluate4(ctx);
 }
 
 SEC("cgroup/sendmsg4")
 int kernel_guard_sendmsg4(struct bpf_sock_addr *ctx)
 {
-    return evaluate(ctx);
+    return evaluate4(ctx);
+}
+
+SEC("cgroup/connect6")
+int kernel_guard_connect6(struct bpf_sock_addr *ctx)
+{
+    return evaluate_mapped6(ctx);
+}
+
+SEC("cgroup/sendmsg6")
+int kernel_guard_sendmsg6(struct bpf_sock_addr *ctx)
+{
+    return evaluate_mapped6(ctx);
 }
 
 char LICENSE[] SEC("license") = "GPL";

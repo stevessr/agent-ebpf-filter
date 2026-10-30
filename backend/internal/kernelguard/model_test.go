@@ -15,6 +15,12 @@ func TestModelValidationAndSafeDefault(t *testing.T) {
 	if err := m.Validate(); err != nil {
 		t.Fatal(err)
 	}
+	if !Predict(m, netip.MustParseAddr("::ffff:8.8.8.8"), 4444) {
+		t.Fatal("IPv4-mapped IPv6 must share the IPv4 scorer")
+	}
+	if !ExternalIPv4Candidate(netip.MustParseAddr("::ffff:8.8.8.8")) {
+		t.Fatal("mapped IPv4 should remain in scope")
+	}
 	if !Predict(m, netip.MustParseAddr("8.8.8.8"), 4444) {
 		t.Fatal("scoped high-risk port should match")
 	}

@@ -1,4 +1,4 @@
-// kernel-ml-guard loads a separate, transient IPv4 cgroup model. It never
+// kernel-ml-guard loads a separate, transient IPv4 and IPv4-mapped IPv6 cgroup model. It never
 // attaches to the host root cgroup or changes existing sandbox policy maps.
 package main
 
@@ -120,7 +120,9 @@ func run(ctx context.Context, object, modelPath, evidence, validationCSV, cgroup
 	stats := col.Maps["kernel_guard_stats"]
 	c4 := col.Programs["kernel_guard_connect4"]
 	s4 := col.Programs["kernel_guard_sendmsg4"]
-	if config == nil || reviewed == nil || stats == nil || c4 == nil || s4 == nil {
+	c6 := col.Programs["kernel_guard_connect6"]
+	s6 := col.Programs["kernel_guard_sendmsg6"]
+	if config == nil || reviewed == nil || stats == nil || c4 == nil || s4 == nil || c6 == nil || s6 == nil {
 		return errors.New("BPF object missing required maps/programs")
 	}
 	key := uint32(0)
@@ -148,6 +150,20 @@ func run(ctx context.Context, object, modelPath, evidence, validationCSV, cgroup
 		return fmt.Errorf("attach IPv4 UDP sendmsg: %w", err)
 	}
 	defer sendLink.Close()
+	conn6, err := link.AttachCgroup(link.CgroupOptions{
+		Path: scoped, Attach: ebpf.AttachCGroupInet6Connect, Program: c6,
+	})
+	if err != nil {
+		return fmt.Errorf("attach IPv6 connect (IPv4-mapped only): %w", err)
+	}
+	defer conn6.Close()
+	send6, err := link.AttachCgroup(link.CgroupOptions{
+		Path: scoped, Attach: ebpf.AttachCGroupUDP6Sendmsg, Program: s6,
+	})
+	if err != nil {
+		return fmt.Errorf("attach IPv6 UDP sendmsg (IPv4-mapped only): %w", err)
+	}
+	defer send6.Close()
 
 	if block {
 		cfg = m.Config(kernelguard.ModeEnforce)
@@ -157,7 +173,7 @@ func run(ctx context.Context, object, modelPath, evidence, validationCSV, cgroup
 	}
 	log.Printf("guard active scope=%s mode=%s generation=%d model_sha256=%s approved_ports=%v",
 		scoped, mode, m.Generation, digest, ports)
-	log.Print("IPv6, already-established TCP sockets, other cgroups and unlisted ports are NOT covered")
+	log.Print("Native IPv6 (non-IPv4-mapped), established TCP, other cgroups and unlisted ports are NOT covered")
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	for {

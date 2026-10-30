@@ -21,15 +21,16 @@ A high held-out accuracy alone is not sufficient for kernel blocking:
 
 ## Present implementation
 
-- `backend/ebpf/kernel_ml_guard.c`: independent `cgroup/connect4` +
-  `cgroup/sendmsg4` eBPF. Returns 0 to deny only if (1) manually attached
+- `backend/ebpf/kernel_ml_guard.c`: independent `cgroup/connect4`, `cgroup/sendmsg4`,
+  `cgroup/connect6`, and `cgroup/sendmsg6` eBPF (the 6 hooks accept
+  **only IPv4-mapped IPv6** destinations for model evaluation). Returns 0 to deny only if (1) manually attached
   to a non-root cgroup, (2) model schema valid, (3) external IPv4 candidate,
   (4) destination port explicitly reviewed, (5) integer score reaches
   threshold, and (6) current mode is `block`. Otherwise allows.
 - `backend/internal/kernelguard`: bounded model file/feature contract;
   deterministic prediction parity and strict held-out numerical release gate.
 - `backend/cmd/kernel-ml-guard`: explicit model/file/port/cgroup CLI. Loads
-  a compiled ELF object dynamically, attaches the two hooks, enters shadow
+  a compiled ELF object dynamically, attaches all four hooks, enters shadow
   first, then optionally arms block after model hash + holdout checks.
   On SIGTERM/SIGINT, disarms and closes attachments; nothing is pinned.
 - `scripts/train-kernel-guard.py`: offline training/holdout report; no
@@ -102,8 +103,9 @@ does not attach anything on a dry build or test.
 
 - Default mode is shadow; absent/invalid model, missing reviewed port,
   private or reserved IPv4 candidate => no model block.
-- No IPv6 protection in this first version; existing cgroup policies should
-  independently enforce IPv4/IPv6. No guarantee for previously established
+- IPv4-mapped IPv6 destinations are normalized to the same IPv4 classifier;
+  **native IPv6 remains unclassified**, and existing cgroup policies should
+  independently enforce IPv4/native IPv6. No guarantee for previously established
   TCP connections, unix sockets, file access or processes in other cgroups.
 - Real BPF verifier acceptance and effective network blocking require a
   privileged Linux integration smoke test on target kernel; Go unit tests
@@ -127,7 +129,7 @@ does not attach anything on a dry build or test.
    from unrelated runs, codebases and dates; split by Agent run **before**
    model selection; validate on temporally held-out traffic.
 3. Add a separate adjudicator for false positives and negative controls;
-   include DNS, CDNs, remote admin, IPv4-mapped IPv6, existing sockets,
+   include DNS, CDNs, remote admin, IPv4-mapped IPv6 equivalence, existing sockets,
    high ports, NAT, namespaces and simulated poisoned data.
 4. Report confusion matrix, per-run FPR, high-impact recall, PR-AUC,
    classifier mismatch count, p95/p99 kernel program runtime, map memory,
