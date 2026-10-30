@@ -54,7 +54,7 @@ jobs:
       - name: Commit verified go.mod and go.sum
         run: |
           set -euo pipefail
-          git add backend/go.mod backend/go.sum
+          git add backend/go.mod backend/go.sum go.work.sum
           if git diff --cached --quiet; then
             echo 'No Go dependency changes.'
             exit 0
