@@ -27,6 +27,29 @@ func benchmarkNearestRankNs(sorted []int64, percent int) int64 {
 	return sorted[rank-1]
 }
 
+func TestBenchmarkNearestRankNs(t *testing.T) {
+	for _, tc := range []struct {
+		count int
+		percent int
+		want int64
+	}{
+		{1, 99, 1},
+		{10, 95, 10},
+		{100, 95, 95},
+		{100, 99, 99},
+		{256, 95, 244},
+		{256, 99, 254},
+	} {
+		values := make([]int64, tc.count)
+		for i := range values {
+			values[i] = int64(i + 1)
+		}
+		if got := benchmarkNearestRankNs(values, tc.percent); got != tc.want {
+			t.Fatalf("count=%d percentile=%d: got %d want %d", tc.count, tc.percent, got, tc.want)
+		}
+	}
+}
+
 // Every recovery cycle observes three consecutive headless UI frames. In
 // the legacy variant one frame receives 1200 records; the other two have no
 // new events. In the bounded variant the same 1200 retained records are
