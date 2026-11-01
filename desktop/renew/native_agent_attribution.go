@@ -5,6 +5,36 @@ import (
 	"strings"
 )
 
+// eventOwnershipIndex reuses a compact, read-only index across rendered rows,
+// inspector cards and filters. The live IPC merge increments eventsVersion.
+// Comparing the bounded window endpoints also makes direct slice replacement
+// in offline/test views safe without adding a per-frame O(window) hash.
+//
+// Do not pass live process snapshots here: their PID-lifetime evidence has a
+// different invalidation boundary and must still be checked independently.
+func (a *renewApp) eventOwnershipIndex() agentOwnershipIndex {
+	count := len(a.events)
+	var first, last string
+	if count != 0 {
+		first = a.events[0].EventID
+		last = a.events[count-1].EventID
+	}
+	if a.ownershipCacheValid &&
+		a.ownershipCacheVersion == a.eventsVersion &&
+		a.ownershipCacheCount == count &&
+		a.ownershipCacheFirstID == first &&
+		a.ownershipCacheLastID == last {
+		return a.ownershipCache
+	}
+	a.ownershipCache = buildAgentOwnershipIndex(a.events, nil)
+	a.ownershipCacheVersion = a.eventsVersion
+	a.ownershipCacheCount = count
+	a.ownershipCacheFirstID = first
+	a.ownershipCacheLastID = last
+	a.ownershipCacheValid = true
+	return a.ownershipCache
+}
+
 // agentOwnershipIndex resolves the actor from persisted Agent context, not the
 // executable which happened to perform a syscall. bash/fish/python/pwsh/node
 // are executors, not new Agent sessions. This is presentation-only: it never
