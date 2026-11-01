@@ -136,23 +136,13 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 		batch := nextBatch()
 		overwriteAt := 0
 		appendLatest := func(e eventSummary, capacity int) {
-			if len(batch) < capacity {
-				// Paused mode can grow a previously wrapped live batch.
-				// Normalize its retained arrival order before appending.
-				if overwriteAt != 0 {
-					rotateEventBatchIntoArrivalOrder(batch, overwriteAt)
-					overwriteAt = 0
-				}
-				batch = append(batch, e)
-				return
+			var dropped bool
+			batch, dropped = appendBoundedEventBatch(batch, e, capacity, &overwriteAt)
+			if dropped {
+				a.eventUIDropped.Add(1)
 			}
-			batch[overwriteAt] = e
-			overwriteAt++
-			if overwriteAt == len(batch) {
-				overwriteAt = 0
-			}
-			a.eventUIDropped.Add(1)
 		}
+
 		flush := func() {
 			if len(batch) == 0 || a.eventUIPaused.Load() {
 				return
