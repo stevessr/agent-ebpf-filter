@@ -25,6 +25,8 @@ type eventMergeWorkspace struct {
 	riskDelta    [3]int
 	filterAdded  []eventSummary
 	filterRemoved map[string]struct{}
+	// Removed original records are captured before the merge scratch is recycled.
+	aggregateRemoved []eventSummary
 }
 
 func mergeEventSummariesInto(dst, existing, incoming []eventSummary, limit int) []eventSummary {
@@ -36,7 +38,8 @@ func mergeEventSummariesInto(dst, existing, incoming []eventSummary, limit int) 
 // added, replaced and evicted events, including timestamps changed on a
 // duplicate EventID. The caller can apply this to an already-warm risk cache.
 // The output remains a separate backing buffer from existing.
-func mergeEventSummariesIntoWorkspace(dst, existing, incoming []eventSummary, limit int, workspace *eventMergeWorkspace, trackRisk, trackFilter bool) []eventSummary {
+func mergeEventSummariesIntoWorkspace(dst, existing, incoming []eventSummary, limit int, workspace *eventMergeWorkspace, trackRisk, trackFilter bool, trackAggregates ...bool) []eventSummary {
+	trackAggregate := len(trackAggregates) != 0 && trackAggregates[0]
 	if limit <= 0 {
 		limit = 1200
 	}
@@ -45,6 +48,7 @@ func mergeEventSummariesIntoWorkspace(dst, existing, incoming []eventSummary, li
 	}
 	workspace.riskDelta = [3]int{}
 	workspace.filterAdded = workspace.filterAdded[:0]
+	workspace.aggregateRemoved = workspace.aggregateRemoved[:0]
 	if trackFilter {
 		if workspace.filterRemoved == nil {
 			workspace.filterRemoved = make(map[string]struct{}, min(len(incoming)+16, limit))
@@ -62,6 +66,9 @@ func mergeEventSummariesIntoWorkspace(dst, existing, incoming []eventSummary, li
 				for _, e := range existing[limit:] {
 					workspace.filterRemoved[e.EventID] = struct{}{}
 				}
+			}
+			if trackAggregate {
+				workspace.aggregateRemoved = append(workspace.aggregateRemoved, existing[limit:]...)
 			}
 			return existing[:limit]
 		}
@@ -117,7 +124,7 @@ func mergeEventSummariesIntoWorkspace(dst, existing, incoming []eventSummary, li
 		if trackRisk {
 			workspace.riskDelta[eventRiskBucket(event)]++
 		}
-		if trackFilter {
+		if trackFilter || trackAggregate {
 			workspace.filterAdded = append(workspace.filterAdded, event)
 		}
 	}
@@ -129,6 +136,9 @@ func mergeEventSummariesIntoWorkspace(dst, existing, incoming []eventSummary, li
 				}
 				if trackFilter {
 					workspace.filterRemoved[existing[j].EventID] = struct{}{}
+				}
+				if trackAggregate {
+					workspace.aggregateRemoved = append(workspace.aggregateRemoved, existing[j])
 				}
 				j++
 				continue
@@ -167,13 +177,16 @@ func mergeEventSummariesIntoWorkspace(dst, existing, incoming []eventSummary, li
 	}
 	// The tail was evicted by the bounded window, even when an older
 	// replacement moved outside the visible time range.
-	if trackRisk || trackFilter {
+	if trackRisk || trackFilter || trackAggregate {
 		for ; j < len(existing); j++ {
 			if trackRisk {
 				workspace.riskDelta[eventRiskBucket(existing[j])]--
 			}
 			if trackFilter {
 				workspace.filterRemoved[existing[j].EventID] = struct{}{}
+			}
+			if trackAggregate {
+				workspace.aggregateRemoved = append(workspace.aggregateRemoved, existing[j])
 			}
 		}
 	}
