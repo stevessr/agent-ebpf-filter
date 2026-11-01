@@ -54,6 +54,26 @@ func TestEventFilterSignatureTracksAllConstraints(t *testing.T) {
 	}
 }
 
+func TestEventSearchNormalizationIsCachedAndCleared(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.search = "  CoDeX  "
+	first := a.eventFilterCacheKey()
+	if first.search != "codex" {
+		t.Fatalf("initial normalized query: %q", first.search)
+	}
+	if allocs := testing.AllocsPerRun(100, func() { _ = a.eventFilterCacheKey() }); allocs != 0 {
+		t.Fatalf("unchanged search should allocate zero bytes for the filter signature: %v allocations", allocs)
+	}
+	a.search = "  D E E P  "
+	if got := a.eventFilterCacheKey().search; got != "d e e p" {
+		t.Fatalf("edited query kept stale normalization: %q", got)
+	}
+	a.search = ""
+	if got := a.eventFilterCacheKey().search; got != "" || a.filterSearchOriginal != "" {
+		t.Fatalf("cleared search retained old text: %q", got)
+	}
+}
+
 func TestEventFilterCheapPredicatesPreserveCombinedMatches(t *testing.T) {
 	a := newRenewApp("http://127.0.0.1:8080")
 	a.events = []eventSummary{
