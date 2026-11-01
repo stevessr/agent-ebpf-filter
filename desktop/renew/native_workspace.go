@@ -59,6 +59,18 @@ func workspaceMotionLayoutWidth(current, target float32) float32 {
 	return max(current, target)
 }
 
+// Reserve the target layout width before the spring starts. While it runs,
+// keep the old reservation instead of relaying out the center event table on
+// every intermediate width. Releasing the reservation when the spring settles
+// is a single layout update; the keyed center view animates its position.
+// This is independent of the width used to clip/reveal the sidebar itself.
+func workspaceReservedNavigationWidth(previous, animated, target float32, settled bool) float32 {
+	if settled {
+		return target
+	}
+	return max(previous, workspaceMotionLayoutWidth(animated, target))
+}
+
 
 const (
 	workspaceNavigationCompactWidth  float32 = 198
@@ -174,17 +186,28 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 	} else {
 		navWidth = shell.AnimateTo("renew-navigation", navTarget, renewNavigationMotion())
 	}
-	// Only the painted sidebar width animates. Reflow-sensitive controls
-	// make one conservative decision per target change, not one per frame.
-	layoutNavWidth := workspaceMotionLayoutWidth(navWidth, navTarget)
+	// The center has a stable reservation while the sidebar spring moves:
+	// only the 198/302-DIP native navigation panel reveals/clips per frame.
+	if workspaceUsesNavigationMenu(width) {
+		a.navigationReservedWidth = 0
+	} else {
+		a.navigationReservedWidth = workspaceReservedNavigationWidth(
+			a.navigationReservedWidth, navWidth, navTarget, shell.Settled("renew-navigation"))
+	}
+	layoutNavWidth := a.navigationReservedWidth
 	shell.Children(func() {
 		a.activityRail(c, width)
-		if navWidth > 0 {
-			ui.Row(c).Width(navWidth).Shrink(0).AlignItems(ui.Stretch).Clip().Children(func() {
-				a.sidebar(c, navDetailed)
+		if layoutNavWidth > 0 {
+			ui.Row(c).Width(layoutNavWidth).Shrink(0).AlignItems(ui.Stretch).Clip().Children(func() {
+				if navWidth > 0 {
+					ui.Row(c).Width(navWidth).Shrink(0).AlignItems(ui.Stretch).Clip().Children(func() {
+						a.sidebar(c, navDetailed)
+					})
+				}
 			})
 		}
-		ui.Column(c).Key("workspace-content").Grow(1).MinWidth(0).Background(t.Background).Children(func() {
+		ui.Column(c).Key("workspace-content").Grow(1).MinWidth(0).Background(t.Background).
+			Transition(renewWorkspaceContentTransition()).Children(func() {
 			a.header(c, layoutNavWidth)
 			if a.page == "终端" {
 				// Real PTY bounds without a parent Scroll; also usable offline.
