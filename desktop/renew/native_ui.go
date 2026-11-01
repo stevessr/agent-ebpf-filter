@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -86,7 +85,9 @@ type renewApp struct {
 	eventUICommitPending  eventCommitFlag
 	filterCacheValid      bool
 	filterCacheVersion    uint64
-	filterCacheKey        string
+	filterCacheKey        eventFilterSignature
+	filterSearchOriginal  string
+	filterSearchNormalized string
 	filterCacheRows       []eventSummary
 	riskCacheValid        bool
 	riskCacheVersion      uint64
@@ -112,11 +113,11 @@ type renewApp struct {
 	personalAlertCacheHidden        int
 	networkCacheValid               bool
 	networkCacheVersion             uint64
-	networkCacheKey                 string
+	networkCacheKey                 eventFilterSignature
 	networkCacheRows                []networkAggregate
 	processCacheValid               bool
 	processCacheVersion             uint64
-	processCacheKey                 string
+	processCacheKey                 eventFilterSignature
 	processCacheRows                []processAggregate
 	domainCacheValid                bool
 	domainCacheVersion              uint64
@@ -611,18 +612,49 @@ func (a *renewApp) errorView(c *ui.Context) {
 	})
 }
 
-func (a *renewApp) eventFilterCacheKey() string {
-	q := strings.ToLower(strings.TrimSpace(a.search))
-	key := q + "\x00" + a.eventTypeFilter + "\x00" + a.eventSessionFilter + "\x00" + a.eventDecisionFilter + "\x00" + fmt.Sprint(a.eventPIDFilter) + "\x00" + fmt.Sprint(a.eventRootPIDFilter) + "\x00" + a.eventTargetFilter + "\x00" + a.eventDomainAgent + "\x00" + a.eventDomainTarget + "\x00" + a.eventDomainKind + "\x00" + fmt.Sprint(a.eventFileEditsOnly) + "\x00" + fmt.Sprint(a.eventDelegatedOnly) + "\x00" + a.eventRiskFilter + "\x00" + fmt.Sprint(a.eventMinRiskScore) + "\x00" + a.managementEventFilter
-	if a.eventAttentionOnly {
-		key += "\x001"
+// A comparable signature avoids rebuilding a concatenated string (and
+// formatting numbers with fmt.Sprint) for every native animation frame.
+// Strings in the signature are immutable filter values, not event payloads.
+type eventFilterSignature struct {
+	search, eventType, session, decision, target string
+	domainAgent, domainTarget, domainKind string
+	risk, management string
+	pid, rootPID int
+	minRisk float64
+	fileEditsOnly, delegatedOnly, attentionOnly bool
+}
+
+func (a *renewApp) eventFilterCacheKey() eventFilterSignature {
+	// Case folding/search normalization is unnecessary on every frame while
+	// the user has not changed the input. Avoid another temporary string
+	// during sidebar animations and steady event-table redraws.
+	if a.search != a.filterSearchOriginal {
+		a.filterSearchOriginal = a.search
+		a.filterSearchNormalized = strings.ToLower(strings.TrimSpace(a.search))
 	}
-	return key
+	return eventFilterSignature{
+		search: a.filterSearchNormalized,
+		eventType: a.eventTypeFilter,
+		session: a.eventSessionFilter,
+		decision: a.eventDecisionFilter,
+		target: a.eventTargetFilter,
+		domainAgent: a.eventDomainAgent,
+		domainTarget: a.eventDomainTarget,
+		domainKind: a.eventDomainKind,
+		risk: a.eventRiskFilter,
+		management: a.managementEventFilter,
+		pid: a.eventPIDFilter,
+		rootPID: a.eventRootPIDFilter,
+		minRisk: a.eventMinRiskScore,
+		fileEditsOnly: a.eventFileEditsOnly,
+		delegatedOnly: a.eventDelegatedOnly,
+		attentionOnly: a.eventAttentionOnly,
+	}
 }
 
 func (a *renewApp) filteredEvents() []eventSummary {
-	q := strings.ToLower(strings.TrimSpace(a.search))
 	key := a.eventFilterCacheKey()
+	q := key.search
 	if a.filterCacheValid && a.filterCacheVersion == a.eventsVersion && a.filterCacheKey == key {
 		return a.filterCacheRows
 	}
@@ -634,34 +666,40 @@ func (a *renewApp) filteredEvents() []eventSummary {
 		return a.events
 	}
 
-	out := make([]eventSummary, 0, min(len(a.events), 256))
+	// A precise filter (PID, root, target or session) commonly returns one
+	// row, not 256; avoid allocating a large buffer before the first match.
+	// On the same filter after an event batch, use the previous match count
+	// to avoid repeatedly growing and copying hundreds of compact structs.
+	hint := min(len(a.events), 256)
+	if key.pid > 0 || key.rootPID > 0 || key.target != "" ||
+		key.domainTarget != "" || key.session != "" {
+		hint = min(len(a.events), 16)
+	}
+	if a.filterCacheValid && a.filterCacheKey == key {
+		if previous := len(a.filterCacheRows); previous > 0 {
+			hint = min(len(a.events), max(hint, previous))
+		} else {
+			hint = min(len(a.events), 16)
+		}
+	}
+	var out []eventSummary
 	var domainOwners agentOwnershipIndex
 	if a.eventDomainTarget != "" {
 		domainOwners = a.eventOwnershipIndex()
 	}
 	for _, event := range a.events {
-		if a.eventDomainTarget != "" && !matchesAgentDomainEvent(event, domainOwners, a.eventDomainAgent, a.eventDomainTarget, a.eventDomainKind) {
-			continue
-		}
-		if q != "" && !strings.Contains(eventSearchText(event), q) {
-			continue
-		}
-		if a.managementEventFilter != "" && managementAppForEvent(event) != a.managementEventFilter {
-			continue
-		}
-		if a.eventRiskFilter != "" && eventRisk(event) != a.eventRiskFilter {
+		// Test cheap, selective scalar predicates before allocating the
+		// full-text search corpus or classifying Agent/domain metadata.
+		if a.eventPIDFilter > 0 && event.PID != a.eventPIDFilter {
 			continue
 		}
 		if a.eventMinRiskScore > 0 && event.RiskScore < a.eventMinRiskScore {
 			continue
 		}
-		if a.eventPIDFilter > 0 && event.PID != a.eventPIDFilter {
+		if a.eventTypeFilter != "" && event.Type != a.eventTypeFilter {
 			continue
 		}
 		if !matchesEventDrilldown(event, a.eventRootPIDFilter, a.eventTargetFilter, a.eventFileEditsOnly, a.eventDelegatedOnly) {
-			continue
-		}
-		if a.eventTypeFilter != "" && event.Type != a.eventTypeFilter {
 			continue
 		}
 		if a.eventSessionFilter != "" && eventSessionKey(event) != a.eventSessionFilter {
@@ -670,8 +708,26 @@ func (a *renewApp) filteredEvents() []eventSummary {
 		if !matchesEventDecision(event, a.eventDecisionFilter) {
 			continue
 		}
-		if a.eventAttentionOnly && eventRisk(event) == "正常" {
+		if a.eventRiskFilter != "" || a.eventAttentionOnly {
+			risk := eventRisk(event)
+			if a.eventRiskFilter != "" && risk != a.eventRiskFilter {
+				continue
+			}
+			if a.eventAttentionOnly && risk == "正常" {
+				continue
+			}
+		}
+		if a.managementEventFilter != "" && managementAppForEvent(event) != a.managementEventFilter {
 			continue
+		}
+		if a.eventDomainTarget != "" && !matchesAgentDomainEvent(event, domainOwners, a.eventDomainAgent, a.eventDomainTarget, a.eventDomainKind) {
+			continue
+		}
+		if q != "" && !strings.Contains(eventSearchText(event), q) {
+			continue
+		}
+		if out == nil {
+			out = make([]eventSummary, 0, hint)
 		}
 		out = append(out, event)
 	}
