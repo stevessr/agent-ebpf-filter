@@ -26,12 +26,23 @@ func (a *renewApp) mergeEventWindow(incoming []eventSummary, limit int) bool {
 	aliasFilter := warmFilter && currentFilter.isUnfiltered()
 	updateFilter := warmFilter && !aliasFilter &&
 		currentFilter.domainTarget == "" && len(a.filterCacheRows) <= 128
+	// Only the unfiltered aggregate view is independent of historical
+	// selection semantics. Filtered aggregates remain lazily recomputed from
+	// the canonical selected rows, never from unrelated event deltas.
+	unfiltered := currentFilter.isUnfiltered()
+	warmNetwork := unfiltered && a.networkCacheValid &&
+		a.networkCacheVersion == a.eventsVersion && a.networkCacheKey == currentFilter
+	warmProcesses := unfiltered && a.processCacheValid &&
+		a.processCacheVersion == a.eventsVersion && a.processCacheKey == currentFilter
+	trackAggregates := warmNetwork || warmProcesses
 	next := mergeEventSummariesIntoWorkspace(a.eventMergeScratch, old, incoming, limit,
-		&a.eventMergeWorkspace, updateRisk, updateFilter)
+		&a.eventMergeWorkspace, updateRisk, updateFilter, trackAggregates)
 	defer func() {
 		clear(a.eventMergeWorkspace.filterAdded)
 		a.eventMergeWorkspace.filterAdded = a.eventMergeWorkspace.filterAdded[:0]
 		clear(a.eventMergeWorkspace.filterRemoved)
+		clear(a.eventMergeWorkspace.aggregateRemoved)
+		a.eventMergeWorkspace.aggregateRemoved = a.eventMergeWorkspace.aggregateRemoved[:0]
 	}()
 	if len(old) == len(next) {
 		if len(old) == 0 || &old[0] == &next[0] {
@@ -53,6 +64,20 @@ func (a *renewApp) mergeEventWindow(incoming []eventSummary, limit int) bool {
 		a.filterCacheVersion = a.eventsVersion
 	} else if updateFilter {
 		a.applyIncrementalFilterRows(&a.eventMergeWorkspace)
+	}
+	if warmNetwork {
+		if rows, ok := incrementalNetworkAggregateRows(a.networkCacheRows, a.events,
+			a.eventMergeWorkspace.aggregateRemoved, a.eventMergeWorkspace.filterAdded); ok {
+			a.networkCacheRows = rows
+			a.networkCacheVersion = a.eventsVersion
+		}
+	}
+	if warmProcesses {
+		if rows, ok := incrementalProcessAggregateRows(a.processCacheRows, a.events,
+			a.eventMergeWorkspace.aggregateRemoved, a.eventMergeWorkspace.filterAdded); ok {
+			a.processCacheRows = rows
+			a.processCacheVersion = a.eventsVersion
+		}
 	}
 	if updateRisk {
 		for bucket, delta := range a.eventMergeWorkspace.riskDelta {
