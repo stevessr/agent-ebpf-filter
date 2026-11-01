@@ -91,6 +91,8 @@ jobs:
           name: renew-mygo-verified-module
           path: desktop/renew
       - name: Open reviewable dependency pull request
+        id: propose-pr
+        continue-on-error: true
         uses: peter-evans/create-pull-request@v7
         with:
           branch: deps/renew-mygo
@@ -108,3 +110,26 @@ jobs:
           add-paths: |
             desktop/renew/go.mod
             desktop/renew/go.sum
+
+      # Some repositories forbid GITHUB_TOKEN PR creation even with an explicit
+      # pull-requests:write job permission. Preserve the pushed review branch
+      # and provide an actionable link without relaxing repository settings.
+      - name: Explain manual PR creation when Actions lacks permission
+        if: steps.propose-pr.outcome == 'failure'
+        shell: bash
+        run: |
+          if git ls-remote --exit-code --heads origin deps/renew-mygo >/dev/null 2>&1; then
+            echo "::warning::GitHub Actions cannot open PRs here. Verified MyGo module changes are available on deps/renew-mygo."
+            {
+              echo "### Manual dependency PR required"
+              echo ""
+              echo "The tested version and checksum files were pushed, but GitHub Actions"
+              echo "is not allowed to create pull requests in this repository."
+              echo ""
+              echo "Open a PR from [deps/renew-mygo](https://github.com/${{ github.repository }}/compare/master...deps/renew-mygo?expand=1),"
+              echo "review release notes, and require the normal Renew desktop CI before merging."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::Dependency proposal failed before creating a reviewable branch."
+            exit 1
+          fi
