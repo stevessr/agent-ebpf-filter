@@ -684,7 +684,15 @@ func (a *renewApp) systemView(c *ui.Context) {
 		ui.Text(c, a.backend).Font("monospace")
 		ui.Textf(c, "后端队列：%d", a.health.BackendQueueLen).TextColor(t.TextMuted)
 		ui.Textf(c, "持久化队列：%d / %d · pending %d", a.health.PersistQueueLen, a.health.PersistQueueCap, a.health.PersistPending).TextColor(t.TextMuted)
-		ui.Textf(c, "桌面事件合并队列：%d / %d · 丢弃 %d", len(a.eventUIQueue), eventUIQueueSize, a.eventUIDroppedCount()).TextColor(t.TextMuted)
+		ui.Textf(c, "桌面事件通道：%d / %d · 本地批次 %d / %d (峰值 %d)",
+			len(a.eventUIQueue), eventUIQueueSize, a.eventUIBatchBuffered.Load(),
+			eventUIPauseCapacity, a.eventUIBatchPeak.Load()).TextColor(t.TextMuted)
+		ui.Textf(c, "桌面摘要丢弃：通道溢出 %d · 批次淘汰 %d · 合计 %d",
+			a.eventUIQueueDropped.Load(), a.eventUIBatchDropped.Load(),
+			a.eventUIDroppedCount()).TextColor(t.TextMuted)
+		ui.Textf(c, "桌面提交：%d 批 / %d 条 · 最近 %d 条 · 界面繁忙延后 %d 次",
+			a.eventUICommits.Load(), a.eventUICommitted.Load(),
+			a.eventUILastCommit.Load(), a.eventUIBusyTicks.Load()).TextColor(t.TextMuted)
 		if !a.lastSync.IsZero() {
 			ui.Text(c, "摘要同步："+a.lastSync.Format("15:04:05")).FontSize(10).TextColor(t.TextMuted)
 		}
