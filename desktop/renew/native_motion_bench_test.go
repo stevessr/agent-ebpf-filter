@@ -22,11 +22,13 @@ func BenchmarkRenewNativeFrame(b *testing.B) {
 		events  int
 		refresh bool
 		reverse bool
+		held    bool
 	}{
-		{"overview-quiet", "概览", 0, false, false},
-		{"events-1200-steady", "事件", 1200, false, false},
-		{"events-1200-refresh", "事件", 1200, true, false},
-		{"events-1200-nav-reverse-warm", "事件", 1200, false, true},
+		{"overview-quiet", "概览", 0, false, false, false},
+		{"events-1200-steady", "事件", 1200, false, false, false},
+		{"events-1200-refresh", "事件", 1200, true, false, false},
+		{"events-1200-nav-reverse-warm", "事件", 1200, false, true, false},
+		{"events-1200-nav-two-changes", "事件", 1200, false, false, true},
 	} {
 		b.Run(tc.name, func(b *testing.B) {
 			a := newRenewApp("http://127.0.0.1:8080")
@@ -74,6 +76,11 @@ func BenchmarkRenewNativeFrame(b *testing.B) {
 				if tc.reverse {
 					// Force a reversal every frame to measure the hot
 					// interaction path, not just the first opening.
+					a.navigationOpen = !a.navigationOpen
+				}
+				if tc.held && (i == 0 || i == b.N/2) {
+					// Realistic interaction: navigate twice, let the
+					// surrounding frames settle with constant layout.
 					a.navigationOpen = !a.navigationOpen
 				}
 				view.Frame()
