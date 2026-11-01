@@ -109,9 +109,6 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 	if !a.eventUIBatcherStarted.CompareAndSwap(false, true) {
 		return
 	}
-	if a.eventUIQueue == nil {
-		a.eventUIQueue = make(chan eventSummary, eventUIQueueSize)
-	}
 	go func() {
 		defer a.eventUIBatcherStarted.Store(false)
 		ticker := time.NewTicker(eventUIFlushInterval)
@@ -143,7 +140,9 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 			batch, dropped = appendBoundedEventBatch(batch, e, capacity, &overwriteAt)
 			if dropped {
 				a.eventUIDropped.Add(1)
+				a.eventUIBatchDropped.Add(1)
 			}
+			a.updateEventUIBatchPressure(len(batch))
 		}
 
 		flush := func(final bool) {
@@ -151,6 +150,7 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 				return
 			}
 			if !a.eventUICommitPending.CompareAndSwap(false, true) {
+				a.eventUIBusyTicks.Add(1)
 				return
 			}
 			// Keep normal <=512-record commits zero-copy. On resume, split
@@ -166,11 +166,15 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 				batch = nextBatch()
 			}
 			overwriteAt = 0
+			a.eventUIBatchBuffered.Store(int64(len(batch)))
 			a.update(func() {
 				defer a.eventUICommitPending.Store(false)
 				if a.mergeEventWindow(pending, 1200) {
 					a.lastSync = time.Now()
 				}
+				a.eventUICommits.Add(1)
+				a.eventUICommitted.Add(uint64(len(pending)))
+				a.eventUILastCommit.Store(int64(len(pending)))
 				recycleBatch(pending)
 			})
 		}
@@ -198,24 +202,49 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 	}()
 }
 
+// queueEventSummary never blocks the native IPC reader on a full UI queue.
+// The producer mutex makes discard-oldest + enqueue linearizable among all
+// producers; without this a competing producer can steal the freed slot,
+// causing the incoming event to be discarded without being counted.
 func (a *renewApp) queueEventSummary(e eventSummary) {
-	if a.eventUIQueue == nil {
+	a.eventUIQueueMu.Lock()
+	defer a.eventUIQueueMu.Unlock()
+	queue := a.eventUIQueue
+	if queue == nil {
 		return
 	}
 	select {
-	case a.eventUIQueue <- e:
+	case queue <- e:
+		return
 	default:
-		// Never let rendering backpressure stall the native IPC reader. Drop
-		// the oldest queued summary and keep the most recent activity visible.
-		select {
-		case <-a.eventUIQueue:
-		default:
-		}
-		select {
-		case a.eventUIQueue <- e:
-		default:
-		}
+	}
+	// The queue was full at the first attempt. A consumer may have
+	// drained it in the meantime; only count a real discarded record.
+	select {
+	case <-queue:
 		a.eventUIDropped.Add(1)
+		a.eventUIQueueDropped.Add(1)
+	default:
+	}
+	select {
+	case queue <- e:
+		return
+	default:
+		// Defensive fallback: if external code ever sends directly to the
+		// channel, account for this undelivered event as well.
+		a.eventUIDropped.Add(1)
+		a.eventUIQueueDropped.Add(1)
+	}
+}
+
+// Read-only native diagnostic counters, safe across the IPC/GUI goroutines.
+func (a *renewApp) updateEventUIBatchPressure(n int) {
+	current := int64(n)
+	a.eventUIBatchBuffered.Store(current)
+	for peak := a.eventUIBatchPeak.Load(); current > peak; peak = a.eventUIBatchPeak.Load() {
+		if a.eventUIBatchPeak.CompareAndSwap(peak, current) {
+			break
+		}
 	}
 }
 
