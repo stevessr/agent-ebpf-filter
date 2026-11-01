@@ -125,3 +125,74 @@ func TestEventMergeComputesSearchTextFromLatestRevision(t *testing.T) {
 		}
 	}
 }
+
+func TestTakeOldestEventUIBatchPreservesBacklogAndIndependentStorage(t *testing.T) {
+	var batch []eventSummary
+	var stream []eventSummary
+	at := 0
+	// Force a wrapped 1200-event backlog, including repeat IDs in the
+	// portion crossing the circular-buffer boundary.
+	for i := 0; i < 1500; i++ {
+		e := eventSummary{
+			EventID: strconv.Itoa(i % 1150),
+			RiskScore: float64(i),
+			Target: "/tmp/event-" + strconv.Itoa(i),
+		}
+		stream = append(stream, e)
+		batch, _ = appendBoundedEventBatch(batch, e, 1200, &at)
+	}
+	want := stream[len(stream)-1200:]
+	first, pending := takeOldestEventUIBatch(batch, at, 512, nil)
+	if len(first) != 512 || len(pending) != 688 {
+		t.Fatalf("split size=%d+%d, want 512+688", len(first), len(pending))
+	}
+	if !reflect.DeepEqual(first, want[:512]) || !reflect.DeepEqual(pending, want[512:]) {
+		t.Fatal("first recovery split failed to restore chronology")
+	}
+	firstSnapshot := append([]eventSummary(nil), first...)
+	// Continue receiving live events while the previous 512 summaries are
+	// owned by the (potentially asynchronous) UI commit callback.
+	for i := 1500; i < 1510; i++ {
+		e := eventSummary{EventID: strconv.Itoa(i), RiskScore: float64(i)}
+		pending, _ = appendBoundedEventBatch(pending, e, 1200, new(int))
+		want = append(want, e)
+	}
+	if !reflect.DeepEqual(first, firstSnapshot) {
+		t.Fatal("new arrivals overwrote the in-flight UI commit buffer")
+	}
+	second, pending := takeOldestEventUIBatch(pending, 0, 512, nil)
+	if !reflect.DeepEqual(second, want[512:1024]) || len(pending) != 186 {
+		t.Fatal("second recovery chunk lost order or events")
+	}
+	third, tail := takeOldestEventUIBatch(pending, 0, 512, nil)
+	if tail != nil || !reflect.DeepEqual(third, want[1024:]) {
+		t.Fatal("third recovery chunk lost residual events")
+	}
+	got := append(append(append([]eventSummary(nil), first...), second...), third...)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatal("recovered stream differs from newest retained chronological stream")
+	}
+}
+
+func TestTakeOldestEventUIBatchFastPathAndReferenceClearing(t *testing.T) {
+	batch := []eventSummary{
+		{EventID: "old", Target: "/tmp/old"},
+		{EventID: "middle", Target: "/tmp/middle"},
+		{EventID: "new", Target: "/tmp/new"},
+	}
+	ready, rest := takeOldestEventUIBatch(batch, 0, 512, nil)
+	if rest != nil || &ready[0] != &batch[0] {
+		t.Fatal("small batches must use the existing zero-copy commit path")
+	}
+	big := make([]eventSummary, 5, 8)
+	for i := range big {
+		big[i] = eventSummary{EventID: strconv.Itoa(i), Target: "target-" + strconv.Itoa(i)}
+	}
+	first, rest := takeOldestEventUIBatch(big, 0, 2, nil)
+	if len(first) != 2 || len(rest) != 3 {
+		t.Fatalf("split sizes %d, %d", len(first), len(rest))
+	}
+	if big[3].Target != "" || big[4].Target != "" {
+		t.Fatal("compacted backing buffer retains references to transferred rows")
+	}
+}
