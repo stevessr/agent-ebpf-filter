@@ -58,6 +58,10 @@ jobs:
         run: go test ./...
       - name: Measure native CPU frame budgets (no timing threshold)
         run: go test -run=NONE -bench=BenchmarkRenewNativeFrame -benchtime=10x -benchmem -count=1 .
+      - name: Verify concurrent native event queue and pressure accounting
+        run: go test -race -run '^TestRenewEventUI(Queue|Batch)' -count=1 .
+      - name: Benchmark bounded UI queue and batch overflow
+        run: go test -run=NONE -bench='BenchmarkRenewEventUI(Queue|Batch)Overflow' -benchtime=20000x -benchmem -count=1 .
       - name: Measure backlog recovery P95/P99 CPU frame tails
         run: go test -run=NONE -bench=BenchmarkRenewBacklogRecoveryTail -benchtime=256x -benchmem -count=1 .
       - name: Measure sustained native event stream CPU, memory and GC
