@@ -58,6 +58,8 @@ jobs:
         run: go test ./...
       - name: Measure native CPU frame budgets (no timing threshold)
         run: go test -run=NONE -bench=BenchmarkRenewNativeFrame -benchtime=10x -benchmem -count=1 .
+      - name: Measure event filter computation (no timing threshold)
+        run: go test -run=NONE -bench=BenchmarkRenewEventFilterCompute -benchtime=100x -benchmem -count=1 .
       - name: Profile hot native sidebar CPU and allocations
         run: |
           go test -run=NONE -bench=BenchmarkRenewNativeFrame/events-1200-nav-two-changes -benchtime=24x -cpuprofile="$RUNNER_TEMP/renew-navigation.cpu" -memprofile="$RUNNER_TEMP/renew-navigation.mem" .
