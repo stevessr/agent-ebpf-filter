@@ -137,6 +137,12 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 		overwriteAt := 0
 		appendLatest := func(e eventSummary, capacity int) {
 			if len(batch) < capacity {
+				// Paused mode can grow a previously wrapped live batch.
+				// Normalize its retained arrival order before appending.
+				if overwriteAt != 0 {
+					rotateEventBatchIntoArrivalOrder(batch, overwriteAt)
+					overwriteAt = 0
+				}
 				batch = append(batch, e)
 				return
 			}
@@ -154,6 +160,9 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 			if !a.eventUICommitPending.CompareAndSwap(false, true) {
 				return
 			}
+			// The storage is circular after overflow. Restore chronological
+			// order before deduplication so the newest same-ID revision wins.
+			rotateEventBatchIntoArrivalOrder(batch, overwriteAt)
 			pending := batch
 			batch = nextBatch()
 			overwriteAt = 0
