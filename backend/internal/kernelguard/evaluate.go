@@ -32,7 +32,14 @@ type HoldoutCounts struct {
 // a report for another model or data file from silently arming enforcement.
 func EvaluateCSVHoldout(path string, model Model) (HoldoutCounts, error) {
 	var result HoldoutCounts
-	data, err := os.ReadFile(path)
+	// Bound memory before CSV decoding: a supplied sparse or huge dataset must
+	// never be fully materialized by the privileged validation path.
+	f, err := os.Open(path)
+	if err != nil {
+		return result, err
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, (32<<20)+1))
 	if err != nil {
 		return result, err
 	}
