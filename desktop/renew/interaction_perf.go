@@ -25,7 +25,10 @@ func (a *renewApp) mergeEventWindow(incoming []eventSummary, limit int) bool {
 		}
 	}
 	a.events = next
-	if cap(old) > 0 {
+	// A pure limit-only truncation may return a slice of the active buffer.
+	// Never recycle that buffer as scratch; the next batch could overwrite
+	// live rows before the merge has finished reading them.
+	if cap(old) > 0 && (len(old) == 0 || len(next) == 0 || &old[0] != &next[0]) {
 		a.eventMergeScratch = old[:0]
 	} else {
 		a.eventMergeScratch = nil
