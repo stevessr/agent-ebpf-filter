@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { systemIsDark, watchSystemTheme } from "./composables/useSystemTheme";
+import { uiDesignTokens } from "./config/uiDesignTokens";
 import zhCN from "ant-design-vue/es/locale/zh_CN";
 import enUS from "ant-design-vue/es/locale/en_US";
 import {
@@ -36,18 +37,24 @@ watch(webLocale, async () => { await nextTick(); refreshLegacyUITranslations(); 
 onMounted(() => {
   stopSystemTheme = watchSystemTheme();
   stopLocalization = mountLegacyUITranslations();
+  window.addEventListener("keydown", onWorkbenchKeydown);
 });
-onUnmounted(() => { stopSystemTheme?.(); stopLocalization?.(); });
+onUnmounted(() => {
+  stopSystemTheme?.();
+  stopLocalization?.();
+  window.removeEventListener("keydown", onWorkbenchKeydown);
+});
 
 const antTheme = computed(() => ({
   algorithm: systemIsDark.value ? theme.darkAlgorithm : theme.defaultAlgorithm,
   token: {
-    colorPrimary: systemIsDark.value ? "#7b9fff" : "#2563eb",
-    colorBgBase: systemIsDark.value ? "#111318" : "#f8fafc",
-    colorBgContainer: systemIsDark.value ? "#191c22" : "#ffffff",
-    colorBorder: systemIsDark.value ? "#2b303b" : "#d9e2ef",
-    borderRadius: 4,
-    fontSize: 13,
+    colorPrimary: systemIsDark.value ? uiDesignTokens.dark.accent : uiDesignTokens.light.accent,
+    colorBgBase: systemIsDark.value ? uiDesignTokens.dark.canvas : uiDesignTokens.light.canvas,
+    colorBgContainer: systemIsDark.value ? uiDesignTokens.dark.surface : uiDesignTokens.light.surface,
+    colorBorder: systemIsDark.value ? uiDesignTokens.dark.border : uiDesignTokens.light.border,
+    colorText: systemIsDark.value ? uiDesignTokens.dark.text : uiDesignTokens.light.text,
+    borderRadius: uiDesignTokens.radius,
+    fontSize: uiDesignTokens.fontSize,
   },
 }));
 const {
@@ -68,6 +75,7 @@ const {
   reset,
 } = useDockWorkbench();
 const sidebar = ref(true),
+  searchInput = ref<HTMLInputElement | null>(null),
   query = ref(""),
   activeGroup = ref("observability");
 const navGroups = computed(() =>
@@ -88,6 +96,15 @@ const activeTitle = computed(
     activePane.value?.tabs.find((t) => t.id === activePane.value?.active)
       ?.title || "工作空间",
 );
+function onWorkbenchKeydown(event: KeyboardEvent) {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+    event.preventDefault();
+    searchInput.value?.focus();
+    searchInput.value?.select();
+  } else if (event.key === "Escape" && sidebar.value && window.matchMedia("(max-width: 720px)").matches) {
+    sidebar.value = false;
+  }
+}
 function activity(key: string) {
   if (activeGroup.value === key) sidebar.value = !sidebar.value;
   else {
@@ -112,10 +129,12 @@ function resetLayout() {
         ><span class="ide-title-caption">Observability Studio</span>
         <label class="ide-command"
           ><SearchOutlined /><input
+            ref="searchInput"
+            type="search"
             v-model="query"
             aria-label="搜索工作台功能"
             :placeholder="tr('搜索功能 / 工作空间')"
-          /><kbd>IDE</kbd></label
+          /><kbd>Ctrl K</kbd></label
         >
         <label class="ide-locale-picker" for="webui-language">{{ tr('语言') }} 
           <select id="webui-language" v-model="localeChoice" data-testid="locale-switch" aria-label="Language / 语言">
@@ -126,6 +145,8 @@ function resetLayout() {
         <button
           title="显示 / 隐藏导航"
           aria-label="显示 / 隐藏导航"
+          aria-controls="ide-sidebar"
+          :aria-expanded="sidebar"
           @click="sidebar = !sidebar"
         >
           <MenuOutlined />
@@ -135,6 +156,7 @@ function resetLayout() {
         </button>
       </header>
       <div class="ide-body">
+        <button v-if="sidebar" class="ide-sidebar-scrim" type="button" :aria-label="tr('关闭导航')" @click="sidebar = false" />
         <nav class="ide-activity" aria-label="活动栏">
           <button
             v-for="g in NAV_GROUPS"
@@ -155,7 +177,7 @@ function resetLayout() {
             <SettingOutlined />
           </button>
         </nav>
-        <aside v-if="sidebar" class="ide-sidebar">
+        <aside v-if="sidebar" id="ide-sidebar" class="ide-sidebar">
           <div class="ide-sidebar-heading">
             {{ tr("工作空间") }} <span>AGENT / LOCAL</span>
           </div>

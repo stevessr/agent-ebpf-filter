@@ -1,17 +1,24 @@
 /* Shared colors for legacy metric cards and inline Vue template styles. */
 :root {
+  --ui-canvas: #f8fafc;
+  --ui-accent: #2563eb;
+  --ui-focus: #2563eb;
+  --ui-radius: 8px;
   --ui-surface: #ffffff;
   --ui-surface-muted: #fafafa;
   --ui-surface-soft: #f8fafc;
   --ui-text-strong: #1f2937;
   --ui-text-secondary: #475569;
   --ui-text-muted: #64748b;
-  --ui-border: #e5e7eb;
+  --ui-border: #d8e2f0;
   --ui-primary-soft: #f0f7ff;
   --ui-success-soft: #f6ffed;
   --ui-danger-soft: #fff2f0;
 }
 :root[data-theme="dark"] {
+  --ui-canvas: #111318;
+  --ui-accent: #7b9fff;
+  --ui-focus: #7b9fff;
   --ui-surface: #191c22;
   --ui-surface-muted: #212834;
   --ui-surface-soft: #232c3b;
@@ -86,4 +93,10 @@ code {
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+}
+
+/* Keyboard focus must remain visible in light, dark, and high-contrast UI. */
+:where(button, a, input, select, textarea, summary, [role="button"]):focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
 }
