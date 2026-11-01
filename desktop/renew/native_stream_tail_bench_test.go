@@ -61,11 +61,13 @@ func TestBenchmarkNearestRankNs(t *testing.T) {
 // an actual event ticker, kernel capture, or GPU compositor latency.
 func BenchmarkRenewBacklogRecoveryTail(b *testing.B) {
 	for _, tc := range []struct {
-		name    string
-		bounded bool
+		name      string
+		maxCommit int
 	}{
-		{"legacy-single-1200", false},
-		{"bounded-512-per-frame", true},
+		{"legacy-single-1200", 0},
+		{"bounded-512-per-frame", 512},
+		{"bounded-640-per-frame", 640},
+		{"bounded-768-per-frame", 768},
 	} {
 		b.Run(tc.name, func(b *testing.B) {
 			a := newRenewApp("http://127.0.0.1:8080")
@@ -100,7 +102,7 @@ func BenchmarkRenewBacklogRecoveryTail(b *testing.B) {
 				view.Frame()
 			}
 			buffer := make([]eventSummary, 1200)
-			commitScratch := make([]eventSummary, 0, eventUIFrameCapacity)
+			commitScratch := make([]eventSummary, 0, 768)
 			peak := make([]int64, b.N)
 			frameSamples := make([]int64, 0, b.N*3)
 			runtime.GC()
@@ -110,16 +112,16 @@ func BenchmarkRenewBacklogRecoveryTail(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				var pending []eventSummary
-				if tc.bounded {
+				if tc.maxCommit > 0 {
 					copy(buffer, backlog)
 					pending = buffer
 				}
 				for frame := 0; frame < 3; frame++ {
 					start := time.Now()
-					if tc.bounded {
+					if tc.maxCommit > 0 {
 						if len(pending) != 0 {
 							var chunk []eventSummary
-							chunk, pending = takeOldestEventUIBatch(pending, 0, eventUIFrameCapacity, commitScratch)
+							chunk, pending = takeOldestEventUIBatch(pending, 0, tc.maxCommit, commitScratch)
 							a.mergeEventWindow(chunk, 1200)
 						}
 					} else if frame == 0 {
