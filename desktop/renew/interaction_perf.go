@@ -143,7 +143,7 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 			}
 		}
 
-		flush := func() {
+		flush := func(final bool) {
 			if len(batch) == 0 || a.eventUIPaused.Load() {
 				return
 			}
@@ -155,7 +155,7 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 			// summaries first; they are still needed for last-ID-wins
 			// ordering within each batch and the visible event timeline.
 			var pending []eventSummary
-			if len(batch) > eventUIFrameCapacity {
+			if len(batch) > eventUIFrameCapacity && !final {
 				pending, batch = takeOldestEventUIBatch(batch, overwriteAt,
 					eventUIFrameCapacity, nextBatch())
 			} else {
@@ -176,7 +176,9 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 		for {
 			select {
 			case <-ctx.Done():
-				flush()
+				// No following timer tick is guaranteed after shutdown;
+				// commit the full final retained batch if one can be queued.
+				flush(true)
 				return
 			case e := <-a.eventUIQueue:
 				capacity := eventUIFrameCapacity
@@ -188,7 +190,7 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 				// The ticker is the only normal flush point. Event floods can
 				// fill/overwrite the bounded frame batch, but never schedule
 				// multiple Window.Update callbacks inside one frame interval.
-				flush()
+				flush(false)
 			}
 		}
 	}()
