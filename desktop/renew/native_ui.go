@@ -63,9 +63,10 @@ type renewApp struct {
 	detachedPageID    string
 	// True only when the main window was hidden to keep detached windows alive.
 	hiddenForDetached  bool
-	navigationOpen     bool
-	navigationDetailed bool
-	inspectorOpen      bool
+	navigationOpen          bool
+	navigationDetailed      bool
+	navigationReservedWidth float32
+	inspectorOpen           bool
 	materialEnabled    bool
 	tray               *mygo.Tray
 	trayAvailable      bool
