@@ -158,7 +158,7 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 	// Animate actual widths, not a percentage, so resizing and switching
 	// label density use the same inspector layout calculation.
 	navTarget, navDetailed := workspaceResponsiveNavigationWidth(width, a.navigationOpen, a.navigationDetailed)
-	navWidth := shell.Animate("renew-navigation", navTarget, 180*time.Millisecond)
+	navWidth := shell.AnimateTo("renew-navigation", navTarget, renewNavigationMotion())
 	shell.Children(func() {
 		a.activityRail(c, width)
 		if navWidth > 0 {
@@ -197,11 +197,7 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 								if a.connected && a.healthReady && !a.health.CaptureHealthy && a.page != "概览" && a.page != "系统" {
 									a.captureWarning(c)
 								}
-								ui.Column(c).Key("page-" + a.page).Gap(16).Transition(ui.ElementTransition{
-									Duration: 180 * time.Millisecond,
-									Enter:    &ui.Motion{Y: 8},
-									Exit:     &ui.Motion{Y: -6},
-								}).Children(func() { a.workspacePage(c) })
+								ui.Column(c).Key("page-" + a.page).Gap(16).Transition(renewPageTransition()).Children(func() { a.workspacePage(c) })
 							}
 						})
 					})
@@ -310,7 +306,7 @@ func (a *renewApp) activityRail(c *ui.Context, windowWidth float32) {
 				Width(40).Height(40).Padding(0).Radius(11).
 				AlignItems(ui.Center).Justify(ui.Center).
 				Label(name).Tooltip(name).
-				Transition(ui.ElementTransition{Duration: 150 * time.Millisecond, Colors: true})
+				Transition(renewRailColorTransition())
 			switch {
 			case active:
 				button.Background(t.Accent.Alpha(0.17)).TextColor(t.Accent)
@@ -362,6 +358,7 @@ func (a *renewApp) sidebar(c *ui.Context, detailed bool) {
 	var selectedItem ui.Element
 	navItem := func(page string) ui.Element {
 		item := ui.SidebarItem(c, page, workspaceNavigationIcon(page), label(page))
+		item.Transition(renewRailColorTransition())
 		if a.page == page {
 			selectedItem = item
 		}
