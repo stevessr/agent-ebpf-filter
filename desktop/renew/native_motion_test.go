@@ -14,6 +14,11 @@ func TestRenewMotionPresetsStayShortAndNonBouncy(t *testing.T) {
 		nav.Spring.Duration > 350*time.Millisecond {
 		t.Fatalf("sidebar spring must settle quickly without overshooting: %+v", nav)
 	}
+	if content := renewWorkspaceContentTransition(); !content.Position ||
+		content.Size || content.Colors || content.Enter != nil || content.Exit != nil ||
+		content.Duration > 220*time.Millisecond {
+		t.Fatalf("native workspace should animate only painted position, not the table size: %+v", content)
+	}
 	if rail := renewRailColorTransition(); !rail.Colors ||
 		rail.Duration > 200*time.Millisecond || rail.Enter != nil || rail.Exit != nil {
 		t.Fatalf("navigation hover must animate color, not layout: %+v", rail)
@@ -144,3 +149,37 @@ func TestWorkspaceMotionReleasesSidebarImmediatelyInNarrowWindow(t *testing.T) {
 	}
 }
 
+
+func TestWorkspaceNavigationReservationAvoidsRepeatedTableReflow(t *testing.T) {
+	// An expanding sidebar reserves the full destination once; a collapsing
+	// one releases it only when the native spring has finished.
+	reservation := float32(0)
+	for i, visible := range []float32{0, 34, 88, 137, 180, 198} {
+		reservation = workspaceReservedNavigationWidth(reservation, visible, 198, i == 5)
+		if reservation != 198 {
+			t.Fatalf("expand frame %d reflowed main table to %.0f instead of 198", i, reservation)
+		}
+	}
+	for i, visible := range []float32{198, 181, 140, 76, 9} {
+		reservation = workspaceReservedNavigationWidth(reservation, visible, 0, false)
+		if reservation != 198 {
+			t.Fatalf("collapse frame %d should keep table size fixed, reservation=%.0f", i, reservation)
+		}
+	}
+	reservation = workspaceReservedNavigationWidth(reservation, 0, 0, true)
+	if reservation != 0 {
+		t.Fatalf("closed sidebar must release all width once, reservation=%.0f", reservation)
+	}
+	reservation = workspaceReservedNavigationWidth(reservation, 0, 302, false)
+	if reservation != 302 {
+		t.Fatalf("detailed sidebar must reserve space before motion, got %.0f", reservation)
+	}
+	reservation = workspaceReservedNavigationWidth(reservation, 160, 0, false)
+	if reservation != 302 {
+		t.Fatalf("reversing an unfinished spring must not repeatedly resize center: %.0f", reservation)
+	}
+	reservation = workspaceReservedNavigationWidth(reservation, 0, 0, true)
+	if reservation != 0 {
+		t.Fatal("reversed sidebar must eventually release its reservation")
+	}
+}
