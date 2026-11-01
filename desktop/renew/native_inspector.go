@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strconv"
+	"time"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -179,7 +180,13 @@ func (a *renewApp) inspector(c *ui.Context) {
 	if a.page == "研判" {
 		width = 560
 	}
-	panel := ui.Column(c).Width(width).Shrink(0).Background(t.Surface).Border(1, t.Border)
+	panel := ui.Column(c).Key("renew-inspector-pane").Width(width).Shrink(0).
+		Background(t.Surface).Border(1, t.Border).
+		Transition(ui.ElementTransition{
+			Duration: 180 * time.Millisecond,
+			Enter:    &ui.Motion{X: 16},
+			Exit:     &ui.Motion{X: 12},
+		})
 	if a.page == "研判" {
 		panel.Height(690)
 	}

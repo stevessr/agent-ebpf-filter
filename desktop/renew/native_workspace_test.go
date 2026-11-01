@@ -679,3 +679,36 @@ func TestWorkspaceFooterNeverMasksCollectorFailureWithRealtimeOrPause(t *testing
 		t.Fatalf("backend outage must be prominent: %q/%q", got, level)
 	}
 }
+
+func TestNativeMotionPreservesInspectorAndRailInteractions(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.starting = false
+	a.page = "事件"
+	view := ui.NewTester(a.view, 1480, 860)
+	// Visual motion must not be required for usability or state changes.
+	view.SetPreferences(ui.Preferences{ReduceMotion: true, TextScale: 1})
+	if _, ok := view.Find("事件研判"); !ok {
+		t.Fatal("inspector should be present in a wide workspace")
+	}
+	if err := view.Click("收起研判栏"); err != nil {
+		t.Fatal(err)
+	}
+	if a.inspectorOpen {
+		t.Fatal("inspector must close even with reduced motion")
+	}
+	if err := view.Click("打开研判栏"); err != nil {
+		t.Fatal(err)
+	}
+	if !a.inspectorOpen {
+		t.Fatal("inspector must reopen even with reduced motion")
+	}
+	if _, ok := view.Find("事件研判"); !ok {
+		t.Fatal("reopened inspector should be available to accessibility lookup")
+	}
+	if err := view.Click("进程活动与资源监测"); err != nil {
+		t.Fatal(err)
+	}
+	if a.page != "进程" {
+		t.Fatalf("native activity rail should still navigate: %q", a.page)
+	}
+}
