@@ -109,6 +109,40 @@ func TestEventFilterCheapPredicatesPreserveCombinedMatches(t *testing.T) {
 	}
 }
 
+func TestEventFilterAllocationMatchesSelectivity(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.events = make([]eventSummary, 1200)
+	for i := range a.events {
+		a.events[i] = eventSummary{
+			EventID: strconv.Itoa(i + 1),
+			PID: 1000 + i,
+			Type: "file_write",
+			Comm: "codex",
+			SearchText: "codex file_write",
+		}
+	}
+	a.search = "unmatched_token"
+	if got := a.filteredEvents(); got != nil {
+		t.Fatalf("unmatched full-text search should allocate no result slice, len=%d cap=%d", len(got), cap(got))
+	}
+	a.search = "codex"
+	a.eventPIDFilter = 1777
+	if got := a.filteredEvents(); len(got) != 1 || cap(got) > 32 {
+		t.Fatalf("one PID must not allocate hundreds of summary rows, len=%d cap=%d", len(got), cap(got))
+	}
+	// After the next IPC batch, reuse the previous match-count hint.
+	a.eventPIDFilter = 0
+	all := a.filteredEvents()
+	if len(all) != 1200 {
+		t.Fatalf("broad query lost rows: %d", len(all))
+	}
+	a.eventsVersion++
+	all = a.filteredEvents()
+	if len(all) != 1200 || cap(all) != 1200 {
+		t.Fatalf("same broad query should allocate an exact-size result on the next batch, len=%d cap=%d", len(all), cap(all))
+	}
+}
+
 func BenchmarkRenewEventFilterCompute(b *testing.B) {
 	for _, tc := range []struct {
 		name       string
@@ -118,6 +152,7 @@ func BenchmarkRenewEventFilterCompute(b *testing.B) {
 	}{
 		{"hot-cache", "codex", 0, true},
 		{"search-on-refresh", "codex", 0, false},
+		{"no-match-on-refresh", "no_such_token", 0, false},
 		{"pid-then-search-on-refresh", "codex", 1777, false},
 		{"pid-then-uncached-search", "codex", 1777, false},
 	} {
