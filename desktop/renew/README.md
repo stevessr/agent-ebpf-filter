@@ -6,6 +6,12 @@
 
 明镜高悬是 Agent eBPF Filter 的原生桌面监控应用。界面完全使用 Go 和 MyGo `ui` 组件绘制，不依赖 WebView、Vite、HTML、JavaScript 或 Vue Renew 前端运行时。
 
+## Agent 归属索引与交互性能
+
+原生事件页、研判详情和事件关联导航共享同一个按 `eventsVersion` 失效的 Agent 根进程归属索引。原实现会为每个可见事件行重复遍历 1200 条摘要、重建映射，造成大量短命分配和 GC，侧栏展开时的全窗口重布局使开销更明显。现在只在有新事件版本、摘要窗口数量或首尾事件 ID 变动时重建一次；不借用实时进程快照替代历史事件证据，保留 AgentRunID、事件时序和 PID 复用约束。
+
+`native_ownership_cache_test.go` 覆盖缓存复用与零分配查询、版本失效、脱机窗口替换、进程 PID 重用防误归属。CI 的原生帧基准同时保留 CPU/内存热点统计，性能百分比只是理论帧预算参考，不等于真实 Wayland/niri 或 GPU FPS。
+
 ## 原生交互动效
 
 Renew 的轻量动效统一由 `native_motion.go` 配置，使用 MyGo v0.7.3 的原生动画而非 CSS/WebView：
