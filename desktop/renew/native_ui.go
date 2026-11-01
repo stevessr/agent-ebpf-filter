@@ -86,7 +86,7 @@ type renewApp struct {
 	eventUICommitPending  eventCommitFlag
 	filterCacheValid      bool
 	filterCacheVersion    uint64
-	filterCacheKey        string
+	filterCacheKey        eventFilterSignature
 	filterCacheRows       []eventSummary
 	riskCacheValid        bool
 	riskCacheVersion      uint64
@@ -112,11 +112,11 @@ type renewApp struct {
 	personalAlertCacheHidden        int
 	networkCacheValid               bool
 	networkCacheVersion             uint64
-	networkCacheKey                 string
+	networkCacheKey                 eventFilterSignature
 	networkCacheRows                []networkAggregate
 	processCacheValid               bool
 	processCacheVersion             uint64
-	processCacheKey                 string
+	processCacheKey                 eventFilterSignature
 	processCacheRows                []processAggregate
 	domainCacheValid                bool
 	domainCacheVersion              uint64
@@ -611,18 +611,42 @@ func (a *renewApp) errorView(c *ui.Context) {
 	})
 }
 
-func (a *renewApp) eventFilterCacheKey() string {
-	q := strings.ToLower(strings.TrimSpace(a.search))
-	key := q + "\x00" + a.eventTypeFilter + "\x00" + a.eventSessionFilter + "\x00" + a.eventDecisionFilter + "\x00" + fmt.Sprint(a.eventPIDFilter) + "\x00" + fmt.Sprint(a.eventRootPIDFilter) + "\x00" + a.eventTargetFilter + "\x00" + a.eventDomainAgent + "\x00" + a.eventDomainTarget + "\x00" + a.eventDomainKind + "\x00" + fmt.Sprint(a.eventFileEditsOnly) + "\x00" + fmt.Sprint(a.eventDelegatedOnly) + "\x00" + a.eventRiskFilter + "\x00" + fmt.Sprint(a.eventMinRiskScore) + "\x00" + a.managementEventFilter
-	if a.eventAttentionOnly {
-		key += "\x001"
+// A comparable signature avoids rebuilding a concatenated string (and
+// formatting numbers with fmt.Sprint) for every native animation frame.
+// Strings in the signature are immutable filter values, not event payloads.
+type eventFilterSignature struct {
+	search, eventType, session, decision, target string
+	domainAgent, domainTarget, domainKind string
+	risk, management string
+	pid, rootPID int
+	minRisk float64
+	fileEditsOnly, delegatedOnly, attentionOnly bool
+}
+
+func (a *renewApp) eventFilterCacheKey() eventFilterSignature {
+	return eventFilterSignature{
+		search: strings.ToLower(strings.TrimSpace(a.search)),
+		eventType: a.eventTypeFilter,
+		session: a.eventSessionFilter,
+		decision: a.eventDecisionFilter,
+		target: a.eventTargetFilter,
+		domainAgent: a.eventDomainAgent,
+		domainTarget: a.eventDomainTarget,
+		domainKind: a.eventDomainKind,
+		risk: a.eventRiskFilter,
+		management: a.managementEventFilter,
+		pid: a.eventPIDFilter,
+		rootPID: a.eventRootPIDFilter,
+		minRisk: a.eventMinRiskScore,
+		fileEditsOnly: a.eventFileEditsOnly,
+		delegatedOnly: a.eventDelegatedOnly,
+		attentionOnly: a.eventAttentionOnly,
 	}
-	return key
 }
 
 func (a *renewApp) filteredEvents() []eventSummary {
-	q := strings.ToLower(strings.TrimSpace(a.search))
 	key := a.eventFilterCacheKey()
+	q := key.search
 	if a.filterCacheValid && a.filterCacheVersion == a.eventsVersion && a.filterCacheKey == key {
 		return a.filterCacheRows
 	}
