@@ -40,8 +40,9 @@ func pageHasInspector(page string) bool {
 }
 
 // Minimum usable center canvas when the 302-DIP investigator is visible.
-// Evaluate the current animated sidebar width, not only its target state,
-// to prevent the inspector from overlapping tables during the transition.
+// Evaluate the larger of the animated and target sidebar widths: when the
+// user opens the sidebar, reserve space before the animation starts; when
+// closing it, release space only when the animated width actually shrinks.
 func showWorkspaceInspector(windowWidth, navigationWidth float32, expanded bool, page string) bool {
 	const activityRailWidth = 54
 	const inspectorWidth = 302
@@ -49,6 +50,15 @@ func showWorkspaceInspector(windowWidth, navigationWidth float32, expanded bool,
 	return expanded && pageHasInspector(page) &&
 		windowWidth-activityRailWidth-navigationWidth-inspectorWidth >= minimumCenterWidth
 }
+
+// Layout-sensitive controls must not switch between compact and expanded
+// arrangements on each intermediate spring frame. Max(current, target) is
+// conservative in both directions and prevents the inspector from briefly
+// occupying space that the opening sidebar is about to need.
+func workspaceMotionLayoutWidth(current, target float32) float32 {
+	return max(current, target)
+}
+
 
 const (
 	workspaceNavigationCompactWidth  float32 = 198
@@ -154,11 +164,19 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 	if !vibrant {
 		shell.Background(t.Background)
 	}
-	// MyGo 0.3 animations honor the OS reduced-motion setting.
-	// Animate actual widths, not a percentage, so resizing and switching
-	// label density use the same inspector layout calculation.
+	// MyGo v0.7.3 animations honor the OS reduced-motion setting.
+	// Below the compact threshold there is no room to animate a reserved
+	// sidebar: release it immediately rather than squeezing live event tables.
 	navTarget, navDetailed := workspaceResponsiveNavigationWidth(width, a.navigationOpen, a.navigationDetailed)
-	navWidth := shell.AnimateTo("renew-navigation", navTarget, renewNavigationMotion())
+	var navWidth float32
+	if workspaceUsesNavigationMenu(width) {
+		navWidth = shell.Jump("renew-navigation", 0)
+	} else {
+		navWidth = shell.AnimateTo("renew-navigation", navTarget, renewNavigationMotion())
+	}
+	// Only the painted sidebar width animates. Reflow-sensitive controls
+	// make one conservative decision per target change, not one per frame.
+	layoutNavWidth := workspaceMotionLayoutWidth(navWidth, navTarget)
 	shell.Children(func() {
 		a.activityRail(c, width)
 		if navWidth > 0 {
@@ -167,7 +185,7 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 			})
 		}
 		ui.Column(c).Key("workspace-content").Grow(1).MinWidth(0).Background(t.Background).Children(func() {
-			a.header(c, navWidth)
+			a.header(c, layoutNavWidth)
 			if a.page == "终端" {
 				// Real PTY bounds without a parent Scroll; also usable offline.
 				a.terminalView(c)
@@ -182,7 +200,11 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 						if width < 1200 {
 							pagePadding = 12
 						}
-						ui.Scroll(c).Grow(1).Padding(pagePadding).Gap(16).Children(func() {
+						// Keep each page's scroll state isolated from the next page.
+						// Switching from a deep event history to Overview must not
+						// jump the landing card out of view.
+						ui.Scroll(c.Key("renew-page-scroll-" + a.page)).
+							Grow(1).Padding(pagePadding).Gap(16).Children(func() {
 							switch {
 							case a.starting:
 								a.startingView(c)
@@ -201,7 +223,7 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 							}
 						})
 					})
-					if showWorkspaceInspector(width, navWidth, a.inspectorOpen, a.page) {
+					if showWorkspaceInspector(width, layoutNavWidth, a.inspectorOpen, a.page) {
 						a.inspector(c)
 					}
 				})

@@ -24,10 +24,12 @@ func renewRailColorTransition() ui.ElementTransition {
 }
 
 func renewPageTransition() ui.ElementTransition {
+	// Security evidence must not linger as an outgoing scene ghost after
+	// navigation. A small entrance keeps the change legible without retaining
+	// a costly copy of the old event table for the next 180 ms.
 	return ui.ElementTransition{
-		Duration: 180 * time.Millisecond,
-		Enter:    &ui.Motion{Y: 8},
-		Exit:     &ui.Motion{Y: -6},
+		Duration: 160 * time.Millisecond,
+		Enter:    &ui.Motion{Y: 6},
 	}
 }
 

@@ -11,12 +11,755 @@
 Renew 的轻量动效统一由 `native_motion.go` 配置，使用 MyGo v0.7.3 的原生动画而非 CSS/WebView：
 
 - 左侧导航宽度使用无回弹弹簧，快速反向点击仍连续过渡；快捷导航和侧栏选择仅做短暂颜色变化。
-- 页面切换与研判侧栏提供短距离进入/退出动效；研判的两个标签页只对新内容淡入，旧诊断内容不滞留。
+- 页面切换只对新页面淡入；不再保留已退出页面的 GPU/CPU 场景副本，避免事件表格切走后短暂残影。研判侧栏仍保留短距离过渡，两个标签页只淡入新内容。
+- 展开/收起侧栏时，顶栏控件和研判面板根据动画宽度与目标宽度中的较大者提前布局，避免临界窗口尺寸下逐帧跳位。窄于 900 DIP 的窗口即时释放侧栏空间；滚动容器按页面分配独立状态。
 - 首页采集状态卡只改变背景颜色，不平移动布局；初次出现的关注提示和加载反馈采用一次性轻量动效。
 - 动画标识只绑定稳定的页面、标签和控件，不绑定实时 EventID/事件数量；新增事件、采集快照和高频列表刷新不会重启动画。
 - 遵循系统“减少动态效果”和高对比度偏好；状态文字、`ALERT`/`BLOCK` 判定、焦点、快捷键、可点击区域和后端采集行为不随动画延迟。
 
 对应的原生回归测试在 `native_motion_test.go`；运行 `cd desktop/renew && go test ./... && go tool mygo vet .` 验证。
+
+**可重复性能基线**：在已准备好嵌入后端依赖的环境运行 `cd desktop/renew && go test -run '^
+
+## AgentSight 原生洞察（会话与 Token）
+
+MyGo 桌面工作区的 **监控工作台 → AgentSight 洞察** 提供独立的原生 Go 页面，窄窗口也可通过顶栏「前往页面」进入；「Agent 会话」页面有跳转入口。此功能不嵌入 WebView，也不启动第二个采集器。
+
+- 通过现有已认证的 `GET /api/v1/agentsight/report/usage?limit=2000` 读取保留事件中的用量证据。视图首次打开自动加载，停留期间按 15 秒最短间隔刷新，可手动刷新；网络请求最多等待 6 秒。
+- 以模型与 Agent 运行会话两种维度列出明确观测到的输入、输出、缓存读取与缓存创建 Token；显示用量覆盖的事件数、未归因事件数及上次成功同步时间。API 错误时保留并标注旧快照。
+- 点击会话行可调查原有事件页中匹配的 `agent_run_id`；只有 trace ID 的记录不假装与原有 PID 会话完全等价。「事件时间线」和「查看会话活动」直接进入既有监控页。
+- 复用后端认证、限量事件查询和脱敏结果；不启用 TLS 明文捕获，不读取 Agent 本地 session 原文，不估算缺失用量，也不自动写入内核阻断规则。
+- 非 AgentSight 构建或未授权时，页面显示接口错误与可排查说明；没有用量证据时显示「Token 使用量未知」，而不是报告 0 成本。
+
+本页是 AgentSight 风格的**现有事件元数据视图**，不是上游 SQLite recorder、`agentsight top`、`report token` 的完整实现。
+
+## 个人用户快速上手
+
+启动 Renew 后先在 **我的设备** 查看监控状态；只有采集健康、事件/系统流可用时，摘要中的“正常”才表示**当前已观测窗口**没有待关注事件，不能替代设备安全扫描。若出现 **优先核查**，先查看高风险事件再看普通告警，通过“定位”进入事件页核对真实的 `ALERT`、`BLOCK`、`DENY` 决策和执行证据。近期五条活动与优先核查互相独立，事件页的搜索和 PID 筛选不会令首页误显空白。
+
+- **优先核查** 将当前摘要内相同类型、进程、标签、目标、策略决策与风险等级的事件合并展示，并注明“同类活动 N 条”。点击“定位”仍进入真实事件记录，绝不会自动把告警等同于拦截成功。
+- 对“需关注”事件可使用 **本次收起同类提示**，收起状态仅在 Renew 此次运行期间保存在本机内存中，最多维护 64 个不同类别，旧类别会自动退出收起队列；点击 **恢复全部提示** 可立即撤销。**高风险事件不能收起**，升级至高风险的同类行为也会继续显示。收起不等于判定误报，不修改事件明细、风险总数、后端策略或防护机制。
+- 系统托盘提供概览、风险事件、Agent 域名、系统诊断和采集设置入口。系统级弹窗通知尚未实现，也不会在不支持状态通知的桌面环境中声称已发送通知。
+- **查看联网行为** 用于关联 Agent 域名和 IP-only 外联；**调整监控范围** 用于选择采集强度；**查看访问权限** 用于检查路径保护。进入页面本身不会修改策略。
+- **暂停事件** 仅暂停桌面展示与事件摘要合并：后台采集与策略继续运行，连接与采集器健康仍会每两秒刷新。恢复时再次同步事件。暂停期间可能因有界队列容量而丢失部分 UI 摘要，不能当作完整历史。
+- **事件页滑块**：使用 MyGo 原生 `ui.Slider` 设置本地最低风险分（0 不过滤），使用 `ui.StepSlider` 每次调整 50 条可见摘要；“展开更多”仍可突破默认的 500 条滑块范围。滑块只过滤/分页已加载摘要，不会改变 eBPF 采集范围、风险判定或阻断策略。
+- 断线、流回退、未完成初始化、采集链路异常均有独立的状态说明；新事件暂时不可验证时，不应因为首页没有新告警就认为设备安全。可以使用“重新连接”或“系统诊断”继续排查。
+
+## 日常安全软件：Agent 域名监控与托盘
+
+原生工作区新增 **Agent 域名监控**（左侧快捷栏/导航，首页一键进入）。它从后端既有的网络事件摘要提取 Host/SNI/Domain/DNS 线索与 IP-only 外联，基于采集到的 Agent root PID、run/会话上下文为 Codex、Claude Code、Gemini CLI 等 Agent 归属。子进程通过已记录的 root Agent 证据关联，**不会**将所有 shell / Node 访问自动认作某个 Agent。
+
+- 按 Agent、域名或 IP 搜索；仅看风险；单独显示或隐藏 IP-only 外联；按风险优先级、最后时间排序；统计分组的事件数、会话数、风险事件及摘要字节数。
+- 点选一条记录后，可跳到原生事件页查看**精确的 Agent+目标+域名/IP 类型关联结果**，并返回监控页。不会因为 URL 包含相似字符串就混淆两个域名。
+- 原生本地 IPC 在已有 `Target` 字段优先输出网络域名线索，不增加每事件的完整 payload；历史/远程 compact REST 摘要额外保留 `domain` 和 `netEndpoint`。
+- 可用系统托盘时，在顶栏开启 **关闭后驻留托盘**（默认为关闭，避免不支持托盘的桌面失去主窗口）。托盘提供概览、域名、风险事件、系统诊断、采集设置及明确退出入口；明确退出会按原来的生命周期结束仅由 Renew 启动的采集子进程。未安装状态通知宿主或托盘创建失败时保留正常退出行为。
+
+**证据和隐私边界：** 看板使用当前后端已加载的有界、上游脱敏的摘要，不代表完整网络流、每一次 HTTP/API 请求、Token 或费用。DNS 反向关联无法证明具体 HTTPS Host；DoH、ECH、缓存命中、未抓取的连接等可能导致只显示 IP。它不劫持流量、不新增 MITM/透明代理、不采集额外明文，也不会自动修改阻断规则。CC Switch 的逐请求用量账单基于自身代理接管/请求日志，并非 eBPF 连接摘要可以等价获得的数据。
+
+### Claude Code / Codex 配置解析（基于官方文档的本机只读审计）
+
+在 **Agent 域名监控 → Claude Code / Codex 配置识别** 中手动点击 **读取本机配置**，可选填指定会话工作目录的绝对路径。只读取配置文件，不连接 API、不探测域名、不执行 Hook/MCP/凭据命令、不修改内核策略。
+
+| Agent | 检查来源 | 官方语义与局限 |
+|---|---|---|
+| Claude Code | `$CLAUDE_CONFIG_DIR/settings.json`（默认 `~/.claude/settings.json`）；指定目录下的 `.claude/settings.json` 与 `.claude/settings.local.json` | 管理 > CLI > 本地 > 项目 > 用户；权限规则跨层合并，不能按普通标量取最高值 |
+| Claude Code MCP | 手动指定目录下的 `.mcp.json` | HTTP MCP 只展示主机名；stdio 命令不会被当成网址；为避免读取 OAuth 缓存**不读取** `~/.claude.json` |
+| Codex | `$CODEX_HOME/config.toml`（默认 `~/.codex/config.toml`），用户配置声明的 Profile 候选及独立 Profile 文件 | CLI > 受信任的多级项目配置 > 显式 Profile > 用户 > 系统 > 默认；**读取文件并不能获知真实 CLI --profile** |
+| Codex 项目覆盖 | 从被指定目录所在仓库根目录到该目录的各级 `.codex/config.toml`（若没有 `.git`，只读取指定目录） | **允许**模型、审批、沙箱、MCP 覆盖；**忽略**机器级 Provider、Profile 选择、鉴权、通知、遥测相关的项目字段。信任状态不明确时，只做假设受信任预览 |
+| 本机受管策略 | Linux 的 `/etc/codex/config.toml`、`/etc/codex/requirements.toml`、`/etc/claude-code/managed-settings.json`、`managed-settings.d/*.json` | 只读有界扫描，提取不含规则正文的约束摘要；**并不模拟**云端、MDM、企业配置合并或客户端的实际执行状态 |
+
+**可展示的配置候选：**
+
+- API：Claude Code 模型/环境模型名、Bedrock/Vertex/Foundry 开关和显式 API 主机名；Codex 模型、自定义 Provider / `base_url`、Profile 以及所声明的额外 API 端点。
+- 安全：Claude Code `permissions.defaultMode`、allow/ask/deny 规则数量、`sandbox.enabled`、`failIfUnavailable`、禁用沙箱逃逸等；Codex `default_permissions`（包括 `:workspace`）、`sandbox_mode`、`approval_policy`、`sandbox_workspace_write.network_access`、命名权限模板数量及不兼容/废弃设置提醒。
+- MCP：Claude Code 的 `mcpServers.*.url`，Codex 的 `mcp_servers.*.url`；明确区分 HTTP、已禁用和 stdio 声明。配置中的命令、参数、环境变量和 HTTP 头不作为域名证据。
+- 静态合并预览：按官方所述的常见**标量键**覆盖顺序给出模型/审批/沙箱候选，同时显示字段来源；**不声称是实际运行时生效配置**。对于复杂规则的合并（如 Claude 权限、Codex 受管 requirements），仅给出逐层证据而非臆造最终权限判定。
+
+**安全和结果边界：** 文件限 512 KiB，拒绝符号链接及特殊文件；从 JSON/TOML 中仅投影白名单字段，URL 只保留经过验证的主机名，不显示 URL path/query/user-info、MCP 请求头、环境密钥、模型鉴权令牌或 `auth.json`。错误摘要不包含原始配置和解析器原文。宿主进程的环境变量不能代表运行中的 Agent，也不会拿来当成其运行时配置。与 eBPF 事件的关联仅根据已识别 Agent 的**确切主机**匹配当前窗口；域名声明、连接事件以及成功请求是三件不同的事。真实结果请在 Claude Code `/status`、Codex `/status` 或 `/debug-config` 中核对。
+
+官方文档：
+
+- [Claude Code Settings](https://code.claude.com/docs/en/settings)、[Model configuration](https://code.claude.com/docs/en/model-config)
+- [Codex Config basics](https://developers.openai.com/codex/config-basic)、[Configuration Reference](https://developers.openai.com/codex/config-reference)
+- [Codex Managed configuration](https://learn.chatgpt.com/docs/enterprise/managed-configuration)
+
+## Native loading feedback
+
+Renew uses MyGo `plugins/loading` for native busy states (no WebView, npm package, or `mygo.Use`). Ring indicators mark connection setup, module/configuration writes, path access, event details, and local file operations; linear dots mark the explicit local Agent configuration inspection. Event history pagination, Wrapper rule writes and local Harness discovery show loading feedback while their existing asynchronous operations run. Policy enforcement confirmation has its own pending state; rule and history actions are disabled while requests run, and initial configuration loading remains visible even when settings are not yet ready. Each indicator has an accessibility label and obeys the host Reduce Motion preference; it never asserts that the eBPF collector is healthy.
+
+## MyGo release tracking and desktop usability
+
+The desktop Go module pins a tested MyGo version independently of the privileged backend.
+`.github/workflows/renew-mygo-update.yml` checks upstream's latest stable Go module
+release daily and on manual dispatch. It runs module tidy, native UI lifetime vet,
+unit tests and a build before opening or updating a dependency PR; **it never
+auto-merges** an upstream framework update. Existing pull-request CI still verifies
+the packaged Linux desktop app and embedded backend.
+
+The native workspace now exposes a **前往页面** category menu in the toolbar,
+including when the activity rail is collapsed or the navigation drawer is hidden
+by a narrow/tiled window. Pages remain accessible without switching navigation
+density. If collection is unhealthy, event, session and other monitoring pages
+show a prominent, read-only warning with a direct route to **系统诊断**, rather
+than relying on the Overview page or a small footer indicator. A warning never
+interprets missing events as evidence of a safe system.
+
+## Native workspace layout
+
+Renew renders an editor-inspired native workspace **entirely with MyGo widgets**. Its light and dark palettes follow the host OS appearance (including live changes through MyGo's system theme), while native accent colors, text scaling and high-contrast preferences remain available. A monochrome hand-mirror SVG is embedded and rendered as the activity-rail identity; collector health is shown in the main status indicators and System diagnostics, not in a redundant sidebar block. Its 54-DIP activity rail offers page shortcuts; the full navigation is collapsed by default so the center starts immediately after the icon rail. Users can open a 198-DIP compact navigation and then switch to a 302-DIP detailed navigation with full Chinese page labels. The sidebar's actual animated width feeds the incident inspector's responsive breakpoint; the page IDs, selection, keyboard navigation, and Agent identification controls are unchanged. The center retains live eBPF monitoring, sessions, network/process tables and existing privileged management controls. A page toolbar provides search, stream pause and context-aware refresh (rules, tracking, eBPF module state and path permissions re-fetch their own data).
+
+When the center has at least 760 DIPs left after the icon rail, animated navigation width, and 302-DIP inspector, Overview, Events, Sessions, Network, Processes and System can show the optional right incident-inspector rail. Collapsing the navigation makes more room for it without overlapping tables during the transition. On narrower windows, **风险研判工作台** is available as a dedicated page, so the investigation features are still accessible.
+
+### Incident investigation
+
+- **事件研判** shows risk-severity totals for the bounded summary window, the selected event, and the most recent alert/block events. Click any risk counter to filter the Events page to exactly that severity.
+- **Fixed selection** pins an event by ID across live additions. If that summary ages out, the inspector announces it rather than silently replacing it. Event-table selections are also reconciled by ID when live inserts reorder rows.
+- Actions support copying the redacted compact summary, selecting the event in its table, viewing the complete detail on explicit request, and read-only correlation by exact PID, event type or Agent session.
+- **运行诊断** presents the backend's real capture health, ringbuffer loss, queue lengths, event/system transport status and actual CPU/memory telemetry. It never infers a clean capture from an empty alert list.
+- Events, Agent sessions, network targets and processes provide direct drill-down into related events; switching correlation scopes clears incompatible prior event filters.
+- **Event → process drill-down** adds one-click **查看进程树** / **进程详细信息** in the forensic detail dialog. The process-correlation tab shows the event's persisted PID/PPID/identity fields separately from the current `/ws/system` protobuf snapshot, follows the live ancestor chain, expands descendant branches on demand, and opens per-node CPU/memory/user/command-line/start-time details without leaving the dialog. A bounded 120-row tree keeps large PID 1 subtrees usable; the target branch is prioritised. Exited PIDs show event-only evidence, and a newly started process reusing the PID is explicitly rejected rather than attributed to a historical event. This is read-only and does not add process-control privileges or imply a complete historical process tree.
+- **Agent-root file attribution:** When an Agent launches `fish`, `bash`, `python`, `pwsh`, `node` or another descendant to edit a file instead of using its native file-edit tool, kernel fork inheritance and bounded userspace process ancestry preserve the originating Agent PID/run where trace evidence exists. The native Events table, Overview feed, Agent Sessions, Agent Recognition and risk inspector credit the action to the Agent, while still showing the actual interpreter and syscall PID. Generic shells and runtimes are not treated as independent Agents merely because their command names are tracked. Recorded PID/run context is required for an indirect owner; missing or stale root evidence remains explicitly unidentified rather than being guessed from a filename or process name. Historical processes that exited before any usable fork/PID evidence cannot be retroactively recovered.
+- **File-edit attribution and scope:** Agent Sessions distinguish file-change events from delegated edits carried out by shell/script descendants. A file-write syscall remains a file operation even when it inherits the Agent's shell tool name; socket writes, ordinary file reads and read-only opens do not count as edits. Backend capture/monitor policies can match an observed, run-correlated root Agent name in addition to the executor command/tag, so `codex` whitelists and blacklists apply consistently to downstream `fish/bash/python/pwsh/node` activity. Only root events establish this cached identity; unknown, expired, or run-mismatched roots fall back to the original exact comm/tag policy. Structured cgroup context retains root Agent PID if provided, with legacy fallback preserved.
+- **Contextual quick navigation:** Strongly related identifiers now have explicit native shortcuts instead of requiring users to re-enter filters: from a selected event or full forensic detail, jump to executor PID, recorded parent PID, root Agent lineage, Agent run/session, precise file/network target, Agent recognition, or (for valid absolute file edits) a **draft-only** path permission screen. Session rows jump directly to all actions, file mutations, or delegated edits; process rows link to PID and PPID; recognition links to the root process and descendant events. A visible filter chip strip indicates whether the event view is scoped by actual PID, root PID, target, file edits, or delegated edits, with a clear-filter button and return-to-source action. Agent recognition links use an exact PID filter (not substring search). The path permission shortcut only fills the existing form; it never changes LSM enforcement without the existing explicit confirmation. Full-detail navigation closes the modal and releases its sensitive event payload; absent/masked/tool-name-fallback values do not generate false destination links.
+- All filters operate on the bounded 1200-summary in-memory window, with older-record pagination through the existing backend API. They do **not** change kernel capture rules or claim to search all history.
+
+No new privileged API or AI inference service is introduced. As before, only the explicit event Details action retrieves a complete event payload; closing its modal discards it from the desktop. The workspace shell (`native_workspace.go`) and inspector (`native_inspector.go`) remain independent of the native IPC data path and original per-page monitoring implementations.
+
+The desktop process stays unprivileged. On Linux it reuses an already running backend or re-executes the **same Renew executable** in an internal backend mode and requests system authorization for that child. The backend is linked as a Go library; there is no packaged backend sidecar. Only the internal backend child gains privileges.
+
+Harness CLI installation-source detection and update workflow are documented in [HARNESS_UPDATES.md](HARNESS_UPDATES.md).
+
+## Architecture
+
+```text
+single ELF: renew
+  │
+  ├─ normal mode ───────────────▶ MyGo native desktop (ordinary user)
+  │                                  │
+  │                                  ├─ existing backend? reuse it
+  │                                  │
+  │                                  └─ otherwise re-exec self:
+  │                                      renew --internal-backend ...
+  │                                               │
+  │                                         pkexec / sudo -A
+  │                                               │
+  │                                               ▼
+  └────────────────────────────▶ embedded Agent eBPF backend (privileged child)
+                                      │
+                                      ├─ eBPF / wrapper / hooks
+                                      │
+                                      ├══ private Unix socket ══▶ desktop
+                                      │   DesktopEventSummary + SystemStats protobuf
+                                      │
+                                      └─ authenticated REST API on a second private
+                                          Unix socket (no TCP port listener)
+```
+
+### Responsive workspace and disconnected operation
+
+The native workspace keeps a 54-DIP icon rail at narrow widths. If the user prefers
+the detailed 302-DIP navigation but the window is under 1240 DIP, it temporarily
+switches to the 198-DIP compact labels without discarding the preference; widening
+the window restores detailed names. With less than 860 DIP of center content width,
+event search moves below the title/toolbar. Page padding is tighter on laptop
+windows, while the right-hand incident inspector still obeys its minimum center
+width rule. Linux/Wayland remains opaque.
+
+After a backend connection failure, **Overview** shows the startup/retry message
+when no events have been loaded, but Events, System, configuration and other
+monitoring pages remain navigable, with a visible stale-data banner. The banner
+can retry the existing API connection or relaunch the embedded backend when the
+initial launch never succeeded. A reconnect does not create a second event
+stream/poll loop for an already initialized client. The bottom status line
+exposes high-risk and attention items independently, and the workspace filter
+indicator counts root-PID, exact-target, delegated-edit and domain drilldowns
+as well as ordinary PID/type/risk filters.
+
+The native client now covers the low-noise daily-monitoring workflow: Overview, Events, Agent Sessions, Network, Processes, Monitoring, Wrapper Rules, Tracking, and System. Events and configuration surfaces use MyGo-native tables/forms/selects/tabs/switches; the browser runtime is not embedded.
+
+For a backend started by Renew, the Events page no longer uses the generic WebSocket hot path. After the private lifetime-socket token handshake, the same socket becomes Native IPC v2 and receives a compact `DesktopEventSummary` as a length-prefixed protobuf frame. The full `EventEnvelope` and payload stay in backend retention. This bypasses HTTP routing, WebSocket framing, JSON summary serialization, and the backend's 50 ms browser batching window. The desktop IPC reader is also decoupled from rendering: events enter a bounded queue, are committed to MyGo at most once per ~16 ms frame, and are merged into the retained sorted window with a small-batch linear merge. The retained event window and realtime batch buffers are reused, while search/filter/aggregate results are cached by event version. This prevents event bursts from turning into one main-thread redraw, full sort, and large allocation per event. Initial history is loaded once; after the native stream attaches, the desktop stops re-fetching event summaries every two seconds. The existing `/ws/event-summaries` path is retained only for remote/custom instances and automatic fallback. The page supports type/session/decision/attention filtering and expands history through `/events/summaries?compact=1`. Selecting or double-clicking a row never fetches the complete event; only the explicit **Details** action calls `/events/detail/:id`. Closing the detail modal immediately drops the full payload from desktop memory, and the formatted raw JSON string is only materialized if the Raw JSON tab is opened. The Agent Sessions page follows the browser Renew grouping rule: only summaries with Agent context participate, and sessions are isolated by harness plus run/conversation/root-process context. Event detail can show the raw JSON on demand and, when `policy_management` is enabled, uses the existing cgroup/BPF LSM APIs to block or unblock literal destination IPs, ports, and absolute executable paths. Hostnames are never submitted as IP enforcement targets.
+
+Monitoring uses the existing `/config/runtime` PATCH contract and only changes UI state after backend confirmation. Nested loop/signal/research settings are read first and written back intact so toggling `enabled` does not reset their thresholds or queue parameters. The native page also controls TLS capture, persistence, and the explicit policy-management gate. Wrapper Rules use `/config/rules` for ALLOW/BLOCK/ALERT/REWRITE operations, while Tracking manages tags, commands, exact paths, and path prefixes through the existing config APIs.
+
+### Local terminal (GoRex-inspired)
+
+The **终端** entry in the desktop sidebar opens a real PTY backed by
+[MyGo's terminal plugin](https://github.com/egoist/mygo/tree/main/plugins/terminal),
+the same Ghostty/libghostty-vt component used by
+[GoRex](https://github.com/egoist/gorex). It uses MyGo's native renderer:
+there is no web terminal, WebView, HTTP terminal endpoint, or shell command
+execution via the backend.
+
+- Open tabs on demand; split the active pane left/right or top/bottom,
+  drag a separator to resize it, double-click to equalize it, or zoom it.
+- New tabs and panes inherit the active terminal's working directory when
+  the shell reports OSC 7, otherwise its initial directory. On first open,
+  Renew launches the current user's login shell in the home directory.
+- Each terminal has an 8 MiB scrollback budget, the Ghostty VT keyboard
+  and mouse/Unicode handling, full-screen application support, and
+  platform terminal copy/paste bindings (Ctrl+Shift+C/V on Linux).
+- The terminal page works even when the monitoring backend has not started
+  or has gone offline. Shells run under the **desktop user's UID**, never
+  with the eBPF collector's elevated credentials.
+- Closing a pane/tab hangs up that PTY. Closing Renew also closes all PTYs.
+  Unlike GoRex's separate session server, **this initial embedded workspace
+  intentionally does not keep processes alive across desktop restarts**.
+
+The terminal native library, `libghostty-vt.so` on Linux, is resolved by
+the terminal plugin. Use `go tool mygo dev` or a **complete MyGo package**
+(`.deb` / `.tar.gz`) so the verified native library is included.
+A copied executable without the native runtime is still usable for
+monitoring, but its terminal page shows a clear load error.
+
+### Manual eBPF module lifecycle
+
+The **eBPF 模块** page under Management lists registered `kind=ebpf` plugins from `GET /plugins`, including attach kind/target, runtime-loaded status and last load error. **加载** calls `POST /plugins/bpf/load`; **卸载** requires confirmation and calls `POST /plugins/bpf/unload`. After a mutation the client re-reads `GET /plugins` and only reports success after the requested runtime state is confirmed. Failures are displayed without optimistic UI changes. The existing backend authorization and policy checks remain authoritative; no shell-based `bpftool`, `rmmod`, or unprivileged load path is introduced.
+
+These controls target **registered custom eBPF programs only**, and detach their kernel links without deleting their plugin manifests. The `enabled` setting (startup behavior) is unchanged by manual load/unload. Built-in core tracing programs are not listed as plugin manifests, and Monitoring event-group switches still control event filtering rather than physically unloading core programs. New plugin registration/compilation remains in the browser workbench.
+
+System telemetry uses the same native socket for a locally launched backend. The system sampler is transport-independent and shared by both clients: browser clients receive its protobuf snapshots over `/ws/system`, while Renew receives the identical `SystemStats` payload directly over Native IPC. This avoids a duplicated sampler while keeping the local desktop off the generic web transport. Remote/custom backends still use the WebSocket implementation, and a lost local IPC channel automatically falls back to it.
+
+The browser `/renew` frontend has been removed. The main browser workbench remains independent. Renew's monitoring panels remain native, and the optional Coding Harness panel hosts a localhost-only MyGo embedded WebView without adding any listening port to Renew. The privately started backend serves authenticated configuration and history requests over a second Unix socket in the desktop-owned 0700 session directory.
+
+## Why a separate module?
+
+The Renew workspace requires Go 1.27.3 or newer. Renew pins the MyGo dependency in [`desktop/renew/go.mod`](go.mod) (**v0.5.5 as of 2026-10-18**) and the repository workspace uses Go 1.27.3. The `desktop/renew` module remains isolated so native UI dependencies do not enter the privileged backend. The current runtime includes earlier memory/cache, Linux rendering, and input improvements as well as v0.4.3's latest native UI fixes without altering the privilege boundary.
+
+## Develop
+
+From the repository root:
+
+```bash
+make renew-desktop-dev
+```
+
+Development generates the backend protobuf/eBPF bindings and starts `go tool mygo dev`. The backend code is linked into the dev Renew binary; there is no second backend executable and no Vite process.
+
+Connect to an existing backend:
+
+```bash
+AGENT_BACKEND_URL=http://127.0.0.1:9090 make renew-desktop-dev
+```
+
+For a protected remote/custom backend, provide its existing token explicitly:
+
+```bash
+AGENT_BACKEND_URL=https://host.example AGENT_API_TOKEN=... make renew-desktop-dev
+```
+
+Automatic eBPF backend startup is Linux-only and only for a local HTTP origin. Windows and macOS builds can connect to a separately running backend.
+
+## Build packages
+
+```bash
+make renew-desktop-build
+# Equivalent:
+cd desktop/renew
+go tool mygo build
+```
+
+The build hook generates the backend protobuf/eBPF bindings, then MyGo links the backend library directly into Renew. The Linux output `build/linux-amd64/renew` contains the UI + backend; the terminal additionally uses a verified `libghostty-vt.so` native runtime supplied by the complete MyGo Linux package. No `agent-ebpf-filter` helper ELF, askpass script, or `frontend/dist` bundle is shipped beside it. The CI workflow also publishes that executable by itself as the `renew-linux-amd64-single-binary` artifact.
+
+On Linux the native monitoring UI uses GTK and MyGo's renderer. The optional embedded DeepSeek Harness panel needs WebKitGTK 4.1 (e.g. libwebkit2gtk-4.1-0), while monitoring and PTY terminals continue to work without it.
+
+Renew's Linux single-binary build also validates the `CGO_ENABLED=0` embedded-backend path. In that configuration the embedded backend uses pure-Go hardware fallbacks: core eBPF monitoring, policy enforcement, event capture, system/process statistics, and generic DRM fdinfo GPU telemetry remain available, while NVML-only NVIDIA detail fields and V4L2 camera capture are omitted from the single-file build. The standalone backend keeps those integrations when built with CGO enabled.
+
+## Runtime ownership
+
+The desktop keeps:
+
+- single-instance handling;
+- native window lifecycle and saved window size;
+- `AGENT_BACKEND_URL` / `--backend` selection;
+- same-executable backend dispatch, authorization and lifecycle supervision;
+- private Unix-socket token handoff and Native IPC v2 compact-summary stream;
+- native monitoring state, protobuf decoding and presentation;
+- MyGo packaging.
+
+The embedded backend library keeps:
+
+- eBPF and privileged operations;
+- event persistence;
+- authentication;
+- native desktop IPC plus REST / WebSocket compatibility protocols;
+- filtering, normalization and risk decisions.
+
+Closing or crashing Renew closes the lifetime socket and gracefully stops **only** the privileged internal-backend child it started. A reused system backend is left running. On systems without a PolicyKit authentication agent, the same Renew executable can also act as `SUDO_ASKPASS` and delegate the password UI to an installed `zenity` or `kdialog`; no helper script is packaged.
+
+## Validation
+
+```bash
+cd desktop/renew
+go test ./...
+go build ./...
+../../scripts/renew-desktop.sh prepare
+go tool mygo build -skip-build-command -platform linux/amd64
+```
+
+## Tracking scope and filesystem noise
+
+The tracking panel can filter by tag and activation status. Commands may be disabled; exact file and recursive directory rules remain enabled until deleted. The file picker uses MyGo's native dialog. **文件夹内文件** enumerates and registers existing immediate regular files as exact paths (a snapshot; new files need registering again); **文件** registers one exact file; **文件夹及其子文件** stores a persistent recursive prefix. Mutations still require the existing policy-management gate.
+
+New runtime configs ignore `/proc` and `/tmp` by default. The extra built-in `/usr/bin` rule suppresses only low-risk read/write operations (not executable launches, renames, or policy alerts); the explicit empty `ignoredPaths: []` opt-out remains effective. Already saved custom ignored paths are not overwritten.
+
+In bundled mode the privileged child listens only on an authenticated private Unix domain API socket, plus the separate lifetime/event-stream socket. It does **not** open TCP port 8080 or write a backend port file. When the user explicitly connects to a pre-existing local/remote backend, the desktop reuses that independently managed endpoint without changing how that service listens.
+
+## MyGo v0.3.4 appearance and responsive UI
+
+- This UI iteration originally landed on **MyGo v0.3.4**; the current desktop module and CLI tool share the version pinned in [`go.mod`](go.mod) (**v0.5.5 as of 2026-10-18**). It does not add a WebView runtime.
+- Windows 11 supports a Mica material and macOS supports a sidebar material where the compositor offers native vibrancy. The toolbar provides a session-only **纯色模式 / 系统材质** switch; all content tables and event details keep opaque surfaces for readability. Unsupported Windows versions and Linux (Wayland/X11) retain the full opaque navy theme. Do not imply Linux compositor material support.
+- Navigation opens and closes with native, reduced-motion-aware animation. Page changes have a modest entrance transition; the toolbar automatically overflows actions at narrow sizes while preserving keyboard and screen-reader behavior.
+- Search, event pinning, explicit detail requests and privileged backend permissions are unchanged. No additional collection, telemetry or network call is introduced by these UI effects.
+
+### MyGo v0.3.5 follow-up: terminal and triage usability
+
+- The earlier MyGo v0.3.5 migration fixed closing a window during native-frame rendering.
+- The terminal action row is a native, keyboard-friendly toolbar with automatic overflow on narrow windows. The terminal tab strip uses an accessible native tablist and horizontal scrolling; tab titles are shortened on Unicode boundaries.
+- A new terminal tab reveals the end of the strip. Closing a tab before the active tab preserves the current PTY, and closing the last tab clears stale focus state.
+- Clicking an alert in the inspector always shows that retained redacted summary, even if the Events table currently filters it out. Event table filters remain unchanged until the user explicitly chooses "定位" or another correlation action.
+
+
+### 分离式终端子窗口（MyGo 0.4.1）
+
+在 **终端** 页选择标签后点击 **分离当前标签**，现有标签（包括 Ghostty PTY、目录、分屏布局与滚动状态）会移到单独的原生窗口，Shell 进程不会重启。子窗口仍可新增标签、左右或上下拆分；支持 **收回当前标签**（只转移所选 Tab）、**再分离当前标签**（在已有子窗口内进一步弹出）、**收回全部标签**（关闭并回收整窗）。点击系统关闭按钮会无损回收整窗的标签，但不会抢走仍在使用的主窗口焦点。主窗口在子窗口仍打开时会自动隐藏而非停止后台采集器，回收后会恢复。退出整个应用时仍会清理全部 PTY。
+
+分离使用 MyGo 的 `NewWindow`、`StateKey`、`OnClose` 原生 API，终端和主窗口保持同一进程与共享 ID 分配器，不开第二个后端/事件 WebSocket。**当前通过按钮分离与回收**，并非跨窗口拖拽标签；Wayland 下不依赖全局窗口位置控制。
+
+
+### 监控页面分离
+
+在 **概览、研判、事件、会话、网络、域名、进程、系统** 页面顶部点击 **分离本页**，可打开独立原生监控窗口。每页只保留一个分离窗口，重复操作会聚焦原窗口。分离页保留独立的表格选择、筛选和研判 Tab；紧凑事件摘要、链路健康与系统快照由同一个 Renew 后端订阅广播到各窗口，而不会增加 eBPF 采集器实例。点击 **返回主窗口** 可切换主窗口到当前页面；关闭分离窗口会释放窗口私有的事件详情。
+
+策略修改、路径权限、插件管理等有副作用的页面仍留在主窗口，避免把具备授权上下文的管理视图误当只读监控面板。MyGo v0.4.1 的 Flyout 已具备父窗口浮动弹层能力，但这些长期驻留的监控页故意使用标准顶层 `Window`，这样在 Wayland/niri 下可被平铺、移动到其他工作区或屏幕。
+
+独立监控窗口保持固定页面身份；窗口内指向其他监控页或策略管理页的导航会在主窗口打开，不会将只读弹窗变成管理窗口。主窗口因存在子窗口而自动隐藏时，关闭最后一个子窗口会恢复它；手动选择托盘驻留则不自动取消驻留。
+
+### 窄窗口与独立监控 UI（自适应工作台）
+
+在窗口宽度低于 900 DIP 时，Renew 会自动将完整侧栏切换为活动栏底部的 **≡ 页面导航** 原生菜单（监控、防护、工具和诊断分类），保留全部配置页面和键盘导航；扩宽后恢复用户之前选择的精简/详细侧栏偏好，不改变 niri/Wayland 的窗口管理规则。
+
+在内容区不足 660 DIP 时，刷新、暂停/恢复事件和分离窗口操作会自动移到单独一行，并使用 MyGo 原生 Toolbar 溢出处理，不与状态标签争夺标题空间。底部状态栏根据可用宽度简化次要指标，但**采集异常、离线和非零丢弃数量始终保留**。它只在后端采集器、事件流和系统流均健康时报告「全链路实时」，避免将空白或中断的数据误报为正常运行。
+
+分离监控页同步主窗口的暂停展示状态；一旦采集链路离线、回退或启动未完成，展示可见的快照时效提示。分离页内的「系统诊断」会把主工作台切换到诊断页，而不是再启动一个后端连接。
+
+
+## 本机文件管理与 MyGo 原生代码编辑器
+
+侧栏 **工具 → 文件管理 / 原生编辑器**（以及顶部「前往页面」）提供纯 MyGo 原生工作区，不依赖 WebView，也不要求后端已连接。
+
+- **文件管理**：浏览本地绝对目录、返回上级/主目录、刷新、按文件名筛选、创建文件/目录、选中重命名、显式二次确认删除。删除不递归，文件创建使用独占方式避免覆盖已有内容；大目录每次最多读取 5000 项。文件操作在后台进行，避免阻塞 MyGo 绘制帧。
+- **编辑器**：从文件列表双击 UTF-8 普通文本文件，在原生 `ui/editor` 中打开；支持多标签、语言语法高亮、查找、折叠、多光标与撤销。标签上的圆点提示未保存内容；关闭未保存标签会再次确认。单个文件上限 8 MiB；目前没有二进制/十六进制编辑、文件夹递归删除或任意文件覆盖式的「另存为」。
+- **安全边界**：所有本地文件 I/O 只由未提权的 Renew 桌面进程按当前用户权限执行。不会经由 eBPF 后端、Shell、远程 API 或策略管理权限代读写。编辑器拒绝符号链接和设备文件，并对保存前的外部修改进行版本/时间与文件标识检查。使用同目录临时文件原子替换、保留原权限，并通过 MyGo Buffer 写入原始行尾格式；发现冲突时拒绝覆盖、要求重新打开确认。极小的并发替换竞争窗口不等于跨进程强制锁。
+- **独立于采集**：即使采集器断开或启动失败，文件浏览与编辑器仍可使用；进入本地页面不会创建额外事件流、改写 eBPF 捕获范围或变更 LSM 文件权限策略。
+
+本次历史迭代曾将依赖升级至 **MyGo v0.4.8**（Go 1.27.1）；这不是现行版本。当前版本以 [`go.mod`](go.mod) 为准，仍与特权后端模块隔离。常规 PR CI 执行 `go mod tidy -diff`、`go test ./...`、`go tool mygo vet .`、单二进制构建及 Linux 安装包检查。
+
+
+## Agent → SubAgent 进程派生可视化
+
+原生桌面侧边栏的「Agent 派生」页面提供两个可即时切换的视图：
+
+- **放射图**：以识别出的 Agent 进程为中心，按当前 PID/PPID 关系逐层展开后代；点击节点查看进程详情、事件和父进程事件。
+- **瀑布图**：按派生层级排列进程，并以进程启动时间到当前系统快照时刻显示存活区间；它**不是** SubAgent 任务耗时，也不代表进程真实退出时间。
+- 颜色用于区分根 Agent、普通进程及「子 Agent 候选」；候选要求后代进程本身被识别为 Agent 工具，不会把 bash、python 等普通派生执行器标记为真正的子 Agent。
+- 两个视图共用选中 PID；支持按根 Agent 过滤、事件跳转，且可从「进程」页直接进入。
+- 数据来自既有 /ws/system protobuf 进程快照及当前事件摘要窗口，不需要新特权端点。单图限制为 72 个节点 / 6 层；断线时不以旧事件拼接历史树。PID 启动时间用于过滤不可能的跨代父子链接，并阻止老事件冒充新进程上下文。
+
+**证据限制**：OS 进程父子关系不自动等于模型、RPC 或 Agent SDK 层的调用关系。内部同进程 SubAgent、异机 SubAgent、跨 RPC 协作、已经退出的进程，需要采集 Agent SDK / hooks 的 trace_id、span_id、parent_span_id、agent_run_id、开始及结束时间后才能显示为**已确认逻辑调用**。本页目前只把其它 Agent 可执行文件后代标注为「子 Agent 候选」，不会虚构时序或逻辑调用。
+
+### Claude Code SubAgent 生命周期采集（可选）
+
+在 Web 管理台的 Hook 配置中，除普通的 **Claude Code / PreToolUse** 外，可分别启用 **Claude Code · SubagentStart** 和 **Claude Code · SubagentStop**。它们独立写入 `~/.claude/settings.json` 的对应事件，不会覆盖已有 `PreToolUse` 或手工 Hook，且可分别卸载。只有显式启用时才增加生命周期采集；安装后需重新启动 Claude Code 会话以读取 Hook 配置。
+
+接收端继续使用每个 Hook 独立的 secret 认证。Hook relay 最多报告其调用进程的父 PID 作为尽力关联线索，不能单凭该 PID 推断跨进程 Agent 调用关系。完整事件的 `ExtraInfo` 仅持久化 `agent_id` 的摘要及 `agent_type` 元数据（以及既有 prompt digest）；不保留原始 agent_id、用户输入或响应文本。Renew 的原生摘要展示已观察到的开始/结束信号，但不在缺乏原始 span/call_id 证据时拼接虚构的完整生命周期。
+
+
+### Coding Harness 快捷启动与 DeepSeek 内嵌 Web UI（MyGo 0.5.1）
+
+在 **终端** 顶部的 Coding Harness 工具栏中，可一键创建 Codex、Claude Code、Gemini CLI、OpenCode、Pi、Copilot CLI、Aider、Kiro CLI 的独立 PTY。工具栏显示已发现 CLI 数量与未安装项；**刷新检测** 可重新读取 PATH。每个启动器都直接执行对应已安装程序（无 sh -c / 命令字符串拼接），默认继承当前终端工作目录，退出后仍能查看终端输出。
+
+**DeepSeek Harness** 是独立的开源 Agent Harness，不等于 DeepSeek 聊天网站。点击 **启动 DeepSeek Harness** 会优先运行已安装的 dsh；如果只有 npx，按钮会标明 **npx 联网启动**，通过官方 @deepseek-ai/dsh 包按需下载并执行。启动参数等价于 dsh web --no-open --host 127.0.0.1 --port <随机回环端口>。后台进程保持在本地 PTY 中，日志可见，关闭其终端 Tab 即停止会话。
+
+服务准备就绪后，Renew 通过 MyGo 0.5.1 的 Window.NewWebView + ui.WebView 在**同一个原生终端页面**渲染本地 http://localhost:<端口>/，而非调用外部系统浏览器或打开 chat.deepseek.com。宽屏默认 PTY/网页左右并排；窄屏上下并排；支持刷新或收起网页，收起不会停止进程。网页只在端口就绪后创建；代理不接管回环探测请求，也不跟随网页探测重定向。WebView 不添加 TrustedOrigins，不授权 DeepSeek 页面调用 Renew 的 Go 绑定服务。
+
+首次运行可自行安装：
+
+- Node.js 与 npm：npm install -g @deepseek-ai/dsh。
+- Linux：WebKitGTK 4.1（原生监控与 PTY 不依赖它）。
+- DeepSeek Harness 开发预览版能执行命令并操作文件，请遵循其权限确认和最小权限建议。
+
+注意：端口由本机临时分配并释放后交由 dsh 绑定，仍存在很小的端口竞争窗口；运行错误应以 DeepSeek PTY 内日志为准。框架本身的采集器仍由独立授权进程负责，Coding Harness 一律在桌面用户权限下运行。
+ -bench '^BenchmarkRenewNativeFrame
+
+## AgentSight 原生洞察（会话与 Token）
+
+MyGo 桌面工作区的 **监控工作台 → AgentSight 洞察** 提供独立的原生 Go 页面，窄窗口也可通过顶栏「前往页面」进入；「Agent 会话」页面有跳转入口。此功能不嵌入 WebView，也不启动第二个采集器。
+
+- 通过现有已认证的 `GET /api/v1/agentsight/report/usage?limit=2000` 读取保留事件中的用量证据。视图首次打开自动加载，停留期间按 15 秒最短间隔刷新，可手动刷新；网络请求最多等待 6 秒。
+- 以模型与 Agent 运行会话两种维度列出明确观测到的输入、输出、缓存读取与缓存创建 Token；显示用量覆盖的事件数、未归因事件数及上次成功同步时间。API 错误时保留并标注旧快照。
+- 点击会话行可调查原有事件页中匹配的 `agent_run_id`；只有 trace ID 的记录不假装与原有 PID 会话完全等价。「事件时间线」和「查看会话活动」直接进入既有监控页。
+- 复用后端认证、限量事件查询和脱敏结果；不启用 TLS 明文捕获，不读取 Agent 本地 session 原文，不估算缺失用量，也不自动写入内核阻断规则。
+- 非 AgentSight 构建或未授权时，页面显示接口错误与可排查说明；没有用量证据时显示「Token 使用量未知」，而不是报告 0 成本。
+
+本页是 AgentSight 风格的**现有事件元数据视图**，不是上游 SQLite recorder、`agentsight top`、`report token` 的完整实现。
+
+## 个人用户快速上手
+
+启动 Renew 后先在 **我的设备** 查看监控状态；只有采集健康、事件/系统流可用时，摘要中的“正常”才表示**当前已观测窗口**没有待关注事件，不能替代设备安全扫描。若出现 **优先核查**，先查看高风险事件再看普通告警，通过“定位”进入事件页核对真实的 `ALERT`、`BLOCK`、`DENY` 决策和执行证据。近期五条活动与优先核查互相独立，事件页的搜索和 PID 筛选不会令首页误显空白。
+
+- **优先核查** 将当前摘要内相同类型、进程、标签、目标、策略决策与风险等级的事件合并展示，并注明“同类活动 N 条”。点击“定位”仍进入真实事件记录，绝不会自动把告警等同于拦截成功。
+- 对“需关注”事件可使用 **本次收起同类提示**，收起状态仅在 Renew 此次运行期间保存在本机内存中，最多维护 64 个不同类别，旧类别会自动退出收起队列；点击 **恢复全部提示** 可立即撤销。**高风险事件不能收起**，升级至高风险的同类行为也会继续显示。收起不等于判定误报，不修改事件明细、风险总数、后端策略或防护机制。
+- 系统托盘提供概览、风险事件、Agent 域名、系统诊断和采集设置入口。系统级弹窗通知尚未实现，也不会在不支持状态通知的桌面环境中声称已发送通知。
+- **查看联网行为** 用于关联 Agent 域名和 IP-only 外联；**调整监控范围** 用于选择采集强度；**查看访问权限** 用于检查路径保护。进入页面本身不会修改策略。
+- **暂停事件** 仅暂停桌面展示与事件摘要合并：后台采集与策略继续运行，连接与采集器健康仍会每两秒刷新。恢复时再次同步事件。暂停期间可能因有界队列容量而丢失部分 UI 摘要，不能当作完整历史。
+- **事件页滑块**：使用 MyGo 原生 `ui.Slider` 设置本地最低风险分（0 不过滤），使用 `ui.StepSlider` 每次调整 50 条可见摘要；“展开更多”仍可突破默认的 500 条滑块范围。滑块只过滤/分页已加载摘要，不会改变 eBPF 采集范围、风险判定或阻断策略。
+- 断线、流回退、未完成初始化、采集链路异常均有独立的状态说明；新事件暂时不可验证时，不应因为首页没有新告警就认为设备安全。可以使用“重新连接”或“系统诊断”继续排查。
+
+## 日常安全软件：Agent 域名监控与托盘
+
+原生工作区新增 **Agent 域名监控**（左侧快捷栏/导航，首页一键进入）。它从后端既有的网络事件摘要提取 Host/SNI/Domain/DNS 线索与 IP-only 外联，基于采集到的 Agent root PID、run/会话上下文为 Codex、Claude Code、Gemini CLI 等 Agent 归属。子进程通过已记录的 root Agent 证据关联，**不会**将所有 shell / Node 访问自动认作某个 Agent。
+
+- 按 Agent、域名或 IP 搜索；仅看风险；单独显示或隐藏 IP-only 外联；按风险优先级、最后时间排序；统计分组的事件数、会话数、风险事件及摘要字节数。
+- 点选一条记录后，可跳到原生事件页查看**精确的 Agent+目标+域名/IP 类型关联结果**，并返回监控页。不会因为 URL 包含相似字符串就混淆两个域名。
+- 原生本地 IPC 在已有 `Target` 字段优先输出网络域名线索，不增加每事件的完整 payload；历史/远程 compact REST 摘要额外保留 `domain` 和 `netEndpoint`。
+- 可用系统托盘时，在顶栏开启 **关闭后驻留托盘**（默认为关闭，避免不支持托盘的桌面失去主窗口）。托盘提供概览、域名、风险事件、系统诊断、采集设置及明确退出入口；明确退出会按原来的生命周期结束仅由 Renew 启动的采集子进程。未安装状态通知宿主或托盘创建失败时保留正常退出行为。
+
+**证据和隐私边界：** 看板使用当前后端已加载的有界、上游脱敏的摘要，不代表完整网络流、每一次 HTTP/API 请求、Token 或费用。DNS 反向关联无法证明具体 HTTPS Host；DoH、ECH、缓存命中、未抓取的连接等可能导致只显示 IP。它不劫持流量、不新增 MITM/透明代理、不采集额外明文，也不会自动修改阻断规则。CC Switch 的逐请求用量账单基于自身代理接管/请求日志，并非 eBPF 连接摘要可以等价获得的数据。
+
+### Claude Code / Codex 配置解析（基于官方文档的本机只读审计）
+
+在 **Agent 域名监控 → Claude Code / Codex 配置识别** 中手动点击 **读取本机配置**，可选填指定会话工作目录的绝对路径。只读取配置文件，不连接 API、不探测域名、不执行 Hook/MCP/凭据命令、不修改内核策略。
+
+| Agent | 检查来源 | 官方语义与局限 |
+|---|---|---|
+| Claude Code | `$CLAUDE_CONFIG_DIR/settings.json`（默认 `~/.claude/settings.json`）；指定目录下的 `.claude/settings.json` 与 `.claude/settings.local.json` | 管理 > CLI > 本地 > 项目 > 用户；权限规则跨层合并，不能按普通标量取最高值 |
+| Claude Code MCP | 手动指定目录下的 `.mcp.json` | HTTP MCP 只展示主机名；stdio 命令不会被当成网址；为避免读取 OAuth 缓存**不读取** `~/.claude.json` |
+| Codex | `$CODEX_HOME/config.toml`（默认 `~/.codex/config.toml`），用户配置声明的 Profile 候选及独立 Profile 文件 | CLI > 受信任的多级项目配置 > 显式 Profile > 用户 > 系统 > 默认；**读取文件并不能获知真实 CLI --profile** |
+| Codex 项目覆盖 | 从被指定目录所在仓库根目录到该目录的各级 `.codex/config.toml`（若没有 `.git`，只读取指定目录） | **允许**模型、审批、沙箱、MCP 覆盖；**忽略**机器级 Provider、Profile 选择、鉴权、通知、遥测相关的项目字段。信任状态不明确时，只做假设受信任预览 |
+| 本机受管策略 | Linux 的 `/etc/codex/config.toml`、`/etc/codex/requirements.toml`、`/etc/claude-code/managed-settings.json`、`managed-settings.d/*.json` | 只读有界扫描，提取不含规则正文的约束摘要；**并不模拟**云端、MDM、企业配置合并或客户端的实际执行状态 |
+
+**可展示的配置候选：**
+
+- API：Claude Code 模型/环境模型名、Bedrock/Vertex/Foundry 开关和显式 API 主机名；Codex 模型、自定义 Provider / `base_url`、Profile 以及所声明的额外 API 端点。
+- 安全：Claude Code `permissions.defaultMode`、allow/ask/deny 规则数量、`sandbox.enabled`、`failIfUnavailable`、禁用沙箱逃逸等；Codex `default_permissions`（包括 `:workspace`）、`sandbox_mode`、`approval_policy`、`sandbox_workspace_write.network_access`、命名权限模板数量及不兼容/废弃设置提醒。
+- MCP：Claude Code 的 `mcpServers.*.url`，Codex 的 `mcp_servers.*.url`；明确区分 HTTP、已禁用和 stdio 声明。配置中的命令、参数、环境变量和 HTTP 头不作为域名证据。
+- 静态合并预览：按官方所述的常见**标量键**覆盖顺序给出模型/审批/沙箱候选，同时显示字段来源；**不声称是实际运行时生效配置**。对于复杂规则的合并（如 Claude 权限、Codex 受管 requirements），仅给出逐层证据而非臆造最终权限判定。
+
+**安全和结果边界：** 文件限 512 KiB，拒绝符号链接及特殊文件；从 JSON/TOML 中仅投影白名单字段，URL 只保留经过验证的主机名，不显示 URL path/query/user-info、MCP 请求头、环境密钥、模型鉴权令牌或 `auth.json`。错误摘要不包含原始配置和解析器原文。宿主进程的环境变量不能代表运行中的 Agent，也不会拿来当成其运行时配置。与 eBPF 事件的关联仅根据已识别 Agent 的**确切主机**匹配当前窗口；域名声明、连接事件以及成功请求是三件不同的事。真实结果请在 Claude Code `/status`、Codex `/status` 或 `/debug-config` 中核对。
+
+官方文档：
+
+- [Claude Code Settings](https://code.claude.com/docs/en/settings)、[Model configuration](https://code.claude.com/docs/en/model-config)
+- [Codex Config basics](https://developers.openai.com/codex/config-basic)、[Configuration Reference](https://developers.openai.com/codex/config-reference)
+- [Codex Managed configuration](https://learn.chatgpt.com/docs/enterprise/managed-configuration)
+
+## Native loading feedback
+
+Renew uses MyGo `plugins/loading` for native busy states (no WebView, npm package, or `mygo.Use`). Ring indicators mark connection setup, module/configuration writes, path access, event details, and local file operations; linear dots mark the explicit local Agent configuration inspection. Event history pagination, Wrapper rule writes and local Harness discovery show loading feedback while their existing asynchronous operations run. Policy enforcement confirmation has its own pending state; rule and history actions are disabled while requests run, and initial configuration loading remains visible even when settings are not yet ready. Each indicator has an accessibility label and obeys the host Reduce Motion preference; it never asserts that the eBPF collector is healthy.
+
+## MyGo release tracking and desktop usability
+
+The desktop Go module pins a tested MyGo version independently of the privileged backend.
+`.github/workflows/renew-mygo-update.yml` checks upstream's latest stable Go module
+release daily and on manual dispatch. It runs module tidy, native UI lifetime vet,
+unit tests and a build before opening or updating a dependency PR; **it never
+auto-merges** an upstream framework update. Existing pull-request CI still verifies
+the packaged Linux desktop app and embedded backend.
+
+The native workspace now exposes a **前往页面** category menu in the toolbar,
+including when the activity rail is collapsed or the navigation drawer is hidden
+by a narrow/tiled window. Pages remain accessible without switching navigation
+density. If collection is unhealthy, event, session and other monitoring pages
+show a prominent, read-only warning with a direct route to **系统诊断**, rather
+than relying on the Overview page or a small footer indicator. A warning never
+interprets missing events as evidence of a safe system.
+
+## Native workspace layout
+
+Renew renders an editor-inspired native workspace **entirely with MyGo widgets**. Its light and dark palettes follow the host OS appearance (including live changes through MyGo's system theme), while native accent colors, text scaling and high-contrast preferences remain available. A monochrome hand-mirror SVG is embedded and rendered as the activity-rail identity; collector health is shown in the main status indicators and System diagnostics, not in a redundant sidebar block. Its 54-DIP activity rail offers page shortcuts; the full navigation is collapsed by default so the center starts immediately after the icon rail. Users can open a 198-DIP compact navigation and then switch to a 302-DIP detailed navigation with full Chinese page labels. The sidebar's actual animated width feeds the incident inspector's responsive breakpoint; the page IDs, selection, keyboard navigation, and Agent identification controls are unchanged. The center retains live eBPF monitoring, sessions, network/process tables and existing privileged management controls. A page toolbar provides search, stream pause and context-aware refresh (rules, tracking, eBPF module state and path permissions re-fetch their own data).
+
+When the center has at least 760 DIPs left after the icon rail, animated navigation width, and 302-DIP inspector, Overview, Events, Sessions, Network, Processes and System can show the optional right incident-inspector rail. Collapsing the navigation makes more room for it without overlapping tables during the transition. On narrower windows, **风险研判工作台** is available as a dedicated page, so the investigation features are still accessible.
+
+### Incident investigation
+
+- **事件研判** shows risk-severity totals for the bounded summary window, the selected event, and the most recent alert/block events. Click any risk counter to filter the Events page to exactly that severity.
+- **Fixed selection** pins an event by ID across live additions. If that summary ages out, the inspector announces it rather than silently replacing it. Event-table selections are also reconciled by ID when live inserts reorder rows.
+- Actions support copying the redacted compact summary, selecting the event in its table, viewing the complete detail on explicit request, and read-only correlation by exact PID, event type or Agent session.
+- **运行诊断** presents the backend's real capture health, ringbuffer loss, queue lengths, event/system transport status and actual CPU/memory telemetry. It never infers a clean capture from an empty alert list.
+- Events, Agent sessions, network targets and processes provide direct drill-down into related events; switching correlation scopes clears incompatible prior event filters.
+- **Event → process drill-down** adds one-click **查看进程树** / **进程详细信息** in the forensic detail dialog. The process-correlation tab shows the event's persisted PID/PPID/identity fields separately from the current `/ws/system` protobuf snapshot, follows the live ancestor chain, expands descendant branches on demand, and opens per-node CPU/memory/user/command-line/start-time details without leaving the dialog. A bounded 120-row tree keeps large PID 1 subtrees usable; the target branch is prioritised. Exited PIDs show event-only evidence, and a newly started process reusing the PID is explicitly rejected rather than attributed to a historical event. This is read-only and does not add process-control privileges or imply a complete historical process tree.
+- **Agent-root file attribution:** When an Agent launches `fish`, `bash`, `python`, `pwsh`, `node` or another descendant to edit a file instead of using its native file-edit tool, kernel fork inheritance and bounded userspace process ancestry preserve the originating Agent PID/run where trace evidence exists. The native Events table, Overview feed, Agent Sessions, Agent Recognition and risk inspector credit the action to the Agent, while still showing the actual interpreter and syscall PID. Generic shells and runtimes are not treated as independent Agents merely because their command names are tracked. Recorded PID/run context is required for an indirect owner; missing or stale root evidence remains explicitly unidentified rather than being guessed from a filename or process name. Historical processes that exited before any usable fork/PID evidence cannot be retroactively recovered.
+- **File-edit attribution and scope:** Agent Sessions distinguish file-change events from delegated edits carried out by shell/script descendants. A file-write syscall remains a file operation even when it inherits the Agent's shell tool name; socket writes, ordinary file reads and read-only opens do not count as edits. Backend capture/monitor policies can match an observed, run-correlated root Agent name in addition to the executor command/tag, so `codex` whitelists and blacklists apply consistently to downstream `fish/bash/python/pwsh/node` activity. Only root events establish this cached identity; unknown, expired, or run-mismatched roots fall back to the original exact comm/tag policy. Structured cgroup context retains root Agent PID if provided, with legacy fallback preserved.
+- **Contextual quick navigation:** Strongly related identifiers now have explicit native shortcuts instead of requiring users to re-enter filters: from a selected event or full forensic detail, jump to executor PID, recorded parent PID, root Agent lineage, Agent run/session, precise file/network target, Agent recognition, or (for valid absolute file edits) a **draft-only** path permission screen. Session rows jump directly to all actions, file mutations, or delegated edits; process rows link to PID and PPID; recognition links to the root process and descendant events. A visible filter chip strip indicates whether the event view is scoped by actual PID, root PID, target, file edits, or delegated edits, with a clear-filter button and return-to-source action. Agent recognition links use an exact PID filter (not substring search). The path permission shortcut only fills the existing form; it never changes LSM enforcement without the existing explicit confirmation. Full-detail navigation closes the modal and releases its sensitive event payload; absent/masked/tool-name-fallback values do not generate false destination links.
+- All filters operate on the bounded 1200-summary in-memory window, with older-record pagination through the existing backend API. They do **not** change kernel capture rules or claim to search all history.
+
+No new privileged API or AI inference service is introduced. As before, only the explicit event Details action retrieves a complete event payload; closing its modal discards it from the desktop. The workspace shell (`native_workspace.go`) and inspector (`native_inspector.go`) remain independent of the native IPC data path and original per-page monitoring implementations.
+
+The desktop process stays unprivileged. On Linux it reuses an already running backend or re-executes the **same Renew executable** in an internal backend mode and requests system authorization for that child. The backend is linked as a Go library; there is no packaged backend sidecar. Only the internal backend child gains privileges.
+
+Harness CLI installation-source detection and update workflow are documented in [HARNESS_UPDATES.md](HARNESS_UPDATES.md).
+
+## Architecture
+
+```text
+single ELF: renew
+  │
+  ├─ normal mode ───────────────▶ MyGo native desktop (ordinary user)
+  │                                  │
+  │                                  ├─ existing backend? reuse it
+  │                                  │
+  │                                  └─ otherwise re-exec self:
+  │                                      renew --internal-backend ...
+  │                                               │
+  │                                         pkexec / sudo -A
+  │                                               │
+  │                                               ▼
+  └────────────────────────────▶ embedded Agent eBPF backend (privileged child)
+                                      │
+                                      ├─ eBPF / wrapper / hooks
+                                      │
+                                      ├══ private Unix socket ══▶ desktop
+                                      │   DesktopEventSummary + SystemStats protobuf
+                                      │
+                                      └─ authenticated REST API on a second private
+                                          Unix socket (no TCP port listener)
+```
+
+### Responsive workspace and disconnected operation
+
+The native workspace keeps a 54-DIP icon rail at narrow widths. If the user prefers
+the detailed 302-DIP navigation but the window is under 1240 DIP, it temporarily
+switches to the 198-DIP compact labels without discarding the preference; widening
+the window restores detailed names. With less than 860 DIP of center content width,
+event search moves below the title/toolbar. Page padding is tighter on laptop
+windows, while the right-hand incident inspector still obeys its minimum center
+width rule. Linux/Wayland remains opaque.
+
+After a backend connection failure, **Overview** shows the startup/retry message
+when no events have been loaded, but Events, System, configuration and other
+monitoring pages remain navigable, with a visible stale-data banner. The banner
+can retry the existing API connection or relaunch the embedded backend when the
+initial launch never succeeded. A reconnect does not create a second event
+stream/poll loop for an already initialized client. The bottom status line
+exposes high-risk and attention items independently, and the workspace filter
+indicator counts root-PID, exact-target, delegated-edit and domain drilldowns
+as well as ordinary PID/type/risk filters.
+
+The native client now covers the low-noise daily-monitoring workflow: Overview, Events, Agent Sessions, Network, Processes, Monitoring, Wrapper Rules, Tracking, and System. Events and configuration surfaces use MyGo-native tables/forms/selects/tabs/switches; the browser runtime is not embedded.
+
+For a backend started by Renew, the Events page no longer uses the generic WebSocket hot path. After the private lifetime-socket token handshake, the same socket becomes Native IPC v2 and receives a compact `DesktopEventSummary` as a length-prefixed protobuf frame. The full `EventEnvelope` and payload stay in backend retention. This bypasses HTTP routing, WebSocket framing, JSON summary serialization, and the backend's 50 ms browser batching window. The desktop IPC reader is also decoupled from rendering: events enter a bounded queue, are committed to MyGo at most once per ~16 ms frame, and are merged into the retained sorted window with a small-batch linear merge. The retained event window and realtime batch buffers are reused, while search/filter/aggregate results are cached by event version. This prevents event bursts from turning into one main-thread redraw, full sort, and large allocation per event. Initial history is loaded once; after the native stream attaches, the desktop stops re-fetching event summaries every two seconds. The existing `/ws/event-summaries` path is retained only for remote/custom instances and automatic fallback. The page supports type/session/decision/attention filtering and expands history through `/events/summaries?compact=1`. Selecting or double-clicking a row never fetches the complete event; only the explicit **Details** action calls `/events/detail/:id`. Closing the detail modal immediately drops the full payload from desktop memory, and the formatted raw JSON string is only materialized if the Raw JSON tab is opened. The Agent Sessions page follows the browser Renew grouping rule: only summaries with Agent context participate, and sessions are isolated by harness plus run/conversation/root-process context. Event detail can show the raw JSON on demand and, when `policy_management` is enabled, uses the existing cgroup/BPF LSM APIs to block or unblock literal destination IPs, ports, and absolute executable paths. Hostnames are never submitted as IP enforcement targets.
+
+Monitoring uses the existing `/config/runtime` PATCH contract and only changes UI state after backend confirmation. Nested loop/signal/research settings are read first and written back intact so toggling `enabled` does not reset their thresholds or queue parameters. The native page also controls TLS capture, persistence, and the explicit policy-management gate. Wrapper Rules use `/config/rules` for ALLOW/BLOCK/ALERT/REWRITE operations, while Tracking manages tags, commands, exact paths, and path prefixes through the existing config APIs.
+
+### Local terminal (GoRex-inspired)
+
+The **终端** entry in the desktop sidebar opens a real PTY backed by
+[MyGo's terminal plugin](https://github.com/egoist/mygo/tree/main/plugins/terminal),
+the same Ghostty/libghostty-vt component used by
+[GoRex](https://github.com/egoist/gorex). It uses MyGo's native renderer:
+there is no web terminal, WebView, HTTP terminal endpoint, or shell command
+execution via the backend.
+
+- Open tabs on demand; split the active pane left/right or top/bottom,
+  drag a separator to resize it, double-click to equalize it, or zoom it.
+- New tabs and panes inherit the active terminal's working directory when
+  the shell reports OSC 7, otherwise its initial directory. On first open,
+  Renew launches the current user's login shell in the home directory.
+- Each terminal has an 8 MiB scrollback budget, the Ghostty VT keyboard
+  and mouse/Unicode handling, full-screen application support, and
+  platform terminal copy/paste bindings (Ctrl+Shift+C/V on Linux).
+- The terminal page works even when the monitoring backend has not started
+  or has gone offline. Shells run under the **desktop user's UID**, never
+  with the eBPF collector's elevated credentials.
+- Closing a pane/tab hangs up that PTY. Closing Renew also closes all PTYs.
+  Unlike GoRex's separate session server, **this initial embedded workspace
+  intentionally does not keep processes alive across desktop restarts**.
+
+The terminal native library, `libghostty-vt.so` on Linux, is resolved by
+the terminal plugin. Use `go tool mygo dev` or a **complete MyGo package**
+(`.deb` / `.tar.gz`) so the verified native library is included.
+A copied executable without the native runtime is still usable for
+monitoring, but its terminal page shows a clear load error.
+
+### Manual eBPF module lifecycle
+
+The **eBPF 模块** page under Management lists registered `kind=ebpf` plugins from `GET /plugins`, including attach kind/target, runtime-loaded status and last load error. **加载** calls `POST /plugins/bpf/load`; **卸载** requires confirmation and calls `POST /plugins/bpf/unload`. After a mutation the client re-reads `GET /plugins` and only reports success after the requested runtime state is confirmed. Failures are displayed without optimistic UI changes. The existing backend authorization and policy checks remain authoritative; no shell-based `bpftool`, `rmmod`, or unprivileged load path is introduced.
+
+These controls target **registered custom eBPF programs only**, and detach their kernel links without deleting their plugin manifests. The `enabled` setting (startup behavior) is unchanged by manual load/unload. Built-in core tracing programs are not listed as plugin manifests, and Monitoring event-group switches still control event filtering rather than physically unloading core programs. New plugin registration/compilation remains in the browser workbench.
+
+System telemetry uses the same native socket for a locally launched backend. The system sampler is transport-independent and shared by both clients: browser clients receive its protobuf snapshots over `/ws/system`, while Renew receives the identical `SystemStats` payload directly over Native IPC. This avoids a duplicated sampler while keeping the local desktop off the generic web transport. Remote/custom backends still use the WebSocket implementation, and a lost local IPC channel automatically falls back to it.
+
+The browser `/renew` frontend has been removed. The main browser workbench remains independent. Renew's monitoring panels remain native, and the optional Coding Harness panel hosts a localhost-only MyGo embedded WebView without adding any listening port to Renew. The privately started backend serves authenticated configuration and history requests over a second Unix socket in the desktop-owned 0700 session directory.
+
+## Why a separate module?
+
+The Renew workspace requires Go 1.27.3 or newer. Renew pins the MyGo dependency in [`desktop/renew/go.mod`](go.mod) (**v0.5.5 as of 2026-10-18**) and the repository workspace uses Go 1.27.3. The `desktop/renew` module remains isolated so native UI dependencies do not enter the privileged backend. The current runtime includes earlier memory/cache, Linux rendering, and input improvements as well as v0.4.3's latest native UI fixes without altering the privilege boundary.
+
+## Develop
+
+From the repository root:
+
+```bash
+make renew-desktop-dev
+```
+
+Development generates the backend protobuf/eBPF bindings and starts `go tool mygo dev`. The backend code is linked into the dev Renew binary; there is no second backend executable and no Vite process.
+
+Connect to an existing backend:
+
+```bash
+AGENT_BACKEND_URL=http://127.0.0.1:9090 make renew-desktop-dev
+```
+
+For a protected remote/custom backend, provide its existing token explicitly:
+
+```bash
+AGENT_BACKEND_URL=https://host.example AGENT_API_TOKEN=... make renew-desktop-dev
+```
+
+Automatic eBPF backend startup is Linux-only and only for a local HTTP origin. Windows and macOS builds can connect to a separately running backend.
+
+## Build packages
+
+```bash
+make renew-desktop-build
+# Equivalent:
+cd desktop/renew
+go tool mygo build
+```
+
+The build hook generates the backend protobuf/eBPF bindings, then MyGo links the backend library directly into Renew. The Linux output `build/linux-amd64/renew` contains the UI + backend; the terminal additionally uses a verified `libghostty-vt.so` native runtime supplied by the complete MyGo Linux package. No `agent-ebpf-filter` helper ELF, askpass script, or `frontend/dist` bundle is shipped beside it. The CI workflow also publishes that executable by itself as the `renew-linux-amd64-single-binary` artifact.
+
+On Linux the native monitoring UI uses GTK and MyGo's renderer. The optional embedded DeepSeek Harness panel needs WebKitGTK 4.1 (e.g. libwebkit2gtk-4.1-0), while monitoring and PTY terminals continue to work without it.
+
+Renew's Linux single-binary build also validates the `CGO_ENABLED=0` embedded-backend path. In that configuration the embedded backend uses pure-Go hardware fallbacks: core eBPF monitoring, policy enforcement, event capture, system/process statistics, and generic DRM fdinfo GPU telemetry remain available, while NVML-only NVIDIA detail fields and V4L2 camera capture are omitted from the single-file build. The standalone backend keeps those integrations when built with CGO enabled.
+
+## Runtime ownership
+
+The desktop keeps:
+
+- single-instance handling;
+- native window lifecycle and saved window size;
+- `AGENT_BACKEND_URL` / `--backend` selection;
+- same-executable backend dispatch, authorization and lifecycle supervision;
+- private Unix-socket token handoff and Native IPC v2 compact-summary stream;
+- native monitoring state, protobuf decoding and presentation;
+- MyGo packaging.
+
+The embedded backend library keeps:
+
+- eBPF and privileged operations;
+- event persistence;
+- authentication;
+- native desktop IPC plus REST / WebSocket compatibility protocols;
+- filtering, normalization and risk decisions.
+
+Closing or crashing Renew closes the lifetime socket and gracefully stops **only** the privileged internal-backend child it started. A reused system backend is left running. On systems without a PolicyKit authentication agent, the same Renew executable can also act as `SUDO_ASKPASS` and delegate the password UI to an installed `zenity` or `kdialog`; no helper script is packaged.
+
+## Validation
+
+```bash
+cd desktop/renew
+go test ./...
+go build ./...
+../../scripts/renew-desktop.sh prepare
+go tool mygo build -skip-build-command -platform linux/amd64
+```
+
+## Tracking scope and filesystem noise
+
+The tracking panel can filter by tag and activation status. Commands may be disabled; exact file and recursive directory rules remain enabled until deleted. The file picker uses MyGo's native dialog. **文件夹内文件** enumerates and registers existing immediate regular files as exact paths (a snapshot; new files need registering again); **文件** registers one exact file; **文件夹及其子文件** stores a persistent recursive prefix. Mutations still require the existing policy-management gate.
+
+New runtime configs ignore `/proc` and `/tmp` by default. The extra built-in `/usr/bin` rule suppresses only low-risk read/write operations (not executable launches, renames, or policy alerts); the explicit empty `ignoredPaths: []` opt-out remains effective. Already saved custom ignored paths are not overwritten.
+
+In bundled mode the privileged child listens only on an authenticated private Unix domain API socket, plus the separate lifetime/event-stream socket. It does **not** open TCP port 8080 or write a backend port file. When the user explicitly connects to a pre-existing local/remote backend, the desktop reuses that independently managed endpoint without changing how that service listens.
+
+## MyGo v0.3.4 appearance and responsive UI
+
+- This UI iteration originally landed on **MyGo v0.3.4**; the current desktop module and CLI tool share the version pinned in [`go.mod`](go.mod) (**v0.5.5 as of 2026-10-18**). It does not add a WebView runtime.
+- Windows 11 supports a Mica material and macOS supports a sidebar material where the compositor offers native vibrancy. The toolbar provides a session-only **纯色模式 / 系统材质** switch; all content tables and event details keep opaque surfaces for readability. Unsupported Windows versions and Linux (Wayland/X11) retain the full opaque navy theme. Do not imply Linux compositor material support.
+- Navigation opens and closes with native, reduced-motion-aware animation. Page changes have a modest entrance transition; the toolbar automatically overflows actions at narrow sizes while preserving keyboard and screen-reader behavior.
+- Search, event pinning, explicit detail requests and privileged backend permissions are unchanged. No additional collection, telemetry or network call is introduced by these UI effects.
+
+### MyGo v0.3.5 follow-up: terminal and triage usability
+
+- The earlier MyGo v0.3.5 migration fixed closing a window during native-frame rendering.
+- The terminal action row is a native, keyboard-friendly toolbar with automatic overflow on narrow windows. The terminal tab strip uses an accessible native tablist and horizontal scrolling; tab titles are shortened on Unicode boundaries.
+- A new terminal tab reveals the end of the strip. Closing a tab before the active tab preserves the current PTY, and closing the last tab clears stale focus state.
+- Clicking an alert in the inspector always shows that retained redacted summary, even if the Events table currently filters it out. Event table filters remain unchanged until the user explicitly chooses "定位" or another correlation action.
+
+
+### 分离式终端子窗口（MyGo 0.4.1）
+
+在 **终端** 页选择标签后点击 **分离当前标签**，现有标签（包括 Ghostty PTY、目录、分屏布局与滚动状态）会移到单独的原生窗口，Shell 进程不会重启。子窗口仍可新增标签、左右或上下拆分；支持 **收回当前标签**（只转移所选 Tab）、**再分离当前标签**（在已有子窗口内进一步弹出）、**收回全部标签**（关闭并回收整窗）。点击系统关闭按钮会无损回收整窗的标签，但不会抢走仍在使用的主窗口焦点。主窗口在子窗口仍打开时会自动隐藏而非停止后台采集器，回收后会恢复。退出整个应用时仍会清理全部 PTY。
+
+分离使用 MyGo 的 `NewWindow`、`StateKey`、`OnClose` 原生 API，终端和主窗口保持同一进程与共享 ID 分配器，不开第二个后端/事件 WebSocket。**当前通过按钮分离与回收**，并非跨窗口拖拽标签；Wayland 下不依赖全局窗口位置控制。
+
+
+### 监控页面分离
+
+在 **概览、研判、事件、会话、网络、域名、进程、系统** 页面顶部点击 **分离本页**，可打开独立原生监控窗口。每页只保留一个分离窗口，重复操作会聚焦原窗口。分离页保留独立的表格选择、筛选和研判 Tab；紧凑事件摘要、链路健康与系统快照由同一个 Renew 后端订阅广播到各窗口，而不会增加 eBPF 采集器实例。点击 **返回主窗口** 可切换主窗口到当前页面；关闭分离窗口会释放窗口私有的事件详情。
+
+策略修改、路径权限、插件管理等有副作用的页面仍留在主窗口，避免把具备授权上下文的管理视图误当只读监控面板。MyGo v0.4.1 的 Flyout 已具备父窗口浮动弹层能力，但这些长期驻留的监控页故意使用标准顶层 `Window`，这样在 Wayland/niri 下可被平铺、移动到其他工作区或屏幕。
+
+独立监控窗口保持固定页面身份；窗口内指向其他监控页或策略管理页的导航会在主窗口打开，不会将只读弹窗变成管理窗口。主窗口因存在子窗口而自动隐藏时，关闭最后一个子窗口会恢复它；手动选择托盘驻留则不自动取消驻留。
+
+### 窄窗口与独立监控 UI（自适应工作台）
+
+在窗口宽度低于 900 DIP 时，Renew 会自动将完整侧栏切换为活动栏底部的 **≡ 页面导航** 原生菜单（监控、防护、工具和诊断分类），保留全部配置页面和键盘导航；扩宽后恢复用户之前选择的精简/详细侧栏偏好，不改变 niri/Wayland 的窗口管理规则。
+
+在内容区不足 660 DIP 时，刷新、暂停/恢复事件和分离窗口操作会自动移到单独一行，并使用 MyGo 原生 Toolbar 溢出处理，不与状态标签争夺标题空间。底部状态栏根据可用宽度简化次要指标，但**采集异常、离线和非零丢弃数量始终保留**。它只在后端采集器、事件流和系统流均健康时报告「全链路实时」，避免将空白或中断的数据误报为正常运行。
+
+分离监控页同步主窗口的暂停展示状态；一旦采集链路离线、回退或启动未完成，展示可见的快照时效提示。分离页内的「系统诊断」会把主工作台切换到诊断页，而不是再启动一个后端连接。
+
+
+## 本机文件管理与 MyGo 原生代码编辑器
+
+侧栏 **工具 → 文件管理 / 原生编辑器**（以及顶部「前往页面」）提供纯 MyGo 原生工作区，不依赖 WebView，也不要求后端已连接。
+
+- **文件管理**：浏览本地绝对目录、返回上级/主目录、刷新、按文件名筛选、创建文件/目录、选中重命名、显式二次确认删除。删除不递归，文件创建使用独占方式避免覆盖已有内容；大目录每次最多读取 5000 项。文件操作在后台进行，避免阻塞 MyGo 绘制帧。
+- **编辑器**：从文件列表双击 UTF-8 普通文本文件，在原生 `ui/editor` 中打开；支持多标签、语言语法高亮、查找、折叠、多光标与撤销。标签上的圆点提示未保存内容；关闭未保存标签会再次确认。单个文件上限 8 MiB；目前没有二进制/十六进制编辑、文件夹递归删除或任意文件覆盖式的「另存为」。
+- **安全边界**：所有本地文件 I/O 只由未提权的 Renew 桌面进程按当前用户权限执行。不会经由 eBPF 后端、Shell、远程 API 或策略管理权限代读写。编辑器拒绝符号链接和设备文件，并对保存前的外部修改进行版本/时间与文件标识检查。使用同目录临时文件原子替换、保留原权限，并通过 MyGo Buffer 写入原始行尾格式；发现冲突时拒绝覆盖、要求重新打开确认。极小的并发替换竞争窗口不等于跨进程强制锁。
+- **独立于采集**：即使采集器断开或启动失败，文件浏览与编辑器仍可使用；进入本地页面不会创建额外事件流、改写 eBPF 捕获范围或变更 LSM 文件权限策略。
+
+本次历史迭代曾将依赖升级至 **MyGo v0.4.8**（Go 1.27.1）；这不是现行版本。当前版本以 [`go.mod`](go.mod) 为准，仍与特权后端模块隔离。常规 PR CI 执行 `go mod tidy -diff`、`go test ./...`、`go tool mygo vet .`、单二进制构建及 Linux 安装包检查。
+
+
+## Agent → SubAgent 进程派生可视化
+
+原生桌面侧边栏的「Agent 派生」页面提供两个可即时切换的视图：
+
+- **放射图**：以识别出的 Agent 进程为中心，按当前 PID/PPID 关系逐层展开后代；点击节点查看进程详情、事件和父进程事件。
+- **瀑布图**：按派生层级排列进程，并以进程启动时间到当前系统快照时刻显示存活区间；它**不是** SubAgent 任务耗时，也不代表进程真实退出时间。
+- 颜色用于区分根 Agent、普通进程及「子 Agent 候选」；候选要求后代进程本身被识别为 Agent 工具，不会把 bash、python 等普通派生执行器标记为真正的子 Agent。
+- 两个视图共用选中 PID；支持按根 Agent 过滤、事件跳转，且可从「进程」页直接进入。
+- 数据来自既有 /ws/system protobuf 进程快照及当前事件摘要窗口，不需要新特权端点。单图限制为 72 个节点 / 6 层；断线时不以旧事件拼接历史树。PID 启动时间用于过滤不可能的跨代父子链接，并阻止老事件冒充新进程上下文。
+
+**证据限制**：OS 进程父子关系不自动等于模型、RPC 或 Agent SDK 层的调用关系。内部同进程 SubAgent、异机 SubAgent、跨 RPC 协作、已经退出的进程，需要采集 Agent SDK / hooks 的 trace_id、span_id、parent_span_id、agent_run_id、开始及结束时间后才能显示为**已确认逻辑调用**。本页目前只把其它 Agent 可执行文件后代标注为「子 Agent 候选」，不会虚构时序或逻辑调用。
+
+### Claude Code SubAgent 生命周期采集（可选）
+
+在 Web 管理台的 Hook 配置中，除普通的 **Claude Code / PreToolUse** 外，可分别启用 **Claude Code · SubagentStart** 和 **Claude Code · SubagentStop**。它们独立写入 `~/.claude/settings.json` 的对应事件，不会覆盖已有 `PreToolUse` 或手工 Hook，且可分别卸载。只有显式启用时才增加生命周期采集；安装后需重新启动 Claude Code 会话以读取 Hook 配置。
+
+接收端继续使用每个 Hook 独立的 secret 认证。Hook relay 最多报告其调用进程的父 PID 作为尽力关联线索，不能单凭该 PID 推断跨进程 Agent 调用关系。完整事件的 `ExtraInfo` 仅持久化 `agent_id` 的摘要及 `agent_type` 元数据（以及既有 prompt digest）；不保留原始 agent_id、用户输入或响应文本。Renew 的原生摘要展示已观察到的开始/结束信号，但不在缺乏原始 span/call_id 证据时拼接虚构的完整生命周期。
+
+
+### Coding Harness 快捷启动与 DeepSeek 内嵌 Web UI（MyGo 0.5.1）
+
+在 **终端** 顶部的 Coding Harness 工具栏中，可一键创建 Codex、Claude Code、Gemini CLI、OpenCode、Pi、Copilot CLI、Aider、Kiro CLI 的独立 PTY。工具栏显示已发现 CLI 数量与未安装项；**刷新检测** 可重新读取 PATH。每个启动器都直接执行对应已安装程序（无 sh -c / 命令字符串拼接），默认继承当前终端工作目录，退出后仍能查看终端输出。
+
+**DeepSeek Harness** 是独立的开源 Agent Harness，不等于 DeepSeek 聊天网站。点击 **启动 DeepSeek Harness** 会优先运行已安装的 dsh；如果只有 npx，按钮会标明 **npx 联网启动**，通过官方 @deepseek-ai/dsh 包按需下载并执行。启动参数等价于 dsh web --no-open --host 127.0.0.1 --port <随机回环端口>。后台进程保持在本地 PTY 中，日志可见，关闭其终端 Tab 即停止会话。
+
+服务准备就绪后，Renew 通过 MyGo 0.5.1 的 Window.NewWebView + ui.WebView 在**同一个原生终端页面**渲染本地 http://localhost:<端口>/，而非调用外部系统浏览器或打开 chat.deepseek.com。宽屏默认 PTY/网页左右并排；窄屏上下并排；支持刷新或收起网页，收起不会停止进程。网页只在端口就绪后创建；代理不接管回环探测请求，也不跟随网页探测重定向。WebView 不添加 TrustedOrigins，不授权 DeepSeek 页面调用 Renew 的 Go 绑定服务。
+
+首次运行可自行安装：
+
+- Node.js 与 npm：npm install -g @deepseek-ai/dsh。
+- Linux：WebKitGTK 4.1（原生监控与 PTY 不依赖它）。
+- DeepSeek Harness 开发预览版能执行命令并操作文件，请遵循其权限确认和最小权限建议。
+
+注意：端口由本机临时分配并释放后交由 dsh 绑定，仍存在很小的端口竞争窗口；运行错误应以 DeepSeek PTY 内日志为准。框架本身的采集器仍由独立授权进程负责，Coding Harness 一律在桌面用户权限下运行。
+ -benchmem -count=3`。基准分别覆盖空首页、1200 条事件摘要静态展示、事件缓存每帧失效、**预热后**快速反转导航和保持布局时的双次导航操作；首次展开侧栏的字体与图标初始化属于单独的冷启动开销，不混进热路径均值。输出 `ns/op`、`B/op` 和理论 60 Hz（16.67ms）/120 Hz（8.33ms）CPU 帧预算占比；这些值是 **MyGo headless CPU 帧构建、布局和绘制开销**，不是实体 GPU 的帧率或 Wayland/niri 下的实测流畅度。不同机器或 CI 的结果只能按相同环境比较，不设脆弱的绝对耗时通过线。
 
 ## AgentSight 原生洞察（会话与 Token）
 

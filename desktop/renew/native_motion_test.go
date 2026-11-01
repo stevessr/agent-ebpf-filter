@@ -18,9 +18,9 @@ func TestRenewMotionPresetsStayShortAndNonBouncy(t *testing.T) {
 		rail.Duration > 200*time.Millisecond || rail.Enter != nil || rail.Exit != nil {
 		t.Fatalf("navigation hover must animate color, not layout: %+v", rail)
 	}
-	if page := renewPageTransition(); page.Enter == nil || page.Exit == nil ||
-		page.Duration > 240*time.Millisecond {
-		t.Fatalf("page navigation should keep a bounded enter/exit transition: %+v", page)
+	if page := renewPageTransition(); page.Enter == nil || page.Exit != nil ||
+		page.Duration > 200*time.Millisecond {
+		t.Fatalf("security pages must enter quickly without retaining ghost event evidence: %+v", page)
 	}
 	if tab := renewInspectorTabTransition(); tab.Enter == nil || tab.Exit != nil ||
 		tab.Duration > 200*time.Millisecond {
@@ -85,3 +85,62 @@ func TestRenewStatusAnimationDoesNotMaskCollectorFailure(t *testing.T) {
 		t.Fatal("status color transition must never delay or falsify the health label")
 	}
 }
+
+func TestWorkspaceMotionLayoutKeepsControlsStableDuringSidebarSpring(t *testing.T) {
+	// At 1250 DIP an inspector fits only with less than 134 DIP of sidebar.
+	// Compute its visibility against the future occupied width from the
+	// first animation frame rather than letting it briefly flicker.
+	for _, tc := range []struct {
+		name           string
+		animated, goal float32
+		layout         float32
+		inspector      bool
+		compactHeader  bool
+	}{
+		{"expand-before-first-frame", 0, 198, 198, false, true},
+		{"expand-midway", 86, 198, 198, false, true},
+		{"expand-final", 198, 198, 198, false, true},
+		{"collapse-start", 198, 0, 198, false, true},
+		{"collapse-midway", 100, 0, 100, true, false},
+		{"collapse-final", 0, 0, 0, true, false},
+		{"reverse-while-opening", 86, 0, 86, true, false},
+		{"reverse-while-closing", 100, 198, 198, false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			layout := workspaceMotionLayoutWidth(tc.animated, tc.goal)
+			if layout != tc.layout {
+				t.Fatalf("stable nav layout = %.0f, want %.0f", layout, tc.layout)
+			}
+			if show := showWorkspaceInspector(1250, layout, true, "事件"); show != tc.inspector {
+				t.Fatalf("inspector visibility = %t, want %t", show, tc.inspector)
+			}
+			if compact := workspaceCompactHeader(1100, layout); compact != tc.compactHeader {
+				t.Fatalf("header must not oscillate while the spring moves, compact=%t want=%t", compact, tc.compactHeader)
+			}
+		})
+	}
+}
+
+func TestWorkspaceMotionReleasesSidebarImmediatelyInNarrowWindow(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.page = "事件"
+	a.starting = false
+	a.navigationOpen = true
+	view := ui.NewTester(a.view, 1480, 860)
+	view.SetPreferences(ui.Preferences{ReduceMotion: true, TextScale: 1})
+	if !view.HasText("功能导航") {
+		t.Fatal("full-width desktop should show the sidebar")
+	}
+	view.SetSize(760, 720)
+	if view.HasText("功能导航") {
+		t.Fatal("compact window must jump directly to rail-only navigation")
+	}
+	if !a.navigationOpen {
+		t.Fatal("compact fallback must not discard the user's navigation preference")
+	}
+	view.SetSize(1480, 860)
+	if !view.HasText("功能导航") {
+		t.Fatal("restoring desktop width should restore the original navigation preference")
+	}
+}
+
