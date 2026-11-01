@@ -97,6 +97,11 @@ const activeTitle = computed(
       ?.title || "工作空间",
 );
 function onWorkbenchKeydown(event: KeyboardEvent) {
+  // Never steal editor/terminal key bindings or standard text editing shortcuts.
+  const target = event.target;
+  if (event.defaultPrevented || (target instanceof Element && target.closest(
+    'input, textarea, select, [contenteditable="true"], .monaco-editor, .xterm, .wterm',
+  ))) return;
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
     event.preventDefault();
     searchInput.value?.focus();

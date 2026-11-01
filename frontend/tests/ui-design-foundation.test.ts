@@ -33,4 +33,5 @@ test("shell responds to narrow screens and keyboard and motion preferences", () 
   expect(app).toContain(':aria-expanded="sidebar"');
   expect(app).toContain('window.addEventListener("keydown", onWorkbenchKeydown)');
   expect(app).toContain('window.removeEventListener("keydown", onWorkbenchKeydown)');
+  expect(app).toContain(".monaco-editor, .xterm, .wterm");
 });
