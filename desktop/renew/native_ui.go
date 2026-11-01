@@ -86,6 +86,8 @@ type renewApp struct {
 	filterCacheValid      bool
 	filterCacheVersion    uint64
 	filterCacheKey        eventFilterSignature
+	filterSearchOriginal  string
+	filterSearchNormalized string
 	filterCacheRows       []eventSummary
 	riskCacheValid        bool
 	riskCacheVersion      uint64
@@ -623,8 +625,15 @@ type eventFilterSignature struct {
 }
 
 func (a *renewApp) eventFilterCacheKey() eventFilterSignature {
+	// Case folding/search normalization is unnecessary on every frame while
+	// the user has not changed the input. Avoid another temporary string
+	// during sidebar animations and steady event-table redraws.
+	if a.search != a.filterSearchOriginal {
+		a.filterSearchOriginal = a.search
+		a.filterSearchNormalized = strings.ToLower(strings.TrimSpace(a.search))
+	}
 	return eventFilterSignature{
-		search: strings.ToLower(strings.TrimSpace(a.search)),
+		search: a.filterSearchNormalized,
 		eventType: a.eventTypeFilter,
 		session: a.eventSessionFilter,
 		decision: a.eventDecisionFilter,
