@@ -174,7 +174,9 @@ func TestWorkspaceDenseTablesSkipRepeatedSidebarReflow(t *testing.T) {
 	a.events = make([]eventSummary, 1200)
 	for i := range a.events {
 		a.events[i] = eventSummary{
-			EventID: strconv.Itoa(i + 1), PID: 1000 + i, Type: "openat",
+			EventID: strconv.Itoa(i + 1),
+			PID:     1000 + i,
+			Type:    "openat",
 		}
 	}
 	view := ui.NewTester(a.view, 1480, 860)
