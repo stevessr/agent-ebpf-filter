@@ -1,0 +1,95 @@
+name: Kernel cgroup ML guard — shadow-only checks
+
+on:
+  push:
+    paths:
+      - "backend/ebpf/kernel_ml_guard.c"
+      - "backend/internal/kernelguard/**"
+      - "backend/cmd/kernel-ml-guard/**"
+      - "scripts/train-kernel-guard.py"
+      - "scripts/tests/test_kernel_guard_trainer.py"
+      - ".github/workflows/kernel-ml-guard.yml"
+  pull_request:
+    paths:
+      - "backend/ebpf/kernel_ml_guard.c"
+      - "backend/internal/kernelguard/**"
+      - "backend/cmd/kernel-ml-guard/**"
+      - "scripts/train-kernel-guard.py"
+      - "scripts/tests/test_kernel_guard_trainer.py"
+      - ".github/workflows/kernel-ml-guard.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verifier-build-and-model-parity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: '1.27.3'
+          cache-dependency-path: backend/go.sum
+      - name: Install clang and libbpf headers
+        run: sudo apt-get update && sudo apt-get install -y clang llvm libbpf-dev
+      - name: Compile BPF ELF (not loaded by CI)
+        run: |
+          clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -Ibackend/ebpf \
+            -c backend/ebpf/kernel_ml_guard.c -o /tmp/kernel_ml_guard.o
+          llvm-objdump -h /tmp/kernel_ml_guard.o
+      - name: Go unit tests and daemon compilation
+        working-directory: backend
+        run: |
+          KERNEL_GUARD_OBJECT=/tmp/kernel_ml_guard.o go test ./internal/kernelguard ./cmd/kernel-ml-guard -count=1
+          go build ./cmd/kernel-ml-guard
+      - name: Python trainer unit tests
+        run: python3 -m unittest discover -s scripts/tests -p test_kernel_guard_trainer.py
+      - name: Cross-language synthetic holdout smoke (not a production accuracy claim)
+        run: |
+          python3 - <<'PY'
+          import csv
+          with open('/tmp/kernel-ml-training.csv', 'w', newline='') as f:
+              w = csv.writer(f)
+              w.writerow(['agent_run_id', 'destination_ip', 'destination_port', 'label'])
+              for i in range(500):
+                  rid = f'run-{i:03d}'
+                  for _ in range(50):
+                      w.writerow([rid, '8.8.8.8', 443, 'benign'])
+                  for _ in range(10):
+                      w.writerow([rid, '8.8.8.8', 4444, 'attack'])
+          PY
+          python3 scripts/train-kernel-guard.py \
+            --input /tmp/kernel-ml-training.csv \
+            --model /tmp/kernel-ml-model.json \
+            --holdout /tmp/kernel-ml-holdout.json
+          cd backend
+          go run ./cmd/kernel-ml-guard --validate-only \
+            --model /tmp/kernel-ml-model.json \
+            --holdout /tmp/kernel-ml-holdout.json \
+            --validation-csv /tmp/kernel-ml-training.csv \
+            --ports 4444
+          # A port without independent attack evidence may not be armed.
+          if go run ./cmd/kernel-ml-guard --validate-only \
+              --model /tmp/kernel-ml-model.json \
+              --holdout /tmp/kernel-ml-holdout.json \
+              --validation-csv /tmp/kernel-ml-training.csv \
+              --ports 22; then
+            echo 'uncovered port unexpectedly passed the release gate' >&2
+            exit 1
+          fi
+          # Dataset integrity binding: changing an input IP without changing
+          # the predictions still invalidates the exact CSV digest.
+          sed '2s/8.8.8.8/1.1.1.1/' /tmp/kernel-ml-training.csv > /tmp/tampered-training.csv
+          if go run ./cmd/kernel-ml-guard --validate-only \
+              --model /tmp/kernel-ml-model.json \
+              --holdout /tmp/kernel-ml-holdout.json \
+              --validation-csv /tmp/tampered-training.csv \
+              --ports 4444; then
+            echo 'modified validation dataset unexpectedly passed the digest check' >&2
+            exit 1
+          fi
+      - name: Go formatting
+        run: |
+          files="$(gofmt -l backend/internal/kernelguard/*.go backend/cmd/kernel-ml-guard/*.go)"
+          test -z "$files" || { gofmt -d backend/internal/kernelguard/*.go backend/cmd/kernel-ml-guard/*.go; exit 1; }
