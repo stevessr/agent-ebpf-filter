@@ -88,7 +88,9 @@ func mergeEventSummariesIntoWorkspace(dst, existing, incoming []eventSummary, li
 			continue
 		}
 		event.EventID = id
-		event.SearchText = buildEventSearchText(event)
+		// A flood may contain repeated revisions of the same EventID.
+		// Build derived full-text search only after last-update-wins
+		// deduplication; superseded revisions need no search corpus.
 		replacements[id] = event
 	}
 	if len(replacements) == 0 {
@@ -102,6 +104,7 @@ func mergeEventSummariesIntoWorkspace(dst, existing, incoming []eventSummary, li
 		fresh = make([]eventSummary, 0, len(replacements))
 	}
 	for _, event := range replacements {
+		event.SearchText = buildEventSearchText(event)
 		fresh = append(fresh, event)
 	}
 	workspace.fresh = fresh
