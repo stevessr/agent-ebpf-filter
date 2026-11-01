@@ -58,6 +58,8 @@ jobs:
         run: go test ./...
       - name: Measure native CPU frame budgets (no timing threshold)
         run: go test -run=NONE -bench=BenchmarkRenewNativeFrame -benchtime=10x -benchmem -count=1 .
+      - name: Benchmark incremental network and process aggregates
+        run: go test -run=NONE -bench=BenchmarkRenewAggregateDeltaViews -benchtime=150x -benchmem -count=1 .
       - name: Benchmark selective event filters after native merge
         run: go test -run=NONE -bench=BenchmarkRenewSelectiveFilterAfterMerge -benchtime=150x -benchmem -count=1 .
       - name: Benchmark incremental event merge and risk aggregation
