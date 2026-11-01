@@ -34,10 +34,18 @@ func (a *renewApp) overview(c *ui.Context) {
 	headline, detail, level := a.overviewHeadline()
 	tone := workspaceStatusTone(t, level)
 	_, attention, danger := a.riskCounts()
+	// Only the low-frequency collector status changes the surface tint.
+	// High contrast keeps its original surface, border and text contrast.
+	statusSurface := t.Surface
+	if !c.Preferences().HighContrast {
+		statusSurface = t.Surface.Mix(tone, 0.08)
+	}
 
 	// The default desktop landing view answers "am I being monitored, and
 	// what should I do?" instead of showing a second investigator dashboard.
-	ui.Column(c).Padding(18).Gap(12).Radius(12).Background(t.Surface).Border(1, t.Border).Children(func() {
+	ui.Column(c).Key("renew-overview-health").Padding(18).Gap(12).Radius(12).
+		Background(statusSurface).Border(1, t.Border).
+		Transition(renewStatusColorTransition()).Children(func() {
 		ui.Row(c).Gap(12).Wrap().AlignItems(ui.Center).Children(func() {
 			ui.Box(c).Size(42, 42).Radius(12).Background(t.Accent.Alpha(0.17)).Center().Children(func() {
 				ui.Icon(c, renewMirrorSVG).Size(29, 29).TextColor(t.Accent).Label(desktopBrandName)
@@ -107,48 +115,52 @@ func (a *renewApp) overview(c *ui.Context) {
 
 	groups, hidden := a.personalAlertGroups()
 	if len(groups) > 0 || len(a.personalAlertMuteOrder) > 0 {
-		card(c, "优先核查", func() {
-			ui.Text(c, "按风险等级展示相似活动，数量只来自已加载摘要。高风险始终显示；收起关注项只影响本次桌面提醒，不会放行或修改策略。").
-				FontSize(11).TextColor(t.TextMuted)
-			if len(a.personalAlertMuteOrder) > 0 {
-				ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
-					ui.Textf(c, "本次已收起 %d 类关注提示（当前窗口 %d 条），记录仍可在事件页查看。",
-						len(a.personalAlertMuteOrder), hidden).FontSize(11).TextColor(t.TextMuted).Grow(1)
-					if ui.Button(c, "恢复全部提示").Clicked() {
-						a.restorePersonalAlerts()
-					}
-				})
-			}
-			if len(groups) == 0 {
-				ui.Text(c, "当前未显示需要核查的提醒。已收起的关注事件仍保留在事件记录中。").
-					FontSize(12).TextColor(t.TextMuted)
-			}
-			for _, group := range groups[:min(len(groups), 3)] {
-				group := group
-				ui.Column(c).Gap(5).Children(func() {
-					a.eventRow(c, group.Event)
+		// Reveal on first attention only; a stable key prevents live summary
+		// updates from animating the entire incident group repeatedly.
+		ui.Column(c).Key("renew-priority-alerts").Transition(renewRevealTransition()).Children(func() {
+			card(c, "优先核查", func() {
+				ui.Text(c, "按风险等级展示相似活动，数量只来自已加载摘要。高风险始终显示；收起关注项只影响本次桌面提醒，不会放行或修改策略。").
+					FontSize(11).TextColor(t.TextMuted)
+				if len(a.personalAlertMuteOrder) > 0 {
 					ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
-						if group.Count > 1 {
-							ui.Badge(c, fmt.Sprintf("同类活动 %d 条", group.Count))
-						}
-						if group.Risk == "需关注" {
-							if ui.Button(c, "本次收起同类提示").
-								Tooltip("只在本次运行中收起相同进程、目标、动作和风险等级的关注提示；不影响原始记录、规则或高风险事件").Clicked() {
-								a.mutePersonalAlert(group)
-							}
+						ui.Textf(c, "本次已收起 %d 类关注提示（当前窗口 %d 条），记录仍可在事件页查看。",
+							len(a.personalAlertMuteOrder), hidden).FontSize(11).TextColor(t.TextMuted).Grow(1)
+						if ui.Button(c, "恢复全部提示").Clicked() {
+							a.restorePersonalAlerts()
 						}
 					})
-				})
-			}
-			if len(groups) > 3 {
-				ui.Textf(c, "另有 %d 类待关注活动，可在事件页查看。", len(groups)-3).
-					FontSize(11).TextColor(t.TextMuted)
-			}
-			if ui.Button(c, "查看所有需关注活动").Clicked() {
-				a.clearEventFilters()
-				a.eventAttentionOnly = true
-				a.page = "事件"
-			}
+				}
+				if len(groups) == 0 {
+					ui.Text(c, "当前未显示需要核查的提醒。已收起的关注事件仍保留在事件记录中。").
+						FontSize(12).TextColor(t.TextMuted)
+				}
+				for _, group := range groups[:min(len(groups), 3)] {
+					group := group
+					ui.Column(c).Gap(5).Children(func() {
+						a.eventRow(c, group.Event)
+						ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
+							if group.Count > 1 {
+								ui.Badge(c, fmt.Sprintf("同类活动 %d 条", group.Count))
+							}
+							if group.Risk == "需关注" {
+								if ui.Button(c, "本次收起同类提示").
+									Tooltip("只在本次运行中收起相同进程、目标、动作和风险等级的关注提示；不影响原始记录、规则或高风险事件").Clicked() {
+									a.mutePersonalAlert(group)
+								}
+							}
+						})
+					})
+				}
+				if len(groups) > 3 {
+					ui.Textf(c, "另有 %d 类待关注活动，可在事件页查看。", len(groups)-3).
+						FontSize(11).TextColor(t.TextMuted)
+				}
+				if ui.Button(c, "查看所有需关注活动").Clicked() {
+					a.clearEventFilters()
+					a.eventAttentionOnly = true
+					a.page = "事件"
+				}
+			})
 		})
 	}
 

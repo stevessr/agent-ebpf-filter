@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"strconv"
-	"time"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -182,11 +181,7 @@ func (a *renewApp) inspector(c *ui.Context) {
 	}
 	panel := ui.Column(c).Key("renew-inspector-pane").Width(width).Shrink(0).
 		Background(t.Surface).Border(1, t.Border).
-		Transition(ui.ElementTransition{
-			Duration: 180 * time.Millisecond,
-			Enter:    &ui.Motion{X: 16},
-			Exit:     &ui.Motion{X: 12},
-		})
+		Transition(renewInspectorTransition())
 	if a.page == "研判" {
 		panel.Height(690)
 	}
@@ -210,82 +205,92 @@ func (a *renewApp) inspector(c *ui.Context) {
 		})
 		ui.Tabs(c, &a.inspectorTab, "事件研判", "运行诊断")
 		ui.Divider(c)
-		if a.inspectorTab == 1 {
-			a.inspectorDiagnostics(c)
-		} else {
-			ui.Scroll(c).Grow(1).Padding(12).Gap(12).Children(func() {
-				ui.Row(c).Gap(8).Children(func() {
-					ui.Column(c).Grow(1).Padding(12).Gap(4).Radius(9).Background(t.Background).Children(func() {
-						ui.Text(c, "需关注").FontSize(11).TextColor(t.TextMuted)
-						ui.Text(c, strconv.Itoa(attention)).FontSize(22).Bold().TextColor(t.Warning)
-						if ui.Button(c, "筛选").Tooltip("仅展示需关注等级").Clicked() {
-							a.clearEventFilters()
-							a.eventRiskFilter = "需关注"
-							a.page = "事件"
-						}
-					})
-					ui.Column(c).Grow(1).Padding(12).Gap(4).Radius(9).Background(t.Background).Children(func() {
-						ui.Text(c, "高风险").FontSize(11).TextColor(t.TextMuted)
-						ui.Text(c, strconv.Itoa(danger)).FontSize(22).Bold().TextColor(t.Danger)
-						if ui.Button(c, "筛选").Tooltip("仅展示高风险等级").Clicked() {
-							a.clearEventFilters()
-							a.eventRiskFilter = "高风险"
-							a.page = "事件"
-						}
-					})
-				})
-				ui.Text(c, "统计来自当前最多 1200 条摘要，并非历史总量").FontSize(10).TextColor(t.TextMuted)
-				if ui.Button(c, "查看所有需关注事件").Clicked() {
-					a.clearEventFilters()
-					a.eventAttentionOnly = true
-					a.page = "事件"
-				}
-				ui.Divider(c)
-				ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
-					ui.Text(c, "事件上下文").Bold().FontSize(12).Grow(1)
-					if a.inspectorPinnedID != "" {
-						statusPill(c, "已固定", t.Accent)
-					}
-				})
-				event, ok := a.inspectorEvent()
-				if !ok {
-					if a.inspectorPinnedID != "" {
-						ui.Text(c, "固定的事件已离开内存摘要窗口；解除固定后可继续自动跟随。").FontSize(11).TextColor(t.Warning)
-						if ui.Button(c, "解除固定").Clicked() {
-							a.inspectorPinnedID = ""
-						}
-					} else {
-						ui.Text(c, "当前没有匹配的事件；检查筛选条件或等待采集。").FontSize(11).TextColor(t.TextMuted)
-					}
+		// Only the selected tab renders and owns focus. The tab key remains
+		// stable across live event updates, so the reveal never restarts.
+		ui.Column(c).Key("renew-inspector-tab-" + strconv.Itoa(a.inspectorTab)).
+			Grow(1).MinHeight(0).Transition(renewInspectorTabTransition()).Children(func() {
+				if a.inspectorTab == 1 {
+					a.inspectorDiagnostics(c)
 				} else {
-					a.inspectorEventCard(c, event)
-				}
-				ui.Divider(c)
-				ui.Text(c, "最近需关注事件").FontSize(12).Bold()
-				alerts := a.inspectorAlerts(5)
-				if len(alerts) == 0 {
-					ui.Text(c, "当前摘要窗口暂无待关注事件。").FontSize(11).TextColor(t.TextMuted)
-				}
-				for _, alert := range alerts {
-					item := alert
-					ui.Column(c).Padding(8).Gap(4).Radius(8).Background(t.Background).Children(func() {
-						ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-							riskPill(c, eventRisk(item))
-							ui.Text(c, eventTime(item)).FontSize(10).TextColor(t.TextMuted)
+					ui.Scroll(c).Grow(1).Padding(12).Gap(12).Children(func() {
+						ui.Row(c).Gap(8).Children(func() {
+							ui.Column(c).Grow(1).Padding(12).Gap(4).Radius(9).Background(t.Background).Children(func() {
+								ui.Text(c, "需关注").FontSize(11).TextColor(t.TextMuted)
+								ui.Text(c, strconv.Itoa(attention)).FontSize(22).Bold().TextColor(t.Warning)
+								if ui.Button(c, "筛选").Tooltip("仅展示需关注等级").Clicked() {
+									a.clearEventFilters()
+									a.eventRiskFilter = "需关注"
+									a.page = "事件"
+								}
+							})
+							ui.Column(c).Grow(1).Padding(12).Gap(4).Radius(9).Background(t.Background).Children(func() {
+								ui.Text(c, "高风险").FontSize(11).TextColor(t.TextMuted)
+								ui.Text(c, strconv.Itoa(danger)).FontSize(22).Bold().TextColor(t.Danger)
+								if ui.Button(c, "筛选").Tooltip("仅展示高风险等级").Clicked() {
+									a.clearEventFilters()
+									a.eventRiskFilter = "高风险"
+									a.page = "事件"
+								}
+							})
 						})
-						ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-							if label := eventHarnessLabel(item); label != "未识别" {
-								drawHarnessIcon(c, label)
+						ui.Text(c, "统计来自当前最多 1200 条摘要，并非历史总量").FontSize(10).TextColor(t.TextMuted)
+						if ui.Button(c, "查看所有需关注事件").Clicked() {
+							a.clearEventFilters()
+							a.eventAttentionOnly = true
+							a.page = "事件"
+						}
+						ui.Divider(c)
+						ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
+							ui.Text(c, "事件上下文").Bold().FontSize(12).Grow(1)
+							if a.inspectorPinnedID != "" {
+								statusPill(c, "已固定", t.Accent)
 							}
-							ui.Text(c, eventAction(item)+" · "+displayOr(item.Comm, "未知")).FontSize(11).MaxLines(2)
 						})
-						if ui.Button(c, "查看此事件").Clicked() {
-							a.selectInspectorEvent(item.EventID)
+						event, ok := a.inspectorEvent()
+						if !ok {
+							if a.inspectorPinnedID != "" {
+								ui.Text(c, "固定的事件已离开内存摘要窗口；解除固定后可继续自动跟随。").FontSize(11).TextColor(t.Warning)
+								if ui.Button(c, "解除固定").Clicked() {
+									a.inspectorPinnedID = ""
+								}
+							} else {
+								ui.Text(c, "当前没有匹配的事件；检查筛选条件或等待采集。").FontSize(11).TextColor(t.TextMuted)
+							}
+						} else {
+							// Stable visual identity: fresh event summaries do not
+							// restart a transition on every collector refresh.
+							ui.Column(c).Key("inspector-evidence").
+								Transition(renewRevealTransition()).Children(func() {
+									a.inspectorEventCard(c, event)
+								})
+						}
+						ui.Divider(c)
+						ui.Text(c, "最近需关注事件").FontSize(12).Bold()
+						alerts := a.inspectorAlerts(5)
+						if len(alerts) == 0 {
+							ui.Text(c, "当前摘要窗口暂无待关注事件。").FontSize(11).TextColor(t.TextMuted)
+						}
+						for _, alert := range alerts {
+							item := alert
+							ui.Column(c).Padding(8).Gap(4).Radius(8).Background(t.Background).Children(func() {
+								ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+									riskPill(c, eventRisk(item))
+									ui.Text(c, eventTime(item)).FontSize(10).TextColor(t.TextMuted)
+								})
+								ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+									if label := eventHarnessLabel(item); label != "未识别" {
+										drawHarnessIcon(c, label)
+									}
+									ui.Text(c, eventAction(item)+" · "+displayOr(item.Comm, "未知")).FontSize(11).MaxLines(2)
+								})
+								if ui.Button(c, "查看此事件").Clicked() {
+									a.selectInspectorEvent(item.EventID)
+								}
+							})
 						}
 					})
 				}
 			})
-		}
 		ui.Divider(c)
 		ui.Row(c).Padding(11).Gap(8).Wrap().Children(func() {
 			if ui.Button(c, "事件列表").Clicked() { a.page = "事件" }

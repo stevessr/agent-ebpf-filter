@@ -19,7 +19,8 @@ func renewLoadingIndicator(c *ui.Context, label string) ui.Element {
 // Linear dots are visually quieter than an indeterminate progress ring.
 func renewLoadingRow(c *ui.Context, label string) {
 	t := c.Theme()
-	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Gap(8).AlignItems(ui.Center).
+		Transition(renewRevealTransition()).Children(func() {
 		loading.LinearDots(c, loading.Options{
 			Size:  16,
 			Color: t.Accent,
