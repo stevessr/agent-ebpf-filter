@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"strconv"
-	"time"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -182,11 +181,7 @@ func (a *renewApp) inspector(c *ui.Context) {
 	}
 	panel := ui.Column(c).Key("renew-inspector-pane").Width(width).Shrink(0).
 		Background(t.Surface).Border(1, t.Border).
-		Transition(ui.ElementTransition{
-			Duration: 180 * time.Millisecond,
-			Enter:    &ui.Motion{X: 16},
-			Exit:     &ui.Motion{X: 12},
-		})
+		Transition(renewInspectorTransition())
 	if a.page == "研判" {
 		panel.Height(690)
 	}
@@ -210,9 +205,13 @@ func (a *renewApp) inspector(c *ui.Context) {
 		})
 		ui.Tabs(c, &a.inspectorTab, "事件研判", "运行诊断")
 		ui.Divider(c)
-		if a.inspectorTab == 1 {
-			a.inspectorDiagnostics(c)
-		} else {
+		// Only the selected tab renders and owns focus. The tab key remains
+		// stable across live event updates, so the reveal never restarts.
+		ui.Column(c).Key("renew-inspector-tab-" + strconv.Itoa(a.inspectorTab)).
+			Grow(1).MinHeight(0).Transition(renewInspectorTabTransition()).Children(func() {
+				if a.inspectorTab == 1 {
+					a.inspectorDiagnostics(c)
+				} else {
 			ui.Scroll(c).Grow(1).Padding(12).Gap(12).Children(func() {
 				ui.Row(c).Gap(8).Children(func() {
 					ui.Column(c).Grow(1).Padding(12).Gap(4).Radius(9).Background(t.Background).Children(func() {
@@ -258,7 +257,12 @@ func (a *renewApp) inspector(c *ui.Context) {
 						ui.Text(c, "当前没有匹配的事件；检查筛选条件或等待采集。").FontSize(11).TextColor(t.TextMuted)
 					}
 				} else {
-					a.inspectorEventCard(c, event)
+					// Stable visual identity: fresh event summaries do not
+					// restart a transition on every collector refresh.
+					ui.Column(c).Key("inspector-evidence").
+						Transition(renewRevealTransition()).Children(func() {
+							a.inspectorEventCard(c, event)
+						})
 				}
 				ui.Divider(c)
 				ui.Text(c, "最近需关注事件").FontSize(12).Bold()
@@ -285,7 +289,8 @@ func (a *renewApp) inspector(c *ui.Context) {
 					})
 				}
 			})
-		}
+				}
+			})
 		ui.Divider(c)
 		ui.Row(c).Padding(11).Gap(8).Wrap().Children(func() {
 			if ui.Button(c, "事件列表").Clicked() { a.page = "事件" }
