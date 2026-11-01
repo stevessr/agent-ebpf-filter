@@ -26,7 +26,7 @@ func BenchmarkRenewNativeFrame(b *testing.B) {
 		{"overview-quiet", "概览", 0, false, false},
 		{"events-1200-steady", "事件", 1200, false, false},
 		{"events-1200-refresh", "事件", 1200, true, false},
-		{"events-1200-nav-reverse", "事件", 1200, false, true},
+		{"events-1200-nav-reverse-warm", "事件", 1200, false, true},
 	} {
 		b.Run(tc.name, func(b *testing.B) {
 			a := newRenewApp("http://127.0.0.1:8080")
@@ -48,8 +48,20 @@ func BenchmarkRenewNativeFrame(b *testing.B) {
 					ReceivedAtMS: int64(i * 1000),
 				})
 			}
+			if tc.reverse {
+				// Build the full native sidebar before timing. The initial
+				// icon/font cache warmup is a separate one-time cost, not
+				// the repeated spring reversal being measured here.
+				a.navigationOpen = true
+			}
 			view := ui.NewTester(a.view, 1480, 860)
 			view.SetPreferences(ui.Preferences{TextScale: 1})
+			if tc.reverse {
+				for i := 0; i < 4; i++ {
+					a.navigationOpen = !a.navigationOpen
+					view.Frame()
+				}
+			}
 			b.ReportAllocs()
 			b.ResetTimer()
 			start := time.Now()
@@ -59,7 +71,9 @@ func BenchmarkRenewNativeFrame(b *testing.B) {
 					// matching a new IPC summary batch without I/O.
 					a.eventsVersion++
 				}
-				if tc.reverse && i%8 == 0 {
+				if tc.reverse {
+					// Force a reversal every frame to measure the hot
+					// interaction path, not just the first opening.
 					a.navigationOpen = !a.navigationOpen
 				}
 				view.Frame()
