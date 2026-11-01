@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -80,7 +81,18 @@ type renewApp struct {
 	eventMergeWorkspace   eventMergeWorkspace
 	eventsVersion         uint64
 	eventUIQueue          chan eventSummary
+	// Serializing producers makes the bounded drop-oldest sequence atomic
+	// relative to other enqueues, and keeps exact drop accounting.
+	eventUIQueueMu        sync.Mutex
 	eventUIDropped        eventDropCounter
+	eventUIQueueDropped   eventDropCounter
+	eventUIBatchDropped   eventDropCounter
+	eventUIBatchBuffered  atomic.Int64
+	eventUIBatchPeak      atomic.Int64
+	eventUICommits        atomic.Uint64
+	eventUICommitted      atomic.Uint64
+	eventUILastCommit     atomic.Int64
+	eventUIBusyTicks      atomic.Uint64
 	eventUIPaused         eventPauseFlag
 	eventUIBatcherStarted eventBatcherFlag
 	eventUICommitPending  eventCommitFlag
@@ -294,6 +306,9 @@ type renewApp struct {
 func newRenewApp(backend string) *renewApp {
 	a := &renewApp{
 		backend:            backend,
+		// The channel pointer never changes after construction. Both the
+		// native IPC reader and diagnostics can safely access it.
+		eventUIQueue:       make(chan eventSummary, eventUIQueueSize),
 		starting:           true,
 		page:               "概览",
 		files:              localFileWorkspace{active: -1},
