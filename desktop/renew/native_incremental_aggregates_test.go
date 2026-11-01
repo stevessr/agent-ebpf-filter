@@ -18,12 +18,12 @@ func aggregateTestEvent(id string, stamp int64, target string, pid int, network 
 
 func verifyAggregateParity(t *testing.T, a *renewApp, step int) {
 	t.Helper()
-	wantNet := aggregateNetwork(a.events)
+	wantNet := aggregateNetwork(a.filteredEvents())
 	gotNet := a.filteredNetworkRows()
 	if !equalNetworkAggregates(gotNet, wantNet) {
 		t.Fatalf("step %d network aggregates drifted: rows=%d want=%d", step, len(gotNet), len(wantNet))
 	}
-	wantProc := aggregateProcesses(a.events)
+	wantProc := aggregateProcesses(a.filteredEvents())
 	gotProc := a.filteredProcessAggregateRows()
 	if !equalProcessAggregates(gotProc, wantProc) {
 		t.Fatalf("step %d process aggregates drifted: rows=%d want=%d", step, len(gotProc), len(wantProc))
