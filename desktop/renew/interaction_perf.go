@@ -123,7 +123,7 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 			case buf := <-batchPool:
 				return buf[:0]
 			default:
-				return make([]eventSummary, 0, eventUIFrameCapacity)
+				return make([]eventSummary, 0, eventUIResumeCommitCapacity)
 			}
 		}
 		recycleBatch := func(buf []eventSummary) {
