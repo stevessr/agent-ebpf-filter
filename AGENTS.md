@@ -22,6 +22,20 @@
 
 ## Project Context
 
+### Web / Desktop UI design contract
+
+For any Vue WebUI or native Renew Desktop UI change, first review
+[`docs/design/web-desktop-ui.md`](docs/design/web-desktop-ui.md). Keep shared palette,
+readability, responsive navigation, status semantics, keyboard interaction, and
+accessibility consistent while retaining native system behavior. The user's
+requested X reference (https://x.com/ohayou792/status/2116884456006897800)
+was **not accessible when the initial foundation was implemented**; do not
+claim that unverified details come from that post. Incorporate source-specific
+rules only after viewing its text or screenshots. Validate both
+`cd frontend && bun test tests && bun run build` and
+`cd desktop/renew && go test ./...` when the environment permits.
+
+
 Agent eBPF Filter is a **Linux observability and control plane** for AI agents and developer CLIs, combining:
 
 - **eBPF kernel tracing** (`backend/ebpf/*.c`) — Captures syscalls via tracepoints
