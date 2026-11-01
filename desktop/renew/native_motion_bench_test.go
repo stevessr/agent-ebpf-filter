@@ -23,12 +23,14 @@ func BenchmarkRenewNativeFrame(b *testing.B) {
 		refresh bool
 		reverse bool
 		held    bool
+		open    bool
 	}{
-		{"overview-quiet", "概览", 0, false, false, false},
-		{"events-1200-steady", "事件", 1200, false, false, false},
-		{"events-1200-refresh", "事件", 1200, true, false, false},
-		{"events-1200-nav-reverse-warm", "事件", 1200, false, true, false},
-		{"events-1200-nav-two-changes", "事件", 1200, false, false, true},
+		{"overview-quiet", "概览", 0, false, false, false, false},
+		{"events-1200-steady", "事件", 1200, false, false, false, false},
+		{"events-1200-sidebar-open-steady", "事件", 1200, false, false, false, true},
+		{"events-1200-refresh", "事件", 1200, true, false, false, false},
+		{"events-1200-nav-reverse-warm", "事件", 1200, false, true, false, false},
+		{"events-1200-nav-two-changes", "事件", 1200, false, false, true, false},
 	} {
 		b.Run(tc.name, func(b *testing.B) {
 			a := newRenewApp("http://127.0.0.1:8080")
@@ -39,6 +41,7 @@ func BenchmarkRenewNativeFrame(b *testing.B) {
 			a.eventStreamConnected = true
 			a.systemConnected = true
 			a.page = tc.page
+			a.navigationOpen = tc.open
 			a.eventVisibleLimit = 50
 			for i := 0; i < tc.events; i++ {
 				a.events = append(a.events, eventSummary{
