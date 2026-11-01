@@ -34,10 +34,18 @@ func (a *renewApp) overview(c *ui.Context) {
 	headline, detail, level := a.overviewHeadline()
 	tone := workspaceStatusTone(t, level)
 	_, attention, danger := a.riskCounts()
+	// Only the low-frequency collector status changes the surface tint.
+	// High contrast keeps its original surface, border and text contrast.
+	statusSurface := t.Surface
+	if !c.Preferences().HighContrast {
+		statusSurface = t.Surface.Mix(tone, 0.08)
+	}
 
 	// The default desktop landing view answers "am I being monitored, and
 	// what should I do?" instead of showing a second investigator dashboard.
-	ui.Column(c).Padding(18).Gap(12).Radius(12).Background(t.Surface).Border(1, t.Border).Children(func() {
+	ui.Column(c).Key("renew-overview-health").Padding(18).Gap(12).Radius(12).
+		Background(statusSurface).Border(1, t.Border).
+		Transition(renewStatusColorTransition()).Children(func() {
 		ui.Row(c).Gap(12).Wrap().AlignItems(ui.Center).Children(func() {
 			ui.Box(c).Size(42, 42).Radius(12).Background(t.Accent.Alpha(0.17)).Center().Children(func() {
 				ui.Icon(c, renewMirrorSVG).Size(29, 29).TextColor(t.Accent).Label(desktopBrandName)
@@ -107,6 +115,9 @@ func (a *renewApp) overview(c *ui.Context) {
 
 	groups, hidden := a.personalAlertGroups()
 	if len(groups) > 0 || len(a.personalAlertMuteOrder) > 0 {
+		// Reveal on first attention only; a stable key prevents live summary
+		// updates from animating the entire incident group repeatedly.
+		ui.Column(c).Key("renew-priority-alerts").Transition(renewRevealTransition()).Children(func() {
 		card(c, "优先核查", func() {
 			ui.Text(c, "按风险等级展示相似活动，数量只来自已加载摘要。高风险始终显示；收起关注项只影响本次桌面提醒，不会放行或修改策略。").
 				FontSize(11).TextColor(t.TextMuted)
@@ -149,6 +160,7 @@ func (a *renewApp) overview(c *ui.Context) {
 				a.eventAttentionOnly = true
 				a.page = "事件"
 			}
+		})
 		})
 	}
 
