@@ -58,6 +58,8 @@ jobs:
         run: go test ./...
       - name: Measure native CPU frame budgets (no timing threshold)
         run: go test -run=NONE -bench=BenchmarkRenewNativeFrame -benchtime=10x -benchmem -count=1 .
+      - name: Measure backlog recovery P95/P99 CPU frame tails
+        run: go test -run=NONE -bench=BenchmarkRenewBacklogRecoveryTail -benchtime=256x -benchmem -count=1 .
       - name: Measure sustained native event stream CPU, memory and GC
         run: |
           go test -run=NONE -bench=BenchmarkRenewLiveEventStream -benchtime=40x -benchmem -count=1 .
