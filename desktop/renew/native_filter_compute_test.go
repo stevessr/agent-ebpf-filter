@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -131,4 +132,43 @@ func BenchmarkRenewEventFilterCompute(b *testing.B) {
 			}
 		})
 	}
+}
+
+var benchmarkLegacyFilterKey string
+var benchmarkTypedFilterKey eventFilterSignature
+
+func BenchmarkRenewFilterSignature(b *testing.B) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.search = "  CODEX  "
+	a.eventPIDFilter = 1234
+	a.eventRootPIDFilter = 42
+	a.eventTargetFilter = "/tmp/workspace/foo"
+	a.eventDomainAgent = "codex"
+	a.eventDomainTarget = "example.org"
+	a.eventDomainKind = "dns"
+	a.eventRiskFilter = "高风险"
+	a.eventMinRiskScore = 78.5
+	a.eventAttentionOnly = true
+
+	b.Run("previous-string", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			q := strings.ToLower(strings.TrimSpace(a.search))
+			key := q + "\x00" + a.eventTypeFilter + "\x00" + a.eventSessionFilter + "\x00" + a.eventDecisionFilter + "\x00" +
+				fmt.Sprint(a.eventPIDFilter) + "\x00" + fmt.Sprint(a.eventRootPIDFilter) + "\x00" + a.eventTargetFilter + "\x00" +
+				a.eventDomainAgent + "\x00" + a.eventDomainTarget + "\x00" + a.eventDomainKind + "\x00" +
+				fmt.Sprint(a.eventFileEditsOnly) + "\x00" + fmt.Sprint(a.eventDelegatedOnly) + "\x00" +
+				a.eventRiskFilter + "\x00" + fmt.Sprint(a.eventMinRiskScore) + "\x00" + a.managementEventFilter
+			if a.eventAttentionOnly {
+				key += "\x001"
+			}
+			benchmarkLegacyFilterKey = key
+		}
+	})
+	b.Run("typed-signature", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			benchmarkTypedFilterKey = a.eventFilterCacheKey()
+		}
+	})
 }
