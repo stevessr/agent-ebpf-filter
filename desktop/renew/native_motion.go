@@ -19,16 +19,6 @@ func renewNavigationMotion() ui.Animation {
 	}}
 }
 
-// The center layout updates just once at its destination. MyGo's position
-// transition animates the painted scene from the previous placement without
-// repeatedly recalculating the event table while the sidebar width springs.
-func renewWorkspaceContentTransition() ui.ElementTransition {
-	return ui.ElementTransition{
-		Duration: 200 * time.Millisecond,
-		Position: true,
-	}
-}
-
 func renewRailColorTransition() ui.ElementTransition {
 	return ui.ElementTransition{Duration: 140 * time.Millisecond, Colors: true}
 }
