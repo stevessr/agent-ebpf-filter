@@ -31,9 +31,11 @@ func (a *renewApp) mergeEventWindow(incoming []eventSummary, limit int) bool {
 	// the canonical selected rows, never from unrelated event deltas.
 	unfiltered := currentFilter.isUnfiltered()
 	warmNetwork := unfiltered && a.networkCacheValid &&
-		a.networkCacheVersion == a.eventsVersion && a.networkCacheKey == currentFilter
+		a.networkCacheVersion == a.eventsVersion && a.networkCacheKey == currentFilter &&
+		len(a.networkCacheRows) >= incrementalAggregateMinGroups
 	warmProcesses := unfiltered && a.processCacheValid &&
-		a.processCacheVersion == a.eventsVersion && a.processCacheKey == currentFilter
+		a.processCacheVersion == a.eventsVersion && a.processCacheKey == currentFilter &&
+		len(a.processCacheRows) >= incrementalAggregateMinGroups
 	trackAggregates := warmNetwork || warmProcesses
 	next := mergeEventSummariesIntoWorkspace(a.eventMergeScratch, old, incoming, limit,
 		&a.eventMergeWorkspace, updateRisk, updateFilter, trackAggregates)
