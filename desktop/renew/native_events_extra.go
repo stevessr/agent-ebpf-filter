@@ -23,10 +23,12 @@ type eventMergeWorkspace struct {
 	replacements map[string]eventSummary
 	fresh        []eventSummary
 	riskDelta    [3]int
+	filterAdded  []eventSummary
+	filterRemoved map[string]struct{}
 }
 
 func mergeEventSummariesInto(dst, existing, incoming []eventSummary, limit int) []eventSummary {
-	return mergeEventSummariesIntoWorkspace(dst, existing, incoming, limit, nil, false)
+	return mergeEventSummariesIntoWorkspace(dst, existing, incoming, limit, nil, false, false)
 }
 
 // mergeEventSummariesIntoWorkspace reuses the per-window deduplication map and
@@ -34,7 +36,7 @@ func mergeEventSummariesInto(dst, existing, incoming []eventSummary, limit int) 
 // added, replaced and evicted events, including timestamps changed on a
 // duplicate EventID. The caller can apply this to an already-warm risk cache.
 // The output remains a separate backing buffer from existing.
-func mergeEventSummariesIntoWorkspace(dst, existing, incoming []eventSummary, limit int, workspace *eventMergeWorkspace, trackRisk bool) []eventSummary {
+func mergeEventSummariesIntoWorkspace(dst, existing, incoming []eventSummary, limit int, workspace *eventMergeWorkspace, trackRisk, trackFilter bool) []eventSummary {
 	if limit <= 0 {
 		limit = 1200
 	}
@@ -42,11 +44,23 @@ func mergeEventSummariesIntoWorkspace(dst, existing, incoming []eventSummary, li
 		workspace = &eventMergeWorkspace{}
 	}
 	workspace.riskDelta = [3]int{}
+	workspace.filterAdded = workspace.filterAdded[:0]
+	if trackFilter {
+		if workspace.filterRemoved == nil {
+			workspace.filterRemoved = make(map[string]struct{}, min(len(incoming)+16, limit))
+		}
+		clear(workspace.filterRemoved)
+	}
 	if len(incoming) == 0 {
 		if len(existing) > limit {
 			if trackRisk {
 				for _, e := range existing[limit:] {
 					workspace.riskDelta[eventRiskBucket(e)]--
+				}
+			}
+			if trackFilter {
+				for _, e := range existing[limit:] {
+					workspace.filterRemoved[e.EventID] = struct{}{}
 				}
 			}
 			return existing[:limit]
@@ -103,12 +117,18 @@ func mergeEventSummariesIntoWorkspace(dst, existing, incoming []eventSummary, li
 		if trackRisk {
 			workspace.riskDelta[eventRiskBucket(event)]++
 		}
+		if trackFilter {
+			workspace.filterAdded = append(workspace.filterAdded, event)
+		}
 	}
 	for len(out) < limit && (i < len(fresh) || j < len(existing)) {
 		for j < len(existing) {
 			if _, replaced := replacements[strings.TrimSpace(existing[j].EventID)]; replaced {
 				if trackRisk {
 					workspace.riskDelta[eventRiskBucket(existing[j])]--
+				}
+				if trackFilter {
+					workspace.filterRemoved[existing[j].EventID] = struct{}{}
 				}
 				j++
 				continue
@@ -147,9 +167,14 @@ func mergeEventSummariesIntoWorkspace(dst, existing, incoming []eventSummary, li
 	}
 	// The tail was evicted by the bounded window, even when an older
 	// replacement moved outside the visible time range.
-	if trackRisk {
+	if trackRisk || trackFilter {
 		for ; j < len(existing); j++ {
-			workspace.riskDelta[eventRiskBucket(existing[j])]--
+			if trackRisk {
+				workspace.riskDelta[eventRiskBucket(existing[j])]--
+			}
+			if trackFilter {
+				workspace.filterRemoved[existing[j].EventID] = struct{}{}
+			}
 		}
 	}
 	return out
