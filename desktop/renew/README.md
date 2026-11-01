@@ -759,7 +759,7 @@ In bundled mode the privileged child listens only on an authenticated private Un
 - DeepSeek Harness 开发预览版能执行命令并操作文件，请遵循其权限确认和最小权限建议。
 
 注意：端口由本机临时分配并释放后交由 dsh 绑定，仍存在很小的端口竞争窗口；运行错误应以 DeepSeek PTY 内日志为准。框架本身的采集器仍由独立授权进程负责，Coding Harness 一律在桌面用户权限下运行。
- -benchmem -count=3`。基准分别覆盖空首页、1200 条事件摘要静态展示、事件缓存每帧失效、快速反转导航。输出 `ns/op`、`B/op` 和理论 60 Hz（16.67ms）/120 Hz（8.33ms）CPU 帧预算占比；这些值是 **MyGo headless CPU 帧构建、布局和绘制开销**，不是实体 GPU 的帧率或 Wayland/niri 下的实测流畅度。不同机器或 CI 的结果只能按相同环境比较，不设脆弱的绝对耗时通过线。
+ -benchmem -count=3`。基准分别覆盖空首页、1200 条事件摘要静态展示、事件缓存每帧失效、**预热后**快速反转导航；首次展开侧栏的字体与图标初始化属于单独的冷启动开销，不混进热路径均值。输出 `ns/op`、`B/op` 和理论 60 Hz（16.67ms）/120 Hz（8.33ms）CPU 帧预算占比；这些值是 **MyGo headless CPU 帧构建、布局和绘制开销**，不是实体 GPU 的帧率或 Wayland/niri 下的实测流畅度。不同机器或 CI 的结果只能按相同环境比较，不设脆弱的绝对耗时通过线。
 
 ## AgentSight 原生洞察（会话与 Token）
 
