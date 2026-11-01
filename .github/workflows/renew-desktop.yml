@@ -30,7 +30,7 @@ jobs:
         working-directory: desktop/renew
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version: "1.27.3"
           cache-dependency-path: |
@@ -115,7 +115,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version: "1.27.3"
           cache: false
