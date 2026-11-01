@@ -150,11 +150,19 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 			if !a.eventUICommitPending.CompareAndSwap(false, true) {
 				return
 			}
-			// The storage is circular after overflow. Restore chronological
-			// order before deduplication so the newest same-ID revision wins.
-			rotateEventBatchIntoArrivalOrder(batch, overwriteAt)
-			pending := batch
-			batch = nextBatch()
+			// Resume from a pause in bounded chunks rather than rendering
+			// up to 1200 events in one frame. Keep the oldest retained
+			// summaries first; they are still needed for last-ID-wins
+			// ordering within each batch and the visible event timeline.
+			var pending []eventSummary
+			if len(batch) > eventUIFrameCapacity {
+				pending, batch = takeOldestEventUIBatch(batch, overwriteAt,
+					eventUIFrameCapacity, nextBatch())
+			} else {
+				rotateEventBatchIntoArrivalOrder(batch, overwriteAt)
+				pending = batch
+				batch = nextBatch()
+			}
 			overwriteAt = 0
 			a.update(func() {
 				defer a.eventUICommitPending.Store(false)
