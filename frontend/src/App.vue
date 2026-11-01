@@ -177,7 +177,7 @@ function resetLayout() {
             <SettingOutlined />
           </button>
         </nav>
-        <aside v-if="sidebar" id="ide-sidebar" class="ide-sidebar">
+        <aside v-show="sidebar" id="ide-sidebar" class="ide-sidebar">
           <div class="ide-sidebar-heading">
             {{ tr("工作空间") }} <span>AGENT / LOCAL</span>
           </div>
