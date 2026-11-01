@@ -59,22 +59,6 @@ func workspaceMotionLayoutWidth(current, target float32) float32 {
 	return max(current, target)
 }
 
-// Width animation relayouts every child of the live table every frame.
-// With a dense event history that can cost more than a whole 120 Hz frame.
-// Snap the *layout* on data-heavy investigation pages: color, tab and page
-// transitions still animate, but the table does not redraw 15 times as the
-// sidebar springs between widths. Keep normal spring navigation elsewhere.
-func workspaceSnapNavigation(page string, summaryCount int) bool {
-	if summaryCount < 256 {
-		return false
-	}
-	switch page {
-	case "事件", "网络", "进程":
-		return true
-	default:
-		return false
-	}
-}
 
 const (
 	workspaceNavigationCompactWidth  float32 = 198
@@ -185,14 +169,9 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 	// sidebar: release it immediately rather than squeezing live event tables.
 	navTarget, navDetailed := workspaceResponsiveNavigationWidth(width, a.navigationOpen, a.navigationDetailed)
 	var navWidth float32
-	switch {
-	case workspaceUsesNavigationMenu(width):
+	if workspaceUsesNavigationMenu(width) {
 		navWidth = shell.Jump("renew-navigation", 0)
-	case workspaceSnapNavigation(a.page, len(a.events)):
-		// Dense tables favor one layout change over an animated series
-		// of full table reflows. This changes no event or action semantics.
-		navWidth = shell.Jump("renew-navigation", navTarget)
-	default:
+	} else {
 		navWidth = shell.AnimateTo("renew-navigation", navTarget, renewNavigationMotion())
 	}
 	// Only the painted sidebar width animates. Reflow-sensitive controls
