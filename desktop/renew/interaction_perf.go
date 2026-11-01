@@ -135,15 +135,6 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 
 		batch := nextBatch()
 		overwriteAt := 0
-		appendLatest := func(e eventSummary, capacity int) {
-			var dropped bool
-			batch, dropped = appendBoundedEventBatch(batch, e, capacity, &overwriteAt)
-			if dropped {
-				a.eventUIDropped.Add(1)
-				a.eventUIBatchDropped.Add(1)
-			}
-			a.updateEventUIBatchPressure(len(batch))
-		}
 
 		flush := func(final bool) {
 			if len(batch) == 0 || a.eventUIPaused.Load() {
@@ -191,7 +182,7 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 				if a.eventUIPaused.Load() || len(batch) > eventUIFrameCapacity {
 					capacity = eventUIPauseCapacity
 				}
-				appendLatest(e, capacity)
+				batch = a.appendEventToUIBatch(batch, e, capacity, &overwriteAt)
 			case <-ticker.C:
 				// The ticker is the only normal flush point. Event floods can
 				// fill/overwrite the bounded frame batch, but never schedule
@@ -235,6 +226,19 @@ func (a *renewApp) queueEventSummary(e eventSummary) {
 		a.eventUIDropped.Add(1)
 		a.eventUIQueueDropped.Add(1)
 	}
+}
+
+// appendEventToUIBatch is restricted to the single batcher goroutine.
+// Isolating it lets the tests verify that the batch overwrite count and the
+// channel-overflow count add up to the public dropped total.
+func (a *renewApp) appendEventToUIBatch(batch []eventSummary, e eventSummary, capacity int, overwriteAt *int) []eventSummary {
+	updated, dropped := appendBoundedEventBatch(batch, e, capacity, overwriteAt)
+	if dropped {
+		a.eventUIDropped.Add(1)
+		a.eventUIBatchDropped.Add(1)
+	}
+	a.updateEventUIBatchPressure(len(updated))
+	return updated
 }
 
 // Read-only native diagnostic counters, safe across the IPC/GUI goroutines.
