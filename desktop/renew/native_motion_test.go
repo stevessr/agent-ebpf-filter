@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
@@ -171,6 +172,11 @@ func TestWorkspaceDenseTablesSkipRepeatedSidebarReflow(t *testing.T) {
 	a.page = "事件"
 	a.starting = false
 	a.events = make([]eventSummary, 1200)
+	for i := range a.events {
+		a.events[i] = eventSummary{
+			EventID: strconv.Itoa(i + 1), PID: 1000 + i, Type: "openat",
+		}
+	}
 	view := ui.NewTester(a.view, 1480, 860)
 	if err := view.Click("»"); err != nil {
 		t.Fatal(err)
