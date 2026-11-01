@@ -184,6 +184,62 @@ func TestIncrementalFilterInvalidatesOnUserChangeAndOldDomainEvidence(t *testing
 	}
 }
 
+func TestSelectiveCacheHandlesLimitOnlyTrimAndExplicitRevisions(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.eventPIDFilter = 101
+	a.events = []eventSummary{
+		{EventID: "5", PID: 101, ReceivedAtMS: 5, RiskScore: 10},
+		{EventID: "4", PID: 102, ReceivedAtMS: 4, RiskScore: 20},
+		{EventID: "3", PID: 101, ReceivedAtMS: 3, RiskScore: 30},
+		{EventID: "2", PID: 101, ReceivedAtMS: 2, RiskScore: 40},
+		{EventID: "1", PID: 102, ReceivedAtMS: 1, RiskScore: 50},
+	}
+	if ids := idsForIncrementalTest(a.filteredEvents()); !reflect.DeepEqual(ids, []string{"5", "3", "2"}) {
+		t.Fatalf("initial filtered slice: %v", ids)
+	}
+	if !a.mergeEventWindow(nil, 3) {
+		t.Fatal("limit-only truncation should change the window")
+	}
+	if ids := idsForIncrementalTest(a.filteredEvents()); !reflect.DeepEqual(ids, []string{"5", "3"}) {
+		t.Fatalf("trim retained evicted EventID: %v", ids)
+	}
+	// A revision to the middle match moves it to the top, and an amended
+	// PID causes it to leave the filtered view.
+	if !a.mergeEventWindow([]eventSummary{{EventID: "3", PID: 101, ReceivedAtMS: 100, RiskScore: 90}}, 3) {
+		t.Fatal("same-ID revision did not merge")
+	}
+	if ids := idsForIncrementalTest(a.filteredEvents()); !reflect.DeepEqual(ids, []string{"3", "5"}) {
+		t.Fatalf("revision reordered incorrectly: %v", ids)
+	}
+	if !a.mergeEventWindow([]eventSummary{{EventID: "3", PID: 999, ReceivedAtMS: 101}}, 3) {
+		t.Fatal("revised event with different PID did not merge")
+	}
+	if ids := idsForIncrementalTest(a.filteredEvents()); !reflect.DeepEqual(ids, []string{"5"}) {
+		t.Fatalf("revision kept a no-longer-matching event: %v", ids)
+	}
+}
+
+func TestBroadFilterStillUsesSafeFullScanFallback(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.search = "codex"
+	initial := make([]eventSummary, 300)
+	for i := range initial {
+		initial[i] = eventSummary{EventID: strconv.Itoa(300-i), PID: 100+i, Comm: "codex", ReceivedAtMS: int64(300-i)}
+	}
+	a.mergeEventWindow(initial, 1200)
+	if rows := a.filteredEvents(); len(rows) != 300 {
+		t.Fatalf("broad search should match all initial records: %d", len(rows))
+	}
+	previousVersion := a.filterCacheVersion
+	a.mergeEventWindow([]eventSummary{{EventID: "next", PID: 101, Comm: "codex", ReceivedAtMS: 1000}}, 1200)
+	if a.filterCacheVersion != previousVersion {
+		t.Fatal("broad filter should not eagerly update a large cached slice")
+	}
+	if rows := a.filteredEvents(); len(rows) != 301 || rows[0].EventID != "next" {
+		t.Fatalf("full-scan fallback returned stale events: %d, first=%s", len(rows), rows[0].EventID)
+	}
+}
+
 func BenchmarkRenewSelectiveFilterAfterMerge(b *testing.B) {
 	for _, tc := range []struct {
 		name        string
