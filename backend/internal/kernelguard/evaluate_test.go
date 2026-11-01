@@ -75,3 +75,21 @@ func TestHoldoutDigestRejectsByteChangesWithEqualMetrics(t *testing.T) {
 		t.Fatalf("blank line should not change holdout classification: %+v vs %+v", first, second)
 	}
 }
+
+func TestHoldoutCSVReadIsBounded(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "oversize.csv")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Truncate((32 << 20) + 1); err != nil {
+		f.Close()
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := EvaluateCSVHoldout(path, sampleModel()); err == nil || !strings.Contains(err.Error(), "exceeds 32MiB") {
+		t.Fatalf("oversize validation CSV must be rejected: %v", err)
+	}
+}
