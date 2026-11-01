@@ -77,6 +77,7 @@ func BenchmarkRenewBacklogRecoveryTail(b *testing.B) {
 				view.Frame()
 			}
 			buffer := make([]eventSummary, 1200)
+			commitScratch := make([]eventSummary, 0, eventUIFrameCapacity)
 			peak := make([]int64, b.N)
 			frameSamples := make([]int64, 0, b.N*3)
 			runtime.GC()
@@ -95,7 +96,7 @@ func BenchmarkRenewBacklogRecoveryTail(b *testing.B) {
 					if tc.bounded {
 						if len(pending) != 0 {
 							var chunk []eventSummary
-							chunk, pending = takeOldestEventUIBatch(pending, 0, eventUIFrameCapacity, nil)
+							chunk, pending = takeOldestEventUIBatch(pending, 0, eventUIFrameCapacity, commitScratch)
 							a.mergeEventWindow(chunk, 1200)
 						}
 					} else if frame == 0 {
