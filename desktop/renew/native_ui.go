@@ -760,6 +760,11 @@ func (a *renewApp) applyIncrementalFilterRows(workspace *eventMergeWorkspace) {
 		}
 	}
 	a.filterCacheRows = output
+	// The recycled result buffer must not pin strings from evicted events.
+	// Both buffers are owned by a filtered view (unfiltered aliases bypass it).
+	if cap(oldRows) > 0 {
+		clear(oldRows[:cap(oldRows)])
+	}
 	a.filterMergeScratch = oldRows[:0]
 	a.filterCacheVersion = a.eventsVersion
 }
