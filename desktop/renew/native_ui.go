@@ -91,6 +91,16 @@ type renewApp struct {
 	riskCacheValid        bool
 	riskCacheVersion      uint64
 	riskCacheCounts       [3]int
+	// The ownership index was previously rebuilt by each event row,
+	// leading to O(visible rows * event window) CPU work and allocations.
+	// Cache only the event-derived index; live-process attribution must
+	// still use a fresh, independently verified process snapshot.
+	ownershipCacheValid   bool
+	ownershipCacheVersion uint64
+	ownershipCacheCount   int
+	ownershipCacheFirstID string
+	ownershipCacheLastID  string
+	ownershipCache        agentOwnershipIndex
 	// Local, session-scoped alert triage. Never changes backend policy.
 	personalAlertMuted              map[[32]byte]struct{}
 	personalAlertMuteOrder          [][32]byte
@@ -627,7 +637,7 @@ func (a *renewApp) filteredEvents() []eventSummary {
 	out := make([]eventSummary, 0, min(len(a.events), 256))
 	var domainOwners agentOwnershipIndex
 	if a.eventDomainTarget != "" {
-		domainOwners = buildAgentOwnershipIndex(a.events, nil)
+		domainOwners = a.eventOwnershipIndex()
 	}
 	for _, event := range a.events {
 		if a.eventDomainTarget != "" && !matchesAgentDomainEvent(event, domainOwners, a.eventDomainAgent, a.eventDomainTarget, a.eventDomainKind) {
