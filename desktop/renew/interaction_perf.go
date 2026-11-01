@@ -9,6 +9,9 @@ import (
 const (
 	eventUIFlushInterval  = 16 * time.Millisecond
 	eventUIFrameCapacity  = 512
+	// In a paused backlog, 640 balances P99 peak latency with recovery CPU
+	// and drains a 1200-event window in two UI commits.
+	eventUIResumeCommitCapacity = 640
 	eventUIPauseCapacity  = 1200
 	eventUIQueueSize      = 2048
 )
@@ -150,14 +153,13 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 			if !a.eventUICommitPending.CompareAndSwap(false, true) {
 				return
 			}
-			// Resume from a pause in bounded chunks rather than rendering
-			// up to 1200 events in one frame. Keep the oldest retained
-			// summaries first; they are still needed for last-ID-wins
-			// ordering within each batch and the visible event timeline.
+			// Keep normal <=512-record commits zero-copy. On resume, split
+			// a full pause backlog at 640 records (1200 -> 640+560),
+			// preserving oldest-first event order and requiring two ticks.
 			var pending []eventSummary
-			if len(batch) > eventUIFrameCapacity && !final {
+			if len(batch) > eventUIResumeCommitCapacity && !final {
 				pending, batch = takeOldestEventUIBatch(batch, overwriteAt,
-					eventUIFrameCapacity, nextBatch())
+					eventUIResumeCommitCapacity, nextBatch())
 			} else {
 				rotateEventBatchIntoArrivalOrder(batch, overwriteAt)
 				pending = batch
