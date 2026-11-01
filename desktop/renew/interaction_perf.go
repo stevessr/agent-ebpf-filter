@@ -18,7 +18,21 @@ func (a *renewApp) mergeEventWindow(incoming []eventSummary, limit int) bool {
 	// Only apply the delta when the risk cache describes the old window.
 	// First-time loads and external test fixtures still use the full scan.
 	updateRisk := a.riskCacheValid && a.riskCacheVersion == a.eventsVersion
-	next := mergeEventSummariesIntoWorkspace(a.eventMergeScratch, old, incoming, limit, &a.eventMergeWorkspace, updateRisk)
+	currentFilter := a.eventFilterCacheKey()
+	warmFilter := a.filterCacheValid && a.filterCacheVersion == a.eventsVersion &&
+		a.filterCacheKey == currentFilter
+	// Root-agent attribution can legitimately change for untouched events
+	// when new root evidence arrives. Only row-local filters are incremental.
+	aliasFilter := warmFilter && currentFilter.isUnfiltered()
+	updateFilter := warmFilter && !aliasFilter &&
+		currentFilter.domainTarget == "" && len(a.filterCacheRows) <= 128
+	next := mergeEventSummariesIntoWorkspace(a.eventMergeScratch, old, incoming, limit,
+		&a.eventMergeWorkspace, updateRisk, updateFilter)
+	defer func() {
+		clear(a.eventMergeWorkspace.filterAdded)
+		a.eventMergeWorkspace.filterAdded = a.eventMergeWorkspace.filterAdded[:0]
+		clear(a.eventMergeWorkspace.filterRemoved)
+	}()
 	if len(old) == len(next) {
 		if len(old) == 0 || &old[0] == &next[0] {
 			return false
@@ -34,6 +48,12 @@ func (a *renewApp) mergeEventWindow(incoming []eventSummary, limit int) bool {
 		a.eventMergeScratch = nil
 	}
 	a.eventsVersion++
+	if aliasFilter {
+		a.filterCacheRows = a.events
+		a.filterCacheVersion = a.eventsVersion
+	} else if updateFilter {
+		a.applyIncrementalFilterRows(&a.eventMergeWorkspace)
+	}
 	if updateRisk {
 		for bucket, delta := range a.eventMergeWorkspace.riskDelta {
 			a.riskCacheCounts[bucket] += delta
