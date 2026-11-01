@@ -57,7 +57,7 @@ jobs:
       - name: Test desktop single binary
         run: go test ./...
       - name: Measure native CPU frame budgets (no timing threshold)
-        run: go test -run=NONE -bench=BenchmarkRenewNativeFrame -benchtime=5x -benchmem -count=1 .
+        run: go test -run=NONE -bench=BenchmarkRenewNativeFrame -benchtime=10x -benchmem -count=1 .
       - name: Vet MyGo native UI element lifetimes
         run: go tool mygo vet .
       - name: Compile desktop single binary
