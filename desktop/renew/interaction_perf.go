@@ -9,6 +9,9 @@ import (
 const (
 	eventUIFlushInterval  = 16 * time.Millisecond
 	eventUIFrameCapacity  = 512
+	// In a paused backlog, 640 balances P99 peak latency with recovery CPU
+	// and drains a 1200-event window in two UI commits.
+	eventUIResumeCommitCapacity = 640
 	eventUIPauseCapacity  = 1200
 	eventUIQueueSize      = 2048
 )
@@ -120,7 +123,7 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 			case buf := <-batchPool:
 				return buf[:0]
 			default:
-				return make([]eventSummary, 0, eventUIFrameCapacity)
+				return make([]eventSummary, 0, eventUIResumeCommitCapacity)
 			}
 		}
 		recycleBatch := func(buf []eventSummary) {
@@ -143,18 +146,25 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 			}
 		}
 
-		flush := func() {
+		flush := func(final bool) {
 			if len(batch) == 0 || a.eventUIPaused.Load() {
 				return
 			}
 			if !a.eventUICommitPending.CompareAndSwap(false, true) {
 				return
 			}
-			// The storage is circular after overflow. Restore chronological
-			// order before deduplication so the newest same-ID revision wins.
-			rotateEventBatchIntoArrivalOrder(batch, overwriteAt)
-			pending := batch
-			batch = nextBatch()
+			// Keep normal <=512-record commits zero-copy. On resume, split
+			// a full pause backlog at 640 records (1200 -> 640+560),
+			// preserving oldest-first event order and requiring two ticks.
+			var pending []eventSummary
+			if len(batch) > eventUIResumeCommitCapacity && !final {
+				pending, batch = takeOldestEventUIBatch(batch, overwriteAt,
+					eventUIResumeCommitCapacity, nextBatch())
+			} else {
+				rotateEventBatchIntoArrivalOrder(batch, overwriteAt)
+				pending = batch
+				batch = nextBatch()
+			}
 			overwriteAt = 0
 			a.update(func() {
 				defer a.eventUICommitPending.Store(false)
@@ -168,7 +178,9 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 		for {
 			select {
 			case <-ctx.Done():
-				flush()
+				// No following timer tick is guaranteed after shutdown;
+				// commit the full final retained batch if one can be queued.
+				flush(true)
 				return
 			case e := <-a.eventUIQueue:
 				capacity := eventUIFrameCapacity
@@ -180,7 +192,7 @@ func (a *renewApp) startEventUIBatcher(ctx context.Context) {
 				// The ticker is the only normal flush point. Event floods can
 				// fill/overwrite the bounded frame batch, but never schedule
 				// multiple Window.Update callbacks inside one frame interval.
-				flush()
+				flush(false)
 			}
 		}
 	}()

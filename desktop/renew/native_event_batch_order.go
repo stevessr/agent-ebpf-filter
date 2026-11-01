@@ -28,6 +28,29 @@ func appendBoundedEventBatch(batch []eventSummary, event eventSummary, capacity 
 	return batch, true
 }
 
+// takeOldestEventUIBatch bounds the CPU burst after a long pause or UI
+// backpressure. It commits at most maxCommit oldest retained events, keeping
+// the rest in arrival order for subsequent timer ticks. The caller supplies
+// an independent recycled buffer for split commits: ready must not share
+// storage with remaining because the UI callback reads ready asynchronously.
+//
+// A normal <= maxCommit batch keeps the zero-copy fast path.
+func takeOldestEventUIBatch(batch []eventSummary, overwriteAt, maxCommit int, recycled []eventSummary) (ready, remaining []eventSummary) {
+	rotateEventBatchIntoArrivalOrder(batch, overwriteAt)
+	if maxCommit <= 0 || len(batch) <= maxCommit {
+		return batch, nil
+	}
+	if cap(recycled) < maxCommit {
+		recycled = make([]eventSummary, 0, maxCommit)
+	}
+	ready = append(recycled[:0], batch[:maxCommit]...)
+	rest := len(batch) - maxCommit
+	copy(batch, batch[maxCommit:])
+	// Tail slots would otherwise retain payload strings after compaction.
+	clear(batch[rest:])
+	return ready, batch[:rest]
+}
+
 func rotateEventBatchIntoArrivalOrder(events []eventSummary, overwriteAt int) {
 	if len(events) < 2 || overwriteAt <= 0 || overwriteAt >= len(events) {
 		return
