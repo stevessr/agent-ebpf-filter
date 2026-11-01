@@ -12,6 +12,14 @@ Renew 原生事件筛选、网络与进程聚合共用**可比较的结构化缓
 
 回归测试在 `native_filter_compute_test.go`，包括筛选维度失效、PID/目标/风险/决策组合条件和无分配的稳定查询。CI 新增 `BenchmarkRenewEventFilterCompute` 和 `BenchmarkRenewFilterSignature`，分别测真实刷新/搜索计算与旧式字符串键对照；基准不开设容易受 CI 噪声影响的绝对耗时门槛。
 
+## 增量事件合并与风险统计
+
+桌面端每 16ms 合并事件摘要时，`eventMergeWorkspace` 复用有界 EventID 去重映射及排序缓冲区，减少新批次带来的临时分配。重用空间仅在更新回调中访问，并在合并完成时清空事件引用，防止过期事件内容残留。新、修订、乱序历史记录仍按 EventID 去重和事件时间排序，保留最多 1200 条；去重覆盖以当批最后一条为准。
+
+当风险计数缓存已与旧事件版本同步时，合并阶段仅对**新增、同 EventID 更新和窗口淘汰**生成增减量，并推进缓存版本；缓存未初始化或过期时仍完整重算。包含仅缩短事件窗口的处理，且不会把正在使用的事件数组当成下一批合并缓冲。风险等级始终通过原有 `eventRisk` 分类，不改变采集、阻断或安全决策。
+
+回归测试 `native_incremental_merge_test.go` 将 350 轮随机新增、修订和历史回填与独立的全量去重排序结果逐轮比较，并验证风险计数、数据生命周期和数组隔离。可用 `go test -run=NONE -bench=BenchmarkRenewIncrementalEventMerge -benchmem -count=3 .` 复测全量扫描与增量路径。此基准是 headless CPU/分配指标，不是 GPU FPS。
+
 ## Agent 归属索引与交互性能
 
 原生事件页、研判详情和事件关联导航共享同一个按 `eventsVersion` 失效的 Agent 根进程归属索引。原实现会为每个可见事件行重复遍历 1200 条摘要、重建映射，造成大量短命分配和 GC，侧栏展开时的全窗口重布局使开销更明显。现在只在有新事件版本、摘要窗口数量或首尾事件 ID 变动时重建一次；不借用实时进程快照替代历史事件证据，保留 AgentRunID、事件时序和 PID 复用约束。

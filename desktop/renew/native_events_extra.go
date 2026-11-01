@@ -17,21 +17,50 @@ func mergeEventSummaries(existing, incoming []eventSummary, limit int) []eventSu
 	return mergeEventSummariesInto(nil, existing, incoming, limit)
 }
 
+// eventMergeWorkspace owns bounded, reusable scratch buffers. The map and
+// sort slice are never returned; only the independent output event window is.
+type eventMergeWorkspace struct {
+	replacements map[string]eventSummary
+	fresh        []eventSummary
+	riskDelta    [3]int
+}
+
 func mergeEventSummariesInto(dst, existing, incoming []eventSummary, limit int) []eventSummary {
+	return mergeEventSummariesIntoWorkspace(dst, existing, incoming, limit, nil, false)
+}
+
+// mergeEventSummariesIntoWorkspace reuses the per-window deduplication map and
+// incoming sort buffer. When trackRisk is true, its riskDelta describes only
+// added, replaced and evicted events, including timestamps changed on a
+// duplicate EventID. The caller can apply this to an already-warm risk cache.
+// The output remains a separate backing buffer from existing.
+func mergeEventSummariesIntoWorkspace(dst, existing, incoming []eventSummary, limit int, workspace *eventMergeWorkspace, trackRisk bool) []eventSummary {
 	if limit <= 0 {
 		limit = 1200
 	}
+	if workspace == nil {
+		workspace = &eventMergeWorkspace{}
+	}
+	workspace.riskDelta = [3]int{}
 	if len(incoming) == 0 {
 		if len(existing) > limit {
+			if trackRisk {
+				for _, e := range existing[limit:] {
+					workspace.riskDelta[eventRiskBucket(e)]--
+				}
+			}
 			return existing[:limit]
 		}
 		return existing
 	}
 
-	// Incoming batches are normally tiny compared with the retained window.
-	// Deduplicate and sort only that batch, then linearly merge it with the
-	// already-sorted window instead of rebuilding and sorting all ~1200 rows.
-	replacements := make(map[string]eventSummary, len(incoming))
+	if workspace.replacements == nil {
+		workspace.replacements = make(map[string]eventSummary, min(len(incoming), limit))
+	}
+	replacements := workspace.replacements
+	// Clear at entry as well as exit; a workspace never owns the retained
+	// event window, and stale IDs must not influence a subsequent merge.
+	clear(replacements)
 	for _, event := range incoming {
 		id := strings.TrimSpace(event.EventID)
 		if id == "" {
@@ -44,10 +73,18 @@ func mergeEventSummariesInto(dst, existing, incoming []eventSummary, limit int) 
 	if len(replacements) == 0 {
 		return existing
 	}
-	fresh := make([]eventSummary, 0, len(replacements))
+	// Release string/target references as soon as a batch has been merged.
+	defer clear(replacements)
+
+	fresh := workspace.fresh[:0]
+	if cap(fresh) < len(replacements) {
+		fresh = make([]eventSummary, 0, len(replacements))
+	}
 	for _, event := range replacements {
 		fresh = append(fresh, event)
 	}
+	workspace.fresh = fresh
+	defer clear(fresh)
 	sort.Slice(fresh, func(i, j int) bool { return eventSummaryBefore(fresh[i], fresh[j]) })
 
 	capacity := len(existing) + len(fresh)
@@ -61,9 +98,18 @@ func mergeEventSummariesInto(dst, existing, incoming []eventSummary, limit int) 
 		out = make([]eventSummary, 0, limit)
 	}
 	i, j := 0, 0
+	addFresh := func(event eventSummary) {
+		out = append(out, event)
+		if trackRisk {
+			workspace.riskDelta[eventRiskBucket(event)]++
+		}
+	}
 	for len(out) < limit && (i < len(fresh) || j < len(existing)) {
 		for j < len(existing) {
 			if _, replaced := replacements[strings.TrimSpace(existing[j].EventID)]; replaced {
+				if trackRisk {
+					workspace.riskDelta[eventRiskBucket(existing[j])]--
+				}
 				j++
 				continue
 			}
@@ -82,7 +128,7 @@ func mergeEventSummariesInto(dst, existing, incoming []eventSummary, limit int) 
 			continue
 		}
 		if j >= len(existing) {
-			out = append(out, fresh[i])
+			addFresh(fresh[i])
 			i++
 			continue
 		}
@@ -92,14 +138,34 @@ func mergeEventSummariesInto(dst, existing, incoming []eventSummary, limit int) 
 			existingEvent.SearchText = buildEventSearchText(existingEvent)
 		}
 		if eventSummaryBefore(fresh[i], existingEvent) {
-			out = append(out, fresh[i])
+			addFresh(fresh[i])
 			i++
 		} else {
 			out = append(out, existingEvent)
 			j++
 		}
 	}
+	// The tail was evicted by the bounded window, even when an older
+	// replacement moved outside the visible time range.
+	if trackRisk {
+		for ; j < len(existing); j++ {
+			workspace.riskDelta[eventRiskBucket(existing[j])]--
+		}
+	}
 	return out
+}
+
+// eventRiskBucket is derived from the same classification used by riskCounts
+// and native risk pills. No risk-score or policy decision is modified.
+func eventRiskBucket(e eventSummary) int {
+	switch eventRisk(e) {
+	case "高风险":
+		return 2
+	case "需关注":
+		return 1
+	default:
+		return 0
+	}
 }
 
 func eventSummaryBefore(a, b eventSummary) bool {

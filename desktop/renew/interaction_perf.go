@@ -15,19 +15,31 @@ const (
 
 func (a *renewApp) mergeEventWindow(incoming []eventSummary, limit int) bool {
 	old := a.events
-	next := mergeEventSummariesInto(a.eventMergeScratch, old, incoming, limit)
+	// Only apply the delta when the risk cache describes the old window.
+	// First-time loads and external test fixtures still use the full scan.
+	updateRisk := a.riskCacheValid && a.riskCacheVersion == a.eventsVersion
+	next := mergeEventSummariesIntoWorkspace(a.eventMergeScratch, old, incoming, limit, &a.eventMergeWorkspace, updateRisk)
 	if len(old) == len(next) {
 		if len(old) == 0 || &old[0] == &next[0] {
 			return false
 		}
 	}
 	a.events = next
-	if cap(old) > 0 {
+	// A pure limit-only truncation may return a slice of the active buffer.
+	// Never recycle that buffer as scratch; the next batch could overwrite
+	// live rows before the merge has finished reading them.
+	if cap(old) > 0 && (len(old) == 0 || len(next) == 0 || &old[0] != &next[0]) {
 		a.eventMergeScratch = old[:0]
 	} else {
 		a.eventMergeScratch = nil
 	}
 	a.eventsVersion++
+	if updateRisk {
+		for bucket, delta := range a.eventMergeWorkspace.riskDelta {
+			a.riskCacheCounts[bucket] += delta
+		}
+		a.riskCacheVersion = a.eventsVersion
+	}
 	// Preserve the selected event identity instead of leaving the table
 	// pointing at a different row when newer summaries arrive at the top.
 	// Only run this O(window) lookup while an Events table row is selected.
