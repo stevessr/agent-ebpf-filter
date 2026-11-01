@@ -77,6 +77,7 @@ type renewApp struct {
 
 	events                []eventSummary
 	eventMergeScratch     []eventSummary
+	eventMergeWorkspace   eventMergeWorkspace
 	eventsVersion         uint64
 	eventUIQueue          chan eventSummary
 	eventUIDropped        eventDropCounter
