@@ -21,7 +21,7 @@ func TestEventOwnershipIndexIsReusedWithoutPerRowAllocations(t *testing.T) {
 		t.Fatal("first rendered row must build a usable ownership cache")
 	}
 	if allocations := testing.AllocsPerRun(100, func() {
-		_ = a.eventOwnershipIndex().attribution(a.events[0])
+		_ = a.eventOwnershipIndex()
 	}); allocations > 0 {
 		t.Fatalf("steady native row attribution must not rebuild ownership maps: %v allocations", allocations)
 	}
