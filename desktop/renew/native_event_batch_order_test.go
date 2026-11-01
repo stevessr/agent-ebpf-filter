@@ -61,7 +61,7 @@ func TestBoundedEventBatchGrowthAndRepeatedOverwrites(t *testing.T) {
 	for trial := 0; trial < 140; trial++ {
 		capacity := 3 + rng.Intn(48)
 		var batch []eventSummary
-		var stream []eventSummary
+		var retained []eventSummary
 		at := 0
 		for i := 0; i < 250; i++ {
 			if i == 110 {
@@ -71,7 +71,12 @@ func TestBoundedEventBatchGrowthAndRepeatedOverwrites(t *testing.T) {
 				EventID: strconv.Itoa(rng.Intn(25)),
 				RiskScore: float64(i + 1),
 			}
-			stream = append(stream, e)
+			if len(retained) < capacity {
+				retained = append(retained, e)
+			} else {
+				copy(retained, retained[1:])
+				retained[len(retained)-1] = e
+			}
 			var dropped bool
 			batch, dropped = appendBoundedEventBatch(batch, e, capacity, &at)
 			if dropped && len(batch) != capacity {
@@ -83,10 +88,8 @@ func TestBoundedEventBatchGrowthAndRepeatedOverwrites(t *testing.T) {
 			rotateEventBatchIntoArrivalOrder(normalized, at)
 			// After growing, the buffer preserves only its old retained
 			// events plus the subsequent append/overwrites.
-			retained := min(capacity, len(stream))
-			want := stream[len(stream)-retained:]
-			if !reflect.DeepEqual(normalized, want) {
-				t.Fatalf("trial %d, step %d: got %v, want %v", trial, i, batchIDs(normalized), batchIDs(want))
+			if !reflect.DeepEqual(normalized, retained) {
+				t.Fatalf("trial %d, step %d: got %v, want %v", trial, i, batchIDs(normalized), batchIDs(retained))
 			}
 		}
 	}
