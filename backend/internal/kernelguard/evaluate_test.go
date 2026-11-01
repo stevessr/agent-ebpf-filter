@@ -48,3 +48,30 @@ func TestCSVRejectsForgedHeader(t *testing.T) {
 		t.Fatal("duplicate header was accepted")
 	}
 }
+
+func TestHoldoutDigestRejectsByteChangesWithEqualMetrics(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "labels.csv")
+	initial := []byte("agent_run_id,destination_ip,destination_port,label\nrun-sample,8.8.8.8,4444,attack\n")
+	if err := os.WriteFile(path, initial, 0600); err != nil {
+		t.Fatal(err)
+	}
+	first, err := EvaluateCSVHoldout(path, sampleModel())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, append(initial, '\n'), 0600); err != nil {
+		t.Fatal(err)
+	}
+	second, err := EvaluateCSVHoldout(path, sampleModel())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.ValidationSHA256 == "" || first.ValidationSHA256 == second.ValidationSHA256 {
+		t.Fatal("raw CSV byte changes must invalidate recorded validation SHA-256")
+	}
+	first.ValidationSHA256 = ""
+	second.ValidationSHA256 = ""
+	if first != second {
+		t.Fatalf("blank line should not change holdout classification: %+v vs %+v", first, second)
+	}
+}
