@@ -87,7 +87,7 @@ func TestRenewStatusAnimationDoesNotMaskCollectorFailure(t *testing.T) {
 }
 
 func TestWorkspaceMotionLayoutKeepsControlsStableDuringSidebarSpring(t *testing.T) {
-	// At 1120 DIP an inspector fits only before the navigation expands.
+	// At 1250 DIP an inspector fits only with less than 134 DIP of sidebar.
 	// Compute its visibility against the future occupied width from the
 	// first animation frame rather than letting it briefly flicker.
 	for _, tc := range []struct {
@@ -111,10 +111,10 @@ func TestWorkspaceMotionLayoutKeepsControlsStableDuringSidebarSpring(t *testing.
 			if layout != tc.layout {
 				t.Fatalf("stable nav layout = %.0f, want %.0f", layout, tc.layout)
 			}
-			if show := showWorkspaceInspector(1120, layout, true, "事件"); show != tc.inspector {
+			if show := showWorkspaceInspector(1250, layout, true, "事件"); show != tc.inspector {
 				t.Fatalf("inspector visibility = %t, want %t", show, tc.inspector)
 			}
-			if compact := workspaceCompactHeader(1120, layout); compact != tc.compactHeader {
+			if compact := workspaceCompactHeader(1100, layout); compact != tc.compactHeader {
 				t.Fatalf("header must not oscillate while the spring moves, compact=%t want=%t", compact, tc.compactHeader)
 			}
 		})
