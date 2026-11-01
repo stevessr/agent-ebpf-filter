@@ -721,7 +721,9 @@ func (a *renewApp) applyIncrementalFilterRows(workspace *eventMergeWorkspace) {
 	}
 	oldRows := a.filterCacheRows
 	added := workspace.filterAdded
-	var matching []eventSummary
+	// Reuse the merge's addition buffer for the matching subset; write only
+	// behind the source cursor so range iteration is never overwritten.
+	matching := added[:0]
 	for _, event := range added {
 		if matchesEventFilter(event, key, agentOwnershipIndex{}) {
 			matching = append(matching, event)
