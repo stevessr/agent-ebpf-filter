@@ -664,28 +664,18 @@ func (a *renewApp) filteredEvents() []eventSummary {
 		domainOwners = a.eventOwnershipIndex()
 	}
 	for _, event := range a.events {
-		if a.eventDomainTarget != "" && !matchesAgentDomainEvent(event, domainOwners, a.eventDomainAgent, a.eventDomainTarget, a.eventDomainKind) {
-			continue
-		}
-		if q != "" && !strings.Contains(eventSearchText(event), q) {
-			continue
-		}
-		if a.managementEventFilter != "" && managementAppForEvent(event) != a.managementEventFilter {
-			continue
-		}
-		if a.eventRiskFilter != "" && eventRisk(event) != a.eventRiskFilter {
+		// Test cheap, selective scalar predicates before allocating the
+		// full-text search corpus or classifying Agent/domain metadata.
+		if a.eventPIDFilter > 0 && event.PID != a.eventPIDFilter {
 			continue
 		}
 		if a.eventMinRiskScore > 0 && event.RiskScore < a.eventMinRiskScore {
 			continue
 		}
-		if a.eventPIDFilter > 0 && event.PID != a.eventPIDFilter {
+		if a.eventTypeFilter != "" && event.Type != a.eventTypeFilter {
 			continue
 		}
 		if !matchesEventDrilldown(event, a.eventRootPIDFilter, a.eventTargetFilter, a.eventFileEditsOnly, a.eventDelegatedOnly) {
-			continue
-		}
-		if a.eventTypeFilter != "" && event.Type != a.eventTypeFilter {
 			continue
 		}
 		if a.eventSessionFilter != "" && eventSessionKey(event) != a.eventSessionFilter {
@@ -694,7 +684,22 @@ func (a *renewApp) filteredEvents() []eventSummary {
 		if !matchesEventDecision(event, a.eventDecisionFilter) {
 			continue
 		}
-		if a.eventAttentionOnly && eventRisk(event) == "正常" {
+		if a.eventRiskFilter != "" || a.eventAttentionOnly {
+			risk := eventRisk(event)
+			if a.eventRiskFilter != "" && risk != a.eventRiskFilter {
+				continue
+			}
+			if a.eventAttentionOnly && risk == "正常" {
+				continue
+			}
+		}
+		if a.managementEventFilter != "" && managementAppForEvent(event) != a.managementEventFilter {
+			continue
+		}
+		if a.eventDomainTarget != "" && !matchesAgentDomainEvent(event, domainOwners, a.eventDomainAgent, a.eventDomainTarget, a.eventDomainKind) {
+			continue
+		}
+		if q != "" && !strings.Contains(eventSearchText(event), q) {
 			continue
 		}
 		out = append(out, event)
