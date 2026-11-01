@@ -666,7 +666,23 @@ func (a *renewApp) filteredEvents() []eventSummary {
 		return a.events
 	}
 
-	out := make([]eventSummary, 0, min(len(a.events), 256))
+	// A precise filter (PID, root, target or session) commonly returns one
+	// row, not 256; avoid allocating a large buffer before the first match.
+	// On the same filter after an event batch, use the previous match count
+	// to avoid repeatedly growing and copying hundreds of compact structs.
+	hint := min(len(a.events), 256)
+	if key.pid > 0 || key.rootPID > 0 || key.target != "" ||
+		key.domainTarget != "" || key.session != "" {
+		hint = min(len(a.events), 16)
+	}
+	if a.filterCacheValid && a.filterCacheKey == key {
+		if previous := len(a.filterCacheRows); previous > 0 {
+			hint = min(len(a.events), max(hint, previous))
+		} else {
+			hint = min(len(a.events), 16)
+		}
+	}
+	var out []eventSummary
 	var domainOwners agentOwnershipIndex
 	if a.eventDomainTarget != "" {
 		domainOwners = a.eventOwnershipIndex()
@@ -709,6 +725,9 @@ func (a *renewApp) filteredEvents() []eventSummary {
 		}
 		if q != "" && !strings.Contains(eventSearchText(event), q) {
 			continue
+		}
+		if out == nil {
+			out = make([]eventSummary, 0, hint)
 		}
 		out = append(out, event)
 	}
