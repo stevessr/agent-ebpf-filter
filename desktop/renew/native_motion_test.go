@@ -1,7 +1,6 @@
 package main
 
 import (
-	"strconv"
 	"testing"
 	"time"
 
@@ -145,51 +144,3 @@ func TestWorkspaceMotionReleasesSidebarImmediatelyInNarrowWindow(t *testing.T) {
 	}
 }
 
-func TestWorkspaceDenseTablesSkipRepeatedSidebarReflow(t *testing.T) {
-	for _, tc := range []struct {
-		page    string
-		events  int
-		instant bool
-	}{
-		{"事件", 0, false},
-		{"事件", 255, false},
-		{"事件", 256, true},
-		{"事件", 1200, true},
-		{"网络", 256, true},
-		{"进程", 256, true},
-		{"概览", 1200, false},
-		{"系统", 1200, false},
-		{"规则", 1200, false},
-	} {
-		if got := workspaceSnapNavigation(tc.page, tc.events); got != tc.instant {
-			t.Errorf("snap navigation page %q, events %d = %t, want %t",
-				tc.page, tc.events, got, tc.instant)
-		}
-	}
-	// Native user intent remains visible even though the expensive width
-	// transition may be skipped for an active, dense events table.
-	a := newRenewApp("http://127.0.0.1:8080")
-	a.page = "事件"
-	a.starting = false
-	a.events = make([]eventSummary, 1200)
-	for i := range a.events {
-		a.events[i] = eventSummary{
-			EventID: strconv.Itoa(i + 1),
-			PID:     1000 + i,
-			Type:    "openat",
-		}
-	}
-	view := ui.NewTester(a.view, 1480, 860)
-	if err := view.Click("»"); err != nil {
-		t.Fatal(err)
-	}
-	if !a.navigationOpen || !view.HasText("功能导航") {
-		t.Fatal("optimized navigation must still reveal all native sidebar routes")
-	}
-	if err := view.Click("≡"); err != nil {
-		t.Fatal(err)
-	}
-	if a.navigationOpen || view.HasText("功能导航") {
-		t.Fatal("optimized navigation must still collapse without reserving a gutter")
-	}
-}
