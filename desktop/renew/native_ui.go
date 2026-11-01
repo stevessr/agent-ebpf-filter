@@ -90,6 +90,7 @@ type renewApp struct {
 	filterSearchOriginal  string
 	filterSearchNormalized string
 	filterCacheRows       []eventSummary
+	filterMergeScratch     []eventSummary
 	riskCacheValid        bool
 	riskCacheVersion      uint64
 	riskCacheCounts       [3]int
@@ -653,13 +654,127 @@ func (a *renewApp) eventFilterCacheKey() eventFilterSignature {
 	}
 }
 
+// matchesEventFilter is shared by full-window scans and incremental
+// additions. Keep the ordering of cheap predicates ahead of full-text
+// construction, and never infer an Agent ownership from live PID reuse.
+func matchesEventFilter(event eventSummary, key eventFilterSignature, domainOwners agentOwnershipIndex) bool {
+	if key.pid > 0 && event.PID != key.pid {
+		return false
+	}
+	if key.minRisk > 0 && event.RiskScore < key.minRisk {
+		return false
+	}
+	if key.eventType != "" && event.Type != key.eventType {
+		return false
+	}
+	if !matchesEventDrilldown(event, key.rootPID, key.target, key.fileEditsOnly, key.delegatedOnly) {
+		return false
+	}
+	if key.session != "" && eventSessionKey(event) != key.session {
+		return false
+	}
+	if !matchesEventDecision(event, key.decision) {
+		return false
+	}
+	if key.risk != "" || key.attentionOnly {
+		risk := eventRisk(event)
+		if key.risk != "" && risk != key.risk {
+			return false
+		}
+		if key.attentionOnly && risk == "正常" {
+			return false
+		}
+	}
+	if key.management != "" && managementAppForEvent(event) != key.management {
+		return false
+	}
+	if key.domainTarget != "" && !matchesAgentDomainEvent(event, domainOwners, key.domainAgent, key.domainTarget, key.domainKind) {
+		return false
+	}
+	return key.search == "" || strings.Contains(eventSearchText(event), key.search)
+}
+
+// Empty means the filter directly aliases the original event window. Do not
+// reallocate or copy those rows during merge: just advance the cache version.
+func (key eventFilterSignature) isUnfiltered() bool {
+	return key.search == "" && key.eventType == "" && key.session == "" &&
+		key.decision == "" && key.pid == 0 && key.rootPID == 0 &&
+		key.target == "" && key.domainTarget == "" && !key.fileEditsOnly &&
+		!key.delegatedOnly && key.risk == "" && key.minRisk <= 0 &&
+		key.management == "" && !key.attentionOnly
+}
+
+// applyIncrementalFilterRows merges already-ordered matching additions with
+// existing matching rows, excluding all revised or evicted EventIDs. Neither
+// side needs a full-window predicate rescan. Only used for selective filters;
+// large/broad caches continue to rebuild lazily for predictable memory use.
+func (a *renewApp) applyIncrementalFilterRows(workspace *eventMergeWorkspace) {
+	key := a.filterCacheKey
+	if key.isUnfiltered() {
+		a.filterCacheRows = a.events
+		a.filterCacheVersion = a.eventsVersion
+		return
+	}
+	if len(workspace.filterAdded) == 0 && len(workspace.filterRemoved) == 0 {
+		a.filterCacheVersion = a.eventsVersion
+		return
+	}
+	oldRows := a.filterCacheRows
+	added := workspace.filterAdded
+	// Reuse the merge's addition buffer for the matching subset; write only
+	// behind the source cursor so range iteration is never overwritten.
+	matching := added[:0]
+	for _, event := range added {
+		if matchesEventFilter(event, key, agentOwnershipIndex{}) {
+			matching = append(matching, event)
+		}
+	}
+	// Filtering only new/changed events and copying at most 128 prior
+	// matches is cheaper than checking all 1200 event summaries each batch.
+	capacity := len(oldRows) + len(matching)
+	var output []eventSummary
+	if cap(a.filterMergeScratch) >= capacity {
+		output = a.filterMergeScratch[:0]
+	} else if capacity != 0 {
+		output = make([]eventSummary, 0, capacity)
+	}
+	i, j := 0, 0
+	for i < len(oldRows) || j < len(matching) {
+		if i < len(oldRows) {
+			if _, removed := workspace.filterRemoved[oldRows[i].EventID]; removed {
+				i++
+				continue
+			}
+		}
+		if j >= len(matching) {
+			if i < len(oldRows) {
+				output = append(output, oldRows[i])
+				i++
+			}
+		} else if i >= len(oldRows) || eventSummaryBefore(matching[j], oldRows[i]) {
+			output = append(output, matching[j])
+			j++
+		} else {
+			output = append(output, oldRows[i])
+			i++
+		}
+	}
+	a.filterCacheRows = output
+	// The recycled result buffer must not pin strings from evicted events.
+	// Both buffers are owned by a filtered view (unfiltered aliases bypass it).
+	if cap(oldRows) > 0 {
+		clear(oldRows[:cap(oldRows)])
+	}
+	a.filterMergeScratch = oldRows[:0]
+	a.filterCacheVersion = a.eventsVersion
+}
+
 func (a *renewApp) filteredEvents() []eventSummary {
 	key := a.eventFilterCacheKey()
-	q := key.search
 	if a.filterCacheValid && a.filterCacheVersion == a.eventsVersion && a.filterCacheKey == key {
 		return a.filterCacheRows
 	}
-	if q == "" && a.eventPIDFilter == 0 && a.eventRootPIDFilter == 0 && a.eventTargetFilter == "" && a.eventDomainTarget == "" && !a.eventFileEditsOnly && !a.eventDelegatedOnly && a.eventRiskFilter == "" && a.eventMinRiskScore <= 0 && a.eventTypeFilter == "" && a.eventSessionFilter == "" && a.eventDecisionFilter == "" && a.managementEventFilter == "" && !a.eventAttentionOnly {
+	if key.isUnfiltered() {
 		a.filterCacheValid = true
 		a.filterCacheVersion = a.eventsVersion
 		a.filterCacheKey = key
@@ -689,42 +804,7 @@ func (a *renewApp) filteredEvents() []eventSummary {
 		domainOwners = a.eventOwnershipIndex()
 	}
 	for _, event := range a.events {
-		// Test cheap, selective scalar predicates before allocating the
-		// full-text search corpus or classifying Agent/domain metadata.
-		if a.eventPIDFilter > 0 && event.PID != a.eventPIDFilter {
-			continue
-		}
-		if a.eventMinRiskScore > 0 && event.RiskScore < a.eventMinRiskScore {
-			continue
-		}
-		if a.eventTypeFilter != "" && event.Type != a.eventTypeFilter {
-			continue
-		}
-		if !matchesEventDrilldown(event, a.eventRootPIDFilter, a.eventTargetFilter, a.eventFileEditsOnly, a.eventDelegatedOnly) {
-			continue
-		}
-		if a.eventSessionFilter != "" && eventSessionKey(event) != a.eventSessionFilter {
-			continue
-		}
-		if !matchesEventDecision(event, a.eventDecisionFilter) {
-			continue
-		}
-		if a.eventRiskFilter != "" || a.eventAttentionOnly {
-			risk := eventRisk(event)
-			if a.eventRiskFilter != "" && risk != a.eventRiskFilter {
-				continue
-			}
-			if a.eventAttentionOnly && risk == "正常" {
-				continue
-			}
-		}
-		if a.managementEventFilter != "" && managementAppForEvent(event) != a.managementEventFilter {
-			continue
-		}
-		if a.eventDomainTarget != "" && !matchesAgentDomainEvent(event, domainOwners, a.eventDomainAgent, a.eventDomainTarget, a.eventDomainKind) {
-			continue
-		}
-		if q != "" && !strings.Contains(eventSearchText(event), q) {
+		if !matchesEventFilter(event, key, domainOwners) {
 			continue
 		}
 		if out == nil {
