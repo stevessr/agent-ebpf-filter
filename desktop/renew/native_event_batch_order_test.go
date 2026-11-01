@@ -196,3 +196,35 @@ func TestTakeOldestEventUIBatchFastPathAndReferenceClearing(t *testing.T) {
 		t.Fatal("compacted backing buffer retains references to transferred rows")
 	}
 }
+
+func TestProductionResumeCapUsesTwoOrderedCommits(t *testing.T) {
+	full := make([]eventSummary, eventUIPauseCapacity)
+	for i := range full {
+		full[i] = eventSummary{
+			EventID: strconv.Itoa(i),
+			Target: "/tmp/event-" + strconv.Itoa(i),
+		}
+	}
+	scratch := make([]eventSummary, 0, eventUIResumeCommitCapacity)
+	first, rest := takeOldestEventUIBatch(full, 0, eventUIResumeCommitCapacity, scratch)
+	if len(first) != 640 || len(rest) != 560 {
+		t.Fatalf("actual resume chunking must be 640+560, got %d+%d", len(first), len(rest))
+	}
+	if &first[0] != &scratch[:cap(scratch)][0] {
+		t.Fatal("resume fast path did not use the recycled commit buffer")
+	}
+	for i, event := range first {
+		if event.EventID != strconv.Itoa(i) {
+			t.Fatalf("first chunk out of order at %d: %q", i, event.EventID)
+		}
+	}
+	second, tail := takeOldestEventUIBatch(rest, 0, eventUIResumeCommitCapacity, nil)
+	if tail != nil || len(second) != 560 {
+		t.Fatalf("second commit should finish backlog, left=%d", len(tail))
+	}
+	for i, event := range second {
+		if event.EventID != strconv.Itoa(i+640) {
+			t.Fatalf("second chunk out of order at %d: %q", i, event.EventID)
+		}
+	}
+}
