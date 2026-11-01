@@ -198,8 +198,9 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 									a.captureWarning(c)
 								}
 								ui.Column(c).Key("page-" + a.page).Gap(16).Transition(ui.ElementTransition{
-									Duration: 160 * time.Millisecond,
+									Duration: 180 * time.Millisecond,
 									Enter:    &ui.Motion{Y: 8},
+									Exit:     &ui.Motion{Y: -6},
 								}).Children(func() { a.workspacePage(c) })
 							}
 						})
@@ -308,7 +309,8 @@ func (a *renewApp) activityRail(c *ui.Context, windowWidth float32) {
 			button := ui.ButtonBase(c.Key("rail-" + page)).
 				Width(40).Height(40).Padding(0).Radius(11).
 				AlignItems(ui.Center).Justify(ui.Center).
-				Label(name).Tooltip(name)
+				Label(name).Tooltip(name).
+				Transition(ui.ElementTransition{Duration: 150 * time.Millisecond, Colors: true})
 			switch {
 			case active:
 				button.Background(t.Accent.Alpha(0.17)).TextColor(t.Accent)
