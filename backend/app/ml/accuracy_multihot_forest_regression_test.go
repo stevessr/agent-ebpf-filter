@@ -128,3 +128,63 @@ func TestBalancedForestLearnRareAttackSignal(t *testing.T) {
 		t.Fatalf("balanced forest missed separable rare BLOCK class: %d", got)
 	}
 }
+
+func TestBalancedTuningBootstrapImprovesRareAttackHoldoutRecall(t *testing.T) {
+	// Paired, fixed-seed ablation against the *former* uniform tuning
+	// bootstrap. A single BLOCK example among 49 ALLOW examples is easily
+	// absent from a uniform bootstrap, while class-stratified sampling keeps
+	// the observed rare action represented.
+	const n = 50
+	training := make([]TrainSample, n)
+	for i := range training {
+		label := int32(0)
+		value := 0.05 + float64(i%5)/200.0
+		if i == n-1 {
+			label = 1
+			value = 0.92
+		}
+		training[i].label = label
+		for d := range training[i].features {
+			training[i].features[d] = value
+		}
+	}
+	var benign, attack [FeatureDim]float64
+	for d := range benign {
+		benign[d] = 0.06
+		attack[d] = 0.88 // held-out value, not identical to training BLOCK
+	}
+	const trials = 48
+	balancedCaught, uniformCaught := 0, 0
+	balancedFP, uniformFP := 0, 0
+	for seed := int64(1); seed <= trials; seed++ {
+		balanced := BuildAutoTuneForest(training, 1, 3, 1, seed)
+		if balanced.Predict(attack).Action == 1 {
+			balancedCaught++
+		}
+		if balanced.Predict(benign).Action != 0 {
+			balancedFP++
+		}
+		rng := rand.New(rand.NewSource(seed))
+		legacy := NewDecisionForest(1, 3, 4)
+		bootstrap := make([]TrainSample, len(training))
+		for i := range bootstrap {
+			bootstrap[i] = training[rng.Intn(len(training))]
+		}
+		legacy.Trees[0] = DecisionTree{Nodes: buildAutoTuneTree(bootstrap, 0, 3, 1,
+			int(math.Sqrt(float64(FeatureDim))), rng)}
+		legacy.IsTrained = true
+		if legacy.Predict(attack).Action == 1 {
+			uniformCaught++
+		}
+		if legacy.Predict(benign).Action != 0 {
+			uniformFP++
+		}
+	}
+	t.Logf("synthetic rare-BLOCK holdout, %d seeds: class-balanced recall %d/%d, original uniform recall %d/%d; benign FP %d vs %d",
+		trials, balancedCaught, trials, uniformCaught, trials, balancedFP, uniformFP)
+	if balancedCaught != trials || balancedFP != 0 ||
+		uniformCaught > balancedCaught-6 || uniformFP > balancedFP {
+		t.Fatalf("balanced tuning no longer recovers rare threats without extra false positives: balanced=%d uniform=%d FPs=%d/%d",
+			balancedCaught, uniformCaught, balancedFP, uniformFP)
+	}
+}
