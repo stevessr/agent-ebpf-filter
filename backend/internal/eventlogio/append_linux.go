@@ -18,9 +18,9 @@ import (
 // concurrent I/O. Short writes are terminal: replaying an ambiguous append
 // may duplicate or corrupt an audit-chain segment.
 type AppendBatch struct {
-	file *os.File
+	file    *os.File
 	records [][]byte
-	bytes int
+	bytes   int
 }
 
 // NewAppendBatch rejects unsupported descriptors before the first write.
