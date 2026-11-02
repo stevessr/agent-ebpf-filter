@@ -1,7 +1,7 @@
 /** Web design tokens: must mirror desktop/renew/native_theme.go. */
 export const uiDesignTokens = {
   radius: 8,
-  fontSize: 14,
+  fontSize: 16,
   light: {
     canvas: "#f8fafc",
     surface: "#ffffff",

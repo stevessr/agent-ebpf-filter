@@ -1,8 +1,8 @@
 # Web / Desktop UI Foundation
 
-Status: baseline implemented on 2026-11-02. **External reference not yet verified.**
+Status: owner-supplied transcription received 2026-11-02; exact X screenshots remain unverified.
 
-Reference requested by the project owner: https://x.com/ohayou792/status/2116884456006897800 . The original post was not accessible at implementation time (X returned HTTP 403; available public mirrors did not provide the post). **Do not attribute the design values below to that post** until the text or screenshots have been reviewed. This is an independently auditable baseline and a follow-up reference to revisit.
+Reference: https://x.com/ohayou792/status/2116884456006897800 . Direct retrieval returned HTTP 403, but the owner supplied a detailed rule transcription in chat. These are owner-provided requirements, not an independently verified quotation or screenshot reproduction.
 
 ## Product interaction priorities
 
@@ -22,7 +22,7 @@ Reference requested by the project owner: https://x.com/ohayou792/status/2116884
 | Primary text | `#1f2937` | `#e5edf9` | `Theme.Text` unless high contrast |
 | Brand accent (Web) | `#2563eb` | `#7b9fff` | Native `Theme.Accent` stays system-controlled |
 
-- Base Web type: 14px; telemetry rows may be denser while readable. Desktop keeps the OS typography scale.
+- Base Web type: 16px/1.7, weight 400; headings use 500 and 22px/18px/16px, UI minimum 11px. Desktop keeps the OS typography scale.
 - Corner radius: 8px for standard shells, dialogs, and controls; internal compact tags may be smaller.
 - Control sizes: 36px in the Web titlebar; at least 44px in the activity rail; ordinary navigation rows at least 36px. Density-sensitive table controls may be compact but must remain keyboard-operable.
 - Narrow workspaces (up to 720px): navigation becomes an overlay above the event canvas with an explicit close target. On larger screens navigation continues to reserve space.
@@ -40,7 +40,7 @@ Reference requested by the project owner: https://x.com/ohayou792/status/2116884
 
 ## Follow-up on external reference
 
-Once the source X post is available, extract its concrete rules and examples in a separate review, record exact deviations here, and implement only rules suitable for an OS monitoring/control application. Avoid aesthetic changes that obscure incidents, make risk severity ambiguous, or degrade dense tables.
+The owner-supplied text is actionable. Original screenshots can later be compared to the implementation. Avoid aesthetic changes that obscure incidents, make risk severity ambiguous, or degrade dense tables.
 
 
 ## Renew product hierarchy and evidence semantics
@@ -66,3 +66,22 @@ On Web workspaces at widths up to 720px, open with navigation **closed**. Openin
 - The existing `.github/workflows/renew-mygo-update.yml` checks stable upstream updates in a read-only job and proposes a separately reviewable dependency PR. Do not disable its tests, merge updates automatically, or run untrusted upstream code with a write-capable token.
 - Frontend updates use `frontend/package.json` **and** `frontend/bun.lock` together. Treat major Vue, Vite, Ant Design or MyGo upgrades as migrations with typed-build, interaction, dark/light and accessible-navigation coverage, not version-number-only changes.
 - Validate: `cd desktop/renew && go mod tidy -diff && go test ./... && go tool mygo vet .`; `cd frontend && bun install --frozen-lockfile && bun run test:ui && bun run build`. Also execute standard CI packaging and real niri/Wayland, Windows and narrow-screen smoke tests before a production release. This text is a checklist, not a claim that checks ran here.
+
+
+## Owner-provided seamless and flat UI standard
+
+- **Seamless:** avoid decorative surrounding frames, artificial gradient layers and unrelated palette. The Web workbench shell is transparent over the app canvas; native Renew inherits OS appearance, font scale, focus and accent.
+- **Flat:** no decorative gradients, mesh, noise, heavy shadows, blur, glow or neon in chrome. Functional focus rings, state outlines and safety overlays remain. Cards use a 0.5px border and 12px corner radius; normal controls use 8px.
+- **Compact:** foreground current collection health, evidence, severity and next action. Remove decorative emoji, uppercase metadata and ornamental symbols. Prefer short headings; limit diagram box subtitles to five words. Keep explanatory prose in documentation or accessible disclosures instead of diagrams.
+- **Typography:** body 16px/1.7 weight 400, headings 22/18/16px weight 500, minimum 11px. Prefer Anthropic Sans when installed, with a system fallback; never redistribute or hotlink a proprietary font. MyGo preserves native typography.
+- **Tokens:** Web uses `--surface-{0,1,2}`, `--text-{primary,secondary,muted,accent,success,danger,warning}`, `--border`, semantic backgrounds and borders, `--font-{sans,voice,mono}`, `--radius`, `--pad-*` and `--gap-*`. Both light and dark themes are mandatory. Use at most two color ramps in diagrams and a legend when color conveys state.
+- **Icons:** no emoji or manually authored SVG icon paths. Use accessible labels for icon-only buttons. Tabler outline is the owner's preferred icon set; this independent Vue application currently bundles Ant Design outline icons and MyGo uses native equivalents. Do not claim Tabler is preloaded; migrate with bundled assets and updated lockfile, not a CDN.
+- **Keyboard:** Ctrl/Cmd+K must not steal editor/terminal/form shortcuts. Escape closes the narrow navigation only from the shell/search context; return focus to navigation toggle.
+
+### Embedded-widget rules do not map one-to-one
+
+The original instructions about hiding Claude host edges, `sendPrompt()`, 680px streaming iframe sizing, mandatory `style`-HTML-`script` ordering, avoiding tabs and `display:none` during token streaming, and `position:fixed` inside an auto-height iframe are **specific to embedded generated widgets**. The standalone Vue app and native MyGo desktop are not streaming output. Preserve functional DockNode tabs, app routing, native OS windowing and safe navigation overlays. Never replace routing with `sendPrompt()` or force an iframe layout into the native desktop.
+
+### Merge and manual acceptance
+
+CI must pass frontend tests/build, native Go tests/vet, package checks and Web bilingual acceptance. Test light/dark/high contrast, 375px/768px/1280px/1920px and niri/Wayland plus Windows before production distribution. CI alone does not prove the pixel-level visual reference or assistive-technology usability.
