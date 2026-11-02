@@ -408,7 +408,13 @@ func (t *ModelTrainer) AutoTuneWithConfig(store *TrainingDataStore, cfg MLConfig
 					// grouped split shuffles membership, not the source slice.
 					RidgeFit(W, 4, trainRaw, float64(numTrees)/100.0+0.1)
 				} else {
-					TrainSGD(W, 4, trainRaw, lr, maxIter, C, loss, nil, t)
+					var classWeights []float64
+					if effectiveCfg.BalanceClasses {
+						// Tune with the same class weighting as production training.
+						_, labels := extractFeaturesLabels(trainRaw)
+						classWeights = computeClassWeights(labels, 4)
+					}
+					trainSGDWithRand(W, 4, trainRaw, lr, maxIter, C, loss, classWeights, t, linearRNG)
 				}
 				trainAccuracy = EvalLinearModel(W, 4, trainSet)
 				evalStart = time.Now()
