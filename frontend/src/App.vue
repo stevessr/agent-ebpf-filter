@@ -32,7 +32,6 @@ let stopLocalization: (() => void) | undefined;
 let narrowNavigationMedia: MediaQueryList | undefined;
 
 function onNarrowNavigationChanged(event: MediaQueryListEvent) {
-  // Moving to a narrow viewport must not leave a covering navigation overlay.
   if (event.matches) sidebar.value = false;
 }
 const antLocale = computed(() => webLocale.value === "en-US" ? enUS : zhCN);
@@ -87,6 +86,7 @@ const {
 } = useDockWorkbench();
 const sidebar = ref(true),
   searchInput = ref<HTMLInputElement | null>(null),
+  navigationToggle = ref<HTMLButtonElement | null>(null),
   query = ref(""),
   activeGroup = ref("observability");
 const navGroups = computed(() =>
@@ -118,6 +118,7 @@ function onWorkbenchKeydown(event: KeyboardEvent) {
     defaultPrevented: event.defaultPrevented,
     inEditorOrTerminal: inside(".monaco-editor, .xterm, .wterm"),
     inEditableField: inside('input, textarea, select, [contenteditable="true"]'),
+    inSidebarSearch: target === searchInput.value,
     narrow: !!narrowNavigationMedia?.matches,
     sidebarOpen: sidebar.value,
   });
@@ -125,9 +126,9 @@ function onWorkbenchKeydown(event: KeyboardEvent) {
   event.preventDefault();
   if (action === "close-overlay") {
     sidebar.value = false;
+    void nextTick(() => navigationToggle.value?.focus());
     return;
   }
-  // Only global Ctrl/Cmd+K opens navigation; focused editors keep their shortcut.
   sidebar.value = true;
   searchInput.value?.focus();
   searchInput.value?.select();
@@ -135,6 +136,7 @@ function onWorkbenchKeydown(event: KeyboardEvent) {
 function openNavigationItem(route: RouteLocationRaw) {
   open(router.resolve(route).fullPath);
   if (narrowNavigationMedia?.matches) sidebar.value = false;
+  query.value = "";
 }
 function activity(key: string) {
   if (activeGroup.value === key) sidebar.value = !sidebar.value;
@@ -155,17 +157,18 @@ function resetLayout() {
   >
     <div class="ide-workbench">
       <header class="ide-titlebar">
-        <span class="ide-logo">◈</span><strong>Agent eBPF</strong
+        <strong>Agent eBPF</strong
         ><span class="ide-title-divider">/</span
-        ><span class="ide-title-caption">Observability Studio</span>
+        ><span class="ide-title-caption">Observability studio</span>
         <label class="ide-command"
           ><SearchOutlined /><input
             ref="searchInput"
             type="search"
+            aria-keyshortcuts="Control+K Meta+K"
             v-model="query"
             aria-label="搜索工作台功能"
             :placeholder="tr('搜索功能 / 工作空间')"
-          /><kbd>Ctrl K</kbd></label
+          /><kbd>Ctrl / Cmd + K</kbd></label
         >
         <label class="ide-locale-picker" for="webui-language">{{ tr('语言') }} 
           <select id="webui-language" v-model="localeChoice" data-testid="locale-switch" aria-label="Language / 语言">
@@ -174,6 +177,7 @@ function resetLayout() {
           </select>
         </label>
         <button
+          ref="navigationToggle"
           title="显示 / 隐藏导航"
           aria-label="显示 / 隐藏导航"
           aria-controls="ide-sidebar"
@@ -204,14 +208,14 @@ function resetLayout() {
           <button
             title="系统配置"
             aria-label="系统配置"
-            @click="open('/config/registry')"
+            @click="openNavigationItem('/config/registry')"
           >
             <SettingOutlined />
           </button>
         </nav>
         <aside v-show="sidebar" id="ide-sidebar" class="ide-sidebar">
           <div class="ide-sidebar-heading">
-            {{ tr("工作空间") }} <span>AGENT / LOCAL</span>
+            {{ tr("工作空间") }} <span>{{ webLocale === "en-US" ? "Local" : "本地" }}</span>
           </div>
           <div class="ide-project">
             <span class="ide-project-dot" />agent-ebpf-filter
@@ -238,7 +242,7 @@ function resetLayout() {
                 @dragend="dragging = ''"
               >
                 <component :is="item.icon" /><span>{{ tr(item.title) }}</span
-                ><span class="ide-nav-grip">⠿</span>
+                >
               </button>
             </details>
             <p v-if="!navGroups.length" class="ide-nav-empty">{{ tr("没有匹配的功能") }}</p>
@@ -279,7 +283,7 @@ function resetLayout() {
         </main>
       </div>
       <footer class="ide-statusbar">
-        <span class="ide-status-remote">⌁ LOCAL</span><span>◈ {{ tr("eBPF 工作台") }}</span
+        <span class="ide-status-remote">{{ webLocale === "en-US" ? "Local" : "本地" }}</span><span>{{ tr("eBPF 工作台") }}</span
         ><span>{{ webLocale === "en-US" ? paneCount + " panes" : paneCount + " 个面板" }}</span
         ><span class="ide-status-spacer" /><span>{{ tr(activeTitle) }}</span>
         ><span v-if="notice" class="ide-layout-notice" role="status">{{
