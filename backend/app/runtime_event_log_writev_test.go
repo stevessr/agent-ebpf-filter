@@ -30,7 +30,7 @@ func TestRuntimeEventLogWritevParityAndAuditChain(t *testing.T) {
 			for i := 1; i <= 300; i++ {
 				record := CapturedEventRecord{
 					ReceivedAt: time.Unix(1700000000, int64(i)).UTC(),
-					Event: &pb.Event{Pid: uint32(i), Type: "openat", Path: "/tmp/test"},
+					Event:      &pb.Event{Pid: uint32(i), Type: "openat", Path: "/tmp/test"},
 				}
 				if ok, err := writer.Enqueue(record); !ok || err != nil {
 					t.Fatalf("enqueue %d: ok=%t err=%v", i, ok, err)
@@ -96,7 +96,7 @@ func TestRuntimeEventLogWritevFallbackAndLargeRecord(t *testing.T) {
 	large := strings.Repeat("X", 192*1024)
 	if ok, err := writer.Enqueue(CapturedEventRecord{
 		ReceivedAt: time.Unix(1700000000, 0).UTC(),
-		Event: &pb.Event{Pid: 9, Type: "openat", ExtraInfo: large},
+		Event:      &pb.Event{Pid: 9, Type: "openat", ExtraInfo: large},
 	}); !ok || err != nil {
 		t.Fatalf("enqueue large event: %t, %v", ok, err)
 	}
