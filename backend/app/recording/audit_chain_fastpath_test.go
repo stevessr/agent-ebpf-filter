@@ -23,11 +23,13 @@ func TestAuditChainSingleNormalizationPreservesHashes(t *testing.T) {
 		},
 		{
 			name: "preexisting envelope",
-			record: CapturedEventRecord{
+			// Existing envelopes in the normal pipeline are complete,
+			// derived protocol envelopes, not an otherwise empty placeholder.
+			// Build one first to validate the compatibility path.
+			record: events.NormalizeCapturedEventRecord(CapturedEventRecord{
 				ReceivedAt: time.Unix(1700000001, 42).UTC(),
 				Event:      &pb.Event{Pid: 16, Type: "network_connect", NetEndpoint: "127.0.0.1:1234"},
-				Envelope:   &pb.EventEnvelope{SchemaVersion: "envelope.v1"},
-			},
+			}),
 		},
 	}
 	for _, tc := range cases {
