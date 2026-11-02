@@ -7,7 +7,7 @@ type Timers = {
 export function createTrailingWrite(
   write: () => void,
   delay = 250,
-  timers: Timers = { set: (fn, ms) => setTimeout(fn, ms), clear: clearTimeout },
+  timers: Timers = { set: (fn, ms) => setTimeout(fn, ms), clear: (handle) => clearTimeout(handle) },
 ) {
   let pending = false;
   let handle: Handle | undefined;
