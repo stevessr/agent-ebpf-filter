@@ -99,3 +99,7 @@ CI must pass frontend tests/build, native Go tests/vet, package checks and Web b
 - Focusing feature search on viewports up to 720px opens the navigation result overlay; selecting a destination clears the query and closes the overlay. Search remains an ordinary input and does not capture editor or terminal shortcuts.
 - Pointer resizing now filters events by the initiating pointer ID and primary button, ignores zero-size split containers, schedules at most one live resize per animation frame, and commits the final pointer position before releasing listeners. Cancel/blur/unmount discards a pending frame and restores the document cursor/user-selection state.
 - Accessibility focus rings and keyboard resizing remain available independently from pointer interaction; this is a UI scheduling change, not an eBPF collector update.
+
+## Missing sync timestamp is not a healthy sample
+
+A live backend connection and healthy collector flag are insufficient for a green realtime badge without a trustworthy `lastSync`. When that timestamp is zero, the collector and pipeline show a warning and the overview offers diagnostics. Fresh samples restore the normal state; stale samples, future timestamps, explicit capture failures and high-risk evidence retain their existing precedence. This is a UI evidence semantics change only and does not alter kernel enforcement.

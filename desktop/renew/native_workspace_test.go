@@ -657,6 +657,7 @@ func TestWorkspaceFooterNeverMasksCollectorFailureWithRealtimeOrPause(t *testing
 	a.healthReady = true
 	a.eventStreamConnected = true
 	a.systemConnected = true
+	a.lastSync = time.Now()
 	a.health.CaptureHealthy = false
 	a.paused = true
 	if got, level := a.workspaceFooterStatus(); got != "采集异常" || level != "danger" {

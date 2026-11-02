@@ -64,6 +64,7 @@ func TestOverviewHeadlinePriorities(t *testing.T) {
 			a.health.CaptureHealthy = true
 			a.eventStreamConnected = true
 			a.systemConnected = true
+			a.lastSync = time.Now()
 		}, "success"},
 	}
 	for _, tt := range tests {
@@ -127,6 +128,7 @@ func TestOverviewActionTargetsRiskAndDiagnostics(t *testing.T) {
 	}
 
 	a.systemConnected = true
+	a.lastSync = time.Now()
 	if label, page, attention := a.overviewAction(); label != "" || page != "" || attention {
 		t.Fatalf("healthy action=(%q,%q,%v)", label, page, attention)
 	}
@@ -170,6 +172,7 @@ func TestPipelineStatus(t *testing.T) {
 	a.health.CaptureHealthy = true
 	a.eventStreamConnected = true
 	a.systemConnected = true
+	a.lastSync = time.Now()
 	if label, level := a.pipelineStatus(); label != "全链路实时" || level != "success" {
 		t.Fatalf("healthy status=(%q,%q)", label, level)
 	}
@@ -515,4 +518,30 @@ func TestStaleCollectorCannotReportHealthyPipeline(t *testing.T) {
   if label, level := a.pipelineStatus(); label != "全链路实时" || level != "success" {
     t.Fatalf("fresh pipeline=(%q,%q), want success", label, level)
   }
+}
+
+func TestUnknownHealthTimestampNeverReportsRealtime(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.starting = false
+	a.connected = true
+	a.healthReady = true
+	a.health.CaptureHealthy = true
+	a.eventStreamConnected = true
+	a.systemConnected = true
+	if label, level := a.collectorStatus(); label != "等待同步" || level != "warning" {
+		t.Fatalf("unverified collector health cannot be green: %q / %q", label, level)
+	}
+	if label, level := a.pipelineStatus(); label != "等待采集同步" || level != "warning" {
+		t.Fatalf("unverified pipeline cannot be realtime: %q / %q", label, level)
+	}
+	if title, _, level := a.overviewHeadline(); title != "等待采集同步" || level != "warning" {
+		t.Fatalf("home must show missing timestamp: %q / %q", title, level)
+	}
+	if label, page, _ := a.overviewAction(); label != "打开系统诊断" || page != "系统" {
+		t.Fatalf("unknown state must offer diagnostics: %q / %q", label, page)
+	}
+	a.lastSync = time.Now()
+	if label, level := a.pipelineStatus(); label != "全链路实时" || level != "success" {
+		t.Fatalf("fresh observation should recover: %q / %q", label, level)
+	}
 }

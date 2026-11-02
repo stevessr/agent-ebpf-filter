@@ -169,3 +169,15 @@ func TestPersonalOverviewFreshnessPriorities(t *testing.T) {
     t.Fatalf("capture failures must outrank clock skew: %q", got)
   }
 }
+
+func TestUnknownTimestampIsNeverPresentedAsRecent(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.starting = false
+	a.connected = true
+	a.healthReady = true
+	a.health.CaptureHealthy = true
+	a.eventStreamConnected = true
+	if got := a.overviewSnapshotHint(); !strings.Contains(got, "尚未记录最近同步时间") {
+		t.Fatalf("unknown timestamp must remain explicit: %q", got)
+	}
+}
