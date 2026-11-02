@@ -1,0 +1,47 @@
+name: Audit envelope fast-path regression
+
+on:
+  pull_request:
+    paths:
+      - "backend/app/recording/audit_chain.go"
+      - "backend/app/recording/audit_chain_fastpath_test.go"
+      - ".github/workflows/audit-envelope-fast-path.yml"
+  push:
+    paths:
+      - "backend/app/recording/audit_chain.go"
+      - "backend/app/recording/audit_chain_fastpath_test.go"
+      - ".github/workflows/audit-envelope-fast-path.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  fast-path:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Check formatting
+        run: |
+          test -z "$(gofmt -l backend/app/recording/audit_chain.go backend/app/recording/audit_chain_fastpath_test.go)"
+      - name: Generate Go protobuf bindings
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          mkdir -p backend/pb
+          protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto \
+            proto/tracker_common.proto proto/tracker_events.proto \
+            proto/tracker_registration.proto proto/tracker_system.proto \
+            proto/tracker_config.proto proto/tracker_shell.proto
+      - name: Verify audit hash and replay
+        working-directory: backend
+        run: go test -race ./app/recording -run '^TestAuditChain' -count=1
+      - name: Measure allocation and CPU regression
+        working-directory: backend
+        run: go test ./app/recording -run '^$' -bench '^BenchmarkAuditHashNormalization' -benchmem -benchtime=200ms -count=3
