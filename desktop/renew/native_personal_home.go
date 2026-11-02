@@ -1,9 +1,30 @@
 package main
 
+import "time"
+
 // overviewSnapshotHint explains whether the home screen shows live or stale
 // evidence. A quiet summary is never evidence that an unobserved action is safe.
+const overviewSyncStaleAfter = 2 * time.Minute
+
+func (a *renewApp) syncFreshnessAt(now time.Time) string {
+  if a.lastSync.IsZero() {
+    return "unknown"
+  }
+  if a.lastSync.After(now.Add(30 * time.Second)) {
+    return "clock-skew"
+  }
+  if now.Sub(a.lastSync) > overviewSyncStaleAfter {
+    return "stale"
+  }
+  return "fresh"
+}
+
 func (a *renewApp) overviewSnapshotHint() string {
-	switch {
+  return a.overviewSnapshotHintAt(time.Now())
+}
+
+func (a *renewApp) overviewSnapshotHintAt(now time.Time) string {
+  switch {
 	case a.starting:
 		return "正在建立连接。采集状态确认前，请勿将空白记录视为安全。"
 	case !a.connected:
@@ -12,6 +33,10 @@ func (a *renewApp) overviewSnapshotHint() string {
 		return "正在确认采集器状态，当前记录可能尚未完整同步。"
 	case !a.health.CaptureHealthy:
 		return "采集链路异常，可能漏记活动；建议打开系统诊断。"
+	case a.syncFreshnessAt(now) == "clock-skew":
+		return "同步时间晚于本机时钟，当前采集状态无法确认；请检查系统时间。"
+	case a.syncFreshnessAt(now) == "stale":
+		return "采集状态已超过两分钟未同步，当前证据可能过时；请检查连接和诊断。"
 	case a.paused:
 		return "您暂停的是桌面事件展示，不是后台采集；恢复画面后可继续查看更新。"
 	case !a.eventStreamConnected:

@@ -96,6 +96,7 @@ func TestCollectorStatusDoesNotReportFalseFailureBeforeFirstSync(t *testing.T) {
 		t.Fatalf("unhealthy collector status=(%q,%q)", label, level)
 	}
 	a.health.CaptureHealthy = true
+	a.lastSync = time.Now()
 	if label, level := a.collectorStatus(); label != "正常" || level != "success" {
 		t.Fatalf("healthy collector status=(%q,%q)", label, level)
 	}
@@ -487,4 +488,31 @@ func TestSystemWebSocketURL(t *testing.T) {
 	if got != "wss://host.example/base/ws/system" {
 		t.Fatalf("got %q", got)
 	}
+}
+
+func TestStaleCollectorCannotReportHealthyPipeline(t *testing.T) {
+  a := newRenewApp("http://127.0.0.1:8080")
+  a.starting = false
+  a.connected = true
+  a.healthReady = true
+  a.health.CaptureHealthy = true
+  a.eventStreamConnected = true
+  a.systemConnected = true
+  a.lastSync = time.Now().Add(-3 * time.Minute)
+  if label, level := a.pipelineStatus(); label != "采集状态过时" || level != "warning" {
+    t.Fatalf("stale pipeline=(%q,%q), want warning", label, level)
+  }
+  if label, level := a.collectorStatus(); label != "状态过时" || level != "warning" {
+    t.Fatalf("stale collector=(%q,%q), want warning", label, level)
+  }
+  if headline, _, level := a.overviewHeadline(); headline != "采集证据已过时" || level != "warning" {
+    t.Fatalf("stale overview=(%q,%q), want warning", headline, level)
+  }
+  if label, page, _ := a.overviewAction(); label != "打开系统诊断" || page != "系统" {
+    t.Fatalf("stale collection must direct users to diagnostics, got %q/%q", label, page)
+  }
+  a.lastSync = time.Now().Add(-10 * time.Second)
+  if label, level := a.pipelineStatus(); label != "全链路实时" || level != "success" {
+    t.Fatalf("fresh pipeline=(%q,%q), want success", label, level)
+  }
 }

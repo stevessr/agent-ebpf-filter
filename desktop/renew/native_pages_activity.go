@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -202,7 +203,16 @@ func (a *renewApp) overviewHeadline() (headline, detail, level string) {
 		return "发现高风险活动", fmt.Sprintf("当前摘要窗口中有 %d 条高风险事件，建议优先查看阻断、拒绝和高分事件。", danger), "danger"
 	}
 	if attention > 0 {
+		if a.syncFreshnessAt(time.Now()) == "stale" || a.syncFreshnessAt(time.Now()) == "clock-skew" {
+			return "有活动需要关注", fmt.Sprintf("当前摘要窗口中有 %d 条需关注事件，但采集同步状态异常；请核查时间和连接。", attention), "warning"
+		}
 		return "有活动需要关注", fmt.Sprintf("当前摘要窗口中有 %d 条需关注事件；采集链路本身运行正常。", attention), "warning"
+	}
+	if a.syncFreshnessAt(time.Now()) == "stale" {
+		return "采集证据已过时", "最近两分钟没有新的健康同步，无法仅凭连接状态确认监控实时性；建议查看系统诊断。", "warning"
+	}
+	if a.syncFreshnessAt(time.Now()) == "clock-skew" {
+		return "采集时间异常", "同步记录晚于本机时钟；请检查时钟与系统诊断，暂勿将摘要视为完整实时证据。", "warning"
 	}
 	if !a.eventStreamConnected {
 		return "监控在线，但事件流处于回退模式", "后端可用，当前正通过兼容路径同步摘要；实时性可能略低于 Native IPC。", "warning"
@@ -224,7 +234,7 @@ func (a *renewApp) overviewAction() (label, page string, attentionOnly bool) {
 	if danger > 0 || attention > 0 {
 		return "查看相关事件", "事件", true
 	}
-	if !a.eventStreamConnected || !a.systemConnected {
+	if a.syncFreshnessAt(time.Now()) == "stale" || a.syncFreshnessAt(time.Now()) == "clock-skew" || !a.eventStreamConnected || !a.systemConnected {
 		return "打开系统诊断", "系统", false
 	}
 	return "", "", false

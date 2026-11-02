@@ -480,6 +480,10 @@ func (a *renewApp) collectorStatus() (label, level string) {
 		return "同步中", "warning"
 	case !a.health.CaptureHealthy:
 		return "异常", "danger"
+	case a.syncFreshnessAt(time.Now()) == "stale":
+		return "状态过时", "warning"
+	case a.syncFreshnessAt(time.Now()) == "clock-skew":
+		return "时钟异常", "warning"
 	default:
 		return "正常", "success"
 	}
@@ -495,6 +499,10 @@ func (a *renewApp) pipelineStatus() (label, level string) {
 		return "正在同步", "warning"
 	case !a.health.CaptureHealthy:
 		return "采集异常", "danger"
+	case a.syncFreshnessAt(time.Now()) == "stale":
+		return "采集状态过时", "warning"
+	case a.syncFreshnessAt(time.Now()) == "clock-skew":
+		return "同步时间异常", "warning"
 	case !a.eventStreamConnected:
 		return "事件流回退", "warning"
 	case !a.systemConnected:

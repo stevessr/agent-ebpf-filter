@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, onBeforeUnmount } from "vue";
+import { computed, ref, onBeforeUnmount, nextTick } from "vue";
+import { dockTabNavigationIndex, dockSplitterRatio } from "../../composables/workbench/keyboardNavigation";
 import {
   CloseOutlined,
   ColumnWidthOutlined,
@@ -93,24 +94,22 @@ function startResize(event: PointerEvent) {
 }
 onBeforeUnmount(() => cleanup());
 function resizeKey(event: KeyboardEvent) {
-  if (
-    props.node.kind !== "split" ||
-    !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)
-  )
-    return;
+  if (props.node.kind !== "split" || event.altKey || event.ctrlKey || event.metaKey) return;
+  const ratio = dockSplitterRatio(props.node.axis, event.key, props.node.ratio);
+  if (ratio === null) return;
   event.preventDefault();
-  emit(
-    "resize",
-    props.node.id,
-    Math.max(
-      0.15,
-      Math.min(
-        0.85,
-        props.node.ratio +
-          (["ArrowLeft", "ArrowUp"].includes(event.key) ? -0.05 : 0.05),
-      ),
-    ),
-  );
+  emit("resize", props.node.id, ratio);
+}
+function navigateTab(event: KeyboardEvent, index: number) {
+  if (props.node.kind !== "group" || event.altKey || event.ctrlKey || event.metaKey) return;
+  const next = dockTabNavigationIndex(event.key, index, props.node.tabs.length);
+  if (next === null) return;
+  event.preventDefault();
+  const tab = props.node.tabs[next];
+  if (!tab) return;
+  const list = (event.currentTarget as HTMLElement | null)?.closest(".dock-tab-list");
+  emit("select", props.node.id, tab.id);
+  void nextTick(() => list?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus());
 }
 </script>
 <template>
@@ -193,9 +192,9 @@ function resizeKey(event: KeyboardEvent) {
       "
       @drop.stop="drop"
     >
-      <div class="dock-tab-list" role="tablist" aria-label="工作台面板">
+      <div class="dock-tab-list" role="tablist" aria-label="工作台面板" aria-orientation="horizontal">
         <div
-          v-for="tab in node.tabs"
+          v-for="(tab, index) in node.tabs"
           :key="tab.id"
           class="dock-tab"
           :class="{ active: node.active === tab.id }"
@@ -208,9 +207,13 @@ function resizeKey(event: KeyboardEvent) {
         >
           <button
             role="tab"
+            :id="`dock-tab-${node.id}-${tab.id}`"
+            :aria-controls="`dock-panel-${node.id}`"
+            :tabindex="node.active === tab.id ? 0 : -1"
             :aria-selected="node.active === tab.id"
             :title="tab.path + ' · ' + tr('拖拽到边缘分屏')"
             @click="emit('select', node.id, tab.id)"
+            @keydown="navigateTab($event, index)"
           >
             {{ tr(tab.title) }}
           </button>
@@ -219,7 +222,7 @@ function resizeKey(event: KeyboardEvent) {
             :aria-label="tr('关闭') + ' ' + tr(tab.title)"
             @click="emit('close', node.id, tab.id)"
           >
-            <CloseOutlined />
+            <CloseOutlined aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -229,13 +232,13 @@ function resizeKey(event: KeyboardEvent) {
           aria-label="向右分屏"
           @click="emit('split', node.id, 'horizontal')"
         >
-          <ColumnWidthOutlined /></button
+          <ColumnWidthOutlined aria-hidden="true" /></button
         ><button
           title="向下分屏"
           aria-label="向下分屏"
           @click="emit('split', node.id, 'vertical')"
         >
-          <ColumnHeightOutlined />
+          <ColumnHeightOutlined aria-hidden="true" />
         </button>
       </div>
     </header>
@@ -243,7 +246,7 @@ function resizeKey(event: KeyboardEvent) {
       {{ tr("工作空间") }} <span>›</span> {{ tr(activeTab?.title || "欢迎") }}
       <span class="dock-breadcrumb-path">{{ activeTab?.path }}</span>
     </div>
-    <div class="dock-content" role="tabpanel">
+    <div class="dock-content" role="tabpanel" :id="`dock-panel-${node.id}`" :aria-labelledby="node.active ? `dock-tab-${node.id}-${node.active}` : undefined" tabindex="0">
       <template v-for="tab in node.tabs" :key="tab.id">
         <PaneRoute
           v-if="tab.id === node.active"
