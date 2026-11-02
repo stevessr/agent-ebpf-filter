@@ -26,5 +26,4 @@ jobs:
       - name: ML calibration tests
         run: cd backend && go test ./app/ml -count=1
       - name: Report paired rare-threat recall ablation
-        run: cd backend && go test ./app/ml -run '^TestBalancedTuningBootstrapImprovesRareAttackHoldoutRecall
- -v -count=1
+        run: cd backend && go test ./app/ml -run TestBalancedTuningBootstrapImprovesRareAttackHoldoutRecall -v -count=1
