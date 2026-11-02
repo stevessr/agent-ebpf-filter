@@ -83,9 +83,15 @@ func TestAutoTuneForestMirrorsProductionBalancedForest(t *testing.T) {
 		}
 	}
 	want.IsTrained = true
+	if !reflect.DeepEqual(got, want) {
+		t.Fatal("autotune forest must use identical balanced bootstrap and tree builder")
+	}
+	// Pruning belongs to the grid candidate scorer, not the shared builder,
+	// because the incremental sweep consumes exact estimator prefixes.
+	got.Prune(training)
 	want.Prune(training)
 	if !reflect.DeepEqual(got, want) {
-		t.Fatal("autotune candidate must use the identical bootstrap, split, and pruning recipe as runtime forest")
+		t.Fatal("tuned forest differs from production after training-only pruning")
 	}
 }
 
