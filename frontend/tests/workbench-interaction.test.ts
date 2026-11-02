@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { dockTabNavigationIndex, dockSplitterRatio } from "../src/composables/workbench/keyboardNavigation";
+import { dockTabNavigationIndex, dockSplitterRatio, dockPointerRatio } from "../src/composables/workbench/keyboardNavigation";
 import { createTrailingWrite } from "../src/composables/workbench/trailingWrite";
 
 test("horizontal dock tabs wrap, jump home/end and ignore unrelated keys", () => {
@@ -52,4 +52,14 @@ test("rapid layout changes coalesce and flush persists once", () => {
   writer.cancel();
   expect(pending.size).toBe(0);
   expect(writes).toBe(2);
+});
+ 
+test("split pointer resize uses the split axis, clamps and handles empty geometry", () => {
+  const rect = { left: 100, top: 50, width: 400, height: 200 };
+  expect(dockPointerRatio("horizontal", 300, 60, rect)).toBe(0.5);
+  expect(dockPointerRatio("vertical", 200, 100, rect)).toBe(0.25);
+  expect(dockPointerRatio("horizontal", 90, 60, rect)).toBe(0.15);
+  expect(dockPointerRatio("horizontal", 600, 60, rect)).toBe(0.85);
+  expect(dockPointerRatio("vertical", 200, 60, { ...rect, height: 0 })).toBeNull();
+  expect(dockPointerRatio("horizontal", NaN, 60, rect)).toBeNull();
 });

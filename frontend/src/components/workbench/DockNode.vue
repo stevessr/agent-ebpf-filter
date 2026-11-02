@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, onBeforeUnmount, nextTick } from "vue";
-import { dockTabNavigationIndex, dockSplitterRatio } from "../../composables/workbench/keyboardNavigation";
+import { dockTabNavigationIndex, dockSplitterRatio, dockPointerRatio } from "../../composables/workbench/keyboardNavigation";
 import {
   CloseOutlined,
   ColumnWidthOutlined,
@@ -59,38 +59,63 @@ function drop(event: DragEvent) {
 }
 let cleanup = () => {};
 function startResize(event: PointerEvent) {
-  if (props.node.kind !== "split") return;
+  if (props.node.kind !== "split" || !event.isPrimary || event.button !== 0 || !container.value) return;
+  const rect = container.value.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return;
   event.preventDefault();
   cleanup();
-  const rect = container.value!.getBoundingClientRect(),
-    axis = props.node.axis;
-  const move = (e: PointerEvent) =>
-    emit(
-      "resize",
-      props.node.id,
-      Math.max(
-        0.15,
-        Math.min(
-          0.85,
-          axis === "horizontal"
-            ? (e.clientX - rect.left) / rect.width
-            : (e.clientY - rect.top) / rect.height,
-        ),
-      ),
-    );
+  const axis = props.node.axis;
+  const pointerId = event.pointerId;
+  const previousCursor = document.body.style.cursor;
+  const previousSelect = document.body.style.userSelect;
+  let frame: number | undefined;
+  let pendingRatio: number | undefined;
+  let lastCommitted = props.node.ratio;
+  function flush() {
+    if (frame !== undefined) {
+      cancelAnimationFrame(frame);
+      frame = undefined;
+    }
+    if (pendingRatio === undefined) return;
+    const ratio = pendingRatio;
+    pendingRatio = undefined;
+    if (ratio === lastCommitted) return;
+    lastCommitted = ratio;
+    emit("resize", props.node.id, ratio);
+  }
+  function queue(e: PointerEvent) {
+    if (e.pointerId !== pointerId) return;
+    const ratio = dockPointerRatio(axis, e.clientX, e.clientY, rect);
+    if (ratio === null) return;
+    pendingRatio = ratio;
+    if (frame === undefined) frame = requestAnimationFrame(flush);
+  }
+  function end(e: PointerEvent) {
+    if (e.pointerId !== pointerId) return;
+    queue(e);
+    flush();
+    cleanup();
+  }
+  function cancel(e: PointerEvent) {
+    if (e.pointerId === pointerId) cleanup();
+  }
   cleanup = () => {
-    window.removeEventListener("pointermove", move);
-    window.removeEventListener("pointerup", cleanup);
-    window.removeEventListener("pointercancel", cleanup);
-    document.body.style.cursor = "";
-    document.body.style.userSelect = "";
+    window.removeEventListener("pointermove", queue);
+    window.removeEventListener("pointerup", end);
+    window.removeEventListener("pointercancel", cancel);
+    window.removeEventListener("blur", cleanup);
+    if (frame !== undefined) cancelAnimationFrame(frame);
+    frame = undefined;
+    pendingRatio = undefined;
+    document.body.style.cursor = previousCursor;
+    document.body.style.userSelect = previousSelect;
   };
-  document.body.style.cursor =
-    axis === "horizontal" ? "col-resize" : "row-resize";
+  document.body.style.cursor = axis === "horizontal" ? "col-resize" : "row-resize";
   document.body.style.userSelect = "none";
-  window.addEventListener("pointermove", move);
-  window.addEventListener("pointerup", cleanup);
-  window.addEventListener("pointercancel", cleanup);
+  window.addEventListener("pointermove", queue);
+  window.addEventListener("pointerup", end);
+  window.addEventListener("pointercancel", cancel);
+  window.addEventListener("blur", cleanup);
 }
 onBeforeUnmount(() => cleanup());
 function resizeKey(event: KeyboardEvent) {

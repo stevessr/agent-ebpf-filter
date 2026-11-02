@@ -133,6 +133,9 @@ function onWorkbenchKeydown(event: KeyboardEvent) {
   searchInput.value?.focus();
   searchInput.value?.select();
 }
+function onSearchFocus() {
+  if (narrowNavigationMedia?.matches) sidebar.value = true;
+}
 function openNavigationItem(route: RouteLocationRaw) {
   open(router.resolve(route).fullPath);
   if (narrowNavigationMedia?.matches) sidebar.value = false;
@@ -165,6 +168,9 @@ function resetLayout() {
             ref="searchInput"
             type="search"
             aria-keyshortcuts="Control+K Meta+K"
+            aria-controls="ide-sidebar"
+            :aria-expanded="sidebar"
+            @focus="onSearchFocus"
             v-model="query"
             aria-label="搜索工作台功能"
             :placeholder="tr('搜索功能 / 工作空间')"

@@ -93,3 +93,9 @@ CI must pass frontend tests/build, native Go tests/vet, package checks and Web b
 - During pointer resize, Vue may produce many layout mutations per second. Coalesce localStorage writes with a 250ms trailing flush, and flush pending state on page hide, tab backgrounding, and component unmount. Only serialized layout is persisted; no event payloads or credentials.
 - Renew freshness is different from connectivity. When a nonzero lastSync is more than two minutes old, collector and pipeline health badges must become warning instead of success. A timestamp more than 30s in the future is a clock-skew warning. Explicit capture failures remain danger; high-risk evidence remains visible. The home summary links diagnostics rather than claiming a clean scan.
 - Tests cover the timer coalescer, panel focus semantics, stale status precedence, and fresh/expired cases with deterministic timestamps. UI and native accessibility still need hands-on screen reader and keyboard QA.
+
+## Narrow search and pointer resizing
+
+- Focusing feature search on viewports up to 720px opens the navigation result overlay; selecting a destination clears the query and closes the overlay. Search remains an ordinary input and does not capture editor or terminal shortcuts.
+- Pointer resizing now filters events by the initiating pointer ID and primary button, ignores zero-size split containers, schedules at most one live resize per animation frame, and commits the final pointer position before releasing listeners. Cancel/blur/unmount discards a pending frame and restores the document cursor/user-selection state.
+- Accessibility focus rings and keyboard resizing remain available independently from pointer interaction; this is a UI scheduling change, not an eBPF collector update.

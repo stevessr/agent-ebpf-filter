@@ -59,6 +59,11 @@ test("shell responds to narrow screens and keyboard and motion preferences", () 
   expect(workbench).toContain("background: transparent;");
   expect(app).not.toContain("◈");
   expect(app).toContain('ref="navigationToggle"');
+  expect(app).toContain('@focus="onSearchFocus"');
+  expect(app).toContain('aria-controls="ide-sidebar"');
+  expect(dockSource).toContain("requestAnimationFrame(flush)");
+  expect(dockSource).toContain("if (e.pointerId !== pointerId) return;");
+  expect(dockSource).toContain('window.addEventListener("blur", cleanup)');
 });
 
 test("navigation shortcuts respect editable surfaces and event ownership", () => {
