@@ -150,6 +150,10 @@ func (t *ModelTrainer) AutoTuneWithConfig(store *TrainingDataStore, cfg MLConfig
 				}
 				seed := int64((yi+1)*100000 + (xi+1)*1000 + numTrees*31 + maxDepth*17 + minLeaf*13)
 				forest := BuildAutoTuneForest(trainSet, numTrees, maxDepth, minLeaf, seed)
+				// The runtime trainer prunes weak trees on the training
+				// partition before inference. Match that step for comparable
+				// parameter selection, without touching validation labels.
+				forest.Prune(trainSet)
 				trainAccuracy = EvaluateForest(forest, trainSet)
 				evalStart = time.Now()
 				validationAccuracy = EvaluateForest(forest, validationSet)
