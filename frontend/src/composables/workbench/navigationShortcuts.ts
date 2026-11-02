@@ -13,13 +13,14 @@ export interface WorkbenchShortcutContext {
   defaultPrevented?: boolean;
   inEditorOrTerminal?: boolean;
   inEditableField?: boolean;
+  inSidebarSearch?: boolean;
   narrow: boolean;
   sidebarOpen: boolean;
 }
 
 export function resolveWorkbenchShortcut(ctx: WorkbenchShortcutContext): WorkbenchShortcut | null {
   if (ctx.defaultPrevented || ctx.inEditorOrTerminal) return null;
-  if (ctx.key === "Escape" && ctx.narrow && ctx.sidebarOpen) return "close-overlay";
+  if (ctx.key === "Escape" && ctx.narrow && ctx.sidebarOpen && (!ctx.inEditableField || ctx.inSidebarSearch)) return "close-overlay";
   if (ctx.inEditableField) return null;
   if ((ctx.ctrlKey || ctx.metaKey) && ctx.key.toLowerCase() === "k") return "focus-search";
   return null;

@@ -19,6 +19,10 @@ test("shared colors stay aligned across Web CSS, Ant Design and native Desktop",
     }
   }
   expect(app).toContain("uiDesignTokens");
+  expect(uiDesignTokens.fontSize).toBe(16);
+  expect(styles).toContain("--surface-0: var(--ui-canvas)");
+  expect(styles).toContain("--text-primary: var(--ui-text-strong)");
+  expect(styles).toContain("--border: var(--ui-border)");
 });
 
 test("shell responds to narrow screens and keyboard and motion preferences", () => {
@@ -45,6 +49,14 @@ test("shell responds to narrow screens and keyboard and motion preferences", () 
   expect(app).toContain('@click="openNavigationItem(item.defaultRoute)"');
   expect(app).toContain(':aria-pressed="activeGroup === g.key && sidebar"');
   expect(workbench).not.toContain(":root { font-size: 13px; }");
+  expect(workbench).not.toMatch(/(?:font-size|font):\s*(?:0|[1-9]|10)px/);
+  expect(workbench).not.toMatch(/font-size:\s*0\s*;/);
+  expect(workbench).not.toMatch(/font-weight:\s*(?:600|700)/);
+  expect(workbench).not.toMatch(/(?:linear|radial|conic)-gradient\s*\(/);
+  expect(workbench).not.toContain("box-shadow: 10px");
+  expect(workbench).toContain("background: transparent;");
+  expect(app).not.toContain("◈");
+  expect(app).toContain('ref="navigationToggle"');
 });
 
 test("navigation shortcuts respect editable surfaces and event ownership", () => {
@@ -60,7 +72,8 @@ test("navigation shortcuts respect editable surfaces and event ownership", () =>
 test("Escape dismisses only an open narrow overlay, even from shell search", () => {
   const narrow = { key: "Escape", narrow: true, sidebarOpen: true };
   expect(resolveWorkbenchShortcut(narrow)).toBe("close-overlay");
-  expect(resolveWorkbenchShortcut({ ...narrow, inEditableField: true })).toBe("close-overlay");
+  expect(resolveWorkbenchShortcut({ ...narrow, inEditableField: true, inSidebarSearch: true })).toBe("close-overlay");
+  expect(resolveWorkbenchShortcut({ ...narrow, inEditableField: true })).toBeNull();
   expect(resolveWorkbenchShortcut({ ...narrow, narrow: false })).toBeNull();
   expect(resolveWorkbenchShortcut({ ...narrow, sidebarOpen: false })).toBeNull();
   expect(resolveWorkbenchShortcut({ ...narrow, inEditorOrTerminal: true })).toBeNull();

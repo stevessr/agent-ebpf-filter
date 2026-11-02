@@ -212,7 +212,7 @@ function resizeKey(event: KeyboardEvent) {
             :title="tab.path + ' · ' + tr('拖拽到边缘分屏')"
             @click="emit('select', node.id, tab.id)"
           >
-            <span class="tab-mark">◇</span>{{ tr(tab.title) }}
+            {{ tr(tab.title) }}
           </button>
           <button
             class="tab-close"
@@ -252,7 +252,6 @@ function resizeKey(event: KeyboardEvent) {
         />
       </template>
       <div v-if="!node.tabs.length" class="dock-empty">
-        <div>⌘</div>
         <h2>{{ tr("Agent 工作空间") }}</h2>
         <p>{{ tr("从左侧打开功能，或将标签拖到这里") }}</p>
         <p>{{ tr("拖到边缘分屏 · 拖到中央合并 · 拖动分隔线调整大小") }}</p>

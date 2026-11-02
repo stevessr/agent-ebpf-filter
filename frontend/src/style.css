@@ -1,9 +1,43 @@
-/* Shared colors for legacy metric cards and inline Vue template styles. */
+
 :root {
   --ui-canvas: #f8fafc;
   --ui-accent: #2563eb;
   --ui-focus: #2563eb;
   --ui-radius: 8px;
+  --radius: 8px;
+  --font-sans: "Anthropic Sans", system-ui, "Segoe UI", sans-serif;
+  --font-voice: Georgia, serif;
+  --font-mono: ui-monospace, Consolas, monospace;
+  --surface-2: var(--ui-surface);
+  --surface-1: var(--ui-surface-muted);
+  --surface-0: var(--ui-canvas);
+  --text-primary: var(--ui-text-strong);
+  --text-secondary: var(--ui-text-secondary);
+  --text-muted: var(--ui-text-muted);
+  --text-accent: var(--ui-accent);
+  --border: var(--ui-border);
+  --border-strong: var(--ui-text-muted);
+  --border-stronger: var(--ui-text-secondary);
+  --bg-accent: var(--ui-primary-soft);
+  --bg-success: var(--ui-success-soft);
+  --bg-danger: var(--ui-danger-soft);
+  --bg-warning: var(--ui-surface-soft);
+  --text-success: #166534;
+  --text-danger: #b91c1c;
+  --text-warning: #92400e;
+  --border-accent: var(--ui-accent);
+  --border-success: var(--text-success);
+  --border-danger: var(--text-danger);
+  --border-warning: var(--text-warning);
+  --pad-sm: 0.5rem;
+  --pad-md: 0.75rem;
+  --pad-lg: 1rem;
+  --pad-xl: 1.25rem;
+  --gap-xs: 0.25rem;
+  --gap-sm: 0.5rem;
+  --gap-md: 0.75rem;
+  --gap-lg: 1rem;
+  --gap-xl: 1.5rem;
   --ui-surface: #ffffff;
   --ui-surface-muted: #fafafa;
   --ui-surface-soft: #f8fafc;
@@ -29,6 +63,9 @@
   --ui-primary-soft: #24354e;
   --ui-success-soft: #203a30;
   --ui-danger-soft: #452b31;
+  --text-success: #86efac;
+  --text-danger: #fca5a5;
+  --text-warning: #fcd34d;
 }
 
 :root {
@@ -36,11 +73,11 @@
   --code-bg: #f4f3ec;
   --mono: ui-monospace, Consolas, monospace;
 
-  font: 18px/145% system-ui, "Segoe UI", Roboto, sans-serif;
+  font: 16px/1.7 var(--font-sans);
   letter-spacing: 0.18px;
   color-scheme: light;
-  color: #6b6375;
-  background: #fff;
+  color: var(--text-primary);
+  background: var(--surface-0);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -50,8 +87,8 @@
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  background: #111318;
-  color: #bdc4d1;
+  background: var(--surface-0);
+  color: var(--text-primary);
   --text-h: #f3f4f6;
   --code-bg: #1f2028;
 }
@@ -63,7 +100,7 @@ body {
 
 [role="button"][tabindex]:focus-visible,
 [role="slider"][tabindex]:focus-visible {
-  outline: 2px solid #1677ff;
+  outline: 2px solid var(--ui-focus);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -95,7 +132,7 @@ code {
   box-sizing: border-box;
 }
 
-/* Keyboard focus must remain visible in light, dark, and high-contrast UI. */
+
 :where(button, a, input, select, textarea, summary, [role="button"]):focus-visible {
   outline: 2px solid var(--ui-focus);
   outline-offset: 2px;

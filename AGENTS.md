@@ -27,11 +27,14 @@
 For any Vue WebUI or native Renew Desktop UI change, first review
 [`docs/design/web-desktop-ui.md`](docs/design/web-desktop-ui.md). Keep shared palette,
 readability, responsive navigation, status semantics, keyboard interaction, and
-accessibility consistent while retaining native system behavior. The user's
-requested X reference (https://x.com/ohayou792/status/2116884456006897800)
-was **not accessible when the initial foundation was implemented**; do not
-claim that unverified details come from that post. Incorporate source-specific
-rules only after viewing its text or screenshots. Validate both
+accessibility consistent while retaining native system behavior. The project owner supplied the original post's textual UI rules on
+2026-11-02, but the linked X screenshots remain independently unverified.
+Follow their seamless/flat/compact visual principles, 16px body / 11px minimum,
+400/500 weight, semantic light/dark colors, keyboard accessibility and flat
+chrome. Preserve native MyGo typography, layout and OS event handling; do not
+copy Claude-specific iframe, sendPrompt() or token-stream limitations into
+a standalone Vue application. Tabler outline icons are preferred for future
+bundled migration; do not assume the package is preloaded. Validate both
 `cd frontend && bun test tests && bun run build` and
 `cd desktop/renew && go test ./...` when the environment permits.
 
