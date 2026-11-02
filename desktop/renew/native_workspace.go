@@ -701,7 +701,7 @@ func (a *renewApp) workspaceFooterStatus() (string, string) {
 	if level == "danger" || a.starting {
 		return label, level
 	}
-	if a.paused {
+	if a.paused && level == "success" {
 		return "事件展示暂停", "warning"
 	}
 	return label, level
@@ -715,7 +715,7 @@ func (a *renewApp) workspaceFooter(c *ui.Context) {
 		label, level := a.workspaceFooterStatus()
 		statusPill(c, label, workspaceStatusTone(t, level))
 		if width >= 700 {
-			ui.Text(c, fmt.Sprintf("摘要 %d", len(a.events))).FontSize(10).Font("monospace").TextColor(t.TextMuted)
+			ui.Text(c, fmt.Sprintf("摘要 %d", len(a.events))).FontSize(11).Font("monospace").TextColor(t.TextMuted)
 		}
 		if danger > 0 {
 			if ui.Button(c, fmt.Sprintf("高风险 %d", danger)).Tooltip("查看高风险事件").Clicked() {

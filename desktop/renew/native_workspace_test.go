@@ -665,6 +665,11 @@ func TestWorkspaceFooterNeverMasksCollectorFailureWithRealtimeOrPause(t *testing
 		t.Fatalf("capture failure must override pause/realtime: %q/%q", got, level)
 	}
 	a.health.CaptureHealthy = true
+	a.lastSync = time.Time{}
+	if got, level := a.workspaceFooterStatus(); got != "等待采集同步" || level != "warning" {
+		t.Fatalf("paused presentation must not hide missing health evidence: %q/%q", got, level)
+	}
+	a.lastSync = time.Now()
 	if got, level := a.workspaceFooterStatus(); got != "事件展示暂停" || level != "warning" {
 		t.Fatalf("presentation pause should be explicit when collector healthy: %q/%q", got, level)
 	}

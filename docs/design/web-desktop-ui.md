@@ -103,3 +103,5 @@ CI must pass frontend tests/build, native Go tests/vet, package checks and Web b
 ## Missing sync timestamp is not a healthy sample
 
 A live backend connection and healthy collector flag are insufficient for a green realtime badge without a trustworthy `lastSync`. When that timestamp is zero, the collector and pipeline show a warning and the overview offers diagnostics. Fresh samples restore the normal state; stale samples, future timestamps, explicit capture failures and high-risk evidence retain their existing precedence. This is a UI evidence semantics change only and does not alter kernel enforcement.
+
+The native footer only uses the presentation-paused badge when the underlying pipeline is actually healthy. A missing health sample or degraded pipeline remains visible in preference to the benign pause indicator. Footer metadata remains at least 11 DIP for legibility.
