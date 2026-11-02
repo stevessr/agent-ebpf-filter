@@ -2,11 +2,14 @@ package app
 
 import (
 	"agent-ebpf-filter/app/recording"
+	"agent-ebpf-filter/internal/uringwrite"
 	"bufio"
 	"context"
 	"errors"
+	"io"
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -29,6 +32,7 @@ var (
 
 type runtimeEventLogStatus struct {
 	Active            bool      `json:"active"`
+	IOBackend         string    `json:"ioBackend"`
 	Stopping          bool      `json:"stopping"`
 	QueueLen          int       `json:"queueLen"`
 	QueueCap          int       `json:"queueCap"`
@@ -69,6 +73,7 @@ type runtimeEventLogWriter struct {
 	terminalErr    error
 	stopRequested  bool
 	auditChain     *recording.AuditChain
+	ioBackend      string
 }
 
 func startRuntimeEventLogWriter(file *os.File) (*runtimeEventLogWriter, error) {
@@ -84,6 +89,24 @@ func startRuntimeEventLogWriter(file *os.File) (*runtimeEventLogWriter, error) {
 		_ = file.Close()
 		return nil, err
 	}
+
+	// io_uring is explicitly opt-in: a single append SQE per flush may be
+	// slower than Go's buffered write on fast page-cache-backed storage.
+	// Probe before enqueueing anything, so unavailable kernels/seccomp can
+	// safely fall back without risking a duplicate audit record.
+	sink := io.Writer(file)
+	ioBackend := "buffered-write"
+	var closeSink func() error
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("AGENT_EVENT_LOG_IO")), "io_uring") {
+		uring, ringErr := uringwrite.New(file)
+		if ringErr != nil {
+			log.Printf("[WARN] io_uring event log unavailable, using buffered writes: %v", ringErr)
+		} else {
+			sink = uring
+			closeSink = uring.Close
+			ioBackend = "io_uring"
+		}
+	}
 	writer := &runtimeEventLogWriter{
 		// Keep one control slot outside the advertised event capacity so a
 		// flush barrier can make progress while event producers are saturated.
@@ -93,8 +116,9 @@ func startRuntimeEventLogWriter(file *os.File) (*runtimeEventLogWriter, error) {
 		eventQueueCap: runtimeEventLogQueueSize,
 		accepting:     true,
 		auditChain:    auditChain,
+		ioBackend:     ioBackend,
 	}
-	go writer.run(file)
+	go writer.run(file, sink, closeSink)
 	return writer, nil
 }
 
@@ -254,6 +278,7 @@ func (w *runtimeEventLogWriter) Status() runtimeEventLogStatus {
 	}
 	return runtimeEventLogStatus{
 		Active:            w.accepting,
+		IOBackend:         w.ioBackend,
 		Stopping:          w.stopping,
 		QueueLen:          w.queuedRecords,
 		QueueCap:          w.eventCapacityLocked(),
@@ -280,8 +305,8 @@ func (w *runtimeEventLogWriter) TerminalError() error {
 	return w.terminalErr
 }
 
-func (w *runtimeEventLogWriter) run(file *os.File) {
-	buffered := bufio.NewWriterSize(file, runtimeEventLogBufferBytes)
+func (w *runtimeEventLogWriter) run(file *os.File, sink io.Writer, closeSink func() error) {
+	buffered := bufio.NewWriterSize(sink, runtimeEventLogBufferBytes)
 	ticker := time.NewTicker(runtimeEventLogFlushInterval)
 	defer ticker.Stop()
 	pending := 0
@@ -364,6 +389,11 @@ func (w *runtimeEventLogWriter) run(file *os.File) {
 	defer func() {
 		if err := flushPending(); err != nil {
 			terminalErr = errors.Join(terminalErr, err)
+		}
+		if closeSink != nil {
+			if err := closeSink(); err != nil {
+				terminalErr = errors.Join(terminalErr, err)
+			}
 		}
 		if err := file.Close(); err != nil {
 			terminalErr = errors.Join(terminalErr, err)
