@@ -70,7 +70,10 @@ func (c *AuditChain) MarshalRecord(record CapturedEventRecord) ([]byte, error) {
 	if c.hasLast {
 		previous = hex.EncodeToString(c.lastHash[:])
 	}
-	digest, err := auditRecordHash(record, c.chainID, sequence, previous)
+	// The record was normalized above. Re-normalizing the envelope here
+	// clones its protobuf graph (including LegacyEvent) and adds an
+	// unnecessary allocation to every persisted event.
+	digest, err := auditRecordHashNormalized(record, c.chainID, sequence, previous)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +94,13 @@ func (c *AuditChain) MarshalRecord(record CapturedEventRecord) ([]byte, error) {
 }
 
 func auditRecordHash(record CapturedEventRecord, chainID string, sequence uint64, previous string) ([sha256.Size]byte, error) {
-	record = events.NormalizeCapturedEventRecord(record)
+	return auditRecordHashNormalized(events.NormalizeCapturedEventRecord(record), chainID, sequence, previous)
+}
+
+// auditRecordHashNormalized avoids repeating envelope normalization when the
+// caller already owns a normalized record. Verification continues to use
+// auditRecordHash, which normalizes untrusted replay records first.
+func auditRecordHashNormalized(record CapturedEventRecord, chainID string, sequence uint64, previous string) ([sha256.Size]byte, error) {
 	if record.Envelope == nil {
 		return [sha256.Size]byte{}, errors.New("audit chain record has no envelope")
 	}
