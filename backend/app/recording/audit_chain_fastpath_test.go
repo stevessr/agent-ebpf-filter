@@ -11,22 +11,22 @@ import (
 
 func TestAuditChainSingleNormalizationPreservesHashes(t *testing.T) {
 	cases := []struct {
-		name string
+		name   string
 		record CapturedEventRecord
 	}{
 		{
 			name: "derived envelope",
 			record: CapturedEventRecord{
 				ReceivedAt: time.Unix(1700000000, 42).UTC(),
-				Event: &pb.Event{Pid: 15, Type: "openat", Path: "/tmp/a"},
+				Event:      &pb.Event{Pid: 15, Type: "openat", Path: "/tmp/a"},
 			},
 		},
 		{
 			name: "preexisting envelope",
 			record: CapturedEventRecord{
 				ReceivedAt: time.Unix(1700000001, 42).UTC(),
-				Event: &pb.Event{Pid: 16, Type: "network_connect", NetEndpoint: "127.0.0.1:1234"},
-				Envelope: &pb.EventEnvelope{SchemaVersion: "envelope.v1"},
+				Event:      &pb.Event{Pid: 16, Type: "network_connect", NetEndpoint: "127.0.0.1:1234"},
+				Envelope:   &pb.EventEnvelope{SchemaVersion: "envelope.v1"},
 			},
 		},
 	}
@@ -100,7 +100,7 @@ func BenchmarkAuditHashNormalization(b *testing.B) {
 func BenchmarkAuditChainMarshalRecord(b *testing.B) {
 	record := CapturedEventRecord{
 		ReceivedAt: time.Unix(1700000000, 0).UTC(),
-		Event: &pb.Event{Pid: 4242, Type: "openat", Path: "/tmp/demo", Comm: "agent"},
+		Event:      &pb.Event{Pid: 4242, Type: "openat", Path: "/tmp/demo", Comm: "agent"},
 	}
 	chain, err := NewAuditChain()
 	if err != nil {
