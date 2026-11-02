@@ -22,7 +22,7 @@ import DockNode from "./components/workbench/DockNode.vue";
 import { NAV_GROUPS } from "./config/navigation";
 import { useDockWorkbench } from "./composables/workbench/useDockWorkbench";
 import { groups } from "./composables/workbench/layout";
-import { useRouter } from "vue-router";
+import { useRouter, type RouteLocationRaw } from "vue-router";
 import "./components/workbench/workbench.css";
 const router = useRouter();
 
@@ -129,7 +129,7 @@ function onWorkbenchKeydown(event: KeyboardEvent) {
     searchInput.value?.select();
   }
 }
-function openNavigationItem(route: string) {
+function openNavigationItem(route: RouteLocationRaw) {
   open(router.resolve(route).fullPath);
   if (narrowNavigationMedia?.matches) sidebar.value = false;
 }

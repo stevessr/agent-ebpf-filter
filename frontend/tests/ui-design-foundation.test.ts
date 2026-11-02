@@ -38,7 +38,8 @@ test("shell responds to narrow screens and keyboard and motion preferences", () 
   expect(app).toContain('narrowNavigationMedia.addEventListener("change", onNarrowNavigationChanged)');
   expect(app).toContain('if (narrowNavigationMedia.matches) sidebar.value = false');
   expect(app).toContain('if (event.key === "Escape" && sidebar.value && narrowNavigationMedia?.matches)');
-  expect(app).toContain('function openNavigationItem(route: string)');
+  expect(app).toContain('import { useRouter, type RouteLocationRaw } from "vue-router"');
+  expect(app).toContain('function openNavigationItem(route: RouteLocationRaw)');
   expect(app).toContain('@click="openNavigationItem(item.defaultRoute)"');
   expect(app).toContain(':aria-pressed="activeGroup === g.key && sidebar"');
 });
