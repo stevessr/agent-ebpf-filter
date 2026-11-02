@@ -28,6 +28,12 @@ const router = useRouter();
 
 let stopSystemTheme: (() => void) | undefined;
 let stopLocalization: (() => void) | undefined;
+let narrowNavigationMedia: MediaQueryList | undefined;
+
+function onNarrowNavigationChanged(event: MediaQueryListEvent) {
+  // Moving to a narrow viewport must not leave a covering navigation overlay.
+  if (event.matches) sidebar.value = false;
+}
 const antLocale = computed(() => webLocale.value === "en-US" ? enUS : zhCN);
 const localeChoice = computed({
   get: () => webLocale.value,
@@ -37,11 +43,15 @@ watch(webLocale, async () => { await nextTick(); refreshLegacyUITranslations(); 
 onMounted(() => {
   stopSystemTheme = watchSystemTheme();
   stopLocalization = mountLegacyUITranslations();
+  narrowNavigationMedia = window.matchMedia("(max-width: 720px)");
+  if (narrowNavigationMedia.matches) sidebar.value = false;
+  narrowNavigationMedia.addEventListener("change", onNarrowNavigationChanged);
   window.addEventListener("keydown", onWorkbenchKeydown);
 });
 onUnmounted(() => {
   stopSystemTheme?.();
   stopLocalization?.();
+  narrowNavigationMedia?.removeEventListener("change", onNarrowNavigationChanged);
   window.removeEventListener("keydown", onWorkbenchKeydown);
 });
 
@@ -97,18 +107,31 @@ const activeTitle = computed(
       ?.title || "工作空间",
 );
 function onWorkbenchKeydown(event: KeyboardEvent) {
-  // Never steal editor/terminal key bindings or standard text editing shortcuts.
+  // Editors and terminals own their own shortcuts; do not intercept Escape there.
   const target = event.target;
   if (event.defaultPrevented || (target instanceof Element && target.closest(
-    'input, textarea, select, [contenteditable="true"], .monaco-editor, .xterm, .wterm',
+    '.monaco-editor, .xterm, .wterm',
   ))) return;
+  // Escape also works while the shell search field is focused.
+  if (event.key === "Escape" && sidebar.value && narrowNavigationMedia?.matches) {
+    event.preventDefault();
+    sidebar.value = false;
+    return;
+  }
+  // Ctrl/Cmd+K must not override an input's own editing shortcuts.
+  if (target instanceof Element && target.closest(
+    'input, textarea, select, [contenteditable="true"]',
+  )) return;
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
     event.preventDefault();
+    sidebar.value = true;
     searchInput.value?.focus();
     searchInput.value?.select();
-  } else if (event.key === "Escape" && sidebar.value && window.matchMedia("(max-width: 720px)").matches) {
-    sidebar.value = false;
   }
+}
+function openNavigationItem(route: string) {
+  open(router.resolve(route).fullPath);
+  if (narrowNavigationMedia?.matches) sidebar.value = false;
 }
 function activity(key: string) {
   if (activeGroup.value === key) sidebar.value = !sidebar.value;
@@ -169,6 +192,7 @@ function resetLayout() {
             :title="g.title"
             :aria-label="g.title"
             :class="{ selected: activeGroup === g.key && sidebar }"
+            :aria-pressed="activeGroup === g.key && sidebar"
             @click="activity(g.key)"
           >
             <component :is="g.icon" />
@@ -206,7 +230,7 @@ function resetLayout() {
                 :class="{ selected: activeTitle === item.title }"
                 draggable="true"
                 :title="tr(item.title) + ' · ' + tr('可拖拽到工作台分屏')"
-                @click="open(router.resolve(item.defaultRoute).fullPath)"
+                @click="openNavigationItem(item.defaultRoute)"
                 @dragstart="drag('nav:' + item.key, $event)"
                 @dragend="dragging = ''"
               >

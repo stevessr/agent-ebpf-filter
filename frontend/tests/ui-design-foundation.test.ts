@@ -34,4 +34,11 @@ test("shell responds to narrow screens and keyboard and motion preferences", () 
   expect(app).toContain('window.addEventListener("keydown", onWorkbenchKeydown)');
   expect(app).toContain('window.removeEventListener("keydown", onWorkbenchKeydown)');
   expect(app).toContain(".monaco-editor, .xterm, .wterm");
+  expect(app).toContain('narrowNavigationMedia = window.matchMedia("(max-width: 720px)")');
+  expect(app).toContain('narrowNavigationMedia.addEventListener("change", onNarrowNavigationChanged)');
+  expect(app).toContain('if (narrowNavigationMedia.matches) sidebar.value = false');
+  expect(app).toContain('if (event.key === "Escape" && sidebar.value && narrowNavigationMedia?.matches)');
+  expect(app).toContain('function openNavigationItem(route: string)');
+  expect(app).toContain('@click="openNavigationItem(item.defaultRoute)"');
+  expect(app).toContain(':aria-pressed="activeGroup === g.key && sidebar"');
 });

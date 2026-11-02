@@ -40,3 +40,28 @@ Reference requested by the project owner: https://x.com/ohayou792/status/2116884
 ## Follow-up on external reference
 
 Once the source X post is available, extract its concrete rules and examples in a separate review, record exact deviations here, and implement only rules suitable for an OS monitoring/control application. Avoid aesthetic changes that obscure incidents, make risk severity ambiguous, or degrade dense tables.
+
+
+## Renew product hierarchy and evidence semantics
+
+The brand **明镜高悬** is a low-noise personal security monitor, not a replacement for the research workbench. The default view answers, in this order: **is collection connected and current?**, **which recent actions require attention?**, **what can I inspect or do next?** Show five recent activity summaries independently of event-table filters. Do not imply that no events means the host is safe.
+
+| UI signal | Required interpretation | Must not imply |
+| --- | --- | --- |
+| Collecting and recently synchronized | A live, bounded observation window | A completed malware scan or total system safety |
+| Disconnected / stale / initializing | Evidence is not current or completeness is unknown | "No threats" |
+| Paused event presentation | UI summaries are paused, collector/enforcement continue | Protection is disabled |
+| Risk warning / ALERT | An observation or policy alert to investigate | Kernel enforcement succeeded |
+| BLOCK / DENY | Report the recorded decision **and** confirmed execution evidence separately | Every requested operation was blocked solely because a badge says so |
+| Policy preview | Pending proposed scope and effect | A kernel map has already changed |
+
+The Renew navigation contract is a 54-DIP icon rail with optional 198-DIP compact or 302-DIP expanded labels, hiding the investigator rail when the content canvas needs room. Keep **monitoring / management / diagnostics** distinct; eBPF module load and unload are explicit user actions, with a destructive confirmation on unload. Agent, process, PID, session, destination, path and policy references should offer precise related-object navigation without silently broadening filters. The research workbench retains replay, full evidence exploration, experiments and performance tools.
+
+On Web workspaces at widths up to 720px, open with navigation **closed**. Opening a feature or pressing Escape closes the overlay; viewport changes into narrow mode also dismiss any open navigation. Ctrl/Cmd+K opens feature navigation from a non-editable context and focuses feature search; never steal Monaco or terminal shortcuts. Activity-rail buttons expose pressed state in addition to selected color. Preserve native MyGo windowing, system type scaling, system theme and accessibility behavior, rather than introducing a WebView.
+
+## Dependency update policy
+
+- Keep `desktop/renew` (MyGo) isolated from privileged `backend`. Review release notes before changing the pinned stable MyGo version and commit `go.mod` **together with** `go.sum`. As of this change, MyGo is pinned to `v0.7.4` (official release 2026-11-01) for window first-frame, native scrollbars/editor, Windows and Linux packaging improvements. These features are upstream capabilities; no new application-level controls are claimed unless wired in source.
+- The existing `.github/workflows/renew-mygo-update.yml` checks stable upstream updates in a read-only job and proposes a separately reviewable dependency PR. Do not disable its tests, merge updates automatically, or run untrusted upstream code with a write-capable token.
+- Frontend updates use `frontend/package.json` **and** `frontend/bun.lock` together. Treat major Vue, Vite, Ant Design or MyGo upgrades as migrations with typed-build, interaction, dark/light and accessible-navigation coverage, not version-number-only changes.
+- Validate: `cd desktop/renew && go mod tidy -diff && go test ./... && go tool mygo vet .`; `cd frontend && bun install --frozen-lockfile && bun run test:ui && bun run build`. Also execute standard CI packaging and real niri/Wayland, Windows and narrow-screen smoke tests before a production release. This text is a checklist, not a claim that checks ran here.
