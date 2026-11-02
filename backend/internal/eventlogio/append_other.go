@@ -14,5 +14,5 @@ func NewAppendBatch(_ *os.File, _ int) (*AppendBatch, error) {
 	return nil, errors.New("writev append is only available on Linux")
 }
 func (*AppendBatch) AddLine(_ []byte) error { return errors.New("writev append unavailable") }
-func (*AppendBatch) Bytes() int { return 0 }
-func (*AppendBatch) Flush() error { return errors.New("writev append unavailable") }
+func (*AppendBatch) Bytes() int             { return 0 }
+func (*AppendBatch) Flush() error           { return errors.New("writev append unavailable") }
