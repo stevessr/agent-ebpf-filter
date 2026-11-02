@@ -164,7 +164,7 @@
   --wb-8d9cb6: #8d9cb6;
 }
 
-:root { font-size: 13px; }
+/* Keep the document root's user font scale; only size the workbench shell. */
 .ide-workbench {
   height: 100dvh;
   min-height: 340px;
@@ -811,4 +811,63 @@
 @media (max-width: 640px) {
   .ide-locale-picker { font-size: 0; gap: 0; }
   .ide-locale-picker select { max-width: 94px; }
+}
+
+/* Shared Web/Desktop interaction foundation. Preserve dense data tables while
+   giving shell controls readable labels and predictable pointer targets. */
+.ide-workbench { font-size: 14px; }
+.ide-titlebar { height: 48px; }
+.ide-titlebar strong { font-size: 13px; }
+.ide-titlebar > button { width: 36px; height: 36px; border-radius: var(--ui-radius); }
+.ide-command { min-height: 36px; border-radius: var(--ui-radius); }
+.ide-command kbd { white-space: nowrap; }
+.ide-activity { width: 54px; }
+.ide-activity button { min-height: 44px; }
+.ide-nav-item { min-height: 36px; font-size: 13px !important; }
+.ide-sidebar-hint button { min-height: 32px; }
+.ide-workbench button:focus-visible,
+.ide-workbench summary:focus-visible,
+.ide-workbench input:focus-visible,
+.ide-workbench select:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: -2px; }
+.ide-sidebar-scrim { display: none; }
+/* Unlike full desktop layouts, narrow workspaces must not sacrifice the event
+   canvas for a permanently reserved navigation pane. */
+@media (max-width: 720px) {
+  .ide-body { position: relative; }
+  .ide-activity { position: relative; z-index: 12; width: 48px; }
+  .ide-sidebar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 48px;
+    z-index: 11;
+    width: min(270px, calc(100vw - 64px));
+    box-shadow: 10px 0 32px rgb(0 0 0 / 22%);
+  }
+  .ide-sidebar-scrim {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    width: 100%;
+    border: 0;
+    background: rgb(0 0 0 / 32%);
+    cursor: pointer;
+  }
+  .ide-titlebar { gap: 8px; }
+  .ide-command { width: auto; flex: 1; margin-inline: 0; }
+  .ide-command kbd { display: none; }
+  .ide-editor { min-width: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ide-workbench *, .ide-workbench *::before, .ide-workbench *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+@media (forced-colors: active) {
+  .ide-activity button.selected,
+  .ide-nav-item.selected { outline: 2px solid Highlight; outline-offset: -2px; }
+  .ide-sidebar-scrim { border: 1px solid CanvasText; }
 }

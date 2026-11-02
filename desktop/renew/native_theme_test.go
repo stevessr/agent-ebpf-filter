@@ -25,11 +25,11 @@ func TestRenewWorkspaceThemeFollowsSystem(t *testing.T) {
 			styled.Focus != system.Focus || styled.Selection != system.Selection {
 			t.Fatal("system accent, focus or text scaling was lost")
 		}
-		if system.Dark && styled.Surface == ui.Hex("#ffffff") {
-			t.Fatal("dark system appearance rendered light surfaces")
+		if system.Dark && (styled.Surface != ui.Hex("#191c22") || styled.Background != ui.Hex("#111318") || styled.Border != ui.Hex("#344256")) {
+			t.Fatal("desktop dark palette drifted from shared Web tokens")
 		}
-		if !system.Dark && styled.Surface != ui.Hex("#ffffff") {
-			t.Fatal("light system appearance did not render light surfaces")
+		if !system.Dark && (styled.Surface != ui.Hex("#ffffff") || styled.Background != ui.Hex("#f8fafc") || styled.Border != ui.Hex("#d8e2f0")) {
+			t.Fatal("desktop light palette drifted from shared Web tokens")
 		}
 
 		styleRenewWorkspaceTheme(&styled, system, true)

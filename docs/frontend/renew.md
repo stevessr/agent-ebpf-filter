@@ -4,7 +4,7 @@
 
 > **察微知著 · 守护 Agent 边界**
 >
-> 本页描述 `desktop/renew` 的原生桌面实现；准确版本请以 [`desktop/renew/go.mod`](https://github.com/stevessr/agent-ebpf-filter/blob/master/desktop/renew/go.mod) 为准（历史记录：截至 2026-10-18 使用 MyGo v0.5.5；当前 Go 工作区统一使用 1.27.3）。Renew 是**纯原生 Go/MyGo 桌面**，不是 Vue Web 页，更不是基于 WebView 的壳。原 Web `/renew` 客户端已移除；`agent-ebpf-renew` 命令继续保留兼容。
+> 本页描述 `desktop/renew` 的原生桌面实现；准确版本请以 [`desktop/renew/go.mod`](https://github.com/stevessr/agent-ebpf-filter/blob/master/desktop/renew/go.mod) 为准。2026-11-02 设计更新分支将 MyGo 固定为 v0.7.4，Go 工作区为 1.27.3；合并前主线版本可能不同。Renew 是**纯原生 Go/MyGo 桌面**，不是 Vue Web 页，更不是基于 WebView 的壳。原 Web `/renew` 客户端已移除；`agent-ebpf-renew` 命令继续保留兼容。完整跨端设计契约见 [Web/Desktop UI 规范](../design/web-desktop-ui.md)。
 
 ## 快速启动
 

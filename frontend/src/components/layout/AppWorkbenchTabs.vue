@@ -61,8 +61,8 @@ const routeTitle = (tab: WorkbenchTabState) => {
 <style scoped>
 .app-workbench-tabs {
   padding: 8px 12px 0;
-  background: #fff;
-  border-bottom: 1px solid #f0f0f0;
+  background: var(--ui-surface);
+  border-bottom: 1px solid var(--ui-border);
 }
 
 .app-workbench-tabs :deep(.ant-tabs-nav) {
