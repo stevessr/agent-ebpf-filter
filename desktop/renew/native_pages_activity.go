@@ -208,6 +208,9 @@ func (a *renewApp) overviewHeadline() (headline, detail, level string) {
 		}
 		return "有活动需要关注", fmt.Sprintf("当前摘要窗口中有 %d 条需关注事件；采集链路本身运行正常。", attention), "warning"
 	}
+	if a.syncFreshnessAt(time.Now()) == "unknown" {
+		return "等待采集同步", "采集器报告可用，但尚未收到带时间戳的有效同步快照；暂无法确认监控实时性。", "warning"
+	}
 	if a.syncFreshnessAt(time.Now()) == "stale" {
 		return "采集证据已过时", "最近两分钟没有新的健康同步，无法仅凭连接状态确认监控实时性；建议查看系统诊断。", "warning"
 	}
@@ -234,7 +237,7 @@ func (a *renewApp) overviewAction() (label, page string, attentionOnly bool) {
 	if danger > 0 || attention > 0 {
 		return "查看相关事件", "事件", true
 	}
-	if a.syncFreshnessAt(time.Now()) == "stale" || a.syncFreshnessAt(time.Now()) == "clock-skew" || !a.eventStreamConnected || !a.systemConnected {
+	if a.syncFreshnessAt(time.Now()) != "fresh" || !a.eventStreamConnected || !a.systemConnected {
 		return "打开系统诊断", "系统", false
 	}
 	return "", "", false

@@ -17,3 +17,22 @@ export function dockSplitterRatio(axis: DockAxis, key: string, ratio: number): n
   if (step === null) return null;
   return Math.max(0.15, Math.min(0.85, Number((ratio + step).toFixed(4))));
 }
+ 
+export interface DockRect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+export function dockPointerRatio(
+  axis: DockAxis,
+  clientX: number,
+  clientY: number,
+  rect: DockRect,
+): number | null {
+  const length = axis === "horizontal" ? rect.width : rect.height;
+  const coordinate = axis === "horizontal" ? clientX - rect.left : clientY - rect.top;
+  if (!Number.isFinite(length) || length <= 0 || !Number.isFinite(coordinate)) return null;
+  return Math.max(0.15, Math.min(0.85, Number((coordinate / length).toFixed(4))));
+}

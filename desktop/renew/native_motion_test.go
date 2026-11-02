@@ -74,6 +74,7 @@ func TestRenewStatusAnimationDoesNotMaskCollectorFailure(t *testing.T) {
 	a.health.CaptureHealthy = true
 	a.eventStreamConnected = true
 	a.systemConnected = true
+	a.lastSync = time.Now()
 	view := ui.NewTester(a.view, 1480, 860)
 	view.SetPreferences(ui.Preferences{ReduceMotion: true, HighContrast: true, TextScale: 1})
 	if !view.HasText("当前运行正常") {
