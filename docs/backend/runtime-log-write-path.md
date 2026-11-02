@@ -19,9 +19,10 @@ microbenchmarks alone.
 
 ## Changes in this experiment
 
-1. **One normalization pass**: `AuditChain.MarshalRecord` now passes the
-   already-normalized record to the digest helper. The verification path still
-   normalizes untrusted replay records before recomputing the hash.
+1. **Selective normalization fast path**: events without a preexisting
+   Envelope skip a redundant second clone before hashing. Events with an
+   existing Envelope retain legacy normalization to preserve audit hash parity.
+   The verification path still normalizes untrusted replay records.
 2. **Optional `writev` batches**: `AGENT_EVENT_LOG_IO=writev` uses an
    `O_APPEND` regular file, retains at most 128 serialized JSONL lines and
    emits them with one vectored syscall. It avoids the extra copy from each
