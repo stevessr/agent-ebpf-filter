@@ -141,3 +141,35 @@ func TestRidgeAutoTuneScoresOnlyDisjointTrainingRows(t *testing.T) {
 		}
 	}
 }
+
+func TestSeededLinearSGDReproducibleAndClassWeighted(t *testing.T) {
+	training := make([]TrainingSample, 32)
+	for i := range training {
+		label := int32(i % 4)
+		training[i].Label = label
+		training[i].Features[label] = 1
+		training[i].Features[31] = float64(i) / 32
+	}
+	fit := func(seed int64, classWeights []float64) [][FeatureDim + 1]float64 {
+		weights := make([][FeatureDim + 1]float64, 4)
+		trainSGDWithRand(weights, 4, training, 0.025, 32, 1.0, "hinge",
+			classWeights, NewModelTrainer(), rand.New(rand.NewSource(seed)))
+		return weights
+	}
+	a, b := fit(42, []float64{1, 8, 1, 1}), fit(42, []float64{1, 8, 1, 1})
+	unweighted := fit(42, nil)
+	weightAffectedModel := false
+	for c := range a {
+		for d := range a[c] {
+			if a[c][d] != b[c][d] {
+				t.Fatalf("identical RNG seed yielded different weights at %d,%d", c, d)
+			}
+			if math.Abs(a[c][d]-unweighted[c][d]) > 1e-8 {
+				weightAffectedModel = true
+			}
+		}
+	}
+	if !weightAffectedModel {
+		t.Fatal("class weighting did not influence the SGD classifier")
+	}
+}
