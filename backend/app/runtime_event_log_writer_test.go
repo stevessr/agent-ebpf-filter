@@ -338,7 +338,6 @@ func replayRecordPIDs(records []recording.CapturedEventRecord) []uint32 {
 	return pids
 }
 
-
 func TestRuntimeEventLogWriterIOUringOptInAndSafeFallback(t *testing.T) {
 	t.Setenv("AGENT_EVENT_LOG_IO", "io_uring")
 	// An O_WRONLY descriptor without O_APPEND cannot be used by the ring.
