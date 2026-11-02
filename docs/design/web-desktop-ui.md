@@ -85,3 +85,11 @@ The original instructions about hiding Claude host edges, `sendPrompt()`, 680px 
 ### Merge and manual acceptance
 
 CI must pass frontend tests/build, native Go tests/vet, package checks and Web bilingual acceptance. Test light/dark/high contrast, 375px/768px/1280px/1920px and niri/Wayland plus Windows before production distribution. CI alone does not prove the pixel-level visual reference or assistive-technology usability.
+
+
+## Deep interaction and freshness regression contract
+
+- Dock tabs use roving tabindex and horizontal ArrowLeft/ArrowRight/Home/End navigation, with every selected tab labelling its panel. Splitter keyboard input respects the current split axis and 15–85% bounds; avoid stealing terminal shortcuts.
+- During pointer resize, Vue may produce many layout mutations per second. Coalesce localStorage writes with a 250ms trailing flush, and flush pending state on page hide, tab backgrounding, and component unmount. Only serialized layout is persisted; no event payloads or credentials.
+- Renew freshness is different from connectivity. When a nonzero lastSync is more than two minutes old, collector and pipeline health badges must become warning instead of success. A timestamp more than 30s in the future is a clock-skew warning. Explicit capture failures remain danger; high-risk evidence remains visible. The home summary links diagnostics rather than claiming a clean scan.
+- Tests cover the timer coalescer, panel focus semantics, stale status precedence, and fresh/expired cases with deterministic timestamps. UI and native accessibility still need hands-on screen reader and keyboard QA.
