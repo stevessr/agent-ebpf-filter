@@ -48,10 +48,10 @@ func BuildAutoTuneForest(trainSet []TrainSample, numTrees, maxDepth, minSamplesL
 		forest.Trees[ti] = DecisionTree{Nodes: nodes}
 	}
 
+	// Leave the number of estimators intact here: incremental sweep callers
+	// slice this forest by prefix and require exactly numTrees entries.
+	// Grid evaluation prunes explicitly to match full production training.
 	forest.IsTrained = true
-	// The production trainer prunes using the fit partition only. Apply the
-	// identical operation before evaluating this candidate on the holdout.
-	forest.Prune(trainSet)
 	return forest
 }
 
