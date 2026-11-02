@@ -26,12 +26,13 @@ Reference requested by the project owner: https://x.com/ohayou792/status/2116884
 - Corner radius: 8px for standard shells, dialogs, and controls; internal compact tags may be smaller.
 - Control sizes: 36px in the Web titlebar; at least 44px in the activity rail; ordinary navigation rows at least 36px. Density-sensitive table controls may be compact but must remain keyboard-operable.
 - Narrow workspaces (up to 720px): navigation becomes an overlay above the event canvas with an explicit close target. On larger screens navigation continues to reserve space.
-- Keyboard: Ctrl/Cmd+K focuses feature search, Escape closes narrow navigation. Every focusable control must show a visible focus indicator.
+- Keyboard: Ctrl/Cmd+K focuses feature search, Escape closes narrow navigation. Editors, terminals, editable fields and previously handled events retain their own shortcuts. Every focusable control must show a visible focus indicator.
 - Honor `prefers-reduced-motion` and forced-colors/high-contrast modes. Native MyGo preserves system accent, focus, selection, OS font scaling, and high-contrast text/borders.
 
 ## Implementation and verification
 
-- Web Ant Design token mapping: `frontend/src/config/uiDesignTokens.ts`, used from `frontend/src/App.vue`.
+- Web Ant Design token mapping: `frontend/src/config/uiDesignTokens.ts`, used from `frontend/src/App.vue`. Keyboard decisions are isolated in `frontend/src/composables/workbench/navigationShortcuts.ts` for behavior tests, including editable/terminal focus.
+- Workbench CSS never overrides the document root's font size; it scopes density to `.ide-workbench` and allows browser/user scaling.
 - Shared CSS surfaces: `frontend/src/style.css` and `frontend/src/components/workbench/workbench.css`.
 - Native mapping: `desktop/renew/native_theme.go`.
 - Run: `cd frontend && bun run test:ui && bun run build`, then `cd desktop/renew && go test ./...`.

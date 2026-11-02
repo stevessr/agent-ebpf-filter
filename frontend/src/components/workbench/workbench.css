@@ -164,7 +164,7 @@
   --wb-8d9cb6: #8d9cb6;
 }
 
-:root { font-size: 13px; }
+/* Keep the document root's user font scale; only size the workbench shell. */
 .ide-workbench {
   height: 100dvh;
   min-height: 340px;

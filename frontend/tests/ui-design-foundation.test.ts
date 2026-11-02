@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { uiDesignTokens } from "../src/config/uiDesignTokens";
+import { resolveWorkbenchShortcut } from "../src/composables/workbench/navigationShortcuts";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 const styles = read("../src/style.css");
@@ -37,9 +38,31 @@ test("shell responds to narrow screens and keyboard and motion preferences", () 
   expect(app).toContain('narrowNavigationMedia = window.matchMedia("(max-width: 720px)")');
   expect(app).toContain('narrowNavigationMedia.addEventListener("change", onNarrowNavigationChanged)');
   expect(app).toContain('if (narrowNavigationMedia.matches) sidebar.value = false');
-  expect(app).toContain('if (event.key === "Escape" && sidebar.value && narrowNavigationMedia?.matches)');
+  expect(app).toContain("resolveWorkbenchShortcut({");
+  expect(app).toContain('inEditorOrTerminal: inside(".monaco-editor, .xterm, .wterm")');
   expect(app).toContain('import { useRouter, type RouteLocationRaw } from "vue-router"');
   expect(app).toContain('function openNavigationItem(route: RouteLocationRaw)');
   expect(app).toContain('@click="openNavigationItem(item.defaultRoute)"');
   expect(app).toContain(':aria-pressed="activeGroup === g.key && sidebar"');
+  expect(workbench).not.toContain(":root { font-size: 13px; }");
+});
+
+test("navigation shortcuts respect editable surfaces and event ownership", () => {
+  const globalSearch = { key: "k", ctrlKey: true, narrow: true, sidebarOpen: false };
+  expect(resolveWorkbenchShortcut(globalSearch)).toBe("focus-search");
+  expect(resolveWorkbenchShortcut({ ...globalSearch, ctrlKey: false, metaKey: true })).toBe("focus-search");
+  expect(resolveWorkbenchShortcut({ ...globalSearch, inEditableField: true })).toBeNull();
+  expect(resolveWorkbenchShortcut({ ...globalSearch, inEditorOrTerminal: true })).toBeNull();
+  expect(resolveWorkbenchShortcut({ ...globalSearch, defaultPrevented: true })).toBeNull();
+  expect(resolveWorkbenchShortcut({ ...globalSearch, ctrlKey: false, key: "k" })).toBeNull();
+});
+
+test("Escape dismisses only an open narrow overlay, even from shell search", () => {
+  const narrow = { key: "Escape", narrow: true, sidebarOpen: true };
+  expect(resolveWorkbenchShortcut(narrow)).toBe("close-overlay");
+  expect(resolveWorkbenchShortcut({ ...narrow, inEditableField: true })).toBe("close-overlay");
+  expect(resolveWorkbenchShortcut({ ...narrow, narrow: false })).toBeNull();
+  expect(resolveWorkbenchShortcut({ ...narrow, sidebarOpen: false })).toBeNull();
+  expect(resolveWorkbenchShortcut({ ...narrow, inEditorOrTerminal: true })).toBeNull();
+  expect(resolveWorkbenchShortcut({ ...narrow, defaultPrevented: true })).toBeNull();
 });

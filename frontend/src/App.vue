@@ -21,6 +21,7 @@ import {
 import DockNode from "./components/workbench/DockNode.vue";
 import { NAV_GROUPS } from "./config/navigation";
 import { useDockWorkbench } from "./composables/workbench/useDockWorkbench";
+import { resolveWorkbenchShortcut } from "./composables/workbench/navigationShortcuts";
 import { groups } from "./composables/workbench/layout";
 import { useRouter, type RouteLocationRaw } from "vue-router";
 import "./components/workbench/workbench.css";
@@ -107,27 +108,29 @@ const activeTitle = computed(
       ?.title || "工作空间",
 );
 function onWorkbenchKeydown(event: KeyboardEvent) {
-  // Editors and terminals own their own shortcuts; do not intercept Escape there.
   const target = event.target;
-  if (event.defaultPrevented || (target instanceof Element && target.closest(
-    '.monaco-editor, .xterm, .wterm',
-  ))) return;
-  // Escape also works while the shell search field is focused.
-  if (event.key === "Escape" && sidebar.value && narrowNavigationMedia?.matches) {
-    event.preventDefault();
+  const inside = (selector: string) =>
+    target instanceof Element && !!target.closest(selector);
+  const action = resolveWorkbenchShortcut({
+    key: event.key,
+    ctrlKey: event.ctrlKey,
+    metaKey: event.metaKey,
+    defaultPrevented: event.defaultPrevented,
+    inEditorOrTerminal: inside(".monaco-editor, .xterm, .wterm"),
+    inEditableField: inside('input, textarea, select, [contenteditable="true"]'),
+    narrow: !!narrowNavigationMedia?.matches,
+    sidebarOpen: sidebar.value,
+  });
+  if (!action) return;
+  event.preventDefault();
+  if (action === "close-overlay") {
     sidebar.value = false;
     return;
   }
-  // Ctrl/Cmd+K must not override an input's own editing shortcuts.
-  if (target instanceof Element && target.closest(
-    'input, textarea, select, [contenteditable="true"]',
-  )) return;
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
-    event.preventDefault();
-    sidebar.value = true;
-    searchInput.value?.focus();
-    searchInput.value?.select();
-  }
+  // Only global Ctrl/Cmd+K opens navigation; focused editors keep their shortcut.
+  sidebar.value = true;
+  searchInput.value?.focus();
+  searchInput.value?.select();
 }
 function openNavigationItem(route: RouteLocationRaw) {
   open(router.resolve(route).fullPath);
