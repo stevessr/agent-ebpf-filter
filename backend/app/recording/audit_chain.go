@@ -61,6 +61,11 @@ func (c *AuditChain) MarshalRecord(record CapturedEventRecord) ([]byte, error) {
 	if record.Event == nil {
 		return nil, errors.New("event recording record has no event")
 	}
+	// Existing envelopes may have incomplete fields that the legacy audit
+	// hashing path normalizes a second time. Retain that exact behavior to
+	// preserve replay verification and avoid changing published audit hashes.
+	// Only freshly derived envelopes take the single-pass fast path.
+	hadEnvelope := record.Envelope != nil
 	record = events.NormalizeCapturedEventRecord(record)
 
 	c.mu.Lock()
@@ -70,10 +75,15 @@ func (c *AuditChain) MarshalRecord(record CapturedEventRecord) ([]byte, error) {
 	if c.hasLast {
 		previous = hex.EncodeToString(c.lastHash[:])
 	}
-	// The record was normalized above. Re-normalizing the envelope here
-	// clones its protobuf graph (including LegacyEvent) and adds an
-	// unnecessary allocation to every persisted event.
-	digest, err := auditRecordHashNormalized(record, c.chainID, sequence, previous)
+	// For newly derived envelopes, a second normalize would only clone the
+	// protobuf graph. Preexisting envelopes keep the legacy hash semantics.
+	var digest [sha256.Size]byte
+	var err error
+	if hadEnvelope {
+		digest, err = auditRecordHash(record, c.chainID, sequence, previous)
+	} else {
+		digest, err = auditRecordHashNormalized(record, c.chainID, sequence, previous)
+	}
 	if err != nil {
 		return nil, err
 	}
