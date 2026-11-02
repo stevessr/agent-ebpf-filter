@@ -1,4 +1,5 @@
-import { ref, watch } from "vue";
+import { ref, watch, onMounted, onUnmounted } from "vue";
+import { createTrailingWrite } from "./trailingWrite";
 import { useRoute, useRouter } from "vue-router";
 import { resolvePanelRoute } from "./resolvePanelRoute";
 import { WORKBENCH_REGISTRY, resolveWorkbench } from "../../config/navigation";
@@ -187,18 +188,27 @@ export function useDockWorkbench() {
     },
     { immediate: true },
   );
-  watch(
-    root,
-    (value) => {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
-      } catch {
-        /* Non-persistent mode remains usable. */
-        storageAvailable.value = false;
-      }
-    },
-    { deep: true },
-  );
+  const persistence = createTrailingWrite(() => {
+    if (!storageAvailable.value) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(root.value));
+    } catch {
+      storageAvailable.value = false;
+    }
+  }, 250);
+  watch(root, persistence.mark, { deep: true, flush: "post" });
+  const onVisibilityChange = () => {
+    if (document.visibilityState === "hidden") persistence.flush();
+  };
+  onMounted(() => {
+    window.addEventListener("pagehide", persistence.flush);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+  });
+  onUnmounted(() => {
+    window.removeEventListener("pagehide", persistence.flush);
+    document.removeEventListener("visibilitychange", onVisibilityChange);
+    persistence.flush();
+  });
   return {
     notice,
     storageAvailable,

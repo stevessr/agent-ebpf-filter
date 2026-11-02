@@ -161,7 +161,7 @@ function resetLayout() {
         ><span class="ide-title-divider">/</span
         ><span class="ide-title-caption">Observability studio</span>
         <label class="ide-command"
-          ><SearchOutlined /><input
+          ><SearchOutlined aria-hidden="true" /><input
             ref="searchInput"
             type="search"
             aria-keyshortcuts="Control+K Meta+K"
@@ -184,10 +184,10 @@ function resetLayout() {
           :aria-expanded="sidebar"
           @click="sidebar = !sidebar"
         >
-          <MenuOutlined />
+          <MenuOutlined aria-hidden="true" />
         </button>
         <button title="重置布局" aria-label="重置布局" @click="resetLayout">
-          <UndoOutlined />
+          <UndoOutlined aria-hidden="true" />
         </button>
       </header>
       <div class="ide-body">
@@ -202,7 +202,7 @@ function resetLayout() {
             :aria-pressed="activeGroup === g.key && sidebar"
             @click="activity(g.key)"
           >
-            <component :is="g.icon" />
+            <component :is="g.icon" aria-hidden="true" />
           </button>
           <div class="ide-activity-spacer" />
           <button
@@ -210,7 +210,7 @@ function resetLayout() {
             aria-label="系统配置"
             @click="openNavigationItem('/config/registry')"
           >
-            <SettingOutlined />
+            <SettingOutlined aria-hidden="true" />
           </button>
         </nav>
         <aside v-show="sidebar" id="ide-sidebar" class="ide-sidebar">
@@ -241,7 +241,7 @@ function resetLayout() {
                 @dragstart="drag('nav:' + item.key, $event)"
                 @dragend="dragging = ''"
               >
-                <component :is="item.icon" /><span>{{ tr(item.title) }}</span
+                <component :is="item.icon" aria-hidden="true" /><span>{{ tr(item.title) }}</span
                 >
               </button>
             </details>
@@ -255,12 +255,12 @@ function resetLayout() {
                 aria-label="左右分屏"
                 @click="split(focused, 'horizontal')"
               >
-                <ColumnWidthOutlined /> {{ tr("左右分屏") }}</button
+                <ColumnWidthOutlined aria-hidden="true" /> {{ tr("左右分屏") }}</button
               ><button
                 aria-label="上下分屏"
                 @click="split(focused, 'vertical')"
               >
-                <ColumnHeightOutlined /> {{ tr("上下分屏") }}
+                <ColumnHeightOutlined aria-hidden="true" /> {{ tr("上下分屏") }}
               </button>
             </div>
           </div>

@@ -10,6 +10,8 @@ const desktopTheme = read("../../desktop/renew/native_theme.go");
 const app = read("../src/App.vue");
 const sideNav = read("../src/components/layout/AppSideNav.vue");
 const tabs = read("../src/components/layout/AppWorkbenchTabs.vue");
+const dockSource = read("../src/components/workbench/DockNode.vue");
+const persistenceSource = read("../src/composables/workbench/useDockWorkbench.ts");
 
 test("shared colors stay aligned across Web CSS, Ant Design and native Desktop", () => {
   for (const mode of ["light", "dark"] as const) {
@@ -78,4 +80,19 @@ test("Escape dismisses only an open narrow overlay, even from shell search", () 
   expect(resolveWorkbenchShortcut({ ...narrow, sidebarOpen: false })).toBeNull();
   expect(resolveWorkbenchShortcut({ ...narrow, inEditorOrTerminal: true })).toBeNull();
   expect(resolveWorkbenchShortcut({ ...narrow, defaultPrevented: true })).toBeNull();
+});
+
+test("dock tabs expose accessible keyboard and panel semantics", () => {
+  expect(dockSource).toContain('role="tablist"');
+  expect(dockSource).toContain('aria-orientation="horizontal"');
+  expect(dockSource).toContain(':tabindex="node.active === tab.id ? 0 : -1"');
+  expect(dockSource).toContain('dockTabNavigationIndex(event.key, index, props.node.tabs.length)');
+  expect(dockSource).toContain('role="tabpanel"');
+  expect(dockSource).toContain(':aria-labelledby="node.active ?');
+  expect(workbench).toContain('.dock-content[role="tabpanel"]:focus-visible');
+});
+test("layout changes use trailing writes and flush on navigation away", () => {
+  expect(persistenceSource).toContain('createTrailingWrite(');
+  expect(persistenceSource).toContain('window.addEventListener("pagehide", persistence.flush)');
+  expect(persistenceSource).toContain('document.addEventListener("visibilitychange", onVisibilityChange)');
 });

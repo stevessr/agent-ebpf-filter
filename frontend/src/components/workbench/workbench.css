@@ -905,3 +905,18 @@
 @media (forced-colors: active) {
   .ide-workbench :is(.ide-command, .ide-sidebar-hint, .ant-card) { border: 1px solid CanvasText; }
 }
+
+.dock-tab-list [role="tab"]:focus-visible,
+.dock-content[role="tabpanel"]:focus-visible,
+.dock-resizer[role="separator"]:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: -2px;
+}
+.dock-resizer[role="separator"] {
+  border: 0.5px solid var(--border);
+}
+@media (forced-colors: active) {
+  .dock-resizer[role="separator"]:focus-visible {
+    outline: 2px solid Highlight;
+  }
+}
