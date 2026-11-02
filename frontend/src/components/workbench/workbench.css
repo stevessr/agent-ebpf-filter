@@ -809,7 +809,7 @@
   outline-offset: 2px;
 }
 @media (max-width: 640px) {
-  .ide-locale-picker { font-size: 0; gap: 0; }
+  .ide-locale-picker { font-size: 11px; gap: 0; }
   .ide-locale-picker select { max-width: 94px; }
 }
 

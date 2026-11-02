@@ -50,6 +50,7 @@ test("shell responds to narrow screens and keyboard and motion preferences", () 
   expect(app).toContain(':aria-pressed="activeGroup === g.key && sidebar"');
   expect(workbench).not.toContain(":root { font-size: 13px; }");
   expect(workbench).not.toMatch(/(?:font-size|font):\s*(?:0|[1-9]|10)px/);
+  expect(workbench).not.toMatch(/font-size:\s*0\s*;/);
   expect(workbench).not.toMatch(/font-weight:\s*(?:600|700)/);
   expect(workbench).not.toMatch(/(?:linear|radial|conic)-gradient\s*\(/);
   expect(workbench).not.toContain("box-shadow: 10px");
