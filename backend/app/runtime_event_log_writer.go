@@ -2,11 +2,13 @@ package app
 
 import (
 	"agent-ebpf-filter/app/recording"
+	"agent-ebpf-filter/internal/eventlogio"
 	"bufio"
 	"context"
 	"errors"
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -29,6 +31,7 @@ var (
 
 type runtimeEventLogStatus struct {
 	Active            bool      `json:"active"`
+	IOBackend         string    `json:"ioBackend"`
 	Stopping          bool      `json:"stopping"`
 	QueueLen          int       `json:"queueLen"`
 	QueueCap          int       `json:"queueCap"`
@@ -69,6 +72,7 @@ type runtimeEventLogWriter struct {
 	terminalErr    error
 	stopRequested  bool
 	auditChain     *recording.AuditChain
+	ioBackend      string
 }
 
 func startRuntimeEventLogWriter(file *os.File) (*runtimeEventLogWriter, error) {
@@ -84,6 +88,19 @@ func startRuntimeEventLogWriter(file *os.File) (*runtimeEventLogWriter, error) {
 		_ = file.Close()
 		return nil, err
 	}
+
+	// Use a separate, opt-in backend while real workload benchmarks decide
+	// whether avoiding the bufio copy outweighs the writev/iovec overhead.
+	var vector *eventlogio.AppendBatch
+	ioBackend := "buffered-write"
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("AGENT_EVENT_LOG_IO")), "writev") {
+		vector, err = eventlogio.NewAppendBatch(file, runtimeEventLogFlushBatch)
+		if err != nil {
+			log.Printf("[WARN] writev event log unavailable; using buffered writes: %v", err)
+		} else {
+			ioBackend = "writev"
+		}
+	}
 	writer := &runtimeEventLogWriter{
 		// Keep one control slot outside the advertised event capacity so a
 		// flush barrier can make progress while event producers are saturated.
@@ -93,8 +110,9 @@ func startRuntimeEventLogWriter(file *os.File) (*runtimeEventLogWriter, error) {
 		eventQueueCap: runtimeEventLogQueueSize,
 		accepting:     true,
 		auditChain:    auditChain,
+		ioBackend:     ioBackend,
 	}
-	go writer.run(file)
+	go writer.run(file, vector)
 	return writer, nil
 }
 
@@ -254,6 +272,7 @@ func (w *runtimeEventLogWriter) Status() runtimeEventLogStatus {
 	}
 	return runtimeEventLogStatus{
 		Active:            w.accepting,
+		IOBackend:         w.ioBackend,
 		Stopping:          w.stopping,
 		QueueLen:          w.queuedRecords,
 		QueueCap:          w.eventCapacityLocked(),
@@ -280,8 +299,11 @@ func (w *runtimeEventLogWriter) TerminalError() error {
 	return w.terminalErr
 }
 
-func (w *runtimeEventLogWriter) run(file *os.File) {
-	buffered := bufio.NewWriterSize(file, runtimeEventLogBufferBytes)
+func (w *runtimeEventLogWriter) run(file *os.File, vector *eventlogio.AppendBatch) {
+	var buffered *bufio.Writer
+	if vector == nil {
+		buffered = bufio.NewWriterSize(file, runtimeEventLogBufferBytes)
+	}
 	ticker := time.NewTicker(runtimeEventLogFlushInterval)
 	defer ticker.Stop()
 	pending := 0
@@ -294,7 +316,13 @@ func (w *runtimeEventLogWriter) run(file *os.File) {
 		count := pending
 		pending = 0
 		startedAt := time.Now()
-		if err := buffered.Flush(); err != nil {
+		var err error
+		if vector != nil {
+			err = vector.Flush()
+		} else {
+			err = buffered.Flush()
+		}
+		if err != nil {
 			w.noteFailed(uint64(count), err, time.Since(startedAt))
 			return err
 		}
@@ -309,20 +337,33 @@ func (w *runtimeEventLogWriter) run(file *os.File) {
 			w.noteFailed(1, err, time.Since(startedAt))
 			return nil
 		}
-		if _, err := buffered.Write(payload); err != nil {
-			failed := pending + 1
-			pending = 0
-			w.noteFailed(uint64(failed), err, time.Since(startedAt))
-			return err
-		}
-		if err := buffered.WriteByte('\n'); err != nil {
-			failed := pending + 1
-			pending = 0
-			w.noteFailed(uint64(failed), err, time.Since(startedAt))
-			return err
+		if vector != nil {
+			if err := vector.AddLine(payload); err != nil {
+				failed := pending + 1
+				pending = 0
+				w.noteFailed(uint64(failed), err, time.Since(startedAt))
+				return err
+			}
+		} else {
+			if _, err := buffered.Write(payload); err != nil {
+				failed := pending + 1
+				pending = 0
+				w.noteFailed(uint64(failed), err, time.Since(startedAt))
+				return err
+			}
+			if err := buffered.WriteByte('\n'); err != nil {
+				failed := pending + 1
+				pending = 0
+				w.noteFailed(uint64(failed), err, time.Since(startedAt))
+				return err
+			}
 		}
 		pending++
-		if pending >= runtimeEventLogFlushBatch || buffered.Buffered() >= runtimeEventLogBufferBytes/2 {
+		if vector != nil {
+			if pending >= runtimeEventLogFlushBatch || vector.Bytes() >= runtimeEventLogBufferBytes/2 {
+				return flushPending()
+			}
+		} else if pending >= runtimeEventLogFlushBatch || buffered.Buffered() >= runtimeEventLogBufferBytes/2 {
 			return flushPending()
 		}
 		return nil
