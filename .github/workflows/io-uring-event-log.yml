@@ -39,6 +39,14 @@ jobs:
       - name: Compile and test ring append + fallback
         working-directory: backend
         run: go test -v ./internal/uringwrite -count=1
+      - name: Prepare generated protobuf and eBPF objects
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm libbpf-dev libelf-dev protobuf-compiler
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          ./scripts/renew-desktop.sh prepare
       - name: Check app event-log lifecycle
         working-directory: backend
         run: go test ./app -run '^TestRuntimeEventLogWriter' -count=1
