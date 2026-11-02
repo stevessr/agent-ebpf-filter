@@ -16,20 +16,20 @@ import (
 )
 
 const (
-	ioUringSetup       = 425 // Linux amd64/arm64 syscall numbers
-	ioUringEnter       = 426
-	ioUringOpWrite     = 23
-	ioUringGetEvents   = 1
-	ioUringSingleMmap  = 1
-	ioUringCurrentPos  = 1 << 3
-	ioUringOffSQRing   = 0
-	ioUringOffCQRing   = 0x8000000
-	ioUringOffSQEs     = 0x10000000
+	ioUringSetup      = 425 // Linux amd64/arm64 syscall numbers
+	ioUringEnter      = 426
+	ioUringOpWrite    = 23
+	ioUringGetEvents  = 1
+	ioUringSingleMmap = 1
+	ioUringCurrentPos = 1 << 3
+	ioUringOffSQRing  = 0
+	ioUringOffCQRing  = 0x8000000
+	ioUringOffSQEs    = 0x10000000
 )
 
 type sqOffsets struct {
 	Head, Tail, Mask, Entries, Flags, Dropped, Array, Reserved uint32
-	Reserved2 uint64
+	Reserved2                                                  uint64
 }
 
 type cqOffsets struct {
@@ -39,22 +39,22 @@ type cqOffsets struct {
 
 type ringParams struct {
 	SQEntries, CQEntries, Flags, SQCPU, SQIdle, Features, WQFD uint32
-	Reserved [3]uint32
-	SQ       sqOffsets
-	CQ       cqOffsets
+	Reserved                                                   [3]uint32
+	SQ                                                         sqOffsets
+	CQ                                                         cqOffsets
 }
 
 type sqEntry struct {
-	Opcode, Flags          uint8
-	Priority               uint16
-	FD                     int32
-	Offset, Address        uint64
-	Length, RWFlags        uint32
-	UserData               uint64
+	Opcode, Flags            uint8
+	Priority                 uint16
+	FD                       int32
+	Offset, Address          uint64
+	Length, RWFlags          uint32
+	UserData                 uint64
 	BufferIndex, Personality uint16
-	SpliceFD               int32
-	Address3               uint64
-	Pad                    uint64
+	SpliceFD                 int32
+	Address3                 uint64
+	Pad                      uint64
 }
 
 type cqEntry struct {
@@ -191,11 +191,11 @@ func (w *Writer) Write(p []byte) (int, error) {
 	index := tail & atomic.LoadUint32(w.sqMask)
 	entry := (*sqEntry)(unsafe.Pointer(&w.sqes[uint64(index)*uint64(unsafe.Sizeof(sqEntry{}))]))
 	*entry = sqEntry{
-		Opcode:  ioUringOpWrite,
-		FD:      int32(w.fileFD),
-		Offset:  ^uint64(0),
-		Address: uint64(uintptr(unsafe.Pointer(&p[0]))),
-		Length:  uint32(len(p)),
+		Opcode:   ioUringOpWrite,
+		FD:       int32(w.fileFD),
+		Offset:   ^uint64(0),
+		Address:  uint64(uintptr(unsafe.Pointer(&p[0]))),
+		Length:   uint32(len(p)),
 		UserData: 1,
 	}
 	*(*uint32)(unsafe.Pointer(uintptr(unsafe.Pointer(w.sqArray)) + uintptr(index)*4)) = index
