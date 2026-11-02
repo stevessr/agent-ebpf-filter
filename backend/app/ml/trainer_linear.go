@@ -196,7 +196,12 @@ func (t *ModelTrainer) finishLinearHoldout(weights [][FeatureDim + 1]float64, cl
 // ── SGD Training Helper ─────────────────────────────────────────────
 
 func TrainSGD(W [][FeatureDim + 1]float64, nClasses int, labeled []TrainingSample, lr float64, maxIter int, C float64, loss string, classWeights []float64, t *ModelTrainer) {
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	trainSGDWithRand(W, nClasses, labeled, lr, maxIter, C, loss, classWeights, t, rand.New(rand.NewSource(time.Now().UnixNano())))
+}
+
+// trainSGDWithRand lets AutoTune use a per-cell RNG for fair, repeatable
+// comparisons, while the public training entry point retains its random seed.
+func trainSGDWithRand(W [][FeatureDim + 1]float64, nClasses int, labeled []TrainingSample, lr float64, maxIter int, C float64, loss string, classWeights []float64, t *ModelTrainer, rng *rand.Rand) {
 	for iter := 0; iter < maxIter; iter++ {
 		if t.IsCancelled() {
 			return
