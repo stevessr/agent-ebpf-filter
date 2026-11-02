@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -202,6 +203,9 @@ func (a *renewApp) overviewHeadline() (headline, detail, level string) {
 		return "发现高风险活动", fmt.Sprintf("当前摘要窗口中有 %d 条高风险事件，建议优先查看阻断、拒绝和高分事件。", danger), "danger"
 	}
 	if attention > 0 {
+		if a.syncFreshnessAt(time.Now()) == "stale" || a.syncFreshnessAt(time.Now()) == "clock-skew" {
+			return "有活动需要关注", fmt.Sprintf("当前摘要窗口中有 %d 条需关注事件，但采集同步状态异常；请核查时间和连接。", attention), "warning"
+		}
 		return "有活动需要关注", fmt.Sprintf("当前摘要窗口中有 %d 条需关注事件；采集链路本身运行正常。", attention), "warning"
 	}
 	if a.syncFreshnessAt(time.Now()) == "stale" {
