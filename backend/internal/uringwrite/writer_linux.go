@@ -34,7 +34,7 @@ type sqOffsets struct {
 
 type cqOffsets struct {
 	Head, Tail, Mask, Entries, Overflow, CQEs, Flags, Reserved uint32
-	Reserved2 uint64
+	Reserved2                                                  uint64
 }
 
 type ringParams struct {
