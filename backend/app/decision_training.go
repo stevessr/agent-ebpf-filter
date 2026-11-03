@@ -111,6 +111,7 @@ type DecisionModelTrainingReport struct {
 	ValidationBenignFPR        float64                         `json:"validationBenignFalsePositiveRate"`
 	ValidationMacroF1          float64                         `json:"validationMacroF1"`
 	ValidationConfusion        map[string]map[string]int       `json:"validationConfusion"`
+	ExternalTest               *DecisionExternalEvaluation       `json:"externalTest,omitempty"`
 	SourceRecords              int                             `json:"sourceRecords"`
 	Samples                    int                             `json:"samples"`
 	DuplicatesSkipped          int                             `json:"duplicatesSkipped"`
