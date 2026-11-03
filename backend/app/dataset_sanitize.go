@@ -83,6 +83,10 @@ func sanitizeRemoteDatasetArgsWithIdentity(args []string, ids *datasetIdentityMa
 				// curl --user user:password is a credential, not only an
 				// identity. Never leave the password half visible.
 				out[i] = "***"
+			} else if strings.ContainsAny(arg, "/\\") {
+				// A path passed as an entity flag still contains separate
+				// user/project components that must be recognized in place.
+				out[i] = sanitizeRemoteDatasetTextWithIdentity(arg, ids)
 			} else {
 				out[i] = ids.quoted(entityNext, arg)
 			}
@@ -96,8 +100,18 @@ func sanitizeRemoteDatasetArgsWithIdentity(args []string, ids *datasetIdentityMa
 			"authorization: bearer", "authorization: basic",
 			"authorization=bearer", "authorization=basic":
 			redactNext = true
-		case "--user", "--username", "--account", "-u":
+		case "--user", "--username", "--account":
 			entityNext = "user"
+		case "-u":
+			// -u does not universally mean "user": head -u and some
+			// package tools use it for unrelated semantics. Restrict it
+			// to commands where it denotes an account/credential.
+			if len(args) > 0 {
+				switch strings.ToLower(args[0]) {
+				case "sudo", "runuser", "curl":
+					entityNext = "user"
+				}
+			}
 		case "--project", "--project-name", "--workspace", "--repo", "--repository":
 			entityNext = "project"
 		}
