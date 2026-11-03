@@ -340,8 +340,12 @@ func pullRemoteDatasetWithRecordLimit(req remoteDatasetRequest, client *http.Cli
 	}
 
 	rows := make([]remoteDatasetRow, 0, len(records))
+	// Pseudonyms are scoped to this single dataset load, not the process.
+	// This preserves identity equality between records and argv and never
+	// exports the original-name mapping outside the import.
+	identities := newDatasetIdentityMapper()
 	for _, record := range records {
-		row := buildRemoteDatasetRow(record, req.LabelMode, req.CleanSensitive)
+		row := buildRemoteDatasetRowWithIdentity(record, req.LabelMode, req.CleanSensitive, identities)
 		if ml.GlobalTrainingStore != nil {
 			row.Duplicate = ml.GlobalTrainingStore.HasExactCommand(row.Comm, row.Args)
 		}
