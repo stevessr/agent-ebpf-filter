@@ -7,6 +7,12 @@ import (
 
 var (
 	sensitiveValueRegexps = []*regexp.Regexp{
+		// Match the entire Authorization credential before the generic
+		// "authorization: WORD" matcher; otherwise Bearer tokens leak.
+		regexp.MustCompile(`(?i)\bAuthorization[\s:=]+(?:Bearer\s+|Basic\s+)?[^\s"'`]+(?:\s+[^\s"'`]+)?`),
+		// Quoted values are still private, even with spaces inside the
+		// quotes (e.g. --token="long private value").
+		regexp.MustCompile(`(?i)\b(?:password|passwd|pwd|token|secret|apikey|api-key|access[_-]?key|cookie)[\s:=]+(?:"[^"]+"|'[^']+')`),
 		regexp.MustCompile(`(?i)\b(password|passwd|pwd|token|secret|apikey|api-key|access[_-]?key|authorization|cookie)[\s:=]+[^\s"'` + "`" + `]+`),
 		regexp.MustCompile(`(?i)\b(--?(?:password|passwd|pwd|token|secret|apikey|api-key|access[_-]?key))(?:[=\s]+)[^\s"'` + "`" + `]+`),
 		regexp.MustCompile(`(?i)\b(https?://)[^/\s:@]+(?::[^/\s@]+)?@`),
@@ -16,6 +22,9 @@ var (
 		regexp.MustCompile(`(?i)\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+`),
 		regexp.MustCompile(`\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b`),
 	}
+	// Unix crypt hashes are data, unlike the canonical /etc/shadow path name.
+	// This is a defense in depth for command text that embeds a hash literal.
+	unixCryptHashRegexp = regexp.MustCompile(`\$[1256y]\$(?:[A-Za-z0-9./+=-]+\$){1,3}[A-Za-z0-9./+=-]+`)
 	sensitivePathRegexps = []*regexp.Regexp{
 		regexp.MustCompile(`/home/[^/\s]+`),
 		regexp.MustCompile(`~\/[^\s]+`),
@@ -112,6 +121,7 @@ func sanitizeRemoteDatasetText(text string) string {
 			}
 		})
 	}
+	out = unixCryptHashRegexp.ReplaceAllString(out, "***")
 	return out
 }
 
