@@ -60,4 +60,4 @@ jobs:
           go generate gen_lsm.go
       - name: Test ML corpus provenance and external holdout rules
         working-directory: backend
-        run: go test ./app -run 'TestDecision(TrainingLocalDataset|ExternalEvaluation)' -count=1 -v
+        run: go test ./app -run 'TestDecision(TrainingLocalDataset|ExternalEvaluation|CandidateLocalCorpus)' -count=1 -v
