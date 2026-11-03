@@ -68,3 +68,37 @@ The sanitized stream **still masks** literal credential values (including quoted
 Regressions in `backend/app/dataset_sanitize_test.go` and `TestPullRemoteDatasetFromClassicCSVWithCleaning` are checked by `ML curated corpus quality` CI. This modifies the feature representation of **newly built candidate models**; existing deployed model artifacts are not retrained or promoted. Candidate metrics must be compared on the same held-out samples and false-positive budgets, not assumed to improve automatically.
 
 **Privacy boundary:** retaining a string naming `/etc/shadow` does not mean returning its contents, making its underlying filesystem access permissible, or preserving embedded crypt password hashes. Authorization remains a separate policy check.
+
+### Stable entity pseudonyms (2026-11-03)
+
+For **new cleaned imports**, identity-aware cleaning retains the shape of
+project and user references while removing private names. The mapping is
+**local to one dataset import**, and is not uploaded or written to model
+manifests. Examples:
+
+| Input (synthetic names) | Cleaned |
+| --- | --- |
+| `/home/alice/projects/secret-app/src` | `/home/__USER_0001__/projects/__PROJECT_0001__/src` |
+| `/home/bob/projects/another-app` | `/home/__USER_0002__/projects/__PROJECT_0002__` |
+| `USER=alice PROJECT_NAME=secret-app` | `USER=__USER_0001__ PROJECT_NAME=__PROJECT_0001__` |
+| `git@github.com:alice/secret-app.git` | `git@github.com:__USER_0001__/__PROJECT_0001__.git` |
+
+The same recognized name receives the same typed token in the same import
+(including independent rows and `CommandLine`/`Args`); distinct names get
+distinct tokens. Importing a second, unrelated corpus starts a new local
+mapping. Standard `/etc` paths and service accounts such as `root` stay
+literal; credentials and private hosts/IPs are **never** treated as usernames
+or project names. Paths with no reliable contextual evidence such as
+`/tmp/file` are not arbitrarily guessed to be project names.
+
+The mappings are **pseudonymization, not guaranteed anonymity**: context can
+still reveal someone indirectly. Dataset labels/provenance and stored model
+features remain subject to normal privacy and access controls. Stable tokens
+are intentionally *not* derived from unhashed global names or an unsalted
+global hash, which would enable straightforward linkage across datasets.
+
+The importer, sanitizer and feature extractor now share identity semantics.
+Tests cover Linux/Windows home paths, Git remotes, argv flags, cross-row
+consistency, repeated sanitization and secret masking. This is a **candidate
+pipeline feature**; no deployed model or runtime policy is changed.
+
