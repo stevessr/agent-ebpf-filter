@@ -40,9 +40,10 @@ func sanitizeRemoteDatasetRecord(record remoteDatasetRecord) remoteDatasetRecord
 }
 
 func sanitizeRemoteDatasetRecordWithIdentity(record remoteDatasetRecord, ids *datasetIdentityMapper) remoteDatasetRecord {
+	command := commandForDatasetArgCleaning(record.Comm, record.CommandLine)
 	record.CommandLine = sanitizeRemoteDatasetTextWithIdentity(record.CommandLine, ids)
 	if len(record.Args) > 0 {
-		record.Args = sanitizeRemoteDatasetArgsWithCommand(record.Args, record.Comm, ids)
+		record.Args = sanitizeRemoteDatasetArgsWithCommand(record.Args, command, ids)
 	}
 	return record
 }
@@ -54,11 +55,19 @@ func sanitizeRemoteDatasetRow(row remoteDatasetRow) remoteDatasetRow {
 }
 
 func sanitizeRemoteDatasetRowWithIdentity(row remoteDatasetRow, ids *datasetIdentityMapper) remoteDatasetRow {
+	command := commandForDatasetArgCleaning(row.Comm, row.CommandLine)
 	row.CommandLine = sanitizeRemoteDatasetTextWithIdentity(row.CommandLine, ids)
 	if len(row.Args) > 0 {
-		row.Args = sanitizeRemoteDatasetArgsWithCommand(row.Args, row.Comm, ids)
+		row.Args = sanitizeRemoteDatasetArgsWithCommand(row.Args, command, ids)
 	}
 	return row
+}
+
+func commandForDatasetArgCleaning(comm, commandLine string) string {
+    if comm != "" { return comm }
+    fields := strings.Fields(commandLine)
+    if len(fields) > 0 { return fields[0] }
+    return ""
 }
 
 // sanitizeRemoteDatasetArgs accounts for argv boundaries: a secret following
