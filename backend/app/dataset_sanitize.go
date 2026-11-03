@@ -9,7 +9,7 @@ var (
 	sensitiveValueRegexps = []*regexp.Regexp{
 		// Match the entire Authorization credential before the generic
 		// "authorization: WORD" matcher; otherwise Bearer tokens leak.
-		regexp.MustCompile(`(?i)\bAuthorization[\s:=]+(?:Bearer\s+|Basic\s+)?[^\s"'`]+(?:\s+[^\s"'`]+)?`),
+		regexp.MustCompile(`(?i)\bAuthorization[\s:=]+(?:Bearer\s+|Basic\s+)?[^\s"'\x60]+(?:\s+[^\s"'\x60]+)?`),
 		// Quoted values are still private, even with spaces inside the
 		// quotes (e.g. --token="long private value").
 		regexp.MustCompile(`(?i)\b(?:password|passwd|pwd|token|secret|apikey|api-key|access[_-]?key|cookie)[\s:=]+(?:"[^"]+"|'[^']+')`),
