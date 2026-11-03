@@ -87,6 +87,33 @@ class CuratedCorpusTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "conflicting action labels"):
                 corpus.build_corpus({"source": path}, {"source": "MIT"}, Path(temporary)/"out", min_per_class=1)
 
+    def test_ai_reviewed_labels_require_explicit_opt_in(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            rows = self.rows()
+            rows[0]["label_source"] = "assistant_reviewed"
+            rows[0]["review_status"] = "approved_for_candidate_only"
+            path = self.write_rows(temporary, rows)
+            with self.assertRaisesRegex(ValueError, "explicit --allow-ai-reviewed opt-in"):
+                corpus.build_corpus({"source": path}, {"source": "CC-BY-SA-4.0"},
+                                    Path(temporary)/"reject", min_per_class=2)
+            report = corpus.build_corpus(
+                {"source": path}, {"source": "CC-BY-SA-4.0"},
+                Path(temporary)/"accept", min_per_class=2,
+                allow_assistant_reviewed=True)
+            self.assertTrue(report["assistantReviewedAccepted"])
+
+    def test_ai_reviewed_unapproved_rows_are_rejected_even_with_opt_in(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            rows = self.rows()
+            rows[0]["label_source"] = "assistant_reviewed"
+            rows[0]["review_status"] = "needs_context"
+            path = self.write_rows(temporary, rows)
+            with self.assertRaisesRegex(ValueError, "individually approved"):
+                corpus.build_corpus(
+                    {"source": path}, {"source": "CC-BY-SA-4.0"},
+                    Path(temporary)/"reject", min_per_class=2,
+                    allow_assistant_reviewed=True)
+
     def test_source_license_required_and_nonbinary_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
             rows = self.rows()
