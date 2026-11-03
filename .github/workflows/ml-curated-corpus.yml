@@ -4,6 +4,10 @@ on:
     paths:
       - scripts/ml-curate-corpus.py
       - scripts/test_ml_curate_corpus.py
+      - scripts/test_ml_reviewed_annotations.py
+      - research/curated/ai-reviewed-bash-actions.jsonl
+      - research/curated/ai-review-needs-context.jsonl
+      - research/curated/ai-review-manifest.json
       - backend/app/decision_training.go
       - backend/cmd/ml-train/**
       - .github/workflows/ml-curated-corpus.yml
@@ -11,6 +15,10 @@ on:
     paths:
       - scripts/ml-curate-corpus.py
       - scripts/test_ml_curate_corpus.py
+      - scripts/test_ml_reviewed_annotations.py
+      - research/curated/ai-reviewed-bash-actions.jsonl
+      - research/curated/ai-review-needs-context.jsonl
+      - research/curated/ai-review-manifest.json
       - .github/workflows/ml-curated-corpus.yml
 permissions:
   contents: read
@@ -23,7 +31,9 @@ jobs:
         with:
           persist-credentials: false
       - name: Verify deterministic splits, explicit labels and leak isolation
-        run: python3 -m unittest discover -s scripts -p 'test_ml_curate_corpus.py' -v
+        run: |
+          python3 -m unittest discover -s scripts -p 'test_ml_curate_corpus.py' -v
+          python3 -m unittest discover -s scripts -p 'test_ml_reviewed_annotations.py' -v
 
   curated-go:
     runs-on: ubuntu-24.04
@@ -61,3 +71,20 @@ jobs:
       - name: Test ML corpus provenance and external holdout rules
         working-directory: backend
         run: go test ./app -run 'TestDecision(TrainingLocalDataset|ExternalEvaluation|CandidateLocalCorpus)' -count=1 -v
+      - name: Build AI-reviewed labeled model candidate (never deployed)
+        working-directory: backend
+        run: |
+          digest="$(sha256sum ../research/curated/ai-reviewed-bash-actions.jsonl | cut -d' ' -f1)"
+          go run ./cmd/ml-train \
+            --dataset-file ../research/curated/ai-reviewed-bash-actions.jsonl \
+            --dataset-sha256 "$digest" \
+            --dataset-license CC-BY-SA-4.0 \
+            --output artifacts/ai-reviewed-model-candidate.bin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ai-reviewed-command-candidate
+          path: |
+            backend/artifacts/ai-reviewed-model-candidate.bin
+            backend/artifacts/ai-reviewed-model-candidate.bin.manifest.json
+          if-no-files-found: error
+          retention-days: 7
