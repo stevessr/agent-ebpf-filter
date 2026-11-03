@@ -37,11 +37,7 @@ var (
 func sanitizeRemoteDatasetRecord(record remoteDatasetRecord) remoteDatasetRecord {
 	record.CommandLine = sanitizeRemoteDatasetText(record.CommandLine)
 	if len(record.Args) > 0 {
-		sanitizedArgs := make([]string, 0, len(record.Args))
-		for _, arg := range record.Args {
-			sanitizedArgs = append(sanitizedArgs, sanitizeRemoteDatasetText(arg))
-		}
-		record.Args = sanitizedArgs
+		record.Args = sanitizeRemoteDatasetArgs(record.Args)
 	}
 	return record
 }
@@ -49,13 +45,33 @@ func sanitizeRemoteDatasetRecord(record remoteDatasetRecord) remoteDatasetRecord
 func sanitizeRemoteDatasetRow(row remoteDatasetRow) remoteDatasetRow {
 	row.CommandLine = sanitizeRemoteDatasetText(row.CommandLine)
 	if len(row.Args) > 0 {
-		sanitizedArgs := make([]string, 0, len(row.Args))
-		for _, arg := range row.Args {
-			sanitizedArgs = append(sanitizedArgs, sanitizeRemoteDatasetText(arg))
-		}
-		row.Args = sanitizedArgs
+		row.Args = sanitizeRemoteDatasetArgs(row.Args)
 	}
 	return row
+}
+
+// sanitizeRemoteDatasetArgs accounts for argv boundaries: a secret following
+// "--token" or "--password" is private even when it is a separate argument.
+// Preserve length and ordering so feature extraction can still inspect flags.
+func sanitizeRemoteDatasetArgs(args []string) []string {
+	out := make([]string, len(args))
+	redactNext := false
+	for i, arg := range args {
+		if redactNext {
+			out[i] = "***"
+			redactNext = false
+			continue
+		}
+		out[i] = sanitizeRemoteDatasetText(arg)
+		switch strings.ToLower(strings.TrimSpace(arg)) {
+		case "--password", "--passwd", "--token", "--secret", "--apikey",
+			"--api-key", "--access-key", "--access_key", "--authorization", "--cookie",
+			"authorization: bearer", "authorization: basic",
+			"authorization=bearer", "authorization=basic":
+			redactNext = true
+		}
+	}
+	return out
 }
 
 func sanitizeRemoteDatasetText(text string) string {
@@ -75,6 +91,9 @@ func sanitizeRemoteDatasetText(text string) string {
 			// search keyword, not a password assignment. Keep these exact
 			// path references, but never exempt key=value/CLI secrets.
 			if isBarePublicEtcPathReference(match) {
+				return match
+			}
+			if isNonSecretCommandArgument(match) {
 				return match
 			}
 			lower := strings.ToLower(match)
@@ -127,6 +146,23 @@ func sanitizeRemoteDatasetText(text string) string {
 	}
 	out = unixCryptHashRegexp.ReplaceAllString(out, "***")
 	return out
+}
+
+// Do not destroy the risk meaning of public passwd flags/standard root name.
+// For example, passwd -l root is a security-administration command, not a
+// string assignment to a private password value.
+func isNonSecretCommandArgument(valueMatch string) bool {
+	fields := strings.Fields(valueMatch)
+	if len(fields) != 2 || strings.ContainsAny(fields[0], "=:") {
+		return false
+	}
+	switch strings.ToLower(fields[0]) {
+	case "passwd":
+		return fields[1] == "root" || strings.HasPrefix(fields[1], "-")
+	case "pwd":
+		return fields[1] == "-P" || fields[1] == "-L"
+	}
+	return false
 }
 
 // isNonIdentifyingIPv4 only preserves globally fixed or documentation-only
