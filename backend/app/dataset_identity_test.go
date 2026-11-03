@@ -97,3 +97,36 @@ func TestDatasetIdentityMapperArgvSharesOneIdentityMap(t *testing.T) {
         t.Fatalf("argv identity and secret handling failed: %q", cleaned)
     }
 }
+func TestDatasetIdentityMapperSplitArgvUsesCommandContext(t *testing.T) {
+    ids := newDatasetIdentityMapper()
+    row := sanitizeRemoteDatasetRowWithIdentity(remoteDatasetRow{
+        CommandLine: "sudo -u alice cat /etc/passwd",
+        Args: []string{"-u", "alice", "cat", "/etc/passwd"},
+    }, ids)
+    if row.Args[1] != "__USER_0001__" || strings.Contains(strings.Join(row.Args, " "), "alice") {
+        t.Fatalf("split command and argv disagree: %+v", row)
+    }
+    unknown := sanitizeRemoteDatasetArgsWithCommand([]string{"-u", "plain-file"}, "head", newDatasetIdentityMapper())
+    if unknown[1] != "plain-file" {
+        t.Fatalf("ambiguous -u was incorrectly treated as username: %q", unknown)
+    }
+}
+
+func TestDatasetIdentityMapperDoesNotFlattenStructuredFlagPaths(t *testing.T) {
+    ids := newDatasetIdentityMapper()
+    value := sanitizeRemoteDatasetTextWithIdentity("--project=/home/alice/projects/private-app", ids)
+    if value != "--project=/home/__USER_0001__/projects/__PROJECT_0001__" {
+        t.Fatalf("structured --project path got flattened: %q", value)
+    }
+    args := sanitizeRemoteDatasetArgsWithCommand([]string{"--project", "/home/alice/projects/private-app"}, "tool", ids)
+    if args[1] != "/home/__USER_0001__/projects/__PROJECT_0001__" {
+        t.Fatalf("split structured project argument got flattened: %q", args)
+    }
+}
+
+func TestDatasetIdentityMapperRecognizesNamedTildeHome(t *testing.T) {
+    actual := sanitizeRemoteDatasetText("cat ~alice/.ssh/config")
+    if actual != "cat ~__USER_0001__/.ssh/config" {
+        t.Fatalf("named shell home should be replaced, not removed: %q", actual)
+    }
+}
