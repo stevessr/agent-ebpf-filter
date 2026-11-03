@@ -41,6 +41,7 @@ func TestSanitizeRemoteDatasetTextMasksGenuineSensitiveValues(t *testing.T) {
 		{"--token=\"private multi word value\"", "token=***", []string{"private multi word value"}},
 		{"Authorization: Bearer eyJhbGciOi.some-token", "Authorization: ***", []string{"eyJhbGciOi", "some-token"}},
 		{"Authorization: Basic dXNlcjpwYXNzd29yZA==", "Authorization: ***", []string{"dXNlcjpwYXNzd29yZA"}},
+		{"Authorization: Bearer \"credential with spaces\"", "Authorization: ***", []string{"credential with spaces"}},
 		{"cat /home/alice/.ssh/id_rsa", "/home/***/.ssh/id_rsa", []string{"alice"}},
 		{"cat ~/.ssh/id_rsa", "~/***", []string{"id_rsa"}},
 		{"printf 'root:$6$salt$hash:19000:0:99999:7:::'", "***", []string{"$6$salt$hash"}},
