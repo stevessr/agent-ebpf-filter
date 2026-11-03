@@ -21,6 +21,9 @@ func run() error {
 	defaults := app.DefaultDecisionTrainingHyperparameters()
 	output := flag.String("output", "artifacts/decision-model.bin", "candidate model output path")
 	numTrees := flag.Int("num-trees", defaults.NumTrees, "random-forest tree count (sweep-tuned default)")
+	datasetFile := flag.String("dataset-file", "", "reviewed local JSONL corpus (candidate-only training)")
+	datasetSHA := flag.String("dataset-sha256", "", "required expected SHA-256 for local JSONL")
+	datasetLicense := flag.String("dataset-license", "", "required original license identifier for local JSONL")
 	maxDepth := flag.Int("max-depth", defaults.MaxDepth, "random-forest max depth (sweep-tuned default)")
 	minSamplesLeaf := flag.Int("min-samples-leaf", defaults.MinSamplesLeaf, "random-forest minimum samples per leaf (sweep-tuned default)")
 	flag.Parse()
@@ -28,7 +31,20 @@ func run() error {
 		return fmt.Errorf("unexpected positional arguments: %v", flag.Args())
 	}
 
-	report, err := app.TrainDecisionModelFromPublicDatasets(app.DefaultDecisionTrainingDatasets(), *output, app.DecisionTrainingHyperparameters{
+	sources := app.DefaultDecisionTrainingDatasets()
+	if *datasetFile != "" {
+		if *datasetSHA == "" || *datasetLicense == "" {
+			return fmt.Errorf("--dataset-file requires both --dataset-sha256 and --dataset-license")
+		}
+		sources = []app.DecisionTrainingDataset{{
+			Name: filepath.Base(*datasetFile), LocalPath: *datasetFile,
+			ExpectedSHA256: *datasetSHA, License: *datasetLicense,
+		}}
+	} else if *datasetSHA != "" || *datasetLicense != "" {
+		return fmt.Errorf("--dataset-sha256 and --dataset-license require --dataset-file")
+	}
+
+	report, err := app.TrainDecisionModelFromPublicDatasets(sources, *output, app.DecisionTrainingHyperparameters{
 		NumTrees:       *numTrees,
 		MaxDepth:       *maxDepth,
 		MinSamplesLeaf: *minSamplesLeaf,
@@ -63,5 +79,7 @@ func run() error {
 		report.ValidationBlockRecall,
 		report.ArtifactReloadVerified,
 	)
+	fmt.Printf("Validation: BLOCK precision=%.3f; benign FPR=%.3f; macro-F1=%.3f (internal grouped holdout only)\n",
+		report.ValidationBlockPrecision, report.ValidationBenignFPR, report.ValidationMacroF1)
 	return nil
 }
