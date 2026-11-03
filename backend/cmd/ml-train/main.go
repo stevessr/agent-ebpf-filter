@@ -24,6 +24,8 @@ func run() error {
 	datasetFile := flag.String("dataset-file", "", "reviewed local JSONL corpus (candidate-only training)")
 	datasetSHA := flag.String("dataset-sha256", "", "required expected SHA-256 for local JSONL")
 	datasetLicense := flag.String("dataset-license", "", "required original license identifier for local JSONL")
+	testFile := flag.String("external-test-file", "", "independent reviewed JSONL test corpus (not used for training)")
+	testSHA := flag.String("external-test-sha256", "", "required SHA-256 of the external test corpus")
 	maxDepth := flag.Int("max-depth", defaults.MaxDepth, "random-forest max depth (sweep-tuned default)")
 	minSamplesLeaf := flag.Int("min-samples-leaf", defaults.MinSamplesLeaf, "random-forest minimum samples per leaf (sweep-tuned default)")
 	flag.Parse()
@@ -51,6 +53,22 @@ func run() error {
 	})
 	if err != nil {
 		return err
+	}
+	if *testFile != "" {
+		if *datasetFile == "" || *testSHA == "" {
+			return fmt.Errorf("--external-test-file requires --dataset-file and --external-test-sha256")
+		}
+		evaluation, evalErr := app.EvaluateDecisionModelOnExternalHoldout(
+			*output,
+			app.DecisionTrainingDataset{Name: filepath.Base(*datasetFile), LocalPath: *datasetFile, ExpectedSHA256: *datasetSHA, License: *datasetLicense},
+			app.DecisionTrainingDataset{Name: filepath.Base(*testFile), LocalPath: *testFile, ExpectedSHA256: *testSHA, License: *datasetLicense},
+		)
+		if evalErr != nil {
+			return fmt.Errorf("external holdout: %w", evalErr)
+		}
+		report.ExternalTest = &evaluation
+	} else if *testSHA != "" {
+		return fmt.Errorf("--external-test-sha256 requires --external-test-file")
 	}
 
 	manifestPath := *output + ".manifest.json"
@@ -81,5 +99,12 @@ func run() error {
 	)
 	fmt.Printf("Validation: BLOCK precision=%.3f; benign FPR=%.3f; macro-F1=%.3f (internal grouped holdout only)\n",
 		report.ValidationBlockPrecision, report.ValidationBenignFPR, report.ValidationMacroF1)
+	if report.ExternalTest != nil {
+		fmt.Printf("External test: n=%d accuracy=%.3f balanced=%.3f BLOCK recall=%.3f precision=%.3f benign FPR=%.3f macro-F1=%.3f\n",
+			report.ExternalTest.Samples, report.ExternalTest.Accuracy,
+			report.ExternalTest.Balanced, report.ExternalTest.BlockRecall,
+			report.ExternalTest.BlockPrecision, report.ExternalTest.BenignFPR,
+			report.ExternalTest.MacroF1)
+	}
 	return nil
 }
