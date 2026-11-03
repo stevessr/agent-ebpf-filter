@@ -26,7 +26,8 @@ var (
 	// This is a defense in depth for command text that embeds a hash literal.
 	unixCryptHashRegexp = regexp.MustCompile(`\$[1256y]\$(?:[A-Za-z0-9./+=-]+\$){1,3}[A-Za-z0-9./+=-]+`)
 	sensitivePathRegexps = []*regexp.Regexp{
-		regexp.MustCompile(`/home/[^/\s]+`),
+		// The source identity segment under /home is replaced with
+		// __USER_NNNN__ instead of deleting the whole path.
 		regexp.MustCompile(`~\/[^\s]+`),
 		// Public, globally standardized /etc path names are not personally
 		// identifying. Their *contents* remain sensitive, but their names
@@ -35,17 +36,27 @@ var (
 )
 
 func sanitizeRemoteDatasetRecord(record remoteDatasetRecord) remoteDatasetRecord {
-	record.CommandLine = sanitizeRemoteDatasetText(record.CommandLine)
+	return sanitizeRemoteDatasetRecordWithIdentity(record, newDatasetIdentityMapper())
+}
+
+func sanitizeRemoteDatasetRecordWithIdentity(record remoteDatasetRecord, ids *datasetIdentityMapper) remoteDatasetRecord {
+	record.CommandLine = sanitizeRemoteDatasetTextWithIdentity(record.CommandLine, ids)
 	if len(record.Args) > 0 {
-		record.Args = sanitizeRemoteDatasetArgs(record.Args)
+		record.Args = sanitizeRemoteDatasetArgsWithIdentity(record.Args, ids)
 	}
 	return record
 }
 
 func sanitizeRemoteDatasetRow(row remoteDatasetRow) remoteDatasetRow {
-	row.CommandLine = sanitizeRemoteDatasetText(row.CommandLine)
+	// Called a second time by the feature extractor, after import.
+	// Existing __USER_NNNN__ / __PROJECT_NNNN__ tokens are immutable.
+	return sanitizeRemoteDatasetRowWithIdentity(row, newDatasetIdentityMapper())
+}
+
+func sanitizeRemoteDatasetRowWithIdentity(row remoteDatasetRow, ids *datasetIdentityMapper) remoteDatasetRow {
+	row.CommandLine = sanitizeRemoteDatasetTextWithIdentity(row.CommandLine, ids)
 	if len(row.Args) > 0 {
-		row.Args = sanitizeRemoteDatasetArgs(row.Args)
+		row.Args = sanitizeRemoteDatasetArgsWithIdentity(row.Args, ids)
 	}
 	return row
 }
@@ -54,6 +65,10 @@ func sanitizeRemoteDatasetRow(row remoteDatasetRow) remoteDatasetRow {
 // "--token" or "--password" is private even when it is a separate argument.
 // Preserve length and ordering so feature extraction can still inspect flags.
 func sanitizeRemoteDatasetArgs(args []string) []string {
+	return sanitizeRemoteDatasetArgsWithIdentity(args, newDatasetIdentityMapper())
+}
+
+func sanitizeRemoteDatasetArgsWithIdentity(args []string, ids *datasetIdentityMapper) []string {
 	out := make([]string, len(args))
 	redactNext := false
 	for i, arg := range args {
@@ -62,7 +77,7 @@ func sanitizeRemoteDatasetArgs(args []string) []string {
 			redactNext = false
 			continue
 		}
-		out[i] = sanitizeRemoteDatasetText(arg)
+		out[i] = sanitizeRemoteDatasetTextWithIdentity(arg, ids)
 		switch strings.ToLower(strings.TrimSpace(arg)) {
 		case "--password", "--passwd", "--token", "--secret", "--apikey",
 			"--api-key", "--access-key", "--access_key", "--authorization", "--cookie",
@@ -75,10 +90,14 @@ func sanitizeRemoteDatasetArgs(args []string) []string {
 }
 
 func sanitizeRemoteDatasetText(text string) string {
+	return sanitizeRemoteDatasetTextWithIdentity(text, newDatasetIdentityMapper())
+}
+
+func sanitizeRemoteDatasetTextWithIdentity(text string, ids *datasetIdentityMapper) string {
 	if text == "" {
 		return text
 	}
-	out := text
+	out := ids.pseudonymizeDatasetIdentities(text)
 	for _, re := range sensitiveValueRegexps {
 		out = re.ReplaceAllStringFunc(out, func(match string) string {
 			// RFC-defined loopback, unspecified, broadcast and documentation
@@ -136,6 +155,15 @@ func sanitizeRemoteDatasetText(text string) string {
 			case strings.HasPrefix(repl, "/home/"):
 				return "/home/***"
 			case strings.HasPrefix(repl, "~/"):
+				// Keep a recognized project directory with its pseudonym,
+				// but do not preserve arbitrary home-private files.
+				for _, prefix := range []string{"~/projects/__PROJECT_", "~/project/__PROJECT_",
+					"~/workspace/__PROJECT_", "~/workspaces/__PROJECT_", "~/repos/__PROJECT_",
+					"~/repo/__PROJECT_"} {
+					if strings.HasPrefix(repl, prefix) {
+						return repl
+					}
+				}
 				return "~/***"
 			case strings.HasPrefix(repl, "/etc/"):
 				return "/etc/***"
@@ -158,7 +186,8 @@ func isNonSecretCommandArgument(valueMatch string) bool {
 	}
 	switch strings.ToLower(fields[0]) {
 	case "passwd":
-		return fields[1] == "root" || strings.HasPrefix(fields[1], "-")
+		return fields[1] == "root" || strings.HasPrefix(fields[1], "-") ||
+			isIdentityPlaceholder(fields[1])
 	case "pwd":
 		return fields[1] == "-P" || fields[1] == "-L"
 	}
