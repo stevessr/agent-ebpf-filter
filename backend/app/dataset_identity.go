@@ -31,38 +31,7 @@ var (
     addressIdentityRegexp = regexp.MustCompile(`\b([A-Za-z_][A-Za-z0-9_.+-]*)@([A-Za-z0-9.-]+\.[A-Za-z]{2,})\b`)
     repoRemoteIdentityRegexp = regexp.MustCompile(`(?i)((?:github|gitlab|bitbucket)\.com[:/])([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)`)
     homeAliasIdentityRegexp = regexp.MustCompile(`(~)([A-Za-z_][A-Za-z0-9_.-]+)(/)`)
-    datasetIdentityTokenRegexp = regexp.MustCompile(`^__(?:USER|PROJECT)_[0-9]{4,}__package app
-
-import (
-    "fmt"
-    "regexp"
-    "strings"
-)
-
-// datasetIdentityMapper is deliberately scoped to a single dataset import.
-// It preserves equality of user/project references without retaining or
-// publishing their original names. No global cross-import identity key exists.
-type datasetIdentityMapper struct {
-    users map[string]string
-    projects map[string]string
-}
-
-func newDatasetIdentityMapper() *datasetIdentityMapper {
-    return &datasetIdentityMapper{users: make(map[string]string), projects: make(map[string]string)}
-}
-
-var (
-    linuxHomeIdentityRegexp = regexp.MustCompile(`(?i)(/(?:home|Users)/)([^/\\\s"'\x60]+)`)
-    windowsHomeIdentityRegexp = regexp.MustCompile(`(?i)([A-Za-z]:\\Users\\)([^\\\s"'\x60]+)`)
-    projectDirIdentityRegexp = regexp.MustCompile(`(?i)(/(?:projects?|workspaces?|repos?|repositories|code)/)([^/\\\s"'\x60]+)`)
-    windowsProjectDirIdentityRegexp = regexp.MustCompile(`(?i)(\\(?:projects?|workspaces?|repos?|repositories)\\)([^\\\s"'\x60]+)`)
-    userFlagIdentityRegexp = regexp.MustCompile(`(?i)(--(?:user(?:name)?|account)|sudo\s+-u|runuser\s+-u)([=\s]+)("[^"]+"|'[^']+'|[^\s;&|]+)`)
-    projectFlagIdentityRegexp = regexp.MustCompile(`(?i)(--(?:project(?:-name)?|workspace|repo(?:sitory)?))([=\s]+)("[^"]+"|'[^']+'|[^\s;&|]+)`)
-    userEnvIdentityRegexp = regexp.MustCompile(`\b((?:USER|USERNAME|LOGNAME)\s*=\s*)("[^"]+"|'[^']+'|[^\s;&|]+)`)
-    projectEnvIdentityRegexp = regexp.MustCompile(`\b((?:PROJECT|PROJECT_NAME|REPO_NAME|WORKSPACE_NAME)\s*=\s*)("[^"]+"|'[^']+'|[^\s;&|]+)`)
-    userCommandIdentityRegexp = regexp.MustCompile(`\b((?:useradd|userdel|passwd|su)\s+(?:-[a-zA-Z]+\s+)*)([A-Za-z_][A-Za-z0-9_.-]*)`)
-    addressIdentityRegexp = regexp.MustCompile(`\b([A-Za-z_][A-Za-z0-9_.+-]*)@([A-Za-z0-9.-]+\.[A-Za-z]{2,})\b`)
-)
+    datasetIdentityTokenRegexp = regexp.MustCompile(`^__(?:USER|PROJECT)_[0-9]{4,}__$`)
 )
 
 func isIdentityPlaceholder(value string) bool {
