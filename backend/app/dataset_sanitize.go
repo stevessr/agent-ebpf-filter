@@ -42,7 +42,7 @@ func sanitizeRemoteDatasetRecord(record remoteDatasetRecord) remoteDatasetRecord
 func sanitizeRemoteDatasetRecordWithIdentity(record remoteDatasetRecord, ids *datasetIdentityMapper) remoteDatasetRecord {
 	record.CommandLine = sanitizeRemoteDatasetTextWithIdentity(record.CommandLine, ids)
 	if len(record.Args) > 0 {
-		record.Args = sanitizeRemoteDatasetArgsWithIdentity(record.Args, ids)
+		record.Args = sanitizeRemoteDatasetArgsWithCommand(record.Args, record.Comm, ids)
 	}
 	return record
 }
@@ -56,7 +56,7 @@ func sanitizeRemoteDatasetRow(row remoteDatasetRow) remoteDatasetRow {
 func sanitizeRemoteDatasetRowWithIdentity(row remoteDatasetRow, ids *datasetIdentityMapper) remoteDatasetRow {
 	row.CommandLine = sanitizeRemoteDatasetTextWithIdentity(row.CommandLine, ids)
 	if len(row.Args) > 0 {
-		row.Args = sanitizeRemoteDatasetArgsWithIdentity(row.Args, ids)
+		row.Args = sanitizeRemoteDatasetArgsWithCommand(row.Args, row.Comm, ids)
 	}
 	return row
 }
@@ -69,6 +69,20 @@ func sanitizeRemoteDatasetArgs(args []string) []string {
 }
 
 func sanitizeRemoteDatasetArgsWithIdentity(args []string, ids *datasetIdentityMapper) []string {
+	return sanitizeRemoteDatasetArgsWithCommand(args, "", ids)
+}
+
+func sanitizeRemoteDatasetArgsWithCommand(args []string, command string, ids *datasetIdentityMapper) []string {
+	// Some parsers put the executable in Comm and only flags in Args.
+	// Consult that executable so sudo -u is recognized in both fields.
+	if command == "" && len(args) > 0 {
+		command = args[0]
+	}
+	if strings.Contains(command, "/") {
+		parts := strings.Split(command, "/")
+		command = parts[len(parts)-1]
+	}
+	command = strings.ToLower(command)
 	out := make([]string, len(args))
 	redactNext := false
 	entityNext := ""
@@ -106,11 +120,9 @@ func sanitizeRemoteDatasetArgsWithIdentity(args []string, ids *datasetIdentityMa
 			// -u does not universally mean "user": head -u and some
 			// package tools use it for unrelated semantics. Restrict it
 			// to commands where it denotes an account/credential.
-			if len(args) > 0 {
-				switch strings.ToLower(args[0]) {
-				case "sudo", "runuser", "curl":
-					entityNext = "user"
-				}
+			switch command {
+			case "sudo", "runuser", "curl":
+				entityNext = "user"
 			}
 		case "--project", "--project-name", "--workspace", "--repo", "--repository":
 			entityNext = "project"
