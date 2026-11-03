@@ -24,3 +24,29 @@ jobs:
           persist-credentials: false
       - name: Verify deterministic splits, explicit labels and leak isolation
         run: python3 -m unittest discover -s scripts -p 'test_ml_curate_corpus.py' -v
+
+  curated-go:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.work
+          cache-dependency-path: |
+            go.work.sum
+            backend/go.sum
+      - name: Install eBPF code generation prerequisites
+        run: sudo apt-get update && sudo apt-get install -y clang llvm libbpf-dev libelf-dev
+      - name: Generate eBPF bindings
+        working-directory: backend/ebpf
+        run: |
+          go generate
+          go generate gen_tls.go
+          go generate gen_cgroup.go
+          go generate gen_lsm.go
+      - name: Test ML corpus provenance and external holdout rules
+        working-directory: backend
+        run: go test ./app -run 'TestDecision(TrainingLocalDataset|ExternalEvaluation)' -count=1 -v
