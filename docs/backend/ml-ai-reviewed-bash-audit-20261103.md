@@ -59,4 +59,12 @@ CI trains, serializes and reloads a short-lived candidate artifact; no policy ch
 
 Review a separate sample of CLI Command Risk v1.5 with pinned row IDs/family splits, then real Agent/eBPF sessions with independently audited policy actions. Evaluate BLOCK→ALLOW misses, precision, benign FPR and latency on source/run/time-disjoint holdouts before promotion.
 
-Feature caution: the current sanitization path rewrites canonical /etc/passwd, /etc/shadow and /etc/sudoers names to /etc/*** before feature extraction, removing important semantic distinctions. Future work must preserve safe path categories without exposing secrets.
+### Sanitization refinement (2026-11-03 follow-up)
+
+`CleanSensitive` now preserves publicly documented **path names** under `/etc`, notably `/etc/passwd`, `/etc/shadow`, `/etc/sudoers`, `/etc/hosts`, `/etc/group`, `/etc/fstab`, `/etc/resolv.conf` and `/etc/ssh/sshd_config`. These are risk-bearing *targets*, not private file contents. Even tricky cases such as `grep passwd /etc/passwd`, relative traversal to `../../etc/shadow`, and path suffixes no longer lose their semantics through blanket path redaction.
+
+The sanitized stream **still masks** literal credential values (including quoted `--token` and `Authorization: Bearer/Basic` credentials), crypt hash literals, identifying user-home paths, user email addresses, and deployment-specific IP addresses. Widely standardized non-identifying IPv4 (loopback, unspecified, broadcast and RFC 5737 documentation blocks) is now retained.
+
+Regressions in `backend/app/dataset_sanitize_test.go` and `TestPullRemoteDatasetFromClassicCSVWithCleaning` are checked by `ML curated corpus quality` CI. This modifies the feature representation of **newly built candidate models**; existing deployed model artifacts are not retrained or promoted. Candidate metrics must be compared on the same held-out samples and false-positive budgets, not assumed to improve automatically.
+
+**Privacy boundary:** retaining a string naming `/etc/shadow` does not mean returning its contents, making its underlying filesystem access permissible, or preserving embedded crypt password hashes. Authorization remains a separate policy check.
