@@ -764,8 +764,8 @@ func TestPullRemoteDatasetFromClassicCSVWithCleaning(t *testing.T) {
 	if resp.Rows[1].Label != "BLOCK" {
 		t.Fatalf("second row label = %q, want BLOCK", resp.Rows[1].Label)
 	}
-	if strings.Contains(resp.Rows[1].CommandLine, "/etc/passwd") {
-		t.Fatalf("sensitive path was not cleaned: %#v", resp.Rows[1])
+	if !strings.Contains(resp.Rows[1].CommandLine, "/etc/passwd") {
+		t.Fatalf("public /etc path was incorrectly redacted: %#v", resp.Rows[1])
 	}
 	if resp.Rows[1].Source != "HttpParamsDataset/payload_train.csv" {
 		t.Fatalf("row source = %q, want dataset source", resp.Rows[1].Source)
