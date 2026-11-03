@@ -71,10 +71,22 @@ func sanitizeRemoteDatasetArgs(args []string) []string {
 func sanitizeRemoteDatasetArgsWithIdentity(args []string, ids *datasetIdentityMapper) []string {
 	out := make([]string, len(args))
 	redactNext := false
+	entityNext := ""
 	for i, arg := range args {
 		if redactNext {
 			out[i] = "***"
 			redactNext = false
+			continue
+		}
+		if entityNext != "" {
+			if entityNext == "user" && strings.Contains(arg, ":") {
+				// curl --user user:password is a credential, not only an
+				// identity. Never leave the password half visible.
+				out[i] = "***"
+			} else {
+				out[i] = ids.quoted(entityNext, arg)
+			}
+			entityNext = ""
 			continue
 		}
 		out[i] = sanitizeRemoteDatasetTextWithIdentity(arg, ids)
@@ -84,6 +96,10 @@ func sanitizeRemoteDatasetArgsWithIdentity(args []string, ids *datasetIdentityMa
 			"authorization: bearer", "authorization: basic",
 			"authorization=bearer", "authorization=basic":
 			redactNext = true
+		case "--user", "--username", "--account", "-u":
+			entityNext = "user"
+		case "--project", "--project-name", "--workspace", "--repo", "--repository":
+			entityNext = "project"
 		}
 	}
 	return out
