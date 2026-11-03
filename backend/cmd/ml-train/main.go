@@ -32,6 +32,12 @@ func run() error {
 	if flag.NArg() != 0 {
 		return fmt.Errorf("unexpected positional arguments: %v", flag.Args())
 	}
+	if *testFile != "" && (*datasetFile == "" || *testSHA == "") {
+		return fmt.Errorf("--external-test-file requires --dataset-file and --external-test-sha256")
+	}
+	if *testFile == "" && *testSHA != "" {
+		return fmt.Errorf("--external-test-sha256 requires --external-test-file")
+	}
 
 	sources := app.DefaultDecisionTrainingDatasets()
 	if *datasetFile != "" {
@@ -55,9 +61,6 @@ func run() error {
 		return err
 	}
 	if *testFile != "" {
-		if *datasetFile == "" || *testSHA == "" {
-			return fmt.Errorf("--external-test-file requires --dataset-file and --external-test-sha256")
-		}
 		evaluation, evalErr := app.EvaluateDecisionModelOnExternalHoldout(
 			*output,
 			app.DecisionTrainingDataset{Name: filepath.Base(*datasetFile), LocalPath: *datasetFile, ExpectedSHA256: *datasetSHA, License: *datasetLicense},
@@ -67,8 +70,6 @@ func run() error {
 			return fmt.Errorf("external holdout: %w", evalErr)
 		}
 		report.ExternalTest = &evaluation
-	} else if *testSHA != "" {
-		return fmt.Errorf("--external-test-sha256 requires --external-test-file")
 	}
 
 	manifestPath := *output + ".manifest.json"
