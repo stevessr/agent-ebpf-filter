@@ -41,5 +41,12 @@
       "command": "chmod 0600 id_rsa | cat ; echo 'ok'",
       "reason_zh": "chmod 0600 id_rsa 收紧私钥文件读写权限，后续管道与 echo 不造成数据外发或破坏；源风险标签是误判"
     }
-  ]
+  ],
+  "sourceGitBlobs": {
+    "data/taglio4_3k/taglio4_safe.jsonl": "7a4a1553543fd2fc6eb8adc0054365a6eb142b86",
+    "data/taglio4_3k/taglio4_unsafe.jsonl": "59d5ce3e5705df4939d57e3cb4807be62da89a32"
+  },
+  "trainingUse": "Explicit opt-in only. AI-reviewed, candidate-only. Never treat as human validation or cross-host proof.",
+  "splitCaveat": "scenario_id is a static curation category; run_id is a source row trace, not a real host/session run.",
+  "dataLimitations": "Commands may rely on shell state, path permissions, aliases or side effects; deferred rows are not binary training examples."
 }
