@@ -186,6 +186,11 @@ func (m *datasetIdentityMapper) pseudonymizeDatasetIdentities(text string) strin
             // a bare username; do not accidentally retain the password.
             return fields[1] + fields[2] + "***"
         }
+        if strings.ContainsAny(value, "/\\") {
+            // A structured path was already processed by home/project
+            // recognizers; treating it as an opaque username loses semantics.
+            return match
+        }
         return fields[1] + fields[2] + m.quoted("user", value)
     })
     // In e-mail/SSH targets keep a user identifier while removing hostnames.
