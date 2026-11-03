@@ -88,6 +88,10 @@ func sanitizeRemoteDatasetText(text string) string {
 				return "***@***"
 			case strings.Contains(lower, "akia"):
 				return "AKIA****************"
+			case strings.Contains(lower, "authorization"):
+				// Keep the canonical redacted header stable across a second
+				// pass; do not strip the separator or leave bearer fragments.
+				return "Authorization: ***"
 			case strings.Contains(lower, "password"), strings.Contains(lower, "passwd"), strings.Contains(lower, "pwd"),
 				strings.Contains(lower, "token"), strings.Contains(lower, "secret"), strings.Contains(lower, "apikey"),
 				strings.Contains(lower, "api-key"), strings.Contains(lower, "access_key"), strings.Contains(lower, "access-key"),
