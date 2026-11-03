@@ -2,7 +2,7 @@
 """Curate reviewed command-action JSONL without inventing labels from attack traces.
 
 Inputs must contain: command/commandLine, label, scenario_id, run_id, and
-label_source=human_reviewed|policy_decision. This script does not execute commands.
+label_source=human_reviewed|policy_decision or explicitly opted-in assistant_reviewed. This script does not execute commands.
 Output training files retain explicit labels for backend/cmd/ml-train.
 """
 import argparse
@@ -14,7 +14,7 @@ import sys
 
 
 VALID_LABELS = {"ALLOW": "ALLOW", "BLOCK": "BLOCK", "safe": "ALLOW", "unsafe": "BLOCK"}
-VALID_LABEL_SOURCES = {"human_reviewed", "policy_decision"}
+VALID_LABEL_SOURCES = {"human_reviewed", "policy_decision", "assistant_reviewed"}
 
 
 def option_pairs(options, flag):
@@ -27,7 +27,7 @@ def option_pairs(options, flag):
     return parsed
 
 
-def read_source(name, path, license_id):
+def read_source(name, path, license_id, allow_assistant_reviewed=False):
     if not license_id:
         raise ValueError(f"{name}: a source license is required")
     source = Path(path)
@@ -56,6 +56,11 @@ def read_source(name, path, license_id):
             raise ValueError(f"{name}:{line_number}: explicit binary ALLOW/BLOCK action label required")
         if source_kind not in VALID_LABEL_SOURCES:
             raise ValueError(f"{name}:{line_number}: explicit reviewed action provenance required")
+        if source_kind == "assistant_reviewed":
+            if not allow_assistant_reviewed:
+                raise ValueError(f"{name}:{line_number}: assistant-reviewed labels require explicit --allow-ai-reviewed opt-in")
+            if obj.get("review_status") != "approved_for_candidate_only":
+                raise ValueError(f"{name}:{line_number}: AI labels must be individually approved for candidate-only use")
         if not isinstance(scenario, str) or not scenario.strip():
             raise ValueError(f"{name}:{line_number}: scenario_id is required")
         if not isinstance(run_id, str) or not run_id.strip():
@@ -69,6 +74,7 @@ def read_source(name, path, license_id):
             "scenario_id": scenario.strip(),
             "run_id": run_id.strip(),
             "label_source": source_kind,
+            "review_status": obj.get("review_status", ""),
         })
     return records, {"name": name, "file": source.name, "license": license_id, "sha256": checksum, "inputRows": len(records)}
 
@@ -132,12 +138,13 @@ def split_rows(rows, group_by, seed, validation_fraction, test_fraction, min_per
 
 
 def build_corpus(sources, licenses, output_dir, group_by="scenario", seed=20261103,
-                 validation_fraction=0.2, test_fraction=0.2, min_per_class=20):
+                 validation_fraction=0.2, test_fraction=0.2, min_per_class=20,
+                 allow_assistant_reviewed=False):
     if not sources or set(sources) != set(licenses):
         raise ValueError("provide a matching --license NAME=LICENSE for every --source NAME=FILE")
     all_rows, provenance = [], []
     for name in sorted(sources):
-        rows, entry = read_source(name, sources[name], licenses[name])
+        rows, entry = read_source(name, sources[name], licenses[name], allow_assistant_reviewed)
         all_rows.extend(rows)
         provenance.append(entry)
     splits, grouped, excluded = split_rows(
@@ -150,6 +157,7 @@ def build_corpus(sources, licenses, output_dir, group_by="scenario", seed=202611
         "groupBy": group_by,
         "seed": seed,
         "sourceProvenance": provenance,
+        "assistantReviewedAccepted": allow_assistant_reviewed,
         "split": {},
         "warning": "Labels require review; attack-window membership is not an action label. External validation is not performed by ml-train.",
     }
@@ -180,6 +188,8 @@ def main():
     parser.add_argument("--validation-fraction", type=float, default=0.2)
     parser.add_argument("--test-fraction", type=float, default=0.2)
     parser.add_argument("--min-per-class", type=int, default=20)
+    parser.add_argument("--allow-ai-reviewed", action="store_true",
+                        help="opt in to assistant_reviewed labels as candidate training data; never count these as human ground truth")
     args = parser.parse_args()
     try:
         if args.min_per_class < 1:
@@ -187,7 +197,8 @@ def main():
         result = build_corpus(
             option_pairs(args.source, "--source"), option_pairs(args.license, "--license"),
             args.output_dir, args.group_by, args.seed,
-            args.validation_fraction, args.test_fraction, args.min_per_class)
+            args.validation_fraction, args.test_fraction, args.min_per_class,
+            args.allow_ai_reviewed)
     except (ValueError, OSError) as exc:
         parser.exit(2, f"corpus rejected: {exc}\n")
     print(json.dumps(result["split"], ensure_ascii=False, sort_keys=True))
