@@ -29,7 +29,7 @@ var (
     projectEnvIdentityRegexp = regexp.MustCompile(`\b((?:PROJECT|PROJECT_NAME|REPO_NAME|WORKSPACE_NAME)\s*=\s*)("[^"]+"|'[^']+'|[^\s;&|]+)`)
     userCommandIdentityRegexp = regexp.MustCompile(`\b((?:useradd|userdel|passwd|su)\s+(?:-[a-zA-Z]+\s+)*)([A-Za-z_][A-Za-z0-9_.-]*)`)
     addressIdentityRegexp = regexp.MustCompile(`\b([A-Za-z_][A-Za-z0-9_.+-]*)@([A-Za-z0-9.-]+\.[A-Za-z]{2,})\b`)
-    repoRemoteIdentityRegexp = regexp.MustCompile(`(?i)((?:github|gitlab|bitbucket)\.com[:/])([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)`)
+    repoRemoteIdentityRegexp = regexp.MustCompile(`(?i)((?:github\.com|gitlab\.com|bitbucket\.org)[:/])([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)`)
     homeAliasIdentityRegexp = regexp.MustCompile(`(~)([A-Za-z_][A-Za-z0-9_.-]+)(/)`)
     datasetIdentityTokenRegexp = regexp.MustCompile(`^__(?:USER|PROJECT)_[0-9]{4,}__$`)
 )
