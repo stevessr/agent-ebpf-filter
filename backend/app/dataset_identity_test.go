@@ -17,6 +17,7 @@ func TestDatasetIdentityMapperPreservesStableReferences(t *testing.T) {
         {"passwd -l root", "passwd -l root"},
         {"git clone git@github.com:alice/secret-app.git", "git clone git@github.com:__USER_0001__/__PROJECT_0001__.git"},
         {"git clone https://github.com/bob/another-app.git", "git clone https://github.com/__USER_0002__/__PROJECT_0002__.git"},
+        {"git clone git@bitbucket.org:alice/secret-app.git", "git clone git@bitbucket.org:__USER_0001__/__PROJECT_0001__.git"},
         {"curl --user alice:secret-value", "curl --user ***"},
         {"cat /etc/shadow", "cat /etc/shadow"},
         {"cd /tmp/unclassified-name", "cd /tmp/unclassified-name"},
