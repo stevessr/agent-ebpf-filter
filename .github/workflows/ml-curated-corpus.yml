@@ -9,6 +9,9 @@ on:
       - research/curated/ai-review-needs-context.jsonl
       - research/curated/ai-review-manifest.json
       - backend/app/decision_training.go
+      - backend/app/dataset_sanitize.go
+      - backend/app/dataset_sanitize_test.go
+      - backend/app/remotedatasets_test.go
       - backend/cmd/ml-train/**
       - .github/workflows/ml-curated-corpus.yml
   push:
@@ -19,6 +22,9 @@ on:
       - research/curated/ai-reviewed-bash-actions.jsonl
       - research/curated/ai-review-needs-context.jsonl
       - research/curated/ai-review-manifest.json
+      - backend/app/dataset_sanitize.go
+      - backend/app/dataset_sanitize_test.go
+      - backend/app/remotedatasets_test.go
       - .github/workflows/ml-curated-corpus.yml
 permissions:
   contents: read
@@ -71,6 +77,9 @@ jobs:
       - name: Test ML corpus provenance and external holdout rules
         working-directory: backend
         run: go test ./app -run 'TestDecision(TrainingLocalDataset|ExternalEvaluation|CandidateLocalCorpus)' -count=1 -v
+      - name: Test public path semantics and credential redaction
+        working-directory: backend
+        run: go test ./app -run 'Test(SanitizeRemoteDataset|PullRemoteDatasetFromClassicCSVWithCleaning)' -count=1 -v
       - name: Build AI-reviewed labeled model candidate (never deployed)
         working-directory: backend
         run: |
