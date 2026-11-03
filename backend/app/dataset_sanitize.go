@@ -106,6 +106,14 @@ func sanitizeRemoteDatasetTextWithIdentity(text string, ids *datasetIdentityMapp
 			if isNonIdentifyingIPv4(match) {
 				return match
 			}
+			// git@github.com is a public service account on a globally
+			// recognized host. The owner/repository segments in its remote
+			// path are pseudonymized separately.
+			if strings.EqualFold(match, "git@github.com") ||
+				strings.EqualFold(match, "git@gitlab.com") ||
+				strings.EqualFold(match, "git@bitbucket.org") {
+				return match
+			}
 			// "grep passwd /etc/passwd" has a public pathname after a
 			// search keyword, not a password assignment. Keep these exact
 			// path references, but never exempt key=value/CLI secrets.
