@@ -1,0 +1,26 @@
+name: ML curated corpus quality
+on:
+  pull_request:
+    paths:
+      - scripts/ml-curate-corpus.py
+      - scripts/test_ml_curate_corpus.py
+      - backend/app/decision_training.go
+      - backend/cmd/ml-train/**
+      - .github/workflows/ml-curated-corpus.yml
+  push:
+    paths:
+      - scripts/ml-curate-corpus.py
+      - scripts/test_ml_curate_corpus.py
+      - .github/workflows/ml-curated-corpus.yml
+permissions:
+  contents: read
+jobs:
+  curated-jsonl:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify deterministic splits, explicit labels and leak isolation
+        run: python3 -m unittest discover -s scripts -p 'test_ml_curate_corpus.py' -v
