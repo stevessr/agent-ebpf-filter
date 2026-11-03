@@ -1,8 +1,6 @@
 package app
 
 import (
-	"agent-ebpf-filter/app/recording"
-	"agent-ebpf-filter/app/research"
 	"context"
 	cryptorand "crypto/rand"
 	"encoding/hex"
@@ -14,6 +12,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"agent-ebpf-filter/app/recording"
+	"agent-ebpf-filter/app/research"
 
 	"agent-ebpf-filter/app/ml"
 	"agent-ebpf-filter/app/platform"
@@ -65,14 +66,14 @@ func generateAccessToken() (string, error) {
 }
 
 func (s *runtimeState) saveLocked() error {
-	if err := platform.MkdirAllAsRealUser(platform.RuntimeSettingsDir(), 0755); err != nil {
+	if err := platform.MkdirAllAsRealUser(platform.RuntimeSettingsDir(), 0o755); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(s.settings, "", "  ")
 	if err != nil {
 		return err
 	}
-	return platform.WriteFileAsRealUser(platform.RuntimeSettingsPath(), data, 0644)
+	return platform.WriteFileAsRealUser(platform.RuntimeSettingsPath(), data, 0o644)
 }
 
 func cloneRuntimeSettings(settings RuntimeSettings) (RuntimeSettings, error) {
@@ -224,6 +225,7 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 	settings := RuntimeSettings{
 		LogPersistenceEnabled: true,
 		LogFilePath:           platform.DefaultEventLogPath(),
+		MLConfig:              MLConfig{AllowRiskScoreThreshold: 0.30},
 		EventStoreMaxRecords:  defaultEventStoreMaxRecords,
 		EventStoreMaxAge:      defaultEventStoreMaxAge,
 		DisabledEventTypes:    defaultRenewDailyDisabledEventTypes(),
@@ -257,6 +259,7 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 			settings = RuntimeSettings{
 				LogPersistenceEnabled: true,
 				LogFilePath:           platform.DefaultEventLogPath(),
+				MLConfig:              MLConfig{AllowRiskScoreThreshold: 0.30},
 				EventStoreMaxRecords:  defaultEventStoreMaxRecords,
 				EventStoreMaxAge:      defaultEventStoreMaxAge,
 				DisabledEventTypes:    defaultRenewDailyDisabledEventTypes(),

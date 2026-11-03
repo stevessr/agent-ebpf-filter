@@ -3,18 +3,17 @@ package sweep
 import "agent-ebpf-filter/app/ml"
 
 type sweepProfile struct {
-	Name       string
-	ModelType  ModelType
-	Comparable bool
-	Kind       string // "heatmap" or "bar"
-	XName      string
-	YName      string
-	XValues    []int
-	YValues    []int
-	XLabel     func(int) string
-	YLabel     func(int) string
-	Build      func(x, y int) MLConfig
-	Summary    func(cfg MLConfig) string
+	Name      string
+	ModelType ModelType
+	Kind      string // "heatmap" or "bar"
+	XName     string
+	YName     string
+	XValues   []int
+	YValues   []int
+	XLabel    func(int) string
+	YLabel    func(int) string
+	Build     func(x, y int) MLConfig
+	Summary   func(cfg MLConfig) string
 
 	// Parameter metadata is used by the comprehensive axis-sweep verifier.
 	// Numeric parameters must expose RequiredDiscretePoints unique values; small
@@ -26,6 +25,8 @@ type sweepProfile struct {
 	DatasetName            string
 	DatasetDescription     string
 }
+
+const holdoutStrategyGroupedBehaviorV1 = "grouped_behavior_v1"
 
 type sweepResult struct {
 	Profile             string
@@ -42,9 +43,12 @@ type sweepResult struct {
 	TrainAccuracy       float64
 	ValidationAccuracy  float64
 	AllowPassRate       float64
+	BlockPassRate       float64
+	BalancedAccuracy    float64
 	NumSamples          int
 	TrainSamples        int
 	ValidationSamples   int
+	HoldoutStrategy     string
 	Duration            float64
 	InferenceDuration   float64
 	InferenceSamples    int
@@ -77,9 +81,12 @@ type repeatRunResult struct {
 	TrainAccuracy       float64
 	ValidationAccuracy  float64
 	AllowPassRate       float64
+	BlockPassRate       float64
+	BalancedAccuracy    float64
 	NumSamples          int
 	TrainSamples        int
 	ValidationSamples   int
+	HoldoutStrategy     string
 	Duration            float64
 	InferenceDuration   float64
 	InferenceSamples    int
@@ -109,6 +116,14 @@ type repeatSummary struct {
 	AllowStd             float64
 	AllowMin             float64
 	AllowMax             float64
+	BlockMean            float64
+	BlockStd             float64
+	BlockMin             float64
+	BlockMax             float64
+	BalancedMean         float64
+	BalancedStd          float64
+	BalancedMin          float64
+	BalancedMax          float64
 	DurationMean         float64
 	DurationStd          float64
 	InferenceMean        float64

@@ -113,3 +113,89 @@ func TestSeedRuntimeSettingsFromEnvAppliesLLMAndBehavior(t *testing.T) {
 		t.Fatalf("LlmSystemPrompt = %q, want env prompt", settings.MLConfig.LlmSystemPrompt)
 	}
 }
+
+func TestSeedRuntimeListSettingsFromEnv(t *testing.T) {
+	t.Setenv("AGENT_RUNTIME_DISABLED_EVENT_TYPES", "1, 5,9")
+	t.Setenv("AGENT_RUNTIME_IGNORED_PATHS", "/proc, /var/cache/apt ,")
+
+	settings := RuntimeSettings{
+		DisabledEventTypes: []uint32{1},
+		IgnoredPaths:       []string{"/tmp"},
+	}
+	seedRuntimeListSettingsFromEnv(&settings)
+
+	wantTypes := []uint32{1, 5, 9}
+	if len(settings.DisabledEventTypes) != len(wantTypes) {
+		t.Fatalf("DisabledEventTypes = %v, want %v", settings.DisabledEventTypes, wantTypes)
+	}
+	for index, eventType := range wantTypes {
+		if settings.DisabledEventTypes[index] != eventType {
+			t.Fatalf("DisabledEventTypes = %v, want %v", settings.DisabledEventTypes, wantTypes)
+		}
+	}
+
+	wantPaths := []string{"/proc", "/var/cache/apt"}
+	if len(settings.IgnoredPaths) != len(wantPaths) {
+		t.Fatalf("IgnoredPaths = %v, want %v", settings.IgnoredPaths, wantPaths)
+	}
+	for index, path := range wantPaths {
+		if settings.IgnoredPaths[index] != path {
+			t.Fatalf("IgnoredPaths = %v, want %v", settings.IgnoredPaths, wantPaths)
+		}
+	}
+}
+
+func TestSeedRuntimeListSettingsFromEnvClearsDisabledEventTypes(t *testing.T) {
+	t.Setenv("AGENT_RUNTIME_DISABLED_EVENT_TYPES", "")
+	t.Setenv("AGENT_RUNTIME_IGNORED_PATHS", "")
+
+	settings := RuntimeSettings{
+		DisabledEventTypes: []uint32{1, 5, 9, 11},
+		IgnoredPaths:       []string{"/proc", "/tmp"},
+	}
+	seedRuntimeListSettingsFromEnv(&settings)
+
+	if len(settings.DisabledEventTypes) != 0 {
+		t.Fatalf("DisabledEventTypes = %v, want explicitly empty list to clear defaults", settings.DisabledEventTypes)
+	}
+	if len(settings.IgnoredPaths) != 0 {
+		t.Fatalf("IgnoredPaths = %v, want explicitly empty list to clear defaults", settings.IgnoredPaths)
+	}
+}
+
+func TestSeedRuntimeListSettingsInvalidEventType(t *testing.T) {
+	t.Setenv("AGENT_RUNTIME_DISABLED_EVENT_TYPES", "1,abc")
+
+	settings := RuntimeSettings{DisabledEventTypes: []uint32{7}}
+	seedRuntimeListSettingsFromEnv(&settings)
+
+	if len(settings.DisabledEventTypes) != 1 || settings.DisabledEventTypes[0] != 7 {
+		t.Fatalf("DisabledEventTypes = %v, want invalid env to keep previous value", settings.DisabledEventTypes)
+	}
+}
+
+func TestParseStringListTrimsEmptyEntries(t *testing.T) {
+	got := parseStringList(" /proc ,,  /var/log/journal ,")
+	want := []string{"/proc", "/var/log/journal"}
+	if len(got) != len(want) {
+		t.Fatalf("parseStringList() = %v, want %v", got, want)
+	}
+	for index, value := range want {
+		if got[index] != value {
+			t.Fatalf("parseStringList() = %v, want %v", got, want)
+		}
+	}
+}
+
+func TestNormalizeRuntimeSettingsPreservesZeroAllowRiskBoundary(t *testing.T) {
+	settings := RuntimeSettings{MLConfig: MLConfig{
+		AllowRiskScoreThreshold:  0,
+		BlockConfidenceThreshold: 0.85,
+	}}
+	if err := normalizeRuntimeSettings(&settings); err != nil {
+		t.Fatalf("normalizeRuntimeSettings() error = %v", err)
+	}
+	if settings.MLConfig.AllowRiskScoreThreshold != 0 {
+		t.Fatalf("allow risk threshold = %v, want explicit 0", settings.MLConfig.AllowRiskScoreThreshold)
+	}
+}

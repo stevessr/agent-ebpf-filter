@@ -29,15 +29,25 @@ const (
 	decisionTrainingNumTrees       = 72
 	decisionTrainingMaxDepth       = 14
 	decisionTrainingMinSamplesLeaf = 3
+
+	// decisionTrainingModelType is the promoted model family. Other catalog
+	// families stay reachable through the CLI so candidate artifacts can be
+	// A/B compared against the promoted one on the same holdout.
+	decisionTrainingModelType = string(ml.ModelRandomForest)
 )
 
-// DecisionTrainingHyperparameters are the random-forest knobs selected offline
-// by the sweep harness. They are recorded in the manifest so a candidate
-// artifact can be reproduced without reading this source file.
+// DecisionTrainingHyperparameters are the model family and knobs selected
+// offline by the sweep harness. They are recorded in the manifest so a
+// candidate artifact can be reproduced without reading this source file.
+// ModelType is a built-in catalog entry; the three numeric knobs mean whatever
+// that family means by them (trees/depth/leaf for forests, learning
+// rate/iterations for the linear families), matching the runtime MLConfig
+// convention.
 type DecisionTrainingHyperparameters struct {
-	NumTrees       int `json:"numTrees"`
-	MaxDepth       int `json:"maxDepth"`
-	MinSamplesLeaf int `json:"minSamplesLeaf"`
+	ModelType      string `json:"modelType"`
+	NumTrees       int    `json:"numTrees"`
+	MaxDepth       int    `json:"maxDepth"`
+	MinSamplesLeaf int    `json:"minSamplesLeaf"`
 }
 
 const (
@@ -51,35 +61,86 @@ const (
 // docs/backend/ml-models-summary.md and a fresh stability comparison.
 func DefaultDecisionTrainingHyperparameters() DecisionTrainingHyperparameters {
 	return DecisionTrainingHyperparameters{
+		ModelType:      decisionTrainingModelType,
 		NumTrees:       decisionTrainingNumTrees,
 		MaxDepth:       decisionTrainingMaxDepth,
 		MinSamplesLeaf: decisionTrainingMinSamplesLeaf,
 	}
 }
 
-// normalizeDecisionTrainingHyperparameters treats zero fields as "use the
-// promoted default" so callers can override only the knobs they are testing.
+// normalizeDecisionTrainingHyperparameters resolves the model family and
+// validates explicit overrides. A zero numeric knob means "use the family
+// default" (the promoted trio for the promoted forest, the builtin catalog
+// preset for any other family), so it is validated only when actually set.
 func normalizeDecisionTrainingHyperparameters(hyperparameters DecisionTrainingHyperparameters) (DecisionTrainingHyperparameters, error) {
-	defaults := DefaultDecisionTrainingHyperparameters()
-	if hyperparameters.NumTrees == 0 {
-		hyperparameters.NumTrees = defaults.NumTrees
+	hyperparameters.ModelType = strings.TrimSpace(hyperparameters.ModelType)
+	if hyperparameters.ModelType == "" {
+		hyperparameters.ModelType = decisionTrainingModelType
 	}
-	if hyperparameters.MaxDepth == 0 {
-		hyperparameters.MaxDepth = defaults.MaxDepth
+	if !decisionTrainingModelTypeKnown(hyperparameters.ModelType) {
+		return hyperparameters, fmt.Errorf("unknown model type %q", hyperparameters.ModelType)
 	}
-	if hyperparameters.MinSamplesLeaf == 0 {
-		hyperparameters.MinSamplesLeaf = defaults.MinSamplesLeaf
-	}
-	if hyperparameters.NumTrees < 1 || hyperparameters.NumTrees > maxDecisionTrainingNumTrees {
-		return hyperparameters, fmt.Errorf("numTrees must be between 1 and %d, got %d", maxDecisionTrainingNumTrees, hyperparameters.NumTrees)
-	}
-	if hyperparameters.MaxDepth < 1 || hyperparameters.MaxDepth > maxDecisionTrainingMaxDepth {
-		return hyperparameters, fmt.Errorf("maxDepth must be between 1 and %d, got %d", maxDecisionTrainingMaxDepth, hyperparameters.MaxDepth)
-	}
-	if hyperparameters.MinSamplesLeaf < 1 || hyperparameters.MinSamplesLeaf > maxDecisionTrainingMinSamplesLeaf {
-		return hyperparameters, fmt.Errorf("minSamplesLeaf must be between 1 and %d, got %d", maxDecisionTrainingMinSamplesLeaf, hyperparameters.MinSamplesLeaf)
+	for _, knob := range []struct {
+		name     string
+		value    int
+		maxValue int
+	}{
+		{name: "numTrees", value: hyperparameters.NumTrees, maxValue: maxDecisionTrainingNumTrees},
+		{name: "maxDepth", value: hyperparameters.MaxDepth, maxValue: maxDecisionTrainingMaxDepth},
+		{name: "minSamplesLeaf", value: hyperparameters.MinSamplesLeaf, maxValue: maxDecisionTrainingMinSamplesLeaf},
+	} {
+		if knob.value < 0 {
+			return hyperparameters, fmt.Errorf("%s must not be negative, got %d", knob.name, knob.value)
+		}
+		if knob.value > knob.maxValue {
+			return hyperparameters, fmt.Errorf("%s must be between 1 and %d, got %d", knob.name, knob.maxValue, knob.value)
+		}
 	}
 	return hyperparameters, nil
+}
+
+func decisionTrainingModelTypeKnown(modelType string) bool {
+	for _, profile := range ml.BuiltinModelProfiles {
+		if string(profile.Type) == modelType {
+			return true
+		}
+	}
+	return false
+}
+
+// resolveDecisionTrainingConfig maps requested hyperparameters onto a runtime
+// MLConfig and returns the effective values for the manifest. The promoted
+// family keeps its tuned trio; every other catalog family starts from its
+// builtin preset, and explicit non-zero knobs override either one.
+func resolveDecisionTrainingConfig(hyperparameters DecisionTrainingHyperparameters) (ml.MLConfig, DecisionTrainingHyperparameters, error) {
+	normalized, err := normalizeDecisionTrainingHyperparameters(hyperparameters)
+	if err != nil {
+		return ml.MLConfig{}, hyperparameters, err
+	}
+	cfg := ml.DefaultMLConfig()
+	cfg.LlmEnabled = false
+	cfg.AutoTrain = false
+	cfg.ModelType = ml.ModelType(normalized.ModelType)
+	if normalized.ModelType == decisionTrainingModelType {
+		cfg.NumTrees = decisionTrainingNumTrees
+		cfg.MaxDepth = decisionTrainingMaxDepth
+		cfg.MinSamplesLeaf = decisionTrainingMinSamplesLeaf
+	} else {
+		cfg = ml.ApplyBuiltinModelPresetForType(cfg, cfg.ModelType)
+	}
+	if normalized.NumTrees > 0 {
+		cfg.NumTrees = normalized.NumTrees
+	}
+	if normalized.MaxDepth > 0 {
+		cfg.MaxDepth = normalized.MaxDepth
+	}
+	if normalized.MinSamplesLeaf > 0 {
+		cfg.MinSamplesLeaf = normalized.MinSamplesLeaf
+	}
+	normalized.NumTrees = cfg.NumTrees
+	normalized.MaxDepth = cfg.MaxDepth
+	normalized.MinSamplesLeaf = cfg.MinSamplesLeaf
+	return cfg, normalized, nil
 }
 
 // DecisionTrainingDataset identifies one labeled JSONL source for offline training.
@@ -142,18 +203,10 @@ func TrainDecisionModelFromPublicDatasets(sources []DecisionTrainingDataset, mod
 	if modelPath == "" {
 		return DecisionModelTrainingReport{}, fmt.Errorf("model output path is required")
 	}
-	hyperparameters, err := normalizeDecisionTrainingHyperparameters(hyperparameters)
+	cfg, hyperparameters, err := resolveDecisionTrainingConfig(hyperparameters)
 	if err != nil {
 		return DecisionModelTrainingReport{}, err
 	}
-
-	cfg := ml.DefaultMLConfig()
-	cfg.ModelType = ml.ModelRandomForest
-	cfg.NumTrees = hyperparameters.NumTrees
-	cfg.MaxDepth = hyperparameters.MaxDepth
-	cfg.MinSamplesLeaf = hyperparameters.MinSamplesLeaf
-	cfg.LlmEnabled = false
-	cfg.AutoTrain = false
 	store := ml.NewTrainingDataStore(decisionTrainingStoreLimit)
 	extractor := &FeatureExtractor{history: newRecentHistoryBuffer(1)}
 	seen := make(map[string]int32)

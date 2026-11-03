@@ -120,11 +120,6 @@ func (t *ModelTrainer) trainForestWithConfig(store *TrainingDataStore, numTrees,
 
 	forest.IsTrained = true
 
-	pruned := forest.Prune(trainSet)
-	if pruned > 0 {
-		t.Logf("Pruned %d underperforming trees, %d remaining", pruned, len(forest.Trees))
-	}
-
 	t.Logf("Evaluating model on %d train samples and %d validation samples...", len(trainSet), len(validationSet))
 	evalStart := time.Now()
 	trainAccuracy := EvaluateForest(forest, trainSet)

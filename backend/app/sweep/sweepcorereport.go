@@ -1,7 +1,6 @@
 package sweep
 
 import (
-	"agent-ebpf-filter/app/ml"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"agent-ebpf-filter/app/ml"
 )
 
 func runMLSweepReport() error {
@@ -49,7 +50,7 @@ func runMLSweepReport() error {
 		return err
 	}
 	resultsPath := filepath.Join(outDir, "results.csv")
-	if !resumeSweep {
+	if !resumeSweep || !sweepResultsCSVHasCurrentSchema(resultsPath) {
 		_ = os.Remove(resultsPath)
 	}
 
@@ -95,7 +96,7 @@ func runMLSweepReport() error {
 			profileResultsPath := filepath.Join(outDir, slug(profile.Name)+"-grid.csv")
 			var results []sweepResult
 			var best sweepResult
-			if resumeSweep {
+			if resumeSweep && sweepResultsCSVHasCurrentSchema(profileResultsPath) {
 				if cached, err := readSweepResultsCSV(profileResultsPath); err == nil && len(cached) >= expectedProfileResultCount(profile) {
 					results = annotateSweepResults(profile, cached)
 					best = bestSweepResult(results)
@@ -141,8 +142,8 @@ func runMLSweepReport() error {
 				Chart:   chart,
 			})
 			stabilityCandidates = append(stabilityCandidates, selectTopRepeatConfigs(profile, results, stabilityTop, store, benchmarkSamples)...)
-			fmt.Printf("[ml-sweep] %-32s best=%s val=%.2f%% train=%.2f%%\n",
-				profile.Name, best.ConfigSummary, best.ValidationAccuracy*100, best.TrainAccuracy*100)
+			fmt.Printf("[ml-sweep] %-32s best=%s val=%.2f%% bal=%.2f%% block=%.2f%% train=%.2f%%\n",
+				profile.Name, best.ConfigSummary, best.ValidationAccuracy*100, best.BalancedAccuracy*100, best.BlockPassRate*100, best.TrainAccuracy*100)
 		}
 	}
 
@@ -246,6 +247,8 @@ func runMLSweepReport() error {
 			"trainAccuracy":            screenBest.Best.TrainAccuracy,
 			"validationAccuracy":       screenBest.Best.ValidationAccuracy,
 			"allowPassRate":            screenBest.Best.AllowPassRate,
+			"blockPassRate":            screenBest.Best.BlockPassRate,
+			"balancedAccuracy":         screenBest.Best.BalancedAccuracy,
 			"durationSeconds":          screenBest.Best.Duration,
 			"inferenceDurationSeconds": screenBest.Best.InferenceDuration,
 			"inferenceSamples":         screenBest.Best.InferenceSamples,
@@ -266,6 +269,14 @@ func runMLSweepReport() error {
 			"allowStd":             bestComparable.AllowStd,
 			"allowMin":             bestComparable.AllowMin,
 			"allowMax":             bestComparable.AllowMax,
+			"blockMean":            bestComparable.BlockMean,
+			"blockStd":             bestComparable.BlockStd,
+			"blockMin":             bestComparable.BlockMin,
+			"blockMax":             bestComparable.BlockMax,
+			"balancedMean":         bestComparable.BalancedMean,
+			"balancedStd":          bestComparable.BalancedStd,
+			"balancedMin":          bestComparable.BalancedMin,
+			"balancedMax":          bestComparable.BalancedMax,
 			"durationMean":         bestComparable.DurationMean,
 			"inferenceMean":        bestComparable.InferenceMean,
 			"inferenceStd":         bestComparable.InferenceStd,
@@ -285,6 +296,14 @@ func runMLSweepReport() error {
 			"allowStd":             stabilitySummaries[0].AllowStd,
 			"allowMin":             stabilitySummaries[0].AllowMin,
 			"allowMax":             stabilitySummaries[0].AllowMax,
+			"blockMean":            stabilitySummaries[0].BlockMean,
+			"blockStd":             stabilitySummaries[0].BlockStd,
+			"blockMin":             stabilitySummaries[0].BlockMin,
+			"blockMax":             stabilitySummaries[0].BlockMax,
+			"balancedMean":         stabilitySummaries[0].BalancedMean,
+			"balancedStd":          stabilitySummaries[0].BalancedStd,
+			"balancedMin":          stabilitySummaries[0].BalancedMin,
+			"balancedMax":          stabilitySummaries[0].BalancedMax,
 			"durationMean":         stabilitySummaries[0].DurationMean,
 			"inferenceMean":        stabilitySummaries[0].InferenceMean,
 			"inferenceStd":         stabilitySummaries[0].InferenceStd,
@@ -300,8 +319,8 @@ func runMLSweepReport() error {
 
 	fmt.Printf("[ml-sweep] report written to %s\n", filepath.Join(outDir, "index.html"))
 	if bestComparable := bestComparableSummary(stabilitySummaries); bestComparable != nil {
-		fmt.Printf("[ml-sweep] comparable best: %s | %s | val=%.2f%% ± %.2f%% | allow=%.2f%% ± %.2f%% (%dx)\n",
-			bestComparable.Profile, bestComparable.ConfigSummary, bestComparable.ValidationMean*100, bestComparable.ValidationStd*100, bestComparable.AllowMean*100, bestComparable.AllowStd*100, bestComparable.Runs)
+		fmt.Printf("[ml-sweep] comparable best: %s | %s | val=%.2f%% ± %.2f%% | bal=%.2f%% ± %.2f%% | block=%.2f%% ± %.2f%% | allow=%.2f%% ± %.2f%% (%dx)\n",
+			bestComparable.Profile, bestComparable.ConfigSummary, bestComparable.ValidationMean*100, bestComparable.ValidationStd*100, bestComparable.BalancedMean*100, bestComparable.BalancedStd*100, bestComparable.BlockMean*100, bestComparable.BlockStd*100, bestComparable.AllowMean*100, bestComparable.AllowStd*100, bestComparable.Runs)
 	}
 	return nil
 }

@@ -1,12 +1,13 @@
 package ml
 
 import (
-	"agent-ebpf-filter/internal/behavior"
 	"encoding/json"
 	"math"
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"agent-ebpf-filter/internal/behavior"
 )
 
 func NormalizeTrainingStoreCapacity(maxSamples int) int {
@@ -49,9 +50,10 @@ func NormalizeTrainingSample(sample TrainingSample) TrainingSample {
 	}
 	sample.AnomalyScore = normalizeTrainingScore(sample.AnomalyScore)
 	for index, value := range sample.Features {
-		if math.IsNaN(value) || math.IsInf(value, 0) {
-			sample.Features[index] = 0
-		}
+		// FeatureExtractor already normalizes into [0,1] (cyclic dims remapped),
+		// but persisted and manual samples must satisfy the same bounded
+		// contract before entering a model, so clamp instead of trusting source.
+		sample.Features[index] = clampFeature01(value)
 	}
 	if sample.Timestamp.IsZero() {
 		sample.Timestamp = time.Now().UTC()

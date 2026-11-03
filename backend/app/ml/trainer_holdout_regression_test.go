@@ -3,18 +3,22 @@ package ml
 import (
 	"math"
 	"testing"
+
+	"agent-ebpf-filter/core"
 )
 
+// Duplicate each behavior twice; row-wise holdouts would leak across partitions.
 func holdoutIsolationStore() *TrainingDataStore {
 	store := NewTrainingDataStore(100)
-	for i := 0; i < 80; i++ {
+	for i := range 80 {
+		group := i / 2
 		var features [FeatureDim]float64
-		features[i%4] = 1
-		features[31] = float64(i+1) / 100
-		features[32] = float64((i*7)%19) / 20
+		features[group%4] = 1
+		features[31] = float64(group+1) / 50
+		features[32] = float64((group*7)%19) / 20
 		store.Add(TrainingSample{
 			Features:  features,
-			Label:     int32(i % 4),
+			Label:     int32(group % 4),
 			UserLabel: "test",
 		})
 	}
@@ -24,7 +28,17 @@ func holdoutIsolationStore() *TrainingDataStore {
 // A sample cannot be both a training observation and a held-out evaluation
 // observation. Reusing the full sample store for KNN yielded trivial accuracy.
 func TestClassifierHoldoutIsolation(t *testing.T) {
-	for _, modelType := range []ModelType{ModelKNN, ModelExtraTrees, ModelLogisticRegression} {
+	for _, modelType := range []ModelType{
+		ModelKNN,
+		ModelExtraTrees,
+		ModelLogisticRegression,
+		ModelSVM,
+		ModelRidge,
+		ModelPerceptron,
+		ModelPassiveAggressive,
+		core.ModelGraphLearning,
+		ModelGANTransformer,
+	} {
 		t.Run(string(modelType), func(t *testing.T) {
 			trainer := NewModelTrainer()
 			cfg := DefaultMLConfig()
@@ -32,8 +46,15 @@ func TestClassifierHoldoutIsolation(t *testing.T) {
 			cfg.ValidationSplitRatio = 0.25
 			cfg.NumTrees = 5
 			cfg.MinSamplesLeaf = 2
-			if modelType == ModelLogisticRegression {
+			if modelType == ModelLogisticRegression || modelType == ModelSVM || modelType == ModelPerceptron || modelType == ModelPassiveAggressive {
 				cfg.MinSamplesLeaf = 100
+			}
+			if modelType == core.ModelGraphLearning {
+				cfg.MaxDepth = 2
+			}
+			if modelType == ModelGANTransformer {
+				cfg.MaxDepth = 2
+				cfg.MinSamplesLeaf = 2
 			}
 			model, result := trainer.TrainWithConfig(holdoutIsolationStore(), cfg)
 			if result.Error != "" || model == nil {

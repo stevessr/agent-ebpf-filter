@@ -1,10 +1,11 @@
 package app
 
 import (
-	"agent-ebpf-filter/app/ml"
-	"agent-ebpf-filter/cuda"
 	"encoding/json"
 	"strings"
+
+	"agent-ebpf-filter/app/ml"
+	"agent-ebpf-filter/cuda"
 )
 
 // buildMLStatusJSON builds the complete ML status payload as JSON bytes.
@@ -69,17 +70,24 @@ func buildMLStatusJSON() []byte {
 		"modelTuneResult":      autoTuneState.ModelResult,
 		"autoTuneRuntime":      mlAutoTuneTasks.Stats(),
 		"mlConfig": map[string]interface{}{
-			"modelType":            string(cfg.ModelType),
-			"ensembleVoting":       cfg.EnsembleVoting,
-			"validationSplitRatio": cfg.ValidationSplitRatio,
-			"llmEnabled":           cfg.LlmEnabled,
-			"llmBaseUrl":           cfg.LlmBaseURL,
-			"llmApiKeyConfigured":  strings.TrimSpace(cfg.LlmAPIKey) != "",
-			"llmModel":             cfg.LlmModel,
-			"llmTimeoutSeconds":    cfg.LlmTimeoutSeconds,
-			"llmTemperature":       cfg.LlmTemperature,
-			"llmMaxTokens":         cfg.LlmMaxTokens,
-			"llmSystemPrompt":      cfg.LlmSystemPrompt,
+			"enabled":                  cfg.Enabled,
+			"modelType":                string(cfg.ModelType),
+			"blockConfidenceThreshold": cfg.BlockConfidenceThreshold,
+			"allowRiskScoreThreshold":  cfg.AllowRiskScoreThreshold,
+			"mlMinConfidence":          cfg.MlMinConfidence,
+			"ruleOverridePriority":     cfg.RuleOverridePriority,
+			"lowAnomalyThreshold":      cfg.LowAnomalyThreshold,
+			"highAnomalyThreshold":     cfg.HighAnomalyThreshold,
+			"ensembleVoting":           cfg.EnsembleVoting,
+			"validationSplitRatio":     cfg.ValidationSplitRatio,
+			"llmEnabled":               cfg.LlmEnabled,
+			"llmBaseUrl":               cfg.LlmBaseURL,
+			"llmApiKeyConfigured":      strings.TrimSpace(cfg.LlmAPIKey) != "",
+			"llmModel":                 cfg.LlmModel,
+			"llmTimeoutSeconds":        cfg.LlmTimeoutSeconds,
+			"llmTemperature":           cfg.LlmTemperature,
+			"llmMaxTokens":             cfg.LlmMaxTokens,
+			"llmSystemPrompt":          cfg.LlmSystemPrompt,
 		},
 		"trainingLogs": logItems,
 		"hyperParams": map[string]interface{}{

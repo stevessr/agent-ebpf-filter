@@ -219,9 +219,11 @@ func (a *lsmEnforcerAdapter) ListFileAccessPaths(m any) []handlers.LsmFileAccess
 	}
 	return out
 }
+
 func (a *lsmEnforcerAdapter) SetFileAccessPath(path string, read, write bool) error {
 	return setLsmFileAccessPath(path, read, write)
 }
+
 func (a *lsmEnforcerAdapter) NormalizeFileAccessPath(path string) (string, error) {
 	return normalizeLsmFileAccessPath(path)
 }
@@ -456,95 +458,6 @@ func init() {
 	handlers.Deps.RotateAccessToken = func(s RuntimeSettings) RuntimeSettings {
 		settings, _ := runtimeSettingsStore.RotateAccessToken()
 		return settings
-	}
-	handlers.Deps.ApplyMLConfigPatch = func(dst *core.MLConfig, patch interface{}) {
-		if p, ok := patch.(handlers.MLConfigPatch); ok {
-			// applyMLConfigPatch was defined in app/handlersruntimeconfig.go
-			// and is now available through the MLConfigPatch dep
-			if p.Enabled != nil {
-				dst.Enabled = *p.Enabled
-			}
-			if p.BlockConfidenceThreshold != nil {
-				dst.BlockConfidenceThreshold = *p.BlockConfidenceThreshold
-			}
-			if p.MlMinConfidence != nil {
-				dst.MlMinConfidence = *p.MlMinConfidence
-			}
-			if p.LowAnomalyThreshold != nil {
-				dst.LowAnomalyThreshold = *p.LowAnomalyThreshold
-			}
-			if p.HighAnomalyThreshold != nil {
-				dst.HighAnomalyThreshold = *p.HighAnomalyThreshold
-			}
-			if p.RuleOverridePriority != nil {
-				dst.RuleOverridePriority = *p.RuleOverridePriority
-			}
-			if p.ModelType != nil {
-				dst.ModelType = core.ModelType(strings.TrimSpace(*p.ModelType))
-			}
-			if p.ModelPath != nil {
-				dst.ModelPath = strings.TrimSpace(*p.ModelPath)
-			}
-			if p.AutoTrain != nil {
-				dst.AutoTrain = *p.AutoTrain
-			}
-			if p.TrainInterval != nil {
-				dst.TrainInterval = strings.TrimSpace(*p.TrainInterval)
-			}
-			if p.MinSamplesForTraining != nil {
-				dst.MinSamplesForTraining = *p.MinSamplesForTraining
-			}
-			if p.ActiveLearningEnabled != nil {
-				dst.ActiveLearningEnabled = *p.ActiveLearningEnabled
-			}
-			if p.FeatureHistorySize != nil {
-				dst.FeatureHistorySize = *p.FeatureHistorySize
-			}
-			if p.NumTrees != nil {
-				dst.NumTrees = *p.NumTrees
-			}
-			if p.MaxDepth != nil {
-				dst.MaxDepth = *p.MaxDepth
-			}
-			if p.MinSamplesLeaf != nil {
-				dst.MinSamplesLeaf = *p.MinSamplesLeaf
-			}
-			if p.ValidationSplitRatio != nil {
-				dst.ValidationSplitRatio = *p.ValidationSplitRatio
-			}
-			if p.BalanceClasses != nil {
-				dst.BalanceClasses = *p.BalanceClasses
-			}
-			if p.EnsembleVoting != nil {
-				dst.EnsembleVoting = strings.TrimSpace(*p.EnsembleVoting)
-			}
-			if p.LlmEnabled != nil {
-				dst.LlmEnabled = *p.LlmEnabled
-			}
-			if p.LlmBaseURL != nil {
-				dst.LlmBaseURL = strings.TrimSpace(*p.LlmBaseURL)
-			}
-			if p.LlmAPIKey != nil {
-				if key := strings.TrimSpace(*p.LlmAPIKey); key != "" {
-					dst.LlmAPIKey = key
-				}
-			}
-			if p.LlmModel != nil {
-				dst.LlmModel = strings.TrimSpace(*p.LlmModel)
-			}
-			if p.LlmTimeoutSeconds != nil {
-				dst.LlmTimeoutSeconds = *p.LlmTimeoutSeconds
-			}
-			if p.LlmTemperature != nil {
-				dst.LlmTemperature = *p.LlmTemperature
-			}
-			if p.LlmMaxTokens != nil {
-				dst.LlmMaxTokens = *p.LlmMaxTokens
-			}
-			if p.LlmSystemPrompt != nil {
-				dst.LlmSystemPrompt = strings.TrimSpace(*p.LlmSystemPrompt)
-			}
-		}
 	}
 
 	// Config handlers
@@ -884,6 +797,7 @@ func (mlService) RemoveSample(index int) gin.H { return mlRemoveSampleResult(ind
 func (mlService) SetSampleAnomaly(index int, score float64) gin.H {
 	return mlSampleAnomalyResult(index, score)
 }
+
 func (mlService) AddSample(commandLine, comm string, args []string, label string) gin.H {
 	return mlAddSample(commandLine, comm, args, label)
 }

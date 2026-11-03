@@ -1,17 +1,31 @@
 package sweep
 
 import (
-	"agent-ebpf-filter/app/ml"
 	"runtime"
 	"sort"
 	"strconv"
 	"strings"
+
+	"agent-ebpf-filter/app/ml"
 )
 
 func allocMem() uint64 {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 	return m.Alloc
+}
+
+// liveHeapDeltaBytes reports positive live-heap growth, never unsigned underflow.
+func liveHeapDeltaBytes(before, after uint64) int64 {
+	if after <= before {
+		return 0
+	}
+	delta := after - before
+	const maxInt64 = uint64(1<<63 - 1)
+	if delta > maxInt64 {
+		return int64(maxInt64)
+	}
+	return int64(delta)
 }
 
 func parsePositiveInt(raw string, fallback int) int {

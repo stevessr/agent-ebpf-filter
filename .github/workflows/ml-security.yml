@@ -9,6 +9,13 @@ on:
       - "backend/app/autotune*.go"
       - "backend/app/risk_scoring*.go"
       - "backend/app/features.go"
+      - "backend/app/integration_ml*.go"
+      - "backend/app/stateenvruntime*.go"
+      - "backend/app/statepersistenceruntime.go"
+      - "backend/app/ws_ml.go"
+      - "backend/app/cruntime_test.go"
+      - "backend/app/handlers/runtimeconfig*.go"
+      - "backend/core/ml_types.go"
       - "backend/ebpf/**"
       - "backend/go.mod"
       - "backend/go.sum"
@@ -27,6 +34,13 @@ on:
       - "backend/app/autotune*.go"
       - "backend/app/risk_scoring*.go"
       - "backend/app/features.go"
+      - "backend/app/integration_ml*.go"
+      - "backend/app/stateenvruntime*.go"
+      - "backend/app/statepersistenceruntime.go"
+      - "backend/app/ws_ml.go"
+      - "backend/app/cruntime_test.go"
+      - "backend/app/handlers/runtimeconfig*.go"
+      - "backend/core/ml_types.go"
       - "backend/ebpf/**"
       - "backend/go.mod"
       - "backend/go.sum"
@@ -81,6 +95,11 @@ jobs:
       - name: Attack-risk app tests
         working-directory: backend
         run: go test ./app -run 'TestAttackVectorScores|TestAttackRiskClass' -count=1
+      - name: ML risk interval and runtime API regressions
+        working-directory: backend
+        run: |
+          go test ./app -run 'Test(MLActionRiskScoreMapsConfidenceToRisk|ResolveAction.*|BuildMLStatusJSON.*|NormalizeRuntimeSettingsPreservesZeroAllowRiskBoundary)$' -count=1
+          go test ./app/handlers -run '^TestHandleConfigRuntimePutAppliesActionRiskThresholds$' -count=1
 
   frontend-ml:
     runs-on: ubuntu-24.04

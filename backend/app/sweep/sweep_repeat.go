@@ -1,13 +1,14 @@
 package sweep
 
 import (
-	"agent-ebpf-filter/app/ml"
 	"fmt"
 	"math"
 	"runtime"
 	"sort"
 	"strings"
 	"sync"
+
+	"agent-ebpf-filter/app/ml"
 )
 
 func selectTopRepeatConfigs(profile sweepProfile, results []sweepResult, topN int, store *ml.TrainingDataStore, benchmarkSamples []ml.TrainingSample) []stabilityTask {
@@ -16,30 +17,12 @@ func selectTopRepeatConfigs(profile sweepProfile, results []sweepResult, topN in
 	}
 	filtered := make([]sweepResult, 0, len(results))
 	for _, r := range results {
-		if r.Error == "" {
+		if r.Error == "" && sweepResultHasHoldout(r) {
 			filtered = append(filtered, r)
 		}
 	}
-	sort.Slice(filtered, func(i, j int) bool {
-		if filtered[i].ValidationAccuracy != filtered[j].ValidationAccuracy {
-			return filtered[i].ValidationAccuracy > filtered[j].ValidationAccuracy
-		}
-		if filtered[i].AllowPassRate != filtered[j].AllowPassRate {
-			return filtered[i].AllowPassRate > filtered[j].AllowPassRate
-		}
-		if filtered[i].TrainAccuracy != filtered[j].TrainAccuracy {
-			return filtered[i].TrainAccuracy > filtered[j].TrainAccuracy
-		}
-		if filtered[i].InferenceThroughput != filtered[j].InferenceThroughput {
-			return filtered[i].InferenceThroughput > filtered[j].InferenceThroughput
-		}
-		if filtered[i].Duration != filtered[j].Duration {
-			return filtered[i].Duration < filtered[j].Duration
-		}
-		if filtered[i].XValue != filtered[j].XValue {
-			return filtered[i].XValue < filtered[j].XValue
-		}
-		return filtered[i].YValue < filtered[j].YValue
+	sort.SliceStable(filtered, func(i, j int) bool {
+		return sweepResultOutranks(filtered[i], filtered[j])
 	})
 	if len(filtered) > topN {
 		filtered = filtered[:topN]
@@ -126,19 +109,7 @@ func runStabilityPhase(tasks []stabilityTask, repeats int) ([]repeatRunResult, [
 		if summaries[i].Comparable != summaries[j].Comparable {
 			return summaries[i].Comparable && !summaries[j].Comparable
 		}
-		if summaries[i].ValidationMean != summaries[j].ValidationMean {
-			return summaries[i].ValidationMean > summaries[j].ValidationMean
-		}
-		if summaries[i].SuccessRate != summaries[j].SuccessRate {
-			return summaries[i].SuccessRate > summaries[j].SuccessRate
-		}
-		if summaries[i].ValidationStd != summaries[j].ValidationStd {
-			return summaries[i].ValidationStd < summaries[j].ValidationStd
-		}
-		if summaries[i].InferenceMean != summaries[j].InferenceMean {
-			return summaries[i].InferenceMean > summaries[j].InferenceMean
-		}
-		return summaries[i].DurationMean < summaries[j].DurationMean
+		return repeatSummaryOutranks(summaries[i], summaries[j])
 	})
 
 	return rawRuns, summaries, nil
@@ -167,6 +138,7 @@ func runSingleRepeat(task stabilityTask, repeatIndex int) repeatRunResult {
 	return repeatRunResult{
 		Profile:             row.Profile,
 		ModelType:           row.ModelType,
+		HoldoutStrategy:     row.HoldoutStrategy,
 		XValue:              row.XValue,
 		YValue:              row.YValue,
 		ConfigSummary:       row.ConfigSummary,
@@ -174,6 +146,8 @@ func runSingleRepeat(task stabilityTask, repeatIndex int) repeatRunResult {
 		TrainAccuracy:       row.TrainAccuracy,
 		ValidationAccuracy:  row.ValidationAccuracy,
 		AllowPassRate:       row.AllowPassRate,
+		BlockPassRate:       row.BlockPassRate,
+		BalancedAccuracy:    row.BalancedAccuracy,
 		NumSamples:          row.NumSamples,
 		TrainSamples:        row.TrainSamples,
 		ValidationSamples:   row.ValidationSamples,
@@ -201,10 +175,17 @@ func aggregateRepeatRuns(runs []repeatRunResult) (repeatSummary, error) {
 	if len(runs) == 0 {
 		return repeatSummary{}, fmt.Errorf("no repeat runs to aggregate")
 	}
+	comparable := true
+	for _, r := range runs {
+		if r.Error == "" && !repeatRunHasHoldout(r) {
+			comparable = false
+			break
+		}
+	}
 	summary := repeatSummary{
 		Profile:       runs[0].Profile,
 		ModelType:     runs[0].ModelType,
-		Comparable:    profileComparable(runs[0].Profile),
+		Comparable:    comparable,
 		XValue:        runs[0].XValue,
 		YValue:        runs[0].YValue,
 		ConfigSummary: runs[0].ConfigSummary,
@@ -214,6 +195,8 @@ func aggregateRepeatRuns(runs []repeatRunResult) (repeatSummary, error) {
 	trainVals := make([]float64, 0, len(runs))
 	valVals := make([]float64, 0, len(runs))
 	allowVals := make([]float64, 0, len(runs))
+	blockVals := make([]float64, 0, len(runs))
+	balancedVals := make([]float64, 0, len(runs))
 	durations := make([]float64, 0, len(runs))
 	inferenceVals := make([]float64, 0, len(runs))
 	inferenceLatencyVals := make([]float64, 0, len(runs))
@@ -229,6 +212,8 @@ func aggregateRepeatRuns(runs []repeatRunResult) (repeatSummary, error) {
 		trainVals = append(trainVals, r.TrainAccuracy)
 		valVals = append(valVals, r.ValidationAccuracy)
 		allowVals = append(allowVals, r.AllowPassRate)
+		blockVals = append(blockVals, r.BlockPassRate)
+		balancedVals = append(balancedVals, r.BalancedAccuracy)
 		if r.InferenceThroughput > 0 {
 			inferenceVals = append(inferenceVals, r.InferenceThroughput)
 		}
@@ -246,6 +231,10 @@ func aggregateRepeatRuns(runs []repeatRunResult) (repeatSummary, error) {
 	summary.ValidationMean, summary.ValidationStd = meanStd(valVals)
 	summary.AllowMean, summary.AllowStd = meanStd(allowVals)
 	summary.AllowMin, summary.AllowMax = minMax(allowVals)
+	summary.BlockMean, summary.BlockStd = meanStd(blockVals)
+	summary.BlockMin, summary.BlockMax = minMax(blockVals)
+	summary.BalancedMean, summary.BalancedStd = meanStd(balancedVals)
+	summary.BalancedMin, summary.BalancedMax = minMax(balancedVals)
 	summary.DurationMean, summary.DurationStd = meanStd(durations)
 	summary.InferenceMean, summary.InferenceStd = meanStd(inferenceVals)
 	summary.InferenceLatencyMean, summary.InferenceLatencyStd = meanStd(inferenceLatencyVals)
@@ -260,25 +249,6 @@ func aggregateRepeatRuns(runs []repeatRunResult) (repeatSummary, error) {
 
 func repeatKey(profile string, modelType ModelType, xValue, yValue int, configSummary string) string {
 	return fmt.Sprintf("%s|%s|%d|%d|%s", profile, modelType, xValue, yValue, configSummary)
-}
-
-func profileComparable(profile string) bool {
-	// The sweep report uses the profile name to infer whether the model
-	// currently evaluates against a holdout split in this codebase.
-	profile = baseProfileSegment(profile)
-	switch {
-	case strings.HasPrefix(profile, "random_forest"),
-		strings.HasPrefix(profile, "extra_trees"),
-		strings.HasPrefix(profile, "logistic"),
-		strings.HasPrefix(profile, "svm"),
-		strings.HasPrefix(profile, "perceptron"),
-		strings.HasPrefix(profile, "passive_aggressive"),
-		strings.HasPrefix(profile, "nearest_centroid"),
-		strings.HasPrefix(profile, "ensemble"):
-		return true
-	default:
-		return false
-	}
 }
 
 func baseProfileSegment(profile string) string {
@@ -393,16 +363,53 @@ func bestScreenSummary(summaries []profileSummary) *profileSummary {
 	if len(summaries) == 0 {
 		return nil
 	}
-	best := &summaries[0]
-	for i := 1; i < len(summaries); i++ {
-		if summaries[i].Best.ValidationAccuracy > best.Best.ValidationAccuracy ||
-			(summaries[i].Best.ValidationAccuracy == best.Best.ValidationAccuracy && summaries[i].Best.AllowPassRate > best.Best.AllowPassRate) ||
-			(summaries[i].Best.ValidationAccuracy == best.Best.ValidationAccuracy && summaries[i].Best.InferenceThroughput > best.Best.InferenceThroughput) ||
-			(summaries[i].Best.ValidationAccuracy == best.Best.ValidationAccuracy && summaries[i].Best.AllowPassRate == best.Best.AllowPassRate && summaries[i].Best.InferenceThroughput == best.Best.InferenceThroughput && summaries[i].Best.Duration < best.Best.Duration) {
-			best = &summaries[i]
+	// Grid best must prefer rows scored on a real holdout: families whose trainer
+	// fits and evaluates on the same samples (SVM/Ridge/Perceptron/PA) report
+	// training-set numbers, which look better than any honest holdout score.
+	var best *profileSummary
+	for i := range summaries {
+		candidate := &summaries[i]
+		if !sweepResultHasHoldout(candidate.Best) {
+			continue
+		}
+		if best == nil || sweepResultOutranks(candidate.Best, best.Best) {
+			best = candidate
 		}
 	}
-	return best
+	if best != nil {
+		return best
+	}
+	fallback := &summaries[0]
+	for i := 1; i < len(summaries); i++ {
+		if sweepResultOutranks(summaries[i].Best, fallback.Best) {
+			fallback = &summaries[i]
+		}
+	}
+	return fallback
+}
+
+// repeatSummaryOutranks applies the same security-aware ordering as
+// sweepResultOutranks to repeated-run means: balanced accuracy, then validation
+// accuracy, then BLOCK recall, then ALLOW pass rate, then reliability and cost.
+func repeatSummaryOutranks(a, b repeatSummary) bool {
+	switch {
+	case a.BalancedMean != b.BalancedMean:
+		return a.BalancedMean > b.BalancedMean
+	case a.ValidationMean != b.ValidationMean:
+		return a.ValidationMean > b.ValidationMean
+	case a.BlockMean != b.BlockMean:
+		return a.BlockMean > b.BlockMean
+	case a.AllowMean != b.AllowMean:
+		return a.AllowMean > b.AllowMean
+	case a.SuccessRate != b.SuccessRate:
+		return a.SuccessRate > b.SuccessRate
+	case a.ValidationStd != b.ValidationStd:
+		return a.ValidationStd < b.ValidationStd
+	case a.InferenceMean != b.InferenceMean:
+		return a.InferenceMean > b.InferenceMean
+	default:
+		return a.DurationMean < b.DurationMean
+	}
 }
 
 func bestComparableSummary(summaries []repeatSummary) *repeatSummary {
@@ -411,13 +418,7 @@ func bestComparableSummary(summaries []repeatSummary) *repeatSummary {
 		if !summaries[i].Comparable {
 			continue
 		}
-		if best == nil ||
-			summaries[i].ValidationMean > best.ValidationMean ||
-			(summaries[i].ValidationMean == best.ValidationMean && summaries[i].AllowMean > best.AllowMean) ||
-			(summaries[i].ValidationMean == best.ValidationMean && summaries[i].SuccessRate > best.SuccessRate) ||
-			(summaries[i].ValidationMean == best.ValidationMean && summaries[i].AllowMean == best.AllowMean && summaries[i].SuccessRate == best.SuccessRate && summaries[i].ValidationStd < best.ValidationStd) ||
-			(summaries[i].ValidationMean == best.ValidationMean && summaries[i].AllowMean == best.AllowMean && summaries[i].SuccessRate == best.SuccessRate && summaries[i].ValidationStd == best.ValidationStd && summaries[i].InferenceMean > best.InferenceMean) ||
-			(summaries[i].ValidationMean == best.ValidationMean && summaries[i].AllowMean == best.AllowMean && summaries[i].SuccessRate == best.SuccessRate && summaries[i].ValidationStd == best.ValidationStd && summaries[i].InferenceMean == best.InferenceMean && summaries[i].DurationMean < best.DurationMean) {
+		if best == nil || repeatSummaryOutranks(summaries[i], *best) {
 			copy := summaries[i]
 			best = &copy
 		}
@@ -427,36 +428,15 @@ func bestComparableSummary(summaries []repeatSummary) *repeatSummary {
 
 func stabilityBestJSON(summaries []repeatSummary) map[string]any {
 	if best := bestComparableSummary(summaries); best != nil {
-		return map[string]any{
-			"profile":              best.Profile,
-			"modelType":            best.ModelType,
-			"configSummary":        best.ConfigSummary,
-			"trainMean":            best.TrainMean,
-			"trainStd":             best.TrainStd,
-			"validationMean":       best.ValidationMean,
-			"validationStd":        best.ValidationStd,
-			"validationMin":        best.ValidationMin,
-			"validationMax":        best.ValidationMax,
-			"allowMean":            best.AllowMean,
-			"allowStd":             best.AllowStd,
-			"allowMin":             best.AllowMin,
-			"allowMax":             best.AllowMax,
-			"durationMean":         best.DurationMean,
-			"durationStd":          best.DurationStd,
-			"inferenceMean":        best.InferenceMean,
-			"inferenceStd":         best.InferenceStd,
-			"inferenceMin":         best.InferenceMin,
-			"inferenceMax":         best.InferenceMax,
-			"inferenceLatencyMean": best.InferenceLatencyMean,
-			"inferenceLatencyStd":  best.InferenceLatencyStd,
-			"successRate":          best.SuccessRate,
-			"runs":                 best.Runs,
-		}
+		return repeatSummaryJSON(*best)
 	}
 	if len(summaries) == 0 {
 		return nil
 	}
-	best := summaries[0]
+	return repeatSummaryJSON(summaries[0])
+}
+
+func repeatSummaryJSON(best repeatSummary) map[string]any {
 	return map[string]any{
 		"profile":              best.Profile,
 		"modelType":            best.ModelType,
@@ -471,6 +451,14 @@ func stabilityBestJSON(summaries []repeatSummary) map[string]any {
 		"allowStd":             best.AllowStd,
 		"allowMin":             best.AllowMin,
 		"allowMax":             best.AllowMax,
+		"blockMean":            best.BlockMean,
+		"blockStd":             best.BlockStd,
+		"blockMin":             best.BlockMin,
+		"blockMax":             best.BlockMax,
+		"balancedMean":         best.BalancedMean,
+		"balancedStd":          best.BalancedStd,
+		"balancedMin":          best.BalancedMin,
+		"balancedMax":          best.BalancedMax,
 		"durationMean":         best.DurationMean,
 		"durationStd":          best.DurationStd,
 		"inferenceMean":        best.InferenceMean,

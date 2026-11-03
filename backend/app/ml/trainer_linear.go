@@ -18,6 +18,10 @@ func (t *ModelTrainer) trainSVM(store *TrainingDataStore, cfg MLConfig) (Model, 
 	if len(labeled) < 10 {
 		return nil, TrainResult{Error: "need >=10 labeled samples"}
 	}
+	trainSet, validationSet, trainRaw, validationRaw, err := PrepareAutoTuneSplit(labeled, cfg.ValidationSplitRatio)
+	if err != nil {
+		return nil, TrainResult{Error: err.Error()}
+	}
 
 	lr := 0.01
 	if cfg.NumTrees > 0 {
@@ -39,20 +43,21 @@ func (t *ModelTrainer) trainSVM(store *TrainingDataStore, cfg MLConfig) (Model, 
 
 	var classWeights []float64
 	if cfg.BalanceClasses {
-		_, labels := extractFeaturesLabels(labeled)
+		_, labels := extractFeaturesLabels(trainRaw)
 		classWeights = computeClassWeights(labels, m.Classes)
 	}
-	TrainSGD(m.Weights, m.Classes, labeled, lr, maxIter, m.C, "hinge", classWeights, t)
+	TrainSGD(m.Weights, m.Classes, trainRaw, lr, maxIter, m.C, "hinge", classWeights, t)
 	t.Logf("SVM 训练完成：lr=%.4f, iter=%d", lr, maxIter)
 
-	samples := ToTrainSamples(labeled)
-	acc := EvalLinearModel(m.Weights, m.Classes, samples)
-	t.finishMetrics(acc, acc, acc, len(labeled), len(samples), 0)
-	t.setLastSplit(labeled, labeled)
-	return m, TrainResult{Accuracy: acc, TrainAccuracy: acc, ValidationAccuracy: acc, NumSamples: len(labeled), TrainSamples: len(samples)}
+	trainAcc := EvalLinearModel(m.Weights, m.Classes, trainSet)
+	valAcc := EvalLinearModel(m.Weights, m.Classes, validationSet)
+	t.finishMetrics(valAcc, trainAcc, valAcc, len(labeled), len(trainSet), len(validationSet))
+	t.setLastSplit(trainRaw, validationRaw)
+	return m, TrainResult{
+		Accuracy: valAcc, TrainAccuracy: trainAcc, ValidationAccuracy: valAcc,
+		NumSamples: len(labeled), TrainSamples: len(trainSet), ValidationSamples: len(validationSet),
+	}
 }
-
-// ── Ridge Classifier ───────────────────────────────────────────────
 
 func (t *ModelTrainer) trainRidge(store *TrainingDataStore, cfg MLConfig) (Model, TrainResult) {
 	t.acquire()
@@ -64,6 +69,10 @@ func (t *ModelTrainer) trainRidge(store *TrainingDataStore, cfg MLConfig) (Model
 	if len(labeled) < 10 {
 		return nil, TrainResult{Error: "need >=10 labeled samples"}
 	}
+	trainSet, validationSet, trainRaw, validationRaw, err := PrepareAutoTuneSplit(labeled, cfg.ValidationSplitRatio)
+	if err != nil {
+		return nil, TrainResult{Error: err.Error()}
+	}
 
 	alpha := 1.0
 	if cfg.NumTrees > 0 {
@@ -73,17 +82,18 @@ func (t *ModelTrainer) trainRidge(store *TrainingDataStore, cfg MLConfig) (Model
 	// One-vs-rest Ridge: closed-form (X^T X + αI)^-1 X^T Y
 	m := NewRidgeModel(alpha)
 	m.Weights = make([][FeatureDim + 1]float64, m.Classes)
-	RidgeFit(m.Weights, m.Classes, labeled, alpha)
+	RidgeFit(m.Weights, m.Classes, trainRaw, alpha)
 
 	t.Logf("Ridge 训练完成：alpha=%.4f", alpha)
-	samples := ToTrainSamples(labeled)
-	acc := EvalLinearModel(m.Weights, m.Classes, samples)
-	t.finishMetrics(acc, acc, acc, len(labeled), len(samples), 0)
-	t.setLastSplit(labeled, labeled)
-	return m, TrainResult{Accuracy: acc, TrainAccuracy: acc, ValidationAccuracy: acc, NumSamples: len(labeled), TrainSamples: len(samples)}
+	trainAcc := EvalLinearModel(m.Weights, m.Classes, trainSet)
+	valAcc := EvalLinearModel(m.Weights, m.Classes, validationSet)
+	t.finishMetrics(valAcc, trainAcc, valAcc, len(labeled), len(trainSet), len(validationSet))
+	t.setLastSplit(trainRaw, validationRaw)
+	return m, TrainResult{
+		Accuracy: valAcc, TrainAccuracy: trainAcc, ValidationAccuracy: valAcc,
+		NumSamples: len(labeled), TrainSamples: len(trainSet), ValidationSamples: len(validationSet),
+	}
 }
-
-// ── Perceptron ─────────────────────────────────────────────────────
 
 func (t *ModelTrainer) trainPerceptron(store *TrainingDataStore, cfg MLConfig) (Model, TrainResult) {
 	t.acquire()
@@ -94,6 +104,10 @@ func (t *ModelTrainer) trainPerceptron(store *TrainingDataStore, cfg MLConfig) (
 	labeled := store.LabeledSamples()
 	if len(labeled) < 10 {
 		return nil, TrainResult{Error: "need >=10 labeled samples"}
+	}
+	trainSet, validationSet, trainRaw, validationRaw, err := PrepareAutoTuneSplit(labeled, cfg.ValidationSplitRatio)
+	if err != nil {
+		return nil, TrainResult{Error: err.Error()}
 	}
 
 	lr := 0.01
@@ -116,20 +130,21 @@ func (t *ModelTrainer) trainPerceptron(store *TrainingDataStore, cfg MLConfig) (
 
 	var classWeights []float64
 	if cfg.BalanceClasses {
-		_, labels := extractFeaturesLabels(labeled)
+		_, labels := extractFeaturesLabels(trainRaw)
 		classWeights = computeClassWeights(labels, m.Classes)
 	}
-	TrainSGD(m.Weights, m.Classes, labeled, lr, maxIter, 0, "perceptron", classWeights, t)
+	TrainSGD(m.Weights, m.Classes, trainRaw, lr, maxIter, 0, "perceptron", classWeights, t)
 	t.Logf("Perceptron 训练完成：lr=%.4f, iter=%d", lr, maxIter)
 
-	samples := ToTrainSamples(labeled)
-	acc := EvalLinearModel(m.Weights, m.Classes, samples)
-	t.finishMetrics(acc, acc, acc, len(labeled), len(samples), 0)
-	t.setLastSplit(labeled, labeled)
-	return m, TrainResult{Accuracy: acc, TrainAccuracy: acc, ValidationAccuracy: acc, NumSamples: len(labeled), TrainSamples: len(samples)}
+	trainAcc := EvalLinearModel(m.Weights, m.Classes, trainSet)
+	valAcc := EvalLinearModel(m.Weights, m.Classes, validationSet)
+	t.finishMetrics(valAcc, trainAcc, valAcc, len(labeled), len(trainSet), len(validationSet))
+	t.setLastSplit(trainRaw, validationRaw)
+	return m, TrainResult{
+		Accuracy: valAcc, TrainAccuracy: trainAcc, ValidationAccuracy: valAcc,
+		NumSamples: len(labeled), TrainSamples: len(trainSet), ValidationSamples: len(validationSet),
+	}
 }
-
-// ── Passive Aggressive ─────────────────────────────────────────────
 
 func (t *ModelTrainer) trainPA(store *TrainingDataStore, cfg MLConfig) (Model, TrainResult) {
 	t.acquire()
@@ -140,6 +155,10 @@ func (t *ModelTrainer) trainPA(store *TrainingDataStore, cfg MLConfig) (Model, T
 	labeled := store.LabeledSamples()
 	if len(labeled) < 10 {
 		return nil, TrainResult{Error: "need >=10 labeled samples"}
+	}
+	trainSet, validationSet, trainRaw, validationRaw, err := PrepareAutoTuneSplit(labeled, cfg.ValidationSplitRatio)
+	if err != nil {
+		return nil, TrainResult{Error: err.Error()}
 	}
 
 	C := 1.0
@@ -162,17 +181,20 @@ func (t *ModelTrainer) trainPA(store *TrainingDataStore, cfg MLConfig) (Model, T
 
 	var classWeights []float64
 	if cfg.BalanceClasses {
-		_, labels := extractFeaturesLabels(labeled)
+		_, labels := extractFeaturesLabels(trainRaw)
 		classWeights = computeClassWeights(labels, m.Classes)
 	}
-	TrainSGD(m.Weights, m.Classes, labeled, 1.0, maxIter, C, "pa", classWeights, t)
+	TrainSGD(m.Weights, m.Classes, trainRaw, 1.0, maxIter, C, "pa", classWeights, t)
 	t.Logf("Passive-Aggressive 训练完成：C=%.2f, iter=%d", C, maxIter)
 
-	samples := ToTrainSamples(labeled)
-	acc := EvalLinearModel(m.Weights, m.Classes, samples)
-	t.finishMetrics(acc, acc, acc, len(labeled), len(samples), 0)
-	t.setLastSplit(labeled, labeled)
-	return m, TrainResult{Accuracy: acc, TrainAccuracy: acc, ValidationAccuracy: acc, NumSamples: len(labeled), TrainSamples: len(samples)}
+	trainAcc := EvalLinearModel(m.Weights, m.Classes, trainSet)
+	valAcc := EvalLinearModel(m.Weights, m.Classes, validationSet)
+	t.finishMetrics(valAcc, trainAcc, valAcc, len(labeled), len(trainSet), len(validationSet))
+	t.setLastSplit(trainRaw, validationRaw)
+	return m, TrainResult{
+		Accuracy: valAcc, TrainAccuracy: trainAcc, ValidationAccuracy: valAcc,
+		NumSamples: len(labeled), TrainSamples: len(trainSet), ValidationSamples: len(validationSet),
+	}
 }
 
 // ── SGD Training Helper ─────────────────────────────────────────────

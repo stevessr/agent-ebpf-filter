@@ -1,11 +1,12 @@
 package sweep
 
 import (
-	"agent-ebpf-filter/app/ml"
 	"fmt"
 	"os"
 	"testing"
 	"time"
+
+	"agent-ebpf-filter/app/ml"
 )
 
 func TestComprehensiveSweepProfilesCoverThousandPointsPerNumericParameter(t *testing.T) {
@@ -110,5 +111,27 @@ func TestMLSweep(t *testing.T) {
 	}
 	if err := runMLSweepReport(); err != nil {
 		t.Fatalf("ml sweep failed: %v", err)
+	}
+}
+
+func TestLiveHeapDeltaBytes(t *testing.T) {
+	const maxInt64 = int64(1<<63 - 1)
+	tests := []struct {
+		name   string
+		before uint64
+		after  uint64
+		want   int64
+	}{
+		{name: "heap shrinks", before: 100, after: 90, want: 0},
+		{name: "heap unchanged", before: 100, after: 100, want: 0},
+		{name: "heap grows", before: 100, after: 125, want: 25},
+		{name: "delta saturates", before: 0, after: uint64(1) << 63, want: maxInt64},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := liveHeapDeltaBytes(test.before, test.after); got != test.want {
+				t.Fatalf("liveHeapDeltaBytes(%d, %d) = %d, want %d", test.before, test.after, got, test.want)
+			}
+		})
 	}
 }

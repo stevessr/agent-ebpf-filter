@@ -66,7 +66,8 @@ func sweepResultCSVHeader() []string {
 		"trainAccuracy", "validationAccuracy", "allowPassRate", "durationSeconds",
 		"inferenceDurationSeconds", "inferenceSamples", "inferenceLatencyMs", "inferenceThroughput",
 		"memoryBytes",
-		"numSamples", "trainSamples", "validationSamples", "error",
+		"numSamples", "trainSamples", "validationSamples", "holdoutStrategy", "error",
+		"blockPassRate", "balancedAccuracy",
 	}
 }
 
@@ -95,7 +96,10 @@ func sweepResultCSVRow(r sweepResult) []string {
 		strconv.Itoa(r.NumSamples),
 		strconv.Itoa(r.TrainSamples),
 		strconv.Itoa(r.ValidationSamples),
+		r.HoldoutStrategy,
 		r.Error,
+		fmt.Sprintf("%.6f", r.BlockPassRate),
+		fmt.Sprintf("%.6f", r.BalancedAccuracy),
 	}
 }
 
@@ -134,6 +138,8 @@ func readSweepResultsCSV(path string) ([]sweepResult, error) {
 			TrainAccuracy:       csvFloat(row, header, "trainAccuracy"),
 			ValidationAccuracy:  csvFloat(row, header, "validationAccuracy"),
 			AllowPassRate:       csvFloat(row, header, "allowPassRate"),
+			BlockPassRate:       csvFloat(row, header, "blockPassRate"),
+			BalancedAccuracy:    csvFloat(row, header, "balancedAccuracy"),
 			Duration:            csvFloat(row, header, "durationSeconds"),
 			InferenceDuration:   csvFloat(row, header, "inferenceDurationSeconds"),
 			InferenceSamples:    csvInt(row, header, "inferenceSamples"),
@@ -143,10 +149,40 @@ func readSweepResultsCSV(path string) ([]sweepResult, error) {
 			NumSamples:          csvInt(row, header, "numSamples"),
 			TrainSamples:        csvInt(row, header, "trainSamples"),
 			ValidationSamples:   csvInt(row, header, "validationSamples"),
+			HoldoutStrategy:     csvString(row, header, "holdoutStrategy"),
 			Error:               csvString(row, header, "error"),
 		})
 	}
 	return out, nil
+}
+
+// sweepResultsCSVHasCurrentSchema requires both security metrics and grouped
+// holdout provenance. Older graph/GAN CSVs recorded row-wise validation counts,
+// so accepting those caches would make incomparable results look authoritative.
+func sweepResultsCSVHasCurrentSchema(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	header, err := csv.NewReader(f).Read()
+	if err != nil {
+		return false
+	}
+	var hasAllowPassRate, hasBlockPassRate, hasBalancedAccuracy, hasHoldoutStrategy bool
+	for _, name := range header {
+		switch name {
+		case "allowPassRate":
+			hasAllowPassRate = true
+		case "blockPassRate":
+			hasBlockPassRate = true
+		case "balancedAccuracy":
+			hasBalancedAccuracy = true
+		case "holdoutStrategy":
+			hasHoldoutStrategy = true
+		}
+	}
+	return hasAllowPassRate && hasBlockPassRate && hasBalancedAccuracy && hasHoldoutStrategy
 }
 
 func csvString(row []string, header map[string]int, name string) string {
@@ -182,7 +218,8 @@ func writeRepeatCSV(path string, runs []repeatRunResult) error {
 		"trainAccuracy", "validationAccuracy", "allowPassRate", "durationSeconds",
 		"inferenceDurationSeconds", "inferenceSamples", "inferenceLatencyMs", "inferenceThroughput",
 		"memoryBytes",
-		"numSamples", "trainSamples", "validationSamples", "error",
+		"numSamples", "trainSamples", "validationSamples", "holdoutStrategy", "error",
+		"blockPassRate", "balancedAccuracy",
 	}
 	if err := w.Write(header); err != nil {
 		return err
@@ -207,7 +244,10 @@ func writeRepeatCSV(path string, runs []repeatRunResult) error {
 			strconv.Itoa(r.NumSamples),
 			strconv.Itoa(r.TrainSamples),
 			strconv.Itoa(r.ValidationSamples),
+			r.HoldoutStrategy,
 			r.Error,
+			fmt.Sprintf("%.6f", r.BlockPassRate),
+			fmt.Sprintf("%.6f", r.BalancedAccuracy),
 		}
 		if err := w.Write(row); err != nil {
 			return err
@@ -234,6 +274,8 @@ func writeRepeatSummaryCSV(path string, summaries []repeatSummary) error {
 		"durationMean", "durationStd",
 		"inferenceMean", "inferenceStd", "inferenceMin", "inferenceMax", "inferenceLatencyMean", "inferenceLatencyStd",
 		"memoryMean", "memoryStd", "memoryMin", "memoryMax",
+		"blockMean", "blockStd", "blockMin", "blockMax",
+		"balancedMean", "balancedStd", "balancedMin", "balancedMax",
 	}
 	if err := w.Write(header); err != nil {
 		return err
@@ -271,7 +313,15 @@ func writeRepeatSummaryCSV(path string, summaries []repeatSummary) error {
 			fmt.Sprintf("%.0f", s.MemoryMean),
 			fmt.Sprintf("%.0f", s.MemoryStd),
 			fmt.Sprintf("%.0f", s.MemoryMin),
-			fmt.Sprintf("%.0f", s.MemoryMax),
+			fmt.Sprintf("%.6f", s.MemoryMax),
+			fmt.Sprintf("%.6f", s.BlockMean),
+			fmt.Sprintf("%.6f", s.BlockStd),
+			fmt.Sprintf("%.6f", s.BlockMin),
+			fmt.Sprintf("%.6f", s.BlockMax),
+			fmt.Sprintf("%.6f", s.BalancedMean),
+			fmt.Sprintf("%.6f", s.BalancedStd),
+			fmt.Sprintf("%.6f", s.BalancedMin),
+			fmt.Sprintf("%.6f", s.BalancedMax),
 		}
 		if err := w.Write(row); err != nil {
 			return err
@@ -289,8 +339,8 @@ func renderStabilityChart(summaries []repeatSummary) (string, error) {
 		items = append(items, barItem{
 			Label: shortProfileLabel(s.Profile),
 			Value: s.ValidationMean,
-			Title: fmt.Sprintf("%s | %s | mean=%.2f%% ± %.2f%% | success=%.0f%%",
-				s.Profile, s.ConfigSummary, s.ValidationMean*100, s.ValidationStd*100, s.SuccessRate*100),
+			Title: fmt.Sprintf("%s | %s | mean=%.2f%% ± %.2f%% | bal=%.2f%% | block=%.2f%% | success=%.0f%%",
+				s.Profile, s.ConfigSummary, s.ValidationMean*100, s.ValidationStd*100, s.BalancedMean*100, s.BlockMean*100, s.SuccessRate*100),
 		})
 	}
 	return renderBarChart("100-run mean validation accuracy", "higher is better", items, 0.0, 1.0)
@@ -327,8 +377,8 @@ func renderStabilitySpeedChart(summaries []repeatSummary) (string, error) {
 		items = append(items, barItem{
 			Label: shortModelLabel(s.ModelType),
 			Value: s.InferenceMean,
-			Title: fmt.Sprintf("%s | %s | infer=%.0f/s ± %.0f/s | mean val=%.2f%%",
-				s.Profile, s.ConfigSummary, s.InferenceMean, s.InferenceStd, s.ValidationMean*100),
+			Title: fmt.Sprintf("%s | %s | infer=%.0f/s ± %.0f/s | val=%.2f%% | bal=%.2f%% | block=%.2f%%",
+				s.Profile, s.ConfigSummary, s.InferenceMean, s.InferenceStd, s.ValidationMean*100, s.BalancedMean*100, s.BlockMean*100),
 		})
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].Value > items[j].Value })

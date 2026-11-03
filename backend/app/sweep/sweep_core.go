@@ -1,12 +1,13 @@
 package sweep
 
 import (
-	"agent-ebpf-filter/app/ml"
 	"fmt"
 	"math"
 	"runtime"
 	"sync"
 	"time"
+
+	"agent-ebpf-filter/app/ml"
 )
 
 func canRunIncrementalCountProfile(profile sweepProfile) bool {
@@ -180,9 +181,7 @@ func buildIncrementalCountContext(profile sweepProfile, store *ml.TrainingDataSt
 	}
 	ctx.BuildDuration = time.Since(start).Seconds()
 	runtime.ReadMemStats(&memAfter)
-	if memAfter.Alloc > memBefore.Alloc {
-		ctx.MemoryBytes = int64(memAfter.Alloc - memBefore.Alloc)
-	}
+	ctx.MemoryBytes = liveHeapDeltaBytes(memBefore.Alloc, memAfter.Alloc)
 	return ctx, nil
 }
 
@@ -194,12 +193,16 @@ func runIncrementalCountValue(ctx incrementalCountContext, x int) sweepResult {
 	if len(ctx.ValSet) > 0 {
 		validationAccuracy = evalModelTrainSamples(model, ctx.ValSet)
 	}
-	allowPassRate := 0.0
+	var metrics classMetrics
 	if len(ctx.ValRaw) > 0 {
-		allowPassRate = evaluateClassMetrics(model, ctx.ValRaw).AllowPassRate
+		metrics = evaluateClassMetrics(model, ctx.ValRaw)
 	}
 	inferenceDuration, inferenceThroughput, inferenceLatencyMs, inferenceSamples := ml.BenchmarkModelInference(model, ctx.Benchmark)
 	ratio := float64(clampCount(x, ctx.MaxValue)) / float64(ctx.MaxValue)
+	holdoutStrategy := ""
+	if hasHoldoutSplitCounts(ctx.NumSamples, ctx.TrainSamples, ctx.ValSamples) {
+		holdoutStrategy = holdoutStrategyGroupedBehaviorV1
+	}
 	return sweepResult{
 		Profile:             ctx.Profile.Name,
 		Dataset:             ctx.Profile.DatasetName,
@@ -214,7 +217,9 @@ func runIncrementalCountValue(ctx incrementalCountContext, x int) sweepResult {
 		ConfigSummary:       ctx.SummaryForCfg(cfg),
 		TrainAccuracy:       trainAccuracy,
 		ValidationAccuracy:  validationAccuracy,
-		AllowPassRate:       allowPassRate,
+		AllowPassRate:       metrics.AllowPassRate,
+		BlockPassRate:       metrics.BlockPassRate,
+		BalancedAccuracy:    metrics.BalancedAccuracy,
 		Duration:            ctx.BuildDuration * ratio,
 		InferenceDuration:   inferenceDuration,
 		InferenceSamples:    inferenceSamples,
@@ -224,6 +229,7 @@ func runIncrementalCountValue(ctx incrementalCountContext, x int) sweepResult {
 		NumSamples:          ctx.NumSamples,
 		TrainSamples:        ctx.TrainSamples,
 		ValidationSamples:   ctx.ValSamples,
+		HoldoutStrategy:     holdoutStrategy,
 	}
 }
 
@@ -259,18 +265,70 @@ func bestSweepResult(results []sweepResult) sweepResult {
 	var best sweepResult
 	best.ValidationAccuracy = math.Inf(-1)
 	for _, row := range results {
-		if row.Error == "" && (row.ValidationAccuracy > best.ValidationAccuracy ||
-			(row.ValidationAccuracy == best.ValidationAccuracy && row.AllowPassRate > best.AllowPassRate) ||
-			(row.ValidationAccuracy == best.ValidationAccuracy && row.InferenceThroughput > best.InferenceThroughput) ||
-			(row.ValidationAccuracy == best.ValidationAccuracy && row.AllowPassRate == best.AllowPassRate && row.InferenceThroughput == best.InferenceThroughput && row.Duration < best.Duration)) {
+		if row.Error == "" && sweepResultHasHoldout(row) && sweepResultOutranks(row, best) {
+			best = row
+		}
+	}
+	if !math.IsInf(best.ValidationAccuracy, -1) {
+		return best
+	}
+	for _, row := range results {
+		if row.Error == "" && sweepResultOutranks(row, best) {
 			best = row
 		}
 	}
 	return best
 }
 
+// sweepResultOutranks is the single ordering used to pick a winning
+// configuration. Balanced accuracy leads because raw validation accuracy can be
+// maximized by ignoring the rarer class: an earlier tuning round promoted a
+// leaf-size change that raised accuracy while dropping BLOCK recall from 97% to
+// 93%. Raw accuracy, then BLOCK recall (a missed block is the costliest error
+// for a blocking policy), then ALLOW pass rate, then runtime cost break ties.
+func sweepResultOutranks(a, b sweepResult) bool {
+	switch {
+	case a.BalancedAccuracy != b.BalancedAccuracy:
+		return a.BalancedAccuracy > b.BalancedAccuracy
+	case a.ValidationAccuracy != b.ValidationAccuracy:
+		return a.ValidationAccuracy > b.ValidationAccuracy
+	case a.BlockPassRate != b.BlockPassRate:
+		return a.BlockPassRate > b.BlockPassRate
+	case a.AllowPassRate != b.AllowPassRate:
+		return a.AllowPassRate > b.AllowPassRate
+	case a.InferenceThroughput != b.InferenceThroughput:
+		return a.InferenceThroughput > b.InferenceThroughput
+	case a.Duration != b.Duration:
+		return a.Duration < b.Duration
+	case a.XValue != b.XValue:
+		return a.XValue < b.XValue
+	default:
+		return a.YValue < b.YValue
+	}
+}
+
 func expectedProfileResultCount(profile sweepProfile) int {
 	return configuredProfilePointCount(profile)
+}
+
+// hasHoldoutSplitCounts reports whether training and validation counts describe
+// nonempty disjoint sets within the labeled total. Provenance is checked
+// separately by the strategy marker; counts cannot distinguish grouped from row-wise splits.
+func hasHoldoutSplitCounts(numSamples, trainSamples, validationSamples int) bool {
+	return numSamples > 0 &&
+		trainSamples > 0 && trainSamples <= numSamples &&
+		validationSamples > 0 && validationSamples <= numSamples &&
+		trainSamples <= numSamples-validationSamples
+}
+
+func sweepResultHasHoldout(row sweepResult) bool {
+	return row.HoldoutStrategy == holdoutStrategyGroupedBehaviorV1 &&
+		hasHoldoutSplitCounts(row.NumSamples, row.TrainSamples, row.ValidationSamples)
+}
+
+func repeatRunHasHoldout(run repeatRunResult) bool {
+	return run.HoldoutStrategy == holdoutStrategyGroupedBehaviorV1 &&
+		hasHoldoutSplitCounts(run.NumSamples, run.TrainSamples, run.ValidationSamples)
 }
 
 func configuredProfilePointCount(profile sweepProfile) int {
@@ -306,10 +364,7 @@ func runSingleConfig(profile sweepProfile, store *ml.TrainingDataStore, x, y int
 	model, result := trainer.TrainWithConfig(store, cfg)
 	duration := time.Since(start).Seconds()
 	runtime.ReadMemStats(&memAfter)
-	memUsed := int64(memAfter.Alloc - memBefore.Alloc)
-	if memUsed < 0 {
-		memUsed = 0
-	}
+	memUsed := liveHeapDeltaBytes(memBefore.Alloc, memAfter.Alloc)
 
 	row := sweepResult{
 		Profile:          profile.Name,
@@ -333,17 +388,23 @@ func runSingleConfig(profile sweepProfile, store *ml.TrainingDataStore, x, y int
 		Error:              result.Error,
 	}
 	if result.Error == "" && model != nil {
+		if hasHoldoutSplitCounts(row.NumSamples, row.TrainSamples, row.ValidationSamples) {
+			row.HoldoutStrategy = holdoutStrategyGroupedBehaviorV1
+		}
 		row.ModelType = model.Type()
 		if row.ConfigSummary == "" {
 			row.ConfigSummary = string(model.Type())
 		}
 		validationSamples := trainer.LastValidationSamples()
 		if len(validationSamples) > 0 {
-			row.AllowPassRate = evaluateClassMetrics(model, validationSamples).AllowPassRate
+			metrics := evaluateClassMetrics(model, validationSamples)
+			row.AllowPassRate = metrics.AllowPassRate
+			row.BlockPassRate = metrics.BlockPassRate
+			row.BalancedAccuracy = metrics.BalancedAccuracy
 		}
 		infStartMem := allocMem()
 		row.InferenceDuration, row.InferenceThroughput, row.InferenceLatencyMs, row.InferenceSamples = ml.BenchmarkModelInference(model, benchmarkSamples)
-		row.MemoryBytes = int64(allocMem()-infStartMem) + memUsed
+		row.MemoryBytes = liveHeapDeltaBytes(infStartMem, allocMem()) + memUsed
 	} else {
 		row.MemoryBytes = memUsed
 	}
@@ -358,10 +419,14 @@ func newSweepTrainer() *ml.ModelTrainer {
 }
 
 type classMetrics struct {
-	Accuracy      float64
-	AllowPassRate float64
-	AllowTotal    int
-	AllowCorrect  int
+	Accuracy         float64
+	AllowPassRate    float64
+	AllowTotal       int
+	AllowCorrect     int
+	BlockPassRate    float64
+	BlockTotal       int
+	BlockCorrect     int
+	BalancedAccuracy float64
 }
 
 func evaluateClassMetrics(model ml.Model, samples []ml.TrainingSample) classMetrics {
@@ -371,6 +436,8 @@ func evaluateClassMetrics(model ml.Model, samples []ml.TrainingSample) classMetr
 	correct := 0
 	allowTotal := 0
 	allowCorrect := 0
+	blockTotal := 0
+	blockCorrect := 0
 	for _, sample := range samples {
 		pred := model.Predict(sample.Features)
 		if pred.Action == sample.Label {
@@ -381,15 +448,34 @@ func evaluateClassMetrics(model ml.Model, samples []ml.TrainingSample) classMetr
 			if pred.Action == 0 {
 				allowCorrect++
 			}
+		} else {
+			blockTotal++
+			if pred.Action != 0 {
+				blockCorrect++
+			}
 		}
 	}
 	metrics := classMetrics{
 		Accuracy:     float64(correct) / float64(len(samples)),
 		AllowTotal:   allowTotal,
 		AllowCorrect: allowCorrect,
+		BlockTotal:   blockTotal,
+		BlockCorrect: blockCorrect,
 	}
+	balanced := 0.0
+	classes := 0
 	if allowTotal > 0 {
 		metrics.AllowPassRate = float64(allowCorrect) / float64(allowTotal)
+		balanced += metrics.AllowPassRate
+		classes++
+	}
+	if blockTotal > 0 {
+		metrics.BlockPassRate = float64(blockCorrect) / float64(blockTotal)
+		balanced += metrics.BlockPassRate
+		classes++
+	}
+	if classes > 0 {
+		metrics.BalancedAccuracy = balanced / float64(classes)
 	}
 	return metrics
 }

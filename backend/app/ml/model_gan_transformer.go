@@ -556,11 +556,11 @@ func (m *GANTransformerModel) Serialize(path string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0644); err != nil {
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
 		return err
 	}
 	return os.Rename(tmp, path)
@@ -682,23 +682,10 @@ func (t *ModelTrainer) trainGANTransformer(store *TrainingDataStore, cfg MLConfi
 	if len(labeled) < 8 {
 		return nil, TrainResult{Error: "need >=8 labeled samples for GAN Transformer"}
 	}
-
-	validationRatio := cfg.ValidationSplitRatio
-	if validationRatio <= 0 || validationRatio >= 0.5 {
-		validationRatio = 0.20
+	_, _, trainRaw, validationRaw, err := PrepareAutoTuneSplit(labeled, cfg.ValidationSplitRatio)
+	if err != nil {
+		return nil, TrainResult{Error: fmt.Sprintf("independent holdout: %v", err)}
 	}
-	shuffled := append([]TrainingSample(nil), labeled...)
-	deterministicShuffleTrainingSamples(shuffled)
-	validationCount := int(math.Round(float64(len(shuffled)) * validationRatio))
-	if validationCount < 1 {
-		validationCount = 1
-	}
-	if validationCount >= len(shuffled) {
-		validationCount = len(shuffled) - 1
-	}
-	trainCount := len(shuffled) - validationCount
-	trainRaw := append([]TrainingSample(nil), shuffled[:trainCount]...)
-	validationRaw := append([]TrainingSample(nil), shuffled[trainCount:]...)
 
 	latentDim := cfg.NumTrees
 	if latentDim <= 0 {
@@ -731,13 +718,6 @@ func (t *ModelTrainer) trainGANTransformer(store *TrainingDataStore, cfg MLConfi
 		NumSamples:         len(labeled),
 		TrainSamples:       len(trainRaw),
 		ValidationSamples:  len(validationRaw),
-	}
-}
-
-func deterministicShuffleTrainingSamples(samples []TrainingSample) {
-	for i := len(samples) - 1; i > 0; i-- {
-		j := int((uint64(i)*1103515245 + 12345) % uint64(i+1))
-		samples[i], samples[j] = samples[j], samples[i]
 	}
 }
 

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"log"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -186,6 +187,49 @@ func resolveAction(
 	mlEnabled bool,
 	mlModelLoaded bool,
 ) (pb.WrapperResponse_Action, string) {
+	return resolveActionWithScore(req, ruleAction, rulePriority, classification,
+		anomalyScore, mlPrediction, cfg, mlEnabled, mlModelLoaded)
+}
+
+// mlActionRiskScore maps a model decision onto a bounded risk score in [0,1]
+// so ALLOW and BLOCK thresholds describe two halves of one interval. An ALLOW
+// prediction at confidence c maps to 1-c (low risk), BLOCK maps to c (high
+// risk), while ALERT/REWRITE stay neutral at 0.5. Unknown actions and
+// non-finite scores also stay neutral so malformed model output cannot bypass
+// the intervals.
+func mlActionRiskScore(action int32, confidence float64) float64 {
+	if math.IsNaN(confidence) || math.IsInf(confidence, 0) {
+		return 0.5
+	}
+	if confidence < 0 {
+		confidence = 0
+	}
+	if confidence > 1 {
+		confidence = 1
+	}
+	switch action {
+	case 0: // ALLOW: higher confidence means lower risk
+		return 1 - confidence
+	case 1: // BLOCK: confidence is the risk score
+		return confidence
+	case 2, 3: // REWRITE / ALERT are neutral
+		return 0.5
+	default:
+		return 0.5
+	}
+}
+
+func resolveActionWithScore(
+	req *pb.WrapperRequest,
+	ruleAction string,
+	rulePriority int,
+	classification *pb.BehaviorClassification,
+	anomalyScore float64,
+	mlPrediction ml.Prediction,
+	cfg MLConfig,
+	mlEnabled bool,
+	mlModelLoaded bool,
+) (pb.WrapperResponse_Action, string) {
 	// ── Explicit high-priority rules always win ──
 	if ruleAction != "" && rulePriority >= cfg.RuleOverridePriority {
 		switch ruleAction {
@@ -221,15 +265,20 @@ func resolveAction(
 			"HIGH network risk with anomalous pattern"
 	}
 
-	// ── Layer 2: ML model ──
+	// ── Layer 2: ML model → bounded risk intervals ──
+	if mlEnabled && mlModelLoaded && (math.IsNaN(mlPrediction.Confidence) ||
+		math.IsInf(mlPrediction.Confidence, 0) || mlPrediction.Confidence < 0 || mlPrediction.Confidence > 1) {
+		// Malformed model output must not fall through to the default ALLOW.
+		return pb.WrapperResponse_ALERT, "ML classification: invalid model confidence (elevated to ALERT)"
+	}
 	if mlEnabled && mlModelLoaded && mlPrediction.Confidence >= cfg.MlMinConfidence {
+		riskScore := mlActionRiskScore(int32(mlPrediction.Action), mlPrediction.Confidence)
 		switch mlPrediction.Action {
-		case 1: // BLOCK
-			if mlPrediction.Confidence >= cfg.BlockConfidenceThreshold {
-				return pb.WrapperResponse_BLOCK, "ML classification: BLOCK (high confidence)"
+		case 1: // BLOCK: high risk → BLOCK, lower risk → ALERT
+			if riskScore >= cfg.BlockConfidenceThreshold-1e-9 {
+				return pb.WrapperResponse_BLOCK, "ML classification: BLOCK (risk score in block interval)"
 			}
-			// Uncertain block → alert instead
-			return pb.WrapperResponse_ALERT, "ML classification: suspicious (elevated to ALERT)"
+			return pb.WrapperResponse_ALERT, "ML classification: suspicious (risk below block threshold, elevated to ALERT)"
 		case 3: // ALERT
 			return pb.WrapperResponse_ALERT, "ML classification: ALERT"
 		case 2: // REWRITE
@@ -237,11 +286,16 @@ func resolveAction(
 				return pb.WrapperResponse_REWRITE, "ML classification: REWRITE (rule exists)"
 			}
 			return pb.WrapperResponse_ALERT, "ML classification: REWRITE (no rewrite rule available, alerting)"
-		case 0: // ALLOW
-			if anomalyScore < cfg.LowAnomalyThreshold {
-				return pb.WrapperResponse_ALLOW, "ML classification: benign behavior"
+		case 0: // ALLOW: low risk → ALLOW, mid risk → ALERT
+			if riskScore <= cfg.AllowRiskScoreThreshold+1e-9 {
+				if anomalyScore < cfg.LowAnomalyThreshold {
+					return pb.WrapperResponse_ALLOW, "ML classification: benign behavior (risk score in allow interval)"
+				}
+				return pb.WrapperResponse_ALERT, "ML classification: uncertain benign (anomaly elevated)"
 			}
-			return pb.WrapperResponse_ALERT, "ML classification: uncertain benign (anomaly elevated)"
+			return pb.WrapperResponse_ALERT, "ML classification: uncertain benign (risk above allow threshold)"
+		default: // Unknown model action → ALERT so malformed output cannot pass silently
+			return pb.WrapperResponse_ALERT, "ML classification: unknown action (elevated to ALERT)"
 		}
 	}
 
@@ -249,6 +303,9 @@ func resolveAction(
 	if mlEnabled && anomalyScore > cfg.HighAnomalyThreshold {
 		// High anomaly with low model confidence — still worth alerting
 		return pb.WrapperResponse_ALERT, "Anomalous behavior detected (insufficient labeled data for ML classification)"
+	}
+	if mlEnabled && mlModelLoaded && mlPrediction.Confidence < cfg.MlMinConfidence && ruleAction == "" {
+		return pb.WrapperResponse_ALERT, "ML classification below minimum confidence (elevated to ALERT)"
 	}
 
 	// ── Fallback: existing rule-based behavior ──

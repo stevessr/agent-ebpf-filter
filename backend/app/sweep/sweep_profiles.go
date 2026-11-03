@@ -24,7 +24,7 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 		pointsPerParam = 1000
 	}
 	if mode == "comprehensive" {
-		return comprehensiveAxisSweepProfiles(pointsPerParam)
+		return append(comprehensiveAxisSweepProfiles(pointsPerParam), modelCatalogProfile())
 	}
 	quick := map[string]bool{
 		string(ModelRandomForest):       true,
@@ -80,16 +80,15 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 		adaX = linspaceInt(5, 300, 20)
 	}
 
-	return []sweepProfile{
+	profiles := []sweepProfile{
 		{
-			Name:       "random_forest",
-			ModelType:  ModelRandomForest,
-			Comparable: true,
-			Kind:       "heatmap",
-			XName:      "numTrees",
-			YName:      "maxDepth",
-			XValues:    rfX,
-			YValues:    rfY,
+			Name:      "random_forest",
+			ModelType: ModelRandomForest,
+			Kind:      "heatmap",
+			XName:     "numTrees",
+			YName:     "maxDepth",
+			XValues:   rfX,
+			YValues:   rfY,
 			Build: func(x, y int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelRandomForest
@@ -107,14 +106,13 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "extra_trees",
-			ModelType:  ModelExtraTrees,
-			Comparable: true,
-			Kind:       "heatmap",
-			XName:      "numTrees",
-			YName:      "maxDepth",
-			XValues:    etX,
-			YValues:    etY,
+			Name:      "extra_trees",
+			ModelType: ModelExtraTrees,
+			Kind:      "heatmap",
+			XName:     "numTrees",
+			YName:     "maxDepth",
+			XValues:   etX,
+			YValues:   etY,
 			Build: func(x, y int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelExtraTrees
@@ -132,14 +130,13 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "logistic",
-			ModelType:  ModelLogisticRegression,
-			Comparable: true,
-			Kind:       "heatmap",
-			XName:      "learningRate×1000",
-			YName:      "maxIter",
-			XValues:    logX,
-			YValues:    logY,
+			Name:      "logistic",
+			ModelType: ModelLogisticRegression,
+			Kind:      "heatmap",
+			XName:     "learningRate×1000",
+			YName:     "maxIter",
+			XValues:   logX,
+			YValues:   logY,
 			Build: func(x, y int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelLogisticRegression
@@ -164,14 +161,13 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "svm",
-			ModelType:  ModelSVM,
-			Comparable: true,
-			Kind:       "heatmap",
-			XName:      "learningRate×1000",
-			YName:      "iterations",
-			XValues:    linearX,
-			YValues:    linearY,
+			Name:      "svm",
+			ModelType: ModelSVM,
+			Kind:      "heatmap",
+			XName:     "learningRate×1000",
+			YName:     "iterations",
+			XValues:   linearX,
+			YValues:   linearY,
 			Build: func(x, y int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelSVM
@@ -189,14 +185,13 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "perceptron",
-			ModelType:  ModelPerceptron,
-			Comparable: true,
-			Kind:       "heatmap",
-			XName:      "learningRate×1000",
-			YName:      "iterations",
-			XValues:    linearX,
-			YValues:    linearY,
+			Name:      "perceptron",
+			ModelType: ModelPerceptron,
+			Kind:      "heatmap",
+			XName:     "learningRate×1000",
+			YName:     "iterations",
+			XValues:   linearX,
+			YValues:   linearY,
 			Build: func(x, y int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelPerceptron
@@ -214,14 +209,13 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "passive_aggressive",
-			ModelType:  ModelPassiveAggressive,
-			Comparable: true,
-			Kind:       "heatmap",
-			XName:      "learningRate×1000",
-			YName:      "iterations",
-			XValues:    linearX,
-			YValues:    linearY,
+			Name:      "passive_aggressive",
+			ModelType: ModelPassiveAggressive,
+			Kind:      "heatmap",
+			XName:     "C×10",
+			YName:     "iterations",
+			XValues:   linearX,
+			YValues:   linearY,
 			Build: func(x, y int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelPassiveAggressive
@@ -232,19 +226,18 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 				cfg.LlmEnabled = false
 				return cfg
 			},
-			XLabel: func(v int) string { return fmt.Sprintf("%.3f", float64(v)/1000.0) },
+			XLabel: func(v int) string { return fmt.Sprintf("%.2f", float64(v)/10.0) },
 			YLabel: strconv.Itoa,
 			Summary: func(cfg MLConfig) string {
-				return fmt.Sprintf("lr=%.3f iter=%d", float64(cfg.NumTrees)/1000.0, cfg.MinSamplesLeaf)
+				return fmt.Sprintf("C=%.2f iter=%d", float64(cfg.NumTrees)/10.0, cfg.MinSamplesLeaf)
 			},
 		},
 		{
-			Name:       "knn",
-			ModelType:  ModelKNN,
-			Comparable: false,
-			Kind:       "bar",
-			XName:      "k",
-			XValues:    knnX,
+			Name:      "knn",
+			ModelType: ModelKNN,
+			Kind:      "bar",
+			XName:     "k",
+			XValues:   knnX,
 			Build: func(x, _ int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelKNN
@@ -261,12 +254,11 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "ridge",
-			ModelType:  ModelRidge,
-			Comparable: false,
-			Kind:       "bar",
-			XName:      "alpha×100",
-			XValues:    ridgeX,
+			Name:      "ridge",
+			ModelType: ModelRidge,
+			Kind:      "bar",
+			XName:     "alpha×100",
+			XValues:   ridgeX,
 			Build: func(x, _ int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelRidge
@@ -281,12 +273,11 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "adaboost",
-			ModelType:  ModelAdaBoost,
-			Comparable: false,
-			Kind:       "bar",
-			XName:      "estimators",
-			XValues:    adaX,
+			Name:      "adaboost",
+			ModelType: ModelAdaBoost,
+			Kind:      "bar",
+			XName:     "estimators",
+			XValues:   adaX,
 			Build: func(x, _ int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelAdaBoost
@@ -301,12 +292,11 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "naive_bayes",
-			ModelType:  ModelNaiveBayes,
-			Comparable: false,
-			Kind:       "bar",
-			XName:      "preset",
-			XValues:    nbX,
+			Name:      "naive_bayes",
+			ModelType: ModelNaiveBayes,
+			Kind:      "bar",
+			XName:     "preset",
+			XValues:   nbX,
 			Build: func(_, _ int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelNaiveBayes
@@ -320,12 +310,11 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "naive_bayes_balanced",
-			ModelType:  ModelNaiveBayes,
-			Comparable: false,
-			Kind:       "bar",
-			XName:      "preset",
-			XValues:    []int{0},
+			Name:      "naive_bayes_balanced",
+			ModelType: ModelNaiveBayes,
+			Kind:      "bar",
+			XName:     "preset",
+			XValues:   []int{0},
 			Build: func(_, _ int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelNaiveBayes
@@ -340,14 +329,13 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "logistic_balanced",
-			ModelType:  ModelLogisticRegression,
-			Comparable: true,
-			Kind:       "heatmap",
-			XName:      "learningRate×1000",
-			YName:      "maxIter",
-			XValues:    []int{3, 5, 10, 20, 50, 100},
-			YValues:    []int{1000, 2000, 4000},
+			Name:      "logistic_balanced",
+			ModelType: ModelLogisticRegression,
+			Kind:      "heatmap",
+			XName:     "learningRate×1000",
+			YName:     "maxIter",
+			XValues:   []int{3, 5, 10, 20, 50, 100},
+			YValues:   []int{1000, 2000, 4000},
 			Build: func(x, y int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelLogisticRegression
@@ -366,14 +354,13 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "svm_balanced",
-			ModelType:  ModelSVM,
-			Comparable: true,
-			Kind:       "heatmap",
-			XName:      "learningRate×1000",
-			YName:      "iterations",
-			XValues:    []int{1, 5, 10, 20, 50, 100, 150},
-			YValues:    []int{1000, 2000, 4000, 8000},
+			Name:      "svm_balanced",
+			ModelType: ModelSVM,
+			Kind:      "heatmap",
+			XName:     "learningRate×1000",
+			YName:     "iterations",
+			XValues:   []int{1, 5, 10, 20, 50, 100, 150},
+			YValues:   []int{1000, 2000, 4000, 8000},
 			Build: func(x, y int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelSVM
@@ -392,14 +379,13 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "perceptron_balanced",
-			ModelType:  ModelPerceptron,
-			Comparable: true,
-			Kind:       "heatmap",
-			XName:      "learningRate×1000",
-			YName:      "iterations",
-			XValues:    []int{1, 5, 10, 20, 50, 100, 150},
-			YValues:    []int{1000, 2000, 4000, 8000},
+			Name:      "perceptron_balanced",
+			ModelType: ModelPerceptron,
+			Kind:      "heatmap",
+			XName:     "learningRate×1000",
+			YName:     "iterations",
+			XValues:   []int{1, 5, 10, 20, 50, 100, 150},
+			YValues:   []int{1000, 2000, 4000, 8000},
 			Build: func(x, y int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelPerceptron
@@ -418,14 +404,13 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "passive_aggressive_balanced",
-			ModelType:  ModelPassiveAggressive,
-			Comparable: true,
-			Kind:       "heatmap",
-			XName:      "learningRate×1000",
-			YName:      "iterations",
-			XValues:    []int{1, 5, 10, 20, 50, 100, 150},
-			YValues:    []int{1000, 2000, 4000, 8000},
+			Name:      "passive_aggressive_balanced",
+			ModelType: ModelPassiveAggressive,
+			Kind:      "heatmap",
+			XName:     "C×10",
+			YName:     "iterations",
+			XValues:   []int{1, 5, 10, 20, 50, 100, 150},
+			YValues:   []int{1000, 2000, 4000, 8000},
 			Build: func(x, y int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelPassiveAggressive
@@ -437,19 +422,18 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 				cfg.LlmEnabled = false
 				return cfg
 			},
-			XLabel: func(v int) string { return fmt.Sprintf("%.3f", float64(v)/1000.0) },
+			XLabel: func(v int) string { return fmt.Sprintf("%.2f", float64(v)/10.0) },
 			YLabel: strconv.Itoa,
 			Summary: func(cfg MLConfig) string {
-				return fmt.Sprintf("lr=%.3f balanced iter=%d", float64(cfg.NumTrees)/1000.0, cfg.MinSamplesLeaf)
+				return fmt.Sprintf("C=%.2f balanced iter=%d", float64(cfg.NumTrees)/10.0, cfg.MinSamplesLeaf)
 			},
 		},
 		{
-			Name:       "nearest_centroid",
-			ModelType:  ModelNearestCentroid,
-			Comparable: true,
-			Kind:       "bar",
-			XName:      "preset",
-			XValues:    []int{0},
+			Name:      "nearest_centroid",
+			ModelType: ModelNearestCentroid,
+			Kind:      "bar",
+			XName:     "preset",
+			XValues:   []int{0},
 			Build: func(_, _ int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelNearestCentroid
@@ -464,12 +448,11 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "nearest_centroid_balanced",
-			ModelType:  ModelNearestCentroid,
-			Comparable: true,
-			Kind:       "bar",
-			XName:      "preset",
-			XValues:    []int{0},
+			Name:      "nearest_centroid_balanced",
+			ModelType: ModelNearestCentroid,
+			Kind:      "bar",
+			XName:     "preset",
+			XValues:   []int{0},
 			Build: func(_, _ int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelNearestCentroid
@@ -485,12 +468,11 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "nearest_centroid_cosine",
-			ModelType:  ModelNearestCentroid,
-			Comparable: true,
-			Kind:       "bar",
-			XName:      "preset",
-			XValues:    []int{0},
+			Name:      "nearest_centroid_cosine",
+			ModelType: ModelNearestCentroid,
+			Kind:      "bar",
+			XName:     "preset",
+			XValues:   []int{0},
 			Build: func(_, _ int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelNearestCentroid
@@ -506,12 +488,11 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "knn_cosine",
-			ModelType:  ModelKNN,
-			Comparable: false,
-			Kind:       "bar",
-			XName:      "k",
-			XValues:    []int{1, 3, 5, 7, 9, 11, 15, 21, 31},
+			Name:      "knn_cosine",
+			ModelType: ModelKNN,
+			Kind:      "bar",
+			XName:     "k",
+			XValues:   []int{1, 3, 5, 7, 9, 11, 15, 21, 31},
 			Build: func(x, _ int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelKNN
@@ -528,14 +509,13 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "random_forest_fast",
-			ModelType:  ModelRandomForest,
-			Comparable: true,
-			Kind:       "heatmap",
-			XName:      "numTrees",
-			YName:      "maxDepth",
-			XValues:    []int{5, 9, 13, 17, 21},
-			YValues:    []int{3, 4, 5, 6, 7},
+			Name:      "random_forest_fast",
+			ModelType: ModelRandomForest,
+			Kind:      "heatmap",
+			XName:     "numTrees",
+			YName:     "maxDepth",
+			XValues:   []int{5, 9, 13, 17, 21},
+			YValues:   []int{3, 4, 5, 6, 7},
 			Build: func(x, y int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelRandomForest
@@ -553,14 +533,13 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "random_forest_deep",
-			ModelType:  ModelRandomForest,
-			Comparable: true,
-			Kind:       "heatmap",
-			XName:      "numTrees",
-			YName:      "maxDepth",
-			XValues:    []int{31, 41, 51, 61, 71},
-			YValues:    []int{8, 10, 12, 14},
+			Name:      "random_forest_deep",
+			ModelType: ModelRandomForest,
+			Kind:      "heatmap",
+			XName:     "numTrees",
+			YName:     "maxDepth",
+			XValues:   []int{31, 41, 51, 61, 71},
+			YValues:   []int{8, 10, 12, 14},
 			Build: func(x, y int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelRandomForest
@@ -578,14 +557,13 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "extra_trees_deep",
-			ModelType:  ModelExtraTrees,
-			Comparable: true,
-			Kind:       "heatmap",
-			XName:      "numTrees",
-			YName:      "maxDepth",
-			XValues:    []int{31, 41, 51, 61, 71},
-			YValues:    []int{8, 10, 12, 14},
+			Name:      "extra_trees_deep",
+			ModelType: ModelExtraTrees,
+			Kind:      "heatmap",
+			XName:     "numTrees",
+			YName:     "maxDepth",
+			XValues:   []int{31, 41, 51, 61, 71},
+			YValues:   []int{8, 10, 12, 14},
 			Build: func(x, y int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelExtraTrees
@@ -605,12 +583,11 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 		{
 			// Round-two refinement around the promoted 72-tree/depth-14
 			// incumbent: sweep the previously fixed minSamplesLeaf axis.
-			Name:       "random_forest_leaf",
-			ModelType:  ModelRandomForest,
-			Comparable: true,
-			Kind:       "bar",
-			XName:      "minSamplesLeaf",
-			XValues:    []int{1, 2, 3, 4, 5, 6, 8, 10, 12, 16},
+			Name:      "random_forest_leaf",
+			ModelType: ModelRandomForest,
+			Kind:      "bar",
+			XName:     "minSamplesLeaf",
+			XValues:   []int{1, 2, 3, 4, 5, 6, 8, 10, 12, 16},
 			Build: func(x, _ int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelRandomForest
@@ -629,14 +606,13 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 		{
 			// Round-two refinement: trees × depth around the incumbent
 			// leaf=3, extending past the earlier 100-tree/16-depth grid edge.
-			Name:       "random_forest_refine",
-			ModelType:  ModelRandomForest,
-			Comparable: true,
-			Kind:       "heatmap",
-			XName:      "numTrees",
-			YName:      "maxDepth",
-			XValues:    []int{51, 61, 72, 81, 91, 101, 121, 151},
-			YValues:    []int{12, 13, 14, 15, 16},
+			Name:      "random_forest_refine",
+			ModelType: ModelRandomForest,
+			Kind:      "heatmap",
+			XName:     "numTrees",
+			YName:     "maxDepth",
+			XValues:   []int{51, 61, 72, 81, 91, 101, 121, 151},
+			YValues:   []int{12, 13, 14, 15, 16},
 			Build: func(x, y int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelRandomForest
@@ -654,12 +630,11 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "extra_trees_leaf",
-			ModelType:  ModelExtraTrees,
-			Comparable: true,
-			Kind:       "bar",
-			XName:      "minSamplesLeaf",
-			XValues:    []int{1, 2, 3, 4, 5, 6, 8, 10, 12, 16},
+			Name:      "extra_trees_leaf",
+			ModelType: ModelExtraTrees,
+			Kind:      "bar",
+			XName:     "minSamplesLeaf",
+			XValues:   []int{1, 2, 3, 4, 5, 6, 8, 10, 12, 16},
 			Build: func(x, _ int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelExtraTrees
@@ -676,14 +651,13 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "extra_trees_refine",
-			ModelType:  ModelExtraTrees,
-			Comparable: true,
-			Kind:       "heatmap",
-			XName:      "numTrees",
-			YName:      "maxDepth",
-			XValues:    []int{31, 44, 51, 61, 72, 91, 121},
-			YValues:    []int{10, 11, 12, 13, 14},
+			Name:      "extra_trees_refine",
+			ModelType: ModelExtraTrees,
+			Kind:      "heatmap",
+			XName:     "numTrees",
+			YName:     "maxDepth",
+			XValues:   []int{31, 44, 51, 61, 72, 91, 121},
+			YValues:   []int{10, 11, 12, 13, 14},
 			Build: func(x, y int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelExtraTrees
@@ -701,14 +675,13 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "logistic_none",
-			ModelType:  ModelLogisticRegression,
-			Comparable: true,
-			Kind:       "heatmap",
-			XName:      "learningRate×1000",
-			YName:      "maxIter",
-			XValues:    []int{1, 3, 5, 10, 20, 50},
-			YValues:    []int{500, 1000, 2000, 4000},
+			Name:      "logistic_none",
+			ModelType: ModelLogisticRegression,
+			Kind:      "heatmap",
+			XName:     "learningRate×1000",
+			YName:     "maxIter",
+			XValues:   []int{1, 3, 5, 10, 20, 50},
+			YValues:   []int{500, 1000, 2000, 4000},
 			Build: func(x, y int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelLogisticRegression
@@ -726,14 +699,13 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "logistic_l1",
-			ModelType:  ModelLogisticRegression,
-			Comparable: true,
-			Kind:       "heatmap",
-			XName:      "learningRate×1000",
-			YName:      "maxIter",
-			XValues:    []int{3, 5, 10, 20, 50, 100},
-			YValues:    []int{1000, 2000, 4000},
+			Name:      "logistic_l1",
+			ModelType: ModelLogisticRegression,
+			Kind:      "heatmap",
+			XName:     "learningRate×1000",
+			YName:     "maxIter",
+			XValues:   []int{3, 5, 10, 20, 50, 100},
+			YValues:   []int{1000, 2000, 4000},
 			Build: func(x, y int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelLogisticRegression
@@ -751,14 +723,13 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "svm_long",
-			ModelType:  ModelSVM,
-			Comparable: true,
-			Kind:       "heatmap",
-			XName:      "learningRate×1000",
-			YName:      "iterations",
-			XValues:    []int{1, 5, 10, 20, 50, 100, 150},
-			YValues:    []int{1000, 2000, 4000, 8000},
+			Name:      "svm_long",
+			ModelType: ModelSVM,
+			Kind:      "heatmap",
+			XName:     "learningRate×1000",
+			YName:     "iterations",
+			XValues:   []int{1, 5, 10, 20, 50, 100, 150},
+			YValues:   []int{1000, 2000, 4000, 8000},
 			Build: func(x, y int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelSVM
@@ -776,14 +747,13 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "perceptron_long",
-			ModelType:  ModelPerceptron,
-			Comparable: true,
-			Kind:       "heatmap",
-			XName:      "learningRate×1000",
-			YName:      "iterations",
-			XValues:    []int{1, 5, 10, 20, 50, 100, 150},
-			YValues:    []int{1000, 2000, 4000, 8000},
+			Name:      "perceptron_long",
+			ModelType: ModelPerceptron,
+			Kind:      "heatmap",
+			XName:     "learningRate×1000",
+			YName:     "iterations",
+			XValues:   []int{1, 5, 10, 20, 50, 100, 150},
+			YValues:   []int{1000, 2000, 4000, 8000},
 			Build: func(x, y int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelPerceptron
@@ -801,14 +771,13 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "passive_aggressive_long",
-			ModelType:  ModelPassiveAggressive,
-			Comparable: true,
-			Kind:       "heatmap",
-			XName:      "learningRate×1000",
-			YName:      "iterations",
-			XValues:    []int{1, 5, 10, 20, 50, 100, 150},
-			YValues:    []int{1000, 2000, 4000, 8000},
+			Name:      "passive_aggressive_long",
+			ModelType: ModelPassiveAggressive,
+			Kind:      "heatmap",
+			XName:     "C×10",
+			YName:     "iterations",
+			XValues:   []int{1, 5, 10, 20, 50, 100, 150},
+			YValues:   []int{1000, 2000, 4000, 8000},
 			Build: func(x, y int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelPassiveAggressive
@@ -819,19 +788,18 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 				cfg.LlmEnabled = false
 				return cfg
 			},
-			XLabel: func(v int) string { return fmt.Sprintf("%.3f", float64(v)/1000.0) },
+			XLabel: func(v int) string { return fmt.Sprintf("%.2f", float64(v)/10.0) },
 			YLabel: strconv.Itoa,
 			Summary: func(cfg MLConfig) string {
-				return fmt.Sprintf("lr=%.3f iter=%d", float64(cfg.NumTrees)/1000.0, cfg.MinSamplesLeaf)
+				return fmt.Sprintf("C=%.2f iter=%d", float64(cfg.NumTrees)/10.0, cfg.MinSamplesLeaf)
 			},
 		},
 		{
-			Name:       "knn_distance",
-			ModelType:  ModelKNN,
-			Comparable: false,
-			Kind:       "bar",
-			XName:      "k",
-			XValues:    []int{1, 3, 5, 7, 9, 11, 15, 21, 31},
+			Name:      "knn_distance",
+			ModelType: ModelKNN,
+			Kind:      "bar",
+			XName:     "k",
+			XValues:   []int{1, 3, 5, 7, 9, 11, 15, 21, 31},
 			Build: func(x, _ int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelKNN
@@ -848,12 +816,11 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "ridge_strong",
-			ModelType:  ModelRidge,
-			Comparable: false,
-			Kind:       "bar",
-			XName:      "alpha×100",
-			XValues:    []int{100, 150, 200, 250, 300, 400, 500},
+			Name:      "ridge_strong",
+			ModelType: ModelRidge,
+			Kind:      "bar",
+			XName:     "alpha×100",
+			XValues:   []int{100, 150, 200, 250, 300, 400, 500},
 			Build: func(x, _ int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelRidge
@@ -868,12 +835,11 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "adaboost_large",
-			ModelType:  ModelAdaBoost,
-			Comparable: false,
-			Kind:       "bar",
-			XName:      "estimators",
-			XValues:    []int{50, 100, 150, 200, 250, 300, 400},
+			Name:      "adaboost_large",
+			ModelType: ModelAdaBoost,
+			Kind:      "bar",
+			XName:     "estimators",
+			XValues:   []int{50, 100, 150, 200, 250, 300, 400},
 			Build: func(x, _ int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelAdaBoost
@@ -888,12 +854,11 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 		{
-			Name:       "ensemble",
-			ModelType:  ModelEnsemble,
-			Comparable: true,
-			Kind:       "bar",
-			XName:      "voting",
-			XValues:    []int{0},
+			Name:      "ensemble",
+			ModelType: ModelEnsemble,
+			Kind:      "bar",
+			XName:     "voting",
+			XValues:   []int{0},
 			Build: func(_, _ int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelEnsemble
@@ -907,6 +872,10 @@ func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
 			},
 		},
 	}
+	if mode != "quick" {
+		profiles = append(profiles, modelCatalogProfile())
+	}
+	return profiles
 }
 
 func numericSweepParametersForModel(modelType ModelType) []string {

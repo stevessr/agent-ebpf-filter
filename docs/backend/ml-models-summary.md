@@ -256,8 +256,13 @@ go run ./cmd/ml-train --output artifacts/decision-model.bin
 - 候选训练超参由离线 sweep（`scripts/ml-sweep.sh --mode full`，repeats=3）在本数据集上调优：
   `random_forest` 72 trees / depth 14 / min-samples-leaf 3（稳定性验证准确率 97.3%±0.5，
   优于此前 31 trees / depth 8 的 ~95%）。
-- 超参可通过 `--num-trees` / `--max-depth` / `--min-samples-leaf` 覆盖（默认即上述调优值），
-  实际使用的超参会写入 manifest 的 `hyperparameters` 字段，便于对候选做可复核的 A/B 对比。
+- 超参可通过 `--num-trees` / `--max-depth` / `--min-samples-leaf` 覆盖；`0` 表示"沿用该模型族的默认值"
+  （被提升的随机森林族默认即上述调优三元组，其他族默认取内置模型目录里的预设）。
+  模型族本身可用 `--model-type <catalog_type>` 切换（默认 `random_forest`）。
+  实际生效的模型族与超参会写入 manifest 的 `hyperparameters` 字段，便于对候选做可复核的 A/B 对比。
+- sweep 的候选排序以 **balanced accuracy 优先**（其次验证准确率、BLOCK 召回、ALLOW 放行率），
+  因为纯准确率可以通过忽略少数类来刷高：第二轮就出现过"准确率 +0.3pp、BLOCK 召回 −4pp"的伪优胜。
+  跨模型族比较由 `model_catalog` profile 提供，它对内置模型目录里的每个预设用同一数据集与同一划分训练一次。
 - 第二轮细化 sweep（`random_forest_leaf`、`random_forest_refine`、`extra_trees_leaf`、
   `extra_trees_refine` profile，3 次重复）没有推翻 72/14/3：`leaf=1` 把原始验证准确率抬到
   97.5%±0.6，但 BLOCK 召回降到 92.9%、balanced 降到 95.5%；72/14/3 在同一固定分组留出集上
@@ -272,6 +277,36 @@ go run ./cmd/ml-train --output artifacts/decision-model.bin
   （也可手动触发），在 `ubuntu-24.04` 上安装 eBPF 工具链、生成绑定、执行 `go run ./cmd/ml-train`
   并上传候选模型 + manifest（保留 30 天）。不使用 OpenCode 免费模型生成标签：
   安全标签必须有独立可复核依据，LLM 输出只适合在人工评审流程中辅助，不应作为训练真值。
+
+## 决策区间（ALLOW / ALERT / BLOCK）
+
+模型输出先归一化成统一风险分 `[0,1]`，再由两条用户可调的边界切成三段区间：
+
+| 模型决策 | 风险分 |
+|----------|--------|
+| ALLOW (0) | `1 - confidence` |
+| BLOCK (1) | `confidence` |
+| ALERT (3) / REWRITE (2) | `0.5`（中性） |
+| 未知 action、非有限/越界置信度 | 直接 **ALERT**（不参与区间决策） |
+
+- 风险分 `≤ allowRiskScoreThreshold` → **ALLOW**；`≥ blockConfidenceThreshold` → **BLOCK**；中间区间 → **ALERT**。
+- 默认边界 `allow = 0.30`、`block = 0.85`，可在前端 “ML → Detection Thresholds” 用滑杆调整，
+  或直接 `PUT /config/runtime`（扁平字段 `allowRiskScoreThreshold` / `blockConfidenceThreshold`）。
+- 约束 `0 ≤ allow < 0.5 ≤ block ≤ 1`：越界的组合会被后端拒绝（HTTP 400）并保持原值；
+  该约束保证中性分 0.5 永远落在 ALERT 区间内，因此弱 BLOCK 不会被降级为 ALLOW，
+  弱 ALLOW 也不会被升级为 BLOCK。
+- 优先级不变：高优先级显式规则 → 启发式分类 / 网络审计 → 模型区间 → 规则回退。
+  `mlMinConfidence` 与异常分（`lowAnomalyThreshold` / `highAnomalyThreshold`）闸门继续生效：
+  低于最小置信度且没有规则动作的已加载模型预测转为 **ALERT**；存在规则动作时仍按规则回退。
+  ALLOW 判定仍额外要求异常分低于 `lowAnomalyThreshold`。
+- 未知模型 action 与非有限/越界置信度直接判为 **ALERT**，不会落到默认 ALLOW。
+
+### 训练数据特征范围
+
+存储层（`NormalizeTrainingSample`）对每条样本的 128 维特征统一按 `[0,1]` 合约做
+`clampFeature01` 钳制：NaN/Inf 归 0，有限越界值钳到 0 或 1，已在区间内的值保持不变。
+`FeatureExtractor` 侧的归一化（含 116/117 维 cyclic 小时分量重映射）不变，因此持久化、
+手工导入与运行时抽取三条入口现在共享同一特征空间。
 
 ## 相关文档
 

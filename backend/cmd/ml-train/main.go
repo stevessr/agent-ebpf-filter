@@ -20,15 +20,17 @@ func main() {
 func run() error {
 	defaults := app.DefaultDecisionTrainingHyperparameters()
 	output := flag.String("output", "artifacts/decision-model.bin", "candidate model output path")
-	numTrees := flag.Int("num-trees", defaults.NumTrees, "random-forest tree count (sweep-tuned default)")
-	maxDepth := flag.Int("max-depth", defaults.MaxDepth, "random-forest max depth (sweep-tuned default)")
-	minSamplesLeaf := flag.Int("min-samples-leaf", defaults.MinSamplesLeaf, "random-forest minimum samples per leaf (sweep-tuned default)")
+	modelType := flag.String("model-type", "", "built-in model catalog type to train (default: "+defaults.ModelType+")")
+	numTrees := flag.Int("num-trees", 0, "first family knob, e.g. tree count for forests (0 = family default)")
+	maxDepth := flag.Int("max-depth", 0, "second family knob, e.g. max depth for forests (0 = family default)")
+	minSamplesLeaf := flag.Int("min-samples-leaf", 0, "third family knob, e.g. min samples per leaf for forests (0 = family default)")
 	flag.Parse()
 	if flag.NArg() != 0 {
 		return fmt.Errorf("unexpected positional arguments: %v", flag.Args())
 	}
 
 	report, err := app.TrainDecisionModelFromPublicDatasets(app.DefaultDecisionTrainingDatasets(), *output, app.DecisionTrainingHyperparameters{
+		ModelType:      *modelType,
 		NumTrees:       *numTrees,
 		MaxDepth:       *maxDepth,
 		MinSamplesLeaf: *minSamplesLeaf,
@@ -54,6 +56,12 @@ func run() error {
 
 	fmt.Printf("Candidate model saved: %s\n", report.ModelPath)
 	fmt.Printf("Training manifest saved: %s\n", manifestPath)
+	fmt.Printf("Model: %s numTrees=%d maxDepth=%d minSamplesLeaf=%d\n",
+		report.Hyperparameters.ModelType,
+		report.Hyperparameters.NumTrees,
+		report.Hyperparameters.MaxDepth,
+		report.Hyperparameters.MinSamplesLeaf,
+	)
 	fmt.Printf("Samples: %d (ALLOW=%d, BLOCK=%d); validation accuracy=%.3f balanced=%.3f block-recall=%.3f; runtime reload=%t\n",
 		report.Samples,
 		report.LabelCounts["ALLOW"],

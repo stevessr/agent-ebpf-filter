@@ -32,12 +32,15 @@ func (store *runtimeSettingsTestStore) Replace(settings RuntimeSettings) {
 	store.settings = settings
 	store.mu.Unlock()
 }
+
 func (*runtimeSettingsTestStore) RecentEvents(int) ([]CapturedEventRecord, string, error) {
 	return nil, "memory", nil
 }
+
 func (s *runtimeSettingsTestStore) RecentEventsContext(_ context.Context, limit int) ([]CapturedEventRecord, string, error) {
 	return s.RecentEvents(limit)
 }
+
 func (*runtimeSettingsTestStore) EventByIDContext(context.Context, string) (CapturedEventRecord, error) {
 	return CapturedEventRecord{}, os.ErrNotExist
 }
@@ -170,6 +173,66 @@ func TestHandleConfigRuntimePutSerializesPersistenceAndSideEffects(t *testing.T)
 	}
 	if final := store.Snapshot(); !final.TlsCaptureEnabled {
 		t.Fatalf("final TLS setting = false, want the second update to win")
+	}
+}
+
+func TestHandleConfigRuntimePutAppliesActionRiskThresholds(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	previousDeps := Deps
+	t.Cleanup(func() { Deps = previousDeps })
+
+	store := &runtimeSettingsTestStore{settings: RuntimeSettings{MLConfig: core.MLConfig{
+		AllowRiskScoreThreshold:  0.3,
+		BlockConfidenceThreshold: 0.85,
+	}}}
+	Deps.RuntimeSettings = store
+	Deps.RuntimeSettingsReplace = func(settings RuntimeSettings) (RuntimeSettings, error) {
+		store.Replace(settings)
+		return settings, nil
+	}
+	Deps.ApplyRetentionConfig = func(RuntimeSettings) {}
+	Deps.ApplyRuntimeDomainForwardProxy = func(RuntimeSettings) {}
+	Deps.ApplyRuntimeTLSCapture = func(RuntimeSettings) {}
+	Deps.BuildRuntimeConfigResponseFromSettings = func(settings RuntimeSettings) core.RuntimeConfigResponse {
+		return core.RuntimeConfigResponse{Runtime: settings}
+	}
+
+	router := gin.New()
+	router.PUT("/config/runtime", HandleConfigRuntimePut)
+	put := func(body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPut, "/config/runtime", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+		router.ServeHTTP(resp, req)
+		return resp
+	}
+
+	resp := put(`{"allowRiskScoreThreshold":0.15,"blockConfidenceThreshold":0.9}`)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("valid thresholds status = %d; body=%s", resp.Code, resp.Body.String())
+	}
+	applied := store.Snapshot().MLConfig
+	if applied.AllowRiskScoreThreshold != 0.15 || applied.BlockConfidenceThreshold != 0.9 {
+		t.Fatalf("applied thresholds = %+v, want allow 0.15 / block 0.9", applied)
+	}
+
+	resp = put(`{"allowRiskScoreThreshold":0}`)
+	if resp.Code != http.StatusOK || store.Snapshot().MLConfig.AllowRiskScoreThreshold != 0 {
+		t.Fatalf("zero allow threshold status=%d settings=%+v body=%s", resp.Code, store.Snapshot().MLConfig, resp.Body.String())
+	}
+	applied = store.Snapshot().MLConfig
+
+	for _, body := range []string{
+		`{"allowRiskScoreThreshold":0.6}`,
+		`{"blockConfidenceThreshold":0.4}`,
+	} {
+		resp = put(body)
+		if resp.Code != http.StatusBadRequest {
+			t.Fatalf("body %s status = %d, want 400; body=%s", body, resp.Code, resp.Body.String())
+		}
+	}
+	if got := store.Snapshot().MLConfig; got != applied {
+		t.Fatalf("rejected update mutated settings: %+v", got)
 	}
 }
 

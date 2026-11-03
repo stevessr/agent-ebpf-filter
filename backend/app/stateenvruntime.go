@@ -1,15 +1,19 @@
 package app
 
 import (
+	"errors"
+	"log"
+	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
 	"agent-ebpf-filter/app/ml"
 	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/app/research"
 	"agent-ebpf-filter/core"
-	"errors"
-	"path/filepath"
-	"sort"
-	"strings"
-	"time"
 )
 
 const (
@@ -36,6 +40,58 @@ func normalizeDisabledEventTypes(values []uint32) ([]uint32, error) {
 	}
 	sort.Slice(normalized, func(i, j int) bool { return normalized[i] < normalized[j] })
 	return normalized, nil
+}
+
+// parseUint32List parses a comma/space separated list of event type ids from
+// an environment variable value.
+func parseUint32List(raw string) ([]uint32, error) {
+	fields := strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ',' || r == ' ' || r == '\t' || r == '\n'
+	})
+	values := make([]uint32, 0, len(fields))
+	for _, field := range fields {
+		parsed, err := strconv.ParseUint(field, 10, 32)
+		if err != nil {
+			return nil, errors.New("invalid event type id: " + field)
+		}
+		values = append(values, uint32(parsed))
+	}
+	return values, nil
+}
+
+// parseStringList parses a comma separated list of strings, trimming empty
+// entries.
+func parseStringList(raw string) []string {
+	fields := strings.Split(raw, ",")
+	values := make([]string, 0, len(fields))
+	for _, field := range fields {
+		if trimmed := strings.TrimSpace(field); trimmed != "" {
+			values = append(values, trimmed)
+		}
+	}
+	return values
+}
+
+// seedRuntimeListSettingsFromEnv applies list-valued runtime settings from
+// environment variables. Presence is checked with os.LookupEnv so an explicitly
+// empty value overrides a default with an empty list: a fresh installation
+// disables OPENAT and ignores /tmp, and a test harness needs "collect
+// everything" rather than "keep the defaults".
+func seedRuntimeListSettingsFromEnv(settings *RuntimeSettings) {
+	if settings == nil {
+		return
+	}
+	if raw, ok := os.LookupEnv("AGENT_RUNTIME_DISABLED_EVENT_TYPES"); ok {
+		values, err := parseUint32List(raw)
+		if err != nil {
+			log.Printf("[WARN] ignoring AGENT_RUNTIME_DISABLED_EVENT_TYPES: %v", err)
+		} else {
+			settings.DisabledEventTypes = values
+		}
+	}
+	if raw, ok := os.LookupEnv("AGENT_RUNTIME_IGNORED_PATHS"); ok {
+		settings.IgnoredPaths = parseStringList(raw)
+	}
 }
 
 func normalizeRuntimeSettings(settings *RuntimeSettings) error {
@@ -129,6 +185,12 @@ func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 	if settings.MLConfig.RuleOverridePriority == 0 {
 		settings.MLConfig.RuleOverridePriority = 100
 	}
+	if err := core.ValidateMLActionRiskThresholds(
+		settings.MLConfig.AllowRiskScoreThreshold,
+		settings.MLConfig.BlockConfidenceThreshold,
+	); err != nil {
+		return err
+	}
 	if settings.MLConfig.MinSamplesForTraining == 0 {
 		settings.MLConfig.MinSamplesForTraining = 1000
 	}
@@ -187,6 +249,7 @@ func seedRuntimeSettingsFromEnv(settings *RuntimeSettings) {
 	if settings == nil {
 		return
 	}
+	seedRuntimeListSettingsFromEnv(settings)
 	seedRuntimeAccessTokenFromEnv(settings)
 	platform.ApplyBoolEnv(&settings.LogPersistenceEnabled, "AGENT_RUNTIME_LOG_PERSISTENCE_ENABLED")
 	platform.ApplyStringEnv(&settings.LogFilePath, "AGENT_RUNTIME_LOG_FILE_PATH")
@@ -304,6 +367,7 @@ func seedRuntimeMLConfigFromEnv(cfg *MLConfig) {
 	platform.ApplyStringEnv(&cfg.TrainInterval, "AGENT_ML_TRAIN_INTERVAL")
 	platform.ApplyIntEnv(&cfg.MinSamplesForTraining, "AGENT_ML_MIN_SAMPLES_FOR_TRAINING")
 	platform.ApplyFloatEnv(&cfg.BlockConfidenceThreshold, "AGENT_ML_BLOCK_CONFIDENCE_THRESHOLD")
+	platform.ApplyFloatEnv(&cfg.AllowRiskScoreThreshold, "AGENT_ML_ALLOW_RISK_SCORE_THRESHOLD")
 	platform.ApplyFloatEnv(&cfg.MlMinConfidence, "AGENT_ML_MIN_CONFIDENCE")
 	platform.ApplyFloatEnv(&cfg.LowAnomalyThreshold, "AGENT_ML_LOW_ANOMALY_THRESHOLD")
 	platform.ApplyFloatEnv(&cfg.HighAnomalyThreshold, "AGENT_ML_HIGH_ANOMALY_THRESHOLD")

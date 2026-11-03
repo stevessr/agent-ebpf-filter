@@ -24,6 +24,9 @@ func TestTrainingDataStoreNormalizesAndOwnsSampleMetadata(t *testing.T) {
 	features[0] = math.NaN()
 	features[1] = math.Inf(1)
 	features[2] = math.Inf(-1)
+	features[3] = -0.75 // finite below the [0,1] contract
+	features[4] = 3.5   // finite above the [0,1] contract
+	features[5] = 0.425 // already inside the contract, must stay untouched
 
 	store := NewTrainingDataStore(2)
 	store.Add(TrainingSample{
@@ -56,6 +59,11 @@ func TestTrainingDataStoreNormalizesAndOwnsSampleMetadata(t *testing.T) {
 	for index := 0; index < 3; index++ {
 		if sample.Features[index] != 0 {
 			t.Fatalf("normalized feature[%d] = %v, want 0", index, sample.Features[index])
+		}
+	}
+	for index, want := range map[int]float64{3: 0, 4: 1, 5: 0.425} {
+		if sample.Features[index] != want {
+			t.Fatalf("clamped feature[%d] = %v, want %v", index, sample.Features[index], want)
 		}
 	}
 	if sample.Timestamp.After(trainingSampleMaxTimestamp) || sample.Timestamp.Before(trainingSampleMinTimestamp) {
