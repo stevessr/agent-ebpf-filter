@@ -208,7 +208,7 @@ func TrainDecisionModelFromPublicDatasets(sources []DecisionTrainingDataset, mod
 			SourceName: name, Format: "jsonl", Limit: remoteDatasetAbsoluteRecordLimit,
 			LabelMode: "preserve", ImportAll: true, CleanSensitive: true,
 		}
-		var parsed remoteDatasetResponse
+		var parsed *remoteDatasetResponse
 		var err error
 		if localPath != "" {
 			if strings.TrimSpace(source.URL) != "" || strings.TrimSpace(source.FallbackURL) != "" {
@@ -233,6 +233,9 @@ func TrainDecisionModelFromPublicDatasets(sources []DecisionTrainingDataset, mod
 			raw, readErr := os.ReadFile(localPath)
 			if readErr != nil {
 				return report, fmt.Errorf("read local dataset %q: %w", name, readErr)
+			}
+			if len(raw) > int(remoteDatasetUploadLimitBytes) {
+				return report, fmt.Errorf("local dataset %q exceeds %d bytes", name, remoteDatasetUploadLimitBytes)
 			}
 			actual := fmt.Sprintf("%x", sha256.Sum256(raw))
 			if actual != expected {
