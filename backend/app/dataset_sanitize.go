@@ -19,7 +19,9 @@ var (
 	sensitivePathRegexps = []*regexp.Regexp{
 		regexp.MustCompile(`/home/[^/\s]+`),
 		regexp.MustCompile(`~\/[^\s]+`),
-		regexp.MustCompile(`/etc/(passwd|shadow|sudoers)`),
+		// Public, globally standardized /etc path names are not personally
+		// identifying. Their *contents* remain sensitive, but their names
+		// are meaningful ML features. Do not replace these paths.
 	}
 )
 
@@ -54,6 +56,18 @@ func sanitizeRemoteDatasetText(text string) string {
 	out := text
 	for _, re := range sensitiveValueRegexps {
 		out = re.ReplaceAllStringFunc(out, func(match string) string {
+			// RFC-defined loopback, unspecified, broadcast and documentation
+			// addresses identify no deployment. Preserve them as stable ML
+			// features while masking other IP literals (including LAN IPs).
+			if isNonIdentifyingIPv4(match) {
+				return match
+			}
+			// "grep passwd /etc/passwd" has a public pathname after a
+			// search keyword, not a password assignment. Keep these exact
+			// path references, but never exempt key=value/CLI secrets.
+			if isBarePublicEtcPathReference(match) {
+				return match
+			}
 			lower := strings.ToLower(match)
 			switch {
 			case strings.Contains(lower, "http://") || strings.Contains(lower, "https://"):
@@ -99,6 +113,34 @@ func sanitizeRemoteDatasetText(text string) string {
 		})
 	}
 	return out
+}
+
+// isNonIdentifyingIPv4 only preserves globally fixed or documentation-only
+// literals. Private networks and real public addresses can identify users.
+func isNonIdentifyingIPv4(address string) bool {
+	return strings.HasPrefix(address, "127.") ||
+		address == "0.0.0.0" || address == "255.255.255.255" ||
+		strings.HasPrefix(address, "192.0.2.") ||
+		strings.HasPrefix(address, "198.51.100.") ||
+		strings.HasPrefix(address, "203.0.113.")
+}
+
+// A bare name after a word such as passwd or password is not a credential
+// value when the next token is an internationally standardized /etc path.
+// Narrowly scope this to unambiguous names, not arbitrary /etc filenames.
+func isBarePublicEtcPathReference(valueMatch string) bool {
+	fields := strings.Fields(valueMatch)
+	if len(fields) != 2 || strings.HasPrefix(fields[0], "-") ||
+		strings.ContainsAny(fields[0], "=:") {
+		return false
+	}
+	switch fields[1] {
+	case "/etc/passwd", "/etc/shadow", "/etc/sudoers", "/etc/group",
+		"/etc/hosts", "/etc/fstab", "/etc/resolv.conf",
+		"/etc/ssh/sshd_config":
+		return true
+	}
+	return false
 }
 
 func inferRemoteDatasetLabelFromSource(source string) (string, string) {
