@@ -69,6 +69,11 @@ if [[ -n "$ARTIFACT_DIR" ]]; then
   mkdir -p "$ARTIFACT_DIR"
   RUN_DIR="$(mktemp -d "$ARTIFACT_DIR/run.XXXXXX")"
   KEEP_ARTIFACTS=1
+  # Renew's Daily profile suppresses openat and other high-volume types and the
+  # default ignored paths cover /tmp; the soak must observe the marker file
+  # operations, so explicitly re-enable capture for this run.
+  SOAK_DISABLED_EVENT_TYPES=""
+  SOAK_IGNORED_PATHS="/proc,/var/cache/apt,/var/lib/apt,/var/log/journal"
 else
   RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/agent-ebpf-opencode-soak.XXXXXX")"
 fi
@@ -235,6 +240,8 @@ start_backend() {
     "AGENT_ACCESS_TOKEN=$API_KEY"
     "AGENT_RUNTIME_TLS_CAPTURE_ENABLED=false"
     "AGENT_RUNTIME_POLICY_MANAGEMENT_ENABLED=false"
+    "AGENT_RUNTIME_DISABLED_EVENT_TYPES=$SOAK_DISABLED_EVENT_TYPES"
+    "AGENT_RUNTIME_IGNORED_PATHS=$SOAK_IGNORED_PATHS"
     "DISABLE_AUTH=false"
     "GIN_MODE=release"
   )
