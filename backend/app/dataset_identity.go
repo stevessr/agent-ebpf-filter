@@ -29,6 +29,7 @@ var (
     projectEnvIdentityRegexp = regexp.MustCompile(`\b((?:PROJECT|PROJECT_NAME|REPO_NAME|WORKSPACE_NAME)\s*=\s*)("[^"]+"|'[^']+'|[^\s;&|]+)`)
     userCommandIdentityRegexp = regexp.MustCompile(`\b((?:useradd|userdel|passwd|su)\s+(?:-[a-zA-Z]+\s+)*)([A-Za-z_][A-Za-z0-9_.-]*)`)
     addressIdentityRegexp = regexp.MustCompile(`\b([A-Za-z_][A-Za-z0-9_.+-]*)@([A-Za-z0-9.-]+\.[A-Za-z]{2,})\b`)
+    repoRemoteIdentityRegexp = regexp.MustCompile(`(?i)((?:github|gitlab|bitbucket)\.com[:/])([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)`)
 )
 
 func isIdentityPlaceholder(value string) bool {
@@ -103,6 +104,25 @@ func (m *datasetIdentityMapper) pseudonymizeDatasetIdentities(text string) strin
     if m == nil || text == "" {
         return text
     }
+    // Git remotes can contain a private account and repository name even
+    // when the hosting service's DNS name is globally known.
+    text = repoRemoteIdentityRegexp.ReplaceAllStringFunc(text, func(match string) string {
+        parts := repoRemoteIdentityRegexp.FindStringSubmatch(match)
+        if len(parts) != 4 {
+            return match
+        }
+        project := parts[3]
+        suffix := ""
+        if strings.HasSuffix(strings.ToLower(project), ".git") {
+            suffix = project[len(project)-4:]
+            project = project[:len(project)-4]
+        }
+        if project == "" {
+            return match
+        }
+        return parts[1] + m.pseudonym("user", parts[2]) + "/" +
+            m.pseudonym("project", project) + suffix
+    })
     text = m.replaceRegexGroup(text, linuxHomeIdentityRegexp, "user", 2)
     text = m.replaceRegexGroup(text, windowsHomeIdentityRegexp, "user", 2)
     text = m.replaceRegexGroup(text, projectDirIdentityRegexp, "project", 2)
