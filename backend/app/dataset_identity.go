@@ -29,7 +29,6 @@ var (
     projectEnvIdentityRegexp = regexp.MustCompile(`\b((?:PROJECT|PROJECT_NAME|REPO_NAME|WORKSPACE_NAME)\s*=\s*)("[^"]+"|'[^']+'|[^\s;&|]+)`)
     userCommandIdentityRegexp = regexp.MustCompile(`\b((?:useradd|userdel|passwd|su)\s+(?:-[a-zA-Z]+\s+)*)([A-Za-z_][A-Za-z0-9_.-]*)`)
     addressIdentityRegexp = regexp.MustCompile(`\b([A-Za-z_][A-Za-z0-9_.+-]*)@([A-Za-z0-9.-]+\.[A-Za-z]{2,})\b`)
-    githubIdentityRegexp = regexp.MustCompile(`(?i)((?:github|gitlab|bitbucket)\.com[/:])([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(\.git)?(?=[\s/"'\x60?#]|$)`)
 )
 
 func isIdentityPlaceholder(value string) bool {
@@ -43,7 +42,6 @@ func isCommonServiceAccount(user string) bool {
     default:
         return false
     }
-}
 }
 
 func (m *datasetIdentityMapper) pseudonym(entity, value string) string {
