@@ -20,6 +20,9 @@ func TestSanitizeRemoteDatasetTextPreservesPublicEtcPathNames(t *testing.T) {
 		"ls /etc/sudoers.d /etc/shadow- /etc/passwd.bak",
 		"grep passwd /etc/passwd",
 		"grep password /etc/shadow",
+		"passwd -l root",
+		"passwd root",
+		"pwd -P",
 		"cat ../../etc/shadow",
 		"echo 'root ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers",
 	} {
@@ -60,6 +63,40 @@ func TestSanitizeRemoteDatasetTextMasksGenuineSensitiveValues(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestSanitizeRemoteDatasetArgsMasksSplitSecrets(t *testing.T) {
+	args := []string{"-H", "Authorization: Bearer", "raw-auth-credential", "--token",
+		"raw-api-credential", "--password", "raw-password", "/etc/shadow"}
+	got := sanitizeRemoteDatasetArgs(args)
+	if len(got) != len(args) {
+		t.Fatalf("sanitized argv changed arity: %d != %d", len(got), len(args))
+	}
+	if got[2] != "***" || got[4] != "***" || got[6] != "***" {
+		t.Fatalf("split argv secret remained visible: %q", got)
+	}
+	if got[7] != "/etc/shadow" {
+		t.Fatalf("public sensitive-target name was lost: %q", got)
+	}
+	// Repeat cleaning should not restore data or mutate argument boundaries.
+	again := sanitizeRemoteDatasetArgs(got)
+	if strings.Join(got, "|") != strings.Join(again, "|") {
+		t.Fatalf("split argv sanitizer is not idempotent: %q != %q", got, again)
+	}
+}
+
+func TestSanitizeRemoteDatasetRecordMasksSplitCredentials(t *testing.T) {
+	record := sanitizeRemoteDatasetRecord(remoteDatasetRecord{
+		CommandLine: "cat /etc/shadow --token real-raw-token",
+		Comm:        "cat",
+		Args:        []string{"/etc/shadow", "--token", "real-raw-token"},
+	})
+	if record.Args[0] != "/etc/shadow" || record.Args[2] != "***" {
+		t.Fatalf("record cleaning lost target or leaked token: %+v", record)
+	}
+	if strings.Contains(record.CommandLine, "real-raw-token") {
+		t.Fatalf("command-line cleaning leaked token: %+v", record)
 	}
 }
 
