@@ -28,11 +28,10 @@
     "apexcharts": "^5.16.0",
     "axios": "^1.21.0",
     "d3": "^7.9.2",
-    "markdown-it": "14.1.1",
+    "markdown-it": "14.3.3",
     "monaco-editor": "^0.55.1",
     "protobufjs": "^8.8.1",
     "smol-toml": "^1.9.1",
-    "toml": "^4.3.0",
     "vue": "^3.5.45",
     "vue-router": "^4.6.4",
     "vue3-apexcharts": "^1.11.3"
@@ -47,5 +46,9 @@
     "typescript": "5.9.3",
     "vite": "^8.3.6",
     "vue-tsc": "^3.3.14"
+  },
+  "overrides": {
+    "dompurify": "3.4.17",
+    "markdown-it": "14.3.3"
   }
 }
