@@ -80,9 +80,11 @@ def read_source(name, path, license_id, allow_assistant_reviewed=False):
 
 
 def group_key(row, mode):
+    # A source prefix permits the same scenario/run to cross partitions
+    # after a dataset is exported by multiple providers. Treat IDs globally.
     if mode == "run":
-        return (row["dataset"], row["scenario_id"], row["run_id"])
-    return (row["dataset"], row["scenario_id"])
+        return ("run", row["run_id"])
+    return ("scenario", row["scenario_id"])
 
 
 def split_rows(rows, group_by, seed, validation_fraction, test_fraction, min_per_class):
@@ -99,43 +101,68 @@ def split_rows(rows, group_by, seed, validation_fraction, test_fraction, min_per
         groups[group_key(row, group_by)].append(row)
     if len(groups) < 3:
         raise ValueError("at least three independent scenarios/runs are required for train/validation/test")
-    ranked = sorted(groups, key=lambda key: (hashlib.sha256(
-        (str(seed) + "\x1f" + "\x1f".join(key)).encode()
-    ).digest(), key))
-    n_test = max(1, round(len(ranked) * test_fraction))
-    n_val = max(1, round(len(ranked) * validation_fraction))
-    if n_test + n_val >= len(ranked):
-        raise ValueError("not enough independent groups for training")
-    by_split = {
-        "test": ranked[:n_test],
-        "validation": ranked[n_test:n_test+n_val],
-        "train": ranked[n_test+n_val:],
-    }
-    # Do not admit identical commands into independent evaluation. Prefer
-    # retaining them in train; validation/test duplicates are purged, reported.
-    retained_commands = set()
-    outputs = {}
-    excluded = {}
-    for split in ("train", "validation", "test"):
-        selected = []
-        dropped = 0
-        for group in sorted(by_split[split]):
-            for row in groups[group]:
-                if row["command"] in retained_commands:
-                    dropped += 1
-                    continue
-                retained_commands.add(row["command"])
-                selected.append(row)
-        outputs[split] = sorted(selected, key=lambda row: (
-            row["dataset"], row["scenario_id"], row["run_id"], row["command"]))
-        excluded[split] = dropped
-    for split, selected in outputs.items():
-        counts = collections.Counter(row["label"] for row in selected)
-        required = min_per_class if split == "train" else 1
-        if any(counts[action] < required for action in ("ALLOW", "BLOCK")):
-            raise ValueError(f"{split}: insufficient ALLOW/BLOCK support after group split + duplicate purge: {dict(counts)}")
-    return outputs, by_split, excluded
+    # Both held-out partitions need independent evidence of ALLOW and BLOCK.
+    # Without it, security precision/recall are undefined, not zero.
+    group_support = collections.Counter(
+        action for members in groups.values()
+        for action in {row["label"] for row in members}
+    )
+    for action in ("ALLOW", "BLOCK"):
+        if group_support[action] < 3:
+            raise ValueError(
+                f"at least three independent groups containing {action} are required "
+                "for train/validation/test"
+            )
 
+    n_test = max(1, round(len(groups) * test_fraction))
+    n_val = max(1, round(len(groups) * validation_fraction))
+    if n_test + n_val >= len(groups):
+        raise ValueError("not enough independent groups for training")
+
+    # Deterministic group-level stratification uses ground-truth labels only.
+    # It never uses model predictions or test accuracy to choose a partition.
+    separator = chr(31)
+    for attempt in range(128):
+        salt = str(seed) if attempt == 0 else f"{seed}{separator}{attempt}"
+        ranked = sorted(groups, key=lambda key: (
+            hashlib.sha256((salt + separator + separator.join(key)).encode()).digest(), key
+        ))
+        by_split = {
+            "test": ranked[:n_test],
+            "validation": ranked[n_test:n_test+n_val],
+            "train": ranked[n_test+n_val:],
+        }
+        retained_commands = set()
+        outputs = {}
+        excluded = {}
+        # Prefer training ownership of a command repeated across groups.
+        for split in ("train", "validation", "test"):
+            selected = []
+            dropped = 0
+            for group in sorted(by_split[split]):
+                for row in groups[group]:
+                    if row["command"] in retained_commands:
+                        dropped += 1
+                        continue
+                    retained_commands.add(row["command"])
+                    selected.append(row)
+            outputs[split] = sorted(selected, key=lambda row: (
+                row["dataset"], row["scenario_id"], row["run_id"], row["command"]))
+            excluded[split] = dropped
+        counts = {
+            split: collections.Counter(row["label"] for row in selected)
+            for split, selected in outputs.items()
+        }
+        if all(
+            all(counts[split][action] >= (min_per_class if split == "train" else 1)
+                for action in ("ALLOW", "BLOCK"))
+            for split in ("train", "validation", "test")
+        ):
+            return outputs, by_split, excluded
+    raise ValueError(
+        "cannot build ALLOW/BLOCK-supported independent train/validation/test "
+        "partitions after 128 deterministic group-stratification attempts"
+    )
 
 def build_corpus(sources, licenses, output_dir, group_by="scenario", seed=20261103,
                  validation_fraction=0.2, test_fraction=0.2, min_per_class=20,

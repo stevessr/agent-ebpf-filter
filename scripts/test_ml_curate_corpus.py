@@ -71,6 +71,58 @@ class CuratedCorpusTests(unittest.TestCase):
                                     (Path(temporary)/"out"/f"{split}.jsonl").read_text().splitlines())
             self.assertEqual(len(all_commands), len(set(all_commands)))
 
+    def test_run_ids_are_disjoint_across_scenarios(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self.write_rows(temporary, self.rows())
+            corpus.build_corpus(
+                {"source": path}, {"source": "MIT"}, Path(temporary)/"out",
+                group_by="run", min_per_class=2)
+            partitions = {}
+            for split in ("train", "validation", "test"):
+                for line in (Path(temporary)/"out"/f"{split}.jsonl").read_text().splitlines():
+                    run_id = json.loads(line)["run_id"]
+                    partitions.setdefault(run_id, set()).add(split)
+            self.assertTrue(partitions)
+            self.assertTrue(all(len(splits) == 1 for splits in partitions.values()))
+
+    def test_same_scenario_across_sources_stays_in_one_split(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            rows = self.rows()
+            first = self.write_rows(temporary, rows, "a.jsonl")
+            second = self.write_rows(temporary, [
+                {**row, "command": row["command"] + " --provider=b"} for row in rows
+            ], "b.jsonl")
+            corpus.build_corpus(
+                {"a": first, "b": second}, {"a": "MIT", "b": "MIT"},
+                Path(temporary)/"out", min_per_class=2)
+            partitions = {}
+            for split in ("train", "validation", "test"):
+                for line in (Path(temporary)/"out"/f"{split}.jsonl").read_text().splitlines():
+                    scenario = json.loads(line)["scenario_id"]
+                    partitions.setdefault(scenario, set()).add(split)
+            self.assertEqual(len(partitions), 10)
+            self.assertTrue(all(len(splits) == 1 for splits in partitions.values()))
+
+    def test_rare_block_groups_are_stratified_into_every_split(self):
+        rows = [
+            {
+                "command": f"tool-{scenario} --case={i}",
+                "label": "BLOCK" if scenario in (1, 7, 11) else "ALLOW",
+                "label_source": "human_reviewed",
+                "scenario_id": f"scenario-{scenario}",
+                "run_id": f"run-{scenario}",
+            }
+            for scenario in range(12) for i in range(4)
+        ]
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self.write_rows(temporary, rows)
+            report = corpus.build_corpus(
+                {"source": path}, {"source": "MIT"},
+                Path(temporary)/"out", min_per_class=1)
+            for split in ("train", "validation", "test"):
+                self.assertGreater(report["split"][split]["byAction"]["ALLOW"], 0)
+                self.assertGreater(report["split"][split]["byAction"]["BLOCK"], 0)
+
     def test_unreviewed_attack_window_cannot_become_block(self):
         with tempfile.TemporaryDirectory() as temporary:
             rows = self.rows()
