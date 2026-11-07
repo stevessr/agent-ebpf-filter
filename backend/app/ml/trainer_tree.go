@@ -113,6 +113,19 @@ func findBestSplit(samples []TrainSample, minSamplesLeaf, featureSampleCount int
 		if candidateIndex >= featureSampleCount && best.giniGain > 0 {
 			break
 		}
+		// Sparse 128-dim vectors often have dozens of constant dimensions.
+		// Avoid sorting N samples for each such dimension during fallback.
+		first := samples[0].features[fi]
+		varies := false
+		for _, sample := range samples[1:] {
+			if sample.features[fi] != first {
+				varies = true
+				break
+			}
+		}
+		if !varies {
+			continue
+		}
 		copy(sorted, samples)
 		sort.Slice(sorted, func(i, j int) bool {
 			return sorted[i].features[fi] < sorted[j].features[fi]
