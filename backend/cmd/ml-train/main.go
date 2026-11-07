@@ -21,6 +21,7 @@ func run() error {
 	defaults := app.DefaultDecisionTrainingHyperparameters()
 	output := flag.String("output", "artifacts/decision-model.bin", "candidate model output path")
 	numTrees := flag.Int("num-trees", defaults.NumTrees, "random-forest tree count (sweep-tuned default)")
+	seed := flag.Int64("seed", defaults.Seed, "deterministic forest training seed (recorded in candidate manifest)")
 	datasetFile := flag.String("dataset-file", "", "reviewed local JSONL corpus (candidate-only training)")
 	datasetSHA := flag.String("dataset-sha256", "", "required expected SHA-256 for local JSONL")
 	datasetLicense := flag.String("dataset-license", "", "required original license identifier for local JSONL")
@@ -56,6 +57,7 @@ func run() error {
 		NumTrees:       *numTrees,
 		MaxDepth:       *maxDepth,
 		MinSamplesLeaf: *minSamplesLeaf,
+		Seed:           *seed,
 	})
 	if err != nil {
 		return err

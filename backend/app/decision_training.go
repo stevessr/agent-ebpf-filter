@@ -31,6 +31,7 @@ const (
 	decisionTrainingNumTrees       = 72
 	decisionTrainingMaxDepth       = 14
 	decisionTrainingMinSamplesLeaf = 3
+	decisionTrainingSeed           = int64(20261108)
 )
 
 // DecisionTrainingHyperparameters are the random-forest knobs selected offline
@@ -39,7 +40,8 @@ const (
 type DecisionTrainingHyperparameters struct {
 	NumTrees       int `json:"numTrees"`
 	MaxDepth       int `json:"maxDepth"`
-	MinSamplesLeaf int `json:"minSamplesLeaf"`
+	MinSamplesLeaf int   `json:"minSamplesLeaf"`
+	Seed           int64 `json:"seed"`
 }
 
 const (
@@ -56,6 +58,7 @@ func DefaultDecisionTrainingHyperparameters() DecisionTrainingHyperparameters {
 		NumTrees:       decisionTrainingNumTrees,
 		MaxDepth:       decisionTrainingMaxDepth,
 		MinSamplesLeaf: decisionTrainingMinSamplesLeaf,
+		Seed:           decisionTrainingSeed,
 	}
 }
 
@@ -71,6 +74,9 @@ func normalizeDecisionTrainingHyperparameters(hyperparameters DecisionTrainingHy
 	}
 	if hyperparameters.MinSamplesLeaf == 0 {
 		hyperparameters.MinSamplesLeaf = defaults.MinSamplesLeaf
+	}
+	if hyperparameters.Seed == 0 {
+		hyperparameters.Seed = defaults.Seed
 	}
 	if hyperparameters.NumTrees < 1 || hyperparameters.NumTrees > maxDecisionTrainingNumTrees {
 		return hyperparameters, fmt.Errorf("numTrees must be between 1 and %d, got %d", maxDecisionTrainingNumTrees, hyperparameters.NumTrees)
@@ -164,6 +170,7 @@ func TrainDecisionModelFromPublicDatasets(sources []DecisionTrainingDataset, mod
 	cfg.NumTrees = hyperparameters.NumTrees
 	cfg.MaxDepth = hyperparameters.MaxDepth
 	cfg.MinSamplesLeaf = hyperparameters.MinSamplesLeaf
+	cfg.TrainingSeed = hyperparameters.Seed
 	cfg.LlmEnabled = false
 	cfg.AutoTrain = false
 	store := ml.NewTrainingDataStore(decisionTrainingStoreLimit)
