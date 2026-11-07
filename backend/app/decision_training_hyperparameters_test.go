@@ -4,7 +4,7 @@ import "testing"
 
 func TestNormalizeDecisionTrainingHyperparameters(t *testing.T) {
 	defaults := DefaultDecisionTrainingHyperparameters()
-	if defaults.NumTrees < 1 || defaults.MaxDepth < 1 || defaults.MinSamplesLeaf < 1 {
+	if defaults.NumTrees < 1 || defaults.MaxDepth < 1 || defaults.MinSamplesLeaf < 1 || defaults.Seed == 0 {
 		t.Fatalf("promoted defaults must be positive: %+v", defaults)
 	}
 
@@ -14,6 +14,9 @@ func TestNormalizeDecisionTrainingHyperparameters(t *testing.T) {
 	}
 	if partial.NumTrees != defaults.NumTrees || partial.MinSamplesLeaf != defaults.MinSamplesLeaf {
 		t.Fatalf("zero fields must fall back to promoted defaults: %+v", partial)
+	}
+	if partial.Seed != defaults.Seed {
+		t.Fatalf("partial override must retain reproducible offline seed: %+v", partial)
 	}
 	if partial.MaxDepth != 9 {
 		t.Fatalf("explicit override lost: %+v", partial)
@@ -25,7 +28,7 @@ func TestNormalizeDecisionTrainingHyperparameters(t *testing.T) {
 		wantErr         bool
 	}{
 		{name: "all zero uses defaults"},
-		{name: "valid explicit", hyperparameters: DecisionTrainingHyperparameters{NumTrees: 10, MaxDepth: 4, MinSamplesLeaf: 2}},
+		{name: "valid explicit", hyperparameters: DecisionTrainingHyperparameters{NumTrees: 10, MaxDepth: 4, MinSamplesLeaf: 2, Seed: 12345}},
 		{name: "negative trees", hyperparameters: DecisionTrainingHyperparameters{NumTrees: -1}, wantErr: true},
 		{name: "trees above cap", hyperparameters: DecisionTrainingHyperparameters{NumTrees: maxDecisionTrainingNumTrees + 1}, wantErr: true},
 		{name: "negative depth", hyperparameters: DecisionTrainingHyperparameters{MaxDepth: -3}, wantErr: true},

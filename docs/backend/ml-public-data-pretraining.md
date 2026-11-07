@@ -81,6 +81,7 @@ go run ./cmd/ml-train \
   --dataset-file ../artifacts/curated-ml/train.jsonl \
   --dataset-sha256 '<TRAIN_SHA256_FROM_MANIFEST>' \
   --dataset-license 'REVIEWED-MIXED' \
+  --seed 20261108 \
   --external-test-file ../artifacts/curated-ml/test.jsonl \
   --external-test-sha256 '<TEST_SHA256_FROM_MANIFEST>' \
   --output artifacts/reviewed-decision-model.bin
@@ -89,6 +90,12 @@ go run ./cmd/ml-train \
 `--dataset-license` is a provenance string. For mixed sources the per-source
 licenses and hashes are in the curation manifest; retain it alongside the
 model manifest, and do not claim the combined corpus has a unified license.
+
+Candidate training uses a nonzero, documented PRNG seed by default; pass
+`--seed` to repeat or compare experiments under identical random sampling.
+The chosen seed is stored in `hyperparameters.seed` in the manifest. This
+does not itself establish generalization; repeat evaluation over multiple
+fixed seeds and independent scenario/time holdouts before selecting a model.
 
 The CLI writes the candidate binary and
 `artifacts/reviewed-decision-model.bin.manifest.json`. It reports **internal
