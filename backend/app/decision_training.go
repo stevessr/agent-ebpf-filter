@@ -53,6 +53,17 @@ const (
 // DefaultDecisionTrainingHyperparameters returns the promoted sweep winner.
 // Change it only together with the tuning evidence in
 // docs/backend/ml-models-summary.md and a fresh stability comparison.
+// Neutralize wall-clock-only dimensions when a reviewed command corpus lacks
+// real event times. Otherwise all offline samples receive the training host's
+// current hour/day, so a model can learn spurious clock correlations and then
+// fail after deployment at another time. Runtime extraction is unchanged.
+// Group E: hour, weekday, circular hour, weekend in features [114, 118].
+func neutralizeOfflineDecisionClockFeatures(sample *ml.TrainingSample) {
+	for i := 114; i <= 118; i++ {
+		sample.Features[i] = 0
+	}
+}
+
 func DefaultDecisionTrainingHyperparameters() DecisionTrainingHyperparameters {
 	return DecisionTrainingHyperparameters{
 		NumTrees:       decisionTrainingNumTrees,
@@ -285,6 +296,7 @@ func TrainDecisionModelFromPublicDatasets(sources []DecisionTrainingDataset, mod
 				return report, fmt.Errorf("local dataset %q row %d lacks explicit action label", name, row.Row)
 			}
 			sample := buildRemoteDatasetSampleWithExtractor(row, "preserve", true, extractor)
+			neutralizeOfflineDecisionClockFeatures(&sample)
 			if !sample.IsLabeled() {
 				return report, fmt.Errorf("dataset %q row %d has unsupported or missing label %q", name, row.Row, row.Label)
 			}

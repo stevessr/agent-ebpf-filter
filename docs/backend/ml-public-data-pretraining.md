@@ -97,6 +97,13 @@ The chosen seed is stored in `hyperparameters.seed` in the manifest. This
 does not itself establish generalization; repeat evaluation over multiple
 fixed seeds and independent scenario/time holdouts before selecting a model.
 
+Offline command corpora do not contain trustworthy per-command wall-clock
+context. The candidate trainer and external evaluator therefore neutralize
+feature dimensions 114–118 (current hour, weekday, cyclic hour, weekend)
+after extraction. The deployed runtime extractor still supplies its real
+context; constant offline clock features cannot be selected as tree splits.
+This avoids training a time-of-day shortcut from the CI runner's clock.
+
 The CLI writes the candidate binary and
 `artifacts/reviewed-decision-model.bin.manifest.json`. It reports **internal
 grouped holdout** results and (when explicitly provided) an **independent

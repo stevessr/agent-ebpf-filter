@@ -130,6 +130,7 @@ func EvaluateDecisionModelOnExternalHoldout(modelPath string, training, test Dec
 	var correct, allowCorrect, blockCorrect, blockPredicted, benignFalsePositives int
 	for _, row := range testRows {
 		sample := buildRemoteDatasetSampleWithExtractor(row, "preserve", true, extractor)
+		neutralizeOfflineDecisionClockFeatures(&sample)
 		actual := ml.ActionLabel[sample.Label]
 		prediction := model.Predict(sample.Features).Action
 		predName := ml.ActionLabel[prediction]
