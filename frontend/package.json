@@ -16,23 +16,22 @@
   },
   "dependencies": {
     "@ant-design/icons-vue": "^7.0.1",
-    "@lobehub/icons-static-svg": "1.95.1",
-    "@shikijs/core": "4.0.2",
-    "@shikijs/engine-javascript": "4.0.2",
-    "@shikijs/langs": "4.0.2",
-    "@shikijs/themes": "4.0.2",
+    "@lobehub/icons-static-svg": "1.102.0",
+    "@shikijs/core": "4.6.0",
+    "@shikijs/engine-javascript": "4.6.0",
+    "@shikijs/langs": "4.6.0",
+    "@shikijs/themes": "4.6.0",
     "@wterm/dom": "0.1.9",
     "acorn": "^8.19.0",
     "ant-design-vue": "^4.2.6",
     "apexcharts": "^5.16.0",
-    "axios": "^1.20.0",
-    "d3": "^7.9.0",
-    "markdown-it": "14.1.1",
+    "axios": "^1.21.0",
+    "d3": "^7.9.2",
+    "markdown-it": "14.3.3",
     "monaco-editor": "^0.55.1",
     "protobufjs": "^8.8.1",
     "smol-toml": "^1.9.1",
-    "toml": "^4.3.0",
-    "vue": "^3.5.44",
+    "vue": "^3.5.45",
     "vue-router": "^4.6.4",
     "vue3-apexcharts": "^1.11.3"
   },
@@ -44,7 +43,11 @@
     "@vue/tsconfig": "^0.9.1",
     "protobufjs-cli": "^2.7.1",
     "typescript": "5.9.3",
-    "vite": "^8.3.4",
-    "vue-tsc": "^3.3.13"
+    "vite": "^8.3.6",
+    "vue-tsc": "^3.3.14"
+  },
+  "overrides": {
+    "dompurify": "3.4.17",
+    "markdown-it": "14.3.3"
   }
 }

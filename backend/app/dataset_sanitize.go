@@ -7,6 +7,12 @@ import (
 
 var (
 	sensitiveValueRegexps = []*regexp.Regexp{
+		// Match the entire Authorization credential before the generic
+		// "authorization: WORD" matcher; otherwise Bearer tokens leak.
+		regexp.MustCompile(`(?i)\bAuthorization\s*[:=]\s*(?:Bearer|Basic)\s+(?:"[^"]+"|'[^']+'|[^\s"'\x60]+)`),
+		// Quoted values are still private, even with spaces inside the
+		// quotes (e.g. --token="long private value").
+		regexp.MustCompile(`(?i)\b(?:password|passwd|pwd|token|secret|apikey|api-key|access[_-]?key|cookie)[\s:=]+(?:"[^"]+"|'[^']+')`),
 		regexp.MustCompile(`(?i)\b(password|passwd|pwd|token|secret|apikey|api-key|access[_-]?key|authorization|cookie)[\s:=]+[^\s"'` + "`" + `]+`),
 		regexp.MustCompile(`(?i)\b(--?(?:password|passwd|pwd|token|secret|apikey|api-key|access[_-]?key))(?:[=\s]+)[^\s"'` + "`" + `]+`),
 		regexp.MustCompile(`(?i)\b(https?://)[^/\s:@]+(?::[^/\s@]+)?@`),
@@ -16,44 +22,158 @@ var (
 		regexp.MustCompile(`(?i)\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+`),
 		regexp.MustCompile(`\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b`),
 	}
+	// Unix crypt hashes are data, unlike the canonical /etc/shadow path name.
+	// This is a defense in depth for command text that embeds a hash literal.
+	unixCryptHashRegexp = regexp.MustCompile(`\$[1256y]\$(?:[A-Za-z0-9./+=-]+\$){1,3}[A-Za-z0-9./+=-]+`)
 	sensitivePathRegexps = []*regexp.Regexp{
-		regexp.MustCompile(`/home/[^/\s]+`),
+		// The source identity segment under /home is replaced with
+		// __USER_NNNN__ instead of deleting the whole path.
 		regexp.MustCompile(`~\/[^\s]+`),
-		regexp.MustCompile(`/etc/(passwd|shadow|sudoers)`),
+		// Public, globally standardized /etc path names are not personally
+		// identifying. Their *contents* remain sensitive, but their names
+		// are meaningful ML features. Do not replace these paths.
 	}
 )
 
 func sanitizeRemoteDatasetRecord(record remoteDatasetRecord) remoteDatasetRecord {
-	record.CommandLine = sanitizeRemoteDatasetText(record.CommandLine)
+	return sanitizeRemoteDatasetRecordWithIdentity(record, newDatasetIdentityMapper())
+}
+
+func sanitizeRemoteDatasetRecordWithIdentity(record remoteDatasetRecord, ids *datasetIdentityMapper) remoteDatasetRecord {
+	command := commandForDatasetArgCleaning(record.Comm, record.CommandLine)
+	record.CommandLine = sanitizeRemoteDatasetTextWithIdentity(record.CommandLine, ids)
 	if len(record.Args) > 0 {
-		sanitizedArgs := make([]string, 0, len(record.Args))
-		for _, arg := range record.Args {
-			sanitizedArgs = append(sanitizedArgs, sanitizeRemoteDatasetText(arg))
-		}
-		record.Args = sanitizedArgs
+		record.Args = sanitizeRemoteDatasetArgsWithCommand(record.Args, command, ids)
 	}
 	return record
 }
 
 func sanitizeRemoteDatasetRow(row remoteDatasetRow) remoteDatasetRow {
-	row.CommandLine = sanitizeRemoteDatasetText(row.CommandLine)
+	// Called a second time by the feature extractor, after import.
+	// Existing __USER_NNNN__ / __PROJECT_NNNN__ tokens are immutable.
+	return sanitizeRemoteDatasetRowWithIdentity(row, newDatasetIdentityMapper())
+}
+
+func sanitizeRemoteDatasetRowWithIdentity(row remoteDatasetRow, ids *datasetIdentityMapper) remoteDatasetRow {
+	command := commandForDatasetArgCleaning(row.Comm, row.CommandLine)
+	row.CommandLine = sanitizeRemoteDatasetTextWithIdentity(row.CommandLine, ids)
 	if len(row.Args) > 0 {
-		sanitizedArgs := make([]string, 0, len(row.Args))
-		for _, arg := range row.Args {
-			sanitizedArgs = append(sanitizedArgs, sanitizeRemoteDatasetText(arg))
-		}
-		row.Args = sanitizedArgs
+		row.Args = sanitizeRemoteDatasetArgsWithCommand(row.Args, command, ids)
 	}
 	return row
 }
 
+func commandForDatasetArgCleaning(comm, commandLine string) string {
+    if comm != "" { return comm }
+    fields := strings.Fields(commandLine)
+    if len(fields) > 0 { return fields[0] }
+    return ""
+}
+
+// sanitizeRemoteDatasetArgs accounts for argv boundaries: a secret following
+// "--token" or "--password" is private even when it is a separate argument.
+// Preserve length and ordering so feature extraction can still inspect flags.
+func sanitizeRemoteDatasetArgs(args []string) []string {
+	return sanitizeRemoteDatasetArgsWithIdentity(args, newDatasetIdentityMapper())
+}
+
+func sanitizeRemoteDatasetArgsWithIdentity(args []string, ids *datasetIdentityMapper) []string {
+	return sanitizeRemoteDatasetArgsWithCommand(args, "", ids)
+}
+
+func sanitizeRemoteDatasetArgsWithCommand(args []string, command string, ids *datasetIdentityMapper) []string {
+	// Some parsers put the executable in Comm and only flags in Args.
+	// Consult that executable so sudo -u is recognized in both fields.
+	if command == "" && len(args) > 0 {
+		command = args[0]
+	}
+	if strings.Contains(command, "/") {
+		parts := strings.Split(command, "/")
+		command = parts[len(parts)-1]
+	}
+	command = strings.ToLower(command)
+	out := make([]string, len(args))
+	redactNext := false
+	entityNext := ""
+	for i, arg := range args {
+		if redactNext {
+			out[i] = "***"
+			redactNext = false
+			continue
+		}
+		if entityNext != "" {
+			if entityNext == "user" && strings.Contains(arg, ":") {
+				// curl --user user:password is a credential, not only an
+				// identity. Never leave the password half visible.
+				out[i] = "***"
+			} else if strings.ContainsAny(arg, "/\\") {
+				// A path passed as an entity flag still contains separate
+				// user/project components that must be recognized in place.
+				out[i] = sanitizeRemoteDatasetTextWithIdentity(arg, ids)
+			} else {
+				out[i] = ids.quoted(entityNext, arg)
+			}
+			entityNext = ""
+			continue
+		}
+		out[i] = sanitizeRemoteDatasetTextWithIdentity(arg, ids)
+		switch strings.ToLower(strings.TrimSpace(arg)) {
+		case "--password", "--passwd", "--token", "--secret", "--apikey",
+			"--api-key", "--access-key", "--access_key", "--authorization", "--cookie",
+			"authorization: bearer", "authorization: basic",
+			"authorization=bearer", "authorization=basic":
+			redactNext = true
+		case "--user", "--username", "--account":
+			entityNext = "user"
+		case "-u":
+			// -u does not universally mean "user": head -u and some
+			// package tools use it for unrelated semantics. Restrict it
+			// to commands where it denotes an account/credential.
+			switch command {
+			case "sudo", "runuser", "curl":
+				entityNext = "user"
+			}
+		case "--project", "--project-name", "--workspace", "--repo", "--repository":
+			entityNext = "project"
+		}
+	}
+	return out
+}
+
 func sanitizeRemoteDatasetText(text string) string {
+	return sanitizeRemoteDatasetTextWithIdentity(text, newDatasetIdentityMapper())
+}
+
+func sanitizeRemoteDatasetTextWithIdentity(text string, ids *datasetIdentityMapper) string {
 	if text == "" {
 		return text
 	}
-	out := text
+	out := ids.pseudonymizeDatasetIdentities(text)
 	for _, re := range sensitiveValueRegexps {
 		out = re.ReplaceAllStringFunc(out, func(match string) string {
+			// RFC-defined loopback, unspecified, broadcast and documentation
+			// addresses identify no deployment. Preserve them as stable ML
+			// features while masking other IP literals (including LAN IPs).
+			if isNonIdentifyingIPv4(match) {
+				return match
+			}
+			// git@github.com is a public service account on a globally
+			// recognized host. The owner/repository segments in its remote
+			// path are pseudonymized separately.
+			if strings.EqualFold(match, "git@github.com") ||
+				strings.EqualFold(match, "git@gitlab.com") ||
+				strings.EqualFold(match, "git@bitbucket.org") {
+				return match
+			}
+			// "grep passwd /etc/passwd" has a public pathname after a
+			// search keyword, not a password assignment. Keep these exact
+			// path references, but never exempt key=value/CLI secrets.
+			if isBarePublicEtcPathReference(match) {
+				return match
+			}
+			if isNonSecretCommandArgument(match) {
+				return match
+			}
 			lower := strings.ToLower(match)
 			switch {
 			case strings.Contains(lower, "http://") || strings.Contains(lower, "https://"):
@@ -65,6 +185,10 @@ func sanitizeRemoteDatasetText(text string) string {
 				return "***@***"
 			case strings.Contains(lower, "akia"):
 				return "AKIA****************"
+			case strings.Contains(lower, "authorization"):
+				// Keep the canonical redacted header stable across a second
+				// pass; do not strip the separator or leave bearer fragments.
+				return "Authorization: ***"
 			case strings.Contains(lower, "password"), strings.Contains(lower, "passwd"), strings.Contains(lower, "pwd"),
 				strings.Contains(lower, "token"), strings.Contains(lower, "secret"), strings.Contains(lower, "apikey"),
 				strings.Contains(lower, "api-key"), strings.Contains(lower, "access_key"), strings.Contains(lower, "access-key"),
@@ -90,6 +214,15 @@ func sanitizeRemoteDatasetText(text string) string {
 			case strings.HasPrefix(repl, "/home/"):
 				return "/home/***"
 			case strings.HasPrefix(repl, "~/"):
+				// Keep a recognized project directory with its pseudonym,
+				// but do not preserve arbitrary home-private files.
+				for _, prefix := range []string{"~/projects/__PROJECT_", "~/project/__PROJECT_",
+					"~/workspace/__PROJECT_", "~/workspaces/__PROJECT_", "~/repos/__PROJECT_",
+					"~/repo/__PROJECT_"} {
+					if strings.HasPrefix(repl, prefix) {
+						return repl
+					}
+				}
 				return "~/***"
 			case strings.HasPrefix(repl, "/etc/"):
 				return "/etc/***"
@@ -98,7 +231,54 @@ func sanitizeRemoteDatasetText(text string) string {
 			}
 		})
 	}
+	out = unixCryptHashRegexp.ReplaceAllString(out, "***")
 	return out
+}
+
+// Do not destroy the risk meaning of public passwd flags/standard root name.
+// For example, passwd -l root is a security-administration command, not a
+// string assignment to a private password value.
+func isNonSecretCommandArgument(valueMatch string) bool {
+	fields := strings.Fields(valueMatch)
+	if len(fields) != 2 || strings.ContainsAny(fields[0], "=:") {
+		return false
+	}
+	switch strings.ToLower(fields[0]) {
+	case "passwd":
+		return fields[1] == "root" || strings.HasPrefix(fields[1], "-") ||
+			isIdentityPlaceholder(fields[1])
+	case "pwd":
+		return fields[1] == "-P" || fields[1] == "-L"
+	}
+	return false
+}
+
+// isNonIdentifyingIPv4 only preserves globally fixed or documentation-only
+// literals. Private networks and real public addresses can identify users.
+func isNonIdentifyingIPv4(address string) bool {
+	return strings.HasPrefix(address, "127.") ||
+		address == "0.0.0.0" || address == "255.255.255.255" ||
+		strings.HasPrefix(address, "192.0.2.") ||
+		strings.HasPrefix(address, "198.51.100.") ||
+		strings.HasPrefix(address, "203.0.113.")
+}
+
+// A bare name after a word such as passwd or password is not a credential
+// value when the next token is an internationally standardized /etc path.
+// Narrowly scope this to unambiguous names, not arbitrary /etc filenames.
+func isBarePublicEtcPathReference(valueMatch string) bool {
+	fields := strings.Fields(valueMatch)
+	if len(fields) != 2 || strings.HasPrefix(fields[0], "-") ||
+		strings.ContainsAny(fields[0], "=:") {
+		return false
+	}
+	switch fields[1] {
+	case "/etc/passwd", "/etc/shadow", "/etc/sudoers", "/etc/group",
+		"/etc/hosts", "/etc/fstab", "/etc/resolv.conf",
+		"/etc/ssh/sshd_config":
+		return true
+	}
+	return false
 }
 
 func inferRemoteDatasetLabelFromSource(source string) (string, string) {
