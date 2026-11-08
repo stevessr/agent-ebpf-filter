@@ -1,8 +1,11 @@
 package app
 
 import (
+	"bufio"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"strings"
 
@@ -25,6 +28,8 @@ type DecisionExternalEvaluation struct {
 	BlockRecall    float64                   `json:"blockRecall"`
 	BlockPrecision float64                   `json:"blockPrecision"`
 	BenignFPR      float64                   `json:"benignFalsePositiveRate"`
+	BenignFPRUpper95   float64              `json:"benignFPRUpper95"`
+	BlockRecallLower95 float64              `json:"blockRecallLower95"`
 	Confusion      map[string]map[string]int `json:"confusion"`
 }
 
@@ -82,6 +87,58 @@ func loadReviewedCandidateCorpus(source DecisionTrainingDataset) ([]remoteDatase
 	return parsed.Rows, actual, nil
 }
 
+// reviewedCorpusIdentities reads the independently declared provenance IDs
+// from raw reviewed JSONL. The generic dataset parser intentionally discards
+// these fields, so their isolation must be checked before loading any model.
+// IDs are global across sources, not prefixed by export name.
+func reviewedCorpusIdentities(path string) (map[string]struct{}, map[string]struct{}, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer file.Close()
+	scenarios, runs := make(map[string]struct{}), make(map[string]struct{})
+	scanner := bufio.NewScanner(file)
+	scanner.Buffer(make([]byte, 4096), 1024*1024)
+	for line := 1; scanner.Scan(); line++ {
+		if len(strings.TrimSpace(scanner.Text())) == 0 {
+			continue
+		}
+		var item struct {
+			ScenarioID string `json:"scenario_id"`
+			RunID      string `json:"run_id"`
+		}
+		if err := json.Unmarshal(scanner.Bytes(), &item); err != nil {
+			return nil, nil, fmt.Errorf("row %d: invalid JSON: %w", line, err)
+		}
+		scenario, run := strings.TrimSpace(item.ScenarioID), strings.TrimSpace(item.RunID)
+		if scenario == "" || run == "" {
+			return nil, nil, fmt.Errorf("row %d: independent evaluation requires scenario_id and run_id", line)
+		}
+		scenarios[scenario], runs[run] = struct{}{}, struct{}{}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, nil, err
+	}
+	return scenarios, runs, nil
+}
+
+// wilson95 gives a two-sided 95%% interval for a Bernoulli rate. An observed
+// zero false-positive count is not evidence of a zero true false-positive rate.
+func wilson95(successes, total int) (float64, float64) {
+	if total <= 0 {
+		return 0, 1
+	}
+	const z = 1.959963984540054
+	n := float64(total)
+	p := float64(successes) / n
+	z2 := z * z
+	denominator := 1 + z2/n
+	center := (p + z2/(2*n)) / denominator
+	margin := z * math.Sqrt(p*(1-p)/n+z2/(4*n*n)) / denominator
+	return math.Max(0, center-margin), math.Min(1, center+margin)
+}
+
 // EvaluateDecisionModelOnExternalHoldout reads disjoint local training/test
 // corpora, rejects duplicate commands across them, and evaluates the serialized
 // candidate with the *runtime* 128-dimensional feature extractor. This function
@@ -114,6 +171,24 @@ func EvaluateDecisionModelOnExternalHoldout(modelPath string, training, test Dec
 			return DecisionExternalEvaluation{}, fmt.Errorf("external holdout contains duplicate command at row %d", row.Row)
 		}
 		seenTest[key] = struct{}{}
+	}
+	trainScenarios, trainRuns, err := reviewedCorpusIdentities(training.LocalPath)
+	if err != nil {
+		return DecisionExternalEvaluation{}, fmt.Errorf("training group provenance: %w", err)
+	}
+	testScenarios, testRuns, err := reviewedCorpusIdentities(test.LocalPath)
+	if err != nil {
+		return DecisionExternalEvaluation{}, fmt.Errorf("test group provenance: %w", err)
+	}
+	for scenario := range testScenarios {
+		if _, exists := trainScenarios[scenario]; exists {
+			return DecisionExternalEvaluation{}, fmt.Errorf("external holdout contamination: scenario_id %q appears in both corpora", scenario)
+		}
+	}
+	for run := range testRuns {
+		if _, exists := trainRuns[run]; exists {
+			return DecisionExternalEvaluation{}, fmt.Errorf("external holdout contamination: run_id %q appears in both corpora", run)
+		}
 	}
 	model := tryLoadModel(modelPath, ml.ModelRandomForest)
 	if model == nil {
@@ -181,5 +256,7 @@ func EvaluateDecisionModelOnExternalHoldout(modelPath string, training, test Dec
 		blockF1 = 2 * float64(blockCorrect) / float64(denom)
 	}
 	result.MacroF1 = (allowF1 + blockF1) / 2
+	_, result.BenignFPRUpper95 = wilson95(benignFalsePositives, result.AllowSamples)
+	result.BlockRecallLower95, _ = wilson95(blockCorrect, result.BlockSamples)
 	return result, nil
 }
