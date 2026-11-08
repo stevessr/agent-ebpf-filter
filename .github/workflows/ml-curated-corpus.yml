@@ -8,7 +8,7 @@ on:
       - research/curated/ai-reviewed-bash-actions.jsonl
       - research/curated/ai-review-needs-context.jsonl
       - research/curated/ai-review-manifest.json
-      - backend/app/decision_training.go
+      - backend/app/decision_training*.go
       - backend/app/dataset_identity.go
       - backend/app/dataset_identity_test.go
       - backend/app/dataset_sanitize.go
