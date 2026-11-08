@@ -111,7 +111,18 @@ external test** block containing accuracy, balanced accuracy, macro-F1, BLOCK
 precision/recall, benign false-positive rate and confusion matrix.
 The external evaluator reloads the candidate, validates both file hashes,
 rejects repeated commands within the test and exact train/test command
-overlap, and never trains on external test rows.
+overlap, **requires nonempty scenario_id/run_id on every row, and rejects
+shared scenario or run IDs between train and test**. These checks also apply
+when the files were prepared without the curation script. It never trains on
+external test rows.
+
+In addition to observed external BLOCK recall and benign FPR, the manifest
+reports `blockRecallLower95` and `benignFPRUpper95`, two-sided 95% Wilson
+**row-level** uncertainty bounds. Multiple commands from the same scenario
+are correlated: these bounds may still be overly optimistic for a new
+scenario and must not be interpreted as independent deployment guarantees.
+A deployment decision additionally needs many distinct, independently
+reviewed ALLOW and BLOCK scenarios, not merely many command rows.
 
 ### Required interpretation
 
