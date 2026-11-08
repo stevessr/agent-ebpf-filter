@@ -108,6 +108,8 @@ func run() error {
 			report.ExternalTest.Balanced, report.ExternalTest.BlockRecall,
 			report.ExternalTest.BlockPrecision, report.ExternalTest.BenignFPR,
 			report.ExternalTest.MacroF1)
+		fmt.Printf("External 95%% Wilson row-level bounds: BLOCK recall >= %.3f, benign FPR <= %.3f (correlated scenarios reduce effective support)\n",
+			report.ExternalTest.BlockRecallLower95, report.ExternalTest.BenignFPRUpper95)
 	}
 	return nil
 }
