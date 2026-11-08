@@ -12,12 +12,12 @@ func TestDecisionCandidateLocalCorpusTrainingAndExternalHoldout(t *testing.T) {
 	// not a claim about generalization to genuine attacker behavior.
 	var train, test strings.Builder
 	for i := 0; i < 48; i++ {
-		fmt.Fprintf(&train, "{\"command\":\"echo benign-%d\",\"label\":\"ALLOW\"}\n", i)
-		fmt.Fprintf(&train, "{\"command\":\"rm -rf ./isolated-risk-%d\",\"label\":\"BLOCK\"}\n", i)
+	fmt.Fprintf(&train, "{\"command\":\"echo benign-%d\",\"label\":\"ALLOW\",\"scenario_id\":\"train-allow-%d\",\"run_id\":\"train-allow-run-%d\"}\n", i, i, i)
+	fmt.Fprintf(&train, "{\"command\":\"rm -rf ./isolated-risk-%d\",\"label\":\"BLOCK\",\"scenario_id\":\"train-block-%d\",\"run_id\":\"train-block-run-%d\"}\n", i, i, i)
 	}
 	for i := 100; i < 112; i++ {
-		fmt.Fprintf(&test, "{\"command\":\"echo benign-%d\",\"label\":\"ALLOW\"}\n", i)
-		fmt.Fprintf(&test, "{\"command\":\"rm -rf ./isolated-risk-%d\",\"label\":\"BLOCK\"}\n", i)
+	fmt.Fprintf(&test, "{\"command\":\"echo benign-%d\",\"label\":\"ALLOW\",\"scenario_id\":\"test-allow-%d\",\"run_id\":\"test-allow-run-%d\"}\n", i, i, i)
+	fmt.Fprintf(&test, "{\"command\":\"rm -rf ./isolated-risk-%d\",\"label\":\"BLOCK\",\"scenario_id\":\"test-block-%d\",\"run_id\":\"test-block-run-%d\"}\n", i, i, i)
 	}
 	trainPath, trainDigest := writeDecisionTrainingFixture(t, train.String())
 	testPath, testDigest := writeDecisionTrainingFixture(t, test.String())
