@@ -79,18 +79,47 @@ def read_source(name, path, license_id, allow_assistant_reviewed=False):
     return records, {"name": name, "file": source.name, "license": license_id, "sha256": checksum, "inputRows": len(records)}
 
 
-def group_key(row, mode):
-    # A source prefix permits the same scenario/run to cross partitions
-    # after a dataset is exported by multiple providers. Treat IDs globally.
-    if mode == "run":
-        return ("run", row["run_id"])
-    return ("scenario", row["scenario_id"])
+def build_groups(rows, mode):
+    """Group across ALL sources; 'both' closes transitive scenario/run leakage.
+
+    A single run may mention multiple scenarios and a scenario may span many
+    runs. Connected components are the only sound independent unit if neither
+    identifier is allowed to cross validation boundaries. Union roots are
+    lexicographically stable, so input order cannot alter membership.
+    """
+    groups = collections.defaultdict(list)
+    if mode != "both":
+        field = "run_id" if mode == "run" else "scenario_id"
+        kind = "run" if mode == "run" else "scenario"
+        for row in rows:
+            groups[(kind, row[field])].append(row)
+        return groups
+
+    parent = {}
+
+    def find(key):
+        parent.setdefault(key, key)
+        if parent[key] != key:
+            parent[key] = find(parent[key])
+        return parent[key]
+
+    for row in rows:
+        scenario = ("scenario", row["scenario_id"])
+        run = ("run", row["run_id"])
+        a, b = find(scenario), find(run)
+        if a != b:
+            parent[max(a, b)] = min(a, b)
+
+    for row in rows:
+        key = find(("scenario", row["scenario_id"]))
+        groups[key].append(row)
+    return groups
 
 
 def split_rows(rows, group_by, seed, validation_fraction, test_fraction, min_per_class):
     if not 0 < validation_fraction < 0.5 or not 0 < test_fraction < 0.5 or validation_fraction + test_fraction >= 0.8:
         raise ValueError("validation/test fractions must be >0 and <0.5, with sum <0.8")
-    groups = collections.defaultdict(list)
+    groups = build_groups(rows, group_by)
     command_labels = {}
     for row in rows:
         command = row["command"]
@@ -98,7 +127,6 @@ def split_rows(rows, group_by, seed, validation_fraction, test_fraction, min_per
         previous = command_labels.setdefault(command, label)
         if previous != label:
             raise ValueError("conflicting action labels for the same command across sources or runs")
-        groups[group_key(row, group_by)].append(row)
     if len(groups) < 3:
         raise ValueError("at least three independent scenarios/runs are required for train/validation/test")
     # Both held-out partitions need independent evidence of ALLOW and BLOCK.
@@ -164,7 +192,7 @@ def split_rows(rows, group_by, seed, validation_fraction, test_fraction, min_per
         "partitions after 128 deterministic group-stratification attempts"
     )
 
-def build_corpus(sources, licenses, output_dir, group_by="scenario", seed=20261103,
+def build_corpus(sources, licenses, output_dir, group_by="both", seed=20261103,
                  validation_fraction=0.2, test_fraction=0.2, min_per_class=20,
                  allow_assistant_reviewed=False):
     if not sources or set(sources) != set(licenses):
@@ -186,7 +214,7 @@ def build_corpus(sources, licenses, output_dir, group_by="scenario", seed=202611
         "sourceProvenance": provenance,
         "assistantReviewedAccepted": allow_assistant_reviewed,
         "split": {},
-        "warning": "Labels require review; attack-window membership is not an action label. External validation is not performed by ml-train.",
+        "warning": "Labels require review; attack-window membership is not an action label. Holdout group IDs are not proof of independent real-world sessions.",
     }
     for split, rows in splits.items():
         payload = "".join(json.dumps(row, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n" for row in rows)
@@ -210,7 +238,8 @@ def main():
     parser.add_argument("--source", action="append", required=True, help="NAME=path/to/reviewed.jsonl; repeatable")
     parser.add_argument("--license", action="append", required=True, help="NAME=SPDX-or-source-license; repeatable")
     parser.add_argument("--output-dir", required=True)
-    parser.add_argument("--group-by", choices=("scenario", "run"), default="scenario")
+    parser.add_argument("--group-by", choices=("both", "scenario", "run"), default="both",
+                        help="both (default): transitive scenario/run disjointness; scenario or run: weaker single-key isolation")
     parser.add_argument("--seed", type=int, default=20261103)
     parser.add_argument("--validation-fraction", type=float, default=0.2)
     parser.add_argument("--test-fraction", type=float, default=0.2)
