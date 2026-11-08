@@ -123,6 +123,52 @@ class CuratedCorpusTests(unittest.TestCase):
                 self.assertGreater(report["split"][split]["byAction"]["ALLOW"], 0)
                 self.assertGreater(report["split"][split]["byAction"]["BLOCK"], 0)
 
+    def test_default_split_closes_transitive_scenario_and_run_leakage(self):
+        # Each of 8 components links two scenarios through two runs.
+        # A split on either identifier alone would allow the other to leak.
+        rows = []
+        for cohort in range(8):
+            for index, (scenario, run_id) in enumerate((
+                (f"scenario-{cohort}-a", f"run-{cohort}-x"),
+                (f"scenario-{cohort}-a", f"run-{cohort}-y"),
+                (f"scenario-{cohort}-b", f"run-{cohort}-y"),
+                (f"scenario-{cohort}-b", f"run-{cohort}-x"),
+            )):
+                rows.append({
+                    "command": f"agent-{cohort} --case={index}",
+                    "label": "ALLOW" if index % 2 == 0 else "BLOCK",
+                    "label_source": "human_reviewed",
+                    "scenario_id": scenario,
+                    "run_id": run_id,
+                })
+        original = corpus.build_groups(rows, "both")
+        reordered = corpus.build_groups(list(reversed(rows)), "both")
+        self.assertEqual(set(original), set(reordered))
+        self.assertEqual(len(original), 8)
+        self.assertEqual(
+            {key: {r["command"] for r in group} for key, group in original.items()},
+            {key: {r["command"] for r in group} for key, group in reordered.items()},
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            source = self.write_rows(temporary, rows)
+            manifest = corpus.build_corpus(
+                {"source": source}, {"source": "MIT"},
+                Path(temporary) / "out", min_per_class=1)
+            self.assertEqual(manifest["groupBy"], "both")
+            scenarios, runs = {}, {}
+            for split in ("train", "validation", "test"):
+                entries = [
+                    json.loads(line) for line in
+                    (Path(temporary) / "out" / f"{split}.jsonl").read_text().splitlines()
+                ]
+                self.assertIn("ALLOW", {entry["label"] for entry in entries})
+                self.assertIn("BLOCK", {entry["label"] for entry in entries})
+                for entry in entries:
+                    scenarios.setdefault(entry["scenario_id"], set()).add(split)
+                    runs.setdefault(entry["run_id"], set()).add(split)
+            self.assertTrue(all(len(parts) == 1 for parts in scenarios.values()))
+            self.assertTrue(all(len(parts) == 1 for parts in runs.values()))
+
     def test_unreviewed_attack_window_cannot_become_block(self):
         with tempfile.TemporaryDirectory() as temporary:
             rows = self.rows()
