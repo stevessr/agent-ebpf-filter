@@ -61,7 +61,7 @@ python3 scripts/ml-curate-corpus.py \
   --license shell=CC-BY-4.0 \
   --source agent=corpora/reviewed-agent.jsonl \
   --license agent=INTERNAL-REVIEWED \
-  --group-by scenario \
+  --group-by both \
   --output-dir artifacts/curated-ml
 
 python3 -m unittest discover -s scripts -p 'test_ml_curate_corpus.py' -v
@@ -115,8 +115,15 @@ overlap, and never trains on external test rows.
 
 ### Required interpretation
 
-1. Group by **scenario** when feasible. Group-by-run prevents only within-run
-   leakage; sharing scenario templates across runs remains a risk.
+1. Group by **both** (the default): scenario IDs and run IDs form a
+   transitive graph across all source files. Every connected component stays
+   entirely inside one partition, so neither a shared run nor a shared
+   scenario can leak between train/validation/test. This may substantially
+   reduce the number of *independent* groups. When it cannot yield sufficient
+   ALLOW/BLOCK support, obtain more separately reviewed scenarios and runs
+   rather than weakening the split. The explicit `--group-by scenario` or
+   `--group-by run` options isolate only that identifier and should be used
+   only when the omitted identifier is not a meaningful leakage key.
 2. Keep the external **test** set sealed. Use the separate `validation.jsonl`
    to select hyperparameters; the CLI's internal holdout is only a preliminary
    diagnostic, not a substitute for cross-scenario selection.
