@@ -128,3 +128,19 @@ may be ignored on timeout; built-in redaction may also mask inputs before they
 reach the upstream provider. Tokenization, FP16 numeric compatibility, and
 provider execution are model/runtime dependent. Local unit tests do not count
 as a completed CUDA or Vulkan inference benchmark.
+
+## 5. Real inference smoke and benchmark
+
+The GitHub workflow includes a model-enabled **CPU smoke test** that downloads
+the pinned 0.1.3 INT8 model and classifies one synthetic email. This is distinct
+from offline unit tests. For local warm latency measurements:
+
+```sh
+python scripts/benchmark.py --model-dir models/astrlink-guard --backend cpu --runs 50
+python scripts/benchmark.py --model-dir models/astrlink-guard --backend cuda --strict-provider --runs 50
+```
+
+The script reports backend, provider, warm p50/p95 and mean inference latency.
+These are model-only microbenchmarks, not end-to-end Magpie gateway latency.
+The GPU tests require a real CUDA installation; Vulkan requires a compatible
+third-party EP as documented above. No made-up latency figures are included.
