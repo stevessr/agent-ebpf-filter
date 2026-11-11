@@ -70,7 +70,9 @@ def collect_entities(labels, offsets, special_mask, scores, min_score: float):
     for index, tag in enumerate(labels):
         start, end = offsets[index]
         kind, name = parse_bio(tag)
-        if special_mask[index] or start == end or kind is None:
+        if special_mask[index] or start == end:
+            continue
+        if kind is None:
             if active is not None:
                 spans.append(active)
                 active = None
@@ -79,15 +81,14 @@ def collect_entities(labels, offsets, special_mask, scores, min_score: float):
         if kind == "B" or active is None or active["label"] != name:
             if active is not None:
                 spans.append(active)
-            active = {"start": start, "end": end, "label": name, "scores": [score]}
+            active = {"start": start, "end": end, "label": name, "score": score}
         else:
             active["end"] = max(active["end"], end)
-            active["scores"].append(score)
+            active["score"] = min(active["score"], score)
     if active is not None:
         spans.append(active)
     return [
-        {"start": s["start"], "end": s["end"], "label": s["label"], "score": sum(s["scores"]) / len(s["scores"])}
-        for s in spans if sum(s["scores"]) / len(s["scores"]) >= min_score
+        s for s in spans if s["score"] >= min_score
     ]
 
 
