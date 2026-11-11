@@ -29,6 +29,20 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(spans[0]['end'], 8)
         self.assertEqual(spans[0]['label'], 'private_person')
 
+    def test_multitoken_span_uses_minimum_token_confidence(self):
+        # Match official AstrLink Guard BIO decoder: the weakest token
+        # determines span confidence; an average could overstate safety.
+        spans = collect_entities(['B-email', 'I-email', 'O'],
+                                 [(0, 5), (5, 12), (0, 0)],
+                                 [0, 0, 1], [.99, .60, 1], .8)
+        self.assertEqual(spans, [])
+
+    def test_special_token_does_not_split_entity(self):
+        spans = collect_entities(['B-email', 'O', 'I-email'],
+                                 [(0, 4), (0, 0), (4, 9)],
+                                 [0, 1, 0], [.9, 1, .85], .8)
+        self.assertEqual([(s['start'], s['end']) for s in spans], [(0, 9)])
+
     def test_overlapping_windows(self):
         x = merge_windows([{'start': 1,'end': 8,'label':'email','score':.92},
                            {'start': 1,'end': 8,'label':'email','score':.99}])
