@@ -1,0 +1,29 @@
+name: Magpie AstrLink Guard plugin tests
+
+on:
+  push:
+    paths:
+      - 'integrations/magpie-astrlink-guard/**'
+      - '.github/workflows/magpie-astrlink-guard.yml'
+  pull_request:
+    paths:
+      - 'integrations/magpie-astrlink-guard/**'
+      - '.github/workflows/magpie-astrlink-guard.yml'
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: JS hook and middleware tests
+        run: node --test integrations/magpie-astrlink-guard/tests/*.test.mjs
+      - name: Python scanner HTTP and decoder tests (offline mocks)
+        run: python3 -m unittest discover -s integrations/magpie-astrlink-guard/tests -p 'test_*.py'
