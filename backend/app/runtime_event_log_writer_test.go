@@ -337,3 +337,75 @@ func replayRecordPIDs(records []recording.CapturedEventRecord) []uint32 {
 	}
 	return pids
 }
+
+func TestRuntimeEventLogWriterIOUringOptInAndSafeFallback(t *testing.T) {
+	t.Setenv("AGENT_EVENT_LOG_IO", "io_uring")
+	// An O_WRONLY descriptor without O_APPEND cannot be used by the ring.
+	// Fallback must occur before any record is enqueued or written.
+	path := filepath.Join(t.TempDir(), "events.jsonl")
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writer, err := startRuntimeEventLogWriter(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := writer.Status().IOBackend; got != "buffered-write" {
+		t.Fatalf("ioBackend = %q; expected safe fallback", got)
+	}
+	if ok, err := writer.Enqueue(CapturedEventRecord{Event: &pb.Event{Pid: 7, Type: "openat"}}); !ok || err != nil {
+		t.Fatalf("Enqueue() = (%t, %v)", ok, err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := writer.FlushContext(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.StopContext(ctx); err != nil {
+		t.Fatal(err)
+	}
+	records, err := tailCapturedEventsFileAtRootContext(ctx, filepath.Dir(path), filepath.Base(path), 2)
+	if err != nil || len(records) != 1 || records[0].Event.Pid != 7 {
+		t.Fatalf("fallback records = %+v, err %v", records, err)
+	}
+}
+
+func TestRuntimeEventLogWriterIOUringAppendSmoke(t *testing.T) {
+	t.Setenv("AGENT_EVENT_LOG_IO", "io_uring")
+	path := filepath.Join(t.TempDir(), "events.jsonl")
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writer, err := startRuntimeEventLogWriter(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	for i := 1; i <= 16; i++ {
+		if ok, err := writer.Enqueue(CapturedEventRecord{Event: &pb.Event{Pid: uint32(i), Type: "read"}}); !ok || err != nil {
+			t.Fatalf("Enqueue %d: %t %v", i, ok, err)
+		}
+	}
+	if err := writer.FlushContext(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.StopContext(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// Whether io_uring was permitted or safely rejected, the audit file
+	// must remain an ordered, readable JSONL stream.
+	records, err := tailCapturedEventsFileAtRootContext(ctx, filepath.Dir(path), filepath.Base(path), 32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := replayRecordPIDs(records)
+	if len(got) != 16 || got[0] != 1 || got[15] != 16 {
+		t.Fatalf("append order = %v", got)
+	}
+	if got := writer.Status().IOBackend; got != "io_uring" && got != "buffered-write" {
+		t.Fatalf("unrecognized io backend %q", got)
+	}
+}
