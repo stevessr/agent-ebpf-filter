@@ -15,6 +15,7 @@ func buildSemanticAlerts(event *pb.Event) []*pb.Event {
 func resetSemanticAlertState() {
 	events.ResetSemanticAlertState()
 	semanticAlertsState = events.Deps.SemanticAlertsState
+	resetUnifiedAgentRiskPipeline()
 }
 
 // semanticAlertsState retains the same variable name for backward compat.
