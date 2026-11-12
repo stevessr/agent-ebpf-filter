@@ -148,6 +148,7 @@ Working on this codebase with Claude Code or similar tools:
 - [Threat Model](docs/security/threat-model.md)
 - [Data Redaction](backend/redaction/README.md)
 - [Runtime Gates](docs/security/runtime-gates-auth.md)
+- [Kernel cgroup ML Guard (experimental)](docs/security/kernel-ml-cgroup-guard.md) — scoped, shadow-first IPv4 and mapped IPv6 inference
 - [TLS Capture](docs/backend/TLS_QUICKSTART.md) (diagnostic only)
 - [Real-time Agent Observability Requirements](docs/security/real-time-agent-observability.md) (proposed, not deployed)
 - [Escape / Misalignment Screening](docs/security/misalignment-monitoring.md) (read-only research L0)
