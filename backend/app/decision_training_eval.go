@@ -16,6 +16,15 @@ import (
 // DecisionExternalEvaluation records a completely separate corpus evaluation.
 // It is not a training-time tuning score; the test rows never fit the model.
 type DecisionExternalEvaluation struct {
+	// Group metrics count transitive scenario/run connected components, not commands.
+	// A mixed-class component contributes to both class-specific denominators.
+	IndependentGroups             int     `json:"independentGroups"`
+	BlockGroups                   int     `json:"blockGroups"`
+	BenignGroups                  int     `json:"benignGroups"`
+	GroupBlockRecall              float64 `json:"groupBlockRecall"`
+	GroupBlockRecallLower95       float64 `json:"groupBlockRecallLower95"`
+	GroupBenignFPR                float64 `json:"groupBenignFalsePositiveRate"`
+	GroupBenignFPRUpper95         float64 `json:"groupBenignFPRUpper95"`
 	Source         string                    `json:"source"`
 	SHA256         string                    `json:"sha256"`
 	License        string                    `json:"license"`
@@ -87,17 +96,45 @@ func loadReviewedCandidateCorpus(source DecisionTrainingDataset) ([]remoteDatase
 	return parsed.Rows, actual, nil
 }
 
-// reviewedCorpusIdentities reads the independently declared provenance IDs
-// from raw reviewed JSONL. The generic dataset parser intentionally discards
-// these fields, so their isolation must be checked before loading any model.
-// IDs are global across sources, not prefixed by export name.
-func reviewedCorpusIdentities(path string) (map[string]struct{}, map[string]struct{}, error) {
+// reviewedCorpusIdentities validates source-declared provenance IDs and builds
+// transitive connected components across both scenario_id and run_id.
+// Rows are ordered to match the generic JSONL parser's nonblank input rows.
+// Identifier values are global across sources; type prefixes avoid collisions.
+type reviewedCorpusProvenance struct {
+	scenarios map[string]struct{}
+	runs      map[string]struct{}
+	rowGroups []int
+	groupCount int
+}
+
+func reviewedCorpusIdentities(path string) (reviewedCorpusProvenance, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		return nil, nil, err
+		return reviewedCorpusProvenance{}, err
 	}
 	defer file.Close()
-	scenarios, runs := make(map[string]struct{}), make(map[string]struct{})
+	result := reviewedCorpusProvenance{
+		scenarios: make(map[string]struct{}),
+		runs: make(map[string]struct{}),
+	}
+	parent := make(map[string]string)
+	sizes := make(map[string]int)
+	find := func(key string) string {
+		if _, exists := parent[key]; !exists {
+			parent[key], sizes[key] = key, 1
+		}
+		root := key
+		for parent[root] != root {
+			root = parent[root]
+		}
+		for key != root {
+			next := parent[key]
+			parent[key] = root
+			key = next
+		}
+		return root
+	}
+	var rowKeys []string
 	scanner := bufio.NewScanner(file)
 	scanner.Buffer(make([]byte, 4096), 1024*1024)
 	for line := 1; scanner.Scan(); line++ {
@@ -105,22 +142,45 @@ func reviewedCorpusIdentities(path string) (map[string]struct{}, map[string]stru
 			continue
 		}
 		var item struct {
-			ScenarioID string `json:"scenario_id"`
-			RunID      string `json:"run_id"`
+			ScenarioID string \`json:"scenario_id"\`
+			RunID      string \`json:"run_id"\`
 		}
 		if err := json.Unmarshal(scanner.Bytes(), &item); err != nil {
-			return nil, nil, fmt.Errorf("row %d: invalid JSON: %w", line, err)
+			return reviewedCorpusProvenance{}, fmt.Errorf("row %d: invalid JSON: %w", line, err)
 		}
 		scenario, run := strings.TrimSpace(item.ScenarioID), strings.TrimSpace(item.RunID)
 		if scenario == "" || run == "" {
-			return nil, nil, fmt.Errorf("row %d: independent evaluation requires scenario_id and run_id", line)
+			return reviewedCorpusProvenance{}, fmt.Errorf("row %d: independent evaluation requires scenario_id and run_id", line)
 		}
-		scenarios[scenario], runs[run] = struct{}{}, struct{}{}
+		result.scenarios[scenario], result.runs[run] = struct{}{}, struct{}{}
+		scenarioKey, runKey := "scenario:"+scenario, "run:"+run
+		a, b := find(scenarioKey), find(runKey)
+		if a != b {
+			// Union by size bounds tree depth even for adversarial identifiers;
+			// lexicographic tie-breaking makes the choice deterministic.
+			if sizes[a] < sizes[b] || (sizes[a] == sizes[b] && a > b) {
+				a, b = b, a
+			}
+			parent[b] = a
+			sizes[a] += sizes[b]
+		}
+		rowKeys = append(rowKeys, scenarioKey)
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, nil, err
+		return reviewedCorpusProvenance{}, err
 	}
-	return scenarios, runs, nil
+	indices := make(map[string]int)
+	for _, key := range rowKeys {
+		root := find(key)
+		group, exists := indices[root]
+		if !exists {
+			group = len(indices)
+			indices[root] = group
+		}
+		result.rowGroups = append(result.rowGroups, group)
+	}
+	result.groupCount = len(indices)
+	return result, nil
 }
 
 // wilson95 gives a two-sided 95%% interval for a Bernoulli rate. An observed
@@ -172,23 +232,26 @@ func EvaluateDecisionModelOnExternalHoldout(modelPath string, training, test Dec
 		}
 		seenTest[key] = struct{}{}
 	}
-	trainScenarios, trainRuns, err := reviewedCorpusIdentities(training.LocalPath)
+	trainProvenance, err := reviewedCorpusIdentities(training.LocalPath)
 	if err != nil {
 		return DecisionExternalEvaluation{}, fmt.Errorf("training group provenance: %w", err)
 	}
-	testScenarios, testRuns, err := reviewedCorpusIdentities(test.LocalPath)
+	testProvenance, err := reviewedCorpusIdentities(test.LocalPath)
 	if err != nil {
 		return DecisionExternalEvaluation{}, fmt.Errorf("test group provenance: %w", err)
 	}
-	for scenario := range testScenarios {
-		if _, exists := trainScenarios[scenario]; exists {
+	for scenario := range testProvenance.scenarios {
+		if _, exists := trainProvenance.scenarios[scenario]; exists {
 			return DecisionExternalEvaluation{}, fmt.Errorf("external holdout contamination: scenario_id %q appears in both corpora", scenario)
 		}
 	}
-	for run := range testRuns {
-		if _, exists := trainRuns[run]; exists {
+	for run := range testProvenance.runs {
+		if _, exists := trainProvenance.runs[run]; exists {
 			return DecisionExternalEvaluation{}, fmt.Errorf("external holdout contamination: run_id %q appears in both corpora", run)
 		}
+	}
+	if len(testProvenance.rowGroups) != len(testRows) || len(trainProvenance.rowGroups) != len(trainRows) {
+		return DecisionExternalEvaluation{}, fmt.Errorf("reviewed corpus row/provenance mismatch")
 	}
 	model := tryLoadModel(modelPath, ml.ModelRandomForest)
 	if model == nil {
@@ -203,7 +266,8 @@ func EvaluateDecisionModelOnExternalHoldout(modelPath string, training, test Dec
 	}
 	extractor := &FeatureExtractor{history: newRecentHistoryBuffer(1)}
 	var correct, allowCorrect, blockCorrect, blockPredicted, benignFalsePositives int
-	for _, row := range testRows {
+	outcomes := make([]decisionGroupOutcome, 0, len(testRows))
+	for rowIndex, row := range testRows {
 		sample := buildRemoteDatasetSampleWithExtractor(row, "preserve", true, extractor)
 		neutralizeOfflineDecisionClockFeatures(&sample)
 		actual := ml.ActionLabel[sample.Label]
@@ -213,6 +277,7 @@ func EvaluateDecisionModelOnExternalHoldout(modelPath string, training, test Dec
 			return DecisionExternalEvaluation{}, fmt.Errorf("invalid model action %d", prediction)
 		}
 		result.Confusion[actual][predName]++
+		outcomes = append(outcomes, decisionGroupOutcome{group: testProvenance.rowGroups[rowIndex], actual: sample.Label, predicted: prediction})
 		result.Samples++
 		if prediction == sample.Label {
 			correct++
@@ -258,5 +323,13 @@ func EvaluateDecisionModelOnExternalHoldout(modelPath string, training, test Dec
 	result.MacroF1 = (allowF1 + blockF1) / 2
 	_, result.BenignFPRUpper95 = wilson95(benignFalsePositives, result.AllowSamples)
 	result.BlockRecallLower95, _ = wilson95(blockCorrect, result.BlockSamples)
+	groupEvidence := summarizeDecisionGroupSecurity(outcomes)
+	result.IndependentGroups = groupEvidence.independentGroups
+	result.BlockGroups = groupEvidence.blockGroups
+	result.BenignGroups = groupEvidence.benignGroups
+	result.GroupBlockRecall = groupEvidence.blockRecall
+	result.GroupBlockRecallLower95 = groupEvidence.blockRecallLower95
+	result.GroupBenignFPR = groupEvidence.benignFPR
+	result.GroupBenignFPRUpper95 = groupEvidence.benignFPRUpper95
 	return result, nil
 }

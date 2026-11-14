@@ -110,6 +110,10 @@ func run() error {
 			report.ExternalTest.MacroF1)
 		fmt.Printf("External 95%% Wilson row-level bounds: BLOCK recall >= %.3f, benign FPR <= %.3f (correlated scenarios reduce effective support)\n",
 			report.ExternalTest.BlockRecallLower95, report.ExternalTest.BenignFPRUpper95)
+		fmt.Printf("External independent scenario/run components: %d (BLOCK groups=%d, benign groups=%d); strict group BLOCK recall=%.3f [lower95=%.3f], group benign FPR=%.3f [upper95=%.3f]\n",
+			report.ExternalTest.IndependentGroups, report.ExternalTest.BlockGroups, report.ExternalTest.BenignGroups,
+			report.ExternalTest.GroupBlockRecall, report.ExternalTest.GroupBlockRecallLower95,
+			report.ExternalTest.GroupBenignFPR, report.ExternalTest.GroupBenignFPRUpper95)
 	}
 	return nil
 }

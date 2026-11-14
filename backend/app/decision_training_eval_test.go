@@ -99,3 +99,49 @@ func TestDecisionWilsonConfidenceIntervals(t *testing.T) {
 		t.Fatalf("missing data must not imply a perfect estimate: [%v,%v]", low, high)
 	}
 }
+
+// A shared run connects distinct scenarios and a shared scenario connects runs;
+// neither pair may be counted as independent validation evidence.
+func TestReviewedCorpusIdentitiesUseTransitiveScenarioRunComponents(t *testing.T) {
+	path, _ := writeDecisionTrainingFixture(t,
+		`{"command":"ls /tmp/one","label":"ALLOW","scenario_id":"scenario-1","run_id":"run-1"}`+"\n"+
+		`{"command":"rm /tmp/one","label":"BLOCK","scenario_id":"scenario-2","run_id":"run-1"}`+"\n"+
+		`{"command":"cat /tmp/two","label":"ALLOW","scenario_id":"scenario-2","run_id":"run-2"}`+"\n"+
+		`{"command":"rm /tmp/three","label":"BLOCK","scenario_id":"scenario-3","run_id":"run-3"}`+"\n")
+	provenance, err := reviewedCorpusIdentities(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if provenance.groupCount != 2 || len(provenance.rowGroups) != 4 ||
+		provenance.rowGroups[0] != provenance.rowGroups[1] ||
+		provenance.rowGroups[1] != provenance.rowGroups[2] ||
+		provenance.rowGroups[2] == provenance.rowGroups[3] {
+		t.Fatalf("unexpected independent group mapping: %+v", provenance)
+	}
+}
+
+func TestDecisionGroupSecurityCountsCorrelatedCommandErrorsOnce(t *testing.T) {
+	outcomes := []decisionGroupOutcome{
+		{group: 0, actual: 0, predicted: 0},
+		{group: 0, actual: 0, predicted: 0},
+		{group: 0, actual: 1, predicted: 1},
+		{group: 0, actual: 1, predicted: 0}, // one missed BLOCK fails group 0
+		{group: 1, actual: 0, predicted: 1}, // one benign false block fails group 1
+		{group: 2, actual: 1, predicted: 1}, // group 2 contains only BLOCK
+	}
+	metrics := summarizeDecisionGroupSecurity(outcomes)
+	if metrics.independentGroups != 3 || metrics.blockGroups != 2 || metrics.benignGroups != 2 ||
+		metrics.blockRecall != 0.5 || metrics.benignFPR != 0.5 ||
+		metrics.blockRecallLower95 <= 0 || metrics.blockRecallLower95 >= 0.5 ||
+		metrics.benignFPRUpper95 <= 0.5 || metrics.benignFPRUpper95 >= 1 {
+		t.Fatalf("incorrect strict group-level security metrics: %+v", metrics)
+	}
+}
+
+func TestDecisionGroupSecurityDoesNotTreatEmptyGroupsAsPerfect(t *testing.T) {
+	got := summarizeDecisionGroupSecurity(nil)
+	if got.independentGroups != 0 || got.blockRecall != 0 || got.benignFPR != 0 ||
+		got.blockRecallLower95 != 0 || got.benignFPRUpper95 != 0 {
+		t.Fatalf("zero evidence must not be reported as success: %+v", got)
+	}
+}

@@ -121,6 +121,19 @@ reports `blockRecallLower95` and `benignFPRUpper95`, two-sided 95% Wilson
 **row-level** uncertainty bounds. Multiple commands from the same scenario
 are correlated: these bounds may still be overly optimistic for a new
 scenario and must not be interpreted as independent deployment guarantees.
+The manifest additionally reports `independentGroups`, `blockGroups`,
+`benignGroups`, `groupBlockRecall`, `groupBlockRecallLower95`,
+`groupBenignFalsePositiveRate`, and `groupBenignFPRUpper95`. Scenario
+and run IDs form transitive connected components, so a run linking two scenarios
+does not make two independent observations. Under these **strict component
+metrics**, a group containing BLOCK actions only succeeds if **all** its BLOCK
+actions are correctly blocked; a group containing benign ALLOW actions has a
+false-positive event if **any** ALLOW action is rejected. Mixed-action groups
+contribute to both denominators. Wilson bounds are calculated on distinct
+components instead of repeated rows; neither the IDs nor this statistical
+interval prove real host or time independence. The definitions intentionally
+differ from row-level recall and false-positive rates.
+
 A deployment decision additionally needs many distinct, independently
 reviewed ALLOW and BLOCK scenarios, not merely many command rows.
 
