@@ -376,9 +376,8 @@ async function init() {
   await nextTick();
   if (disposed || !host.value || renderer) return;
   try {
-    const canvas = document.createElement("canvas");
-    const available = !!(canvas.getContext("webgl2") || canvas.getContext("webgl"));
-    if (!available) throw new Error("WebGL unavailable");
+    // WebGLRenderer performs capability checks itself. Creating a second
+    // scratch context here would waste a GPU context on every view mount.
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "low-power" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -465,6 +464,9 @@ onBeforeUnmount(() => {
   labelLayer = null;
   labelElements = [];
   renderer?.dispose();
+  // Browsers cap the number of concurrent WebGL contexts; release the driver
+  // allocation when switching between 2D/3D tabs.
+  renderer?.forceContextLoss();
   renderer?.domElement.remove();
   renderer = null;
   nodeMesh = null;
