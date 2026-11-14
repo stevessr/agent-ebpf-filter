@@ -1,0 +1,102 @@
+name: Renew mobile Android
+
+on:
+  pull_request:
+    paths:
+      - "mobile/monitor/**"
+      - ".github/workflows/renew-mobile.yml"
+  push:
+    branches:
+      - master
+    paths:
+      - "mobile/monitor/**"
+      - ".github/workflows/renew-mobile.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: renew-mobile-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mobile-go:
+    name: Mobile Go checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: mobile/monitor
+    env:
+      GOWORK: "off"
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: "1.27.3"
+          cache: false
+      - name: Check committed MyGo Mobile module and checksum lock
+        run: |
+          go mod tidy -diff
+          go mod verify
+      - name: Run protocol and native shell tests
+        run: go test -count=1 ./...
+      - name: Check concurrent connection and event parsing
+        run: go test -race -count=1 ./remote
+      - name: Vet mobile client
+        run: go vet ./...
+      - name: Compile native UI for host
+        run: go build ./...
+
+  android-apk:
+    name: Android arm64 debug APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      GOWORK: "off"
+      ANDROID_NDK_VERSION: "28.2.13676358"
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: "1.27.3"
+          cache: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install pinned Android SDK tools
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          SDK_MANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager -print -quit)"
+          test -x "$SDK_MANAGER"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          yes | "$SDK_MANAGER" --sdk_root="$SDK_ROOT" --licenses >/dev/null || true
+          "$SDK_MANAGER" --sdk_root="$SDK_ROOT" --install "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358"
+      - name: Download checksum-verified Android HarfBuzz/FreeType
+        run: |
+          curl --fail --location --retry 3 \
+            https://github.com/Heyana/mygo-upstream/releases/download/hb-android-arm64/hb-android-arm64.tar.gz \
+            --output "$RUNNER_TEMP/hb-android-arm64.tar.gz"
+          printf '%s  %s\n' \
+            '12295813b2686daa235823357bac8971497d6aa15f2474b4ef447d67a7c12406' \
+            "$RUNNER_TEMP/hb-android-arm64.tar.gz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/mygo-hb"
+          tar -xzf "$RUNNER_TEMP/hb-android-arm64.tar.gz" -C "$RUNNER_TEMP/mygo-hb"
+          test -f "$RUNNER_TEMP/mygo-hb/android/lib/libharfbuzz.a"
+          test -f "$RUNNER_TEMP/mygo-hb/android/lib/libfreetype.a"
+          echo "MYGO_HB_ANDROID=$RUNNER_TEMP/mygo-hb/android" >> "$GITHUB_ENV"
+      - name: Verify pinned app dependencies
+        working-directory: mobile/monitor
+        run: |
+          go mod tidy -diff
+          go mod verify
+      - name: Build actual Go JNI library and Android APK
+        run: bash mobile/monitor/scripts/build-android.sh
+      - name: Upload installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: renew-monitor-android-arm64-debug
+          path: mobile/monitor/build/android-arm64/RenewMonitor-debug.apk
+          if-no-files-found: error
