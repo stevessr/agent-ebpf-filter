@@ -223,8 +223,30 @@ const normalizeProcessNodes = (
 };
 
 /**
+ * Only aggregate harmless, repeatable observations. Individual tool calls,
+ * policy decisions and risky syscalls are distinct pieces of evidence, even
+ * when their labels happen to match.
+ */
+const canAggregateEvent = (node: ExecutionGraphNode): boolean => {
+  if (!["syscall", "hook_event", "wrapper_event"].includes(node.kind)) return false;
+  const m = node.metadata ?? {};
+  const risk = Math.max(node.riskScore ?? 0, Number(m.riskScore ?? m.risk_score ?? 0) || 0);
+  if (risk >= 60) return false;
+  return !/BLOCK|DENY|ALERT|REWRITE|REJECT|QUARANTINE/i.test(
+    [m.decision, m.action, m.verdict, m.policyDecision, m.policy_decision].filter(Boolean).join(" "),
+  );
+};
+
+const resourceFingerprint = (node: ExecutionGraphNode): string => {
+  const m = node.metadata ?? {};
+  const path = m.path || m.filePath || m.file_path || m.targetPath || m.target_path || "";
+  const remote = m.domain || m.endpoint || m.target || m.address || "";
+  return [path, remote, m.operation ?? "", m.toolCallId ?? "", m.traceId ?? ""].join("\\u001f");
+};
+
+/**
  * Build the aggregated display graph from raw nodes and edges.
- * Groups events by process and type, merges duplicate edges.
+ * Resource identity and tool-call provenance are part of the grouping key.
  */
 export const buildDisplayGraph = (
   rawNodes: ExecutionGraphNode[],
@@ -250,11 +272,11 @@ export const buildDisplayGraph = (
   const aggregateIdByEventId = new Map<string, string>();
   normalizedGraph.nodes.forEach((node) => {
     const processId = eventToProcess.get(node.id);
-    if (!processId) return;
+    if (!processId || !canAggregateEvent(node)) return;
     const processNode = sourceNodes.get(processId);
     const pLabel = processDisplayLabel(processNode);
     const eventType = node.metadata?.type || node.label || node.kind;
-    const key = `${processId}${node.kind}${eventType}`;
+    const key = [processId, node.kind, eventType, resourceFingerprint(node)].join("\\u001f");
     const existing = aggregateByKey.get(key);
     if (existing) {
       existing.eventIds.push(node.id);
@@ -265,7 +287,7 @@ export const buildDisplayGraph = (
       );
       return;
     }
-    const aggregateId = `agg:${processId}:${node.kind}:${eventType}`;
+    const aggregateId = `agg:${node.kind}:${stableHash(key).toString(16)}`;
     aggregateByKey.set(key, {
       eventIds: [node.id],
       sourceIds: [node.id],
