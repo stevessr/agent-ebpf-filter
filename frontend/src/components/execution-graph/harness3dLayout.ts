@@ -1,4 +1,4 @@
-import type { ExecutionGraphNode } from "../../types/executionGraph";
+import type { ExecutionGraphEdge, ExecutionGraphNode } from "../../types/executionGraph";
 
 export interface Point3 {
   x: number;
@@ -67,4 +67,31 @@ export function harnessLabelNodes(
     .filter((node) => priority(node) < 6)
     .sort((a, b) => priority(a) - priority(b) || a.id.localeCompare(b.id))
     .slice(0, Math.max(0, Math.min(limit, 80)));
+}
+
+/**
+ * A stable content signature for GPU state. Both arrays are order-independent
+ * because reordering a WebSocket snapshot must not reallocate WebGL objects.
+ * Include every field which affects 3D color, label, position or selection
+ * remapping, while leaving irrelevant raw payload fields out of the key.
+ */
+export function harnessTopologySignature(
+  nodes: ExecutionGraphNode[],
+  edges: ExecutionGraphEdge[],
+): string {
+  const nodeKeys = nodes.map((node) => {
+    const m = node.metadata ?? {};
+    return JSON.stringify([
+      node.id, node.kind, node.label, node.subtitle ?? "",
+      node.riskScore ?? 0, m.riskScore ?? m.risk_score ?? "",
+      m.sourceNodeId ?? "", m.eventCount ?? "",
+      m.agentRunId ?? m.agent_run_id ?? "",
+      m.traceId ?? m.trace_id ?? "",
+      m.decision ?? m.verdict ?? "",
+    ]);
+  }).sort();
+  const edgeKeys = edges.map((edge) =>
+    JSON.stringify([edge.id, edge.source, edge.target, edge.kind]),
+  ).sort();
+  return JSON.stringify([nodeKeys, edgeKeys]);
 }
