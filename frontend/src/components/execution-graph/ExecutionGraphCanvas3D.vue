@@ -130,22 +130,31 @@ function disposeGroup(group: THREE.Group | null) {
 }
 function redraw() {
   if (!scene) return;
+  const graph = buildDisplayGraph(props.nodes, props.edges);
+  const signature = graphSignature(graph.nodes, graph.edges);
+  if (signature === lastGraphSignature && nodeMesh) return;
+  lastGraphSignature = signature;
   disposeGroup(graphGroup);
   graphGroup = new THREE.Group();
   scene.add(graphGroup);
-  const graph = buildDisplayGraph(props.nodes, props.edges);
   displayCounts.value = { nodes: graph.nodes.length, edges: graph.edges.length };
   nodeIndex = graph.nodes;
   nodeMesh = null;
-  if (!graph.nodes.length) return;
+  positionById = new Map(graph.nodes.map((node) => [node.id, positionFor(node)]));
+  if (!graph.nodes.length) {
+    rebuildLabels();
+    requestRender();
+    return;
+  }
 
-  const positions = new Map(graph.nodes.map((node) => [node.id, positionFor(node)]));
+  const positions = positionById;
   const geometry = new THREE.SphereGeometry(1, 12, 9);
   const material = new THREE.MeshStandardMaterial({
     color: "#ffffff", roughness: 0.38, metalness: 0.16,
   });
   const mesh = new THREE.InstancedMesh(geometry, material, graph.nodes.length);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.frustumCulled = false;
   for (let i = 0; i < graph.nodes.length; i++) {
     const node = graph.nodes[i];
     const selected = node.id === props.selectedNodeId ||
@@ -185,6 +194,8 @@ function redraw() {
   }
   addLines(normal, "#64748b", 0.35);
   addLines(critical, "#fb7185", 0.95);
+  rebuildLabels();
+  requestRender();
 }
 
 function setSize() {
@@ -194,20 +205,28 @@ function setSize() {
   renderer.setSize(width, height, false);
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
+  requestRender();
 }
-function renderLoop(timestamp: number) {
+function renderLoop() {
   frame = 0;
   if (disposed || !visible || !renderer || !scene || !camera) return;
-  if (timestamp - lastFrame >= 33) {
-    controls?.update();
+  const moved = controls?.update() ?? false;
+  if (moved || renderDirty) {
     renderer.render(scene, camera);
-    lastFrame = timestamp;
+    updateLabels();
+    renderDirty = false;
   }
-  frame = requestAnimationFrame(renderLoop);
+  // OrbitControls reports continued damping updates. Stop requesting
+  // frames as soon as the camera and scene settle.
+  if (moved) beginLoop();
 }
 function beginLoop() {
   if (frame || disposed || !visible) return;
   frame = requestAnimationFrame(renderLoop);
+}
+function requestRender() {
+  renderDirty = true;
+  beginLoop();
 }
 function stopLoop() {
   if (!frame) return;
@@ -237,6 +256,10 @@ function onMove(event: PointerEvent) {
   };
   if (renderer) renderer.domElement.style.cursor = hovered.value ? "pointer" : "grab";
 }
+function onLeave() {
+  hovered.value = null;
+  downAt = null;
+}
 function onDown(event: PointerEvent) {
   downAt = { x: event.clientX, y: event.clientY };
 }
@@ -253,6 +276,27 @@ function onContextLost(event: Event) {
   event.preventDefault();
   emit("unavailable");
 }
+function resetCamera() {
+  if (!camera || !controls) return;
+  camera.position.set(100, 300, 1200);
+  controls.target.set(0, 0, 0);
+  controls.update();
+  requestRender();
+}
+function focusSelected() {
+  if (!controls || !camera) return;
+  const selected = nodeIndex.find((node) =>
+    node.id === props.selectedNodeId ||
+    node.metadata?.sourceNodeId === props.selectedNodeId,
+  );
+  const target = selected ? positionById.get(selected.id) : null;
+  if (!target) return;
+  const offset = camera.position.clone().sub(controls.target);
+  controls.target.copy(target);
+  camera.position.copy(target).add(offset);
+  controls.update();
+  requestRender();
+}
 async function init() {
   await nextTick();
   if (disposed || !host.value || renderer) return;
@@ -267,7 +311,10 @@ async function init() {
     renderer.domElement.addEventListener("pointermove", onMove);
     renderer.domElement.addEventListener("pointerdown", onDown);
     renderer.domElement.addEventListener("pointerup", onUp);
-    renderer.domElement.addEventListener("pointerleave", () => { hovered.value = null; });
+    renderer.domElement.addEventListener("pointerleave", onLeave);
+    labelLayer = document.createElement("div");
+    labelLayer.className = "harness-3d-label-layer";
+    host.value.appendChild(labelLayer);
     renderer.domElement.addEventListener("webglcontextlost", onContextLost);
     scene = new THREE.Scene();
     scene.background = new THREE.Color("#0b1220");
@@ -276,9 +323,9 @@ async function init() {
     const key = new THREE.DirectionalLight("#bfdbfe", 3.2);
     key.position.set(-180, 420, 550);
     scene.add(key);
-    const grid = new THREE.GridHelper(1550, 24, "#334155", "#1e293b");
-    grid.position.y = -290;
-    scene.add(grid);
+    gridHelper = new THREE.GridHelper(1550, 24, "#334155", "#1e293b");
+    gridHelper.position.y = -290;
+    scene.add(gridHelper);
     camera = new THREE.PerspectiveCamera(55, 1, 1, 4000);
     camera.position.set(100, 300, 1200);
     controls = new OrbitControls(camera, renderer.domElement);
@@ -287,13 +334,14 @@ async function init() {
     controls.minDistance = 250;
     controls.maxDistance = 2400;
     controls.target.set(0, 0, 0);
+    controls.addEventListener("change", requestRender);
     setSize();
     redraw();
     resizeObserver = new ResizeObserver(setSize);
     resizeObserver.observe(host.value);
     intersectionObserver = new IntersectionObserver((entries) => {
       visible = entries.some((entry) => entry.isIntersecting);
-      if (visible) beginLoop();
+      if (visible) requestRender();
       else stopLoop();
     });
     intersectionObserver.observe(host.value);
@@ -302,21 +350,35 @@ async function init() {
     emit("unavailable");
   }
 }
-watch(() => [props.nodes, props.edges, props.selectedNodeId], redraw);
+watch(() => [props.nodes, props.edges], redraw);
+watch(() => props.selectedNodeId, updateSelection);
 onMounted(init);
 onBeforeUnmount(() => {
   disposed = true;
   stopLoop();
   resizeObserver?.disconnect();
   intersectionObserver?.disconnect();
+  controls?.removeEventListener("change", requestRender);
   controls?.dispose();
   if (renderer) {
     renderer.domElement.removeEventListener("pointermove", onMove);
     renderer.domElement.removeEventListener("pointerdown", onDown);
     renderer.domElement.removeEventListener("pointerup", onUp);
+    renderer.domElement.removeEventListener("pointerleave", onLeave);
     renderer.domElement.removeEventListener("webglcontextlost", onContextLost);
   }
   disposeGroup(graphGroup);
+  if (gridHelper) {
+    gridHelper.geometry.dispose();
+    const material = gridHelper.material;
+    if (Array.isArray(material)) material.forEach((item) => item.dispose());
+    else material.dispose();
+    gridHelper.parent?.remove(gridHelper);
+    gridHelper = null;
+  }
+  labelLayer?.remove();
+  labelLayer = null;
+  labelElements = [];
   renderer?.dispose();
   renderer?.domElement.remove();
   renderer = null;
@@ -333,6 +395,10 @@ onBeforeUnmount(() => {
       <strong>HARNESS · 3D</strong>
       <span>{{ displayCounts.nodes }} nodes · {{ displayCounts.edges }} links</span>
       <small>拖动旋转 · 滚轮缩放 · 右键平移 · 点击节点查看证据</small>
+    </div>
+    <div class="harness-3d-controls">
+      <button type="button" @click="focusSelected" :disabled="!selectedNodeId">定位选中</button>
+      <button type="button" @click="resetCamera">重置视角</button>
     </div>
     <div
       v-if="hovered"
@@ -365,6 +431,33 @@ onBeforeUnmount(() => {
 .harness-3d-overlay strong { font-size: 12px; letter-spacing: .13em; }
 .harness-3d-overlay span { font-size: 11px; color: #94a3b8; }
 .harness-3d-overlay small { font-size: 10px; color: #64748b; }
+.harness-3d-controls {
+  position: absolute; z-index: 4; top: 12px; right: 12px;
+  display: flex; gap: 6px;
+}
+.harness-3d-controls button {
+  border-radius: 7px; border: 1px solid #475569;
+  background: #1e293b; color: #e2e8f0; padding: 5px 9px;
+  font-size: 11px; cursor: pointer;
+}
+.harness-3d-controls button:disabled { opacity: .4; cursor: default; }
+.harness-3d-controls button:not(:disabled):hover { background: #334155; }
+.harness-3d :deep(.harness-3d-label-layer) {
+  position: absolute; inset: 0; pointer-events: none; overflow: hidden;
+}
+.harness-3d :deep(.harness-3d-node-label) {
+  position: absolute; top: 0; left: 0; color: #dbeafe;
+  font: 10px/1.3 system-ui, sans-serif; white-space: nowrap;
+  padding: 2px 5px; border-radius: 4px; background: #0f172aca;
+  border: 1px solid #334155; max-width: 160px; overflow: hidden;
+  text-overflow: ellipsis;
+}
+.harness-3d :deep(.harness-3d-node-label-risk) {
+  color: #fecdd3; border-color: #be123c;
+}
+.harness-3d :deep(.harness-3d-node-label-selected) {
+  color: #fef08a; border-color: #eab308; font-weight: 700;
+}
 .harness-3d-tooltip {
   position: absolute; z-index: 3; pointer-events: none;
   display: flex; flex-direction: column; gap: 3px;
