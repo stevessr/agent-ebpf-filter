@@ -21,12 +21,35 @@ const EXTRA_ROUTINE_SYSCALLS = new Set([
   "epoll_wait", "epoll_pwait", "poll", "ppoll", "select",
   "pselect6", "getrandom", "brk",
 ]);
+const OPEN_SYSCALLS = new Set(["open", "openat", "openat2"]);
 const READ_ONLY_SYSCALLS = new Set([
-  "read", "pread64", "readv", "open", "openat", "openat2",
+  "read", "pread64", "readv",
   "stat", "lstat", "fstat", "newfstatat", "statx",
   "access", "faccessat", "faccessat2", "readlink", "readlinkat",
   "getdents", "getdents64",
 ]);
+// These paths may expose secrets or kernel state even when opened read-only.
+const SENSITIVE_PROC_SYS = /^\/(?:proc\/(?:\d+|self|thread-self)\/(?:mem|fd|map_files|environ|pagemap|stack)(?:\/|$)|proc\/(?:kcore|kallsyms|keys|key-users|sys|sysrq-trigger)(?:\/|$)|sys\/(?:kernel\/security|fs\/bpf)(?:\/|$))/i;
+const KNOWN_READ_ONLY_OPEN_FLAGS = new Set([
+  "O_RDONLY", "O_CLOEXEC", "O_DIRECTORY", "O_NONBLOCK",
+  "O_NOFOLLOW", "O_LARGEFILE", "O_NOATIME",
+]);
+// Linux O_ACCMODE, O_CREAT, O_TRUNC, O_APPEND, O_TMPFILE.
+// Unknown flags are retained; a mutating open must not become "noise".
+const UNSAFE_OPEN_MASK = 3 | 0o100 | 0o1000 | 0o2000 | 0o20000000;
+
+function verifiedReadOnlyOpen(node: ExecutionGraphNode): boolean {
+  const m = node.metadata ?? {};
+  const raw = (m.openFlags ?? m.open_flags ?? m.flags ?? "").trim();
+  if (!raw) return false;
+  if (/^(?:0x[0-9a-f]+|0o[0-7]+|\d+)$/i.test(raw)) {
+    const numeric = Number(raw);
+    return Number.isSafeInteger(numeric) && (numeric & UNSAFE_OPEN_MASK) === 0;
+  }
+  const flags = raw.toUpperCase().split(/[|,\s]+/).filter(Boolean);
+  return flags.includes("O_RDONLY") &&
+    flags.every((flag) => KNOWN_READ_ONLY_OPEN_FLAGS.has(flag));
+}
 const ROUTINE_PATHS = [
   "/proc", "/sys", "/dev/null", "/dev/zero", "/dev/random",
   "/dev/urandom", "/etc/ld.so.cache", "/etc/localtime",
@@ -40,11 +63,13 @@ function pathFromNode(node: ExecutionGraphNode): string {
   const candidate =
     metadata.path || metadata.filePath || metadata.file_path ||
     metadata.targetPath || metadata.target_path || (node.kind === "file" ? node.label : "");
-  return candidate.trim().split(/[?#]/, 1)[0] ?? "";
+  return candidate.trim();
 }
 
 function routinePath(path: string): boolean {
-  if (!path.startsWith("/") || SENSITIVE_PATH.test(path)) return false;
+  if (!path.startsWith("/") || SENSITIVE_PATH.test(path) ||
+      SENSITIVE_PROC_SYS.test(path) || path.includes("\\") ||
+      path.split("/").some((segment) => segment === "." || segment === "..")) return false;
   const normalized = path.replace(/\/+$/, "");
   return ROUTINE_PATHS.some((prefix) =>
     normalized === prefix || normalized.startsWith(prefix + "/"),
@@ -61,8 +86,11 @@ function syscallName(node: ExecutionGraphNode): string {
 
 function isProtected(node: ExecutionGraphNode): boolean {
   if (node.kind === "policy_alert" || node.kind === "policy_decision") return true;
-  if ((node.riskScore ?? 0) >= RISK_BYPASS) return true;
   const metadata = node.metadata ?? {};
+  const contextualRisk = Number(metadata.riskScore ?? metadata.risk_score ?? "0");
+  if (Math.max(node.riskScore ?? 0, Number.isFinite(contextualRisk) ? contextualRisk : 0) >= RISK_BYPASS) {
+    return true;
+  }
   const decision = [
     metadata.decision, metadata.action, metadata.policyDecision,
     metadata.policy_decision, metadata.verdict,
@@ -77,7 +105,9 @@ function isNoise(node: ExecutionGraphNode, mode: GraphNoiseMode): boolean {
     const name = syscallName(node);
     if (ROUTINE_SYSCALLS.has(name)) return true;
     if (mode === "strict" && EXTRA_ROUTINE_SYSCALLS.has(name)) return true;
-    return READ_ONLY_SYSCALLS.has(name) && routinePath(path);
+    if (!routinePath(path)) return false;
+    if (OPEN_SYSCALLS.has(name)) return verifiedReadOnlyOpen(node);
+    return READ_ONLY_SYSCALLS.has(name);
   }
   if (node.kind === "file" && mode === "strict" && routinePath(path)) {
     const operation = (
@@ -114,12 +144,21 @@ export function filterPresentationNoise(
       preserved.add(node.id);
     }
   }
-  // Preserve direct evidence attached to alerts / enforcement, not all
-  // sibling syscalls of a protected process.
+  // Preserve direct supporting evidence on policy edges, even when the
+  // transport reports the relationship as a generic "observed" edge.
+  // The initial protected IDs are immutable in this pass, so this does not
+  // accidentally expand into an unbounded connected component.
+  const protectedOrigins = new Set(preserved);
   for (const edge of edges) {
-    if (!/^(alerted|blocked|rewritten|reviewed)$/.test(edge.kind)) continue;
-    if (preserved.has(edge.source) && byId.has(edge.target)) preserved.add(edge.target);
-    if (preserved.has(edge.target) && byId.has(edge.source)) preserved.add(edge.source);
+    const sourceProtected = protectedOrigins.has(edge.source);
+    const targetProtected = protectedOrigins.has(edge.target);
+    const policyEndpoint = [edge.source, edge.target].some((id) => {
+      const kind = byId.get(id)?.kind;
+      return kind === "policy_alert" || kind === "policy_decision";
+    });
+    if (!policyEndpoint && !/^(alerted|blocked|rewritten|reviewed)$/.test(edge.kind)) continue;
+    if (sourceProtected && byId.has(edge.target)) preserved.add(edge.target);
+    if (targetProtected && byId.has(edge.source)) preserved.add(edge.source);
   }
   const visibleNodes = nodes.filter((node) =>
     preserved.has(node.id) || !isNoise(node, mode),
