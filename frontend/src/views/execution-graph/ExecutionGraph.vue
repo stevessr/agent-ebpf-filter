@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, onUnmounted, reactive, ref } from "vue";
+import { computed, defineAsyncComponent, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import axios from "axios";
 import { message } from "ant-design-vue";
@@ -248,8 +248,31 @@ const replayAvailable = computed(
     ),
 );
 const hiddenGraphKinds = ref<Set<string>>(new Set());
-const graphViewMode = ref<"2d" | "3d">("3d");
-const noiseMode = ref<GraphNoiseMode>("balanced");
+const preferenceKey = "agent-ebpf.execution-graph.display";
+const defaultPreferences = { view: "3d", noise: "balanced" } as const;
+const readGraphPreferences = (): { view: "2d" | "3d"; noise: GraphNoiseMode } => {
+  if (typeof window === "undefined") return defaultPreferences;
+  try {
+    const raw = JSON.parse(window.localStorage.getItem(preferenceKey) ?? "{}");
+    return {
+      view: raw.view === "2d" ? "2d" : "3d",
+      noise: ["off", "balanced", "strict"].includes(raw.noise)
+        ? raw.noise as GraphNoiseMode : "balanced",
+    };
+  } catch {
+    return defaultPreferences;
+  }
+};
+const initialPreferences = readGraphPreferences();
+const graphViewMode = ref<"2d" | "3d">(initialPreferences.view);
+const noiseMode = ref<GraphNoiseMode>(initialPreferences.noise);
+watch([graphViewMode, noiseMode], ([view, noise]) => {
+  try {
+    window.localStorage.setItem(preferenceKey, JSON.stringify({ view, noise }));
+  } catch {
+    // Private browsing and quota limits do not interrupt live monitoring.
+  }
+});
 const noiseModeOptions = [
   { label: "完整证据", value: "off" },
   { label: "智能降噪", value: "balanced" },
