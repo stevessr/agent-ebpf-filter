@@ -61,11 +61,18 @@ function verifiedReadOnlyOpen(node: ExecutionGraphNode): boolean {
   return flags.includes("O_RDONLY") &&
     flags.every((flag) => KNOWN_READ_ONLY_OPEN_FLAGS.has(flag));
 }
+// Avoid blanket /proc and /sys suppression: maps, cmdline, cgroups,
+// debugfs, proc/sys and similar reads may be security-relevant reconnaissance.
 const ROUTINE_PATHS = [
-  "/proc", "/sys", "/dev/null", "/dev/zero", "/dev/random",
-  "/dev/urandom", "/etc/ld.so.cache", "/etc/localtime",
+  "/sys/bus", "/sys/class", "/sys/devices", "/sys/kernel/mm",
+  "/dev/null", "/dev/zero", "/dev/random", "/dev/urandom",
+  "/etc/ld.so.cache", "/etc/localtime",
   "/usr/share/zoneinfo", "/usr/share/locale", "/usr/lib/locale",
 ];
+const ROUTINE_PROC_FILES = new Set([
+  "/proc/meminfo", "/proc/cpuinfo", "/proc/loadavg", "/proc/uptime",
+  "/proc/version", "/proc/self/stat", "/proc/self/status",
+]);
 const SENSITIVE_PATH = /(?:^|\/)(?:\.ssh|\.aws|\.gnupg|\.kube|\.config|environ|shadow|passwd|credentials|secrets?)(?:\/|$)/i;
 const RISK_BYPASS = 60;
 
@@ -82,9 +89,11 @@ function routinePath(path: string): boolean {
       SENSITIVE_PROC_SYS.test(path) || path.includes("\\") ||
       path.split("/").some((segment) => segment === "." || segment === "..")) return false;
   const normalized = path.replace(/\/+$/, "");
-  return ROUTINE_PATHS.some((prefix) =>
-    normalized === prefix || normalized.startsWith(prefix + "/"),
-  );
+  return ROUTINE_PROC_FILES.has(normalized) ||
+    /^\/proc\/(?:\d+|self|thread-self)\/(?:stat|status)$/.test(normalized) ||
+    ROUTINE_PATHS.some((prefix) =>
+      normalized === prefix || normalized.startsWith(prefix + "/"),
+    );
 }
 
 function syscallName(node: ExecutionGraphNode): string {
