@@ -38,8 +38,10 @@ let gridHelper: THREE.GridHelper | null = null;
 let resizeObserver: ResizeObserver | null = null;
 let intersectionObserver: IntersectionObserver | null = null;
 let frame = 0;
+let graphFrame = 0;
 let renderDirty = true;
 let visible = true;
+let lastCanvasSize = { width: 0, height: 0 };
 let disposed = false;
 let downAt: { x: number; y: number } | null = null;
 
@@ -135,7 +137,7 @@ function redraw() {
     preserveEvents: props.preserveEvents,
   });
   const signature = graphSignature(graph.nodes, graph.edges);
-  if (signature === lastGraphSignature && nodeMesh) return;
+  if (signature === lastGraphSignature && graphGroup) return;
   lastGraphSignature = signature;
   disposeGroup(graphGroup);
   graphGroup = new THREE.Group();
@@ -261,14 +263,37 @@ function setSize() {
   if (!renderer || !camera || !host.value) return;
   const width = Math.max(1, host.value.clientWidth);
   const height = Math.max(1, host.value.clientHeight);
+  if (lastCanvasSize.width === width && lastCanvasSize.height === height) return;
+  lastCanvasSize = { width, height };
   renderer.setSize(width, height, false);
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
   requestRender();
 }
+function scheduleGraphUpdate() {
+  if (disposed || !scene || graphFrame ||
+      !visible || document.hidden) return;
+  graphFrame = requestAnimationFrame(() => {
+    graphFrame = 0;
+    // One GPU rebuild for the most recent WebSocket snapshot per animation
+    // frame, rather than rebuilding once for each intermediate event.
+    if (!disposed && visible && !document.hidden) redraw();
+  });
+}
+function onDocumentVisibilityChange() {
+  if (document.hidden) {
+    stopLoop();
+    if (graphFrame) cancelAnimationFrame(graphFrame);
+    graphFrame = 0;
+  } else if (visible) {
+    scheduleGraphUpdate();
+    requestRender();
+  }
+}
 function renderLoop() {
   frame = 0;
-  if (disposed || !visible || !renderer || !scene || !camera) return;
+  if (disposed || !visible || document.hidden ||
+      !renderer || !scene || !camera) return;
   const moved = controls?.update() ?? false;
   if (moved || renderDirty) {
     renderer.render(scene, camera);
@@ -280,7 +305,7 @@ function renderLoop() {
   if (moved) beginLoop();
 }
 function beginLoop() {
-  if (frame || disposed || !visible) return;
+  if (frame || disposed || !visible || document.hidden) return;
   frame = requestAnimationFrame(renderLoop);
 }
 function requestRender() {
@@ -400,21 +425,31 @@ async function init() {
     resizeObserver.observe(host.value);
     intersectionObserver = new IntersectionObserver((entries) => {
       visible = entries.some((entry) => entry.isIntersecting);
-      if (visible) requestRender();
-      else stopLoop();
+      if (visible) {
+        scheduleGraphUpdate();
+        requestRender();
+      } else {
+        stopLoop();
+        if (graphFrame) cancelAnimationFrame(graphFrame);
+        graphFrame = 0;
+      }
     });
     intersectionObserver.observe(host.value);
+    document.addEventListener("visibilitychange", onDocumentVisibilityChange);
     beginLoop();
   } catch {
     emit("unavailable");
   }
 }
-watch(() => [props.nodes, props.edges, props.preserveEvents], redraw);
+watch(() => [props.nodes, props.edges, props.preserveEvents], scheduleGraphUpdate);
 watch(() => props.selectedNodeId, updateSelection);
 onMounted(init);
 onBeforeUnmount(() => {
   disposed = true;
   stopLoop();
+  if (graphFrame) cancelAnimationFrame(graphFrame);
+  graphFrame = 0;
+  document.removeEventListener("visibilitychange", onDocumentVisibilityChange);
   resizeObserver?.disconnect();
   intersectionObserver?.disconnect();
   controls?.removeEventListener("change", requestRender);
