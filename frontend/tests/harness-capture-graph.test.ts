@@ -54,6 +54,25 @@ describe("AgentSight Harness capture to causal topology", () => {
     expect(JSON.stringify(graph)).not.toContain("DO_NOT_EXPOSE");
   });
 
+  test("reassembles a split MCP tools/call frame without emitting payload contents", () => {
+    const raw = JSON.stringify({
+      jsonrpc: "2.0", id: 12, method: "tools/call",
+      params: { name: "repo_search", arguments: { token: "PRIVATE_TOKEN" } },
+    }) + "\n";
+    const first = event("part-1", {
+      timestamp: 1000,
+      data: { fd: 0, fd_role: "stdin", direction: "write", data: raw.slice(0, 13) },
+    });
+    const second = event("part-2", {
+      timestamp: 1001,
+      data: { fd: 0, fd_role: "stdin", direction: "write", data: raw.slice(13) },
+    });
+    const graph = buildHarnessCaptureGraph([second, first]);
+    expect(graph.nodes.filter((n) => n.kind === "tool_call")).toHaveLength(1);
+    expect(graph.nodes.some((n) => n.label.includes("repo_search"))).toBe(true);
+    expect(JSON.stringify(graph)).not.toContain("PRIVATE_TOKEN");
+  });
+
   test("reuses matching tool and process nodes for same trace", () => {
     const captures = [
       event("first", { data: { toolCallId: "tool-1", agentRunId: "run-1" } }),
