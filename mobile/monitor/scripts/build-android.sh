@@ -123,8 +123,20 @@ PY
 printf 'sdk.dir=%s\n' "$SDK" > "$STAGE/host/local.properties"
 mkdir -p "$STAGE/host/app/src/main/jniLibs/arm64-v8a"
 echo "Compiling Go Android arm64 native library..."
+SO="$STAGE/host/app/src/main/jniLibs/arm64-v8a/libmygo.so"
 GOOS=android GOARCH=arm64 CGO_ENABLED=1 go build -trimpath -buildmode=c-shared \
-  -o "$STAGE/host/app/src/main/jniLibs/arm64-v8a/libmygo.so" .
+  -o "$SO" .
+# 16 KiB page-size devices require each loadable segment to be at least
+# 16 KiB aligned. Check the actual produced library, not just the NDK version.
+OBJDUMP="$(dirname "$CC")/llvm-objdump"
+test -x "$OBJDUMP" || { echo "Missing NDK llvm-objdump: $OBJDUMP" >&2; exit 2; }
+LOADS="$("$OBJDUMP" -p "$SO" | grep -w LOAD || true)"
+if [ -z "$LOADS" ] || printf '%s\n' "$LOADS" | grep -Fqv 'align 2**14'; then
+  echo "Android library does not meet 16 KiB ELF load segment alignment" >&2
+  printf '%s\n' "$LOADS" >&2
+  exit 1
+fi
+echo "Verified 16 KiB aligned ELF load segments."
 if [ "$SO_ONLY" -eq 1 ]; then
   echo "Native .so ready (APK assembly skipped)"
   exit 0
