@@ -8,17 +8,21 @@ Execution Graph 视图为审计人员提供了一个**以进程为核心节点�
 
 拓扑页默认使用 Three.js WebGL 3D 画布；可通过「2D 拓扑」切回原有 D3/SVG 图。WebGL 不支持或上下文丢失时自动回退 2D。3D 中可拖动旋转、滚轮缩放、右键平移，点击节点会沿用右侧证据详情。
 
-节点按 **Agent Run → Tool Call → Process → Hook/Wrapper → Syscall → File/Network → Policy** 进行语义分层。节点颜色由事件类型决定，风险评分达到 60 的节点转为警示色；拦截、告警和重写的关系连线高亮。大图谱使用 Three.js `InstancedMesh` 批量渲染球体，画布不在视口时暂停动画。
+节点按 **Agent Run → Tool Call → Process → Hook/Wrapper → Syscall → File/Network → Policy** 进行语义分层。节点颜色由事件类型决定，风险评分达到 60 的节点转为警示色；拦截、告警和重写的关系连线高亮。大图谱使用 Three.js `InstancedMesh` 批量渲染球体，闲置时不持续刷新，画布不在视口时停止渲染。最多显示 42 个关键节点标签（告警、已选中、Agent/工具/进程优先），提供「定位选中」「重置视角」操作；新增事件不会按数组索引重新排列既有节点。
 
 展示降噪提供三档：
 
 | 模式 | 处理 |
 | --- | --- |
 | 完整证据 | 不隐藏任何事件节点或连线 |
-| 智能降噪（默认） | 隐藏低风险的 `getpid/futex/clock_gettime` 等常规调用，及 `/proc`、`/sys` 等常见伪文件上的只读/元数据调用 |
+| 智能降噪（默认） | 隐藏低风险的 `getpid/futex/clock_gettime` 等常规调用，及少量已知安全的 `/proc/*/stat`、`/proc/*/status`、`/sys/devices` 等例行只读/元数据调用 |
 | 专注模式 | 在智能降噪基础上隐藏更多等待/轮询、已确认正常退出状态与部分无风险周期性 Hook |
 
 **降噪只改变当前图谱的可见节点与连线**，不修改后端 eBPF 捕获、ML/策略判定、原始记录或回放快照。策略告警、阻断、重写、高风险事件（≥60）以及告警直接关联证据不会被降噪隐藏；可以随时切回「完整证据」。节点总数和被折叠数分别展示，便于判断信息压缩程度。相同名称的进程按 PID / Agent Run 区分，不再误合并不同 shell 子进程。
+
+展示降噪的计数标签悬停可查看分类原因（例行 syscall、伪文件只读、正常退出、心跳）。打开文件类 syscall 仅当 `openFlags/open_flags/flags` 明确证明为只读且不含 `O_CREAT/O_TRUNC/O_WRONLY/O_RDWR` 等修改标志时才允许折叠；标志缺失或无法解析时保留。诸如 `/proc/<pid>/cmdline`、`maps`、`/proc/sys`、`/proc/<pid>/environ`、`/proc/kcore` 与 cgroup 管理文件等潜在安全证据默认保留。被折叠节点始终可以在「完整证据」模式中查看。
+
+执行图谱只在可验证的低风险观测中聚合重复 syscall；**工具调用、不同资源目标以及阻断/告警/高风险 syscall 作为独立节点保留**，避免审计证据被平均或聚合覆盖。
 
 ---
 
