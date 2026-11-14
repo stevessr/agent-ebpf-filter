@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { computed, defineAsyncComponent, ref, watch } from "vue";
 import {
   CaretRightOutlined,
   ClusterOutlined,
@@ -18,6 +18,18 @@ import AgentSightMetricsView from "./AgentSightMetricsView.vue";
 import AgentSightUsageView from "./AgentSightUsageView.vue";
 import AgentSightProcessTreeView from "./AgentSightProcessTreeView.vue";
 import AgentSightTimelineView from "./AgentSightTimelineView.vue";
+import AgentSightEventDetails from "./AgentSightEventDetails.vue";
+import { buildHarnessCaptureGraph, captureEventKey } from "./harnessCaptureGraph";
+import {
+  filterPresentationNoise,
+  type GraphNoiseMode,
+} from "../execution-graph/graphNoise";
+const HarnessCaptureCanvas3D = defineAsyncComponent(
+  () => import("../execution-graph/ExecutionGraphCanvas3D.vue"),
+);
+const HarnessCaptureCanvas2D = defineAsyncComponent(
+  () => import("../execution-graph/ExecutionGraphCanvas.vue"),
+);
 import { useAgentSightI18n } from "../../composables/agentsight/useAgentSightI18n";
 import {
   AGENTSIGHT_IMPORT_MAX_BYTES,
@@ -44,6 +56,34 @@ const state = useAgentSightEvents({
 const { locale, localeOptions, t, setLocale } = useAgentSightI18n();
 const pasteText = ref("");
 const searchDraft = ref(state.filters.value.searchTerm);
+const captureViewMode = ref<"3d" | "2d">("3d");
+const captureNoiseMode = ref<GraphNoiseMode>("balanced");
+const captureSelectedKey = ref("");
+const captureGraph = computed(() =>
+  state.activeTab.value === "harness-3d"
+    ? buildHarnessCaptureGraph(state.visibleEvents.value)
+    : { nodes: [], edges: [], displayedEvents: 0, omittedEvents: 0 },
+);
+const capturePresentation = computed(() =>
+  filterPresentationNoise(
+    captureGraph.value.nodes,
+    captureGraph.value.edges,
+    captureNoiseMode.value,
+    captureSelectedKey.value,
+  ),
+);
+const captureSelectedEvent = computed(() =>
+  captureSelectedKey.value
+    ? state.visibleProcessedEvents.value.find(
+      (event) => captureEventKey(event) === captureSelectedKey.value,
+    ) ?? null
+    : null,
+);
+const captureNoiseModes = [
+  { label: "完整证据", value: "off" },
+  { label: "智能降噪", value: "balanced" },
+  { label: "专注模式", value: "strict" },
+];
 
 watch(
   () => props.pid,
@@ -82,6 +122,7 @@ watch(
 const tabs = [
   { key: "process-tree", label: "Process Tree" },
   { key: "timeline", label: "Timeline" },
+  { key: "harness-3d", label: "Harness 3D" },
   { key: "flamegraph", label: "Flamegraph" },
   { key: "log", label: "Log" },
   { key: "metrics", label: "Metrics" },
@@ -299,6 +340,58 @@ const loadSampleDemo = async () => {
           :events="state.visibleProcessedEvents.value"
         />
         <AgentSightMetricsView v-else-if="state.activeTab.value === 'metrics'" :events="state.visibleEvents.value" />
+        <div v-else-if="state.activeTab.value === 'harness-3d'" class="agentsight-harness-visual">
+          <div class="agentsight-harness-toolbar">
+            <a-segmented
+              v-model:value="captureViewMode"
+              size="small"
+              :options="[
+                { label: '3D 行为图谱', value: '3d' },
+                { label: '2D 拓扑', value: '2d' },
+              ]"
+            />
+            <a-select
+              v-model:value="captureNoiseMode"
+              size="small"
+              style="width: 125px"
+              :options="captureNoiseModes"
+            />
+            <a-tag color="blue">{{ captureGraph.displayedEvents }} 捕获事件</a-tag>
+            <a-tag v-if="capturePresentation.hiddenNodes" color="cyan">
+              已折叠 {{ capturePresentation.hiddenNodes }} 节点
+            </a-tag>
+          </div>
+          <a-alert
+            v-if="captureGraph.omittedEvents"
+            type="warning"
+            show-icon
+            :message="`图谱最多绘制 1000 条优先捕获记录，另有 ${captureGraph.omittedEvents} 条可在 Timeline / Log 查看与导出`"
+            style="margin-bottom: 12px"
+          />
+          <HarnessCaptureCanvas3D
+            v-if="captureViewMode === '3d'"
+            :nodes="capturePresentation.nodes"
+            :edges="capturePresentation.edges"
+            :selected-node-id="captureSelectedKey"
+            :preserve-events="true"
+            @select-node="captureSelectedKey = $event"
+            @unavailable="captureViewMode = '2d'"
+          />
+          <HarnessCaptureCanvas2D
+            v-else
+            :nodes="capturePresentation.nodes"
+            :edges="capturePresentation.edges"
+            :selected-node-id="captureSelectedKey"
+            :preserve-events="true"
+            zoom-storage-key="agent-ebpf.agentsight.harness-capture.zoom"
+            @select-node="captureSelectedKey = $event"
+          />
+          <AgentSightEventDetails
+            :open="!!captureSelectedEvent"
+            :event="captureSelectedEvent"
+            @close="captureSelectedKey = ''"
+          />
+        </div>
         <AgentSightUsageView v-else :events="state.visibleEvents.value" />
       </div>
     </a-card>
@@ -335,6 +428,11 @@ const loadSampleDemo = async () => {
 .agentsight-active-view {
   min-width: 0;
   contain: layout style;
+}
+.agentsight-harness-visual { min-width: 0; }
+.agentsight-harness-toolbar {
+  display: flex; align-items: center; gap: 8px;
+  flex-wrap: wrap; margin-bottom: 12px;
 }
 
 .summary-row :deep(.ant-statistic-title) {
