@@ -32,6 +32,16 @@ jobs:
           cache: false
       - name: Resolve pinned MyGo Mobile and application dependencies
         run: go mod tidy
+      - name: Export resolved Go lock for review
+        run: |
+          echo MOBILE_GO_MOD_BEGIN
+          base64 -w0 go.mod
+          echo
+          echo MOBILE_GO_MOD_END
+          echo MOBILE_GO_SUM_BEGIN
+          base64 -w0 go.sum
+          echo
+          echo MOBILE_GO_SUM_END
       - name: Run protocol and native shell tests
         run: go test -count=1 ./...
       - name: Vet mobile client
