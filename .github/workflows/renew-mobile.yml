@@ -56,10 +56,14 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - uses: android-actions/setup-android@v3
       - name: Install pinned Android SDK tools
         run: |
-          sdkmanager --install "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358"
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          SDK_MANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager -print -quit)"
+          test -x "$SDK_MANAGER"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          yes | "$SDK_MANAGER" --sdk_root="$SDK_ROOT" --licenses >/dev/null || true
+          "$SDK_MANAGER" --sdk_root="$SDK_ROOT" --install "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358"
       - name: Download checksum-verified Android HarfBuzz/FreeType
         run: |
           curl --fail --location --retry 3 \
