@@ -6,6 +6,8 @@ on:
       - "mobile/monitor/**"
       - ".github/workflows/renew-mobile.yml"
   push:
+    branches:
+      - master
     paths:
       - "mobile/monitor/**"
       - ".github/workflows/renew-mobile.yml"
@@ -13,6 +15,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: renew-mobile-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   mobile-go:
