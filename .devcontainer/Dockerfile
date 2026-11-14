@@ -80,14 +80,21 @@ RUN curl -fsSL https://bun.sh/install | bash -s bun-v1.3.3 \
 
 RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
 
-RUN if ! command -v zellij >/dev/null 2>&1; then \
-      curl -fsSL https://sh.rustup.rs -o /tmp/rustup.sh \
-      && sh /tmp/rustup.sh -y --profile minimal \
-      && . /root/.cargo/env \
-      && cargo install --locked zellij \
-      && cp /root/.cargo/bin/zellij /usr/local/bin/zellij \
-      && rm -rf /root/.cargo /tmp/rustup.sh; \
-    fi
+# Pin the official Zellij binary and verify the GitHub release asset digest.
+# Avoid compiling the Rust toolchain under ARM64 QEMU in every image build.
+ARG ZELLIJ_VERSION=0.46.0
+RUN arch="$(dpkg --print-architecture)" \
+ && case "$arch" in \
+      amd64) target=x86_64; expected_sha=0940e467f99ca57aec5a63edcad633450d49cd6f22e8a7d9c686771a0d9f86ae ;; \
+      arm64) target=aarch64; expected_sha=7ce8501136dab30767fea809191f39ca41d66d100082a96534539f49c7a53f0d ;; \
+      *) echo "Unsupported Zellij architecture: $arch" >&2; exit 1 ;; \
+    esac \
+ && curl -fsSL --retry 3 "https://github.com/zellij-org/zellij/releases/download/v${ZELLIJ_VERSION}/zellij-${target}-unknown-linux-gnu.tar.gz" -o /tmp/zellij.tgz \
+ && printf '%s  %s\\n' "$expected_sha" /tmp/zellij.tgz | sha256sum -c - \
+ && mkdir -p /tmp/zellij-release \
+ && tar -xzf /tmp/zellij.tgz -C /tmp/zellij-release \
+ && install -m 0755 /tmp/zellij-release/zellij /usr/local/bin/zellij \
+ && rm -rf /tmp/zellij.tgz /tmp/zellij-release
 
 RUN groupadd --gid ${USER_GID} ${USERNAME} \
  && useradd --uid ${USER_UID} --gid ${USER_GID} -m ${USERNAME} -s /usr/bin/fish \
