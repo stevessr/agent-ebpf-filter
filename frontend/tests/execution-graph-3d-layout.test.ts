@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { ExecutionGraphNode } from "../src/types/executionGraph";
-import { harnessLabelNodes, harnessPosition } from "../src/components/execution-graph/harness3dLayout";
+import { harnessLabelNodes, harnessPosition, harnessTopologySignature } from "../src/components/execution-graph/harness3dLayout";
 
 const node = (id: string, kind: string, run = ""): ExecutionGraphNode => ({
   id, kind, label: id, metadata: { agentRunId: run },
@@ -24,6 +24,27 @@ describe("deterministic harness 3D layout", () => {
     expect(run.x).toBeLessThan(process.x);
     expect(process.x).toBeLessThan(file.x);
     expect(file.x).toBeLessThan(alert.x);
+  });
+
+  test("GPU signature ignores transport order but tracks layout and risk updates", () => {
+    const nodes = [
+      node("run", "agent_run", "run-a"),
+      { ...node("call", "syscall", "run-a"), riskScore: 10 },
+    ];
+    const edges = [{
+      id: "run->call", source: "run", target: "call", kind: "contains",
+    }];
+    const key = harnessTopologySignature(nodes, edges);
+    expect(harnessTopologySignature(nodes.slice().reverse(), edges.slice().reverse())).toBe(key);
+    expect(harnessTopologySignature([
+      nodes[0], { ...nodes[1], riskScore: 95 },
+    ], edges)).not.toBe(key);
+    expect(harnessTopologySignature([
+      nodes[0], { ...nodes[1], metadata: { agentRunId: "run-b" } },
+    ], edges)).not.toBe(key);
+    expect(harnessTopologySignature(nodes, [
+      { ...edges[0], kind: "blocked" },
+    ])).not.toBe(key);
   });
 
   test("bounded labels prioritize selected and alert evidence", () => {
