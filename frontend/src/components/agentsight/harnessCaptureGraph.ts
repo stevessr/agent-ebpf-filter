@@ -148,9 +148,13 @@ export function buildHarnessCaptureGraph(
     let rpcId = "";
     let rpcProtocol = "";
     if (isStdioSource(event.source)) {
-      // Decode only the bounded presentation sample, never the entire live
-      // collector buffer. This is metadata-only, not a raw-payload overlay.
+      // Limit parsing oversized stdout chunks in the visualization; they
+      // remain available unchanged in AgentSight's evidence drawer and logs.
+      const rawChunk = data.data ?? data.payload;
+      const chunkTooLarge = typeof rawChunk === "string" &&
+        rawChunk.length > 128 * 1024;
       try {
+        if (chunkTooLarge) throw new Error("visualization decode budget");
         const decoded = stdioDecoder.decode(event);
         rpcMethod = text(decoded.method, 100);
         rpcTool = text(decoded.toolName, 100);
@@ -184,8 +188,12 @@ export function buildHarnessCaptureGraph(
     addNode({
       id: eventId,
       kind,
+      // A human-facing event.title may contain a prompt/response preview.
+      // Render only the protocol/type/tool identity in the shared graph;
+      // inspect full content explicitly through AgentSightEventDetails.
       label: text(rpcTool ? `${rpcMethod || "MCP"} · ${rpcTool}` :
-        event.title || type, 140) || type,
+        rpcMethod ? `RPC · ${rpcMethod}` :
+        `${event.source.toUpperCase()} · ${type}`, 140) || type,
       riskScore: risk,
       metadata: {
         type: kind === "hook_event" && event.source === "system"
@@ -196,7 +204,8 @@ export function buildHarnessCaptureGraph(
         traceId, agentRunId: runId,
         toolCallId: toolIdentity,
         sourceNodeId: captureEventKey(event),
-        receivedAt: Number.isFinite(event.timestamp)
+        receivedAt: Number.isFinite(event.timestamp) &&
+          Math.abs(event.timestamp) <= 8.64e15
           ? new Date(event.timestamp).toISOString() : "",
         redactionState: event.redactionState || "",
         rpcMethod, rpcTool,
