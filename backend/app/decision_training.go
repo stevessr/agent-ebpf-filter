@@ -1,7 +1,9 @@
 package app
 
 import (
+	"crypto/sha256"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -29,25 +31,19 @@ const (
 	decisionTrainingNumTrees       = 72
 	decisionTrainingMaxDepth       = 14
 	decisionTrainingMinSamplesLeaf = 3
-
-	// decisionTrainingModelType is the promoted model family. Other catalog
-	// families stay reachable through the CLI so candidate artifacts can be
-	// A/B compared against the promoted one on the same holdout.
-	decisionTrainingModelType = string(ml.ModelRandomForest)
+	decisionTrainingSeed           = int64(20261108)
+	decisionTrainingModelType      = string(ml.ModelRandomForest)
 )
 
-// DecisionTrainingHyperparameters are the model family and knobs selected
-// offline by the sweep harness. They are recorded in the manifest so a
-// candidate artifact can be reproduced without reading this source file.
-// ModelType is a built-in catalog entry; the three numeric knobs mean whatever
-// that family means by them (trees/depth/leaf for forests, learning
-// rate/iterations for the linear families), matching the runtime MLConfig
-// convention.
+// DecisionTrainingHyperparameters records the model family, effective knobs,
+// and deterministic offline seed for reproducible candidate-only artifacts.
+// Non-forest families retain the built-in catalog defaults.
 type DecisionTrainingHyperparameters struct {
 	ModelType      string `json:"modelType"`
 	NumTrees       int    `json:"numTrees"`
 	MaxDepth       int    `json:"maxDepth"`
 	MinSamplesLeaf int    `json:"minSamplesLeaf"`
+	Seed           int64  `json:"seed"`
 }
 
 const (
@@ -59,19 +55,29 @@ const (
 // DefaultDecisionTrainingHyperparameters returns the promoted sweep winner.
 // Change it only together with the tuning evidence in
 // docs/backend/ml-models-summary.md and a fresh stability comparison.
+// Neutralize wall-clock-only dimensions when a reviewed command corpus lacks
+// real event times. Otherwise all offline samples receive the training host's
+// current hour/day, so a model can learn spurious clock correlations and then
+// fail after deployment at another time. Runtime extraction is unchanged.
+// Group E: hour, weekday, circular hour, weekend in features [114, 118].
+func neutralizeOfflineDecisionClockFeatures(sample *ml.TrainingSample) {
+	for i := 114; i <= 118; i++ {
+		sample.Features[i] = 0
+	}
+}
+
 func DefaultDecisionTrainingHyperparameters() DecisionTrainingHyperparameters {
 	return DecisionTrainingHyperparameters{
 		ModelType:      decisionTrainingModelType,
 		NumTrees:       decisionTrainingNumTrees,
 		MaxDepth:       decisionTrainingMaxDepth,
 		MinSamplesLeaf: decisionTrainingMinSamplesLeaf,
+		Seed:           decisionTrainingSeed,
 	}
 }
 
-// normalizeDecisionTrainingHyperparameters resolves the model family and
-// validates explicit overrides. A zero numeric knob means "use the family
-// default" (the promoted trio for the promoted forest, the builtin catalog
-// preset for any other family), so it is validated only when actually set.
+// normalizeDecisionTrainingHyperparameters treats zero fields as "use the
+// promoted default" so callers can override only the knobs they are testing.
 func normalizeDecisionTrainingHyperparameters(hyperparameters DecisionTrainingHyperparameters) (DecisionTrainingHyperparameters, error) {
 	hyperparameters.ModelType = strings.TrimSpace(hyperparameters.ModelType)
 	if hyperparameters.ModelType == "" {
@@ -95,6 +101,9 @@ func normalizeDecisionTrainingHyperparameters(hyperparameters DecisionTrainingHy
 		if knob.value > knob.maxValue {
 			return hyperparameters, fmt.Errorf("%s must be between 1 and %d, got %d", knob.name, knob.maxValue, knob.value)
 		}
+	}
+	if hyperparameters.Seed == 0 {
+		hyperparameters.Seed = decisionTrainingSeed
 	}
 	return hyperparameters, nil
 }
@@ -140,15 +149,19 @@ func resolveDecisionTrainingConfig(hyperparameters DecisionTrainingHyperparamete
 	normalized.NumTrees = cfg.NumTrees
 	normalized.MaxDepth = cfg.MaxDepth
 	normalized.MinSamplesLeaf = cfg.MinSamplesLeaf
+	cfg.TrainingSeed = normalized.Seed
 	return cfg, normalized, nil
 }
 
 // DecisionTrainingDataset identifies one labeled JSONL source for offline training.
 // FallbackURL is optional and must serve byte-identical content (same pinned revision).
 type DecisionTrainingDataset struct {
-	Name        string
-	URL         string
-	FallbackURL string
+	Name           string
+	URL            string
+	FallbackURL    string
+	LocalPath      string
+	ExpectedSHA256 string
+	License        string
 }
 
 // DecisionModelTrainingReport records dataset provenance and held-out validation
@@ -161,6 +174,13 @@ type DecisionModelTrainingReport struct {
 	ModelPath                  string                          `json:"modelPath"`
 	DatasetLicense             string                          `json:"datasetLicense"`
 	DatasetSources             []string                        `json:"datasetSources"`
+	DatasetDigests             map[string]string               `json:"datasetDigests,omitempty"`
+	DatasetLicenses            map[string]string               `json:"datasetLicenses,omitempty"`
+	ValidationBlockPrecision  float64                         `json:"validationBlockPrecision"`
+	ValidationBenignFPR        float64                         `json:"validationBenignFalsePositiveRate"`
+	ValidationMacroF1          float64                         `json:"validationMacroF1"`
+	ValidationConfusion        map[string]map[string]int       `json:"validationConfusion"`
+	ExternalTest               *DecisionExternalEvaluation       `json:"externalTest,omitempty"`
 	SourceRecords              int                             `json:"sourceRecords"`
 	Samples                    int                             `json:"samples"`
 	DuplicatesSkipped          int                             `json:"duplicatesSkipped"`
@@ -191,10 +211,9 @@ func DefaultDecisionTrainingDatasets() []DecisionTrainingDataset {
 	}
 }
 
-// TrainDecisionModelFromPublicDatasets downloads labeled JSONL command records,
-// converts them with the runtime feature extractor, trains the default random
-// forest, and writes a runtime-loadable candidate model. It does not publish the
-// model into the active runtime or change policy configuration.
+// TrainDecisionModelFromPublicDatasets loads pinned, explicitly labeled commands,
+// extracts canonical runtime features, and trains an offline candidate model.
+// No artifact is promoted or enforced automatically.
 func TrainDecisionModelFromPublicDatasets(sources []DecisionTrainingDataset, modelPath string, hyperparameters DecisionTrainingHyperparameters) (DecisionModelTrainingReport, error) {
 	if len(sources) == 0 {
 		return DecisionModelTrainingReport{}, fmt.Errorf("at least one public training dataset is required")
@@ -218,6 +237,8 @@ func TrainDecisionModelFromPublicDatasets(sources []DecisionTrainingDataset, mod
 		ModelPath:       filepath.Clean(modelPath),
 		DatasetLicense:  decisionTrainingDatasetLicense,
 		DatasetSources:  make([]string, 0, len(sources)),
+		DatasetDigests:  make(map[string]string),
+		DatasetLicenses: make(map[string]string),
 		LabelCounts:     labelCounts,
 	}
 
@@ -226,32 +247,81 @@ func TrainDecisionModelFromPublicDatasets(sources []DecisionTrainingDataset, mod
 		if name == "" {
 			return report, fmt.Errorf("public training dataset name is required")
 		}
-		url := strings.TrimSpace(source.URL)
-		if _, err := validateRemoteDatasetURL(url); err != nil {
-			return report, fmt.Errorf("validate dataset %q URL: %w", name, err)
+		if _, duplicate := report.DatasetLicenses[name]; duplicate {
+			return report, fmt.Errorf("duplicate source name %q", name)
 		}
-		parsed, err := pullRemoteDataset(remoteDatasetRequest{
-			URL:            url,
-			SourceName:     name,
-			Format:         "jsonl",
-			Limit:          remoteDatasetAbsoluteRecordLimit,
-			LabelMode:      "preserve",
-			ImportAll:      true,
-			CleanSensitive: true,
-		})
-		if err != nil && strings.TrimSpace(source.FallbackURL) != "" {
-			parsed, err = pullRemoteDataset(remoteDatasetRequest{
-				URL:            strings.TrimSpace(source.FallbackURL),
-				SourceName:     name,
-				Format:         "jsonl",
-				Limit:          remoteDatasetAbsoluteRecordLimit,
-				LabelMode:      "preserve",
-				ImportAll:      true,
-				CleanSensitive: true,
-			})
+		license := strings.TrimSpace(source.License)
+		localPath := strings.TrimSpace(source.LocalPath)
+		if license == "" {
+			if localPath != "" {
+				return report, fmt.Errorf("local dataset %q requires an explicit license", name)
+			}
+			license = decisionTrainingDatasetLicense
+		}
+		report.DatasetLicenses[name] = license
+		if len(report.DatasetLicenses) == 1 {
+			report.DatasetLicense = license
+		} else if report.DatasetLicense != license {
+			report.DatasetLicense = "MIXED (see datasetLicenses)"
+		}
+
+		request := remoteDatasetRequest{
+			SourceName: name, Format: "jsonl", Limit: remoteDatasetAbsoluteRecordLimit,
+			LabelMode: "preserve", ImportAll: true, CleanSensitive: true,
+		}
+		var parsed *remoteDatasetResponse
+		var err error
+		if localPath != "" {
+			if strings.TrimSpace(source.URL) != "" || strings.TrimSpace(source.FallbackURL) != "" {
+				return report, fmt.Errorf("dataset %q must use either local file or URL, not both", name)
+			}
+			expected := strings.ToLower(strings.TrimSpace(source.ExpectedSHA256))
+			if len(expected) != 64 {
+				return report, fmt.Errorf("local dataset %q requires a 64-character SHA-256 digest", name)
+			}
+			for _, char := range expected {
+				if !strings.ContainsRune("0123456789abcdef", char) {
+					return report, fmt.Errorf("invalid SHA-256 for dataset %q", name)
+				}
+			}
+			info, statErr := os.Stat(localPath)
+			if statErr != nil {
+				return report, fmt.Errorf("stat local dataset %q: %w", name, statErr)
+			}
+			if !info.Mode().IsRegular() || info.Size() > remoteDatasetUploadLimitBytes {
+				return report, fmt.Errorf("local dataset %q must be regular and <= %d bytes", name, remoteDatasetUploadLimitBytes)
+			}
+			raw, readErr := os.ReadFile(localPath)
+			if readErr != nil {
+				return report, fmt.Errorf("read local dataset %q: %w", name, readErr)
+			}
+			if len(raw) > int(remoteDatasetUploadLimitBytes) {
+				return report, fmt.Errorf("local dataset %q exceeds %d bytes", name, remoteDatasetUploadLimitBytes)
+			}
+			actual := fmt.Sprintf("%x", sha256.Sum256(raw))
+			if actual != expected {
+				return report, fmt.Errorf("SHA-256 mismatch for %q: expected %s, received %s", name, expected, actual)
+			}
+			report.DatasetDigests[name] = actual
+			request.Content = string(raw)
+			parsed, err = pullRemoteDataset(request)
+		} else {
+			url := strings.TrimSpace(source.URL)
+			if _, validateErr := validateRemoteDatasetURL(url); validateErr != nil {
+				return report, fmt.Errorf("validate dataset %q URL: %w", name, validateErr)
+			}
+			request.URL = url
+			parsed, err = pullRemoteDataset(request)
+			if err != nil && strings.TrimSpace(source.FallbackURL) != "" {
+				request.URL = strings.TrimSpace(source.FallbackURL)
+				if _, fallbackErr := validateRemoteDatasetURL(request.URL); fallbackErr != nil {
+					return report, fmt.Errorf("validate fallback URL for dataset %q: %w", name, fallbackErr)
+				}
+				parsed, err = pullRemoteDataset(request)
+			}
 		}
 		if err != nil {
-			return report, fmt.Errorf("download dataset %q: %w", name, err)
+			return report, fmt.Errorf("load dataset %q: %w", name, err)
 		}
 		if parsed.Truncated || parsed.TotalIsLowerBound {
 			return report, fmt.Errorf("dataset %q was truncated at %d records", name, parsed.RecordLimit)
@@ -263,7 +333,12 @@ func TrainDecisionModelFromPublicDatasets(sources []DecisionTrainingDataset, mod
 		report.DatasetSources = append(report.DatasetSources, parsed.Source)
 
 		for _, row := range parsed.Rows {
+			// Attack windows and filenames are not trustworthy action labels.
+			if localPath != "" && row.LabelSource != "dataset" {
+				return report, fmt.Errorf("local dataset %q row %d lacks explicit action label", name, row.Row)
+			}
 			sample := buildRemoteDatasetSampleWithExtractor(row, "preserve", true, extractor)
+			neutralizeOfflineDecisionClockFeatures(&sample)
 			if !sample.IsLabeled() {
 				return report, fmt.Errorf("dataset %q row %d has unsupported or missing label %q", name, row.Row, row.Label)
 			}
@@ -302,7 +377,29 @@ func TrainDecisionModelFromPublicDatasets(sources []DecisionTrainingDataset, mod
 	}
 	metrics := ml.EvaluateAutoTuneTrainingSampleMetrics(validationSamples, model)
 	blockTotal, blockCorrect := 0, 0
+	allowTotal, allowCorrect, blockPredicted, benignFalsePositive := 0, 0, 0, 0
+	confusion := map[string]map[string]int{
+		"ALLOW": {"ALLOW": 0, "BLOCK": 0, "REWRITE": 0, "ALERT": 0},
+		"BLOCK": {"ALLOW": 0, "BLOCK": 0, "REWRITE": 0, "ALERT": 0},
+	}
 	for _, sample := range validationSamples {
+		predicted := model.Predict(sample.Features).Action
+		if label, valid := ml.ActionLabel[sample.Label]; valid {
+			if prediction, valid := ml.ActionLabel[predicted]; valid {
+				confusion[label][prediction]++
+			}
+		}
+		if predicted == 1 {
+			blockPredicted++
+		}
+		if sample.Label == 0 {
+			allowTotal++
+			if predicted == 0 {
+				allowCorrect++
+			} else {
+				benignFalsePositive++
+			}
+		}
 		if sample.Label != 1 {
 			continue
 		}
@@ -334,6 +431,25 @@ func TrainDecisionModelFromPublicDatasets(sources []DecisionTrainingDataset, mod
 	if blockTotal > 0 {
 		report.ValidationBlockRecall = float64(blockCorrect) / float64(blockTotal)
 	}
+	if blockPredicted > 0 {
+		report.ValidationBlockPrecision = float64(blockCorrect) / float64(blockPredicted)
+	}
+	if allowTotal > 0 {
+		report.ValidationBenignFPR = float64(benignFalsePositive) / float64(allowTotal)
+	}
+	allowPredicted := 0
+	for _, counts := range confusion {
+		allowPredicted += counts["ALLOW"]
+	}
+	allowF1, blockF1 := 0.0, 0.0
+	if denom := allowTotal + allowPredicted; denom > 0 {
+		allowF1 = 2 * float64(allowCorrect) / float64(denom)
+	}
+	if denom := blockTotal + blockPredicted; denom > 0 {
+		blockF1 = 2 * float64(blockCorrect) / float64(denom)
+	}
+	report.ValidationMacroF1 = (allowF1 + blockF1) / 2
+	report.ValidationConfusion = confusion
 	report.ArtifactReloadVerified = true
 	return report, nil
 }

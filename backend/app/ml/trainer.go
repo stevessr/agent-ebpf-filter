@@ -82,7 +82,12 @@ func (t *ModelTrainer) trainForestWithConfig(store *TrainingDataStore, numTrees,
 		return nil, TrainResult{Error: fmt.Sprintf("independent holdout: %v", err)}
 	}
 	validationRatio = float64(len(validationSet)) / float64(len(labeled))
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	seed := cfg.TrainingSeed
+	if seed == 0 {
+		seed = time.Now().UnixNano()
+	}
+	rng := rand.New(rand.NewSource(seed))
+	t.Logf("Forest training seed: %d", seed)
 	t.Logf("Data split: train=%d, validation=%d (ratio=%.2f)", len(trainSet), len(validationSet), validationRatio)
 
 	t.Logf("Building random forest with %d trees...", numTrees)
