@@ -5,6 +5,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { ExecutionGraphEdge, ExecutionGraphNode } from "../../types/executionGraph";
 import { buildDisplayGraph } from "./useDisplayGraphBuilder";
 import { kindColor, nodeRadius, truncate } from "./useExecutionGraphHelpers";
+import { harnessLabelNodes, harnessPosition } from "./harness3dLayout";
 
 const props = withDefaults(defineProps<{
   nodes: ExecutionGraphNode[];
@@ -28,10 +29,15 @@ let controls: OrbitControls | null = null;
 let graphGroup: THREE.Group | null = null;
 let nodeMesh: THREE.InstancedMesh | null = null;
 let nodeIndex: ExecutionGraphNode[] = [];
+let positionById = new Map<string, THREE.Vector3>();
+let lastGraphSignature = "";
+let labelLayer: HTMLDivElement | null = null;
+let labelElements: Array<{ position: THREE.Vector3; element: HTMLDivElement }> = [];
+let gridHelper: THREE.GridHelper | null = null;
 let resizeObserver: ResizeObserver | null = null;
 let intersectionObserver: IntersectionObserver | null = null;
 let frame = 0;
-let lastFrame = 0;
+let renderDirty = true;
 let visible = true;
 let disposed = false;
 let downAt: { x: number; y: number } | null = null;
@@ -41,29 +47,75 @@ const pointer = new THREE.Vector2();
 const reusable = new THREE.Object3D();
 const reusableColor = new THREE.Color();
 
-const lane: Record<string, number> = {
-  agent_run: -5, tool_call: -4, process: -3, wrapper_event: -2,
-  hook_event: -1, syscall: 0, exit_status: 1, file: 2,
-  network: 3, policy_decision: 4, policy_alert: 5,
-};
-function hash(value: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < value.length; i++) {
-    h ^= value.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
 function positionFor(node: ExecutionGraphNode): THREE.Vector3 {
-  const h = hash(node.id);
-  const rank = lane[node.kind] ?? 0;
-  const run = node.metadata?.agentRunId ?? node.metadata?.traceId ?? "";
-  const runOffset = run ? ((hash(run) % 7) - 3) * 28 : 0;
-  return new THREE.Vector3(
-    rank * 122,
-    ((h & 0xffff) / 65535 - 0.5) * 480,
-    (((h >>> 16) & 0xffff) / 65535 - 0.5) * 230 + runOffset,
-  );
+  const point = harnessPosition(node);
+  return new THREE.Vector3(point.x, point.y, point.z);
+}
+function updateLabels() {
+  if (!camera || !host.value || !labelLayer) return;
+  const width = host.value.clientWidth;
+  const height = host.value.clientHeight;
+  for (const { position, element } of labelElements) {
+    const projected = position.clone().project(camera);
+    const inside = projected.z > -1 && projected.z < 1 &&
+      projected.x >= -0.97 && projected.x <= 0.97 &&
+      projected.y >= -0.95 && projected.y <= 0.95;
+    element.hidden = !inside;
+    if (!inside) continue;
+    const x = (projected.x * 0.5 + 0.5) * width;
+    const y = (1 - (projected.y * 0.5 + 0.5)) * height;
+    element.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+  }
+}
+function rebuildLabels() {
+  if (!labelLayer) return;
+  labelLayer.replaceChildren();
+  labelElements = [];
+  for (const node of harnessLabelNodes(nodeIndex, props.selectedNodeId || "")) {
+    const position = positionById.get(node.id);
+    if (!position) continue;
+    const label = document.createElement("div");
+    label.className = "harness-3d-node-label";
+    label.textContent = truncate(node.label, 24);
+    label.title = node.label;
+    if (node.kind === "policy_alert" || (node.riskScore ?? 0) >= 60) {
+      label.classList.add("harness-3d-node-label-risk");
+    }
+    if (node.id === props.selectedNodeId ||
+        node.metadata?.sourceNodeId === props.selectedNodeId) {
+      label.classList.add("harness-3d-node-label-selected");
+    }
+    labelLayer.appendChild(label);
+    labelElements.push({ position, element: label });
+  }
+  updateLabels();
+}
+function updateSelection() {
+  if (!nodeMesh) return;
+  for (let i = 0; i < nodeIndex.length; i += 1) {
+    const node = nodeIndex[i];
+    const position = positionById.get(node.id);
+    if (!position) continue;
+    const selected = !!props.selectedNodeId &&
+      (node.id === props.selectedNodeId ||
+        node.metadata?.sourceNodeId === props.selectedNodeId);
+    reusable.position.copy(position);
+    reusable.scale.setScalar(Math.max(7, nodeRadius(node) * 0.7) * (selected ? 1.6 : 1));
+    reusable.updateMatrix();
+    nodeMesh.setMatrixAt(i, reusable.matrix);
+  }
+  nodeMesh.instanceMatrix.needsUpdate = true;
+  rebuildLabels();
+  requestRender();
+}
+function graphSignature(nodes: ExecutionGraphNode[], edges: ExecutionGraphEdge[]): string {
+  // Include labels/risks to avoid stale overlays on live metadata updates,
+  // without rebuilding GPU objects on truly identical snapshots.
+  return nodes.map((node) =>
+    [node.id, node.kind, node.label, node.riskScore,
+     node.metadata?.sourceNodeId, node.metadata?.eventCount].join(":"),
+  ).join("\\n") + "|" +
+    edges.map((edge) => [edge.id, edge.kind, edge.source, edge.target].join(":")).join("\\n");
 }
 function disposeGroup(group: THREE.Group | null) {
   if (!group) return;
