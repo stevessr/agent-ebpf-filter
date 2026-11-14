@@ -8,7 +8,7 @@ export type GraphNoiseMode = "off" | "balanced" | "strict";
 
 export type GraphNoiseReason =
   | "routine-syscall" | "pseudo-file-read"
-  | "successful-exit" | "heartbeat";
+  | "successful-exit" | "heartbeat" | "routine-telemetry";
 
 export interface GraphNoiseResult {
   nodes: ExecutionGraphNode[];
@@ -22,6 +22,7 @@ const emptyReasonCounts = (): Record<GraphNoiseReason, number> => ({
   "pseudo-file-read": 0,
   "successful-exit": 0,
   heartbeat: 0,
+  "routine-telemetry": 0,
 });
 
 const ROUTINE_SYSCALLS = new Set([
@@ -140,6 +141,10 @@ export function isEvidenceCritical(node: ExecutionGraphNode): boolean {
 function noiseReason(node: ExecutionGraphNode, mode: GraphNoiseMode): GraphNoiseReason | null {
   if (isEvidenceCritical(node)) return null;
   const path = pathFromNode(node);
+  // AgentSight's periodic system measurements are not an agent action.
+  // Alert-bearing samples are "policy_alert" and bypass this predicate.
+  if (node.kind === "hook_event" && node.metadata?.source === "system" &&
+      node.metadata?.type === "system_metrics") return "routine-telemetry";
   if (node.kind === "syscall") {
     const name = syscallName(node);
     // Routine synchronization operations attached to non-routine resource
@@ -165,7 +170,10 @@ function noiseReason(node: ExecutionGraphNode, mode: GraphNoiseMode): GraphNoise
     return status === "0" ? "successful-exit" : null;
   }
   if (mode === "strict" && (node.kind === "hook_event" || node.kind === "wrapper_event")) {
-    return /^(heartbeat|healthcheck|ping)$/i.test(node.metadata?.type ?? "")
+    const type = node.metadata?.type ?? "";
+    const method = node.metadata?.rpcMethod ?? "";
+    return /^(heartbeat|healthcheck|ping)$/i.test(type) ||
+      /^(ping|notifications\/initialized)$/i.test(method)
       ? "heartbeat" : null;
   }
   return null;
