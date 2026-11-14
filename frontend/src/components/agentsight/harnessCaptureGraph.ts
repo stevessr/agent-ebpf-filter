@@ -3,7 +3,8 @@ import type {
   ExecutionGraphNode,
 } from "../../types/executionGraph";
 import type { AgentSightEvent } from "../../utils/agentsight/types";
-import { decodeStdioMessage, isStdioSource } from "../../utils/agentsight/stdio";
+import { isStdioSource } from "../../utils/agentsight/stdio";
+import { AgentSightStdioStreamDecoder } from "../../utils/agentsight/stdio_stream";
 
 export interface HarnessCaptureGraph {
   nodes: ExecutionGraphNode[];
@@ -75,6 +76,13 @@ export function buildHarnessCaptureGraph(
   included.sort((a, b) => a.timestamp - b.timestamp ||
     captureEventKey(a).localeCompare(captureEventKey(b)));
 
+  // The same bounded streaming decoder as AgentSight's process tree handles
+  // Content-Length and newline-delimited MCP fragments in timestamp order.
+  const stdioDecoder = new AgentSightStdioStreamDecoder({
+    maxStreams: 128,
+    maxPendingBytesPerStream: 128 * 1024,
+    maxTotalPendingBytes: 1024 * 1024,
+  });
   const nodes = new Map<string, ExecutionGraphNode>();
   const edges = new Map<string, ExecutionGraphEdge>();
   const addNode = (node: ExecutionGraphNode) => {
@@ -138,20 +146,25 @@ export function buildHarnessCaptureGraph(
     let rpcMethod = "";
     let rpcTool = "";
     let rpcId = "";
+    let rpcProtocol = "";
     if (isStdioSource(event.source)) {
       // Decode only the bounded presentation sample, never the entire live
       // collector buffer. This is metadata-only, not a raw-payload overlay.
       try {
-        const decoded = decodeStdioMessage(data);
+        const decoded = stdioDecoder.decode(event);
         rpcMethod = text(decoded.method, 100);
         rpcTool = text(decoded.toolName, 100);
         rpcId = text(decoded.id, 128);
+        rpcProtocol = text(decoded.protocol, 24);
       } catch {
         // Malformed frames remain visible as ordinary captured events.
       }
     }
-    const toolIdentity = toolCallId || (rpcId && rpcMethod.startsWith("tools/")
-      ? `mcp:${event.source}:${pid}:${rpcId}` : "");
+    const toolIdentity = toolCallId || (
+      rpcId && rpcProtocol === "mcp"
+        ? `mcp:${event.source}:${pid}:${rpcId}`
+        : ""
+    );
     if (toolIdentity) {
       const toolId = `tool:${scope}:${toolIdentity}`;
       addNode({
