@@ -91,6 +91,65 @@ describe("behavior aggregation", () => {
     expect(result.edges.filter((item) => item.target === "denied")).toHaveLength(1);
   });
 
+  test("ALLOW decisions remain linked to their own syscall", () => {
+    const nodes: ExecutionGraphNode[] = [
+      process(100),
+      syscall("futex-a", "futex"),
+      syscall("futex-b", "futex"),
+      { id: "policy-a", kind: "policy_decision", label: "ALLOW" },
+      { id: "policy-b", kind: "policy_decision", label: "ALLOW" },
+    ];
+    const graph = buildDisplayGraph(nodes, [
+      edge("proc:100", "futex-a"),
+      edge("proc:100", "futex-b"),
+      edge("futex-a", "policy-a", "allowed"),
+      edge("futex-b", "policy-b", "allowed"),
+    ]);
+    expect(graph.nodes.filter((node) => node.kind === "syscall")
+      .map((node) => node.id).sort()).toEqual(["futex-a", "futex-b"]);
+    expect(graph.edges.filter((item) => item.kind === "allowed")
+      .map((item) => item.source).sort()).toEqual(["futex-a", "futex-b"]);
+  });
+
+  test("write and open events never aggregate, even with the same path and label", () => {
+    for (const type of ["write", "openat", "execve", "network_sendto"]) {
+      const nodes = [process(25), syscall("first", type, "/tmp/test"), syscall("second", type, "/tmp/test")];
+      const graph = buildDisplayGraph(nodes, [
+        edge("proc:25", "first"), edge("proc:25", "second"),
+      ]);
+      expect(graph.nodes.filter((node) => node.kind === "syscall")
+        .map((node) => node.id).sort()).toEqual(["first", "second"]);
+    }
+  });
+
+  test("aggregate representative is independent of input ordering", () => {
+    const nodes = [process(41), syscall("z-event", "futex"), syscall("a-event", "futex")];
+    const edges = [edge("proc:41", "z-event"), edge("proc:41", "a-event")];
+    const first = buildDisplayGraph(nodes, edges).nodes.find((n) => n.kind === "syscall");
+    const second = buildDisplayGraph(nodes.slice().reverse(), edges.slice().reverse())
+      .nodes.find((n) => n.kind === "syscall");
+    expect(first?.id).toBe(second?.id);
+    expect(first?.metadata?.sourceNodeId).toBe("a-event");
+    expect(second?.metadata?.sourceNodeId).toBe("a-event");
+  });
+
+  test("large PID placeholder process tree preserves every causal edge", () => {
+    const count = 1200;
+    const nodes: ExecutionGraphNode[] = Array.from({ length: count }, (_, i) =>
+      i === 0 ? process(1000) : ({
+        id: "proc:" + (1000 + i), kind: "process", label: "PID " + (1000 + i),
+        pid: 1000 + i, metadata: { pid: String(1000 + i) },
+      }),
+    );
+    const edges: ExecutionGraphEdge[] = nodes.slice(1).map((node, i) =>
+      edge(nodes[i].id, node.id, "child_process"),
+    );
+    const graph = buildDisplayGraph(nodes, edges);
+    expect(graph.nodes.filter((node) => node.kind === "process")).toHaveLength(count);
+    expect(graph.edges).toHaveLength(count - 1);
+    expect(new Set(graph.nodes.map((node) => node.id)).size).toBe(count);
+  });
+
   test("repeated harmless observations aggregate without dropping counts", () => {
     const nodes = [process(100), syscall("one", "futex"), syscall("two", "futex")];
     const result = buildDisplayGraph(nodes, nodes.slice(1).map((node) => edge("proc:100", node.id)));
