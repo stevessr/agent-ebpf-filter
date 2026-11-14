@@ -3,6 +3,7 @@ import type {
   ExecutionGraphEdge,
   ExecutionGraphNode,
 } from "../../types/executionGraph";
+import { isEvidenceCritical } from "./graphNoise";
 import {
   activityEdgeKinds,
   processDisplayLabel,
@@ -252,18 +253,10 @@ const canAggregateEvent = (node: ExecutionGraphNode): boolean => {
   // Do not collapse tool, hook, file, network or potentially mutating
   // syscalls: each one is a separate forensic observation.
   if (node.kind !== "syscall") return false;
+  if (isEvidenceCritical(node)) return false;
   const m = node.metadata ?? {};
   const name = (m.type || m.syscall || node.label).trim().toLowerCase();
-  if (!ROUTINE_AGGREGATE_TYPES.has(name)) return false;
-  const risk = Math.max(
-    node.riskScore ?? 0,
-    Number(m.riskScore ?? m.risk_score ?? 0) || 0,
-  );
-  if (risk >= 60) return false;
-  return !/BLOCK|DENY|ALERT|REWRITE|REJECT|QUARANTINE/i.test(
-    [m.decision, m.action, m.verdict, m.policyDecision, m.policy_decision]
-      .filter(Boolean).join(" "),
-  );
+  return ROUTINE_AGGREGATE_TYPES.has(name);
 };
 
 const resourceFingerprint = (node: ExecutionGraphNode): string => {
