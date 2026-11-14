@@ -8,7 +8,6 @@
     "build": "node scripts/copy-lobe-icons.mjs && vue-tsc -b && vite build",
     "test:agentsight": "bun test tests/agentsight-stdio*.test.ts tests/dashboard-insights.test.ts",
     "test:workbench": "bun test tests/workbench-*.test.ts",
-    "test:ui": "bun test tests/ui-design-foundation.test.ts",
     "test:workbench-browser": "node scripts/test-workbench-browser.mjs",
     "test:dashboard-insights": "bun test tests/dashboard-insights.test.ts",
     "preview": "vite preview",

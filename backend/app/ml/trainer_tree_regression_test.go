@@ -102,3 +102,42 @@ func TestForestSkipsUnrepresentableFloat32Threshold(t *testing.T) {
 		t.Fatalf("failed to learn a representable threshold: %+v", point)
 	}
 }
+
+func TestForestSparseFeatureFallbackRecoversRareBlock(t *testing.T) {
+	// Exactly one of 128 dimensions distinguishes the two classes.
+	// A normal one-feature mtry draw misses it, but an early majority
+	// leaf would incorrectly ALLOW every BLOCK observation.
+	const informativeFeature = FeatureDim - 1
+	seed := int64(1)
+	for {
+		featureOrder := make([]int, FeatureDim)
+		for i := range featureOrder {
+			featureOrder[i] = i
+		}
+		rng := rand.New(rand.NewSource(seed))
+		rng.Shuffle(len(featureOrder), func(i, j int) {
+			featureOrder[i], featureOrder[j] = featureOrder[j], featureOrder[i]
+		})
+		if featureOrder[0] != informativeFeature {
+			break
+		}
+		seed++
+	}
+	rows := make([]TrainSample, 32)
+	for i := range rows {
+		rows[i].label = int32(i % 2)
+		rows[i].features[informativeFeature] = float64(i % 2)
+	}
+	point := findBestSplit(rows, 1, 1, rand.New(rand.NewSource(seed)))
+	if point.featureIdx != informativeFeature || point.giniGain <= 0 {
+		t.Fatalf("sparse BLOCK signal ignored when mtry sampled constant features: %+v", point)
+	}
+	forest := NewDecisionForest(1, 3, 4)
+	forest.Trees[0] = DecisionTree{
+		Nodes: buildTree(rows, 0, 3, 1, 1, rand.New(rand.NewSource(seed))),
+	}
+	forest.IsTrained = true
+	if got := EvaluateForest(forest, rows); got != 1 {
+		t.Fatalf("sparse-feature training accuracy=%v; expected full separation", got)
+	}
+}

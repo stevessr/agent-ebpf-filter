@@ -103,7 +103,29 @@ func findBestSplit(samples []TrainSample, minSamplesLeaf, featureSampleCount int
 		return best
 	}
 	sorted := make([]TrainSample, n)
-	for _, fi := range features[:featureSampleCount] {
+	// Most runtime features are sparse. If all randomly sampled features are
+	// constant or cannot form a valid split, continue through the shuffled
+	// remainder until a positive-gain feature is found. Otherwise a node
+	// becomes an ALLOW-majority leaf even when a rare BLOCK feature separates
+	// the classes perfectly. The normal mtry limit still applies once a
+	// useful split was found among the initial random feature subset.
+	for candidateIndex, fi := range features {
+		if candidateIndex >= featureSampleCount && best.giniGain > 0 {
+			break
+		}
+		// Sparse 128-dim vectors often have dozens of constant dimensions.
+		// Avoid sorting N samples for each such dimension during fallback.
+		first := samples[0].features[fi]
+		varies := false
+		for _, sample := range samples[1:] {
+			if sample.features[fi] != first {
+				varies = true
+				break
+			}
+		}
+		if !varies {
+			continue
+		}
 		copy(sorted, samples)
 		sort.Slice(sorted, func(i, j int) bool {
 			return sorted[i].features[fi] < sorted[j].features[fi]
