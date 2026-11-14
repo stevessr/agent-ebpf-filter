@@ -150,6 +150,22 @@ describe("behavior aggregation", () => {
     expect(new Set(graph.nodes.map((node) => node.id)).size).toBe(count);
   });
 
+  test("full evidence mode exposes each original routine syscall and decision edge", () => {
+    const nodes = [process(17), syscall("first", "getpid"), syscall("second", "getpid")];
+    const edges = [
+      edge("proc:17", "first"),
+      edge("proc:17", "second"),
+    ];
+    const compact = buildDisplayGraph(nodes, edges);
+    const complete = buildDisplayGraph(nodes, edges, { preserveEvents: true });
+    expect(compact.nodes.filter((node) => node.kind === "syscall")).toHaveLength(1);
+    expect(complete.nodes.filter((node) => node.kind === "syscall")
+      .map((node) => node.id)).toEqual(["first", "second"]);
+    expect(complete.edges.map((item) => item.target)).toEqual(["first", "second"]);
+    expect(complete.nodes).not.toBe(nodes);
+    expect(nodes).toHaveLength(3);
+  });
+
   test("repeated harmless observations aggregate without dropping counts", () => {
     const nodes = [process(100), syscall("one", "futex"), syscall("two", "futex")];
     const result = buildDisplayGraph(nodes, nodes.slice(1).map((node) => edge("proc:100", node.id)));
