@@ -200,6 +200,42 @@ describe("presentation noise filter", () => {
     expect(edges).toHaveLength(4);
   });
 
+  test("failed routine operations and negative security verdicts always remain visible", () => {
+    const nodes = [
+      { ...syscall("denied", "getpid"), metadata: { type: "getpid", decision: "DENIED" } },
+      { ...syscall("dropped", "futex"), metadata: { type: "futex", verdict: "DROP" } },
+      { ...syscall("errno", "getpid"), metadata: { type: "getpid", errno: "EPERM" } },
+      { ...syscall("failed", "futex"), metadata: { type: "futex", failed: "true" } },
+      { ...syscall("negative", "gettid"), metadata: { type: "gettid", ret: "-1" } },
+      { ...syscall("extra-info", "futex"), metadata: { type: "futex", extraInfo: "errno=EACCES" } },
+      { ...syscall("resource", "futex", "/workspace/.ssh/id_rsa") },
+      syscall("normal", "getpid"),
+    ];
+    for (const mode of ["balanced", "strict"] as const) {
+      const filtered = filterPresentationNoise(nodes, [], mode);
+      expect(filtered.nodes.map((node) => node.id)).toEqual([
+        "denied", "dropped", "errno", "failed", "negative", "extra-info", "resource",
+      ]);
+      expect(filtered.hiddenNodes).toBe(1);
+    }
+  });
+
+  test("failed routine operations cannot be merged into benign repeats", () => {
+    const nodes = [
+      process(1),
+      syscall("normal-a", "futex"),
+      syscall("normal-b", "futex"),
+      { ...syscall("fail", "futex"), metadata: { type: "futex", errno: "EFAULT" } },
+    ];
+    const graph = buildDisplayGraph(nodes, nodes.slice(1).map((n) =>
+      edge("proc:1", n.id),
+    ));
+    const remaining = graph.nodes.filter((n) => n.kind === "syscall");
+    expect(remaining).toHaveLength(2);
+    expect(remaining.some((n) => n.id === "fail")).toBe(true);
+    expect(remaining.find((n) => n.id !== "fail")?.metadata?.eventCount).toBe("2");
+  });
+
   test("never hides alerts, blocked decisions, high risk activity or sensitive proc reads", () => {
     const nodes = [
       syscall("high", "getpid", "", 80),
