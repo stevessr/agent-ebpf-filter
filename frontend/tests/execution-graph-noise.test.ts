@@ -52,6 +52,55 @@ describe("harness process identity", () => {
   });
 });
 
+describe("behavior aggregation", () => {
+  test("independent tool invocations must not collapse into one graph node", () => {
+    const graph = buildDisplayGraph(
+      [
+        process(100),
+        { id: "tool:a", kind: "tool_call", label: "shell", metadata: { toolCallId: "a" } },
+        { id: "tool:b", kind: "tool_call", label: "shell", metadata: { toolCallId: "b" } },
+      ],
+      [edge("proc:100", "tool:a"), edge("proc:100", "tool:b")],
+    );
+    expect(graph.nodes.filter((node) => node.kind === "tool_call").map((node) => node.id).sort())
+      .toEqual(["tool:a", "tool:b"]);
+  });
+
+  test("different file targets and per-tool traces remain distinct", () => {
+    const nodes = [
+      process(100),
+      { ...syscall("scan-a", "openat", "/etc/passwd"), metadata: { type: "openat", path: "/etc/passwd", toolCallId: "a" } },
+      { ...syscall("scan-b", "openat", "/etc/shadow"), metadata: { type: "openat", path: "/etc/shadow", toolCallId: "a" } },
+      { ...syscall("scan-c", "openat", "/etc/passwd"), metadata: { type: "openat", path: "/etc/passwd", toolCallId: "b" } },
+    ];
+    const result = buildDisplayGraph(nodes, nodes.slice(1).map((node) => edge("proc:100", node.id)));
+    expect(result.nodes.filter((node) => node.kind === "syscall")).toHaveLength(3);
+  });
+
+  test("blocked and high-risk events retain original source IDs", () => {
+    const nodes = [
+      process(100),
+      syscall("normal", "openat", "/tmp/one"),
+      { ...syscall("malicious", "openat", "/tmp/one", 93), metadata: { type: "openat", path: "/tmp/one" } },
+      { ...syscall("denied", "openat", "/tmp/one"), metadata: { type: "openat", path: "/tmp/one", decision: "BLOCK" } },
+    ];
+    const result = buildDisplayGraph(nodes, nodes.slice(1).map((node) => edge("proc:100", node.id)));
+    expect(result.nodes.some((node) => node.id === "malicious" && node.riskScore === 93)).toBe(true);
+    expect(result.nodes.some((node) => node.id === "denied")).toBe(true);
+    expect(result.edges.filter((item) => item.target === "malicious")).toHaveLength(1);
+    expect(result.edges.filter((item) => item.target === "denied")).toHaveLength(1);
+  });
+
+  test("repeated harmless observations aggregate without dropping counts", () => {
+    const nodes = [process(100), syscall("one", "futex"), syscall("two", "futex")];
+    const result = buildDisplayGraph(nodes, nodes.slice(1).map((node) => edge("proc:100", node.id)));
+    const grouped = result.nodes.filter((node) => node.kind === "syscall");
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0].metadata?.eventCount).toBe("2");
+    expect(grouped[0].metadata?.sourceNodeId).toBe("one");
+  });
+});
+
 describe("presentation noise filter", () => {
   test("balanced mode hides routine calls without affecting process/tool evidence", () => {
     const nodes = [
