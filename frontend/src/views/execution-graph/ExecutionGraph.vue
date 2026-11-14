@@ -321,6 +321,18 @@ const presentationGraph = computed(() =>
     selectedNodeId.value,
   ),
 );
+const noiseReasonLabels: Record<string, string> = {
+  "routine-syscall": "常规系统调用",
+  "pseudo-file-read": "伪文件只读访问",
+  "successful-exit": "正常退出",
+  heartbeat: "周期性心跳",
+};
+const suppressionSummary = computed(() =>
+  Object.entries(presentationGraph.value.hiddenByReason)
+    .filter(([, count]) => count > 0)
+    .map(([reason, count]) => `${noiseReasonLabels[reason] || reason}: ${count}`)
+    .join(" · "),
+);
 const visibleGraphNodes = computed(() => presentationGraph.value.nodes);
 const visibleGraphEdges = computed(() => presentationGraph.value.edges);
 const hasHiddenGraphKinds = computed(() => hiddenGraphKinds.value.size > 0);
@@ -728,9 +740,12 @@ onUnmounted(() => {
                   style="width: 125px"
                   title="仅隐藏低风险的展示杂音，不修改原始捕获、录制与策略"
                 />
-                <a-tag v-if="presentationGraph.hiddenNodes" color="cyan">
-                  已折叠 {{ presentationGraph.hiddenNodes }} 节点 / {{ presentationGraph.hiddenEdges }} 连线
-                </a-tag>
+                <a-tooltip v-if="presentationGraph.hiddenNodes"
+                  :title="`展示降噪：${suppressionSummary}；原始事件与录制均不受影响`">
+                  <a-tag color="cyan">
+                    已折叠 {{ presentationGraph.hiddenNodes }} 节点 / {{ presentationGraph.hiddenEdges }} 连线
+                  </a-tag>
+                </a-tooltip>
                 <a-tag
                   v-for="item in graphKindFilters"
                   :key="item.kind"
