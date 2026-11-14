@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, ref, watch } from "vue";
+import { computed, defineAsyncComponent, onUnmounted, ref, shallowRef, watch } from "vue";
 import {
   CaretRightOutlined,
   ClusterOutlined,
@@ -59,9 +59,29 @@ const searchDraft = ref(state.filters.value.searchTerm);
 const captureViewMode = ref<"3d" | "2d">("3d");
 const captureNoiseMode = ref<GraphNoiseMode>("balanced");
 const captureSelectedKey = ref("");
+const captureSourceEvents = shallowRef(state.visibleEvents.value);
+let captureRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+// AgentSight may ingest dozens of records per frame. The event list and log
+// remain live, while 3D reconstruction is capped at ~8 updates/second.
+watch([() => state.visibleEvents.value, () => state.activeTab.value], () => {
+  if (state.activeTab.value !== "harness-3d") {
+    if (captureRefreshTimer) clearTimeout(captureRefreshTimer);
+    captureRefreshTimer = null;
+    captureSourceEvents.value = [];
+    return;
+  }
+  if (captureRefreshTimer) return;
+  captureRefreshTimer = setTimeout(() => {
+    captureRefreshTimer = null;
+    captureSourceEvents.value = state.visibleEvents.value;
+  }, 120);
+}, { immediate: true });
+onUnmounted(() => {
+  if (captureRefreshTimer) clearTimeout(captureRefreshTimer);
+});
 const captureGraph = computed(() =>
   state.activeTab.value === "harness-3d"
-    ? buildHarnessCaptureGraph(state.visibleEvents.value)
+    ? buildHarnessCaptureGraph(captureSourceEvents.value)
     : { nodes: [], edges: [], displayedEvents: 0, omittedEvents: 0 },
 );
 const capturePresentation = computed(() =>
