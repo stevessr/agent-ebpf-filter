@@ -58,7 +58,7 @@ describe("presentation noise filter", () => {
       process(101),
       { id: "tool", kind: "tool_call", label: "bash" },
       syscall("getpid", "getpid"),
-      syscall("read-proc", "openat", "/proc/101/stat"),
+      { ...syscall("read-proc", "openat", "/proc/101/stat"), metadata: { type: "openat", path: "/proc/101/stat", openFlags: "O_RDONLY|O_CLOEXEC" } },
       syscall("read-user", "openat", "/workspace/.env"),
     ];
     const edges = nodes.slice(1).map((node) => edge("proc:101", node.id));
@@ -104,6 +104,41 @@ describe("presentation noise filter", () => {
     expect(filterPresentationNoise(nodes, [], "balanced").hiddenNodes).toBe(0);
     expect(filterPresentationNoise(nodes, [], "strict").nodes.map((n) => n.id)).toEqual(["exit:1"]);
     expect(filterPresentationNoise(nodes, [], "strict", "exit:0").hiddenNodes).toBe(0);
+  });
+
+  test("unknown or mutating open flags retain evidence on pseudo paths", () => {
+    const base = syscall("raw-open", "openat", "/proc/222/stat");
+    const candidates: ExecutionGraphNode[] = [
+      base,
+      { ...base, id: "write", metadata: { type: "openat", path: "/proc/222/stat", openFlags: "O_WRONLY" } },
+      { ...base, id: "create", metadata: { type: "openat", path: "/proc/222/stat", openFlags: "O_RDONLY|O_CREAT" } },
+      { ...base, id: "truncate", metadata: { type: "openat", path: "/proc/222/stat", flags: "512" } },
+      { ...base, id: "read", metadata: { type: "openat", path: "/proc/222/stat", flags: "0" } },
+    ];
+    const filtered = filterPresentationNoise(candidates, [], "strict");
+    expect(filtered.nodes.map((node) => node.id)).toEqual(["raw-open", "write", "create", "truncate"]);
+  });
+
+  test("does not collapse traversal, sensitive pseudo files or metadata risk", () => {
+    const nodes = [
+      syscall("traversal", "stat", "/proc/self/../102/environ"),
+      syscall("kernel", "read", "/proc/kcore"),
+      syscall("fd", "readlink", "/proc/self/fd/4"),
+      { ...syscall("flagged", "getpid"), metadata: { type: "getpid", risk_score: "80" } },
+      syscall("safe", "stat", "/proc/101/stat"),
+    ];
+    const filtered = filterPresentationNoise(nodes, [], "balanced");
+    expect(filtered.nodes.map((node) => node.id)).toEqual(["traversal", "kernel", "fd", "flagged"]);
+  });
+
+  test("preserves evidence on generic links directly joined to policy decisions", () => {
+    const nodes = [
+      syscall("routine", "getpid"),
+      { id: "policy", kind: "policy_decision", label: "deny" },
+    ];
+    const filtered = filterPresentationNoise(nodes, [edge("routine", "policy")], "strict");
+    expect(filtered.hiddenNodes).toBe(0);
+    expect(filtered.hiddenEdges).toBe(0);
   });
 
   test("off mode keeps the exact input snapshot and all links", () => {
