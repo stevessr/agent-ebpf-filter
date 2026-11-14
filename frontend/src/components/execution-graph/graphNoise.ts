@@ -104,25 +104,47 @@ function syscallName(node: ExecutionGraphNode): string {
   return /^[a-z0-9_]+/.exec(raw)?.[0] ?? "";
 }
 
-function isProtected(node: ExecutionGraphNode): boolean {
+/**
+ * Treat security decisions and failed operations as evidence regardless of
+ * routine syscall names. Missing/ambiguous outcomes are handled conservatively
+ * by the per-type noise predicates, not by guessing success here.
+ */
+export function isEvidenceCritical(node: ExecutionGraphNode): boolean {
   if (node.kind === "policy_alert" || node.kind === "policy_decision") return true;
-  const metadata = node.metadata ?? {};
-  const contextualRisk = Number(metadata.riskScore ?? metadata.risk_score ?? "0");
+  const m = node.metadata ?? {};
+  const contextualRisk = Number(m.riskScore ?? m.risk_score ?? "0");
   if (Math.max(node.riskScore ?? 0, Number.isFinite(contextualRisk) ? contextualRisk : 0) >= RISK_BYPASS) {
     return true;
   }
   const decision = [
-    metadata.decision, metadata.action, metadata.policyDecision,
-    metadata.policy_decision, metadata.verdict,
+    m.decision, m.action, m.policyDecision, m.policy_decision, m.verdict,
   ].filter(Boolean).join(" ").toUpperCase();
-  return /BLOCK|DENY|ALERT|REWRITE|REJECT|QUARANTINE/.test(decision);
+  if (/BLOCK|DENY|DENIED|ALERT|REWRITE|REJECT|DROP|KILL|QUARANTINE|TERMINATE|FAIL/.test(decision)) {
+    return true;
+  }
+  if (m.success?.toLowerCase() === "false" || m.failed?.toLowerCase() === "true") {
+    return true;
+  }
+  const errorCode = (m.errno ?? m.errorCode ?? m.error_code ?? m.error ?? "").trim();
+  if (errorCode && !/^(0|none|ok|success)$/i.test(errorCode)) return true;
+  const returnValue = m.returnCode ?? m.return_code ?? m.ret;
+  if (returnValue !== undefined && returnValue !== "" &&
+      Number.isFinite(Number(returnValue)) && Number(returnValue) < 0) return true;
+  // Some kernels/transport versions only expose errors in extraInfo.
+  if (/\\b(?:errno|eacces|eperm|error_code|permission denied)\\s*[=:]\\s*(?!0\\b|none\\b|ok\\b)[a-z0-9_-]+/i.test(m.extraInfo ?? "")) {
+    return true;
+  }
+  return false;
 }
 
 function noiseReason(node: ExecutionGraphNode, mode: GraphNoiseMode): GraphNoiseReason | null {
-  if (isProtected(node)) return null;
+  if (isEvidenceCritical(node)) return null;
   const path = pathFromNode(node);
   if (node.kind === "syscall") {
     const name = syscallName(node);
+    // Routine synchronization operations attached to non-routine resource
+    // targets are not ordinary process housekeeping.
+    if (path && !routinePath(path)) return null;
     if (ROUTINE_SYSCALLS.has(name)) return "routine-syscall";
     if (mode === "strict" && EXTRA_ROUTINE_SYSCALLS.has(name)) return "routine-syscall";
     if (!routinePath(path)) return null;
@@ -163,7 +185,7 @@ export function filterPresentationNoise(
   const byId = new Map(nodes.map((node) => [node.id, node]));
   const preserved = new Set<string>();
   for (const node of nodes) {
-    if (isProtected(node) || node.id === selectedNodeId) {
+    if (isEvidenceCritical(node) || node.id === selectedNodeId) {
       preserved.add(node.id);
     }
   }
