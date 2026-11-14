@@ -95,11 +95,12 @@ const isPidOnlyProcessNode = (node: ExecutionGraphNode) =>
   /^pid\s+\d+$/i.test(node.label.trim());
 
 const processProgramKey = (node: ExecutionGraphNode) => {
-  if (node.kind !== "process" || isPidOnlyProcessNode(node)) return "";
-  const comm = node.metadata?.comm?.trim();
-  const label = node.label.trim().replace(/\s*\(\d+\)$/, "");
-  const key = (comm || label).trim().toLowerCase();
-  return key && key !== "process" ? `program:${key}` : "";
+  if (node.kind !== "process") return "";
+  const pid = processPid(node);
+  // A command name is not an identity: separate bash/clang harness children
+  // must retain their individual PIDs and causal edges.
+  const run = node.metadata?.agentRunId || node.metadata?.traceId || "";
+  return pid ? `pid:${run}:${pid}` : `source:${node.id}`;
 };
 
 const formatProcessNode = (node: ExecutionGraphNode): ExecutionGraphNode => {
@@ -192,6 +193,7 @@ const normalizeProcessNodes = (
         return (
           adjacent?.kind === "process" &&
           !isPidOnlyProcessNode(adjacent) &&
+          processPid(adjacent) === processPid(node) &&
           canonicalIdBySourceId.has(adjacent.id)
         );
       });
@@ -204,7 +206,7 @@ const normalizeProcessNodes = (
     }
     const fallback = formatProcessNode(node);
     canonicalIdBySourceId.set(node.id, fallback.id);
-    processByProgram.set(`pid:${processPid(node) || node.id}`, fallback);
+    processByProgram.set(`pid-only:${node.id}`, fallback);
   });
 
   normalizedNodes.push(...processByProgram.values());
