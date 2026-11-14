@@ -105,6 +105,7 @@ COPY --chown=${USERNAME}:${USERNAME} frontend/package.json frontend/bun.lock ./f
 COPY --chown=${USERNAME}:${USERNAME} adapters/python/ ./adapters/python/
 COPY --chown=${USERNAME}:${USERNAME} tools/dev-env-tui/ ./tools/dev-env-tui/
 COPY --chown=${USERNAME}:${USERNAME} tools/agent-tui/ ./tools/agent-tui/
+COPY --chown=${USERNAME}:${USERNAME} backend/go.mod backend/go.sum ./backend/
 
 # During image construction the bind-mounted workspace and .git do not exist.
 # Install only dependencies, never run the predev git-hook setup here.
