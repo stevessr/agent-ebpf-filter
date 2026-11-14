@@ -12,7 +12,8 @@ const props = withDefaults(defineProps<{
   edges: ExecutionGraphEdge[];
   selectedNodeId?: string;
   height?: number;
-}>(), { selectedNodeId: "", height: 620 });
+  preserveEvents?: boolean;
+}>(), { selectedNodeId: "", height: 620, preserveEvents: false });
 
 const emit = defineEmits<{
   (event: "select-node", id: string): void;
@@ -130,7 +131,9 @@ function disposeGroup(group: THREE.Group | null) {
 }
 function redraw() {
   if (!scene) return;
-  const graph = buildDisplayGraph(props.nodes, props.edges);
+  const graph = buildDisplayGraph(props.nodes, props.edges, {
+    preserveEvents: props.preserveEvents,
+  });
   const signature = graphSignature(graph.nodes, graph.edges);
   if (signature === lastGraphSignature && nodeMesh) return;
   lastGraphSignature = signature;
@@ -406,7 +409,7 @@ async function init() {
     emit("unavailable");
   }
 }
-watch(() => [props.nodes, props.edges], redraw);
+watch(() => [props.nodes, props.edges, props.preserveEvents], redraw);
 watch(() => props.selectedNodeId, updateSelection);
 onMounted(init);
 onBeforeUnmount(() => {
