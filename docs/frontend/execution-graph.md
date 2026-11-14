@@ -24,6 +24,16 @@ Execution Graph 视图为审计人员提供了一个**以进程为核心节点�
 
 执行图谱只在可验证的低风险观测中聚合重复 syscall；**工具调用、不同资源目标以及阻断/告警/高风险 syscall 作为独立节点保留**，避免审计证据被平均或聚合覆盖。
 
+### AgentSight Harness 实时捕获图谱
+
+「行为追踪 → Harness 3D」现在复用 AgentSight 已连接的 Envelope、TLS 与系统事件缓冲区，不额外建立 WebSocket。用户可使用行为追踪上方的 PID、命令、Trace ID、事件来源和搜索条件收窄视图，再选择 Three.js 3D 或传统 2D SVG，点击捕获事件节点可打开原有的 AgentSight 事件详情抽屉。
+
+展示关系涵盖 Agent Run / Trace、父子进程、Harness 工具调用、MCP STDIO 调用、TLS/HTTP/SSE 通信以及文件和网络终点。MCP 的 Content-Length 与 newline JSON-RPC 分片由 AgentSight 的流式解码器重组，3D metadata 仅保存事件标识、工具名称/方法、运行标识和摘要路径；原始 prompt / response / stdio 内容不复制到图谱节点。
+
+为保护大规模实时捕获时的交互响应，图谱最多选取 **1000 条捕获事件**，优先保留告警、高风险事件和近期 Harness/MCP 活动；UI 显示未绘制数量，全部捕获仍可在 Timeline/Log/导出中检索。智能降噪可隐藏未触发告警的周期性系统指标采样；专注模式额外隐藏少量协议 keepalive，但保留所有真实 MCP 工具请求、网络端点及策略告警。
+
+3D WebGL 按需渲染并在隐藏或后台标签页停止刷新；离开页面时主动释放 WebGL 上下文。来自 WebSocket 的同内容、不同顺序快照不会触发 GPU 全量重建。完整证据模式关闭**展示聚合**，所有已纳入图谱的独立事件保留原始标识。
+
 ---
 
 ## 1. 节点与关系模型
