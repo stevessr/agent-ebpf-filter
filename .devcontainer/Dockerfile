@@ -90,7 +90,7 @@ RUN arch="$(dpkg --print-architecture)" \
       *) echo "Unsupported Zellij architecture: $arch" >&2; exit 1 ;; \
     esac \
  && curl -fsSL --retry 3 "https://github.com/zellij-org/zellij/releases/download/v${ZELLIJ_VERSION}/zellij-${target}-unknown-linux-gnu.tar.gz" -o /tmp/zellij.tgz \
- && printf '%s  %s\\n' "$expected_sha" /tmp/zellij.tgz | sha256sum -c - \
+ && printf '%s  %s\n' "$expected_sha" /tmp/zellij.tgz | sha256sum -c - \
  && mkdir -p /tmp/zellij-release \
  && tar -xzf /tmp/zellij.tgz -C /tmp/zellij-release \
  && install -m 0755 /tmp/zellij-release/zellij /usr/local/bin/zellij \
