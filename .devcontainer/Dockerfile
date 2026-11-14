@@ -104,9 +104,12 @@ COPY --chown=${USERNAME}:${USERNAME} Makefile ./Makefile
 COPY --chown=${USERNAME}:${USERNAME} frontend/package.json frontend/bun.lock ./frontend/
 COPY --chown=${USERNAME}:${USERNAME} adapters/python/ ./adapters/python/
 COPY --chown=${USERNAME}:${USERNAME} tools/dev-env-tui/ ./tools/dev-env-tui/
+COPY --chown=${USERNAME}:${USERNAME} tools/agent-tui/ ./tools/agent-tui/
 
+# During image construction the bind-mounted workspace and .git do not exist.
+# Install only dependencies, never run the predev git-hook setup here.
 RUN mkdir -p ~/.config/bun ~/.cache/go-build ~/.cache/uv \
- && make predev \
+ && make --jobs=4 predev-go predev-python predev-frontend predev-tui \
  && make predev-check \
  && mkdir -p /opt/agent-ebpf-predev/frontend /opt/agent-ebpf-predev/adapters/python \
  && cp -a frontend/node_modules /opt/agent-ebpf-predev/frontend/node_modules \

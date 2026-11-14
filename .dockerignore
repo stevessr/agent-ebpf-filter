@@ -12,6 +12,8 @@
 !tools/
 !tools/dev-env-tui/
 !tools/dev-env-tui/**
+!tools/agent-tui/
+!tools/agent-tui/**
 !adapters/
 !adapters/python/
 !adapters/python/**
