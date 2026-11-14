@@ -138,6 +138,19 @@ describe("AgentSight Harness capture to causal topology", () => {
     expect(processIds).toEqual(["proc:run:a:200", "proc:run:b:200"]);
   });
 
+  test("does not expose normalized prompt previews in shared graph labels", () => {
+    const input = event("sensitive-title", {
+      title: "Prompt: PRIVATE_SHOULD_NOT_RENDER",
+      source: "http_parser",
+      eventType: "HTTP_REQUEST",
+      data: { method: "POST", host: "api.example.test" },
+    });
+    const graph = buildHarnessCaptureGraph([input]);
+    expect(JSON.stringify(graph)).not.toContain("PRIVATE_SHOULD_NOT_RENDER");
+    expect(graph.nodes.some((node) => node.metadata?.sourceNodeId ===
+      captureEventKey(input))).toBe(true);
+  });
+
   test("keeps event details inspectable by source identity", () => {
     const capture = event("log-123", {
       source: "http_parser",
