@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"strings"
@@ -107,7 +108,7 @@ type reviewedCorpusProvenance struct {
 	groupCount int
 }
 
-func reviewedCorpusIdentities(path string) (reviewedCorpusProvenance, error) {
+func reviewedCorpusIdentities(path, expectedDigest string) (reviewedCorpusProvenance, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return reviewedCorpusProvenance{}, err
@@ -135,7 +136,8 @@ func reviewedCorpusIdentities(path string) (reviewedCorpusProvenance, error) {
 		return root
 	}
 	var rowKeys []string
-	scanner := bufio.NewScanner(file)
+	hasher := sha256.New()
+	scanner := bufio.NewScanner(io.TeeReader(file, hasher))
 	scanner.Buffer(make([]byte, 4096), 1024*1024)
 	for line := 1; scanner.Scan(); line++ {
 		if len(strings.TrimSpace(scanner.Text())) == 0 {
@@ -168,6 +170,9 @@ func reviewedCorpusIdentities(path string) (reviewedCorpusProvenance, error) {
 	}
 	if err := scanner.Err(); err != nil {
 		return reviewedCorpusProvenance{}, err
+	}
+	if got := fmt.Sprintf("%x", hasher.Sum(nil)); got != expectedDigest {
+		return reviewedCorpusProvenance{}, fmt.Errorf("reviewed corpus provenance SHA-256 mismatch")
 	}
 	indices := make(map[string]int)
 	for _, key := range rowKeys {
@@ -232,11 +237,11 @@ func EvaluateDecisionModelOnExternalHoldout(modelPath string, training, test Dec
 		}
 		seenTest[key] = struct{}{}
 	}
-	trainProvenance, err := reviewedCorpusIdentities(training.LocalPath)
+	trainProvenance, err := reviewedCorpusIdentities(training.LocalPath, trainDigest)
 	if err != nil {
 		return DecisionExternalEvaluation{}, fmt.Errorf("training group provenance: %w", err)
 	}
-	testProvenance, err := reviewedCorpusIdentities(test.LocalPath)
+	testProvenance, err := reviewedCorpusIdentities(test.LocalPath, testDigest)
 	if err != nil {
 		return DecisionExternalEvaluation{}, fmt.Errorf("test group provenance: %w", err)
 	}
