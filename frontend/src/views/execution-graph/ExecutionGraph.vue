@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
+import { computed, defineAsyncComponent, onMounted, onUnmounted, reactive, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import axios from "axios";
 import { message } from "ant-design-vue";
@@ -15,6 +15,13 @@ import {
   RadarChartOutlined,
 } from "@ant-design/icons-vue";
 import ExecutionGraphCanvas from "../../components/execution-graph/ExecutionGraphCanvas.vue";
+import {
+  filterPresentationNoise,
+  type GraphNoiseMode,
+} from "../../components/execution-graph/graphNoise";
+const ExecutionGraphCanvas3D = defineAsyncComponent(
+  () => import("../../components/execution-graph/ExecutionGraphCanvas3D.vue"),
+);
 import ProcessPickerModal from "../../components/monitor/ProcessPickerModal.vue";
 import AgentSightTracePanel from "../../components/agentsight/AgentSightTracePanel.vue";
 import { useMonitorData } from "../../composables/monitor/useMonitorData";
@@ -241,6 +248,13 @@ const replayAvailable = computed(
     ),
 );
 const hiddenGraphKinds = ref<Set<string>>(new Set());
+const graphViewMode = ref<"2d" | "3d">("3d");
+const noiseMode = ref<GraphNoiseMode>("balanced");
+const noiseModeOptions = [
+  { label: "完整证据", value: "off" },
+  { label: "智能降噪", value: "balanced" },
+  { label: "专注模式", value: "strict" },
+];
 const graphKindLabels: Record<string, string> = {
   agent_run: "agent",
   tool_call: "tool",
@@ -290,15 +304,25 @@ const graphKindFilters = computed(() => {
       hidden: hiddenGraphKinds.value.has(kind),
     }));
 });
-const visibleGraphNodes = computed(() =>
+const kindVisibleNodes = computed(() =>
   graph.value.nodes.filter((node) => !hiddenGraphKinds.value.has(node.kind)),
 );
-const visibleGraphEdges = computed(() => {
-  const visibleIds = new Set(visibleGraphNodes.value.map((node) => node.id));
+const kindVisibleEdges = computed(() => {
+  const visibleIds = new Set(kindVisibleNodes.value.map((node) => node.id));
   return graph.value.edges.filter(
     (edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target),
   );
 });
+const presentationGraph = computed(() =>
+  filterPresentationNoise(
+    kindVisibleNodes.value,
+    kindVisibleEdges.value,
+    noiseMode.value,
+    selectedNodeId.value,
+  ),
+);
+const visibleGraphNodes = computed(() => presentationGraph.value.nodes);
+const visibleGraphEdges = computed(() => presentationGraph.value.edges);
 const hasHiddenGraphKinds = computed(() => hiddenGraphKinds.value.size > 0);
 const activeTraceTab = computed<TraceTab>({
   get() {
@@ -689,6 +713,24 @@ onUnmounted(() => {
             </template>
             <template #extra>
               <a-space wrap>
+                <a-segmented
+                  v-model:value="graphViewMode"
+                  size="small"
+                  :options="[
+                    { label: '3D 行为图谱', value: '3d' },
+                    { label: '2D 拓扑', value: '2d' },
+                  ]"
+                />
+                <a-select
+                  v-model:value="noiseMode"
+                  :options="noiseModeOptions"
+                  size="small"
+                  style="width: 125px"
+                  title="仅隐藏低风险的展示杂音，不修改原始捕获、录制与策略"
+                />
+                <a-tag v-if="presentationGraph.hiddenNodes" color="cyan">
+                  已折叠 {{ presentationGraph.hiddenNodes }} 节点 / {{ presentationGraph.hiddenEdges }} 连线
+                </a-tag>
                 <a-tag
                   v-for="item in graphKindFilters"
                   :key="item.kind"
@@ -725,7 +767,16 @@ onUnmounted(() => {
               :message="`正在实时监听 PID ${filters.pid}${filters.processTree ? ' 的进程树和调用链' : ''}`"
             />
             <a-spin :spinning="loading">
+              <ExecutionGraphCanvas3D
+                v-if="graphViewMode === '3d'"
+                :nodes="visibleGraphNodes"
+                :edges="visibleGraphEdges"
+                :selected-node-id="selectedNodeId"
+                @select-node="handleSelectNode"
+                @unavailable="graphViewMode = '2d'"
+              />
               <ExecutionGraphCanvas
+                v-else
                 :nodes="visibleGraphNodes"
                 :edges="visibleGraphEdges"
                 :selected-node-id="selectedNodeId"
