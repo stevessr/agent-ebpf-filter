@@ -103,12 +103,12 @@ func TestDecisionWilsonConfidenceIntervals(t *testing.T) {
 // A shared run connects distinct scenarios and a shared scenario connects runs;
 // neither pair may be counted as independent validation evidence.
 func TestReviewedCorpusIdentitiesUseTransitiveScenarioRunComponents(t *testing.T) {
-	path, _ := writeDecisionTrainingFixture(t,
+	path, digest := writeDecisionTrainingFixture(t,
 		`{"command":"ls /tmp/one","label":"ALLOW","scenario_id":"scenario-1","run_id":"run-1"}`+"\n"+
 		`{"command":"rm /tmp/one","label":"BLOCK","scenario_id":"scenario-2","run_id":"run-1"}`+"\n"+
 		`{"command":"cat /tmp/two","label":"ALLOW","scenario_id":"scenario-2","run_id":"run-2"}`+"\n"+
 		`{"command":"rm /tmp/three","label":"BLOCK","scenario_id":"scenario-3","run_id":"run-3"}`+"\n")
-	provenance, err := reviewedCorpusIdentities(path)
+	provenance, err := reviewedCorpusIdentities(path, digest)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,5 +143,18 @@ func TestDecisionGroupSecurityDoesNotTreatEmptyGroupsAsPerfect(t *testing.T) {
 	if got.independentGroups != 0 || got.blockRecall != 0 || got.benignFPR != 0 ||
 		got.blockRecallLower95 != 0 || got.benignFPRUpper95 != 0 {
 		t.Fatalf("zero evidence must not be reported as success: %+v", got)
+	}
+}
+
+func TestReviewedCorpusProvenanceRechecksVerifiedBytes(t *testing.T) {
+	path, digest := writeDecisionTrainingFixture(t,
+		`{"command":"ls","label":"ALLOW","scenario_id":"s-1","run_id":"r-1"}`+"\n")
+	_, err := reviewedCorpusIdentities(path, strings.Repeat("0", 64))
+	if err == nil || !strings.Contains(err.Error(), "provenance SHA-256 mismatch") {
+		t.Fatalf("changed bytes between row parsing and provenance grouping must fail: %v", err)
+	}
+	provenance, err := reviewedCorpusIdentities(path, digest)
+	if err != nil || provenance.groupCount != 1 {
+		t.Fatalf("verified provenance must parse successfully: %+v: %v", provenance, err)
 	}
 }
