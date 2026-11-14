@@ -115,6 +115,12 @@ describe("presentation noise filter", () => {
     expect(filtered.nodes.map((node) => node.id)).toEqual(["proc:101", "tool", "read-user"]);
     expect(filtered.hiddenNodes).toBe(2);
     expect(filtered.hiddenEdges).toBe(2);
+    expect(filtered.hiddenByReason).toMatchObject({
+      "routine-syscall": 1,
+      "pseudo-file-read": 1,
+      "successful-exit": 0,
+      heartbeat: 0,
+    });
     expect(nodes).toHaveLength(5);
     expect(edges).toHaveLength(4);
   });
@@ -166,6 +172,21 @@ describe("presentation noise filter", () => {
     ];
     const filtered = filterPresentationNoise(candidates, [], "strict");
     expect(filtered.nodes.map((node) => node.id)).toEqual(["raw-open", "write", "create", "truncate"]);
+  });
+
+  test("retains reconnaissance reads outside the narrow routine path allowlist", () => {
+    const nodes = [
+      syscall("cmdline", "read", "/proc/123/cmdline"),
+      syscall("maps", "stat", "/proc/123/maps"),
+      syscall("cgroup", "read", "/sys/fs/cgroup/user.slice/cgroup.procs"),
+      syscall("proc-sys", "read", "/proc/sys/kernel/kptr_restrict"),
+      syscall("safe-meta", "stat", "/proc/123/status"),
+    ];
+    const result = filterPresentationNoise(nodes, [], "strict");
+    expect(result.nodes.map((node) => node.id)).toEqual([
+      "cmdline", "maps", "cgroup", "proc-sys",
+    ]);
+    expect(result.hiddenByReason["pseudo-file-read"]).toBe(1);
   });
 
   test("does not collapse traversal, sensitive pseudo files or metadata risk", () => {
