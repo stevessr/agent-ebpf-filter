@@ -1,0 +1,329 @@
+<script setup lang="ts">
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import type { ExecutionGraphEdge, ExecutionGraphNode } from "../../types/executionGraph";
+import { buildDisplayGraph } from "./useDisplayGraphBuilder";
+import { kindColor, nodeRadius, truncate } from "./useExecutionGraphHelpers";
+
+const props = withDefaults(defineProps<{
+  nodes: ExecutionGraphNode[];
+  edges: ExecutionGraphEdge[];
+  selectedNodeId?: string;
+  height?: number;
+}>(), { selectedNodeId: "", height: 620 });
+
+const emit = defineEmits<{
+  (event: "select-node", id: string): void;
+  (event: "unavailable"): void;
+}>();
+const host = ref<HTMLDivElement | null>(null);
+const hovered = ref<ExecutionGraphNode | null>(null);
+const hoverPosition = ref({ x: 0, y: 0 });
+const displayCounts = ref({ nodes: 0, edges: 0 });
+let renderer: THREE.WebGLRenderer | null = null;
+let scene: THREE.Scene | null = null;
+let camera: THREE.PerspectiveCamera | null = null;
+let controls: OrbitControls | null = null;
+let graphGroup: THREE.Group | null = null;
+let nodeMesh: THREE.InstancedMesh | null = null;
+let nodeIndex: ExecutionGraphNode[] = [];
+let resizeObserver: ResizeObserver | null = null;
+let intersectionObserver: IntersectionObserver | null = null;
+let frame = 0;
+let lastFrame = 0;
+let visible = true;
+let disposed = false;
+let downAt: { x: number; y: number } | null = null;
+
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+const reusable = new THREE.Object3D();
+const reusableColor = new THREE.Color();
+
+const lane: Record<string, number> = {
+  agent_run: -5, tool_call: -4, process: -3, wrapper_event: -2,
+  hook_event: -1, syscall: 0, exit_status: 1, file: 2,
+  network: 3, policy_decision: 4, policy_alert: 5,
+};
+function hash(value: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    h ^= value.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+function positionFor(node: ExecutionGraphNode): THREE.Vector3 {
+  const h = hash(node.id);
+  const rank = lane[node.kind] ?? 0;
+  const run = node.metadata?.agentRunId ?? node.metadata?.traceId ?? "";
+  const runOffset = run ? ((hash(run) % 7) - 3) * 28 : 0;
+  return new THREE.Vector3(
+    rank * 122,
+    ((h & 0xffff) / 65535 - 0.5) * 480,
+    (((h >>> 16) & 0xffff) / 65535 - 0.5) * 230 + runOffset,
+  );
+}
+function disposeGroup(group: THREE.Group | null) {
+  if (!group) return;
+  group.traverse((object) => {
+    const drawable = object as THREE.Mesh | THREE.LineSegments;
+    drawable.geometry?.dispose();
+    const materials = drawable.material;
+    if (Array.isArray(materials)) materials.forEach((item) => item.dispose());
+    else materials?.dispose();
+  });
+  group.parent?.remove(group);
+}
+function redraw() {
+  if (!scene) return;
+  disposeGroup(graphGroup);
+  graphGroup = new THREE.Group();
+  scene.add(graphGroup);
+  const graph = buildDisplayGraph(props.nodes, props.edges);
+  displayCounts.value = { nodes: graph.nodes.length, edges: graph.edges.length };
+  nodeIndex = graph.nodes;
+  nodeMesh = null;
+  if (!graph.nodes.length) return;
+
+  const positions = new Map(graph.nodes.map((node) => [node.id, positionFor(node)]));
+  const geometry = new THREE.SphereGeometry(1, 12, 9);
+  const material = new THREE.MeshStandardMaterial({
+    color: "#ffffff", roughness: 0.38, metalness: 0.16,
+  });
+  const mesh = new THREE.InstancedMesh(geometry, material, graph.nodes.length);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  for (let i = 0; i < graph.nodes.length; i++) {
+    const node = graph.nodes[i];
+    const selected = node.id === props.selectedNodeId ||
+      node.metadata?.sourceNodeId === props.selectedNodeId;
+    const risk = node.riskScore ?? 0;
+    const radius = Math.max(7, nodeRadius(node) * 0.7) * (selected ? 1.6 : 1);
+    reusable.position.copy(positions.get(node.id)!);
+    reusable.scale.setScalar(radius);
+    reusable.updateMatrix();
+    mesh.setMatrixAt(i, reusable.matrix);
+    const color = risk >= 60 ? "#ef4444" : kindColor(node.kind);
+    mesh.setColorAt(i, reusableColor.set(color));
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  graphGroup.add(mesh);
+  nodeMesh = mesh;
+
+  const normal: number[] = [];
+  const critical: number[] = [];
+  for (const edge of graph.edges) {
+    const start = positions.get(edge.source);
+    const end = positions.get(edge.target);
+    if (!start || !end) continue;
+    const target = /^(blocked|alerted|rewritten)$/.test(edge.kind) ? critical : normal;
+    target.push(start.x, start.y, start.z, end.x, end.y, end.z);
+  }
+  function addLines(positions: number[], color: string, opacity: number) {
+    if (!positions.length) return;
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position",
+      new THREE.Float32BufferAttribute(positions, 3));
+    const lines = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({
+      color, transparent: true, opacity, depthWrite: false,
+    }));
+    graphGroup!.add(lines);
+  }
+  addLines(normal, "#64748b", 0.35);
+  addLines(critical, "#fb7185", 0.95);
+}
+
+function setSize() {
+  if (!renderer || !camera || !host.value) return;
+  const width = Math.max(1, host.value.clientWidth);
+  const height = Math.max(1, host.value.clientHeight);
+  renderer.setSize(width, height, false);
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+}
+function renderLoop(timestamp: number) {
+  frame = 0;
+  if (disposed || !visible || !renderer || !scene || !camera) return;
+  if (timestamp - lastFrame >= 33) {
+    controls?.update();
+    renderer.render(scene, camera);
+    lastFrame = timestamp;
+  }
+  frame = requestAnimationFrame(renderLoop);
+}
+function beginLoop() {
+  if (frame || disposed || !visible) return;
+  frame = requestAnimationFrame(renderLoop);
+}
+function stopLoop() {
+  if (!frame) return;
+  cancelAnimationFrame(frame);
+  frame = 0;
+}
+function intersect(event: PointerEvent): ExecutionGraphNode | null {
+  if (!renderer || !camera || !nodeMesh) return null;
+  const rect = renderer.domElement.getBoundingClientRect();
+  if (!rect.width || !rect.height) return null;
+  pointer.set(
+    ((event.clientX - rect.left) / rect.width) * 2 - 1,
+    -((event.clientY - rect.top) / rect.height) * 2 + 1,
+  );
+  raycaster.setFromCamera(pointer, camera);
+  const result = raycaster.intersectObject(nodeMesh)[0];
+  return result?.instanceId === undefined
+    ? null : (nodeIndex[result.instanceId] ?? null);
+}
+function onMove(event: PointerEvent) {
+  hovered.value = intersect(event);
+  if (!host.value) return;
+  const rect = host.value.getBoundingClientRect();
+  hoverPosition.value = {
+    x: Math.min(rect.width - 180, Math.max(12, event.clientX - rect.left + 12)),
+    y: Math.min(rect.height - 70, Math.max(12, event.clientY - rect.top + 12)),
+  };
+  if (renderer) renderer.domElement.style.cursor = hovered.value ? "pointer" : "grab";
+}
+function onDown(event: PointerEvent) {
+  downAt = { x: event.clientX, y: event.clientY };
+}
+function onUp(event: PointerEvent) {
+  if (!downAt || Math.hypot(event.clientX - downAt.x, event.clientY - downAt.y) > 5) {
+    downAt = null;
+    return;
+  }
+  downAt = null;
+  const node = intersect(event);
+  if (node) emit("select-node", node.metadata?.sourceNodeId || node.id);
+}
+function onContextLost(event: Event) {
+  event.preventDefault();
+  emit("unavailable");
+}
+async function init() {
+  await nextTick();
+  if (disposed || !host.value || renderer) return;
+  try {
+    const canvas = document.createElement("canvas");
+    const available = !!(canvas.getContext("webgl2") || canvas.getContext("webgl"));
+    if (!available) throw new Error("WebGL unavailable");
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "low-power" });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    host.value.appendChild(renderer.domElement);
+    renderer.domElement.addEventListener("pointermove", onMove);
+    renderer.domElement.addEventListener("pointerdown", onDown);
+    renderer.domElement.addEventListener("pointerup", onUp);
+    renderer.domElement.addEventListener("pointerleave", () => { hovered.value = null; });
+    renderer.domElement.addEventListener("webglcontextlost", onContextLost);
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color("#0b1220");
+    scene.fog = new THREE.Fog("#0b1220", 900, 2600);
+    scene.add(new THREE.AmbientLight("#e2e8f0", 2.1));
+    const key = new THREE.DirectionalLight("#bfdbfe", 3.2);
+    key.position.set(-180, 420, 550);
+    scene.add(key);
+    const grid = new THREE.GridHelper(1550, 24, "#334155", "#1e293b");
+    grid.position.y = -290;
+    scene.add(grid);
+    camera = new THREE.PerspectiveCamera(55, 1, 1, 4000);
+    camera.position.set(100, 300, 1200);
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.07;
+    controls.minDistance = 250;
+    controls.maxDistance = 2400;
+    controls.target.set(0, 0, 0);
+    setSize();
+    redraw();
+    resizeObserver = new ResizeObserver(setSize);
+    resizeObserver.observe(host.value);
+    intersectionObserver = new IntersectionObserver((entries) => {
+      visible = entries.some((entry) => entry.isIntersecting);
+      if (visible) beginLoop();
+      else stopLoop();
+    });
+    intersectionObserver.observe(host.value);
+    beginLoop();
+  } catch {
+    emit("unavailable");
+  }
+}
+watch(() => [props.nodes, props.edges, props.selectedNodeId], redraw);
+onMounted(init);
+onBeforeUnmount(() => {
+  disposed = true;
+  stopLoop();
+  resizeObserver?.disconnect();
+  intersectionObserver?.disconnect();
+  controls?.dispose();
+  if (renderer) {
+    renderer.domElement.removeEventListener("pointermove", onMove);
+    renderer.domElement.removeEventListener("pointerdown", onDown);
+    renderer.domElement.removeEventListener("pointerup", onUp);
+    renderer.domElement.removeEventListener("webglcontextlost", onContextLost);
+  }
+  disposeGroup(graphGroup);
+  renderer?.dispose();
+  renderer?.domElement.remove();
+  renderer = null;
+  nodeMesh = null;
+  graphGroup = null;
+  scene = null;
+  camera = null;
+});
+</script>
+
+<template>
+  <div ref="host" class="harness-3d" :style="{ height: height + 'px' }">
+    <div class="harness-3d-overlay">
+      <strong>HARNESS · 3D</strong>
+      <span>{{ displayCounts.nodes }} nodes · {{ displayCounts.edges }} links</span>
+      <small>拖动旋转 · 滚轮缩放 · 右键平移 · 点击节点查看证据</small>
+    </div>
+    <div
+      v-if="hovered"
+      class="harness-3d-tooltip"
+      :style="{ left: hoverPosition.x + 'px', top: hoverPosition.y + 'px' }"
+    >
+      <b>{{ truncate(hovered.label, 44) }}</b>
+      <small>{{ hovered.kind }} · risk {{ hovered.riskScore ?? 0 }}</small>
+    </div>
+    <div v-if="!displayCounts.nodes" class="harness-3d-empty">暂无可显示的捕获行为</div>
+  </div>
+</template>
+
+<style scoped>
+.harness-3d {
+  width: 100%;
+  min-height: 360px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #243348;
+  border-radius: 12px;
+  background: #0b1220;
+}
+.harness-3d :deep(canvas) { display: block; width: 100%; height: 100%; }
+.harness-3d-overlay {
+  position: absolute; z-index: 2; top: 16px; left: 18px;
+  display: flex; flex-direction: column; gap: 3px;
+  color: #e2e8f0; pointer-events: none; text-shadow: 0 1px 3px #020617;
+}
+.harness-3d-overlay strong { font-size: 12px; letter-spacing: .13em; }
+.harness-3d-overlay span { font-size: 11px; color: #94a3b8; }
+.harness-3d-overlay small { font-size: 10px; color: #64748b; }
+.harness-3d-tooltip {
+  position: absolute; z-index: 3; pointer-events: none;
+  display: flex; flex-direction: column; gap: 3px;
+  max-width: 230px; padding: 8px 10px; border-radius: 8px;
+  color: #f1f5f9; background: rgba(15, 23, 42, .95);
+  border: 1px solid #475569; box-shadow: 0 10px 24px #0005;
+}
+.harness-3d-tooltip b { font-size: 12px; overflow-wrap: anywhere; }
+.harness-3d-tooltip small { color: #94a3b8; }
+.harness-3d-empty {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  color: #94a3b8; font-size: 13px; pointer-events: none;
+}
+</style>
