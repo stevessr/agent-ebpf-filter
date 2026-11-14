@@ -6,12 +6,23 @@ import type { ExecutionGraphEdge, ExecutionGraphNode } from "../../types/executi
  */
 export type GraphNoiseMode = "off" | "balanced" | "strict";
 
+export type GraphNoiseReason =
+  | "routine-syscall" | "pseudo-file-read"
+  | "successful-exit" | "heartbeat";
+
 export interface GraphNoiseResult {
   nodes: ExecutionGraphNode[];
   edges: ExecutionGraphEdge[];
   hiddenNodes: number;
   hiddenEdges: number;
+  hiddenByReason: Record<GraphNoiseReason, number>;
 }
+const emptyReasonCounts = (): Record<GraphNoiseReason, number> => ({
+  "routine-syscall": 0,
+  "pseudo-file-read": 0,
+  "successful-exit": 0,
+  heartbeat: 0,
+});
 
 const ROUTINE_SYSCALLS = new Set([
   "getpid", "getppid", "gettid", "clock_gettime", "gettimeofday",
@@ -98,33 +109,35 @@ function isProtected(node: ExecutionGraphNode): boolean {
   return /BLOCK|DENY|ALERT|REWRITE|REJECT|QUARANTINE/.test(decision);
 }
 
-function isNoise(node: ExecutionGraphNode, mode: GraphNoiseMode): boolean {
-  if (isProtected(node)) return false;
+function noiseReason(node: ExecutionGraphNode, mode: GraphNoiseMode): GraphNoiseReason | null {
+  if (isProtected(node)) return null;
   const path = pathFromNode(node);
   if (node.kind === "syscall") {
     const name = syscallName(node);
-    if (ROUTINE_SYSCALLS.has(name)) return true;
-    if (mode === "strict" && EXTRA_ROUTINE_SYSCALLS.has(name)) return true;
-    if (!routinePath(path)) return false;
-    if (OPEN_SYSCALLS.has(name)) return verifiedReadOnlyOpen(node);
-    return READ_ONLY_SYSCALLS.has(name);
+    if (ROUTINE_SYSCALLS.has(name)) return "routine-syscall";
+    if (mode === "strict" && EXTRA_ROUTINE_SYSCALLS.has(name)) return "routine-syscall";
+    if (!routinePath(path)) return null;
+    if (OPEN_SYSCALLS.has(name)) {
+      return verifiedReadOnlyOpen(node) ? "pseudo-file-read" : null;
+    }
+    return READ_ONLY_SYSCALLS.has(name) ? "pseudo-file-read" : null;
   }
   if (node.kind === "file" && mode === "strict" && routinePath(path)) {
-    const operation = (
-      node.metadata?.operation || node.metadata?.type || ""
-    ).toLowerCase();
-    // A write, create, delete or unknown operation remains evidence.
-    return /^(read|open|stat|access|readlink|metadata)$/.test(operation);
+    const operation = (node.metadata?.operation || node.metadata?.type || "").toLowerCase();
+    // Unknown file operations and mutations must remain visible.
+    return /^(read|stat|access|readlink|metadata)$/.test(operation)
+      ? "pseudo-file-read" : null;
   }
   if (mode === "strict" && node.kind === "exit_status") {
     const status = node.metadata?.exitCode ?? node.metadata?.exit_code ??
       node.metadata?.status;
-    return status === "0";
+    return status === "0" ? "successful-exit" : null;
   }
   if (mode === "strict" && (node.kind === "hook_event" || node.kind === "wrapper_event")) {
-    return /^(heartbeat|healthcheck|ping)$/i.test(node.metadata?.type ?? "");
+    return /^(heartbeat|healthcheck|ping)$/i.test(node.metadata?.type ?? "")
+      ? "heartbeat" : null;
   }
-  return false;
+  return null;
 }
 
 export function filterPresentationNoise(
@@ -134,7 +147,8 @@ export function filterPresentationNoise(
   selectedNodeId = "",
 ): GraphNoiseResult {
   if (mode === "off") {
-    return { nodes, edges, hiddenNodes: 0, hiddenEdges: 0 };
+    return { nodes, edges, hiddenNodes: 0, hiddenEdges: 0,
+      hiddenByReason: emptyReasonCounts() };
   }
 
   const byId = new Map(nodes.map((node) => [node.id, node]));
@@ -160,9 +174,14 @@ export function filterPresentationNoise(
     if (sourceProtected && byId.has(edge.target)) preserved.add(edge.target);
     if (targetProtected && byId.has(edge.source)) preserved.add(edge.source);
   }
-  const visibleNodes = nodes.filter((node) =>
-    preserved.has(node.id) || !isNoise(node, mode),
-  );
+  const hiddenByReason = emptyReasonCounts();
+  const visibleNodes = nodes.filter((node) => {
+    if (preserved.has(node.id)) return true;
+    const reason = noiseReason(node, mode);
+    if (!reason) return true;
+    hiddenByReason[reason] += 1;
+    return false;
+  });
   const visibleIds = new Set(visibleNodes.map((node) => node.id));
   const visibleEdges = edges.filter((edge) =>
     visibleIds.has(edge.source) && visibleIds.has(edge.target),
@@ -172,5 +191,6 @@ export function filterPresentationNoise(
     edges: visibleEdges,
     hiddenNodes: nodes.length - visibleNodes.length,
     hiddenEdges: edges.length - visibleEdges.length,
+    hiddenByReason,
   };
 }
