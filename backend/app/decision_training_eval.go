@@ -142,8 +142,8 @@ func reviewedCorpusIdentities(path string) (reviewedCorpusProvenance, error) {
 			continue
 		}
 		var item struct {
-			ScenarioID string \`json:"scenario_id"\`
-			RunID      string \`json:"run_id"\`
+			ScenarioID string `json:"scenario_id"`
+			RunID      string `json:"run_id"`
 		}
 		if err := json.Unmarshal(scanner.Bytes(), &item); err != nil {
 			return reviewedCorpusProvenance{}, fmt.Errorf("row %d: invalid JSON: %w", line, err)
