@@ -809,6 +809,7 @@ onUnmounted(() => {
                 v-if="graphViewMode === '3d'"
                 :nodes="visibleGraphNodes"
                 :edges="visibleGraphEdges"
+                :preserve-events="noiseMode === 'off'"
                 :selected-node-id="selectedNodeId"
                 @select-node="handleSelectNode"
                 @unavailable="graphViewMode = '2d'"
@@ -817,6 +818,7 @@ onUnmounted(() => {
                 v-else
                 :nodes="visibleGraphNodes"
                 :edges="visibleGraphEdges"
+                :preserve-events="noiseMode === 'off'"
                 :selected-node-id="selectedNodeId"
                 zoom-storage-key="agent-ebpf.execution-graph.execution-topology.zoom"
                 @select-node="handleSelectNode"
