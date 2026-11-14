@@ -31,11 +31,13 @@ const props = withDefaults(
     selectedNodeId?: string;
     height?: number;
     zoomStorageKey?: string;
+    preserveEvents?: boolean;
   }>(),
   {
     selectedNodeId: "",
     height: 620,
     zoomStorageKey: "agent-ebpf.execution-graph.zoom",
+    preserveEvents: false,
   },
 );
 
@@ -257,7 +259,9 @@ const updateGraph = () => {
   initializeCanvas(svgElement, width, height);
   if (!linkGroup || !nodeGroup) return;
 
-  currentDisplayGraph = buildDisplayGraph(props.nodes, props.edges);
+  currentDisplayGraph = buildDisplayGraph(props.nodes, props.edges, {
+    preserveEvents: props.preserveEvents,
+  });
   const topologyKey = createTopologyKey(width, height, currentDisplayGraph);
   const topologyChanged = topologyKey !== lastTopologyKey;
   lastTopologyKey = topologyKey;
@@ -383,7 +387,7 @@ const updateGraph = () => {
 };
 
 watch(
-  () => [props.nodes, props.edges, props.selectedNodeId, props.height],
+  () => [props.nodes, props.edges, props.selectedNodeId, props.height, props.preserveEvents],
   () => requestGraphUpdate(),
   { deep: true },
 );
