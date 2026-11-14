@@ -198,9 +198,14 @@ function redraw() {
   // Causal direction matters for a harness: a link to an endpoint is not
   // equivalent to the reverse flow. A single instanced draw call keeps
   // directional markers affordable on live 1000+ edge snapshots.
-  const directedEdges = graph.edges.filter((edge) =>
-    positions.has(edge.source) && positions.has(edge.target),
-  ).slice(0, 1200);
+  const isCriticalEdge = (edge: ExecutionGraphEdge) =>
+    /^(blocked|alerted|rewritten)$/.test(edge.kind);
+  const directedEdges = graph.edges
+    .filter((edge) => positions.has(edge.source) && positions.has(edge.target))
+    .sort((a, b) => Number(isCriticalEdge(b)) - Number(isCriticalEdge(a)) ||
+      a.id.localeCompare(b.id))
+    .slice(0, 1200);
+  const nodeById = new Map(nodeIndex.map((node) => [node.id, node]));
   if (directedEdges.length) {
     const arrowGeometry = new THREE.ConeGeometry(2.4, 8, 6);
     const arrowMaterial = new THREE.MeshBasicMaterial({
@@ -223,7 +228,11 @@ function redraw() {
         arrow.scale.setScalar(0);
       } else {
         const direction = delta.multiplyScalar(1 / distance);
-        arrow.position.copy(end).addScaledVector(direction, -Math.min(20, distance * 0.2));
+        const targetRadius = Math.max(7, nodeRadius(nodeById.get(edge.target) || {
+          id: edge.target, kind: "unknown", label: "",
+        }) * 0.7);
+        arrow.position.copy(end).addScaledVector(direction,
+          -Math.min(distance * 0.65, targetRadius + 10));
         arrow.quaternion.setFromUnitVectors(defaultAxis, direction);
         arrow.scale.setScalar(1);
       }
@@ -441,6 +450,7 @@ onBeforeUnmount(() => {
     <div class="harness-3d-overlay">
       <strong>HARNESS · 3D</strong>
       <span>{{ displayCounts.nodes }} nodes · {{ displayCounts.edges }} links</span>
+      <small v-if="displayCounts.edges > 1200">箭头上限 1200 条，告警关系优先</small>
       <small>箭头表示因果方向 · 拖动旋转 · 滚轮缩放 · 点击查看证据</small>
     </div>
     <div class="harness-3d-controls">
