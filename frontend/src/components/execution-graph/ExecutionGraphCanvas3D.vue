@@ -194,6 +194,53 @@ function redraw() {
   }
   addLines(normal, "#64748b", 0.35);
   addLines(critical, "#fb7185", 0.95);
+
+  // Causal direction matters for a harness: a link to an endpoint is not
+  // equivalent to the reverse flow. A single instanced draw call keeps
+  // directional markers affordable on live 1000+ edge snapshots.
+  const directedEdges = graph.edges.filter((edge) =>
+    positions.has(edge.source) && positions.has(edge.target),
+  ).slice(0, 1200);
+  if (directedEdges.length) {
+    const arrowGeometry = new THREE.ConeGeometry(2.4, 8, 6);
+    const arrowMaterial = new THREE.MeshBasicMaterial({
+      color: "#ffffff", transparent: true, opacity: 0.85,
+    });
+    const arrows = new THREE.InstancedMesh(
+      arrowGeometry, arrowMaterial, directedEdges.length,
+    );
+    arrows.frustumCulled = false;
+    const defaultAxis = new THREE.Vector3(0, 1, 0);
+    const arrow = new THREE.Object3D();
+    for (let i = 0; i < directedEdges.length; i++) {
+      const edge = directedEdges[i];
+      const start = positions.get(edge.source)!;
+      const end = positions.get(edge.target)!;
+      const delta = end.clone().sub(start);
+      const distance = delta.length();
+      if (distance < 0.001) {
+        arrow.position.copy(end);
+        arrow.scale.setScalar(0);
+      } else {
+        const direction = delta.multiplyScalar(1 / distance);
+        arrow.position.copy(end).addScaledVector(direction, -Math.min(20, distance * 0.2));
+        arrow.quaternion.setFromUnitVectors(defaultAxis, direction);
+        arrow.scale.setScalar(1);
+      }
+      arrow.updateMatrix();
+      arrows.setMatrixAt(i, arrow.matrix);
+      arrows.setColorAt(
+        i,
+        reusableColor.set(
+          /^(blocked|alerted|rewritten)$/.test(edge.kind) ? "#fb7185" : "#94a3b8",
+        ),
+      );
+    }
+    arrows.instanceMatrix.needsUpdate = true;
+    if (arrows.instanceColor) arrows.instanceColor.needsUpdate = true;
+    graphGroup.add(arrows);
+  }
+
   rebuildLabels();
   requestRender();
 }
@@ -394,7 +441,7 @@ onBeforeUnmount(() => {
     <div class="harness-3d-overlay">
       <strong>HARNESS · 3D</strong>
       <span>{{ displayCounts.nodes }} nodes · {{ displayCounts.edges }} links</span>
-      <small>拖动旋转 · 滚轮缩放 · 右键平移 · 点击节点查看证据</small>
+      <small>箭头表示因果方向 · 拖动旋转 · 滚轮缩放 · 点击查看证据</small>
     </div>
     <div class="harness-3d-controls">
       <button type="button" @click="focusSelected" :disabled="!selectedNodeId">定位选中</button>
