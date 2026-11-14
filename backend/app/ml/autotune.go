@@ -70,7 +70,7 @@ func (t *ModelTrainer) AutoTuneWithConfig(store *TrainingDataStore, cfg MLConfig
 		return nil, errors.New(msg)
 	}
 
-	trainSet, validationSet, _, validationRaw, err := PrepareAutoTuneSplit(labeled, validationRatio)
+	trainSet, validationSet, trainRaw, validationRaw, err := PrepareAutoTuneSplit(labeled, validationRatio)
 	if err != nil {
 		return nil, err
 	}
@@ -78,8 +78,8 @@ func (t *ModelTrainer) AutoTuneWithConfig(store *TrainingDataStore, cfg MLConfig
 	xValues := autoTuneAxisValuesWithRange(xAxis, gridSize, granularity, baseNumTrees, baseMaxDepth, baseMinSamplesLeaf, req.MinX, req.MaxX)
 	yValues := autoTuneAxisValuesWithRange(yAxis, gridSize, granularity, baseNumTrees, baseMaxDepth, baseMinSamplesLeaf, req.MinY, req.MaxY)
 	maxRequiredLeaf := autoTuneMaxInt(baseMinSamplesLeaf, maxAxisValue(xAxis, xValues, yAxis, yValues, "minSamplesLeaf"))
-	if len(labeled) < maxRequiredLeaf*10 {
-		msg := fmt.Sprintf("Insufficient labeled samples for tuning: need >=%d, have %d", maxRequiredLeaf*10, len(labeled))
+	if len(trainSet) < maxRequiredLeaf*10 {
+		msg := fmt.Sprintf("Insufficient training samples for tuning after holdout: need >=%d, have %d", maxRequiredLeaf*10, len(trainSet))
 		return nil, errors.New(msg)
 	}
 
@@ -140,7 +140,7 @@ func (t *ModelTrainer) AutoTuneWithConfig(store *TrainingDataStore, cfg MLConfig
 
 			switch mt {
 			case ModelRandomForest:
-				if len(labeled) < minLeaf*10 {
+				if len(trainSet) < minLeaf*10 {
 					done++
 					t.setTrainingProgress(float64(done) / float64(totalCombos))
 					if progressCb != nil {
@@ -150,6 +150,10 @@ func (t *ModelTrainer) AutoTuneWithConfig(store *TrainingDataStore, cfg MLConfig
 				}
 				seed := int64((yi+1)*100000 + (xi+1)*1000 + numTrees*31 + maxDepth*17 + minLeaf*13)
 				forest := BuildAutoTuneForest(trainSet, numTrees, maxDepth, minLeaf, seed)
+				// The runtime trainer prunes weak trees on the training
+				// partition before inference. Match that step for comparable
+				// parameter selection, without touching validation labels.
+				forest.Prune(trainSet)
 				trainAccuracy = EvaluateForest(forest, trainSet)
 				evalStart = time.Now()
 				validationAccuracy = EvaluateForest(forest, validationSet)
@@ -376,9 +380,12 @@ func (t *ModelTrainer) AutoTuneWithConfig(store *TrainingDataStore, cfg MLConfig
 
 			case ModelSVM, ModelPerceptron, ModelPassiveAggressive, ModelRidge:
 				W := make([][FeatureDim + 1]float64, 4)
+				// Compare candidates with reproducible initial weights instead
+				// of consuming process-global RNG state between grid cells.
+				linearRNG := rand.New(rand.NewSource(int64((yi+1)*100000 + (xi+1)*1000 + numTrees*31 + maxDepth*17 + minLeaf*13)))
 				for c := range W {
 					for d := range W[c] {
-						W[c][d] = (rand.Float64() - 0.5) * 0.01
+						W[c][d] = (linearRNG.Float64() - 0.5) * 0.01
 					}
 				}
 				lr := float64(numTrees) / 1000.0
@@ -401,13 +408,17 @@ func (t *ModelTrainer) AutoTuneWithConfig(store *TrainingDataStore, cfg MLConfig
 					loss = "pa"
 				}
 				if mt == ModelRidge {
-					RidgeFit(W, 4, labeled[:len(trainSet)], float64(numTrees)/100.0+0.1)
+					// Using labeled[:len(trainSet)] leaks validation rows: the
+					// grouped split shuffles membership, not the source slice.
+					RidgeFit(W, 4, trainRaw, float64(numTrees)/100.0+0.1)
 				} else {
-					labeledSubset := make([]TrainingSample, len(trainSet))
-					for i, s := range trainSet {
-						labeledSubset[i] = TrainingSample{Features: s.features, Label: s.label}
+					var classWeights []float64
+					if effectiveCfg.BalanceClasses {
+						// Tune with the same class weighting as production training.
+						_, labels := extractFeaturesLabels(trainRaw)
+						classWeights = computeClassWeights(labels, 4)
 					}
-					TrainSGD(W, 4, labeledSubset, lr, maxIter, C, loss, nil, t)
+					trainSGDWithRand(W, 4, trainRaw, lr, maxIter, C, loss, classWeights, t, linearRNG)
 				}
 				trainAccuracy = EvalLinearModel(W, 4, trainSet)
 				evalStart = time.Now()

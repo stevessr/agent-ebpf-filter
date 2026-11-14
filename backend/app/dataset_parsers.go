@@ -659,8 +659,12 @@ func remoteDatasetRecordFromMap(row map[string]any, rowIndex int, source string)
 }
 
 func buildRemoteDatasetRow(record remoteDatasetRecord, mode string, cleanSensitive bool) remoteDatasetRow {
+	return buildRemoteDatasetRowWithIdentity(record, mode, cleanSensitive, newDatasetIdentityMapper())
+}
+
+func buildRemoteDatasetRowWithIdentity(record remoteDatasetRecord, mode string, cleanSensitive bool, ids *datasetIdentityMapper) remoteDatasetRow {
 	if cleanSensitive {
-		record = sanitizeRemoteDatasetRecord(record)
+		record = sanitizeRemoteDatasetRecordWithIdentity(record, ids)
 	}
 	comm, args := behavior.NormalizeCommandInput(record.CommandLine, record.Comm, record.Args)
 	label := record.Label

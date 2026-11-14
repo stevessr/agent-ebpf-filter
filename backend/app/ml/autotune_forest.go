@@ -33,84 +33,30 @@ func BuildAutoTuneForest(trainSet []TrainSample, numTrees, maxDepth, minSamplesL
 		featureSampleCount = 1
 	}
 
+	if len(trainSet) == 0 {
+		// An empty training partition is not a fitted model; avoid Intn(0).
+		forest.Trees = nil
+		return forest
+	}
 	for ti := 0; ti < numTrees; ti++ {
 		bootstrap := make([]TrainSample, len(trainSet))
-		for i := range bootstrap {
-			bootstrap[i] = trainSet[rng.Intn(len(trainSet))]
-		}
-		nodes := buildAutoTuneTree(bootstrap, 0, maxDepth, minSamplesLeaf, featureSampleCount, rng)
+		// Match the promoted trainer's class-stratified sampling. The
+		// previous uniform bootstrap tuned a different model family and
+		// could miss rare BLOCK/ALERT observations entirely.
+		classStratifiedBootstrap(trainSet, bootstrap, rng)
+		nodes := buildTree(bootstrap, 0, maxDepth, minSamplesLeaf, featureSampleCount, rng)
 		forest.Trees[ti] = DecisionTree{Nodes: nodes}
 	}
 
+	// Leave the number of estimators intact here: incremental sweep callers
+	// slice this forest by prefix and require exactly numTrees entries.
+	// Grid evaluation prunes explicitly to match full production training.
 	forest.IsTrained = true
 	return forest
 }
 
+// buildAutoTuneTree is retained for the lightweight ensemble builder, but
+// delegates to the same tree builder as the production and tuning forests.
 func buildAutoTuneTree(samples []TrainSample, depth, maxDepth, minSamplesLeaf, featureSampleCount int, rng *rand.Rand) []DecisionNode {
-	if depth >= maxDepth || len(samples) < minSamplesLeaf*2 {
-		return []DecisionNode{{LeftChild: -1, RightChild: -1, LeafValue: majorityClass(samples)}}
-	}
-
-	allSame := true
-	firstLabel := samples[0].label
-	for _, s := range samples[1:] {
-		if s.label != firstLabel {
-			allSame = false
-			break
-		}
-	}
-	if allSame {
-		return []DecisionNode{{LeftChild: -1, RightChild: -1, LeafValue: float32(firstLabel)}}
-	}
-
-	best := findBestSplit(samples, minSamplesLeaf, featureSampleCount, rng)
-	if best.giniGain <= 0 {
-		return []DecisionNode{{LeftChild: -1, RightChild: -1, LeafValue: majorityClass(samples)}}
-	}
-
-	var leftSamples, rightSamples []TrainSample
-	for _, s := range samples {
-		if s.features[best.featureIdx] < best.threshold {
-			leftSamples = append(leftSamples, s)
-		} else {
-			rightSamples = append(rightSamples, s)
-		}
-	}
-	if len(leftSamples) == 0 || len(rightSamples) == 0 {
-		return []DecisionNode{{LeftChild: -1, RightChild: -1, LeafValue: majorityClass(samples)}}
-	}
-
-	leftNodes := buildAutoTuneTree(leftSamples, depth+1, maxDepth, minSamplesLeaf, featureSampleCount, rng)
-	rightNodes := buildAutoTuneTree(rightSamples, depth+1, maxDepth, minSamplesLeaf, featureSampleCount, rng)
-
-	leftOffset := 1
-	rightOffset := 1 + len(leftNodes)
-
-	root := DecisionNode{
-		FeatureIndex: uint8(best.featureIdx),
-		Threshold:    float32(best.threshold),
-		LeftChild:    int16(leftOffset),
-		RightChild:   int16(rightOffset),
-		LeafValue:    0,
-	}
-	nodes := []DecisionNode{root}
-
-	for i := range leftNodes {
-		n := &leftNodes[i]
-		if !n.IsLeaf() {
-			n.LeftChild += int16(leftOffset)
-			n.RightChild += int16(leftOffset)
-		}
-	}
-	nodes = append(nodes, leftNodes...)
-
-	for i := range rightNodes {
-		n := &rightNodes[i]
-		if !n.IsLeaf() {
-			n.LeftChild += int16(rightOffset)
-			n.RightChild += int16(rightOffset)
-		}
-	}
-	nodes = append(nodes, rightNodes...)
-	return nodes
+	return buildTree(samples, depth, maxDepth, minSamplesLeaf, featureSampleCount, rng)
 }

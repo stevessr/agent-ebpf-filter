@@ -27,6 +27,9 @@ type MLConfig struct {
 	MaxDepth                 int       `json:"maxDepth"`
 	MinSamplesLeaf           int       `json:"minSamplesLeaf"`
 	ValidationSplitRatio     float64   `json:"validationSplitRatio"`
+	// TrainingSeed=0 preserves nondeterministic online training; a nonzero
+	// seed makes offline model comparisons and candidate artifacts reproducible.
+	TrainingSeed             int64     `json:"trainingSeed,omitempty"`
 	BalanceClasses           bool      `json:"balanceClasses"`
 	EnsembleVoting           string    `json:"ensembleVoting,omitempty"`
 	LlmEnabled               bool      `json:"llmEnabled"`

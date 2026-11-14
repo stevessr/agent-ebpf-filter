@@ -1,0 +1,6 @@
+{
+  "name": "Renew Monitor",
+  "identifier": "dev.agentebpf.monitor",
+  "version": "0.1.0",
+  "description": "Read-only Agent eBPF monitoring companion built with MyGo Mobile"
+}

@@ -22,21 +22,60 @@ func run() error {
 	output := flag.String("output", "artifacts/decision-model.bin", "candidate model output path")
 	modelType := flag.String("model-type", "", "built-in model catalog type to train (default: "+defaults.ModelType+")")
 	numTrees := flag.Int("num-trees", 0, "first family knob, e.g. tree count for forests (0 = family default)")
-	maxDepth := flag.Int("max-depth", 0, "second family knob, e.g. max depth for forests (0 = family default)")
-	minSamplesLeaf := flag.Int("min-samples-leaf", 0, "third family knob, e.g. min samples per leaf for forests (0 = family default)")
+	seed := flag.Int64("seed", defaults.Seed, "deterministic offline training seed (recorded in candidate manifest)")
+	datasetFile := flag.String("dataset-file", "", "reviewed local JSONL corpus (candidate-only training)")
+	datasetSHA := flag.String("dataset-sha256", "", "required expected SHA-256 for local JSONL")
+	datasetLicense := flag.String("dataset-license", "", "required original license identifier for local JSONL")
+	testFile := flag.String("external-test-file", "", "independent reviewed JSONL test corpus (not used for training)")
+	testSHA := flag.String("external-test-sha256", "", "required SHA-256 of the external test corpus")
+	testLicense := flag.String("external-test-license", "", "independently declared license for the external test corpus")
+	maxDepth := flag.Int("max-depth", 0, "second family knob, e.g. forest max depth (0 = family default)")
+	minSamplesLeaf := flag.Int("min-samples-leaf", 0, "third family knob, e.g. forest minimum leaf size (0 = family default)")
 	flag.Parse()
 	if flag.NArg() != 0 {
 		return fmt.Errorf("unexpected positional arguments: %v", flag.Args())
 	}
+	if *testFile != "" && (*datasetFile == "" || *testSHA == "" || *testLicense == "") {
+		return fmt.Errorf("--external-test-file requires --dataset-file, --external-test-sha256 and --external-test-license")
+	}
+	if *testFile == "" && (*testSHA != "" || *testLicense != "") {
+		return fmt.Errorf("--external-test-sha256 and --external-test-license require --external-test-file")
+	}
 
-	report, err := app.TrainDecisionModelFromPublicDatasets(app.DefaultDecisionTrainingDatasets(), *output, app.DecisionTrainingHyperparameters{
+	sources := app.DefaultDecisionTrainingDatasets()
+	if *datasetFile != "" {
+		if *datasetSHA == "" || *datasetLicense == "" {
+			return fmt.Errorf("--dataset-file requires both --dataset-sha256 and --dataset-license")
+		}
+		sources = []app.DecisionTrainingDataset{{
+			Name: filepath.Base(*datasetFile), LocalPath: *datasetFile,
+			ExpectedSHA256: *datasetSHA, License: *datasetLicense,
+		}}
+	} else if *datasetSHA != "" || *datasetLicense != "" {
+		return fmt.Errorf("--dataset-sha256 and --dataset-license require --dataset-file")
+	}
+
+	report, err := app.TrainDecisionModelFromPublicDatasets(sources, *output, app.DecisionTrainingHyperparameters{
 		ModelType:      *modelType,
 		NumTrees:       *numTrees,
 		MaxDepth:       *maxDepth,
 		MinSamplesLeaf: *minSamplesLeaf,
+		Seed:           *seed,
 	})
 	if err != nil {
 		return err
+	}
+	if *testFile != "" {
+		evaluation, evalErr := app.EvaluateDecisionModelOnExternalHoldout(
+			*output,
+			app.DecisionTrainingDataset{Name: filepath.Base(*datasetFile), LocalPath: *datasetFile, ExpectedSHA256: *datasetSHA, License: *datasetLicense},
+			app.DecisionTrainingDataset{Name: filepath.Base(*testFile), LocalPath: *testFile, ExpectedSHA256: *testSHA, License: *testLicense},
+			report.ModelType,
+		)
+		if evalErr != nil {
+			return fmt.Errorf("external holdout: %w", evalErr)
+		}
+		report.ExternalTest = &evaluation
 	}
 
 	manifestPath := *output + ".manifest.json"
@@ -56,12 +95,9 @@ func run() error {
 
 	fmt.Printf("Candidate model saved: %s\n", report.ModelPath)
 	fmt.Printf("Training manifest saved: %s\n", manifestPath)
-	fmt.Printf("Model: %s numTrees=%d maxDepth=%d minSamplesLeaf=%d\n",
-		report.Hyperparameters.ModelType,
-		report.Hyperparameters.NumTrees,
-		report.Hyperparameters.MaxDepth,
-		report.Hyperparameters.MinSamplesLeaf,
-	)
+	fmt.Printf("Model: %s numTrees=%d maxDepth=%d minSamplesLeaf=%d seed=%d\n",
+		report.Hyperparameters.ModelType, report.Hyperparameters.NumTrees, report.Hyperparameters.MaxDepth,
+		report.Hyperparameters.MinSamplesLeaf, report.Hyperparameters.Seed)
 	fmt.Printf("Samples: %d (ALLOW=%d, BLOCK=%d); validation accuracy=%.3f balanced=%.3f block-recall=%.3f; runtime reload=%t\n",
 		report.Samples,
 		report.LabelCounts["ALLOW"],
@@ -71,5 +107,20 @@ func run() error {
 		report.ValidationBlockRecall,
 		report.ArtifactReloadVerified,
 	)
+	fmt.Printf("Validation: BLOCK precision=%.3f; benign FPR=%.3f; macro-F1=%.3f (internal grouped holdout only)\n",
+		report.ValidationBlockPrecision, report.ValidationBenignFPR, report.ValidationMacroF1)
+	if report.ExternalTest != nil {
+		fmt.Printf("External test: n=%d accuracy=%.3f balanced=%.3f BLOCK recall=%.3f precision=%.3f benign FPR=%.3f macro-F1=%.3f\n",
+			report.ExternalTest.Samples, report.ExternalTest.Accuracy,
+			report.ExternalTest.Balanced, report.ExternalTest.BlockRecall,
+			report.ExternalTest.BlockPrecision, report.ExternalTest.BenignFPR,
+			report.ExternalTest.MacroF1)
+		fmt.Printf("External 95%% Wilson row-level bounds: BLOCK recall >= %.3f, benign FPR <= %.3f (correlated scenarios reduce effective support)\n",
+			report.ExternalTest.BlockRecallLower95, report.ExternalTest.BenignFPRUpper95)
+		fmt.Printf("External independent scenario/run components: %d (BLOCK groups=%d, benign groups=%d); strict group BLOCK recall=%.3f [lower95=%.3f], group benign FPR=%.3f [upper95=%.3f]\n",
+			report.ExternalTest.IndependentGroups, report.ExternalTest.BlockGroups, report.ExternalTest.BenignGroups,
+			report.ExternalTest.GroupBlockRecall, report.ExternalTest.GroupBlockRecallLower95,
+			report.ExternalTest.GroupBenignFPR, report.ExternalTest.GroupBenignFPRUpper95)
+	}
 	return nil
 }

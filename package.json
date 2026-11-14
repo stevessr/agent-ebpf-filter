@@ -5,5 +5,12 @@
   "scripts": {},
   "devDependencies": {
     "nx": "^22.7.12"
+  },
+  "overrides": {
+    "axios": "1.21.0",
+    "brace-expansion": "5.0.12",
+    "follow-redirects": "1.16.2",
+    "minimatch": "11.0.5",
+    "smol-toml": "1.9.1"
   }
 }

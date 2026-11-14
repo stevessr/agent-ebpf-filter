@@ -135,3 +135,17 @@ func catalogVariantWithDistinctKnobs(t *testing.T) ml.ModelType {
 	t.Skip("no catalog variant with distinct preset knobs")
 	return ""
 }
+
+func TestOfflineTrainingSeedIsRecordedAndDeterministic(t *testing.T) {
+	defaults := DefaultDecisionTrainingHyperparameters()
+	if defaults.Seed == 0 {
+		t.Fatal("offline candidate default seed must be nonzero")
+	}
+	config, values, err := resolveDecisionTrainingConfig(DecisionTrainingHyperparameters{Seed: 12345})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if values.Seed != 12345 || config.TrainingSeed != 12345 {
+		t.Fatalf("explicit offline seed lost: config=%+v values=%+v", config.TrainingSeed, values)
+	}
+}

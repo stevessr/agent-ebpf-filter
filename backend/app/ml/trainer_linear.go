@@ -18,7 +18,8 @@ func (t *ModelTrainer) trainSVM(store *TrainingDataStore, cfg MLConfig) (Model, 
 	if len(labeled) < 10 {
 		return nil, TrainResult{Error: "need >=10 labeled samples"}
 	}
-	trainSet, validationSet, trainRaw, validationRaw, err := PrepareAutoTuneSplit(labeled, cfg.ValidationSplitRatio)
+	// Never use holdout observations to fit weights or class priors.
+	trainSet, valSet, trainRaw, valRaw, err := PrepareAutoTuneSplit(labeled, cfg.ValidationSplitRatio)
 	if err != nil {
 		return nil, TrainResult{Error: err.Error()}
 	}
@@ -49,15 +50,10 @@ func (t *ModelTrainer) trainSVM(store *TrainingDataStore, cfg MLConfig) (Model, 
 	TrainSGD(m.Weights, m.Classes, trainRaw, lr, maxIter, m.C, "hinge", classWeights, t)
 	t.Logf("SVM 训练完成：lr=%.4f, iter=%d", lr, maxIter)
 
-	trainAcc := EvalLinearModel(m.Weights, m.Classes, trainSet)
-	valAcc := EvalLinearModel(m.Weights, m.Classes, validationSet)
-	t.finishMetrics(valAcc, trainAcc, valAcc, len(labeled), len(trainSet), len(validationSet))
-	t.setLastSplit(trainRaw, validationRaw)
-	return m, TrainResult{
-		Accuracy: valAcc, TrainAccuracy: trainAcc, ValidationAccuracy: valAcc,
-		NumSamples: len(labeled), TrainSamples: len(trainSet), ValidationSamples: len(validationSet),
-	}
+	return m, t.finishLinearHoldout(m.Weights, m.Classes, len(labeled), trainSet, valSet, trainRaw, valRaw)
 }
+
+// ── Ridge Classifier ───────────────────────────────────────────────
 
 func (t *ModelTrainer) trainRidge(store *TrainingDataStore, cfg MLConfig) (Model, TrainResult) {
 	t.acquire()
@@ -69,7 +65,8 @@ func (t *ModelTrainer) trainRidge(store *TrainingDataStore, cfg MLConfig) (Model
 	if len(labeled) < 10 {
 		return nil, TrainResult{Error: "need >=10 labeled samples"}
 	}
-	trainSet, validationSet, trainRaw, validationRaw, err := PrepareAutoTuneSplit(labeled, cfg.ValidationSplitRatio)
+	// Never use holdout observations to fit weights or class priors.
+	trainSet, valSet, trainRaw, valRaw, err := PrepareAutoTuneSplit(labeled, cfg.ValidationSplitRatio)
 	if err != nil {
 		return nil, TrainResult{Error: err.Error()}
 	}
@@ -85,15 +82,10 @@ func (t *ModelTrainer) trainRidge(store *TrainingDataStore, cfg MLConfig) (Model
 	RidgeFit(m.Weights, m.Classes, trainRaw, alpha)
 
 	t.Logf("Ridge 训练完成：alpha=%.4f", alpha)
-	trainAcc := EvalLinearModel(m.Weights, m.Classes, trainSet)
-	valAcc := EvalLinearModel(m.Weights, m.Classes, validationSet)
-	t.finishMetrics(valAcc, trainAcc, valAcc, len(labeled), len(trainSet), len(validationSet))
-	t.setLastSplit(trainRaw, validationRaw)
-	return m, TrainResult{
-		Accuracy: valAcc, TrainAccuracy: trainAcc, ValidationAccuracy: valAcc,
-		NumSamples: len(labeled), TrainSamples: len(trainSet), ValidationSamples: len(validationSet),
-	}
+	return m, t.finishLinearHoldout(m.Weights, m.Classes, len(labeled), trainSet, valSet, trainRaw, valRaw)
 }
+
+// ── Perceptron ─────────────────────────────────────────────────────
 
 func (t *ModelTrainer) trainPerceptron(store *TrainingDataStore, cfg MLConfig) (Model, TrainResult) {
 	t.acquire()
@@ -105,7 +97,8 @@ func (t *ModelTrainer) trainPerceptron(store *TrainingDataStore, cfg MLConfig) (
 	if len(labeled) < 10 {
 		return nil, TrainResult{Error: "need >=10 labeled samples"}
 	}
-	trainSet, validationSet, trainRaw, validationRaw, err := PrepareAutoTuneSplit(labeled, cfg.ValidationSplitRatio)
+	// Never use holdout observations to fit weights or class priors.
+	trainSet, valSet, trainRaw, valRaw, err := PrepareAutoTuneSplit(labeled, cfg.ValidationSplitRatio)
 	if err != nil {
 		return nil, TrainResult{Error: err.Error()}
 	}
@@ -136,15 +129,10 @@ func (t *ModelTrainer) trainPerceptron(store *TrainingDataStore, cfg MLConfig) (
 	TrainSGD(m.Weights, m.Classes, trainRaw, lr, maxIter, 0, "perceptron", classWeights, t)
 	t.Logf("Perceptron 训练完成：lr=%.4f, iter=%d", lr, maxIter)
 
-	trainAcc := EvalLinearModel(m.Weights, m.Classes, trainSet)
-	valAcc := EvalLinearModel(m.Weights, m.Classes, validationSet)
-	t.finishMetrics(valAcc, trainAcc, valAcc, len(labeled), len(trainSet), len(validationSet))
-	t.setLastSplit(trainRaw, validationRaw)
-	return m, TrainResult{
-		Accuracy: valAcc, TrainAccuracy: trainAcc, ValidationAccuracy: valAcc,
-		NumSamples: len(labeled), TrainSamples: len(trainSet), ValidationSamples: len(validationSet),
-	}
+	return m, t.finishLinearHoldout(m.Weights, m.Classes, len(labeled), trainSet, valSet, trainRaw, valRaw)
 }
+
+// ── Passive Aggressive ─────────────────────────────────────────────
 
 func (t *ModelTrainer) trainPA(store *TrainingDataStore, cfg MLConfig) (Model, TrainResult) {
 	t.acquire()
@@ -156,7 +144,8 @@ func (t *ModelTrainer) trainPA(store *TrainingDataStore, cfg MLConfig) (Model, T
 	if len(labeled) < 10 {
 		return nil, TrainResult{Error: "need >=10 labeled samples"}
 	}
-	trainSet, validationSet, trainRaw, validationRaw, err := PrepareAutoTuneSplit(labeled, cfg.ValidationSplitRatio)
+	// Never use holdout observations to fit weights or class priors.
+	trainSet, valSet, trainRaw, valRaw, err := PrepareAutoTuneSplit(labeled, cfg.ValidationSplitRatio)
 	if err != nil {
 		return nil, TrainResult{Error: err.Error()}
 	}
@@ -187,20 +176,32 @@ func (t *ModelTrainer) trainPA(store *TrainingDataStore, cfg MLConfig) (Model, T
 	TrainSGD(m.Weights, m.Classes, trainRaw, 1.0, maxIter, C, "pa", classWeights, t)
 	t.Logf("Passive-Aggressive 训练完成：C=%.2f, iter=%d", C, maxIter)
 
-	trainAcc := EvalLinearModel(m.Weights, m.Classes, trainSet)
-	valAcc := EvalLinearModel(m.Weights, m.Classes, validationSet)
-	t.finishMetrics(valAcc, trainAcc, valAcc, len(labeled), len(trainSet), len(validationSet))
-	t.setLastSplit(trainRaw, validationRaw)
-	return m, TrainResult{
+	return m, t.finishLinearHoldout(m.Weights, m.Classes, len(labeled), trainSet, valSet, trainRaw, valRaw)
+}
+
+// finishLinearHoldout reports genuine out-of-sample metrics and retains the
+// exact rows used for training/validation for security diagnostics. The model
+// itself is fitted on trainRaw only; valRaw is never used for optimization.
+func (t *ModelTrainer) finishLinearHoldout(weights [][FeatureDim + 1]float64, classes, total int, trainSet, valSet []TrainSample, trainRaw, valRaw []TrainingSample) TrainResult {
+	trainAcc := EvalLinearModel(weights, classes, trainSet)
+	valAcc := EvalLinearModel(weights, classes, valSet)
+	t.finishMetrics(valAcc, trainAcc, valAcc, total, len(trainSet), len(valSet))
+	t.setLastSplit(trainRaw, valRaw)
+	return TrainResult{
 		Accuracy: valAcc, TrainAccuracy: trainAcc, ValidationAccuracy: valAcc,
-		NumSamples: len(labeled), TrainSamples: len(trainSet), ValidationSamples: len(validationSet),
+		NumSamples: total, TrainSamples: len(trainSet), ValidationSamples: len(valSet),
 	}
 }
 
 // ── SGD Training Helper ─────────────────────────────────────────────
 
 func TrainSGD(W [][FeatureDim + 1]float64, nClasses int, labeled []TrainingSample, lr float64, maxIter int, C float64, loss string, classWeights []float64, t *ModelTrainer) {
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	trainSGDWithRand(W, nClasses, labeled, lr, maxIter, C, loss, classWeights, t, rand.New(rand.NewSource(time.Now().UnixNano())))
+}
+
+// trainSGDWithRand lets AutoTune use a per-cell RNG for fair, repeatable
+// comparisons, while the public training entry point retains its random seed.
+func trainSGDWithRand(W [][FeatureDim + 1]float64, nClasses int, labeled []TrainingSample, lr float64, maxIter int, C float64, loss string, classWeights []float64, t *ModelTrainer, rng *rand.Rand) {
 	for iter := 0; iter < maxIter; iter++ {
 		if t.IsCancelled() {
 			return

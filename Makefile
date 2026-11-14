@@ -7,6 +7,8 @@ RENEW_DESKTOP_DIR ?= desktop/renew
 
 # Get a writable Go workspace for helper binaries and the module cache.
 GO ?= $(shell command -v go 2>/dev/null || command -v /usr/local/go/bin/go 2>/dev/null || printf go)
+# Keep protobuf code generation aligned with the pinned backend module and CI.
+PROTOC_GEN_GO_VERSION ?= v1.36.12
 GO_PATH_DIR := $(if $(filter /%,$(GO)),$(patsubst %/,%,$(dir $(GO))),)
 GO_SAFE_GOPATH := $(shell \
 	p="$$($(GO) env GOPATH 2>/dev/null || true)"; \
@@ -271,11 +273,11 @@ predev-check: ## Verify development dependencies without installing anything
 	@test -x frontend/node_modules/.bin/pbjs || (echo "Missing frontend/node_modules. Run 'make predev' first." && exit 1)
 
 predev-go:
-	@which protoc-gen-go > /dev/null || ( \
-		echo "Installing protoc-gen-go into $(GOPATH)/bin..."; \
+	@if [ "$(protoc-gen-go --version 2>/dev/null || true)" != "protoc-gen-go $(PROTOC_GEN_GO_VERSION)" ]; then \
+		echo "Installing protoc-gen-go $(PROTOC_GEN_GO_VERSION) into $(GOPATH)/bin..."; \
 		mkdir -p "$(GOPATH)/bin" "$(GOPATH)/pkg/mod"; \
-		$(GO) install google.golang.org/protobuf/cmd/protoc-gen-go@latest; \
-	)
+		$(GO) install google.golang.org/protobuf/cmd/protoc-gen-go@$(PROTOC_GEN_GO_VERSION); \
+	fi
 
 predev-python:
 	@if [ ! -x "adapters/python/.venv/bin/python" ]; then \
