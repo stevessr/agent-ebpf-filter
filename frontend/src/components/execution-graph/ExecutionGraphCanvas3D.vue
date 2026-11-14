@@ -5,7 +5,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { ExecutionGraphEdge, ExecutionGraphNode } from "../../types/executionGraph";
 import { buildDisplayGraph } from "./useDisplayGraphBuilder";
 import { kindColor, nodeRadius, truncate } from "./useExecutionGraphHelpers";
-import { harnessLabelNodes, harnessPosition } from "./harness3dLayout";
+import { harnessLabelNodes, harnessPosition, harnessTopologySignature } from "./harness3dLayout";
 
 const props = withDefaults(defineProps<{
   nodes: ExecutionGraphNode[];
@@ -111,15 +111,6 @@ function updateSelection() {
   rebuildLabels();
   requestRender();
 }
-function graphSignature(nodes: ExecutionGraphNode[], edges: ExecutionGraphEdge[]): string {
-  // Include labels/risks to avoid stale overlays on live metadata updates,
-  // without rebuilding GPU objects on truly identical snapshots.
-  return nodes.map((node) =>
-    [node.id, node.kind, node.label, node.riskScore,
-     node.metadata?.sourceNodeId, node.metadata?.eventCount].join(":"),
-  ).join("\\n") + "|" +
-    edges.map((edge) => [edge.id, edge.kind, edge.source, edge.target].join(":")).join("\\n");
-}
 function disposeGroup(group: THREE.Group | null) {
   if (!group) return;
   group.traverse((object) => {
@@ -136,7 +127,7 @@ function redraw() {
   const graph = buildDisplayGraph(props.nodes, props.edges, {
     preserveEvents: props.preserveEvents,
   });
-  const signature = graphSignature(graph.nodes, graph.edges);
+  const signature = harnessTopologySignature(graph.nodes, graph.edges);
   if (signature === lastGraphSignature && graphGroup) return;
   lastGraphSignature = signature;
   disposeGroup(graphGroup);
