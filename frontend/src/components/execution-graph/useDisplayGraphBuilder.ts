@@ -161,6 +161,19 @@ const normalizeProcessNodes = (
   edges: ExecutionGraphEdge[],
 ): DisplayGraph => {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  // PID placeholders may have thousands of incident edges; build the
+  // adjacency list once instead of scanning every edge for every placeholder.
+  const adjacentByNode = new Map<string, string[]>();
+  for (const edge of edges) {
+    if (nodeById.get(edge.source)?.kind !== "process" ||
+        nodeById.get(edge.target)?.kind !== "process") continue;
+    const forward = adjacentByNode.get(edge.source) ?? [];
+    forward.push(edge.target);
+    adjacentByNode.set(edge.source, forward);
+    const backward = adjacentByNode.get(edge.target) ?? [];
+    backward.push(edge.source);
+    adjacentByNode.set(edge.target, backward);
+  }
   const processByProgram = new Map<string, ExecutionGraphNode>();
   const canonicalIdBySourceId = new Map<string, string>();
   const normalizedNodes: ExecutionGraphNode[] = [];
@@ -185,9 +198,7 @@ const normalizeProcessNodes = (
 
   nodes.forEach((node) => {
     if (node.kind !== "process" || !isPidOnlyProcessNode(node)) return;
-    const adjacentProcessId = edges
-      .filter((edge) => edge.source === node.id || edge.target === node.id)
-      .map((edge) => (edge.source === node.id ? edge.target : edge.source))
+    const adjacentProcessId = (adjacentByNode.get(node.id) ?? [])
       .find((id) => {
         const adjacent = nodeById.get(id);
         return (
@@ -227,13 +238,31 @@ const normalizeProcessNodes = (
  * policy decisions and risky syscalls are distinct pieces of evidence, even
  * when their labels happen to match.
  */
+const ROUTINE_AGGREGATE_TYPES = new Set([
+  "getpid", "getppid", "gettid", "clock_gettime", "gettimeofday",
+  "futex", "sched_yield", "nanosleep", "rt_sigprocmask",
+  "epoll_wait", "epoll_pwait", "poll", "ppoll",
+]);
+const DECISION_EDGE_KINDS = new Set([
+  "allowed", "decided", "alerted", "blocked", "rewritten",
+  "denied", "rejected",
+]);
+
 const canAggregateEvent = (node: ExecutionGraphNode): boolean => {
-  if (!["syscall", "hook_event", "wrapper_event"].includes(node.kind)) return false;
+  // Do not collapse tool, hook, file, network or potentially mutating
+  // syscalls: each one is a separate forensic observation.
+  if (node.kind !== "syscall") return false;
   const m = node.metadata ?? {};
-  const risk = Math.max(node.riskScore ?? 0, Number(m.riskScore ?? m.risk_score ?? 0) || 0);
+  const name = (m.type || m.syscall || node.label).trim().toLowerCase();
+  if (!ROUTINE_AGGREGATE_TYPES.has(name)) return false;
+  const risk = Math.max(
+    node.riskScore ?? 0,
+    Number(m.riskScore ?? m.risk_score ?? 0) || 0,
+  );
   if (risk >= 60) return false;
   return !/BLOCK|DENY|ALERT|REWRITE|REJECT|QUARANTINE/i.test(
-    [m.decision, m.action, m.verdict, m.policyDecision, m.policy_decision].filter(Boolean).join(" "),
+    [m.decision, m.action, m.verdict, m.policyDecision, m.policy_decision]
+      .filter(Boolean).join(" "),
   );
 };
 
@@ -265,6 +294,22 @@ export const buildDisplayGraph = (
       eventToProcess.set(target.id, source.id);
   });
 
+  // Even an ALLOW decision is event-specific evidence. A shared aggregate
+  // would otherwise make several unrelated decisions appear to come from
+  // the same syscall. Preserve all nodes touching a policy edge.
+  const policyLinked = new Set<string>();
+  for (const edge of normalizedGraph.edges) {
+    const source = sourceNodes.get(edge.source);
+    const target = sourceNodes.get(edge.target);
+    if (
+      DECISION_EDGE_KINDS.has(edge.kind) ||
+      source?.kind === "policy_alert" || source?.kind === "policy_decision" ||
+      target?.kind === "policy_alert" || target?.kind === "policy_decision"
+    ) {
+      policyLinked.add(edge.source);
+      policyLinked.add(edge.target);
+    }
+  }
   const aggregateByKey = new Map<
     string,
     { node: ExecutionGraphNode; eventIds: string[]; sourceIds: string[] }
@@ -272,7 +317,7 @@ export const buildDisplayGraph = (
   const aggregateIdByEventId = new Map<string, string>();
   normalizedGraph.nodes.forEach((node) => {
     const processId = eventToProcess.get(node.id);
-    if (!processId || !canAggregateEvent(node)) return;
+    if (!processId || policyLinked.has(node.id) || !canAggregateEvent(node)) return;
     const processNode = sourceNodes.get(processId);
     const pLabel = processDisplayLabel(processNode);
     const eventType = node.metadata?.type || node.label || node.kind;
@@ -287,7 +332,9 @@ export const buildDisplayGraph = (
       );
       return;
     }
-    const aggregateId = `agg:${node.kind}:${stableHash(key).toString(16)}`;
+    // Dual fingerprints lower the chance of two different aggregations
+    // colliding when many traces share an event type.
+    const aggregateId = `agg:${node.kind}:${stableHash(key).toString(16)}:${stableHash(key.split("").reverse().join("")).toString(16)}`;
     aggregateByKey.set(key, {
       eventIds: [node.id],
       sourceIds: [node.id],
@@ -313,7 +360,10 @@ export const buildDisplayGraph = (
     node.subtitle = `${node.subtitle || "events"} · ${eventIds.length} events`;
     node.metadata = {
       ...(node.metadata ?? {}),
-      sourceNodeId: sourceIds[0],
+      sourceNodeId: sourceIds.reduce(
+        (smallest, id) => id.localeCompare(smallest) < 0 ? id : smallest,
+        sourceIds[0],
+      ),
       eventCount: String(eventIds.length),
     };
   });
