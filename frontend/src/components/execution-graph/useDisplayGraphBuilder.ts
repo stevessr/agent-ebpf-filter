@@ -280,8 +280,12 @@ const resourceFingerprint = (node: ExecutionGraphNode): string => {
 export const buildDisplayGraph = (
   rawNodes: ExecutionGraphNode[],
   rawEdges: ExecutionGraphEdge[],
+  options: { preserveEvents?: boolean } = {},
 ): DisplayGraph => {
   const normalizedGraph = normalizeProcessNodes(rawNodes, rawEdges);
+  // "Full evidence" is genuinely unaggregated. Retain the original syscall
+  // ID so a policy investigator can select and correlate each occurrence.
+  if (options.preserveEvents) return normalizedGraph;
   const sourceNodes = new Map(
     normalizedGraph.nodes.map((node) => [node.id, node]),
   );
