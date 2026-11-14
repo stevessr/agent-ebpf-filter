@@ -131,7 +131,7 @@ export function isEvidenceCritical(node: ExecutionGraphNode): boolean {
   if (returnValue !== undefined && returnValue !== "" &&
       Number.isFinite(Number(returnValue)) && Number(returnValue) < 0) return true;
   // Some kernels/transport versions only expose errors in extraInfo.
-  if (/\\b(?:errno|eacces|eperm|error_code|permission denied)\\s*[=:]\\s*(?!0\\b|none\\b|ok\\b)[a-z0-9_-]+/i.test(m.extraInfo ?? "")) {
+  if (/\b(?:errno|eacces|eperm|error_code|permission denied)\s*[=:]\s*(?!0\b|none\b|ok\b)[a-z0-9_-]+/i.test(m.extraInfo ?? "")) {
     return true;
   }
   return false;
