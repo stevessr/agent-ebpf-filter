@@ -85,6 +85,26 @@ describe("AgentSight Harness capture to causal topology", () => {
     expect(graph.nodes.filter((n) => n.metadata?.sourceNodeId)).toHaveLength(2);
   });
 
+  test("routine system metrics collapse in the graph while alerts remain visible", () => {
+    const samples = [
+      event("normal-metric", {
+        source: "system",
+        eventType: "system_metrics",
+        data: { type: "system_metrics", alert: false },
+      }),
+      event("cpu-alert", {
+        source: "system",
+        eventType: "system_metrics",
+        data: { type: "system_metrics", alert: true },
+      }),
+    ];
+    const graph = buildHarnessCaptureGraph(samples);
+    const filtered = filterPresentationNoise(graph.nodes, graph.edges, "balanced");
+    expect(filtered.hiddenByReason["routine-telemetry"]).toBe(1);
+    expect(filtered.nodes.some((n) => n.metadata?.sourceNodeId === captureEventKey(samples[1]))).toBe(true);
+    expect(graph.nodes.some((n) => n.metadata?.sourceNodeId === captureEventKey(samples[0]))).toBe(true);
+  });
+
   test("retains high-risk early records when bounded and reports omissions", () => {
     const records: AgentSightEvent[] = [
       event("alert-old", {
