@@ -49,13 +49,20 @@ def event_summary(record: dict) -> dict[str, object]:
 
 
 def captured_path_variants(path: str) -> tuple[str, ...]:
-    # Match the current standard rule, which drops the first component below $HOME.
+    """Match canonical paths after documented standard home-path redaction.
+
+    The backend maps /home/<user>/work/... to ~/work/...; some older
+    collectors omit the first home-relative component. Both retain the
+    full marker filename, unlike basename-only matching.
+    """
     home = os.path.expanduser("~").rstrip(os.sep)
     if home and path.startswith(home + os.sep):
-        relative = path[len(home) + 1 :].split(os.sep, 1)
-        redacted_tail = relative[1] if len(relative) == 2 else ""
-        redacted_path = f"~{os.sep}{redacted_tail}" if redacted_tail else "~"
-        return path, redacted_path
+        relative = path[len(home) + 1 :]
+        variants = [path, f"~{os.sep}{relative}"]
+        parts = relative.split(os.sep, 1)
+        if len(parts) == 2:
+            variants.append(f"~{os.sep}{parts[1]}")
+        return tuple(dict.fromkeys(variants))
     return (path,)
 
 
