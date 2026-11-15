@@ -31,6 +31,29 @@ function text(value: unknown, max = 160): string {
   return String(value).trim().slice(0, max);
 }
 
+/**
+ * Endpoint labels are for topology, not raw forensics. Strip URL userinfo,
+ * query strings and fragments that may embed API keys or bearer tokens.
+ * The original destination remains untouched in AgentSight event details.
+ */
+function safeEndpoint(value: unknown): string {
+  const raw = text(value, 256);
+  if (!raw) return "";
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(raw)) {
+    try {
+      const parsed = new URL(raw);
+      parsed.username = "";
+      parsed.password = "";
+      parsed.search = "";
+      parsed.hash = "";
+      return text(parsed.toString(), 256);
+    } catch {
+      // Treat malformed destinations as opaque and redact conservatively.
+    }
+  }
+  return raw.replace(/^[^/@\s]+@/, "").split(/[?#]/, 1)[0];
+}
+
 function riskOf(data: Record<string, any>): number {
   const value = Number(data.riskScore ?? data.risk_score ?? 0);
   return Number.isFinite(value) ? Math.max(0, value) : 0;
@@ -148,8 +171,8 @@ export function buildHarnessCaptureGraph(
     const decision = decisionOf(data);
     const risk = riskOf(data);
     const path = text(data.path ?? data.filepath ?? data.file_path, 500);
-    const endpoint = text(data.host ?? data.domain ?? data.net_endpoint ??
-      data.netEndpoint ?? data.endpoint, 256);
+    const endpoint = safeEndpoint(data.host ?? data.domain ?? data.net_endpoint ??
+      data.netEndpoint ?? data.endpoint);
     const kind = eventKind(event);
 
     addNode({
