@@ -56,9 +56,11 @@ try {
       });
     }
     await page.routeWebSocket("**/ws/**", () => {});
+    let feedGraph = null;
     await page.routeWebSocket("**/ws/events/graph*", (socket) => {
+      feedGraph = (graph) => socket.send(JSON.stringify(graph));
       // Let the Vue client install its onmessage listener before delivery.
-      setTimeout(() => socket.send(JSON.stringify(fixture)), 500);
+      setTimeout(() => feedGraph?.(fixture), 500);
     });
     try {
       await page.goto(new URL("/execution-graph/topology", base).toString(), {
@@ -120,11 +122,53 @@ try {
         document.querySelectorAll(".execution-graph-svg g.execution-node").length === 4,
       null, { timeout: 15000 });
 
+      let stress = null;
+      if (!disabledWebGL && hasWebGLCanvas) {
+        // Exercise instanced geometry, directional links and live socket
+        // updates with a bounded 1000-event snapshot on SwiftShader.
+        await page.getByText("3D 行为图谱", { exact: true }).first().click();
+        await page.locator(".harness-3d").scrollIntoViewIfNeeded();
+        const stressFixture = {
+          eventCount: 1000, source: "stress",
+          nodes: [
+            fixture.nodes[0], fixture.nodes[1],
+            ...Array.from({ length: 1000 }, (_, i) => ({
+              id: "evt:stress:" + i,
+              kind: "syscall",
+              label: "write",
+              riskScore: i % 100 === 0 ? 90 : 0,
+              metadata: { type: "write", path: "/tmp/case-" + i },
+            })),
+          ],
+          edges: [
+            { id: "run-process", source: "run:demo", target: "proc:42", kind: "contains" },
+            ...Array.from({ length: 1000 }, (_, i) => ({
+              id: "stress-" + i, source: "proc:42",
+              target: "evt:stress:" + i, kind: "observed",
+            })),
+          ],
+        };
+        const started = Date.now();
+        assert(feedGraph, "graph WebSocket fixture disconnected before stress update");
+        feedGraph(stressFixture);
+        await page.waitForFunction(() =>
+          document.querySelector(".harness-3d-overlay")?.textContent?.includes("1002 nodes"),
+        null, { timeout: 30000 });
+        stress = {
+          nodes: stressFixture.nodes.length,
+          edges: stressFixture.edges.length,
+          elapsedMs: Date.now() - started,
+          jsHeapUsedBytes: (await page.metrics()).JSHeapUsedSize,
+          renderer: "Chromium headless SwiftShader (software GPU)",
+        };
+        await page.screenshot({ path: path.join(outdir, "harness-webgl-1000-events.png") });
+      }
+
       const name = disabledWebGL ? "harness-webgl-fallback" : "harness-gpu";
       await page.screenshot({ path: path.join(outdir, name + ".png") });
       assert.deepEqual(errors, [], `browser page errors: ${errors.join(" | ")}`);
       results.push({ mode: name, rendered: hasWebGLCanvas ? "webgl" : "svg",
-        nodes: 4, fallbackVerified: disabledWebGL });
+        nodes: 4, fallbackVerified: disabledWebGL, stress });
     } catch (error) {
       await page.screenshot({
         path: path.join(outdir, disabledWebGL
