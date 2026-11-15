@@ -191,7 +191,15 @@ def main() -> int:
                 cwd = summary.get("cwd")
                 if isinstance(cwd, str) and any(candidate in cwd for candidate in workspace_candidates):
                     last_workspace_events.append(summary)
-            matched = match_marker_events(events, expected)
+            snapshot_matches = match_marker_events(events, expected)
+            # Recent records form a rolling window. Preserve verified kernel
+            # evidence across polls; a marker need not remain in every later
+            # window after high-frequency runtime activity evicts it.
+            for path in expected:
+                if not matched[path] and snapshot_matches[path]:
+                    # The first proven observation is sufficient for this
+                    # binary capture assertion, and cannot be double-counted.
+                    matched[path] = snapshot_matches[path][:1]
             last_missing = [path for path in expected if not matched[path]]
             last_error = None
             if not last_missing:
