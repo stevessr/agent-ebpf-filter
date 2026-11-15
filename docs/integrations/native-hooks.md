@@ -219,7 +219,7 @@ Pi/Oh My Pi extension 当前上报 `session_start`、`tool_call` 和 `tool_resul
 - **DSH `dsh-exec`** 只拦截 Harness subprocess provider 管辖的 `spawn` / `spawnTerminal`；不声称覆盖全部 `run_code` 直接文件操作。
 - **远端 Code Execution** 的容器内部 syscall 不发生在本机，不能虚构为本机 eBPF 事件；只能关联本机能够实际观察的网络与 Hook 信号。
 
-为让新插件生效，需要重新安装/刷新 **DSH native hook**，重启 dsh 并触发一次 `run_code`（包含一个实际进入调度器的子工具调用）。可分别验证 `tool_call`、`ptc_dispatch_start`、`ptc_dispatch`、`tool_result` 事件，按 session、父调用摘要和子调用 ID 做关联。没有子调用事件不代表“零风险”或“全覆盖”。
+为让新插件生效，需要重新安装/刷新 **DSH native hook**，重启 dsh 并触发一次 `run_code`（包含一个实际进入调度器的子工具调用）。可分别验证 `tool_call`、`ptc_dispatch_start`、`ptc_dispatch`、`tool_result` 事件，按 session、父调用摘要和子调用 ID 做关联。没有子调用事件不代表“零风险”或“全覆盖”。DSH relay 对突发 PTC 事件使用 256 项有界待发送队列与最多 8 个并行 relay；发生溢出时另发 `telemetry_dropped`，携带 `dropped_events` 计数，显式标记审计缺口。
 
 ---
 
