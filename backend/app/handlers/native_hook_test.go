@@ -134,15 +134,16 @@ func TestNativeCodeModePTCSubcallsRetainOnlyHashedParent(t *testing.T) {
 		"hook_event_name": "ptc_dispatch_start",
 		"tool_name": "file_write",
 		"parent_tool_call_id": "opaque-parent:run:1",
+		"root_tool_call_id": "opaque-root:run:1",
 		"tool_call_id": "opaque-parent:run:1:ptc:2",
 	}
 	extra := buildNativeHookExtraInfo(payload, "ptc_dispatch_start", "file_write")
-	for _, want := range []string{"execution_mode=code_mode", "execution_engine=dsh-ptc", "execution_layer=nested", "parent_call_digest=sha256:"} {
+	for _, want := range []string{"execution_mode=code_mode", "execution_engine=dsh-ptc", "execution_layer=nested", "parent_call_digest=sha256:", "root_call_digest=sha256:"} {
 		if !strings.Contains(extra, want) {
 			t.Fatalf("missing %q in %q", want, extra)
 		}
 	}
-	if strings.Contains(extra, "opaque-parent") {
+	if strings.Contains(extra, "opaque-parent") || strings.Contains(extra, "opaque-root") {
 		t.Fatalf("raw opaque parent call ID leaked: %q", extra)
 	}
 	if !isNativeNestedCodeModeEvent("ptc_dispatch") || isNativeNestedCodeModeEvent("tool_call") {
@@ -172,5 +173,15 @@ func TestNativeCodeModeSubCallIDHashIsStableAndDoesNotLeakParent(t *testing.T) {
 	normalizeNativeNestedCallID(ordinary, "tool_call")
 	if ordinary["tool_call_id"] != original {
 		t.Fatal("ordinary native hook call ID must preserve existing semantics")
+	}
+}
+
+func TestNativeHookOutcomeRecordsOnlyErrorFlag(t *testing.T) {
+	payload := map[string]interface{}{
+		"tool_result": map[string]interface{}{"is_error": true, "content": "SENSITIVE_TOOL_RESULT"},
+	}
+	extra := buildNativeHookExtraInfo(payload, "ptc_dispatch", "read_file")
+	if !strings.Contains(extra, "tool_is_error=true") || strings.Contains(extra, "SENSITIVE_TOOL_RESULT") {
+		t.Fatalf("unexpected PTC result metadata: %q", extra)
 	}
 }
