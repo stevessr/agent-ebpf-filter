@@ -156,3 +156,21 @@ func TestDshRelayOverflowIsExplicitMetadata(t *testing.T) {
 		t.Fatalf("dropped PTC hook events were not reported: %q", extra)
 	}
 }
+
+func TestNativeCodeModeSubCallIDHashIsStableAndDoesNotLeakParent(t *testing.T) {
+	original := "opaque-parent-secret:ptc:12"
+	start := map[string]interface{}{"toolCallId": original}
+	settled := map[string]interface{}{"tool_call_id": original}
+	normalizeNativeNestedCallID(start, "ptc_dispatch_start")
+	normalizeNativeNestedCallID(settled, "ptc_dispatch")
+	startID, _ := start["tool_call_id"].(string)
+	settleID, _ := settled["tool_call_id"].(string)
+	if startID != settleID || !strings.HasPrefix(startID, "sha256:") || strings.Contains(startID, "opaque-parent") {
+		t.Fatalf("PTC subcall IDs are not safe stable identifiers: start=%q settle=%q", startID, settleID)
+	}
+	ordinary := map[string]interface{}{"tool_call_id": original}
+	normalizeNativeNestedCallID(ordinary, "tool_call")
+	if ordinary["tool_call_id"] != original {
+		t.Fatal("ordinary native hook call ID must preserve existing semantics")
+	}
+}
