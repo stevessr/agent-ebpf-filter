@@ -43,9 +43,11 @@ function decisionOf(data: Record<string, any>): string {
 const isSecurityOutcome = (event: AgentSightEvent): boolean => {
   const data = event.data ?? {};
   const decision = decisionOf(data);
-  return /ALERT|BLOCK|DENY|DENIED|REJECT|DROP|KILL|QUARANTINE/i.test(
-    event.eventType + " " + decision,
-  ) || data.alert === true || data.alert === "true";
+  // Match complete verdict tokens, not innocent words like "unblocked"
+  // or a resource path containing "block".
+  const verdict = (event.eventType + " " + decision).replace(/[_-]/g, " ");
+  return /(?:^|[^A-Z0-9])(?:ALERT|BLOCK|BLOCKED|DENY|DENIED|REJECT|REJECTED|DROP|DROPPED|KILL|KILLED|QUARANTINE|QUARANTINED)(?=$|[^A-Z0-9])/i.test(verdict) ||
+    data.alert === true || data.alert === "true";
 };
 
 function hasFailureOutcome(event: AgentSightEvent): boolean {
