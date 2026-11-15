@@ -66,13 +66,7 @@ func HandleNativeHookEvent(c *gin.Context) {
 		}
 	}
 	extraInfo := buildNativeHookExtraInfo(payload, hookEvent, toolName)
-	// DSH subCallId is often "<parent>:ptc:<n>" and can reveal the opaque
-	// parent ID through Event.ToolCallId. Stable hashes still pair start/settle.
-	if isNativeNestedCodeModeEvent(hookEvent) {
-		if callID := events.PayloadString(payload, "tool_call_id", "toolCallId", "tool_use_id", "toolUseId"); callID != "" {
-			payload["tool_call_id"] = digestHookText(callID)
-		}
-	}
+	normalizeNativeNestedCallID(payload, hookEvent)
 
 	if events.PayloadUint32(payload, "pid", "process_id", "processId", "agent_pid", "agentPid") == 0 {
 		if parentPID := strings.TrimSpace(c.GetHeader("X-Agent-Hook-Parent-PID")); parentPID != "" {
@@ -207,6 +201,17 @@ func extractNativeHookPath(toolInput map[string]interface{}) string {
 
 func ExtractNativeHookPath(toolInput map[string]interface{}) string {
 	return extractNativeHookPath(toolInput)
+}
+
+// normalizeNativeNestedCallID ensures opaque sub-call IDs (which include the
+// raw PTC parent ID) never reach Event.ToolCallId. Hashes remain correlatable.
+func normalizeNativeNestedCallID(payload map[string]interface{}, hookEvent string) {
+	if !isNativeNestedCodeModeEvent(hookEvent) {
+		return
+	}
+	if callID := events.PayloadString(payload, "tool_call_id", "toolCallId", "tool_use_id", "toolUseId"); callID != "" {
+		payload["tool_call_id"] = digestHookText(callID)
+	}
 }
 
 func isNativeNestedCodeModeEvent(event string) bool {
