@@ -8,7 +8,7 @@ on:
       - ".github/workflows/opencode-ebpf-soak.yml"
       - "scripts/opencode-ebpf-soak.sh"
       - "scripts/check-opencode-soak.py"
-      - "scripts/test-check-opencode-soak.py"
+      - "scripts/test_opencode_soak.py"
       - "frontend/src/components/agentsight/**"
       - "frontend/src/components/execution-graph/**"
       - "frontend/tests/harness-capture-*.test.ts"
@@ -20,7 +20,7 @@ permissions:
 
 concurrency:
   group: opencode-ebpf-soak-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   soak:
@@ -81,7 +81,7 @@ jobs:
             exit 1
           fi
       - name: Check capture validator regressions
-        run: python3 -m unittest discover -s scripts -p 'test-check-opencode-soak.py' -v
+        run: python3 -m unittest discover -s scripts -p 'test_opencode_soak.py' -v
       - name: Run OpenCode free-model agent and collect kernel evidence
         env:
           OPENCODE_SOAK_ARTIFACT_DIR: ${{ runner.temp }}/opencode-ebpf-soak
