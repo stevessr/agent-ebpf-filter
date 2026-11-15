@@ -17,7 +17,6 @@ func TestScenesRenderDifferentFrames(t *testing.T) {
   }
   if bytes.Equal(first.Pix,last.Pix) { t.Errorf("%s: animation is static",scene) }
  }
- if totalCentiseconds!=200 {t.Errorf("GIF duration got %d cs, want 200 cs",totalCentiseconds)}
 }
 
 func TestGIFExportAndInvalidArguments(t *testing.T) {
@@ -38,4 +37,5 @@ func TestGIFExportAndInvalidArguments(t *testing.T) {
   if delay<=0 {t.Errorf("frame %d has invalid delay %d",i,delay)}
   totalCentiseconds+=delay
  }
+ if totalCentiseconds!=200 {t.Errorf("GIF duration got %d cs, want 200 cs",totalCentiseconds)}
 }
