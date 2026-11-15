@@ -284,6 +284,11 @@ export function buildHarnessCaptureGraph(
         pendingRpc.set(rpcKey, pendingRpc.has(rpcKey)
           ? null : { toolIdentity: identity, toolName: correlatedToolName });
         relation = "invoked";
+      } else if (rpcKey && rpc.kind === "request") {
+        // Another JSON-RPC method can reuse a still-outstanding tool id.
+        // Its response is ambiguous even when that other request is not
+        // itself represented as a tool call in this graph.
+        if (pendingRpc.has(rpcKey)) pendingRpc.set(rpcKey, null);
       } else if (rpcKey && (rpc.kind === "response" || rpc.kind === "error")) {
         const request = pendingRpc.get(rpcKey);
         if (request) {
