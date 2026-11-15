@@ -273,7 +273,7 @@ const resourceFingerprint = (node: ExecutionGraphNode): string => {
 export const buildDisplayGraph = (
   rawNodes: ExecutionGraphNode[],
   rawEdges: ExecutionGraphEdge[],
-  options: { preserveEvents?: boolean } = {},
+  options: { preserveEvents?: boolean; selectedNodeId?: string } = {},
 ): DisplayGraph => {
   const normalizedGraph = normalizeProcessNodes(rawNodes, rawEdges);
   // "Full evidence" is genuinely unaggregated. Retain the original syscall
@@ -314,7 +314,8 @@ export const buildDisplayGraph = (
   const aggregateIdByEventId = new Map<string, string>();
   normalizedGraph.nodes.forEach((node) => {
     const processId = eventToProcess.get(node.id);
-    if (!processId || policyLinked.has(node.id) || !canAggregateEvent(node)) return;
+    if (!processId || node.id === options.selectedNodeId ||
+        policyLinked.has(node.id) || !canAggregateEvent(node)) return;
     const processNode = sourceNodes.get(processId);
     const pLabel = processDisplayLabel(processNode);
     const eventType = node.metadata?.type || node.label || node.kind;
