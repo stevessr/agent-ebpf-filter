@@ -166,6 +166,23 @@ describe("behavior aggregation", () => {
     expect(nodes).toHaveLength(3);
   });
 
+  test("selected original syscall stays independently inspectable while siblings compact", () => {
+    const events = [
+      process(77), syscall("futex-a", "futex"), syscall("futex-b", "futex"),
+      syscall("futex-c", "futex"),
+    ];
+    const links = events.slice(1).map((node) => edge("proc:77", node.id));
+    const display = buildDisplayGraph(events, links, { selectedNodeId: "futex-b" });
+    const observed = display.nodes.filter((node) => node.kind === "syscall");
+    expect(observed).toHaveLength(2);
+    expect(observed.some((node) => node.id === "futex-b")).toBe(true);
+    expect(observed.find((node) => node.id !== "futex-b")?.metadata?.eventCount).toBe("2");
+    expect(display.edges.some((item) => item.target === "futex-b")).toBe(true);
+    const replay = buildDisplayGraph(events.slice().reverse(), links.slice().reverse(),
+      { selectedNodeId: "futex-b" });
+    expect(replay.nodes.find((node) => node.id === "futex-b")).toBeDefined();
+  });
+
   test("repeated harmless observations aggregate without dropping counts", () => {
     const nodes = [process(100), syscall("one", "futex"), syscall("two", "futex")];
     const result = buildDisplayGraph(nodes, nodes.slice(1).map((node) => edge("proc:100", node.id)));
