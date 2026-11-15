@@ -29,6 +29,27 @@ class TypedKernelCaptureTests(unittest.TestCase):
                               "type": "openat", "pid": 420}}]
         self.assertEqual(len(checker.match_marker_events(records, [marker])[marker]), 1)
 
+    def test_kernel_evidence_survives_eviction_from_next_recent_window(self):
+        first = "/tmp/soak/marker-one.txt"
+        second = "/tmp/soak/marker-two.txt"
+        ledger = {first: [], second: []}
+        window_a = checker.match_marker_events(
+            [{"Event": {"path": first, "type": "openat", "pid": 1}}],
+            [first, second],
+        )
+        checker.merge_verified_capture_matches(ledger, window_a)
+        self.assertTrue(ledger[first])
+        self.assertFalse(ledger[second])
+        window_b = checker.match_marker_events(
+            [{"Event": {"path": second, "type": "openat", "pid": 2}}],
+            [first, second],
+        )
+        checker.merge_verified_capture_matches(ledger, window_b)
+        self.assertTrue(ledger[first])
+        self.assertTrue(ledger[second])
+        checker.merge_verified_capture_matches(ledger, window_b)
+        self.assertEqual(len(ledger[second]), 1)
+
     def test_typed_bpf_path_matched_exactly(self):
         path = "/tmp/opencode-soak/workspace/nested/marker-one.txt"
         events = [
