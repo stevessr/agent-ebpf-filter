@@ -66,7 +66,15 @@ try {
       });
       await page.locator(".execution-graph-page").waitFor({ timeout: 25000 });
       await page.getByText(/已折叠 1 节点/).first().waitFor({ timeout: 25000 });
-      await page.waitForTimeout(650);
+      // Offscreen graph rendering is intentionally suspended; bring the
+      // canvas into view before asserting its GPU state.
+      const canvasHost = page.locator(".harness-3d, .execution-graph-canvas").first();
+      await canvasHost.scrollIntoViewIfNeeded();
+      await page.waitForFunction(() => {
+        const overlay = document.querySelector(".harness-3d-overlay");
+        const svgNodes = document.querySelectorAll(".execution-graph-svg g.execution-node").length;
+        return (overlay && overlay.textContent?.includes("3 nodes")) || svgNodes === 3;
+      }, null, { timeout: 15000 });
 
       const hasWebGLCanvas = await page.locator(".harness-3d canvas").count() > 0;
       const hasSvgCanvas = await page.locator(".execution-graph-canvas svg").count() > 0;
@@ -89,7 +97,11 @@ try {
       await page.waitForFunction(() =>
         localStorage.getItem("agent-ebpf.execution-graph.display")?.includes('"noise":"off"'),
       );
-      await page.waitForTimeout(300);
+      await page.waitForFunction(() => {
+        const overlay = document.querySelector(".harness-3d-overlay");
+        const svgNodes = document.querySelectorAll(".execution-graph-svg g.execution-node").length;
+        return (overlay && overlay.textContent?.includes("4 nodes")) || svgNodes === 4;
+      }, null, { timeout: 15000 });
 
       if (await page.locator(".harness-3d-overlay").count()) {
         assert((await page.locator(".harness-3d-overlay").innerText()).includes("4 nodes"),
@@ -99,14 +111,23 @@ try {
           "full evidence 2D should keep all event nodes");
       }
       await page.getByText("2D 拓扑", { exact: true }).first().click();
-      await page.locator(".execution-graph-svg g.execution-node").first().waitFor();
-      assert.equal(await page.locator(".execution-graph-svg g.execution-node").count(), 4);
+      await page.locator(".execution-graph-canvas").scrollIntoViewIfNeeded();
+      await page.waitForFunction(() =>
+        document.querySelectorAll(".execution-graph-svg g.execution-node").length === 4,
+      null, { timeout: 15000 });
 
       const name = disabledWebGL ? "harness-webgl-fallback" : "harness-gpu";
       await page.screenshot({ path: path.join(outdir, name + ".png") });
       assert.deepEqual(errors, [], `browser page errors: ${errors.join(" | ")}`);
       results.push({ mode: name, rendered: hasWebGLCanvas ? "webgl" : "svg",
         nodes: 4, fallbackVerified: disabledWebGL });
+    } catch (error) {
+      await page.screenshot({
+        path: path.join(outdir, disabledWebGL
+          ? "harness-webgl-fallback-failure.png" : "harness-gpu-failure.png"),
+        fullPage: true,
+      }).catch(() => {});
+      throw error;
     } finally {
       await context.close();
     }
