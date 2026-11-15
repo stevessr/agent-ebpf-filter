@@ -12,6 +12,7 @@ export interface HarnessCaptureGraph {
   edges: ExecutionGraphEdge[];
   displayedEvents: number;
   omittedEvents: number;
+  omittedMessages: number;
 }
 
 /**
@@ -114,6 +115,7 @@ export function buildHarnessCaptureGraph(
     toolIdentity: string;
     toolName: string;
   } | null>();
+  let omittedMessages = 0;
   const nodes = new Map<string, ExecutionGraphNode>();
   const edges = new Map<string, ExecutionGraphEdge>();
   const addNode = (node: ExecutionGraphNode) => {
@@ -174,10 +176,17 @@ export function buildHarnessCaptureGraph(
       addEdge(runNodeId, processId, "contains");
     }
 
+    type RpcFrame = {
+      id: string;
+      method: string;
+      tool: string;
+      kind: "request" | "response" | "error" | "other";
+      protocol: string;
+    };
+    const rpcFrames: RpcFrame[] = [];
     let rpcMethod = "";
     let rpcTool = "";
     let rpcId = "";
-    let rpcProtocol = "";
     let rpcKind = "";
     if (isStdioSource(event.source)) {
       // Limit parsing oversized stdout chunks in the visualization; they
@@ -191,59 +200,100 @@ export function buildHarnessCaptureGraph(
         rpcMethod = text(decoded.method, 100);
         rpcTool = text(decoded.toolName, 100);
         rpcId = text(decoded.id, 128);
-        rpcProtocol = text(decoded.protocol, 24);
         rpcKind = text(decoded.kind, 24);
+        const messages = decoded.parsedMessages;
+        // One collector event may contain many complete JSON-RPC frames.
+        // Keep a bounded set of graph relations, while the original event
+        // remains available with every byte in the evidence drawer.
+        const maxFrames = 32;
+        omittedMessages += Math.max(0, messages.length - maxFrames);
+        for (const message of messages.slice(0, maxFrames)) {
+          if (!message || typeof message !== "object") continue;
+          const method = typeof message.method === "string"
+            ? text(message.method, 100) : "";
+          const id = message.id === null || message.id === undefined
+            ? "" : text(message.id, 128);
+          const tool = method === "tools/call" &&
+            typeof message.params?.name === "string"
+            ? text(message.params.name, 100) : "";
+          const kind = method
+            ? (id ? "request" : "other")
+            : message.error !== undefined ? "error"
+              : message.result !== undefined ? "response" : "other";
+          rpcFrames.push({
+            id, method, tool, kind,
+            protocol: decoded.protocol,
+          });
+        }
+        // Display the first recognized tool/method, but preserve all
+        // individual RPC tool relations below.
+        const first = rpcFrames[0];
+        if (first) {
+          rpcMethod = first.method;
+          rpcTool = first.tool;
+          rpcId = first.id;
+          rpcKind = first.kind;
+        }
       } catch {
         // Malformed frames remain visible as ordinary captured events.
       }
     }
+    if (!rpcFrames.length) {
+      rpcFrames.push({
+        id: rpcId, method: rpcMethod, tool: rpcTool,
+        kind: rpcKind === "request" || rpcKind === "response" ||
+          rpcKind === "error" ? rpcKind : "other",
+        protocol: "",
+      });
+    }
+
     // Use only explicitly bidirectional session identities. Per-direction
     // fd_target and stream_id can differ between stdin and stdout and
     // would silently break legitimate request/response correlations.
     const session = text(data.sessionId ?? data.session_id ??
       data.connectionId ?? data.connection_id ??
       data.transportSessionId ?? data.transport_session_id, 128);
-    const rpcKey = rpcId
-      ? JSON.stringify([scope, pid, session, event.source, rpcId])
-      : "";
-    let toolIdentity = toolCallId;
-    let correlatedToolName = toolName || rpcTool;
-    let toolRelation = "observed";
-    if (rpcKey && rpcKind === "request" && rpcMethod === "tools/call" &&
-        rpcProtocol === "mcp") {
-      // Do not merge consecutive tools/call operations that reuse the same
-      // JSON-RPC ID. The request occurrence determines the unique identity.
-      const generated = `mcp:${captureEventKey(event)}`;
-      toolIdentity ||= generated;
-      pendingRpc.set(rpcKey, pendingRpc.has(rpcKey)
-        ? null
-        : { toolIdentity, toolName: correlatedToolName });
-      toolRelation = "invoked";
-    } else if (rpcKey && (rpcKind === "response" || rpcKind === "error")) {
-      const request = pendingRpc.get(rpcKey);
-      if (request) {
-        toolIdentity ||= request.toolIdentity;
-        correlatedToolName ||= request.toolName;
-        toolRelation = rpcKind === "error" ? "failed" : "returned";
+    let eventToolIdentity = toolCallId;
+    for (const [frameIndex, rpc] of rpcFrames.entries()) {
+      const rpcKey = rpc.id
+        ? JSON.stringify([scope, pid, session, event.source, rpc.id])
+        : "";
+      // A chunk can contain several *different* tool requests. An explicit
+      // event-level toolCallId must not merge them together.
+      let identity = rpcFrames.length === 1 ? toolCallId : "";
+      let correlatedToolName = rpcFrames.length === 1 ? toolName || rpc.tool : rpc.tool;
+      let relation = "observed";
+      if (rpcKey && rpc.kind === "request" && rpc.method === "tools/call" &&
+          rpc.protocol === "mcp") {
+        identity ||= `mcp:${captureEventKey(event)}:${frameIndex}`;
+        pendingRpc.set(rpcKey, pendingRpc.has(rpcKey)
+          ? null : { toolIdentity: identity, toolName: correlatedToolName });
+        relation = "invoked";
+      } else if (rpcKey && (rpc.kind === "response" || rpc.kind === "error")) {
+        const request = pendingRpc.get(rpcKey);
+        if (request) {
+          identity ||= request.toolIdentity;
+          correlatedToolName ||= request.toolName;
+          relation = rpc.kind === "error" ? "failed" : "returned";
+        }
+        // A reused or concurrent request id has no trustworthy attribution.
+        pendingRpc.delete(rpcKey);
       }
-      // Consume even ambiguous IDs without ever attributing an unknown
-      // response to an arbitrary tool request.
-      pendingRpc.delete(rpcKey);
-    }
-    if (toolIdentity) {
-      const toolId = `tool:${scope}:${toolIdentity}`;
+      if (!identity) continue;
+      if (frameIndex === 0) eventToolIdentity = identity;
+      const toolId = `tool:${scope}:${identity}`;
       addNode({
         id: toolId, kind: "tool_call",
-        label: correlatedToolName || rpcMethod || "Tool call",
+        label: correlatedToolName || rpc.method || "Tool call",
         metadata: {
           agentRunId: runId, traceId,
-          toolCallId: toolIdentity,
+          toolCallId: identity,
           toolName: correlatedToolName,
         },
       });
       if (runNodeId) addEdge(runNodeId, toolId, "contains");
       addEdge(toolId, processId, "owns");
-      addEdge(toolId, eventId, toolRelation);
+      addEdge(toolId, eventId, relation);
     }
 
     const type = text(event.eventType || data.type || event.source, 100);
@@ -264,7 +314,7 @@ export function buildHarnessCaptureGraph(
         pid: String(pid),
         path, endpoint, decision,
         traceId, agentRunId: runId,
-        toolCallId: toolIdentity,
+        toolCallId: eventToolIdentity,
         sourceNodeId: captureEventKey(event),
         receivedAt: Number.isFinite(event.timestamp) &&
           Math.abs(event.timestamp) <= 8.64e15
@@ -302,6 +352,7 @@ export function buildHarnessCaptureGraph(
     edges: [...edges.values()],
     displayedEvents: included.length,
     omittedEvents: events.length - included.length,
+    omittedMessages,
   };
 }
 
