@@ -38,27 +38,39 @@ function decisionOf(data: Record<string, any>): string {
   return text(data.decision ?? data.verdict ?? data.action, 60).toUpperCase();
 }
 
-function priority(event: AgentSightEvent): number {
+const isSecurityOutcome = (event: AgentSightEvent): boolean => {
   const data = event.data ?? {};
   const decision = decisionOf(data);
-  if (event.source === "policy" || /ALERT|BLOCK|DENY|DENIED|REJECT|DROP/.test(
+  return /ALERT|BLOCK|DENY|DENIED|REJECT|DROP|KILL|QUARANTINE/i.test(
     event.eventType + " " + decision,
-  ) || data.alert === true || data.alert === "true" ||
-    riskOf(data) >= 60 || !!data.errno || !!data.errorCode) return 0;
+  ) || data.alert === true || data.alert === "true";
+};
+
+function hasFailureOutcome(event: AgentSightEvent): boolean {
+  const data = event.data ?? {};
+  const code = text(data.errno ?? data.errorCode ?? data.error_code).trim();
+  return (code !== "" && !/^(0|none|ok|success)$/i.test(code)) ||
+    data.success === false || data.success === "false" ||
+    data.failed === true || data.failed === "true";
+}
+
+function priority(event: AgentSightEvent): number {
+  const data = event.data ?? {};
+  if (isSecurityOutcome(event) || riskOf(data) >= 60 ||
+      hasFailureOutcome(event)) return 0;
   if (event.source === "stdio" || event.source === "agent") return 1;
-  if (event.source === "file" || event.source === "process") return 2;
+  if (event.source === "policy" ||
+      event.source === "file" || event.source === "process") return 2;
   return 3;
 }
 
 function eventKind(event: AgentSightEvent): string {
-  const data = event.data ?? {};
-  // High risk determines priority/color, not semantic type. Only an actual
-  // policy or explicitly alerted observation becomes a policy_alert node.
-  if (event.source === "policy" || data.alert === true ||
-      data.alert === "true" ||
-      /ALERT|BLOCK|DENY|DENIED|REJECT|DROP/.test(
-        event.eventType + " " + decisionOf(data),
-      )) return "policy_alert";
+  // An ALLOW decision is a policy decision, not an alert. Critical flags
+  // determine risk color and priority, not the original event category.
+  if (event.source === "policy") {
+    return isSecurityOutcome(event) ? "policy_alert" : "policy_decision";
+  }
+  if (isSecurityOutcome(event)) return "policy_alert";
   if (isStdioSource(event.source)) return "hook_event";
   if (event.source === "ssl" || event.source === "http_parser" ||
       event.source === "sse_processor") return "network";
