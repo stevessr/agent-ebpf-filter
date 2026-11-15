@@ -158,7 +158,7 @@ try {
           nodes: stressFixture.nodes.length,
           edges: stressFixture.edges.length,
           elapsedMs: Date.now() - started,
-          jsHeapUsedBytes: (await page.metrics()).JSHeapUsedSize,
+          jsHeapUsedBytes: await page.evaluate(() => performance.memory?.usedJSHeapSize ?? null),
           renderer: "Chromium headless SwiftShader (software GPU)",
         };
         await page.screenshot({ path: path.join(outdir, "harness-webgl-1000-events.png") });
