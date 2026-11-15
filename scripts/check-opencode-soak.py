@@ -68,7 +68,7 @@ def kernel_paths(record: dict) -> set[str]:
     event = capture_event(record)
     fields = ("path", "Path", "filePath", "file_path")
     return {
-        value.rstrip("\\x00")
+        value.rstrip("\x00")
         for name in fields
         if isinstance((value := event.get(name)), str) and value
     }
@@ -119,7 +119,7 @@ def write_report(
     }
     with open(destination, "w", encoding="utf-8") as output:
         json.dump(summary, output, indent=2, sort_keys=True)
-        output.write("\\n")
+        output.write("\n")
 
 
 def main() -> int:
