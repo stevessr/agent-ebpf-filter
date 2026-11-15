@@ -453,3 +453,27 @@ func TestNativeHookRelayKeepsCurlHeaders(t *testing.T) {
 		t.Fatal("original hook secret header lost")
 	}
 }
+
+func TestDshNativeHookIncludesPTCDispatchObserver(t *testing.T) {
+	source := buildDshPlugin(HookDef{ID: "dsh", NativeConfigPath: "/tmp/agent-ebpf-hook-active-dsh.mjs"})
+	for _, part := range []string{
+		"tool/ptc-dispatch-start", "tool/ptc-dispatch",
+		"ptc_dispatch_start", "ptc_dispatch",
+		"parent_tool_call_id: data.parentCallId",
+		"tool_call_id: data.subCallId",
+		"code_mode_engine: 'dsh-ptc'",
+		"tool_result: { is_error: data.isError === true }",
+	} {
+		if !strings.Contains(source, part) {
+			t.Fatalf("DSH Code Mode observer missing %q", part)
+		}
+	}
+	for _, unsafe := range []string{
+		"tool_input: data.arguments", "tool_input: data.args",
+		"tool_result: data.content", "tool_result: data.result",
+	} {
+		if strings.Contains(source, unsafe) {
+			t.Fatalf("DSH Code Mode observer forwards sensitive payload: %q", unsafe)
+		}
+	}
+}
