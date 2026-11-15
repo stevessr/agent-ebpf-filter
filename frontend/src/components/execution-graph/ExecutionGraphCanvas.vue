@@ -261,6 +261,7 @@ const updateGraph = () => {
 
   currentDisplayGraph = buildDisplayGraph(props.nodes, props.edges, {
     preserveEvents: props.preserveEvents,
+    selectedNodeId: props.selectedNodeId,
   });
   const topologyKey = createTopologyKey(width, height, currentDisplayGraph);
   const topologyChanged = topologyKey !== lastTopologyKey;
