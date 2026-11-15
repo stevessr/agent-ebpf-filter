@@ -66,6 +66,13 @@ func HandleNativeHookEvent(c *gin.Context) {
 		}
 	}
 	extraInfo := buildNativeHookExtraInfo(payload, hookEvent, toolName)
+	// DSH subCallId is often "<parent>:ptc:<n>" and can reveal the opaque
+	// parent ID through Event.ToolCallId. Stable hashes still pair start/settle.
+	if isNativeNestedCodeModeEvent(hookEvent) {
+		if callID := events.PayloadString(payload, "tool_call_id", "toolCallId", "tool_use_id", "toolUseId"); callID != "" {
+			payload["tool_call_id"] = digestHookText(callID)
+		}
+	}
 
 	if events.PayloadUint32(payload, "pid", "process_id", "processId", "agent_pid", "agentPid") == 0 {
 		if parentPID := strings.TrimSpace(c.GetHeader("X-Agent-Hook-Parent-PID")); parentPID != "" {
