@@ -69,6 +69,7 @@ export function apply(ctx) {
     execution_mode: 'code_mode',
     code_mode_engine: 'dsh-ptc',
     parent_tool_call_id: data.parentCallId ?? '',
+    root_tool_call_id: data.rootCallId ?? '',
     tool_call_id: data.subCallId ?? '',
     tool_name: data.name ?? '',
   });
