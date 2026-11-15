@@ -80,3 +80,72 @@ func TestSubagentHookMetadataDigestDoesNotLeakIdentifier(t *testing.T) {
 		}
 	}
 }
+
+func TestNativeCodeModeClassifiesOuterCallsAndPTCSubdispatch(t *testing.T) {
+	cases := []struct {
+		name, event, tool, engine string
+		payload map[string]interface{}
+	}{
+		{"dsh ptc start", "ptc_dispatch_start", "read_file", "dsh-ptc", nil},
+		{"dsh ptc settle", "ptc_dispatch", "read_file", "dsh-ptc", nil},
+		{"dsh run_code", "tool_call", "run_code", "programmatic", nil},
+		{"codex programmatic exec", "PreToolUse", "functions.exec", "programmatic", nil},
+		{"claude code execution", "PreToolUse", "code_execution", "programmatic", nil},
+		{"plugin run_code", "PreToolUse", "mcp__foo__run_code", "programmatic", nil},
+		{"explicit engine", "tool_call", "run_code", "dsh-ptc", map[string]interface{}{"execution_mode": "code_mode", "code_mode_engine": "dsh-ptc"}},
+		{"ordinary Bash", "PreToolUse", "Bash", "", nil},
+		{"ordinary command", "PreToolUse", "exec_command", "", nil},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := nativeCodeModeEngine(tt.payload, tt.event, tt.tool); got != tt.engine {
+				t.Fatalf("nativeCodeModeEngine() = %q; want %q", got, tt.engine)
+			}
+		})
+	}
+}
+
+func TestNativeCodeModeDoesNotTreatSourceAsPathOrExposeIt(t *testing.T) {
+	secret := "const token = 'SENSITIVE_CODE_MODE_SECRET'; await tools.read_file({path: '/private'});"
+	payload := map[string]interface{}{
+		"tool_name": "run_code",
+		"tool_input": map[string]interface{}{
+			"code": secret,
+			"command": "do not treat as path",
+		},
+	}
+	input := payload["tool_input"].(map[string]interface{})
+	if path := extractNativeCodeModePath(input); path != "" {
+		t.Fatalf("source code or command leaked into Path: %q", path)
+	}
+	extra := buildNativeHookExtraInfo(payload, "PreToolUse", "run_code")
+	for _, want := range []string{"execution_mode=code_mode", "execution_engine=programmatic", "code_digest=sha256:", "code_len="} {
+		if !strings.Contains(extra, want) {
+			t.Fatalf("missing %q in %q", want, extra)
+		}
+	}
+	if strings.Contains(extra, secret) || strings.Contains(extra, "SENSITIVE_CODE_MODE_SECRET") || strings.Contains(extra, "/private") {
+		t.Fatalf("unredacted source content: %q", extra)
+	}
+}
+
+func TestNativeCodeModePTCSubcallsRetainOnlyHashedParent(t *testing.T) {
+	payload := map[string]interface{}{
+		"hook_event_name": "ptc_dispatch_start",
+		"tool_name": "file_write",
+		"parent_tool_call_id": "opaque-parent:run:1",
+		"tool_call_id": "opaque-parent:run:1:ptc:2",
+	}
+	extra := buildNativeHookExtraInfo(payload, "ptc_dispatch_start", "file_write")
+	for _, want := range []string{"execution_mode=code_mode", "execution_engine=dsh-ptc", "execution_layer=nested", "parent_call_digest=sha256:"} {
+		if !strings.Contains(extra, want) {
+			t.Fatalf("missing %q in %q", want, extra)
+		}
+	}
+	if strings.Contains(extra, "opaque-parent") {
+		t.Fatalf("raw opaque parent call ID leaked: %q", extra)
+	}
+	if !isNativeNestedCodeModeEvent("ptc_dispatch") || isNativeNestedCodeModeEvent("tool_call") {
+		t.Fatal("only actual PTC dispatch events can skip global PID context replacement")
+	}
+}
