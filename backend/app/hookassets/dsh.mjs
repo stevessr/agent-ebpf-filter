@@ -24,10 +24,27 @@ export function apply(ctx) {
     } catch { /* Observability must not interrupt the agent. */ }
   }
   const context = (session) => ({ session_id: session.id, cwd: session.header?.cwd ?? '' });
+  // PTC events are log-only sub-dispatches. Never forward their arguments or
+  // result bodies: the host owns those and only its PID/syscalls are OS facts.
+  const ptcContext = (session, data) => ({
+    ...context(session),
+    execution_mode: 'code_mode',
+    code_mode_engine: 'dsh-ptc',
+    parent_tool_call_id: data.parentCallId ?? '',
+    tool_call_id: data.subCallId ?? '',
+    tool_name: data.name ?? '',
+  });
   ctx.on('session/created', (session) => relay('session_start', context(session)));
   ctx.on('session/event', (session, event) => {
-    const data = event.data;
-    if (event.type === 'tool/call') {
+    const data = event.data ?? {};
+    if (event.type === 'tool/ptc-dispatch-start') {
+      relay('ptc_dispatch_start', ptcContext(session, data));
+    } else if (event.type === 'tool/ptc-dispatch') {
+      relay('ptc_dispatch', {
+        ...ptcContext(session, data),
+        tool_result: { is_error: data.isError === true },
+      });
+    } else if (event.type === 'tool/call') {
       relay('tool_call', { ...context(session), tool_name: data.name, tool_call_id: data.callId });
     } else if (event.type === 'tool/result') {
       for (const block of data.message?.content ?? []) {
