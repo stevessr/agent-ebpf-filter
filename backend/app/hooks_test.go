@@ -460,6 +460,7 @@ func TestDshNativeHookIncludesPTCDispatchObserver(t *testing.T) {
 		"tool/ptc-dispatch-start", "tool/ptc-dispatch",
 		"ptc_dispatch_start", "ptc_dispatch",
 		"parent_tool_call_id: data.parentCallId",
+		"root_tool_call_id: data.rootCallId",
 		"tool_call_id: data.subCallId",
 		"code_mode_engine: 'dsh-ptc'",
 		"tool_result: { is_error: data.isError === true }",
