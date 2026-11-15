@@ -89,6 +89,7 @@ SUMMARY="$RUN_DIR/summary.txt"
 START_FIFO="$RUN_DIR/opencode-start.fifo"
 BACKEND_LAUNCH_PID=""
 OPENCODE_LAUNCH_PID=""
+EVENT_MONITOR_PID=""
 REGISTERED_PID=""
 PIN_ROOT_RESERVED=1
 BACKEND_STOPPED=0
@@ -107,6 +108,11 @@ cleanup() {
     kill -TERM "$OPENCODE_LAUNCH_PID" 2>/dev/null || true
     wait "$OPENCODE_LAUNCH_PID" 2>/dev/null || true
     OPENCODE_LAUNCH_PID=""
+  fi
+  if [[ -n "$EVENT_MONITOR_PID" ]]; then
+    kill -TERM "$EVENT_MONITOR_PID" 2>/dev/null || true
+    wait "$EVENT_MONITOR_PID" 2>/dev/null || true
+    EVENT_MONITOR_PID=""
   fi
   if [[ -n "$REGISTERED_PID" ]]; then
     curl --silent --show-error --max-time 3 -X POST \
@@ -172,6 +178,10 @@ cleanup() {
       if [[ -f "$OPENCODE_LOG" ]]; then
         echo "[soak] OpenCode log (last 80 lines):" >&2
         tail -n 80 "$OPENCODE_LOG" >&2 || true
+      fi
+      if [[ -f "$RUN_DIR/checker.log" ]]; then
+        echo "[soak] eBPF live sampler diagnostic:" >&2
+        tail -n 50 "$RUN_DIR/checker.log" >&2 || true
       fi
     fi
   fi
@@ -296,6 +306,19 @@ print(f"eBPF bootstrap: {status.get('status')} ({attached}/{compiled} tracepoint
 PY
 cat "$SUMMARY"
 
+# Poll while the agent is running. The kernel may emit hundreds of
+# process_exit/housekeeping events after a short tool call; relying on one
+# post-run /events/recent snapshot can miss genuine openat evidence.
+python3 "$ROOT_DIR/scripts/check-opencode-soak.py" \
+  --base-url "$BASE_URL" --api-key "$API_KEY" \
+  --expect "$WORKDIR/nested/marker-one.txt" \
+  --expect "$WORKDIR/nested/marker-two.txt" \
+  --report "$RUN_DIR/capture-report.json" \
+  --limit 1000 --poll-interval 0.25 \
+  --timeout "$((MODEL_TIMEOUT + EVENT_TIMEOUT))" \
+  >"$RUN_DIR/checker.log" 2>&1 &
+EVENT_MONITOR_PID=$!
+
 printf -v PROMPT 'Run exactly these three commands, sequentially, with one shell-tool call at a time. Wait for each successful result before the next; never issue concurrent shell calls:\n1) `mkdir -p %s/nested`\n2) `touch %s/nested/marker-one.txt`\n3) `touch %s/nested/marker-two.txt`\nDo not inspect files, use other tools, access the network, call the backend, read environment variables, or modify anything outside the temporary workspace. Reply exactly SOAK_OK after all three commands succeed.' "$WORKDIR" "$WORKDIR" "$WORKDIR"
 (
   cd "$WORKDIR"
@@ -366,14 +389,11 @@ for marker in "$WORKDIR/nested/marker-one.txt" "$WORKDIR/nested/marker-two.txt";
 done
 
 set +e
-python3 "$ROOT_DIR/scripts/check-opencode-soak.py" \
-  --base-url "$BASE_URL" --api-key "$API_KEY" \
-  --expect "$WORKDIR/nested/marker-one.txt" \
-  --expect "$WORKDIR/nested/marker-two.txt" \
-  --report "$RUN_DIR/capture-report.json" \
-  --timeout "$EVENT_TIMEOUT"
+wait "$EVENT_MONITOR_PID"
 event_status=$?
 set -e
+EVENT_MONITOR_PID=""
+cat "$RUN_DIR/checker.log"
 curl_api -o "$RUN_DIR/post-run-health.json" "$BASE_URL/api/v1/health"
 if (( event_status != 0 )); then
   exit "$event_status"
