@@ -19,7 +19,11 @@ import AgentSightUsageView from "./AgentSightUsageView.vue";
 import AgentSightProcessTreeView from "./AgentSightProcessTreeView.vue";
 import AgentSightTimelineView from "./AgentSightTimelineView.vue";
 import AgentSightEventDetails from "./AgentSightEventDetails.vue";
-import { buildHarnessCaptureGraph, captureEventKey } from "./harnessCaptureGraph";
+import {
+  buildHarnessCaptureGraph,
+  captureEventKey,
+  relatedCaptureEvidence,
+} from "./harnessCaptureGraph";
 import {
   filterPresentationNoise,
   type GraphNoiseMode,
@@ -98,6 +102,17 @@ const captureSelectedEvent = computed(() =>
       (event) => captureEventKey(event) === captureSelectedKey.value,
     ) ?? null
     : null,
+);
+const captureSelectedGraphNode = computed(() =>
+  captureGraph.value.nodes.find((node) =>
+    node.id === captureSelectedKey.value ||
+    node.metadata?.sourceNodeId === captureSelectedKey.value,
+  ) ?? null,
+);
+const captureRelatedEvidence = computed(() =>
+  captureSelectedGraphNode.value && !captureSelectedEvent.value
+    ? relatedCaptureEvidence(captureGraph.value, captureSelectedGraphNode.value.id)
+    : [],
 );
 const captureNoiseModes = [
   { label: "完整证据", value: "off" },
@@ -406,6 +421,41 @@ const loadSampleDemo = async () => {
             zoom-storage-key="agent-ebpf.agentsight.harness-capture.zoom"
             @select-node="captureSelectedKey = $event"
           />
+          <a-card
+            v-if="captureSelectedGraphNode && !captureSelectedEvent"
+            size="small"
+            class="agentsight-harness-evidence"
+            :title="captureSelectedGraphNode.label"
+          >
+            <template #extra>
+              <a-button type="link" size="small" @click="captureSelectedKey = ''">清除选择</a-button>
+            </template>
+            <a-space wrap>
+              <a-tag>{{ captureSelectedGraphNode.kind }}</a-tag>
+              <a-tag v-if="captureSelectedGraphNode.pid">PID {{ captureSelectedGraphNode.pid }}</a-tag>
+              <a-tag v-if="captureSelectedGraphNode.metadata?.traceId">
+                Trace {{ captureSelectedGraphNode.metadata.traceId }}
+              </a-tag>
+              <a-tag v-if="captureSelectedGraphNode.metadata?.toolName">
+                {{ captureSelectedGraphNode.metadata.toolName }}
+              </a-tag>
+            </a-space>
+            <div v-if="captureRelatedEvidence.length" class="agentsight-harness-related">
+              <strong>关联捕获证据</strong>
+              <a-space wrap>
+                <a-button
+                  v-for="item in captureRelatedEvidence"
+                  :key="item.id"
+                  size="small"
+                  :danger="(item.riskScore ?? 0) >= 60 || item.kind === 'policy_alert'"
+                  @click="captureSelectedKey = item.metadata!.sourceNodeId!"
+                >
+                  {{ item.label }}
+                </a-button>
+              </a-space>
+            </div>
+            <a-empty v-else description="当前图谱范围内无直接关联事件" :image-style="{ height: '36px' }" />
+          </a-card>
           <AgentSightEventDetails
             :open="!!captureSelectedEvent"
             :event="captureSelectedEvent"
@@ -454,6 +504,11 @@ const loadSampleDemo = async () => {
   display: flex; align-items: center; gap: 8px;
   flex-wrap: wrap; margin-bottom: 12px;
 }
+.agentsight-harness-evidence { margin-top: 12px; }
+.agentsight-harness-related {
+  display: flex; flex-direction: column; gap: 8px; margin-top: 12px;
+}
+.agentsight-harness-related > strong { font-size: 12px; }
 
 .summary-row :deep(.ant-statistic-title) {
   color: #64748b;
