@@ -19,6 +19,16 @@ SPEC.loader.exec_module(checker)
 
 
 class TypedKernelCaptureTests(unittest.TestCase):
+    def test_standard_home_redaction_keeps_work_component(self):
+        home = os.path.expanduser("~")
+        marker = os.path.join(home, "work", "_temp", "agent-soak", "marker.txt")
+        variants = checker.captured_path_variants(marker)
+        self.assertIn("~/work/_temp/agent-soak/marker.txt", variants)
+        self.assertIn("~/_temp/agent-soak/marker.txt", variants)
+        records = [{"Event": {"path": "~/work/_temp/agent-soak/marker.txt",
+                              "type": "openat", "pid": 420}}]
+        self.assertEqual(len(checker.match_marker_events(records, [marker])[marker]), 1)
+
     def test_typed_bpf_path_matched_exactly(self):
         path = "/tmp/opencode-soak/workspace/nested/marker-one.txt"
         events = [
