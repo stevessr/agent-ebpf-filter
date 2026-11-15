@@ -241,8 +241,13 @@ export function buildHarnessCaptureGraph(
         rpcTool = text(decoded.toolName, 100);
         rpcId = text(decoded.id, 128);
         rpcKind = text(decoded.kind, 24);
-        const messages = decoded.parsedMessages;
-        // One collector event may contain many complete JSON-RPC frames.
+        const messages = decoded.parsedMessages.flatMap((message: unknown) =>
+          Array.isArray(message)
+            ? message.filter((entry) => entry?.jsonrpc === "2.0")
+            : [message],
+        );
+        // One collector event may contain many complete JSON-RPC frames,
+        // including a standards-compliant JSON-RPC batch array.
         // Keep a bounded set of graph relations, while the original event
         // remains available with every byte in the evidence drawer.
         const maxFrames = 32;
@@ -262,7 +267,8 @@ export function buildHarnessCaptureGraph(
               : message.result !== undefined ? "response" : "other";
           rpcFrames.push({
             id, method, tool, kind,
-            protocol: decoded.protocol,
+            protocol: method === "tools/call" && message.jsonrpc === "2.0"
+              ? "mcp" : decoded.protocol,
           });
         }
         // Display the first recognized tool/method, but preserve all
