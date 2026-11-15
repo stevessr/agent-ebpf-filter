@@ -343,6 +343,22 @@ describe("AgentSight Harness capture to causal topology", () => {
     expect(JSON.stringify(graph)).not.toContain("SECRET");
   });
 
+  test("correlates two MCP requests encoded as one JSON-RPC batch array", () => {
+    const capture = event("batch-array", {
+      data: { fd: 0, direction: "write", data: JSON.stringify([
+        { jsonrpc: "2.0", id: 10, method: "tools/call",
+          params: { name: "query" } },
+        { jsonrpc: "2.0", id: 11, method: "tools/call",
+          params: { name: "search" } },
+      ]) },
+    });
+    const graph = buildHarnessCaptureGraph([capture]);
+    expect(graph.nodes.filter((node) => node.kind === "tool_call")
+      .map((node) => node.label).sort()).toEqual(["query", "search"]);
+    expect(graph.edges.filter((edge) => edge.kind === "invoked")).toHaveLength(2);
+    expect(graph.omittedMessages).toBe(0);
+  });
+
   test("limits in-chunk frame relations and accounts for every omitted message", () => {
     const capture = event("many-frames", {
       data: {
