@@ -324,6 +324,41 @@ describe("AgentSight Harness capture to causal topology", () => {
     expect(graph.edges.filter((edge) => edge.kind === "invoked")).toHaveLength(32);
   });
 
+  test("overlarge stream gap resets cached framing instead of creating false tool evidence", () => {
+    const request = JSON.stringify({ jsonrpc: "2.0", id: 55,
+      method: "tools/call", params: { name: "verified_request" } });
+    const fullFrame = `Content-Length: ${Buffer.byteLength(request)}\r\n\r\n${request}`;
+    const captured = [
+      event("partial", { timestamp: 100, data: {
+        fd: 0, direction: "write", data: "Content-Le",
+      } }),
+      event("gap", { timestamp: 101, data: {
+        fd: 0, direction: "write", data: "X".repeat(128 * 1024 + 1),
+      } }),
+      event("fresh", { timestamp: 102, data: {
+        fd: 0, direction: "write", data: fullFrame,
+      } }),
+    ];
+    const graph = buildHarnessCaptureGraph(captured);
+    const tools = graph.nodes.filter((node) => node.kind === "tool_call");
+    expect(tools).toHaveLength(1);
+    expect(tools[0].label).toBe("verified_request");
+    expect(graph.edges.filter((edge) => edge.kind === "invoked")).toHaveLength(1);
+    expect(graph.displayedEvents).toBe(3);
+  });
+
+  test("collector-marked truncated JSON must not produce a trusted tool call", () => {
+    const data = JSON.stringify({ jsonrpc: "2.0", id: 1,
+      method: "tools/call", params: { name: "should_not_link" } }) + "\n";
+    const truncated = event("truncated", {
+      data: { fd: 0, direction: "write", truncated: true, data },
+    });
+    const graph = buildHarnessCaptureGraph([truncated]);
+    expect(graph.nodes.filter((node) => node.kind === "tool_call")).toHaveLength(0);
+    expect(graph.nodes.some((node) =>
+      node.metadata?.sourceNodeId === captureEventKey(truncated))).toBe(true);
+  });
+
   test("reuses matching tool and process nodes for same trace", () => {
     const captures = [
       event("first", { data: { toolCallId: "tool-1", agentRunId: "run-1" } }),
