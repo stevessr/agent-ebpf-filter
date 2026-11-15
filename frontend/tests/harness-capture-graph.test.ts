@@ -252,6 +252,23 @@ describe("AgentSight Harness capture to causal topology", () => {
       .toBe(captureEventKey(denied));
   });
 
+  test("non-security words containing BLOCK are not mislabeled alerts", () => {
+    const normal = event("unblocked", {
+      source: "process", eventType: "UNBLOCKED",
+      data: { decision: "UNBLOCKED", riskScore: 0 },
+    });
+    const blocked = event("blocked", {
+      source: "process", eventType: "POLICY_BLOCKED",
+      data: { decision: "BLOCKED", riskScore: 50 },
+    });
+    const graph = buildHarnessCaptureGraph([normal, blocked]);
+    const lookup = (entry: AgentSightEvent) =>
+      graph.nodes.find((node) =>
+        node.metadata?.sourceNodeId === captureEventKey(entry));
+    expect(lookup(normal)?.kind).toBe("syscall");
+    expect(lookup(blocked)?.kind).toBe("policy_alert");
+  });
+
   test("high-risk network evidence is prioritized without changing its semantic kind", () => {
     const evidence = event("high-risk-net", {
       source: "ssl",
