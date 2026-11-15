@@ -176,6 +176,8 @@ def main() -> int:
     last_workspace_events: list[dict[str, object]] = []
     observed_types: Counter[str] = Counter()
     typed_path_fields = 0
+    marker_suffix_hits: Counter[str] = Counter()
+    path_shape: Counter[str] = Counter()
     poll_count = 0
     done_deadline_set = False
 
@@ -184,6 +186,10 @@ def main() -> int:
             "polls": poll_count,
             "typedPathFieldsSeen": typed_path_fields,
             "sampledEventTypes": dict(observed_types.most_common(20)),
+            # These statistics cannot satisfy evidence assertions; they only
+            # diagnose path normalization and noisy capture profiles.
+            "markerBasenameSuffixHits": dict(marker_suffix_hits),
+            "capturedPathShape": dict(path_shape),
         }
 
     while time.monotonic() < deadline:
@@ -196,6 +202,19 @@ def main() -> int:
             poll_count += 1
             observed_types.update(str(capture_event(record).get("type", "")) for record in events)
             typed_path_fields += sum(bool(kernel_paths(record)) for record in events)
+            for record in events:
+                for value in kernel_paths(record):
+                    if value.startswith("~/"):
+                        path_shape["home-normalized"] += 1
+                    elif value.startswith("/"):
+                        path_shape["absolute"] += 1
+                    elif value.startswith("[") or value.startswith("<"):
+                        path_shape["masked"] += 1
+                    else:
+                        path_shape["other"] += 1
+                    for expected_path in expected:
+                        if value.endswith("/" + os.path.basename(expected_path)):
+                            marker_suffix_hits[os.path.basename(expected_path)] += 1
             last_workspace_events = []
             for record in events:
                 summary = event_summary(record)
@@ -221,7 +240,9 @@ def main() -> int:
     write_report(args.report, expected, matched, len(last_events), last_error, diagnostics())
     print(
         f"[soak] sampled {poll_count} snapshots; typed path fields={typed_path_fields}; "
-        f"event types={dict(observed_types.most_common(12))}",
+        f"event types={dict(observed_types.most_common(12))}; "
+        f"marker suffix hits={dict(marker_suffix_hits)}; "
+        f"path shapes={dict(path_shape)}",
         file=sys.stderr,
     )
     if last_error:
