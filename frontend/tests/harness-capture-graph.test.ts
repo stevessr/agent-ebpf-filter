@@ -138,6 +138,52 @@ describe("AgentSight Harness capture to causal topology", () => {
     }
   });
 
+  test("concurrent duplicate IDs with no shared transport identity are not falsely paired", () => {
+    const req = (id: string, time: number, tool: string) => event(id, {
+      timestamp: time, data: { direction: "write", fd: 0,
+        data: JSON.stringify({ jsonrpc: "2.0", id: 3,
+          method: "tools/call", params: { name: tool } }) + "\n" },
+    });
+    const res = (id: string, time: number) => event(id, {
+      timestamp: time, data: { direction: "read", fd: 1,
+        data: JSON.stringify({ jsonrpc: "2.0", id: 3,
+          result: { content: [{ type: "text", text: "ok" }] } }) + "\n" },
+    });
+    const graph = buildHarnessCaptureGraph([
+      req("request-a", 100, "alpha"), req("request-b", 101, "beta"),
+      res("response-a", 102), res("response-b", 103),
+    ]);
+    expect(graph.nodes.filter((node) => node.kind === "tool_call")).toHaveLength(2);
+    expect(graph.edges.filter((edge) => edge.kind === "invoked")).toHaveLength(2);
+    expect(graph.edges.filter((edge) => edge.kind === "returned")).toHaveLength(0);
+  });
+
+  test("explicit session identities disambiguate identical MCP IDs across transports", () => {
+    const req = (id: string, time: number, sessionId: string, tool: string) =>
+      event(id, { timestamp: time, data: {
+        fd: 0, fd_target: "stdin", sessionId,
+        data: JSON.stringify({ jsonrpc: "2.0", id: 5,
+          method: "tools/call", params: { name: tool } }) + "\n",
+      } });
+    const res = (id: string, time: number, sessionId: string) =>
+      event(id, { timestamp: time, data: {
+        fd: 1, fd_target: "stdout", sessionId,
+        data: JSON.stringify({ jsonrpc: "2.0", id: 5,
+          result: { content: [{ type: "text", text: "ok" }] } }) + "\n",
+      } });
+    const graph = buildHarnessCaptureGraph([
+      req("a-request", 100, "a", "alpha"), req("b-request", 101, "b", "beta"),
+      res("b-response", 102, "b"), res("a-response", 103, "a"),
+    ]);
+    const tools = graph.nodes.filter((node) => node.kind === "tool_call");
+    expect(tools).toHaveLength(2);
+    for (const tool of tools) {
+      const relations = graph.edges.filter((edge) => edge.source === tool.id);
+      expect(relations.filter((edge) => edge.kind === "invoked")).toHaveLength(1);
+      expect(relations.filter((edge) => edge.kind === "returned")).toHaveLength(1);
+    }
+  });
+
   test("orphan MCP responses remain visible but are not invented tool calls", () => {
     const response = event("orphan", {
       data: { fd: 1, direction: "read", data: JSON.stringify({
