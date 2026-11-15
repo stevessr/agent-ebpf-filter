@@ -29,7 +29,7 @@ export const dshHook: HookCliDoc = {
     ] },
     { name: "ptc_dispatch_start", description: "session/event: tool/ptc-dispatch-start (Code Mode nested call started)", fields: [
       { name: "tool_name", type: "string", description: "Nested tool name" },
-      { name: "tool_call_id", type: "string", description: "Nested sub-call ID" },
+      { name: "tool_call_id", type: "string", description: "Nested sub-call ID (hashed in backend event)" },
       { name: "parent_tool_call_id", type: "string", description: "Parent run_code call ID (hashed in backend ExtraInfo)" },
     ] },
     { name: "ptc_dispatch", description: "session/event: tool/ptc-dispatch (Code Mode nested call settled)", fields: [
