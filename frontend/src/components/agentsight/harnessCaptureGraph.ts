@@ -309,3 +309,54 @@ export function buildHarnessCaptureGraph(
     omittedEvents: events.length - included.length,
   };
 }
+
+/**
+ * Drill down from an aggregate resource/process/tool/run into captured event
+ * evidence without changing the original AgentSight filter or retention.
+ * One extra hop is allowed for a Run -> Process -> Event chain.
+ */
+export function relatedCaptureEvidence(
+  graph: HarnessCaptureGraph,
+  selectedId: string,
+  limit = 12,
+): ExecutionGraphNode[] {
+  if (!selectedId) return [];
+  const byId = new Map(graph.nodes.map((node) => [node.id, node]));
+  const selected = byId.get(selectedId);
+  if (!selected) return [];
+  const maxDepth = selected.kind === "agent_run" ? 2 : 1;
+  const adjacency = new Map<string, string[]>();
+  for (const edge of graph.edges) {
+    const a = adjacency.get(edge.source) ?? [];
+    a.push(edge.target);
+    adjacency.set(edge.source, a);
+    const b = adjacency.get(edge.target) ?? [];
+    b.push(edge.source);
+    adjacency.set(edge.target, b);
+  }
+  const visited = new Set<string>([selectedId]);
+  const queue: Array<{ id: string; depth: number }> = [
+    { id: selectedId, depth: 0 },
+  ];
+  const matched: ExecutionGraphNode[] = [];
+  for (let cursor = 0; cursor < queue.length; cursor++) {
+    const { id, depth } = queue[cursor];
+    if (depth >= maxDepth) continue;
+    for (const neighbor of adjacency.get(id) ?? []) {
+      if (visited.has(neighbor)) continue;
+      visited.add(neighbor);
+      const node = byId.get(neighbor);
+      if (!node) continue;
+      if (node.metadata?.sourceNodeId) matched.push(node);
+      if (depth + 1 < maxDepth && node.kind === "process") {
+        queue.push({ id: neighbor, depth: depth + 1 });
+      }
+    }
+  }
+  matched.sort((a, b) =>
+    Number(b.riskScore ?? 0) - Number(a.riskScore ?? 0) ||
+    (b.metadata?.receivedAt ?? "").localeCompare(a.metadata?.receivedAt ?? "") ||
+    a.id.localeCompare(b.id),
+  );
+  return matched.slice(0, Math.max(0, Math.min(100, limit)));
+}
