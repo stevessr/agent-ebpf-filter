@@ -378,5 +378,53 @@ curl_api -o "$RUN_DIR/post-run-health.json" "$BASE_URL/api/v1/health"
 if (( event_status != 0 )); then
   exit "$event_status"
 fi
-printf 'OpenCode model: %s\nBackend: %s\nEvent assertions: passed\n' "$MODEL" "$BASE_URL" >>"$SUMMARY"
-echo "[soak] OpenCode free-model exec was observed in kernel events"
+
+# Verify that the captured kernel records also form a usable process/activity
+# topology. Export only aggregate statistics, never raw event payloads.
+curl_api -o "$RUN_DIR/execution-graph.json" "$BASE_URL/events/graph?limit=1000"
+python3 - "$RUN_DIR/execution-graph.json" "$RUN_DIR/graph-report.json" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as source:
+    graph = json.load(source)
+nodes, edges = graph.get("nodes"), graph.get("edges")
+if not isinstance(nodes, list) or not isinstance(edges, list):
+    raise SystemExit("execution graph returned invalid node/edge arrays")
+node_ids = {n.get("id") for n in nodes if isinstance(n, dict)}
+dangling = [
+    e.get("id")
+    for e in edges if isinstance(e, dict)
+    and (e.get("source") not in node_ids or e.get("target") not in node_ids)
+]
+processes = sum(n.get("kind") == "process" for n in nodes if isinstance(n, dict))
+if not nodes or not edges or not processes or dangling:
+    raise SystemExit(
+        f"execution graph invalid: nodes={len(nodes)} edges={len(edges)} "
+        f"processes={processes} dangling={len(dangling)}"
+    )
+report = {
+    "status": "pass",
+    "source": graph.get("source"),
+    "eventCount": graph.get("eventCount"),
+    "nodes": len(nodes),
+    "edges": len(edges),
+    "processNodes": processes,
+    "nodeCounts": graph.get("nodeCounts", {}),
+    "edgeCounts": graph.get("edgeCounts", {}),
+    "truncated": graph.get("truncated", False),
+    "omittedEventCount": graph.get("omittedEventCount", 0),
+    "omittedNodeCount": graph.get("omittedNodeCount", 0),
+    "omittedEdgeCount": graph.get("omittedEdgeCount", 0),
+    "danglingEdges": 0,
+}
+with open(sys.argv[2], "w", encoding="utf-8") as output:
+    json.dump(report, output, indent=2, sort_keys=True)
+    output.write("\n")
+print(f"[soak] graph verified: {len(nodes)} nodes, {len(edges)} edges, "
+      f"{processes} process nodes; no dangling edges")
+PY
+rm -f -- "$RUN_DIR/execution-graph.json"
+printf 'OpenCode model: %s\nBackend: %s\nEvent assertions: passed\nGraph assertions: passed\n' "$MODEL" "$BASE_URL" >>"$SUMMARY"
+echo "[soak] OpenCode free-model exec was observed in kernel events and graph topology"
+
