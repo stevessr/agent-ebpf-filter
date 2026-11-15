@@ -17,6 +17,7 @@ func TestScenesRenderDifferentFrames(t *testing.T) {
   }
   if bytes.Equal(first.Pix,last.Pix) { t.Errorf("%s: animation is static",scene) }
  }
+ if totalCentiseconds!=200 {t.Errorf("GIF duration got %d cs, want 200 cs",totalCentiseconds)}
 }
 
 func TestGIFExportAndInvalidArguments(t *testing.T) {
@@ -32,7 +33,9 @@ func TestGIFExportAndInvalidArguments(t *testing.T) {
  if len(animation.Image)!=4 || animation.Config.Width!=canvasWidth || animation.Config.Height!=canvasHeight {
   t.Fatalf("GIF shape mismatch: frames=%d size=%dx%d",len(animation.Image),animation.Config.Width,animation.Config.Height)
  }
+ totalCentiseconds:=0
  for i,delay:=range animation.Delay {
   if delay<=0 {t.Errorf("frame %d has invalid delay %d",i,delay)}
+  totalCentiseconds+=delay
  }
 }
