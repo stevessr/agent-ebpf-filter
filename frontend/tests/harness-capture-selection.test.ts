@@ -42,6 +42,44 @@ describe("bounded Harness capture selection", () => {
     expect(selected.at(-1)?.id).toBe("noise-39999");
   });
 
+  test("fast path matches full sort for ascending and descending chronological streams", () => {
+    const samples: Sample[] = Array.from({ length: 25000 }, (_, i) => ({
+      id: "stream-" + String(i).padStart(5, "0"),
+      timestamp: 123_000 + i,
+      priority: i % 17 === 0 ? 0 : i % 13 === 0 ? 1 : i % 5 === 0 ? 2 : 3,
+    }));
+    for (const limit of [1, 19, 1000, 2500]) {
+      const expected = reference(samples, limit);
+      expect(selectBoundedCaptureEvents(samples, limit, priority, identity))
+        .toEqual(expected);
+      expect(selectBoundedCaptureEvents(samples.slice().reverse(), limit, priority, identity))
+        .toEqual(expected);
+    }
+  });
+
+  test("repeated timestamps trigger deterministic identity tie-breaker", () => {
+    const samples: Sample[] = [
+      { id: "z", timestamp: 100, priority: 0 },
+      { id: "b", timestamp: 100, priority: 0 },
+      { id: "a", timestamp: 100, priority: 0 },
+      { id: "c", timestamp: 101, priority: 2 },
+      { id: "d", timestamp: 102, priority: 3 },
+    ];
+    expect(selectBoundedCaptureEvents(samples, 2, priority, identity)
+      .map((item) => item.id)).toEqual(["a", "b"]);
+    expect(selectBoundedCaptureEvents(samples.slice().reverse(), 2, priority, identity)
+      .map((item) => item.id)).toEqual(["a", "b"]);
+  });
+
+  test("unexpected priority classes fall back without dropping observations", () => {
+    const samples: Sample[] = Array.from({ length: 300 }, (_, i) => ({
+      id: "other-" + i, timestamp: i,
+      priority: i % 23 === 0 ? 5 : i % 3,
+    }));
+    expect(selectBoundedCaptureEvents(samples, 50, priority, identity))
+      .toEqual(reference(samples, 50));
+  });
+
   test("bounded selection handles empty, malformed budget and clock skew", () => {
     const data: Sample[] = [
       { id: "bad-clock", timestamp: Number.NaN, priority: 2 },
