@@ -54,9 +54,16 @@ func HandleNativeHookEvent(c *gin.Context) {
 		hookEvent = strings.TrimSpace(c.GetHeader("X-Agent-Hook-Event"))
 	}
 
+	// Code Mode scripts are executable source, not filesystem paths or shell commands.
+	// Keep source out of Path and retain only a digest in ExtraInfo.
+	codeModeEngine := nativeCodeModeEngine(payload, hookEvent, toolName)
 	path := ""
 	if toolInput != nil {
-		path = extractNativeHookPath(toolInput)
+		if codeModeEngine != "" {
+			path = extractNativeCodeModePath(toolInput)
+		} else {
+			path = extractNativeHookPath(toolInput)
+		}
 	}
 	extraInfo := buildNativeHookExtraInfo(payload, hookEvent, toolName)
 
@@ -66,7 +73,9 @@ func HandleNativeHookEvent(c *gin.Context) {
 		}
 	}
 	pid, ctx := Deps.BuildProcessContextFromHookPayload(payload, toolName, path)
-	if pid != 0 {
+	// A PTC sub-dispatch shares the Harness PID with parallel sibling calls.
+	// Overwriting PID context with its call ID would misattribute unrelated syscalls.
+	if pid != 0 && !isNativeNestedCodeModeEvent(hookEvent) {
 		Deps.ProcessContexts.Set(pid, ctx)
 	}
 
@@ -193,6 +202,48 @@ func ExtractNativeHookPath(toolInput map[string]interface{}) string {
 	return extractNativeHookPath(toolInput)
 }
 
+func isNativeNestedCodeModeEvent(event string) bool {
+	switch strings.ToLower(strings.TrimSpace(event)) {
+	case "ptc_dispatch_start", "ptc_dispatch":
+		return true
+	}
+	return false
+}
+
+// nativeCodeModeEngine recognizes observable programmatic execution surfaces.
+// An outer code-execution call does NOT prove that its nested tool calls were observed.
+func nativeCodeModeEngine(payload map[string]interface{}, hookEvent, toolName string) string {
+	if isNativeNestedCodeModeEvent(hookEvent) {
+		return "dsh-ptc"
+	}
+	if strings.EqualFold(events.PayloadString(payload, "execution_mode", "executionMode"), "code_mode") {
+		switch events.PayloadString(payload, "code_mode_engine", "codeModeEngine") {
+		case "dsh-ptc", "claude-ptc", "codex-code", "programmatic":
+			return events.PayloadString(payload, "code_mode_engine", "codeModeEngine")
+		}
+		return "programmatic"
+	}
+	switch strings.ToLower(strings.TrimSpace(toolName)) {
+	case "run_code", "functions.exec", "code_execution", "code_interpreter", "execute_code", "python.exec", "python_user_visible.exec":
+		return "programmatic"
+	}
+	if strings.HasSuffix(strings.ToLower(strings.TrimSpace(toolName)), "__run_code") {
+		return "programmatic"
+	}
+	return ""
+}
+
+// Only explicit file/workspace keys may become a Path for Code Mode.
+// In particular, never map code, command or arguments to a filesystem path.
+func extractNativeCodeModePath(input map[string]interface{}) string {
+	for _, key := range []string{"file_path", "filePath", "cwd", "Cwd", "working_directory", "workingDirectory"} {
+		if value := interfaceString(input[key]); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
 func buildNativeHookExtraInfo(payload map[string]interface{}, hookEvent, toolName string) string {
 	parts := []string{}
 	if trimmed := strings.TrimSpace(hookEvent); trimmed != "" {
@@ -200,6 +251,20 @@ func buildNativeHookExtraInfo(payload map[string]interface{}, hookEvent, toolNam
 	}
 	if trimmed := strings.TrimSpace(toolName); trimmed != "" {
 		parts = append(parts, "tool_name="+sanitizeExtraInfoValue(trimmed))
+	}
+	if engine := nativeCodeModeEngine(payload, hookEvent, toolName); engine != "" {
+		parts = append(parts, "execution_mode=code_mode", "execution_engine="+engine)
+		if isNativeNestedCodeModeEvent(hookEvent) {
+			parts = append(parts, "execution_layer=nested")
+		}
+		if parentID := events.PayloadString(payload, "parent_tool_call_id", "parentToolCallId", "parentCallId"); parentID != "" {
+			parts = append(parts, "parent_call_digest="+digestHookText(parentID))
+		}
+		// Source programs may contain credentials; only a short hash and length leave the callback.
+		if source := payloadNestedString(payload, "code"); source != "" {
+			parts = append(parts, "code_digest="+digestHookText(source),
+				fmt.Sprintf("code_len=%d", len([]rune(source))))
+		}
 	}
 	if prompt := extractHookPromptText(payload, hookEvent); prompt != "" {
 		parts = append(parts,
