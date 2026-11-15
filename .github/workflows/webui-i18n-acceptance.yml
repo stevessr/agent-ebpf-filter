@@ -56,6 +56,12 @@ jobs:
           WEBUI_SHARD_COUNT: "4"
           WEBUI_URL: http://127.0.0.1:5173
         run: node scripts/test-i18n-pages.mjs
+      - name: Verify Harness 3D, full evidence and WebGL fallback
+        if: matrix.shard == 0
+        env:
+          PLAYWRIGHT_MODULE: ${{ runner.temp }}/webui-playwright/node_modules/playwright
+          WEBUI_URL: http://127.0.0.1:5173
+        run: node scripts/test-harness-3d-browser.mjs
       - name: Upload per-page screenshots and JSON verdicts
         if: always()
         uses: actions/upload-artifact@v4
