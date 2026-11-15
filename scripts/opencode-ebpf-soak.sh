@@ -90,6 +90,8 @@ START_FIFO="$RUN_DIR/opencode-start.fifo"
 BACKEND_LAUNCH_PID=""
 OPENCODE_LAUNCH_PID=""
 EVENT_MONITOR_PID=""
+CONTROL_PID=""
+CONTROL_REGISTERED_PID=""
 REGISTERED_PID=""
 PIN_ROOT_RESERVED=1
 BACKEND_STOPPED=0
@@ -113,6 +115,17 @@ cleanup() {
     kill -TERM "$EVENT_MONITOR_PID" 2>/dev/null || true
     wait "$EVENT_MONITOR_PID" 2>/dev/null || true
     EVENT_MONITOR_PID=""
+  fi
+  if [[ -n "$CONTROL_PID" ]]; then
+    kill -TERM "$CONTROL_PID" 2>/dev/null || true
+    wait "$CONTROL_PID" 2>/dev/null || true
+    CONTROL_PID=""
+  fi
+  if [[ -n "$CONTROL_REGISTERED_PID" ]]; then
+    curl --silent --show-error --max-time 3 -X POST \
+      -H "X-API-KEY: $API_KEY" -H 'Content-Type: application/json' \
+      --data "{\"pid\":$CONTROL_REGISTERED_PID}" "$BASE_URL/unregister" >/dev/null 2>&1 || true
+    CONTROL_REGISTERED_PID=""
   fi
   if [[ -n "$REGISTERED_PID" ]]; then
     curl --silent --show-error --max-time 3 -X POST \
@@ -311,13 +324,37 @@ cat "$SUMMARY"
 # post-run /events/recent snapshot can miss genuine openat evidence.
 python3 "$ROOT_DIR/scripts/check-opencode-soak.py" \
   --base-url "$BASE_URL" --api-key "$API_KEY" \
+  --expect "$RUN_DIR/control-marker.txt" \
   --expect "$WORKDIR/nested/marker-one.txt" \
   --expect "$WORKDIR/nested/marker-two.txt" \
   --report "$RUN_DIR/capture-report.json" \
+  --done-file "$RUN_DIR/opencode-done" --post-run-timeout "$EVENT_TIMEOUT" \
   --limit 1000 --poll-interval 0.25 \
   --timeout "$((MODEL_TIMEOUT + EVENT_TIMEOUT))" \
   >"$RUN_DIR/checker.log" 2>&1 &
 EVENT_MONITOR_PID=$!
+
+# Baseline: one registered Bash process performs an open/create syscall itself,
+# without an LLM or subprocess attribution. If this is absent from the eBPF
+# stream the failure is in kernel capture/configuration, not the model.
+CONTROL_FIFO="$RUN_DIR/control-start.fifo"
+mkfifo "$CONTROL_FIFO"
+(
+  IFS= read -r _ < "$CONTROL_FIFO"
+  : > "$RUN_DIR/control-marker.txt"
+) &
+CONTROL_PID=$!
+CONTROL_REGISTERED_PID="$CONTROL_PID"
+curl_api -X POST -H 'Content-Type: application/json' \
+  --data "{\"pid\":$CONTROL_PID,\"tag\":\"Agent CLI\",\"cwd\":\"$RUN_DIR\"}" \
+  "$BASE_URL/register" >/dev/null
+printf 'go\n' > "$CONTROL_FIFO"
+wait "$CONTROL_PID"
+CONTROL_PID=""
+curl_api -X POST -H 'Content-Type: application/json' \
+  --data "{\"pid\":$CONTROL_REGISTERED_PID}" "$BASE_URL/unregister" >/dev/null
+CONTROL_REGISTERED_PID=""
+echo "[soak] registered-shell baseline completed (capture evidence checked independently)"
 
 printf -v PROMPT 'Run exactly these three commands, sequentially, with one shell-tool call at a time. Wait for each successful result before the next; never issue concurrent shell calls:\n1) `mkdir -p %s/nested`\n2) `touch %s/nested/marker-one.txt`\n3) `touch %s/nested/marker-two.txt`\nDo not inspect files, use other tools, access the network, call the backend, read environment variables, or modify anything outside the temporary workspace. Reply exactly SOAK_OK after all three commands succeed.' "$WORKDIR" "$WORKDIR" "$WORKDIR"
 (
@@ -372,6 +409,7 @@ wait "$OPENCODE_LAUNCH_PID"
 opencode_status=$?
 set -e
 OPENCODE_LAUNCH_PID=""
+: > "$RUN_DIR/opencode-done"
 if [[ -n "$REGISTERED_PID" ]]; then
   curl_api -X POST -H 'Content-Type: application/json' \
     --data "{\"pid\":$REGISTERED_PID}" "$BASE_URL/unregister" >/dev/null
