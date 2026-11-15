@@ -47,6 +47,54 @@ export function selectBoundedCaptureEvents<T extends CaptureSelectionItem>(
     return events.map(ranked).sort(chronology).map((entry) => entry.event);
   }
 
+  // Capture buffers are often append-only and strictly chronological.
+  // For those snapshots, a reverse scan plus four small priority buckets
+  // beats both full sorting and a heap: O(N + K log K), O(K) memory.
+  // Duplicate timestamps or reordered imports use the general heap below,
+  // whose identity tie-breaker remains fully deterministic.
+  let direction = 0;
+  for (let i = 1; i < events.length; i++) {
+    const current = events[i].timestamp;
+    const previous = events[i - 1].timestamp;
+    const delta = current - previous;
+    if (!Number.isFinite(delta) || delta === 0) {
+      direction = 0;
+      break;
+    }
+    const sign = delta > 0 ? 1 : -1;
+    if (direction && direction !== sign) {
+      direction = 0;
+      break;
+    }
+    direction = sign;
+  }
+  if (direction) {
+    const buckets: T[][] = [[], [], [], []];
+    let categorical = true;
+    for (let i = direction === 1 ? events.length - 1 : 0;
+      direction === 1 ? i >= 0 : i < events.length;
+      i += direction === 1 ? -1 : 1) {
+      const event = events[i];
+      const level = priority(event);
+      if (!Number.isInteger(level) || level < 0 || level > 3) {
+        categorical = false;
+        break;
+      }
+      if (buckets[level].length < budget) buckets[level].push(event);
+    }
+    if (categorical) {
+      const top: T[] = [];
+      for (const bucket of buckets) {
+        for (const event of bucket) {
+          top.push(event);
+          if (top.length >= budget) break;
+        }
+        if (top.length >= budget) break;
+      }
+      return top.sort((a, b) => a.timestamp - b.timestamp);
+    }
+  }
+
   const heap: RankedCapture<T>[] = [];
   const bubbleUp = (start: number) => {
     let index = start;
