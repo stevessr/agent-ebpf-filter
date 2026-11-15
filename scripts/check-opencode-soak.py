@@ -58,6 +58,70 @@ def captured_path_variants(path: str) -> tuple[str, ...]:
     return (path,)
 
 
+def capture_event(record: dict) -> dict:
+    """Only use the typed kernel event; ignore arbitrary message/extra-info strings."""
+    event = record.get("Event", record.get("event"))
+    return event if isinstance(event, dict) else {}
+
+
+def kernel_paths(record: dict) -> set[str]:
+    event = capture_event(record)
+    fields = ("path", "Path", "filePath", "file_path")
+    return {
+        value.rstrip("\\x00")
+        for name in fields
+        if isinstance((value := event.get(name)), str) and value
+    }
+
+
+def match_marker_events(events: list[dict], expected: list[str]) -> dict[str, list[dict]]:
+    """Demand path evidence in an Event field, not a free-form log mention."""
+    candidates = {path: set(captured_path_variants(path)) for path in expected}
+    matched = {path: [] for path in expected}
+    for record in events:
+        paths = kernel_paths(record)
+        if not paths:
+            continue
+        for path, variants in candidates.items():
+            if paths.intersection(variants):
+                matched[path].append(event_summary(record))
+    return matched
+
+
+def write_report(
+    destination: str,
+    expected: list[str],
+    matches: dict[str, list[dict]],
+    event_count: int,
+    error: str | None,
+) -> None:
+    """Publish metadata only: never dump raw prompt, headers or body strings."""
+    if not destination:
+        return
+    markers = []
+    for path in expected:
+        records = matches.get(path, [])
+        markers.append({
+            "basename": os.path.basename(path),
+            "captured": bool(records),
+            "matchingEvents": len(records),
+            "eventTypes": sorted({str(item.get("type", item.get("eventType", ""))) for item in records}),
+            "pids": sorted({str(item["pid"]) for item in records if "pid" in item}),
+            "commands": sorted({str(item["comm"]) for item in records if "comm" in item}),
+        })
+    summary = {
+        "schemaVersion": 1,
+        "source": "kernel-event-typed-path",
+        "status": "pass" if all(item["captured"] for item in markers) else "fail",
+        "recentEvents": event_count,
+        "markers": markers,
+        "lastFetchError": error,
+    }
+    with open(destination, "w", encoding="utf-8") as output:
+        json.dump(summary, output, indent=2, sort_keys=True)
+        output.write("\\n")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", required=True)
@@ -66,6 +130,7 @@ def main() -> int:
     parser.add_argument("--timeout", type=float, default=45.0)
     parser.add_argument("--poll-interval", type=float, default=2.0)
     parser.add_argument("--limit", type=int, default=500)
+    parser.add_argument("--report", default="", help="write sanitized structured capture summary")
     args = parser.parse_args()
 
     expected = [path for path in args.expect]
@@ -75,7 +140,7 @@ def main() -> int:
     query = urllib.parse.urlencode({"limit": args.limit})
     url = f"{base_url}/events/recent?{query}"
     deadline = time.monotonic() + args.timeout
-    path_candidates = {path: captured_path_variants(path) for path in expected}
+    matched = {path: [] for path in expected}
 
     workspace_candidates = {
         candidate
@@ -97,21 +162,19 @@ def main() -> int:
                 cwd = summary.get("cwd")
                 if isinstance(cwd, str) and any(candidate in cwd for candidate in workspace_candidates):
                     last_workspace_events.append(summary)
-            event_strings = [text for event in events for text in strings_in(event)]
-            last_missing = [
-                path
-                for path, candidates in path_candidates.items()
-                if not any(candidate in text for candidate in candidates for text in event_strings)
-            ]
+            matched = match_marker_events(events, expected)
+            last_missing = [path for path in expected if not matched[path]]
             last_error = None
             if not last_missing:
-                print(f"[soak] captured all {len(expected)} marker paths across {len(events)} recent events")
+                write_report(args.report, expected, matched, len(events), None)
+                print(f"[soak] captured all {len(expected)} marker paths in typed kernel events across {len(events)} recent records")
                 return 0
         except (OSError, ValueError, json.JSONDecodeError, urllib.error.URLError) as exc:
             last_error = str(exc)
 
         time.sleep(min(args.poll_interval, max(0.0, deadline - time.monotonic())))
 
+    write_report(args.report, expected, matched, len(last_events), last_error)
     if last_error:
         print(f"[soak] recent-events query failed: {last_error}", file=sys.stderr)
     if last_missing:
