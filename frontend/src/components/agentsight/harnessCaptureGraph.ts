@@ -112,10 +112,13 @@ export function buildHarnessCaptureGraph(
   });
   // Correlate only requests actually observed in the bounded capture window.
   // Completed calls are removed so a reused JSON-RPC id starts a new call.
+  // null denotes an ambiguous JSON-RPC ID concurrently in use by more
+  // than one request. In that case do not guess which response belongs to
+  // which call; both request nodes remain available for forensic review.
   const pendingRpc = new Map<string, {
     toolIdentity: string;
     toolName: string;
-  }>();
+  } | null>();
   const nodes = new Map<string, ExecutionGraphNode>();
   const edges = new Map<string, ExecutionGraphEdge>();
   const addNode = (node: ExecutionGraphNode) => {
@@ -199,9 +202,12 @@ export function buildHarnessCaptureGraph(
         // Malformed frames remain visible as ordinary captured events.
       }
     }
+    // Use only explicitly bidirectional session identities. Per-direction
+    // fd_target and stream_id can differ between stdin and stdout and
+    // would silently break legitimate request/response correlations.
     const session = text(data.sessionId ?? data.session_id ??
-      data.connectionId ?? data.connection_id ?? data.streamId ??
-      data.stream_id ?? data.fdTarget ?? data.fd_target, 128);
+      data.connectionId ?? data.connection_id ??
+      data.transportSessionId ?? data.transport_session_id, 128);
     const rpcKey = rpcId
       ? JSON.stringify([scope, pid, session, event.source, rpcId])
       : "";
@@ -214,18 +220,20 @@ export function buildHarnessCaptureGraph(
       // JSON-RPC ID. The request occurrence determines the unique identity.
       const generated = `mcp:${captureEventKey(event)}`;
       toolIdentity ||= generated;
-      pendingRpc.set(rpcKey, {
-        toolIdentity, toolName: correlatedToolName,
-      });
+      pendingRpc.set(rpcKey, pendingRpc.has(rpcKey)
+        ? null
+        : { toolIdentity, toolName: correlatedToolName });
       toolRelation = "invoked";
     } else if (rpcKey && (rpcKind === "response" || rpcKind === "error")) {
       const request = pendingRpc.get(rpcKey);
       if (request) {
         toolIdentity ||= request.toolIdentity;
         correlatedToolName ||= request.toolName;
-        pendingRpc.delete(rpcKey);
         toolRelation = rpcKind === "error" ? "failed" : "returned";
       }
+      // Consume even ambiguous IDs without ever attributing an unknown
+      // response to an arbitrary tool request.
+      pendingRpc.delete(rpcKey);
     }
     if (toolIdentity) {
       const toolId = `tool:${scope}:${toolIdentity}`;
