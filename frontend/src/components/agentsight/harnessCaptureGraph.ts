@@ -5,6 +5,7 @@ import type {
 import type { AgentSightEvent } from "../../utils/agentsight/types";
 import { isStdioSource } from "../../utils/agentsight/stdio";
 import { AgentSightStdioStreamDecoder } from "../../utils/agentsight/stdio_stream";
+import { selectBoundedCaptureEvents } from "./harnessCaptureSelection";
 
 export interface HarnessCaptureGraph {
   nodes: ExecutionGraphNode[];
@@ -93,15 +94,9 @@ export function buildHarnessCaptureGraph(
   maxEvents = 1000,
 ): HarnessCaptureGraph {
   const limit = Math.max(1, Math.min(2000, Math.floor(maxEvents) || 1000));
-  const included = events.length > limit
-    ? [...events]
-      .sort((a, b) => priority(a) - priority(b) ||
-        b.timestamp - a.timestamp ||
-        captureEventKey(a).localeCompare(captureEventKey(b)))
-      .slice(0, limit)
-    : [...events];
-  included.sort((a, b) => a.timestamp - b.timestamp ||
-    captureEventKey(a).localeCompare(captureEventKey(b)));
+  const included = selectBoundedCaptureEvents(
+    events, limit, priority, captureEventKey,
+  );
 
   // The same bounded streaming decoder as AgentSight's process tree handles
   // Content-Length and newline-delimited MCP fragments in timestamp order.
