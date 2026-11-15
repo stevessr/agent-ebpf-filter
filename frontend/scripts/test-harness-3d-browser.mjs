@@ -97,6 +97,10 @@ try {
       await page.waitForFunction(() =>
         localStorage.getItem("agent-ebpf.execution-graph.display")?.includes('"noise":"off"'),
       );
+      // The dropdown lives above the canvas; scrolling to it can suspend
+      // the offscreen 3D redraw until the canvas is visible once more.
+      await page.locator(".harness-3d, .execution-graph-canvas").first()
+        .scrollIntoViewIfNeeded();
       await page.waitForFunction(() => {
         const overlay = document.querySelector(".harness-3d-overlay");
         const svgNodes = document.querySelectorAll(".execution-graph-svg g.execution-node").length;
