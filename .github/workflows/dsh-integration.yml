@@ -13,6 +13,8 @@ on:
       - 'integrations/dsh-subprocess/**'
       - 'wrapper/**'
       - 'frontend/src/data/hooks/dsh*'
+      - 'backend/app/hookassets/**'
+      - 'backend/app/handlers/native_hook*'
       - '.github/workflows/dsh-integration.yml'
   push:
     branches: [master]
@@ -70,6 +72,10 @@ jobs:
           (cd wrapper && go test ./... -count=1)
       - name: Test Harness provider JS
         run: cd integrations/dsh-subprocess && node --test tests/*.test.mjs
+      - name: Test Code Mode native Cordis hook
+        run: |
+          node --check backend/app/hookassets/dsh.mjs
+          node --test backend/app/hookassets/tests/*.test.mjs
 
   web:
     runs-on: ubuntu-24.04
