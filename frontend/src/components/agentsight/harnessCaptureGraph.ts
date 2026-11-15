@@ -241,7 +241,7 @@ export function buildHarnessCaptureGraph(
         rpcTool = text(decoded.toolName, 100);
         rpcId = text(decoded.id, 128);
         rpcKind = text(decoded.kind, 24);
-        const messages = decoded.parsedMessages.flatMap((message: unknown) =>
+        const messages = decoded.parsedMessages.flatMap((message: any) =>
           Array.isArray(message)
             ? message.filter((entry) => entry?.jsonrpc === "2.0")
             : [message],
