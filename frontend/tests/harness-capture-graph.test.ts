@@ -73,6 +73,108 @@ describe("AgentSight Harness capture to causal topology", () => {
     expect(JSON.stringify(graph)).not.toContain("PRIVATE_TOKEN");
   });
 
+  test("correlates an MCP request and response to the same actual invocation", () => {
+    const request = event("request", {
+      timestamp: 100,
+      data: {
+        fd: 0, direction: "write",
+        data: JSON.stringify({
+          jsonrpc: "2.0", id: 9,
+          method: "tools/call", params: { name: "grep" },
+        }) + "\n",
+      },
+    });
+    const response = event("response", {
+      timestamp: 101,
+      data: {
+        fd: 1, direction: "read",
+        data: JSON.stringify({
+          jsonrpc: "2.0", id: 9,
+          result: { content: [{ type: "text", text: "PRIVATE_RESULT" }] },
+        }) + "\n",
+      },
+    });
+    const graph = buildHarnessCaptureGraph([response, request]);
+    const toolNodes = graph.nodes.filter((node) => node.kind === "tool_call");
+    expect(toolNodes).toHaveLength(1);
+    expect(toolNodes[0].label).toBe("grep");
+    const linked = graph.edges.filter((edge) => edge.source === toolNodes[0].id);
+    expect(linked.some((edge) => edge.kind === "invoked" &&
+      graph.nodes.find((node) => node.id === edge.target)?.metadata?.sourceNodeId ===
+      captureEventKey(request))).toBe(true);
+    expect(linked.some((edge) => edge.kind === "returned" &&
+      graph.nodes.find((node) => node.id === edge.target)?.metadata?.sourceNodeId ===
+      captureEventKey(response))).toBe(true);
+    expect(JSON.stringify(graph)).not.toContain("PRIVATE_RESULT");
+  });
+
+  test("JSON-RPC id reuse produces distinct tool calls, never a false shared invocation", () => {
+    const records: AgentSightEvent[] = [];
+    for (let i = 0; i < 2; i++) {
+      records.push(event("request-" + i, {
+        timestamp: 100 + i * 2,
+        data: { fd: 0, direction: "write", data: JSON.stringify({
+          jsonrpc: "2.0", id: 1, method: "tools/call",
+          params: { name: i === 0 ? "list" : "fetch" },
+        }) + "\n" },
+      }));
+      records.push(event("response-" + i, {
+        timestamp: 101 + i * 2,
+        data: { fd: 1, direction: "read", data: JSON.stringify({
+          jsonrpc: "2.0", id: 1,
+          result: { content: [{ type: "text", text: "done" }] },
+        }) + "\n" },
+      }));
+    }
+    const graph = buildHarnessCaptureGraph(records);
+    const tools = graph.nodes.filter((node) => node.kind === "tool_call");
+    expect(tools).toHaveLength(2);
+    expect(tools.map((node) => node.label).sort()).toEqual(["fetch", "list"]);
+    for (const tool of tools) {
+      expect(graph.edges.filter((edge) => edge.source === tool.id &&
+        edge.kind === "invoked")).toHaveLength(1);
+      expect(graph.edges.filter((edge) => edge.source === tool.id &&
+        edge.kind === "returned")).toHaveLength(1);
+    }
+  });
+
+  test("orphan MCP responses remain visible but are not invented tool calls", () => {
+    const response = event("orphan", {
+      data: { fd: 1, direction: "read", data: JSON.stringify({
+        jsonrpc: "2.0", id: 42,
+        result: { content: [{ type: "text", text: "result" }] },
+      }) + "\n" },
+    });
+    const graph = buildHarnessCaptureGraph([response]);
+    expect(graph.nodes.filter((node) => node.kind === "tool_call")).toHaveLength(0);
+    expect(graph.nodes.some((node) => node.metadata?.sourceNodeId === captureEventKey(response))).toBe(true);
+  });
+
+  test("repeated transport IDs with different timestamps or PIDs remain distinct observations", () => {
+    const captures = [
+      event("same", { timestamp: 100, pid: 100 }),
+      event("same", { timestamp: 101, pid: 100 }),
+      event("same", { timestamp: 100, pid: 200 }),
+    ];
+    const graph = buildHarnessCaptureGraph(captures);
+    expect(new Set(captures.map(captureEventKey)).size).toBe(3);
+    expect(graph.nodes.filter((node) => node.metadata?.sourceNodeId)).toHaveLength(3);
+    expect(graph.displayedEvents).toBe(3);
+  });
+
+  test("high-risk network evidence is prioritized without changing its semantic kind", () => {
+    const evidence = event("high-risk-net", {
+      source: "ssl",
+      eventType: "TLS_DATA",
+      data: { riskScore: 95, host: "example.test" },
+    });
+    const graph = buildHarnessCaptureGraph([evidence]);
+    const captured = graph.nodes.find((node) =>
+      node.metadata?.sourceNodeId === captureEventKey(evidence));
+    expect(captured?.kind).toBe("network");
+    expect(captured?.riskScore).toBe(95);
+  });
+
   test("reuses matching tool and process nodes for same trace", () => {
     const captures = [
       event("first", { data: { toolCallId: "tool-1", agentRunId: "run-1" } }),
