@@ -162,6 +162,30 @@ describe("AgentSight Harness capture to causal topology", () => {
     expect(graph.displayedEvents).toBe(3);
   });
 
+  test("policy ALLOW stays a decision and errno zero is not treated as an alert", () => {
+    const allowed = event("allowed", {
+      source: "policy", eventType: "POLICY",
+      data: { decision: "ALLOW", riskScore: 0 },
+    });
+    const normal = event("errno-zero", {
+      source: "system", eventType: "system_metrics",
+      data: { errno: "0", type: "system_metrics" },
+    });
+    const denied = event("denied", {
+      source: "policy", eventType: "POLICY",
+      data: { decision: "BLOCK", riskScore: 90 },
+    });
+    const graph = buildHarnessCaptureGraph([allowed, normal, denied]);
+    const bySource = (e: AgentSightEvent) =>
+      graph.nodes.find((n) => n.metadata?.sourceNodeId === captureEventKey(e));
+    expect(bySource(allowed)?.kind).toBe("policy_decision");
+    expect(bySource(normal)?.kind).toBe("hook_event");
+    expect(bySource(denied)?.kind).toBe("policy_alert");
+    const narrowed = buildHarnessCaptureGraph([allowed, normal, denied], 1);
+    expect(narrowed.nodes.find((n) => n.metadata?.sourceNodeId)?.metadata?.sourceNodeId)
+      .toBe(captureEventKey(denied));
+  });
+
   test("high-risk network evidence is prioritized without changing its semantic kind", () => {
     const evidence = event("high-risk-net", {
       source: "ssl",
