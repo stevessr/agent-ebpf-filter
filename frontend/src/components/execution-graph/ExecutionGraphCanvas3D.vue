@@ -126,6 +126,7 @@ function redraw() {
   if (!scene) return;
   const graph = buildDisplayGraph(props.nodes, props.edges, {
     preserveEvents: props.preserveEvents,
+    selectedNodeId: props.selectedNodeId,
   });
   const signature = harnessTopologySignature(graph.nodes, graph.edges);
   if (signature === lastGraphSignature && graphGroup) return;
@@ -432,7 +433,12 @@ async function init() {
   }
 }
 watch(() => [props.nodes, props.edges, props.preserveEvents], scheduleGraphUpdate);
-watch(() => props.selectedNodeId, updateSelection);
+watch(() => props.selectedNodeId, () => {
+  updateSelection();
+  // Changing the selected syscall can split or rejoin a routine aggregate.
+  // For full-evidence graphs no topology rebuild is necessary.
+  if (!props.preserveEvents) scheduleGraphUpdate();
+});
 onMounted(init);
 onBeforeUnmount(() => {
   disposed = true;
