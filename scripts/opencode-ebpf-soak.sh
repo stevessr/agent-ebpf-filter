@@ -9,7 +9,10 @@ MODEL_TIMEOUT="${OPENCODE_SOAK_MODEL_TIMEOUT:-180}"
 EVENT_TIMEOUT="${OPENCODE_SOAK_EVENT_TIMEOUT:-45}"
 ARTIFACT_DIR="${OPENCODE_SOAK_ARTIFACT_DIR:-}"
 KEEP_ARTIFACTS="${OPENCODE_SOAK_KEEP_ARTIFACTS:-0}"
-SOAK_DISABLED_EVENT_TYPES=""
+# Focused file-capture A/B profile: suppress high-volume unrelated kernel
+# events while retaining OPENAT, OPEN, MKDIR, and process-fork evidence.
+# The general monitoring profile remains tested separately.
+SOAK_DISABLED_EVENT_TYPES="7,8,9,10,25,28"
 SOAK_IGNORED_PATHS="/proc,/var/cache/apt,/var/lib/apt,/var/log/journal"
 EBPF_PIN_ROOT=/sys/fs/bpf/agent-ebpf
 pin_root_exists() {
@@ -71,11 +74,8 @@ if [[ -n "$ARTIFACT_DIR" ]]; then
   mkdir -p "$ARTIFACT_DIR"
   RUN_DIR="$(mktemp -d "$ARTIFACT_DIR/run.XXXXXX")"
   KEEP_ARTIFACTS=1
-  # Renew's Daily profile suppresses openat and other high-volume types and the
-  # default ignored paths cover /tmp; the soak must observe the marker file
-  # operations, so explicitly re-enable capture for this run.
-  SOAK_DISABLED_EVENT_TYPES=""
-  SOAK_IGNORED_PATHS="/proc,/var/cache/apt,/var/lib/apt,/var/log/journal"
+  # Keep the focused file-capture profile above. Do not inherit Renew's
+  # Daily ignored-path defaults, which could hide test marker events.
 else
   RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/agent-ebpf-opencode-soak.XXXXXX")"
 fi
@@ -341,7 +341,10 @@ CONTROL_FIFO="$RUN_DIR/control-start.fifo"
 mkfifo "$CONTROL_FIFO"
 (
   IFS= read -r _ < "$CONTROL_FIFO"
-  : > "$RUN_DIR/control-marker.txt"
+  for _ in {1..12}; do
+    : > "$RUN_DIR/control-marker.txt"
+    sleep 0.2
+  done
 ) &
 CONTROL_PID=$!
 CONTROL_REGISTERED_PID="$CONTROL_PID"
