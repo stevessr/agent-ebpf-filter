@@ -210,7 +210,7 @@ Pi/Oh My Pi extension 当前上报 `session_start`、`tool_call` 和 `tool_resul
 | **Codex** | 可见的 `functions.exec` / `run_code` 等 payload | 取决于具体运行时是否真正上报 | Codex CLI 当前原生 hooks 的 Bash matcher 不能当作所有 SDK 内部调用的审计证据 |
 | **其他 CLI** | `execute_code`、`code_interpreter` 等已识别工具名 | 仅接收端明确上报的内部事件 | 不启用宽泛的 `exec_command` / `Bash` 推测，以减少误判 |
 
-接收端将上述外层调用标记为 `execution_mode=code_mode`；若 Hook payload 带有 `code`，只计算 `code_digest` 和 `code_len`，不会把代码内容写入 `Path`、`ExtraInfo` 或进程上下文。PTC 子调用追加 `execution_layer=nested` 和 `parent_call_digest`，将事件自带的 `subCallId` 转为稳定摘要后保持子事件配对（原始 subCallId 可嵌入父调用 ID）；不把并行子调用的 `tool_call_id` 写入共享 Harness PID 的进程上下文，防止把同一进程的其他 syscall 错归因给某个子调用。
+接收端将上述外层调用标记为 `execution_mode=code_mode`；若 Hook payload 带有 `code`，只计算 `code_digest` 和 `code_len`，不会把代码内容写入 `Path`、`ExtraInfo` 或进程上下文。PTC 子调用追加 `execution_layer=nested`、`parent_call_digest` 和 `root_call_digest`，将事件自带的 `subCallId` 转为稳定摘要后保持子事件配对（原始 subCallId 可嵌入父调用 ID）；不把并行子调用的 `tool_call_id` 写入共享 Harness PID 的进程上下文，防止把同一进程的其他 syscall 错归因给某个子调用。
 
 ### 检测与阻断的界限
 
