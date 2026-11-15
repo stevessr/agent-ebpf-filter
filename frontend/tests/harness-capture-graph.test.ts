@@ -185,6 +185,25 @@ describe("AgentSight Harness capture to causal topology", () => {
     }
   });
 
+  test("other JSON-RPC requests sharing an outstanding tool ID prevent false response attribution", () => {
+    const frame = (id: string, timestamp: number, payload: object) =>
+      event(id, { timestamp, data: { fd: 0, direction: "write",
+        data: JSON.stringify(payload) + "\n" } });
+    const captures = [
+      frame("tool-request", 100, { jsonrpc: "2.0", id: 4,
+        method: "tools/call", params: { name: "write_file" } }),
+      frame("other-request", 101, { jsonrpc: "2.0", id: 4,
+        method: "resources/read", params: { uri: "file:///private" } }),
+      frame("ambiguous-response", 102, { jsonrpc: "2.0", id: 4,
+        result: { content: [{ type: "text", text: "done" }] } }),
+    ];
+    const graph = buildHarnessCaptureGraph(captures);
+    expect(graph.nodes.filter((node) => node.kind === "tool_call")).toHaveLength(1);
+    expect(graph.edges.filter((edge) => edge.kind === "invoked")).toHaveLength(1);
+    expect(graph.edges.filter((edge) => edge.kind === "returned")).toHaveLength(0);
+    expect(graph.nodes.filter((node) => node.metadata?.sourceNodeId)).toHaveLength(3);
+  });
+
   test("orphan MCP responses remain visible but are not invented tool calls", () => {
     const response = event("orphan", {
       data: { fd: 1, direction: "read", data: JSON.stringify({
