@@ -57,7 +57,8 @@ try {
     }
     await page.routeWebSocket("**/ws/**", () => {});
     await page.routeWebSocket("**/ws/events/graph*", (socket) => {
-      socket.send(JSON.stringify(fixture));
+      // Let the Vue client install its onmessage listener before delivery.
+      setTimeout(() => socket.send(JSON.stringify(fixture)), 500);
     });
     try {
       await page.goto(new URL("/execution-graph/topology", base).toString(), {
