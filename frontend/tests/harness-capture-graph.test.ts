@@ -473,6 +473,22 @@ describe("AgentSight Harness capture to causal topology", () => {
       captureEventKey(input))).toBe(true);
   });
 
+  test("network labels redact URL credentials and query tokens", () => {
+    const capture = event("net-secret", {
+      source: "http_parser", eventType: "HTTP_REQUEST",
+      data: { endpoint: "https://alice:SECRET_PASSWORD@api.example.test/v1/models?api_key=SECRET_KEY#SECRET_FRAGMENT" },
+    });
+    const graph = buildHarnessCaptureGraph([capture]);
+    const encoded = JSON.stringify(graph);
+    for (const secret of ["SECRET_PASSWORD", "SECRET_KEY", "SECRET_FRAGMENT"]) {
+      expect(encoded).not.toContain(secret);
+    }
+    expect(graph.nodes.find((node) => node.kind === "network")?.label)
+      .toBe("https://api.example.test/v1/models");
+    expect(graph.nodes.some((node) => node.metadata?.sourceNodeId ===
+      captureEventKey(capture))).toBe(true);
+  });
+
   test("keeps event details inspectable by source identity", () => {
     const capture = event("log-123", {
       source: "http_parser",
