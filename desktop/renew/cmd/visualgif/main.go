@@ -57,8 +57,6 @@ func run(args []string) error {
 func writeGIF(out, scene string, fps, seconds int) error {
  count := fps * seconds
  animation := &gif.GIF{Image: make([]*image.Paletted, 0, count), Delay: make([]int, 0, count), LoopCount: 0}
- delay := int(math.Round(100.0 / float64(fps)))
- if delay < 1 { delay = 1 }
  for i := 0; i < count; i++ {
   // Time comes from the frame index, not wall-clock time; exports are repeatable.
   phase := float32(i) / float32(count)
@@ -66,7 +64,11 @@ func writeGIF(out, scene string, fps, seconds int) error {
   paletted := image.NewPaletted(rgba.Bounds(), palette.Plan9)
   draw.FloydSteinberg.Draw(paletted, paletted.Bounds(), rgba, image.Point{})
   animation.Image = append(animation.Image, paletted)
-  animation.Delay = append(animation.Delay, delay)
+  // GIF delays are centiseconds. Distribute fractional delays so the total
+  // playback duration remains exactly the requested number of seconds.
+  current := int(math.Round(float64((i+1)*100) / float64(fps)))
+  previous := int(math.Round(float64(i*100) / float64(fps)))
+  animation.Delay = append(animation.Delay, current-previous)
  }
  dir := filepath.Dir(out)
  if err := os.MkdirAll(dir, 0755); err != nil { return err }
