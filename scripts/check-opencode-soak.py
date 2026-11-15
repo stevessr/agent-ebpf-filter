@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections import Counter
 import os
 import sys
 import time
@@ -94,6 +95,7 @@ def write_report(
     matches: dict[str, list[dict]],
     event_count: int,
     error: str | None,
+    diagnostics: dict | None = None,
 ) -> None:
     """Publish metadata only: never dump raw prompt, headers or body strings."""
     if not destination:
@@ -116,6 +118,7 @@ def write_report(
         "recentEvents": event_count,
         "markers": markers,
         "lastFetchError": error,
+        "diagnostics": diagnostics or {},
     }
     with open(destination, "w", encoding="utf-8") as output:
         json.dump(summary, output, indent=2, sort_keys=True)
@@ -131,6 +134,8 @@ def main() -> int:
     parser.add_argument("--poll-interval", type=float, default=2.0)
     parser.add_argument("--limit", type=int, default=500)
     parser.add_argument("--report", default="", help="write sanitized structured capture summary")
+    parser.add_argument("--done-file", default="", help="file created when the agent has exited")
+    parser.add_argument("--post-run-timeout", type=float, default=45.0)
     args = parser.parse_args()
 
     expected = [path for path in args.expect]
@@ -151,11 +156,28 @@ def main() -> int:
     last_error: str | None = None
     last_events: list[dict] = []
     last_workspace_events: list[dict[str, object]] = []
+    observed_types: Counter[str] = Counter()
+    typed_path_fields = 0
+    poll_count = 0
+    done_deadline_set = False
+
+    def diagnostics() -> dict:
+        return {
+            "polls": poll_count,
+            "typedPathFieldsSeen": typed_path_fields,
+            "sampledEventTypes": dict(observed_types.most_common(20)),
+        }
 
     while time.monotonic() < deadline:
+        if args.done_file and not done_deadline_set and os.path.exists(args.done_file):
+            deadline = min(deadline, time.monotonic() + args.post_run_timeout)
+            done_deadline_set = True
         try:
             events = fetch_events(url, args.api_key, timeout=10.0)
             last_events = events
+            poll_count += 1
+            observed_types.update(str(capture_event(record).get("type", "")) for record in events)
+            typed_path_fields += sum(bool(kernel_paths(record)) for record in events)
             last_workspace_events = []
             for record in events:
                 summary = event_summary(record)
@@ -166,7 +188,7 @@ def main() -> int:
             last_missing = [path for path in expected if not matched[path]]
             last_error = None
             if not last_missing:
-                write_report(args.report, expected, matched, len(events), None)
+                write_report(args.report, expected, matched, len(events), None, diagnostics())
                 print(f"[soak] captured all {len(expected)} marker paths in typed kernel events across {len(events)} recent records")
                 return 0
         except (OSError, ValueError, json.JSONDecodeError, urllib.error.URLError) as exc:
@@ -174,7 +196,12 @@ def main() -> int:
 
         time.sleep(min(args.poll_interval, max(0.0, deadline - time.monotonic())))
 
-    write_report(args.report, expected, matched, len(last_events), last_error)
+    write_report(args.report, expected, matched, len(last_events), last_error, diagnostics())
+    print(
+        f"[soak] sampled {poll_count} snapshots; typed path fields={typed_path_fields}; "
+        f"event types={dict(observed_types.most_common(12))}",
+        file=sys.stderr,
+    )
     if last_error:
         print(f"[soak] recent-events query failed: {last_error}", file=sys.stderr)
     if last_missing:
