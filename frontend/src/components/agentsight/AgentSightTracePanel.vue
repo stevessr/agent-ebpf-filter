@@ -86,7 +86,7 @@ onUnmounted(() => {
 const captureGraph = computed(() =>
   state.activeTab.value === "harness-3d"
     ? buildHarnessCaptureGraph(captureSourceEvents.value)
-    : { nodes: [], edges: [], displayedEvents: 0, omittedEvents: 0 },
+    : { nodes: [], edges: [], displayedEvents: 0, omittedEvents: 0, omittedMessages: 0 },
 );
 const capturePresentation = computed(() =>
   filterPresentationNoise(
@@ -392,6 +392,9 @@ const loadSampleDemo = async () => {
               :options="captureNoiseModes"
             />
             <a-tag color="blue">{{ captureGraph.displayedEvents }} 捕获事件</a-tag>
+            <a-tag v-if="captureGraph.omittedMessages" color="orange" title="原始 STDIO 帧仍可在事件详情中查看">
+              未绘制 {{ captureGraph.omittedMessages }} 条同块协议消息
+            </a-tag>
             <a-tag v-if="capturePresentation.hiddenNodes" color="cyan">
               已折叠 {{ capturePresentation.hiddenNodes }} 节点
             </a-tag>
