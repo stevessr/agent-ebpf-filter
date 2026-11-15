@@ -9,6 +9,8 @@ MODEL_TIMEOUT="${OPENCODE_SOAK_MODEL_TIMEOUT:-180}"
 EVENT_TIMEOUT="${OPENCODE_SOAK_EVENT_TIMEOUT:-45}"
 ARTIFACT_DIR="${OPENCODE_SOAK_ARTIFACT_DIR:-}"
 KEEP_ARTIFACTS="${OPENCODE_SOAK_KEEP_ARTIFACTS:-0}"
+SOAK_DISABLED_EVENT_TYPES=""
+SOAK_IGNORED_PATHS="/proc,/var/cache/apt,/var/lib/apt,/var/log/journal"
 EBPF_PIN_ROOT=/sys/fs/bpf/agent-ebpf
 pin_root_exists() {
   if (( EUID == 0 )); then
@@ -299,7 +301,6 @@ printf -v PROMPT 'Run exactly these three commands, sequentially, with one shell
   cd "$WORKDIR"
   IFS= read -r _ < "$START_FIFO"
   exec env \
-    -u OPENCODE_API_KEY \
     -u OPENCODE_CONFIG \
     -u OPENCODE_CONFIG_CONTENT \
     -u OPENCODE_CONFIG_DIR \
@@ -369,6 +370,7 @@ python3 "$ROOT_DIR/scripts/check-opencode-soak.py" \
   --base-url "$BASE_URL" --api-key "$API_KEY" \
   --expect "$WORKDIR/nested/marker-one.txt" \
   --expect "$WORKDIR/nested/marker-two.txt" \
+  --report "$RUN_DIR/capture-report.json" \
   --timeout "$EVENT_TIMEOUT"
 event_status=$?
 set -e
