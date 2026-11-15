@@ -252,6 +252,11 @@ func buildNativeHookExtraInfo(payload map[string]interface{}, hookEvent, toolNam
 	if trimmed := strings.TrimSpace(toolName); trimmed != "" {
 		parts = append(parts, "tool_name="+sanitizeExtraInfoValue(trimmed))
 	}
+	if hookEvent == "telemetry_dropped" {
+		if count := events.PayloadUint32(payload, "dropped_events"); count > 0 {
+			parts = append(parts, fmt.Sprintf("dropped_events=%d", count))
+		}
+	}
 	if engine := nativeCodeModeEngine(payload, hookEvent, toolName); engine != "" {
 		parts = append(parts, "execution_mode=code_mode", "execution_engine="+engine)
 		if isNativeNestedCodeModeEvent(hookEvent) {
