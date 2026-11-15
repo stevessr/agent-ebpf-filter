@@ -13,8 +13,16 @@ export interface HarnessCaptureGraph {
   omittedEvents: number;
 }
 
+/**
+ * Transport IDs can be reused across replay imports or recorder restarts.
+ * The occurrence key includes time, PID and trace/span, so two observations
+ * with the same producer event_id remain independently inspectable.
+ */
 export const captureEventKey = (event: AgentSightEvent): string =>
-  JSON.stringify([event.source, event.id]);
+  JSON.stringify([
+    event.source, event.id, event.timestamp, event.pid,
+    event.traceId, event.spanId,
+  ]);
 
 function text(value: unknown, max = 160): string {
   if (value === undefined || value === null) return "";
@@ -35,7 +43,8 @@ function priority(event: AgentSightEvent): number {
   const decision = decisionOf(data);
   if (event.source === "policy" || /ALERT|BLOCK|DENY|DENIED|REJECT|DROP/.test(
     event.eventType + " " + decision,
-  ) || data.alert === true || riskOf(data) >= 60) return 0;
+  ) || data.alert === true || data.alert === "true" ||
+    riskOf(data) >= 60 || !!data.errno || !!data.errorCode) return 0;
   if (event.source === "stdio" || event.source === "agent") return 1;
   if (event.source === "file" || event.source === "process") return 2;
   return 3;
@@ -43,7 +52,13 @@ function priority(event: AgentSightEvent): number {
 
 function eventKind(event: AgentSightEvent): string {
   const data = event.data ?? {};
-  if (priority(event) === 0) return "policy_alert";
+  // High risk determines priority/color, not semantic type. Only an actual
+  // policy or explicitly alerted observation becomes a policy_alert node.
+  if (event.source === "policy" || data.alert === true ||
+      data.alert === "true" ||
+      /ALERT|BLOCK|DENY|DENIED|REJECT|DROP/.test(
+        event.eventType + " " + decisionOf(data),
+      )) return "policy_alert";
   if (isStdioSource(event.source)) return "hook_event";
   if (event.source === "ssl" || event.source === "http_parser" ||
       event.source === "sse_processor") return "network";
@@ -83,6 +98,12 @@ export function buildHarnessCaptureGraph(
     maxPendingBytesPerStream: 128 * 1024,
     maxTotalPendingBytes: 1024 * 1024,
   });
+  // Correlate only requests actually observed in the bounded capture window.
+  // Completed calls are removed so a reused JSON-RPC id starts a new call.
+  const pendingRpc = new Map<string, {
+    toolIdentity: string;
+    toolName: string;
+  }>();
   const nodes = new Map<string, ExecutionGraphNode>();
   const edges = new Map<string, ExecutionGraphEdge>();
   const addNode = (node: ExecutionGraphNode) => {
@@ -147,6 +168,7 @@ export function buildHarnessCaptureGraph(
     let rpcTool = "";
     let rpcId = "";
     let rpcProtocol = "";
+    let rpcKind = "";
     if (isStdioSource(event.source)) {
       // Limit parsing oversized stdout chunks in the visualization; they
       // remain available unchanged in AgentSight's evidence drawer and logs.
@@ -160,28 +182,53 @@ export function buildHarnessCaptureGraph(
         rpcTool = text(decoded.toolName, 100);
         rpcId = text(decoded.id, 128);
         rpcProtocol = text(decoded.protocol, 24);
+        rpcKind = text(decoded.kind, 24);
       } catch {
         // Malformed frames remain visible as ordinary captured events.
       }
     }
-    const toolIdentity = toolCallId || (
-      rpcId && rpcProtocol === "mcp"
-        ? `mcp:${event.source}:${pid}:${rpcId}`
-        : ""
-    );
+    const session = text(data.sessionId ?? data.session_id ??
+      data.connectionId ?? data.connection_id ?? data.streamId ??
+      data.stream_id ?? data.fdTarget ?? data.fd_target, 128);
+    const rpcKey = rpcId
+      ? JSON.stringify([scope, pid, session, event.source, rpcId])
+      : "";
+    let toolIdentity = toolCallId;
+    let correlatedToolName = toolName || rpcTool;
+    let toolRelation = "observed";
+    if (rpcKey && rpcKind === "request" && rpcMethod === "tools/call" &&
+        rpcProtocol === "mcp") {
+      // Do not merge consecutive tools/call operations that reuse the same
+      // JSON-RPC ID. The request occurrence determines the unique identity.
+      const generated = `mcp:${captureEventKey(event)}`;
+      toolIdentity ||= generated;
+      pendingRpc.set(rpcKey, {
+        toolIdentity, toolName: correlatedToolName,
+      });
+      toolRelation = "invoked";
+    } else if (rpcKey && (rpcKind === "response" || rpcKind === "error")) {
+      const request = pendingRpc.get(rpcKey);
+      if (request) {
+        toolIdentity ||= request.toolIdentity;
+        correlatedToolName ||= request.toolName;
+        pendingRpc.delete(rpcKey);
+        toolRelation = rpcKind === "error" ? "failed" : "returned";
+      }
+    }
     if (toolIdentity) {
       const toolId = `tool:${scope}:${toolIdentity}`;
       addNode({
         id: toolId, kind: "tool_call",
-        label: toolName || rpcTool || rpcMethod || "Tool call",
+        label: correlatedToolName || rpcMethod || "Tool call",
         metadata: {
           agentRunId: runId, traceId,
           toolCallId: toolIdentity,
-          toolName: toolName || rpcTool,
+          toolName: correlatedToolName,
         },
       });
       if (runNodeId) addEdge(runNodeId, toolId, "contains");
       addEdge(toolId, processId, "owns");
+      addEdge(toolId, eventId, toolRelation);
     }
 
     const type = text(event.eventType || data.type || event.source, 100);
@@ -208,7 +255,13 @@ export function buildHarnessCaptureGraph(
           Math.abs(event.timestamp) <= 8.64e15
           ? new Date(event.timestamp).toISOString() : "",
         redactionState: event.redactionState || "",
-        rpcMethod, rpcTool,
+        rpcMethod, rpcTool, rpcKind, rpcId,
+        // Outcome metadata is required by the evidence-critical filter.
+        errno: text(data.errno ?? data.errorCode ?? data.error_code),
+        error: text(data.error, 120),
+        ret: text(data.returnCode ?? data.return_code ?? data.ret),
+        success: text(data.success),
+        failed: text(data.failed),
         riskScore: String(risk),
       },
     });
