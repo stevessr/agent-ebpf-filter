@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   buildHarnessCaptureGraph,
   captureEventKey,
+  relatedCaptureEvidence,
 } from "../src/components/agentsight/harnessCaptureGraph";
 import type { AgentSightEvent } from "../src/utils/agentsight/types";
 import { filterPresentationNoise } from "../src/components/execution-graph/graphNoise";
@@ -243,6 +244,26 @@ describe("AgentSight Harness capture to causal topology", () => {
       node.metadata?.sourceNodeId === captureEventKey(evidence));
     expect(captured?.kind).toBe("network");
     expect(captured?.riskScore).toBe(95);
+  });
+
+  test("can drill down from process, run and file nodes to exact capture evidence", () => {
+    const captured = event("file-scan", {
+      timestamp: 100,
+      source: "file",
+      eventType: "openat",
+      data: { operation: "read", path: "/tmp/case" },
+    });
+    const graph = buildHarnessCaptureGraph([captured]);
+    const occurrence = captureEventKey(captured);
+    const processId = "proc:trace:trace-test:200";
+    const runId = "trace:trace-test";
+    const fileId = "file:/tmp/case";
+    for (const selected of [processId, runId, fileId]) {
+      expect(relatedCaptureEvidence(graph, selected).map((node) =>
+        node.metadata?.sourceNodeId)).toContain(occurrence);
+    }
+    expect(relatedCaptureEvidence(graph, "missing")).toEqual([]);
+    expect(relatedCaptureEvidence(graph, processId, 0)).toEqual([]);
   });
 
   test("reuses matching tool and process nodes for same trace", () => {
