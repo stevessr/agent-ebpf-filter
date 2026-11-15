@@ -2,6 +2,16 @@ name: OpenCode eBPF soak
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [master]
+    paths:
+      - ".github/workflows/opencode-ebpf-soak.yml"
+      - "scripts/opencode-ebpf-soak.sh"
+      - "scripts/check-opencode-soak.py"
+      - "scripts/test-check-opencode-soak.py"
+      - "frontend/src/components/agentsight/**"
+      - "frontend/src/components/execution-graph/**"
+      - "frontend/tests/harness-capture-*.test.ts"
   schedule:
     - cron: "17 5 * * 1"
 
@@ -14,11 +24,16 @@ concurrency:
 
 jobs:
   soak:
+    # Never run a root-attaching eBPF harness from an external fork PR.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       OPENCODE_SOAK_KEEP_ARTIFACTS: "1"
       OPENCODE_SOAK_MODEL: opencode/big-pickle
+      # Console free models can require a connected account; leave this
+      # optional so signed-out free-model availability is tested as well.
+      OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
     steps:
       - uses: actions/checkout@v7.0.1
 
@@ -56,7 +71,18 @@ jobs:
           echo "$RUNNER_TEMP/opencode/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/opencode/bin/opencode" --version
 
-      - name: Run anonymous free-model agent soak
+      - name: Verify OpenCode free-model ID is selectable
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 30s opencode models opencode > "$RUNNER_TEMP/opencode-models.txt"
+          if ! grep -Fxq "$OPENCODE_SOAK_MODEL" "$RUNNER_TEMP/opencode-models.txt"; then
+            echo "::error::OpenCode model $OPENCODE_SOAK_MODEL is not available; no paid-model fallback is permitted."
+            exit 1
+          fi
+      - name: Check capture validator regressions
+        run: python3 -m unittest discover -s scripts -p 'test-check-opencode-soak.py' -v
+      - name: Run OpenCode free-model agent and collect kernel evidence
         env:
           OPENCODE_SOAK_ARTIFACT_DIR: ${{ runner.temp }}/opencode-ebpf-soak
         run: scripts/opencode-ebpf-soak.sh
