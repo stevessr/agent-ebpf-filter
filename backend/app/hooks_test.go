@@ -477,3 +477,15 @@ func TestDshNativeHookIncludesPTCDispatchObserver(t *testing.T) {
 		}
 	}
 }
+
+func TestDshNativeHookQueueIsBoundedAndReportsGaps(t *testing.T) {
+	source := buildDshPlugin(HookDef{ID: "dsh", NativeConfigPath: "/tmp/agent-ebpf-hook-active-dsh.mjs"})
+	for _, part := range []string{
+		"maxPending = 256", "maxInflight = 8", "pending.push(",
+		"telemetry_dropped", "dropped_events: count", "pending.length = 0",
+	} {
+		if !strings.Contains(source, part) {
+			t.Fatalf("DSH PTC relay queue missing %q", part)
+		}
+	}
+}
