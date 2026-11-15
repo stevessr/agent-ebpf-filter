@@ -195,8 +195,23 @@ export function buildHarnessCaptureGraph(
       const chunkTooLarge = typeof rawChunk === "string" &&
         rawChunk.length > 128 * 1024;
       try {
-        if (chunkTooLarge) throw new Error("visualization decode budget");
+        if (chunkTooLarge) {
+          // An uninspected capture introduces an unknown byte gap. Reset
+          // any pending fragment for this stream before the next event,
+          // otherwise a later chunk could manufacture a false tool call.
+          stdioDecoder.decode({
+            ...event,
+            data: { ...data, data: "", payload: "", truncated: true },
+          });
+          throw new Error("visualization decode budget");
+        }
         const decoded = stdioDecoder.decode(event);
+        // A truncated, overflowed or malformed frame is evidence of a
+        // capture problem, not a trustworthy JSON-RPC invocation.
+        if (decoded.truncated || decoded.framingError ||
+            decoded.reassemblyReset) {
+          throw new Error("untrusted or incomplete stdio framing");
+        }
         rpcMethod = text(decoded.method, 100);
         rpcTool = text(decoded.toolName, 100);
         rpcId = text(decoded.id, 128);
