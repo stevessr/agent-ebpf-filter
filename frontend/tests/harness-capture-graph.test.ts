@@ -483,7 +483,7 @@ describe("AgentSight Harness capture to causal topology", () => {
     for (const secret of ["SECRET_PASSWORD", "SECRET_KEY", "SECRET_FRAGMENT"]) {
       expect(encoded).not.toContain(secret);
     }
-    expect(graph.nodes.find((node) => node.kind === "network")?.label)
+    expect(graph.nodes.find((node) => node.id.startsWith("net:"))?.label)
       .toBe("https://api.example.test/v1/models");
     expect(graph.nodes.some((node) => node.metadata?.sourceNodeId ===
       captureEventKey(capture))).toBe(true);
