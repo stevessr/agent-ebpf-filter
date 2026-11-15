@@ -149,3 +149,10 @@ func TestNativeCodeModePTCSubcallsRetainOnlyHashedParent(t *testing.T) {
 		t.Fatal("only actual PTC dispatch events can skip global PID context replacement")
 	}
 }
+
+func TestDshRelayOverflowIsExplicitMetadata(t *testing.T) {
+	extra := buildNativeHookExtraInfo(map[string]interface{}{"dropped_events": float64(27)}, "telemetry_dropped", "")
+	if !strings.Contains(extra, "hook_event=telemetry_dropped") || !strings.Contains(extra, "dropped_events=27") {
+		t.Fatalf("dropped PTC hook events were not reported: %q", extra)
+	}
+}
