@@ -277,6 +277,9 @@ func buildNativeHookExtraInfo(payload map[string]interface{}, hookEvent, toolNam
 		if parentID := events.PayloadString(payload, "parent_tool_call_id", "parentToolCallId", "parentCallId"); parentID != "" {
 			parts = append(parts, "parent_call_digest="+digestHookText(parentID))
 		}
+		if rootID := events.PayloadString(payload, "root_tool_call_id", "rootToolCallId", "rootCallId"); rootID != "" {
+			parts = append(parts, "root_call_digest="+digestHookText(rootID))
+		}
 		// Source programs may contain credentials; only a short hash and length leave the callback.
 		if source := payloadNestedString(payload, "code"); source != "" {
 			parts = append(parts, "code_digest="+digestHookText(source),
