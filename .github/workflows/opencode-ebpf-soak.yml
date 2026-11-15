@@ -46,6 +46,24 @@ jobs:
         with:
           node-version: 22
 
+      - name: Install OpenCode v2 CLI
+        run: |
+          npm install --global --prefix "$RUNNER_TEMP/opencode" @opencode/cli@2.1.3
+          echo "$RUNNER_TEMP/opencode/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/opencode/bin/opencode" --version
+
+      - name: Verify OpenCode free-model ID is selectable
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 30s opencode models > "$RUNNER_TEMP/opencode-models.txt"
+          if ! grep -Fxq "$OPENCODE_SOAK_MODEL" "$RUNNER_TEMP/opencode-models.txt"; then
+            echo "::error::OpenCode model $OPENCODE_SOAK_MODEL is not available; no paid-model fallback is permitted."
+            exit 1
+          fi
+      - name: Check capture validator regressions
+        run: python3 -m unittest discover -s scripts -p 'test_opencode_soak.py' -v
+
       - name: Install eBPF build dependencies
         run: sudo apt-get update && sudo apt-get install -y build-essential clang llvm libbpf-dev libelf-dev protobuf-compiler
 
@@ -65,23 +83,6 @@ jobs:
       - name: Build backend and eBPF programs
         run: make ebpf-bootstrap
 
-      - name: Install OpenCode v2 CLI
-        run: |
-          npm install --global --prefix "$RUNNER_TEMP/opencode" @opencode/cli@2.1.3
-          echo "$RUNNER_TEMP/opencode/bin" >> "$GITHUB_PATH"
-          "$RUNNER_TEMP/opencode/bin/opencode" --version
-
-      - name: Verify OpenCode free-model ID is selectable
-        shell: bash
-        run: |
-          set -euo pipefail
-          timeout 30s opencode models opencode > "$RUNNER_TEMP/opencode-models.txt"
-          if ! grep -Fxq "$OPENCODE_SOAK_MODEL" "$RUNNER_TEMP/opencode-models.txt"; then
-            echo "::error::OpenCode model $OPENCODE_SOAK_MODEL is not available; no paid-model fallback is permitted."
-            exit 1
-          fi
-      - name: Check capture validator regressions
-        run: python3 -m unittest discover -s scripts -p 'test_opencode_soak.py' -v
       - name: Run OpenCode free-model agent and collect kernel evidence
         env:
           OPENCODE_SOAK_ARTIFACT_DIR: ${{ runner.temp }}/opencode-ebpf-soak
