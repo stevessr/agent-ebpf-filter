@@ -266,6 +266,64 @@ describe("AgentSight Harness capture to causal topology", () => {
     expect(relatedCaptureEvidence(graph, processId, 0)).toEqual([]);
   });
 
+  test("extracts multiple MCP tool requests from a single STDIO capture chunk", () => {
+    const capture = event("batch", {
+      timestamp: 1000,
+      data: { fd: 0, direction: "write", data: [
+        { jsonrpc: "2.0", id: 7, method: "tools/call",
+          params: { name: "repo_search", arguments: { secret: "HIDDEN_BATCH" } } },
+        { jsonrpc: "2.0", id: 8, method: "tools/call",
+          params: { name: "read_file" } },
+      ].map((item) => JSON.stringify(item) + "\n").join("") },
+    });
+    const graph = buildHarnessCaptureGraph([capture]);
+    expect(graph.nodes.filter((node) => node.kind === "tool_call")
+      .map((node) => node.label).sort()).toEqual(["read_file", "repo_search"]);
+    expect(graph.edges.filter((edge) => edge.kind === "invoked")).toHaveLength(2);
+    expect(graph.displayedEvents).toBe(1);
+    expect(graph.omittedMessages).toBe(0);
+    expect(graph.nodes.filter((node) => node.metadata?.sourceNodeId)).toHaveLength(1);
+    expect(JSON.stringify(graph)).not.toContain("HIDDEN_BATCH");
+  });
+
+  test("pairs MCP request and response occurring within one collector event", () => {
+    const capture = event("multi-rpc", {
+      timestamp: 1000,
+      data: { fd: 0, direction: "write", data: [
+        { jsonrpc: "2.0", id: 13, method: "tools/call",
+          params: { name: "check" } },
+        { jsonrpc: "2.0", id: 13,
+          result: { content: [{ type: "text", text: "SECRET" }] } },
+      ].map((item) => JSON.stringify(item) + "\n").join("") },
+    });
+    const graph = buildHarnessCaptureGraph([capture]);
+    const tools = graph.nodes.filter((node) => node.kind === "tool_call");
+    expect(tools).toHaveLength(1);
+    expect(tools[0].label).toBe("check");
+    expect(graph.edges.filter((edge) =>
+      edge.source === tools[0].id && edge.kind === "invoked")).toHaveLength(1);
+    expect(graph.edges.filter((edge) =>
+      edge.source === tools[0].id && edge.kind === "returned")).toHaveLength(1);
+    expect(JSON.stringify(graph)).not.toContain("SECRET");
+  });
+
+  test("limits in-chunk frame relations and accounts for every omitted message", () => {
+    const capture = event("many-frames", {
+      data: {
+        fd: 0, direction: "write",
+        data: Array.from({ length: 40 }, (_, i) =>
+          JSON.stringify({ jsonrpc: "2.0", id: i + 1, method: "tools/call",
+            params: { name: "fetch" } }) + "\n").join(""),
+      },
+    });
+    const graph = buildHarnessCaptureGraph([capture]);
+    expect(graph.displayedEvents).toBe(1);
+    expect(graph.omittedEvents).toBe(0);
+    expect(graph.omittedMessages).toBe(8);
+    expect(graph.nodes.filter((node) => node.kind === "tool_call")).toHaveLength(32);
+    expect(graph.edges.filter((edge) => edge.kind === "invoked")).toHaveLength(32);
+  });
+
   test("reuses matching tool and process nodes for same trace", () => {
     const captures = [
       event("first", { data: { toolCallId: "tool-1", agentRunId: "run-1" } }),
