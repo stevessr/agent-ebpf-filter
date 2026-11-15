@@ -269,6 +269,12 @@ func buildNativeHookExtraInfo(payload map[string]interface{}, hookEvent, toolNam
 			parts = append(parts, fmt.Sprintf("dropped_events=%d", count))
 		}
 	}
+	// Capture outcome semantics, never the tool's result content.
+	if result, _ := payload["tool_result"].(map[string]interface{}); result != nil {
+		if failed, ok := result["is_error"].(bool); ok {
+			parts = append(parts, fmt.Sprintf("tool_is_error=%t", failed))
+		}
+	}
 	if engine := nativeCodeModeEngine(payload, hookEvent, toolName); engine != "" {
 		parts = append(parts, "execution_mode=code_mode", "execution_engine="+engine)
 		if isNativeNestedCodeModeEvent(hookEvent) {
