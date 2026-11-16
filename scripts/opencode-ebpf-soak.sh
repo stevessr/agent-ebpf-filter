@@ -4,6 +4,11 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKEND_BIN="${AGENT_SOAK_BACKEND_BIN:-$ROOT_DIR/backend/agent-ebpf-filter}"
 MODEL="${OPENCODE_SOAK_MODEL:-opencode/big-pickle}"
+SOAK_EXECUTOR="${AGENT_SOAK_EXECUTOR:-opencode}"  # registered or opencode
+case "$SOAK_EXECUTOR" in
+  registered|opencode) ;;
+  *) echo "[soak] invalid executor: $SOAK_EXECUTOR" >&2; exit 2 ;;
+esac
 BACKEND_TIMEOUT="${OPENCODE_SOAK_BACKEND_TIMEOUT:-60}"
 MODEL_TIMEOUT="${OPENCODE_SOAK_MODEL_TIMEOUT:-180}"
 EVENT_TIMEOUT="${OPENCODE_SOAK_EVENT_TIMEOUT:-45}"
@@ -45,7 +50,11 @@ if [[ ! -x "$BACKEND_BIN" ]]; then
   echo "[soak] backend binary is missing or not executable: $BACKEND_BIN (run make ebpf-bootstrap first)" >&2
   exit 1
 fi
-for command in curl python3 opencode timeout mountpoint; do
+required_commands=(curl python3 timeout mountpoint)
+if [[ "$SOAK_EXECUTOR" == "opencode" ]]; then
+  required_commands+=(opencode)
+fi
+for command in "${required_commands[@]}"; do
   if ! command -v "$command" >/dev/null 2>&1; then
     echo "[soak] required command is missing: $command" >&2
     exit 1
