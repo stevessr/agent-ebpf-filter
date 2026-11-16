@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"math"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"agent-ebpf-filter/app/ml"
 	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/core"
+	"agent-ebpf-filter/internal/heuristics"
 	"agent-ebpf-filter/pb"
 )
 
@@ -187,8 +189,38 @@ func resolveAction(
 	mlEnabled bool,
 	mlModelLoaded bool,
 ) (pb.WrapperResponse_Action, string) {
-	return resolveActionWithScore(req, ruleAction, rulePriority, classification,
+	action, reason := resolveActionWithScore(req, ruleAction, rulePriority, classification,
 		anomalyScore, mlPrediction, cfg, mlEnabled, mlModelLoaded)
+	// Detect direct web-worker shell spawns without changing an explicit override
+	// or downgrading an existing block/rewrite. Default audit, opt-in denial.
+	if req == nil || action == pb.WrapperResponse_BLOCK || action == pb.WrapperResponse_REWRITE ||
+		(ruleAction != "" && rulePriority >= cfg.RuleOverridePriority) {
+		return action, reason
+	}
+	mode := strings.ToLower(strings.TrimSpace(os.Getenv("AGENT_EBPF_WEB_SHELL_MODE")))
+	if mode == "off" || heuristics.ShellExecutable(req.Comm, req.Args) == "" {
+		return action, reason
+	}
+	if finding, ok := heuristics.DetectWebShellWrapper(req.Comm, req.Args, req.Pid); ok {
+		return applyWebShellFinding(action, reason, mode, finding)
+	}
+	return action, reason
+}
+
+// applyWebShellFinding is pure and never bypasses existing stronger decisions.
+// An explicit mode=block is required before web-worker ancestry can deny a command.
+func applyWebShellFinding(action pb.WrapperResponse_Action, reason, mode string, finding heuristics.ShellFinding) (pb.WrapperResponse_Action, string) {
+	if action == pb.WrapperResponse_BLOCK || action == pb.WrapperResponse_REWRITE {
+		return action, reason
+	}
+	prefix := finding.Code + ": " + finding.Reason()
+	if mode == "block" {
+		return pb.WrapperResponse_BLOCK, "Web service shell policy: " + prefix
+	}
+	if mode != "off" && action == pb.WrapperResponse_ALLOW {
+		return pb.WrapperResponse_ALERT, "Web service shell audit: " + prefix
+	}
+	return action, reason
 }
 
 // mlActionRiskScore maps a model decision onto a bounded risk score in [0,1]
