@@ -66,6 +66,7 @@ Agent eBPF Filter combines **eBPF kernel tracing**, **Go backend**, **Vue.js das
 - **OTLP Export:** Span telemetry for observability platforms
 - **Prometheus Metrics:** Standard monitoring integration
 - **Kubernetes:** DaemonSet manifests included
+- **Magpie AstrLink Guard audit:** [Local CUDA/CPU privacy audit plugin and ONNX sidecar](integrations/magpie-astrlink-guard/README.md)
 
 ---
 

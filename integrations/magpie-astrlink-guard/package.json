@@ -1,0 +1,24 @@
+{
+  "name": "agent-ebpf-magpie-astrlink-guard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local AstrLink Guard audit and privacy masking hooks for Magpie",
+  "keywords": ["magpie-plugin", "privacy", "astrlink", "agent-ebpf-filter"],
+  "magpie": {
+    "hooks": "./hooks.js",
+    "middleware": "./guard.middleware.js",
+    "options": {
+      "serverUrl": "http://127.0.0.1:8765",
+      "action": "redact",
+      "gatewayTimeoutMs": 5000,
+      "labels": ["private_person", "private_address", "phone", "email", "account", "payment_card", "common_secret"],
+      "maxTexts": 64,
+      "maxTextChars": 16384
+    }
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs && python3 -m unittest discover -s tests -p 'test_*.py'"
+  },
+  "license": "GPL-3.0-only"
+}
