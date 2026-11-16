@@ -9,10 +9,12 @@ MODEL_TIMEOUT="${OPENCODE_SOAK_MODEL_TIMEOUT:-180}"
 EVENT_TIMEOUT="${OPENCODE_SOAK_EVENT_TIMEOUT:-45}"
 ARTIFACT_DIR="${OPENCODE_SOAK_ARTIFACT_DIR:-}"
 KEEP_ARTIFACTS="${OPENCODE_SOAK_KEEP_ARTIFACTS:-0}"
-# Focused file-capture A/B profile: suppress high-volume unrelated kernel
-# events while retaining OPENAT, OPEN, MKDIR, and process-fork evidence.
+# Focused file-capture profile: suppress noisy read/write and network I/O.
+# Keep GENERIC_SYSCALL (25) enabled: openat2, faccessat2, and several path
+# operations use a generic exit handler instead of OPENAT (1). Disabling 25
+# would silently hide valid kernel file activity from some toolchains.
 # The general monitoring profile remains tested separately.
-SOAK_DISABLED_EVENT_TYPES="7,8,9,10,25,28"
+SOAK_DISABLED_EVENT_TYPES="7,8,9,10,28"
 SOAK_IGNORED_PATHS="/proc,/var/cache/apt,/var/lib/apt,/var/log/journal"
 EBPF_PIN_ROOT=/sys/fs/bpf/agent-ebpf
 pin_root_exists() {
