@@ -61,9 +61,14 @@ func (s *kernelSequenceAuditState) Observe(raw *core.BpfEvent) kernelSequenceRes
 		return kernelSequenceResult{Observation: kernelSequenceFirst}
 	}
 
-	// A non-zero kernel audit generation is authoritative. Tracker reloads no
-	// longer need to be inferred from a timestamp-forward sequence rewind.
-	if current.generation != 0 && previous.generation != 0 && current.generation != previous.generation {
+	// Explicit generations identify reloads, including upgrades from legacy
+	// zero-generation events. Reject late records from a previous generation:
+	// generation IDs are random, so time (not numeric ID order) establishes
+	// whether the new sample actually belongs after the live cursor.
+	if current.generation != 0 && current.generation != previous.generation {
+		if current.timestamp != 0 && previous.timestamp != 0 && current.timestamp <= previous.timestamp {
+			return kernelSequenceResult{Observation: kernelSequenceOutOfOrder}
+		}
 		s.byCPU[cpu] = current
 		return kernelSequenceResult{Observation: kernelSequenceReset}
 	}
@@ -75,14 +80,14 @@ func (s *kernelSequenceAuditState) Observe(raw *core.BpfEvent) kernelSequenceRes
 	}
 
 	switch {
-	case current.sequence == previous.sequence+1:
+	case current.sequence > previous.sequence && current.sequence-previous.sequence == 1:
 		s.byCPU[cpu] = current
 		return kernelSequenceResult{
 			Observation:               kernelSequenceContiguous,
 			ReserveFailuresDelta:      reserveDelta,
 			ReserveFailuresDeltaKnown: reserveDeltaKnown,
 		}
-	case current.sequence > previous.sequence+1:
+	case current.sequence > previous.sequence:
 		missing := current.sequence - previous.sequence - 1
 		s.byCPU[cpu] = current
 		return kernelSequenceResult{
@@ -111,6 +116,14 @@ func recordKernelSequenceObservation(raw *core.BpfEvent) {
 		return
 	}
 
+	result := kernelSequenceAudit.Observe(raw)
+	if result.Observation == kernelSequenceOutOfOrder {
+		// A replayed sample may carry the same pending-drop count as the
+		// original. Never count it twice as fresh kernel ring-buffer loss.
+		collectorMetricsStore.RecordAgentSightCounterN("kernel_sequence_out_of_order", 1)
+		return
+	}
+
 	reportedDropped := uint64(0)
 	if raw.AuditFlags&core.BpfAuditFlagReserveGap != 0 {
 		reportedDropped = raw.KernelDroppedSinceLast
@@ -118,7 +131,6 @@ func recordKernelSequenceObservation(raw *core.BpfEvent) {
 		collectorMetricsStore.RecordAgentSightCounterN("kernel_reported_reserve_dropped_events", reportedDropped)
 	}
 
-	result := kernelSequenceAudit.Observe(raw)
 	switch result.Observation {
 	case kernelSequenceGap:
 		collectorMetricsStore.RecordAgentSightCounterN("kernel_sequence_gap_events", 1)
@@ -161,7 +173,5 @@ func recordKernelSequenceObservation(raw *core.BpfEvent) {
 		}
 	case kernelSequenceReset:
 		collectorMetricsStore.RecordAgentSightCounterN("kernel_sequence_resets", 1)
-	case kernelSequenceOutOfOrder:
-		collectorMetricsStore.RecordAgentSightCounterN("kernel_sequence_out_of_order", 1)
 	}
 }

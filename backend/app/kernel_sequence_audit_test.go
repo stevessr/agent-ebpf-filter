@@ -85,3 +85,70 @@ func TestKernelSequenceAuditLegacyResetFallback(t *testing.T) {
 		t.Fatalf("legacy forward-time rewind = %+v, want reset", got)
 	}
 }
+
+func TestKernelSequenceAuditRejectsLatePreviousGeneration(t *testing.T) {
+	var state kernelSequenceAuditState
+	state.Observe(sequencedRawWithReserveTotal(2, 50, 1000, 11, 8))
+	if got := state.Observe(sequencedRawWithReserveTotal(2, 1, 2000, 12, 0)); got.Observation != kernelSequenceReset {
+		t.Fatalf("new generation = %+v, want reset", got)
+	}
+
+	// A buffered event from the prior tracker must not reset the newer
+	// cursor, even though generation IDs differ.
+	if got := state.Observe(sequencedRawWithReserveTotal(2, 51, 1500, 11, 9)); got.Observation != kernelSequenceOutOfOrder {
+		t.Fatalf("stale previous generation = %+v, want out of order", got)
+	}
+	if got := state.Observe(sequencedRawWithReserveTotal(2, 2, 2100, 12, 0)); got.Observation != kernelSequenceContiguous || !got.ReserveFailuresDeltaKnown || got.ReserveFailuresDelta != 0 {
+		t.Fatalf("new generation cursor corrupted by stale event: %+v", got)
+	}
+}
+
+func TestKernelSequenceAuditPromotesLegacyCursorOnGenerationUpgrade(t *testing.T) {
+	var state kernelSequenceAuditState
+	state.Observe(sequencedRaw(3, 99, 1000, 0))
+	if got := state.Observe(sequencedRaw(3, 1, 2000, 81)); got.Observation != kernelSequenceReset {
+		t.Fatalf("legacy-to-explicit generation = %+v, want reset", got)
+	}
+	if got := state.Observe(sequencedRaw(3, 2, 2100, 81)); got.Observation != kernelSequenceContiguous {
+		t.Fatalf("upgraded cursor = %+v, want contiguous", got)
+	}
+}
+
+func TestKernelSequenceAuditSequenceArithmeticDoesNotWrap(t *testing.T) {
+	var state kernelSequenceAuditState
+	const maxSequence = ^uint64(0)
+	state.Observe(sequencedRaw(4, maxSequence, 1000, 27))
+	if got := state.Observe(sequencedRaw(4, 1, 1100, 27)); got.Observation != kernelSequenceOutOfOrder {
+		t.Fatalf("wrapped same-generation sequence = %+v, want out of order", got)
+	}
+	if got := state.Observe(sequencedRaw(4, maxSequence-1, 900, 27)); got.Observation != kernelSequenceOutOfOrder {
+		t.Fatalf("stale sequence after max = %+v, want out of order", got)
+	}
+}
+
+func TestKernelSequenceAuditDoesNotDoubleCountReplayedReserveGap(t *testing.T) {
+	before := collectorMetricsStore.Snapshot().AgentSightCountersTotal
+	// Use an isolated CPU ID so this global audit cursor cannot collide with
+	// runtime and other ordinary per-CPU test samples.
+	raw := sequencedRaw(1<<30, 200, 1000, 42)
+	raw.AuditFlags |= core.BpfAuditFlagReserveGap
+	raw.KernelDroppedSinceLast = 5
+
+	recordKernelSequenceObservation(raw)
+	recordKernelSequenceObservation(raw)
+
+	after := collectorMetricsStore.Snapshot().AgentSightCountersTotal
+	for _, tc := range []struct {
+		name string
+		want uint64
+	}{
+		{"kernel_reported_reserve_gap_events", 1},
+		{"kernel_reported_reserve_dropped_events", 5},
+		{"kernel_sequence_prebaseline_dropped_events", 5},
+		{"kernel_sequence_out_of_order", 1},
+	} {
+		if delta := after[tc.name] - before[tc.name]; delta != tc.want {
+			t.Errorf("%s delta = %d, want %d", tc.name, delta, tc.want)
+		}
+	}
+}
