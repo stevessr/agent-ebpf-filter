@@ -394,7 +394,7 @@ if [[ "$SOAK_EXECUTOR" == "registered" ]]; then
     IFS= read -r _ < "$START_FIFO"
     # Bash is excluded from normal daily capture; give the explicitly
     # registered test process a unique comm before any test file activity.
-    printf 'soak-worker\\n' > /proc/self/comm
+    printf 'soak-worker\n' > /proc/self/comm
     mkdir -p "$WORKDIR/nested"
     touch "$WORKDIR/nested/marker-one.txt"
     touch "$WORKDIR/nested/marker-two.txt"
@@ -405,7 +405,7 @@ if [[ "$SOAK_EXECUTOR" == "registered" ]]; then
     --data "{\"pid\":$REGISTERED_PID,\"tag\":\"Agent CLI\",\"cwd\":\"$WORKDIR\"}" \
     "$BASE_URL/register" >/dev/null
   echo "[soak] registered deterministic tool-runner PID $REGISTERED_PID"
-  printf 'start\\n' > "$START_FIFO"
+  printf 'start\n' > "$START_FIFO"
 else
 # A model can schedule multiple tool calls concurrently despite a sequential
 # instruction. Use ONE shell call with explicit && barriers, so kernel evidence
