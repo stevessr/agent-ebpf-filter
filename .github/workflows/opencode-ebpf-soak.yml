@@ -14,6 +14,7 @@ on:
     paths:
       - ".github/workflows/opencode-ebpf-soak.yml"
       - "scripts/opencode-ebpf-soak.sh"
+      - "scripts/soak-file-openat.c"
       - "scripts/check-opencode-soak.py"
       - "scripts/test_opencode_soak.py"
       - "backend/ebpf/**"
