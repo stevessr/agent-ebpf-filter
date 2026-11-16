@@ -11,6 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import ipaddress
 import json
 import os
+import secrets
 from pathlib import Path
 import threading
 import time
@@ -168,9 +169,12 @@ class GuardScanner:
 
 
 def make_handler(scanner, token: str, max_bytes: int = 1048576):
+    if not token:
+        raise ValueError("ASTRLINK_GUARD_TOKEN is required for local scanner authentication")
     # Memory-only counts. Never store text or span values.
     metrics = {"requests": 0, "texts": 0, "spans": Counter(), "latency_ms_sum": 0.0}
     metrics_lock = threading.Lock()
+    scan_slots = threading.BoundedSemaphore(4)
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, fmt, *args):
@@ -187,7 +191,7 @@ def make_handler(scanner, token: str, max_bytes: int = 1048576):
 
         def do_GET(self):
             if self.path == "/stats":
-                if token and self.headers.get("Authorization", "") != f"Bearer {token}":
+                if not secrets.compare_digest(self.headers.get("Authorization", ""), f"Bearer {token}"):
                     return self.respond(401, {"error": "unauthorized"})
                 with metrics_lock:
                     self.respond(200, {
@@ -206,7 +210,7 @@ def make_handler(scanner, token: str, max_bytes: int = 1048576):
         def do_POST(self):
             if self.path != "/scan":
                 return self.respond(404, {"error": "not-found"})
-            if token and self.headers.get("Authorization", "") != f"Bearer {token}":
+            if not secrets.compare_digest(self.headers.get("Authorization", ""), f"Bearer {token}"):
                 return self.respond(401, {"error": "unauthorized"})
             try:
                 length = int(self.headers.get("Content-Length", "-1"))
@@ -219,7 +223,12 @@ def make_handler(scanner, token: str, max_bytes: int = 1048576):
                 ):
                     return self.respond(422, {"error": "invalid-input"})
                 began = time.perf_counter()
-                spans = [scanner.detect(t) for t in texts]
+                if not scan_slots.acquire(blocking=False):
+                    return self.respond(429, {"error": "scanner-busy"})
+                try:
+                    spans = [scanner.detect(t) for t in texts]
+                finally:
+                    scan_slots.release()
                 with metrics_lock:
                     metrics["requests"] += 1
                     metrics["texts"] += len(texts)
@@ -250,6 +259,8 @@ def main():
         parser.error("--threshold must be in (0,1]")
     scanner = GuardScanner(args.model_dir, args.backend, args.strict_provider, args.threshold)
     token = os.environ.get("ASTRLINK_GUARD_TOKEN", "")
+    if not token:
+        parser.error("ASTRLINK_GUARD_TOKEN must be set to a long random secret")
     server = ThreadingHTTPServer((args.host, args.port), make_handler(scanner, token))
     print(f"Local Guard ready on {args.host}:{args.port} (backend={scanner.backend}, ep={scanner.ep})", flush=True)
     try:
