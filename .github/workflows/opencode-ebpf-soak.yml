@@ -38,18 +38,10 @@ jobs:
   soak:
     # Never run a root-attaching eBPF harness from an external fork PR.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    # Ubuntu 24.04's 7.0.0-1017-azure kernel silently drops BPF
-    # syscalls:sys_enter_openat observations on non-attaching CPUs.
-    # https://github.com/actions/runner-images/issues/15003
-    # Keep live eBPF syscall capture on the unaffected 6.8 runner until the
-    # Azure kernel backport is fixed. Do not weaken the marker assertions.
-    runs-on: ubuntu-22.04-arm
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       AGENT_SOAK_EXECUTOR: ${{ github.event_name == 'workflow_dispatch' && inputs.executor || 'registered' }}
-      # This kernel-only test has no V4L2/NVML requirement. Ubuntu 22's
-      # older C headers lack symbols required by the optional camera package.
-      CGO_ENABLED: "0"
       OPENCODE_SOAK_KEEP_ARTIFACTS: "1"
       OPENCODE_SOAK_MODEL: opencode/big-pickle
       # Console free models can require a connected account; leave this
@@ -58,8 +50,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
 
-      - name: Record kernel release for tracepoint completeness
-        run: uname -r
+      - name: Report affected kernel syscall tracepoints
+        shell: bash
+        run: |
+          release="$(uname -r)"
+          echo "Runner kernel: $release"
+          if [[ "$release" == 7.0.*-azure ]]; then
+            echo "::warning::Linux Azure 7.0 kernels may silently omit BPF sys_enter_openat callbacks (runner-images issue 15003). The strict soak still runs and failures are retained."
+          fi
 
       - uses: actions/setup-go@v7.0.0
         with:
@@ -96,22 +94,7 @@ jobs:
           python3 -m unittest discover -s scripts -p 'test_opencode_soak.py' -v
 
       - name: Install eBPF build dependencies
-        run: sudo apt-get update && sudo apt-get install -y build-essential clang-15 llvm-15 libbpf-dev libelf-dev protobuf-compiler bpftrace
-
-      - name: Select Clang 15 for BPF on Ubuntu 22
-        run: |
-          clang-15 --version
-          mkdir -p "$RUNNER_TEMP/bpf-llvm"
-          ln -s "$(command -v clang-15)" "$RUNNER_TEMP/bpf-llvm/clang"
-          ln -s "$(command -v llvm-strip-15)" "$RUNNER_TEMP/bpf-llvm/llvm-strip"
-          echo "$RUNNER_TEMP/bpf-llvm" >> "$GITHUB_PATH"
-
-      - name: Allow tracepoint perf links on isolated kernel runner
-        run: |
-          echo "Kernel: $(uname -r)"
-          echo "Before perf_event_paranoid: $(cat /proc/sys/kernel/perf_event_paranoid)"
-          sudo sysctl -w kernel.perf_event_paranoid=-1
-          echo "After perf_event_paranoid: $(cat /proc/sys/kernel/perf_event_paranoid)"
+        run: sudo apt-get update && sudo apt-get install -y build-essential clang llvm libbpf-dev libelf-dev protobuf-compiler bpftrace
 
       - name: Ensure bpffs is mounted for pinned tracker maps
         run: |
@@ -128,6 +111,10 @@ jobs:
 
       - name: Build backend and eBPF programs
         run: make ebpf-bootstrap
+
+      - name: Verify bounded kernel reader diagnostics
+        working-directory: backend
+        run: go test ./app -run TestSoakKernelMetadataEventOnlyAllowsIsolatedFixtureTypes -count=1
 
       - name: Capture real kernel file evidence and validate execution graph
         env:
