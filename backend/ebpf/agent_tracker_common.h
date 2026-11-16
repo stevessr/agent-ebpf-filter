@@ -1117,8 +1117,13 @@ int tracepoint__sched__sched_process_exec(struct trace_event_raw_sched_process_e
     }
     if (!tag) return 0;
 
+    // A map-value pointer becomes invalid after updating/deleting the map.
+    // Snapshot the tag before migrating a non-leader exec into its group PID.
+    u32 tag_id = *tag;
     if (old_pid != 0 && old_pid != pid) {
-        bpf_map_update_elem(&agent_pids, &pid, tag, BPF_ANY);
+        // Keep the old mapping if the new PID cannot be installed.
+        if (bpf_map_update_elem(&agent_pids, &pid, &tag_id, BPF_ANY) < 0)
+            return 0;
         bpf_map_delete_elem(&agent_pids, &old_pid);
     }
 
@@ -1127,7 +1132,7 @@ int tracepoint__sched__sched_process_exec(struct trace_event_raw_sched_process_e
 
     char comm[TASK_COMM_LEN];
     bpf_get_current_comm(&comm, sizeof(comm));
-    fill_base_info(e, pid, *tag, comm);
+    fill_base_info(e, pid, tag_id, comm);
     e->type = TYPE_PROCESS_EXEC;
     e->extra1 = old_pid;
     read_tracepoint_data_loc_str(e->path, MAX_PATH_LEN, ctx, ctx->filename_loc);
@@ -1155,7 +1160,11 @@ int tracepoint__sched__sched_process_exit(struct trace_event_raw_sched_process_e
         submit_event(e);
     }
 
-    bpf_map_delete_elem(&agent_pids, &tid);
+    // An exiting leader can leave worker threads alive (group_dead == 0).
+    // Retain their TGID mapping until the final thread exits.
+    if (tid != tgid) {
+        bpf_map_delete_elem(&agent_pids, &tid);
+    }
     if (ctx->group_dead) {
         bpf_map_delete_elem(&agent_pids, &tgid);
     }
