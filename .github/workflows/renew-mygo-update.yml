@@ -40,7 +40,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y clang llvm libbpf-dev libelf-dev protobuf-compiler
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
       - name: Prepare embedded backend sources
         working-directory: ${{ github.workspace }}
         run: ./scripts/renew-desktop.sh prepare
