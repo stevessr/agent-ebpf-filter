@@ -1,0 +1,52 @@
+name: io_uring event log regression
+
+on:
+  pull_request:
+    paths:
+      - "backend/internal/uringwrite/**"
+      - "backend/app/runtime_event_log_writer.go"
+      - "backend/app/runtime_event_log_writer_test.go"
+      - "docs/backend/io-uring-event-log.md"
+      - ".github/workflows/io-uring-event-log.yml"
+  push:
+    paths:
+      - "backend/internal/uringwrite/**"
+      - "backend/app/runtime_event_log_writer.go"
+      - "backend/app/runtime_event_log_writer_test.go"
+      - ".github/workflows/io-uring-event-log.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  uring-writer:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Go formatting
+        run: |
+          files="$(gofmt -l backend/internal/uringwrite/*.go backend/app/runtime_event_log_writer.go backend/app/runtime_event_log_writer_test.go)"
+          if [ -n "$files" ]; then
+            echo "$files"
+            gofmt -d backend/internal/uringwrite/*.go backend/app/runtime_event_log_writer.go backend/app/runtime_event_log_writer_test.go
+            exit 1
+          fi
+      - name: Compile and test ring append + fallback
+        working-directory: backend
+        run: go test -v ./internal/uringwrite -count=1
+      - name: Prepare generated protobuf and eBPF objects
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm libbpf-dev libelf-dev protobuf-compiler
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          ./scripts/renew-desktop.sh prepare
+      - name: Check app event-log lifecycle
+        working-directory: backend
+        run: go test ./app -run '^TestRuntimeEventLogWriter' -count=1
