@@ -38,7 +38,12 @@ jobs:
   soak:
     # Never run a root-attaching eBPF harness from an external fork PR.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-24.04
+    # Ubuntu 24.04's 7.0.0-1017-azure kernel silently drops BPF
+    # syscalls:sys_enter_openat observations on non-attaching CPUs.
+    # https://github.com/actions/runner-images/issues/15003
+    # Keep live eBPF syscall capture on the unaffected 6.8 runner until the
+    # Azure kernel backport is fixed. Do not weaken the marker assertions.
+    runs-on: ubuntu-22.04
     timeout-minutes: 30
     env:
       AGENT_SOAK_EXECUTOR: ${{ github.event_name == 'workflow_dispatch' && inputs.executor || 'registered' }}
@@ -49,6 +54,9 @@ jobs:
       OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
     steps:
       - uses: actions/checkout@v7.0.1
+
+      - name: Record kernel release for tracepoint completeness
+        run: uname -r
 
       - uses: actions/setup-go@v7.0.0
         with:
