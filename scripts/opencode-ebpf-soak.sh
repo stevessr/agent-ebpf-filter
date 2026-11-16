@@ -284,6 +284,23 @@ curl_api() {
     -H "X-API-KEY: $API_KEY" "$@"
 }
 
+verify_openat_enabled() {
+  local phase="$1"
+  curl_api -o "$RUN_DIR/event-types-$phase.json" "$BASE_URL/config/event-types"
+  python3 - "$RUN_DIR/event-types-$phase.json" "$phase" <<'PY'
+import json
+import sys
+with open(sys.argv[1], encoding="utf-8") as source:
+    data = json.load(source)
+disabled = data.get("disabled_event_types")
+if not isinstance(disabled, list):
+    raise SystemExit("[soak] event-type configuration response is malformed")
+print(f"[soak] {sys.argv[2]}: configured disabled event types={disabled}")
+if 1 in disabled:
+    raise SystemExit("[soak] OPENAT is disabled during the kernel evidence test")
+PY
+}
+
 start_backend() {
   : > "$BACKEND_PID_FILE"
   local -a backend_env=(
@@ -346,6 +363,7 @@ if not isinstance(attached, int) or not isinstance(compiled, int) or attached < 
 print(f"eBPF bootstrap: {status.get('status')} ({attached}/{compiled} tracepoints); kernel={status.get('kernelRelease')}")
 PY
 cat "$SUMMARY"
+verify_openat_enabled bootstrap
 
 # Poll while the agent is running. The kernel may emit hundreds of
 # process_exit/housekeeping events after a short tool call; relying on one
@@ -391,6 +409,7 @@ curl_api -X POST -H 'Content-Type: application/json' \
   --data "{\"pid\":$CONTROL_REGISTERED_PID}" "$BASE_URL/unregister" >/dev/null
 CONTROL_REGISTERED_PID=""
 echo "[soak] registered-shell baseline completed (capture evidence checked independently)"
+verify_openat_enabled post-baseline
 
 # The registered executor is the mandatory quota-independent kernel
 # integration check. It exercises real mkdir/touch syscalls from an explicitly
@@ -482,6 +501,7 @@ if [[ -n "$REGISTERED_PID" ]]; then
     --data "{\"pid\":$REGISTERED_PID}" "$BASE_URL/unregister" >/dev/null
   REGISTERED_PID=""
 fi
+verify_openat_enabled post-execution
 if (( opencode_status != 0 )); then
   echo "[soak] $SOAK_EXECUTOR executor exited with status $opencode_status (model: $MODEL)" >&2
   exit 1
