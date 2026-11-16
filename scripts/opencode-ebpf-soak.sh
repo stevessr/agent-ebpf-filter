@@ -247,6 +247,10 @@ PY
         echo "[soak] OpenCode log (last 80 lines):" >&2
         tail -n 80 "$OPENCODE_LOG" >&2 || true
       fi
+      if [[ -f "$RUN_DIR/direct-openat.log" ]]; then
+        echo "[soak] directly registered syscall fixture:" >&2
+        tail -n 15 "$RUN_DIR/direct-openat.log" >&2 || true
+      fi
       if [[ -f "$RUN_DIR/checker.log" ]]; then
         echo "[soak] eBPF live sampler diagnostic:" >&2
         tail -n 50 "$RUN_DIR/checker.log" >&2 || true
@@ -408,11 +412,17 @@ curl_api -o "$RUN_DIR/collector-health-before.json" "$BASE_URL/system/collector-
 # Poll while the agent is running. The kernel may emit hundreds of
 # process_exit/housekeeping events after a short tool call; relying on one
 # post-run /events/recent snapshot can miss genuine openat evidence.
+expected_markers=(
+  --expect "$RUN_DIR/control-marker.txt"
+  --expect "$WORKDIR/nested/marker-one.txt"
+  --expect "$WORKDIR/nested/marker-two.txt"
+)
+if [[ "$SOAK_EXECUTOR" == "registered" ]]; then
+  expected_markers+=(--expect "$WORKDIR/nested/marker-direct.txt")
+fi
 python3 "$ROOT_DIR/scripts/check-opencode-soak.py" \
   --base-url "$BASE_URL" --api-key "$API_KEY" \
-  --expect "$RUN_DIR/control-marker.txt" \
-  --expect "$WORKDIR/nested/marker-one.txt" \
-  --expect "$WORKDIR/nested/marker-two.txt" \
+  "${expected_markers[@]}" \
   --report "$RUN_DIR/capture-report.json" \
   --done-file "$RUN_DIR/opencode-done" --post-run-timeout "$EVENT_TIMEOUT" \
   --limit 1000 --poll-interval 0.25 \
@@ -539,6 +549,33 @@ wait "$OPENCODE_LAUNCH_PID"
 opencode_status=$?
 set -e
 OPENCODE_LAUNCH_PID=""
+
+# A separately registered child is the positive control for the inherited
+# child above. Its PID is registered BEFORE exec and its first openat; if
+# direct succeeds while inherited fails, investigate fork-tag propagation.
+# If both fail, inspect kernel reader comm/type filtering and path recording.
+if [[ "$SOAK_EXECUTOR" == "registered" && "$opencode_status" == 0 ]]; then
+  DIRECT_FIFO="$RUN_DIR/direct-openat-start.fifo"
+  mkfifo "$DIRECT_FIFO"
+  (
+    cd "$WORKDIR"
+    IFS= read -r _ < "$DIRECT_FIFO"
+    exec "$SOAK_FILE_BIN" "$WORKDIR/nested/marker-direct.txt" --soak-repeat
+  ) > "$RUN_DIR/direct-openat.log" 2>&1 &
+  CONTROL_PID=$!
+  CONTROL_REGISTERED_PID=$CONTROL_PID
+  curl_api -X POST -H 'Content-Type: application/json' \
+    --data "{\"pid\":$CONTROL_PID,\"tag\":\"Agent CLI\",\"cwd\":\"$WORKDIR\"}" \
+    "$BASE_URL/register" >/dev/null
+  echo "[soak] directly registered child PID $CONTROL_PID"
+  printf 'go\n' > "$DIRECT_FIFO"
+  wait "$CONTROL_PID"
+  CONTROL_PID=""
+  curl_api -X POST -H 'Content-Type: application/json' \
+    --data "{\"pid\":$CONTROL_REGISTERED_PID}" "$BASE_URL/unregister" >/dev/null
+  CONTROL_REGISTERED_PID=""
+  echo "[soak] direct registration control executed (kernel capture checked separately)"
+fi
 : > "$RUN_DIR/opencode-done"
 if [[ -n "$REGISTERED_PID" ]]; then
   curl_api -X POST -H 'Content-Type: application/json' \
