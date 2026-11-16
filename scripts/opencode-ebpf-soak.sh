@@ -145,11 +145,14 @@ cleanup() {
         backend_signal TERM "$trace_pid" || true
       fi
     fi
+    if [[ ! "$trace_pid" =~ ^[0-9]+$ ]]; then
+      kill -TERM "$TRACE_LAUNCH_PID" 2>/dev/null || true
+    fi
     wait "$TRACE_LAUNCH_PID" 2>/dev/null || true
     TRACE_LAUNCH_PID=""
     echo "[soak] independent kernel sys_enter/sys_exit_openat counts (PID only):" >&2
     if [[ -f "$TRACE_LOG" ]]; then
-      grep -E '^(@openat_(enter|exit)\\[|\\[soak-syscall-trace\\])' "$TRACE_LOG" | tail -n 48 >&2 || true
+      grep -F -e '[soak-syscall-trace]' -e '@openat_enter[' -e '@openat_exit[' "$TRACE_LOG" | tail -n 48 >&2 || true
     fi
   fi
 
@@ -465,10 +468,10 @@ start_independent_openat_trace() {
     return 0
   fi
   if (( EUID == 0 )); then
-    sh -c 'echo "$" > "$1"; exec bpftrace -q "$2"' _ \
+    bash -c 'echo "$BASHPID" > "$1"; exec bpftrace -q "$2"' _ \
       "$TRACE_PID_FILE" "$ROOT_DIR/scripts/soak-openat-trace.bt" >"$TRACE_LOG" 2>&1 &
   else
-    sudo -n sh -c 'echo "$" > "$1"; exec bpftrace -q "$2"' _ \
+    sudo -n bash -c 'echo "$BASHPID" > "$1"; exec bpftrace -q "$2"' _ \
       "$TRACE_PID_FILE" "$ROOT_DIR/scripts/soak-openat-trace.bt" >"$TRACE_LOG" 2>&1 &
   fi
   TRACE_LAUNCH_PID=$!
