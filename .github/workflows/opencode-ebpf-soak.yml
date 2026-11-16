@@ -85,7 +85,7 @@ jobs:
           python3 -m unittest discover -s scripts -p 'test_opencode_soak.py' -v
 
       - name: Install eBPF build dependencies
-        run: sudo apt-get update && sudo apt-get install -y build-essential clang llvm libbpf-dev libelf-dev protobuf-compiler
+        run: sudo apt-get update && sudo apt-get install -y build-essential clang llvm libbpf-dev libelf-dev protobuf-compiler bpftrace
 
       - name: Ensure bpffs is mounted for pinned tracker maps
         run: |
@@ -110,6 +110,7 @@ jobs:
       - name: Capture real kernel file evidence and validate execution graph
         env:
           OPENCODE_SOAK_ARTIFACT_DIR: ${{ runner.temp }}/opencode-ebpf-soak
+          AGENT_SOAK_TRACE_OPENAT: "1"
         run: scripts/opencode-ebpf-soak.sh
 
       - name: Upload backend, executor, and bootstrap logs
