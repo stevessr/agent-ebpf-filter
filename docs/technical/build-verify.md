@@ -83,13 +83,13 @@ flowchart TB
 
 ## 5. 内核真实采集 soak 与可选 OpenCode 集成
 
-`.github/workflows/opencode-ebpf-soak.yml` 在 PR 和每周定时任务中执行 **registered 模式**：先通过 `make proto-go` 和 `make ebpf-bootstrap` 构建真实后端及 eBPF 对象，在已挂载 bpffs 的 Linux CI 上注册一个临时独立进程为 `Agent CLI`，由该进程顺序发起 `mkdir`、两次 `touch`。验证器要求**控制 Bash 进程的标记和两个工具进程的标记**均在带类型的内核事件 `path` 字段中被观察到，然后检查 `/events/graph` 节点、边、进程以及引用完整性。仅创建文件但没有内核采集证据会使任务失败。
+`.github/workflows/opencode-ebpf-soak.yml` 在 PR 和每周定时任务中执行 **registered 模式**：先通过 `make proto-go` 和 `make ebpf-bootstrap` 构建真实后端及 eBPF 对象，在已挂载 bpffs 的 Linux CI 上注册一个临时独立进程为 `Agent CLI`，由该进程先运行 `mkdir`，再执行两次独立的 `scripts/soak-file-openat.c` 小型测试工具，强制通过 Linux `SYS_openat` 完成文件创建（避免 `touch` 在不同 libc/coreutils 组合下选择不同系统调用）。验证器要求**控制 Bash 进程的标记和两个工具进程的标记**均在带类型的内核事件 `path` 字段中被观察到，然后检查 `/events/graph` 节点、边、进程以及引用完整性。仅创建文件但没有内核采集证据会使任务失败。
 
 此测试无需 LLM 或外部 API，因此 CI 的内核事件验证不受第三方免费模型配额（包括 HTTP 429）的影响。**它只证明真实进程/内核采集和执行图谱，不证明真实 OpenCode 模型的工具调用已成功。** 后者保留在 `AGENT_SOAK_EXECUTOR=opencode` 模式，可在 GitHub Actions 手动运行时将 `executor` 选为 `opencode`。此模式固定使用 OpenCode v2 CLI，提示词与权限规则仅允许临时工作区的三条操作，以单次串行 Shell 调用执行；模型超限、拒绝调用或文件证据缺失均视为失败，不冒充通过。
 
 两种模式都只绑定 loopback、生成短期 backend token、隔离工作目录与后端 home，并生成脱敏的 kernel health、capture 及 graph 诊断。测试发现 `/sys/fs/bpf/agent-ebpf` 已存在时拒绝运行，防止覆盖现有 eBPF pin；只有确认自己启动的后端已退出后，才清理自己创建的 pin。GitHub Actions 日志与证据产物保留 14 天，不应包含原始 prompt、请求正文或凭据。
 
-本地内核回归（需要 Go、protobuf、Linux BTF、bpffs 和 root 或免交互 sudo）：
+本地内核回归（需要 Go、protobuf、C 编译器、Linux BTF、bpffs 和 root 或免交互 sudo）：
 
 ```bash
 make proto-go && make ebpf-bootstrap
