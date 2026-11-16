@@ -30,7 +30,7 @@ var nativeLittleEndian = collectorcodec.NativeLittleEndian
 // operator disabled. Clean buffers (the overwhelmingly common case) are looked
 // up through a transient string view, so the check does not allocate.
 func commDisabled(raw []byte) bool {
-	comm := events.TrimNUL(raw)
+	comm := events.TrimCString(raw)
 	if len(comm) == 0 {
 		return false
 	}
