@@ -63,6 +63,9 @@ type CollectorMetricsSnapshot struct {
 	BroadcastReceivedTotal         uint64
 	CaptureScopeExcludedTotal      uint64
 	PathNoiseExcludedTotal         uint64
+	KernelReaderFilteredSelfTotal  uint64
+	KernelReaderFilteredCommTotal  uint64
+	KernelReaderFilteredTypeTotal  uint64
 	BroadcastFlushesTotal          uint64
 	BroadcastEventsFlushedTotal    uint64
 	BroadcastEnvelopesFlushedTotal uint64
@@ -151,6 +154,9 @@ type CollectorHealthResponse struct {
 	BroadcastReceivedTotal           uint64                        `json:"broadcastReceivedTotal"`
 	CaptureScopeExcludedTotal        uint64                        `json:"captureScopeExcludedTotal"`
 	PathNoiseExcludedTotal           uint64                        `json:"pathNoiseExcludedTotal"`
+	KernelReaderFilteredSelfTotal    uint64                        `json:"kernelReaderFilteredSelfTotal"`
+	KernelReaderFilteredCommTotal    uint64                        `json:"kernelReaderFilteredCommTotal"`
+	KernelReaderFilteredTypeTotal    uint64                        `json:"kernelReaderFilteredTypeTotal"`
 	BroadcastFlushesTotal            uint64                        `json:"broadcastFlushesTotal"`
 	BroadcastEventsFlushedTotal      uint64                        `json:"broadcastEventsFlushedTotal"`
 	BroadcastEnvelopesFlushedTotal   uint64                        `json:"broadcastEnvelopesFlushedTotal"`
@@ -182,6 +188,9 @@ type collectorMetricsState struct {
 	broadcastReceivedTotal         atomic.Uint64
 	captureScopeExcludedTotal      atomic.Uint64
 	pathNoiseExcludedTotal         atomic.Uint64
+	kernelReaderFilteredSelfTotal  atomic.Uint64
+	kernelReaderFilteredCommTotal  atomic.Uint64
+	kernelReaderFilteredTypeTotal  atomic.Uint64
 	broadcastFlushesTotal          uint64
 	broadcastEventsFlushedTotal    uint64
 	broadcastEnvelopesFlushedTotal uint64
@@ -369,8 +378,14 @@ func (s *collectorMetricsState) RecordBroadcastReceived() {
 // Intentional admission filtering is not ringbuffer or broadcast loss.
 func RecordCaptureScopeExcluded() { collectorMetricsStore.captureScopeExcludedTotal.Add(1) }
 func RecordPathNoiseExcluded() { collectorMetricsStore.pathNoiseExcludedTotal.Add(1) }
+func RecordKernelReaderFilteredSelf() { collectorMetricsStore.kernelReaderFilteredSelfTotal.Add(1) }
+func RecordKernelReaderFilteredComm() { collectorMetricsStore.kernelReaderFilteredCommTotal.Add(1) }
+func RecordKernelReaderFilteredType() { collectorMetricsStore.kernelReaderFilteredTypeTotal.Add(1) }
 func (s *collectorMetricsState) RecordCaptureScopeExcluded() { s.captureScopeExcludedTotal.Add(1) }
 func (s *collectorMetricsState) RecordPathNoiseExcluded() { s.pathNoiseExcludedTotal.Add(1) }
+func (s *collectorMetricsState) RecordKernelReaderFilteredSelf() { s.kernelReaderFilteredSelfTotal.Add(1) }
+func (s *collectorMetricsState) RecordKernelReaderFilteredComm() { s.kernelReaderFilteredCommTotal.Add(1) }
+func (s *collectorMetricsState) RecordKernelReaderFilteredType() { s.kernelReaderFilteredTypeTotal.Add(1) }
 
 func RecordBroadcastFlush(events, envelopes, marshalErrors, writeErrors int, duration time.Duration) {
 	collectorMetricsStore.recordBroadcastFlush(events, envelopes, marshalErrors, writeErrors, duration)
@@ -514,6 +529,9 @@ func (s *collectorMetricsState) rawSnapshot() CollectorMetricsSnapshot {
 		BroadcastReceivedTotal:         s.broadcastReceivedTotal.Load(),
 		CaptureScopeExcludedTotal:      s.captureScopeExcludedTotal.Load(),
 		PathNoiseExcludedTotal:         s.pathNoiseExcludedTotal.Load(),
+		KernelReaderFilteredSelfTotal:  s.kernelReaderFilteredSelfTotal.Load(),
+		KernelReaderFilteredCommTotal:  s.kernelReaderFilteredCommTotal.Load(),
+		KernelReaderFilteredTypeTotal:  s.kernelReaderFilteredTypeTotal.Load(),
 		BroadcastFlushesTotal:          s.broadcastFlushesTotal,
 		BroadcastEventsFlushedTotal:    s.broadcastEventsFlushedTotal,
 		BroadcastEnvelopesFlushedTotal: s.broadcastEnvelopesFlushedTotal,
@@ -674,6 +692,9 @@ func (s *collectorMetricsState) snapshot() CollectorHealthResponse {
 		BroadcastReceivedTotal:           raw.BroadcastReceivedTotal,
 		CaptureScopeExcludedTotal:        raw.CaptureScopeExcludedTotal,
 		PathNoiseExcludedTotal:           raw.PathNoiseExcludedTotal,
+		KernelReaderFilteredSelfTotal:    raw.KernelReaderFilteredSelfTotal,
+		KernelReaderFilteredCommTotal:    raw.KernelReaderFilteredCommTotal,
+		KernelReaderFilteredTypeTotal:    raw.KernelReaderFilteredTypeTotal,
 		BroadcastFlushesTotal:            raw.BroadcastFlushesTotal,
 		BroadcastEventsFlushedTotal:      raw.BroadcastEventsFlushedTotal,
 		BroadcastEnvelopesFlushedTotal:   raw.BroadcastEnvelopesFlushedTotal,

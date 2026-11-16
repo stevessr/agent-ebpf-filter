@@ -226,6 +226,8 @@ fields = (
     "contextMapUpdateFailuresTotal", "broadcastQueuedTotal",
     "broadcastDroppedTotal", "broadcastReceivedTotal",
     "captureScopeExcludedTotal", "pathNoiseExcludedTotal",
+    "kernelReaderFilteredSelfTotal", "kernelReaderFilteredCommTotal",
+    "kernelReaderFilteredTypeTotal",
     "capturedArchivedTotal", "capturedPersistErrorsTotal",
 )
 deltas = {}

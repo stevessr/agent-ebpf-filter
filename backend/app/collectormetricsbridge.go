@@ -71,6 +71,9 @@ func (metricsStoreBridge) RecordBroadcastReceived() {
 
 func (metricsStoreBridge) RecordCaptureScopeExcluded() { observability.RecordCaptureScopeExcluded() }
 func (metricsStoreBridge) RecordPathNoiseExcluded() { observability.RecordPathNoiseExcluded() }
+func (metricsStoreBridge) RecordKernelReaderFilteredSelf() { observability.RecordKernelReaderFilteredSelf() }
+func (metricsStoreBridge) RecordKernelReaderFilteredComm() { observability.RecordKernelReaderFilteredComm() }
+func (metricsStoreBridge) RecordKernelReaderFilteredType() { observability.RecordKernelReaderFilteredType() }
 
 func (metricsStoreBridge) RecordBroadcastFlush(events, envelopes, marshalErrors, writeErrors int, duration time.Duration) {
 	observability.RecordBroadcastFlush(events, envelopes, marshalErrors, writeErrors, duration)

@@ -62,13 +62,17 @@ func TestCollectorPipelineMetricsSnapshot(t *testing.T) {
 	RecordBroadcastReceived()
 	RecordCaptureScopeExcluded()
 	RecordPathNoiseExcluded()
+	RecordKernelReaderFilteredSelf()
+	RecordKernelReaderFilteredComm()
+	RecordKernelReaderFilteredType()
 	RecordBroadcastFlush(2, 3, 1, 4, 5*time.Millisecond)
 
 	health := GetCollectorHealthSnapshot()
 	if health.CapturedArchivedTotal != 1 || health.CapturedPersistedTotal != 1 || health.CapturedPersistErrorsTotal != 1 {
 		t.Fatalf("captured pipeline counters mismatch: %+v", health)
 	}
-	if health.CaptureScopeExcludedTotal != 1 || health.PathNoiseExcludedTotal != 1 {
+	if health.CaptureScopeExcludedTotal != 1 || health.PathNoiseExcludedTotal != 1 ||
+		health.KernelReaderFilteredSelfTotal != 1 || health.KernelReaderFilteredCommTotal != 1 || health.KernelReaderFilteredTypeTotal != 1 {
 		t.Fatalf("capture admission counters mismatch: %+v", health)
 	}
 	if health.BroadcastReceivedTotal != 1 || health.BroadcastFlushesTotal != 1 || health.BroadcastEventsFlushedTotal != 2 || health.BroadcastEnvelopesFlushedTotal != 3 {
@@ -120,6 +124,9 @@ func TestCollectorHotPathCountersAreConcurrentSafe(t *testing.T) {
 				state.RecordBroadcastReceived()
 				state.RecordCaptureScopeExcluded()
 				state.RecordPathNoiseExcluded()
+				state.RecordKernelReaderFilteredSelf()
+				state.RecordKernelReaderFilteredComm()
+				state.RecordKernelReaderFilteredType()
 				state.RecordRingbufDecode(true)
 				state.RecordKernelCaptureTiming(uint64(worker*iterations+i), "monotonic")
 			}
@@ -134,6 +141,9 @@ func TestCollectorHotPathCountersAreConcurrentSafe(t *testing.T) {
 		snapshot.BroadcastReceivedTotal != want ||
 		snapshot.CaptureScopeExcludedTotal != want ||
 		snapshot.PathNoiseExcludedTotal != want ||
+		snapshot.KernelReaderFilteredSelfTotal != want ||
+		snapshot.KernelReaderFilteredCommTotal != want ||
+		snapshot.KernelReaderFilteredTypeTotal != want ||
 		snapshot.RingbufZeroCopyDecodeTotal != want ||
 		snapshot.KernelCaptureDelaySamples != want ||
 		snapshot.KernelCaptureDelayMaxNs != want-1 ||

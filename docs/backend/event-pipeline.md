@@ -97,6 +97,13 @@ TLS 广播在 16 个订阅者下的开销：43.4 µs / 33 次分配 → 14.2 µs
 持久化失败计数共同用于定位事件消失的阶段；后端不改变现有 admission
 规则或默认隐私配置。
 
+内核读取器在**解码成功后、任何 comm / event type / self PID 排除之前**
+进行 CPU-local sequence 审计。否则正常的软件过滤会被误计成
+`kernelSequenceUnexplainedMissingEventsTotal`。三个额外指标
+`kernelReaderFilteredSelfTotal`、`kernelReaderFilteredCommTotal`、
+`kernelReaderFilteredTypeTotal` 各自统计用户态过滤量。
+它们不会掩盖真实 Ringbuf reserve failure，也不证明单个目标路径已被捕获。
+
 ## EventArchive
 
 `backend/core/state_types.go` 中 `EventArchive` 是 bounded ring：

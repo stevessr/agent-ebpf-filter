@@ -81,10 +81,20 @@ func startKernelEventReader(ctx context.Context, rd kernelEventReader, jobs *run
 				log.Printf("[WARN] failed to decode eBPF event: %v (sample len=%d)", err, len(raw))
 				return
 			}
+			// Audit the full successfully decoded kernel stream BEFORE any
+			// user-space selection. Otherwise deliberately filtered samples
+			// produce false sequence gaps labelled as unexplained loss.
+			recordKernelSequenceObservation(event)
 			if event.PID == selfPid {
+				collectorMetricsStore.RecordKernelReaderFilteredSelf()
 				return
 			}
-			if commDisabled(event.Comm[:]) || eventTypeDisabled(event.Type) {
+			if commDisabled(event.Comm[:]) {
+				collectorMetricsStore.RecordKernelReaderFilteredComm()
+				return
+			}
+			if eventTypeDisabled(event.Type) {
+				collectorMetricsStore.RecordKernelReaderFilteredType()
 				return
 			}
 			enqueueBroadcastEvent(broadcast, buildKernelEventFromRaw(event), "kernel_event_reader")

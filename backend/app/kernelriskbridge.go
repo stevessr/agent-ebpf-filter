@@ -77,7 +77,9 @@ func annotateKernelAuditTiming(raw *core.BpfEvent, event *pb.Event, observedAt t
 	event.KernelAuditGeneration = raw.KernelAuditGeneration
 	event.KernelDroppedSinceLast = raw.KernelDroppedSinceLast
 	event.KernelReserveFailuresTotal = raw.KernelReserveFailuresTotal
-	recordKernelSequenceObservation(raw)
+	// Sequence audit belongs to the ringbuf reader, before user-space
+	// selection. Calling it here would skip filtered records or double-count
+	// samples when the reader has already audited the decoded stream.
 	collectorMetricsStore.RecordKernelCaptureTiming(observation.DelayNS, observation.Clock)
 
 	if event.GetLastSeenMs() == 0 {
