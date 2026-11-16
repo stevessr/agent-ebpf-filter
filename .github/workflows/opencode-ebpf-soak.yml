@@ -93,7 +93,14 @@ jobs:
           python3 -m unittest discover -s scripts -p 'test_opencode_soak.py' -v
 
       - name: Install eBPF build dependencies
-        run: sudo apt-get update && sudo apt-get install -y build-essential clang llvm libbpf-dev libelf-dev protobuf-compiler bpftrace
+        run: sudo apt-get update && sudo apt-get install -y build-essential clang-15 llvm-15 libbpf-dev libelf-dev protobuf-compiler bpftrace
+
+      - name: Select Clang 15 for BPF on Ubuntu 22
+        run: |
+          clang-15 --version
+          mkdir -p "$RUNNER_TEMP/bpf-llvm"
+          ln -s "$(command -v clang-15)" "$RUNNER_TEMP/bpf-llvm/clang"
+          echo "$RUNNER_TEMP/bpf-llvm" >> "$GITHUB_PATH"
 
       - name: Ensure bpffs is mounted for pinned tracker maps
         run: |
