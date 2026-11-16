@@ -82,12 +82,34 @@ def kernel_paths(record: dict) -> set[str]:
     }
 
 
+FILE_OPEN_EVENT_TYPES = frozenset({"open", "openat", "openat2", "creat"})
+
+
+def confirmed_file_open_paths(record: dict) -> set[str]:
+    """Only a successful kernel file-open operation can prove marker capture.
+
+    An exec/alert may mention the exact path but does not prove a file syscall
+    was observed. Kernel exit probes may represent retval as a JSON string.
+    """
+    event = capture_event(record)
+    if str(event.get("type", event.get("Type", ""))).lower() not in FILE_OPEN_EVENT_TYPES:
+        return set()
+    retval = event.get("retval", event.get("returnValue", event.get("ReturnValue")))
+    if retval is not None:
+        try:
+            if int(retval) < 0:
+                return set()
+        except (ValueError, TypeError, OverflowError):
+            return set()
+    return kernel_paths(record)
+
+
 def match_marker_events(events: list[dict], expected: list[str]) -> dict[str, list[dict]]:
-    """Demand path evidence in an Event field, not a free-form log mention."""
+    """Demand successful typed file-open evidence, not exec or arbitrary text."""
     candidates = {path: set(captured_path_variants(path)) for path in expected}
     matched = {path: [] for path in expected}
     for record in events:
-        paths = kernel_paths(record)
+        paths = confirmed_file_open_paths(record)
         if not paths:
             continue
         for path, variants in candidates.items():

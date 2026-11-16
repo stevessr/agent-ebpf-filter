@@ -73,8 +73,25 @@ class TypedKernelCaptureTests(unittest.TestCase):
 
     def test_event_field_alias_and_null_padding(self):
         path = "/tmp/opencode-soak/workspace/nested/marker.txt"
-        events = [{"event": {"Path": path + "\x00\x00", "pid": 7}}]
+        events = [{"event": {"Path": path + "\x00\x00", "pid": 7, "type": "openat"}}]
         self.assertEqual(len(checker.match_marker_events(events, [path])[path]), 1)
+
+    def test_exec_alert_and_failed_open_cannot_satisfy_capture(self):
+        path = "/tmp/opencode-soak/workspace/nested/marker-one.txt"
+        records = [
+            {"Event": {"type": "process_exec", "path": path, "pid": 11}},
+            {"Event": {"type": "semantic_alert", "path": path, "pid": 11}},
+            {"Event": {"type": "syscall", "path": path, "pid": 11}},
+            {"Event": {"type": "openat", "path": path, "pid": 11, "retval": -13}},
+            {"Event": {"type": "openat", "path": path, "pid": 11, "retval": "-2"}},
+            {"Event": {"type": "openat", "path": path, "pid": 11, "retval": "invalid"}},
+        ]
+        self.assertEqual(checker.match_marker_events(records, [path])[path], [])
+
+    def test_successful_openat_proves_capture_even_with_string_return_code(self):
+        path = "/tmp/opencode-soak/workspace/nested/marker-one.txt"
+        records = [{"Event": {"type": "openat", "path": path, "pid": 11, "retval": "7"}}]
+        self.assertEqual(len(checker.match_marker_events(records, [path])[path]), 1)
 
     def test_report_is_structured_and_does_not_copy_raw_event_payloads(self):
         path = "/tmp/opencode-soak/workspace/nested/marker.txt"

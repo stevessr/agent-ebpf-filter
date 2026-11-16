@@ -425,7 +425,11 @@ if [[ "$SOAK_EXECUTOR" == "registered" ]]; then
     mkdir -p "$WORKDIR/nested"
     # Explicit SYS_openat is stable across libc/coreutils versions; the
     # kernel must report both real file-create paths, not just exec events.
-    "$SOAK_FILE_BIN" "$WORKDIR/nested/marker-one.txt"
+    # The first operation runs in a short-lived child. Repeated *real*
+    # openat calls span several poll cycles, making transient eviction
+    # distinguishable from persistent missing descendant attribution.
+    # A missing kernel path remains a hard failure in the checker.
+    "$SOAK_FILE_BIN" "$WORKDIR/nested/marker-one.txt" --soak-repeat
     "$SOAK_FILE_BIN" "$WORKDIR/nested/marker-two.txt"
   ) >"$OPENCODE_LOG" 2>&1 &
   OPENCODE_LAUNCH_PID=$!
