@@ -108,6 +108,9 @@ EVENT_MONITOR_PID=""
 CONTROL_PID=""
 CONTROL_REGISTERED_PID=""
 REGISTERED_PID=""
+TRACE_LAUNCH_PID=""
+TRACE_PID_FILE="$RUN_DIR/syscall-trace.pid"
+TRACE_LOG="$RUN_DIR/syscall-trace.log"
 PIN_ROOT_RESERVED=1
 BACKEND_STOPPED=0
 API_KEY="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
@@ -124,6 +127,31 @@ mkfifo "$START_FIFO"
 cleanup() {
   local status=$?
   trap - EXIT
+
+  # Finalize the independent test-only trace BEFORE stopping the backend.
+  # It only contains aggregated kernel enter/exit counts by numeric PID.
+  if [[ -n "$TRACE_LAUNCH_PID" ]]; then
+    local trace_pid=""
+    if [[ -s "$TRACE_PID_FILE" ]]; then
+      trace_pid="$(<"$TRACE_PID_FILE")"
+    fi
+    if [[ "$trace_pid" =~ ^[0-9]+$ ]] && backend_pid_running "$trace_pid"; then
+      backend_signal INT "$trace_pid" || true
+      for _ in {1..40}; do
+        backend_pid_running "$trace_pid" || break
+        sleep 0.1
+      done
+      if backend_pid_running "$trace_pid"; then
+        backend_signal TERM "$trace_pid" || true
+      fi
+    fi
+    wait "$TRACE_LAUNCH_PID" 2>/dev/null || true
+    TRACE_LAUNCH_PID=""
+    echo "[soak] independent kernel sys_enter/sys_exit_openat counts (PID only):" >&2
+    if [[ -f "$TRACE_LOG" ]]; then
+      grep -E '^(@openat_(enter|exit)\\[|\\[soak-syscall-trace\\])' "$TRACE_LOG" | tail -n 48 >&2 || true
+    fi
+  fi
 
   # Capture the final collector counters while the backend is STILL alive.
   # Querying only after terminating its process always hid the loss diagnosis.
@@ -426,6 +454,39 @@ start_backend() {
   BACKEND_LAUNCH_PID=$!
 }
 
+start_independent_openat_trace() {
+  # Additional kernel reference tracepoints, never a source of proof for the
+  # Agent eBPF Filter itself. Opt-in, isolated CI runner only.
+  if [[ "${AGENT_SOAK_TRACE_OPENAT:-0}" != "1" ]]; then
+    return 0
+  fi
+  if ! command -v bpftrace >/dev/null 2>&1; then
+    echo "[soak] optional independent bpftrace unavailable" >&2
+    return 0
+  fi
+  if (( EUID == 0 )); then
+    sh -c 'echo "$" > "$1"; exec bpftrace -q "$2"' _ \
+      "$TRACE_PID_FILE" "$ROOT_DIR/scripts/soak-openat-trace.bt" >"$TRACE_LOG" 2>&1 &
+  else
+    sudo -n sh -c 'echo "$" > "$1"; exec bpftrace -q "$2"' _ \
+      "$TRACE_PID_FILE" "$ROOT_DIR/scripts/soak-openat-trace.bt" >"$TRACE_LOG" 2>&1 &
+  fi
+  TRACE_LAUNCH_PID=$!
+  for _ in {1..100}; do
+    if grep -Fq '[soak-syscall-trace] ready' "$TRACE_LOG" 2>/dev/null; then
+      echo "[soak] independent kernel openat tracepoints attached (metadata only)"
+      return 0
+    fi
+    kill -0 "$TRACE_LAUNCH_PID" 2>/dev/null || break
+    sleep 0.1
+  done
+  echo "[soak] optional independent bpftrace did not report readiness" >&2
+  if [[ -f "$TRACE_LOG" ]]; then
+    tail -n 12 "$TRACE_LOG" >&2 || true
+  fi
+  return 0
+}
+
 write_project_config
 start_backend
 
@@ -462,6 +523,7 @@ print(f"eBPF bootstrap: {status.get('status')} ({attached}/{compiled} tracepoint
 PY
 cat "$SUMMARY"
 verify_openat_enabled bootstrap
+start_independent_openat_trace
 # Record loss/backpressure counters BEFORE the registered baseline.
 # The failure path records a second snapshot without requiring any changes to
 # production capture settings or lowering marker evidence requirements.
