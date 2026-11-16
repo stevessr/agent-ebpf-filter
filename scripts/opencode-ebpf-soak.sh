@@ -152,7 +152,7 @@ cleanup() {
     TRACE_LAUNCH_PID=""
     echo "[soak] independent kernel sys_enter/sys_exit_openat counts (PID only):" >&2
     if [[ -f "$TRACE_LOG" ]]; then
-      grep -F -e '[soak-syscall-trace]' -e '@openat_enter[' -e '@openat_exit[' "$TRACE_LOG" | tail -n 48 >&2 || true
+      grep -F -e '[soak-syscall-trace]' -e '@openat_' -e '@raw_openat_' "$TRACE_LOG" | tail -n 48 >&2 || true
     fi
   fi
 
