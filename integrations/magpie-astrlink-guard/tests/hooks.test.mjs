@@ -88,3 +88,18 @@ test('nested Responses content receives redaction without touching image or tool
   assert.equal(b.input[0].content[1].image_url, 'data:image/png;base64,aaaa');
   assert.equal(b.tools[0].name, 'hello');
 });
+
+test('wide nested content is bounded before synchronous masking', () => {
+  const b = { messages: [{ content: Array.from({length: 9000}, (_, i) => ({text: String(i)})) }] };
+  const output = middleware(b, { options: {}, reject: (status, message) => ({status, message}) });
+  assert.equal(output.status, 413);
+});
+
+test('localhost hostname alias is rejected rather than relying on host resolution', async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => { throw Error('endpoint must never be contacted'); };
+  try {
+    const result = await onRequest(sample(), context({serverUrl:'http://localhost:8765'}));
+    assert.doesNotMatch(result.messages[0].content, /jane@example.com/);
+  } finally { globalThis.fetch = original; }
+});
