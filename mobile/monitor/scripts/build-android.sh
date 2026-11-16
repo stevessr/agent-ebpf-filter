@@ -75,9 +75,12 @@ if not re.fullmatch(r"[0-9][A-Za-z0-9.+-]*", version):
     raise SystemExit("Invalid Android version")
 
 host = stage / "host"
+# Each invocation starts from the pinned host rather than reusing generated
+# Gradle/JNI resources from a previous build in the same checkout.
+if host.exists():
+    shutil.rmtree(host)
 shutil.copytree(
     framework / "android", host,
-    dirs_exist_ok=True,
     ignore=shutil.ignore_patterns("build", ".gradle", ".kotlin", "jniLibs", "local.properties"),
 )
 # Go's module cache is read-only; Gradle must write into the staged copy.
@@ -142,8 +145,11 @@ if [ "$SO_ONLY" -eq 1 ]; then
   exit 0
 fi
 chmod +x "$STAGE/host/gradlew"
-"$STAGE/host/gradlew" -p "$STAGE/host" :app:assembleDebug --console=plain
-cp "$STAGE/host/app/build/outputs/apk/debug/app-debug.apk" "$OUT/RenewMonitor-debug.apk"
+"$STAGE/host/gradlew" -p "$STAGE/host" :app:assembleDebug --no-daemon --stacktrace --console=plain
+SOURCE_APK="$STAGE/host/app/build/outputs/apk/debug/app-debug.apk"
+test -s "$SOURCE_APK" || { echo "Gradle did not produce a debug APK" >&2; exit 1; }
+cp "$SOURCE_APK" "$OUT/RenewMonitor-debug.apk"
+unzip -tq "$OUT/RenewMonitor-debug.apk" >/dev/null
 echo "APK: $OUT/RenewMonitor-debug.apk"
 if [ "$INSTALL" -eq 1 ]; then
   "$SDK/platform-tools/adb" install -r "$OUT/RenewMonitor-debug.apk"
