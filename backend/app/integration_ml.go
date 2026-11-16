@@ -283,8 +283,8 @@ func resolveAction(
 }
 
 // applyWebShellFinding is deliberately pure: the default is audit, never BLOCK.
- // Explicit enforcement requires AGENT_EBPF_WEB_SHELL_MODE=block; an existing
- // stronger decision is preserved. Exec evidence alone does not prove abuse.
+// Explicit enforcement requires AGENT_EBPF_WEB_SHELL_MODE=block; an existing
+// stronger decision is preserved. Exec evidence alone does not prove abuse.
 func applyWebShellFinding(action pb.WrapperResponse_Action, reason, mode string, finding heuristics.ShellFinding) (pb.WrapperResponse_Action, string) {
 	if action == pb.WrapperResponse_BLOCK || action == pb.WrapperResponse_REWRITE {
 		return action, reason
