@@ -19,7 +19,9 @@ KEEP_ARTIFACTS="${OPENCODE_SOAK_KEEP_ARTIFACTS:-0}"
 # from this isolated test backend; NEVER disable OPENAT (1), MKDIR (3), OPEN
 # (11), GENERIC_SYSCALL (25; openat2), or process/exec provenance (0,26,27).
 # Production capture, monitoring and configured policy are unaffected.
-SOAK_DISABLED_EVENT_TYPES="2,5,6,7,8,9,10,20,21,22,28,29,30,31,32,33,34,43"
+# Retain process_exit (28) during the soak: process tag disposal on Bash
+# tail-exec and process-group death must be visible in the diagnostic record.
+SOAK_DISABLED_EVENT_TYPES="2,5,6,7,8,9,10,20,21,22,29,30,31,32,33,34,43"
 SOAK_IGNORED_PATHS="/proc,/var/cache/apt,/var/lib/apt,/var/log/journal"
 EBPF_PIN_ROOT=/sys/fs/bpf/agent-ebpf
 pin_root_exists() {
