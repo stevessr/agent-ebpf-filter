@@ -1,7 +1,14 @@
-name: OpenCode eBPF soak
+name: eBPF kernel soak (optional OpenCode)
 
 on:
   workflow_dispatch:
+    inputs:
+      executor:
+        description: "registered (no model) or opencode (requires available model quota)"
+        required: false
+        type: choice
+        options: [registered, opencode]
+        default: registered
   pull_request:
     branches: [master]
     paths:
@@ -9,6 +16,10 @@ on:
       - "scripts/opencode-ebpf-soak.sh"
       - "scripts/check-opencode-soak.py"
       - "scripts/test_opencode_soak.py"
+      - "backend/ebpf/**"
+      - "backend/app/events/**"
+      - "backend/app/jobs_background.go"
+      - "backend/app/runtime_tracking_mode_source_test.go"
       - "frontend/src/components/agentsight/**"
       - "frontend/src/components/execution-graph/**"
       - "frontend/tests/harness-capture-*.test.ts"
@@ -29,6 +40,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
+      AGENT_SOAK_EXECUTOR: ${{ github.event_name == 'workflow_dispatch' && inputs.executor || 'registered' }}
       OPENCODE_SOAK_KEEP_ARTIFACTS: "1"
       OPENCODE_SOAK_MODEL: opencode/big-pickle
       # Console free models can require a connected account; leave this
@@ -43,16 +55,19 @@ jobs:
           cache-dependency-path: backend/go.sum
 
       - uses: actions/setup-node@v4
+        if: env.AGENT_SOAK_EXECUTOR == 'opencode'
         with:
           node-version: 22
 
       - name: Install OpenCode v2 CLI
+        if: env.AGENT_SOAK_EXECUTOR == 'opencode'
         run: |
           npm install --global --prefix "$RUNNER_TEMP/opencode" @opencode/cli@2.1.3
           echo "$RUNNER_TEMP/opencode/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/opencode/bin/opencode" --version
 
       - name: Verify OpenCode free-model ID is selectable
+        if: env.AGENT_SOAK_EXECUTOR == 'opencode'
         shell: bash
         run: |
           set -euo pipefail
@@ -83,12 +98,12 @@ jobs:
       - name: Build backend and eBPF programs
         run: make ebpf-bootstrap
 
-      - name: Run OpenCode free-model agent and collect kernel evidence
+      - name: Capture real kernel file evidence and validate execution graph
         env:
           OPENCODE_SOAK_ARTIFACT_DIR: ${{ runner.temp }}/opencode-ebpf-soak
         run: scripts/opencode-ebpf-soak.sh
 
-      - name: Upload backend, agent, and bootstrap logs
+      - name: Upload backend, executor, and bootstrap logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
