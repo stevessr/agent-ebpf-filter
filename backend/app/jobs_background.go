@@ -47,6 +47,16 @@ func commDisabled(raw []byte) bool {
 	return ok
 }
 
+// soakKernelMetadataEvent selects ONLY the isolated soak fixture's kernel
+// openat/exec/exit records. The opt-in reader diagnostic logs numeric PID and
+// type, never the process name, paths, event body, or payload.
+func soakKernelMetadataEvent(event *bpfEvent) bool {
+	if event == nil || (event.Type != 1 && event.Type != 26 && event.Type != 28) {
+		return false
+	}
+	return bytes.HasPrefix(events.TrimCString(event.Comm[:]), []byte("soak-file-"))
+}
+
 func eventTypeDisabled(eventType uint32) bool {
 	if eventType > 255 {
 		return false
@@ -72,6 +82,10 @@ func startKernelEventReader(ctx context.Context, rd kernelEventReader, jobs *run
 	}
 	jobs.Go(func() {
 		selfPid := uint32(os.Getpid())
+		// Explicitly enabled by the isolated CI kernel soak only. Bounded
+		// metadata helps distinguish missing BPF events from Go admission.
+		soakKernelDiag := os.Getenv("AGENT_SOAK_KERNEL_DIAGNOSTICS") == "1"
+		soakKernelDiagBudget := 128
 		// Consume synchronously. Zero-copy decode views must never outlive a
 		// callback because the next ReadInto can reuse the sample buffer.
 		_ = collectorstream.Pump(rd, bpfEventSampleSize, func(raw []byte) {
@@ -85,6 +99,13 @@ func startKernelEventReader(ctx context.Context, rd kernelEventReader, jobs *run
 			// user-space selection. Otherwise deliberately filtered samples
 			// produce false sequence gaps labelled as unexplained loss.
 			recordKernelSequenceObservation(event)
+			if soakKernelDiag && soakKernelDiagBudget > 0 && soakKernelMetadataEvent(event) {
+				// Numeric fields and admission booleans only; no raw paths,
+				// comm, argv, prompt, or payload. No production output.
+				log.Printf("[soak-kernel-reader] pid=%d type=%d commFiltered=%t typeFiltered=%t",
+					event.PID, event.Type, commDisabled(event.Comm[:]), eventTypeDisabled(event.Type))
+				soakKernelDiagBudget--
+			}
 			if event.PID == selfPid {
 				collectorMetricsStore.RecordKernelReaderFilteredSelf()
 				return
