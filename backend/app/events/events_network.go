@@ -270,23 +270,16 @@ func ownedString(b []byte) string {
 	return unsafe.String(&b[0], len(b))
 }
 
-// zeroPad is compared against buffer tails so a NUL-terminated string can be
-// bounded with one SIMD search plus one memequal instead of a byte-by-byte
-// backwards scan through the padding.
-var zeroPad [1024]byte
-
-// TrimNUL returns the populated prefix of a fixed-size kernel buffer as a view
-// into b (no copy), exactly like bytes.TrimRight(b, "\x00"). The result is
-// only valid while b is.
+// TrimNUL returns the prefix before the FIRST NUL byte of a fixed-size
+// kernel C-string buffer, as a zero-copy view. The bytes after that terminator
+// may contain stale scratch-map data and must never become event evidence.
+// Unlike trimming trailing zero padding, this prevents unrelated paths from
+// being concatenated when a reused buffer has a non-zero tail.
 func TrimNUL(b []byte) []byte {
-	i := bytes.IndexByte(b, 0)
-	if i < 0 {
-		return b
+	if end := bytes.IndexByte(b, 0); end >= 0 {
+		return b[:end]
 	}
-	if tail := b[i+1:]; len(tail) <= len(zeroPad) && bytes.Equal(tail, zeroPad[:len(tail)]) {
-		return b[:i]
-	}
-	return bytes.TrimRight(b, "\x00")
+	return b
 }
 
 // ── Event builder ─────────────────────────────────────────────────────
