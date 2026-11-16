@@ -47,6 +47,9 @@ jobs:
     timeout-minutes: 30
     env:
       AGENT_SOAK_EXECUTOR: ${{ github.event_name == 'workflow_dispatch' && inputs.executor || 'registered' }}
+      # This kernel-only test has no V4L2/NVML requirement. Ubuntu 22's
+      # older C headers lack symbols required by the optional camera package.
+      CGO_ENABLED: "0"
       OPENCODE_SOAK_KEEP_ARTIFACTS: "1"
       OPENCODE_SOAK_MODEL: opencode/big-pickle
       # Console free models can require a connected account; leave this
