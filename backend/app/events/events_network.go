@@ -234,7 +234,7 @@ func formatNetworkPathAndEndpoint(direction string, family uint32, addr []byte, 
 // the terminator may be stale and must never be joined into a different path.
 // The bounded prefix is copied before the ring-buffer sample is reused.
 func SanitizeUTF8(b []byte) string {
-	b = TrimNUL(b)
+	b = TrimCString(b)
 	if len(b) == 0 {
 		return ""
 	}
@@ -255,16 +255,30 @@ func ownedString(b []byte) string {
 	return unsafe.String(&b[0], len(b))
 }
 
-// TrimNUL returns the prefix before the FIRST NUL byte of a fixed-size
-// kernel C-string buffer, as a zero-copy view. The bytes after that terminator
-// may contain stale scratch-map data and must never become event evidence.
-// Unlike trimming trailing zero padding, this prevents unrelated paths from
-// being concatenated when a reused buffer has a non-zero tail.
-func TrimNUL(b []byte) []byte {
+// TrimCString returns the bytes before the FIRST NUL in a kernel
+// C-string buffer, as a view. Any subsequent bytes may be stale scratch-map
+// data and must never be treated as a continuation of a file path or comm.
+func TrimCString(b []byte) []byte {
 	if end := bytes.IndexByte(b, 0); end >= 0 {
 		return b[:end]
 	}
 	return b
+}
+
+// TrimNUL removes only TRAILING NUL padding and preserves NUL bytes inside
+// binary payloads (e.g. DNS, TLS and UDP). Keep this distinct from TrimCString:
+// protocol decoders must not truncate legitimate payloads at the first NUL.
+var zeroPad [1024]byte
+
+func TrimNUL(b []byte) []byte {
+	i := bytes.IndexByte(b, 0)
+	if i < 0 {
+		return b
+	}
+	if tail := b[i+1:]; len(tail) <= len(zeroPad) && bytes.Equal(tail, zeroPad[:len(tail)]) {
+		return b[:i]
+	}
+	return bytes.TrimRight(b, "\x00")
 }
 
 // ── Event builder ─────────────────────────────────────────────────────
