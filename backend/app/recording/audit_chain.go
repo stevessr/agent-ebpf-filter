@@ -61,6 +61,15 @@ func (c *AuditChain) MarshalRecord(record CapturedEventRecord) ([]byte, error) {
 	if record.Event == nil {
 		return nil, errors.New("event recording record has no event")
 	}
+	// Envelope is json:"-" and therefore cannot be reconstructed from
+	// stored JSONL. Always hash the canonical envelope derived from the
+	// persisted Event; otherwise a custom/incomplete incoming envelope
+	// produces an audit hash that cannot be verified after replay.
+	//
+	// Keep legacy double-normalization for preexisting envelopes to retain
+	// exact hashes on the already-canonicalized production path.
+	hadEnvelope := record.Envelope != nil
+	record.Envelope = nil
 	record = events.NormalizeCapturedEventRecord(record)
 
 	c.mu.Lock()
@@ -70,7 +79,13 @@ func (c *AuditChain) MarshalRecord(record CapturedEventRecord) ([]byte, error) {
 	if c.hasLast {
 		previous = hex.EncodeToString(c.lastHash[:])
 	}
-	digest, err := auditRecordHash(record, c.chainID, sequence, previous)
+	var digest [sha256.Size]byte
+	var err error
+	if hadEnvelope {
+		digest, err = auditRecordHash(record, c.chainID, sequence, previous)
+	} else {
+		digest, err = auditRecordHashNormalized(record, c.chainID, sequence, previous)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +106,12 @@ func (c *AuditChain) MarshalRecord(record CapturedEventRecord) ([]byte, error) {
 }
 
 func auditRecordHash(record CapturedEventRecord, chainID string, sequence uint64, previous string) ([sha256.Size]byte, error) {
-	record = events.NormalizeCapturedEventRecord(record)
+	return auditRecordHashNormalized(events.NormalizeCapturedEventRecord(record), chainID, sequence, previous)
+}
+
+// auditRecordHashNormalized hashes a record that already owns a normalized
+// envelope. Replay verification must continue through auditRecordHash.
+func auditRecordHashNormalized(record CapturedEventRecord, chainID string, sequence uint64, previous string) ([sha256.Size]byte, error) {
 	if record.Envelope == nil {
 		return [sha256.Size]byte{}, errors.New("audit chain record has no envelope")
 	}
