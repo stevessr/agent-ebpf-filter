@@ -278,3 +278,42 @@ func TestSchedForkInheritsExplicitParentTGID(t *testing.T) {
 		t.Fatal("parent TGID must be read from the current forking task")
 	}
 }
+
+func TestSchedExecCopiesAgentTagBeforeDeletingOldPID(t *testing.T) {
+	source, err := os.ReadFile("../ebpf/agent_tracker_common.h")
+	if err != nil {
+		t.Fatal(err)
+	}
+	block := sourceBlock(t, string(source),
+		"int tracepoint__sched__sched_process_exec(struct trace_event_raw_sched_process_exec *ctx) {",
+		"\n}\n")
+	copyTag := strings.Index(block, "u32 tag_id = *tag;")
+	update := strings.Index(block, "bpf_map_update_elem(&agent_pids, &pid, &tag_id, BPF_ANY)")
+	removeOld := strings.Index(block, "bpf_map_delete_elem(&agent_pids, &old_pid)")
+	emit := strings.Index(block, "fill_base_info(e, pid, tag_id, comm)")
+	if copyTag < 0 || update < 0 || removeOld < 0 || emit < 0 ||
+		!(copyTag < update && update < removeOld && removeOld < emit) {
+		t.Fatal("exec must copy inherited tag before migrating and deleting the old PID")
+	}
+	if strings.Contains(block, "fill_base_info(e, pid, *tag") {
+		t.Fatal("exec cannot dereference map value after deleting old PID entry")
+	}
+}
+
+func TestSchedExitRetainsTGIDUntilGroupDeath(t *testing.T) {
+	source, err := os.ReadFile("../ebpf/agent_tracker_common.h")
+	if err != nil {
+		t.Fatal(err)
+	}
+	block := sourceBlock(t, string(source),
+		"int tracepoint__sched__sched_process_exit(struct trace_event_raw_sched_process_exit *ctx) {",
+		"\n}\n")
+	guard := strings.Index(block, "if (tid != tgid)")
+	threadDelete := strings.Index(block, "bpf_map_delete_elem(&agent_pids, &tid)")
+	deathGuard := strings.Index(block, "if (ctx->group_dead)")
+	groupDelete := strings.Index(block, "bpf_map_delete_elem(&agent_pids, &tgid)")
+	if guard < 0 || threadDelete < 0 || deathGuard < 0 || groupDelete < 0 ||
+		!(guard < threadDelete && threadDelete < deathGuard && deathGuard < groupDelete) {
+		t.Fatal("only non-leader thread TIDs may be removed before group death")
+	}
+}
