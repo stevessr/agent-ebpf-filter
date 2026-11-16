@@ -81,21 +81,29 @@ flowchart TB
   Review --> Merge["merge after checks"]
 ```
 
-## 5. OpenCode eBPF soak
+## 5. 内核真实采集 soak 与可选 OpenCode 集成
 
-`.github/workflows/opencode-ebpf-soak.yml` 每周在 GitHub-hosted `ubuntu-24.04` 上运行一次，也可手动 dispatch。它先用 `make proto-go` 生成未纳入版本控制的 Go protobuf bindings，再用 `make ebpf-bootstrap` 构建后端，安装固定版本的 OpenCode v2 CLI，并以无需 API key 的 `opencode/big-pickle` 运行一组临时文件操作。工作流不授予仓库写权限；每次运行后上传后端日志、OpenCode JSONL 日志、运行前后 health snapshots 和 tracepoint bootstrap 状态，保留 14 天。
+`.github/workflows/opencode-ebpf-soak.yml` 在 PR 和每周定时任务中执行 **registered 模式**：先通过 `make proto-go` 和 `make ebpf-bootstrap` 构建真实后端及 eBPF 对象，在已挂载 bpffs 的 Linux CI 上注册一个临时独立进程为 `Agent CLI`，由该进程顺序发起 `mkdir`、两次 `touch`。验证器要求**控制 Bash 进程的标记和两个工具进程的标记**均在带类型的内核事件 `path` 字段中被观察到，然后检查 `/events/graph` 节点、边、进程以及引用完整性。仅创建文件但没有内核采集证据会使任务失败。
 
-`scripts/opencode-ebpf-soak.sh` 只绑定 loopback，创建短期 backend token，并将 OpenCode 的 home 与工作目录隔离到临时目录。其项目 agent 默认拒绝其他权限，仅允许读取临时工作区内的 OpenCode 配置文件，以及对该临时目录执行三条 `mkdir` / `touch` 命令；backend 会注册 OpenCode 进程，测试随后要求 marker 文件既存在又出现在 `/events/recent`（Linux home 路径按标准脱敏规则显示为 `~/`），并检查至少一个 tracepoint 已附加。脚本发现 `/sys/fs/bpf/agent-ebpf` 已存在时会拒绝运行，以免覆盖当前机器已有的 eBPF pin；在本次运行确认 backend 退出后，删除本次创建的 pin。
+此测试无需 LLM 或外部 API，因此 CI 的内核事件验证不受第三方免费模型配额（包括 HTTP 429）的影响。**它只证明真实进程/内核采集和执行图谱，不证明真实 OpenCode 模型的工具调用已成功。** 后者保留在 `AGENT_SOAK_EXECUTOR=opencode` 模式，可在 GitHub Actions 手动运行时将 `executor` 选为 `opencode`。此模式固定使用 OpenCode v2 CLI，提示词与权限规则仅允许临时工作区的三条操作，以单次串行 Shell 调用执行；模型超限、拒绝调用或文件证据缺失均视为失败，不冒充通过。
 
-本地复现需 Go、`protobuf-compiler`、Linux BTF、已挂载的 bpffs、root 或免交互 `sudo`、Node.js/npm 与 OpenCode 可访问网络：
+两种模式都只绑定 loopback、生成短期 backend token、隔离工作目录与后端 home，并生成脱敏的 kernel health、capture 及 graph 诊断。测试发现 `/sys/fs/bpf/agent-ebpf` 已存在时拒绝运行，防止覆盖现有 eBPF pin；只有确认自己启动的后端已退出后，才清理自己创建的 pin。GitHub Actions 日志与证据产物保留 14 天，不应包含原始 prompt、请求正文或凭据。
+
+本地内核回归（需要 Go、protobuf、Linux BTF、bpffs 和 root 或免交互 sudo）：
 
 ```bash
 make proto-go && make ebpf-bootstrap
-npm install --global @opencode/cli@2.1.3
-scripts/opencode-ebpf-soak.sh
+AGENT_SOAK_EXECUTOR=registered scripts/opencode-ebpf-soak.sh
 ```
 
-该任务是定时 / 手动集成 soak，不替代每次 PR 的单元测试；它需要 GitHub-hosted runner 的内核允许加载 tracepoint eBPF，workflow 会在需要时挂载 bpffs。
+可选的真实模型集成回归（另外需要 Node.js/npm 与有效的 OpenCode 免费模型额度或已连接的对应提供商）：
+
+```bash
+npm install --global @opencode/cli@2.1.3
+AGENT_SOAK_EXECUTOR=opencode scripts/opencode-ebpf-soak.sh
+```
+
+内核 soak 与 AgentSight 的 MCP/工具因果关系单元及浏览器回归互补；不能将任一测试单独解释为生产环境的全部 eBPF tracepoint 均已成功附加，也不能将模拟的注册进程声称为真实 LLM 行为。
 
 ## 6. 图表维护约定
 
