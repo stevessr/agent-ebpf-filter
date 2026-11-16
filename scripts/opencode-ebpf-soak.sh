@@ -403,6 +403,9 @@ start_backend() {
     "AGENT_RUNTIME_POLICY_MANAGEMENT_ENABLED=false"
     "AGENT_RUNTIME_DISABLED_EVENT_TYPES=$SOAK_DISABLED_EVENT_TYPES"
     "AGENT_RUNTIME_IGNORED_PATHS=$SOAK_IGNORED_PATHS"
+    # Bounded PID/type-only diagnostics for the isolated C fixture. Disabled
+    # by default for every normal runtime.
+    "AGENT_SOAK_KERNEL_DIAGNOSTICS=1"
     "DISABLE_AUTH=false"
     "GIN_MODE=release"
   )
