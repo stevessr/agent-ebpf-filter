@@ -384,6 +384,29 @@ curl_api -X POST -H 'Content-Type: application/json' \
 CONTROL_REGISTERED_PID=""
 echo "[soak] registered-shell baseline completed (capture evidence checked independently)"
 
+# The registered executor is the mandatory quota-independent kernel
+# integration check. It exercises real mkdir/touch syscalls from an explicitly
+# registered Agent PID and tests fork inheritance, path capture and the graph.
+# It is NOT a substitute for optional live OpenCode model/tool testing.
+if [[ "$SOAK_EXECUTOR" == "registered" ]]; then
+  (
+    cd "$WORKDIR"
+    IFS= read -r _ < "$START_FIFO"
+    # Bash is excluded from normal daily capture; give the explicitly
+    # registered test process a unique comm before any test file activity.
+    printf 'soak-worker\\n' > /proc/self/comm
+    mkdir -p "$WORKDIR/nested"
+    touch "$WORKDIR/nested/marker-one.txt"
+    touch "$WORKDIR/nested/marker-two.txt"
+  ) >"$OPENCODE_LOG" 2>&1 &
+  OPENCODE_LAUNCH_PID=$!
+  REGISTERED_PID="$OPENCODE_LAUNCH_PID"
+  curl_api -X POST -H 'Content-Type: application/json' \
+    --data "{\"pid\":$REGISTERED_PID,\"tag\":\"Agent CLI\",\"cwd\":\"$WORKDIR\"}" \
+    "$BASE_URL/register" >/dev/null
+  echo "[soak] registered deterministic tool-runner PID $REGISTERED_PID"
+  printf 'start\\n' > "$START_FIFO"
+else
 # A model can schedule multiple tool calls concurrently despite a sequential
 # instruction. Use ONE shell call with explicit && barriers, so kernel evidence
 # covers all three operations without a model-dependent scheduling race.
@@ -435,6 +458,8 @@ curl_api -X POST -H 'Content-Type: application/json' \
   --data "{\"pid\":$REGISTERED_PID,\"tag\":\"Agent CLI\",\"cwd\":\"$WORKDIR\"}" \
   "$BASE_URL/register" >/dev/null
 echo "[soak] registered OpenCode PID $REGISTERED_PID"
+
+fi
 
 set +e
 wait "$OPENCODE_LAUNCH_PID"
