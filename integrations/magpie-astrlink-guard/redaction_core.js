@@ -24,8 +24,10 @@ export function collectTextSlots(body, options = {}) {
   const maxTextChars = Number.isInteger(options.maxTextChars) ? Math.min(Math.max(options.maxTextChars, 1), 65536) : 16384;
   const slots = [];
   let overLimit = false;
+  let visitedNodes = 0;
   const visit = (value, parent, key, depth, allowed) => {
-    if (depth > 30 || slots.length > maxTexts) { overLimit = true; return; }
+    if (overLimit) return;
+    if (++visitedNodes > 8192 || depth > 30 || slots.length > maxTexts) { overLimit = true; return; }
     if (typeof value === "string") {
       if (!allowed || !parent) return;
       if (value.length > maxTextChars) { overLimit = true; return; }
