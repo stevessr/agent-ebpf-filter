@@ -1,0 +1,61 @@
+name: Runtime event log write-path validation
+
+on:
+  pull_request:
+    paths:
+      - "backend/internal/eventlogio/**"
+      - "backend/app/recording/audit_chain.go"
+      - "backend/app/recording/audit_chain_fastpath_test.go"
+      - "backend/app/runtime_event_log_writer.go"
+      - "backend/app/runtime_event_log_writev_test.go"
+      - ".github/workflows/runtime-event-write-path.yml"
+  push:
+    paths:
+      - "backend/internal/eventlogio/**"
+      - "backend/app/recording/audit_chain.go"
+      - "backend/app/recording/audit_chain_fastpath_test.go"
+      - "backend/app/runtime_event_log_writer.go"
+      - "backend/app/runtime_event_log_writev_test.go"
+      - ".github/workflows/runtime-event-write-path.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  writepath:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Verify Go formatting
+        run: |
+          files="$(gofmt -l backend/internal/eventlogio/*.go backend/app/recording/audit_chain*.go backend/app/runtime_event_log_writer.go backend/app/runtime_event_log_writev_test.go)"
+          if [ -n "$files" ]; then
+            echo "$files"
+            gofmt -d backend/internal/eventlogio/*.go backend/app/recording/audit_chain_fastpath_test.go backend/app/runtime_event_log_writer.go backend/app/runtime_event_log_writev_test.go
+            exit 1
+          fi
+      - name: Test vectored append in isolation
+        working-directory: backend
+        run: go test -race ./internal/eventlogio -count=1
+      - name: Generate protobuf and BPF objects
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm libbpf-dev libelf-dev protobuf-compiler
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          ./scripts/renew-desktop.sh prepare
+      - name: Test audit hash chain and both runtime write backends
+        working-directory: backend
+        run: |
+          go test ./app/recording -run '^TestAuditChain' -count=1
+          go test ./app -run '^TestRuntimeEventLog' -count=1
+      - name: Compare writev versus bufio and audit hash costs
+        working-directory: backend
+        run: |
+          go test ./internal/eventlogio -run '^$' -bench '^Benchmark(Buffered|Writev)' -benchmem -benchtime=200ms -count=3
+          go test ./app/recording -run '^$' -bench '^BenchmarkAuditHashNormalization' -benchmem -benchtime=200ms -count=3
