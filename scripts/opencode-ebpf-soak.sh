@@ -241,6 +241,57 @@ print("[soak] collector before/after deltas:", json.dumps(deltas, sort_keys=True
       file=sys.stderr)
 PY
       fi
+      # Stage counter deltas distinguish kernel-side non-emission from
+      # user-space comm/type filtering, without exporting process names,
+      # payloads, credentials, or raw file paths.
+      python3 - "$RUN_DIR" <<'PY'
+import json
+import os
+import sys
+
+base = sys.argv[1]
+stages = [
+    ("before", "collector-health-before.json"),
+    ("baseline", "collector-after-baseline.json"),
+    ("executor", "collector-after-executor.json"),
+    ("direct", "collector-after-direct.json"),
+]
+previous = None
+previous_name = ""
+keys = (
+    "ringbufEventsTotal", "ringbufReserveFailedTotal",
+    "kernelReaderFilteredCommTotal", "kernelReaderFilteredTypeTotal",
+    "broadcastQueuedTotal", "broadcastDroppedTotal",
+    "captureScopeExcludedTotal", "pathNoiseExcludedTotal",
+    "capturedArchivedTotal",
+)
+for name, filename in stages:
+    path = os.path.join(base, filename)
+    if not os.path.isfile(path):
+        continue
+    try:
+        with open(path, encoding="utf-8") as stream:
+            current = json.load(stream)
+    except (OSError, ValueError):
+        continue
+    if previous is not None:
+        delta = {}
+        for key in keys:
+            a, b = previous.get(key), current.get(key)
+            if type(a) is int and type(b) is int:
+                delta[key] = b - a
+        previous_types = previous.get("eventsByTypeTotal", {})
+        current_types = current.get("eventsByTypeTotal", {})
+        if isinstance(previous_types, dict) and isinstance(current_types, dict):
+            delta["archivedOpenatEvents"] = (
+                current_types.get("openat", 0) -
+                previous_types.get("openat", 0)
+            )
+        print("[soak] stage", previous_name, "->", name,
+              json.dumps(delta, sort_keys=True), file=sys.stderr)
+    previous = current
+    previous_name = name
+PY
       echo "[soak] backend log (last 80 lines):" >&2
       tail -n 80 "$BACKEND_LOG" >&2 || true
       if [[ -f "$OPENCODE_LOG" ]]; then
@@ -460,6 +511,7 @@ curl_api -X POST -H 'Content-Type: application/json' \
 CONTROL_REGISTERED_PID=""
 echo "[soak] registered-shell baseline completed (capture evidence checked independently)"
 verify_openat_enabled post-baseline
+curl_api -o "$RUN_DIR/collector-after-baseline.json" "$BASE_URL/system/collector-health"
 
 # The registered executor is the mandatory quota-independent kernel
 # integration check. It exercises real mkdir/touch syscalls from an explicitly
@@ -549,6 +601,7 @@ wait "$OPENCODE_LAUNCH_PID"
 opencode_status=$?
 set -e
 OPENCODE_LAUNCH_PID=""
+curl_api -o "$RUN_DIR/collector-after-executor.json" "$BASE_URL/system/collector-health"
 
 # A separately registered child is the positive control for the inherited
 # child above. Its PID is registered BEFORE exec and its first openat; if
@@ -575,6 +628,7 @@ if [[ "$SOAK_EXECUTOR" == "registered" && "$opencode_status" == 0 ]]; then
     --data "{\"pid\":$CONTROL_REGISTERED_PID}" "$BASE_URL/unregister" >/dev/null
   CONTROL_REGISTERED_PID=""
   echo "[soak] direct registration control executed (kernel capture checked separately)"
+  curl_api -o "$RUN_DIR/collector-after-direct.json" "$BASE_URL/system/collector-health"
 fi
 : > "$RUN_DIR/opencode-done"
 if [[ -n "$REGISTERED_PID" ]]; then
