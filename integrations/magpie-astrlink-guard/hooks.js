@@ -6,7 +6,7 @@ function report(ctx, code, bytes) {
 
 function localEndpoint(value) {
   const u = new URL(value ?? "http://127.0.0.1:8765");
-  if (u.protocol !== "http:" || !["127.0.0.1", "[::1]", "localhost"].includes(u.hostname) ||
+  if (u.protocol !== "http:" || !["127.0.0.1", "[::1]"].includes(u.hostname) ||
       u.username || u.password || u.search || u.hash || (u.pathname !== "/" && u.pathname !== "")) {
     throw new Error("Guard endpoint must be loopback HTTP without credentials, query or path");
   }
