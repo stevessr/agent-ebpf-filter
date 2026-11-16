@@ -97,6 +97,45 @@ def match_marker_events(events: list[dict], expected: list[str]) -> dict[str, li
 
 
 
+def compact_workspace_timeline(events: list[dict], workspaces: set[str]) -> list[dict]:
+    """Bounded, metadata-only timeline; never emit raw paths or event bodies."""
+    rows: list[dict] = []
+    relevant = {"openat", "open", "syscall", "process_fork",
+                "process_exec", "process_exit"}
+    for record in events:
+        event = capture_event(record)
+        cwd = event.get("cwd", event.get("Cwd"))
+        kind = event.get("type", event.get("Type"))
+        if kind not in relevant or not isinstance(cwd, str) or not any(
+            root in cwd for root in workspaces
+        ):
+            continue
+        path = event.get("path", event.get("Path"))
+        shape = "missing"
+        if isinstance(path, str) and path:
+            if any(root in path for root in workspaces):
+                shape = "workspace:" + os.path.basename(path)[:80]
+            elif path.startswith("~/"):
+                shape = "home-normalized"
+            elif path.startswith("/"):
+                shape = "external-absolute"
+            else:
+                shape = "other"
+        row = {
+            "pid": event.get("pid", event.get("Pid")),
+            "type": kind,
+            "pathShape": shape,
+        }
+        if kind in ("process_exec", "process_exit"):
+            info = event.get("extraInfo", event.get("ExtraInfo"))
+            if isinstance(info, str) and (
+                info.startswith("old_pid=") or info.startswith("group_dead=")
+            ):
+                row["lifecycle"] = info[:50]
+        rows.append(row)
+    return rows[-80:]
+
+
 def merge_verified_capture_matches(
     ledger: dict[str, list[dict]],
     snapshot: dict[str, list[dict]],
@@ -190,6 +229,9 @@ def main() -> int:
             # diagnose path normalization and noisy capture profiles.
             "markerBasenameSuffixHits": dict(marker_suffix_hits),
             "capturedPathShape": dict(path_shape),
+            "workspaceTimeline": compact_workspace_timeline(
+                last_events, workspace_candidates
+            ),
         }
 
     while time.monotonic() < deadline:
@@ -256,6 +298,11 @@ def main() -> int:
     )
     for event in last_workspace_events[-20:]:
         print(f"[soak] {json.dumps(event, sort_keys=True)}", file=sys.stderr)
+    # File names are exposed only for events inside this isolated soak
+    # workspace. This metadata cannot satisfy a missing kernel-path assertion.
+    print("[soak] bounded process/file timeline (metadata only):", file=sys.stderr)
+    for item in compact_workspace_timeline(last_events, workspace_candidates):
+        print(f"[soak] timeline {json.dumps(item, sort_keys=True)}", file=sys.stderr)
 
     return 1
 
