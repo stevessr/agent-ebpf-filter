@@ -252,3 +252,45 @@ func TestRemainingMacroEnterPathsArePIDFirst(t *testing.T) {
 		}
 	}
 }
+
+func TestExecTagMigrationCopiesBeforeMapMutation(t *testing.T) {
+	data, err := os.ReadFile("../ebpf/agent_tracker_common.h")
+	if err != nil {
+		t.Fatal(err)
+	}
+	block := sourceBlock(t, string(data),
+		"int tracepoint__sched__sched_process_exec(struct trace_event_raw_sched_process_exec *ctx) {",
+		"\n}\n")
+	copyTag := strings.Index(block, "u32 tag_id = *tag;")
+	update := strings.Index(block, "bpf_map_update_elem(&agent_pids, &pid, &tag_id, BPF_ANY)")
+	removeOld := strings.Index(block, "bpf_map_delete_elem(&agent_pids, &old_pid)")
+	if copyTag < 0 || update < 0 || removeOld < 0 || !(copyTag < update && update < removeOld) {
+		t.Fatal("exec must copy tag before mutating the PID map and delete old PID only after successful migration")
+	}
+	if !strings.Contains(block, "if (bpf_map_update_elem(&agent_pids, &pid, &tag_id, BPF_ANY) < 0)") {
+		t.Fatal("exec must preserve the old PID mapping when migration fails")
+	}
+	if !strings.Contains(block, "fill_base_info(e, pid, tag_id, comm)") ||
+		strings.Contains(block, "fill_base_info(e, pid, *tag, comm)") {
+		t.Fatal("exec must not dereference a potentially invalidated map-value pointer")
+	}
+}
+
+func TestGroupLeaderExitRetainsTrackedTGIDUntilGroupDead(t *testing.T) {
+	data, err := os.ReadFile("../ebpf/agent_tracker_common.h")
+	if err != nil {
+		t.Fatal(err)
+	}
+	block := sourceBlock(t, string(data),
+		"int tracepoint__sched__sched_process_exit(struct trace_event_raw_sched_process_exit *ctx) {",
+		"\n}\n")
+	nonLeaderGuard := strings.Index(block, "if (tid != tgid)")
+	deleteTID := strings.Index(block, "bpf_map_delete_elem(&agent_pids, &tid)")
+	groupDeadGuard := strings.Index(block, "if (ctx->group_dead)")
+	deleteTGID := strings.Index(block, "bpf_map_delete_elem(&agent_pids, &tgid)")
+	if nonLeaderGuard < 0 || deleteTID < 0 ||
+		nonLeaderGuard > deleteTID || groupDeadGuard < 0 ||
+		deleteTGID < 0 || groupDeadGuard > deleteTGID {
+		t.Fatal("exiting leader must retain TGID tracking until the last thread exits")
+	}
+}
