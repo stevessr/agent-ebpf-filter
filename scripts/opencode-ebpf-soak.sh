@@ -292,6 +292,10 @@ for name, filename in stages:
     previous = current
     previous_name = name
 PY
+      echo "[soak] bounded kernel reader admission (PID/type/filter only):" >&2
+      if ! grep -F '[soak-kernel-reader]' "$BACKEND_LOG" | tail -n 128 >&2; then
+        echo "[soak] no qualifying fixture events reached the Go kernel reader" >&2
+      fi
       echo "[soak] backend log (last 80 lines):" >&2
       tail -n 80 "$BACKEND_LOG" >&2 || true
       if [[ -f "$OPENCODE_LOG" ]]; then
