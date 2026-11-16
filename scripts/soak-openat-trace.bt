@@ -1,0 +1,19 @@
+// Independent CI-only tracepoint reference for the eBPF openat soak.
+// Capture only numeric PID counts. Never read argv, pathname, payload or keys.
+// TASK_COMM_LEN is 16, so the file fixture's comm is truncated to 15 bytes.
+BEGIN
+{
+    printf("[soak-syscall-trace] ready\n");
+}
+
+tracepoint:syscalls:sys_enter_openat
+/comm == "soak-file-opena" || comm == "soak-file-probe"/
+{
+    @openat_enter[pid] = count();
+}
+
+tracepoint:syscalls:sys_exit_openat
+/comm == "soak-file-opena" || comm == "soak-file-probe"/
+{
+    @openat_exit[pid] = count();
+}
