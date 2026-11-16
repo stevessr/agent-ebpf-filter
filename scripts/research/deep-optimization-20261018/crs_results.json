@@ -1,0 +1,74 @@
+{
+  "scope": "new-source, expectation-positive offline challenge; NOT native CRS execution or exploitation/interception success",
+  "revision": "ab3ccd5fcd691424ba3f320d4040c61417270193",
+  "source_sha256": {
+    "tests/regression/tests/REQUEST-941-APPLICATION-ATTACK-XSS/941100.yaml": "81f35e7346b9992a73ddd79ab703cbc34c2ecf41842206a65592277abd8975bf",
+    "tests/regression/tests/REQUEST-941-APPLICATION-ATTACK-XSS/941110.yaml": "f0dd2bddea90d29453a10c6ce07129db0bc3e91bb15d24c2161b788b75eabb5e",
+    "tests/regression/tests/REQUEST-941-APPLICATION-ATTACK-XSS/941120.yaml": "4e2b1c3656cbb7347f1680e82142a87fcd163e8d3401815b95a6181df88f3aed",
+    "tests/regression/tests/REQUEST-941-APPLICATION-ATTACK-XSS/941130.yaml": "dace4a998d4ff7fc94b62d64564f42e9cbf982d48744db95f3301830814651c8",
+    "tests/regression/tests/REQUEST-941-APPLICATION-ATTACK-XSS/941140.yaml": "c011fad3e385b95baa919eec5a4cd5b64e97d6f5af5ef56064e1cfc77a3332b7",
+    "tests/regression/tests/REQUEST-942-APPLICATION-ATTACK-SQLI/942100.yaml": "f447a2d4afe9cf91d854c304c6f6e07f55bd82b726e3aad8ba4ac9414632b881",
+    "tests/regression/tests/REQUEST-942-APPLICATION-ATTACK-SQLI/942120.yaml": "3879a0db59aefafa0665a812852cf8e9b6d71a0e7ad8089b406a11574ff97e24",
+    "tests/regression/tests/REQUEST-942-APPLICATION-ATTACK-SQLI/942130.yaml": "ff91f736039d91676ef61f13a048302fd9d72b0b7f13ba86029311d47f61ea3b",
+    "tests/regression/tests/REQUEST-942-APPLICATION-ATTACK-SQLI/942140.yaml": "5df5f75e7e6666b97cf4ea127e4d7d3a30354b8085dcf4a711b18eaf42a628fa",
+    "tests/regression/tests/REQUEST-932-APPLICATION-ATTACK-RCE/932120.yaml": "801ceaaaa6f1664c3b70a707502f1776de42b61c6bf1ca50e7829320f142bf91"
+  },
+  "skips": {
+    "not_positive_for_target_rule": 53,
+    "unavailable_predeclared_file": 5,
+    "duplicate_request": 1
+  },
+  "n": 154,
+  "models": {
+    "http": {
+      "model_sha256": "201b97a5f7dbaf8c76046486cd6ce5e29ffce1ddf2dffb5659a3919d33342aaa",
+      "threshold": 0.5605252268847042,
+      "n": 154,
+      "hits": 101,
+      "recall": 0.6558441558441559,
+      "false_negative": 53,
+      "by_family": {
+        "REQUEST-932-APPLICATION-ATTACK-RCE": {
+          "n": 5,
+          "hits": 4,
+          "recall": 0.8
+        },
+        "REQUEST-941-APPLICATION-ATTACK-XSS": {
+          "n": 67,
+          "hits": 46,
+          "recall": 0.6865671641791045
+        },
+        "REQUEST-942-APPLICATION-ATTACK-SQLI": {
+          "n": 82,
+          "hits": 51,
+          "recall": 0.6219512195121951
+        }
+      }
+    },
+    "http_structured": {
+      "model_sha256": "74d9f7adecdb8f7684a4cdc145eb9c8a92596d8c8ad7079cfb6a005eb1548abe",
+      "threshold": 0.812524098588585,
+      "n": 154,
+      "hits": 148,
+      "recall": 0.961038961038961,
+      "false_negative": 6,
+      "by_family": {
+        "REQUEST-932-APPLICATION-ATTACK-RCE": {
+          "n": 5,
+          "hits": 4,
+          "recall": 0.8
+        },
+        "REQUEST-941-APPLICATION-ATTACK-XSS": {
+          "n": 67,
+          "hits": 66,
+          "recall": 0.9850746268656716
+        },
+        "REQUEST-942-APPLICATION-ATTACK-SQLI": {
+          "n": 82,
+          "hits": 78,
+          "recall": 0.9512195121951219
+        }
+      }
+    }
+  }
+}

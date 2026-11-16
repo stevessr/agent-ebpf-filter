@@ -1,0 +1,135 @@
+{
+  "engineered_feature_count": 407,
+  "fit_rows": 77831,
+  "selected": [
+    {
+      "index": 81,
+      "name": "payload.alpha_ratio"
+    },
+    {
+      "index": 156,
+      "name": "log1p:http.header_count"
+    },
+    {
+      "index": 87,
+      "name": "payload.decode_rounds"
+    },
+    {
+      "index": 148,
+      "name": "log1p:body.quote_count"
+    },
+    {
+      "index": 83,
+      "name": "payload.bytes"
+    },
+    {
+      "index": 161,
+      "name": "log1p:payload.bytes"
+    },
+    {
+      "index": 152,
+      "name": "log1p:body.slash_count"
+    },
+    {
+      "index": 170,
+      "name": "log1p:payload.quote_count"
+    },
+    {
+      "index": 15,
+      "name": "body.quote_count"
+    },
+    {
+      "index": 101,
+      "name": "payload.sql_hint"
+    },
+    {
+      "index": 88,
+      "name": "payload.digit_ratio"
+    },
+    {
+      "index": 18,
+      "name": "body.slash_count"
+    },
+    {
+      "index": 84,
+      "name": "payload.command_hint"
+    },
+    {
+      "index": 163,
+      "name": "per_payload_byte:payload.equals_count"
+    },
+    {
+      "index": 103,
+      "name": "payload.xss_hint"
+    },
+    {
+      "index": 157,
+      "name": "log1p:http.query_count"
+    },
+    {
+      "index": 42,
+      "name": "http.encoded_delimiter"
+    },
+    {
+      "index": 222,
+      "name": "payload.sql_hint*payload.command_hint"
+    },
+    {
+      "index": 63,
+      "name": "http.query_count"
+    },
+    {
+      "index": 171,
+      "name": "per_payload_byte:payload.quote_count"
+    },
+    {
+      "index": 96,
+      "name": "payload.quote_count"
+    },
+    {
+      "index": 149,
+      "name": "per_body_byte:body.quote_count"
+    },
+    {
+      "index": 92,
+      "name": "payload.nonascii_ratio"
+    },
+    {
+      "index": 20,
+      "name": "body.sql_hint"
+    },
+    {
+      "index": 19,
+      "name": "body.space_ratio"
+    },
+    {
+      "index": 89,
+      "name": "payload.entropy"
+    },
+    {
+      "index": 174,
+      "name": "log1p:payload.slash_count"
+    },
+    {
+      "index": 98,
+      "name": "payload.semicolon_count"
+    },
+    {
+      "index": 99,
+      "name": "payload.slash_count"
+    },
+    {
+      "index": 153,
+      "name": "per_body_byte:body.slash_count"
+    },
+    {
+      "index": 8,
+      "name": "body.entropy"
+    },
+    {
+      "index": 180,
+      "name": "body.sql_hint*body.command_hint"
+    }
+  ],
+  "selector": "minimum source-conditional train-only forest importance; correlation < .98"
+}

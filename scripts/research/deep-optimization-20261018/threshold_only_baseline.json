@@ -1,0 +1,17 @@
+{
+  "scope": "old frozen BERT, threshold-only baseline; calibration-only refit, test previously consumed",
+  "threshold": 0.693427840164991,
+  "consumed_test": {
+    "n": 382,
+    "tn": 151,
+    "fp": 0,
+    "fn": 227,
+    "tp": 4,
+    "accuracy": 0.40575916230366493,
+    "fpr": 0.0,
+    "recall": 0.017316017316017316,
+    "fpr_upper95": 0.019643782952651675,
+    "AP": 0.6735591561290466,
+    "AUROC": 0.5362518276425561
+  }
+}

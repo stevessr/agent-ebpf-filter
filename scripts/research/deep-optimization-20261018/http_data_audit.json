@@ -1,0 +1,50 @@
+{
+  "ecml": {
+    "parsed": 50116
+  },
+  "csic": {
+    "parsed": 61065
+  },
+  "deduplication": {
+    "exact_duplicates": 0
+  },
+  "split_seed": 1729,
+  "parts": {
+    "train": {
+      "n": 77831,
+      "positive": 25402,
+      "groups": 35288,
+      "sources": {
+        "public_ecml_generated": 30023,
+        "public_csic_generated": 47808
+      }
+    },
+    "validation": {
+      "n": 11692,
+      "positive": 5228,
+      "groups": 8822,
+      "sources": {
+        "public_ecml_generated": 7428,
+        "public_csic_generated": 4264
+      }
+    },
+    "calibration": {
+      "n": 8859,
+      "positive": 3875,
+      "groups": 5881,
+      "sources": {
+        "public_ecml_generated": 4998,
+        "public_csic_generated": 3861
+      }
+    },
+    "test": {
+      "n": 12799,
+      "positive": 5670,
+      "groups": 8823,
+      "sources": {
+        "public_ecml_generated": 7667,
+        "public_csic_generated": 5132
+      }
+    }
+  }
+}

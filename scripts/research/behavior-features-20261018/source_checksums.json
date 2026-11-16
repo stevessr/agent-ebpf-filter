@@ -1,0 +1,21 @@
+{
+  ".github/workflows/behavior-features.yml": "fededc78c10f046aec4e1f84a12f10aab48a96ff38a427eeb9acce6724a90e5c",
+  "backend/cmd/behavior-features/main.go": "afc3b45e7ff5c8ef15857b6e66f943c9732ca3d35d0968a9875bdd5ed091c3a5",
+  "backend/cmd/behavior-features/main_test.go": "bd45196dd73ebb2505bd63ebea46db0068616b86e4359b45442f391a5bb01318",
+  "backend/internal/behaviorfeatures/extract.go": "690f2fa20ba9a61f1b5f92db7f50745949f4b682f7d31bd7c2f667266621a761",
+  "backend/internal/behaviorfeatures/extract_test.go": "23ea7fd09fef20106a2e70917aca81074d227f2a7905d436b6f5e7d79df8dd7d",
+  "backend/internal/behaviorfeatures/history.go": "efccb7eef73e2f6e4fb66ebace380fdef85c4c76f413d5de3462b50e6c405418",
+  "backend/internal/behaviorfeatures/types.go": "b4d5e4d1cbe3e7dab8b70cc380779c14550b9d46aab1f1dfb8f3f29aa0e685fa",
+  "docs/architecture/kernel-http-behavior-features.md": "cfee49a0d78a3ca93b70c5693c18951378761ecafab48a7155b6b134086fe4b0",
+  "scripts/research/behavior-features-20261018/DATASET_LICENSE.txt": "bf7e07e81bc00bfc421ec164c57bacf1ed15917c2d48843a5bf1a0c1a6de8b46",
+  "scripts/research/behavior-features-20261018/README.md": "281584158a339eb3cdfbf3ff0dbe4933065f64b9e141c21d25e0f69486b486e3",
+  "scripts/research/behavior-features-20261018/adapt_capture.py": "ba2e6cf4979e2c5fb9a4ffd3b98a0a73f518b3e1c79ca01c78d8d587f0d27201",
+  "scripts/research/behavior-features-20261018/initial_results.json": "dba65ad5a8a78cd2d91244cf4d4821e9769b7086e34e032cc5f5fc903a4bcb8e",
+  "scripts/research/behavior-features-20261018/portable_model.py": "6173e99bf9cdf898e71eed2e217bf8534266e235d7ef84e92b1ae49edb7a4f11",
+  "scripts/research/behavior-features-20261018/requirements.txt": "cfa889a8d30e9997012f953793fae40cb3bed01d74c29f5dea7b986387bdeea2",
+  "scripts/research/behavior-features-20261018/results.json": "6f69cfde28d896fdfd6f720e28c5fdc3a915f49630ba61185266f8025212d02b",
+  "scripts/research/behavior-features-20261018/test_pipeline.py": "67b408059e68310ca5c2736f10af8ca8bd53823b9b8c1f6819d4dff445c4d048",
+  "scripts/research/behavior-features-20261018/tool_trace_audit.json": "42542699a8c8fdfc26cd37c077fd021adc5b5ab94366793b74c8e830aea9a81f",
+  "scripts/research/behavior-features-20261018/train_http.py": "446c7fd76de8ebeaa1f2889cff2e7f44d3788758cb10c0ee1bdda6d4cb09f6c9",
+  "scripts/research/behavior-features-20261018/validation.json": "2cd5a6abad5622150580c13c333291de1010be8140e34cfaa2b769ea5e2d675c"
+}

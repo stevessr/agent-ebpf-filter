@@ -1,0 +1,27 @@
+{
+  "repo": "coreruleset/coreruleset",
+  "tag": "v4.29.0",
+  "revision": "ab3ccd5fcd691424ba3f320d4040c61417270193",
+  "role": "offline rule-expectation challenge only; no requests executed; no fitting",
+  "selection": "five predeclared rule IDs each in XSS, SQLI, RCE; all supported one-stage scalar requests",
+  "files": [
+    "tests/regression/tests/REQUEST-941-APPLICATION-ATTACK-XSS/941100.yaml",
+    "tests/regression/tests/REQUEST-941-APPLICATION-ATTACK-XSS/941110.yaml",
+    "tests/regression/tests/REQUEST-941-APPLICATION-ATTACK-XSS/941120.yaml",
+    "tests/regression/tests/REQUEST-941-APPLICATION-ATTACK-XSS/941130.yaml",
+    "tests/regression/tests/REQUEST-941-APPLICATION-ATTACK-XSS/941140.yaml",
+    "tests/regression/tests/REQUEST-942-APPLICATION-ATTACK-SQLI/942100.yaml",
+    "tests/regression/tests/REQUEST-942-APPLICATION-ATTACK-SQLI/942110.yaml",
+    "tests/regression/tests/REQUEST-942-APPLICATION-ATTACK-SQLI/942120.yaml",
+    "tests/regression/tests/REQUEST-942-APPLICATION-ATTACK-SQLI/942130.yaml",
+    "tests/regression/tests/REQUEST-942-APPLICATION-ATTACK-SQLI/942140.yaml",
+    "tests/regression/tests/REQUEST-932-APPLICATION-ATTACK-RCE/932100.yaml",
+    "tests/regression/tests/REQUEST-932-APPLICATION-ATTACK-RCE/932105.yaml",
+    "tests/regression/tests/REQUEST-932-APPLICATION-ATTACK-RCE/932110.yaml",
+    "tests/regression/tests/REQUEST-932-APPLICATION-ATTACK-RCE/932115.yaml",
+    "tests/regression/tests/REQUEST-932-APPLICATION-ATTACK-RCE/932120.yaml",
+    "LICENSE"
+  ],
+  "label_policy": "only explicitly expected target rule match => positive; no_log/other rules NOT benign ground truth",
+  "tag_object_sha": "c4b534fe57d772cbf84959c5ae4e7daab7d2020e"
+}

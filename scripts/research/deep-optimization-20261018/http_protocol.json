@@ -1,0 +1,32 @@
+{
+  "seed": 20261018,
+  "training_sources": [
+    "ECML original train/test repartitioned",
+    "CSIC original normal/anomalous test (previously consumed, now development)"
+  ],
+  "fresh_benign_audit": "CSIC original normalTrafficTraining, never used for fitting or threshold selection",
+  "views": [
+    "payload",
+    "parameters",
+    "syntax"
+  ],
+  "fronts": [
+    "char3-5 TFIDF 50000 train-only vocabulary",
+    "word1-2 TFIDF 50000 train-only vocabulary",
+    "structural counts and ratios"
+  ],
+  "backs": [
+    "logistic C=.5,2",
+    "histogram gradient boosting leaves15,31"
+  ],
+  "selection": "maximize worst-source validation recall at source-wise empirical 1% FPR, then macro AP",
+  "threshold": "max of source-wise calibration empirical 99th negative percentiles; strict >",
+  "mode": "shadow_only",
+  "production_approved": false,
+  "limitations": [
+    "No independent attack-source holdout in this round.",
+    "Payload/parameter views exclude request headers; syntax includes headers but loses literal identifiers.",
+    "Fresh benign corpus shares generator/application with CSIC development; overlaps removed and reported.",
+    "Training input truncation at 16384 characters; not an abstention-safe production decoder."
+  ]
+}

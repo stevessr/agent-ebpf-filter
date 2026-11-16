@@ -1,0 +1,24 @@
+{
+  "encoding": "byte-fnv1a-3-5-logtf-l2.v1",
+  "dimension": 32768,
+  "training_source": "ECML-PKDD 2007 generated requests, original train/test repartitioned",
+  "external_source": "CSIC 2010 normal/anomalous test requests; evaluation only",
+  "candidates_alpha": [
+    1e-05,
+    0.0001,
+    0.001
+  ],
+  "selection": "validation recall under one-sided 95% FPR upper bound <= 1%, then AP; calibration threshold separate",
+  "gates": {
+    "fpr_upper95_max": 0.01,
+    "recall_min": 0.9,
+    "abstention_max": 0.01
+  },
+  "test_policy": "one evaluation after configuration freeze; no tuning on ECML holdout or CSIC",
+  "limitations": [
+    "Historical generated traffic, not production representative.",
+    "No kernel outcomes or privacy leakage labels.",
+    "Binomial bound assumes IID/exchangeability; template-group intervals also reported.",
+    "Source-isolated external evaluation is mandatory."
+  ]
+}

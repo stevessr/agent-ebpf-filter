@@ -1,0 +1,49 @@
+{
+  "version": "privacy_low_fpr_ablation.v6",
+  "seed": 20261021,
+  "epochs": 6,
+  "batch_size": 16,
+  "candidates": [
+    {
+      "name": "v6_legacy_pair",
+      "learning_rate": 3e-05,
+      "pair_weight": 0.2,
+      "hard_negative_weight": 1.0,
+      "positive_weight": 1.0,
+      "pair_strategy": "all",
+      "context_view": "legacy",
+      "tail_weight": 0.0
+    },
+    {
+      "name": "v6_evidence_pair",
+      "learning_rate": 3e-05,
+      "pair_weight": 0.2,
+      "hard_negative_weight": 1.0,
+      "positive_weight": 1.0,
+      "pair_strategy": "all",
+      "context_view": "evidence_pair.v1",
+      "tail_weight": 0.0
+    },
+    {
+      "name": "v6_legacy_tail",
+      "learning_rate": 3e-05,
+      "pair_weight": 0.2,
+      "hard_negative_weight": 1.0,
+      "positive_weight": 1.0,
+      "pair_strategy": "all",
+      "context_view": "legacy",
+      "tail_weight": 0.2
+    },
+    {
+      "name": "v6_evidence_tail",
+      "learning_rate": 3e-05,
+      "pair_weight": 0.2,
+      "hard_negative_weight": 1.0,
+      "positive_weight": 1.0,
+      "pair_strategy": "all",
+      "context_view": "evidence_pair.v1",
+      "tail_weight": 0.2
+    }
+  ],
+  "mode": "shadow_only"
+}

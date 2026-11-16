@@ -1,0 +1,21 @@
+{
+  "seed": 20261018,
+  "training": "public PrivacyAlign original prepared train only",
+  "selection": "validation recall at empirical 1% FPR, then AP; calibration separately fixes threshold",
+  "test_status": "previously consumed regression; never independent",
+  "encoders": [
+    "BERT-Tiny 2x128",
+    "BERT-Mini 4x256"
+  ],
+  "epochs": 6,
+  "lr": 3e-05,
+  "batch": 16,
+  "loss": "unweighted BCE + 0.2 within-scenario opposite-label pair ranking",
+  "sparse_C": [
+    0.25,
+    1,
+    4
+  ],
+  "new_labeled_examples": 0,
+  "production_approved": false
+}

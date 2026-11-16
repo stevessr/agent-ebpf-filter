@@ -1,0 +1,78 @@
+{
+  "freeze": {
+    "artifact_sha256": "4b99575fbd144c1d3ebff5c27ca2a3302291ebfd7b5d82d41adf6d4173346b92",
+    "threshold": 0.5573576633884558,
+    "selection": {
+      "front": "char",
+      "validation": {
+        "public_csic_generated": {
+          "n": 4264,
+          "tn": 1264,
+          "fp": 12,
+          "fn": 519,
+          "tp": 2469,
+          "accuracy": 0.8754690431519699,
+          "fpr": 0.009404388714733543,
+          "recall": 0.8263052208835341,
+          "fpr_upper95": 0.015192677307553863,
+          "AP": 0.9882511512702051,
+          "AUROC": 0.9689116969445178
+        },
+        "public_ecml_generated": {
+          "n": 7428,
+          "tn": 5137,
+          "fp": 51,
+          "fn": 413,
+          "tp": 1827,
+          "accuracy": 0.9375336564351104,
+          "fpr": 0.009830377794911334,
+          "recall": 0.815625,
+          "fpr_upper95": 0.012397580406261753,
+          "AP": 0.9232560319207447,
+          "AUROC": 0.9292519137570217
+        }
+      },
+      "rank": [
+        0.815625,
+        0.9557535915954749
+      ]
+    },
+    "source_thresholds": {
+      "public_csic_generated": 0.5573576633884558,
+      "public_ecml_generated": 0.33705443077044495
+    },
+    "protocol_sha256": "31e734d97fe915564334b7b4e4fcc8a2089a47b5ccda7d988a019c4f978da112",
+    "mode": "shadow_only",
+    "production_approved": false
+  },
+  "actual_fits": 2,
+  "consumed_regression": {
+    "public_csic_generated": {
+      "n": 5132,
+      "tn": 1812,
+      "fp": 39,
+      "fn": 327,
+      "tp": 2954,
+      "accuracy": 0.9286827747466875,
+      "fpr": 0.02106969205834684,
+      "recall": 0.9003352636391344,
+      "fpr_upper95": 0.027431105258511973,
+      "AP": 0.9914420696877693,
+      "AUROC": 0.9820718505825086
+    },
+    "public_ecml_generated": {
+      "n": 7667,
+      "tn": 5276,
+      "fp": 2,
+      "fn": 581,
+      "tp": 1808,
+      "accuracy": 0.9239598278335724,
+      "fpr": 0.00037893141341417203,
+      "recall": 0.756802009208874,
+      "fpr_upper95": 0.00119235165234622,
+      "AP": 0.9035607948487898,
+      "AUROC": 0.9031896063982783
+    }
+  },
+  "elapsed_seconds": 126.49675088799904
+}

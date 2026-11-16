@@ -1,0 +1,18 @@
+{
+  "schema": "opencode-study-audit.v1",
+  "expected_sessions": 4,
+  "recorded_sessions": 4,
+  "corrected_derived_counter_runs": [],
+  "matrix_and_log_integrity": true,
+  "all_sessions_have_full_hook_coverage": false,
+  "complete_measurement_without_runtime_errors": false,
+  "enforce_controls_verified": 0,
+  "enforce_controls_total": 1,
+  "observe_controls_effects_seen": 1,
+  "observe_controls_total": 1,
+  "controlled_bridge_gate_pass": false,
+  "production_enforcement_approved": false,
+  "latency_scope": "policy subprocess round trip; includes Python process launch, not model inference or kernel latency",
+  "hook_round_trip_p50_ms": null,
+  "hook_round_trip_max_ms": null
+}

@@ -1,0 +1,84 @@
+{
+  "version": "curated_behavior_sources.v1",
+  "collected_on": "2026-10-23",
+  "scope": "Public technique descriptions, detector rules and synthetic agent benchmarks; no third-party raw content redistributed",
+  "sources": [
+    {
+      "id": "ATTACK_T1552_001",
+      "title": "MITRE ATT&CK — Credentials In Files",
+      "url": "https://attack.mitre.org/techniques/T1552/001/",
+      "kind": "attack_technique",
+      "support": "Accessing credential-bearing files can indicate credential access; a read alone does not prove misuse."
+    },
+    {
+      "id": "ATTACK_T1567",
+      "title": "MITRE ATT&CK — Exfiltration Over Web Service",
+      "url": "https://attack.mitre.org/techniques/T1567/",
+      "kind": "attack_technique",
+      "support": "External web services can serve as exfiltration channels; successful transfer requires independent evidence."
+    },
+    {
+      "id": "ATTACK_T1485",
+      "title": "MITRE ATT&CK — Data Destruction",
+      "url": "https://attack.mitre.org/techniques/T1485/",
+      "kind": "attack_technique",
+      "support": "Destructive deletion and overwrite patterns; single unlink need not imply destruction."
+    },
+    {
+      "id": "ATTACK_T1486",
+      "title": "MITRE ATT&CK — Data Encrypted for Impact",
+      "url": "https://attack.mitre.org/techniques/T1486/",
+      "kind": "attack_technique",
+      "support": "Mass file encryption for impact; encryption alone may be authorized."
+    },
+    {
+      "id": "ATTACK_T1098",
+      "title": "MITRE ATT&CK — Account Manipulation",
+      "url": "https://attack.mitre.org/techniques/T1098/",
+      "kind": "attack_technique",
+      "support": "Account privileges or credential changes can establish persistence or privilege escalation."
+    },
+    {
+      "id": "ATTACK_T1070_004",
+      "title": "MITRE ATT&CK — Indicator Removal: File Deletion",
+      "url": "https://attack.mitre.org/techniques/T1070/004/",
+      "kind": "attack_technique",
+      "support": "Removal of intrusion artifacts can indicate evasion; ordinary cleanup is common."
+    },
+    {
+      "id": "FALCO_DEFAULT",
+      "title": "Falco — Default Rules",
+      "url": "https://falco.org/docs/reference/rules/default-rules/",
+      "kind": "detection_reference",
+      "support": "Sensitive reads, unexpected child shells and suspicious container access are behavioral detections with documented noise/allowlist context."
+    },
+    {
+      "id": "AGENTDOJO",
+      "title": "AgentDojo — Dynamic Prompt Injection Benchmark",
+      "url": "https://arxiv.org/abs/2406.13352",
+      "kind": "research_benchmark",
+      "support": "Untrusted tool-result content can redirect tool-using agents away from legitimate user tasks."
+    },
+    {
+      "id": "AGENTDOJO_WORKSPACE",
+      "title": "AgentDojo — Workspace Injection Tasks",
+      "url": "https://github.com/ethz-spylab/agentdojo/blob/main/src/agentdojo/default_suites/v1/workspace/injection_tasks.py",
+      "kind": "research_benchmark",
+      "support": "Defines attacker-targeted tool actions such as email transmission; tasks are simulated benchmark scenarios, not observed Linux syscalls."
+    },
+    {
+      "id": "PRIVACYALIGN",
+      "title": "PrivacyAlign — Human Annotated Synthetic Privacy Benchmark",
+      "url": "https://github.com/ServiceNow/PrivacyAlign",
+      "kind": "research_benchmark",
+      "support": "Synthetic agent tool and memory scenarios with human contextual privacy preferences; benchmark labels must not be equated to real exfiltration."
+    },
+    {
+      "id": "OWASP_ASI",
+      "title": "OWASP Top 10 for Agentic Applications 2026",
+      "url": "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/",
+      "kind": "threat_framework",
+      "support": "Agent authority, tool misuse and delegated decisions require evidence of approval and execution; OS traces cannot prove prompt injection alone."
+    }
+  ]
+}

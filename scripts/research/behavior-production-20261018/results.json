@@ -1,0 +1,244 @@
+{
+  "protocol": {
+    "encoding": "byte-fnv1a-3-5-logtf-l2.v1",
+    "dimension": 32768,
+    "training_source": "ECML-PKDD 2007 generated requests, original train/test repartitioned",
+    "external_source": "CSIC 2010 normal/anomalous test requests; evaluation only",
+    "candidates_alpha": [
+      1e-05,
+      0.0001,
+      0.001
+    ],
+    "selection": "validation recall under one-sided 95% FPR upper bound <= 1%, then AP; calibration threshold separate",
+    "gates": {
+      "fpr_upper95_max": 0.01,
+      "recall_min": 0.9,
+      "abstention_max": 0.01
+    },
+    "test_policy": "one evaluation after configuration freeze; no tuning on ECML holdout or CSIC",
+    "limitations": [
+      "Historical generated traffic, not production representative.",
+      "No kernel outcomes or privacy leakage labels.",
+      "Binomial bound assumes IID/exchangeability; template-group intervals also reported.",
+      "Source-isolated external evaluation is mandatory."
+    ]
+  },
+  "source_revision": "424c6e1c1951570473d9d6c0227eaaac6fdd6d02",
+  "source_sha256": {
+    "OriginalDataSets/ecml_pkdd/dataset_ecml_pkdd_train_test/xml_test.txt": "f1b79ffbe51b271a55545fb4caf1f4edd97e3514a835ade64f875245a9bb4116",
+    "OriginalDataSets/ecml_pkdd/dataset_ecml_pkdd_train_test/xml_train.txt": "b4e85e85a315eb522f5175e11ed0d35d0e0aab5cd41c4618102b624772692a86",
+    "OriginalDataSets/csic_2010/anomalousTrafficTest.txt": "12fa4f0d496ceb859bb2652abf7f0f0ed8c59e1d9ce501b8a9a0ef38a625c046",
+    "OriginalDataSets/csic_2010/normalTrafficTest.txt": "f05dfc312d5d14fd1ed8371de27a9e4deab3dc09265f5d7f9df2643df8385089"
+  },
+  "splits": {
+    "train": {
+      "rows": 29883,
+      "groups": 27762,
+      "positive": 9100,
+      "negative": 20783
+    },
+    "validation": {
+      "rows": 7699,
+      "groups": 6940,
+      "positive": 2305,
+      "negative": 5394
+    },
+    "calibration": {
+      "rows": 5059,
+      "groups": 4627,
+      "positive": 1504,
+      "negative": 3555
+    },
+    "test": {
+      "rows": 7475,
+      "groups": 6942,
+      "positive": 2201,
+      "negative": 5274
+    }
+  },
+  "audit": {
+    "ecml": {
+      "parsed": 50116,
+      "exact_duplicates": 0
+    },
+    "external_csic": {
+      "parsed": 61065,
+      "exact_duplicates": 0,
+      "overlap_removed": 0
+    }
+  },
+  "split_seed": 1729,
+  "trials": [
+    {
+      "alpha": 1e-05,
+      "validation": {
+        "rows": 7699,
+        "accuracy": 0.9893492661384595,
+        "balanced_accuracy": 0.9873057715771602,
+        "f1": 0.9822125813449024,
+        "AP": 0.9963547623558922,
+        "recall": 0.9822125813449024,
+        "fpr": 0.007601038190582128,
+        "fpr_upper95": 0.009851169748839067,
+        "tn": 5353,
+        "fp": 41,
+        "fn": 41,
+        "tp": 2264
+      }
+    },
+    {
+      "alpha": 0.0001,
+      "validation": {
+        "rows": 7699,
+        "accuracy": 0.9658397194440836,
+        "balanced_accuracy": 0.9480432986921277,
+        "f1": 0.9406186498080831,
+        "AP": 0.981207692154337,
+        "recall": 0.9036876355748373,
+        "fpr": 0.007601038190582128,
+        "fpr_upper95": 0.009851169748839067,
+        "tn": 5353,
+        "fp": 41,
+        "fn": 222,
+        "tp": 2083
+      }
+    },
+    {
+      "alpha": 0.001,
+      "validation": {
+        "rows": 7699,
+        "accuracy": 0.9031042992596441,
+        "balanced_accuracy": 0.8432710644188087,
+        "f1": 0.8109477952356817,
+        "AP": 0.9364978754088178,
+        "recall": 0.6941431670281996,
+        "fpr": 0.007601038190582128,
+        "fpr_upper95": 0.009851169748839067,
+        "tn": 5353,
+        "fp": 41,
+        "fn": 705,
+        "tp": 1600
+      }
+    }
+  ],
+  "fit_count": 3,
+  "selected_alpha": 1e-05,
+  "threshold": 0.23892595620096033,
+  "validation_at_frozen_threshold": {
+    "rows": 7699,
+    "accuracy": 0.989738927133394,
+    "balanced_accuracy": 0.9889503240122994,
+    "f1": 0.9829336789803413,
+    "AP": 0.9963547623558922,
+    "recall": 0.9869848156182213,
+    "fpr": 0.009084167593622544,
+    "fpr_upper95": 0.01151187425476287,
+    "tn": 5345,
+    "fp": 49,
+    "fn": 30,
+    "tp": 2275,
+    "abstained": 0,
+    "group_bootstrap": {
+      "groups": 6940,
+      "fpr_95ci": [
+        0.006562597524653633,
+        0.011675989898528742
+      ],
+      "recall_95ci": [
+        0.9813602903730864,
+        0.9918636175919242
+      ]
+    }
+  },
+  "calibration": {
+    "rows": 5059,
+    "accuracy": 0.9891282862225736,
+    "balanced_accuracy": 0.9865104213424305,
+    "f1": 0.9816849816849816,
+    "AP": 0.9961560607599504,
+    "recall": 0.9800531914893617,
+    "fpr": 0.007032348804500703,
+    "fpr_upper95": 0.00980797443774002,
+    "tn": 3530,
+    "fp": 25,
+    "fn": 30,
+    "tp": 1474,
+    "abstained": 0,
+    "group_bootstrap": {
+      "groups": 4627,
+      "fpr_95ci": [
+        0.004219345737379899,
+        0.00999712213013059
+      ],
+      "recall_95ci": [
+        0.9729538068231234,
+        0.9867766078703735
+      ]
+    }
+  },
+  "heldout_ecml": {
+    "rows": 7475,
+    "accuracy": 0.9887625418060201,
+    "balanced_accuracy": 0.9856828962323982,
+    "f1": 0.9808656036446469,
+    "AP": 0.9968809367587853,
+    "recall": 0.9781917310313494,
+    "fpr": 0.006825938566552901,
+    "fpr_upper95": 0.00900429889720987,
+    "tn": 5238,
+    "fp": 36,
+    "fn": 48,
+    "tp": 2153,
+    "abstained": 0,
+    "group_bootstrap": {
+      "groups": 6942,
+      "fpr_95ci": [
+        0.004772399764094728,
+        0.009325218967983176
+      ],
+      "recall_95ci": [
+        0.9655766406532195,
+        0.9877099929387063
+      ]
+    }
+  },
+  "external_csic": {
+    "rows": 61065,
+    "accuracy": 0.41046425939572584,
+    "balanced_accuracy": 0.5,
+    "f1": 0.5820271682340648,
+    "AP": 0.5611837668485503,
+    "recall": 1.0,
+    "fpr": 1.0,
+    "fpr_upper95": 1.0,
+    "tn": 0,
+    "fp": 36000,
+    "fn": 0,
+    "tp": 25065,
+    "abstained": 0,
+    "group_bootstrap": {
+      "groups": 12546,
+      "fpr_95ci": [
+        1.0,
+        1.0
+      ],
+      "recall_95ci": [
+        1.0,
+        1.0
+      ]
+    },
+    "recall_counting_abstentions_as_misses": 1.0,
+    "coverage": 1.0
+  },
+  "model_sha256": "b53b70d7f7bdf86ff0d24712ad6c10667f47463daf1abf4725e45c1a8d11a25a",
+  "model_bytes": 655273,
+  "go_prediction_max_abs_error": 2.9976021664879227e-15,
+  "gates": {
+    "ecml_pass": true,
+    "external_csic_pass": false,
+    "kernel_privacy_destruction_pass": false,
+    "production_blocking_approved": false
+  },
+  "evaluation_seconds": 179.54303445000005,
+  "evaluation_resume": "No refit/threshold change. Bounded Go scoring and 128-record parity batches; original data-extraction attempt exhausted memory before fitting, dense in-memory cross-source evaluation was replaced."
+}

@@ -1,0 +1,10 @@
+{
+  "agent_privacy": {
+    "records": 16,
+    "max_absolute_error_vs_original_infer": 4.2082806128718175e-08
+  },
+  "vulnerability": {
+    "records": 16,
+    "max_absolute_error_vs_original_infer": 3.318370794813674e-08
+  }
+}

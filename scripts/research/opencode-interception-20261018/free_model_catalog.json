@@ -1,0 +1,40 @@
+{
+  "opencode_version": "1.19.3",
+  "catalog_sha256": "b281bd1c7cf1cf5c28e4a40fb0eb57a60cf9a839799ca014835357cad87b6eb0",
+  "selected": {
+    "big-pickle": {
+      "id": "big-pickle",
+      "api": {
+        "id": "big-pickle",
+        "url": "https://opencode.ai/inference/openai/v1",
+        "npm": "@ai-sdk/openai-compatible"
+      },
+      "cost": {
+        "input": 0,
+        "output": 0,
+        "cache": {
+          "read": 0,
+          "write": 0
+        }
+      },
+      "toolcall": true
+    },
+    "deepseek-v4.1-flash-free": {
+      "id": "deepseek-v4.1-flash-free",
+      "api": {
+        "id": "deepseek-v4.1-flash-free",
+        "url": "https://opencode.ai/inference/openai/v1",
+        "npm": "@ai-sdk/openai-compatible"
+      },
+      "cost": {
+        "input": 0,
+        "output": 0,
+        "cache": {
+          "read": 0,
+          "write": 0
+        }
+      },
+      "toolcall": true
+    }
+  }
+}

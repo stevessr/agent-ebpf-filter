@@ -1,0 +1,12 @@
+{
+  "request_id": "privacy-public-v5-20261022",
+  "protocol": "privacy_low_fpr_automl.v5",
+  "epochs_per_candidate": 6,
+  "candidates": ["mini_pair_baseline", "mini_hard_negative"],
+  "batch_size": 16,
+  "seed": 20261021,
+  "cpu_threads": 2,
+  "timeout_minutes": 40,
+  "mode": "shadow_only",
+  "production_approved": false
+}

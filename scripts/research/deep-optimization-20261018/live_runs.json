@@ -1,0 +1,58 @@
+[
+  {
+    "case": "unit_tests",
+    "native_calls": 3,
+    "scored_calls": 3,
+    "unscored_call_ids": [],
+    "extra_score_ids": [],
+    "duplicate_scores": 0,
+    "task_complete": true,
+    "timeout": false,
+    "exit_code": 0,
+    "seconds": 32.17152326799987,
+    "stdout_sha256": "4ba51f49fa8fe5fe1e07b084a2e73027136231792d5437380c9180a4fcac250b",
+    "reported_cost": 0
+  },
+  {
+    "case": "fix_bug",
+    "native_calls": 4,
+    "scored_calls": 4,
+    "unscored_call_ids": [],
+    "extra_score_ids": [],
+    "duplicate_scores": 0,
+    "task_complete": true,
+    "timeout": false,
+    "exit_code": 0,
+    "seconds": 16.986309759000505,
+    "stdout_sha256": "476e8eb5013eac50e1f00a61847d856c1fb9e931b39cf2f1a4ae2401c4293464",
+    "reported_cost": 0
+  },
+  {
+    "case": "build",
+    "native_calls": 3,
+    "scored_calls": 3,
+    "unscored_call_ids": [],
+    "extra_score_ids": [],
+    "duplicate_scores": 0,
+    "task_complete": true,
+    "timeout": false,
+    "exit_code": 0,
+    "seconds": 18.85775019600078,
+    "stdout_sha256": "ebf36e77bf1f32d9e3e5290485cdf29ea0181a99de93595117e010b9e78cc9f3",
+    "reported_cost": 0
+  },
+  {
+    "case": "http_tests",
+    "native_calls": 2,
+    "scored_calls": 2,
+    "unscored_call_ids": [],
+    "extra_score_ids": [],
+    "duplicate_scores": 0,
+    "task_complete": true,
+    "timeout": false,
+    "exit_code": 0,
+    "seconds": 16.959398838998823,
+    "stdout_sha256": "4b4f10b55bfd41122bcc155128f1986a0476df46e53de1b2befbe5a4d1e6f1da",
+    "reported_cost": 0
+  }
+]

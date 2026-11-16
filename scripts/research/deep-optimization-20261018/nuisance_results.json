@@ -1,0 +1,6 @@
+{
+  "n": 9,
+  "max_score_difference": 0.0,
+  "model_sha256": "201b97a5f7dbaf8c76046486cd6ce5e29ffce1ddf2dffb5659a3919d33342aaa",
+  "scope": "authority/User-Agent/Cookie invariance diagnostic only; header attacks remain a coverage gap for payload-only models"
+}

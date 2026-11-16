@@ -1,0 +1,58 @@
+{
+  "http": {
+    "n": 9288,
+    "tn": 8821,
+    "fp": 467,
+    "fn": 0,
+    "tp": 0,
+    "accuracy": 0.9497200689061154,
+    "fpr": 0.05027993109388458,
+    "recall": 0.0,
+    "fpr_upper95": 0.05416920460091933,
+    "AP": null,
+    "AUROC": null,
+    "model_sha256": "201b97a5f7dbaf8c76046486cd6ce5e29ffce1ddf2dffb5659a3919d33342aaa"
+  },
+  "http_structured": {
+    "n": 9288,
+    "tn": 8939,
+    "fp": 349,
+    "fn": 0,
+    "tp": 0,
+    "accuracy": 0.9624246339362619,
+    "fpr": 0.03757536606373816,
+    "recall": 0.0,
+    "fpr_upper95": 0.04098419611125102,
+    "AP": null,
+    "AUROC": null,
+    "model_sha256": "74d9f7adecdb8f7684a4cdc145eb9c8a92596d8c8ad7079cfb6a005eb1548abe"
+  },
+  "http_v2": {
+    "n": 9288,
+    "tn": 8805,
+    "fp": 483,
+    "fn": 0,
+    "tp": 0,
+    "accuracy": 0.9479974160206718,
+    "fpr": 0.052002583979328165,
+    "recall": 0.0,
+    "fpr_upper95": 0.05595130840263954,
+    "AP": null,
+    "AUROC": null,
+    "model_sha256": "4b99575fbd144c1d3ebff5c27ca2a3302291ebfd7b5d82d41adf6d4173346b92"
+  },
+  "http_structured_v3": {
+    "n": 9288,
+    "tn": 8447,
+    "fp": 841,
+    "fn": 0,
+    "tp": 0,
+    "accuracy": 0.9094530577088716,
+    "fpr": 0.09054694229112834,
+    "recall": 0.0,
+    "fpr_upper95": 0.09559405131131109,
+    "AP": null,
+    "AUROC": null,
+    "model_sha256": "985104e9a6fac9586fb7226057243825c2d5a5b2abdab15ea40fe499225b2727"
+  }
+}
