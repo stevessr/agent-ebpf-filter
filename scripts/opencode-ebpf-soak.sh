@@ -219,6 +219,7 @@ fields = (
     "kernelPendingDroppedEvents", "kernelSequenceUnexplainedMissingEventsTotal",
     "contextMapUpdateFailuresTotal", "broadcastQueuedTotal",
     "broadcastDroppedTotal", "broadcastReceivedTotal",
+    "captureScopeExcludedTotal", "pathNoiseExcludedTotal",
     "capturedArchivedTotal", "capturedPersistErrorsTotal",
 )
 deltas = {}

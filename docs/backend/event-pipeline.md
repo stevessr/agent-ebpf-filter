@@ -87,6 +87,16 @@ payload 只编码一次，随后对每个连接用向量写直接发送，不再
 TLS 广播在 16 个订阅者下的开销：43.4 µs / 33 次分配 → 14.2 µs / 3 次分配（编码成本不再随
 订阅者数量线性增长）。
 
+## Capture admission diagnostics
+
+`/system/collector-health` 和 Prometheus 分别报告
+`captureScopeExcludedTotal`（Agent Capture scope 主动排除）与
+`pathNoiseExcludedTotal`（路径降噪主动排除）。这两项是**策略筛选量**，
+不能记为 eBPF Ringbuf 丢包，也不能仅凭其为零就证明所有目标 syscall
+均已采集。它们与 `broadcastDroppedTotal`、Ringbuf reserve failure、
+持久化失败计数共同用于定位事件消失的阶段；后端不改变现有 admission
+规则或默认隐私配置。
+
 ## EventArchive
 
 `backend/core/state_types.go` 中 `EventArchive` 是 bounded ring：

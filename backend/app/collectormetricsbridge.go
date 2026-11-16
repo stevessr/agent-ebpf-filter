@@ -69,6 +69,9 @@ func (metricsStoreBridge) RecordBroadcastReceived() {
 	observability.RecordBroadcastReceived()
 }
 
+func (metricsStoreBridge) RecordCaptureScopeExcluded() { observability.RecordCaptureScopeExcluded() }
+func (metricsStoreBridge) RecordPathNoiseExcluded() { observability.RecordPathNoiseExcluded() }
+
 func (metricsStoreBridge) RecordBroadcastFlush(events, envelopes, marshalErrors, writeErrors int, duration time.Duration) {
 	observability.RecordBroadcastFlush(events, envelopes, marshalErrors, writeErrors, duration)
 }

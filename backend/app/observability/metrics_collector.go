@@ -61,6 +61,8 @@ type CollectorMetricsSnapshot struct {
 	BroadcastDroppedTotal          uint64
 	BroadcastLastDropReason        string
 	BroadcastReceivedTotal         uint64
+	CaptureScopeExcludedTotal      uint64
+	PathNoiseExcludedTotal         uint64
 	BroadcastFlushesTotal          uint64
 	BroadcastEventsFlushedTotal    uint64
 	BroadcastEnvelopesFlushedTotal uint64
@@ -147,6 +149,8 @@ type CollectorHealthResponse struct {
 	BroadcastDroppedTotal            uint64                        `json:"broadcastDroppedTotal"`
 	BroadcastLastDropReason          string                        `json:"broadcastLastDropReason,omitempty"`
 	BroadcastReceivedTotal           uint64                        `json:"broadcastReceivedTotal"`
+	CaptureScopeExcludedTotal        uint64                        `json:"captureScopeExcludedTotal"`
+	PathNoiseExcludedTotal           uint64                        `json:"pathNoiseExcludedTotal"`
 	BroadcastFlushesTotal            uint64                        `json:"broadcastFlushesTotal"`
 	BroadcastEventsFlushedTotal      uint64                        `json:"broadcastEventsFlushedTotal"`
 	BroadcastEnvelopesFlushedTotal   uint64                        `json:"broadcastEnvelopesFlushedTotal"`
@@ -176,6 +180,8 @@ type collectorMetricsState struct {
 	broadcastDroppedTotal          atomic.Uint64
 	broadcastLastDropReason        string
 	broadcastReceivedTotal         atomic.Uint64
+	captureScopeExcludedTotal      atomic.Uint64
+	pathNoiseExcludedTotal         atomic.Uint64
 	broadcastFlushesTotal          uint64
 	broadcastEventsFlushedTotal    uint64
 	broadcastEnvelopesFlushedTotal uint64
@@ -360,6 +366,12 @@ func (s *collectorMetricsState) RecordBroadcastReceived() {
 	s.recordBroadcastReceived()
 }
 
+// Intentional admission filtering is not ringbuffer or broadcast loss.
+func RecordCaptureScopeExcluded() { collectorMetricsStore.captureScopeExcludedTotal.Add(1) }
+func RecordPathNoiseExcluded() { collectorMetricsStore.pathNoiseExcludedTotal.Add(1) }
+func (s *collectorMetricsState) RecordCaptureScopeExcluded() { s.captureScopeExcludedTotal.Add(1) }
+func (s *collectorMetricsState) RecordPathNoiseExcluded() { s.pathNoiseExcludedTotal.Add(1) }
+
 func RecordBroadcastFlush(events, envelopes, marshalErrors, writeErrors int, duration time.Duration) {
 	collectorMetricsStore.recordBroadcastFlush(events, envelopes, marshalErrors, writeErrors, duration)
 }
@@ -500,6 +512,8 @@ func (s *collectorMetricsState) rawSnapshot() CollectorMetricsSnapshot {
 		BroadcastDroppedTotal:          s.broadcastDroppedTotal.Load(),
 		BroadcastLastDropReason:        s.broadcastLastDropReason,
 		BroadcastReceivedTotal:         s.broadcastReceivedTotal.Load(),
+		CaptureScopeExcludedTotal:      s.captureScopeExcludedTotal.Load(),
+		PathNoiseExcludedTotal:         s.pathNoiseExcludedTotal.Load(),
 		BroadcastFlushesTotal:          s.broadcastFlushesTotal,
 		BroadcastEventsFlushedTotal:    s.broadcastEventsFlushedTotal,
 		BroadcastEnvelopesFlushedTotal: s.broadcastEnvelopesFlushedTotal,
@@ -658,6 +672,8 @@ func (s *collectorMetricsState) snapshot() CollectorHealthResponse {
 		BroadcastDroppedTotal:            raw.BroadcastDroppedTotal,
 		BroadcastLastDropReason:          raw.BroadcastLastDropReason,
 		BroadcastReceivedTotal:           raw.BroadcastReceivedTotal,
+		CaptureScopeExcludedTotal:        raw.CaptureScopeExcludedTotal,
+		PathNoiseExcludedTotal:           raw.PathNoiseExcludedTotal,
 		BroadcastFlushesTotal:            raw.BroadcastFlushesTotal,
 		BroadcastEventsFlushedTotal:      raw.BroadcastEventsFlushedTotal,
 		BroadcastEnvelopesFlushedTotal:   raw.BroadcastEnvelopesFlushedTotal,

@@ -59,6 +59,8 @@ func TestPrometheusMetricsExposePersistQueueState(t *testing.T) {
 		deps = oldDeps
 	})
 
+	RecordCaptureScopeExcluded()
+	RecordPathNoiseExcluded()
 	router := gin.New()
 	router.GET("/metrics", HandlePrometheusMetrics)
 	response := httptest.NewRecorder()
@@ -67,6 +69,8 @@ func TestPrometheusMetricsExposePersistQueueState(t *testing.T) {
 		t.Fatalf("metrics status = %d, body = %s", response.Code, response.Body.String())
 	}
 	for _, sample := range []string{
+		"agent_ebpf_capture_scope_excluded_total 1",
+		"agent_ebpf_path_noise_excluded_total 1",
 		"agent_ebpf_persist_writer_active 1",
 		"agent_ebpf_persist_queue_length 7",
 		"agent_ebpf_persist_queue_capacity 4096",
