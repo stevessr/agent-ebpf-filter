@@ -343,6 +343,11 @@ CONTROL_FIFO="$RUN_DIR/control-start.fifo"
 mkfifo "$CONTROL_FIFO"
 (
   IFS= read -r _ < "$CONTROL_FIFO"
+  # The standard daily profile deliberately disables unscoped "bash" comm
+  # events. Rename only this explicitly registered, isolated Bash baseline
+  # before its writes, or the reader would discard every control sample.
+  # /proc/self/comm changes the kernel task name without changing its PID.
+  printf 'soak-file-probe\\n' > /proc/self/comm
   for _ in {1..12}; do
     : > "$RUN_DIR/control-marker.txt"
     sleep 0.2
