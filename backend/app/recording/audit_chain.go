@@ -61,9 +61,15 @@ func (c *AuditChain) MarshalRecord(record CapturedEventRecord) ([]byte, error) {
 	if record.Event == nil {
 		return nil, errors.New("event recording record has no event")
 	}
-	// Keep the legacy double-normalization path for caller-supplied
-	// envelopes. Only freshly derived envelopes can bypass the second clone.
+	// Envelope is json:"-" and therefore cannot be reconstructed from
+	// stored JSONL. Always hash the canonical envelope derived from the
+	// persisted Event; otherwise a custom/incomplete incoming envelope
+	// produces an audit hash that cannot be verified after replay.
+	//
+	// Keep legacy double-normalization for preexisting envelopes to retain
+	// exact hashes on the already-canonicalized production path.
 	hadEnvelope := record.Envelope != nil
+	record.Envelope = nil
 	record = events.NormalizeCapturedEventRecord(record)
 
 	c.mu.Lock()
