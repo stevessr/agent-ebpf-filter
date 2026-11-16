@@ -216,31 +216,30 @@ import json
 import sys
 
 config_path, workdir = sys.argv[1:]
-commands = [
-    f"mkdir -p {workdir}/nested",
-    f"touch {workdir}/nested/marker-one.txt",
-    f"touch {workdir}/nested/marker-two.txt",
-]
+command = (
+    f"mkdir -p {workdir}/nested && "
+    f"touch {workdir}/nested/marker-one.txt && "
+    f"touch {workdir}/nested/marker-two.txt"
+)
 global_permissions = [{"action": "*", "resource": "*", "effect": "deny"}]
 global_permissions.append(
     {"action": "read", "resource": config_path, "effect": "allow"}
 )
 permissions = list(global_permissions)
-permissions.extend(
+permissions.append(
     {"action": "shell", "resource": command, "effect": "allow"}
-    for command in commands
 )
 config = {
     "$schema": "https://opencode.ai/config.json",
     "permissions": global_permissions,
     "agents": {
         "soak": {
-            "description": "Execute only the three explicitly allowed temporary-file operations.",
+            "description": "Execute the three temporary-file operations in one ordered shell call.",
             "mode": "primary",
             "system": (
-                "Run only the three shell commands supplied by the user, exactly and in order, "
-                "one command per tool call. Do not inspect files, access the network or backend, "
-                "read environment variables, run extra commands, or modify anything else. "
+                "Call the shell tool exactly once with the user's full &&-joined command, "
+                "never split or parallelize it. Do not inspect files, access the network "
+                "or backend, read environment variables, run extra commands, or modify anything else. "
                 "After the commands finish, reply exactly SOAK_OK."
             ),
             "permissions": permissions,
