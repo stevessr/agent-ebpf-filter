@@ -93,6 +93,37 @@ class TypedKernelCaptureTests(unittest.TestCase):
         records = [{"Event": {"type": "openat", "path": path, "pid": 11, "retval": "7"}}]
         self.assertEqual(len(checker.match_marker_events(records, [path])[path]), 1)
 
+    def test_pid_presence_distinguishes_lifecycle_from_confirmed_open(self):
+        workspace = "/tmp/soak/workspace"
+        records = [
+            {"Event": {"pid": 401, "type": "process_exec", "cwd": workspace,
+                       "path": "/secret/agent-binary", "raw": "SECRET_PAYLOAD"}},
+            {"Event": {"pid": 401, "type": "process_exit", "cwd": workspace}},
+            {"Event": {"pid": 402, "type": "openat", "cwd": workspace,
+                       "path": workspace + "/nested/matched", "retval": 8}},
+            {"Event": {"pid": 403, "type": "openat", "cwd": workspace,
+                       "path": workspace + "/nested/failed", "retval": -13}},
+            {"Event": {"pid": 404, "type": "openat", "cwd": "/elsewhere",
+                       "path": "/secret/outside", "retval": 4}},
+            {"Event": {"pid": 405, "type": "openat", "cwd": workspace,
+                       "path": workspace + "/nested/overflow", "retval": 6}},
+        ]
+        summary = checker.workspace_pid_event_presence(
+            records, {workspace}, limit=3
+        )
+        self.assertEqual([row["pid"] for row in summary], [401, 402, 403])
+        self.assertEqual(summary[0]["eventTypes"], ["process_exec", "process_exit"])
+        self.assertEqual(summary[0]["fileOpens"], 0)
+        self.assertEqual(summary[1]["confirmedFileOpens"], 1)
+        self.assertEqual(summary[2]["fileOpens"], 1)
+        self.assertEqual(summary[2]["confirmedFileOpens"], 0)
+        output = json.dumps(summary)
+        self.assertNotIn("SECRET_PAYLOAD", output)
+        self.assertNotIn("/secret/", output)
+        # This is diagnostic only: a process_exec path cannot confirm openat.
+        marker = workspace + "/nested/matched"
+        self.assertFalse(checker.match_marker_events(records[:2], [marker])[marker])
+
     def test_report_is_structured_and_does_not_copy_raw_event_payloads(self):
         path = "/tmp/opencode-soak/workspace/nested/marker.txt"
         record = {"Event": {"path": path, "pid": 777, "comm": "touch",
