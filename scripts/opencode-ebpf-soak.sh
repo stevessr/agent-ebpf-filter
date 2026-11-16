@@ -125,6 +125,12 @@ cleanup() {
   local status=$?
   trap - EXIT
 
+  # Capture the final collector counters while the backend is STILL alive.
+  # Querying only after terminating its process always hid the loss diagnosis.
+  if (( status != 0 )) && [[ -f "$RUN_DIR/collector-health-before.json" ]]; then
+    curl_api -o "$RUN_DIR/collector-health-after.json" "$BASE_URL/system/collector-health" 2>/dev/null || true
+  fi
+
   if [[ -n "$OPENCODE_LAUNCH_PID" ]]; then
     kill -TERM "$OPENCODE_LAUNCH_PID" 2>/dev/null || true
     wait "$OPENCODE_LAUNCH_PID" 2>/dev/null || true
