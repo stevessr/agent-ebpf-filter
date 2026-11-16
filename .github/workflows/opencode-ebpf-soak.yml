@@ -100,6 +100,7 @@ jobs:
           clang-15 --version
           mkdir -p "$RUNNER_TEMP/bpf-llvm"
           ln -s "$(command -v clang-15)" "$RUNNER_TEMP/bpf-llvm/clang"
+          ln -s "$(command -v llvm-strip-15)" "$RUNNER_TEMP/bpf-llvm/llvm-strip"
           echo "$RUNNER_TEMP/bpf-llvm" >> "$GITHUB_PATH"
 
       - name: Ensure bpffs is mounted for pinned tracker maps
