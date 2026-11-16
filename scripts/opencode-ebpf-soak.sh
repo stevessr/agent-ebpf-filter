@@ -55,6 +55,8 @@ fi
 required_commands=(curl python3 timeout mountpoint)
 if [[ "$SOAK_EXECUTOR" == "opencode" ]]; then
   required_commands+=(opencode)
+else
+  required_commands+=(cc)
 fi
 for command in "${required_commands[@]}"; do
   if ! command -v "$command" >/dev/null 2>&1; then
@@ -113,6 +115,10 @@ PORT="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); 
 BASE_URL="http://127.0.0.1:$PORT"
 
 mkdir -p "$BACKEND_HOME" "$WORKDIR" "$OPENCODE_HOME"
+if [[ "$SOAK_EXECUTOR" == "registered" ]]; then
+  SOAK_FILE_BIN="$RUN_DIR/soak-file-openat"
+  cc -std=c11 -O2 -Wall -Wextra -Werror -o "$SOAK_FILE_BIN" "$ROOT_DIR/scripts/soak-file-openat.c"
+fi
 mkfifo "$START_FIFO"
 
 cleanup() {
@@ -398,8 +404,10 @@ if [[ "$SOAK_EXECUTOR" == "registered" ]]; then
     # registered test process a unique comm before any test file activity.
     printf 'soak-worker\n' > /proc/self/comm
     mkdir -p "$WORKDIR/nested"
-    touch "$WORKDIR/nested/marker-one.txt"
-    touch "$WORKDIR/nested/marker-two.txt"
+    # Explicit SYS_openat is stable across libc/coreutils versions; the
+    # kernel must report both real file-create paths, not just exec events.
+    "$SOAK_FILE_BIN" "$WORKDIR/nested/marker-one.txt"
+    "$SOAK_FILE_BIN" "$WORKDIR/nested/marker-two.txt"
   ) >"$OPENCODE_LOG" 2>&1 &
   OPENCODE_LAUNCH_PID=$!
   REGISTERED_PID="$OPENCODE_LAUNCH_PID"
