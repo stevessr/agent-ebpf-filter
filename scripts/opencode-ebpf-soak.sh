@@ -467,12 +467,18 @@ start_independent_openat_trace() {
     echo "[soak] optional independent bpftrace unavailable" >&2
     return 0
   fi
+  local openat_nr
+  case "$(uname -m)" in
+    x86_64) openat_nr=257 ;;
+    aarch64) openat_nr=56 ;;
+    *) echo "[soak] optional trace unsupported architecture" >&2; return 0 ;;
+  esac
   if (( EUID == 0 )); then
-    bash -c 'echo "$BASHPID" > "$1"; exec bpftrace -q "$2"' _ \
-      "$TRACE_PID_FILE" "$ROOT_DIR/scripts/soak-openat-trace.bt" >"$TRACE_LOG" 2>&1 &
+    bash -c 'echo "$BASHPID" > "$1"; exec bpftrace -q "$2" "$3"' _ \
+      "$TRACE_PID_FILE" "$ROOT_DIR/scripts/soak-openat-trace.bt" "$openat_nr" >"$TRACE_LOG" 2>&1 &
   else
-    sudo -n bash -c 'echo "$BASHPID" > "$1"; exec bpftrace -q "$2"' _ \
-      "$TRACE_PID_FILE" "$ROOT_DIR/scripts/soak-openat-trace.bt" >"$TRACE_LOG" 2>&1 &
+    sudo -n bash -c 'echo "$BASHPID" > "$1"; exec bpftrace -q "$2" "$3"' _ \
+      "$TRACE_PID_FILE" "$ROOT_DIR/scripts/soak-openat-trace.bt" "$openat_nr" >"$TRACE_LOG" 2>&1 &
   fi
   TRACE_LAUNCH_PID=$!
   for _ in {1..100}; do
