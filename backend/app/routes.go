@@ -75,6 +75,7 @@ func registerNetworkRoutes(r gin.IRouter, ac *AppContext, features *FeatureRegis
 	r.GET("/network/capture-profiles", authMiddleware(), handleGetCaptureProfiles)
 	r.PUT("/network/capture-profiles", authMiddleware(), handlePutCaptureProfiles)
 	r.POST("/network/capture-profiles/preview", authMiddleware(), handlePreviewCaptureProfile)
+	registerProxyCaptureRoutes(r.Group("/network", authMiddleware()))
 	if features.CompiledIn(FeatureNetworkExport) {
 		r.GET("/network/export/jsonl", authMiddleware(), handleNetworkFlowJSONLExport)
 		r.POST("/network/export-pcap", authMiddleware(), handlePCAPExport)

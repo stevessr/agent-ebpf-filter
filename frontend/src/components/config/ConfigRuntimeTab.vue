@@ -10,6 +10,7 @@ import RuntimeAccessRetentionSection from "./RuntimeTab/RuntimeAccessRetentionSe
 import RuntimeDetectionResearchSection from "./RuntimeTab/RuntimeDetectionResearchSection.vue";
 import RuntimeFeatureGatesSection from "./RuntimeTab/RuntimeFeatureGatesSection.vue";
 import RuntimeNetworkExportSection from "./RuntimeTab/RuntimeNetworkExportSection.vue";
+import ProxyCapturePanel from "./RuntimeTab/ProxyCapturePanel.vue";
 import type { useConfigRuntime } from "../../composables/config/useConfigRuntime";
 
 const props = defineProps<{
@@ -58,5 +59,6 @@ const { mergedFeatures, isCompiledIn, featureStatusLabel, featureStatusColor } =
     <RuntimeDetectionResearchSection :runtime="runtime" />
     <RuntimeAccessRetentionSection :runtime="runtime" />
     <RuntimeNetworkExportSection :runtime="runtime" />
+    <a-col :span="24"><ProxyCapturePanel /></a-col>
   </a-row>
 </template>
