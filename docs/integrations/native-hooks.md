@@ -197,6 +197,32 @@ Pi/Oh My Pi extension 当前上报 `session_start`、`tool_call` 和 `tool_resul
 - [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)
 - [代码入口索引](../reference/code-entrypoints.md)
 
+## Code Mode / Programmatic Tool Calling
+
+现代 Code Mode 把多次工具调用包装为一次可执行程序（例如 DSH 的 `run_code` TypeScript SDK、Claude API Programmatic Tool Calling）。传统 CLI `PreToolUse` / `Bash` hook 可能只看见外层执行，不能仅凭一个事件推断内部所有操作已被采集或阻断。
+
+### 当前接入
+
+| 来源 | 外层执行 | 内部工具调用 | 约束 |
+| --- | --- | --- | --- |
+| **DeepSeek Harness (PTC)** | `tool/call` 的 `run_code` | Cordis `tool/ptc-dispatch-start` / `tool/ptc-dispatch` 两个日志事件 | 保留子调用名、子调用 ID、父调用摘要及错误标志；**不**采集工具参数、执行代码或返回正文 |
+| **Claude Code** | 可见的 `code_execution` / `run_code` 等 hook payload | 不承诺覆盖内部程序化工具调用 | Claude Platform API 的 programmatic tool calling 与 Claude Code CLI hook **不是相同的接口保证** |
+| **Codex** | 可见的 `functions.exec` / `run_code` 等 payload | 取决于具体运行时是否真正上报 | Codex CLI 当前原生 hooks 的 Bash matcher 不能当作所有 SDK 内部调用的审计证据 |
+| **其他 CLI** | `execute_code`、`code_interpreter` 等已识别工具名 | 仅接收端明确上报的内部事件 | 不启用宽泛的 `exec_command` / `Bash` 推测，以减少误判 |
+
+接收端将上述外层调用标记为 `execution_mode=code_mode`；若 Hook payload 带有 `code`，只计算 `code_digest` 和 `code_len`，不会把代码内容写入 `Path`、`ExtraInfo` 或进程上下文。PTC 子调用追加 `execution_layer=nested`、`parent_call_digest` 和 `root_call_digest`，将事件自带的 `subCallId` 转为稳定摘要后保持子事件配对（原始 subCallId 可嵌入父调用 ID）；不把并行子调用的 `tool_call_id` 写入共享 Harness PID 的进程上下文，防止把同一进程的其他 syscall 错归因给某个子调用。
+
+### 检测与阻断的界限
+
+- **用户态 Hook** 提供调用语义与关联线索，不是强制执行边界；非原生、远端或隐藏子调用可能不会触发本地 Hook。
+- **eBPF syscall / BPF LSM** 观察和执行主机上实际发生的进程、文件、网络活动。若 Code Mode 直接在 Node/Python 中调用文件 API、未使用 shell 命令，仍须由 OS 层策略控制，不能依赖 shell wrapper。
+- **DSH `dsh-exec`** 只拦截 Harness subprocess provider 管辖的 `spawn` / `spawnTerminal`；不声称覆盖全部 `run_code` 直接文件操作。
+- **远端 Code Execution** 的容器内部 syscall 不发生在本机，不能虚构为本机 eBPF 事件；只能关联本机能够实际观察的网络与 Hook 信号。
+
+为让新插件生效，需要重新安装/刷新 **DSH native hook**，重启 dsh 并触发一次 `run_code`（包含一个实际进入调度器的子工具调用）。可分别验证 `tool_call`、`ptc_dispatch_start`、`ptc_dispatch`、`tool_result` 事件，按 session、父调用摘要和子调用 ID 做关联。没有子调用事件不代表“零风险”或“全覆盖”。DSH relay 对突发 PTC 事件使用 256 项有界待发送队列与最多 8 个并行 relay；发生溢出时另发 `telemetry_dropped`，携带 `dropped_events` 计数，显式标记审计缺口。
+
+---
+
 ## DeepSeek Harness dual-hook capability
 
 `dsh` keeps the existing DSH_HOME Cordis patch integration for metadata-only session/tool observation. It remains the default native hook, and uninstall preserves shell aliases.

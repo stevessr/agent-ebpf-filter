@@ -33,6 +33,7 @@ export const codexHook: HookCliDoc = {
     "Codex discovers hooks.json next to active config layers; the global user-level file is ~/.codex/hooks.json.",
     "The current Codex runtime only emits Bash for PreToolUse / PostToolUse / PermissionRequest matcher filtering.",
     "Several parsed output fields are documented as not yet supported and fail open today.",
+    "For a programmatic functions.exec/code-execution payload, the backend records a source digest rather than an executable script path. Codex CLI's current Bash-only hook visibility does not imply that Code Mode internal SDK calls are intercepted.",
   ],
   events: [
     {
