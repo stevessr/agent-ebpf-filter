@@ -347,7 +347,7 @@ mkfifo "$CONTROL_FIFO"
   # events. Rename only this explicitly registered, isolated Bash baseline
   # before its writes, or the reader would discard every control sample.
   # /proc/self/comm changes the kernel task name without changing its PID.
-  printf 'soak-file-probe\\n' > /proc/self/comm
+  printf 'soak-file-probe\n' > /proc/self/comm
   for _ in {1..12}; do
     : > "$RUN_DIR/control-marker.txt"
     sleep 0.2
