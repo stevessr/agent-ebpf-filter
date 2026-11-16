@@ -1,4 +1,13 @@
 export interface CollectorHealthResponse {
+  agentRiskPipeline?: {
+    sessions: number;
+    maxSessions: number;
+    evictions: number;
+    findings: number;
+    activeCalls: number;
+    completedCalls: number;
+    taintedSessions: number;
+  };
   collectorMapAvailable: boolean;
   ringbufEventsTotal: number;
   ringbufDroppedTotal: number;
