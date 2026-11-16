@@ -49,6 +49,10 @@ class HttpTests(unittest.TestCase):
         self.assertEqual(stats['texts'], 1)
         self.assertEqual(self.request('GET', '/stats', token='wrong')[0], 401)
 
+    def test_missing_server_token_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, 'ASTRLINK_GUARD_TOKEN'):
+            make_handler(FakeScanner(), '')
+
     def test_invalid_payload(self):
         self.assertEqual(self.request('POST', '/scan', '{"texts":"not-a-list"}')[0], 422)
 
