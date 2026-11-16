@@ -18,18 +18,18 @@ tracepoint:syscalls:sys_exit_openat
     @openat_exit[pid] = count();
 }
 
-// On Ubuntu 24.04 x86_64 the native openat syscall number is 257.
+// Supply the architecture-specific openat syscall number as positional parameter $1.
 // The raw syscall probes bypass the syscall-name-specific entry tracepoint,
 // allowing a genuine missing named-enter observation to be distinguished
 // from an incorrect comm gate or missing syscall. Keep all data numeric.
 tracepoint:raw_syscalls:sys_enter
-/args.id == 257 && (comm == "soak-file-opena" || comm == "soak-file-probe")/
+/args.id == $1 && (comm == "soak-file-opena" || comm == "soak-file-probe")/
 {
     @raw_openat_enter[pid] = count();
 }
 
 tracepoint:raw_syscalls:sys_exit
-/args.id == 257 && (comm == "soak-file-opena" || comm == "soak-file-probe")/
+/args.id == $1 && (comm == "soak-file-opena" || comm == "soak-file-probe")/
 {
     @raw_openat_exit[pid] = count();
 }
