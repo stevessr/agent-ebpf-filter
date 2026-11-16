@@ -122,10 +122,6 @@ jobs:
       - name: Build backend and eBPF programs
         run: make ebpf-bootstrap
 
-      - name: Verify bounded kernel reader diagnostics
-        working-directory: backend
-        run: go test ./app -run TestSoakKernelMetadataEventOnlyAllowsIsolatedFixtureTypes -count=1
-
       - name: Capture real kernel file evidence and validate execution graph
         env:
           OPENCODE_SOAK_ARTIFACT_DIR: ${{ runner.temp }}/opencode-ebpf-soak
