@@ -229,34 +229,19 @@ func formatNetworkPathAndEndpoint(direction string, family uint32, addr []byte, 
 
 // SanitizeUTF8 converts a raw byte slice from the kernel to a valid UTF-8 string,
 // replacing any invalid bytes with the Unicode replacement character.
-// eBPF tracepoints write paths into fixed-size buffers; trailing NUL padding is
-// trimmed first, then any embedded NUL bytes (from uninitialised buffer regions
-// or multi-field packing) are removed before the UTF‑8 safety pass.
-//
-// The bounds are computed on the byte view so only the populated prefix is
-// ever copied out of the ring-buffer sample; valid input costs exactly one
-// allocation of its own length.
+// eBPF tracepoints write NUL-terminated strings into fixed-size buffers.
+// Only the bytes before the FIRST NUL are valid evidence. Scratch bytes after
+// the terminator may be stale and must never be joined into a different path.
+// The bounded prefix is copied before the ring-buffer sample is reused.
 func SanitizeUTF8(b []byte) string {
 	b = TrimNUL(b)
 	if len(b) == 0 {
 		return ""
 	}
-	if bytes.IndexByte(b, 0) < 0 {
-		if utf8.Valid(b) {
-			return string(b)
-		}
-		return ownedString(bytes.ToValidUTF8(b, utf8ReplacementBytes))
+	if utf8.Valid(b) {
+		return string(b)
 	}
-	cleaned := make([]byte, 0, len(b))
-	for _, c := range b {
-		if c != 0 {
-			cleaned = append(cleaned, c)
-		}
-	}
-	if !utf8.Valid(cleaned) {
-		cleaned = bytes.ToValidUTF8(cleaned, utf8ReplacementBytes)
-	}
-	return ownedString(cleaned)
+	return ownedString(bytes.ToValidUTF8(b, utf8ReplacementBytes))
 }
 
 var utf8ReplacementBytes = []byte("�")
