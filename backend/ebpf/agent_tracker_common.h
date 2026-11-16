@@ -1076,7 +1076,16 @@ int tracepoint__sched__sched_process_fork(struct trace_event_raw_sched_process_f
     // In addition to explicitly registered PIDs, inherit from a tracked
     // Agent command. Otherwise "codex -> bash -> python" loses tracing at
     // fork when Codex was selected by comm rather than PID registration.
+    u32 parent_tgid = (u32)(bpf_get_current_pid_tgid() >> 32);
     u32 tag_id = get_pid_tag_id(parent_pid);
+    // sched_process_fork reports the forking THREAD's TID as parent_pid.
+    // Multi-threaded runtimes may fork shell tools from a non-leader thread,
+    // while /register and agent_pids are keyed by process TGID. Check the
+    // current parent's TGID before falling back to registered agent comms.
+    // This never widens tracking to an unregistered process.
+    if (!tag_id && parent_tgid != 0 && parent_tgid != parent_pid) {
+        tag_id = get_pid_tag_id(parent_tgid);
+    }
     char parent_comm[TASK_COMM_LEN] = {};
     if (!tag_id) {
         read_tracepoint_data_loc_str(parent_comm, sizeof(parent_comm), ctx, ctx->parent_comm_loc);
@@ -1086,7 +1095,6 @@ int tracepoint__sched__sched_process_fork(struct trace_event_raw_sched_process_f
     if (!tag_id) return 0;
 
     bpf_map_update_elem(&agent_pids, &child_pid, &tag_id, BPF_ANY);
-    u32 parent_tgid = (u32)(bpf_get_current_pid_tgid() >> 32);
     if (parent_tgid != 0 && child_pid != parent_tgid) {
         if (bpf_map_update_elem(&socket_fd_parents, &child_pid, &parent_tgid, BPF_ANY) < 0) record_context_update_failure(CONTEXT_PRESSURE_SOCKET_PARENT);
     }
