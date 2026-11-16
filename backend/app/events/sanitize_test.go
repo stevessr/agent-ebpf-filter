@@ -60,7 +60,7 @@ func TestTrimNULIsAView(t *testing.T) {
 	}
 }
 
-func TestTrimNULStopsAtFirstNUL(t *testing.T) {
+func TestTrimNULPreservesEmbeddedBinaryNUL(t *testing.T) {
 	cases := [][]byte{
 		nil,
 		make([]byte, 256),
@@ -73,10 +73,7 @@ func TestTrimNULStopsAtFirstNUL(t *testing.T) {
 		{0},
 	}
 	for _, in := range cases {
-		want := in
-		if i := bytes.IndexByte(in, 0); i >= 0 {
-			want = in[:i]
-		}
+		want := bytes.TrimRight(in, "\x00")
 		got := TrimNUL(in)
 		if !bytes.Equal(got, want) {
 			t.Fatalf("TrimNUL(%q) = %q, want %q", in, got, want)
@@ -94,11 +91,21 @@ func TestKernelCStringDoesNotSpliceReusedScratchPaths(t *testing.T) {
 	if got := SanitizeUTF8(input); got != "/proc/self/statm" {
 		t.Fatalf("path includes stale bytes beyond C-string terminator: %q", got)
 	}
-	if got := string(TrimNUL(input)); got != "/proc/self/statm" {
+	if got := string(TrimCString(input)); got != "/proc/self/statm" {
 		t.Fatalf("trimmed path includes stale bytes: %q", got)
 	}
 	// A NUL at offset zero must not disclose any trailing previous sample.
 	if got := SanitizeUTF8([]byte("\x00secret-from-previous-event")); got != "" {
 		t.Fatalf("empty kernel field leaked stale scratch data: %q", got)
+	}
+}
+
+func TestTrimCStringDoesNotModifyBinaryPayloadView(t *testing.T) {
+	binary := []byte{'D', 'N', 'S', 0, 'X', 0, 0}
+	if got := TrimCString(binary); string(got) != "DNS" {
+		t.Fatalf("C-string view = %q, want DNS", got)
+	}
+	if got := TrimNUL(binary); !bytes.Equal(got, []byte{'D', 'N', 'S', 0, 'X'}) {
+		t.Fatalf("binary payload truncated embedded NUL: %q", got)
 	}
 }
