@@ -78,12 +78,49 @@ bash mobile/monitor/scripts/build-android.sh --install
 ```
 
 Output: `mobile/monitor/build/android-arm64/RenewMonitor-debug.apk`.
+The build stages a **fresh** Android host from the pinned MyGo module on each
+invocation and validates that Gradle actually generated a nonempty ZIP/APK.
+Native `.so` load segments use Android's 16 KiB alignment via NDK r28.
+The Android manifest strips unrelated runtime permissions.
+
+Validate a local APK using the same checks as CI:
+
+```bash
+bash mobile/monitor/scripts/verify-android-apk.sh
+# or pass an APK path as the first argument
+```
+
+This requires Android SDK Build Tools 36.0.0 (or set
+`ANDROID_BUILD_TOOLS_VERSION`) and checks the installable package name,
+minimum SDK, INTERNET permission, JNI arm64 library, debug signature and
+16 KiB ZIP alignment. It generates a `SHA256SUMS` alongside the verified APK.
+
+## GitHub Actions and test releases
+
 The [Renew mobile Android](../../.github/workflows/renew-mobile.yml)
-workflow builds it and uploads the `renew-monitor-android-arm64-debug` Actions
-artifact on success. This is a locally **debug-signed** APK, not a store-ready
-release. Native `.so` uses Android's required 16 KiB alignment via NDK r28.
-The MyGo Android host is staged out of the read-only module cache, and
-unrelated high-risk runtime permissions are stripped from the manifest.
+workflow runs mobile Go tests, race tests, vet, the native Android build,
+the APK acceptance checks, and uploads both APK and checksum to the
+`renew-monitor-android-arm64-debug` Actions artifact on success.
+
+On a successful **master** branch push affecting the mobile module, or a
+manual run of that workflow against `master`, a separate publish job creates
+an immutable GitHub **prerelease**, tagged `mobile-test-<workflow-run-id>`.
+Find it on the [Releases page](https://github.com/stevessr/agent-ebpf-filter/releases).
+Pull-request builds never publish. The prerelease is kept separate from
+the stable Linux release and explicitly excluded from the latest stable
+release selection.
+
+This is a **debug-signed, experimental test APK** — not a production/store
+release. Each GitHub-hosted runner may use a different debug signing key;
+if Android refuses to upgrade an existing test APK, uninstall the prior
+test build before installing the new one. Uninstalling clears local app
+state. For repeatable in-place upgrades or production distribution, configure
+a protected persistent release-signing key and a separate signing workflow.
+
+The CI checks establish build/package integrity, not real-device behavior.
+Before treating the APK as stable, test launch, touch, text input, rotation,
+pause/resume, valid/invalid HTTPS authentication and network loss on an
+actual Android device.
 
 ### Current limitations
 
