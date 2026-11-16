@@ -25,8 +25,8 @@ func TestAuditChainSingleNormalizationPreservesHashes(t *testing.T) {
 			name: "partial preexisting envelope",
 			record: CapturedEventRecord{
 				ReceivedAt: time.Unix(1700000002, 42).UTC(),
-				Event: &pb.Event{Pid: 17, Type: "openat", Path: "/tmp/partial"},
-				Envelope: &pb.EventEnvelope{EventId: "preserved-event-id"},
+				Event:      &pb.Event{Pid: 17, Type: "openat", Path: "/tmp/partial"},
+				Envelope:   &pb.EventEnvelope{EventId: "preserved-event-id"},
 			},
 		},
 		{
