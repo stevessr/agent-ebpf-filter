@@ -163,6 +163,50 @@ def compact_workspace_timeline(events: list[dict], workspaces: set[str]) -> list
     return rows[-80:]
 
 
+def workspace_pid_event_presence(
+    events: list[dict], workspaces: set[str], limit: int = 32
+) -> list[dict]:
+    """Explain missing file evidence without exporting paths, comms, or payloads.
+
+    These are *archived* typed kernel events, not counts of BPF enter probes.
+    They can distinguish missing open events from a present process lifecycle,
+    but must never be used to satisfy a marker-capture assertion.
+    """
+    by_pid: dict[int, dict] = {}
+    for record in events:
+        event = capture_event(record)
+        cwd = event.get("cwd", event.get("Cwd"))
+        pid = event.get("pid", event.get("Pid"))
+        kind = event.get("type", event.get("Type"))
+        if (
+            not isinstance(cwd, str)
+            or not any(root in cwd for root in workspaces)
+            or type(pid) is not int
+            or pid <= 0
+            or not isinstance(kind, str)
+        ):
+            continue
+        if pid not in by_pid:
+            if len(by_pid) >= limit:
+                continue
+            by_pid[pid] = {"pid": pid, "types": set(), "fileOpens": 0, "confirmedFileOpens": 0}
+        summary = by_pid[pid]
+        summary["types"].add(kind)
+        if kind.lower() in FILE_OPEN_EVENT_TYPES:
+            summary["fileOpens"] += 1
+            if confirmed_file_open_paths(record):
+                summary["confirmedFileOpens"] += 1
+    return [
+        {
+            "pid": pid,
+            "eventTypes": sorted(summary["types"])[:16],
+            "fileOpens": summary["fileOpens"],
+            "confirmedFileOpens": summary["confirmedFileOpens"],
+        }
+        for pid, summary in sorted(by_pid.items())
+    ]
+
+
 def merge_verified_capture_matches(
     ledger: dict[str, list[dict]],
     snapshot: dict[str, list[dict]],
@@ -259,6 +303,9 @@ def main() -> int:
             "workspaceTimeline": compact_workspace_timeline(
                 last_events, workspace_candidates
             ),
+            "workspacePIDPresence": workspace_pid_event_presence(
+                last_events, workspace_candidates
+            ),
         }
 
     while time.monotonic() < deadline:
@@ -330,6 +377,9 @@ def main() -> int:
     print("[soak] bounded process/file timeline (metadata only):", file=sys.stderr)
     for item in compact_workspace_timeline(last_events, workspace_candidates):
         print(f"[soak] timeline {json.dumps(item, sort_keys=True)}", file=sys.stderr)
+    print("[soak] per-PID archived event presence (not kernel enter counts):", file=sys.stderr)
+    for item in workspace_pid_event_presence(last_events, workspace_candidates):
+        print(f"[soak] pid-presence {json.dumps(item, sort_keys=True)}", file=sys.stderr)
 
     return 1
 
