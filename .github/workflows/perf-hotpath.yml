@@ -31,25 +31,10 @@ jobs:
         working-directory: backend
         run: |
           go test ./app/handlers ./app/observability ./app/events ./internal/wsfanout -count=1
+          # Run the CGO-dependent app test package on Ubuntu 24, not the
+          # Ubuntu 22 kernel-soak job which intentionally builds with CGO=0.
+          go test ./app -run TestSoakKernelMetadataEventOnlyAllowsIsolatedFixtureTypes -count=1
           go test ./app -run 'Test.*(Hot|NativeHook|Metric|Settings|BackendListenHost|ListenBackend|WebSocket|HTTPRouter|Authentication|AuthMiddleware|DesktopUnixServer|TLSCaptureWebSocketRoute|Broadcast|RuntimeEventLog|RuntimeEventStore)' -count=1
-          # The kernel-soak runner builds without cgo; this fixture predicate is
-          # checked here with the full app test package on the cgo-enabled runner.
-          go test ./app -run '^TestSoakKernelMetadataEventOnlyAllowsIsolatedFixtureTypes
-      - name: Race-check shared event paths
-        run: cd backend && go test -race ./internal/wsfanout ./app/observability ./app/events ./app/recording ./redaction ./core -count=1
-      - name: Record event construction microbenchmarks
-        working-directory: backend
-        shell: bash
-        run: |
-          set -euo pipefail
-          go test ./app/events -run '^$' -bench '^BenchmarkBuildKernelEvent' -benchmem -count=5 | tee hotpath-bench.txt
-      - name: Upload baseline evidence (not an end-to-end performance claim)
-        uses: actions/upload-artifact@v4
-        with:
-          name: hotpath-bench-${{ github.sha }}
-          path: backend/hotpath-bench.txt
-          if-no-files-found: error
- -count=1
       - name: Race-check shared event paths
         run: cd backend && go test -race ./internal/wsfanout ./app/observability ./app/events ./app/recording ./redaction ./core -count=1
       - name: Record event construction microbenchmarks
