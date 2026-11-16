@@ -366,7 +366,11 @@ curl_api -X POST -H 'Content-Type: application/json' \
 CONTROL_REGISTERED_PID=""
 echo "[soak] registered-shell baseline completed (capture evidence checked independently)"
 
-printf -v PROMPT 'Run exactly these three commands, sequentially, with one shell-tool call at a time. Wait for each successful result before the next; never issue concurrent shell calls:\n1) `mkdir -p %s/nested`\n2) `touch %s/nested/marker-one.txt`\n3) `touch %s/nested/marker-two.txt`\nDo not inspect files, use other tools, access the network, call the backend, read environment variables, or modify anything outside the temporary workspace. Reply exactly SOAK_OK after all three commands succeed.' "$WORKDIR" "$WORKDIR" "$WORKDIR"
+# A model can schedule multiple tool calls concurrently despite a sequential
+# instruction. Use ONE shell call with explicit && barriers, so kernel evidence
+# covers all three operations without a model-dependent scheduling race.
+# Per-tool-call causality is exercised separately in AgentSight regression CI.
+printf -v PROMPT 'Call the shell tool exactly ONCE, with the following exact command string (do not split it into separate tool calls):\nmkdir -p %s/nested && touch %s/nested/marker-one.txt && touch %s/nested/marker-two.txt\nOnly after the tool reports exit 0, reply exactly SOAK_OK. Do not inspect files, run extra commands, read secrets or environment variables, access the network, or call the backend.' "$WORKDIR" "$WORKDIR" "$WORKDIR"
 (
   cd "$WORKDIR"
   IFS= read -r _ < "$START_FIFO"
