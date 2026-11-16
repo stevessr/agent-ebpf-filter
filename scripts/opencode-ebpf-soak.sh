@@ -226,8 +226,18 @@ global_permissions.append(
     {"action": "read", "resource": config_path, "effect": "allow"}
 )
 permissions = list(global_permissions)
-permissions.append(
-    {"action": "shell", "resource": command, "effect": "allow"}
+# OpenCode checks every subcommand in an && chain independently. Keep
+# exact allow rules for each component as well as the compound resource;
+# do not grant wildcard shell access to the isolated soak agent.
+allowed_shell = [
+    command,
+    f"mkdir -p {workdir}/nested",
+    f"touch {workdir}/nested/marker-one.txt",
+    f"touch {workdir}/nested/marker-two.txt",
+]
+permissions.extend(
+    {"action": "shell", "resource": allowed, "effect": "allow"}
+    for allowed in allowed_shell
 )
 config = {
     "$schema": "https://opencode.ai/config.json",
