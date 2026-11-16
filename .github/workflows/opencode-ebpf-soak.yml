@@ -79,6 +79,8 @@ jobs:
           fi
       - name: Check soak shell syntax and capture validator regressions
         run: |
+          test -x scripts/opencode-ebpf-soak.sh
+          test -x scripts/check-opencode-soak.py
           bash -n scripts/opencode-ebpf-soak.sh
           python3 -m unittest discover -s scripts -p 'test_opencode_soak.py' -v
 
