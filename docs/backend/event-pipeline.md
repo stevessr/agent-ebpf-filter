@@ -32,10 +32,9 @@ flowchart TD
 
 ### 字符串与 payload 视图
 
-- `events.SanitizeUTF8()` 先在字节视图上裁掉 NUL 填充，再只拷贝有效前缀：一条 `openat`
-  事件从复制 256 字节路径缓冲降为按实际长度分配一次；含嵌入 NUL 或非法 UTF-8 的输入走
-  慢路径，语义与旧实现逐字节一致（见 `sanitize_test.go`）。
-- `events.TrimNUL()` 返回原缓冲的切片视图，协议探测 (`DetectAndRecordProtocol`) 直接读取
+- `events.SanitizeUTF8()` 对内核 C 字符串先调用 `TrimCString()`，在**首个 NUL** 截断路径和进程名，
+  阻止 per-CPU scratch 旧字节拼接为伪造路径；对有效 UTF-8 前缀只分配一次，非法编码替换为 U+FFFD（见 `sanitize_test.go`）。
+- `events.TrimNUL()` 仅移除**末尾** NUL 填充并保留内部二进制 NUL，返回原缓冲的切片视图；协议探测 (`DetectAndRecordProtocol`) 直接读取
   原始 payload，不再经过 string→[]byte 往返，TLS/DNS 头里的 NUL 字节也得以保留。
 - 禁用 comm 的过滤 (`commDisabled`) 用 `map[string(bytes)]` 的临时视图查表，整条过滤链路
   在常见情况下零分配。
@@ -87,6 +86,23 @@ payload 只编码一次，随后对每个连接用向量写直接发送，不再
 
 TLS 广播在 16 个订阅者下的开销：43.4 µs / 33 次分配 → 14.2 µs / 3 次分配（编码成本不再随
 订阅者数量线性增长）。
+
+## Capture admission diagnostics
+
+`/system/collector-health` 和 Prometheus 分别报告
+`captureScopeExcludedTotal`（Agent Capture scope 主动排除）与
+`pathNoiseExcludedTotal`（路径降噪主动排除）。这两项是**策略筛选量**，
+不能记为 eBPF Ringbuf 丢包，也不能仅凭其为零就证明所有目标 syscall
+均已采集。它们与 `broadcastDroppedTotal`、Ringbuf reserve failure、
+持久化失败计数共同用于定位事件消失的阶段；后端不改变现有 admission
+规则或默认隐私配置。
+
+内核读取器在**解码成功后、任何 comm / event type / self PID 排除之前**
+进行 CPU-local sequence 审计。否则正常的软件过滤会被误计成
+`kernelSequenceUnexplainedMissingEventsTotal`。三个额外指标
+`kernelReaderFilteredSelfTotal`、`kernelReaderFilteredCommTotal`、
+`kernelReaderFilteredTypeTotal` 各自统计用户态过滤量。
+它们不会掩盖真实 Ringbuf reserve failure，也不证明单个目标路径已被捕获。
 
 ## EventArchive
 

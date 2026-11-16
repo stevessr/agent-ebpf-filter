@@ -6,15 +6,16 @@ import (
 	"testing"
 )
 
-// legacySanitizeUTF8 is the previous string-based implementation, kept here as
-// the reference semantics for the byte-view rewrite.
-func legacySanitizeUTF8(b []byte) string {
-	cleaned := strings.TrimRight(string(b), "\x00")
-	cleaned = strings.ReplaceAll(cleaned, "\x00", "")
-	return strings.ToValidUTF8(cleaned, "�")
+// kernelCStringReference defines the single-terminator semantics for fixed
+// kernel buffers. Bytes after the first NUL must not be exposed to userspace.
+func kernelCStringReference(b []byte) string {
+	if i := bytes.IndexByte(b, 0); i >= 0 {
+		b = b[:i]
+	}
+	return strings.ToValidUTF8(string(b), "�")
 }
 
-func TestSanitizeUTF8MatchesLegacySemantics(t *testing.T) {
+func TestSanitizeUTF8StopsAtFirstNUL(t *testing.T) {
 	cases := map[string][]byte{
 		"empty":                 nil,
 		"all nul":               make([]byte, 16),
@@ -31,7 +32,7 @@ func TestSanitizeUTF8MatchesLegacySemantics(t *testing.T) {
 	for name, input := range cases {
 		t.Run(name, func(t *testing.T) {
 			raw := append([]byte(nil), input...)
-			want := legacySanitizeUTF8(raw)
+			want := kernelCStringReference(raw)
 			got := SanitizeUTF8(raw)
 			if got != want {
 				t.Fatalf("SanitizeUTF8(%q) = %q, want %q", input, got, want)
@@ -59,7 +60,7 @@ func TestTrimNULIsAView(t *testing.T) {
 	}
 }
 
-func TestTrimNULMatchesBytesTrimRight(t *testing.T) {
+func TestTrimNULPreservesEmbeddedBinaryNUL(t *testing.T) {
 	cases := [][]byte{
 		nil,
 		make([]byte, 256),
@@ -80,5 +81,31 @@ func TestTrimNULMatchesBytesTrimRight(t *testing.T) {
 		if len(got) > 0 && &got[0] != &in[0] {
 			t.Fatal("TrimNUL returned a copy instead of a view")
 		}
+	}
+}
+
+func TestKernelCStringDoesNotSpliceReusedScratchPaths(t *testing.T) {
+	// A short /proc path followed by stale bytes from a previous syscall
+	// previously produced "/proc/self/statm/tmp/.../credentials.json".
+	input := append([]byte("/proc/self/statm\x00"), []byte("/tmp/agent/credentials.json")...)
+	if got := SanitizeUTF8(input); got != "/proc/self/statm" {
+		t.Fatalf("path includes stale bytes beyond C-string terminator: %q", got)
+	}
+	if got := string(TrimCString(input)); got != "/proc/self/statm" {
+		t.Fatalf("trimmed path includes stale bytes: %q", got)
+	}
+	// A NUL at offset zero must not disclose any trailing previous sample.
+	if got := SanitizeUTF8([]byte("\x00secret-from-previous-event")); got != "" {
+		t.Fatalf("empty kernel field leaked stale scratch data: %q", got)
+	}
+}
+
+func TestTrimCStringDoesNotModifyBinaryPayloadView(t *testing.T) {
+	binary := []byte{'D', 'N', 'S', 0, 'X', 0, 0}
+	if got := TrimCString(binary); string(got) != "DNS" {
+		t.Fatalf("C-string view = %q, want DNS", got)
+	}
+	if got := TrimNUL(binary); !bytes.Equal(got, []byte{'D', 'N', 'S', 0, 'X'}) {
+		t.Fatalf("binary payload truncated embedded NUL: %q", got)
 	}
 }

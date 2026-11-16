@@ -1,7 +1,29 @@
-name: OpenCode eBPF soak
+name: eBPF kernel soak (optional OpenCode)
 
 on:
   workflow_dispatch:
+    inputs:
+      executor:
+        description: "registered (no model) or opencode (requires available model quota)"
+        required: false
+        type: choice
+        options: [registered, opencode]
+        default: registered
+  pull_request:
+    branches: [master]
+    paths:
+      - ".github/workflows/opencode-ebpf-soak.yml"
+      - "scripts/opencode-ebpf-soak.sh"
+      - "scripts/soak-file-openat.c"
+      - "scripts/check-opencode-soak.py"
+      - "scripts/test_opencode_soak.py"
+      - "backend/ebpf/**"
+      - "backend/app/events/**"
+      - "backend/app/jobs_background.go"
+      - "backend/app/runtime_tracking_mode_source_test.go"
+      - "frontend/src/components/agentsight/**"
+      - "frontend/src/components/execution-graph/**"
+      - "frontend/tests/harness-capture-*.test.ts"
   schedule:
     - cron: "17 5 * * 1"
 
@@ -10,17 +32,32 @@ permissions:
 
 concurrency:
   group: opencode-ebpf-soak-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   soak:
+    # Never run a root-attaching eBPF harness from an external fork PR.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
+      AGENT_SOAK_EXECUTOR: ${{ github.event_name == 'workflow_dispatch' && inputs.executor || 'registered' }}
       OPENCODE_SOAK_KEEP_ARTIFACTS: "1"
       OPENCODE_SOAK_MODEL: opencode/big-pickle
+      # Console free models can require a connected account; leave this
+      # optional so signed-out free-model availability is tested as well.
+      OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
     steps:
       - uses: actions/checkout@v7.0.1
+
+      - name: Report affected kernel syscall tracepoints
+        shell: bash
+        run: |
+          release="$(uname -r)"
+          echo "Runner kernel: $release"
+          if [[ "$release" == 7.0.*-azure ]]; then
+            echo "::warning::Linux Azure 7.0 kernels may silently omit BPF sys_enter_openat callbacks (runner-images issue 15003). The strict soak still runs and failures are retained."
+          fi
 
       - uses: actions/setup-go@v7.0.0
         with:
@@ -28,11 +65,36 @@ jobs:
           cache-dependency-path: backend/go.sum
 
       - uses: actions/setup-node@v4
+        if: env.AGENT_SOAK_EXECUTOR == 'opencode'
         with:
           node-version: 22
 
+      - name: Install OpenCode v2 CLI
+        if: env.AGENT_SOAK_EXECUTOR == 'opencode'
+        run: |
+          npm install --global --prefix "$RUNNER_TEMP/opencode" @opencode/cli@2.1.3
+          echo "$RUNNER_TEMP/opencode/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/opencode/bin/opencode" --version
+
+      - name: Verify OpenCode free-model ID is selectable
+        if: env.AGENT_SOAK_EXECUTOR == 'opencode'
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 30s opencode models > "$RUNNER_TEMP/opencode-models.txt"
+          if ! grep -Fxq "$OPENCODE_SOAK_MODEL" "$RUNNER_TEMP/opencode-models.txt"; then
+            echo "::error::OpenCode model $OPENCODE_SOAK_MODEL is not available; no paid-model fallback is permitted."
+            exit 1
+          fi
+      - name: Check soak shell syntax and capture validator regressions
+        run: |
+          test -x scripts/opencode-ebpf-soak.sh
+          test -x scripts/check-opencode-soak.py
+          bash -n scripts/opencode-ebpf-soak.sh
+          python3 -m unittest discover -s scripts -p 'test_opencode_soak.py' -v
+
       - name: Install eBPF build dependencies
-        run: sudo apt-get update && sudo apt-get install -y build-essential clang llvm libbpf-dev libelf-dev protobuf-compiler
+        run: sudo apt-get update && sudo apt-get install -y build-essential clang llvm libbpf-dev libelf-dev protobuf-compiler bpftrace
 
       - name: Ensure bpffs is mounted for pinned tracker maps
         run: |
@@ -50,18 +112,17 @@ jobs:
       - name: Build backend and eBPF programs
         run: make ebpf-bootstrap
 
-      - name: Install OpenCode v2 CLI
-        run: |
-          npm install --global --prefix "$RUNNER_TEMP/opencode" @opencode/cli@2.1.3
-          echo "$RUNNER_TEMP/opencode/bin" >> "$GITHUB_PATH"
-          "$RUNNER_TEMP/opencode/bin/opencode" --version
+      - name: Verify bounded kernel reader diagnostics
+        working-directory: backend
+        run: go test ./app -run TestSoakKernelMetadataEventOnlyAllowsIsolatedFixtureTypes -count=1
 
-      - name: Run anonymous free-model agent soak
+      - name: Capture real kernel file evidence and validate execution graph
         env:
           OPENCODE_SOAK_ARTIFACT_DIR: ${{ runner.temp }}/opencode-ebpf-soak
+          AGENT_SOAK_TRACE_OPENAT: "1"
         run: scripts/opencode-ebpf-soak.sh
 
-      - name: Upload backend, agent, and bootstrap logs
+      - name: Upload backend, executor, and bootstrap logs
         if: always()
         uses: actions/upload-artifact@v4
         with:

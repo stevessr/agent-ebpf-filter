@@ -31,6 +31,9 @@ jobs:
         working-directory: backend
         run: |
           go test ./app/handlers ./app/observability ./app/events ./internal/wsfanout -count=1
+          # Run the CGO-dependent app test package on Ubuntu 24, not the
+          # Ubuntu 22 kernel-soak job which intentionally builds with CGO=0.
+          go test ./app -run TestSoakKernelMetadataEventOnlyAllowsIsolatedFixtureTypes -count=1
           go test ./app -run 'Test.*(Hot|NativeHook|Metric|Settings|BackendListenHost|ListenBackend|WebSocket|HTTPRouter|Authentication|AuthMiddleware|DesktopUnixServer|TLSCaptureWebSocketRoute|Broadcast|RuntimeEventLog|RuntimeEventStore)' -count=1
       - name: Race-check shared event paths
         run: cd backend && go test -race ./internal/wsfanout ./app/observability ./app/events ./app/recording ./redaction ./core -count=1

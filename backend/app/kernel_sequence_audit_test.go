@@ -1,6 +1,8 @@
 package app
 
 import (
+	"os"
+	"strings"
 	"testing"
 
 	"agent-ebpf-filter/core"
@@ -83,5 +85,44 @@ func TestKernelSequenceAuditLegacyResetFallback(t *testing.T) {
 	state.Observe(sequencedRaw(1, 50, 1000, 0))
 	if got := state.Observe(sequencedRaw(1, 1, 2000, 0)); got.Observation != kernelSequenceReset {
 		t.Fatalf("legacy forward-time rewind = %+v, want reset", got)
+	}
+}
+
+// TestKernelSequenceAuditBeforeReaderFilters prevents a silent regression:
+// CPU-local kernel sequence holes must reflect delivered raw records, not
+// intentional user-space command/type filtering after ringbuf decode.
+func TestKernelSequenceAuditBeforeReaderFilters(t *testing.T) {
+	readerSource, err := os.ReadFile("jobs_background.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader := string(readerSource)
+	start := strings.Index(reader, "func startKernelEventReader(")
+	if start < 0 {
+		t.Fatal("kernel reader function missing")
+	}
+	reader = reader[start:]
+	audit := strings.Index(reader, "recordKernelSequenceObservation(event)")
+	selfFilter := strings.Index(reader, "if event.PID == selfPid")
+	commFilter := strings.Index(reader, "if commDisabled(event.Comm[:])")
+	typeFilter := strings.Index(reader, "if eventTypeDisabled(event.Type)")
+	if audit < 0 || selfFilter <= audit || commFilter <= audit || typeFilter <= audit {
+		t.Fatalf("kernel sequence audit must precede user-space admission: audit=%d self=%d comm=%d type=%d",
+			audit, selfFilter, commFilter, typeFilter)
+	}
+
+	riskSource, err := os.ReadFile("kernelriskbridge.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The risk pass runs only for admitted events, so it must not advance
+	// the same CPU-local cursor again for a second time.
+	start = strings.Index(string(riskSource), "func annotateKernelAuditTiming(")
+	end := strings.Index(string(riskSource), "func applyKernelRiskDecision(")
+	if start < 0 || end <= start {
+		t.Fatal("kernel timing annotation function missing")
+	}
+	if strings.Contains(string(riskSource)[start:end], "recordKernelSequenceObservation(") {
+		t.Fatal("kernel risk/timing path must not double-audit the reader sample")
 	}
 }

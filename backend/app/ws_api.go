@@ -162,6 +162,7 @@ func runEventBroadcaster(ctx context.Context) {
 			// once it leaves the queue (see enqueueBroadcastEvent).
 			// Capture admission runs after attribution, before analysis or retention.
 			if !captureAgentEvent(event) {
+				collectorMetricsStore.RecordCaptureScopeExcluded()
 				continue
 			}
 			monitorAllowed := monitorAgentEvent(event)
@@ -169,7 +170,9 @@ func runEventBroadcaster(ctx context.Context) {
 			if monitorAllowed {
 				alerts = buildSemanticAlerts(event)
 			}
-			if !shouldIgnoreEventPath(event) {
+			if shouldIgnoreEventPath(event) {
+				collectorMetricsStore.RecordPathNoiseExcluded()
+			} else {
 				appendRecord(recordCapturedEventWithMonitoring(event, monitorAllowed))
 			}
 			for _, alert := range alerts {

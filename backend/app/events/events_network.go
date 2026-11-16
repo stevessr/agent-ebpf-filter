@@ -229,34 +229,19 @@ func formatNetworkPathAndEndpoint(direction string, family uint32, addr []byte, 
 
 // SanitizeUTF8 converts a raw byte slice from the kernel to a valid UTF-8 string,
 // replacing any invalid bytes with the Unicode replacement character.
-// eBPF tracepoints write paths into fixed-size buffers; trailing NUL padding is
-// trimmed first, then any embedded NUL bytes (from uninitialised buffer regions
-// or multi-field packing) are removed before the UTF‑8 safety pass.
-//
-// The bounds are computed on the byte view so only the populated prefix is
-// ever copied out of the ring-buffer sample; valid input costs exactly one
-// allocation of its own length.
+// eBPF tracepoints write NUL-terminated strings into fixed-size buffers.
+// Only the bytes before the FIRST NUL are valid evidence. Scratch bytes after
+// the terminator may be stale and must never be joined into a different path.
+// The bounded prefix is copied before the ring-buffer sample is reused.
 func SanitizeUTF8(b []byte) string {
-	b = TrimNUL(b)
+	b = TrimCString(b)
 	if len(b) == 0 {
 		return ""
 	}
-	if bytes.IndexByte(b, 0) < 0 {
-		if utf8.Valid(b) {
-			return string(b)
-		}
-		return ownedString(bytes.ToValidUTF8(b, utf8ReplacementBytes))
+	if utf8.Valid(b) {
+		return string(b)
 	}
-	cleaned := make([]byte, 0, len(b))
-	for _, c := range b {
-		if c != 0 {
-			cleaned = append(cleaned, c)
-		}
-	}
-	if !utf8.Valid(cleaned) {
-		cleaned = bytes.ToValidUTF8(cleaned, utf8ReplacementBytes)
-	}
-	return ownedString(cleaned)
+	return ownedString(bytes.ToValidUTF8(b, utf8ReplacementBytes))
 }
 
 var utf8ReplacementBytes = []byte("�")
@@ -270,14 +255,21 @@ func ownedString(b []byte) string {
 	return unsafe.String(&b[0], len(b))
 }
 
-// zeroPad is compared against buffer tails so a NUL-terminated string can be
-// bounded with one SIMD search plus one memequal instead of a byte-by-byte
-// backwards scan through the padding.
+// TrimCString returns the bytes before the FIRST NUL in a kernel
+// C-string buffer, as a view. Any subsequent bytes may be stale scratch-map
+// data and must never be treated as a continuation of a file path or comm.
+func TrimCString(b []byte) []byte {
+	if end := bytes.IndexByte(b, 0); end >= 0 {
+		return b[:end]
+	}
+	return b
+}
+
+// TrimNUL removes only TRAILING NUL padding and preserves NUL bytes inside
+// binary payloads (e.g. DNS, TLS and UDP). Keep this distinct from TrimCString:
+// protocol decoders must not truncate legitimate payloads at the first NUL.
 var zeroPad [1024]byte
 
-// TrimNUL returns the populated prefix of a fixed-size kernel buffer as a view
-// into b (no copy), exactly like bytes.TrimRight(b, "\x00"). The result is
-// only valid while b is.
 func TrimNUL(b []byte) []byte {
 	i := bytes.IndexByte(b, 0)
 	if i < 0 {
