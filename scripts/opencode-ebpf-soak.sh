@@ -205,6 +205,33 @@ cleanup() {
 
   if [[ -f "$BACKEND_LOG" ]]; then
     if (( status != 0 )); then
+      # Distinguish kernel ring loss from queue dropping and archive
+      # eviction. Only numeric collector metadata is printed.
+      curl_api -o "$RUN_DIR/collector-health-after.json" "$BASE_URL/system/collector-health" 2>/dev/null || true
+      if [[ -f "$RUN_DIR/collector-health-before.json" && -f "$RUN_DIR/collector-health-after.json" ]]; then
+        python3 - "$RUN_DIR/collector-health-before.json" "$RUN_DIR/collector-health-after.json" <<'PY'
+import json
+import sys
+
+before, after = [json.load(open(path, encoding="utf-8")) for path in sys.argv[1:]]
+fields = (
+    "ringbufEventsTotal", "ringbufReserveFailedTotal",
+    "kernelPendingDroppedEvents", "kernelSequenceUnexplainedMissingEventsTotal",
+    "contextMapUpdateFailuresTotal", "broadcastQueuedTotal",
+    "broadcastDroppedTotal", "broadcastReceivedTotal",
+    "capturedArchivedTotal", "capturedPersistErrorsTotal",
+)
+deltas = {}
+for name in fields:
+    old, new = before.get(name), after.get(name)
+    if type(old) is int and type(new) is int:
+        deltas[name] = new - old if new >= old else "counter-reset"
+    else:
+        deltas[name] = "unavailable"
+print("[soak] collector before/after deltas:", json.dumps(deltas, sort_keys=True),
+      file=sys.stderr)
+PY
+      fi
       echo "[soak] backend log (last 80 lines):" >&2
       tail -n 80 "$BACKEND_LOG" >&2 || true
       if [[ -f "$OPENCODE_LOG" ]]; then
@@ -364,6 +391,10 @@ print(f"eBPF bootstrap: {status.get('status')} ({attached}/{compiled} tracepoint
 PY
 cat "$SUMMARY"
 verify_openat_enabled bootstrap
+# Record loss/backpressure counters BEFORE the registered baseline.
+# The failure path records a second snapshot without requiring any changes to
+# production capture settings or lowering marker evidence requirements.
+curl_api -o "$RUN_DIR/collector-health-before.json" "$BASE_URL/system/collector-health"
 
 # Poll while the agent is running. The kernel may emit hundreds of
 # process_exit/housekeeping events after a short tool call; relying on one

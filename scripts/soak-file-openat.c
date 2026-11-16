@@ -35,5 +35,7 @@ int main(int argc, char **argv) {
             return 1;
         }
     }
+    fprintf(stderr, "[soak-fixture] pid=%ld successful_openat_calls=%d\n",
+            (long)getpid(), attempts);
     return 0;
 }
