@@ -101,9 +101,12 @@ image bytes, signatures and binary payloads. It does not intercept arbitrary
 TLS traffic, HTTPS on the host, MCP channels outside the gateway, or future
 conversation turns when the client bypasses Magpie.
 
-The plugin checks the selected endpoint is loopback-only and never transmits
-raw text to a remote scanner. Use the sidecar `ASTRLINK_GUARD_TOKEN` to prevent
-other local programs from making unauthenticated calls. The token is stored in
+The plugin accepts only literal `127.0.0.1` or `[::1]` scanner addresses and never transmits
+raw text to a remote scanner. The sidecar **refuses to start without**
+`ASTRLINK_GUARD_TOKEN`; use a long random token to prevent other local programs
+from making unauthenticated calls. Concurrent inference is bounded to four
+requests, with HTTP 429 on saturation, and unusually wide nested content is
+rejected by the synchronous middleware before scanning. The token is stored in
 Magpie's local plugin settings; protect those settings like local secrets.
 
 ## 4. Audit and verify
