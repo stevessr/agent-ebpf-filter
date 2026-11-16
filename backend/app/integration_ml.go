@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"log"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -186,14 +187,22 @@ func resolveAction(
 	cfg MLConfig,
 	mlEnabled bool,
 	mlModelLoaded bool,
-) (pb.WrapperResponse_Action, string) {
-	// A verified web-service process must not launch an OS shell through the wrapper.
-	// This deterministic rule does not depend on the ML model or its confidence.
-	if req != nil {
-		if finding, ok := heuristics.DetectWebShellWrapper(req.Comm, req.Args, req.Pid); ok {
-			return pb.WrapperResponse_BLOCK, "Web service shell policy: " + finding.Code + ": " + finding.Reason()
+) (action pb.WrapperResponse_Action, reason string) {
+	// Run this evidence-only check after existing rule/ML decisions so it never
+	// downgrades a BLOCK or unconditionally overrides an explicit rule.
+	defer func() {
+		if req == nil || action == pb.WrapperResponse_BLOCK || action == pb.WrapperResponse_REWRITE ||
+			(ruleAction != "" && rulePriority >= cfg.RuleOverridePriority) {
+			return
 		}
-	}
+		mode := strings.ToLower(strings.TrimSpace(os.Getenv("AGENT_EBPF_WEB_SHELL_MODE")))
+		if mode == "off" || heuristics.ShellExecutable(req.Comm, req.Args) == "" {
+			return
+		}
+		if finding, ok := heuristics.DetectWebShellWrapper(req.Comm, req.Args, req.Pid); ok {
+			action, reason = applyWebShellFinding(action, reason, mode, finding)
+		}
+	}()
 
 	// ── Explicit high-priority rules always win ──
 	if ruleAction != "" && rulePriority >= cfg.RuleOverridePriority {
@@ -271,6 +280,23 @@ func resolveAction(
 	default:
 		return pb.WrapperResponse_ALLOW, ""
 	}
+}
+
+// applyWebShellFinding is deliberately pure: the default is audit, never BLOCK.
+ // Explicit enforcement requires AGENT_EBPF_WEB_SHELL_MODE=block; an existing
+ // stronger decision is preserved. Exec evidence alone does not prove abuse.
+func applyWebShellFinding(action pb.WrapperResponse_Action, reason, mode string, finding heuristics.ShellFinding) (pb.WrapperResponse_Action, string) {
+	if action == pb.WrapperResponse_BLOCK || action == pb.WrapperResponse_REWRITE {
+		return action, reason
+	}
+	prefix := finding.Code + ": " + finding.Reason()
+	if mode == "block" {
+		return pb.WrapperResponse_BLOCK, "Web service shell policy: " + prefix
+	}
+	if mode != "off" && action == pb.WrapperResponse_ALLOW {
+		return pb.WrapperResponse_ALERT, "Web service shell audit: " + prefix
+	}
+	return action, reason
 }
 
 // mlAutoTrainLoop periodically checks if enough labeled data exists and triggers training
