@@ -473,12 +473,12 @@ if [[ -n "$REGISTERED_PID" ]]; then
   REGISTERED_PID=""
 fi
 if (( opencode_status != 0 )); then
-  echo "[soak] OpenCode exited with status $opencode_status (model: $MODEL)" >&2
+  echo "[soak] $SOAK_EXECUTOR executor exited with status $opencode_status (model: $MODEL)" >&2
   exit 1
 fi
 for marker in "$WORKDIR/nested/marker-one.txt" "$WORKDIR/nested/marker-two.txt"; do
   if [[ ! -f "$marker" ]]; then
-    echo "[soak] OpenCode did not create expected marker: $marker" >&2
+    echo "[soak] $SOAK_EXECUTOR executor did not create expected marker: $marker" >&2
     exit 1
   fi
 done
@@ -540,6 +540,11 @@ print(f"[soak] graph verified: {len(nodes)} nodes, {len(edges)} edges, "
       f"{processes} process nodes; no dangling edges")
 PY
 rm -f -- "$RUN_DIR/execution-graph.json"
-printf 'OpenCode model: %s\nBackend: %s\nEvent assertions: passed\nGraph assertions: passed\n' "$MODEL" "$BASE_URL" >>"$SUMMARY"
-echo "[soak] OpenCode free-model exec was observed in kernel events and graph topology"
+printf 'Executor: %s\nBackend: %s\nEvent assertions: passed\nGraph assertions: passed\n' "$SOAK_EXECUTOR" "$BASE_URL" >>"$SUMMARY"
+if [[ "$SOAK_EXECUTOR" == "opencode" ]]; then
+  printf 'OpenCode model: %s\n' "$MODEL" >>"$SUMMARY"
+  echo "[soak] live OpenCode tool execution verified by kernel events and graph"
+else
+  echo "[soak] local registered-process syscall execution verified by kernel events and graph (no model called)"
+fi
 
