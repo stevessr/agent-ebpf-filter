@@ -121,10 +121,15 @@ def compact_workspace_timeline(events: list[dict], workspaces: set[str]) -> list
                 shape = "external-absolute"
             else:
                 shape = "other"
+        tag = event.get("tag", event.get("Tag"))
+        if not isinstance(tag, str):
+            tag = ""
         row = {
             "pid": event.get("pid", event.get("Pid")),
             "type": kind,
             "pathShape": shape,
+            # A normalized classification only; never a raw comm or payload.
+            "tag": tag[:48],
         }
         if kind in ("process_exec", "process_exit"):
             info = event.get("extraInfo", event.get("ExtraInfo"))
