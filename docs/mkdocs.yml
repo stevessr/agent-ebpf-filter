@@ -103,6 +103,7 @@ nav:
           - Pebble 与 JSONL: technical/storage-internals.md
           - 研究回放与安全结局: technical/research-replay.md
           - ML、插件与可选引擎: technical/optional-engines.md
+          - Agent Context / Harness 特征工程: technical/agent-context-feature-engineering.md
           - 构建与验证: technical/build-verify.md
           - 运维排障 Runbook: technical/operations-debug.md
   - 使用指南:
