@@ -43,7 +43,7 @@ jobs:
     # https://github.com/actions/runner-images/issues/15003
     # Keep live eBPF syscall capture on the unaffected 6.8 runner until the
     # Azure kernel backport is fixed. Do not weaken the marker assertions.
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-22.04-arm
     timeout-minutes: 30
     env:
       AGENT_SOAK_EXECUTOR: ${{ github.event_name == 'workflow_dispatch' && inputs.executor || 'registered' }}
