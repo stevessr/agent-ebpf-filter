@@ -64,3 +64,33 @@ func TestCommDisabledShortCircuitsWhenNothingDisabled(t *testing.T) {
 		t.Fatal("commDisabled reported a hit with an empty disable set")
 	}
 }
+
+func TestSoakKernelMetadataEventOnlyAllowsIsolatedFixtureTypes(t *testing.T) {
+	testCases := []struct {
+		name string
+		comm string
+		kind uint32
+		want bool
+	}{
+		{"fixture openat", "soak-file-opena", 1, true},
+		{"fixture exec", "soak-file-opena", 26, true},
+		{"fixture exit", "soak-file-opena", 28, true},
+		{"fixture other event", "soak-file-opena", 25, false},
+		{"other agent open", "claude", 1, false},
+		{"similar prefix", "other-soak-file", 1, false},
+		{"empty command", "", 1, false},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			event := &bpfEvent{Type: tc.kind}
+			copy(event.Comm[:], tc.comm)
+			if got := soakKernelMetadataEvent(event); got != tc.want {
+				t.Fatalf("soakKernelMetadataEvent(comm=%q, type=%d) = %t, want %t",
+					tc.comm, tc.kind, got, tc.want)
+			}
+		})
+	}
+	if soakKernelMetadataEvent(nil) {
+		t.Fatal("nil event must not be logged")
+	}
+}
