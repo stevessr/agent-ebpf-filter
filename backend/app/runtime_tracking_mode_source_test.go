@@ -252,3 +252,29 @@ func TestRemainingMacroEnterPathsArePIDFirst(t *testing.T) {
 		}
 	}
 }
+
+// A registered multi-threaded CLI has a process TGID but can fork from a
+// worker thread with a different TID. The fork tracepoint must preserve the
+// Agent tag in both cases without treating arbitrary thread names as Agents.
+func TestSchedForkInheritsExplicitParentTGID(t *testing.T) {
+	source, err := os.ReadFile("../ebpf/agent_tracker_common.h")
+	if err != nil {
+		t.Fatal(err)
+	}
+	block := sourceBlock(t, string(source),
+		"int tracepoint__sched__sched_process_fork(struct trace_event_raw_sched_process_fork *ctx) {",
+		"\n}\n")
+	threadLookup := strings.Index(block, "get_pid_tag_id(parent_pid)")
+	tgidLookup := strings.Index(block, "get_pid_tag_id(parent_tgid)")
+	commRead := strings.Index(block, "read_tracepoint_data_loc_str(parent_comm")
+	childTag := strings.Index(block, "bpf_map_update_elem(&agent_pids, &child_pid")
+	if threadLookup < 0 || tgidLookup < 0 || commRead < 0 || childTag < 0 {
+		t.Fatal("fork tracepoint must look up parent TID then TGID before comm, and tag child")
+	}
+	if !(threadLookup < tgidLookup && tgidLookup < commRead && commRead < childTag) {
+		t.Fatal("fork tracepoint must prefer explicitly tracked parent PID/TGID over comm fallback")
+	}
+	if !strings.Contains(block, "bpf_get_current_pid_tgid() >> 32") {
+		t.Fatal("parent TGID must be read from the current forking task")
+	}
+}
