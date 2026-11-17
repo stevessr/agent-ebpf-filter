@@ -271,18 +271,232 @@ func renewPromoFixture(a *renewApp, at time.Time) {
 // The recording pans the *actual MyGo scroll content*, never the window
 // bitmap. Hold the heading briefly, glide down, then reverse toward the top.
 // Each page is allowed only the distance its own native scroll can travel.
-func renewPromoScrollOffset(frame, start, end int, maxY float32) float32 {
-    if frame <= start || end <= start || maxY <= 0 { return 0 }
-    t := float64(frame-start)/float64(end-start)
-    ease := func(v float64) float64 {
-        v = math.Max(0,math.Min(1,v))
-        return v*v*(3-2*v)
+// Twenty-one deliberately different motion profiles: no two scenes have
+// the same dwell, acceleration, depth, return point or easing combination.
+// They only affect the real MyGo ScrollState; navigation/footer stay fixed.
+type renewPromoScrollProfile struct {
+    Dwell, Apex, Distance, Rewind float64
+    Curve int
+}
+
+var renewPromoCurves = [...]renewPromoScrollProfile{
+    {0.17,0.79, 780,0.19,0}, // overview: relaxed smoothstep
+    {0.29,0.83, 940,0.10,1}, // event filters first, then fast reveal
+    {0.13,0.70, 560,0.31,2}, // investigator
+    {0.23,0.75, 680,0.20,3}, // sessions
+    {0.09,0.84,1160,0.06,4}, // AgentSight: long continuous glide
+    {0.20,0.71, 510,0.34,5}, // lineage: transition between graph modes
+    {0.28,0.78, 610,0.29,0}, // network
+    {0.32,0.88,1000,0.15,2}, // domain filters before table
+    {0.24,0.68, 710,0.38,4}, // process table
+    {0.12,0.89,1470,0.05,3}, // Agent range long form
+    {0.15,0.81,1310,0.13,5}, // monitoring switches and cards
+    {0.31,0.76, 680,0.42,1}, // eBPF modules
+    {0.25,0.85,1050,0.25,0}, // wrapper rule form then filtered table
+    {0.19,0.72, 810,0.12,4}, // tracking tabs
+    {0.10,0.79, 970,0.35,3}, // precise-path rules
+    {0.22,0.90, 870,0.09,5}, // privacy gateway / integrations
+    {0.16,0.67, 760,0.27,2}, // diagnostics
+    {0.08,0.66, 350,0.46,1}, // terminal uses its own fixed-height work area
+    {0.21,0.82,1330,0.17,3}, // file manager's separate native list
+    {0.14,0.74,1430,0.24,5}, // real editor viewport
+    {0.27,0.87, 520,0.40,4}, // final high-risk investigation
+}
+
+func renewPromoEase(t float64, curve int) float64 {
+    t = math.Max(0, math.Min(1,t))
+    switch curve {
+    case 0: return t*t*(3-2*t)
+    case 1: return 0.5-0.5*math.Cos(math.Pi*t)
+    case 2: return t*t*t*(t*(6*t-15)+10)
+    case 3: return 1-math.Pow(1-t,3)
+    case 4: return t*t
+    default: return 1-math.Pow(1-t,4)
     }
-    distance := math.Min(float64(maxY), 1380)
+}
+
+func renewPromoScrollOffset(frame, start, end, scene int, maxY float32) float32 {
+    if frame <= start || end <= start || maxY <= 0 {return 0}
+    profile:=renewPromoCurves[scene%len(renewPromoCurves)]
+    t:=float64(frame-start)/float64(end-start)
+    distance:=math.Min(float64(maxY),profile.Distance)
     switch {
-    case t <= 0.12: return 0
-    case t < 0.72: return float32(distance * ease((t-0.12)/0.60))
-    default: return float32(distance * (1-0.68*ease((t-0.72)/0.28)))
+    case t<=profile.Dwell: return 0
+    case t<profile.Apex:
+        return float32(distance*renewPromoEase((t-profile.Dwell)/(profile.Apex-profile.Dwell),profile.Curve))
+    default:
+        reverse:=renewPromoEase((t-profile.Apex)/(1-profile.Apex),(profile.Curve+2)%6)
+        return float32(distance*(1-profile.Rewind*reverse))
+    }
+}
+
+func renewPromoTyped(word string, progress, from, duration float64) string {
+    if progress<from {return ""}
+    n:=int(math.Ceil((progress-from)/duration*float64(len(word))))
+    if n<0 {n=0}
+    if n>len(word) {n=len(word)}
+    return word[:n]
+}
+
+// These are real native form values, filters, tabs and selections. The
+// *data* is synthetic; no network/privileged API calls or disk writes
+// happen in the offline renderer. Matching tables rebuild from the values.
+func renewPromoResetInteraction(a *renewApp) {
+    a.search=""
+    a.paused=false
+    a.eventRiskFilter=""
+    a.eventDecisionFilter=""
+    a.eventTypeFilter=""
+    a.eventSessionFilter=""
+    a.eventMinRiskScore=0
+    a.eventAttentionOnly=false
+    a.domainSearch=""
+    a.domainAgentFilter=""
+    a.domainRiskOnly=false
+    a.domainShowIPs=false
+    a.agentSearch=""
+    a.ruleSearch=""
+    a.registryTab=0
+    a.registryFilterTag="全部标签"
+    a.registryFilterStatus="全部状态"
+    a.files.filter=""
+    a.files.selected=""
+    a.lineageMode=0
+    a.inspectorTab=0
+    a.terminalTabScroll.X=0
+    a.navigationDetailed=false
+}
+
+func sceneEndFor(beats []renewPromoBeat, index int) int {
+    end:=666
+    if index+1<len(beats) {end=beats[index+1].Start}
+    return end-beats[index].Start
+}
+
+func renewPromoInteraction(a *renewApp, scene int, progress float64) string {
+    switch scene {
+    case 0:
+        if progress>0.53 {a.paused=true;return "操作：暂停桌面事件展示（采集不停止）"}
+        return "操作：查看监控健康与最新告警"
+    case 1:
+        if progress>0.35 {a.eventRiskFilter="高风险"}
+        if progress>0.69 {a.eventMinRiskScore=80}
+        if a.eventMinRiskScore>0 {return "操作：高风险筛选 → 风险分 ≥ 80"}
+        if a.eventRiskFilter!="" {return "操作：筛选风险等级 = 高风险"}
+        return "操作：查看全部事件 → 打开风险筛选"
+    case 2:
+        a.inspectorPinnedID="demo-009"
+        if progress>0.55 {a.inspectorTab=1;return "操作：切换研判详情标签"}
+        return "操作：定位阻断事件 demo-009"
+    case 3:
+        a.search=renewPromoTyped("claude",progress,0.30,0.32)
+        if progress>0.76 {a.sessionSelected=0}
+        if a.search!="" {return "操作：搜索会话 "+a.search}
+        return "操作：在顶栏搜索 Agent 会话"
+    case 4:
+        if progress>0.54 {a.agentSightSessionSelected=1;return "操作：选择 Claude 会话，查看 Token 归因"}
+        return "操作：查看模型用量、缓存读取与创建"
+    case 5:
+        if progress>0.48 {a.lineageMode=1;return "操作：派生放射图 → 瀑布时间线"}
+        return "操作：查看 Agent → SubAgent 放射图"
+    case 6:
+        a.search=renewPromoTyped("203.0.113",progress,0.36,0.34)
+        if a.search!="" {return "操作：搜索网络外联目标 "+a.search}
+        return "操作：按网络目标检索"
+    case 7:
+        if progress>0.29 {a.domainShowIPs=true}
+        if progress>0.53 {a.domainRiskOnly=true}
+        a.domainSearch=renewPromoTyped("203.0.113",progress,0.64,0.25)
+        if a.domainSearch!="" {return "操作：筛选风险 IP "+a.domainSearch}
+        if a.domainRiskOnly {return "操作：只看风险 + 显示仅 IP 外联"}
+        if a.domainShowIPs {return "操作：开启 IP-only 外联显示"}
+        return "操作：查看域名与 Agent 归属"
+    case 8:
+        a.search=renewPromoTyped("claude",progress,0.33,0.29)
+        if progress>0.76 {a.processSelected=1}
+        if a.search!="" {return "操作：搜索进程 "+a.search}
+        return "操作：按进程名 / PID 检索"
+    case 9:
+        a.agentSearch=renewPromoTyped("claude",progress,0.31,0.31)
+        if progress>0.72 {a.captureScopeMode="白名单";a.captureScopeText="codex, claude, gemini"}
+        if progress>0.72 {return "操作：预览捕获白名单草稿（未保存）"}
+        if a.agentSearch!="" {return "操作：过滤 Agent 识别 "+a.agentSearch}
+        return "操作：查看捕获 / 监视名单"
+    case 10:
+        if progress>0.43 {
+            a.disabledEventTypes=map[int]bool{}
+            for _, m:=range monitoringModules {
+                if m.Cost=="高" {for _, id:=range m.EventTypes {a.disabledEventTypes[id]=true}}
+            }
+            a.runtimeCfg.Runtime.ResearchProcessing.Enabled=false
+        }
+        if progress>0.75 {
+            a.disabledEventTypes=map[int]bool{}
+            a.runtimeCfg.Runtime.ResearchProcessing.Enabled=true
+        }
+        if progress>0.75 {return "操作：切换深度采集预览（模拟配置）"}
+        if progress>0.43 {return "操作：切换日常采集预览（模拟配置）"}
+        return "操作：查看轻量 / 日常 / 深度配置"
+    case 11:
+        if progress>0.44 && progress<0.75 {
+            a.modulesPendingUnload="agent-network-guard"
+            return "操作：展开模块卸载确认（不真正卸载）"
+        }
+        a.modulesPendingUnload=""
+        return "操作：查看挂载状态 / 取消卸载"
+    case 12:
+        if progress>0.27 {a.ruleComm="curl";a.ruleAction="BLOCK";a.rulePriority="100"}
+        a.ruleSearch=renewPromoTyped("curl",progress,0.57,0.25)
+        if a.ruleSearch!="" {return "操作：按命令名筛选 Wrapper 规则 "+a.ruleSearch}
+        if progress>0.27 {return "操作：填写阻断规则草稿（未保存）"}
+        return "操作：查看 ALLOW / ALERT / BLOCK / REWRITE"
+    case 13:
+        if progress>0.37 {a.registryTab=3}
+        if progress>0.66 {a.registryFilterTag="Codex"}
+        if progress>0.66 {return "操作：切换递归路径标签页 + Codex 标签筛选"}
+        if progress>0.37 {return "操作：命令跟踪 → 递归目录跟踪"}
+        return "操作：查看跟踪注册表标签页"
+    case 14:
+        if progress>0.39 {a.pathAccessMode="阻止写入"}
+        if progress>0.66 {a.pathAccessTarget="/demo/keys/id_ed25519"}
+        if progress>0.66 {return "操作：预填 SSH 密钥路径（未下发策略）"}
+        if progress>0.39 {return "操作：选择阻止写入（仅 UI 草稿）"}
+        return "操作：查看 BPF LSM 精确文件权限"
+    case 15:
+        if progress>0.56 {
+            a.runtimeCfg.Runtime.DomainForwardProxy.Privacy.Action="block"
+            return "操作：模拟隐私代理 redaction → block 策略预览"
+        }
+        return "操作：查看隐私代理 redaction 保护"
+    case 16:
+        if progress>0.52 {
+            a.system.CPUTotal=32.4
+            a.system.NetRecv=18<<20
+            a.system.NetSent=11<<20
+            return "操作：查看实时系统指标更新（模拟快照）"
+        }
+        return "操作：检查采集器、队列与 I/O"
+    case 17:
+        if progress>0.47 {a.navigationDetailed=true;return "操作：展开桌面导航、查看终端工具栏"}
+        return "操作：查看终端标签 / 分屏工具"
+    case 18:
+        a.files.filter=renewPromoTyped("monitoring",progress,0.34,0.31)
+        if progress>0.75 {a.files.selected="monitoring-event-07.json"}
+        if a.files.selected!="" {return "操作：选择文件、查看重命名 / 删除入口"}
+        if a.files.filter!="" {return "操作：过滤本机文件 "+a.files.filter}
+        return "操作：浏览本机文件列表"
+    case 19:
+        if progress>0.64 {
+            a.files.active=1
+            return "操作：切换代码编辑器标签并继续滚动"
+        }
+        return "操作：在原生代码编辑器内纵向浏览"
+    default:
+        if progress>0.35 {a.eventDecisionFilter="已阻断"}
+        if progress>0.67 {a.eventMinRiskScore=90}
+        if a.eventMinRiskScore>0 {return "操作：决策 BLOCK + 风险分 ≥ 90"}
+        if a.eventDecisionFilter!="" {return "操作：仅看已阻断事件"}
+        return "操作：返回风险事件并打开研判"
     }
 }
 
@@ -314,6 +528,7 @@ func renewPromoComposition() render.Composition {
                 if candidate.Start == beat.Start { sceneIndex=i; break }
             }
             if sceneIndex != previousScene {
+                renewPromoResetInteraction(app)
                 // Reset only when entering a scene, never each frame.
                 app.workspacePageScroll(beat.Page).Y = 0
                 if beat.Page=="文件" { app.localFileListScroll.Y=0 }
@@ -336,15 +551,15 @@ func renewPromoComposition() render.Composition {
             app.navigationDetailed = false
             app.inspectorOpen = beat.Inspector
             app.inspectorSelectedID = ""
-            app.eventAttentionOnly = false
             app.eventSelected = -1
-            app.lineageMode = 0
             if beat.Focus {
                 app.inspectorSelectedID = "demo-009"
                 if f.Index >= 637 {
                     app.eventAttentionOnly = true
                 }
             }
+            segmentProgress:=float64(f.Index-beat.Start)/float64(sceneEndFor(renewPromoBeats,sceneIndex))
+            interactionCaption:=renewPromoInteraction(app,sceneIndex,segmentProgress)
             // Frame-indexed easing is deterministic in offline rendering.
             // MaxY is measured by the native layout in the preceding frame.
             // Sidebar/footer stay pinned; only the workspace body scrolls.
@@ -354,14 +569,14 @@ func renewPromoComposition() render.Composition {
             }
             if beat.Page=="文件" {
                 scroll:= &app.localFileListScroll
-                scroll.Y=renewPromoScrollOffset(f.Index,beat.Start,sceneEnd,scroll.MaxY)
+                scroll.Y=renewPromoScrollOffset(f.Index,beat.Start,sceneEnd,sceneIndex,scroll.MaxY)
             } else if beat.Page=="编辑器" {
                 if doc:=app.currentLocalDocument();doc!=nil {
-                    doc.state.SetScrollY(float64(renewPromoScrollOffset(f.Index,beat.Start,sceneEnd,1350)))
+                    doc.state.SetScrollY(float64(renewPromoScrollOffset(f.Index,beat.Start,sceneEnd,sceneIndex,1350)))
                 }
             } else if beat.Page!="终端" {
                 scroll:=app.workspacePageScroll(beat.Page)
-                scroll.Y=renewPromoScrollOffset(f.Index,beat.Start,sceneEnd,scroll.MaxY)
+                scroll.Y=renewPromoScrollOffset(f.Index,beat.Start,sceneEnd,sceneIndex,scroll.MaxY)
             }
             app.events = examples[:beat.Count]
             app.eventsVersion = uint64(1000+f.Index)
@@ -401,7 +616,7 @@ func renewPromoComposition() render.Composition {
                 ui.Row(c).Height(38).Gap(12).AlignItems(ui.Center).Children(func() {
                     ui.Text(c,beat.Caption).FontSize(17).Bold().LetterSpacing(1).
                         TextColor(ui.Hex("#60e4ce"))
-                    ui.Text(c,"  "+beat.Detail).FontSize(13).TextColor(ui.Hex("#9bbbd4"))
+                    ui.Text(c,"  "+interactionCaption).FontSize(13).TextColor(ui.Hex("#9bbbd4"))
                     ui.Spacer(c)
                     ui.Text(c,fmt.Sprintf("%02d:%02d  /  00:29",f.Index/renewPromoFPS/60,f.Index/renewPromoFPS%60)).
                         FontSize(12).TextColor(ui.Hex("#7d99b4"))
@@ -438,14 +653,55 @@ func TestRenewPromoStoryboard(t *testing.T) {
     }
 }
 func TestRenewPromoVerticalScroll(t *testing.T) {
-    if got:=renewPromoScrollOffset(30,30,67,1300); got!=0 {t.Fatalf("scroll should start at zero: %v",got)}
-    if got:=renewPromoScrollOffset(55,30,67,1300); got<700 {t.Fatalf("no downward movement: %v",got)}
-    if down,back:=renewPromoScrollOffset(57,30,67,1300),renewPromoScrollOffset(65,30,67,1300);back>=down {
-        t.Fatalf("vertical pan must reverse upwards: peak %.0f return %.0f",down,back)
+    if len(renewPromoCurves)!=len(renewPromoBeats) {
+        t.Fatalf("need one distinct curve per scene: %d vs %d",len(renewPromoCurves),len(renewPromoBeats))
     }
-    if got:=renewPromoScrollOffset(55,30,67,120);got>120 {
-        t.Fatalf("scroll exceeds container MaxY: %v",got)
+    seen:=map[renewPromoScrollProfile]bool{}
+    for i,profile:=range renewPromoCurves {
+        if seen[profile] {t.Fatalf("duplicate scroll curve at %d",i)}
+        seen[profile]=true
+        if profile.Dwell<0 || profile.Apex<=profile.Dwell || profile.Apex>=1 ||
+            profile.Distance<0 || profile.Rewind<0 || profile.Rewind>=1 {
+            t.Fatalf("invalid scroll profile %d: %+v",i,profile)
+        }
+        start,end:=30,130
+        if got:=renewPromoScrollOffset(start,start,end,i,1500);got!=0 {t.Fatalf("scene %d did not start at top",i)}
+        peak:=renewPromoScrollOffset(start+int(profile.Apex*float64(end-start)),start,end,i,1500)
+        tail:=renewPromoScrollOffset(end-1,start,end,i,1500)
+        if peak<100 || tail>=peak {t.Fatalf("scene %d lacks down/up movement peak %.1f end %.1f",i,peak,tail)}
+        if got:=renewPromoScrollOffset(70,start,end,i,120);got>120 {
+            t.Fatalf("scene %d overscrolls native content: %.1f",i,got)
+        }
     }
+}
+
+func TestRenewPromoFiltersAffectRealTables(t *testing.T) {
+    app:=newRenewApp("http://127.0.0.1:8080")
+    renewPromoFixture(app,time.Now())
+    app.events=promoEvents()
+    app.eventsVersion=1
+    renewPromoResetInteraction(app)
+    full:=len(app.filteredEvents())
+    renewPromoInteraction(app,1,0.77)
+    filtered:=len(app.filteredEvents())
+    if filtered==0 || filtered>=full {t.Fatalf("risk UI filter did not change event table: %d -> %d",full,filtered)}
+    renewPromoResetInteraction(app)
+    app.eventsVersion++
+    before:=len(app.filteredRules())
+    renewPromoInteraction(app,12,0.95)
+    after:=len(app.filteredRules())
+    if after!=1 || before<=after {t.Fatalf("rule UI search did not filter %d -> %d",before,after)}
+    renewPromoResetInteraction(app)
+    renewPromoInteraction(app,7,0.94)
+    if !app.domainRiskOnly || !app.domainShowIPs || app.domainSearch!="203.0.113" {
+        t.Fatalf("domain UI filters missing: %+v",app)
+    }
+    renewPromoResetInteraction(app)
+    renewPromoInteraction(app,13,0.83)
+    if app.registryTab!=3 || app.registryFilterTag!="Codex" {t.Fatal("tracking tab/filter action missing")}
+    renewPromoResetInteraction(app)
+    renewPromoInteraction(app,5,0.65)
+    if app.lineageMode!=1 {t.Fatal("lineage view mode not switched")}
 }
 
 func TestRenderRenewDesktopPromoVideo(t *testing.T) {
