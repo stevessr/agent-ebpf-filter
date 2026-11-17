@@ -1,0 +1,90 @@
+name: Benchmark bootstrap eBPF smoke
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'scripts/benchmark-api.sh'
+      - 'scripts/benchmark-concurrent.sh'
+      - 'scripts/tests/test-benchmark-api.sh'
+      - '.github/workflows/benchmark.yml'
+      - '.github/workflows/benchmark-bootstrap-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  authenticated-health:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check shell syntax and authentication regressions
+        run: |
+          bash -n scripts/benchmark-api.sh scripts/benchmark-concurrent.sh scripts/tests/test-benchmark-api.sh
+          bash scripts/tests/test-benchmark-api.sh
+
+  eBPF-attach-concurrent-smoke:
+    needs: authenticated-health
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.work
+          cache: false
+      - name: Install build requirements
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm libbpf-dev libelf-dev protobuf-compiler jq
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+      - name: Generate and build eBPF backend and benchmark
+        run: |
+          mkdir -p backend/pb
+          protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto \
+            proto/tracker_common.proto proto/tracker_events.proto \
+            proto/tracker_registration.proto proto/tracker_system.proto \
+            proto/tracker_config.proto proto/tracker_shell.proto
+          (cd backend/ebpf && go generate)
+          go build -o agent-ebpf-filter ./backend
+          (cd scripts && go build -o benchmark-syscalls-extended ./benchmark-syscalls-extended.go)
+      - name: Verify attached eBPF and one-cycle concurrent benchmark
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo ./agent-ebpf-filter >"$RUNNER_TEMP/benchmark-backend.log" 2>&1 &
+          pid=$!
+          trap 'sudo kill "$pid" 2>/dev/null || true' EXIT
+          source scripts/benchmark-api.sh
+          ready=0
+          for i in {1..40}; do
+            if response="$(benchmark_bootstrap_health 2>/dev/null)" && benchmark_has_attached_programs "$response"; then
+              ready=1
+              break
+            fi
+            if ! kill -0 "$pid" 2>/dev/null; then
+              echo "::error::Backend exited before eBPF attachment"
+              tail -100 "$RUNNER_TEMP/benchmark-backend.log" || true
+              exit 1
+            fi
+            sleep 2
+          done
+          if [[ "$ready" != 1 ]]; then
+            echo "::error::Could not authenticate and verify attached eBPF programs"
+            benchmark_bootstrap_health | jq . || true
+            tail -100 "$RUNNER_TEMP/benchmark-backend.log" || true
+            exit 1
+          fi
+          jq '{status, compiledCount, attachedCount, skippedCount}' <<<"$response"
+          BENCH_CYCLES=1 BENCH_CONCURRENCY=1 bash scripts/benchmark-concurrent.sh
+      - name: Upload smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-bootstrap-smoke
+          path: |
+            reports/ebpf-concurrent-*/
+            ${{ runner.temp }}/benchmark-backend.log
+          if-no-files-found: warn
+          retention-days: 7

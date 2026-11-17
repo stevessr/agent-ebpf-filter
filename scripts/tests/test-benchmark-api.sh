@@ -20,6 +20,7 @@ export BENCH_API_URL="http://127.0.0.1:49000"
 MOCK_CURL_CODE=0
 MOCK_CURL_BODY='{"attachedCount":2,"status":"partial"}'
 curl() {
+    [[ "$*" == *"--fail"* ]] || { echo "HTTP error checking is missing" >&2; return 97; }
     [[ "$*" == *"X-API-KEY: env-token"* ]] || { echo "missing authenticated header" >&2; return 99; }
     [[ "$*" == *"http://127.0.0.1:49000/system/bootstrap-health"* ]] || { echo "incorrect bootstrap URL" >&2; return 98; }
     if [[ "$MOCK_CURL_CODE" != "0" ]]; then
@@ -31,7 +32,7 @@ curl() {
 health="$(benchmark_bootstrap_health)"
 benchmark_has_attached_programs "$health" || { echo "valid partial attach rejected" >&2; exit 1; }
 
-for bad in '{"attachedCount":0}' '{"attachedCount":"2"}' '{"status":"unknown"}' '{"attachedCount":null}' '{"attachedCount":-1}' 'not json'; do
+for bad in '{"attachedCount":0}' '{"attachedCount":"2"}' '{"status":"unknown"}' '{"attachedCount":null}' '{"attachedCount":-1}' '{"attachedCount":0.5}' 'not json'; do
     if benchmark_has_attached_programs "$bad" 2>/dev/null; then
         echo "accepted invalid attachment count: $bad" >&2
         exit 1

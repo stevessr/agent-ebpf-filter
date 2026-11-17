@@ -29,5 +29,5 @@ benchmark_bootstrap_health() {
 
 benchmark_has_attached_programs() {
     local response="$1"
-    jq -e '.attachedCount | type == "number" and . > 0' >/dev/null <<<"$response"
+    jq -e '.attachedCount | type == "number" and . >= 1 and . == floor' >/dev/null <<<"$response"
 }
