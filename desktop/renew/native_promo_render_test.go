@@ -256,7 +256,7 @@ func renewPromoFixture(a *renewApp, at time.Time) {
     // A multiline read-only-like in-memory document provides enough code
     // for the real embedded MyGo editor's own vertical scrolling to be seen.
     for i:=0;i<85;i++ {
-        code += fmt.Sprintf("// %03d | synthetic policy coverage: agent trace, network, filesystem\\n",i+1)
+        code += fmt.Sprintf("// %03d | synthetic policy coverage: agent trace, network, filesystem\n",i+1)
     }
     buffer := editor.NewBuffer(code)
     buffer.SetLanguage(editor.LanguageFor("policy.go"))
