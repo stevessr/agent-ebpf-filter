@@ -325,7 +325,7 @@ func (a *renewApp) localFileManagerView(c *ui.Context) {
 				a.files.selected = e.name
 				a.openSelectedLocalItem()
 			}
-		}).Grow(1).MinHeight(120).MinWidth(0)
+		}).TrackScroll(&a.localFileListScroll).Grow(1).MinHeight(120).MinWidth(0)
 	})
 }
 

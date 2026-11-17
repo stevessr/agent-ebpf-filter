@@ -148,6 +148,21 @@ func workspaceNavigationLabel(page string, detailed bool) string {
 	return labels[0]
 }
 
+// workspacePageScroll keeps the native vertical offset for each route rather
+// than sharing one offset between event tables and long configuration pages.
+// Allocated states have stable addresses while MyGo binds their handles.
+func (a *renewApp) workspacePageScroll(page string) *ui.ScrollState {
+	if a.pageScrollStates == nil {
+		a.pageScrollStates = make(map[string]*ui.ScrollState)
+	}
+	state := a.pageScrollStates[page]
+	if state == nil {
+		state = &ui.ScrollState{}
+		a.pageScrollStates[page] = state
+	}
+	return state
+}
+
 func (a *renewApp) workspaceView(c *ui.Context) {
 	// MyGo's frame theme already tracks light/dark system appearance and changes.
 	// Copy its current colors before applying the Renew palette so that OS
@@ -204,6 +219,7 @@ func (a *renewApp) workspaceView(c *ui.Context) {
 						// Switching from a deep event history to Overview must not
 						// jump the landing card out of view.
 						ui.Scroll(c.Key("renew-page-scroll-" + a.page)).
+							TrackScroll(a.workspacePageScroll(a.page)).
 							Grow(1).Padding(pagePadding).Gap(16).Children(func() {
 							switch {
 							case a.starting:
