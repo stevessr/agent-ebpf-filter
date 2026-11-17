@@ -265,6 +265,17 @@ func renewPromoFixture(a *renewApp, at time.Time) {
         state:&editor.State{Buffer:buffer,WrapGuides:[]int{100},Label:"policy.go"},
         size:int64(len(code)),
     }}
+    second := "package main\n\n// Simulated eBPF policy audit trail\n"
+    for i:=0;i<95;i++ {
+        second+=fmt.Sprintf("// rule %03d: file_access / network_connect / agent_child_process\n",i+1)
+    }
+    auditBuffer:=editor.NewBuffer(second)
+    auditBuffer.SetLanguage(editor.LanguageFor("policy_checks.go"))
+    a.files.docs=append(a.files.docs,&localFileDocument{
+        path:"/demo/agent-ebpf-filter/policy_checks.go",
+        state:&editor.State{Buffer:auditBuffer,WrapGuides:[]int{100},Label:"policy_checks.go"},
+        size:int64(len(second)),
+    })
     a.files.active = 0
 }
 
