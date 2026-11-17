@@ -1,0 +1,60 @@
+name: Renew native MyGo demo video
+
+on:
+  push:
+    branches:
+      - feat/renew-native-render-demo
+    paths:
+      - "desktop/renew/**"
+      - ".github/workflows/renew-native-demo.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render-video:
+    name: Render real Renew desktop UI (1920x1080)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.27.3"
+          cache-dependency-path: |
+            desktop/renew/go.sum
+            backend/go.sum
+      - name: Install backend build dependencies, video tools and CJK fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm libbpf-dev libelf-dev protobuf-compiler \
+            ffmpeg fonts-noto-cjk libegl1 libgl1-mesa-dri
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+      - name: Prepare embedded desktop backend
+        run: ./scripts/renew-desktop.sh prepare
+      - name: Download Renew's MyGo dependencies
+        working-directory: desktop/renew
+        run: go mod download
+      - name: Render a deterministic simulated event demo using MyGo plugins/render
+        working-directory: desktop/renew
+        timeout-minutes: 45
+        env:
+          RENEW_RENDER_VIDEO: "1"
+          RENEW_RENDER_OUTPUT: "../../artifacts/renew-desktop-demo.mp4"
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: go test -run '^TestRenderRenewDesktopPromoVideo$' -count=1 -timeout=43m -v .
+      - name: Verify file, video duration, resolution and sound
+        run: |
+          test -s artifacts/renew-desktop-demo.mp4
+          ffprobe -v error -show_entries format=duration,size -show_entries stream=codec_name,width,height \
+            -of default=noprint_wrappers=1 artifacts/renew-desktop-demo.mp4
+          ffprobe -v error -select_streams v:0 -show_entries stream=width,height \
+            -of csv=p=0 artifacts/renew-desktop-demo.mp4 | grep -qx '1920,1080'
+      - name: Upload rendered native UI video
+        uses: actions/upload-artifact@v4
+        with:
+          name: renew-mygo-desktop-demo-1080p
+          path: artifacts/renew-desktop-demo.mp4
+          retention-days: 30
+          if-no-files-found: error
