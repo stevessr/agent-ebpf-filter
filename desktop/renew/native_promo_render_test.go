@@ -248,6 +248,16 @@ func renewPromoFixture(a *renewApp, at time.Time) {
         {name:"README.md"},{name:"go.mod"},{name:"policy.go"},
     }
     code := "package main\n\n// Demo-only, synthetic policy view.\nfunc classify(event Event) Decision {\n    if event.RiskScore >= 90 {\n        return Block\n    }\n    if event.RiskScore >= 60 {\n        return Alert\n    }\n    return Allow\n}\n"
+    // Give the file browser enough entries to show its real native list
+    // scrolling; no files are created on disk.
+    for i:=0;i<48;i++ {
+        a.files.items = append(a.files.items,localFileEntry{name:fmt.Sprintf("monitoring-event-%02d.json",i)})
+    }
+    // A multiline read-only-like in-memory document provides enough code
+    // for the real embedded MyGo editor's own vertical scrolling to be seen.
+    for i:=0;i<85;i++ {
+        code += fmt.Sprintf("// %03d | synthetic policy coverage: agent trace, network, filesystem\\n",i+1)
+    }
     buffer := editor.NewBuffer(code)
     buffer.SetLanguage(editor.LanguageFor("policy.go"))
     a.files.docs = []*localFileDocument{{
@@ -256,6 +266,24 @@ func renewPromoFixture(a *renewApp, at time.Time) {
         size:int64(len(code)),
     }}
     a.files.active = 0
+}
+
+// The recording pans the *actual MyGo scroll content*, never the window
+// bitmap. Hold the heading briefly, glide down, then reverse toward the top.
+// Each page is allowed only the distance its own native scroll can travel.
+func renewPromoScrollOffset(frame, start, end int, maxY float32) float32 {
+    if frame <= start || end <= start || maxY <= 0 { return 0 }
+    t := float64(frame-start)/float64(end-start)
+    ease := func(v float64) float64 {
+        v = math.Max(0,math.Min(1,v))
+        return v*v*(3-2*v)
+    }
+    distance := math.Min(float64(maxY), 1380)
+    switch {
+    case t <= 0.12: return 0
+    case t < 0.72: return float32(distance * ease((t-0.12)/0.60))
+    default: return float32(distance * (1-0.68*ease((t-0.72)/0.28)))
+    }
 }
 
 func renewPromoComposition() render.Composition {
@@ -286,6 +314,12 @@ func renewPromoComposition() render.Composition {
                 if candidate.Start == beat.Start { sceneIndex=i; break }
             }
             if sceneIndex != previousScene {
+                // Reset only when entering a scene, never each frame.
+                app.workspacePageScroll(beat.Page).Y = 0
+                if beat.Page=="文件" { app.localFileListScroll.Y=0 }
+                if beat.Page=="编辑器" {
+                    if doc:=app.currentLocalDocument(); doc!=nil {doc.state.SetScrollY(0)}
+                }
                 f.Audio(low,render.AudioOptions{Volume:0.40})
                 previousScene = sceneIndex
             }
@@ -310,6 +344,24 @@ func renewPromoComposition() render.Composition {
                 if f.Index >= 637 {
                     app.eventAttentionOnly = true
                 }
+            }
+            // Frame-indexed easing is deterministic in offline rendering.
+            // MaxY is measured by the native layout in the preceding frame.
+            // Sidebar/footer stay pinned; only the workspace body scrolls.
+            sceneEnd:=666
+            if sceneIndex+1<len(renewPromoBeats) {
+                sceneEnd=renewPromoBeats[sceneIndex+1].Start
+            }
+            if beat.Page=="文件" {
+                scroll:= &app.localFileListScroll
+                scroll.Y=renewPromoScrollOffset(f.Index,beat.Start,sceneEnd,scroll.MaxY)
+            } else if beat.Page=="编辑器" {
+                if doc:=app.currentLocalDocument();doc!=nil {
+                    doc.state.SetScrollY(float64(renewPromoScrollOffset(f.Index,beat.Start,sceneEnd,1350)))
+                }
+            } else if beat.Page!="终端" {
+                scroll:=app.workspacePageScroll(beat.Page)
+                scroll.Y=renewPromoScrollOffset(f.Index,beat.Start,sceneEnd,scroll.MaxY)
             }
             app.events = examples[:beat.Count]
             app.eventsVersion = uint64(1000+f.Index)
@@ -385,6 +437,17 @@ func TestRenewPromoStoryboard(t *testing.T) {
         if !pageSet[page] {t.Errorf("Desktop route %s missing",page)}
     }
 }
+func TestRenewPromoVerticalScroll(t *testing.T) {
+    if got:=renewPromoScrollOffset(30,30,67,1300); got!=0 {t.Fatalf("scroll should start at zero: %v",got)}
+    if got:=renewPromoScrollOffset(55,30,67,1300); got<700 {t.Fatalf("no downward movement: %v",got)}
+    if down,back:=renewPromoScrollOffset(57,30,67,1300),renewPromoScrollOffset(65,30,67,1300);back>=down {
+        t.Fatalf("vertical pan must reverse upwards: peak %.0f return %.0f",down,back)
+    }
+    if got:=renewPromoScrollOffset(55,30,67,120);got>120 {
+        t.Fatalf("scroll exceeds container MaxY: %v",got)
+    }
+}
+
 func TestRenderRenewDesktopPromoVideo(t *testing.T) {
     if os.Getenv("RENEW_RENDER_VIDEO") != "1" {
         t.Skip("set RENEW_RENDER_VIDEO=1 to export the MyGo-native demo video")
