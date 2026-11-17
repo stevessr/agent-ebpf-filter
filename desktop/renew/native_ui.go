@@ -23,6 +23,9 @@ type renewApp struct {
 	lastSync    time.Time
 
 	page                  string
+	// Per-page native scroll offsets: the desktop and demo renderer use the same scroll container.
+	pageScrollStates      map[string]*ui.ScrollState
+	localFileListScroll   ui.ScrollState
 	lineageMode           int // 0 radial, 1 waterfall
 	lineageRootChoice     string
 	lineageSelectedPID    int
