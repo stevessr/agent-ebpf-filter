@@ -56,8 +56,8 @@ class Backend:
         self.request("POST", path, payload)
         return (time.monotonic_ns() - start) / 1000
 
-    def require_attached(self) -> None:
-        for component in ("cgroup", "lsm"):
+    def require_attached(self, components: tuple[str, ...] = ("cgroup", "lsm")) -> None:
+        for component in components:
             data = self.request("GET", f"/sandbox/{component}/status")
             if data.get("available") is not True or data.get("attached") is not True:
                 raise RuntimeError(f"Live {component} enforcement not attached: {data}")
@@ -208,8 +208,14 @@ def main() -> None:
     if args.trials < 1:
         parser.error("--trials must be >= 1")
     backend = Backend(args.backend_url, args.token)
-    backend.require_attached()
     requested_cases = list(dict.fromkeys(args.cases))
+    required = tuple(
+        component for component, enabled in (
+            ("cgroup", any(case in CASES[:4] for case in requested_cases)),
+            ("lsm", any(case not in CASES[:4] for case in requested_cases)),
+        ) if enabled
+    )
+    backend.require_attached(required)
     if "ipv4_mapped_ipv6" in requested_cases and not mapped_ipv6_works():
         print("SKIP ipv4_mapped_ipv6: no working mapped IPv6 pre-control")
         requested_cases.remove("ipv4_mapped_ipv6")
