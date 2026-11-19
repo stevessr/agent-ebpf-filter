@@ -10,6 +10,9 @@ on:
       - 'scripts/attribution-concurrent-workload.py'
       - 'backend/app/events/context_event.go'
       - 'backend/app/events/attribution_research_test.go'
+      - 'backend/app/sandbox/lsm_bootstrap.go'
+      - 'backend/app/sandbox/lsm_readiness_test.go'
+      - 'scripts/paper-attribution-ablation-summary.py'
       - 'backend/app/attribution_cgroup.go'
       - 'backend/app/attribution_cgroup_conflict_test.go'
       - 'scripts/paper-attribution-reconcile.py'
@@ -56,12 +59,15 @@ jobs:
         run: go test ./backend/app -run '^(TestCgroupAttribution|TestCgroupAmbiguity)' -count=1 -v
       - name: Research-mode attribution isolation tests
         run: go test ./backend/app/events -run '^TestResearch' -count=1 -v
+      - name: BPF LSM boot readiness checks
+        run: go test ./backend/app/sandbox -run '^TestBPFLSMConfigured' -count=1 -v
       - name: Syntax check
         run: |
           python3 -m py_compile \
             scripts/paper-experiment-tables.py \
             scripts/attribution-concurrent-workload.py \
             scripts/paper-attribution-reconcile.py \
+            scripts/paper-attribution-ablation-summary.py \
             scripts/tests/test-paper-attribution-reconcile.py \
             scripts/paper-enforcement-trials.py \
             scripts/tests/test-paper-enforcement.py \
