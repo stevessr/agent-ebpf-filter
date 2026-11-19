@@ -167,8 +167,7 @@ python3 scripts/paper-experiment-tables.py \
   --enforcement-csv reports/paper-experiments/enforcement.csv \
   --output reports/paper-experiments/tables.md
 
-python3 -m unittest discover -s scripts/tests \
-  -p 'test-paper-experiment-tables.py' -v
+python3 scripts/tests/test-paper-experiment-tables.py -v
 ~~~
 
 Missing files remain clearly unmeasured. Invalid evidence fails loudly.
