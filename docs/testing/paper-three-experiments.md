@@ -136,7 +136,23 @@ revoke API requests with a monotonic clock (microseconds). These are
 API round-trip times, **not** independently proven BPF map propagation
 times. Report skipped scenarios separately and preserve all failed trials.
 
-Create enforcement.csv:
+Run the repeated-trial recorder against that privileged backend. Enable the
+backend's policy-management gate in the isolated host before issuing policy
+writes. The recorder requires live attached cgroup and BPF LSM status;
+each row records the actual Python syscall errno, not merely an exception.
+A sidecar manifest records the kernel, timestamp and requested scenarios.
+
+~~~bash
+python3 scripts/paper-enforcement-trials.py \
+  --backend-url http://127.0.0.1:8080 --trials 100 \
+  --output reports/paper-experiments/enforcement.csv
+~~~
+
+The recorder deliberately uses local loopback endpoints and unique temporary
+file names, then removes each rule after each trial. Always inspect the
+resulting manifest, failed trials and skipped IPv4-mapped IPv6 cases.
+
+CSV schema:
 
 ~~~csv
 case,control_ok,denied,errno,restored,apply_us,revoke_us
@@ -168,6 +184,7 @@ python3 scripts/paper-experiment-tables.py \
   --output reports/paper-experiments/tables.md
 
 python3 scripts/tests/test-paper-experiment-tables.py -v
+python3 scripts/tests/test-paper-enforcement.py -v
 ~~~
 
 Missing files remain clearly unmeasured. Invalid evidence fails loudly.
