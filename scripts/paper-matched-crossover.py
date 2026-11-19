@@ -33,7 +33,7 @@ def link_data(path: Path) -> dict:
         raw = raw[0]
     if not isinstance(raw, dict) or "id" not in raw:
         raise RuntimeError(f"{path}: no kernel link ID in bpftool output")
-    if raw.get("type", "").lower() != "tracing":
+    if raw.get("type", "").lower() not in {"tracing", "perf_event"}:
         raise RuntimeError(f"{path}: unexpected BPF link type {raw.get('type')}")
     return raw
 
