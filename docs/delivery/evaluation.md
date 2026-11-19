@@ -533,7 +533,7 @@ cd kernel-ml && make cuda-helper-self-test CUDA_HOME=/opt/cuda
 | 实验 | 当前结论 | 原始证据 |
 | --- | --- | --- |
 | C=1,4,8,16,32 并发观测与 P95 | 已实测 read(2) 共 200 万样本，P95 已采集；off-before/on-after 差值存在后端负载与时间偏差，尚不能解释为纯 eBPF 开销 | `benchmarks/paper-2026-11-19/read_observed_summary.csv` |
-| 2–4 Agent 同名命令归因三模式消融 | 已完成 270 次注册根 Agent 的 git/python/node 工作负载，90/90 批次真实重叠；三模式独立预测仍待实测 | `benchmarks/paper-2026-11-19/agent_workload_overlap.csv` |
+| 2–4 Agent 同名命令归因三模式消融 | 已完成三模式独立实测：PID-only 0/2530，生命周期 2592/2597（99.81%），联合 2559/2575（99.38%），三模式误归因均为 0；每模式工具进程覆盖 270/270。尚未接入真正 Native Hook 语义模态，联合模式未显示准确率优势 | `benchmarks/paper-2026-11-19/attribution_three_mode_measured.csv`，`attribution_by_command_measured.csv` |
 | cgroup + BPF LSM 硬阻断率与规则时延 | cgroup 网络四类路径各 100/100，errno=EPERM、撤销后恢复；规则 API 往返 P50/P95 已测。BPF LSM 14-Hook 在该内核未加载，文件 FD/mmap 尚未实测 | `benchmarks/paper-2026-11-19/cgroup_network_summary.csv` |
 
 生成后的 Markdown 可作为论文表格依据，但 **N=0 的单元格保持未测，不得据此声称 100% 阻断**。
