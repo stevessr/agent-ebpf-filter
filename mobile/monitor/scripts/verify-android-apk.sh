@@ -22,7 +22,7 @@ done
 # A successful Gradle build alone does not prove the uploaded file has the
 # expected package, native library, signature, or Android 16 KiB zip alignment.
 unzip -tq "$APK" >/dev/null
-if ! unzip -Z1 "$APK" | grep -Fx 'lib/arm64-v8a/libmygo.so' >/dev/null; then
+if ! unzip -Z1 "$APK" | grep -Ex 'lib/arm64-v8a/libmygo(app)?\.so' >/dev/null; then
   echo "APK does not bundle the MyGo arm64 JNI library" >&2
   exit 1
 fi

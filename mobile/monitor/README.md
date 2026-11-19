@@ -6,23 +6,28 @@ machine and is **not** installed or started on the phone.
 
 This is a small, independently testable mobile client, not a resized desktop
 window. The native touch UI is written in Go using
-[MyGo Mobile](https://github.com/daodao97/mygo-mobile), which adds Android and
-iOS backends to [egoist/mygo](https://github.com/egoist/mygo).
-The project pins the fork to an exact pseudo-version in `go.mod` instead of
-replacing the desktop's MyGo dependency.
+[egoist/mygo](https://github.com/egoist/mygo) v0.10+, which includes native
+Android and iOS mobile backends alongside the desktop runtime.
 
-## First version
+## Features
 
-- HTTPS origin and token-based connection; the token remains in app memory
-  and is cleared when disconnecting, not written to disk.
-- Collector health: live capture flag, dropped ring-buffer events, queue and
-  persistence backlog.
-- Recent 60 events: PID, command, agent tag, target, risk score, decision.
-- Local search over the current event snapshot; individual event detail GET
-  requests only when tapped.
-- Foreground polling every six seconds; no background service or push
-  notifications, and no policy, model, file, or sandbox mutation operations.
-- Refresh and disconnect, with bounded network timeouts and error display.
+- Verified HTTPS origin and token-based connection handshake; the token remains
+  in app memory and is cleared when disconnecting, never written to disk.
+- Smart origin input and deep-link pairing: accepts bare `host:port` (auto-adds
+  `https://` for remote hosts or `http://` for local loopback), trims trailing
+  slashes, and supports `agentebpf://connect?origin=https://...` links.
+- Connection probing (`测试连接`) with round-trip latency measurement and
+  actionable diagnostics for HTTP 401/403 authentication errors, TLS
+  certificate validation failures, network timeouts, and USB `adb reverse`
+  loopback hints.
+- Foreground polling every six seconds with automatic exponential backoff on
+  transient network failures, immediate pause on authentication failure or app
+  backgrounding (`Power.OnSuspend`), and automatic refresh on resume.
+- Collector health: live capture flag, total/dropped ring-buffer events, queue,
+  persistence backlog, and kernel risk counters.
+- Recent events with cursor-based pagination (`加载更早事件`), quick filter
+  pills (`全部`, `阻断`, `高风险 ≥0.70`, `Agent 活动`), keyword search, and
+  on-demand individual event detail GET requests.
 
 Protocol: `GET /system/collector-health`, `GET /events/summaries?compact=1&limit=60`,
 and optionally `GET /events/detail/:eventID`. Authentication matches the Renew
@@ -59,17 +64,17 @@ GOWORK=off go vet ./...
 GOWORK=off go build ./...
 ```
 
-Go 1.27.3 is required by the pinned MyGo fork. The mobile module is isolated
-from `backend` and `desktop/renew`, so building the app never bundles the
-privileged eBPF backend.
+Go 1.27.3 is required by the pinned MyGo module (`github.com/egoist/mygo`
+v0.10.0). The mobile module is isolated from `backend` and `desktop/renew`, so
+building the app never bundles the privileged eBPF backend.
 
 ## Android debug APK
 
 Requirements: Linux/macOS, JDK 17, Android SDK API 36, NDK
-`28.2.13676358`, Go 1.27.3, Gradle (the MyGo host bundles its wrapper),
-and the Android HarfBuzz/FreeType static archives. Set
-`ANDROID_HOME` and `MYGO_HB_ANDROID` (the latter points to the `android`
-directory containing `include/` and `lib/`).
+`28.2.13676358`, Go 1.27.3, and Gradle (the MyGo host bundles its wrapper).
+Set `ANDROID_HOME` (or `ANDROID_SDK_ROOT`). MyGo v0.10+ uses Android's
+built-in Minikin/Skia text renderer via JNI, so external HarfBuzz/FreeType
+archives are not required.
 
 ```bash
 bash mobile/monitor/scripts/build-android.sh
@@ -124,13 +129,13 @@ actual Android device.
 
 ### Current limitations
 
-- No iOS IPA, background alerts, push notifications, event pagination, or
+- No iOS IPA, background alerts, push notifications, or
   model/agent/policy configuration editing yet.
 - A backend launched only in the desktop's local Unix-socket mode cannot be
   reached remotely. Connection failures in that setup are expected.
 - This client performs GET-only operations but cannot enforce server-side
   read-only authorization. A server-scoped read-only token/API role is a
   separate backend enhancement.
-- The PINNED community MyGo fork is experimental on Android and needs a
-  real-device check (startup, touch, keyboard, rotation, foreground/background,
-  network error handling) before release distribution.
+- Real-device verification (startup, touch, keyboard, rotation,
+  foreground/background, network error handling) is recommended before release
+  distribution.
