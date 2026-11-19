@@ -1,5 +1,25 @@
 package app
 
+import (
+	"os"
+	"strings"
+)
+
+// Experiments must observe every named competing tool. In ordinary production
+// some runtime/tool comms are intentionally excluded to control noise. Without
+// this explicit research override, a "100% attribution" figure could only
+// describe whichever one comm happened to survive collector filters.
+func researchAttributionTracksCommand(comm string) bool {
+	switch strings.TrimSpace(os.Getenv("AGENT_EBPF_RESEARCH_ATTRIBUTION_MODE")) {
+	case "pid-only", "lifecycle-only", "combined":
+		switch comm {
+		case "git", "python", "python3", "node":
+			return true
+		}
+	}
+	return false
+}
+
 const defaultEnabledTrackedCommandTag = "Agent CLI"
 
 var defaultTrackedCommands = map[string]string{
@@ -50,7 +70,7 @@ func seedDefaultTrackedCommands() {
 	disabledCommsMu.Lock()
 	defer disabledCommsMu.Unlock()
 	for comm, tag := range defaultTrackedCommands {
-		if defaultTrackedCommandEnabled(tag) {
+		if defaultTrackedCommandEnabled(tag) || researchAttributionTracksCommand(comm) {
 			delete(disabledComms, comm)
 			continue
 		}
