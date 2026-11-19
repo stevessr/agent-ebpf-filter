@@ -9,6 +9,7 @@ on:
       - 'scripts/paper-experiment-tables.py'
       - 'scripts/attribution-concurrent-workload.py'
       - 'scripts/paper-enforcement-trials.py'
+      - 'scripts/paper-syscall-latency.go'
       - 'scripts/tests/test-paper-enforcement.py'
       - 'scripts/tests/test-paper-experiment-tables.py'
       - 'scripts/benchmark-concurrent.sh'
@@ -20,6 +21,7 @@ on:
       - 'scripts/paper-experiment-tables.py'
       - 'scripts/attribution-concurrent-workload.py'
       - 'scripts/paper-enforcement-trials.py'
+      - 'scripts/paper-syscall-latency.go'
       - 'scripts/tests/test-paper-enforcement.py'
       - 'scripts/tests/test-paper-experiment-tables.py'
       - 'scripts/benchmark-concurrent.sh'
@@ -45,6 +47,10 @@ jobs:
         run: python3 scripts/tests/test-paper-experiment-tables.py -v
       - name: Enforcement recorder unit tests
         run: python3 scripts/tests/test-paper-enforcement.py -v
+      - name: Per-call syscall sampler smoke (NOT kernel evidence)
+        run: |
+          go run scripts/paper-syscall-latency.go --concurrency 2 --samples 32 --warmup 2 --output /tmp/per-call-latency.csv
+          test "$(wc -l </tmp/per-call-latency.csv)" -eq 33
       - name: Ensure blank inputs never fabricate measurements
         run: |
           python3 scripts/paper-experiment-tables.py --output /tmp/unmeasured-tables.md
