@@ -13,6 +13,8 @@ on:
       - 'backend/app/sandbox/lsm_bootstrap.go'
       - 'backend/app/sandbox/lsm_readiness_test.go'
       - 'scripts/paper-attribution-ablation-summary.py'
+      - 'backend/app/commdefaultstracked.go'
+      - 'backend/app/commdefaultstracked_research_test.go'
       - 'backend/app/attribution_cgroup.go'
       - 'backend/app/attribution_cgroup_conflict_test.go'
       - 'scripts/paper-attribution-reconcile.py'
@@ -56,7 +58,7 @@ jobs:
           protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto             proto/tracker_common.proto proto/tracker_events.proto             proto/tracker_registration.proto proto/tracker_system.proto             proto/tracker_config.proto proto/tracker_shell.proto
           (cd backend/ebpf && go generate)
       - name: Shared-cgroup ambiguity regressions (real Go code)
-        run: go test ./backend/app -run '^(TestCgroupAttribution|TestCgroupAmbiguity)' -count=1 -v
+        run: go test ./backend/app -run '^(TestCgroupAttribution|TestCgroupAmbiguity|TestResearchAttributionTracks|TestResearchAttributionNever)' -count=1 -v
       - name: Research-mode attribution isolation tests
         run: go test ./backend/app/events -run '^TestResearch' -count=1 -v
       - name: BPF LSM boot readiness checks
