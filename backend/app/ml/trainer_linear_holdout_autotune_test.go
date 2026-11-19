@@ -86,11 +86,11 @@ func TestRidgeAutoTuneScoresOnlyDisjointTrainingRows(t *testing.T) {
 		var features [FeatureDim]float64
 		features[i] = 1
 		store.Add(TrainingSample{
-			Features: features,
-			Label: int32(i % 4),
+			Features:    features,
+			Label:       int32(i % 4),
 			CommandLine: fmt.Sprintf("independent-identity-%02d", i),
-			UserLabel: "regression",
-			Timestamp: time.Unix(int64(1_700_000_000+i), 0).UTC(),
+			UserLabel:   "regression",
+			Timestamp:   time.Unix(int64(1_700_000_000+i), 0).UTC(),
 		})
 	}
 	cfg := DefaultMLConfig()

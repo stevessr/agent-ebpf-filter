@@ -42,15 +42,15 @@ func TestDecisionExternalEvaluationRejectsOverlappingProvenanceBeforeModelLoad(t
 		name, train, test, matchingID string
 	}{
 		{
-			name: "scenario",
-			train: `{"command":"ls /tmp/one","label":"ALLOW","scenario_id":"shared-case","run_id":"run-1"}` + "\n",
-			test: `{"command":"rm /tmp/two","label":"BLOCK","scenario_id":"shared-case","run_id":"run-2"}` + "\n",
+			name:       "scenario",
+			train:      `{"command":"ls /tmp/one","label":"ALLOW","scenario_id":"shared-case","run_id":"run-1"}` + "\n",
+			test:       `{"command":"rm /tmp/two","label":"BLOCK","scenario_id":"shared-case","run_id":"run-2"}` + "\n",
 			matchingID: "scenario_id",
 		},
 		{
-			name: "run",
-			train: `{"command":"ls /tmp/one","label":"ALLOW","scenario_id":"scenario-1","run_id":"shared-run"}` + "\n",
-			test: `{"command":"rm /tmp/two","label":"BLOCK","scenario_id":"scenario-2","run_id":"shared-run"}` + "\n",
+			name:       "run",
+			train:      `{"command":"ls /tmp/one","label":"ALLOW","scenario_id":"scenario-1","run_id":"shared-run"}` + "\n",
+			test:       `{"command":"rm /tmp/two","label":"BLOCK","scenario_id":"scenario-2","run_id":"shared-run"}` + "\n",
 			matchingID: "run_id",
 		},
 	}
@@ -105,9 +105,9 @@ func TestDecisionWilsonConfidenceIntervals(t *testing.T) {
 func TestReviewedCorpusIdentitiesUseTransitiveScenarioRunComponents(t *testing.T) {
 	path, digest := writeDecisionTrainingFixture(t,
 		`{"command":"ls /tmp/one","label":"ALLOW","scenario_id":"scenario-1","run_id":"run-1"}`+"\n"+
-		`{"command":"rm /tmp/one","label":"BLOCK","scenario_id":"scenario-2","run_id":"run-1"}`+"\n"+
-		`{"command":"cat /tmp/two","label":"ALLOW","scenario_id":"scenario-2","run_id":"run-2"}`+"\n"+
-		`{"command":"rm /tmp/three","label":"BLOCK","scenario_id":"scenario-3","run_id":"run-3"}`+"\n")
+			`{"command":"rm /tmp/one","label":"BLOCK","scenario_id":"scenario-2","run_id":"run-1"}`+"\n"+
+			`{"command":"cat /tmp/two","label":"ALLOW","scenario_id":"scenario-2","run_id":"run-2"}`+"\n"+
+			`{"command":"rm /tmp/three","label":"BLOCK","scenario_id":"scenario-3","run_id":"run-3"}`+"\n")
 	provenance, err := reviewedCorpusIdentities(path, digest)
 	if err != nil {
 		t.Fatal(err)

@@ -13,10 +13,10 @@ func TestApplyWebShellFindingPolicyModes(t *testing.T) {
 		Shell: "sh", ParentPID: 123,
 	}
 	tests := []struct {
-		name string
-		mode string
+		name   string
+		mode   string
 		action pb.WrapperResponse_Action
-		want pb.WrapperResponse_Action
+		want   pb.WrapperResponse_Action
 	}{
 		{"default audit", "", pb.WrapperResponse_ALLOW, pb.WrapperResponse_ALERT},
 		{"explicit audit", "audit", pb.WrapperResponse_ALLOW, pb.WrapperResponse_ALERT},

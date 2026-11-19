@@ -29,17 +29,17 @@ type MLConfig struct {
 	ValidationSplitRatio     float64   `json:"validationSplitRatio"`
 	// TrainingSeed=0 preserves nondeterministic online training; a nonzero
 	// seed makes offline model comparisons and candidate artifacts reproducible.
-	TrainingSeed             int64     `json:"trainingSeed,omitempty"`
-	BalanceClasses           bool      `json:"balanceClasses"`
-	EnsembleVoting           string    `json:"ensembleVoting,omitempty"`
-	LlmEnabled               bool      `json:"llmEnabled"`
-	LlmBaseURL               string    `json:"llmBaseUrl"`
-	LlmAPIKey                string    `json:"llmApiKey,omitempty"`
-	LlmModel                 string    `json:"llmModel"`
-	LlmTimeoutSeconds        int       `json:"llmTimeoutSeconds"`
-	LlmTemperature           float64   `json:"llmTemperature"`
-	LlmMaxTokens             int       `json:"llmMaxTokens"`
-	LlmSystemPrompt          string    `json:"llmSystemPrompt"`
+	TrainingSeed      int64   `json:"trainingSeed,omitempty"`
+	BalanceClasses    bool    `json:"balanceClasses"`
+	EnsembleVoting    string  `json:"ensembleVoting,omitempty"`
+	LlmEnabled        bool    `json:"llmEnabled"`
+	LlmBaseURL        string  `json:"llmBaseUrl"`
+	LlmAPIKey         string  `json:"llmApiKey,omitempty"`
+	LlmModel          string  `json:"llmModel"`
+	LlmTimeoutSeconds int     `json:"llmTimeoutSeconds"`
+	LlmTemperature    float64 `json:"llmTemperature"`
+	LlmMaxTokens      int     `json:"llmMaxTokens"`
+	LlmSystemPrompt   string  `json:"llmSystemPrompt"`
 }
 
 // DefaultMLConfig returns sensible defaults.

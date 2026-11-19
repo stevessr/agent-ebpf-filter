@@ -9,13 +9,13 @@ type decisionGroupOutcome struct {
 }
 
 type decisionGroupSecurity struct {
-	independentGroups int
-	blockGroups       int
-	benignGroups      int
-	blockRecall       float64
+	independentGroups  int
+	blockGroups        int
+	benignGroups       int
+	blockRecall        float64
 	blockRecallLower95 float64
-	benignFPR         float64
-	benignFPRUpper95  float64
+	benignFPR          float64
+	benignFPRUpper95   float64
 }
 
 // summarizeDecisionGroupSecurity reports strict per-component risk:
@@ -26,10 +26,10 @@ type decisionGroupSecurity struct {
 // sourced scenarios for external validity.
 func summarizeDecisionGroupSecurity(outcomes []decisionGroupOutcome) decisionGroupSecurity {
 	type state struct {
-		hasBlock   bool
-		hasAllow   bool
-		blockMiss  bool
-		benignFP   bool
+		hasBlock  bool
+		hasAllow  bool
+		blockMiss bool
+		benignFP  bool
 	}
 	byGroup := make(map[int]state)
 	for _, outcome := range outcomes {

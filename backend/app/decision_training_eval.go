@@ -19,28 +19,28 @@ import (
 type DecisionExternalEvaluation struct {
 	// Group metrics count transitive scenario/run connected components, not commands.
 	// A mixed-class component contributes to both class-specific denominators.
-	IndependentGroups             int     `json:"independentGroups"`
-	BlockGroups                   int     `json:"blockGroups"`
-	BenignGroups                  int     `json:"benignGroups"`
-	GroupBlockRecall              float64 `json:"groupBlockRecall"`
-	GroupBlockRecallLower95       float64 `json:"groupBlockRecallLower95"`
-	GroupBenignFPR                float64 `json:"groupBenignFalsePositiveRate"`
-	GroupBenignFPRUpper95         float64 `json:"groupBenignFPRUpper95"`
-	Source         string                    `json:"source"`
-	SHA256         string                    `json:"sha256"`
-	License        string                    `json:"license"`
-	Samples        int                       `json:"samples"`
-	AllowSamples   int                       `json:"allowSamples"`
-	BlockSamples   int                       `json:"blockSamples"`
-	Accuracy       float64                   `json:"accuracy"`
-	Balanced       float64                   `json:"balancedAccuracy"`
-	MacroF1        float64                   `json:"macroF1"`
-	BlockRecall    float64                   `json:"blockRecall"`
-	BlockPrecision float64                   `json:"blockPrecision"`
-	BenignFPR      float64                   `json:"benignFalsePositiveRate"`
-	BenignFPRUpper95   float64              `json:"benignFPRUpper95"`
-	BlockRecallLower95 float64              `json:"blockRecallLower95"`
-	Confusion      map[string]map[string]int `json:"confusion"`
+	IndependentGroups       int                       `json:"independentGroups"`
+	BlockGroups             int                       `json:"blockGroups"`
+	BenignGroups            int                       `json:"benignGroups"`
+	GroupBlockRecall        float64                   `json:"groupBlockRecall"`
+	GroupBlockRecallLower95 float64                   `json:"groupBlockRecallLower95"`
+	GroupBenignFPR          float64                   `json:"groupBenignFalsePositiveRate"`
+	GroupBenignFPRUpper95   float64                   `json:"groupBenignFPRUpper95"`
+	Source                  string                    `json:"source"`
+	SHA256                  string                    `json:"sha256"`
+	License                 string                    `json:"license"`
+	Samples                 int                       `json:"samples"`
+	AllowSamples            int                       `json:"allowSamples"`
+	BlockSamples            int                       `json:"blockSamples"`
+	Accuracy                float64                   `json:"accuracy"`
+	Balanced                float64                   `json:"balancedAccuracy"`
+	MacroF1                 float64                   `json:"macroF1"`
+	BlockRecall             float64                   `json:"blockRecall"`
+	BlockPrecision          float64                   `json:"blockPrecision"`
+	BenignFPR               float64                   `json:"benignFalsePositiveRate"`
+	BenignFPRUpper95        float64                   `json:"benignFPRUpper95"`
+	BlockRecallLower95      float64                   `json:"blockRecallLower95"`
+	Confusion               map[string]map[string]int `json:"confusion"`
 }
 
 func loadReviewedCandidateCorpus(source DecisionTrainingDataset) ([]remoteDatasetRow, string, error) {
@@ -102,9 +102,9 @@ func loadReviewedCandidateCorpus(source DecisionTrainingDataset) ([]remoteDatase
 // Rows are ordered to match the generic JSONL parser's nonblank input rows.
 // Identifier values are global across sources; type prefixes avoid collisions.
 type reviewedCorpusProvenance struct {
-	scenarios map[string]struct{}
-	runs      map[string]struct{}
-	rowGroups []int
+	scenarios  map[string]struct{}
+	runs       map[string]struct{}
+	rowGroups  []int
 	groupCount int
 }
 
@@ -116,7 +116,7 @@ func reviewedCorpusIdentities(path, expectedDigest string) (reviewedCorpusProven
 	defer file.Close()
 	result := reviewedCorpusProvenance{
 		scenarios: make(map[string]struct{}),
-		runs: make(map[string]struct{}),
+		runs:      make(map[string]struct{}),
 	}
 	parent := make(map[string]string)
 	sizes := make(map[string]int)

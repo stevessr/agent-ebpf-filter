@@ -84,7 +84,7 @@ func TestSubagentHookMetadataDigestDoesNotLeakIdentifier(t *testing.T) {
 func TestNativeCodeModeClassifiesOuterCallsAndPTCSubdispatch(t *testing.T) {
 	cases := []struct {
 		name, event, tool, engine string
-		payload map[string]interface{}
+		payload                   map[string]interface{}
 	}{
 		{"dsh ptc start", "ptc_dispatch_start", "read_file", "dsh-ptc", nil},
 		{"dsh ptc settle", "ptc_dispatch", "read_file", "dsh-ptc", nil},
@@ -110,7 +110,7 @@ func TestNativeCodeModeDoesNotTreatSourceAsPathOrExposeIt(t *testing.T) {
 	payload := map[string]interface{}{
 		"tool_name": "run_code",
 		"tool_input": map[string]interface{}{
-			"code": secret,
+			"code":    secret,
 			"command": "do not treat as path",
 		},
 	}
@@ -131,11 +131,11 @@ func TestNativeCodeModeDoesNotTreatSourceAsPathOrExposeIt(t *testing.T) {
 
 func TestNativeCodeModePTCSubcallsRetainOnlyHashedParent(t *testing.T) {
 	payload := map[string]interface{}{
-		"hook_event_name": "ptc_dispatch_start",
-		"tool_name": "file_write",
+		"hook_event_name":     "ptc_dispatch_start",
+		"tool_name":           "file_write",
 		"parent_tool_call_id": "opaque-parent:run:1",
-		"root_tool_call_id": "opaque-root:run:1",
-		"tool_call_id": "opaque-parent:run:1:ptc:2",
+		"root_tool_call_id":   "opaque-root:run:1",
+		"tool_call_id":        "opaque-parent:run:1:ptc:2",
 	}
 	extra := buildNativeHookExtraInfo(payload, "ptc_dispatch_start", "file_write")
 	for _, want := range []string{"execution_mode=code_mode", "execution_engine=dsh-ptc", "execution_layer=nested", "parent_call_digest=sha256:", "root_call_digest=sha256:"} {

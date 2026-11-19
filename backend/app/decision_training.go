@@ -176,11 +176,11 @@ type DecisionModelTrainingReport struct {
 	DatasetSources             []string                        `json:"datasetSources"`
 	DatasetDigests             map[string]string               `json:"datasetDigests,omitempty"`
 	DatasetLicenses            map[string]string               `json:"datasetLicenses,omitempty"`
-	ValidationBlockPrecision  float64                         `json:"validationBlockPrecision"`
+	ValidationBlockPrecision   float64                         `json:"validationBlockPrecision"`
 	ValidationBenignFPR        float64                         `json:"validationBenignFalsePositiveRate"`
 	ValidationMacroF1          float64                         `json:"validationMacroF1"`
 	ValidationConfusion        map[string]map[string]int       `json:"validationConfusion"`
-	ExternalTest               *DecisionExternalEvaluation       `json:"externalTest,omitempty"`
+	ExternalTest               *DecisionExternalEvaluation     `json:"externalTest,omitempty"`
 	SourceRecords              int                             `json:"sourceRecords"`
 	Samples                    int                             `json:"samples"`
 	DuplicatesSkipped          int                             `json:"duplicatesSkipped"`

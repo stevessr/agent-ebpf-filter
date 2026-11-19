@@ -24,7 +24,7 @@ var (
 	}
 	// Unix crypt hashes are data, unlike the canonical /etc/shadow path name.
 	// This is a defense in depth for command text that embeds a hash literal.
-	unixCryptHashRegexp = regexp.MustCompile(`\$[1256y]\$(?:[A-Za-z0-9./+=-]+\$){1,3}[A-Za-z0-9./+=-]+`)
+	unixCryptHashRegexp  = regexp.MustCompile(`\$[1256y]\$(?:[A-Za-z0-9./+=-]+\$){1,3}[A-Za-z0-9./+=-]+`)
 	sensitivePathRegexps = []*regexp.Regexp{
 		// The source identity segment under /home is replaced with
 		// __USER_NNNN__ instead of deleting the whole path.
@@ -64,10 +64,14 @@ func sanitizeRemoteDatasetRowWithIdentity(row remoteDatasetRow, ids *datasetIden
 }
 
 func commandForDatasetArgCleaning(comm, commandLine string) string {
-    if comm != "" { return comm }
-    fields := strings.Fields(commandLine)
-    if len(fields) > 0 { return fields[0] }
-    return ""
+	if comm != "" {
+		return comm
+	}
+	fields := strings.Fields(commandLine)
+	if len(fields) > 0 {
+		return fields[0]
+	}
+	return ""
 }
 
 // sanitizeRemoteDatasetArgs accounts for argv boundaries: a secret following
