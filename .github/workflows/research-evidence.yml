@@ -8,6 +8,8 @@ on:
     paths:
       - 'scripts/paper-experiment-tables.py'
       - 'scripts/attribution-concurrent-workload.py'
+      - 'scripts/paper-enforcement-trials.py'
+      - 'scripts/tests/test-paper-enforcement.py'
       - 'scripts/tests/test-paper-experiment-tables.py'
       - 'scripts/benchmark-concurrent.sh'
       - 'scripts/visualize-concurrent.py'
@@ -17,6 +19,8 @@ on:
     paths:
       - 'scripts/paper-experiment-tables.py'
       - 'scripts/attribution-concurrent-workload.py'
+      - 'scripts/paper-enforcement-trials.py'
+      - 'scripts/tests/test-paper-enforcement.py'
       - 'scripts/tests/test-paper-experiment-tables.py'
       - 'scripts/benchmark-concurrent.sh'
       - 'scripts/visualize-concurrent.py'
@@ -33,10 +37,14 @@ jobs:
           python3 -m py_compile \
             scripts/paper-experiment-tables.py \
             scripts/attribution-concurrent-workload.py \
+            scripts/paper-enforcement-trials.py \
+            scripts/tests/test-paper-enforcement.py \
             scripts/tests/test-paper-experiment-tables.py
           bash -n scripts/benchmark-concurrent.sh
       - name: Table aggregation unit tests
         run: python3 scripts/tests/test-paper-experiment-tables.py -v
+      - name: Enforcement recorder unit tests
+        run: python3 scripts/tests/test-paper-enforcement.py -v
       - name: Ensure blank inputs never fabricate measurements
         run: |
           python3 scripts/paper-experiment-tables.py --output /tmp/unmeasured-tables.md
