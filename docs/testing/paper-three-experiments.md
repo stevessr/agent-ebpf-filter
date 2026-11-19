@@ -48,6 +48,27 @@ the latency_us header and values. Document exact operation mix and
 sampling overhead instead of treating mixed operation samples as a single
 homogeneous syscall.
 
+For a **per-call** P95 sample, a separate Go sampler measures one pread(2)
+operation on a pre-opened file for each individual sample. It includes
+userspace timing cost; it is NOT an eBPF-only overhead estimate. Run it with
+the backend BPF programs actually attached, on the same test host and after
+the on/off experiment for each C:
+
+~~~bash
+mkdir -p reports/ebpf-concurrent-paper
+for C in 1 4 8 16 32; do
+  go run scripts/paper-syscall-latency.go \
+    --concurrency "$C" --samples 50000 --warmup 1000 \
+    --output "reports/ebpf-concurrent-paper/latency_ebpf_c${C}.csv"
+done
+~~~
+
+Use the same report folder as the verified summary_c*.json files when
+generating the paper table. These P95 samples describe **pread latency
+with attached hooks**, not all 18 operations and not tail latency of full
+Agent workflows. Do not merge their distributions or label them as
+end-to-end latency.
+
 Test all C levels on the **same physical host**, not separate ephemeral
 GitHub Action matrix runners. Randomize phase/order to check temperature,
 cache, and governor effects.
