@@ -5,6 +5,13 @@ on:
     branches: ['research/**']
     paths:
       - '.github/workflows/paper-attribution-ablation.yml'
+      - 'backend/app/runtime_ebpf.go'
+      - 'backend/app/events/context_event.go'
+      - 'backend/app/attribution_cgroup.go'
+      - 'scripts/paper-attribution-ablation-ci.sh'
+      - 'scripts/attribution-concurrent-workload.py'
+      - 'scripts/paper-attribution-reconcile.py'
+      - 'scripts/paper-attribution-ablation-summary.py'
   workflow_dispatch:
 
 permissions:
