@@ -14,9 +14,39 @@ import (
 	"github.com/cilium/ebpf/link"
 )
 
+// bpfLSMConfigured avoids misreporting a verifier/helper failure as the
+// primary cause on hosts that never enabled the BPF Linux Security Module.
+// Readability is not guaranteed in containers: unknown returns a fallback
+// to the actual verifier instead of assuming the host is incompatible.
+func bpfLSMConfigured(active string) bool {
+	for _, name := range strings.Split(active, ",") {
+		if strings.TrimSpace(name) == "bpf" {
+			return true
+		}
+	}
+	return false
+}
+
+func bpfLSMReadiness() error {
+	active, err := os.ReadFile("/sys/kernel/security/lsm")
+	if err != nil {
+		// Securityfs may be hidden even when BPF LSM works.
+		return nil
+	}
+	if !bpfLSMConfigured(string(active)) {
+		return fmt.Errorf("BPF LSM is not in /sys/kernel/security/lsm; enable CONFIG_BPF_LSM and configure lsm=...bpf at boot before running 14-hook enforcement tests")
+	}
+	return nil
+}
+
 func ensureLsmEnforcerLoaded() error {
 	lsmEnforcerMu.Lock()
 	defer lsmEnforcerMu.Unlock()
+
+	if err := bpfLSMReadiness(); err != nil {
+		lsmEnforcer.LastError = err.Error()
+		return err
+	}
 
 	if lsmEnforcerAvailableLocked() && lsmEnforcerAttachedLocked() {
 		return nil
