@@ -18,6 +18,11 @@ type cgroupAttributionEntry struct {
 	ToolCallID   string
 	RootAgentPID uint32
 	CreatedAt    time.Time
+	// Ambiguous is a fail-closed tombstone when different Agent roots share
+	// a cgroup. It persists until GC to prevent last-writer-wins attribution.
+	Ambiguous bool
+	TaskAmbiguous bool
+	ToolAmbiguous bool
 }
 
 type cgroupAttributionStore struct {
@@ -32,7 +37,7 @@ func newCgroupAttributionStore() *cgroupAttributionStore {
 }
 
 func (s *cgroupAttributionStore) Set(cgroupID uint64, entry cgroupAttributionEntry) {
-	if s == nil || cgroupID == 0 {
+	if s == nil || cgroupID == 0 || entry.AgentRunID == "" {
 		return
 	}
 	entry.CgroupID = cgroupID
@@ -40,8 +45,41 @@ func (s *cgroupAttributionStore) Set(cgroupID uint64, entry cgroupAttributionEnt
 		entry.CreatedAt = time.Now().UTC()
 	}
 	s.mu.Lock()
+	defer s.mu.Unlock()
+	old, exists := s.items[cgroupID]
+	if exists {
+		if old.Ambiguous {
+			// Do not allow a later writer to reclaim an already shared cgroup.
+			return
+		}
+		if old.AgentRunID != entry.AgentRunID ||
+			(old.RootAgentPID != 0 && entry.RootAgentPID != 0 && old.RootAgentPID != entry.RootAgentPID) {
+			old.Ambiguous = true
+			old.AgentRunID = ""
+			old.TaskID = ""
+			old.ToolCallID = ""
+			old.RootAgentPID = 0
+			s.items[cgroupID] = old
+			return
+		}
+		// A cgroup alone cannot distinguish two concurrent tool calls or
+		// tasks of the SAME Agent. Retain root identity but erase the
+		// conflicting finer-grained attribution permanently for this TTL.
+		old.TaskAmbiguous = old.TaskAmbiguous || old.TaskID != entry.TaskID
+		old.ToolAmbiguous = old.ToolAmbiguous || old.ToolCallID != entry.ToolCallID
+		if old.TaskAmbiguous {
+			old.TaskID = ""
+		}
+		if old.ToolAmbiguous {
+			old.ToolCallID = ""
+		}
+		if old.RootAgentPID == 0 {
+			old.RootAgentPID = entry.RootAgentPID
+		}
+		s.items[cgroupID] = old
+		return
+	}
 	s.items[cgroupID] = entry
-	s.mu.Unlock()
 }
 
 func (s *cgroupAttributionStore) Get(cgroupID uint64) (cgroupAttributionEntry, bool) {
@@ -51,7 +89,7 @@ func (s *cgroupAttributionStore) Get(cgroupID uint64) (cgroupAttributionEntry, b
 	s.mu.RLock()
 	entry, ok := s.items[cgroupID]
 	s.mu.RUnlock()
-	return entry, ok
+	return entry, ok && !entry.Ambiguous && entry.AgentRunID != ""
 }
 
 func (s *cgroupAttributionStore) EvictOlderThan(maxAge time.Duration) {
