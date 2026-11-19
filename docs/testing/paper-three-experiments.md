@@ -1,6 +1,6 @@
 # Three experiments for a reproducible systems-paper evaluation
 
-Status: **instruments and schemas provided; no live measurements recorded here.**
+Status: **CI live measurements now exist for read(2) crossover, isolated three-mode attribution, and cgroup network denials; full BPF LSM file/mmap verification remains unavailable.**
 A top-conference claim also requires novelty, competing systems, and
 external-validity evidence—not simply three completed tables.
 
@@ -48,7 +48,7 @@ the latency_us header and values. Document exact operation mix and
 sampling overhead instead of treating mixed operation samples as a single
 homogeneous syscall.
 
-For a **per-call** P95 sample, a separate Go sampler measures one pread(2)
+For a **per-call** P95 sample, a separate Go sampler measures one read(2)
 operation on a pre-opened file for each individual sample. It includes
 userspace timing cost; it is NOT an eBPF-only overhead estimate. Run it with
 the backend BPF programs actually attached, on the same test host and after
@@ -64,7 +64,7 @@ done
 ~~~
 
 Use the same report folder as the verified summary_c*.json files when
-generating the paper table. These P95 samples describe **pread latency
+generating the paper table. These P95 samples describe **read(2) latency
 with attached hooks**, not all 18 operations and not tail latency of full
 Agent workflows. Do not merge their distributions or label them as
 end-to-end latency.
@@ -73,13 +73,40 @@ Test all C levels on the **same physical host**, not separate ephemeral
 GitHub Action matrix runners. Randomize phase/order to check temperature,
 cache, and governor effects.
 
-| C | Mean overhead (%) | Per-call P95 (us) | State |
-|---:|---:|---:|---|
-| 1 | — | — | Awaiting valid control |
-| 4 | — | — | Awaiting valid control |
-| 8 | — | — | Awaiting valid control |
-| 16 | — | — | Awaiting valid control |
-| 32 | — | — | Awaiting valid control |
+### Verified live matched-daemon crossover (2026-11-19)
+
+Actual CI [run #44512199846](https://github.com/stevessr/agent-ebpf-filter/actions/runs/44512199846)
+on Linux 7.0.0-1017-azure verified 202 pinned tracepoint **kernel link IDs**
+removed for off and reattached for on while the same backend process
+stayed running. 10 balanced AB/BA pairs per C, 5,000 individually timed
+read(2) calls per phase, 500,000 total. A 95% percentile bootstrap
+resamples paired cycles, not all correlated individual calls.
+
+| C | Paired mean monitoring increase | 95% paired bootstrap CI | On-state read P95 (µs) |
+|---:|---:|---|---:|
+| 1 | +58.82% | [+51.38%, +65.79%] | 0.465 |
+| 4 | +59.00% | [+48.38%, +68.81%] | 0.495 |
+| 8 | +72.98% | [+62.25%, +85.42%] | 0.487 |
+| 16 | +64.22% | [+53.77%, +74.23%] | 0.517 |
+| 32 | +69.15% | [+57.63%, +78.29%] | 0.510 |
+
+This is the project's **tracepoint + collector monitoring cost** for a
+very small read(2) call. It does not establish a general syscall or full
+Agent workflow cost; 4 logical CPUs also mean oversubscription at high C.
+The archived original off-before-daemon experiment was more confounded
+and is not suitable for causal conclusions.
+
+The paper table generator can validate all 100 real phase CSVs and the
+kernel-link evidence manifest directly, rejecting missing data:
+
+~~~bash
+python3 scripts/paper-experiment-tables.py \
+  --matched-crossover-dir reports/paper-crossover \
+  --output reports/paper-crossover/section6-tables.md
+~~~
+
+[Full protocol](paper-matched-crossover.md) and
+[permanent compact results](../../benchmarks/paper-2026-11-19/read_matched_crossover_measured.csv).
 
 ## Experiment B: 2–4 Agent attribution ablation
 
@@ -146,11 +173,27 @@ unknown label ⊥. Report the mutually exclusive fractions:
 correct / N, assigned-to-wrong-Agent / N, unknown / N. Also stratify by
 command to expose same-name cross-Agent contamination.
 
-| Agents | PID-only: correct/false/⊥ | Lifecycle: correct/false/⊥ | Combined: correct/false/⊥ |
+### Actual independent-kernel-run event-level observations
+
+CI [#44492325326](https://github.com/stevessr/agent-ebpf-filter/actions/runs/44492325326)
+ran separate PID-only, lifecycle-only and combined backends, each with
+270 ground-truth git/python/node tool processes and 270/270 process-level
+event coverage. Event-level correct/false/unknown:
+
+| Agents | PID-only | Lifecycle-only | Combined |
 |---:|---|---|---|
-| 2 | — / — / — | — / — / — | — / — / — |
-| 3 | — / — / — | — / — / — | — / — / — |
-| 4 | — / — / — | — / — / — | — / — / — |
+| 2 | 0/0/529 (N=529) | 584/0/0 (N=584) | 598/0/0 (N=598) |
+| 3 | 0/0/919 (N=919) | 815/0/0 (N=815) | 828/0/7 (N=835) |
+| 4 | 0/0/1082 (N=1082) | 1193/0/5 (N=1198) | 1133/0/9 (N=1142) |
+
+Total event-level accuracy: PID-only 0/2530, lifecycle-only 2592/2597
+(99.81%), combined 2559/2575 (99.38%). **Combined did not outperform
+lifecycle-only** on these separate runs. This workload does not produce
+genuine native Agent SDK semantic Hook traces; it cannot establish a
+third semantic modality's incremental benefit. Events have unequal
+denominators because each experiment captured a different mix.
+See the raw per-mode event data and
+[compact measured confusion data](../../benchmarks/paper-2026-11-19/attribution_three_mode_measured.csv).
 
 ## Experiment C: cgroup + 14-hook BPF LSM enforcement
 
