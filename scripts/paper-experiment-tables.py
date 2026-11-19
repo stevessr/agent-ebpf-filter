@@ -46,6 +46,21 @@ def truthy(value: str) -> bool:
     return value.strip().lower() in {"1", "yes", "true"}
 
 
+def wilson_interval(successes: int, trials: int) -> str:
+    """Two-sided 95% Wilson binomial CI, distinct from the observed trial rate."""
+    if trials == 0:
+        return "N/A"
+    if trials < 0 or successes < 0 or successes > trials:
+        raise ValueError("invalid binomial observations")
+    z = 1.959963984540054
+    p = successes / trials
+    denominator = 1 + z*z/trials
+    center = (p + z*z/(2*trials))/denominator
+    half = z*math.sqrt(p*(1-p)/trials + z*z/(4*trials*trials))/denominator
+    lower, upper = max(0.0, center-half), min(1.0, center+half)
+    return f"{100*lower:.2f}%–{100*upper:.2f}%"
+
+
 def clean_agent(value: str) -> str:
     return value.strip().lower()
 
@@ -140,8 +155,8 @@ def attribution_table(path: Path | None) -> list[str]:
 def enforcement_table(path: Path | None) -> list[str]:
     lines = [
         "### Table 6.3 — Kernel enforcement end-to-end",
-        "| Probe | Deterministic deny rate | Pass / trials | Apply P50/P95 (µs) | Revoke P50/P95 (µs) |",
-        "|---|---:|---:|---|---|",
+        "| Probe | Deterministic deny rate | Pass / trials | Apply P50/P95 (µs) | Revoke P50/P95 (µs) | 95% Wilson CI |",
+        "|---|---:|---:|---|---|---|",
     ]
     evidence = rows(path) if path and path.exists() else []
     needed = ("case", "control_ok", "denied", "errno", "restored", "apply_us", "revoke_us")
@@ -167,14 +182,16 @@ def enforcement_table(path: Path | None) -> list[str]:
         revoke = [float(x["revoke_us"]) for x in items]
         def fmt(values: list[float]) -> str:
             return f"{percentile(values, 50):.1f} / {percentile(values, 95):.1f}" if values else "—"
-        lines.append(f"| {case} | {pct(success, n)} | {success}/{n} | {fmt(apply)} | {fmt(revoke)} |")
+        lines.append(f"| {case} | {pct(success, n)} | {success}/{n} | {fmt(apply)} | {fmt(revoke)} | {wilson_interval(success, n)} |")
     lines.extend([
         "",
         "A successful trial requires a working no-policy control, an actual denied",
         "operation with errno EPERM/EACCES, and success again after revocation.",
         "Apply/revoke columns are API round-trip times, **not** proven kernel",
         "policy propagation time. 100% is reportable only when every recorded",
-        "trial satisfies all four conditions.",
+        "trial satisfies all four conditions; a 100% observed rate is not proof",
+        "of universal 100% blocking. The final column uses two-sided 95%",
+        "Wilson binomial confidence intervals.",
     ])
     return lines
 
