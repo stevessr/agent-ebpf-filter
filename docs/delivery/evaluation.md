@@ -526,7 +526,21 @@ cd kernel-ml && make cuda-helper-self-test CUDA_HOME=/opt/cuda
 
 ---
 
-## 12. 最终结论模板
+## 12. 论文三组补充实验（待实测）
+
+详见 [可复现的三组论文实验](../testing/paper-three-experiments.md)，使用 `scripts/paper-experiment-tables.py` 仅从真实记录生成数据表。论文 Section 6.1 与本报告的 AgentSight Section 6.1 不是同一节。
+
+| 实验 | 当前结论 | 原始证据 |
+| --- | --- | --- |
+| C=1,4,8,16,32 真实 off/on 并发开销 | 待实测；现有默认脚本没有合法 off baseline，也没有 per-call P95 | `reports/ebpf-concurrent-*/summary_c*.json` |
+| 2–4 Agent 同名命令归因三模式消融 | 已有真实并发工作负载生成器，尚缺三模式隔离运行及盲测预测 | `reports/paper-experiments/ground-truth.csv`、`attribution.csv` |
+| cgroup + BPF LSM 硬阻断率与规则时延 | 需要开启 BPF LSM 的特权隔离主机，尚无对应 errno+撤销恢复的逐次记录 | `reports/paper-experiments/enforcement.csv` |
+
+生成后的 Markdown 可作为论文表格依据，但 **N=0 的单元格保持未测，不得据此声称 100% 阻断**。
+
+---
+
+## 13. 最终结论模板
 
 最终答辩前将本节替换为真实结论：
 
