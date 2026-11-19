@@ -97,3 +97,33 @@ A separate **cgroup-only network deny** workflow
 was launched to exercise TCP/UDP/IPv4-mapped IPv6 paths without requiring
 the unavailable LSM. Its final per-case error-code evidence must be
 read from its own artifact, not assumed from a successful build.
+
+## Completed 100-trial-per-case cgroup network policy enforcement
+
+[GitHub Actions run 44486257386](https://github.com/stevessr/agent-ebpf-filter/actions/runs/44486257386)
+completed successfully. Raw artifact: `paper-cgroup-network-denial-100trials`
+(artifact ID `14510942702`). Live status recorded
+`available=true`, `attached=true`, `linkCount=4` for cgroup
+`connect4`, `connect6`, `sendmsg4`, and `sendmsg6`.
+
+| Probe | Full control+denial+recovery | Rule apply API P50/P95 (µs) | Rule revoke API P50/P95 (µs) |
+|---|---:|---:|---:|
+| TCP connect | 100/100, errno=1 | 312.6 / 384.0 | 264.1 / 298.8 |
+| UDP connect | 100/100, errno=1 | 250.7 / 318.4 | 241.0 / 304.9 |
+| UDP sendto | 100/100, errno=1 | 240.7 / 305.8 | 253.8 / 318.2 |
+| IPv4-mapped IPv6 | 100/100, errno=1 | 307.9 / 357.7 | 260.3 / 309.1 |
+
+All 400 recorded trials had `control_ok=true`, `denied=true`,
+`errno=1 (EPERM)`, and `restored=true`, checked from original CSV,
+with no trials missing in these four declared cases.
+These data substantiate 100% **observed** blocking in 100 trials for each
+cgroup network path on the test runner, not a universal 100% guarantee.
+
+Times are end-to-end localhost policy HTTP API round trips, not direct
+kernel BPF map mutation latencies or enforcement propagation times.
+The 14 BPF LSM hooks could not be attached and no valid read/write/mmap
+block-rate or policy latency has been measured for them.
+
+Permanent compact summary CSVs are under
+`benchmarks/paper-2026-11-19/`. Full sample-level evidence remains in
+the Actions artifacts while retained.
