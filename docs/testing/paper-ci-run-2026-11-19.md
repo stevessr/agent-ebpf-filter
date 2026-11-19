@@ -127,3 +127,70 @@ block-rate or policy latency has been measured for them.
 Permanent compact summary CSVs are under
 `benchmarks/paper-2026-11-19/`. Full sample-level evidence remains in
 the Actions artifacts while retained.
+
+## Real isolated three-mode attribution study (completed)
+
+[GitHub Actions run 44492325326](https://github.com/stevessr/agent-ebpf-filter/actions/runs/44492325326),
+artifact `paper-attribution-three-mode-raw` (artifact ID `14514285575`).
+The tested **code SHA** is
+`1254f815b76bae1f1c7026c64f36f623288cd7e6`, not the later
+documentation/CI branch HEAD. Host kernel:
+Linux `7.0.0-1017-azure`, x86_64. Each mode was a *fresh real backend
+process* with independently verified attached kernel tracing programs
+and 30 cohorts of actual competing registered Agent roots.
+
+| Concurrent Agents | Mode | Event N | Correct | Wrong Agent | Unattributed (⊥) | Process coverage |
+|---:|---|---:|---:|---:|---:|---:|
+| 2 | PID-only | 529 | 0 | 0 | 529 | 60/60 |
+| 3 | PID-only | 919 | 0 | 0 | 919 | 90/90 |
+| 4 | PID-only | 1082 | 0 | 0 | 1082 | 120/120 |
+| 2 | Lifecycle-only | 584 | 584 | 0 | 0 | 60/60 |
+| 3 | Lifecycle-only | 815 | 815 | 0 | 0 | 90/90 |
+| 4 | Lifecycle-only | 1198 | 1193 | 0 | 5 | 120/120 |
+| 2 | Combined | 598 | 598 | 0 | 0 | 60/60 |
+| 3 | Combined | 835 | 828 | 0 | 7 | 90/90 |
+| 4 | Combined | 1142 | 1133 | 0 | 9 | 120/120 |
+
+Aggregate **event-level**:
+- PID-only: 0/2530 correct, 0/2530 falsely attributed,
+  2530/2530 unattributed.
+- Lifecycle-only: 2592/2597 correctly attributed (99.81%);
+  zero wrong-Agent, 5/2597 unattributed.
+- Combined: 2559/2575 correctly attributed (99.38%);
+  zero wrong-Agent, 16/2575 unattributed.
+- **Process-level coverage** is 270/270 in all three independent runs.
+  At least one correct kernel event occurred for each of the 270/270
+  tool-processes in lifecycle and combined modes; PID-only has 0/270.
+- Event mix includes `execve`, `process_exit`, `process_fork`,
+  `process_exec` and `write`. Some independent process-exit events
+  in the later two modes remained unattributed (all in `node`).
+- Events have unique backend IDs and were joined to ground-truth
+  subprocess PID + process lifetime + matching observed PPID, allowing
+  privacy-redacted command names only with independent PID/time evidence.
+
+**Research interpretation and threats:**
+1. Combined did NOT outperform lifecycle-only (99.38% vs 99.81%
+   event-correct). This is an independent-run, unequal-denominator,
+   nonrandomized comparison, not statistical proof of inferiority.
+2. The real git/python/node workload seeds Agent roots through /register
+   but does not generate genuine Native Hook semantic tool spans. The
+   contribution of a distinct third semantic modality is *not yet tested*,
+   so a "tri-modal improvement" claim would be unsupported.
+3. Per-process coverage is not the same as per-syscall capture completeness.
+   API snapshots impose a 1000-event page limit; repeated snapshots are
+   deduplicated by event ID, and captured events are not a census of every
+   syscall.
+4. Zero observed wrong-Agent assignments in these trials is not a proof
+   of zero false attribution in all real Agent workflows; particularly
+   adversarial prompt injection, PID churn and cgroup migration require
+   separate testing.
+
+Additional analysis tables:
+`benchmarks/paper-2026-11-19/attribution_three_mode_measured.csv`
+and `attribution_by_command_measured.csv`.
+
+**Prior failed run:** first isolated study #44490645786 completed PID-only
+but could not verify eBPF attachments on the next backend process because
+persistent pinned links were reused without bootstrapping new in-process
+health. The research-specific startup now refreshes kernel attachment,
+and experiment #44492325326 finished all three modes successfully.
