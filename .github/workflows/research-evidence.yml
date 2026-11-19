@@ -17,6 +17,7 @@ on:
       - 'backend/app/commdefaultstracked_research_test.go'
       - 'backend/app/attribution_cgroup.go'
       - 'backend/app/attribution_cgroup_conflict_test.go'
+      - 'backend/app/attribution_cgroup_conflict_integration_test.go'
       - 'scripts/paper-attribution-reconcile.py'
       - 'scripts/tests/test-paper-attribution-reconcile.py'
       - 'scripts/paper-enforcement-trials.py'
