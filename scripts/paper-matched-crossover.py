@@ -140,8 +140,11 @@ def run(args: argparse.Namespace) -> None:
                 for phase in order:
                     if states != phase:
                         if phase == "off":
-                            switch_off(ids)
+                            # Mark non-attached BEFORE mutating pins. A
+                            # partial unlink failure must still trigger
+                            # tracepoint restoration in finally.
                             states = "off"
+                            switch_off(ids)
                         else:
                             ids = switch_on(args.backend, initial_names)
                             states = "on"
