@@ -5,6 +5,9 @@ on:
     branches: ['research/**']
     paths:
       - '.github/workflows/paper-matched-crossover.yml'
+      - 'scripts/paper-matched-crossover.py'
+      - 'scripts/paper-matched-crossover-summary.py'
+      - 'scripts/paper-syscall-latency.go'
   workflow_dispatch:
 
 permissions:
