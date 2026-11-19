@@ -14,6 +14,12 @@ source "$ROOT_DIR/scripts/benchmark-api.sh"
 # Concurrency levels to test (simulating real-world scenarios)
 CONCURRENCY_LEVELS="${BENCH_CONCURRENCY:-1 4 8 16 32}"
 CYCLES="${BENCH_CYCLES:-10}"
+# Optional operator-supplied switch: must disable/enable kernel hooks while
+# keeping the authenticated backend responsive. Without it, both runs are
+# eBPF-attached replicates, NOT a valid baseline/overhead measurement.
+BENCH_PHASE_SCRIPT="${BENCH_PHASE_SCRIPT:-}"
+BENCH_COMPARISON_VALID=0
+export BENCH_COMPARISON_VALID
 RUNS=3
 WARMUP=1
 ITERATIONS=5000
@@ -51,6 +57,30 @@ check_ebpf_loaded() {
     local response
     response="$(benchmark_bootstrap_health)" || return 1
     benchmark_has_attached_programs "$response"
+}
+
+prepare_phase() {
+    local mode="$1"
+    if [[ -z "$BENCH_PHASE_SCRIPT" ]]; then
+        return 0
+    fi
+    if [[ ! -x "$BENCH_PHASE_SCRIPT" ]]; then
+        log_error "BENCH_PHASE_SCRIPT is not executable: $BENCH_PHASE_SCRIPT"
+        return 1
+    fi
+    "$BENCH_PHASE_SCRIPT" "$mode" || return 1
+    if ! check_backend_running; then
+        log_error "Backend must remain authenticated and responsive during $mode"
+        return 1
+    fi
+    if [[ "$mode" == "baseline" ]] && check_ebpf_loaded; then
+        log_error "Baseline invalid: eBPF programs are still attached"
+        return 1
+    fi
+    if [[ "$mode" == "ebpf" ]] && ! check_ebpf_loaded; then
+        log_error "eBPF phase invalid: no eBPF program is attached"
+        return 1
+    fi
 }
 
 run_benchmark_for_concurrency() {
@@ -189,7 +219,12 @@ with open(ebpf_file) as f:
 summary = {
     "concurrency": int(concurrency),
     "cycles": baseline["cycles"],
-    "operations": []
+    "operations": [],
+    "baseline_state": "detached" if os.environ.get("BENCH_COMPARISON_VALID") == "1" else "attached",
+    "ebpf_state": "attached",
+    "comparison_valid": os.environ.get("BENCH_COMPARISON_VALID") == "1",
+    "p95_latency_us": None,
+    "metric_type": "batch_time_per_operation_not_per_call_latency"
 }
 
 for op_name in baseline["operations"]:
@@ -266,6 +301,13 @@ main() {
         exit 1
     fi
     log_success "Verified attached eBPF programs before starting benchmark cycles"
+    if [[ -z "$BENCH_PHASE_SCRIPT" ]]; then
+        log_warn "No BENCH_PHASE_SCRIPT: both phases use attached eBPF; report is paired-run drift, NOT kernel overhead."
+        log_warn "P95 per-call latency is NOT measured by this benchmark binary."
+    else
+        BENCH_COMPARISON_VALID=1
+        export BENCH_COMPARISON_VALID
+    fi
     echo ""
 
     # Test each concurrency level
@@ -282,7 +324,8 @@ main() {
         : > "$baseline_jsonl"
         : > "$ebpf_jsonl"
 
-        # Run baseline tests
+        # Baseline is scientifically meaningful only with a detached kernel hook state.
+        prepare_phase baseline
         log_warn "Phase 1: Baseline tests (concurrency=${concurrency})"
         for cycle in $(seq 1 $CYCLES); do
             log "Cycle $cycle/$CYCLES"
@@ -300,7 +343,8 @@ main() {
         log_success "Baseline complete for concurrency=${concurrency}; raw JSONL: $baseline_jsonl"
         echo ""
 
-        # Run eBPF tests
+        # Explicitly re-attach hooks before instrumented measurements.
+        prepare_phase ebpf
         log_warn "Phase 2: eBPF tests (concurrency=${concurrency})"
 
         if ! check_ebpf_loaded; then
