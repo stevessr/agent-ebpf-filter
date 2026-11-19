@@ -69,6 +69,7 @@ class MatchedCrossoverTests(unittest.TestCase):
 
     def test_rejects_duplicate_pair(self):
         self.manifest["phases"][1]["mode"] = "off"
+        self.manifest["phases"][1]["kernel_tracepoint_links"] = 0
         self.write_manifest()
         with self.assertRaisesRegex(ValueError, "duplicate mode"):
             module.analyze(self.folder)
