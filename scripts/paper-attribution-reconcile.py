@@ -76,10 +76,17 @@ def join_live_events(truth: dict, snapshots: Path, skew_before_ms: int = 50,
                 continue
             # The event source is a backend receive timestamp, not the
             # kernel syscall timestamp. Use bounded allowance only.
+            comm = str(event.get("comm") or "").strip()
+            ppid = int(event.get("ppid") or 0)
             matched = [
                 row for row in candidates
                 if int(row["child_pid"]) == pid
-                and TOOL_NAMES[row["command"]] == str(event.get("comm", "")).strip()
+                # The backend privacy layer can redact process names. PID,
+                # process lifetime and an observed PPID are independent ground
+                # truth; never read the MODEL's agentRunId to choose an owner.
+                and (comm == TOOL_NAMES[row["command"]] or comm == "[REDACTED]")
+                and (not ppid or not row.get("root_pid")
+                     or int(row["root_pid"]) == ppid)
                 and int(row["started_ns"]) // 1_000_000 - skew_before_ms <= received
                 <= int(row["finished_ns"]) // 1_000_000 + skew_after_ms
             ]
