@@ -6,6 +6,9 @@ on:
       - master
       - 'research/**'
     paths:
+      - 'scripts/paper-matched-crossover.py'
+      - 'scripts/paper-matched-crossover-summary.py'
+      - 'scripts/tests/test-paper-matched-crossover.py'
       - 'scripts/paper-experiment-tables.py'
       - 'scripts/attribution-concurrent-workload.py'
       - 'backend/app/events/context_event.go'
@@ -30,6 +33,9 @@ on:
       - '.github/workflows/research-evidence.yml'
   pull_request:
     paths:
+      - 'scripts/paper-matched-crossover.py'
+      - 'scripts/paper-matched-crossover-summary.py'
+      - 'scripts/tests/test-paper-matched-crossover.py'
       - 'scripts/paper-experiment-tables.py'
       - 'scripts/attribution-concurrent-workload.py'
       - 'scripts/paper-enforcement-trials.py'
@@ -67,6 +73,9 @@ jobs:
       - name: Syntax check
         run: |
           python3 -m py_compile \
+            scripts/paper-matched-crossover.py \
+            scripts/paper-matched-crossover-summary.py \
+            scripts/tests/test-paper-matched-crossover.py \
             scripts/paper-experiment-tables.py \
             scripts/attribution-concurrent-workload.py \
             scripts/paper-attribution-reconcile.py \
@@ -76,6 +85,8 @@ jobs:
             scripts/tests/test-paper-enforcement.py \
             scripts/tests/test-paper-experiment-tables.py
           bash -n scripts/benchmark-concurrent.sh
+      - name: Matched-daemon crossover statistical and safety checks
+        run: python3 scripts/tests/test-paper-matched-crossover.py -v
       - name: Table aggregation unit tests
         run: python3 scripts/tests/test-paper-experiment-tables.py -v
       - name: Live attribution reconciliation unit tests
