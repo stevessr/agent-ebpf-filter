@@ -268,7 +268,10 @@ with open(output_file, 'w') as f:
 overheads = [op["overhead_percent"] for op in summary["operations"]]
 avg_overhead = sum(overheads) / len(overheads) if overheads else 0
 
-print(f"Concurrency {concurrency}: Average overhead = {avg_overhead:.2f}%")
+if summary["comparison_valid"]:
+    print(f"Concurrency {concurrency}: verified eBPF on/off overhead = {avg_overhead:.2f}%")
+else:
+    print(f"Concurrency {concurrency}: same-attached-state drift = {avg_overhead:.2f}% (NOT eBPF overhead)")
 EOF
 }
 
