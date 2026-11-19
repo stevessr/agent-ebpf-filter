@@ -8,6 +8,8 @@ on:
     paths:
       - 'scripts/paper-experiment-tables.py'
       - 'scripts/attribution-concurrent-workload.py'
+      - 'backend/app/attribution_cgroup.go'
+      - 'backend/app/attribution_cgroup_conflict_test.go'
       - 'scripts/paper-attribution-reconcile.py'
       - 'scripts/tests/test-paper-attribution-reconcile.py'
       - 'scripts/paper-enforcement-trials.py'
@@ -36,6 +38,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.work
+          cache: false
+      - name: Shared-cgroup ambiguity regressions (real Go code)
+        run: go test ./backend/app -run '^TestCgroupAttribution|^TestCgroupAmbiguity' -count=1 -v
       - name: Syntax check
         run: |
           python3 -m py_compile \
