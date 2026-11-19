@@ -19,7 +19,7 @@ class AttributionJoinTests(unittest.TestCase):
             (2, 1): [
                 {"agent_count": "2", "cycle": "1", "child_pid": "101",
                  "started_ns": "10000000000", "finished_ns": "10100000000",
-                 "agent_id": "agent-A", "command": "git"},
+                 "agent_id": "agent-A", "command": "git", "root_pid": "500"},
                 {"agent_count": "2", "cycle": "1", "child_pid": "102",
                  "started_ns": "10000000000", "finished_ns": "10100000000",
                  "agent_id": "agent-B", "command": "python"},
@@ -32,7 +32,7 @@ class AttributionJoinTests(unittest.TestCase):
             folder = Path(directory)
             (folder / "events_agents2_cycle1.json").write_text(json.dumps({
                 "agent_count": 2, "cycle": 1, "source": "memory", "events": [
-                    {"eventId": "evt-1", "pid": 101, "comm": "git", "agentRunId": "agent-A",
+                    {"eventId": "evt-1", "pid": 101, "ppid": 500, "comm": "[REDACTED]", "agentRunId": "agent-A",
                      "receivedAtMs": 10010, "type": "openat"},
                     {"eventId": "evt-2", "pid": 102, "comm": "python3", "agentRunId": "",
                      "receivedAtMs": 10020, "type": "openat"},
