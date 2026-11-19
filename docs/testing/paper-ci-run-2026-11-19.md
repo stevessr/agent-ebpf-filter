@@ -194,3 +194,55 @@ but could not verify eBPF attachments on the next backend process because
 persistent pinned links were reused without bootstrapping new in-process
 health. The research-specific startup now refreshes kernel attachment,
 and experiment #44492325326 finished all three modes successfully.
+
+## New matched-daemon, kernel-link verified, randomized read(2) crossover
+
+[CI #44512199846](https://github.com/stevessr/agent-ebpf-filter/actions/runs/44512199846)
+completed successfully. Raw artifact
+`paper-matched-crossover-real-kernel-links`, ID `14523563051`,
+tested commit `14cbc06ecf7877917202aff0549225745009f9be`,
+kernel `7.0.0-1017-azure`.
+
+**Actual control validation:** the same backend process stayed alive
+across all 100 phases. `bpftool -j -f link show` allowed the harness to
+verify removal of the 202 original project tracepoint kernel link IDs,
+and restoration of 202 new attached kernel link IDs in `on` phases.
+The artifact confirms `restored_tracepoint_links=true` and every
+phase `actual_kernel_link_ids_verified=true`. Cgroup and BPF LSM
+enforcement hook pin directories were never modified.
+
+Each C=1,4,8,16,32 has ten paired cycles, with **five off→on and five
+on→off**, random balanced order using seed 20261119. Each of the two
+phases has 10×5,000 individually timed read(2) samples per C,
+**50,000 per phase per C = 500,000 samples total**. The 95% Bootstrap
+CI resamples the ten *pair-level* percentage changes, not individual
+syscalls. All values below are from raw CSV with complete samples.
+
+| C | Off read mean (µs) | On read mean (µs) | On P95 (µs) | Mean paired increase | 95% paired bootstrap CI |
+|---:|---:|---:|---:|---:|---|
+| 1 | 0.2286 | 0.3628 | 0.4650 | +58.82% | [+51.38%, +65.79%] |
+| 4 | 0.2757 | 0.4379 | 0.4950 | +59.00% | [+48.38%, +68.81%] |
+| 8 | 0.2578 | 0.4430 | 0.4870 | +72.98% | [+62.25%, +85.42%] |
+| 16 | 0.2865 | 0.4698 | 0.5170 | +64.22% | [+53.77%, +74.23%] |
+| 32 | 0.2724 | 0.4598 | 0.5100 | +69.15% | [+57.63%, +78.29%] |
+
+This is a **material methodological improvement** over the old
+off-before-daemon/on-after-daemon data above: the running daemon and
+measured machine are matched, and order is balanced. The result is an
+estimate of monitoring **instrumentation + collector** overhead for a
+tiny `read(2)` operation; it is not the BPF instruction-only cost, and
+it does not directly quantify a complete Agent workflow or arbitrary
+syscalls. CPU scaling at C=8/16/32 is still oversubscribed on this CI
+runner, with potential frequency noise and repeated link pin overhead.
+The earlier 2-million-call snapshot remains archived as exploratory,
+not replaced or retroactively reinterpreted.
+
+Permanent compact inputs:
+`benchmarks/paper-2026-11-19/read_matched_crossover_measured.csv`.
+[Protocol](paper-matched-crossover.md).
+
+**First CI attempt #44511234015 failed** to query one pinned perf-event
+link by pathname; no performance claim was made from that invalid run.
+The harness was corrected to verify via `bpftool -j -f link show`
+global IDs and pinned paths; follow-up #44512199846 finished all
+phases and restored instrumentation.
