@@ -88,6 +88,13 @@ class PaperEvidenceTests(unittest.TestCase):
             self.assertIn("| udp_sendto | 0.00% | 0/1 | 201.0 / 201.0 |", text)
             self.assertIn("| mmap | N/A | 0/0 | — | — |", text)
 
+    def test_wilson_uncertainty_for_perfect_observed_rates(self):
+        self.assertEqual(tables.wilson_interval(0, 0), "N/A")
+        self.assertEqual(tables.wilson_interval(100, 100), "96.30%–100.00%")
+        self.assertEqual(tables.wilson_interval(400, 400), "99.05%–100.00%")
+        with self.assertRaises(ValueError):
+            tables.wilson_interval(101, 100)
+
     def test_numerical_percentile(self):
         self.assertAlmostEqual(tables.percentile([0, 10, 20, 30, 40], 95), 38.0)
 
