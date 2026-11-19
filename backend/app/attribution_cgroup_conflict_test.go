@@ -88,11 +88,32 @@ func TestCgroupAmbiguityExpiresWithGC(t *testing.T) {
 	if _, ok := store.Get(55); ok {
 		t.Fatal("expected conflicting root tombstone")
 	}
+	// The tombstone must expire only after its latest conflict, not after
+	// the first root registration.
+	store.mu.Lock()
+	aged := store.items[55]
+	aged.CreatedAt = time.Now().UTC().Add(-time.Hour)
+	store.items[55] = aged
+	store.mu.Unlock()
 	store.EvictOlderThan(30 * time.Minute)
 	store.Set(55, cgroupAttributionEntry{AgentRunID: "C", RootAgentPID: 300})
 	entry, ok := store.Get(55)
 	if !ok || entry.AgentRunID != "C" {
 		t.Fatalf("GC failed to allow freshly disjoint cgroup identity: %+v %v", entry, ok)
+	}
+}
+
+func TestCgroupActiveAmbiguityRefreshesTTL(t *testing.T) {
+	store := newCgroupAttributionStore()
+	store.Set(999, cgroupAttributionEntry{
+		AgentRunID: "A", RootAgentPID: 100,
+		CreatedAt: time.Now().UTC().Add(-time.Hour),
+	})
+	store.Set(999, cgroupAttributionEntry{AgentRunID: "B", RootAgentPID: 200})
+	store.EvictOlderThan(30 * time.Minute)
+	store.Set(999, cgroupAttributionEntry{AgentRunID: "C", RootAgentPID: 300})
+	if entry, ok := store.Get(999); ok {
+		t.Fatalf("active conflicting cgroup tombstone incorrectly expired: %+v", entry)
 	}
 }
 
