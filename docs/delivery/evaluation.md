@@ -532,11 +532,14 @@ cd kernel-ml && make cuda-helper-self-test CUDA_HOME=/opt/cuda
 
 | 实验 | 当前结论 | 原始证据 |
 | --- | --- | --- |
-| C=1,4,8,16,32 真实 off/on 并发开销 | 待实测；现有默认脚本没有合法 off baseline，也没有 per-call P95 | `reports/ebpf-concurrent-*/summary_c*.json` |
-| 2–4 Agent 同名命令归因三模式消融 | 已有真实并发工作负载生成器，尚缺三模式隔离运行及盲测预测 | `reports/paper-experiments/ground-truth.csv`、`attribution.csv` |
-| cgroup + BPF LSM 硬阻断率与规则时延 | 需要开启 BPF LSM 的特权隔离主机，尚无对应 errno+撤销恢复的逐次记录 | `reports/paper-experiments/enforcement.csv` |
+| C=1,4,8,16,32 并发观测与 P95 | 已实测 read(2) 共 200 万样本，P95 已采集；off-before/on-after 差值存在后端负载与时间偏差，尚不能解释为纯 eBPF 开销 | `benchmarks/paper-2026-11-19/read_observed_summary.csv` |
+| 2–4 Agent 同名命令归因三模式消融 | 已完成 270 次注册根 Agent 的 git/python/node 工作负载，90/90 批次真实重叠；三模式独立预测仍待实测 | `benchmarks/paper-2026-11-19/agent_workload_overlap.csv` |
+| cgroup + BPF LSM 硬阻断率与规则时延 | cgroup 网络四类路径各 100/100，errno=EPERM、撤销后恢复；规则 API 往返 P50/P95 已测。BPF LSM 14-Hook 在该内核未加载，文件 FD/mmap 尚未实测 | `benchmarks/paper-2026-11-19/cgroup_network_summary.csv` |
 
 生成后的 Markdown 可作为论文表格依据，但 **N=0 的单元格保持未测，不得据此声称 100% 阻断**。
+
+[2026-11-19 CI 实测记录与失效边界](../testing/paper-ci-run-2026-11-19.md)；[永久汇总 CSV](../../benchmarks/paper-2026-11-19/README.md)。报告中的 100/100 仅针对 cgroup 网络路径的观测，不推广至不可用的 LSM Hook。
+
 
 ---
 
