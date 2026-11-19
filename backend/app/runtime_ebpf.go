@@ -470,6 +470,21 @@ func isMissingTracepointError(err error) bool {
 // ── service mode ──────────────────────────────────────────────────────────────
 
 func ensureTrackerMapsLoaded() error {
+	// A fresh research backend must reattach the tracepoints in its OWN
+	// process even if an earlier isolated ablation left pinned maps/links.
+	// Otherwise bootstrap-health remains "unknown" with attachedCount=0
+	// and the next experimental mode cannot prove that its sensor is live.
+	// This is strictly opt-in: ordinary backend startup keeps its existing
+	// durable pinned-link behaviour unchanged.
+	mode := strings.TrimSpace(os.Getenv("AGENT_EBPF_RESEARCH_ATTRIBUTION_MODE"))
+	if mode == "pid-only" || mode == "lifecycle-only" || mode == "combined" {
+		if os.Geteuid() != 0 {
+			return fmt.Errorf("research eBPF rebootstrap requires privileged backend")
+		}
+		if err := bootstrapTrackerMaps(); err != nil {
+			return fmt.Errorf("research eBPF rebootstrap (%s): %w", mode, err)
+		}
+	}
 	maps, err := loadPinnedMapHandles()
 	if err != nil {
 		if os.Geteuid() != 0 {
