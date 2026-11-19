@@ -3,6 +3,15 @@
 These compact tables were transcribed from original, inspectable GitHub Actions CSV
 artifacts, not synthesized from assumed kernel behavior.
 
+- **read_matched_crossover_measured.csv (preferred for Section 6.1)**:
+  10 balanced off/on pairs per C=1/4/8/16/32 with the SAME daemon
+  alive, 202 kernel tracepoint Link IDs explicitly detached/reattached,
+  each state 50,000 real read(2) samples per C. Paired 95% bootstrap CI
+  resamples 10 cycles; the estimated project monitoring+collector read
+  cost increases were +58.82% / +59.00% / +72.98% / +64.22% /
+  +69.15% by C. These are not kernel instruction-only timings or
+  full Agent workflow costs.
+  [Successful raw CI #44512199846](https://github.com/stevessr/agent-ebpf-filter/actions/runs/44512199846).
 - read_observed_summary.csv: 10 × 20,000 per-call read(2) samples per concurrency and
   state, **not causal eBPF-only overhead**, on a 4-CPU AMD EPYC 7763 runner.
 - agent_workload_overlap.csv: actual PID/timestamp overlap for registered Agent root
