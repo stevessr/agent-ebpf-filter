@@ -22,19 +22,19 @@ LEVELS = (1, 4, 8, 16, 32)
 
 
 def command(*args: str, timeout: int = 60) -> str:
-    return subprocess.check_output(args, text=True, timeout=timeout, stderr=subprocess.STDOUT)
+    try:
+        return subprocess.check_output(args, text=True, timeout=timeout, stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(f"{args!r} exit {exc.returncode}: {exc.output[-3000:]}") from exc
 
 
-def link_data(path: Path) -> dict:
-    raw = json.loads(command("bpftool", "-j", "link", "show", "pinned", str(path)))
-    if isinstance(raw, list):
-        if len(raw) != 1:
-            raise RuntimeError(f"{path}: expected one pinned link, got {len(raw)}")
-        raw = raw[0]
-    if not isinstance(raw, dict) or "id" not in raw:
-        raise RuntimeError(f"{path}: no kernel link ID in bpftool output")
-    if raw.get("type", "").lower() not in {"tracing", "perf_event"}:
-        raise RuntimeError(f"{path}: unexpected BPF link type {raw.get('type')}")
+def global_link_rows() -> list[dict]:
+    # perf-event tracepoint links may be discoverable via the global
+    # BPF_LINK_GET_NEXT_ID API even when a pinned-path BPF_OBJ_GET fails.
+    # --bpffs exposes the kernel-observed pin filenames for each link ID.
+    raw = json.loads(command("bpftool", "-j", "-f", "link", "show"))
+    if not isinstance(raw, list) or not raw:
+        raise RuntimeError("bpftool did not return kernel BPF link records")
     return raw
 
 
@@ -46,17 +46,30 @@ def pinned_links() -> dict[str, int]:
         raise RuntimeError(f"only {len(entries)} project tracepoint pins; expected >=100")
     if not all(p.is_file() and not p.is_symlink() for p in entries):
         raise RuntimeError("unexpected directory/symlink in project tracepoint pins")
-    ids = {p.name: int(link_data(p)["id"]) for p in entries}
+    index: dict[str, dict] = {}
+    for row in global_link_rows():
+        pinned = row.get("pinned", [])
+        if isinstance(pinned, str):
+            pinned = [pinned]
+        for path in pinned:
+            if path in index:
+                raise RuntimeError(f"duplicate pinned BPF link path: {path}")
+            index[path] = row
+    ids = {}
+    for p in entries:
+        info = index.get(str(p))
+        if not info:
+            raise RuntimeError(f"{p}: kernel link ID absent from bpftool -j -f global listing")
+        if str(info.get("type", "")).lower() not in {"perf_event", "tracing"}:
+            raise RuntimeError(f"{p}: unexpected link type {info.get('type')}")
+        ids[p.name] = int(info["id"])
     if len(set(ids.values())) != len(ids):
         raise RuntimeError("two pin paths refer to the same link ID")
     return ids
 
 
 def global_link_ids() -> set[int]:
-    raw = json.loads(command("bpftool", "-j", "link", "show"))
-    if not isinstance(raw, list):
-        raise RuntimeError("bpftool did not return a global BPF link array")
-    return {int(row["id"]) for row in raw}
+    return {int(row["id"]) for row in global_link_rows()}
 
 
 def ensure_backend_responsive() -> None:
