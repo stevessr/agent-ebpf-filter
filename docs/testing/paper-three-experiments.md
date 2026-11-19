@@ -143,6 +143,22 @@ make os-enforcement-smoke-start
 # Or: make os-enforcement-smoke against a running privileged backend
 ~~~
 
+The smoke-start target cleans up the backend process it launches on exit.
+**For repeated trials, keep a privileged backend running in a separate
+terminal**, then enable policy-management on that isolated test backend,
+e.g. with an already authorized local API:
+
+~~~bash
+sudo -E env DISABLE_AUTH=true ./backend/agent-ebpf-filter
+# In a second shell (isolated test host only):
+curl -fsS -X PUT http://127.0.0.1:8080/config/runtime \
+  -H 'Content-Type: application/json' \
+  -d '{"policyManagementEnabled":true}'
+~~~
+
+If authentication is enabled, supply the legitimate API token instead of
+DISABLE_AUTH; do not enable policy management on an exposed production host.
+
 The smoke suite covers TCP, UDP, IPv4-mapped IPv6, existing FD
 read/write, and mmap/mprotect among other cases. A passing smoke test
 is not a deterministic-rate measurement: some probe branches currently
