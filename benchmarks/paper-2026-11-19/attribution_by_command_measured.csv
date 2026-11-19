@@ -1,0 +1,10 @@
+mode,command,observed_events,correct_events,false_attribution_events,unattributed_events,run_id
+pid,git,453,0,0,453,44492325326
+pid,python,515,0,0,515,44492325326
+pid,node,1562,0,0,1562,44492325326
+lifecycle,git,557,557,0,0,44492325326
+lifecycle,python,513,513,0,0,44492325326
+lifecycle,node,1527,1522,0,5,44492325326
+combined,git,479,479,0,0,44492325326
+combined,python,478,478,0,0,44492325326
+combined,node,1618,1602,0,16,44492325326
