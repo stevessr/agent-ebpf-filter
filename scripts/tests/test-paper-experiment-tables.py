@@ -84,7 +84,7 @@ class PaperEvidenceTests(unittest.TestCase):
                      errno="EPERM", restored="true", apply_us=201, revoke_us=91),
             ])
             text = "\n".join(tables.enforcement_table(path))
-            self.assertIn("| tcp_connect | 50.00% | 1/2 | 110.5 / 119.1 |", text)
+            self.assertIn("| tcp_connect | 50.00% | 1/2 | 110.5 / 119.0 |", text)
             self.assertIn("| udp_sendto | 0.00% | 0/1 | 201.0 / 201.0 |", text)
             self.assertIn("| mmap | N/A | 0/0 | — | — |", text)
 
