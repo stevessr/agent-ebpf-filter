@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import importlib.util
 import json
 import math
 import statistics
@@ -65,7 +66,35 @@ def clean_agent(value: str) -> str:
     return value.strip().lower()
 
 
-def concurrency_table(folder: Path | None) -> list[str]:
+def matched_crossover_table(folder: Path) -> list[str]:
+    """Read measured raw on/off phase CSVs through the strict crossover verifier."""
+    source = Path(__file__).with_name("paper-matched-crossover-summary.py")
+    spec = importlib.util.spec_from_file_location("paper_matched_crossover", source)
+    if spec is None or spec.loader is None:
+        raise ValueError("cannot import matched crossover validator")
+    validator = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(validator)
+    measured = validator.analyze(folder)
+    lines = [
+        "### Table 6.1 — Matched-daemon randomized read(2) concurrency crossover",
+        "| C | Mean paired monitoring increase (%) | 95% paired bootstrap CI (%) | On P95 latency (µs) | Evidence |",
+        "|---:|---:|---|---:|---|",
+    ]
+    for level in CONCURRENCIES:
+        cell = measured["by_concurrency"][str(level)]
+        low, high = cell["paired_ci95_percent"]
+        lines.append(
+            f"| {level} | {cell['paired_mean_change_percent']:.2f} | "
+            f"[{low:.2f}, {high:.2f}] | {cell['on_p95_us']:.3f} | "
+            f"Verified {measured['expected_link_count']} actual eBPF link IDs; "
+            f"same-daemon balanced {cell['cycles']} pairs; read(2) only |"
+        )
+    return lines
+
+
+def concurrency_table(folder: Path | None, matched_crossover: Path | None = None) -> list[str]:
+    if matched_crossover is not None:
+        return matched_crossover_table(matched_crossover)
     lines = [
         "### Table 6.1 — Concurrency scalability",
         "| C | Mean overhead (%) | P95 latency (µs) | Evidence |",
@@ -196,14 +225,15 @@ def enforcement_table(path: Path | None) -> list[str]:
     return lines
 
 
-def build(concurrency: Path | None, attribution: Path | None, enforcement: Path | None) -> str:
+def build(concurrency: Path | None, attribution: Path | None, enforcement: Path | None,
+          matched_crossover: Path | None = None) -> str:
     sections = [
         "# Reproducible research tables",
         "",
         "> Values are populated from captured evidence only. “—” means unavailable;",
         "> 0 trials never imply 0% or 100% effectiveness.",
         "",
-        *concurrency_table(concurrency),
+        *concurrency_table(concurrency, matched_crossover),
         "",
         *attribution_table(attribution),
         "",
@@ -216,11 +246,14 @@ def build(concurrency: Path | None, attribution: Path | None, enforcement: Path 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--concurrency-dir", type=Path)
+    parser.add_argument("--matched-crossover-dir", type=Path,
+                        help="Strictly validated raw on/off, same-daemon, kernel-ID crossover")
     parser.add_argument("--attribution-csv", type=Path)
     parser.add_argument("--enforcement-csv", type=Path)
     parser.add_argument("--output", type=Path, default=Path("reports/paper-experiments/tables.md"))
     args = parser.parse_args()
-    result = build(args.concurrency_dir, args.attribution_csv, args.enforcement_csv)
+    result = build(args.concurrency_dir, args.attribution_csv, args.enforcement_csv,
+                   args.matched_crossover_dir)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(result, encoding="utf-8")
     print(f"Wrote evidence-aware tables to {args.output}")
