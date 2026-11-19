@@ -1,0 +1,5 @@
+case,trials,verified_denials,errno,apply_api_p50_us,apply_api_p95_us,revoke_api_p50_us,revoke_api_p95_us,run_id
+tcp_connect,100,100,EPERM,312.6,384.0,264.1,298.8,44486257386
+udp_connect,100,100,EPERM,250.7,318.4,241.0,304.9,44486257386
+udp_sendto,100,100,EPERM,240.7,305.8,253.8,318.2,44486257386
+ipv4_mapped_ipv6,100,100,EPERM,307.9,357.7,260.3,309.1,44486257386

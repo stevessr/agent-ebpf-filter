@@ -526,7 +526,24 @@ cd kernel-ml && make cuda-helper-self-test CUDA_HOME=/opt/cuda
 
 ---
 
-## 12. 最终结论模板
+## 12. 论文三组补充实验（CI 实测与证据边界）
+
+详见 [可复现的三组论文实验](../testing/paper-three-experiments.md)，使用 `scripts/paper-experiment-tables.py` 仅从真实记录生成数据表。论文 Section 6.1 与本报告的 AgentSight Section 6.1 不是同一节。
+
+| 实验 | 当前结论 | 原始证据 |
+| --- | --- | --- |
+| C=1,4,8,16,32 并发观测与 P95 | 已完成同一后端持续运行、202 个 tracepoint 内核 Link ID 核验的随机平衡 off/on 配对实测：10 对/C，每态 50,000 次 `read(2)`，总计 50 万次；配对均值增幅分别 +58.82%、+59.00%、+72.98%、+64.22%、+69.15%，附按配对周期 Bootstrap 的 95% CI。仅适用于此测试负载与 CI 主机，不是纯 BPF 指令耗时 | `benchmarks/paper-2026-11-19/read_matched_crossover_measured.csv`；[原始 CI #44512199846](https://github.com/stevessr/agent-ebpf-filter/actions/runs/44512199846) |
+| 2–4 Agent 同名命令归因三模式消融 | 已完成三模式独立实测：PID-only 0/2530，生命周期 2592/2597（99.81%），联合 2559/2575（99.38%），三模式误归因均为 0；每模式工具进程覆盖 270/270。尚未接入真正 Native Hook 语义模态，联合模式未显示准确率优势 | `benchmarks/paper-2026-11-19/attribution_three_mode_measured.csv`，`attribution_by_command_measured.csv` |
+| cgroup + BPF LSM 硬阻断率与规则时延 | cgroup 网络四类路径各 100/100，errno=EPERM、撤销后恢复；规则 API 往返 P50/P95 已测。BPF LSM 14-Hook 在该内核未加载，文件 FD/mmap 尚未实测 | `benchmarks/paper-2026-11-19/cgroup_network_summary.csv` |
+
+生成后的 Markdown 可作为论文表格依据，但 **N=0 的单元格保持未测，不得据此声称 100% 阻断**。
+
+[2026-11-19 CI 实测记录与失效边界](../testing/paper-ci-run-2026-11-19.md)；[永久汇总 CSV](../../benchmarks/paper-2026-11-19/README.md)。报告中的 100/100 仅针对 cgroup 网络路径的观测，不推广至不可用的 LSM Hook。
+
+
+---
+
+## 13. 最终结论模板
 
 最终答辩前将本节替换为真实结论：
 

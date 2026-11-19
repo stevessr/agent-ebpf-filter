@@ -2,6 +2,8 @@
 
 ## 概述
 
+**论文实验口径提示（2026-11）**：默认脚本的 baseline 和 ebpf 阶段均在已附加 eBPF 的后端上运行，因此只能反映同状态重复测量差异，不能据此计算真实 eBPF 运行时开销。研究用 on/off 对照须配置 `BENCH_PHASE_SCRIPT`，并验证 `summary_c*.json` 的 `comparison_valid=true`、`baseline_state=detached`、`ebpf_state=attached`。现有工具报告的是批次耗时均值，**不测量单次调用 P95**。下文示例数值仅用于展示报告格式，不是当前仓库的真实实验结果。完整方法见 [论文三组实验](paper-three-experiments.md)。
+
 并发性能测试用于模拟真实场景下多个线程/进程同时执行系统调用的情况，评估 eBPF 钩子在高并发环境下的开销。
 
 ## 快速开始

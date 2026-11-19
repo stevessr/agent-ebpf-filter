@@ -1,0 +1,85 @@
+name: Paper randomized matched-daemon eBPF crossover
+
+on:
+  push:
+    branches: ['research/**']
+    paths:
+      - '.github/workflows/paper-matched-crossover.yml'
+      - 'scripts/paper-matched-crossover.py'
+      - 'scripts/paper-matched-crossover-summary.py'
+      - 'scripts/paper-syscall-latency.go'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verified-link-crossover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.work
+          cache: false
+      - name: Build experiment tools and instrumented backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/paper-crossover
+          sudo apt-get update -qq
+          sudo apt-get install -qq -y clang llvm libbpf-dev libelf-dev protobuf-compiler jq linux-tools-common
+          command -v bpftool
+          bpftool version | tee reports/paper-crossover/bpftool-version.txt
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          mkdir -p backend/pb
+          protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto \
+            proto/tracker_common.proto proto/tracker_events.proto \
+            proto/tracker_registration.proto proto/tracker_system.proto \
+            proto/tracker_config.proto proto/tracker_shell.proto
+          (cd backend/ebpf && go generate)
+          go build -o "$RUNNER_TEMP/paper-crossover-backend" ./backend
+          go build -o "$RUNNER_TEMP/paper-crossover-sampler" scripts/paper-syscall-latency.go
+      - name: Start same backend and run kernel-verified randomized on/off crossover
+        shell: bash
+        run: |
+          set -euo pipefail
+          uname -a >reports/paper-crossover/kernel.txt
+          lscpu >reports/paper-crossover/lscpu.txt
+          sudo -E env DISABLE_AUTH=true GIN_MODE=release "$RUNNER_TEMP/paper-crossover-backend" \
+            >reports/paper-crossover/backend.log 2>&1 &
+          pid=$!
+          trap 'sudo kill "$pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8080/system/bootstrap-health \
+               >reports/paper-crossover/health.json 2>/dev/null && \
+               jq -e '.attachedCount >= 100' reports/paper-crossover/health.json >/dev/null; then
+              break
+            fi
+            if [[ "$i" == 60 ]]; then
+              echo 'Project tracepoints unavailable in kernel' >&2
+              exit 1
+            fi
+            sleep 2
+          done
+          sudo -E python3 scripts/paper-matched-crossover.py \
+            --backend "$RUNNER_TEMP/paper-crossover-backend" \
+            --sampler "$RUNNER_TEMP/paper-crossover-sampler" \
+            --out "$PWD/reports/paper-crossover" \
+            --cycles 10 --samples 5000 --seed 20261119 \
+            >reports/paper-crossover/crossover.log 2>&1 || {
+              tail -100 reports/paper-crossover/crossover.log
+              exit 1
+            }
+          python3 scripts/paper-matched-crossover-summary.py \
+            --folder reports/paper-crossover \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Archive complete on/off microsecond samples and real link IDs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-matched-crossover-real-kernel-links
+          path: reports/paper-crossover/
+          if-no-files-found: warn
+          retention-days: 30
