@@ -3,6 +3,12 @@
 These compact tables were transcribed from original, inspectable GitHub Actions CSV
 artifacts, not synthesized from assumed kernel behavior.
 
+- **read_matched_crossover_pairs.csv**: all 50 individual matched
+  cycles (five off→on and five on→off per C), measured off/on means,
+  signed paired difference, per-pair on P95, and 5,000 real per-phase
+  reads. A small permanent per-pair evidence ledger in case the CI
+  raw CSV artifact retention expires. Individual read timings remain
+  in the Actions zip artifact while it is retained.
 - **read_matched_crossover_measured.csv (preferred for Section 6.1)**:
   10 balanced off/on pairs per C=1/4/8/16/32 with the SAME daemon
   alive, 202 kernel tracepoint Link IDs explicitly detached/reattached,
