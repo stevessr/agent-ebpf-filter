@@ -46,7 +46,7 @@ class Backend:
             headers=self.headers, method=method,
         )
         with urllib.request.urlopen(request, timeout=8) as response:
-            if response.status != 200:
+            if not 200 <= response.status < 300:
                 raise RuntimeError(f"{method} {path}: HTTP {response.status}")
             body = response.read()
         return json.loads(body) if body else {}
