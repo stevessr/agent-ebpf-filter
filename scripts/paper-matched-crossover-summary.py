@@ -116,7 +116,7 @@ def report(data: dict) -> str:
     lines = [
         "# Real kernel-link state matched-daemon randomized crossover",
         "",
-        f"Commit: \`{data['sha']}\`; kernel: \`{data['kernel']}\`; "
+        f"Commit: `{data['sha']}`; kernel: `{data['kernel']}`; "
         f"seed: {data['seed']}; verified tracepoint links: {data['expected_link_count']}.",
         "",
         "| C | Off mean read(2) µs | On mean read(2) µs | On P95 µs | Paired mean change | Paired bootstrap 95% CI |",
