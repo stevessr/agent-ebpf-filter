@@ -108,9 +108,30 @@ configurations: **PID only** (exact PID registration lookup); **lifecycle
 only** (trusted fork/exec ancestry, independently seeded root ID);
 **three modalities** (PID plus lifecycle plus wrapper/native semantic
 tool context). Do not simply mask fields in a combined trace and call it
-an isolated ablation. The repository does not currently expose a verified
-one-click feature-gate selector for all three variants, so these still
-require explicit implementation/configuration verification.
+an isolated ablation. This research branch now supports explicit, isolated attribution modes
+through the backend environment variable:
+
+- AGENT_EBPF_RESEARCH_ATTRIBUTION_MODE=pid-only: registered root PID only,
+  no derived child ownership.
+- AGENT_EBPF_RESEARCH_ATTRIBUTION_MODE=lifecycle-only: registered root
+  plus fork/PPID/ancestor propagation, without cgroup lookup/update.
+- AGENT_EBPF_RESEARCH_ATTRIBUTION_MODE=combined: normal runtime
+  resolution, including shared-cgroup evidence where unambiguous.
+
+The modes run as separate backend processes; snapshots are taken after
+every concurrency cohort and joined to independent child PID/PPID/time
+truth. An unknown mode fails closed. This is a RESEARCH-ONLY
+configuration and must not be used to disable production safeguards.
+A controlled git/python/node workload does not produce genuine native
+Agent SDK hook semantics; consequently a combined-mode score **alone**
+cannot demonstrate the benefit of third-party semantic hooks.
+
+Use the reproducible isolated CI workflow
+`.github/workflows/paper-attribution-ablation.yml` or run
+`bash scripts/paper-attribution-ablation-ci.sh` with a properly built
+backend on an authorized host. It reports sensor coverage separately
+from correct attribution / false attribution / unknown.
+
 
 Join kernel events to ground truth by PID, process start timestamp and
 run boundary. Reject PID reuse ambiguity; do not infer Agent from comm.
@@ -158,6 +179,15 @@ curl -fsS -X PUT http://127.0.0.1:8080/config/runtime \
 
 If authentication is enabled, supply the legitimate API token instead of
 DISABLE_AUTH; do not enable policy management on an exposed production host.
+
+BPF LSM startup now checks the active security module list first:
+on a readable /sys/kernel/security/lsm without bpf, it gives a specific
+boot-configuration error rather than treating a later verifier failure as
+the cause. BPF LSM enabled on a host is still only a prerequisite,
+not proof that all 14 programs pass the verifier. The path matching
+implementation currently uses bpf_d_path(), whose availability varies
+by hook and kernel; migrate to the newer BPF LSM bpf_path_d_path()
+kfunc only after controlled verifier tests on a compatible kernel.
 
 The smoke suite covers TCP, UDP, IPv4-mapped IPv6, existing FD
 read/write, and mmap/mprotect among other cases. A passing smoke test
