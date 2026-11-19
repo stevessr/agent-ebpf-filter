@@ -15,6 +15,12 @@ module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
 
+TABLE_SOURCE = Path(__file__).resolve().parents[1] / "paper-experiment-tables.py"
+table_spec = importlib.util.spec_from_file_location("paper_table_builder", TABLE_SOURCE)
+tables = importlib.util.module_from_spec(table_spec)
+table_spec.loader.exec_module(tables)
+
+
 class MatchedCrossoverTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -55,6 +61,18 @@ class MatchedCrossoverTests(unittest.TestCase):
         self.assertEqual(data["by_concurrency"]["32"]["paired_mean_change_percent"], 100.0)
         self.assertEqual(data["by_concurrency"]["32"]["on_p95_us"], 2.0)
         self.assertEqual(data["by_concurrency"]["32"]["paired_ci95_percent"], [100.0, 100.0])
+
+    def test_section_six_uses_verified_raw_control_and_confidence_interval(self):
+        text = tables.build(None, None, None, self.folder)
+        self.assertIn("Matched-daemon randomized read(2)", text)
+        self.assertIn("| 1 | 100.00 | [100.00, 100.00] | 2.000 | Verified 202", text)
+        self.assertNotIn("Invalid baseline", text)
+
+    def test_section_six_rejects_missing_kernel_link_evidence(self):
+        self.manifest["phases"][0]["actual_kernel_link_ids_verified"] = False
+        self.write_manifest()
+        with self.assertRaisesRegex(ValueError, "kernel or backend state"):
+            tables.build(None, None, None, self.folder)
 
     def test_rejects_unverified_off_state(self):
         self.manifest["phases"][0]["actual_kernel_link_ids_verified"] = False
