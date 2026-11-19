@@ -8,6 +8,8 @@ on:
     paths:
       - 'scripts/paper-experiment-tables.py'
       - 'scripts/attribution-concurrent-workload.py'
+      - 'scripts/paper-attribution-reconcile.py'
+      - 'scripts/tests/test-paper-attribution-reconcile.py'
       - 'scripts/paper-enforcement-trials.py'
       - 'scripts/paper-syscall-latency.go'
       - 'scripts/tests/test-paper-enforcement.py'
@@ -39,12 +41,16 @@ jobs:
           python3 -m py_compile \
             scripts/paper-experiment-tables.py \
             scripts/attribution-concurrent-workload.py \
+            scripts/paper-attribution-reconcile.py \
+            scripts/tests/test-paper-attribution-reconcile.py \
             scripts/paper-enforcement-trials.py \
             scripts/tests/test-paper-enforcement.py \
             scripts/tests/test-paper-experiment-tables.py
           bash -n scripts/benchmark-concurrent.sh
       - name: Table aggregation unit tests
         run: python3 scripts/tests/test-paper-experiment-tables.py -v
+      - name: Live attribution reconciliation unit tests
+        run: python3 scripts/tests/test-paper-attribution-reconcile.py -v
       - name: Enforcement recorder unit tests
         run: python3 scripts/tests/test-paper-enforcement.py -v
       - name: Per-call syscall sampler smoke (NOT kernel evidence)
