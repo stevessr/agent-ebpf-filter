@@ -1,5 +1,5 @@
 // Standalone Linux syscall-latency sampler for paper concurrency evidence.
-// Timing is per pread(2) on an already opened FD. Measurement includes
+// Timing is per read(2) on an already opened /dev/zero FD. Measurement includes
 // userspace timing/instrumentation cost. It is NOT eBPF-only overhead.
 package main
 
@@ -19,7 +19,7 @@ func main() {
 	concurrency := flag.Int("concurrency", 1, "concurrent workers")
 	samples := flag.Int("samples", 50000, "total independently timed pread operations")
 	warmup := flag.Int("warmup", 1000, "untimed pread calls per worker")
-	path := flag.String("path", "/etc/hosts", "existing nonempty readable file")
+	path := flag.String("path", "/dev/zero", "existing readable stream (default /dev/zero)")
 	output := flag.String("output", "", "destination CSV containing latency_us")
 	flag.Parse()
 
@@ -28,8 +28,8 @@ func main() {
 		os.Exit(2)
 	}
 	info, err := os.Stat(*path)
-	if err != nil || info.IsDir() || info.Size() == 0 {
-		fmt.Fprintf(os.Stderr, "input file must be an existing nonempty regular file: %s (%v)\n", *path, err)
+	if err != nil || info.IsDir() {
+		fmt.Fprintf(os.Stderr, "input file must be an existing readable file: %s (%v)\n", *path, err)
 		os.Exit(2)
 	}
 
@@ -39,7 +39,7 @@ func main() {
 	var wg sync.WaitGroup
 
 	// Give each worker its own fd and byte buffer. Every timed sample is
-	// a single pread syscall; open/close do not contaminate its latency.
+	// a single read syscall; open/close do not contaminate its latency.
 	for worker := 0; worker < *concurrency; worker++ {
 		start := (*samples * worker) / *concurrency
 		end := (*samples * (worker + 1)) / *concurrency
@@ -54,17 +54,17 @@ func main() {
 			defer syscall.Close(fd)
 			var buf [1]byte
 			for i := 0; i < *warmup; i++ {
-				if _, err := syscall.Pread(fd, buf[:], 0); err != nil {
+				if _, err := syscall.Read(fd, buf[:]); err != nil {
 					errs <- err
 					return
 				}
 			}
 			for i := start; i < end; i++ {
 				before := time.Now()
-				n, err := syscall.Pread(fd, buf[:], 0)
+				n, err := syscall.Read(fd, buf[:])
 				ns := time.Since(before).Nanoseconds()
 				if err != nil || n != 1 {
-					errs <- fmt.Errorf("pread: bytes=%d, err=%w", n, err)
+					errs <- fmt.Errorf("read: bytes=%d, err=%w", n, err)
 					return
 				}
 				durations[i] = float64(ns) / 1000
@@ -105,6 +105,6 @@ func main() {
 		fmt.Fprintf(os.Stderr, "flush CSV: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Printf("collected %d pread(2) timings at concurrency=%d with %d available CPUs; results=%s\n",
+	fmt.Printf("collected %d read(2) timings at concurrency=%d with %d available CPUs; results=%s\n",
 		*samples, *concurrency, runtime.NumCPU(), *output)
 }
