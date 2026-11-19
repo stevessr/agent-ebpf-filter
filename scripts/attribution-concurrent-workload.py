@@ -19,6 +19,7 @@ import subprocess
 import tempfile
 import time
 import urllib.request
+import urllib.parse
 
 COMMANDS = ("git", "python", "node")
 
@@ -101,7 +102,7 @@ def worker(agent_count: int, agent_index: int, cycle: int, gate: mp.Event,
 
 
 def run(agents: tuple[int, ...], cycles: int, backend: str, token: str,
-        repo: Path, dry_run: bool) -> list[dict]:
+        repo: Path, dry_run: bool, capture_callback=None) -> list[dict]:
     for tool in ("git", "python3", "node"):
         if shutil.which(tool) is None:
             raise RuntimeError(f"{tool} not installed; real workflow cannot run")
@@ -147,6 +148,8 @@ def run(agents: tuple[int, ...], cycles: int, backend: str, token: str,
                     raise RuntimeError(
                         f"missing ground truth at C={count}, cycle={cycle}: {got}/{expected}"
                     )
+                if capture_callback is not None:
+                    capture_callback(count, cycle)
     return records
 
 
@@ -157,6 +160,8 @@ def main() -> None:
     parser.add_argument("--backend-url", default="http://127.0.0.1:8080")
     parser.add_argument("--token", default=os.getenv("AGENT_ACCESS_TOKEN", ""))
     parser.add_argument("--repo", type=Path, default=Path(__file__).resolve().parents[1])
+    parser.add_argument("--capture-events-dir", type=Path,
+                        help="Capture backend /events/summaries after EVERY cohort; actual predictions only")
     parser.add_argument("--dry-run", action="store_true",
                         help="No backend registration; produces NON-EVIDENCE development output")
     parser.add_argument("--output", type=Path,
@@ -166,8 +171,33 @@ def main() -> None:
         parser.error("--agents must contain values from 2, 3, 4")
     if args.cycles < 1:
         parser.error("--cycles must be positive")
+    if args.dry_run and args.capture_events_dir:
+        parser.error("--capture-events-dir requires real backend registration, not dry-run")
+    callback = None
+    if args.capture_events_dir:
+        args.capture_events_dir.mkdir(parents=True, exist_ok=True)
+        def capture_backend_events(count: int, cycle: int):
+            # Allow the asynchronous kernel collector time to persist process
+            # events. The time captured here is NOT a kernel event timestamp.
+            time.sleep(0.4)
+            url = args.backend_url.rstrip("/") + "/events/summaries?limit=1000"
+            req = urllib.request.Request(url, headers=(
+                {"X-API-KEY": args.token} if args.token else {}))
+            with urllib.request.urlopen(req, timeout=10) as response:
+                payload = json.load(response)
+            if not isinstance(payload, dict) or not isinstance(payload.get("events"), list):
+                raise RuntimeError("unexpected backend /events/summaries response")
+            snapshot = {
+                "agent_count": count, "cycle": cycle,
+                "observed_at_ns": time.time_ns(),
+                "source": payload.get("source"), "events": payload["events"],
+            }
+            target = args.capture_events_dir / f"events_agents{count}_cycle{cycle}.json"
+            target.write_text(json.dumps(snapshot, ensure_ascii=False), encoding="utf-8")
+            print(f"captured {len(snapshot['events'])} real backend events in {target}", flush=True)
+        callback = capture_backend_events
     records = run(tuple(args.agents), args.cycles, args.backend_url,
-                  args.token, args.repo.resolve(), args.dry_run)
+                  args.token, args.repo.resolve(), args.dry_run, callback)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     fields = ("agent_count", "cycle", "command", "agent_id", "root_pid",
               "child_pid", "started_ns", "finished_ns", "returncode")
