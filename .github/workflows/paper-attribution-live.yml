@@ -5,6 +5,10 @@ on:
     branches: ['research/**']
     paths:
       - '.github/workflows/paper-attribution-live.yml'
+      - 'scripts/attribution-concurrent-workload.py'
+      - 'scripts/paper-attribution-reconcile.py'
+      - 'backend/app/attribution_cgroup.go'
+      - 'backend/app/attribution_cgroup_conflict_test.go'
   workflow_dispatch:
 
 permissions:
