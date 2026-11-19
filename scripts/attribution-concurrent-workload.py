@@ -45,14 +45,14 @@ def register(backend: str, token: str, pid: int, agent_id: str, action: str) -> 
 
 def tool_command(name: str, repo: Path, destination: Path) -> list[str]:
     if name == "git":
-        return ["git", "-C", str(repo), "status", "--porcelain"]
+        return ["git", "-C", str(repo), "cat-file", "--batch"]
     if name == "python":
         return ["python3", "-c",
-                "import pathlib,sys,time; pathlib.Path(sys.argv[1]).write_text('agent'); time.sleep(0.10)",
+                "import pathlib,sys,time; pathlib.Path(sys.argv[1]).write_text('agent'); time.sleep(0.60)",
                 str(destination)]
     if name == "node":
         return ["node", "-e",
-                "require('fs').writeFileSync(process.argv[1],'agent'); setTimeout(()=>{},100)",
+                "require('fs').writeFileSync(process.argv[1],'agent'); setTimeout(()=>{},600)",
                 str(destination)]
     raise ValueError(name)
 
@@ -72,9 +72,17 @@ def worker(agent_count: int, agent_index: int, cycle: int, gate: mp.Event,
             started = time.time_ns()
             child = subprocess.Popen(
                 tool_command(command, Path(repo), destination),
+                # git cat-file --batch deliberately stays alive until EOF;
+                # this gives the kernel collector a real, observable window
+                # without adding a shell whose PID could confuse ownership.
+                stdin=subprocess.PIPE if command == "git" else None,
                 stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
             )
             try:
+                if command == "git":
+                    time.sleep(0.60)
+                    child.stdin.close()
+                    child.stdin = None
                 _, stderr = child.communicate(timeout=10)
             except subprocess.TimeoutExpired:
                 child.kill()
