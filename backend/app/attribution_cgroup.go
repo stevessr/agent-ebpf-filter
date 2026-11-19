@@ -49,7 +49,11 @@ func (s *cgroupAttributionStore) Set(cgroupID uint64, entry cgroupAttributionEnt
 	old, exists := s.items[cgroupID]
 	if exists {
 		if old.Ambiguous {
-			// Do not allow a later writer to reclaim an already shared cgroup.
+			// Each conflicting writer refreshes the tombstone. Otherwise an
+			// active shared cgroup would expire merely because its very first
+			// registration occurred more than one TTL ago.
+			old.CreatedAt = time.Now().UTC()
+			s.items[cgroupID] = old
 			return
 		}
 		if old.AgentRunID != entry.AgentRunID ||
@@ -59,6 +63,7 @@ func (s *cgroupAttributionStore) Set(cgroupID uint64, entry cgroupAttributionEnt
 			old.TaskID = ""
 			old.ToolCallID = ""
 			old.RootAgentPID = 0
+			old.CreatedAt = time.Now().UTC()
 			s.items[cgroupID] = old
 			return
 		}
@@ -76,6 +81,7 @@ func (s *cgroupAttributionStore) Set(cgroupID uint64, entry cgroupAttributionEnt
 		if old.RootAgentPID == 0 {
 			old.RootAgentPID = entry.RootAgentPID
 		}
+		old.CreatedAt = time.Now().UTC()
 		s.items[cgroupID] = old
 		return
 	}
