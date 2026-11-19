@@ -40,18 +40,24 @@ def report(folder: Path) -> str:
             # Per-agent-mode sensor coverage is measured separately; do not
             # treat a missing kernel observation as a model-level abstention.
             expected = count * 10 * 3
-            actual = sum(
-                1 for item in read_records(folder / mode / "results" / f"{mode}-events.csv")
+            observed_rows = [
+                item for item in read_records(folder / mode / "results" / f"{mode}-events.csv")
                 if int(item["agent_count"]) == count
-            )
-            if actual != n:
+            ]
+            if len(observed_rows) != n:
                 raise ValueError(f"{path}: row counts disagree with actual raw events")
+            observed_tools = {
+                (item["cycle"], item["pid"]) for item in observed_rows
+            }
+            if len(observed_tools) > expected:
+                raise ValueError(f"{path}: impossible process coverage count")
+            coverage = f"{len(observed_tools)}/{expected} ({100*len(observed_tools)/expected:.1f}%)"
             def fraction(a):
                 return f"{100*a/n:.2f}%" if n else "N/A"
             lines.append(
                 f"| {count} | {mode} | {n} | {fraction(correct)} | "
                 f"{fraction(false)} | {fraction(unknown)} | "
-                f"See per-mode ground truth ({expected} tool processes) |"
+                f"{coverage} |"
             )
     lines += [
         "",
