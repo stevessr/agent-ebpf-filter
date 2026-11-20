@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"runtime"
+	"slices"
 	"sync"
 	"time"
 
@@ -93,7 +94,10 @@ func runIncrementalCountProfile(profile sweepProfile, store *ml.TrainingDataStor
 }
 
 func buildIncrementalCountContext(profile sweepProfile, store *ml.TrainingDataStore, benchmarkSamples []ml.TrainingSample) (incrementalCountContext, error) {
-	maxValue := maxSweepInt(profile.XValues)
+	maxValue := 0
+	if len(profile.XValues) > 0 {
+		maxValue = slices.Max(profile.XValues)
+	}
 	if maxValue < 1 {
 		return incrementalCountContext{}, fmt.Errorf("%s has no positive count values", profile.Name)
 	}

@@ -289,32 +289,16 @@ func minMax(values []float64) (float64, float64) {
 	}
 	minV, maxV := values[0], values[0]
 	for _, v := range values[1:] {
-		if v < minV {
-			minV = v
-		}
-		if v > maxV {
-			maxV = v
-		}
+		minV = min(minV, v)
+		maxV = max(maxV, v)
 	}
 	return minV, maxV
 }
 
-func maxSweepInt(values []int) int {
-	maxV := 0
-	for _, value := range values {
-		if value > maxV {
-			maxV = value
-		}
-	}
-	return maxV
-}
-
 func clampCount(value, maxValue int) int {
-	if value < 1 {
-		return 1
-	}
-	if maxValue > 0 && value > maxValue {
-		return maxValue
+	value = max(value, 1)
+	if maxValue > 0 {
+		return min(value, maxValue)
 	}
 	return value
 }

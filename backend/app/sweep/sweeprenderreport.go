@@ -512,10 +512,3 @@ func ternary(cond bool, yes, no string) string {
 	}
 	return no
 }
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
