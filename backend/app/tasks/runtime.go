@@ -126,13 +126,6 @@ func ptrTimeIfSet(t time.Time) *time.Time {
 	return &cp
 }
 
-func maxFloat(a float64, b float64) float64 {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 func durationMS(d time.Duration) float64 {
 	if d < 0 {
 		d = 0
@@ -184,9 +177,6 @@ func NewEntry(id, kind string, payload any) *Entry {
 }
 
 func (r *Runtime) Start(queueSize int) {
-	if r == nil {
-		return
-	}
 	if queueSize <= 0 {
 		queueSize = DefaultQueueSize
 	}
@@ -211,9 +201,6 @@ func (r *Runtime) startLocked(queueSize int) (chan *Entry, chan struct{}) {
 }
 
 func (r *Runtime) Submit(entry *Entry) error {
-	if r == nil {
-		return errors.New("backend task runtime is unavailable")
-	}
 	if entry == nil || strings.TrimSpace(entry.id) == "" {
 		return errors.New("backend task entry is invalid")
 	}
@@ -266,9 +253,6 @@ func (r *Runtime) noteRejectedLocked(reason string, err error) {
 }
 
 func (r *Runtime) Get(id string) (*Entry, bool) {
-	if r == nil {
-		return nil, false
-	}
 	r.mu.RLock()
 	entry := r.tasks[strings.TrimSpace(id)]
 	r.mu.RUnlock()
@@ -285,9 +269,6 @@ func (r *Runtime) Cancel(id string) (*Entry, bool) {
 }
 
 func (r *Runtime) Stats() Stats {
-	if r == nil {
-		return Stats{}
-	}
 	r.mu.RLock()
 	queueLen := 0
 	queueCap := 0
@@ -352,9 +333,6 @@ func (r *Runtime) run(queue <-chan *Entry, done chan<- struct{}) {
 // Shutdown rejects new submissions, cancels tracked active tasks, closes the
 // queue, and waits for the worker to finish draining canceled entries.
 func (r *Runtime) Shutdown(ctx context.Context) error {
-	if r == nil {
-		return nil
-	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -384,7 +362,7 @@ func (r *Runtime) Shutdown(ctx context.Context) error {
 }
 
 func (r *Runtime) execute(entry *Entry) (err error) {
-	if r == nil || r.handler == nil {
+	if r.handler == nil {
 		return nil
 	}
 	defer func() {
@@ -400,7 +378,7 @@ func newBackendTaskPanicError(recovered any) error {
 }
 
 func (r *Runtime) completeEntry(entry *Entry, status string, progress float64, message string, panicked bool) {
-	if r == nil || entry == nil {
+	if entry == nil {
 		return
 	}
 	snapshot, accounted := entry.finishForRuntime(status, progress, message, time.Now().UTC())
@@ -411,9 +389,6 @@ func (r *Runtime) completeEntry(entry *Entry, status string, progress float64, m
 }
 
 func (r *Runtime) noteFinished(entry *Entry, snapshot Snapshot, panicked bool) {
-	if r == nil {
-		return
-	}
 	queueLatency, runDuration, totalDuration := backendTaskSnapshotDurations(snapshot)
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -447,9 +422,6 @@ func (r *Runtime) noteFinished(entry *Entry, snapshot Snapshot, panicked bool) {
 }
 
 func (r *Runtime) pruneLocked() {
-	if r == nil {
-		return
-	}
 	for len(r.tasks) > r.maxItems {
 		entry := r.terminalHead
 		if entry == nil {
@@ -467,7 +439,7 @@ func (r *Runtime) pruneLocked() {
 }
 
 func (r *Runtime) trackTerminalLocked(entry *Entry) {
-	if r == nil || entry == nil || entry.id == "" {
+	if entry.id == "" {
 		return
 	}
 	if current := r.tasks[entry.id]; current != entry {
@@ -567,9 +539,6 @@ func (entry *Entry) IsCanceled() bool {
 }
 
 func (entry *Entry) markRunning() bool {
-	if entry == nil {
-		return false
-	}
 	now := time.Now().UTC()
 	entry.mu.Lock()
 	defer entry.mu.Unlock()
@@ -577,7 +546,7 @@ func (entry *Entry) markRunning() bool {
 		return false
 	}
 	entry.status = StatusRunning
-	entry.progress = maxFloat(entry.progress, 0.01)
+	entry.progress = max(entry.progress, 0.01)
 	entry.startedAt = &now
 	return true
 }
@@ -586,12 +555,7 @@ func (entry *Entry) SetProgress(progress float64) {
 	if entry == nil {
 		return
 	}
-	if progress < 0 {
-		progress = 0
-	}
-	if progress > 1 {
-		progress = 1
-	}
+	progress = clampBackendTaskProgress(progress)
 	entry.mu.Lock()
 	if entry.status == StatusRunning && progress > entry.progress {
 		entry.progress = progress
@@ -614,9 +578,6 @@ func (entry *Entry) finish(status string, progress float64, message string) {
 }
 
 func (entry *Entry) finishAt(status string, progress float64, message string, finishedAt time.Time) string {
-	if entry == nil {
-		return status
-	}
 	progress = clampBackendTaskProgress(progress)
 	entry.mu.Lock()
 	status = entry.finishLocked(status, progress, message, finishedAt)
@@ -628,9 +589,6 @@ func (entry *Entry) finishAt(status string, progress float64, message string, fi
 // accounting under the same entry lock. This makes duplicate or concurrent
 // completion attempts harmless without adding a second runtime-side index.
 func (entry *Entry) finishForRuntime(status string, progress float64, message string, finishedAt time.Time) (Snapshot, bool) {
-	if entry == nil {
-		return Snapshot{}, false
-	}
 	progress = clampBackendTaskProgress(progress)
 	entry.mu.Lock()
 	if entry.accounted {
@@ -672,9 +630,6 @@ func clampBackendTaskProgress(progress float64) float64 {
 }
 
 func (entry *Entry) setQueueLen(queueLen int) {
-	if entry == nil {
-		return
-	}
 	entry.mu.Lock()
 	entry.queueLen = queueLen
 	entry.mu.Unlock()
