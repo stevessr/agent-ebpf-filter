@@ -1,9 +1,7 @@
 package network
 
 import (
-	"net"
-	"net/netip"
-	"net/url"
+	internalnetwork "agent-ebpf-filter/internal/network"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -40,9 +38,8 @@ var (
 	auditClearTextBins = map[string]struct{}{
 		"ftp": {}, "telnet": {}, "tftp": {},
 	}
-	auditSuspiciousPorts = map[string]struct{}{
-		"4444": {}, "1337": {}, "31337": {},
-		"6666": {}, "6667": {}, "6668": {}, "6669": {},
+	auditExtraSuspiciousPorts = map[string]struct{}{
+		"6668": {}, "6669": {},
 		"8888": {}, "9999": {},
 	}
 	loopbackExemptDevPorts = map[string]struct{}{
@@ -210,52 +207,34 @@ func hasTokenPrefix(tokens []string, prefix string) bool {
 	return false
 }
 
+func isAuditSuspiciousPort(port string) bool {
+	if internalnetwork.IsSuspiciousPort(port) {
+		return true
+	}
+	_, ok := auditExtraSuspiciousPorts[port]
+	return ok
+}
+
 func findSuspiciousAuditPort(tokens []string) (string, bool) {
 	for i, raw := range tokens {
 		tok := strings.Trim(raw, `"'(),;`)
 		if tok == "" {
 			continue
 		}
-		if host, port, ok := extractHostAndPort(tok); ok {
-			if _, hit := auditSuspiciousPorts[port]; !hit {
+		if host, port := internalnetwork.SplitEndpointHostPort(tok); port != "" {
+			if !isAuditSuspiciousPort(port) {
 				continue
 			}
-			if _, devExempt := loopbackExemptDevPorts[port]; devExempt && isLoopbackAuditHost(host) {
+			if _, devExempt := loopbackExemptDevPorts[port]; devExempt && internalnetwork.IsLoopbackHost(host) {
 				continue
 			}
 			return port, true
 		}
 		if i > 0 && (tokens[i-1] == "-p" || tokens[i-1] == "--port") {
-			if _, hit := auditSuspiciousPorts[tok]; hit {
+			if isAuditSuspiciousPort(tok) {
 				return tok, true
 			}
 		}
 	}
 	return "", false
-}
-
-func extractHostAndPort(tok string) (host, port string, ok bool) {
-	if strings.Contains(tok, "://") {
-		if u, err := url.Parse(tok); err == nil && u.Host != "" {
-			tok = u.Host
-		}
-	}
-	if h, p, err := net.SplitHostPort(tok); err == nil && p != "" {
-		return strings.ToLower(h), p, true
-	}
-	return "", "", false
-}
-
-func isLoopbackAuditHost(host string) bool {
-	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
-		return true
-	}
-	addr, err := netip.ParseAddr(host)
-	if err != nil {
-		return false
-	}
-	if addr.Is4In6() {
-		addr = addr.Unmap()
-	}
-	return addr.IsLoopback()
 }
