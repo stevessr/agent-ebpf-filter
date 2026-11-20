@@ -312,10 +312,11 @@ const uiDemoInitialRows = 4
 // 5-minute window all treat the events as current activity.
 func uiDemoEventWindow(now time.Time, count int) []eventSummary {
 	count = min(count, len(uiDemoEvents))
+	stepSeconds := max(1, min(27, 290/max(len(uiDemoEvents)-1, 1)))
 	out := make([]eventSummary, 0, count)
 	for i := 0; i < count; i++ {
 		event := uiDemoEvents[i]
-		event.ReceivedAtMS = now.Add(-time.Duration(4+i*27) * time.Second).UnixMilli()
+		event.ReceivedAtMS = now.Add(-time.Duration(4+i*stepSeconds) * time.Second).UnixMilli()
 		out = append(out, event)
 	}
 	return out
