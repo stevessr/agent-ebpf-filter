@@ -28,7 +28,7 @@ func computeRiskScore(classification *pb.BehaviorClassification, anomalyScore fl
 
 func computeAttackVectorScores(classification *pb.BehaviorClassification, anomalyScore float64, mlPrediction ml.Prediction, netAudit NetworkAuditResult, llmAssessment *llmAssessment) AttackVectorScores {
 	var out AttackVectorScores
-	anomaly := clampFloat64(anomalyScore, 0, 1)
+	anomaly := min(max(anomalyScore, 0), 1)
 	confidenceBonus := 0.0
 
 	if classification != nil {
@@ -105,12 +105,12 @@ func computeAttackVectorScores(classification *pb.BehaviorClassification, anomal
 	vectorAnomaly := anomaly * 24
 	out.Intrusion = addIfActive(out.Intrusion, vectorAnomaly+confidenceBonus)
 	out.Destruction = addIfActive(out.Destruction, vectorAnomaly+confidenceBonus)
-	out.Exfiltration = addIfActive(out.Exfiltration, vectorAnomaly+confidenceBonus+clampFloat64(netAudit.RiskScore*0.16, 0, 16))
+	out.Exfiltration = addIfActive(out.Exfiltration, vectorAnomaly+confidenceBonus+min(max(netAudit.RiskScore*0.16, 0), 16))
 	out.Persistence = addIfActive(out.Persistence, vectorAnomaly+confidenceBonus)
 
 	modelPrior := 0.0
 	if mlPrediction.Confidence >= 0.60 {
-		mlConf := clampFloat64(mlPrediction.Confidence, 0, 1)
+		mlConf := min(max(mlPrediction.Confidence, 0), 1)
 		switch mlPrediction.Action {
 		case 1: // BLOCK
 			modelPrior = 30 * mlConf
@@ -123,9 +123,9 @@ func computeAttackVectorScores(classification *pb.BehaviorClassification, anomal
 
 	llmPrior := 0.0
 	if llmAssessment != nil && strings.TrimSpace(llmAssessment.Error) == "" {
-		llmPrior = clampFloat64(llmAssessment.RiskScore*0.22, 0, 22)
+		llmPrior = min(max(llmAssessment.RiskScore*0.22, 0), 22)
 		if llmAssessment.Confidence > 0 {
-			llmPrior += clampFloat64(llmAssessment.Confidence*5, 0, 5)
+			llmPrior += min(max(llmAssessment.Confidence*5, 0), 5)
 		}
 		switch llmAssessment.RecommendedAction {
 		case "BLOCK":
@@ -137,12 +137,12 @@ func computeAttackVectorScores(classification *pb.BehaviorClassification, anomal
 		}
 	}
 
-	out.Intrusion = clampFloat64(out.Intrusion, 0, 100)
-	out.Destruction = clampFloat64(out.Destruction, 0, 100)
-	out.Exfiltration = clampFloat64(out.Exfiltration, 0, 100)
-	out.Persistence = clampFloat64(out.Persistence, 0, 100)
+	out.Intrusion = min(max(out.Intrusion, 0), 100)
+	out.Destruction = min(max(out.Destruction, 0), 100)
+	out.Exfiltration = min(max(out.Exfiltration, 0), 100)
+	out.Persistence = min(max(out.Persistence, 0), 100)
 
-	generalPrior := clampFloat64(anomaly*24+modelPrior+llmPrior, 0, 100)
+	generalPrior := min(max(anomaly*24+modelPrior+llmPrior, 0), 100)
 	first, second, third := topThreeScores(out.Intrusion, out.Destruction, out.Exfiltration, out.Persistence)
 	global := math.Max(first, generalPrior)
 	if first > 0 {
@@ -150,7 +150,7 @@ func computeAttackVectorScores(classification *pb.BehaviorClassification, anomal
 		// but cannot dominate the strongest vector on their own.
 		global += second*0.12 + third*0.05
 	}
-	out.Global = math.Round(clampFloat64(global, 0, 100))
+	out.Global = math.Round(min(max(global, 0), 100))
 	out.Class = attackRiskClass(out.Global)
 	return out
 }

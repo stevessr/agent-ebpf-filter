@@ -218,12 +218,12 @@ func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 	if settings.MLConfig.LlmTimeoutSeconds == 0 {
 		settings.MLConfig.LlmTimeoutSeconds = 45
 	}
-	settings.MLConfig.LlmTimeoutSeconds = clampInt(settings.MLConfig.LlmTimeoutSeconds, 5, maxLLMTimeoutSeconds)
+	settings.MLConfig.LlmTimeoutSeconds = min(max(settings.MLConfig.LlmTimeoutSeconds, 5), maxLLMTimeoutSeconds)
 	if settings.MLConfig.LlmMaxTokens == 0 {
 		settings.MLConfig.LlmMaxTokens = 256
 	}
-	settings.MLConfig.LlmMaxTokens = clampInt(settings.MLConfig.LlmMaxTokens, 32, 4096)
-	settings.MLConfig.LlmTemperature = clampFloat64(settings.MLConfig.LlmTemperature, 0, 2)
+	settings.MLConfig.LlmMaxTokens = min(max(settings.MLConfig.LlmMaxTokens, 32), 4096)
+	settings.MLConfig.LlmTemperature = min(max(settings.MLConfig.LlmTemperature, 0), 2)
 	if strings.TrimSpace(settings.MLConfig.LlmSystemPrompt) == "" {
 		settings.MLConfig.LlmSystemPrompt = defaultLLMScoringSystemPrompt
 	}
