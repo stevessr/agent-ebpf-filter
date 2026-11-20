@@ -110,13 +110,14 @@ func computeAttackVectorScores(classification *pb.BehaviorClassification, anomal
 
 	modelPrior := 0.0
 	if mlPrediction.Confidence >= 0.60 {
+		mlConf := clampFloat64(mlPrediction.Confidence, 0, 1)
 		switch mlPrediction.Action {
 		case 1: // BLOCK
-			modelPrior = 30 * clampFloat64(mlPrediction.Confidence, 0, 1)
+			modelPrior = 30 * mlConf
 		case 3: // ALERT
-			modelPrior = 20 * clampFloat64(mlPrediction.Confidence, 0, 1)
+			modelPrior = 20 * mlConf
 		case 2: // REWRITE
-			modelPrior = 9 * clampFloat64(mlPrediction.Confidence, 0, 1)
+			modelPrior = 9 * mlConf
 		}
 	}
 

@@ -359,9 +359,6 @@ func (s *runtimeState) Snapshot() RuntimeSettings {
 // called several times per event, so an atomic snapshot avoids repeated
 // runtimeState read-lock traffic on the ingestion path.
 func (s *runtimeState) publishHotSettingsLocked() {
-	if s == nil {
-		return
-	}
 	s.hotSettings.Store(&runtimeHotSettings{
 		loopDetection:      s.settings.LoopDetection,
 		researchProcessing: s.settings.ResearchProcessing,
@@ -686,9 +683,6 @@ func (s *runtimeState) AppendEvent(record CapturedEventRecord) error {
 }
 
 func (s *runtimeState) enqueueEvent(record CapturedEventRecord) (bool, error) {
-	if s == nil {
-		return false, nil
-	}
 	s.mu.RLock()
 	writer := s.logWriter
 	store := s.eventStore
@@ -708,9 +702,6 @@ func (s *runtimeState) enqueueEvent(record CapturedEventRecord) (bool, error) {
 }
 
 func (s *runtimeState) FlushEventLogContext(ctx context.Context) error {
-	if s == nil {
-		return nil
-	}
 	s.mu.RLock()
 	writer := s.logWriter
 	store := s.eventStore
@@ -725,9 +716,6 @@ func (s *runtimeState) FlushEventLogContext(ctx context.Context) error {
 }
 
 func (s *runtimeState) EventLogStatus() runtimeEventLogStatus {
-	if s == nil {
-		return runtimeEventLogStatus{}
-	}
 	s.mu.RLock()
 	writer := s.logWriter
 	store := s.eventStore
@@ -742,9 +730,6 @@ func (s *runtimeState) EventLogStatus() runtimeEventLogStatus {
 }
 
 func (s *runtimeState) Shutdown(ctx context.Context) error {
-	if s == nil {
-		return nil
-	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -754,7 +739,7 @@ func (s *runtimeState) Shutdown(ctx context.Context) error {
 }
 
 func (s *runtimeState) eventLogRoot() string {
-	if s != nil && strings.TrimSpace(s.logRoot) != "" {
+	if strings.TrimSpace(s.logRoot) != "" {
 		return s.logRoot
 	}
 	return platform.RuntimeSettingsDir()

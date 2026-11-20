@@ -120,7 +120,10 @@ func bindLLMScoreRequest(c *gin.Context) (llmScoreRequest, bool) {
 		return req, false
 	}
 	if req.Comm == "" && req.CommandLine != "" {
-		req.Comm, req.Args = behavior.SplitCommandLine(req.CommandLine)[0], behavior.SplitCommandLine(req.CommandLine)[1:]
+		if parts := behavior.SplitCommandLine(req.CommandLine); len(parts) > 0 {
+			req.Comm = parts[0]
+			req.Args = parts[1:]
+		}
 	}
 	if req.CommandLine == "" {
 		req.CommandLine = behavior.JoinCommandLine(req.Comm, req.Args)

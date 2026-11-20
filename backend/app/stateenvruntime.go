@@ -78,9 +78,6 @@ func parseStringList(raw string) []string {
 // disables OPENAT and ignores /tmp, and a test harness needs "collect
 // everything" rather than "keep the defaults".
 func seedRuntimeListSettingsFromEnv(settings *RuntimeSettings) {
-	if settings == nil {
-		return
-	}
 	if raw, ok := os.LookupEnv("AGENT_RUNTIME_DISABLED_EVENT_TYPES"); ok {
 		values, err := parseUint32List(raw)
 		if err != nil {
@@ -95,9 +92,6 @@ func seedRuntimeListSettingsFromEnv(settings *RuntimeSettings) {
 }
 
 func normalizeRuntimeSettings(settings *RuntimeSettings) error {
-	if settings == nil {
-		return errors.New("runtime settings are nil")
-	}
 	if strings.TrimSpace(settings.LogFilePath) == "" {
 		settings.LogFilePath = platform.DefaultEventLogPath()
 	}
@@ -246,9 +240,6 @@ func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 }
 
 func seedRuntimeSettingsFromEnv(settings *RuntimeSettings) {
-	if settings == nil {
-		return
-	}
 	seedRuntimeListSettingsFromEnv(settings)
 	seedRuntimeAccessTokenFromEnv(settings)
 	platform.ApplyBoolEnv(&settings.LogPersistenceEnabled, "AGENT_RUNTIME_LOG_PERSISTENCE_ENABLED")
@@ -307,9 +298,6 @@ func seedRuntimeSettingsFromEnv(settings *RuntimeSettings) {
 var normalizeKernelRiskFeedbackSettings = core.NormalizeKernelRiskFeedbackSettings
 
 func normalizeLoopDetectionSettings(settings *LoopDetectionSettings) {
-	if settings == nil {
-		return
-	}
 	if settings.WindowSeconds <= 0 {
 		settings.WindowSeconds = 30
 	}
@@ -345,9 +333,6 @@ func normalizeLoopDetectionSettings(settings *LoopDetectionSettings) {
 var normalizeResearchProcessingSettings = research.NormalizeResearchProcessingSettings
 
 func seedRuntimeAccessTokenFromEnv(settings *RuntimeSettings) {
-	if settings == nil {
-		return
-	}
 	if strings.TrimSpace(settings.AccessToken) != "" {
 		return
 	}
@@ -357,9 +342,6 @@ func seedRuntimeAccessTokenFromEnv(settings *RuntimeSettings) {
 }
 
 func seedRuntimeMLConfigFromEnv(cfg *MLConfig) {
-	if cfg == nil {
-		return
-	}
 	platform.ApplyBoolEnv(&cfg.Enabled, "AGENT_ML_ENABLED")
 	platform.ApplyModelTypeEnv((*string)(&cfg.ModelType), "AGENT_ML_MODEL_TYPE")
 	platform.ApplyStringEnv(&cfg.ModelPath, "AGENT_ML_MODEL_PATH")

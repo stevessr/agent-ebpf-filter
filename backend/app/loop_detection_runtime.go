@@ -146,9 +146,6 @@ func startLoopDetectionWorker(ctx context.Context) {
 }
 
 func (w *loopDetectionWorker) Start(ctx context.Context, queueSize int) {
-	if w == nil {
-		return
-	}
 	queueSize = normalizeBackendWorkerQueueSize(queueSize, loopDetectionDefaultQueueSize)
 	if w.queue.Start(ctx, queueSize, func(ctx context.Context, items <-chan loopDetectionWorkItem) {
 		w.run(ctx, items)
@@ -187,9 +184,6 @@ func (w *loopDetectionWorker) run(ctx context.Context, queue <-chan loopDetectio
 }
 
 func (w *loopDetectionWorker) Shutdown(ctx context.Context) error {
-	if w == nil {
-		return nil
-	}
 	if w.queue.Stats().Started {
 		w.touch()
 	}
@@ -221,9 +215,6 @@ func (w *loopDetectionWorker) EnqueueReset() bool {
 }
 
 func (w *loopDetectionWorker) enqueue(item loopDetectionWorkItem) bool {
-	if w == nil {
-		return false
-	}
 	switch w.queue.TryEnqueue(item) {
 	case workerqueue.Accepted:
 		return true
@@ -236,9 +227,6 @@ func (w *loopDetectionWorker) enqueue(item loopDetectionWorkItem) bool {
 }
 
 func (w *loopDetectionWorker) resetNow() {
-	if w == nil {
-		return
-	}
 	w.mu.Lock()
 	w.windows = make(map[loopDetectionWindowKey]*loopDetectionWindow)
 	w.windowLRUHead = nil
@@ -251,9 +239,6 @@ func (w *loopDetectionWorker) resetNow() {
 }
 
 func (w *loopDetectionWorker) noteDrop(message string) {
-	if w == nil {
-		return
-	}
 	w.mu.Lock()
 	w.droppedTotal++
 	w.lastError = message
@@ -262,16 +247,13 @@ func (w *loopDetectionWorker) noteDrop(message string) {
 }
 
 func (w *loopDetectionWorker) processRecord(record CapturedEventRecord, force bool) {
-	if w == nil {
-		return
-	}
 	settings := runtimeSettingsStore.Snapshot().LoopDetection
 	normalizeLoopDetectionSettings(&settings)
 	w.processRecordWithSettings(record, force, settings)
 }
 
 func (w *loopDetectionWorker) processScan(ctx context.Context, records []CapturedEventRecord, force bool) {
-	if w == nil || len(records) == 0 {
+	if len(records) == 0 {
 		return
 	}
 	if ctx == nil {
@@ -291,7 +273,7 @@ func (w *loopDetectionWorker) processScan(ctx context.Context, records []Capture
 }
 
 func (w *loopDetectionWorker) processRecordWithSettings(record CapturedEventRecord, force bool, settings LoopDetectionSettings) {
-	if w == nil || record.Event == nil || shouldIgnoreLoopDetectionEvent(record.Event) {
+	if record.Event == nil || shouldIgnoreLoopDetectionEvent(record.Event) {
 		return
 	}
 	if !force && !settings.Enabled {
@@ -367,7 +349,7 @@ func (w *loopDetectionWorker) processRecordWithSettings(record CapturedEventReco
 }
 
 func (w *loopDetectionWorker) maybeEvictExpiredLoopDetectionWindowsLocked(now time.Time, windowDuration time.Duration) {
-	if w == nil || now.IsZero() || windowDuration <= 0 {
+	if now.IsZero() || windowDuration <= 0 {
 		return
 	}
 	interval := windowDuration
@@ -401,7 +383,7 @@ func (w *loopDetectionWorker) enforceLoopDetectionWindowCapacityLocked(maxContex
 }
 
 func (w *loopDetectionWorker) appendLoopDetectionWindowLocked(win *loopDetectionWindow) {
-	if w == nil || win == nil {
+	if win == nil {
 		return
 	}
 	win.lruPrev = w.windowLRUTail
@@ -415,7 +397,7 @@ func (w *loopDetectionWorker) appendLoopDetectionWindowLocked(win *loopDetection
 }
 
 func (w *loopDetectionWorker) touchLoopDetectionWindowLocked(win *loopDetectionWindow) {
-	if w == nil || win == nil || w.windowLRUTail == win {
+	if win == nil || w.windowLRUTail == win {
 		return
 	}
 	w.detachLoopDetectionWindowLocked(win)
@@ -423,7 +405,7 @@ func (w *loopDetectionWorker) touchLoopDetectionWindowLocked(win *loopDetectionW
 }
 
 func (w *loopDetectionWorker) removeLoopDetectionWindowLocked(win *loopDetectionWindow) {
-	if w == nil || win == nil {
+	if win == nil {
 		return
 	}
 	if current := w.windows[win.key]; current == win {
@@ -434,7 +416,7 @@ func (w *loopDetectionWorker) removeLoopDetectionWindowLocked(win *loopDetection
 }
 
 func (w *loopDetectionWorker) detachLoopDetectionWindowLocked(win *loopDetectionWindow) {
-	if w == nil || win == nil {
+	if win == nil {
 		return
 	}
 	if win.lruPrev == nil {
@@ -472,11 +454,6 @@ func (w *loopDetectionWorker) emitSemanticAlert(finding loopDetectionFinding) {
 }
 
 func (w *loopDetectionWorker) Status() loopDetectionStatus {
-	if w == nil {
-		settings := runtimeSettingsStore.Snapshot().LoopDetection
-		normalizeLoopDetectionSettings(&settings)
-		return loopDetectionStatus{Enabled: settings.Enabled, Settings: settings, UpdatedAt: time.Now().UTC()}
-	}
 	settings := runtimeSettingsStore.Snapshot().LoopDetection
 	normalizeLoopDetectionSettings(&settings)
 	queueStats := w.queue.Stats()

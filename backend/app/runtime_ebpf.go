@@ -248,7 +248,10 @@ func doBootstrap() (map[string]*ebpf.Map, error) {
 		if err := bpf.LoadAgentTrackerObjects(&objs, &ebpf.CollectionOptions{MapReplacements: replacements}); err == nil {
 			defer objs.Close()
 			_ = os.RemoveAll(ebpfPinLinksDir)
-			_ = os.MkdirAll(ebpfPinLinksDir, 0755)
+			if err := os.MkdirAll(ebpfPinLinksDir, 0755); err != nil {
+				platform.CloseMapHandles(replacements)
+				return nil, fmt.Errorf("create %s: %w", ebpfPinLinksDir, err)
+			}
 			generation, err := rotateKernelAuditGeneration(objs.CollectorStats)
 			if err != nil {
 				platform.CloseMapHandles(replacements)
@@ -284,7 +287,9 @@ func doBootstrap() (map[string]*ebpf.Map, error) {
 
 	_ = os.RemoveAll(ebpfPinRoot)
 	for _, d := range []string{ebpfPinMapsDir, ebpfPinLinksDir} {
-		_ = os.MkdirAll(d, 0755)
+		if err := os.MkdirAll(d, 0755); err != nil {
+			return nil, fmt.Errorf("create %s: %w", d, err)
+		}
 	}
 	var objs bpf.AgentTrackerObjects
 	if err := bpf.LoadAgentTrackerObjects(&objs, nil); err != nil {
