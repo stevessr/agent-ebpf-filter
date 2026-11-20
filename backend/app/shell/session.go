@@ -165,7 +165,7 @@ func (m *Manager) NewSession(req CreateRequest, deps Deps) (*SessionInfo, error)
 		shellReq:     shellReq,
 		shellPath:    launchPath,
 		command:      commandReq,
-		args:         append([]string(nil), launchArgs...),
+		args:         launchArgs,
 		workDir:      workDir,
 		createdAt:    now,
 		updatedAt:    now,
@@ -215,7 +215,7 @@ func (s *Session) emitStdioEvent(stream string, payload []byte) {
 		fd = "stdin"
 	}
 	event := &pb.Event{
-		Pid:           uint32(maxInt(s.pid, 0)),
+		Pid:           uint32(max(s.pid, 0)),
 		Type:          "stdio",
 		EventType:     pb.EventType_STDIO,
 		Tag:           "Shell Session",
