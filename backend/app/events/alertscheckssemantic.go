@@ -2,9 +2,6 @@ package events
 
 import (
 	"fmt"
-	"net"
-	"net/netip"
-	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -12,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"agent-ebpf-filter/app/platform"
+	"agent-ebpf-filter/internal/network"
 	"agent-ebpf-filter/pb"
 )
 
@@ -23,12 +21,6 @@ var (
 	remoteDevboxRiskyComms = map[string]struct{}{
 		"nc": {}, "ncat": {}, "netcat": {}, "nc.openbsd": {}, "nc.traditional": {},
 		"socat": {}, "revshell": {}, "backdoor": {},
-	}
-	suspiciousPorts = map[string]struct{}{
-		"4444": {}, "1337": {}, "31337": {}, "6666": {}, "6667": {},
-	}
-	suspiciousDomainSuffixes = []string{
-		".ngrok.io", ".serveo.net", ".localhost.run", "pastebin.com", "termbin.com", "ix.io",
 	}
 )
 
@@ -144,64 +136,22 @@ func toolNameMatchesHints(toolName string, hints []string) bool {
 }
 
 func splitEndpointHostPort(endpoint string) (host, port string) {
-	s := strings.TrimSpace(endpoint)
-	if s == "" {
-		return "", ""
-	}
-	if strings.Contains(s, "://") {
-		if u, err := url.Parse(s); err == nil && u.Host != "" {
-			s = u.Host
-		}
-	}
-	if h, p, err := net.SplitHostPort(s); err == nil {
-		return strings.ToLower(strings.TrimSpace(h)), strings.TrimSpace(p)
-	}
-	return strings.ToLower(strings.TrimSuffix(strings.TrimPrefix(s, "["), "]")), ""
+	return network.SplitEndpointHostPort(endpoint)
 }
 
 func isLocalhostOrLoopbackEndpoint(endpoint string) bool {
-	s := strings.TrimSpace(endpoint)
-	if s == "" {
-		return false
-	}
-	if strings.HasPrefix(s, "/") || strings.HasPrefix(s, "unix:") {
-		return true
-	}
-	host, _ := splitEndpointHostPort(s)
-	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
-		return true
-	}
-	addr, err := netip.ParseAddr(host)
-	if err != nil {
-		return false
-	}
-	if addr.Is4In6() {
-		addr = addr.Unmap()
-	}
-	return addr.IsLoopback() || addr.IsUnspecified()
+	return network.IsLocalEndpoint(endpoint)
 }
 
 func isNonLocalhostEndpoint(endpoint string) bool {
 	if strings.TrimSpace(endpoint) == "" {
 		return false
 	}
-	return !isLocalhostOrLoopbackEndpoint(endpoint)
+	return !network.IsLocalEndpoint(endpoint)
 }
 
 func isSuspiciousEndpoint(endpoint string) bool {
-	host, port := splitEndpointHostPort(endpoint)
-	if port != "" {
-		if _, ok := suspiciousPorts[port]; ok {
-			return true
-		}
-	}
-	for _, suffix := range suspiciousDomainSuffixes {
-		trimmedSuffix := strings.TrimPrefix(suffix, ".")
-		if host == trimmedSuffix || strings.HasSuffix(host, "."+trimmedSuffix) {
-			return true
-		}
-	}
-	return false
+	return network.IsSuspiciousEndpoint(endpoint)
 }
 
 // ── Semantic alert state helpers (extracted from SemanticAlertState methods) ──
