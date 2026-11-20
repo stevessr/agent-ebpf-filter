@@ -15,6 +15,8 @@ import (
 	"agent-ebpf-filter/app/ml"
 	"agent-ebpf-filter/internal/domainforwardproxy"
 	"agent-ebpf-filter/pb"
+
+	"google.golang.org/protobuf/proto"
 )
 
 // AblationReport aggregates all four paper ablation studies in a reproducible JSON report.
@@ -449,24 +451,24 @@ func runSemanticRuleAblation(t *testing.T) []SemanticRuleAblationRow {
 			case "w/o Retval Outcome Guard":
 				// Same as full detector, except retval is forced positive
 				s := events.NewSemanticAlertState()
-				e1 := *tc.first
-				e2 := *tc.second
+				e1 := proto.Clone(tc.first).(*pb.Event)
+				e2 := proto.Clone(tc.second).(*pb.Event)
 				e1.Retval = 1
 				e2.Retval = 1
-				s.ObserveMultiAgentFileContention(&e1, baseTime)
-				_, _, alerted = s.ObserveMultiAgentFileContention(&e2, baseTime.Add(time.Duration(tc.offsetSec)*time.Second))
+				s.ObserveMultiAgentFileContention(e1, baseTime)
+				_, _, alerted = s.ObserveMultiAgentFileContention(e2, baseTime.Add(time.Duration(tc.offsetSec)*time.Second))
 			case "w/o Container & Pseudo-File Guards":
 				// Same as full detector, except container_id stripped and pseudo-paths rewritten to normal-looking path
 				s := events.NewSemanticAlertState()
-				e1 := *tc.first
-				e2 := *tc.second
+				e1 := proto.Clone(tc.first).(*pb.Event)
+				e2 := proto.Clone(tc.second).(*pb.Event)
 				e1.ContainerId, e2.ContainerId = "", ""
 				if tc.category == "pseudo_or_placeholder" {
 					e1.Path = "/unfiltered/" + strings.TrimPrefix(e1.Path, "/")
 					e2.Path = "/unfiltered/" + strings.TrimPrefix(e2.Path, "/")
 				}
-				s.ObserveMultiAgentFileContention(&e1, baseTime)
-				_, _, alerted = s.ObserveMultiAgentFileContention(&e2, baseTime.Add(time.Duration(tc.offsetSec)*time.Second))
+				s.ObserveMultiAgentFileContention(e1, baseTime)
+				_, _, alerted = s.ObserveMultiAgentFileContention(e2, baseTime.Add(time.Duration(tc.offsetSec)*time.Second))
 			case "Full MingJing Outcome-Aware":
 				s := events.NewSemanticAlertState()
 				s.ObserveMultiAgentFileContention(tc.first, baseTime)
