@@ -458,41 +458,16 @@ func (f *DecisionForest) PredictFast(features [FeatureDim]float64, earlyStopConf
 		classVotes[cls]++
 		treesEvaluated++
 
-		// Early termination: if any class has overwhelming majority
-		if treesEvaluated >= 5 && earlyStopConfidence > 0 {
-			_ = int32(0)
+		// Early termination: stop once a clear majority persists after evaluating
+		// at least one third of the forest.
+		if treesEvaluated >= 5 && earlyStopConfidence > 0 && treesEvaluated >= len(f.Trees)/3 {
 			bestCount := classVotes[0]
 			for c := 1; c < f.NumClasses; c++ {
 				if classVotes[c] > bestCount {
 					bestCount = classVotes[c]
-					_ = int32(c)
 				}
 			}
-			conf := bestCount / float64(treesEvaluated)
-			// If highly confident and we've evaluated enough trees
-			if conf >= earlyStopConfidence && treesEvaluated >= len(f.Trees)/3 {
-				for j := i + 1; j < len(f.Trees); j++ {
-					l := f.Trees[j].Predict(features)
-					c := int(math.Round(float64(l)))
-					if c >= 0 && c < f.NumClasses {
-						classVotes[c]++
-						treesEvaluated++
-					}
-					// Re-check every 5 trees
-					if (j-i)%5 == 0 {
-						_ = int32(0)
-						bcv := classVotes[0]
-						for c2 := 1; c2 < f.NumClasses; c2++ {
-							if classVotes[c2] > bcv {
-								bcv = classVotes[c2]
-								_ = int32(c2)
-							}
-						}
-						if bcv/float64(treesEvaluated) < earlyStopConfidence {
-							break
-						}
-					}
-				}
+			if bestCount/float64(treesEvaluated) >= earlyStopConfidence {
 				break
 			}
 		}

@@ -35,7 +35,7 @@ func NormalizeFeatureVector(f [FeatureDim]float64) [FeatureDim]float64 {
 			v = (v + 1.0) / 2.0
 		}
 
-		f[i] = clampFeature01(v)
+		f[i] = Clamp01(v)
 	}
 	return f
 }
@@ -44,12 +44,13 @@ func NormalizeFeatureVector(f [FeatureDim]float64) [FeatureDim]float64 {
 // without masking out-of-range anomalies in raw TrainingDataStore diagnostics.
 func clampFeatures01(f [FeatureDim]float64) [FeatureDim]float64 {
 	for i, v := range f {
-		f[i] = clampFeature01(v)
+		f[i] = Clamp01(v)
 	}
 	return f
 }
 
-func clampFeature01(v float64) float64 {
+// Clamp01 clamps v into [0, 1], mapping NaN and +/-Inf to 0.
+func Clamp01(v float64) float64 {
 	if math.IsNaN(v) || math.IsInf(v, 0) {
 		return 0
 	}

@@ -256,13 +256,12 @@ func evaluateAttackImpactDescriptors(samples []attackImpactDescriptor, predict f
 		out.RiskWeightedRecall = weightedDetected / weightedTotal
 	}
 	if maxCost > 0 {
-		out.SecurityUtility = clampUnit(1.0 - cost/maxCost)
+		out.SecurityUtility = Clamp01(1.0 - cost/maxCost)
 		// Catastrophic ALLOW decisions should dominate small aggregate gains.
 		// Keep the utility smooth for AutoML while imposing a strong monotonic
 		// penalty instead of an opaque hard-coded candidate rejection threshold.
 		if high.total > 0 {
-			out.SecurityUtility *= 1.0 - 0.65*out.CatastrophicMissRate
-			out.SecurityUtility = clampUnit(out.SecurityUtility)
+			out.SecurityUtility = Clamp01(out.SecurityUtility * (1.0 - 0.65*out.CatastrophicMissRate))
 		}
 	}
 	out.ThreatVectorCoverage = float64(len(observedVectors)) / float64(len(threatVectors))
@@ -345,7 +344,7 @@ func sampleImpactWeight(sample TrainingSample) float64 {
 	}
 	// An anomaly score is contextual evidence, not a label. It may increase the
 	// consequence weight modestly but cannot create a threat vector by itself.
-	weight *= 1.0 + 0.20*clampUnit(sample.AnomalyScore)
+	weight *= 1.0 + 0.20*Clamp01(sample.AnomalyScore)
 	return weight
 }
 
@@ -363,9 +362,7 @@ func featureImpactWeight(features [FeatureDim]float64, label int32) float64 {
 	}
 	// Network risk score [120] may strengthen consequence weighting but never
 	// creates a vector by itself.
-	if FeatureDim > 120 {
-		weight *= 1.0 + 0.15*clampUnit(features[120])
-	}
+	weight *= 1.0 + 0.15*Clamp01(features[120])
 	return weight
 }
 
@@ -531,17 +528,4 @@ func containsAny(value string, needles ...string) bool {
 		}
 	}
 	return false
-}
-
-func clampUnit(v float64) float64 {
-	if math.IsNaN(v) || math.IsInf(v, 0) {
-		return 0
-	}
-	if v < 0 {
-		return 0
-	}
-	if v > 1 {
-		return 1
-	}
-	return v
 }

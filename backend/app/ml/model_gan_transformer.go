@@ -395,7 +395,7 @@ func (m *GANTransformerModel) buildTrainingExamples(samples []TrainingSample) []
 			continue
 		}
 		examples = append(examples, ganTransformerExample{
-			features: clampFeatureVector(sample.Features),
+			features: clampFeatures01(sample.Features),
 			label:    sample.Label,
 			weight:   1.0,
 		})
@@ -489,7 +489,7 @@ func (m *GANTransformerModel) Predict(features [FeatureDim]float64) Prediction {
 	if !m.IsTrained || len(m.Weights) == 0 {
 		return Prediction{Action: 0, Confidence: 0, AnomalyScore: 0.5}
 	}
-	cleaned := clampFeatureVector(features)
+	cleaned := clampFeatures01(features)
 	encoded := m.Encoder.Encode(cleaned)
 	probs := m.softmaxEncoded(encoded)
 	bestClass := int32(0)
@@ -719,27 +719,6 @@ func (t *ModelTrainer) trainGANTransformer(store *TrainingDataStore, cfg MLConfi
 		TrainSamples:       len(trainRaw),
 		ValidationSamples:  len(validationRaw),
 	}
-}
-
-func clampFeatureVector(features [FeatureDim]float64) [FeatureDim]float64 {
-	var out [FeatureDim]float64
-	for d := 0; d < FeatureDim; d++ {
-		out[d] = Clamp01(features[d])
-	}
-	return out
-}
-
-func Clamp01(v float64) float64 {
-	if math.IsNaN(v) || math.IsInf(v, 0) {
-		return 0
-	}
-	if v < 0 {
-		return 0
-	}
-	if v > 1 {
-		return 1
-	}
-	return v
 }
 
 func ganClampInt(v, minValue, maxValue int) int {
