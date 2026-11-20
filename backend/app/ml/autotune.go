@@ -77,7 +77,7 @@ func (t *ModelTrainer) AutoTuneWithConfig(store *TrainingDataStore, cfg MLConfig
 
 	xValues := autoTuneAxisValuesWithRange(xAxis, gridSize, granularity, baseNumTrees, baseMaxDepth, baseMinSamplesLeaf, req.MinX, req.MaxX)
 	yValues := autoTuneAxisValuesWithRange(yAxis, gridSize, granularity, baseNumTrees, baseMaxDepth, baseMinSamplesLeaf, req.MinY, req.MaxY)
-	maxRequiredLeaf := autoTuneMaxInt(baseMinSamplesLeaf, maxAxisValue(xAxis, xValues, yAxis, yValues, "minSamplesLeaf"))
+	maxRequiredLeaf := max(baseMinSamplesLeaf, maxAxisValue(xAxis, xValues, yAxis, yValues, "minSamplesLeaf"))
 	if len(trainSet) < maxRequiredLeaf*10 {
 		msg := fmt.Sprintf("Insufficient training samples for tuning after holdout: need >=%d, have %d", maxRequiredLeaf*10, len(trainSet))
 		return nil, errors.New(msg)

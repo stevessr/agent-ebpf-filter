@@ -107,8 +107,8 @@ func autoTuneAxisRange(axis string, center, gridSize int, granularity float64) (
 		maxValue = maxBound
 	}
 
-	minValue = autoTuneClampInt(minValue, minBound, maxBound)
-	maxValue = autoTuneClampInt(maxValue, minBound, maxBound)
+	minValue = min(max(minValue, minBound), maxBound)
+	maxValue = min(max(maxValue, minBound), maxBound)
 	if maxValue < minValue {
 		maxValue = minValue
 	}
@@ -199,16 +199,6 @@ func linspaceInt(minValue, maxValue, count int) []int {
 		}
 	}
 	return values
-}
-
-func autoTuneClampInt(v, minValue, maxValue int) int {
-	if v < minValue {
-		return minValue
-	}
-	if v > maxValue {
-		return maxValue
-	}
-	return v
 }
 
 func extractTrainData(samples []TrainSample) ([][FeatureDim]float64, []int32) {
@@ -331,13 +321,6 @@ func trainAdaBoostFromDataBalanced(X [][FeatureDim]float64, Y []int32, nEst int,
 		}
 	}
 	return model
-}
-
-func autoTuneMaxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }
 
 // evalKNNModel evaluates a KNN model on a set of samples.

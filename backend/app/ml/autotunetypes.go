@@ -199,7 +199,7 @@ func (s *AutoTuneRuntime) Update(jobID string, completed, total int, message str
 	s.state.Completed = completed
 	s.state.Total = total
 	if total > 0 {
-		s.state.Progress = mathMax0Min1(float64(completed) / float64(total))
+		s.state.Progress = Clamp01(float64(completed) / float64(total))
 	} else {
 		s.state.Progress = 0
 	}
@@ -291,15 +291,4 @@ func (s *AutoTuneRuntime) Snapshot() MLAutoTuneState {
 		state.ModelResult = s.modelResult
 	}
 	return state
-}
-
-// mathMax0Min1 clamps v to [0, 1].
-func mathMax0Min1(v float64) float64 {
-	if v < 0 {
-		return 0
-	}
-	if v > 1 {
-		return 1
-	}
-	return v
 }
