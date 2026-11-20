@@ -115,6 +115,8 @@ func (fe *FeatureExtractor) Extract(comm string, args []string, user string, pid
 	if f[29] > 1.0 {
 		f[29] = 1.0
 	}
+	f[30] = ml.ShellCompoundRiskScore(comm, args)
+	f[31] = ml.ShellEvasionPrivilegeScore(comm, args)
 
 	// ── Group B: Argument Statistical Features [32-63] ──
 	if len(args) > 0 {

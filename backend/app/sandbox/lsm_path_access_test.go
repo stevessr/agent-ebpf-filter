@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"unsafe"
 )
 
 func TestFileAccessPathValidation(t *testing.T) {
@@ -63,5 +64,42 @@ func TestPathPolicyBitsPreserveLegacyExec(t *testing.T) {
 	}
 	if got := mergedPathBits(denyRead, denyExec, false); got != denyRead {
 		t.Fatalf("unblock exec destroyed read policy: %b", got)
+	}
+}
+
+func TestLsmInodeKeyABIAndHardlinkIdentity(t *testing.T) {
+	if got := unsafe.Sizeof(LsmInodeKey{}); got != 16 {
+		t.Fatalf("LsmInodeKey size = %d, want 16", got)
+	}
+
+	// Standard (major=8, minor=1) -> glibc makedev = 0x0801, kernel MKDEV = (8<<20)|1
+	if got := KernelDevFromStatDev(0x0801); got != (8<<20)|1 {
+		t.Fatalf("KernelDevFromStatDev(0x0801) = %#x, want %#x", got, (8<<20)|1)
+	}
+	// Extended (major=259, minor=300): minor high bits live in bits 12..19 -> (300&0xff)|((300&0xfff00)<<12)
+	extDev := uint64((259&0xfff)<<8) | uint64(300&0xff) | (uint64(300 & ^0xff) << 12)
+	if got := KernelDevFromStatDev(extDev); got != (259<<20)|300 {
+		t.Fatalf("KernelDevFromStatDev(ext 259,300) = %#x, want %#x", got, (259<<20)|300)
+	}
+
+	dir := t.TempDir()
+	orig := filepath.Join(dir, "secret.env")
+	hardlink := filepath.Join(dir, "innocent.txt")
+	if err := os.WriteFile(orig, []byte("SECRET=1\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Link(orig, hardlink); err != nil {
+		t.Fatal(err)
+	}
+	k1, err := InodeKeyForPath(orig)
+	if err != nil {
+		t.Fatalf("InodeKeyForPath(orig): %v", err)
+	}
+	k2, err := InodeKeyForPath(hardlink)
+	if err != nil {
+		t.Fatalf("InodeKeyForPath(hardlink): %v", err)
+	}
+	if k1 != k2 || k1.Ino == 0 {
+		t.Fatalf("hardlink inode keys differ: orig=%+v link=%+v", k1, k2)
 	}
 }
