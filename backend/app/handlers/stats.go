@@ -275,7 +275,7 @@ func emitSystemMetricEvent(pid, ppid int32, comm string, cpuPercent float64, mem
 	}
 	event := &pb.Event{
 		Pid:           uint32(pid),
-		Ppid:          uint32(maxInt(int(ppid), 0)),
+		Ppid:          uint32(max(int(ppid), 0)),
 		Type:          "system_metric",
 		EventType:     pb.EventType_SYSTEM_METRIC,
 		Tag:           "System Metric",
@@ -291,13 +291,6 @@ func emitSystemMetricEvent(pid, ppid int32, comm string, cpuPercent float64, mem
 
 func formatSystemMetricExtra(cpuPercent float64, memoryPercent float32, memoryBytes uint64, alert string) string {
 	return fmt.Sprintf("cpu_percent=%.2f memory_percent=%.2f memory_bytes=%d alert=%s", cpuPercent, memoryPercent, memoryBytes, alert)
-}
-
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }
 
 func deltaUint64(current, previous uint64) uint64 {

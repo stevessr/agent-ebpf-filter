@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -81,7 +82,11 @@ func HandleConfigHooksInstall(c *gin.Context) {
 			}
 		default:
 			p := Deps.GetShellConfigPath()
-			b, _ := os.ReadFile(p)
+			b, err := os.ReadFile(p)
+			if err != nil && !errors.Is(err, os.ErrNotExist) {
+				c.JSON(500, gin.H{"error": err.Error()})
+				return
+			}
 			content := string(b)
 			aliasLine := fmt.Sprintf("\nalias %s='agent-wrapper %s' # agent-ebpf-hook\n", target.TargetCmd, target.TargetCmd)
 			if !strings.Contains(content, fmt.Sprintf("alias %s=", target.TargetCmd)) {
@@ -119,18 +124,38 @@ func HandleConfigHooksInstall(c *gin.Context) {
 			return
 		}
 		if target.HookType == core.HookTypeNative && !(target.ID == "dsh" && req.UseWrapper) {
-			_ = Deps.UninstallNativeHook(target)
-		}
-		p := Deps.GetShellConfigPath()
-		b, _ := os.ReadFile(p)
-		lines := strings.Split(string(b), "\n")
-		newLines := []string{}
-		for _, l := range lines {
-			if !strings.Contains(l, fmt.Sprintf("alias %s=", target.TargetCmd)) {
-				newLines = append(newLines, l)
+			if err := Deps.UninstallNativeHook(target); err != nil {
+				c.JSON(500, gin.H{"error": err.Error()})
+				return
 			}
 		}
-		_ = platform.WriteFileAsRealUser(p, []byte(strings.Join(newLines, "\n")), 0o644)
+		p := Deps.GetShellConfigPath()
+		b, err := os.ReadFile(p)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				c.JSON(200, gin.H{"status": "ok"})
+				return
+			}
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+		aliasPrefix := fmt.Sprintf("alias %s=", target.TargetCmd)
+		lines := strings.Split(string(b), "\n")
+		newLines := make([]string, 0, len(lines))
+		removed := false
+		for _, l := range lines {
+			if strings.Contains(l, aliasPrefix) {
+				removed = true
+				continue
+			}
+			newLines = append(newLines, l)
+		}
+		if removed {
+			if err := platform.WriteFileAsRealUser(p, []byte(strings.Join(newLines, "\n")), 0o644); err != nil {
+				c.JSON(500, gin.H{"error": err.Error()})
+				return
+			}
+		}
 	}
 	c.JSON(200, gin.H{"status": "ok"})
 }

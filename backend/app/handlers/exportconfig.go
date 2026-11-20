@@ -98,12 +98,18 @@ func HandleConfigImportPost(c *gin.Context) {
 	for comm, tag := range cfg.Comms {
 		var k [16]byte
 		copy(k[:], comm)
-		_ = Deps.TrackerMaps.TrackedCommsPut(k, Deps.Config.TagID(tag))
+		if err := Deps.TrackerMaps.TrackedCommsPut(k, Deps.Config.TagID(tag)); err != nil {
+			c.JSON(500, gin.H{"error": "failed to import tracked comm: " + err.Error()})
+			return
+		}
 	}
 	for p, tag := range cfg.Paths {
 		var k [256]byte
 		copy(k[:], p)
-		_ = Deps.TrackerMaps.TrackedPathsPut(k, Deps.Config.TagID(tag))
+		if err := Deps.TrackerMaps.TrackedPathsPut(k, Deps.Config.TagID(tag)); err != nil {
+			c.JSON(500, gin.H{"error": "failed to import tracked path: " + err.Error()})
+			return
+		}
 	}
 	for _, rule := range cfg.Rules {
 		Deps.Config.UpsertRule(rule.Comm, rule.Action, rule.RewrittenCmd, rule.Regex, rule.Replacement, int32(rule.Priority))
