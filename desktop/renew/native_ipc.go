@@ -450,4 +450,3 @@ func decodeLegacyEventSummary(data []byte, out *eventSummary) error {
 	}
 	return nil
 }
-

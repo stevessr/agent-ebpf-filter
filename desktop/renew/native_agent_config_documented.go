@@ -138,7 +138,7 @@ func codexAdditionalRows(doc map[string]any, scope, filename string, project boo
 		if host != "" {
 			rows = append(rows, agentConfigCandidate{
 				Agent: "Codex", Scope: scope, Provider: "其他 API 传输",
-				Host: host, HostKind: kind, Source: filename+" · "+key,
+				Host: host, HostKind: kind, Source: filename + " · " + key,
 				Security: "附加服务端点，仅为配置候选",
 			})
 		}
@@ -190,7 +190,7 @@ func claudeSafetySummary(doc map[string]any) string {
 		detail = append(detail, fmt.Sprintf("沙箱排除命令 %d", n))
 	}
 	network := jsonConfigTable(sandbox, "network")
-	for _, rule := range []struct{key,label string}{
+	for _, rule := range []struct{ key, label string }{
 		{"allowedDomains", "允许出站域名"},
 		{"deniedDomains", "禁止出站域名"},
 	} {
@@ -395,51 +395,56 @@ func inspectAgentConfigExtensions(claudeDir, codexDir, project string) agentConf
 
 func codexRequirementSummary(doc map[string]any) string {
 	var parts []string
-	for _, item := range []struct{key,label string}{
-		{"allowed_approval_policies","允许审批策略"},
-		{"allowed_sandbox_modes","允许沙箱模式"},
+	for _, item := range []struct{ key, label string }{
+		{"allowed_approval_policies", "允许审批策略"},
+		{"allowed_sandbox_modes", "允许沙箱模式"},
 	} {
 		if _, declared := doc[item.key]; declared {
-			parts = append(parts, fmt.Sprintf("%s %d 项",item.label,configArrayCount(doc[item.key])))
+			parts = append(parts, fmt.Sprintf("%s %d 项", item.label, configArrayCount(doc[item.key])))
 		}
 	}
 	if n := len(tomlTable(doc["allowed_permission_profiles"])); n > 0 {
-		parts = append(parts,fmt.Sprintf("权限模板约束 %d 项",n))
+		parts = append(parts, fmt.Sprintf("权限模板约束 %d 项", n))
 	}
-	if _,ok := doc["default_permissions"].(string);ok {
-		parts = append(parts,"强制默认权限模板")
+	if _, ok := doc["default_permissions"].(string); ok {
+		parts = append(parts, "强制默认权限模板")
 	}
-	if v,ok := configBool(doc,"allow_managed_hooks_only");ok && v {
-		parts = append(parts,"仅允许受管 Hooks")
+	if v, ok := configBool(doc, "allow_managed_hooks_only"); ok && v {
+		parts = append(parts, "仅允许受管 Hooks")
 	}
 	experimental := tomlTable(doc["experimental_network"])
 	if experimental != nil {
 		if n := configArrayCount(experimental["allowed_domains"]); n > 0 {
-			parts = append(parts,fmt.Sprintf("网络允许域名规则 %d 项",n))
+			parts = append(parts, fmt.Sprintf("网络允许域名规则 %d 项", n))
 		}
 		if n := configArrayCount(experimental["denied_domains"]); n > 0 {
-			parts = append(parts,fmt.Sprintf("网络拒绝域名规则 %d 项",n))
+			parts = append(parts, fmt.Sprintf("网络拒绝域名规则 %d 项", n))
 		}
 		if n := len(tomlTable(experimental["domains"])); n > 0 {
-			parts = append(parts,fmt.Sprintf("网络域名决策规则 %d 项",n))
+			parts = append(parts, fmt.Sprintf("网络域名决策规则 %d 项", n))
 		}
 	}
-	if len(parts)==0 { return "检测到 requirements.toml，未识别可展示的本地约束" }
-	return strings.Join(parts," · ")
+	if len(parts) == 0 {
+		return "检测到 requirements.toml，未识别可展示的本地约束"
+	}
+	return strings.Join(parts, " · ")
 }
 
 func claudeManagedSummary(doc map[string]any) string {
-	parts:=[]string{claudeSafetySummary(doc)}
-	for _,key:=range []string{"allowManagedHooksOnly","allowManagedMcpServersOnly","allowManagedPermissionRulesOnly"} {
-		if v,ok:=configBool(doc,key);ok&&v{
-			switch key{
-			case "allowManagedHooksOnly":parts=append(parts,"仅受管 Hooks")
-			case "allowManagedMcpServersOnly":parts=append(parts,"仅受管 MCP")
-			case "allowManagedPermissionRulesOnly":parts=append(parts,"仅受管权限规则")
+	parts := []string{claudeSafetySummary(doc)}
+	for _, key := range []string{"allowManagedHooksOnly", "allowManagedMcpServersOnly", "allowManagedPermissionRulesOnly"} {
+		if v, ok := configBool(doc, key); ok && v {
+			switch key {
+			case "allowManagedHooksOnly":
+				parts = append(parts, "仅受管 Hooks")
+			case "allowManagedMcpServersOnly":
+				parts = append(parts, "仅受管 MCP")
+			case "allowManagedPermissionRulesOnly":
+				parts = append(parts, "仅受管权限规则")
 			}
 		}
 	}
-	return strings.Join(parts," · ")
+	return strings.Join(parts, " · ")
 }
 
 // Explain on-disk policy without falsely claiming the merged policy is the
@@ -453,48 +458,60 @@ func inspectSystemAgentPolicy(claudeDir, codexDir string) agentConfigInspection 
 			out.Notes = append(out.Notes, "Codex · 用户目录 requirements.toml 并非官方系统强制层，未将其作为安全约束")
 		}
 	}
-	if os.PathSeparator != '/' { return out }
+	if os.PathSeparator != '/' {
+		return out
+	}
 
 	if doc, exists, err := safeTOMLConfig("/etc/codex/config.toml"); exists {
 		if err != nil {
-			out.Notes=append(out.Notes,"Codex · 系统默认配置无法安全读取")
+			out.Notes = append(out.Notes, "Codex · 系统默认配置无法安全读取")
 		} else {
-			out.Candidates=append(out.Candidates,agentConfigCandidate{
-				Agent:"Codex",Scope:"系统默认（非强制）",Provider:"安全策略",
-				Model:configLabel(tomlString(doc,"model")),Source:"/etc/codex/config.toml",
-				Security:codexSafetySummary(doc,false),
+			out.Candidates = append(out.Candidates, agentConfigCandidate{
+				Agent: "Codex", Scope: "系统默认（非强制）", Provider: "安全策略",
+				Model: configLabel(tomlString(doc, "model")), Source: "/etc/codex/config.toml",
+				Security: codexSafetySummary(doc, false),
 			})
 		}
 	}
-	if doc,exists,err:=safeTOMLConfig("/etc/codex/requirements.toml");exists {
-		if err!=nil {
-			out.Notes=append(out.Notes,"Codex · 系统强制配置无法安全读取")
+	if doc, exists, err := safeTOMLConfig("/etc/codex/requirements.toml"); exists {
+		if err != nil {
+			out.Notes = append(out.Notes, "Codex · 系统强制配置无法安全读取")
 		} else {
-			out.Candidates=append(out.Candidates,agentConfigCandidate{
-				Agent:"Codex",Scope:"系统受管候选",Provider:"管理员约束",Source:"/etc/codex/requirements.toml",
-				Security:codexRequirementSummary(doc),
+			out.Candidates = append(out.Candidates, agentConfigCandidate{
+				Agent: "Codex", Scope: "系统受管候选", Provider: "管理员约束", Source: "/etc/codex/requirements.toml",
+				Security: codexRequirementSummary(doc),
 			})
 		}
 	}
 	// The managed-settings.json file is the local Linux source. The desktop
 	// cannot observe managed policy downloaded from an authenticated session.
-	addManaged := func(path,label string) {
-		doc,exists,err:=safeJSONConfig(path)
-		if !exists { return }
-		if err!=nil {out.Notes=append(out.Notes,"Claude Code · "+label+"无法安全读取");return}
-		out.Candidates=append(out.Candidates,agentConfigCandidate{
-			Agent:"Claude Code",Scope:"系统受管候选",Provider:"管理员设置",
-			Source:label,Security:claudeManagedSummary(doc),
+	addManaged := func(path, label string) {
+		doc, exists, err := safeJSONConfig(path)
+		if !exists {
+			return
+		}
+		if err != nil {
+			out.Notes = append(out.Notes, "Claude Code · "+label+"无法安全读取")
+			return
+		}
+		out.Candidates = append(out.Candidates, agentConfigCandidate{
+			Agent: "Claude Code", Scope: "系统受管候选", Provider: "管理员设置",
+			Source: label, Security: claudeManagedSummary(doc),
 		})
 	}
-	addManaged("/etc/claude-code/managed-settings.json","managed-settings.json")
+	addManaged("/etc/claude-code/managed-settings.json", "managed-settings.json")
 	// Official Linux managed drop-ins are merged alphabetically. Show only a
 	// bounded inventory of sanitized rules, not a guessed effective merge.
-	files,_:=filepath.Glob("/etc/claude-code/managed-settings.d/*.json")
-	if len(files)>32 { files=files[:32];out.Notes=append(out.Notes,"Claude Code · 受管配置分片超过审计上限 32")}
-	for _,path:=range files {addManaged(path,"managed-settings.d / "+filepath.Base(path))}
-	if len(out.Candidates)!=0 {
-		out.Notes=append(out.Notes,"本机受管设置仅是已发现的磁盘来源；云端下发、MDM 与客户端运行版本仍可能改变强制规则")
+	files, _ := filepath.Glob("/etc/claude-code/managed-settings.d/*.json")
+	if len(files) > 32 {
+		files = files[:32]
+		out.Notes = append(out.Notes, "Claude Code · 受管配置分片超过审计上限 32")
+	}
+	for _, path := range files {
+		addManaged(path, "managed-settings.d / "+filepath.Base(path))
+	}
+	if len(out.Candidates) != 0 {
+		out.Notes = append(out.Notes, "本机受管设置仅是已发现的磁盘来源；云端下发、MDM 与客户端运行版本仍可能改变强制规则")
 	}
 	return out
 }

@@ -8,7 +8,7 @@ import (
 func TestEventDetailEveryTypedPayloadHasOwnEvidence(t *testing.T) {
 	cases := []struct {
 		name, key, eventType, label, value, title, target string
-		data map[string]any
+		data                                              map[string]any
 	}{
 		{"TLS", "tlsEvent", "tls_capture", "Host", "api.example.test", "TLS / LLM 请求元数据", "https://api.example.test/messages",
 			map[string]any{"host": "api.example.test", "url": "https://api.example.test/messages", "rawAvailable": false, "redactionState": "standard"}},
@@ -36,7 +36,7 @@ func TestEventDetailEveryTypedPayloadHasOwnEvidence(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			detail := map[string]any{
-				"Event": map[string]any{"type": tc.eventType, "pid": float64(42)},
+				"Event":    map[string]any{"type": tc.eventType, "pid": float64(42)},
 				"Envelope": map[string]any{tc.key: tc.data},
 			}
 			model := eventDetailModel(detail)
@@ -66,7 +66,7 @@ func TestEventDetailWrapperBehaviorClassification(t *testing.T) {
 		"Envelope": map[string]any{
 			"wrapperEvent": map[string]any{
 				"commandLine": "go test ./...",
-				"behavior": map[string]any{"primaryCategory": "DEVELOPMENT", "reasoning": "test run"},
+				"behavior":    map[string]any{"primaryCategory": "DEVELOPMENT", "reasoning": "test run"},
 			},
 		},
 	})
@@ -90,22 +90,22 @@ func TestEventDetailMissingFileTargetExplainsUncertainty(t *testing.T) {
 
 func TestEventDetailMonotonicTimeNotShownAsCalendar(t *testing.T) {
 	model := eventDetailModel(map[string]any{
-		"Event": map[string]any{"type": "write"},
+		"Event":    map[string]any{"type": "write"},
 		"Envelope": map[string]any{"timestampNs": "120000000000"},
 	})
 	if model.When != "" {
 		t.Fatalf("monotonic timestamp was interpreted as Unix: %+v", model)
 	}
 	model = eventDetailModel(map[string]any{
-		"Event": map[string]any{"type": "write"},
+		"Event":     map[string]any{"type": "write"},
 		"Timestamp": float64(1760000000000),
-		"Envelope": map[string]any{"timestampNs": "120000000000"},
+		"Envelope":  map[string]any{"timestampNs": "120000000000"},
 	})
 	if model.When == "" || model.WhenLabel != "后端记录时间" {
 		t.Fatalf("persisted timestamp must be authoritative: %+v", model)
 	}
 	model = eventDetailModel(map[string]any{
-		"Event": map[string]any{"type": "write"},
+		"Event":    map[string]any{"type": "write"},
 		"Envelope": map[string]any{"timestampNs": "1760000000123456789"},
 	})
 	if model.When == "" || model.WhenLabel != "事件时间（Unix ns）" {
@@ -144,9 +144,9 @@ func TestRelatedCandidatesAvoidPIDReuseAndRankByEvidence(t *testing.T) {
 func TestRelatedSummaryUsesExactPersistedTimestamp(t *testing.T) {
 	const receivedAt = int64(1_760_000_000_123)
 	detail := map[string]any{
-		"Event": map[string]any{"type": "write", "pid": float64(343846)},
+		"Event":     map[string]any{"type": "write", "pid": float64(343846)},
 		"Timestamp": float64(receivedAt),
-		"Envelope": map[string]any{"agentRunId": "run-g"},
+		"Envelope":  map[string]any{"agentRunId": "run-g"},
 	}
 	selected := eventDetailSelectedSummary(detail, "evt_1", nil)
 	if selected.ReceivedAtMS != receivedAt || selected.PID != 343846 || selected.AgentRunID != "run-g" {
@@ -160,7 +160,7 @@ func TestRelatedSummaryUsesExactPersistedTimestamp(t *testing.T) {
 
 func TestRelatedSummaryCanUseExplicitRunWithoutPID(t *testing.T) {
 	detail := map[string]any{
-		"Event": map[string]any{"type": "native_hook"},
+		"Event":    map[string]any{"type": "native_hook"},
 		"Envelope": map[string]any{"agentRunId": "run-a"},
 	}
 	selected := eventDetailSelectedSummary(detail, "evt_3", nil)
@@ -202,7 +202,7 @@ func TestDetailHeadlineUsesTypedEvidenceNotSubstring(t *testing.T) {
 
 func TestTelemetryWithoutTargetDoesNotRaiseFalseMissingPathWarning(t *testing.T) {
 	detail := map[string]any{
-		"Event": map[string]any{"type": "system_metric", "comm": "agent"},
+		"Event":    map[string]any{"type": "system_metric", "comm": "agent"},
 		"Envelope": map[string]any{"systemMetricEvent": map[string]any{"cpuPercent": float64(1.2)}},
 	}
 	model := eventDetailModel(detail)
@@ -242,7 +242,7 @@ func TestConflictingTypedAndLegacyEnforcementTargetsAreRejected(t *testing.T) {
 		}
 	}
 	consistent := enforcementTargets(map[string]any{
-		"Event": map[string]any{"type": "execve", "path": "/usr/bin/true"},
+		"Event":    map[string]any{"type": "execve", "path": "/usr/bin/true"},
 		"Envelope": map[string]any{"execEvent": map[string]any{"path": "/usr/bin/true"}},
 	})
 	if consistent.ExecPath != "/usr/bin/true" {

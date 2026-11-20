@@ -144,4 +144,3 @@ func TestWorkspaceMotionReleasesSidebarImmediatelyInNarrowWindow(t *testing.T) {
 		t.Fatal("restoring desktop width should restore the original navigation preference")
 	}
 }
-

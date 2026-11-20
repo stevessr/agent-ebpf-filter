@@ -32,7 +32,7 @@ func TestAgentSightUsageAPIFetchIsReadOnlyAndAuthenticated(t *testing.T) {
 				EventCount: 3, UsageEvents: 1, InputTokens: 200, OutputTokens: 25,
 				Coverage: "explicit_usage_only",
 				Sessions: []agentSightUsageSession{{ID: "run-1", EventCount: 2, InputTokens: 200}},
-				Models: []agentSightUsageModel{{Model: "example", InputTokens: 200}},
+				Models:   []agentSightUsageModel{{Model: "example", InputTokens: 200}},
 			},
 		})
 	}))

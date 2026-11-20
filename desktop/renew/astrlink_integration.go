@@ -189,7 +189,9 @@ func loadAstrLinkSnapshot(ctx context.Context, locatorPath string, now time.Time
 	if transport, ok := client.Transport.(*http.Transport); ok {
 		defer transport.CloseIdleConnections()
 	}
-	var health struct{ Status string `json:"status"` }
+	var health struct {
+		Status string `json:"status"`
+	}
 	if err := astrLinkGET(ctx, client, base, token, "/control/v1/health", &health); err != nil || health.Status != "ok" {
 		out.Err = "AstrLink 网关未就绪或不可连接"
 		return out
@@ -319,7 +321,11 @@ func (a *renewApp) astrLinkView(c *ui.Context) {
 			ui.Text(c, "Provider 状态："+a.astrlink.ProviderError).TextColor(t.Warning)
 		} else {
 			active := 0
-			for _, p := range a.astrlink.Providers { if p.Enabled { active++ } }
+			for _, p := range a.astrlink.Providers {
+				if p.Enabled {
+					active++
+				}
+			}
 			ui.Text(c, fmt.Sprintf("API 服务：%d 个 · 已启用 %d 个", len(a.astrlink.Providers), active)).Bold()
 			for i, p := range a.astrlink.Providers {
 				if i >= 12 {
@@ -329,7 +335,11 @@ func (a *renewApp) astrLinkView(c *ui.Context) {
 				ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, p.Name).Width(220).SingleLine()
 					ui.Text(c, p.Kind).Grow(1).FontSize(11).TextColor(t.TextMuted)
-					if p.Enabled { statusPill(c, "启用", t.Success) } else { statusPill(c, "停用", t.TextMuted) }
+					if p.Enabled {
+						statusPill(c, "启用", t.Success)
+					} else {
+						statusPill(c, "停用", t.TextMuted)
+					}
 				})
 			}
 		}
@@ -341,7 +351,9 @@ func (a *renewApp) astrLinkView(c *ui.Context) {
 			for _, p := range a.astrlink.Policies {
 				status := "关闭"
 				tone := t.TextMuted
-				if p.Enabled { status, tone = "已启用", t.Success }
+				if p.Enabled {
+					status, tone = "已启用", t.Success
+				}
 				ui.Row(c).Gap(10).Wrap().AlignItems(ui.Center).Children(func() {
 					ui.Text(c, p.Name).Width(200).Bold()
 					statusPill(c, status, tone)

@@ -143,31 +143,31 @@ func TestPausedEventDisplayStillRefreshesCollectorStatus(t *testing.T) {
 }
 
 func TestPersonalOverviewFreshnessPriorities(t *testing.T) {
-  now := time.Date(2026, 11, 2, 20, 0, 0, 0, time.Local)
-  a := newRenewApp("http://127.0.0.1:8080")
-  a.starting = false
-  a.connected = true
-  a.healthReady = true
-  a.health.CaptureHealthy = true
-  a.eventStreamConnected = true
-  a.paused = true
-  a.lastSync = now.Add(-overviewSyncStaleAfter - time.Second)
-  if got := a.overviewSnapshotHintAt(now); !strings.Contains(got, "超过两分钟未同步") {
-    t.Fatalf("stale evidence must outrank paused screen hint: %q", got)
-  }
-  a.paused = false
-  a.lastSync = now.Add(-overviewSyncStaleAfter)
-  if got := a.overviewSnapshotHintAt(now); strings.Contains(got, "可能过时") {
-    t.Fatalf("age on freshness boundary should remain valid: %q", got)
-  }
-  a.lastSync = now.Add(time.Minute)
-  if got := a.overviewSnapshotHintAt(now); !strings.Contains(got, "本机时钟") {
-    t.Fatalf("clock skew must be disclosed: %q", got)
-  }
-  a.health.CaptureHealthy = false
-  if got := a.overviewSnapshotHintAt(now); !strings.Contains(got, "采集链路异常") {
-    t.Fatalf("capture failures must outrank clock skew: %q", got)
-  }
+	now := time.Date(2026, 11, 2, 20, 0, 0, 0, time.Local)
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.starting = false
+	a.connected = true
+	a.healthReady = true
+	a.health.CaptureHealthy = true
+	a.eventStreamConnected = true
+	a.paused = true
+	a.lastSync = now.Add(-overviewSyncStaleAfter - time.Second)
+	if got := a.overviewSnapshotHintAt(now); !strings.Contains(got, "超过两分钟未同步") {
+		t.Fatalf("stale evidence must outrank paused screen hint: %q", got)
+	}
+	a.paused = false
+	a.lastSync = now.Add(-overviewSyncStaleAfter)
+	if got := a.overviewSnapshotHintAt(now); strings.Contains(got, "可能过时") {
+		t.Fatalf("age on freshness boundary should remain valid: %q", got)
+	}
+	a.lastSync = now.Add(time.Minute)
+	if got := a.overviewSnapshotHintAt(now); !strings.Contains(got, "本机时钟") {
+		t.Fatalf("clock skew must be disclosed: %q", got)
+	}
+	a.health.CaptureHealthy = false
+	if got := a.overviewSnapshotHintAt(now); !strings.Contains(got, "采集链路异常") {
+		t.Fatalf("capture failures must outrank clock skew: %q", got)
+	}
 }
 
 func TestUnknownTimestampIsNeverPresentedAsRecent(t *testing.T) {

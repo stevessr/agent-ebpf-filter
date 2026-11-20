@@ -14,7 +14,7 @@ import (
 // the untouched aggregates survive unchanged. For small or broadly changed
 // tables we deliberately leave the cache stale for the existing full rebuild.
 const (
-	incrementalAggregateMinGroups = 32
+	incrementalAggregateMinGroups  = 32
 	incrementalAggregateMaxTouched = 24
 )
 

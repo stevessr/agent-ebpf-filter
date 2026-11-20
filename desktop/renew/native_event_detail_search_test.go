@@ -45,7 +45,9 @@ func TestEventDetailFieldBrowserLimitsDeepAndHugePayloads(t *testing.T) {
 		t.Fatalf("deep nesting should be explicit about skipped data: %+v", result)
 	}
 	large := make([]any, eventFieldScanLimit+25)
-	for i := range large { large[i] = map[string]any{"index": i} }
+	for i := range large {
+		large[i] = map[string]any{"index": i}
+	}
 	limited := eventDetailTreePage(map[string]any{"data": large}, "nonexistent-field-name", 0, eventFieldPageSize)
 	if !limited.ScanLimited || limited.Scanned > eventFieldScanLimit+1 {
 		t.Fatalf("large payload traversed without bound: %+v", limited)
@@ -102,7 +104,7 @@ func TestEventDetailFieldExpansionPreservesCopy(t *testing.T) {
 func TestEnforcementRequiresFreshStateAndExplicitConfirmation(t *testing.T) {
 	a := &renewApp{
 		eventDetailOpen: true,
-		eventDetailID: "evt_policy",
+		eventDetailID:   "evt_policy",
 		eventDetail: map[string]any{"Event": map[string]any{
 			"type": "connect", "netEndpoint": "192.0.2.10:443",
 		}},

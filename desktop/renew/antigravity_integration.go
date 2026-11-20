@@ -30,8 +30,8 @@ type antigravitySettings struct {
 		Enabled bool `json:"enabled"`
 	} `json:"scheduled_warmup"`
 	QuotaProtection struct {
-		Enabled bool `json:"enabled"`
-		Threshold int `json:"threshold_percentage"`
+		Enabled   bool `json:"enabled"`
+		Threshold int  `json:"threshold_percentage"`
 	} `json:"quota_protection"`
 	CircuitBreaker struct {
 		Enabled bool `json:"enabled"`
@@ -168,7 +168,7 @@ func (a *renewApp) refreshAntigravity(parent context.Context) {
 
 func (a *renewApp) pollAntigravity(ctx context.Context) {
 	a.refreshAntigravity(ctx)
-	ticker := time.NewTicker(30*time.Second)
+	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 	for {
 		select {
@@ -198,7 +198,9 @@ func (a *renewApp) antigravityView(c *ui.Context) {
 		})
 		if !a.antigravity.Found {
 			ui.Text(c, "未检测到 Antigravity Tools 配置；支持迁移目录指针或 AGENT_RENEW_ANTIGRAVITY_CONFIG 覆盖。").TextColor(t.TextMuted)
-			if a.antigravity.Err != "" { ui.Text(c, a.antigravity.Err).TextColor(t.Warning) }
+			if a.antigravity.Err != "" {
+				ui.Text(c, a.antigravity.Err).TextColor(t.Warning)
+			}
 			return
 		}
 		if a.antigravity.Err != "" {
@@ -207,7 +209,9 @@ func (a *renewApp) antigravityView(c *ui.Context) {
 		}
 		p := a.antigravity.Settings.Proxy
 		state := "未启用"
-		if p.Enabled { state = "已配置启用" }
+		if p.Enabled {
+			state = "已配置启用"
+		}
 		ui.Text(c, fmt.Sprintf("反向代理：%s · 保存端口：%d · 认证模式：%s", state, p.Port, p.AuthMode)).Bold()
 		ui.Text(c, fmt.Sprintf("局域网访问：%s · 请求日志：%s · 自动启动：%s",
 			yesNo(p.AllowLAN), yesNo(p.LoggingEnabled), yesNo(p.AutoStart)))
@@ -233,6 +237,8 @@ func (a *renewApp) antigravityView(c *ui.Context) {
 }
 
 func yesNo(ok bool) string {
-	if ok { return "开启" }
+	if ok {
+		return "开启"
+	}
 	return "关闭"
 }

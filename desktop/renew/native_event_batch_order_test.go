@@ -68,7 +68,7 @@ func TestBoundedEventBatchGrowthAndRepeatedOverwrites(t *testing.T) {
 				capacity += 50 // paused mode enlarges an already wrapped batch
 			}
 			e := eventSummary{
-				EventID: strconv.Itoa(rng.Intn(25)),
+				EventID:   strconv.Itoa(rng.Intn(25)),
 				RiskScore: float64(i + 1),
 			}
 			if len(retained) < capacity {
@@ -101,7 +101,7 @@ func TestEventMergeComputesSearchTextFromLatestRevision(t *testing.T) {
 		batch = append(batch, eventSummary{
 			EventID: "revised", ReceivedAtMS: int64(i),
 			Target: "/tmp/old-" + strconv.Itoa(i),
-			Comm: "codex", PID: i + 100,
+			Comm:   "codex", PID: i + 100,
 		})
 	}
 	batch = append(batch, eventSummary{
@@ -134,9 +134,9 @@ func TestTakeOldestEventUIBatchPreservesBacklogAndIndependentStorage(t *testing.
 	// portion crossing the circular-buffer boundary.
 	for i := 0; i < 1500; i++ {
 		e := eventSummary{
-			EventID: strconv.Itoa(i % 1150),
+			EventID:   strconv.Itoa(i % 1150),
 			RiskScore: float64(i),
-			Target: "/tmp/event-" + strconv.Itoa(i),
+			Target:    "/tmp/event-" + strconv.Itoa(i),
 		}
 		stream = append(stream, e)
 		batch, _ = appendBoundedEventBatch(batch, e, 1200, &at)
@@ -202,7 +202,7 @@ func TestProductionResumeCapUsesTwoOrderedCommits(t *testing.T) {
 	for i := range full {
 		full[i] = eventSummary{
 			EventID: strconv.Itoa(i),
-			Target: "/tmp/event-" + strconv.Itoa(i),
+			Target:  "/tmp/event-" + strconv.Itoa(i),
 		}
 	}
 	scratch := make([]eventSummary, 0, eventUIResumeCommitCapacity)

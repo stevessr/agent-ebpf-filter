@@ -248,7 +248,6 @@ func TestMergeEventSummariesDeduplicatesAndSorts(t *testing.T) {
 	}
 }
 
-
 func TestMergeEventSummariesCachesSearchTextAndMaintainsWindow(t *testing.T) {
 	existing := []eventSummary{
 		{EventID: "e3", ReceivedAtMS: 30, Comm: "codex"},
@@ -298,7 +297,6 @@ func TestFilteredEventsCacheInvalidatesOnEventVersion(t *testing.T) {
 	}
 }
 
-
 func TestMergeEventWindowAlternatesBackingBuffers(t *testing.T) {
 	a := newRenewApp("http://127.0.0.1:8080")
 	if !a.mergeEventWindow([]eventSummary{{EventID: "1", ReceivedAtMS: 10}}, 1200) {
@@ -321,7 +319,6 @@ func TestMergeEventWindowAlternatesBackingBuffers(t *testing.T) {
 		t.Fatal("third merge did not reuse the first backing buffer")
 	}
 }
-
 
 func TestEventSummaryUnmarshalProjectsLegacyFields(t *testing.T) {
 	var got eventSummary
@@ -494,30 +491,30 @@ func TestSystemWebSocketURL(t *testing.T) {
 }
 
 func TestStaleCollectorCannotReportHealthyPipeline(t *testing.T) {
-  a := newRenewApp("http://127.0.0.1:8080")
-  a.starting = false
-  a.connected = true
-  a.healthReady = true
-  a.health.CaptureHealthy = true
-  a.eventStreamConnected = true
-  a.systemConnected = true
-  a.lastSync = time.Now().Add(-3 * time.Minute)
-  if label, level := a.pipelineStatus(); label != "采集状态过时" || level != "warning" {
-    t.Fatalf("stale pipeline=(%q,%q), want warning", label, level)
-  }
-  if label, level := a.collectorStatus(); label != "状态过时" || level != "warning" {
-    t.Fatalf("stale collector=(%q,%q), want warning", label, level)
-  }
-  if headline, _, level := a.overviewHeadline(); headline != "采集证据已过时" || level != "warning" {
-    t.Fatalf("stale overview=(%q,%q), want warning", headline, level)
-  }
-  if label, page, _ := a.overviewAction(); label != "打开系统诊断" || page != "系统" {
-    t.Fatalf("stale collection must direct users to diagnostics, got %q/%q", label, page)
-  }
-  a.lastSync = time.Now().Add(-10 * time.Second)
-  if label, level := a.pipelineStatus(); label != "全链路实时" || level != "success" {
-    t.Fatalf("fresh pipeline=(%q,%q), want success", label, level)
-  }
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.starting = false
+	a.connected = true
+	a.healthReady = true
+	a.health.CaptureHealthy = true
+	a.eventStreamConnected = true
+	a.systemConnected = true
+	a.lastSync = time.Now().Add(-3 * time.Minute)
+	if label, level := a.pipelineStatus(); label != "采集状态过时" || level != "warning" {
+		t.Fatalf("stale pipeline=(%q,%q), want warning", label, level)
+	}
+	if label, level := a.collectorStatus(); label != "状态过时" || level != "warning" {
+		t.Fatalf("stale collector=(%q,%q), want warning", label, level)
+	}
+	if headline, _, level := a.overviewHeadline(); headline != "采集证据已过时" || level != "warning" {
+		t.Fatalf("stale overview=(%q,%q), want warning", headline, level)
+	}
+	if label, page, _ := a.overviewAction(); label != "打开系统诊断" || page != "系统" {
+		t.Fatalf("stale collection must direct users to diagnostics, got %q/%q", label, page)
+	}
+	a.lastSync = time.Now().Add(-10 * time.Second)
+	if label, level := a.pipelineStatus(); label != "全链路实时" || level != "success" {
+		t.Fatalf("fresh pipeline=(%q,%q), want success", label, level)
+	}
 }
 
 func TestUnknownHealthTimestampNeverReportsRealtime(t *testing.T) {

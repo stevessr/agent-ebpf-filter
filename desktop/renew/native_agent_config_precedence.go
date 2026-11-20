@@ -79,8 +79,12 @@ func codexStaticConfigPreview(codexDir, project string) (agentConfigCandidate, [
 		profile = tomlTable(tomlTable(user["profiles"])[selected])
 		if cfg, exists, e := safeTOMLConfig(filepath.Join(codexDir, selected+".config.toml")); exists && e == nil {
 			merged := make(map[string]any, len(profile)+len(cfg))
-			for k, v := range profile { merged[k] = v }
-			for k, v := range cfg { merged[k] = v }
+			for k, v := range profile {
+				merged[k] = v
+			}
+			for k, v := range cfg {
+				merged[k] = v
+			}
 			profile = merged
 		}
 		previewSet(overlay, profile, "Profile 候选", "model", "sandbox_mode", "approval_policy", "default_permissions")
@@ -99,7 +103,9 @@ func codexStaticConfigPreview(codexDir, project string) (agentConfigCandidate, [
 	if trust != "untrusted" {
 		for _, path := range codexProjectLayers(project) {
 			doc, exists, err := safeTOMLConfig(path)
-			if !exists || err != nil { continue }
+			if !exists || err != nil {
+				continue
+			}
 			previewSet(overlay, doc, "受信任项目候选", "model", "sandbox_mode", "approval_policy", "default_permissions")
 			if b, ok := configBool(tomlTable(doc["sandbox_workspace_write"]), "network_access"); ok {
 				overlay["network_access"] = previewScalar{b, "受信任项目候选"}
@@ -124,78 +130,94 @@ func codexStaticConfigPreview(codexDir, project string) (agentConfigCandidate, [
 	}
 	keys := make(map[string]any)
 	for _, name := range []string{"sandbox_mode", "approval_policy", "default_permissions"} {
-		if v, ok := overlay[name]; ok { keys[name] = v.Value }
+		if v, ok := overlay[name]; ok {
+			keys[name] = v.Value
+		}
 	}
 	if v, ok := overlay["network_access"]; ok {
 		keys["sandbox_workspace_write"] = map[string]any{"network_access": v.Value}
 	}
 	model := ""
-	if v, ok := overlay["model"]; ok { model = configLabel(fmt.Sprint(v.Value)) }
-	if len(overlay) == 0 && provider == "" { return agentConfigCandidate{}, notes, false }
+	if v, ok := overlay["model"]; ok {
+		model = configLabel(fmt.Sprint(v.Value))
+	}
+	if len(overlay) == 0 && provider == "" {
+		return agentConfigCandidate{}, notes, false
+	}
 	var origins []string
-	for _, k := range []string{"model","sandbox_mode","approval_policy","default_permissions","network_access"} {
-		if v, ok := overlay[k]; ok { origins = append(origins, k+" ← "+v.Scope) }
+	for _, k := range []string{"model", "sandbox_mode", "approval_policy", "default_permissions", "network_access"} {
+		if v, ok := overlay[k]; ok {
+			origins = append(origins, k+" ← "+v.Scope)
+		}
 	}
 	return agentConfigCandidate{
 		Agent: "Codex", Scope: "静态合并预览（非运行时）",
 		Provider: provider, Model: model, Host: host, HostKind: kind,
-		Source: "按字段优先级：" + strings.Join(origins, "；"),
+		Source:   "按字段优先级：" + strings.Join(origins, "；"),
 		Security: codexSafetySummary(keys, false),
 	}, notes, true
 }
 
 func claudeStaticConfigPreview(claudeDir, project string) (agentConfigCandidate, bool) {
-	if claudeDir == "" { return agentConfigCandidate{}, false }
-	paths := []struct{Path,Scope string}{{filepath.Join(claudeDir,"settings.json"),"用户"}}
+	if claudeDir == "" {
+		return agentConfigCandidate{}, false
+	}
+	paths := []struct{ Path, Scope string }{{filepath.Join(claudeDir, "settings.json"), "用户"}}
 	if projectRoot := projectConfigRoot(project); projectRoot != "" {
 		project = projectRoot
 		paths = append(paths,
-			struct{Path,Scope string}{filepath.Join(project,".claude","settings.json"),"项目"},
-			struct{Path,Scope string}{filepath.Join(project,".claude","settings.local.json"),"本地"})
+			struct{ Path, Scope string }{filepath.Join(project, ".claude", "settings.json"), "项目"},
+			struct{ Path, Scope string }{filepath.Join(project, ".claude", "settings.local.json"), "本地"})
 	}
 	var model, mode, provider, host, kind string
 	var origins []string
 	var declared bool
 	for _, layer := range paths {
 		doc, exists, err := safeJSONConfig(layer.Path)
-		if !exists || err != nil { continue }
+		if !exists || err != nil {
+			continue
+		}
 		declared = true
-		if v := configLabel(configText(doc,"model")); v!="" {
+		if v := configLabel(configText(doc, "model")); v != "" {
 			model = v
 			origins = append(origins, "model ← "+layer.Scope)
 		}
-		if v := configLabel(configText(jsonConfigTable(doc,"env"),"ANTHROPIC_MODEL")); v!="" {
-			model=v
-			origins = append(origins,"ANTHROPIC_MODEL ← "+layer.Scope)
+		if v := configLabel(configText(jsonConfigTable(doc, "env"), "ANTHROPIC_MODEL")); v != "" {
+			model = v
+			origins = append(origins, "ANTHROPIC_MODEL ← "+layer.Scope)
 		}
-		if v := configText(jsonConfigTable(doc,"permissions"),"defaultMode"); v!="" {
+		if v := configText(jsonConfigTable(doc, "permissions"), "defaultMode"); v != "" {
 			if v != "auto" || layer.Scope == "用户" {
 				mode = v
-				origins = append(origins,"defaultMode ← "+layer.Scope)
+				origins = append(origins, "defaultMode ← "+layer.Scope)
 			}
 		}
-		env := jsonConfigTable(doc,"env")
-		for _, flag := range []struct{Key,Label string}{{"CLAUDE_CODE_USE_BEDROCK","AWS Bedrock"},{"CLAUDE_CODE_USE_VERTEX","Google Vertex AI"},{"CLAUDE_CODE_USE_FOUNDRY","Microsoft Foundry"}} {
-			if enabledClaudeFlag(configText(env,flag.Key)) {
+		env := jsonConfigTable(doc, "env")
+		for _, flag := range []struct{ Key, Label string }{{"CLAUDE_CODE_USE_BEDROCK", "AWS Bedrock"}, {"CLAUDE_CODE_USE_VERTEX", "Google Vertex AI"}, {"CLAUDE_CODE_USE_FOUNDRY", "Microsoft Foundry"}} {
+			if enabledClaudeFlag(configText(env, flag.Key)) {
 				provider = flag.Label
 			}
 		}
 		// Treat layer-specific URL and mode as independent candidate
 		// fields, not a verified effective endpoint from a running process.
-		for _, key := range []string{"ANTHROPIC_BASE_URL","ANTHROPIC_VERTEX_BASE_URL","ANTHROPIC_FOUNDRY_BASE_URL","ANTHROPIC_AWS_BASE_URL"} {
-			if val := configText(env,key); val!="" {
-				host,kind = safeConfiguredHost(val)
-				if host!="" { origins=append(origins,"API Host ← "+layer.Scope) }
+		for _, key := range []string{"ANTHROPIC_BASE_URL", "ANTHROPIC_VERTEX_BASE_URL", "ANTHROPIC_FOUNDRY_BASE_URL", "ANTHROPIC_AWS_BASE_URL"} {
+			if val := configText(env, key); val != "" {
+				host, kind = safeConfiguredHost(val)
+				if host != "" {
+					origins = append(origins, "API Host ← "+layer.Scope)
+				}
 				break
 			}
 		}
 	}
-	if !declared { return agentConfigCandidate{},false }
+	if !declared {
+		return agentConfigCandidate{}, false
+	}
 	return agentConfigCandidate{
-		Agent:"Claude Code",Scope:"静态合并预览（非运行时）",
-		Model:model,Provider:displayOr(provider,"Anthropic / 未验证"),
-		Host:host,HostKind:kind,
-		Source:"按字段优先级："+strings.Join(origins,"；"),
-		Security:claudeConfigSecurity(mode,"静态预览"),
-	},true
+		Agent: "Claude Code", Scope: "静态合并预览（非运行时）",
+		Model: model, Provider: displayOr(provider, "Anthropic / 未验证"),
+		Host: host, HostKind: kind,
+		Source:   "按字段优先级：" + strings.Join(origins, "；"),
+		Security: claudeConfigSecurity(mode, "静态预览"),
+	}, true
 }

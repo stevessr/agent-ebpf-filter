@@ -29,13 +29,23 @@ func TestRegistryFiltersTagAndStatus(t *testing.T) {
 
 func TestImmediateFolderModeDoesNotRecurse(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "one.txt"), []byte("one"), 0600); err != nil { t.Fatal(err) }
-	if err := os.Mkdir(filepath.Join(dir, "nested"), 0700); err != nil { t.Fatal(err) }
-	if err := os.WriteFile(filepath.Join(dir, "nested", "two.txt"), []byte("two"), 0600); err != nil { t.Fatal(err) }
+	if err := os.WriteFile(filepath.Join(dir, "one.txt"), []byte("one"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(dir, "nested"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "nested", "two.txt"), []byte("two"), 0600); err != nil {
+		t.Fatal(err)
+	}
 	paths, err := listDirectFiles(dir)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(paths) != 1 || paths[0] != filepath.Join(dir, "one.txt") {
 		t.Fatalf("expected only immediate regular files, got %v", paths)
 	}
-	if _, err := listDirectFiles("relative"); err == nil { t.Fatal("relative directory accepted") }
+	if _, err := listDirectFiles("relative"); err == nil {
+		t.Fatal("relative directory accepted")
+	}
 }

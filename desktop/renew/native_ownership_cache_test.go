@@ -9,10 +9,10 @@ func TestEventOwnershipIndexIsReusedWithoutPerRowAllocations(t *testing.T) {
 	a := newRenewApp("http://127.0.0.1:8080")
 	for i := range 1200 {
 		a.events = append(a.events, eventSummary{
-			EventID: strconv.Itoa(i + 1),
-			PID: i + 1000,
-			Comm: "codex",
-			Tag: "Codex",
+			EventID:      strconv.Itoa(i + 1),
+			PID:          i + 1000,
+			Comm:         "codex",
+			Tag:          "Codex",
 			ReceivedAtMS: int64(i + 1),
 		})
 	}

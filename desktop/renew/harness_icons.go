@@ -10,6 +10,7 @@ import (
 
 // LobeHub static SVG marks are shipped with Renew so native monitoring never
 // depends on the network, a WebView, or the React @lobehub/icons package.
+//
 //go:embed harness_icons/*.svg
 var harnessIconFiles embed.FS
 
@@ -24,22 +25,22 @@ type harnessIconAsset struct {
 }
 
 var harnessIconCatalog = map[string]harnessIconSpec{
-	"Codex":           {"codex-color.svg", false},
-	"Claude Code":     {"claudecode-color.svg", false},
-	"Gemini CLI":      {"geminicli-color.svg", false},
+	"Codex":            {"codex-color.svg", false},
+	"Claude Code":      {"claudecode-color.svg", false},
+	"Gemini CLI":       {"geminicli-color.svg", false},
 	"DeepSeek Harness": {"deepseek-color.svg", false},
-	"GitHub Copilot":  {"githubcopilot.svg", true},
-	"Cursor":          {"cursor.svg", true},
-	"OpenCode":        {"opencode.svg", true},
-	"Pi":              {"pi.svg", true},
-	"Oh My Pi":        {"pi.svg", true},
-	"Kiro CLI":        {"kiro-color.svg", false},
-	"Antigravity CLI": {"antigravity.svg", true},
-	"MiniMax Code":    {"minimax-color.svg", false},
+	"GitHub Copilot":   {"githubcopilot.svg", true},
+	"Cursor":           {"cursor.svg", true},
+	"OpenCode":         {"opencode.svg", true},
+	"Pi":               {"pi.svg", true},
+	"Oh My Pi":         {"pi.svg", true},
+	"Kiro CLI":         {"kiro-color.svg", false},
+	"Antigravity CLI":  {"antigravity.svg", true},
+	"MiniMax Code":     {"minimax-color.svg", false},
 }
 
 var (
-	harnessIconOnce sync.Once
+	harnessIconOnce  sync.Once
 	harnessIconCache map[string]harnessIconAsset
 )
 

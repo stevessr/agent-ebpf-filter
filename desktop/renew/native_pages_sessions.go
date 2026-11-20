@@ -10,14 +10,14 @@ import (
 )
 
 type agentSessionSummary struct {
-	Key        string
-	Label      string
-	Events     int
-	Alerts     int
-	FileEdits  int
+	Key            string
+	Label          string
+	Events         int
+	Alerts         int
+	FileEdits      int
 	DelegatedEdits int
-	LastSeen   int64
-	LastAction string
+	LastSeen       int64
+	LastAction     string
 }
 
 var harnessLabels = map[string]string{
@@ -28,7 +28,7 @@ var harnessLabels = map[string]string{
 	"copilot": "GitHub Copilot", "github copilot": "GitHub Copilot",
 	"cursor": "Cursor", "cursor-agent": "Cursor",
 	"opencode": "OpenCode",
-	"pi": "Pi", "pi-coding-agent": "Pi",
+	"pi":       "Pi", "pi-coding-agent": "Pi",
 	"omp": "Oh My Pi", "oh my pi": "Oh My Pi", "oh-my-pi": "Oh My Pi",
 	"kiro": "Kiro CLI", "kiro-cli": "Kiro CLI", "kiro cli": "Kiro CLI",
 	"augment": "Augment", "auggie": "Augment",

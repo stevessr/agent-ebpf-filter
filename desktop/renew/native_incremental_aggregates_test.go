@@ -172,7 +172,7 @@ var incrementalProcessSink []processAggregate
 
 func BenchmarkRenewAggregateDeltaViews(b *testing.B) {
 	for _, tc := range []struct {
-		name string
+		name        string
 		incremental bool
 	}{
 		{"full-aggregate-rescan", false},

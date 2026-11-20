@@ -189,7 +189,9 @@ func (a *renewApp) ccrView(c *ui.Context) {
 		})
 		if !a.ccr.Found {
 			ui.Text(c, "未找到 CCR config.sqlite。支持 AGENT_RENEW_CCR_CONFIG_DB 指定数据库绝对路径。").TextColor(t.TextMuted)
-			if a.ccr.Err != "" { ui.Text(c, a.ccr.Err).TextColor(t.Warning) }
+			if a.ccr.Err != "" {
+				ui.Text(c, a.ccr.Err).TextColor(t.Warning)
+			}
 			return
 		}
 		if a.ccr.Err != "" {
@@ -216,6 +218,8 @@ func (a *renewApp) ccrView(c *ui.Context) {
 }
 
 func nonempty(s, fallback string) string {
-	if strings.TrimSpace(s) == "" { return fallback }
+	if strings.TrimSpace(s) == "" {
+		return fallback
+	}
 	return s
 }

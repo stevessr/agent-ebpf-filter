@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
-	"github.com/egoist/mygo/ui"
 	"reflect"
+
+	"github.com/egoist/mygo/ui"
 )
 
 // Harness updates run in ordinary user terminals, never in the privileged backend.

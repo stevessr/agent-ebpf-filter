@@ -29,9 +29,9 @@ func benchmarkNearestRankNs(sorted []int64, percent int) int64 {
 
 func TestBenchmarkNearestRankNs(t *testing.T) {
 	for _, tc := range []struct {
-		count int
+		count   int
 		percent int
-		want int64
+		want    int64
 	}{
 		{1, 99, 1},
 		{10, 95, 10},
@@ -83,16 +83,16 @@ func BenchmarkRenewBacklogRecoveryTail(b *testing.B) {
 			backlog := make([]eventSummary, 1200)
 			for i := range initial {
 				initial[i] = eventSummary{
-					EventID: strconv.Itoa(i+1), ReceivedAtMS: int64(i+1),
+					EventID: strconv.Itoa(i + 1), ReceivedAtMS: int64(i + 1),
 					PID: 1000 + i%50, Type: "network_connect",
 					Target: "/tmp/initial/" + strconv.Itoa(i%60),
-					Comm: "codex", RiskScore: float64(i%101),
+					Comm:   "codex", RiskScore: float64(i % 101),
 				}
 				backlog[i] = eventSummary{
-					EventID: strconv.Itoa(10000+i), ReceivedAtMS: int64(10000+i),
+					EventID: strconv.Itoa(10000 + i), ReceivedAtMS: int64(10000 + i),
 					PID: 1000 + i%50, Type: "network_connect",
 					Target: "/tmp/new/" + strconv.Itoa(i%60),
-					Comm: "codex", RiskScore: float64((i+5)%101),
+					Comm:   "codex", RiskScore: float64((i + 5) % 101),
 				}
 			}
 			a.mergeEventWindow(initial, 1200)

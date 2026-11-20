@@ -44,9 +44,9 @@ type agentOwnershipIndex struct {
 }
 
 type agentRootIdentity struct {
-	comm string
-	tag  string
-	seenAtMS int64
+	comm       string
+	tag        string
+	seenAtMS   int64
 	agentRunID string
 	// Live process names are only usable for events after process start. This
 	// prevents an unrelated process reusing the same PID from naming history.
@@ -166,7 +166,6 @@ func eventSessionDisplayLabel(e eventSummary, a eventAttribution) string {
 	}
 }
 
- 
 // isFileMutationSummary recognizes actual file-change operations rather than
 // assuming every inherited shell tool call is a file modification.
 // Socket writes and generic open/read events must not inflate edit counts.

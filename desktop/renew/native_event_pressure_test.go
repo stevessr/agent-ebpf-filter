@@ -18,7 +18,7 @@ func TestRenewEventUIQueueConcurrentProducersAccountForEveryInput(t *testing.T) 
 			for n := 0; n < each; n++ {
 				a.queueEventSummary(eventSummary{
 					EventID: strconv.Itoa(id) + "-" + strconv.Itoa(n),
-					PID: id*each + n,
+					PID:     id*each + n,
 				})
 			}
 		}(producer)
@@ -99,7 +99,7 @@ func TestRenewEventUIBatchPressureAndDropReasons(t *testing.T) {
 	overwriteAt := 0
 	for i := 0; i < eventUIFrameCapacity+100; i++ {
 		batch = a.appendEventToUIBatch(batch, eventSummary{
-			EventID: strconv.Itoa(i),
+			EventID:      strconv.Itoa(i),
 			ReceivedAtMS: int64(i),
 		}, eventUIFrameCapacity, &overwriteAt)
 	}

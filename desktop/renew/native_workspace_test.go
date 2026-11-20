@@ -36,11 +36,10 @@ func TestWorkspaceInspectorResponsive(t *testing.T) {
 	}
 }
 
-
 func TestWorkspaceNavigationDetailedLabels(t *testing.T) {
 	for _, tc := range []struct {
 		open, detailed bool
-		want float32
+		want           float32
 	}{
 		{false, false, 0},
 		{false, true, 0},
@@ -459,10 +458,10 @@ func TestInspectorQueueChoiceBypassesLocalEventFilters(t *testing.T) {
 
 func TestWorkspaceResponsiveNavigationOnLaptop(t *testing.T) {
 	for _, tc := range []struct {
-		window float32
+		window         float32
 		open, detailed bool
-		wantWidth float32
-		wantDetailed bool
+		wantWidth      float32
+		wantDetailed   bool
 	}{
 		{980, false, true, 0, false},
 		{980, true, true, workspaceNavigationCompactWidth, false},
@@ -577,7 +576,7 @@ func TestWorkspaceNavigationMenuCoversEverySidebarRoute(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		width float32
-		menu bool
+		menu  bool
 	}{
 		{600, true}, {899, true}, {900, false}, {1280, false},
 	} {
@@ -593,7 +592,7 @@ func TestWorkspaceNavigationMenuCoversEverySidebarRoute(t *testing.T) {
 func TestWorkspaceToolbarMovesBelowStatusForNarrowLayouts(t *testing.T) {
 	for _, tc := range []struct {
 		window, nav float32
-		tight bool
+		tight       bool
 	}{
 		{640, 0, true},
 		{750, 0, false},

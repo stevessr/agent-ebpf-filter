@@ -121,8 +121,8 @@ func readClaudeCandidate(path, scope string) (agentConfigCandidate, bool, error)
 	}
 	// Decode strictly and avoid logging parse failures (they may contain secrets).
 	var settings struct {
-		Model string            `json:"model"`
-		Env   map[string]string `json:"env"`
+		Model       string            `json:"model"`
+		Env         map[string]string `json:"env"`
 		Permissions struct {
 			DefaultMode string `json:"defaultMode"`
 		} `json:"permissions"`
@@ -310,7 +310,7 @@ func codexCandidate(doc map[string]any, scope string, allowProvider bool) []agen
 			result = append(result, agentConfigCandidate{
 				Agent: "Codex", Scope: scope + " · profile " + selected,
 				Provider: name, Model: alternateModel, Host: host, HostKind: kind,
-				Source: "config.toml · 选中 Profile（可能被 CLI 覆盖）",
+				Source:   "config.toml · 选中 Profile（可能被 CLI 覆盖）",
 				Security: codexSafetySummary(profile, false),
 			})
 		}
@@ -485,4 +485,3 @@ func formatConfigCandidate(c agentConfigCandidate) string {
 	}
 	return "未显式配置 URL"
 }
-

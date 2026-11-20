@@ -81,13 +81,13 @@ func TestSelectiveIncrementalFilterMatchesFullScanAndAggregates(t *testing.T) {
 			initial := make([]eventSummary, 1200)
 			for i := range initial {
 				initial[i] = eventSummary{
-					EventID: strconv.Itoa(9000-i), PID: 1000 + i%50,
-					RootAgentPID: 1000 + i%50, ReceivedAtMS: int64(9000-i),
-					RiskScore: float64(i%101), Decision: []string{"ALLOW", "ALERT", "DENY"}[i%3],
-					Type: []string{"file_write", "network_connect"}[i%2],
-					Target: []string{"/tmp/record", "example.org"}[i%2],
+					EventID: strconv.Itoa(9000 - i), PID: 1000 + i%50,
+					RootAgentPID: 1000 + i%50, ReceivedAtMS: int64(9000 - i),
+					RiskScore: float64(i % 101), Decision: []string{"ALLOW", "ALERT", "DENY"}[i%3],
+					Type:       []string{"file_write", "network_connect"}[i%2],
+					Target:     []string{"/tmp/record", "example.org"}[i%2],
 					AgentRunID: "run-" + strconv.Itoa(i%5),
-					Comm: "codex", Tag: "codex", Network: i%2 == 1,
+					Comm:       "codex", Tag: "codex", Network: i%2 == 1,
 					NetBytes: int64(i + 1),
 				}
 			}
@@ -102,17 +102,17 @@ func TestSelectiveIncrementalFilterMatchesFullScanAndAggregates(t *testing.T) {
 				for i := 0; i < 1+rng.Intn(8); i++ {
 					id := rng.Intn(2400)
 					batch = append(batch, eventSummary{
-						EventID: strconv.Itoa(id + 7000),
-						PID: 1000 + rng.Intn(50),
+						EventID:      strconv.Itoa(id + 7000),
+						PID:          1000 + rng.Intn(50),
 						RootAgentPID: 1000 + rng.Intn(50),
 						ReceivedAtMS: int64(rng.Intn(12000)),
-						RiskScore: float64(rng.Intn(101)),
-						Decision: []string{"ALLOW", "ALERT", "DENY"}[rng.Intn(3)],
-						Type: []string{"file_write", "network_connect"}[rng.Intn(2)],
-						Target: []string{"example.org", "/tmp/record"}[rng.Intn(2)],
-						AgentRunID: "run-" + strconv.Itoa(rng.Intn(5)),
-						Comm: "codex", Tag: "codex",
-						Network: rng.Intn(2) == 1,
+						RiskScore:    float64(rng.Intn(101)),
+						Decision:     []string{"ALLOW", "ALERT", "DENY"}[rng.Intn(3)],
+						Type:         []string{"file_write", "network_connect"}[rng.Intn(2)],
+						Target:       []string{"example.org", "/tmp/record"}[rng.Intn(2)],
+						AgentRunID:   "run-" + strconv.Itoa(rng.Intn(5)),
+						Comm:         "codex", Tag: "codex",
+						Network:  rng.Intn(2) == 1,
 						NetBytes: int64(rng.Intn(2048)),
 					})
 				}
@@ -224,7 +224,7 @@ func TestBroadFilterStillUsesSafeFullScanFallback(t *testing.T) {
 	a.search = "codex"
 	initial := make([]eventSummary, 300)
 	for i := range initial {
-		initial[i] = eventSummary{EventID: strconv.Itoa(300-i), PID: 100+i, Comm: "codex", ReceivedAtMS: int64(300-i)}
+		initial[i] = eventSummary{EventID: strconv.Itoa(300 - i), PID: 100 + i, Comm: "codex", ReceivedAtMS: int64(300 - i)}
 	}
 	a.mergeEventWindow(initial, 1200)
 	if rows := a.filteredEvents(); len(rows) != 300 {
@@ -256,10 +256,10 @@ func BenchmarkRenewSelectiveFilterAfterMerge(b *testing.B) {
 			for i := range initial {
 				initial[i] = eventSummary{
 					EventID: strconv.Itoa(9000 - i),
-					PID: 1000 + i%50,
-					Comm: "codex", Type: "file_write",
-					RiskScore: 20,
-					Target: "/tmp/workspace",
+					PID:     1000 + i%50,
+					Comm:    "codex", Type: "file_write",
+					RiskScore:    20,
+					Target:       "/tmp/workspace",
 					ReceivedAtMS: int64(9000 - i),
 				}
 			}
@@ -267,10 +267,10 @@ func BenchmarkRenewSelectiveFilterAfterMerge(b *testing.B) {
 			for i := range batch {
 				batch[i] = eventSummary{
 					EventID: strconv.Itoa(12000 + i),
-					PID: 1000 + i,
-					Comm: "codex", Type: "file_write",
-					RiskScore: 20,
-					Target: "/tmp/workspace",
+					PID:     1000 + i,
+					Comm:    "codex", Type: "file_write",
+					RiskScore:    20,
+					Target:       "/tmp/workspace",
 					ReceivedAtMS: int64(13000 + i),
 				}
 			}

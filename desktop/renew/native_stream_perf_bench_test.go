@@ -15,9 +15,9 @@ import (
 // No IPC, kernel eBPF, compositor or actual GPU is exercised here.
 func BenchmarkRenewLiveEventStream(b *testing.B) {
 	for _, tc := range []struct {
-		name string
-		page string
-		batchSize int
+		name           string
+		page           string
+		batchSize      int
 		uniquePerBatch int
 	}{
 		{"events-32-unique", "事件", 32, 32},
@@ -38,10 +38,10 @@ func BenchmarkRenewLiveEventStream(b *testing.B) {
 			initial := make([]eventSummary, 1200)
 			for i := range initial {
 				initial[i] = eventSummary{
-					EventID: strconv.Itoa(50000-i), ReceivedAtMS: int64(50000-i),
+					EventID: strconv.Itoa(50000 - i), ReceivedAtMS: int64(50000 - i),
 					PID: 10000 + i%200, Type: "network_connect", Network: true,
 					Target: "host-" + strconv.Itoa(i%500) + ".example",
-					Comm: "codex", RiskScore: float64(i%101),
+					Comm:   "codex", RiskScore: float64(i % 101),
 				}
 			}
 			a.mergeEventWindow(initial, 1200)
@@ -50,13 +50,13 @@ func BenchmarkRenewLiveEventStream(b *testing.B) {
 				batch := make([]eventSummary, tc.batchSize)
 				for j := range batch {
 					batch[j] = eventSummary{
-						EventID: strconv.Itoa(100000 + i*tc.uniquePerBatch + j%tc.uniquePerBatch),
+						EventID:      strconv.Itoa(100000 + i*tc.uniquePerBatch + j%tc.uniquePerBatch),
 						ReceivedAtMS: int64(100000 + i*tc.batchSize + j),
-						PID: 10000 + (j+i)%200,
-						Comm: "codex", Type: "network_connect", Network: true,
-						Target: "host-" + strconv.Itoa((j+i)%500) + ".example",
-						RiskScore: float64((j+i)%101),
-						NetBytes: int64(j+1) * 1024,
+						PID:          10000 + (j+i)%200,
+						Comm:         "codex", Type: "network_connect", Network: true,
+						Target:    "host-" + strconv.Itoa((j+i)%500) + ".example",
+						RiskScore: float64((j + i) % 101),
+						NetBytes:  int64(j+1) * 1024,
 					}
 				}
 				batches[i] = batch
@@ -96,9 +96,9 @@ func BenchmarkRenewSearchTextDedup(b *testing.B) {
 	for i := range incoming {
 		incoming[i] = eventSummary{
 			EventID: strconv.Itoa(i % 16),
-			Type: "network_connect", Comm: "codex",
+			Type:    "network_connect", Comm: "codex",
 			Target: "https://events.example/" + strconv.Itoa(i),
-			PID: 1000 + i, ReceivedAtMS: int64(i),
+			PID:    1000 + i, ReceivedAtMS: int64(i),
 		}
 	}
 	b.Run("previous-build-before-dedup", func(b *testing.B) {

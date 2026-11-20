@@ -114,10 +114,10 @@ func TestEventFilterAllocationMatchesSelectivity(t *testing.T) {
 	a.events = make([]eventSummary, 1200)
 	for i := range a.events {
 		a.events[i] = eventSummary{
-			EventID: strconv.Itoa(i + 1),
-			PID: 1000 + i,
-			Type: "file_write",
-			Comm: "codex",
+			EventID:    strconv.Itoa(i + 1),
+			PID:        1000 + i,
+			Type:       "file_write",
+			Comm:       "codex",
 			SearchText: "codex file_write",
 		}
 	}
@@ -168,11 +168,11 @@ func BenchmarkRenewEventFilterCompute(b *testing.B) {
 					search = ""
 				}
 				a.events[i] = eventSummary{
-					EventID: id,
-					PID: 1000 + i,
-					Type: "file_write",
-					Comm: "codex",
-					Target: "/tmp/workspace",
+					EventID:    id,
+					PID:        1000 + i,
+					Type:       "file_write",
+					Comm:       "codex",
+					Target:     "/tmp/workspace",
 					SearchText: search,
 				}
 			}

@@ -155,7 +155,9 @@ func TestUnixClientDoesNotRequireTCP(t *testing.T) {
 	dir := t.TempDir()
 	socket := filepath.Join(dir, "api.sock")
 	listener, err := net.Listen("unix", socket)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer listener.Close()
 	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/events/summaries" || r.Header.Get("X-API-KEY") != "local-only" {

@@ -35,7 +35,7 @@ func TestCCSAppForEventMatchesOnlyExecutable(t *testing.T) {
 }
 
 func TestManagementAppForEvent(t *testing.T) {
-	for _, tc := range []struct{comm, expected string}{
+	for _, tc := range []struct{ comm, expected string }{
 		{"astrlink-core", "astrlink"},
 		{"AstrLink.exe", "astrlink"},
 		{"astrlinkcore", "astrlink"},
@@ -45,7 +45,7 @@ func TestManagementAppForEvent(t *testing.T) {
 	} {
 		actual := managementAppForEvent(eventSummary{Comm: tc.comm})
 		if actual != tc.expected {
-			t.Errorf("managementAppForEvent(%q) = %q, want %q",tc.comm, actual, tc.expected)
+			t.Errorf("managementAppForEvent(%q) = %q, want %q", tc.comm, actual, tc.expected)
 		}
 	}
 }

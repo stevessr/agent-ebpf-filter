@@ -131,7 +131,6 @@ func matchesEventDrilldown(e eventSummary, rootPID int, target string, fileOnly,
 	return true
 }
 
- 
 // A run or conversation alone proves a related session, not necessarily
 // that the executing interpreter is itself the root Agent.
 func hasKnownRootAgent(event eventSummary, owner eventAttribution) bool {
@@ -182,7 +181,6 @@ func (a *renewApp) eventQuickLinks(c *ui.Context, event eventSummary, withPolicy
 	})
 }
 
- 
 // Modal links close the detail and release its sensitive payload before
 // changing pages/filters. Nothing navigates to an unknown or inferred value.
 func (a *renewApp) eventDetailQuickLinks(c *ui.Context, event eventSummary) {

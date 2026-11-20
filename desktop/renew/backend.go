@@ -281,6 +281,8 @@ func existingLocalToken(origin string) string {
 }
 
 func (s *backendSession) clientAddress() string {
-	if s == nil { return "" }
+	if s == nil {
+		return ""
+	}
 	return s.apiSocket
 }

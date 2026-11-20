@@ -25,39 +25,39 @@ var errLocalFileChanged = errors.New("文件已被其他程序修改；请重新
 
 type localFileEntry struct {
 	name string
-	dir bool
+	dir  bool
 	link bool
 }
 
 type localFileDocument struct {
-	path string
-	state *editor.State
+	path    string
+	state   *editor.State
 	modTime time.Time
-	size int64
-	mode os.FileMode
-	saving bool
+	size    int64
+	mode    os.FileMode
+	saving  bool
 }
 
 type localFileWorkspace struct {
-	dir string
-	address string
-	filter string
-	items []localFileEntry
-	listLoading bool
-	listLoaded bool
+	dir            string
+	address        string
+	filter         string
+	items          []localFileEntry
+	listLoading    bool
+	listLoaded     bool
 	listGeneration uint64
-	listTruncated bool
-	selected string
-	newName string
-	renameName string
-	pendingDelete string
-	errorText string
-	notice string
-	docs []*localFileDocument
-	active int
-	closePending string
-	quitPending bool
-	allowQuit bool
+	listTruncated  bool
+	selected       string
+	newName        string
+	renameName     string
+	pendingDelete  string
+	errorText      string
+	notice         string
+	docs           []*localFileDocument
+	active         int
+	closePending   string
+	quitPending    bool
+	allowQuit      bool
 }
 
 func (a *renewApp) hasUnsavedLocalDocuments() bool {
@@ -96,7 +96,7 @@ func readLocalDirectory(dir string) ([]localFileEntry, bool, error) {
 	for _, entry := range entries {
 		rows = append(rows, localFileEntry{
 			name: entry.Name(),
-			dir: entry.IsDir(),
+			dir:  entry.IsDir(),
 			link: entry.Type()&os.ModeSymlink != 0,
 		})
 	}
@@ -181,7 +181,7 @@ func readLocalDocument(path string) (string, os.FileInfo, error) {
 		return "", nil, err
 	}
 	defer f.Close()
-	data, err := io.ReadAll(io.LimitReader(f, localEditorMaxBytes + 1))
+	data, err := io.ReadAll(io.LimitReader(f, localEditorMaxBytes+1))
 	if err != nil {
 		return "", nil, err
 	}

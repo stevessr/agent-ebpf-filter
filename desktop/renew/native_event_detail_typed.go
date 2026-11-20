@@ -212,9 +212,9 @@ func eventDetailTypedSection(payload eventTypedPayload) eventDetailSection {
 // caused the next. PID reuse means a time window or an explicit run/session
 // association is required before showing a related row.
 type eventDetailRelatedItem struct {
-	Event       eventSummary
-	Relation    string
-	DistanceMS  int64
+	Event      eventSummary
+	Relation   string
+	DistanceMS int64
 }
 
 func eventDetailRelatedCandidates(events []eventSummary, selected eventSummary, limit int) []eventDetailRelatedItem {

@@ -7,24 +7,24 @@ import "time"
 const overviewSyncStaleAfter = 2 * time.Minute
 
 func (a *renewApp) syncFreshnessAt(now time.Time) string {
-  if a.lastSync.IsZero() {
-    return "unknown"
-  }
-  if a.lastSync.After(now.Add(30 * time.Second)) {
-    return "clock-skew"
-  }
-  if now.Sub(a.lastSync) > overviewSyncStaleAfter {
-    return "stale"
-  }
-  return "fresh"
+	if a.lastSync.IsZero() {
+		return "unknown"
+	}
+	if a.lastSync.After(now.Add(30 * time.Second)) {
+		return "clock-skew"
+	}
+	if now.Sub(a.lastSync) > overviewSyncStaleAfter {
+		return "stale"
+	}
+	return "fresh"
 }
 
 func (a *renewApp) overviewSnapshotHint() string {
-  return a.overviewSnapshotHintAt(time.Now())
+	return a.overviewSnapshotHintAt(time.Now())
 }
 
 func (a *renewApp) overviewSnapshotHintAt(now time.Time) string {
-  switch {
+	switch {
 	case a.starting:
 		return "正在建立连接。采集状态确认前，请勿将空白记录视为安全。"
 	case !a.connected:

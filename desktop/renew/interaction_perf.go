@@ -7,13 +7,13 @@ import (
 )
 
 const (
-	eventUIFlushInterval  = 16 * time.Millisecond
-	eventUIFrameCapacity  = 512
+	eventUIFlushInterval = 16 * time.Millisecond
+	eventUIFrameCapacity = 512
 	// In a paused backlog, 640 balances P99 peak latency with recovery CPU
 	// and drains a 1200-event window in two UI commits.
 	eventUIResumeCommitCapacity = 640
-	eventUIPauseCapacity  = 1200
-	eventUIQueueSize      = 2048
+	eventUIPauseCapacity        = 1200
+	eventUIQueueSize            = 2048
 )
 
 func (a *renewApp) mergeEventWindow(incoming []eventSummary, limit int) bool {

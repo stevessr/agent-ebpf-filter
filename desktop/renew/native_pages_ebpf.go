@@ -99,7 +99,7 @@ func (a *renewApp) ebpfModulesView(c *ui.Context) {
 						ui.Text(c, target).Font("monospace").FontSize(11).TextColor(t.TextMuted)
 					}
 					if module.LoadError != "" {
-						ui.Text(c, "后端错误：" + module.LoadError).FontSize(11).TextColor(t.Danger)
+						ui.Text(c, "后端错误："+module.LoadError).FontSize(11).TextColor(t.Danger)
 					}
 				})
 				if module.Loaded {

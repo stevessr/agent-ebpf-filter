@@ -13,14 +13,14 @@ import (
 // The desktop intentionally consumes the existing, authenticated and redacted
 // AgentSight API. No second eBPF collector or plaintext interception is needed.
 type agentSightUsageSession struct {
-	ID                 string `json:"id"`
-	EventCount         int    `json:"event_count"`
-	UsageEvents        int    `json:"usage_events"`
-	InputTokens        uint64 `json:"input_tokens"`
-	OutputTokens       uint64 `json:"output_tokens"`
-	CacheReadTokens    uint64 `json:"cache_read_tokens"`
+	ID                  string `json:"id"`
+	EventCount          int    `json:"event_count"`
+	UsageEvents         int    `json:"usage_events"`
+	InputTokens         uint64 `json:"input_tokens"`
+	OutputTokens        uint64 `json:"output_tokens"`
+	CacheReadTokens     uint64 `json:"cache_read_tokens"`
 	CacheCreationTokens uint64 `json:"cache_creation_tokens"`
-	LastEventTimestamp int64  `json:"last_event_timestamp"`
+	LastEventTimestamp  int64  `json:"last_event_timestamp"`
 }
 
 type agentSightUsageModel struct {
