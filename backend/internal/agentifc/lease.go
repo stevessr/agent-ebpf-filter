@@ -7,8 +7,11 @@ package agentifc
 import (
 	"fmt"
 	"hash/fnv"
+	"net"
 	"net/netip"
+	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 
 	"agent-ebpf-filter/ebpf"
@@ -101,6 +104,35 @@ func DefaultRootLease(runID string, capMask, spawnBudget uint32) TaskLease {
 	}
 }
 
+// normalizeTarget canonicalizes a single target/destination identifier at lease boundaries.
+func normalizeTarget(s string) string {
+	return strings.ToLower(strings.TrimSpace(strings.TrimRight(s, ".,;:!?")))
+}
+
+// normalizeTargets returns a deduplicated, normalized target slice (nil if empty).
+func normalizeTargets(targets []string) []string {
+	if len(targets) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(targets))
+	out := make([]string, 0, len(targets))
+	for _, t := range targets {
+		norm := normalizeTarget(t)
+		if norm == "" {
+			continue
+		}
+		if _, dup := seen[norm]; dup {
+			continue
+		}
+		seen[norm] = struct{}{}
+		out = append(out, norm)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 // NarrowLease computes a strictly monotonic child/tool lease relative to parent:
 // capabilities and spawn budget can only intersect/shrink, while confidentiality
 // and integrity taint bits only grow (lattice join).
@@ -114,14 +146,8 @@ func NarrowLease(parent, requested TaskLease) (TaskLease, error) {
 		)
 	}
 
-	budget := requested.SpawnBudget
-	if budget > parent.SpawnBudget {
-		budget = parent.SpawnBudget
-	}
-	gen := parent.Generation + 1
-	if requested.Generation > gen {
-		gen = requested.Generation
-	}
+	budget := min(requested.SpawnBudget, parent.SpawnBudget)
+	gen := max(parent.Generation+1, requested.Generation)
 	flags := (parent.Flags | requested.Flags) & ^IFCFlagAuditOnly
 	if (parent.Flags & IFCFlagEnforce) != 0 {
 		flags |= IFCFlagEnforce
@@ -129,8 +155,8 @@ func NarrowLease(parent, requested TaskLease) (TaskLease, error) {
 
 	targets := intersectOrNarrowTargets(parent.AuthorizedTargets, requested.AuthorizedTargets)
 	runID := parent.RunID
-	if strings.TrimSpace(requested.RunID) != "" {
-		runID = requested.RunID
+	if trimmed := strings.TrimSpace(requested.RunID); trimmed != "" {
+		runID = trimmed
 	}
 
 	return TaskLease{
@@ -147,24 +173,24 @@ func NarrowLease(parent, requested TaskLease) (TaskLease, error) {
 }
 
 func intersectOrNarrowTargets(parent, req []string) []string {
-	if len(parent) == 0 && len(req) == 0 {
+	normParent := normalizeTargets(parent)
+	normReq := normalizeTargets(req)
+	switch {
+	case len(normParent) == 0 && len(normReq) == 0:
 		return nil
+	case len(normParent) == 0:
+		return normReq
+	case len(normReq) == 0:
+		return normParent
 	}
-	if len(parent) == 0 {
-		return append([]string(nil), req...)
+	allowed := make(map[string]struct{}, len(normParent))
+	for _, t := range normParent {
+		allowed[t] = struct{}{}
 	}
-	if len(req) == 0 {
-		return append([]string(nil), parent...)
-	}
-	allowed := make(map[string]struct{}, len(parent))
-	for _, t := range parent {
-		allowed[strings.ToLower(strings.TrimSpace(t))] = struct{}{}
-	}
-	var out []string
-	for _, t := range req {
-		norm := strings.ToLower(strings.TrimSpace(t))
-		if _, ok := allowed[norm]; ok {
-			out = append(out, norm)
+	out := make([]string, 0, min(len(normParent), len(normReq)))
+	for _, t := range normReq {
+		if _, ok := allowed[t]; ok {
+			out = append(out, t)
 		}
 	}
 	return out
@@ -177,9 +203,8 @@ func CompileFromBoundaryPolicy(p agentboundary.Policy, base TaskLease) TaskLease
 	var targets []string
 
 	for _, g := range p.Grants {
-		res := strings.TrimSpace(g.Resource)
-		if res != "" {
-			targets = append(targets, strings.ToLower(res))
+		if res := normalizeTarget(g.Resource); res != "" {
+			targets = append(targets, res)
 		}
 		switch g.Domain {
 		case "network", "model":
@@ -190,7 +215,7 @@ func CompileFromBoundaryPolicy(p agentboundary.Policy, base TaskLease) TaskLease
 			if g.Operation == "write" {
 				grantedCaps |= CapFileWrite
 			}
-			if looksLikeSecretResource(res) {
+			if looksLikeSecretResource(g.Resource) {
 				grantedCaps |= CapSecretRead
 			}
 		case "tool":
@@ -205,7 +230,7 @@ func CompileFromBoundaryPolicy(p agentboundary.Policy, base TaskLease) TaskLease
 		CapMask:           grantedCaps,
 		SpawnBudget:       base.SpawnBudget,
 		Flags:             base.Flags | IFCFlagEnforce | IFCFlagTracked,
-		AuthorizedTargets: targets,
+		AuthorizedTargets: normalizeTargets(targets),
 		TargetBound:       len(targets) > 0,
 	}
 	narrowed, _ := NarrowLease(base, req)
@@ -223,48 +248,62 @@ func looksLikeSecretResource(path string) bool {
 }
 
 var (
-	reEmail = regexp.MustCompile(`[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}`)
-	reIBAN  = regexp.MustCompile(`\b[A-Z]{2}[0-9]{2}[A-Za-z0-9]{10,30}\b`)
-	reURL   = regexp.MustCompile(`https?://[^\s"'<>)]+`)
-	reWWW   = regexp.MustCompile(`\bwww\.[A-Za-z0-9.\-]+\.[A-Za-z]{2,}(?:/[^\s"'<>)]*)?`)
-	reQuote = regexp.MustCompile(`['"]([^'"]{2,80})['"]`)
+	reEmail             = regexp.MustCompile(`[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}`)
+	reIBAN              = regexp.MustCompile(`\b[A-Z]{2}[0-9]{2}[A-Za-z0-9]{10,30}\b`)
+	reURL               = regexp.MustCompile(`https?://[^\s"'<>)]+`)
+	reWWW               = regexp.MustCompile(`\bwww\.[A-Za-z0-9.\-]+\.[A-Za-z]{2,}(?:/[^\s"'<>)]*)?`)
+	reQuote             = regexp.MustCompile(`['"]([A-Za-z0-9._@\-]{2,64})['"]`)
+	reProperNoun        = regexp.MustCompile(`\b([A-Z][a-z]{1,24})\b`)
+	reSinkPhrase        = regexp.MustCompile(`(?i)\b(?:to|into|onto|website|channel)\s+['"]?([A-Za-z0-9._@\-:/]{2,80})`)
+	reQuantifiedTarget  = regexp.MustCompile(`(?i)\b(?:(?:all|each|every)\s+(?:users?|people|persons?|members?|recipients?|employees?|participants?)|(?:new\s+colleague|my\s+friend|to\s+the\s+client|find\s+(?:a|an)\s+(?:user|person|channel|member))|(?:do|follow|perform)\s+(?:the\s+)?(?:actions?|instructions?))\b`)
+	reIndirectSourceCue = regexp.MustCompile(`(?i)\b(?:inbox|article|websites?|posted)\b`)
+	reWordToken         = regexp.MustCompile(`[a-z0-9_]+`)
 )
 
-// CompilePromptLease blindly derives the minimal monotonic capability lease and
-// target allowlist solely from a natural-language user prompt (no access to
-// tool call traces or injection tasks).
+var nonRecipientProperNouns = map[string]struct{}{
+	"the": {}, "a": {}, "an": {}, "my": {}, "our": {}, "your": {}, "his": {}, "her": {}, "their": {},
+	"this": {}, "that": {}, "please": {}, "channel": {}, "slack": {}, "google": {}, "gmail": {},
+	"can": {}, "could": {}, "would": {}, "should": {}, "will": {}, "find": {}, "read": {}, "get": {},
+	"send": {}, "post": {}, "add": {}, "create": {}, "update": {}, "check": {}, "summarize": {},
+	"monday": {}, "tuesday": {}, "wednesday": {}, "thursday": {}, "friday": {}, "saturday": {}, "sunday": {},
+	"january": {}, "february": {}, "march": {}, "april": {}, "may": {}, "june": {},
+	"july": {}, "august": {}, "september": {}, "october": {}, "november": {}, "december": {},
+}
+
+func looksLikeFilenameToken(s string) bool {
+	for _, ext := range []string{".txt", ".md", ".csv", ".json", ".yaml", ".yml", ".pdf", ".py", ".go", ".sh"} {
+		if strings.HasSuffix(s, ext) {
+			return true
+		}
+	}
+	return false
+}
+
+// CompilePromptLease derives a minimal capability lease and optional target
+// allowlist from a natural-language user prompt without access to downstream
+// tool traces.
 func CompilePromptLease(prompt string) PromptLease {
 	lower := strings.ToLower(prompt)
-	var caps uint32
 	var targets []string
-
 	addTarget := func(t string) {
-		norm := strings.ToLower(strings.TrimSpace(strings.TrimRight(t, ".,;:!?")))
-		if norm == "" {
+		norm := normalizeTarget(t)
+		if norm == "" || slices.Contains(targets, norm) {
 			return
-		}
-		for _, prev := range targets {
-			if prev == norm {
-				return
-			}
 		}
 		targets = append(targets, norm)
 	}
 
-	// Extract explicit external destination targets (emails, IBANs, URLs/domains).
+	// Structured external entities (addresses, IBANs, URLs/hosts, single-token quotes).
 	for _, m := range reEmail.FindAllString(prompt, -1) {
 		addTarget(m)
 	}
 	for _, m := range reIBAN.FindAllString(prompt, -1) {
 		addTarget(m)
 	}
-	for _, m := range reURL.FindAllString(prompt, -1) {
-		addTarget(m)
-		trimmed := strings.TrimPrefix(strings.TrimPrefix(m, "https://"), "http://")
-		if host, _, ok := strings.Cut(trimmed, "/"); ok && host != "" {
-			addTarget(host)
-		} else if trimmed != "" {
-			addTarget(trimmed)
+	for _, rawURL := range reURL.FindAllString(prompt, -1) {
+		addTarget(rawURL)
+		if u, err := url.Parse(rawURL); err == nil && u.Hostname() != "" {
+			addTarget(u.Hostname())
 		}
 	}
 	for _, m := range reWWW.FindAllString(prompt, -1) {
@@ -273,96 +312,36 @@ func CompilePromptLease(prompt string) PromptLease {
 			addTarget(host)
 		}
 	}
-
-	// Extract named people / Slack channels explicitly targeted by the prompt.
-	// Ambiguous pronouns/roles ("client", "each person", "user who wrote the most")
-	// cannot safely be pinned statically from the prompt alone without harming utility.
-	for _, name := range []string{
-		"alice", "bob", "charlie", "dora", "eve", "linda", "mark", "david", "sarah", "john",
-		"general", "random", "external", "spotify", "apple",
-	} {
-		if containsWord(lower, name) {
-			addTarget(name)
+	for _, m := range reQuote.FindAllStringSubmatch(prompt, -1) {
+		if len(m) >= 2 && !strings.Contains(m[1], " ") && !looksLikeFilenameToken(strings.ToLower(m[1])) {
+			addTarget(m[1])
 		}
 	}
-	if strings.Contains(lower, "all users") || strings.Contains(lower, "each user") ||
-		strings.Contains(lower, "most total") || strings.Contains(lower, "to the client") ||
-		strings.Contains(lower, "each person") || strings.Contains(lower, "from my friend") ||
-		strings.Contains(lower, "new colleague") || strings.Contains(lower, "find a channel") ||
-		strings.Contains(lower, "do the actions") || strings.Contains(lower, "follow the instructions") {
+	for _, idx := range reProperNoun.FindAllStringSubmatchIndex(prompt, -1) {
+		// Skip sentence-initial capitalized words unless preceded by quotes.
+		if idx[2] == 0 {
+			continue
+		}
+		norm := normalizeTarget(prompt[idx[2]:idx[3]])
+		if _, skip := nonRecipientProperNouns[norm]; !skip {
+			addTarget(norm)
+		}
+	}
+
+	// When the prompt involves dynamic/unenumerated recipients or indirect
+	// instructions, omit static target pinning; if both source and explicit sink
+	// targets appear in a multi-clause prompt, narrow to explicit sink targets.
+	if reQuantifiedTarget.MatchString(lower) {
 		targets = nil
-	} else if strings.Contains(lower, "in his inbox") || strings.Contains(lower, "the article") ||
-		strings.Contains(lower, "all the websites") {
-		// When prompt reads dynamic articles/websites from channels/inboxes but explicitly
-		// names the outbound sink (e.g. "send it to Alice", "post to www.our-company.com",
-		// "post summary to 'random' channel"), keep ONLY that explicit outbound sink target.
-		var sinkOnly []string
-		for _, t := range targets {
-			if strings.Contains(lower, "to "+t) || strings.Contains(lower, "to '"+t) ||
-				strings.Contains(lower, "to \""+t) || strings.Contains(lower, "website "+t) {
-				sinkOnly = append(sinkOnly, t)
-			}
-		}
-		targets = sinkOnly
-	}
-
-	// Detect read of security-sensitive personal state explicitly authorized by user.
-	for _, kw := range []string{
-		"email", "emails", "inbox", "password", "security code", "transaction", "transactions",
-		"spending", "bill", "rent", "scheduled", "direct message",
-	} {
-		if strings.Contains(lower, kw) {
-			caps |= CapSecretRead
-			break
+	} else if len(targets) > 1 && reIndirectSourceCue.MatchString(lower) {
+		if sinkTargets := extractExplicitSinkTargets(lower, targets); len(sinkTargets) > 0 {
+			targets = sinkTargets
 		}
 	}
 
-	// Detect workspace / calendar / profile mutation intent.
-	for _, kw := range []string{
-		"create ", "create a", "reschedule", "add ", "append", "suggest ", "update ", "book ",
-		"pay ", "refund", "send ", "set up", "post ", "message ", "invite ", "reply ",
-		"change ", "share ", "write ", "transfer ", "do the actions", "follow the instructions",
-	} {
-		if strings.Contains(lower, kw) {
-			caps |= CapFileWrite
-			break
-		}
-	}
+	caps := inferPromptCapabilities(lower)
+	targets = normalizeTargets(targets)
 
-	// Explicit deletion capability is granted ONLY when user literally asks to delete/remove.
-	for _, kw := range []string{"delete ", "delete the", "remove ", "erase "} {
-		if strings.Contains(lower, kw) {
-			caps |= CapFileUnlink
-			break
-		}
-	}
-
-	// External / network communication intent (sending/posting/transferring derived context).
-	// Read-only webpage/website fetches remain strictly read-only (CapNetEgress without CapUntrustedEgress).
-	needsEgress := false
-	for _, kw := range []string{
-		"send ", "email ", "message ", "reply ", "post ", "invite ", "pay ", "refund",
-		"transfer", "set up", "schedule", "standing order", "reschedule", "share ",
-		"add also", "to the channel", "to that channel", "write ", "create a new",
-		"create an event", "book ", "update my", "update the password",
-		"adjust my rent", "follow the instructions", "do the actions",
-	} {
-		if strings.Contains(lower, kw) {
-			needsEgress = true
-			break
-		}
-	}
-	if needsEgress {
-		caps |= CapNetEgress
-		// User explicitly expects output derived from retrieved web/file/message context to leave.
-		caps |= CapUntrustedEgress
-	} else if strings.Contains(lower, "webpage") || strings.Contains(lower, "website") ||
-		strings.Contains(lower, "http://") || strings.Contains(lower, "https://") {
-		// Read-only URL fetch only; tainted follow-up egress stays blocked.
-		caps |= CapNetEgress
-	}
-
-	// Untrusted binary execution is never granted from user NL prompts by default.
 	return PromptLease{
 		Lease: TaskLease{
 			RunID:             "prompt-lease",
@@ -373,31 +352,83 @@ func CompilePromptLease(prompt string) PromptLease {
 			AuthorizedTargets: targets,
 			TargetBound:       len(targets) > 0,
 		},
-		AuthorizedTargets: targets,
+		AuthorizedTargets: slices.Clone(targets),
 		Summary:           FormatCaps(caps),
 	}
 }
 
-func containsWord(text, word string) bool {
-	idx := 0
-	for {
-		pos := strings.Index(text[idx:], word)
-		if pos < 0 {
-			return false
+func extractExplicitSinkTargets(lower string, candidates []string) []string {
+	sinkSet := make(map[string]struct{})
+	for _, m := range reSinkPhrase.FindAllStringSubmatch(lower, -1) {
+		if len(m) >= 2 {
+			tok := normalizeTarget(m[1])
+			sinkSet[tok] = struct{}{}
+			if strings.HasPrefix(tok, "http://") || strings.HasPrefix(tok, "https://") {
+				if u, err := url.Parse(tok); err == nil && u.Hostname() != "" {
+					sinkSet[u.Hostname()] = struct{}{}
+				}
+			} else if host, _, ok := strings.Cut(tok, "/"); ok && host != "" {
+				sinkSet[host] = struct{}{}
+			}
 		}
-		start := idx + pos
-		end := start + len(word)
-		leftOK := start == 0 || !isAlphaNum(text[start-1])
-		rightOK := end == len(text) || !isAlphaNum(text[end])
-		if leftOK && rightOK {
-			return true
-		}
-		idx = end
 	}
+	var out []string
+	for _, t := range candidates {
+		if _, ok := sinkSet[t]; ok {
+			out = append(out, t)
+			continue
+		}
+		if host, _, ok := strings.Cut(strings.TrimPrefix(strings.TrimPrefix(t, "https://"), "http://"), "/"); ok {
+			if _, okHost := sinkSet[host]; okHost {
+				out = append(out, t)
+			}
+		}
+	}
+	return normalizeTargets(out)
 }
 
-func isAlphaNum(b byte) bool {
-	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9')
+func inferPromptCapabilities(lower string) uint32 {
+	tokenSet := make(map[string]struct{})
+	for _, tok := range reWordToken.FindAllString(lower, -1) {
+		tokenSet[tok] = struct{}{}
+	}
+	hasAnyToken := func(words ...string) bool {
+		for _, w := range words {
+			if _, ok := tokenSet[w]; ok {
+				return true
+			}
+		}
+		return false
+	}
+
+	var caps uint32
+	if hasAnyToken("email", "emails", "inbox", "password", "transaction", "transactions", "spending", "bill", "rent", "scheduled") ||
+		strings.Contains(lower, "security code") || strings.Contains(lower, "direct message") {
+		caps |= CapSecretRead
+	}
+	if hasAnyToken("create", "reschedule", "add", "append", "suggest", "update", "book", "pay", "refund",
+		"send", "post", "message", "invite", "reply", "change", "share", "write", "transfer") ||
+		strings.Contains(lower, "set up") || strings.Contains(lower, "do the actions") || strings.Contains(lower, "follow the instructions") {
+		caps |= CapFileWrite
+	}
+	if hasAnyToken("delete", "remove", "erase") {
+		caps |= CapFileUnlink
+	}
+
+	needsEgress := hasAnyToken("send", "email", "message", "reply", "post", "invite", "pay", "refund",
+		"transfer", "schedule", "reschedule", "share", "write", "book") ||
+		strings.Contains(lower, "set up") || strings.Contains(lower, "standing order") ||
+		strings.Contains(lower, "add also") || strings.Contains(lower, "to the channel") ||
+		strings.Contains(lower, "to that channel") || strings.Contains(lower, "create a new") ||
+		strings.Contains(lower, "create an event") || strings.Contains(lower, "update my") ||
+		strings.Contains(lower, "update the password") || strings.Contains(lower, "adjust my rent") ||
+		strings.Contains(lower, "follow the instructions") || strings.Contains(lower, "do the actions")
+	if needsEgress {
+		caps |= CapNetEgress | CapUntrustedEgress
+	} else if hasAnyToken("webpage", "website") || strings.Contains(lower, "http://") || strings.Contains(lower, "https://") {
+		caps |= CapNetEgress
+	}
+	return caps
 }
 
 // IsLoopbackOrLocalEndpoint checks whether an endpoint represents AF_UNIX /
@@ -411,12 +442,10 @@ func IsLoopbackOrLocalEndpoint(endpoint string) bool {
 		return true
 	}
 	host := ep
-	if strings.HasPrefix(host, "[") {
-		if h, _, ok := strings.Cut(strings.TrimPrefix(host, "["), "]"); ok {
-			host = h
-		}
-	} else if h, _, err := splitHostPortLoose(ep); err == nil {
+	if h, _, err := net.SplitHostPort(ep); err == nil {
 		host = h
+	} else {
+		host = strings.TrimSuffix(strings.TrimPrefix(ep, "["), "]")
 	}
 	if host == "localhost" {
 		return true
@@ -426,14 +455,6 @@ func IsLoopbackOrLocalEndpoint(endpoint string) bool {
 		return false
 	}
 	return addr.IsLoopback() || (addr.Is4In6() && addr.Unmap().IsLoopback())
-}
-
-func splitHostPortLoose(s string) (string, string, error) {
-	lastColon := strings.LastIndexByte(s, ':')
-	if lastColon <= 0 {
-		return "", "", fmt.Errorf("no port")
-	}
-	return s[:lastColon], s[lastColon+1:], nil
 }
 
 // FormatCaps formats a capability bitmask as human-readable tokens.

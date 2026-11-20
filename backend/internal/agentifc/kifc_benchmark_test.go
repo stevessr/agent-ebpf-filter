@@ -193,6 +193,39 @@ func TestMCPContractGuardAllVectors(t *testing.T) {
 	if res := reg.PinManifest(parent, unicodePoison); res.Allowed || !res.PoisoningDetected {
 		t.Fatalf("expected Unicode Tag-Plane poisoning rejection, got %+v", res)
 	}
+
+	// Explicit operator re-vetting via ClearQuarantine / RePinManifest must recover a quarantined tool.
+	if reason, q := reg.IsQuarantined("git-server", "git_status"); !q || reason == "" {
+		t.Fatalf("expected git_status to report quarantine status, got q=%v reason=%q", q, reason)
+	}
+	if res := reg.RePinManifest(parent, clean); !res.Allowed {
+		t.Fatalf("RePinManifest should recover re-vetted clean manifest, got %+v", res)
+	}
+
+	// Benign security/audit documentation mentioning /etc/shadow, ~/.ssh, or "sidenote"
+	// must NOT be falsely rejected without imperative hijack/smuggling structure.
+	benignSecurityDocs := []MCPToolManifest{
+		{
+			ServerID:        "audit-server",
+			ToolName:        "perm_audit",
+			Description:     "Check Unix permissions on system auth files such as /etc/shadow and ~/.ssh (sidenote: runs read-only stat checks).",
+			InputSchemaJSON: `{"type":"object","properties":{"path":{"type":"string"}}}`,
+		},
+		{
+			ServerID:        "help-server",
+			ToolName:        "explain_policy",
+			Description:     "Explain why tools must not mention secret tokens or bypass authorization.",
+			InputSchemaJSON: `{"type":"object"}`,
+		},
+	}
+	for _, benign := range benignSecurityDocs {
+		if reasons := ScanManifestPoisoning(benign); len(reasons) != 0 {
+			t.Fatalf("benign tool %s falsely flagged as poisoned: %v", benign.ToolName, reasons)
+		}
+		if res := reg.PinManifest(parent, benign); !res.Allowed {
+			t.Fatalf("benign tool %s rejected by PinManifest: %+v", benign.ToolName, res)
+		}
+	}
 }
 
 // ============================================================================

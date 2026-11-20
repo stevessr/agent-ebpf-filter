@@ -93,6 +93,7 @@ func NewKernelIFCSimulator() *KernelIFCSimulator {
 
 // SeedProcess inserts an initial TaskLease into the simulated task storage for pid.
 func (k *KernelIFCSimulator) SeedProcess(pid uint32, lease TaskLease) {
+	lease.AuthorizedTargets = normalizeTargets(lease.AuthorizedTargets)
 	lbl := lease.ToKernelLabel()
 	k.tasks[pid] = &lbl
 	k.leases[pid] = lease
@@ -143,11 +144,7 @@ func (k *KernelIFCSimulator) InodeLabel(path string) (ebpf.AgentIfcEnforcerIfcIn
 	if !ok {
 		return ebpf.AgentIfcEnforcerIfcInodeLabel{}, 0, false
 	}
-	st, ok := k.inodes[ino]
-	if !ok {
-		return ebpf.AgentIfcEnforcerIfcInodeLabel{}, ino, false
-	}
-	return st.dyn, ino, true
+	return k.inodes[ino].dyn, ino, true
 }
 
 func (k *KernelIFCSimulator) ensureInode(path string) uint64 {
@@ -196,12 +193,11 @@ func (k *KernelIFCSimulator) TaskAlloc(parentPID, childPID uint32) Decision {
 	child := *parent
 	child.SpawnBudget = childBudget
 	k.tasks[childPID] = &child
-	if pl, ok := k.leases[parentPID]; ok {
-		pl.SpawnBudget = childBudget
-		pl.ConfTaint = child.ConfTaint
-		pl.IntegTaint = child.IntegTaint
-		k.leases[childPID] = pl
-	}
+	pl := k.leases[parentPID]
+	pl.SpawnBudget = childBudget
+	pl.ConfTaint = child.ConfTaint
+	pl.IntegTaint = child.IntegTaint
+	k.leases[childPID] = pl
 	k.stats.TaskInherits++
 	return Decision{Allowed: true, Hook: "task_alloc", Reason: "inherited_task_storage"}
 }
@@ -221,10 +217,6 @@ func (k *KernelIFCSimulator) propagateFileIFC(lbl *ebpf.AgentIfcEnforcerIfcTaskL
 		}
 		if lbl.ConfTaint != 0 || lbl.IntegTaint != 0 {
 			st := k.inodes[ino]
-			if st == nil {
-				st = &simInodeState{inodeID: ino}
-				k.inodes[ino] = st
-			}
 			st.dyn.ConfTaint |= lbl.ConfTaint
 			st.dyn.IntegTaint |= lbl.IntegTaint
 			st.dyn.WriterRunHash = lbl.RunIdHash
@@ -390,7 +382,7 @@ func (k *KernelIFCSimulator) evaluateSocketEgress(pid uint32, endpoint, targetHi
 	// (e.g., user explicitly asked "summarize webpage and send DM to Alice"),
 	// verify destination binding before enforcing the global Trifecta cut-off;
 	// unauthorized destinations when CONF_SECRET + INTEG_UNTRUSTED hit Trifecta first.
-	targetAuthorized := k.isTargetAuthorized(pid, targetHint, endpoint)
+	targetAuthorized := k.isTargetAuthorized(pid, targetHint)
 	if !targetAuthorized && targetHint != "" && k.isTargetBindingActive(pid) {
 		if (lbl.ConfTaint&ConfSecret) != 0 && (lbl.IntegTaint&IntegUntrusted) != 0 {
 			k.stats.TrifectaEgressBlocks++
@@ -449,25 +441,20 @@ func (k *KernelIFCSimulator) isTargetBindingActive(pid uint32) bool {
 	return ok && l.TargetBound
 }
 
-func (k *KernelIFCSimulator) isTargetAuthorized(pid uint32, targetHint, endpoint string) bool {
+func (k *KernelIFCSimulator) isTargetAuthorized(pid uint32, targetHint string) bool {
 	l, ok := k.leases[pid]
 	if !ok || !l.TargetBound {
 		return true
 	}
-	cand := strings.ToLower(strings.TrimSpace(targetHint))
+	cand := normalizeTarget(targetHint)
 	if cand == "" {
 		return true
 	}
 	for _, allowed := range l.AuthorizedTargets {
-		a := strings.ToLower(strings.TrimSpace(allowed))
-		if a == "" {
-			continue
-		}
-		if cand == a || strings.Contains(a, cand) || strings.Contains(cand, a) {
+		if cand == allowed || strings.Contains(allowed, cand) || strings.Contains(cand, allowed) {
 			return true
 		}
 	}
-	_ = endpoint
 	return false
 }
 
@@ -475,7 +462,7 @@ func (k *KernelIFCSimulator) checkTargetAuthorization(pid uint32, targetHint, ho
 	if targetHint == "" || !k.isTargetBindingActive(pid) {
 		return Decision{Allowed: true, Hook: hook}
 	}
-	if k.isTargetAuthorized(pid, targetHint, "") {
+	if k.isTargetAuthorized(pid, targetHint) {
 		return Decision{Allowed: true, Hook: hook}
 	}
 	return Decision{

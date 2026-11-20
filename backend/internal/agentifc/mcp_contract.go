@@ -4,6 +4,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"regexp"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -68,36 +70,59 @@ func manifestDigests(m MCPToolManifest) (schemaHash, descHash string) {
 	return hex.EncodeToString(sh[:]), hex.EncodeToString(dh[:])
 }
 
-// ScanManifestPoisoning inspects tool descriptions and parameter schemas for
-// hidden imperative overrides, covert exfiltration directives, Unicode Tag-Plane
-// (U+E0000-U+E007F) invisible instructions, BiDi overrides, and zero-width clusters.
-func ScanManifestPoisoning(m MCPToolManifest) []string {
-	var reasons []string
-	combined := m.Description + "\n" + m.ParameterDescriptions + "\n" + m.InputSchemaJSON
-	lower := strings.ToLower(combined)
+// FindingClass categorizes MCP manifest screening signals so structural
+// smuggling vs imperative hijack directives can be audited distinctly.
+type FindingClass string
 
-	for _, marker := range []struct {
-		pattern string
-		reason  string
-	}{
-		{"<important>", "hidden_important_tag_directive"},
-		{"</important>", "hidden_important_tag_directive"},
-		{"<system>", "hidden_system_tag_override"},
-		{"ignore previous instructions", "prompt_override_directive"},
-		{"ignore all prior", "prompt_override_directive"},
-		{"disregard previous", "prompt_override_directive"},
-		{"do not tell the user", "covert_user_deception_directive"},
-		{"do not mention", "covert_user_deception_directive"},
-		{"before calling this tool", "side_effect_prerequisite_hijack"},
-		{"pass its contents", "covert_exfiltration_directive"},
-		{"~/.ssh", "credential_path_harvesting"},
-		{".ssh/id_rsa", "credential_path_harvesting"},
-		{"/etc/shadow", "credential_path_harvesting"},
-		{"exfiltrate", "explicit_exfiltration_directive"},
-		{"sidenote", "hidden_sidenote_directive"},
-	} {
-		if strings.Contains(lower, marker.pattern) {
-			reasons = appendUnique(reasons, marker.reason)
+const (
+	FindingStructuralSmuggling FindingClass = "structural_smuggling"
+	FindingDirectiveInjection  FindingClass = "directive_injection"
+)
+
+// PoisonFinding records a structured screening hit on an MCP tool manifest.
+type PoisonFinding struct {
+	Class  FindingClass `json:"class"`
+	Reason string       `json:"reason"`
+}
+
+var directivePatterns = []struct {
+	re     *regexp.Regexp
+	reason string
+}{
+	{regexp.MustCompile(`(?i)<\s*/?\s*important\s*>`), "hidden_important_tag_directive"},
+	{regexp.MustCompile(`(?i)<\s*/?\s*system\s*>`), "hidden_system_tag_override"},
+	{regexp.MustCompile(`(?i)\b(?:ignore|disregard)\s+(?:all\s+)?(?:prior|previous)\s+(?:instructions?|constraints?|rules?)\b`), "prompt_override_directive"},
+	{regexp.MustCompile(`(?i)\bdo\s+not\s+(?:tell|inform|notify|alert)\s+(?:the\s+)?user\b`), "covert_user_deception_directive"},
+	{regexp.MustCompile(`(?i)\bdo\s+not\s+mention\s+(?:this|that|reading|sending|exfiltrat|the\s+(?:secret|shadow|ssh|token|key))`), "covert_user_deception_directive"},
+	{regexp.MustCompile(`(?i)\bbefore\s+calling\s+this\s+tool\b`), "side_effect_prerequisite_hijack"},
+	{regexp.MustCompile(`(?i)\bpass\s+its\s+contents\b`), "covert_exfiltration_directive"},
+	{regexp.MustCompile(`(?i)\b(?:read|dump|send|upload|steal|copy|pass|exfiltrat\w*)\b[^.\n]{0,80}(?:~/.ssh|\.ssh/id_rsa|/etc/shadow|\.env\b)`), "credential_path_harvesting"},
+	{regexp.MustCompile(`(?i)\bexfiltrat(?:e|ing|ion)\s+(?:workspace\s+)?(?:secrets?|credentials?|keys?|tokens?|files?)\b`), "explicit_exfiltration_directive"},
+	{regexp.MustCompile(`(?i)["']sidenote["']\s*:|(?:\bin\s+sidenote\b)`), "hidden_sidenote_directive"},
+}
+
+// AnalyzeManifestPoisoning returns structured smuggling and imperative-hijack
+// findings without blocking benign tools that merely document sensitive paths
+// or security terminology.
+func AnalyzeManifestPoisoning(m MCPToolManifest) []PoisonFinding {
+	var findings []PoisonFinding
+	seen := make(map[string]struct{})
+	add := func(class FindingClass, reason string) {
+		if _, dup := seen[reason]; dup {
+			return
+		}
+		seen[reason] = struct{}{}
+		findings = append(findings, PoisonFinding{Class: class, Reason: reason})
+	}
+
+	combined := m.Description + "\n" + m.ParameterDescriptions + "\n" + m.InputSchemaJSON
+	for _, p := range directivePatterns {
+		if p.re.MatchString(combined) {
+			class := FindingDirectiveInjection
+			if strings.HasPrefix(p.reason, "hidden_") && strings.Contains(p.reason, "_tag_") {
+				class = FindingStructuralSmuggling
+			}
+			add(class, p.reason)
 		}
 	}
 
@@ -105,34 +130,80 @@ func ScanManifestPoisoning(m MCPToolManifest) []string {
 	for _, r := range combined {
 		switch {
 		case r >= 0xE0000 && r <= 0xE007F:
-			reasons = appendUnique(reasons, "unicode_tag_plane_smuggling")
+			add(FindingStructuralSmuggling, "unicode_tag_plane_smuggling")
 		case (r >= 0x202A && r <= 0x202E) || (r >= 0x2066 && r <= 0x2069):
-			reasons = appendUnique(reasons, "bidi_trojan_override")
+			add(FindingStructuralSmuggling, "bidi_trojan_override")
 		case r == 0x200B || r == 0x200C || r == 0x200D || r == 0x200E || r == 0x200F || r == 0xFEFF:
 			zwCount++
 		}
 	}
 	if zwCount >= 3 {
-		reasons = appendUnique(reasons, "zero_width_steganography")
+		add(FindingStructuralSmuggling, "zero_width_steganography")
+	}
+	return findings
+}
+
+// ScanManifestPoisoning inspects tool descriptions and parameter schemas for
+// imperative overrides, covert exfiltration directives, Unicode Tag-Plane
+// (U+E0000-U+E007F) invisible instructions, BiDi overrides, and zero-width clusters.
+func ScanManifestPoisoning(m MCPToolManifest) []string {
+	findings := AnalyzeManifestPoisoning(m)
+	if len(findings) == 0 {
+		return nil
+	}
+	reasons := make([]string, len(findings))
+	for i, f := range findings {
+		reasons[i] = f.Reason
 	}
 	return reasons
 }
 
-func appendUnique(dst []string, val string) []string {
-	for _, existing := range dst {
-		if existing == val {
-			return dst
-		}
+func quarantinedLease(runID string, conf, integ uint32) TaskLease {
+	return TaskLease{
+		RunID:      runID,
+		ConfTaint:  conf,
+		IntegTaint: integ | IntegUntrusted | IntegToolOutput,
+		CapMask:    0,
+		Flags:      IFCFlagEnforce | IFCFlagTracked,
 	}
-	return append(dst, val)
+}
+
+// IsQuarantined reports whether (serverID, toolName) is currently quarantined
+// and returns the recorded reason.
+func (r *ContractRegistry) IsQuarantined(serverID, toolName string) (string, bool) {
+	key := contractKey(serverID, toolName)
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	reason, ok := r.quarantined[key]
+	return reason, ok
+}
+
+// ClearQuarantine revokes an active session quarantine for (serverID, toolName)
+// after operator/policy re-vetting, returning whether an entry existed.
+func (r *ContractRegistry) ClearQuarantine(serverID, toolName string) bool {
+	key := contractKey(serverID, toolName)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.quarantined[key]; !ok {
+		return false
+	}
+	delete(r.quarantined, key)
+	delete(r.contracts, key)
+	return true
+}
+
+// RePinManifest clears any prior quarantine after explicit re-authorization and
+// pins m monotonically under parentLease.
+func (r *ContractRegistry) RePinManifest(parentLease TaskLease, m MCPToolManifest) ContractCheckResult {
+	r.ClearQuarantine(m.ServerID, m.ToolName)
+	return r.PinManifest(parentLease, m)
 }
 
 // PinManifest validates m against poisoning attacks and parentLease bounds,
 // cryptographically pins its digests, and returns a narrowed child TaskLease.
 func (r *ContractRegistry) PinManifest(parentLease TaskLease, m MCPToolManifest) ContractCheckResult {
 	key := contractKey(m.ServerID, m.ToolName)
-	poisonReasons := ScanManifestPoisoning(m)
-	if len(poisonReasons) > 0 {
+	if poisonReasons := ScanManifestPoisoning(m); len(poisonReasons) > 0 {
 		r.mu.Lock()
 		r.quarantined[key] = strings.Join(poisonReasons, ",")
 		r.mu.Unlock()
@@ -140,13 +211,7 @@ func (r *ContractRegistry) PinManifest(parentLease TaskLease, m MCPToolManifest)
 			Allowed:           false,
 			PoisoningDetected: true,
 			Reasons:           poisonReasons,
-			EffectiveLease: TaskLease{
-				RunID:      parentLease.RunID,
-				ConfTaint:  parentLease.ConfTaint,
-				IntegTaint: parentLease.IntegTaint | IntegUntrusted | IntegToolOutput,
-				CapMask:    0,
-				Flags:      IFCFlagEnforce | IFCFlagTracked,
-			},
+			EffectiveLease:    quarantinedLease(parentLease.RunID, parentLease.ConfTaint, parentLease.IntegTaint),
 		}
 	}
 
@@ -168,13 +233,7 @@ func (r *ContractRegistry) PinManifest(parentLease TaskLease, m MCPToolManifest)
 			Allowed:          false,
 			EscalationDenied: true,
 			Reasons:          []string{err.Error()},
-			EffectiveLease: TaskLease{
-				RunID:      parentLease.RunID,
-				ConfTaint:  parentLease.ConfTaint,
-				IntegTaint: parentLease.IntegTaint | IntegUntrusted,
-				CapMask:    0,
-				Flags:      IFCFlagEnforce | IFCFlagTracked,
-			},
+			EffectiveLease:   quarantinedLease(parentLease.RunID, parentLease.ConfTaint, parentLease.IntegTaint),
 		}
 	}
 
@@ -186,12 +245,7 @@ func (r *ContractRegistry) PinManifest(parentLease TaskLease, m MCPToolManifest)
 			Allowed:         false,
 			RugPullDetected: true,
 			Reasons:         []string{"previously_quarantined:" + qReason},
-			EffectiveLease: TaskLease{
-				RunID:      parentLease.RunID,
-				IntegTaint: parentLease.IntegTaint | IntegUntrusted,
-				CapMask:    0,
-				Flags:      IFCFlagEnforce | IFCFlagTracked,
-			},
+			EffectiveLease:  quarantinedLease(parentLease.RunID, parentLease.ConfTaint, parentLease.IntegTaint),
 		}
 	}
 	r.contracts[key] = PinnedContract{
@@ -200,17 +254,19 @@ func (r *ContractRegistry) PinManifest(parentLease TaskLease, m MCPToolManifest)
 		DescHash:   descHash,
 		Lease:      narrowed,
 	}
+	digest := descHash[:16] + ":" + schemaHash[:16]
 	return ContractCheckResult{
 		Allowed:        true,
-		Pinned:         descHash[:16] + ":" + schemaHash[:16],
-		Current:        descHash[:16] + ":" + schemaHash[:16],
+		Pinned:         digest,
+		Current:        digest,
 		EffectiveLease: narrowed,
 	}
 }
 
 // VerifyInvocation checks whether currentManifest matches the previously pinned
 // contract and screens again for runtime-injected poisoning ("mid-session rug pull").
-// Any drift triggers fail-closed quarantine with zero capabilities.
+// Drift places the contract in quarantine until explicitly re-vetted via
+// ClearQuarantine or RePinManifest.
 func (r *ContractRegistry) VerifyInvocation(currentManifest MCPToolManifest) ContractCheckResult {
 	key := contractKey(currentManifest.ServerID, currentManifest.ToolName)
 	schemaHash, descHash := manifestDigests(currentManifest)
@@ -225,25 +281,17 @@ func (r *ContractRegistry) VerifyInvocation(currentManifest MCPToolManifest) Con
 			RugPullDetected: true,
 			Reasons:         []string{"contract_quarantined:" + qReason},
 			Current:         currDigest,
-			EffectiveLease: TaskLease{
-				CapMask:    0,
-				IntegTaint: IntegUntrusted | IntegToolOutput,
-				Flags:      IFCFlagEnforce | IFCFlagTracked,
-			},
+			EffectiveLease:  quarantinedLease("", 0, 0),
 		}
 	}
 
 	pinned, ok := r.contracts[key]
 	if !ok {
 		return ContractCheckResult{
-			Allowed: false,
-			Reasons: []string{fmt.Sprintf("unpinned_mcp_contract:%s", key)},
-			Current: currDigest,
-			EffectiveLease: TaskLease{
-				CapMask:    0,
-				IntegTaint: IntegUntrusted | IntegToolOutput,
-				Flags:      IFCFlagEnforce | IFCFlagTracked,
-			},
+			Allowed:        false,
+			Reasons:        []string{fmt.Sprintf("unpinned_mcp_contract:%s", key)},
+			Current:        currDigest,
+			EffectiveLease: quarantinedLease("", 0, 0),
 		}
 	}
 	pinnedDigest := pinned.DescHash[:16] + ":" + pinned.SchemaHash[:16]
@@ -257,18 +305,11 @@ func (r *ContractRegistry) VerifyInvocation(currentManifest MCPToolManifest) Con
 			Reasons:           []string{"mid_session_rug_pull_digest_mismatch"},
 			Pinned:            pinnedDigest,
 			Current:           currDigest,
-			EffectiveLease: TaskLease{
-				RunID:      pinned.Lease.RunID,
-				ConfTaint:  pinned.Lease.ConfTaint,
-				IntegTaint: pinned.Lease.IntegTaint | IntegUntrusted,
-				CapMask:    0,
-				Flags:      IFCFlagEnforce | IFCFlagTracked,
-			},
+			EffectiveLease:    quarantinedLease(pinned.Lease.RunID, pinned.Lease.ConfTaint, pinned.Lease.IntegTaint),
 		}
 	}
 
-	if currentManifest.DeclaredCaps != pinned.Lease.CapMask &&
-		(currentManifest.DeclaredCaps & ^pinned.Lease.CapMask) != 0 {
+	if (currentManifest.DeclaredCaps & ^pinned.Lease.CapMask) != 0 {
 		r.quarantined[key] = "rug_pull_cap_escalation"
 		return ContractCheckResult{
 			Allowed:          false,
@@ -277,19 +318,16 @@ func (r *ContractRegistry) VerifyInvocation(currentManifest MCPToolManifest) Con
 			Reasons:          []string{"mid_session_capability_escalation"},
 			Pinned:           pinnedDigest,
 			Current:          currDigest,
-			EffectiveLease: TaskLease{
-				RunID:      pinned.Lease.RunID,
-				IntegTaint: pinned.Lease.IntegTaint | IntegUntrusted,
-				CapMask:    0,
-				Flags:      IFCFlagEnforce | IFCFlagTracked,
-			},
+			EffectiveLease:   quarantinedLease(pinned.Lease.RunID, pinned.Lease.ConfTaint, pinned.Lease.IntegTaint),
 		}
 	}
 
+	lease := pinned.Lease
+	lease.AuthorizedTargets = slices.Clone(pinned.Lease.AuthorizedTargets)
 	return ContractCheckResult{
 		Allowed:        true,
 		Pinned:         pinnedDigest,
 		Current:        currDigest,
-		EffectiveLease: pinned.Lease,
+		EffectiveLease: lease,
 	}
 }
