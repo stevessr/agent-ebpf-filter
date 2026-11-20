@@ -12,7 +12,10 @@
     "test:dashboard-insights": "bun test tests/dashboard-insights.test.ts",
     "preview": "vite preview",
     "prepare-agentsight-sample": "node scripts/prepare-agentsight-sample.mjs",
-    "test:dashboard-stream-browser": "bun scripts/test-dashboard-stream-browser.mjs"
+    "test:dashboard-stream-browser": "bun scripts/test-dashboard-stream-browser.mjs",
+    "test:behavior-browser": "bun scripts/test-behavior-browser.mjs",
+    "test:behavior-three-browser": "bun scripts/test-behavior-three-browser.mjs",
+    "test:behavior-navigation-browser": "bun scripts/test-behavior-navigation-browser.mjs"
   },
   "dependencies": {
     "@ant-design/icons-vue": "^7.0.1",
@@ -31,6 +34,7 @@
     "monaco-editor": "^0.55.1",
     "protobufjs": "^8.8.1",
     "smol-toml": "^1.9.1",
+    "three": "^0.187.0",
     "vue": "^3.5.45",
     "vue-router": "^4.6.4",
     "vue3-apexcharts": "^1.11.3"
@@ -39,6 +43,7 @@
     "@types/acorn": "^6.0.4",
     "@types/d3": "^7.4.3",
     "@types/node": "^24.19.2",
+    "@types/three": "^0.187.0",
     "@vitejs/plugin-vue": "^6.0.10",
     "@vue/tsconfig": "^0.9.1",
     "protobufjs-cli": "^2.7.1",

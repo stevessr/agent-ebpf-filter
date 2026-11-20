@@ -28,6 +28,13 @@ var mainWindow *mygo.Window
 var windowMu sync.Mutex
 
 func main() {
+	// Offline demo rendering stays independent of any backend or window.
+	if handled, err := runUIDemoIfRequested(os.Args[1:]); handled {
+		if err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	if handled, err := runInternalBackendIfRequested(os.Args[1:]); handled {
 		if err != nil {
 			log.Fatal(err)
@@ -81,8 +88,8 @@ func runDesktop() {
 			MinHeight: 620,
 			StateKey:  "main",
 			// Mica on Windows, native sidebar material on macOS; Linux stays opaque.
-			Vibrancy:  windowMaterial(runtime.GOOS, app.materialEnabled),
-			Content:   ui.View(app.view),
+			Vibrancy: windowMaterial(runtime.GOOS, app.materialEnabled),
+			Content:  ui.View(app.view),
 		})
 		app.win = window
 		// Keep the collector/UI owner alive while tabs are floating. The final
@@ -219,5 +226,3 @@ func resolveBackendURL(explicit string) (string, error) {
 	parsed.Fragment = ""
 	return strings.TrimRight(parsed.String(), "/"), nil
 }
-
-

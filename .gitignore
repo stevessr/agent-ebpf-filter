@@ -70,3 +70,6 @@ docs/competition
 
 # Local throwaway model probes
 /backend/app/sweepprobe/
+artifacts
+unpacked
+*.pptx

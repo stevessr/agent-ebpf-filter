@@ -32,6 +32,21 @@ if [ ! -x "$CC" ]; then
   exit 2
 fi
 
+if [ -z "${JAVA_HOME:-}" ]; then
+  for candidate in \
+    /usr/lib/jvm/java-17-openjdk* \
+    /usr/lib/jvm/temurin-17* \
+    /usr/lib/jvm/java-21-openjdk* \
+    /opt/android-studio/jbr \
+    "/Applications/Android Studio.app/Contents/jbr/Contents/Home"; do
+    if [ -x "$candidate/bin/java" ]; then
+      export JAVA_HOME="$candidate"
+      export PATH="$JAVA_HOME/bin:$PATH"
+      break
+    fi
+  done
+fi
+
 go mod download github.com/egoist/mygo
 MYGO_ROOT="$(go list -m -f '{{.Dir}}' github.com/egoist/mygo)"
 ANDROID_HOST_SRC="$MYGO_ROOT/internal/mobile/android"
@@ -86,6 +101,13 @@ for directory, subdirs, files in os.walk(host):
     for name in [directory] + [os.path.join(directory, f) for f in files]:
         if not os.path.islink(name):
             os.chmod(name, os.stat(name).st_mode | stat.S_IWUSR)
+
+wrapper_props = host / "gradle/wrapper/gradle-wrapper.properties"
+if wrapper_props.exists():
+    wrapper_props.write_text(
+        wrapper_props.read_text(encoding="utf-8").replace("networkTimeout=10000", "networkTimeout=60000"),
+        encoding="utf-8",
+    )
 
 res = work / "res"
 drawable = res / "drawable"

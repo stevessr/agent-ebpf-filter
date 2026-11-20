@@ -26,7 +26,7 @@ defineProps<{
         title="Physical Memory"
         size="small"
         :bordered="false"
-        style="background: var(--ui-surface-muted)"
+        style="background: var(--surface-1)"
       >
         <template #extra>
           <a-button
@@ -84,7 +84,7 @@ defineProps<{
             style="
               display: flex;
               justify-content: space-between;
-              color: #1890ff;
+              color: var(--text-accent);
               cursor: pointer;
             "
             role="button"
@@ -113,7 +113,7 @@ defineProps<{
             style="
               display: flex;
               justify-content: space-between;
-              color: #52c41a;
+              color: var(--text-success);
               cursor: pointer;
             "
             role="button"
@@ -154,7 +154,7 @@ defineProps<{
             style="
               display: flex;
               justify-content: space-between;
-              color: #faad14;
+              color: var(--text-warning);
               cursor: pointer;
             "
             role="button"
@@ -199,7 +199,7 @@ defineProps<{
         title="Swap / ZRAM"
         size="small"
         :bordered="false"
-        style="background: var(--ui-surface-muted)"
+        style="background: var(--surface-1)"
       >
         <template #extra>
           <a-button
@@ -244,7 +244,7 @@ defineProps<{
                 margin-bottom: 4px;
               "
             >
-              <span style="font-size: 12px; color: var(--ui-text-muted)">System Swap</span>
+              <span style="font-size: 12px; color: var(--text-muted)">System Swap</span>
               <span style="font-weight: bold"
                 >{{
                   systemStats.swapTotal > 0
@@ -302,7 +302,7 @@ defineProps<{
                 margin-bottom: 4px;
               "
             >
-              <span style="font-size: 12px; color: var(--ui-text-muted)"
+              <span style="font-size: 12px; color: var(--text-muted)"
                 >ZRAM (Compressed)</span
               >
               <span style="font-weight: bold"

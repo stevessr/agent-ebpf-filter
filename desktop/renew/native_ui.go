@@ -24,6 +24,20 @@ type renewApp struct {
 
 	page                  string
 	lineageMode           int // 0 radial, 1 waterfall
+	behaviorWindowMS      int64
+	behaviorPID           int
+	behaviorLane          behaviorLane
+	behaviorAttentionOnly bool
+	behaviorPausedEvents  []eventSummary
+	behaviorPaused        bool
+	behaviorFrozen        *behaviorSnapshot
+	behaviorSelectedID    string
+	behaviorCacheValid    bool
+	behaviorCacheVersion  uint64
+	behaviorCacheSecond   int64
+	behaviorCacheWindow   int64
+	behaviorCachePID      int
+	behaviorCache         behaviorSnapshot
 	lineageRootChoice     string
 	lineageSelectedPID    int
 	lineageSignalTable    ui.ListState
@@ -76,36 +90,36 @@ type renewApp struct {
 	inspectorPinnedID   string
 	inspectorSelectedID string
 
-	events                []eventSummary
-	eventMergeScratch     []eventSummary
-	eventMergeWorkspace   eventMergeWorkspace
-	eventsVersion         uint64
-	eventUIQueue          chan eventSummary
+	events              []eventSummary
+	eventMergeScratch   []eventSummary
+	eventMergeWorkspace eventMergeWorkspace
+	eventsVersion       uint64
+	eventUIQueue        chan eventSummary
 	// Serializing producers makes the bounded drop-oldest sequence atomic
 	// relative to other enqueues, and keeps exact drop accounting.
-	eventUIQueueMu        sync.Mutex
-	eventUIDropped        eventDropCounter
-	eventUIQueueDropped   eventDropCounter
-	eventUIBatchDropped   eventDropCounter
-	eventUIBatchBuffered  atomic.Int64
-	eventUIBatchPeak      atomic.Int64
-	eventUICommits        atomic.Uint64
-	eventUICommitted      atomic.Uint64
-	eventUILastCommit     atomic.Int64
-	eventUIBusyTicks      atomic.Uint64
-	eventUIPaused         eventPauseFlag
-	eventUIBatcherStarted eventBatcherFlag
-	eventUICommitPending  eventCommitFlag
-	filterCacheValid      bool
-	filterCacheVersion    uint64
-	filterCacheKey        eventFilterSignature
-	filterSearchOriginal  string
+	eventUIQueueMu         sync.Mutex
+	eventUIDropped         eventDropCounter
+	eventUIQueueDropped    eventDropCounter
+	eventUIBatchDropped    eventDropCounter
+	eventUIBatchBuffered   atomic.Int64
+	eventUIBatchPeak       atomic.Int64
+	eventUICommits         atomic.Uint64
+	eventUICommitted       atomic.Uint64
+	eventUILastCommit      atomic.Int64
+	eventUIBusyTicks       atomic.Uint64
+	eventUIPaused          eventPauseFlag
+	eventUIBatcherStarted  eventBatcherFlag
+	eventUICommitPending   eventCommitFlag
+	filterCacheValid       bool
+	filterCacheVersion     uint64
+	filterCacheKey         eventFilterSignature
+	filterSearchOriginal   string
 	filterSearchNormalized string
-	filterCacheRows       []eventSummary
+	filterCacheRows        []eventSummary
 	filterMergeScratch     []eventSummary
-	riskCacheValid        bool
-	riskCacheVersion      uint64
-	riskCacheCounts       [3]int
+	riskCacheValid         bool
+	riskCacheVersion       uint64
+	riskCacheCounts        [3]int
 	// The ownership index was previously rebuilt by each event row,
 	// leading to O(visible rows * event window) CPU work and allocations.
 	// Cache only the event-derived index; live-process attribution must
@@ -305,37 +319,37 @@ type renewApp struct {
 
 func newRenewApp(backend string) *renewApp {
 	a := &renewApp{
-		backend:            backend,
+		backend: backend,
 		// The channel pointer never changes after construction. Both the
 		// native IPC reader and diagnostics can safely access it.
-		eventUIQueue:       make(chan eventSummary, eventUIQueueSize),
-		starting:           true,
-		page:               "概览",
-		files:              localFileWorkspace{active: -1},
-		navigationOpen:     false,
-		inspectorOpen:      true,
-		materialEnabled:    true,
-		eventSelected:      -1,
-		networkSelected:    -1,
-		processSelected:    -1,
-		domainSelected:     -1,
-		domainShowIPs:      true,
-		sessionSelected:    -1,
-		agentSightModelSelected: -1,
+		eventUIQueue:              make(chan eventSummary, eventUIQueueSize),
+		starting:                  true,
+		page:                      "概览",
+		files:                     localFileWorkspace{active: -1},
+		navigationOpen:            false,
+		inspectorOpen:             true,
+		materialEnabled:           true,
+		eventSelected:             -1,
+		networkSelected:           -1,
+		processSelected:           -1,
+		domainSelected:            -1,
+		domainShowIPs:             true,
+		sessionSelected:           -1,
+		agentSightModelSelected:   -1,
 		agentSightSessionSelected: -1,
-		ruleSelected:       -1,
-		commSelected:       -1,
-		pathSelected:       -1,
-		prefixSelected:     -1,
-		eventVisibleLimit:  50,
-		agentSelected:      -1,
-		captureScopeMode:   "黑名单",
-		monitorScopeMode:   "黑名单",
-		disabledEventTypes: make(map[int]bool),
-		ruleAction:         "ALERT",
-		rulePriority:       "0",
-		ruleRewrite:        "[]",
-		pathAccessMode:     "阻止写入",
+		ruleSelected:              -1,
+		commSelected:              -1,
+		pathSelected:              -1,
+		prefixSelected:            -1,
+		eventVisibleLimit:         50,
+		agentSelected:             -1,
+		captureScopeMode:          "黑名单",
+		monitorScopeMode:          "黑名单",
+		disabledEventTypes:        make(map[int]bool),
+		ruleAction:                "ALERT",
+		rulePriority:              "0",
+		ruleRewrite:               "[]",
+		pathAccessMode:            "阻止写入",
 	}
 	a.eventTable.Selected = &a.eventSelected
 	a.networkTable.Selected = &a.networkSelected
@@ -522,6 +536,8 @@ func pageSubtitle(page string) string {
 		return "事件研判、上下文筛选与运行诊断"
 	case "事件":
 		return "实时事件、风险筛选与按需详情"
+	case "行为":
+		return "文件、网络、进程与其他信号的实时轨迹"
 	case "会话":
 		return "按 Agent 上下文聚合运行会话"
 	case "AgentSight":
@@ -646,11 +662,11 @@ func (a *renewApp) errorView(c *ui.Context) {
 // Strings in the signature are immutable filter values, not event payloads.
 type eventFilterSignature struct {
 	search, eventType, session, decision, target string
-	domainAgent, domainTarget, domainKind string
-	risk, management string
-	pid, rootPID int
-	minRisk float64
-	fileEditsOnly, delegatedOnly, attentionOnly bool
+	domainAgent, domainTarget, domainKind        string
+	risk, management                             string
+	pid, rootPID                                 int
+	minRisk                                      float64
+	fileEditsOnly, delegatedOnly, attentionOnly  bool
 }
 
 func (a *renewApp) eventFilterCacheKey() eventFilterSignature {
@@ -662,19 +678,19 @@ func (a *renewApp) eventFilterCacheKey() eventFilterSignature {
 		a.filterSearchNormalized = strings.ToLower(strings.TrimSpace(a.search))
 	}
 	return eventFilterSignature{
-		search: a.filterSearchNormalized,
-		eventType: a.eventTypeFilter,
-		session: a.eventSessionFilter,
-		decision: a.eventDecisionFilter,
-		target: a.eventTargetFilter,
-		domainAgent: a.eventDomainAgent,
-		domainTarget: a.eventDomainTarget,
-		domainKind: a.eventDomainKind,
-		risk: a.eventRiskFilter,
-		management: a.managementEventFilter,
-		pid: a.eventPIDFilter,
-		rootPID: a.eventRootPIDFilter,
-		minRisk: a.eventMinRiskScore,
+		search:        a.filterSearchNormalized,
+		eventType:     a.eventTypeFilter,
+		session:       a.eventSessionFilter,
+		decision:      a.eventDecisionFilter,
+		target:        a.eventTargetFilter,
+		domainAgent:   a.eventDomainAgent,
+		domainTarget:  a.eventDomainTarget,
+		domainKind:    a.eventDomainKind,
+		risk:          a.eventRiskFilter,
+		management:    a.managementEventFilter,
+		pid:           a.eventPIDFilter,
+		rootPID:       a.eventRootPIDFilter,
+		minRisk:       a.eventMinRiskScore,
 		fileEditsOnly: a.eventFileEditsOnly,
 		delegatedOnly: a.eventDelegatedOnly,
 		attentionOnly: a.eventAttentionOnly,

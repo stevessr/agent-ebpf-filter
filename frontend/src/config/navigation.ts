@@ -45,6 +45,12 @@ const ALL_NAV_GROUPS: NavMenuGroup[] = [
         closable: false,
       },
       {
+        key: "behavior",
+        title: "行为可视化",
+        icon: RadarChartOutlined,
+        defaultRoute: { name: "Behavior" },
+      },
+      {
         key: "monitor",
         title: "系统监控",
         icon: BarChartOutlined,
@@ -183,6 +189,7 @@ export const WORKBENCH_REGISTRY = NAV_GROUPS.reduce<
 
 const routeNameMap: Record<string, WorkbenchKey> = {
   Dashboard: "dashboard",
+  Behavior: "behavior",
   Monitor: "monitor",
   Network: "network",
   NetworkFlow: "network-flow",
@@ -229,6 +236,8 @@ export const resolveWorkbenchKey = (
     isAvailableWorkbenchKey("ml")
   )
     return "ml";
+  if (path.startsWith("/behavior") && isAvailableWorkbenchKey("behavior"))
+    return "behavior";
   if (path.startsWith("/dashboard") && isAvailableWorkbenchKey("dashboard"))
     return "dashboard";
   if (path.startsWith("/monitor") && isAvailableWorkbenchKey("monitor"))

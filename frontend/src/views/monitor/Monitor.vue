@@ -280,7 +280,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div style="background: #f0f2f5; padding: 20px; min-height: 100%">
+  <div style="background: var(--surface-0); padding: 20px; min-height: 100%">
     <a-tabs
       :activeKey="activeTab"
       @change="handleTabChange"
@@ -294,10 +294,11 @@ onUnmounted(() => {
         >
         <div
           style="
-            background: #fff;
+            background: var(--surface-1);
+            color: var(--text-primary);
             padding: 20px;
-            border-radius: 4px;
-            border: 1px solid #f0f0f0;
+            border-radius: 8px;
+            border: 1px solid var(--border);
           "
         >
           <a-tabs
@@ -485,25 +486,25 @@ onUnmounted(() => {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 12px;
-            background: #fafafa;
+            background: var(--surface-2);
             padding: 12px;
-            border-radius: 4px;
+            border-radius: 8px;
           "
         >
           <div>
-            <span style="color: #4b5563">User:</span>
+            <span style="color: var(--text-secondary)">User:</span>
             <b>{{ selectedProcessDetails.user }}</b>
           </div>
           <div>
-            <span style="color: #4b5563">CPU:</span>
+            <span style="color: var(--text-secondary)">CPU:</span>
             <b>{{ (selectedProcessDetails.cpu ?? 0).toFixed(1) }}%</b>
           </div>
           <div>
-            <span style="color: #4b5563">Mem:</span>
+            <span style="color: var(--text-secondary)">Mem:</span>
             <b>{{ (selectedProcessDetails.mem ?? 0).toFixed(1) }}%</b>
           </div>
           <div style="grid-column: span 3">
-            <span style="color: #4b5563">Command:</span>
+            <span style="color: var(--text-secondary)">Command:</span>
             <code style="font-size: 11px">{{
               selectedProcessDetails.cmdline
             }}</code>
@@ -513,8 +514,8 @@ onUnmounted(() => {
           style="
             height: 500px;
             overflow-y: auto;
-            background: #1e1e1e;
-            color: #d4d4d4;
+            background: var(--surface-2);
+            color: var(--text-primary);
             padding: 12px;
             border-radius: 4px;
             font-family: &quot;JetBrains Mono&quot;, monospace;

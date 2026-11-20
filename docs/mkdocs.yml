@@ -110,6 +110,7 @@ nav:
       - 快速开始: guide/quick-start.md
       - 演示导览: guide/demo-tour.md
       - Web 工作台: guide/web-workbench.md
+      - 行为可视化: guide/behavior-observatory.md
       - 功能总览: guide/capabilities.md
       - 阅读路线: guide/reading-paths.md
   - 系统架构:

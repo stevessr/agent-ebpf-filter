@@ -59,7 +59,6 @@ func workspaceMotionLayoutWidth(current, target float32) float32 {
 	return max(current, target)
 }
 
-
 const (
 	workspaceNavigationCompactWidth  float32 = 198
 	workspaceNavigationDetailedWidth float32 = 302
@@ -67,26 +66,27 @@ const (
 
 // Page IDs remain stable; only the optional sidebar's visible names change.
 var workspaceNavigationLabels = map[string][2]string{
-	"概览":       {"态势总览", "系统态势与运行概览"},
-	"研判":       {"风险研判工作台", "风险事件研判工作台"},
-	"事件":       {"事件流", "eBPF 实时事件流"},
-	"会话":       {"Agent 会话", "Agent 会话与行为关联"},
+	"概览":         {"态势总览", "系统态势与运行概览"},
+	"行为":         {"行为轨道", "行为轨道与风险证据"},
+	"研判":         {"风险研判工作台", "风险事件研判工作台"},
+	"事件":         {"事件流", "eBPF 实时事件流"},
+	"会话":         {"Agent 会话", "Agent 会话与行为关联"},
 	"AgentSight": {"AgentSight 洞察", "会话、模型 Token 与轨迹证据"},
-	"派生":       {"Agent 派生", "Agent → SubAgent 调用与进程派生"},
-	"网络":       {"网络外联", "网络连接与外联目标"},
-	"域名":       {"Agent 域名监控", "Agent 域名与外联目的地监控"},
-	"进程":       {"进程活动", "进程活动与资源监测"},
-	"Agent 识别": {"捕获与监视范围", "Agent 识别与捕获监视范围"},
-	"监控":       {"采集设置", "实时采集与监控设置"},
-	"eBPF 模块":  {"内核模块", "eBPF 内核模块管理"},
-	"规则":       {"Wrapper 规则", "Wrapper 拦截与防护规则"},
-	"跟踪":       {"跟踪范围", "进程、命令与路径跟踪"},
-	"路径权限":     {"文件访问保护", "文件路径与访问权限"},
-	"终端":       {"本地 Shell · 多标签与分屏", "本地 Shell 终端与多窗格"},
-	"文件":       {"文件管理", "本机文件管理与目录浏览"},
-	"编辑器":      {"原生编辑器", "MyGo 原生代码编辑器"},
-	"CCS":      {"管理软件联动", "CC-Switch / AstrLink / CCR / Antigravity 本地视图"},
-	"系统":       {"系统诊断", "采集链路与系统运行诊断"},
+	"派生":         {"Agent 派生", "Agent → SubAgent 调用与进程派生"},
+	"网络":         {"网络外联", "网络连接与外联目标"},
+	"域名":         {"Agent 域名监控", "Agent 域名与外联目的地监控"},
+	"进程":         {"进程活动", "进程活动与资源监测"},
+	"Agent 识别":   {"捕获与监视范围", "Agent 识别与捕获监视范围"},
+	"监控":         {"采集设置", "实时采集与监控设置"},
+	"eBPF 模块":    {"内核模块", "eBPF 内核模块管理"},
+	"规则":         {"Wrapper 规则", "Wrapper 拦截与防护规则"},
+	"跟踪":         {"跟踪范围", "进程、命令与路径跟踪"},
+	"路径权限":       {"文件访问保护", "文件路径与访问权限"},
+	"终端":         {"本地 Shell · 多标签与分屏", "本地 Shell 终端与多窗格"},
+	"文件":         {"文件管理", "本机文件管理与目录浏览"},
+	"编辑器":        {"原生编辑器", "MyGo 原生代码编辑器"},
+	"CCS":        {"管理软件联动", "CC-Switch / AstrLink / CCR / Antigravity 本地视图"},
+	"系统":         {"系统诊断", "采集链路与系统运行诊断"},
 }
 
 func workspaceNavigationWidth(open, detailed bool) float32 {
@@ -243,6 +243,8 @@ func (a *renewApp) workspacePage(c *ui.Context) {
 	switch a.page {
 	case "事件":
 		a.eventsView(c)
+	case "行为":
+		a.behaviorView(c)
 	case "研判":
 		a.inspectorStandalone(c)
 	case "会话":
@@ -289,7 +291,7 @@ var workspaceNavigationMenuSections = []struct {
 	title string
 	pages []string
 }{
-	{"监控工作台", []string{"概览", "研判", "事件", "会话", "AgentSight", "派生", "网络", "域名", "进程", "Agent 识别"}},
+	{"监控工作台", []string{"概览", "行为", "研判", "事件", "会话", "AgentSight", "派生", "网络", "域名", "进程", "Agent 识别"}},
 	{"防护与管理", []string{"监控", "eBPF 模块", "规则", "跟踪", "路径权限"}},
 	{"工具", []string{"终端", "文件", "编辑器", "CCS"}},
 	{"运行诊断", []string{"系统"}},
@@ -408,6 +410,7 @@ func (a *renewApp) sidebar(c *ui.Context, detailed bool) {
 		menu := ui.Sidebar(c, &a.page, func() {
 			ui.SidebarSection(c, "监控工作台", nil, func() {
 				navItem("概览")
+				navItem("行为")
 				navItem("研判")
 				events := navItem("事件")
 				switch {

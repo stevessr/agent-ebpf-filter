@@ -166,6 +166,30 @@ show a prominent, read-only warning with a direct route to **系统诊断**, rat
 than relying on the Overview page or a small footer indicator. A warning never
 interprets missing events as evidence of a safe system.
 
+## Native UI demo video (MyGo render plugin)
+
+`desktop/renew` can record its **own workspace views**, not a re-drawn mock, into
+an MP4 with [MyGo's render plugin](https://mygo.run/zh/docs/plugins/render). The
+composition's view calls the shipped `app.view` → `workspaceView` → page
+implementations, so the activity rail, sidebars, tables, the incident inspector
+and their transitions are the real interface. `main` intercepts the flag before
+any window, backend or privilege path runs.
+
+The events and processes shown by that command are **representative sample
+data, not captured traffic**, attack replays or benchmark evidence — see
+[`ui-demo.md`](ui-demo.md) for the full sample-data declaration, the storyboard
+and the renderer notes.
+
+```sh
+# from the repository root
+go run ./desktop/renew --render-ui-demo artifacts/renew-ui-demo.mp4
+
+# or from desktop/renew: the output path is relative to the working directory
+cd desktop/renew
+go run . --render-ui-demo ../../artifacts/renew-ui-demo.mp4   # --render-ui-demo=<path> also works
+go run . --ui-demo-stills ../../artifacts/ui-demo-stills      # one PNG per page
+```
+
 ## Native workspace layout
 
 Renew renders an editor-inspired native workspace **entirely with MyGo widgets**. Its light and dark palettes follow the host OS appearance (including live changes through MyGo's system theme), while native accent colors, text scaling and high-contrast preferences remain available. A monochrome hand-mirror SVG is embedded and rendered as the activity-rail identity; collector health is shown in the main status indicators and System diagnostics, not in a redundant sidebar block. Its 54-DIP activity rail offers page shortcuts; the full navigation is collapsed by default so the center starts immediately after the icon rail. Users can open a 198-DIP compact navigation and then switch to a 302-DIP detailed navigation with full Chinese page labels. The sidebar's actual animated width feeds the incident inspector's responsive breakpoint; the page IDs, selection, keyboard navigation, and Agent identification controls are unchanged. The center retains live eBPF monitoring, sessions, network/process tables and existing privileged management controls. A page toolbar provides search, stream pause and context-aware refresh (rules, tracking, eBPF module state and path permissions re-fetch their own data).
