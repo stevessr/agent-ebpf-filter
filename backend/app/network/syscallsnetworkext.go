@@ -1,17 +1,17 @@
 package network
 
-func syscallNameExtended(nr uint32) string {
+func SyscallNameExtended(nr uint32) string {
 	switch {
 	case nr <= 200:
 		return ""
 	case nr <= 453:
-		return syscallNameHigh(nr)
+		return SyscallNameHigh(nr)
 	default:
 		return ""
 	}
 }
 
-func syscallNameHigh(nr uint32) string {
+func SyscallNameHigh(nr uint32) string {
 	switch nr {
 	case 201:
 		return "time"
