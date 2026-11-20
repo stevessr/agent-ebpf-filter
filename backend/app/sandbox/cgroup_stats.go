@@ -115,49 +115,6 @@ func ListBlockedPorts(blocklist *ebpf.Map) []uint16 {
 	return items
 }
 
-type CgroupSandboxStats struct {
-	ConnectChecked uint64 `json:"connectChecked"`
-	ConnectBlocked uint64 `json:"connectBlocked"`
-	ConnectAllowed uint64 `json:"connectAllowed"`
-	Checked        uint64 `json:"checked"`
-	Blocked        uint64 `json:"blocked"`
-	Allowed        uint64 `json:"allowed"`
-}
-
-func GetCgroupSandboxStats(statsMap *ebpf.Map) (CgroupSandboxStats, error) {
-	if statsMap == nil {
-		return CgroupSandboxStats{}, fmt.Errorf("stats map not loaded")
-	}
-
-	cpuCount, err := ebpf.PossibleCPU()
-	if err != nil || cpuCount <= 0 {
-		return CgroupSandboxStats{}, err
-	}
-
-	type rawStats struct {
-		ConnectChecked uint64
-		ConnectBlocked uint64
-		ConnectAllowed uint64
-	}
-
-	values := make([]rawStats, cpuCount)
-	key := uint32(0)
-	if err := statsMap.Lookup(&key, &values); err != nil {
-		return CgroupSandboxStats{}, err
-	}
-
-	var total CgroupSandboxStats
-	for _, s := range values {
-		total.ConnectChecked += s.ConnectChecked
-		total.ConnectBlocked += s.ConnectBlocked
-		total.ConnectAllowed += s.ConnectAllowed
-	}
-	total.Checked = total.ConnectChecked
-	total.Blocked = total.ConnectBlocked
-	total.Allowed = total.ConnectAllowed
-	return total, nil
-}
-
 // Apply cgroup sandbox to a specific agent run (block all outbound for that cgroup)
 func sandboxCgroupForAgent(cgroupID uint64) error {
 	if CurrentCgroupSandboxSnapshot().CgroupBlocklist == nil {
