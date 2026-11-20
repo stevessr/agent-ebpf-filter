@@ -121,12 +121,8 @@ func networkEgressShouldAlert(event *pb.Event) bool {
 	if event == nil {
 		return false
 	}
-	if endpoint := strings.ToLower(strings.TrimSpace(event.GetNetEndpoint())); endpoint != "" {
-		for _, hint := range []string{"127.0.0.1", "localhost"} {
-			if strings.Contains(endpoint, hint) {
-				return false
-			}
-		}
+	if isLocalhostOrLoopbackEndpoint(event.GetNetEndpoint()) {
+		return false
 	}
 	commandish := strings.ToLower(strings.TrimSpace(strings.Join([]string{
 		event.GetToolName(),

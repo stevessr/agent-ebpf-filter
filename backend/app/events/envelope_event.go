@@ -48,9 +48,6 @@ func CloneProtoEvent(event *pb.Event) *pb.Event {
 }
 
 func normalizeEventEnvelope(envelope *pb.EventEnvelope, record CapturedEventRecord) *pb.EventEnvelope {
-	if envelope == nil {
-		return buildEventEnvelope(record)
-	}
 	cloned, ok := proto.Clone(envelope).(*pb.EventEnvelope)
 	if !ok {
 		cloned = envelope
@@ -112,7 +109,7 @@ func normalizeEventEnvelope(envelope *pb.EventEnvelope, record CapturedEventReco
 		cloned.Source = DetermineEnvelopeSource(record.Event)
 	}
 	if strings.TrimSpace(cloned.GetEventId()) == "" {
-		cloned.EventId = buildEventEnvelopeID(record, firstNonNilEvent(record.Event, cloned.GetLegacyEvent()))
+		cloned.EventId = buildEventEnvelopeID(record, legacy)
 	}
 	return cloned
 }

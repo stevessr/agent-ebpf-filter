@@ -2,6 +2,9 @@ package events
 
 import (
 	"fmt"
+	"net"
+	"net/netip"
+	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -10,6 +13,23 @@ import (
 
 	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
+)
+
+var (
+	browserRiskyExecComms = map[string]struct{}{
+		"nc": {}, "ncat": {}, "netcat": {}, "nc.openbsd": {}, "nc.traditional": {},
+		"socat": {}, "ssh": {}, "nohup": {}, "disown": {},
+	}
+	remoteDevboxRiskyComms = map[string]struct{}{
+		"nc": {}, "ncat": {}, "netcat": {}, "nc.openbsd": {}, "nc.traditional": {},
+		"socat": {}, "revshell": {}, "backdoor": {},
+	}
+	suspiciousPorts = map[string]struct{}{
+		"4444": {}, "1337": {}, "31337": {}, "6666": {}, "6667": {},
+	}
+	suspiciousDomainSuffixes = []string{
+		".ngrok.io", ".serveo.net", ".localhost.run", "pastebin.com", "termbin.com", "ix.io",
+	}
 )
 
 // Codex-specific workflow semantic checks
@@ -26,7 +46,7 @@ func detectPRReviewAnomaly(event *pb.Event) (string, bool) {
 		return fmt.Sprintf("PR review tool %q spawned a process (%s)", event.GetToolName(), event.GetComm()), true
 	case "network_connect", "network_sendto":
 		endpoint := strings.TrimSpace(event.GetNetEndpoint())
-		if endpoint != "" && !strings.Contains(endpoint, "127.0.0.1") && !strings.Contains(endpoint, "localhost") {
+		if isNonLocalhostEndpoint(endpoint) {
 			return fmt.Sprintf("PR review tool %q opened unexpected network egress to %s", event.GetToolName(), endpoint), true
 		}
 	case "write", "chmod", "unlink", "unlinkat":
@@ -46,17 +66,29 @@ func isPRReviewReadOnlyExec(comm, path string) bool {
 	return false
 }
 
+func commOrPathInSet(event *pb.Event, set map[string]struct{}) bool {
+	if comm := strings.ToLower(strings.TrimSpace(event.GetComm())); comm != "" {
+		if _, ok := set[comm]; ok {
+			return true
+		}
+	}
+	if p := strings.TrimSpace(event.GetPath()); p != "" {
+		base := strings.ToLower(filepath.Base(p))
+		if _, ok := set[base]; ok {
+			return true
+		}
+	}
+	return false
+}
+
 func detectBrowserTaskAnomaly(event *pb.Event) (string, bool) {
 	if !toolNameMatchesHints(event.GetToolName(), BrowserFrontendToolHints) {
 		return "", false
 	}
 	switch event.GetType() {
 	case "execve", "process_exec":
-		comm := strings.ToLower(strings.TrimSpace(event.GetComm()))
-		for _, risky := range []string{"nc", "netcat", "socat", "ssh", "nohup", "disown"} {
-			if comm == risky || strings.HasPrefix(comm, risky) {
-				return fmt.Sprintf("browser/frontend tool %q spawned risky process %q", event.GetToolName(), event.GetComm()), true
-			}
+		if commOrPathInSet(event, browserRiskyExecComms) {
+			return fmt.Sprintf("browser/frontend tool %q spawned risky process %q", event.GetToolName(), event.GetComm()), true
 		}
 	case "network_connect", "network_sendto":
 		endpoint := strings.TrimSpace(event.GetNetEndpoint())
@@ -87,17 +119,12 @@ func detectRemoteDevboxAnomaly(event *pb.Event) (string, bool) {
 	switch event.GetType() {
 	case "network_connect", "network_sendto":
 		endpoint := strings.TrimSpace(event.GetNetEndpoint())
-		if isNonLocalhostEndpoint(endpoint) {
-			if isSuspiciousEndpoint(endpoint) {
-				return fmt.Sprintf("remote devbox tool %q connected to suspicious endpoint %s", event.GetToolName(), endpoint), true
-			}
+		if isNonLocalhostEndpoint(endpoint) && isSuspiciousEndpoint(endpoint) {
+			return fmt.Sprintf("remote devbox tool %q connected to suspicious endpoint %s", event.GetToolName(), endpoint), true
 		}
 	case "execve", "process_exec":
-		comm := strings.ToLower(strings.TrimSpace(event.GetComm()))
-		for _, risky := range []string{"nc", "socat", "reverse", "backdoor"} {
-			if strings.Contains(comm, risky) {
-				return fmt.Sprintf("remote devbox tool %q spawned suspicious process %q", event.GetToolName(), event.GetComm()), true
-			}
+		if commOrPathInSet(event, remoteDevboxRiskyComms) {
+			return fmt.Sprintf("remote devbox tool %q spawned suspicious process %q", event.GetToolName(), event.GetComm()), true
 		}
 	}
 	return "", false
@@ -116,28 +143,61 @@ func toolNameMatchesHints(toolName string, hints []string) bool {
 	return false
 }
 
-func isNonLocalhostEndpoint(endpoint string) bool {
-	endpoint = strings.TrimSpace(endpoint)
-	if endpoint == "" {
-		return false
+func splitEndpointHostPort(endpoint string) (host, port string) {
+	s := strings.TrimSpace(endpoint)
+	if s == "" {
+		return "", ""
 	}
-	for _, hint := range []string{"127.0.0.1", "localhost", "::1", "0.0.0.0"} {
-		if strings.Contains(endpoint, hint) {
-			return false
+	if strings.Contains(s, "://") {
+		if u, err := url.Parse(s); err == nil && u.Host != "" {
+			s = u.Host
 		}
 	}
-	return true
+	if h, p, err := net.SplitHostPort(s); err == nil {
+		return strings.ToLower(strings.TrimSpace(h)), strings.TrimSpace(p)
+	}
+	return strings.ToLower(strings.TrimSuffix(strings.TrimPrefix(s, "["), "]")), ""
+}
+
+func isLocalhostOrLoopbackEndpoint(endpoint string) bool {
+	s := strings.TrimSpace(endpoint)
+	if s == "" {
+		return false
+	}
+	if strings.HasPrefix(s, "/") || strings.HasPrefix(s, "unix:") {
+		return true
+	}
+	host, _ := splitEndpointHostPort(s)
+	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
+		return true
+	}
+	addr, err := netip.ParseAddr(host)
+	if err != nil {
+		return false
+	}
+	if addr.Is4In6() {
+		addr = addr.Unmap()
+	}
+	return addr.IsLoopback() || addr.IsUnspecified()
+}
+
+func isNonLocalhostEndpoint(endpoint string) bool {
+	if strings.TrimSpace(endpoint) == "" {
+		return false
+	}
+	return !isLocalhostOrLoopbackEndpoint(endpoint)
 }
 
 func isSuspiciousEndpoint(endpoint string) bool {
-	endpoint = strings.ToLower(strings.TrimSpace(endpoint))
-	suspiciousPatterns := []string{
-		".ngrok.io", ".serveo.net", ".localhost.run",
-		":4444", ":1337", ":31337", ":6666", ":6667",
-		"pastebin", "termbin", "ix.io",
+	host, port := splitEndpointHostPort(endpoint)
+	if port != "" {
+		if _, ok := suspiciousPorts[port]; ok {
+			return true
+		}
 	}
-	for _, pattern := range suspiciousPatterns {
-		if strings.Contains(endpoint, pattern) {
+	for _, suffix := range suspiciousDomainSuffixes {
+		trimmedSuffix := strings.TrimPrefix(suffix, ".")
+		if host == trimmedSuffix || strings.HasSuffix(host, "."+trimmedSuffix) {
 			return true
 		}
 	}
