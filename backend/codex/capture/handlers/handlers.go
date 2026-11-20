@@ -214,14 +214,13 @@ func BuildEvent(req CaptureRequest) Event {
 }
 
 func normalizeDirection(direction, phase string) string {
-	direction = strings.ToLower(strings.TrimSpace(direction))
-	switch direction {
+	switch strings.ToLower(strings.TrimSpace(direction)) {
 	case "recv", "receive", "response", "in", "inbound":
 		return "recv"
 	case "send", "request", "out", "outbound":
 		return "send"
 	}
-	if strings.Contains(strings.ToLower(phase), "response") {
+	if strings.Contains(phase, "response") {
 		return "recv"
 	}
 	return "send"
