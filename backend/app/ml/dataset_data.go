@@ -77,7 +77,7 @@ func InitTrainingStore(maxSamples int) {
 
 // Add adds a training sample to the store
 func (s *TrainingDataStore) Add(sample TrainingSample) {
-	if s == nil || s.maxSamples <= 0 || len(s.samples) == 0 {
+	if s == nil {
 		return
 	}
 	sample = NormalizeTrainingSample(sample)

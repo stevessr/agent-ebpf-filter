@@ -150,6 +150,7 @@ func prepareGroupedHoldout(labeled []TrainingSample, ratio float64) ([]TrainSamp
 	trainRaw := make([]TrainingSample, 0, len(labeled)-validationCount)
 	validationRaw := make([]TrainingSample, 0, validationCount)
 	for _, sample := range labeled {
+		sample.Features = clampFeatures01(sample.Features)
 		small := TrainSample{features: sample.Features, label: sample.Label}
 		if selected[behaviorHoldoutKey(sample)] {
 			validation = append(validation, small)

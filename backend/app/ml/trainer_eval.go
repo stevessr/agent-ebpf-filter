@@ -77,7 +77,7 @@ func EvalLinearModel(W [][FeatureDim + 1]float64, nClasses int, samples []TrainS
 func ToTrainSamples(labeled []TrainingSample) []TrainSample {
 	out := make([]TrainSample, len(labeled))
 	for i, s := range labeled {
-		out[i] = TrainSample{features: s.Features, label: s.Label}
+		out[i] = TrainSample{features: clampFeatures01(s.Features), label: s.Label}
 	}
 	return out
 }

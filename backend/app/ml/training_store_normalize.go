@@ -50,10 +50,12 @@ func NormalizeTrainingSample(sample TrainingSample) TrainingSample {
 	}
 	sample.AnomalyScore = normalizeTrainingScore(sample.AnomalyScore)
 	for index, value := range sample.Features {
-		// FeatureExtractor already normalizes into [0,1] (cyclic dims remapped),
-		// but persisted and manual samples must satisfy the same bounded
-		// contract before entering a model, so clamp instead of trusting source.
-		sample.Features[index] = clampFeature01(value)
+		// Sanitize non-finite numbers at ingest while preserving finite out-of-range
+		// values so dataset readiness checks can surface feature_values_out_of_range
+		// rather than silently masking corrupted vectors before model clamping.
+		if math.IsNaN(value) || math.IsInf(value, 0) {
+			sample.Features[index] = 0
+		}
 	}
 	if sample.Timestamp.IsZero() {
 		sample.Timestamp = time.Now().UTC()

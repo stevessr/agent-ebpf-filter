@@ -301,7 +301,6 @@ func trainSGDWithRand(W [][FeatureDim + 1]float64, nClasses int, labeled []Train
 }
 
 func RidgeFit(W [][FeatureDim + 1]float64, nClasses int, labeled []TrainingSample, alpha float64) {
-	_ = len(labeled)
 	// One-vs-rest: for each class, solve (X^T X + αI) w = X^T y using SGD approximation
 	// Simplified: iterative ridge via SGD
 	for c := 0; c < nClasses; c++ {

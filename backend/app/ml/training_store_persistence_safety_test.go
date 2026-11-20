@@ -61,9 +61,21 @@ func TestTrainingDataStoreNormalizesAndOwnsSampleMetadata(t *testing.T) {
 			t.Fatalf("normalized feature[%d] = %v, want 0", index, sample.Features[index])
 		}
 	}
-	for index, want := range map[int]float64{3: 0, 4: 1, 5: 0.425} {
+	// Finite out-of-range values remain observable in store diagnostics and are
+	// clamped when normalized into a model feature vector.
+	for index, want := range map[int]float64{3: -0.75, 4: 3.5, 5: 0.425} {
 		if sample.Features[index] != want {
-			t.Fatalf("clamped feature[%d] = %v, want %v", index, sample.Features[index], want)
+			t.Fatalf("stored feature[%d] = %v, want %v", index, sample.Features[index], want)
+		}
+	}
+	report := SummarizeFeatureNormalization(samples)
+	if report.NonFiniteValues != 0 || report.BelowZeroValues != 1 || report.AboveOneValues != 1 {
+		t.Fatalf("expected stored out-of-range detection, got %+v", report)
+	}
+	clamped := NormalizeFeatureVector(sample.Features)
+	for index, want := range map[int]float64{3: 0, 4: 1, 5: 0.425} {
+		if clamped[index] != want {
+			t.Fatalf("clamped feature[%d] = %v, want %v", index, clamped[index], want)
 		}
 	}
 	if sample.Timestamp.After(trainingSampleMaxTimestamp) || sample.Timestamp.Before(trainingSampleMinTimestamp) {

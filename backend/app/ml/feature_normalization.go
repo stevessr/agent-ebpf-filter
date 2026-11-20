@@ -40,6 +40,15 @@ func NormalizeFeatureVector(f [FeatureDim]float64) [FeatureDim]float64 {
 	return f
 }
 
+// clampFeatures01 bounds every dimension to [0, 1] at model training boundaries
+// without masking out-of-range anomalies in raw TrainingDataStore diagnostics.
+func clampFeatures01(f [FeatureDim]float64) [FeatureDim]float64 {
+	for i, v := range f {
+		f[i] = clampFeature01(v)
+	}
+	return f
+}
+
 func clampFeature01(v float64) float64 {
 	if math.IsNaN(v) || math.IsInf(v, 0) {
 		return 0
