@@ -53,7 +53,7 @@ func IntervalMilliseconds(raw string, fallback, minimum, maximum time.Duration) 
 	if maximum < minimum {
 		maximum = minimum
 	}
-	fallback = clampDuration(fallback, minimum, maximum)
+	fallback = min(max(fallback, minimum), maximum)
 
 	milliseconds, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
 	if err != nil {
@@ -66,15 +66,5 @@ func IntervalMilliseconds(raw string, fallback, minimum, maximum time.Duration) 
 	if milliseconds > maxMilliseconds {
 		return maximum
 	}
-	return clampDuration(time.Duration(milliseconds)*time.Millisecond, minimum, maximum)
-}
-
-func clampDuration(value, minimum, maximum time.Duration) time.Duration {
-	if value < minimum {
-		return minimum
-	}
-	if value > maximum {
-		return maximum
-	}
-	return value
+	return min(max(time.Duration(milliseconds)*time.Millisecond, minimum), maximum)
 }
