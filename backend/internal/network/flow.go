@@ -177,7 +177,7 @@ func (f *FlowAggregator) RecordConnectionContext(srcIP, dstIP string, srcPort, d
 			riskReasons = append(riskReasons, "suspicious IP scope: "+string(scope))
 		}
 		if IsSuspiciousPortService(service) {
-			risk = maxFloat64(risk, 0.80)
+			risk = max(risk, 0.80)
 			riskReasons = append(riskReasons, "suspicious service/port: "+service)
 		}
 
@@ -443,8 +443,8 @@ func finalizeNetworkFlowSummary(flow NetworkFlowSummary, nowMs int64) NetworkFlo
 	if flow.LastSeen == 0 {
 		flow.LastSeen = flow.FirstSeen
 	}
-	flow.DurationMs = maxInt64(0, flow.LastSeen-flow.FirstSeen)
-	ageMs := maxInt64(0, nowMs-flow.LastSeen)
+	flow.DurationMs = max(int64(0), flow.LastSeen-flow.FirstSeen)
+	ageMs := max(int64(0), nowMs-flow.LastSeen)
 	switch {
 	case flow.Historic:
 		flow.StaleLevel = "historic"
@@ -460,9 +460,6 @@ func finalizeNetworkFlowSummary(flow NetworkFlowSummary, nowMs int64) NetworkFlo
 }
 
 func updateFlowRisk(flow *NetworkFlowSummary) {
-	if flow == nil {
-		return
-	}
 	reasons := append([]string(nil), flow.RiskReasons...)
 	addReason := func(reason string) {
 		reason = strings.TrimSpace(reason)
@@ -484,23 +481,19 @@ func updateFlowRisk(flow *NetworkFlowSummary) {
 		addReason("suspicious IP scope: " + flow.IPScope)
 	}
 	if IsSuspiciousPortService(flow.DstService) {
-		flow.RiskScore = maxFloat64(flow.RiskScore, 0.80)
+		flow.RiskScore = max(flow.RiskScore, 0.80)
 		addReason("suspicious service/port: " + flow.DstService)
 	}
-	endpoint := strings.ToLower(flow.DstIP + ":" + strconv.FormatUint(uint64(flow.DstPort), 10))
-	if flow.DstDomain != "" || flow.DNSName != "" || flow.SNI != "" || flow.HTTPHost != "" {
-		endpoint += " " + strings.Join([]string{flow.DstDomain, flow.DNSName, flow.SNI, flow.HTTPHost}, " ")
-	}
-	if isSuspiciousEndpoint(endpoint) {
-		flow.RiskScore = maxFloat64(flow.RiskScore, 0.90)
+	if isSuspiciousFlowEndpoint(flow) {
+		flow.RiskScore = max(flow.RiskScore, 0.90)
 		addReason("suspicious endpoint pattern")
 	}
 	if strings.EqualFold(flow.AppProtocol, "SSH") && strings.EqualFold(flow.IPScope, string(ScopePublic)) {
-		flow.RiskScore = maxFloat64(flow.RiskScore, 0.75)
+		flow.RiskScore = max(flow.RiskScore, 0.75)
 		addReason("public SSH flow")
 	}
 	if flow.BytesOut > 10*1024*1024 {
-		flow.RiskScore = maxFloat64(flow.RiskScore, 0.65)
+		flow.RiskScore = max(flow.RiskScore, 0.65)
 		addReason("large outbound volume")
 	}
 	if flow.RiskScore >= 0.80 {
@@ -640,34 +633,28 @@ func decodeFlowCursor(cursor string) int {
 	return payload.Offset
 }
 
-func isSuspiciousEndpoint(endpoint string) bool {
-	endpoint = strings.ToLower(strings.TrimSpace(endpoint))
-	suspiciousPatterns := []string{
-		".ngrok.io", ".serveo.net", ".localhost.run",
-		":4444", ":1337", ":31337", ":6666", ":6667",
-		"pastebin", "termbin", "ix.io",
+var suspiciousFlowDomainSuffixes = []string{
+	"ngrok.io", "serveo.net", "localhost.run", "pastebin.com", "termbin.com", "ix.io",
+}
+
+func isSuspiciousFlowEndpoint(flow *NetworkFlowSummary) bool {
+	switch flow.DstPort {
+	case 4444, 1337, 31337, 6666, 6667:
+		return true
 	}
-	for _, pattern := range suspiciousPatterns {
-		if strings.Contains(endpoint, pattern) {
-			return true
+	for _, rawHost := range []string{flow.DstDomain, flow.DNSName, flow.SNI, flow.HTTPHost} {
+		host := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(rawHost), "."))
+		if h, _, err := net.SplitHostPort(host); err == nil {
+			host = h
+		}
+		if host == "" {
+			continue
+		}
+		for _, suffix := range suspiciousFlowDomainSuffixes {
+			if host == suffix || strings.HasSuffix(host, "."+suffix) {
+				return true
+			}
 		}
 	}
 	return false
-}
-
-func maxInt64(a, b int64) int64 {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func maxFloat64(values ...float64) float64 {
-	max := 0.0
-	for _, value := range values {
-		if value > max {
-			max = value
-		}
-	}
-	return max
 }
