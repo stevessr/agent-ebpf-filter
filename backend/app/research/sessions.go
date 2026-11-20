@@ -308,16 +308,10 @@ func startResearchTaskWorker() {
 }
 
 func (m *researchTaskManager) Start(queueSize int) {
-	if m == nil {
-		return
-	}
 	m.ensureRuntime().Start(queueSize)
 }
 
 func (m *researchTaskManager) Shutdown(ctx context.Context) error {
-	if m == nil {
-		return nil
-	}
 	m.mu.RLock()
 	runtime := m.runtime
 	m.mu.RUnlock()
@@ -328,9 +322,6 @@ func (m *researchTaskManager) Shutdown(ctx context.Context) error {
 }
 
 func (m *researchTaskManager) ensureRuntime() *backendTaskRuntime {
-	if m == nil {
-		return nil
-	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.runtime == nil {
@@ -386,9 +377,6 @@ func (m *researchTaskManager) runRuntimeTask(runtimeEntry *backendTaskRuntimeEnt
 var errResearchTaskCanceled = errors.New("research task canceled")
 
 func (m *researchTaskManager) Submit(sessionID string, req researchTaskRequest, tlsStore *TLSCaptureStore) (ResearchTask, error) {
-	if m == nil {
-		return ResearchTask{}, errors.New("research task manager is unavailable")
-	}
 	m.Start(snapshotRuntimeSettings().ResearchProcessing.QueueSize)
 	action := normalizeResearchAction(req.Action)
 	if action == "cancel" {
@@ -439,9 +427,6 @@ func (m *researchTaskManager) Submit(sessionID string, req researchTaskRequest, 
 var errResearchQueueFull = errors.New("research task queue is full")
 
 func (m *researchTaskManager) Get(taskID string) (ResearchTask, bool) {
-	if m == nil {
-		return ResearchTask{}, false
-	}
 	m.mu.RLock()
 	entry := m.tasks[strings.TrimSpace(taskID)]
 	m.mu.RUnlock()
@@ -452,9 +437,6 @@ func (m *researchTaskManager) Get(taskID string) (ResearchTask, bool) {
 }
 
 func (m *researchTaskManager) Status() researchTaskManagerStatus {
-	if m == nil {
-		return researchTaskManagerStatus{ByStatus: map[string]int{}, UpdatedAt: time.Now().UTC()}
-	}
 	runtimeStats := m.ensureRuntime().Stats()
 	byStatus := map[string]int{}
 	m.mu.RLock()
@@ -473,9 +455,6 @@ func (m *researchTaskManager) Status() researchTaskManagerStatus {
 }
 
 func (m *researchTaskManager) Cancel(taskID string) ResearchTask {
-	if m == nil {
-		return ResearchTask{TaskID: taskID, Status: researchTaskCanceled, FinishedAt: ptrTime(time.Now().UTC())}
-	}
 	m.mu.RLock()
 	entry := m.tasks[strings.TrimSpace(taskID)]
 	m.mu.RUnlock()
@@ -487,18 +466,12 @@ func (m *researchTaskManager) Cancel(taskID string) ResearchTask {
 }
 
 func (m *researchTaskManager) pruneTrackedTasks() {
-	if m == nil {
-		return
-	}
 	m.mu.Lock()
 	m.pruneLocked()
 	m.mu.Unlock()
 }
 
 func (m *researchTaskManager) pruneLocked() {
-	if m == nil {
-		return
-	}
 	limit := m.maxItems
 	if limit <= 0 {
 		limit = researchTaskStoreMaxItems
@@ -520,7 +493,7 @@ func (m *researchTaskManager) pruneLocked() {
 }
 
 func (m *researchTaskManager) noteTaskFinished(entry *researchTaskEntry) {
-	if m == nil || entry == nil {
+	if entry == nil {
 		return
 	}
 	// Only the worker drain path calls this method. A queued task that was
@@ -542,7 +515,7 @@ func (m *researchTaskManager) noteTaskFinished(entry *researchTaskEntry) {
 }
 
 func (m *researchTaskManager) runTask(entry *researchTaskEntry) error {
-	if m == nil || entry == nil {
+	if entry == nil {
 		return errors.New("invalid research task")
 	}
 	action := normalizeResearchAction(entry.request.Action)

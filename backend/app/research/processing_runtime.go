@@ -190,23 +190,17 @@ type researchEventRing struct {
 }
 
 func (r *researchEventRing) Len() int {
-	if r == nil {
-		return 0
-	}
 	return len(r.items)
 }
 
 func (r *researchEventRing) Reset() {
-	if r == nil {
-		return
-	}
 	clear(r.items)
 	r.items = r.items[:0]
 	r.start = 0
 }
 
 func (r *researchEventRing) Append(samples []researchEventSample, limit int) int {
-	if r == nil || len(samples) == 0 {
+	if len(samples) == 0 {
 		return 0
 	}
 	if limit <= 0 {
@@ -247,7 +241,7 @@ func (r *researchEventRing) Append(samples []researchEventSample, limit int) int
 }
 
 func (r *researchEventRing) Snapshot() []researchEventSample {
-	if r == nil || len(r.items) == 0 {
+	if len(r.items) == 0 {
 		return nil
 	}
 	out := make([]researchEventSample, len(r.items))
@@ -319,9 +313,6 @@ func startResearchProcessingWorker(ctx context.Context) {
 }
 
 func (w *researchProcessingWorker) Start(ctx context.Context, queueSize int) {
-	if w == nil {
-		return
-	}
 	queueSize = tasks.NormalizeQueueSize(queueSize, researchProcessingDefaultQueueSize)
 	started := w.queue.Start(ctx, queueSize, func(ctx context.Context, items <-chan researchProcessingWorkItem) {
 		w.run(ctx, items)
@@ -369,9 +360,6 @@ func (w *researchProcessingWorker) run(ctx context.Context, queue <-chan researc
 }
 
 func (w *researchProcessingWorker) Shutdown(ctx context.Context) error {
-	if w == nil {
-		return nil
-	}
 	if w.queue.Stats().Started {
 		w.touch()
 	}
@@ -402,9 +390,6 @@ func (w *researchProcessingWorker) EnqueueReset() bool {
 }
 
 func (w *researchProcessingWorker) enqueue(item researchProcessingWorkItem) bool {
-	if w == nil {
-		return false
-	}
 	if item.queuedAt.IsZero() {
 		item.queuedAt = time.Now().UTC()
 	}
@@ -421,9 +406,6 @@ func (w *researchProcessingWorker) enqueue(item researchProcessingWorkItem) bool
 }
 
 func (w *researchProcessingWorker) noteEnqueued(queuedAt time.Time) {
-	if w == nil {
-		return
-	}
 	if queuedAt.IsZero() {
 		queuedAt = time.Now().UTC()
 	}
@@ -435,9 +417,6 @@ func (w *researchProcessingWorker) noteEnqueued(queuedAt time.Time) {
 }
 
 func (w *researchProcessingWorker) noteDrop(reason, message string) {
-	if w == nil {
-		return
-	}
 	now := time.Now().UTC()
 	w.mu.Lock()
 	w.droppedTotal++
@@ -449,9 +428,6 @@ func (w *researchProcessingWorker) noteDrop(reason, message string) {
 }
 
 func (w *researchProcessingWorker) resetNow() {
-	if w == nil {
-		return
-	}
 	w.mu.Lock()
 	w.events.Reset()
 	w.eventsVersion++
@@ -475,7 +451,7 @@ func (w *researchProcessingWorker) processRecords(records []CapturedEventRecord,
 }
 
 func (w *researchProcessingWorker) processRecordsContext(ctx context.Context, records []CapturedEventRecord, force bool, queuedAt time.Time) {
-	if w == nil || len(records) == 0 {
+	if len(records) == 0 {
 		return
 	}
 	if ctx == nil {
@@ -532,9 +508,6 @@ func (w *researchProcessingWorker) processRecordsContext(ctx context.Context, re
 func (w *researchProcessingWorker) Status() ResearchProcessingStatus {
 	settings := snapshotRuntimeSettings().ResearchProcessing
 	normalizeResearchProcessingSettings(&settings)
-	if w == nil {
-		return ResearchProcessingStatus{Enabled: settings.Enabled, Settings: settings, UpdatedAt: time.Now().UTC()}
-	}
 	w.refreshSummaryIfNeeded(settings)
 	queueStats := w.queue.Stats()
 	queueLen, queueCap := queueStats.Len, queueStats.Cap
@@ -572,9 +545,6 @@ func (w *researchProcessingWorker) Status() ResearchProcessingStatus {
 }
 
 func (w *researchProcessingWorker) refreshSummaryIfNeeded(settings ResearchProcessingSettings) {
-	if w == nil {
-		return
-	}
 	key := researchProcessingSummarySettingsFrom(settings)
 	for attempt := 0; attempt < 2; attempt++ {
 		w.mu.RLock()
