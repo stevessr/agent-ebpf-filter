@@ -47,12 +47,11 @@ func signalRuleMatches(rule SignalRule, event *pb.Event) bool {
 	return true
 }
 
+var signalFieldNameReplacer = strings.NewReplacer("_", "", "-", "", ".", "", " ", "")
+
 func signalKindDefaultMatches(kind string, event *pb.Event) bool {
-	if event == nil {
-		return false
-	}
 	eventType := strings.ToLower(signalEventType(event))
-	switch strings.ToLower(strings.TrimSpace(kind)) {
+	switch kind {
 	case signalKindPathAccess:
 		return strings.TrimSpace(event.GetPath()) != "" ||
 			strings.TrimSpace(event.GetExtraPath()) != "" ||
@@ -178,9 +177,7 @@ func signalFieldValues(field string, event *pb.Event) []string {
 }
 
 func normalizeSignalFieldName(field string) string {
-	field = strings.ToLower(strings.TrimSpace(field))
-	replacer := strings.NewReplacer("_", "", "-", "", ".", "", " ", "")
-	return replacer.Replace(field)
+	return signalFieldNameReplacer.Replace(strings.ToLower(strings.TrimSpace(field)))
 }
 
 func nonEmptySignalValues(values ...string) []string {
@@ -194,8 +191,9 @@ func nonEmptySignalValues(values ...string) []string {
 }
 
 func signalStateKey(rule SignalRule, event *pb.Event) (string, string) {
+	kind := strings.ToLower(strings.TrimSpace(rule.Kind))
 	target := signalStableTarget(event)
-	switch strings.ToLower(strings.TrimSpace(rule.Kind)) {
+	switch kind {
 	case signalKindRepeatedRead:
 		target = firstNonEmptySignalValue(event.GetPath(), event.GetExtraPath(), event.GetArgvDigest(), target)
 	case signalKindChildProcess:
@@ -212,7 +210,7 @@ func signalStateKey(rule SignalRule, event *pb.Event) (string, string) {
 	if context == "" {
 		context = "global"
 	}
-	return strings.Join([]string{rule.ID, strings.ToLower(strings.TrimSpace(rule.Kind)), context, target}, "\x00"), target
+	return strings.Join([]string{rule.ID, kind, context, target}, "\x00"), target
 }
 
 func signalContextKey(event *pb.Event) string {

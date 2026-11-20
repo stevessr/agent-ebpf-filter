@@ -428,9 +428,6 @@ func startSignalProcessingWorker(ctx context.Context) {
 }
 
 func (w *signalProcessingWorker) Start(ctx context.Context, queueSize int) {
-	if w == nil {
-		return
-	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -510,9 +507,6 @@ func (w *signalProcessingWorker) runCron(ctx context.Context) {
 }
 
 func (w *signalProcessingWorker) Shutdown(ctx context.Context) error {
-	if w == nil {
-		return nil
-	}
 	if w.queue.Stats().Started {
 		w.touch()
 	}
@@ -546,9 +540,6 @@ func (w *signalProcessingWorker) EnqueueExpire() bool {
 }
 
 func (w *signalProcessingWorker) enqueue(item signalProcessingWorkItem) bool {
-	if w == nil {
-		return false
-	}
 	switch w.queue.TryEnqueue(item) {
 	case workerqueue.Accepted:
 		return true
@@ -561,9 +552,6 @@ func (w *signalProcessingWorker) enqueue(item signalProcessingWorkItem) bool {
 }
 
 func (w *signalProcessingWorker) resetNow() {
-	if w == nil {
-		return
-	}
 	w.mu.Lock()
 	w.states = make(map[string]*signalState)
 	w.stateLRUHead = nil
@@ -574,9 +562,6 @@ func (w *signalProcessingWorker) resetNow() {
 }
 
 func (w *signalProcessingWorker) noteDrop(message string) {
-	if w == nil {
-		return
-	}
 	w.mu.Lock()
 	w.droppedTotal++
 	w.lastError = message
@@ -585,9 +570,6 @@ func (w *signalProcessingWorker) noteDrop(message string) {
 }
 
 func (w *signalProcessingWorker) noteError(message string) {
-	if w == nil {
-		return
-	}
 	w.mu.Lock()
 	w.lastError = message
 	w.updatedAt = time.Now().UTC()
@@ -595,9 +577,6 @@ func (w *signalProcessingWorker) noteError(message string) {
 }
 
 func (w *signalProcessingWorker) expireNow(now time.Time) {
-	if w == nil {
-		return
-	}
 	if now.IsZero() {
 		now = time.Now().UTC()
 	}
@@ -609,16 +588,13 @@ func (w *signalProcessingWorker) expireNow(now time.Time) {
 }
 
 func (w *signalProcessingWorker) processRecord(record CapturedEventRecord, force bool) {
-	if w == nil {
-		return
-	}
 	settings := SnapshotSettingsHook().SignalProcessing
 	NormalizeSettings(&settings)
 	w.processRecordWithSettings(record, force, settings)
 }
 
 func (w *signalProcessingWorker) processScan(ctx context.Context, records []CapturedEventRecord, force bool) {
-	if w == nil || len(records) == 0 {
+	if len(records) == 0 {
 		return
 	}
 	if ctx == nil {
@@ -638,7 +614,7 @@ func (w *signalProcessingWorker) processScan(ctx context.Context, records []Capt
 }
 
 func (w *signalProcessingWorker) processRecordWithSettings(record CapturedEventRecord, force bool, settings SignalProcessingSettings) {
-	if w == nil || record.Event == nil || shouldIgnoreSignalProcessingEvent(record.Event) {
+	if record.Event == nil || shouldIgnoreSignalProcessingEvent(record.Event) {
 		return
 	}
 	if !force && !settings.Enabled {
@@ -790,7 +766,7 @@ func (w *signalProcessingWorker) enforceMaxStatesLocked(maxStates int, now time.
 }
 
 func (w *signalProcessingWorker) appendSignalStateLocked(state *signalState) {
-	if w == nil || state == nil {
+	if state == nil {
 		return
 	}
 	state.lruPrev = w.stateLRUTail
@@ -804,7 +780,7 @@ func (w *signalProcessingWorker) appendSignalStateLocked(state *signalState) {
 }
 
 func (w *signalProcessingWorker) touchSignalStateLocked(state *signalState) {
-	if w == nil || state == nil || w.stateLRUTail == state {
+	if state == nil || w.stateLRUTail == state {
 		return
 	}
 	w.detachSignalStateLocked(state)
@@ -812,7 +788,7 @@ func (w *signalProcessingWorker) touchSignalStateLocked(state *signalState) {
 }
 
 func (w *signalProcessingWorker) removeSignalStateLocked(state *signalState, capacityEviction bool) {
-	if w == nil || state == nil || w.states[state.Key] != state {
+	if state == nil || w.states[state.Key] != state {
 		return
 	}
 	delete(w.states, state.Key)
@@ -824,7 +800,7 @@ func (w *signalProcessingWorker) removeSignalStateLocked(state *signalState, cap
 }
 
 func (w *signalProcessingWorker) detachSignalStateLocked(state *signalState) {
-	if w == nil || state == nil {
+	if state == nil {
 		return
 	}
 	if state.lruPrev == nil {
@@ -848,14 +824,6 @@ func (w *signalProcessingWorker) detachSignalStateLocked(state *signalState) {
 func (w *signalProcessingWorker) Status() signalProcessingStatus {
 	settings := SnapshotSettingsHook().SignalProcessing
 	NormalizeSettings(&settings)
-	if w == nil {
-		return signalProcessingStatus{
-			Enabled:        settings.Enabled,
-			Settings:       settings,
-			AvailableKinds: availableSignalKinds(),
-			UpdatedAt:      time.Now().UTC(),
-		}
-	}
 	now := time.Now().UTC()
 	queueStats := w.queue.Stats()
 	queueLen, queueCap := queueStats.Len, queueStats.Cap
