@@ -32,44 +32,26 @@ func currentDNSCorrelation() *dnsCache {
 }
 
 func (f *flowAggregator) RecordConnection(srcIP, dstIP string, srcPort, dstPort uint32, protocol, comm string, pid uint32, direction string, state string) {
-	if f == nil || f.inner == nil {
-		return
-	}
 	f.inner.RecordConnection(srcIP, dstIP, srcPort, dstPort, protocol, comm, pid, direction, state)
 }
 
 func (f *flowAggregator) RecordConnectionContext(srcIP, dstIP string, srcPort, dstPort uint32, protocol, comm string, pid uint32, direction string, state string, event *pb.Event) {
-	if f == nil || f.inner == nil {
-		return
-	}
 	f.inner.RecordConnectionContext(srcIP, dstIP, srcPort, dstPort, protocol, comm, pid, direction, state, flowEventContextFromProto(event))
 }
 
 func (f *flowAggregator) ApplyProtocolMetadata(srcIP, dstIP string, srcPort, dstPort uint32, protocol string, entry *protoDetectionEntry) {
-	if f == nil || f.inner == nil {
-		return
-	}
 	f.inner.ApplyProtocolMetadata(srcIP, dstIP, srcPort, dstPort, protocol, protocolMetadataFromEntry(entry))
 }
 
 func (f *flowAggregator) Snapshot() []NetworkFlowSummary {
-	if f == nil || f.inner == nil {
-		return nil
-	}
 	return f.inner.Snapshot()
 }
 
 func (f *flowAggregator) EvictOlderThan(maxAge time.Duration) {
-	if f == nil || f.inner == nil {
-		return
-	}
 	f.inner.EvictOlderThan(maxAge)
 }
 
 func (f *flowAggregator) Get(flowID string) (NetworkFlowSummary, bool) {
-	if f == nil || f.inner == nil {
-		return NetworkFlowSummary{}, false
-	}
 	return f.inner.Get(flowID)
 }
 
@@ -78,9 +60,6 @@ type networkFlowQuery = netcore.FlowQuery
 type networkFlowQueryResult = netcore.FlowQueryResult
 
 func (f *flowAggregator) Query(q networkFlowQuery) networkFlowQueryResult {
-	if f == nil || f.inner == nil {
-		return networkFlowQueryResult{}
-	}
 	return f.inner.Query(q)
 }
 

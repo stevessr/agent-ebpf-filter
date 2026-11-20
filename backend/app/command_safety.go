@@ -478,15 +478,15 @@ func applySampleEvidence(action string, reason string, riskScore float64, eviden
 	switch decision {
 	case "BLOCK":
 		action = "BLOCK"
-		riskScore = maxFloat(riskScore, 90)
+		riskScore = max(riskScore, 90)
 		reason = prefix + " recommends BLOCK; " + reason
 	case "ALERT":
 		action = "ALERT"
-		riskScore = maxFloat(riskScore, 70)
+		riskScore = max(riskScore, 70)
 		reason = prefix + " recommends ALERT; " + reason
 	case "REWRITE":
 		action = "REWRITE"
-		riskScore = maxFloat(riskScore, 50)
+		riskScore = max(riskScore, 50)
 		reason = prefix + " recommends REWRITE; " + reason
 	case "ALLOW":
 		if action == "ALLOW" {
@@ -496,10 +496,7 @@ func applySampleEvidence(action string, reason string, riskScore float64, eviden
 		}
 	}
 
-	if riskScore > 100 {
-		riskScore = 100
-	}
-	return action, reason, riskScore
+	return action, reason, min(riskScore, 100.0)
 }
 
 func sampleLabelName(label int32) string {
@@ -517,18 +514,5 @@ func parseCommandDataLimit(raw string) int {
 	if parsed, err := strconv.Atoi(strings.TrimSpace(raw)); err == nil && parsed > 0 {
 		limit = parsed
 	}
-	if limit < 10 {
-		return 10
-	}
-	if limit > 5000 {
-		return 5000
-	}
-	return limit
-}
-
-func maxFloat(a float64, b float64) float64 {
-	if a > b {
-		return a
-	}
-	return b
+	return min(max(limit, 10), 5000)
 }

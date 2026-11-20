@@ -595,31 +595,12 @@ func llmActionFromRiskScore(score float64) string {
 	}
 }
 
-func clampFloat64(v, min, max float64) float64 {
-	if v < min {
-		return min
-	}
-	if v > max {
-		return max
-	}
-	return v
+func clampFloat64(v, low, high float64) float64 {
+	return min(max(v, low), high)
 }
 
-func clampInt(v, min, max int) int {
-	if v < min {
-		return min
-	}
-	if v > max {
-		return max
-	}
-	return v
-}
-
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
+func clampInt(v, low, high int) int {
+	return min(max(v, low), high)
 }
 
 func ioReadLimit(r io.Reader, limit int64) ([]byte, error) {

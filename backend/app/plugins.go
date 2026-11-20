@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"regexp"
 	"sort"
@@ -178,7 +179,9 @@ func (s *pluginStore) ensureLoaded() error {
 }
 
 func (s *pluginStore) List() []PluginManifest {
-	_ = s.ensureLoaded()
+	if err := s.ensureLoaded(); err != nil {
+		log.Printf("[WARN] load plugin manifests: %v", err)
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	out := make([]PluginManifest, 0, len(s.entries))
@@ -192,7 +195,9 @@ func (s *pluginStore) List() []PluginManifest {
 }
 
 func (s *pluginStore) Get(id string) (PluginManifest, bool) {
-	_ = s.ensureLoaded()
+	if err := s.ensureLoaded(); err != nil {
+		log.Printf("[WARN] load plugin manifests: %v", err)
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	m, ok := s.entries[id]
@@ -381,7 +386,9 @@ func (s *pluginStore) Delete(id string) error {
 }
 
 func (s *pluginStore) SetEnabled(id string, enabled bool) (PluginManifest, error) {
-	_ = s.ensureLoaded()
+	if err := s.ensureLoaded(); err != nil {
+		return PluginManifest{}, err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	m, ok := s.entries[id]

@@ -93,7 +93,7 @@ func compileVisualBlocksWithLLM(ctx context.Context, req visualBlocksLLMCompileR
 			{Role: "user", Content: prompt},
 		},
 		Temperature: clampFloat64(cfg.LlmTemperature, 0, 2),
-		MaxTokens:   clampInt(maxInt(cfg.LlmMaxTokens, 1024), 256, 4096),
+		MaxTokens:   clampInt(max(cfg.LlmMaxTokens, 1024), 256, 4096),
 	}
 
 	body, err := json.Marshal(openAIReq)
