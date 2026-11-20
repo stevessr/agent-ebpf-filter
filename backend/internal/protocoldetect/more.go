@@ -175,13 +175,6 @@ func parseDNSName(data []byte, offset int) (string, int) {
 	return strings.Join(parts, "."), pos
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // ── QUIC Initial packet parsing ───────────────────────────────────────
 
 func ExtractQUICSNI(data []byte) string {
