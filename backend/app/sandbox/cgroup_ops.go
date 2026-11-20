@@ -17,13 +17,21 @@ import (
 
 // ── Management operations ─────────────────────────────────────────────
 
-func BlockCgroup(cgroupID uint64) error {
+func ensureCgroupSandboxSnapshot() (CgroupSandboxSnapshot, error) {
 	snap := CurrentCgroupSandboxSnapshot()
 	if !snap.Available() || !snap.Attached() {
 		if err := ensureCgroupSandboxLoaded(); err != nil {
-			return err
+			return CgroupSandboxSnapshot{}, err
 		}
 		snap = CurrentCgroupSandboxSnapshot()
+	}
+	return snap, nil
+}
+
+func BlockCgroup(cgroupID uint64) error {
+	snap, err := ensureCgroupSandboxSnapshot()
+	if err != nil {
+		return err
 	}
 	if snap.CgroupBlocklist == nil {
 		return fmt.Errorf("cgroup sandbox not loaded")
@@ -33,12 +41,9 @@ func BlockCgroup(cgroupID uint64) error {
 }
 
 func UnblockCgroup(cgroupID uint64) error {
-	snap := CurrentCgroupSandboxSnapshot()
-	if !snap.Available() || !snap.Attached() {
-		if err := ensureCgroupSandboxLoaded(); err != nil {
-			return err
-		}
-		snap = CurrentCgroupSandboxSnapshot()
+	snap, err := ensureCgroupSandboxSnapshot()
+	if err != nil {
+		return err
 	}
 	if snap.CgroupBlocklist == nil {
 		return fmt.Errorf("cgroup sandbox not loaded")
@@ -162,12 +167,9 @@ func BlockIP(ipStr string) error {
 	if err != nil {
 		return err
 	}
-	snap := CurrentCgroupSandboxSnapshot()
-	if !snap.Available() || !snap.Attached() {
-		if err := ensureCgroupSandboxLoaded(); err != nil {
-			return err
-		}
-		snap = CurrentCgroupSandboxSnapshot()
+	snap, err := ensureCgroupSandboxSnapshot()
+	if err != nil {
+		return err
 	}
 	val := uint32(1)
 	if ip4 := ip.To4(); ip4 != nil {
@@ -192,12 +194,9 @@ func UnblockIP(ipStr string) error {
 	if err != nil {
 		return err
 	}
-	snap := CurrentCgroupSandboxSnapshot()
-	if !snap.Available() || !snap.Attached() {
-		if err := ensureCgroupSandboxLoaded(); err != nil {
-			return err
-		}
-		snap = CurrentCgroupSandboxSnapshot()
+	snap, err := ensureCgroupSandboxSnapshot()
+	if err != nil {
+		return err
 	}
 	if ip4 := ip.To4(); ip4 != nil {
 		if snap.IPBlocklist == nil {
@@ -220,12 +219,9 @@ func BlockPort(port uint16) error {
 	if err := ValidatePort(port); err != nil {
 		return err
 	}
-	snap := CurrentCgroupSandboxSnapshot()
-	if !snap.Available() || !snap.Attached() {
-		if err := ensureCgroupSandboxLoaded(); err != nil {
-			return err
-		}
-		snap = CurrentCgroupSandboxSnapshot()
+	snap, err := ensureCgroupSandboxSnapshot()
+	if err != nil {
+		return err
 	}
 	if snap.PortBlocklist == nil {
 		return fmt.Errorf("cgroup sandbox port blocklist not loaded")
@@ -239,12 +235,9 @@ func UnblockPort(port uint16) error {
 	if err := ValidatePort(port); err != nil {
 		return err
 	}
-	snap := CurrentCgroupSandboxSnapshot()
-	if !snap.Available() || !snap.Attached() {
-		if err := ensureCgroupSandboxLoaded(); err != nil {
-			return err
-		}
-		snap = CurrentCgroupSandboxSnapshot()
+	snap, err := ensureCgroupSandboxSnapshot()
+	if err != nil {
+		return err
 	}
 	if snap.PortBlocklist == nil {
 		return fmt.Errorf("cgroup sandbox port blocklist not loaded")
@@ -307,33 +300,25 @@ func ParseCIDR(cidrStr string) (*net.IPNet, string, error) {
 
 func ipv4LPMKeyFromNet(ipNet *net.IPNet) (ipv4LPMKey, error) {
 	var key ipv4LPMKey
-	if ipNet == nil {
-		return key, fmt.Errorf("nil IPv4 CIDR")
-	}
 	ones, bits := ipNet.Mask.Size()
 	ip4 := ipNet.IP.To4()
 	if bits != 32 || ip4 == nil {
 		return key, fmt.Errorf("not an IPv4 CIDR: %v", ipNet)
 	}
-	masked := ip4.Mask(ipNet.Mask).To4()
 	key.PrefixLen = uint32(ones)
-	copy(key.Addr[:], masked)
+	copy(key.Addr[:], ip4.Mask(ipNet.Mask).To4())
 	return key, nil
 }
 
 func ipv6LPMKeyFromNet(ipNet *net.IPNet) (ipv6LPMKey, error) {
 	var key ipv6LPMKey
-	if ipNet == nil {
-		return key, fmt.Errorf("nil IPv6 CIDR")
-	}
 	ones, bits := ipNet.Mask.Size()
 	ip6 := ipNet.IP.To16()
 	if bits != 128 || ip6 == nil {
 		return key, fmt.Errorf("not an IPv6 CIDR: %v", ipNet)
 	}
-	masked := ip6.Mask(ipNet.Mask).To16()
 	key.PrefixLen = uint32(ones)
-	copy(key.Addr[:], masked)
+	copy(key.Addr[:], ip6.Mask(ipNet.Mask).To16())
 	return key, nil
 }
 
@@ -342,12 +327,9 @@ func BlockCIDR(cidrStr string) error {
 	if err != nil {
 		return err
 	}
-	snap := CurrentCgroupSandboxSnapshot()
-	if !snap.Available() || !snap.Attached() {
-		if err := ensureCgroupSandboxLoaded(); err != nil {
-			return err
-		}
-		snap = CurrentCgroupSandboxSnapshot()
+	snap, err := ensureCgroupSandboxSnapshot()
+	if err != nil {
+		return err
 	}
 	val := uint32(1)
 	if _, bits := ipNet.Mask.Size(); bits == 32 {
@@ -375,12 +357,9 @@ func UnblockCIDR(cidrStr string) error {
 	if err != nil {
 		return err
 	}
-	snap := CurrentCgroupSandboxSnapshot()
-	if !snap.Available() || !snap.Attached() {
-		if err := ensureCgroupSandboxLoaded(); err != nil {
-			return err
-		}
-		snap = CurrentCgroupSandboxSnapshot()
+	snap, err := ensureCgroupSandboxSnapshot()
+	if err != nil {
+		return err
 	}
 	if _, bits := ipNet.Mask.Size(); bits == 32 {
 		if snap.CIDRBlocklist == nil {

@@ -70,6 +70,17 @@ func NormalizeNameStringWithLabel(name, label string) (string, error) {
 	return trimmed, nil
 }
 
+func ensureLsmEnforcerSnapshot() (LsmEnforcerSnapshot, error) {
+	snap := CurrentLsmEnforcerSnapshot()
+	if !snap.Available() || !snap.Attached() {
+		if err := ensureLsmEnforcerLoaded(); err != nil {
+			return LsmEnforcerSnapshot{}, err
+		}
+		snap = CurrentLsmEnforcerSnapshot()
+	}
+	return snap, nil
+}
+
 func BlockExecPath(path string) error { return updateLsmPathBits(path, denyExec, true) }
 
 func UnblockExecPath(path string) error { return updateLsmPathBits(path, denyExec, false) }
@@ -79,12 +90,9 @@ func BlockExecName(name string) error {
 	if err != nil {
 		return err
 	}
-	snap := CurrentLsmEnforcerSnapshot()
-	if !snap.Available() || !snap.Attached() {
-		if err := ensureLsmEnforcerLoaded(); err != nil {
-			return err
-		}
-		snap = CurrentLsmEnforcerSnapshot()
+	snap, err := ensureLsmEnforcerSnapshot()
+	if err != nil {
+		return err
 	}
 	if snap.ExecNameBlocklist == nil {
 		return fmt.Errorf("BPF LSM exec-name blocklist not loaded")
@@ -98,12 +106,9 @@ func UnblockExecName(name string) error {
 	if err != nil {
 		return err
 	}
-	snap := CurrentLsmEnforcerSnapshot()
-	if !snap.Available() || !snap.Attached() {
-		if err := ensureLsmEnforcerLoaded(); err != nil {
-			return err
-		}
-		snap = CurrentLsmEnforcerSnapshot()
+	snap, err := ensureLsmEnforcerSnapshot()
+	if err != nil {
+		return err
 	}
 	if snap.ExecNameBlocklist == nil {
 		return fmt.Errorf("BPF LSM exec-name blocklist not loaded")
@@ -116,12 +121,9 @@ func BlockFileName(name string) error {
 	if err != nil {
 		return err
 	}
-	snap := CurrentLsmEnforcerSnapshot()
-	if !snap.Available() || !snap.Attached() {
-		if err := ensureLsmEnforcerLoaded(); err != nil {
-			return err
-		}
-		snap = CurrentLsmEnforcerSnapshot()
+	snap, err := ensureLsmEnforcerSnapshot()
+	if err != nil {
+		return err
 	}
 	if snap.FileNameBlocklist == nil {
 		return fmt.Errorf("BPF LSM enforcer not loaded")
@@ -135,12 +137,9 @@ func UnblockFileName(name string) error {
 	if err != nil {
 		return err
 	}
-	snap := CurrentLsmEnforcerSnapshot()
-	if !snap.Available() || !snap.Attached() {
-		if err := ensureLsmEnforcerLoaded(); err != nil {
-			return err
-		}
-		snap = CurrentLsmEnforcerSnapshot()
+	snap, err := ensureLsmEnforcerSnapshot()
+	if err != nil {
+		return err
 	}
 	if snap.FileNameBlocklist == nil {
 		return fmt.Errorf("BPF LSM enforcer not loaded")
@@ -198,24 +197,7 @@ func listLsmExecPaths(blocklist *ebpf.Map) []string {
 	return items
 }
 
-func listLsmExecNames(blocklist *ebpf.Map) []string {
-	if blocklist == nil {
-		return nil
-	}
-	items := []string{}
-	iter := blocklist.Iterate()
-	var key lsmNameKey
-	var val uint32
-	for iter.Next(&key, &val) {
-		if val == 0 {
-			continue
-		}
-		items = append(items, string(bytes.TrimRight(key.Name[:], "\x00")))
-	}
-	return items
-}
-
-func listLsmFileNames(blocklist *ebpf.Map) []string {
+func listLsmNames(blocklist *ebpf.Map) []string {
 	if blocklist == nil {
 		return nil
 	}
@@ -239,10 +221,10 @@ func listLsmFileNames(blocklist *ebpf.Map) []string {
 func ListExecPaths(blocklist *ebpf.Map) []string { return listLsmExecPaths(blocklist) }
 
 // ListExecNames returns blocked executable basenames.
-func ListExecNames(blocklist *ebpf.Map) []string { return listLsmExecNames(blocklist) }
+func ListExecNames(blocklist *ebpf.Map) []string { return listLsmNames(blocklist) }
 
 // ListFileNames returns blocked file basenames.
-func ListFileNames(blocklist *ebpf.Map) []string { return listLsmFileNames(blocklist) }
+func ListFileNames(blocklist *ebpf.Map) []string { return listLsmNames(blocklist) }
 
 // NormalizeName validates/normalizes a single name token.
 func NormalizeName(name string) (string, error) { return NormalizeNameStringWithLabel(name, "name") }
@@ -316,12 +298,9 @@ func mutatePathBits(path string, update func(uint32) uint32) error {
 	}
 	lsmPathPolicyMu.Lock()
 	defer lsmPathPolicyMu.Unlock()
-	snap := CurrentLsmEnforcerSnapshot()
-	if !snap.Available() || !snap.Attached() {
-		if err := ensureLsmEnforcerLoaded(); err != nil {
-			return err
-		}
-		snap = CurrentLsmEnforcerSnapshot()
+	snap, err := ensureLsmEnforcerSnapshot()
+	if err != nil {
+		return err
 	}
 	if snap.ExecPathBlocklist == nil {
 		return fmt.Errorf("BPF LSM path map unavailable")
@@ -402,12 +381,9 @@ func BlockInode(key LsmInodeKey, mask uint32) error {
 	}
 	lsmPathPolicyMu.Lock()
 	defer lsmPathPolicyMu.Unlock()
-	snap := CurrentLsmEnforcerSnapshot()
-	if !snap.Available() || !snap.Attached() || snap.InodeBlocklist == nil {
-		if err := ensureLsmEnforcerLoaded(); err != nil {
-			return err
-		}
-		snap = CurrentLsmEnforcerSnapshot()
+	snap, err := ensureLsmEnforcerSnapshot()
+	if err != nil {
+		return err
 	}
 	if !snap.InodeAccessSupported || snap.InodeBlocklist == nil {
 		return fmt.Errorf("BPF LSM inode access rules are not supported by the attached programs")
@@ -426,12 +402,9 @@ func UnblockInode(key LsmInodeKey, mask uint32) error {
 	}
 	lsmPathPolicyMu.Lock()
 	defer lsmPathPolicyMu.Unlock()
-	snap := CurrentLsmEnforcerSnapshot()
-	if !snap.Available() || !snap.Attached() || snap.InodeBlocklist == nil {
-		if err := ensureLsmEnforcerLoaded(); err != nil {
-			return err
-		}
-		snap = CurrentLsmEnforcerSnapshot()
+	snap, err := ensureLsmEnforcerSnapshot()
+	if err != nil {
+		return err
 	}
 	if snap.InodeBlocklist == nil {
 		return fmt.Errorf("BPF LSM inode map unavailable")
