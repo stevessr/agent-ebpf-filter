@@ -1,6 +1,7 @@
 package research
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"bytes"
 	"encoding/csv"
 	"encoding/json"
@@ -231,12 +232,7 @@ func researchSecurityRiskBucket(score float64) string {
 }
 
 func firstNonEmptyResearchSecurityString(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
+	return platform.FirstNonEmpty(values...)
 }
 
 func firstNonEmptyResearchSecurityParam(params map[string]any, fallback string, keys ...string) string {
