@@ -66,6 +66,7 @@ Agent eBPF Filter combines **eBPF kernel tracing**, **Go backend**, **Vue.js das
 - **OTLP Export:** Span telemetry for observability platforms
 - **Prometheus Metrics:** Standard monitoring integration
 - **Kubernetes:** DaemonSet manifests included
+- **Magpie AstrLink Guard audit:** [Local CUDA/CPU privacy audit plugin and ONNX sidecar](integrations/magpie-astrlink-guard/README.md)
 
 ---
 
@@ -74,7 +75,7 @@ Agent eBPF Filter combines **eBPF kernel tracing**, **Go backend**, **Vue.js das
 ### Prerequisites
 
 - **Linux** with eBPF and BTF support
-- **Go 1.27.1+**
+- **Go 1.27.3+**
 - **Bun** (frontend build tool)
 - **clang/LLVM** (eBPF compilation)
 - **protoc** (Protocol Buffers compiler)

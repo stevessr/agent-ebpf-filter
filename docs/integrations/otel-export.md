@@ -74,6 +74,13 @@ The response includes:
 - `lastExportedAt`
 - `lastError`
 
+
+## Agent 安全审计的可观测性缺口
+
+本文所述 `agent.run` / `tool.call` 等 Span 由现有 `EventEnvelope` **派生**，并非已经具备完整的跨 Run 持久 Agent 身份、人工批准流程、权限模式与逻辑记忆变更证据。OTLP exporter 是 best-effort 异步出口，其 `droppedEvents` 与队列状态应监控，**不能将成功导出或未观察到告警解释为安全保证**。
+
+参考 [Agent 实时行为监控：可观测性需求与验收规范](../security/real-time-agent-observability.md)。该提案对 `gen_ai.agent.id` 与项目自定义属性的映射、关键事件全量审计、来源可信性、失败模式及隐私边界做了分级定义；**这些拟议字段目前不代表 exporter 已经输出**。
+
 ## Notes
 
 - Prometheus metrics remain local at `GET /metrics`.

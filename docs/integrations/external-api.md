@@ -55,6 +55,7 @@ whether recent feedback actions were applied, dropped, or failed.
 | `POST` | `/api/v1/agentsight/events` | Import AgentSight JSON, JSON arrays, `{ "events": [...] }`, or JSONL text into the in-memory AgentSight compatibility store. |
 | `GET` | `/api/v1/agentsight/runners` | Logical AgentSight runner status for process/eBPF, TLS, stdio, system, wrapper/policy/OTel, and uploaded traces. |
 | `GET` | `/api/v1/agentsight/events/stats` | AgentSight storage statistics by source, event type, logical runner, and command. |
+| `GET` | `/api/v1/agentsight/report/usage?limit=2000&session=run-1` | Session/model input, output, cache-read, and cache-creation token accounting. Uses only explicit retained usage metadata; sessions require an explicit run/trace ID, and missing usage is unknown, not zero. |
 | `GET` | `/api/v1/agentsight/events/runners/{id}/stats` | Same statistics filtered to one logical runner (`process`, `tls`, `stdio`, `system`, `agent`, or `uploaded`). |
 | `POST` | `/api/v1/agentsight/events/query` | Advanced AgentSight query with JSON body filters such as `sources`, `event_types`, `pids`, `runner`, `since`, `until`, and `filter`. |
 | `GET` | `/api/v1/agentsight/events/stream` / `/api/v1/agentsight/stream/merged` | Server-sent AgentSight-compatible stream for clients that cannot use WebSockets. |

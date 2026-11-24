@@ -23,14 +23,16 @@ const LsmEnforcerMapPinMode os.FileMode = 0600
 const expectedLsmEnforcerLinks = 14
 
 type lsmEnforcerRuntime struct {
-	ExecPathBlocklist   *ebpf.Map
-	ExecNameBlocklist   *ebpf.Map
-	FileNameBlocklist   *ebpf.Map
-	Stats               *ebpf.Map
-	Links               []link.Link
-	LinkPins            []string
-	LastError           string
-	PathAccessSupported bool
+	ExecPathBlocklist    *ebpf.Map
+	ExecNameBlocklist    *ebpf.Map
+	FileNameBlocklist    *ebpf.Map
+	InodeBlocklist       *ebpf.Map
+	Stats                *ebpf.Map
+	Links                []link.Link
+	LinkPins             []string
+	LastError            string
+	PathAccessSupported  bool
+	InodeAccessSupported bool
 }
 
 type lsmPathKey struct {
@@ -39,6 +41,20 @@ type lsmPathKey struct {
 
 type lsmNameKey struct {
 	Name [64]byte
+}
+
+type LsmInodeKey struct {
+	SDev uint32
+	Pad  uint32
+	Ino  uint64
+}
+
+type InodeAccessRule struct {
+	SDev      uint32 `json:"sDev"`
+	Ino       uint64 `json:"ino"`
+	DenyExec  bool   `json:"denyExec"`
+	DenyRead  bool   `json:"denyRead"`
+	DenyWrite bool   `json:"denyWrite"`
 }
 
 type LsmEnforcerStats struct {
@@ -53,28 +69,32 @@ var lsmEnforcerMu sync.RWMutex
 var errLsmEnforcerPinnedLinksMissing = errors.New("BPF LSM pinned links missing")
 
 type LsmEnforcerSnapshot struct {
-	ExecPathBlocklist   *ebpf.Map
-	ExecNameBlocklist   *ebpf.Map
-	FileNameBlocklist   *ebpf.Map
-	Stats               *ebpf.Map
-	LinkCount           int
-	LinkPins            []string
-	LastError           string
-	PathAccessSupported bool
+	ExecPathBlocklist    *ebpf.Map
+	ExecNameBlocklist    *ebpf.Map
+	FileNameBlocklist    *ebpf.Map
+	InodeBlocklist       *ebpf.Map
+	Stats                *ebpf.Map
+	LinkCount            int
+	LinkPins             []string
+	LastError            string
+	PathAccessSupported  bool
+	InodeAccessSupported bool
 }
 
 func CurrentLsmEnforcerSnapshot() LsmEnforcerSnapshot {
 	lsmEnforcerMu.RLock()
 	defer lsmEnforcerMu.RUnlock()
 	return LsmEnforcerSnapshot{
-		ExecPathBlocklist:   lsmEnforcer.ExecPathBlocklist,
-		ExecNameBlocklist:   lsmEnforcer.ExecNameBlocklist,
-		FileNameBlocklist:   lsmEnforcer.FileNameBlocklist,
-		Stats:               lsmEnforcer.Stats,
-		LinkCount:           len(lsmEnforcer.Links),
-		LinkPins:            append([]string(nil), lsmEnforcer.LinkPins...),
-		LastError:           lsmEnforcer.LastError,
-		PathAccessSupported: lsmEnforcer.PathAccessSupported,
+		ExecPathBlocklist:    lsmEnforcer.ExecPathBlocklist,
+		ExecNameBlocklist:    lsmEnforcer.ExecNameBlocklist,
+		FileNameBlocklist:    lsmEnforcer.FileNameBlocklist,
+		InodeBlocklist:       lsmEnforcer.InodeBlocklist,
+		Stats:                lsmEnforcer.Stats,
+		LinkCount:            len(lsmEnforcer.Links),
+		LinkPins:             append([]string(nil), lsmEnforcer.LinkPins...),
+		LastError:            lsmEnforcer.LastError,
+		PathAccessSupported:  lsmEnforcer.PathAccessSupported,
+		InodeAccessSupported: lsmEnforcer.InodeAccessSupported,
 	}
 }
 
@@ -96,6 +116,7 @@ func lsmEnforcerAvailableLocked() bool {
 	return lsmEnforcer.ExecPathBlocklist != nil &&
 		lsmEnforcer.ExecNameBlocklist != nil &&
 		lsmEnforcer.FileNameBlocklist != nil &&
+		lsmEnforcer.InodeBlocklist != nil &&
 		lsmEnforcer.Stats != nil
 }
 

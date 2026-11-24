@@ -31,9 +31,9 @@ func TestEventDetailModelFileWriteEvidence(t *testing.T) {
 		},
 		"Timestamp": float64(1760000000000),
 		"Envelope": map[string]any{
-			"source": "kernel",
+			"source":     "kernel",
 			"agentRunId": "run_123",
-			"fileEvent": map[string]any{"operation": "write", "mode": "0644"},
+			"fileEvent":  map[string]any{"operation": "write", "mode": "0644"},
 		},
 	}
 	model := eventDetailModel(payload)
@@ -90,7 +90,7 @@ func TestEventDetailContentionWithRealPathKeepsTarget(t *testing.T) {
 	detail := map[string]any{
 		"Event": map[string]any{
 			"type": "semantic_alert", "comm": "MULTI_AGENT_FILE_CONTENTION",
-			"path": "/workspace/shared.txt",
+			"path":      "/workspace/shared.txt",
 			"extraInfo": "source=write tool=editor comm=agent reason=cross agent contention",
 		},
 		"Envelope": map[string]any{
@@ -147,9 +147,9 @@ func TestEventDetailModelEnvelopeNetworkAndMissingFields(t *testing.T) {
 		"Event": map[string]any{"type": "connect", "comm": "curl", "pid": float64(42)},
 		"Envelope": map[string]any{
 			"networkEvent": map[string]any{
-				"endpoint": "198.51.100.1:443",
+				"endpoint":  "198.51.100.1:443",
 				"transport": "tcp",
-				"dstPort": float64(443),
+				"dstPort":   float64(443),
 			},
 		},
 	}
@@ -169,7 +169,7 @@ func TestEventDetailTreeSearchAndBound(t *testing.T) {
 	detail := map[string]any{
 		"Event": map[string]any{"comm": "omp", "pid": float64(42)},
 		"Envelope": map[string]any{
-			"fileEvent": map[string]any{"path": "/tmp/test.txt"},
+			"fileEvent":       map[string]any{"path": "/tmp/test.txt"},
 			"sanitizedFields": []any{"commandLine"},
 		},
 	}

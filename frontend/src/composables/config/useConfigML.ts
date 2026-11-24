@@ -49,6 +49,7 @@ import { useMLSampleActions } from "./useMLSampleActions";
 import { autoTunePublicApi, mlSampleActionsPublicApi } from "./mlPublicApi";
 
 export interface MLThresholds {
+  allowRiskScoreThreshold: number;
   blockConfidenceThreshold: number;
   mlMinConfidence: number;
   ruleOverridePriority: number;
@@ -104,6 +105,7 @@ export function useConfigML() {
   const feedbackComm = ref("");
   const feedbackAction = ref("accepted");
   const mlThresholds = ref<MLThresholds>({
+    allowRiskScoreThreshold: 0.3,
     blockConfidenceThreshold: 0.85,
     mlMinConfidence: 0.6,
     ruleOverridePriority: 100,
@@ -401,16 +403,22 @@ export function useConfigML() {
     try {
       const data = await fetchAndApplyMLStatus(options);
       if (!data || !isCurrent()) return;
-      if (data.blockConfidenceThreshold !== undefined) {
+      // Thresholds ride along inside the nested mlConfig object; keep the
+      // top-level fallback for older backends that published them flat.
+      const thresholds = data.mlConfig ?? data.ml_config ?? data;
+      if (thresholds.blockConfidenceThreshold !== undefined) {
+        mlThresholds.value.allowRiskScoreThreshold =
+          thresholds.allowRiskScoreThreshold ?? 0.3;
         mlThresholds.value.blockConfidenceThreshold =
-          data.blockConfidenceThreshold ?? 0.85;
-        mlThresholds.value.mlMinConfidence = data.mlMinConfidence ?? 0.6;
+          thresholds.blockConfidenceThreshold ?? 0.85;
+        mlThresholds.value.mlMinConfidence =
+          thresholds.mlMinConfidence ?? 0.6;
         mlThresholds.value.ruleOverridePriority =
-          data.ruleOverridePriority ?? 100;
+          thresholds.ruleOverridePriority ?? 100;
         mlThresholds.value.lowAnomalyThreshold =
-          data.lowAnomalyThreshold ?? 0.3;
+          thresholds.lowAnomalyThreshold ?? 0.3;
         mlThresholds.value.highAnomalyThreshold =
-          data.highAnomalyThreshold ?? 0.7;
+          thresholds.highAnomalyThreshold ?? 0.7;
       }
       if (data.hyperParams) {
         hyperParams.value.numTrees = data.hyperParams.numTrees ?? 31;
@@ -572,6 +580,7 @@ export function useConfigML() {
     const payload: Record<string, any> = {
       enabled: true,
       modelType: modelType.value,
+      allowRiskScoreThreshold: mlThresholds.value.allowRiskScoreThreshold,
       blockConfidenceThreshold: mlThresholds.value.blockConfidenceThreshold,
       mlMinConfidence: mlThresholds.value.mlMinConfidence,
       ruleOverridePriority: mlThresholds.value.ruleOverridePriority,

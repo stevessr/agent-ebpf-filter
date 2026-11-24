@@ -1,6 +1,7 @@
 package app
 
 import (
+	netcore "agent-ebpf-filter/internal/network"
 	"agent-ebpf-filter/internal/protocoldetect"
 	"fmt"
 	"strings"
@@ -254,10 +255,9 @@ func enrichEndpointWithProtocol(endpoint string) string {
 }
 
 func splitEndpointHostPort(endpoint string) (string, string, error) {
-	for i := len(endpoint) - 1; i >= 0; i-- {
-		if endpoint[i] == ':' {
-			return endpoint[:i], endpoint[i+1:], nil
-		}
+	host, port := netcore.SplitEndpointHostPort(endpoint)
+	if port == "" {
+		return endpoint, "", fmt.Errorf("no port")
 	}
-	return endpoint, "", fmt.Errorf("no port")
+	return host, port, nil
 }

@@ -146,9 +146,6 @@ func newOTelExporterState() *otelExporterState {
 var otelExporterStore = newOTelExporterState()
 
 func (s *otelExporterState) Close() {
-	if s == nil {
-		return
-	}
 	s.closeOnce.Do(func() {
 		s.closed.Store(true)
 		s.accepting.Store(false)
@@ -202,7 +199,7 @@ func (s *otelExporterState) sweepLoop() {
 }
 
 func (s *otelExporterState) noteExportSuccess(count int) {
-	if s == nil || count <= 0 {
+	if count <= 0 {
 		return
 	}
 	s.exportedSpans.Add(uint64(count))
@@ -210,7 +207,7 @@ func (s *otelExporterState) noteExportSuccess(count int) {
 }
 
 func (s *otelExporterState) noteExportFailure(err error) {
-	if s == nil || err == nil {
+	if err == nil {
 		return
 	}
 	s.mu.Lock()
@@ -219,9 +216,6 @@ func (s *otelExporterState) noteExportFailure(err error) {
 }
 
 func (s *otelExporterState) Snapshot() OTelHealthResponse {
-	if s == nil {
-		return OTelHealthResponse{}
-	}
 	s.mu.RLock()
 	resp := OTelHealthResponse{
 		Enabled:          s.enabled,
@@ -253,9 +247,6 @@ func (s *otelExporterState) Snapshot() OTelHealthResponse {
 }
 
 func (s *otelExporterState) ApplySettings(settings RuntimeSettings) {
-	if s == nil {
-		return
-	}
 	s.lifecycleMu.Lock()
 	defer s.lifecycleMu.Unlock()
 	if s.closed.Load() {
@@ -330,9 +321,6 @@ func (s *otelExporterState) ApplySettings(settings RuntimeSettings) {
 }
 
 func (s *otelExporterState) disable() {
-	if s == nil {
-		return
-	}
 	s.accepting.Store(false)
 	s.enqueueMu.Lock()
 	s.processMu.Lock()
@@ -362,9 +350,6 @@ func (s *otelExporterState) disable() {
 }
 
 func (s *otelExporterState) disableProviderOnly() {
-	if s == nil {
-		return
-	}
 	s.accepting.Store(false)
 	s.enqueueMu.Lock()
 	s.processMu.Lock()
@@ -398,7 +383,7 @@ func (s *otelExporterState) shutdownProvider(provider *sdktrace.TracerProvider) 
 }
 
 func (s *otelExporterState) Record(record CapturedEventRecord) {
-	if s == nil || record.Event == nil || s.closed.Load() || !s.accepting.Load() {
+	if record.Event == nil || s.closed.Load() || !s.accepting.Load() {
 		return
 	}
 	s.enqueueMu.RLock()
@@ -415,9 +400,6 @@ func (s *otelExporterState) Record(record CapturedEventRecord) {
 }
 
 func (s *otelExporterState) handleRecord(record CapturedEventRecord) {
-	if s == nil {
-		return
-	}
 	s.processMu.Lock()
 	defer s.processMu.Unlock()
 	if record.Envelope == nil {

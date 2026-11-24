@@ -1,12 +1,13 @@
 package ml
 
 import (
-	"agent-ebpf-filter/internal/behavior"
 	"encoding/json"
 	"math"
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"agent-ebpf-filter/internal/behavior"
 )
 
 func NormalizeTrainingStoreCapacity(maxSamples int) int {
@@ -49,6 +50,9 @@ func NormalizeTrainingSample(sample TrainingSample) TrainingSample {
 	}
 	sample.AnomalyScore = normalizeTrainingScore(sample.AnomalyScore)
 	for index, value := range sample.Features {
+		// Sanitize non-finite numbers at ingest while preserving finite out-of-range
+		// values so dataset readiness checks can surface feature_values_out_of_range
+		// rather than silently masking corrupted vectors before model clamping.
 		if math.IsNaN(value) || math.IsInf(value, 0) {
 			sample.Features[index] = 0
 		}

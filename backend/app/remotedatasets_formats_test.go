@@ -404,7 +404,7 @@ func TestNormalizeActionLabelClassicDatasetSynonyms(t *testing.T) {
 	cases := map[string]string{
 		"norm":                 "ALLOW",
 		"BENIGN":               "ALLOW",
-		"anom":                 "BLOCK",
+		"unsafe":               "BLOCK",
 		"cmdi":                 "BLOCK",
 		"sql injection":        "BLOCK",
 		"path traversal":       "BLOCK",
@@ -413,6 +413,33 @@ func TestNormalizeActionLabelClassicDatasetSynonyms(t *testing.T) {
 	for input, want := range cases {
 		if got := normalizeActionLabel(input); got != want {
 			t.Fatalf("normalizeActionLabel(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
+func TestBuildRemoteDatasetSampleMapsUnsafeLabelsToBlock(t *testing.T) {
+	rows := []remoteDatasetRow{
+		{
+			Comm:       "sh",
+			Args:       []string{"-c", "printf ok"},
+			Label:      "unsafe",
+			Source:     "taglio4_unsafe.jsonl",
+			UserLabel:  "remote-test",
+			HasAnomaly: true,
+		},
+		{
+			Comm:       "sh",
+			Args:       []string{"-c", "printf ok"},
+			Source:     "taglio4_unsafe.jsonl",
+			UserLabel:  "remote-test",
+			HasAnomaly: true,
+		},
+	}
+
+	for _, row := range rows {
+		sample := buildRemoteDatasetSample(row, "preserve", true)
+		if sample.Label != 1 {
+			t.Fatalf("row label/source %q/%q became label %d, want BLOCK (1)", row.Label, row.Source, sample.Label)
 		}
 	}
 }

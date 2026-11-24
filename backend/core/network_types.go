@@ -88,6 +88,7 @@ type DomainForwardProxySettings struct {
 	CertFile                   string                    `json:"certFile,omitempty"`
 	KeyFile                    string                    `json:"keyFile,omitempty"`
 	TLSInterceptEnabled        bool                      `json:"tlsInterceptEnabled"`
+	TLSInterceptCAMode         string                    `json:"tlsInterceptCaMode,omitempty"`
 	TLSInterceptAllowlist      string                    `json:"tlsInterceptAllowlist,omitempty"`
 	TLSInterceptCACertFile     string                    `json:"tlsInterceptCaCertFile,omitempty"`
 	TLSInterceptCAKeyFile      string                    `json:"tlsInterceptCaKeyFile,omitempty"`

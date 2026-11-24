@@ -180,6 +180,6 @@ func (a *renewApp) detachedTerminalView(c *ui.Context) {
 	c.SetTheme(&a.workspaceTheme)
 	ui.Column(c).Fill().MinWidth(0).MinHeight(0).
 		Background(c.Theme().Background).Children(func() {
-			a.terminalView(c)
-		})
+		a.terminalView(c)
+	})
 }

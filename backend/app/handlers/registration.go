@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"agent-ebpf-filter/app/events"
+
 	"github.com/gin-gonic/gin"
 )
 

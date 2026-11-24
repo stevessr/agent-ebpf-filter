@@ -111,9 +111,14 @@ static const char *ml_action_label(enum ml_action action, char *buf, size_t len)
 	}
 }
 
-static int ml_backend_from_string(char *raw, enum ml_backend_type *backend)
+static int ml_backend_from_string(const char *raw, enum ml_backend_type *backend)
 {
-	char *name = strim(raw);
+	char raw_buf[32];
+	char *name;
+
+	if (strscpy(raw_buf, raw, sizeof(raw_buf)) < 0)
+		return -EINVAL;
+	name = strim(raw_buf);
 
 	if (sysfs_streq(name, "kernel") || sysfs_streq(name, "cpu")) {
 		*backend = ML_BACKEND_KERNEL;

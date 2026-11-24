@@ -14,6 +14,16 @@ struct ip6_block_key {
     u32 addr[4];
 };
 
+struct ipv4_lpm_key {
+    u32 prefixlen;
+    u32 addr; // network byte order (__be32), matching ctx->user_ip4 directly
+};
+
+struct ipv6_lpm_key {
+    u32 prefixlen;
+    u32 addr[4]; // network byte order (__be32[4]), matching ctx->user_ip6 directly
+};
+
 // BPF map: set of cgroup IDs that are BLOCKED from outbound connections.
 // Key = cgroup_id (u64), Value = u32 (1 = blocked, 0 = allowed)
 struct {
@@ -46,6 +56,24 @@ struct {
     __type(key, u32);
     __type(value, u32);
 } port_blocklist SEC(".maps");
+
+// BPF map: LPM-Trie IPv4 CIDR blocklist (network-byte-order keys).
+struct {
+    __uint(type, BPF_MAP_TYPE_LPM_TRIE);
+    __uint(max_entries, 1024);
+    __uint(map_flags, BPF_F_NO_PREALLOC);
+    __type(key, struct ipv4_lpm_key);
+    __type(value, u32);
+} cidr_blocklist SEC(".maps");
+
+// BPF map: LPM-Trie IPv6 CIDR blocklist (network-byte-order keys).
+struct {
+    __uint(type, BPF_MAP_TYPE_LPM_TRIE);
+    __uint(max_entries, 1024);
+    __uint(map_flags, BPF_F_NO_PREALLOC);
+    __type(key, struct ipv6_lpm_key);
+    __type(value, u32);
+} cidr6_blocklist SEC(".maps");
 
 // Statistics for cgroup sandbox decisions
 struct cgroup_sandbox_stats {
@@ -90,6 +118,27 @@ static __always_inline int mapped_v4_is_blocked(struct ip6_block_key *addr)
     return ip_blocked && *ip_blocked;
 }
 
+static __always_inline int cidr_v4_is_blocked(u32 be_ip4)
+{
+    struct ipv4_lpm_key key = {};
+    key.prefixlen = 32;
+    key.addr = be_ip4;
+    u32 *blocked = bpf_map_lookup_elem(&cidr_blocklist, &key);
+    return blocked && *blocked;
+}
+
+static __always_inline int cidr_v6_is_blocked(const u32 be_ip6[4])
+{
+    struct ipv6_lpm_key key = {};
+    key.prefixlen = 128;
+    key.addr[0] = be_ip6[0];
+    key.addr[1] = be_ip6[1];
+    key.addr[2] = be_ip6[2];
+    key.addr[3] = be_ip6[3];
+    u32 *blocked = bpf_map_lookup_elem(&cidr6_blocklist, &key);
+    return blocked && *blocked;
+}
+
 // IPv4 connect handler — attached to cgroup/connect4
 SEC("cgroup/connect4")
 int cgroup_sandbox_connect4(struct bpf_sock_addr *ctx) {
@@ -111,6 +160,12 @@ int cgroup_sandbox_connect4(struct bpf_sock_addr *ctx) {
     u32 dst_ip = bpf_ntohl(ctx->user_ip4);
     u32 *ip_blocked = bpf_map_lookup_elem(&ip_blocklist, &dst_ip);
     if (ip_blocked && *ip_blocked) {
+        update_sandbox_stats(1);
+        return 0; // block
+    }
+
+    // Check IPv4 CIDR blocklist (network-order LPM key)
+    if (cidr_v4_is_blocked(ctx->user_ip4)) {
         update_sandbox_stats(1);
         return 0; // block
     }
@@ -164,6 +219,14 @@ int cgroup_sandbox_connect6(struct bpf_sock_addr *ctx) {
         update_sandbox_stats(1);
         return 0; // block
     }
+    if (cidr_v6_is_blocked(ctx->user_ip6)) {
+        update_sandbox_stats(1);
+        return 0; // block
+    }
+    if (ipv6_is_v4_mapped(&dst_ip6) && cidr_v4_is_blocked(ctx->user_ip6[3])) {
+        update_sandbox_stats(1);
+        return 0; // block
+    }
 
     // Check port blocklist (host-order TCP/UDP port key)
     u32 dst_port = bpf_ntohs(ctx->user_port);
@@ -197,6 +260,11 @@ int cgroup_sandbox_sendmsg4(struct bpf_sock_addr *ctx) {
     u32 dst_ip = bpf_ntohl(ctx->user_ip4);
     u32 *ip_blocked = bpf_map_lookup_elem(&ip_blocklist, &dst_ip);
     if (ip_blocked && *ip_blocked) {
+        update_sandbox_stats(1);
+        return 0; // block
+    }
+
+    if (cidr_v4_is_blocked(ctx->user_ip4)) {
         update_sandbox_stats(1);
         return 0; // block
     }
@@ -241,6 +309,14 @@ int cgroup_sandbox_sendmsg6(struct bpf_sock_addr *ctx) {
     }
     // Also honor IPv4 block entries for IPv4-mapped IPv6 UDP destinations.
     if (mapped_v4_is_blocked(&dst_ip6)) {
+        update_sandbox_stats(1);
+        return 0; // block
+    }
+    if (cidr_v6_is_blocked(ctx->user_ip6)) {
+        update_sandbox_stats(1);
+        return 0; // block
+    }
+    if (ipv6_is_v4_mapped(&dst_ip6) && cidr_v4_is_blocked(ctx->user_ip6[3])) {
         update_sandbox_stats(1);
         return 0; // block
     }

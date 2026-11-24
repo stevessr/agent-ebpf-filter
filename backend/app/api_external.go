@@ -35,6 +35,7 @@ func registerExternalAPIRoutes(rg *gin.RouterGroup, args ...any) {
 		rg.POST("/agentsight/events", handleAgentSightEventsUpload)
 		rg.GET("/agentsight/events.jsonl", handleAgentSightEvents(tlsStore, true))
 		rg.GET("/agentsight/events/stats", handleAgentSightEventsStats(tlsStore, ""))
+		rg.GET("/agentsight/report/usage", handleAgentSightUsageReport(tlsStore))
 		rg.GET("/agentsight/events/runners/:id/stats", handleAgentSightRunnerStats(tlsStore))
 		rg.POST("/agentsight/events/query", handleAgentSightEventsQuery(tlsStore))
 		rg.GET("/agentsight/events/stream", handleAgentSightEventsStream(tlsStore))

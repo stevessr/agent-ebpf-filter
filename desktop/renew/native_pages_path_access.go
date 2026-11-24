@@ -43,16 +43,22 @@ func commonSensitivePaths(home string) []commonSensitivePath {
 
 func pathAccessBits(mode string) (bool, bool, error) {
 	switch mode {
-	case "阻止读取": return true, false, nil
-	case "阻止写入": return false, true, nil
-	case "阻止读写": return true, true, nil
-	default: return false, false, fmt.Errorf("请选择读写限制")
+	case "阻止读取":
+		return true, false, nil
+	case "阻止写入":
+		return false, true, nil
+	case "阻止读写":
+		return true, true, nil
+	default:
+		return false, false, fmt.Errorf("请选择读写限制")
 	}
 }
 
 func activePathRule(rules []fileAccessRule, path string) (fileAccessRule, bool) {
 	for _, r := range rules {
-		if r.Path == path { return r, true }
+		if r.Path == path {
+			return r, true
+		}
 	}
 	return fileAccessRule{}, false
 }
@@ -61,7 +67,9 @@ func activePathRule(rules []fileAccessRule, path string) (fileAccessRule, bool) 
 // to disrupt login or system recovery. Require an explicit second gesture
 // in addition to the regular confirmation for these exact paths.
 func needsDangerousReadConfirmation(rule fileAccessRule) bool {
-	if !rule.DenyRead { return false }
+	if !rule.DenyRead {
+		return false
+	}
 	switch rule.Path {
 	case "/etc/shadow", "/etc/passwd", "/etc/sudoers", "/etc/gshadow",
 		"/etc/pam.d/common-auth", "/etc/nsswitch.conf":
@@ -92,11 +100,15 @@ func (a *renewApp) pathAccessView(c *ui.Context) {
 		a.pathAccessLoaded = true
 		go a.refreshPathAccess()
 	}
-	if a.pathAccessErr != "" { ui.Text(c, a.pathAccessErr).TextColor(t.Danger) }
+	if a.pathAccessErr != "" {
+		ui.Text(c, a.pathAccessErr).TextColor(t.Danger)
+	}
 	if a.pathAccessLoaded && !a.pathAccessState.PathAccessSupported {
 		ui.Text(c, "当前内核 LSM 尚未确认支持精确路径读写权限；在获得新程序挂载确认前不会启用该功能。").TextColor(t.Warning)
 	}
-	if a.pathAccessBusy { ui.Spinner(c) }
+	if a.pathAccessBusy {
+		renewLoadingIndicator(c, "正在读取路径访问权限")
+	}
 	card(c, "常见敏感文件 · 建议项（全部默认关闭）", func() {
 		home, err := os.UserHomeDir()
 		if err != nil || !filepath.IsAbs(home) {
@@ -124,7 +136,9 @@ func (a *renewApp) pathAccessView(c *ui.Context) {
 	card(c, "设置精确文件权限", func() {
 		ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
 			ui.TextInput(c, &a.pathAccessTarget).Placeholder("/home/user/.ssh/id_ed25519").Label("绝对文件路径").Grow(1)
-			if ui.Button(c, "选择文件…").Clicked() { a.pickAccessFile() }
+			if ui.Button(c, "选择文件…").Clicked() {
+				a.pickAccessFile()
+			}
 		})
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Select(c, &a.pathAccessMode, []string{"阻止读取", "阻止写入", "阻止读写"}).Label("限制操作").Width(190)
@@ -162,7 +176,9 @@ func (a *renewApp) pathAccessView(c *ui.Context) {
 				}
 			})
 		}
-		if ui.Button(c, "刷新内核状态").Clicked() && !a.pathAccessBusy { go a.refreshPathAccess() }
+		if ui.Button(c, "刷新内核状态").Clicked() && !a.pathAccessBusy {
+			go a.refreshPathAccess()
+		}
 	})
 	ui.Modal(c, &a.pathAccessConfirm, func() {
 		r := a.pathAccessPending
@@ -178,7 +194,9 @@ func (a *renewApp) pathAccessView(c *ui.Context) {
 			ui.TextInput(c, &a.pathAccessConfirmText).Placeholder("确认高风险").Label("风险确认")
 		}
 		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-			if ui.Button(c, "取消").Clicked() { a.pathAccessConfirm = false }
+			if ui.Button(c, "取消").Clicked() {
+				a.pathAccessConfirm = false
+			}
 			if ui.PrimaryButton(c, "确认写入内核策略").Clicked() {
 				if needsDangerousReadConfirmation(r) && a.pathAccessConfirmText != "确认高风险" {
 					a.pathAccessErr = "请输入「确认高风险」以启用系统关键文件读取限制"
@@ -194,10 +212,14 @@ func (a *renewApp) pathAccessView(c *ui.Context) {
 
 func accessLabel(rule fileAccessRule) string {
 	switch {
-	case rule.DenyRead && rule.DenyWrite: return "禁止读写"
-	case rule.DenyRead: return "禁止读取"
-	case rule.DenyWrite: return "禁止写入"
-	default: return "允许读写（撤销）"
+	case rule.DenyRead && rule.DenyWrite:
+		return "禁止读写"
+	case rule.DenyRead:
+		return "禁止读取"
+	case rule.DenyWrite:
+		return "禁止写入"
+	default:
+		return "允许读写（撤销）"
 	}
 }
 
@@ -208,20 +230,30 @@ func (a *renewApp) pickAccessFile() {
 			Directory: false, ShowHiddenFiles: true,
 		})
 		a.update(func() {
-			if err != nil { a.pathAccessErr = err.Error() }
-			if len(paths) != 0 { a.pathAccessTarget = paths[0]; a.pathAccessErr = "" }
+			if err != nil {
+				a.pathAccessErr = err.Error()
+			}
+			if len(paths) != 0 {
+				a.pathAccessTarget = paths[0]
+				a.pathAccessErr = ""
+			}
 		})
 	}()
 }
 
 func (a *renewApp) refreshPathAccess() {
-	if a.client == nil { return }
+	if a.client == nil {
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
 	status, err := a.client.fileAccessStatus(ctx)
 	a.update(func() {
 		a.pathAccessLoaded = true
-		if err != nil { a.pathAccessErr = err.Error(); return }
+		if err != nil {
+			a.pathAccessErr = err.Error()
+			return
+		}
 		a.pathAccessState = status
 		a.pathAccessErr = ""
 	})
@@ -229,7 +261,9 @@ func (a *renewApp) refreshPathAccess() {
 
 func (a *renewApp) applyPathAccess(rule fileAccessRule) {
 	if a.client == nil || a.pathAccessBusy ||
-		!a.runtimeCfg.Runtime.PolicyManagementEnabled || !a.pathAccessState.PathAccessSupported { return }
+		!a.runtimeCfg.Runtime.PolicyManagementEnabled || !a.pathAccessState.PathAccessSupported {
+		return
+	}
 	a.pathAccessBusy = true
 	a.pathAccessErr = ""
 	go func() {
@@ -237,18 +271,25 @@ func (a *renewApp) applyPathAccess(rule fileAccessRule) {
 		defer cancel()
 		err := a.client.setFileAccess(ctx, rule.Path, rule.DenyRead, rule.DenyWrite)
 		var status lsmSandboxStatus
-		if err == nil { status, err = a.client.fileAccessStatus(ctx) }
+		if err == nil {
+			status, err = a.client.fileAccessStatus(ctx)
+		}
 		if err == nil {
 			got, ok := activePathRule(status.PathAccessRules, rule.Path)
 			if rule.DenyRead || rule.DenyWrite {
 				if !ok || got.DenyRead != rule.DenyRead || got.DenyWrite != rule.DenyWrite {
 					err = fmt.Errorf("内核未确认所请求的权限位")
 				}
-			} else if ok { err = fmt.Errorf("规则撤销后仍然存在") }
+			} else if ok {
+				err = fmt.Errorf("规则撤销后仍然存在")
+			}
 		}
 		a.update(func() {
 			a.pathAccessBusy = false
-			if err != nil { a.pathAccessErr = err.Error(); return }
+			if err != nil {
+				a.pathAccessErr = err.Error()
+				return
+			}
 			a.pathAccessState = status
 			a.pathAccessErr = ""
 		})

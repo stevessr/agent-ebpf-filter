@@ -67,3 +67,9 @@ desktop/renew/resources/linux-*/
 
 desktop/renew/mygo.ts
 docs/competition
+
+# Local throwaway model probes
+/backend/app/sweepprobe/
+artifacts
+unpacked
+*.pptx

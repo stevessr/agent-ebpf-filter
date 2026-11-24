@@ -463,9 +463,35 @@ const minSamplesLeafMax = computed(() =>
   <!-- Detection Thresholds -->
   <a-col :xs="24">
     <a-card title="Detection Thresholds" size="small">
+      <a-alert
+        type="info"
+        show-icon
+        style="margin-bottom: 12px"
+        message="决策风险区间"
+        description="模型输出归一到风险分 [0,1]：ALLOW 类为 1-置信度，BLOCK 类为置信度，ALERT/REWRITE 固定 0.5。风险分 ≤ Allow 边界 → ALLOW，≥ Block 边界 → BLOCK，中间区间 → ALERT。"
+      />
       <a-row :gutter="[24, 16]">
         <a-col :xs="24" :md="8">
-          <span>Block Confidence Threshold</span>
+          <span>Allow Risk Threshold (at/below = ALLOW)</span>
+          <a-slider
+            v-model:value="mlThresholds.allowRiskScoreThreshold"
+            :min="0.0"
+            :max="0.45"
+            :step="0.05"
+            @afterChange="saveMLThresholds"
+          />
+          <a-input-number
+            v-model:value="mlThresholds.allowRiskScoreThreshold"
+            :min="0.0"
+            :max="0.45"
+            :step="0.05"
+            size="small"
+            style="width: 100%"
+            @blur="saveMLThresholds"
+          />
+        </a-col>
+        <a-col :xs="24" :md="8">
+          <span>Block Risk Threshold (at/above = BLOCK)</span>
           <a-slider
             v-model:value="mlThresholds.blockConfidenceThreshold"
             :min="0.5"
@@ -480,6 +506,7 @@ const minSamplesLeafMax = computed(() =>
             :step="0.05"
             size="small"
             style="width: 100%"
+            @blur="saveMLThresholds"
           />
         </a-col>
         <a-col :xs="24" :md="8">

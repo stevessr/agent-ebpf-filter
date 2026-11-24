@@ -3,6 +3,7 @@ package sandbox
 import (
 	"errors"
 	"net"
+	"unsafe"
 
 	"github.com/cilium/ebpf"
 	"os"
@@ -220,4 +221,58 @@ func readSourceFiles(t *testing.T, paths ...string) string {
 		sb.Write(data)
 	}
 	return sb.String()
+}
+
+func TestCgroupSandboxCIDRAndLPMKeys(t *testing.T) {
+	if got := unsafe.Sizeof(ipv4LPMKey{}); got != 8 {
+		t.Fatalf("ipv4LPMKey size = %d, want 8", got)
+	}
+	if got := unsafe.Sizeof(ipv6LPMKey{}); got != 20 {
+		t.Fatalf("ipv6LPMKey size = %d, want 20", got)
+	}
+
+	net4, canon4, err := ParseCIDR(" 203.0.113.42/24 ")
+	if err != nil || canon4 != "203.0.113.0/24" {
+		t.Fatalf("ParseCIDR v4 = %v %q %v", net4, canon4, err)
+	}
+	k4, err := ipv4LPMKeyFromNet(net4)
+	if err != nil {
+		t.Fatalf("ipv4LPMKeyFromNet: %v", err)
+	}
+	if k4.PrefixLen != 24 || k4.Addr != [4]byte{203, 0, 113, 0} {
+		t.Fatalf("ipv4LPMKey = %+v", k4)
+	}
+
+	netMapped, canonMapped, err := ParseCIDR("::ffff:203.0.113.99/120")
+	if err != nil || canonMapped != "203.0.113.0/24" || netMapped.IP.To4() == nil {
+		t.Fatalf("ParseCIDR mapped v4 = %v %q %v", netMapped, canonMapped, err)
+	}
+
+	net6, canon6, err := ParseCIDR("2001:db8:abcd::1/32")
+	if err != nil || canon6 != "2001:db8::/32" {
+		t.Fatalf("ParseCIDR v6 = %v %q %v", net6, canon6, err)
+	}
+	k6, err := ipv6LPMKeyFromNet(net6)
+	if err != nil {
+		t.Fatalf("ipv6LPMKeyFromNet: %v", err)
+	}
+	if k6.PrefixLen != 32 || k6.Addr[0] != 0x20 || k6.Addr[1] != 0x01 || k6.Addr[2] != 0x0d || k6.Addr[3] != 0xb8 {
+		t.Fatalf("ipv6LPMKey = %+v", k6)
+	}
+
+	for _, invalid := range []string{"", "203.0.113.1", "999.0.0.1/24", "2001:db8::/129"} {
+		if _, _, err := ParseCIDR(invalid); err == nil {
+			t.Errorf("ParseCIDR(%q) unexpectedly succeeded", invalid)
+		}
+	}
+
+	if ok, err := LPMTriePrefixMatchesIP("203.0.113.0/24", "::ffff:203.0.113.55"); err != nil || !ok {
+		t.Fatalf("LPMTriePrefixMatchesIP dual-stack = %v, %v; want true", ok, err)
+	}
+	if ok, err := LPMTriePrefixMatchesIP("203.0.113.0/24", "203.0.114.55"); err != nil || ok {
+		t.Fatalf("LPMTriePrefixMatchesIP outside = %v, %v; want false", ok, err)
+	}
+	if ok, err := LPMTriePrefixMatchesIP("2001:db8::/32", "2001:db8:dead::1"); err != nil || !ok {
+		t.Fatalf("LPMTriePrefixMatchesIP v6 = %v, %v; want true", ok, err)
+	}
 }

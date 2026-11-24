@@ -1,12 +1,13 @@
 package handlers
 
 import (
-	"agent-ebpf-filter/core"
-	"agent-ebpf-filter/pb"
 	"errors"
 	"net/http"
 	"strings"
 	"sync"
+
+	"agent-ebpf-filter/core"
+	"agent-ebpf-filter/pb"
 
 	"github.com/gin-gonic/gin"
 )
@@ -22,6 +23,7 @@ const runtimeSettingsMaxBodyBytes int64 = 1 << 20
 type MLConfigPatch struct {
 	Enabled                  *bool    `json:"enabled,omitempty"`
 	BlockConfidenceThreshold *float64 `json:"blockConfidenceThreshold,omitempty"`
+	AllowRiskScoreThreshold  *float64 `json:"allowRiskScoreThreshold,omitempty"`
 	MlMinConfidence          *float64 `json:"mlMinConfidence,omitempty"`
 	LowAnomalyThreshold      *float64 `json:"lowAnomalyThreshold,omitempty"`
 	HighAnomalyThreshold     *float64 `json:"highAnomalyThreshold,omitempty"`
@@ -75,6 +77,98 @@ type RuntimeSettingsPatch struct {
 	SignalProcessing        *core.SignalProcessingSettings   `json:"signalProcessing,omitempty"`
 	DomainForwardProxy      *core.DomainForwardProxySettings `json:"domainForwardProxy,omitempty"`
 	MLConfigPatch
+}
+
+func applyMLConfigPatch(dst *core.MLConfig, patch MLConfigPatch) {
+	if dst == nil {
+		return
+	}
+	if patch.Enabled != nil {
+		dst.Enabled = *patch.Enabled
+	}
+	if patch.BlockConfidenceThreshold != nil {
+		dst.BlockConfidenceThreshold = *patch.BlockConfidenceThreshold
+	}
+	if patch.AllowRiskScoreThreshold != nil {
+		dst.AllowRiskScoreThreshold = *patch.AllowRiskScoreThreshold
+	}
+	if patch.MlMinConfidence != nil {
+		dst.MlMinConfidence = *patch.MlMinConfidence
+	}
+	if patch.LowAnomalyThreshold != nil {
+		dst.LowAnomalyThreshold = *patch.LowAnomalyThreshold
+	}
+	if patch.HighAnomalyThreshold != nil {
+		dst.HighAnomalyThreshold = *patch.HighAnomalyThreshold
+	}
+	if patch.RuleOverridePriority != nil {
+		dst.RuleOverridePriority = *patch.RuleOverridePriority
+	}
+	if patch.ModelType != nil {
+		dst.ModelType = core.ModelType(strings.TrimSpace(*patch.ModelType))
+	}
+	if patch.ModelPath != nil {
+		dst.ModelPath = strings.TrimSpace(*patch.ModelPath)
+	}
+	if patch.AutoTrain != nil {
+		dst.AutoTrain = *patch.AutoTrain
+	}
+	if patch.TrainInterval != nil {
+		dst.TrainInterval = strings.TrimSpace(*patch.TrainInterval)
+	}
+	if patch.MinSamplesForTraining != nil {
+		dst.MinSamplesForTraining = *patch.MinSamplesForTraining
+	}
+	if patch.ActiveLearningEnabled != nil {
+		dst.ActiveLearningEnabled = *patch.ActiveLearningEnabled
+	}
+	if patch.FeatureHistorySize != nil {
+		dst.FeatureHistorySize = *patch.FeatureHistorySize
+	}
+	if patch.NumTrees != nil {
+		dst.NumTrees = *patch.NumTrees
+	}
+	if patch.MaxDepth != nil {
+		dst.MaxDepth = *patch.MaxDepth
+	}
+	if patch.MinSamplesLeaf != nil {
+		dst.MinSamplesLeaf = *patch.MinSamplesLeaf
+	}
+	if patch.ValidationSplitRatio != nil {
+		dst.ValidationSplitRatio = *patch.ValidationSplitRatio
+	}
+	if patch.BalanceClasses != nil {
+		dst.BalanceClasses = *patch.BalanceClasses
+	}
+	if patch.EnsembleVoting != nil {
+		dst.EnsembleVoting = strings.TrimSpace(*patch.EnsembleVoting)
+	}
+	if patch.LlmEnabled != nil {
+		dst.LlmEnabled = *patch.LlmEnabled
+	}
+	if patch.LlmBaseURL != nil {
+		dst.LlmBaseURL = strings.TrimSpace(*patch.LlmBaseURL)
+	}
+	if patch.LlmAPIKey != nil {
+		if key := strings.TrimSpace(*patch.LlmAPIKey); key != "" {
+			dst.LlmAPIKey = key
+		}
+	}
+	if patch.LlmModel != nil {
+		dst.LlmModel = strings.TrimSpace(*patch.LlmModel)
+	}
+	if patch.LlmTimeoutSeconds != nil {
+		dst.LlmTimeoutSeconds = *patch.LlmTimeoutSeconds
+	}
+	if patch.LlmTemperature != nil {
+		dst.LlmTemperature = *patch.LlmTemperature
+	}
+	if patch.LlmMaxTokens != nil {
+		dst.LlmMaxTokens = *patch.LlmMaxTokens
+	}
+	if patch.LlmSystemPrompt != nil {
+		dst.LlmSystemPrompt = strings.TrimSpace(*patch.LlmSystemPrompt)
+	}
 }
 
 func HandleConfigRuntimeGet(c *gin.Context) {
@@ -196,6 +290,16 @@ func HandleConfigRuntimePut(c *gin.Context) {
 	}
 	if req.DomainForwardProxy != nil {
 		settings.DomainForwardProxy = *req.DomainForwardProxy
+	}
+	applyMLConfigPatch(&settings.MLConfig, req.MLConfigPatch)
+	if req.AllowRiskScoreThreshold != nil || req.BlockConfidenceThreshold != nil {
+		if err := core.ValidateMLActionRiskThresholds(
+			settings.MLConfig.AllowRiskScoreThreshold,
+			settings.MLConfig.BlockConfidenceThreshold,
+		); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	settings, err := Deps.RuntimeSettingsReplace(settings)

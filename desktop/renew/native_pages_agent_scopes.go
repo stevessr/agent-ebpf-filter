@@ -22,25 +22,29 @@ type agentScopePolicy struct {
 }
 
 type agentRecognitionRow struct {
-	Comm     string
-	Tag      string
-	Label    string
-	PID      int
-	Events   int
-	LastSeen int64
-	Source   string
-	Disabled bool
-	CPU float64
+	Comm       string
+	Tag        string
+	Label      string
+	PID        int
+	Events     int
+	LastSeen   int64
+	Source     string
+	Disabled   bool
+	CPU        float64
 	MemPercent float64
 }
 
 func agentScopeModeLabel(mode string) string {
-	if mode == "whitelist" { return "白名单" }
+	if mode == "whitelist" {
+		return "白名单"
+	}
 	return "黑名单"
 }
 
 func agentScopeModeValue(label string) string {
-	if label == "白名单" { return "whitelist" }
+	if label == "白名单" {
+		return "whitelist"
+	}
 	return "blacklist"
 }
 
@@ -69,7 +73,9 @@ func scopeMatches(list agentScopeList, comm, tag string) bool {
 			break
 		}
 	}
-	if list.Mode == "whitelist" { return found }
+	if list.Mode == "whitelist" {
+		return found
+	}
 	return !found
 }
 
@@ -102,7 +108,9 @@ func aggregateAgentRecognitionWithProcesses(events []eventSummary, registry regi
 	for _, p := range processes {
 		comm := strings.TrimSpace(p.Name)
 		name := strings.ToLower(comm)
-		if name == "" || p.PID <= 0 { continue }
+		if name == "" || p.PID <= 0 {
+			continue
+		}
 		saved, registered := tracked[name]
 		if !registered && harnessLabelFor(comm) == "未识别" {
 			continue // Never identify a generic process solely from a substring.
@@ -134,7 +142,9 @@ func aggregateAgentRecognitionWithProcesses(events []eventSummary, registry regi
 			source = "子进程归因"
 		}
 		name := strings.ToLower(comm)
-		if name == "" || pid <= 0 { continue }
+		if name == "" || pid <= 0 {
+			continue
+		}
 		saved, registered := tracked[name]
 		if !registered && !isAgentSummary(event) && harnessLabelFor(tag, comm) == "未识别" {
 			continue
@@ -151,7 +161,9 @@ func aggregateAgentRecognitionWithProcesses(events []eventSummary, registry regi
 		row.Events++
 		if event.ReceivedAtMS >= row.LastSeen {
 			row.LastSeen = event.ReceivedAtMS
-			if strings.TrimSpace(tag) != "" { row.Tag = tag }
+			if strings.TrimSpace(tag) != "" {
+				row.Tag = tag
+			}
 		}
 		row.Label = harnessLabelFor(row.Tag, row.Comm)
 		if owner.Indirect && owner.OwnerLabel != "" {
@@ -161,29 +173,43 @@ func aggregateAgentRecognitionWithProcesses(events []eventSummary, registry regi
 	}
 
 	for name, saved := range tracked {
-		if seen[name] { continue }
+		if seen[name] {
+			continue
+		}
 		key := agentRecognitionKey(saved.Comm, 0)
 		byKey[key] = &agentRecognitionRow{
 			Comm: saved.Comm, Tag: saved.Tag,
-			Label: harnessLabelFor(saved.Tag, saved.Comm),
+			Label:  harnessLabelFor(saved.Tag, saved.Comm),
 			Source: "跟踪注册表", Disabled: saved.Disabled,
 		}
 	}
 
 	out := make([]agentRecognitionRow, 0, len(byKey))
-	for _, row := range byKey { out = append(out, *row) }
+	for _, row := range byKey {
+		out = append(out, *row)
+	}
 	sort.Slice(out, func(i, j int) bool {
-		if out[i].PID > 0 && out[j].PID == 0 { return true }
-		if out[j].PID > 0 && out[i].PID == 0 { return false }
-		if out[i].LastSeen != out[j].LastSeen { return out[i].LastSeen > out[j].LastSeen }
-		if out[i].Comm != out[j].Comm { return out[i].Comm < out[j].Comm }
+		if out[i].PID > 0 && out[j].PID == 0 {
+			return true
+		}
+		if out[j].PID > 0 && out[i].PID == 0 {
+			return false
+		}
+		if out[i].LastSeen != out[j].LastSeen {
+			return out[i].LastSeen > out[j].LastSeen
+		}
+		if out[i].Comm != out[j].Comm {
+			return out[i].Comm < out[j].Comm
+		}
 		return out[i].PID < out[j].PID
 	})
 	return out
 }
 
 func (a *renewApp) refreshAgentScopes(parent context.Context) {
-	if a.client == nil || a.agentScopesBusy { return }
+	if a.client == nil || a.agentScopesBusy {
+		return
+	}
 	ctx, cancel := context.WithTimeout(parent, 6*time.Second)
 	defer cancel()
 	cfg, err := a.client.agentScopePolicy(ctx)
@@ -205,7 +231,9 @@ func (a *renewApp) refreshAgentScopes(parent context.Context) {
 
 func (a *renewApp) saveAgentScope(kind string) {
 	if !a.agentScopesReady || a.agentScopesBusy || a.client == nil ||
-		!a.runtimeCfg.Runtime.PolicyManagementEnabled { return }
+		!a.runtimeCfg.Runtime.PolicyManagementEnabled {
+		return
+	}
 	// Only commit the chosen section; unsaved edits on the other section are
 	// not silently applied. The server atomically persists both lists.
 	next := a.agentScopes
@@ -248,22 +276,34 @@ func (a *renewApp) saveAgentScope(kind string) {
 }
 
 func agentScopeDraftDirty(applied agentScopeList, selectedMode, draftText string) bool {
-	if agentScopeModeValue(selectedMode) != applied.Mode { return true }
+	if agentScopeModeValue(selectedMode) != applied.Mode {
+		return true
+	}
 	entries := agentScopeNames(draftText)
-	if len(entries) != len(applied.Entries) { return true }
+	if len(entries) != len(applied.Entries) {
+		return true
+	}
 	for index, entry := range entries {
-		if entry != applied.Entries[index] { return true }
+		if entry != applied.Entries[index] {
+			return true
+		}
 	}
 	return false
 }
 
 func appendScopeEntry(text, name string) string {
 	name = strings.TrimSpace(name)
-	if name == "" { return text }
-	for _, entry := range agentScopeNames(text) {
-		if strings.EqualFold(entry, name) { return text }
+	if name == "" {
+		return text
 	}
-	if strings.TrimSpace(text) == "" { return name }
+	for _, entry := range agentScopeNames(text) {
+		if strings.EqualFold(entry, name) {
+			return text
+		}
+	}
+	if strings.TrimSpace(text) == "" {
+		return name
+	}
 	return strings.TrimSpace(text) + ", " + name
 }
 
@@ -280,7 +320,7 @@ func (a *renewApp) agentScopeEditor(c *ui.Context, kind, heading, help string) {
 	card(c, heading, func() {
 		ui.Text(c, help).FontSize(12).TextColor(t.TextMuted)
 		ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
-			ui.Select(c, mode, []string{"黑名单", "白名单"}).Label(heading+"模式").Width(145)
+			ui.Select(c, mode, []string{"黑名单", "白名单"}).Label(heading + "模式").Width(145)
 			dirty := agentScopeDraftDirty(list, *mode, *text)
 			switch {
 			case *mode == "白名单" && len(agentScopeNames(*text)) == 0 && dirty:
@@ -293,7 +333,7 @@ func (a *renewApp) agentScopeEditor(c *ui.Context, kind, heading, help string) {
 				statusPill(c, fmt.Sprintf("已生效 %d 项", len(list.Entries)), t.Accent)
 			}
 		})
-		ui.TextInput(c, text).Placeholder("命令或 Agent 标签，多个值用逗号分隔，例如 codex, claude").Label(heading+"名单").Grow(1)
+		ui.TextInput(c, text).Placeholder("命令或 Agent 标签，多个值用逗号分隔，例如 codex, claude").Label(heading + "名单").Grow(1)
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			if ui.PrimaryButton(c, "保存"+heading).Clicked() && !a.agentScopesBusy {
 				a.saveAgentScope(kind)
@@ -341,18 +381,26 @@ func (a *renewApp) agentRecognitionView(c *ui.Context) {
 		}
 	}
 
-	if a.agentScopesErr != "" { ui.Text(c, a.agentScopesErr).TextColor(t.Danger) }
-	if a.agentScopesNotice != "" { statusPill(c, a.agentScopesNotice, t.Success) }
+	if a.agentScopesErr != "" {
+		ui.Text(c, a.agentScopesErr).TextColor(t.Danger)
+	}
+	if a.agentScopesNotice != "" {
+		statusPill(c, a.agentScopesNotice, t.Success)
+	}
 	if !a.runtimeCfg.Runtime.PolicyManagementEnabled {
 		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 			statusPill(c, "只读", t.Warning)
 			ui.Text(c, "需要先开启「监控 → 策略管理」才能修改 Agent 范围。").TextColor(t.TextMuted)
-			if ui.Button(c, "前往监控").Clicked() { a.page = "监控" }
+			if ui.Button(c, "前往监控").Clicked() {
+				a.page = "监控"
+			}
 		})
 	}
 	if !a.agentScopesReady {
 		ui.Text(c, "名单未加载；保存已禁用。").TextColor(t.Warning)
-		if ui.Button(c, "重新读取名单").Clicked() { go a.refreshAgentScopes(context.Background()) }
+		if ui.Button(c, "重新读取名单").Clicked() {
+			go a.refreshAgentScopes(context.Background())
+		}
 		return
 	}
 	ui.Row(c).Gap(12).Wrap().Children(func() {
@@ -364,7 +412,7 @@ func (a *renewApp) agentRecognitionView(c *ui.Context) {
 	a.agentScopeEditor(c, "monitor", "监视范围", "黑名单跳过匹配对象的高级分析，白名单只分析匹配对象；即使不监视，已捕获事件仍可浏览。")
 	if a.agentScopesBusy {
 		ui.Row(c).Gap(8).Children(func() {
-			ui.Spinner(c)
+			renewLoadingIndicator(c, "正在同步 Agent 识别范围")
 			ui.Text(c, "等待后端确认名单…").TextColor(t.TextMuted)
 		})
 	}
@@ -401,7 +449,9 @@ func (a *renewApp) agentRecognitionView(c *ui.Context) {
 		)
 		if len(rows) == 0 {
 			ui.Text(c, "当前没有已识别 Agent；可以先登记命令、启动受支持的 Agent，或等待其事件。").TextColor(t.TextMuted)
-			if ui.Button(c, "打开跟踪").Clicked() { a.page = "跟踪" }
+			if ui.Button(c, "打开跟踪").Clicked() {
+				a.page = "跟踪"
+			}
 			return
 		}
 		cols := []ui.TableColumn{
@@ -419,24 +469,34 @@ func (a *renewApp) agentRecognitionView(c *ui.Context) {
 			switch column {
 			case 0:
 				visible := row.Label
-				if visible == "未识别" { visible = row.Comm }
+				if visible == "未识别" {
+					visible = row.Comm
+				}
 				harnessIdentity(c, visible, row.Tag, row.Comm)
 			case 1:
 				ui.Text(c, row.Comm+" · "+displayOr(row.Tag, "-")).SingleLine()
 			case 2:
-				if row.PID > 0 { ui.Text(c, strconv.Itoa(row.PID)) } else { ui.Text(c, "-") }
+				if row.PID > 0 {
+					ui.Text(c, strconv.Itoa(row.PID))
+				} else {
+					ui.Text(c, "-")
+				}
 			case 3:
 				ui.Text(c, strconv.Itoa(row.Events))
 			case 4:
 				if scopeMatches(a.agentScopes.Capture, row.Comm, row.Tag) {
 					statusPill(c, "捕获", t.Success)
-				} else { statusPill(c, "排除", t.TextMuted) }
+				} else {
+					statusPill(c, "排除", t.TextMuted)
+				}
 			case 5:
 				if !scopeMatches(a.agentScopes.Capture, row.Comm, row.Tag) {
 					statusPill(c, "未捕获", t.TextMuted)
 				} else if scopeMatches(a.agentScopes.Monitor, row.Comm, row.Tag) {
 					statusPill(c, "监视", t.Success)
-				} else { statusPill(c, "跳过", t.TextMuted) }
+				} else {
+					statusPill(c, "跳过", t.TextMuted)
+				}
 			case 6:
 				ui.Text(c, row.Source).FontSize(10).TextColor(t.TextMuted).SingleLine()
 			}
@@ -451,7 +511,9 @@ func (a *renewApp) agentRecognitionView(c *ui.Context) {
 				if selected.Source == "实时进程" {
 					ui.Textf(c, "CPU %.1f%% · 内存 %.1f%%", selected.CPU, selected.MemPercent).TextColor(t.TextMuted)
 				}
-				if selected.Disabled { statusPill(c, "已在跟踪注册表禁用", t.Warning) }
+				if selected.Disabled {
+					statusPill(c, "已在跟踪注册表禁用", t.Warning)
+				}
 				if selected.LastSeen > 0 {
 					ui.Text(c, "最近事件 "+summaryTime(selected.LastSeen)).TextColor(t.TextMuted)
 				}

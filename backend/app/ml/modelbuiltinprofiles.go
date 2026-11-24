@@ -218,6 +218,41 @@ func ApplyBuiltinModelPreset(cfg MLConfig) MLConfig {
 	return cfg
 }
 
+// ApplyBuiltinModelPresetForType applies the builtin preset knobs of exactly the
+// requested catalog entry while keeping that entry as the model type. The
+// trainer dispatches catalog variants through their base type, so keeping the
+// variant name lets offline reports and manifests distinguish e.g.
+// random_forest_deep from random_forest, which ApplyBuiltinModelPreset collapses
+// onto the base type.
+func ApplyBuiltinModelPresetForType(cfg MLConfig, modelType ModelType) MLConfig {
+	if modelType == "" {
+		modelType = ModelRandomForest
+	}
+	cfg.ModelType = modelType
+	for _, profile := range BuiltinModelProfiles {
+		if profile.Type != modelType {
+			continue
+		}
+		if shouldApplyBuiltinDefaults(cfg, profile) {
+			if v := profile.Defaults["numTrees"]; v > 0 {
+				cfg.NumTrees = v
+			}
+			if v := profile.Defaults["maxDepth"]; v > 0 {
+				cfg.MaxDepth = v
+			}
+			if v := profile.Defaults["minSamplesLeaf"]; v > 0 {
+				cfg.MinSamplesLeaf = v
+			}
+		}
+		if profile.Apply != nil {
+			cfg = profile.Apply(cfg)
+		}
+		cfg.ModelType = modelType
+		return cfg
+	}
+	return cfg
+}
+
 func shouldApplyBuiltinDefaults(cfg MLConfig, profile builtinModelProfile) bool {
 	if profile.Type == profile.Base {
 		return cfg.NumTrees <= 0 || cfg.MaxDepth <= 0 || cfg.MinSamplesLeaf <= 0

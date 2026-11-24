@@ -22,7 +22,7 @@ func FeatureSourceCatalog() []FeatureSourceDescriptor {
 			Start:       0,
 			End:         31,
 			Dimensions:  32,
-			Description: "行为类别、shell/root/network/file flags、分类置信度与命令长度。",
+			Description: "行为类别、shell/root/network/file flags、分类置信度、命令长度及 shell 复合语法/提权混淆指标。",
 		},
 		{
 			ID:          FeatureSourceArgumentStats,

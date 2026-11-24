@@ -26,7 +26,7 @@ const props = defineProps<{
 <template>
   <a-row :gutter="16" style="padding-top: 16px">
     <a-col :span="12">
-      <a-card size="small" :bordered="false" style="background: var(--ui-surface-muted)">
+      <a-card size="small" :bordered="false" style="background: var(--surface-1)">
         <template #title>
           <div
             style="
@@ -37,7 +37,7 @@ const props = defineProps<{
             "
           >
             <span>Network Activity</span>
-            <span style="font-size: 11px; color: var(--ui-text-muted); font-weight: normal"
+            <span style="font-size: 11px; color: var(--text-muted); font-weight: normal"
               >(Total: ↓{{ formatBytesWithUnit(systemStats.totalNetRecv) }}/s
               ↑{{ formatBytesWithUnit(systemStats.totalNetSent) }}/s)</span
             >
@@ -89,7 +89,7 @@ const props = defineProps<{
                 style="
                   font-size: 11px;
                   font-weight: bold;
-                  color: var(--ui-text-muted);
+                  color: var(--text-muted);
                   margin: 8px 0 4px;
                 "
               >
@@ -102,7 +102,7 @@ const props = defineProps<{
                   margin-bottom: 8px;
                   padding: 10px;
                   border-radius: 6px;
-                  background: var(--ui-surface);
+                  background: var(--surface-2);
                   border: 1px solid var(--ui-border);
                   cursor: pointer;
                   transition: all 0.2s;
@@ -166,10 +166,10 @@ const props = defineProps<{
                   <span>{{ iface.name }}</span>
                 </div>
                 <div style="display: flex; gap: 16px; font-size: 12px">
-                  <span style="color: #52c41a; flex: 1"
+                  <span style="color: var(--text-success); flex: 1"
                     >↓ {{ formatBytesWithUnit(iface.readSpeed) }}/s</span
                   >
-                  <span style="color: #1890ff; flex: 1"
+                  <span style="color: var(--text-accent); flex: 1"
                     >↑ {{ formatBytesWithUnit(iface.writeSpeed) }}/s</span
                   >
                 </div>
@@ -180,7 +180,7 @@ const props = defineProps<{
       </a-card>
     </a-col>
     <a-col :span="12">
-      <a-card size="small" :bordered="false" style="background: var(--ui-surface-muted)">
+      <a-card size="small" :bordered="false" style="background: var(--surface-1)">
         <template #title>
           <div
             style="
@@ -191,7 +191,7 @@ const props = defineProps<{
             "
           >
             <span>Storage Activity</span>
-            <span style="font-size: 11px; color: var(--ui-text-muted); font-weight: normal"
+            <span style="font-size: 11px; color: var(--text-muted); font-weight: normal"
               >(Total: R:{{ formatBytesWithUnit(systemStats.totalDiskRead) }}/s
               W:{{ formatBytesWithUnit(systemStats.totalDiskWrite) }}/s)</span
             >
@@ -246,8 +246,8 @@ const props = defineProps<{
               style="
                 padding: 10px;
                 border-radius: 6px;
-                background: var(--ui-surface);
-                border: 1px solid #e8e8e8;
+                background: var(--surface-2);
+                border: 1px solid var(--border);
                 cursor: pointer;
               "
               class="io-card"
@@ -307,7 +307,7 @@ const props = defineProps<{
                   gap: 8px;
                 "
               >
-                <DatabaseOutlined style="color: #1890ff" />
+                <DatabaseOutlined style="color: var(--text-accent)" />
                 <span>{{ name }}</span>
               </div>
               <div
@@ -315,15 +315,15 @@ const props = defineProps<{
                   display: flex;
                   gap: 16px;
                   font-size: 12px;
-                  border-bottom: 1px solid #f5f5f5;
+                  border-bottom: 1px solid var(--border);
                   padding-bottom: 8px;
                   margin-bottom: 8px;
                 "
               >
-                <span style="color: #faad14; flex: 1; font-weight: 500"
+                <span style="color: var(--text-warning); flex: 1; font-weight: 500"
                   >Read: {{ formatBytesWithUnit(disk.main.readSpeed) }}/s</span
                 >
-                <span style="color: #722ed1; flex: 1; font-weight: 500"
+                <span style="color: var(--text-accent); flex: 1; font-weight: 500"
                   >Write:
                   {{ formatBytesWithUnit(disk.main.writeSpeed) }}/s</span
                 >
@@ -337,7 +337,7 @@ const props = defineProps<{
                     gap: 12px;
                     font-size: 10px;
                     padding: 2px 0 2px 20px;
-                    color: var(--ui-text-muted);
+                    color: var(--text-muted);
                     border-left: 2px solid var(--ui-border);
                     margin-left: 6px;
                   "
@@ -345,10 +345,10 @@ const props = defineProps<{
                   <span style="width: 80px; font-family: monospace"
                     >└─ {{ part.name }}</span
                   >
-                  <span style="color: #faad14; opacity: 0.8"
+                  <span style="color: var(--text-warning); opacity: 0.8"
                     >R: {{ formatBytesWithUnit(part.readSpeed) }}/s</span
                   >
-                  <span style="color: #722ed1; opacity: 0.8"
+                  <span style="color: var(--text-accent); opacity: 0.8"
                     >W: {{ formatBytesWithUnit(part.writeSpeed) }}/s</span
                   >
                 </div>

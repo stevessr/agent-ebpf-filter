@@ -3,12 +3,36 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"strconv"
+	"strings"
 
 	"agent-ebpf-filter/pb"
 
+	"github.com/cilium/ebpf"
 	"github.com/gin-gonic/gin"
 )
+
+func ignoreMissingTrackedKey(err error) error {
+	if errors.Is(err, ebpf.ErrKeyNotExist) {
+		return nil
+	}
+	return err
+}
+
+func buildTrackedPrefixKey(prefix string) struct {
+	PrefixLen uint32
+	Data      [64]byte
+} {
+	var k struct {
+		PrefixLen uint32
+		Data      [64]byte
+	}
+	plen := min(len(prefix), 63)
+	k.PrefixLen = uint32(plen * 8)
+	copy(k.Data[:], prefix[:plen])
+	return k
+}
 
 func HandleConfigTagsGet(c *gin.Context) {
 	t := Deps.Config.TagNames()
@@ -19,8 +43,16 @@ func HandleConfigTagsPost(c *gin.Context) {
 	var r struct {
 		Name string `json:"name"`
 	}
-	_ = c.ShouldBindJSON(&r)
-	Deps.Config.TagID(r.Name)
+	if err := c.ShouldBindJSON(&r); err != nil {
+		c.JSON(400, gin.H{"error": "invalid request body"})
+		return
+	}
+	name := strings.TrimSpace(r.Name)
+	if name == "" {
+		c.JSON(400, gin.H{"error": "name is required"})
+		return
+	}
+	Deps.Config.TagID(name)
 	c.JSON(200, gin.H{"status": "ok"})
 }
 
@@ -45,18 +77,36 @@ func HandleConfigCommsPost(c *gin.Context) {
 		Comm string `json:"comm"`
 		Tag  string `json:"tag"`
 	}
-	_ = c.ShouldBindJSON(&r)
+	if err := c.ShouldBindJSON(&r); err != nil {
+		c.JSON(400, gin.H{"error": "invalid request body"})
+		return
+	}
+	comm := strings.TrimSpace(r.Comm)
+	if comm == "" {
+		c.JSON(400, gin.H{"error": "comm is required"})
+		return
+	}
 	var k [16]byte
-	copy(k[:], r.Comm)
-	_ = Deps.TrackerMaps.TrackedCommsPut(k, Deps.Config.TagID(r.Tag))
+	copy(k[:], comm)
+	if err := Deps.TrackerMaps.TrackedCommsPut(k, Deps.Config.TagID(r.Tag)); err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
 	c.JSON(200, gin.H{"status": "ok"})
 }
 
 func HandleConfigCommsDelete(c *gin.Context) {
+	comm := strings.TrimSpace(c.Param("comm"))
+	if comm == "" {
+		c.JSON(400, gin.H{"error": "comm is required"})
+		return
+	}
 	var k [16]byte
-	comm := c.Param("comm")
 	copy(k[:], comm)
-	_ = Deps.TrackerMaps.TrackedCommsDelete(k)
+	if err := ignoreMissingTrackedKey(Deps.TrackerMaps.TrackedCommsDelete(k)); err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
 	Deps.Config.RemoveDisabledComm(comm)
 	c.JSON(200, gin.H{"status": "ok"})
 }
@@ -187,21 +237,36 @@ func HandleConfigPathsPost(c *gin.Context) {
 		Path string `json:"path"`
 		Tag  string `json:"tag"`
 	}
-	_ = c.ShouldBindJSON(&r)
+	if err := c.ShouldBindJSON(&r); err != nil {
+		c.JSON(400, gin.H{"error": "invalid request body"})
+		return
+	}
+	p := strings.TrimSpace(r.Path)
+	if p == "" {
+		c.JSON(400, gin.H{"error": "path is required"})
+		return
+	}
 	var k [256]byte
-	copy(k[:], r.Path)
-	_ = Deps.TrackerMaps.TrackedPathsPut(k, Deps.Config.TagID(r.Tag))
+	copy(k[:], p)
+	if err := Deps.TrackerMaps.TrackedPathsPut(k, Deps.Config.TagID(r.Tag)); err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
 	c.JSON(200, gin.H{"status": "ok"})
 }
 
 func HandleConfigPathsDelete(c *gin.Context) {
-	p := c.Param("path")
-	if len(p) > 0 && p[0] == '/' {
-		p = p[1:]
+	p := strings.TrimPrefix(strings.TrimSpace(c.Param("path")), "/")
+	if p == "" {
+		c.JSON(400, gin.H{"error": "path is required"})
+		return
 	}
 	var k [256]byte
 	copy(k[:], p)
-	_ = Deps.TrackerMaps.TrackedPathsDelete(k)
+	if err := ignoreMissingTrackedKey(Deps.TrackerMaps.TrackedPathsDelete(k)); err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
 	c.JSON(200, gin.H{"status": "ok"})
 }
 
@@ -236,22 +301,19 @@ func HandleConfigPrefixesPost(c *gin.Context) {
 		Prefix string `json:"prefix"`
 		Tag    string `json:"tag"`
 	}
-	_ = c.ShouldBindJSON(&r)
+	if err := c.ShouldBindJSON(&r); err != nil {
+		c.JSON(400, gin.H{"error": "invalid request body"})
+		return
+	}
 	if r.Prefix == "" {
 		c.JSON(400, gin.H{"error": "prefix is required"})
 		return
 	}
-	var k struct {
-		PrefixLen uint32
-		Data      [64]byte
+	k := buildTrackedPrefixKey(r.Prefix)
+	if err := Deps.TrackerMaps.TrackedPrefixesPut(k, Deps.Config.TagID(r.Tag)); err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
 	}
-	plen := len(r.Prefix)
-	if plen > 63 {
-		plen = 63
-	}
-	k.PrefixLen = uint32(plen * 8)
-	copy(k.Data[:], r.Prefix[:plen])
-	_ = Deps.TrackerMaps.TrackedPrefixesPut(k, Deps.Config.TagID(r.Tag))
 	c.JSON(200, gin.H{"status": "ok"})
 }
 
@@ -261,17 +323,11 @@ func HandleConfigPrefixesDelete(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "prefix query parameter is required"})
 		return
 	}
-	var k struct {
-		PrefixLen uint32
-		Data      [64]byte
+	k := buildTrackedPrefixKey(prefix)
+	if err := ignoreMissingTrackedKey(Deps.TrackerMaps.TrackedPrefixesDelete(k)); err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
 	}
-	plen := len(prefix)
-	if plen > 63 {
-		plen = 63
-	}
-	k.PrefixLen = uint32(plen * 8)
-	copy(k.Data[:], prefix[:plen])
-	_ = Deps.TrackerMaps.TrackedPrefixesDelete(k)
 	c.JSON(200, gin.H{"status": "ok"})
 }
 

@@ -70,11 +70,20 @@ func (m *KNNModel) knnSearch(features [FeatureDim]float64) []knnHeapItem {
 
 	h := &knnMaxHeap{}
 	heap.Init(h)
+	var exact []knnHeapItem
 
 	for i, sample := range m.Samples {
 		d := m.computeDistance(features, sample)
+		if math.IsNaN(d) || math.IsInf(d, 0) || d < 0 {
+			continue
+		}
 		if m.MaxDistance > 0 && d > m.MaxDistance {
 			continue
+		}
+		if m.Weight == "distance" && d <= 1e-10 {
+			// Do not arbitrarily discard duplicate exact observations due
+			// to K or their insertion order. All exact labels must vote.
+			exact = append(exact, knnHeapItem{idx: i, distance: d})
 		}
 		if h.Len() < k {
 			heap.Push(h, knnHeapItem{idx: i, distance: d})
@@ -84,6 +93,9 @@ func (m *KNNModel) knnSearch(features [FeatureDim]float64) []knnHeapItem {
 		}
 	}
 
+	if len(exact) > 0 {
+		return exact
+	}
 	// Convert to sorted slice (ascending)
 	result := make([]knnHeapItem, h.Len())
 	for i := len(result) - 1; i >= 0; i-- {
@@ -126,9 +138,16 @@ func (m *KNNModel) Predict(features [FeatureDim]float64) Prediction {
 		}
 		h := &knnMaxHeap{}
 		heap.Init(h)
+		var exact []knnHeapItem
 		for _, n := range allDists {
+			if math.IsNaN(n.distance) || math.IsInf(n.distance, 0) || n.distance < 0 {
+				continue
+			}
 			if m.MaxDistance > 0 && n.distance > m.MaxDistance {
 				continue
+			}
+			if m.Weight == "distance" && n.distance <= 1e-10 {
+				exact = append(exact, n)
 			}
 			if h.Len() < k {
 				heap.Push(h, n)
@@ -137,9 +156,13 @@ func (m *KNNModel) Predict(features [FeatureDim]float64) Prediction {
 				heap.Fix(h, 0)
 			}
 		}
-		neighbors = make([]knnHeapItem, h.Len())
-		for i := len(neighbors) - 1; i >= 0; i-- {
-			neighbors[i] = heap.Pop(h).(knnHeapItem)
+		if len(exact) > 0 {
+			neighbors = exact
+		} else {
+			neighbors = make([]knnHeapItem, h.Len())
+			for i := len(neighbors) - 1; i >= 0; i-- {
+				neighbors[i] = heap.Pop(h).(knnHeapItem)
+			}
 		}
 	} else {
 		// CPU path: heap-based O(N log K)
@@ -153,14 +176,35 @@ func (m *KNNModel) Predict(features [FeatureDim]float64) Prediction {
 	k := len(neighbors)
 	classVotes := make([]float64, m.NumClasses)
 	totalWeight := 0.0
+	weightedDistanceSum := 0.0
+	votedNeighbors := 0
+	// Inverse-distance weighting must never make a merely nearby neighbor
+	// outweigh an exact match. With exact matches, vote only among those
+	// matches; otherwise retain normal inverse-distance behavior.
+	exactMatch := m.Weight == "distance" && neighbors[0].distance <= 1e-10
 	for i := 0; i < k; i++ {
 		n := neighbors[i]
+		if n.idx < 0 || n.idx >= len(m.Labels) {
+			continue
+		}
+		label := m.Labels[n.idx]
+		if label < 0 || int(label) >= m.NumClasses {
+			continue
+		}
+		if exactMatch && n.distance > 1e-10 {
+			continue
+		}
 		w := 1.0
-		if m.Weight == "distance" && n.distance > 1e-10 {
+		if !exactMatch && m.Weight == "distance" && n.distance > 1e-10 {
 			w = 1.0 / n.distance
 		}
-		classVotes[m.Labels[n.idx]] += w
+		classVotes[label] += w
 		totalWeight += w
+		weightedDistanceSum += n.distance
+		votedNeighbors++
+	}
+	if totalWeight == 0 {
+		return Prediction{Action: 0, Confidence: 0, AnomalyScore: 0.5}
 	}
 
 	bestClass := int32(0)
@@ -177,11 +221,10 @@ func (m *KNNModel) Predict(features [FeatureDim]float64) Prediction {
 		confidence = bestVotes / totalWeight
 	}
 
-	avgDist := 0.0
-	for i := 0; i < k; i++ {
-		avgDist += neighbors[i].distance
-	}
-	avgDist /= float64(k)
+	// The anomaly score must use the same neighbors that actually cast
+	// votes. Otherwise a perfect match can still appear anomalous because
+	// discarded, more distant neighbors inflate the reported distance.
+	avgDist := weightedDistanceSum / float64(votedNeighbors)
 	anomalyScore := math.Tanh(avgDist)
 
 	return Prediction{Action: bestClass, Confidence: confidence, AnomalyScore: anomalyScore}
@@ -200,7 +243,9 @@ func (m *KNNModel) computeDistance(a, b [FeatureDim]float64) float64 {
 		if normA <= 0 || normB <= 0 {
 			return 1.0
 		}
-		return 1.0 - dot/(math.Sqrt(normA)*math.Sqrt(normB))
+		// Floating-point rounding can push cosine similarity just over 1
+		// and yield a negative distance, especially for large vectors.
+		return math.Max(0, 1.0-dot/(math.Sqrt(normA)*math.Sqrt(normB)))
 	}
 	var sum float64
 	for i := 0; i < FeatureDim; i++ {

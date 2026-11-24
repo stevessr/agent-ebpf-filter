@@ -29,6 +29,7 @@ export interface RuntimeSettings {
   domainForwardProxy: DomainForwardProxySettings;
   mlConfig?: {
     enabled?: boolean;
+    allowRiskScoreThreshold?: number;
     blockConfidenceThreshold?: number;
     mlMinConfidence?: number;
     ruleOverridePriority?: number;

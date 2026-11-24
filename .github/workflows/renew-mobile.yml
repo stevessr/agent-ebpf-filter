@@ -1,0 +1,152 @@
+name: Renew mobile Android
+
+on:
+  pull_request:
+    paths:
+      - "mobile/monitor/**"
+      - ".github/workflows/renew-mobile.yml"
+  push:
+    branches:
+      - master
+    paths:
+      - "mobile/monitor/**"
+      - ".github/workflows/renew-mobile.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: renew-mobile-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mobile-go:
+    name: Mobile Go checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: mobile/monitor
+    env:
+      GOWORK: "off"
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: "1.27.3"
+          cache: false
+      - name: Check committed MyGo Mobile module and checksum lock
+        run: |
+          go mod tidy -diff
+          go mod verify
+      - name: Run protocol and native shell tests
+        run: go test -count=1 ./...
+      - name: Check concurrent connection and event parsing
+        run: go test -race -count=1 ./remote
+      - name: Validate Android build and APK verification scripts
+        run: bash -n scripts/build-android.sh scripts/verify-android-apk.sh
+      - name: Vet mobile client
+        run: go vet ./...
+      - name: Compile native UI for host
+        run: go build ./...
+
+  android-apk:
+    name: Android arm64 debug APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      GOWORK: "off"
+      ANDROID_NDK_VERSION: "28.2.13676358"
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: "1.27.3"
+          cache: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install pinned Android SDK tools
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          SDK_MANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager -print -quit)"
+          test -x "$SDK_MANAGER"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          yes | "$SDK_MANAGER" --sdk_root="$SDK_ROOT" --licenses >/dev/null || true
+          "$SDK_MANAGER" --sdk_root="$SDK_ROOT" --install "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358"
+      - name: Verify pinned app dependencies
+        working-directory: mobile/monitor
+        run: |
+          go mod tidy -diff
+          go mod verify
+      - name: Build actual Go JNI library and Android APK
+        run: bash mobile/monitor/scripts/build-android.sh
+      - name: Verify debug APK signature, manifest, ABI and 16 KiB alignment
+        run: bash mobile/monitor/scripts/verify-android-apk.sh
+      - name: Upload verified APK and SHA-256 checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: renew-monitor-android-arm64-debug
+          path: |
+            mobile/monitor/build/android-arm64/RenewMonitor-debug.apk
+            mobile/monitor/build/android-arm64/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 30
+
+  publish-mobile-test:
+    name: Publish Android test prerelease
+    needs: [mobile-go, android-apk]
+    if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: renew-monitor-android-arm64-debug
+          path: dist/mobile
+      - name: Recheck downloaded APK integrity
+        run: |
+          set -euo pipefail
+          cd dist/mobile
+          test -s RenewMonitor-debug.apk
+          sha256sum -c SHA256SUMS
+      - name: Publish immutable test APK to GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="mobile-test-${GITHUB_RUN_ID}"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Refusing to replace existing prerelease $TAG" >&2
+            exit 1
+          fi
+          cat > "$RUNNER_TEMP/mobile-test-notes.md" <<'EOF'
+          ## Renew Monitor Android ARM64 — test build
+
+          This is an experimental **debug-signed** Android APK for remote
+          read-only Agent eBPF monitoring. It is not the stable Linux release.
+
+          - Android 10+ (minSdk 29), arm64-v8a
+          - GitHub Actions checked Go tests, native JNI build, APK signature,
+            package/ABI, 16 KiB alignment and the attached SHA256SUMS
+          - Requires a separately reachable authenticated backend over HTTPS
+          - Debug signing certificates may change between CI runs; uninstall
+            an earlier test APK before installing if Android rejects an update
+          - Real-device startup, touch input, keyboard, background/resume and
+            connectivity still require hands-on smoke testing
+
+          Please report device model, Android version and logcat with any crash.
+          EOF
+          gh release create "$TAG" \
+            dist/mobile/RenewMonitor-debug.apk \
+            dist/mobile/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Renew Monitor Android test #${GITHUB_RUN_NUMBER}" \
+            --prerelease --latest=false \
+            --notes-file "$RUNNER_TEMP/mobile-test-notes.md"
+          echo "Published: https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG"

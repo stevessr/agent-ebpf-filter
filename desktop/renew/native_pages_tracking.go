@@ -16,7 +16,9 @@ func (a *renewApp) trackingView(c *ui.Context) {
 	t := c.Theme()
 	ui.Text(c, "跟踪对象").FontSize(28).Bold()
 	ui.Text(c, "决定哪些 Agent 命令和工作目录进入 eBPF 观测范围；标签用于把事件归到可读的 Agent 上下文。").TextColor(t.TextMuted)
-	if ui.Button(c, "配置敏感文件读写权限").Clicked() { a.page = "路径权限" }
+	if ui.Button(c, "配置敏感文件读写权限").Clicked() {
+		a.page = "路径权限"
+	}
 
 	if a.registryErr != "" {
 		ui.Text(c, a.registryErr).TextColor(t.TextMuted)
@@ -65,8 +67,12 @@ func (a *renewApp) trackingView(c *ui.Context) {
 		ui.Tabs(c, &a.registryTab, "命令", "文件夹内文件", "文件", "文件夹及其子文件")
 		ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
 			tags := append([]string{"全部标签"}, a.registry.Tags...)
-			if a.registryFilterTag == "" { a.registryFilterTag = "全部标签" }
-			if a.registryFilterStatus == "" { a.registryFilterStatus = "全部状态" }
+			if a.registryFilterTag == "" {
+				a.registryFilterTag = "全部标签"
+			}
+			if a.registryFilterStatus == "" {
+				a.registryFilterStatus = "全部状态"
+			}
 			ui.Select(c, &a.registryFilterTag, tags).Label("按标签筛选").Width(180)
 			ui.Select(c, &a.registryFilterStatus, []string{"全部状态", "跟踪中", "已禁用"}).Label("按状态筛选").Width(150)
 		})
@@ -101,8 +107,12 @@ func (a *renewApp) trackingView(c *ui.Context) {
 				ui.TextInput(c, &a.trackName).Placeholder(placeholder).Label("跟踪对象").Grow(1)
 				if a.registryTab != 0 {
 					pick := "选择文件夹…"
-					if a.registryTab == 2 { pick = "选择文件…" }
-					if ui.Button(c, pick).Clicked() { a.pickTrackingPath() }
+					if a.registryTab == 2 {
+						pick = "选择文件…"
+					}
+					if ui.Button(c, pick).Clicked() {
+						a.pickTrackingPath()
+					}
 				}
 				ui.Select(c, &a.trackTag, a.registry.Tags).Label("标签").Width(180)
 				if ui.PrimaryButton(c, "添加").Clicked() && a.canMutateRegistry() {
@@ -122,7 +132,7 @@ func (a *renewApp) trackingView(c *ui.Context) {
 
 	if a.registryBusy {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Spinner(c)
+			renewLoadingIndicator(c, "正在同步跟踪配置")
 			ui.Text(c, "等待后端确认…").TextColor(t.TextMuted)
 		})
 	}
@@ -142,19 +152,29 @@ func (a *renewApp) canMutateRegistry() bool {
 // render callback. Selection never mutates privileged tracking rules.
 func (a *renewApp) pickTrackingPath() {
 	tab := a.registryTab
-	if tab == 0 { return }
+	if tab == 0 {
+		return
+	}
 	go func() {
 		directory := tab != 2
 		title := "选择要跟踪的文件"
-		if directory { title = "选择要跟踪的文件夹" }
+		if directory {
+			title = "选择要跟踪的文件夹"
+		}
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 			Parent: a.win, Title: title, Directory: directory,
-			DefaultPath: a.trackName,
+			DefaultPath:     a.trackName,
 			ShowHiddenFiles: true,
 		})
 		a.update(func() {
-			if err != nil { a.registryErr = err.Error(); return }
-			if len(paths) > 0 { a.trackName = paths[0]; a.registryErr = "" }
+			if err != nil {
+				a.registryErr = err.Error()
+				return
+			}
+			if len(paths) > 0 {
+				a.trackName = paths[0]
+				a.registryErr = ""
+			}
 		})
 	}()
 }
@@ -163,26 +183,36 @@ func (a *renewApp) pickTrackingPath() {
 // non-recursive UI mode to the existing exact-path backend contract; future
 // files must be explicitly registered again.
 func listDirectFiles(dir string) ([]string, error) {
-	if !filepath.IsAbs(dir) { return nil, fmt.Errorf("请选择绝对文件夹路径") }
+	if !filepath.IsAbs(dir) {
+		return nil, fmt.Errorf("请选择绝对文件夹路径")
+	}
 	items, err := os.ReadDir(dir)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	const maxFiles = 512
 	paths := make([]string, 0, min(len(items), maxFiles))
 	for _, item := range items {
-		if !item.Type().IsRegular() { continue }
+		if !item.Type().IsRegular() {
+			continue
+		}
 		paths = append(paths, filepath.Join(dir, item.Name()))
 		if len(paths) > maxFiles {
 			return nil, fmt.Errorf("文件夹内文件超过 %d 个，请缩小范围", maxFiles)
 		}
 	}
-	if len(paths) == 0 { return nil, fmt.Errorf("文件夹中没有可登记的普通文件") }
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("文件夹中没有可登记的普通文件")
+	}
 	return paths, nil
 }
 
 func (a *renewApp) addTrackedObject() {
 	value := strings.TrimSpace(a.trackName)
 	tag := strings.TrimSpace(a.trackTag)
-	if value == "" || tag == "" { return }
+	if value == "" || tag == "" {
+		return
+	}
 	tab := a.registryTab
 	a.runRegistryMutation(func(ctx context.Context) error {
 		if tab > 0 && !filepath.IsAbs(value) {
@@ -191,7 +221,9 @@ func (a *renewApp) addTrackedObject() {
 		switch tab {
 		case 1:
 			files, err := listDirectFiles(value)
-			if err != nil { return err }
+			if err != nil {
+				return err
+			}
 			for _, path := range files {
 				if err := a.client.addPath(ctx, path, tag); err != nil {
 					return fmt.Errorf("登记 %s 失败：%w（之前已登记的条目保留）", path, err)
@@ -200,13 +232,21 @@ func (a *renewApp) addTrackedObject() {
 			return nil
 		case 2:
 			info, err := os.Stat(value)
-			if err != nil { return err }
-			if !info.Mode().IsRegular() { return fmt.Errorf("请选择普通文件，而不是文件夹") }
+			if err != nil {
+				return err
+			}
+			if !info.Mode().IsRegular() {
+				return fmt.Errorf("请选择普通文件，而不是文件夹")
+			}
 			return a.client.addPath(ctx, filepath.Clean(value), tag)
 		case 3:
 			info, err := os.Stat(value)
-			if err != nil { return err }
-			if !info.IsDir() { return fmt.Errorf("请选择文件夹以递归跟踪") }
+			if err != nil {
+				return err
+			}
+			if !info.IsDir() {
+				return fmt.Errorf("请选择文件夹以递归跟踪")
+			}
 			return a.client.addPrefix(ctx, filepath.Clean(value), tag)
 		default:
 			return a.client.addComm(ctx, value, tag)
@@ -217,9 +257,15 @@ func (a *renewApp) addTrackedObject() {
 func filterTrackedComms(items []trackedComm, tag, status string) []trackedComm {
 	out := make([]trackedComm, 0, len(items))
 	for _, item := range items {
-		if tag != "" && tag != "全部标签" && item.Tag != tag { continue }
-		if status == "跟踪中" && item.Disabled { continue }
-		if status == "已禁用" && !item.Disabled { continue }
+		if tag != "" && tag != "全部标签" && item.Tag != tag {
+			continue
+		}
+		if status == "跟踪中" && item.Disabled {
+			continue
+		}
+		if status == "已禁用" && !item.Disabled {
+			continue
+		}
 		out = append(out, item)
 	}
 	return out
@@ -227,18 +273,26 @@ func filterTrackedComms(items []trackedComm, tag, status string) []trackedComm {
 
 func filterTrackedPaths(items []trackedPath, tag, status string) []trackedPath {
 	out := make([]trackedPath, 0, len(items))
-	if status == "已禁用" { return out } // only command rules support disable
+	if status == "已禁用" {
+		return out
+	} // only command rules support disable
 	for _, item := range items {
-		if tag == "" || tag == "全部标签" || item.Tag == tag { out = append(out, item) }
+		if tag == "" || tag == "全部标签" || item.Tag == tag {
+			out = append(out, item)
+		}
 	}
 	return out
 }
 
 func filterTrackedPrefixes(items []trackedPrefix, tag, status string) []trackedPrefix {
 	out := make([]trackedPrefix, 0, len(items))
-	if status == "已禁用" { return out }
+	if status == "已禁用" {
+		return out
+	}
 	for _, item := range items {
-		if tag == "" || tag == "全部标签" || item.Tag == tag { out = append(out, item) }
+		if tag == "" || tag == "全部标签" || item.Tag == tag {
+			out = append(out, item)
+		}
 	}
 	return out
 }

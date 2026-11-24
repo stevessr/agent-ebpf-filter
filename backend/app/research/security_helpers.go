@@ -1,6 +1,7 @@
 package research
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"bytes"
 	"encoding/csv"
 	"encoding/json"
@@ -14,7 +15,7 @@ import (
 func researchSecurityActionsMatch(expected, observed string) bool {
 	expected = normalizeResearchSecurityAction(expected)
 	observed = normalizeResearchSecurityAction(observed)
-	if !researchSecurityActionIsLabeled(expected) {
+	if !isLabeledSecurityActionNormalized(expected) {
 		return true
 	}
 	if expected == observed {
@@ -24,7 +25,8 @@ func researchSecurityActionsMatch(expected, observed string) bool {
 }
 
 func normalizeResearchSecurityAction(action string) string {
-	switch strings.ToUpper(strings.TrimSpace(action)) {
+	norm := strings.ToUpper(strings.TrimSpace(action))
+	switch norm {
 	case "ALLOW", "ALLOWED", "PASS":
 		return "ALLOW"
 	case "ALERT", "WARN", "WARNING":
@@ -36,17 +38,21 @@ func normalizeResearchSecurityAction(action string) string {
 	case "UNLABELED", "UNKNOWN", "", "-", "NONE":
 		return "UNLABELED"
 	default:
-		return strings.ToUpper(strings.TrimSpace(action))
+		return norm
 	}
 }
 
-func researchSecurityActionIsLabeled(action string) bool {
-	switch normalizeResearchSecurityAction(action) {
+func isLabeledSecurityActionNormalized(norm string) bool {
+	switch norm {
 	case "ALLOW", "ALERT", "BLOCK", "REWRITE":
 		return true
 	default:
 		return false
 	}
+}
+
+func researchSecurityActionIsLabeled(action string) bool {
+	return isLabeledSecurityActionNormalized(normalizeResearchSecurityAction(action))
 }
 
 func researchSecurityObservedActionFromRisk(score float64) string {
@@ -226,12 +232,7 @@ func researchSecurityRiskBucket(score float64) string {
 }
 
 func firstNonEmptyResearchSecurityString(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
+	return platform.FirstNonEmpty(values...)
 }
 
 func firstNonEmptyResearchSecurityParam(params map[string]any, fallback string, keys ...string) string {

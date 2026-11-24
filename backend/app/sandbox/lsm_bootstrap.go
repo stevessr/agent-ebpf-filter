@@ -22,6 +22,11 @@ func ensureLsmEnforcerLoaded() error {
 		return nil
 	}
 
+	if err := ensureLsmEnforcerPinnedMapCompatibility(); err != nil {
+		lsmEnforcer.LastError = err.Error()
+		return err
+	}
+
 	if pinnedMaps, err := loadPinnedLsmEnforcerMaps(); err == nil {
 		platform.CloseMapHandles(pinnedMaps)
 		if err := attachLsmEnforcerWithPinnedMaps(); err != nil {
@@ -71,10 +76,14 @@ func bootstrapLsmEnforcer() error {
 		return err
 	}
 	lsmEnforcer.PathAccessSupported = true
+	lsmEnforcer.InodeAccessSupported = true
 	return nil
 }
 
 func attachLsmEnforcerWithPinnedMaps() error {
+	if err := ensureLsmEnforcerPinnedMapCompatibility(); err != nil {
+		return err
+	}
 	replacements, err := loadPinnedLsmEnforcerMaps()
 	if err != nil {
 		return err
@@ -99,6 +108,7 @@ func attachLsmEnforcerWithPinnedMaps() error {
 			return err
 		}
 		lsmEnforcer.PathAccessSupported = true
+		lsmEnforcer.InodeAccessSupported = true
 		return nil
 	}
 	if !errors.Is(err, errLsmEnforcerPinnedLinksMissing) {
@@ -109,8 +119,9 @@ func attachLsmEnforcerWithPinnedMaps() error {
 				return loadErr
 			}
 			// The old pinned programs may not recognize the new file read/write
-			// bits, so refuse path rules rather than claiming enforcement.
+			// bits or inode map, so refuse path/inode rules rather than claiming enforcement.
 			lsmEnforcer.PathAccessSupported = false
+			lsmEnforcer.InodeAccessSupported = false
 			lsmEnforcer.LastError = fmt.Sprintf("reused pinned links without program update: %v", err)
 			return nil
 		}
@@ -126,6 +137,7 @@ func attachLsmEnforcerWithPinnedMaps() error {
 		return err
 	}
 	lsmEnforcer.PathAccessSupported = true
+	lsmEnforcer.InodeAccessSupported = true
 	return nil
 }
 
@@ -134,6 +146,7 @@ func pinLsmEnforcerMaps(objs *bpf.AgentLsmEnforcerObjects) error {
 		"lsm_blocked_exec_paths": objs.LsmBlockedExecPaths,
 		"lsm_blocked_exec_names": objs.LsmBlockedExecNames,
 		"lsm_blocked_file_names": objs.LsmBlockedFileNames,
+		"lsm_blocked_inodes":     objs.LsmBlockedInodes,
 		"lsm_enforcer_stats_map": objs.LsmEnforcerStatsMap,
 	} {
 		if err := m.Pin(filepath.Join(lsmEnforcerMapsDir, name)); err != nil {
@@ -144,7 +157,7 @@ func pinLsmEnforcerMaps(objs *bpf.AgentLsmEnforcerObjects) error {
 }
 
 func loadPinnedLsmEnforcerMaps() (map[string]*ebpf.Map, error) {
-	names := []string{"lsm_blocked_exec_paths", "lsm_blocked_exec_names", "lsm_blocked_file_names", "lsm_enforcer_stats_map"}
+	names := []string{"lsm_blocked_exec_paths", "lsm_blocked_exec_names", "lsm_blocked_file_names", "lsm_blocked_inodes", "lsm_enforcer_stats_map"}
 	maps := make(map[string]*ebpf.Map, len(names))
 	for _, name := range names {
 		m, err := ebpf.LoadPinnedMap(filepath.Join(lsmEnforcerMapsDir, name), nil)
@@ -155,6 +168,40 @@ func loadPinnedLsmEnforcerMaps() (map[string]*ebpf.Map, error) {
 		maps[name] = m
 	}
 	return maps, nil
+}
+
+func ensureLsmEnforcerPinnedMapCompatibility() error {
+	if _, err := os.Stat(lsmEnforcerMapsDir); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("stat BPF LSM maps dir: %w", err)
+	}
+	inodePin := filepath.Join(lsmEnforcerMapsDir, "lsm_blocked_inodes")
+	if _, err := os.Stat(inodePin); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("stat BPF LSM inode blocklist map: %w", err)
+	}
+	m, err := ebpf.NewMap(&ebpf.MapSpec{
+		Name:       "lsm_blocked_inodes",
+		Type:       ebpf.Hash,
+		KeySize:    16,
+		ValueSize:  4,
+		MaxEntries: 512,
+	})
+	if err != nil {
+		return fmt.Errorf("create missing BPF LSM inode blocklist map: %w", err)
+	}
+	pinErr := m.Pin(inodePin)
+	_ = m.Close()
+	if pinErr != nil {
+		return fmt.Errorf("pin missing BPF LSM inode blocklist map: %w", pinErr)
+	}
+	if err := os.Chmod(inodePin, LsmEnforcerMapPinMode); err != nil {
+		return fmt.Errorf("chmod missing BPF LSM inode blocklist map: %w", err)
+	}
+	return nil
 }
 
 func updatePinnedLsmEnforcerLinks(objs *bpf.AgentLsmEnforcerObjects) ([]link.Link, []string, error) {
@@ -252,14 +299,16 @@ func loadLsmEnforcerRuntimeMaps(linkPins []string) error {
 	lsmEnforcer.ExecPathBlocklist = maps["lsm_blocked_exec_paths"]
 	lsmEnforcer.ExecNameBlocklist = maps["lsm_blocked_exec_names"]
 	lsmEnforcer.FileNameBlocklist = maps["lsm_blocked_file_names"]
+	lsmEnforcer.InodeBlocklist = maps["lsm_blocked_inodes"]
 	lsmEnforcer.Stats = maps["lsm_enforcer_stats_map"]
 	lsmEnforcer.LinkPins = linkPins
 	lsmEnforcer.LastError = ""
 
-	log.Printf("[LSM-ENFORCER] active: exec_paths=%v exec_names=%v file_names=%v stats=%v links=%d pinned=%d",
+	log.Printf("[LSM-ENFORCER] active: exec_paths=%v exec_names=%v file_names=%v inodes=%v stats=%v links=%d pinned=%d",
 		lsmEnforcer.ExecPathBlocklist != nil,
 		lsmEnforcer.ExecNameBlocklist != nil,
 		lsmEnforcer.FileNameBlocklist != nil,
+		lsmEnforcer.InodeBlocklist != nil,
 		lsmEnforcer.Stats != nil,
 		len(lsmEnforcer.Links),
 		len(lsmEnforcer.LinkPins))
@@ -272,7 +321,7 @@ func ensureLsmEnforcerMapPermissions() error {
 			return fmt.Errorf("chmod %s: %w", dir, err)
 		}
 	}
-	for _, name := range []string{"lsm_blocked_exec_paths", "lsm_blocked_exec_names", "lsm_blocked_file_names", "lsm_enforcer_stats_map"} {
+	for _, name := range []string{"lsm_blocked_exec_paths", "lsm_blocked_exec_names", "lsm_blocked_file_names", "lsm_blocked_inodes", "lsm_enforcer_stats_map"} {
 		path := filepath.Join(lsmEnforcerMapsDir, name)
 		// Keep kernel-enforced block policy mutable only through the privileged,
 		// authenticated backend API instead of exposing world-writable map pins.

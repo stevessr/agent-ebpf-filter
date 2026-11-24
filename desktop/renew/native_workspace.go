@@ -7,258 +7,8 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
-
 	"github.com/egoist/mygo/ui"
 )
-
-// Keep platform materials opt-in to the supported native compositors. On
-// Wayland and X11 we always paint an opaque workspace, including when the
-// user has a desktop transparency setting enabled elsewhere.
-func windowMaterial(goos string, enabled bool) mygo.Vibrancy {
-	if !enabled {
-		return mygo.VibrancyNone
-	}
-	switch goos {
-	case "darwin":
-		return mygo.VibrancySidebar
-	case "windows":
-		return mygo.VibrancyMica
-	default:
-		return mygo.VibrancyNone
-	}
-}
-
-// The right rail is helpful on large displays, but must never squeeze event
-// tables and configuration forms on a laptop-sized window.
-func pageHasInspector(page string) bool {
-	switch page {
-	case "概览", "事件", "会话", "网络", "进程", "系统":
-		return true
-	default:
-		return false
-	}
-}
-
-// Minimum usable center canvas when the 302-DIP investigator is visible.
-// Evaluate the current animated sidebar width, not only its target state,
-// to prevent the inspector from overlapping tables during the transition.
-func showWorkspaceInspector(windowWidth, navigationWidth float32, expanded bool, page string) bool {
-	const activityRailWidth = 54
-	const inspectorWidth = 302
-	const minimumCenterWidth = 760
-	return expanded && pageHasInspector(page) &&
-		windowWidth-activityRailWidth-navigationWidth-inspectorWidth >= minimumCenterWidth
-}
-
-const (
-	workspaceNavigationCompactWidth  float32 = 198
-	workspaceNavigationDetailedWidth float32 = 302
-)
-
-// Page IDs remain stable; only the optional sidebar's visible names change.
-var workspaceNavigationLabels = map[string][2]string{
-	"概览":       {"态势总览", "系统态势与运行概览"},
-	"研判":       {"风险研判工作台", "风险事件研判工作台"},
-	"事件":       {"事件流", "eBPF 实时事件流"},
-	"会话":       {"Agent 会话", "Agent 会话与行为关联"},
-	"派生":       {"Agent 派生", "Agent → SubAgent 调用与进程派生"},
-	"网络":       {"网络外联", "网络连接与外联目标"},
-	"域名":       {"Agent 域名监控", "Agent 域名与外联目的地监控"},
-	"进程":       {"进程活动", "进程活动与资源监测"},
-	"Agent 识别": {"捕获与监视范围", "Agent 识别与捕获监视范围"},
-	"监控":       {"采集设置", "实时采集与监控设置"},
-	"eBPF 模块":  {"内核模块", "eBPF 内核模块管理"},
-	"规则":       {"Wrapper 规则", "Wrapper 拦截与防护规则"},
-	"跟踪":       {"跟踪范围", "进程、命令与路径跟踪"},
-	"路径权限":     {"文件访问保护", "文件路径与访问权限"},
-	"终端":       {"本地 Shell · 多标签与分屏", "本地 Shell 终端与多窗格"},
-	"文件":       {"文件管理", "本机文件管理与目录浏览"},
-	"编辑器":      {"原生编辑器", "MyGo 原生代码编辑器"},
-	"CCS":      {"管理软件联动", "CC-Switch / AstrLink / CCR / Antigravity 本地视图"},
-	"系统":       {"系统诊断", "采集链路与系统运行诊断"},
-}
-
-func workspaceNavigationWidth(open, detailed bool) float32 {
-	if !open {
-		return 0
-	}
-	if detailed {
-		return workspaceNavigationDetailedWidth
-	}
-	return workspaceNavigationCompactWidth
-}
-
-// Keep at least a laptop-sized center canvas even if the user prefers full
-// navigation labels. The preference survives resizing and is restored when
-// there is enough room; the icon rail remains available at every size.
-const (
-	workspaceActivityRailWidth      float32 = 54
-	workspaceDetailedMinWindowWidth float32 = 1240
-	workspaceHeaderMinContentWidth  float32 = 860
-	workspaceNarrowNavigationWidth  float32 = 900
-	workspaceTightHeaderWidth       float32 = 660
-)
-
-func workspaceResponsiveNavigationWidth(windowWidth float32, open, detailed bool) (float32, bool) {
-	// On compact laptop/tiling layouts the expanded sidebar would reduce
-	// the live event table below its usable width. Use the native rail menu
-	// instead, without changing the user's preferred sidebar state.
-	if windowWidth < workspaceNarrowNavigationWidth {
-		return 0, false
-	}
-	effectiveDetailed := detailed && windowWidth >= workspaceDetailedMinWindowWidth
-	return workspaceNavigationWidth(open, effectiveDetailed), effectiveDetailed
-}
-
-func workspaceUsesNavigationMenu(windowWidth float32) bool {
-	return windowWidth < workspaceNarrowNavigationWidth
-}
-
-func workspaceTightHeader(windowWidth, navigationWidth float32) bool {
-	return windowWidth-workspaceActivityRailWidth-navigationWidth < workspaceTightHeaderWidth
-}
-
-func workspaceCompactHeader(windowWidth, navigationWidth float32) bool {
-	return windowWidth-workspaceActivityRailWidth-navigationWidth < workspaceHeaderMinContentWidth
-}
-
-func workspaceShowsBackendError(page string, starting bool, lastErr string, eventCount int) bool {
-	return !starting && page == "概览" && lastErr != "" && eventCount == 0
-}
-
-func workspaceNavigationLabel(page string, detailed bool) string {
-	labels, ok := workspaceNavigationLabels[page]
-	if !ok {
-		return page
-	}
-	if detailed {
-		return labels[1]
-	}
-	return labels[0]
-}
-
-func (a *renewApp) workspaceView(c *ui.Context) {
-	// MyGo's frame theme already tracks light/dark system appearance and changes.
-	// Copy its current colors before applying the Renew palette so that OS
-	// accents, high contrast, font scaling, and native theme switches survive.
-	styleRenewWorkspaceTheme(&a.workspaceTheme, c.Theme(), c.Preferences().HighContrast)
-	c.SetTheme(&a.workspaceTheme)
-	t := c.Theme()
-	width, _ := c.Size()
-	vibrant := c.Vibrancy()
-	if vibrant {
-		c.Root().Background(ui.Transparent)
-	}
-	shell := ui.Row(c).Fill().AlignItems(ui.Stretch)
-	if !vibrant {
-		shell.Background(t.Background)
-	}
-	// MyGo 0.3 animations honor the OS reduced-motion setting.
-	// Animate actual widths, not a percentage, so resizing and switching
-	// label density use the same inspector layout calculation.
-	navTarget, navDetailed := workspaceResponsiveNavigationWidth(width, a.navigationOpen, a.navigationDetailed)
-	navWidth := shell.Animate("renew-navigation", navTarget, 180*time.Millisecond)
-	shell.Children(func() {
-		a.activityRail(c, width)
-		if navWidth > 0 {
-			ui.Row(c).Width(navWidth).Shrink(0).AlignItems(ui.Stretch).Clip().Children(func() {
-				a.sidebar(c, navDetailed)
-			})
-		}
-		ui.Column(c).Key("workspace-content").Grow(1).MinWidth(0).Background(t.Background).Children(func() {
-			a.header(c, navWidth)
-			if a.page == "终端" {
-				// Real PTY bounds without a parent Scroll; also usable offline.
-				a.terminalView(c)
-			} else if a.page == "文件" {
-				a.localFileManagerView(c)
-			} else if a.page == "编辑器" {
-				a.localEditorView(c)
-			} else {
-				ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Stretch).Children(func() {
-					ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-						pagePadding := float32(20)
-						if width < 1200 {
-							pagePadding = 12
-						}
-						ui.Scroll(c).Grow(1).Padding(pagePadding).Gap(16).Children(func() {
-							switch {
-							case a.starting:
-								a.startingView(c)
-							case workspaceShowsBackendError(a.page, a.starting, a.lastErr, len(a.events)):
-								a.errorView(c)
-							default:
-								if !a.connected && a.lastErr != "" {
-									a.connectionBanner(c)
-								}
-								// A populated event table is not proof that collection is healthy.
-								// Make capture failures visible on every monitoring page.
-								if a.connected && a.healthReady && !a.health.CaptureHealthy && a.page != "概览" && a.page != "系统" {
-									a.captureWarning(c)
-								}
-								ui.Column(c).Key("page-" + a.page).Gap(16).Transition(ui.ElementTransition{
-									Duration: 160 * time.Millisecond,
-									Enter:    &ui.Motion{Y: 8},
-								}).Children(func() { a.workspacePage(c) })
-							}
-						})
-					})
-					if showWorkspaceInspector(width, navWidth, a.inspectorOpen, a.page) {
-						a.inspector(c)
-					}
-				})
-			}
-			a.workspaceFooter(c)
-			// Keep the existing explicit detail API, modal and payload release.
-			wasOpen := a.eventDetailOpen
-			a.eventDetailModal(c)
-			if wasOpen && !a.eventDetailOpen {
-				a.releaseEventDetailPayload()
-			}
-		})
-	})
-}
-
-func (a *renewApp) workspacePage(c *ui.Context) {
-	switch a.page {
-	case "事件":
-		a.eventsView(c)
-	case "研判":
-		a.inspectorStandalone(c)
-	case "会话":
-		a.sessionsView(c)
-	case "派生":
-		a.agentLineageView(c)
-	case "网络":
-		a.networkView(c)
-	case "域名":
-		a.agentDomainsView(c)
-	case "进程":
-		a.processesView(c)
-	case "Agent 识别":
-		a.agentRecognitionView(c)
-	case "监控":
-		a.monitoringView(c)
-	case "eBPF 模块":
-		a.ebpfModulesView(c)
-	case "规则":
-		a.rulesView(c)
-	case "跟踪":
-		a.trackingView(c)
-	case "路径权限":
-		a.pathAccessView(c)
-	case "文件":
-		a.localFileManagerView(c)
-	case "编辑器":
-		a.localEditorView(c)
-	case "系统":
-		a.systemView(c)
-	case "CCS":
-		a.integrationsView(c)
-	default:
-		a.overview(c)
-	}
-}
 
 // Workspace routes in the narrow-screen native menu are the same stable
 // page IDs the ordinary sidebar uses. Both include privileged settings
@@ -267,7 +17,7 @@ var workspaceNavigationMenuSections = []struct {
 	title string
 	pages []string
 }{
-	{"监控工作台", []string{"概览", "研判", "事件", "会话", "派生", "网络", "域名", "进程", "Agent 识别"}},
+	{"监控工作台", []string{"概览", "行为", "研判", "事件", "会话", "AgentSight", "派生", "网络", "域名", "进程", "Agent 识别"}},
 	{"防护与管理", []string{"监控", "eBPF 模块", "规则", "跟踪", "路径权限"}},
 	{"工具", []string{"终端", "文件", "编辑器", "CCS"}},
 	{"运行诊断", []string{"系统"}},
@@ -305,7 +55,8 @@ func (a *renewApp) activityRail(c *ui.Context, windowWidth float32) {
 			button := ui.ButtonBase(c.Key("rail-" + page)).
 				Width(40).Height(40).Padding(0).Radius(11).
 				AlignItems(ui.Center).Justify(ui.Center).
-				Label(name).Tooltip(name)
+				Label(name).Tooltip(name).
+				Transition(renewRailColorTransition())
 			switch {
 			case active:
 				button.Background(t.Accent.Alpha(0.17)).TextColor(t.Accent)
@@ -357,6 +108,7 @@ func (a *renewApp) sidebar(c *ui.Context, detailed bool) {
 	var selectedItem ui.Element
 	navItem := func(page string) ui.Element {
 		item := ui.SidebarItem(c, page, workspaceNavigationIcon(page), label(page))
+		item.Transition(renewRailColorTransition())
 		if a.page == page {
 			selectedItem = item
 		}
@@ -384,6 +136,7 @@ func (a *renewApp) sidebar(c *ui.Context, detailed bool) {
 		menu := ui.Sidebar(c, &a.page, func() {
 			ui.SidebarSection(c, "监控工作台", nil, func() {
 				navItem("概览")
+				navItem("行为")
 				navItem("研判")
 				events := navItem("事件")
 				switch {
@@ -393,6 +146,7 @@ func (a *renewApp) sidebar(c *ui.Context, detailed bool) {
 					events.Children(func() { statusPill(c, fmt.Sprint(attention), t.Warning) })
 				}
 				navItem("会话")
+				navItem("AgentSight")
 				navItem("派生")
 				navItem("网络")
 				navItem("域名")
@@ -586,6 +340,9 @@ func (a *renewApp) refreshActiveView() {
 	// second system WebSocket here would duplicate the collector workload.
 	go a.refresh(context.Background())
 	switch a.page {
+	case "AgentSight":
+		a.agentSightChecked = time.Time{}
+		a.requestAgentSightUsage(true)
 	case "Agent 识别":
 		go a.refreshAgentScopes(context.Background())
 		go a.refreshRegistry(context.Background())
@@ -673,7 +430,7 @@ func (a *renewApp) workspaceFooterStatus() (string, string) {
 	if level == "danger" || a.starting {
 		return label, level
 	}
-	if a.paused {
+	if a.paused && level == "success" {
 		return "事件展示暂停", "warning"
 	}
 	return label, level
@@ -687,7 +444,7 @@ func (a *renewApp) workspaceFooter(c *ui.Context) {
 		label, level := a.workspaceFooterStatus()
 		statusPill(c, label, workspaceStatusTone(t, level))
 		if width >= 700 {
-			ui.Text(c, fmt.Sprintf("摘要 %d", len(a.events))).FontSize(10).Font("monospace").TextColor(t.TextMuted)
+			ui.Text(c, fmt.Sprintf("摘要 %d", len(a.events))).FontSize(11).Font("monospace").TextColor(t.TextMuted)
 		}
 		if danger > 0 {
 			if ui.Button(c, fmt.Sprintf("高风险 %d", danger)).Tooltip("查看高风险事件").Clicked() {

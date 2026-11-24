@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -375,7 +376,7 @@ func (s *session) handleEvent(method string, raw json.RawMessage) {
 			emit(params.Request.PostData)
 			return
 		}
-		_ = s.send("Network.getRequestPostData", map[string]any{"requestId": params.RequestID}, func(result json.RawMessage, cdpErr *cdpError) {
+		if err := s.send("Network.getRequestPostData", map[string]any{"requestId": params.RequestID}, func(result json.RawMessage, cdpErr *cdpError) {
 			if cdpErr != nil {
 				emit("")
 				return
@@ -388,7 +389,9 @@ func (s *session) handleEvent(method string, raw json.RawMessage) {
 				return
 			}
 			emit(value.PostData)
-		})
+		}); err != nil && !s.closed.Load() {
+			log.Printf("[WARN] dshinspector CDP request postData send failed for %s: %v", params.RequestID, err)
+		}
 	case "Network.responseReceived":
 		var params struct {
 			RequestID string  `json:"requestId"`
@@ -481,7 +484,7 @@ func (s *session) finishResponse(requestID string) {
 			ContentType: meta.ContentType, LatencyMs: meta.LatencyMs,
 		})
 	}
-	_ = s.send("Network.getResponseBody", map[string]any{"requestId": requestID}, func(result json.RawMessage, cdpErr *cdpError) {
+	if err := s.send("Network.getResponseBody", map[string]any{"requestId": requestID}, func(result json.RawMessage, cdpErr *cdpError) {
 		if cdpErr != nil {
 			emit("")
 			return
@@ -501,7 +504,9 @@ func (s *session) finishResponse(requestID string) {
 			}
 		}
 		emit(value.Body)
-	})
+	}); err != nil && !s.closed.Load() {
+		log.Printf("[WARN] dshinspector CDP response body send failed for %s: %v", requestID, err)
+	}
 }
 
 func ParsePort(raw string) (int, error) {

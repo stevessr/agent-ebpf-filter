@@ -5,153 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
 )
-
-func mergeEventSummaries(existing, incoming []eventSummary, limit int) []eventSummary {
-	return mergeEventSummariesInto(nil, existing, incoming, limit)
-}
-
-func mergeEventSummariesInto(dst, existing, incoming []eventSummary, limit int) []eventSummary {
-	if limit <= 0 {
-		limit = 1200
-	}
-	if len(incoming) == 0 {
-		if len(existing) > limit {
-			return existing[:limit]
-		}
-		return existing
-	}
-
-	// Incoming batches are normally tiny compared with the retained window.
-	// Deduplicate and sort only that batch, then linearly merge it with the
-	// already-sorted window instead of rebuilding and sorting all ~1200 rows.
-	replacements := make(map[string]eventSummary, len(incoming))
-	for _, event := range incoming {
-		id := strings.TrimSpace(event.EventID)
-		if id == "" {
-			continue
-		}
-		event.EventID = id
-		event.SearchText = buildEventSearchText(event)
-		replacements[id] = event
-	}
-	if len(replacements) == 0 {
-		return existing
-	}
-	fresh := make([]eventSummary, 0, len(replacements))
-	for _, event := range replacements {
-		fresh = append(fresh, event)
-	}
-	sort.Slice(fresh, func(i, j int) bool { return eventSummaryBefore(fresh[i], fresh[j]) })
-
-	capacity := len(existing) + len(fresh)
-	if capacity > limit {
-		capacity = limit
-	}
-	var out []eventSummary
-	if cap(dst) >= capacity {
-		out = dst[:0]
-	} else {
-		out = make([]eventSummary, 0, limit)
-	}
-	i, j := 0, 0
-	for len(out) < limit && (i < len(fresh) || j < len(existing)) {
-		for j < len(existing) {
-			if _, replaced := replacements[strings.TrimSpace(existing[j].EventID)]; replaced {
-				j++
-				continue
-			}
-			break
-		}
-		if i >= len(fresh) {
-			if j >= len(existing) {
-				break
-			}
-			event := existing[j]
-			if event.SearchText == "" {
-				event.SearchText = buildEventSearchText(event)
-			}
-			out = append(out, event)
-			j++
-			continue
-		}
-		if j >= len(existing) {
-			out = append(out, fresh[i])
-			i++
-			continue
-		}
-
-		existingEvent := existing[j]
-		if existingEvent.SearchText == "" {
-			existingEvent.SearchText = buildEventSearchText(existingEvent)
-		}
-		if eventSummaryBefore(fresh[i], existingEvent) {
-			out = append(out, fresh[i])
-			i++
-		} else {
-			out = append(out, existingEvent)
-			j++
-		}
-	}
-	return out
-}
-
-func eventSummaryBefore(a, b eventSummary) bool {
-	if a.ReceivedAtMS != b.ReceivedAtMS {
-		return a.ReceivedAtMS > b.ReceivedAtMS
-	}
-	return a.EventID > b.EventID
-}
-
-func matchesEventDecision(event eventSummary, filter string) bool {
-	decision := strings.ToUpper(strings.TrimSpace(event.Decision))
-	switch filter {
-	case "已阻断":
-		return decision == "BLOCK" || decision == "DENY"
-	case "告警":
-		return decision == "ALERT"
-	case "已允许":
-		return decision == "ALLOW"
-	default:
-		return true
-	}
-}
-
-func uniqueEventTypes(events []eventSummary) []string {
-	set := make(map[string]struct{})
-	for _, event := range events {
-		if strings.TrimSpace(event.Type) != "" {
-			set[event.Type] = struct{}{}
-		}
-	}
-	out := make([]string, 0, len(set)+1)
-	out = append(out, "")
-	for value := range set {
-		out = append(out, value)
-	}
-	sort.Strings(out[1:])
-	return out
-}
-
-func uniqueEventSessions(events []eventSummary) []string {
-	set := make(map[string]struct{})
-	for _, event := range events {
-		set[eventSessionKey(event)] = struct{}{}
-	}
-	out := make([]string, 0, len(set)+1)
-	out = append(out, "")
-	for value := range set {
-		out = append(out, value)
-	}
-	sort.Strings(out[1:])
-	return out
-}
 
 func (a *renewApp) loadOlderEvents() {
 	if a.client == nil || a.historyLoading || strings.TrimSpace(a.historyCursor) == "" {
@@ -492,13 +351,13 @@ func (a *renewApp) eventDetailModal(c *ui.Context) {
 			})
 			if a.eventDetailLoading {
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-					ui.Spinner(c)
+					renewLoadingIndicator(c, "正在读取完整事件记录")
 					ui.Text(c, "正在按需读取完整事件…").TextColor(t.TextMuted)
 				})
 				return
 			}
 			if a.eventDetailErr != "" {
-				ui.Text(c, "完整记录读取失败：" + a.eventDetailErr).TextColor(t.Danger)
+				ui.Text(c, "完整记录读取失败："+a.eventDetailErr).TextColor(t.Danger)
 				if ui.Button(c, "重新加载").Clicked() {
 					a.openEventDetail(a.eventDetailID)
 				}
@@ -520,7 +379,7 @@ func (a *renewApp) eventDetailModal(c *ui.Context) {
 					c.WriteClipboard(a.eventDetailText)
 					c.Toast("已复制原始 JSON，请注意敏感信息")
 				}
-				ui.Scroll(c).Height(scrollHeight-40).Padding(10).Children(func() {
+				ui.Scroll(c).Height(scrollHeight - 40).Padding(10).Children(func() {
 					ui.Text(c, a.eventDetailText).Font("monospace").FontSize(10)
 				})
 			case 2:
@@ -561,9 +420,15 @@ func (a *renewApp) eventDetailModal(c *ui.Context) {
 								if len([]rune(field.Value)) > 300 {
 									key := "tree:" + field.Label
 									label := "展开"
-									if a.eventDetailExpandedField == key { label = "收起" }
+									if a.eventDetailExpandedField == key {
+										label = "收起"
+									}
 									if ui.Button(c, label).Clicked() {
-										if a.eventDetailExpandedField == key { a.eventDetailExpandedField = "" } else { a.eventDetailExpandedField = key }
+										if a.eventDetailExpandedField == key {
+											a.eventDetailExpandedField = ""
+										} else {
+											a.eventDetailExpandedField = key
+										}
 									}
 								}
 								if ui.Button(c, "复制").Tooltip("复制该字段的完整值").Clicked() {
@@ -649,7 +514,7 @@ func (a *renewApp) eventDetailEnforcement(c *ui.Context) {
 			return
 		}
 		if a.enforcementBusy {
-			ui.Text(c, "正在等待策略提交及内核状态确认…").FontSize(11).TextColor(t.TextMuted)
+			renewLoadingRow(c, "正在等待策略提交及内核状态确认…")
 			return
 		}
 		if a.enforcementErr != "" {

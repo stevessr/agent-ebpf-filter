@@ -2,8 +2,6 @@ package ml
 
 import (
 	"fmt"
-	"math/rand"
-	"time"
 
 	"agent-ebpf-filter/core"
 	"agent-ebpf-filter/ml/graph"
@@ -61,13 +59,24 @@ func (t *ModelTrainer) trainGraph(store *TrainingDataStore, cfg MLConfig) (Model
 	if len(labeled) < 10 {
 		return nil, TrainResult{Error: "need >=10 labeled samples"}
 	}
+	_, _, trainRaw, validationRaw, err := PrepareAutoTuneSplit(labeled, cfg.ValidationSplitRatio)
+	if err != nil {
+		return nil, TrainResult{Error: fmt.Sprintf("independent holdout: %v", err)}
+	}
 
-	features := make([][]float64, len(labeled))
-	labels := make([]int, len(labeled))
-	for i, s := range labeled {
-		features[i] = make([]float64, FeatureDim)
-		copy(features[i], s.Features[:])
-		labels[i] = int(s.Label)
+	trainFeats := make([][]float64, len(trainRaw))
+	trainLabels := make([]int, len(trainRaw))
+	for i, sample := range trainRaw {
+		trainFeats[i] = make([]float64, FeatureDim)
+		copy(trainFeats[i], sample.Features[:])
+		trainLabels[i] = int(sample.Label)
+	}
+	valFeats := make([][]float64, len(validationRaw))
+	valLabels := make([]int, len(validationRaw))
+	for i, sample := range validationRaw {
+		valFeats[i] = make([]float64, FeatureDim)
+		copy(valFeats[i], sample.Features[:])
+		valLabels[i] = int(sample.Label)
 	}
 
 	gnnCfg := graph.DefaultGNNConfig()
@@ -81,85 +90,47 @@ func (t *ModelTrainer) trainGraph(store *TrainingDataStore, cfg MLConfig) (Model
 		gnnCfg.Epochs = cfg.MinSamplesLeaf
 	}
 
-	// Split into train/validation sets
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	indices := rng.Perm(len(labeled))
-	splitIdx := int(float64(len(labeled)) * (1.0 - cfg.ValidationSplitRatio))
-	if splitIdx < 1 {
-		splitIdx = 1
-	}
-
-	trainFeats := make([][]float64, splitIdx)
-	trainLabels := make([]int, splitIdx)
-	for i := 0; i < splitIdx; i++ {
-		trainFeats[i] = features[indices[i]]
-		trainLabels[i] = labels[indices[i]]
-	}
-
-	valFeats := make([][]float64, len(labeled)-splitIdx)
-	valLabels := make([]int, len(labeled)-splitIdx)
-	for i := splitIdx; i < len(labeled); i++ {
-		valFeats[i-splitIdx] = features[indices[i]]
-		valLabels[i-splitIdx] = labels[indices[i]]
-	}
-
 	clf := graph.NewGNNClassifier(gnnCfg)
 	m := &GraphLearningModel{Classifier: clf}
-
 	t.Logf("Training Graph Neural Network: hiddenDim=%d, layers=%d, epochs=%d, batchSize=%d, samples=%d",
 		gnnCfg.HiddenDim, gnnCfg.NumLayers, gnnCfg.Epochs, gnnCfg.BatchSize, len(trainFeats))
 
-	// Train GNN
 	finalLoss := clf.Train(trainFeats, trainLabels, gnnCfg.Epochs, gnnCfg.BatchSize, func(p float64) {
 		t.setTrainingProgress(p)
-		// Log every 10%
 		percent := int(p * 100)
 		if percent%10 == 0 && percent > 0 {
 			t.Logf("GNN training progress: %d%%...", percent)
 		}
 	})
-
 	t.Logf("GNN training complete. Final cross-entropy loss: %.4f", finalLoss)
 
-	// Evaluation
 	trainCorrect := 0
-	for i, feat := range trainFeats {
-		cls, _, _ := clf.PredictClass(feat)
-		if cls == trainLabels[i] {
+	for i, features := range trainFeats {
+		class, _, _ := clf.PredictClass(features)
+		if class == trainLabels[i] {
 			trainCorrect++
 		}
 	}
-	trainAcc := float64(trainCorrect) / float64(len(trainFeats))
-
-	valAcc := trainAcc
-	if len(valFeats) > 0 {
-		valCorrect := 0
-		for i, feat := range valFeats {
-			cls, _, _ := clf.PredictClass(feat)
-			if cls == valLabels[i] {
-				valCorrect++
-			}
+	trainAccuracy := float64(trainCorrect) / float64(len(trainFeats))
+	validationCorrect := 0
+	for i, features := range valFeats {
+		class, _, _ := clf.PredictClass(features)
+		if class == valLabels[i] {
+			validationCorrect++
 		}
-		valAcc = float64(valCorrect) / float64(len(valFeats))
 	}
+	validationAccuracy := float64(validationCorrect) / float64(len(valFeats))
 
-	t.Logf("GNN accuracy: train=%.2f%%, validation=%.2f%%", trainAcc*100, valAcc*100)
-
-	t.finishMetrics(valAcc, trainAcc, valAcc, len(labeled), len(trainFeats), len(valFeats))
-
-	shuffledLabeled := make([]TrainingSample, len(labeled))
-	for i, idx := range indices {
-		shuffledLabeled[i] = labeled[idx]
-	}
-	t.setLastSplit(shuffledLabeled[:splitIdx], shuffledLabeled[splitIdx:])
-
+	t.Logf("GNN accuracy: train=%.2f%%, validation=%.2f%%", trainAccuracy*100, validationAccuracy*100)
+	t.finishMetrics(validationAccuracy, trainAccuracy, validationAccuracy, len(labeled), len(trainRaw), len(validationRaw))
+	t.setLastSplit(trainRaw, validationRaw)
 	return m, TrainResult{
-		Accuracy:           valAcc,
-		TrainAccuracy:      trainAcc,
-		ValidationAccuracy: valAcc,
+		Accuracy:           validationAccuracy,
+		TrainAccuracy:      trainAccuracy,
+		ValidationAccuracy: validationAccuracy,
 		NumSamples:         len(labeled),
-		TrainSamples:       len(trainFeats),
-		ValidationSamples:  len(valFeats),
+		TrainSamples:       len(trainRaw),
+		ValidationSamples:  len(validationRaw),
 	}
 }
 

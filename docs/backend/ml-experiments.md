@@ -167,14 +167,11 @@ rtk bash -lc 'cd backend && RUNTIME_REPLAY_OUT=../reports/runtime-replay-manual/
 3. 再在准确率接近时比较 ALLOW 通过率
 4. 最后比较训练/推理成本
 
-### 3.3 Holdout-comparable 与 optimistic 的区别
+### 3.3 Holdout 可比性
 
-文档中把模型分成两类：
+可比性按每条训练结果的实际划分判断，不按模型名称判断。内置 trainer 使用 `PrepareAutoTuneSplit` 按命令、argv 或特征行为签名分组；同组重复样本不会跨越训练集与验证集。有效留出结果必须同时有训练样本和验证样本、两者计数之和不能超过该数据集样本总数，并带有 `holdoutStrategy=grouped_behavior_v1`。
 
-- **holdout-comparable**：如 `random_forest`、`extra_trees`、`logistic`、`svm`、`perceptron`、`passive_aggressive`、`ensemble`
-- **train-set-based / optimistic**：如 `knn`、`ridge`、`adaboost`、`naive_bayes`
-
-前者更适合作为主决策依据，后者更适合作为参考和回归检查。
+旧 CSV 缺少 `holdoutStrategy`，无法区分分组留出与旧版 graph/GAN 的逐行随机划分；恢复运行会拒绝这些缓存并重新计算。仅使用训练样本打分、没有验证样本的结果属于 optimistic，不参与 holdout 最优项和稳定性排序。查看 `results.csv` 的 `trainSamples`、`validationSamples`、`numSamples` 与 `holdoutStrategy`；检查 `stability-summary.csv` 的 `comparable` 列。
 
 ### 3.4 如何读 `best.json`
 

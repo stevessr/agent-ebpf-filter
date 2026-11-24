@@ -21,6 +21,13 @@ type AgentLsmEnforcerLsmEnforcerStats struct {
 	FileBlocked uint64
 }
 
+type AgentLsmEnforcerLsmInodeKey struct {
+	_     structs.HostLayout
+	S_dev uint32
+	Pad   uint32
+	I_ino uint64
+}
+
 type AgentLsmEnforcerLsmNameKey struct {
 	_    structs.HostLayout
 	Name [64]int8
@@ -38,6 +45,7 @@ const (
 	AgentLsmEnforcerMapLsmBlockedExecNames        = "lsm_blocked_exec_names"
 	AgentLsmEnforcerMapLsmBlockedExecPaths        = "lsm_blocked_exec_paths"
 	AgentLsmEnforcerMapLsmBlockedFileNames        = "lsm_blocked_file_names"
+	AgentLsmEnforcerMapLsmBlockedInodes           = "lsm_blocked_inodes"
 	AgentLsmEnforcerMapLsmEnforcerStatsMap        = "lsm_enforcer_stats_map"
 	AgentLsmEnforcerProgLsmEnforceBprmCheck       = "lsm_enforce_bprm_check"
 	AgentLsmEnforcerProgLsmEnforceFileMprotect    = "lsm_enforce_file_mprotect"
@@ -121,6 +129,7 @@ type AgentLsmEnforcerMapSpecs struct {
 	LsmBlockedExecNames *ebpf.MapSpec `ebpf:"lsm_blocked_exec_names"`
 	LsmBlockedExecPaths *ebpf.MapSpec `ebpf:"lsm_blocked_exec_paths"`
 	LsmBlockedFileNames *ebpf.MapSpec `ebpf:"lsm_blocked_file_names"`
+	LsmBlockedInodes    *ebpf.MapSpec `ebpf:"lsm_blocked_inodes"`
 	LsmEnforcerStatsMap *ebpf.MapSpec `ebpf:"lsm_enforcer_stats_map"`
 }
 
@@ -154,6 +163,7 @@ type AgentLsmEnforcerMaps struct {
 	LsmBlockedExecNames *ebpf.Map `ebpf:"lsm_blocked_exec_names"`
 	LsmBlockedExecPaths *ebpf.Map `ebpf:"lsm_blocked_exec_paths"`
 	LsmBlockedFileNames *ebpf.Map `ebpf:"lsm_blocked_file_names"`
+	LsmBlockedInodes    *ebpf.Map `ebpf:"lsm_blocked_inodes"`
 	LsmEnforcerStatsMap *ebpf.Map `ebpf:"lsm_enforcer_stats_map"`
 }
 
@@ -162,6 +172,7 @@ func (m *AgentLsmEnforcerMaps) Close() error {
 		m.LsmBlockedExecNames,
 		m.LsmBlockedExecPaths,
 		m.LsmBlockedFileNames,
+		m.LsmBlockedInodes,
 		m.LsmEnforcerStatsMap,
 	)
 }

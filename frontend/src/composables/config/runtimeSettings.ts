@@ -46,6 +46,7 @@ export const defaultDomainForwardProxy = (): DomainForwardProxySettings => ({
   keyFile: "",
   tlsInterceptEnabled: false,
   tlsInterceptAllowlist: "",
+  tlsInterceptCaMode: "local",
   tlsInterceptCaCertFile: "",
   tlsInterceptCaKeyFile: "",
   tlsInterceptLeafTtlSeconds: 43200,
@@ -327,6 +328,11 @@ export const normalizeDomainForwardProxy = (
     ),
     tlsInterceptEnabled:
       value?.tlsInterceptEnabled ?? defaults.tlsInterceptEnabled,
+    tlsInterceptCaMode:
+      value?.tlsInterceptCaMode === "emudhra" ||
+      value?.tlsInterceptCaMode === "emudhra-old"
+        ? value.tlsInterceptCaMode
+        : "local",
     tlsInterceptLeafTtlSeconds: Number(
       value?.tlsInterceptLeafTtlSeconds ||
         defaults.tlsInterceptLeafTtlSeconds,

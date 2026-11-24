@@ -16,8 +16,8 @@ const props = defineProps<{
 const themedOptions = computed(() => ({
   ...props.chartOptions,
   theme: { ...props.chartOptions?.theme, mode: systemIsDark.value ? "dark" : "light" },
-  chart: { ...props.chartOptions?.chart, foreColor: systemIsDark.value ? "#bdc4d1" : "#475569" },
-  grid: { ...props.chartOptions?.grid, borderColor: systemIsDark.value ? "#334155" : "#e2e8f0" },
+  chart: { ...props.chartOptions?.chart, foreColor: systemIsDark.value ? "#b8c6dc" : "#475569" },
+  grid: { ...props.chartOptions?.grid, borderColor: systemIsDark.value ? "#344256" : "#d8e2f0" },
   tooltip: { ...props.chartOptions?.tooltip, theme: systemIsDark.value ? "dark" : "light" },
 }));
 

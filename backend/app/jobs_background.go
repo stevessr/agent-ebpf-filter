@@ -74,7 +74,7 @@ func startKernelEventReader(ctx context.Context, rd kernelEventReader, jobs *run
 		selfPid := uint32(os.Getpid())
 		// Consume synchronously. Zero-copy decode views must never outlive a
 		// callback because the next ReadInto can reuse the sample buffer.
-		_ = collectorstream.Pump(rd, bpfEventSampleSize, func(raw []byte) {
+		if err := collectorstream.Pump(rd, bpfEventSampleSize, func(raw []byte) {
 			event, zeroCopy, err := decodeBPFEventRecord(raw)
 			collectorMetricsStore.RecordRingbufDecode(zeroCopy)
 			if err != nil {
@@ -88,7 +88,9 @@ func startKernelEventReader(ctx context.Context, rd kernelEventReader, jobs *run
 				return
 			}
 			enqueueBroadcastEvent(broadcast, buildKernelEventFromRaw(event), "kernel_event_reader")
-		})
+		}); err != nil && ctx.Err() == nil {
+			log.Printf("[WARN] kernel event reader stopped unexpectedly: %v", err)
+		}
 	})
 	jobs.Go(func() {
 		collectorstream.CloseOnCancel(ctx, rd)
@@ -113,35 +115,26 @@ func startRuntimeBackgroundJobs(ctx context.Context, features *FeatureRegistry) 
 	}
 	jobs.Go(func() { runSemanticAlertStateGC(ctx, semanticAlertsState, semanticStateGCInterval) })
 	jobs.Go(func() { runToolBaselineGC(ctx, toolBaseline, toolBaselineEvictionInterval) })
+	shutdownWorker := func(name string, fn func(context.Context) error) {
+		jobs.Go(func() {
+			<-ctx.Done()
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+			defer cancel()
+			if err := fn(shutdownCtx); err != nil {
+				log.Printf("[WARN] %s did not stop cleanly: %v", name, err)
+			}
+		})
+	}
 	startKernelRiskFeedbackWorker(ctx)
 	startLoopDetectionWorker(ctx)
 	research.StartProcessingWorker(ctx)
-	jobs.Go(func() {
-		<-ctx.Done()
-		_ = shutdownKernelRiskFeedbackWorker(context.Background())
-	})
-	jobs.Go(func() {
-		<-ctx.Done()
-		_ = loopDetectionWorkerStore.Shutdown(context.Background())
-	})
-	jobs.Go(func() {
-		<-ctx.Done()
-		_ = research.ProcessingWorker.Shutdown(context.Background())
-	})
+	shutdownWorker("kernel risk feedback worker", shutdownKernelRiskFeedbackWorker)
+	shutdownWorker("loop detection worker", loopDetectionWorkerStore.Shutdown)
+	shutdownWorker("research processing worker", research.ProcessingWorker.Shutdown)
 	startSignalProcessingWorker(ctx)
-	jobs.Go(func() {
-		<-ctx.Done()
-		_ = signalProcessingWorkerStore.Shutdown(context.Background())
-	})
+	shutdownWorker("signal processing worker", signalProcessingWorkerStore.Shutdown)
 	startSignalProgramLogWriter(ctx)
-	jobs.Go(func() {
-		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-		defer cancel()
-		if err := signalProgramLogWriterStore.Shutdown(shutdownCtx); err != nil {
-			log.Printf("[WARN] signal program log writer did not stop cleanly: %v", err)
-		}
-	})
+	shutdownWorker("signal program log writer", signalProgramLogWriterStore.Shutdown)
 	jobs.Go(func() {
 		<-ctx.Done()
 		// Leave the runtime job group enough time to observe this goroutine exit

@@ -18,6 +18,10 @@ func (t *ModelTrainer) trainNaiveBayes(store *TrainingDataStore, cfg MLConfig) (
 	if len(labeled) < 10 {
 		return nil, TrainResult{Error: "need >=10 labeled samples"}
 	}
+	trainSet, valSet, trainRaw, valRaw, err := PrepareAutoTuneSplit(labeled, cfg.ValidationSplitRatio)
+	if err != nil {
+		return nil, TrainResult{Error: err.Error()}
+	}
 
 	m := NewNaiveBayes()
 	m.Means = make([][FeatureDim]float64, m.Classes)
@@ -25,7 +29,7 @@ func (t *ModelTrainer) trainNaiveBayes(store *TrainingDataStore, cfg MLConfig) (
 	m.Priors = make([]float64, m.Classes)
 	counts := make([]int, m.Classes)
 
-	for _, s := range labeled {
+	for _, s := range trainRaw {
 		if s.Label < 0 || int(s.Label) >= m.Classes {
 			continue
 		}
@@ -35,7 +39,7 @@ func (t *ModelTrainer) trainNaiveBayes(store *TrainingDataStore, cfg MLConfig) (
 			m.Means[c][d] += s.Features[d]
 		}
 	}
-	n := float64(len(labeled))
+	n := float64(len(trainRaw))
 	nonEmptyClasses := 0
 	for _, count := range counts {
 		if count > 0 {
@@ -55,7 +59,7 @@ func (t *ModelTrainer) trainNaiveBayes(store *TrainingDataStore, cfg MLConfig) (
 		}
 	}
 	// Compute variances
-	for _, s := range labeled {
+	for _, s := range trainRaw {
 		if s.Label < 0 || int(s.Label) >= m.Classes {
 			continue
 		}
@@ -74,10 +78,12 @@ func (t *ModelTrainer) trainNaiveBayes(store *TrainingDataStore, cfg MLConfig) (
 	}
 
 	t.Logf("Naive Bayes 训练完成：classes=%d", m.Classes)
-	acc := evalModelLabeled(m, labeled)
-	t.finishMetrics(acc, acc, acc, len(labeled), len(labeled), 0)
-	t.setLastSplit(labeled, labeled)
-	return m, TrainResult{Accuracy: acc, TrainAccuracy: acc, ValidationAccuracy: acc, NumSamples: len(labeled), TrainSamples: len(labeled)}
+	trainAcc := EvalModelSamples(m, trainSet)
+	valAcc := EvalModelSamples(m, valSet)
+	t.finishMetrics(valAcc, trainAcc, valAcc, len(labeled), len(trainSet), len(valSet))
+	t.setLastSplit(trainRaw, valRaw)
+	return m, TrainResult{Accuracy: valAcc, TrainAccuracy: trainAcc, ValidationAccuracy: valAcc,
+		NumSamples: len(labeled), TrainSamples: len(trainSet), ValidationSamples: len(valSet)}
 }
 
 // ── Nearest Centroid ───────────────────────────────────────────────
@@ -163,11 +169,10 @@ func (t *ModelTrainer) trainExtraTrees(store *TrainingDataStore, cfg MLConfig) (
 		return nil, TrainResult{Error: "insufficient labeled samples"}
 	}
 
-	samples := make([]TrainSample, len(labeled))
-	for i, s := range labeled {
-		samples[i] = TrainSample{features: s.Features, label: s.Label}
+	trainSet, valSet, trainRaw, validationRaw, err := PrepareAutoTuneSplit(labeled, cfg.ValidationSplitRatio)
+	if err != nil {
+		return nil, TrainResult{Error: err.Error()}
 	}
-	trainSet, valSet, _, _, _ := PrepareAutoTuneSplit(labeled, cfg.ValidationSplitRatio)
 
 	nt := cfg.NumTrees
 	if nt < 1 {
@@ -182,14 +187,15 @@ func (t *ModelTrainer) trainExtraTrees(store *TrainingDataStore, cfg MLConfig) (
 		ml = 5
 	}
 
-	forest := BuildExtraTrees(samples, nt, md, ml, time.Now().UnixNano())
+	forest := BuildExtraTreesWithBalance(trainSet, nt, md, ml, time.Now().UnixNano(), cfg.BalanceClasses)
 	m := &ExtraTreesModel{Forest: forest, NumTrees: nt, MaxDepth: md}
 
 	t.Logf("Extra Trees 训练完成：trees=%d, depth=%d", nt, md)
 	trainAcc := EvalModelSamples(m, trainSet)
 	valAcc := EvalModelSamples(m, valSet)
 	t.finishMetrics(valAcc, trainAcc, valAcc, len(labeled), len(trainSet), len(valSet))
-	t.setLastSplit(ToTrainingSamples(trainSet), ToTrainingSamples(valSet))
+	t.setValidationRatio(float64(len(valSet)) / float64(len(labeled)))
+	t.setLastSplit(trainRaw, validationRaw)
 	return m, TrainResult{Accuracy: valAcc, TrainAccuracy: trainAcc, ValidationAccuracy: valAcc, NumSamples: len(labeled), TrainSamples: len(trainSet), ValidationSamples: len(valSet)}
 }
 
@@ -212,100 +218,132 @@ func (t *ModelTrainer) trainAdaBoost(store *TrainingDataStore, cfg MLConfig) (Mo
 	}
 	m := NewAdaBoost(nEst)
 
-	samples := make([]TrainSample, len(labeled))
-	for i, s := range labeled {
-		samples[i] = TrainSample{features: s.Features, label: s.Label}
+	// AdaBoost's previous TrainResult reported training accuracy as held-out
+	// validation accuracy. Use the same duplicate-safe split as other models.
+	trainSet, validationSet, trainRaw, validationRaw, err := PrepareAutoTuneSplit(labeled, cfg.ValidationSplitRatio)
+	if err != nil {
+		return nil, TrainResult{Error: err.Error()}
 	}
-
+	samples := trainSet
 	n := len(samples)
 	weights := make([]float64, n)
-	for i := range weights {
-		weights[i] = 1.0 / float64(n)
+	var classCounts [4]int
+	for _, sample := range samples {
+		if sample.label >= 0 && sample.label < 4 {
+			classCounts[sample.label]++
+		}
 	}
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i, sample := range samples {
+		weights[i] = 1
+		if cfg.BalanceClasses && sample.label >= 0 && sample.label < 4 && classCounts[sample.label] > 0 {
+			weights[i] = 1 / float64(classCounts[sample.label])
+		}
+	}
+	normalizeWeights := func() bool {
+		total := 0.0
+		for _, weight := range weights {
+			total += weight
+		}
+		if total <= 0 || math.IsNaN(total) || math.IsInf(total, 0) {
+			return false
+		}
+		for i := range weights {
+			weights[i] /= total
+		}
+		return true
+	}
+	if !normalizeWeights() {
+		return nil, TrainResult{Error: "AdaBoost requires valid labels and weights"}
+	}
 
+	// Discrete SAMME boosting supports all four security actions. The old
+	// binary-only stumps could never predict REWRITE/ALERT and mislabeled their
+	// samples as errors even when the feature evidence separated them.
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	for e := 0; e < nEst; e++ {
 		t.setTrainingProgress(float64(e) / float64(nEst))
 		if t.IsCancelled() {
 			return nil, TrainResult{Error: "cancelled"}
 		}
-
-		// Weighted sampling
-		cum := make([]float64, n)
-		cum[0] = weights[0]
-		for i := 1; i < n; i++ {
-			cum[i] = cum[i-1] + weights[i]
-		}
-		totalW := cum[n-1]
-
-		// Find best stump: sample a few random features and thresholds
 		bestStump := AdaBoostStump{Feature: -1}
-		bestErr := 1e9
-		for tries := 0; tries < 50; tries++ {
-			fi := rng.Intn(FeatureDim)
-			si := rng.Intn(n)
-			thresh := samples[si].features[fi]
-
-			var leftErr, rightErr, leftW, rightW float64
-			for i, s := range samples {
-				if s.features[fi] < thresh {
-					if s.label != 1 {
-						leftErr += weights[i]
-					}
-					leftW += weights[i]
-				} else {
-					if s.label != 0 {
-						rightErr += weights[i]
-					}
-					rightW += weights[i]
+		bestError := math.Inf(1)
+		for trial := 0; trial < 50; trial++ {
+			feature := rng.Intn(FeatureDim)
+			threshold := samples[rng.Intn(n)].features[feature]
+			var sideWeights [2][4]float64
+			var sideTotals [2]float64
+			for i, sample := range samples {
+				if sample.label < 0 || sample.label >= 4 {
+					continue
 				}
+				side := 0
+				if sample.features[feature] >= threshold {
+					side = 1
+				}
+				sideWeights[side][sample.label] += weights[i]
+				sideTotals[side] += weights[i]
 			}
-			err := (leftErr + rightErr) / totalW
-			if err < bestErr {
-				bestErr = err
+			if sideTotals[0] <= 0 || sideTotals[1] <= 0 {
+				continue
+			}
+			votes := [2]int{}
+			correctWeight := 0.0
+			for side := 0; side < 2; side++ {
+				for c := 1; c < 4; c++ {
+					if sideWeights[side][c] > sideWeights[side][votes[side]] {
+						votes[side] = c
+					}
+				}
+				correctWeight += sideWeights[side][votes[side]]
+			}
+			errorRate := 1 - correctWeight
+			if errorRate < bestError {
+				bestError = errorRate
 				bestStump = AdaBoostStump{
-					Feature: fi, Threshold: thresh,
-					LeftVote: float64(1), RightVote: float64(0),
-				}
-				if leftErr/leftW > rightErr/rightW {
-					bestStump.LeftVote = 0
-					bestStump.RightVote = 1
+					Feature: feature, Threshold: threshold,
+					LeftVote: float64(votes[0]), RightVote: float64(votes[1]),
 				}
 			}
 		}
-		if bestStump.Feature < 0 {
+		// SAMME requires a classifier better than 1/K random accuracy.
+		if bestStump.Feature < 0 || bestError >= 1-1/float64(m.Classes) {
 			continue
 		}
-
-		// Compute alpha
-		err := math.Max(bestErr, 1e-10)
-		alpha := 0.5 * math.Log((1-err)/err)
-		if alpha <= 0 {
+		errorRate := math.Max(1e-10, bestError)
+		alpha := math.Log((1-errorRate)/errorRate) + math.Log(float64(m.Classes-1))
+		if alpha <= 0 || math.IsNaN(alpha) || math.IsInf(alpha, 0) {
 			continue
 		}
-
-		// Update weights
-		for i, s := range samples {
-			pred := 0
-			if s.features[bestStump.Feature] < bestStump.Threshold {
-				pred = int(bestStump.LeftVote)
-			} else {
-				pred = int(bestStump.RightVote)
-			}
-			if pred != int(s.label) {
-				weights[i] *= math.Exp(alpha)
-			}
-		}
-
 		m.Stumps = append(m.Stumps, bestStump)
 		m.Alphas = append(m.Alphas, alpha)
+		penalty := math.Exp(alpha)
+		for i, sample := range samples {
+			pred := int32(bestStump.RightVote)
+			if sample.features[bestStump.Feature] < bestStump.Threshold {
+				pred = int32(bestStump.LeftVote)
+			}
+			if pred != sample.label {
+				weights[i] *= penalty
+			}
+		}
+		if !normalizeWeights() {
+			return nil, TrainResult{Error: "AdaBoost sample weights became non-finite"}
+		}
 	}
 
-	t.Logf("AdaBoost 训练完成：estimators=%d", len(m.Stumps))
-	acc := EvalModelSamples(m, samples)
-	t.finishMetrics(acc, acc, acc, len(labeled), len(samples), 0)
-	t.setLastSplit(labeled, labeled)
-	return m, TrainResult{Accuracy: acc, TrainAccuracy: acc, ValidationAccuracy: acc, NumSamples: len(labeled), TrainSamples: len(samples)}
+	if len(m.Stumps) == 0 {
+		return nil, TrainResult{Error: "AdaBoost found no weak learner better than random"}
+	}
+	t.Logf("AdaBoost 训练完成：estimators=%d, train=%d, validation=%d", len(m.Stumps), len(trainSet), len(validationSet))
+	trainAcc := EvalModelSamples(m, trainSet)
+	valAcc := EvalModelSamples(m, validationSet)
+	t.finishMetrics(valAcc, trainAcc, valAcc, len(labeled), len(trainSet), len(validationSet))
+	t.setValidationRatio(float64(len(validationSet)) / float64(len(labeled)))
+	t.setLastSplit(trainRaw, validationRaw)
+	return m, TrainResult{
+		Accuracy: valAcc, TrainAccuracy: trainAcc, ValidationAccuracy: valAcc,
+		NumSamples: len(labeled), TrainSamples: len(trainSet), ValidationSamples: len(validationSet),
+	}
 }
 
 // ── Ensemble ───────────────────────────────────────────────────────
@@ -321,16 +359,26 @@ func (t *ModelTrainer) trainEnsemble(store *TrainingDataStore, cfg MLConfig) (Mo
 		return nil, TrainResult{Error: "need >=10 labeled samples"}
 	}
 
-	model := BuildEnsembleFromStore(store)
+	// Weight calibration is nested inside the outer training partition.
+	trainSet, valSet, trainRaw, valRaw, err := PrepareAutoTuneSplit(labeled, cfg.ValidationSplitRatio)
+	if err != nil {
+		return nil, TrainResult{Error: err.Error()}
+	}
+	trainingStore := NewTrainingDataStore(len(trainRaw))
+	for _, sample := range trainRaw {
+		trainingStore.Add(sample)
+	}
+	model := BuildEnsembleFromStore(trainingStore)
 	if model == nil {
 		return nil, TrainResult{Error: "failed to build ensemble"}
 	}
 	model.Voting = normalizeEnsembleVoting(cfg.EnsembleVoting)
-
-	samples := ToTrainSamples(labeled)
-	acc := EvalModelSamples(model, samples)
-	t.Logf("Ensemble 训练完成: voting=%s, models=%d", model.Voting, len(model.Models))
-	t.finishMetrics(acc, acc, acc, len(labeled), len(samples), 0)
-	t.setLastSplit(labeled, labeled)
-	return model, TrainResult{Accuracy: acc, TrainAccuracy: acc, ValidationAccuracy: acc, NumSamples: len(labeled), TrainSamples: len(samples)}
+	trainAcc := EvalModelSamples(model, trainSet)
+	valAcc := EvalModelSamples(model, valSet)
+	t.Logf("Ensemble 训练完成: voting=%s, models=%d, train=%d, validation=%d",
+		model.Voting, len(model.Models), len(trainSet), len(valSet))
+	t.finishMetrics(valAcc, trainAcc, valAcc, len(labeled), len(trainSet), len(valSet))
+	t.setLastSplit(trainRaw, valRaw)
+	return model, TrainResult{Accuracy: valAcc, TrainAccuracy: trainAcc, ValidationAccuracy: valAcc,
+		NumSamples: len(labeled), TrainSamples: len(trainSet), ValidationSamples: len(valSet)}
 }

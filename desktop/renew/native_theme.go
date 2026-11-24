@@ -5,28 +5,29 @@ import "github.com/egoist/mygo/ui"
 // styleRenewWorkspaceTheme recolors the workspace without fixing its
 // appearance. MyGo's default frame theme tracks the platform appearance,
 // system accent, text scale, and accessibility preferences. Apply only our
-// editor-inspired shell palette after copying that live theme.
+// shared Web/Desktop shell palette after copying that live theme.
+// See docs/design/web-desktop-ui.md for the cross-platform token contract.
 func styleRenewWorkspaceTheme(dst, system *ui.Theme, highContrast bool) {
 	*dst = *system
 	if system.Dark {
-		dst.Background = ui.Hex("#0d111b")
-		dst.Surface = ui.Hex("#151b27")
-		dst.SurfaceHover = ui.Hex("#202a3b")
-		dst.SurfacePressed = ui.Hex("#29364d")
+		dst.Background = ui.Hex("#111318")
+		dst.Surface = ui.Hex("#191c22")
+		dst.SurfaceHover = ui.Hex("#212834")
+		dst.SurfacePressed = ui.Hex("#232c3b")
 		if !highContrast {
-			dst.Text = ui.Hex("#e8edf5")
-			dst.Border = ui.Hex("#2b3546")
-			dst.TextMuted = ui.Hex("#94a1b5")
+			dst.Text = ui.Hex("#e5edf9")
+			dst.Border = ui.Hex("#344256")
+			dst.TextMuted = ui.Hex("#98a9c1")
 		}
 	} else {
-		dst.Background = ui.Hex("#f6f8fc")
+		dst.Background = ui.Hex("#f8fafc")
 		dst.Surface = ui.Hex("#ffffff")
-		dst.SurfaceHover = ui.Hex("#edf2fa")
-		dst.SurfacePressed = ui.Hex("#dde7f5")
+		dst.SurfaceHover = ui.Hex("#f1f5f9")
+		dst.SurfacePressed = ui.Hex("#e9f1fe")
 		if !highContrast {
-			dst.Text = ui.Hex("#1c2738")
-			dst.Border = ui.Hex("#d9e1ed")
-			dst.TextMuted = ui.Hex("#607187")
+			dst.Text = ui.Hex("#1f2937")
+			dst.Border = ui.Hex("#d8e2f0")
+			dst.TextMuted = ui.Hex("#64748b")
 		}
 	}
 	// Native theme values for Accent, HighContrast borders (when enabled),

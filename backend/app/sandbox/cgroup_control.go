@@ -23,6 +23,8 @@ type cgroupSandboxMaps struct {
 	IPBlocklist     *ebpf.Map
 	IP6Blocklist    *ebpf.Map
 	PortBlocklist   *ebpf.Map
+	CIDRBlocklist   *ebpf.Map
+	CIDR6Blocklist  *ebpf.Map
 	SandboxStats    *ebpf.Map
 	Links           []link.Link
 	LinkPins        []string
@@ -90,6 +92,8 @@ func cgroupSandboxAvailableLocked() bool {
 		cgroupSandbox.IPBlocklist != nil &&
 		cgroupSandbox.IP6Blocklist != nil &&
 		cgroupSandbox.PortBlocklist != nil &&
+		cgroupSandbox.CIDRBlocklist != nil &&
+		cgroupSandbox.CIDR6Blocklist != nil &&
 		cgroupSandbox.SandboxStats != nil
 }
 
@@ -108,6 +112,8 @@ type CgroupSandboxSnapshot struct {
 	IPBlocklist     *ebpf.Map
 	IP6Blocklist    *ebpf.Map
 	PortBlocklist   *ebpf.Map
+	CIDRBlocklist   *ebpf.Map
+	CIDR6Blocklist  *ebpf.Map
 	SandboxStats    *ebpf.Map
 	LinkCount       int
 	LinkPins        []string
@@ -123,6 +129,8 @@ func CurrentCgroupSandboxSnapshot() CgroupSandboxSnapshot {
 		IPBlocklist:     cgroupSandbox.IPBlocklist,
 		IP6Blocklist:    cgroupSandbox.IP6Blocklist,
 		PortBlocklist:   cgroupSandbox.PortBlocklist,
+		CIDRBlocklist:   cgroupSandbox.CIDRBlocklist,
+		CIDR6Blocklist:  cgroupSandbox.CIDR6Blocklist,
 		SandboxStats:    cgroupSandbox.SandboxStats,
 		LinkCount:       len(cgroupSandbox.Links),
 		LinkPins:        append([]string(nil), cgroupSandbox.LinkPins...),
@@ -133,6 +141,10 @@ func CurrentCgroupSandboxSnapshot() CgroupSandboxSnapshot {
 
 func (s CgroupSandboxSnapshot) Available() bool {
 	return s.CgroupBlocklist != nil && s.IPBlocklist != nil && s.IP6Blocklist != nil && s.PortBlocklist != nil && s.SandboxStats != nil
+}
+
+func (s CgroupSandboxSnapshot) CIDRSupported() bool {
+	return s.CIDRBlocklist != nil && s.CIDR6Blocklist != nil
 }
 
 func (s CgroupSandboxSnapshot) Attached() bool {
@@ -262,6 +274,8 @@ func pinCgroupSandboxMaps(objs *bpf.AgentCgroupSandboxObjects) error {
 		"ip_blocklist":         objs.IpBlocklist,
 		"ip6_blocklist":        objs.Ip6Blocklist,
 		"port_blocklist":       objs.PortBlocklist,
+		"cidr_blocklist":       objs.CidrBlocklist,
+		"cidr6_blocklist":      objs.Cidr6Blocklist,
 		"cgroup_sandbox_stats": objs.CgroupSandboxStats,
 	} {
 		if err := m.Pin(filepath.Join(cgroupSandboxMapsDir, name)); err != nil {
@@ -272,7 +286,7 @@ func pinCgroupSandboxMaps(objs *bpf.AgentCgroupSandboxObjects) error {
 }
 
 func loadPinnedCgroupSandboxMaps() (map[string]*ebpf.Map, error) {
-	names := []string{"cgroup_blocklist", "ip_blocklist", "ip6_blocklist", "port_blocklist", "cgroup_sandbox_stats"}
+	names := []string{"cgroup_blocklist", "ip_blocklist", "ip6_blocklist", "port_blocklist", "cidr_blocklist", "cidr6_blocklist", "cgroup_sandbox_stats"}
 	maps := make(map[string]*ebpf.Map, len(names))
 	for _, name := range names {
 		m, err := ebpf.LoadPinnedMap(filepath.Join(cgroupSandboxMapsDir, name), nil)
@@ -293,29 +307,65 @@ func ensureCgroupSandboxPinnedMapCompatibility() error {
 		return fmt.Errorf("stat cgroup sandbox maps dir: %w", err)
 	}
 
-	ip6Path := filepath.Join(cgroupSandboxMapsDir, "ip6_blocklist")
-	if _, err := os.Stat(ip6Path); err == nil {
-		return nil
-	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("stat cgroup sandbox IPv6 blocklist map: %w", err)
+	const bpfFNoPrealloc uint32 = 1
+	compatSpecs := []struct {
+		name string
+		spec *ebpf.MapSpec
+	}{
+		{
+			name: "ip6_blocklist",
+			spec: &ebpf.MapSpec{
+				Name:       "ip6_blocklist",
+				Type:       ebpf.Hash,
+				KeySize:    16,
+				ValueSize:  4,
+				MaxEntries: 1024,
+			},
+		},
+		{
+			name: "cidr_blocklist",
+			spec: &ebpf.MapSpec{
+				Name:       "cidr_blocklist",
+				Type:       ebpf.LPMTrie,
+				KeySize:    8,
+				ValueSize:  4,
+				MaxEntries: 1024,
+				Flags:      bpfFNoPrealloc,
+			},
+		},
+		{
+			name: "cidr6_blocklist",
+			spec: &ebpf.MapSpec{
+				Name:       "cidr6_blocklist",
+				Type:       ebpf.LPMTrie,
+				KeySize:    20,
+				ValueSize:  4,
+				MaxEntries: 1024,
+				Flags:      bpfFNoPrealloc,
+			},
+		},
 	}
 
-	m, err := ebpf.NewMap(&ebpf.MapSpec{
-		Name:       "ip6_blocklist",
-		Type:       ebpf.Hash,
-		KeySize:    16,
-		ValueSize:  4,
-		MaxEntries: 1024,
-	})
-	if err != nil {
-		return fmt.Errorf("create missing cgroup sandbox IPv6 blocklist map: %w", err)
-	}
-	defer m.Close()
-	if err := m.Pin(ip6Path); err != nil {
-		return fmt.Errorf("pin missing cgroup sandbox IPv6 blocklist map: %w", err)
-	}
-	if err := os.Chmod(ip6Path, CgroupSandboxMapPinMode); err != nil {
-		return fmt.Errorf("chmod missing cgroup sandbox IPv6 blocklist map: %w", err)
+	for _, entry := range compatSpecs {
+		pinPath := filepath.Join(cgroupSandboxMapsDir, entry.name)
+		if _, err := os.Stat(pinPath); err == nil {
+			continue
+		} else if !os.IsNotExist(err) {
+			return fmt.Errorf("stat cgroup sandbox %s map: %w", entry.name, err)
+		}
+
+		m, err := ebpf.NewMap(entry.spec)
+		if err != nil {
+			return fmt.Errorf("create missing cgroup sandbox %s map: %w", entry.name, err)
+		}
+		pinErr := m.Pin(pinPath)
+		_ = m.Close()
+		if pinErr != nil {
+			return fmt.Errorf("pin missing cgroup sandbox %s map: %w", entry.name, pinErr)
+		}
+		if err := os.Chmod(pinPath, CgroupSandboxMapPinMode); err != nil {
+			return fmt.Errorf("chmod missing cgroup sandbox %s map: %w", entry.name, err)
+		}
 	}
 	return nil
 }
@@ -442,17 +492,21 @@ func loadCgroupSandboxRuntimeMaps(cgroupPath string, linkPins []string) error {
 	cgroupSandbox.IPBlocklist = maps["ip_blocklist"]
 	cgroupSandbox.IP6Blocklist = maps["ip6_blocklist"]
 	cgroupSandbox.PortBlocklist = maps["port_blocklist"]
+	cgroupSandbox.CIDRBlocklist = maps["cidr_blocklist"]
+	cgroupSandbox.CIDR6Blocklist = maps["cidr6_blocklist"]
 	cgroupSandbox.SandboxStats = maps["cgroup_sandbox_stats"]
 	cgroupSandbox.CgroupPath = cgroupPath
 	cgroupSandbox.LinkPins = linkPins
 	cgroupSandbox.LastError = ""
 
-	log.Printf("[CGROUP-SANDBOX] active on %s: cgroup=%v ip=%v ip6=%v port=%v stats=%v links=%d pinned=%d",
+	log.Printf("[CGROUP-SANDBOX] active on %s: cgroup=%v ip=%v ip6=%v port=%v cidr=%v cidr6=%v stats=%v links=%d pinned=%d",
 		cgroupPath,
 		cgroupSandbox.CgroupBlocklist != nil,
 		cgroupSandbox.IPBlocklist != nil,
 		cgroupSandbox.IP6Blocklist != nil,
 		cgroupSandbox.PortBlocklist != nil,
+		cgroupSandbox.CIDRBlocklist != nil,
+		cgroupSandbox.CIDR6Blocklist != nil,
 		cgroupSandbox.SandboxStats != nil,
 		len(cgroupSandbox.Links),
 		len(cgroupSandbox.LinkPins))
@@ -465,7 +519,7 @@ func ensureCgroupSandboxMapPermissions() error {
 			return fmt.Errorf("chmod %s: %w", dir, err)
 		}
 	}
-	for _, name := range []string{"cgroup_blocklist", "ip_blocklist", "ip6_blocklist", "port_blocklist", "cgroup_sandbox_stats"} {
+	for _, name := range []string{"cgroup_blocklist", "ip_blocklist", "ip6_blocklist", "port_blocklist", "cidr_blocklist", "cidr6_blocklist", "cgroup_sandbox_stats"} {
 		path := filepath.Join(cgroupSandboxMapsDir, name)
 		// Keep OS-level enforcement maps writable only by the privileged backend.
 		// Unlike agent registration maps, these policy maps should not be

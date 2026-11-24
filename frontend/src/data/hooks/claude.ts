@@ -30,6 +30,7 @@ export const claudeHook: HookCliDoc = {
   notes: [
     "Claude Code supports many more hook events than the current backend autoinstall target.",
     "For PreToolUse and PostToolUse, tool-specific fields under tool_input/tool_response depend on the tool being invoked.",
+    "Code Mode/programmatic tool calling may package several internal tool calls into one outer code_execution event. The hook adapter hashes source code and labels the outer call when visible; Claude Code hooks do not guarantee visibility of inner calls. eBPF provides separate OS-level evidence.",
   ],
   events: [
     {

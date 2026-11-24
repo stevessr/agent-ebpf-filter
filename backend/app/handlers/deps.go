@@ -263,7 +263,6 @@ var Deps struct {
 	BuildRuntimeConfigResponse             func() core.RuntimeConfigResponse
 	BuildRuntimeConfigResponseFromSettings func(s RuntimeSettings) core.RuntimeConfigResponse
 	RotateAccessToken                      func(settings RuntimeSettings) RuntimeSettings
-	ApplyMLConfigPatch                     func(dst *core.MLConfig, patch interface{})
 
 	// ML backs the model status / training / sample handlers.
 	ML MLService

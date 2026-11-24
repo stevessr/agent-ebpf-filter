@@ -34,6 +34,7 @@ type DomainForwardProxySettings struct {
 	CertFile                   string               `json:"certFile,omitempty"`
 	KeyFile                    string               `json:"keyFile,omitempty"`
 	TLSInterceptEnabled        bool                 `json:"tlsInterceptEnabled"`
+	TLSInterceptCAMode         string               `json:"tlsInterceptCaMode,omitempty"`
 	TLSInterceptAllowlist      string               `json:"tlsInterceptAllowlist,omitempty"`
 	TLSInterceptCACertFile     string               `json:"tlsInterceptCaCertFile,omitempty"`
 	TLSInterceptCAKeyFile      string               `json:"tlsInterceptCaKeyFile,omitempty"`
@@ -55,6 +56,7 @@ type Status struct {
 	AllowAnyHost        bool      `json:"allowAnyHost"`
 	DNSResolver         string    `json:"dnsResolver,omitempty"`
 	TLSInterceptEnabled bool      `json:"tlsInterceptEnabled"`
+	TLSInterceptCAMode  string    `json:"tlsInterceptCaMode,omitempty"`
 	RewriteEnabled      bool      `json:"rewriteEnabled"`
 	PrivacyEnabled      bool      `json:"privacyEnabled"`
 	PrivacyAction       string    `json:"privacyAction,omitempty"`
@@ -191,6 +193,9 @@ func (m *Runtime) startHTTPSServerLocked(settings DomainForwardProxySettings, ha
 	if err != nil {
 		return err
 	}
+	if isCompromisedTLSInterceptCAMode(settings.TLSInterceptCAMode) {
+		log.Printf("[DOMAIN-FORWARD] %s", compromisedTLSInterceptWarning(settings.TLSInterceptCAMode))
+	}
 	addr := net.JoinHostPort(settings.BindAddress, fmt.Sprintf("%d", settings.HTTPSPort))
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -249,6 +254,7 @@ func BuildStatus(settings DomainForwardProxySettings) Status {
 		AllowAnyHost:        settings.AllowAnyHost,
 		DNSResolver:         settings.DNSResolver,
 		TLSInterceptEnabled: settings.TLSInterceptEnabled,
+		TLSInterceptCAMode:  normalizeTLSInterceptCAMode(settings.TLSInterceptCAMode),
 		RewriteEnabled:      settings.Rewrite.Enabled,
 		PrivacyEnabled:      settings.Privacy.Enabled,
 		PrivacyAction:       settings.Privacy.Action,

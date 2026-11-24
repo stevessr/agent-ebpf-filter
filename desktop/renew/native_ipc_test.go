@@ -73,7 +73,6 @@ func TestDecodeEventEnvelopeSummary(t *testing.T) {
 	}
 }
 
-
 func TestDecodeDesktopEventSummary(t *testing.T) {
 	var data []byte
 	data = appendProtoString(data, 1, "evt_compact_1")
@@ -130,7 +129,6 @@ func TestReadNativeFrame(t *testing.T) {
 		t.Fatalf("frame kind=%d payload=%v", kind, got)
 	}
 }
-
 
 func TestReadNativeFrameIntoReusesBuffer(t *testing.T) {
 	var stream bytes.Buffer

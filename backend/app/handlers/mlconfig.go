@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 
 	"github.com/gin-gonic/gin"
 )
@@ -45,7 +47,10 @@ func HandleMLTrainPost(c *gin.Context) {
 		MaxDepth       int `json:"maxDepth"`
 		MinSamplesLeaf int `json:"minSamplesLeaf"`
 	}
-	_ = c.ShouldBindJSON(&req)
+	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+		c.JSON(400, gin.H{"error": "invalid request"})
+		return
+	}
 
 	c.JSON(200, Deps.ML.Train(req.NumTrees, req.MaxDepth, req.MinSamplesLeaf))
 }

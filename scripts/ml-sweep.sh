@@ -154,7 +154,7 @@ fi
 echo "Running model comparison..."
 START_TS=$(date +%s)
 
-go test -run TestMLSweep -v -count=1 -timeout=3600s 2>&1 | tee "${OUTDIR}-raw.log"
+go test ./app/sweep -run TestMLSweep -v -count=1 -timeout=3600s 2>&1 | tee "${OUTDIR}-raw.log"
 
 END_TS=$(date +%s)
 DURATION=$((END_TS - START_TS))

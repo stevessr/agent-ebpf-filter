@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/cilium/ebpf"
 )
@@ -69,6 +70,17 @@ func NormalizeNameStringWithLabel(name, label string) (string, error) {
 	return trimmed, nil
 }
 
+func ensureLsmEnforcerSnapshot() (LsmEnforcerSnapshot, error) {
+	snap := CurrentLsmEnforcerSnapshot()
+	if !snap.Available() || !snap.Attached() {
+		if err := ensureLsmEnforcerLoaded(); err != nil {
+			return LsmEnforcerSnapshot{}, err
+		}
+		snap = CurrentLsmEnforcerSnapshot()
+	}
+	return snap, nil
+}
+
 func BlockExecPath(path string) error { return updateLsmPathBits(path, denyExec, true) }
 
 func UnblockExecPath(path string) error { return updateLsmPathBits(path, denyExec, false) }
@@ -78,12 +90,9 @@ func BlockExecName(name string) error {
 	if err != nil {
 		return err
 	}
-	snap := CurrentLsmEnforcerSnapshot()
-	if !snap.Available() || !snap.Attached() {
-		if err := ensureLsmEnforcerLoaded(); err != nil {
-			return err
-		}
-		snap = CurrentLsmEnforcerSnapshot()
+	snap, err := ensureLsmEnforcerSnapshot()
+	if err != nil {
+		return err
 	}
 	if snap.ExecNameBlocklist == nil {
 		return fmt.Errorf("BPF LSM exec-name blocklist not loaded")
@@ -97,12 +106,9 @@ func UnblockExecName(name string) error {
 	if err != nil {
 		return err
 	}
-	snap := CurrentLsmEnforcerSnapshot()
-	if !snap.Available() || !snap.Attached() {
-		if err := ensureLsmEnforcerLoaded(); err != nil {
-			return err
-		}
-		snap = CurrentLsmEnforcerSnapshot()
+	snap, err := ensureLsmEnforcerSnapshot()
+	if err != nil {
+		return err
 	}
 	if snap.ExecNameBlocklist == nil {
 		return fmt.Errorf("BPF LSM exec-name blocklist not loaded")
@@ -115,12 +121,9 @@ func BlockFileName(name string) error {
 	if err != nil {
 		return err
 	}
-	snap := CurrentLsmEnforcerSnapshot()
-	if !snap.Available() || !snap.Attached() {
-		if err := ensureLsmEnforcerLoaded(); err != nil {
-			return err
-		}
-		snap = CurrentLsmEnforcerSnapshot()
+	snap, err := ensureLsmEnforcerSnapshot()
+	if err != nil {
+		return err
 	}
 	if snap.FileNameBlocklist == nil {
 		return fmt.Errorf("BPF LSM enforcer not loaded")
@@ -134,12 +137,9 @@ func UnblockFileName(name string) error {
 	if err != nil {
 		return err
 	}
-	snap := CurrentLsmEnforcerSnapshot()
-	if !snap.Available() || !snap.Attached() {
-		if err := ensureLsmEnforcerLoaded(); err != nil {
-			return err
-		}
-		snap = CurrentLsmEnforcerSnapshot()
+	snap, err := ensureLsmEnforcerSnapshot()
+	if err != nil {
+		return err
 	}
 	if snap.FileNameBlocklist == nil {
 		return fmt.Errorf("BPF LSM enforcer not loaded")
@@ -197,24 +197,7 @@ func listLsmExecPaths(blocklist *ebpf.Map) []string {
 	return items
 }
 
-func listLsmExecNames(blocklist *ebpf.Map) []string {
-	if blocklist == nil {
-		return nil
-	}
-	items := []string{}
-	iter := blocklist.Iterate()
-	var key lsmNameKey
-	var val uint32
-	for iter.Next(&key, &val) {
-		if val == 0 {
-			continue
-		}
-		items = append(items, string(bytes.TrimRight(key.Name[:], "\x00")))
-	}
-	return items
-}
-
-func listLsmFileNames(blocklist *ebpf.Map) []string {
+func listLsmNames(blocklist *ebpf.Map) []string {
 	if blocklist == nil {
 		return nil
 	}
@@ -238,10 +221,10 @@ func listLsmFileNames(blocklist *ebpf.Map) []string {
 func ListExecPaths(blocklist *ebpf.Map) []string { return listLsmExecPaths(blocklist) }
 
 // ListExecNames returns blocked executable basenames.
-func ListExecNames(blocklist *ebpf.Map) []string { return listLsmExecNames(blocklist) }
+func ListExecNames(blocklist *ebpf.Map) []string { return listLsmNames(blocklist) }
 
 // ListFileNames returns blocked file basenames.
-func ListFileNames(blocklist *ebpf.Map) []string { return listLsmFileNames(blocklist) }
+func ListFileNames(blocklist *ebpf.Map) []string { return listLsmNames(blocklist) }
 
 // NormalizeName validates/normalizes a single name token.
 func NormalizeName(name string) (string, error) { return NormalizeNameStringWithLabel(name, "name") }
@@ -315,12 +298,9 @@ func mutatePathBits(path string, update func(uint32) uint32) error {
 	}
 	lsmPathPolicyMu.Lock()
 	defer lsmPathPolicyMu.Unlock()
-	snap := CurrentLsmEnforcerSnapshot()
-	if !snap.Available() || !snap.Attached() {
-		if err := ensureLsmEnforcerLoaded(); err != nil {
-			return err
-		}
-		snap = CurrentLsmEnforcerSnapshot()
+	snap, err := ensureLsmEnforcerSnapshot()
+	if err != nil {
+		return err
 	}
 	if snap.ExecPathBlocklist == nil {
 		return fmt.Errorf("BPF LSM path map unavailable")
@@ -331,9 +311,136 @@ func mutatePathBits(path string, update func(uint32) uint32) error {
 	}
 	next := update(old)
 	if next == 0 {
-		return ignoreMissingMapKey(snap.ExecPathBlocklist.Delete(&key))
+		if err := ignoreMissingMapKey(snap.ExecPathBlocklist.Delete(&key)); err != nil {
+			return err
+		}
+	} else {
+		if err := snap.ExecPathBlocklist.Put(&key, &next); err != nil {
+			return err
+		}
 	}
-	return snap.ExecPathBlocklist.Put(&key, &next)
+	syncInodeBitsForPathLocked(snap, path, update)
+	return nil
+}
+
+func syncInodeBitsForPathLocked(snap LsmEnforcerSnapshot, path string, update func(uint32) uint32) {
+	if snap.InodeBlocklist == nil || !snap.InodeAccessSupported {
+		return
+	}
+	inodeKey, err := InodeKeyForPath(path)
+	if err != nil {
+		return
+	}
+	_ = applyInodeBitsLocked(snap.InodeBlocklist, inodeKey, update)
+}
+
+func applyInodeBitsLocked(inodeMap *ebpf.Map, key LsmInodeKey, update func(uint32) uint32) error {
+	if inodeMap == nil {
+		return fmt.Errorf("BPF LSM inode map unavailable")
+	}
+	var old uint32
+	if err := inodeMap.Lookup(&key, &old); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+		return err
+	}
+	next := update(old)
+	if next == 0 {
+		return ignoreMissingMapKey(inodeMap.Delete(&key))
+	}
+	return inodeMap.Put(&key, &next)
+}
+
+// KernelDevFromStatDev converts glibc's 64-bit stat_t.Dev encoding into
+// Linux kernel's 32-bit super_block.s_dev (MKDEV(major, minor)).
+func KernelDevFromStatDev(statDev uint64) uint32 {
+	major := ((statDev >> 8) & 0xfff) | ((statDev >> 32) &^ uint64(0xfff))
+	minor := (statDev & 0xff) | ((statDev >> 12) &^ uint64(0xff))
+	return uint32((major << 20) | (minor & 0xfffff))
+}
+
+func InodeKeyForPath(path string) (LsmInodeKey, error) {
+	var key LsmInodeKey
+	info, err := os.Stat(strings.TrimSpace(path))
+	if err != nil {
+		return key, err
+	}
+	st, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return key, fmt.Errorf("stat %q missing Stat_t", path)
+	}
+	if st.Ino == 0 {
+		return key, fmt.Errorf("stat %q returned zero inode", path)
+	}
+	key.SDev = KernelDevFromStatDev(uint64(st.Dev))
+	key.Ino = uint64(st.Ino)
+	return key, nil
+}
+
+func BlockInode(key LsmInodeKey, mask uint32) error {
+	if key.Ino == 0 || mask == 0 {
+		return fmt.Errorf("invalid inode block request")
+	}
+	lsmPathPolicyMu.Lock()
+	defer lsmPathPolicyMu.Unlock()
+	snap, err := ensureLsmEnforcerSnapshot()
+	if err != nil {
+		return err
+	}
+	if !snap.InodeAccessSupported || snap.InodeBlocklist == nil {
+		return fmt.Errorf("BPF LSM inode access rules are not supported by the attached programs")
+	}
+	return applyInodeBitsLocked(snap.InodeBlocklist, key, func(old uint32) uint32 {
+		return old | (mask & (denyExec | denyRead | denyWrite))
+	})
+}
+
+func UnblockInode(key LsmInodeKey, mask uint32) error {
+	if key.Ino == 0 {
+		return fmt.Errorf("invalid inode unblock request")
+	}
+	if mask == 0 {
+		mask = denyExec | denyRead | denyWrite
+	}
+	lsmPathPolicyMu.Lock()
+	defer lsmPathPolicyMu.Unlock()
+	snap, err := ensureLsmEnforcerSnapshot()
+	if err != nil {
+		return err
+	}
+	if snap.InodeBlocklist == nil {
+		return fmt.Errorf("BPF LSM inode map unavailable")
+	}
+	return applyInodeBitsLocked(snap.InodeBlocklist, key, func(old uint32) uint32 {
+		return old &^ mask
+	})
+}
+
+func ListBlockedInodes(blocklist *ebpf.Map) []InodeAccessRule {
+	if blocklist == nil {
+		return nil
+	}
+	out := []InodeAccessRule{}
+	iter := blocklist.Iterate()
+	var key LsmInodeKey
+	var bits uint32
+	for iter.Next(&key, &bits) {
+		if bits == 0 {
+			continue
+		}
+		out = append(out, InodeAccessRule{
+			SDev:      key.SDev,
+			Ino:       key.Ino,
+			DenyExec:  bits&denyExec != 0,
+			DenyRead:  bits&denyRead != 0,
+			DenyWrite: bits&denyWrite != 0,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].SDev != out[j].SDev {
+			return out[i].SDev < out[j].SDev
+		}
+		return out[i].Ino < out[j].Ino
+	})
+	return out
 }
 
 func updateLsmPathBits(path string, mask uint32, enabled bool) error {

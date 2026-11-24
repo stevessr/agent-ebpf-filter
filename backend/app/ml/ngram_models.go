@@ -211,13 +211,6 @@ func DeserializeNGramModel(path string, classifier Model, modelType core.ModelTy
 	return NewNGramModel(n, binCount, classifier, modelType), nil
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func init() {
 	// 注册 n-gram 增强的模型变种
 	RegisterModel(core.ModelNGramRandomForest, func() Model {

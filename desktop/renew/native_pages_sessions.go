@@ -10,14 +10,14 @@ import (
 )
 
 type agentSessionSummary struct {
-	Key        string
-	Label      string
-	Events     int
-	Alerts     int
-	FileEdits  int
+	Key            string
+	Label          string
+	Events         int
+	Alerts         int
+	FileEdits      int
 	DelegatedEdits int
-	LastSeen   int64
-	LastAction string
+	LastSeen       int64
+	LastAction     string
 }
 
 var harnessLabels = map[string]string{
@@ -28,7 +28,7 @@ var harnessLabels = map[string]string{
 	"copilot": "GitHub Copilot", "github copilot": "GitHub Copilot",
 	"cursor": "Cursor", "cursor-agent": "Cursor",
 	"opencode": "OpenCode",
-	"pi": "Pi", "pi-coding-agent": "Pi",
+	"pi":       "Pi", "pi-coding-agent": "Pi",
 	"omp": "Oh My Pi", "oh my pi": "Oh My Pi", "oh-my-pi": "Oh My Pi",
 	"kiro": "Kiro CLI", "kiro-cli": "Kiro CLI", "kiro cli": "Kiro CLI",
 	"augment": "Augment", "auggie": "Augment",
@@ -141,6 +141,9 @@ func (a *renewApp) sessionsView(c *ui.Context) {
 	t := c.Theme()
 	ui.Text(c, "Agent 会话").FontSize(28).Bold()
 	ui.Text(c, "把事件按 Agent 运行上下文归并，优先发现哪一个会话正在产生需要关注的行为。").TextColor(t.TextMuted)
+	if ui.Button(c, "AgentSight · 模型与 Token 洞察").Tooltip("查看后端已捕获的模型调用用量与会话关联").Clicked() {
+		a.page = "AgentSight"
+	}
 
 	rows := aggregateAgentSessions(a.events)
 	q := strings.ToLower(strings.TrimSpace(a.search))

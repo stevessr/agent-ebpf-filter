@@ -365,6 +365,7 @@ export function useDashboardStream(
     droppedRecords,
     queuedRecords,
     streamNotice,
+    continuityGap,
     recoveryState,
     historyLoaded,
     startStream,

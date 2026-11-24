@@ -1,6 +1,9 @@
 package network
 
 import (
+	internalnetwork "agent-ebpf-filter/internal/network"
+	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -28,13 +31,67 @@ type NetworkAuditResult struct {
 	Flags     NetworkAuditFlags     `json:"flags"`
 }
 
+var (
+	auditNetcatBins = map[string]struct{}{
+		"nc": {}, "ncat": {}, "netcat": {}, "nc.openbsd": {}, "nc.traditional": {},
+	}
+	auditClearTextBins = map[string]struct{}{
+		"ftp": {}, "telnet": {}, "tftp": {},
+	}
+	auditExtraSuspiciousPorts = map[string]struct{}{
+		"6668": {}, "6669": {},
+		"8888": {}, "9999": {},
+	}
+	loopbackExemptDevPorts = map[string]struct{}{
+		"8888": {}, "9999": {},
+	}
+)
+
+func severityRank(s string) int {
+	switch s {
+	case "critical":
+		return 4
+	case "high":
+		return 3
+	case "medium":
+		return 2
+	case "low":
+		return 1
+	default:
+		return 0
+	}
+}
+
+func severityScore(s string) float64 {
+	switch s {
+	case "critical":
+		return 25.0
+	case "high":
+		return 15.0
+	case "medium":
+		return 10.0
+	case "low":
+		return 5.0
+	default:
+		return 0
+	}
+}
+
 func AuditNetworkBehavior(comm, cmdline string) NetworkAuditResult {
 	result := NetworkAuditResult{Findings: []NetworkAuditFinding{}}
-	lower := strings.ToLower(cmdline)
-	fullCmd := strings.ToLower(comm + " " + cmdline)
+	commBase := strings.ToLower(filepath.Base(strings.TrimSpace(comm)))
+	if commBase == "." || commBase == "/" {
+		commBase = ""
+	}
+	lowerCmd := strings.ToLower(strings.TrimSpace(cmdline))
+	tokens := strings.Fields(lowerCmd)
+	fullCmd := strings.TrimSpace(commBase + " " + lowerCmd)
+
+	_, isNetcat := auditNetcatBins[commBase]
+	_, isClearText := auditClearTextBins[commBase]
 
 	// Reverse shell patterns
-	if strings.Contains(fullCmd, "nc -e") || strings.Contains(fullCmd, "nc.traditional -e") ||
+	if ((isNetcat || hasCommandBinaryToken(tokens, auditNetcatBins)) && slices.Contains(tokens, "-e")) ||
 		strings.Contains(fullCmd, "bash -i >& /dev/tcp") || strings.Contains(fullCmd, "bash -i > /dev/tcp") ||
 		strings.Contains(fullCmd, "python -c 'import socket") || strings.Contains(fullCmd, `python -c "import socket`) ||
 		strings.Contains(fullCmd, "socat exec:") || strings.Contains(fullCmd, "perl -e 'use socket") {
@@ -48,9 +105,9 @@ func AuditNetworkBehavior(comm, cmdline string) NetworkAuditResult {
 
 	// Data exfiltration patterns
 	if (strings.Contains(fullCmd, "curl -d @") || strings.Contains(fullCmd, "curl --data @") ||
-		strings.Contains(fullCmd, "wget --post-file") || strings.Contains(fullCmd, "nc <")) &&
-		(strings.Contains(lower, "/etc/passwd") || strings.Contains(lower, "/etc/shadow") ||
-			strings.Contains(lower, "~/.ssh") || strings.Contains(lower, "~/.aws")) {
+		strings.Contains(fullCmd, "wget --post-file") || ((isNetcat || hasCommandBinaryToken(tokens, auditNetcatBins)) && strings.Contains(lowerCmd, "<"))) &&
+		(strings.Contains(lowerCmd, "/etc/passwd") || strings.Contains(lowerCmd, "/etc/shadow") ||
+			strings.Contains(lowerCmd, "~/.ssh") || strings.Contains(lowerCmd, "/.ssh/") || strings.Contains(lowerCmd, "~/.aws")) {
 		result.Flags.DataExfil = true
 		result.Findings = append(result.Findings, NetworkAuditFinding{
 			Type:        "data_exfil",
@@ -59,9 +116,9 @@ func AuditNetworkBehavior(comm, cmdline string) NetworkAuditResult {
 		})
 	}
 
-	// DNS tunnel patterns
-	if strings.Contains(comm, "iodine") || strings.Contains(comm, "dnscat") ||
-		(strings.Contains(comm, "dig") && strings.Contains(lower, "+tcp")) {
+	// DNS tunnel patterns (exact executable basename avoids false hits like "digest")
+	if commBase == "iodine" || commBase == "dnscat" || commBase == "dnscat2" ||
+		(commBase == "dig" && slices.Contains(tokens, "+tcp")) {
 		result.Flags.DNSTunnel = true
 		result.Findings = append(result.Findings, NetworkAuditFinding{
 			Type:        "dns_tunnel",
@@ -71,9 +128,9 @@ func AuditNetworkBehavior(comm, cmdline string) NetworkAuditResult {
 	}
 
 	// Port scanning patterns
-	if (strings.Contains(comm, "nmap") && (strings.Contains(lower, "-ss") || strings.Contains(lower, "-st"))) ||
-		(strings.Contains(comm, "nc") && strings.Contains(lower, "-zv")) ||
-		strings.Contains(comm, "masscan") {
+	if (commBase == "nmap" && (slices.Contains(tokens, "-ss") || slices.Contains(tokens, "-st"))) ||
+		(isNetcat && hasPortScanFlags(tokens)) ||
+		commBase == "masscan" {
 		result.Flags.PortScan = true
 		result.Findings = append(result.Findings, NetworkAuditFinding{
 			Type:        "port_scan",
@@ -82,23 +139,18 @@ func AuditNetworkBehavior(comm, cmdline string) NetworkAuditResult {
 		})
 	}
 
-	// Suspicious ports (C2 common ports)
-	suspiciousPorts := []string{"4444", "1337", "31337", "6666", "6667", "6668", "6669", "8888", "9999"}
-	for _, port := range suspiciousPorts {
-		if strings.Contains(cmdline, ":"+port) || strings.Contains(cmdline, " "+port+" ") {
-			result.Flags.SuspiciousPort = true
-			result.Findings = append(result.Findings, NetworkAuditFinding{
-				Type:        "suspicious_port",
-				Severity:    "high",
-				Description: "Connection to suspicious port " + port,
-			})
-			break
-		}
+	// Suspicious ports with exact boundary checks (avoids :44440 false hits and loopback dev servers)
+	if port, ok := findSuspiciousAuditPort(tokens); ok {
+		result.Flags.SuspiciousPort = true
+		result.Findings = append(result.Findings, NetworkAuditFinding{
+			Type:        "suspicious_port",
+			Severity:    "high",
+			Description: "Connection to suspicious port " + port,
+		})
 	}
 
-	// Cleartext protocols
-	if (strings.Contains(comm, "ftp") || strings.Contains(comm, "telnet")) &&
-		!strings.Contains(lower, "-i") {
+	// Cleartext protocols (exact binary match excludes encrypted sftp / sftp-server)
+	if isClearText && !slices.Contains(tokens, "-i") {
 		result.Flags.ClearTextProto = true
 		result.Findings = append(result.Findings, NetworkAuditFinding{
 			Type:        "cleartext",
@@ -108,9 +160,9 @@ func AuditNetworkBehavior(comm, cmdline string) NetworkAuditResult {
 	}
 
 	// Firewall manipulation
-	if (strings.Contains(comm, "iptables") && (strings.Contains(lower, "-f") || strings.Contains(lower, "-x"))) ||
-		(strings.Contains(comm, "ufw") && strings.Contains(lower, "disable")) ||
-		(strings.Contains(comm, "firewall-cmd") && strings.Contains(lower, "--remove-service")) {
+	if (commBase == "iptables" && (slices.Contains(tokens, "-f") || slices.Contains(tokens, "-x"))) ||
+		(commBase == "ufw" && slices.Contains(tokens, "disable")) ||
+		(commBase == "firewall-cmd" && hasTokenPrefix(tokens, "--remove-service")) {
 		result.Flags.FirewallManip = true
 		result.Findings = append(result.Findings, NetworkAuditFinding{
 			Type:        "firewall_manipulation",
@@ -119,36 +171,70 @@ func AuditNetworkBehavior(comm, cmdline string) NetworkAuditResult {
 		})
 	}
 
-	// Compute risk score and level
 	score := 0.0
 	maxSeverity := "safe"
 	for _, f := range result.Findings {
-		switch f.Severity {
-		case "critical":
-			score += 25.0
-			maxSeverity = "critical"
-		case "high":
-			score += 15.0
-			if maxSeverity != "critical" {
-				maxSeverity = "high"
+		score += severityScore(f.Severity)
+		if severityRank(f.Severity) > severityRank(maxSeverity) {
+			maxSeverity = f.Severity
+		}
+	}
+	result.RiskScore = min(score, 100.0)
+	result.RiskLevel = strings.ToUpper(maxSeverity)
+	return result
+}
+
+func hasCommandBinaryToken(tokens []string, bins map[string]struct{}) bool {
+	for _, tok := range tokens {
+		base := filepath.Base(tok)
+		if _, ok := bins[base]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func hasPortScanFlags(tokens []string) bool {
+	return slices.Contains(tokens, "-zv") || (slices.Contains(tokens, "-z") && slices.Contains(tokens, "-v"))
+}
+
+func hasTokenPrefix(tokens []string, prefix string) bool {
+	for _, tok := range tokens {
+		if strings.HasPrefix(tok, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func isAuditSuspiciousPort(port string) bool {
+	if internalnetwork.IsSuspiciousPort(port) {
+		return true
+	}
+	_, ok := auditExtraSuspiciousPorts[port]
+	return ok
+}
+
+func findSuspiciousAuditPort(tokens []string) (string, bool) {
+	for i, raw := range tokens {
+		tok := strings.Trim(raw, `"'(),;`)
+		if tok == "" {
+			continue
+		}
+		if host, port := internalnetwork.SplitEndpointHostPort(tok); port != "" {
+			if !isAuditSuspiciousPort(port) {
+				continue
 			}
-		case "medium":
-			score += 10.0
-			if maxSeverity != "critical" && maxSeverity != "high" {
-				maxSeverity = "medium"
+			if _, devExempt := loopbackExemptDevPorts[port]; devExempt && internalnetwork.IsLoopbackHost(host) {
+				continue
 			}
-		case "low":
-			score += 5.0
-			if maxSeverity == "safe" {
-				maxSeverity = "low"
+			return port, true
+		}
+		if i > 0 && (tokens[i-1] == "-p" || tokens[i-1] == "--port") {
+			if isAuditSuspiciousPort(tok) {
+				return tok, true
 			}
 		}
 	}
-	if score > 100 {
-		score = 100
-	}
-	result.RiskScore = score
-	result.RiskLevel = strings.ToUpper(maxSeverity)
-
-	return result
+	return "", false
 }

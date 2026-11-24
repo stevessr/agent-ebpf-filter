@@ -3,6 +3,7 @@ package main
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -35,11 +36,10 @@ func TestWorkspaceInspectorResponsive(t *testing.T) {
 	}
 }
 
-
 func TestWorkspaceNavigationDetailedLabels(t *testing.T) {
 	for _, tc := range []struct {
 		open, detailed bool
-		want float32
+		want           float32
 	}{
 		{false, false, 0},
 		{false, true, 0},
@@ -458,10 +458,10 @@ func TestInspectorQueueChoiceBypassesLocalEventFilters(t *testing.T) {
 
 func TestWorkspaceResponsiveNavigationOnLaptop(t *testing.T) {
 	for _, tc := range []struct {
-		window float32
+		window         float32
 		open, detailed bool
-		wantWidth float32
-		wantDetailed bool
+		wantWidth      float32
+		wantDetailed   bool
 	}{
 		{980, false, true, 0, false},
 		{980, true, true, workspaceNavigationCompactWidth, false},
@@ -576,7 +576,7 @@ func TestWorkspaceNavigationMenuCoversEverySidebarRoute(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		width float32
-		menu bool
+		menu  bool
 	}{
 		{600, true}, {899, true}, {900, false}, {1280, false},
 	} {
@@ -592,7 +592,7 @@ func TestWorkspaceNavigationMenuCoversEverySidebarRoute(t *testing.T) {
 func TestWorkspaceToolbarMovesBelowStatusForNarrowLayouts(t *testing.T) {
 	for _, tc := range []struct {
 		window, nav float32
-		tight bool
+		tight       bool
 	}{
 		{640, 0, true},
 		{750, 0, false},
@@ -657,12 +657,18 @@ func TestWorkspaceFooterNeverMasksCollectorFailureWithRealtimeOrPause(t *testing
 	a.healthReady = true
 	a.eventStreamConnected = true
 	a.systemConnected = true
+	a.lastSync = time.Now()
 	a.health.CaptureHealthy = false
 	a.paused = true
 	if got, level := a.workspaceFooterStatus(); got != "采集异常" || level != "danger" {
 		t.Fatalf("capture failure must override pause/realtime: %q/%q", got, level)
 	}
 	a.health.CaptureHealthy = true
+	a.lastSync = time.Time{}
+	if got, level := a.workspaceFooterStatus(); got != "等待采集同步" || level != "warning" {
+		t.Fatalf("paused presentation must not hide missing health evidence: %q/%q", got, level)
+	}
+	a.lastSync = time.Now()
 	if got, level := a.workspaceFooterStatus(); got != "事件展示暂停" || level != "warning" {
 		t.Fatalf("presentation pause should be explicit when collector healthy: %q/%q", got, level)
 	}
@@ -677,5 +683,38 @@ func TestWorkspaceFooterNeverMasksCollectorFailureWithRealtimeOrPause(t *testing
 	a.connected = false
 	if got, level := a.workspaceFooterStatus(); got != "后端离线" || level != "danger" {
 		t.Fatalf("backend outage must be prominent: %q/%q", got, level)
+	}
+}
+
+func TestNativeMotionPreservesInspectorAndRailInteractions(t *testing.T) {
+	a := newRenewApp("http://127.0.0.1:8080")
+	a.starting = false
+	a.page = "事件"
+	view := ui.NewTester(a.view, 1480, 860)
+	// Visual motion must not be required for usability or state changes.
+	view.SetPreferences(ui.Preferences{ReduceMotion: true, TextScale: 1})
+	if _, ok := view.Find("事件研判"); !ok {
+		t.Fatal("inspector should be present in a wide workspace")
+	}
+	if err := view.Click("收起研判栏"); err != nil {
+		t.Fatal(err)
+	}
+	if a.inspectorOpen {
+		t.Fatal("inspector must close even with reduced motion")
+	}
+	if err := view.Click("打开研判栏"); err != nil {
+		t.Fatal(err)
+	}
+	if !a.inspectorOpen {
+		t.Fatal("inspector must reopen even with reduced motion")
+	}
+	if _, ok := view.Find("事件研判"); !ok {
+		t.Fatal("reopened inspector should be available to accessibility lookup")
+	}
+	if err := view.Click("进程活动与资源监测"); err != nil {
+		t.Fatal(err)
+	}
+	if a.page != "进程" {
+		t.Fatalf("native activity rail should still navigate: %q", a.page)
 	}
 }

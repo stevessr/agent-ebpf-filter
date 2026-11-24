@@ -29,7 +29,7 @@ func (a *renewApp) ebpfModulesView(c *ui.Context) {
 			go a.refreshEBPFModules(context.Background())
 		}
 		if a.modulesBusy {
-			ui.Spinner(c)
+			renewLoadingIndicator(c, "正在同步 eBPF 模块")
 			ui.Text(c, "等待后端确认…").TextColor(t.TextMuted)
 		}
 		if a.modulesReady {
@@ -99,7 +99,7 @@ func (a *renewApp) ebpfModulesView(c *ui.Context) {
 						ui.Text(c, target).Font("monospace").FontSize(11).TextColor(t.TextMuted)
 					}
 					if module.LoadError != "" {
-						ui.Text(c, "后端错误：" + module.LoadError).FontSize(11).TextColor(t.Danger)
+						ui.Text(c, "后端错误："+module.LoadError).FontSize(11).TextColor(t.Danger)
 					}
 				})
 				if module.Loaded {

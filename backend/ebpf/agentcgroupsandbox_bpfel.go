@@ -25,12 +25,26 @@ type AgentCgroupSandboxIp6BlockKey struct {
 	Addr [4]uint32
 }
 
+type AgentCgroupSandboxIpv4LpmKey struct {
+	_         structs.HostLayout
+	Prefixlen uint32
+	Addr      uint32
+}
+
+type AgentCgroupSandboxIpv6LpmKey struct {
+	_         structs.HostLayout
+	Prefixlen uint32
+	Addr      [4]uint32
+}
+
 // Names of all BPF objects in the ELF.
 //
 // Used for safe lookups in a Collection or CollectionSpec.
 const (
 	AgentCgroupSandboxMapCgroupBlocklist        = "cgroup_blocklist"
 	AgentCgroupSandboxMapCgroupSandboxStats     = "cgroup_sandbox_stats"
+	AgentCgroupSandboxMapCidr6Blocklist         = "cidr6_blocklist"
+	AgentCgroupSandboxMapCidrBlocklist          = "cidr_blocklist"
 	AgentCgroupSandboxMapIp6Blocklist           = "ip6_blocklist"
 	AgentCgroupSandboxMapIpBlocklist            = "ip_blocklist"
 	AgentCgroupSandboxMapPortBlocklist          = "port_blocklist"
@@ -94,6 +108,8 @@ type AgentCgroupSandboxProgramSpecs struct {
 type AgentCgroupSandboxMapSpecs struct {
 	CgroupBlocklist    *ebpf.MapSpec `ebpf:"cgroup_blocklist"`
 	CgroupSandboxStats *ebpf.MapSpec `ebpf:"cgroup_sandbox_stats"`
+	Cidr6Blocklist     *ebpf.MapSpec `ebpf:"cidr6_blocklist"`
+	CidrBlocklist      *ebpf.MapSpec `ebpf:"cidr_blocklist"`
 	Ip6Blocklist       *ebpf.MapSpec `ebpf:"ip6_blocklist"`
 	IpBlocklist        *ebpf.MapSpec `ebpf:"ip_blocklist"`
 	PortBlocklist      *ebpf.MapSpec `ebpf:"port_blocklist"`
@@ -127,6 +143,8 @@ func (o *AgentCgroupSandboxObjects) Close() error {
 type AgentCgroupSandboxMaps struct {
 	CgroupBlocklist    *ebpf.Map `ebpf:"cgroup_blocklist"`
 	CgroupSandboxStats *ebpf.Map `ebpf:"cgroup_sandbox_stats"`
+	Cidr6Blocklist     *ebpf.Map `ebpf:"cidr6_blocklist"`
+	CidrBlocklist      *ebpf.Map `ebpf:"cidr_blocklist"`
 	Ip6Blocklist       *ebpf.Map `ebpf:"ip6_blocklist"`
 	IpBlocklist        *ebpf.Map `ebpf:"ip_blocklist"`
 	PortBlocklist      *ebpf.Map `ebpf:"port_blocklist"`
@@ -136,6 +154,8 @@ func (m *AgentCgroupSandboxMaps) Close() error {
 	return _AgentCgroupSandboxClose(
 		m.CgroupBlocklist,
 		m.CgroupSandboxStats,
+		m.Cidr6Blocklist,
+		m.CidrBlocklist,
 		m.Ip6Blocklist,
 		m.IpBlocklist,
 		m.PortBlocklist,

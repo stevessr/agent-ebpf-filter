@@ -22,12 +22,15 @@ import (
 const maxMITMLeafCacheEntries = 1024
 
 type mitmCertificateAuthority struct {
-	cert      *x509.Certificate
-	signer    crypto.Signer
-	leafTTL   time.Duration
-	allowlist []string
-	mu        sync.RWMutex
-	cache     map[string]cachedMITMCertificate
+	cert       *x509.Certificate
+	chain      [][]byte
+	signer     crypto.Signer
+	leafTTL    time.Duration
+	validUntil time.Time
+	allowlist  []string
+	warning    string
+	mu         sync.RWMutex
+	cache      map[string]cachedMITMCertificate
 }
 
 type cachedMITMCertificate struct {
@@ -39,28 +42,43 @@ func loadMITMCertificateAuthority(settings DomainForwardProxySettings) (*mitmCer
 	if !settings.TLSInterceptEnabled {
 		return nil, nil
 	}
-	if strings.TrimSpace(settings.TLSInterceptCACertFile) == "" || strings.TrimSpace(settings.TLSInterceptCAKeyFile) == "" {
-		return nil, errors.New("TLS interception requires tlsInterceptCaCertFile and tlsInterceptCaKeyFile")
-	}
 	allowlist := splitDomainAllowlist(settings.TLSInterceptAllowlist)
 	if len(allowlist) == 0 {
 		return nil, errors.New("TLS interception requires a non-empty tlsInterceptAllowlist")
 	}
-	certPEM, err := os.ReadFile(settings.TLSInterceptCACertFile)
-	if err != nil {
-		return nil, fmt.Errorf("read TLS interception CA certificate: %w", err)
-	}
-	keyPEM, err := os.ReadFile(settings.TLSInterceptCAKeyFile)
-	if err != nil {
-		return nil, fmt.Errorf("read TLS interception CA key: %w", err)
-	}
-	certBlock, _ := pem.Decode(certPEM)
-	if certBlock == nil {
-		return nil, errors.New("TLS interception CA certificate is not PEM")
-	}
-	cert, err := x509.ParseCertificate(certBlock.Bytes)
-	if err != nil {
-		return nil, fmt.Errorf("parse TLS interception CA certificate: %w", err)
+
+	mode := normalizeTLSInterceptCAMode(settings.TLSInterceptCAMode)
+	var (
+		cert   *x509.Certificate
+		chain  [][]byte
+		signer crypto.Signer
+		err    error
+	)
+	switch mode {
+	case tlsInterceptCAModeLocal:
+		if strings.TrimSpace(settings.TLSInterceptCACertFile) == "" || strings.TrimSpace(settings.TLSInterceptCAKeyFile) == "" {
+			return nil, errors.New("TLS interception requires tlsInterceptCaCertFile and tlsInterceptCaKeyFile")
+		}
+		certPEM, readErr := os.ReadFile(settings.TLSInterceptCACertFile)
+		if readErr != nil {
+			return nil, fmt.Errorf("read TLS interception CA certificate: %w", readErr)
+		}
+		certBlock, _ := pem.Decode(certPEM)
+		if certBlock == nil {
+			return nil, errors.New("TLS interception CA certificate is not PEM")
+		}
+		cert, err = x509.ParseCertificate(certBlock.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("parse TLS interception CA certificate: %w", err)
+		}
+		chain = [][]byte{cert.Raw}
+	case tlsInterceptCAModeEMudhra, tlsInterceptCAModeEMudhraOld:
+		cert, chain, signer, err = loadCompromisedEMudhraCAMaterial(mode)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("unsupported tlsInterceptCaMode %q", mode)
 	}
 	if !cert.IsCA {
 		return nil, errors.New("TLS interception certificate is not a CA")
@@ -75,11 +93,42 @@ func loadMITMCertificateAuthority(settings DomainForwardProxySettings) (*mitmCer
 	if !now.Before(cert.NotAfter) {
 		return nil, fmt.Errorf("TLS interception CA certificate expired at %s", cert.NotAfter.UTC().Format(time.RFC3339))
 	}
-	signer, err := parsePrivateSigner(keyPEM)
-	if err != nil {
-		return nil, err
+	validUntil := cert.NotAfter
+	if mode == tlsInterceptCAModeEMudhra {
+		if len(chain) < 2 {
+			return nil, errors.New("TLS interception CA chain is incomplete")
+		}
+		pathCertificate, parseErr := x509.ParseCertificate(chain[1])
+		if parseErr != nil {
+			return nil, fmt.Errorf("parse TLS interception CA chain certificate: %w", parseErr)
+		}
+		if !pathCertificate.IsCA {
+			return nil, errors.New("TLS interception CA chain certificate is not a CA")
+		}
+		if pathCertificate.KeyUsage != 0 && pathCertificate.KeyUsage&x509.KeyUsageCertSign == 0 {
+			return nil, errors.New("TLS interception CA chain certificate cannot sign certificates")
+		}
+		if now.Before(pathCertificate.NotBefore) {
+			return nil, fmt.Errorf("TLS interception CA chain certificate is not valid before %s", pathCertificate.NotBefore.UTC().Format(time.RFC3339))
+		}
+		if !now.Before(pathCertificate.NotAfter) {
+			return nil, fmt.Errorf("TLS interception CA chain certificate expired at %s", pathCertificate.NotAfter.UTC().Format(time.RFC3339))
+		}
+		if pathCertificate.NotAfter.Before(validUntil) {
+			validUntil = pathCertificate.NotAfter
+		}
 	}
-	if cert.PublicKey == nil || signer.Public() == nil {
+	if signer == nil {
+		keyPEM, err := os.ReadFile(settings.TLSInterceptCAKeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("read TLS interception CA key: %w", err)
+		}
+		signer, err = parsePrivateSigner(keyPEM)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if cert.PublicKey == nil || signer == nil || signer.Public() == nil {
 		return nil, errors.New("TLS interception CA key is invalid")
 	}
 	if !publicKeysEqual(cert.PublicKey, signer.Public()) {
@@ -92,13 +141,19 @@ func loadMITMCertificateAuthority(settings DomainForwardProxySettings) (*mitmCer
 	if ttl > 7*24*time.Hour {
 		ttl = 7 * 24 * time.Hour
 	}
-	return &mitmCertificateAuthority{
-		cert:      cert,
-		signer:    signer,
-		leafTTL:   ttl,
-		allowlist: allowlist,
-		cache:     make(map[string]cachedMITMCertificate),
-	}, nil
+	ca := &mitmCertificateAuthority{
+		cert:       cert,
+		chain:      chain,
+		signer:     signer,
+		leafTTL:    ttl,
+		validUntil: validUntil,
+		allowlist:  allowlist,
+		cache:      make(map[string]cachedMITMCertificate),
+	}
+	if isCompromisedTLSInterceptCAMode(mode) {
+		ca.warning = compromisedTLSInterceptWarning(mode)
+	}
+	return ca, nil
 }
 
 func (ca *mitmCertificateAuthority) allowed(host string) bool {
@@ -154,6 +209,12 @@ func (ca *mitmCertificateAuthority) certificateForHost(host string) (*tls.Certif
 			ca.cert.NotAfter.UTC().Format(time.RFC3339),
 		)
 	}
+	if !now.Before(ca.validUntil) {
+		return nil, fmt.Errorf(
+			"TLS interception CA chain expired at %s",
+			ca.validUntil.UTC().Format(time.RFC3339),
+		)
+	}
 	leafKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, fmt.Errorf("generate TLS interception leaf key: %w", err)
@@ -166,6 +227,9 @@ func (ca *mitmCertificateAuthority) certificateForHost(host string) (*tls.Certif
 	notAfter := now.Add(ca.leafTTL)
 	if ca.cert.NotAfter.Before(notAfter) {
 		notAfter = ca.cert.NotAfter
+	}
+	if ca.validUntil.Before(notAfter) {
+		notAfter = ca.validUntil
 	}
 	template := &x509.Certificate{
 		SerialNumber: serial,
@@ -188,8 +252,11 @@ func (ca *mitmCertificateAuthority) certificateForHost(host string) (*tls.Certif
 	if err != nil {
 		return nil, fmt.Errorf("parse signed TLS interception certificate: %w", err)
 	}
+	certificateChain := make([][]byte, 1, 1+len(ca.chain))
+	certificateChain[0] = der
+	certificateChain = append(certificateChain, ca.chain...)
 	cert := &tls.Certificate{
-		Certificate: [][]byte{der, ca.cert.Raw},
+		Certificate: certificateChain,
 		PrivateKey:  leafKey,
 		Leaf:        leaf,
 	}

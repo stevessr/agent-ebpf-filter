@@ -172,10 +172,9 @@ const memColor = (normalized: number) => {
   const lightness = 52 - t * 10;
   const saturation = 84;
   return {
-    background: `linear-gradient(145deg, hsla(${hue}, ${saturation}%, ${lightness + 6}%, 0.96), hsla(${hue - 8}, ${saturation}%, ${lightness - 12}%, 0.96))`,
-    borderColor: `hsla(${hue}, ${Math.max(50, saturation - 10)}%, ${Math.max(28, lightness - 16)}%, 0.55)`,
-    glowColor: `hsla(${hue}, ${saturation}%, ${Math.min(70, lightness + 14)}%, 0.28)`,
-    meterColor: `hsla(${hue}, 100%, 96%, 0.92)`,
+    background: "var(--surface-1)",
+    borderColor: `hsla(${hue}, ${Math.max(50, saturation - 10)}%, ${Math.max(28, lightness - 16)}%, 0.7)`,
+    meterColor: `hsl(${hue}, 72%, 48%)`,
   };
 };
 
@@ -194,7 +193,6 @@ const tileStyle = (tile: ProcTile) => ({
   height: `${tile.height}px`,
   background: memColor(tile.normalized).background,
   borderColor: memColor(tile.normalized).borderColor,
-  boxShadow: `0 10px 26px ${memColor(tile.normalized).glowColor}`,
 });
 
 const tileTitle = (tile: ProcTile) =>
@@ -223,7 +221,7 @@ const tileTitle = (tile: ProcTile) =>
         <div style="font-weight: 600">
           Process Memory Blocks ({{ tiles.length }} unique)
         </div>
-        <div style="color: var(--ui-text-muted); font-size: 12px; margin-top: 4px">
+        <div style="color: var(--text-muted); font-size: 12px; margin-top: 4px">
           Size is log-scaled by estimated RSS from process mem% × total RAM.
         </div>
       </div>
@@ -233,7 +231,7 @@ const tileTitle = (tile: ProcTile) =>
           gap: 4px;
           text-align: right;
           font-size: 12px;
-          color: var(--ui-text-muted);
+          color: var(--text-muted);
         "
       >
         <div>
@@ -382,21 +380,21 @@ const tileTitle = (tile: ProcTile) =>
         <a-card
           size="small"
           :bordered="false"
-          style="background: var(--ui-surface-muted); margin-bottom: 16px"
+          style="background: var(--surface-1); margin-bottom: 16px"
         >
           <a-space direction="vertical" size="small" style="width: 100%">
             <div>
-              <span style="color: var(--ui-text-muted)">PIDs:</span>
+              <span style="color: var(--text-muted)">PIDs:</span>
               <span style="font-family: monospace">{{
                 selectedGroup.pids.join(", ")
               }}</span>
             </div>
             <div>
-              <span style="color: var(--ui-text-muted)">Approx RSS:</span>
+              <span style="color: var(--text-muted)">Approx RSS:</span>
               <b>{{ formatBytesWithUnit(selectedGroup.approxBytes) }}</b>
             </div>
             <div>
-              <span style="color: var(--ui-text-muted)">Peak instance mem:</span>
+              <span style="color: var(--text-muted)">Peak instance mem:</span>
               <b>{{ formatPercent(selectedGroup.instances[0]?.mem ?? 0) }}</b>
             </div>
           </a-space>
@@ -438,14 +436,14 @@ const tileTitle = (tile: ProcTile) =>
               >
             </template>
             <template v-if="column.key === 'createTime'">
-              <span style="font-size: 12px; color: var(--ui-text-muted)">{{
+              <span style="font-size: 12px; color: var(--text-muted)">{{
                 formatDateTime(text ?? 0)
               }}</span>
             </template>
           </template>
         </a-table>
 
-        <div style="margin-top: 12px; color: var(--ui-text-muted); font-size: 12px">
+        <div style="margin-top: 12px; color: var(--text-muted); font-size: 12px">
           Started times are shown in local time when available.
         </div>
       </template>
@@ -462,9 +460,9 @@ const tileTitle = (tile: ProcTile) =>
   justify-content: space-between;
   padding: 14px 16px 18px;
   border-radius: 14px;
-  color: #fff;
+  color: var(--text-primary);
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid var(--border);
   transition:
     transform 0.18s ease,
     box-shadow 0.18s ease,
@@ -479,9 +477,8 @@ const tileTitle = (tile: ProcTile) =>
 }
 
 .proc-mem-tile:focus-visible {
-  box-shadow:
-    0 0 0 3px rgba(24, 144, 255, 0.28),
-    0 10px 26px rgba(24, 144, 255, 0.18);
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
 }
 
 .proc-mem-tile__name {
@@ -539,13 +536,13 @@ const tileTitle = (tile: ProcTile) =>
   right: 0;
   bottom: 0;
   height: 4px;
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--surface-2);
 }
 
 .proc-mem-tile__meter > span {
   display: block;
   height: 100%;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--text-primary);
   border-radius: 0 999px 999px 0;
 }
 </style>

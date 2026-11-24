@@ -71,11 +71,11 @@ const eCores = computed(() =>
     <div
       v-if="cpuView === 'overall'"
       style="
-        background: var(--ui-surface-muted);
+        background: var(--surface-1);
         padding: 24px;
         border-radius: 8px;
         text-align: center;
-        border: 1px solid var(--ui-border);
+        border: 1px solid var(--border);
       "
     >
       <a-progress
@@ -115,10 +115,10 @@ const eCores = computed(() =>
             :key="core.index"
             style="
               padding: 12px;
-              border: 1px solid #e6f0ff;
+              border: 1px solid var(--border-accent);
               border-radius: 8px;
               text-align: center;
-              background: var(--ui-primary-soft);
+              background: var(--bg-accent);
               cursor: pointer;
               transition: all 0.2s;
             "
@@ -207,10 +207,10 @@ const eCores = computed(() =>
             :key="core.index"
             style="
               padding: 12px;
-              border: 1px solid #e6ffe6;
+              border: 1px solid var(--border-success);
               border-radius: 8px;
               text-align: center;
-              background: var(--ui-success-soft);
+              background: var(--bg-success);
               cursor: pointer;
               transition: all 0.2s;
             "
@@ -285,13 +285,11 @@ const eCores = computed(() =>
 
 <style scoped>
 .core-card--p:hover {
-  border-color: #91caff !important;
-  background: var(--ui-primary-soft) !important;
-  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.12);
+  border-color: var(--border-accent) !important;
+  background: var(--bg-accent) !important;
 }
 .core-card--e:hover {
-  border-color: #95de64 !important;
-  background: var(--ui-success-soft) !important;
-  box-shadow: 0 2px 8px rgba(82, 196, 26, 0.12);
+  border-color: var(--border-success) !important;
+  background: var(--bg-success) !important;
 }
 </style>

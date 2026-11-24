@@ -2,13 +2,12 @@ package main
 
 import (
 	"context"
-	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
-	"github.com/stevessr/agent-ebpf-filter/desktop/renew/design"
 )
 
 type renewApp struct {
@@ -24,6 +23,20 @@ type renewApp struct {
 
 	page                  string
 	lineageMode           int // 0 radial, 1 waterfall
+	behaviorWindowMS      int64
+	behaviorPID           int
+	behaviorLane          behaviorLane
+	behaviorAttentionOnly bool
+	behaviorPausedEvents  []eventSummary
+	behaviorPaused        bool
+	behaviorFrozen        *behaviorSnapshot
+	behaviorSelectedID    string
+	behaviorCacheValid    bool
+	behaviorCacheVersion  uint64
+	behaviorCacheSecond   int64
+	behaviorCacheWindow   int64
+	behaviorCachePID      int
+	behaviorCache         behaviorSnapshot
 	lineageRootChoice     string
 	lineageSelectedPID    int
 	lineageSignalTable    ui.ListState
@@ -76,27 +89,46 @@ type renewApp struct {
 	inspectorPinnedID   string
 	inspectorSelectedID string
 
-	events                []eventSummary
-	eventMergeScratch     []eventSummary
-	eventsVersion         uint64
-	eventUIQueue          chan eventSummary
-	eventUIDropped        eventDropCounter
-	eventUIPaused         eventPauseFlag
-	eventUIBatcherStarted eventBatcherFlag
-	eventUICommitPending  eventCommitFlag
-	searchKeyReady        bool
-	searchKeySource       string
-	searchKeyNormalized   string
-	ownerCacheValid       bool
-	ownerCacheVersion     uint64
-	ownerCache            agentOwnershipIndex
-	filterCacheValid      bool
-	filterCacheVersion    uint64
-	filterCacheKey        eventFilterSignature
-	filterCacheRows       []eventSummary
-	riskCacheValid        bool
-	riskCacheVersion      uint64
-	riskCacheCounts       [3]int
+	events              []eventSummary
+	eventMergeScratch   []eventSummary
+	eventMergeWorkspace eventMergeWorkspace
+	eventsVersion       uint64
+	eventUIQueue        chan eventSummary
+	// Serializing producers makes the bounded drop-oldest sequence atomic
+	// relative to other enqueues, and keeps exact drop accounting.
+	eventUIQueueMu         sync.Mutex
+	eventUIDropped         eventDropCounter
+	eventUIQueueDropped    eventDropCounter
+	eventUIBatchDropped    eventDropCounter
+	eventUIBatchBuffered   atomic.Int64
+	eventUIBatchPeak       atomic.Int64
+	eventUICommits         atomic.Uint64
+	eventUICommitted       atomic.Uint64
+	eventUILastCommit      atomic.Int64
+	eventUIBusyTicks       atomic.Uint64
+	eventUIPaused          eventPauseFlag
+	eventUIBatcherStarted  eventBatcherFlag
+	eventUICommitPending   eventCommitFlag
+	filterCacheValid       bool
+	filterCacheVersion     uint64
+	filterCacheKey         eventFilterSignature
+	filterSearchOriginal   string
+	filterSearchNormalized string
+	filterCacheRows        []eventSummary
+	filterMergeScratch     []eventSummary
+	riskCacheValid         bool
+	riskCacheVersion       uint64
+	riskCacheCounts        [3]int
+	// The ownership index was previously rebuilt by each event row,
+	// leading to O(visible rows * event window) CPU work and allocations.
+	// Cache only the event-derived index; live-process attribution must
+	// still use a fresh, independently verified process snapshot.
+	ownershipCacheValid   bool
+	ownershipCacheVersion uint64
+	ownershipCacheCount   int
+	ownershipCacheFirstID string
+	ownershipCacheLastID  string
+	ownershipCache        agentOwnershipIndex
 	// Local, session-scoped alert triage. Never changes backend policy.
 	personalAlertMuted              map[[32]byte]struct{}
 	personalAlertMuteOrder          [][32]byte
@@ -152,6 +184,16 @@ type renewApp struct {
 	configInspection            agentConfigInspection
 	configTable                 ui.ListState
 	sessionTable                ui.ListState
+	agentSightModelTable        ui.ListState
+	agentSightSessionTable      ui.ListState
+	agentSightModelSelected     int
+	agentSightSessionSelected   int
+	agentSightReport            agentSightUsageResponse
+	agentSightReady             bool
+	agentSightLoading           bool
+	agentSightError             string
+	agentSightChecked           time.Time
+	agentSightSynced            time.Time
 	rulesTable                  ui.ListState
 	commTable                   ui.ListState
 	pathTable                   ui.ListState
@@ -276,38 +318,45 @@ type renewApp struct {
 
 func newRenewApp(backend string) *renewApp {
 	a := &renewApp{
-		backend:            backend,
-		starting:           true,
-		page:               "概览",
-		files:              localFileWorkspace{active: -1},
-		navigationOpen:     false,
-		inspectorOpen:      true,
-		materialEnabled:    true,
-		eventSelected:      -1,
-		networkSelected:    -1,
-		processSelected:    -1,
-		domainSelected:     -1,
-		domainShowIPs:      true,
-		sessionSelected:    -1,
-		ruleSelected:       -1,
-		commSelected:       -1,
-		pathSelected:       -1,
-		prefixSelected:     -1,
-		eventVisibleLimit:  50,
-		agentSelected:      -1,
-		captureScopeMode:   "黑名单",
-		monitorScopeMode:   "黑名单",
-		disabledEventTypes: make(map[int]bool),
-		ruleAction:         "ALERT",
-		rulePriority:       "0",
-		ruleRewrite:        "[]",
-		pathAccessMode:     "阻止写入",
+		backend: backend,
+		// The channel pointer never changes after construction. Both the
+		// native IPC reader and diagnostics can safely access it.
+		eventUIQueue:              make(chan eventSummary, eventUIQueueSize),
+		starting:                  true,
+		page:                      "概览",
+		files:                     localFileWorkspace{active: -1},
+		navigationOpen:            false,
+		inspectorOpen:             true,
+		materialEnabled:           true,
+		eventSelected:             -1,
+		networkSelected:           -1,
+		processSelected:           -1,
+		domainSelected:            -1,
+		domainShowIPs:             true,
+		sessionSelected:           -1,
+		agentSightModelSelected:   -1,
+		agentSightSessionSelected: -1,
+		ruleSelected:              -1,
+		commSelected:              -1,
+		pathSelected:              -1,
+		prefixSelected:            -1,
+		eventVisibleLimit:         50,
+		agentSelected:             -1,
+		captureScopeMode:          "黑名单",
+		monitorScopeMode:          "黑名单",
+		disabledEventTypes:        make(map[int]bool),
+		ruleAction:                "ALERT",
+		rulePriority:              "0",
+		ruleRewrite:               "[]",
+		pathAccessMode:            "阻止写入",
 	}
 	a.eventTable.Selected = &a.eventSelected
 	a.networkTable.Selected = &a.networkSelected
 	a.processTable.Selected = &a.processSelected
 	a.domainTable.Selected = &a.domainSelected
 	a.sessionTable.Selected = &a.sessionSelected
+	a.agentSightModelTable.Selected = &a.agentSightModelSelected
+	a.agentSightSessionTable.Selected = &a.agentSightSessionSelected
 	a.lineageSignalTable.Selected = &a.lineageSignalSelected
 	a.rulesTable.Selected = &a.ruleSelected
 	a.commTable.Selected = &a.commSelected
@@ -434,124 +483,11 @@ func (a *renewApp) view(c *ui.Context) {
 	a.workspaceView(c)
 }
 
-func (a *renewApp) collectorStatus() (label, level string) {
-	switch {
-	case a.starting:
-		return "同步中", "warning"
-	case !a.connected:
-		return "离线", "danger"
-	case !a.healthReady:
-		return "同步中", "warning"
-	case !a.health.CaptureHealthy:
-		return "异常", "danger"
-	default:
-		return "正常", "success"
-	}
-}
-
-func (a *renewApp) pipelineStatus() (label, level string) {
-	switch {
-	case a.starting:
-		return "启动中", "warning"
-	case !a.connected:
-		return "后端离线", "danger"
-	case !a.healthReady:
-		return "正在同步", "warning"
-	case !a.health.CaptureHealthy:
-		return "采集异常", "danger"
-	case !a.eventStreamConnected:
-		return "事件流回退", "warning"
-	case !a.systemConnected:
-		return "系统流重连", "warning"
-	default:
-		return "全链路实时", "success"
-	}
-}
-
-func pageSubtitle(page string) string {
-	switch page {
-	case "研判":
-		return "事件研判、上下文筛选与运行诊断"
-	case "事件":
-		return "实时事件、风险筛选与按需详情"
-	case "会话":
-		return "按 Agent 上下文聚合运行会话"
-	case "派生":
-		return "Agent 调用关系与实时派生进程（放射图 / 瀑布图）"
-	case "网络":
-		return "外联目标与摘要窗口聚合"
-	case "域名":
-		return "按 Agent 关联域名、IP 与安全事件"
-	case "进程":
-		return "实时进程与 Agent 活动"
-	case "Agent 识别":
-		return "进程识别、捕获名单与监视名单"
-	case "监控":
-		return "采集范围、运行时能力与开销"
-	case "eBPF 模块":
-		return "独立 eBPF 插件的手动加载与卸载"
-	case "规则":
-		return "agent-wrapper 策略与重写"
-	case "跟踪":
-		return "命令、路径与标签范围"
-	case "路径权限":
-		return "按完整路径精确限制读取和写入"
-	case "系统":
-		return "采集器、系统流与队列诊断"
-	case "CCS":
-		return "CC-Switch、AstrLink、CCR、Antigravity 与 eBPF 事件联动"
-	case "终端":
-		return "普通用户 Shell · Ghostty VT · 多标签与分屏"
-	case "文件":
-		return "不经特权后端的本地文件浏览与管理"
-	case "编辑器":
-		return "MyGo 原生 UTF-8 代码编辑、语法高亮与保存"
-	default:
-		return "健康、风险与最近活动"
-	}
-}
-
-func statusPill(c *ui.Context, text string, tone ui.Color) ui.Element {
-	return design.TintedBadge(c, text, tone)
-}
-
-func riskTextColor(t *ui.Theme, risk string) ui.Color {
-	switch risk {
-	case "高风险":
-		return t.Danger
-	case "需关注":
-		return t.Warning
-	default:
-		return t.TextMuted
-	}
-}
-
-func riskPill(c *ui.Context, risk string) ui.Element {
-	t := c.Theme()
-	switch risk {
-	case "高风险":
-		return statusPill(c, risk, t.Danger)
-	case "需关注":
-		return statusPill(c, risk, t.Warning)
-	default:
-		return statusPill(c, risk, t.Success)
-	}
-}
-
-func pageUsesEventSearch(page string) bool {
-	switch page {
-	case "概览", "事件", "会话", "网络", "进程":
-		return true
-	default:
-		return false
-	}
-}
-
 func (a *renewApp) startingView(c *ui.Context) {
 	t := c.Theme()
 	card(c, "明镜高悬 · 正在连接监控后端", func() {
 		ui.Text(c, "正在复用现有后端，或通过系统授权启动内置后端。桌面界面始终以普通用户权限运行。").TextColor(t.TextMuted)
-		ui.Spinner(c)
+		renewLoadingIndicator(c, "正在连接监控后端")
 	})
 }
 
@@ -589,133 +525,4 @@ func (a *renewApp) errorView(c *ui.Context) {
 		ui.Text(c, "高级用法：可以通过 --backend 或 AGENT_BACKEND_URL 连接已有监控服务。").
 			FontSize(11).TextColor(t.TextMuted)
 	})
-}
-
-func (a *renewApp) filteredEvents() []eventSummary {
-	key := a.eventFilterCacheKey()
-	q := key.Search
-	if a.filterCacheValid && a.filterCacheVersion == a.eventsVersion && a.filterCacheKey == key {
-		return a.filterCacheRows
-	}
-	if q == "" && a.eventPIDFilter == 0 && a.eventRootPIDFilter == 0 && a.eventTargetFilter == "" && a.eventDomainTarget == "" && !a.eventFileEditsOnly && !a.eventDelegatedOnly && a.eventRiskFilter == "" && a.eventMinRiskScore <= 0 && a.eventTypeFilter == "" && a.eventSessionFilter == "" && a.eventDecisionFilter == "" && a.managementEventFilter == "" && !a.eventAttentionOnly {
-		a.filterCacheValid = true
-		a.filterCacheVersion = a.eventsVersion
-		a.filterCacheKey = key
-		a.filterCacheRows = a.events
-		return a.events
-	}
-
-	out := make([]eventSummary, 0, min(len(a.events), 256))
-	var domainOwners agentOwnershipIndex
-	if a.eventDomainTarget != "" {
-		domainOwners = a.summaryOwnershipIndex()
-	}
-	for _, event := range a.events {
-		if a.eventDomainTarget != "" && !matchesAgentDomainEvent(event, domainOwners, a.eventDomainAgent, a.eventDomainTarget, a.eventDomainKind) {
-			continue
-		}
-		if q != "" && !strings.Contains(eventSearchText(event), q) {
-			continue
-		}
-		if a.managementEventFilter != "" && managementAppForEvent(event) != a.managementEventFilter {
-			continue
-		}
-		if a.eventRiskFilter != "" && eventRisk(event) != a.eventRiskFilter {
-			continue
-		}
-		if a.eventMinRiskScore > 0 && event.RiskScore < a.eventMinRiskScore {
-			continue
-		}
-		if a.eventPIDFilter > 0 && event.PID != a.eventPIDFilter {
-			continue
-		}
-		if !matchesEventDrilldown(event, a.eventRootPIDFilter, a.eventTargetFilter, a.eventFileEditsOnly, a.eventDelegatedOnly) {
-			continue
-		}
-		if a.eventTypeFilter != "" && event.Type != a.eventTypeFilter {
-			continue
-		}
-		if a.eventSessionFilter != "" && eventSessionKey(event) != a.eventSessionFilter {
-			continue
-		}
-		if !matchesEventDecision(event, a.eventDecisionFilter) {
-			continue
-		}
-		if a.eventAttentionOnly && eventRisk(event) == "正常" {
-			continue
-		}
-		out = append(out, event)
-	}
-	a.filterCacheValid = true
-	a.filterCacheVersion = a.eventsVersion
-	a.filterCacheKey = key
-	a.filterCacheRows = out
-	return out
-}
-
-func (a *renewApp) riskCounts() (normal, attention, danger int) {
-	if a.riskCacheValid && a.riskCacheVersion == a.eventsVersion {
-		return a.riskCacheCounts[0], a.riskCacheCounts[1], a.riskCacheCounts[2]
-	}
-	for _, event := range a.events {
-		switch eventRisk(event) {
-		case "高风险":
-			danger++
-		case "需关注":
-			attention++
-		default:
-			normal++
-		}
-	}
-	a.riskCacheValid = true
-	a.riskCacheVersion = a.eventsVersion
-	a.riskCacheCounts = [3]int{normal, attention, danger}
-	return
-}
-
-func (a *renewApp) filteredNetworkRows() []networkAggregate {
-	key := a.eventFilterCacheKey()
-	if a.networkCacheValid && a.networkCacheVersion == a.eventsVersion && a.networkCacheKey == key {
-		return a.networkCacheRows
-	}
-	rows := aggregateNetwork(a.filteredEvents())
-	a.networkCacheValid = true
-	a.networkCacheVersion = a.eventsVersion
-	a.networkCacheKey = key
-	a.networkCacheRows = rows
-	return rows
-}
-
-func (a *renewApp) filteredProcessAggregateRows() []processAggregate {
-	key := a.eventFilterCacheKey()
-	if a.processCacheValid && a.processCacheVersion == a.eventsVersion && a.processCacheKey == key {
-		return a.processCacheRows
-	}
-	rows := aggregateProcesses(a.filteredEvents())
-	a.processCacheValid = true
-	a.processCacheVersion = a.eventsVersion
-	a.processCacheKey = key
-	a.processCacheRows = rows
-	return rows
-}
-
-func (a *renewApp) eventFilterOptions() ([]string, []string) {
-	if a.optionCacheValid && a.optionCacheVersion == a.eventsVersion {
-		return a.eventTypeOptions, a.eventSessionOptions
-	}
-	a.eventTypeOptions = uniqueEventTypes(a.events)
-	a.eventSessionOptions = uniqueEventSessions(a.events)
-	a.optionCacheValid = true
-	a.optionCacheVersion = a.eventsVersion
-	return a.eventTypeOptions, a.eventSessionOptions
-}
-
-func card(c *ui.Context, title string, body func()) ui.Element {
-	return design.Section(c, title, "", body)
-}
-
-func statCard(c *ui.Context, label, value, detail string) {
-	design.MetricTile(c, design.Metric{
-		Label: label, Value: value, Detail: detail, Tone: design.Neutral,
-	}).Width(220)
 }

@@ -90,8 +90,8 @@ func (a *renewApp) openLocalFile(path string) {
 				buf := editor.NewBuffer(text)
 				buf.SetLanguage(editor.LanguageFor(path))
 				doc := &localFileDocument{
-					path: path,
-					state: &editor.State{Buffer: buf, WrapGuides: []int{100}, Label: filepath.Base(path)},
+					path:    path,
+					state:   &editor.State{Buffer: buf, WrapGuides: []int{100}, Label: filepath.Base(path)},
 					modTime: info.ModTime(), size: info.Size(), mode: info.Mode(),
 				}
 				a.files.docs = append(a.files.docs, doc)
@@ -127,7 +127,7 @@ func (a *renewApp) closeLocalDocument(index int, discard bool) {
 		a.files.active--
 	}
 	if a.files.active >= len(a.files.docs) {
-		a.files.active = len(a.files.docs)-1
+		a.files.active = len(a.files.docs) - 1
 	}
 	a.files.closePending = ""
 }
@@ -264,10 +264,14 @@ func (a *renewApp) localFileManagerView(c *ui.Context) {
 		if a.files.quitPending {
 			ui.Row(c).Wrap().Gap(9).Padding(10).Radius(8).Background(t.Danger.Alpha(0.12)).Children(func() {
 				ui.Text(c, "仍有未保存的文件。退出 Renew 将丢失这些修改。").TextColor(t.Danger)
-				if ui.Button(c, "继续编辑").Clicked() { a.files.quitPending = false }
+				if ui.Button(c, "继续编辑").Clicked() {
+					a.files.quitPending = false
+				}
 				if ui.Button(c, "放弃修改并退出").Clicked() {
 					a.files.allowQuit = true
-					if a.win != nil { a.win.Close() }
+					if a.win != nil {
+						a.win.Close()
+					}
 				}
 			})
 		}
@@ -281,7 +285,7 @@ func (a *renewApp) localFileManagerView(c *ui.Context) {
 		}
 		if a.files.listLoading {
 			ui.Row(c).Gap(8).Children(func() {
-				ui.Spinner(c)
+				renewLoadingIndicator(c, "正在读取本地目录")
 				ui.Text(c, "正在读取本地目录…")
 			})
 		}
@@ -312,8 +316,12 @@ func (a *renewApp) localFileManagerView(c *ui.Context) {
 				ui.Text(c, glyph).Width(22).TextColor(t.Accent)
 				ui.Text(c, e.name).Grow(1).SingleLine()
 				kind := "文件"
-				if e.dir { kind = "目录" }
-				if e.link { kind = "链接" }
+				if e.dir {
+					kind = "目录"
+				}
+				if e.link {
+					kind = "链接"
+				}
 				ui.Text(c, kind).Width(50).FontSize(11).TextColor(t.TextMuted)
 			})
 			if row.Clicked() {
@@ -419,8 +427,12 @@ func (a *renewApp) localEditorView(c *ui.Context) {
 			if lang := doc.state.Buffer.Language(); lang != nil {
 				ui.Text(c, lang.Name).FontSize(11).TextColor(t.TextMuted)
 			}
-			if doc.state.Buffer.Modified() { statusPill(c, "未保存", t.Warning) }
-			if doc.saving { statusPill(c, "保存中", t.Accent) }
+			if doc.state.Buffer.Modified() {
+				statusPill(c, "未保存", t.Warning)
+			}
+			if doc.saving {
+				statusPill(c, "保存中", t.Accent)
+			}
 			ui.Spacer(c)
 			ui.Text(c, fmt.Sprintf("%d 行 · UTF-8", doc.state.Buffer.LineCount())).FontSize(11).TextColor(t.TextMuted)
 		})

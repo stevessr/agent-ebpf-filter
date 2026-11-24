@@ -273,7 +273,8 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 					classification, anomalyScore, mlPrediction, mlRuntime.Config, mlRuntime.Enabled, mlRuntime.ModelLoaded,
 				)
 
-				if isHealthGenerator {
+				// A trusted training workload cannot erase a separate web-shell evidence signal.
+				if isHealthGenerator && !strings.HasPrefix(reason, "Web service shell audit:") && !strings.HasPrefix(reason, "Web service shell policy:") {
 					resolvedAction = pb.WrapperResponse_ALLOW
 					reason = "Trusted health dataset generator process (ALLOW)"
 				}
@@ -370,12 +371,16 @@ func serveUDSListener(ctx context.Context, l net.Listener, broadcast chan *pb.Ev
 
 				// Register wrapper PID in eBPF agent_pids
 				if trackerMaps.AgentPids != nil {
-					_ = trackerMaps.AgentPids.Put(req.Pid, getTagID("Wrapper"))
+					if err := trackerMaps.AgentPids.Put(req.Pid, getTagID("Wrapper")); err != nil {
+						log.Printf("[WARN] UDS wrapper register PID %d failed: %v", req.Pid, err)
+					}
 				}
 				if trackerMaps.TrackedComms != nil {
 					var k [16]byte
 					copy(k[:], req.Comm)
-					_ = trackerMaps.TrackedComms.Put(k, getTagID("Wrapper"))
+					if err := trackerMaps.TrackedComms.Put(k, getTagID("Wrapper")); err != nil {
+						log.Printf("[WARN] UDS wrapper register comm %q failed: %v", req.Comm, err)
+					}
 				}
 
 				wrapperExtraInfo := fmt.Sprintf("net_audit:%s risk:%.0f", netAudit.RiskLevel, netAudit.RiskScore)

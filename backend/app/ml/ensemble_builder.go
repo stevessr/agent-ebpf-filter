@@ -203,7 +203,26 @@ func splitEnsembleCalibrationHoldout(labeled []TrainingSample) (trainSet, valida
 	if splitIdx < 10 || splitIdx >= len(ordered) {
 		return ordered, nil
 	}
-	return ordered[:splitIdx], ordered[splitIdx:]
+	// A command/feature group observed during training must never be reused
+	// for calibration, even when it reappears in the newest event window.
+	// Time order alone is not enough to prevent duplicate-behavior leakage.
+	trainSet = append([]TrainingSample(nil), ordered[:splitIdx]...)
+	seen := make(map[[32]byte]struct{}, len(trainSet))
+	for _, sample := range trainSet {
+		seen[behaviorHoldoutKey(sample)] = struct{}{}
+	}
+	for _, sample := range ordered[splitIdx:] {
+		key := behaviorHoldoutKey(sample)
+		if _, alreadyTrained := seen[key]; alreadyTrained {
+			// Drop repetitions from the calibration window rather than
+			// moving future observations into the training partition.
+			// Moving them would leak a newer event into a time-forward
+			// model that is evaluated on earlier validation events.
+			continue
+		}
+		validationSet = append(validationSet, sample)
+	}
+	return trainSet, validationSet
 }
 
 func chronologicalTrainingSamples(samples []TrainingSample) []TrainingSample {
@@ -235,9 +254,16 @@ func extractFeaturesLabels(labeled []TrainingSample) ([][FeatureDim]float64, []i
 
 type ModelBenchmark struct {
 	ModelType               string  `json:"modelType"`
+	TrainSamples            int     `json:"trainSamples"`
+	TestSamples             int     `json:"testSamples"`
 	Accuracy                float64 `json:"accuracy"`
 	BalancedAccuracy        float64 `json:"balancedAccuracy"`
+	MacroF1                 float64 `json:"macroF1"`
+	HighRiskPrecision       float64 `json:"highRiskPrecision"`
 	HighRiskRecall          float64 `json:"highRiskRecall"`
+	HighRiskExactRecall     float64 `json:"highRiskExactRecall"`
+	BlockRecall             float64 `json:"blockRecall"`
+	AlertRecall             float64 `json:"alertRecall"`
 	BenignFalsePositiveRate float64 `json:"benignFalsePositiveRate"`
 	ConfidenceBrier         float64 `json:"confidenceBrier"`
 	ECE                     float64 `json:"expectedCalibrationError"`
@@ -247,32 +273,51 @@ type ModelBenchmark struct {
 }
 
 // BenchmarkAllModels trains and evaluates all registered model types.
+// splitModelBenchmarkHoldout keeps later repetitions of training-time
+// commands out of the test window. Time-order alone is insufficient when
+// command templates repeat across sessions.
+func splitModelBenchmarkHoldout(labeled []TrainingSample) (train, test []TrainingSample) {
+	if len(labeled) < 20 {
+		return nil, nil
+	}
+	ordered := chronologicalTrainingSamples(labeled)
+	cut := len(ordered) * 4 / 5
+	if cut < 1 || cut >= len(ordered) {
+		return nil, nil
+	}
+	train = ordered[:cut]
+	seen := make(map[[32]byte]struct{}, len(train))
+	for _, sample := range train {
+		seen[behaviorHoldoutKey(sample)] = struct{}{}
+	}
+	for _, sample := range ordered[cut:] {
+		if _, duplicate := seen[behaviorHoldoutKey(sample)]; duplicate {
+			continue
+		}
+		test = append(test, sample)
+	}
+	return train, test
+}
+
 func BenchmarkAllModels(store *TrainingDataStore) []ModelBenchmark {
 	labeled := store.LabeledSamples()
-	if len(labeled) < 20 {
+	trainSet, testSet := splitModelBenchmarkHoldout(labeled)
+	if len(trainSet) == 0 || len(testSet) == 0 {
+		// No independent evidence: do not publish self-evaluation as an
+		// apparently valid benchmark.
 		return nil
 	}
-	labeled = chronologicalTrainingSamples(labeled)
-
 	allTypes := AllModelTypes()
 	results := make([]ModelBenchmark, 0, len(allTypes))
-
-	// Use a chronological 80/20 split so benchmark quality is closer to the
-	// online setting and does not benefit from future samples.
-	splitIdx := len(labeled) * 4 / 5
-	trainSet := labeled[:splitIdx]
-	testSet := labeled[splitIdx:]
-
 	for _, mt := range allTypes {
 		bench := benchmarkModelType(mt, trainSet, testSet)
 		results = append(results, bench)
 	}
-
 	return results
 }
 
 func benchmarkModelType(mt ModelType, trainSet, testSet []TrainingSample) ModelBenchmark {
-	bench := ModelBenchmark{ModelType: string(mt)}
+	bench := ModelBenchmark{ModelType: string(mt), TrainSamples: len(trainSet), TestSamples: len(testSet)}
 
 	cfg := DefaultMLConfig()
 	cfg.ModelType = mt
@@ -319,7 +364,12 @@ func benchmarkModelType(mt ModelType, trainSet, testSet []TrainingSample) ModelB
 	metrics := evaluateRiskModel(model, testSet)
 	bench.Accuracy = metrics.Accuracy
 	bench.BalancedAccuracy = metrics.BalancedAccuracy
+	bench.MacroF1 = metrics.MacroF1
+	bench.HighRiskPrecision = metrics.HighRiskPrecision
 	bench.HighRiskRecall = metrics.HighRiskRecall
+	bench.HighRiskExactRecall = metrics.HighRiskExactRecall
+	bench.BlockRecall = metrics.BlockRecall
+	bench.AlertRecall = metrics.AlertRecall
 	bench.BenignFalsePositiveRate = metrics.BenignFalsePositiveRate
 	bench.ConfidenceBrier = metrics.ConfidenceBrier
 	bench.ECE = metrics.ECE

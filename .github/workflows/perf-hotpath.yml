@@ -32,6 +32,7 @@ jobs:
         run: |
           go test ./app/handlers ./app/observability ./app/events ./internal/wsfanout -count=1
           go test ./app -run 'Test.*(Hot|NativeHook|Metric|Settings|BackendListenHost|ListenBackend|WebSocket|HTTPRouter|Authentication|AuthMiddleware|DesktopUnixServer|TLSCaptureWebSocketRoute|Broadcast|RuntimeEventLog|RuntimeEventStore)' -count=1
+          go test ./app -run '^TestKernelSequenceAudit' -count=1
       - name: Race-check shared event paths
         run: cd backend && go test -race ./internal/wsfanout ./app/observability ./app/events ./app/recording ./redaction ./core -count=1
       - name: Record event construction microbenchmarks

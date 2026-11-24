@@ -13,10 +13,10 @@ import (
 // Event evidence and the system stream have different clocks and lifetimes.
 // Never silently treat an arbitrary live PID as the historical event process.
 type eventProcessReference struct {
-	PID       int
-	PPID      int
-	Comm      string
-	Occurred  time.Time
+	PID      int
+	PPID     int
+	Comm     string
+	Occurred time.Time
 }
 
 func processReferenceFromEvent(detail map[string]any) eventProcessReference {

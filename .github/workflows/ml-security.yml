@@ -5,9 +5,19 @@ on:
   push:
     paths:
       - "backend/app/ml/**"
+      - "backend/app/decision_training*.go"
+      - "backend/cmd/ml-train/**"
+      - "backend/app/sweep/**"
       - "backend/app/autotune*.go"
       - "backend/app/risk_scoring*.go"
       - "backend/app/features.go"
+      - "backend/app/integration_ml*.go"
+      - "backend/app/stateenvruntime*.go"
+      - "backend/app/statepersistenceruntime.go"
+      - "backend/app/ws_ml.go"
+      - "backend/app/cruntime_test.go"
+      - "backend/app/handlers/runtimeconfig*.go"
+      - "backend/core/ml_types.go"
       - "backend/ebpf/**"
       - "backend/go.mod"
       - "backend/go.sum"
@@ -22,9 +32,19 @@ on:
   pull_request:
     paths:
       - "backend/app/ml/**"
+      - "backend/app/decision_training*.go"
+      - "backend/cmd/ml-train/**"
+      - "backend/app/sweep/**"
       - "backend/app/autotune*.go"
       - "backend/app/risk_scoring*.go"
       - "backend/app/features.go"
+      - "backend/app/integration_ml*.go"
+      - "backend/app/stateenvruntime*.go"
+      - "backend/app/statepersistenceruntime.go"
+      - "backend/app/ws_ml.go"
+      - "backend/app/cruntime_test.go"
+      - "backend/app/handlers/runtimeconfig*.go"
+      - "backend/core/ml_types.go"
       - "backend/ebpf/**"
       - "backend/go.mod"
       - "backend/go.sum"
@@ -58,7 +78,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler clang llvm libbpf-dev libelf-dev
       - name: Generate Go protobuf bindings
         run: |
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
           mkdir -p backend/pb
           protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto \
             proto/tracker_common.proto \
@@ -73,9 +93,17 @@ jobs:
       - name: ML package tests
         working-directory: backend
         run: go test ./app/ml -count=1
+      - name: ML sweep holdout regression tests
+        working-directory: backend
+        run: go test ./app/sweep -run 'TestIncrementalSweepUsesRealHoldout' -count=1
       - name: Attack-risk app tests
         working-directory: backend
         run: go test ./app -run 'TestAttackVectorScores|TestAttackRiskClass' -count=1
+      - name: ML risk interval and runtime API regressions
+        working-directory: backend
+        run: |
+          go test ./app -run 'Test(MLActionRiskScoreMapsConfidenceToRisk|ResolveAction.*|BuildMLStatusJSON.*|NormalizeRuntimeSettingsPreservesZeroAllowRiskBoundary)$' -count=1
+          go test ./app/handlers -run '^TestHandleConfigRuntimePutAppliesActionRiskThresholds$' -count=1
 
   frontend-ml:
     runs-on: ubuntu-24.04

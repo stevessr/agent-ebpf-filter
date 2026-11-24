@@ -256,13 +256,12 @@ func evaluateAttackImpactDescriptors(samples []attackImpactDescriptor, predict f
 		out.RiskWeightedRecall = weightedDetected / weightedTotal
 	}
 	if maxCost > 0 {
-		out.SecurityUtility = clampUnit(1.0 - cost/maxCost)
+		out.SecurityUtility = Clamp01(1.0 - cost/maxCost)
 		// Catastrophic ALLOW decisions should dominate small aggregate gains.
 		// Keep the utility smooth for AutoML while imposing a strong monotonic
 		// penalty instead of an opaque hard-coded candidate rejection threshold.
 		if high.total > 0 {
-			out.SecurityUtility *= 1.0 - 0.65*out.CatastrophicMissRate
-			out.SecurityUtility = clampUnit(out.SecurityUtility)
+			out.SecurityUtility = Clamp01(out.SecurityUtility * (1.0 - 0.65*out.CatastrophicMissRate))
 		}
 	}
 	out.ThreatVectorCoverage = float64(len(observedVectors)) / float64(len(threatVectors))
@@ -322,12 +321,14 @@ func isHighImpactSample(sample TrainingSample) bool {
 }
 
 func featureHighImpact(features [FeatureDim]float64, label int32) bool {
-	category := featureCategory(features)
-	switch category {
-	case "SENSITIVE", "FILE_DELETE", "PROCESS_KILL":
+	// Categories are multi-hot: a command can be FILE_READ + FILE_DELETE
+	// or NETWORK + SENSITIVE. Checking only the first active category
+	// silently loses evidence of a destructive operation.
+	if featureEnabled(features, 3) || featureEnabled(features, 7) || featureEnabled(features, 14) {
 		return true
-	case "FILE_PERMISSION":
-		return label == 1
+	}
+	if label == 1 && featureEnabled(features, 4) {
+		return true
 	}
 	// Stable network feature contract: reverse shell / explicit exfiltration /
 	// DNS tunnel are high-consequence evidence. Generic NETWORK is not.
@@ -343,20 +344,25 @@ func sampleImpactWeight(sample TrainingSample) float64 {
 	}
 	// An anomaly score is contextual evidence, not a label. It may increase the
 	// consequence weight modestly but cannot create a threat vector by itself.
-	weight *= 1.0 + 0.20*clampUnit(sample.AnomalyScore)
+	weight *= 1.0 + 0.20*Clamp01(sample.AnomalyScore)
 	return weight
 }
 
 func featureImpactWeight(features [FeatureDim]float64, label int32) float64 {
-	weight := categoryImpactWeight(featureCategory(features))
+	// Use the maximum impact of every present category, not just the
+	// lowest-index one, or a harmless FILE_READ masks FILE_DELETE.
+	weight := categoryImpactWeight("UNKNOWN")
+	for index, name := range featureCategoryNames {
+		if featureEnabled(features, index) {
+			weight = math.Max(weight, categoryImpactWeight(name))
+		}
+	}
 	if featureHighImpact(features, label) {
 		weight = math.Max(weight, 12)
 	}
 	// Network risk score [120] may strengthen consequence weighting but never
 	// creates a vector by itself.
-	if FeatureDim > 120 {
-		weight *= 1.0 + 0.15*clampUnit(features[120])
-	}
+	weight *= 1.0 + 0.15*Clamp01(features[120])
 	return weight
 }
 
@@ -437,12 +443,17 @@ func threatVectorsFromFeatures(features [FeatureDim]float64) []ThreatVector {
 	seen := map[ThreatVector]bool{}
 	add := func(v ThreatVector) { seen[v] = true }
 
-	switch featureCategory(features) {
-	case "SENSITIVE", "FILE_PERMISSION", "PROCESS_EXEC", "CONTAINER":
+	// The extractor sets one-hot flags for *all* matched behavior
+	// categories. Preserve every vector instead of taking the first
+	// active flag (which systematically hid multi-category attacks).
+	if featureEnabled(features, 14) || featureEnabled(features, 4) ||
+		featureEnabled(features, 6) || featureEnabled(features, 13) {
 		add(ThreatIntrusion)
-	case "FILE_DELETE", "PROCESS_KILL", "FILE_WRITE":
+	}
+	if featureEnabled(features, 3) || featureEnabled(features, 7) || featureEnabled(features, 2) {
 		add(ThreatDestruction)
-	case "PACKAGE_MANAGER":
+	}
+	if featureEnabled(features, 9) {
 		add(ThreatPersistence)
 	}
 
@@ -517,17 +528,4 @@ func containsAny(value string, needles ...string) bool {
 		}
 	}
 	return false
-}
-
-func clampUnit(v float64) float64 {
-	if math.IsNaN(v) || math.IsInf(v, 0) {
-		return 0
-	}
-	if v < 0 {
-		return 0
-	}
-	if v > 1 {
-		return 1
-	}
-	return v
 }

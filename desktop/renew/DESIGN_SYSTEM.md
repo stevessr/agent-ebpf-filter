@@ -80,7 +80,7 @@ network access, telemetry, secrets or event retention.
 
 ## Verification
 
-From `desktop/renew`, run `go test ./design ./...` (Go 1.27.1 or newer) and
+From `desktop/renew`, run `go test ./design ./...` (Go version pinned in desktop/renew/go.mod) and
 `go vet ./...`, followed by the existing Renew CI/package workflow.
 `ui.NewTester` tests enforce visible text. Theme colors and snapshot
 semantics are checked separately. A PR should not be merged without a full
@@ -97,15 +97,13 @@ compare runs on the same runner/toolchain before drawing performance claims.
 - Filter conditions now use a comparable `eventFilterSignature` struct rather
   than constructing a NUL-delimited string with repeated integer/float/boolean
   formatting. This prevents delimiter collisions and repeated key allocations.
-- `summaryOwnershipIndex()` caches attribution for a single event version:
-  per-row render, inspector and quick navigation share one index. The index
-  rebuilds on the next event-window version; direct unversioned snapshots are
-  deliberately uncached.
+- `eventOwnershipIndex()` is the existing master implementation shared by
+  per-row render, inspector and quick navigation. Keep its current invalidation
+  and evidence boundaries; this design integration does not replace it.
 - Native actions are thin wrappers over `ui.ButtonBase`, not a second input,
   graphics or widget lifecycle. All presentation components remain synchronous
   and avoid timers, background work and independent event subscription.
-- `BenchmarkStructuredEventFilterKey` and
-  `BenchmarkSharedSummaryOwnershipIndex` provide allocation/CPU regression
-  baselines. Use `go test -run '^$' -bench
-  'Benchmark(StructuredEventFilterKey|SharedSummaryOwnershipIndex)' -benchmem
-  ./...` on the supported Go toolchain.
+- Existing master CI runs `BenchmarkRenewFilterSignature` and
+  `BenchmarkRenewEventFilterCompute`, plus incremental-event and frame benchmarks.
+  Ownership cache behavior is covered by `native_ownership_cache_test.go`.
+  These tests remain unchanged by the design integration.

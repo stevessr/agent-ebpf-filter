@@ -1,0 +1,769 @@
+% ============================================================================
+% MingJing: Cross-Layer Behavioral Attribution, Outcome-Aware Detection, and
+% Multi-Layer OS Enforcement for Autonomous Coding Agents via eBPF
+%
+% Target Venues: USENIX SAIS '27 / USENIX Security '27 Cycle 2 / ACM CCS '27
+% Format: Standard IEEE/USENIX two-column 10pt conference layout
+% ============================================================================
+\documentclass[10pt,twocolumn,letterpaper]{article}
+
+\usepackage[margin=0.78in,columnsep=0.28in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{mathptmx}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,tabularx,multirow,array}
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage{url}
+\usepackage[hidelinks]{hyperref}
+\usepackage{xcolor}
+\usepackage{cite}
+\usepackage{caption}
+
+\captionsetup{font=small,labelfont=bf}
+\setlist{nosep,leftmargin=1.4em}
+\setlength{\parskip}{1.5pt}
+
+\newcommand{\sys}{\textsc{MingJing}}
+\newcommand{\code}[1]{\texttt{\small #1}}
+
+\title{\Large \bf \sys{}: Cross-Layer Behavioral Attribution, Outcome-Aware Semantic Detection,\\and Multi-Layer OS Enforcement for Coding Agents via eBPF}
+
+\author{
+  Anonymous Submission\\
+  \textit{Prepared for Double-Blind Review (USENIX SAIS '27 / Security '27)}
+}
+\date{}
+
+\begin{document}
+\maketitle
+
+% ============================================================================
+\begin{abstract}
+Autonomous coding agents and Model Context Protocol (MCP) toolchains translate natural-language instructions into multi-stage operating system actions, spawning interpreter subprocesses, modifying workspace files, and opening external network connections. Existing security controls suffer from a fundamental \emph{semantic-execution gap}: application-layer guardrails inspect tool declarations or LLM prompts without visibility into child processes that escape the harness, while kernel-level runtime monitors (e.g., Falco, Tetragon) observe raw syscalls without the agent run, tool-call, or task boundary required to judge intent.
+
+We present \sys{} (\emph{Agent eBPF Filter}), a Linux observability and multi-layer control plane designed specifically for autonomous coding agents. First, \sys{} bridges the semantic-execution gap via a \emph{tri-modal context ingestion architecture} combining language-runtime PID adapters, native lifecycle hooks across ten agent CLIs, and an authenticating Unix-domain-socket command wrapper, attributing kernel events to explicit $(\code{agent\_run\_id}, \code{tool\_call\_id}, \code{trace\_id})$ scopes without relying on always-on TLS plaintext interception. Second, \sys{} introduces an \emph{outcome-aware semantic detection and tamper-evident audit pipeline} that pairs CPU-local pre-reserve ringbuffer sequence provenance with SHA-256 hash-chained persistence, return-value-verified multi-agent file contention rules, and web-service shell-spawn heuristics. Third, \sys{} enforces explicit, deterministic boundaries across three decoupled layers: userspace command policies (\code{ALLOW/BLOCK/ALERT/REWRITE}), kernel \code{cgroup/connect} and \code{cgroup/sendmsg} network containment with \code{BPF\_MAP\_TYPE\_LPM\_TRIE} IPv4/IPv6 CIDR matching, and 14-hook BPF Linux Security Module (LSM) enforcement combining exact \code{bpf\_d\_path} file read/write rules, basenames, and persistent inode-identity $(\code{s\_dev}, \code{i\_ino})$ anti-hardlink/anti-rename guards, coupled with an out-of-prompt HTTP privacy gateway and behavior-grouped leakage-safe ML evaluation. Across 27 million syscall measurements over 100 benchmark cycles, \sys{}'s eBPF tracepoint hooks remain within measurement noise ($-0.95\%$ mean delta, $-5.26\%$ to $+4.05\%$ across 18 syscalls), while detecting \textbf{97.2\%} of 1,054 InjecAgent attacks and \textbf{92.3\%} of 427 AgentDojo attack pairs with \textbf{100.0\%} benign task utility.
+\end{abstract}
+
+% ============================================================================
+\section{Introduction}
+\label{sec:intro}
+
+Large language model (LLM) coding agents---such as Claude Code, Codex CLI, Gemini CLI, Cursor, and MCP-enabled developer assistants---have rapidly evolved from passive code-completion engines into autonomous actors capable of executing shell pipelines, installing third-party packages, managing git repositories, and querying remote services. While this autonomy accelerates software engineering workflows, it expands the local attack surface. Indirect prompt injections embedded in repository issues, pull requests, dependency manifests, or web pages can hijack an agent's control flow, causing a ostensibly read-only task (e.g., \code{read\_webpage} or \code{inspect\_repo}) to exfiltrate credentials from \code{\textasciitilde/.ssh} or \code{.env}, spawn reverse shells, or pivot across development hosts~\cite{sope2026,flowseal2026,privacypeek2026}.
+
+Securing autonomous coding agents on developer workstations and CI nodes requires answering four forensic and operational questions for every agent session:
+\begin{enumerate}[label=(\roman*)]
+  \item \emph{Declared intent:} What tool call and arguments did the agent claim to execute?
+  \item \emph{Process reality:} What child processes and binaries actually ran in the OS?
+  \item \emph{Resource footprint:} Which filesystem paths and network endpoints were successfully accessed or mutated?
+  \item \emph{Enforcement boundary:} Which security alerts fired, and which actions were synchronously blocked versus asynchronously audited?
+\end{enumerate}
+
+Neither application-layer agent sandboxes nor traditional cloud-native eBPF monitors answer all four questions simultaneously. Application-level permission prompts and prompt guardrails operate before command execution; once an agent invokes a build script, test runner, or package manager (\code{npm install}, \code{pytest}, \code{cargo build}), transitive subprocesses execute outside the LLM harness's observation scope. Conversely, kernel-level observability and enforcement engines such as Falco~\cite{falco}, Cilium Tetragon~\cite{tetragon}, and Aqua Tracee~\cite{tracee} capture fine-grained system calls via eBPF, but lack native awareness of agent runs, turns, or tool invocations. When multiple agents or subagents concurrently execute identical binaries (\code{git}, \code{python}, \code{node}, \code{bash}) in shared workspaces, PID-only or binary-name (\code{comm}) attribution conflates distinct tasks.
+
+Recent research has begun exploring eBPF for AI agents. AgentSight~\cite{agentsight2025} correlates agent semantics with system behavior primarily by intercepting TLS traffic via uprobes to extract LLM prompts and tool intent. However, continuous TLS plaintext capture introduces substantial privacy risk on developer workstations by exposing proprietary source code, API keys, and personal data to the monitoring plane. Concurrently, Agent-Warden~\cite{agentwarden2026} tracks kernel-native process--regular-file provenance via eBPF state propagation, focusing on post-hoc causal graph reconstruction rather than explicit multi-layer runtime policy enforcement or out-of-prompt privacy filtering.
+
+In this paper, we design, implement, and evaluate \sys{} (\emph{Agent eBPF Filter}), an end-to-end Linux observability, cross-layer attribution, and multi-layer security control system for AI agents. \sys{} is built around three core design principles:
+\begin{itemize}
+  \item \textbf{Privacy-Preserving Explicit Attribution over Mandatory TLS Decryption:} Rather than requiring continuous uprobe TLS interception to infer what an agent is doing, \sys{} ingests explicit execution context ($\code{agent\_run\_id}$, $\code{task\_id}$, $\code{tool\_call\_id}$, $\code{trace\_id}$) through language adapters, native CLI hooks, and an authenticating command wrapper, while keeping TLS uprobe capture strictly disabled by default behind compile-time, runtime, and authentication gates.
+  \item \textbf{Strict Separation of Asynchronous Semantic Alerts and Synchronous Enforcement:} \sys{} explicitly decouples userspace stateful heuristics and machine-learning risk scores from in-kernel synchronous deny paths (\code{cgroup} and BPF LSM). High risk scores or heuristic alerts never silently mutate kernel enforcement maps unless explicitly authorized through gated feedback policies, preventing opaque self-lockout.
+  \item \textbf{Tamper-Evident, Outcome-Verified Telemetry:} Recognizing that ringbuffer drops and failed syscalls distort stateful security detectors, \sys{} assigns CPU-local sequence numbers \emph{prior} to \code{bpf\_ringbuf\_reserve()}, tracks reload generations, verifies positive syscall outcomes before advancing file-contention state, and seals persisted events in SHA-256 hash chains.
+\end{itemize}
+
+\paragraph{Contributions.} We make the following contributions:
+\begin{enumerate}
+  \item \textbf{Cross-Layer Agent Attribution Architecture (\S\ref{sec:design}):} We design a tri-modal context ingestion plane supporting Python/Node.js PID registration, native lifecycle hooks for 10 major coding agent CLIs, and a peer-credential-verified UDS wrapper, linked with an eBPF tracepoint engine covering 9 core syscall families and bounded ancestry/cgroup context enrichment.
+  \item \textbf{Forensic-Grade Telemetry \& Outcome-Aware Detection (\S\ref{sec:detection}):} We implement pre-reserve CPU-local sequence accounting that distinguishes kernel ringbuffer exhaustion from userspace decode drops, monotonic-to-wall clock alignment, SHA-256 hash-chained JSONL persistence, and outcome-verified semantic detectors for 10 agent threat classes including multi-agent file contention and web-service shell spawns.
+  \item \textbf{Multi-Layer Enforcement \& Out-of-Prompt Privacy Gateway (\S\ref{sec:enforcement}):} We combine userspace wrapper policies (\code{ALLOW/BLOCK/ALERT/REWRITE}) with deterministic kernel \code{cgroup/connect4,6} + \code{sendmsg4,6} network blocking (supporting exact IPs, ports, cgroups, and \code{LPM\_TRIE} IPv4/IPv6 CIDR prefixes) and 14-hook BPF LSM enforcement (covering exact \code{bpf\_d\_path} file read/write rules, basenames, and $(\code{s\_dev}, \code{i\_ino})$ inode-identity hardlink/rename protection), complemented by a format-aware RFC~6901 HTTP privacy gateway and leakage-safe behavior-grouped ML risk scoring.
+  \item \textbf{Comprehensive Empirical \& Public Benchmark Evaluation (\S\ref{sec:eval}):} We evaluate \sys{} across a 100-cycle, 27-million-measurement syscall overhead benchmark, 19 agentic runtime replay scenarios, 1,054 InjecAgent cases, 427 AgentDojo attack pairs + 66 benign user tasks, 493 PrivacyLens trajectories across structured PII and contextual-norm tiers, and a 2,187-command multi-model and zero-overlap cross-corpus ML audit.
+\end{enumerate}
+
+% ============================================================================
+\section{Background and Threat Model}
+\label{sec:threat}
+
+\subsection{The Semantic-Execution Gap in Agentic Systems}
+Modern coding agents operate in an iterative loop: the LLM emits a structured tool call (e.g., \code{bash}, \code{read\_file}, \code{mcp.run\_plugin}), the client harness executes the corresponding local operation, and the stdout/stderr or file content is returned to the model context. This architecture creates three visibility and control blind spots:
+\begin{enumerate}
+  \item \textbf{Intent--Behavior Divergence:} A tool call labeled \code{inspect\_logs} or \code{read\_webpage} declares benign intent at the SDK layer, yet a prompt injection payload or compromised script can cause the underlying child process to read \code{/etc/shadow} or open an outbound socket to \code{pastebin.example:443}.
+  \item \textbf{Multi-Process Identity Loss:} A single tool call frequently forks deep process trees across shells, compilers, and language runtimes. When two agents (or parallel subagents in a swarm) execute \code{git} or \code{python3} simultaneously, kernel events carry only OS identifiers (\code{pid}, \code{tgid}, \code{ppid}, \code{comm}, \code{cgroup\_id}). Without explicit run-to-PID binding and start-time constraints against PID reuse, attributing a child syscall to its originating tool call is error-prone.
+  \item \textbf{Ambiguous Enforcement Semantics:} Security tools often blur the line between asynchronous detection (emitting an alert after a syscall exits) and synchronous prevention (denying an operation in-kernel before completion). Furthermore, LLM-internal privacy instructions (\emph{``do not leak secrets''}) are vulnerable to context laundering and memory-parasite fields~\cite{flowseal2026,sope2026}.
+\end{enumerate}
+
+\subsection{Threat Model and Trust Boundaries}
+\paragraph{Protected Assets.} \sys{} protects (1) workspace source files and build artifacts; (2) host credentials and secret material (\code{\textasciitilde/.ssh}, \code{.env}, cloud tokens, Kubernetes configs, \code{/etc/shadow}); (3) host filesystem boundaries outside the designated workspace; (4) unauthorized network egress from agent-descendant processes; and (5) forensic integrity of execution traces and persisted audit logs.
+
+\paragraph{Adversary Capabilities.} We consider an adversary who compromises or manipulates an autonomous agent operating under a normal developer user account (non-root). Threat vectors include:
+\begin{itemize}
+  \item \emph{Indirect prompt injection} via untrusted repository files, PR diffs, issue descriptions, or fetched web documents;
+  \item \emph{Malicious MCP tool servers or third-party dependencies} (\code{npm}/\code{pip} install scripts) that spawn unauthorized child binaries or exfiltrate environment tokens;
+  \item \emph{Compromised web workers} (PHP, Python WSGI/ASGI, Node.js/Bun HTTP servers) attempting to spawn interactive OS shells;
+  \item \emph{Multi-agent interference}, where concurrent agents interleave modifications to shared workspace files or enter runaway fork/token-consumption loops;
+  \item \emph{JSON/HTTP evasion} attempting to smuggle sensitive fields through duplicate JSON keys, double-encoded query strings, or memory-export parameters (\code{taskHistory}).
+\end{itemize}
+
+\paragraph{Trust Assumptions and Explicit Non-Goals.} We assume the host Linux kernel (with BTF, tracepoints, cgroup v2, and optionally BPF LSM enabled) and the privileged \sys{} backend daemon are trusted and uncompromised. The agent process itself, its descendant processes, and the semantics reported by agent hooks are treated as \emph{untrusted claims} that must be cross-checked against kernel telemetry.
+
+In accordance with rigorous systems-security scoping, we explicitly state our \textbf{non-goals}:
+\begin{enumerate}
+  \item \sys{} does \emph{not} defend against a local \code{root} attacker or a compromised kernel capable of unloading BPF programs or tampering with pinned maps under \code{/sys/fs/bpf/agent-ebpf/}.
+  \item \sys{}'s explicit kernel enforcement maps (\code{cgroup} exact IP/port/cgroup/LPM-CIDR blocklists and BPF LSM exact-path/\code{bpf\_d\_path}, basename, and inode-identity maps) are deterministic policy primitives, \emph{not} a full recursive container filesystem sandbox, L7 DNS/domain firewall, or container-escape defense.
+  \item Kernel blocks do \emph{not} retroactively sever TCP streams established before rule insertion, nor do they revoke read/write \code{mmap} regions mapped prior to a file rule update (though subsequent \code{mmap\_file} and \code{file\_mprotect} calls are intercepted).
+\end{enumerate}
+
+% ============================================================================
+\section{System Architecture and Attribution}
+\label{sec:design}
+
+\begin{figure*}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}p{0.18\textwidth}p{0.03\textwidth}p{0.23\textwidth}p{0.03\textwidth}p{0.25\textwidth}p{0.03\textwidth}p{0.21\textwidth}@{}}
+\toprule
+\textbf{1. Context Ingestion Plane} & & \textbf{2. Kernel eBPF Plane} & & \textbf{3. Backend Correlation \& Audit} & & \textbf{4. Control \& UI Plane} \\
+\midrule
+$\bullet$ \textbf{PID Adapters} (Python/JS) \newline \code{POST /register}, \code{/unregister} \vspace{3pt} \newline
+$\bullet$ \textbf{Native CLI Hooks} (10 CLIs) \newline Claude, Codex, Gemini, Copilot, Kiro, Pi, Oh-My-Pi, Augment, Antigravity, ZCode \vspace{3pt} \newline
+$\bullet$ \textbf{UDS Command Wrapper} \newline \code{/tmp/agent-ebpf.sock} (\code{SO\_PEERCRED})
+& $\Longrightarrow$ \newline \vspace{15pt} $\Longrightarrow$ \newline \vspace{15pt} $\Longleftrightarrow$
+& $\bullet$ \textbf{Syscall Tracker} (\code{ringbuf}) \newline \code{execve}, \code{openat}, \code{connect}, \code{bind}, \code{sendto}, \code{recvfrom}, \code{ioctl}, \code{mkdirat}, \code{unlinkat} \vspace{3pt} \newline
+$\bullet$ \textbf{Pre-Reserve Audit Tuple} \newline $(\code{gen}, \code{cpu}, \code{seq}, t_{\text{mono}})$ \vspace{3pt} \newline
+$\bullet$ \textbf{Opt-in TLS Uprobes} (Off) \newline OpenSSL, GnuTLS, NSS, Go, Rustls
+& $\Longrightarrow$ \newline \vspace{15pt} $\Longrightarrow$ \newline \vspace{15pt} $\Longrightarrow$
+& $\bullet$ \textbf{Context Enrichment} \newline PID $\to$ Trusted Parent $\to$ cgroup v2 $\to$ Unattributed \vspace{3pt} \newline
+$\bullet$ \textbf{Semantic Rule Engine} \newline 10 outcome-aware rules + Web-shell heuristics \vspace{3pt} \newline
+$\bullet$ \textbf{Tamper-Evident Storage} \newline 4-level redaction + SHA-256 hash chain + Clock audit
+& $\Longrightarrow$ \newline \vspace{15pt} $\Longleftrightarrow$ \newline \vspace{15pt} $\Longrightarrow$
+& $\bullet$ \textbf{Synchronous Kernel Deny} \newline \code{cgroup/connect4,6}, \code{sendmsg4,6} (IP+LPM CIDR); 14-hook BPF LSM (\code{d\_path}+inode \code{-EACCES}) \vspace{3pt} \newline
+$\bullet$ \textbf{HTTP Privacy Gateway} \newline RFC 6901 JSON policy + placeholder restore \vspace{3pt} \newline
+$\bullet$ \textbf{Observability Surfaces} \newline Vue3 WebUI, Renew Desktop, TUI, MCP, OTLP
+\\
+\bottomrule
+\end{tabular}
+\caption{Architecture of \sys{}, illustrating the separation between (1) explicit semantic context ingestion, (2) eBPF kernel telemetry with pre-reserve sequence accounting, (3) userspace attribution, redaction, and hash-chained auditing, and (4) decoupled synchronous enforcement across userspace wrapper, cgroup v2, and BPF LSM hooks.}
+\label{fig:arch}
+\end{figure*}
+
+Figure~\ref{fig:arch} presents the end-to-end architecture of \sys{}. Rather than relying on a single interception point, \sys{} coordinates four decoupled planes.
+
+\subsection{Tri-Modal Semantic Context Ingestion}
+Because the Linux kernel has no intrinsic concept of an LLM conversation turn or tool invocation, semantic context must be supplied from userspace and bound to OS process identifiers with strict lifecycle guarantees:
+
+\begin{enumerate}
+  \item \textbf{Language-Runtime PID Adapters:} Lightweight Python (\code{agent\_tracker.py}) and Node.js (\code{agentTracker.js}) adapters register an agent's root PID via authenticated \code{POST /register} requests at startup and remove it via \code{POST /unregister} on termination, populating the kernel \code{agent\_pids} map and userspace \code{ProcessContextStore}.
+  \item \textbf{Native Agent CLI Lifecycle Hooks:} \sys{} provides native hook integrations for 10 agent CLIs: Claude Code, OpenAI Codex CLI, Gemini CLI, GitHub Copilot CLI, Kiro CLI, Pi, Oh My Pi, Augment, Antigravity CLI, and ZCode. Before and after a tool call executes, the lifecycle hook reports structured metadata including \code{agent\_run\_id}, \code{task\_id}, \code{tool\_call\_id}, \code{trace\_id}, working directory (\code{cwd}), and an argument digest (\code{argv\_digest}).
+  \item \textbf{Authenticating UDS Command Wrapper (\code{agent-wrapper}):} For environments or harnesses that wrap shell commands (such as Cursor and DeepSeek Harness \code{dsh}), \code{agent-wrapper} intercepts command execution before \code{execve} and transmits a protobuf \code{WrapperRequest} over a private Unix domain socket (\code{/tmp/agent-ebpf.sock}). The Go backend (\code{server\_uds.go}) verifies local peer credentials (\code{SO\_PEERCRED}) before returning a synchronous policy decision (\code{ALLOW}, \code{BLOCK}, \code{ALERT}, or \code{REWRITE}).
+\end{enumerate}
+
+\subsection{Bounded Cross-Layer Attribution Algorithm}
+When a kernel event arrives from the eBPF ringbuffer with $(\code{pid}, \code{ppid}, \code{cgroup\_id}, \code{comm})$, the backend enrichment stage (\code{events.EnrichEventContext}) resolves its agent attribution through a deterministic four-tier hierarchy:
+\begin{equation}
+  \mathcal{A}(e) = \begin{cases}
+    \text{Ctx}(\code{pid}) & \text{if direct valid registration exists,} \\
+    \text{Ctx}(\code{ppid}^{*}) & \text{if bounded trusted parent lineage matches,} \\
+    \text{Ctx}(\code{cgroup\_id}) & \text{if scoped cgroup v2 attribution exists,} \\
+    \bot~(\text{Unattributed}) & \text{otherwise.}
+  \end{cases}
+\end{equation}
+
+Crucially, \sys{} enforces three soundness invariants during attribution:
+\begin{itemize}
+  \item \textbf{No bare-\code{comm} guessing:} Matching a binary name (e.g., \code{python} or \code{git}) or observing an unlinked shell execution is never sufficient to assign an \code{agent\_run\_id}.
+  \item \textbf{PID-reuse boundary via creation timestamps:} When constructing execution graphs and lineage trees (e.g., in the native Renew desktop client \code{native\_agent\_lineage\_model.go}), process start times constrain parent--child edges so that exited PIDs reassigned by the kernel do not inherit stale agent contexts.
+  \item \textbf{Preservation of unattributed and candidate states:} Events lacking verified lineage are explicitly retained as \emph{unattributed} ($\bot$), and heuristic process tree branches are labeled as \code{subagent-candidate} rather than ground-truth SDK causal spans.
+\end{itemize}
+
+\subsection{eBPF Kernel Collection Plane}
+The primary kernel collector (\code{backend/ebpf/agent\_tracker.c} and split header modules) attaches tracepoints across 9 system call families: process execution (\code{execve}), filesystem operations (\code{openat}, \code{mkdirat}, \code{unlinkat}), network communication (\code{connect}, \code{bind}, \code{sendto}, \code{recvfrom}), and device control (\code{ioctl}). To maintain cross-kernel compatibility across distribution kernels, missing optional tracepoints are gracefully skipped at load time.
+
+\paragraph{In-Kernel Filtering Maps.} Pinned under \code{/sys/fs/bpf/agent-ebpf/maps}, the tracker maintains \code{agent\_pids} (registered agent and descendant PIDs), \code{tracked\_comms} (exact 16-byte command names), \code{tracked\_paths} (exact 256-byte absolute paths), and the zero-copy \code{events} BPF ringbuffer.
+
+\paragraph{Opt-In Multi-Runtime TLS Uprobe Diagnostic Plane.} While standard auditing operates purely on syscall metadata and explicit hooks, \sys{} includes an optional diagnostic uprobe module (\code{agent\_tls\_capture.c}) supporting five TLS stacks: OpenSSL (\code{SSL\_write/read}, \code{\_ex}, \code{\_ex2}), GnuTLS (\code{gnutls\_record\_send/recv}), NSS (\code{PR\_Write/Read}), Go standard library (\code{crypto/tls.(*Conn).Write/Read}), and Rustls (\code{rustls\_encrypt\_outgoing}, \code{rustls\_consume\_first\_chunk}). To prevent high-frequency allocation pressure in userspace during HTTPS streaming, fragments (up to 18 per record) are reassembled in a single pre-allocated slot buffer tracked by a 32-bit bitset without per-fragment map allocations. Return probes unconditionally consume entry context from \code{retprobe\_buf} even on failed calls and clamp returned lengths against entry buffer capacities.
+
+% ============================================================================
+\section{Forensic Telemetry and Outcome-Aware Semantic Detection}
+\label{sec:detection}
+
+A pervasive weakness in eBPF security monitoring is treating telemetry as lossless and treating syscall entry attempts as completed mutations. \sys{} hardens both the telemetry transport and the semantic detection engine.
+
+\subsection{Pre-Reserve Sequence Provenance and Clock Alignment}
+\paragraph{Distinguishing Kernel Ringbuffer Drops from Userspace Loss.} In conventional eBPF collectors, sequence numbers are assigned only after \code{bpf\_ringbuf\_reserve()} succeeds; consequently, ringbuffer exhaustion is visible only via coarse aggregate counters. In \sys{}, each CPU assigns a monotonically increasing \code{kernel\_sequence} \emph{before} invoking \code{bpf\_ringbuf\_reserve()}. If reservation fails, the sequence number is consumed and per-CPU \code{pending\_dropped\_events} is incremented. The next successful event on that CPU carries:
+\begin{itemize}
+  \item \code{kernel\_audit\_generation}: a random non-zero generation identifier rotated whenever tracker programs are reloaded;
+  \item \code{kernel\_dropped\_since\_last}: exact reserve failures since the preceding emitted event on that CPU;
+  \item \code{kernel\_reserve\_failures\_total}: cumulative per-CPU reserve failures, accompanied by authoritative \code{audit\_flags}.
+\end{itemize}
+By checking continuity on the tuple $(\code{kernel\_audit\_generation}, \code{kernel\_cpu}, \code{kernel\_sequence})$, the backend deterministically classifies any sequence gap as either \emph{kernel-ringbuf-explained} or \emph{unexplained userspace/reader loss}, and assigns each event a forensic identity invariant to userspace scheduling delays. ABI integrity between C and Go is enforced at three levels: C \code{\_Static\_assert} struct checks, Go \code{unsafe.Sizeof/Offsetof} unit tests, and CI kernel verifier loading.
+
+\paragraph{Dual-Clock Audit Alignment.} Kernel probes record timestamps via \code{bpf\_ktime\_get\_ns()} (\code{CLOCK\_MONOTONIC}), whereas userspace consumers operate on wall-clock time. \sys{} retains the raw monotonic \code{probe\_timestamp\_ns}, records \code{ingest\_timestamp\_ns} upon userspace receipt, computes $\code{capture\_delay\_ns} = t_{\text{mono\_now}} - \code{probe\_timestamp\_ns}$, and aligns event windows (\code{first\_seen\_ms}, \code{last\_seen\_ms}) to the kernel capture instant rather than userspace ingestion time. Offline replay events are tagged with \code{probe\_clock = unix\_replay} so synthetic timestamps are never confused with live kernel clocks.
+
+\paragraph{Tamper-Evident SHA-256 Hash-Chained Persistence.} Every persisted event record in \sys{}'s JSONL store is bound into an append-only cryptographic hash chain per writer generation. Record $i$ stores $(\code{auditChainVersion}, \code{auditChainId}, \code{auditSequence}_i, \code{auditPrevHash}_{i-1}, \code{auditHash}_i)$, where:
+\begin{equation}
+\footnotesize
+  \code{auditHash}_i = \text{SHA256}\big(\text{meta}_i \,\|\, t_{\text{recv},i} \,\|\, \code{prevHash}_{i-1} \,\|\, \text{ProtoDet}(E_i)\big)
+\end{equation}
+using deterministic protobuf serialization of the normalized \code{EventEnvelope} $E_i$ to avoid a second JSON encoding in the hot persistence path while ensuring that record mutation, insertion, or deletion within a chain segment is detected by \code{VerifyAuditChain}.
+
+\subsection{Outcome-Aware Semantic Detection Rules}
+The userspace semantic engine (\code{backend/app/events/alerts\_semantic.go}) synthesizes 10 structured alert categories over enriched events: \code{SECRET\_ACCESS}, \code{SEMANTIC\_MISMATCH}, \code{UNEXPECTED\_NETWORK\_EGRESS}, \code{UNEXPECTED\_CHILD\_PROCESS}, \code{TOOL\_BEHAVIOR\_DRIFT}, \code{SUSPICIOUS\_SHELL\_PIPELINE}, \code{WORKSPACE\_ESCAPE}, \code{TOKEN\_EXFIL\_RISK}, \code{RESOURCE\_WASTING\_LOOP}, and \code{MULTI\_AGENT\_FILE\_CONTENTION}. We highlight two representative detectors engineered for low false positives.
+
+\paragraph{1. Outcome-Aware Multi-Agent File Contention.} When multiple coding agents operate on a repository, interleaved writes to the same file can corrupt state or indicate cross-agent tampering. Inspired by runtime security best practices from Tetragon and Falco~\cite{tetragon,falco}, \sys{}'s \code{ObserveMultiAgentFileContention} detector fires \emph{only} when five conditions hold simultaneously:
+\begin{enumerate}
+  \item \emph{Verified positive mutation outcome:} The syscall return value must prove modification. A failed syscall ($\code{retval} < 0$) is ignored; for \code{write(2)}, strictly positive bytes written ($\code{retval} > 0$) are required.
+  \item \emph{Concrete regular-file path:} Synthetic FD labels (\code{fd:3}, \code{file write}), sockets, pipes, redaction placeholders, and pseudo-filesystems (\code{/dev/null}, \code{/dev/pts/*}, \code{/proc/*}, \code{/sys/*}, \code{/dev/fd/*}) are excluded (while preserving regular shared-memory files under \code{/dev/shm}).
+  \item \emph{Comparable, distinct agent identities:} Both writers must resolve to distinct root agent PIDs or distinct \code{agent\_run\_id}s; two child PIDs of the same agent or incompatible identity types do not trigger contention.
+  \item \emph{Container-scoped isolation:} The state key pairs $(\code{container\_id}, \code{abs\_path})$ so identical paths in separate containers never collide, while out-of-order replay timestamps older than the stored observation are ignored.
+  \item \emph{Bounded 15\,s window and cooldown:} Two distinct agents must mutate the scoped path within 15\,s, with at most one alert emitted per path per 15\,s cooldown, assigning a conservative heuristic risk floor of $70/100$.
+\end{enumerate}
+
+\paragraph{2. Audit-First Web-Service Shell-Spawn Detection.} Coding workspaces frequently run local web services (PHP, Python, Node.js/TypeScript) alongside test runners and build scripts. Blanket alerts on \code{python} or \code{node} spawning \code{/bin/sh} overwhelm operators during \code{pytest} or \code{npm run build}. \sys{}'s web-shell heuristic (\code{backend/internal/heuristics/web\_shell.go}) performs a bounded procfs command-line lookup of the immediate parent process and requires \emph{positive web-worker evidence} before raising \code{PHP\_WEB\_SHELL\_SPAWN}, \code{PYTHON\_WEB\_SHELL\_SPAWN}, or \code{JS\_WEB\_SHELL\_SPAWN} (Table~\ref{tab:webshell}). Unknown scripts (\code{python app.py}) or missing procfs entries for fast-exiting processes fail safe to \emph{no match}. Commands traversing \code{agent-wrapper} default to audit-first (\code{ALERT} on otherwise allowed commands, configurable via \code{AGENT\_EBPF\_WEB\_SHELL\_MODE=block}), while kernel-observed \code{execve} events emit an independent high-risk ($98/100$) semantic alert.
+
+\begin{table}[t]
+\centering
+\footnotesize
+\caption{Web-service shell-spawn heuristic rules and false-positive exclusions (\code{backend/internal/heuristics/web\_shell.go}).}
+\label{tab:webshell}
+\begin{tabularx}{\columnwidth}{@{}lXX@{}}
+\toprule
+\textbf{Rule Code} & \textbf{Positive Parent Evidence} & \textbf{Benign Exclusions (No Match)} \\
+\midrule
+\code{PHP\_WEB\_SHELL} & \code{php-fpm}, \code{php-cgi}, PHP built-in HTTP server, \code{artisan serve} & \code{php artisan queue:work}, CLI scripts \\
+\addlinespace[2pt]
+\code{PYTHON\_WEB\_SHELL} & \code{uvicorn}, \code{gunicorn}, \code{hypercorn}, \code{daphne}, \code{waitress}, \code{granian}, Flask/FastAPI/Django \code{runserver}, \code{http.server} & \code{python -m pytest}, generic \code{python app.py} \\
+\addlinespace[2pt]
+\code{JS\_WEB\_SHELL} & Node/Bun/Deno/\code{tsx}/\code{ts-node} with server entrypoint; Next/Nuxt/Nest HTTP server commands & \code{node scripts/build.js}, \code{shellcheck} (substring safe) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% ============================================================================
+\section{Multi-Layer Enforcement and Privacy Plane}
+\label{sec:enforcement}
+
+\subsection{Three-Layer Deterministic Enforcement}
+Table~\ref{tab:enforcement} summarizes \sys{}'s six control and observation planes. Unlike systems that conflate alerting with blocking, \sys{} defines exact matching semantics and operational boundaries for each enforcement layer:
+
+\begin{table*}[t]
+\centering
+\footnotesize
+\caption{Comparison of \sys{}'s six observation and enforcement planes, their kernel/userspace hook points, matching semantics, and explicit architectural boundaries.}
+\label{tab:enforcement}
+\begin{tabularx}{\textwidth}{@{}llllXX@{}}
+\toprule
+\textbf{Plane} & \textbf{Location} & \textbf{Mode} & \textbf{Hook / Ingress Point} & \textbf{Matching Key \& Action} & \textbf{Explicit Scope Boundary} \\
+\midrule
+1. Wrapper Policy & Userspace & Sync & \code{agent-wrapper} via UDS \code{/tmp/agent-ebpf.sock} & Exact \code{comm} + optional regex $\to$ \code{ALLOW}, \code{BLOCK} (exit 1), \code{ALERT}, \code{REWRITE} & Covers only commands launched via wrapper/hooks; bypassed by direct host execution. \\
+\addlinespace[2pt]
+2. Tracked Comms & Kernel BPF & Async & \code{tracked\_comms} map & Exact 16-byte binary name (\code{comm}) $\to$ enables syscall capture & Exact string match only; no prefix/suffix wildcards. \\
+\addlinespace[2pt]
+3. Tracked Paths & Kernel BPF & Async & \code{tracked\_paths} map & Exact 256-byte absolute path $\to$ enables path-targeted capture & Exact file match; does not recursively track directory subtrees. \\
+\addlinespace[2pt]
+4. Semantic Alerts & Userspace & Async & \code{BuildSemanticAlerts} & Stateful event correlation $\to$ 10 alert codes + risk score $[0,100]$ & Observational only; gated async feedback worker required for map mutation. \\
+\addlinespace[2pt]
+5. cgroup Sandbox & Kernel BPF & Sync & \code{cgroup/connect4,6}, \code{cgroup/sendmsg4,6} & cgroup v2 inode ID, exact IPv4/IPv6 (incl.\ \code{::ffff:a.b.c.d}), IPv4/IPv6 LPM CIDR, TCP/UDP port $\to$ \code{-EPERM} & Blocks TCP connect and UDP send; does not close pre-existing TCP streams or inspect L7 DNS names. \\
+\addlinespace[2pt]
+6. BPF LSM Enforcer & Kernel BPF & Sync & 14 LSM hooks (\code{bprm\_check\_security}, \code{file\_open}, \code{mmap\_file}, \code{inode\_*}) & Exec: exact path/basename; File/dir: \code{bpf\_d\_path} R/W path, basename, and persistent \code{(s\_dev, i\_ino)} inode key $\to$ \code{-EACCES} & Blocks exec, open, rw, mmap/mprotect, link/rename-over, and hardlink aliases; no directory subtree prefix rules or revocation of pre-existing rw \code{mmap}. \\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+\begin{enumerate}
+  \item \textbf{Userspace Wrapper Interception:} \code{agent-wrapper} enforces \code{ALLOW}, \code{BLOCK}, \code{ALERT}, and argument \code{REWRITE} rules keyed by command name and regular expressions. It provides human-readable feedback to the agent harness but only covers wrapped invocations.
+  \item \textbf{In-Kernel \code{cgroup} Network Containment (\code{cgroup\_sandbox.c}):} Attached to the cgroup v2 hierarchy at \code{cgroup/connect4}, \code{cgroup/connect6}, \code{cgroup/sendmsg4}, and \code{cgroup/sendmsg6}, this program consults pinned hash maps (\code{cgroup\_blocklist}, \code{ip\_blocklist}, \code{ip6\_blocklist}, \code{port\_blocklist}) and pinned longest-prefix-match tries (\code{cidr\_blocklist} and \code{cidr6\_blocklist}, \code{BPF\_MAP\_TYPE\_LPM\_TRIE}). It synchronously rejects matching outbound TCP connects, connected UDP connects/sends, and unconnected UDP \code{sendto}/\code{sendmsg} calls before packet transmission. IPv4-mapped IPv6 addresses (\code{::ffff:a.b.c.d}) are normalized in-kernel against both \code{ip\_blocklist} and IPv4 \code{cidr\_blocklist} tries so dual-stack sockets cannot bypass IPv4 host or subnet rules. All APIs (\code{/sandbox/cgroup/**}, External API v1, MCP) share a single atomic runtime snapshot to prevent split-brain policy state.
+  \item \textbf{In-Kernel 14-Hook BPF LSM Enforcer (\code{lsm\_enforcer.c}):} Attached to 14 Linux Security Module hooks---\code{bprm\_check\_security} for execution, \code{file\_open}, \code{file\_permission}, \code{mmap\_file}, \code{file\_mprotect}, and 9 inode hooks (\code{inode\_setattr}, \code{inode\_create}, \code{inode\_link}, \code{inode\_symlink}, \code{inode\_unlink}, \code{inode\_mkdir}, \code{inode\_rmdir}, \code{inode\_mknod}, \code{inode\_rename})---the enforcer matches exact executable and \code{bpf\_d\_path} file read/write rules, basenames, and persistent kernel \code{(s\_dev, i\_ino)} inode identity keys (\code{lsm\_blocked\_inodes}) returning \code{-EACCES}. Tracking inode keys synchronized from userspace path policies defeats hardlink (\code{os.Link}) and rename (\code{os.Rename}) aliasing, while \code{inode\_rename} inspects both \code{old\_dentry} (all access bits) and \code{new\_dentry} (\code{DENY\_WRITE} against atomic rename-over). By hooking \code{file\_permission}, \code{mmap\_file}, \code{file\_mprotect}, and \code{inode\_setattr}, it also guards already-opened file descriptors (e.g., \code{ftruncate}, \code{fchmod}, or memory-protection escalation).
+\end{enumerate}
+
+\paragraph{Gated Asynchronous Kernel Risk Feedback.} To prevent an ML false positive from locking out the host, \code{KernelRiskDecision} scores never write directly to BPF maps on the hot path. A separate bounded worker (\code{kernel\_risk\_feedback.go}) enqueues candidate actions only when both \code{PolicyManagementEnabled} and \code{KernelRiskFeedback.Enabled} runtime gates are active and the event risk score exceeds \code{minRiskScore}. Moreover, pure policy planning functions (\code{agentboundary.PlanTransition}) are strictly side-effect-free proposals.
+
+\subsection{Out-of-Prompt Privacy Gateway and 4-Level Redaction}
+Motivated by recent findings on acquisition-stage agent privacy leakage and MCP exfiltration~\cite{flowseal2026,minim2026,sope2026,privacypeek2026}, \sys{} complements its 4-level telemetry redaction engine (\code{None}, \code{Basic}, \code{Standard}, \code{Strict}) with an out-of-prompt HTTP privacy gateway:
+\begin{itemize}
+  \item \textbf{Format-Aware Duplicate-Key-Safe JSON Parsing:} Outbound JSON payloads are decoded with bounded depth and node limits; objects containing duplicate member names (including Unicode-escaped equivalents) are rejected to prevent parser-differential smuggling.
+  \item \textbf{Context-Integrity Memory Protection:} In strict mode, high-risk full-memory export parameters (\code{taskHistory}, \code{task\_history}, \code{Task-History}) are denied even under global \code{warn} policy, while generic functional keys (\code{messages}, \code{context}) remain allowed to preserve utility.
+  \item \textbf{RFC 6901 JSON Pointer Policies \& Recipient Binding:} Exact JSON pointers support \code{block}, \code{drop}, \code{redact} (replacing values with request-scoped unpredictable placeholders kept in memory for local HTTP/SSE response rehydration), and recipient-scoped \code{allow} verified against the actual resolved upstream hostname rather than the client \code{Host} header.
+  \item \textbf{Low-FPR PII Detection \& Non-Body Egress Scanning:} Payment-card detection requires valid issuer prefixes and Luhn checksum verification, avoiding false positives on 12--15-digit telemetry IDs. Query strings (including double-encoded parameters) and non-auth headers are scanned; signed URLs/headers are denied rather than silently rewritten.
+\end{itemize}
+
+\subsection{Leakage-Safe ML Pipeline and Entity Pseudonymization}
+\sys{} embeds a local multi-model ML risk classifier (42 built-in profiles across Random Forest, Extra Trees, Logistic Regression, SVM, Ridge, Perceptron, Passive-Aggressive, KNN, Nearest Centroid, Naive Bayes, AdaBoost, and soft/hard/risk-stacked Ensembles, with native C CPU benchmark kernels and optional DKMS/CUDA/OpenCL capability detection). During our development of the ML evaluation pipeline, we identified and remediated three subtle data-leakage and sanitization pitfalls common to security command datasets:
+\begin{enumerate}
+  \item \textbf{Behavior-Grouped Holdout Splitting (\code{grouped\_behavior\_v1}):} Standard row-wise random train/validation splits leak near-duplicate commands across splits, inflating validation accuracy to $100\%$. \sys{}'s \code{PrepareAutoTuneSplit} groups samples by normalized command, argument structure, and behavioral signature so identical or template-repeated commands never straddle train and validation sets.
+  \item \textbf{Risk-Target-Preserving Sanitization:} Naive path redaction masks \code{/etc/shadow} or \code{../../etc/passwd} into generic \code{<PATH>} tokens, destroying the very signal that distinguishes a benign \code{grep} from credential theft. Our refined \code{CleanSensitive} sanitizer (\code{dataset\_sanitize.go}) preserves publicly documented risk-bearing targets under \code{/etc} (\code{passwd}, \code{shadow}, \code{sudoers}, \code{ssh/sshd\_config}) and RFC~5737 documentation IPs while masking literal secrets, bearer tokens, crypt hashes, and private IPs.
+  \item \textbf{Import-Scoped Typed Entity Pseudonyms:} Rather than replacing all user and project names with a single constant (which collapses cross-argument structural correlations) or an unsalted global hash (which enables rainbow-table linkage), \code{dataset\_identity.go} assigns consistent import-local typed tokens (\code{\_\_USER\_0001\_\_}, \code{\_\_PROJECT\_0001\_\_}) across paths, environment variables, and Git remotes within a single dataset import.
+  \item \textbf{Protocol-Accurate IP \& Shell-Syntax Features (\code{f[30]}, \code{f[31]}, \code{f[59]}):} We repaired \code{HasIPPattern} (\code{f[59]}) to preserve dot/colon separators and strictly validate dotted-quad IPv4 ($0\text{--}255$) and bracketed/colon-hex IPv6 tokens, strengthened \code{HasRedirect} and \code{HasPipeChain} for compound chains, and added shell-compound structural risk (\code{f[30]}, \code{ShellCompoundRiskScore}) and evasion/privilege-escalation signals (\code{f[31]}, \code{ShellEvasionPrivilegeScore}) within the 64-dimensional command vector.
+\end{enumerate}
+
+% ============================================================================
+\section{Evaluation}
+\label{sec:eval}
+
+We evaluate \sys{} along four dimensions: (1) eBPF kernel syscall overhead across 27 million measurements; (2) semantic detection accuracy across 19 runtime replay scenarios; (3) machine-learning model trade-offs across 42 profiles and 140,126 parameter grid evaluations, contrasting naive vs.\ leakage-safe protocols; and (4) qualitative comparison against state-of-the-art runtime and agent observability frameworks.
+
+\subsection{eBPF Kernel Tracing Overhead}
+\paragraph{Methodology.} To quantify the latency impact of \sys{}'s eBPF tracepoint hooks, we executed the extended microbenchmark suite (\code{scripts/benchmark-syscalls-extended}) on an x86\_64 Linux workstation running kernel \code{7.0.12-1-cachyos} with the Go/\code{cilium/ebpf} backend and 186 tracepoint attachments active. The benchmark covers 18 system call operations across five categories (7 process-info, 6 filesystem, 2 network, 1 directory, and 2 process-control operations). To eliminate transient thermal and scheduling drift, we interleaved baseline (eBPF unloaded) and eBPF-enabled runs across \textbf{100 full cycles}, where each cycle performs 1 warmup pass (5,000 iterations) followed by 3 measured runs of 5,000 iterations per operation---totaling $100 \times 3 \times 5{,}000 = 1{,}500{,}000$ measured calls per syscall and \textbf{27,000,000 total syscall measurements}, aggregated online via Welford's algorithm.
+
+\begin{table}[t]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3.5pt}
+\caption{eBPF syscall latency overhead across 100 interleaved cycles ($1.5\times 10^6$ calls/op, $2.7\times 10^7$ calls total; Linux 7.0.12-1-cachyos).}
+\label{tab:overhead}
+\begin{tabular}{@{}llrrrr@{}}
+\toprule
+\textbf{Category} & \textbf{Operation} & \textbf{Base ($\mu$s)} & \textbf{eBPF ($\mu$s)} & \textbf{$\Delta$ (\%)} & \textbf{Avg CV (\%)} \\
+\midrule
+\multirow{7}{*}{Process}
+ & \code{getpid}       & 0.141 & 0.137 & $-3.05$ & 34.1 \\
+ & \code{getppid}      & 0.121 & 0.115 & $-4.69$ & 34.7 \\
+ & \code{gettid}       & 0.107 & 0.104 & $-3.00$ & 35.4 \\
+ & \code{getuid}       & 0.099 & 0.097 & $-2.29$ & 33.7 \\
+ & \code{getgid}       & 0.099 & 0.096 & $-3.67$ & 33.4 \\
+ & \code{geteuid}      & 0.098 & 0.098 & $-0.02$ & 34.1 \\
+ & \code{getegid}      & 0.093 & 0.097 & $+4.05$ & 29.8 \\
+\midrule
+\multirow{6}{*}{File}
+ & \code{open\_close}  & 1.063 & 1.049 & $-1.34$ & 14.8 \\
+ & \code{stat}         & 0.620 & 0.625 & $+0.82$ & 16.6 \\
+ & \code{access}       & 0.584 & 0.591 & $+1.31$ & 16.5 \\
+ & \code{getcwd}       & 1.629 & 1.609 & $-1.24$ & 13.3 \\
+ & \code{read\_write}  & 5.757 & 5.787 & $+0.53$ & 14.6 \\
+ & \code{readlink}     & 1.045 & 0.990 & $-5.26$ & 14.4 \\
+\midrule
+\multirow{2}{*}{Network}
+ & \code{socket\_close}& 1.468 & 1.430 & $-2.60$ & 13.3 \\
+ & \code{bind}         & 2.541 & 2.523 & $-0.70$ & 13.9 \\
+\midrule
+Directory & \code{mkdir\_rmdir} & 3.265 & 3.322 & $+1.73$ & 10.5 \\
+\midrule
+\multirow{2}{*}{Control}
+ & \code{clone}        & 0.100 & 0.103 & $+3.29$ & 33.7 \\
+ & \code{prctl}        & 0.270 & 0.267 & $-0.96$ & 19.6 \\
+\midrule
+\multicolumn{2}{@{}l}{\textbf{Overall Mean (18 Ops)}} & --- & --- & $\mathbf{-0.95}$ & \textbf{23.7} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Results and Statistical Interpretation.} Table~\ref{tab:overhead} reports the per-operation mean latency, percentage delta, and coefficient of variation (CV). Across all 18 operations, the mean relative difference is $-0.95\%$, with individual deltas ranging from $-5.26\%$ (\code{readlink}, $-0.055\,\mu$s) to $+4.05\%$ (\code{getegid}, $+0.004\,\mu$s). Even for heavy mutating calls such as \code{mkdir\_rmdir} ($3.265\,\mu$s $\to 3.322\,\mu$s, $+1.73\%$) and \code{read\_write} ($5.757\,\mu$s $\to 5.787\,\mu$s, $+0.53\%$), the absolute latency overhead is below $60\,$ns per call.
+
+We emphasize a rigorous systems interpretation of negative percentage deltas: for sub-microsecond VDSO/fast-path syscalls ($\sim 0.1\,\mu$s, where CV is $30\text{--}35\%$), a $3\text{--}5\,$ns shift reflects instruction-cache alignment and OS background jitter rather than eBPF ``accelerating'' the kernel. Increasing the benchmark scale from 1 cycle ($+10.68\%$ mean, $-16\%$ to $+86\%$ range) to 3 cycles ($-0.03\%$) and 100 cycles ($-0.95\%$, within $\pm 5.3\%$) demonstrates that \sys{}'s in-kernel filtering overhead is statistically indistinguishable from baseline noise ($<0.06\,\mu$s absolute delta).
+
+\subsection{Agentic Runtime Replay Suite}
+We evaluated the cross-layer attribution and semantic alert engine against the 19-scenario \code{runtime-replay.v1} benchmark (\code{benchmarks/runtime-replay/scenarios.json}), executed via \code{TestRuntimeReplaySuite}. As summarized in Table~\ref{tab:replay}, the suite spans three scenario classes:
+\begin{itemize}
+  \item \textbf{6 Benign Developer Workflows:} \code{git status}, \code{npm install}, \code{pip install requests}, \code{pytest -q}, \code{cargo build}, and read-only PR review scans (\code{rg TODO}). All 6 scenarios correctly inherit $(\code{agent\_run\_id}, \code{tool\_call\_id}, \code{trace\_id})$ across \code{process\_fork} and child \code{execve} boundaries, receive \code{ALLOW} decisions, and trigger \textbf{zero false semantic alerts}.
+  \item \textbf{8 Traditional Malicious Tool Exploits:} \code{curl | sh} pipeline under \code{inspect\_repo}, \code{\textasciitilde/.ssh/id\_rsa} read, \code{/dev/tcp} bash reverse shell, \code{/etc/shadow} workspace escape, \code{chmod +x /tmp/payload} execution, unexpected \code{ssh} lateral movement, hidden webhook egress, and a 9-child fork storm. All 8 scenarios are deterministically attributed to their originating tool calls and fire the exact expected alert combinations (e.g., \code{WORKSPACE\_ESCAPE + SECRET\_ACCESS + SEMANTIC\_MISMATCH}).
+  \item \textbf{5 Agentic-Specific Attacks:} Web prompt-injection \code{.env} exfiltration to \code{pastebin.example:443} (\code{TOKEN\_EXFIL\_RISK}), malicious MCP plugin execution (\code{mcp.run\_plugin} spawning \code{curl}), frontend DOM inspection opening covert telemetry egress, local component editing pivoting to remote SSH devbox execution, and a runaway refactor process-spawn loop. All 5 agentic attacks are detected with 100\% context inheritance and exact alert code matching.
+\end{itemize}
+
+\begin{table}[t]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3.5pt}
+\caption{Evaluation on the 19-scenario \code{runtime-replay.v1} suite plus specialized regression suites.}
+\label{tab:replay}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{Scenario Cohort} & \textbf{Cases} & \textbf{Context Inherit.} & \textbf{Exact Verdict / Alert} \\
+\midrule
+Benign Developer Workflows & 6  & 6 / 6 (100\%) & 6 / 6 ALLOW (0 FP) \\
+Malicious Tool Exploits    & 8  & 8 / 8 (100\%) & 8 / 8 Matched \\
+Agentic-Specific Attacks   & 5  & 5 / 5 (100\%) & 5 / 5 Matched \\
+\midrule
+\textbf{Total Replay Suite} & \textbf{19} & \textbf{19 / 19 (100\%)} & \textbf{19 / 19 (100\%)} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{ML Command-Risk Evaluation and Data Hygiene Audit}
+We evaluated \sys{}'s local ML classifiers across the 949-sample persisted command dataset (\code{all}) and 93-sample \code{label-balanced} subset using a comprehensive 1,000-point-per-parameter sweep (\textbf{42 model IDs}, \textbf{190 coverage profiles}, \textbf{140,126 total trained grid models}). Table~\ref{tab:ml} reports representative model families across validation accuracy, benign \code{ALLOW} pass rate (crucial for avoiding developer workflow disruption), training time, and single-core inference throughput.
+
+\begin{table}[t]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{2.8pt}
+\caption{Representative ML risk-scoring performance on the 949-sample dataset (\code{reports/ml-sweep-20260506-150507} \& \code{160249}), separating holdout-comparable from train-set-optimistic evaluators.}
+\label{tab:ml}
+\begin{tabular}{@{}llrrrr@{}}
+\toprule
+\textbf{Model Profile} & \textbf{Protocol} & \textbf{Val(\%)} & \textbf{ALLOW(\%)} & \textbf{Train(s)} & \textbf{Infer/s} \\
+\midrule
+\code{random\_forest\_fast} & Holdout (1x)   & 100.0 & 100.0 & 0.064 & 7.97M \\
+\code{random\_forest}       & Holdout (1x)   & 100.0 & 100.0 & 0.190 & 3.46M \\
+\code{logistic\_l1}         & Holdout (1x)   & 100.0 & 100.0 & 0.701 & 3.38M \\
+\code{ensemble} (soft-vote) & Holdout (1x)   & 99.68 & 96.43 & 0.707 & 10.5k \\
+\code{extra\_trees}         & Holdout (1x)   & 91.05 & 0.00  & 0.028 & 2.13M \\
+\code{svm\_long} (10x)      & Holdout (10x)  & 100.0 & 100.0 & 1.260 & 813.8k \\
+\midrule
+\code{adaboost\_large}      & Train-optim.   & 96.73 & 100.0 & 0.114 & 14.97M \\
+\code{ridge} ($\alpha=0.05$)& Train-optim.   & 98.21 & 100.0 & 0.272 & 1.34M \\
+\code{naive\_bayes}         & Train-optim.   & 98.52 & 83.33 & 0.006 & 275.3k \\
+\code{knn} ($k=1$)          & Train-optim.   & 100.0 & 100.0 & 0.100 & 10.2k \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Key Findings and Methodological Audit.}
+\begin{enumerate}
+  \item \textbf{Inference Speed vs.\ False-Positive Trade-off:} Compact tree ensembles (\code{random\_forest\_fast}, 5 trees, depth 4) achieve $7.97\times 10^6$ inferences/s ($\le 0.3\,\mu$s/sample) with $0.064\,$s training time, while uncalibrated margin models (\code{extra\_trees}, default \code{perceptron}) collapse to $0\%$ \code{ALLOW} pass rate due to class skew toward \code{BLOCK}.
+  \item \textbf{Why 100\% Accuracy Requires Skepticism:} We explicitly audit why several models reach $100\%$ validation accuracy on the 949-sample snapshot: (i) baseline evaluators for \code{knn}, \code{ridge}, \code{naive\_bayes}, and \code{adaboost} originally scored on the training set (\emph{optimistic}); and (ii) row-wise random splits allow template-similar commands to appear in both train and validation splits. To address this, \sys{} now enforces \code{holdoutStrategy=grouped\_behavior\_v1} (\code{PrepareAutoTuneSplit}) and grouped security metrics (\code{decision\_training\_group\_security.go}).
+  \item \textbf{External Command-Corpus Audit:} When auditing 124 commands sampled from the public \code{bash-datasets} corpus (\code{taglio4\_3k}, CC BY-SA 4.0), our command-by-command review (\code{docs/backend/ml-ai-reviewed-bash-audit-20261103.md}) revealed 3 mislabeled ground-truth rows in the upstream dataset (e.g., \code{find | xargs rm -rdf} and \code{shred} labeled ``safe'', while \code{chmod 0600 id\_rsa} was labeled ``unsafe'') and 25 context-dependent commands (\code{DEFER}, $20.2\%$) whose safety cannot be judged without knowing the target workspace and privilege boundary. This demonstrates that static command classifiers must be paired with runtime kernel attribution and deterministic OS enforcement rather than trusted as standalone gates.
+\end{enumerate}
+
+\subsection{Public Benchmark Evaluation \& Ablation Studies}
+\label{sec:ablation}
+To validate generalizability beyond internal replay fixtures and isolate each component's contribution, we evaluated \sys{} across four public benchmarks---\textbf{InjecAgent} (1,054 indirect prompt injection cases)~\cite{injecagent2024}, \textbf{AgentDojo} (66 user tasks, 20 injection tasks, 427 attack pairs across \code{workspace}, \code{banking}, and \code{slack})~\cite{agentdojo2024}, \textbf{PrivacyLens} (493 sensitive trajectories + 493 controls across both PII/smuggling and contextual-norm tiers)~\cite{privacylens2024}, and the full deduplicated \textbf{bash-datasets} corpus (2,187 commands)---alongside multi-agent attribution, semantic rule, 5-model ML, zero-overlap cross-corpus transfer, and an 8-vector kernel enforcement evasion matrix (\path{TestExternalPublicBenchmarksAndAblations}, archived in \path{reports/ablation-paper-20261119/external_benchmarks_summary.json}).
+
+\paragraph{1. Context Ingestion \& Multi-Agent Attribution Ablation (88 Events).}
+We evaluated five attribution configurations across all 88 child/descendant events spanning the 19 \code{runtime-replay.v1} scenarios (33 expected semantic alerts) and 16 concurrent multi-agent 3-hop process trees (\code{agent} $\to$ \code{sh} $\to$ \code{python}/\code{git}/\code{node}/\code{bash}). Separating \emph{Run-level} (\code{agent\_run\_id}) from \emph{Tool-Call-level} (\code{tool\_call\_id}) accuracy (Table~\ref{tab:ablation_attr}) clarifies each mechanism's role:
+\begin{itemize}
+  \item \emph{No-Context} and \emph{Wrapper/Hook-Only (No Multi-Hop)} miss $42.4\%$ of semantic alerts ($19/33$) because descendant processes lose tool intent across \code{fork}/\code{execve}.
+  \item \emph{Bare-Comm Heuristic} achieves $76.1\%$ run-level accuracy but suffers \textbf{13.6\% cross-agent misattribution} ($12/88$ events, $75\%$ of concurrent multi-agent leaves) and $0\%$ tool-call attribution.
+  \item \emph{PID-Only (No Tool Intent)} recovers $100.0\%$ run-level lineage ($0\%$ misattribution), lifting alert recall to $63.6\%$ ($21/33$), yet still fails on $12/33$ intent-mismatch alerts.
+  \item \emph{Full \sys{} Tri-Modal Attribution} achieves \textbf{100.0\%} run-level and \textbf{100.0\%} tool-call attribution, \textbf{0.0\%} misattribution, \textbf{100.0\%} ($33/33$) alert recall, and \textbf{0} benign false positives.
+\end{itemize}
+
+\begin{table}[t]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{2.2pt}
+\caption{Ablation 1: Attribution across 88 child/3-hop events (19 replay scenarios + 16 concurrent agents).}
+\label{tab:ablation_attr}
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+\textbf{Attribution Mode} & \textbf{Run Acc} & \textbf{Tool Acc} & \textbf{Misattr.} & \textbf{Alert Rec.} & \textbf{FP} \\
+\midrule
+No-Context (Kernel Only)         & 0.0\%   & 0.0\%   & 0.0\%  & 57.6\% (19/33) & 0 \\
+Bare-Comm Heuristic (Naive)      & 76.1\%  & 0.0\%   & 13.6\% & 60.6\% (20/33) & 0 \\
+PID-Only (No Tool Intent)        & 100.0\% & 0.0\%   & 0.0\%  & 63.6\% (21/33) & 0 \\
+Wrapper/Hook-Only (No Multi-Hop) & 0.0\%   & 0.0\%   & 0.0\%  & 57.6\% (19/33) & 0 \\
+\textbf{Full \sys{} Tri-Modal}   & \textbf{100.0\%} & \textbf{100.0\%} & \textbf{0.0\%} & \textbf{100.0\% (33/33)} & \textbf{0} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{2. Indirect Prompt Injection Detection on InjecAgent (1,054 Cases) and AgentDojo (427 Attack Pairs).}
+We first mapped all 1,054 \textbf{InjecAgent}~\cite{injecagent2024} benchmark cases---510 Direct Harm (DH) and 544 Data Stealing (DS)---from declared user tools to OS-level hijacked execution traces (Table~\ref{tab:ablation_injec}). Without tool-intent attribution (\emph{Kernel-Only}), the engine detects Data Stealing ($544/544$, $100.0\%$) via secret-read-then-egress correlation (\code{TOKEN\_EXFIL\_RISK}), but misses \textbf{all 510 Direct Harm cases} ($0.0\%$ DH recall, $51.6\%$ overall) because an isolated outbound socket cannot be distinguished from legitimate API usage. With \sys{}'s cross-layer tool-intent binding, overall detection rises to \textbf{97.2\%} ($1{,}024/1{,}054$: \textbf{94.1\%} DH, \textbf{100.0\%} DS) at $5.31\,\mu$s P50 ($11.31\,\mu$s P95) evaluation latency. The remaining 30 missed DH cases ($5.9\%$) correspond to user tools whose declared names are inherently write/action-oriented rather than read-only---an expected boundary of intent-mismatch rules.
+
+To evaluate dynamic multi-suite tool loops, we next parsed all 66 benign user tasks and 20 injection tasks (427 user--injection attack pairs) across three \textbf{AgentDojo}~\cite{agentdojo2024} suites (\code{workspace}, \code{banking}, \code{slack}; Table~\ref{tab:ablation_agentdojo}). Kernel-only heuristics detect $72.8\%$ ($311/427$) of pairs via secret exfiltration signals but miss rogue financial/messaging calls under read-only tasks. \sys{} cross-layer attribution preserves \textbf{100.0\%} benign task utility ($66/66$) across every suite while raising detection to \textbf{100.0\%} on \code{banking} ($144/144$) and \code{slack} ($85/85$), and \textbf{92.3\%} overall ($394/427$) at $5.89\,\mu$s P50 ($16.07\,\mu$s P95) latency. All 33 missed \code{workspace} pairs are non-exfiltration \code{delete\_file} payloads (\code{InjectionTask1}), where behavioral intent-mismatch rules avoid breaking write-capable file tools without finer deletion policies.
+
+\begin{table}[t]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{1.4pt}
+\caption{InjecAgent (1,054 cases: 510 DH + 544 DS) detection ablation and per-case latency.}
+\label{tab:ablation_injec}
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+\textbf{Mode} & \textbf{DH Det.} & \textbf{DS Det.} & \textbf{Overall} & \textbf{P50} & \textbf{P95} \\
+\midrule
+Kernel-Only            & 0.0\% (0/510)   & 100\% (544/544) & 51.6\% & 2.70\,$\mu$s & 3.33\,$\mu$s \\
+\textbf{Full \sys{}}   & \textbf{94.1\% (480/510)} & \textbf{100\% (544/544)} & \textbf{97.2\%} & 5.31\,$\mu$s & 11.31\,$\mu$s \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{1.8pt}
+\caption{AgentDojo (NeurIPS 2024, 66 benign tasks / 427 attack pairs) utility and detection ablation.}
+\label{tab:ablation_agentdojo}
+\begin{tabular}{@{}llrrrr@{}}
+\toprule
+\textbf{Suite (Tasks/Pairs)} & \textbf{Mode} & \textbf{Util.} & \textbf{Detected} & \textbf{P50} & \textbf{P95} \\
+\midrule
+workspace (33/198) & Kernel & 100\% & 66.7\% (132) & 3.00\,$\mu$s & 4.30\,$\mu$s \\
+workspace (33/198) & \textbf{Full \sys{}} & \textbf{100\%} & \textbf{83.3\% (165)} & 7.12\,$\mu$s & 34.58\,$\mu$s \\
+\addlinespace[1pt]
+banking (16/144)   & Kernel & 100\% & 88.9\% (128) & 2.55\,$\mu$s & 7.23\,$\mu$s \\
+banking (16/144)   & \textbf{Full \sys{}} & \textbf{100\%} & \textbf{100.0\% (144)} & 5.43\,$\mu$s & 15.03\,$\mu$s \\
+\addlinespace[1pt]
+slack (17/85)      & Kernel & 100\% & 60.0\% (51) & 2.81\,$\mu$s & 6.30\,$\mu$s \\
+slack (17/85)      & \textbf{Full \sys{}} & \textbf{100\%} & \textbf{100.0\% (85)} & 6.05\,$\mu$s & 13.41\,$\mu$s \\
+\midrule
+\textbf{Aggregate (66/427)} & Kernel & 100\% & 72.8\% (311) & 2.71\,$\mu$s & 6.41\,$\mu$s \\
+\textbf{Aggregate (66/427)} & \textbf{Full \sys{}} & \textbf{100\%} & \textbf{92.3\% (394)} & \textbf{5.89\,$\mu$s} & \textbf{16.07\,$\mu$s} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{3. Outcome-Aware File Contention \& Web-Shell Heuristics.}
+Table~\ref{tab:ablation_sem} ablates both semantic detectors. On 30 file-contention traces (10 genuine cross-agent writes + 20 noise traces covering failed/zero-byte writes, pseudo-files, cross-container paths, and same-agent PIDs), naive Path+PID matching suffers 20/20 false positives ($33.3\%$ precision, $F_1=0.500$); removing container/pseudo-file guards or return-value guards yields 10 and 5 false positives respectively; full \sys{} achieves \textbf{100.0\%} precision and recall ($F_1=1.000$). Similarly, on 31 real runtime process pairs (17 PHP/Python/Node web-worker shell spawns + 14 benign CLI/test/build spawns such as \code{pytest}, \code{npm run dev}, \code{shellcheck}), naive interpreter-parent alerting triggers 14/14 false positives ($54.8\%$ precision, $F_1=0.708$), whereas \sys{}'s positive web-service evidence rule eliminates all false positives ($F_1=\mathbf{1.000}$).
+
+\begin{table}[t]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{2.5pt}
+\caption{Ablation 2: Outcome-aware file contention (30 traces) and web-shell heuristics (31 runtime pairs).}
+\label{tab:ablation_sem}
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+\textbf{Detector Variant} & \textbf{TP} & \textbf{FP} & \textbf{Prec.} & \textbf{Rec.} & \textbf{F1} \\
+\midrule
+\multicolumn{6}{@{}l}{\textit{Multi-Agent File Contention (10 true + 20 noise)}} \\
+Naive Path+PID Matching            & 10/10 & 20/20 & 33.3\% & 100.0\% & 0.500 \\
+w/o Container \& Pseudo-File Guards& 10/10 & 10/20 & 50.0\% & 100.0\% & 0.667 \\
+w/o Retval Outcome Guard           & 10/10 & 5/20  & 66.7\% & 100.0\% & 0.800 \\
+\textbf{Full \sys{} Outcome-Aware} & \textbf{10/10} & \textbf{0/20} & \textbf{100.0\%} & \textbf{100.0\%} & \textbf{1.000} \\
+\midrule
+\multicolumn{6}{@{}l}{\textit{Web-Service Shell Spawn (17 web workers + 14 benign CLI/tests)}} \\
+Naive Interpreter-Parent Rule      & 17/17 & 14/14 & 54.8\% & 100.0\% & 0.708 \\
+\textbf{Full \sys{} Positive-Evidence}& \textbf{17/17} & \textbf{0/14} & \textbf{100.0\%} & \textbf{100.0\%} & \textbf{1.000} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{4. Full 2,187-Command ML Leakage, Feature, Multi-Model \& Transfer Ablation.}
+Table~\ref{tab:ablation_ml} scales our ML ablation to the full 2,187-command \textbf{bash-datasets} corpus (1,905 safe + 282 unsafe, 10 seeds, Random Forest 72/14/3) plus the 48-seed $1:49$ rare-attack bootstrap test, while Table~\ref{tab:ablation_multimodel} compares five classifier families on an identical zero-leakage split ($1{,}750$ train / $437$ val):
+\begin{itemize}
+  \item \emph{Holdout Leakage on 2k Corpus:} On a $2\times$ repeated log (4,374 rows), naive row-wise splitting leaks \textbf{688 overlapping commands}, artificially raising validation accuracy to $98.79\% \pm 0.27\%$ and depressing apparent benign FPR to $0.38\%$. \sys{}'s \code{grouped\_behavior\_v1} splitter achieves \textbf{0 leakage}, yielding $98.05\% \pm 0.29\%$ validation accuracy, $95.00\% \pm 1.41\%$ \code{BLOCK} recall (Wilson 95\% CI: $[85.4\%, 98.2\%]$), $1.50\% \pm 0.25\%$ benign FPR, and $96.75\%$ balanced accuracy.
+  \item \emph{Shell-Syntax \& IP Feature Gain (\code{f[30]/f[31]/f[59]}):} Zeroing out our fixed IP detector and new shell-compound/evasion signals lowers \code{BLOCK} recall by \textbf{3.93 percentage points} ($95.00\% \to 91.07\% \pm 2.23\%$, CI $[80.7\%, 96.1\%]$) and balanced accuracy by $1.96\,$pp ($96.75\% \to 94.79\%$) while keeping benign FPR unchanged ($1.50\%$). On the curated \code{ai-reviewed-bash-99} 32-seed grouped holdout (\code{ablation\_summary.json}), the updated extractor achieves \textbf{95.16\%} accuracy, \textbf{98.01\%} block recall, $8.33\%$ FPR, and $94.84\%$ balanced accuracy ($0$ leakage).
+  \item \emph{Risk-Target-Preserving Sanitization \& Rare-Attack Bootstrap:} Blanket redaction of \code{/etc/shadow}, \code{/etc/passwd}, and \code{/etc/sudoers} slashes \code{BLOCK} recall by \textbf{22.50 percentage points} ($95.00\% \to 72.50\% \pm 2.10\%$, Wilson CI $[58.5\%, 81.6\%]$) and raises benign FPR ($1.50\% \to 2.55\%$). On the $1:49$ rare-attack holdout (48 seeds), uniform bootstrap recalls $52.08\%$ ($25/48$) versus \textbf{100.0\%} ($48/48$, $0$ FP) with class-stratified bootstrap.
+  \item \emph{5-Model Grouped Comparison \& Zero-Overlap Transfer:} Under identical zero-leakage splits (Table~\ref{tab:ablation_multimodel}), class-balanced \textbf{Extra Trees} achieves \textbf{98.86\%} validation accuracy ($96.43\%$ recall, $0.79\%$ FPR, $0.956$ $F_1$), \textbf{Linear SVM} achieves the highest recall (\textbf{98.21\%}), and \textbf{Logistic L2} infers in \textbf{0.33\,$\mu$s/sample}. In disjoint cross-corpus transfer (\code{overlap=0}), training on \code{bash-datasets} (2,089 disjoint) $\to$ \code{ai-reviewed} (99) achieves \textbf{95.96\%} accuracy ($92.31\%$ recall, $0.00\%$ FPR, $96.15\%$ balanced accuracy); conversely, compact \code{ai-reviewed} (99) $\to$ unseen \code{bash-datasets} (2,089) achieves \textbf{88.89\%} accuracy ($80.87\%$ recall, $10.11\%$ FPR, $85.38\%$ balanced accuracy), showing strong forward generalization and highlighting the higher FPR when extrapolating from small command sets.
+\end{itemize}
+
+\begin{table}[t]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{1.2pt}
+\caption{Ablation 3: Full 2,187-command \code{bash-datasets} (10 seeds, Mean$\pm$Std) and rare-attack bootstrap (48 seeds).}
+\label{tab:ablation_ml}
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+\textbf{ML Pipeline Variant} & \textbf{Leak} & \textbf{Acc (\%)} & \textbf{Rec (\%)} & \textbf{FPR (\%)} & \textbf{Bal (\%)} \\
+\midrule
+Naive Row Split (2x, 4.3k)      & 688 & 98.79$\pm$0.27 & 93.25$\pm$1.02 & 0.38$\pm$0.23 & 96.43 \\
+\textbf{\sys{} Full (Grouped)}  & \textbf{0} & \textbf{98.05$\pm$0.29} & \textbf{95.00$\pm$1.41} & \textbf{1.50$\pm$0.25} & \textbf{96.75} \\
+w/o \code{f30/f31/f59}          & 0   & 97.55$\pm$0.53 & 91.07$\pm$2.23 & 1.50$\pm$0.37 & 94.79 \\
+w/o \code{/etc} Preserved       & 0   & 94.26$\pm$0.29 & 72.50$\pm$2.10 & 2.55$\pm$0.43 & 84.98 \\
+\midrule
+Uniform Bootstrap (1:49, 48s)   & 0   & ---            & 52.08          & 0.00          & 76.04 \\
+\textbf{Balanced Bootstrap}     & \textbf{0} & ---     & \textbf{100.0} & \textbf{0.00} & \textbf{100.0} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{1.8pt}
+\caption{Five-model comparison on identical zero-leakage \code{grouped\_behavior\_v1} split (1,750 train / 437 val).}
+\label{tab:ablation_multimodel}
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+\textbf{Model Family} & \textbf{Acc} & \textbf{Rec} & \textbf{FPR} & \textbf{Bal} & \textbf{F1} & \textbf{Infer ($\mu$s)} \\
+\midrule
+Random Forest (72/14/3)         & 97.71 & 92.86 & 1.57 & 95.64 & 0.912 & 3.12 \\
+\textbf{Extra Trees (Balanced)} & \textbf{98.86} & 96.43 & \textbf{0.79} & \textbf{97.82} & \textbf{0.956} & 4.10 \\
+Logistic L2 (Balanced)          & 97.48 & 96.43 & 2.36 & 97.03 & 0.908 & \textbf{0.33} \\
+\textbf{Linear SVM (Balanced)}  & 97.48 & \textbf{98.21} & 2.62 & 97.79 & 0.909 & 0.79 \\
+Soft-Vote Ensemble              & 97.94 & 94.64 & 1.57 & 96.53 & 0.922 & 171.32 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{5. Two-Tier Privacy Evaluation on PrivacyLens (PII/Smuggling + Contextual Norms).}
+We evaluated \sys{} across all 493 \textbf{PrivacyLens}~\cite{privacylens2024} trajectories paired with 493 schema-identical benign controls under two distinct tiers (post-50-warmup steady-state latency; Table~\ref{tab:ablation_priv}). In \textbf{Tier A (PII/Secret + 6 Parser-Smuggling Vectors)}, \emph{Disabled} and \emph{Warn-Only} leak $100.0\%$ ($493/493$) of sensitive emails and miss $6/6$ and $1/6$ smuggling probes respectively; \emph{\sys{} Redact + Restore} reduces leakage to \textbf{0.0\%}, blocks \textbf{6/6} smuggling probes (duplicate JSON keys, Unicode escapes, double encoding, \code{taskHistory}), passes \textbf{100.0\%} ($493/493$) local SSE/JSON restoration, and preserves \textbf{100.0\%} benign utility at \textbf{11.10\,$\mu$s P50} ($16.04\,\mu$s P95). In \textbf{Tier B (Contextual Privacy Norms, 493 norms + 493 controls)}, generic \emph{PII Regex Redact-Only} fails on \textbf{99.0\%} ($488/493$) of contextual disclosures (notes, medical/financial statuses, private meetings lacking literal email/card regex patterns), whereas schema-aware \emph{RFC 6901 Pointer Drop (External)} and \emph{Pointer Strict Block} achieve \textbf{0.0\%} leakage ($100.0\%$ protected, $100.0\%$ benign utility) at \textbf{8.43\,$\mu$s} and \textbf{5.13\,$\mu$s P50}.
+
+\begin{table}[t]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{1.6pt}
+\caption{Ablation 4: PrivacyLens Tier A (493 PII + 6 smuggling) and Tier B (493 contextual norms).}
+\label{tab:ablation_priv}
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+\textbf{Tier / Gateway Mode} & \textbf{Leak} & \textbf{Rest.} & \textbf{Smug.} & \textbf{Util.} & \textbf{P50} & \textbf{P95} \\
+\midrule
+\multicolumn{7}{@{}l}{\textit{Tier A: Structured PII/Secrets + Parser Smuggling (493 + 6 probes)}} \\
+Disabled (Passthrough)   & 100.0\% & ---     & 0/6 & 100\% & 0.03 & 0.03 \\
+Warn-Only (Audit)        & 100.0\% & ---     & 5/6 & 100\% & 13.33 & 19.23 \\
+\textbf{\sys{} Redact+Restore}& \textbf{0.0\%} & \textbf{100\%} & \textbf{6/6} & \textbf{100\%} & \textbf{11.10} & \textbf{16.04} \\
+\textbf{\sys{} Strict Block}  & \textbf{0.0\%} & --- & \textbf{6/6} & \textbf{100\%} & \textbf{8.57} & \textbf{9.72} \\
+\midrule
+\multicolumn{7}{@{}l}{\textit{Tier B: Non-PII Contextual Privacy Norms (493 norms + 493 controls)}} \\
+PII Regex Redact-Only    & 99.0\% & --- & --- & 100\% & 12.21 & 63.45 \\
+\textbf{RFC 6901 Pointer Drop}& \textbf{0.0\%} & --- & --- & \textbf{100\%} & \textbf{8.43} & \textbf{14.23} \\
+\textbf{RFC 6901 Pointer Block}& \textbf{0.0\%} & --- & --- & \textbf{100\%} & \textbf{5.13} & \textbf{10.04} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{6. Kernel Enforcement Evasion Matrix (8 Vectors, ELF-Spec \& Key-Verified).}
+Finally, Table~\ref{tab:kernel_evasion} documents the architectural hardening between exact-key v1 enforcement and LPM-Trie + inode-identity v2 enforcement across eight canonical evasion vectors. Within an unprivileged CI sandbox without live root \code{BPF\_PROG\_LOAD}, each cell is grounded in compiled eBPF ELF collection inspection (\code{LoadAgentCgroupSandbox}, \code{LoadAgentLsmEnforcer}), real filesystem \code{os.Link}/\code{os.Rename} \code{(s\_dev, i\_ino)} resolution (\code{s\_dev=0x37, ino=6264573}), and userspace LPM/key verification rather than claiming live-root kernel packet/syscall drops.
+
+\begin{table*}[t]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\caption{Kernel enforcement evasion matrix comparing v1 exact-key rules against v2 LPM-Trie CIDR and \code{(s\_dev, i\_ino)} inode rules (verified via compiled eBPF ELF specs, userspace key logic, and real filesystem \code{os.Link}/\code{os.Rename} inodes).}
+\label{tab:kernel_evasion}
+\begin{tabularx}{\textwidth}{@{}p{3.9cm}p{3.1cm}p{1.35cm}p{3.6cm}X@{}}
+\toprule
+\textbf{Evasion Vector} & \textbf{Kernel Hook} & \textbf{v1} & \textbf{v2 Hardened Outcome} & \textbf{Verified Artifact / Mechanism} \\
+\midrule
+Exact IPv4 Egress (\path{203.0.113.5}) & \path{cgroup/connect4,sendmsg4} & Blocked & Blocked (\path{ip_blocklist}) & ELF \path{ip_blocklist} (Hash, 4B key) \\
+IPv4 \code{/24} Sweep (\path{203.0.113.77}) & \path{cgroup/connect4,sendmsg4} & Bypassed & Blocked (\path{cidr_blocklist}) & ELF \path{cidr_blocklist} (LPMTrie, 8B key) + prefix match \\
+Dual-Stack \path{::ffff:203.0.113.77} & \path{cgroup/connect6,sendmsg6} & Bypassed & Blocked (\path{ipv6_is_v4_mapped}) & \code{ParseCIDR} + LPM dual-stack IPv4 fallback \\
+IPv6 \code{/32} Prefix (\path{2001:db8:cafe::1}) & \path{cgroup/connect6,sendmsg6} & Bypassed & Blocked (\path{cidr6_blocklist}) & ELF \path{cidr6_blocklist} (LPMTrie, 20B key) + prefix match \\
+Exact Exec Path (\path{/tmp/payload}) & \path{lsm/bprm_check_security} & Blocked & Blocked (path + inode) & ELF \path{lsm_blocked_exec_paths} + \path{lsm_blocked_inodes} \\
+Hardlink Alias (\code{os.Link}) & \path{bprm_check,file_open,link} & Bypassed & Blocked (\path{lsm_blocked_inodes}) & Real \code{os.Link} invariant (\code{s\_dev=0x37, ino=6264573}) \\
+Rename File (\code{os.Rename}) & \path{inode_rename,file_open} & Bypassed & Blocked (\path{old_dentry} + inode) & Real \code{os.Rename} invariant (\code{s\_dev=0x37, ino=6264573}) \\
+Atomic Rename-Over Protected File & \path{lsm/inode_rename} & Basename & Blocked (\path{new_dentry DENY_WRITE}) & ELF \path{lsm_enforce_inode_rename} checks old \& new \path{d_inode} \\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+\subsection{Comparison with Prior Systems}
+Table~\ref{tab:comparison} contrasts \sys{} with general eBPF security frameworks and recent agent-specific monitors. Unlike Falco~\cite{falco}, Tetragon~\cite{tetragon}, and Tracee~\cite{tracee}, \sys{} natively ingests agent run and tool-call identifiers across 10 coding CLIs and provides an out-of-prompt HTTP privacy gateway. Compared to AgentSight~\cite{agentsight2025}, \sys{} achieves tool-call attribution without requiring always-on uprobe TLS plaintext interception. Compared to Agent-Warden~\cite{agentwarden2026}, which focuses on kernel-native inode provenance DAGs, \sys{} provides synchronous multi-layer blocking (wrapper, \code{cgroup} v2, and 14-hook BPF LSM), pre-reserve ringbuffer loss provenance, and hash-chained forensic storage.
+
+\begin{table}[t]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{2.2pt}
+\caption{Architectural comparison with related runtime and agent security systems ($\bullet$ = full/native, $\ominus$ = partial/heuristic, $\circ$ = not supported).}
+\label{tab:comparison}
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+\textbf{Capability} & \textbf{Falco /} & \textbf{Tetragon} & \textbf{Agent-} & \textbf{Agent-} & \textbf{\sys{}} \\
+ & \textbf{Tracee} & \cite{tetragon} & \textbf{Sight}~\cite{agentsight2025} & \textbf{Warden}~\cite{agentwarden2026} & \textbf{(Ours)} \\
+\midrule
+eBPF Syscall Telemetry        & $\bullet$ & $\bullet$ & $\bullet$ & $\bullet$ & $\bullet$ \\
+Explicit Run/Tool-Call ID     & $\circ$   & $\circ$   & $\ominus$ & $\circ$   & $\bullet$ \\
+No Mandatory TLS Decryption   & $\bullet$ & $\bullet$ & $\circ$   & $\bullet$ & $\bullet$ \\
+Inode Provenance DAG          & $\circ$   & $\ominus$ & $\circ$   & $\bullet$ & $\ominus$ \\
+Sync Wrapper Rewrite/Block    & $\circ$   & $\circ$   & $\circ$   & $\circ$   & $\bullet$ \\
+Sync cgroup + 14-Hook LSM     & $\circ$   & $\bullet$ & $\circ$   & $\circ$   & $\bullet$ \\
+Pre-Reserve Drop Provenance   & $\circ$   & $\circ$   & $\circ$   & $\circ$   & $\bullet$ \\
+Out-of-Prompt Privacy Proxy   & $\circ$   & $\circ$   & $\circ$   & $\circ$   & $\bullet$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================================
+\section{Limitations and Future Work}
+\label{sec:discussion}
+
+We maintain strict epistemic boundaries between implemented mechanisms and unproven guarantees:
+\begin{itemize}
+  \item \textbf{Path-Level Contention Telemetry vs.\ Kernel Inode Taint DAGs:} While our 14-hook BPF LSM enforcer now binds persistent \code{(s\_dev, i\_ino)} inode identities (\code{lsm\_blocked\_inodes}) across hardlinks (\code{os.Link}) and renames (\code{os.Rename}), the observational \code{MULTI\_AGENT\_FILE\_CONTENTION} detector in userspace still correlates container-scoped pathnames rather than maintaining a cross-rename kernel inode taint DAG~\cite{agentwarden2026}.
+  \item \textbf{Kernel Enforcement Boundaries \& Unprivileged CI Scope:} The \code{cgroup} sandbox now enforces exact IPs, ports, and LPM-Trie IPv4/IPv6 CIDR prefixes (including \code{::ffff:a.b.c.d} dual-stack normalization), and BPF LSM enforces exact paths (\code{bpf\_d\_path}), basenames, and \code{(s\_dev, i\_ino)} inode keys; however, neither inspects L7 DNS/SNI hostnames, matches recursive directory subtrees, nor retroactively revokes pre-existing TCP sockets or writable \code{mmap} regions. Moreover, because unprivileged CI sandboxes forbid live \code{BPF\_PROG\_LOAD}, our 8-vector kernel evasion matrix verifies compiled eBPF ELF maps/hooks, real filesystem inode invariants, and userspace LPM/key logic rather than live-root kernel enforcement.
+  \item \textbf{Semantic Intent \& Deterministic Privacy Boundaries:} Intent-mismatch alerting conservatively avoids flagging write/action tool declarations, leaving non-secret \code{delete\_file} injections under write-capable tools (\code{AgentDojo} \code{InjectionTask1}, 33/198 \code{workspace} pairs) and write-named \code{InjecAgent} tools (30/510 DH cases) unblocked. Similarly, deterministic Tier-B contextual-norm protection relies on operator-declared RFC 6901 JSON pointers rather than an unconstrained free-text contextual-integrity LLM judge.
+  \item \textbf{Hook Coverage and Fast-Exiting Processes:} While kernel tracepoints capture all matching syscalls system-wide, attributing a syscall to a specific \code{tool\_call\_id} requires the agent harness to invoke an adapter, native hook, or wrapper. Unadapted agents degrade gracefully to unattributed OS observations, and procfs parent lookups for ultra-short-lived processes remain subject to exit races.
+  \item \textbf{Ongoing Cross-Host Live Agent Benchmarks:} While our 27M-call syscall microbenchmark, 19-scenario replay suite, InjecAgent, AgentDojo, PrivacyLens, and 2k-command ML evaluations are automated and reproducible, longitudinal evaluation on live multi-user developer sessions and human user studies on incident triage time remain future work.
+\end{itemize}
+
+% ============================================================================
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{eBPF Runtime Security and Provenance.} Linux BPF LSM~\cite{bpflsm} exposes MAC hooks to verifier-checked eBPF programs. Falco~\cite{falco} and Tracee~\cite{tracee} separate raw kernel event collection from userspace rule detection, while Cilium Tetragon~\cite{tetragon} provides in-kernel selectors and process lifecycle enforcement. Whole-system provenance systems (e.g., CamFlow, ProvBPF) and Agent-Warden~\cite{agentwarden2026} track information flow across processes and files. \sys{} complements these efforts by binding OS events to structured agent tool-call lifecycles and providing a unified userspace-plus-kernel enforcement plane.
+
+\paragraph{AI Agent Observability and Privacy Defenses.} AgentSight~\cite{agentsight2025} pioneers eBPF observability for AI agents via TLS uprobe correlation. Anthropic's Claude Code sandboxing~\cite{claudesandbox2025} isolates filesystem and network boundaries at task startup. On the privacy front, FLOWSEAL~\cite{flowseal2026}, MINIM~\cite{minim2026}, Contextualized Privacy Defense~\cite{contextualprivacy2026}, SOPE~\cite{sope2026}, PrivacyPeek~\cite{privacypeek2026}, PrivacyChecker~\cite{privacychecker2025}, PII-Bench~\cite{piibench2025}, and ALSA~\cite{alsa2025} demonstrate that prompt-only privacy instructions fail against MCP tool exfiltration and acquisition-stage over-collection. \sys{} translates these insights into an out-of-prompt HTTP privacy gateway paired with kernel-level behavior verification.
+
+% ============================================================================
+\section{Conclusion}
+\label{sec:conclusion}
+
+We presented \sys{}, an eBPF-based observability, cross-layer attribution, and multi-layer security control plane for autonomous coding agents. By combining tri-modal context ingestion across 10 agent CLIs, pre-reserve sequence and hash-chained forensic auditing, outcome-verified semantic detectors, and decoupled wrapper, \code{cgroup} v2, and 14-hook BPF LSM enforcement, \sys{} bridges the gap between declared agent tool intent and actual operating system execution with negligible kernel overhead.
+
+% ============================================================================
+\footnotesize
+\begin{thebibliography}{10}
+
+\bibitem{bpflsm}
+Linux Kernel Community.
+\newblock {LSM BPF Programs}.
+\newblock \emph{The Linux Kernel Documentation}, \url{https://docs.kernel.org/bpf/prog_lsm.html}, accessed 2026.
+
+\bibitem{falco}
+The Falco Authors.
+\newblock {Falco: Cloud Native Runtime Security}.
+\newblock \emph{CNCF Project Documentation}, \url{https://falco.org/docs/}, accessed 2026.
+
+\bibitem{tetragon}
+Cilium Authors.
+\newblock {Tetragon: eBPF-based Security Observability and Runtime Enforcement}.
+\newblock \url{https://tetragon.io/docs/}, accessed 2026.
+
+\bibitem{tracee}
+Aqua Security.
+\newblock {Tracee: Runtime Security and Forensics using eBPF}.
+\newblock \url{https://aquasecurity.github.io/tracee/}, accessed 2026.
+
+\bibitem{agentsight2025}
+Y.~Zheng, Y.~Hu, T.~Yu, and A.~Quinn.
+\newblock {AgentSight: System-Level Observability for AI Agents Using eBPF}.
+\newblock \emph{arXiv preprint arXiv:2508.02736v2}, Aug. 2025.
+
+\bibitem{agentwarden2026}
+D.~Cui, Z.~Gu, P.~Zheng, S.~Han, and Y.~Liao.
+\newblock {Agent-Warden: eBPF-Based Kernel-Native Process-File Provenance Tracking for LLM Agents}.
+\newblock \emph{arXiv preprint arXiv:2609.38245}, Sept. 2026.
+
+\bibitem{claudesandbox2025}
+D.~Dworken and O.~Weller-Davies.
+\newblock {Beyond Permission Prompts: Making Claude Code More Secure and Autonomous}.
+\newblock \emph{Anthropic Engineering Blog}, Oct. 2025.
+
+\bibitem{flowseal2026}
+FLOWSEAL Authors.
+\newblock {FLOWSEAL: Confuse the Model, Control the Flow}.
+\newblock \emph{arXiv preprint arXiv:2609.14003}, Sept. 2026.
+
+\bibitem{minim2026}
+Y.~Yu et~al.
+\newblock {MINIM: Privacy-Aware Minimal View for Agents via Trusted Local Sanitization}.
+\newblock In \emph{Proc.\ ICML}, PMLR vol.~306, 2026.
+
+\bibitem{contextualprivacy2026}
+K.~Wen et~al.
+\newblock {Contextualized Privacy Defense for LLM Agents}.
+\newblock In \emph{Proc.\ ICML}, PMLR vol.~306, 2026.
+
+\bibitem{sope2026}
+H.~Lin et~al.
+\newblock {SOPE: Situation-Aware and Statistically Indistinguishable Privacy Exfiltration for MCP-enabled Agents}.
+\newblock In \emph{Proc.\ ICML}, PMLR vol.~306, 2026.
+
+\bibitem{privacypeek2026}
+PrivacyPeek Authors.
+\newblock {PrivacyPeek: Auditing What LLM-Based Agents Acquire, Not Just What They Say}.
+\newblock \emph{arXiv preprint arXiv:2606.00152}, June 2026.
+
+\bibitem{privacychecker2025}
+Privacy in Action Authors.
+\newblock {Privacy in Action / PrivacyChecker: Contextual Integrity in Live MCP and A2A Workflows}.
+\newblock In \emph{Findings of EMNLP}, pp.~925+, 2025.
+
+\bibitem{piibench2025}
+PII-Bench Authors.
+\newblock {PII-Bench: Evaluating Multi-Subject Privacy Leakage in LLM Queries}.
+\newblock \emph{arXiv preprint arXiv:2502.18545}, Feb. 2025.
+
+\bibitem{alsa2025}
+ALSA Authors.
+\newblock {ALSA: Context-Sensitive Prompt Privacy Preservation}.
+\newblock In \emph{Proc.\ ACM SIGKDD}, 2025.
+
+\bibitem{injecagent2024}
+Q.~Zhan, Z.~Liang, Z.~Ying, and D.~Kang.
+\newblock {InjecAgent: Benchmarking Indirect Prompt Injections in Tool-Integrated Large Language Model Agents}.
+\newblock In \emph{Findings of ACL}, 2024.
+
+\bibitem{privacylens2024}
+Y.~Shao, T.~Li, W.~Shi, Y.~Liu, and D.~Yang.
+\newblock {PrivacyLens: Evaluating Privacy Norm Awareness of Language Models in Action}.
+\newblock In \emph{Advances in Neural Information Processing Systems (NeurIPS)}, 2024.
+
+\bibitem{agentdojo2024}
+E.~Debenedetti, J.~Zhang, M.~Balunovi\'c, L.~Beurer-Kellner, M.~Fischer, and F.~Tram\`er.
+\newblock {AgentDojo: A Dynamic Environment to Evaluate Prompt Injection Attacks and Defenses for LLM Agents}.
+\newblock In \emph{Advances in Neural Information Processing Systems (NeurIPS) Datasets and Benchmarks Track}, 2024.
+
+\end{thebibliography}
+
+\end{document}

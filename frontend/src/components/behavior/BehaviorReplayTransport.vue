@@ -1,0 +1,25 @@
+<script setup lang="ts">
+import { computed } from "vue";
+import { CaretRightOutlined, PauseOutlined, ReloadOutlined, LeftOutlined, RightOutlined } from "@ant-design/icons-vue";
+import { webLocale } from "../../i18n";
+import type { AgentEvent } from "../../composables/dashboard/dashboardConstants";
+const props=defineProps<{position:number;paused:boolean;speed:number;loop:boolean;markers:readonly {seconds:number;event:AgentEvent}[]}>();
+const emit=defineEmits<{seek:[seconds:number,event?:AgentEvent];toggle:[];speed:[value:number];loop:[]}>();
+const text=(zh:string,en:string)=>webLocale.value==="en-US"?en:zh;
+const chapterMarks=computed(()=>{const seen=new Set<number>();return props.markers.filter(mark=>{const bucket=Math.floor(mark.seconds/8);if(seen.has(bucket))return false;seen.add(bucket);return true;}).slice(0,8);});
+function step(direction:number):void {
+ const marks=direction>0?props.markers:[...props.markers].reverse();
+ const next=marks.find(mark=>direction>0?mark.seconds>props.position+.05:mark.seconds<props.position-.05);
+ if(next)emit("seek",next.seconds,next.event);
+}
+</script>
+<template>
+ <section class="replay-transport" :aria-label="text('演示回放控制','Demo playback controls')">
+  <div class="replay-buttons"><button :aria-label="text('从头回放','Replay from start')" @click="emit('seek',0)"><ReloadOutlined /></button><button :aria-label="text('上一关注时刻','Previous attention moment')" :disabled="!markers.some(mark=>mark.seconds<position-.05)" @click="step(-1)"><LeftOutlined /></button><button class="replay-play" @click="emit('toggle')"><CaretRightOutlined v-if="paused"/><PauseOutlined v-else/>{{paused?text('播放回放','Play replay'):text('暂停回放','Pause replay')}}</button><button :aria-label="text('下一关注时刻','Next attention moment')" :disabled="!markers.some(mark=>mark.seconds>position+.05)" @click="step(1)"><RightOutlined /></button></div>
+  <div class="replay-track"><div><span>{{text('演示时间','Demo time')}} <code>{{position.toFixed(1)}} / 60s</code></span><span>{{text('拖动定位会暂停显示','Seeking pauses presentation')}}</span></div><input type="range" min="0" max="60" step="0.1" :value="position" :aria-label="text('回放进度','Replay position')" @input="emit('seek',Number(($event.target as HTMLInputElement).value))"/><div class="replay-chapters"><button v-for="mark in chapterMarks" :key="mark.event.key" :title="mark.event.type+' · '+mark.seconds.toFixed(1)+'s'" :aria-label="text('定位关注时刻 ','Inspect attention moment ')+mark.seconds.toFixed(1)+'s'" :style="{left:mark.seconds/60*100+'%'}" @click="emit('seek',mark.seconds,mark.event)"><i/></button></div></div>
+  <div class="replay-options"><label>{{text('速度','Speed')}}<select :value="speed" :aria-label="text('回放速度','Replay speed')" @change="emit('speed',Number(($event.target as HTMLSelectElement).value))"><option :value=".25">0.25×</option><option :value=".5">0.5×</option><option :value="1">1×</option><option :value="2">2×</option><option :value="4">4×</option></select></label><button :aria-pressed="loop" @click="emit('loop')">{{text('循环','Loop')}}</button></div>
+ </section>
+</template>
+<style scoped>
+.replay-transport{display:flex;gap:18px;align-items:center;padding:13px 16px;background:var(--surface-2);border:.5px solid var(--border);border-radius:12px;margin-bottom:14px;min-width:0}.replay-buttons,.replay-options,.replay-options label{display:flex;align-items:center;gap:6px;flex-shrink:0}button,select{font:11px var(--font-sans);background:var(--surface-2);color:var(--text-secondary);border:.5px solid var(--border);border-radius:8px;min-height:34px;padding:6px 9px}button{cursor:pointer}button:disabled{opacity:.4;cursor:default}.replay-play{display:flex;align-items:center;gap:5px;color:var(--text-accent)}button[aria-pressed="true"]{border-color:var(--text-accent);color:var(--text-accent);background:var(--bg-accent)}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--text-accent);outline-offset:2px}.replay-track{flex:1;min-width:120px}.replay-track>div:first-child{display:flex;justify-content:space-between;gap:12px;font-size:11px;color:var(--text-muted)}.replay-track code{color:var(--text-primary)}input{width:100%;margin:7px 0 0;accent-color:var(--text-accent);cursor:ew-resize}.replay-chapters{position:relative;height:13px;margin:0 7px}.replay-chapters button{position:absolute;width:20px;height:15px;min-height:15px;padding:0;border:0;background:transparent;transform:translateX(-50%);display:grid;place-items:center}.replay-chapters i{display:block;width:5px;height:5px;background:var(--text-warning);transform:rotate(45deg)}.replay-options label{font-size:11px;color:var(--text-muted)}@container(max-width:850px){.replay-transport{flex-wrap:wrap;gap:10px}.replay-track{order:3;flex-basis:100%}.replay-options{margin-left:auto}}@container(max-width:450px){.replay-track>div:first-child>span:last-child{display:none}.replay-transport{padding:12px}.replay-buttons{gap:3px}button{padding:6px}}@media(forced-colors:active){.replay-chapters i{background:Mark}}
+</style>

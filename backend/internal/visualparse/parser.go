@@ -146,16 +146,6 @@ func extractLLMStrings(raw map[string]any, keys ...string) []string {
 	return nil
 }
 
-func clampInt(v, min, max int) int {
-	if v < min {
-		return min
-	}
-	if v > max {
-		return max
-	}
-	return v
-}
-
 func ParseContent(content string) (*CompileResponse, error) {
 	jsonPayload := extractJSONObject(content)
 	if jsonPayload == "" {
@@ -207,7 +197,7 @@ func ParseContent(content string) (*CompileResponse, error) {
 		MapMode:    mapMode,
 		MapKey:     mapKey,
 		MapLimit:   mapLimit,
-		Reasoning:  strings.TrimSpace(extractLLMString(raw, "reasoning", "explanation", "analysis")),
+		Reasoning:  extractLLMString(raw, "reasoning", "explanation", "analysis"),
 		Warnings:   compactStrings(warnings, 6),
 	}, nil
 }
@@ -239,7 +229,7 @@ func extractVisualLLMMap(raw map[string]any) (string, string, int) {
 	if mapLimit <= 0 {
 		mapLimit = 10
 	}
-	return normalizeVisualLLMMapMode(mapMode), normalizeVisualLLMMapKey(mapKey), clampInt(mapLimit, 1, 100000)
+	return normalizeVisualLLMMapMode(mapMode), normalizeVisualLLMMapKey(mapKey), min(max(mapLimit, 1), 100000)
 }
 
 func normalizeVisualLLMLogicNode(raw any, root bool, depth int, count *int) (LogicNode, error) {

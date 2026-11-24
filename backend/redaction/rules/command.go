@@ -153,10 +153,3 @@ func looksLikeCredentialValue(arg string) bool {
 	lower := strings.ToLower(arg)
 	return strings.Contains(lower, "bearer ") || strings.Contains(lower, "basic ") || strings.Contains(lower, "authorization:") || strings.Contains(arg, "=") && (strings.Contains(lower, "token") || strings.Contains(lower, "secret") || strings.Contains(lower, "password"))
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}

@@ -1,8 +1,9 @@
 package research
 
-import "strings"
-
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestResearchSecurityEvaluationPostureRecommendations(t *testing.T) {
 	report := ResearchSecurityEvaluationReport{

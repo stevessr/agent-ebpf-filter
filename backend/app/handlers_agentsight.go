@@ -32,6 +32,7 @@ func registerAgentSightRoutes(router gin.IRouter, tlsStore *TLSCaptureStore) {
 	router.POST("/agentsight/events", handleAgentSightEventsUpload)
 	router.GET("/agentsight/events.jsonl", handleAgentSightEvents(tlsStore, true))
 	router.GET("/agentsight/events/stats", handleAgentSightEventsStats(tlsStore, ""))
+	router.GET("/agentsight/report/usage", handlers.HandleAgentSightUsageReport(tlsStore))
 	router.GET("/agentsight/events/runners/:id/stats", handleAgentSightRunnerStats(tlsStore))
 	router.POST("/agentsight/events/query", handleAgentSightEventsQuery(tlsStore))
 	router.GET("/agentsight/events/stream", handleAgentSightEventsStream(tlsStore))
@@ -50,4 +51,8 @@ func registerAgentSightCompatibilityRoutes(router gin.IRouter, tlsStore *TLSCapt
 	router.GET("/events/stream", handleAgentSightEventsStream(tlsStore))
 	router.GET("/stream/merged", handleAgentSightEventsStream(tlsStore))
 	router.GET("/stream/runner/:id", handleAgentSightRunnerStream(tlsStore))
+}
+
+func handleAgentSightUsageReport(tlsStore *TLSCaptureStore) gin.HandlerFunc {
+	return handlers.HandleAgentSightUsageReport(tlsStore)
 }

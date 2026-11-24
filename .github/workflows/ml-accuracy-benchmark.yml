@@ -1,0 +1,125 @@
+name: ML fixed-seed candidate accuracy benchmark
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - .github/workflows/ml-accuracy-benchmark.yml
+      - backend/app/decision_training*.go
+      - backend/app/ml/**
+      - backend/cmd/ml-train/**
+  pull_request:
+    paths:
+      - .github/workflows/ml-accuracy-benchmark.yml
+      - backend/app/decision_training*.go
+      - backend/app/ml/**
+      - backend/cmd/ml-train/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  candidate-benchmark:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.work
+          cache-dependency-path: |
+            go.work.sum
+            backend/go.sum
+      - name: Install backend compilation prerequisites
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler clang llvm libbpf-dev libelf-dev
+      - name: Generate protobuf bindings
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
+          mkdir -p backend/pb
+          protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto \
+            proto/tracker_common.proto proto/tracker_events.proto \
+            proto/tracker_registration.proto proto/tracker_system.proto \
+            proto/tracker_config.proto proto/tracker_shell.proto
+      - name: Generate eBPF bindings
+        working-directory: backend/ebpf
+        run: |
+          go generate
+          go generate gen_tls.go
+          go generate gen_cgroup.go
+          go generate gen_lsm.go
+      - name: Compare paired candidate configurations across five training seeds
+        working-directory: backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          digest="$(sha256sum ../research/curated/ai-reviewed-bash-actions.jsonl | cut -d' ' -f1)"
+          mkdir -p artifacts/accuracy-benchmark
+          # Same holdout, multiple fixed training seeds: compare stability
+          # without changing the deployed defaults or model-selection policy.
+          for seed in 20261108 20261109 20261110 20261111 20261112; do
+            for spec in 'baseline:72:14:3' 'conservative:96:12:4' 'sensitive:72:14:1'; do
+              IFS=: read -r name trees depth leaf <<< "$spec"
+              echo "::group::candidate=$name seed=$seed trees=$trees depth=$depth leaf=$leaf"
+              go run ./cmd/ml-train \
+                --dataset-file ../research/curated/ai-reviewed-bash-actions.jsonl \
+                --dataset-sha256 "$digest" \
+                --dataset-license CC-BY-SA-4.0 \
+                --seed "$seed" \
+                --num-trees "$trees" --max-depth "$depth" \
+                --min-samples-leaf "$leaf" \
+                --output "artifacts/accuracy-benchmark/$name-$seed.bin"
+              echo '::endgroup::'
+            done
+          done
+          python3 - <<'PY'
+          import glob
+          import json
+
+          by_profile = {}
+          for path in sorted(glob.glob('artifacts/accuracy-benchmark/*.manifest.json')):
+              with open(path, encoding='utf-8') as stream:
+                  obj = json.load(stream)
+              stem = path.rsplit('/', 1)[-1].split('.', 1)[0]
+              profile, seed = stem.rsplit('-', 1)
+              seed = int(seed)
+              assert obj['hyperparameters']['seed'] == seed
+              assert obj['samples'] == 99
+              by_profile.setdefault(profile, {})[seed] = {
+                  'accuracy': obj['validationAccuracy'],
+                  'recall': obj['validationBlockRecall'],
+                  'precision': obj['validationBlockPrecision'],
+                  'fpr': obj['validationBenignFalsePositiveRate'],
+                  'macro_f1': obj['validationMacroF1'],
+                  'n': obj['validationSamples'],
+              }
+
+          seeds = list(range(20261108, 20261113))
+          assert set(by_profile) == {'baseline', 'conservative', 'sensitive'}
+          assert all(set(rows) == set(seeds) for rows in by_profile.values())
+          assert all(row['n'] == 20 for rows in by_profile.values() for row in rows.values())
+          print('PROFILE | mean accuracy | mean BLOCK recall | mean benign FPR | mean macro-F1')
+          for profile in sorted(by_profile):
+              rows = by_profile[profile]
+              means = [
+                  sum(rows[seed][metric] for seed in seeds) / len(seeds)
+                  for metric in ('accuracy', 'recall', 'fpr', 'macro_f1')
+              ]
+              print(f'{profile} | ' + ' | '.join(f'{v:.4f}' for v in means))
+          print('PAIRED SEED | conservative accuracy delta | recall delta | benign FPR delta')
+          for seed in seeds:
+              base, candidate = by_profile['baseline'][seed], by_profile['conservative'][seed]
+              print(f'{seed} | '
+                    f"{candidate['accuracy'] - base['accuracy']:+.4f} | "
+                    f"{candidate['recall'] - base['recall']:+.4f} | "
+                    f"{candidate['fpr'] - base['fpr']:+.4f}")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ml-fixed-seed-benchmark-manifests
+          path: backend/artifacts/accuracy-benchmark/*.manifest.json
+          if-no-files-found: error
+          retention-days: 14

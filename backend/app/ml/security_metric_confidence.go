@@ -56,11 +56,11 @@ func WilsonLowerBound(rate float64, n int, z float64) float64 {
 	if z <= 0 {
 		z = 1.96
 	}
-	p := clampUnit(rate)
+	p := Clamp01(rate)
 	denom := 1 + z*z/float64(n)
 	center := p + z*z/(2*float64(n))
 	margin := z * math.Sqrt((p*(1-p)+z*z/(4*float64(n)))/float64(n))
-	return clampUnit((center - margin) / denom)
+	return Clamp01((center - margin) / denom)
 }
 
 func WilsonUpperBound(rate float64, n int, z float64) float64 {
@@ -70,11 +70,11 @@ func WilsonUpperBound(rate float64, n int, z float64) float64 {
 	if z <= 0 {
 		z = 1.96
 	}
-	p := clampUnit(rate)
+	p := Clamp01(rate)
 	denom := 1 + z*z/float64(n)
 	center := p + z*z/(2*float64(n))
 	margin := z * math.Sqrt((p*(1-p)+z*z/(4*float64(n)))/float64(n))
-	return clampUnit((center + margin) / denom)
+	return Clamp01((center + margin) / denom)
 }
 
 // SecurityAutoTuneMetricEvidence returns a statistically conservative ranking
@@ -99,8 +99,7 @@ func SecurityAutoTuneMetricEvidence(metric string, attack AttackImpactMetrics) S
 	setInverseError := func(value float64, support int) SecurityMetricEvidence {
 		evidence.Support = support
 		evidence.ObservedValue = value
-		evidence.ConservativeScore = 1 - WilsonUpperBound(value, support, policy.ConfidenceZ)
-		evidence.ConservativeScore = clampUnit(evidence.ConservativeScore)
+		evidence.ConservativeScore = Clamp01(1 - WilsonUpperBound(value, support, policy.ConfidenceZ))
 		evidence.ConfidenceMethod = SecurityMetricConfidenceVersion
 		return evidence
 	}

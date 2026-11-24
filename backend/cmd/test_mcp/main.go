@@ -139,10 +139,3 @@ func doRequest(endpoint, token string, req map[string]any) map[string]any {
 
 	return result
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}

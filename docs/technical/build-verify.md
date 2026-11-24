@@ -4,7 +4,15 @@
 
 ## 1. 依赖事实
 
-本仓库 `go.work` 覆盖五个 Go module：`backend`、`desktop/renew`、`tools/agent-tui`、`tools/dev-env-tui`、`wrapper`，要求 Go `1.27.1`。文档使用 MkDocs Material（Python），Web 前端使用 Vue 与 Bun；eBPF 编译需要 clang/LLVM、对应 kernel BTF 与 libbpf/bpf2go 生成流程。更新生成物以 `Makefile` 真实目标为准。
+升级至 Go 1.27.3 后，运行 `python3 scripts/check-go-version.py` 检查
+五个模块、工作区、Dev Container 和 CI 引用一致性。后端运行
+`cd backend && go mod verify && go mod tidy -diff`，桌面端及各模块
+依赖现有 GitHub Actions 完成编译与测试。升级 Go 补丁版本不等于
+更新所有第三方模块，也不意味着修改 `go.sum`。
+
+
+
+本仓库 `go.work` 覆盖五个 Go module：`backend`、`desktop/renew`、`tools/agent-tui`、`tools/dev-env-tui`、`wrapper`，要求 Go `1.27.3`。文档使用 MkDocs Material（Python），Web 前端使用 Vue 与 Bun；eBPF 编译需要 clang/LLVM、对应 kernel BTF 与 libbpf/bpf2go 生成流程。更新生成物以 `Makefile` 真实目标为准。
 
 ```mermaid
 flowchart LR
@@ -73,7 +81,23 @@ flowchart TB
   Review --> Merge["merge after checks"]
 ```
 
-## 5. 图表维护约定
+## 5. OpenCode eBPF soak
+
+`.github/workflows/opencode-ebpf-soak.yml` 每周在 GitHub-hosted `ubuntu-24.04` 上运行一次，也可手动 dispatch。它先用 `make proto-go` 生成未纳入版本控制的 Go protobuf bindings，再用 `make ebpf-bootstrap` 构建后端，安装固定版本的 OpenCode v2 CLI，并以无需 API key 的 `opencode/big-pickle` 运行一组临时文件操作。工作流不授予仓库写权限；每次运行后上传后端日志、OpenCode JSONL 日志、运行前后 health snapshots 和 tracepoint bootstrap 状态，保留 14 天。
+
+`scripts/opencode-ebpf-soak.sh` 只绑定 loopback，创建短期 backend token，并将 OpenCode 的 home 与工作目录隔离到临时目录。其项目 agent 默认拒绝其他权限，仅允许读取临时工作区内的 OpenCode 配置文件，以及对该临时目录执行三条 `mkdir` / `touch` 命令；backend 会注册 OpenCode 进程，测试随后要求 marker 文件既存在又出现在 `/events/recent`（Linux home 路径按标准脱敏规则显示为 `~/`），并检查至少一个 tracepoint 已附加。脚本发现 `/sys/fs/bpf/agent-ebpf` 已存在时会拒绝运行，以免覆盖当前机器已有的 eBPF pin；在本次运行确认 backend 退出后，删除本次创建的 pin。
+
+本地复现需 Go、`protobuf-compiler`、Linux BTF、已挂载的 bpffs、root 或免交互 `sudo`、Node.js/npm 与 OpenCode 可访问网络：
+
+```bash
+make proto-go && make ebpf-bootstrap
+npm install --global @opencode/cli@2.1.3
+scripts/opencode-ebpf-soak.sh
+```
+
+该任务是定时 / 手动集成 soak，不替代每次 PR 的单元测试；它需要 GitHub-hosted runner 的内核允许加载 tracepoint eBPF，workflow 会在需要时挂载 bpffs。
+
+## 6. 图表维护约定
 
 - Mermaid 使用 `flowchart`、`sequenceDiagram`、`stateDiagram-v2` 与 `classDiagram`；站点导航和 Mermaid 渲染配置位于 `docs/mkdocs.yml`，静态构建入口是 `docs/build_site.py`（`pymdownx.superfences`）。
 - 实线画实际调用 / 数据写入，可选能力标明 `opt-in`、`experimental` 或 runtime gate。

@@ -221,7 +221,7 @@ func buildResearchSecurityEvaluationReport(sessionID string, events []ResearchEv
 			if index%16 == 0 && entry.isCanceled() {
 				return ResearchSecurityEvaluationReport{}, errResearchTaskCanceled
 			}
-			entry.setProgress(0.05 + 0.82*(float64(index+1)/float64(maxInt(1, len(candidates)))))
+			entry.setProgress(0.05 + 0.82*(float64(index+1)/float64(max(1, len(candidates)))))
 		}
 		row := evaluateResearchSecurityCandidate(candidate, req.IncludeLLM)
 		report.Samples = append(report.Samples, row)
@@ -282,10 +282,3 @@ func buildResearchSecurityEvaluationReport(sessionID string, events []ResearchEv
 
 // benchmarkCases exposes the built-in security benchmark fixtures.
 func benchmarkCases() []benchmarkCase { return core.DefaultBenchmarkCases() }
-
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}

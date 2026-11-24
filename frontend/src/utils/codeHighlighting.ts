@@ -84,7 +84,9 @@ export const normalizePreviewLanguage = (
   language?: string,
 ): PreviewLanguage | "text" => {
   const normalized = (language || "").trim().toLowerCase().replace(/^\./, "");
-  return languageAliases[normalized] || "text";
+  return Object.prototype.hasOwnProperty.call(languageAliases, normalized)
+    ? languageAliases[normalized]!
+    : "text";
 };
 
 const ensureLanguageLoaded = async (

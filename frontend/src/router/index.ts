@@ -24,6 +24,11 @@ const routes = [
     component: () => import("../views/dashboard/Dashboard.vue"),
   },
   {
+    path: "/behavior",
+    name: "Behavior",
+    component: () => import("../views/behavior/Behavior.vue"),
+  },
+  {
     path: "/monitor/:tab?/:subtab?",
     name: "Monitor",
     component: () => import("../views/monitor/Monitor.vue"),

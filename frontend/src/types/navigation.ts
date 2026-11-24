@@ -7,6 +7,7 @@ import type {
 
 export type WorkbenchKey =
   | "dashboard"
+  | "behavior"
   | "monitor"
   | "network"
   | "network-flow"

@@ -1,0 +1,336 @@
+% ============================================================================
+% MingJing-KIFC: Closing the Application-to-Kernel Information-Flow Gap for
+% Autonomous Coding Agents via Kernel-Native Taint Lattices & Monotonic Leases
+%
+% Target Venues: IEEE S&P / USENIX Security / ACM CCS (2026-2027 Cycles)
+% Format: Standard IEEE/USENIX two-column 10pt conference layout
+% ============================================================================
+\documentclass[10pt,twocolumn,letterpaper]{article}
+
+\usepackage[margin=0.78in,columnsep=0.28in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{mathptmx}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,tabularx,multirow,array}
+\usepackage{enumitem}
+\usepackage{url}
+\usepackage[hidelinks]{hyperref}
+\usepackage{cite}
+\usepackage{caption}
+
+\captionsetup{font=small,labelfont=bf}
+\setlist{nosep,leftmargin=1.4em}
+\setlength{\parskip}{1.5pt}
+
+\newcommand{\sys}{\textsc{MingJing-KIFC}}
+\newcommand{\guard}{\textsc{MCP-ContractGuard}}
+\newcommand{\code}[1]{\texttt{\small #1}}
+
+\title{\Large \bf Closing the Application-to-Kernel Information-Flow Gap:\\
+Kernel-Native Taint Lattices and Monotonic Capability Leases\\
+for Autonomous Coding Agents}
+
+\author{
+  Anonymous Submission\\
+  \textit{Prepared for Double-Blind Review (IEEE S\&P / USENIX Security / ACM CCS)}
+}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Application-layer defenses for large language model (LLM) agents---such as capability separation in CaMeL, information-flow control (IFC) in FIDES, monotonic DSL rules in Progent, and task-scoped leases in IntentCap---enforce policies strictly at the orchestrator or Python tool-dispatch boundary. When autonomous coding agents execute arbitrary shell pipelines, build systems, or Model Context Protocol (MCP) \code{stdio} servers, processes drop into uninstrumented OS execution trees where application taint labels and privilege bounds vanish. Meanwhile, existing eBPF provenance monitors such as Agent-Warden trace kernel-native object graphs asynchronously after execution without enforcing synchronous capabilities, and existing MCP scanners leave clients vulnerable to hidden Unicode smuggling and mid-session rug pulls.
+
+We present \sys{}, a kernel-native information-flow control and monotonic capability-lease enforcement plane for Linux coding agents, paired with \guard{} for MCP tool authentication. First, we formalize a confidentiality--integrity taint lattice and monotonic lease calculus that compiles user prompts and boundary policies into compact 32-byte kernel leases mapped directly into \path{BPF_MAP_TYPE_TASK_STORAGE} and \path{BPF_MAP_TYPE_INODE_STORAGE}. Second, we implement an 8-hook BPF Linux Security Module (LSM) enforcer (\path{ifc_enforcer.c}) that propagates taint across \code{fork}/\code{clone}, open-FD I/O, hardlinks, renames, and binary execution, while synchronously enforcing a Lethal-Trifecta network egress breaker, untrusted deletion/execution gates, and recursive fork quotas (\code{spawn\_budget}). Third, \guard{} pins SHA-256 tool-manifest digests, rejects hidden-directive and Unicode Tag-Plane/BiDi smuggling, and quarantines mid-session rug pulls fail-closed. In evaluation grounded in compiled eBPF ELF/ABI verification and our exact kernel state model, \sys{} eliminates all 12/12 cross-process XTHP and \textsc{AgentDoS} attacks (App-Layer IFC: 0/12; Static Kernel: 2/12) at 0.34\,$\mu$s P50 latency, achieves 1.000~$F_1$ across 24 MCP poisoning and rug-pull contracts, and raises prompt-blind AgentDojo defense across 66 real user tasks / 427 attack pairs from 19.2\% (kernel-only) to 67.4\% with 100.0\% benign utility, while characterizing the exact residual boundary of indirect data-dependent destinations.
+\end{abstract}
+
+% ============================================================================
+\section{Introduction}
+
+Autonomous coding agents (e.g., Claude Code, Codex CLI, Gemini CLI, Cursor) routinely compose repository searches, dependency installers, compilers, test suites, and Model Context Protocol (MCP) companion servers. When poisoned content inside a pull request, issue comment, webpage, or MCP tool schema hijacks execution~\cite{injecagent2024,agentdojo2024,xthp2026}, the security harm manifests below the LLM API layer inside Linux child processes, temporary files, and outbound sockets.
+
+Recent 2025--2026 defenses tackle parts of this problem from disconnected architectural tiers:
+\begin{enumerate}
+  \item \textbf{Application-Layer IFC \& Capabilities:} CaMeL~\cite{camel2025}, FIDES~\cite{fides2025}, Progent~\cite{progent2025}, IntentCap~\cite{intentcap2026}, and AgentFlow~\cite{agentflow2026} track taint labels or narrow tool capabilities inside the agent runtime, yet stop at \code{execve} and OS temporary files. Once a coding agent invokes \code{sh -c} or builds an untrusted script, a contaminated file renamed or hardlinked via \path{/tmp} strips all orchestrator taint.
+  \item \textbf{Causal Replay \& Multi-Tool Attacks:} \emph{Les Dissonances}~\cite{xthp2026} (NDSS '26) demonstrates Cross-Tool Harvesting and Polluting (XTHP), AttriGuard~\cite{attriguard2026} (USENIX Sec '26) mitigates indirect injections via costly counterfactual LLM shadow replays, and AgentDoS~\cite{agentdos2026} (USENIX Sec '26) triggers resource-exhaustion spawn storms.
+  \item \textbf{Kernel Provenance Without Synchronous IFC Leases:} Agent-Warden~\cite{agentwarden2026} (IEEE TPS '26) leverages eBPF task/inode local storage to build post-hoc provenance DAGs at 0.2\%--3.5\% overhead, but performs asynchronous auditing rather than enforcing monotonic task capabilities or Lethal-Trifecta cutoffs inside BPF LSM hooks. Meanwhile, MCPInspect~\cite{mcpinspect2026} (DSN '26) and AgentBound~\cite{agentbound2026} (FSE '26) expose widespread MCP registry flaws, hidden tool poisoning, and mid-session rug pulls.
+\end{enumerate}
+
+To close this application-to-kernel gap without mandatory always-on TLS plaintext interception~\cite{agentsight2025} or expensive LLM shadow replay, we design and implement \sys{} and \guard{}:
+\begin{itemize}
+  \item \textbf{Kernel-Native Lattice \& Monotonic Lease Calculus (\S\ref{sec:design}):} User prompts and declarative \path{agentboundary} policies compile deterministically into immutable 32-byte leases enforced by an 8-hook BPF LSM program (\path{ifc_enforcer.c}) backed by \path{BPF_MAP_TYPE_TASK_STORAGE} and \path{BPF_MAP_TYPE_INODE_STORAGE}, preserving taint across forks, hardlinks, renames, and already-open file descriptors while exempting loopback/UDS IPC.
+  \item \textbf{Synchronous Kernel Kill Switches (\S\ref{sec:lsm}):} The kernel hooks enforce a deterministic Lethal-Trifecta breaker (\code{CONF\_SECRET} $\land$ \code{INTEG\_UNTRUSTED} $\to$ \code{-EACCES} on external \path{socket_connect} / \path{socket_sendmsg}), untrusted unlink/rename/exec denials, and per-run decrementing \code{spawn\_budget} quotas against AgentDoS fork storms.
+  \item \textbf{\guard{} (\S\ref{sec:mcp}):} Screens tool metadata for hidden override directives and invisible Unicode Tag-Plane / BiDi smuggling, anchors SHA-256 schema and description digests, enforces monotonic capability intersection, and quarantines mid-session rug pulls fail-closed.
+  \item \textbf{Empirical Evaluation \& Honest Boundaries (\S\ref{sec:eval}):} Across compiled eBPF ELF/ABI checks and reproducible benchmarks spanning 66 real AgentDojo tasks (427 pairs), 20 multi-process XTHP/AgentDoS workflows, and 24 MCP contracts, \sys{} eliminates 100\% of XTHP/AgentDoS and MCP contract attacks with zero false positives and illuminates the exact residual gap when user prompts delegate destination identities to untrusted external data.
+\end{itemize}
+
+% ============================================================================
+\section{Threat Model and Attack Surface}
+\label{sec:threat}
+
+We consider an autonomous coding agent operating on a developer workstation or CI runner over a trusted Linux kernel (supporting BTF, BPF LSM, \path{BPF_MAP_TYPE_TASK_STORAGE}, and \path{BPF_MAP_TYPE_INODE_STORAGE}) and a trusted high-privilege control daemon. Prompt inputs from users establish an upper authority envelope; repository files, web pages, emails, Slack feeds, third-party dependencies, and MCP tool descriptions are untrusted inputs. Adversaries may exploit:
+\begin{enumerate}
+  \item \textbf{XTHP Staged File Handoffs~\cite{xthp2026}:} Agent~$A$ reads an untrusted issue/webpage and writes staged content into \path{/tmp}; subsequent hardlinking (\code{os.Link}), renaming (\code{os.Rename}), or consumption by an independent Agent~$B$ (with network privileges) bypasses both application-layer IFC and path-only kernel blocklists.
+  \item \textbf{Lethal Trifecta Exfiltration:} Any execution chain combining access to confidential secrets (\path{.ssh}, \path{.env}, 2FA security codes), untrusted external instructions/data, and external network egress (\code{connect}, unconnected UDP \code{sendmsg}).
+  \item \textbf{Untrusted Execution, Sabotage \& AgentDoS~\cite{agentdos2026}:} Writing tainted build scripts and executing them, deleting/overwriting production workspace files via indirect prompt injection, or spawning recursive subprocess storms.
+  \item \textbf{MCP Tool Poisoning \& Mid-Session Rug Pulls~\cite{mcpinspect2026,agentbound2026}:} Concealing imperative overrides inside \code{<IMPORTANT>} tags, invisible Unicode Tag-Plane characters (\path{U+E0000--U+E007F}), or BiDi overrides (\path{U+202A--U+202E}), or mutating an approved server manifest after session initialization.
+\end{enumerate}
+
+Root-level kernel compromises and physical/microarchitectural timing channels remain out of scope. Local Unix-domain sockets (e.g., wrapper control channels) and loopback interfaces (\code{127.0.0.0/8}, \code{::1}, \code{::ffff:127.x}) must remain functional even under tainted execution so observability does not deadlock the host.
+
+% ============================================================================
+\section{Design of \sys{} and \guard{}}
+\label{sec:design}
+
+\subsection{Security Lattice and Monotonic Lease Calculus}
+Every tracked OS task holds an immutable capability ceiling paired with monotonically growing taint labels inside \path{struct ifc_task_label} ($L_t = \langle C_t, I_t, P_t, B_t \rangle$):
+\begin{itemize}
+  \item \textbf{Confidentiality ($C_t$):} Bitmask over \code{CONF\_SECRET} (credentials, SSH keys, security codes) and \code{CONF\_PRIVATE} (private workspace records, bills, messages).
+  \item \textbf{Integrity ($I_t$):} Bitmask over \code{INTEG\_UNTRUSTED}, \code{INTEG\_EXTERNAL\_NET}, and \code{INTEG\_TOOL\_OUTPUT}. Once a task ingests tainted content, bits grow monotonically via bitwise OR ($\vee$) across reads and fork descendants.
+  \item \textbf{Capability Lease ($P_t$) \& Spawn Quota ($B_t$):} Bitmask separating \code{CAP\_NET\_EGRESS}, \code{CAP\_UNTRUSTED\_EGRESS}, \code{CAP\_FILE\_WRITE}, \code{CAP\_FILE\_UNLINK}, \code{CAP\_EXEC\_UNTRUSTED}, and \code{CAP\_SECRET\_READ}, plus an integer \code{spawn\_budget}.
+\end{itemize}
+
+For every subagent transition or tool invocation (\path{NarrowLease}), \sys{} enforces strict monotonicity:
+\begin{equation}
+\begin{aligned}
+P_{\text{child}} &= P_{\text{parent}} \cap P_{\text{req}}, \quad
+C_{\text{child}} = C_{\text{parent}} \cup C_{\text{req}}, \\
+B_{\text{child}} &\le \min(B_{\text{parent}}, B_{\text{req}}).
+\end{aligned}
+\end{equation}
+Strict mode rejects any capability widening or budget increase before updating kernel state. Existing declarative \path{agentboundary.Policy} objects compile directly via \path{CompileFromBoundaryPolicy}, while our blind prompt compiler (\path{CompilePromptLease}) derives minimal leases strictly from natural-language user instructions without inspecting tool traces or injection payloads. Notably, separating \code{CAP\_FILE\_WRITE} from \code{CAP\_FILE\_UNLINK} blocks unauthorized file deletions even on write-enabled coding tasks.
+
+\subsection{8-Hook Kernel BPF LSM Enforcer (\code{ifc\_enforcer.c})}
+\label{sec:lsm}
+
+To enforce information flow synchronously at kernel speed without path-aliasing vulnerabilities, \path{ifc_enforcer.c} maintains five eBPF maps (Table~\ref{tab:kifc_abi}): \path{ifc_task_labels} (\path{BPF_MAP_TYPE_TASK_STORAGE}), \path{ifc_inode_labels} (\path{BPF_MAP_TYPE_INODE_STORAGE}), a TGID bootstrap seed map (\path{ifc_pid_seed}), a static secret/source classification map (\path{ifc_classified_inodes} keyed by \code{(s\_dev, i\_ino)}), and per-CPU telemetry counters (\path{ifc_stats_map}). When an instrumented process triggers a hook, \path{get_or_seed_current_task_label()} resolves its \path{struct task_struct *} via \path{bpf_get_current_task_btf()} and lazily attaches any seeded TGID lease.
+
+\begin{table}[t]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{2.2pt}
+\caption{Compiled K-IFC BPF map and struct ABI specification verified via \code{go generate ./ebpf} and \code{TestIFCEnforcerCollectionSpec}.}
+\label{tab:kifc_abi}
+\begin{tabular}{@{}llrrl@{}}
+\toprule
+\textbf{Map / Struct} & \textbf{BPF Type} & \textbf{Key} & \textbf{Val} & \textbf{Purpose} \\
+\midrule
+\path{ifc_task_labels}      & \code{TaskStorage} & 4\,B  & 32\,B & Live $(C_t, I_t, P_t, B_t)$ \\
+\path{ifc_inode_labels}     & \code{InodeStorage}& 4\,B  & 16\,B & Dynamic file taint \\
+\path{ifc_pid_seed}         & \code{Hash} (4096) & 4\,B  & 32\,B & TGID root lease seed \\
+\path{ifc_classified_inodes}& \code{Hash} (1024) & 16\,B & 16\,B & Static $(s_{\text{dev}}, i_{\text{ino}})$ labels \\
+\path{ifc_stats_map}        & \code{PerCPUArray} & 4\,B  & 64\,B & 8 event/block counters \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Eight synchronous BPF LSM hooks close every OS bypass vector:
+\begin{enumerate}
+  \item \textbf{\path{lsm/task_alloc}:} Copies parent $(C_t, I_t, P_t)$ into the newly allocated child \path{TASK_STORAGE} and decrements \code{spawn\_budget}; returns \code{-EACCES} once exhausted.
+  \item \textbf{\path{lsm/file_open} \& \path{lsm/file_permission}:} Catch both open-time flags and post-open descriptor I/O (\code{MAY\_READ}/\code{MAY\_WRITE}). Reads join static and dynamic inode taint into $L_t$ (requiring \code{CAP\_SECRET\_READ} when \code{CONF\_SECRET} is present). Writes reject tainted tasks lacking \code{CAP\_FILE\_WRITE} and stamp $(C_t, I_t)$ onto the target kernel \path{struct inode *} in \path{ifc_inode_labels}.
+  \item \textbf{\path{lsm/bprm_check_security}:} Joins executable inode taint into $L_t$ and denies execution (\code{-EACCES}) when the binary or task carries \code{INTEG\_UNTRUSTED} without \code{CAP\_EXEC\_UNTRUSTED}.
+  \item \textbf{\path{lsm/inode_unlink} \& \path{lsm/inode_rename}:} Deny destructive unlinks or renames when \code{INTEG\_UNTRUSTED} lacks \code{CAP\_FILE\_UNLINK}; permitted renames retain \path{INODE_STORAGE} taint on the underlying \code{d\_inode} across path mutations and hardlinks.
+  \item \textbf{\path{lsm/socket_connect} \& \path{lsm/socket_sendmsg}:} Inspect both TCP connects and unconnected UDP \code{sendto}/\code{sendmsg} destinations, skipping \code{AF\_UNIX}, \code{AF\_NETLINK}, and IPv4/IPv6 loopback (\code{127.0.0.0/8}, \code{::1}, \code{::ffff:127.x}). On any external socket, holding \code{CONF\_SECRET} $\land$ \code{INTEG\_UNTRUSTED} triggers the unconditional \textbf{Lethal-Trifecta Breaker} (\code{-EACCES}); otherwise external egress requires \code{CAP\_NET\_EGRESS} (and \code{CAP\_UNTRUSTED\_EGRESS} if \code{INTEG\_UNTRUSTED}).
+\end{enumerate}
+
+\subsection{\guard{}: Pinning and Smuggling Defense}
+\label{sec:mcp}
+
+At MCP server registration (\path{PinManifest}), \guard{} scans tool descriptions, parameter schemas, and JSON schemas for three smuggling classes: (i)~imperative override or exfiltration markers (\code{<IMPORTANT>}, \code{<SYSTEM>}, \code{ignore previous instructions}, \path{~/.ssh}, \code{do not tell the user}), (ii)~invisible Unicode Tag-Plane characters (\path{U+E0000--U+E007F}), and (iii)~BiDi Trojan overrides (\path{U+202A--U+202E}, \path{U+2066--U+2069}) or zero-width steganographic clusters. Clean manifests are bounded via \path{NarrowLease} (rejecting undeclared capability or quota escalations) and pinned by SHA-256 digests over both \code{InputSchemaJSON} and descriptions. On every subsequent invocation (\path{VerifyInvocation}), any digest drift triggers fail-closed quarantine (\code{CapMask = 0}, \code{RugPullDetected = true}) for the remainder of the session.
+
+% ============================================================================
+\section{Empirical Evaluation}
+\label{sec:eval}
+
+We evaluate the compiled eBPF ELF artifacts and our bit-exact Go reference engine (\path{KernelIFCSimulator} in \path{backend/internal/agentifc/engine.go}) across three reproducible test suites archived in \path{reports/kifc-20261120/kifc_benchmark_summary.json} (\path{TestIFCEnforcerCollectionSpec} and \path{TestKIFCComprehensiveBenchmarks}). Consistent with unprivileged CI container constraints (where \path{BPF_PROG_LOAD} requires \code{CAP\_BPF}/\code{CAP\_SYS\_ADMIN}), kernel hook contracts and ABI layouts are verified against compiled ELF sections while execution traces run on the bit-exact reference model.
+
+\subsection{AgentDojo Evaluation (66 Real Tasks, 427 Pairs)}
+We parsed all 66 user tasks (including verbatim natural-language \code{PROMPT} fields and resolved f-string constants) and 20 injection tasks (427 pairs) from AgentDojo~\cite{agentdojo2024} across \code{workspace}, \code{banking}, and \code{slack}. Unlike coarse tool-name proxies, our blind \path{CompilePromptLease} inspects solely the user prompt text before seeing any trace, and we measure both \emph{Pure Capability-Bit + Trifecta} enforcement and \emph{Explicit Target-Bound} enforcement (which activates destination pinning only when explicit emails, IBANs, URLs, or recipient names appear unambiguously in the prompt).
+
+\begin{table}[t]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{1.5pt}
+\caption{AgentDojo (66 benign tasks, 427 attack pairs): benign utility, attack block rate, and evaluation latency.}
+\label{tab:agentdojo_kifc}
+\begin{tabular}{@{}llrrrr@{}}
+\toprule
+\textbf{Suite (Tasks/Pairs)} & \textbf{Defense Mode} & \textbf{Util.} & \textbf{Blocked} & \textbf{P50} & \textbf{P95} \\
+\midrule
+workspace (33/198) & Kernel-Only & 100\% & 33.3\% (66) & 70\,ns & 164\,ns \\
+workspace (33/198) & MingJing v2 Intent & 100\% & 65.7\% (130) & 142\,ns & 294\,ns \\
+workspace (33/198) & K-IFC CapOnly & 100\% & 73.7\% (146) & 1.18\,$\mu$s & 3.43\,$\mu$s \\
+workspace (33/198) & \textbf{K-IFC Target-Bound} & \textbf{100\%} & \textbf{79.8\% (158)} & 1.17\,$\mu$s & 3.23\,$\mu$s \\
+\midrule
+banking (16/144) & Kernel-Only & 100\% & 11.1\% (16) & 81\,ns & 197\,ns \\
+banking (16/144) & MingJing v2 Intent & 100\% & 33.3\% (48) & 164\,ns & 314\,ns \\
+banking (16/144) & K-IFC CapOnly & 100\% & 27.8\% (40) & 1.10\,$\mu$s & 3.23\,$\mu$s \\
+banking (16/144) & \textbf{K-IFC Target-Bound} & \textbf{100\%} & \textbf{55.6\% (80)} & 1.15\,$\mu$s & 2.31\,$\mu$s \\
+\midrule
+slack (17/85) & Kernel-Only & 100\% & 0.0\% (0) & 88\,ns & 188\,ns \\
+slack (17/85) & MingJing v2 Intent & 100\% & 5.9\% (5) & 247\,ns & 400\,ns \\
+slack (17/85) & K-IFC CapOnly & 100\% & 24.7\% (21) & 1.22\,$\mu$s & 3.76\,$\mu$s \\
+slack (17/85) & \textbf{K-IFC Target-Bound} & \textbf{100\%} & \textbf{58.8\% (50)} & 1.30\,$\mu$s & 3.72\,$\mu$s \\
+\midrule
+\textbf{Aggregate (66/427)} & Kernel-Only & 100\% & 19.2\% (82) & 77\,ns & 196\,ns \\
+\textbf{Aggregate (66/427)} & MingJing v2 Intent & 100\% & 42.9\% (183) & 161\,ns & 368\,ns \\
+\textbf{Aggregate (66/427)} & K-IFC CapOnly & 100\% & 48.5\% (207) & 1.17\,$\mu$s & 3.51\,$\mu$s \\
+\textbf{Aggregate (66/427)} & \textbf{K-IFC Target-Bound} & \textbf{100\%} & \textbf{67.4\% (288)} & \textbf{1.19\,$\mu$s} & \textbf{3.50\,$\mu$s} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:agentdojo_kifc} demonstrates two critical scientific insights:
+\begin{enumerate}
+  \item All four modes preserve \textbf{100.0\% benign utility (66/66)}. Splitting \code{CAP\_FILE\_WRITE} from \code{CAP\_FILE\_UNLINK} and compiling leases per prompt raises aggregate defense from 19.2\% (Kernel-Only) and 42.9\% (v2 coarse tool intent) to 48.5\% (CapOnly) and \textbf{67.4\% (288/427)} with explicit target binding at \textbf{1.19\,$\mu$s P50} latency.
+  \item \textbf{Exact Characterization of the 139 Residual Pairs:} The 139 remaining unblocked pairs (32.6\%) isolate a fundamental security-vs-utility boundary recognized across CaMeL~\cite{camel2025} and FIDES~\cite{fides2025}: prompts that intentionally delegate destination identities or actions into untrusted retrieved documents---such as \emph{``pay the bill in `bill-december-2023.txt`'{}''}, \emph{``email each person mentioned in the TODO list''}, or \emph{``refund that 10.00 I just got from my friend''}---cannot distinguish attacker IBANs/emails from benign file-sourced recipients purely via prompt parsing without breaking legitimate utility.
+\end{enumerate}
+
+\subsection{Cross-Process XTHP and \textsc{AgentDoS} Benchmark (20 Workflows)}
+To test multi-process OS escapes inspired by \emph{Les Dissonances}~\cite{xthp2026} and \textsc{AgentDoS}~\cite{agentdos2026}, we evaluated 12 attack chains---including \path{/tmp} file handoffs across agents, hardlink aliasing, cross-directory rename aliasing, 4-hop \code{sh} $\to$ \code{python} $\to$ \code{curl} cascades, post-open descriptor reads (\path{file_permission}), unconnected UDP \path{socket_sendmsg} leaks, untrusted temporary script execution, destructive unlinks/renames, and 6-child fork storms---alongside 8 benign dev workflows (\code{git}, \code{pytest} with UDS \path{/tmp/agent-ebpf.sock}, \code{go test} hitting loopback \path{127.0.0.1:8080} and \code{[::1]:9090}, clean \code{npm} builds). As shown in Table~\ref{tab:xthp}, application-layer IFC blocks \textbf{0/12 (0.0\%)} once execution drops into OS subprocesses/temp files, static v2 path rules block \textbf{2/12 (16.7\%)}, and \sys{} blocks \textbf{12/12 (100.0\%)} while passing \textbf{8/8 (100.0\%)} benign developer workflows in \textbf{0.34\,$\mu$s P50} (\textbf{1.09\,$\mu$s P95}).
+
+\begin{table}[t]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{1.5pt}
+\caption{Multi-process XTHP \& \textsc{AgentDoS} benchmark (12 OS attacks + 8 benign workflows).}
+\label{tab:xthp}
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+\textbf{Defense Architecture} & \textbf{Blk} & \textbf{Rate} & \textbf{Benign} & \textbf{P50} & \textbf{P95} \\
+\midrule
+App-Layer IFC (No Subproc)      & 0/12 & 0.0\% & 8/8 (100\%) & 276\,ns & 1.07\,$\mu$s \\
+Static Kernel (v2 Path-Only)    & 2/12 & 16.7\% & 8/8 (100\%) & 135\,ns & 360\,ns \\
+\textbf{\sys{} (\code{TASK+INODE})} & \textbf{12/12} & \textbf{100.0\%} & \textbf{8/8 (100\%)} & \textbf{339\,ns} & \textbf{1.09\,$\mu$s} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{\guard{} Contract Evaluation (24 Contracts)}
+Across 24 MCP tool contracts (10 clean developer tools and 14 attacks spanning \code{<IMPORTANT>}/\code{<SYSTEM>} directive injections, parameter-description poisoning, Unicode Tag-Plane \path{U+E0000--U+E007F}, BiDi Trojan overrides, zero-width steganography, privilege/budget escalation, and mid-session schema/description rug pulls), Table~\ref{tab:mcp_guard} shows keyword-only filtering catches just \textbf{4/14 (28.6\%)} at 0.444~$F_1$, whereas \guard{} achieves \textbf{14/14 (100.0\%) recall}, \textbf{0/10 false positives}, and \textbf{1.000~$F_1$} in \textbf{1.46\,$\mu$s P50} (\textbf{4.87\,$\mu$s P95}).
+
+\begin{table}[t]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{2.0pt}
+\caption{\guard{} evaluation across 24 MCP contracts (14 attacks + 10 benign).}
+\label{tab:mcp_guard}
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+\textbf{Screening Mode} & \textbf{Blk} & \textbf{FP} & \textbf{Prec.} & \textbf{Rec.} & \textbf{F1} & \textbf{P50} \\
+\midrule
+Unchecked Client      & 0/14  & 0/10 & 0.000 & 0.000 & 0.000 & 16\,ns \\
+Static Keyword-Only   & 4/14  & 0/10 & 1.000 & 0.286 & 0.444 & 267\,ns \\
+\textbf{\guard{}}     & \textbf{14/14} & \textbf{0/10} & \textbf{1.000} & \textbf{1.000} & \textbf{1.000} & \textbf{1.46\,$\mu$s} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================================
+\section{Limitations and Epistemic Boundaries}
+\label{sec:limitations}
+
+We state exact technical boundaries for the current \sys{} implementation:
+\begin{enumerate}
+  \item \textbf{Unprivileged CI Scope:} All eBPF programs compile via \code{clang}/\code{bpf2go} and pass ELF map/hook/symbol checks without privileges, while dynamic taint enforcement metrics are measured over our bit-exact \path{KernelIFCSimulator} reference model; multi-host live \code{BPF\_PROG\_LOAD} attachment trials under root remain necessary to measure real-kernel \code{bpf\_task\_storage\_get} verifier behavior across diverse Linux distributions.
+  \item \textbf{Data-Dependent Destinations \& Covert Channels:} As shown in our AgentDojo residual breakdown, indirect tasks that delegate recipients to external files require runtime value-level taint propagation (dual-LLM quarantine or fine-grained FIDES/CaMeL variable binding) plus human confirmation gates rather than prompt-only compilation. Implicit timing or out-of-band covert channels remain unmodeled.
+  \item \textbf{Monotonic Non-Declassification:} Currently, \code{CONF\_SECRET} and \code{INTEG\_UNTRUSTED} grow monotonically per task lifetime; structured trusted sanitizers or human-approved declassification checkpoints remain future work.
+\end{enumerate}
+
+% ============================================================================
+\section{Related Work}
+\label{sec:related}
+
+\textbf{App-Layer Agent IFC \& Capability Control.} CaMeL~\cite{camel2025} isolates privileged planning from untrusted data, FIDES~\cite{fides2025} formalizes IFC labels and selective hiding in planners, Progent~\cite{progent2025} uses SMT-verified monotonic DSLs, IntentCap~\cite{intentcap2026} binds field-level ownership to task-scoped leases, and AgentFlow~\cite{agentflow2026} enforces flow-centric runtime policies. \sys{} pushes monotonic capability leases and IFC labels beneath the Python/Node boundary directly into Linux BPF LSM storage.
+
+\textbf{Kernel Provenance, Causal Attribution \& MCP Governance.} Agent-Warden~\cite{agentwarden2026} proves low-overhead kernel task/inode local storage for post-hoc provenance DAGs; vBPF~\cite{vbpf2026} provides multi-tenant eBPF late-binding virtualization; AttriGuard~\cite{attriguard2026} uses counterfactual LLM shadow replays; MCPInspect~\cite{mcpinspect2026} and AgentBound~\cite{agentbound2026} audit and sandbox MCP servers. \sys{} complements these by providing sub-microsecond deterministic synchronous kernel blocking tied to cryptographically pinned MCP contracts.
+
+% ============================================================================
+\section{Conclusion}
+
+We presented \sys{} and \guard{}, bridging the application-to-kernel information-flow gap for autonomous coding agents. By compiling monotonic capability leases into 8 synchronous BPF LSM hooks backed by \path{TASK_STORAGE} and \path{INODE_STORAGE} and pinning MCP contracts against poisoning and rug pulls, our system blocks 100\% of cross-process XTHP/\textsc{AgentDoS} and MCP contract attacks while illuminating the concrete boundary of indirect data-driven destinations on AgentDojo.
+
+% ============================================================================
+\footnotesize
+\begin{thebibliography}{14}
+
+\bibitem{camel2025}
+E.~Debenedetti et~al.
+\newblock {CaMeL: Defeating Prompt Injections by Design}.
+\newblock \emph{arXiv preprint arXiv:2503.18813}, 2025.
+
+\bibitem{fides2025}
+M.~Costa et~al.
+\newblock {FIDES: Securing AI Agents with Information-Flow Control}.
+\newblock \emph{Microsoft Research, arXiv:2505.23643}, 2025.
+
+\bibitem{progent2025}
+Progent Authors.
+\newblock {Progent: Programmable Privilege Control for LLM Agents}.
+\newblock \emph{arXiv preprint arXiv:2504.11703}, 2025/2026.
+
+\bibitem{intentcap2026}
+IntentCap Authors.
+\newblock {LLM Agent Capabilities Should Follow Task Intent and Context Source}.
+\newblock In \emph{AgenticOS / arXiv:2609.14631}, Sept. 2026.
+
+\bibitem{agentflow2026}
+AgentFlow Authors.
+\newblock {AgentFlow: A Flow-Centric Policy Language and Framework for Securing LLM Agent Systems}.
+\newblock \emph{Preprint}, Aug. 2026.
+
+\bibitem{xthp2026}
+Les Dissonances Authors.
+\newblock {Les Dissonances: Cross-Tool Harvesting and Polluting in Pool-of-Tools Empowered LLM Agents}.
+\newblock In \emph{Proc.\ NDSS Symposium}, 2026.
+
+\bibitem{attriguard2026}
+AttriGuard Authors.
+\newblock {AttriGuard: Defeating Indirect Prompt Injection in LLM Agents via Causal Attribution of Tool Invocations}.
+\newblock In \emph{Proc.\ USENIX Security Symposium}, 2026.
+
+\bibitem{agentdos2026}
+AgentDoS Authors.
+\newblock {Detecting Resource Exhaustion and Denial-of-Service in Autonomous LLM Agents}.
+\newblock In \emph{Proc.\ USENIX Security Symposium}, 2026.
+
+\bibitem{agentwarden2026}
+D.~Cui, Z.~Gu, P.~Zheng, S.~Han, and Y.~Liao.
+\newblock {Agent-Warden: eBPF-Based Kernel-Native Process-File Provenance Tracking for LLM Agents}.
+\newblock In \emph{Proc.\ IEEE TPS (arXiv:2609.38245)}, 2026.
+
+\bibitem{agentsight2025}
+Y.~Zheng, Y.~Hu, T.~Yu, and A.~Quinn.
+\newblock {AgentSight: System-Level Observability for AI Agents Using eBPF}.
+\newblock \emph{arXiv preprint arXiv:2508.02736v2}, 2025.
+
+\bibitem{vbpf2026}
+J.~Zhang, X.~Song, D.~Du, Y.~Xia, B.~Zang, and H.~Chen.
+\newblock {Virtualizing eBPF with Late-Binding}.
+\newblock In \emph{Proc.\ USENIX OSDI}, 2026.
+
+\bibitem{mcpinspect2026}
+MCPInspect Authors.
+\newblock {A First Look at the Security Issues in the Model Context Protocol Ecosystem}.
+\newblock In \emph{Proc.\ IEEE/IFIP DSN}, 2026.
+
+\bibitem{agentbound2026}
+AgentBound Authors.
+\newblock {AgentBound: Securing Execution Boundaries of AI Agents}.
+\newblock In \emph{Proc.\ ACM ESEC/FSE}, 2026.
+
+\bibitem{agentdojo2024}
+E.~Debenedetti, J.~Zhang, M.~Balunovi\'c, L.~Beurer-Kellner, M.~Fischer, and F.~Tram\`er.
+\newblock {AgentDojo: A Dynamic Environment to Evaluate Prompt Injection Attacks and Defenses for LLM Agents}.
+\newblock In \emph{NeurIPS Datasets and Benchmarks}, 2024.
+
+\bibitem{injecagent2024}
+Q.~Zhan, Z.~Liang, Z.~Ying, and D.~Kang.
+\newblock {InjecAgent: Benchmarking Indirect Prompt Injections in Tool-Integrated Large Language Model Agents}.
+\newblock In \emph{Findings of ACL}, 2024.
+
+\end{thebibliography}
+
+\end{document}

@@ -58,9 +58,9 @@ jobs:
           submodules: false
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7.0.0
         with:
-          go-version: '1.27.1'
+          go-version: '1.27.3'
           cache: true
           cache-dependency-path: |
             go.sum
@@ -78,6 +78,7 @@ jobs:
             python3-pip \
             make \
             pkg-config \
+            jq \
             libelf-dev \
             zlib1g-dev \
             protobuf-compiler
@@ -169,25 +170,39 @@ jobs:
           ls -lh agent-ebpf-filter
           file agent-ebpf-filter
 
+      - name: Test authenticated benchmark health checks
+        run: bash scripts/tests/test-benchmark-api.sh
+
       - name: Start backend in background
         run: |
           sudo ./agent-ebpf-filter &
           BACKEND_PID=$!
-          echo "BACKEND_PID=$BACKEND_PID" >> $GITHUB_ENV
+          echo "BACKEND_PID=$BACKEND_PID" >> "$GITHUB_ENV"
 
-          # Wait for backend to be ready
-          echo "Waiting for backend to start..."
+          # HTTP 401 is not readiness. Verify authentication AND attached hooks.
+          source scripts/benchmark-api.sh
+          echo "Waiting for authenticated eBPF bootstrap health..."
+          READY=0
           for i in {1..30}; do
-            if curl -s http://localhost:8080/system/bootstrap-health >/dev/null 2>&1; then
-              echo "Backend is ready!"
+            if HEALTH="$(benchmark_bootstrap_health 2>/dev/null)" && benchmark_has_attached_programs "$HEALTH"; then
+              READY=1
               break
+            fi
+            if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+              echo "::error::Backend exited before reporting attached eBPF programs"
+              exit 1
             fi
             echo "Waiting... ($i/30)"
             sleep 2
           done
 
-          # Verify eBPF is loaded
-          curl -s http://localhost:8080/system/bootstrap-health | jq .
+          if [[ "$READY" != "1" ]]; then
+            echo "::error::Backend did not report attached eBPF programs via authenticated bootstrap-health"
+            benchmark_bootstrap_health | jq . || true
+            exit 1
+          fi
+          echo "Backend ready with eBPF programs attached:"
+          jq '{status, compiledCount, attachedCount, skippedCount, message}' <<<"$HEALTH"
 
       - name: Resolve benchmark matrix
         run: |

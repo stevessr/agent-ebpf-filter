@@ -1,10 +1,11 @@
 package app
 
 import (
-	"agent-ebpf-filter/app/ml"
 	"encoding/json"
 	"testing"
 	"time"
+
+	"agent-ebpf-filter/app/ml"
 )
 
 func resetMLCRuntimeCacheForTest() {
@@ -117,21 +118,24 @@ func TestBuildMLStatusJSONUsesCurrentRuntimeSettings(t *testing.T) {
 	})
 
 	runtimeCfg := MLConfig{
-		Enabled:              true,
-		ModelType:            ModelSVM,
-		ModelPath:            "/runtime/model.bin",
-		ValidationSplitRatio: 0.37,
-		NumTrees:             17,
-		MaxDepth:             6,
-		MinSamplesLeaf:       2,
-		LlmEnabled:           true,
-		LlmBaseURL:           "https://runtime.example",
-		LlmAPIKey:            "runtime-secret",
-		LlmModel:             "runtime-llm",
-		LlmTimeoutSeconds:    91,
-		LlmTemperature:       0.42,
-		LlmMaxTokens:         777,
-		LlmSystemPrompt:      "runtime prompt",
+		Enabled:                  true,
+		ModelType:                ModelSVM,
+		ModelPath:                "/runtime/model.bin",
+		AllowRiskScoreThreshold:  0.15,
+		BlockConfidenceThreshold: 0.9,
+		MlMinConfidence:          0.55,
+		ValidationSplitRatio:     0.37,
+		NumTrees:                 17,
+		MaxDepth:                 6,
+		MinSamplesLeaf:           2,
+		LlmEnabled:               true,
+		LlmBaseURL:               "https://runtime.example",
+		LlmAPIKey:                "runtime-secret",
+		LlmModel:                 "runtime-llm",
+		LlmTimeoutSeconds:        91,
+		LlmTemperature:           0.42,
+		LlmMaxTokens:             777,
+		LlmSystemPrompt:          "runtime prompt",
 	}
 	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{MLConfig: runtimeCfg}}
 	ml.UpdateMLRuntimeConfig(runtimeCfg, true)
@@ -144,16 +148,19 @@ func TestBuildMLStatusJSONUsesCurrentRuntimeSettings(t *testing.T) {
 		ModelPath       string                  `json:"modelPath"`
 		AutoTuneRuntime backendTaskRuntimeStats `json:"autoTuneRuntime"`
 		MLConfig        struct {
-			ModelType            string  `json:"modelType"`
-			ValidationSplitRatio float64 `json:"validationSplitRatio"`
-			LLMEnabled           bool    `json:"llmEnabled"`
-			LLMBaseURL           string  `json:"llmBaseUrl"`
-			LLMApiKeyConfigured  bool    `json:"llmApiKeyConfigured"`
-			LLMModel             string  `json:"llmModel"`
-			LLMTimeoutSeconds    int     `json:"llmTimeoutSeconds"`
-			LLMTemperature       float64 `json:"llmTemperature"`
-			LLMMaxTokens         int     `json:"llmMaxTokens"`
-			LLMSystemPrompt      string  `json:"llmSystemPrompt"`
+			ModelType                string  `json:"modelType"`
+			AllowRiskScoreThreshold  float64 `json:"allowRiskScoreThreshold"`
+			BlockConfidenceThreshold float64 `json:"blockConfidenceThreshold"`
+			MlMinConfidence          float64 `json:"mlMinConfidence"`
+			ValidationSplitRatio     float64 `json:"validationSplitRatio"`
+			LLMEnabled               bool    `json:"llmEnabled"`
+			LLMBaseURL               string  `json:"llmBaseUrl"`
+			LLMApiKeyConfigured      bool    `json:"llmApiKeyConfigured"`
+			LLMModel                 string  `json:"llmModel"`
+			LLMTimeoutSeconds        int     `json:"llmTimeoutSeconds"`
+			LLMTemperature           float64 `json:"llmTemperature"`
+			LLMMaxTokens             int     `json:"llmMaxTokens"`
+			LLMSystemPrompt          string  `json:"llmSystemPrompt"`
 		} `json:"mlConfig"`
 		HyperParams struct {
 			NumTrees       int `json:"numTrees"`
@@ -175,6 +182,15 @@ func TestBuildMLStatusJSONUsesCurrentRuntimeSettings(t *testing.T) {
 	}
 	if payload.MLConfig.ValidationSplitRatio != runtimeCfg.ValidationSplitRatio {
 		t.Fatalf("payload.MLConfig.ValidationSplitRatio = %f, want %f", payload.MLConfig.ValidationSplitRatio, runtimeCfg.ValidationSplitRatio)
+	}
+	if payload.MLConfig.AllowRiskScoreThreshold != runtimeCfg.AllowRiskScoreThreshold {
+		t.Fatalf("payload.MLConfig.AllowRiskScoreThreshold = %f, want %f", payload.MLConfig.AllowRiskScoreThreshold, runtimeCfg.AllowRiskScoreThreshold)
+	}
+	if payload.MLConfig.BlockConfidenceThreshold != runtimeCfg.BlockConfidenceThreshold {
+		t.Fatalf("payload.MLConfig.BlockConfidenceThreshold = %f, want %f", payload.MLConfig.BlockConfidenceThreshold, runtimeCfg.BlockConfidenceThreshold)
+	}
+	if payload.MLConfig.MlMinConfidence != runtimeCfg.MlMinConfidence {
+		t.Fatalf("payload.MLConfig.MlMinConfidence = %f, want %f", payload.MLConfig.MlMinConfidence, runtimeCfg.MlMinConfidence)
 	}
 	if payload.MLConfig.LLMEnabled != runtimeCfg.LlmEnabled {
 		t.Fatalf("payload.MLConfig.LLMEnabled = %v, want %v", payload.MLConfig.LLMEnabled, runtimeCfg.LlmEnabled)

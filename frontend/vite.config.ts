@@ -1,13 +1,12 @@
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import fs from "node:fs";
-import path from "node:path";
 import { fileURLToPath, URL } from "url";
 
 // Get backend port from shared file, or fallback to 8080
 let backendPort = 8080;
 try {
-  const portFile = path.resolve(__dirname, "../backend/.port");
+  const portFile = fileURLToPath(new URL("../backend/.port", import.meta.url));
   if (fs.existsSync(portFile)) {
     backendPort = parseInt(fs.readFileSync(portFile, "utf-8").trim(), 10);
   }

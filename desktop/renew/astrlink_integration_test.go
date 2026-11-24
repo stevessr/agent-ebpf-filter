@@ -41,7 +41,9 @@ func TestAstrLinkSessionRejectsSymlinkAndOversize(t *testing.T) {
 	link := filepath.Join(dir, "session.json")
 	if err := os.Symlink(target, link); err == nil {
 		_, _, got := readAstrLinkSession(link)
-		if got == nil { t.Fatal("session symlink must be rejected") }
+		if got == nil {
+			t.Fatal("session symlink must be rejected")
+		}
 	}
 	tooLarge := filepath.Join(dir, "large.json")
 	if err := os.WriteFile(tooLarge, []byte(strings.Repeat("x", 8193)), 0600); err != nil {
@@ -61,8 +63,10 @@ func TestAstrLinkObserverRejectsExternalURL(t *testing.T) {
 		"http://127.0.0.1:8899?x=1",
 	}
 	for _, addr := range cases {
-		_, _, _, err := astrLinkClient(astrLinkSession{ControlURL:addr, ControlToken:"observer"})
-		if err == nil { t.Errorf("accepted non-loopback control endpoint %q", addr) }
+		_, _, _, err := astrLinkClient(astrLinkSession{ControlURL: addr, ControlToken: "observer"})
+		if err == nil {
+			t.Errorf("accepted non-loopback control endpoint %q", addr)
+		}
 	}
 }
 
@@ -71,7 +75,9 @@ func TestAstrLinkObserverSafeProjectionViaLoopback(t *testing.T) {
 	var called []string
 	const observerToken = "observer-only-secret"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet { t.Errorf("unexpected method %s", r.Method) }
+		if r.Method != http.MethodGet {
+			t.Errorf("unexpected method %s", r.Method)
+		}
 		if r.URL.Path != "/control/v1/health" && r.Header.Get("Authorization") != "Bearer "+observerToken {
 			t.Errorf("missing observer-only token on %s", r.URL.Path)
 		}
@@ -101,8 +107,10 @@ func TestAstrLinkObserverSafeProjectionViaLoopback(t *testing.T) {
 	}
 	dir := t.TempDir()
 	path := filepath.Join(dir, "control-session.json")
-	payload, _ := json.Marshal(astrLinkSession{SchemaVersion:1, ControlURL:server.URL, ControlToken:observerToken})
-	if err := os.WriteFile(path,payload,0600); err != nil { t.Fatal(err) }
+	payload, _ := json.Marshal(astrLinkSession{SchemaVersion: 1, ControlURL: server.URL, ControlToken: observerToken})
+	if err := os.WriteFile(path, payload, 0600); err != nil {
+		t.Fatal(err)
+	}
 
 	result := loadAstrLinkSnapshot(context.Background(), path, time.Now())
 	if result.Err != "" || !result.Connected || !result.UsageReady ||
@@ -114,8 +122,8 @@ func TestAstrLinkObserverSafeProjectionViaLoopback(t *testing.T) {
 		t.Fatalf("AstrLink data mismatch: %+v", result)
 	}
 	asJSON, _ := json.Marshal(result)
-	for _, secret := range []string{observerToken,"never-expose-me","private@example.com","never-leak","private"} {
-		if strings.Contains(string(asJSON),secret) {
+	for _, secret := range []string{observerToken, "never-expose-me", "private@example.com", "never-leak", "private"} {
+		if strings.Contains(string(asJSON), secret) {
 			t.Errorf("observer state retained private field %q", secret)
 		}
 	}
@@ -125,33 +133,42 @@ func TestAstrLinkObserverSafeProjectionViaLoopback(t *testing.T) {
 		t.Fatalf("expected health+3 safe reads, got %v", called)
 	}
 	for _, route := range called {
-		if strings.Contains(route,"audit") || strings.Contains(route,"requests") || strings.Contains(route,"tokens") {
+		if strings.Contains(route, "audit") || strings.Contains(route, "requests") || strings.Contains(route, "tokens") {
 			t.Fatalf("unsafe endpoint queried: %s", route)
 		}
 	}
 }
 
 func TestAstrLinkUnixSocketObserver(t *testing.T) {
-	if runtime.GOOS == "windows" { t.Skip("Windows uses loopback Observer token") }
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows uses loopback Observer token")
+	}
 	path := filepath.Join(t.TempDir(), "control.sock")
-	listener, err := net.Listen("unix",path)
-	if err != nil { t.Skipf("unix listener unavailable: %v",err) }
+	listener, err := net.Listen("unix", path)
+	if err != nil {
+		t.Skipf("unix listener unavailable: %v", err)
+	}
 	defer listener.Close()
-	server := &http.Server{Handler:http.HandlerFunc(func(w http.ResponseWriter,r *http.Request) {
-		if r.Header.Get("Authorization") != "" { t.Error("unix socket must never send bearer credentials") }
+	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "" {
+			t.Error("unix socket must never send bearer credentials")
+		}
 		if r.URL.Path == "/control/v1/health" {
-			_, _ = w.Write([]byte(`{"status":"ok"}`)); return
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
+			return
 		}
 		_, _ = w.Write([]byte(`{"items":[],"totals":{"requests":0}}`))
 	})}
 	defer server.Close()
-	go func(){ _ = server.Serve(listener) }()
-	locator := filepath.Join(t.TempDir(),"control-session.json")
-	body := `{"schema_version":1,"control_socket":`+strconvQuote(path)+`,"control_token":"SHOULD_IGNORE"}`
-	if err := os.WriteFile(locator, []byte(body),0600); err != nil { t.Fatal(err) }
-	result := loadAstrLinkSnapshot(context.Background(),locator,time.Now())
+	go func() { _ = server.Serve(listener) }()
+	locator := filepath.Join(t.TempDir(), "control-session.json")
+	body := `{"schema_version":1,"control_socket":` + strconvQuote(path) + `,"control_token":"SHOULD_IGNORE"}`
+	if err := os.WriteFile(locator, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	result := loadAstrLinkSnapshot(context.Background(), locator, time.Now())
 	if !result.Connected || result.Err != "" || !result.UsageReady {
-		t.Fatalf("unix observer: %+v",result)
+		t.Fatalf("unix observer: %+v", result)
 	}
 }
 func strconvQuote(s string) string { raw, _ := json.Marshal(s); return string(raw) }

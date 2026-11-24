@@ -1,7 +1,7 @@
 package network
 
-func syscallName(nr uint32) string {
-	if name := syscallNameHigh(nr); name != "" {
+func SyscallName(nr uint32) string {
+	if name := SyscallNameHigh(nr); name != "" {
 		return name
 	}
 	switch nr {

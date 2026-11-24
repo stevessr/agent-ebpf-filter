@@ -58,3 +58,7 @@ sequenceDiagram
 - 使用源字段 `agent_run_id`、`task_id`、`trace_id` 等时，应验证上游确实有传入，不能凭标签填充。
 - 注册后如果进程退出、PID 复用或重启，旧状态不应永久归属于新进程。
 - 根 Agent 的归属策略位于 `agentidentity` 与 `agentscope`，可查看 `backend/app/agent_scope_root_test.go`、`backend/app/events/attribution_ancestry_test.go` 以及 Renew 的 `native_agent_lineage_test.go`。
+
+## 与持久 Agent 身份规范的关系（后续需求）
+
+当前实现中的 `agent_run_id`、`root_agent_pid` 和 `trace_id` 分别代表运行、进程归属线索及链路关系；**都不能自动证明跨 Run 的稳定 Agent 身份**。受信注册、持续身份与运行身份分离、子 Agent 显式委派、人工批准及策略/记忆变更的提案契约，见 [实时 Agent 可观测性需求与验收规范](../security/real-time-agent-observability.md)。该契约目前尚未落实为注册 API、存储表或稳定的 OTel 属性输出。

@@ -4,6 +4,7 @@
 export const zhToEn: Readonly<Record<string, string>> = {
   "观测分析": "Observability",
   "仪表盘": "Dashboard",
+  "行为可视化": "Behavior Observatory",
   "系统监控": "System Monitor",
   "网络": "Network",
   "流量分析": "Traffic Analysis",

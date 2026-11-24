@@ -15,6 +15,7 @@ import { message } from "ant-design-vue";
 import AgentSightFlamegraphView from "./AgentSightFlamegraphView.vue";
 import AgentSightLogView from "./AgentSightLogView.vue";
 import AgentSightMetricsView from "./AgentSightMetricsView.vue";
+import AgentSightUsageView from "./AgentSightUsageView.vue";
 import AgentSightProcessTreeView from "./AgentSightProcessTreeView.vue";
 import AgentSightTimelineView from "./AgentSightTimelineView.vue";
 import { useAgentSightI18n } from "../../composables/agentsight/useAgentSightI18n";
@@ -84,6 +85,7 @@ const tabs = [
   { key: "flamegraph", label: "Flamegraph" },
   { key: "log", label: "Log" },
   { key: "metrics", label: "Metrics" },
+  { key: "usage", label: "Sessions & Tokens" },
 ];
 
 const limitOptions = [
@@ -296,7 +298,8 @@ const loadSampleDemo = async () => {
           v-else-if="state.activeTab.value === 'log'"
           :events="state.visibleProcessedEvents.value"
         />
-        <AgentSightMetricsView v-else :events="state.visibleEvents.value" />
+        <AgentSightMetricsView v-else-if="state.activeTab.value === 'metrics'" :events="state.visibleEvents.value" />
+        <AgentSightUsageView v-else :events="state.visibleEvents.value" />
       </div>
     </a-card>
   </div>

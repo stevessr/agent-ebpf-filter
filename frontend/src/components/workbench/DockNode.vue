@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, onBeforeUnmount } from "vue";
+import { computed, ref, onBeforeUnmount, nextTick } from "vue";
+import { dockTabNavigationIndex, dockSplitterRatio, dockPointerRatio } from "../../composables/workbench/keyboardNavigation";
 import {
   CloseOutlined,
   ColumnWidthOutlined,
@@ -58,59 +59,82 @@ function drop(event: DragEvent) {
 }
 let cleanup = () => {};
 function startResize(event: PointerEvent) {
-  if (props.node.kind !== "split") return;
+  if (props.node.kind !== "split" || !event.isPrimary || event.button !== 0 || !container.value) return;
+  const rect = container.value.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return;
   event.preventDefault();
   cleanup();
-  const rect = container.value!.getBoundingClientRect(),
-    axis = props.node.axis;
-  const move = (e: PointerEvent) =>
-    emit(
-      "resize",
-      props.node.id,
-      Math.max(
-        0.15,
-        Math.min(
-          0.85,
-          axis === "horizontal"
-            ? (e.clientX - rect.left) / rect.width
-            : (e.clientY - rect.top) / rect.height,
-        ),
-      ),
-    );
+  const axis = props.node.axis;
+  const pointerId = event.pointerId;
+  const previousCursor = document.body.style.cursor;
+  const previousSelect = document.body.style.userSelect;
+  let frame: number | undefined;
+  let pendingRatio: number | undefined;
+  let lastCommitted = props.node.ratio;
+  function flush() {
+    if (frame !== undefined) {
+      cancelAnimationFrame(frame);
+      frame = undefined;
+    }
+    if (pendingRatio === undefined) return;
+    const ratio = pendingRatio;
+    pendingRatio = undefined;
+    if (ratio === lastCommitted) return;
+    lastCommitted = ratio;
+    emit("resize", props.node.id, ratio);
+  }
+  function queue(e: PointerEvent) {
+    if (e.pointerId !== pointerId) return;
+    const ratio = dockPointerRatio(axis, e.clientX, e.clientY, rect);
+    if (ratio === null) return;
+    pendingRatio = ratio;
+    if (frame === undefined) frame = requestAnimationFrame(flush);
+  }
+  function end(e: PointerEvent) {
+    if (e.pointerId !== pointerId) return;
+    queue(e);
+    flush();
+    cleanup();
+  }
+  function cancel(e: PointerEvent) {
+    if (e.pointerId === pointerId) cleanup();
+  }
   cleanup = () => {
-    window.removeEventListener("pointermove", move);
-    window.removeEventListener("pointerup", cleanup);
-    window.removeEventListener("pointercancel", cleanup);
-    document.body.style.cursor = "";
-    document.body.style.userSelect = "";
+    window.removeEventListener("pointermove", queue);
+    window.removeEventListener("pointerup", end);
+    window.removeEventListener("pointercancel", cancel);
+    window.removeEventListener("blur", cleanup);
+    if (frame !== undefined) cancelAnimationFrame(frame);
+    frame = undefined;
+    pendingRatio = undefined;
+    document.body.style.cursor = previousCursor;
+    document.body.style.userSelect = previousSelect;
   };
-  document.body.style.cursor =
-    axis === "horizontal" ? "col-resize" : "row-resize";
+  document.body.style.cursor = axis === "horizontal" ? "col-resize" : "row-resize";
   document.body.style.userSelect = "none";
-  window.addEventListener("pointermove", move);
-  window.addEventListener("pointerup", cleanup);
-  window.addEventListener("pointercancel", cleanup);
+  window.addEventListener("pointermove", queue);
+  window.addEventListener("pointerup", end);
+  window.addEventListener("pointercancel", cancel);
+  window.addEventListener("blur", cleanup);
 }
 onBeforeUnmount(() => cleanup());
 function resizeKey(event: KeyboardEvent) {
-  if (
-    props.node.kind !== "split" ||
-    !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)
-  )
-    return;
+  if (props.node.kind !== "split" || event.altKey || event.ctrlKey || event.metaKey) return;
+  const ratio = dockSplitterRatio(props.node.axis, event.key, props.node.ratio);
+  if (ratio === null) return;
   event.preventDefault();
-  emit(
-    "resize",
-    props.node.id,
-    Math.max(
-      0.15,
-      Math.min(
-        0.85,
-        props.node.ratio +
-          (["ArrowLeft", "ArrowUp"].includes(event.key) ? -0.05 : 0.05),
-      ),
-    ),
-  );
+  emit("resize", props.node.id, ratio);
+}
+function navigateTab(event: KeyboardEvent, index: number) {
+  if (props.node.kind !== "group" || event.altKey || event.ctrlKey || event.metaKey) return;
+  const next = dockTabNavigationIndex(event.key, index, props.node.tabs.length);
+  if (next === null) return;
+  event.preventDefault();
+  const tab = props.node.tabs[next];
+  if (!tab) return;
+  const list = (event.currentTarget as HTMLElement | null)?.closest(".dock-tab-list");
+  emit("select", props.node.id, tab.id);
+  void nextTick(() => list?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus());
 }
 </script>
 <template>
@@ -193,9 +217,9 @@ function resizeKey(event: KeyboardEvent) {
       "
       @drop.stop="drop"
     >
-      <div class="dock-tab-list" role="tablist" aria-label="工作台面板">
+      <div class="dock-tab-list" role="tablist" aria-label="工作台面板" aria-orientation="horizontal">
         <div
-          v-for="tab in node.tabs"
+          v-for="(tab, index) in node.tabs"
           :key="tab.id"
           class="dock-tab"
           :class="{ active: node.active === tab.id }"
@@ -208,18 +232,22 @@ function resizeKey(event: KeyboardEvent) {
         >
           <button
             role="tab"
+            :id="`dock-tab-${node.id}-${tab.id}`"
+            :aria-controls="`dock-panel-${node.id}`"
+            :tabindex="node.active === tab.id ? 0 : -1"
             :aria-selected="node.active === tab.id"
             :title="tab.path + ' · ' + tr('拖拽到边缘分屏')"
             @click="emit('select', node.id, tab.id)"
+            @keydown="navigateTab($event, index)"
           >
-            <span class="tab-mark">◇</span>{{ tr(tab.title) }}
+            {{ tr(tab.title) }}
           </button>
           <button
             class="tab-close"
             :aria-label="tr('关闭') + ' ' + tr(tab.title)"
             @click="emit('close', node.id, tab.id)"
           >
-            <CloseOutlined />
+            <CloseOutlined aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -229,13 +257,13 @@ function resizeKey(event: KeyboardEvent) {
           aria-label="向右分屏"
           @click="emit('split', node.id, 'horizontal')"
         >
-          <ColumnWidthOutlined /></button
+          <ColumnWidthOutlined aria-hidden="true" /></button
         ><button
           title="向下分屏"
           aria-label="向下分屏"
           @click="emit('split', node.id, 'vertical')"
         >
-          <ColumnHeightOutlined />
+          <ColumnHeightOutlined aria-hidden="true" />
         </button>
       </div>
     </header>
@@ -243,7 +271,7 @@ function resizeKey(event: KeyboardEvent) {
       {{ tr("工作空间") }} <span>›</span> {{ tr(activeTab?.title || "欢迎") }}
       <span class="dock-breadcrumb-path">{{ activeTab?.path }}</span>
     </div>
-    <div class="dock-content" role="tabpanel">
+    <div class="dock-content" role="tabpanel" :id="`dock-panel-${node.id}`" :aria-labelledby="node.active ? `dock-tab-${node.id}-${node.active}` : undefined" tabindex="0">
       <template v-for="tab in node.tabs" :key="tab.id">
         <PaneRoute
           v-if="tab.id === node.active"
@@ -252,7 +280,6 @@ function resizeKey(event: KeyboardEvent) {
         />
       </template>
       <div v-if="!node.tabs.length" class="dock-empty">
-        <div>⌘</div>
         <h2>{{ tr("Agent 工作空间") }}</h2>
         <p>{{ tr("从左侧打开功能，或将标签拖到这里") }}</p>
         <p>{{ tr("拖到边缘分屏 · 拖到中央合并 · 拖动分隔线调整大小") }}</p>

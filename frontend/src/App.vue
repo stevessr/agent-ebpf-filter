@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { systemIsDark, watchSystemTheme } from "./composables/useSystemTheme";
+import { uiDesignTokens } from "./config/uiDesignTokens";
 import zhCN from "ant-design-vue/es/locale/zh_CN";
 import enUS from "ant-design-vue/es/locale/en_US";
 import {
@@ -20,13 +21,19 @@ import {
 import DockNode from "./components/workbench/DockNode.vue";
 import { NAV_GROUPS } from "./config/navigation";
 import { useDockWorkbench } from "./composables/workbench/useDockWorkbench";
+import { resolveWorkbenchShortcut } from "./composables/workbench/navigationShortcuts";
 import { groups } from "./composables/workbench/layout";
-import { useRouter } from "vue-router";
+import { useRouter, type RouteLocationRaw } from "vue-router";
 import "./components/workbench/workbench.css";
 const router = useRouter();
 
 let stopSystemTheme: (() => void) | undefined;
 let stopLocalization: (() => void) | undefined;
+let narrowNavigationMedia: MediaQueryList | undefined;
+
+function onNarrowNavigationChanged(event: MediaQueryListEvent) {
+  if (event.matches) sidebar.value = false;
+}
 const antLocale = computed(() => webLocale.value === "en-US" ? enUS : zhCN);
 const localeChoice = computed({
   get: () => webLocale.value,
@@ -36,18 +43,28 @@ watch(webLocale, async () => { await nextTick(); refreshLegacyUITranslations(); 
 onMounted(() => {
   stopSystemTheme = watchSystemTheme();
   stopLocalization = mountLegacyUITranslations();
+  narrowNavigationMedia = window.matchMedia("(max-width: 720px)");
+  if (narrowNavigationMedia.matches) sidebar.value = false;
+  narrowNavigationMedia.addEventListener("change", onNarrowNavigationChanged);
+  window.addEventListener("keydown", onWorkbenchKeydown);
 });
-onUnmounted(() => { stopSystemTheme?.(); stopLocalization?.(); });
+onUnmounted(() => {
+  stopSystemTheme?.();
+  stopLocalization?.();
+  narrowNavigationMedia?.removeEventListener("change", onNarrowNavigationChanged);
+  window.removeEventListener("keydown", onWorkbenchKeydown);
+});
 
 const antTheme = computed(() => ({
   algorithm: systemIsDark.value ? theme.darkAlgorithm : theme.defaultAlgorithm,
   token: {
-    colorPrimary: systemIsDark.value ? "#7b9fff" : "#2563eb",
-    colorBgBase: systemIsDark.value ? "#111318" : "#f8fafc",
-    colorBgContainer: systemIsDark.value ? "#191c22" : "#ffffff",
-    colorBorder: systemIsDark.value ? "#2b303b" : "#d9e2ef",
-    borderRadius: 4,
-    fontSize: 13,
+    colorPrimary: systemIsDark.value ? uiDesignTokens.dark.accent : uiDesignTokens.light.accent,
+    colorBgBase: systemIsDark.value ? uiDesignTokens.dark.canvas : uiDesignTokens.light.canvas,
+    colorBgContainer: systemIsDark.value ? uiDesignTokens.dark.surface : uiDesignTokens.light.surface,
+    colorBorder: systemIsDark.value ? uiDesignTokens.dark.border : uiDesignTokens.light.border,
+    colorText: systemIsDark.value ? uiDesignTokens.dark.text : uiDesignTokens.light.text,
+    borderRadius: uiDesignTokens.radius,
+    fontSize: uiDesignTokens.fontSize,
   },
 }));
 const {
@@ -68,6 +85,8 @@ const {
   reset,
 } = useDockWorkbench();
 const sidebar = ref(true),
+  searchInput = ref<HTMLInputElement | null>(null),
+  navigationToggle = ref<HTMLButtonElement | null>(null),
   query = ref(""),
   activeGroup = ref("observability");
 const navGroups = computed(() =>
@@ -88,6 +107,40 @@ const activeTitle = computed(
     activePane.value?.tabs.find((t) => t.id === activePane.value?.active)
       ?.title || "工作空间",
 );
+function onWorkbenchKeydown(event: KeyboardEvent) {
+  const target = event.target;
+  const inside = (selector: string) =>
+    target instanceof Element && !!target.closest(selector);
+  const action = resolveWorkbenchShortcut({
+    key: event.key,
+    ctrlKey: event.ctrlKey,
+    metaKey: event.metaKey,
+    defaultPrevented: event.defaultPrevented,
+    inEditorOrTerminal: inside(".monaco-editor, .xterm, .wterm"),
+    inEditableField: inside('input, textarea, select, [contenteditable="true"]'),
+    inSidebarSearch: target === searchInput.value,
+    narrow: !!narrowNavigationMedia?.matches,
+    sidebarOpen: sidebar.value,
+  });
+  if (!action) return;
+  event.preventDefault();
+  if (action === "close-overlay") {
+    sidebar.value = false;
+    void nextTick(() => navigationToggle.value?.focus());
+    return;
+  }
+  sidebar.value = true;
+  searchInput.value?.focus();
+  searchInput.value?.select();
+}
+function onSearchFocus() {
+  if (narrowNavigationMedia?.matches) sidebar.value = true;
+}
+function openNavigationItem(route: RouteLocationRaw) {
+  open(router.resolve(route).fullPath);
+  if (narrowNavigationMedia?.matches) sidebar.value = false;
+  query.value = "";
+}
 function activity(key: string) {
   if (activeGroup.value === key) sidebar.value = !sidebar.value;
   else {
@@ -107,15 +160,21 @@ function resetLayout() {
   >
     <div class="ide-workbench">
       <header class="ide-titlebar">
-        <span class="ide-logo">◈</span><strong>Agent eBPF</strong
+        <strong>Agent eBPF</strong
         ><span class="ide-title-divider">/</span
-        ><span class="ide-title-caption">Observability Studio</span>
+        ><span class="ide-title-caption">Observability studio</span>
         <label class="ide-command"
-          ><SearchOutlined /><input
+          ><SearchOutlined aria-hidden="true" /><input
+            ref="searchInput"
+            type="search"
+            aria-keyshortcuts="Control+K Meta+K"
+            aria-controls="ide-sidebar"
+            :aria-expanded="sidebar"
+            @focus="onSearchFocus"
             v-model="query"
             aria-label="搜索工作台功能"
             :placeholder="tr('搜索功能 / 工作空间')"
-          /><kbd>IDE</kbd></label
+          /><kbd>Ctrl / Cmd + K</kbd></label
         >
         <label class="ide-locale-picker" for="webui-language">{{ tr('语言') }} 
           <select id="webui-language" v-model="localeChoice" data-testid="locale-switch" aria-label="Language / 语言">
@@ -124,17 +183,21 @@ function resetLayout() {
           </select>
         </label>
         <button
+          ref="navigationToggle"
           title="显示 / 隐藏导航"
           aria-label="显示 / 隐藏导航"
+          aria-controls="ide-sidebar"
+          :aria-expanded="sidebar"
           @click="sidebar = !sidebar"
         >
-          <MenuOutlined />
+          <MenuOutlined aria-hidden="true" />
         </button>
         <button title="重置布局" aria-label="重置布局" @click="resetLayout">
-          <UndoOutlined />
+          <UndoOutlined aria-hidden="true" />
         </button>
       </header>
       <div class="ide-body">
+        <button v-if="sidebar" class="ide-sidebar-scrim" type="button" :aria-label="tr('关闭导航')" @click="sidebar = false" />
         <nav class="ide-activity" aria-label="活动栏">
           <button
             v-for="g in NAV_GROUPS"
@@ -142,22 +205,23 @@ function resetLayout() {
             :title="g.title"
             :aria-label="g.title"
             :class="{ selected: activeGroup === g.key && sidebar }"
+            :aria-pressed="activeGroup === g.key && sidebar"
             @click="activity(g.key)"
           >
-            <component :is="g.icon" />
+            <component :is="g.icon" aria-hidden="true" />
           </button>
           <div class="ide-activity-spacer" />
           <button
             title="系统配置"
             aria-label="系统配置"
-            @click="open('/config/registry')"
+            @click="openNavigationItem('/config/registry')"
           >
-            <SettingOutlined />
+            <SettingOutlined aria-hidden="true" />
           </button>
         </nav>
-        <aside v-if="sidebar" class="ide-sidebar">
+        <aside v-show="sidebar" id="ide-sidebar" class="ide-sidebar">
           <div class="ide-sidebar-heading">
-            {{ tr("工作空间") }} <span>AGENT / LOCAL</span>
+            {{ tr("工作空间") }} <span>{{ webLocale === "en-US" ? "Local" : "本地" }}</span>
           </div>
           <div class="ide-project">
             <span class="ide-project-dot" />agent-ebpf-filter
@@ -179,12 +243,12 @@ function resetLayout() {
                 :class="{ selected: activeTitle === item.title }"
                 draggable="true"
                 :title="tr(item.title) + ' · ' + tr('可拖拽到工作台分屏')"
-                @click="open(router.resolve(item.defaultRoute).fullPath)"
+                @click="openNavigationItem(item.defaultRoute)"
                 @dragstart="drag('nav:' + item.key, $event)"
                 @dragend="dragging = ''"
               >
-                <component :is="item.icon" /><span>{{ tr(item.title) }}</span
-                ><span class="ide-nav-grip">⠿</span>
+                <component :is="item.icon" aria-hidden="true" /><span>{{ tr(item.title) }}</span
+                >
               </button>
             </details>
             <p v-if="!navGroups.length" class="ide-nav-empty">{{ tr("没有匹配的功能") }}</p>
@@ -197,12 +261,12 @@ function resetLayout() {
                 aria-label="左右分屏"
                 @click="split(focused, 'horizontal')"
               >
-                <ColumnWidthOutlined /> {{ tr("左右分屏") }}</button
+                <ColumnWidthOutlined aria-hidden="true" /> {{ tr("左右分屏") }}</button
               ><button
                 aria-label="上下分屏"
                 @click="split(focused, 'vertical')"
               >
-                <ColumnHeightOutlined /> {{ tr("上下分屏") }}
+                <ColumnHeightOutlined aria-hidden="true" /> {{ tr("上下分屏") }}
               </button>
             </div>
           </div>
@@ -225,7 +289,7 @@ function resetLayout() {
         </main>
       </div>
       <footer class="ide-statusbar">
-        <span class="ide-status-remote">⌁ LOCAL</span><span>◈ {{ tr("eBPF 工作台") }}</span
+        <span class="ide-status-remote">{{ webLocale === "en-US" ? "Local" : "本地" }}</span><span>{{ tr("eBPF 工作台") }}</span
         ><span>{{ webLocale === "en-US" ? paneCount + " panes" : paneCount + " 个面板" }}</span
         ><span class="ide-status-spacer" /><span>{{ tr(activeTitle) }}</span>
         ><span v-if="notice" class="ide-layout-notice" role="status">{{

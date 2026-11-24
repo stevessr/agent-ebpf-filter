@@ -8,6 +8,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STAMP="${BENCH_STAMP:-$(date -u +%Y%m%d-%H%M%S)}"
 OUT_DIR="${EBPF_BENCH_OUTDIR:-$ROOT_DIR/reports/ebpf-concurrent-$STAMP}"
 BENCH_TOOL="$ROOT_DIR/scripts/benchmark-syscalls-extended"
+# shellcheck source=benchmark-api.sh
+source "$ROOT_DIR/scripts/benchmark-api.sh"
 
 # Concurrency levels to test (simulating real-world scenarios)
 CONCURRENCY_LEVELS="${BENCH_CONCURRENCY:-1 4 8 16 32}"
@@ -41,23 +43,14 @@ log_error() {
 }
 
 check_backend_running() {
-    if ! curl -s http://localhost:8080/system/bootstrap-health >/dev/null 2>&1; then
-        return 1
-    fi
-    return 0
+    # A 401 must never count as a healthy backend.
+    benchmark_bootstrap_health >/dev/null
 }
 
 check_ebpf_loaded() {
     local response
-    response=$(curl -s http://localhost:8080/system/bootstrap-health 2>/dev/null || echo "")
-    if echo "$response" | grep -q '"attachedCount"'; then
-        local count
-        count=$(echo "$response" | grep -o '"attachedCount":[0-9]*' | grep -o '[0-9]*')
-        if [ -n "$count" ] && [ "$count" -gt 0 ]; then
-            return 0
-        fi
-    fi
-    return 1
+    response="$(benchmark_bootstrap_health)" || return 1
+    benchmark_has_attached_programs "$response"
 }
 
 run_benchmark_for_concurrency() {
@@ -268,6 +261,11 @@ main() {
         exit 1
     fi
     log_success "Backend is running"
+    if ! check_ebpf_loaded; then
+        log_error "Authenticated bootstrap health did not report attached eBPF programs"
+        exit 1
+    fi
+    log_success "Verified attached eBPF programs before starting benchmark cycles"
     echo ""
 
     # Test each concurrency level
@@ -306,7 +304,7 @@ main() {
         log_warn "Phase 2: eBPF tests (concurrency=${concurrency})"
 
         if ! check_ebpf_loaded; then
-            log_error "eBPF programs not loaded!"
+            log_error "No attached eBPF programs reported (or authenticated bootstrap-health failed)"
             exit 1
         fi
 

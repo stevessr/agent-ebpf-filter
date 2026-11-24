@@ -30,9 +30,9 @@ jobs:
         working-directory: desktop/renew
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7.0.0
         with:
-          go-version: "1.27.1"
+          go-version: "1.27.3"
           cache-dependency-path: |
             desktop/renew/go.sum
             backend/go.sum
@@ -56,10 +56,35 @@ jobs:
         run: go mod download
       - name: Test desktop single binary
         run: go test ./...
-      # Microbenchmarks are informational. Do not enforce cross-runner timing thresholds.
-      - name: Benchmark native component hot paths
+      - name: Measure native CPU frame budgets (no timing threshold)
+        run: go test -run=NONE -bench=BenchmarkRenewNativeFrame -benchtime=10x -benchmem -count=1 .
+      - name: Verify concurrent native event queue and pressure accounting
+        run: go test -race -run '^TestRenewEventUI(Queue|Batch)' -count=1 .
+      - name: Benchmark bounded UI queue and batch overflow
+        run: go test -run=NONE -bench='BenchmarkRenewEventUI(Queue|Batch)Overflow' -benchtime=20000x -benchmem -count=1 .
+      - name: Measure backlog recovery P95/P99 CPU frame tails
+        run: go test -run=NONE -bench=BenchmarkRenewBacklogRecoveryTail -benchtime=256x -benchmem -count=1 .
+      - name: Measure sustained native event stream CPU, memory and GC
         run: |
-          go test -run Never_Run -bench 'Benchmark(StructuredEventFilterKey|SharedSummaryOwnershipIndex)' -benchmem -benchtime=150ms .
+          go test -run=NONE -bench=BenchmarkRenewLiveEventStream -benchtime=40x -benchmem -count=1 .
+          go test -run=NONE -bench=BenchmarkRenewSearchTextDedup -benchtime=200x -benchmem -count=1 .
+      - name: Benchmark incremental network and process aggregates
+        run: go test -run=NONE -bench=BenchmarkRenewAggregateDeltaViews -benchtime=150x -benchmem -count=1 .
+      - name: Benchmark selective event filters after native merge
+        run: go test -run=NONE -bench=BenchmarkRenewSelectiveFilterAfterMerge -benchtime=150x -benchmem -count=1 .
+      - name: Benchmark incremental event merge and risk aggregation
+        run: go test -run=NONE -bench=BenchmarkRenewIncrementalEventMerge -benchtime=300x -benchmem -count=1 .
+      - name: Measure event filter computation (no timing threshold)
+        run: |
+          go test -run=NONE -bench=BenchmarkRenewEventFilterCompute -benchtime=100x -benchmem -count=1 .
+          go test -run=NONE -bench=BenchmarkRenewFilterSignature -benchtime=1000x -benchmem -count=1 .
+      - name: Profile hot native sidebar CPU and allocations
+        run: |
+          go test -run=NONE -bench=BenchmarkRenewNativeFrame/events-1200-nav-two-changes -benchtime=24x -cpuprofile="$RUNNER_TEMP/renew-navigation.cpu" -memprofile="$RUNNER_TEMP/renew-navigation.mem" .
+          echo '==== CPU HOTSPOTS ===='
+          go tool pprof -top -nodecount=24 "$RUNNER_TEMP/renew-navigation.cpu"
+          echo '==== ALLOCATION HOTSPOTS ===='
+          go tool pprof -alloc_space -top -nodecount=24 "$RUNNER_TEMP/renew-navigation.mem"
       - name: Vet MyGo native UI element lifetimes
         run: go tool mygo vet .
       - name: Compile desktop single binary
@@ -119,9 +144,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7.0.0
         with:
-          go-version: "1.27.1"
+          go-version: "1.27.3"
           cache: false
       - name: Validate Windows installer detection without privileged eBPF
         shell: pwsh
@@ -150,7 +175,7 @@ jobs:
             {"kiro","Kiro CLI","kiro-cli"},
           }
           '@ | Set-Content (Join-Path $scratch "catalog_stub.go")
-          @("module example.org/renew-update-probes", "go 1.27.1") | Set-Content (Join-Path $scratch "go.mod")
+          @("module example.org/renew-update-probes", "go 1.27.3") | Set-Content (Join-Path $scratch "go.mod")
           Push-Location $scratch
           $env:GOWORK = "off"
           go test -run 'TestWindows|TestWingetMatcher' -count=1 -v .

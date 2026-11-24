@@ -1,15 +1,19 @@
 package app
 
 import (
+	"errors"
+	"log"
+	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
 	"agent-ebpf-filter/app/ml"
 	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/app/research"
 	"agent-ebpf-filter/core"
-	"errors"
-	"path/filepath"
-	"sort"
-	"strings"
-	"time"
 )
 
 const (
@@ -38,10 +42,56 @@ func normalizeDisabledEventTypes(values []uint32) ([]uint32, error) {
 	return normalized, nil
 }
 
-func normalizeRuntimeSettings(settings *RuntimeSettings) error {
-	if settings == nil {
-		return errors.New("runtime settings are nil")
+// parseUint32List parses a comma/space separated list of event type ids from
+// an environment variable value.
+func parseUint32List(raw string) ([]uint32, error) {
+	fields := strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ',' || r == ' ' || r == '\t' || r == '\n'
+	})
+	values := make([]uint32, 0, len(fields))
+	for _, field := range fields {
+		parsed, err := strconv.ParseUint(field, 10, 32)
+		if err != nil {
+			return nil, errors.New("invalid event type id: " + field)
+		}
+		values = append(values, uint32(parsed))
 	}
+	return values, nil
+}
+
+// parseStringList parses a comma separated list of strings, trimming empty
+// entries.
+func parseStringList(raw string) []string {
+	fields := strings.Split(raw, ",")
+	values := make([]string, 0, len(fields))
+	for _, field := range fields {
+		if trimmed := strings.TrimSpace(field); trimmed != "" {
+			values = append(values, trimmed)
+		}
+	}
+	return values
+}
+
+// seedRuntimeListSettingsFromEnv applies list-valued runtime settings from
+// environment variables. Presence is checked with os.LookupEnv so an explicitly
+// empty value overrides a default with an empty list: a fresh installation
+// disables OPENAT and ignores /tmp, and a test harness needs "collect
+// everything" rather than "keep the defaults".
+func seedRuntimeListSettingsFromEnv(settings *RuntimeSettings) {
+	if raw, ok := os.LookupEnv("AGENT_RUNTIME_DISABLED_EVENT_TYPES"); ok {
+		values, err := parseUint32List(raw)
+		if err != nil {
+			log.Printf("[WARN] ignoring AGENT_RUNTIME_DISABLED_EVENT_TYPES: %v", err)
+		} else {
+			settings.DisabledEventTypes = values
+		}
+	}
+	if raw, ok := os.LookupEnv("AGENT_RUNTIME_IGNORED_PATHS"); ok {
+		settings.IgnoredPaths = parseStringList(raw)
+	}
+}
+
+func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 	if strings.TrimSpace(settings.LogFilePath) == "" {
 		settings.LogFilePath = platform.DefaultEventLogPath()
 	}
@@ -129,6 +179,12 @@ func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 	if settings.MLConfig.RuleOverridePriority == 0 {
 		settings.MLConfig.RuleOverridePriority = 100
 	}
+	if err := core.ValidateMLActionRiskThresholds(
+		settings.MLConfig.AllowRiskScoreThreshold,
+		settings.MLConfig.BlockConfidenceThreshold,
+	); err != nil {
+		return err
+	}
 	if settings.MLConfig.MinSamplesForTraining == 0 {
 		settings.MLConfig.MinSamplesForTraining = 1000
 	}
@@ -162,12 +218,12 @@ func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 	if settings.MLConfig.LlmTimeoutSeconds == 0 {
 		settings.MLConfig.LlmTimeoutSeconds = 45
 	}
-	settings.MLConfig.LlmTimeoutSeconds = clampInt(settings.MLConfig.LlmTimeoutSeconds, 5, maxLLMTimeoutSeconds)
+	settings.MLConfig.LlmTimeoutSeconds = min(max(settings.MLConfig.LlmTimeoutSeconds, 5), maxLLMTimeoutSeconds)
 	if settings.MLConfig.LlmMaxTokens == 0 {
 		settings.MLConfig.LlmMaxTokens = 256
 	}
-	settings.MLConfig.LlmMaxTokens = clampInt(settings.MLConfig.LlmMaxTokens, 32, 4096)
-	settings.MLConfig.LlmTemperature = clampFloat64(settings.MLConfig.LlmTemperature, 0, 2)
+	settings.MLConfig.LlmMaxTokens = min(max(settings.MLConfig.LlmMaxTokens, 32), 4096)
+	settings.MLConfig.LlmTemperature = min(max(settings.MLConfig.LlmTemperature, 0), 2)
 	if strings.TrimSpace(settings.MLConfig.LlmSystemPrompt) == "" {
 		settings.MLConfig.LlmSystemPrompt = defaultLLMScoringSystemPrompt
 	}
@@ -184,9 +240,7 @@ func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 }
 
 func seedRuntimeSettingsFromEnv(settings *RuntimeSettings) {
-	if settings == nil {
-		return
-	}
+	seedRuntimeListSettingsFromEnv(settings)
 	seedRuntimeAccessTokenFromEnv(settings)
 	platform.ApplyBoolEnv(&settings.LogPersistenceEnabled, "AGENT_RUNTIME_LOG_PERSISTENCE_ENABLED")
 	platform.ApplyStringEnv(&settings.LogFilePath, "AGENT_RUNTIME_LOG_FILE_PATH")
@@ -244,9 +298,6 @@ func seedRuntimeSettingsFromEnv(settings *RuntimeSettings) {
 var normalizeKernelRiskFeedbackSettings = core.NormalizeKernelRiskFeedbackSettings
 
 func normalizeLoopDetectionSettings(settings *LoopDetectionSettings) {
-	if settings == nil {
-		return
-	}
 	if settings.WindowSeconds <= 0 {
 		settings.WindowSeconds = 30
 	}
@@ -282,9 +333,6 @@ func normalizeLoopDetectionSettings(settings *LoopDetectionSettings) {
 var normalizeResearchProcessingSettings = research.NormalizeResearchProcessingSettings
 
 func seedRuntimeAccessTokenFromEnv(settings *RuntimeSettings) {
-	if settings == nil {
-		return
-	}
 	if strings.TrimSpace(settings.AccessToken) != "" {
 		return
 	}
@@ -294,9 +342,6 @@ func seedRuntimeAccessTokenFromEnv(settings *RuntimeSettings) {
 }
 
 func seedRuntimeMLConfigFromEnv(cfg *MLConfig) {
-	if cfg == nil {
-		return
-	}
 	platform.ApplyBoolEnv(&cfg.Enabled, "AGENT_ML_ENABLED")
 	platform.ApplyModelTypeEnv((*string)(&cfg.ModelType), "AGENT_ML_MODEL_TYPE")
 	platform.ApplyStringEnv(&cfg.ModelPath, "AGENT_ML_MODEL_PATH")
@@ -304,6 +349,7 @@ func seedRuntimeMLConfigFromEnv(cfg *MLConfig) {
 	platform.ApplyStringEnv(&cfg.TrainInterval, "AGENT_ML_TRAIN_INTERVAL")
 	platform.ApplyIntEnv(&cfg.MinSamplesForTraining, "AGENT_ML_MIN_SAMPLES_FOR_TRAINING")
 	platform.ApplyFloatEnv(&cfg.BlockConfidenceThreshold, "AGENT_ML_BLOCK_CONFIDENCE_THRESHOLD")
+	platform.ApplyFloatEnv(&cfg.AllowRiskScoreThreshold, "AGENT_ML_ALLOW_RISK_SCORE_THRESHOLD")
 	platform.ApplyFloatEnv(&cfg.MlMinConfidence, "AGENT_ML_MIN_CONFIDENCE")
 	platform.ApplyFloatEnv(&cfg.LowAnomalyThreshold, "AGENT_ML_LOW_ANOMALY_THRESHOLD")
 	platform.ApplyFloatEnv(&cfg.HighAnomalyThreshold, "AGENT_ML_HIGH_ANOMALY_THRESHOLD")

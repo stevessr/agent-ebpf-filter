@@ -1,0 +1,49 @@
+name: MyGo animated architecture GIFs
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "desktop/renew/cmd/visualgif/**"
+      - "desktop/renew/go.mod"
+      - "desktop/renew/go.sum"
+      - ".github/workflows/mygo-visualgif.yml"
+  push:
+    branches:
+      - "feat/mygo-render-visual-gifs"
+    paths:
+      - "desktop/renew/cmd/visualgif/**"
+      - "desktop/renew/go.mod"
+      - ".github/workflows/mygo-visualgif.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: desktop/renew
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: desktop/renew/go.mod
+          cache-dependency-path: desktop/renew/go.sum
+      - name: Test native scene renderer
+        run: go test ./cmd/visualgif
+      - name: Export three animated diagrams
+        run: |
+          mkdir -p ../../artifacts/mygo-visualgif
+          go run ./cmd/visualgif -scene boundary -out ../../artifacts/mygo-visualgif/01-trust-boundary.gif
+          go run ./cmd/visualgif -scene observability -out ../../artifacts/mygo-visualgif/02-kernel-observability.gif
+          go run ./cmd/visualgif -scene decision -out ../../artifacts/mygo-visualgif/03-correlation-and-block.gif
+          file ../../artifacts/mygo-visualgif/*.gif
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mygo-native-visual-gifs
+          path: artifacts/mygo-visualgif/*.gif
+          retention-days: 14
+          if-no-files-found: error

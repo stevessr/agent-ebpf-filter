@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
-	"github.com/egoist/mygo/ui"
 	"reflect"
+
+	"github.com/egoist/mygo/ui"
 )
 
 // Harness updates run in ordinary user terminals, never in the privileged backend.
@@ -117,6 +118,7 @@ func (a *renewApp) harnessUpdaterView(c *ui.Context) {
 			ui.Text(c, "Harness 更新管理").FontSize(12).Bold()
 			if a.harnessUpdateBusy {
 				statusPill(c, "检测中", t.Warning)
+				renewLoadingIndicator(c, "正在检查本地 Harness 更新来源")
 			} else if a.harnessUpdateScanned {
 				statusPill(c, "本机来源检测", t.Success)
 			}

@@ -49,8 +49,6 @@ func TestResolveBackendURLRejectsUnsupportedScheme(t *testing.T) {
 	}
 }
 
-
-
 func TestInternalBackendArgs(t *testing.T) {
 	mode, args := internalBackendArgs([]string{"--backend", "http://127.0.0.1:8080"})
 	if mode || len(args) != 2 {
