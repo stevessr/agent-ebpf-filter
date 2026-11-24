@@ -1,0 +1,85 @@
+name: Paper cgroup network denial live trials
+
+on:
+  push:
+    branches: ['research/**']
+    paths:
+      - '.github/workflows/paper-cgroup-enforcement.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  network-denial:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.work
+          cache: false
+      - name: Build eBPF backend and record exact kernel state
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/paper-cgroup
+          git rev-parse HEAD > reports/paper-cgroup/commit.txt
+          uname -a > reports/paper-cgroup/kernel.txt
+          sudo apt-get update -qq
+          sudo apt-get install -qq -y clang llvm libbpf-dev libelf-dev protobuf-compiler jq
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          mkdir -p backend/pb
+          protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto \
+            proto/tracker_common.proto proto/tracker_events.proto \
+            proto/tracker_registration.proto proto/tracker_system.proto \
+            proto/tracker_config.proto proto/tracker_shell.proto
+          (cd backend/ebpf && go generate)
+          go build -o "$RUNNER_TEMP/paper-backend" ./backend
+      - name: Run 100 real TCP/UDP/mapped-IPv6 policy-denial trials per path
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo -E env DISABLE_AUTH=true GIN_MODE=release "$RUNNER_TEMP/paper-backend" \
+            >reports/paper-cgroup/backend.log 2>&1 &
+          pid=$!
+          trap 'sudo kill "$pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8080/sandbox/cgroup/status \
+               > reports/paper-cgroup/cgroup-status.json 2>/dev/null && \
+               jq -e '.available == true and .attached == true' \
+               reports/paper-cgroup/cgroup-status.json >/dev/null; then
+              break
+            fi
+            if [[ "$i" == 60 ]]; then
+              echo 'SKIP: cgroup program not attached' | tee reports/paper-cgroup/skip.txt
+              exit 0
+            fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:8080/sandbox/lsm/status \
+            >reports/paper-cgroup/lsm-status.json || true
+          curl -fsS -X PUT http://127.0.0.1:8080/config/runtime \
+            -H 'Content-Type: application/json' \
+            -d '{"policyManagementEnabled":true}' >reports/paper-cgroup/policy-management.json
+          python3 scripts/paper-enforcement-trials.py \
+            --backend-url http://127.0.0.1:8080 --trials 100 \
+            --cases tcp_connect udp_connect udp_sendto ipv4_mapped_ipv6 \
+            --output reports/paper-cgroup/enforcement.csv \
+            >reports/paper-cgroup/trials.log 2>&1 || {
+              echo 'Cgroup trial error: see trials.log'
+              tail -40 reports/paper-cgroup/trials.log
+              exit 1
+            }
+          python3 scripts/paper-experiment-tables.py \
+            --enforcement-csv reports/paper-cgroup/enforcement.csv \
+            --output reports/paper-cgroup/paper-tables.md
+          cat reports/paper-cgroup/paper-tables.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-cgroup-network-denial-100trials
+          path: reports/paper-cgroup/
+          if-no-files-found: warn
+          retention-days: 30

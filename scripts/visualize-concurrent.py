@@ -224,11 +224,35 @@ def main():
         summary = load_summary(filepath)
         summaries.append(summary)
 
-    # Generate report
-    report = []
-    report.append(format_concurrency_comparison(summaries))
-    report.append(format_scalability_analysis(summaries))
-    report.append(format_recommendations(summaries))
+    # Legacy baseline and instrumented labels can refer to the SAME attached
+    # eBPF state. Never publish their difference as kernel overhead.
+    verified = all(
+        item.get("comparison_valid") is True
+        and item.get("baseline_state") == "detached"
+        and item.get("ebpf_state") == "attached"
+        for item in summaries
+    )
+    if verified:
+        report = [
+            format_concurrency_comparison(summaries),
+            format_scalability_analysis(summaries),
+            format_recommendations(summaries),
+        ]
+    else:
+        report = [
+            "UNVERIFIED BASELINE — not a valid eBPF overhead comparison",
+            "Both labeled phases may run with BPF programs attached.",
+            "The per-operation timings are batch throughput-derived means, NOT P95 syscall latency.",
+            "Provide an executable BENCH_PHASE_SCRIPT which verifies detached/attached states.",
+            "",
+            "Concurrency  Baseline batch mean (us)  Attached batch mean (us)",
+        ]
+        for summary in sorted(summaries, key=lambda x: x["concurrency"]):
+            ops = summary["operations"]
+            if ops:
+                base = sum(op["baseline_us"] for op in ops) / len(ops)
+                attached = sum(op["ebpf_us"] for op in ops) / len(ops)
+                report.append(f"{summary['concurrency']:>11}  {base:>24.3f}  {attached:>24.3f}")
 
     full_report = "\n".join(report)
 

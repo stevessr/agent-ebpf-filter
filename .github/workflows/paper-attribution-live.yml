@@ -1,0 +1,85 @@
+name: Paper Agent attribution live observation
+
+on:
+  push:
+    branches: ['research/**']
+    paths:
+      - '.github/workflows/paper-attribution-live.yml'
+      - 'scripts/attribution-concurrent-workload.py'
+      - 'scripts/paper-attribution-reconcile.py'
+      - 'backend/app/attribution_cgroup.go'
+      - 'backend/app/attribution_cgroup_conflict_test.go'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-agent-events:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.work
+          cache: false
+      - name: Build privileged eBPF backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/paper-attribution-live
+          date -u +'%Y-%m-%dT%H:%M:%SZ' >reports/paper-attribution-live/start-utc.txt
+          uname -a >reports/paper-attribution-live/kernel.txt
+          git rev-parse HEAD >reports/paper-attribution-live/commit.txt
+          sudo apt-get update -qq
+          sudo apt-get install -qq -y clang llvm libbpf-dev libelf-dev protobuf-compiler jq
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          mkdir -p backend/pb
+          protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto \
+            proto/tracker_common.proto proto/tracker_events.proto \
+            proto/tracker_registration.proto proto/tracker_system.proto \
+            proto/tracker_config.proto proto/tracker_shell.proto
+          (cd backend/ebpf && go generate)
+          go build -o "$RUNNER_TEMP/agent-ebpf-paper-backend" ./backend
+      - name: Capture real backend event predictions for each 2-4 Agent cohort
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo -E env DISABLE_AUTH=true GIN_MODE=release "$RUNNER_TEMP/agent-ebpf-paper-backend" \
+            >reports/paper-attribution-live/backend.log 2>&1 &
+          pid=$!
+          trap 'sudo kill "$pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8080/system/bootstrap-health \
+               >reports/paper-attribution-live/bootstrap-health.json 2>/dev/null && \
+               jq -e '.attachedCount >= 1' \
+                 reports/paper-attribution-live/bootstrap-health.json >/dev/null; then
+              break
+            fi
+            if [[ "$i" -eq 60 ]]; then
+              echo 'FAIL: no verified kernel events attached' >&2
+              exit 1
+            fi
+            sleep 2
+          done
+          python3 scripts/attribution-concurrent-workload.py \
+            --agents 2 3 4 --cycles 10 \
+            --backend-url http://127.0.0.1:8080 \
+            --capture-events-dir reports/paper-attribution-live/snapshots \
+            --output reports/paper-attribution-live/ground-truth.csv \
+            2>&1 | tee reports/paper-attribution-live/workload.log
+          python3 scripts/paper-attribution-reconcile.py \
+            --mode combined \
+            --ground-truth reports/paper-attribution-live/ground-truth.csv \
+            --events-dir reports/paper-attribution-live/snapshots \
+            --output-dir reports/paper-attribution-live/results \
+            2>&1 | tee reports/paper-attribution-live/scoring.log
+      - name: Upload real event samples and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: paper-agent-attribution-observed
+          path: reports/paper-attribution-live/
+          if-no-files-found: warn
+          retention-days: 30

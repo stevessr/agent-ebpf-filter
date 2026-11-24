@@ -262,6 +262,10 @@ jobs:
               for summary_file in "$LATEST"/summary_c*.json; do
                 if [ -f "$summary_file" ]; then
                   CONCURRENCY=$(jq -r '.concurrency' "$summary_file")
+                  if [ "$(jq -r '.comparison_valid // false' "$summary_file")" != "true" ]; then
+                    echo "- **C=${CONCURRENCY}**: paired eBPF-attached runs; no valid overhead baseline" >> $GITHUB_STEP_SUMMARY
+                    continue
+                  fi
                   AVG_OVERHEAD=$(jq -r '[.operations[].overhead_percent] | add / length' "$summary_file")
                   MIN_OVERHEAD=$(jq -r '[.operations[].overhead_percent] | min' "$summary_file")
                   MAX_OVERHEAD=$(jq -r '[.operations[].overhead_percent] | max' "$summary_file")
@@ -394,15 +398,20 @@ jobs:
               summaryFiles.forEach(file => {
                 const summary = JSON.parse(fs.readFileSync(`reports/${latestDir}/${file}`, 'utf8'));
                 const avgOverhead = summary.operations.reduce((sum, op) => sum + op.overhead_percent, 0) / summary.operations.length;
+                const verified = summary.comparison_valid === true
+                  && summary.baseline_state === 'detached'
+                  && summary.ebpf_state === 'attached';
                 overheads.push({
                   concurrency: summary.concurrency,
-                  avgOverhead: avgOverhead.toFixed(2)
+                  avgOverhead: verified ? avgOverhead.toFixed(2) : null
                 });
               });
 
               overheads.sort((a, b) => a.concurrency - b.concurrency);
 
-              const resultLines = overheads.map(o => `- **C=${o.concurrency}**: ${o.avgOverhead}%`).join('\n');
+              const resultLines = overheads.map(o => o.avgOverhead === null
+                ? `- **C=${o.concurrency}**: unverified baseline (paired attached runs)`
+                : `- **C=${o.concurrency}**: ${o.avgOverhead}%`).join('\n');
               const reportContent = fs.readFileSync(reportPath, 'utf8').substring(0, 8000);
 
               body = [

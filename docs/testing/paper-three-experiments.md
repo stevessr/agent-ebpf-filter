@@ -1,0 +1,302 @@
+# Three experiments for a reproducible systems-paper evaluation
+
+Status: **CI live measurements now exist for read(2) crossover, isolated three-mode attribution, and cgroup network denials; full BPF LSM file/mmap verification remains unavailable.**
+A top-conference claim also requires novelty, competing systems, and
+external-validity evidence—not simply three completed tables.
+
+## Reproducibility ledger
+
+Archive complete Git SHA/dirty status, kernel/CPU physical core count, CPU
+governor, BTF and cgroup availability, BPF LSM enablement, attach status,
+compiler versions, random seeds, exact commands, raw event traces, failures,
+and full trial denominators. Record 95% confidence intervals where possible.
+A rootless static object check is **not** live kernel-enforcement evidence.
+
+## Experiment A: concurrent scalability (manuscript Section 6.1)
+
+Original command:
+
+~~~bash
+BENCH_CONCURRENCY="1 4 8 16 32" BENCH_CYCLES=10 \
+  ./scripts/benchmark-concurrent.sh
+~~~
+
+**Legacy measurement issue:** the original script starts with attached eBPF
+programs and measures both the so-called baseline and the instrumented
+phase without detaching programs. Their difference is *same-state drift*,
+not measured eBPF overhead. The patched script now marks the evidence
+comparison_valid=false and the report refuses to publish false overhead.
+
+For an actual on/off comparison, provide an operator-reviewed executable
+BENCH_PHASE_SCRIPT accepting a single argument, either baseline or ebpf.
+This script must keep the authenticated backend responsive, detach the
+relevant hooks for baseline, and reattach for ebpf. The runner checks the
+reported attach state after each phase switch. Use an isolated test host.
+
+~~~bash
+BENCH_PHASE_SCRIPT=/path/to/operator-reviewed-phase-switch \
+BENCH_CONCURRENCY="1 4 8 16 32" BENCH_CYCLES=10 \
+  ./scripts/benchmark-concurrent.sh
+~~~
+
+**P95 caveat:** benchmark-syscalls-extended.go reports elapsed batch time
+divided by number of iterations. That is a throughput-derived mean,
+not a distribution of independent syscall latencies. The program does
+not emit per-call P95. If per-call samples are independently measured,
+place a CSV named latency_ebpf_c1.csv etc. in the report folder, containing
+the latency_us header and values. Document exact operation mix and
+sampling overhead instead of treating mixed operation samples as a single
+homogeneous syscall.
+
+For a **per-call** P95 sample, a separate Go sampler measures one read(2)
+operation on a pre-opened file for each individual sample. It includes
+userspace timing cost; it is NOT an eBPF-only overhead estimate. Run it with
+the backend BPF programs actually attached, on the same test host and after
+the on/off experiment for each C:
+
+~~~bash
+mkdir -p reports/ebpf-concurrent-paper
+for C in 1 4 8 16 32; do
+  go run scripts/paper-syscall-latency.go \
+    --concurrency "$C" --samples 50000 --warmup 1000 \
+    --output "reports/ebpf-concurrent-paper/latency_ebpf_c${C}.csv"
+done
+~~~
+
+Use the same report folder as the verified summary_c*.json files when
+generating the paper table. These P95 samples describe **read(2) latency
+with attached hooks**, not all 18 operations and not tail latency of full
+Agent workflows. Do not merge their distributions or label them as
+end-to-end latency.
+
+Test all C levels on the **same physical host**, not separate ephemeral
+GitHub Action matrix runners. Randomize phase/order to check temperature,
+cache, and governor effects.
+
+### Verified live matched-daemon crossover (2026-11-19)
+
+Actual CI [run #44512199846](https://github.com/stevessr/agent-ebpf-filter/actions/runs/44512199846)
+on Linux 7.0.0-1017-azure verified 202 pinned tracepoint **kernel link IDs**
+removed for off and reattached for on while the same backend process
+stayed running. 10 balanced AB/BA pairs per C, 5,000 individually timed
+read(2) calls per phase, 500,000 total. A 95% percentile bootstrap
+resamples paired cycles, not all correlated individual calls.
+
+| C | Paired mean monitoring increase | 95% paired bootstrap CI | On-state read P95 (µs) |
+|---:|---:|---|---:|
+| 1 | +58.82% | [+51.38%, +65.79%] | 0.465 |
+| 4 | +59.00% | [+48.38%, +68.81%] | 0.495 |
+| 8 | +72.98% | [+62.25%, +85.42%] | 0.487 |
+| 16 | +64.22% | [+53.77%, +74.23%] | 0.517 |
+| 32 | +69.15% | [+57.63%, +78.29%] | 0.510 |
+
+This is the project's **tracepoint + collector monitoring cost** for a
+very small read(2) call. It does not establish a general syscall or full
+Agent workflow cost; 4 logical CPUs also mean oversubscription at high C.
+The archived original off-before-daemon experiment was more confounded
+and is not suitable for causal conclusions.
+
+The paper table generator can validate all 100 real phase CSVs and the
+kernel-link evidence manifest directly, rejecting missing data:
+
+~~~bash
+python3 scripts/paper-experiment-tables.py \
+  --matched-crossover-dir reports/paper-crossover \
+  --output reports/paper-crossover/section6-tables.md
+~~~
+
+[Full protocol](paper-matched-crossover.md) and
+[permanent compact results](../../benchmarks/paper-2026-11-19/read_matched_crossover_measured.csv).
+
+## Experiment B: 2–4 Agent attribution ablation
+
+The actual project uses three kinds of evidence: direct PID/registered
+context, trusted lifecycle process ancestry/fork/cgroup, and
+wrapper/native-hook semantic context (see technical/agent-identity.md).
+Shared executable names are not proof of the owning Agent.
+
+Run the real concurrent workload, which starts distinct registered roots,
+each executing git, python, and node. It produces only ground-truth child
+PID, root PID, run ID, and process lifetime. It does not invent predictions:
+
+~~~bash
+python3 scripts/attribution-concurrent-workload.py \
+  --agents 2 3 4 --cycles 10 \
+  --backend-url http://127.0.0.1:8080 \
+  --output reports/paper-experiments/ground-truth.csv
+~~~
+
+Requires a privileged, running backend; git, python3 and Node.js. The
+development --dry-run option does not register roots and is NOT real
+attribution evidence.
+
+Repeat equivalent workloads under three independently verified
+configurations: **PID only** (exact PID registration lookup); **lifecycle
+only** (trusted fork/exec ancestry, independently seeded root ID);
+**three modalities** (PID plus lifecycle plus wrapper/native semantic
+tool context). Do not simply mask fields in a combined trace and call it
+an isolated ablation. This research branch now supports explicit, isolated attribution modes
+through the backend environment variable:
+
+- AGENT_EBPF_RESEARCH_ATTRIBUTION_MODE=pid-only: registered root PID only,
+  no derived child ownership.
+- AGENT_EBPF_RESEARCH_ATTRIBUTION_MODE=lifecycle-only: registered root
+  plus fork/PPID/ancestor propagation, without cgroup lookup/update.
+- AGENT_EBPF_RESEARCH_ATTRIBUTION_MODE=combined: normal runtime
+  resolution, including shared-cgroup evidence where unambiguous.
+
+The modes run as separate backend processes; snapshots are taken after
+every concurrency cohort and joined to independent child PID/PPID/time
+truth. An unknown mode fails closed. This is a RESEARCH-ONLY
+configuration and must not be used to disable production safeguards.
+A controlled git/python/node workload does not produce genuine native
+Agent SDK hook semantics; consequently a combined-mode score **alone**
+cannot demonstrate the benefit of third-party semantic hooks.
+
+Use the reproducible isolated CI workflow
+`.github/workflows/paper-attribution-ablation.yml` or run
+`bash scripts/paper-attribution-ablation-ci.sh` with a properly built
+backend on an authorized host. It reports sensor coverage separately
+from correct attribution / false attribution / unknown.
+
+
+Join kernel events to ground truth by PID, process start timestamp and
+run boundary. Reject PID reuse ambiguity; do not infer Agent from comm.
+Create attribution.csv with the columns:
+
+~~~csv
+event_id,agent_count,command,truth_agent,pid_only,lifecycle_hook_only,trimodal
+~~~
+
+Each row is one uniquely labeled event. Use an actual Agent ID or the
+unknown label ⊥. Report the mutually exclusive fractions:
+correct / N, assigned-to-wrong-Agent / N, unknown / N. Also stratify by
+command to expose same-name cross-Agent contamination.
+
+### Actual independent-kernel-run event-level observations
+
+CI [#44492325326](https://github.com/stevessr/agent-ebpf-filter/actions/runs/44492325326)
+ran separate PID-only, lifecycle-only and combined backends, each with
+270 ground-truth git/python/node tool processes and 270/270 process-level
+event coverage. Event-level correct/false/unknown:
+
+| Agents | PID-only | Lifecycle-only | Combined |
+|---:|---|---|---|
+| 2 | 0/0/529 (N=529) | 584/0/0 (N=584) | 598/0/0 (N=598) |
+| 3 | 0/0/919 (N=919) | 815/0/0 (N=815) | 828/0/7 (N=835) |
+| 4 | 0/0/1082 (N=1082) | 1193/0/5 (N=1198) | 1133/0/9 (N=1142) |
+
+Total event-level accuracy: PID-only 0/2530, lifecycle-only 2592/2597
+(99.81%), combined 2559/2575 (99.38%). **Combined did not outperform
+lifecycle-only** on these separate runs. This workload does not produce
+genuine native Agent SDK semantic Hook traces; it cannot establish a
+third semantic modality's incremental benefit. Events have unequal
+denominators because each experiment captured a different mix.
+See the raw per-mode event data and
+[compact measured confusion data](../../benchmarks/paper-2026-11-19/attribution_three_mode_measured.csv).
+
+## Experiment C: cgroup + 14-hook BPF LSM enforcement
+
+Use a privileged, isolated host with an active BPF LSM and writable
+cgroup v2. Preflight, check the compiled objects, then run the smoke test:
+
+~~~bash
+make os-enforcement-preflight
+make os-enforcement-check
+make os-enforcement-smoke-start
+# Or: make os-enforcement-smoke against a running privileged backend
+~~~
+
+The smoke-start target cleans up the backend process it launches on exit.
+**For repeated trials, keep a privileged backend running in a separate
+terminal**, then enable policy-management on that isolated test backend,
+e.g. with an already authorized local API:
+
+~~~bash
+sudo -E env DISABLE_AUTH=true ./backend/agent-ebpf-filter
+# In a second shell (isolated test host only):
+curl -fsS -X PUT http://127.0.0.1:8080/config/runtime \
+  -H 'Content-Type: application/json' \
+  -d '{"policyManagementEnabled":true}'
+~~~
+
+If authentication is enabled, supply the legitimate API token instead of
+DISABLE_AUTH; do not enable policy management on an exposed production host.
+
+BPF LSM startup now checks the active security module list first:
+on a readable /sys/kernel/security/lsm without bpf, it gives a specific
+boot-configuration error rather than treating a later verifier failure as
+the cause. BPF LSM enabled on a host is still only a prerequisite,
+not proof that all 14 programs pass the verifier. The path matching
+implementation currently uses bpf_d_path(), whose availability varies
+by hook and kernel; migrate to the newer BPF LSM bpf_path_d_path()
+kfunc only after controlled verifier tests on a compatible kernel.
+
+The smoke suite covers TCP, UDP, IPv4-mapped IPv6, existing FD
+read/write, and mmap/mprotect among other cases. A passing smoke test
+is not a deterministic-rate measurement: some probe branches currently
+treat arbitrary OSError as blocked and do not preserve errno.
+
+For every *repeated* trial record all four conditions:
+(1) identical call succeeds with no rule, (2) it is denied with the rule,
+(3) the syscall reports EPERM (1) or EACCES (13), and
+(4) it succeeds again after rule revocation. Other errors such as
+ECONNREFUSED or ENOENT are **not** policy denials. Time policy apply and
+revoke API requests with a monotonic clock (microseconds). These are
+API round-trip times, **not** independently proven BPF map propagation
+times. Report skipped scenarios separately and preserve all failed trials.
+
+Run the repeated-trial recorder against that privileged backend. Enable the
+backend's policy-management gate in the isolated host before issuing policy
+writes. The recorder requires live attached cgroup and BPF LSM status;
+each row records the actual Python syscall errno, not merely an exception.
+A sidecar manifest records the kernel, timestamp and requested scenarios.
+
+~~~bash
+python3 scripts/paper-enforcement-trials.py \
+  --backend-url http://127.0.0.1:8080 --trials 100 \
+  --output reports/paper-experiments/enforcement.csv
+~~~
+
+The recorder deliberately uses local loopback endpoints and unique temporary
+file names, then removes each rule after each trial. Always inspect the
+resulting manifest, failed trials and skipped IPv4-mapped IPv6 cases.
+
+CSV schema:
+
+~~~csv
+case,control_ok,denied,errno,restored,apply_us,revoke_us
+~~~
+
+Allowed cases: tcp_connect, udp_connect, udp_sendto,
+ipv4_mapped_ipv6, existing_fd_read, existing_fd_write, mmap.
+Repeat trials (e.g. 100 per case); never print 100% without a real N.
+Existence of fourteen compiled LSM sections is not evidence that all
+fourteen are successfully attached.
+
+| Path | Verified deny rate | Rule apply P50/P95 (us) | Revoke P50/P95 (us) |
+|---|---:|---:|---:|
+| TCP connect | — | — | — |
+| UDP connect | — | — | — |
+| UDP sendto | — | — | — |
+| IPv4-mapped IPv6 | — | — | — |
+| Existing FD read | — | — | — |
+| Existing FD write | — | — | — |
+| Existing FD mmap | — | — | — |
+
+## Generate paper-ready Markdown (no invented data)
+
+~~~bash
+python3 scripts/paper-experiment-tables.py \
+  --concurrency-dir reports/ebpf-concurrent-YYYYMMDD-HHMMSS \
+  --attribution-csv reports/paper-experiments/attribution.csv \
+  --enforcement-csv reports/paper-experiments/enforcement.csv \
+  --output reports/paper-experiments/tables.md
+
+python3 scripts/tests/test-paper-experiment-tables.py -v
+python3 scripts/tests/test-paper-enforcement.py -v
+~~~
+
+Missing files remain clearly unmeasured. Invalid evidence fails loudly.
+Maintain raw files with the paper artifact; do not copy illustrative
+performance figures from existing docs/testing/concurrent-benchmark.md.

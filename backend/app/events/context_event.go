@@ -3,6 +3,7 @@ package events
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"os"
 	"strings"
 	"sync"
 
@@ -308,6 +309,32 @@ func contextFromAgentCgroup(cgroupID uint64) (ProcessContext, bool) {
 	return ProcessContext{}, false
 }
 
+// researchAttributionMode isolates evidence branches in a dedicated research
+// backend process. Production without this environment variable is unchanged.
+// Only controlled workload roots register via /register in research runs.
+func researchAttributionMode() string {
+	switch strings.TrimSpace(os.Getenv("AGENT_EBPF_RESEARCH_ATTRIBUTION_MODE")) {
+	case "", "combined":
+		return "combined"
+	case "pid-only":
+		return "pid-only"
+	case "lifecycle-only":
+		return "lifecycle-only"
+	default:
+		// Unknown research settings refuse every attribution rather than
+		// silently running the full model and corrupting ablation evidence.
+		return "invalid"
+	}
+}
+
+func researchPIDRootContext(event *pb.Event) (ProcessContext, bool) {
+	if event == nil || event.Pid == 0 || Deps.ProcessContexts == nil {
+		return ProcessContext{}, false
+	}
+	ctx, ok := Deps.ProcessContexts.Get(event.Pid)
+	return ctx, ok && ctx.RootAgentPid == event.Pid && ctx.AgentRunID != ""
+}
+
 // EnrichEventContext applies process context and cgroup attribution to an
 // event. Tool-baseline observation runs later in BuildSemanticAlerts.
 func EnrichEventContext(event *pb.Event) *pb.Event {
@@ -316,6 +343,24 @@ func EnrichEventContext(event *pb.Event) *pb.Event {
 	}
 	if strings.TrimSpace(event.SchemaVersion) == "" {
 		event.SchemaVersion = EventSchemaVersion
+	}
+	mode := researchAttributionMode()
+	// No process-tree propagation, inferred ancestry, cgroup lookup or
+	// native semantic fallback in the PID-only research ablation.
+	// A PID match alone is insufficient unless the PID is a seeded Agent root.
+	if mode == "pid-only" {
+		if ctx, ok := researchPIDRootContext(event); ok {
+			ApplyProcessContextToEvent(event, ctx)
+		}
+		if event.Type == "process_exit" || event.Type == "exit" {
+			if Deps.ProcessContexts != nil {
+				Deps.ProcessContexts.Delete(event.Pid)
+			}
+		}
+		return event
+	}
+	if mode == "invalid" {
+		return event
 	}
 	if event.Pid == 0 {
 		return event
@@ -352,18 +397,24 @@ func EnrichEventContext(event *pb.Event) *pb.Event {
 			ctx, ok = Deps.ProcessContexts.Get(event.Pid)
 		}
 	}
-	// Try cgroup-based attribution if no direct PID context
-	if !ok && event.CgroupId != 0 {
+	// Lifecycle-only excludes cgroup and semantic fallback evidence. Only
+	// registered PID roots and trusted fork/parent/ancestor provenance remain.
+	// A cgroup-only match is weak evidence. It may annotate this event,
+	// but must not seed PID lineage or renew its own cgroup lease.
+	lineageKnown := ok
+	if !ok && mode != "lifecycle-only" && event.CgroupId != 0 {
 		ctx, ok = contextFromAgentCgroup(event.CgroupId)
 	}
 	if ok {
 		ApplyProcessContextToEvent(event, ctx)
+	}
+	if lineageKnown {
 		// sched_process_fork already carries the child's PID. Seed its
 		// context immediately, before bash/python/node runs and exits.
 		// This does not overwrite a separately registered child context.
 		propagateAgentContextOnFork(event, ctx, Deps.ProcessContexts)
 		// Lazily bind cgroup to agent context for future child attribution
-		if event.CgroupId != 0 && ctx.AgentRunID != "" {
+		if mode != "lifecycle-only" && event.CgroupId != 0 && ctx.AgentRunID != "" {
 			Deps.CgroupAttributionSet(event.CgroupId, CgroupAttributionEntry{
 				AgentRunID:   ctx.AgentRunID,
 				TaskID:       ctx.TaskID,
@@ -383,6 +434,16 @@ func ApplyBestEffortProcessContextToEvent(event *pb.Event) {
 	if event == nil || event.Pid == 0 {
 		return
 	}
+	mode := researchAttributionMode()
+	if mode == "invalid" {
+		return
+	}
+	if mode == "pid-only" {
+		if ctx, ok := researchPIDRootContext(event); ok {
+			ApplyProcessContextToEvent(event, ctx)
+		}
+		return
+	}
 	ctx, ok := Deps.ProcessContexts.Get(event.Pid)
 	if !ok && event.Ppid != 0 {
 		if parentCtx, parentOK := Deps.ProcessContexts.Get(event.Ppid); parentOK {
@@ -395,7 +456,7 @@ func ApplyBestEffortProcessContextToEvent(event *pb.Event) {
 			ctx, ok = inherited, true
 		}
 	}
-	if !ok && event.CgroupId != 0 {
+	if !ok && mode != "lifecycle-only" && event.CgroupId != 0 {
 		ctx, ok = contextFromAgentCgroup(event.CgroupId)
 	}
 	if ok {
