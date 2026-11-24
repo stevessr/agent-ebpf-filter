@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/stevessr/agent-ebpf-filter/desktop/renew/design"
 )
 
 func (a *renewApp) collectorStatus() (label, level string) {
@@ -101,7 +102,7 @@ func pageSubtitle(page string) string {
 }
 
 func statusPill(c *ui.Context, text string, tone ui.Color) ui.Element {
-	return ui.Badge(c, text).Background(tone.Alpha(0.13)).TextColor(tone)
+	return design.TintedBadge(c, text, tone)
 }
 
 func riskTextColor(t *ui.Theme, risk string) ui.Color {
@@ -399,19 +400,11 @@ func (a *renewApp) eventFilterOptions() ([]string, []string) {
 }
 
 func card(c *ui.Context, title string, body func()) ui.Element {
-	t := c.Theme()
-	return ui.Column(c).Padding(18).Gap(12).Radius(12).Background(t.Surface).Border(1, t.Border).Children(func() {
-		if title != "" {
-			ui.Text(c, title).FontSize(15).Bold()
-		}
-		body()
-	})
+	return design.Section(c, title, "", body)
 }
 
 func statCard(c *ui.Context, label, value, detail string) {
-	t := c.Theme()
-	card(c, label, func() {
-		ui.Text(c, value).FontSize(26).Bold()
-		ui.Text(c, detail).FontSize(11).TextColor(t.TextMuted)
+	design.MetricTile(c, design.Metric{
+		Label: label, Value: value, Detail: detail, Tone: design.Neutral,
 	}).Width(220)
 }
