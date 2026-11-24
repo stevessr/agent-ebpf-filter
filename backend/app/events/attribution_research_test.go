@@ -71,7 +71,9 @@ func TestResearchCombinedStillSupportsUniqueCgroupFallback(t *testing.T) {
 		}
 		return CgroupAttributionEntry{RootAgentPID: 777, AgentRunID: "isolated-run"}, true
 	}
-	Deps.CgroupAttributionSet = func(uint64, CgroupAttributionEntry) {}
+	Deps.CgroupAttributionSet = func(uint64, CgroupAttributionEntry) {
+		t.Fatal("cgroup-only evidence must not refresh its own ownership lease")
+	}
 	got := EnrichEventContext(&pb.Event{Pid: 900, Type: "network_connect", CgroupId: 88})
 	if got.AgentRunId != "isolated-run" || got.RootAgentPid != 777 {
 		t.Fatalf("combined mode lost cgroup fallback: %+v", got)
@@ -86,5 +88,43 @@ func TestResearchInvalidModeFailsClosed(t *testing.T) {
 	Deps.ProcessContexts.Set(100, ProcessContext{AgentRunID: "should-not-assign"})
 	if result := EnrichEventContext(&pb.Event{Pid: 100, Type: "openat"}); result.AgentRunId != "" {
 		t.Fatalf("invalid research mode unexpectedly attributed event: %+v", result)
+	}
+}
+
+func TestResearchAttributionPreservesEventSchema(t *testing.T) {
+	for _, mode := range []string{"pid-only", "lifecycle-only", "combined", "invalid-mode"} {
+		t.Run(mode, func(t *testing.T) {
+			t.Setenv("AGENT_EBPF_RESEARCH_ATTRIBUTION_MODE", mode)
+			got := EnrichEventContext(&pb.Event{})
+			if got.SchemaVersion != EventSchemaVersion {
+				t.Fatalf("mode %s lost event schema: %q", mode, got.SchemaVersion)
+			}
+			explicit := EnrichEventContext(&pb.Event{SchemaVersion: "explicit"})
+			if explicit.SchemaVersion != "explicit" {
+				t.Fatalf("mode %s overwrote explicit schema: %q", mode, explicit.SchemaVersion)
+			}
+		})
+	}
+}
+
+func TestResearchCgroupFallbackDoesNotSeedChildLineage(t *testing.T) {
+	t.Setenv("AGENT_EBPF_RESEARCH_ATTRIBUTION_MODE", "combined")
+	oldStore, oldGet, oldSet := Deps.ProcessContexts, Deps.CgroupAttributionGet, Deps.CgroupAttributionSet
+	defer func() {
+		Deps.ProcessContexts, Deps.CgroupAttributionGet, Deps.CgroupAttributionSet = oldStore, oldGet, oldSet
+	}()
+	Deps.ProcessContexts = NewProcessContextStore()
+	Deps.CgroupAttributionGet = func(uint64) (CgroupAttributionEntry, bool) {
+		return CgroupAttributionEntry{RootAgentPID: 777, AgentRunID: "weak-owner"}, true
+	}
+	Deps.CgroupAttributionSet = func(uint64, CgroupAttributionEntry) {
+		t.Fatal("weak evidence must not refresh its own ownership")
+	}
+	got := EnrichEventContext(&pb.Event{Pid: 900, Type: "process_fork", CgroupId: 88, ExtraInfo: "child_pid=901"})
+	if got.AgentRunId != "weak-owner" {
+		t.Fatalf("weak evidence should still annotate the current event: %+v", got)
+	}
+	if _, ok := Deps.ProcessContexts.Get(901); ok {
+		t.Fatal("cgroup-only evidence was promoted to trusted PID lineage")
 	}
 }

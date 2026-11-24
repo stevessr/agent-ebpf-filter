@@ -341,6 +341,9 @@ func EnrichEventContext(event *pb.Event) *pb.Event {
 	if event == nil {
 		return nil
 	}
+	if strings.TrimSpace(event.SchemaVersion) == "" {
+		event.SchemaVersion = EventSchemaVersion
+	}
 	mode := researchAttributionMode()
 	// No process-tree propagation, inferred ancestry, cgroup lookup or
 	// native semantic fallback in the PID-only research ablation.
@@ -358,9 +361,6 @@ func EnrichEventContext(event *pb.Event) *pb.Event {
 	}
 	if mode == "invalid" {
 		return event
-	}
-	if strings.TrimSpace(event.SchemaVersion) == "" {
-		event.SchemaVersion = EventSchemaVersion
 	}
 	if event.Pid == 0 {
 		return event
@@ -399,11 +399,16 @@ func EnrichEventContext(event *pb.Event) *pb.Event {
 	}
 	// Lifecycle-only excludes cgroup and semantic fallback evidence. Only
 	// registered PID roots and trusted fork/parent/ancestor provenance remain.
+	// A cgroup-only match is weak evidence. It may annotate this event,
+	// but must not seed PID lineage or renew its own cgroup lease.
+	lineageKnown := ok
 	if !ok && mode != "lifecycle-only" && event.CgroupId != 0 {
 		ctx, ok = contextFromAgentCgroup(event.CgroupId)
 	}
 	if ok {
 		ApplyProcessContextToEvent(event, ctx)
+	}
+	if lineageKnown {
 		// sched_process_fork already carries the child's PID. Seed its
 		// context immediately, before bash/python/node runs and exits.
 		// This does not overwrite a separately registered child context.
