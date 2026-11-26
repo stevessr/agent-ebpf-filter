@@ -1,5 +1,7 @@
 # Agent eBPF Filter：MIT 公理设计（Axiomatic Design）架构分析
 
+> **全系统审查入口：** [第四轮全系统需求追踪、干预矩阵与验收总表](mit-axiomatic-design-system-review.md)。该报告覆盖十四项验收级子 FR 与十类测试族，并区分现有结构证据、模型结果及待执行的真实测试。
+
 > **第二轮验证更新：** [源码深度验证与分模式矩阵](mit-axiomatic-design-validation.md) 已确认可选 kernel risk feedback 到真实策略 map 写入的结构链路，并穷举设计矩阵的所有排列。第 4 节为初始假设快照；关于 A43 等条件依赖，以第二轮报告为准。没有完成 Go/BPF 运行时测试。
 
 > 状态：设计审查 / 待验证假设，2026-11-26。基于 master 的源码抽查及现有技术手册；不宣称已完成全仓调用图审计、性能测试或公理合规认证。本 PR 不修改运行时代码。
