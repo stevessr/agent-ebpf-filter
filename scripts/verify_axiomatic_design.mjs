@@ -16,9 +16,13 @@ const paths = [
   "backend/app/statepersistence_events.go",
   "backend/app/redaction_engine.go",
   "backend/app/helpers_auth.go",
-  "backend/app/http_security_test.go"
+  "backend/app/http_security_test.go",
+  "backend/app/agent_scope_policy.go"
 ];
 function audit(files) {
+  // Preserve the baseline audit while also checking the migrated production path.
+  const migrated=files[8].includes("admission := evaluateAgentEventScope(event)");
+  const scopeAnchors=migrated?["admission := evaluateAgentEventScope(event)","if !admission.Capture","monitorAllowed := admission.Monitor"]:["if !captureAgentEvent(event)","monitorAllowed := monitorAgentEvent(event)"];
   const checks=[
     ["reader builds before enqueue",0,["enqueueBroadcastEvent(broadcast, buildKernelEventFromRaw(event)"]],
     ["builder invokes risk before return",1,["Deps.KernelRisk(event, out)","return out"]],
@@ -30,13 +34,14 @@ function audit(files) {
     ["feedback invokes enforcer",5,["func applyKernelRiskFeedbackAction","return enforcer.BlockIP(action.Target)","return enforcer.BlockPort(uint16(port))"]],
     ["sandbox bridge",6,["sandbox.BlockIP","sandbox.BlockPort"]],
     ["cgroup map mutation",7,["func BlockIP","snap.IPBlocklist.Put","snap.IP6Blocklist.Put","func BlockPort","snap.PortBlocklist.Put"]],
-    ["scope and semantic ordering",8,["event = enrichEventContext(event)","if !captureAgentEvent(event)","monitorAllowed := monitorAgentEvent(event)","alerts = buildSemanticAlerts(event)","appendRecord(recordCapturedEventWithMonitoring(event, monitorAllowed))"]],
+    ["scope and semantic ordering",8,["event = enrichEventContext(event)",...scopeAnchors,"alerts = buildSemanticAlerts(event)","appendRecord(recordCapturedEventWithMonitoring(event, monitorAllowed))"]],
     ["normal record redacted before fanout/storage",9,["func recordCapturedEventWithMonitoring","redactCapturedEventRecord(record, globalRedactionEngine)","session.publishProto","capturedEventArchive.Add(record)","runtimeSettingsStore.enqueueEvent(record)","recording.Default().Record(record)","otelExporterStore.Record(record)"]],
     ["monitor scope before downstream research",9,["if monitorAllowed {","queueLoopDetectionRecord(record)","research.QueueProcessingRecord(record)"]],
     ["nil engine no-op",10,["func redactEvent","if event == nil || engine == nil","return"]],
     ["mode independent auth",11,["func authEnforced() bool","return os.Getenv(\"DISABLE_AUTH\") != \"true\""]],
     ["existing mode regression test",12,["func TestAuthenticationIndependentOfGinMode","gin.DebugMode, gin.ReleaseMode, gin.TestMode"]]
   ];
+  if(migrated) checks.push(["single scope snapshot",13,["func evaluateAgentEventScope","agentRootScopes.Observe(event)","policy := currentAgentScopePolicy()","owner := agentRootScopes.OwnerComm(event)","return policy.Evaluate(event.GetComm(), event.GetTag(), owner)"]]);
   const evidence=checks.map(([name,index,terms])=>{
     const src=files[index]; let pos=0; const lines=[];
     for(const term of terms){
