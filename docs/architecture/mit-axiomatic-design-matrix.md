@@ -375,3 +375,17 @@ node scripts/verify_axiomatic_measurements.mjs matrix-measurements.json
 ```
 
 本轮在执行环境中实际调用核心推导函数：合成 fixture m=2、n=100、差值支持 [-1,1]、alpha=.05、均值=0，半宽 0.29604143746015965，与独立公式一致；195 个缺测单元不填零；12 个错误计划/样本负例均拒绝。合成 fixture 不能写入真实定量矩阵。新脚本自测加入 Repository integrity。真实定量矩阵仍未获得生产干预数据；统计工具不验证原始测量真实性、跨 run 独立性、宿主能力、控制权限或所有安全硬门禁。
+
+
+### 10.3 实际 CI 干预结果
+
+已读取 commit `370281431e01949fcd8b6b7948082633465043bc` 的 [rootless run 45786406824](https://github.com/stevessr/agent-ebpf-filter/actions/runs/45786406824)，job 139794158278；格式检查、四组既有组件回归步骤及新干预测试均通过。日志中的实际计数：
+
+| 测试 | 组合 | 实际结果 |
+| --- | ---: | --- |
+| TestScopeIntervention | 72 | capture_changes=72, monitor_changes=72, owner_changes=0 |
+| TestNoiseIntervention | 128 | protected_suppressed=0, ordinary_changed=4 |
+| TestQueueCapacityIntervention | 42 | offered=378, admitted=114, rejected=264, consumed=114 |
+| TestReplayWindowIntervention | 32 | detected=11, input_mutations=0, enforcement_claims=0 |
+
+合计 274 个有限组合全部符合 oracle，`go test -race` 通过。后续 commit `2107de874ed6e23614198b1762d5af7a79868449` 将已观察队列和 replay 总量加入显式断言，需以新 head 的 CI 独立确认。该结果只填补局部确定性契约证据，不是 196 个全系统数值单元的测量，也不证明统计独立性。
