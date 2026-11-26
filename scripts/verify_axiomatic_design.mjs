@@ -19,7 +19,7 @@ const paths = [
   "backend/app/http_security_test.go",
   "backend/app/agent_scope_policy.go"
 ];
-function audit(files) {
+function audit(files, requireMigrated = false) {
   // Preserve the baseline audit while also checking the migrated production path.
   const migrated=files[8].includes("admission := evaluateAgentEventScope(event)");
   const scopeAnchors=migrated?["admission := evaluateAgentEventScope(event)","if !admission.Capture","monitorAllowed := admission.Monitor"]:["if !captureAgentEvent(event)","monitorAllowed := monitorAgentEvent(event)"];
@@ -42,6 +42,7 @@ function audit(files) {
     ["existing mode regression test",12,["func TestAuthenticationIndependentOfGinMode","gin.DebugMode, gin.ReleaseMode, gin.TestMode"]]
   ];
   if(migrated) checks.push(["single scope snapshot",13,["func evaluateAgentEventScope","agentRootScopes.Observe(event)","policy := currentAgentScopePolicy()","owner := agentRootScopes.OwnerComm(event)","return policy.Evaluate(event.GetComm(), event.GetTag(), owner)"]]);
+  if(requireMigrated || files[5].includes("func kernelRiskFeedbackActionAllowed")) checks.push(["feedback reauthorization before budget and apply",5,["case action := <-kernelRiskFeedbackQueue:","settings := Deps.RuntimeSettingsSnapshot()","if !kernelRiskFeedbackActionAllowed(settings, action)","kernelRiskFeedbackDedup.Allow(action","applyKernelRiskFeedbackAction(action)"]]);
   const evidence=checks.map(([name,index,terms])=>{
     const src=files[index]; let pos=0; const lines=[];
     for(const term of terms){
@@ -71,13 +72,17 @@ function audit(files) {
     for(let i=0;i<6;i++){if(seen.has(i))continue;const group=[];for(let j=0;j<6;j++)if(reach[i][j]&&reach[j][i]){group.push(j+1);seen.add(j);}if(group.length>1)groups.push(group);}
     return {mode,rows,edges,permutations:orders.length,validOrders:valid.length,orders:valid,cyclicGroups:groups};
   });
-  return {evidence,graph,expectedGraph:graph[0].validOrders===0&&graph[1].validOrders===0&&graph[2].validOrders===1&&graph[2].orders[0].join(",")==="4,1,2,3,5,6"};
+  return {evidence,graph,migrated,expectedGraph:graph[0].validOrders===0&&graph[1].validOrders===0&&graph[2].validOrders===1&&graph[2].orders[0].join(",")==="4,1,2,3,5,6"};
 }
-const root = resolve(process.argv[2] ?? ".");
+const requireMigrated=process.argv.includes("--require-migrated");
+const root = resolve(process.argv.slice(2).find(x=>!x.startsWith("--")) ?? ".");
 const files = paths.map(path => readFileSync(resolve(root,path),"utf8"));
-const result = audit(files);
+const result = audit(files, requireMigrated);
 const negative = files.slice();
 negative[1] = negative[1].replace("Deps.KernelRisk(event, out)","removed()");
 const negativeDetected = audit(negative).evidence.some(x => !x.pass);
-console.log(JSON.stringify({...result,negativeDetected},null,2));
-if(!result.evidence.every(x=>x.pass)||!result.expectedGraph||!negativeDetected) process.exitCode=1;
+const migrationNegative = files.slice();
+migrationNegative[5] = migrationNegative[5].replace("if !kernelRiskFeedbackActionAllowed(settings, action)", "if false");
+const migrationNegativeDetected = !requireMigrated || audit(migrationNegative,true).evidence.some(x=>!x.pass);
+console.log(JSON.stringify({...result,negativeDetected,migrationNegativeDetected},null,2));
+if(!result.evidence.every(x=>x.pass)||!result.expectedGraph||!negativeDetected||!migrationNegativeDetected||(requireMigrated&&!result.migrated)) process.exitCode=1;
