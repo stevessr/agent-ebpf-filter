@@ -38,7 +38,7 @@ let negativeDetected=false;
 try { analyze(bad); } catch { negativeDetected=true; }
 if(!negativeDetected || data.names.length!==14) process.exitCode=1;
 if(process.argv.includes("--template")){
-  const template={schemaVersion:1,baselineCommit:data.baseline,experimentCommit:null,mode:null,workload:null,host:null,configHash:null,metricsVersion:null,cells:result.current.flatMap((row,i)=>row.map((cell,j)=>({fr:"F"+f(i+1),dp:"D"+f(j+1),structure:cell.kind,target:result.target[i][j].kind,status:"not_run",metric:null,unit:null,delta:null,ciLower:null,ciUpper:null,tolerance:null,independentRuns:null,evidence:null})))};
+  const template={schemaVersion:1,baselineCommit:data.baseline,experimentCommit:null,mode:null,workload:null,host:null,configHash:null,metricsVersion:null,planHash:null,confidenceLevel:null,intervalMethod:null,multiplicityPolicy:null,cells:result.current.flatMap((row,i)=>row.map((cell,j)=>({fr:"F"+f(i+1),dp:"D"+f(j+1),structure:cell.kind,target:result.target[i][j].kind,status:"not_run",metric:null,unit:null,delta:null,ciLower:null,ciUpper:null,tolerance:null,independentRuns:null,evidence:null})))};
   console.log(JSON.stringify(template,null,2));
 }else{
   console.log(JSON.stringify({counts:result.counts,results:result.results,negativeDetected,current:result.current.map(row=>row.map(c=>c.kind)),target:result.target.map(row=>row.map(c=>c.kind))},null,2));
