@@ -16,7 +16,7 @@ function measurementAudit(input,data,analyze){
  const modes=new Set(data.modes.map(x=>x.id));
  const nonempty=input.cells.some(x=>x.status!=="not_run");
  if(nonempty){
-  req(/^[0-9a-f]{40}$/.test(input.experimentCommit??"")&&modes.has(input.mode)&&text(input.workload)&&text(input.host)&&/^[0-9a-f]{64}$/.test(input.configHash??"")&&text(input.metricsVersion),"incomplete experiment provenance");
+  req(/^[0-9a-f]{40}$/.test(input.experimentCommit??"")&&modes.has(input.mode)&&text(input.workload)&&text(input.host)&&/^[0-9a-f]{64}$/.test(input.configHash??"")&&text(input.metricsVersion)&&/^[0-9a-f]{64}$/.test(input.planHash??"")&&finite(input.confidenceLevel)&&input.confidenceLevel>0&&input.confidenceLevel<1&&text(input.intervalMethod)&&text(input.multiplicityPolicy),"incomplete experiment provenance or statistical plan");
  }
  for(const c of input.cells){
   const id=c.fr+"/"+c.dp, e=expected.get(id);
@@ -45,15 +45,15 @@ function measurementAudit(input,data,analyze){
 }
 function selfTest(data,analyze,audit){
  const r=analyze(data),f=i=>String(i+1).padStart(2,"0");
- const fixture={schemaVersion:1,baselineCommit:data.baseline,experimentCommit:null,mode:null,workload:null,host:null,configHash:null,metricsVersion:null,cells:r.current.flatMap((row,i)=>row.map((c,j)=>({fr:"F"+f(i),dp:"D"+f(j),structure:c.kind,target:r.target[i][j].kind,status:"not_run",metric:null,unit:null,delta:null,ciLower:null,ciUpper:null,tolerance:null,independentRuns:null,evidence:null})))};
+ const fixture={schemaVersion:1,baselineCommit:data.baseline,experimentCommit:null,mode:null,workload:null,host:null,configHash:null,metricsVersion:null,planHash:null,confidenceLevel:null,intervalMethod:null,multiplicityPolicy:null,cells:r.current.flatMap((row,i)=>row.map((c,j)=>({fr:"F"+f(i),dp:"D"+f(j),structure:c.kind,target:r.target[i][j].kind,status:"not_run",metric:null,unit:null,delta:null,ciLower:null,ciUpper:null,tolerance:null,independentRuns:null,evidence:null})))};
  const assert=(x,m)=>{if(!x)throw Error(m)};
  const blank=audit(fixture,data,analyze);assert(blank.counts.not_run===196&&!blank.completeIsolationEvidence,"empty template");
- const measured=JSON.parse(JSON.stringify(fixture));Object.assign(measured,{experimentCommit:"a".repeat(40),mode:"observe",workload:"synthetic fixture",host:"synthetic fixture",configHash:"b".repeat(64),metricsVersion:"fixture-v1"});
+ const measured=JSON.parse(JSON.stringify(fixture));Object.assign(measured,{experimentCommit:"a".repeat(40),mode:"observe",workload:"synthetic fixture",host:"synthetic fixture",configHash:"b".repeat(64),metricsVersion:"fixture-v1",planHash:"c".repeat(64),confidenceLevel:0.95,intervalMethod:"synthetic fixture",multiplicityPolicy:"synthetic fixture"});
  const set=(id,lower,delta,upper,tol)=>Object.assign(measured.cells.find(x=>x.fr+"/"+x.dp===id),{status:"measured",metric:"synthetic paired difference",unit:"fixture unit",delta,ciLower:lower,ciUpper:upper,tolerance:tol,independentRuns:20,evidence:"synthetic fixture, not production"});
  set("F01/D02",-1,0,1,1);set("F01/D03",2,3,4,1);set("F01/D04",-2,0,1,1);set("F01/D05",-4,-3,-2,1);set("F01/D01",0,1,2,1);
  Object.assign(measured.cells.find(x=>x.fr+"/"+x.dp==="F01/D06"),{status:"unsupported",evidence:"synthetic capability unavailable"});
  const mixed=audit(measured,data,analyze);assert(mixed.counts.equivalent===1&&mixed.counts.violated===2&&mixed.counts.inconclusive===1&&mixed.counts.measured_not_isolation===1&&mixed.counts.unsupported===1&&!mixed.completeIsolationEvidence,"interval classification");
- const mutate=[x=>x.cells.pop(),x=>x.cells[1]=x.cells[0],x=>x.cells[1].target="A",x=>x.cells[1].ciLower=2,x=>x.cells[1].tolerance=-1,x=>x.cells[1].independentRuns=1,x=>x.cells[1].independentRuns=2.5,x=>x.cells[1].evidence="",x=>x.cells[1].status="pass",x=>x.configHash="",x=>x.cells.at(-1).delta=0,x=>x.cells[1].ciUpper=Infinity,x=>x.cells[5].evidence=""];
+ const mutate=[x=>x.cells.pop(),x=>x.cells[1]=x.cells[0],x=>x.cells[1].target="A",x=>x.cells[1].ciLower=2,x=>x.cells[1].tolerance=-1,x=>x.cells[1].independentRuns=1,x=>x.cells[1].independentRuns=2.5,x=>x.cells[1].evidence="",x=>x.cells[1].status="pass",x=>x.configHash="",x=>x.cells.at(-1).delta=0,x=>x.cells[1].ciUpper=Infinity,x=>x.cells[5].evidence="",x=>x.planHash="",x=>x.confidenceLevel=1,x=>x.intervalMethod="",x=>x.multiplicityPolicy=""];
  for(const m of mutate){const bad=JSON.parse(JSON.stringify(measured));m(bad);let failed=false;try{audit(bad,data,analyze)}catch{failed=true}assert(failed,"negative fixture accepted")}
  return {scope:"synthetic data contract tests only",blank:blank.counts,mixed:mixed.counts,negativeCases:mutate.length};
 }
