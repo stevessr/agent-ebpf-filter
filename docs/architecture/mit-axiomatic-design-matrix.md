@@ -288,3 +288,44 @@ node scripts/verify_axiomatic_matrix.mjs --template > matrix-measurements.json
 ## 8. 验证与限制
 
 矩阵生成逻辑已执行，196+196 格、证据 ID 引用和重复单元负向对照已检查；SCC/排列计数由脚本计算。未执行 Go 并发、真实 BPF、性能及统计干预实验。只改分析/验证工具，不改生产路径和默认权限。当前所有定量单元仍未测；本轮填充的是结构证据与目标隔离契约，不得作为生产安全认证。
+
+
+## 9. 第六轮：独立算法验证、实验数据契约与 CI
+
+本轮新增验证层，不改变上述矩阵分类，不把抽象检查当作实测。上一轮 head `e7f1c83433617ec39c8eb7b4aec885c80b0dcd2a` 的 Documentation / GitHub Pages 与 Repository integrity 已成功。
+
+### 独立图算法对照
+
+运行 `node scripts/test_axiomatic_matrix.mjs`。使用独立的全排列计数和 BFS 可达性参考算法对全部四节点无自环有向图进行交叉验证（12 条可能有向边，2^12 = 4096 个图）。验证边数、强连通分量、精确排列数及给出的示例排序；另检查六类边在五种模式下的 30 个条件组合、392 个 Markdown/JSON 对应单元及六种非法矩阵输入。本轮实际执行同一核心逻辑，全部通过。此结果支持图计算正确性，不验证边的物理因果真实性或 14 节点模型的独立公理成立。
+
+### 实验数据验收契约
+
+```sh
+node scripts/verify_axiomatic_matrix.mjs --template > matrix-measurements.json
+node scripts/verify_axiomatic_measurements.mjs --self-test
+node scripts/verify_axiomatic_measurements.mjs matrix-measurements.json
+# 严格检查全部目标 Z 单元具有等效区间证据：
+node scripts/verify_axiomatic_measurements.mjs matrix-measurements.json --require-complete-isolation
+```
+
+每份文件必须有全部 196 个唯一 FR/DP 键，并与结构分类及目标分类一致。已填写记录要求实验 commit、模式、workload、host、config SHA-256、metricsVersion、预注册计划 SHA-256、置信水平（0 到 1 之间）、区间方法、多重比较策略。测量记录还要求指标/单位、估计值、有序且包含估计值的有限区间、非负容差、至少两个独立 run、证据索引。这里至少两个仅为输入合法性最低限制，不是统计功效要求。
+
+| 输入状态/区间 | 判定 |
+| --- | --- |
+| not_run | 未执行；所有测量字段必须为 null |
+| unsupported | 不适用/能力不可用，必须说明原因，不能冒充等效 |
+| measured，Z，区间完全在 [-δ,+δ] 内 | equivalent |
+| measured，Z，区间完全位于容差区间同一侧之外 | violated |
+| measured，Z，其余区间 | inconclusive |
+| measured，非 Z | measured_not_isolation，不能凭区间判定主功能通过 |
+
+存在 violated 时程序退出非零；严格模式下任何一个 Z 缺测、不适用或不确定也退出非零。若多个宿主或指标，须分别保留结果；不得跨指标平均抵消违反。置信区间的选择、真实独立样本数、数据内容、计划是否事前冻结、证据真实性、统计功效和家族错误率仍由实验及独立审查确认。当前工具检查声明的数据契约，不重新计算原始样本置信区间，不把 equivalent 当作全部 FR/安全门禁通过。
+
+实际执行合成验证：空模板 196/196 not_run；混合 fixture 1 equivalent、2 violated、1 inconclusive、1 measured_not_isolation、1 unsupported、190 not_run；17 种非法输入全部拒绝。上述数值只属于合成 fixture，不写入真实定量矩阵。
+
+### 自动化验证
+
+- Repository integrity 新增独立的 `axiomatic-design` job，运行一级源码锚点、抽象反例、需求追踪、独立图 oracle、实验数据自测与空模板往返校验。
+- [Axiomatic design rootless validation](../../.github/workflows/axiomatic-design-rootless.yml) 仅在相关文档/脚本/工作流变更时触发（也支持手动触发），使用仓库 Go toolchain 对已有 agentscope、agentidentity、eventnoise、collectorcodec、eventqueue、taskgroup、detectionengineering、agentboundary、componentipc 运行真实 race 回归；不加载 BPF、不使用 sudo、不修改系统策略。不是完整 app 或特权集成测试。
+
+本轮局部核心 JS 算法与数据自测已执行；新 CI job 是否完成应以最新 commit 的实际 workflow 结果为准。真实定量矩阵仍有 196 个 not_run；Go race、特权 enforcement、隐私全出口、性能及故障干预不能用本轮合成测试替代。
