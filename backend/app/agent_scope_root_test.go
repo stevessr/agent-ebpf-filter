@@ -70,3 +70,52 @@ func TestAgentScopeRootCacheExpiresAndBounds(t *testing.T) {
 		t.Fatal("root whitelist accepted an unattributed ordinary shell")
 	}
 }
+
+// Both legal snapshots have equal predicates for this event. A mixed read
+// would produce an impossible pair under concurrent publication.
+func TestAgentScopeAdmissionUsesOneSnapshot(t *testing.T) {
+	agentScopes.writeMu.Lock()
+	defer agentScopes.writeMu.Unlock()
+	old := currentAgentScopePolicy()
+	defer agentScopes.snapshot.Store(old)
+	allow := agentScopePolicy{
+		Capture: agentScopeList{Mode: agentScopeBlacklist},
+		Monitor: agentScopeList{Mode: agentScopeBlacklist},
+	}
+	deny := agentScopePolicy{
+		Capture: agentScopeList{Mode: agentScopeWhitelist},
+		Monitor: agentScopeList{Mode: agentScopeWhitelist},
+	}
+	agentScopes.snapshot.Store(&allow)
+	event := &pb.Event{Comm: "axiomatic-fixture"}
+	if got := evaluateAgentEventScope(event); !got.Capture || !got.Monitor {
+		t.Fatalf("allow snapshot: %+v", got)
+	}
+	agentScopes.snapshot.Store(&deny)
+	if got := evaluateAgentEventScope(event); got.Capture || got.Monitor {
+		t.Fatalf("deny snapshot: %+v", got)
+	}
+	if got := evaluateAgentEventScope(nil); got.Capture || got.Monitor {
+		t.Fatalf("nil event admission: %+v", got)
+	}
+	stop, done := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				agentScopes.snapshot.Store(&allow)
+				agentScopes.snapshot.Store(&deny)
+			}
+		}
+	}()
+	defer func() { close(stop); <-done }()
+	for i := 0; i < 10000; i++ {
+		got := evaluateAgentEventScope(event)
+		if got.Capture != got.Monitor {
+			t.Fatalf("mixed scope snapshot: %+v", got)
+		}
+	}
+}
