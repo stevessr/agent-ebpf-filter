@@ -5,12 +5,36 @@ on:
     paths:
       - "docs/architecture/mit-axiomatic-design*.md"
       - "scripts/*axiomatic*.mjs"
+      - "backend/internal/axiomaticvalidation/**"
+      - "backend/internal/agentscope/**"
+      - "backend/internal/agentidentity/**"
+      - "backend/internal/eventnoise/**"
+      - "backend/internal/collectorcodec/**"
+      - "backend/internal/eventqueue/**"
+      - "backend/internal/taskgroup/**"
+      - "backend/internal/detectionengineering/**"
+      - "backend/internal/agentboundary/**"
+      - "backend/internal/componentipc/**"
+      - "backend/go.mod"
+      - "backend/go.sum"
       - "scripts/axiomatic_design_matrix.json"
       - ".github/workflows/axiomatic-design-rootless.yml"
   push:
     paths:
       - "docs/architecture/mit-axiomatic-design*.md"
       - "scripts/*axiomatic*.mjs"
+      - "backend/internal/axiomaticvalidation/**"
+      - "backend/internal/agentscope/**"
+      - "backend/internal/agentidentity/**"
+      - "backend/internal/eventnoise/**"
+      - "backend/internal/collectorcodec/**"
+      - "backend/internal/eventqueue/**"
+      - "backend/internal/taskgroup/**"
+      - "backend/internal/detectionengineering/**"
+      - "backend/internal/agentboundary/**"
+      - "backend/internal/componentipc/**"
+      - "backend/go.mod"
+      - "backend/go.sum"
       - "scripts/axiomatic_design_matrix.json"
       - ".github/workflows/axiomatic-design-rootless.yml"
   workflow_dispatch:
@@ -40,3 +64,9 @@ jobs:
       - name: Authenticated component transport (F10/F12)
         working-directory: backend
         run: go test -race -count=1 ./internal/componentipc
+
+      - name: Execute finite cross-component interventions with fixture counters
+        working-directory: backend
+        run: |
+          test -z "$(gofmt -l internal/axiomaticvalidation/*.go)"
+          go test -race -count=1 -v ./internal/axiomaticvalidation
