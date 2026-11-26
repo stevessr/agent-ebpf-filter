@@ -389,3 +389,34 @@ node scripts/verify_axiomatic_measurements.mjs matrix-measurements.json
 | TestReplayWindowIntervention | 32 | detected=11, input_mutations=0, enforcement_claims=0 |
 
 合计 274 个有限组合全部符合 oracle，`go test -race` 通过。后续 commit `2107de874ed6e23614198b1762d5af7a79868449` 将已观察队列和 replay 总量加入显式断言，需以新 head 的 CI 独立确认。该结果只填补局部确定性契约证据，不是 196 个全系统数值单元的测量，也不证明统计独立性。
+
+
+## 11. 第八轮：公理化落地（设计 B，保留单进程与原 ABI）
+
+**将功能独立性要求转化为可执行契约，而不是把结构图中的 Z 直接写成实测零。** 本轮开始修改生产实现；第五轮矩阵仍是固定 baseline 的历史分析，不覆盖原始数据。以下是迁移后的增量契约与验证状态。
+
+| 契约 | FR/DP | 可执行约束 | 实现/证据状态 |
+| --- | --- | --- | --- |
+| AD-I01 事件范围一致性 | F04/D04、F03/D04 | 对每个事件，capture 和 monitor 原始谓词使用同一不可变 policy 快照及同一 owner；有效监控仍需 capture AND monitor | 已接入生产 broadcaster；新增并发回归，待最新 CI |
+| AD-I02 当前反馈授权 | F06/D05、F06/D07 | 排队提案不是永久授权；worker 在预算和 apply 前按当前设置检查 broad gate、类别开关、阈值、有限分数、非空目标；port/exec-name 保留 95 分门槛 | 已接入 worker；新增 7680 个有限组合授权谓词测试，待最新 CI |
+| AD-I03 静态与自动规则来源隔离 | F06/D05、F06/D07 | 人工与自动 owner 分离；撤销自动来源不删除人工规则；所有 map 写入由授权边界协调 | 待实现；当前共享 map key 不代表来源账本 |
+| AD-I04 授权提交线性化 | F06/D12、F07/D06 | 撤销或更新的线性化点与实际 map 操作一致；处理过期、代际与部分生效 | 待实现；AD-I02 缩小失效窗口，不提供原子 revoke/apply 保证 |
+| AD-I05 事实账本与表现隔离 | F02/D11、F01/D05、F11/D13 | 原始序号在过滤前核对，明确每阶段主动过滤/拒绝/未知损失；慢消费者不改变授权 | 局部队列 fixture 已通过；全链路待实现/验证 |
+| AD-I06 安全及信息公理 | F07/F09/F13 | 未授权修改和秘密泄露是硬门禁；联合成功率仅由实际完整 run 向量估计 | 待实际实验；不能用图、fixture 或平均分替代 |
+
+### 11.1 设计参数分解
+
+F04 拆成 F04a（确定 capture 资格）、F04b（确定 monitor 资格）、F04c（事件内决策一致性）。D04a、D04b 是独立配置谓词；D04c 是不可变快照/owner 绑定。对冻结事件 e 和快照 s，定义 `C=Allows(s.Capture,e,owner)`、`M=Allows(s.Monitor,e,owner)`、`EffectiveMonitor=C AND M`。C 和 M 的配置独立性不意味着 EffectiveMonitor 独立于 C。该子模型仅说明契约关系：原始谓词可独立改变；有效输出存在有意依赖。
+
+F06 拆成 F06a（静态授权规则有效）、F06b（自动风险提案生成）、F06c（当前授权验证）、F06d（实际提交、撤销与对账）。D06a 静态规则来源、D06b detector proposal、D06c policy snapshot predicate、D06d source-aware commit/reconciler。此次只落地 D06c 的当前快照检查，尚未完成 D06d。风险分数不能绕过静态授权，也不将告警等同于实际执行证据。
+
+### 11.2 实现与回归
+
+- `backend/internal/agentscope/policy.go` 新增 `Admission` 与 `Policy.Evaluate`，保留既有 JSON 和谓词语义；`backend/app/agent_scope_policy.go` 新增 `evaluateAgentEventScope`，`backend/app/ws_api.go` 每个广播事件只求值一次，并保留既有 attribution → scope → semantic → record 顺序。
+- `TestAgentScopeAdmissionUsesOneSnapshot` 以两份合法的全允许/全拒绝策略并发发布，验证 10000 次读取不出现混合结果，并验证两种确定性初值及 nil。此回归不能证明任意线程调度均已覆盖。
+- `backend/app/events/kernel_risk_feedback.go` 新增 `kernelRiskFeedbackActionAllowed`，当前设置不再允许的排队提案在预算消耗和 enforcer 前被拒绝。未改变人工规则或 map ABI，不改变既有捕获/监控配置语义，不扩大自动权限。当前快照检查与 apply 之间仍可能并发更新；没有代际、过期和来源化撤销，禁止把 AD-I02 当作 AD-I04 完成。
+- `TestKernelRiskFeedbackCurrentAuthorization` 覆盖 32 种五开关组合 × 4 个阈值 × 6 种 action kind × 10 个分数，共 7680 个有限输入；包括未知 kind、NaN/Inf 及边界分数。它验证纯授权谓词，不声称实际内核阻断。
+- `Component boundaries` 加入 app 和 events 定向 race 回归；`Repository integrity` 使用 `--require-migrated` 强制检查迁移后的调用顺序，禁止回退到旧快照路径。旧基线核查仍可用不带该选项的脚本。
+- 第七轮 head `ca0058c0bc7e85549b039b94e2657247f15b77a4` 的 Repository integrity、Documentation、Rootless validation、Backend hot path regression 均成功；Renew desktop 失败原因是 `go mod tidy -diff` 缺四条 go.mod checksum。本轮按实际日志补齐 `desktop/renew/go.sum`，不绕过一致性门禁；新 CI 待核实。
+
+本轮选择最小兼容的单进程改造，而非立即拆分 IPC。只有完成 AD-I03/I04、全链路账本及真实负载测量后，才能重新评估闭环图和第二公理。此次没有数值全系统矩阵实测，不能声称两条公理已经满足。
