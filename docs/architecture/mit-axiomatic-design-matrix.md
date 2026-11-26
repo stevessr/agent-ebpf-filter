@@ -329,3 +329,49 @@ node scripts/verify_axiomatic_measurements.mjs matrix-measurements.json --requir
 - [Axiomatic design rootless validation](../../.github/workflows/axiomatic-design-rootless.yml) 仅在相关文档/脚本/工作流变更时触发（也支持手动触发），使用仓库 Go toolchain 对已有 agentscope、agentidentity、eventnoise、collectorcodec、eventqueue、taskgroup、detectionengineering、agentboundary、componentipc 运行真实 race 回归；不加载 BPF、不使用 sudo、不修改系统策略。不是完整 app 或特权集成测试。
 
 本轮局部核心 JS 算法与数据自测已执行；新 CI job 是否完成应以最新 commit 的实际 workflow 结果为准。真实定量矩阵仍有 196 个 not_run；Go race、特权 enforcement、隐私全出口、性能及故障干预不能用本轮合成测试替代。
+
+
+## 10. 第七轮：真实组件干预与原始样本推导
+
+已核查第六轮 head `efcb7a39827135f1fe4c10c0d6c07ba6032f6f5b` 的实际 CI：Documentation / GitHub Pages、Repository integrity、Axiomatic design rootless validation 均 success。运行 45784115301 的 job 139786464570 日志明确显示九个 Go 包均 `ok`（race）；运行 45784115246 的 job 139786464481 确认 4096 图、30 模式条件、392 格、6+17 负例及空模板往返检查。不是新的特权集成或性能数据。
+
+### 10.1 真实组件有限干预
+
+新增 [interventions_test.go](../../backend/internal/axiomaticvalidation/interventions_test.go)，执行：
+
+```sh
+cd backend
+go test -race -count=1 -v ./internal/axiomaticvalidation
+```
+
+| 预注册 fixture | 组合数 | 独立预期（非实测结果） | 关联矩阵与边界 |
+| --- | ---: | --- | --- |
+| scope | 72 | capture、monitor 原始 predicate 各改变 72 次；另一 predicate 和已观察 owner 不变 | F04/D04、F03/D04 局部纯组件契约；实际有效监控 = capture AND monitor，不能宣称两者整体输出独立 |
+| noise | 128 | 4 个普通事件改变忽略状态，0 个 protected 事件被此噪声过滤器忽略 | F11/D04 局部过滤策略，不能外推至前置 capture gate、所有出口或内核控制 |
+| queue | 42 | 378 次 offer = 114 接收 + 264 拒绝，114 FIFO 消费，0 剩余 | F13/D13，F11/D13 的前置 admission 证据，不代表归档、WS 或 kernel loss 端到端计数 |
+| replay | 32 | 11 个匹配窗口；0 个输入突变、0 个 enforcement claim | F05/D05、F08/D05 局部离线规则契约；不代表实际模型准确率或无特权 map 写入的完整审计 |
+
+以上共 274 个确定性组合（队列内部 378 次 offer）。预期值来自事前有限组合和独立 oracle。执行通过与否取决于真实 CI。测试不构造 app broadcaster、不加载 BPF、不写内核策略，不将 fixture 个数当作独立随机样本或全系统 Jacobian 的数值。CI 触发范围现包括实际被测组件与 go.mod/go.sum，防止源码更新后漏跑。
+
+### 10.2 原始配对样本到定量矩阵
+
+新工具 [derive_axiomatic_measurements.mjs](../../scripts/derive_axiomatic_measurements.mjs) 以预声明、有界、独立的配对 run 差值为统计单位。对第 j 个 planned cell 的 n 个差值 d_k = intervention_k - baseline_k，估计量为 mean(d_k)。若每个差值事前限制在 [a,b] 且 run 相互独立，采用 Hoeffding 界及 union bound，对 m 个预先声明单元以家族置信水平 1-alpha 计算：
+
+```text
+h = (b-a) * sqrt(log(2*m/alpha)/(2*n))
+CI = [max(a, mean-h), min(b, mean+h)]
+n_for_half_width <= tolerance target:
+    ceil((b-a)^2 * log(2*m/alpha) / (2*tolerance^2))
+```
+
+最后一式表示保证半宽不超过容差所需的最小样本预算（符号不表示 n 的上界）；等效区间还取决于观测均值离零的距离。它不是功效保证；当真实效应靠近边界时需更大样本。若 tolerances=0，不给有限精度预算。区间方法适用于已知有界独立差值；延迟、RSS 等无自然有限界指标必须预定义有界估计量或采用另外经审查的方法，不允许对真实异常值事后截断使其达标。允许同一独立 run 在不同 FR 共用，因为 union bound 不要求不同单元独立；同一单元重复 run ID 被拒绝，但 ID 唯一不能证明独立。
+
+计划 JSON 顶层字段：schemaVersion=1、baselineCommit、experimentCommit、mode、workload、host、configHash、metricsVersion、alpha、experiments。experiments 每项：fr、dp、metric、unit、intervention、runUnit、minDifference、maxDifference、tolerance、expectedPairs。原始 JSON：schemaVersion=1、planHash（计划文件精确字节的 SHA-256）、records；每项 fr、dp、evidence、pairs，pairs 每项 runId、baseline、intervention。计划与容差必须在采样前冻结、独立留存；哈希仅绑定内容，不证明采样前存在。m 包含所有 planned cells，包括缺测项；部分样本数量不符直接拒绝，完全缺测保留 not_run。一次计划只允许每单元一个指标；多指标需另外预定义跨计划多重比较策略。
+
+```sh
+node scripts/derive_axiomatic_measurements.mjs --self-test
+node scripts/derive_axiomatic_measurements.mjs plan.json raw.json > matrix-measurements.json
+node scripts/verify_axiomatic_measurements.mjs matrix-measurements.json
+```
+
+本轮在执行环境中实际调用核心推导函数：合成 fixture m=2、n=100、差值支持 [-1,1]、alpha=.05、均值=0，半宽 0.29604143746015965，与独立公式一致；195 个缺测单元不填零；12 个错误计划/样本负例均拒绝。合成 fixture 不能写入真实定量矩阵。新脚本自测加入 Repository integrity。真实定量矩阵仍未获得生产干预数据；统计工具不验证原始测量真实性、跨 run 独立性、宿主能力、控制权限或所有安全硬门禁。
