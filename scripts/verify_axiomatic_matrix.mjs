@@ -1,12 +1,15 @@
 #!/usr/bin/env node
 // Qualitative structural graphs and desired contracts, not a measured Jacobian.
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-const data = JSON.parse(readFileSync(fileURLToPath(new URL("./axiomatic_design_matrix.json", import.meta.url)), "utf8"));
-function analyze(d){
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { resolve } from "node:path";
+export const data = JSON.parse(readFileSync(fileURLToPath(new URL("./axiomatic_design_matrix.json", import.meta.url)), "utf8"));
+export function analyze(d){
+ if(!Array.isArray(d.names)||d.names.length<1||d.names.length>20||new Set(d.names).size!==d.names.length||!d.names.every(x=>typeof x==="string"&&x.trim()))throw Error("bad names");
+ if(!Array.isArray(d.modes)||!d.modes.length||new Set(d.modes.map(m=>m.id)).size!==d.modes.length||!d.modes.every(m=>typeof m.id==="string"&&["wrapper","feedback","ipc"].every(k=>typeof m[k]==="boolean")))throw Error("bad modes");
  const n=d.names.length, matrix=(columns,target=false)=>{
   const a=Array.from({length:n},(_,i)=>Array.from({length:n},(_,j)=>i===j?{kind:"D",reason:"主责任映射，未证明达到指标"}:{kind:target?"Z":"?",reason:target?"在冻结适用范围内应满足交叉影响容差；未经测量":"未获得足够直接证据，不等于零"}));
-  for(const [col,entries] of Object.entries(columns)){let seen=new Set();for(const entry of entries){const [row,kind,x,y]=entry;if(row<1||row>n||+col<1||+col>n||row===+col||seen.has(row))throw Error("bad/duplicate cell");seen.add(row);if(target){if(!["A","W","C","B","I"].includes(kind)||!x)throw Error("bad target");a[row-1][+col-1]={kind,reason:x};}else{if(!["X","H","W","C","B","I"].includes(kind)||!y||!x.split(" ").every(id=>d.evidence[id]))throw Error("bad evidence");a[row-1][+col-1]={kind,evidence:x.split(" "),reason:y};}}}
+  for(const [col,entries] of Object.entries(columns)){let seen=new Set();for(const entry of entries){if(!Array.isArray(entry)||entry.length!==(target?3:4))throw Error("bad entry shape");const [row,kind,x,y]=entry;if(!Number.isInteger(row)||String(+col)!==col||!Number.isInteger(+col)||row<1||row>n||+col<1||+col>n||row===+col||seen.has(row))throw Error("bad/duplicate cell");seen.add(row);if(target){if(!["A","W","C","B","I"].includes(kind)||typeof x!=="string"||!x.trim())throw Error("bad target");a[row-1][+col-1]={kind,reason:x};}else{if(!["X","H","W","C","B","I"].includes(kind)||typeof y!=="string"||!y.trim()||typeof x!=="string"||!x.split(" ").every(id=>Object.hasOwn(d.evidence,id)))throw Error("bad evidence");a[row-1][+col-1]={kind,evidence:x.split(" "),reason:y};}}}
   return a;
  };
  const current=matrix(d.currentColumns),target=matrix(d.targetColumns,true);
@@ -26,6 +29,7 @@ function analyze(d){
  const results=d.modes.map(m=>({mode:m.id,current:graph(current,m),hypothesesActive:graph(current,m,true),target:graph(target,m)}));
  return {current,target,counts:{current:counts(current),target:counts(target)},results};
 }
+if(process.argv[1] && import.meta.url===pathToFileURL(resolve(process.argv[1])).href){
 const result = analyze(data);
 const f = n => String(n).padStart(2,"0");
 const bad = JSON.parse(JSON.stringify(data));
@@ -38,4 +42,6 @@ if(process.argv.includes("--template")){
   console.log(JSON.stringify(template,null,2));
 }else{
   console.log(JSON.stringify({counts:result.counts,results:result.results,negativeDetected,current:result.current.map(row=>row.map(c=>c.kind)),target:result.target.map(row=>row.map(c=>c.kind))},null,2));
+}
+
 }
