@@ -101,3 +101,18 @@ func AllowsWithOwner(list List, comm, tag, owner string) bool {
 	}
 	return !matched
 }
+
+// Admission captures the two independent predicates evaluated against one
+// immutable policy and one observed identity. Effective monitoring requires
+// capture as well; this is an intentional downstream dependency.
+type Admission struct {
+	Capture bool
+	Monitor bool
+}
+
+func (p Policy) Evaluate(comm, tag, owner string) Admission {
+	return Admission{
+		Capture: AllowsWithOwner(p.Capture, comm, tag, owner),
+		Monitor: AllowsWithOwner(p.Monitor, comm, tag, owner),
+	}
+}
