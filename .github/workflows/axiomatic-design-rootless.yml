@@ -1,0 +1,42 @@
+name: Axiomatic design rootless validation
+
+on:
+  pull_request:
+    paths:
+      - "docs/architecture/mit-axiomatic-design*.md"
+      - "scripts/*axiomatic*.mjs"
+      - "scripts/axiomatic_design_matrix.json"
+      - ".github/workflows/axiomatic-design-rootless.yml"
+  push:
+    paths:
+      - "docs/architecture/mit-axiomatic-design*.md"
+      - "scripts/*axiomatic*.mjs"
+      - "scripts/axiomatic_design_matrix.json"
+      - ".github/workflows/axiomatic-design-rootless.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  domain-regressions:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Identity and scope contracts (F03/F04)
+        working-directory: backend
+        run: go test -race -count=1 ./internal/agentscope ./internal/agentidentity ./internal/eventnoise
+      - name: Collector codec and bounded handoff (F01/F13)
+        working-directory: backend
+        run: go test -race -count=1 ./internal/collectorcodec ./internal/eventqueue ./internal/taskgroup
+      - name: Read-only research and policy proposals (F06/F08)
+        working-directory: backend
+        run: go test -race -count=1 ./internal/detectionengineering ./internal/agentboundary
+      - name: Authenticated component transport (F10/F12)
+        working-directory: backend
+        run: go test -race -count=1 ./internal/componentipc
