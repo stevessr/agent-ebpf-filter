@@ -69,15 +69,20 @@ func agentScopeAllows(list agentScopeList, comm, tag string) bool {
 	return agentscope.Allows(list, comm, tag)
 }
 
-func captureAgentEvent(event *pb.Event) bool {
+// evaluateAgentEventScope evaluates capture and monitor from the same policy
+// snapshot and owner observation, even during concurrent configuration updates.
+func evaluateAgentEventScope(event *pb.Event) agentscope.Admission {
 	if event == nil {
-		return false
+		return agentscope.Admission{}
 	}
-	// The event has already passed EnrichEventContext. Remember trustworthy
-	// root identity before whitelist admission so subsequent script-driven
-	// edits can be matched by the originating Agent (e.g. codex -> python).
 	agentRootScopes.Observe(event)
-	return agentScopeAllowsWithRoot(currentAgentScopePolicy().Capture, event, agentRootScopes.OwnerComm(event))
+	policy := currentAgentScopePolicy()
+	owner := agentRootScopes.OwnerComm(event)
+	return policy.Evaluate(event.GetComm(), event.GetTag(), owner)
+}
+
+func captureAgentEvent(event *pb.Event) bool {
+	return evaluateAgentEventScope(event).Capture
 }
 
 func monitorAgentEvent(event *pb.Event) bool {
