@@ -7,6 +7,8 @@ on:
       - "backend/internal/agentidentity/**"
       - "backend/internal/eventnoise/**"
       - "backend/app/agent_scope_*.go"
+      - "backend/app/ws_api.go"
+      - "backend/app/events/kernel_risk_feedback*.go"
       - "backend/app/event_path_filter*.go"
       - ".github/workflows/component-boundaries.yml"
   push:
@@ -15,6 +17,8 @@ on:
       - "backend/internal/agentidentity/**"
       - "backend/internal/eventnoise/**"
       - "backend/app/agent_scope_*.go"
+      - "backend/app/ws_api.go"
+      - "backend/app/events/kernel_risk_feedback*.go"
       - "backend/app/event_path_filter*.go"
       - ".github/workflows/component-boundaries.yml"
 
@@ -58,3 +62,9 @@ jobs:
       - name: Verify old app contract with extracted components
         working-directory: backend
         run: go test ./app -run 'TestAgentScope|TestDefaultIgnoredEventPaths|TestNormalizeIgnoredEventPaths|TestPathMatchesIgnoredPrefix|TestShouldIgnoreEventPath|TestEmptyIgnoredPathsRemainExplicitInRuntimeJSON' -count=1
+
+      - name: Axiomatic scope snapshot concurrency and feedback authorization
+        working-directory: backend
+        run: |
+          go test -race ./app -run '^TestAgentScopeAdmissionUsesOneSnapshot$' -count=1
+          go test -race ./app/events -run '^TestKernelRiskFeedbackCurrentAuthorization$' -count=1 -v

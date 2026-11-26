@@ -4,7 +4,7 @@
 
 ## 1. 三种不同的控制判断
 
-在实际 `authMiddleware` 中，release 模式且 `DISABLE_AUTH != "true"` 时会检查 Token（`?key=`、`X-API-KEY` 或 Bearer），并使用常量时间比较；调试配置与集群通道有各自条件。敏感路由还必须通过 Feature Build、Runtime Gate。**不要把“开发环境未启用认证”写成生产安全保证。**
+在实际 `authMiddleware` 中，`authEnforced()` 仅由 `DISABLE_AUTH != "true"` 决定，与 Gin 的 Debug、Release、Test 模式无关。除显式禁用认证或通过独立的集群请求认证外，普通请求必须提供非空 Token（`?key=`、`X-API-KEY` 或 Bearer），并通过常量时间比较。`backendListenHost()` 要求禁用认证的 TCP 监听仅使用 loopback 字面 IP。敏感路由仍需按其注册方式通过 Feature Build、Runtime Gate 等独立校验。源码见 `backend/app/helpers_auth.go`、`backend/app/http_security.go`，已有 `TestAuthenticationIndependentOfGinMode` 回归测试。
 
 ```mermaid
 flowchart TD

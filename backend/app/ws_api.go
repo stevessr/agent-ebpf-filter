@@ -158,10 +158,11 @@ func runEventBroadcaster(ctx context.Context) {
 			// redacts it in place; the broadcaster owns the event outright
 			// once it leaves the queue (see enqueueBroadcastEvent).
 			// Capture admission runs after attribution, before analysis or retention.
-			if !captureAgentEvent(event) {
+			admission := evaluateAgentEventScope(event)
+			if !admission.Capture {
 				continue
 			}
-			monitorAllowed := monitorAgentEvent(event)
+			monitorAllowed := admission.Monitor
 			var alerts []*pb.Event
 			if monitorAllowed {
 				alerts = buildSemanticAlerts(event)

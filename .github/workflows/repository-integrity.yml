@@ -19,3 +19,24 @@ jobs:
         run: |
           bash -n scripts/install.sh scripts/package-release.sh scripts/install-service.sh scripts/tests/install-release.sh
           bash scripts/tests/install-release.sh
+
+  axiomatic-design:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Verify source anchors and original six-FR graph
+        run: node scripts/verify_axiomatic_design.mjs --require-migrated
+      - name: Verify feedback counterexamples and traceability
+        run: |
+          node scripts/model_axiomatic_feedback.mjs
+          node scripts/verify_axiomatic_traceability.mjs
+      - name: Verify matrix graph against exhaustive independent oracle
+        run: node scripts/test_axiomatic_matrix.mjs
+      - name: Verify measurement contract and empty-template round trip
+        run: |
+          node scripts/verify_axiomatic_measurements.mjs --self-test
+          node scripts/verify_axiomatic_matrix.mjs --template > "$RUNNER_TEMP/axiomatic-measurements.json"
+          node scripts/verify_axiomatic_measurements.mjs "$RUNNER_TEMP/axiomatic-measurements.json"
+      - name: Derive confidence intervals from preregistered paired samples
+        run: node scripts/derive_axiomatic_measurements.mjs --self-test
