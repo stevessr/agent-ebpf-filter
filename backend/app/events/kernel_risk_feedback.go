@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"path/filepath"
 	"strconv"
@@ -88,6 +89,12 @@ func runKernelRiskFeedbackWorker(ctx context.Context, done chan struct{}) {
 			settings := Deps.RuntimeSettingsSnapshot()
 			if !settings.PolicyManagementEnabled || !settings.KernelRiskFeedback.Enabled {
 				Deps.CollectorMetrics.RecordKernelRiskFeedback(false, errors.New("kernel risk feedback disabled or policy management gate closed"))
+				continue
+			}
+			// Proposals carry evidence, not a permanent authorization. Reject
+			// actions that no longer satisfy the worker's current policy snapshot.
+			if !kernelRiskFeedbackActionAllowed(settings, action) {
+				Deps.CollectorMetrics.RecordKernelRiskFeedback(false, errors.New("kernel risk feedback action no longer permitted"))
 				continue
 			}
 			if !kernelRiskFeedbackDedup.Allow(action, settings.KernelRiskFeedback, time.Now()) {
@@ -262,6 +269,34 @@ func kernelRiskFeedbackActions(settings RuntimeSettings, event *pb.Event, decisi
 
 func KernelRiskFeedbackActions(settings RuntimeSettings, event *pb.Event, decision KernelRiskDecision) []KernelRiskFeedbackAction {
 	return kernelRiskFeedbackActions(settings, event, decision)
+}
+
+// kernelRiskFeedbackActionAllowed is a pure authorization predicate for a
+// queued proposal. It does not provide a linearizable revoke/apply boundary:
+// settings can still change after this snapshot and before a map mutation.
+func kernelRiskFeedbackActionAllowed(settings RuntimeSettings, action kernelRiskFeedbackAction) bool {
+	feedback := settings.KernelRiskFeedback
+	threshold := kernelRiskFeedbackMinScore(feedback)
+	if !settings.PolicyManagementEnabled || !feedback.Enabled ||
+		math.IsNaN(action.Score) || math.IsInf(action.Score, 0) ||
+		math.IsNaN(threshold) || math.IsInf(threshold, 0) ||
+		action.Score < threshold || strings.TrimSpace(action.Target) == "" {
+		return false
+	}
+	switch action.Kind {
+	case kernelRiskFeedbackKindNetworkIP:
+		return feedback.EnforceNetwork
+	case kernelRiskFeedbackKindNetworkPort:
+		return feedback.EnforceNetwork && action.Score >= 95
+	case kernelRiskFeedbackKindLSMFileName:
+		return feedback.EnforceFileNames
+	case kernelRiskFeedbackKindLSMExecPath:
+		return feedback.EnforceExec
+	case kernelRiskFeedbackKindLSMExecName:
+		return feedback.EnforceExec && action.Score >= 95
+	default:
+		return false
+	}
 }
 
 func applyKernelRiskFeedbackAction(action kernelRiskFeedbackAction) error {
