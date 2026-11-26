@@ -1,7 +1,6 @@
 package axiomaticvalidation
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -156,7 +155,7 @@ func TestQueueCapacityIntervention(t *testing.T) {
 			rejected += drop
 		}
 	}
-	if cases != 42 || admitted != consumed || offered != admitted+rejected {
+	if cases != 42 || offered != 378 || admitted != 114 || rejected != 264 || admitted != consumed || offered != admitted+rejected {
 		t.Fatal("aggregate conservation")
 	}
 	t.Logf("AD_FIXTURE queue cases=%d offered=%d admitted=%d rejected=%d consumed=%d", cases, offered, admitted, rejected, consumed)
@@ -201,8 +200,8 @@ func TestReplayWindowIntervention(t *testing.T) {
 			}
 		}
 	}
-	if cases != 32 || mutation != 0 || enforcement != 0 {
-		t.Fatal(fmt.Sprintf("replay invariant: cases=%d mutation=%d enforcement=%d", cases, mutation, enforcement))
+	if cases != 32 || detected != 11 || mutation != 0 || enforcement != 0 {
+		t.Fatalf("replay invariant: cases=%d detected=%d mutation=%d enforcement=%d", cases, detected, mutation, enforcement)
 	}
 	t.Logf("AD_FIXTURE replay cases=%d detected=%d input_mutations=%d enforcement_claims=%d", cases, detected, mutation, enforcement)
 }
