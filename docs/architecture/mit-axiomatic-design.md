@@ -1,5 +1,7 @@
 # Agent eBPF Filter：MIT 公理设计（Axiomatic Design）架构分析
 
+> **第二轮验证更新：** [源码深度验证与分模式矩阵](mit-axiomatic-design-validation.md) 已确认可选 kernel risk feedback 到真实策略 map 写入的结构链路，并穷举设计矩阵的所有排列。第 4 节为初始假设快照；关于 A43 等条件依赖，以第二轮报告为准。没有完成 Go/BPF 运行时测试。
+
 > 状态：设计审查 / 待验证假设，2026-11-26。基于 master 的源码抽查及现有技术手册；不宣称已完成全仓调用图审计、性能测试或公理合规认证。本 PR 不修改运行时代码。
 
 ## 1. 方法与边界
