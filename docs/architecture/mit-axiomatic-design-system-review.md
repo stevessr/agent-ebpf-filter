@@ -1,6 +1,6 @@
 # MIT 公理设计全系统审查与验收总表（第四轮）
 
-基线 `86357e5a912b3a4b294c9cf4b94474fbc3481bd7`；关联 PR #172。整合 [一级分析](mit-axiomatic-design.md)、[结构验证](mit-axiomatic-design-validation.md)、[动态反馈分析](mit-axiomatic-design-feedback.md)。本轮覆盖产品、数据面、控制面、研究面、呈现面与工程交付，按功能域给出可追踪验收；不是所有仓库文件逐行审计，也不是生产安全认证。读取架构/安全/验证等文档和关键源码，追加 13/13 文本锚点核查（11 个不同源文件），未执行生产 Go/BPF/性能测试。
+基线 `86357e5a912b3a4b294c9cf4b94474fbc3481bd7`；关联 PR #172。整合 [一级分析](mit-axiomatic-design.md)、[结构验证](mit-axiomatic-design-validation.md)、[动态反馈分析](mit-axiomatic-design-feedback.md)。本轮覆盖产品、数据面、控制面、研究面、呈现面与工程交付，按功能域给出可追踪验收；不是所有仓库文件逐行审计，也不是生产安全认证。读取架构/安全/验证等文档和关键源码，追加 13/13 文本锚点核查（12 个不同源文件），未执行生产 Go/BPF/性能测试。
 
 ## 1. CA、约束与设计域
 
@@ -91,6 +91,8 @@ Zigzag：CA → 一级 FR1–FR6（主文）→ 现有设计选择/边界 → �
 | T08 projections & schema | F11,F14 | proto/JSON/WS/UI/record ID 与 status 一致，老版本读写、脱敏标志与 unsupported | 待执行 |
 | T09 performance | F01,F06,F10,F13 | 基线/嵌入改造/可选 IPC 同 workload：p50/p95/p99、吞吐、RSS、CPU、丢失、恢复时间 | 待执行 |
 | T10 delivery | F12,F14 | 构建矩阵、依赖锁、产物身份、安装升级回退；不在 untrusted PR 运行 root smoke | 文档/完整性 CI 已通过上一轮；实际交付待测 |
+
+追踪检查器：[verify_axiomatic_traceability.mjs](../../scripts/verify_axiomatic_traceability.mjs)，从仓库根目录执行 `bun scripts/verify_axiomatic_traceability.mjs`（或 Node）。核心检查已对本报告文本执行：14/14 子 FR 均被 10 类测试覆盖，无未知引用；删除 T10 行的负向对照被检出。这里的覆盖率是文档追踪完整性，而非运行时测试覆盖率或通过率。
 
 测试入口参考仓库现有 [验证、测试与 Benchmark](../operations/verification-benchmark.md)，以及前两轮脚本。先运行 rootless 测试，再由可信操作者在隔离 Linux VM 执行特权 preflight/smoke；真实硬门禁不允许被 docs CI 替代。所有实验记录 commit、config hash、kernel/CPU/arch、probe 支持、模型与数据版本、seed、重复数、失败原文（脱敏）、适用性、未运行原因。
 
